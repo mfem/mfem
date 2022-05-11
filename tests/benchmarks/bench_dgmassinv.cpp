@@ -61,6 +61,13 @@ struct DGMassInverse_FullCG : Solver
       cg.Mult(b, x);
    }
 
+   void Setup()
+   {
+      m.Assemble();
+
+      jacobi.SetOperator(m);
+   }
+
    void SetOperator(const Operator &op) { }
 };
 
@@ -99,6 +106,18 @@ struct DGMassBenchmark
       tic_toc.Clear();
    }
 
+   void NewFullCG()
+   {
+      if (massinv)
+      {
+         static_cast<DGMassInverse_FullCG*>(massinv.get())->Setup();
+      }
+      else
+      {
+         massinv.reset(new DGMassInverse_FullCG(fes));
+      }
+   }
+
    void NewLocalCG(int btype)
    {
       if (massinv)
@@ -125,7 +144,7 @@ struct DGMassBenchmark
       switch (solver_type)
       {
          case MassSolverType::FULL_CG:
-            massinv.reset(new DGMassInverse_FullCG(fes));
+            NewFullCG();
             break;
          case MassSolverType::LOCAL_CG_LOBATTO:
             NewLocalCG(BasisType::GaussLobatto);
