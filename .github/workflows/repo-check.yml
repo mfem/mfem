@@ -63,8 +63,8 @@ jobs:
     - name: wrap-up
       if: |
         steps.copyright.outcome != 'success' ||
-	steps.license.outcome != 'success' ||
-	steps.release.outcome != 'success'
+        steps.license.outcome != 'success' ||
+        steps.release.outcome != 'success'
       run: |
         if [[ "${{ steps.copyright.outcome }}" != "success" ]]; then
           echo "copyright check failed, unroll log for details"
