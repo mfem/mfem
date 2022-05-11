@@ -336,17 +336,6 @@ struct Parser
       ker.advance(); // forall => kernel
    }
 
-   void mfem_kernel_unroll()
-   {
-      check(ker.is_kernel(), "Unroll not in kernel error!");
-      ker.forall.body << "#pragma unroll ";
-      while (good() && get() != '(') { check(!in.eof()); }
-      next(); ker.forall.body << get_id();
-      next_check([&]() {return get()==')';}, "no last right parenthesis found");
-      check(get() == '\n',"no newline found");
-      ker.forall.body << "\n";
-   }
-
    void mfem_forall_postfix()
    {
       check(get()==')',"no last right parenthesis found");
@@ -425,13 +414,10 @@ struct Parser
 
          if (ker.is_prefix() && forall) { mfem_forall_prefix(id); }
 
-         const bool unroll = MFEM_token(id, "UNROLL");
-         if (ker.is_kernel() && unroll) { mfem_kernel_unroll(); }
-
          if (ker.is_wait()) { out << id; }
          if (ker.is_prefix() && !JIT) { ker.src << id; ker.dup << id; }
          if (ker.is_forall()) { ker.forall.body << id; }
-         if (ker.is_kernel() && !unroll && !forall) { ker.forall.body << id; }
+         if (ker.is_kernel() && !forall) { ker.forall.body << id; }
       } // MFEM_*
 
       if (ker.is_kernel() && is_end_of(parenthesis,'(',')')) { mfem_forall_postfix(); }
