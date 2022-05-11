@@ -105,21 +105,26 @@ public:
 };
 
 /// Simultaneous Untangle-Optimizer
-/// (mu_k/2(tau-t))^p, where t=min{min(detJ)-epsilon, 0}
+/// (mu_k/phi(tau,ep))^p where
+/// phi(tau,ep) = 2*(tau - min(alpha*min(tau)-ep,0)), when shifted=true and
+///             = tau^2 + sqrt(tau^2 + ep^2), when shifted=false i.e. pseudo-barrier
+/// where tau = det(T), and min(tau) is computed over the entire mesh
 class TMOP_UntangleOptimizer_Metric : public TMOP_QualityMetric
 {
 protected:
    TMOP_QualityMetric *tmop_metric; //non-barrier metric to use
    double min_detT;                 //point to min-det
    int exponent;
+   double alpha;                    //scaling factor for min(det(T))
    double detT_ep;                  //small constant
    bool shifted;                    //shifted barrier (true) or pseudo-barrier
 public:
    TMOP_UntangleOptimizer_Metric(TMOP_QualityMetric *tmop_metric_,
                                  int exponent_ = 1,
+                                 double alpha_ = 1.5,
                                  double detT_ep_ = 0.0001,
                                  bool shifted_ = true) :
-      tmop_metric(tmop_metric_), exponent(exponent_),
+      tmop_metric(tmop_metric_), exponent(exponent_), alpha(alpha_),
       detT_ep(detT_ep_), shifted(shifted_) { }
    virtual void SetTargetJacobian(const DenseMatrix &Jtr_)
    {
@@ -141,8 +146,13 @@ public:
 };
 
 /// Simultaneous Untangle-Optimizer with worst-case quality improvement
-/// alpha/beta-alpha, where alpha = (mu_k/2(tau-t)), t=min{min(detJ)+detT_ep, 0}
-/// and beta = max(detJ)+muT_ep
+/// (mu_tilde/(beta-mu_tilde))^p, where
+/// mu_tilde = (mu/phi(tau,ep)), where
+/// phi(tau,ep) = 2*(tau - min(alpha*min(tau)-ep,0)), when shifted=true and
+///             = tau + sqrt(tau^2 + ep^2), when shifted=false i.e. pseudo-barrier
+/// beta = max(mu_tilde)+muT_ep
+/// tau = det(T), and min(tau) and max(mu_tilde) are calculated over entire mesh
+/// in 2 passes.
 class TMOP_WorstCaseUntangleOptimizer_Metric : public TMOP_QualityMetric
 {
 protected:
@@ -150,17 +160,19 @@ protected:
    double min_detT;                 //point to min-det
    double max_muT;                  //point to max-det
    int exponent;
+   double alpha;                    //scaling factor for min(det(T))
    double detT_ep;                  //small constant added to detT term
    double muT_ep;                   //small constant added to muT term
    bool shifted;                    //shifted barrier (true) or pseudo-barrier
 public:
    TMOP_WorstCaseUntangleOptimizer_Metric(TMOP_QualityMetric *tmop_metric_,
                                           int exponent_ = 1,
+                                          double alpha_ = 1.5,
                                           double detT_ep_ = 0.0001,
                                           double muT_ep_ = 0.0001,
                                           bool shifted_ = false) :
       tmop_metric(tmop_metric_),
-      exponent(exponent_), detT_ep(detT_ep_), muT_ep(muT_ep_),
+      exponent(exponent_), alpha(alpha_), detT_ep(detT_ep_), muT_ep(muT_ep_),
       shifted(shifted_)  { }
    virtual void SetTargetJacobian(const DenseMatrix &Jtr_)
    {
@@ -1646,9 +1658,10 @@ protected:
    void AssemblePA_Limiting();
    void ComputeAllElementTargets(const Vector &xe = Vector()) const;
 
-   void ComputeUntanglerMetricQuantiles(const Vector &x,
-                                        const FiniteElementSpace &fes,
-                                        Vector &Quantiles);
+   double ComputeUntanglerMinDetT(const Vector &x,
+                                  const FiniteElementSpace &fes);
+   double ComputeUntanglerMaxMuT(const Vector &x,
+                                 const FiniteElementSpace &fes);
    void ComputeUntanglerMetricQuantiles(const Vector &x,
                                         const FiniteElementSpace &fes);
 #ifdef MFEM_USE_MPI

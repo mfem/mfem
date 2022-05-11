@@ -102,9 +102,9 @@
 //   2D untangling:
 //     mpirun -np 4 pmesh-optimizer -m jagged.mesh -o 2 -mid 22 -tid 1 -ni 50 -li 50 -qo 4 -fd -vl 1
 //   2D untangling with shifted barrier metric:
-//     mpirun -np 4 pmesh-optimizer -m jagged.mesh -o 2 -mid 4 -tid 1 -ni 500 -li 50 -qo 4 -fd -vl 1 -barrier
+//     mpirun -np 4 pmesh-optimizer -m jagged.mesh -o 2 -mid 4 -tid 1 -ni 500 -li 50 -qo 4 -fd -vl 1 -uo 1 -no-shifted
 //   2D untangling with worst case untangling metric:
-//     mpirun -np 4 pmesh-optimizer -m jagged.mesh -o 2 -mid 4 -tid 1 -ni 500 -li 50 -qo 4 -fd -vl 1 -worst-case
+//     mpirun -np 4 pmesh-optimizer -m jagged.mesh -o 2 -mid 4 -tid 1 -ni 500 -li 50 -qo 4 -fd -vl 1 -uo 2
 //   3D untangling (the mesh is in the mfem/data GitHub repository):
 //   * mpirun -np 4 pmesh-optimizer -m ../../../mfem_data/cube-holes-inv.mesh -o 3 -mid 313 -tid 1 -rtol 1e-5 -li 50 -qo 4 -fd -vl 1
 
@@ -296,8 +296,8 @@ int main (int argc, char *argv[])
                   "Untangler mode: 0 - none (default), "
                   "1 - untangler optimizer,"
                   "2 - worst-case untangler optimizer");
-   args.AddOption(&shifted_barrier, "-shifted", "--shifted", "-no-barrier",
-                  "--no-barrier", "Enable shifted barrier on metric or"
+   args.AddOption(&shifted_barrier, "-shifted", "--shifted", "-no-shifted",
+                  "--no-shifted", "Enable shifted barrier on metric or"
                   "use pseudo barrier, when untangler_mode > 0.");
    args.Parse();
    if (!args.Good())
@@ -503,13 +503,15 @@ int main (int argc, char *argv[])
    {
       untangler_metric = new TMOP_UntangleOptimizer_Metric(metric,
                                                            1,
-                                                           0.0001,
+                                                           1.5,
+                                                           0.001,//0.01 for pseudo barrier
                                                            shifted_barrier);
    }
    else if (untangler_mode == 2)
    {
       untangler_metric = new TMOP_WorstCaseUntangleOptimizer_Metric(metric,
                                                                     1,
+                                                                    1.5,
                                                                     0.001,
                                                                     0.001,
                                                                     shifted_barrier);
