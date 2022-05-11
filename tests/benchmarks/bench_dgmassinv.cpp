@@ -11,8 +11,21 @@
 
 #include "bench.hpp"
 #include "kershaw.hpp"
+#include <memory>
 
 #ifdef MFEM_USE_BENCHMARK
+
+static constexpr double tol = 1e-10;
+
+enum class MassSolverType
+{
+   FULL_CG,
+   LOCAL_CG_LOBATTO,
+   LOCAL_CG_LEGENDRE,
+   DIRECT,
+   DIRECT_CUSOLVER,
+   DIRECT_CUBLAS
+};
 
 Mesh CreateKershawMesh(int N, double eps)
 {
@@ -22,8 +35,38 @@ Mesh CreateKershawMesh(int N, double eps)
    return mesh;
 }
 
+struct DGMassInverse_FullCG : Solver
+{
+   BilinearForm m;
+   OperatorJacobiSmoother jacobi;
+   CGSolver cg;
+
+   DGMassInverse_FullCG(FiniteElementSpace &fes) : m(&fes)
+   {
+      m.AddDomainIntegrator(new MassIntegrator);
+      m.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+      m.Assemble();
+
+      jacobi.SetOperator(m);
+
+      cg.SetAbsTol(tol);
+      cg.SetRelTol(0.0);
+      cg.SetMaxIter(100);
+      cg.SetOperator(m);
+      cg.SetPreconditioner(jacobi);
+   }
+
+   void Mult(const Vector &b, Vector &x) const
+   {
+      cg.Mult(b, x);
+   }
+
+   void SetOperator(const Operator &op) { }
+};
+
 struct DGMassBenchmark
 {
+   MassSolverType solver_type;
    const int p;
    const int N;
    const int dim = 3;
@@ -32,22 +75,15 @@ struct DGMassBenchmark
    FiniteElementSpace fes;
    const int n;
 
-   BilinearForm m;
-   DGMassInverse massinv_lobatto;
-   DGMassInverse massinv_legendre;
-   DGMassInverse_Direct massinv_direct;
-   DGMassInverse_Direct massinv_direct_cusolver;
-   DGMassInverse_Direct massinv_direct_cublas;
+   std::unique_ptr<Solver> massinv;
 
    Vector B, X;
-
-   OperatorJacobiSmoother jacobi;
-   CGSolver cg;
 
    const int dofs;
    double mdofs;
 
-   DGMassBenchmark(int p_, int N_, double eps_):
+   DGMassBenchmark(MassSolverType type_, int p_, int N_, double eps_) :
+      solver_type(type_),
       p(p_),
       N(N_),
       mesh(CreateKershawMesh(N,eps_)),
@@ -55,114 +91,91 @@ struct DGMassBenchmark
       fec(p, dim, BasisType::Positive),
       fes(&mesh, &fec),
       n(fes.GetTrueVSize()),
-      m(&fes),
-      massinv_lobatto(fes, BasisType::GaussLobatto),
-      massinv_legendre(fes, BasisType::GaussLegendre),
-      massinv_direct(fes, BatchSolverMode::NATIVE),
-      massinv_direct_cusolver(fes, BatchSolverMode::CUSOLVER),
-      massinv_direct_cublas(fes, BatchSolverMode::CUBLAS),
+      // massinv_lobatto(fes, BasisType::GaussLobatto),
+      // massinv_legendre(fes, BasisType::GaussLegendre),
+      // massinv_direct(fes, BatchSolverMode::NATIVE),
+      // massinv_direct_cusolver(fes, BatchSolverMode::CUSOLVER),
+      // massinv_direct_cublas(fes, BatchSolverMode::CUBLAS),
       B(n),
       X(n),
       dofs(n),
       mdofs(0.0)
    {
-      m.AddDomainIntegrator(new MassIntegrator);
-      m.SetAssemblyLevel(AssemblyLevel::PARTIAL);
-      m.Assemble();
-
-      jacobi.SetOperator(m);
-
       B.Randomize(1);
-
-      const double tol = 1e-10;
-
-      cg.SetAbsTol(tol);
-      cg.SetRelTol(0.0);
-      cg.SetMaxIter(100);
-      cg.SetOperator(m);
-      cg.SetPreconditioner(jacobi);
-
-      massinv_lobatto.SetAbsTol(tol);
-      massinv_lobatto.SetRelTol(0.0);
-
-      massinv_legendre.SetAbsTol(tol);
-      massinv_legendre.SetRelTol(0.0);
 
       tic_toc.Clear();
    }
 
-   void FullCG()
+   void NewLocalCG(int btype)
    {
-      X = 0.0;
+      DGMassInverse *massinv_ = new DGMassInverse(fes, btype);
+      massinv_->SetAbsTol(tol);
+      massinv_->SetRelTol(0.0);
+      massinv.reset(massinv_);
+   }
+
+   void NewDirect(BatchSolverMode mode)
+   {
+      DGMassInverse_Direct *massinv_ = new DGMassInverse_Direct(fes, mode);
+      massinv.reset(massinv_);
+   }
+
+   void NewSolver()
+   {
+      switch (solver_type)
+      {
+         case MassSolverType::FULL_CG:
+            massinv.reset(new DGMassInverse_FullCG(fes));
+            break;
+         case MassSolverType::LOCAL_CG_LOBATTO:
+            NewLocalCG(BasisType::GaussLobatto);
+            break;
+         case MassSolverType::LOCAL_CG_LEGENDRE:
+            NewLocalCG(BasisType::GaussLegendre);
+            break;
+         case MassSolverType::DIRECT:
+            NewDirect(BatchSolverMode::NATIVE);
+            break;
+         case MassSolverType::DIRECT_CUBLAS:
+            NewDirect(BatchSolverMode::CUBLAS);
+            break;
+         case MassSolverType::DIRECT_CUSOLVER:
+            NewDirect(BatchSolverMode::CUSOLVER);
+            break;
+      }
+   }
+
+   void Setup()
+   {
+      massinv.reset();
       MFEM_DEVICE_SYNC;
       tic_toc.Start();
-      cg.Mult(B, X);
+      NewSolver();
       MFEM_DEVICE_SYNC;
       tic_toc.Stop();
       mdofs += 1e-6 * dofs;
    }
 
-   void LocalCGLobatto()
+   void Solve()
    {
+      if (!massinv) { NewSolver(); }
       X = 0.0;
       MFEM_DEVICE_SYNC;
       tic_toc.Start();
-      massinv_lobatto.Mult(B, X);
+      massinv->Mult(B, X);
       MFEM_DEVICE_SYNC;
       tic_toc.Stop();
       mdofs += 1e-6 * dofs;
    }
 
-   void LocalCGLegendre()
+   void SetupAndSolve()
    {
+      massinv.reset();
       X = 0.0;
       MFEM_DEVICE_SYNC;
       tic_toc.Start();
-      massinv_legendre.Mult(B, X);
-      MFEM_DEVICE_SYNC;
-      tic_toc.Stop();
-      mdofs += 1e-6 * dofs;
-   }
-
-   void Direct()
-   {
-      X = 0.0;
-      MFEM_DEVICE_SYNC;
-      tic_toc.Start();
-      massinv_direct.Mult(B, X);
-      MFEM_DEVICE_SYNC;
-      tic_toc.Stop();
-      mdofs += 1e-6 * dofs;
-   }
-
-   void DirectCuSolver()
-   {
-      X = 0.0;
-      MFEM_DEVICE_SYNC;
-      tic_toc.Start();
-      massinv_direct_cusolver.Mult(B, X);
-      MFEM_DEVICE_SYNC;
-      tic_toc.Stop();
-      mdofs += 1e-6 * dofs;
-   }
-
-   void DirectCuBLAS()
-   {
-      X = 0.0;
-      MFEM_DEVICE_SYNC;
-      tic_toc.Start();
-      massinv_direct_cublas.Mult(B, X);
-      MFEM_DEVICE_SYNC;
-      tic_toc.Stop();
-      mdofs += 1e-6 * dofs;
-   }
-
-   void MassApply()
-   {
-      X = 0.0;
-      MFEM_DEVICE_SYNC;
-      tic_toc.Start();
-      m.Mult(B, X);
+      NewSolver();
+      massinv->Mult(B, X);
       MFEM_DEVICE_SYNC;
       tic_toc.Stop();
       mdofs += 1e-6 * dofs;
@@ -178,34 +191,40 @@ struct DGMassBenchmark
 
 #define MAX_NDOFS 2*1024*1024
 
+#define MASS_SOLVER_TYPE MassSolverType::
+
 /// Kernels definitions and registrations
-#define Benchmark(Name, prefix, eps)\
-static void Name##_##prefix(bm::State &state){\
+#define Benchmark(solver_type, op_name, suffix, eps)\
+static void solver_type##_##op_name##_##suffix(bm::State &state){\
    const int side = state.range(0);\
    const int p = state.range(1);\
-   DGMassBenchmark mb(p, side, eps);\
+   DGMassBenchmark mb(MASS_SOLVER_TYPE solver_type, p, side, eps);\
    if (mb.dofs > MAX_NDOFS) { state.SkipWithError("MAX_NDOFS"); }\
-   while (state.KeepRunning()) { mb.Name(); }\
+   while (state.KeepRunning()) { mb.op_name(); }\
    state.counters["MDof/s"] = bm::Counter(mb.Mdofs());\
    state.counters["dofs"] = bm::Counter(mb.dofs);\
    state.counters["p"] = bm::Counter(p);\
 }\
-BENCHMARK(Name##_##prefix)\
+BENCHMARK(solver_type##_##op_name##_##suffix)\
             -> ArgsProduct({N_SIDES,P_ORDERS})\
             -> Unit(bm::kMillisecond);
 
-#define MassBenchmark(prefix, eps) \
-   Benchmark(FullCG, prefix, eps) \
-   Benchmark(LocalCGLobatto, prefix, eps) \
-   Benchmark(LocalCGLegendre, prefix, eps) \
-   Benchmark(Direct, prefix, eps) \
-   Benchmark(DirectCuSolver, prefix, eps) \
-   Benchmark(DirectCuBLAS, prefix, eps) \
-   Benchmark(MassApply, prefix, eps)
+#define MassBenchmarks(solver_type, suffix, eps) \
+   Benchmark(solver_type, Setup, suffix, eps) \
+   Benchmark(solver_type, Solve, suffix, eps) \
+   Benchmark(solver_type, SetupAndSolve, suffix, eps)
 
-MassBenchmark(1_0, 1.0)
-MassBenchmark(0_5, 0.5)
-MassBenchmark(0_3, 0.3)
+#define AllMassBenchmarks(suffix, eps) \
+   MassBenchmarks(FULL_CG, suffix, eps) \
+   MassBenchmarks(LOCAL_CG_LOBATTO, suffix, eps) \
+   MassBenchmarks(LOCAL_CG_LEGENDRE, suffix, eps) \
+   MassBenchmarks(DIRECT, suffix, eps) \
+   MassBenchmarks(DIRECT_CUBLAS, suffix, eps) \
+   MassBenchmarks(DIRECT_CUSOLVER, suffix, eps)
+
+AllMassBenchmarks(1_0, 1.0)
+AllMassBenchmarks(0_5, 0.5)
+AllMassBenchmarks(0_3, 0.3)
 
 int main(int argc, char *argv[])
 {
