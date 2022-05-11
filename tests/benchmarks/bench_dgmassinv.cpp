@@ -87,31 +87,31 @@ struct DGMassBenchmark
       p(p_),
       N(N_),
       mesh(CreateKershawMesh(N,eps_)),
-      // fec(p, dim, BasisType::GaussLobatto),
       fec(p, dim, BasisType::Positive),
       fes(&mesh, &fec),
       n(fes.GetTrueVSize()),
-      // massinv_lobatto(fes, BasisType::GaussLobatto),
-      // massinv_legendre(fes, BasisType::GaussLegendre),
-      // massinv_direct(fes, BatchSolverMode::NATIVE),
-      // massinv_direct_cusolver(fes, BatchSolverMode::CUSOLVER),
-      // massinv_direct_cublas(fes, BatchSolverMode::CUBLAS),
       B(n),
       X(n),
       dofs(n),
       mdofs(0.0)
    {
       B.Randomize(1);
-
       tic_toc.Clear();
    }
 
    void NewLocalCG(int btype)
    {
-      DGMassInverse *massinv_ = new DGMassInverse(fes, btype);
-      massinv_->SetAbsTol(tol);
-      massinv_->SetRelTol(0.0);
-      massinv.reset(massinv_);
+      if (massinv)
+      {
+         static_cast<DGMassInverse*>(massinv.get())->Setup();
+      }
+      else
+      {
+         DGMassInverse *massinv_ = new DGMassInverse(fes, btype);
+         massinv_->SetAbsTol(tol);
+         massinv_->SetRelTol(0.0);
+         massinv.reset(massinv_);
+      }
    }
 
    void NewDirect(BatchSolverMode mode)
@@ -147,7 +147,6 @@ struct DGMassBenchmark
 
    void Setup()
    {
-      massinv.reset();
       MFEM_DEVICE_SYNC;
       tic_toc.Start();
       NewSolver();

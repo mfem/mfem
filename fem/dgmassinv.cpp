@@ -22,6 +22,20 @@
 namespace mfem
 {
 
+void DGMassInverse::Setup()
+{
+   BilinearForm M(&fes);
+   M.AddDomainIntegrator(m);
+   M.UseExternalIntegrators();
+   M.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+   M.Assemble();
+
+   diag_inv.SetSize(height);
+   M.AssembleDiagonal(diag_inv);
+
+   MakeReciprocal(diag_inv.Size(), diag_inv.ReadWrite());
+}
+
 DGMassInverse::DGMassInverse(FiniteElementSpace &fes_orig, Coefficient *coeff,
                              const IntegrationRule *ir,
                              int btype)
@@ -63,16 +77,7 @@ DGMassInverse::DGMassInverse(FiniteElementSpace &fes_orig, Coefficient *coeff,
    if (coeff) { m = new MassIntegrator(*coeff, ir); }
    else { m = new MassIntegrator(ir); }
 
-   BilinearForm M(&fes);
-   M.AddDomainIntegrator(m);
-   M.UseExternalIntegrators();
-   M.SetAssemblyLevel(AssemblyLevel::PARTIAL);
-   M.Assemble();
-
-   diag_inv.SetSize(height);
-   M.AssembleDiagonal(diag_inv);
-
-   MakeReciprocal(diag_inv.Size(), diag_inv.ReadWrite());
+   Setup();
 
    // Workspace vectors used for CG
    r_.SetSize(height);

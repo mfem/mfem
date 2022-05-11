@@ -95,6 +95,8 @@ public:
    void SetMaxIter(const double max_iter_);
    ~DGMassInverse();
 
+   void Setup();
+
    // Not part of the public interface, must be public because it contains a
    // kernel
    template<int DIM, int D1D = 0, int Q1D = 0>

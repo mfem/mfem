@@ -13,7 +13,7 @@ do
       bench_name="${stype}_${op}"
       bench_filter="${bench_name}_0_5/.*/.*"
       output_name="${bench_name,,}.csv"
-      cmd="./bench_dgmassinv --benchmark_filter=\"${bench_filter}\" --benchmark_context=device=cuda --benchmark_out_format=csv --benchmark_out=${output_name}"
+      cmd="./bench_dgmassinv --benchmark_filter=${bench_filter} --benchmark_context=device=cuda --benchmark_out_format=csv --benchmark_out=${output_name}"
       echo -e "${GREEN}${cmd}${NC}"
       $cmd
    done
