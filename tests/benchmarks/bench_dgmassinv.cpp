@@ -191,14 +191,12 @@ struct DGMassBenchmark
 
 #define MAX_NDOFS 2*1024*1024
 
-#define MASS_SOLVER_TYPE MassSolverType::
-
 /// Kernels definitions and registrations
 #define Benchmark(solver_type, op_name, suffix, eps)\
 static void solver_type##_##op_name##_##suffix(bm::State &state){\
    const int side = state.range(0);\
    const int p = state.range(1);\
-   DGMassBenchmark mb(MASS_SOLVER_TYPE solver_type, p, side, eps);\
+   DGMassBenchmark mb(MassSolverType:: solver_type, p, side, eps);\
    if (mb.dofs > MAX_NDOFS) { state.SkipWithError("MAX_NDOFS"); }\
    while (state.KeepRunning()) { mb.op_name(); }\
    state.counters["MDof/s"] = bm::Counter(mb.Mdofs());\
