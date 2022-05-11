@@ -324,6 +324,9 @@ tests/benchmarks/bench_dgmassinv
 tests/benchmarks/bench_tmop
 tests/benchmarks/bench_vector
 tests/benchmarks/bench_virtuals
+tests/benchmarks/plot/*.pdf
+tests/benchmarks/plot/*.tex
+tests/benchmarks/plot/*.csv
 
 # Test script output
 tests/scripts/*.err
