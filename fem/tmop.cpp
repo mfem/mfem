@@ -63,7 +63,7 @@ double TMOP_UntangleOptimizer_Metric::EvalW(const DenseMatrix &Jpt) const
    double denominator;
    if (shifted)
    {
-      denominator = 2.0*(Jpt.Det()-std::min(min_detT-detT_ep, 0.0));
+      denominator = 2.0*(Jpt.Det()-std::min(alpha*min_detT-detT_ep, 0.0));
    }
    else
    {
@@ -76,18 +76,35 @@ double TMOP_UntangleOptimizer_Metric::EvalW(const DenseMatrix &Jpt) const
 double TMOP_WorstCaseUntangleOptimizer_Metric::EvalW(const DenseMatrix &Jpt)
 const
 {
-   double t = 2.0*(Jpt.Det()-std::min(min_detT-detT_ep, 0.0));
-   double metric = tmop_metric->EvalW(Jpt);
-   double alpha = metric/t;
+   double denominator;
+   if (shifted)
+   {
+      denominator = 2.0*(Jpt.Det()-std::min(alpha*min_detT-detT_ep, 0.0));
+   }
+   else
+   {
+      double detT = Jpt.Det();
+      denominator = detT + std::sqrt(detT*detT + detT_ep*detT_ep);
+   }
+   double metric = tmop_metric->EvalW(Jpt)/denominator;
    double beta = max_muT+muT_ep;
-   return std::pow(alpha/(beta-alpha), exponent);
+   return std::pow(metric/(beta-metric), exponent);
 }
 
 double TMOP_WorstCaseUntangleOptimizer_Metric::EvalWTilde(
    const DenseMatrix &Jpt) const
 {
-   double alpha = 2.0*(Jpt.Det()-std::min(min_detT-detT_ep, 0.0));
-   return std::pow(tmop_metric->EvalW(Jpt)/alpha, exponent);
+   double denominator;
+   if (shifted)
+   {
+      denominator = 2.0*(Jpt.Det()-std::min(alpha*min_detT-detT_ep, 0.0));
+   }
+   else
+   {
+      double detT = Jpt.Det();
+      denominator = detT + std::sqrt(detT*detT + detT_ep*detT_ep);
+   }
+   return tmop_metric->EvalW(Jpt)/denominator;
 }
 
 double TMOP_Metric_001::EvalW(const DenseMatrix &Jpt) const
@@ -3723,12 +3740,49 @@ void TMOP_Integrator::EnableFiniteDifferences(const ParGridFunction &x)
 }
 #endif
 
-void TMOP_Integrator::ComputeUntanglerMetricQuantiles(const Vector &x,
-                                                      const FiniteElementSpace &fes,
-                                                      Vector &Quantiles)
+double TMOP_Integrator::ComputeUntanglerMinDetT(const Vector &x,
+                                                const FiniteElementSpace &fes)
+{
+   double min_detT = std::numeric_limits<double>::infinity();
+   const int NE = fes.GetMesh()->GetNE();
+   Array<int> xdofs;
+
+   for (int i = 0; i < NE; i++)
+   {
+      const FiniteElement *fe = fes.GetFE(i);
+      const IntegrationRule &ir = EnergyIntegrationRule(*fe);
+      const int dim = fe->GetDim(),
+                dof = fe->GetDof(), nsp = ir.GetNPoints();
+      Jpr.SetSize(dim);
+
+      DSh.SetSize(dof, dim);
+      PMatI.SetSize(dof, dim);
+      Vector posV(dof * dim);
+      PMatI.UseExternalData(posV.GetData(), dof, dim);
+
+      fes.GetElementVDofs(i, xdofs);
+      x.GetSubVector(xdofs, posV);
+
+      DenseTensor Jtr(dim, dim, ir.GetNPoints());
+      targetC->ComputeElementTargets(i, *fe, ir, posV, Jtr);
+
+      for (int q = 0; q < nsp; q++)
+      {
+         const IntegrationPoint &ip = ir.IntPoint(q);
+         fe->CalcDShape(ip, DSh);
+         MultAtB(PMatI, DSh, Jpr);
+         Mult(Jpr, Jrt, Jpt);
+         double detT = Jpt.Det();
+         min_detT = std::min(min_detT, detT);
+      }
+   }
+   return min_detT;
+}
+
+double TMOP_Integrator::ComputeUntanglerMaxMuT(const Vector &x,
+                                               const FiniteElementSpace &fes)
 {
    double max_muT = -std::numeric_limits<double>::infinity();
-   double min_detT = std::numeric_limits<double>::infinity();
    const int NE = fes.GetMesh()->GetNE();
    Array<int> xdofs;
 
@@ -3736,7 +3790,8 @@ void TMOP_Integrator::ComputeUntanglerMetricQuantiles(const Vector &x,
       dynamic_cast<TMOP_WorstCaseUntangleOptimizer_Metric *>(metric);
    TMOP_UntangleOptimizer_Metric *uo =
       dynamic_cast<TMOP_UntangleOptimizer_Metric *>(metric);
-   if (!wcuo && !uo) { return; }
+   if (!wcuo && !uo) { return 0.0; }
+
    for (int i = 0; i < NE; i++)
    {
       const FiniteElement *fe = fes.GetFE(i);
@@ -3765,9 +3820,6 @@ void TMOP_Integrator::ComputeUntanglerMetricQuantiles(const Vector &x,
          MultAtB(PMatI, DSh, Jpr);
          Mult(Jpr, Jrt, Jpt);
 
-         double detT = Jpt.Det();
-         min_detT = std::min(min_detT, detT);
-
          double metric_val = 0.0;
          if (wcuo)
          {
@@ -3778,9 +3830,7 @@ void TMOP_Integrator::ComputeUntanglerMetricQuantiles(const Vector &x,
          max_muT = std::max(max_muT, metric_val);
       }
    }
-   Quantiles.SetSize(2);
-   Quantiles(0) = min_detT;
-   Quantiles(1) = max_muT;
+   return max_muT;
 }
 
 void TMOP_Integrator::ComputeUntanglerMetricQuantiles(const Vector &x,
@@ -3788,24 +3838,23 @@ void TMOP_Integrator::ComputeUntanglerMetricQuantiles(const Vector &x,
 {
    TMOP_WorstCaseUntangleOptimizer_Metric *wcuo =
       dynamic_cast<TMOP_WorstCaseUntangleOptimizer_Metric *>(metric);
-   if (wcuo && !wcuo->ShiftedBarrierMetric()) { return; }
    TMOP_UntangleOptimizer_Metric *uo =
       dynamic_cast<TMOP_UntangleOptimizer_Metric *>(metric);
-   if (uo && !uo->ShiftedBarrierMetric()) { return; }
 
    if (!wcuo && !uo) { return; }
-   Vector Quantiles;
-   ComputeUntanglerMetricQuantiles(x, fes, Quantiles);
 
-   if (uo)
+   if ( (wcuo && wcuo->ShiftedBarrierMetric()) ||
+        (uo && uo->ShiftedBarrierMetric()))
    {
-      uo->SetMinDetT(Quantiles(0));
+      double min_detT = ComputeUntanglerMinDetT(x, fes);
+      if (wcuo) { wcuo->SetMinDetT(min_detT); }
+      else if (uo) {uo->SetMinDetT(min_detT); }
    }
-   else if (wcuo)
-   {
-      wcuo->SetMinDetT(Quantiles(0));
-      wcuo->SetMaxMuT(Quantiles(1));
-   }
+
+   if (!wcuo) { return; }
+
+   double max_muT = ComputeUntanglerMaxMuT(x, fes);
+   wcuo->SetMaxMuT(max_muT);
 }
 
 #ifdef MFEM_USE_MPI
@@ -3814,32 +3863,30 @@ void TMOP_Integrator::ComputeUntanglerMetricQuantiles(const Vector &x,
 {
    TMOP_WorstCaseUntangleOptimizer_Metric *wcuo =
       dynamic_cast<TMOP_WorstCaseUntangleOptimizer_Metric *>(metric);
-   if (wcuo && !wcuo->ShiftedBarrierMetric()) { return; }
    TMOP_UntangleOptimizer_Metric *uo =
       dynamic_cast<TMOP_UntangleOptimizer_Metric *>(metric);
-   if (uo && !uo->ShiftedBarrierMetric()) { return; }
 
    if (!wcuo && !uo) { return; }
 
    const FiniteElementSpace *fes = dynamic_cast<const FiniteElementSpace *>(&pfes);
-   Vector Quantiles;
-   ComputeUntanglerMetricQuantiles(x, *fes, Quantiles);
-
-   double min_detT_all, max_muT_all;
-   MPI_Allreduce(Quantiles.GetData(), &min_detT_all, 1, MPI_DOUBLE, MPI_MIN,
-                 pfes.GetComm());
-   MPI_Allreduce(Quantiles.GetData()+1, &max_muT_all, 1, MPI_DOUBLE, MPI_MAX,
-                 pfes.GetComm());
-
-   if (uo)
+   if ( (wcuo && wcuo->ShiftedBarrierMetric()) ||
+        (uo && uo->ShiftedBarrierMetric()))
    {
-      uo->SetMinDetT(min_detT_all);
+      double min_detT = ComputeUntanglerMinDetT(x, *fes);
+      double min_detT_all;
+      MPI_Allreduce(&min_detT, &min_detT_all, 1, MPI_DOUBLE, MPI_MIN,
+                    pfes.GetComm());
+      if (wcuo) { wcuo->SetMinDetT(min_detT_all); }
+      else if (uo) {uo->SetMinDetT(min_detT_all); }
    }
-   else if (wcuo)
-   {
-      wcuo->SetMinDetT(min_detT_all);
-      wcuo->SetMaxMuT(max_muT_all);
-   }
+
+   if (!wcuo) { return; }
+
+   double max_muT = ComputeUntanglerMaxMuT(x, *fes);
+   double max_muT_all;
+   MPI_Allreduce(&max_muT, &max_muT_all, 1, MPI_DOUBLE, MPI_MAX,
+                 pfes.GetComm());
+   wcuo->SetMaxMuT(max_muT_all);
 }
 #endif
 

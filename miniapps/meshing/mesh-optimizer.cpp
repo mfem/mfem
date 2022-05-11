@@ -287,8 +287,8 @@ int main(int argc, char *argv[])
                   "Untangler mode: 0 - none (default), "
                   "1 - untangler optimizer,"
                   "2 - worst-case untangler optimizer");
-   args.AddOption(&shifted_barrier, "-shifted", "--shifted", "-no-barrier",
-                  "--no-barrier", "Enable shifted barrier on metric or"
+   args.AddOption(&shifted_barrier, "-shifted", "--shifted", "-no-shifted",
+                  "--no-shifted", "Enable shifted barrier on metric or"
                   "use pseudo barrier, when untangler_mode > 0.");
    args.Parse();
    if (!args.Good())
@@ -476,13 +476,15 @@ int main(int argc, char *argv[])
    TMOP_QualityMetric *untangler_metric = NULL;
    if (untangler_mode == 1)
    {
-      untangler_metric = new TMOP_UntangleOptimizer_Metric(metric, 1, 0.0001,
+      untangler_metric = new TMOP_UntangleOptimizer_Metric(metric, 1, 1.5,
+                                                           0.0001,
                                                            shifted_barrier);
    }
    else if (untangler_mode == 2)
    {
       untangler_metric = new TMOP_WorstCaseUntangleOptimizer_Metric(metric,
                                                                     1,
+                                                                    1.5,
                                                                     0.0001,
                                                                     0.0001,
                                                                     shifted_barrier);
