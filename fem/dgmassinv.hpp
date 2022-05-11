@@ -33,6 +33,7 @@ protected:
    const DofToQuad *d2q; ///< Change of basis. Not owned.
    Array<double> B_; ///< Inverse of change of basis.
    Array<double> Bt_; ///< Inverse of change of basis, transposed.
+   class BilinearForm *M;
    class MassIntegrator *m; ///< Owned.
    Vector diag_inv; ///< Jacobi preconditioner.
    double rel_tol = 1e-12; ///< Relative CG tolerance.

@@ -63,6 +63,7 @@ struct DGMassInverse_FullCG : Solver
 
    void Setup()
    {
+      m.Update();
       m.Assemble();
 
       jacobi.SetOperator(m);
