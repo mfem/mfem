@@ -562,8 +562,7 @@ static void PADiffusionDiagonal2D(const int NE,
 }
 
 // Shared memory PA Diffusion Diagonal 2D kernel
-MFEM_JIT
-template<int T_D1D = 0, int T_Q1D = 0, int T_NBZ = 0>
+MFEM_JIT template<int T_D1D = 0, int T_Q1D = 0, int T_NBZ = 0>
 static void SmemPADiffusionDiagonal2D(const int NE,
                                       const bool symmetric,
                                       const double *b_,
@@ -760,8 +759,7 @@ static void PADiffusionDiagonal3D(const int NE,
 }
 
 // Shared memory PA Diffusion Diagonal 3D kernel
-MFEM_JIT
-template<int T_D1D = 0, int T_Q1D = 0>
+MFEM_JIT template<int T_D1D = 0, int T_Q1D = 0>
 static void SmemPADiffusionDiagonal3D(const int NE,
                                       const bool symmetric,
                                       const double *b_,
@@ -1181,8 +1179,7 @@ static void PADiffusionApply2D(const int NE,
 }
 
 // Shared memory PA Diffusion Apply 2D kernel
-MFEM_JIT
-template<int T_D1D = 0, int T_Q1D = 0, int T_NBZ = 0>
+MFEM_JIT template<int T_D1D = 0, int T_Q1D = 0, int T_NBZ = 0>
 static void SmemPADiffusionApply2D(const int NE,
                                    const bool symmetric,
                                    const double *b_,
@@ -1535,8 +1532,7 @@ static void PADiffusionApply3D(const int NE,
 }
 
 // Shared memory PA Diffusion Apply 3D kernel
-MFEM_JIT
-template<int T_D1D = 0, int T_Q1D = 0>
+MFEM_JIT template<int T_D1D = 0, int T_Q1D = 0>
 void SmemPADiffusionApply3D(const int NE,
                             const bool symmetric,
                             const double *b_,

@@ -54,21 +54,17 @@ TEST_CASE("Just-In-Time-Compilation", "[JIT]")
 
       std::remove("test_mjit"); // cleanup existing executable
 
-#warning cleanup caches, but forces each unit_tests to rebuild it
-      std::remove("libmjit.a"); std::remove("libmjit.so");
-
       System(MFEM_JIT_CXX " " MFEM_JIT_BUILD_FLAGS // compilation
              " -DMFEM_JIT_COMPILATION -o test_mjit test_mjit.cc"
              " -I../.. -I" MFEM_INSTALL_DIR "/include/mfem"
              " -L../.. -L" MFEM_INSTALL_DIR "/lib -lmfem -ldl");
       std::remove("test_mjit.cc");
 
-      System("./test_mjit"); // will rebuild the libmjit libraries
-
-      System("./test_mjit"); // should reuse the libraries
+      System("./test_mjit"); // rebuild the libmjit.a/so if needed
+      System("./test_mjit"); // reuse libmjit.so
 
       std::remove("libmjit.so");
-      System("./test_mjit"); // will rebuild only the shared library
+      System("./test_mjit"); // only rebuild libmjit.so
 
       std::remove("test_mjit");
    }
@@ -106,13 +102,13 @@ size_t pi(size_t n, const size_t D = 100)
    return pow(16,8)*fmod(4.0*p(1) - 2.0*p(4) - p(5) - p(6), 1.0);
 }
 
-MFEM_JIT template<int T_Q> void jit1(int s, int q = 0)
+MFEM_JIT template<int T_Q> void parser1(int s, int q = 0)
 {
    MFEM_CONTRACT_VAR(s);
    MFEM_CONTRACT_VAR(q);
 }
 
-MFEM_JIT template<int T_Q> void jit2(int q = 0)
+MFEM_JIT template<int T_Q> void parser2(int q = 0)
 {
    /*1*/
    {
@@ -127,7 +123,7 @@ MFEM_JIT template<int T_Q> void jit2(int q = 0)
    // ~1
 }
 
-MFEM_JIT template<int T_Q> void jit3(int q = 0)
+MFEM_JIT template<int T_Q> void parser3(int q = 0)
 {
    /*1*/
    MFEM_CONTRACT_VAR(q);
@@ -159,13 +155,13 @@ MFEM_JIT template<int T_Q> void jit3(int q = 0)
    } /*~1*/
 }
 
-MFEM_JIT template<int T_R> void jit4(/**/ int //
-                                          q/**/, //
-                                          //
-                                          /**/int /**/ r /**/ = /**/
+MFEM_JIT template<int T_R> void parser4(/**/ int //
+                                             q/**/, //
                                              //
-                                             0
-                                    )/**/
+                                             /**/int /**/ r /**/ = /**/
+                                                //
+                                                0
+                                       )/**/
 //
 /**/
 {
@@ -175,7 +171,7 @@ MFEM_JIT template<int T_R> void jit4(/**/ int //
    MFEM_CONTRACT_VAR(r);
 }
 
-MFEM_JIT template<int T_Q> void jit5
+MFEM_JIT template<int T_Q> void parser5
 (int/**/ //
  //
  /**/q/**/ = 0) // single line error?
@@ -184,7 +180,7 @@ MFEM_JIT template<int T_Q> void jit5
 }
 
 MFEM_JIT/**/template/**/</**/int/**/T_Q/**/>//
-/**/void/**/jit_6/**/(/**/int/**/q/**/=/**/0/**/)/**/
+/**/void/**/parser6/**/(/**/int/**/q/**/=/**/0/**/)/**/
 {/**/MFEM_CONTRACT_VAR/**/(/**/q/**/)/**/;/**/}
 
 MFEM_JIT//

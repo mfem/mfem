@@ -464,7 +464,8 @@ $(OBJECT_FILES): $(BLD)%.o: $(SRC)%.cpp $(CONFIG_MK)
 else
 # JIT compilation rules
 # Files that will be preprocessed
-JIT_SOURCE_FILES = $(SRC)fem/bilininteg_diffusion_pa.cpp
+JIT_SOURCE_FILES = $(SRC)fem/bilininteg_diffusion_pa.cpp \
+$(SRC)fem/bilininteg_mass_pa.cpp
 
 # Definitions to compile the preprocessor and grab the MFEM compiler
 ifeq ($(shell uname -s),Linux)
