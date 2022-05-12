@@ -240,8 +240,6 @@ ifeq ($(MFEM_USE_CUDA),YES)
    ifeq ($(MFEM_USE_HIP),YES)
       $(error Incompatible config: MFEM_USE_CUDA can not be combined with MFEM_USE_HIP)
    endif
-   # The '-x' is required when input is from standard input
-   JIT_LANG = -x cu
 endif
 
 # HIP configuration
@@ -260,9 +258,6 @@ ifeq ($(MFEM_USE_HIP),YES)
    ifeq ($(MFEM_USE_CUDA),YES)
       $(error Incompatible config: MFEM_USE_HIP can not be combined with MFEM_USE_CUDA)
    endif
-   # The '-x' is required when input is from standard input
-   # warning: hipcc does not use the amdgpu-target
-   JIT_LANG = -x hip
 endif
 
 # JIT configuration
@@ -447,9 +442,9 @@ OKL_DIRS = fem
 .SUFFIXES:
 .SUFFIXES: .cpp .o
 # Remove some default implicit rules
-%:	%.o
-%.o:	%.cpp
-%:	%.cpp
+%: %.o
+%.o: %.cpp
+%: %.cpp
 
 # Default rule.
 lib: $(if $(shared),$(BLD)libmfem.$(SO_EXT)) $(if $(static),$(BLD)libmfem.a) \
@@ -470,10 +465,7 @@ JIT_SOURCE_FILES = $(SRC)fem/bilininteg_diffusion_pa.cpp \
 $(SRC)fem/bilininteg_mass_pa.cpp
 
 # Definitions to compile the preprocessor and grab the MFEM compiler
-ifeq ($(shell uname -s),Linux)
-JIT_LIB = -ldl
-endif
-$(BLD)$(MFEM_JIT): $(BLD)general/jit/parser.o
+$(BLD)$(MFEM_JIT): $(BLD)general/jit/parser.o $(CONFIG_MK) makefile
 	$(MFEM_CXX) $(MFEM_LINK_FLAGS) -o $(@) $(<) $(JIT_LIB) 
 
 # Filtering out the objects that will be compiled through the preprocessor
@@ -483,10 +475,11 @@ STD_OBJECTS_FILES = $(filter-out $(JIT_OBJECTS_FILES), $(OBJECT_FILES))
 $(STD_OBJECTS_FILES): $(BLD)%.o: $(SRC)%.cpp $(CONFIG_MK)
 	$(MFEM_CXX) $(strip $(MFEM_BUILD_FLAGS)) -c $(<) -o $(@)
 
-JIT_BUILD_FLAGS  = $(strip $(MFEM_BUILD_FLAGS))
-JIT_BUILD_FLAGS += $(JIT_LANG) -I$(patsubst %/,%,$(<D))
-$(JIT_OBJECTS_FILES): $(BLD)%.o: $(SRC)%.cpp $(CONFIG_MK) $(BLD)$(MFEM_JIT)
-	$(BLD)./$(MFEM_JIT) $(<) | $(MFEM_CXX) $(JIT_BUILD_FLAGS) -c -o $(@) -
+$(BLD)%.jit.cpp: $(SRC)%.cpp $(CONFIG_MK) $(BLD)$(MFEM_JIT)
+	$(BLD)./$(MFEM_JIT) $(<) -o $(@)
+
+$(BLD)%.o: $(BLD)%.jit.cpp $(CONFIG_MK) makefile
+	$(MFEM_CXX) $(strip $(MFEM_BUILD_FLAGS)) -c $(<) -o $(@)
 endif
 
 all: examples miniapps $(TEST_DIRS)
