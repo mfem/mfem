@@ -222,8 +222,10 @@ int main(int argc, char *argv[])
    rot_mat(0,0) = 0.; rot_mat(0,1) = 1.;
    rot_mat(1,0) = -1.; rot_mat(1,1) = 0.;
    MatrixConstantCoefficient rot(rot_mat);
-   ScalarMatrixProductCoefficient cf_rot(negmuomeg,rot);
-   ScalarMatrixProductCoefficient cf_rott(muomeg,rot);
+   ScalarMatrixProductCoefficient epsrot(epsomeg,rot);
+   ScalarMatrixProductCoefficient negepsrot(negepsomeg,rot);
+   // ScalarMatrixProductCoefficient cf_rot(negmuomeg,rot);
+   // ScalarMatrixProductCoefficient cf_rott(muomeg,rot);
    // Normal equation weak formulation
    Array<FiniteElementSpace * > trial_fes; 
    Array<FiniteElementCollection * > test_fec; 
@@ -299,46 +301,43 @@ int main(int argc, char *argv[])
    {   
       if(dim == 3)
       {
-         // ϵ^2 ω^2 (F,δF)
-         a->AddTestIntegrator(new VectorFEMassIntegrator(eps2omeg2),nullptr,0,0);
-         // -i ω ϵ (F,∇ × δG) = (F, ω ϵ ∇ × δ G)
-         a->AddTestIntegrator(nullptr,new MixedVectorWeakCurlIntegrator(negepsomeg),0,1);
-         // -i ω μ  (∇ × F, δG)
-         a->AddTestIntegrator(nullptr,new MixedVectorCurlIntegrator(negmuomeg),0,1);
-         // i ω ϵ (∇ × G,δF)
-         a->AddTestIntegrator(nullptr,new MixedVectorCurlIntegrator(muomeg),1,0);
-         // i ω μ (G, ∇ × δF )
-         a->AddTestIntegrator(nullptr,new MixedVectorWeakCurlIntegrator(epsomeg),1,0);
-         // μ^2 ω^2 (G,δG)
-         a->AddTestIntegrator(new VectorFEMassIntegrator(mu2omeg2),nullptr,1,1);
+         // μ^2 ω^2 (F,δF)
+         a->AddTestIntegrator(new VectorFEMassIntegrator(mu2omeg2),nullptr,0,0);
+         // -i ω μ (F,∇ × δG) = (F, ω μ ∇ × δ G)
+         a->AddTestIntegrator(nullptr,new MixedVectorWeakCurlIntegrator(negmuomeg),0,1);
+         // -i ω ϵ (∇ × F, δG)
+         a->AddTestIntegrator(nullptr,new MixedVectorCurlIntegrator(negepsomeg),0,1);
+         // i ω μ (∇ × G,δF)
+         a->AddTestIntegrator(nullptr,new MixedVectorCurlIntegrator(epsomeg),1,0);
+         // i ω ϵ (G, ∇ × δF )
+         a->AddTestIntegrator(nullptr,new MixedVectorWeakCurlIntegrator(muomeg),1,0);
+         // ϵ^2 ω^2 (G,δG)
+         a->AddTestIntegrator(new VectorFEMassIntegrator(eps2omeg2),nullptr,1,1);
       }
       else
       {
-         // ϵ^2 ω^2 (F,δF)
-         a->AddTestIntegrator(new MassIntegrator(eps2omeg2),nullptr,0,0);
+         // μ^2 ω^2 (F,δF)
+         a->AddTestIntegrator(new MassIntegrator(mu2omeg2),nullptr,0,0);
 
-         // -i ω ϵ (F,∇ × δG) = i (F, -ω ϵ ∇ × δ G)
+         // -i ω μ (F,∇ × δG) = i (F, -ω μ ∇ × δ G)
          a->AddTestIntegrator(nullptr,
-            new TransposeIntegrator(new CurlIntegrator(negepsomeg)),0,1);
+            new TransposeIntegrator(new CurlIntegrator(negmuomeg)),0,1);
 
-         // -i ω μ  (∇ × F, δG) = i (ω μ A ∇ F,δG), A = [0 1; -1; 0]
-         // cf_rot = - ω μ A 
-         a->AddTestIntegrator(nullptr,new MixedVectorGradientIntegrator(cf_rot),0,1);   
+         // -i ω ϵ (∇ × F, δG) = i (- ω ϵ A ∇ F,δG), A = [0 1; -1; 0]
+         a->AddTestIntegrator(nullptr,new MixedVectorGradientIntegrator(negepsrot),0,1);   
 
-         // i ω ϵ (∇ × G,δF) = i (ω ϵ ∇ × G, δF )
-         a->AddTestIntegrator(nullptr,new CurlIntegrator(epsomeg),1,0);
+         // i ω μ (∇ × G,δF) = i (ω μ ∇ × G, δF )
+         a->AddTestIntegrator(nullptr,new CurlIntegrator(muomeg),1,0);
 
-         // i ω μ (G, ∇ × δF ) =  i (ω μ G, A ∇ δF) = i ( G , ω μ A ∇ δF) 
-         // cf_rott = ω μ A 
+         // i ω ϵ (G, ∇ × δF ) =  i (ω ϵ G, A ∇ δF) = i ( G , ω ϵ A ∇ δF) 
          a->AddTestIntegrator(nullptr,
-                   new TransposeIntegrator(new MixedVectorGradientIntegrator(cf_rott)),1,0);
+                   new TransposeIntegrator(new MixedVectorGradientIntegrator(epsrot)),1,0);
 
-         // or    i ( - ω μ A G, ∇ δF)
-         // cf_rot = - ω μ A 
+         // or    i ( ω ϵ A^t G, ∇ δF) = i (- ω ϵ A G, ∇ δF)
          // a->AddTestIntegrator(nullptr,
-                  //  new MixedVectorWeakDivergenceIntegrator(cf_rott),1,0);
-         // μ^2 ω^2 (G,δG)
-         a->AddTestIntegrator(new VectorFEMassIntegrator(mu2omeg2),nullptr,1,1);            
+                  //  new MixedVectorWeakDivergenceIntegrator(epsrot),1,0);
+         // ϵ^2 ω^2 (G,δG)
+         a->AddTestIntegrator(new VectorFEMassIntegrator(eps2omeg2),nullptr,1,1);            
       }
    }
 
@@ -754,27 +753,64 @@ void maxwell_solution(const Vector & X, std::vector<complex<double>> &E,
    E.resize(dim);
    curlE.resize(dimc);
    curlcurlE.resize(dim);
+   switch (prob)
+   {
+   case prob_type::polynomial:
+   {
+      if (dim == 3)
+      {
+         E[0] = y * z * (1.0 - y) * (1.0 - z);
+         E[1] = x * y * z * (1.0 - x) * (1.0 - z);
+         E[2] = x * y * (1.0 - x) * (1.0 - y);
+         curlE[0] = (1.0 - x) * x * (y*(2.0*z-3.0)+1.0);
+         curlE[1] = 2.0*(1.0 - y)*y*(x-z);
+         curlE[2] = (z-1)*z*(1.0+y*(2.0*x-3.0));
+         curlcurlE[0] = 2.0 * y * (1.0 - y) - (2.0 * x - 3.0) * z * (1 - z);
+         curlcurlE[1] = 2.0 * y * (x * (1.0 - x) + (1.0 - z) * z);
+         curlcurlE[2] = 2.0 * y * (1.0 - y) + x * (3.0 - 2.0 * z) * (1.0 - x);
+      }
+      else
+      {
+         E[0] = y * (1.0 - y);
+         E[1] = x * y * (1.0 - x);
+         curlE[0] = y*(3.0 - 2*x) - 1.0;
+         curlcurlE[0] = 3.0 - 2*x;
+         curlcurlE[1] = 2.0*y;
+      }
+   }
+      break;
 
-   if (dim == 3)
+   case prob_type::plane_wave:
    {
-      E[0] = y * z * (1.0 - y) * (1.0 - z);
-      E[1] = x * y * z * (1.0 - x) * (1.0 - z);
-      E[2] = x * y * (1.0 - x) * (1.0 - y);
-      curlE[0] = (1.0 - x) * x * (y*(2.0*z-3.0)+1.0);
-      curlE[1] = 2.0*(1.0 - y)*y*(x-z);
-      curlE[2] = (z-1)*z*(1.0+y*(2.0*x-3.0));
-      curlcurlE[0] = 2.0 * y * (1.0 - y) - (2.0 * x - 3.0) * z * (1 - z);
-      curlcurlE[1] = 2.0 * y * (x * (1.0 - x) + (1.0 - z) * z);
-      curlcurlE[2] = 2.0 * y * (1.0 - y) + x * (3.0 - 2.0 * z) * (1.0 - x);
+      std::complex<double> zi(0,1);
+      std::complex<double> pw = exp(-zi * omega * (X.Sum()));
+      E[0] = pw;
+      E[1] = 0.0;
+      if (dim == 3)
+      {
+         E[2] = 0.0;
+         curlE[0] = 0.0;
+         curlE[1] = -zi * omega * pw;
+         curlE[2] =  zi * omega * pw;
+
+         curlcurlE[0] = 2.0 * omega * omega * pw;
+         curlcurlE[1] = - omega * omega * pw;
+         curlcurlE[2] = - omega * omega * pw;
+      }
+      else
+      {
+         curlE[0] = zi * omega * pw;
+         curlcurlE[0] =   omega * omega * pw;
+         curlcurlE[1] = - omega * omega;
+      }
    }
-   else
-   {
-      E[0] = y * (1.0 - y);
-      E[1] = x * y * (1.0 - x);
-      curlE[0] = y*(3.0 - 2*x) - 1.0;
-      curlcurlE[0] = 3.0 - 2*x;
-      curlcurlE[1] = 2.0*y;
+      break;
+
+   default:
+      MFEM_ABORT("Fichera 'oven' problem not implemented yet");
+      break;
    }
+   
 }
 
 
