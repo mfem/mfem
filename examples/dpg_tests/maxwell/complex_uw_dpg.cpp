@@ -351,6 +351,13 @@ int main(int argc, char *argv[])
    VectorFunctionCoefficient hatEex_r(dim,hatE_exact_r);
    VectorFunctionCoefficient hatEex_i(dim,hatE_exact_i);
 
+   VectorFunctionCoefficient hatHex_r(dimc,hatH_exact_r);
+   VectorFunctionCoefficient hatHex_i(dimc,hatH_exact_i);
+
+   FunctionCoefficient hatH_2D_ex_r(hatH_exact_scalar_r);
+   FunctionCoefficient hatH_2D_ex_i(hatH_exact_scalar_i);
+
+
    Array<int> elements_to_refine;
 
    socketstream E_out_r;
@@ -391,14 +398,15 @@ int main(int argc, char *argv[])
       {
          ess_bdr.SetSize(mesh.bdr_attributes.Max());
          ess_bdr = 1;
-         hatE_fes->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
+         // hatE_fes->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
+         hatH_fes->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
       }
 
       // shift the ess_tdofs
       for (int j = 0; j < ess_tdof_list.Size(); j++)
       {
-         ess_tdof_list[j] += E_fes->GetTrueVSize() + H_fes->GetTrueVSize();
-                           // + hatE_fes->GetTrueVSize();
+         ess_tdof_list[j] += E_fes->GetTrueVSize() + H_fes->GetTrueVSize()
+                           + hatE_fes->GetTrueVSize();
       }
 
       Array<int> offsets(5);
@@ -416,13 +424,21 @@ int main(int argc, char *argv[])
       ComplexGridFunction hatE_gf(hatE_fes);
       hatE_gf.real().MakeRef(hatE_fes,&xdata[offsets[2]]);
       hatE_gf.imag().MakeRef(hatE_fes,&xdata[offsets.Last()+ offsets[2]]);
+
+      ComplexGridFunction hatH_gf(hatH_fes);
+      hatH_gf.real().MakeRef(hatH_fes,&xdata[offsets[3]]);
+      hatH_gf.imag().MakeRef(hatH_fes,&xdata[offsets.Last()+ offsets[3]]);
+
       if (dim == 3)
       {
-         hatE_gf.ProjectBdrCoefficientTangent(hatEex_r,hatEex_i, ess_bdr);
+         // hatE_gf.ProjectBdrCoefficientTangent(hatEex_r,hatEex_i, ess_bdr);
+         hatH_gf.ProjectBdrCoefficientTangent(hatHex_r,hatHex_i, ess_bdr);
       }
       else
       {
-         hatE_gf.ProjectBdrCoefficientNormal(hatEex_r,hatEex_i, ess_bdr);
+         // hatE_gf.ProjectBdrCoefficientNormal(hatEex_r,hatEex_i, ess_bdr);
+         hatH_gf.ProjectBdrCoefficient(hatH_2D_ex_r,hatH_2D_ex_i, ess_bdr);
+
       }
       OperatorPtr Ah;
       Vector X,B;
@@ -467,12 +483,26 @@ int main(int argc, char *argv[])
       VectorFunctionCoefficient E_ex_r(dim,E_exact_r);
       VectorFunctionCoefficient E_ex_i(dim,E_exact_i);
 
+
+      ComplexGridFunction H(H_fes);
+      H.real().MakeRef(H_fes,&x.GetData()[offsets[1]]);
+      H.imag().MakeRef(H_fes,&x.GetData()[offsets.Last()+offsets[1]]);
+
+      VectorFunctionCoefficient H_ex_r(dimc,H_exact_r);
+      VectorFunctionCoefficient H_ex_i(dimc,H_exact_i);
+
+
+
       int dofs = X.Size()/2;
 
       double E_err_r = E.real().ComputeL2Error(E_ex_r);
       double E_err_i = E.imag().ComputeL2Error(E_ex_i);
+      double H_err_r = H.real().ComputeL2Error(H_ex_r);
+      double H_err_i = H.imag().ComputeL2Error(H_ex_i);
 
-      double L2Error = sqrt(E_err_r*E_err_r + E_err_i*E_err_i);
+
+      double L2Error = sqrt(  E_err_r*E_err_r + E_err_i*E_err_i 
+                            + H_err_r*H_err_r + H_err_i*H_err_i );
 
       double rate_err = (i) ? dim*log(err0/L2Error)/log((double)dof0/dofs) : 0.0;
       double rate_res = (i) ? dim*log(res0/residual)/log((double)dof0/dofs) : 0.0;
@@ -801,7 +831,7 @@ void maxwell_solution(const Vector & X, std::vector<complex<double>> &E,
       {
          curlE[0] = zi * omega * pw;
          curlcurlE[0] =   omega * omega * pw;
-         curlcurlE[1] = - omega * omega;
+         curlcurlE[1] = - omega * omega * pw ;
       }
    }
       break;
