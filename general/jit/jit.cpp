@@ -124,6 +124,7 @@ struct System // System singleton object
    static bool IsAck() { return Read() == ACK; }
 
    // Ask the parent to launch a system call
+   // by default, will use the prepared command
    static int Call(const char *command = Command())
    {
       MFEM_VERIFY(mpi::Root(), "[JIT] Only MPI root should launch commands!");
@@ -202,6 +203,7 @@ struct System // System singleton object
 
    struct HostOptions
    {
+      virtual std::string Pic() { return "-fPIC"; }
       virtual std::string Device() { return ""; }
       virtual std::string Compiler() { return ""; }
       virtual std::string Linker() { return "-Wl,"; }
@@ -209,23 +211,34 @@ struct System // System singleton object
 
    struct DeviceOptions: HostOptions
    {
+#ifdef MFEM_USE_CUDA
+      std::string Pic() override { return Xcompiler() + "-fPIC"; }
       std::string Device() override { return "--device-c"; }
+#else // MFEM_USE_HIP
+      std::string Pic() override { return "-fPIC"; }
+      std::string Device() override { return "-fgpu-rdc"; }
+#endif
       std::string Compiler() override { return "-Xcompiler="; }
       std::string Linker() override { return "-Xlinker="; }
    };
 
-   struct Linux
+   struct LinuxLink
    {
+      virtual std::string Backup() { return "--backup=none"; }
+#ifdef MFEM_USE_HIP
+      virtual std::string Prefix() { return "-Wl,--whole-archive"; }
+      virtual std::string Postfix() { return "-Wl,--no-whole-archive"; }
+#else
       virtual std::string Prefix() { return Xlinker() + "--whole-archive"; }
       virtual std::string Postfix() { return Xlinker() + "--no-whole-archive"; }
-      virtual std::string Backup() { return "--backup=none"; }
+#endif
    };
 
-   struct Apple: public Linux
+   struct AppleLink: public LinuxLink
    {
+      std::string Backup() override { return ""; }
       std::string Prefix() override { return "-all_load"; }
       std::string Postfix() override { return ""; }
-      std::string Backup() override { return ""; }
    };
 
 #if !(defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP))
@@ -235,15 +248,16 @@ struct System // System singleton object
 #endif
 
 #ifdef __APPLE__
-   Apple archive;
+   AppleLink archive;
 #else
-   Linux archive;
+   LinuxLink archive;
 #endif
 
    static const char *ar() { return "libmjit.a"; }
    static const char *so() { return "./libmjit.so"; }
    static std::string Cxx() { return MFEM_JIT_CXX; }
    static std::string Flags() { return MFEM_JIT_BUILD_FLAGS; }
+   static std::string Xpic() { return Get().options.Pic(); }
    static std::string Xdevice() { return Get().options.Device(); }
    static std::string Xlinker() { return Get().options.Linker(); }
    static std::string Xcompiler() { return Get().options.Compiler(); }
@@ -281,11 +295,13 @@ struct System // System singleton object
 
          // Compilation: cc => co
          auto co = Jit::ToString(hash, ".co"); // output object
-         Command() << Cxx() << Flags() << Xdevice()
+         Command() << Cxx() << Flags()
                    << "-I" << MFEM_SOURCE_DIR // JIT w/o MFEM installed
                    << "-I" << MFEM_INSTALL_DIR
-                   << Xcompiler() + "-fPIC" << Xcompiler() + "-pipe"
-                   << "-c" << "-o" << co << cc;
+                   << Xdevice() << Xpic()
+                   << Xcompiler() + "-pipe" // optional, xlc warnings
+                   << "-c" << "-o" << co << cc
+                   << (std::getenv("MFEM_JIT_VERBOSE") ? "-v" : "");
          if (Call()) { return EXIT_FAILURE; }
          std::remove(cc.c_str());
 
@@ -309,7 +325,8 @@ struct System // System singleton object
       {
          const int status = mpi::Root() ? RootCompile() : EXIT_SUCCESS;
          mpi::Sync(status); // all ranks verify the status
-         handle = DLopen(symbol); // opens symbol
+         std::string symbol_path("./");
+         handle = DLopen((symbol_path + symbol).c_str()); // opens symbol
          mpi::Sync();
          MFEM_VERIFY(handle, "[JIT] Error creating handle:" << ::dlerror());
       }; // WorldCompile

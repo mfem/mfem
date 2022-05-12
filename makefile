@@ -240,9 +240,8 @@ ifeq ($(MFEM_USE_CUDA),YES)
    ifeq ($(MFEM_USE_HIP),YES)
       $(error Incompatible config: MFEM_USE_CUDA can not be combined with MFEM_USE_HIP)
    endif
-else
    # The '-x' is required when input is from standard input
-   JIT_LANG = -x c++
+   JIT_LANG = -x cu
 endif
 
 # HIP configuration
@@ -261,6 +260,9 @@ ifeq ($(MFEM_USE_HIP),YES)
    ifeq ($(MFEM_USE_CUDA),YES)
       $(error Incompatible config: MFEM_USE_HIP can not be combined with MFEM_USE_CUDA)
    endif
+   # The '-x' is required when input is from standard input
+   # warning: hipcc does not use the amdgpu-target
+   JIT_LANG = -x hip
 endif
 
 # JIT configuration
