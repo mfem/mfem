@@ -15,7 +15,7 @@
 
 /*
   This benchmark is inspired by the CEED's bake-off problems to benchmark the
-  performance of both the setup and the action of the different levels of 
+  performance of both the setup and the action of the different levels of
   assembly in MFEM, namely: partial assembly (PA), element assembly (EA), and
   full assembly (FA).
 
