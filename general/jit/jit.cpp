@@ -234,7 +234,7 @@ struct System // System singleton object
    };
 
 #ifdef MFEM_USE_CUDA
-   NvccOptions options;
+   NvccOptions cxx;
 #else
    CompilerOptions cxx;
 #endif
