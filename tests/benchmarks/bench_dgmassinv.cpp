@@ -189,7 +189,6 @@ struct DGMassBenchmark
 
    void SetupAndSolve()
    {
-      massinv.reset();
       X = 0.0;
       MFEM_DEVICE_SYNC;
       tic_toc.Start();

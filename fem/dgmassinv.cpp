@@ -394,6 +394,18 @@ public:
 
 DGMassInverse_Direct::DGMassInverse_Direct(FiniteElementSpace &fes,
                                            BatchSolverMode mode_)
+   : DGMassInverse_Direct(fes, nullptr, nullptr, mode_) { }
+
+DGMassInverse_Direct::DGMassInverse_Direct(FiniteElementSpace &fes,
+                                           Coefficient &coeff,
+                                           IntegrationRule &ir,
+                                           BatchSolverMode mode_)
+   : DGMassInverse_Direct(fes, &coeff, &ir, mode_) { }
+
+DGMassInverse_Direct::DGMassInverse_Direct(FiniteElementSpace &fes,
+                                           Coefficient *coeff,
+                                           const IntegrationRule *ir,
+                                           BatchSolverMode mode_)
    : Solver(fes.GetTrueVSize()), mode(mode_)
 {
    const int ne = fes.GetNE();
@@ -401,8 +413,10 @@ DGMassInverse_Direct::DGMassInverse_Direct(FiniteElementSpace &fes,
 
    blocks.SetSize(ne*elem_dofs*elem_dofs);
 
-   MassIntegrator m;
-   m.AssembleEA(fes, blocks, false);
+   MassIntegrator *m;
+   if (coeff) { m = new MassIntegrator(*coeff, ir); }
+   else { m = new MassIntegrator(ir); }
+   m->AssembleEA(fes, blocks, false);
 
    tensor.UseExternalData(NULL, elem_dofs, elem_dofs, ne);
    tensor.GetMemory().MakeAlias(blocks.GetMemory(), 0, blocks.Size());
@@ -489,6 +503,7 @@ DGMassInverse_Direct::DGMassInverse_Direct(FiniteElementSpace &fes,
       MFEM_ABORT("CUDA must be enabled.");
 #endif
    }
+   delete m;
 }
 
 void DGMassInverse_Direct::Mult(const Vector &Mu, Vector &u) const

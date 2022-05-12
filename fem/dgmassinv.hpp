@@ -128,10 +128,16 @@ protected:
    /// Custom coefficient and integration rule are used in @a coeff and @a ir
    /// are non-NULL.
    DGMassInverse_Direct(FiniteElementSpace &fes_, Coefficient *coeff,
-                        const IntegrationRule *ir);
+                        const IntegrationRule *ir,
+                        BatchSolverMode mode_ = BatchSolverMode::NATIVE);
 public:
    /// @brief Construct the DG inverse mass operator for @a fes_.
    DGMassInverse_Direct(FiniteElementSpace &fes_,
+                        BatchSolverMode mode_ = BatchSolverMode::NATIVE);
+
+   DGMassInverse_Direct(FiniteElementSpace &fes_,
+                        Coefficient &coeff_,
+                        IntegrationRule &ir_,
                         BatchSolverMode mode_ = BatchSolverMode::NATIVE);
    // /// @brief Construct the DG inverse mass operator for @a fes_ with
    // /// Coefficient @a coeff.
