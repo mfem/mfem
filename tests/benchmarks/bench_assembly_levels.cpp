@@ -14,9 +14,10 @@
 #ifdef MFEM_USE_BENCHMARK
 
 /*
-  This benchmark contains the implementation of the CEED's bake-off problems:
-  high-order kernels/benchmarks designed to test and compare the performance
-  of high-order codes.
+  This benchmark is inspired by the CEED's bake-off problems to benchmark the
+  performance of both the setup and the action of the different levels of 
+  assembly in MFEM, namely: partial assembly (PA), element assembly (EA), and
+  full assembly (FA).
 
   See: ceed.exascaleproject.org/bps and github.com/CEED/benchmarks
 
@@ -87,7 +88,14 @@ struct BakeOff
 
    virtual void setup() = 0;
 
-   virtual void benchmark() = 0;
+   void benchmark_setup()
+   {
+      setup();
+      MFEM_DEVICE_SYNC;
+      mdofs += MDofs();
+   }
+
+   virtual void benchmark_action() = 0;
 
    double SumMdofs() const { return mdofs; }
 
@@ -140,11 +148,9 @@ struct Problem: public BakeOff
    void setup() override
    {
       a.Assemble();
-      MFEM_DEVICE_SYNC;
-      mdofs += MDofs();
    }
 
-   void benchmark() override
+   void benchmark_action() override
    {
       cg.Mult(B,X);
       MFEM_DEVICE_SYNC;
@@ -152,7 +158,7 @@ struct Problem: public BakeOff
    }
 };
 
-/// Bake-off Problems (BPs)
+/// Bake-off inspired Problems (BPs) benchmarks for both the setup and action.
 #define BakeOff_Problem(assembly,i,Kernel,VDIM,p_eq_q)\
 static void SetupBP##i##assembly(bm::State &state){\
    const int dim = 3;\
@@ -162,7 +168,8 @@ static void SetupBP##i##assembly(bm::State &state){\
    const int N = pow(target_dofs / elem_dofs, 1.0/dim) + 1;\
    Problem<Kernel##Integrator,VDIM,p_eq_q> ker(AssemblyLevel::assembly, p, N);\
    if ( !ker.is_runnable() ) { state.SkipWithError("MAX_MEM"); }\
-   while (state.KeepRunning()) { ker.setup(); }\
+   ker.setup();
+   while (state.KeepRunning()) { ker.benchmark_setup(); }\
    state.counters["MDof/s"] = bm::Counter(ker.SumMdofs(), bm::Counter::kIsRate);\
    state.counters["Dofs"] = bm::Counter(ker.dofs, bm::Counter::kDefaults);\
    state.counters["Order"] = bm::Counter(ker.p);\
@@ -179,7 +186,7 @@ static void BP##i##assembly(bm::State &state){\
    const int N = pow(target_dofs / elem_dofs, 1.0/dim) + 1;\
    Problem<Kernel##Integrator,VDIM,p_eq_q> ker(AssemblyLevel::assembly, p, N);\
    if ( !ker.is_runnable() ) { state.SkipWithError("MAX_MEM"); }\
-   while (state.KeepRunning()) { ker.benchmark(); }\
+   while (state.KeepRunning()) { ker.benchmark_action(); }\
    state.counters["MDof/s"] = bm::Counter(ker.SumMdofs(), bm::Counter::kIsRate);\
    state.counters["Dofs"] = bm::Counter(ker.dofs, bm::Counter::kDefaults);\
    state.counters["Order"] = bm::Counter(ker.p);\
@@ -213,38 +220,38 @@ BakeOff_Problem(PARTIAL,6,VectorDiffusion,3,true)
 BakeOff_Problem(ELEMENT,1,Mass,1,false)
 
 /// BP2: vector PCG with mass matrix, q=p+2
-// BakeOff_Problem(ELEMENT,2,VectorMass,3,false)
+// BakeOff_Problem(ELEMENT,2,VectorMass,3,false) // Not yet implemented
 
 /// BP3: scalar PCG with stiffness matrix, q=p+2
 BakeOff_Problem(ELEMENT,3,Diffusion,1,false)
 
 /// BP4: vector PCG with stiffness matrix, q=p+2
-// BakeOff_Problem(ELEMENT,4,VectorDiffusion,3,false)
+// BakeOff_Problem(ELEMENT,4,VectorDiffusion,3,false) // Not yet implemented
 
 /// BP5: scalar PCG with stiffness matrix, q=p+1
 BakeOff_Problem(ELEMENT,5,Diffusion,1,true)
 
 /// BP6: vector PCG with stiffness matrix, q=p+1
-// BakeOff_Problem(ELEMENT,6,VectorDiffusion,3,true)
+// BakeOff_Problem(ELEMENT,6,VectorDiffusion,3,true) // Not yet implemented
 
 // FULL:
 /// BP1: scalar PCG with mass matrix, q=p+2
 BakeOff_Problem(FULL,1,Mass,1,false)
 
 /// BP2: vector PCG with mass matrix, q=p+2
-// BakeOff_Problem(FULL,2,VectorMass,3,false)
+// BakeOff_Problem(FULL,2,VectorMass,3,false) // Not yet implemented
 
 /// BP3: scalar PCG with stiffness matrix, q=p+2
 BakeOff_Problem(FULL,3,Diffusion,1,false)
 
 /// BP4: vector PCG with stiffness matrix, q=p+2
-// BakeOff_Problem(FULL,4,VectorDiffusion,3,false)
+// BakeOff_Problem(FULL,4,VectorDiffusion,3,false) // Not yet implemented
 
 /// BP5: scalar PCG with stiffness matrix, q=p+1
 BakeOff_Problem(FULL,5,Diffusion,1,true)
 
 /// BP6: vector PCG with stiffness matrix, q=p+1
-// BakeOff_Problem(FULL,6,VectorDiffusion,3,true)
+// BakeOff_Problem(FULL,6,VectorDiffusion,3,true) // Not yet implemented
 
 /// Bake-off Kernels (BKs)
 template <typename BFI, int VDIM = 1, bool GLL = false>
@@ -269,11 +276,9 @@ struct Kernel: public BakeOff
    void setup() override
    {
       a.Assemble();
-      MFEM_DEVICE_SYNC;
-      mdofs += MDofs();
    }
 
-   void benchmark() override
+   void benchmark_action() override
    {
       a.Mult(x, y);
       MFEM_DEVICE_SYNC;
@@ -281,7 +286,7 @@ struct Kernel: public BakeOff
    }
 };
 
-/// Generic CEED BKi
+/// CEED BKi inspired benchmark for the action
 #define BakeOff_Kernel(assembly,i,KER,VDIM,GLL)\
 static void BK##i##assembly(bm::State &state){\
    const int dim = 3;\
@@ -291,7 +296,7 @@ static void BK##i##assembly(bm::State &state){\
    const int N = pow(target_dofs / elem_dofs, 1.0/dim) + 1;\
    Kernel<KER##Integrator,VDIM,GLL> ker(AssemblyLevel::assembly, p, N);\
    if ( !ker.is_runnable() ) { state.SkipWithError("MAX_MEM"); }\
-   while (state.KeepRunning()) { ker.benchmark(); }\
+   while (state.KeepRunning()) { ker.benchmark_action(); }\
    state.counters["MDof/s"] = bm::Counter(ker.SumMdofs(), bm::Counter::kIsRate);\
    state.counters["Dofs"] = bm::Counter(ker.dofs, bm::Counter::kDefaults);\
    state.counters["Order"] = bm::Counter(ker.p);\
@@ -325,38 +330,40 @@ BakeOff_Kernel(PARTIAL,6,VectorDiffusion,3,true)
 BakeOff_Kernel(ELEMENT,1,Mass,1,false)
 
 /// BK2ELEMENT: vector E-vector-to-E-vector evaluation of mass matrix, q=p+2
-// BakeOff_Kernel(ELEMENT,2,VectorMass,3,false)
+// BakeOff_Kernel(ELEMENT,2,VectorMass,3,false) // Not yet implemented
 
 /// BK3ELEMENT: scalar E-vector-to-E-vector evaluation of stiffness matrix, q=p+2
 BakeOff_Kernel(ELEMENT,3,Diffusion,1,false)
 
 /// BK4ELEMENT: vector E-vector-to-E-vector evaluation of stiffness matrix, q=p+2
-// BakeOff_Kernel(ELEMENT,4,VectorDiffusion,3,false)
+// BakeOff_Kernel(ELEMENT,4,VectorDiffusion,3,false) // Not yet implemented
 
 /// BK5ELEMENT: scalar E-vector-to-E-vector evaluation of stiffness matrix, q=p+1
 BakeOff_Kernel(ELEMENT,5,Diffusion,1,true)
 
 /// BK6ELEMENT: vector E-vector-to-E-vector evaluation of stiffness matrix, q=p+1
-// BakeOff_Kernel(ELEMENT,6,VectorDiffusion,3,true)
+// BakeOff_Kernel(ELEMENT,6,VectorDiffusion,3,true) // Not yet implemented
 
 // FULL
 /// BK1FULL: scalar E-vector-to-E-vector evaluation of mass matrix, q=p+2
 BakeOff_Kernel(FULL,1,Mass,1,false)
 
 /// BK2FULL: vector E-vector-to-E-vector evaluation of mass matrix, q=p+2
-// BakeOff_Kernel(FULL,2,VectorMass,3,false)
+// BakeOff_Kernel(FULL,2,VectorMass,3,false) // Not yet implemented
 
 /// BK3FULL: scalar E-vector-to-E-vector evaluation of stiffness matrix, q=p+2
 BakeOff_Kernel(FULL,3,Diffusion,1,false)
 
 /// BK4FULL: vector E-vector-to-E-vector evaluation of stiffness matrix, q=p+2
-// BakeOff_Kernel(FULL,4,VectorDiffusion,3,false)
+// BakeOff_Kernel(FULL,4,VectorDiffusion,3,false) // Not yet implemented
 
 /// BK5FULL: scalar E-vector-to-E-vector evaluation of stiffness matrix, q=p+1
 BakeOff_Kernel(FULL,5,Diffusion,1,true)
 
 /// BK6FULL: vector E-vector-to-E-vector evaluation of stiffness matrix, q=p+1
-// BakeOff_Kernel(FULL,6,VectorDiffusion,3,true)
+// BakeOff_Kernel(FULL,6,VectorDiffusion,3,true) // Not yet implemented
+
+
 /**
  * @brief main entry point
  * --benchmark_filter=BK1/6
