@@ -201,91 +201,81 @@ struct System // System singleton object
       { MFEM_ABORT("[JIT] Finalize memory error!"); }
    }
 
-   struct HostOptions
+   struct CompilerOptions
    {
+      virtual std::string Compiler() { return ""; }
       virtual std::string Pic() { return "-fPIC"; }
       virtual std::string Pipe() { return "-pipe"; }
       virtual std::string Device() { return ""; }
-      virtual std::string Compiler() { return ""; }
       virtual std::string Linker() { return "-Wl,"; }
    };
 
-   struct DeviceOptions: HostOptions
+   struct NvccOptions: CompilerOptions
    {
-#ifdef MFEM_USE_CUDA
-      std::string Pic() override { return Xcompiler() + "-fPIC"; }
-      std::string Device() override { return "--device-c"; }
-      std::string Pipe() override { return Xcompiler() + "-pipe"; }
-#else // MFEM_USE_HIP
-      std::string Pic() override { return "-fPIC"; }
-      std::string Device() override { return "-fgpu-rdc"; }
-      std::string Pipe() override { return "-pipe"; }
-#endif
       std::string Compiler() override { return "-Xcompiler="; }
+      std::string Pic() override { return Xcompiler() + "-fPIC"; }
+      std::string Pipe() override { return Xcompiler() + "-pipe"; }
+      std::string Device() override { return "--device-c"; }
       std::string Linker() override { return "-Xlinker="; }
    };
 
-   struct LinuxLink
+   struct LinkerOptions
    {
       virtual std::string Backup() { return "--backup=none"; }
-#ifdef MFEM_USE_HIP
-      virtual std::string Prefix() { return "-Wl,--whole-archive"; }
-      virtual std::string Postfix() { return "-Wl,--no-whole-archive"; }
-#else
       virtual std::string Prefix() { return Xlinker() + "--whole-archive"; }
       virtual std::string Postfix() { return Xlinker() + "--no-whole-archive"; }
-#endif
    };
 
-   struct AppleLink: public LinuxLink
+   struct DarwinOptions: public LinkerOptions
    {
       std::string Backup() override { return ""; }
       std::string Prefix() override { return "-all_load"; }
       std::string Postfix() override { return ""; }
    };
 
-#if !(defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP))
-   HostOptions options;
+#ifdef MFEM_USE_CUDA
+   NvccOptions options;
 #else
-   DeviceOptions options;
+   CompilerOptions cxx;
 #endif
 
 #ifdef __APPLE__
-   AppleLink archive;
+   DarwinOptions ar;
 #else
-   LinuxLink archive;
+   LinkerOptions ar;
 #endif
 
-   static const char *ar() { return "libmjit.a"; }
-   static const char *so() { return "./libmjit.so"; }
+   static const char *lib_ar() { return "libmjit.a"; }
+   static const char *lib_so() { return "./libmjit.so"; }
    static std::string Cxx() { return MFEM_JIT_CXX; }
    static std::string Flags() { return MFEM_JIT_BUILD_FLAGS; }
-   static std::string Xpic() { return Get().options.Pic(); }
-   static std::string Xpipe() { return Get().options.Pipe(); }
-   static std::string Xdevice() { return Get().options.Device(); }
-   static std::string Xlinker() { return Get().options.Linker(); }
-   static std::string Xcompiler() { return Get().options.Compiler(); }
-   static std::string ARprefix() { return Get().archive.Prefix();  }
-   static std::string ARpostfix() { return Get().archive.Postfix(); }
-   static std::string ARbackup() { return Get().archive.Backup(); }
+   static std::string Xpic() { return Get().cxx.Pic(); }
+   static std::string Xpipe() { return Get().cxx.Pipe(); }
+   static std::string Xdevice() { return Get().cxx.Device(); }
+   static std::string Xlinker() { return Get().cxx.Linker(); }
+   static std::string Xcompiler() { return Get().cxx.Compiler(); }
+   static std::string ARprefix() { return Get().ar.Prefix();  }
+   static std::string ARpostfix() { return Get().ar.Postfix(); }
+   static std::string ARbackup() { return Get().ar.Backup(); }
    static void *DLopen(const char *path) { return ::dlopen(path, RTLD_LAZY|RTLD_LOCAL); }
 
    static void* Lookup(const size_t hash, const char *source, const char *symbol)
    {
-      void *handle = std::fstream(so()) ? DLopen(so()) : nullptr; // try libmjit.so
-      if (!handle && std::fstream(ar())) // if not found, try libmjit.a
+      void *handle = std::fstream(lib_so()) ? DLopen(lib_so()) :
+                     nullptr; // try libmjit.so
+      if (!handle && std::fstream(lib_ar())) // if not found, try libmjit.a
       {
          int status = EXIT_SUCCESS;
          if (mpi::Root())
          {
-            Command() << Cxx() << "-shared" << "-o" << so()
-                      << ARprefix() << ar() << ARpostfix()
+            Command() << Cxx() << "-shared" << "-o" << lib_so()
+                      << ARprefix() << lib_ar() << ARpostfix()
                       << Xlinker() + "-rpath,.";
             status = Call();
          }
          mpi::Sync(status);
-         handle = DLopen(so());
-         MFEM_VERIFY(handle, "[JIT] Error " << so() << " from " << ar());
+         handle = DLopen(lib_so());
+         MFEM_VERIFY(handle, "[JIT] Error " << lib_so() << " from " << lib_so());
       }
 
       auto RootCompile = [&]() // Compilation only done by the root
@@ -302,25 +292,24 @@ struct System // System singleton object
          Command() << Cxx() << Flags()
                    << "-I" << MFEM_SOURCE_DIR // JIT w/o MFEM installed
                    << "-I" << MFEM_INSTALL_DIR
-                   << Xdevice() << Xpic()
-                   << Xcompiler() + "-pipe" // optional, xlc warnings
+                   << Xdevice() << Xpic() << Xpipe()
                    << "-c" << "-o" << co << cc
                    << (std::getenv("MFEM_JIT_VERBOSE") ? "-v" : "");
          if (Call()) { return EXIT_FAILURE; }
          std::remove(cc.c_str());
 
          // Update archive: ar += co
-         Command() << "ar -rv" << ar() << co;
+         Command() << "ar -rv" << lib_ar() << co;
          if (Call()) { return EXIT_FAILURE; }
          std::remove(co.c_str());
 
          // Create temporary shared library: (ar + co) => symbol
          Command() << Cxx() << "-shared" << "-o" << symbol
-                   << ARprefix() << ar() << ARpostfix();
+                   << ARprefix() << lib_ar() << ARpostfix();
          if (Call()) { return EXIT_FAILURE; }
 
          // Install temporary shared library: symbol => libmjit.so
-         Command() << "install" << ARbackup() << symbol << so();
+         Command() << "install" << ARbackup() << symbol << lib_so();
          if (Call()) { return EXIT_FAILURE; }
          return EXIT_SUCCESS;
       };
