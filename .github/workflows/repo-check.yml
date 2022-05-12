@@ -29,32 +29,43 @@ on:
 jobs:
   file-headers-check:
     runs-on: ubuntu-18.04
-    if: |
-      (github.event_name == 'push' ||
-       github.event.pull_request.head.repo.full_name != github.repository)
     steps:
     - name: Cancel Previous Runs
+      if: |
+        (github.event_name == 'push' ||
+         github.event.pull_request.head.repo.full_name != github.repository)
       uses: styfle/cancel-workflow-action@0.9.0
       with:
         access_token: ${{ github.token }}
 
     - name: checkout mfem
+      if: |
+        (github.event_name == 'push' ||
+         github.event.pull_request.head.repo.full_name != github.repository)
       uses: actions/checkout@v2
 
     - name: copyright check
+      if: |
+        (github.event_name == 'push' ||
+         github.event.pull_request.head.repo.full_name != github.repository)
       id: copyright
       run: |
         ./config/githooks/pre-push --copyright
-
       continue-on-error: true
 
     - name: license check
+      if: |
+        (github.event_name == 'push' ||
+         github.event.pull_request.head.repo.full_name != github.repository)
       id: license
       run: |
         ./config/githooks/pre-push --license
       continue-on-error: true
 
     - name: release check
+      if: |
+        (github.event_name == 'push' ||
+         github.event.pull_request.head.repo.full_name != github.repository)
       id: release
       run: |
         ./config/githooks/pre-push --release
@@ -62,9 +73,12 @@ jobs:
 
     - name: wrap-up
       if: |
-        steps.copyright.outcome != 'success' ||
-        steps.license.outcome != 'success' ||
-        steps.release.outcome != 'success'
+        (steps.copyright.outcome != 'success'
+          || steps.license.outcome != 'success'
+          || steps.release.outcome != 'success')
+        &&
+        (github.event_name == 'push'
+          || github.event.pull_request.head.repo.full_name != github.repository)
       run: |
         if [[ "${{ steps.copyright.outcome }}" != "success" ]]; then
           echo "copyright check failed, unroll log for details"
@@ -77,55 +91,92 @@ jobs:
         fi
         exit 1
 
+    - name: skipped message
+      if: |
+        (github.event_name == 'pull_request' &&
+         github.event.pull_request.head.repo.full_name == github.repository)
+      run: |
+        echo "This jobs is essentially empty because it’s a duplicate of the one triggered on push"
+
   code-style:
     runs-on: ubuntu-18.04
-    if: |
-      (github.event_name == 'push' ||
-       github.event.pull_request.head.repo.full_name != github.repository)
     steps:
     - name: checkout mfem
+      if: |
+        (github.event_name == 'push' ||
+         github.event.pull_request.head.repo.full_name != github.repository)
       uses: actions/checkout@v2
 
     - name: get astyle
+      if: |
+        (github.event_name == 'push' ||
+         github.event.pull_request.head.repo.full_name != github.repository)
       run: |
         sudo apt-get install astyle=3.1-1ubuntu2
 
     - name: style check
+      if: |
+        (github.event_name == 'push' ||
+         github.event.pull_request.head.repo.full_name != github.repository)
       run: |
         ./config/githooks/pre-push --style
 
+    - name: skipped message
+      if: |
+        (github.event_name == 'pull_request' &&
+         github.event.pull_request.head.repo.full_name == github.repository)
+      run: |
+        echo "This jobs is essentially empty because it’s a duplicate of the one triggered on push"
+
   documentation:
     runs-on: ubuntu-18.04
-    if: |
-      (github.event_name == 'push' ||
-       github.event.pull_request.head.repo.full_name != github.repository)
     steps:
     - name: checkout mfem
+      if: |
+        (github.event_name == 'push' ||
+         github.event.pull_request.head.repo.full_name != github.repository)
       uses: actions/checkout@v2
 
     - name: get doxygen and graphviz
+      if: |
+        (github.event_name == 'push' ||
+         github.event.pull_request.head.repo.full_name != github.repository)
       run: |
         sudo apt-get install doxygen graphviz
 
     - name: build documentation
+      if: |
+        (github.event_name == 'push' ||
+         github.event.pull_request.head.repo.full_name != github.repository)
       run: |
         cd tests/scripts
         ./runtest documentation
 
+    - name: skipped job message
+      if: |
+        (github.event_name == 'pull_request' &&
+         github.event.pull_request.head.repo.full_name == github.repository)
+      run: |
+        echo "This jobs is essentially empty because it’s a duplicate of the one triggered on push"
+
   branch-history:
     if: |
       github.ref != 'refs/heads/next' &&
-      github.ref != 'refs/heads/master' &&
-      (github.event_name == 'push' ||
-       github.event.pull_request.head.repo.full_name != github.repository)
+      github.ref != 'refs/heads/master'
     runs-on: ubuntu-18.04
     steps:
     - name: checkout mfem
+      if: |
+        (github.event_name == 'push' ||
+         github.event.pull_request.head.repo.full_name != github.repository)
       uses: actions/checkout@v2
       with:
         fetch-depth: 0
 
     - name: branch-history
+      if: |
+        (github.event_name == 'push' ||
+         github.event.pull_request.head.repo.full_name != github.repository)
       run: |
         # We override origin to make sure we point to the main repo.
         # This is to have consistent test results on PRs from forks.
@@ -133,3 +184,10 @@ jobs:
         git remote add origin https://github.com/mfem/mfem.git
         git checkout -b gh-actions-branch-history
         ./config/githooks/pre-push --history
+
+    - name: skipped job message
+      if: |
+        (github.event_name == 'pull_request' &&
+         github.event.pull_request.head.repo.full_name == github.repository)
+      run: |
+        echo "This jobs is essentially empty because it’s a duplicate of the one triggered on push"
