@@ -204,6 +204,7 @@ struct System // System singleton object
    struct HostOptions
    {
       virtual std::string Pic() { return "-fPIC"; }
+      virtual std::string Pipe() { return "-pipe"; }
       virtual std::string Device() { return ""; }
       virtual std::string Compiler() { return ""; }
       virtual std::string Linker() { return "-Wl,"; }
@@ -214,9 +215,11 @@ struct System // System singleton object
 #ifdef MFEM_USE_CUDA
       std::string Pic() override { return Xcompiler() + "-fPIC"; }
       std::string Device() override { return "--device-c"; }
+      std::string Pipe() override { return Xcompiler() + "-pipe"; }
 #else // MFEM_USE_HIP
       std::string Pic() override { return "-fPIC"; }
       std::string Device() override { return "-fgpu-rdc"; }
+      std::string Pipe() override { return "-pipe"; }
 #endif
       std::string Compiler() override { return "-Xcompiler="; }
       std::string Linker() override { return "-Xlinker="; }
@@ -258,6 +261,7 @@ struct System // System singleton object
    static std::string Cxx() { return MFEM_JIT_CXX; }
    static std::string Flags() { return MFEM_JIT_BUILD_FLAGS; }
    static std::string Xpic() { return Get().options.Pic(); }
+   static std::string Xpipe() { return Get().options.Pipe(); }
    static std::string Xdevice() { return Get().options.Device(); }
    static std::string Xlinker() { return Get().options.Linker(); }
    static std::string Xcompiler() { return Get().options.Compiler(); }
