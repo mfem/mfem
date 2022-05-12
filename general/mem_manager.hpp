@@ -20,7 +20,6 @@
 #if defined(MFEM_USE_MPI) && !defined(MFEM_JIT_COMPILATION)
 #include <HYPRE_config.h> // HYPRE_USING_GPU
 #endif
-#endif // MFEM_JIT_COMPILATION
 
 namespace mfem
 {
