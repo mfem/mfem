@@ -31,28 +31,45 @@ class G_EQDSK_Data
 public:
    G_EQDSK_Data(std::istream &is);
 
+   int GetNumPtsR() const { return NW_; }
+   int GetNumPtsZ() const { return NH_; }
+
+   double GetRExtent() const { return RDIM_; }
+   double GetZExtent() const { return ZDIM_; }
+
+   double GetRMin() const { return RLEFT_; }
+   double GetZMid() const { return ZMID_; }
+
    std::vector<double> & GetPsi() { return PSIRZ_ ;}
-   std::vector<double> & GetBTor() { return BTOR_; }
+   // std::vector<double> & GetBTor() { return BTOR_; }
 
    void PrintInfo(std::ostream &out = std::cout) const;
    void DumpGnuPlotData(const std::string &file) const;
 
-   double InterpFPol(double r);
-   double InterpPres(double r);
-   double InterpFFPrime(double r);
-   double InterpPPrime(double r);
+   // double InterpFPol(double r);
+   // double InterpPres(double r);
+   // double InterpFFPrime(double r);
+   // double InterpPPrime(double r);
+   // double InterpQPsi(double r);
+   double InterpFPolRZ(const Vector &rz);
+   double InterpPresRZ(const Vector &rz);
+   double InterpFFPrimeRZ(const Vector &rz);
+   double InterpPPrimeRZ(const Vector &rz);
    double InterpPsiRZ(const Vector &rz);
-   double InterpQPsi(double r);
+   double InterpQRZ(const Vector &rz);
+   double InterpBTorRZ(const Vector &rz);
+   double InterpJTorRZ(const Vector &rz);
 
-   void InterpNxGradPsiRZ(const Vector &rz, Vector &b);
-   double InterpBTor(double r);
+   void InterpNxGradPsiRZ(const Vector &rz, Vector &nxdp);
+   void InterpBPolRZ(const Vector &rz, Vector &b);
+   // double InterpBTor(double r);
 
 private:
    class ShiftedVector;
    class ShiftedDenseMatrix;
    class ExtendedDenseMatrix;
 
-   enum FieldType {FPOL, PRES, FFPRIM, PPRIME, PSIRZ, QPSI, BTOR};
+   enum FieldType {FPOL, PRES, FFPRIM, PPRIME, PSIRZ, QPSI/*, BTOR*/};
 
    int init_flag_;
    inline bool checkFlag(int flag) { return (init_flag_ >> flag) & 1; }
@@ -61,6 +78,8 @@ private:
 
    void initInterpR(const std::vector<double> &v,
                     std::vector<double> &t);
+   void initInterpPsi(const std::vector<double> &v,
+                      std::vector<double> &t);
    void initInterpRZ(const std::vector<double> &v,
                      ShiftedDenseMatrix &c,
                      ShiftedDenseMatrix &d,
@@ -79,6 +98,8 @@ private:
                        const ShiftedDenseMatrix &d,
                        const ShiftedDenseMatrix &e,
                        Vector &b);
+   double interpPsi(double psi, const std::vector<double> &v,
+                    const std::vector<double> &t);
 
    std::vector<std::string> CASE_; // Identification character string
 
@@ -116,7 +137,7 @@ private:
    std::vector<double> QPSI_;
 
    // Toroidal B field dervided from FPOL_
-   std::vector<double> BTOR_;
+   // std::vector<double> BTOR_;
 
    int                 NBBBS_;  // Number of boundary points
    std::vector<double> RBBBS_;  // R of boundary points in meter
@@ -242,7 +263,7 @@ private:
    };
 
    // Divided differences for Akima's interpolation method
-   double dr_, dz_;
+   double dr_, dz_, dpsi_;
 
    std::vector<double> FPOL_t_;
    std::vector<double> PRES_t_;
@@ -253,7 +274,7 @@ private:
    ShiftedDenseMatrix  PSIRZ_e_;
    std::vector<double> QPSI_t_;
 
-   std::vector<double> BTOR_t_;
+   // std::vector<double> BTOR_t_;
 };
 
 class G_EQDSK_Psi_Coefficient : public Coefficient
@@ -277,6 +298,69 @@ public:
    }
 };
 
+class G_EQDSK_FPol_Coefficient : public Coefficient
+{
+private:
+   G_EQDSK_Data &eqdsk;
+
+public:
+
+   G_EQDSK_FPol_Coefficient(G_EQDSK_Data &g_eqdsk) : eqdsk(g_eqdsk) {}
+
+   double Eval(ElementTransformation & T,
+               const IntegrationPoint & ip)
+   {
+      double x[3];
+      Vector transip(x, 3);
+
+      T.Transform(ip, transip);
+
+      return eqdsk.InterpFPolRZ(transip);
+   }
+};
+
+class G_EQDSK_Pres_Coefficient : public Coefficient
+{
+private:
+   G_EQDSK_Data &eqdsk;
+
+public:
+
+   G_EQDSK_Pres_Coefficient(G_EQDSK_Data &g_eqdsk) : eqdsk(g_eqdsk) {}
+
+   double Eval(ElementTransformation & T,
+               const IntegrationPoint & ip)
+   {
+      double x[3];
+      Vector transip(x, 3);
+
+      T.Transform(ip, transip);
+
+      return eqdsk.InterpPresRZ(transip);
+   }
+};
+
+class G_EQDSK_Q_Coefficient : public Coefficient
+{
+private:
+   G_EQDSK_Data &eqdsk;
+
+public:
+
+   G_EQDSK_Q_Coefficient(G_EQDSK_Data &g_eqdsk) : eqdsk(g_eqdsk) {}
+
+   double Eval(ElementTransformation & T,
+               const IntegrationPoint & ip)
+   {
+      double x[3];
+      Vector transip(x, 3);
+
+      T.Transform(ip, transip);
+
+      return eqdsk.InterpQRZ(transip);
+   }
+};
+
 class G_EQDSK_BTor_Coefficient : public Coefficient
 {
 private:
@@ -294,7 +378,28 @@ public:
 
       T.Transform(ip, transip);
 
-      return eqdsk.InterpBTor(transip[0]);
+      return eqdsk.InterpBTorRZ(transip);
+   }
+};
+
+class G_EQDSK_JTor_Coefficient : public Coefficient
+{
+private:
+   G_EQDSK_Data &eqdsk;
+
+public:
+
+   G_EQDSK_JTor_Coefficient(G_EQDSK_Data &g_eqdsk) : eqdsk(g_eqdsk) {}
+
+   double Eval(ElementTransformation & T,
+               const IntegrationPoint & ip)
+   {
+      double x[3];
+      Vector transip(x, 3);
+
+      T.Transform(ip, transip);
+
+      return eqdsk.InterpJTorRZ(transip);
    }
 };
 
@@ -321,6 +426,29 @@ public:
 
 };
 
+class G_EQDSK_BPol_Coefficient : public VectorCoefficient
+{
+private:
+   G_EQDSK_Data &eqdsk;
+
+public:
+
+   G_EQDSK_BPol_Coefficient(G_EQDSK_Data &g_eqdsk)
+      : VectorCoefficient(2), eqdsk(g_eqdsk) {}
+
+   void Eval(Vector &b, ElementTransformation & T,
+             const IntegrationPoint & ip)
+   {
+      double x[3];
+      Vector transip(x, 3);
+
+      T.Transform(ip, transip);
+
+      eqdsk.InterpBPolRZ(transip, b);
+   }
+
+};
+
 class G_EQDSK_BField_VecCoefficient : public VectorCoefficient
 {
 private:
@@ -343,8 +471,8 @@ public:
 
       T.Transform(ip, transip);
 
-      eqdsk.InterpNxGradPsiRZ(transip, b);
-      double btor = eqdsk.InterpBTor(transip[0]);
+      eqdsk.InterpBPolRZ(transip, b);
+      double btor = eqdsk.InterpBTorRZ(transip);
 
       V[0] = b[0];
       V[1] = b[1];

@@ -1446,8 +1446,9 @@ void BFieldProfile::Eval(Vector &V, ElementTransformation &T,
          Vector b_pol(b_pol_data, 2); b_pol = 0.0;
          double b_tor = 0.0;
 
-         eqdsk_->InterpNxGradPsiRZ(xTokVec, b_pol);
-         b_tor = eqdsk_->InterpBTor(xTokVec[0]);
+         // eqdsk_->InterpNxGradPsiRZ(xTokVec, b_pol);
+         eqdsk_->InterpBPolRZ(xTokVec, b_pol);
+         b_tor = eqdsk_->InterpBTorRZ(xTokVec);
 
          // Step 3: Rotate B field from a poloidal cross section into
          //         the full Tokamak
