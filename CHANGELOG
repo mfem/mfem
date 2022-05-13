@@ -133,7 +133,7 @@ Integrations, testing and documentation
   formatting. See the "make style" target.
 
 - New benchmark for the different assembly levels inspired by the CEED
-  Back-Off Problems.
+  Bake-Off Problems, see tests/benchmarks/bench_assembly_levels.cpp.
 
 Miscellaneous
 -------------
