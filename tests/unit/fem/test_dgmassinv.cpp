@@ -80,21 +80,22 @@ TEST_CASE("DG Mass Inverse", "[CUDA]")
          X3 -= X1;
          REQUIRE(X3.Normlinf() == MFEM_Approx(0.0, 1e2*tol, 1e2*tol));
       }
-#ifdef MFEM_USE_CUDA
-      SECTION("Direct CuSolver")
+      if (Device::Allows(Backend::CUDA))
       {
-         DGMassInverse_Direct m_inv_direct(fes, BatchSolverMode::CUSOLVER);
-         m_inv_direct.Mult(B, X3);
-         X3 -= X1;
-         REQUIRE(X3.Normlinf() == MFEM_Approx(0.0, 1e2*tol, 1e2*tol));
+         SECTION("Direct CuSolver")
+         {
+            DGMassInverse_Direct m_inv_direct(fes, BatchSolverMode::CUSOLVER);
+            m_inv_direct.Mult(B, X3);
+            X3 -= X1;
+            REQUIRE(X3.Normlinf() == MFEM_Approx(0.0, 1e2*tol, 1e2*tol));
+         }
+         SECTION("Direct CuBLAS")
+         {
+            DGMassInverse_Direct m_inv_direct(fes, BatchSolverMode::CUBLAS);
+            m_inv_direct.Mult(B, X3);
+            X3 -= X1;
+            REQUIRE(X3.Normlinf() == MFEM_Approx(0.0, 1e2*tol, 1e2*tol));
+         }
       }
-      SECTION("Direct CuBLAS")
-      {
-         DGMassInverse_Direct m_inv_direct(fes, BatchSolverMode::CUBLAS);
-         m_inv_direct.Mult(B, X3);
-         X3 -= X1;
-         REQUIRE(X3.Normlinf() == MFEM_Approx(0.0, 1e2*tol, 1e2*tol));
-      }
-#endif
    }
 }

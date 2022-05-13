@@ -308,11 +308,14 @@ void DGMassInverse::Mult(const Vector &Mu, Vector &u) const
          case 0x33: return DGMassCGIteration<2,3,3>(Mu, u);
          case 0x35: return DGMassCGIteration<2,3,5>(Mu, u);
          case 0x44: return DGMassCGIteration<2,4,4>(Mu, u);
+         case 0x46: return DGMassCGIteration<2,4,6>(Mu, u);
          case 0x55: return DGMassCGIteration<2,5,5>(Mu, u);
+         case 0x57: return DGMassCGIteration<2,5,7>(Mu, u);
          case 0x66: return DGMassCGIteration<2,6,6>(Mu, u);
+         case 0x68: return DGMassCGIteration<2,6,8>(Mu, u);
          default:
-            // printf("id = 0x%x\n", id);
-            // MFEM_ABORT("Fallback");
+            printf("dim = %d, id = 0x%x\n", dim, id);
+            MFEM_ABORT("Fallback");
             return DGMassCGIteration<2>(Mu, u);
       }
    }
@@ -326,6 +329,7 @@ void DGMassInverse::Mult(const Vector &Mu, Vector &u) const
          case 0x34: return DGMassCGIteration<3,3,4>(Mu, u);
          case 0x44: return DGMassCGIteration<3,4,4>(Mu, u);
          case 0x45: return DGMassCGIteration<3,4,5>(Mu, u);
+         case 0x46: return DGMassCGIteration<3,4,6>(Mu, u);
          case 0x48: return DGMassCGIteration<3,4,8>(Mu, u);
          case 0x55: return DGMassCGIteration<3,5,5>(Mu, u);
          case 0x56: return DGMassCGIteration<3,5,6>(Mu, u);
@@ -333,8 +337,8 @@ void DGMassInverse::Mult(const Vector &Mu, Vector &u) const
          case 0x66: return DGMassCGIteration<3,6,6>(Mu, u);
          case 0x67: return DGMassCGIteration<3,6,7>(Mu, u);
          default:
-            // printf("id = 0x%x\n", id);
-            // MFEM_ABORT("Fallback");
+            printf("dim = %d, id = 0x%x\n", dim, id);
+            MFEM_ABORT("Fallback");
             return DGMassCGIteration<3>(Mu, u);
       }
    }
@@ -413,8 +417,6 @@ DGMassInverse_Direct::DGMassInverse_Direct(FiniteElementSpace &fes_,
    const int elem_dofs = fes.GetFE(0)->GetDof();
 
    blocks.SetSize(ne*elem_dofs*elem_dofs);
-   tensor.UseExternalData(NULL, elem_dofs, elem_dofs, ne);
-   tensor.GetMemory().MakeAlias(blocks.GetMemory(), 0, blocks.Size());
 
    if (coeff) { m = new MassIntegrator(*coeff, ir); }
    else { m = new MassIntegrator(ir); }
@@ -430,6 +432,9 @@ void DGMassInverse_Direct::Setup()
    MFEM_CONTRACT_VAR(elem_dofs);
 
    m->AssembleEA(fes, blocks, false);
+
+   tensor.UseExternalData(NULL, elem_dofs, elem_dofs, ne);
+   tensor.GetMemory().MakeAlias(blocks.GetMemory(), 0, blocks.Size());
 
    if ((mode == BatchSolverMode::CUSOLVER || mode == BatchSolverMode::CUBLAS)
        && !Device::Allows(Backend::CUDA))
