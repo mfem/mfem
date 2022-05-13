@@ -105,6 +105,7 @@ struct DGMassBenchmark
    {
       B.Randomize(1);
       tic_toc.Clear();
+      NewSolver();
    }
 
    void NewFullCG()
@@ -136,8 +137,15 @@ struct DGMassBenchmark
 
    void NewDirect(BatchSolverMode mode)
    {
-      DGMassInverse_Direct *massinv_ = new DGMassInverse_Direct(fes, mode);
-      massinv.reset(massinv_);
+      if (massinv)
+      {
+         static_cast<DGMassInverse_Direct*>(massinv.get())->Setup();
+      }
+      else
+      {
+         DGMassInverse_Direct *massinv_ = new DGMassInverse_Direct(fes, mode);
+         massinv.reset(massinv_);
+      }
    }
 
    void NewSolver()

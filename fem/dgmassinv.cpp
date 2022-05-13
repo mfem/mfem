@@ -326,6 +326,7 @@ void DGMassInverse::Mult(const Vector &Mu, Vector &u) const
          case 0x34: return DGMassCGIteration<3,3,4>(Mu, u);
          case 0x44: return DGMassCGIteration<3,4,4>(Mu, u);
          case 0x45: return DGMassCGIteration<3,4,5>(Mu, u);
+         case 0x48: return DGMassCGIteration<3,4,8>(Mu, u);
          case 0x55: return DGMassCGIteration<3,5,5>(Mu, u);
          case 0x56: return DGMassCGIteration<3,5,6>(Mu, u);
          case 0x58: return DGMassCGIteration<3,5,8>(Mu, u);
@@ -402,24 +403,31 @@ DGMassInverse_Direct::DGMassInverse_Direct(FiniteElementSpace &fes,
                                            BatchSolverMode mode_)
    : DGMassInverse_Direct(fes, &coeff, &ir, mode_) { }
 
-DGMassInverse_Direct::DGMassInverse_Direct(FiniteElementSpace &fes,
+DGMassInverse_Direct::DGMassInverse_Direct(FiniteElementSpace &fes_,
                                            Coefficient *coeff,
                                            const IntegrationRule *ir,
                                            BatchSolverMode mode_)
-   : Solver(fes.GetTrueVSize()), mode(mode_)
+   : Solver(fes.GetTrueVSize()), fes(fes_), mode(mode_)
 {
    const int ne = fes.GetNE();
    const int elem_dofs = fes.GetFE(0)->GetDof();
 
    blocks.SetSize(ne*elem_dofs*elem_dofs);
-
-   MassIntegrator *m;
-   if (coeff) { m = new MassIntegrator(*coeff, ir); }
-   else { m = new MassIntegrator(ir); }
-   m->AssembleEA(fes, blocks, false);
-
    tensor.UseExternalData(NULL, elem_dofs, elem_dofs, ne);
    tensor.GetMemory().MakeAlias(blocks.GetMemory(), 0, blocks.Size());
+
+   if (coeff) { m = new MassIntegrator(*coeff, ir); }
+   else { m = new MassIntegrator(ir); }
+
+   Setup();
+}
+
+void DGMassInverse_Direct::Setup()
+{
+   const int ne = fes.GetNE();
+   const int elem_dofs = fes.GetFE(0)->GetDof();
+
+   m->AssembleEA(fes, blocks, false);
 
    if ((mode == BatchSolverMode::CUSOLVER || mode == BatchSolverMode::CUBLAS)
        && !Device::Allows(Backend::CUDA))
@@ -503,7 +511,6 @@ DGMassInverse_Direct::DGMassInverse_Direct(FiniteElementSpace &fes,
       MFEM_ABORT("CUDA must be enabled.");
 #endif
    }
-   delete m;
 }
 
 void DGMassInverse_Direct::Mult(const Vector &Mu, Vector &u) const
@@ -582,6 +589,11 @@ void DGMassInverse_Direct::Solve(Vector &u) const
 void DGMassInverse_Direct::SetOperator(const Operator &op)
 {
    MFEM_ABORT("Not supported.");
+}
+
+DGMassInverse_Direct::~DGMassInverse_Direct()
+{
+   delete m;
 }
 
 } // namespace mfem

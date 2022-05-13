@@ -118,6 +118,8 @@ protected:
    Vector blocks;
    DenseTensor tensor;
    Array<int> ipiv;
+   FiniteElementSpace &fes;
+   class MassIntegrator *m;
 
    mutable Array<double*> matrix_array;
    mutable Array<double*> vector_array;
@@ -159,6 +161,9 @@ public:
    // /// btype.
    // DGMassInverse(FiniteElementSpace &fes_, const IntegrationRule &ir,
    //               int btype=BasisType::GaussLegendre);
+
+   void Setup();
+
    /// Solve the system M b = u.
    void Mult(const Vector &b, Vector &u) const;
 
@@ -166,6 +171,8 @@ public:
 
    /// Not implemented. Aborts.
    void SetOperator(const Operator &op);
+
+   ~DGMassInverse_Direct();
 };
 
 } // namespace mfem
