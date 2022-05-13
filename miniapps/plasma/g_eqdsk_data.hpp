@@ -64,6 +64,14 @@ public:
    void InterpBPolRZ(const Vector &rz, Vector &b);
    // double InterpBTor(double r);
 
+   int GetNumBoundaryPts() const { return NBBBS_; }
+   const std::vector<double> & GetBoundaryRVals() const { return RBBBS_; }
+   const std::vector<double> & GetBoundaryZVals() const { return ZBBBS_; }
+
+   int GetNumLimiterPts() const { return LIMITR_; }
+   const std::vector<double> & GetLimiterRVals() const { return RLIM_; }
+   const std::vector<double> & GetLimiterZVals() const { return ZLIM_; }
+
 private:
    class ShiftedVector;
    class ShiftedDenseMatrix;

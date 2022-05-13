@@ -22,10 +22,13 @@ int main(int argc, char *argv[])
 {
    const char *eqdsk_file = "";
 
+   int order = 1;
    int precision = 8;
    cout.precision(precision);
 
    OptionsParser args(argc, argv);
+   args.AddOption(&order, "-o", "--order",
+                  "Finite element order (polynomial degree).");
    args.AddOption(&eqdsk_file, "-eqdsk", "--eqdsk-file",
                   "G EQDSK input file.");
 
@@ -64,7 +67,7 @@ int main(int argc, char *argv[])
 
    ShiftMesh(eqdsk.GetRMin(), eqdsk.GetZMid() - eqdsk.GetZExtent()/2.0, mesh);
 
-   H1_FECollection fec_h1(1, 2);
+   H1_FECollection fec_h1(order, 2);
    FiniteElementSpace fes_h1(&mesh, &fec_h1);
    FiniteElementSpace fes_h1v(&mesh, &fec_h1, 2);
 
@@ -92,18 +95,72 @@ int main(int argc, char *argv[])
    GridFunction JTor(&fes_h1);
    JTor.ProjectCoefficient(JTorCoef);
 
-   VisItDataCollection visit_dc("G_EQDSK_Viewer", &mesh);
+   {
+      VisItDataCollection visit_dc("G_EQDSK_Viewer", &mesh);
 
-   visit_dc.RegisterField("Psi", &psi);
-   visit_dc.RegisterField("FPol", &fPol);
-   visit_dc.RegisterField("Pres", &pres);
-   visit_dc.RegisterField("Q", &q);
-   visit_dc.RegisterField("nxGradPsi", &nxGradPsi);
-   visit_dc.RegisterField("BPol", &BPol);
-   visit_dc.RegisterField("BTor", &BTor);
-   visit_dc.RegisterField("JTor", &JTor);
+      visit_dc.RegisterField("Psi", &psi);
+      visit_dc.RegisterField("FPol", &fPol);
+      visit_dc.RegisterField("Pres", &pres);
+      visit_dc.RegisterField("Q", &q);
+      visit_dc.RegisterField("nxGradPsi", &nxGradPsi);
+      visit_dc.RegisterField("BPol", &BPol);
+      visit_dc.RegisterField("BTor", &BTor);
+      visit_dc.RegisterField("JTor", &JTor);
 
-   visit_dc.Save();
+      visit_dc.Save();
+   }
+
+   {
+      int nbdr = eqdsk.GetNumBoundaryPts();
+      const vector<double> &r = eqdsk.GetBoundaryRVals();
+      const vector<double> &z = eqdsk.GetBoundaryZVals();
+
+      Mesh bdr(1, nbdr, nbdr-1, 2, 2);
+
+      for (int i=0; i<nbdr; i++)
+      {
+         bdr.AddVertex(r[i], z[i]);
+      }
+
+      for (int i=1; i<nbdr; i++)
+      {
+         bdr.AddSegment(i-1, i);
+      }
+
+      bdr.AddBdrPoint(0);
+      bdr.AddBdrPoint(nbdr-1);
+
+      bdr.FinalizeMesh();
+
+      VisItDataCollection visit_dc("G_EQDSK_Viewer_Boundary", &bdr);
+      visit_dc.Save();
+   }
+
+   {
+      int nlim = eqdsk.GetNumLimiterPts();
+      const vector<double> &r = eqdsk.GetLimiterRVals();
+      const vector<double> &z = eqdsk.GetLimiterZVals();
+
+      Mesh lim(1, nlim, nlim-1, 2, 2);
+
+      for (int i=0; i<nlim; i++)
+      {
+         lim.AddVertex(r[i], z[i]);
+      }
+
+      for (int i=1; i<nlim; i++)
+      {
+         lim.AddSegment(i-1, i);
+      }
+
+      lim.AddBdrPoint(0);
+      lim.AddBdrPoint(nlim-1);
+
+      lim.FinalizeMesh();
+
+      VisItDataCollection visit_dc("G_EQDSK_Viewer_Limiter", &lim);
+      visit_dc.Save();
+   }
 }
 
 void ShiftMesh(double x0, double y0, Mesh &mesh)
