@@ -76,6 +76,8 @@ private:
    inline void   setFlag(int flag) { init_flag_ |= (1 << flag); }
    inline void clearFlag(int flag) { init_flag_ &= ~(1 << flag); }
 
+   double checkPsiBoundary();
+
    void initInterpR(const std::vector<double> &v,
                     std::vector<double> &t);
    void initInterpPsi(const std::vector<double> &v,

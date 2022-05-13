@@ -73,19 +73,14 @@ G_EQDSK_Data::G_EQDSK_Data(istream &is)
    ZLIM_.resize(LIMITR_);
 
    for (int i=0; i<NBBBS_; i++) { is >> RBBBS_[i] >> ZBBBS_[i]; }
-   for (int i=0; i<LIMITR_; i++)
-   {
-      is >> RLIM_[i] >> ZLIM_[i];
-   }
-   /*
-   BTOR_.resize(FPOL_.size());
-   for (int i=0; i<NW_; i++)
-   {
-      BTOR_[i] = FPOL_[i] / ( RLEFT_ + RDIM_ * i  / (NW_ - 1) );
-   }
-   */
+   for (int i=0; i<LIMITR_; i++) { is >> RLIM_[i] >> ZLIM_[i]; }
+
    dr_ = RDIM_ / (NW_ - 1);
    dz_ = ZDIM_ / (NH_ - 1);
+
+   double psi_bry = checkPsiBoundary();
+   if ((SIBRY_ - SIMAG_) < 1e-2 * (psi_bry - SIMAG_)) { SIBRY_ = psi_bry; }
+
    dpsi_ = (SIBRY_ - SIMAG_) / (NW_ - 1);
 }
 
@@ -187,6 +182,38 @@ void G_EQDSK_Data::DumpGnuPlotData(const string &file) const
            << "' index 3 using 1:2 w l t 'LIMITER';\n";
 
    ofs_inp.close();
+}
+
+double G_EQDSK_Data::checkPsiBoundary()
+{
+   double psi_mid = 0.0;
+   double psi_min = DBL_MAX;
+   double psi_max = DBL_MIN;
+
+   Vector rz(2);
+   double psi = 0.0;
+   for (int i=0; i<NBBBS_; i++)
+   {
+      rz[0] = RBBBS_[i];
+      rz[1] = ZBBBS_[i];
+      psi = this->InterpPsiRZ(rz);
+
+      psi_min = std::min(psi, psi_min);
+      psi_max = std::max(psi, psi_max);
+
+      if (NBBBS_ % 2 == 1)
+      {
+         if (i == (NBBBS_ - 1) / 2) { psi_mid = psi; }
+      }
+      else
+      {
+         if (i == NBBBS_ / 2 || i + 1 == NBBBS_ / 2) { psi_mid += 0.5 * psi; }
+      }
+   }
+   cout << psi_min << " <= psi <= " << psi_max << endl;
+   cout << "psi_mid = " << psi_mid << endl;
+
+   return psi_mid;
 }
 /*
 double G_EQDSK_Data::InterpFPol(double r)
@@ -335,17 +362,31 @@ void G_EQDSK_Data::InterpNxGradPsiRZ(const Vector &rz, Vector &nxdp)
 void G_EQDSK_Data::InterpBPolRZ(const Vector &rz, Vector &bpol)
 {
    InterpNxGradPsiRZ(rz, bpol);
-   bpol /= rz[0];
+   if (rz[0] > 1e-6 * RDIM_) { bpol /= rz[0]; }
 }
 
 double G_EQDSK_Data::InterpBTorRZ(const Vector &rz)
 {
-   return InterpFPolRZ(rz) / rz[0];
+   if (rz[0] > 1e-6 * RDIM_)
+   {
+      return InterpFPolRZ(rz) / rz[0];
+   }
+   else
+   {
+      return 0.0;
+   }
 }
 
 double G_EQDSK_Data::InterpJTorRZ(const Vector &rz)
 {
-   return InterpPPrimeRZ(rz) * rz[0] + InterpFFPrimeRZ(rz) / rz[0];
+   if (rz[0] > 1e-6 * RDIM_)
+   {
+      return InterpPPrimeRZ(rz) * rz[0] + InterpFFPrimeRZ(rz) / rz[0];
+   }
+   else
+   {
+      return 0.0;
+   }
 }
 
 void G_EQDSK_Data::initInterpR(const std::vector<double> &v,
