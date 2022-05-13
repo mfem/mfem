@@ -892,9 +892,9 @@ void G_EQDSK_Data::ExtendedDenseMatrix::init()
    // Populate highest rows
    for (int j=0; j<n_; j++)
    {
-      N_(1,j) = 3.0 * (2.0 * (*this)(n_-1,j) + (*this)(n_-3,j))
-                - 8.0 * (*this)(n_-2,j);
-      N_(0,j) = 3.0 * ((*this)(n_-1,j) - (*this)(n_-2,j)) + (*this)(n_-3,j);
+      N_(1,j) = 3.0 * (2.0 * (*this)(m_-1,j) + (*this)(m_-3,j))
+                - 8.0 * (*this)(m_-2,j);
+      N_(0,j) = 3.0 * ((*this)(m_-1,j) - (*this)(m_-2,j)) + (*this)(m_-3,j);
    }
 
    // Populate lowest columns
@@ -907,9 +907,9 @@ void G_EQDSK_Data::ExtendedDenseMatrix::init()
    // Populate highest columns
    for (int i=0; i<m_; i++)
    {
-      E_(i,0) = 3.0 * ((*this)(i,m_-1) - (*this)(i,m_-2)) + (*this)(i,m_-3);
-      E_(i,1) = 3.0 * (2.0 * (*this)(i,m_-1) + (*this)(i,m_-3))
-                - 8.0 * (*this)(i,m_-2);
+      E_(i,0) = 3.0 * ((*this)(i,n_-1) - (*this)(i,n_-2)) + (*this)(i,n_-3);
+      E_(i,1) = 3.0 * (2.0 * (*this)(i,n_-1) + (*this)(i,n_-3))
+                - 8.0 * (*this)(i,n_-2);
    }
 }
 
