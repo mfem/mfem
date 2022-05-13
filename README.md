@@ -1,3 +1,4 @@
+```
                     Finite Element Discretization Library
                                    __
                        _ __ ___   / _|  ___  _ __ ___
@@ -7,20 +8,24 @@
 
                                https://mfem.org
 
+```
+
 MFEM is a modular parallel C++ library for finite element methods. Its goal is
 to enable high-performance scalable finite element discretization research and
 application development on a wide variety of platforms, ranging from laptops to
 supercomputers.
 
 We welcome contributions and feedback from the community. Please see the file
-CONTRIBUTING.md for additional details about our development process.
+[CONTRIBUTING.md](CONTRIBUTING.md) for additional details about our development process.
 
-* For building instructions, see the file INSTALL, or type "make help".
+* For building instructions, see the file [INSTALL](INSTALL), or type "make help".
 
 * Copyright and licensing information can be found in files LICENSE and NOTICE.
 
 * The best starting point for new users interested in MFEM's features is to
   review the examples and miniapps at https://mfem.org/examples.
+
+* Instructions for learning with Docker are in [config/docker](config/docker).
 
 Conceptually, MFEM can be viewed as a finite element toolbox that provides the
 building blocks for developing finite element algorithms in a manner similar to
@@ -60,6 +65,8 @@ additional linear and nonlinear solvers, preconditioners, time integrators, etc.
 
 For examples of using MFEM, see the examples/ and miniapps/ directories, as well
 as the OpenGL visualization tool GLVis which is available at https://glvis.org.
+
+## License
 
 MFEM is distributed under the terms of the BSD-3 license. All new contributions
 must be made under this license. See LICENSE and NOTICE for details.
