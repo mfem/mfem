@@ -151,6 +151,7 @@ int main(int argc, char *argv[])
 
    // Exact volume and area
    double exact_volume = -10, exact_area = -10;
+   MFEM_CONTRACT_VAR(exact_area);
    if (ls_type == 1)
    {
       if (strncmp(mesh_file,"../../data/star-q3.mesh",100) == 0)
