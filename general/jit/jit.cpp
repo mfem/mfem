@@ -45,7 +45,17 @@ namespace jit
 namespace mpi
 {
 
-// Return the MPI world rank
+// Return true if MPI has been initialized
+static bool IsInitialized()
+{
+#ifndef MFEM_USE_MPI
+   return false;
+#else
+   return Mpi::IsInitialized();
+#endif
+}
+
+// Return the MPI world rank if it has been initialized, 0 otherwise
 static int Rank()
 {
    int world_rank = 0;
@@ -55,14 +65,14 @@ static int Rank()
    return world_rank;
 }
 
-// Return true if MPI has been initialized
-static bool IsInitialized()
+// Return the environment MPI world rank if set, -1 otherwise
+static int EnvRank()
 {
-#ifndef MFEM_USE_MPI
-   return false;
-#else
-   return Mpi::IsInitialized();
-#endif
+   const char *mv2   = std::getenv("MV2_COMM_WORLD_RANK"); // MVAPICH2
+   const char *ompi  = std::getenv("OMPI_COMM_WORLD_RANK"); // OpenMPI
+   const char *mpich = std::getenv("PMI_RANK"); // MPICH
+   const char *rank  = mv2 ? mv2 : ompi ? ompi : mpich ? mpich : nullptr;
+   return rank ? std::stoi(rank) : -1;
 }
 
 // Return true if the rank in world rank is zero
@@ -104,7 +114,7 @@ struct System // System singleton object
       }
    } command;
 
-   template <typename OP> static void Ack(int xx)
+   template <typename OP> static void Ack(int xx) // spinlock
    {
       while (OP()(*Ack(), xx)) // equal_to or not_equal_to OP
       { std::this_thread::sleep_for(std::chrono::milliseconds(200)); }
@@ -114,9 +124,9 @@ struct System // System singleton object
    static constexpr int ACK = ~0, CALL = 0x3243F6A8, EXIT = 0x9e3779b9;
 
    static int Read() { return *Ack(); }
-   static void Write(int xx) { *Ack() = xx; }
+   static int Write(int xx) { return *Get().s_ack = xx; }
    static void Acknowledge() { Write(ACK); }
-   static void Send(int xx) { /*Write(xx);*/ AckNE(*Ack() = xx); } // blocks until flushed
+   static void Send(int xx) { AckNE(Write(xx)); } // blocks until != xx
    static void Wait(bool EQ = true) { EQ ? AckEQ() : AckNE(); }
 
    static bool IsCall() { return Read() == CALL; }
@@ -125,17 +135,17 @@ struct System // System singleton object
 
    // Ask the parent to launch a system call
    // by default, will use the prepared command
-   static int Call(const char *command = Command())
+   static int Call(const char *name = nullptr, const char *command = Command())
    {
       MFEM_VERIFY(mpi::Root(), "[JIT] Only MPI root should launch commands!");
-      MFEM_WARNING("\033[33m" << command << "\033[m");
+      if (name) { MFEM_WARNING("[" << name << "] " << command); }
       // In serial mode, just call std::system
       if (!mpi::IsInitialized()) { return std::system(command); }
       // Otherwise, write the command to the child process
       MFEM_VERIFY((1+std::strlen(command))<Size(), "[JIT] Command length error!");
       std::memcpy(Mem(), command, std::strlen(command) + 1);
       Send(CALL); // call std::system through the child process
-      Wait(false); // wait for the acknowledgment
+      Wait(false); // wait for the acknowledgment after compilation
       return EXIT_SUCCESS;
    }
 
@@ -148,7 +158,7 @@ struct System // System singleton object
    static uintptr_t Size() { return Get().size; }
    static Command& Command() { return Get().command; }
 
-   static void Init(int *argc, char ***argv)
+   static void MmapInit()
    {
       constexpr int prot = PROT_READ | PROT_WRITE;
       constexpr int flags = MAP_SHARED | MAP_ANONYMOUS;
@@ -156,25 +166,44 @@ struct System // System singleton object
       Get().s_ack = (int*) ::mmap(nullptr, sizeof(int), prot, flags, -1, 0);
       Get().s_mem = (char*) ::mmap(nullptr, Get().size, prot, flags, -1, 0);
       Write(ACK); // initialize state
+   }
+
+   static void Init(int *argc, char ***argv)
+   {
+      MFEM_CONTRACT_VAR(argc);
+      MFEM_CONTRACT_VAR(argv);
+      MFEM_VERIFY(!mpi::IsInitialized(), "MPI should not be initialized yet!");
+      const int env_rank = mpi::EnvRank(); // first env rank is sought for
+      if (env_rank >= 0)
+      {
+         if (env_rank == 0) { MmapInit(); } // if set, only root will use mmap
+         if (env_rank > 0) // other ranks only MPI_Init
+         {
+#ifdef MFEM_USE_MPI
+            ::MPI_Init(argc, argv);
+#endif
+            Get().pid = getpid(); // set ourself to be not null for finalize
+            return;
+         }
+      }
+      else { MmapInit(); } // everyone gets ready
 
       if ((Get().pid = ::fork()) != 0)
       {
 #ifdef MFEM_USE_MPI
          ::MPI_Init(argc, argv);
-#else
-         MFEM_CONTRACT_VAR(argc);
-         MFEM_CONTRACT_VAR(argv);
 #endif
          Write(mpi::Rank()); // inform the child about our rank
          Wait(false); // wait for the child to acknowledge
       }
       else
       {
+         MFEM_VERIFY(Pid()==0, "[JIT] child?");
          MFEM_VERIFY(IsAck(), "[JIT] Child process initialization error!");
          Wait(); // wait for parent's rank
-         const int rank = Read();
+         const int rank = Read(); // Save the rank
          Acknowledge();
-         if (rank == 0) // only root is kept for work
+         if (rank == 0) // only root is kept for system calls
          {
             while (true)
             {
@@ -191,6 +220,8 @@ struct System // System singleton object
 
    static void Finalize()
    {
+      // child and env-ranked have nothing to do
+      if (Pid()==0 || Pid()==getpid()) { return; }
       MFEM_VERIFY(IsAck(), "[JIT] Finalize acknowledgment error!");
       int status;
       Send(EXIT);
@@ -259,10 +290,10 @@ struct System // System singleton object
    static std::string ARbackup() { return Get().ar.Backup(); }
    static void *DLopen(const char *path) { return ::dlopen(path, RTLD_LAZY|RTLD_LOCAL); }
 
-   static void* Lookup(const size_t hash, const char *source, const char *symbol)
+   static void* Lookup(const size_t hash, const char *name,
+                       const char *source, const char *symbol)
    {
-      void *handle = std::fstream(lib_so()) ? DLopen(lib_so()) :
-                     nullptr; // try libmjit.so
+      void *handle = std::fstream(lib_so()) ? DLopen(lib_so()) : nullptr;
       if (!handle && std::fstream(lib_ar())) // if not found, try libmjit.a
       {
          int status = EXIT_SUCCESS;
@@ -295,11 +326,11 @@ struct System // System singleton object
                    << Xdevice() << Xpic() << Xpipe()
                    << "-c" << "-o" << co << cc
                    << (std::getenv("MFEM_JIT_VERBOSE") ? "-v" : "");
-         if (Call()) { return EXIT_FAILURE; }
+         if (Call(name)) { return EXIT_FAILURE; }
          std::remove(cc.c_str());
 
          // Update archive: ar += co
-         Command() << "ar -rv" << lib_ar() << co;
+         Command() << "ar -r"/*v*/ << lib_ar() << co;
          if (Call()) { return EXIT_FAILURE; }
          std::remove(co.c_str());
 
@@ -344,13 +375,14 @@ System System::singleton {}; // Initialize the unique System context.
 
 using namespace jit;
 
-void Jit::Init(int *argc, char ***argv) { if (mpi::Root()) System::Init(argc, argv); }
+void Jit::Init(int *argc, char ***argv) { System::Init(argc, argv); }
 
-void Jit::Finalize() { if (mpi::Root()) { System::Finalize(); } }
+void Jit::Finalize() { System::Finalize(); }
 
-void* Jit::Lookup(const size_t hash, const char *source, const char *symbol)
+void* Jit::Lookup(const size_t hash, const char *name,
+                  const char *source, const char *symbol)
 {
-   return System::Lookup(hash, source, symbol);
+   return System::Lookup(hash, name, source, symbol);
 }
 
 } // namespace mfem

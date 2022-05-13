@@ -36,7 +36,8 @@ struct Jit
    static void Finalize();
 
    /// Lookup symbol in the cache, launch the compile if needed.
-   static void* Lookup(const size_t hash, const char *source, const char *symbol);
+   static void* Lookup(const size_t hash, const char *name,
+                       const char *source, const char *symbol);
 
    /// Kernel class
    template<typename kernel_t> struct Kernel
@@ -44,8 +45,9 @@ struct Jit
       kernel_t kernel;
 
       /// \brief Kernel constructor
-      Kernel(const size_t hash, const char *src, const char *symbol):
-         kernel((kernel_t) Jit::Lookup(hash, src, symbol)) { }
+      Kernel(const size_t hash, const char *name,
+             const char *src, const char *symbol):
+         kernel((kernel_t) Jit::Lookup(hash, name, src, symbol)) { }
 
       /// Kernel launch
       template<typename... Args> void operator()(Args... as) { kernel(as...); }
@@ -71,7 +73,7 @@ struct Jit
    }
 
    template <typename T, typename... Args> static inline
-   Kernel<T> Find(const size_t hash, const char *source,
+   Kernel<T> Find(const size_t hash, const char *name, const char *source,
                   std::unordered_map<size_t, Kernel<T>> &map, Args ...args)
    {
       auto kernel_it = map.find(hash);
@@ -80,7 +82,7 @@ struct Jit
          const int n = snprintf(nullptr, 0, source, hash, hash, hash, args...);
          std::string src(n+1, '\0');
          snprintf(&src[0], n+1, source, hash, hash, hash, args...);
-         map.emplace(hash, Kernel<T>(hash, &src[0], ToString(hash).c_str()));
+         map.emplace(hash, Kernel<T>(hash, name, &src[0], ToString(hash).c_str()));
          kernel_it = map.find(hash);
       }
       return kernel_it->second;

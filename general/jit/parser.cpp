@@ -371,12 +371,15 @@ struct Parser
           << "\n"<< (ker.is_static ? "static " : "") // then generate the code
           << "void " << ker.name << "(" << ker.Sparams0 << ")"
           << "{" << ker.src.str() << "})_\";"; // end of src
+
       out << "\nconst size_t hash = Jit::Hash("
           << "0x" << std::hex << seed << std::dec << "ul," << ker.Targs << ");"
           << "\ntypedef void (*kernel_t)(unsigned long backends, " << ker.Sparams << ");"
           << "\nstatic std::unordered_map<size_t, Jit::Kernel<kernel_t>> kernels;"
-          << "\nJit::Find(hash, source, kernels, " << ker.Targs << ")"
+          << "\nJit::Find(hash, \"" << ker.name << "\", source, kernels, " << ker.Targs <<
+          ")"
           << ".operator()(backends," << ker.Sargs << ");";
+
       out << "\n#line " << std::to_string(line) << " \"" << file << "\"\n";
       ker.advance(/*postfix => wait*/);
    }
