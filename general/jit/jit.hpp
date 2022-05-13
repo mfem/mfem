@@ -80,9 +80,11 @@ struct Jit
       if (kernel_it == map.end())
       {
          const int n = snprintf(nullptr, 0, source, hash, hash, hash, args...);
-         std::string src(n+1, '\0');
+         const int m = snprintf(nullptr, 0, name, args...);
+         std::string src(n+1, '\0'), knm(m+1, '\0');
          snprintf(&src[0], n+1, source, hash, hash, hash, args...);
-         map.emplace(hash, Kernel<T>(hash, name, &src[0], ToString(hash).c_str()));
+         snprintf(&knm[0], m+1, name, args...);
+         map.emplace(hash, Kernel<T>(hash, &knm[0], &src[0], ToString(hash).c_str()));
          kernel_it = map.find(hash);
       }
       return kernel_it->second;

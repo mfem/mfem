@@ -286,14 +286,14 @@ struct Parser
 
       // MFEM_FORALL_2D_JIT
       ker.src << "\n#define MFEM_FORALL_2D_JIT(i,N,X,Y,B,...)"
-              << "ForallWrap<2>(true, backends, N,"
+              << "ForallWrap<2>(backends, true, N,"
               <<"[=] MFEM_DEVICE (int i) {__VA_ARGS__},"
               <<"[&] MFEM_LAMBDA (int i) {__VA_ARGS__},"
               <<"X,Y,B)";
 
       // MFEM_FORALL_3D_JIT
       ker.src << "\n#define MFEM_FORALL_3D_JIT(i,N,X,Y,Z,...)"
-              << "ForallWrap<3>(true, backends, N,"
+              << "ForallWrap<3>(backends, true, N,"
               <<"[=] MFEM_DEVICE (int i) {__VA_ARGS__},"
               <<"[&] MFEM_LAMBDA (int i) {__VA_ARGS__},"
               <<"X,Y,Z)";
@@ -373,11 +373,12 @@ struct Parser
           << "{" << ker.src.str() << "})_\";"; // end of src
 
       out << "\nconst size_t hash = Jit::Hash("
-          << "0x" << std::hex << seed << std::dec << "ul," << ker.Targs << ");"
-          << "\ntypedef void (*kernel_t)(unsigned long backends, " << ker.Sparams << ");"
-          << "\nstatic std::unordered_map<size_t, Jit::Kernel<kernel_t>> kernels;"
-          << "\nJit::Find(hash, \"" << ker.name << "\", source, kernels, " << ker.Targs <<
-          ")"
+          << "0x" << std::hex << seed << std::dec << "ul," << ker.Targs << ");";
+      out << "\ntypedef void (*kernel_t)"
+          <<"(unsigned long backends, " << ker.Sparams << ");";
+      out << "\nstatic std::unordered_map<size_t, Jit::Kernel<kernel_t>> kernels;"
+          << "\nJit::Find(hash, \"" << ker.name  << "<" << ker.Tformat << ">"
+          << "\", source, kernels, " << ker.Targs <<  ")"
           << ".operator()(backends," << ker.Sargs << ");";
 
       out << "\n#line " << std::to_string(line) << " \"" << file << "\"\n";
