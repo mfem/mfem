@@ -24,7 +24,6 @@ namespace mfem
 
 void DGMassInverse::Setup()
 {
-   M->Update();
    M->Assemble();
 
    diag_inv.SetSize(height);
