@@ -114,11 +114,11 @@ enum class BatchSolverMode
 class DGMassInverse_Direct : public Solver
 {
 protected:
+   FiniteElementSpace &fes;
    const BatchSolverMode mode;
    Vector blocks;
    DenseTensor tensor;
    Array<int> ipiv;
-   FiniteElementSpace &fes;
    class MassIntegrator *m;
 
    mutable Array<double*> matrix_array;

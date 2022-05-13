@@ -393,21 +393,21 @@ public:
 };
 #endif
 
-DGMassInverse_Direct::DGMassInverse_Direct(FiniteElementSpace &fes,
+DGMassInverse_Direct::DGMassInverse_Direct(FiniteElementSpace &fes_,
                                            BatchSolverMode mode_)
-   : DGMassInverse_Direct(fes, nullptr, nullptr, mode_) { }
+   : DGMassInverse_Direct(fes_, nullptr, nullptr, mode_) { }
 
-DGMassInverse_Direct::DGMassInverse_Direct(FiniteElementSpace &fes,
+DGMassInverse_Direct::DGMassInverse_Direct(FiniteElementSpace &fes_,
                                            Coefficient &coeff,
                                            const IntegrationRule &ir,
                                            BatchSolverMode mode_)
-   : DGMassInverse_Direct(fes, &coeff, &ir, mode_) { }
+   : DGMassInverse_Direct(fes_, &coeff, &ir, mode_) { }
 
 DGMassInverse_Direct::DGMassInverse_Direct(FiniteElementSpace &fes_,
                                            Coefficient *coeff,
                                            const IntegrationRule *ir,
                                            BatchSolverMode mode_)
-   : Solver(fes.GetTrueVSize()), fes(fes_), mode(mode_)
+   : Solver(fes_.GetTrueVSize()), fes(fes_), mode(mode_)
 {
    const int ne = fes.GetNE();
    const int elem_dofs = fes.GetFE(0)->GetDof();
@@ -426,6 +426,8 @@ void DGMassInverse_Direct::Setup()
 {
    const int ne = fes.GetNE();
    const int elem_dofs = fes.GetFE(0)->GetDof();
+   MFEM_CONTRACT_VAR(ne);
+   MFEM_CONTRACT_VAR(elem_dofs);
 
    m->AssembleEA(fes, blocks, false);
 
