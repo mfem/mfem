@@ -36,7 +36,10 @@ DGMassInverse::DGMassInverse(FiniteElementSpace &fes_orig, Coefficient *coeff,
                              const IntegrationRule *ir,
                              int btype)
    : Solver(fes_orig.GetTrueVSize()),
-     fec(fes_orig.GetMaxElementOrder(), fes_orig.GetMesh()->Dimension(), btype),
+     fec(fes_orig.GetMaxElementOrder(),
+         fes_orig.GetMesh()->Dimension(),
+         btype,
+         fes_orig.GetFE(0)->GetMapType()),
      fes(fes_orig.GetMesh(), &fec)
 {
    MFEM_VERIFY(fes.IsDGSpace(), "Space must be DG.");
