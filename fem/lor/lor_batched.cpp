@@ -586,7 +586,7 @@ void BatchedLORAssembly::ParAssemble(
             const int jdof = J[j];
             if (jdof == idof)
             {
-               // Set eliminate diagonal equal to identity
+               // Set eliminated diagonal equal to identity
                data[j] = 1.0;
             }
             else
@@ -620,62 +620,29 @@ void BatchedLORAssembly::ParAssemble(
    }
 
    // Wait for MPI communication to finish
-   Array<HYPRE_Int> cols_to_eliminate;
-   {
-      hypre_ParCSRCommHandleDestroy(comm_handle);
-
-      // set the array cols_to_eliminate
-      int ncols_to_eliminate = 0;
-      for (int i = 0; i < offd_ncols; i++)
-      {
-         if (eliminate_col[i]) { ncols_to_eliminate++; }
-      }
-
-      cols_to_eliminate.SetSize(ncols_to_eliminate);
-      cols_to_eliminate = 0.0;
-
-      ncols_to_eliminate = 0;
-      for (int i = 0; i < offd_ncols; i++)
-      {
-         if (eliminate_col[i])
-         {
-            cols_to_eliminate[ncols_to_eliminate++] = i;
-         }
-      }
-
-      mfem_hypre_TFree_host(int_buf_data);
-      mfem_hypre_TFree_host(eliminate_row);
-      mfem_hypre_TFree_host(eliminate_col);
-   }
+   hypre_ParCSRCommHandleDestroy(comm_handle);
+   mfem_hypre_TFree_host(int_buf_data);
+   mfem_hypre_TFree_host(eliminate_row);
 
    // Eliminate columns in the off-diagonal block
    {
-      const int ncols_to_eliminate = cols_to_eliminate.Size();
+      Memory<HYPRE_Int> col_mem(eliminate_col, offd_ncols, false);
+      const auto cols = col_mem.Read(GetHypreMemoryClass(), offd_ncols);
       const int nrows_offd = hypre_CSRMatrixNumRows(offd);
-      const auto cols = cols_to_eliminate.GetMemory().Read(
-                           GetHypreMemoryClass(), ncols_to_eliminate);
       const auto I = offd->i;
       const auto J = offd->j;
       auto data = offd->data;
-      // Note: could also try a different strategy, looping over nnz in the
-      // matrix and then doing a binary search in ncols_to_eliminate to see if
-      // the column should be eliminated.
-      MFEM_HYPRE_FORALL(idx, ncols_to_eliminate,
+      MFEM_HYPRE_FORALL(i, nrows_offd,
       {
-         const int j = cols[idx];
-         for (int i=0; i<nrows_offd; ++i)
+         for (int j=I[i]; j<I[i+1]; ++j)
          {
-            for (int jj=I[i]; jj<I[i+1]; ++jj)
-            {
-               if (J[jj] == j)
-               {
-                  data[jj] = 0.0;
-                  break;
-               }
-            }
+            data[j] *= 1 - cols[J[j]];
          }
       });
+      col_mem.Delete();
    }
+
+   mfem_hypre_TFree_host(eliminate_col);
 }
 #endif
 
