@@ -462,8 +462,8 @@ void ScalarFiniteElement::ScalarLocalRestriction(
 {
    // General "restriction", defined by L2 projection
    double v[Geometry::MaxDim];
-   Vector vv (v, dim);
-   IntegrationPoint f_ip;
+   Vector vv(v, dim);
+   IntegrationPoint c_ip;
 
    const int cs = coarse_fe.GetDof(), fs = this->GetDof();
    R.SetSize(cs, fs);
@@ -472,16 +472,18 @@ void ScalarFiniteElement::ScalarLocalRestriction(
    const int ir_order = GetOrder() + coarse_fe.GetOrder();
    const IntegrationRule &ir = IntRules.Get(coarse_fe.GetGeomType(), ir_order);
 
+   // integrate in the fine space
+
+   Trans.SetIntPoint(&Geometries.GetCenter(geom_type));
    for (int i = 0; i < ir.GetNPoints(); i++)
    {
-      const IntegrationPoint &ip = ir.IntPoint(i);
-      this->CalcShape(ip, fine_shape);
-      Trans.Transform(ip, vv);
-      f_ip.Set(v, dim);
-      coarse_fe.CalcShape(f_ip, coarse_shape);
-
-      AddMult_a_VVt(ip.weight, coarse_shape, coarse_mass);
-      AddMult_a_VWt(ip.weight, coarse_shape, fine_shape, coarse_fine_mass);
+      const IntegrationPoint &f_ip = ir.IntPoint(i);
+      this->CalcShape(f_ip, fine_shape);
+      Trans.Transform(f_ip, vv);
+      c_ip.Set(v, dim);
+      coarse_fe.CalcShape(c_ip, coarse_shape);
+      AddMult_a_VVt(f_ip.weight, coarse_shape, coarse_mass);
+      AddMult_a_VWt(f_ip.weight*Trans.Weight(), coarse_shape, fine_shape, coarse_fine_mass);
    }
 
    DenseMatrixInverse coarse_mass_inv(coarse_mass);
@@ -489,6 +491,7 @@ void ScalarFiniteElement::ScalarLocalRestriction(
 
    if (map_type == INTEGRAL)
    {
+      // todo: is this necessary?
       // assuming Trans is linear; this should be ok for all refinement types
       Trans.SetIntPoint(&Geometries.GetCenter(geom_type));
       R *= 1.0 / Trans.Weight();
