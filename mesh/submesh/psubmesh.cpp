@@ -9,7 +9,7 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-#include "../config/config.hpp"
+#include "../../config/config.hpp"
 
 #ifdef MFEM_USE_MPI
 
@@ -18,23 +18,25 @@
 #include <algorithm>
 #include "psubmesh.hpp"
 #include "submesh_utils.hpp"
-#include "segment.hpp"
+#include "detail/ptransfermap.hpp"
+#include "../segment.hpp"
 
 namespace mfem
 {
-ParSubMesh ParSubMesh::CreateFromDomain(ParMesh &parent,
+
+ParSubMesh ParSubMesh::CreateFromDomain(const ParMesh &parent,
                                         Array<int> &domain_attributes)
 {
    return ParSubMesh(parent, SubMesh::From::Domain, domain_attributes);
 }
 
-ParSubMesh ParSubMesh::CreateFromBoundary(ParMesh &parent,
+ParSubMesh ParSubMesh::CreateFromBoundary(const ParMesh &parent,
                                           Array<int> &boundary_attributes)
 {
    return ParSubMesh(parent, SubMesh::From::Boundary, boundary_attributes);
 }
 
-ParSubMesh::ParSubMesh(ParMesh &parent, SubMesh::From from,
+ParSubMesh::ParSubMesh(const ParMesh &parent, SubMesh::From from,
                        Array<int> &attributes) : parent_(parent), from_(from), attributes_(attributes)
 {
    MyComm = parent.GetComm();
@@ -62,12 +64,6 @@ ParSubMesh::ParSubMesh(ParMesh &parent, SubMesh::From from,
    // generate boundary elements on each rank locally, which is topologically
    // wrong for the distributed SubMesh.
    FinalizeTopology(false);
-
-   if (Dim == 3)
-   {
-      parent_face_ids_ = SubMeshUtils::BuildFaceMap(parent_, *this,
-                                                    parent_element_ids_);
-   }
 
    parent_to_submesh_vertex_ids_.SetSize(parent_.GetNV());
    parent_to_submesh_vertex_ids_ = -1;
@@ -97,6 +93,9 @@ ParSubMesh::ParSubMesh(ParMesh &parent, SubMesh::From from,
 
    if (Dim == 3)
    {
+      parent_face_ids_ = SubMeshUtils::BuildFaceMap(parent_, *this,
+                                                    parent_element_ids_);
+
       parent_to_submesh_face_ids_.SetSize(parent.GetNFaces());
       parent_to_submesh_face_ids_ = -1;
       for (int i = 0; i < parent_face_ids_.Size(); i++)
@@ -104,8 +103,6 @@ ParSubMesh::ParSubMesh(ParMesh &parent, SubMesh::From from,
          parent_to_submesh_face_ids_[parent_face_ids_[i]] = i;
       }
    }
-
-   GenerateFaces();
 
    ListOfIntegerSets groups;
    IntegerSet group;
@@ -162,6 +159,8 @@ ParSubMesh::ParSubMesh(ParMesh &parent, SubMesh::From from,
       BuildSharedFacesMapping(nstrias, rht, nsquads, rhq);
    }
 
+   ExchangeFaceNbrData();
+
    // Add boundaries
    {
       Array<int> &be2face = (Dim == 2) ? be_to_edge : be_to_face;
@@ -204,7 +203,6 @@ ParSubMesh::ParSubMesh(ParMesh &parent, SubMesh::From from,
                   boundary[j]->SetAttribute(SubMesh::GENERATED_ATTRIBUTE);
                }
             }
-
             be2face[j++] = i;
          }
       }
@@ -229,8 +227,8 @@ ParSubMesh::ParSubMesh(ParMesh &parent, SubMesh::From from,
          spaceDim,
          parent_fes->GetOrdering());
 
-      ParGridFunction* pn = dynamic_cast<ParGridFunction*>
-                            (parent_.GetNodes());
+      const ParGridFunction* pn = dynamic_cast<const ParGridFunction*>
+                                  (parent_.GetNodes());
       MFEM_ASSERT(pn,
                   "Internal error. Object is supposed to be ParGridFunction.");
 
@@ -793,266 +791,10 @@ void ParSubMesh::BuildSharedFacesMapping(const int nstrias,
 
 void ParSubMesh::Transfer(const ParGridFunction &src, ParGridFunction &dst)
 {
-   Array<int> src_vdofs;
-   Array<int> dst_vdofs;
-   Vector vec;
-
-   if (IsParSubMesh(src.ParFESpace()->GetParMesh()) &&
-       !IsParSubMesh(dst.ParFESpace()->GetParMesh()))
-   {
-      // ParSubMesh to ParMesh transfer
-      ParSubMesh *src_mesh = static_cast<ParSubMesh *>(src.ParFESpace()->GetMesh());
-
-      MFEM_ASSERT(src_mesh->GetParent() == dst.ParFESpace()->GetParMesh(),
-                  "The Meshes of the specified ParGridFunction are not related in a ParSubMesh -> ParMesh relationship.");
-
-      auto &parent_element_ids = src_mesh->GetParentElementIDMap();
-      IntegrationPointTransformation Tr;
-      DenseMatrix vals, vals_transpose;
-      for (int i = 0; i < src_mesh->GetNE(); i++)
-      {
-         src.ParFESpace()->GetElementVDofs(i, src_vdofs);
-         if (src.ParFESpace()->IsDGSpace() &&
-             src_mesh->GetFrom() == SubMesh::From::Boundary)
-         {
-            MFEM_ABORT("Transferring from a surface ParSubMesh to a volume ParMesh using L2 spaces is not implemented.");
-         }
-         else
-         {
-            if (src_mesh->GetFrom() == SubMesh::From::Domain)
-            {
-               dst.ParFESpace()->GetElementVDofs(parent_element_ids[i], dst_vdofs);
-            }
-            else if (src_mesh->GetFrom() == SubMesh::From::Boundary)
-            {
-               dst.ParFESpace()->GetBdrElementVDofs(parent_element_ids[i], dst_vdofs);
-            }
-            src.GetSubVector(src_vdofs, vec);
-            dst.SetSubVector(dst_vdofs, vec);
-         }
-      }
-   }
-   else if (IsParSubMesh(dst.ParFESpace()->GetParMesh()))
-   {
-      // ParMesh to ParSubMesh transfer
-      ParMesh *src_mesh = src.ParFESpace()->GetParMesh();
-      ParSubMesh *dst_mesh = static_cast<ParSubMesh *>
-                             (dst.ParFESpace()->GetParMesh());
-
-      if (dst_mesh->GetParent() == src_mesh)
-      {
-         auto &parent_element_ids = dst_mesh->GetParentElementIDMap();
-
-         IntegrationPointTransformation Tr;
-         DenseMatrix vals, vals_transpose;
-         for (int i = 0; i < dst_mesh->GetNE(); i++)
-         {
-            dst.ParFESpace()->GetElementVDofs(i, dst_vdofs);
-            if (src.ParFESpace()->IsDGSpace() &&
-                dst_mesh->GetFrom() == SubMesh::From::Boundary)
-            {
-               const FiniteElement *el = dst.ParFESpace()->GetFE(i);
-               MFEM_VERIFY(dynamic_cast<const NodalFiniteElement *>(el),
-                           "Destination FESpace must use nodal Finite Elements.");
-
-               int face_info, parent_volel_id;
-               src_mesh->GetBdrElementAdjacentElement(parent_element_ids[i], parent_volel_id,
-                                                      face_info);
-               src_mesh->GetLocalFaceTransformation(
-                  src_mesh->GetBdrElementType(parent_element_ids[i]),
-                  src_mesh->GetElementType(parent_volel_id),
-                  Tr.Transf,
-                  face_info);
-
-               IntegrationRule src_el_ir(el->GetDof());
-               Tr.Transf.ElementNo = parent_volel_id;
-               Tr.Transf.ElementType = ElementTransformation::ELEMENT;
-               Tr.Transform(el->GetNodes(), src_el_ir);
-
-               src.GetVectorValues(Tr.Transf, src_el_ir, vals);
-               // vals_transpose = vals^T
-               vals_transpose.Transpose(vals);
-               dst.SetSubVector(dst_vdofs, vals_transpose.GetData());
-            }
-            else
-            {
-               if (dst_mesh->GetFrom() == SubMesh::From::Domain)
-               {
-                  src.ParFESpace()->GetElementVDofs(parent_element_ids[i], src_vdofs);
-               }
-               else if (dst_mesh->GetFrom() == SubMesh::From::Boundary)
-               {
-                  src.ParFESpace()->GetBdrElementVDofs(parent_element_ids[i], src_vdofs);
-               }
-               src.GetSubVector(src_vdofs, vec);
-               dst.SetSubVector(dst_vdofs, vec);
-            }
-         }
-      }
-      else if (IsParSubMesh(src.ParFESpace()->GetParMesh()))
-      {
-         ParSubMesh* src_sm = static_cast<ParSubMesh*>(src.ParFESpace()->GetParMesh());
-         ParSubMesh* dst_sm = static_cast<ParSubMesh*>(dst.ParFESpace()->GetParMesh());
-
-         // There is no immediate relation and both src and dst come from a
-         // SubMesh, check if they have an equivalent root parent.
-         if (SubMeshUtils::GetRootParent<ParSubMesh>(*src_sm) !=
-             SubMeshUtils::GetRootParent<ParSubMesh>(*dst_sm))
-         {
-            MFEM_ABORT("Can't find a relation between the two GridFunctions");
-         }
-
-         if (src_sm->GetFrom() == SubMesh::From::Domain &&
-             dst_sm->GetFrom() == SubMesh::From::Boundary)
-         {
-            const Array<int> *src_parent_fids = nullptr, *dst_parent_fids = nullptr;
-
-            src_parent_fids = &src_sm->GetParentFaceIDMap();
-            dst_parent_fids = &dst_sm->GetParentElementIDMap();
-
-            const auto& src_parent_vids = src_sm->GetParentVertexIDMap();
-            const auto& dst_parent_vids = dst_sm->GetParentVertexIDMap();
-
-            Array<int> src_v, dst_v, src_to_parent_v, dst_to_parent_v,
-                  dst_vdofs_reordered;
-
-            for (int i = 0; i < dst_sm->GetNE(); i++)
-            {
-               int parent_fid = dst_sm->GetParent()->GetBdrElementEdgeIndex(
-                                   (*dst_parent_fids)[i]);
-
-               int src_fid = src_parent_fids->Find(parent_fid);
-
-               if (src_fid == -1) { continue; }
-
-               src.ParFESpace()->GetFaceVDofs(src_fid, src_vdofs);
-               dst.ParFESpace()->GetElementVDofs(i, dst_vdofs);
-
-               // Take care of possible rotation of face/element vertices
-               src_sm->GetFaceVertices(src_fid, src_v);
-               dst_sm->GetElementVertices(i, dst_v);
-
-               int nv = src_v.Size();
-               src_to_parent_v.SetSize(nv);
-               dst_to_parent_v.SetSize(nv);
-               for (int j = 0; j < nv; j++)
-               {
-                  src_to_parent_v[j] = src_parent_vids[src_v[j]];
-                  dst_to_parent_v[j] = dst_parent_vids[dst_v[j]];
-               }
-
-               int dst_relto_src_orientation = 0;
-               if (dst_sm->GetElementGeometry(i) == Geometry::SQUARE)
-               {
-                  dst_relto_src_orientation = Mesh::GetQuadOrientation(src_to_parent_v,
-                                                                       dst_to_parent_v);
-               }
-               else if (dst_sm->GetElementGeometry(i) == Geometry::TRIANGLE)
-               {
-                  dst_relto_src_orientation = Mesh::GetTriOrientation(src_to_parent_v,
-                                                                      dst_to_parent_v);
-               }
-               else
-               {
-                  MFEM_ABORT("element geometry not supported")
-               }
-
-               Array<int> dof_order;
-               dst.FESpace()->FEColl()->SubDofOrder(dst_sm->GetElementGeometry(i), 2,
-                                                    dst_relto_src_orientation, dof_order);
-
-               dst_vdofs_reordered.SetSize(dst_vdofs.Size());
-               for (int j = 0; j < dst_vdofs_reordered.Size(); j++)
-               {
-                  dst_vdofs_reordered[j] = dst_vdofs[dof_order[j]];
-               }
-
-               src.GetSubVector(src_vdofs, vec);
-               dst.SetSubVector(dst_vdofs_reordered, vec);
-            }
-         }
-         else if (src_sm->GetFrom() == SubMesh::From::Boundary &&
-                  dst_sm->GetFrom() == SubMesh::From::Domain)
-         {
-            const Array<int> *src_parent_fids = nullptr, *dst_parent_fids = nullptr;
-
-            src_parent_fids = &src_sm->GetParentElementIDMap();
-            dst_parent_fids = &dst_sm->GetParentFaceIDMap();
-
-            const auto& src_parent_vids = src_sm->GetParentVertexIDMap();
-            const auto& dst_parent_vids = dst_sm->GetParentVertexIDMap();
-
-            Array<int> src_v, dst_v, src_to_parent_v, dst_to_parent_v,
-                  dst_vdofs_reordered;
-
-            for (int i = 0; i < src_sm->GetNE(); i++)
-            {
-               int parent_fid = src_sm->GetParent()->GetBdrElementEdgeIndex(
-                                   (*src_parent_fids)[i]);
-
-               int dst_fid = dst_parent_fids->Find(parent_fid);
-
-               src.ParFESpace()->GetElementVDofs(i, src_vdofs);
-               dst.ParFESpace()->GetFaceVDofs(dst_fid, dst_vdofs);
-
-               // Take care of possible rotation of face/element vertices
-               src_sm->GetElementVertices(i, src_v);
-               dst_sm->GetFaceVertices(dst_fid, dst_v);
-
-               int nv = src_v.Size();
-               src_to_parent_v.SetSize(nv);
-               dst_to_parent_v.SetSize(nv);
-               for (int j = 0; j < nv; j++)
-               {
-                  src_to_parent_v[j] = src_parent_vids[src_v[j]];
-                  dst_to_parent_v[j] = dst_parent_vids[dst_v[j]];
-               }
-
-               int dst_relto_src_orientation = 0;
-               if (src_sm->GetElementGeometry(i) == Geometry::SQUARE)
-               {
-                  dst_relto_src_orientation = Mesh::GetQuadOrientation(src_to_parent_v,
-                                                                       dst_to_parent_v);
-               }
-               else if (src_sm->GetElementGeometry(i) == Geometry::TRIANGLE)
-               {
-                  dst_relto_src_orientation = Mesh::GetTriOrientation(src_to_parent_v,
-                                                                      dst_to_parent_v);
-               }
-               else
-               {
-                  MFEM_ABORT("element geometry not supported")
-               }
-
-               Array<int> dof_order;
-               src.ParFESpace()->FEColl()->SubDofOrder(src_sm->GetElementGeometry(i), 2,
-                                                       dst_relto_src_orientation, dof_order);
-
-               dst_vdofs_reordered.SetSize(dst_vdofs.Size());
-               for (int j = 0; j < dst_vdofs_reordered.Size(); j++)
-               {
-                  dst_vdofs_reordered[j] = dst_vdofs[dof_order[j]];
-               }
-
-               src.GetSubVector(src_vdofs, vec);
-               dst.SetSubVector(dst_vdofs_reordered, vec);
-            }
-         }
-         else
-         {
-            MFEM_ABORT("Can't find a supported transfer between the two ParGridFunctions");
-         }
-      }
-      else
-      {
-         MFEM_ABORT("Can't find a relation between the two ParGridFunctions");
-      }
-   }
-   else
-   {
-      MFEM_ABORT("Trying to do a transfer between ParGridFunctions but none of them is defined on a ParSubMesh");
-   }
+   detail::ParTransferMap map(src, dst);
+   map(src, dst);
 }
+
 } // namespace mfem
 
 #endif // MFEM_USE_MPI

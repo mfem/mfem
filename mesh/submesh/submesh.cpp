@@ -11,7 +11,7 @@
 
 #include "submesh.hpp"
 #include "submesh_utils.hpp"
-#include "../fem/gridfunc.hpp"
+#include "../../fem/gridfunc.hpp"
 
 using namespace mfem;
 
@@ -196,8 +196,8 @@ void SubMesh::Transfer(const GridFunction &src, GridFunction &dst)
          SubMesh* dst_sm = static_cast<SubMesh*>(dst.FESpace()->GetMesh());
          // There is no immediate relation and both src and dst come from a
          // SubMesh, check if they have an equivalent root parent.
-         if (SubMeshUtils::GetRootParent<SubMesh>(*src_sm) !=
-             SubMeshUtils::GetRootParent<SubMesh>(*dst_sm))
+         if (SubMeshUtils::GetRootParent<SubMesh, Mesh>(*src_sm) !=
+             SubMeshUtils::GetRootParent<SubMesh, Mesh>(*dst_sm))
          {
             MFEM_ABORT("Can't find a relation between the two GridFunctions");
          }
