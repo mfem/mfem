@@ -11,19 +11,20 @@
 
 // 3D flow over a cylinder benchmark example
 
-#include "navier_solver.hpp"
+//#include "navier_solver.hpp"
+#include "navier_3d_brink_workflow.hpp"
 #include <fstream>
+#include <ctime>
+#include <cstdlib> 
 
 using namespace mfem;
 using namespace navier;
 
-struct s_NavierContext
-{
-   int order = 2;
-   double kin_vis = 0.1;
-   double t_final = 1.0;
-   double dt = 1e-4;
-} ctx;
+s_NavierContext ctx;
+ //ctx.order = 2;
+ //ctx.kin_vis = 0.1;
+// ctx.t_final = 1.0;
+// ctx.dt = 1e-4;
 
 void vel(const Vector &x, double t, Vector &u)
 {
@@ -42,200 +43,33 @@ void vel(const Vector &x, double t, Vector &u)
    u(2)=0.0;
 }
 
-class DensityCoeff:public mfem::Coefficient
-{
-public:
-    DensityCoeff()
-    {
-        cx=0.5;
-        cy=0.5;
-        cz=1.0;
-        eta=0.1;
-        prtype=zero_one;
-        pttype=Ball;
-
-    }
-
-    void SetBallCoord(double xx, double yy, double zz)
-    {
-        cx=xx;
-        cy=yy;
-        cz=zz;
-    }
-
-    void SetBallR(double RR)
-    {
-        eta=RR;
-    }
-
-    void SetThreshold(double eta_)
-    {
-       eta=eta_;
-    }
-    
-    enum ProjectionType {zero_one, continuous}; 
-
-    void SetProjectionType(ProjectionType ptype_)
-    {
-       prtype=ptype_;
-    }
-
-    enum PatternType {Ball, Gyroid, SchwarzP, SchwarzD};
-
-    void SetPatternType(PatternType pttype_)
-    {
-      pttype=pttype_;
-    }
-
-
-    virtual
-    ~DensityCoeff()
-    {
-
-    }
-
-    virtual
-    double Eval(ElementTransformation &T, const IntegrationPoint &ip)
-    {
-	if(pttype==Ball){	
-            double x[3];
-            Vector transip(x, 3);
-            T.Transform(ip,transip);
-            double rr=(x[0]-cx)*(x[0]-cx);
-            rr=rr+(x[1]-cy)*(x[1]-cy);
-            if(T.GetDimension()==3)
-            {
-                rr=rr+(x[2]-cz)*(x[2]-cz);
-            }
-            rr=std::sqrt(rr);
-            if(prtype==continuous){return rr;}
-
-            if(rr>eta){return 0.0;}
-            return 1.0;  
-        }else
-        if(pttype==Gyroid){
-            const double period = 2.0 * M_PI;
-            double xv[3];
-            mfem::Vector xx(xv,3);
-            T.Transform(ip,xx);
-            double x=xv[0]*period;
-            double y=xv[1]*period;
-            double z=xv[2]*period;
-   
-            double vv=std::sin(x)*std::cos(y) +
-                      std::sin(y)*std::cos(z) +
-                      std::sin(z)*std::cos(x);
-            if(prtype==continuous){return vv;}
-
-            if(fabs(vv)>eta){ return 0.0;}
-            else{return 1.0;}
-        }else
-        if(pttype==SchwarzD){
-            const double period = 2.0 * M_PI;
-            double xv[3];
-            mfem::Vector xx(xv,3);
-            T.Transform(ip,xx);
-            double x=xv[0]*period;
-            double y=xv[1]*period;
-            double z=xv[2]*period;
-            
-            double vv=sin(x)*sin(y)*sin(z) +
-                      sin(x)*cos(y)*cos(z) +
-                      cos(x)*sin(y)*cos(z) +
-                      cos(x)*cos(y)*sin(z);
-
-            if(prtype==continuous){return vv;}
-            
-            if(fabs(vv)>eta){ return 0.0;}
-            else{return 1.0;}		
-        }else{ //pttype=SchwarzP
-            const double period = 2.0 * M_PI;
-            double xv[3];
-            mfem::Vector xx(xv,3);
-            T.Transform(ip,xx);
-            double x=xv[0]*period;
-            double y=xv[1]*period;
-            double z=xv[2]*period;
-
-            double vv=std::cos(x)+std::cos(y)+std::cos(z);
-	    if(prtype==continuous){return vv;}
-
-            if(fabs(vv)>eta){ return 0.0;}
-            else{return 1.0;}
-        }
-
-    }
-
-private:
-    double cx;
-    double cy;
-    double cz;
-    double eta;//threshold
-    ProjectionType prtype; 
-    PatternType    pttype;
-
-
-};
-
-
-class BrinkPenalAccel:public mfem::VectorCoefficient
-{
-public:
-    BrinkPenalAccel(int dim):mfem::VectorCoefficient(dim)
-    {
-        dcoeff=nullptr;
-    }
-
-    virtual
-    ~BrinkPenalAccel()
-    {
-
-    }
-
-    void SetVel(mfem::GridFunction* gfvel)
-    {
-        vel=gfvel;
-    }
-
-    void SetDensity(mfem::Coefficient* coeff)
-    {
-        dcoeff=coeff;
-    }
-
-    virtual void Eval (Vector &V, ElementTransformation &T, const IntegrationPoint &ip)
-    {
-        double dens=dcoeff->Eval(T,ip);
-        V.SetSize(GetVDim());
-        if(vel==nullptr)
-        {
-            V=0.0;
-        }
-        else
-        {
-            if(dens<1e-8)
-            {
-                V(0)=0.0;
-                V(1)=0.0;
-                V(2)=10.0;
-            }else{
-                vel->GetVectorValue(T,ip,V);
-                V*=-10000.0;
-            }
-        }
-    }
-
-private:
-    mfem::GridFunction* vel;
-    mfem::Coefficient* dcoeff;
-
-};
-
-
 int main(int argc, char *argv[])
 {
    MPI_Session mpi(argc, argv);
 
+   const char *mesh_file = "bar3d.msh";
+   int run_id = 0;
+
    int serial_refinements = 0;
+
+   double tForce_Magnitude = 0.0;
+
+
+   OptionsParser args(argc, argv);
+   args.AddOption(&mesh_file, "-m", "--mesh",
+                  "Mesh file to use.");
+   args.AddOption(&run_id, "-r", "--runID",
+                  "Run ID.");
+
+   args.AddOption(&tForce_Magnitude, "-fo", "--forceMag",
+                  "Force Magnitude.");
+
+   args.AddOption(&serial_refinements, "-ref", "--refinements",
+                  "refinements.");
+
+   args.Parse();
+
+
 
    Mesh *mesh = new Mesh("bar3d.msh");
    //mesh->EnsureNCMesh(true);
@@ -257,146 +91,110 @@ int main(int argc, char *argv[])
       std::cout << "Mesh of elements: " << mesh->GetNE() << std::endl;
    }
 
-   DensityCoeff dens;
-   //dens.SetBallCoord(0.5,0.5,1.0);
-   //dens.SetBallR(0.1);
-   dens.SetThreshold(0.15);
-   dens.SetPatternType(DensityCoeff::PatternType::Gyroid);
-   dens.SetPatternType(DensityCoeff::PatternType::SchwarzP);
-   dens.SetPatternType(DensityCoeff::PatternType::SchwarzD);
-   dens.SetProjectionType(DensityCoeff::ProjectionType::zero_one);
+   //----------------------------------------------------------
+
+   //tForce_Magnitude = tForce_Magnitude * 1.154e-3 *5.0 /(1e3 * std::pow(1.75e-2 ,2));
+   //tForce_Magnitude = tForce_Magnitude * 3.25e-3 /(1e3 * std::pow(8.0e-3 ,2));
+   tForce_Magnitude = tForce_Magnitude * 1.0e-2 /(1.1204 * std::pow(3.5701 ,2));
 
 
-   //Refine the mesh
-   if(0)
+   // get random vals
+   std::vector< double > tRand(5,0.0);
+   if (mpi.Root())
    {
-       int nclimit=1;
-       for (int iter = 0; iter<3; iter++)
-       {
-           Array<Refinement> refs;
-           for (int i = 0; i < pmesh->GetNE(); i++)
-           {
-              bool refine = false;
-              Geometry::Type geom = pmesh->GetElementBaseGeometry(i);
-              ElementTransformation *T = pmesh->GetElementTransformation(i);
-              RefinedGeometry *RefG = mfem::GlobGeometryRefiner.Refine(geom, 2, 1);
-              IntegrationRule &ir = RefG->RefPts;
+      srand(run_id+1);  
 
-              // Refine any element where different materials are detected. A more
-              // sophisticated logic can be implemented here -- e.g. don't refine
-              // the interfaces between certain materials.
-              Array<int> mat(ir.GetNPoints());
-              double matsum = 0.0;
-              for (int j = 0; j < ir.GetNPoints(); j++)
-              {
-                 //T->Transform(ir.IntPoint(j), pt);
-                 //int m = material(pt, xmin, xmax);
-                 int m = dens.Eval(*T,ir.IntPoint(j));
-                 mat[j] = m;
-                 matsum += m;
-                 if ((int)matsum != m*(j+1))
-                 {
-                    refine = true;
-                 }
-              }
+      //   tRand[0] = (rand() / double(RAND_MAX)) * 2.0 - 1.0; //nx
+      //   tRand[1] = (rand() / double(RAND_MAX)) * 2.0 - 1.0; //ny
+      //   tRand[2] = (rand() / double(RAND_MAX)) * 2.0 - 1.0; //nz
+      //   tRand[3] = rand() / double(RAND_MAX) * 10;          //a
+      //   tRand[4] = rand() / double(RAND_MAX);   //eta
 
-              // Mark the element for refinement
-              if (refine)
-              {
-                  refs.Append(Refinement(i));
-              }
-
-           }
-
-           //pmesh->GeneralRefinement(refs, -1, nclimit);
-           pmesh->GeneralRefinement(refs, 0, nclimit);
-           //pmesh->GeneralRefinement(refs);
-       }
-
-       //pmesh->Rebalance();
+        tRand[0] = 1.0; //nx
+        tRand[1] = 0.0;// / sqrt( 3.0 ); //ny
+        tRand[2] = 0.0;// / sqrt( 3.0 ); //nz
+        tRand[3] = tForce_Magnitude;//150.7*5/10*1.5;//150.7*1.5;        //a
+        tRand[4] = 0.4;//0.65;  //0.4365
    }
 
-
-
-   // Create the flow solver.
-   NavierSolver flowsolver(pmesh, ctx.order, ctx.kin_vis);
-   flowsolver.EnablePA(true);
-   flowsolver.EnableNI(true);
-
-   // Set the initial condition.
-   ParGridFunction *u_ic = flowsolver.GetCurrentVelocity();
-   VectorFunctionCoefficient u_excoeff(pmesh->Dimension(), vel);
-   u_ic->ProjectCoefficient(u_excoeff);
-
-   // Add Dirichlet boundary conditions to velocity space restricted to
-   // selected attributes on the mesh.
-   //Array<int> attr(pmesh->bdr_attributes.Max());
-   // Inlet is attribute 1.
-   //attr[0] = 1;
-   // Walls is attribute 2.
-   //attr[1] = 1;
-   //flowsolver.AddVelDirichletBC(vel, attr);
-
-   Array<int> domain_attr(pmesh->attributes.Max());
-   domain_attr = 1;
-   BrinkPenalAccel bp(pmesh->Dimension());
-   bp.SetDensity(&dens);
-   bp.SetVel(flowsolver.GetCurrentVelocity());
-   flowsolver.AddAccelTerm(&bp,domain_attr);
-
-
-   double t = 0.0;
-   double dt = ctx.dt;
-   double t_final = ctx.t_final;
-   bool last_step = false;
-
-   flowsolver.Setup(dt);
-
-   ParGridFunction *u_gf = flowsolver.GetCurrentVelocity();
-   ParGridFunction *p_gf = flowsolver.GetCurrentPressure();
-   ParGridFunction *d_gf = new ParGridFunction(*p_gf);
-   dens.SetProjectionType(DensityCoeff::ProjectionType::continuous);
-   d_gf->ProjectCoefficient(dens);
-   dens.SetProjectionType(DensityCoeff::ProjectionType::zero_one);
-
-   ParaViewDataCollection pvdc("3dfoc1", pmesh);
-   pvdc.SetDataFormat(VTKFormat::BINARY32);
-   pvdc.SetHighOrderOutput(true);
-   pvdc.SetLevelsOfDetail(ctx.order);
-   pvdc.SetCycle(0);
-   pvdc.SetTime(t);
-   pvdc.RegisterField("velocity", u_gf);
-   pvdc.RegisterField("pressure", p_gf);
-   pvdc.RegisterField("density",  d_gf);
-   pvdc.Save();
-
-   for (int step = 0; !last_step; ++step)
+   if (mpi.WorldSize() > 1 )
    {
-      if (t + dt >= t_final - dt / 2)
-      {
-         last_step = true;
-      }
-
-      flowsolver.Step(t, dt, step);
-      bp.SetVel(flowsolver.GetCurrentVelocity());
-      //bp.SetVel(flowsolver.GetProvisionalVelocity());
-      if (step % 3000 == 0)
-      {
-         pvdc.SetCycle(step);
-         pvdc.SetTime(t);
-         pvdc.Save();
-      }
-
-      if (mpi.Root())
-      {
-         printf("%11s %11s\n", "Time", "dt");
-         printf("%.5E %.5E\n", t, dt);
-         fflush(stdout);
-      }
+      MPI_Bcast( tRand.data(), tRand.size(), MPI_DOUBLE , 0, MPI_COMM_WORLD );
    }
 
-   flowsolver.PrintTimingData();
-   delete d_gf;
+   std::cout<< tRand[0]<<" "<<tRand[1]<<" "<<tRand[2]<<" "<<tRand[4]<<" "<<tRand[4]<<" "<<std::endl;
+
+   //----------------------------------------------------------
+   {
+      Navier3dBrinkWorkflow tWorkflow( mpi, pmesh, ctx );
+
+      tWorkflow.SetParams( tRand[0],tRand[1],tRand[2],tRand[3],tRand[4] );
+
+      tWorkflow.SetDensityCoeff(  );
+
+      tWorkflow.SetupFlowSolver(  );
+
+       tWorkflow.SetInitialConditions(  vel );
+
+      tWorkflow.SetupOutput(  );
+
+      tWorkflow.Perform(  );
+
+      tWorkflow.Postprocess(  run_id );
+
+
+   std::cout<<  "perform executed" << std::endl;
+   }
+
+   // //Refine the mesh
+   // if(0)
+   // {
+   //     int nclimit=1;
+   //     for (int iter = 0; iter<3; iter++)
+   //     {
+   //         Array<Refinement> refs;
+   //         for (int i = 0; i < pmesh->GetNE(); i++)
+   //         {
+   //            bool refine = false;
+   //            Geometry::Type geom = pmesh->GetElementBaseGeometry(i);
+   //            ElementTransformation *T = pmesh->GetElementTransformation(i);
+   //            RefinedGeometry *RefG = mfem::GlobGeometryRefiner.Refine(geom, 2, 1);
+   //            IntegrationRule &ir = RefG->RefPts;
+
+   //            // Refine any element where different materials are detected. A more
+   //            // sophisticated logic can be implemented here -- e.g. don't refine
+   //            // the interfaces between certain materials.
+   //            Array<int> mat(ir.GetNPoints());
+   //            double matsum = 0.0;
+   //            for (int j = 0; j < ir.GetNPoints(); j++)
+   //            {
+   //               //T->Transform(ir.IntPoint(j), pt);
+   //               //int m = material(pt, xmin, xmax);
+   //               int m = dens.Eval(*T,ir.IntPoint(j));
+   //               mat[j] = m;
+   //               matsum += m;
+   //               if ((int)matsum != m*(j+1))
+   //               {
+   //                  refine = true;
+   //               }
+   //            }
+
+   //            // Mark the element for refinement
+   //            if (refine)
+   //            {
+   //                refs.Append(Refinement(i));
+   //            }
+
+   //         }
+
+   //         //pmesh->GeneralRefinement(refs, -1, nclimit);
+   //         pmesh->GeneralRefinement(refs, 0, nclimit);
+   //         //pmesh->GeneralRefinement(refs);
+   //     }
+
+   //     //pmesh->Rebalance();
+   // }
+
    delete pmesh;
 
    return 0;
