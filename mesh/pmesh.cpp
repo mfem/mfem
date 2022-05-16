@@ -1603,7 +1603,7 @@ bool ParMesh::HasBoundaryElements() const
    return (maxNumOfBdrElements > 0);
 }
 
-void ParMesh::GroupEdge(int group, int i, int &edge, int &o)
+void ParMesh::GroupEdge(int group, int i, int &edge, int &o) const
 {
    int sedge = group_sedge.GetRow(group-1)[i];
    edge = sedge_ledge[sedge];
@@ -1611,7 +1611,7 @@ void ParMesh::GroupEdge(int group, int i, int &edge, int &o)
    o = (v[0] < v[1]) ? (+1) : (-1);
 }
 
-void ParMesh::GroupTriangle(int group, int i, int &face, int &o)
+void ParMesh::GroupTriangle(int group, int i, int &face, int &o) const
 {
    int stria = group_stria.GetRow(group-1)[i];
    face = sface_lface[stria];
@@ -1622,7 +1622,7 @@ void ParMesh::GroupTriangle(int group, int i, int &face, int &o)
    o = GetTriOrientation(faces[face]->GetVertices(), shared_trias[stria].v);
 }
 
-void ParMesh::GroupQuadrilateral(int group, int i, int &face, int &o)
+void ParMesh::GroupQuadrilateral(int group, int i, int &face, int &o) const
 {
    int squad = group_squad.GetRow(group-1)[i];
    face = sface_lface[shared_trias.Size()+squad];
@@ -1634,7 +1634,7 @@ void ParMesh::GroupQuadrilateral(int group, int i, int &face, int &o)
 }
 
 void ParMesh::GetSharedEdgeCommunicator(int ordering,
-                                        GroupCommunicator& sedge_comm)
+                                        GroupCommunicator& sedge_comm) const
 {
    Table &gr_sedge = sedge_comm.GroupLDofTable();
    gr_sedge.SetDims(GetNGroups(), shared_edges.Size());
@@ -1658,7 +1658,7 @@ void ParMesh::GetSharedEdgeCommunicator(int ordering,
 }
 
 void ParMesh::GetSharedVertexCommunicator(int ordering,
-                                          GroupCommunicator& svert_comm)
+                                          GroupCommunicator& svert_comm) const
 {
    Table &gr_svert = svert_comm.GroupLDofTable();
    gr_svert.SetDims(GetNGroups(), svert_lvert.Size());
@@ -1682,7 +1682,7 @@ void ParMesh::GetSharedVertexCommunicator(int ordering,
 }
 
 void ParMesh::GetSharedQuadCommunicator(int ordering,
-                                        GroupCommunicator& squad_comm)
+                                        GroupCommunicator& squad_comm) const
 {
    Table &gr_squad = squad_comm.GroupLDofTable();
    gr_squad.SetDims(GetNGroups(), shared_quads.Size());
@@ -1706,7 +1706,7 @@ void ParMesh::GetSharedQuadCommunicator(int ordering,
 }
 
 void ParMesh::GetSharedTriCommunicator(int ordering,
-                                       GroupCommunicator& stria_comm)
+                                       GroupCommunicator& stria_comm) const
 {
    Table &gr_stria = stria_comm.GroupLDofTable();
    gr_stria.SetDims(GetNGroups(), shared_trias.Size());

@@ -86,28 +86,79 @@ AddElementsToMesh(const Mesh& parent,
                                              parent_element_ids);
 }
 
-Array<int> BuildFaceMap(const Mesh& parent, const Mesh& mesh,
+void BuildVdofToVdofMap(const FiniteElementSpace& subfes,
+                        const FiniteElementSpace& parentfes,
+                        const SubMesh::From& from,
+                        const Array<int>& parent_element_ids,
+                        Array<int>& vdof_to_vdof_map)
+{
+   auto *m = subfes.GetMesh();
+   vdof_to_vdof_map.SetSize(subfes.GetVSize());
+
+   for (int i = 0; i < m->GetNE(); i++)
+   {
+      if (parentfes.IsDGSpace() &&
+          from == SubMesh::From::Boundary)
+      {
+         MFEM_ABORT("Transferring from a surface to a volume"
+                    " using L2 spaces is not implemented.");
+      }
+      else
+      {
+         Array<int> parent_vdofs;
+         if (from == SubMesh::From::Domain)
+         {
+            parentfes.GetElementVDofs(parent_element_ids[i], parent_vdofs);
+         }
+         else if (from == SubMesh::From::Boundary)
+         {
+            parentfes.GetBdrElementVDofs(parent_element_ids[i], parent_vdofs);
+         }
+         else
+         {
+            MFEM_ABORT("SubMesh::From type unknown");
+         }
+
+         Array<int> sub_vdofs;
+         subfes.GetElementVDofs(i, sub_vdofs);
+         MFEM_ASSERT(parent_vdofs.Size() == sub_vdofs.Size(), "internal error");
+
+         for (int j = 0; j < parent_vdofs.Size(); j++)
+         {
+            vdof_to_vdof_map[sub_vdofs[j]] = parent_vdofs[j];
+         }
+      }
+   }
+}
+
+
+Array<int> BuildFaceMap(const Mesh& pm, const Mesh& sm,
                         const Array<int> &parent_element_ids)
 {
    // TODO: Check if parent is really a parent of mesh
 
-   Array<int> parent_face_ids(mesh.GetNFaces());
-   for (int i = 0; i < mesh.GetNE(); i++)
+   Array<int> pfids(sm.GetNFaces());
+   pfids = -1;
+   for (int i = 0; i < sm.GetNE(); i++)
    {
       int peid = parent_element_ids[i];
 
       Array<int> sel_faces, pel_faces, o;
-      mesh.GetElementFaces(i, sel_faces, o);
-      parent.GetElementFaces(peid, pel_faces, o);
+      sm.GetElementFaces(i, sel_faces, o);
+      pm.GetElementFaces(peid, pel_faces, o);
 
       MFEM_ASSERT(sel_faces.Size() == pel_faces.Size(), "internal error");
 
       for (int j = 0; j < sel_faces.Size(); j++)
       {
-         parent_face_ids[sel_faces[j]] = pel_faces[j];
+         if (pfids[sel_faces[j]] != -1)
+         {
+            MFEM_ASSERT(pfids[sel_faces[j]] == pel_faces[j], "internal error");
+         }
+         pfids[sel_faces[j]] = pel_faces[j];
       }
    }
-   return parent_face_ids;
+   return pfids;
 }
 
 } // namespace SubMeshUtils

@@ -21,13 +21,17 @@ CONFIG_MK = $(MFEM_BUILD_DIR)/config/config.mk
 MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
-MULTIDOMAIN_COMMON_SRC = multidomain.cpp
-MULTIDOMAIN_COMMON_OBJ = $(MULTIDOMAIN_COMMON_SRC:.cpp=.o)
+MULTIDOMAIN_SRC = multidomain.cpp
+MULTIDOMAIN_OBJ = $(MULTIDOMAIN_SRC:.cpp=.o)
+
+MULTIDOMAIN_TEST_SRC = multidomain_test.cpp
+MULTIDOMAIN_TEST_OBJ = $(MULTIDOMAIN_TEST_SRC:.cpp=.o)
+
 
 ifeq ($(MFEM_USE_MPI),NO)
    MINIAPPS =
 else
-   MINIAPPS = multidomain
+   MINIAPPS = multidomain multidomain_test
 endif
 
 .SUFFIXES:
@@ -38,7 +42,7 @@ endif
 %: %.cpp
 %.o: %.cpp
 
-%: %.o $(NAVIER_COMMON_OBJ)
+%: %.o
 	$(MFEM_CXX) $(MFEM_LINK_FLAGS) $^ -o $@ $(MFEM_LIBS)
 
 %.o: $(SRC)%.cpp $(MFEM_LIB_FILE) $(CONFIG_MK)
@@ -46,7 +50,7 @@ endif
 
 all: $(MINIAPPS)
 
-PAR_TEST_EXECS = navier_mms navier_kovasznay navier_tgv
+PAR_TEST_EXECS = multidomain_test
 MFEM_TESTS = TEST_EXECS
 include $(MFEM_TEST_MK)
 

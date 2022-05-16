@@ -12,13 +12,13 @@
 #ifndef MFEM_PSUBMESH
 #define MFEM_PSUBMESH
 
-#include "../config/config.hpp"
+#include "../../config/config.hpp"
 
 #ifdef MFEM_USE_MPI
 
-#include "pmesh.hpp"
+#include "../pmesh.hpp"
+#include "../../fem/pgridfunc.hpp"
 #include "submesh.hpp"
-#include "../fem/pgridfunc.hpp"
 
 namespace mfem
 {
@@ -61,7 +61,7 @@ public:
     * @param[in] parent Parent ParMesh
     * @param[in] domain_attributes Domain attributes to extract
     */
-   static ParSubMesh CreateFromDomain(ParMesh &parent,
+   static ParSubMesh CreateFromDomain(const ParMesh &parent,
                                       Array<int> &domain_attributes);
 
    /**
@@ -74,7 +74,7 @@ public:
    * @param[in] parent Parent ParMesh
    * @param[in] boundary_attributes Boundary attributes to extract
    */
-   static ParSubMesh CreateFromBoundary(ParMesh &parent,
+   static ParSubMesh CreateFromBoundary(const ParMesh &parent,
                                         Array<int> &boundary_attributes);
 
    /**
@@ -121,6 +121,11 @@ public:
       return parent_face_ids_;
    }
 
+   const Array<int>& GetParentToSubMeshFaceIDMap() const
+   {
+      return parent_to_submesh_face_ids_;
+   }
+
    /**
     * @brief Transfer the dofs of a ParGridFunction.
     *
@@ -145,7 +150,7 @@ public:
    }
 
 private:
-   ParSubMesh(ParMesh &parent, SubMesh::From from, Array<int> &attributes);
+   ParSubMesh(const ParMesh &parent, SubMesh::From from, Array<int> &attributes);
 
    /**
     * @brief Find shared vertices on the ParSubMesh.
@@ -305,7 +310,7 @@ private:
                                 const int nsquads, const Array<int>& rhq);
 
    /// The parent Mesh
-   ParMesh &parent_;
+   const ParMesh &parent_;
 
    /// Indicator from which part of the parent ParMesh the ParSubMesh is going to
    /// be created.

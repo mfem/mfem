@@ -12,7 +12,7 @@
 #ifndef MFEM_SUBMESH
 #define MFEM_SUBMESH
 
-#include "mesh.hpp"
+#include "../mesh.hpp"
 #include <unordered_map>
 
 namespace mfem

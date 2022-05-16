@@ -16,6 +16,7 @@
 #include <type_traits>
 #include <unordered_map>
 #include "submesh.hpp"
+#include "../../fem/fespace.hpp"
 
 namespace mfem
 {
@@ -83,17 +84,22 @@ AddElementsToMesh(const Mesh& parent,
 Array<int> BuildFaceMap(const Mesh& parent, const Mesh& mesh,
                         const Array<int> &parent_element_ids);
 
+void BuildVdofToVdofMap(const FiniteElementSpace& subfes,
+                        const FiniteElementSpace& parentfes,
+                        const SubMesh::From& from,
+                        const Array<int>& parent_element_ids,
+                        Array<int>& vdof_to_vdof_map);
 
-template <class T>
-const Mesh* GetRootParent(T &mesh)
+template <class T, class RT>
+const RT* GetRootParent(const T &m)
 {
-   const Mesh* parent = mesh.GetParent();
+   const RT* parent = m.GetParent();
    while (true)
    {
       const T* next = dynamic_cast<const T*>(parent);
       if (next == nullptr)
       {
-         return parent;
+         return static_cast<const RT *>(parent);
       }
       else
       {
