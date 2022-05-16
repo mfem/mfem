@@ -1672,7 +1672,8 @@ void VectorFEDivergenceIntegrator::AssembleElementMatrix2(
    {
       const IntegrationPoint &ip = ir->IntPoint(i);
       trial_fe.CalcDivShape(ip, divshape);
-      test_fe.CalcShape(ip, shape);
+      Trans.SetIntPoint(&ip);
+      test_fe.CalcPhysShape(Trans, shape);
       double w = ip.weight;
       if (Q)
       {
