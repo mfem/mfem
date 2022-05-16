@@ -475,10 +475,10 @@ STD_OBJECTS_FILES = $(filter-out $(JIT_OBJECTS_FILES), $(OBJECT_FILES))
 $(STD_OBJECTS_FILES): $(BLD)%.o: $(SRC)%.cpp $(CONFIG_MK)
 	$(MFEM_CXX) $(strip $(MFEM_BUILD_FLAGS)) -c $(<) -o $(@)
 
-$(BLD)%.jit.cpp: $(SRC)%.cpp $(CONFIG_MK) $(BLD)$(MFEM_JIT)
+$(BLD)%_jit.cpp: $(SRC)%.cpp $(CONFIG_MK) $(BLD)$(MFEM_JIT)
 	$(BLD)./$(MFEM_JIT) $(<) -o $(@)
 
-$(BLD)%.o: $(BLD)%.jit.cpp $(CONFIG_MK) makefile
+$(BLD)%.o: $(BLD)%_jit.cpp $(CONFIG_MK) makefile
 	$(MFEM_CXX) $(strip $(MFEM_BUILD_FLAGS)) -c $(<) -o $(@)
 endif
 
