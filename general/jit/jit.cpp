@@ -278,8 +278,8 @@ struct System // System singleton object
 
    static const char *lib_ar() { return "libmjit.a"; }
    static const char *lib_so() { return "./libmjit.so"; }
-   static std::string Cxx() { return MFEM_JIT_CXX; }
-   static std::string Flags() { return MFEM_JIT_BUILD_FLAGS; }
+   //static std::string Cxx() { return MFEM_JIT_CXX; }
+   //static std::string Flags() { return MFEM_JIT_BUILD_FLAGS; }
    static std::string Xpic() { return Get().cxx.Pic(); }
    static std::string Xpipe() { return Get().cxx.Pipe(); }
    static std::string Xdevice() { return Get().cxx.Device(); }
@@ -291,6 +291,7 @@ struct System // System singleton object
    static void *DLopen(const char *path) { return ::dlopen(path, RTLD_LAZY|RTLD_LOCAL); }
 
    static void* Lookup(const size_t hash, const char *name,
+                       const char *cxx, const char *flags, const char *libs,
                        const char *source, const char *symbol)
    {
       void *handle = std::fstream(lib_so()) ? DLopen(lib_so()) : nullptr;
@@ -299,7 +300,7 @@ struct System // System singleton object
          int status = EXIT_SUCCESS;
          if (mpi::Root())
          {
-            Command() << Cxx() << "-shared" << "-o" << lib_so()
+            Command() << cxx << "-shared" << "-o" << lib_so()
                       << ARprefix() << lib_ar() << ARpostfix()
                       << Xlinker() + "-rpath,.";
             status = Call();
@@ -320,24 +321,25 @@ struct System // System singleton object
 
          // Compilation: cc => co
          auto co = Jit::ToString(hash, ".co"); // output object
-         Command() << Cxx() << Flags()
+         Command() << cxx << flags
                    << "-I" << MFEM_SOURCE_DIR // JIT w/o MFEM installed
                    << "-I" << MFEM_INSTALL_DIR
                    << Xdevice() << Xpic() << Xpipe()
                    << "-c" << "-o" << co << cc
                    << (std::getenv("MFEM_JIT_VERBOSE") ? "-v" : "");
          if (Call(name)) { return EXIT_FAILURE; }
-         std::remove(cc.c_str());
+         //std::remove(cc.c_str());
 
          // Update archive: ar += co
          Command() << "ar -r"/*v*/ << lib_ar() << co;
-         if (Call()) { return EXIT_FAILURE; }
-         std::remove(co.c_str());
+         if (Call("ar -r")) { return EXIT_FAILURE; }
+         //std::remove(co.c_str());
 
          // Create temporary shared library: (ar + co) => symbol
-         Command() << Cxx() << "-shared" << "-o" << symbol
-                   << ARprefix() << lib_ar() << ARpostfix();
-         if (Call()) { return EXIT_FAILURE; }
+         Command() << cxx << "-shared" << "-o" << symbol
+                   << ARprefix() << lib_ar() << ARpostfix()
+                   << libs;
+         if (Call("cxx -shared")) { return EXIT_FAILURE; }
 
          // Install temporary shared library: symbol => libmjit.so
          Command() << "install" << ARbackup() << symbol << lib_so();
@@ -380,9 +382,10 @@ void Jit::Init(int *argc, char ***argv) { System::Init(argc, argv); }
 void Jit::Finalize() { System::Finalize(); }
 
 void* Jit::Lookup(const size_t hash, const char *name,
+                  const char *cxx, const char *flags, const char *libs,
                   const char *source, const char *symbol)
 {
-   return System::Lookup(hash, name, source, symbol);
+   return System::Lookup(hash, name, cxx, flags, libs, source, symbol);
 }
 
 } // namespace mfem

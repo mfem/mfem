@@ -25,6 +25,9 @@
 #include "jit.hpp" // Hash, ToString, Find
 #include "../device.hpp" // Backend::Id
 
+#define MFEM_JIT_STR(...) #__VA_ARGS__
+#define MFEM_JIT_STRINGIFY(...) MFEM_JIT_STR(__VA_ARGS__)
+
 struct Parser
 {
    struct kernel_t
@@ -361,10 +364,17 @@ struct Parser
               << "(const unsigned long backends," << ker.Sparams0 << "){"
               << "\n\t" << ker.name << "_%016lx<"<< ker.Tformat << ">"
               << "(backends,"<< ker.Sargs << ");";
+
+      const char *cxx = MFEM_JIT_STRINGIFY(MFEM_CXX);
+      const char *libs = MFEM_JIT_STRINGIFY(MFEM_EXT_LIBS);
+      const char *flags = MFEM_JIT_STRINGIFY(MFEM_LINK_FLAGS);
+
       size_t seed = // src is ready: compute its seed with all the MFEM context
          mfem::Jit::Hash(
             std::hash<std::string> {}(ker.src.str()),
-            std::string(MFEM_JIT_CXX), std::string(MFEM_JIT_BUILD_FLAGS),
+            std::string(cxx),
+            std::string(libs),
+            std::string(flags),
             std::string(MFEM_SOURCE_DIR), std::string(MFEM_INSTALL_DIR));
 
       out << ker.dup.str() << "}" // dump the first dup code
@@ -372,13 +382,17 @@ struct Parser
           << "void " << ker.name << "(" << ker.Sparams0 << ")"
           << "{" << ker.src.str() << "})_\";"; // end of src
 
+      out << "\nconst char *cxx = \"" << cxx << "\";";
+      out << "\nconst char *flags = \"" << flags << "\";";
+      out << "\nconst char *libs = \"" << libs << "\";";
+
       out << "\nconst size_t hash = Jit::Hash("
           << "0x" << std::hex << seed << std::dec << "ul," << ker.Targs << ");";
       out << "\ntypedef void (*kernel_t)"
           <<"(unsigned long backends, " << ker.Sparams << ");";
       out << "\nstatic std::unordered_map<size_t, Jit::Kernel<kernel_t>> kernels;"
           << "\nJit::Find(hash, \"" << ker.name  << "<" << ker.Tformat << ">"
-          << "\", source, kernels, " << ker.Targs <<  ")"
+          << "\", cxx, flags, libs, source, kernels, " << ker.Targs <<  ")"
           << ".operator()(backends," << ker.Sargs << ");";
 
       out << "\n#line " << std::to_string(line) << " \"" << file << "\"\n";

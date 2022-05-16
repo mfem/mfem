@@ -50,14 +50,17 @@ TEST_CASE("Just-In-Time-Compilation", "[JIT]")
       System(MFEM_SOURCE_DIR "/mjit -h"); // help
 
       System(MFEM_SOURCE_DIR "/mjit -o test_mjit.cc " // generate source file
-             MFEM_SOURCE_DIR "/tests/unit/general/test_mjit.cpp");
+             MFEM_SOURCE_DIR "/tests/unit/mjit/test_mjit.cpp");
 
       std::remove("test_mjit"); // cleanup existing executable
 
       System(MFEM_JIT_CXX " " MFEM_JIT_BUILD_FLAGS // compilation
+             " " MFEM_JIT_TPLFLAGS
              " -DMFEM_JIT_COMPILATION -o test_mjit test_mjit.cc"
              " -I../.. -I" MFEM_INSTALL_DIR "/include/mfem"
-             " -L../.. -L" MFEM_INSTALL_DIR "/lib -lmfem -ldl");
+             " -L../.. -L" MFEM_INSTALL_DIR "/lib -lmfem -ldl"
+             " " MFEM_JIT_EXT_LIBS
+            );
       std::remove("test_mjit.cc");
 
       System("./test_mjit"); // rebuild the libmjit.a/so if needed
@@ -226,63 +229,10 @@ void SmemPADiffusionApply3D(const int NE,
    auto x = Reshape(x_, D1D, D1D, D1D, NE);
    MFEM_FORALL_3D(e, NE, Q1D, Q1D, Q1D,
    {
-      const int D1D = T_D1D ? T_D1D : d1d;
-      const int Q1D = T_Q1D ? T_Q1D : q1d;
-      constexpr int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;
-      constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
-      constexpr int MDQ = (MQ1 > MD1) ? MQ1 : MD1;
-      MFEM_SHARED double sBG[2][MQ1*MD1];
-      double (*B)[MD1] = (double (*)[MD1]) (sBG+0);
-      double (*G)[MD1] = (double (*)[MD1]) (sBG+1);
-      double (*Bt)[MQ1] = (double (*)[MQ1]) (sBG+0);
-      double (*Gt)[MQ1] = (double (*)[MQ1]) (sBG+1);
-      MFEM_SHARED double sm0[3][MDQ*MDQ*MDQ];
-      MFEM_SHARED double sm1[3][MDQ*MDQ*MDQ];
-      double (*X)[MD1][MD1]    = (double (*)[MD1][MD1]) (sm0+2);
-      double (*DDQ0)[MD1][MQ1] = (double (*)[MD1][MQ1]) (sm0+0);
-      double (*DDQ1)[MD1][MQ1] = (double (*)[MD1][MQ1]) (sm0+1);
-      MFEM_FOREACH_THREAD(dz,z,D1D)
-      {
-         MFEM_FOREACH_THREAD(dy,y,D1D)
-         {
-            MFEM_FOREACH_THREAD(dx,x,D1D)
-            {
-               X[dz][dy][dx] = x(dx,dy,dz,e);
-            }
-         }
-      }
-      if (MFEM_THREAD_ID(z) == 0)
-      {
-         MFEM_FOREACH_THREAD(dy,y,D1D)
-         {
-            MFEM_FOREACH_THREAD(qx,x,Q1D)
-            {
-               B[qx][dy] = b(qx,dy);
-               G[qx][dy] = g(qx,dy);
-            }
-         }
-      }
-      MFEM_SYNC_THREAD;
-      MFEM_FOREACH_THREAD(dz,z,D1D)
-      {
-         MFEM_FOREACH_THREAD(dy,y,D1D)
-         {
-            MFEM_FOREACH_THREAD(qx,x,Q1D)
-            {
-               double u = 0.0, v = 0.0;
-               MFEM_UNROLL(MD1)
-               for (int dx = 0; dx < D1D; ++dx)
-               {
-                  const double coords = X[dz][dy][dx];
-                  u += coords * B[qx][dx];
-                  v += coords * G[qx][dx];
-               }
-               DDQ0[dz][dy][qx] = u;
-               DDQ1[dz][dy][qx] = v;
-            }
-         }
-      }
-      MFEM_SYNC_THREAD;
+      MFEM_CONTRACT_VAR(e);
+      MFEM_CONTRACT_VAR(b);
+      MFEM_CONTRACT_VAR(g);
+      MFEM_CONTRACT_VAR(x);
    });
    // after forall
    assert(NE > 0);
@@ -320,6 +270,7 @@ int main(int argc, char* argv[])
    if (pi(10) != 0x5A308D31ul) { return EXIT_FAILURE; }
    return EXIT_SUCCESS;
 }
+
 #endif // MFEM_JIT_COMPILATION
 
 #endif // MFEM_USE_JIT

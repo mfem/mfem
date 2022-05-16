@@ -26,9 +26,10 @@ INCLUDES = -I$(or $(SRC:%/=%),.) -I$(MFEM_DIR)
 
 SOURCE_FILES := $(sort $(wildcard $(SRC)*/*.cpp))
 CEED_SOURCE_FILES = $(sort $(wildcard $(SRC)ceed/*.cpp))
+MJIT_SOURCE_FILES = $(sort $(wildcard $(SRC)mjit/*.cpp))
 MINI_SOURCE_FILES = $(sort $(wildcard $(SRC)miniapps/*.cpp))
-SOURCE_FILES := $(filter-out \
-   $(CEED_SOURCE_FILES) $(MINI_SOURCE_FILES), $(SOURCE_FILES))
+SOURCE_FILES := $(filter-out $(CEED_SOURCE_FILES) $(MJIT_SOURCE_FILES) \
+$(MINI_SOURCE_FILES), $(SOURCE_FILES))
 HEADER_FILES = $(SRC)catch.hpp $(SRC)unit_tests.hpp
 OBJECT_FILES = $(SOURCE_FILES:$(SRC)%.cpp=%.o)
 DATA_DIR = data
@@ -87,6 +88,11 @@ USE_CEED := $(MFEM_USE_CEED:NO=)
 CEED_OBJ = $(CEED_SOURCE_FILES:$(SRC)%.cpp=%.o)
 SEQ_UNIT_TESTS += $(if $(USE_CEED),ceed_tests)
 
+# MJIT tests
+USE_MJIT := $(MFEM_USE_JIT:NO=)
+MJIT_OBJ = $(MJIT_SOURCE_FILES:$(SRC)%.cpp=%.o)
+SEQ_UNIT_TESTS += $(if $(USE_MJIT),mjit_tests)
+
 # Debug device tests
 DEBUG_DEVICE_FILE = $(SRC)miniapps/test_debug_device.cpp
 DEBUG_DEVICE_OBJ = $(DEBUG_DEVICE_FILE:$(SRC)%.cpp=%.o)
@@ -120,6 +126,9 @@ pcunit_tests: $(PCUDA_MAIN_OBJ) $(OBJECT_FILES) $(MFEM_LIB_FILE) $(CONFIG_MK) $(
 ceed_tests: $(CEED_OBJ) $(MFEM_LIB_FILE) $(CONFIG_MK) $(DATA_DIR)
 	$(CCC) $(CEED_OBJ) $(MFEM_LINK_FLAGS) $(MFEM_LIBS) -o $(@)
 
+mjit_tests: $(MJIT_OBJ) $(MFEM_LIB_FILE) $(CONFIG_MK) $(DATA_DIR)
+	$(CCC) $(MJIT_OBJ) $(MFEM_LINK_FLAGS) $(MFEM_LIBS) -o $(@)
+
 $(DEBUG_DEVICE_TEST): $(SEQ_MAIN_OBJ) $(DEBUG_DEVICE_OBJ) $(MFEM_LIB_FILE) \
  $(CONFIG_MK)
 	$(CCC) $(SEQ_MAIN_OBJ) $(DEBUG_DEVICE_OBJ) $(MFEM_LINK_FLAGS) \
@@ -134,6 +143,10 @@ $(OBJECT_FILES) $(SEQ_MAIN_OBJ) $(PAR_MAIN_OBJ) $(CUDA_MAIN_OBJ) \
 	$(CCC) -c $(abspath $(<)) $(MFEM_FLAGS) $(INCLUDES) -o $(@)
 
 $(CEED_OBJ): %.o: $(SRC)%.cpp $(HEADER_FILES) $(CONFIG_MK)
+	@mkdir -p $(@D)
+	$(CCC) -c $(abspath $(<)) $(MFEM_FLAGS) $(INCLUDES) -o $(@)
+
+$(MJIT_OBJ): %.o: $(SRC)%.cpp $(HEADER_FILES) $(CONFIG_MK)
 	@mkdir -p $(@D)
 	$(CCC) -c $(abspath $(<)) $(MFEM_FLAGS) $(INCLUDES) -o $(@)
 
