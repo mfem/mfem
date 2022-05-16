@@ -77,6 +77,7 @@ set(UNIT_TESTS_SRCS
   fem/test_lin_interp.cpp
   fem/test_linear_fes.cpp
   fem/test_lor.cpp
+  fem/test_lor_batched.cpp
   fem/test_operatorjacobismoother.cpp
   fem/test_pa_coeff.cpp
   fem/test_pa_grad.cpp
@@ -89,6 +90,7 @@ set(UNIT_TESTS_SRCS
   fem/test_tet_reorder.cpp
   fem/test_transfer.cpp
   fem/test_var_order.cpp
+  fem/test_white_noise.cpp
   # The following are tested separately (keep the comment as a reminder):
   # miniapps/test_debug_device.cpp
   # miniapps/test_sedov.cpp

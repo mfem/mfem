@@ -1587,6 +1587,7 @@ void GridFunction::GetCurl(ElementTransformation &T, Vector &curl) const
                doftrans->InvTransformPrimal(loc_data);
             }
             DenseMatrix curl_shape(fe->GetDof(), fe->GetCurlDim());
+            curl.SetSize(curl_shape.Width());
             fe->CalcPhysCurlShape(T, curl_shape);
             curl_shape.MultTranspose(loc_data, curl);
          }
@@ -2650,11 +2651,22 @@ void GridFunction::ProjectBdrCoefficient(Coefficient *coeff[], Array<int> &attr)
    ComputeMeans(ARITHMETIC, values_counter);
 
 #ifdef MFEM_DEBUG
-   Array<int> ess_vdofs_marker;
-   fes->GetEssentialVDofs(attr, ess_vdofs_marker);
+   Array<int> ess_vdofs_marker(Size());
+   ess_vdofs_marker = 0;
+   Array<int> component_dof_marker;
+   for (int i = 0; i < fes->GetVDim(); i++)
+   {
+      if (!coeff[i]) { continue; }
+      fes->GetEssentialVDofs(attr, component_dof_marker,i);
+      for (int j = 0; j<Size(); j++)
+      {
+         ess_vdofs_marker[j] = bool(ess_vdofs_marker[j]) ||
+                               bool(component_dof_marker[j]);
+      }
+   }
    for (int i = 0; i < values_counter.Size(); i++)
    {
-      MFEM_ASSERT(bool(values_counter[i]) == bool(ess_vdofs_marker[i]),
+      MFEM_ASSERT(bool(values_counter[i]) == ess_vdofs_marker[i],
                   "internal error");
    }
 #endif
@@ -4240,8 +4252,8 @@ void TensorProductLegendre(int dim,                // input
       Vector tmp(dim);
       tmp = x_in;
       tmp -= *midpoint;
-      x[0] = tmp[0]*cos(angle) - tmp[1]*sin(angle);
-      x[1] = tmp[0]*sin(angle) + tmp[1]*cos(angle);
+      x[0] = tmp[0]*cos(-angle) - tmp[1]*sin(-angle);
+      x[1] = tmp[0]*sin(-angle) + tmp[1]*cos(-angle);
    }
    else
    {

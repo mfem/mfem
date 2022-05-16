@@ -1,4 +1,4 @@
-//                       MFEM Example 27 - Serial Version
+//                                MFEM Example 27
 //
 // Compile with: make ex27
 //
