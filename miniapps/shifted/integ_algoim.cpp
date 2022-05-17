@@ -8,7 +8,8 @@ namespace mfem
 {
 
 AlgoimIntegrationRule::AlgoimIntegrationRule(int o, const FiniteElement &el,
-                                             ElementTransformation &trans, const Vector &lsfun)
+                                             ElementTransformation &trans,
+                                             const Vector &lsfun)
 {
    int_order=o;
    vir=nullptr;
@@ -24,13 +25,13 @@ AlgoimIntegrationRule::AlgoimIntegrationRule(int o, const FiniteElement &el,
    }
    else
    {
-      MFEM_ABORT("AlgoimIntegrationRule: The element type is not supported by Algoim!\n");
+      MFEM_ABORT("Currently MFEM + Algoim supports only quads and hexes.");
    }
 
    //change the basis of the level-set function
    //from Lagrangian to Bernstein (positive)
    lsvec.SetSize(pe->GetDof());
-   DenseMatrix T; T.SetSize(pe->GetDof());
+   DenseMatrix T(pe->GetDof());
    pe->Project(el,trans,T);
    T.Mult(lsfun,lsvec);
 }
@@ -45,8 +46,8 @@ const IntegrationRule* AlgoimIntegrationRule::GetVolumeIntegrationRule()
    if (dim==2)
    {
       LevelSet2D ls(pe,lsvec);
-      auto q = Algoim::quadGen<2>(ls,Algoim::BoundingBox<double,2>(0.0,1.0),-1,-1,
-                                  np1d);
+      auto q = Algoim::quadGen<2>(ls,Algoim::BoundingBox<double,2>(0.0,1.0),
+                                  -1, -1, np1d);
 
       vir=new IntegrationRule(q.nodes.size());
       vir->SetOrder(int_order);
@@ -59,8 +60,8 @@ const IntegrationRule* AlgoimIntegrationRule::GetVolumeIntegrationRule()
    else
    {
       LevelSet3D ls(pe,lsvec);
-      auto q = Algoim::quadGen<3>(ls,Algoim::BoundingBox<double,3>(0.0,1.0),-1,-1,
-                                  np1d);
+      auto q = Algoim::quadGen<3>(ls,Algoim::BoundingBox<double,3>(0.0,1.0),
+                                  -1, -1, np1d);
 
       vir=new IntegrationRule(q.nodes.size());
       vir->SetOrder(int_order);
@@ -83,8 +84,8 @@ const IntegrationRule* AlgoimIntegrationRule::GetSurfaceIntegrationRule()
    if (dim==2)
    {
       LevelSet2D ls(pe,lsvec);
-      auto q = Algoim::quadGen<2>(ls,Algoim::BoundingBox<double,2>(0.0,1.0),2,-1,
-                                  np1d);
+      auto q = Algoim::quadGen<2>(ls,Algoim::BoundingBox<double,2>(0.0,1.0),
+                                  2, -1, np1d);
 
       sir=new IntegrationRule(q.nodes.size());
       sir->SetOrder(int_order);
@@ -97,8 +98,8 @@ const IntegrationRule* AlgoimIntegrationRule::GetSurfaceIntegrationRule()
    else
    {
       LevelSet3D ls(pe,lsvec);
-      auto q = Algoim::quadGen<3>(ls,Algoim::BoundingBox<double,3>(0.0,1.0),3,-1,
-                                  np1d);
+      auto q = Algoim::quadGen<3>(ls,Algoim::BoundingBox<double,3>(0.0,1.0),
+                                  3, -1, np1d);
 
       sir=new IntegrationRule(q.nodes.size());
       sir->SetOrder(int_order);
