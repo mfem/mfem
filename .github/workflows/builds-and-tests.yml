@@ -31,7 +31,6 @@ on:
 env:
   HYPRE_ARCHIVE: v2.19.0.tar.gz
   HYPRE_TOP_DIR: hypre-2.19.0
-  HYPRE_BUILD_SYSTEM: make
   METIS_ARCHIVE: metis-4.0.3.tar.gz
   METIS_TOP_DIR: metis-4.0.3
   MFEM_TOP_DIR: mfem
@@ -160,14 +159,24 @@ jobs:
         key: ${{ runner.os }}-build-${{ env.HYPRE_TOP_DIR }}-${{ matrix.hypre-target }}-branch4
 
     - name: get hypre
-      if: matrix.mpi == 'par' && steps.hypre-cache.outputs.cache-hit != 'true'
+      if: matrix.mpi == 'par' && steps.hypre-cache.outputs.cache-hit != 'true' && matrix.os != 'windows-2022'
       # TODO: change this when merged upstream
       uses: kanye-quest/mfem-gh-actions/build-hypre@master
       with:
         archive: ${{ env.HYPRE_ARCHIVE }}
         dir: ${{ env.HYPRE_TOP_DIR }}
         target: ${{ matrix.hypre-target }}
-        build-system: ${{ env.HYPRE_BUILD_SYSTEM }}
+        build-system: make
+
+    - name: get hypre (Windows)
+      if: matrix.mpi == 'par' && steps.hypre-cache.outputs.cache-hit != 'true' && matrix.os == 'windows-2022'
+      # TODO: change this when merged upstream
+      uses: kanye-quest/mfem-gh-actions/build-hypre@master
+      with:
+        archive: ${{ env.HYPRE_ARCHIVE }}
+        dir: ${{ env.HYPRE_TOP_DIR }}
+        target: ${{ matrix.hypre-target }}
+        build-system: cmake
 
     # Get Metis through cache, or build it.
     # Install will only run on cache miss.
