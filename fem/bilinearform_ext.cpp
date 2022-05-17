@@ -1197,43 +1197,6 @@ void FABilinearFormExtension::FormLinearSystem(const Array<int> &ess_tdof_list,
    FormSystemMatrix(ess_tdof_list, A);
    Operator *oper;
    Operator::FormLinearSystem(ess_tdof_list, x, b, oper, X, B, copy_interior);
-// #ifdef MFEM_USE_MPI
-//    if ( auto pa = dynamic_cast<ParBilinearForm*>(a) )
-//    {
-//       const Operator &P = *pa->pfes->GetProlongationMatrix();
-//       const SparseMatrix &R = *pa->pfes->GetRestrictionMatrix();
-//       // Variational restriction with P
-//       X.SetSize(P.Width());
-//       B.SetSize(X.Size());
-//       P.MultTranspose(b, B);
-//       R.Mult(x, X);
-//       pa->p_mat.EliminateBC(pa->p_mat_e, ess_tdof_list, X, B);
-//       if (!copy_interior) { X.SetSubVectorComplement(ess_tdof_list, 0.0); }
-//    }
-//    else
-// #endif
-//    {
-//       const SparseMatrix *P = a->fes->GetConformingProlongation();
-//       if (P) // non-conforming space
-//       {
-//          // Variational restriction with P
-//          const SparseMatrix *R = a->fes->GetConformingRestriction();
-//          B.SetSize(P->Width());
-//          P->MultTranspose(b, B);
-//          X.SetSize(R->Height());
-//          R->Mult(x, X);
-//          a->EliminateVDofsInRHS(ess_tdof_list, X, B);
-//          if (!copy_interior) { X.SetSubVectorComplement(ess_tdof_list, 0.0); }
-//       }
-//       else // conforming space
-//       {
-//          // A, X and B point to the same data as mat, x and b
-//          a->EliminateVDofsInRHS(ess_tdof_list, x, b);
-//          X.MakeRef(x, 0, x.Size());
-//          B.MakeRef(b, 0, b.Size());
-//          if (!copy_interior) { X.SetSubVectorComplement(ess_tdof_list, 0.0); }
-//       }
-//    }
 }
 
 void FABilinearFormExtension::DGMult(const Vector &x, Vector &y) const
