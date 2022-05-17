@@ -317,50 +317,50 @@ int ElementRestriction::FillI(SparseMatrix &mat) const
    {
       I[i_L] = 0;
    });
-   MFEM_FORALL(e, ne,
+   MFEM_FORALL(l_dof, ne*elt_dofs,
    {
-      for (int i = 0; i < elt_dofs; i++)
+      const int e = l_dof/elt_dofs;
+      const int i = l_dof%elt_dofs;
+
+      int i_elts[Max];
+      const int i_gm = e*elt_dofs + i;
+      const int i_L = d_gather_map[i_gm];
+      const int i_offset = d_offsets[i_L];
+      const int i_next_offset = d_offsets[i_L+1];
+      const int i_nbElts = i_next_offset - i_offset;
+      MFEM_ASSERT_KERNEL(
+         i_nbElts <= Max,
+         "The connectivity of this mesh is beyond the max, increase the "
+         "MaxNbNbr variable to comply with your mesh.");
+      for (int e_i = 0; e_i < i_nbElts; ++e_i)
       {
-         int i_elts[Max];
-         const int i_gm = e*elt_dofs + i;
-         const int i_L = d_gather_map[i_gm];
-         const int i_offset = d_offsets[i_L];
-         const int i_next_offset = d_offsets[i_L+1];
-         const int i_nbElts = i_next_offset - i_offset;
-         MFEM_ASSERT_KERNEL(
-            i_nbElts <= Max,
-            "The connectivity of this mesh is beyond the max, increase the "
-            "MaxNbNbr variable to comply with your mesh.");
-         for (int e_i = 0; e_i < i_nbElts; ++e_i)
+         const int i_E = d_indices[i_offset+e_i];
+         i_elts[e_i] = i_E/elt_dofs;
+      }
+      for (int j = 0; j < elt_dofs; j++)
+      {
+         const int j_gm = e*elt_dofs + j;
+         const int j_L = d_gather_map[j_gm];
+         const int j_offset = d_offsets[j_L];
+         const int j_next_offset = d_offsets[j_L+1];
+         const int j_nbElts = j_next_offset - j_offset;
+         if (i_nbElts == 1 || j_nbElts == 1) // no assembly required
          {
-            const int i_E = d_indices[i_offset+e_i];
-            i_elts[e_i] = i_E/elt_dofs;
+            GetAndIncrementNnzIndex(i_L, I);
          }
-         for (int j = 0; j < elt_dofs; j++)
+         else // assembly required
          {
-            const int j_gm = e*elt_dofs + j;
-            const int j_L = d_gather_map[j_gm];
-            const int j_offset = d_offsets[j_L];
-            const int j_next_offset = d_offsets[j_L+1];
-            const int j_nbElts = j_next_offset - j_offset;
-            if (i_nbElts == 1 || j_nbElts == 1) // no assembly required
+            int j_elts[Max];
+            for (int e_j = 0; e_j < j_nbElts; ++e_j)
+            {
+               const int j_E = d_indices[j_offset+e_j];
+               const int elt = j_E/elt_dofs;
+               j_elts[e_j] = elt;
+            }
+            int min_e = GetMinElt(i_elts, i_nbElts, j_elts, j_nbElts);
+            if (e == min_e) // add the nnz only once
             {
                GetAndIncrementNnzIndex(i_L, I);
-            }
-            else // assembly required
-            {
-               int j_elts[Max];
-               for (int e_j = 0; e_j < j_nbElts; ++e_j)
-               {
-                  const int j_E = d_indices[j_offset+e_j];
-                  const int elt = j_E/elt_dofs;
-                  j_elts[e_j] = elt;
-               }
-               int min_e = GetMinElt(i_elts, i_nbElts, j_elts, j_nbElts);
-               if (e == min_e) // add the nnz only once
-               {
-                  GetAndIncrementNnzIndex(i_L, I);
-               }
             }
          }
       }
@@ -394,73 +394,73 @@ void ElementRestriction::FillJAndData(const Vector &ea_data,
    auto d_indices = indices.Read();
    auto d_gather_map = gather_map.Read();
    auto mat_ea = Reshape(ea_data.Read(), elt_dofs, elt_dofs, ne);
-   MFEM_FORALL(e, ne,
+   MFEM_FORALL(l_dof, ne*elt_dofs,
    {
-      for (int i = 0; i < elt_dofs; i++)
+      const int e = l_dof/elt_dofs;
+      const int i = l_dof%elt_dofs;
+
+      int i_elts[Max];
+      int i_B[Max];
+      const int i_gm = e*elt_dofs + i;
+      const int i_L = d_gather_map[i_gm];
+      const int i_offset = d_offsets[i_L];
+      const int i_next_offset = d_offsets[i_L+1];
+      const int i_nbElts = i_next_offset - i_offset;
+      MFEM_ASSERT_KERNEL(
+         i_nbElts <= Max,
+         "The connectivity of this mesh is beyond the max, increase the "
+         "MaxNbNbr variable to comply with your mesh.");
+      for (int e_i = 0; e_i < i_nbElts; ++e_i)
       {
-         int i_elts[Max];
-         int i_B[Max];
-         const int i_gm = e*elt_dofs + i;
-         const int i_L = d_gather_map[i_gm];
-         const int i_offset = d_offsets[i_L];
-         const int i_next_offset = d_offsets[i_L+1];
-         const int i_nbElts = i_next_offset - i_offset;
-         MFEM_ASSERT_KERNEL(
-            i_nbElts <= Max,
-            "The connectivity of this mesh is beyond the max, increase the "
-            "MaxNbNbr variable to comply with your mesh.");
-         for (int e_i = 0; e_i < i_nbElts; ++e_i)
+         const int i_E = d_indices[i_offset+e_i];
+         i_elts[e_i] = i_E/elt_dofs;
+         i_B[e_i]    = i_E%elt_dofs;
+      }
+      for (int j = 0; j < elt_dofs; j++)
+      {
+         const int j_gm = e*elt_dofs + j;
+         const int j_L = d_gather_map[j_gm];
+         const int j_offset = d_offsets[j_L];
+         const int j_next_offset = d_offsets[j_L+1];
+         const int j_nbElts = j_next_offset - j_offset;
+         if (i_nbElts == 1 || j_nbElts == 1) // no assembly required
          {
-            const int i_E = d_indices[i_offset+e_i];
-            i_elts[e_i] = i_E/elt_dofs;
-            i_B[e_i]    = i_E%elt_dofs;
+            const int nnz = GetAndIncrementNnzIndex(i_L, I);
+            J[nnz] = j_L;
+            Data[nnz] = mat_ea(j,i,e);
          }
-         for (int j = 0; j < elt_dofs; j++)
+         else // assembly required
          {
-            const int j_gm = e*elt_dofs + j;
-            const int j_L = d_gather_map[j_gm];
-            const int j_offset = d_offsets[j_L];
-            const int j_next_offset = d_offsets[j_L+1];
-            const int j_nbElts = j_next_offset - j_offset;
-            if (i_nbElts == 1 || j_nbElts == 1) // no assembly required
+            int j_elts[Max];
+            int j_B[Max];
+            for (int e_j = 0; e_j < j_nbElts; ++e_j)
             {
-               const int nnz = GetAndIncrementNnzIndex(i_L, I);
-               J[nnz] = j_L;
-               Data[nnz] = mat_ea(j,i,e);
+               const int j_E = d_indices[j_offset+e_j];
+               const int elt = j_E/elt_dofs;
+               j_elts[e_j] = elt;
+               j_B[e_j]    = j_E%elt_dofs;
             }
-            else // assembly required
+            int min_e = GetMinElt(i_elts, i_nbElts, j_elts, j_nbElts);
+            if (e == min_e) // add the nnz only once
             {
-               int j_elts[Max];
-               int j_B[Max];
-               for (int e_j = 0; e_j < j_nbElts; ++e_j)
+               double val = 0.0;
+               for (int k = 0; k < i_nbElts; k++)
                {
-                  const int j_E = d_indices[j_offset+e_j];
-                  const int elt = j_E/elt_dofs;
-                  j_elts[e_j] = elt;
-                  j_B[e_j]    = j_E%elt_dofs;
-               }
-               int min_e = GetMinElt(i_elts, i_nbElts, j_elts, j_nbElts);
-               if (e == min_e) // add the nnz only once
-               {
-                  double val = 0.0;
-                  for (int k = 0; k < i_nbElts; k++)
+                  const int e_i = i_elts[k];
+                  const int i_Bloc = i_B[k];
+                  for (int l = 0; l < j_nbElts; l++)
                   {
-                     const int e_i = i_elts[k];
-                     const int i_Bloc = i_B[k];
-                     for (int l = 0; l < j_nbElts; l++)
+                     const int e_j = j_elts[l];
+                     const int j_Bloc = j_B[l];
+                     if (e_i == e_j)
                      {
-                        const int e_j = j_elts[l];
-                        const int j_Bloc = j_B[l];
-                        if (e_i == e_j)
-                        {
-                           val += mat_ea(j_Bloc, i_Bloc, e_i);
-                        }
+                        val += mat_ea(j_Bloc, i_Bloc, e_i);
                      }
                   }
-                  const int nnz = GetAndIncrementNnzIndex(i_L, I);
-                  J[nnz] = j_L;
-                  Data[nnz] = val;
                }
+               const int nnz = GetAndIncrementNnzIndex(i_L, I);
+               J[nnz] = j_L;
+               Data[nnz] = val;
             }
          }
       }
