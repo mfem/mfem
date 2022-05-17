@@ -160,7 +160,6 @@ void NLDiffusionIntegrator::AssembleElementGrad(const FiniteElement &el,
 void NLDiffusion::FSolve()
 {
     ess_tdofv.DeleteAll();
-    int dim=pmesh->Dimension();
     // set the boundary conditions
     {
         for(auto it=bcc.begin();it!=bcc.end();it++){
@@ -184,7 +183,47 @@ void NLDiffusion::FSolve()
     }
     //the BC are setup in the solution vector sol
 
+    std::cout<<"BC dofs size="<<ess_tdofv.Size()<<std::endl;
 
+    //allocate the non-linear form and add the integrators
+    if(nf==nullptr){
+        nf=new mfem::ParNonlinearForm(fes);
+        for(size_t i=0;i<materials.size();i++){
+            nf->AddDomainIntegrator(new NLDiffusionIntegrator(materials[i]));
+        }
+    }
+
+    nf->SetEssentialTrueDofs(ess_tdofv);
+
+
+    //allocate the preconditioner and the linear solver
+    if(prec==nullptr){
+        prec = new HypreBoomerAMG();
+        prec->SetPrintLevel(print_level);
+    }
+
+    if(ls==nullptr){
+        ls = new CGSolver(pmesh->GetComm());
+        ls->SetAbsTol(linear_atol);
+        ls->SetRelTol(linear_rtol);
+        ls->SetMaxIter(linear_iter);
+        ls->SetPrintLevel(print_level);
+        ls->SetPreconditioner(*prec);
+    }
+
+    if(ns==nullptr){
+        ns = new NewtonSolver(pmesh->GetComm());
+        ns->iterative_mode = true;
+        ns->SetRelTol(rel_tol);
+        ns->SetAbsTol(abs_tol);
+        ns->SetMaxIter(max_iter);
+        ns->SetPrintLevel(print_level);
+        ns->SetSolver(*ls);
+        ns->SetOperator(*nf);
+    }
+
+    Vector b;
+    ns->Mult(b,sol);
 }
 
 

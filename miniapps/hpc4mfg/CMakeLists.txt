@@ -11,7 +11,7 @@
 
 if (MFEM_USE_MPI)
   list(APPEND DIST_COMMON_SOURCES
-        hpc4dolvers.cpp)
+        hpc4solvers.cpp)
   list(APPEND DIST_COMMON_HEADERS
         hpc4solvers.hpp)
 

@@ -36,7 +36,7 @@ class ExampleNLDiffusionCoefficient:public BasicNLDiffusionCoefficient
 {
 public:
 
-    ExampleNLDiffusionCoefficient(double a_=1.0, double b_=1.0, double c_=0.0, double d_=0.1){
+    ExampleNLDiffusionCoefficient(double a_=1.0, double b_=1.0, double c_=1.0, double d_=0.1){
         ownership=true;
         a=new ConstantCoefficient(a_);
         b=new ConstantCoefficient(b_);
@@ -321,7 +321,7 @@ private:
 
 
     mfem::FiniteElementCollection *fec;
-    mfem::FiniteElementSpace	  *fes;
+    mfem::ParFiniteElementSpace	  *fes;
     mfem::ParNonlinearForm *nf;
 
     //Newton solver parameters
