@@ -277,9 +277,9 @@ int main(int argc, char *argv[])
       std::cout<<"MFEM Volume="<<vol<<std::endl;
    }
 
-   ParaViewDataCollection dacol("ParaViewDistance", mesh);
+   ParaViewDataCollection dacol("ParaViewLSF", mesh);
    dacol.SetLevelsOfDetail(order);
-   dacol.RegisterField("dist",&x);
+   dacol.RegisterField("LSF",&x);
    dacol.SetTime(1.0);
    dacol.SetCycle(1);
    dacol.Save();
