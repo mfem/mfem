@@ -278,16 +278,31 @@ public:
                                  const IntegrationRule *irs[] = NULL) const
    { return ComputeLpError(1.0, exsol, NULL, NULL, irs); }
 
-   virtual double ComputeL2Error(Coefficient *exsol[],
+  /* virtual double ComputeL2Error(Coefficient *exsol[],
                                  const IntegrationRule *irs[] = NULL) const
    {
       return GlobalLpNorm(2.0, GridFunction::ComputeL2Error(exsol, irs),
                           pfes->GetComm());
+   }*/
+   virtual double ComputeL2Error(Coefficient *exsol[],
+                                 const IntegrationRule *irs[] = NULL,
+                                 Array<int> *elems = NULL) const
+   {
+      return GlobalLpNorm(2.0, GridFunction::ComputeL2Error(exsol, irs, elems),
+                          pfes->GetComm());
    }
 
-   virtual double ComputeL2Error(Coefficient &exsol,
+  virtual double ComputeL2Error(Coefficient &exsol,
+				const IntegrationRule *irs[] = NULL,
+				Array<int> *elems = NULL) const
+   {
+      return GlobalLpNorm(2.0, GridFunction::ComputeL2Error(exsol, irs, elems),
+                          pfes->GetComm());
+   }
+
+  /*  virtual double ComputeL2Error(Coefficient &exsol,
                                  const IntegrationRule *irs[] = NULL) const
-   { return ComputeLpError(2.0, exsol, NULL, irs); }
+				 { return ComputeLpError(2.0, exsol, NULL, irs); }*/
 
    virtual double ComputeL2Error(VectorCoefficient &exsol,
                                  const IntegrationRule *irs[] = NULL,
