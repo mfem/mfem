@@ -22,7 +22,7 @@
 #include "../segment.hpp"
 
 mfem::detail::TransferMapCache<mfem::ParGridFunction, mfem::detail::ParTransferMap>
-transfer_map_cache_;
+partransfer_map_cache_;
 
 namespace mfem
 {
@@ -794,7 +794,7 @@ void ParSubMesh::BuildSharedFacesMapping(const int nstrias,
 
 void ParSubMesh::Transfer(const ParGridFunction &src, ParGridFunction &dst)
 {
-   const auto *map = transfer_map_cache_.Find(src, dst);
+   const auto *map = partransfer_map_cache_.Find(src, dst);
    map->Transfer(src, dst);
 }
 

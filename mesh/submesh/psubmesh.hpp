@@ -23,7 +23,7 @@
 #include "submesh.hpp"
 
 extern mfem::detail::TransferMapCache<mfem::ParGridFunction, mfem::detail::ParTransferMap>
-transfer_map_cache_;
+partransfer_map_cache_;
 
 namespace mfem
 {
