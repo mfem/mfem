@@ -2,6 +2,9 @@ name: Build Deploy Container
 
 on:
 
+  # TODO MUST REMOVE BEFORE MERGING THIS IS TO TEST BUILD ONLY
+  pull_request: []
+
   # Always have a base image ready to go - this is a nightly build
   schedule:
     - cron: 0 3 * * *
