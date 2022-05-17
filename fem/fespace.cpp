@@ -2065,34 +2065,79 @@ SparseMatrix* FiniteElementSpace::DerefinementMatrix(int old_ndofs,
 
    MFEM_ASSERT(dtrans.embeddings.Size() == old_elem_dof->Size(), "");
 
-   for (int k = 0; k < dtrans.embeddings.Size(); k++)
-   {
-      const Embedding &emb = dtrans.embeddings[k];
-      Geometry::Type geom = mesh->GetElementBaseGeometry(emb.parent);
-      DenseMatrix &lR = localR[geom](emb.matrix);
+   if (FEColl()->GetContType() == FiniteElementCollection::DISCONTINUOUS) {
 
-      elem_dof->GetRow(emb.parent, dofs);
-      old_elem_dof->GetRow(k, old_dofs);
-
-      for (int vd = 0; vd < vdim; vd++)
+      for (int k = 0; k < dtrans.embeddings.Size(); k++)
       {
-         old_dofs.Copy(old_vdofs);
-         DofsToVDofs(vd, old_vdofs, old_ndofs);
+         const Embedding &emb = dtrans.embeddings[k];
+         Geometry::Type geom = mesh->GetElementBaseGeometry(emb.parent);
+         DenseMatrix &lR = localR[geom](emb.matrix);
 
-         for (int i = 0; i < lR.Height(); i++)
+         elem_dof->GetRow(emb.parent, dofs);
+         old_elem_dof->GetRow(k, old_dofs);
+
+         for (int vd = 0; vd < vdim; vd++)
          {
-            if (!std::isfinite(lR(i, 0))) { continue; }
+            old_dofs.Copy(old_vdofs);
+            DofsToVDofs(vd, old_vdofs, old_ndofs);
 
-            int r = DofToVDof(dofs[i], vd);
+            for (int i = 0; i < lR.Height(); i++)
+            {
+               if (!std::isfinite(lR(i, 0))) { continue; }
 
-            lR.GetRow(i, row);
+               int r = DofToVDof(dofs[i], vd);
 
-            for (int j = 0; j < old_vdofs.Size(); j++) {
-               R->Set(r, old_vdofs[j], row[j]);
+               lR.GetRow(i, row);
+
+               for (int j = 0; j < old_vdofs.Size(); j++) {
+                  R->Set(r, old_vdofs[j], row[j]);
+               }
             }
          }
       }
    }
+   else {
+
+      Array<int> mark(R->Height());
+      mark = 0;
+
+      int num_marked = 0;
+      for (int k = 0; k < dtrans.embeddings.Size(); k++)
+      {
+         const Embedding &emb = dtrans.embeddings[k];
+         Geometry::Type geom = mesh->GetElementBaseGeometry(emb.parent);
+         DenseMatrix &lR = localR[geom](emb.matrix);
+
+         elem_dof->GetRow(emb.parent, dofs);
+         old_elem_dof->GetRow(k, old_dofs);
+
+         for (int vd = 0; vd < vdim; vd++)
+         {
+            old_dofs.Copy(old_vdofs);
+            DofsToVDofs(vd, old_vdofs, old_ndofs);
+
+            for (int i = 0; i < lR.Height(); i++)
+            {
+               if (!std::isfinite(lR(i, 0))) { continue; }
+
+               int r = DofToVDof(dofs[i], vd);
+               int m = (r >= 0) ? r : (-1 - r);
+
+               if (!mark[m])
+               {
+                  lR.GetRow(i, row);
+                  R->SetRow(r, old_vdofs, row);
+                  mark[m] = 1;
+                  num_marked++;
+               }
+            }
+         }
+      }
+
+      MFEM_VERIFY(num_marked == R->Height(),
+                  "internal error: not all rows of R were set.");
+   }
+
 
    R->Finalize(); // no-op if fixed width
    return R;
