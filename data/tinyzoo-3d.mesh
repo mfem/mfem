@@ -22,7 +22,7 @@ elements
 1 7 11 7 1 5 8
 1 4 2 5 1 8
 
-bounday
+boundary
 14
 1 3 0 3 4 1
 1 3 6 7 10 9
@@ -39,7 +39,7 @@ bounday
 1 2 7 11 10
 1 3 4 10 11 5
 
-vetices
+vertices
 12
 3
 0 0 0
