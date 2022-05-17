@@ -102,7 +102,7 @@ void CalcBernstein(const int p, const float_type x,
 }
 
 /// Construct volumetric and surface integration rules for a given element
-/// using the Algoim library. The volume is define as the possitive part of
+/// using the Algoim library. The volume is define as the positive part of
 /// a level-set function(LSF) (lsfun argument in the constructor). The surface
 /// is defined as the zero level-set of the LSF.
 class AlgoimIntegrationRule
@@ -134,18 +134,14 @@ public:
    const IntegrationRule* GetSurfaceIntegrationRule();
 
 
-
 private:
 
    /// 3D level-set function object required by Algoim.
    struct LevelSet3D
    {
       /// Constructor for 3D level-set function object required by Algoim.
-      LevelSet3D(PositiveTensorFiniteElement* el_, Vector& lsfun_):el(el_),
-         lsfun(lsfun_)
-      {
-
-      }
+      LevelSet3D(PositiveTensorFiniteElement* el_, Vector& lsfun_)
+         : el(el_), lsfun(lsfun_) { }
 
       /// Returns the value of the LSF for point x.
       template<typename T>
@@ -213,11 +209,8 @@ private:
    struct LevelSet2D
    {
       /// Constructor for 2D level-set function object required by Algoim.
-      LevelSet2D(PositiveTensorFiniteElement* el_, Vector& lsfun_):el(el_),
-         lsfun(lsfun_)
-      {
-
-      }
+      LevelSet2D(PositiveTensorFiniteElement* el_, Vector& lsfun_)
+         :el(el_), lsfun(lsfun_) { }
 
       /// Returns the value of the LSF for point x.
       template<typename T>
@@ -276,15 +269,12 @@ private:
    };
 
 
-   IntegrationRule* sir; //surface integration rule
-   IntegrationRule* vir; //volumetric integration rule
+   IntegrationRule* sir; // Surface integration rule. Owned.
+   IntegrationRule* vir; // Volumetric integration rule. Owned.
    PositiveTensorFiniteElement *pe;
    Vector lsvec; //level-set in Bernstein bases
    int int_order; //integration order
-
 };
-
-
 
 }
 #endif

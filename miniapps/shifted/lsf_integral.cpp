@@ -109,7 +109,7 @@ int main(int argc, char *argv[])
       mesh->UniformRefinement();
    }
 
-   // Define the finite element spaces for the solution
+   // Define the finite element space for the level-set function.
    H1_FECollection fec(order, dim);
    FiniteElementSpace fespace(mesh, &fec, 1, Ordering::byVDIM);
    int glob_size = fespace.GetTrueVSize();
@@ -174,10 +174,7 @@ int main(int argc, char *argv[])
       }
    }
 
-
-
    ElementTransformation *trans;
-   double w;
    const IntegrationRule* ir=nullptr;
 
    // Integration with algoim
@@ -195,6 +192,7 @@ int main(int argc, char *argv[])
    for (int i=0; i<fespace.GetNE(); i++)
    {
       const FiniteElement* el=fespace.GetFE(i);
+
       //get the element transformation
       trans = fespace.GetElementTransformation(i);
 
@@ -203,18 +201,15 @@ int main(int argc, char *argv[])
       x.GetSubVector(vdofs, lsfun);
 
       //contruct Algoim integration object
-      AlgoimIntegrationRule* air=new AlgoimIntegrationRule(aorder,*el,
-                                                           *trans,lsfun);
+      AlgoimIntegrationRule air(aorder, *el, *trans, lsfun);
 
       //compute the volume contribution from the element
-      ir=air->GetVolumeIntegrationRule();
+      ir = air.GetVolumeIntegrationRule();
       for (int j = 0; j < ir->GetNPoints(); j++)
       {
          const IntegrationPoint &ip = ir->IntPoint(j);
          trans->SetIntPoint(&ip);
-         w = trans->Weight();
-         w = ip.weight * w;
-         vol=vol+w;
+         vol += ip.weight * trans->Weight();
       }
 
       //compute the perimeter/area contribution from the element
@@ -223,7 +218,7 @@ int main(int argc, char *argv[])
       inormal.SetSize(el->GetDim());
       tnormal.SetSize(el->GetDim());
 
-      ir=air->GetSurfaceIntegrationRule();
+      ir = air.GetSurfaceIntegrationRule();
       for (int j = 0; j < ir->GetNPoints(); j++)
       {
          const IntegrationPoint &ip = ir->IntPoint(j);
@@ -233,16 +228,10 @@ int main(int argc, char *argv[])
          Mult(bmat, trans->AdjugateJacobian(), pmat);
          //compute the normal to the LS in isoparametric space
          bmat.MultTranspose(lsfun,inormal);
-         //compute the normal to the LS in physicsl space
+         //compute the normal to the LS in physical space
          pmat.MultTranspose(lsfun,tnormal);
-         w = ip.weight*tnormal.Norml2()/inormal.Norml2();
-         area=area+w;
+         area += ip.weight * tnormal.Norml2() / inormal.Norml2();
       }
-
-      //delete the Algoim integration rule object
-      //the integration rules are constructed for the
-      //particular element and level set
-      delete air;
    }
 
    if (exact_volume > 0)
@@ -274,9 +263,7 @@ int main(int argc, char *argv[])
          double vlsf=x.GetValue(*trans,ip);
          if (vlsf>=0.0)
          {
-            w = trans->Weight();
-            w = ip.weight * w;
-            vol=vol+w;
+            vol += ip.weight * trans->Weight();
          }
       }
    }
