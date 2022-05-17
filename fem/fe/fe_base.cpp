@@ -473,7 +473,6 @@ void ScalarFiniteElement::ScalarLocalRestriction(
    const IntegrationRule &ir = IntRules.Get(coarse_fe.GetGeomType(), ir_order);
 
    // integrate coarse_mass in the coarse space
-
    for (int i = 0; i < ir.GetNPoints(); i++)
    {
       const IntegrationPoint &c_ip = ir.IntPoint(i);
@@ -482,7 +481,6 @@ void ScalarFiniteElement::ScalarLocalRestriction(
    }
 
    // integrate coarse_fine_mass in the fine space
-
    Trans.SetIntPoint(&Geometries.GetCenter(geom_type));
    for (int i = 0; i < ir.GetNPoints(); i++)
    {
@@ -638,54 +636,30 @@ void InvertLinearTrans(ElementTransformation &trans,
 void NodalFiniteElement::GetLocalRestriction(ElementTransformation &Trans,
                                              DenseMatrix &R) const
 {
-   // todo: figure out what to do with continuous spaces, and remove
-   // duplication with ScalarFiniteElement::GetLocalRestriction.
+   IntegrationPoint ipt;
+   Vector pt(&ipt.x, dim);
 
-   // General "restriction", defined by L2 projection
-   double v[Geometry::MaxDim];
-   Vector vv(v, dim);
-   IntegrationPoint c_ip;
+#ifdef MFEM_THREAD_SAFE
+   Vector c_shape(dof);
+#endif
 
-   const FiniteElement& coarse_fe{*this};
-   const int cs = coarse_fe.GetDof(), fs = this->GetDof();
-   R.SetSize(cs, fs);
-   Vector fine_shape(fs), coarse_shape(cs);
-   DenseMatrix coarse_mass(cs), coarse_fine_mass(cs, fs); // initialized with 0
-   const int ir_order = GetOrder() + coarse_fe.GetOrder();
-   const IntegrationRule &ir = IntRules.Get(coarse_fe.GetGeomType(), ir_order);
+   Trans.SetIntPoint(&Nodes[0]);
 
-   // integrate coarse_mass in the coarse space
-
-   for (int i = 0; i < ir.GetNPoints(); i++)
+   for (int j = 0; j < dof; j++)
    {
-      const IntegrationPoint &c_ip = ir.IntPoint(i);
-      coarse_fe.CalcShape(c_ip, coarse_shape);
-      AddMult_a_VVt(c_ip.weight, coarse_shape, coarse_mass);
+      InvertLinearTrans(Trans, Nodes[j], pt);
+      if (Geometries.CheckPoint(geom_type, ipt)) // do we need an epsilon here?
+      {
+         CalcShape(ipt, c_shape);
+         R.SetRow(j, c_shape);
+      }
+      else
+      {
+         // Set the whole row to avoid valgrind warnings in R.Threshold().
+         R.SetRow(j, infinity());
+      }
    }
-
-   // integrate coarse_fine_mass in the fine space
-
-   Trans.SetIntPoint(&Geometries.GetCenter(geom_type));
-   for (int i = 0; i < ir.GetNPoints(); i++)
-   {
-      const IntegrationPoint &f_ip = ir.IntPoint(i);
-      this->CalcShape(f_ip, fine_shape);
-      Trans.Transform(f_ip, vv);
-      c_ip.Set(v, dim);
-      coarse_fe.CalcShape(c_ip, coarse_shape);
-      AddMult_a_VWt(f_ip.weight*Trans.Weight(), coarse_shape, fine_shape, coarse_fine_mass);
-   }
-
-   DenseMatrixInverse coarse_mass_inv(coarse_mass);
-   coarse_mass_inv.Mult(coarse_fine_mass, R);
-
-   if (map_type == INTEGRAL)
-   {
-      // todo: is this necessary?
-      // assuming Trans is linear; this should be ok for all refinement types
-      Trans.SetIntPoint(&Geometries.GetCenter(geom_type));
-      R *= 1.0 / Trans.Weight();
-   }
+   R.Threshold(1e-12);
 }
 
 void NodalFiniteElement::Project (
