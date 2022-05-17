@@ -14,6 +14,8 @@
 
 #include "../config/config.hpp"
 #include "coefficient.hpp"
+#include "bilininteg.hpp"
+#include <random>
 
 namespace mfem
 {
@@ -27,6 +29,15 @@ protected:
    LinearFormIntegrator(const IntegrationRule *ir = NULL) { IntRule = ir; }
 
 public:
+
+   /// Method probing for assembly on device
+   virtual bool SupportsDevice() { return false; }
+
+   /// Method defining assembly on device
+   virtual void AssembleDevice(const FiniteElementSpace &fes,
+                               const Array<int> &markers,
+                               Vector &b);
+
    /** Given a particular Finite Element and a transformation (Tr)
        computes the element vector, elvect. */
    virtual void AssembleRHSElementVect(const FiniteElement &el,
@@ -110,6 +121,13 @@ public:
    DomainLFIntegrator(Coefficient &QF, const IntegrationRule *ir)
       : DeltaLFIntegrator(QF, ir), Q(QF), oa(1), ob(1) { }
 
+   virtual bool SupportsDevice() { return true; }
+
+   /// Method defining assembly on device
+   virtual void AssembleDevice(const FiniteElementSpace &fes,
+                               const Array<int> &markers,
+                               Vector &b);
+
    /** Given a particular Finite Element and a transformation (Tr)
        computes the element right hand side element vector, elvect. */
    virtual void AssembleRHSElementVect(const FiniteElement &el,
@@ -135,6 +153,13 @@ public:
    /// Constructs the domain integrator (Q, grad v)
    DomainLFGradIntegrator(VectorCoefficient &QF)
       : DeltaLFIntegrator(QF), Q(QF) { }
+
+   virtual bool SupportsDevice() { return true; }
+
+   /// Method defining assembly on device
+   virtual void AssembleDevice(const FiniteElementSpace &fes,
+                               const Array<int> &markers,
+                               Vector &b);
 
    /** Given a particular Finite Element and a transformation (Tr)
        computes the element right hand side element vector, elvect. */
@@ -223,6 +248,13 @@ public:
    VectorDomainLFIntegrator(VectorCoefficient &QF)
       : DeltaLFIntegrator(QF), Q(QF) { }
 
+   virtual bool SupportsDevice() { return true; }
+
+   /// Method defining assembly on device
+   virtual void AssembleDevice(const FiniteElementSpace &fes,
+                               const Array<int> &markers,
+                               Vector &b);
+
    /** Given a particular Finite Element and a transformation (Tr)
        computes the element right hand side element vector, elvect. */
    virtual void AssembleRHSElementVect(const FiniteElement &el,
@@ -232,6 +264,40 @@ public:
    virtual void AssembleDeltaElementVect(const FiniteElement &fe,
                                          ElementTransformation &Trans,
                                          Vector &elvect);
+
+   using LinearFormIntegrator::AssembleRHSElementVect;
+};
+
+/** Class for domain integrator L(v) := (f, grad v), where
+    f=(f1x,f1y,f1z,...,fnx,fny,fnz) and v=(v1,...,vn). */
+class VectorDomainLFGradIntegrator : public DeltaLFIntegrator
+{
+private:
+   Vector shape, Qvec;
+   VectorCoefficient &Q;
+   DenseMatrix dshape;
+
+public:
+   /// Constructs the domain integrator (Q, grad v)
+   VectorDomainLFGradIntegrator(VectorCoefficient &QF)
+      : DeltaLFIntegrator(QF), Q(QF) { }
+
+   virtual bool SupportsDevice() override { return true; }
+
+   /// Method defining assembly on device
+   virtual void AssembleDevice(const FiniteElementSpace &fes,
+                               const Array<int> &markers,
+                               Vector &b) override;
+
+   /** Given a particular Finite Element and a transformation (Tr)
+       computes the element right hand side element vector, elvect. */
+   virtual void AssembleRHSElementVect(const FiniteElement &el,
+                                       ElementTransformation &Tr,
+                                       Vector &elvect) override;
+
+   virtual void AssembleDeltaElementVect(const FiniteElement &fe,
+                                         ElementTransformation &Trans,
+                                         Vector &elvect) override;
 
    using LinearFormIntegrator::AssembleRHSElementVect;
 };
@@ -517,6 +583,115 @@ public:
    using LinearFormIntegrator::AssembleRHSElementVect;
 };
 
+
+/** Class for spatial white Gaussian noise integration.
+
+    The target problem is the linear SPDE a(u,v) = F(v) with F(v) := <Ẇ,v>,
+    where Ẇ is spatial white Gaussian noise. When the Galerkin method is used to
+    discretize this problem into a linear system of equations Ax = b, the RHS is
+    a Gaussian random vector b~N(0,M) whose covariance matrix is the same as the
+    mass matrix M_ij = (v_i,v_j). This property can be ensured if b = H w, where
+    HHᵀ = M and each component w_i~N(0,1).
+
+    There is much flexibility in how we may wish to define H. In this PR, we
+    define H = Pᵀ diag(L_e), where P is the local-to-global dof assembly matrix
+    and diag(L_e) is a block-diagonal matrix with L_e L_eᵀ = M_e, where M_e is
+    the element mass matrix for element e. A straightforward computation shows
+    that HHᵀ = Pᵀ diag(M_e) P = M, as necessary. */
+class WhiteGaussianNoiseDomainLFIntegrator : public LinearFormIntegrator
+{
+#ifdef MFEM_USE_MPI
+   MPI_Comm comm;
+#endif
+   MassIntegrator massinteg;
+   Array<DenseMatrix *> L;
+
+   // Define random generator with Gaussian distribution
+   std::default_random_engine generator;
+   std::normal_distribution<double> dist;
+
+   bool save_factors = false;
+public:
+
+#ifdef MFEM_USE_MPI
+   /** @brief Sets the @a seed_ of the random number generator. A fixed seed
+       allows for a reproducible sequence of white noise vectors. */
+   WhiteGaussianNoiseDomainLFIntegrator(int seed_ = 0)
+      : LinearFormIntegrator(), comm(MPI_COMM_NULL)
+   {
+      if (seed_ > 0) { SetSeed(seed_); }
+   }
+
+   /** @brief Sets the MPI communicator @a comm_ and the @a seed_ of the random
+       number generator. A fixed seed allows for a reproducible sequence of
+       white noise vectors. */
+   WhiteGaussianNoiseDomainLFIntegrator(MPI_Comm comm_, int seed_)
+      : LinearFormIntegrator(), comm(comm_)
+   {
+      int myid;
+      MPI_Comm_rank(comm, &myid);
+
+      int seed = (seed_ > 0) ? seed_ + myid : time(0) + myid;
+      SetSeed(seed);
+   }
+#else
+   /** @brief Sets the @a seed_ of the random number generator. A fixed seed
+       allows for a reproducible sequence of white noise vectors. */
+   WhiteGaussianNoiseDomainLFIntegrator(int seed_ = 0)
+      : LinearFormIntegrator()
+   {
+      if (seed_ > 0) { SetSeed(seed_); }
+   }
+#endif
+   /// @brief Sets/resets the @a seed of the random number generator.
+   void SetSeed(int seed)
+   {
+      generator.seed(seed);
+   }
+
+   using LinearFormIntegrator::AssembleRHSElementVect;
+   virtual void AssembleRHSElementVect(const FiniteElement &el,
+                                       ElementTransformation &Tr,
+                                       Vector &elvect);
+
+   /** @brief Saves the lower triangular matrices in the element-wise Cholesky
+       decomposition. The parameter @a NE should be the number of elements in
+       the mesh. */
+   void SaveFactors(int NE)
+   {
+      save_factors = true;
+      ResetFactors(NE);
+   }
+
+   /** @brief Resets the array of saved lower triangular Cholesky decomposition
+       matrices. The parameter @a NE should be the number of elements in the
+       mesh. */
+   void ResetFactors(int NE)
+   {
+      for (int i = 0; i<L.Size(); i++)
+      {
+         delete L[i];
+      }
+      L.DeleteAll();
+
+      L.SetSize(NE);
+      for (int i = 0; i<NE; i++)
+      {
+         L[i] = nullptr;
+      }
+   }
+
+   ~WhiteGaussianNoiseDomainLFIntegrator()
+   {
+      for (int i = 0; i<L.Size(); i++)
+      {
+         delete L[i];
+      }
+      L.DeleteAll();
+   }
+};
+
+
 /** Class for domain integration of L(v) := (f, v), where
     f=(f1,...,fn) and v=(v1,...,vn). that makes use of
     VectorQuadratureFunctionCoefficient*/
@@ -548,6 +723,7 @@ public:
                    "The QuadratureFunction integration rules are used instead");
    }
 };
+
 
 /** Class for domain integration L(v) := (f, v) that makes use
     of QuadratureFunctionCoefficient. */
@@ -581,5 +757,6 @@ public:
 };
 
 }
+
 
 #endif
