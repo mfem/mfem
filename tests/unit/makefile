@@ -148,7 +148,9 @@ $(CEED_OBJ): %.o: $(SRC)%.cpp $(HEADER_FILES) $(CONFIG_MK)
 
 $(MJIT_OBJ): %.o: $(SRC)%.cpp $(HEADER_FILES) $(CONFIG_MK)
 	@mkdir -p $(@D)
-	$(CCC) -c $(abspath $(<)) $(MFEM_FLAGS) $(INCLUDES) -o $(@)
+	../../mjit $(abspath $(<)) -o $(*)_jit.cpp
+	$(CCC) -c $(*)_jit.cpp $(MFEM_FLAGS) $(INCLUDES) -o $(@)
+	rm -f $(*)_jit.cpp
 
 # Template rule for devices
 # SEDOV Template rule for devices
@@ -255,6 +257,10 @@ ifeq ($(MFEM_USE_CUDA),YES)
 	@$(call mfem-test,$<,, CEED Unit tests (cuda-shared),--device ceed-cuda:/gpu/cuda/shared $(MFEM_DATA_FLAG),SKIP-NO-VIS)
 	@$(call mfem-test,$<,, CEED Unit tests (cuda-gen),--device ceed-cuda:/gpu/cuda/gen $(MFEM_DATA_FLAG),SKIP-NO-VIS)
 endif
+
+mjit_tests-test-seq: mjit_tests
+        @$(call mfem-test,$<,, MJIT Unit tests,--device cpu $(MFEM_DATA_FLAG),SKIP-NO-VIS)
+
 
 RUN_MPI = $(MFEM_MPIEXEC) $(MFEM_MPIEXEC_NP)
 %-test-par: %

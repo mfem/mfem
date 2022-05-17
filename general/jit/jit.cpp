@@ -328,18 +328,18 @@ struct System // System singleton object
                    << "-c" << "-o" << co << cc
                    << (std::getenv("MFEM_JIT_VERBOSE") ? "-v" : "");
          if (Call(name)) { return EXIT_FAILURE; }
-         //std::remove(cc.c_str());
+         std::remove(cc.c_str());
 
          // Update archive: ar += co
          Command() << "ar -r"/*v*/ << lib_ar() << co;
-         if (Call("ar -r")) { return EXIT_FAILURE; }
-         //std::remove(co.c_str());
+         if (Call()) { return EXIT_FAILURE; }
+         std::remove(co.c_str());
 
          // Create temporary shared library: (ar + co) => symbol
          Command() << cxx << "-shared" << "-o" << symbol
                    << ARprefix() << lib_ar() << ARpostfix()
                    << libs;
-         if (Call("cxx -shared")) { return EXIT_FAILURE; }
+         if (Call(symbol)) { return EXIT_FAILURE; }
 
          // Install temporary shared library: symbol => libmjit.so
          Command() << "install" << ARbackup() << symbol << lib_so();

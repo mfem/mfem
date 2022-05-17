@@ -9,70 +9,22 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-#ifndef MFEM_JIT_COMPILATION
 #include "mfem.hpp"
-#endif
 
-#if defined(MFEM_USE_JIT) || defined(MFEM_JIT_COMPILATION)
+#ifdef MFEM_USE_JIT
 
 #include <cmath> // pow
 #include <cstddef> // size_t
-#include <cassert>
+
+#include "catch.hpp"
 
 #include "general/jit/jit.hpp"// for MFEM_JIT
 #include "general/forall.hpp" // for MFEM_FORALL
 
 using namespace mfem;
 
-#ifndef MFEM_JIT_COMPILATION // exclude this catch code from JIT compilation
-
-#include "unit_tests.hpp"
-
-TEST_CASE("Just-In-Time-Compilation", "[JIT]")
+namespace mjit_tests
 {
-   auto System = [](const char *cmd) { REQUIRE(std::system(cmd) == 0); };
-
-   SECTION("System check")
-   {
-      CAPTURE("hostname");
-      System("hostname");
-   }
-
-   SECTION("MFEM Compiler check")
-   {
-      CAPTURE(MFEM_JIT_CXX);
-      System(MFEM_JIT_CXX " --version");
-   }
-
-   SECTION("mjit")
-   {
-      CAPTURE("mjit executable");
-      System(MFEM_SOURCE_DIR "/mjit -h"); // help
-
-      System(MFEM_SOURCE_DIR "/mjit -o test_mjit.cc " // generate source file
-             MFEM_SOURCE_DIR "/tests/unit/mjit/test_mjit.cpp");
-
-      std::remove("test_mjit"); // cleanup existing executable
-
-      System(MFEM_JIT_CXX " " MFEM_JIT_BUILD_FLAGS // compilation
-             " " MFEM_JIT_TPLFLAGS
-             " -DMFEM_JIT_COMPILATION -o test_mjit test_mjit.cc"
-             " -I../.. -I" MFEM_INSTALL_DIR "/include/mfem"
-             " -L../.. -L" MFEM_INSTALL_DIR "/lib -lmfem -ldl"
-             " " MFEM_JIT_EXT_LIBS
-            );
-      std::remove("test_mjit.cc");
-
-      System("./test_mjit"); // rebuild the libmjit.a/so if needed
-      System("./test_mjit"); // reuse libmjit.so
-
-      std::remove("libmjit.so");
-      System("./test_mjit"); // only rebuild libmjit.so
-
-      std::remove("test_mjit");
-   }
-}
-#endif // MFEM_JIT_COMPILATION
 
 // Bailey–Borwein–Plouffe formula to compute the nth base-16 digit of π
 MFEM_JIT template<int T_DEPTH = 0, int T_N = 0>
@@ -248,29 +200,33 @@ void ToUseOrNotToUse(int *ab, int a = 0, int b = 0)
    *ab = T_A + T_B; // T_A, T_B will always be set
 }
 
-#ifdef MFEM_JIT_COMPILATION
-int main(int argc, char* argv[])
+TEST_CASE("Main", "[JIT]")
 {
-   int ab = 0, tab = 0;
-   ToUseOrNotToUse(&ab,1,2);
-   ToUseOrNotToUse<1,2>(&tab);
-   if (ab != tab) { return EXIT_FAILURE; }
+   SECTION("ToUseOrNotToUse")
+   {
+      int ab = 0, tab = 0;
+      ToUseOrNotToUse(&ab,1,2);
+      ToUseOrNotToUse<1,2>(&tab);
+      REQUIRE(ab == tab);
+   }
 
-   double a = 0.0;
-   bbps<64,17>(1,&a);
-   const size_t ax = (size_t)(pow(16,8)*a);
+   SECTION("bbps")
+   {
+      double a = 0.0;
+      bbps<64,17>(1,&a);
+      const size_t ax = (size_t)(pow(16,8)*a);
 
-   double b = 0.0;
-   bbps(1,&b,64,17);
-   const size_t bx = (size_t)(pow(16,8)*b);
+      double b = 0.0;
+      bbps(1,&b,64,17);
+      const size_t bx = (size_t)(pow(16,8)*b);
 
-   //printf("\033[33m[0x%lx:0x%lx]\033[m",ax,bx);
-   if (ax != bx) { return EXIT_FAILURE; }
+      //printf("\033[33m[0x%lx:0x%lx]\033[m",ax,bx);
+      REQUIRE(ax == bx);
 
-   if (pi(10) != 0x5A308D31ul) { return EXIT_FAILURE; }
-   return EXIT_SUCCESS;
+      REQUIRE(pi(10) == 0x5A308D31ul);
+   }
 }
 
-#endif // MFEM_JIT_COMPILATION
+} // mjit_tests
 
 #endif // MFEM_USE_JIT

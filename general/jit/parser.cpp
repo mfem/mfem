@@ -28,6 +28,26 @@
 #define MFEM_JIT_STR(...) #__VA_ARGS__
 #define MFEM_JIT_STRINGIFY(...) MFEM_JIT_STR(__VA_ARGS__)
 
+/*struct dbg
+{
+   static constexpr bool DEBUG = true;
+   static constexpr uint8_t COLOR = 226;
+   dbg(): dbg(COLOR) { }
+   dbg(const uint8_t color)
+   {
+      if (!DEBUG) { return; }
+      std::cout << "\033[38;5;" << std::to_string(color==0?COLOR:color) << "m";
+   }
+   ~dbg() { if (DEBUG) { std::cout << "\033[m\n"; std::cout.flush(); } }
+   template <typename T> dbg& operator<<(const T &arg)
+   { if (DEBUG) { std::cout << arg; std::cout.flush(); } return *this; }
+   template<typename T, typename... Args>
+   inline void operator()(const T &arg, Args... args) const
+   { operator<<(arg); operator()(args...); }
+   template<typename T>
+   inline void operator()(const T &arg) const { operator<<(arg); }
+};*/
+
 struct Parser
 {
    struct kernel_t
@@ -130,7 +150,7 @@ struct Parser
    void comments()
    {
       check(good());
-      while (is_comment())
+      while (!in.eof() && good() && is_comment())
       {
          check(put()=='/', "unknown comment");
          check(is_slash() || is_star(), "error in end-of-comment");
@@ -141,11 +161,17 @@ struct Parser
             check(put() == '*', "unknown comment");
             check(put() == '/', "unknown comment");
          }
+         check(good());
          skip_space();
       }
    }
 
-   void next() { skip_space(); comments(); }
+   void next()
+   {
+      skip_space();
+      if (in.eof()) { return; }
+      comments();
+   }
 
    bool is_id() { const char c = in.peek(); return std::isalnum(c) || c == '_'; }
 
@@ -399,7 +425,7 @@ struct Parser
       ker.advance(/*postfix => wait*/);
    }
 
-   void tokens()
+   void token()
    {
       auto is_end_of = [&](int &c, const char i, const char o)
       {
@@ -447,7 +473,7 @@ struct Parser
 
    int operator()()
    {
-      try { while (!in.eof()) { next(); if (good()) { tokens(); put(); } } }
+      try { do { put(); next(); token(); } while (!in.eof()); }
       catch (error_t err)
       {
          std::cerr << std::endl << err.file << ":" << err.line << ":"

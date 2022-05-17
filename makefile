@@ -349,8 +349,7 @@ MFEM_DEFINES = MFEM_VERSION MFEM_VERSION_STRING MFEM_GIT_STRING MFEM_USE_MPI\
  MFEM_USE_ADIOS2 MFEM_USE_MKL_CPARDISO MFEM_USE_AMGX MFEM_USE_MUMPS\
  MFEM_USE_ADFORWARD MFEM_USE_CODIPACK MFEM_USE_CALIPER MFEM_USE_BENCHMARK\
  MFEM_USE_PARELAG MFEM_SOURCE_DIR MFEM_INSTALL_DIR\
- MFEM_USE_JIT MFEM_JIT_CXX MFEM_JIT_BUILD_FLAGS \
- MFEM_JIT_TPLFLAGS MFEM_JIT_EXT_LIBS
+ MFEM_USE_JIT
 
 # List of makefile variables that will be written to config.mk:
 MFEM_CONFIG_VARS = MFEM_CXX MFEM_HOST_CXX MFEM_CPPFLAGS MFEM_CXXFLAGS\
@@ -377,11 +376,6 @@ MFEM_LIB_DIR   ?= $(if $(CONFIG_FILE_DEF),@MFEM_BUILD_DIR@,@MFEM_DIR@)
 MFEM_TEST_MK   ?= @MFEM_DIR@/config/test.mk
 # Use "\n" (interpreted by sed) to add a newline.
 MFEM_CONFIG_EXTRA ?= $(if $(CONFIG_FILE_DEF),MFEM_BUILD_DIR ?= @MFEM_DIR@,)
-
-MFEM_JIT_CXX = $(MFEM_CXX)
-MFEM_JIT_BUILD_FLAGS = $(strip $(CPPFLAGS) $(CXXFLAGS))
-MFEM_JIT_TPLFLAGS = $(MFEM_TPLFLAGS)
-MFEM_JIT_EXT_LIBS = $(MFEM_EXT_LIBS)
 
 MFEM_SOURCE_DIR  = $(MFEM_REAL_DIR)
 MFEM_INSTALL_DIR = $(abspath $(MFEM_PREFIX))
@@ -486,10 +480,10 @@ STD_OBJECT_FILES = $(filter-out $(JIT_OBJECT_FILES), $(OBJECT_FILES))
 $(STD_OBJECT_FILES): $(BLD)%.o: $(SRC)%.cpp $(CONFIG_MK)
 	$(MFEM_CXX) $(strip $(MFEM_BUILD_FLAGS)) -c $(<) -o $(@)
 
-$(BLD)%_jit.cpp: $(SRC)%.cpp $(CONFIG_MK) $(BLD)$(MFEM_JIT)
+$(BLD)%_jit.cc: $(SRC)%.cpp $(CONFIG_MK) $(BLD)$(MFEM_JIT)
 	$(BLD)./$(MFEM_JIT) $(<) -o $(@)
 
-$(BLD)%.o: $(BLD)%_jit.cpp $(CONFIG_MK) makefile
+$(BLD)%.o: $(BLD)%_jit.cc $(CONFIG_MK) makefile
 	$(MFEM_CXX) $(strip $(MFEM_BUILD_FLAGS)) -c $(<) -o $(@)
 endif
 
@@ -779,7 +773,6 @@ FORMAT_LIST = $(filter-out $(FORMAT_EXCLUDE),$(wildcard $(FORMAT_FILES)))
 
 COUT_CERR_FILES = $(foreach dir,$(DIRS),$(dir)/*.[ch]pp)
 COUT_CERR_EXCLUDE = '^general/error\.cpp' '^general/globals\.[ch]pp'\
- '^general/debug\.hpp' '^general/jit/jit\.cpp' '^general/jit/main\.cpp'\
  '^general/jit/parser\.cpp'
 
 DEPRECATION_WARNING := \
