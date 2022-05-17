@@ -9,6 +9,7 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
+#include "../psubmesh.hpp"
 #include "ptransfermap.hpp"
 #include "../submesh_utils.hpp"
 
@@ -93,8 +94,8 @@ ParTransferMap::ParTransferMap(const ParGridFunction &src,
    }
 }
 
-void ParTransferMap::operator()(const ParGridFunction &src,
-                                ParGridFunction &dst) const
+void ParTransferMap::Transfer(const ParGridFunction &src,
+                              ParGridFunction &dst) const
 {
    if (category_ == TransferCategory::ParentToSubMesh)
    {
@@ -189,7 +190,6 @@ void ParTransferMap::CommunicateSharedVdofs(Vector &f) const
       }
    }
 
-   auto &gtopo = root_gc_->GetGroupTopology();
    for (int gr = 1; gr < group_ldof.Size(); gr++)
    {
       for (int i = 0; i < group_ldof.RowSize(gr); i++)

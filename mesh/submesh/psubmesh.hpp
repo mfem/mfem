@@ -16,9 +16,14 @@
 
 #ifdef MFEM_USE_MPI
 
+#include "detail/transfermapcache.hpp"
+#include "detail/ptransfermap.hpp"
 #include "../pmesh.hpp"
 #include "../../fem/pgridfunc.hpp"
 #include "submesh.hpp"
+
+extern mfem::detail::TransferMapCache<mfem::ParGridFunction, mfem::detail::ParTransferMap>
+transfer_map_cache_;
 
 namespace mfem
 {
@@ -46,6 +51,7 @@ namespace mfem
  * ParSubMesh maintains the parallel distribution of the elements on
  * corresponding processors.
  */
+
 class ParSubMesh : public ParMesh
 {
 public:

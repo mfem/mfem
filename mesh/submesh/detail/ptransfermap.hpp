@@ -12,7 +12,8 @@
 #ifndef MFEM_PTRANSFERMAP
 #define MFEM_PTRANSFERMAP
 
-#include "../psubmesh.hpp"
+#include "../../../fem/pgridfunc.hpp"
+
 #include "transfer_category.hpp"
 
 namespace mfem
@@ -26,7 +27,7 @@ public:
    ParTransferMap(const ParGridFunction &src,
                   const ParGridFunction &dst);
 
-   void operator()(const ParGridFunction &src, ParGridFunction &dst) const;
+   void Transfer(const ParGridFunction &src, ParGridFunction &dst) const;
 
    ~ParTransferMap();
 
