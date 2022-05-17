@@ -12062,22 +12062,22 @@ FaceGeometricFactors::FaceGeometricFactors(const Mesh *mesh,
 
    if (flags & FaceGeometricFactors::COORDINATES)
    {
-      X.SetSize(vdim*NQ*NF, d_mt);
+      X.SetSize(vdim*NQ*NF, my_d_mt);
       eval_flags |= FaceQuadratureInterpolator::VALUES;
    }
    if (flags & FaceGeometricFactors::JACOBIANS)
    {
-      J.SetSize(vdim*vdim*NQ*NF, d_mt);
+      J.SetSize(vdim*vdim*NQ*NF, my_d_mt);
       eval_flags |= FaceQuadratureInterpolator::DERIVATIVES;
    }
    if (flags & FaceGeometricFactors::DETERMINANTS)
    {
-      detJ.SetSize(NQ*NF, d_mt);
+      detJ.SetSize(NQ*NF, my_d_mt);
       eval_flags |= FaceQuadratureInterpolator::DETERMINANTS;
    }
    if (flags & FaceGeometricFactors::NORMALS)
    {
-      normal.SetSize(vdim*NQ*NF, d_mt);
+      normal.SetSize(vdim*NQ*NF, my_d_mt);
       eval_flags |= FaceQuadratureInterpolator::NORMALS;
    }
 
