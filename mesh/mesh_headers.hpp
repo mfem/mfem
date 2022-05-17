@@ -27,6 +27,7 @@
 #include "mesh_operators.hpp"
 #include "submesh/submesh.hpp"
 #include "submesh/detail/transfer_category.hpp"
+#include "submesh/detail/transfermapcache.hpp"
 #include "nurbs.hpp"
 #include "wedge.hpp"
 #include "pyramid.hpp"
@@ -39,6 +40,7 @@
 #include "pncmesh.hpp"
 #include "pmesh.hpp"
 #include "submesh/psubmesh.hpp"
+#include "submesh/detail/ptransfermap.hpp"
 #endif
 
 #ifdef MFEM_USE_PUMI
