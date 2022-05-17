@@ -82,38 +82,6 @@ void CalcBinomTerms(const int p, const float_type x, const float_type y,
 
 }
 
-/// Templated version of CalcDBinomTerms
-template <typename float_type>
-void CalcDBinomTerms(const int p, const float_type x,
-                     const float_type y, float_type* d)
-{
-   if (p == 0)
-   {
-      d[0] = 0.;
-   }
-   else
-   {
-      int i;
-      const int *b = Poly_1D::Binom(p);
-      const float_type xpy = x + y, ptx = p*x;
-      float_type z = float_type(1.);
-
-      for (i = 1; i < p; i++)
-      {
-         d[i] = b[i]*z*(i*xpy - ptx);
-         z *= x;
-      }
-      d[p] = p*z;
-      z = float_type(1.);
-      for (i--; i > 0; i--)
-      {
-         d[i] *= z;
-         z *= y;
-      }
-      d[0] = -p*z;
-   }
-}
-
 /// Templated evaluation of Bernstein basis
 template <typename float_type>
 void CalcBernstein(const int p, const float_type x, float_type *u)
@@ -143,9 +111,8 @@ public:
 
    /// Construct Algoim object using a finite element, its transformation
    /// and level-set function defined over the element using Lagrangian
-   /// bases. The argument o provides the number of the integration points
-   /// of the 1D Gaussian integration used for deriving the vol/surface
-   /// integration rules.
+   /// bases. The argument o provides the order of the of the 1D Gaussian 
+   /// integration rule used for deriving the vol/surface integration rules.
    AlgoimIntegrationRule(int o, const FiniteElement &el,
                          ElementTransformation &trans, const Vector &lsfun);
 
