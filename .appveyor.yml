@@ -18,6 +18,11 @@ install:
 - msmpisdk.msi /passive
 - set PATH=C:\Program Files\Microsoft MPI\Bin;%PATH%
 
+# Set MSMPI environment variables needed for CMake detection
+- set MSMPI_LIB32=C:\Program Files (x86)\Microsoft SDKs\MPI\Lib\x86
+- set MSMPI_LIB64=C:\Program Files (x86)\Microsoft SDKs\MPI\Lib\x64
+- set MSMPI_INC=C:\Program Files (x86)\Microsoft SDKs\MPI\Include
+
 # Install METIS, use a mirror because the original source server is not always
 # up. Original url:
 #    http://glaros.dtc.umn.edu/gkhome/fetch/sw/metis/metis-5.1.0.tar.gz
