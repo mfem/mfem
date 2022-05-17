@@ -111,7 +111,7 @@ public:
 
    /// Construct Algoim object using a finite element, its transformation
    /// and level-set function defined over the element using Lagrangian
-   /// bases. The argument o provides the order of the of the 1D Gaussian 
+   /// bases. The argument o provides the order of the of the 1D Gaussian
    /// integration rule used for deriving the vol/surface integration rules.
    AlgoimIntegrationRule(int o, const FiniteElement &el,
                          ElementTransformation &trans, const Vector &lsfun);
