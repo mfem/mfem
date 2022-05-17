@@ -20,7 +20,6 @@ include_directories(BEFORE ${CMAKE_CURRENT_SOURCE_DIR})
 set(UNIT_TESTS_SRCS
   general/test_array.cpp
   general/test_mem.cpp
-  general/test_mjit.cpp
   general/test_text.cpp
   general/test_umpire_mem.cpp
   general/test_zlib.cpp
@@ -98,6 +97,8 @@ set(UNIT_TESTS_SRCS
   # miniapps/test_tmop_pa.cpp
   # ceed/test_ceed.cpp
   # ceed/test_ceed_main.cpp
+  # mjit/test_mjit.cpp
+  # mjit/test_mjit_main.cpp
 )
 
 #-----------------------------------------------------------
