@@ -26,37 +26,6 @@ using namespace mfem;
 namespace mjit_tests
 {
 
-// Bailey–Borwein–Plouffe formula to compute the nth base-16 digit of π
-MFEM_JIT template<int T_DEPTH = 0, int T_N = 0>
-void bbps( const size_t q, double *result, int depth = 0, int n = 0)
-{
-   const size_t D = T_DEPTH ? T_DEPTH : (size_t) depth;
-   const size_t N = T_N ? T_N : (size_t) n;
-
-   const size_t b = 16, p = 8, M = N + D;
-   double s = 0.0,  h = 1.0 / b;
-   for (size_t i = 0, k = q; i <= N; i++, k += p)
-   {
-      double a = b, m = 1.0;
-      for (size_t r = N - i; r > 0; r >>= 1)
-      {
-         auto dmod = [](double x, double y) { return x-((size_t)(x/y))*y;};
-         m = (r&1) ? dmod(m*a,k) : m;
-         a = dmod(a*a,k);
-      }
-      s += m / k;
-      s -= (size_t) s;
-   }
-   for (size_t i = N + 1; i < M; i++, h /= b) { s += h / (p*i+q); }
-   *result = s;
-}
-
-size_t pi(size_t n, const size_t D = 100)
-{
-   auto p = [&](int k) { double r; bbps(k, &r, D, n-1); return r;};
-   return pow(16,8)*fmod(4.0*p(1) - 2.0*p(4) - p(5) - p(6), 1.0);
-}
-
 MFEM_JIT template<int T_Q> void parser1(int s, int q = 0)
 {
    MFEM_CONTRACT_VAR(s);
@@ -200,7 +169,7 @@ void ToUseOrNotToUse(int *ab, int a = 0, int b = 0)
    *ab = T_A + T_B; // T_A, T_B will always be set
 }
 
-TEST_CASE("Main", "[JIT]")
+TEST_CASE("Parser", "[JIT]")
 {
    SECTION("ToUseOrNotToUse")
    {
@@ -208,22 +177,6 @@ TEST_CASE("Main", "[JIT]")
       ToUseOrNotToUse(&ab,1,2);
       ToUseOrNotToUse<1,2>(&tab);
       REQUIRE(ab == tab);
-   }
-
-   SECTION("bbps")
-   {
-      double a = 0.0;
-      bbps<64,17>(1,&a);
-      const size_t ax = (size_t)(pow(16,8)*a);
-
-      double b = 0.0;
-      bbps(1,&b,64,17);
-      const size_t bx = (size_t)(pow(16,8)*b);
-
-      //printf("\033[33m[0x%lx:0x%lx]\033[m",ax,bx);
-      REQUIRE(ax == bx);
-
-      REQUIRE(pi(10) == 0x5A308D31ul);
    }
 }
 

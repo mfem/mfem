@@ -260,12 +260,6 @@ ifeq ($(MFEM_USE_HIP),YES)
    endif
 endif
 
-# JIT configuration
-MFEM_JIT = mjit
-ifeq ($(MFEM_USE_JIT),YES)
-	LDFLAGS += -ldl
-endif
-
 DEP_CXX ?= $(MFEM_CXX)
 
 # Check legacy OpenMP configuration
@@ -299,7 +293,7 @@ ifeq ($(MAKECMDGOALS),config)
 endif
 
 # List of MFEM dependencies, processed below
-MFEM_DEPENDENCIES = $(MFEM_REQ_LIB_DEPS) LIBUNWIND OPENMP CUDA HIP
+MFEM_DEPENDENCIES = $(MFEM_REQ_LIB_DEPS) LIBUNWIND OPENMP CUDA HIP JIT
 
 # List of deprecated MFEM dependencies, processed below
 MFEM_LEGACY_DEPENDENCIES = OPENMP
@@ -449,7 +443,7 @@ OKL_DIRS = fem
 
 # Default rule.
 lib: $(if $(shared),$(BLD)libmfem.$(SO_EXT)) $(if $(static),$(BLD)libmfem.a) \
-$(if $(jit),$(BLD)$(MFEM_JIT))
+$(if $(jit),$(BLD)mjit)
 
 # Flags used for compiling all source files.
 MFEM_BUILD_FLAGS = $(MFEM_PICFLAG) $(MFEM_CPPFLAGS) $(MFEM_CXXFLAGS)\
@@ -466,11 +460,11 @@ JIT_SOURCE_FILES = $(SRC)fem/bilininteg_diffusion_pa.cpp \
 $(SRC)fem/bilininteg_mass_pa.cpp
 
 # Definitions to compile the preprocessor and embed the MFEM options
-MFEM_JIT_FLAGS = $(strip $(MFEM_LINK_FLAGS))
+MFEM_JIT_FLAGS = $(MFEM_BUILD_FLAGS)
 MFEM_JIT_FLAGS += -DMFEM_CXX="$(MFEM_CXX)"
 MFEM_JIT_FLAGS += -DMFEM_EXT_LIBS="$(MFEM_EXT_LIBS)"
-MFEM_JIT_FLAGS += -DMFEM_LINK_FLAGS="$(MFEM_LINK_FLAGS)"
-$(BLD)$(MFEM_JIT): $(BLD)general/jit/parser.cpp $(CONFIG_MK) makefile
+MFEM_JIT_FLAGS += -DMFEM_BUILD_FLAGS="$(MFEM_BUILD_FLAGS)"
+$(BLD)mjit: $(BLD)general/jit/parser.cpp $(CONFIG_MK) makefile
 	$(MFEM_CXX) $(MFEM_JIT_FLAGS) -o $(@) $(<) $(JIT_LIB)
 
 # Filtering out the objects that will be compiled through the preprocessor
@@ -478,10 +472,10 @@ JIT_OBJECT_FILES = $(JIT_SOURCE_FILES:$(SRC)%.cpp=$(BLD)%.o)
 STD_OBJECT_FILES = $(filter-out $(JIT_OBJECT_FILES), $(OBJECT_FILES))
 
 $(STD_OBJECT_FILES): $(BLD)%.o: $(SRC)%.cpp $(CONFIG_MK)
-	$(MFEM_CXX) $(strip $(MFEM_BUILD_FLAGS)) -c $(<) -o $(@)
+	$(MFEM_CXX) $(MFEM_BUILD_FLAGS) -c $(<) -o $(@)
 
-$(BLD)%_jit.cc: $(SRC)%.cpp $(CONFIG_MK) $(BLD)$(MFEM_JIT)
-	$(BLD)./$(MFEM_JIT) $(<) -o $(@)
+$(BLD)%_jit.cc: $(SRC)%.cpp $(CONFIG_MK) $(BLD)mjit
+	$(BLD)./mjit $(<) -o $(@)
 
 $(BLD)%.o: $(BLD)%_jit.cc $(CONFIG_MK) makefile
 	$(MFEM_CXX) $(strip $(MFEM_BUILD_FLAGS)) -c $(<) -o $(@)

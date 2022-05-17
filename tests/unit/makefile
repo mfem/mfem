@@ -26,7 +26,7 @@ INCLUDES = -I$(or $(SRC:%/=%),.) -I$(MFEM_DIR)
 
 SOURCE_FILES := $(sort $(wildcard $(SRC)*/*.cpp))
 CEED_SOURCE_FILES = $(sort $(wildcard $(SRC)ceed/*.cpp))
-MJIT_SOURCE_FILES = $(sort $(wildcard $(SRC)mjit/*.cpp))
+MJIT_SOURCE_FILES = $(sort $(wildcard $(SRC)general/mjit/*.cpp))
 MINI_SOURCE_FILES = $(sort $(wildcard $(SRC)miniapps/*.cpp))
 SOURCE_FILES := $(filter-out $(CEED_SOURCE_FILES) $(MJIT_SOURCE_FILES) \
 $(MINI_SOURCE_FILES), $(SOURCE_FILES))
@@ -146,11 +146,9 @@ $(CEED_OBJ): %.o: $(SRC)%.cpp $(HEADER_FILES) $(CONFIG_MK)
 	@mkdir -p $(@D)
 	$(CCC) -c $(abspath $(<)) $(MFEM_FLAGS) $(INCLUDES) -o $(@)
 
-$(MJIT_OBJ): %.o: $(SRC)%.cpp $(HEADER_FILES) $(CONFIG_MK)
+$(MJIT_OBJ): %.o: $(SRC)%.cpp $(HEADER_FILES) $(CONFIG_MK) $(MFEM_DIR)/mjit
 	@mkdir -p $(@D)
-	../../mjit $(abspath $(<)) -o $(*)_jit.cpp
-	$(CCC) -c $(*)_jit.cpp $(MFEM_FLAGS) $(INCLUDES) -o $(@)
-	rm -f $(*)_jit.cpp
+	$(MFEM_DIR)/mjit $(abspath $(<)) | $(CCC) -x c++ -c $(MFEM_FLAGS) $(INCLUDES) -o $(@) -
 
 # Template rule for devices
 # SEDOV Template rule for devices

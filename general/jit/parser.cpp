@@ -149,7 +149,6 @@ struct Parser
 
    void comments()
    {
-      check(good());
       while (!in.eof() && good() && is_comment())
       {
          check(put()=='/', "unknown comment");
@@ -166,12 +165,7 @@ struct Parser
       }
    }
 
-   void next()
-   {
-      skip_space();
-      if (in.eof()) { return; }
-      comments();
-   }
+   void next() { skip_space(); comments(); }
 
    bool is_id() { const char c = in.peek(); return std::isalnum(c) || c == '_'; }
 
@@ -393,7 +387,7 @@ struct Parser
 
       const char *cxx = MFEM_JIT_STRINGIFY(MFEM_CXX);
       const char *libs = MFEM_JIT_STRINGIFY(MFEM_EXT_LIBS);
-      const char *flags = MFEM_JIT_STRINGIFY(MFEM_LINK_FLAGS);
+      const char *flags = MFEM_JIT_STRINGIFY(MFEM_BUILD_FLAGS);
 
       size_t seed = // src is ready: compute its seed with all the MFEM context
          mfem::Jit::Hash(
@@ -473,7 +467,7 @@ struct Parser
 
    int operator()()
    {
-      try { do { put(); next(); token(); } while (!in.eof()); }
+      try {  while (!in.eof()) { put(); next(); token(); } }
       catch (error_t err)
       {
          std::cerr << std::endl << err.file << ":" << err.line << ":"
