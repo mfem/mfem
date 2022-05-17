@@ -2,7 +2,7 @@ FROM ghcr.io/mfem/mfem-ubuntu-base:latest as builder
 
 # docker build -t ghcr.io/mfem/mfem-ubuntu .
 
-COPY ./spack.yaml /opt/mfem-env/spack.yaml
+COPY ./config/docker/spack.yaml /opt/mfem-env/spack.yaml
 RUN apt-get install -y python3 && \
     cd /opt/mfem-env && \
     . /opt/spack/share/spack/setup-env.sh && \

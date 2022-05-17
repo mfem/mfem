@@ -19,13 +19,6 @@ $ docker build -f config/docker/Dockerfile -t ghcr.io/mfem/mfem-ubuntu .
 $ docker build -f config/docker/Dockerfile.base -t ghcr.io/mfem/mfem-ubuntu-base .
 ```
 
-or this directory:
-
-```bash
-$ docker build -f Dockerfile -t ghcr.io/mfem/mfem-ubuntu ../../
-$ docker build -f Dockerfile.base -t ghcr.io/mfem/mfem-ubuntu-base ../../
-```
-
 ### Shell Ubuntu
 
 To shell into the container:
