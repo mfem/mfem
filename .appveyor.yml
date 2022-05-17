@@ -35,7 +35,7 @@ install:
 - ps: Start-FileDownload 'https://github.com/hypre-space/hypre/archive/v2.19.0.tar.gz'
 - 7z x v2.19.0.tar.gz -so | 7z x -si -ttar > nul
 - cd hypre-2.19.0/src
-- cmake -H. -Bbuild -DMPI_C_INCLUDE_PATH="C:\Program Files (x86)\Microsoft SDKs\MPI\Include" -DMPI_C_LIBRARIES="C:\Program Files (x86)\Microsoft SDKs\MPI\Lib\x86\msmpi.lib" -DMPI_CXX_LIBRARIES="C:\Program Files (x86)\Microsoft SDKs\MPI\Lib\x86\msmpi.lib" -DMPI_CXX_INCLUDE_PATH="C:\Program Files (x86)\Microsoft SDKs\MPI\Include"
+- cmake -H. -Bbuild
 - cmake --build build
 - cmake --build build --target install
 - cd ../..
