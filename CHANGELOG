@@ -33,6 +33,11 @@ Version 4.4.1 (development)
 
 - Added support for mixed meshes and pyramids in GSLIB-FindPoints.
 
+- Added support for assembling low-order-refined matrices using a GPU-enabled
+  "batched" algorithm. The lor_solvers and plor_solvers now fully support GPU
+  acceleration.
+
+
 Version 4.4, released on March 21, 2022
 =======================================
 

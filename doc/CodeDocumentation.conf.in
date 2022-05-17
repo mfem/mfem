@@ -767,6 +767,7 @@ INPUT                  = @MFEM_SOURCE_DIR@/doc/CodeDocumentation.dox \
                          @MFEM_SOURCE_DIR@/fem \
                          @MFEM_SOURCE_DIR@/fem/moonolith \
                          @MFEM_SOURCE_DIR@/fem/fe \
+                         @MFEM_SOURCE_DIR@/fem/lor \
                          @MFEM_SOURCE_DIR@/examples \
                          @MFEM_SOURCE_DIR@/examples/caliper \
                          @MFEM_SOURCE_DIR@/examples/amgx \
