@@ -168,7 +168,7 @@ static void SetupBP##i##assembly(bm::State &state){\
    const int N = pow(target_dofs / elem_dofs, 1.0/dim) + 1;\
    Problem<Kernel##Integrator,VDIM,p_eq_q> ker(AssemblyLevel::assembly, p, N);\
    if ( !ker.is_runnable() ) { state.SkipWithError("MAX_MEM"); }\
-   ker.setup();
+   ker.setup();\
    while (state.KeepRunning()) { ker.benchmark_setup(); }\
    state.counters["MDof/s"] = bm::Counter(ker.SumMdofs(), bm::Counter::kIsRate);\
    state.counters["Dofs"] = bm::Counter(ker.dofs, bm::Counter::kDefaults);\
