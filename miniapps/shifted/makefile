@@ -104,4 +104,4 @@ clean-build:
 
 clean-exec:
 	@rm -f diffusion.mesh diffusion.gf
-	@rm -rf ParaViewDistance ParaViewDiffusion ParaViewExtrapolate
+	@rm -rf ParaViewDistance ParaViewDiffusion ParaViewExtrapolate ParaViewLSF
