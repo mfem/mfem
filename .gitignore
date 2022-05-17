@@ -261,6 +261,7 @@ miniapps/performance/sol.*
 
 miniapps/shifted/distance
 miniapps/shifted/ParaViewDistance
+miniapps/shifted/ParaViewLSF
 miniapps/shifted/extrapolate
 miniapps/shifted/ParaViewExtrapolate
 miniapps/shifted/diffusion
