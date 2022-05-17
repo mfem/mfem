@@ -125,6 +125,8 @@ public:
    FABilinearFormExtension(BilinearForm *form);
 
    void Assemble();
+   void RAP(OperatorHandle &A);
+   void EliminateBC(const Array<int> &ess_dofs, OperatorHandle &A);
    void FormSystemMatrix(const Array<int> &ess_tdof_list, OperatorHandle &A);
    void FormLinearSystem(const Array<int> &ess_tdof_list,
                          Vector &x, Vector &b,
