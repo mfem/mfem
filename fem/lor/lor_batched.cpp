@@ -529,8 +529,8 @@ void BatchedLORAssembly::ParAssemble(
    hypre_ParCSRCommHandle *comm_handle;
    HYPRE_Int *int_buf_data, *eliminate_row, *eliminate_col;
    {
-      eliminate_row = mfem_hypre_CTAlloc_host(HYPRE_Int, diag_nrows);
-      eliminate_col = mfem_hypre_CTAlloc_host(HYPRE_Int, offd_ncols);
+      eliminate_row = hypre_CTAlloc(HYPRE_Int, diag_nrows, HYPRE_MEMORY_DEVICE);
+      eliminate_col = hypre_CTAlloc(HYPRE_Int, offd_ncols, HYPRE_MEMORY_DEVICE);
 
       // Make sure A has a communication package
       hypre_ParCSRCommPkg *comm_pkg = hypre_ParCSRMatrixCommPkg(A_hypre);
@@ -541,35 +541,33 @@ void BatchedLORAssembly::ParAssemble(
       }
 
       // Which of the local rows are to be eliminated?
-      for (int i = 0; i < diag_nrows; i++)
-      {
-         eliminate_row[i] = 0;
-      }
-
-      ess_dofs.HostRead();
-      for (int i = 0; i < n_ess_dofs; i++)
-      {
-         eliminate_row[ess_dofs[i]] = 1;
-      }
+      MFEM_HYPRE_FORALL(i, diag_nrows, eliminate_row[i] = 0; );
+      MFEM_HYPRE_FORALL(i, n_ess_dofs, eliminate_row[ess_dofs_d[i]] = 1; );
 
       // Use a matvec communication pattern to find (in eliminate_col) which of
       // the local offd columns are to be eliminated
+
       HYPRE_Int num_sends = hypre_ParCSRCommPkgNumSends(comm_pkg);
-      int_buf_data = mfem_hypre_CTAlloc_host(
-                        HYPRE_Int,
-                        hypre_ParCSRCommPkgSendMapStart(comm_pkg, num_sends));
-      int index = 0;
-      for (int i = 0; i < num_sends; i++)
+      HYPRE_Int int_buf_sz = hypre_ParCSRCommPkgSendMapStart(comm_pkg, num_sends);
+      int_buf_data = hypre_CTAlloc(HYPRE_Int, int_buf_sz, HYPRE_MEMORY_DEVICE);
+
+      HYPRE_Int *send_map_elmts;
+#if defined(HYPRE_USING_GPU)
+      hypre_ParCSRCommPkgCopySendMapElmtsToDevice(comm_pkg);
+      send_map_elmts = hypre_ParCSRCommPkgDeviceSendMapElmts(comm_pkg);
+#else
+      send_map_elmts = hypre_ParCSRCommPkgSendMapElmts(comm_pkg);
+#endif
+      MFEM_HYPRE_FORALL(i, int_buf_sz,
       {
-         int start = hypre_ParCSRCommPkgSendMapStart(comm_pkg, i);
-         for (int j = start; j < hypre_ParCSRCommPkgSendMapStart(comm_pkg, i+1); j++)
-         {
-            int k = hypre_ParCSRCommPkgSendMapElmt(comm_pkg,j);
-            int_buf_data[index++] = eliminate_row[k];
-         }
-      }
-      comm_handle = hypre_ParCSRCommHandleCreate(
-                       11, comm_pkg, int_buf_data, eliminate_col);
+         int k = send_map_elmts[i];
+         int_buf_data[i] = eliminate_row[k];
+      });
+
+      // Try to use device-aware MPI for the communication if available
+      comm_handle = hypre_ParCSRCommHandleCreate_v2(
+                       11, comm_pkg, HYPRE_MEMORY_DEVICE, int_buf_data,
+                       HYPRE_MEMORY_DEVICE, eliminate_col);
    }
 
    // Eliminate rows and columns in the diagonal block
@@ -621,13 +619,11 @@ void BatchedLORAssembly::ParAssemble(
 
    // Wait for MPI communication to finish
    hypre_ParCSRCommHandleDestroy(comm_handle);
-   mfem_hypre_TFree_host(int_buf_data);
-   mfem_hypre_TFree_host(eliminate_row);
+   hypre_TFree(int_buf_data, HYPRE_MEMORY_DEVICE);
+   hypre_TFree(eliminate_row, HYPRE_MEMORY_DEVICE);
 
    // Eliminate columns in the off-diagonal block
    {
-      Memory<HYPRE_Int> col_mem(eliminate_col, offd_ncols, false);
-      const auto cols = col_mem.Read(GetHypreMemoryClass(), offd_ncols);
       const int nrows_offd = hypre_CSRMatrixNumRows(offd);
       const auto I = offd->i;
       const auto J = offd->j;
@@ -636,13 +632,12 @@ void BatchedLORAssembly::ParAssemble(
       {
          for (int j=I[i]; j<I[i+1]; ++j)
          {
-            data[j] *= 1 - cols[J[j]];
+            data[j] *= 1 - eliminate_col[J[j]];
          }
       });
-      col_mem.Delete();
    }
 
-   mfem_hypre_TFree_host(eliminate_col);
+   hypre_TFree(eliminate_col, HYPRE_MEMORY_DEVICE);
 }
 #endif
 
