@@ -143,11 +143,6 @@ jobs:
       if: matrix.mpi == 'par' && matrix.os == 'windows-2022'
       uses: mpi4py/setup-mpi@v1.0.3
 
-    - name: setup Windows-specific environment vars
-      if: matrix.os == 'windows-2022'
-      run: |
-        echo 'HYPRE_BUILD_SYSTEM=cmake' >> ${Env:GITHUB_ENV}
-
     # Get Hypre through cache, or build it.
     # Install will only run on cache miss.
     - name: cache hypre
