@@ -259,7 +259,7 @@ ifeq ($(MFEM_USE_CUDA),YES)
 endif
 
 mjit_tests-test-seq: mjit_tests
-        @$(call mfem-test,$<,, MJIT Unit tests,--device cpu $(MFEM_DATA_FLAG),SKIP-NO-VIS)
+	@$(call mfem-test,$<,, MJIT Unit tests,--device cpu $(MFEM_DATA_FLAG),SKIP-NO-VIS)
 
 
 RUN_MPI = $(MFEM_MPIEXEC) $(MFEM_MPIEXEC_NP)
