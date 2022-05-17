@@ -471,7 +471,7 @@ MFEM_USE_CODIPACK = YES/NO
   Enable automatic differentiation using the CoDiPack library.
   www.scicomp.uni-kl.de/codi/
 
-MFEM_USE_BLITZ = YES/NP
+MFEM_USE_BLITZ = YES/NO
   Enable the usage of Blitz++ is a C++ template class library that provides 
   high-performance multidimensional array containers for scientific computing.
   https://github.com/blitzpp/blitz
@@ -479,8 +479,9 @@ MFEM_USE_BLITZ = YES/NP
 MFEM_USE_ALGOIM = YES/NO
   Enable the usage of Algoim - a collection of high-order accurate numerical 
   methods and C++ algorithms for working with implicitly-defined geometry and 
-  level set methods. The MFEM provides interface to Algoim v1. Thus to check out 
-  the specific state use git checkout 9c9ca0ef094d8ab0390ed36367a1151b459bbe0a
+  level set methods. The Algoim library requires the Blitz++ library. The MFEM 
+  provides interface to Algoim v1. Thus, to check out the specific state use: 
+  git checkout 9c9ca0ef094d8ab0390ed36367a1151b459bbe0a
   https://algoim.github.io
 
 MFEM_USE_ADFORWARD = YES/NO
