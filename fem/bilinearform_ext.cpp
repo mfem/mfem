@@ -976,16 +976,12 @@ static void HypreStealOwnership(HypreParMatrix &A_hyp, SparseMatrix &A_diag)
    A_hyp.SetOwnerFlags(3, A_hyp.OwnsOffd(), A_hyp.OwnsColMap());
 }
 
-void FABilinearFormExtension::FormSystemMatrix(const Array<int> &ess_dofs,
-                                               OperatorHandle &A)
+void FABilinearFormExtension::RAP(OperatorHandle &A)
 {
 #ifdef MFEM_USE_MPI
    if ( auto pa = dynamic_cast<ParBilinearForm*>(a) )
    {
-      ParFiniteElementSpace *pfes =
-         dynamic_cast<ParFiniteElementSpace*>(a->FESpace());
-      MFEM_VERIFY(pfes != nullptr,
-                  "ParAssemble must be called with ParFiniteElementSpace");
+      ParFiniteElementSpace *pfes = pa->ParFESpace();
 
       // Create a block diagonal parallel matrix
       OperatorHandle A_diag(Operator::Hypre_ParCSR);
@@ -1007,7 +1003,22 @@ void FABilinearFormExtension::FormSystemMatrix(const Array<int> &ess_dofs,
          P.ConvertFrom(pfes->Dof_TrueDof_Matrix());
          A.MakePtAP(A_diag, P);
       }
+   }
+   else
+#endif
+   {
+      MFEM_ABORT("Not yet ready.");
+      // const SparseMatrix *P = a->fes->GetConformingProlongation();
+      // if (P) { a->ConformingAssemble(); }
+   }
+}
 
+void FABilinearFormExtension::EliminateBC(const Array<int> &ess_dofs,
+                                          OperatorHandle &A)
+{
+#ifdef MFEM_USE_MPI
+   if ( auto pa = dynamic_cast<ParBilinearForm*>(a) )
+   {
       // Eliminate the boundary conditions
       HypreParMatrix *A_mat = A.As<HypreParMatrix>();
       hypre_ParCSRMatrix *A_hypre = *A_mat;
@@ -1077,7 +1088,8 @@ void FABilinearFormExtension::FormSystemMatrix(const Array<int> &ess_dofs,
          const auto J = diag->j;
          auto data = diag->data;
 
-         MFEM_HYPRE_FORALL(i, n_ess_dofs,
+         // MFEM_HYPRE_FORALL(i, n_ess_dofs,
+         for (int i = 0; i < n_ess_dofs; ++i)
          {
             const int idof = ess_dofs_d[i];
             for (int j=I[idof]; j<I[idof+1]; ++j)
@@ -1101,7 +1113,8 @@ void FABilinearFormExtension::FormSystemMatrix(const Array<int> &ess_dofs,
                   }
                }
             }
-         });
+         }
+         // });
       }
 
       // Eliminate rows in the off-diagonal block
@@ -1179,6 +1192,7 @@ void FABilinearFormExtension::FormSystemMatrix(const Array<int> &ess_dofs,
    else
 #endif
    {
+      MFEM_ABORT("Not yet ready.");
       const SparseMatrix *P = a->fes->GetConformingProlongation();
       if (P) { a->ConformingAssemble(); }
       a->EliminateVDofs(ess_dofs, a->diag_policy);
@@ -1188,15 +1202,31 @@ void FABilinearFormExtension::FormSystemMatrix(const Array<int> &ess_dofs,
    }
 }
 
+void FABilinearFormExtension::FormSystemMatrix(const Array<int> &ess_dofs,
+                                               OperatorHandle &A)
+{
+   RAP(A);
+   EliminateBC(ess_dofs, A);
+}
+
 void FABilinearFormExtension::FormLinearSystem(const Array<int> &ess_tdof_list,
                                                Vector &x, Vector &b,
                                                OperatorHandle &A,
                                                Vector &X, Vector &B,
                                                int copy_interior)
 {
-   FormSystemMatrix(ess_tdof_list, A);
-   Operator *oper;
-   Operator::FormLinearSystem(ess_tdof_list, x, b, oper, X, B, copy_interior);
+   RAP(A);
+   
+   // ConstrainedOperator constrained_op();
+   // x -> X
+   // b -> B
+   // constrained_op.EliminateRHS(X, B);
+   Operator *A_out;
+   A->Operator::FormLinearSystem(ess_tdof_list, x, b, A_out, X, B, copy_interior);
+   delete A_out;
+   // FormSystemMatrix(ess_tdof_list, A);
+   // Eliminate BCs in matrix
+   EliminateBC(ess_tdof_list, A);
 }
 
 void FABilinearFormExtension::DGMult(const Vector &x, Vector &y) const
