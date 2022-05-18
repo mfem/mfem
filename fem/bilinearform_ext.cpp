@@ -994,7 +994,7 @@ void FABilinearFormExtension::RAP(OperatorHandle &A)
       if (IsIdentityProlongation(pfes->GetProlongationMatrix()))
       {
          A_diag.SetOperatorOwner(false);
-         A.Reset(A_diag.Ptr());
+         A.Reset(A_diag.Ptr(), false);
          HypreStealOwnership(*A.As<HypreParMatrix>(), *mat);
       }
       else
@@ -1007,9 +1007,9 @@ void FABilinearFormExtension::RAP(OperatorHandle &A)
    else
 #endif
    {
-      MFEM_ABORT("Not yet ready.");
-      // const SparseMatrix *P = a->fes->GetConformingProlongation();
-      // if (P) { a->ConformingAssemble(); }
+      const SparseMatrix *P = a->fes->GetConformingProlongation();
+      if (P) { a->ConformingAssemble(); }
+      A.Reset(mat, false);
    }
 }
 
@@ -1039,8 +1039,8 @@ void FABilinearFormExtension::EliminateBC(const Array<int> &ess_dofs,
       hypre_ParCSRCommHandle *comm_handle;
       HYPRE_Int *int_buf_data, *eliminate_row, *eliminate_col;
       {
-         eliminate_row = mfem_hypre_CTAlloc_host(HYPRE_Int, diag_nrows);
-         eliminate_col = mfem_hypre_CTAlloc_host(HYPRE_Int, offd_ncols);
+         eliminate_row = hypre_CTAlloc(HYPRE_Int, diag_nrows, HYPRE_MEMORY_DEVICE);
+         eliminate_col = hypre_CTAlloc(HYPRE_Int, offd_ncols, HYPRE_MEMORY_DEVICE);
 
          // Make sure A has a communication package
          hypre_ParCSRCommPkg *comm_pkg = hypre_ParCSRMatrixCommPkg(A_hypre);
@@ -1051,35 +1051,33 @@ void FABilinearFormExtension::EliminateBC(const Array<int> &ess_dofs,
          }
 
          // Which of the local rows are to be eliminated?
-         for (int i = 0; i < diag_nrows; i++)
-         {
-            eliminate_row[i] = 0;
-         }
-
-         ess_dofs.HostRead();
-         for (int i = 0; i < n_ess_dofs; i++)
-         {
-            eliminate_row[ess_dofs[i]] = 1;
-         }
+         MFEM_HYPRE_FORALL(i, diag_nrows, eliminate_row[i] = 0; );
+         MFEM_HYPRE_FORALL(i, n_ess_dofs, eliminate_row[ess_dofs_d[i]] = 1; );
 
          // Use a matvec communication pattern to find (in eliminate_col) which of
          // the local offd columns are to be eliminated
+
          HYPRE_Int num_sends = hypre_ParCSRCommPkgNumSends(comm_pkg);
-         int_buf_data = mfem_hypre_CTAlloc_host(
-                           HYPRE_Int,
-                           hypre_ParCSRCommPkgSendMapStart(comm_pkg, num_sends));
-         int index = 0;
-         for (int i = 0; i < num_sends; i++)
+         HYPRE_Int int_buf_sz = hypre_ParCSRCommPkgSendMapStart(comm_pkg, num_sends);
+         int_buf_data = hypre_CTAlloc(HYPRE_Int, int_buf_sz, HYPRE_MEMORY_DEVICE);
+
+         HYPRE_Int *send_map_elmts;
+   #if defined(HYPRE_USING_GPU)
+         hypre_ParCSRCommPkgCopySendMapElmtsToDevice(comm_pkg);
+         send_map_elmts = hypre_ParCSRCommPkgDeviceSendMapElmts(comm_pkg);
+   #else
+         send_map_elmts = hypre_ParCSRCommPkgSendMapElmts(comm_pkg);
+   #endif
+         MFEM_HYPRE_FORALL(i, int_buf_sz,
          {
-            int start = hypre_ParCSRCommPkgSendMapStart(comm_pkg, i);
-            for (int j = start; j < hypre_ParCSRCommPkgSendMapStart(comm_pkg, i+1); j++)
-            {
-               int k = hypre_ParCSRCommPkgSendMapElmt(comm_pkg,j);
-               int_buf_data[index++] = eliminate_row[k];
-            }
-         }
-         comm_handle = hypre_ParCSRCommHandleCreate(
-                        11, comm_pkg, int_buf_data, eliminate_col);
+            int k = send_map_elmts[i];
+            int_buf_data[i] = eliminate_row[k];
+         });
+
+         // Try to use device-aware MPI for the communication if available
+         comm_handle = hypre_ParCSRCommHandleCreate_v2(
+                        11, comm_pkg, HYPRE_MEMORY_DEVICE, int_buf_data,
+                        HYPRE_MEMORY_DEVICE, eliminate_col);
       }
 
       // Eliminate rows and columns in the diagonal block
@@ -1088,8 +1086,7 @@ void FABilinearFormExtension::EliminateBC(const Array<int> &ess_dofs,
          const auto J = diag->j;
          auto data = diag->data;
 
-         // MFEM_HYPRE_FORALL(i, n_ess_dofs,
-         for (int i = 0; i < n_ess_dofs; ++i)
+         MFEM_HYPRE_FORALL(i, n_ess_dofs,
          {
             const int idof = ess_dofs_d[i];
             for (int j=I[idof]; j<I[idof+1]; ++j)
@@ -1097,7 +1094,7 @@ void FABilinearFormExtension::EliminateBC(const Array<int> &ess_dofs,
                const int jdof = J[j];
                if (jdof == idof)
                {
-                  // Set eliminate diagonal equal to identity
+                  // Set eliminated diagonal equal to identity
                   data[j] = 1.0;
                }
                else
@@ -1113,8 +1110,7 @@ void FABilinearFormExtension::EliminateBC(const Array<int> &ess_dofs,
                   }
                }
             }
-         }
-         // });
+         });
       }
 
       // Eliminate rows in the off-diagonal block
@@ -1132,73 +1128,64 @@ void FABilinearFormExtension::EliminateBC(const Array<int> &ess_dofs,
       }
 
       // Wait for MPI communication to finish
-      Array<HYPRE_Int> cols_to_eliminate;
-      {
-         hypre_ParCSRCommHandleDestroy(comm_handle);
-
-         // set the array cols_to_eliminate
-         int ncols_to_eliminate = 0;
-         for (int i = 0; i < offd_ncols; i++)
-         {
-            if (eliminate_col[i]) { ncols_to_eliminate++; }
-         }
-
-         cols_to_eliminate.SetSize(ncols_to_eliminate);
-         cols_to_eliminate = 0.0;
-
-         ncols_to_eliminate = 0;
-         for (int i = 0; i < offd_ncols; i++)
-         {
-            if (eliminate_col[i])
-            {
-               cols_to_eliminate[ncols_to_eliminate++] = i;
-            }
-         }
-
-         mfem_hypre_TFree_host(int_buf_data);
-         mfem_hypre_TFree_host(eliminate_row);
-         mfem_hypre_TFree_host(eliminate_col);
-      }
+      hypre_ParCSRCommHandleDestroy(comm_handle);
+      hypre_TFree(int_buf_data, HYPRE_MEMORY_DEVICE);
+      hypre_TFree(eliminate_row, HYPRE_MEMORY_DEVICE);
 
       // Eliminate columns in the off-diagonal block
       {
-         const int ncols_to_eliminate = cols_to_eliminate.Size();
          const int nrows_offd = hypre_CSRMatrixNumRows(offd);
-         const auto cols = cols_to_eliminate.GetMemory().Read(
-                              GetHypreMemoryClass(), ncols_to_eliminate);
          const auto I = offd->i;
          const auto J = offd->j;
          auto data = offd->data;
-         // Note: could also try a different strategy, looping over nnz in the
-         // matrix and then doing a binary search in ncols_to_eliminate to see if
-         // the column should be eliminated.
-         MFEM_HYPRE_FORALL(idx, ncols_to_eliminate,
+         MFEM_HYPRE_FORALL(i, nrows_offd,
          {
-            const int j = cols[idx];
-            for (int i=0; i<nrows_offd; ++i)
+            for (int j=I[i]; j<I[i+1]; ++j)
             {
-               for (int jj=I[i]; jj<I[i+1]; ++jj)
-               {
-                  if (J[jj] == j)
-                  {
-                     data[jj] = 0.0;
-                     break;
-                  }
-               }
+               data[j] *= 1 - eliminate_col[J[j]];
             }
          });
       }
+
+      hypre_TFree(eliminate_col, HYPRE_MEMORY_DEVICE);
    }
    else
 #endif
    {
-      MFEM_ABORT("Not yet ready.");
-      const SparseMatrix *P = a->fes->GetConformingProlongation();
-      if (P) { a->ConformingAssemble(); }
-      a->EliminateVDofs(ess_dofs, a->diag_policy);
-      const int remove_zeros = 0;
-      a->Finalize(remove_zeros);
-      A.Reset(a->mat, false);
+      SparseMatrix *A_mat = A.As<SparseMatrix>();
+
+      // Eliminate essential DOFs (BCs) from the matrix (what we do here is
+      // equivalent to  DiagonalPolicy::DIAG_KEEP).
+      const int n_ess_dofs = ess_dofs.Size();
+      const auto ess_dofs_d = ess_dofs.Read();
+      const auto I = A_mat->ReadI();
+      const auto J = A_mat->ReadJ();
+      auto dA = A_mat->ReadWriteData();
+
+      MFEM_FORALL(i, n_ess_dofs,
+      {
+         const int idof = ess_dofs_d[i];
+         for (int j=I[idof]; j<I[idof+1]; ++j)
+         {
+            const int jdof = J[j];
+            if (jdof != idof)
+            {
+               dA[j] = 0.0;
+               for (int k=I[jdof]; k<I[jdof+1]; ++k)
+               {
+                  if (J[k] == idof)
+                  {
+                     dA[k] = 0.0;
+                     break;
+                  }
+               }
+            }
+            else
+            {
+               dA[j] = 1.0;
+            }
+         }
+      });
    }
 }
 
@@ -1215,18 +1202,10 @@ void FABilinearFormExtension::FormLinearSystem(const Array<int> &ess_tdof_list,
                                                Vector &X, Vector &B,
                                                int copy_interior)
 {
-   RAP(A);
-   
-   // ConstrainedOperator constrained_op();
-   // x -> X
-   // b -> B
-   // constrained_op.EliminateRHS(X, B);
    Operator *A_out;
-   A->Operator::FormLinearSystem(ess_tdof_list, x, b, A_out, X, B, copy_interior);
+   Operator::FormLinearSystem(ess_tdof_list, x, b, A_out, X, B, copy_interior);
    delete A_out;
-   // FormSystemMatrix(ess_tdof_list, A);
-   // Eliminate BCs in matrix
-   EliminateBC(ess_tdof_list, A);
+   FormSystemMatrix(ess_tdof_list, A);
 }
 
 void FABilinearFormExtension::DGMult(const Vector &x, Vector &y) const
