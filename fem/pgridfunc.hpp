@@ -236,7 +236,7 @@ public:
    virtual void GetElementDofValues(int el, Vector &dof_vals) const;
 
    using GridFunction::ProjectCoefficient;
-   virtual void ProjectCoefficient(Coefficient &coeff);
+   virtual void ProjectCoefficient(Coefficient &coeff, bool use_L2 = false);
 
    using GridFunction::ProjectDiscCoefficient;
    /** @brief Project a discontinuous vector coefficient as a grid function on
