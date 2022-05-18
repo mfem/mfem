@@ -151,12 +151,10 @@ jobs:
       uses: actions/cache@v2
       with:
         path: ${{ env.HYPRE_TOP_DIR }}
-        # TODO: update to new tag
-        key: ${{ runner.os }}-build-${{ env.HYPRE_TOP_DIR }}-${{ matrix.hypre-target }}-branch4
+        key: ${{ runner.os }}-build-${{ env.HYPRE_TOP_DIR }}-${{ matrix.hypre-target }}-v2.2
 
     - name: get hypre
       if: matrix.mpi == 'par' && steps.hypre-cache.outputs.cache-hit != 'true' && matrix.os != 'windows-2022'
-      # TODO: change this when merged upstream
       uses: mfem/github-actions/build-hypre@v2.2
       with:
         archive: ${{ env.HYPRE_ARCHIVE }}
@@ -166,7 +164,6 @@ jobs:
 
     - name: get hypre (Windows)
       if: matrix.mpi == 'par' && steps.hypre-cache.outputs.cache-hit != 'true' && matrix.os == 'windows-2022'
-      # TODO: change this when merged upstream
       uses: mfem/github-actions/build-hypre@v2.2
       with:
         archive: ${{ env.HYPRE_ARCHIVE }}
@@ -182,11 +179,10 @@ jobs:
       uses: actions/cache@v2
       with:
         path: ${{ env.METIS_TOP_DIR }}
-        key: ${{ runner.os }}-build-${{ env.METIS_TOP_DIR }}-master2
+        key: ${{ runner.os }}-build-${{ env.METIS_TOP_DIR }}-v2.2
 
     - name: install metis
       if: matrix.mpi == 'par' && matrix.os != 'windows-2022' && steps.metis-cache.outputs.cache-hit != 'true'
-      # TODO: change this when merged upstream
       uses: mfem/github-actions/build-metis@v2.2
       with:
         archive: ${{ env.METIS_ARCHIVE }}
@@ -213,7 +209,6 @@ jobs:
 
     # MFEM build and test
     - name: build
-      # TODO: change this when merged upstream
       uses: mfem/github-actions/build-mfem@v2.2
       env:
         VCPKG_DEFAULT_BINARY_CACHE: ${{ github.workspace }}/vcpkg_cache
