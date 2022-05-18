@@ -56,30 +56,6 @@ struct PolyCoeff
 };
 int PolyCoeff::order_ = -1;
 
-
-double integrate(GridFunction* gf)
-{
-   ConstantCoefficient one(1.0);
-   LinearForm lf(gf->FESpace());
-   LinearFormIntegrator* lfi = new DomainLFIntegrator(one);
-   lf.AddDomainIntegrator(lfi);
-   lf.Assemble();
-   double integral = lf(*gf);
-   return integral;
-}
-
-double square_integrate(GridFunction* gf)
-{
-   Vector gf_sq_vec = *gf;
-   GridFunction gf_sq(gf->FESpace());
-   gf_sq.SetData(gf_sq_vec);
-   for (int i = 0; i < gf->Size(); i++) {
-      gf_sq(i) = (*gf)(i)*(*gf)(i);
-   }
-
-   return integrate(&gf_sq);
-}
-
 void verify_exact_project(int order, Element::Type el_type, int basis_type)
 {
    Mesh mesh;
