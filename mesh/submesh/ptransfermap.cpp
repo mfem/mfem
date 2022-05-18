@@ -9,6 +9,8 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
+#ifdef MFEM_USE_MPI
+
 #include "psubmesh.hpp"
 #include "ptransfermap.hpp"
 #include "submesh_utils.hpp"
@@ -209,3 +211,5 @@ ParTransferMap::~ParTransferMap()
 {
    delete root_fes_;
 }
+
+#endif // MFEM_USE_MPI
