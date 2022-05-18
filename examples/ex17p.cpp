@@ -1,4 +1,4 @@
-//                    MFEM Example 17 - Parallel Version
+//                       MFEM Example 17 - Parallel Version
 //
 // Compile with: make ex17p
 //
