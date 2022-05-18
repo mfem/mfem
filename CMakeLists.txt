@@ -268,7 +268,7 @@ if (MFEM_USE_OPENMP OR MFEM_USE_LEGACY_OPENMP)
   if(APPLE)
     # On macOS, the compiler needs additional help to find the <omp.h> header.
     # See issue #2642 for more information.
-    include_directories(${OpenMP_CXX_INCLUDE_DIRS})
+    set(OPENMP_INCLUDE_DIRS ${OpenMP_CXX_INCLUDE_DIRS})
   endif(APPLE)
 endif()
 
@@ -489,7 +489,6 @@ endforeach(TPL)
 list(REMOVE_DUPLICATES TPL_LIBRARIES)
 list(REMOVE_DUPLICATES TPL_INCLUDE_DIRS)
 # message(STATUS "TPL_INCLUDE_DIRS = ${TPL_INCLUDE_DIRS}")
-include_directories(${TPL_INCLUDE_DIRS})
 
 if (OPENMP_FOUND)
   message(STATUS "MFEM: using package OpenMP")
@@ -584,6 +583,12 @@ target_link_libraries(mfem PUBLIC ${TPL_LIBRARIES})
 if (MINGW)
   target_link_libraries(mfem PRIVATE ws2_32)
 endif()
+message(STATUS "TPL_INCLUDE_DIRS = ${TPL_INCLUDE_DIRS}")
+target_include_directories(mfem
+  PUBLIC
+    ${TPL_INCLUDE_DIRS}
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}>
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>)
 set_target_properties(mfem PROPERTIES VERSION "${mfem_VERSION}")
 set_target_properties(mfem PROPERTIES SOVERSION "${mfem_VERSION}")
 
@@ -712,6 +717,10 @@ set(INSTALL_LIB_DIR lib
 set(INSTALL_CMAKE_DIR lib/cmake/mfem
   CACHE PATH "Relative path for installing cmake config files.")
 
+target_include_directories(mfem
+  PUBLIC
+    $<INSTALL_INTERFACE:${INSTALL_INCLUDE_DIR}>)
+
 # The 'install' target will not depend on 'all'.
 # set(CMAKE_SKIP_INSTALL_ALL_DEPENDENCY TRUE)
 
@@ -776,14 +785,8 @@ export(TARGETS ${PROJECT_NAME}
 # TODO: How do we register the install-tree? Replacing the build-tree?
 export(PACKAGE ${PROJECT_NAME})
 
-# Extract the include directories required to use MFEM
-get_target_property(MFEM_TPL_INCLUDE_DIRS mfem INCLUDE_DIRECTORIES)
-if (NOT MFEM_TPL_INCLUDE_DIRS)
-  set(MFEM_TPL_INCLUDE_DIRS "")
-endif()
-
 # This is the build-tree version
-set(INCLUDE_INSTALL_DIRS ${PROJECT_BINARY_DIR} ${MFEM_TPL_INCLUDE_DIRS})
+set(INCLUDE_INSTALL_DIRS ${PROJECT_BINARY_DIR} ${TPL_INCLUDE_DIRS})
 set(LIB_INSTALL_DIR ${PROJECT_BINARY_DIR})
 configure_package_config_file(config/cmake/MFEMConfig.cmake.in
   ${CMAKE_CURRENT_BINARY_DIR}/MFEMConfig.cmake
@@ -791,7 +794,7 @@ configure_package_config_file(config/cmake/MFEMConfig.cmake.in
   PATH_VARS INCLUDE_INSTALL_DIRS LIB_INSTALL_DIR)
 
 # This is the version that will be installed
-set(INCLUDE_INSTALL_DIRS ${INSTALL_INCLUDE_DIR}  ${MFEM_TPL_INCLUDE_DIRS})
+set(INCLUDE_INSTALL_DIRS ${INSTALL_INCLUDE_DIR}  ${TPL_INCLUDE_DIRS})
 set(LIB_INSTALL_DIR ${INSTALL_LIB_DIR})
 configure_package_config_file(config/cmake/MFEMConfig.cmake.in
   ${CMAKE_CURRENT_BINARY_DIR}${CMAKE_FILES_DIRECTORY}/MFEMConfig.cmake
