@@ -346,7 +346,7 @@ TEST_CASE("MatrixInverse", "[DenseMatrix]")
 {
    double tol = 1e-10;
 
-   // Zero on diagonal forces non-trivial pivot
+   // Matrix A (SPD)
    DenseMatrix A(
    {
       {
@@ -367,6 +367,7 @@ TEST_CASE("MatrixInverse", "[DenseMatrix]")
       }
    });
 
+   // RHS matrix B
    DenseMatrix B(
    {
       {
@@ -387,37 +388,45 @@ TEST_CASE("MatrixInverse", "[DenseMatrix]")
       }
    });
 
+   // RHS vector x
    Vector x({1.920973609694743e-01,
              2.483675821733969e-01,
              2.753206172398688e-01,
              2.497813883310917e-01});
 
-
    SECTION("DenseMatrixInverse")
    {
+      /** DenseMatrixInverse for an SPD matrix A
+          treated as a general matrix */
       DenseMatrixInverse lu(A);
+      /** DenseMatrixInverse for an SPD matrix A
+          treated as an SPD matrix */
       DenseMatrixInverse chol(A,true);
 
-      // Check inverse
       DenseMatrix invA1;
       lu.GetInverseMatrix(invA1);
       DenseMatrix invA2;
       chol.GetInverseMatrix(invA2);
 
       invA2-=invA1;
+      /** Verify that the inverse matrices match
+          i.e., (L L^t)^-1 = (L U)^-1  */
       REQUIRE(invA2.MaxMaxNorm() == MFEM_Approx(0.,tol));
 
-      // check Mult
       DenseMatrix B1(4), B2(4);
       lu.Mult(B,B1);
       chol.Mult(B,B2);
       B1-=B2;
+      /** Verify that the linear solves match for a RHS matrix B
+          i.e., (L L^t)^-1 * B = (L U)^-1 * B  */
       REQUIRE(B1.MaxMaxNorm() == MFEM_Approx(0.,tol));
 
       Vector y1(4), y2(4);
       lu.Mult(x,y1);
       chol.Mult(x,y2);
       y1-=y2;
+      /** Verify that the linear solves match for a RHS vector x
+          i.e., (L L^t)^-1 * x = (L U)^-1 * x  */
       REQUIRE(y1.Norml2() == MFEM_Approx(0.,tol));
    }
 
@@ -430,7 +439,6 @@ TEST_CASE("MatrixInverse", "[DenseMatrix]")
       DenseMatrix B1(B);
       lu.RightSolve(4,4,B1.Data());
 
-
       DenseMatrix A2(A);
       CholeskyFactors chol(A2.GetData());
       chol.Factor(4);
@@ -438,9 +446,12 @@ TEST_CASE("MatrixInverse", "[DenseMatrix]")
       chol.RightSolve(4,4,B2.Data());
 
       B1-=B2;
+      /** Verify that the right solves match
+          i.e., B (L L^t)^-1 = B (L U)^-1  */
       REQUIRE(B1.MaxMaxNorm() == MFEM_Approx(0.,tol));
 
-      DenseMatrix L(
+      // Exact L such that A = L L^t
+      DenseMatrix L_exact(
       {
          {
             1.248780761206853e+00, 0.000000000000000e+00,
@@ -462,52 +473,62 @@ TEST_CASE("MatrixInverse", "[DenseMatrix]")
 
       B2 = B;
       chol.LMult(4,4,B2.GetData());
-      Mult(L,B,B1);
+      Mult(L_exact,B,B1);
       B1-=B2;
-
+      /** Check the action of L to a RHS matrix B
+          i.e, L B = L_exact B */
       REQUIRE(B1.MaxMaxNorm() == MFEM_Approx(0.,tol));
       Vector y1(4);
       Vector y2(x);
 
-      L.Mult(x,y1);
+      L_exact.Mult(x,y1);
       chol.LMult(4,1,y2.GetData());
       y1-=y2;
+      /** Check the action of L to a RHS vector x
+          i.e, L x = L_exact x */
       REQUIRE(y1.Norml2() == MFEM_Approx(0.,tol));
 
       y2 = x;
-
-      L.MultTranspose(x,y1);
+      L_exact.MultTranspose(x,y1);
       chol.UMult(4,1,y2.GetData());
       y1-=y2;
+      /** Check the action of L to a RHS vector x
+          i.e, L x = L_exact x */
       REQUIRE(y1.Norml2() == MFEM_Approx(0.,tol));
 
       y2 = x;
-
-      L.Invert();
-      L.Mult(x,y1);
+      L_exact.Invert();
+      L_exact.Mult(x,y1);
       chol.LSolve(4,1,y2.GetData());
       y1-=y2;
+      /** Verify lower triangular solve wit a RHS vector x
+          i.e, L^-1 x = L_exact^-1 x */
       REQUIRE(y1.Norml2() == MFEM_Approx(0.,tol));
 
       y2 = x;
 
-      L.MultTranspose(x,y1);
+      L_exact.MultTranspose(x,y1);
       chol.USolve(4,1,y2.GetData());
       y1-=y2;
+      /** Verify upper triangular solve wit a RHS vector x
+          i.e, L^-t x = L_exact^-t x */
       REQUIRE(y1.Norml2() == MFEM_Approx(0.,tol));
 
       B2 = B;
       chol.LSolve(4,4,B2.GetData());
-      Mult(L,B,B1);
+      Mult(L_exact,B,B1);
       B1-=B2;
+      /** Verify lower triangular solve with a RHS matrix B
+          i.e, L^-1 B = L_exact^-1 B */
       REQUIRE(B1.MaxMaxNorm() == MFEM_Approx(0.,tol));
 
       B2 = B;
       chol.USolve(4,4,B2.GetData());
-      MultAtB(L,B,B1);
+      MultAtB(L_exact,B,B1);
       B1-=B2;
+      /** Verify upper triangular solve with a RHS matrix B
+          i.e, L^-t B = L_exact^-t B */
       REQUIRE(B1.MaxMaxNorm() == MFEM_Approx(0.,tol));
-
    }
 
 }
