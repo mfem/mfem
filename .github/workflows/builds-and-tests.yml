@@ -157,7 +157,7 @@ jobs:
     - name: get hypre
       if: matrix.mpi == 'par' && steps.hypre-cache.outputs.cache-hit != 'true' && matrix.os != 'windows-2022'
       # TODO: change this when merged upstream
-      uses: kanye-quest/mfem-gh-actions/build-hypre@master
+      uses: mfem/github-actions/build-hypre@v2.2
       with:
         archive: ${{ env.HYPRE_ARCHIVE }}
         dir: ${{ env.HYPRE_TOP_DIR }}
@@ -167,7 +167,7 @@ jobs:
     - name: get hypre (Windows)
       if: matrix.mpi == 'par' && steps.hypre-cache.outputs.cache-hit != 'true' && matrix.os == 'windows-2022'
       # TODO: change this when merged upstream
-      uses: kanye-quest/mfem-gh-actions/build-hypre@master
+      uses: mfem/github-actions/build-hypre@v2.2
       with:
         archive: ${{ env.HYPRE_ARCHIVE }}
         dir: ${{ env.HYPRE_TOP_DIR }}
@@ -187,7 +187,7 @@ jobs:
     - name: install metis
       if: matrix.mpi == 'par' && matrix.os != 'windows-2022' && steps.metis-cache.outputs.cache-hit != 'true'
       # TODO: change this when merged upstream
-      uses: kanye-quest/mfem-gh-actions/build-metis@master
+      uses: mfem/github-actions/build-metis@v2.2
       with:
         archive: ${{ env.METIS_ARCHIVE }}
         dir: ${{ env.METIS_TOP_DIR }}
@@ -214,7 +214,7 @@ jobs:
     # MFEM build and test
     - name: build
       # TODO: change this when merged upstream
-      uses: kanye-quest/mfem-gh-actions/build-mfem@master
+      uses: mfem/github-actions/build-mfem@v2.2
       env:
         VCPKG_DEFAULT_BINARY_CACHE: ${{ github.workspace }}/vcpkg_cache
       with:
