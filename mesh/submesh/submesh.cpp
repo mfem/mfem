@@ -11,15 +11,11 @@
 
 #include "submesh.hpp"
 #include "submesh_utils.hpp"
-#include "detail/transfermap.hpp"
-#include "detail/transfermapcache.hpp"
+#include "transfermap.hpp"
 #include "../../fem/gridfunc.hpp"
 
 namespace mfem
 {
-
-detail::TransferMapCache<mfem::GridFunction, mfem::detail::TransferMap>
-transfer_map_cache_;
 
 SubMesh SubMesh::CreateFromDomain(const Mesh &parent,
                                   Array<int> domain_attributes)
@@ -110,10 +106,8 @@ SubMesh::~SubMesh() {}
 
 void SubMesh::Transfer(const GridFunction &src, GridFunction &dst)
 {
-   const auto *map = transfer_map_cache_.Find(src, dst);
-   map->Transfer(src, dst);
-   // detail::TransferMap map(src, dst);
-   // map.Transfer(src, dst);
+   detail::TransferMap map(src, dst);
+   map.Transfer(src, dst);
 }
 
 } // namespace mfem

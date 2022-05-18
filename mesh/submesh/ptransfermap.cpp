@@ -9,40 +9,40 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-#include "../submesh.hpp"
-#include "transfermap.hpp"
-#include "../submesh_utils.hpp"
+#include "psubmesh.hpp"
+#include "ptransfermap.hpp"
+#include "submesh_utils.hpp"
 
 using namespace mfem;
 using namespace mfem::detail;
 
-TransferMap::TransferMap(const GridFunction &src,
-                         const GridFunction &dst)
+ParTransferMap::ParTransferMap(const ParGridFunction &src,
+                               const ParGridFunction &dst)
 {
-   const FiniteElementSpace *parentfes = nullptr, *subfes1 = nullptr,
-                             *subfes2 = nullptr;
+   const ParFiniteElementSpace *parentfes = nullptr, *subfes1 = nullptr,
+                                *subfes2 = nullptr;
 
-   if (SubMesh::IsSubMesh(src.FESpace()->GetMesh()) &&
-       SubMesh::IsSubMesh(dst.FESpace()->GetMesh()))
+   if (ParSubMesh::IsParSubMesh(src.ParFESpace()->GetParMesh()) &&
+       ParSubMesh::IsParSubMesh(dst.ParFESpace()->GetParMesh()))
    {
-      SubMesh* src_sm = static_cast<SubMesh*>(src.FESpace()->GetMesh());
-      SubMesh* dst_sm = static_cast<SubMesh*>(dst.FESpace()->GetMesh());
+      ParSubMesh* src_sm = static_cast<ParSubMesh*>(src.ParFESpace()->GetParMesh());
+      ParSubMesh* dst_sm = static_cast<ParSubMesh*>(dst.ParFESpace()->GetParMesh());
 
       // There is no immediate relation and both src and dst come from a
       // SubMesh, check if they have an equivalent root parent.
-      if (SubMeshUtils::GetRootParent<SubMesh, Mesh>(*src_sm) !=
-          SubMeshUtils::GetRootParent<SubMesh, Mesh>(*dst_sm))
+      if (SubMeshUtils::GetRootParent<ParSubMesh, ParMesh>(*src_sm) !=
+          SubMeshUtils::GetRootParent<ParSubMesh, ParMesh>(*dst_sm))
       {
          MFEM_ABORT("Can't find a relation between the two GridFunctions");
       }
 
       category_ = TransferCategory::SubMeshToSubMesh;
 
-      root_fes_ = new FiniteElementSpace(*src.FESpace(),
-                                         const_cast<Mesh *>(SubMeshUtils::GetRootParent<SubMesh, Mesh>
-                                                            (*src_sm)));
-      subfes1 = src.FESpace();
-      subfes2 = dst.FESpace();
+      root_fes_ = new ParFiniteElementSpace(*src.ParFESpace(),
+                                            *const_cast<ParMesh *>(SubMeshUtils::GetRootParent<ParSubMesh, ParMesh>
+                                                                   (*src_sm)));
+      subfes1 = src.ParFESpace();
+      subfes2 = dst.ParFESpace();
 
       SubMeshUtils::BuildVdofToVdofMap(*subfes1,
                                        *root_fes_,
@@ -56,26 +56,32 @@ TransferMap::TransferMap(const GridFunction &src,
                                        dst_sm->GetParentElementIDMap(),
                                        sub2_to_parent_map_);
 
+      root_gc_ = &root_fes_->GroupComm();
+      CommunicateIndicesSet(sub1_to_parent_map_, root_fes_->GetVSize());
+
       z_.SetSize(root_fes_->GetVSize());
    }
-   else if (SubMesh::IsSubMesh(src.FESpace()->GetMesh()))
+   else if (ParSubMesh::IsParSubMesh(src.ParFESpace()->GetParMesh()))
    {
       category_ = TransferCategory::SubMeshToParent;
-      SubMesh* src_sm = static_cast<SubMesh*>(src.FESpace()->GetMesh());
-      subfes1 = src.FESpace();
-      parentfes = dst.FESpace();
+      ParSubMesh* src_sm = static_cast<ParSubMesh*>(src.ParFESpace()->GetParMesh());
+      subfes1 = src.ParFESpace();
+      parentfes = dst.ParFESpace();
       SubMeshUtils::BuildVdofToVdofMap(*subfes1,
                                        *parentfes,
                                        src_sm->GetFrom(),
                                        src_sm->GetParentElementIDMap(),
                                        sub1_to_parent_map_);
+
+      root_gc_ = &parentfes->GroupComm();
+      CommunicateIndicesSet(sub1_to_parent_map_, dst.Size());
    }
-   else if (SubMesh::IsSubMesh(dst.FESpace()->GetMesh()))
+   else if (ParSubMesh::IsParSubMesh(dst.ParFESpace()->GetParMesh()))
    {
       category_ = TransferCategory::ParentToSubMesh;
-      SubMesh* dst_sm = static_cast<SubMesh*>(dst.FESpace()->GetMesh());
-      subfes1 = dst.FESpace();
-      parentfes = src.FESpace();
+      ParSubMesh* dst_sm = static_cast<ParSubMesh*>(dst.ParFESpace()->GetParMesh());
+      subfes1 = dst.ParFESpace();
+      parentfes = src.ParFESpace();
       SubMeshUtils::BuildVdofToVdofMap(*subfes1,
                                        *parentfes,
                                        dst_sm->GetFrom(),
@@ -88,8 +94,8 @@ TransferMap::TransferMap(const GridFunction &src,
    }
 }
 
-void TransferMap::Transfer(const GridFunction &src,
-                           GridFunction &dst) const
+void ParTransferMap::Transfer(const ParGridFunction &src,
+                              ParGridFunction &dst) const
 {
    if (category_ == TransferCategory::ParentToSubMesh)
    {
@@ -110,6 +116,8 @@ void TransferMap::Transfer(const GridFunction &src,
       {
          dst(sub1_to_parent_map_[i]) = src(i);
       }
+
+      CommunicateSharedVdofs(dst);
    }
    else if (category_ == TransferCategory::SubMeshToSubMesh)
    {
@@ -129,6 +137,8 @@ void TransferMap::Transfer(const GridFunction &src,
          z_(sub1_to_parent_map_[i]) = src(i);
       }
 
+      CommunicateSharedVdofs(z_);
+
       for (int i = 0; i < sub2_to_parent_map_.Size(); i++)
       {
          dst(i) = z_(sub2_to_parent_map_[i]);
@@ -140,7 +150,62 @@ void TransferMap::Transfer(const GridFunction &src,
    }
 }
 
-TransferMap::~TransferMap()
+void ParTransferMap::CommunicateIndicesSet(Array<int> &map, int dst_sz)
+{
+   indices_set_local_.SetSize(dst_sz);
+   indices_set_local_ = 0;
+   for (int i = 0; i < map.Size(); i++)
+   {
+      indices_set_local_[map[i]] = 1;
+   }
+   indices_set_global_ = indices_set_local_;
+   root_gc_->Reduce(indices_set_global_, GroupCommunicator::Sum);
+   root_gc_->Bcast(indices_set_global_);
+}
+
+void ParTransferMap::CommunicateSharedVdofs(Vector &f) const
+{
+   // f is usually defined on the root vdofs
+
+   const Table &group_ldof = root_gc_->GroupLDofTable();
+
+   for (int i = 0; i < group_ldof.Size_of_connections(); i++)
+   {
+      const int j = group_ldof.GetJ()[i];
+      if (indices_set_global_[j] != 0 && indices_set_local_[j] == 0)
+      {
+         f(j) = 0.0;
+      }
+   }
+
+   // TODO: do the reduce only on dofs of interest
+   root_gc_->Reduce<double>(f, GroupCommunicator::Sum);
+
+   for (int i = 0; i < group_ldof.Size_of_connections(); i++)
+   {
+      const int j = group_ldof.GetJ()[i];
+      if (indices_set_global_[j] != 0)
+      {
+         f(j) /= indices_set_global_[j];
+      }
+   }
+
+   for (int gr = 1; gr < group_ldof.Size(); gr++)
+   {
+      for (int i = 0; i < group_ldof.RowSize(gr); i++)
+      {
+         const int j = group_ldof.GetRow(gr)[i];
+         if (indices_set_global_[j] == 0)
+         {
+            f(j) /= root_gc_->GetGroupTopology().GetGroupSize(gr);
+         }
+      }
+   }
+
+   root_gc_->Bcast<double>(f);
+}
+
+ParTransferMap::~ParTransferMap()
 {
    delete root_fes_;
 }

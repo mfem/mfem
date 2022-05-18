@@ -43,6 +43,7 @@ set(UNIT_TESTS_SRCS
   mesh/test_ncmesh.cpp
   mesh/test_pmesh.cpp
   mesh/test_submesh.cpp
+  mesh/test_psubmesh.cpp
   mesh/test_periodic_mesh.cpp
   mesh/test_vtu.cpp
   fem/test_1d_bilininteg.cpp

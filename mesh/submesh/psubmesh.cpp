@@ -18,11 +18,8 @@
 #include <algorithm>
 #include "psubmesh.hpp"
 #include "submesh_utils.hpp"
-#include "detail/ptransfermap.hpp"
+#include "ptransfermap.hpp"
 #include "../segment.hpp"
-
-mfem::detail::TransferMapCache<mfem::ParGridFunction, mfem::detail::ParTransferMap>
-partransfer_map_cache_;
 
 namespace mfem
 {
@@ -799,10 +796,14 @@ void ParSubMesh::BuildSharedFacesMapping(const int nstrias,
 
 void ParSubMesh::Transfer(const ParGridFunction &src, ParGridFunction &dst)
 {
-   // const auto *map = partransfer_map_cache_.Find(src, dst);
-   // map->Transfer(src, dst);
-   detail::ParTransferMap map(src, dst);
+   ParTransferMap map(src, dst);
    map.Transfer(src, dst);
+}
+
+const ParTransferMap* ParSubMesh::TransferMap(const ParGridFunction &src,
+                                              ParGridFunction &dst)
+{
+   return new ParTransferMap(src, dst);
 }
 
 } // namespace mfem
