@@ -13,9 +13,6 @@
 
 #ifdef MFEM_USE_JIT
 
-#include <cmath> // pow
-#include <cstddef> // size_t
-
 #include "catch.hpp"
 
 #include "general/jit/jit.hpp"// for MFEM_JIT
@@ -26,7 +23,9 @@ using namespace mfem;
 namespace mjit_tests
 {
 
-MFEM_JIT template<int T_Q> void parser1(int s, int q = 0)
+MFEM_JIT/**/template/**/<int/**/T_Q/**/>//
+//
+void/**/parser1(int s, int q = 0)
 {
    MFEM_CONTRACT_VAR(s);
    MFEM_CONTRACT_VAR(q);
@@ -148,7 +147,7 @@ void SmemPADiffusionApply3D(const int NE,
    auto b = Reshape(b_, Q1D, D1D);
    auto g = Reshape(g_, Q1D, D1D);
    auto x = Reshape(x_, D1D, D1D, D1D, NE);
-   MFEM_FORALL_3D(e, NE, Q1D, Q1D, Q1D,
+   MFEM_FORALL_3D/**/(/**/e/**/, NE, Q1D, Q1D, Q1D,
    {
       MFEM_CONTRACT_VAR(e);
       MFEM_CONTRACT_VAR(b);

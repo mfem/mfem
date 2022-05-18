@@ -15,18 +15,13 @@
 
 int main(int argc, char *argv[])
 {
-   // There must be exactly one instance.
    Catch::Session session;
    std::string device_str("cpu");
-   using namespace Catch::clara;
    auto cli = session.cli()
-              | Opt(device_str, "device_string")
-              ["--device"]
-              ("device string (default: cpu)");
+              | Catch::clara::Opt(device_str, "device_string")
+              ["--device"]("device string (default: cpu)");
    session.cli(cli);
-   int result = session.applyCommandLine( argc, argv );
-   if (result != 0) { return result; }
+   if (session.applyCommandLine(argc, argv) != 0) { return EXIT_FAILURE; }
    mfem::Device device(device_str.c_str());
-   result = session.run();
-   return result;
+   return session.run();
 }

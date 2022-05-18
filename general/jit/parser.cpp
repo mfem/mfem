@@ -28,7 +28,7 @@
 #define MFEM_JIT_STR(...) #__VA_ARGS__
 #define MFEM_JIT_STRINGIFY(...) MFEM_JIT_STR(__VA_ARGS__)
 
-/*struct dbg
+struct dbg
 {
    static constexpr bool DEBUG = true;
    static constexpr uint8_t COLOR = 226;
@@ -46,7 +46,7 @@
    { operator<<(arg); operator()(args...); }
    template<typename T>
    inline void operator()(const T &arg) const { operator<<(arg); }
-};*/
+};
 
 struct Parser
 {
@@ -118,7 +118,7 @@ struct Parser
    template<typename T>
    void add_arg(std::string &s, const T a) { if (!s.empty()) { s += ","; } s += a; }
 
-   bool good() { in.peek(); return in.good() && !in.eof(); }
+   bool good() { return in.eof() ? false : (in.peek(), in.good()); }
 
    char get() { return static_cast<char>(in.get()); }
 
@@ -129,7 +129,7 @@ struct Parser
       return c;
    }
 
-   char put() { check(good()); return put(get()); }
+   char put() { check(good(),"putt"); return put(get()); }
 
    bool is_space() { return good() && std::isspace(in.peek()); }
 
@@ -467,7 +467,7 @@ struct Parser
 
    int operator()()
    {
-      try {  while (!in.eof()) { put(); next(); token(); } }
+      try { while (good()) { put(); next(); token(); } }
       catch (error_t err)
       {
          std::cerr << std::endl << err.file << ":" << err.line << ":"

@@ -323,6 +323,7 @@ tests/unit/tmop_pa_tests_*
 tests/unit/ptmop_pa_tests_*
 tests/unit/ceed_tests
 tests/unit/mjit_tests
+tests/unit/pmjit_tests
 tests/unit/debug_device_tests
 
 # Benchmark binaries

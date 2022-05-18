@@ -26,7 +26,7 @@ INCLUDES = -I$(or $(SRC:%/=%),.) -I$(MFEM_DIR)
 
 SOURCE_FILES := $(sort $(wildcard $(SRC)*/*.cpp))
 CEED_SOURCE_FILES = $(sort $(wildcard $(SRC)ceed/*.cpp))
-MJIT_SOURCE_FILES = $(sort $(wildcard $(SRC)general/mjit/*.cpp))
+MJIT_SOURCE_FILES = $(sort $(wildcard $(SRC)mjit/*.cpp))
 MINI_SOURCE_FILES = $(sort $(wildcard $(SRC)miniapps/*.cpp))
 SOURCE_FILES := $(filter-out $(CEED_SOURCE_FILES) $(MJIT_SOURCE_FILES) \
 $(MINI_SOURCE_FILES), $(SOURCE_FILES))
@@ -38,6 +38,8 @@ SEQ_MAIN_OBJ = unit_test_main.o
 PAR_MAIN_OBJ = punit_test_main.o
 CUDA_MAIN_OBJ = cunit_test_main.o
 PCUDA_MAIN_OBJ = pcunit_test_main.o
+MJIT_MAIN_OBJ = mjit/test_seq_main.o
+PMJIT_MAIN_OBJ = mjit/test_par_main.o
 
 # Sedov numerical seq/par files and tests
 SEDOV_FILES = $(SRC)miniapps/test_sedov.cpp
@@ -90,8 +92,10 @@ SEQ_UNIT_TESTS += $(if $(USE_CEED),ceed_tests)
 
 # MJIT tests
 USE_MJIT := $(MFEM_USE_JIT:NO=)
-MJIT_OBJ = $(MJIT_SOURCE_FILES:$(SRC)%.cpp=%.o)
+MJIT_OBJ = $(filter-out $(MJIT_MAIN_OBJ) $(PMJIT_MAIN_OBJ),\
+                        $(MJIT_SOURCE_FILES:$(SRC)%.cpp=%.o))
 SEQ_UNIT_TESTS += $(if $(USE_MJIT),mjit_tests)
+PAR_UNIT_TESTS += $(if $(USE_MJIT),pmjit_tests)
 
 # Debug device tests
 DEBUG_DEVICE_FILE = $(SRC)miniapps/test_debug_device.cpp
@@ -126,8 +130,11 @@ pcunit_tests: $(PCUDA_MAIN_OBJ) $(OBJECT_FILES) $(MFEM_LIB_FILE) $(CONFIG_MK) $(
 ceed_tests: $(CEED_OBJ) $(MFEM_LIB_FILE) $(CONFIG_MK) $(DATA_DIR)
 	$(CCC) $(CEED_OBJ) $(MFEM_LINK_FLAGS) $(MFEM_LIBS) -o $(@)
 
-mjit_tests: $(MJIT_OBJ) $(MFEM_LIB_FILE) $(CONFIG_MK) $(DATA_DIR)
-	$(CCC) $(MJIT_OBJ) $(MFEM_LINK_FLAGS) $(MFEM_LIBS) -o $(@)
+mjit_tests: $(MJIT_MAIN_OBJ) $(MJIT_OBJ) $(MFEM_LIB_FILE) $(CONFIG_MK) $(DATA_DIR)
+	$(CCC) $(MJIT_MAIN_OBJ) $(MJIT_OBJ) $(MFEM_LINK_FLAGS) $(MFEM_LIBS) -o $(@)
+
+pmjit_tests: $(PMJIT_MAIN_OBJ) $(MJIT_OBJ) $(MFEM_LIB_FILE) $(CONFIG_MK) $(DATA_DIR)
+	$(CCC) $(PMJIT_MAIN_OBJ) $(MJIT_OBJ) $(MFEM_LINK_FLAGS) $(MFEM_LIBS) -o $(@)
 
 $(DEBUG_DEVICE_TEST): $(SEQ_MAIN_OBJ) $(DEBUG_DEVICE_OBJ) $(MFEM_LIB_FILE) \
  $(CONFIG_MK)
@@ -136,9 +143,9 @@ $(DEBUG_DEVICE_TEST): $(SEQ_MAIN_OBJ) $(DEBUG_DEVICE_OBJ) $(MFEM_LIB_FILE) \
 
 # Note: in this rule, we always use the full path to the source file as a
 # workaround for an issue with coveralls.
-$(OBJECT_FILES) $(SEQ_MAIN_OBJ) $(PAR_MAIN_OBJ) $(CUDA_MAIN_OBJ) \
- $(PCUDA_MAIN_OBJ) $(DEBUG_DEVICE_OBJ): %.o: $(SRC)%.cpp $(HEADER_FILES) \
- $(CONFIG_MK)
+$(OBJECT_FILES) $(SEQ_MAIN_OBJ) $(PAR_MAIN_OBJ) \
+ $(CUDA_MAIN_OBJ) $(PCUDA_MAIN_OBJ) $(MJIT_MAIN_OBJ) $(PMJIT_MAIN_OBJ) \
+ $(DEBUG_DEVICE_OBJ): %.o: $(SRC)%.cpp $(HEADER_FILES) $(CONFIG_MK)
 	@mkdir -p $(@D)
 	$(CCC) -c $(abspath $(<)) $(MFEM_FLAGS) $(INCLUDES) -o $(@)
 
@@ -257,13 +264,17 @@ ifeq ($(MFEM_USE_CUDA),YES)
 endif
 
 mjit_tests-test-seq: mjit_tests
-	@$(call mfem-test,$<,, MJIT Unit tests,--device cpu $(MFEM_DATA_FLAG),SKIP-NO-VIS)
+	@$(call mfem-test,$<,, MJIT unit tests,--device cpu,SKIP-NO-VIS)
 
 
 RUN_MPI = $(MFEM_MPIEXEC) $(MFEM_MPIEXEC_NP)
 %-test-par: %
 	@$(call mfem-test,$<, $(RUN_MPI) 1, Parallel unit tests,$(MFEM_DATA_FLAG),SKIP-NO-VIS)
 	@$(call mfem-test,$<, $(RUN_MPI) $(MFEM_MPI_NP), Parallel unit tests,$(MFEM_DATA_FLAG),SKIP-NO-VIS)
+
+pmjit_tests-test-par: pmjit_tests
+	@$(call mfem-test,$<, $(RUN_MPI) 1, MJIT Parallel unit tests,--device cpu,SKIP-NO-VIS)
+	@$(call mfem-test,$<, $(RUN_MPI) $(MFEM_MPI_NP), MJIT Parallel unit tests,--device cpu,SKIP-NO-VIS)
 
 # Generate an error message if the MFEM library is not built and exit
 $(MFEM_LIB_FILE):
