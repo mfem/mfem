@@ -25,7 +25,8 @@ void PositiveFiniteElement::Project(
    Coefficient &coeff, ElementTransformation &Trans,
    Vector &dofs, bool use_L2) const
 {
-   if (use_L2) {
+   if (use_L2)
+   {
       DenseMatrix mass;
       MassIntegrator mass_integ;
 
@@ -38,7 +39,8 @@ void PositiveFiniteElement::Project(
 
       mass_inv.Mult(rhs, dofs);
    }
-   else {
+   else
+   {
       for (int i = 0; i < dof; i++)
       {
          const IntegrationPoint &ip = Nodes.IntPoint(i);
@@ -227,7 +229,8 @@ void BiQuadPos2DFiniteElement::GetLocalInterpolation(
 }
 
 void BiQuadPos2DFiniteElement::Project(
-   Coefficient &coeff, ElementTransformation &Trans, Vector &dofs, bool use_L2) const
+   Coefficient &coeff, ElementTransformation &Trans, Vector &dofs,
+   bool use_L2) const
 {
    double *d = dofs;
 

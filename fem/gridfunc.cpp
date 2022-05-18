@@ -2398,7 +2398,8 @@ void GridFunction::ProjectCoefficient(Coefficient &coeff, bool use_L2)
    DeltaCoefficient *delta_c = dynamic_cast<DeltaCoefficient *>(&coeff);
    DofTransformation * doftrans = NULL;
 
-   if (!fes->IsDGSpace() && use_L2) {
+   if (!fes->IsDGSpace() && use_L2)
+   {
       MFEM_WARNING("use_L2 flag intended for use with discontinuous spaces.");
    }
 
