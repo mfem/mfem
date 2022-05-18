@@ -322,6 +322,7 @@ void ND_HexahedronElement::CalcVShape(const IntegrationPoint &ip,
       cbasis1d.Eval(ip.x, shape_cx, dshape_cx);
       cbasis1d.Eval(ip.y, shape_cy, dshape_cy);
       cbasis1d.Eval(ip.z, shape_cz, dshape_cz);
+      obasis1d.ScaleIntegrated(false);
       obasis1d.EvalIntegrated(dshape_cx, shape_ox);
       obasis1d.EvalIntegrated(dshape_cy, shape_oy);
       obasis1d.EvalIntegrated(dshape_cz, shape_oz);
@@ -409,6 +410,7 @@ void ND_HexahedronElement::CalcCurlShape(const IntegrationPoint &ip,
    cbasis1d.Eval(ip.z, shape_cz, dshape_cz);
    if (obasis1d.IsIntegratedType())
    {
+      obasis1d.ScaleIntegrated(false);
       obasis1d.EvalIntegrated(dshape_cx, shape_ox);
       obasis1d.EvalIntegrated(dshape_cy, shape_oy);
       obasis1d.EvalIntegrated(dshape_cz, shape_oz);
@@ -661,6 +663,7 @@ void ND_QuadrilateralElement::CalcVShape(const IntegrationPoint &ip,
    {
       cbasis1d.Eval(ip.x, shape_cx, dshape_cx);
       cbasis1d.Eval(ip.y, shape_cy, dshape_cy);
+      obasis1d.ScaleIntegrated(false);
       obasis1d.EvalIntegrated(dshape_cx, shape_ox);
       obasis1d.EvalIntegrated(dshape_cy, shape_oy);
    }
@@ -721,6 +724,7 @@ void ND_QuadrilateralElement::CalcCurlShape(const IntegrationPoint &ip,
    cbasis1d.Eval(ip.y, shape_cy, dshape_cy);
    if (obasis1d.IsIntegratedType())
    {
+      obasis1d.ScaleIntegrated(false);
       obasis1d.EvalIntegrated(dshape_cx, shape_ox);
       obasis1d.EvalIntegrated(dshape_cy, shape_oy);
    }

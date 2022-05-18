@@ -152,6 +152,7 @@ void RT_QuadrilateralElement::CalcVShape(const IntegrationPoint &ip,
    {
       cbasis1d.Eval(ip.x, shape_cx, dshape_cx);
       cbasis1d.Eval(ip.y, shape_cy, dshape_cy);
+      obasis1d.ScaleIntegrated(false);
       obasis1d.EvalIntegrated(dshape_cx, shape_ox);
       obasis1d.EvalIntegrated(dshape_cy, shape_oy);
    }
@@ -210,6 +211,7 @@ void RT_QuadrilateralElement::CalcDivShape(const IntegrationPoint &ip,
    cbasis1d.Eval(ip.y, shape_cy, dshape_cy);
    if (obasis1d.IsIntegratedType())
    {
+      obasis1d.ScaleIntegrated(false);
       obasis1d.EvalIntegrated(dshape_cx, shape_ox);
       obasis1d.EvalIntegrated(dshape_cy, shape_oy);
    }
@@ -479,6 +481,7 @@ void RT_HexahedronElement::CalcVShape(const IntegrationPoint &ip,
       cbasis1d.Eval(ip.x, shape_cx, dshape_cx);
       cbasis1d.Eval(ip.y, shape_cy, dshape_cy);
       cbasis1d.Eval(ip.z, shape_cz, dshape_cz);
+      obasis1d.ScaleIntegrated(false);
       obasis1d.EvalIntegrated(dshape_cx, shape_ox);
       obasis1d.EvalIntegrated(dshape_cy, shape_oy);
       obasis1d.EvalIntegrated(dshape_cz, shape_oz);
@@ -566,6 +569,7 @@ void RT_HexahedronElement::CalcDivShape(const IntegrationPoint &ip,
    cbasis1d.Eval(ip.z, shape_cz, dshape_cz);
    if (obasis1d.IsIntegratedType())
    {
+      obasis1d.ScaleIntegrated(false);
       obasis1d.EvalIntegrated(dshape_cx, shape_ox);
       obasis1d.EvalIntegrated(dshape_cy, shape_oy);
       obasis1d.EvalIntegrated(dshape_cz, shape_oz);
