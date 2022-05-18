@@ -2393,10 +2393,14 @@ void GridFunction::ProjectDeltaCoefficient(DeltaCoefficient &delta_coeff,
    }
 }
 
-void GridFunction::ProjectCoefficient(Coefficient &coeff)
+void GridFunction::ProjectCoefficient(Coefficient &coeff, bool use_L2)
 {
    DeltaCoefficient *delta_c = dynamic_cast<DeltaCoefficient *>(&coeff);
    DofTransformation * doftrans = NULL;
+
+   if (!fes->IsDGSpace() && use_L2) {
+      MFEM_WARNING("use_L2 flag intended for use with discontinuous spaces.");
+   }
 
    if (delta_c == NULL)
    {
@@ -2407,7 +2411,8 @@ void GridFunction::ProjectCoefficient(Coefficient &coeff)
       {
          doftrans = fes->GetElementVDofs(i, vdofs);
          vals.SetSize(vdofs.Size());
-         fes->GetFE(i)->Project(coeff, *fes->GetElementTransformation(i), vals);
+         fes->GetFE(i)->Project(coeff, *fes->GetElementTransformation(i),
+                                vals, use_L2);
          if (doftrans)
          {
             doftrans->TransformPrimal(vals);

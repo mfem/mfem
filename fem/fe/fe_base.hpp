@@ -516,7 +516,8 @@ public:
        degrees of freedom. The derived class could use other methods not
        implemented yet, e.g. local L2 projection. */
    virtual void Project(Coefficient &coeff,
-                        ElementTransformation &Trans, Vector &dofs) const;
+                        ElementTransformation &Trans, Vector &dofs,
+                        bool use_L2 = false) const;
 
    /** @brief Given a vector coefficient and a transformation, compute its
        projection (approximation) in the local finite dimensional space
@@ -736,7 +737,7 @@ public:
    { CheckScalarFE(fe).NodalLocalInterpolation(Trans, I, *this); }
 
    virtual void Project (Coefficient &coeff,
-                         ElementTransformation &Trans, Vector &dofs) const;
+                         ElementTransformation &Trans, Vector &dofs, bool use_L2 = false) const;
 
    virtual void Project (VectorCoefficient &vc,
                          ElementTransformation &Trans, Vector &dofs) const;

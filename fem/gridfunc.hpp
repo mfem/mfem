@@ -371,7 +371,7 @@ public:
        projection computation depends on the choice of the FiniteElementSpace
        #fes. Note that this is usually interpolation at the degrees of freedom
        in each element (not L2 projection). */
-   virtual void ProjectCoefficient(Coefficient &coeff);
+   virtual void ProjectCoefficient(Coefficient &coeff, bool use_L2 = false);
 
    /** @brief Project @a coeff Coefficient to @a this GridFunction, using one
        element for each degree of freedom in @a dofs and nodal interpolation on

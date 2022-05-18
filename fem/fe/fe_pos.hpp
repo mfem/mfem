@@ -52,13 +52,15 @@ public:
    // Low-order monotone "projection" (actually it is not a projection): the
    // dofs are set to be the Coefficient values at the nodes.
    virtual void Project(Coefficient &coeff,
-                        ElementTransformation &Trans, Vector &dofs) const;
+                        ElementTransformation &Trans,
+                        Vector &dofs, bool use_L2 = false) const;
 
    virtual void Project (VectorCoefficient &vc,
                          ElementTransformation &Trans, Vector &dofs) const;
 
    virtual void Project(const FiniteElement &fe, ElementTransformation &Trans,
                         DenseMatrix &I) const;
+
 };
 
 
@@ -93,7 +95,7 @@ public:
                                       DenseMatrix &I) const;
    using FiniteElement::Project;
    virtual void Project(Coefficient &coeff, ElementTransformation &Trans,
-                        Vector &dofs) const;
+                        Vector &dofs, bool use_L2 = false) const;
    virtual void Project(VectorCoefficient &vc, ElementTransformation &Trans,
                         Vector &dofs) const;
    virtual void ProjectDelta(int vertex, Vector &dofs) const
