@@ -529,8 +529,8 @@ void BatchedLORAssembly::ParAssemble(
    hypre_ParCSRCommHandle *comm_handle;
    HYPRE_Int *int_buf_data, *eliminate_row, *eliminate_col;
    {
-      eliminate_row = hypre_CTAlloc(HYPRE_Int, diag_nrows, HYPRE_MEMORY_DEVICE);
-      eliminate_col = hypre_CTAlloc(HYPRE_Int, offd_ncols, HYPRE_MEMORY_DEVICE);
+      eliminate_row = mfem_hypre_CTAlloc(HYPRE_Int, diag_nrows);
+      eliminate_col = mfem_hypre_CTAlloc(HYPRE_Int, offd_ncols);
 
       // Make sure A has a communication package
       hypre_ParCSRCommPkg *comm_pkg = hypre_ParCSRMatrixCommPkg(A_hypre);
@@ -549,7 +549,7 @@ void BatchedLORAssembly::ParAssemble(
 
       HYPRE_Int num_sends = hypre_ParCSRCommPkgNumSends(comm_pkg);
       HYPRE_Int int_buf_sz = hypre_ParCSRCommPkgSendMapStart(comm_pkg, num_sends);
-      int_buf_data = hypre_CTAlloc(HYPRE_Int, int_buf_sz, HYPRE_MEMORY_DEVICE);
+      int_buf_data = mfem_hypre_CTAlloc(HYPRE_Int, int_buf_sz);
 
       HYPRE_Int *send_map_elmts;
 #if defined(HYPRE_USING_GPU)
@@ -619,8 +619,8 @@ void BatchedLORAssembly::ParAssemble(
 
    // Wait for MPI communication to finish
    hypre_ParCSRCommHandleDestroy(comm_handle);
-   hypre_TFree(int_buf_data, HYPRE_MEMORY_DEVICE);
-   hypre_TFree(eliminate_row, HYPRE_MEMORY_DEVICE);
+   mfem_hypre_TFree(int_buf_data);
+   mfem_hypre_TFree(eliminate_row);
 
    // Eliminate columns in the off-diagonal block
    {
@@ -637,7 +637,7 @@ void BatchedLORAssembly::ParAssemble(
       });
    }
 
-   hypre_TFree(eliminate_col, HYPRE_MEMORY_DEVICE);
+   mfem_hypre_TFree(eliminate_col);
 }
 #endif
 
