@@ -171,7 +171,7 @@ int main(int argc, char *argv[])
    dim = mesh.Dimension();
    dimc = (dim == 3) ? 3 : 1;
    int test_order = order+delta_order;
-   
+
    // Define spaces
    // L2 space for E
    FiniteElementCollection *E_fec = new L2_FECollection(order-1,dim);
@@ -210,6 +210,12 @@ int main(int argc, char *argv[])
 
 
 //    // Coefficients
+   Vector dim_zero(dim); dim_zero = 0.0;
+   Vector dimc_zero(dimc); dimc_zero = 0.0;
+   VectorConstantCoefficient E_zero(dim_zero);
+   VectorConstantCoefficient H_zero(dimc_zero);
+
+
    ConstantCoefficient one(1.0);
    ConstantCoefficient eps2omeg2(epsilon*epsilon*omega*omega);
    ConstantCoefficient mu2omeg2(mu*mu*omega*omega);
@@ -361,13 +367,15 @@ int main(int argc, char *argv[])
    Array<int> elements_to_refine;
 
    socketstream E_out_r;
-   socketstream E_out_i;
+   socketstream Eex_out_r;
+   // socketstream E_out_i;
    if (visualization)
    {
       char vishost[] = "localhost";
       int  visport   = 19916;
       E_out_r.open(vishost, visport);
-      E_out_i.open(vishost, visport);
+      Eex_out_r.open(vishost, visport);
+      // E_out_i.open(vishost, visport);
    }
 
    double res0 = 0.;
@@ -398,15 +406,15 @@ int main(int argc, char *argv[])
       {
          ess_bdr.SetSize(mesh.bdr_attributes.Max());
          ess_bdr = 1;
-         // hatE_fes->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
-         hatH_fes->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
+         hatE_fes->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
+         // hatH_fes->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
       }
 
       // shift the ess_tdofs
       for (int j = 0; j < ess_tdof_list.Size(); j++)
       {
-         ess_tdof_list[j] += E_fes->GetTrueVSize() + H_fes->GetTrueVSize()
-                           + hatE_fes->GetTrueVSize();
+         ess_tdof_list[j] += E_fes->GetTrueVSize() + H_fes->GetTrueVSize();
+                           // + hatE_fes->GetTrueVSize();
       }
 
       Array<int> offsets(5);
@@ -431,13 +439,13 @@ int main(int argc, char *argv[])
 
       if (dim == 3)
       {
-         // hatE_gf.ProjectBdrCoefficientTangent(hatEex_r,hatEex_i, ess_bdr);
-         hatH_gf.ProjectBdrCoefficientTangent(hatHex_r,hatHex_i, ess_bdr);
+         hatE_gf.ProjectBdrCoefficientTangent(hatEex_r,hatEex_i, ess_bdr);
+         // hatH_gf.ProjectBdrCoefficientTangent(hatHex_r,hatHex_i, ess_bdr);
       }
       else
       {
-         // hatE_gf.ProjectBdrCoefficientNormal(hatEex_r,hatEex_i, ess_bdr);
-         hatH_gf.ProjectBdrCoefficient(hatH_2D_ex_r,hatH_2D_ex_i, ess_bdr);
+         hatE_gf.ProjectBdrCoefficientNormal(hatEex_r,hatEex_i, ess_bdr);
+         // hatH_gf.ProjectBdrCoefficient(hatH_2D_ex_r,hatH_2D_ex_i, ess_bdr);
 
       }
       OperatorPtr Ah;
@@ -451,9 +459,6 @@ int main(int argc, char *argv[])
 
       ComplexSparseMatrix Ac(Ar,Ai,true,true);
       SparseMatrix * A = Ac.GetSystemMatrix();
-
-      mfem::out << "Size of the linear system: " << A->Height() << std::endl;
-
 
       UMFPackSolver umf(*A);
       umf.Mult(B,X);
@@ -483,15 +488,13 @@ int main(int argc, char *argv[])
       VectorFunctionCoefficient E_ex_r(dim,E_exact_r);
       VectorFunctionCoefficient E_ex_i(dim,E_exact_i);
 
-
       ComplexGridFunction H(H_fes);
       H.real().MakeRef(H_fes,&x.GetData()[offsets[1]]);
       H.imag().MakeRef(H_fes,&x.GetData()[offsets.Last()+offsets[1]]);
 
       VectorFunctionCoefficient H_ex_r(dimc,H_exact_r);
       VectorFunctionCoefficient H_ex_i(dimc,H_exact_i);
-
-
+      
 
       int dofs = X.Size()/2;
 
@@ -500,14 +503,31 @@ int main(int argc, char *argv[])
       double H_err_r = H.real().ComputeL2Error(H_ex_r);
       double H_err_i = H.imag().ComputeL2Error(H_ex_i);
 
-
       double L2Error = sqrt(  E_err_r*E_err_r + E_err_i*E_err_i 
                             + H_err_r*H_err_r + H_err_i*H_err_i );
 
-      double rate_err = (i) ? dim*log(err0/L2Error)/log((double)dof0/dofs) : 0.0;
+      ComplexGridFunction Egf_ex(E_fes);
+      ComplexGridFunction Hgf_ex(H_fes);
+      Egf_ex.ProjectCoefficient(E_ex_r, E_ex_i);
+      Hgf_ex.ProjectCoefficient(H_ex_r, H_ex_i);
+
+   
+
+      double E_norm_r = Egf_ex.real().ComputeL2Error(E_zero);
+      double E_norm_i = Egf_ex.imag().ComputeL2Error(E_zero);
+      double H_norm_r = Hgf_ex.real().ComputeL2Error(H_zero);
+      double H_norm_i = Hgf_ex.imag().ComputeL2Error(H_zero);
+
+      double L2norm = sqrt(  E_norm_r*E_norm_r + E_norm_i*E_norm_i 
+                           + H_norm_r*H_norm_r + H_norm_i*H_norm_i );
+
+      double rel_err = L2Error/L2norm;
+
+
+      double rate_err = (i) ? dim*log(err0/rel_err)/log((double)dof0/dofs) : 0.0;
       double rate_res = (i) ? dim*log(res0/residual)/log((double)dof0/dofs) : 0.0;
 
-      err0 = L2Error;
+      err0 = rel_err;
       res0 = residual;
       dof0 = dofs;
 
@@ -516,7 +536,7 @@ int main(int argc, char *argv[])
                 << std::setprecision(3) 
                 << std::setw(10) << std::scientific <<  err0 << " | " 
                 << std::setprecision(3) 
-                << std::setw(10) << std::fixed <<  0.0 << " | " 
+                << std::setw(10) << std::fixed <<  rel_err*100 << " | " 
                 << std::setprecision(2) 
                 << std::setw(6) << std::fixed << rate_err << " | " 
                 << std::setprecision(3) 
@@ -534,27 +554,23 @@ int main(int argc, char *argv[])
                   "window_title 'Real Numerical Electric field' "
                   << flush;
 
-         E_out_i.precision(8);
-         E_out_i << "solution\n" << mesh << E.imag() <<
-                  "window_title 'Imag Numerical Electric field' "
-                  << flush;         
-
-         ComplexGridFunction Egf_ex(E_fes);
-         Egf_ex.ProjectCoefficient(E_ex_r, E_ex_i);
+         // E_out_i.precision(8);
+         // E_out_i << "solution\n" << mesh << E.imag() <<
+         //          "window_title 'Imag Numerical Electric field' "
+         //          << flush;         
 
 
-         char vishost[] = "localhost";
-         int  visport   = 19916;
-         socketstream E_r_sock(vishost, visport);
-         E_r_sock.precision(8);
-         E_r_sock << "solution\n" << mesh << Egf_ex.real()  
+
+
+         Eex_out_r.precision(8);
+         Eex_out_r << "solution\n" << mesh << Egf_ex.real()  
                   << "window_title 'Real Exact Electric field' " 
                   << flush;
-         socketstream E_i_sock(vishost, visport);
-         E_i_sock.precision(8);
-         E_i_sock << "solution\n" << mesh << Egf_ex.imag()  
-                  << "window_title 'Imag Exact Electric field' " 
-                  << flush;
+         // socketstream E_i_sock(vishost, visport);
+         // E_i_sock.precision(8);
+         // E_i_sock << "solution\n" << mesh << Egf_ex.imag()  
+         //          << "window_title 'Imag Exact Electric field' " 
+         //          << flush;
 
 
       }

@@ -60,7 +60,7 @@ void ComplexNormalEquations::Init()
 
    if (store_matrices)
    {
-      Ginv.SetSize(mesh->GetNE());
+      // Ginv.SetSize(mesh->GetNE());
       Bmat.SetSize(mesh->GetNE());
       fvec.SetSize(mesh->GetNE());
    }
@@ -499,11 +499,13 @@ void ComplexNormalEquations::Assemble(int skip_zeros)
          }
       }
 
-      ComplexDenseMatrix G(&G_r,&G_i,false,false);
-      ComplexDenseMatrix B(&B_r,&B_i,false,false);
+      ComplexCholeskyFactors chol(G_r.GetData(), G_i.GetData());
+      int h = G_r.Height();
+      chol.Factor(h);
 
-      ComplexDenseMatrix * invG = G.ComputeInverse();
-
+      int w = B_r.Width();
+      chol.LSolve(h,w,B_r.GetData(), B_i.GetData());
+      chol.LSolve(h,1,vec_r.GetData(), vec_i.GetData());
 
       Vector vec(vec_i.Size()+vec_r.Size());
       vec.SetVector(vec_r,0);
@@ -511,29 +513,15 @@ void ComplexNormalEquations::Assemble(int skip_zeros)
 
       if (store_matrices)
       {
-         Ginv[iel] = new ComplexDenseMatrix(new DenseMatrix(invG->real()),
-                                            new DenseMatrix(invG->imag()),true,true);
-         Bmat[iel] = new ComplexDenseMatrix(new DenseMatrix(B_r),
-                                            new DenseMatrix(B_i),true,true);
+         Bmat[iel] = new ComplexDenseMatrix(new DenseMatrix(B_r), new DenseMatrix(B_i),
+                                            true,true);
          fvec[iel] = new Vector(vec);
       }
-
-      // Form Normal Equations B^H G^-1 B = B^H G^-1 l
-
-      // G^-1 B
-      ComplexDenseMatrix * GinvB = mfem::Mult(*invG,B);
-      // B^H G^-1 B
-      ComplexDenseMatrix * A = mfem::MultAtB(B,*GinvB);
-      delete GinvB;
-
-      Vector Ginvl(G.Height());
-      // G^-1 l
-      invG->Mult(vec,Ginvl);
-      delete invG;
-
-      // B^H G^-1 l
+      ComplexDenseMatrix B(&B_r,&B_i,false,false);
+      ComplexDenseMatrix * A = mfem::MultAtB(B,B);
       Vector b(B.Width());
-      B.MultTranspose(Ginvl,b);
+      B.MultTranspose(vec,b);
+
 
       double * bdata = b.GetData();
       b_r.SetDataAndSize(bdata, b.Size()/2);
@@ -919,18 +907,15 @@ void ComplexNormalEquations::Update()
 
    if (store_matrices)
    {
-      for (int i = 0; i<Ginv.Size(); i++)
+      for (int i = 0; i<Bmat.Size(); i++)
       {
-         delete Ginv[i]; Ginv[i] = nullptr;
          delete Bmat[i]; Bmat[i] = nullptr;
          delete fvec[i]; fvec[i] = nullptr;
       }
-      Ginv.SetSize(mesh->GetNE());
       Bmat.SetSize(mesh->GetNE());
       fvec.SetSize(mesh->GetNE());
-      for (int i = 0; i<Ginv.Size(); i++)
+      for (int i = 0; i<Bmat.Size(); i++)
       {
-         Ginv[i] = nullptr;
          Bmat[i] = nullptr;
          fvec[i] = nullptr;
       }
@@ -1037,17 +1022,7 @@ Vector & ComplexNormalEquations::ComputeResidual(const Vector & x)
       Vector v(Bmat[iel]->Height());
       Bmat[iel]->Mult(u,v);
       v -= *fvec[iel];
-      // complex inner product v^h ̇v
-      Vector Gv(v.Size());
-      Ginv[iel]->Mult(v,Gv);
-      residuals[iel] = sqrt(v*Gv);
-
-      // double res = 0.;
-      // for (int k = 0; k<v.Size()/2; k++)
-      // {
-      //    res += Gv(k)*v(k) + Gv(k+v.Size()/2)* v(k+v.Size()/2);
-      // }
-      // residuals[iel] = sqrt(res);
+      residuals[iel] = v.Norml2();
    } // end of loop through elements
    return residuals;
 }
@@ -1078,7 +1053,6 @@ ComplexNormalEquations::~ComplexNormalEquations()
    {
       for (int i = 0; i<mesh->GetNE(); i++)
       {
-         delete Ginv[i]; Ginv[i] = nullptr;
          delete Bmat[i]; Bmat[i] = nullptr;
          delete fvec[i]; fvec[i] = nullptr;
       }
