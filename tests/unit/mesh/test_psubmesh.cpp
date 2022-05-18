@@ -39,11 +39,8 @@ FiniteElementCollection *create_fec(FECType fectype, int p, int dim)
    return nullptr;
 }
 
-TEST_CASE("ParSubMesh", "[Parallel],[ParSubMesh]")
+void multidomain_test(FECType fec_type)
 {
-   int num_procs = Mpi::WorldSize();
-   int myid = Mpi::WorldRank();
-
    // Circle: sideset 1
    // Domain boundary: sideset 2
    Mesh *serial_parent_mesh = new Mesh("multidomain.mesh");
@@ -68,7 +65,6 @@ TEST_CASE("ParSubMesh", "[Parallel],[ParSubMesh]")
    auto cylinder_surface_submesh = ParSubMesh::CreateFromBoundary(parent_mesh,
                                                                   cylinder_surface_attributes);
 
-   auto fec_type = GENERATE(FECType::H1, FECType::L2);
    FiniteElementCollection *fec = create_fec(fec_type, 2, 3);
 
    ParFiniteElementSpace parent_fes(&parent_mesh, fec);
@@ -115,7 +111,6 @@ TEST_CASE("ParSubMesh", "[Parallel],[ParSubMesh]")
       double norm_local = v.Norml2(), norm_global = 0.0;
       MPI_Allreduce(&norm_local, &norm_global, 1, MPI_DOUBLE, MPI_SUM,
                     MPI_COMM_WORLD);
-      MPI_Barrier(MPI_COMM_WORLD);
       REQUIRE(norm_global < 1e-8);
    };
 
@@ -205,6 +200,12 @@ TEST_CASE("ParSubMesh", "[Parallel],[ParSubMesh]")
          }
       }
    }
+}
+
+TEST_CASE("ParSubMesh", "[Parallel],[ParSubMesh]")
+{
+   auto fec_type = GENERATE(FECType::H1, FECType::L2);
+   multidomain_test(fec_type);
 }
 
 } // namespace ParSubMeshTests

@@ -17,8 +17,6 @@ set(SRCS
   mesh_operators.cpp
   mesh_readers.cpp
   ncmesh.cpp
-  submesh.cpp
-  submesh_utils.cpp
   nurbs.cpp
   point.cpp
   pyramid.cpp
@@ -40,8 +38,6 @@ set(HDRS
   mesh_operators.hpp
   ncmesh.hpp
   nurbs.hpp
-  submesh.hpp
-  submesh_utils.hpp
   point.hpp
   pyramid.hpp
   quadrilateral.hpp
@@ -57,14 +53,12 @@ set(HDRS
 if (MFEM_USE_MPI)
   list(APPEND SRCS
     pmesh.cpp
-    pncmesh.cpp
-    psubmesh.cpp)
+    pncmesh.cpp)
   # If this list (HDRS -> HEADERS) is used for install, we probably want the
   # headers added all the time.
   list(APPEND HDRS
     pmesh.hpp
-    pncmesh.hpp
-    psubmesh.hpp)
+    pncmesh.hpp)
 endif()
 
 if (MFEM_USE_MESQUITE)
@@ -86,3 +80,5 @@ convert_filenames_to_full_paths(HDRS)
 
 set(SOURCES ${SOURCES} ${SRCS} PARENT_SCOPE)
 set(HEADERS ${HEADERS} ${HDRS} PARENT_SCOPE)
+
+add_subdirectory(submesh)

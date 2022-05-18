@@ -16,14 +16,10 @@
 
 #ifdef MFEM_USE_MPI
 
-#include "detail/transfermapcache.hpp"
-#include "detail/ptransfermap.hpp"
+#include "ptransfermap.hpp"
 #include "../pmesh.hpp"
 #include "../../fem/pgridfunc.hpp"
 #include "submesh.hpp"
-
-extern mfem::detail::TransferMapCache<mfem::ParGridFunction, mfem::detail::ParTransferMap>
-partransfer_map_cache_;
 
 namespace mfem
 {
@@ -144,6 +140,9 @@ public:
     * @param[out] dst
     */
    static void Transfer(const ParGridFunction &src, ParGridFunction &dst);
+
+   static const ParTransferMap* TransferMap(const ParGridFunction &src,
+                                            ParGridFunction &dst);
 
    /**
    * @brief Check if ParMesh @a m is a ParSubMesh.
