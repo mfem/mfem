@@ -840,7 +840,7 @@ void CurlIntegrator::AssembleElementMatrix2(
 
    if (ir == NULL)
    {
-      int order = trial_fe.GetOrder() + test_fe.GetOrder() - 1; // <--
+      int order = trial_fe.GetOrder() + test_fe.GetOrder() + 1; // <--
       ir = &IntRules.Get(trial_fe.GetGeomType(), order);
    }
 
