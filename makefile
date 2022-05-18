@@ -460,12 +460,11 @@ JIT_SOURCE_FILES = $(SRC)fem/bilininteg_diffusion_pa.cpp \
 $(SRC)fem/bilininteg_mass_pa.cpp
 
 # Definitions to compile the preprocessor and embed the MFEM options
-MFEM_JIT_FLAGS = $(MFEM_BUILD_FLAGS)
-MFEM_JIT_FLAGS += -DMFEM_CXX="$(MFEM_CXX)"
-MFEM_JIT_FLAGS += -DMFEM_EXT_LIBS="$(MFEM_EXT_LIBS)"
-MFEM_JIT_FLAGS += -DMFEM_BUILD_FLAGS="$(MFEM_BUILD_FLAGS)"
+MFEM_JIT_DEFINES  = -DMFEM_CXX="$(MFEM_CXX)"
+MFEM_JIT_DEFINES += -DMFEM_EXT_LIBS="$(MFEM_EXT_LIBS)"
+MFEM_JIT_DEFINES += -DMFEM_BUILD_FLAGS="$(MFEM_BUILD_FLAGS)"
 $(BLD)mjit: $(BLD)general/jit/parser.cpp $(CONFIG_MK) makefile
-	$(MFEM_CXX) $(MFEM_JIT_FLAGS) -o $(@) $(<) $(JIT_LIB)
+	$(MFEM_CXX) $(MFEM_BUILD_FLAGS) $(MFEM_JIT_DEFINES) -o $(@) $(<) $(JIT_LIB)
 
 # Filtering out the objects that will be compiled through the preprocessor
 JIT_OBJECT_FILES = $(JIT_SOURCE_FILES:$(SRC)%.cpp=$(BLD)%.o)
@@ -594,7 +593,7 @@ $(ALL_CLEAN_SUBDIRS):
 clean: $(addsuffix /clean,$(EM_DIRS) $(TEST_DIRS))
 	rm -f $(addprefix $(BLD),$(foreach d,$(DIRS),$(d)/*.o))
 	rm -f $(addprefix $(BLD),$(foreach d,$(DIRS),$(d)/*~))
-	rm -rf $(addprefix $(BLD),*~ libmfem.* deps.mk $(MFEM_JIT))
+	rm -rf $(addprefix $(BLD),*~ libmfem.* deps.mk mjit)
 
 distclean: clean config/clean doc/clean
 	rm -rf mfem/
