@@ -45,13 +45,13 @@
 #include "fespacehierarchy.hpp"
 #include "multigrid.hpp"
 #include "ceed/algebraic.hpp"
-#include "lor.hpp"
 #include "blocklinearform.hpp"
 #include "blockbilinearform.hpp"
 #include "normal_equations.hpp"
 #include "blockstaticcond.hpp"
 #include "complex_normal_equations.hpp"
 #include "complex_blockstaticcond.hpp"
+#include "lor/lor.hpp"
 
 #ifdef MFEM_USE_MPI
 #include "pfespace.hpp"
