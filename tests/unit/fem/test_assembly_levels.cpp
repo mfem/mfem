@@ -375,6 +375,81 @@ void TestSameHypreMatrices(OperatorHandle &A1, OperatorHandle &A2)
    TestSameMatrices(*M2, *M1);
 }
 
+void TestSameSparseMatrices(OperatorHandle &A1, OperatorHandle &A2)
+{
+   SparseMatrix *M1 = A1.Is<SparseMatrix>();
+   SparseMatrix *M2 = A2.Is<SparseMatrix>();
+
+   REQUIRE(M1 != NULL);
+   REQUIRE(M2 != NULL);
+
+   TestSameMatrices(*M1, *M2);
+   TestSameMatrices(*M2, *M1);
+}
+
+TEST_CASE("Serial H1 Full Assembly", "[AssemblyLevel], [CUDA]")
+{
+   auto order = GENERATE(1, 2, 3);
+   auto mesh_fname = GENERATE(
+      "../../data/star.mesh",
+      "../../data/fichera.mesh"
+   );
+
+   Mesh mesh(mesh_fname);
+   int dim = mesh.Dimension();
+
+   H1_FECollection fec(order, dim);
+   FiniteElementSpace fespace(&mesh, &fec);
+
+   Array<int> ess_tdof_list;
+   fespace.GetBoundaryTrueDofs(ess_tdof_list);
+
+   BilinearForm a_fa(&fespace);
+   BilinearForm a_legacy(&fespace);
+
+   a_fa.SetAssemblyLevel(AssemblyLevel::FULL);
+   a_legacy.SetAssemblyLevel(AssemblyLevel::LEGACY);
+
+   a_fa.AddDomainIntegrator(new DiffusionIntegrator);
+   a_legacy.AddDomainIntegrator(new DiffusionIntegrator);
+
+   a_fa.Assemble();
+
+   a_legacy.SetDiagonalPolicy(Operator::DIAG_ONE);
+   a_legacy.Assemble();
+   a_legacy.Finalize();
+
+   OperatorHandle A_fa, A_legacy;
+   // Test that FormSystemMatrix gives the same result
+   a_fa.FormSystemMatrix(ess_tdof_list, A_fa);
+   a_legacy.FormSystemMatrix(ess_tdof_list, A_legacy);
+
+   TestSameSparseMatrices(A_fa, A_legacy);
+
+   // Test that FormLinearSystem gives the same result
+   GridFunction x1(&fespace);
+   LinearForm b1(&fespace);
+
+   // x1.Randomize(1);
+   x1 = 10.0;
+   b1.Randomize(2);
+
+   Vector x2(x1);
+   Vector b2(b1);
+
+   Vector X1, X2, B1, B2;
+
+   a_fa.Assemble();
+
+   a_fa.FormLinearSystem(ess_tdof_list, x1, b1, A_fa, X1, B1);
+   a_legacy.FormLinearSystem(ess_tdof_list, x2, b2, A_legacy, X2, B2);
+
+   TestSameSparseMatrices(A_fa, A_legacy);
+
+   B1 -= B2;
+   REQUIRE(B1.Normlinf() == MFEM_Approx(0.0));
+}
+
 TEST_CASE("Parallel H1 Full Assembly", "[AssemblyLevel], [Parallel], [CUDA]")
 {
    auto order = GENERATE(1, 2, 3);
@@ -417,10 +492,10 @@ TEST_CASE("Parallel H1 Full Assembly", "[AssemblyLevel], [Parallel], [CUDA]")
    TestSameHypreMatrices(A_fa, A_legacy);
 
    // Test that FormSystemMatrix gives the same result
-   // a_fa.FormSystemMatrix(ess_tdof_list, A_fa);
-   // a_legacy.FormSystemMatrix(ess_tdof_list, A_legacy);
+   a_fa.FormSystemMatrix(ess_tdof_list, A_fa);
+   a_legacy.FormSystemMatrix(ess_tdof_list, A_legacy);
 
-   // TestSameHypreMatrices(A_fa, A_legacy);
+   TestSameHypreMatrices(A_fa, A_legacy);
 
    // Test that FormLinearSystem gives the same result
    ParGridFunction x1(&fespace);
@@ -433,6 +508,8 @@ TEST_CASE("Parallel H1 Full Assembly", "[AssemblyLevel], [Parallel], [CUDA]")
    Vector b2(b1);
 
    Vector X1, X2, B1, B2;
+
+   a_fa.Assemble();
 
    a_fa.FormLinearSystem(ess_tdof_list, x1, b1, A_fa, X1, B1);
    a_legacy.FormLinearSystem(ess_tdof_list, x2, b2, A_legacy, X2, B2);
