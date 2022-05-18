@@ -757,11 +757,12 @@ public:
                            DenseMatrix &div) const;
 
    /** @brief Get an Array<int> that maps lexicographically ordered indices to
-       the indices of the respective nodes/dofs/basis functions. Lexicographic
-       ordering of nodes is defined in terms of reference-space coordinates
-       (x,y,z). Lexicographically ordered nodes are listed first in order of
-       increasing x-coordinate, and then in order of increasing y-coordinate,
-       and finally in order of increasing z-coordinate.
+       the indices of the respective nodes/dofs/basis functions.
+
+       Lexicographic ordering of nodes is defined in terms of reference-space
+       coordinates (x,y,z). Lexicographically ordered nodes are listed first in
+       order of increasing x-coordinate, and then in order of increasing
+       y-coordinate, and finally in order of increasing z-coordinate.
 
        For example, the six nodes of a quadratic triangle are lexicographically
        ordered as follows:
