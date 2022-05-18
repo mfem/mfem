@@ -9,10 +9,10 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-#ifndef MFEM_PTRANSFERMAP
-#define MFEM_PTRANSFERMAP
+#ifndef MFEM_TRANSFERMAP
+#define MFEM_TRANSFERMAP
 
-#include "../../../fem/pgridfunc.hpp"
+#include "../../../fem/gridfunc.hpp"
 #include "transfer_category.hpp"
 
 namespace mfem
@@ -20,30 +20,24 @@ namespace mfem
 namespace detail
 {
 
-class ParTransferMap
+class TransferMap
 {
 public:
-   ParTransferMap(const ParGridFunction &src,
-                  const ParGridFunction &dst);
+   TransferMap(const GridFunction &src,
+               const GridFunction &dst);
 
-   void Transfer(const ParGridFunction &src, ParGridFunction &dst) const;
+   void Transfer(const GridFunction &src, GridFunction &dst) const;
 
-   ~ParTransferMap();
+   ~TransferMap();
 
 private:
-   void CommunicateIndicesSet(Array<int> &map, int dst_sz);
-
-   void CommunicateSharedVdofs(Vector &f) const;
-
    TransferCategory category_;
-   Array<int> sub1_to_parent_map_, sub2_to_parent_map_, indices_set_local_,
-         indices_set_global_;
-   const ParFiniteElementSpace *root_fes_ = nullptr;
-   const GroupCommunicator *root_gc_ = nullptr;
+   Array<int> sub1_to_parent_map_, sub2_to_parent_map_;
+   const FiniteElementSpace *root_fes_ = nullptr;
    mutable Vector z_;
 };
 
 } // namespace detail
 } // namespace mfem
 
-#endif // MFEM_PTRANSFERMAP
+#endif // MFEM_TRANSFERMAP

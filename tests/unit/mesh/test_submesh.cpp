@@ -337,9 +337,7 @@ TEST_CASE("SubMesh", "[SubMesh]")
    SECTION("2D")
    {
       auto element = GENERATE(Element::QUADRILATERAL, Element::TRIANGLE);
-      if (fec_type == FECType::L2 &&
-          transfer_type == TransferType::SubToParent &&
-          from == SubMesh::From::Boundary)
+      if (fec_type == FECType::L2 && from == SubMesh::From::Boundary)
       {
          return;
       }
@@ -351,7 +349,6 @@ TEST_CASE("SubMesh", "[SubMesh]")
    {
       auto element = GENERATE(Element::HEXAHEDRON, Element::TETRAHEDRON);
       if (fec_type == FECType::L2 &&
-          transfer_type == TransferType::SubToParent &&
           from == SubMesh::From::Boundary)
       {
          return;

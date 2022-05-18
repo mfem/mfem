@@ -115,6 +115,7 @@ TEST_CASE("ParSubMesh", "[Parallel],[ParSubMesh]")
       double norm_local = v.Norml2(), norm_global = 0.0;
       MPI_Allreduce(&norm_local, &norm_global, 1, MPI_DOUBLE, MPI_SUM,
                     MPI_COMM_WORLD);
+      MPI_Barrier(MPI_COMM_WORLD);
       REQUIRE(norm_global < 1e-8);
    };
 
