@@ -42,6 +42,11 @@ ParSubMesh ParSubMesh::CreateFromBoundary(const ParMesh &parent,
 ParSubMesh::ParSubMesh(const ParMesh &parent, SubMesh::From from,
                        Array<int> &attributes) : parent_(parent), from_(from), attributes_(attributes)
 {
+   if (Nonconforming())
+   {
+      MFEM_ABORT("SubMesh does not support non-conforming meshes");
+   }
+
    MyComm = parent.GetComm();
    NRanks = parent.GetNRanks();
    MyRank = parent.GetMyRank();
@@ -794,8 +799,10 @@ void ParSubMesh::BuildSharedFacesMapping(const int nstrias,
 
 void ParSubMesh::Transfer(const ParGridFunction &src, ParGridFunction &dst)
 {
-   const auto *map = partransfer_map_cache_.Find(src, dst);
-   map->Transfer(src, dst);
+   // const auto *map = partransfer_map_cache_.Find(src, dst);
+   // map->Transfer(src, dst);
+   detail::ParTransferMap map(src, dst);
+   map.Transfer(src, dst);
 }
 
 } // namespace mfem
