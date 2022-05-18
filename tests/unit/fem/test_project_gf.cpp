@@ -77,7 +77,9 @@ void verify_exact_project(int order, Element::Type el_type, int basis_type)
    PolyCoeff pcoeff;
    pcoeff.order_ = order;
    FunctionCoefficient c(PolyCoeff::poly_coeff);
-   x.ProjectCoefficient(c, true);
+
+   bool use_L2 = true;
+   x.ProjectCoefficient(c, use_L2);
 
    //Visualize(mesh, x, "proj", "proj", Wx, Wy); Wx += offx;
    
