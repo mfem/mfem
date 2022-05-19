@@ -18,7 +18,6 @@
 #include <algorithm>
 #include "psubmesh.hpp"
 #include "submesh_utils.hpp"
-#include "ptransfermap.hpp"
 #include "../segment.hpp"
 
 namespace mfem

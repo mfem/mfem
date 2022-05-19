@@ -124,7 +124,7 @@ int main(int argc, char *argv[])
    int num_procs = Mpi::WorldSize();
    int myid = Mpi::WorldRank();
 
-   Mesh *serial_mesh = new Mesh("multidomain.mesh");
+   Mesh *serial_mesh = new Mesh("data/multidomain-hex.mesh");
    ParMesh parent_mesh = ParMesh(MPI_COMM_WORLD, *serial_mesh);
    delete serial_mesh;
 
