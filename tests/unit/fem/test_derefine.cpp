@@ -112,6 +112,18 @@ TEST_CASE("Derefine")
    }
 }
 
+
+double integrate(GridFunction* gf)
+{
+   ConstantCoefficient one(1.0);
+   LinearForm lf(gf->FESpace());
+   LinearFormIntegrator* lfi = new DomainLFIntegrator(one);
+   lf.AddDomainIntegrator(lfi);
+   lf.Assemble();
+   double integral = lf(*gf);
+   return integral;
+}
+
 // project linear function on one element.
 // refine, project again.
 double linear_coeff(const Vector& x)
@@ -133,47 +145,45 @@ struct PolyCoeff
    static int order_;
 
    static double poly_coeff(const Vector& x)
+   {
+      int& o{order_};
+
+      double f = 0.0;
+      for (int d = 0; d < dimension; d++)
       {
-         if (dimension == 2)
-         {
-            return
-                pow(x[0],order_+1)
-               +pow(x[1],order_+1);
-         }
-         else
-         {
-            return
-               pow(x[0],order_+1)
-               +pow(x[1],order_+1)
-               +pow(x[2],order_+1);
-         }
+         f += pow(x[d],o);
       }
+      return f;
+   }
 };
 int PolyCoeff::order_ = -1;
 
-void test_derefine_L2_element(int order, int basis_type)
+void test_derefine_L2_element(int order, Element::Type el_type, int basis_type)
 {
    Mesh mesh;
-   if (dimension == 2) {
-      mesh = Mesh::MakeCartesian2D(
-         1, 1, Element::QUADRILATERAL, true, 1.0, 1.0);
+   if (dimension == 1)
+   {
+      mesh = Mesh::MakeCartesian1D(1, 1.0);
+      mesh.EnsureNCMesh(true);
    }
-   if (dimension == 3) {
-      mesh = Mesh::MakeCartesian3D(
-         1, 1, 1, Element::HEXAHEDRON, true, 1.0, 1.0, 1.0);
+   if (dimension == 2)
+   {
+      mesh = Mesh::MakeCartesian2D(1, 1, el_type, true, 1.0, 1.0);
+   }
+   if (dimension == 3)
+   {
+      mesh = Mesh::MakeCartesian3D(1, 1, 1, el_type, true, 1.0, 1.0, 1.0);
    }
    mesh.EnsureNCMesh();
+   mesh.EnsureNodes();
 
    L2_FECollection fec(order, dimension, basis_type);
    FiniteElementSpace fespace(&mesh, &fec);
    GridFunction x(&fespace);
 
    PolyCoeff pcoeff;
-   pcoeff.order_ = order;
+   pcoeff.order_ = 3;
    FunctionCoefficient c(PolyCoeff::poly_coeff);
-   x.ProjectCoefficient(c);
-
-   Vector coarse_projection = x;
 
    Array<Refinement> refinements;
    refinements.Append(Refinement(0));
@@ -182,98 +192,124 @@ void test_derefine_L2_element(int order, int basis_type)
    fespace.Update();
    x.Update();
 
-   // re-project to get function that isn't exactly representable in
-   // the coarse space.
+   // project to get function that isn't exactly representable in the
+   // fine space.
    x.ProjectCoefficient(c);
+
+   // save the fine solution
+   Vector xf = x;
+   GridFunction x_fine(x.FESpace());
+   x_fine.SetData(xf);
+
+   double mass_fine = integrate(&x_fine);
 
    Vector local_err(mesh.GetNE());
    local_err = 0.;
    double threshold = 1.0;
    mesh.DerefineByError(local_err, threshold);
-
    fespace.Update();
    x.Update();
 
-   Vector coarse_derefinement = x;
+   Vector coarse_soln_v{x};
 
-   REQUIRE(coarse_projection.Norml2() -coarse_derefinement.Norml2() < 1e-11);
-}
+   double mass_coarse = integrate(&x);
 
-void test_derefine_H1_element(int order, int basis_type)
-{
-   Mesh mesh = Mesh::MakeCartesian2D(
-      1, 1, Element::QUADRILATERAL, true, 1.0, 1.0);
-   mesh.EnsureNCMesh();
+   // conservation check
+   REQUIRE( fabs(mass_fine-mass_coarse) < 1.e-12 );
 
-   H1_FECollection fec(order, dimension, basis_type);
-   FiniteElementSpace fespace(&mesh, &fec);
-   GridFunction x(&fespace);
-
-   FunctionCoefficient c(linear_coeff);
-   x.ProjectCoefficient(c);
-
-   Vector coarse_projection = x;
-
-   Array<Refinement> refinements;
-   refinements.Append(Refinement(0));
+   // re-refine to get everything on the same grid
    mesh.GeneralRefinement(refinements);
-
    fespace.Update();
    x.Update();
 
-   // re-project to get function that isn't exactly representable in
-   // the coarse space.
-   x.ProjectCoefficient(c);
+   // Compute error of coarse L2 projection against fine solution
+   GridFunctionCoefficient gfc(&x);
 
-   Vector local_err(mesh.GetNE());
-   local_err = 0.;
-   double threshold = 1.0;
-   mesh.DerefineByError(local_err, threshold);
+   double err0 = x_fine.ComputeL2Error(gfc);
 
-   fespace.Update();
-   x.Update();
+   // test for local optimality by shifting dofs by epsilon and
+   // recomputing error wrt fine solution.
+   double eps = 1.e-3;
+   for (int i = 0; i < coarse_soln_v.Size(); i++)
+   {
+      for (int f = -1; f <= 1; f += 2)
+      {
 
-   Vector coarse_derefinement = x;
+         mesh.DerefineByError(local_err, threshold);
+         fespace.Update();
+         x.Update();
+         x = coarse_soln_v;
+         x(i) += f*eps;
 
-   REQUIRE(coarse_projection.Norml2() -coarse_derefinement.Norml2() < 1e-11);
+         mesh.GeneralRefinement(refinements);
+         fespace.Update();
+         x.Update();
+
+         double err = x_fine.ComputeL2Error(gfc);
+         REQUIRE(err > err0);
+      }
+   }
 }
 
-TEST_CASE("Coarsen L2 Element, Verify Projection")
+TEST_CASE("Coarsen L2 Element, Verify Projection","[Coarsen]")
 {
+   std::vector<int> orders_1d{0,1,2,3};
+   std::vector<int> orders_2d{0,1,2,3};
+   std::vector<int> orders_3d{0,1,2};
+
+   std::vector<int> basis_types
+   {
+      BasisType::Positive,
+      BasisType::GaussLegendre,
+      BasisType::GaussLobatto};
+
+   std::vector<Element::Type> el_types_1d;
+   el_types_1d.push_back(Element::SEGMENT);
+
+   std::vector<Element::Type> el_types_2d;
+   el_types_2d.push_back(Element::QUADRILATERAL);
+   // el_types_2d.push_back(Element::TRIANGLE); // derefinement not supported
+
+   std::vector<Element::Type> el_types_3d;
+   el_types_3d.push_back(Element::HEXAHEDRON);
+   // el_types_3d.push_back(Element::TETRAHEDRON); // derefinement not supported
+   // el_types_3d.push_back(Element::WEDGE); // derefinement not supported
+
+   dimension = 1;
+   for (auto el_type: el_types_1d)
+   {
+      for (auto order: orders_1d)
+      {
+         for (auto basis_type: basis_types)
+         {
+            test_derefine_L2_element(order, el_type, basis_type);
+         }
+      }
+   }
+
    dimension = 2;
-   test_derefine_L2_element(0, BasisType::Positive);
-   test_derefine_L2_element(1, BasisType::Positive);
-   // test_derefine_L2_element(2, BasisType::Positive);
+   for (auto el_type: el_types_2d)
+   {
+      for (auto order: orders_2d)
+      {
+         for (auto basis_type: basis_types)
+         {
+            test_derefine_L2_element(order, el_type, basis_type);
+         }
+      }
+   }
 
-   // test_derefine_L2_element(0, BasisType::GaussLegendre);
-   // test_derefine_L2_element(1, BasisType::GaussLegendre);
-   // test_derefine_L2_element(2, BasisType::GaussLegendre);
-
-   // test_derefine_L2_element(0, BasisType::GaussLobatto);
-   // test_derefine_L2_element(1, BasisType::GaussLobatto);
-   // test_derefine_L2_element(2, BasisType::GaussLobatto);
-
-   // dimension = 3;
-   // test_derefine_L2_element(0, BasisType::Positive);
-   // test_derefine_L2_element(1, BasisType::Positive);
-   // test_derefine_L2_element(2, BasisType::Positive);
-
-   // test_derefine_L2_element(0, BasisType::GaussLegendre);
-   // test_derefine_L2_element(1, BasisType::GaussLegendre);
-   // test_derefine_L2_element(2, BasisType::GaussLegendre);
-
-   // test_derefine_L2_element(0, BasisType::GaussLobatto);
-   // test_derefine_L2_element(1, BasisType::GaussLobatto);
-   // test_derefine_L2_element(2, BasisType::GaussLobatto);
-}
-
-TEST_CASE("Coarsen H1 Element, Verify Projection")
-{
-   // dimension = 2;
-   // test_derefine_H1_element(1, BasisType::GaussLobatto);
-
-   // test_derefine_H1_element(1, BasisType::GaussLegendre);
-   // test_derefine_H1_element(2, BasisType::GaussLegendre);
+   dimension = 3;
+   for (auto el_type: el_types_3d)
+   {
+      for (auto order: orders_3d)
+      {
+         for (auto basis_type: basis_types)
+         {
+            test_derefine_L2_element(order, el_type, basis_type);
+         }
+      }
+   }
 }
 
 #ifdef MFEM_USE_MPI
