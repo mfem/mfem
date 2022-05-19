@@ -11,7 +11,6 @@
 
 #include "submesh.hpp"
 #include "submesh_utils.hpp"
-#include "transfermap.hpp"
 #include "../../fem/gridfunc.hpp"
 
 namespace mfem
@@ -106,8 +105,15 @@ SubMesh::~SubMesh() {}
 
 void SubMesh::Transfer(const GridFunction &src, GridFunction &dst)
 {
-   detail::TransferMap map(src, dst);
+   TransferMap map(src, dst);
    map.Transfer(src, dst);
 }
+
+const TransferMap* SubMesh::CreateTransferMap(const GridFunction &src,
+                                              const GridFunction &dst)
+{
+   return new TransferMap(src, dst);
+}
+
 
 } // namespace mfem

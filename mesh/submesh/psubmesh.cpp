@@ -799,8 +799,8 @@ void ParSubMesh::Transfer(const ParGridFunction &src, ParGridFunction &dst)
    map.Transfer(src, dst);
 }
 
-const ParTransferMap* ParSubMesh::TransferMap(const ParGridFunction &src,
-                                              ParGridFunction &dst)
+const ParTransferMap* ParSubMesh::CreateTransferMap(const ParGridFunction &src,
+                                                    const ParGridFunction &dst)
 {
    return new ParTransferMap(src, dst);
 }

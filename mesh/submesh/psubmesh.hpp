@@ -118,11 +118,21 @@ public:
       return parent_vertex_ids_;
    }
 
+   /**
+    * @brief Get the parent face id map.
+    *
+    * ParSubMesh face id (array index) to parent ParMesh face id.
+    */
    const Array<int>& GetParentFaceIDMap() const
    {
       return parent_face_ids_;
    }
 
+   /**
+    * @brief Get the ParSubMesh face id map.
+    *
+    * ParMesh face id (array index) to ParSubMesh face id.
+    */
    const Array<int>& GetParentToSubMeshFaceIDMap() const
    {
       return parent_to_submesh_face_ids_;
@@ -141,8 +151,18 @@ public:
     */
    static void Transfer(const ParGridFunction &src, ParGridFunction &dst);
 
-   static const ParTransferMap* TransferMap(const ParGridFunction &src,
-                                            ParGridFunction &dst);
+   /**
+    * @brief Create a Transfer Map object.
+    *
+    * The @a src ParGridFunction can either be defined on a ParMesh or a
+    * ParSubMesh and is transferred appropriately.
+    *
+    * The returned pointer can be stored, reused and must be deleted.
+    *
+    * @note Either @a src or @a dst has to be defined on a ParSubMesh.
+    */
+   static const ParTransferMap* CreateTransferMap(const ParGridFunction &src,
+                                                  const ParGridFunction &dst);
 
    /**
    * @brief Check if ParMesh @a m is a ParSubMesh.

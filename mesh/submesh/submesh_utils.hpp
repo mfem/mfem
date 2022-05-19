@@ -84,12 +84,33 @@ AddElementsToMesh(const Mesh& parent,
 Array<int> BuildFaceMap(const Mesh& parent, const Mesh& mesh,
                         const Array<int> &parent_element_ids);
 
+/**
+ * @brief Build the vdof to vdof mapping between two FiniteElementSpace objects.
+ *
+ * Given two FiniteElementSpace objects and the map parent_element_ids, which
+ * maps the element ids of the subfes to elements on the parentfes (depending on
+ * from these can be elements or boundary elements), create a vdof to vdof map.
+ *
+ * This map is entirely serial and has no knowledge about parallel groups.
+ *
+ * @param[in] subfes
+ * @param[in] parentfes
+ * @param[in] from
+ * @param[in] parent_element_ids
+ * @param[out] vdof_to_vdof_map
+ */
 void BuildVdofToVdofMap(const FiniteElementSpace& subfes,
                         const FiniteElementSpace& parentfes,
                         const SubMesh::From& from,
                         const Array<int>& parent_element_ids,
                         Array<int>& vdof_to_vdof_map);
 
+/**
+ * @brief Identify the root parent of a given SubMesh.
+ *
+ * @tparam T The type of the input object which has to fulfill the
+ * SubMesh::GetParent() interface.
+ */
 template <class T, class RT>
 const RT* GetRootParent(const T &m)
 {

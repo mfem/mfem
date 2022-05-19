@@ -15,15 +15,17 @@
 
 namespace mfem
 {
-namespace detail
-{
+/**
+ * @brief TransferCategory describes the type of transfer.
+ *
+ * Usually used with a TransferMap.
+ */
 enum TransferCategory
 {
    ParentToSubMesh,
    SubMeshToParent,
    SubMeshToSubMesh
 };
-}
-}
+} // namespace mfem
 
 #endif // MFEM_TRANSFER_CATEGORY

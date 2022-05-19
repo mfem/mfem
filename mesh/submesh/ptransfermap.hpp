@@ -18,26 +18,88 @@
 namespace mfem
 {
 
+/**
+ * @brief ParTransferMap represents a mapping of degrees of freedom from a
+ * source ParGridFunction to a destination ParGridFunction.
+ *
+ * This map can be constructed from a parent ParMesh to a ParSubMesh or vice
+ * versa. Additionally one can create it between two ParSubMeshes that share the
+ * same root parent. In this case, a supplemental ParFiniteElementSpace is
+ * created on the root parent ParMesh to transfer degrees of freedom.
+ */
 class ParTransferMap
 {
 public:
+   /**
+    * @brief Construct a new ParTransferMap object which transfers degrees of
+    * freedom from the source ParGridFunction to the destination
+    * ParGridFunction.
+    *
+    * @param src The source ParGridFunction
+    * @param dst The destination ParGridFunction
+    */
    ParTransferMap(const ParGridFunction &src,
                   const ParGridFunction &dst);
 
+   /**
+    * @brief Transfer the source ParGridFunction to the destination
+    * ParGridFunction.
+    *
+    * Uses the precomputed maps for the transfer.
+    *
+    * @param src The source ParGridFunction
+    * @param dst The destination ParGridFunction
+    */
    void Transfer(const ParGridFunction &src, ParGridFunction &dst) const;
 
    ~ParTransferMap();
 
 private:
+   /**
+    * @brief Communicate from each local processor which index in map is set.
+    *
+    * The results is accumulated in the member variable indices_set_global_ and
+    * indicates which processor and how many processors in total will set a
+    * certain degree of freedom.
+    *
+    * Convenience method for tidyness. Uses and changes member variables.
+    */
    void CommunicateIndicesSet(Array<int> &map, int dst_sz);
 
+   /**
+    * @brief Communicate shared vdofs in Vector f.
+    *
+    * Guarantees that all ranks have the appropriate dofs set. See comments in
+    * implementation for more details.
+    *
+    * Convenience method for tidyness. Uses and changes member variables.
+    */
    void CommunicateSharedVdofs(Vector &f) const;
 
-   detail::TransferCategory category_;
-   Array<int> sub1_to_parent_map_, sub2_to_parent_map_, indices_set_local_,
-         indices_set_global_;
+   TransferCategory category_;
+
+   /// Mapping of the ParGridFunction defined on the SubMesh to the
+   /// ParGridfunction of it's parent ParMesh.
+   Array<int> sub1_to_parent_map_;
+
+   /// Mapping of the ParGridFunction defined on the second SubMesh to the
+   /// ParGridFunction of it's parent ParMesh. This is only used if this
+   /// ParTransferMap represents a ParSubMesh to ParSubMesh transfer.
+   Array<int> sub2_to_parent_map_;
+
+   /// Set of indices in the dof map that are set by the local rank.
+   Array<int> indices_set_local_;
+
+   /// Set of indices in the dof map that are set by all ranks. The number is
+   /// accumulated by summation.
+   Array<int> indices_set_global_;
+
+   /// Pointer to the supplemental ParFiniteElementSpace on the common root
+   /// parent ParMesh. This is only used if this ParTransferMap represents a
+   /// ParSubMesh to ParSubMesh transfer.
    const ParFiniteElementSpace *root_fes_ = nullptr;
-   const GroupCommunicator *root_gc_ = nullptr;
+
+   /// Temporary vector
    mutable Vector z_;
 };
 
