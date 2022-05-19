@@ -32,6 +32,9 @@ struct Jit
    /// Initialize JIT, used in communication Mpi singleton.
    static void Init(int *argc, char ***argv);
 
+   /// Set the archive name to @name.
+   static void Configure(const char *name, bool keep = true);
+
    /// Finalize JIT, used in communication Mpi singleton.
    static void Finalize();
 
@@ -55,17 +58,17 @@ struct Jit
       template<typename... Args> void operator()(Args... as) { kernel(as...); }
    };
 
-   /// \brief Terminal binary arguments hash combine function
+   /// \brief Terminal binary arguments hash combine function.
    template <typename T> static inline
    size_t Hash(const size_t &h, const T &a) noexcept
    { return h ^ (std::hash<T> {}(a) + 0x9e3779b97f4a7c15ull + (h<<12) + (h>>4));}
 
-   /// \brief Variadic hash combine function
+   /// \brief Variadic hash combine function.
    template<typename T, typename... Args> static inline
    size_t Hash(const size_t &h, const T &arg, Args ...args) noexcept
    { return Hash(Hash(h, arg), args...); }
 
-   /// \brief Creates a string from the hash and the optional extension
+   /// \brief Creates a string from the hash and the optional extension.
    static std::string ToString(const size_t hash, const char *ext = "")
    {
       std::stringstream ss {};
@@ -74,6 +77,8 @@ struct Jit
       return ss.str();
    }
 
+   /// \brief Find a Kernel in the given @a map.
+   /// If the kernel cannot be found, it will be inserted into the map.
    template <typename T, typename... Args> static inline
    Kernel<T> Find(const size_t hash, const char *name,
                   const char *cxx, const char *flags, const char *libs,

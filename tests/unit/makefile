@@ -264,7 +264,7 @@ ifeq ($(MFEM_USE_CUDA),YES)
 endif
 
 mjit_tests-test-seq: mjit_tests
-	@$(call mfem-test,$<,, MJIT unit tests,--device cpu,SKIP-NO-VIS)
+	@$(call mfem-test,$<,, Mjit tests,--device cpu,SKIP-NO-VIS)
 
 
 RUN_MPI = $(MFEM_MPIEXEC) $(MFEM_MPIEXEC_NP)
@@ -273,8 +273,8 @@ RUN_MPI = $(MFEM_MPIEXEC) $(MFEM_MPIEXEC_NP)
 	@$(call mfem-test,$<, $(RUN_MPI) $(MFEM_MPI_NP), Parallel unit tests,$(MFEM_DATA_FLAG),SKIP-NO-VIS)
 
 pmjit_tests-test-par: pmjit_tests
-	@$(call mfem-test,$<, $(RUN_MPI) 1, MJIT Parallel unit tests,--device cpu,SKIP-NO-VIS)
-	@$(call mfem-test,$<, $(RUN_MPI) $(MFEM_MPI_NP), MJIT Parallel unit tests,--device cpu,SKIP-NO-VIS)
+	@$(call mfem-test,$<, $(RUN_MPI) 1, Parallel mjit tests,--device cpu,SKIP-NO-VIS)
+	@$(call mfem-test,$<, $(RUN_MPI) $(MFEM_MPI_NP), Parallel mjit tests,--device cpu,SKIP-NO-VIS)
 
 # Generate an error message if the MFEM library is not built and exit
 $(MFEM_LIB_FILE):

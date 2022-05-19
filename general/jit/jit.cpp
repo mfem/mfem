@@ -92,12 +92,14 @@ static void Sync(int status = EXIT_SUCCESS)
 
 } // namespace mpi
 
-struct System // System singleton object
+class System // System singleton object
 {
    pid_t pid; // of child process
    int *s_ack; // shared status, should be large enough to store one MPI rank
    char *s_mem; // shared memory to store the command for the system call
    uintptr_t size; // of the s_mem shared memory
+   const char *name = "mjit"; // name for the archive and shared library
+   bool keep = true;
 
    struct Command
    {
@@ -168,6 +170,7 @@ struct System // System singleton object
       Write(ACK); // initialize state
    }
 
+public:
    static void Init(int *argc, char ***argv)
    {
       MFEM_CONTRACT_VAR(argc);
@@ -218,8 +221,18 @@ struct System // System singleton object
       MFEM_VERIFY(Pid()!=0, "Children shall not pass!");
    }
 
+   static void Configure(const char *name, bool keep)
+   {
+      Get().name = name;
+      Get().keep = keep;
+   }
+
    static void Finalize()
    {
+      if (mpi::Root() && !Get().keep)
+      {
+         std::remove(lib_ar()); std::remove(lib_so());
+      }
       // child and env-ranked have nothing to do
       if (Pid()==0 || Pid()==getpid()) { return; }
       MFEM_VERIFY(IsAck(), "[JIT] Finalize acknowledgment error!");
@@ -276,8 +289,22 @@ struct System // System singleton object
    LinkerOptions ar;
 #endif
 
-   static const char *lib_ar() { return "libmjit.a"; }
-   static const char *lib_so() { return "./libmjit.so"; }
+   static const char *lib_ar()
+   {
+      static std::string lib;
+      lib = "lib";
+      lib += Get().name;
+      lib += ".a";
+      return lib.c_str();
+   }
+   static const char *lib_so()
+   {
+      static std::string lib;
+      lib = "./lib";
+      lib += Get().name;
+      lib += ".so";
+      return lib.c_str();
+   }
    //static std::string Cxx() { return MFEM_JIT_CXX; }
    //static std::string Flags() { return MFEM_JIT_BUILD_FLAGS; }
    static std::string Xpic() { return Get().cxx.Pic(); }
@@ -300,7 +327,7 @@ struct System // System singleton object
          int status = EXIT_SUCCESS;
          if (mpi::Root())
          {
-            Command() << cxx << "-shared" << "-o" << lib_so()
+            Command() << cxx << flags << "-shared" << "-o" << lib_so()
                       << ARprefix() << lib_ar() << ARpostfix()
                       << Xlinker() + "-rpath,.";
             status = Call();
@@ -336,7 +363,7 @@ struct System // System singleton object
          std::remove(co.c_str());
 
          // Create temporary shared library: (ar + co) => symbol
-         Command() << cxx << "-shared" << "-o" << symbol
+         Command() << cxx << flags << "-shared" << "-o" << symbol
                    << ARprefix() << lib_ar() << ARpostfix()
                    << libs;
          if (Call(symbol)) { return EXIT_FAILURE; }
@@ -378,6 +405,8 @@ System System::singleton {}; // Initialize the unique System context.
 using namespace jit;
 
 void Jit::Init(int *argc, char ***argv) { System::Init(argc, argv); }
+
+void Jit::Configure(const char *name, bool keep) { System::Configure(name, keep); }
 
 void Jit::Finalize() { System::Finalize(); }
 

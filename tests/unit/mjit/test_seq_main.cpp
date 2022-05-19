@@ -9,8 +9,10 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-#define CATCH_CONFIG_RUNNER
 #include "mfem.hpp"
+#include "general/jit/jit.hpp"
+
+#define CATCH_CONFIG_RUNNER
 #include "catch.hpp"
 
 int main(int argc, char *argv[])
@@ -23,5 +25,8 @@ int main(int argc, char *argv[])
    session.cli(cli);
    if (session.applyCommandLine(argc, argv) != 0) { return EXIT_FAILURE; }
    mfem::Device device(device_str.c_str());
-   return session.run();
+   mfem::Jit::Configure("mjit_test_seq", false);
+   int result = session.run();
+   mfem::Jit::Finalize();
+   return result;
 }
