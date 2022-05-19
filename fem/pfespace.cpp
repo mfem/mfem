@@ -3055,7 +3055,8 @@ ParFiniteElementSpace::ParallelDerefinementMatrix(int old_ndofs,
                   int r = DofToVDof(dofs[i], vd);
 
                   lR.GetRow(i, row);
-                  for (int j = 0; j < old_vdofs.Size(); j++) {
+                  for (int j = 0; j < old_vdofs.Size(); j++)
+                  {
                      diag->Set(r, old_vdofs[j], row[j]);
                   }
                }
