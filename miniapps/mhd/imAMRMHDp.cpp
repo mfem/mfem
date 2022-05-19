@@ -218,7 +218,7 @@ int main(int argc, char *argv[])
       MPI_Finalize();
       return 1;
    }
-   if (icase==2)
+   if (icase==2 || icase == 7)
    {
       resiG=resi;
    }
@@ -277,10 +277,11 @@ int main(int argc, char *argv[])
       mesh->UniformRefinement();
    }
    Array<int> ordering;
-   mesh->GetHilbertElementOrdering(ordering);
-   mesh->ReorderElements(ordering);
-   mesh->EnsureNCMesh();    //note after this call all the mesh_level=0!!
-
+   if (mesh->Conforming()){
+     mesh->GetHilbertElementOrdering(ordering);
+     mesh->ReorderElements(ordering);
+     mesh->EnsureNCMesh();    //note after this call all the mesh_level=0!!
+   }
    //amr_levels+=ser_ref_levels; this is not needed any more
 
    pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
@@ -360,18 +361,23 @@ int main(int argc, char *argv[])
       }
       else if (icase==2)
       {
-           FunctionCoefficient psiInit2(InitialPsi2);
-           psiTmp.ProjectCoefficient(psiInit2);
+           FunctionCoefficient psiInit(InitialPsi2);
+           psiTmp.ProjectCoefficient(psiInit);
       }
       else if (icase==3)
       {
-           FunctionCoefficient psiInit3(InitialPsi3);
-           psiTmp.ProjectCoefficient(psiInit3);
+           FunctionCoefficient psiInit(InitialPsi3);
+           psiTmp.ProjectCoefficient(psiInit);
       }
       else if (icase==4)
       {
-           FunctionCoefficient psiInit4(InitialPsi4);
-           psiTmp.ProjectCoefficient(psiInit4);
+           FunctionCoefficient psiInit(InitialPsi4);
+           psiTmp.ProjectCoefficient(psiInit);
+      }
+      else if (icase==7)
+      {
+           FunctionCoefficient psiInit(InitialPsi7);
+           psiTmp.ProjectCoefficient(psiInit);
       }
       psiTmp.SetTrueVector();
 
@@ -394,6 +400,11 @@ int main(int argc, char *argv[])
       {
            FunctionCoefficient jInit4(InitialJ4);
            jTmp.ProjectCoefficient(jInit4);
+      }
+      else if (icase==7)
+      {
+           FunctionCoefficient jInit7(InitialJ7);
+           jTmp.ProjectCoefficient(jInit7);
       }
       jTmp.SetTrueVector();
 
@@ -453,17 +464,23 @@ int main(int argc, char *argv[])
    }
    else if (icase==2)
    {
-        FunctionCoefficient psiInit2(InitialPsi2);
-        psi.ProjectCoefficient(psiInit2);
+        FunctionCoefficient psiInit(InitialPsi2);
+        psi.ProjectCoefficient(psiInit);
    }
    else if (icase==3)
    {
-        FunctionCoefficient psiInit3(InitialPsi3);
-        psi.ProjectCoefficient(psiInit3);
-   }else if (icase==4)
+        FunctionCoefficient psiInit(InitialPsi3);
+        psi.ProjectCoefficient(psiInit);
+   }
+   else if (icase==4)
    {
-        FunctionCoefficient psiInit4(InitialPsi4);
-        psi.ProjectCoefficient(psiInit4);
+        FunctionCoefficient psiInit(InitialPsi4);
+        psi.ProjectCoefficient(psiInit);
+   }
+   else if (icase==7)
+   {
+        FunctionCoefficient psiInit(InitialPsi7);
+        psi.ProjectCoefficient(psiInit);
    }
    psi.SetTrueVector();
    psi.SetFromTrueVector(); 
@@ -482,9 +499,12 @@ int main(int argc, char *argv[])
    else if (icase==3 || icase==4){
        oper.SetRHSEfield(E0rhs3);
    }
+   else if (icase==7){
+       oper.SetRHSEfield(E0rhs7);
+   }
 
    //set initial J
-   FunctionCoefficient jInit1(InitialJ), jInit2(InitialJ2), jInit3(InitialJ3), jInit4(InitialJ4), *jptr;
+   FunctionCoefficient jInit1(InitialJ), jInit2(InitialJ2), jInit3(InitialJ3), jInit4(InitialJ4), jInit7(InitialJ7), *jptr;
    if (icase==1)
        jptr=&jInit1;
    else if (icase==2)

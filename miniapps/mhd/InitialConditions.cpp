@@ -3,6 +3,7 @@
 double vari_coeff=10.;
 double visc_bdy=1e-2;
 double tau=200.;
+double L0=1.0;
 
 double InitialPhi(const Vector &x)
 {
@@ -193,5 +194,24 @@ double InitialPsi4(const Vector &x)
     return -lambda*log( cosh(x(1)/lambda) +ep*cos(x(0)/lambda) )
            +beta*exp(-tau*x(1)*x(1))*cos(M_PI*x(0));
 }
+
+double E0rhs7(const Vector &x)
+{
+    return resiG*( tanh(x(1)/L0)*tanh(x(1)/L0) - 1.0 )/L0;
+}
+
+double InitialPsi7(const Vector &x)
+{
+    double l = 5.0*L0;
+    return -L0*log(cosh(x(1)/L0)) - 0.05*exp( - (x(0)/l)*(x(0)/l) - (x(1)/l)*(x(1)/l) );
+}
+
+double InitialJ7(const Vector &x)
+{
+    double l = 5.0*L0;
+    double exp_xy =exp( - (x(0)/l)*(x(0)/l) - (x(1)/l)*(x(1)/l) );
+    return ( tanh(x(1)/L0)*tanh(x(1)/L0) - 1.0 )/L0  + 0.05*exp_xy/l/l*( 2.0 - 4.0*(x(1)/l)*(x(1)/l) );
+}
+
 
 

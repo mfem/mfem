@@ -42,11 +42,16 @@ double BackPsi3(const Vector &x);
 double InitialPsi32(const Vector &x);
 double BackPsi32(const Vector &x);
 
+double InitialJ4(const Vector &x);
+double InitialPsi4(const Vector &x);
+
 double InitialJ6(const Vector &x);
 double InitialPsi6(const Vector &x);
 
+double InitialPsi7(const Vector &x);
+double InitialJ7(const Vector &x);
+double E0rhs7(const Vector &x);
+
 double resiVari(const Vector &x);
 
-double InitialJ4(const Vector &x);
-double InitialPsi4(const Vector &x);
 
