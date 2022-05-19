@@ -38,6 +38,7 @@
 //    mpirun -np 2 pfindpts -m ../../data/rt-2d-q3.mesh -o 3 -mo 4 -ft 2
 //    mpirun -np 2 pfindpts -m ../../data/inline-quad.mesh -ft 1 -no-vis -sr0
 //    mpirun -np 2 pfindpts -m ../../data/square-mixed.mesh -o 2 -mo 2
+//    mpirun -np 2 pfindpts -m ../../data/square-mixed.mesh -o 2 -mo 2 -hr
 //    mpirun -np 2 pfindpts -m ../../data/square-mixed.mesh -o 2 -mo 3 -ft 2
 //    mpirun -np 2 pfindpts -m ../../data/fichera-mixed.mesh -o 3 -mo 2
 //    mpirun -np 2 pfindpts -m ../../data/inline-pyramid.mesh -o 1 -mo 1
@@ -109,7 +110,7 @@ int main (int argc, char *argv[])
                   "Enable search only on rank 0 (disable to search points on all tasks).");
    args.AddOption(&hrefinement, "-hr", "--h-refinement", "-no-hr",
                   "--no-h-refinement",
-                  "Do random h refinements to mesh.");
+                  "Do random h refinements to mesh (does not work for pyramids).");
 
    args.Parse();
    if (!args.Good())
