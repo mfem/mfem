@@ -8,19 +8,20 @@ int Ww = 350, Wh = 350;
 int Wx = 0, Wy = 0;
 int offx = Ww+5, offy = Wh+25;
 
-void Visualize(Mesh& mesh, GridFunction& gf, const string &title, const string& caption, int x, int y)
+void Visualize(Mesh& mesh, GridFunction& gf, const string &title,
+               const string& caption, int x, int y)
 {
-    int w = 400, h = 350;
+   int w = 400, h = 350;
 
-    char vishost[] = "localhost";
-    int  visport   = 19916;
+   char vishost[] = "localhost";
+   int  visport   = 19916;
 
-    socketstream sol_sockL2(vishost, visport);
-    sol_sockL2.precision(10);
-    sol_sockL2 << "solution\n" << mesh << gf
-               << "window_geometry " << x << " " << y << " " << w << " " << h
-               << "window_title '" << title << "'"
-               << "plot_caption '" << caption << "'" << flush;
+   socketstream sol_sockL2(vishost, visport);
+   sol_sockL2.precision(10);
+   sol_sockL2 << "solution\n" << mesh << gf
+              << "window_geometry " << x << " " << y << " " << w << " " << h
+              << "window_title '" << title << "'"
+              << "plot_caption '" << caption << "'" << flush;
 }
 
 int dimension = 2;
@@ -33,17 +34,17 @@ struct PolyCoeff
    static int order_;
 
    static double poly_coeff(const Vector& x)
+   {
+      int& o = order_;
+      if (dimension == 2)
       {
-         int& o = order_;
-         if (dimension == 2)
-         {
-            return pow(x[0],o) +pow(x[1],o);
-         }
-         else
-         {
-            return pow(x[0],o) +pow(x[1],o) +pow(x[2],o);
-         }
+         return pow(x[0],o) +pow(x[1],o);
       }
+      else
+      {
+         return pow(x[0],o) +pow(x[1],o) +pow(x[2],o);
+      }
+   }
 };
 int PolyCoeff::order_ = -1;
 
@@ -63,7 +64,8 @@ double square_integrate(GridFunction* gf)
    Vector gf_sq_vec = *gf;
    GridFunction gf_sq(gf->FESpace());
    gf_sq.SetData(gf_sq_vec);
-   for (int i = 0; i < gf->Size(); i++) {
+   for (int i = 0; i < gf->Size(); i++)
+   {
       gf_sq(i) = (*gf)(i)*(*gf)(i);
    }
 
@@ -73,7 +75,7 @@ double square_integrate(GridFunction* gf)
 int main()
 {
    Mesh mesh = Mesh::MakeCartesian2D(
-      1, 1, Element::QUADRILATERAL, true, 1.0, 1.0);
+                  1, 1, Element::QUADRILATERAL, true, 1.0, 1.0);
    mesh.EnsureNCMesh();
    mesh.EnsureNodes();
 
@@ -139,8 +141,10 @@ int main()
    cout << "err0: " << err0 << endl;
 
    double eps = 1.e-3;
-   for (int i = 0; i < coarse_soln_v.Size(); i++) {
-      for (int f = -1; f <= 1; f += 2) {
+   for (int i = 0; i < coarse_soln_v.Size(); i++)
+   {
+      for (int f = -1; f <= 1; f += 2)
+      {
          printf("testing dof %d/%d w/ %+d... ",i,coarse_soln_v.Size(),f);
 
          mesh.DerefineByError(local_err, threshold);
@@ -155,10 +159,12 @@ int main()
 
          double err = x_fine.ComputeL2Error(gfc);
 
-         if (err > err0) {
+         if (err > err0)
+         {
             cout << "is local minimum." << endl;
          }
-         else {
+         else
+         {
             printf("err decreased from %f to %f (%e)\n",err0,err,err-err0);
          }
          //assert( err > err0 );
