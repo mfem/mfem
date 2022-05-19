@@ -428,7 +428,8 @@ TEST_CASE("Parallel Coarsen Stress Test", "[Coarsen][Parallel]")
    std::vector<int> orders_2d{0,1,2,3};
    std::vector<int> orders_3d{0,1,2};
 
-   std::vector<int> basis_types{
+   std::vector<int> basis_types
+   {
       BasisType::Positive,
       BasisType::GaussLegendre,
       BasisType::GaussLobatto};

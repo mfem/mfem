@@ -3164,7 +3164,8 @@ ParFiniteElementSpace::ParallelDerefinementMatrix(int old_ndofs,
          }
       }
    }
-   else {
+   else
+   {
       for (int k = 0; k < dtrans.embeddings.Size(); k++)
       {
          const Embedding &emb = dtrans.embeddings[k];
