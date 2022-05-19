@@ -5136,8 +5136,6 @@ void ParMesh::PrintAsOne(std::ostream &os) const
 
 void ParMesh::PrintAsSerial(std::ostream &os) const
 {
-   bool curvature = GetNodes();
-
    // Define required spaces
    H1_FECollection fec_linear(1, Dim);
    ParMesh *pm = const_cast<ParMesh *>(this);
@@ -5156,7 +5154,7 @@ void ParMesh::PrintAsSerial(std::ostream &os) const
 
    Mesh serialmesh = Mesh(Dim, nvertices_glob, ne_glob, nbe_glob, spaceDim);
 
-   int nv_ne[2], &nv = nv_ne[0], &ne = nv_ne[1];
+   int n_send_recv;
    MPI_Status status;
    Array<double> vert;
    Array<int> ints, dofs;
@@ -5181,13 +5179,13 @@ void ParMesh::PrintAsSerial(std::ostream &os) const
 
       for (int p = 1; p < NRanks; p++)
       {
-         MPI_Recv(nv_ne, 2, MPI_INT, p, 444, MPI_COMM_WORLD, &status);
-         ints.SetSize(ne);
-         if (ne)
+         MPI_Recv(&n_send_recv, 1, MPI_INT, p, 444, MPI_COMM_WORLD, &status);
+         ints.SetSize(n_send_recv);
+         if (n_send_recv)
          {
-            MPI_Recv(&ints[0], ne, MPI_INT, p, 445, MPI_COMM_WORLD, &status);
+            MPI_Recv(&ints[0], n_send_recv, MPI_INT, p, 445, MPI_COMM_WORLD, &status);
          }
-         for (int i = 0; i < ne; )
+         for (int i = 0; i < n_send_recv; )
          {
             int attr = ints[i++];
             int geom_type = ints[i++];
@@ -5205,14 +5203,13 @@ void ParMesh::PrintAsSerial(std::ostream &os) const
    }
    else
    {
-      ne = 0;
+      n_send_recv = 0;
       for (int e = 0; e < NumOfElements; e++)
       {
-         ne += 2 + elements[e]->GetNVertices();
+         n_send_recv += 2 + elements[e]->GetNVertices();
       }
-      nv = GetNV();
-      MPI_Send(nv_ne, 2, MPI_INT, 0, 444, MPI_COMM_WORLD);
-      ints.Reserve(ne);
+      MPI_Send(&n_send_recv, 1, MPI_INT, 0, 444, MPI_COMM_WORLD);
+      ints.Reserve(n_send_recv);
       ints.SetSize(0);
       for (int e = 0; e < NumOfElements; e++)
       {
@@ -5226,9 +5223,9 @@ void ParMesh::PrintAsSerial(std::ostream &os) const
             ints.Append(pfespace_linear.GetGlobalTDofNumber(dofs[j]));
          }
       }
-      if (ne)
+      if (n_send_recv)
       {
-         MPI_Send(&ints[0], ne, MPI_INT, 0, 445, MPI_COMM_WORLD);
+         MPI_Send(&ints[0], n_send_recv, MPI_INT, 0, 445, MPI_COMM_WORLD);
       }
    }
 
@@ -5253,13 +5250,13 @@ void ParMesh::PrintAsSerial(std::ostream &os) const
 
       for (int p = 1; p < NRanks; p++)
       {
-         MPI_Recv(nv_ne, 2, MPI_INT, p, 446, MPI_COMM_WORLD, &status);
-         ints.SetSize(ne);
-         if (ne)
+         MPI_Recv(&n_send_recv, 1, MPI_INT, p, 446, MPI_COMM_WORLD, &status);
+         ints.SetSize(n_send_recv);
+         if (n_send_recv)
          {
-            MPI_Recv(&ints[0], ne, MPI_INT, p, 447, MPI_COMM_WORLD, &status);
+            MPI_Recv(&ints[0], n_send_recv, MPI_INT, p, 447, MPI_COMM_WORLD, &status);
          }
-         for (int i = 0; i < ne; )
+         for (int i = 0; i < n_send_recv; )
          {
             // processor number + 1 as attribute and geometry type
             int attr = ints[i++];
@@ -5278,13 +5275,13 @@ void ParMesh::PrintAsSerial(std::ostream &os) const
    } //MyRank == 0
    else
    {
-      ne = 0;
+      n_send_recv = 0;
       for (int e = 0; e < NumOfBdrElements; e++)
       {
-         ne += 2 + GetBdrElement(e)->GetNVertices();
+         n_send_recv += 2 + GetBdrElement(e)->GetNVertices();
       }
-      MPI_Send(nv_ne, 2, MPI_INT, 0, 446, MPI_COMM_WORLD);
-      ints.Reserve(ne);
+      MPI_Send(&n_send_recv, 1, MPI_INT, 0, 446, MPI_COMM_WORLD);
+      ints.Reserve(n_send_recv);
       ints.SetSize(0);
       for (int e = 0; e < NumOfBdrElements; e++)
       {
@@ -5298,9 +5295,9 @@ void ParMesh::PrintAsSerial(std::ostream &os) const
             ints.Append(pfespace_linear.GetGlobalTDofNumber(dofs[j]));
          }
       }
-      if (ne)
+      if (n_send_recv)
       {
-         MPI_Send(&ints[0], ne, MPI_INT, 0, 447, MPI_COMM_WORLD);
+         MPI_Send(&ints[0], n_send_recv, MPI_INT, 0, 447, MPI_COMM_WORLD);
       }
    } //MyRank != 0
 
@@ -5316,7 +5313,7 @@ void ParMesh::PrintAsSerial(std::ostream &os) const
    // From each processor, we send element-wise vertex/dof locations and
    // overwrite the vertex/dof locations of the serial mesh.
    FiniteElementSpace *fespace_serial = NULL;
-   if (curvature)
+   if (Nodes)
    {
       fespace_serial = new FiniteElementSpace(&serialmesh,
                                               GetNodalFESpace()->FEColl(),
@@ -5332,9 +5329,9 @@ void ParMesh::PrintAsSerial(std::ostream &os) const
       Array<int> ints_serial;
       for (int e = 0; e < NumOfElements; e++)
       {
-         if (curvature)
+         if (Nodes)
          {
-            GetNodes()->GetElementDofValues(e, nodeloc);
+            Nodes->GetElementDofValues(e, nodeloc);
             serialmesh.GetNodalFESpace()->GetElementVDofs(elem_count++, dofs);
             serialmesh.GetNodes()->SetSubVector(dofs, nodeloc);
          }
@@ -5348,7 +5345,7 @@ void ParMesh::PrintAsSerial(std::ostream &os) const
                double *vdata_serial = serialmesh.GetVertex(ints_serial[i]);
                for (int d = 0; d < spaceDim; d++)
                {
-                  (vdata_serial[d]) = (vdata[d]);
+                  vdata_serial[d] = (vdata[d]);
                }
             }
          }
@@ -5356,66 +5353,63 @@ void ParMesh::PrintAsSerial(std::ostream &os) const
 
       for (int p = 1; p < NRanks; p++)
       {
-         MPI_Recv(nv_ne, 2, MPI_INT, p, 448, MPI_COMM_WORLD, &status);
-         vert.SetSize(ne);
-         if (ne)
+         MPI_Recv(&n_send_recv, 1, MPI_INT, p, 448, MPI_COMM_WORLD, &status);
+         vert.SetSize(n_send_recv);
+         if (n_send_recv)
          {
-            MPI_Recv(&vert[0], ne, MPI_DOUBLE, p, 449, MPI_COMM_WORLD, &status);
+            MPI_Recv(&vert[0], n_send_recv, MPI_DOUBLE, p, 449, MPI_COMM_WORLD, &status);
          }
-         ne = 0;
-         for (int i = 0; i < nv; i++)
+         for (int i = 0; i < n_send_recv;)
          {
-            if (curvature)
+            if (Nodes)
             {
                serialmesh.GetNodalFESpace()->GetElementVDofs(elem_count++, dofs);
                nodeloc.SetSize(dofs.Size());
                for (int d = 0; d < dofs.Size(); d++)
                {
-                  nodeloc(d) = vert[ne++];
+                  nodeloc(d) = vert[i++];
                }
                serialmesh.GetNodes()->SetSubVector(dofs, nodeloc);
             }
             else
             {
                serialmesh.GetElementVertices(elem_count++, ints_serial);
-               for (int i = 0; i < ints_serial.Size(); i++)
+               for (int j = 0; j < ints_serial.Size(); j++)
                {
-                  double *vdata_serial = serialmesh.GetVertex(ints_serial[i]);
+                  double *vdata_serial = serialmesh.GetVertex(ints_serial[j]);
                   for (int d = 0; d < spaceDim; d++)
                   {
-                     (vdata_serial[d]) = vert[ne++];
+                     vdata_serial[d] = vert[i++];
                   }
                }
-
             }
          }
       }
    } //MyRank == 0
    else
    {
-      ne = 0;
+      n_send_recv = 0;
       Vector nodeloc;
       for (int e = 0; e < NumOfElements; e++)
       {
-         if (curvature)
+         if (Nodes)
          {
             const FiniteElement *fe = GetNodalFESpace()->GetFE(e);
-            ne += spaceDim*fe->GetDof();
+            n_send_recv += spaceDim*fe->GetDof();
          }
          else
          {
-            ne += elements[e]->GetNVertices()*spaceDim;
+            n_send_recv += elements[e]->GetNVertices()*spaceDim;
          }
       }
-      nv = NumOfElements;
-      MPI_Send(nv_ne, 2, MPI_INT, 0, 448, MPI_COMM_WORLD);
-      vert.Reserve(ne);
+      MPI_Send(&n_send_recv, 1, MPI_INT, 0, 448, MPI_COMM_WORLD);
+      vert.Reserve(n_send_recv);
       vert.SetSize(0);
       for (int e = 0; e < NumOfElements; e++)
       {
-         if (curvature)
+         if (Nodes)
          {
-            GetNodes()->GetElementDofValues(e, nodeloc);
+            Nodes->GetElementDofValues(e, nodeloc);
             for (int j = 0; j < nodeloc.Size(); j++)
             {
                vert.Append(nodeloc(j));
@@ -5434,9 +5428,9 @@ void ParMesh::PrintAsSerial(std::ostream &os) const
             }
          }
       }
-      if (ne)
+      if (n_send_recv)
       {
-         MPI_Send(&vert[0], ne, MPI_DOUBLE, 0, 449, MPI_COMM_WORLD);
+         MPI_Send(&vert[0], n_send_recv, MPI_DOUBLE, 0, 449, MPI_COMM_WORLD);
       }
    }
 
