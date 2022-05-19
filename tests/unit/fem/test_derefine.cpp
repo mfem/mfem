@@ -346,7 +346,6 @@ void CoarsenRandomly(ParMesh& pmesh,
 
 void stress_parallel_coarsen(int order, Element::Type el_type, int basis_type)
 {
-   int num_procs = Mpi::WorldSize();
    int myid = Mpi::WorldRank();
 
    Mesh mesh;
@@ -416,9 +415,6 @@ void stress_parallel_coarsen(int order, Element::Type el_type, int basis_type)
       err = x.ComputeL2Error(c);
       REQUIRE( err < 1.e-12 );
    }
-
-   // Visualize(num_procs, myid, pmesh, x, "after refine","after refine",Wx, Wy);
-   // Wx += offx;
 }
 
 TEST_CASE("Parallel Coarsen Stress Test", "[Coarsen][Parallel]")
