@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Scurity, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -13,6 +13,7 @@
 
 #include "fe_pos.hpp"
 #include "../bilininteg.hpp"
+#include "../lininteg.hpp"
 #include "../coefficient.hpp"
 
 namespace mfem
@@ -23,12 +24,17 @@ using namespace std;
 void PositiveFiniteElement::Project(
    Coefficient &coeff, ElementTransformation &Trans, Vector &dofs) const
 {
-   for (int i = 0; i < dof; i++)
-   {
-      const IntegrationPoint &ip = Nodes.IntPoint(i);
-      Trans.SetIntPoint(&ip);
-      dofs(i) = coeff.Eval(Trans, ip);
-   }
+   DenseMatrix mass;
+   MassIntegrator mass_integ;
+
+   mass_integ.AssembleElementMatrix(*this, Trans, mass);
+   DenseMatrixInverse mass_inv(mass);
+
+   Vector rhs(dofs.Size());
+   DomainLFIntegrator lfi(coeff);
+   lfi.AssembleRHSElementVect(*this, Trans, rhs);
+
+   mass_inv.Mult(rhs, dofs);
 }
 
 void PositiveFiniteElement::Project(

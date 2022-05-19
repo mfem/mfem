@@ -456,7 +456,7 @@ void ScalarFiniteElement::ScalarLocalInterpolation(
    }
 }
 
-void ScalarFiniteElement::ScalarLocalRestriction(
+void ScalarFiniteElement::ScalarLocalL2Restriction(
    ElementTransformation &Trans, DenseMatrix &R,
    const ScalarFiniteElement &coarse_fe) const
 {
@@ -489,7 +489,8 @@ void ScalarFiniteElement::ScalarLocalRestriction(
       Trans.Transform(f_ip, vv);
       c_ip.Set(v, dim);
       coarse_fe.CalcShape(c_ip, coarse_shape);
-      AddMult_a_VWt(f_ip.weight*Trans.Weight(), coarse_shape, fine_shape, coarse_fine_mass);
+      AddMult_a_VWt(f_ip.weight*Trans.Weight(), coarse_shape, fine_shape,
+                    coarse_fine_mass);
    }
 
    DenseMatrixInverse coarse_mass_inv(coarse_mass);
