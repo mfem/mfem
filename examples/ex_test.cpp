@@ -10,7 +10,7 @@ int offx = Ww+5, offy = Wh+25;
 
 void Visualize(Mesh& mesh, GridFunction& gf, const string &title, const string& caption, int x, int y)
 {
-    int w = 350, h = 350;
+    int w = 400, h = 350;
 
     char vishost[] = "localhost";
     int  visport   = 19916;
@@ -25,24 +25,34 @@ void Visualize(Mesh& mesh, GridFunction& gf, const string &title, const string& 
 
 int dimension = 2;
 
-// linear function
-double linear_coeff(const Vector& x)
+
+// for order 0, linear, order 1, quadratic, etc.
+
+struct PolyCoeff
 {
-   if (dimension == 2)
-   {
-      return pow(x[0],2.0)+pow(x[1],2.0);
-   }
-   else
-   {
-      return x[0]+x[1]+x[2];
-   }
-}
+   static int order_;
+
+   static double poly_coeff(const Vector& x)
+      {
+         int& o = order_;
+         if (dimension == 2)
+         {
+            return pow(x[0],o) +pow(x[1],o);
+         }
+         else
+         {
+            return pow(x[0],o) +pow(x[1],o) +pow(x[2],o);
+         }
+      }
+};
+int PolyCoeff::order_ = -1;
 
 double integrate(GridFunction* gf)
 {
    ConstantCoefficient one(1.0);
    LinearForm lf(gf->FESpace());
-   lf.AddDomainIntegrator(new DomainLFIntegrator(one));
+   LinearFormIntegrator* lfi = new DomainLFIntegrator(one);
+   lf.AddDomainIntegrator(lfi);
    lf.Assemble();
    double integral = lf(*gf);
    return integral;
@@ -67,18 +77,15 @@ int main()
    mesh.EnsureNCMesh();
    mesh.EnsureNodes();
 
-   int order = 1;
-   L2_FECollection fec(order, dimension, BasisType::Positive);
-   //L2_FECollection fec(order, dimension, BasisType::GaussLobatto);
+   int order = 0;
+   L2_FECollection fec(order, dimension, BasisType::GaussLegendre);
+   // L2_FECollection fec(order, dimension, BasisType::Positive);
    FiniteElementSpace fespace(&mesh, &fec);
    GridFunction x(&fespace);
 
-   FunctionCoefficient c(linear_coeff);
-   x.ProjectCoefficient(c);
-
-   Vector coarse_projection = x;
-
-   Visualize(mesh, x, "coarse proj","coarse proj",Wx, Wy); Wx += offx;
+   PolyCoeff pcoeff;
+   pcoeff.order_ = 3;
+   FunctionCoefficient c(PolyCoeff::poly_coeff);
 
    Array<Refinement> refinements;
    refinements.Append(Refinement(0));
@@ -87,16 +94,20 @@ int main()
    fespace.Update();
    x.Update();
 
-   // re-project to get function that isn't exactly representable in
-   // the coarse space.
+   // project to get function that isn't exactly representable in the
+   // fine space.
    x.ProjectCoefficient(c);
 
-   double mass_fine = integrate(&x);
+   // save the fine solution
+   Vector xf = x;
+   GridFunction x_fine(x.FESpace());
+   x_fine.SetData(xf);
+
+   double mass_fine = integrate(&x_fine);
+
    cout << "mass_fine: " << mass_fine << endl;
 
-   Vector fine_projection = x;
-
-   Visualize(mesh, x, "fine proj","fine proj",Wx, Wy); Wx += offx;
+   Visualize(mesh, x_fine, "fine proj","fine proj",Wx, Wy); Wx += offx;
 
    Vector local_err(mesh.GetNE());
    local_err = 0.;
@@ -104,6 +115,8 @@ int main()
    mesh.DerefineByError(local_err, threshold);
    fespace.Update();
    x.Update();
+
+   Vector coarse_soln_v{x};
 
    Visualize(mesh, x, "coarsened", "coarsened", Wx, Wy); Wx += offx;
 
@@ -113,55 +126,42 @@ int main()
    // conservation check
    assert( fabs(mass_fine-mass_coarse) < 1.e-12 );
 
-   Vector coarse_soln_vec = x;
-   GridFunction coarse_solution(x.FESpace());
-   coarse_solution.SetData(coarse_soln_vec);
-
-   // test optimality of projection
-
+   // re-refine to get everything on the same grid
    mesh.GeneralRefinement(refinements);
    fespace.Update();
    x.Update();
 
-   Visualize(mesh, x, "re-refined","re-refined",Wx, Wy); Wx += offx;
+   // Compute error
+   GridFunctionCoefficient gfc(&x);
 
-   Vector coarse_soln_in_fine_space_vec = x;
-   GridFunction coarse_soln_in_fine_space(x.FESpace());
-   coarse_soln_in_fine_space.SetData(coarse_soln_in_fine_space_vec);
+   double err0 = x_fine.ComputeL2Error(gfc);
 
-   Vector err_gf_vec = x;
-   GridFunction err_gf(x.FESpace());
-   err_gf.SetData(err_gf_vec);
-
-   err_gf -= fine_projection;
-
-   double err0 = square_integrate(&err_gf);
    cout << "err0: " << err0 << endl;
 
-   double eps = 1.e-6;
-   for (int f = -1; f <= 1; f += 2) {
-      for (int i = 0; i < coarse_solution.Size(); i++) {
-         printf("testing dof %d/%d... ",i,coarse_solution.Size());
+   double eps = 1.e-3;
+   for (int i = 0; i < coarse_soln_v.Size(); i++) {
+      for (int f = -1; f <= 1; f += 2) {
+         printf("testing dof %d/%d w/ %+d... ",i,coarse_soln_v.Size(),f);
 
          mesh.DerefineByError(local_err, threshold);
          fespace.Update();
          x.Update();
-         x = coarse_solution;
+         x = coarse_soln_v;
          x(i) += f*eps;
 
          mesh.GeneralRefinement(refinements);
          fespace.Update();
          x.Update();
 
-         err_gf = x;
-         err_gf -= fine_projection;
+         double err = x_fine.ComputeL2Error(gfc);
 
-         double err = square_integrate(&err_gf);
          if (err > err0) {
-            cout << "... is local minimum." << endl;
+            cout << "is local minimum." << endl;
          }
-
-         assert( err > err0 );
+         else {
+            printf("err decreased from %f to %f (%e)\n",err0,err,err-err0);
+         }
+         //assert( err > err0 );
       }
    }
    cout << "pass: coarse solution is optimal" << endl;
