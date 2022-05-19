@@ -1,6 +1,6 @@
-//                   MFEM Ultraweak DPG acoustics example
+//                   MFEM Ultraweak DPG Maxwell example
 //
-// Compile with: make uw_dpg
+// Compile with: make complex_uw_dpg
 //
 
 //      ∇×(1/μ ∇×E) - ω^2 ϵ E = Ĵ ,   in Ω
@@ -103,7 +103,6 @@ int dimc;
 double omega;
 double mu = 1.0;
 double epsilon = 1.0;
-DenseMatrix rot_mat;
 
 enum prob_type
 {
@@ -224,14 +223,12 @@ int main(int argc, char *argv[])
    ConstantCoefficient epsomeg(epsilon*omega);
    ConstantCoefficient negmuomeg(-mu*omega);
 
-   rot_mat.SetSize(2);
+   DenseMatrix rot_mat(2);
    rot_mat(0,0) = 0.; rot_mat(0,1) = 1.;
    rot_mat(1,0) = -1.; rot_mat(1,1) = 0.;
    MatrixConstantCoefficient rot(rot_mat);
    ScalarMatrixProductCoefficient epsrot(epsomeg,rot);
    ScalarMatrixProductCoefficient negepsrot(negepsomeg,rot);
-   // ScalarMatrixProductCoefficient cf_rot(negmuomeg,rot);
-   // ScalarMatrixProductCoefficient cf_rott(muomeg,rot);
    // Normal equation weak formulation
    Array<FiniteElementSpace * > trial_fes; 
    Array<FiniteElementCollection * > test_fec; 

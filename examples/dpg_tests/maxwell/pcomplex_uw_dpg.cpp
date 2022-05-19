@@ -1,38 +1,57 @@
-//                   MFEM Ultraweak DPG acoustics example
+//                   MFEM Ultraweak DPG Maxwell parallel example
 //
-// Compile with: make uw_dpg
+// Compile with: make pcomplex_uw_dpg
 //
+// sample run 
+// mpirun -np 4 ./pcomplex_uw_dpg -o 3 -m ../../../data/inline-quad.mesh -sref 3 -pref 2 -rnum 4.1 -prob 1 -sc
 
-//     - Δ p - ω^2 p = f̃ ,   in Ω
-//                 p = p_0, on ∂Ω
+//      ∇×(1/μ ∇×E) - ω^2 ϵ E = Ĵ ,   in Ω
+//                E×n = E_0, on ∂Ω
 
 // First Order System
 
-//  ∇ p + i ω u = 0, in Ω
-//  ∇⋅u + i ω p = f, in Ω
-//           p = p_0, in ∂Ω
-// where f:=f̃/(i ω) 
+//  i ω μ H + ∇ × E = 0,   in Ω
+// -i ω ϵ E + ∇ × H = J,   in Ω
+//            E × n = E_0, on ∂Ω
+
+// note: Ĵ = -iωJ
+// in 2D 
+// E is vector valued and H is scalar. 
+//    (∇ × E, F) = (E, ∇ × F) + < n × E , F>
+// or (∇ ⋅ AE , F) = (AE, ∇ F) + < AE ⋅ n, F>
+// where A = A = [0 1; -1 0];
 
 // UW-DPG:
 // 
-// p ∈ L^2(Ω), u ∈ (L^2(Ω))^dim 
-// p̂ ∈ H^1/2(Ω), û ∈ H^-1/2(Ω)  
-// -(p,  ∇⋅v) + i ω (u , v) + < p̂, v⋅n> = 0,      ∀ v ∈ H(div,Ω)      
-// -(u , ∇ q) + i ω (p , q) + < û, q >  = (f,q)   ∀ q ∈ H^1(Ω)
-//                                  p̂  = p_0     on ∂Ω 
+// in 3D 
+// E,H ∈ (L^2(Ω))^3 
+// Ê ∈ H_0^1/2(Ω)(curl, Γ_h), Ĥ ∈ H^-1/2(curl, Γ_h)  
+//  i ω μ (H,F) + (E,∇ × F) + < Ê, F × n > = 0,      ∀ F ∈ H(curl,Ω)      
+// -i ω ϵ (E,G) + (H,∇ × G) + < Ĥ, G × n > = (J,G)   ∀ G ∈ H(curl,Ω)      
+//                                   Ê × n = E_0     on ∂Ω 
+// -------------------------------------------------------------------------
+// |   |       E      |      H      |      Ê       |       Ĥ      |  RHS    |
+// -------------------------------------------------------------------------
+// | F |  (E,∇ × F)   | i ω μ (H,F) | < n × Ê, F > |              |         |
+// |   |              |             |              |              |         |
+// | G | -i ω ϵ (E,G) |  (H,∇ × G)  |              | < n × Ĥ, G > |  (J,G)  |  
+// where (F,G) ∈  H(curl,Ω) × H(curl,Ω)
 
-// Note: 
-// p̂ := p on Γ_h (skeleton)
-// û := u on Γ_h  
+// in 2D 
+// E ∈ L^2(Ω)^2, H ∈ L^2(Ω)
+// Ê ∈ H^-1/2(Ω)(Γ_h), Ĥ ∈ H^1/2(Γ_h)  
+//  i ω μ (H,F) + (E, ∇ × F) + < AÊ, F > = 0,      ∀ F ∈ H^1      
+// -i ω ϵ (E,G) + (H,∇ × G)  + < Ĥ, G × n > = (J,G)   ∀ G ∈ H(curl,Ω)      
+//                                    Ê = E_0     on ∂Ω 
+// -------------------------------------------------------------------------
+// |   |       E      |      H      |      Ê       |       Ĥ      |  RHS    |
+// -------------------------------------------------------------------------
+// | F |  (E,∇ × F)   | i ω μ (H,F) |   < Ê, F >   |              |         |
+// |   |              |             |              |              |         |
+// | G | -i ω ϵ (E,G) |  (H,∇ × G)  |              | < Ĥ, G × n > |  (J,G)  |  
 
-// -------------------------------------------------------------
-// |   |     p     |     u     |    p̂      |    û    |  RHS    |
-// -------------------------------------------------------------
-// | v | -(p, ∇⋅v) | i ω (u,v) | < p̂, v⋅n> |         |         |
-// |   |           |           |           |         |         |
-// | q | i ω (p,q) |-(u , ∇ q) |           | < û,q > |  (f,q)  |  
+// where (F,G) ∈  H^1 × H(curl,Ω)
 
-// where (q,v) ∈  H^1(Ω) × H(div,Ω) 
 
 #include "mfem.hpp"
 #include <fstream>
@@ -41,40 +60,57 @@
 using namespace std;
 using namespace mfem;
 
-void acoustics_solution(const Vector & X, complex<double> & p, 
-                        vector<complex<double>> &dp, complex<double> & d2p);
+void E_exact_r(const Vector &x, Vector & E_r);
+void E_exact_i(const Vector &x, Vector & E_i);
 
-void acoustics_solution_r(const Vector & X, double & p, 
-                          Vector &dp, double & d2p);      
+void H_exact_r(const Vector &x, Vector & H_r);
+void H_exact_i(const Vector &x, Vector & H_i);
 
-void acoustics_solution_i(const Vector & X, double & p, 
-                          Vector &dp, double & d2p);                                                
 
-double p_exact_r(const Vector &x);
-double p_exact_i(const Vector &x);
-void u_exact_r(const Vector &x, Vector & u);
-void u_exact_i(const Vector &x, Vector & u);
-double rhs_func_r(const Vector &x);
-double rhs_func_i(const Vector &x);
-void gradp_exact_r(const Vector &x, Vector &gradu);
-void gradp_exact_i(const Vector &x, Vector &gradu);
-double divu_exact_r(const Vector &x);
-double divu_exact_i(const Vector &x);
-double d2_exact_r(const Vector &x);
-double d2_exact_i(const Vector &x);
-double hatp_exact_r(const Vector & X);
-double hatp_exact_i(const Vector & X);
-void hatu_exact(const Vector & X, Vector & hatu);
-void hatu_exact_r(const Vector & X, Vector & hatu);
-void hatu_exact_i(const Vector & X, Vector & hatu);
+void  rhs_func_r(const Vector &x, Vector & J_r);
+void  rhs_func_i(const Vector &x, Vector & J_i);
+
+void curlE_exact_r(const Vector &x, Vector &curlE_r);
+void curlE_exact_i(const Vector &x, Vector &curlE_i);
+void curlH_exact_r(const Vector &x,Vector &curlH_r);
+void curlH_exact_i(const Vector &x,Vector &curlH_i);
+
+void curlcurlE_exact_r(const Vector &x, Vector & curlcurlE_r);
+void curlcurlE_exact_i(const Vector &x, Vector & curlcurlE_i);
+
+void hatE_exact_r(const Vector & X, Vector & hatE_r);
+void hatE_exact_i(const Vector & X, Vector & hatE_i);
+
+void hatH_exact_r(const Vector & X, Vector & hatH_r);
+void hatH_exact_i(const Vector & X, Vector & hatH_i);
+
+double hatH_exact_scalar_r(const Vector & X);
+double hatH_exact_scalar_i(const Vector & X);
+
+void maxwell_solution(const Vector & X, 
+                      std::vector<complex<double>> &E, 
+                      std::vector<complex<double>> &curlE, 
+                      std::vector<complex<double>> &curlcurlE);
+
+void maxwell_solution_r(const Vector & X, Vector &E_r, 
+                      Vector &curlE_r, 
+                      Vector &curlcurlE_r);
+
+void maxwell_solution_i(const Vector & X, Vector &E_i, 
+                      Vector &curlE_i, 
+                      Vector &curlcurlE_i);     
 
 int dim;
+int dimc;
 double omega;
+double mu = 1.0;
+double epsilon = 1.0;
 
 enum prob_type
 {
+   polynomial,
    plane_wave,
-   gaussian_beam  
+   fichera_oven  
 };
 
 prob_type prob;
@@ -86,7 +122,7 @@ int main(int argc, char *argv[])
    int myid = Mpi::WorldRank();
    Hypre::Init();
 
-   const char *mesh_file = "../../../data/inline-quad.mesh";
+   const char *mesh_file = "../../../data/inline-hex.mesh";
    int order = 1;
    int delta_order = 1;
    bool visualization = true;
@@ -107,9 +143,13 @@ int main(int argc, char *argv[])
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
    args.AddOption(&rnum, "-rnum", "--number_of_wavelenths",
-                  "Number of wavelengths");     
+                  "Number of wavelengths");    
+   args.AddOption(&mu, "-mu", "--permeability",
+                  "Permeability of free space (or 1/(spring constant)).");
+   args.AddOption(&epsilon, "-eps", "--permittivity",
+                  "Permittivity of free space (or mass constant).");                  
    args.AddOption(&iprob, "-prob", "--problem", "Problem case"
-                  " 0: plane wave, 1: Gaussian beam");                    
+                  " 0: polynomial, 1: plane wave, 2: Gaussian beam");                     
    args.AddOption(&delta_order, "-do", "--delta_order",
                   "Order enrichment for DPG test space.");     
    args.AddOption(&theta, "-theta", "--theta",
@@ -120,7 +160,7 @@ int main(int argc, char *argv[])
    args.AddOption(&sr, "-sref", "--serial_ref",
                   "Number of parallel refinements.");                                              
    args.AddOption(&pr, "-pref", "--parallel_ref",
-                  "Number of parallel refinements.");  
+                  "Number of parallel refinements.");        
    args.AddOption(&static_cond, "-sc", "--static-condensation", "-no-sc",
                   "--no-static-condensation", "Enable static condensation.");                                            
    args.Parse();
@@ -138,148 +178,229 @@ int main(int argc, char *argv[])
    }
 
 
-   if (iprob > 1) { iprob = 0; }
+   if (iprob > 2) { iprob = 0; }
    prob = (prob_type)iprob;
 
    omega = 2.*M_PI*rnum;
 
-
    Mesh mesh(mesh_file, 1, 1);
+   dim = mesh.Dimension();
+   dimc = (dim == 3) ? 3 : 1;
+   mesh.EnsureNCMesh();
+
    for (int i = 0; i<sr; i++)
    {
       mesh.UniformRefinement();
    }
-   dim = mesh.Dimension();
-   mesh.EnsureNCMesh();
    ParMesh pmesh(MPI_COMM_WORLD, mesh);
    mesh.Clear();
 
-   // Define spaces
-   // L2 space for p
-   FiniteElementCollection *p_fec = new L2_FECollection(order-1,dim);
-   ParFiniteElementSpace *p_fes = new ParFiniteElementSpace(&pmesh,p_fec);
-
-   // Vector L2 space for u 
-   FiniteElementCollection *u_fec = new L2_FECollection(order-1,dim);
-   ParFiniteElementSpace *u_fes = new ParFiniteElementSpace(&pmesh,u_fec, dim); 
-
-   // H^1/2 space for p̂  
-   FiniteElementCollection * hatp_fec = new H1_Trace_FECollection(order,dim);
-   ParFiniteElementSpace *hatp_fes = new ParFiniteElementSpace(&pmesh,hatp_fec);
-
-   // H^-1/2 space for û  
-   FiniteElementCollection * hatu_fec = new RT_Trace_FECollection(order-1,dim);   
-   ParFiniteElementSpace *hatu_fes = new ParFiniteElementSpace(&pmesh,hatu_fec);
-
-   // testspace fe collections
    int test_order = order+delta_order;
-   FiniteElementCollection * q_fec = new H1_FECollection(test_order, dim);
-   FiniteElementCollection * v_fec = new RT_FECollection(test_order-1, dim);
 
+   // Define spaces
+   // L2 space for E
+   FiniteElementCollection *E_fec = new L2_FECollection(order-1,dim);
+   ParFiniteElementSpace *E_fes = new ParFiniteElementSpace(&pmesh,E_fec,dim);
 
-   // if (myid == 0)
-   // {
-   //    mfem::out << "p_fes space true dofs = " << p_fes->GetTrueVSize() << endl;
-   //    mfem::out << "u_fes space true dofs = " << u_fes->GetTrueVSize() << endl;
-   //    mfem::out << "hatp_fes space true dofs = " << hatp_fes->GetTrueVSize() << endl;
-   //    mfem::out << "hatu_fes space true dofs = " << hatu_fes->GetTrueVSize() << endl;
-   // }
+   // Vector L2 space for H 
+   FiniteElementCollection *H_fec = new L2_FECollection(order-1,dim);
+   ParFiniteElementSpace *H_fes = new ParFiniteElementSpace(&pmesh,H_fec, dimc); 
+
+   // H^-1/2 (curl) space for Ê   
+   FiniteElementCollection * hatE_fec = nullptr;
+   FiniteElementCollection * hatH_fec = nullptr; 
+   FiniteElementCollection * F_fec = nullptr;
+   if (dim == 3)
+   {
+      hatE_fec = new ND_Trace_FECollection(order,dim);
+      hatH_fec = new ND_Trace_FECollection(order,dim);   
+      F_fec = new ND_FECollection(test_order, dim);
+   }
+   else
+   {
+      hatE_fec = new RT_Trace_FECollection(order-1,dim);
+      hatH_fec = new H1_Trace_FECollection(order,dim);   
+      F_fec = new H1_FECollection(test_order, dim);
+   } 
+   ParFiniteElementSpace *hatE_fes = new ParFiniteElementSpace(&pmesh,hatE_fec);
+   ParFiniteElementSpace *hatH_fes = new ParFiniteElementSpace(&pmesh,hatH_fec);
+
+   FiniteElementCollection * G_fec = new ND_FECollection(test_order, dim);
+
+   if (myid == 0)
+   {
+      mfem::out << "E_fes space true dofs = " << E_fes->GetTrueVSize() << endl;
+      mfem::out << "H_fes space true dofs = " << H_fes->GetTrueVSize() << endl;
+      mfem::out << "hatE_fes space true dofs = " << hatE_fes->GetTrueVSize() << endl;
+      mfem::out << "hatH_fes space true dofs = " << hatH_fes->GetTrueVSize() << endl;
+   }
 
    // Coefficients
+   Vector dim_zero(dim); dim_zero = 0.0;
+   Vector dimc_zero(dimc); dimc_zero = 0.0;
+   VectorConstantCoefficient E_zero(dim_zero);
+   VectorConstantCoefficient H_zero(dimc_zero);
+
+
    ConstantCoefficient one(1.0);
-   ConstantCoefficient zero(0.0);
-   Vector vec0(dim); vec0 = 0.;
-   VectorConstantCoefficient vzero(vec0);
-   ConstantCoefficient negone(-1.0);
-   ConstantCoefficient omeg(omega);
-   ConstantCoefficient omeg2(omega*omega);
-   ConstantCoefficient negomeg(-omega);
+   ConstantCoefficient eps2omeg2(epsilon*epsilon*omega*omega);
+   ConstantCoefficient mu2omeg2(mu*mu*omega*omega);
+   ConstantCoefficient muomeg(mu*omega);
+   ConstantCoefficient negepsomeg(-epsilon*omega);
+   ConstantCoefficient epsomeg(epsilon*omega);
+   ConstantCoefficient negmuomeg(-mu*omega);
+
+   DenseMatrix rot_mat(2);
+   rot_mat(0,0) = 0.; rot_mat(0,1) = 1.;
+   rot_mat(1,0) = -1.; rot_mat(1,1) = 0.;
+   MatrixConstantCoefficient rot(rot_mat);
+   ScalarMatrixProductCoefficient epsrot(epsomeg,rot);
+   ScalarMatrixProductCoefficient negepsrot(negepsomeg,rot);
 
    // Normal equation weak formulation
    Array<ParFiniteElementSpace * > trial_fes; 
    Array<FiniteElementCollection * > test_fec; 
 
-   trial_fes.Append(p_fes);
-   trial_fes.Append(u_fes);
-   trial_fes.Append(hatp_fes);
-   trial_fes.Append(hatu_fes);
+   trial_fes.Append(E_fes);
+   trial_fes.Append(H_fes);
+   trial_fes.Append(hatE_fes);
+   trial_fes.Append(hatH_fes);
 
-   test_fec.Append(q_fec);
-   test_fec.Append(v_fec);
+   test_fec.Append(F_fec);
+   test_fec.Append(G_fec);
 
    ComplexParNormalEquations * a = new ComplexParNormalEquations(trial_fes,test_fec);
    a->StoreMatrices();
-   // i ω (p,q)
-   a->AddTrialIntegrator(nullptr,new MixedScalarMassIntegrator(omeg),0,0);
 
-// -(u , ∇ q)
-   a->AddTrialIntegrator(new TransposeIntegrator(new GradientIntegrator(negone)),nullptr,1,0);
+   // (E,∇ × F)
+   a->AddTrialIntegrator(new TransposeIntegrator(new CurlIntegrator(one)),nullptr,0,0);
 
-// -(p, ∇⋅v)
-   a->AddTrialIntegrator(new MixedScalarWeakGradientIntegrator(one),nullptr,0,1);
+   // -i ω ϵ (E , G)
+   a->AddTrialIntegrator(nullptr,new TransposeIntegrator(new VectorFEMassIntegrator(negepsomeg)),0,1);
 
-//  i ω (u,v)
-   a->AddTrialIntegrator(nullptr,new TransposeIntegrator(new VectorFEMassIntegrator(omeg)),1,1);
+   // i ω μ (H, F)
+   if (dim == 3)
+   {
+      a->AddTrialIntegrator(nullptr,new TransposeIntegrator(new VectorFEMassIntegrator(muomeg)),1,0);
+   }
+   else
+   {
+      a->AddTrialIntegrator(nullptr,new MixedScalarMassIntegrator(muomeg),1,0);
+   }
+   //  (H,∇ × G) 
+   a->AddTrialIntegrator(new TransposeIntegrator(new CurlIntegrator(one)),nullptr,1,1);
 
-// < p̂, v⋅n>
-   a->AddTrialIntegrator(new NormalTraceIntegrator,nullptr,2,1);
+   // < n×Ê,F>
+   if (dim == 3)
+   {
+      a->AddTrialIntegrator(new TangentTraceIntegrator,nullptr,2,0);
+   }
+   else
+   {
+      a->AddTrialIntegrator(new TraceIntegrator,nullptr,2,0);
+   }
 
-// < û,q >
-   a->AddTrialIntegrator(new TraceIntegrator,nullptr,3,0);
+   // < n×Ĥ ,G>
+   a->AddTrialIntegrator(new TangentTraceIntegrator,nullptr,3,1);
 
-// test integrators 
-   //space-induced norm for H(div) × H1
-   // (∇q,∇δq)
-   a->AddTestIntegrator(new DiffusionIntegrator(one),nullptr,0,0);
-   // (q,δq)
-   a->AddTestIntegrator(new MassIntegrator(one),nullptr,0,0);
-   // (∇⋅v,∇⋅δv)
-   a->AddTestIntegrator(new DivDivIntegrator(one),nullptr,1,1);
-   // (v,δv)
+
+   // test integrators 
+   //space-induced norm for H(curl) × H(curl)
+   if (dim == 3)
+   {
+      // (∇×F,∇×δF)
+      a->AddTestIntegrator(new CurlCurlIntegrator(one),nullptr,0,0);
+      // (F,δF)
+      a->AddTestIntegrator(new VectorFEMassIntegrator(one),nullptr,0,0);
+   }
+   else
+   {
+      // (∇F,∇δF)
+      a->AddTestIntegrator(new DiffusionIntegrator(one),nullptr,0,0);
+      // (F,δF)
+      a->AddTestIntegrator(new MassIntegrator(one),nullptr,0,0);
+   }
+
+   // (∇×G ,∇× δG)
+   a->AddTestIntegrator(new CurlCurlIntegrator(one),nullptr,1,1);
+   // (G,δG)
    a->AddTestIntegrator(new VectorFEMassIntegrator(one),nullptr,1,1);
 
    // additional integrators for the adjoint graph norm
    if (adjoint_graph_norm)
    {   
-      // -i ω (∇q,δv)
-      a->AddTestIntegrator(nullptr,new MixedVectorGradientIntegrator(negomeg),0,1);
-      // i ω (v,∇ δq)
-      a->AddTestIntegrator(nullptr,new MixedVectorWeakDivergenceIntegrator(negomeg),1,0);
-      // ω^2 (v,δv)
-      a->AddTestIntegrator(new VectorFEMassIntegrator(omeg2),nullptr,1,1);
+      if(dim == 3)
+      {
+         // μ^2 ω^2 (F,δF)
+         a->AddTestIntegrator(new VectorFEMassIntegrator(mu2omeg2),nullptr,0,0);
+         // -i ω μ (F,∇ × δG) = (F, ω μ ∇ × δ G)
+         a->AddTestIntegrator(nullptr,new MixedVectorWeakCurlIntegrator(negmuomeg),0,1);
+         // -i ω ϵ (∇ × F, δG)
+         a->AddTestIntegrator(nullptr,new MixedVectorCurlIntegrator(negepsomeg),0,1);
+         // i ω μ (∇ × G,δF)
+         a->AddTestIntegrator(nullptr,new MixedVectorCurlIntegrator(epsomeg),1,0);
+         // i ω ϵ (G, ∇ × δF )
+         a->AddTestIntegrator(nullptr,new MixedVectorWeakCurlIntegrator(muomeg),1,0);
+         // ϵ^2 ω^2 (G,δG)
+         a->AddTestIntegrator(new VectorFEMassIntegrator(eps2omeg2),nullptr,1,1);
+      }
+      else
+      {
+         // μ^2 ω^2 (F,δF)
+         a->AddTestIntegrator(new MassIntegrator(mu2omeg2),nullptr,0,0);
 
-      // - i ω (∇⋅v,δq)   
-      a->AddTestIntegrator(nullptr,new VectorFEDivergenceIntegrator(negomeg),1,0);
-      // i ω (q,∇⋅v)   
-      a->AddTestIntegrator(nullptr,new MixedScalarWeakGradientIntegrator(negomeg),0,1);
-      // ω^2 (q,δq)
-      a->AddTestIntegrator(new MassIntegrator(omeg2),nullptr,0,0);
+         // -i ω μ (F,∇ × δG) = i (F, -ω μ ∇ × δ G)
+         a->AddTestIntegrator(nullptr,
+            new TransposeIntegrator(new CurlIntegrator(negmuomeg)),0,1);
+
+         // -i ω ϵ (∇ × F, δG) = i (- ω ϵ A ∇ F,δG), A = [0 1; -1; 0]
+         a->AddTestIntegrator(nullptr,new MixedVectorGradientIntegrator(negepsrot),0,1);   
+
+         // i ω μ (∇ × G,δF) = i (ω μ ∇ × G, δF )
+         a->AddTestIntegrator(nullptr,new CurlIntegrator(muomeg),1,0);
+
+         // i ω ϵ (G, ∇ × δF ) =  i (ω ϵ G, A ∇ δF) = i ( G , ω ϵ A ∇ δF) 
+         a->AddTestIntegrator(nullptr,
+                   new TransposeIntegrator(new MixedVectorGradientIntegrator(epsrot)),1,0);
+
+         // or    i ( ω ϵ A^t G, ∇ δF) = i (- ω ϵ A G, ∇ δF)
+         // a->AddTestIntegrator(nullptr,
+                  //  new MixedVectorWeakDivergenceIntegrator(epsrot),1,0);
+         // ϵ^2 ω^2 (G,δG)
+         a->AddTestIntegrator(new VectorFEMassIntegrator(eps2omeg2),nullptr,1,1);            
+      }
    }
 
    // RHS
-   FunctionCoefficient f_rhs_r(rhs_func_r);
-   FunctionCoefficient f_rhs_i(rhs_func_i);
-   a->AddDomainLFIntegrator(new DomainLFIntegrator(f_rhs_r),new DomainLFIntegrator(f_rhs_i),0);
+   VectorFunctionCoefficient f_rhs_r(dim,rhs_func_r);
+   VectorFunctionCoefficient f_rhs_i(dim,rhs_func_i);
+   a->AddDomainLFIntegrator(new VectorFEDomainLFIntegrator(f_rhs_r),
+                            new VectorFEDomainLFIntegrator(f_rhs_i),1);
    
    
+   VectorFunctionCoefficient hatEex_r(dim,hatE_exact_r);
+   VectorFunctionCoefficient hatEex_i(dim,hatE_exact_i);
 
-   FunctionCoefficient hatpex_r(hatp_exact_r);
-   FunctionCoefficient hatpex_i(hatp_exact_i);
+   VectorFunctionCoefficient hatHex_r(dimc,hatH_exact_r);
+   VectorFunctionCoefficient hatHex_i(dimc,hatH_exact_i);
 
-   VectorFunctionCoefficient hatuex_r(dim,hatu_exact_r);
-   VectorFunctionCoefficient hatuex_i(dim,hatu_exact_i);
+   FunctionCoefficient hatH_2D_ex_r(hatH_exact_scalar_r);
+   FunctionCoefficient hatH_2D_ex_i(hatH_exact_scalar_i);
+
+
    Array<int> elements_to_refine;
 
-   socketstream p_out_r;
-   socketstream p_out_i;
+   socketstream E_out_r;
+   socketstream Eex_out_r;
+   // socketstream E_out_i;
    if (visualization)
    {
       char vishost[] = "localhost";
       int  visport   = 19916;
-      p_out_r.open(vishost, visport);
-      p_out_i.open(vishost, visport);
+      E_out_r.open(vishost, visport);
+      Eex_out_r.open(vishost, visport);
+      // E_out_i.open(vishost, visport);
    }
-
 
    double res0 = 0.;
    double err0 = 0.;
@@ -299,7 +420,7 @@ int main(int argc, char *argv[])
                <<  "---------------------"    
                <<  "---------------------"    
                <<  "---------------------"    
-               <<  "----------------" << endl;   
+               <<  "----------------" << endl;      
    }
 
 
@@ -314,57 +435,65 @@ int main(int argc, char *argv[])
       {
          ess_bdr.SetSize(pmesh.bdr_attributes.Max());
          ess_bdr = 1;
-         // ess_bdr[1] = 0;
-         // ess_bdr[2] = 0;
-         hatp_fes->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
-         // hatu_fes->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
+         hatE_fes->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
+         // hatH_fes->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
       }
 
       // shift the ess_tdofs
       for (int j = 0; j < ess_tdof_list.Size(); j++)
       {
-         ess_tdof_list[j] += p_fes->GetTrueVSize() + u_fes->GetTrueVSize();
-                           //   + hatp_fes->GetTrueVSize(); 
+         ess_tdof_list[j] += E_fes->GetTrueVSize() + H_fes->GetTrueVSize();
+                           // + hatE_fes->GetTrueVSize();
       }
 
       Array<int> offsets(5);
       offsets[0] = 0;
-      offsets[1] = p_fes->GetVSize();
-      offsets[2] = u_fes->GetVSize();
-      offsets[3] = hatp_fes->GetVSize();
-      offsets[4] = hatu_fes->GetVSize();
+      offsets[1] = E_fes->GetVSize();
+      offsets[2] = H_fes->GetVSize();
+      offsets[3] = hatE_fes->GetVSize();
+      offsets[4] = hatH_fes->GetVSize();
       offsets.PartialSum();
 
       Vector x(2*offsets.Last());
       x = 0.;
       double * xdata = x.GetData();
 
-      ParComplexGridFunction hatp_gf(hatp_fes);
-      hatp_gf.real().MakeRef(hatp_fes,&xdata[offsets[2]]);
-      hatp_gf.imag().MakeRef(hatp_fes,&xdata[offsets.Last()+ offsets[2]]);
-      hatp_gf.ProjectBdrCoefficient(hatpex_r,hatpex_i, ess_bdr);
-      // ParComplexGridFunction hatu_gf(hatu_fes);
-      // hatu_gf.real().MakeRef(hatu_fes,&xdata[offsets[3]]);
-      // hatu_gf.imag().MakeRef(hatu_fes,&xdata[offsets.Last()+ offsets[3]]);
-      // hatu_gf.ProjectCoefficientNormal(hatuex_r,hatuex_i, ess_bdr);
+      ParComplexGridFunction hatE_gf(hatE_fes);
+      hatE_gf.real().MakeRef(hatE_fes,&xdata[offsets[2]]);
+      hatE_gf.imag().MakeRef(hatE_fes,&xdata[offsets.Last()+ offsets[2]]);
 
+      ParComplexGridFunction hatH_gf(hatH_fes);
+      hatH_gf.real().MakeRef(hatH_fes,&xdata[offsets[3]]);
+      hatH_gf.imag().MakeRef(hatH_fes,&xdata[offsets.Last()+ offsets[3]]);
+
+      if (dim == 3)
+      {
+         hatE_gf.ProjectBdrCoefficientTangent(hatEex_r,hatEex_i, ess_bdr);
+         // hatH_gf.ProjectBdrCoefficientTangent(hatHex_r,hatHex_i, ess_bdr);
+      }
+      else
+      {
+         hatE_gf.ProjectBdrCoefficientNormal(hatEex_r,hatEex_i, ess_bdr);
+         // hatH_gf.ProjectBdrCoefficient(hatH_2D_ex_r,hatH_2D_ex_i, ess_bdr);
+
+      }
       OperatorPtr Ah;
       Vector X,B;
       a->FormLinearSystem(ess_tdof_list,x,Ah, X,B);
 
       ComplexOperator * Ahc = Ah.As<ComplexOperator>();
+
       BlockOperator * BlockA_r = dynamic_cast<BlockOperator *>(&Ahc->real());
       BlockOperator * BlockA_i = dynamic_cast<BlockOperator *>(&Ahc->imag());
-
 
       MFEM_VERIFY(static_cond, "preconditioner not implemented for the non-static condensation case");
 
       Array<int> tdof_offsets(5);
       tdof_offsets[0] = 0;
-      tdof_offsets[1] = hatp_fes->GetTrueVSize();
-      tdof_offsets[2] = hatu_fes->GetTrueVSize();
-      tdof_offsets[3] = hatp_fes->GetTrueVSize();
-      tdof_offsets[4] = hatu_fes->GetTrueVSize();
+      tdof_offsets[1] = hatE_fes->GetTrueVSize();
+      tdof_offsets[2] = hatH_fes->GetTrueVSize();
+      tdof_offsets[3] = hatE_fes->GetTrueVSize();
+      tdof_offsets[4] = hatH_fes->GetTrueVSize();
 
       tdof_offsets.PartialSum();
 
@@ -390,52 +519,30 @@ int main(int argc, char *argv[])
       blockA.SetBlock(3,0, &BlockA_i->GetBlock(1,0));
       blockA.SetBlock(3,1, &BlockA_i->GetBlock(1,1));
 
-
-
-      // int numblocks = BlockA_r->NumRowBlocks();
-      // Array2D<HypreParMatrix *> Ab_r(numblocks,numblocks);
-      // Array2D<HypreParMatrix *> Ab_i(numblocks,numblocks);
-
-      // for (int ii = 0; ii<numblocks; ii++)
-      // {
-      //    for (int jj = 0; jj<numblocks; jj++)
-      //    {
-      //       Ab_r(ii,jj) = dynamic_cast<HypreParMatrix*>(&BlockA_r->GetBlock(ii,jj));
-      //       Ab_i(ii,jj) = dynamic_cast<HypreParMatrix*>(&BlockA_i->GetBlock(ii,jj));
-      //    }
-      // }
-      // HypreParMatrix * A_r = HypreParMatrixFromBlocks(Ab_r);
-      // HypreParMatrix * A_i = HypreParMatrixFromBlocks(Ab_i);
-
-      // ComplexHypreParMatrix Ac(A_r,A_i,true,true);
-
-      // HypreParMatrix * A = Ac.GetSystemMatrix();
-
-      // if (myid == 0)
-      // {   
-      //    mfem::out << "Size of the (condensed) linear system: " << A->Height() << std::endl;
-      // }
       X = 0.;
-
       BlockDiagonalPreconditioner * M = new BlockDiagonalPreconditioner(tdof_offsets);
-      HypreBoomerAMG * amg = new HypreBoomerAMG((HypreParMatrix &)BlockA_r->GetBlock(0,0));
-      // amg->SetCycleNumSweeps(5, 5);
-      amg->SetPrintLevel(0);
-      HypreAMS * ams = new HypreAMS((HypreParMatrix &)BlockA_r->GetBlock(1,1), hatu_fes);
-      ams->SetPrintLevel(0);
-      M->SetDiagonalBlock(0,amg);
-      M->SetDiagonalBlock(1,ams);
-      M->SetDiagonalBlock(2,amg);
-      M->SetDiagonalBlock(3,ams);
-      // for (int i =0; i<2; i++)
-      // {
-      //    MUMPSSolver * mumps = new MUMPSSolver;
-      //    mumps->SetOperator((HypreParMatrix &)BlockA_r->GetBlock(i,i));
-      //    M->SetDiagonalBlock(i,mumps);
-      //    M->SetDiagonalBlock(i+2,mumps);
-      // }
 
-      
+      HypreSolver * solver_hatH = nullptr;
+
+      HypreAMS * solver_hatE = new HypreAMS((HypreParMatrix &)BlockA_r->GetBlock(0,0), 
+                               hatE_fes);
+      solver_hatE->SetPrintLevel(0);                               
+      if (dim == 2)
+      {
+         solver_hatH = new HypreBoomerAMG((HypreParMatrix &)BlockA_r->GetBlock(1,1));
+         dynamic_cast<HypreBoomerAMG*>(solver_hatH)->SetPrintLevel(0);
+      }
+      else
+      {
+         solver_hatH = new HypreAMS((HypreParMatrix &)BlockA_r->GetBlock(1,1), hatH_fes);
+         dynamic_cast<HypreAMS*>(solver_hatH)->SetPrintLevel(0);
+      }
+
+      M->SetDiagonalBlock(0,solver_hatE);
+      M->SetDiagonalBlock(1,solver_hatH);
+      M->SetDiagonalBlock(2,solver_hatE);
+      M->SetDiagonalBlock(3,solver_hatH);
+
       CGSolver cg(MPI_COMM_WORLD);
       cg.SetRelTol(1e-7);
       cg.SetAbsTol(1e-7);
@@ -446,7 +553,6 @@ int main(int argc, char *argv[])
       cg.Mult(B, X);
       int num_iter = cg.GetNumIterations();
       delete M;
-      // delete A;
 
       a->RecoverFEMSolution(X,x);
 
@@ -457,7 +563,6 @@ int main(int argc, char *argv[])
       double globalresidual = residual * residual; 
       MPI_Allreduce(MPI_IN_PLACE,&maxresidual,1,MPI_DOUBLE,MPI_MAX,MPI_COMM_WORLD);
       MPI_Allreduce(MPI_IN_PLACE,&globalresidual,1,MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD);
-
       globalresidual = sqrt(globalresidual);
 
       elements_to_refine.SetSize(0);
@@ -469,60 +574,56 @@ int main(int argc, char *argv[])
          }
       }
 
-      ParComplexGridFunction p(p_fes);
-      p.real().MakeRef(p_fes,x.GetData());
-      p.imag().MakeRef(p_fes,&x.GetData()[offsets.Last()]);
 
-      ParComplexGridFunction u(u_fes);
-      u.real().MakeRef(u_fes,&x.GetData()[offsets[1]]);
-      u.imag().MakeRef(u_fes,&x.GetData()[offsets.Last()+offsets[1]]);
+      ParComplexGridFunction E(E_fes);
+      E.real().MakeRef(E_fes,x.GetData());
+      E.imag().MakeRef(E_fes,&x.GetData()[offsets.Last()]);
 
+      VectorFunctionCoefficient E_ex_r(dim,E_exact_r);
+      VectorFunctionCoefficient E_ex_i(dim,E_exact_i);
 
-      // Error in pressure 
-      ParComplexGridFunction pgf_ex(p_fes);
-      FunctionCoefficient p_ex_r(p_exact_r);
-      FunctionCoefficient p_ex_i(p_exact_i);
-      pgf_ex.ProjectCoefficient(p_ex_r, p_ex_i);
+      ParComplexGridFunction H(H_fes);
+      H.real().MakeRef(H_fes,&x.GetData()[offsets[1]]);
+      H.imag().MakeRef(H_fes,&x.GetData()[offsets.Last()+offsets[1]]);
 
-      double p_err_r = p.real().ComputeL2Error(p_ex_r);
-      double p_err_i = p.imag().ComputeL2Error(p_ex_i);
-      double p_error = sqrt(p_err_r*p_err_r + p_err_i*p_err_i);
-      double p_norm_r = pgf_ex.real().ComputeL2Error(zero);
-      double p_norm_i = pgf_ex.imag().ComputeL2Error(zero);
-      double p_norm = sqrt(p_norm_r*p_norm_r + p_norm_i*p_norm_i);
+      VectorFunctionCoefficient H_ex_r(dimc,H_exact_r);
+      VectorFunctionCoefficient H_ex_i(dimc,H_exact_i);
+      
 
-      // Error in velocity
-      ParComplexGridFunction ugf_ex(u_fes);
-      VectorFunctionCoefficient u_ex_r(dim,u_exact_r);
-      VectorFunctionCoefficient u_ex_i(dim,u_exact_i);
+      int dofs = X.Size()/2;
 
-      double u_err_r = u.real().ComputeL2Error(u_ex_r);
-      double u_err_i = u.imag().ComputeL2Error(u_ex_i);
-      double u_error = sqrt(u_err_r*u_err_r + u_err_i*u_err_i);
-      double u_norm_r = pgf_ex.real().ComputeL2Error(vzero);
-      double u_norm_i = pgf_ex.imag().ComputeL2Error(vzero);
-      double u_norm = sqrt(u_norm_r*u_norm_r + u_norm_i*u_norm_i);
+      double E_err_r = E.real().ComputeL2Error(E_ex_r);
+      double E_err_i = E.imag().ComputeL2Error(E_ex_i);
+      double H_err_r = H.real().ComputeL2Error(H_ex_r);
+      double H_err_i = H.imag().ComputeL2Error(H_ex_i);
 
+      double L2Error = sqrt(  E_err_r*E_err_r + E_err_i*E_err_i 
+                            + H_err_r*H_err_r + H_err_i*H_err_i );
 
-      double L2Error = sqrt(p_error*p_error + u_error*u_error);
-      double L2norm = sqrt(p_norm*p_norm + u_norm*u_norm);
+      ParComplexGridFunction Egf_ex(E_fes);
+      ParComplexGridFunction Hgf_ex(H_fes);
+      Egf_ex.ProjectCoefficient(E_ex_r, E_ex_i);
+      Hgf_ex.ProjectCoefficient(H_ex_r, H_ex_i);
 
-      double rel_error = L2Error/L2norm;
+   
 
-      int dofs = p_fes->GlobalTrueVSize()
-               + u_fes->GlobalTrueVSize()
-               + hatp_fes->GlobalTrueVSize()
-               + hatu_fes->GlobalTrueVSize();
+      double E_norm_r = Egf_ex.real().ComputeL2Error(E_zero);
+      double E_norm_i = Egf_ex.imag().ComputeL2Error(E_zero);
+      double H_norm_r = Hgf_ex.real().ComputeL2Error(H_zero);
+      double H_norm_i = Hgf_ex.imag().ComputeL2Error(H_zero);
+
+      double L2norm = sqrt(  E_norm_r*E_norm_r + E_norm_i*E_norm_i 
+                           + H_norm_r*H_norm_r + H_norm_i*H_norm_i );
+
+      double rel_err = L2Error/L2norm;
 
 
-      double rate_err = (i) ? dim*log(err0/L2Error)/log((double)dof0/dofs) : 0.0;
-      double rate_res = (i) ? dim*log(res0/residual)/log((double)dof0/dofs) : 0.0;
+      double rate_err = (i) ? dim*log(err0/rel_err)/log((double)dof0/dofs) : 0.0;
+      double rate_res = (i) ? dim*log(res0/globalresidual)/log((double)dof0/dofs) : 0.0;
 
-      err0 = L2Error;
+      err0 = rel_err;
       res0 = globalresidual;
       dof0 = dofs;
-
-      std::ios oldState(nullptr);
       if (myid == 0)
       {
          mfem::out << std::right << std::setw(11) << i << " | " 
@@ -532,7 +633,7 @@ int main(int argc, char *argv[])
                    << std::setprecision(3) 
                    << std::setw(10) << std::scientific <<  err0 << " | " 
                    << std::setprecision(3) 
-                   << std::setw(10) << std::fixed <<  rel_error * 100. << " | " 
+                   << std::setw(10) << std::fixed <<  rel_err * 100. << " | " 
                    << std::setprecision(2) 
                    << std::setw(6) << std::fixed << rate_err << " | " 
                    << std::setprecision(3) 
@@ -543,24 +644,37 @@ int main(int argc, char *argv[])
                    << std::setprecision(5) 
                    << std::scientific 
                    << std::endl;
-      }   
+      }
 
       if (visualization)
       {
-         p_out_r << "parallel " << num_procs << " " << myid << "\n";
-         p_out_r.precision(8);
-         p_out_r << "solution\n" << pmesh << p.real() <<
-                  "window_title 'Real Numerical presure' "
+         E_out_r << "parallel " << num_procs << " " << myid << "\n";
+         E_out_r.precision(8);
+         E_out_r << "solution\n" << pmesh << E.real() <<
+                  "window_title 'Real Numerical Electric field' "
                   << flush;
 
-         p_out_i << "parallel " << num_procs << " " << myid << "\n";
-         p_out_i.precision(8);
-         p_out_i << "solution\n" << pmesh << p.imag() <<
-                  "window_title 'Imag Numerical presure' "
-                  << flush;         
+         // E_out_i.precision(8);
+         // E_out_i << "solution\n" << pmesh << E.imag() <<
+         //          "window_title 'Imag Numerical Electric field' "
+         //          << flush;         
+
+
+         Eex_out_r.precision(8);
+         Eex_out_r << "parallel " << num_procs << " " << myid << "\n";
+         Eex_out_r << "solution\n" << pmesh << Egf_ex.real()  
+                  << "window_title 'Real Exact Electric field' " 
+                  << flush;
+         // socketstream E_i_sock(vishost, visport);
+         // E_i_sock.precision(8);
+         // E_i_sock << "solution\n" << pmesh << Egf_ex.imag()  
+         //          << "window_title 'Imag Exact Electric field' " 
+         //          << flush;
+
+
       }
 
-      if (i == pr)
+      if (i == pr-1)
          break;
 
       pmesh.GeneralRefinement(elements_to_refine,1,1);
@@ -568,255 +682,328 @@ int main(int argc, char *argv[])
       {
          trial_fes[i]->Update(false);
       }
-      a->Update();   
+      a->Update();
    }
 
    delete a;
-   delete q_fec;
-   delete v_fec;
-   delete hatp_fes;
-   delete hatp_fec;
-   delete hatu_fes;
-   delete hatu_fec;
-   delete u_fec;
-   delete p_fec;
-   delete u_fes;
-   delete p_fes;
+   delete F_fec;
+   delete G_fec;
+   delete hatH_fes;
+   delete hatH_fec;
+   delete hatE_fes;
+   delete hatE_fec;
+   delete H_fec;
+   delete E_fec;
+   delete H_fes;
+   delete E_fes;
 
    return 0;
+}                                       
+
+void E_exact_r(const Vector &x, Vector & E_r)
+{
+   Vector curlE_r;
+   Vector curlcurlE_r;
+
+   maxwell_solution_r(x,E_r,curlE_r,curlcurlE_r);
 }
 
-double p_exact_r(const Vector &x)
+void E_exact_i(const Vector &x, Vector & E_i)
 {
-   double p,d2p;
-   Vector dp;
-   acoustics_solution_r(x,p,dp,d2p);
-   return p;
+   Vector curlE_i;
+   Vector curlcurlE_i;
+
+   maxwell_solution_i(x,E_i,curlE_i,curlcurlE_i);
 }
 
-double p_exact_i(const Vector &x)
+void curlE_exact_r(const Vector &x, Vector &curlE_r)
 {
-   double p,d2p;
-   Vector dp;
-   acoustics_solution_i(x,p,dp,d2p);
-   return p;
+   Vector E_r;
+   Vector curlcurlE_r;
+
+   maxwell_solution_r(x,E_r,curlE_r,curlcurlE_r);
 }
 
-double hatp_exact_r(const Vector & X)
+void curlE_exact_i(const Vector &x, Vector &curlE_i)
 {
-   return p_exact_r(X);
+   Vector E_i;
+   Vector curlcurlE_i;
+
+   maxwell_solution_i(x,E_i,curlE_i,curlcurlE_i);
 }
 
-double hatp_exact_i(const Vector & X)
+void curlcurlE_exact_r(const Vector &x, Vector & curlcurlE_r)
 {
-   return p_exact_i(X);
+   Vector E_r;
+   Vector curlE_r;
+   maxwell_solution_r(x,E_r,curlE_r,curlcurlE_r);
 }
 
-void gradp_exact_r(const Vector &x, Vector &grad)
+void curlcurlE_exact_i(const Vector &x, Vector & curlcurlE_i)
 {
-   grad.SetSize(x.Size());
-   double p,d2p;
-   acoustics_solution_r(x,p,grad,d2p);
-}
-
-void gradp_exact_i(const Vector &x, Vector &grad)
-{
-   grad.SetSize(x.Size());
-   double p,d2p;
-   acoustics_solution_i(x,p,grad,d2p);
-}
-
-double d2_exact_r(const Vector &x)
-{
-   double p,d2p;
-   Vector dp;
-   acoustics_solution_r(x,p,dp,d2p);
-   return d2p;
-}
-
-double d2_exact_i(const Vector &x)
-{
-   double p,d2p;
-   Vector dp;
-   acoustics_solution_i(x,p,dp,d2p);
-   return d2p;
-}
-
-//  u = - ∇ p / (i ω )
-//    = i (∇ p_r + i * ∇ p_i)  / ω 
-//    = - ∇ p_i / ω + i ∇ p_r / ω 
-void u_exact_r(const Vector &x, Vector & u)
-{
-   gradp_exact_i(x,u);
-   u *= -1./omega;
-}
-
-void u_exact_i(const Vector &x, Vector & u)
-{
-   gradp_exact_r(x,u);
-   u *= 1./omega;
-}
-
-void hatu_exact_r(const Vector & X, Vector & hatu)
-{
-   u_exact_r(X,hatu);
-}
-void hatu_exact_i(const Vector & X, Vector & hatu)
-{
-   u_exact_i(X,hatu);
-}
-
-//  ∇⋅u = i Δ p / ω
-//      = i (Δ p_r + i * Δ p_i)  / ω 
-//      = - Δ p_i / ω + i Δ p_r / ω 
-
-double divu_exact_r(const Vector &x)
-{
-   return -d2_exact_i(x)/omega;
-}
-
-double divu_exact_i(const Vector &x)
-{
-   return d2_exact_r(x)/omega;
-}
-
-// f = ∇⋅u + i ω p 
-// f_r = ∇⋅u_r - ω p_i  
-double rhs_func_r(const Vector &x)
-{
-   double p = p_exact_i(x);
-   double divu = divu_exact_r(x);
-   return divu - omega * p;
-}
-
-// f_i = ∇⋅u_i + ω p_r
-double rhs_func_i(const Vector &x)
-{
-   double p = p_exact_r(x);
-   double divu = divu_exact_i(x);
-   return divu + omega * p;
+   Vector E_i;
+   Vector curlE_i;
+   maxwell_solution_i(x,E_i,curlE_i,curlcurlE_i);
 }
 
 
-void acoustics_solution_r(const Vector & X, double & p, 
-                          Vector &dp, double & d2p)
+void H_exact_r(const Vector &x, Vector & H_r)
 {
-   complex<double> zp, d2zp;
-   vector<complex<double>> dzp;
-   acoustics_solution(X,zp,dzp,d2zp);
-   p = zp.real();
-   d2p = d2zp.real();
-   dp.SetSize(X.Size());
-   for (int i = 0; i<X.Size(); i++)
+   // H = i ∇ × E / ω μ  
+   // H_r = - ∇ × E_i / ω μ  
+   Vector curlE_i;
+   curlE_exact_i(x,curlE_i);
+   H_r.SetSize(dimc);
+   for (int i = 0; i<dimc; i++)
    {
-      dp[i] = dzp[i].real();
+      H_r(i) = - curlE_i(i) / (omega * mu);
    }
-}                           
+}
 
-void acoustics_solution_i(const Vector & X, double & p, 
-                          Vector &dp, double & d2p)
+void H_exact_i(const Vector &x, Vector & H_i)
 {
-   complex<double> zp, d2zp;
-   vector<complex<double>> dzp;
-   acoustics_solution(X,zp,dzp,d2zp);
-   p = zp.imag();
-   d2p = d2zp.imag();
-   dp.SetSize(X.Size());
-   for (int i = 0; i<X.Size(); i++)
+   // H = i ∇ × E / ω μ  
+   // H_i =  ∇ × E_r / ω μ  
+   Vector curlE_r;
+   curlE_exact_r(x,curlE_r);
+   H_i.SetSize(dimc);
+   for (int i = 0; i<dimc; i++)
    {
-      dp[i] = dzp[i].imag();
+      H_i(i) = curlE_r(i) / (omega * mu);
+   }
+}
+
+void curlH_exact_r(const Vector &x,Vector &curlH_r)
+{
+   // ∇ × H_r = - ∇ × ∇ × E_i / ω μ  
+   Vector curlcurlE_i;
+   curlcurlE_exact_i(x,curlcurlE_i);
+   curlH_r.SetSize(dim);
+   for (int i = 0; i<dim; i++)
+   {
+      curlH_r(i) = -curlcurlE_i(i) / (omega * mu);
+   }
+}
+
+void curlH_exact_i(const Vector &x,Vector &curlH_i)
+{
+   // ∇ × H_i = ∇ × ∇ × E_r / ω μ  
+   Vector curlcurlE_r;
+   curlcurlE_exact_r(x,curlcurlE_r);
+   curlH_i.SetSize(dim);
+   for (int i = 0; i<dim; i++)
+   {
+      curlH_i(i) = curlcurlE_r(i) / (omega * mu);
    }
 }
 
 
-void acoustics_solution(const Vector & X, complex<double> & p, vector<complex<double>> & dp, 
-         complex<double> & d2p)
+void hatE_exact_r(const Vector & x, Vector & hatE_r)
 {
-   dp.resize(X.Size());
-   complex<double> zi = complex<double>(0., 1.);
+   if (dim == 3)
+   {
+      E_exact_r(x,hatE_r);
+   }
+   else
+   {
+      Vector E_r;
+      E_exact_r(x,E_r);
+      hatE_r.SetSize(hatE_r.Size());
+      // rotate E_hat
+      hatE_r[0] = E_r[1];
+      hatE_r[1] = -E_r[0];
+   }
+}
+
+void hatE_exact_i(const Vector & x, Vector & hatE_i)
+{
+   if (dim == 3)
+   {
+      E_exact_i(x,hatE_i);
+   }
+   else
+   {
+      Vector E_i;
+      E_exact_i(x,E_i);
+      hatE_i.SetSize(hatE_i.Size());
+      // rotate E_hat
+      hatE_i[0] = E_i[1];
+      hatE_i[1] = -E_i[0];
+   }
+}
+
+
+void hatH_exact_r(const Vector & x, Vector & hatH_r)
+{
+   H_exact_r(x,hatH_r);
+}
+
+void hatH_exact_i(const Vector & x, Vector & hatH_i)
+{
+   H_exact_i(x,hatH_i);
+}
+
+double hatH_exact_scalar_r(const Vector & x)
+{
+   Vector hatH_r;
+   H_exact_r(x,hatH_r);
+   return hatH_r[0];
+}
+
+double hatH_exact_scalar_i(const Vector & x)
+{
+   Vector hatH_i;
+   H_exact_i(x,hatH_i);
+   return hatH_i[0];
+}
+
+// J = -i ω ϵ E + ∇ × H 
+// J_r + iJ_i = -i ω ϵ (E_r + i E_i) + ∇ × (H_r + i H_i) 
+void  rhs_func_r(const Vector &x, Vector & J_r)
+{
+   // J_r = ω ϵ E_i + ∇ × H_r
+   Vector E_i, curlH_r;
+   E_exact_i(x,E_i);
+   curlH_exact_r(x,curlH_r);
+   J_r.SetSize(dim);
+   for (int i = 0; i<dim; i++)
+   {
+      J_r(i) = omega * epsilon * E_i(i) + curlH_r(i);
+   }
+}
+
+void  rhs_func_i(const Vector &x, Vector & J_i)
+{
+   // J_i = - ω ϵ E_r + ∇ × H_i
+   Vector E_r, curlH_i;
+   E_exact_r(x,E_r);
+   curlH_exact_i(x,curlH_i);
+   J_i.SetSize(dim);
+   for (int i = 0; i<dim; i++)
+   {
+      J_i(i) = -omega * epsilon * E_r(i) + curlH_i(i);
+   }
+}
+
+
+void maxwell_solution(const Vector & X, std::vector<complex<double>> &E, 
+                      std::vector<complex<double>> &curlE, 
+                      std::vector<complex<double>> &curlcurlE)
+{
+   double x = X(0);
+   double y = X(1);
+   double z;
+   if (dim == 3) z = X(2);
+
+   E.resize(dim);
+   curlE.resize(dimc);
+   curlcurlE.resize(dim);
    switch (prob)
    {
-   case plane_wave:
+   case prob_type::polynomial:
    {
-      double beta = omega/std::sqrt((double)X.Size());
-      complex<double> alpha = beta * zi * X.Sum();
-      p = exp(-alpha);
-      d2p = - dim * beta * beta * p;
-      for (int i = 0; i<X.Size(); i++)
+      if (dim == 3)
       {
-         dp[i] = - zi * beta * p;
+         E[0] = y * z * (1.0 - y) * (1.0 - z);
+         E[1] = x * y * z * (1.0 - x) * (1.0 - z);
+         E[2] = x * y * (1.0 - x) * (1.0 - y);
+         curlE[0] = (1.0 - x) * x * (y*(2.0*z-3.0)+1.0);
+         curlE[1] = 2.0*(1.0 - y)*y*(x-z);
+         curlE[2] = (z-1)*z*(1.0+y*(2.0*x-3.0));
+         curlcurlE[0] = 2.0 * y * (1.0 - y) - (2.0 * x - 3.0) * z * (1 - z);
+         curlcurlE[1] = 2.0 * y * (x * (1.0 - x) + (1.0 - z) * z);
+         curlcurlE[2] = 2.0 * y * (1.0 - y) + x * (3.0 - 2.0 * z) * (1.0 - x);
+      }
+      else
+      {
+         E[0] = y * (1.0 - y);
+         E[1] = x * y * (1.0 - x);
+         curlE[0] = y*(3.0 - 2*x) - 1.0;
+         curlcurlE[0] = 3.0 - 2*x;
+         curlcurlE[1] = 2.0*y;
       }
    }
       break;
-   default:
+
+   case prob_type::plane_wave:
    {
-      double rk = omega;
-      double alpha = 45 * M_PI/180.;
-      double sina = sin(alpha); 
-      double cosa = cos(alpha);
-      // shift the origin
-      double xprim=X(0) + 0.1; 
-      double yprim=X(1) + 0.1;
+      std::complex<double> zi(0,1);
+      std::complex<double> pw = exp(-zi * omega * (X.Sum()));
+      E[0] = pw;
+      E[1] = 0.0;
+      if (dim == 3)
+      {
+         E[2] = 0.0;
+         curlE[0] = 0.0;
+         curlE[1] = -zi * omega * pw;
+         curlE[2] =  zi * omega * pw;
 
-      double  x = xprim*sina - yprim*cosa;
-      double  y = xprim*cosa + yprim*sina;
-      double  dxdxprim = sina, dxdyprim = -cosa;
-      double  dydxprim = cosa, dydyprim =  sina;
-      //wavelength
-      double rl = 2.*M_PI/rk;
-
-      // beam waist radius
-      double w0 = 0.05;
-
-      // function w
-      double fact = rl/M_PI/(w0*w0);
-      double aux = 1. + (fact*y)*(fact*y);
-
-      double w = w0*sqrt(aux);
-      double dwdy = w0*fact*fact*y/sqrt(aux);
-      double d2wdydy = w0*fact*fact*(1. - (fact*y)*(fact*y)/aux)/sqrt(aux);
-
-      double phi0 = atan(fact*y);
-      double dphi0dy = cos(phi0)*cos(phi0)*fact;
-      double d2phi0dydy = -2.*cos(phi0)*sin(phi0)*fact*dphi0dy;
-
-      double r = y + 1./y/(fact*fact);
-      double drdy = 1. - 1./(y*y)/(fact*fact);
-      double d2rdydy = 2./(y*y*y)/(fact*fact);
-
-      // pressure
-      complex<double> ze = - x*x/(w*w) - zi*rk*y - zi * M_PI * x * x/rl/r + zi*phi0/2.;
-
-      complex<double> zdedx = -2.*x/(w*w) - 2.*zi*M_PI*x/rl/r;
-      complex<double> zdedy = 2.*x*x/(w*w*w)*dwdy - zi*rk + zi*M_PI*x*x/rl/(r*r)*drdy + zi*dphi0dy/2.;
-      complex<double> zd2edxdx = -2./(w*w) - 2.*zi*M_PI/rl/r;
-      complex<double> zd2edxdy = 4.*x/(w*w*w)*dwdy + 2.*zi*M_PI*x/rl/(r*r)*drdy;
-      complex<double> zd2edydx = zd2edxdy;
-      complex<double> zd2edydy = -6.*x*x/(w*w*w*w)*dwdy*dwdy + 2.*x*x/(w*w*w)*d2wdydy - 2.*zi*M_PI*x*x/rl/(r*r*r)*drdy*drdy
-                              + zi*M_PI*x*x/rl/(r*r)*d2rdydy + zi/2.*d2phi0dydy;
-
-      double pf = pow(2.0/M_PI/(w*w),0.25);
-      double dpfdy = -pow(2./M_PI/(w*w),-0.75)/M_PI/(w*w*w)*dwdy;
-      double d2pfdydy = -1./M_PI*pow(2./M_PI,-0.75)*(-1.5*pow(w,-2.5)
-                        *dwdy*dwdy + pow(w,-1.5)*d2wdydy);
-
-
-      complex<double> zp = pf*exp(ze);
-      complex<double> zdpdx = zp*zdedx;
-      complex<double> zdpdy = dpfdy*exp(ze)+zp*zdedy;
-      complex<double> zd2pdxdx = zdpdx*zdedx + zp*zd2edxdx;
-      complex<double> zd2pdxdy = zdpdy*zdedx + zp*zd2edxdy;
-      complex<double> zd2pdydx = dpfdy*exp(ze)*zdedx + zdpdx*zdedy + zp*zd2edydx;
-      complex<double> zd2pdydy = d2pfdydy*exp(ze) + dpfdy*exp(ze)*zdedy + zdpdy*zdedy + zp*zd2edydy;
-
-      p = zp;
-      dp[0] = (zdpdx*dxdxprim + zdpdy*dydxprim);
-      dp[1] = (zdpdx*dxdyprim + zdpdy*dydyprim);
-
-      d2p = (zd2pdxdx*dxdxprim + zd2pdydx*dydxprim)*dxdxprim + (zd2pdxdy*dxdxprim + zd2pdydy*dydxprim)*dydxprim
-          + (zd2pdxdx*dxdyprim + zd2pdydx*dydyprim)*dxdyprim + (zd2pdxdy*dxdyprim + zd2pdydy*dydyprim)*dydyprim;
+         curlcurlE[0] = 2.0 * omega * omega * pw;
+         curlcurlE[1] = - omega * omega * pw;
+         curlcurlE[2] = - omega * omega * pw;
+      }
+      else
+      {
+         curlE[0] = zi * omega * pw;
+         curlcurlE[0] =   omega * omega * pw;
+         curlcurlE[1] = - omega * omega * pw ;
+      }
    }
-   break;
-   }
+      break;
 
+   default:
+      MFEM_ABORT("Fichera 'oven' problem not implemented yet");
+      break;
+   }
+   
 }
+
+
+void maxwell_solution_r(const Vector & X, Vector &E_r, 
+                        Vector &curlE_r, 
+                        Vector &curlcurlE_r)
+{
+   E_r.SetSize(dim);
+   curlE_r.SetSize(dimc);
+   curlcurlE_r.SetSize(dim);
+
+   std::vector<complex<double>> E;
+   std::vector<complex<double>> curlE;
+   std::vector<complex<double>> curlcurlE;
+
+   maxwell_solution(X,E,curlE,curlcurlE);
+   for (int i = 0; i<dim ; i++)
+   {
+      E_r(i) = E[i].real();
+      curlcurlE_r(i) = curlcurlE[i].real();
+   }
+   for (int i = 0; i<dimc; i++)
+   {
+      curlE_r(i) = curlE[i].real();
+   }
+}
+
+
+void maxwell_solution_i(const Vector & X, Vector &E_i, 
+                      Vector &curlE_i, 
+                      Vector &curlcurlE_i)
+{
+   E_i.SetSize(dim);
+   curlE_i.SetSize(dimc);
+   curlcurlE_i.SetSize(dim);
+
+   std::vector<complex<double>> E;
+   std::vector<complex<double>> curlE;
+   std::vector<complex<double>> curlcurlE;
+
+   maxwell_solution(X,E,curlE,curlcurlE);
+   for (int i = 0; i<dim; i++)
+   {
+      E_i(i) = E[i].imag();
+      curlcurlE_i(i) = curlcurlE[i].imag();
+   }
+   for (int i = 0; i<dimc; i++)
+   {
+      curlE_i(i) = curlE[i].imag();
+   }
+}  

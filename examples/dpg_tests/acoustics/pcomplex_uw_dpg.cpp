@@ -261,7 +261,6 @@ int main(int argc, char *argv[])
    FunctionCoefficient f_rhs_i(rhs_func_i);
    a->AddDomainLFIntegrator(new DomainLFIntegrator(f_rhs_r),new DomainLFIntegrator(f_rhs_i),0);
    
-   
 
    FunctionCoefficient hatpex_r(hatp_exact_r);
    FunctionCoefficient hatpex_i(hatp_exact_i);
@@ -516,7 +515,7 @@ int main(int argc, char *argv[])
 
 
       double rate_err = (i) ? dim*log(err0/L2Error)/log((double)dof0/dofs) : 0.0;
-      double rate_res = (i) ? dim*log(res0/residual)/log((double)dof0/dofs) : 0.0;
+      double rate_res = (i) ? dim*log(res0/globalresidual)/log((double)dof0/dofs) : 0.0;
 
       err0 = L2Error;
       res0 = globalresidual;
