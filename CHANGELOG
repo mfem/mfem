@@ -37,6 +37,8 @@ Version 4.4.1 (development)
   "batched" algorithm. The lor_solvers and plor_solvers now fully support GPU
   acceleration.
 
+- Added Windows 2022 CI testing with GitHub actions.
+
 - Added support for mixed meshes and pyramids in GSLIB-FindPoints.
 
 Version 4.4, released on March 21, 2022
@@ -158,6 +160,9 @@ Integrations, testing and documentation
 
 - Switched from Artistic Style (astyle) version 2.05.1 to version 3.1 for code
   formatting. See the "make style" target.
+
+- New benchmark for the different assembly levels inspired by the CEED
+  Bake-Off Problems, see tests/benchmarks/bench_assembly_levels.cpp.
 
 Miscellaneous
 -------------
