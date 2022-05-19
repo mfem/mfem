@@ -409,7 +409,7 @@ ifneq (,$(filter install,$(MAKECMDGOALS)))
 endif
 
 # Source dirs in logical order
-DIRS = general linalg linalg/simd mesh mesh/submesh mesh/submesh/detail fem \
+DIRS = general linalg linalg/simd mesh mesh/submesh fem \
        fem/fe fem/ceed fem/qinterp fem/tmop fem/lor
 
 ifeq ($(MFEM_USE_MOONOLITH),YES)
