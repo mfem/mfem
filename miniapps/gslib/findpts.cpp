@@ -37,6 +37,7 @@
 //    findpts -m ../../data/amr-quad.mesh -o 2
 //    findpts -m ../../data/rt-2d-q3.mesh -o 3 -mo 4 -ft 2
 //    findpts -m ../../data/square-mixed.mesh -o 2 -mo 2
+//    findpts -m ../../data/square-mixed.mesh -o 2 -mo 2 -hr -pr
 //    findpts -m ../../data/square-mixed.mesh -o 2 -mo 3 -ft 2
 //    findpts -m ../../data/fichera-mixed.mesh -o 3 -mo 2
 //    findpts -m ../../data/inline-pyramid.mesh -o 1 -mo 1
@@ -153,10 +154,10 @@ int main (int argc, char *argv[])
                   "Enable or disable GLVis visualization.");
    args.AddOption(&hrefinement, "-hr", "--h-refinement", "-no-hr",
                   "--no-h-refinement",
-                  "Do random h refinements to mesh.");
+                  "Do random h refinements to mesh (does not work for pyramids).");
    args.AddOption(&prefinement, "-pr", "--p-refinement", "-no-pr",
                   "--no-p-refinement",
-                  "Do random p refinements to solution field.");
+                  "Do random p refinements to solution field (does not work for pyramids).");
 
    args.Parse();
    if (!args.Good())
