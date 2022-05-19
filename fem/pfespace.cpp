@@ -3025,39 +3025,81 @@ ParFiniteElementSpace::ParallelDerefinementMatrix(int old_ndofs,
    Array<char> mark(diag->Height());
    mark = 0;
 
-   for (int k = 0; k < dtrans.embeddings.Size(); k++)
+   if (FEColl()->GetContType() == FiniteElementCollection::DISCONTINUOUS)
    {
-      const Embedding &emb = dtrans.embeddings[k];
-      if (emb.parent < 0) { continue; }
-
-      int coarse_rank = old_pncmesh->ElementRank(emb.parent);
-      int fine_rank = old_ranks[k];
-
-      if (coarse_rank == MyRank && fine_rank == MyRank)
+      for (int k = 0; k < dtrans.embeddings.Size(); k++)
       {
-         Geometry::Type geom = mesh->GetElementBaseGeometry(emb.parent);
-         DenseMatrix &lR = localR[geom](emb.matrix);
+         const Embedding &emb = dtrans.embeddings[k];
+         if (emb.parent < 0) { continue; }
 
-         elem_dof->GetRow(emb.parent, dofs);
-         old_elem_dof->GetRow(k, old_dofs);
+         int coarse_rank = old_pncmesh->ElementRank(emb.parent);
+         int fine_rank = old_ranks[k];
 
-         for (int vd = 0; vd < vdim; vd++)
+         if (coarse_rank == MyRank && fine_rank == MyRank)
          {
-            old_dofs.Copy(old_vdofs);
-            DofsToVDofs(vd, old_vdofs, old_ndofs);
+            Geometry::Type geom = mesh->GetElementBaseGeometry(emb.parent);
+            DenseMatrix &lR = localR[geom](emb.matrix);
 
-            for (int i = 0; i < lR.Height(); i++)
+            elem_dof->GetRow(emb.parent, dofs);
+            old_elem_dof->GetRow(k, old_dofs);
+
+            for (int vd = 0; vd < vdim; vd++)
             {
-               if (!std::isfinite(lR(i, 0))) { continue; }
+               old_dofs.Copy(old_vdofs);
+               DofsToVDofs(vd, old_vdofs, old_ndofs);
 
-               int r = DofToVDof(dofs[i], vd);
-               int m = (r >= 0) ? r : (-1 - r);
-
-               if (!mark[m])
+               for (int i = 0; i < lR.Height(); i++)
                {
+                  if (!std::isfinite(lR(i, 0))) { continue; }
+
+                  int r = DofToVDof(dofs[i], vd);
+
                   lR.GetRow(i, row);
-                  diag->SetRow(r, old_vdofs, row);
-                  mark[m] = 1;
+                  for (int j = 0; j < old_vdofs.Size(); j++) {
+                     diag->Set(r, old_vdofs[j], row[j]);
+                  }
+               }
+            }
+         }
+      }
+   }
+   else
+   {
+
+      for (int k = 0; k < dtrans.embeddings.Size(); k++)
+      {
+         const Embedding &emb = dtrans.embeddings[k];
+         if (emb.parent < 0) { continue; }
+
+         int coarse_rank = old_pncmesh->ElementRank(emb.parent);
+         int fine_rank = old_ranks[k];
+
+         if (coarse_rank == MyRank && fine_rank == MyRank)
+         {
+            Geometry::Type geom = mesh->GetElementBaseGeometry(emb.parent);
+            DenseMatrix &lR = localR[geom](emb.matrix);
+
+            elem_dof->GetRow(emb.parent, dofs);
+            old_elem_dof->GetRow(k, old_dofs);
+
+            for (int vd = 0; vd < vdim; vd++)
+            {
+               old_dofs.Copy(old_vdofs);
+               DofsToVDofs(vd, old_vdofs, old_ndofs);
+
+               for (int i = 0; i < lR.Height(); i++)
+               {
+                  if (!std::isfinite(lR(i, 0))) { continue; }
+
+                  int r = DofToVDof(dofs[i], vd);
+                  int m = (r >= 0) ? r : (-1 - r);
+
+                  if (!mark[m])
+                  {
+                     lR.GetRow(i, row);
+                     diag->SetRow(r, old_vdofs, row);
+                     mark[m] = 1;
+                  }
                }
             }
          }
