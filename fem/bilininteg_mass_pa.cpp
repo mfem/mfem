@@ -588,23 +588,19 @@ static void OccaPAMassApply3D(const int D1D,
 
 template<int T_D1D = 0, int T_Q1D = 0>
 static void PAMassApply2D(const int NE,
-                          const double *b_,
-                          const double *bt_,
-                          const double *d_,
-                          const double *x_,
-                          double *y_,
-                          const int d1d = 0,
-                          const int q1d = 0)
+                          const ConstDeviceMatrix &B,
+                          const ConstDeviceMatrix &Bt,
+                          const ConstDeviceCube &D,
+                          const ConstDeviceCube &X,
+                          DeviceCube &Y,
+                          int d1d = 0,
+                          int q1d = 0)
 {
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
    MFEM_VERIFY(D1D <= MAX_D1D, "");
    MFEM_VERIFY(Q1D <= MAX_Q1D, "");
-   auto B = Reshape(b_, Q1D, D1D);
-   auto Bt = Reshape(bt_, D1D, Q1D);
-   auto D = Reshape(d_, Q1D, Q1D, NE);
-   auto X = Reshape(x_, D1D, D1D, NE);
-   auto Y = Reshape(y_, D1D, D1D, NE);
+
    MFEM_FORALL(e, NE,
    {
       const int D1D = T_D1D ? T_D1D : d1d; // nvcc workaround
@@ -680,16 +676,14 @@ static void PAMassApply2D(const int NE,
 
 MFEM_JIT template<int T_D1D = 0, int T_Q1D = 0, int T_NBZ = 0>
 static void SmemPAMassApply2D(const int NE,
-                              const double *b_,
-                              const double *bt_,
-                              const double *d_,
-                              const double *x_,
-                              double *y_,
+                              const ConstDeviceMatrix &b,
+                              const ConstDeviceCube &D,
+                              const ConstDeviceCube &x,
+                              DeviceCube &Y,
                               const int d1d = 0,
                               const int q1d = 0,
                               const int nbz = 1)
 {
-   MFEM_CONTRACT_VAR(bt_);
    MFEM_CONTRACT_VAR(nbz);
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
@@ -698,10 +692,7 @@ static void SmemPAMassApply2D(const int NE,
    constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
    MFEM_VERIFY(D1D <= MD1, "");
    MFEM_VERIFY(Q1D <= MQ1, "");
-   auto b = Reshape(b_, Q1D, D1D);
-   auto D = Reshape(d_, Q1D, Q1D, NE);
-   auto x = Reshape(x_, D1D, D1D, NE);
-   auto Y = Reshape(y_, D1D, D1D, NE);
+
    MFEM_FORALL_2D(e, NE, Q1D, Q1D, NBZ,
    {
       const int tidz = MFEM_THREAD_ID(z);
@@ -805,11 +796,11 @@ static void SmemPAMassApply2D(const int NE,
 
 template<int T_D1D = 0, int T_Q1D = 0>
 static void PAMassApply3D(const int NE,
-                          const double *b_,
-                          const double *bt_,
-                          const double *d_,
-                          const double *x_,
-                          double *y_,
+                          const ConstDeviceMatrix &B,
+                          const ConstDeviceMatrix &Bt,
+                          const DeviceTensor<4,const double> &D,
+                          const DeviceTensor<4,const double> &X,
+                          DeviceTensor<4,double> &Y,
                           const int d1d = 0,
                           const int q1d = 0)
 {
@@ -817,11 +808,7 @@ static void PAMassApply3D(const int NE,
    const int Q1D = T_Q1D ? T_Q1D : q1d;
    MFEM_VERIFY(D1D <= MAX_D1D, "");
    MFEM_VERIFY(Q1D <= MAX_Q1D, "");
-   auto B = Reshape(b_, Q1D, D1D);
-   auto Bt = Reshape(bt_, D1D, Q1D);
-   auto D = Reshape(d_, Q1D, Q1D, Q1D, NE);
-   auto X = Reshape(x_, D1D, D1D, D1D, NE);
-   auto Y = Reshape(y_, D1D, D1D, D1D, NE);
+
    MFEM_FORALL(e, NE,
    {
       const int D1D = T_D1D ? T_D1D : d1d;
@@ -946,25 +933,20 @@ static void PAMassApply3D(const int NE,
 
 MFEM_JIT template<int T_D1D = 0, int T_Q1D = 0>
 static void SmemPAMassApply3D(const int NE,
-                              const double *b_,
-                              const double *bt_,
-                              const double *d_,
-                              const double *x_,
-                              double *y_,
-                              const int d1d = 0,
-                              const int q1d = 0)
+                              const ConstDeviceMatrix &b,
+                              const DeviceTensor<4,const double> &D,
+                              const DeviceTensor<4,const double> &x,
+                              DeviceTensor<4,double> &y,
+                              int d1d = 0,
+                              int q1d = 0)
 {
-   MFEM_CONTRACT_VAR(bt_);
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
    constexpr int M1Q = T_Q1D ? T_Q1D : MAX_Q1D;
    constexpr int M1D = T_D1D ? T_D1D : MAX_D1D;
    MFEM_VERIFY(D1D <= M1D, "");
    MFEM_VERIFY(Q1D <= M1Q, "");
-   auto b = Reshape(b_, Q1D, D1D);
-   auto d = Reshape(d_, Q1D, Q1D, Q1D, NE);
-   auto x = Reshape(x_, D1D, D1D, D1D, NE);
-   auto y = Reshape(y_, D1D, D1D, D1D, NE);
+
    MFEM_FORALL_3D(e, NE, Q1D, Q1D, 1,
    {
       const int D1D = T_D1D ? T_D1D : d1d;
@@ -1075,7 +1057,7 @@ static void SmemPAMassApply3D(const int NE,
             MFEM_UNROLL(MQ1)
             for (int qz = 0; qz < Q1D; qz++)
             {
-               QQQ[qz][qy][qx] = u[qz] * d(qx,qy,qz,e);
+               QQQ[qz][qy][qx] = u[qz] * D(qx,qy,qz,e);
             }
          }
       }
@@ -1181,21 +1163,22 @@ static void PAMassApply(const int dim,
                         const Vector &x,
                         Vector &y)
 {
-   const auto B = b.Read();
-   const auto Bt = bt.Read();
-   const auto D = d.Read();
-   const auto X = x.Read();
-   auto Y = y.ReadWrite();
+   ConstDeviceMatrix B = Reshape(b.Read(), Q1D, D1D);
+#ifndef MFEM_USE_JIT
+   ConstDeviceMatrix Bt = Reshape(bt.Read(), D1D, Q1D);
+#else
+   MFEM_CONTRACT_VAR(bt);
+#endif
 #ifdef MFEM_USE_OCCA
    if (DeviceCanUseOcca())
    {
       if (dim == 2)
       {
-         return OccaPAMassApply2D(D1D,Q1D,NE,B,Bt,D,X,Y);
+         return OccaPAMassApply2D(D1D,Q1D,NE,b,bt,D,X,Y);
       }
       if (dim == 3)
       {
-         return OccaPAMassApply3D(D1D,Q1D,NE,B,Bt,D,X,Y);
+         return OccaPAMassApply3D(D1D,Q1D,NE,b,bt,D,X,Y);
       }
       MFEM_ABORT("OCCA PA Mass Apply unknown kernel!");
    }
@@ -1204,56 +1187,62 @@ static void PAMassApply(const int dim,
 
    if (dim == 2)
    {
+      ConstDeviceCube D = Reshape(d.Read(), Q1D, Q1D, NE);
+      ConstDeviceCube X = Reshape(x.Read(), D1D, D1D, NE);
+      DeviceCube Y = Reshape(y.ReadWrite(), D1D, D1D, NE);
       switch (id)
       {
 #ifndef MFEM_USE_JIT
-         case 0x22: return SmemPAMassApply2D<2,2,16>(NE,B,Bt,D,X,Y);
-         case 0x24: return SmemPAMassApply2D<2,4,16>(NE,B,Bt,D,X,Y);
-         case 0x33: return SmemPAMassApply2D<3,3,16>(NE,B,Bt,D,X,Y);
-         case 0x34: return SmemPAMassApply2D<3,4,16>(NE,B,Bt,D,X,Y);
-         case 0x35: return SmemPAMassApply2D<3,5,16>(NE,B,Bt,D,X,Y);
-         case 0x36: return SmemPAMassApply2D<3,6,16>(NE,B,Bt,D,X,Y);
-         case 0x44: return SmemPAMassApply2D<4,4,8>(NE,B,Bt,D,X,Y);
-         case 0x46: return SmemPAMassApply2D<4,6,8>(NE,B,Bt,D,X,Y);
-         case 0x48: return SmemPAMassApply2D<4,8,4>(NE,B,Bt,D,X,Y);
-         case 0x55: return SmemPAMassApply2D<5,5,8>(NE,B,Bt,D,X,Y);
-         case 0x57: return SmemPAMassApply2D<5,7,8>(NE,B,Bt,D,X,Y);
-         case 0x58: return SmemPAMassApply2D<5,8,2>(NE,B,Bt,D,X,Y);
-         case 0x66: return SmemPAMassApply2D<6,6,4>(NE,B,Bt,D,X,Y);
-         case 0x77: return SmemPAMassApply2D<7,7,4>(NE,B,Bt,D,X,Y);
-         case 0x88: return SmemPAMassApply2D<8,8,2>(NE,B,Bt,D,X,Y);
-         case 0x99: return SmemPAMassApply2D<9,9,2>(NE,B,Bt,D,X,Y);
+         case 0x22: return SmemPAMassApply2D<2,2,16>(NE,B,D,X,Y);
+         case 0x24: return SmemPAMassApply2D<2,4,16>(NE,B,D,X,Y);
+         case 0x33: return SmemPAMassApply2D<3,3,16>(NE,B,D,X,Y);
+         case 0x34: return SmemPAMassApply2D<3,4,16>(NE,B,D,X,Y);
+         case 0x35: return SmemPAMassApply2D<3,5,16>(NE,B,D,X,Y);
+         case 0x36: return SmemPAMassApply2D<3,6,16>(NE,B,D,X,Y);
+         case 0x44: return SmemPAMassApply2D<4,4,8>(NE,B,D,X,Y);
+         case 0x46: return SmemPAMassApply2D<4,6,8>(NE,B,D,X,Y);
+         case 0x48: return SmemPAMassApply2D<4,8,4>(NE,B,D,X,Y);
+         case 0x55: return SmemPAMassApply2D<5,5,8>(NE,B,D,X,Y);
+         case 0x57: return SmemPAMassApply2D<5,7,8>(NE,B,D,X,Y);
+         case 0x58: return SmemPAMassApply2D<5,8,2>(NE,B,D,X,Y);
+         case 0x66: return SmemPAMassApply2D<6,6,4>(NE,B,D,X,Y);
+         case 0x77: return SmemPAMassApply2D<7,7,4>(NE,B,D,X,Y);
+         case 0x88: return SmemPAMassApply2D<8,8,2>(NE,B,D,X,Y);
+         case 0x99: return SmemPAMassApply2D<9,9,2>(NE,B,D,X,Y);
          default:   return PAMassApply2D(NE,B,Bt,D,X,Y,D1D,Q1D);
 #else
-         default: return SmemPAMassApply2D(NE,B,Bt,D,X,Y,D1D,Q1D);
+         default: return SmemPAMassApply2D(NE,B,D,X,Y,D1D,Q1D);
 #endif
       }
    }
    else if (dim == 3)
    {
+      DeviceTensor<4,const double> D = Reshape(d.Read(), Q1D, Q1D, Q1D, NE);
+      DeviceTensor<4,const double> X = Reshape(x.Read(), D1D, D1D, D1D, NE);
+      DeviceTensor<4,double> Y = Reshape(y.ReadWrite(), D1D, D1D, D1D, NE);
       switch (id)
       {
 #ifndef MFEM_USE_JIT
-         case 0x22: return SmemPAMassApply3D<2,2>(NE,B,Bt,D,X,Y);
-         case 0x23: return SmemPAMassApply3D<2,3>(NE,B,Bt,D,X,Y);
-         case 0x24: return SmemPAMassApply3D<2,4>(NE,B,Bt,D,X,Y);
-         case 0x26: return SmemPAMassApply3D<2,6>(NE,B,Bt,D,X,Y);
-         case 0x34: return SmemPAMassApply3D<3,4>(NE,B,Bt,D,X,Y);
-         case 0x35: return SmemPAMassApply3D<3,5>(NE,B,Bt,D,X,Y);
-         case 0x36: return SmemPAMassApply3D<3,6>(NE,B,Bt,D,X,Y);
-         case 0x37: return SmemPAMassApply3D<3,7>(NE,B,Bt,D,X,Y);
-         case 0x45: return SmemPAMassApply3D<4,5>(NE,B,Bt,D,X,Y);
-         case 0x46: return SmemPAMassApply3D<4,6>(NE,B,Bt,D,X,Y);
-         case 0x48: return SmemPAMassApply3D<4,8>(NE,B,Bt,D,X,Y);
-         case 0x56: return SmemPAMassApply3D<5,6>(NE,B,Bt,D,X,Y);
-         case 0x58: return SmemPAMassApply3D<5,8>(NE,B,Bt,D,X,Y);
-         case 0x67: return SmemPAMassApply3D<6,7>(NE,B,Bt,D,X,Y);
-         case 0x78: return SmemPAMassApply3D<7,8>(NE,B,Bt,D,X,Y);
-         case 0x89: return SmemPAMassApply3D<8,9>(NE,B,Bt,D,X,Y);
-         case 0x9A: return SmemPAMassApply3D<9,10>(NE,B,Bt,D,X,Y);
+         case 0x22: return SmemPAMassApply3D<2,2>(NE,B,D,X,Y);
+         case 0x23: return SmemPAMassApply3D<2,3>(NE,B,D,X,Y);
+         case 0x24: return SmemPAMassApply3D<2,4>(NE,B,D,X,Y);
+         case 0x26: return SmemPAMassApply3D<2,6>(NE,B,D,X,Y);
+         case 0x34: return SmemPAMassApply3D<3,4>(NE,B,D,X,Y);
+         case 0x35: return SmemPAMassApply3D<3,5>(NE,B,D,X,Y);
+         case 0x36: return SmemPAMassApply3D<3,6>(NE,B,D,X,Y);
+         case 0x37: return SmemPAMassApply3D<3,7>(NE,B,D,X,Y);
+         case 0x45: return SmemPAMassApply3D<4,5>(NE,B,D,X,Y);
+         case 0x46: return SmemPAMassApply3D<4,6>(NE,B,D,X,Y);
+         case 0x48: return SmemPAMassApply3D<4,8>(NE,B,D,X,Y);
+         case 0x56: return SmemPAMassApply3D<5,6>(NE,B,D,X,Y);
+         case 0x58: return SmemPAMassApply3D<5,8>(NE,B,D,X,Y);
+         case 0x67: return SmemPAMassApply3D<6,7>(NE,B,D,X,Y);
+         case 0x78: return SmemPAMassApply3D<7,8>(NE,B,D,X,Y);
+         case 0x89: return SmemPAMassApply3D<8,9>(NE,B,D,X,Y);
+         case 0x9A: return SmemPAMassApply3D<9,10>(NE,B,D,X,Y);
          default:   return PAMassApply3D(NE,B,Bt,D,X,Y,D1D,Q1D);
 #else
-         default: return SmemPAMassApply3D(NE,B,Bt,D,X,Y,D1D,Q1D);
+         default: return SmemPAMassApply3D(NE,B,D,X,Y,D1D,Q1D);
 #endif
       }
    }

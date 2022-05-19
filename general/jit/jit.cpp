@@ -41,6 +41,26 @@ namespace mfem
 
 namespace jit
 {
+/*
+struct dbg
+{
+   static constexpr bool DEBUG = true;
+   static constexpr uint8_t COLOR = 51;
+   dbg(): dbg(COLOR) { }
+   dbg(const uint8_t color)
+   {
+      if (!DEBUG) { return; }
+      std::cout << "\033[38;5;" << std::to_string(color==0?COLOR:color) << "m";
+   }
+   ~dbg() { if (DEBUG) { std::cout << "\033[m\n"; std::cout.flush(); } }
+   template <typename T> dbg& operator<<(const T &arg)
+   { if (DEBUG) { std::cout << arg; std::cout.flush(); } return *this; }
+   template<typename T, typename... Args>
+   inline void operator()(const T &arg, Args... args) const
+   { operator<<(arg); operator()(args...); }
+   template<typename T>
+   inline void operator()(const T &arg) const { operator<<(arg); }
+};*/
 
 namespace mpi
 {
@@ -98,7 +118,7 @@ class System // System singleton object
    int *s_ack; // shared status, should be large enough to store one MPI rank
    char *s_mem; // shared memory to store the command for the system call
    uintptr_t size; // of the s_mem shared memory
-   const char *name = "mjit"; // name for the archive and shared library
+   std::string lib_ar {"libmjit.a"}, lib_so {"./libmjit.so"};
    bool keep = true;
 
    struct Command
@@ -173,6 +193,7 @@ class System // System singleton object
 public:
    static void Init(int *argc, char ***argv)
    {
+      //dbg() << "Init";
       MFEM_CONTRACT_VAR(argc);
       MFEM_CONTRACT_VAR(argv);
       MFEM_VERIFY(!mpi::IsInitialized(), "MPI should not be initialized yet!");
@@ -223,16 +244,24 @@ public:
 
    static void Configure(const char *name, bool keep)
    {
-      Get().name = name;
+      //dbg() << "Configure";
+
+      Get().lib_ar = "lib";
+      Get().lib_ar += name;
+      Get().lib_ar += ".a";
+
+      Get().lib_so = "./lib";
+      Get().lib_so += name;
+      Get().lib_so += ".so";
+
       Get().keep = keep;
    }
 
    static void Finalize()
    {
-      if (mpi::Root() && !Get().keep)
-      {
-         std::remove(lib_ar()); std::remove(lib_so());
-      }
+      //dbg() << "Finalize";
+      const bool remove_libs = mpi::Root() && !Get().keep;
+      if (remove_libs) { std::remove(Lib_ar()); std::remove(Lib_so()); }
       // child and env-ranked have nothing to do
       if (Pid()==0 || Pid()==getpid()) { return; }
       MFEM_VERIFY(IsAck(), "[JIT] Finalize acknowledgment error!");
@@ -289,24 +318,8 @@ public:
    LinkerOptions ar;
 #endif
 
-   static const char *lib_ar()
-   {
-      static std::string lib;
-      lib = "lib";
-      lib += Get().name;
-      lib += ".a";
-      return lib.c_str();
-   }
-   static const char *lib_so()
-   {
-      static std::string lib;
-      lib = "./lib";
-      lib += Get().name;
-      lib += ".so";
-      return lib.c_str();
-   }
-   //static std::string Cxx() { return MFEM_JIT_CXX; }
-   //static std::string Flags() { return MFEM_JIT_BUILD_FLAGS; }
+   static const char *Lib_ar() { return Get().lib_ar.c_str(); }
+   static const char *Lib_so() { return Get().lib_so.c_str(); }
    static std::string Xpic() { return Get().cxx.Pic(); }
    static std::string Xpipe() { return Get().cxx.Pipe(); }
    static std::string Xdevice() { return Get().cxx.Device(); }
@@ -317,24 +330,24 @@ public:
    static std::string ARbackup() { return Get().ar.Backup(); }
    static void *DLopen(const char *path) { return ::dlopen(path, RTLD_LAZY|RTLD_LOCAL); }
 
-   static void* Lookup(const size_t hash, const char *name,
-                       const char *cxx, const char *flags, const char *libs,
+   static void* Lookup(const size_t hash, const char *name, const char *cxx,
+                       const char *flags, const char *link, const char *libs,
                        const char *source, const char *symbol)
    {
-      void *handle = std::fstream(lib_so()) ? DLopen(lib_so()) : nullptr;
-      if (!handle && std::fstream(lib_ar())) // if not found, try libmjit.a
+      void *handle = std::fstream(Lib_so()) ? DLopen(Lib_so()) : nullptr;
+      if (!handle && std::fstream(Lib_ar())) // if not found, try libmjit.a
       {
          int status = EXIT_SUCCESS;
          if (mpi::Root())
          {
-            Command() << cxx << flags << "-shared" << "-o" << lib_so()
-                      << ARprefix() << lib_ar() << ARpostfix()
+            Command() << cxx << link << "-shared" << "-o" << Lib_so()
+                      << ARprefix() << Lib_ar() << ARpostfix()
                       << Xlinker() + "-rpath,.";
             status = Call();
          }
          mpi::Sync(status);
-         handle = DLopen(lib_so());
-         MFEM_VERIFY(handle, "[JIT] Error " << lib_so() << " from " << lib_so());
+         handle = DLopen(Lib_so());
+         MFEM_VERIFY(handle, "[JIT] Error " << Lib_so() << " from " << Lib_so());
       }
 
       auto RootCompile = [&]() // Compilation only done by the root
@@ -358,18 +371,18 @@ public:
          std::remove(cc.c_str());
 
          // Update archive: ar += co
-         Command() << "ar -r"/*v*/ << lib_ar() << co;
+         Command() << "ar -r"/*v*/ << Lib_ar() << co;
          if (Call()) { return EXIT_FAILURE; }
          std::remove(co.c_str());
 
          // Create temporary shared library: (ar + co) => symbol
-         Command() << cxx << flags << "-shared" << "-o" << symbol
-                   << ARprefix() << lib_ar() << ARpostfix()
+         Command() << cxx << link << "-shared" << "-o" << symbol
+                   << ARprefix() << Lib_ar() << ARpostfix()
                    << libs;
-         if (Call(symbol)) { return EXIT_FAILURE; }
+         if (Call()) { return EXIT_FAILURE; }
 
          // Install temporary shared library: symbol => libmjit.so
-         Command() << "install" << ARbackup() << symbol << lib_so();
+         Command() << "install" << ARbackup() << symbol << Lib_so();
          if (Call()) { return EXIT_FAILURE; }
          return EXIT_SUCCESS;
       };
@@ -410,11 +423,11 @@ void Jit::Configure(const char *name, bool keep) { System::Configure(name, keep)
 
 void Jit::Finalize() { System::Finalize(); }
 
-void* Jit::Lookup(const size_t hash, const char *name,
-                  const char *cxx, const char *flags, const char *libs,
+void* Jit::Lookup(const size_t hash, const char *name, const char *cxx,
+                  const char *flags, const char *link, const char *libs,
                   const char *source, const char *symbol)
 {
-   return System::Lookup(hash, name, cxx, flags, libs, source, symbol);
+   return System::Lookup(hash, name, cxx, flags, link, libs, source, symbol);
 }
 
 } // namespace mfem

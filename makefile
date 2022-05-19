@@ -463,6 +463,7 @@ $(SRC)fem/bilininteg_mass_pa.cpp
 MFEM_JIT_DEFINES  = -DMFEM_CXX="$(MFEM_CXX)"
 MFEM_JIT_DEFINES += -DMFEM_EXT_LIBS="$(MFEM_EXT_LIBS)"
 MFEM_JIT_DEFINES += -DMFEM_BUILD_FLAGS="$(MFEM_BUILD_FLAGS)"
+MFEM_JIT_DEFINES += -DMFEM_LINK_FLAGS="$(MFEM_LINK_FLAGS)"
 $(BLD)mjit: $(BLD)general/jit/parser.cpp $(CONFIG_MK) makefile\
  $(BLD)general/jit/jit.hpp $(BLD)general/jit/jit.cpp
 	$(MFEM_CXX) $(MFEM_BUILD_FLAGS) $(MFEM_JIT_DEFINES) -o $(@) $(<) $(JIT_LIB)

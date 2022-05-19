@@ -1182,11 +1182,11 @@ static void PADiffusionApply2D(const int NE,
 MFEM_JIT template<int T_D1D = 0, int T_Q1D = 0, int T_NBZ = 0>
 static void SmemPADiffusionApply2D(const int NE,
                                    const bool symmetric,
-                                   const double *b_,
-                                   const double *g_,
-                                   const double *d_,
-                                   const double *x_,
-                                   double *y_,
+                                   const ConstDeviceMatrix &b,
+                                   const ConstDeviceMatrix &g,
+                                   const ConstDeviceCube &D,
+                                   const ConstDeviceCube &x,
+                                   DeviceCube &Y,
                                    int d1d = 0,
                                    int q1d = 0,
                                    int nbz = 0)
@@ -1199,11 +1199,7 @@ static void SmemPADiffusionApply2D(const int NE,
    constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
    MFEM_VERIFY(D1D <= MD1, "");
    MFEM_VERIFY(Q1D <= MQ1, "");
-   const auto b = Reshape(b_, Q1D, D1D);
-   const auto g = Reshape(g_, Q1D, D1D);
-   const auto D = Reshape(d_, Q1D*Q1D, symmetric ? 3 : 4, NE);
-   const auto x = Reshape(x_, D1D, D1D, NE);
-   auto Y = Reshape(y_, D1D, D1D, NE);
+
    MFEM_FORALL_2D(e, NE, Q1D, Q1D, NBZ,
    {
       const int tidz = MFEM_THREAD_ID(z);
@@ -1535,11 +1531,11 @@ static void PADiffusionApply3D(const int NE,
 MFEM_JIT template<int T_D1D = 0, int T_Q1D = 0>
 void SmemPADiffusionApply3D(const int NE,
                             const bool symmetric,
-                            const double *b_,
-                            const double *g_,
-                            const double *d_,
-                            const double *x_,
-                            double *y_,
+                            const ConstDeviceMatrix &b,
+                            const ConstDeviceMatrix &g,
+                            const DeviceTensor<5,const double> &d,
+                            const DeviceTensor<4,const double> &x,
+                            DeviceTensor<4,double> &y,
                             int d1d = 0,
                             int q1d = 0)
 {
@@ -1549,11 +1545,7 @@ void SmemPADiffusionApply3D(const int NE,
    constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
    MFEM_VERIFY(D1D <= MD1, "");
    MFEM_VERIFY(Q1D <= MQ1, "");
-   auto b = Reshape(b_, Q1D, D1D);
-   auto g = Reshape(g_, Q1D, D1D);
-   auto d = Reshape(d_, Q1D, Q1D, Q1D, symmetric ? 6 : 9, NE);
-   auto x = Reshape(x_, D1D, D1D, D1D, NE);
-   auto y = Reshape(y_, D1D, D1D, D1D, NE);
+
    MFEM_FORALL_3D(e, NE, Q1D, Q1D, Q1D,
    {
       const int D1D = T_D1D ? T_D1D : d1d;
@@ -1767,36 +1759,34 @@ static void PADiffusionApply(const int dim,
                              const Vector &x,
                              Vector &y)
 {
-   const auto B = b.Read();
-   const auto G = g.Read();
-   const auto Bt = bt.Read();
-   const auto Gt = gt.Read();
-   const auto D = d.Read();
-   const auto X = x.Read();
-   auto Y = y.ReadWrite();
+   ConstDeviceMatrix B = Reshape(b.Read(), Q1D, D1D);
+   ConstDeviceMatrix G = Reshape(g.Read(), Q1D, D1D);
 #ifdef MFEM_USE_OCCA
    if (DeviceCanUseOcca())
    {
       if (dim == 2)
       {
-         OccaPADiffusionApply2D(D1D,Q1D,NE,B,G,Bt,Gt,D,X,Y);
+         OccaPADiffusionApply2D(D1D,Q1D,NE,b,g,bt,gt,d,x,y);
          return;
       }
       if (dim == 3)
       {
-         OccaPADiffusionApply3D(D1D,Q1D,NE,B,G,Bt,Gt,D,X,Y);
+         OccaPADiffusionApply3D(D1D,Q1D,NE,b,g,bt,gt,d,x,y);
          return;
       }
       MFEM_ABORT("OCCA PADiffusionApply unknown kernel!");
    }
 #else
-   MFEM_CONTRACT_VAR(Bt);
-   MFEM_CONTRACT_VAR(Gt);
+   MFEM_CONTRACT_VAR(bt);
+   MFEM_CONTRACT_VAR(gt);
 #endif // MFEM_USE_OCCA
    const int id = (D1D << 4) | Q1D;
 
    if (dim == 2)
    {
+      ConstDeviceCube D = Reshape(d.Read(), Q1D*Q1D, symm ? 3 : 4, NE);
+      ConstDeviceCube X = Reshape(x.Read(), D1D, D1D, NE);
+      DeviceCube Y = Reshape(y.ReadWrite(), D1D, D1D, NE);
       switch (id)
       {
 #ifndef MFEM_USE_JIT
@@ -1817,6 +1807,10 @@ static void PADiffusionApply(const int dim,
 
    if (dim == 3)
    {
+      DeviceTensor<5,const double> D =
+         Reshape(d.Read(), Q1D, Q1D, Q1D, symm ? 6 : 9, NE);
+      DeviceTensor<4,const double> X = Reshape(x.Read(), D1D, D1D, D1D, NE);
+      DeviceTensor<4,double> Y = Reshape(y.ReadWrite(), D1D, D1D, D1D, NE);
       switch (id)
       {
 #ifndef MFEM_USE_JIT

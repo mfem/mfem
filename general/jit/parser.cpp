@@ -58,6 +58,7 @@ struct Parser
       struct { int dim; std::string e, N, X, Y, Z; std::ostringstream body; } forall;
       std::ostringstream src, dup;
       bool is_static, eq;
+      int lt;
 
       struct fsm_t
       {
@@ -204,7 +205,10 @@ struct Parser
    bool is_slash() { return is_char('/'); }
    bool is_star() { return is_char('*'); }
    bool is_coma() { return is_char(','); }
+   bool is_amp() { return is_char('&'); }
    bool is_eq() { return is_char('='); }
+   bool is_lt() { return is_char('<'); }
+   bool is_gt() { return is_char('>'); }
 
    void mfem_jit_prefix()
    {
@@ -260,6 +264,7 @@ struct Parser
       ker.Sparams0.clear();
       auto most = [](std::string &s) { return s = s.substr(0, s.size()-1); };
       auto last = [](std::string &s) { return s.substr(s.find_last_of('.')+1);};
+      ker.lt = 0;
       while (good() && in.peek() != ')')
       {
          if (is_comment())
@@ -269,11 +274,15 @@ struct Parser
          }
          check(good());
          if (in.peek() == ')') { break; } // to handle only comments
-         check(is_space() || is_id() || is_star() || is_eq() || is_coma());
+         check(is_space() || is_id() || is_star() || is_amp() ||
+               is_eq() || is_lt() || is_gt() || is_coma(),
+               "while parsing the arguments.");
+         if (is_lt()) { ker.lt++; }
+         if (is_gt()) { ker.lt--; }
          if (is_space() && !id.empty() && id.back() != '.' && !ker.eq) { id += '.'; }
          if (is_eq()) { ker.eq = true; id = id.substr(0, id.size()-1); }
          if (is_id() && !ker.eq) { id += in.peek(); }
-         if (is_coma())
+         if (is_coma() && ker.lt == 0)
          {
             if (id.back() == '.') { most(id); }
             add_arg(ker.Sargs, last(id)); id.clear(); ker.eq = false;
@@ -387,6 +396,7 @@ struct Parser
 
       const char *cxx = MFEM_JIT_STRINGIFY(MFEM_CXX);
       const char *libs = MFEM_JIT_STRINGIFY(MFEM_EXT_LIBS);
+      const char *link = MFEM_JIT_STRINGIFY(MFEM_LINK_FLAGS);
       const char *flags = MFEM_JIT_STRINGIFY(MFEM_BUILD_FLAGS);
 
       size_t seed = // src is ready: compute its seed with all the MFEM context
@@ -404,6 +414,7 @@ struct Parser
 
       out << "\nconst char *cxx = \"" << cxx << "\";";
       out << "\nconst char *flags = \"" << flags << "\";";
+      out << "\nconst char *link = \"" << link << "\";";
       out << "\nconst char *libs = \"" << libs << "\";";
 
       out << "\nconst size_t hash = Jit::Hash("
@@ -412,7 +423,7 @@ struct Parser
           <<"(unsigned long backends, " << ker.Sparams << ");";
       out << "\nstatic std::unordered_map<size_t, Jit::Kernel<kernel_t>> kernels;"
           << "\nJit::Find(hash, \"" << ker.name  << "<" << ker.Tformat << ">"
-          << "\", cxx, flags, libs, source, kernels, " << ker.Targs <<  ")"
+          << "\", cxx, flags, link, libs, source, kernels, " << ker.Targs <<  ")"
           << ".operator()(backends," << ker.Sargs << ");";
 
       out << "\n#line " << std::to_string(line) << " \"" << file << "\"\n";

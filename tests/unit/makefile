@@ -44,6 +44,7 @@ PMJIT_MAIN_OBJ = mjit/test_par_main.o
 # Sedov numerical seq/par files and tests
 SEDOV_FILES = $(SRC)miniapps/test_sedov.cpp
 
+USE_HIP := $(MFEM_USE_HIP:NO=)
 USE_CUDA := $(MFEM_USE_CUDA:NO=)
 SEQ_SEDOV_TESTS = sedov_tests_cpu sedov_tests_debug
 SEQ_SEDOV_TESTS += $(if $(USE_CUDA),sedov_tests_cuda)
@@ -96,6 +97,8 @@ MJIT_OBJ = $(filter-out $(MJIT_MAIN_OBJ) $(PMJIT_MAIN_OBJ),\
                         $(MJIT_SOURCE_FILES:$(SRC)%.cpp=%.o))
 SEQ_UNIT_TESTS += $(if $(USE_MJIT),mjit_tests)
 PAR_UNIT_TESTS += $(if $(USE_MJIT),pmjit_tests)
+MJIT_FLAGS  = $(if $(or $(USE_CUDA),$(USE_HIP)),,-x c++)
+MJIT_FLAGS += $(MFEM_FLAGS)
 
 # Debug device tests
 DEBUG_DEVICE_FILE = $(SRC)miniapps/test_debug_device.cpp
@@ -155,7 +158,7 @@ $(CEED_OBJ): %.o: $(SRC)%.cpp $(HEADER_FILES) $(CONFIG_MK)
 
 $(MJIT_OBJ): %.o: $(SRC)%.cpp $(HEADER_FILES) $(CONFIG_MK) $(MFEM_DIR)/mjit
 	@mkdir -p $(@D)
-	$(MFEM_DIR)/mjit $(abspath $(<)) | $(CCC) -x c++ -c $(MFEM_FLAGS) $(INCLUDES) -o $(@) -
+	$(MFEM_DIR)/mjit $(abspath $(<)) | $(CCC) -c $(MJIT_FLAGS) $(INCLUDES) -o $(@) -
 
 # Template rule for devices
 # SEDOV Template rule for devices

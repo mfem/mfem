@@ -39,8 +39,8 @@ struct Jit
    static void Finalize();
 
    /// Lookup symbol in the cache, launch the compile if needed.
-   static void* Lookup(const size_t hash, const char *name,
-                       const char *cxx, const char *flags, const char *libs,
+   static void* Lookup(const size_t hash, const char *name, const char *cxx,
+                       const char *flags, const char *link, const char *libs,
                        const char *source, const char *symbol);
 
    /// Kernel class
@@ -49,10 +49,11 @@ struct Jit
       kernel_t kernel;
 
       /// \brief Kernel constructor
-      Kernel(const size_t hash, const char *name,
-             const char *cxx, const char *flags, const char *libs,
+      Kernel(const size_t hash, const char *name, const char *cxx,
+             const char *flags, const char *link, const char *libs,
              const char *src, const char *symbol):
-         kernel((kernel_t) Jit::Lookup(hash, name, cxx, flags, libs, src, symbol)) { }
+         kernel((kernel_t) Jit::Lookup(hash, name, cxx, flags, link, libs, src,
+                                       symbol)) { }
 
       /// Kernel launch
       template<typename... Args> void operator()(Args... as) { kernel(as...); }
@@ -80,8 +81,8 @@ struct Jit
    /// \brief Find a Kernel in the given @a map.
    /// If the kernel cannot be found, it will be inserted into the map.
    template <typename T, typename... Args> static inline
-   Kernel<T> Find(const size_t hash, const char *name,
-                  const char *cxx, const char *flags, const char *libs,
+   Kernel<T> Find(const size_t hash, const char *name, const char *cxx,
+                  const char *flags, const char *link, const char *libs,
                   const char *source,
                   std::unordered_map<size_t, Kernel<T>> &map, Args ...args)
    {
@@ -93,8 +94,8 @@ struct Jit
          std::string src(n+1, '\0'), knm(m+1, '\0');
          snprintf(&src[0], n+1, source, hash, hash, hash, args...);
          snprintf(&knm[0], m+1, name, args...);
-         map.emplace(hash, Kernel<T>(hash, &knm[0], cxx, flags, libs, &src[0],
-                                     ToString(hash).c_str()));
+         map.emplace(hash, Kernel<T>(hash, &knm[0], cxx, flags, link, libs,
+                                     &src[0], ToString(hash).c_str()));
          kernel_it = map.find(hash);
       }
       return kernel_it->second;
