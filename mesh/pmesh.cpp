@@ -5136,24 +5136,23 @@ void ParMesh::PrintAsOne(std::ostream &os) const
 
 void ParMesh::PrintAsSerial(std::ostream &os) const
 {
-    //
+    // Define required spaces
     H1_FECollection fec_linear(1, Dim);
     ParMesh *pm = const_cast<ParMesh *>(this);
     ParFiniteElementSpace pfespace_linear(pm, &fec_linear);
-    ParGridFunction x_linear(&pfespace_linear);
-    x_linear.SetTrueVector();
-
-    int nvertices = x_linear.GetTrueVector().Size();
-    int nvertices_glob = nvertices;
 
     int ne_glob = GetGlobalNE();
+
+    int nvertices = pfespace_linear.GetTrueVSize();
+    int nvertices_glob = nvertices;
     MPI_Allreduce(&nvertices, &nvertices_glob, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
-    int nbe = GetNBE();
+
+    int nbe = NumOfBdrElements;
     int nbe_glob = nbe;
     MPI_Allreduce(&nbe, &nbe_glob, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
-    double dummy_vertex[Dim];
+    double dummy_vertex[spaceDim];
 
-    Mesh serialmesh = Mesh(Dim, nvertices_glob, ne_glob, nbe_glob, -1);
+    Mesh serialmesh = Mesh(Dim, nvertices_glob, ne_glob, nbe_glob, spaceDim);
     int nv_ne[2], &nv = nv_ne[0], &ne = nv_ne[1];
     MPI_Status status;
     Array<double> vert;
@@ -5314,7 +5313,7 @@ void ParMesh::PrintAsSerial(std::ostream &os) const
     FiniteElementSpace *fespace_serial = NULL;
     FiniteElementSpace fespace_serial_linear(&serialmesh, &fec_linear, 1, pfespace_linear.GetOrdering());
     if (curvature) {
-        fespace_serial = new FiniteElementSpace(&serialmesh, GetNodalFESpace()->FEColl(), Dim, GetNodalFESpace()->GetOrdering());
+        fespace_serial = new FiniteElementSpace(&serialmesh, GetNodalFESpace()->FEColl(), spaceDim, GetNodalFESpace()->GetOrdering());
         serialmesh.SetNodalFESpace(fespace_serial);
     }
 
@@ -5336,7 +5335,7 @@ void ParMesh::PrintAsSerial(std::ostream &os) const
                 for (int i = 0; i < ints.Size(); i++) {
                     double *vdata = const_cast<double *>(GetVertex(ints[i]));
                     double *vdata_serial = serialmesh.GetVertex(ints_serial[i]);
-                    for (int d = 0; d < Dim; d++) {
+                    for (int d = 0; d < spaceDim; d++) {
                         (vdata_serial[d]) = (vdata[d]);
                     }
                 }
@@ -5368,7 +5367,7 @@ void ParMesh::PrintAsSerial(std::ostream &os) const
                     serialmesh.GetElementVertices(serial_elem_count++, ints_serial);
                     for (int i = 0; i < ints_serial.Size(); i++) {
                         double *vdata_serial = serialmesh.GetVertex(ints_serial[i]);
-                        for (int d = 0; d < Dim; d++) {
+                        for (int d = 0; d < spaceDim; d++) {
                             (vdata_serial[d]) = vert[ne++];
                         }
                     }
@@ -5384,10 +5383,10 @@ void ParMesh::PrintAsSerial(std::ostream &os) const
         {
             if (curvature) {
                 const FiniteElement *fe = GetNodalFESpace()->GetFE(e);
-                ne += Dim*fe->GetDof();
+                ne += spaceDim*fe->GetDof();
             }
             else {
-                ne += GetElement(e)->GetNVertices()*Dim;
+                ne += GetElement(e)->GetNVertices()*spaceDim;
             }
         }
         nv = GetNE();
@@ -5407,7 +5406,7 @@ void ParMesh::PrintAsSerial(std::ostream &os) const
                 GetElementVertices(e, ints);
                 for (int i = 0; i < ints.Size(); i++) {
                     double *vdata = const_cast<double *>(GetVertex(ints[i]));
-                    for (int d = 0; d < Dim; d++) {
+                    for (int d = 0; d < spaceDim; d++) {
                         vert.Append(vdata[d]);
                     }
                 }
