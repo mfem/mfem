@@ -124,22 +124,6 @@ double integrate(GridFunction* gf)
    return integral;
 }
 
-// project linear function on one element.
-// refine, project again.
-double linear_coeff(const Vector& x)
-{
-   if (dimension == 2)
-   {
-      return x[0]+x[1];
-   }
-   else
-   {
-      return x[0]+x[1]+x[2];
-   }
-}
-
-// for order 0, linear, order 1, quadratic, etc.
-
 struct PolyCoeff
 {
    static int order_;
@@ -182,7 +166,7 @@ void test_derefine_L2_element(int order, Element::Type el_type, int basis_type)
    GridFunction x(&fespace);
 
    PolyCoeff pcoeff;
-   pcoeff.order_ = 3;
+   pcoeff.order_ = order+1;
    FunctionCoefficient c(PolyCoeff::poly_coeff);
 
    Array<Refinement> refinements;
@@ -227,7 +211,7 @@ void test_derefine_L2_element(int order, Element::Type el_type, int basis_type)
 
    double err0 = x_fine.ComputeL2Error(gfc);
 
-   // test for local optimality by shifting dofs by epsilon and
+   // test for local L2 optimality by shifting dofs by epsilon and
    // recomputing error wrt fine solution.
    double eps = 1.e-3;
    for (int i = 0; i < coarse_soln_v.Size(); i++)
