@@ -56,9 +56,11 @@ void RefineRandomly(ParMesh& pmesh,
    double freq = 0.3;
 
    Array<Refinement> refinements;
-   for (int k = 0; k < pmesh.GetNE(); k++) {
+   for (int k = 0; k < pmesh.GetNE(); k++)
+   {
       double a = rand()/double(RAND_MAX);
-      if (a < freq) {
+      if (a < freq)
+      {
          refinements.Append(Refinement(k));
       }
    }
@@ -78,9 +80,11 @@ void CoarsenRandomly(ParMesh& pmesh,
    local_err = 1.1;
    double threshold = 1.0;
 
-   for (int k = 0; k < pmesh.GetNE(); k++) {
+   for (int k = 0; k < pmesh.GetNE(); k++)
+   {
       double a = rand()/double(RAND_MAX);
-      if (a < freq) {
+      if (a < freq)
+      {
          local_err(k) = 0.0;
       }
    }
@@ -134,7 +138,8 @@ int main()
    srand( 2+myid );
 
    int total_it = 10;
-   for (int it = 0; it < total_it; it++) {
+   for (int it = 0; it < total_it; it++)
+   {
 
       printf("starting iteration %d\n",it);
 
@@ -144,7 +149,7 @@ int main()
 
       double err = x.ComputeL2Error(c);
       cout << "err after refine: " << err << endl;
-      if (err > 1.e-12) break;
+      if (err > 1.e-12) { break; }
 
       pmesh.Rebalance();
       fespace.Update();
@@ -152,10 +157,11 @@ int main()
 
       err = x.ComputeL2Error(c);
       cout << "err after rebalance fine: " << err << endl;
-      if (err > 1.e-12) break;
+      if (err > 1.e-12) { break; }
       //assert(err < 1.e-12);
 
-      if (it == 5) Visualize(num_procs, myid, pmesh, x, "before coarsen","before coarsen",Wx, Wy); Wx += offx;
+      if (it == 5) { Visualize(num_procs, myid, pmesh, x, "before coarsen","before coarsen",Wx, Wy); } Wx
+      += offx;
 
       CoarsenRandomly(pmesh, fespace, x);
 
@@ -163,7 +169,7 @@ int main()
 
       err = x.ComputeL2Error(c);
       cout << "err after coarsen: " << err << endl;
-      if (err > 1.e-12) break;
+      if (err > 1.e-12) { break; }
       //assert(err < 1.e-12);
 
       pmesh.Rebalance();
@@ -172,10 +178,11 @@ int main()
 
       err = x.ComputeL2Error(c);
       cout << "err after rebalance coarse: " << err << endl;
-      if (err > 1.e-12) break;
+      if (err > 1.e-12) { break; }
       //assert(err < 1.e-12);
 
    }
 
-   Visualize(num_procs, myid, pmesh, x, "after refine","after refine",Wx, Wy); Wx += offx;
+   Visualize(num_procs, myid, pmesh, x, "after refine","after refine",Wx, Wy);
+   Wx += offx;
 }
