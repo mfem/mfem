@@ -296,6 +296,8 @@ TEST_CASE("Coarsen L2 Element","[Coarsen]")
    }
 }
 
+#ifdef MFEM_USE_MPI
+
 void RefineRandomly(ParMesh& pmesh,
                     ParFiniteElementSpace& fespace, ParGridFunction& u)
 {
@@ -419,9 +421,6 @@ void stress_parallel_coarsen(int order, Element::Type el_type, int basis_type)
    // Wx += offx;
 }
 
-
-
-#ifdef MFEM_USE_MPI
 TEST_CASE("Parallel Coarsen Stress Test", "[Coarsen][Parallel]")
 {
    std::vector<int> orders_1d{0,1,2,3};
