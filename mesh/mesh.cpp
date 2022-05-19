@@ -9085,7 +9085,7 @@ void Mesh::NonconformingRefinement(const Array<Refinement> &refinements,
 double Mesh::AggregateError(const Array<double> &elem_error,
                             const int *fine, int nfine, int op)
 {
-   double error = 0.0;
+   double error = elem_error[fine[0]];
    for (int i = 0; i < nfine; i++)
    {
       MFEM_VERIFY(fine[i] < elem_error.Size(), "");
