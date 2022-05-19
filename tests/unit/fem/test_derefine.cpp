@@ -235,7 +235,7 @@ void test_derefine_L2_element(int order, Element::Type el_type, int basis_type)
    }
 }
 
-TEST_CASE("Coarsen L2 Element, Verify Projection","[Coarsen]")
+TEST_CASE("Coarsen L2 Element","[Coarsen]")
 {
    std::vector<int> orders_1d{0,1,2,3};
    std::vector<int> orders_2d{0,1,2,3};
@@ -296,7 +296,193 @@ TEST_CASE("Coarsen L2 Element, Verify Projection","[Coarsen]")
    }
 }
 
+void RefineRandomly(ParMesh& pmesh,
+                    ParFiniteElementSpace& fespace, ParGridFunction& u)
+{
+   double freq = 0.3;
+
+   Array<Refinement> refinements;
+   for (int k = 0; k < pmesh.GetNE(); k++)
+   {
+      double a = rand()/double(RAND_MAX);
+      if (a < freq)
+      {
+         refinements.Append(Refinement(k));
+      }
+   }
+
+   pmesh.GeneralRefinement(refinements);
+   fespace.Update();
+   u.Update();
+}
+
+
+void CoarsenRandomly(ParMesh& pmesh,
+                     ParFiniteElementSpace& fespace, ParGridFunction& u)
+{
+   double freq = 0.2;
+
+   Vector local_err(pmesh.GetNE());
+   local_err = 1.1;
+   double threshold = 1.0;
+
+   for (int k = 0; k < pmesh.GetNE(); k++)
+   {
+      double a = rand()/double(RAND_MAX);
+      if (a < freq)
+      {
+         local_err(k) = 0.0;
+      }
+   }
+
+   int op = 0; // take min
+   int nc_limit = 0;
+   pmesh.DerefineByError(local_err, threshold, nc_limit, op);
+   fespace.Update();
+   u.Update();
+}
+
+void stress_parallel_coarsen(int order, Element::Type el_type, int basis_type)
+{
+   int num_procs = Mpi::WorldSize();
+   int myid = Mpi::WorldRank();
+
+   Mesh mesh;
+   if (dimension == 1)
+   {
+      mesh = Mesh::MakeCartesian1D(4, 1.0);
+      mesh.EnsureNCMesh(true);
+   }
+   if (dimension == 2)
+   {
+      mesh = Mesh::MakeCartesian2D(2, 2, el_type, true, 1.0, 1.0);
+   }
+   if (dimension == 3)
+   {
+      mesh = Mesh::MakeCartesian3D(2, 2, 2, el_type, true, 1.0, 1.0, 1.0);
+   }
+   mesh.EnsureNCMesh();
+
+   ParMesh *pmeshp = new ParMesh(MPI_COMM_WORLD, mesh);
+   ParMesh& pmesh{*pmeshp};
+
+   L2_FECollection fec(order, dimension, basis_type);
+   ParFiniteElementSpace fespace(&pmesh, &fec);
+   ParGridFunction x(&fespace);
+
+   PolyCoeff pcoeff;
+   pcoeff.order_ = order; // exact
+   FunctionCoefficient c(PolyCoeff::poly_coeff);
+
+   x.ProjectCoefficient(c);
+
+   // test correctness by:
+   // initializing with an exact polynomial
+   // loop:
+   //   refine randomly
+   //   rebalance
+   //   coarsen randomly
+   //   rebalance
+   // representation should remain exact throughout
+
+   srand( (unsigned)time( NULL )+myid );
+
+   int total_it = 10;
+   for (int it = 0; it < total_it; it++)
+   {
+      RefineRandomly(pmesh, fespace, x);
+
+      double err = x.ComputeL2Error(c);
+      REQUIRE( err < 1.e-12 );
+
+      pmesh.Rebalance();
+      fespace.Update();
+      x.Update();
+
+      err = x.ComputeL2Error(c);
+      REQUIRE( err < 1.e-12 );
+
+      CoarsenRandomly(pmesh, fespace, x);
+
+      err = x.ComputeL2Error(c);
+      REQUIRE( err < 1.e-12 );
+
+      pmesh.Rebalance();
+      fespace.Update();
+      x.Update();
+
+      err = x.ComputeL2Error(c);
+      REQUIRE( err < 1.e-12 );
+   }
+
+   // Visualize(num_procs, myid, pmesh, x, "after refine","after refine",Wx, Wy);
+   // Wx += offx;
+}
+
+
+
 #ifdef MFEM_USE_MPI
+TEST_CASE("Parallel Coarsen Stress Test", "[Coarsen][Parallel]")
+{
+   std::vector<int> orders_1d{0,1,2,3};
+   std::vector<int> orders_2d{0,1,2,3};
+   std::vector<int> orders_3d{0,1,2};
+
+   std::vector<int> basis_types{
+      BasisType::Positive,
+      BasisType::GaussLegendre,
+      BasisType::GaussLobatto};
+
+   std::vector<Element::Type> el_types_1d;
+   el_types_1d.push_back(Element::SEGMENT);
+
+   std::vector<Element::Type> el_types_2d;
+   el_types_2d.push_back(Element::QUADRILATERAL);
+   // el_types_2d.push_back(Element::TRIANGLE); // derefinement not supported
+
+   std::vector<Element::Type> el_types_3d;
+   el_types_3d.push_back(Element::HEXAHEDRON);
+   // el_types_3d.push_back(Element::TETRAHEDRON); // derefinement not supported
+   // el_types_3d.push_back(Element::WEDGE); // derefinement not supported
+
+   dimension = 1;
+   for (auto el_type: el_types_1d)
+   {
+      for (auto order: orders_1d)
+      {
+         for (auto basis_type: basis_types)
+         {
+            stress_parallel_coarsen(order, el_type, basis_type);
+         }
+      }
+   }
+
+   dimension = 2;
+   for (auto el_type: el_types_2d)
+   {
+      for (auto order: orders_2d)
+      {
+         for (auto basis_type: basis_types)
+         {
+            stress_parallel_coarsen(order, el_type, basis_type);
+         }
+      }
+   }
+
+   dimension = 3;
+   for (auto el_type: el_types_3d)
+   {
+      for (auto order: orders_3d)
+      {
+         for (auto basis_type: basis_types)
+         {
+            stress_parallel_coarsen(order, el_type, basis_type);
+         }
+      }
+   }
+
+}
+
 TEST_CASE("ParDerefine", "[Parallel]")
 {
    for (dimension = 2; dimension <= 3; ++dimension)
