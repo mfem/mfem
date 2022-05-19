@@ -463,7 +463,6 @@ void ScalarFiniteElement::ScalarLocalL2Restriction(
    // General "restriction", defined by L2 projection
    double v[Geometry::MaxDim];
    Vector vv(v, dim);
-   IntegrationPoint c_ip;
 
    const int cs = coarse_fe.GetDof(), fs = this->GetDof();
    R.SetSize(cs, fs);
@@ -487,6 +486,8 @@ void ScalarFiniteElement::ScalarLocalL2Restriction(
       const IntegrationPoint &f_ip = ir.IntPoint(i);
       this->CalcShape(f_ip, fine_shape);
       Trans.Transform(f_ip, vv);
+
+      IntegrationPoint c_ip;
       c_ip.Set(v, dim);
       coarse_fe.CalcShape(c_ip, coarse_shape);
       AddMult_a_VWt(f_ip.weight*Trans.Weight(), coarse_shape, fine_shape,
