@@ -5153,13 +5153,11 @@ void ParMesh::PrintAsSerial(std::ostream &os) const
    double dummy_vertex[spaceDim];
 
    Mesh serialmesh = Mesh(Dim, nvertices_glob, ne_glob, nbe_glob, spaceDim);
+
    int nv_ne[2], &nv = nv_ne[0], &ne = nv_ne[1];
    MPI_Status status;
    Array<double> vert;
-   Array<int> ints;
-   Array<int> dofs;
-   nv = GetNE();
-   MPI_Allreduce(&nv, &ne, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
+   Array<int> ints, dofs;
 
    if (MyRank == 0)
    {
@@ -5324,7 +5322,9 @@ void ParMesh::PrintAsSerial(std::ostream &os) const
    if (curvature)
    {
       fespace_serial = new FiniteElementSpace(&serialmesh,
-                                              GetNodalFESpace()->FEColl(), spaceDim, GetNodalFESpace()->GetOrdering());
+                                              GetNodalFESpace()->FEColl(),
+                                              spaceDim,
+                                              GetNodalFESpace()->GetOrdering());
       serialmesh.SetNodalFESpace(fespace_serial);
    }
 
