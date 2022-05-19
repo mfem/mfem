@@ -227,14 +227,6 @@ int main(int argc, char *argv[])
 
    FiniteElementCollection * G_fec = new ND_FECollection(test_order, dim);
 
-   if (myid == 0)
-   {
-      mfem::out << "E_fes space true dofs = " << E_fes->GetTrueVSize() << endl;
-      mfem::out << "H_fes space true dofs = " << H_fes->GetTrueVSize() << endl;
-      mfem::out << "hatE_fes space true dofs = " << hatE_fes->GetTrueVSize() << endl;
-      mfem::out << "hatH_fes space true dofs = " << hatH_fes->GetTrueVSize() << endl;
-   }
-
    // Coefficients
    Vector dim_zero(dim); dim_zero = 0.0;
    Vector dimc_zero(dimc); dimc_zero = 0.0;
@@ -407,7 +399,7 @@ int main(int argc, char *argv[])
    int dof0;
    if (myid == 0)
    {
-      mfem::out << "\n Refinement |" 
+      mfem::out << "\n  Ref |" 
                << "    Dofs    |" 
                << "   ω   |" 
                << "  L2 Error  |" 
@@ -420,7 +412,7 @@ int main(int argc, char *argv[])
                <<  "---------------------"    
                <<  "---------------------"    
                <<  "---------------------"    
-               <<  "----------------" << endl;      
+               <<  "----------" << endl;      
    }
 
 
@@ -486,62 +478,67 @@ int main(int argc, char *argv[])
       BlockOperator * BlockA_r = dynamic_cast<BlockOperator *>(&Ahc->real());
       BlockOperator * BlockA_i = dynamic_cast<BlockOperator *>(&Ahc->imag());
 
-      MFEM_VERIFY(static_cond, "preconditioner not implemented for the non-static condensation case");
+      int num_blocks = BlockA_r->NumRowBlocks();
+      Array<int> tdof_offsets(2*num_blocks+1);
 
-      Array<int> tdof_offsets(5);
       tdof_offsets[0] = 0;
-      tdof_offsets[1] = hatE_fes->GetTrueVSize();
-      tdof_offsets[2] = hatH_fes->GetTrueVSize();
-      tdof_offsets[3] = hatE_fes->GetTrueVSize();
-      tdof_offsets[4] = hatH_fes->GetTrueVSize();
-
+      int skip = (static_cond) ? 0 : 2;
+      int k = (static_cond) ? 2 : 0;
+      for (int i=0; i<num_blocks;i++)
+      {
+         tdof_offsets[i+1] = trial_fes[i+k]->GetTrueVSize(); 
+         tdof_offsets[num_blocks+i+1] = trial_fes[i+k]->GetTrueVSize(); 
+      }
       tdof_offsets.PartialSum();
 
       BlockOperator blockA(tdof_offsets);
-      blockA.SetBlock(0,0, &BlockA_r->GetBlock(0,0));
-      blockA.SetBlock(0,1, &BlockA_r->GetBlock(0,1));
-      blockA.SetBlock(1,0, &BlockA_r->GetBlock(1,0));
-      blockA.SetBlock(1,1, &BlockA_r->GetBlock(1,1));
-
-      blockA.SetBlock(0,2, &BlockA_i->GetBlock(0,0),-1.0);
-      blockA.SetBlock(0,3, &BlockA_i->GetBlock(0,1),-1.0);
-      blockA.SetBlock(1,2, &BlockA_i->GetBlock(1,0),-1.0);
-      blockA.SetBlock(1,3, &BlockA_i->GetBlock(1,1),-1.0);
-
-
-      blockA.SetBlock(2,2, &BlockA_r->GetBlock(0,0));
-      blockA.SetBlock(2,3, &BlockA_r->GetBlock(0,1));
-      blockA.SetBlock(3,2, &BlockA_r->GetBlock(1,0));
-      blockA.SetBlock(3,3, &BlockA_r->GetBlock(1,1));
-
-      blockA.SetBlock(2,0, &BlockA_i->GetBlock(0,0));
-      blockA.SetBlock(2,1, &BlockA_i->GetBlock(0,1));
-      blockA.SetBlock(3,0, &BlockA_i->GetBlock(1,0));
-      blockA.SetBlock(3,1, &BlockA_i->GetBlock(1,1));
+      for (int i = 0; i<num_blocks; i++)
+      {
+         for (int j = 0; j<num_blocks; j++)
+         {
+            blockA.SetBlock(i,j,&BlockA_r->GetBlock(i,j));
+            blockA.SetBlock(i,j+num_blocks,&BlockA_i->GetBlock(i,j), -1.0);
+            blockA.SetBlock(i+num_blocks,j+num_blocks,&BlockA_r->GetBlock(i,j));
+            blockA.SetBlock(i+num_blocks,j,&BlockA_i->GetBlock(i,j));
+         }
+      }
 
       X = 0.;
       BlockDiagonalPreconditioner * M = new BlockDiagonalPreconditioner(tdof_offsets);
 
-      HypreSolver * solver_hatH = nullptr;
+      if (!static_cond)
+      {
+         HypreBoomerAMG * solver_E = new HypreBoomerAMG((HypreParMatrix &)BlockA_r->GetBlock(0,0));
+         solver_E->SetPrintLevel(0);
+         solver_E->SetSystemsOptions(dim);
+         HypreBoomerAMG * solver_H = new HypreBoomerAMG((HypreParMatrix &)BlockA_r->GetBlock(1,1));
+         solver_H->SetPrintLevel(0);
+         solver_H->SetSystemsOptions(dim);
+         M->SetDiagonalBlock(0,solver_E);
+         M->SetDiagonalBlock(1,solver_H);
+         M->SetDiagonalBlock(num_blocks,solver_E);
+         M->SetDiagonalBlock(num_blocks+1,solver_H);
+      }
 
-      HypreAMS * solver_hatE = new HypreAMS((HypreParMatrix &)BlockA_r->GetBlock(0,0), 
+      HypreSolver * solver_hatH = nullptr;
+      HypreAMS * solver_hatE = new HypreAMS((HypreParMatrix &)BlockA_r->GetBlock(skip,skip), 
                                hatE_fes);
       solver_hatE->SetPrintLevel(0);                               
       if (dim == 2)
       {
-         solver_hatH = new HypreBoomerAMG((HypreParMatrix &)BlockA_r->GetBlock(1,1));
+         solver_hatH = new HypreBoomerAMG((HypreParMatrix &)BlockA_r->GetBlock(skip+1,skip+1));
          dynamic_cast<HypreBoomerAMG*>(solver_hatH)->SetPrintLevel(0);
       }
       else
       {
-         solver_hatH = new HypreAMS((HypreParMatrix &)BlockA_r->GetBlock(1,1), hatH_fes);
+         solver_hatH = new HypreAMS((HypreParMatrix &)BlockA_r->GetBlock(skip+1,skip+1), hatH_fes);
          dynamic_cast<HypreAMS*>(solver_hatH)->SetPrintLevel(0);
       }
 
-      M->SetDiagonalBlock(0,solver_hatE);
-      M->SetDiagonalBlock(1,solver_hatH);
-      M->SetDiagonalBlock(2,solver_hatE);
-      M->SetDiagonalBlock(3,solver_hatH);
+      M->SetDiagonalBlock(skip,solver_hatE);
+      M->SetDiagonalBlock(skip+1,solver_hatH);
+      M->SetDiagonalBlock(skip+num_blocks,solver_hatE);
+      M->SetDiagonalBlock(skip+num_blocks+1,solver_hatH);
 
       CGSolver cg(MPI_COMM_WORLD);
       cg.SetRelTol(1e-7);
@@ -574,7 +571,6 @@ int main(int argc, char *argv[])
          }
       }
 
-
       ParComplexGridFunction E(E_fes);
       E.real().MakeRef(E_fes,x.GetData());
       E.imag().MakeRef(E_fes,&x.GetData()[offsets.Last()]);
@@ -589,8 +585,11 @@ int main(int argc, char *argv[])
       VectorFunctionCoefficient H_ex_r(dimc,H_exact_r);
       VectorFunctionCoefficient H_ex_i(dimc,H_exact_i);
       
-
-      int dofs = X.Size()/2;
+      int dofs = 0;
+      for (int i = 0; i<trial_fes.Size(); i++)
+      {
+         dofs += trial_fes[i]->GlobalTrueVSize();
+      }
 
       double E_err_r = E.real().ComputeL2Error(E_ex_r);
       double E_err_i = E.imag().ComputeL2Error(E_ex_i);
@@ -605,8 +604,6 @@ int main(int argc, char *argv[])
       Egf_ex.ProjectCoefficient(E_ex_r, E_ex_i);
       Hgf_ex.ProjectCoefficient(H_ex_r, H_ex_i);
 
-   
-
       double E_norm_r = Egf_ex.real().ComputeL2Error(E_zero);
       double E_norm_i = Egf_ex.imag().ComputeL2Error(E_zero);
       double H_norm_r = Hgf_ex.real().ComputeL2Error(H_zero);
@@ -617,7 +614,6 @@ int main(int argc, char *argv[])
 
       double rel_err = L2Error/L2norm;
 
-
       double rate_err = (i) ? dim*log(err0/rel_err)/log((double)dof0/dofs) : 0.0;
       double rate_res = (i) ? dim*log(res0/globalresidual)/log((double)dof0/dofs) : 0.0;
 
@@ -626,7 +622,7 @@ int main(int argc, char *argv[])
       dof0 = dofs;
       if (myid == 0)
       {
-         mfem::out << std::right << std::setw(11) << i << " | " 
+         mfem::out << std::right << std::setw(5) << i << " | " 
                    << std::setw(10) <<  dof0 << " | " 
                    << std::setprecision(0) << std::fixed
                    << std::setw(2) <<  2*rnum << " π  | " 
@@ -797,7 +793,6 @@ void curlH_exact_i(const Vector &x,Vector &curlH_i)
    }
 }
 
-
 void hatE_exact_r(const Vector & x, Vector & hatE_r)
 {
    if (dim == 3)
@@ -831,7 +826,6 @@ void hatE_exact_i(const Vector & x, Vector & hatE_i)
       hatE_i[1] = -E_i[0];
    }
 }
-
 
 void hatH_exact_r(const Vector & x, Vector & hatH_r)
 {
@@ -884,7 +878,6 @@ void  rhs_func_i(const Vector &x, Vector & J_i)
       J_i(i) = -omega * epsilon * E_r(i) + curlH_i(i);
    }
 }
-
 
 void maxwell_solution(const Vector & X, std::vector<complex<double>> &E, 
                       std::vector<complex<double>> &curlE, 
@@ -958,7 +951,6 @@ void maxwell_solution(const Vector & X, std::vector<complex<double>> &E,
    
 }
 
-
 void maxwell_solution_r(const Vector & X, Vector &E_r, 
                         Vector &curlE_r, 
                         Vector &curlcurlE_r)
@@ -982,7 +974,6 @@ void maxwell_solution_r(const Vector & X, Vector &E_r,
       curlE_r(i) = curlE[i].real();
    }
 }
-
 
 void maxwell_solution_i(const Vector & X, Vector &E_i, 
                       Vector &curlE_i, 
