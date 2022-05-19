@@ -80,6 +80,7 @@ int main(int argc, char *argv[])
    double t_refs=1e10;
    int    t_refs_steps=2;
    bool   yRange = false; //fix a refinement region along y direction
+   double ytop = 0.5;
    double error_norm=infinity();
    //----end of amr----
    
@@ -181,8 +182,8 @@ int main(int argc, char *argv[])
    args.AddOption(&error_norm, "-error-norm", "--error-norm",
                   "AMR error norm (in both refine and derefine).");
    args.AddOption(&yRange, "-yrange", "--y-refine-range", "-no-yrange",
-                  "--no-y-refine-range",
-                  "Refine only in the y range of [-.6, .6] in AMR.");
+                  "--no-y-refine-range", "Refine only in the y range of [-ytop, ytop] in AMR.");
+   args.AddOption(&ytop, "-ytop", "--y-top", "The top of yrange for AMR refinement.");
    args.AddOption(&use_petsc, "-usepetsc", "--usepetsc", "-no-petsc",
                   "--no-petsc",
                   "Use or not PETSc to solve the nonlinear system.");
@@ -513,6 +514,8 @@ int main(int argc, char *argv[])
        jptr=&jInit3;
    else if (icase==4)
        jptr=&jInit4;
+   else if (icase==7)
+       jptr=&jInit7;
    j.ProjectCoefficient(*jptr);
    j.SetTrueVector();
    oper.SetInitialJ(*jptr);
@@ -555,8 +558,7 @@ int main(int argc, char *argv[])
    else
       refiner.SetMaximumRefinementLevel(amr_levels);
    refiner.SetNCLimit(nc_limit);
-   if (yRange)
-       refiner.SetYRange(-.6, .6);
+   if (yRange) refiner.SetYRange(-ytop, ytop);
 
    ThresholdDerefiner derefiner(*estimator_used);
    derefiner.SetThreshold(derefine_ratio*ltol_amr);
