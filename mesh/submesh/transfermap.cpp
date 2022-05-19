@@ -14,7 +14,6 @@
 #include "submesh_utils.hpp"
 
 using namespace mfem;
-using namespace mfem::detail;
 
 TransferMap::TransferMap(const GridFunction &src,
                          const GridFunction &dst)

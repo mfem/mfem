@@ -13,6 +13,7 @@
 #define MFEM_SUBMESH
 
 #include "../mesh.hpp"
+#include "transfermap.hpp"
 #include <unordered_map>
 
 namespace mfem
@@ -108,6 +109,11 @@ public:
       return parent_element_ids_;
    }
 
+   /**
+    * @brief Get the face id map
+    *
+    * SubMesh element id (array index) to parent Mesh face id.
+    */
    const Array<int>& GetParentFaceIDMap() const
    {
       return parent_face_ids_;
@@ -135,6 +141,19 @@ public:
     * @param[out] dst
     */
    static void Transfer(const GridFunction &src, GridFunction &dst);
+
+   /**
+    * @brief Create a Transfer Map object.
+    *
+    * The @a src GridFunction can either be defined on a Mesh or a
+    * SubMesh and is transferred appropriately.
+    *
+    * The returned pointer can be stored, reused and must be deleted.
+    *
+    * @note Either @a src or @a dst has to be defined on a SubMesh.
+    */
+   static const TransferMap* CreateTransferMap(const GridFunction &src,
+                                               const GridFunction &dst);
 
    /**
    * @brief Check if Mesh @a m is a SubMesh.

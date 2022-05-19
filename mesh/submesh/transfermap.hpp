@@ -17,27 +17,62 @@
 
 namespace mfem
 {
-namespace detail
-{
 
+/**
+ * @brief TransferMap represents a mapping of degrees of freedom from a source
+ * GridFunction to a destination GridFunction.
+ *
+ * This map can be constructed from a parent Mesh to a SubMesh or vice versa.
+ * Additionally one can create it between two SubMeshes that share the same root
+ * parent. In this case, a supplemental FiniteElementSpace is created on the
+ * root parent Mesh to transfer degrees of freedom.
+ */
 class TransferMap
 {
 public:
+   /**
+    * @brief Construct a new TransferMap object which transfers degrees of
+    * freedom from the source GridFunction to the destination GridFunction.
+    *
+    * @param src The source GridFunction
+    * @param dst The destination Gridfunction
+    */
    TransferMap(const GridFunction &src,
                const GridFunction &dst);
 
+   /**
+    * @brief Transfer the source GridFunction to the destination GridFunction.
+    *
+    * Uses the precomputed maps for the transfer.
+    *
+    * @param src The source GridFunction
+    * @param dst The destination Gridfunction
+    */
    void Transfer(const GridFunction &src, GridFunction &dst) const;
 
    ~TransferMap();
 
 private:
    TransferCategory category_;
-   Array<int> sub1_to_parent_map_, sub2_to_parent_map_;
+
+   /// Mapping of the GridFunction defined on the SubMesh to the Gridfunction
+   /// of it's parent Mesh.
+   Array<int> sub1_to_parent_map_;
+
+   /// Mapping of the GridFunction defined on the second SubMesh to the
+   /// GridFunction of it's parent Mesh. This is only used if this TransferMap
+   /// represents a SubMesh to SubMesh transfer.
+   Array<int> sub2_to_parent_map_;
+
+   /// Pointer to the supplemental FiniteElementSpace on the common root parent
+   /// Mesh. This is only used if this TransferMap represents a SubMesh to
+   /// SubMesh transfer.
    const FiniteElementSpace *root_fes_ = nullptr;
+
+   /// Temporary vector
    mutable Vector z_;
 };
 
-} // namespace detail
 } // namespace mfem
 
 #endif // MFEM_TRANSFERMAP
