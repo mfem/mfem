@@ -120,7 +120,7 @@ public:
          if (myid==0) cout <<"------update vOld------"<<endl;
        }
 
-       if (fabs(dtOld-dt)<1e-12 && initialMdt)
+       if (fabs(dtOld-dt)>1e-12 && initialMdt)
        {
            if (myid==0) cout <<"------update Mdt------"<<endl;
            double rate=dtOld/dt;
@@ -1132,8 +1132,7 @@ void ResistiveMHDOperator::ImplicitSolve(const double dt,
       phi1.SetFromTrueVector(); psi1.SetFromTrueVector(); w1.SetFromTrueVector();
 
       ostringstream phi_name, psi_name, w_name;
-      if (myid==0)
-          cout <<"======OUTPUT: matrices in ResistiveMHDOperator:ImplicitSolve======"<<endl;
+      if (myid==0) cout <<"======OUTPUT: matrices in ResistiveMHDOperator:ImplicitSolve======"<<endl;
       phi_name << "dbg_phi." << setfill('0') << setw(6) << myid;
       psi_name << "dbg_psi." << setfill('0') << setw(6) << myid;
       w_name << "dbg_omega." << setfill('0') << setw(6) << myid;
@@ -1569,8 +1568,7 @@ Operator &ReducedSystemOperator::GetGradient(const Vector &k) const
                   StabMass = new ParBilinearForm(&fespace);
                   if (dtfactor > factormin && itau_!=2)
                   { 
-                     if (myid==0) 
-                            cout <<"======WARNING: use factormin in tau formula"<<endl;
+                     if (myid==0) cout <<"======WARNING: use factormin in tau formula"<<endl;
                       StabMass->AddDomainIntegrator(new StabMassIntegrator(dt, resistivity, velocity, itau_, factormin)); 
                   }
                   else
@@ -1606,9 +1604,7 @@ Operator &ReducedSystemOperator::GetGradient(const Vector &k) const
                   {
                       if (resistivity!=viscosity || itau_!=2)
                       {
-                          if (myid==0) 
-                            cout <<"======WARNING: assemble different supg diagonal operators in psi and phi======"<<endl;
-
+                          if (myid==0) cout <<"======WARNING: assemble different supg diagonal operators in psi and phi======"<<endl;
                           delete StabMass;
                           StabMass = new ParBilinearForm(&fespace);
                           StabMass->AddDomainIntegrator(new StabMassIntegrator(dt, viscosity, velocity));
@@ -1644,9 +1640,7 @@ Operator &ReducedSystemOperator::GetGradient(const Vector &k) const
                   {
                       if (resistivity!=viscosity || itau_!=2)
                       {
-                          if (myid==0) 
-                            cout <<"======WARNING: assemble different supg diagonal operators for psi and phi======"<<endl;
-
+                          if (myid==0) cout <<"======WARNING: assemble different supg diagonal operators for psi and phi======"<<endl;
                           MFEM_ABORT("Error in preconditioner: I will not support this option for now"); 
                       }
                       tmp=ParAdd(AReFull, MatStabNv);
