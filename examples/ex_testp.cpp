@@ -8,7 +8,8 @@ int Ww = 350, Wh = 350;
 int Wx = 0, Wy = 0;
 int offx = Ww+5, offy = Wh+25;
 
-void Visualize(Mesh& mesh, GridFunction& gf, const string &title,
+void Visualize(int num_procs, int myid,
+               Mesh& mesh, GridFunction& gf, const string &title,
                const string& caption, int x, int y)
 {
    int w = 400, h = 350;
@@ -17,6 +18,7 @@ void Visualize(Mesh& mesh, GridFunction& gf, const string &title,
    int  visport   = 19916;
 
    socketstream sol_sockL2(vishost, visport);
+   sol_sockL2 << "parallel " << num_procs << " " << myid << "\n";
    sol_sockL2.precision(10);
    sol_sockL2 << "solution\n" << mesh << gf
               << "window_geometry " << x << " " << y << " " << w << " " << h
@@ -48,28 +50,46 @@ struct PolyCoeff
 };
 int PolyCoeff::order_ = -1;
 
-double integrate(GridFunction* gf)
+void RefineRandomly(ParMesh& pmesh,
+                    ParFiniteElementSpace& fespace, ParGridFunction& u)
 {
-   ConstantCoefficient one(1.0);
-   LinearForm lf(gf->FESpace());
-   LinearFormIntegrator* lfi = new DomainLFIntegrator(one);
-   lf.AddDomainIntegrator(lfi);
-   lf.Assemble();
-   double integral = lf(*gf);
-   return integral;
-}
+   double freq = 0.3;
 
-double square_integrate(GridFunction* gf)
-{
-   Vector gf_sq_vec = *gf;
-   GridFunction gf_sq(gf->FESpace());
-   gf_sq.SetData(gf_sq_vec);
-   for (int i = 0; i < gf->Size(); i++)
-   {
-      gf_sq(i) = (*gf)(i)*(*gf)(i);
+   Array<Refinement> refinements;
+   for (int k = 0; k < pmesh.GetNE(); k++) {
+      double a = rand()/double(RAND_MAX);
+      if (a < freq) {
+         refinements.Append(Refinement(k));
+      }
    }
 
-   return integrate(&gf_sq);
+   pmesh.GeneralRefinement(refinements);
+   fespace.Update();
+   u.Update();
+}
+
+
+void CoarsenRandomly(ParMesh& pmesh,
+                     ParFiniteElementSpace& fespace, ParGridFunction& u)
+{
+   double freq = 0.2;
+
+   Vector local_err(pmesh.GetNE());
+   local_err = 1.1;
+   double threshold = 1.0;
+
+   for (int k = 0; k < pmesh.GetNE(); k++) {
+      double a = rand()/double(RAND_MAX);
+      if (a < freq) {
+         local_err(k) = 0.0;
+      }
+   }
+
+   int op = 0; // take min
+   int nc_limit = 0;
+   pmesh.DerefineByError(local_err, threshold, nc_limit, op);
+   fespace.Update();
+   u.Update();
 }
 
 int main()
@@ -80,103 +100,82 @@ int main()
    int myid = Mpi::WorldRank();
 
    Mesh mesh = Mesh::MakeCartesian2D(
-                  1, 1, Element::QUADRILATERAL, true, 1.0, 1.0);
+                  4, 4, Element::QUADRILATERAL, true, 1.0, 1.0);
    mesh.EnsureNCMesh();
    mesh.EnsureNodes();
 
    ParMesh *pmeshp = new ParMesh(MPI_COMM_WORLD, mesh);
    ParMesh& pmesh{*pmeshp};
 
-   int order = 0;
+   int order = 1;
    L2_FECollection fec(order, dimension, BasisType::GaussLegendre);
    // L2_FECollection fec(order, dimension, BasisType::Positive);
    ParFiniteElementSpace fespace(&pmesh, &fec);
    ParGridFunction x(&fespace);
 
    PolyCoeff pcoeff;
-   pcoeff.order_ = 1;
+   pcoeff.order_ = order;
    FunctionCoefficient c(PolyCoeff::poly_coeff);
 
-   Array<Refinement> refinements;
-   refinements.Append(Refinement(0));
-   pmesh.GeneralRefinement(refinements);
-
-   fespace.Update();
-   x.Update();
-
-   // project to get function that isn't exactly representable in the
-   // fine space.
    x.ProjectCoefficient(c);
 
-   // save the fine solution
-   Vector xf = x;
-   ParGridFunction x_fine(x.ParFESpace());
-   x_fine.SetData(xf);
+   // test correctness by:
+   // initializing with an exact polynomial
+   // loop:
+   //   refine randomly
+   //   rebalance
+   //   coarsen randomly
+   //   rebalance
 
-   double mass_fine = integrate(&x_fine);
+   double refine_p = 0.3;
+   double coarsen_p = 0.3;
 
-   cout << "mass_fine: " << mass_fine << endl;
+   //srand( (unsigned)time( NULL )+myid );
+   srand( 2+myid );
 
-   Visualize(pmesh, x_fine, "fine proj","fine proj",Wx, Wy); Wx += offx;
+   int total_it = 10;
+   for (int it = 0; it < total_it; it++) {
 
-   Vector local_err(pmesh.GetNE());
-   local_err = 0.;
-   double threshold = 1.0;
-   pmesh.DerefineByError(local_err, threshold);
-   fespace.Update();
-   x.Update();
+      printf("starting iteration %d\n",it);
 
-   Vector coarse_soln_v{x};
+      RefineRandomly(pmesh, fespace, x);
 
-   Visualize(pmesh, x, "coarsened", "coarsened", Wx, Wy); Wx += offx;
+      //Visualize(num_procs, myid, pmesh, x, "after refine","after refine",Wx, Wy); Wx += offx;
 
-   double mass_coarse = integrate(&x);
-   cout << "mass_coarse: " << mass_coarse << endl;
+      double err = x.ComputeL2Error(c);
+      cout << "err after refine: " << err << endl;
+      if (err > 1.e-12) break;
 
-   // conservation check
-   assert( fabs(mass_fine-mass_coarse) < 1.e-12 );
+      pmesh.Rebalance();
+      fespace.Update();
+      x.Update();
 
-   // re-refine to get everything on the same grid
-   pmesh.GeneralRefinement(refinements);
-   fespace.Update();
-   x.Update();
+      err = x.ComputeL2Error(c);
+      cout << "err after rebalance fine: " << err << endl;
+      if (err > 1.e-12) break;
+      //assert(err < 1.e-12);
 
-   // Compute error
-   GridFunctionCoefficient gfc(&x);
+      if (it == 5) Visualize(num_procs, myid, pmesh, x, "before coarsen","before coarsen",Wx, Wy); Wx += offx;
 
-   double err0 = x_fine.ComputeL2Error(gfc);
+      CoarsenRandomly(pmesh, fespace, x);
 
-   cout << "err0: " << err0 << endl;
+      //Visualize(num_procs, myid, pmesh, x, "after coarsen","after coarsen",Wx, Wy); Wx += offx;
 
-   double eps = 1.e-3;
-   for (int i = 0; i < coarse_soln_v.Size(); i++)
-   {
-      for (int f = -1; f <= 1; f += 2)
-      {
-         printf("testing dof %d/%d w/ %+d... ",i,coarse_soln_v.Size(),f);
+      err = x.ComputeL2Error(c);
+      cout << "err after coarsen: " << err << endl;
+      if (err > 1.e-12) break;
+      //assert(err < 1.e-12);
 
-         pmesh.DerefineByError(local_err, threshold);
-         fespace.Update();
-         x.Update();
-         x = coarse_soln_v;
-         x(i) += f*eps;
+      pmesh.Rebalance();
+      fespace.Update();
+      x.Update();
 
-         pmesh.GeneralRefinement(refinements);
-         fespace.Update();
-         x.Update();
+      err = x.ComputeL2Error(c);
+      cout << "err after rebalance coarse: " << err << endl;
+      if (err > 1.e-12) break;
+      //assert(err < 1.e-12);
 
-         double err = x_fine.ComputeL2Error(gfc);
-
-         if (err > err0)
-         {
-            cout << "is local minimum." << endl;
-         }
-         else
-         {
-            printf("err decreased from %f to %f (%e)\n",err0,err,err-err0);
-         }
-         //assert( err > err0 );
-      }
    }
-   cout << "pass: coarse solution is optimal" << endl;
+
+   Visualize(num_procs, myid, pmesh, x, "after refine","after refine",Wx, Wy); Wx += offx;
 }
