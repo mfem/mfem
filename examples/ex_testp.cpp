@@ -111,9 +111,8 @@ int main()
    ParMesh *pmeshp = new ParMesh(MPI_COMM_WORLD, mesh);
    ParMesh& pmesh{*pmeshp};
 
-   int order = 1;
-   L2_FECollection fec(order, dimension, BasisType::GaussLegendre);
-   // L2_FECollection fec(order, dimension, BasisType::Positive);
+   int order = 2;
+   L2_FECollection fec(order, dimension, BasisType::Positive);
    ParFiniteElementSpace fespace(&pmesh, &fec);
    ParGridFunction x(&fespace);
 
@@ -137,7 +136,7 @@ int main()
    //srand( (unsigned)time( NULL )+myid );
    srand( 2+myid );
 
-   int total_it = 10;
+   int total_it = 20;
    for (int it = 0; it < total_it; it++)
    {
 
@@ -159,9 +158,6 @@ int main()
       cout << "err after rebalance fine: " << err << endl;
       if (err > 1.e-12) { break; }
       //assert(err < 1.e-12);
-
-      if (it == 5) { Visualize(num_procs, myid, pmesh, x, "before coarsen","before coarsen",Wx, Wy); } Wx
-      += offx;
 
       CoarsenRandomly(pmesh, fespace, x);
 
