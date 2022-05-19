@@ -122,8 +122,6 @@ TEST_CASE("CalcCurlShape for several ND FiniteElement instances",
 
       for (int order =1; order <= maxOrder; ++order)
       {
-         std::cout << "Testing ND_TriangleElement::CalcCurlShape() "
-                   << "for order " << order << std::endl;
          ND_TriangleElement fe(order);
          TestCalcCurlShape(&fe, &T, resolution);
       }
@@ -136,8 +134,6 @@ TEST_CASE("CalcCurlShape for several ND FiniteElement instances",
 
       for (int order =1; order <= maxOrder; ++order)
       {
-         std::cout << "Testing ND_QuadrilateralElement::CalcCurlShape() "
-                   << "for order " << order << std::endl;
          ND_QuadrilateralElement fe(order);
          TestCalcCurlShape(&fe, &T, resolution);
       }
@@ -150,8 +146,6 @@ TEST_CASE("CalcCurlShape for several ND FiniteElement instances",
 
       for (int order =1; order <= maxOrder; ++order)
       {
-         std::cout << "Testing ND_TetrahedronElement::CalcCurlShape() "
-                   << "for order " << order << std::endl;
          ND_TetrahedronElement fe(order);
          TestCalcCurlShape(&fe, &T, resolution);
       }
@@ -164,8 +158,6 @@ TEST_CASE("CalcCurlShape for several ND FiniteElement instances",
 
       for (int order =1; order <= maxOrder; ++order)
       {
-         std::cout << "Testing ND_WedgeElement::CalcCurlShape() "
-                   << "for order " << order << std::endl;
          ND_WedgeElement fe(order);
          TestCalcCurlShape(&fe, &T, resolution);
       }
@@ -178,8 +170,6 @@ TEST_CASE("CalcCurlShape for several ND FiniteElement instances",
 
       for (int order =1; order <= maxOrder; ++order)
       {
-         std::cout << "Testing ND_HexahedronElement::CalcCurlShape() "
-                   << "for order " << order << std::endl;
          ND_HexahedronElement fe(order);
          TestCalcCurlShape(&fe, &T, resolution);
       }

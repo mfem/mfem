@@ -23,8 +23,6 @@ TEST_CASE("FormLinearSystem", "[FormLinearSystem]")
    {
       for (int ne = 1; ne <= 4; ++ne)
       {
-         std::cout << "Testing " << dim << "D partial assembly: "
-                   << std::pow(ne, dim) << " elements." << std::endl;
          for (int order = 1; order <= 3; ++order)
          {
             Mesh mesh;
@@ -73,8 +71,6 @@ TEST_CASE("FormLinearSystem", "[FormLinearSystem]")
             fa.RecoverFEMSolution(X[1], b, x1);
 
             x0 -= x1;
-            double error = x0.Norml2();
-            std::cout << "    order: " << order << ", error norm: " << error << std::endl;
             REQUIRE(x0.Norml2() == MFEM_Approx(0.0, 1e2*EPS));
 
             delete fec;
@@ -91,8 +87,6 @@ TEST_CASE("ParallelFormLinearSystem", "[Parallel], [ParallelFormLinearSystem]")
    {
       for (int ne = 4; ne <= 5; ++ne)
       {
-         std::cout << "Testing " << dim << "D partial assembly: "
-                   << std::pow(ne, dim) << " elements." << std::endl;
          for (int order = 1; order <= 3; ++order)
          {
             Mesh mesh;
@@ -158,8 +152,6 @@ TEST_CASE("ParallelFormLinearSystem", "[Parallel], [ParallelFormLinearSystem]")
             fa.RecoverFEMSolution(X[1], b, x1);
 
             x0 -= x1;
-            double error = x0.Norml2();
-            std::cout << "    order: " << order << ", error norm: " << error << std::endl;
             REQUIRE(x0.Norml2() == MFEM_Approx(0.0, 2e2*EPS));
 
             delete pmesh;
@@ -259,10 +251,7 @@ TEST_CASE("HypreParMatrixBlocksSquare",
       H->GetDiag(yH);
 
       yH -= yB;
-      double error = yH.Norml2();
-      std::cout << "  order: " << order
-                << ", block matrix error norm on rank " << rank << ": " << error << std::endl;
-      REQUIRE(error < EPS);
+      REQUIRE(yH.Norml2() < EPS);
 
       delete H;
       delete BT;

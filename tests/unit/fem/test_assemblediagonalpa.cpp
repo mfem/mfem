@@ -97,8 +97,6 @@ TEST_CASE("Mass Diagonal PA", "[PartialAssembly][AssembleDiagonal]")
    {
       for (int ne = 1; ne < 3; ++ne)
       {
-         std::cout << "Testing " << dimension << "D partial assembly mass diagonal: "
-                   << std::pow(ne, dimension) << " elements." << std::endl;
          for (int order = 1; order < 5; ++order)
          {
             Mesh mesh;
@@ -130,8 +128,6 @@ TEST_CASE("Mass Diagonal PA", "[PartialAssembly][AssembleDiagonal]")
             faform.SpMat().GetDiag(assembly_diag);
 
             assembly_diag -= pa_diag;
-            double error = assembly_diag.Norml2();
-            std::cout << "    order: " << order << ", error norm: " << error << std::endl;
             REQUIRE(assembly_diag.Norml2() < 1.e-12);
 
             delete h1_fec;
@@ -146,9 +142,6 @@ TEST_CASE("Diffusion Diagonal PA", "[PartialAssembly][AssembleDiagonal]")
    {
       for (int ne = 1; ne < 3; ++ne)
       {
-         std::cout << "Testing " << dimension <<
-                   "D partial assembly diffusion diagonal: "
-                   << std::pow(ne, dimension) << " elements." << std::endl;
          for (int order = 1; order < 5; ++order)
          {
             Mesh mesh;
@@ -223,9 +216,6 @@ TEST_CASE("Diffusion Diagonal PA", "[PartialAssembly][AssembleDiagonal]")
                faform.SpMat().GetDiag(assembly_diag);
 
                assembly_diag -= pa_diag;
-               double error = assembly_diag.Norml2();
-               std::cout << "    order: " << order << ", coefficient type "
-                         << coeffType << ", error norm: " << error << std::endl;
                REQUIRE(assembly_diag.Norml2() < 1.e-12);
 
                delete coeff;
@@ -364,17 +354,6 @@ TEST_CASE("Hcurl/Hdiv diagonal PA",
             {
                for (int ne = 1; ne < 3; ++ne)
                {
-                  if (spaceType == Hcurl)
-                     std::cout << "Testing " << dimension <<
-                               "D partial assembly H(curl) diagonal for integrator " << integrator
-                               << " and coeffType " << coeffType << ": "
-                               << std::pow(ne, dimension) << " elements." << std::endl;
-                  else
-                     std::cout << "Testing " << dimension <<
-                               "D partial assembly H(div) diagonal for integrator " << integrator
-                               << " and coeffType " << coeffType << ": "
-                               << std::pow(ne, dimension) << " elements." << std::endl;
-
                   int max_order = (dimension == 3) ? 2 : 3;
 
                   for (int order = 1; order <= max_order; ++order)
@@ -457,8 +436,6 @@ TEST_CASE("Hcurl/Hdiv diagonal PA",
                      faform.SpMat().GetDiag(assembly_diag);
 
                      assembly_diag -= pa_diag;
-                     double error = assembly_diag.Norml2();
-                     std::cout << "    order: " << order << ", error norm: " << error << std::endl;
                      REQUIRE(assembly_diag.Norml2() < 1.e-11);
 
                      delete fec;

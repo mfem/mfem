@@ -119,10 +119,9 @@ TEST_CASE("CalcShape for several Lagrange FiniteElement instances",
 
    SECTION("Lagrange1DFiniteElement")
    {
-      for (int order =1; order <= maxOrder; ++order)
+      for (int order = 1; order <= maxOrder; ++order)
       {
-         std::cout << "Testing Lagrange1DFiniteElement::CalcShape() "
-                   << "for order " << order << std::endl;
+         INFO("order = " << order);
          Lagrange1DFiniteElement fe(order);
          TestCalcShape(&fe, resolution);
       }
@@ -130,14 +129,12 @@ TEST_CASE("CalcShape for several Lagrange FiniteElement instances",
 
    SECTION("BiLinear2DFiniteElement")
    {
-      std::cout << "Testing BiLinear2DFiniteElement::CalcShape()" << std::endl;
       BiLinear2DFiniteElement fe;
       TestCalcShape(&fe, resolution);
    }
 
    SECTION("BiQuad2DFiniteElement")
    {
-      std::cout << "Testing BiQuad2DFiniteElement::CalcShape()" << std::endl;
       BiQuad2DFiniteElement fe;
       TestCalcShape(&fe, resolution);
    }
@@ -145,9 +142,6 @@ TEST_CASE("CalcShape for several Lagrange FiniteElement instances",
 
    SECTION("LagrangeHexFiniteElement")
    {
-      std::cout << "Testing LagrangeHexFiniteElement::CalcShape() "
-                << "for order 2" << std::endl;
-
       // Comments for LagrangeHexFiniteElement state
       // that only degree 2 is functional for this class
       LagrangeHexFiniteElement fe(2);
@@ -168,10 +162,9 @@ TEST_CASE("CalcShape for several H1 FiniteElement instances",
 
    SECTION("H1_SegmentElement")
    {
-      for (int order =1; order <= maxOrder; ++order)
+      for (int order = 1; order <= maxOrder; ++order)
       {
-         std::cout << "Testing H1_SegmentElement::CalcShape() "
-                   << "for order " << order << std::endl;
+         INFO("order = " << order);
          H1_SegmentElement fe(order);
          TestCalcShape(&fe, resolution, 2e-11*std::pow(10, order));
       }
@@ -179,10 +172,9 @@ TEST_CASE("CalcShape for several H1 FiniteElement instances",
 
    SECTION("H1_TriangleElement")
    {
-      for (int order =1; order <= maxOrder; ++order)
+      for (int order = 1; order <= maxOrder; ++order)
       {
-         std::cout << "Testing H1_TriangleElement::CalcShape() "
-                   << "for order " << order << std::endl;
+         INFO("order = " << order);
          H1_TriangleElement fe(order);
          TestCalcShape(&fe, resolution, 2e-11*std::pow(10, order));
       }
@@ -190,10 +182,9 @@ TEST_CASE("CalcShape for several H1 FiniteElement instances",
 
    SECTION("H1_QuadrilateralElement")
    {
-      for (int order =1; order <= maxOrder; ++order)
+      for (int order = 1; order <= maxOrder; ++order)
       {
-         std::cout << "Testing H1_QuadrilateralElement::CalcShape() "
-                   << "for order " << order << std::endl;
+         INFO("order = " << order);
          H1_QuadrilateralElement fe(order);
          TestCalcShape(&fe, resolution, 2e-11*std::pow(10, order));
       }
@@ -201,10 +192,9 @@ TEST_CASE("CalcShape for several H1 FiniteElement instances",
 
    SECTION("H1_TetrahedronElement")
    {
-      for (int order =1; order <= maxOrder; ++order)
+      for (int order = 1; order <= maxOrder; ++order)
       {
-         std::cout << "Testing H1_TetrahedronElement::CalcShape() "
-                   << "for order " << order << std::endl;
+         INFO("order = " << order);
          H1_TetrahedronElement fe(order);
          TestCalcShape(&fe, resolution, 2e-11*std::pow(10, order));
       }
@@ -212,10 +202,9 @@ TEST_CASE("CalcShape for several H1 FiniteElement instances",
 
    SECTION("H1_HexahedronElement")
    {
-      for (int order =1; order <= maxOrder; ++order)
+      for (int order = 1; order <= maxOrder; ++order)
       {
-         std::cout << "Testing H1_HexahedronElement::CalcShape() "
-                   << "for order " << order << std::endl;
+         INFO("order = " << order);
          H1_HexahedronElement fe(order);
          TestCalcShape(&fe, resolution, 2e-11*std::pow(10, order));
       }
@@ -223,10 +212,9 @@ TEST_CASE("CalcShape for several H1 FiniteElement instances",
 
    SECTION("H1_WedgeElement")
    {
-      for (int order =1; order <= maxOrder; ++order)
+      for (int order = 1; order <= maxOrder; ++order)
       {
-         std::cout << "Testing H1_WedgeElement::CalcShape() "
-                   << "for order " << order << std::endl;
+         INFO("order = " << order);
          H1_WedgeElement fe(order);
          TestCalcShape(&fe, resolution, 2e-11*std::pow(10, order));
       }

@@ -229,8 +229,6 @@ TEST_CASE("CalcVShape for several ND FiniteElement instances",
 
       for (int order =1; order <= maxOrder; ++order)
       {
-         std::cout << "Testing ND_SegmentElement::CalcVShape() "
-                   << "for order " << order << std::endl;
          ND_SegmentElement fe(order);
          TestCalcVShape(&fe, &T, resolution);
       }
@@ -243,8 +241,6 @@ TEST_CASE("CalcVShape for several ND FiniteElement instances",
 
       for (int order =1; order <= maxOrder; ++order)
       {
-         std::cout << "Testing ND_TriangleElement::CalcVShape() "
-                   << "for order " << order << std::endl;
          ND_TriangleElement fe(order);
          TestCalcVShape(&fe, &T, resolution);
       }
@@ -257,8 +253,6 @@ TEST_CASE("CalcVShape for several ND FiniteElement instances",
 
       for (int order =1; order <= maxOrder; ++order)
       {
-         std::cout << "Testing ND_QuadrilateralElement::CalcVShape() "
-                   << "for order " << order << std::endl;
          ND_QuadrilateralElement fe(order);
          TestCalcVShape(&fe, &T, resolution);
       }
@@ -271,8 +265,6 @@ TEST_CASE("CalcVShape for several ND FiniteElement instances",
 
       for (int order =1; order <= maxOrder; ++order)
       {
-         std::cout << "Testing ND_TetrahedronElement::CalcVShape() "
-                   << "for order " << order << std::endl;
          ND_TetrahedronElement fe(order);
          TestCalcVShape(&fe, &T, resolution);
       }
@@ -285,8 +277,6 @@ TEST_CASE("CalcVShape for several ND FiniteElement instances",
 
       for (int order =1; order <= maxOrder; ++order)
       {
-         std::cout << "Testing ND_WedgeElement::CalcVShape() "
-                   << "for order " << order << std::endl;
          ND_WedgeElement fe(order);
          TestCalcVShape(&fe, &T, resolution);
       }
@@ -299,8 +289,6 @@ TEST_CASE("CalcVShape for several ND FiniteElement instances",
 
       for (int order =1; order <= maxOrder; ++order)
       {
-         std::cout << "Testing ND_HexahedronElement::CalcVShape() "
-                   << "for order " << order << std::endl;
          ND_HexahedronElement fe(order);
          TestCalcVShape(&fe, &T, resolution);
       }
@@ -324,8 +312,6 @@ TEST_CASE("CalcVShape for several RT FiniteElement instances",
 
       for (int order =1; order <= maxOrder; ++order)
       {
-         std::cout << "Testing RT_TriangleElement::CalcVShape() "
-                   << "for order " << order << std::endl;
          RT_TriangleElement fe(order);
          TestCalcVShape(&fe, &T, resolution);
       }
@@ -338,8 +324,6 @@ TEST_CASE("CalcVShape for several RT FiniteElement instances",
 
       for (int order =1; order <= maxOrder; ++order)
       {
-         std::cout << "Testing RT_QuadrilateralElement::CalcVShape() "
-                   << "for order " << order << std::endl;
          RT_QuadrilateralElement fe(order);
          TestCalcVShape(&fe, &T, resolution);
       }
@@ -352,8 +336,6 @@ TEST_CASE("CalcVShape for several RT FiniteElement instances",
 
       for (int order =1; order <= maxOrder; ++order)
       {
-         std::cout << "Testing RT_TetrahedronElement::CalcVShape() "
-                   << "for order " << order << std::endl;
          RT_TetrahedronElement fe(order);
          TestCalcVShape(&fe, &T, resolution);
       }
@@ -366,8 +348,6 @@ TEST_CASE("CalcVShape for several RT FiniteElement instances",
 
       for (int order =1; order <= maxOrder; ++order)
       {
-         std::cout << "Testing RT_WedgeElement::CalcVShape() "
-                   << "for order " << order << std::endl;
          RT_WedgeElement fe(order);
          TestCalcVShape(&fe, &T, resolution);
       }
@@ -380,8 +360,6 @@ TEST_CASE("CalcVShape for several RT FiniteElement instances",
 
       for (int order =1; order <= maxOrder; ++order)
       {
-         std::cout << "Testing RT_HexahedronElement::CalcVShape() "
-                   << "for order " << order << std::endl;
          RT_HexahedronElement fe(order);
          TestCalcVShape(&fe, &T, resolution);
       }

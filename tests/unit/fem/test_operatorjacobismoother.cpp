@@ -23,8 +23,6 @@ TEST_CASE("operatorjacobismoother")
    {
       for (int ne = 1; ne < 3; ++ne)
       {
-         std::cout << "Testing " << dimension << "D partial assembly smoother: "
-                   << std::pow(ne, dimension) << " elements." << std::endl;
          for (int order = 1; order < 5; ++order)
          {
             Mesh mesh;
@@ -78,8 +76,6 @@ TEST_CASE("operatorjacobismoother")
             pa_smoother.Mult(xin, y_pa);
 
             y_fa -= y_pa;
-            double error = y_fa.Norml2();
-            std::cout << "    order: " << order << ", error norm: " << error << std::endl;
             REQUIRE(y_fa.Norml2() < 1.e-12);
 
             delete h1_fec;
@@ -93,8 +89,6 @@ TEST_CASE("operatorjacobifichera")
    const int dimension = 3;
    for (int refine = 1; refine < 4; ++refine)
    {
-      std::cout << "Testing " << 3 << "D partial assembly smoother: "
-                << "fichera mesh, refine level " << refine << std::endl;
       for (int order = 1; order < 5; ++order)
       {
          Mesh mesh("../../data/fichera.mesh", 1, refine, true);
@@ -138,8 +132,6 @@ TEST_CASE("operatorjacobifichera")
          pa_smoother.Mult(xin, y_pa);
 
          y_fa -= y_pa;
-         double error = y_fa.Norml2();
-         std::cout << "    order: " << order << ", error norm: " << error << std::endl;
          REQUIRE(y_fa.Norml2() < 1.e-12);
 
          delete h1_fec;

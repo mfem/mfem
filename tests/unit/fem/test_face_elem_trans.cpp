@@ -20,7 +20,6 @@ namespace face_elem_trans
 TEST_CASE("3D FaceElementTransformations",
           "[FaceElementTransformations]")
 {
-   int log = 0;
    int n = 1;
    int order = 1;
 
@@ -32,10 +31,6 @@ TEST_CASE("3D FaceElementTransformations",
       int npts = 0;
       for (int f=0; f<mesh.GetNFaces(); f++)
       {
-         if (log > 0)
-         {
-            std::cout << "Getting trans for face " << f << std::endl;
-         }
          FaceElementTransformations *T =
             mesh.GetInteriorFaceTransformations(f);
 
@@ -43,12 +38,6 @@ TEST_CASE("3D FaceElementTransformations",
          {
             const IntegrationRule &ir = IntRules.Get(T->GetGeometryType(),
                                                      2*order + 2);
-            if (log > 0)
-            {
-               std::cout << f << " " << T->Elem1No
-                         << " " << T->Elem2No << std::endl;
-            }
-
             double tip_data[3];
             double tip1_data[3];
             double tip2_data[3];
@@ -82,11 +71,6 @@ TEST_CASE("3D FaceElementTransformations",
                   REQUIRE(tip2.Norml2() == MFEM_Approx(0.0));
                }
             }
-         }
-         if (log > 0)
-         {
-            std::cout << "Checked " << npts << " points within face "
-                      << f << std::endl;
          }
       }
    }

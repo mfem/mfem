@@ -127,8 +127,6 @@ TEST_CASE("CalcDShape for several H1 FiniteElement instances",
 
       for (int order =1; order <= maxOrder; ++order)
       {
-         std::cout << "Testing H1_SegmentElement::CalcDShape() "
-                   << "for order " << order << std::endl;
          H1_SegmentElement fe(order);
          TestCalcDShape(&fe, &T, resolution);
       }
@@ -141,8 +139,6 @@ TEST_CASE("CalcDShape for several H1 FiniteElement instances",
 
       for (int order =1; order <= maxOrder; ++order)
       {
-         std::cout << "Testing H1_TriangleElement::CalcDShape() "
-                   << "for order " << order << std::endl;
          H1_TriangleElement fe(order);
          TestCalcDShape(&fe, &T, resolution);
       }
@@ -155,8 +151,6 @@ TEST_CASE("CalcDShape for several H1 FiniteElement instances",
 
       for (int order =1; order <= maxOrder; ++order)
       {
-         std::cout << "Testing H1_QuadrilateralElement::CalcDShape() "
-                   << "for order " << order << std::endl;
          H1_QuadrilateralElement fe(order);
          TestCalcDShape(&fe, &T, resolution);
       }
@@ -169,8 +163,6 @@ TEST_CASE("CalcDShape for several H1 FiniteElement instances",
 
       for (int order =1; order <= maxOrder; ++order)
       {
-         std::cout << "Testing H1_TetrahedronElement::CalcDShape() "
-                   << "for order " << order << std::endl;
          H1_TetrahedronElement fe(order);
          TestCalcDShape(&fe, &T, resolution);
       }
@@ -183,8 +175,6 @@ TEST_CASE("CalcDShape for several H1 FiniteElement instances",
 
       for (int order =1; order <= maxOrder; ++order)
       {
-         std::cout << "Testing H1_WedgeElement::CalcDShape() "
-                   << "for order " << order << std::endl;
          H1_WedgeElement fe(order);
          TestCalcDShape(&fe, &T, resolution);
       }
@@ -197,8 +187,6 @@ TEST_CASE("CalcDShape for several H1 FiniteElement instances",
 
       for (int order =1; order <= maxOrder; ++order)
       {
-         std::cout << "Testing H1_HexahedronElement::CalcDShape() "
-                   << "for order " << order << std::endl;
          H1_HexahedronElement fe(order);
          TestCalcDShape(&fe, &T, resolution);
       }

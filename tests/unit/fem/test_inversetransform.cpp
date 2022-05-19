@@ -113,8 +113,6 @@ TEST_CASE("InverseElementTransformation",
             max_err = std::max(max_err, std::abs(ipRev.y - ip.y));
          }
       }
-      std::cout << "Points found: " << pts_found << '/' << npts << '\n'
-                << "Maximum error: " << max_err << '\n';
       REQUIRE( pts_found == npts );
       REQUIRE( max_err <= tol );
    }
@@ -163,8 +161,6 @@ TEST_CASE("InverseElementTransformation",
             max_err = std::max(max_err, std::abs(ipRev.y - ip.y));
          }
       }
-      std::cout << "Points found: " << pts_found << '/' << npts << '\n'
-                << "Maximum error: " << max_err << '\n';
       REQUIRE( pts_found >= min_found_pts );
       REQUIRE( max_err <= tol );
    }
