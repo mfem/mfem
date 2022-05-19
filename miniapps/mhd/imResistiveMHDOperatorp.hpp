@@ -120,7 +120,7 @@ public:
          if (myid==0) cout <<"------update vOld------"<<endl;
        }
 
-       if (dtOld!=dt && initialMdt)
+       if (fabs(dtOld-dt)<1e-12 && initialMdt)
        {
            if (myid==0) cout <<"------update Mdt------"<<endl;
            double rate=dtOld/dt;
