@@ -40,7 +40,7 @@ public:
 
    virtual void GetLocalRestriction(ElementTransformation &Trans,
                                     DenseMatrix &R) const
-   { ScalarLocalRestriction(Trans, R, *this); }
+   { ScalarLocalL2Restriction(Trans, R, *this); }
 
    virtual void GetTransferMatrix(const FiniteElement &fe,
                                   ElementTransformation &Trans,

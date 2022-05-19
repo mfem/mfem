@@ -693,9 +693,9 @@ public:
    /** If the "fine" elements cannot represent all basis functions of the
        "coarse" element, then boundary values from different sub-elements are
        generally different. */
-   void ScalarLocalRestriction(ElementTransformation &Trans,
-                               DenseMatrix &R,
-                               const ScalarFiniteElement &coarse_fe) const;
+   void ScalarLocalL2Restriction(ElementTransformation &Trans,
+                                 DenseMatrix &R,
+                                 const ScalarFiniteElement &coarse_fe) const;
 
    virtual const DofToQuad &GetDofToQuad(const IntegrationRule &ir,
                                          DofToQuad::Mode mode) const;
