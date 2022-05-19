@@ -29,13 +29,10 @@ TEST_CASE("3D ProjectBdrCoefficientTangent",
           "[GridFunction]"
           "[VectorGridFunctionCoefficient]")
 {
-   int log = 1;
    int n = 1;
    int dim = 3;
    int order = 1;
    int npts = 0;
-
-   double tol = 1e-6;
 
    for (int type = (int)Element::TETRAHEDRON;
         type <= (int)Element::HEXAHEDRON; type++)
@@ -103,15 +100,6 @@ TEST_CASE("3D ProjectBdrCoefficientTangent",
                   double nd_dist = nxd.Norml2();
 
                   nd_err += nd_dist;
-
-                  if (log > 0 && nd_dist > tol)
-                  {
-                     std::cout << be << ":" << j << " nd ("
-                               << f_val[0] << "," << f_val[1] << "," << f_val[2]
-                               << ") vs. ("
-                               << nd_val[0] << "," << nd_val[1] << ","
-                               << nd_val[2] << ") " << nd_dist << std::endl;
-                  }
                }
                nd_err  /= ir.GetNPoints();
 

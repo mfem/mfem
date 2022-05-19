@@ -219,7 +219,6 @@ TEST_CASE("2D Face Permutation", "[Face Permutation]")
          delete mesh;
       }
    }
-   std::cout << "2D Face Permutation: max_err = " << max_err << '\n';
    REQUIRE(max_err < 1e-15);
 }
 
@@ -237,6 +236,5 @@ TEST_CASE("3D Face Permutation", "[Face Permutation]")
          delete mesh;
       }
    }
-   std::cout << "3D Face Permutation: max_err = " << max_err << '\n';
    REQUIRE(max_err < 1e-15);
 }

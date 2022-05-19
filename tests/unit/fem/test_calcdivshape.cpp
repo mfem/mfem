@@ -112,8 +112,6 @@ TEST_CASE("CalcDivShape for several RT FiniteElement instances",
 
       for (int order = 1; order <= maxOrder; ++order)
       {
-         std::cout << "Testing RT_TriangleElement::CalcDivShape() "
-                   << "for order " << order << std::endl;
          RT_TriangleElement fe(order - 1);
          TestCalcDivShape(&fe, &T, resolution);
       }
@@ -126,8 +124,6 @@ TEST_CASE("CalcDivShape for several RT FiniteElement instances",
 
       for (int order = 1; order <= maxOrder; ++order)
       {
-         std::cout << "Testing RT_QuadrilateralElement::CalcDivShape() "
-                   << "for order " << order << std::endl;
          RT_QuadrilateralElement fe(order - 1);
          TestCalcDivShape(&fe, &T, resolution);
       }
@@ -140,8 +136,6 @@ TEST_CASE("CalcDivShape for several RT FiniteElement instances",
 
       for (int order = 1; order <= maxOrder; ++order)
       {
-         std::cout << "Testing RT_TetrahedronElement::CalcDivShape() "
-                   << "for order " << order << std::endl;
          RT_TetrahedronElement fe(order - 1);
          TestCalcDivShape(&fe, &T, resolution);
       }
@@ -154,8 +148,6 @@ TEST_CASE("CalcDivShape for several RT FiniteElement instances",
 
       for (int order = 1; order <= maxOrder; ++order)
       {
-         std::cout << "Testing RT_WedgeElement::CalcDivShape() "
-                   << "for order " << order << std::endl;
          RT_WedgeElement fe(order - 1);
          TestCalcDivShape(&fe, &T, resolution);
       }
@@ -168,8 +160,6 @@ TEST_CASE("CalcDivShape for several RT FiniteElement instances",
 
       for (int order = 1; order <= maxOrder; ++order)
       {
-         std::cout << "Testing RT_HexahedronElement::CalcDivShape() "
-                   << "for order " << order << std::endl;
          RT_HexahedronElement fe(order - 1);
          TestCalcDivShape(&fe, &T, resolution);
       }

@@ -1337,7 +1337,6 @@ TEST_CASE("1D Quadrature Functions")
             double err_w = std::fabs( ir.IntPoint(i).weight - w_tbl[i] );
             if ( (err_x > tol) || (err_w > tol) )
             {
-               std::cout << "Gauss Legendre with " << n << " points wrong\n";
                REQUIRE(false);
                break;
             }
@@ -1365,7 +1364,6 @@ TEST_CASE("1D Quadrature Functions")
             double err_w = std::fabs( ir.IntPoint(i).weight - w_tbl[i] );
             if ( (err_x > tol) || (err_w > tol) )
             {
-               std::cout << "Gauss Lobatto with " << n << " points wrong\n";
                REQUIRE(false);
                break;
             }
@@ -1395,7 +1393,6 @@ TEST_CASE("1D Quadrature Functions")
             double err_w = std::fabs( ir.IntPoint(i).weight - w_tbl[i] );
             if ( (err_x > tol) || (err_w > tol) )
             {
-               std::cout << "Closed Newton-Cotes with " << n << " points wrong\n";
                REQUIRE(false);
                break;
             }
@@ -1425,7 +1422,6 @@ TEST_CASE("1D Quadrature Functions")
             double err_w = std::fabs( ir.IntPoint(i).weight - w_tbl[i] );
             if ( (err_x > tol) || (err_w > tol) )
             {
-               std::cout << "Open Newton-Cotes with " << n << " points wrong\n";
                REQUIRE(false);
                break;
             }

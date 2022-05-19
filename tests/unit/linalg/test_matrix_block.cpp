@@ -76,8 +76,8 @@ TEST_CASE("BlockMatrix", "[BlockMatrix]")
       {
          if ( A->RowSize(i) != Amono->RowSize(i) )
          {
-            std::cout<< "BlockMatrix::RowSize failure: " << i <<"\t"<< A->RowSize(
-                        i) <<"\t" <<  Amono->RowSize(i) << "\n";
+            INFO("BlockMatrix::RowSize failure: " << i <<"\t"<< A->RowSize(
+                    i) <<"\t" <<  Amono->RowSize(i));
             ++nfails;
          }
       }

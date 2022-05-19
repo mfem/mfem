@@ -87,11 +87,6 @@ TEST_CASE("HypreParMatrixAbsMult",  "[Parallel], [HypreParMatrixAbsMult]")
 
       Y1 -=Y0;
       double error = Y1.Norml2();
-
-      std::cout << "Testing AbsMult:   order: " << order
-                << ", error norm on rank "
-                << rank << ": " << error << std::endl;
-
       REQUIRE(error == MFEM_Approx(0.0));
 
       MPI_Barrier(MPI_COMM_WORLD);
@@ -104,10 +99,6 @@ TEST_CASE("HypreParMatrixAbsMult",  "[Parallel], [HypreParMatrixAbsMult]")
       X1 -=X0;
 
       error = X1.Norml1();
-      std::cout << "Testing AbsMultT:  order: " << order
-                << ", error norm on rank "
-                << rank << ": " << error << std::endl;
-
       REQUIRE(error == MFEM_Approx(0.0));
 
       delete A;

@@ -55,11 +55,6 @@ TEST_CASE("SparseMatrixAbsMult", "[SparseMatrixAbsMult]")
 
       Y1 -=Y0;
       double error = Y1.Norml2();
-
-      std::cout << "Testing AbsMult:   order: " << order
-                << ", error norm: "
-                << error << std::endl;
-
       REQUIRE(error == MFEM_Approx(0.0));
 
       Y0.Randomize();
@@ -70,11 +65,6 @@ TEST_CASE("SparseMatrixAbsMult", "[SparseMatrixAbsMult]")
       X1 -=X0;
 
       error = X1.Norml2();
-
-      std::cout << "Testing AbsMultT:  order: " << order
-                << ", error norm: "
-                << error << std::endl;
-
       REQUIRE(error == MFEM_Approx(0.0));
 
       delete Aabs;
