@@ -2065,7 +2065,8 @@ SparseMatrix* FiniteElementSpace::DerefinementMatrix(int old_ndofs,
 
    MFEM_ASSERT(dtrans.embeddings.Size() == old_elem_dof->Size(), "");
 
-   if (FEColl()->GetContType() == FiniteElementCollection::DISCONTINUOUS) {
+   if (FEColl()->GetContType() == FiniteElementCollection::DISCONTINUOUS)
+   {
 
       for (int k = 0; k < dtrans.embeddings.Size(); k++)
       {
@@ -2089,14 +2090,16 @@ SparseMatrix* FiniteElementSpace::DerefinementMatrix(int old_ndofs,
 
                lR.GetRow(i, row);
 
-               for (int j = 0; j < old_vdofs.Size(); j++) {
+               for (int j = 0; j < old_vdofs.Size(); j++)
+               {
                   R->Set(r, old_vdofs[j], row[j]);
                }
             }
          }
       }
    }
-   else {
+   else
+   {
 
       Array<int> mark(R->Height());
       mark = 0;
