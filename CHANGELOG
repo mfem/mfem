@@ -10,6 +10,9 @@
 
 Version 4.4.1 (development)
 ===========================
+- When using discontinuous (L2) spaces, use local (element-wise) L2 projection
+  as the coarsening operator for non-conforming AMR meshes.
+
 - Added WhiteGaussianNoiseDomainLFIntegrator: a LinearFormIntegrator class for
   spatial Gaussian white noise.
 
