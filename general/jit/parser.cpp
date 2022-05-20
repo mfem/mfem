@@ -402,9 +402,7 @@ struct Parser
       size_t seed = // src is ready: compute its seed with all the MFEM context
          mfem::Jit::Hash(
             std::hash<std::string> {}(ker.src.str()),
-            std::string(cxx),
-            std::string(libs),
-            std::string(flags),
+            std::string(cxx), std::string(libs), std::string(flags),
             std::string(MFEM_SOURCE_DIR), std::string(MFEM_INSTALL_DIR));
 
       out << ker.dup.str() << "}" // dump the first dup code

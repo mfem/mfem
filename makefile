@@ -461,7 +461,7 @@ $(SRC)fem/bilininteg_mass_pa.cpp
 
 # Definitions to compile the preprocessor and embed the MFEM options
 MFEM_JIT_COMMA :=,
-MFEM_JIT_DEFINES  = -DMFEM_CXX="$(MFEM_CXX)"
+MFEM_JIT_DEFINES  = -DMFEM_CXX="$(MFEM_CXX)" -Wno-unknown-escape-sequence
 # Comma has to be escaped to avoid 'macro names must be identifiers' error
 MFEM_JIT_DEFINES += -DMFEM_EXT_LIBS="$(subst $(MFEM_JIT_COMMA),\$(MFEM_JIT_COMMA),$(MFEM_EXT_LIBS))"
 MFEM_JIT_DEFINES += -DMFEM_BUILD_FLAGS="$(subst $(MFEM_JIT_COMMA),\$(MFEM_JIT_COMMA),$(MFEM_BUILD_FLAGS))"
