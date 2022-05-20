@@ -98,7 +98,7 @@ class System // System singleton object
    int *s_ack; // shared status, should be large enough to store one MPI rank
    char *s_mem; // shared memory to store the command for the system call
    uintptr_t size; // of the s_mem shared memory
-   std::string lib_ar {"libmjit.a"}, lib_so {"./libmjit.so"};
+   std::string sl_cmd, lib_ar {"libmjit.a"}, lib_so {"./libmjit.so"};
    bool keep = true;
 
    struct Command
@@ -109,10 +109,10 @@ class System // System singleton object
       operator const char *()
       {
          std::ostringstream cmd_mv = std::move(cmd);
-         static thread_local std::string sl_cmd;
-         sl_cmd = cmd_mv.str();
+         //static thread_local std::string sl_cmd;
+         Get().sl_cmd = cmd_mv.str();
          cmd.clear(); cmd.str(""); // flush for next command
-         return sl_cmd.c_str();
+         return Get().sl_cmd.c_str();
       }
    } command;
 
@@ -298,7 +298,12 @@ public:
    static std::string ARprefix() { return Get().ar.Prefix();  }
    static std::string ARpostfix() { return Get().ar.Postfix(); }
    static std::string ARbackup() { return Get().ar.Backup(); }
-   static void *DLopen(const char *path) { return ::dlopen(path, RTLD_LAZY|RTLD_LOCAL); }
+   static void *DLopen(const char *path)
+   {
+#warning RTLD_NOW | RTLD_GLOBAL
+      //return ::dlopen(path, RTLD_LAZY|RTLD_LOCAL);
+      return ::dlopen(path, RTLD_NOW|RTLD_GLOBAL);
+   }
 
    static void* Lookup(const size_t hash, const char *name, const char *cxx,
                        const char *flags, const char *link, const char *libs,
@@ -312,12 +317,13 @@ public:
          {
             Command() << cxx << link << "-shared" << "-o" << Lib_so()
                       << ARprefix() << Lib_ar() << ARpostfix()
-                      << Xlinker() + "-rpath,.";
-            status = Call();
+                      << Xlinker() + "-rpath,."
+                      << libs;
+            status = Call(symbol);
          }
          mpi::Sync(status);
          handle = DLopen(Lib_so());
-         MFEM_VERIFY(handle, "[JIT] Error " << Lib_so() << " from " << Lib_so());
+         MFEM_VERIFY(handle, "[JIT] Error " << Lib_so() << " from " << Lib_ar());
       }
 
       auto RootCompile = [&]() // Compilation only done by the root
@@ -348,6 +354,7 @@ public:
          // Create temporary shared library: (ar + co) => symbol
          Command() << cxx << link << "-shared" << "-o" << symbol
                    << ARprefix() << Lib_ar() << ARpostfix()
+                   << Xlinker() + "-rpath,."
                    << libs;
          if (Call(symbol)) { return EXIT_FAILURE; }
 

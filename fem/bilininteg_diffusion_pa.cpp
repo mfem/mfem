@@ -891,8 +891,8 @@ static void PADiffusionAssembleDiagonal(const int dim,
       switch ((D1D << 4 ) | Q1D)
       {
          case 0x22: return SmemPADiffusionDiagonal2D<2,2,8>(NE,symm,B,G,D,Y);
-#ifndef MFEM_USE_JIT
          case 0x33: return SmemPADiffusionDiagonal2D<3,3,8>(NE,symm,B,G,D,Y);
+#ifndef MFEM_USE_JIT
          case 0x44: return SmemPADiffusionDiagonal2D<4,4,4>(NE,symm,B,G,D,Y);
          case 0x55: return SmemPADiffusionDiagonal2D<5,5,4>(NE,symm,B,G,D,Y);
          case 0x66: return SmemPADiffusionDiagonal2D<6,6,2>(NE,symm,B,G,D,Y);
@@ -903,10 +903,9 @@ static void PADiffusionAssembleDiagonal(const int dim,
 #else
          default:
          {
-            const int NBZ = (D1D < 4)  ? 16:
-                            (D1D < 6)  ? 8 :
-                            (D1D < 8)  ? 4 :
-                            (D1D < 10) ? 2 : 1;
+            const int NBZ = (D1D < 4)  ? 8:
+                            (D1D < 6)  ? 4 :
+                            (D1D < 8)  ? 2 : 1;
             return SmemPADiffusionDiagonal2D(NE,symm,B,G,D,Y,D1D,Q1D,NBZ);
          }
 #endif
@@ -1798,7 +1797,14 @@ static void PADiffusionApply(const int dim,
          case 0x99: return SmemPADiffusionApply2D<9,9,2>(NE,symm,B,G,D,X,Y);
          default:  return PADiffusionApply2D(NE,symm,b,g,bt,gt,d,x,y,D1D,Q1D);
 #else
-         default: return SmemPADiffusionApply2D(NE,symm,B,G,D,X,Y,D1D,Q1D);
+         default:
+         {
+            const int NBZ = (D1D < 4)  ? 16:
+                            (D1D < 6)  ? 8 :
+                            (D1D < 8)  ? 4 :
+                            (D1D < 10) ? 2 : 1;
+            return SmemPADiffusionApply2D(NE,symm,B,G,D,X,Y,D1D,Q1D,NBZ);
+         }
 #endif
       }
    }

@@ -80,6 +80,7 @@ void mfem_warning(const char *msg = NULL);
    "\n ... in file: " << __FILE__ << ':' << __LINE__ << '\n'
 
 // Common error message and abort macro
+#ifndef MFEM_JIT_COMPILATION
 #define _MFEM_MESSAGE(msg, warn)                                        \
    {                                                                    \
       std::ostringstream mfemMsgStream;                                 \
@@ -91,6 +92,19 @@ void mfem_warning(const char *msg = NULL);
       else                                                              \
          mfem::mfem_warning(mfemMsgStream.str().c_str());               \
    }
+#else
+#define _MFEM_MESSAGE(msg, warn)                                        \
+   {                                                                    \
+      std::ostringstream mfemMsgStream;                                 \
+      mfemMsgStream << std::setprecision(16);                           \
+      mfemMsgStream << std::setiosflags(std::ios_base::scientific);     \
+      mfemMsgStream << msg << MFEM_LOCATION;                            \
+      if (!(warn))                                                      \
+         std::cerr << (mfemMsgStream.str().c_str());                    \
+      else                                                              \
+         std::cout << (mfemMsgStream.str().c_str());                    \
+   }
+#endif
 
 // Outputs lots of useful information and aborts.
 // For all of these functions, "msg" is pushed to an ostream, so you can
