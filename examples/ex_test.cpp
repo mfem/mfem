@@ -75,18 +75,19 @@ double square_integrate(GridFunction* gf)
 int main()
 {
    Mesh mesh = Mesh::MakeCartesian2D(
-                  1, 1, Element::QUADRILATERAL, true, 1.0, 1.0);
-   mesh.EnsureNCMesh();
+                  //                  1, 1, Element::QUADRILATERAL, true, 1.0, 1.0);
+                  1, 1, Element::TRIANGLE, true, 1.0, 1.0);
+   mesh.EnsureNCMesh(true);
    mesh.EnsureNodes();
 
-   int order = 0;
+   int order = 1;
    L2_FECollection fec(order, dimension, BasisType::GaussLegendre);
    // L2_FECollection fec(order, dimension, BasisType::Positive);
    FiniteElementSpace fespace(&mesh, &fec);
    GridFunction x(&fespace);
 
    PolyCoeff pcoeff;
-   pcoeff.order_ = 3;
+   pcoeff.order_ = order+1;
    FunctionCoefficient c(PolyCoeff::poly_coeff);
 
    Array<Refinement> refinements;
