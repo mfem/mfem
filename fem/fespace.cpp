@@ -2060,15 +2060,15 @@ SparseMatrix* FiniteElementSpace::DerefinementMatrix(int old_ndofs,
 
    SparseMatrix *R = new SparseMatrix(ndofs*vdim, old_ndofs*vdim);
 
+   Array<int> mark(R->Height());
+   mark = 0;
+
    const CoarseFineTransformations &dtrans =
       mesh->ncmesh->GetDerefinementTransforms();
 
    MFEM_ASSERT(dtrans.embeddings.Size() == old_elem_dof->Size(), "");
 
    bool is_dg = FEColl()->GetContType() == FiniteElementCollection::DISCONTINUOUS;
-   Array<int> mark(R->Height());
-   mark = 0;
-
    int num_marked = 0;
    for (int k = 0; k < dtrans.embeddings.Size(); k++)
    {
@@ -2091,14 +2091,15 @@ SparseMatrix* FiniteElementSpace::DerefinementMatrix(int old_ndofs,
             int r = DofToVDof(dofs[i], vd);
             int m = (r >= 0) ? r : (-1 - r);
 
-            lR.GetRow(i, row);
-
             if (is_dg || !mark[m])
             {
+               lR.GetRow(i, row);
+
                for (int j = 0; j < old_vdofs.Size(); j++)
                {
                   R->Set(r, old_vdofs[j], row[j]);
                }
+
                mark[m] = 1;
                num_marked++;
             }

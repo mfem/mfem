@@ -3025,82 +3025,41 @@ ParFiniteElementSpace::ParallelDerefinementMatrix(int old_ndofs,
    Array<char> mark(diag->Height());
    mark = 0;
 
-   if (FEColl()->GetContType() == FiniteElementCollection::DISCONTINUOUS)
+   bool is_dg = FEColl()->GetContType() == FiniteElementCollection::DISCONTINUOUS;
+
+   for (int k = 0; k < dtrans.embeddings.Size(); k++)
    {
-      for (int k = 0; k < dtrans.embeddings.Size(); k++)
+      const Embedding &emb = dtrans.embeddings[k];
+      if (emb.parent < 0) { continue; }
+
+      int coarse_rank = old_pncmesh->ElementRank(emb.parent);
+      int fine_rank = old_ranks[k];
+
+      if (coarse_rank == MyRank && fine_rank == MyRank)
       {
-         const Embedding &emb = dtrans.embeddings[k];
-         if (emb.parent < 0) { continue; }
+         Geometry::Type geom = mesh->GetElementBaseGeometry(emb.parent);
+         DenseMatrix &lR = localR[geom](emb.matrix);
 
-         int coarse_rank = old_pncmesh->ElementRank(emb.parent);
-         int fine_rank = old_ranks[k];
+         elem_dof->GetRow(emb.parent, dofs);
+         old_elem_dof->GetRow(k, old_dofs);
 
-         if (coarse_rank == MyRank && fine_rank == MyRank)
+         for (int vd = 0; vd < vdim; vd++)
          {
-            Geometry::Type geom = mesh->GetElementBaseGeometry(emb.parent);
-            DenseMatrix &lR = localR[geom](emb.matrix);
+            old_dofs.Copy(old_vdofs);
+            DofsToVDofs(vd, old_vdofs, old_ndofs);
 
-            elem_dof->GetRow(emb.parent, dofs);
-            old_elem_dof->GetRow(k, old_dofs);
-
-            for (int vd = 0; vd < vdim; vd++)
+            for (int i = 0; i < lR.Height(); i++)
             {
-               old_dofs.Copy(old_vdofs);
-               DofsToVDofs(vd, old_vdofs, old_ndofs);
+               if (!std::isfinite(lR(i, 0))) { continue; }
 
-               for (int i = 0; i < lR.Height(); i++)
+               int r = DofToVDof(dofs[i], vd);
+               int m = (r >= 0) ? r : (-1 - r);
+
+               if (is_dg || !mark[m])
                {
-                  if (!std::isfinite(lR(i, 0))) { continue; }
-
-                  int r = DofToVDof(dofs[i], vd);
-
                   lR.GetRow(i, row);
-                  for (int j = 0; j < old_vdofs.Size(); j++)
-                  {
-                     diag->Set(r, old_vdofs[j], row[j]);
-                  }
-               }
-            }
-         }
-      }
-   }
-   else
-   {
-
-      for (int k = 0; k < dtrans.embeddings.Size(); k++)
-      {
-         const Embedding &emb = dtrans.embeddings[k];
-         if (emb.parent < 0) { continue; }
-
-         int coarse_rank = old_pncmesh->ElementRank(emb.parent);
-         int fine_rank = old_ranks[k];
-
-         if (coarse_rank == MyRank && fine_rank == MyRank)
-         {
-            Geometry::Type geom = mesh->GetElementBaseGeometry(emb.parent);
-            DenseMatrix &lR = localR[geom](emb.matrix);
-
-            elem_dof->GetRow(emb.parent, dofs);
-            old_elem_dof->GetRow(k, old_dofs);
-
-            for (int vd = 0; vd < vdim; vd++)
-            {
-               old_dofs.Copy(old_vdofs);
-               DofsToVDofs(vd, old_vdofs, old_ndofs);
-
-               for (int i = 0; i < lR.Height(); i++)
-               {
-                  if (!std::isfinite(lR(i, 0))) { continue; }
-
-                  int r = DofToVDof(dofs[i], vd);
-                  int m = (r >= 0) ? r : (-1 - r);
-
-                  if (!mark[m])
-                  {
-                     lR.GetRow(i, row);
-                     diag->SetRow(r, old_vdofs, row);
-                     mark[m] = 1;
-                  }
+                  diag->SetRow(r, old_vdofs, row);
+                  mark[m] = 1;
                }
             }
          }
@@ -3118,38 +3077,38 @@ ParFiniteElementSpace::ParallelDerefinementMatrix(int old_ndofs,
    SparseMatrix *offd = new SparseMatrix(ndofs*vdim, 1);
    std::map<HYPRE_BigInt, int> col_map;
 
-   if (FEColl()->GetContType() == FiniteElementCollection::DISCONTINUOUS)
+   for (int k = 0; k < dtrans.embeddings.Size(); k++)
    {
-      for (int k = 0; k < dtrans.embeddings.Size(); k++)
+      const Embedding &emb = dtrans.embeddings[k];
+      if (emb.parent < 0) { continue; }
+
+      int coarse_rank = old_pncmesh->ElementRank(emb.parent);
+      int fine_rank = old_ranks[k];
+
+      if (coarse_rank == MyRank && fine_rank != MyRank)
       {
-         const Embedding &emb = dtrans.embeddings[k];
-         if (emb.parent < 0) { continue; }
+         Geometry::Type geom = mesh->GetElementBaseGeometry(emb.parent);
+         DenseMatrix &lR = localR[geom](emb.matrix);
 
-         int coarse_rank = old_pncmesh->ElementRank(emb.parent);
-         int fine_rank = old_ranks[k];
+         elem_dof->GetRow(emb.parent, dofs);
 
-         if (coarse_rank == MyRank && fine_rank != MyRank)
+         DerefDofMessage &msg = messages[k];
+         MFEM_ASSERT(msg.dofs.size(), "");
+
+         for (int vd = 0; vd < vdim; vd++)
          {
-            Geometry::Type geom = mesh->GetElementBaseGeometry(emb.parent);
-            DenseMatrix &lR = localR[geom](emb.matrix);
+            MFEM_ASSERT(ldof[geom], "");
+            HYPRE_BigInt* remote_dofs = &msg.dofs[vd*ldof[geom]];
 
-            elem_dof->GetRow(emb.parent, dofs);
-
-            DerefDofMessage &msg = messages[k];
-            MFEM_ASSERT(msg.dofs.size(), "");
-
-            for (int vd = 0; vd < vdim; vd++)
+            for (int i = 0; i < lR.Height(); i++)
             {
-               MFEM_ASSERT(ldof[geom], "");
-               HYPRE_BigInt* remote_dofs = &msg.dofs[vd*ldof[geom]];
+               if (!std::isfinite(lR(i, 0))) { continue; }
 
-               for (int i = 0; i < lR.Height(); i++)
+               int r = DofToVDof(dofs[i], vd);
+               int m = (r >= 0) ? r : (-1 - r);
+
+               if (is_dg || !mark[m])
                {
-                  if (!std::isfinite(lR(i, 0))) { continue; }
-
-                  int r = DofToVDof(dofs[i], vd);
-                  int m = (r >= 0) ? r : (-1 - r);
-
                   lR.GetRow(i, row);
                   MFEM_ASSERT(ldof[geom] == row.Size(), "");
                   for (int j = 0; j < ldof[geom]; j++)
@@ -3159,61 +3118,11 @@ ParFiniteElementSpace::ParallelDerefinementMatrix(int old_ndofs,
                      if (!lcol) { lcol = col_map.size(); }
                      offd->_Set_(m, lcol-1, row[j]);
                   }
+                  mark[m] = 1;
                }
             }
          }
       }
-   }
-   else
-   {
-      for (int k = 0; k < dtrans.embeddings.Size(); k++)
-      {
-         const Embedding &emb = dtrans.embeddings[k];
-         if (emb.parent < 0) { continue; }
-
-         int coarse_rank = old_pncmesh->ElementRank(emb.parent);
-         int fine_rank = old_ranks[k];
-
-         if (coarse_rank == MyRank && fine_rank != MyRank)
-         {
-            Geometry::Type geom = mesh->GetElementBaseGeometry(emb.parent);
-            DenseMatrix &lR = localR[geom](emb.matrix);
-
-            elem_dof->GetRow(emb.parent, dofs);
-
-            DerefDofMessage &msg = messages[k];
-            MFEM_ASSERT(msg.dofs.size(), "");
-
-            for (int vd = 0; vd < vdim; vd++)
-            {
-               MFEM_ASSERT(ldof[geom], "");
-               HYPRE_BigInt* remote_dofs = &msg.dofs[vd*ldof[geom]];
-
-               for (int i = 0; i < lR.Height(); i++)
-               {
-                  if (!std::isfinite(lR(i, 0))) { continue; }
-
-                  int r = DofToVDof(dofs[i], vd);
-                  int m = (r >= 0) ? r : (-1 - r);
-
-                  if (!mark[m])
-                  {
-                     lR.GetRow(i, row);
-                     MFEM_ASSERT(ldof[geom] == row.Size(), "");
-                     for (int j = 0; j < ldof[geom]; j++)
-                     {
-                        if (row[j] == 0.0) { continue; } // NOTE: lR thresholded
-                        int &lcol = col_map[remote_dofs[j]];
-                        if (!lcol) { lcol = col_map.size(); }
-                        offd->_Set_(m, lcol-1, row[j]);
-                     }
-                     mark[m] = 1;
-                  }
-               }
-            }
-         }
-      }
-
    }
 
    messages.clear();
