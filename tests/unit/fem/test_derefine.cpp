@@ -148,7 +148,6 @@ void test_derefine_L2_element(int order, Element::Type el_type, int basis_type)
    if (dimension == 1)
    {
       mesh = Mesh::MakeCartesian1D(1, 1.0);
-      mesh.EnsureNCMesh(true);
    }
    if (dimension == 2)
    {
@@ -158,15 +157,14 @@ void test_derefine_L2_element(int order, Element::Type el_type, int basis_type)
    {
       mesh = Mesh::MakeCartesian3D(1, 1, 1, el_type, true, 1.0, 1.0, 1.0);
    }
-   mesh.EnsureNCMesh();
-   mesh.EnsureNodes();
+   mesh.EnsureNCMesh(true);
 
    L2_FECollection fec(order, dimension, basis_type);
    FiniteElementSpace fespace(&mesh, &fec);
    GridFunction x(&fespace);
 
    PolyCoeff pcoeff;
-   pcoeff.order_ = order+1;
+   pcoeff.order_ = order+1; // raise order so it isn't exact
    FunctionCoefficient c(PolyCoeff::poly_coeff);
 
    Array<Refinement> refinements;
@@ -180,7 +178,7 @@ void test_derefine_L2_element(int order, Element::Type el_type, int basis_type)
    // fine space.
    x.ProjectCoefficient(c);
 
-   // save the fine solution
+   // deep copy the fine solution
    Vector xf = x;
    GridFunction x_fine(x.FESpace());
    x_fine.SetData(xf);
@@ -211,14 +209,17 @@ void test_derefine_L2_element(int order, Element::Type el_type, int basis_type)
 
    double err0 = x_fine.ComputeL2Error(gfc);
 
-   // test for local L2 optimality by shifting dofs by epsilon and
-   // recomputing error wrt fine solution.
+   // test for local L2 optimality by shifting dofs by +/-epsilon and
+   // recomputing error wrt fine solution. maybe there is a more
+   // clever way to do this.
    double eps = 1.e-3;
-   for (int i = 0; i < coarse_soln_v.Size(); i++)
+
+   // limit to max 20 dofs for efficiency in 3D
+   int test_ndofs = std::min(coarse_soln_v.Size(), 20);
+   for (int i = 0; i < test_ndofs; i++)
    {
       for (int f = -1; f <= 1; f += 2)
       {
-
          mesh.DerefineByError(local_err, threshold);
          fespace.Update();
          x.Update();
@@ -252,11 +253,11 @@ TEST_CASE("AMR Coarsen L2 Element","[AMR][Coarsen]")
 
    std::vector<Element::Type> el_types_2d;
    el_types_2d.push_back(Element::QUADRILATERAL);
-   // el_types_2d.push_back(Element::TRIANGLE); // derefinement not supported
+   el_types_2d.push_back(Element::TRIANGLE); // (nonconforming only)
 
    std::vector<Element::Type> el_types_3d;
    el_types_3d.push_back(Element::HEXAHEDRON);
-   // el_types_3d.push_back(Element::TETRAHEDRON); // derefinement not supported
+   el_types_3d.push_back(Element::TETRAHEDRON); // (nonconforming only)
    // el_types_3d.push_back(Element::WEDGE); // derefinement not supported
 
    dimension = 1;
@@ -344,6 +345,15 @@ void CoarsenRandomly(ParMesh& pmesh,
    u.Update();
 }
 
+// stress test parallel correctness by:
+// initializing with an exact polynomial
+// loop:
+//   refine randomly
+//   rebalance
+//   coarsen randomly
+//   rebalance
+// representation should remain exact throughout
+
 void stress_parallel_coarsen(int order, Element::Type el_type, int basis_type)
 {
    int myid = Mpi::WorldRank();
@@ -352,7 +362,6 @@ void stress_parallel_coarsen(int order, Element::Type el_type, int basis_type)
    if (dimension == 1)
    {
       mesh = Mesh::MakeCartesian1D(4, 1.0);
-      mesh.EnsureNCMesh(true);
    }
    if (dimension == 2)
    {
@@ -362,7 +371,7 @@ void stress_parallel_coarsen(int order, Element::Type el_type, int basis_type)
    {
       mesh = Mesh::MakeCartesian3D(2, 2, 2, el_type, true, 1.0, 1.0, 1.0);
    }
-   mesh.EnsureNCMesh();
+   mesh.EnsureNCMesh(true);
 
    ParMesh *pmeshp = new ParMesh(MPI_COMM_WORLD, mesh);
    ParMesh& pmesh{*pmeshp};
@@ -376,15 +385,6 @@ void stress_parallel_coarsen(int order, Element::Type el_type, int basis_type)
    FunctionCoefficient c(PolyCoeff::poly_coeff);
 
    x.ProjectCoefficient(c);
-
-   // test correctness by:
-   // initializing with an exact polynomial
-   // loop:
-   //   refine randomly
-   //   rebalance
-   //   coarsen randomly
-   //   rebalance
-   // representation should remain exact throughout
 
    srand( (unsigned)time( NULL )+myid );
 
