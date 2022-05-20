@@ -81,14 +81,16 @@ void StixCoefs_cold_plasma(Vector &V, double omega, double Bmag,
                            int nuprof,
                            bool realPart);
 
-std::complex<double> R_cold_plasma(double omega, double Bmag, double nue,
+std::complex<double> R_cold_plasma(double omega, double Bmag,
+                                   double nue, double nui,
                                    const Vector & number,
                                    const Vector & charge,
                                    const Vector & mass,
                                    const Vector & temp,
                                    int nuprof);
 
-std::complex<double> L_cold_plasma(double omega, double Bmag, double nue,
+std::complex<double> L_cold_plasma(double omega, double Bmag,
+                                   double nue, double nui,
                                    const Vector & number,
                                    const Vector & charge,
                                    const Vector & mass,
@@ -110,7 +112,8 @@ std::complex<double> S_cold_plasma(double omega, double Bmag,
                                    const Vector & temp,
                                    int nuprof);
 
-std::complex<double> D_cold_plasma(double omega, double Bmag, double nue,
+std::complex<double> D_cold_plasma(double omega, double Bmag,
+                                   double nue, double nui,
                                    const Vector & number,
                                    const Vector & charge,
                                    const Vector & mass,
@@ -250,26 +253,26 @@ private:
 class BFieldAngle : public SheathBase
 {
 public:
-    BFieldAngle(const ParGridFunction & B,
-                const BlockVector & density,
-                const BlockVector & temp,
-                const ParFiniteElementSpace & L2FESpace,
-                const ParFiniteElementSpace & H1FESpace,
-                double omega,
-                const Vector & charges,
-                const Vector & masses,
-                bool realPart);
+   BFieldAngle(const ParGridFunction & B,
+               const BlockVector & density,
+               const BlockVector & temp,
+               const ParFiniteElementSpace & L2FESpace,
+               const ParFiniteElementSpace & H1FESpace,
+               double omega,
+               const Vector & charges,
+               const Vector & masses,
+               bool realPart);
 
-    BFieldAngle(const SheathBase &sb,
-                const ParGridFunction & B,
-                bool realPart)
+   BFieldAngle(const SheathBase &sb,
+               const ParGridFunction & B,
+               bool realPart)
       : SheathBase(sb, realPart), B_(B)
    {}
 
    double Eval(ElementTransformation &T,
                const IntegrationPoint &ip);
 private:
-    const ParGridFunction & B_;
+   const ParGridFunction & B_;
 };
 
 class SheathImpedance: public SheathBase
@@ -368,6 +371,52 @@ protected:
    double nui_vals_;
    const Vector & charges_;
    const Vector & masses_;
+};
+
+class StixLCoef: public Coefficient, public StixCoefBase
+{
+public:
+   StixLCoef(const ParGridFunction & B,
+             const ParGridFunction & nue,
+             const ParGridFunction & nui,
+             const BlockVector & density,
+             const BlockVector & temp,
+             const ParFiniteElementSpace & L2FESpace,
+             const ParFiniteElementSpace & H1FESpace,
+             double omega,
+             const Vector & charges,
+             const Vector & masses,
+             int nuprof,
+             bool realPart);
+
+   StixLCoef(StixCoefBase &s) : StixCoefBase(s) {}
+
+   virtual double Eval(ElementTransformation &T,
+                       const IntegrationPoint &ip);
+   virtual ~StixLCoef() {}
+};
+
+class StixRCoef: public Coefficient, public StixCoefBase
+{
+public:
+   StixRCoef(const ParGridFunction & B,
+             const ParGridFunction & nue,
+             const ParGridFunction & nui,
+             const BlockVector & density,
+             const BlockVector & temp,
+             const ParFiniteElementSpace & L2FESpace,
+             const ParFiniteElementSpace & H1FESpace,
+             double omega,
+             const Vector & charges,
+             const Vector & masses,
+             int nuprof,
+             bool realPart);
+
+   StixRCoef(StixCoefBase &s) : StixCoefBase(s) {}
+
+   virtual double Eval(ElementTransformation &T,
+                       const IntegrationPoint &ip);
+   virtual ~StixRCoef() {}
 };
 
 class StixSCoef: public Coefficient, public StixCoefBase

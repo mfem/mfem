@@ -480,7 +480,9 @@ int main(int argc, char *argv[])
    int logging = 1;
 
    // Parse command-line options.
+   const char *eqdsk_file = "";
    const char *mesh_file = "ellipse_origin_h0pt0625_o3.mesh";
+   const char *init_amr = "";
    double init_amr_tol = 1e-2;
    int init_amr_max_its = 10;
    int init_amr_max_dofs = 100000;
@@ -490,7 +492,6 @@ int main(int argc, char *argv[])
    int sol = 2;
    int prec = 1;
    // int nspecies = 2;
-   bool amr_s = true;
    bool herm_conv = false;
    bool vis_u = false;
    bool visualization = true;
@@ -562,11 +563,12 @@ int main(int argc, char *argv[])
    bool check_eps_inv = false;
    bool pa = false;
    const char *device_config = "cpu";
-   const char *eqdsk_file = "";
 
    OptionsParser args(argc, argv);
    args.AddOption(&logo, "-logo", "--print-logo", "-no-logo",
                   "--no-print-logo", "Print logo and exit.");
+   args.AddOption(&eqdsk_file, "-eqdsk", "--eqdsk-file",
+                  "G EQDSK input file.");
    args.AddOption(&mesh_file, "-m", "--mesh",
                   "Mesh file to use.");
    args.AddOption(&per_y, "-per-y", "--periodic-in-y", "-no-per-y",
@@ -574,9 +576,8 @@ int main(int argc, char *argv[])
                   "The input mesh is periodic in the y-direction.");
    args.AddOption(&ser_ref_levels, "-rs", "--refine-serial",
                   "Number of times to refine the mesh uniformly in serial.");
-   args.AddOption(&amr_s, "-amr-s", "--init-amr-s", "-no-amr-s",
-                  "--no-init-amr-s",
-                  "Initial AMR to capture Stix S coefficient.");
+   args.AddOption(&init_amr, "-iamr", "--init-amr",
+                  "Initial AMR to capture Stix coefficient: S, D, L, or R.");
    args.AddOption(&init_amr_tol, "-iatol", "--init-amr-tol",
                   "Initial AMR tolerance.");
    args.AddOption(&init_amr_max_its, "-iamit", "--init-amr-max-its",
@@ -767,8 +768,6 @@ int main(int argc, char *argv[])
                   "--no-partial-assembly", "Enable Partial Assembly.");
    args.AddOption(&device_config, "-d", "--device",
                   "Device configuration string, see Device::Configure().");
-   args.AddOption(&eqdsk_file, "-eqdsk", "--eqdsk-file",
-                  "G EQDSK input file.");
    args.Parse();
    if (!args.Good())
    {
@@ -793,7 +792,6 @@ int main(int argc, char *argv[])
       dpp.SetSize(1);
       dpp[0] = 1.0e19;
    }
-
    if (nepp.Size() == 0)
    {
       nepp.SetSize(1);
@@ -804,7 +802,6 @@ int main(int argc, char *argv[])
       nipp.SetSize(1);
       nipp[0] = 0;
    }
-
    if (bpp.Size() == 0)
    {
       bpt = BFieldProfile::CONSTANT;
@@ -1090,11 +1087,11 @@ int main(int argc, char *argv[])
                                              charges, masses, temps, nuprof);
       std::complex<double> P = P_cold_plasma(omega, nue, numbers,
                                              charges, masses, temps, nuprof);
-      std::complex<double> D = D_cold_plasma(omega, Bmag, nue, numbers,
+      std::complex<double> D = D_cold_plasma(omega, Bmag, nue, nui, numbers,
                                              charges, masses, temps, nuprof);
-      std::complex<double> R = R_cold_plasma(omega, Bmag, nue, numbers,
+      std::complex<double> R = R_cold_plasma(omega, Bmag, nue, nui, numbers,
                                              charges, masses, temps, nuprof);
-      std::complex<double> L = L_cold_plasma(omega, Bmag, nue, numbers,
+      std::complex<double> L = L_cold_plasma(omega, Bmag, nue, nui, numbers,
                                              charges, masses, temps, nuprof);
 
       cout << "\nConvenient Terms:\n";
@@ -1190,7 +1187,7 @@ int main(int argc, char *argv[])
    }
 
    // Ensure that quad and hex meshes are treated as non-conforming.
-   if (maxit > 1 || amr_s)
+   if (maxit > 1 || strcmp(init_amr,""))
    {
       mesh->EnsureNCMesh();
    }
@@ -1310,21 +1307,70 @@ int main(int argc, char *argv[])
       density_gf *= numbers[i]/numbers[0];
    }
 
-   if (amr_s)
+   if (strcmp(init_amr,""))
    {
+      if (strcmp(init_amr,"S") && strcmp(init_amr,"D") &&
+          strcmp(init_amr,"L") && strcmp(init_amr,"R"))
+      {
+         if (mpi.Root())
+         {
+            cout << "Unrecognized parameter for initial AMR loop '"
+                 << init_amr << "' coefficient." << endl;
+         }
+         return 1;
+      }
       if (mpi.Root())
       {
-         cout << "Adapting mesh to Stix 'S' coefficient." << endl;
+         cout << "Adapting mesh to Stix '" << init_amr << "' coefficient."
+              << endl;
       }
 
-      StixSCoef ReSCoef(BField, nue_gf, nui_gf, density, temperature,
-                        L2FESpace, H1FESpace,
-                        omega, charges, masses, nuprof,
-                        true);
-      StixSCoef ImSCoef(BField, nue_gf, nui_gf, density, temperature,
-                        L2FESpace, H1FESpace,
-                        omega, charges, masses, nuprof,
-                        false);
+      Coefficient *ReCoefPtr = NULL;
+      Coefficient *ImCoefPtr = NULL;
+      if (!strcmp(init_amr,"S"))
+      {
+         ReCoefPtr = new StixSCoef(BField, nue_gf, nui_gf, density, temperature,
+                                   L2FESpace, H1FESpace,
+                                   omega, charges, masses, nuprof,
+                                   true);
+         ImCoefPtr = new StixSCoef(BField, nue_gf, nui_gf, density, temperature,
+                                   L2FESpace, H1FESpace,
+                                   omega, charges, masses, nuprof,
+                                   false);
+      }
+      else if (!strcmp(init_amr,"D"))
+      {
+         ReCoefPtr = new StixDCoef(BField, nue_gf, nui_gf, density, temperature,
+                                   L2FESpace, H1FESpace,
+                                   omega, charges, masses, nuprof,
+                                   true);
+         ImCoefPtr = new StixDCoef(BField, nue_gf, nui_gf, density, temperature,
+                                   L2FESpace, H1FESpace,
+                                   omega, charges, masses, nuprof,
+                                   false);
+      }
+      else if (!strcmp(init_amr,"L"))
+      {
+         ReCoefPtr = new StixLCoef(BField, nue_gf, nui_gf, density, temperature,
+                                   L2FESpace, H1FESpace,
+                                   omega, charges, masses, nuprof,
+                                   true);
+         ImCoefPtr = new StixLCoef(BField, nue_gf, nui_gf, density, temperature,
+                                   L2FESpace, H1FESpace,
+                                   omega, charges, masses, nuprof,
+                                   false);
+      }
+      else if (!strcmp(init_amr,"R"))
+      {
+         ReCoefPtr = new StixRCoef(BField, nue_gf, nui_gf, density, temperature,
+                                   L2FESpace, H1FESpace,
+                                   omega, charges, masses, nuprof,
+                                   true);
+         ImCoefPtr = new StixRCoef(BField, nue_gf, nui_gf, density, temperature,
+                                   L2FESpace, H1FESpace,
+                                   omega, charges, masses, nuprof,
+                                   false);
+      }
 
       L2_ParFESpace err_fes(&pmesh, 0, pmesh.Dimension());
 
@@ -1335,10 +1381,13 @@ int main(int argc, char *argv[])
                        density_offsets, temperature_offsets,
                        density, temperature,
                        BField, density_gf, temperature_gf, nue_gf, nui_gf,
-                       ReSCoef, ImSCoef,
+                       *ReCoefPtr, *ImCoefPtr,
                        order,
                        init_amr_tol, init_amr_max_its, init_amr_max_dofs,
                        visualization);
+
+      delete ReCoefPtr;
+      delete ImCoefPtr;
    }
 
    if (mpi.Root())
@@ -1388,10 +1437,12 @@ int main(int argc, char *argv[])
 
    if (check_eps_inv)
    {
-      DielectricTensor epsilon_real(BField, nue_gf, nui_gf, density, temperature,
+      DielectricTensor epsilon_real(BField, nue_gf, nui_gf,
+                                    density, temperature,
                                     L2FESpace, H1FESpace,
                                     omega, charges, masses, nuprof, true);
-      DielectricTensor epsilon_imag(BField, nue_gf, nui_gf, density, temperature,
+      DielectricTensor epsilon_imag(BField, nue_gf, nui_gf,
+                                    density, temperature,
                                     L2FESpace, H1FESpace,
                                     omega, charges, masses, nuprof, false);
       DenseMatrix epsInvRe(3,3);
@@ -2495,15 +2546,15 @@ ColdPlasmaPlaneWaveH::ColdPlasmaPlaneWaveH(char type,
    beta_r_ = 0.0;
    beta_i_ = 0.0;
 
-   double nue_ = 0;
-   double nui_ = 0;
+   double nue = 0;
+   double nui = 0;
 
-   S_ = S_cold_plasma(omega_, Bmag_, nue_, nui_, numbers_, charges_, masses_,
-                      temps_,
+   S_ = S_cold_plasma(omega_, Bmag_, nue, nui, numbers_, charges_, masses_,
+                      temps_, nuprof_);
+   D_ = D_cold_plasma(omega_, Bmag_, nue, nui, numbers_, charges_, masses_,
+                      temps_, nuprof_);
+   P_ = P_cold_plasma(omega_, nue, numbers_, charges_, masses_, temps_,
                       nuprof_);
-   D_ = D_cold_plasma(omega_, Bmag_, nue_, numbers_, charges_, masses_, temps_,
-                      nuprof_);
-   P_ = P_cold_plasma(omega_, nue_, numbers_, charges_, masses_, temps_, nuprof_);
 
    switch (type_)
    {
@@ -2743,15 +2794,15 @@ ColdPlasmaPlaneWaveE::ColdPlasmaPlaneWaveE(char type,
    beta_r_ = 0.0;
    beta_i_ = 0.0;
 
-   double nue_ = 0;
-   double nui_ = 0;
+   double nue = 0;
+   double nui = 0;
 
-   S_ = S_cold_plasma(omega_, Bmag_, nue_, nui_, numbers_, charges_, masses_,
-                      temps_,
+   S_ = S_cold_plasma(omega_, Bmag_, nue, nui, numbers_, charges_, masses_,
+                      temps_, nuprof_);
+   D_ = D_cold_plasma(omega_, Bmag_, nue, nui, numbers_, charges_, masses_,
+                      temps_, nuprof_);
+   P_ = P_cold_plasma(omega_, nue, numbers_, charges_, masses_, temps_,
                       nuprof_);
-   D_ = D_cold_plasma(omega_, Bmag_, nue_, numbers_, charges_, masses_, temps_,
-                      nuprof_);
-   P_ = P_cold_plasma(omega_, nue_, numbers_, charges_, masses_, temps_, nuprof_);
 
    switch (type_)
    {
