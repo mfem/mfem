@@ -206,12 +206,12 @@ static void PAMassAssembleDiagonal2D(const int NE,
 
 MFEM_JIT template<int T_D1D = 0, int T_Q1D = 0, int T_NBZ = 0>
 static void SmemPAMassAssembleDiagonal2D(const int NE,
-                                         const double *b_,
-                                         const double *d_,
-                                         double *y_,
-                                         const int d1d = 0,
-                                         const int q1d = 0,
-                                         const int nbz = 0)
+                                         ConstDeviceMatrix &b,
+                                         ConstDeviceCube &D,
+                                         DeviceCube &Y,
+                                         int d1d = 0,
+                                         int q1d = 0,
+                                         int nbz = 0)
 {
    MFEM_CONTRACT_VAR(nbz);
    const int D1D = T_D1D ? T_D1D : d1d;
@@ -221,9 +221,7 @@ static void SmemPAMassAssembleDiagonal2D(const int NE,
    constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
    MFEM_VERIFY(D1D <= MD1, "");
    MFEM_VERIFY(Q1D <= MQ1, "");
-   auto b = Reshape(b_, Q1D, D1D);
-   auto D = Reshape(d_, Q1D, Q1D, NE);
-   auto Y = Reshape(y_, D1D, D1D, NE);
+
    MFEM_FORALL_2D(e, NE, Q1D, Q1D, NBZ,
    {
       const int tidz = MFEM_THREAD_ID(z);
@@ -343,11 +341,11 @@ static void PAMassAssembleDiagonal3D(const int NE,
 
 MFEM_JIT template<int T_D1D = 0, int T_Q1D = 0>
 static void SmemPAMassAssembleDiagonal3D(const int NE,
-                                         const double *b_,
-                                         const double *d_,
-                                         double *y_,
-                                         const int d1d = 0,
-                                         const int q1d = 0)
+                                         ConstDeviceMatrix &b,
+                                         DeviceTensor<4,const double> &D,
+                                         DeviceTensor<4,double> &Y,
+                                         int d1d = 0,
+                                         int q1d = 0)
 {
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
@@ -355,9 +353,7 @@ static void SmemPAMassAssembleDiagonal3D(const int NE,
    constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
    MFEM_VERIFY(D1D <= MD1, "");
    MFEM_VERIFY(Q1D <= MQ1, "");
-   auto b = Reshape(b_, Q1D, D1D);
-   auto D = Reshape(d_, Q1D, Q1D, Q1D, NE);
-   auto Y = Reshape(y_, D1D, D1D, D1D, NE);
+
    MFEM_FORALL_3D(e, NE, Q1D, Q1D, Q1D,
    {
       const int tidz = MFEM_THREAD_ID(z);
@@ -433,12 +429,12 @@ static void PAMassAssembleDiagonal(const int dim, const int D1D,
                                    const Vector &d,
                                    Vector &y)
 {
-   const auto B = b.Read();
-   const auto D = d.Read();
-   auto Y = y.ReadWrite();
+   ConstDeviceMatrix B = Reshape(b.Read(), Q1D, D1D);
 
    if (dim == 2)
    {
+      ConstDeviceCube D = Reshape(d.Read(), Q1D, Q1D, NE);
+      DeviceCube Y = Reshape(y.ReadWrite(), D1D, D1D, NE);
       switch ((D1D << 4 ) | Q1D)
       {
 #ifndef MFEM_USE_JIT
@@ -458,6 +454,8 @@ static void PAMassAssembleDiagonal(const int dim, const int D1D,
    }
    else if (dim == 3)
    {
+      DeviceTensor<4,const double> D = Reshape(d.Read(), Q1D, Q1D, Q1D, NE);
+      DeviceTensor<4,double> Y = Reshape(y.ReadWrite(), D1D, D1D, D1D, NE);
       switch ((D1D << 4 ) | Q1D)
       {
 #ifndef MFEM_USE_JIT
@@ -676,13 +674,13 @@ static void PAMassApply2D(const int NE,
 
 MFEM_JIT template<int T_D1D = 0, int T_Q1D = 0, int T_NBZ = 0>
 static void SmemPAMassApply2D(const int NE,
-                              const ConstDeviceMatrix &b,
-                              const ConstDeviceCube &D,
-                              const ConstDeviceCube &x,
+                              ConstDeviceMatrix &b,
+                              ConstDeviceCube &D,
+                              ConstDeviceCube &x,
                               DeviceCube &Y,
-                              const int d1d = 0,
-                              const int q1d = 0,
-                              const int nbz = 1)
+                              int d1d = 0,
+                              int q1d = 0,
+                              int nbz = 1)
 {
    MFEM_CONTRACT_VAR(nbz);
    const int D1D = T_D1D ? T_D1D : d1d;
@@ -933,10 +931,10 @@ static void PAMassApply3D(const int NE,
 
 MFEM_JIT template<int T_D1D = 0, int T_Q1D = 0>
 static void SmemPAMassApply3D(const int NE,
-                              const ConstDeviceMatrix &b,
-                              const DeviceTensor<4,const double> &D,
-                              const DeviceTensor<4,const double> &x,
-                              DeviceTensor<4,double> &y,
+                              ConstDeviceMatrix &b,
+                              DeviceTensor<4,const double> &D,
+                              DeviceTensor<4,const double> &x,
+                              DeviceTensor<4,double> &Y,
                               int d1d = 0,
                               int q1d = 0)
 {
@@ -1146,7 +1144,7 @@ static void SmemPAMassApply3D(const int NE,
             MFEM_UNROLL(MD1)
             for (int dz = 0; dz < D1D; ++dz)
             {
-               y(dx,dy,dz,e) += u[dz];
+               Y(dx,dy,dz,e) += u[dz];
             }
          }
       }

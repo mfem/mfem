@@ -41,26 +41,6 @@ namespace mfem
 
 namespace jit
 {
-/*
-struct dbg
-{
-   static constexpr bool DEBUG = true;
-   static constexpr uint8_t COLOR = 51;
-   dbg(): dbg(COLOR) { }
-   dbg(const uint8_t color)
-   {
-      if (!DEBUG) { return; }
-      std::cout << "\033[38;5;" << std::to_string(color==0?COLOR:color) << "m";
-   }
-   ~dbg() { if (DEBUG) { std::cout << "\033[m\n"; std::cout.flush(); } }
-   template <typename T> dbg& operator<<(const T &arg)
-   { if (DEBUG) { std::cout << arg; std::cout.flush(); } return *this; }
-   template<typename T, typename... Args>
-   inline void operator()(const T &arg, Args... args) const
-   { operator<<(arg); operator()(args...); }
-   template<typename T>
-   inline void operator()(const T &arg) const { operator<<(arg); }
-};*/
 
 namespace mpi
 {
@@ -193,7 +173,6 @@ class System // System singleton object
 public:
    static void Init(int *argc, char ***argv)
    {
-      //dbg() << "Init";
       MFEM_CONTRACT_VAR(argc);
       MFEM_CONTRACT_VAR(argv);
       MFEM_VERIFY(!mpi::IsInitialized(), "MPI should not be initialized yet!");
@@ -244,22 +223,13 @@ public:
 
    static void Configure(const char *name, bool keep)
    {
-      //dbg() << "Configure";
-
-      Get().lib_ar = "lib";
-      Get().lib_ar += name;
-      Get().lib_ar += ".a";
-
-      Get().lib_so = "./lib";
-      Get().lib_so += name;
-      Get().lib_so += ".so";
-
       Get().keep = keep;
+      Get().lib_ar =   "lib"; Get().lib_ar += name; Get().lib_ar += ".a";
+      Get().lib_so = "./lib"; Get().lib_so += name; Get().lib_so += ".so";
    }
 
    static void Finalize()
    {
-      //dbg() << "Finalize";
       const bool remove_libs = mpi::Root() && !Get().keep;
       if (remove_libs) { std::remove(Lib_ar()); std::remove(Lib_so()); }
       // child and env-ranked have nothing to do
@@ -379,7 +349,7 @@ public:
          Command() << cxx << link << "-shared" << "-o" << symbol
                    << ARprefix() << Lib_ar() << ARpostfix()
                    << libs;
-         if (Call()) { return EXIT_FAILURE; }
+         if (Call(symbol)) { return EXIT_FAILURE; }
 
          // Install temporary shared library: symbol => libmjit.so
          Command() << "install" << ARbackup() << symbol << Lib_so();

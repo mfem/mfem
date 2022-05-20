@@ -496,7 +496,7 @@ endif
 ifdef CAMP_DIR
    RAJA_OPT += -I$(CAMP_DIR)/include
 endif
-RAJA_LIB = $(XLINKER)-rpath,$(RAJA_DIR)/lib -L$(RAJA_DIR)/lib -lRAJA
+RAJA_LIB = $(XLINKER)-rpath,$(RAJA_DIR)/lib -L$(RAJA_DIR)/lib -lRAJA -lcamp
 
 # UMPIRE library configuration
 UMPIRE_DIR = @MFEM_DIR@/../umpire

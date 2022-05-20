@@ -460,10 +460,12 @@ JIT_SOURCE_FILES = $(SRC)fem/bilininteg_diffusion_pa.cpp \
 $(SRC)fem/bilininteg_mass_pa.cpp
 
 # Definitions to compile the preprocessor and embed the MFEM options
+MFEM_JIT_COMMA :=,
 MFEM_JIT_DEFINES  = -DMFEM_CXX="$(MFEM_CXX)"
-MFEM_JIT_DEFINES += -DMFEM_EXT_LIBS="$(MFEM_EXT_LIBS)"
-MFEM_JIT_DEFINES += -DMFEM_BUILD_FLAGS="$(MFEM_BUILD_FLAGS)"
-MFEM_JIT_DEFINES += -DMFEM_LINK_FLAGS="$(MFEM_LINK_FLAGS)"
+# Comma has to be escaped to avoid 'macro names must be identifiers' error
+MFEM_JIT_DEFINES += -DMFEM_EXT_LIBS="$(subst $(MFEM_JIT_COMMA),\$(MFEM_JIT_COMMA),$(MFEM_EXT_LIBS))"
+MFEM_JIT_DEFINES += -DMFEM_BUILD_FLAGS="$(subst $(MFEM_JIT_COMMA),\$(MFEM_JIT_COMMA),$(MFEM_BUILD_FLAGS))"
+MFEM_JIT_DEFINES += -DMFEM_LINK_FLAGS="$(subst $(MFEM_JIT_COMMA),\$(MFEM_JIT_COMMA),$(MFEM_LINK_FLAGS))"
 $(BLD)mjit: $(BLD)general/jit/parser.cpp $(CONFIG_MK) makefile\
  $(BLD)general/jit/jit.hpp $(BLD)general/jit/jit.cpp
 	$(MFEM_CXX) $(MFEM_BUILD_FLAGS) $(MFEM_JIT_DEFINES) -o $(@) $(<) $(JIT_LIB)
