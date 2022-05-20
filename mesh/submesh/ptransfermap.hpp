@@ -99,6 +99,8 @@ private:
    /// ParSubMesh to ParSubMesh transfer.
    const ParFiniteElementSpace *root_fes_ = nullptr;
 
+   const GroupCommunicator *root_gc_ = nullptr;
+
    /// Temporary vector
    mutable Vector z_;
 };

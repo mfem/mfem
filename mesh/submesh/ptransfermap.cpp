@@ -59,6 +59,7 @@ ParTransferMap::ParTransferMap(const ParGridFunction &src,
                                        dst_sm->GetParentElementIDMap(),
                                        sub2_to_parent_map_);
 
+      root_gc_ = &root_fes_->GroupComm();
       CommunicateIndicesSet(sub1_to_parent_map_, root_fes_->GetVSize());
 
       z_.SetSize(root_fes_->GetVSize());
@@ -75,6 +76,7 @@ ParTransferMap::ParTransferMap(const ParGridFunction &src,
                                        src_sm->GetParentElementIDMap(),
                                        sub1_to_parent_map_);
 
+      root_gc_ = &parentfes->GroupComm();
       CommunicateIndicesSet(sub1_to_parent_map_, dst.Size());
    }
    else if (ParSubMesh::IsParSubMesh(dst.ParFESpace()->GetParMesh()))
@@ -153,8 +155,6 @@ void ParTransferMap::Transfer(const ParGridFunction &src,
 
 void ParTransferMap::CommunicateIndicesSet(Array<int> &map, int dst_sz)
 {
-   const auto &root_gc = root_fes_->GroupComm();
-
    indices_set_local_.SetSize(dst_sz);
    indices_set_local_ = 0;
    for (int i = 0; i < map.Size(); i++)
@@ -162,16 +162,15 @@ void ParTransferMap::CommunicateIndicesSet(Array<int> &map, int dst_sz)
       indices_set_local_[map[i]] = 1;
    }
    indices_set_global_ = indices_set_local_;
-   root_gc.Reduce(indices_set_global_, GroupCommunicator::Sum);
-   root_gc.Bcast(indices_set_global_);
+   root_gc_->Reduce(indices_set_global_, GroupCommunicator::Sum);
+   root_gc_->Bcast(indices_set_global_);
 }
 
 void ParTransferMap::CommunicateSharedVdofs(Vector &f) const
 {
    // f is usually defined on the root vdofs
 
-   const auto &root_gc = root_fes_->GroupComm();
-   const Table &group_ldof = root_gc.GroupLDofTable();
+   const Table &group_ldof = root_gc_->GroupLDofTable();
 
    // Identify indices that were only set by other ranks and clear the dof.
    for (int i = 0; i < group_ldof.Size_of_connections(); i++)
@@ -184,7 +183,7 @@ void ParTransferMap::CommunicateSharedVdofs(Vector &f) const
    }
 
    // TODO: do the reduce only on dofs of interest
-   root_gc.Reduce<double>(f, GroupCommunicator::Sum);
+   root_gc_->Reduce<double>(f, GroupCommunicator::Sum);
 
    // Indices that were set from this rank or other ranks have been summed up
    // and therefore need to be "averaged". Note that this results in the exact
@@ -207,12 +206,12 @@ void ParTransferMap::CommunicateSharedVdofs(Vector &f) const
          const int j = group_ldof.GetRow(gr)[i];
          if (indices_set_global_[j] == 0)
          {
-            f(j) /= root_gc.GetGroupTopology().GetGroupSize(gr);
+            f(j) /= root_gc_->GetGroupTopology().GetGroupSize(gr);
          }
       }
    }
 
-   root_gc.Bcast<double>(f);
+   root_gc_->Bcast<double>(f);
 }
 
 ParTransferMap::~ParTransferMap()
