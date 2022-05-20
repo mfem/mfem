@@ -3075,8 +3075,8 @@ ParFiniteElementSpace::ParallelDerefinementMatrix(int old_ndofs,
 
    // create the offdiagonal part of the derefinement matrix
    SparseMatrix *offd = new SparseMatrix(ndofs*vdim, 1);
-   std::map<HYPRE_BigInt, int> col_map;
 
+   std::map<HYPRE_BigInt, int> col_map;
    for (int k = 0; k < dtrans.embeddings.Size(); k++)
    {
       const Embedding &emb = dtrans.embeddings[k];
