@@ -235,7 +235,7 @@ void test_derefine_L2_element(int order, Element::Type el_type, int basis_type)
    }
 }
 
-TEST_CASE("Coarsen L2 Element","[Coarsen]")
+TEST_CASE("AMR Coarsen L2 Element","[AMR][Coarsen]")
 {
    std::vector<int> orders_1d{0,1,2,3};
    std::vector<int> orders_2d{0,1,2,3};
@@ -417,7 +417,7 @@ void stress_parallel_coarsen(int order, Element::Type el_type, int basis_type)
    }
 }
 
-TEST_CASE("Parallel Coarsen Stress Test", "[Coarsen][Parallel]")
+TEST_CASE("Parallel AMR Coarsen Stress Test", "[AMR][Coarsen][Parallel]")
 {
    std::vector<int> orders_1d{0,1,2,3};
    std::vector<int> orders_2d{0,1,2,3};
