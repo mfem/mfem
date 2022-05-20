@@ -126,6 +126,11 @@ public:
                             ElementTransformation &Trans,
                             DenseMatrix &curl) const
    { ProjectCurl_2D(fe, Trans, curl); }
+
+   virtual void GetLocalRestriction(ElementTransformation &Trans,
+                                    DenseMatrix &R) const
+   { ScalarLocalL2Restriction(Trans, R, *this); }
+
 };
 
 
@@ -148,6 +153,11 @@ public:
    virtual void CalcDShape(const IntegrationPoint &ip,
                            DenseMatrix &dshape) const;
    virtual void ProjectDelta(int vertex, Vector &dofs) const;
+
+   virtual void GetLocalRestriction(ElementTransformation &Trans,
+                                    DenseMatrix &R) const
+   { ScalarLocalL2Restriction(Trans, R, *this); }
+
 };
 
 
