@@ -301,13 +301,15 @@ int main (int argc, char *argv[])
       for (int i = 0; i < ir.GetNPoints(); i++)
       {
          const IntegrationPoint &ip = ir.IntPoint(i);
-         if (point_ordering == Ordering::byNODES) {
-             vxyz(i)           = pos_min(0) + ip.x * (pos_max(0)-pos_min(0));
-             vxyz(pts_cnt + i) = pos_min(1) + ip.y * (pos_max(1)-pos_min(1));
+         if (point_ordering == Ordering::byNODES)
+         {
+            vxyz(i)           = pos_min(0) + ip.x * (pos_max(0)-pos_min(0));
+            vxyz(pts_cnt + i) = pos_min(1) + ip.y * (pos_max(1)-pos_min(1));
          }
-         else {
-             vxyz(i*dim + 0) = pos_min(0) + ip.x * (pos_max(0)-pos_min(0));
-             vxyz(i*dim + 1) = pos_min(1) + ip.y * (pos_max(1)-pos_min(1));
+         else
+         {
+            vxyz(i*dim + 0) = pos_min(0) + ip.x * (pos_max(0)-pos_min(0));
+            vxyz(i*dim + 1) = pos_min(1) + ip.y * (pos_max(1)-pos_min(1));
          }
       }
    }
@@ -318,15 +320,17 @@ int main (int argc, char *argv[])
       for (int i = 0; i < ir.GetNPoints(); i++)
       {
          const IntegrationPoint &ip = ir.IntPoint(i);
-         if (point_ordering == Ordering::byNODES) {
-             vxyz(i)             = pos_min(0) + ip.x * (pos_max(0)-pos_min(0));
-             vxyz(pts_cnt + i)   = pos_min(1) + ip.y * (pos_max(1)-pos_min(1));
-             vxyz(2*pts_cnt + i) = pos_min(2) + ip.z * (pos_max(2)-pos_min(2));
+         if (point_ordering == Ordering::byNODES)
+         {
+            vxyz(i)             = pos_min(0) + ip.x * (pos_max(0)-pos_min(0));
+            vxyz(pts_cnt + i)   = pos_min(1) + ip.y * (pos_max(1)-pos_min(1));
+            vxyz(2*pts_cnt + i) = pos_min(2) + ip.z * (pos_max(2)-pos_min(2));
          }
-         else {
-             vxyz(i*dim + 0) = pos_min(0) + ip.x * (pos_max(0)-pos_min(0));
-             vxyz(i*dim + 1) = pos_min(1) + ip.y * (pos_max(1)-pos_min(1));
-             vxyz(i*dim + 2) = pos_min(2) + ip.z * (pos_max(2)-pos_min(2));
+         else
+         {
+            vxyz(i*dim + 0) = pos_min(0) + ip.x * (pos_max(0)-pos_min(0));
+            vxyz(i*dim + 1) = pos_min(1) + ip.y * (pos_max(1)-pos_min(1));
+            vxyz(i*dim + 2) = pos_min(2) + ip.z * (pos_max(2)-pos_min(2));
          }
       }
    }
@@ -353,9 +357,9 @@ int main (int argc, char *argv[])
             if (j == 0) { found++; }
             for (int d = 0; d < dim; d++)
             {
-                pos(d) = point_ordering == Ordering::byNODES ?
-                         vxyz(d * pts_cnt + i) :
-                         vxyz(i*dim + d);
+               pos(d) = point_ordering == Ordering::byNODES ?
+                        vxyz(d * pts_cnt + i) :
+                        vxyz(i*dim + d);
             }
             Vector exact_val(vec_dim);
             F_exact(pos, exact_val);
