@@ -180,8 +180,14 @@ int main(int argc, char *argv[])
 
    if (iprob > 2) { iprob = 0; }
    prob = (prob_type)iprob;
-
    omega = 2.*M_PI*rnum;
+
+   if (prob == 2)
+   {
+      mesh_file = "../../../data/fichera-oven.mesh";
+      omega = 5.0;
+   }
+
 
    Mesh mesh(mesh_file, 1, 1);
    dim = mesh.Dimension();
@@ -364,11 +370,14 @@ int main(int argc, char *argv[])
    }
 
    // RHS
+   
    VectorFunctionCoefficient f_rhs_r(dim,rhs_func_r);
    VectorFunctionCoefficient f_rhs_i(dim,rhs_func_i);
-   a->AddDomainLFIntegrator(new VectorFEDomainLFIntegrator(f_rhs_r),
-                            new VectorFEDomainLFIntegrator(f_rhs_i),1);
-   
+   if (prob != 2)
+   {
+      a->AddDomainLFIntegrator(new VectorFEDomainLFIntegrator(f_rhs_r),
+                               new VectorFEDomainLFIntegrator(f_rhs_i),1);
+   }
    
    VectorFunctionCoefficient hatEex_r(dim,hatE_exact_r);
    VectorFunctionCoefficient hatEex_i(dim,hatE_exact_i);
@@ -399,22 +408,24 @@ int main(int argc, char *argv[])
    int dof0;
    if (myid == 0)
    {
-      mfem::out << "\n  Ref |" 
-               << "    Dofs    |" 
-               << "   ω   |" 
-               << "  L2 Error  |" 
-               << " Relative % |" 
-               << "  Rate  |" 
-               << "  Residual  |" 
-               << "  Rate  |" 
-               << " PCG it |" << endl;
-      mfem::out << " --------------------"      
-               <<  "---------------------"    
-               <<  "---------------------"    
-               <<  "---------------------"    
-               <<  "----------" << endl;      
+      if (prob != 2)
+      {
+         mfem::out << "\n  Ref |" 
+                  << "    Dofs    |" 
+                  << "   ω   |" 
+                  << "  L2 Error  |" 
+                  << " Relative % |" 
+                  << "  Rate  |" 
+                  << "  Residual  |" 
+                  << "  Rate  |" 
+                  << " PCG it |" << endl;
+         mfem::out << " --------------------"      
+                  <<  "---------------------"    
+                  <<  "---------------------"    
+                  <<  "---------------------"    
+                  <<  "----------" << endl;      
+      }
    }
-
 
    for (int i = 0; i<pr; i++)
    {
@@ -541,10 +552,10 @@ int main(int argc, char *argv[])
       M->SetDiagonalBlock(skip+num_blocks+1,solver_hatH);
 
       CGSolver cg(MPI_COMM_WORLD);
-      cg.SetRelTol(1e-7);
-      cg.SetAbsTol(1e-7);
+      cg.SetRelTol(1e-3);
+      cg.SetAbsTol(1e-3);
       cg.SetMaxIter(10000);
-      cg.SetPrintLevel(0);
+      cg.SetPrintLevel(1);
       cg.SetPreconditioner(*M); 
       cg.SetOperator(blockA);
       cg.Mult(B, X);
@@ -561,6 +572,7 @@ int main(int argc, char *argv[])
       MPI_Allreduce(MPI_IN_PLACE,&maxresidual,1,MPI_DOUBLE,MPI_MAX,MPI_COMM_WORLD);
       MPI_Allreduce(MPI_IN_PLACE,&globalresidual,1,MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD);
       globalresidual = sqrt(globalresidual);
+
 
       elements_to_refine.SetSize(0);
       for (int iel = 0; iel<pmesh.GetNE(); iel++)
@@ -622,24 +634,31 @@ int main(int argc, char *argv[])
       dof0 = dofs;
       if (myid == 0)
       {
-         mfem::out << std::right << std::setw(5) << i << " | " 
-                   << std::setw(10) <<  dof0 << " | " 
-                   << std::setprecision(0) << std::fixed
-                   << std::setw(2) <<  2*rnum << " π  | " 
-                   << std::setprecision(3) 
-                   << std::setw(10) << std::scientific <<  err0 << " | " 
-                   << std::setprecision(3) 
-                   << std::setw(10) << std::fixed <<  rel_err * 100. << " | " 
-                   << std::setprecision(2) 
-                   << std::setw(6) << std::fixed << rate_err << " | " 
-                   << std::setprecision(3) 
-                   << std::setw(10) << std::scientific <<  res0 << " | " 
-                   << std::setprecision(2) 
-                   << std::setw(6) << std::fixed << rate_res << " | " 
-                   << std::setw(6) << std::fixed << num_iter << " | " 
-                   << std::setprecision(5) 
-                   << std::scientific 
-                   << std::endl;
+         mfem::out << "dof0     = " << dof0 << endl;
+         mfem::out << "residual = " << globalresidual << endl;
+         mfem::out << "num_iter = " << num_iter << endl;
+
+         if (prob != 2)
+         {  
+            mfem::out << std::right << std::setw(5) << i << " | " 
+                     << std::setw(10) <<  dof0 << " | " 
+                     << std::setprecision(0) << std::fixed
+                     << std::setw(2) <<  2*rnum << " π  | " 
+                     << std::setprecision(3) 
+                     << std::setw(10) << std::scientific <<  err0 << " | " 
+                     << std::setprecision(3) 
+                     << std::setw(10) << std::fixed <<  rel_err * 100. << " | " 
+                     << std::setprecision(2) 
+                     << std::setw(6) << std::fixed << rate_err << " | " 
+                     << std::setprecision(3) 
+                     << std::setw(10) << std::scientific <<  res0 << " | " 
+                     << std::setprecision(2) 
+                     << std::setw(6) << std::fixed << rate_res << " | " 
+                     << std::setw(6) << std::fixed << num_iter << " | " 
+                     << std::setprecision(5) 
+                     << std::scientific 
+                     << std::endl;
+         }
       }
 
       if (visualization)
@@ -945,7 +964,12 @@ void maxwell_solution(const Vector & X, std::vector<complex<double>> &E,
       break;
 
    default:
-      MFEM_ABORT("Fichera 'oven' problem not implemented yet");
+      MFEM_VERIFY(dim == 3, "Fichera 'oven' problem only for dim = 3");
+      if (abs(z -3.0) < 1e-10)
+      {
+         E[0] = sin(M_PI*y);
+      }
+
       break;
    }
    
