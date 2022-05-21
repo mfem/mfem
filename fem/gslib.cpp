@@ -180,15 +180,18 @@ void FindPointsGSLIB::FindPoints(const Vector &point_pos, int ordering)
 
    const double *xv_base[dim];
    unsigned xv_stride[dim];
-   for (int d = 0; d < dim; d++) {
-       if (ordering == Ordering::byNODES) {
-           xv_base[d] = point_pos.GetData() + d*points_cnt;
-           xv_stride[d] = sizeof(double);
-       }
-       else {
-           xv_base[d] = point_pos.GetData() + d;
-           xv_stride[d] = dim*sizeof(double);
-       }
+   for (int d = 0; d < dim; d++)
+   {
+      if (ordering == Ordering::byNODES)
+      {
+         xv_base[d] = point_pos.GetData() + d*points_cnt;
+         xv_stride[d] = sizeof(double);
+      }
+      else
+      {
+         xv_base[d] = point_pos.GetData() + d;
+         xv_stride[d] = dim*sizeof(double);
+      }
    }
 
    if (dim == 2)
@@ -886,13 +889,16 @@ void FindPointsGSLIB::InterpolateH1(const GridFunction &field_in,
    {
       const int dataptrin  = i*points_fld,
                 dataptrout = i*points_cnt;
-      if (field_in.FESpace()->GetOrdering() == Ordering::byNODES) {
-          field_in_scalar.NewDataAndSize(field_in.GetData()+dataptrin, points_fld);
+      if (field_in.FESpace()->GetOrdering() == Ordering::byNODES)
+      {
+         field_in_scalar.NewDataAndSize(field_in.GetData()+dataptrin, points_fld);
       }
-      else {
-          for (int j = 0; j < points_fld; j++) {
-              field_in_scalar(j) = field_in(i + j*ncomp);
-          }
+      else
+      {
+         for (int j = 0; j < points_fld; j++)
+         {
+            field_in_scalar(j) = field_in(i + j*ncomp);
+         }
       }
       GetNodalValues(&field_in_scalar, node_vals);
 
@@ -917,12 +923,14 @@ void FindPointsGSLIB::InterpolateH1(const GridFunction &field_in,
    }
    if (field_in.FESpace()->GetOrdering() == Ordering::byVDIM)
    {
-       Vector field_out_temp = field_out;
-       for (int i = 0; i < ncomp; i++) {
-           for (int j = 0; j < points_fld; j++) {
-               field_out(i + j*ncomp) = field_out_temp(j + i*points_cnt);
-           }
-       }
+      Vector field_out_temp = field_out;
+      for (int i = 0; i < ncomp; i++)
+      {
+         for (int j = 0; j < points_fld; j++)
+         {
+            field_out(i + j*ncomp) = field_out_temp(j + i*points_cnt);
+         }
+      }
    }
 }
 
@@ -946,17 +954,19 @@ void FindPointsGSLIB::InterpolateGeneral(const GridFunction &field_in,
          if (dim == 3) { ip.z = gsl_mfem_ref(index*dim + 2); }
          Vector localval(ncomp);
          field_in.GetVectorValue(gsl_mfem_elem[index], ip, localval);
-         if (field_in.FESpace()->GetOrdering() == Ordering::byNODES) {
-             for (int i = 0; i < ncomp; i++)
-             {
-                field_out(index + i*npt) = localval(i);
-             }
+         if (field_in.FESpace()->GetOrdering() == Ordering::byNODES)
+         {
+            for (int i = 0; i < ncomp; i++)
+            {
+               field_out(index + i*npt) = localval(i);
+            }
          }
-         else { //byVDIM
-             for (int i = 0; i < ncomp; i++)
-             {
-                field_out(index*ncomp + i) = localval(i);
-             }
+         else   //byVDIM
+         {
+            for (int i = 0; i < ncomp; i++)
+            {
+               field_out(index*ncomp + i) = localval(i);
+            }
          }
       }
    }
@@ -1183,15 +1193,18 @@ void OversetFindPointsGSLIB::FindPoints(const Vector &point_pos,
 
    const double *xv_base[dim];
    unsigned xv_stride[dim];
-   for (int d = 0; d < dim; d++) {
-       if (point_pos_ordering == Ordering::byNODES) {
-           xv_base[d] = point_pos.GetData() + d*points_cnt;
-           xv_stride[d] = sizeof(double);
-       }
-       else {
-           xv_base[d] = point_pos.GetData() + d;
-           xv_stride[d] = dim*sizeof(double);
-       }
+   for (int d = 0; d < dim; d++)
+   {
+      if (point_pos_ordering == Ordering::byNODES)
+      {
+         xv_base[d] = point_pos.GetData() + d*points_cnt;
+         xv_stride[d] = sizeof(double);
+      }
+      else
+      {
+         xv_base[d] = point_pos.GetData() + d;
+         xv_stride[d] = dim*sizeof(double);
+      }
    }
 
    if (dim == 2)
