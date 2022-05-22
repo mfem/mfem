@@ -10,7 +10,7 @@
 # CONTRIBUTING.md for details.
 
 # The variable CMAKE_CXX_STANDARD and related were introduced in CMake v3.1
-cmake_minimum_required(VERSION 3.1)
+cmake_minimum_required(VERSION 3.6)
 set(USER_CONFIG "${CMAKE_CURRENT_SOURCE_DIR}/config/user.cmake" CACHE PATH
   "Path to optional user configuration file.")
 
