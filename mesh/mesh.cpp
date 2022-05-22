@@ -5794,7 +5794,8 @@ Table *Mesh::GetEdgeVertexTable() const
 Table *Mesh::GetVertexToEdgeTable() const
 {
    if (vertex_to_edge) {return vertex_to_edge;}
-   vertex_to_edge = Transpose(*GetEdgeVertexTable());
+   if (!edge_vertex) {GetEdgeVertexTable();}
+   vertex_to_edge = Transpose(*edge_vertex);
    vertex_to_edge->Finalize();
    return vertex_to_edge;
 }
@@ -5814,7 +5815,7 @@ Table *Mesh::GetFaceToVertexTable() const
       v  = faces[i]->GetVertices();
       for (j = 0; j < nv; j++)
       {
-         face_to_vertex->AddAColumnInRow(v[j]);
+         face_to_vertex->AddAColumnInRow(i);
       }
    }
 
@@ -5826,7 +5827,7 @@ Table *Mesh::GetFaceToVertexTable() const
       v  = faces[i]->GetVertices();
       for (j = 0; j < nv; j++)
       {
-         face_to_vertex->AddConnection(v[j], i);
+         face_to_vertex->AddConnection(i, v[j]);
       }
    }
 
@@ -5840,7 +5841,8 @@ Table *Mesh::GetFaceToVertexTable() const
 Table *Mesh::GetVertexToFaceTable() const
 {
    if (vertex_to_face) {return vertex_to_face;}
-   vertex_to_face = Transpose(*GetFaceToVertexTable());
+   if (!face_to_vertex) {GetFaceToVertexTable();}
+   vertex_to_face = Transpose(*face_to_vertex);
    vertex_to_face->Finalize();
    return vertex_to_face;
 }

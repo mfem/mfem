@@ -51,6 +51,19 @@ int main(int argc, char *argv[])
    Mesh *mesh_new = new Mesh(30, 30, 8, Element::HEXAHEDRON, false, 4.0, 4.0, 1.0);   
 
 
+   /*Mesh *mesh_test = new Mesh("../../data/ref-cube.mesh");
+
+   Array<int> verts({0,1,2,3,4,5,6});
+   Array<int> faces;
+   mesh_test->FacesWithAllVerts(faces, verts);
+
+   std::cout << "Faces size" << faces.Size() << std::endl;
+   for (int i = 0; i < faces.Size(); i ++)
+   {
+      std::cout << faces[i] << std::endl;
+   }*/
+
+
    // Refine the serial mesh on all processors to increase the resolution. In
    // this example we do 'ref_levels' of uniform refinement.
    for (int l = 0; l < serial_ref_levels; l++)
@@ -98,16 +111,21 @@ int main(int argc, char *argv[])
    // Handle the visit visualization
    if (visit)
    {
-      VisItDataCollection visit_dc("bfield-advect", &pmesh_old);
-      visit_dc.RegisterField("B", b);
-      visit_dc.RegisterField("B_new", b_new);
-      visit_dc.RegisterField("Curl_B", curl_b);
-      visit_dc.RegisterField("A", a);
-      visit_dc.RegisterField("A_new", a_new);
-      visit_dc.RegisterField("B_recon", b_recon);
-      visit_dc.SetCycle(0);
-      visit_dc.SetTime(0);
-      visit_dc.Save();
+      VisItDataCollection visit_dc_old("bfa-old", &pmesh_old);
+      visit_dc_old.RegisterField("B", b);
+      visit_dc_old.RegisterField("Curl_B", curl_b);
+      visit_dc_old.RegisterField("A", a);
+      visit_dc_old.RegisterField("B_recon", b_recon);
+      visit_dc_old.SetCycle(0);
+      visit_dc_old.SetTime(0);
+      visit_dc_old.Save();
+      
+      VisItDataCollection visit_dc_new("bfa-new", &pmesh_new);
+      visit_dc_new.RegisterField("A_new", a_new);
+      visit_dc_new.RegisterField("B_new", b_new);
+      visit_dc_new.SetCycle(0);
+      visit_dc_new.SetTime(0);
+      visit_dc_new.Save();
    }
 
 }
