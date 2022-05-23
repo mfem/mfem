@@ -331,7 +331,8 @@ int main (int argc, char *argv[])
       mesh_poly_deg = 2;
    }
    else { fec = new H1_FECollection(mesh_poly_deg, dim); }
-   ParFiniteElementSpace *pfespace = new ParFiniteElementSpace(pmesh, fec, dim);
+   ParFiniteElementSpace *pfespace = new ParFiniteElementSpace(pmesh, fec, dim,
+                                                               Ordering::byVDIM);
 
    // 5. Make the mesh curved based on the above finite element space. This
    //    means that we define the mesh elements through a fespace-based
@@ -1160,7 +1161,8 @@ int main (int argc, char *argv[])
       mesh_name << "optimized.mesh";
       ofstream mesh_ofs(mesh_name.str().c_str());
       mesh_ofs.precision(8);
-      pmesh->PrintAsOne(mesh_ofs);
+      //pmesh->PrintAsOne(mesh_ofs);
+      pmesh->PrintAsSerial(mesh_ofs);
    }
 
    // Compute the final energy of the functional.
