@@ -313,7 +313,7 @@ int main(int argc, char *argv[])
       mesh_poly_deg = 2;
    }
    else { fec = new H1_FECollection(mesh_poly_deg, dim); }
-   FiniteElementSpace *fespace = new FiniteElementSpace(mesh, fec, dim);
+   FiniteElementSpace *fespace = new FiniteElementSpace(mesh, fec, dim, Ordering::byVDIM);
 
    // 4. Make the mesh curved based on the above finite element space. This
    //    means that we define the mesh elements through a fespace-based
