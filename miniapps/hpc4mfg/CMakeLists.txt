@@ -14,6 +14,10 @@ if (MFEM_USE_MPI)
         hpc4solvers.cpp)
   list(APPEND DIST_COMMON_HEADERS
         hpc4solvers.hpp)
+  list(APPEND DIST_COMMON_SOURCES
+        NLGLSIntegrator.cpp)
+  list(APPEND DIST_COMMON_HEADERS
+        NLGLSIntegrator.hpp)
 
 convert_filenames_to_full_paths(DIST_COMMON_SOURCES)
 convert_filenames_to_full_paths(DIST_COMMON_HEADERS)
@@ -24,6 +28,11 @@ set(DIST_COMMON_FILES
 
 add_mfem_miniapp(ndarcy
     MAIN ndarcy.cpp
+    ${DIST_COMMON_FILES}
+    LIBRARIES mfem mfem-common)
+
+add_mfem_miniapp(GLSSolver
+    MAIN GLS_Solver.cpp
     ${DIST_COMMON_FILES}
     LIBRARIES mfem mfem-common)
 
