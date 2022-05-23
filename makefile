@@ -772,7 +772,7 @@ FORMAT_EXCLUDE = general/tinyxml2.cpp tests/unit/catch.hpp
 FORMAT_LIST = $(filter-out $(FORMAT_EXCLUDE),$(wildcard $(FORMAT_FILES)))
 
 COUT_CERR_FILES = $(foreach dir,$(DIRS),$(dir)/*.[ch]pp)
-COUT_CERR_EXCLUDE = '^general/error\.cpp' '^general/globals\.[ch]pp'\
+COUT_CERR_EXCLUDE = '^general/error\.[ch]pp' '^general/globals\.[ch]pp'\
  '^general/jit/parser\.cpp'
 
 DEPRECATION_WARNING := \
