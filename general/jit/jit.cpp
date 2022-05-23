@@ -225,7 +225,12 @@ public:
    {
       Get().keep = keep;
       Get().lib_ar =   "lib"; Get().lib_ar += name; Get().lib_ar += ".a";
-      Get().lib_so = "./lib"; Get().lib_so += name; Get().lib_so += ".so";
+      Get().lib_so = "./lib"; Get().lib_so += name;
+#ifdef __APPLE__
+      Get().lib_so += ".dylib";
+#else
+      Get().lib_so += ".so";
+#endif
    }
 
    static void Finalize()
@@ -249,6 +254,7 @@ public:
       virtual std::string Compiler() { return ""; }
       virtual std::string Pic() { return "-fPIC"; }
       virtual std::string Pipe() { return "-pipe"; }
+      virtual std::string Hidden() { return "-fvisibility=hidden"; }
       virtual std::string Device() { return ""; }
       virtual std::string Linker() { return "-Wl,"; }
    };
@@ -258,6 +264,7 @@ public:
       std::string Compiler() override { return "-Xcompiler="; }
       std::string Pic() override { return Xcompiler() + "-fPIC"; }
       std::string Pipe() override { return Xcompiler() + "-pipe"; }
+      std::string Hidden() override { return Xcompiler() + "-fvisibility=hidden"; }
       std::string Device() override { return "--device-c"; }
       std::string Linker() override { return "-Xlinker="; }
    };
@@ -292,23 +299,46 @@ public:
    static const char *Lib_so() { return Get().lib_so.c_str(); }
    static std::string Xpic() { return Get().cxx.Pic(); }
    static std::string Xpipe() { return Get().cxx.Pipe(); }
+   static std::string Xhidden() { return Get().cxx.Hidden(); }
    static std::string Xdevice() { return Get().cxx.Device(); }
    static std::string Xlinker() { return Get().cxx.Linker(); }
    static std::string Xcompiler() { return Get().cxx.Compiler(); }
    static std::string ARprefix() { return Get().ar.Prefix();  }
    static std::string ARpostfix() { return Get().ar.Postfix(); }
    static std::string ARbackup() { return Get().ar.Backup(); }
+
+   static const char* DLerror(bool show = true) noexcept
+   {
+      const char* last_error = dlerror();
+#ifndef MFEM_DEBUG
+      MFEM_CONTRACT_VAR(show);
+#else
+      if (show && last_error) { MFEM_WARNING("[JIT] " << last_error); }
+      MFEM_VERIFY(!dlerror(), "[JIT] Should result in NULL being returned!");
+#endif
+      return last_error;
+   }
+
+   static void* DLsym(void *handle, const char *name) noexcept
+   {
+      void *sym = dlsym(handle, name);
+      DLerror();
+      return sym;
+   }
+
    static void *DLopen(const char *path)
    {
-#warning RTLD_NOW | RTLD_GLOBAL
-      //return ::dlopen(path, RTLD_LAZY|RTLD_LOCAL);
-      return ::dlopen(path, RTLD_NOW|RTLD_GLOBAL);
+      void *handle = ::dlopen(path, RTLD_NOW | RTLD_LOCAL);
+      DLerror();
+      return handle;
    }
 
    static void* Lookup(const size_t hash, const char *name, const char *cxx,
                        const char *flags, const char *link, const char *libs,
                        const char *source, const char *symbol)
    {
+      DLerror(false); // flush dl errors
+
       void *handle = std::fstream(Lib_so()) ? DLopen(Lib_so()) : nullptr;
       if (!handle && std::fstream(Lib_ar())) // if not found, try libmjit.a
       {
@@ -317,8 +347,7 @@ public:
          {
             Command() << cxx << link << "-shared" << "-o" << Lib_so()
                       << ARprefix() << Lib_ar() << ARpostfix()
-                      << Xlinker() + "-rpath,."
-                      << libs;
+                      << Xlinker() + "-rpath,." << libs;
             status = Call(symbol);
          }
          mpi::Sync(status);
@@ -347,20 +376,20 @@ public:
          std::remove(cc.c_str());
 
          // Update archive: ar += co
-         Command() << "ar -r"/*v*/ << Lib_ar() << co;
+         Command() << "ar -r" << Lib_ar() << co; // v
          if (Call()) { return EXIT_FAILURE; }
          std::remove(co.c_str());
 
          // Create temporary shared library: (ar + co) => symbol
          Command() << cxx << link << "-shared" << "-o" << symbol
                    << ARprefix() << Lib_ar() << ARpostfix()
-                   << Xlinker() + "-rpath,."
-                   << libs;
+                   << Xlinker() + "-rpath,." << libs;
          if (Call(symbol)) { return EXIT_FAILURE; }
 
          // Install temporary shared library: symbol => libmjit.so
          Command() << "install" << ARbackup() << symbol << Lib_so();
          if (Call()) { return EXIT_FAILURE; }
+
          return EXIT_SUCCESS;
       };
 
@@ -378,11 +407,10 @@ public:
       if (!handle) { WorldCompile(); }
       MFEM_VERIFY(handle, "[JIT] No handle could be created!");
 
-      void *kernel = ::dlsym(handle, symbol); // symbol lookup
+      void *kernel = DLsym(handle, symbol); // symbol lookup
       // no symbol => launch compilation & update kernel symbol
-      if (!kernel) { WorldCompile(); kernel = ::dlsym(handle, symbol); }
+      if (!kernel) { WorldCompile(); kernel = DLsym(handle, symbol); }
       MFEM_VERIFY(kernel, "[JIT] No kernel could be found!");
-
       // remove temporary shared library, the cache will be used afterward
       std::remove(symbol);
       return kernel;

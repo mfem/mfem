@@ -112,261 +112,81 @@ void OmpWrap(const int N, HBODY &&h_body)
 #endif
 }
 
-
-/// RAJA Cuda and Hip backends
+/// RAJA Cuda backend
 #if defined(MFEM_USE_RAJA) && defined(RAJA_ENABLE_CUDA)
-using cuda_launch_policy =
-   RAJA::expt::LaunchPolicy<RAJA::expt::null_launch_t, RAJA::expt::cuda_launch_t<true>>;
-using cuda_teams_x =
-   RAJA::expt::LoopPolicy<RAJA::loop_exec,RAJA::cuda_block_x_direct>;
-using cuda_threads_z =
-   RAJA::expt::LoopPolicy<RAJA::loop_exec,RAJA::cuda_thread_z_direct>;
+template <int Dim> struct RajaCudaWrap;
+
+template <> struct RajaCudaWrap<1>
+{
+   template <const int BLCK = MFEM_CUDA_BLOCKS, typename DBODY>
+   static void run(const int N, DBODY &&d_body,
+                   const int X, const int Y, const int Z, const int G)
+   {
+      RAJA::CudaWrap1D<BLCK>(N, d_body);
+   }
+};
+
+template <> struct RajaCudaWrap<2>
+{
+   template <const int BLCK = MFEM_CUDA_BLOCKS, typename DBODY>
+   static void run(const int N, DBODY &&d_body,
+                   const int X, const int Y, const int Z, const int G)
+   {
+      RAJA::CudaWrap2D(N, d_body, X, Y, Z);
+   }
+};
+
+template <> struct RajaCudaWrap<3>
+{
+   template <const int BLCK = MFEM_CUDA_BLOCKS, typename DBODY>
+   static void run(const int N, DBODY &&d_body,
+                   const int X, const int Y, const int Z, const int G)
+   {
+      RAJA::CudaWrap3D(N, d_body, X, Y, Z, G);
+   }
+};
+
 #endif
 
+/// RAJA Hip backend
 #if defined(MFEM_USE_RAJA) && defined(RAJA_ENABLE_HIP)
-using hip_launch_policy =
-   RAJA::expt::LaunchPolicy<RAJA::expt::null_launch_t, RAJA::expt::hip_launch_t<true>>;
-using hip_teams_x =
-   RAJA::expt::LoopPolicy<RAJA::loop_exec,RAJA::hip_block_x_direct>;
-using hip_threads_z =
-   RAJA::expt::LoopPolicy<RAJA::loop_exec,RAJA::hip_thread_z_direct>;
+template <int Dim> struct RajaHipWrap;
+
+template <> struct RajaHipWrap<1>
+{
+   template <const int BLCK = MFEM_CUDA_BLOCKS, typename DBODY>
+   static void run(const int N, DBODY &&d_body,
+                   const int X, const int Y, const int Z, const int G)
+   {
+      RAJA::HipWrap1D<BLCK>(N, d_body);
+   }
+};
+
+template <> struct RajaHipWrap<2>
+{
+   template <const int BLCK = MFEM_CUDA_BLOCKS, typename DBODY>
+   static void run(const int N, DBODY &&d_body,
+                   const int X, const int Y, const int Z, const int G)
+   {
+      RAJA::HipWrap2D(N, d_body, X, Y, Z);
+   }
+};
+
+template <> struct RajaHipWrap<3>
+{
+   template <const int BLCK = MFEM_CUDA_BLOCKS, typename DBODY>
+   static void run(const int N, DBODY &&d_body,
+                   const int X, const int Y, const int Z, const int G)
+   {
+      RAJA::HipWrap3D(N, d_body, X, Y, Z, G);
+   }
+};
 #endif
-
-#if defined(MFEM_USE_RAJA) && defined(RAJA_ENABLE_CUDA)
-template <const int BLOCKS = MFEM_CUDA_BLOCKS, typename DBODY>
-void RajaCuWrap1D(const int N, DBODY &&d_body)
-{
-   //true denotes asynchronous kernel
-   RAJA::forall<RAJA::cuda_exec<BLOCKS,true>>(RAJA::RangeSegment(0,N),d_body);
-}
-
-template <typename DBODY>
-void RajaCuWrap2D(const int N, DBODY &&d_body,
-                  const int X, const int Y, const int BZ)
-{
-   MFEM_VERIFY(N>0, "");
-   MFEM_VERIFY(BZ>0, "");
-   const int G = (N+BZ-1)/BZ;
-
-   using namespace RAJA::expt;
-   using RAJA::RangeSegment;
-
-   launch<cuda_launch_policy>
-   (DEVICE, Grid(Teams(G), Threads(X, Y, BZ)),
-    [=] RAJA_DEVICE (LaunchContext ctx)
-   {
-
-      loop<cuda_teams_x>(ctx, RangeSegment(0, G), [&] (const int n)
-      {
-
-         loop<cuda_threads_z>(ctx, RangeSegment(0, BZ), [&] (const int tz)
-         {
-
-            const int k = n*BZ + tz;
-            if (k >= N) { return; }
-            d_body(k);
-
-         });
-
-      });
-
-   });
-
-   MFEM_GPU_CHECK(cudaGetLastError());
-}
-
-template <typename DBODY>
-void RajaCuWrap3D(const int N, DBODY &&d_body,
-                  const int X, const int Y, const int Z, const int G)
-{
-   MFEM_VERIFY(N>0, "");
-   const int GRID = G == 0 ? N : G;
-   using namespace RAJA::expt;
-   using RAJA::RangeSegment;
-
-   launch<cuda_launch_policy>
-   (DEVICE, Grid(Teams(GRID), Threads(X, Y, Z)),
-    [=] RAJA_DEVICE (LaunchContext ctx)
-   {
-
-      loop<cuda_teams_x>(ctx, RangeSegment(0, N), d_body);
-
-   });
-
-   MFEM_GPU_CHECK(cudaGetLastError());
-}
-
-template <int Dim>
-struct RajaCuWrap;
-
-template <>
-struct RajaCuWrap<1>
-{
-   template <const int BLCK = MFEM_CUDA_BLOCKS, typename DBODY>
-   static void run(const int N, DBODY &&d_body,
-                   const int X, const int Y, const int Z, const int G)
-   {
-      RajaCuWrap1D<BLCK>(N, d_body);
-   }
-};
-
-template <>
-struct RajaCuWrap<2>
-{
-   template <const int BLCK = MFEM_CUDA_BLOCKS, typename DBODY>
-   static void run(const int N, DBODY &&d_body,
-                   const int X, const int Y, const int Z, const int G)
-   {
-      RajaCuWrap2D(N, d_body, X, Y, Z);
-   }
-};
-
-template <>
-struct RajaCuWrap<3>
-{
-   template <const int BLCK = MFEM_CUDA_BLOCKS, typename DBODY>
-   static void run(const int N, DBODY &&d_body,
-                   const int X, const int Y, const int Z, const int G)
-   {
-      RajaCuWrap3D(N, d_body, X, Y, Z, G);
-   }
-};
-
-#endif
-
-#if defined(MFEM_USE_RAJA) && defined(RAJA_ENABLE_HIP)
-template <const int BLOCKS = MFEM_HIP_BLOCKS, typename DBODY>
-void RajaHipWrap1D(const int N, DBODY &&d_body)
-{
-   //true denotes asynchronous kernel
-   RAJA::forall<RAJA::hip_exec<BLOCKS,true>>(RAJA::RangeSegment(0,N),d_body);
-}
-
-template <typename DBODY>
-void RajaHipWrap2D(const int N, DBODY &&d_body,
-                   const int X, const int Y, const int BZ)
-{
-   MFEM_VERIFY(N>0, "");
-   MFEM_VERIFY(BZ>0, "");
-   const int G = (N+BZ-1)/BZ;
-
-   using namespace RAJA::expt;
-   using RAJA::RangeSegment;
-
-   launch<hip_launch_policy>
-   (DEVICE, Grid(Teams(G), Threads(X, Y, BZ)),
-    [=] RAJA_DEVICE (LaunchContext ctx)
-   {
-
-      loop<hip_teams_x>(ctx, RangeSegment(0, G), [&] (const int n)
-      {
-
-         loop<hip_threads_z>(ctx, RangeSegment(0, BZ), [&] (const int tz)
-         {
-
-            const int k = n*BZ + tz;
-            if (k >= N) { return; }
-            d_body(k);
-
-         });
-
-      });
-
-   });
-
-   MFEM_GPU_CHECK(hipGetLastError());
-}
-
-template <typename DBODY>
-void RajaHipWrap3D(const int N, DBODY &&d_body,
-                   const int X, const int Y, const int Z, const int G)
-{
-   MFEM_VERIFY(N>0, "");
-   const int GRID = G == 0 ? N : G;
-   using namespace RAJA::expt;
-   using RAJA::RangeSegment;
-
-   launch<hip_launch_policy>
-   (DEVICE, Grid(Teams(GRID), Threads(X, Y, Z)),
-    [=] RAJA_DEVICE (LaunchContext ctx)
-   {
-
-      loop<hip_teams_x>(ctx, RangeSegment(0, N), d_body);
-
-   });
-
-   MFEM_GPU_CHECK(hipGetLastError());
-}
-
-template <int Dim>
-struct RajaHipWrap;
-
-template <>
-struct RajaHipWrap<1>
-{
-   template <const int BLCK = MFEM_CUDA_BLOCKS, typename DBODY>
-   static void run(const int N, DBODY &&d_body,
-                   const int X, const int Y, const int Z, const int G)
-   {
-      RajaHipWrap1D<BLCK>(N, d_body);
-   }
-};
-
-template <>
-struct RajaHipWrap<2>
-{
-   template <const int BLCK = MFEM_CUDA_BLOCKS, typename DBODY>
-   static void run(const int N, DBODY &&d_body,
-                   const int X, const int Y, const int Z, const int G)
-   {
-      RajaHipWrap2D(N, d_body, X, Y, Z);
-   }
-};
-
-template <>
-struct RajaHipWrap<3>
-{
-   template <const int BLCK = MFEM_CUDA_BLOCKS, typename DBODY>
-   static void run(const int N, DBODY &&d_body,
-                   const int X, const int Y, const int Z, const int G)
-   {
-      RajaHipWrap3D(N, d_body, X, Y, Z, G);
-   }
-};
-
-#endif
-
-/// RAJA OpenMP backend
-#if defined(MFEM_USE_RAJA) && defined(RAJA_ENABLE_OPENMP)
-
-template <typename HBODY>
-void RajaOmpWrap(const int N, HBODY &&h_body)
-{
-   RAJA::forall<RAJA::omp_parallel_for_exec>(RAJA::RangeSegment(0,N), h_body);
-}
-
-#endif
-
-
-/// RAJA sequential loop backend
-template <typename HBODY>
-void RajaSeqWrap(const int N, HBODY &&h_body)
-{
-#ifdef MFEM_USE_RAJA
-   RAJA::forall<RAJA::loop_exec>(RAJA::RangeSegment(0,N), h_body);
-#else
-   MFEM_CONTRACT_VAR(N);
-   MFEM_CONTRACT_VAR(h_body);
-   MFEM_ABORT("RAJA requested but RAJA is not enabled!");
-#endif
-}
-
 
 /// CUDA backend
 #ifdef MFEM_USE_CUDA
-
 template <typename BODY> __global__ static
-void CuKernel1D(const int N, BODY body)
+void CudaKernel1D(const int N, BODY body)
 {
    const int k = blockDim.x*blockIdx.x + threadIdx.x;
    if (k >= N) { return; }
@@ -374,7 +194,7 @@ void CuKernel1D(const int N, BODY body)
 }
 
 template <typename BODY> __global__ static
-void CuKernel2D(const int N, BODY body)
+void CudaKernel2D(const int N, BODY body)
 {
    const int k = blockIdx.x*blockDim.z + threadIdx.z;
    if (k >= N) { return; }
@@ -382,85 +202,79 @@ void CuKernel2D(const int N, BODY body)
 }
 
 template <typename BODY> __global__ static
-void CuKernel3D(const int N, BODY body)
+void CudaKernel3D(const int N, BODY body)
 {
    for (int k = blockIdx.x; k < N; k += gridDim.x) { body(k); }
 }
 
 template <const int BLCK = MFEM_CUDA_BLOCKS, typename DBODY>
-void CuWrap1D(const int N, DBODY &&d_body)
+void CudaWrap1D(const int N, DBODY &&d_body)
 {
    if (N==0) { return; }
    const int GRID = (N+BLCK-1)/BLCK;
-   CuKernel1D<<<GRID,BLCK>>>(N, d_body);
+   CudaKernel1D<<<GRID,BLCK>>>(N, d_body);
    MFEM_GPU_CHECK(cudaGetLastError());
 }
 
 template <typename DBODY>
-void CuWrap2D(const int N, DBODY &&d_body,
-              const int X, const int Y, const int BZ)
+void CudaWrap2D(const int N, DBODY &&d_body,
+                const int X, const int Y, const int BZ)
 {
    if (N==0) { return; }
    MFEM_VERIFY(BZ>0, "");
    const int GRID = (N+BZ-1)/BZ;
    const dim3 BLCK(X,Y,BZ);
-   CuKernel2D<<<GRID,BLCK>>>(N,d_body);
+   CudaKernel2D<<<GRID,BLCK>>>(N,d_body);
    MFEM_GPU_CHECK(cudaGetLastError());
 }
 
 template <typename DBODY>
-void CuWrap3D(const int N, DBODY &&d_body,
-              const int X, const int Y, const int Z, const int G)
+void CudaWrap3D(const int N, DBODY &&d_body,
+                const int X, const int Y, const int Z, const int G)
 {
    if (N==0) { return; }
    const int GRID = G == 0 ? N : G;
    const dim3 BLCK(X,Y,Z);
-   CuKernel3D<<<GRID,BLCK>>>(N,d_body);
+   CudaKernel3D<<<GRID,BLCK>>>(N,d_body);
    MFEM_GPU_CHECK(cudaGetLastError());
 }
 
-template <int Dim>
-struct CuWrap;
+template <int Dim> struct CudaWrap;
 
-template <>
-struct CuWrap<1>
+template <> struct CudaWrap<1>
 {
    template <const int BLCK = MFEM_CUDA_BLOCKS, typename DBODY>
    static void run(const int N, DBODY &&d_body,
                    const int X, const int Y, const int Z, const int G)
    {
-      CuWrap1D<BLCK>(N, d_body);
+      CudaWrap1D<BLCK>(N, d_body);
    }
 };
 
-template <>
-struct CuWrap<2>
+template <> struct CudaWrap<2>
 {
    template <const int BLCK = MFEM_CUDA_BLOCKS, typename DBODY>
    static void run(const int N, DBODY &&d_body,
                    const int X, const int Y, const int Z, const int G)
    {
-      CuWrap2D(N, d_body, X, Y, Z);
+      CudaWrap2D(N, d_body, X, Y, Z);
    }
 };
 
-template <>
-struct CuWrap<3>
+template <> struct CudaWrap<3>
 {
    template <const int BLCK = MFEM_CUDA_BLOCKS, typename DBODY>
    static void run(const int N, DBODY &&d_body,
                    const int X, const int Y, const int Z, const int G)
    {
-      CuWrap3D(N, d_body, X, Y, Z, G);
+      CudaWrap3D(N, d_body, X, Y, Z, G);
    }
 };
 
 #endif // MFEM_USE_CUDA
 
-
 /// HIP backend
 #ifdef MFEM_USE_HIP
-
 template <typename BODY> __global__ static
 void HipKernel1D(const int N, BODY body)
 {
@@ -514,11 +328,9 @@ void HipWrap3D(const int N, DBODY &&d_body,
    MFEM_GPU_CHECK(hipGetLastError());
 }
 
-template <int Dim>
-struct HipWrap;
+template <int Dim> struct HipWrap;
 
-template <>
-struct HipWrap<1>
+template <> struct HipWrap<1>
 {
    template <const int BLCK = MFEM_CUDA_BLOCKS, typename DBODY>
    static void run(const int N, DBODY &&d_body,
@@ -528,8 +340,7 @@ struct HipWrap<1>
    }
 };
 
-template <>
-struct HipWrap<2>
+template <> struct HipWrap<2>
 {
    template <const int BLCK = MFEM_CUDA_BLOCKS, typename DBODY>
    static void run(const int N, DBODY &&d_body,
@@ -539,8 +350,7 @@ struct HipWrap<2>
    }
 };
 
-template <>
-struct HipWrap<3>
+template <> struct HipWrap<3>
 {
    template <const int BLCK = MFEM_CUDA_BLOCKS, typename DBODY>
    static void run(const int N, DBODY &&d_body,
@@ -571,7 +381,7 @@ inline void ForallWrap(const unsigned long backends, const bool use_dev,
    // If Backend::RAJA_CUDA is allowed, use it
    if (backends & Backend::RAJA_CUDA)
    {
-      return RajaCuWrap<DIM>::run(N, d_body, X, Y, Z, G);
+      return RajaCudaWrap<DIM>::run(N, d_body, X, Y, Z, G);
    }
 #endif
 
@@ -587,7 +397,7 @@ inline void ForallWrap(const unsigned long backends, const bool use_dev,
    // If Backend::CUDA is allowed, use it
    if (backends & Backend::CUDA)
    {
-      return CuWrap<DIM>::run(N, d_body, X, Y, Z, G);
+      return CudaWrap<DIM>::run(N, d_body, X, Y, Z, G);
    }
 #endif
 
@@ -604,17 +414,17 @@ inline void ForallWrap(const unsigned long backends, const bool use_dev,
 
 #if defined(MFEM_USE_RAJA) && defined(RAJA_ENABLE_OPENMP)
    // If Backend::RAJA_OMP is allowed, use it
-   if (backends & Backend::RAJA_OMP) { return RajaOmpWrap(N, h_body); }
+   if (backends & Backend::RAJA_OMP) { return RAJA::OpenMPWrap(N, h_body); }
 #endif
 
 #ifdef MFEM_USE_OPENMP
    // If Backend::OMP is allowed, use it
-   if (backends & Backend::OMP) { return OmpWrap(N, h_body); }
+   if (backends & Backend::OMP) { return mfem::OpenMPWrap(N, h_body); }
 #endif
 
 #ifdef MFEM_USE_RAJA
    // If Backend::RAJA_CPU is allowed, use it
-   if (backends & Backend::RAJA_CPU) { return RajaSeqWrap(N, h_body); }
+   if (backends & Backend::RAJA_CPU) { return RAJA::SeqWrap(N, h_body); }
 #endif
 
 backend_cpu:

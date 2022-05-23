@@ -95,14 +95,12 @@ void mfem_warning(const char *msg = NULL);
 #else
 #define _MFEM_MESSAGE(msg, warn)                                        \
    {                                                                    \
-      std::ostringstream mfemMsgStream;                                 \
+      static std::ostringstream mfemMsgStream;                          \
       mfemMsgStream << std::setprecision(16);                           \
       mfemMsgStream << std::setiosflags(std::ios_base::scientific);     \
       mfemMsgStream << msg << MFEM_LOCATION;                            \
-      if (!(warn))                                                      \
-         std::cerr << (mfemMsgStream.str().c_str());                    \
-      else                                                              \
-         std::cout << (mfemMsgStream.str().c_str());                    \
+      std::cout << (mfemMsgStream.str().c_str() ?                       \
+                    mfemMsgStream.str().c_str() : "XXX") << std::endl;  \
    }
 #endif
 

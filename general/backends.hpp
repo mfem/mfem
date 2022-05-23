@@ -32,15 +32,7 @@
 #endif
 
 #ifdef MFEM_USE_RAJA
-// The following two definitions suppress CUB and THRUST deprecation warnings
-// about requiring c++14 with c++11 deprecated but still supported (to be
-// removed in a future release).
-#define CUB_IGNORE_DEPRECATED_CPP_DIALECT
-#define THRUST_IGNORE_DEPRECATED_CPP_DIALECT
-#include "RAJA/RAJA.hpp"
-#if defined(RAJA_ENABLE_CUDA) && !defined(MFEM_USE_CUDA)
-#error When RAJA is built with CUDA, MFEM_USE_CUDA=YES is required
-#endif
+#include "raja.hpp"
 #endif
 
 #if !(defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP))

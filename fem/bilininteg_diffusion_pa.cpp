@@ -890,9 +890,9 @@ static void PADiffusionAssembleDiagonal(const int dim,
       DeviceCube Y = Reshape(y.ReadWrite(), D1D, D1D, NE);
       switch ((D1D << 4 ) | Q1D)
       {
+#ifndef MFEM_USE_JIT
          case 0x22: return SmemPADiffusionDiagonal2D<2,2,8>(NE,symm,B,G,D,Y);
          case 0x33: return SmemPADiffusionDiagonal2D<3,3,8>(NE,symm,B,G,D,Y);
-#ifndef MFEM_USE_JIT
          case 0x44: return SmemPADiffusionDiagonal2D<4,4,4>(NE,symm,B,G,D,Y);
          case 0x55: return SmemPADiffusionDiagonal2D<5,5,4>(NE,symm,B,G,D,Y);
          case 0x66: return SmemPADiffusionDiagonal2D<6,6,2>(NE,symm,B,G,D,Y);

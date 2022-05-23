@@ -40,21 +40,8 @@
    } \
    while (0)
 #else
-#define MFEM_GPU_CHECK(x)\
-    do \
-    { \
-       cudaError_t err = (x); \
-       if (err != cudaSuccess) \
-       { \
-        std::stringstream ss; \
-        ss << "\n\nCUDA error: (" << x << ") failed with error:\n --> " \
-              << cudaGetErrorString(err) \
-              << "\n ... in function: " << _MFEM_FUNC_NAME \
-              << "\n ... in file: " << __FILE__ << ':' << __LINE__ << '\n'; \
-        MFEM_ABORT(ss.str()); \
-       } \
-    } \
-    while (0)
+#define MFEM_GPU_CHECK(x) \
+    do { cudaError_t err = (x); assert(err == cudaSuccess); } while (0)
 #endif // MFEM_JIT_COMPILATION
 #endif // MFEM_USE_CUDA
 
