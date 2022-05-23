@@ -2200,9 +2200,9 @@ void DiscreteAdaptTC::ComputeElementTargetsGradient(const IntegrationRule &ir,
 }
 
 void DiscreteAdaptTC:: UpdateGradientTargetSpecification(const Vector &x,
-                                                        const double dx,
-                                                        bool use_flag,
-                                                        int ordering)
+                                                         const double dx,
+                                                         bool use_flag,
+                                                         int ordering)
 {
    if (use_flag && good_tspec_grad) { return; }
 
@@ -2215,17 +2215,19 @@ void DiscreteAdaptTC:: UpdateGradientTargetSpecification(const Vector &x,
    Vector xtemp = x;
    for (int j = 0; j < dim; j++)
    {
-      for (int i = 0; i < cnt; i++) {
-          int idx = ordering == Ordering::byNODES ? j*cnt + i : i*dim + j;
-          xtemp(idx) += dx;
+      for (int i = 0; i < cnt; i++)
+      {
+         int idx = ordering == Ordering::byNODES ? j*cnt + i : i*dim + j;
+         xtemp(idx) += dx;
       }
 
       TSpecTemp.NewDataAndSize(tspec_pert1h.GetData() + j*cnt*ncomp, cnt*ncomp);
       UpdateTargetSpecification(xtemp, TSpecTemp, ordering);
 
-      for (int i = 0; i < cnt; i++) {
-          int idx = ordering == Ordering::byNODES ? j*cnt + i : i*dim + j;
-          xtemp(idx) -= dx;
+      for (int i = 0; i < cnt; i++)
+      {
+         int idx = ordering == Ordering::byNODES ? j*cnt + i : i*dim + j;
+         xtemp(idx) -= dx;
       }
    }
 
@@ -2252,17 +2254,19 @@ void DiscreteAdaptTC::UpdateHessianTargetSpecification(const Vector &x,
    // T(x+2h)
    for (int j = 0; j < dim; j++)
    {
-      for (int i = 0; i < cnt; i++) {
-          int idx = ordering == Ordering::byNODES ? j*cnt + i : i*dim + j;
-          xtemp(idx) += 2*dx;
+      for (int i = 0; i < cnt; i++)
+      {
+         int idx = ordering == Ordering::byNODES ? j*cnt + i : i*dim + j;
+         xtemp(idx) += 2*dx;
       }
 
       TSpecTemp.NewDataAndSize(tspec_pert2h.GetData() + j*cnt*ncomp, cnt*ncomp);
       UpdateTargetSpecification(xtemp, TSpecTemp, ordering);
 
-      for (int i = 0; i < cnt; i++) {
-          int idx = ordering == Ordering::byNODES ? j*cnt + i : i*dim + j;
-          xtemp(idx) -= 2*dx;
+      for (int i = 0; i < cnt; i++)
+      {
+         int idx = ordering == Ordering::byNODES ? j*cnt + i : i*dim + j;
+         xtemp(idx) -= 2*dx;
       }
    }
 
@@ -2285,10 +2289,10 @@ void DiscreteAdaptTC::UpdateHessianTargetSpecification(const Vector &x,
 
          for (int i = 0; i < cnt; i++)
          {
-             int idx1 = ordering == Ordering::byNODES ? k1*cnt+i : i*dim + k1;
-             int idx2 = ordering == Ordering::byNODES ? k2*cnt+i : i*dim + k2;
-             xtemp(idx1) -= dx;
-             xtemp(idx2) -= dx;
+            int idx1 = ordering == Ordering::byNODES ? k1*cnt+i : i*dim + k1;
+            int idx2 = ordering == Ordering::byNODES ? k2*cnt+i : i*dim + k2;
+            xtemp(idx1) -= dx;
+            xtemp(idx2) -= dx;
          }
          j++;
       }
@@ -3663,7 +3667,7 @@ void TMOP_Integrator::UpdateAfterMeshPositionChange(const Vector &new_x,
    // Update adapt_lim_gf if adaptive limiting is enabled.
    if (adapt_lim_gf)
    {
-       adapt_lim_eval->ComputeAtNewPosition(new_x, *adapt_lim_gf, ordering);
+      adapt_lim_eval->ComputeAtNewPosition(new_x, *adapt_lim_gf, ordering);
    }
 
    // Update surf_fit_gf if surface fitting is enabled.
