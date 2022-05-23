@@ -322,12 +322,12 @@ int main (int argc, char *argv[])
 
             if (code_out[i] < 2)
             {
-                for (int d = 0; d < dim; d++)
-                {
-                   pos(d) = point_ordering == Ordering::byNODES ?
-                            vxyz(d*pts_cnt + i) :
-                            vxyz(i*dim + d);
-                }
+               for (int d = 0; d < dim; d++)
+               {
+                  pos(d) = point_ordering == Ordering::byNODES ?
+                           vxyz(d*pts_cnt + i) :
+                           vxyz(i*dim + d);
+               }
                Vector exact_val(vec_dim);
                F_exact(pos, exact_val);
                err = fespace_ordering == Ordering::byNODES ?
