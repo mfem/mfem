@@ -31,6 +31,7 @@
 //    findpts -m ../../data/inline-tri.mesh -o 3
 //    findpts -m ../../data/inline-quad.mesh -o 3
 //    findpts -m ../../data/inline-quad.mesh -o 3 -po 1
+//    findpts -m ../../data/inline-quad.mesh -o 3 -po 1 -fo 1 -nc 2
 //    findpts -m ../../data/inline-quad.mesh -o 3 -hr -pr
 //    findpts -m ../../data/inline-tet.mesh -o 3
 //    findpts -m ../../data/inline-hex.mesh -o 3
@@ -358,7 +359,7 @@ int main (int argc, char *argv[])
             for (int d = 0; d < dim; d++)
             {
                pos(d) = point_ordering == Ordering::byNODES ?
-                        vxyz(d * pts_cnt + i) :
+                        vxyz(d*pts_cnt + i) :
                         vxyz(i*dim + d);
             }
             Vector exact_val(vec_dim);

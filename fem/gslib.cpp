@@ -864,7 +864,9 @@ void FindPointsGSLIB::Interpolate(const GridFunction &field_in,
       {
          for (int i = 0; i < indl2.Size(); i++)
          {
-            int idx = indl2[i] + j*points_cnt;
+            int idx = field_in.FESpace()->GetOrdering() == Ordering::byNODES ?
+                      indl2[i] + j*points_cnt:
+                      indl2[i]*ncomp + j;
             field_out(idx) = field_out_l2(idx);
          }
       }
@@ -926,7 +928,7 @@ void FindPointsGSLIB::InterpolateH1(const GridFunction &field_in,
       Vector field_out_temp = field_out;
       for (int i = 0; i < ncomp; i++)
       {
-         for (int j = 0; j < points_fld; j++)
+         for (int j = 0; j < points_cnt; j++)
          {
             field_out(i + j*ncomp) = field_out_temp(j + i*points_cnt);
          }
