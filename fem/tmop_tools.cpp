@@ -37,7 +37,7 @@ void AdvectorCG::ComputeAtNewPosition(const Vector &new_nodes,
    Vector new_field_temp;
    for (int i = 0; i < ncomp; i++)
    {
-      if (fes->GetOrdering() == Ordering::byNODES)
+      if (ordering == Ordering::byNODES)
       {
          new_field_temp.MakeRef(new_field, i*pnt_cnt, pnt_cnt);
       }
@@ -47,7 +47,7 @@ void AdvectorCG::ComputeAtNewPosition(const Vector &new_nodes,
          new_field_temp = 0.;
       }
       ComputeAtNewPositionScalar(new_nodes, new_field_temp);
-      if (fes->GetOrdering() != Ordering::byNODES)
+      if (ordering != Ordering::byNODES)
       {
          for (int j = 0; j < pnt_cnt; j++)
          {
