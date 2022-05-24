@@ -220,11 +220,11 @@ public:
    /** @name Methods for adaptive surface fitting weight. (Experimental) */
    /// Enable/Disable adaptive surface fitting weight.
    /// The weight is modified after each TMOPNewtonSolver iteration as:
-   /// w_{k+1} = w_{k} * @surf_fit_scale_factor if relative change in
-   /// max surface fitting error < @surf_fit_rel_change_threshold.
+   /// w_{k+1} = w_{k} * @a surf_fit_scale_factor if relative change in
+   /// max surface fitting error < @a surf_fit_rel_change_threshold.
    /// The solver terminates if the maximum surface fitting error does
-   /// not sufficiently decrease for @max_adapt_inc_count consecutive
-   /// solver iterations or if the max error falls below @surf_fit_max_threshold.
+   /// not sufficiently decrease for @a max_adapt_inc_count consecutive
+   /// solver iterations or if the max error falls below @a surf_fit_max_threshold.
    void EnableAdaptiveSurfaceFitting()
    {
       surf_fit_scale_factor = 10.0;
