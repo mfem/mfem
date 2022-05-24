@@ -818,7 +818,7 @@ void ComputeScalarDistanceFromLevelSet(ParMesh &pmesh,
    distance_s.SetTrueVector();
    distance_s.SetFromTrueVector();
 
-   DiffuseField(distance_s, 5);
+   DiffuseField(distance_s, 10);
    distance_s.SetTrueVector();
    distance_s.SetFromTrueVector();
    for (int i = 0; i < distance_s.Size(); i++)
