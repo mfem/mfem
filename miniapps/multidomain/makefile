@@ -24,14 +24,11 @@ MFEM_LIB_FILE = mfem_is_not_built
 MULTIDOMAIN_SRC = multidomain.cpp
 MULTIDOMAIN_OBJ = $(MULTIDOMAIN_SRC:.cpp=.o)
 
-MULTIDOMAIN_TEST_SRC = multidomain_test.cpp
-MULTIDOMAIN_TEST_OBJ = $(MULTIDOMAIN_TEST_SRC:.cpp=.o)
-
 
 ifeq ($(MFEM_USE_MPI),NO)
    MINIAPPS =
 else
-   MINIAPPS = multidomain multidomain_test
+   MINIAPPS = multidomain
 endif
 
 .SUFFIXES:
@@ -50,7 +47,6 @@ endif
 
 all: $(MINIAPPS)
 
-PAR_TEST_EXECS = multidomain_test
 MFEM_TESTS = TEST_EXECS
 include $(MFEM_TEST_MK)
 

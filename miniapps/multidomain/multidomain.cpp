@@ -1,9 +1,54 @@
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
+//
+// This file is part of the MFEM library. For more information and source code
+// availability visit https://mfem.org.
+//
+// MFEM is free software; you can redistribute it and/or modify it under the
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
+//
+// This miniapp aims to demonstrate how to solve two PDEs, that represent
+// different physics, on the same domain. MFEM's SubMesh interface is used to
+// compute on and transfer between the spaces of predefined parts of the domain.
+// For the sake of simplicity, the spaces on each domain are using the same
+// order H1 finite elements. This does not mean that the approach is limited to
+// this configuration.
+//
+// A 3D domain comprised of an outer box with a cylinder shaped inside is used.
+//
+// A heat equation is described on the outer box domain
+//
+//                  dT/dt = κΔT         in outer box
+//                      T = T_wall      on outside wall
+//                   ∇T•n = 0           on inside (cylinder) wall
+//
+// with temperature T and coefficient κ (non-physical in this example).
+//
+// A convection-diffusion equation is described inside the cylinder domain
+//
+//             dT/dt = κΔT - α∇•(b T)    in inner cylinder
+//                 T = T_wall           on cylinder wall (obtained from heat equation)
+//              ∇T•n = 0                else
+//
+// with temperature T, coefficients κ, α and prescribed velocity profile b.
+//
+// To couple the solutions of both equations, a segregated solve with one way
+// coupling approach is used. The heat equation of the outer box is solved from
+// the timestep T_box(t) to T_box(t+dt). Then for the convection-diffusion
+// equation T_wall is set to T_box(t+dt) and the equation is solved for T(t+dt)
+// which results in a first-order one way coupling.
+
 #include "mfem.hpp"
 #include <fstream>
 #include <iostream>
 
 using namespace mfem;
 
+// Prescribed velocity profile for the convection-diffusion equation inside the
+// cylinder. The profile is constrcuted s.t. it approximates a no-slip (v=0)
+// directly at the cylinder wall boundary.
 void velocity_profile(const Vector &c, Vector &q)
 {
    double A = 1.0;
@@ -24,9 +69,26 @@ void velocity_profile(const Vector &c, Vector &q)
    }
 }
 
+/**
+ * @brief Convection-diffusion time dependent operator
+ *
+ *              dT/dt = κΔT - α∇•(b T)
+ *
+ * Can also be used to create a diffusion or convection only operator by setting
+ * α or κ to zero.
+ */
 class ConvectionDiffusionTDO : public TimeDependentOperator
 {
 public:
+   /**
+    * @brief Construct a new convection-diffusion time dependent operator.
+    *
+    * @param fes The ParFiniteElementSpace the solution is defined on
+    * @param ess_tdofs All essential true dofs (relevant if fes is using H1
+    * finite elements)
+    * @param alpha The convection coefficient
+    * @param kappa The diffusion coefficient
+    */
    ConvectionDiffusionTDO(ParFiniteElementSpace &fes,
                           Array<int> ess_tdofs,
                           double alpha = 1.0,
@@ -36,8 +98,7 @@ public:
         Kform(&fes),
         bform(&fes),
         ess_tdofs_(ess_tdofs),
-        M_solver(fes.GetComm()),
-        T_solver(fes.GetComm())
+        M_solver(fes.GetComm())
    {
       d = new ConstantCoefficient(-kappa);
       q = new VectorFunctionCoefficient(fes.GetParMesh()->Dimension(),
@@ -97,22 +158,46 @@ public:
       delete b;
    }
 
-   ParBilinearForm Mform, Kform;
-   OperatorHandle M, K;
+   /// Mass form
+   ParBilinearForm Mform;
+
+   /// Stiffness form. Might include diffusion, convection or both.
+   ParBilinearForm Kform;
+
+   /// Mass opeperator
+   OperatorHandle M;
+
+   /// Stiffness opeperator. Might include diffusion, convection or both.
+   OperatorHandle K;
+
+   /// RHS form
    ParLinearForm bform;
+
+   /// RHS vector
    Vector *b = nullptr;
+
+   /// Velocity coefficient
    VectorCoefficient *q = nullptr;
-   Coefficient *d = nullptr, *inflow = nullptr;
+
+   /// Diffusion coefficient
+   Coefficient *d = nullptr;
+
+   /// Inflow coefficient
+   Coefficient *inflow = nullptr;
+
+   /// Essential true dof array. Relevant for eliminating boundary conditions
+   /// when using an H1 space.
    Array<int> ess_tdofs_;
 
    double current_dt = -1.0;
 
+   /// Mass matrix solver
    CGSolver M_solver;
+
+   /// Mass matrix preconditioner
    HypreSmoother M_prec;
 
-   CGSolver T_solver;
-   HypreSmoother T_prec;
-
+   /// Auxiliary vectors
    mutable Vector t1, t2;
 };
 
@@ -133,6 +218,9 @@ int main(int argc, char *argv[])
    int p = 2;
    H1_FECollection fec(p, parent_mesh.Dimension());
 
+   // Create the sub-domains and accompanying Finite Element spaces from
+   // corresponding attributes. This specific mesh has two domain attributes and
+   // 9 boundary attributes.
    Array<int> cylinder_domain_attributes(1);
    cylinder_domain_attributes[0] = 1;
 
@@ -150,17 +238,22 @@ int main(int argc, char *argv[])
    inner_cylinder_wall_attributes = 0;
    inner_cylinder_wall_attributes[8] = 1;
 
+   // For the convection-diffusion equation inside the cylinder domain, the
+   // inflow surface and outer wall are treated as Dirichlet boundary
+   // conditions.
    Array<int> inflow_tdofs, interface_tdofs, ess_tdofs;
    fes_cylinder.GetEssentialTrueDofs(inflow_attributes, inflow_tdofs);
    fes_cylinder.GetEssentialTrueDofs(inner_cylinder_wall_attributes,
                                      interface_tdofs);
    ess_tdofs.Append(inflow_tdofs);
    ess_tdofs.Append(interface_tdofs);
+   ess_tdofs.Sort();
    ess_tdofs.Unique();
    ConvectionDiffusionTDO cd_tdo(fes_cylinder, ess_tdofs);
 
    ParGridFunction temperature_cylinder_gf(&fes_cylinder);
    temperature_cylinder_gf = 0.0;
+
    Vector temperature_cylinder;
    temperature_cylinder_gf.GetTrueDofs(temperature_cylinder);
 
@@ -193,8 +286,10 @@ int main(int argc, char *argv[])
 
    ParGridFunction temperature_block_gf(&fes_block);
    temperature_block_gf = 0.0;
+
    ConstantCoefficient one(1.0);
    temperature_block_gf.ProjectBdrCoefficient(one, block_wall_attributes);
+
    Vector temperature_block;
    temperature_block_gf.GetTrueDofs(temperature_block);
 
@@ -207,9 +302,6 @@ int main(int argc, char *argv[])
    auto cylinder_surface_submesh = ParSubMesh::CreateFromBoundary(parent_mesh,
                                                                   cylinder_surface_attributes);
 
-   ParFiniteElementSpace cylinder_surface_fes(&cylinder_surface_submesh, &fec);
-   ParGridFunction temperature_cylinder_surface_gf(&cylinder_surface_fes);
-
    double dt = 1.0e-5;
    double t_final = 5.0;
    double t = 0.0;
@@ -218,85 +310,6 @@ int main(int argc, char *argv[])
 
    char vishost[] = "128.15.198.77";
    int  visport   = 19916;
-
-   // ParFiniteElementSpace parent_fes(&parent_mesh, &fec);
-   // ParGridFunction parent_gf(&parent_fes);
-   // parent_gf = 0.0;
-   // FunctionCoefficient coef([](const Vector &x)
-   // {
-   //    return cos(x(0)) + sin(x(1));
-   // });
-   // temperature_block_gf = 0.0;
-   // temperature_cylinder_gf = 0.0;
-   // temperature_cylinder_surface_gf = 0.0;
-
-   // temperature_cylinder_gf.ProjectCoefficient(coef);
-   // temperature_block_gf = 0.1;
-
-   // ParSubMesh::Transfer(temperature_cylinder_gf, temperature_cylinder_surface_gf);
-   // ParSubMesh::Transfer(temperature_cylinder_gf, temperature_block_gf);
-   // ParSubMesh::Transfer(temperature_block_gf, temperature_cylinder_gf);
-
-   // int active_attribute =
-   //    temperature_block_gf.ParFESpace()->GetParMesh()->GetAttribute(0);
-
-   // ParSubMesh::Transfer(parent_gf, temperature_cylinder_surface_gf);
-
-   // {
-   //    Array<int> ess_tdof_list;
-
-   //    Array<int> ess_bdr(parent_mesh.bdr_attributes.Max());
-   //    ess_bdr = 0;
-   //    ess_bdr[0] = 1;
-   //    ess_bdr[1] = 1;
-   //    ess_bdr[2] = 1;
-   //    ess_bdr[3] = 1;
-   //    ess_bdr[4] = 1;
-   //    ess_bdr[5] = 1;
-   //    ess_bdr[6] = 1;
-   //    ess_bdr[7] = 1;
-   //    parent_fes.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
-
-   //    ParLinearForm b(&parent_fes);
-   //    ConstantCoefficient one(1.0);
-   //    b.AddDomainIntegrator(new DomainLFIntegrator(one));
-   //    b.Assemble();
-   //    ParGridFunction x(&parent_fes);
-   //    x = 0.0;
-   //    ParBilinearForm a(&parent_fes);
-   //    a.AddDomainIntegrator(new DiffusionIntegrator(one));
-   //    a.Assemble();
-
-   //    OperatorPtr A;
-   //    Vector B, X;
-   //    a.FormLinearSystem(ess_tdof_list, x, b, A, X, B);
-   //    Solver *prec = new HypreBoomerAMG;
-
-   //    CGSolver cg(MPI_COMM_WORLD);
-   //    cg.SetRelTol(1e-12);
-   //    cg.SetMaxIter(2000);
-   //    cg.SetPrintLevel(1);
-   //    if (prec) { cg.SetPreconditioner(*prec); }
-   //    cg.SetOperator(*A);
-   //    cg.Mult(B, X);
-   //    delete prec;
-
-   //    a.RecoverFEMSolution(X, b, x);
-   //    char vishost[] = "128.15.198.77";
-   //    int  visport   = 19916;
-   //    socketstream sol_sock(vishost, visport);
-   //    sol_sock << "parallel " << num_procs << " " << myid << "\n";
-   //    sol_sock.precision(8);
-   //    sol_sock << "solution\n" << parent_mesh << x << std::flush;
-   // }
-
-   // exit(0);
-
-   // socketstream mesh_sock(vishost, visport);
-   // mesh_sock << "parallel " << num_procs << " " << myid << "\n";
-   // mesh_sock.precision(8);
-   // mesh_sock << "solution\n" << parent_mesh << parent_gf << "pause\n" <<
-   //           std::flush;
 
    socketstream cyl_sol_sock(vishost, visport);
    cyl_sol_sock << "parallel " << num_procs << " " << myid << "\n";
@@ -310,12 +323,9 @@ int main(int argc, char *argv[])
    block_sol_sock << "solution\n" << block_submesh << temperature_block_gf <<
                   "pause\n" << std::flush;
 
-   // socketstream cylinder_surface(vishost, visport);
-   // cylinder_surface << "parallel " << num_procs << " " << myid << "\n";
-   // cylinder_surface.precision(8);
-   // cylinder_surface << "solution\n" << cylinder_surface_submesh <<
-   //                  temperature_cylinder_surface_gf <<
-   //                  "pause\n" << std::flush;
+   // Create the transfer map needed in the time integration loop
+   auto *temperature_block_to_cylinder_map = ParSubMesh::CreateTransferMap(
+                                                temperature_block_gf, temperature_cylinder_gf);
 
    for (int ti = 1; !last_step; ti++)
    {
@@ -324,14 +334,20 @@ int main(int argc, char *argv[])
          last_step = true;
       }
 
+      // Advance the diffusion equation on the outer block to the next time step
       d_ode_solver.Step(temperature_block, t, dt);
       {
+         // Transfer the solution from the inner surface of the outer block to
+         // the cylinder outer surface to act as a boundary condition.
          temperature_block_gf.SetFromTrueDofs(temperature_block);
 
-         ParSubMesh::Transfer(temperature_block_gf, temperature_cylinder_gf);
+         temperature_block_to_cylinder_map->Transfer(temperature_block_gf,
+                                                     temperature_cylinder_gf);
 
          temperature_cylinder_gf.GetTrueDofs(temperature_cylinder);
       }
+      // Advance the convection-diffusion equation on the outer block to the
+      // next time step
       cd_ode_solver.Step(temperature_cylinder, t, dt);
 
       if (last_step || (ti % vis_steps) == 0)
@@ -352,6 +368,8 @@ int main(int argc, char *argv[])
                         std::flush;
       }
    }
+
+   delete temperature_block_to_cylinder_map;
 
    return 0;
 }
