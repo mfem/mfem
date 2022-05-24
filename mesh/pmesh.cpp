@@ -5134,6 +5134,318 @@ void ParMesh::PrintAsOne(std::ostream &os) const
    }
 }
 
+void ParMesh::PrintAsSerial(std::ostream &os) const
+{
+   if (pncmesh)
+   {
+      MFEM_ABORT("PrintAsSerial currently does not suppor nonconforming meshes.");
+   }
+
+   // Define required spaces
+   H1_FECollection fec_linear(1, Dim);
+   ParMesh *pm = const_cast<ParMesh *>(this);
+   ParFiniteElementSpace pfespace_linear(pm, &fec_linear);
+
+   int ne_glob = GetGlobalNE();
+
+   int nvertices = pfespace_linear.GetTrueVSize();
+   int nvertices_glob = nvertices;
+   MPI_Allreduce(&nvertices, &nvertices_glob, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
+
+   int nbe = NumOfBdrElements;
+   int nbe_glob = nbe;
+   MPI_Allreduce(&nbe, &nbe_glob, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
+   double *dummy_vertex = new double[spaceDim];
+
+   Mesh serialmesh = Mesh(Dim, nvertices_glob, ne_glob, nbe_glob, spaceDim);
+
+   int n_send_recv;
+   MPI_Status status;
+   Array<double> vert;
+   Array<int> ints, dofs;
+
+   // First set the connectivity of serial mesh using the True Dofs from
+   // the linear H1 space.
+   if (MyRank == 0)
+   {
+      for (int e = 0; e < NumOfElements; e++)
+      {
+         const int attr = elements[e]->GetAttribute();
+         const int geom_type = elements[e]->GetGeometryType();;
+         pfespace_linear.GetElementDofs(e, dofs);
+         for (int j = 0; j < dofs.Size(); j++)
+         {
+            dofs[j] = pfespace_linear.GetGlobalTDofNumber(dofs[j]);
+         }
+         Element *elem = serialmesh.NewElement(geom_type);
+         elem->SetAttribute(attr);
+         elem->SetVertices(dofs);
+         serialmesh.AddElement(elem);
+      }
+
+      for (int p = 1; p < NRanks; p++)
+      {
+         MPI_Recv(&n_send_recv, 1, MPI_INT, p, 444, MPI_COMM_WORLD, &status);
+         ints.SetSize(n_send_recv);
+         if (n_send_recv)
+         {
+            MPI_Recv(&ints[0], n_send_recv, MPI_INT, p, 445, MPI_COMM_WORLD, &status);
+         }
+         for (int i = 0; i < n_send_recv; )
+         {
+            int attr = ints[i++];
+            int geom_type = ints[i++];
+            dofs.SetSize(Geometries.GetVertices(geom_type)->GetNPoints());
+            for (int j = 0; j < dofs.Size(); j++)
+            {
+               dofs[j] = ints[i++];
+            }
+            Element *elem = serialmesh.NewElement(geom_type);
+            elem->SetAttribute(attr);
+            elem->SetVertices(dofs);
+            serialmesh.AddElement(elem);
+         }
+      }
+   }
+   else
+   {
+      n_send_recv = 0;
+      for (int e = 0; e < NumOfElements; e++)
+      {
+         n_send_recv += 2 + elements[e]->GetNVertices();
+      }
+      MPI_Send(&n_send_recv, 1, MPI_INT, 0, 444, MPI_COMM_WORLD);
+      ints.Reserve(n_send_recv);
+      ints.SetSize(0);
+      for (int e = 0; e < NumOfElements; e++)
+      {
+         const int attr = elements[e]->GetAttribute();
+         const int geom_type = elements[e]->GetGeometryType();;
+         ints.Append(attr);
+         ints.Append(geom_type);
+         pfespace_linear.GetElementDofs(e, dofs);
+         for (int j = 0; j < dofs.Size(); j++)
+         {
+            ints.Append(pfespace_linear.GetGlobalTDofNumber(dofs[j]));
+         }
+      }
+      if (n_send_recv)
+      {
+         MPI_Send(&ints[0], n_send_recv, MPI_INT, 0, 445, MPI_COMM_WORLD);
+      }
+   }
+
+   // Write out boundary elements
+   if (MyRank == 0)
+   {
+      for (int e = 0; e < NumOfBdrElements; e++)
+      {
+         const int attr = boundary[e]->GetAttribute();
+         const int geom_type = boundary[e]->GetGeometryType();
+         pfespace_linear.GetBdrElementDofs(e, dofs);
+         for (int j = 0; j < dofs.Size(); j++)
+         {
+            dofs[j] = pfespace_linear.GetGlobalTDofNumber(dofs[j]);
+         }
+         Element *elem = serialmesh.NewElement(geom_type);
+         elem->SetAttribute(attr);
+         elem->SetVertices(dofs);
+         serialmesh.AddBdrElement(elem);
+      }
+
+      for (int p = 1; p < NRanks; p++)
+      {
+         MPI_Recv(&n_send_recv, 1, MPI_INT, p, 446, MPI_COMM_WORLD, &status);
+         ints.SetSize(n_send_recv);
+         if (n_send_recv)
+         {
+            MPI_Recv(&ints[0], n_send_recv, MPI_INT, p, 447, MPI_COMM_WORLD, &status);
+         }
+         for (int i = 0; i < n_send_recv; )
+         {
+            int attr = ints[i++];
+            int geom_type = ints[i++];
+            dofs.SetSize(Geometries.GetVertices(geom_type)->GetNPoints());
+            for (int j = 0; j < dofs.Size(); j++)
+            {
+               dofs[j] = ints[i++];
+            }
+            Element *elem = serialmesh.NewElement(geom_type);
+            elem->SetAttribute(attr);
+            elem->SetVertices(dofs);
+            serialmesh.AddBdrElement(elem);
+         }
+      }
+   } //MyRank == 0
+   else
+   {
+      n_send_recv = 0;
+      for (int e = 0; e < NumOfBdrElements; e++)
+      {
+         n_send_recv += 2 + GetBdrElement(e)->GetNVertices();
+      }
+      MPI_Send(&n_send_recv, 1, MPI_INT, 0, 446, MPI_COMM_WORLD);
+      ints.Reserve(n_send_recv);
+      ints.SetSize(0);
+      for (int e = 0; e < NumOfBdrElements; e++)
+      {
+         const int attr = boundary[e]->GetAttribute();
+         const int geom_type = boundary[e]->GetGeometryType();
+         ints.Append(attr);
+         ints.Append(geom_type);
+         pfespace_linear.GetBdrElementDofs(e, dofs);
+         for (int j = 0; j < dofs.Size(); j++)
+         {
+            ints.Append(pfespace_linear.GetGlobalTDofNumber(dofs[j]));
+         }
+      }
+      if (n_send_recv)
+      {
+         MPI_Send(&ints[0], n_send_recv, MPI_INT, 0, 447, MPI_COMM_WORLD);
+      }
+   } //MyRank != 0
+
+   if (MyRank == 0)
+   {
+      for (int v = 0; v < nvertices_glob; v++)
+      {
+         serialmesh.AddVertex(*dummy_vertex);
+      }
+      serialmesh.FinalizeTopology();
+   }
+
+   delete [] dummy_vertex;
+
+   // From each processor, we send element-wise vertex/dof locations and
+   // overwrite the vertex/dof locations of the serial mesh.
+   FiniteElementSpace *fespace_serial = NULL;
+   if (Nodes)
+   {
+      fespace_serial = new FiniteElementSpace(&serialmesh,
+                                              GetNodalFESpace()->FEColl(),
+                                              spaceDim,
+                                              GetNodalFESpace()->GetOrdering());
+      serialmesh.SetNodalFESpace(fespace_serial);
+   }
+
+   int elem_count = 0; // To keep track of element counter in serial mesh
+   if (MyRank == 0)
+   {
+      Vector nodeloc;
+      Array<int> ints_serial;
+      for (int e = 0; e < NumOfElements; e++)
+      {
+         if (Nodes)
+         {
+            Nodes->GetElementDofValues(e, nodeloc);
+            serialmesh.GetNodalFESpace()->GetElementVDofs(elem_count++, dofs);
+            serialmesh.GetNodes()->SetSubVector(dofs, nodeloc);
+         }
+         else
+         {
+            GetElementVertices(e, ints);
+            serialmesh.GetElementVertices(elem_count++, ints_serial);
+            for (int i = 0; i < ints.Size(); i++)
+            {
+               double *vdata = const_cast<double *>(GetVertex(ints[i]));
+               double *vdata_serial = serialmesh.GetVertex(ints_serial[i]);
+               for (int d = 0; d < spaceDim; d++)
+               {
+                  vdata_serial[d] = vdata[d];
+               }
+            }
+         }
+      }
+
+      for (int p = 1; p < NRanks; p++)
+      {
+         MPI_Recv(&n_send_recv, 1, MPI_INT, p, 448, MPI_COMM_WORLD, &status);
+         vert.SetSize(n_send_recv);
+         if (n_send_recv)
+         {
+            MPI_Recv(&vert[0], n_send_recv, MPI_DOUBLE, p, 449, MPI_COMM_WORLD, &status);
+         }
+         for (int i = 0; i < n_send_recv;)
+         {
+            if (Nodes)
+            {
+               serialmesh.GetNodalFESpace()->GetElementVDofs(elem_count++, dofs);
+               nodeloc.SetSize(dofs.Size());
+               for (int d = 0; d < dofs.Size(); d++)
+               {
+                  nodeloc(d) = vert[i++];
+               }
+               serialmesh.GetNodes()->SetSubVector(dofs, nodeloc);
+            }
+            else
+            {
+               serialmesh.GetElementVertices(elem_count++, ints_serial);
+               for (int j = 0; j < ints_serial.Size(); j++)
+               {
+                  double *vdata_serial = serialmesh.GetVertex(ints_serial[j]);
+                  for (int d = 0; d < spaceDim; d++)
+                  {
+                     vdata_serial[d] = vert[i++];
+                  }
+               }
+            }
+         }
+      }
+   } //MyRank == 0
+   else
+   {
+      n_send_recv = 0;
+      Vector nodeloc;
+      for (int e = 0; e < NumOfElements; e++)
+      {
+         if (Nodes)
+         {
+            const FiniteElement *fe = Nodes->FESpace()->GetFE(e);
+            n_send_recv += spaceDim*fe->GetDof();
+         }
+         else
+         {
+            n_send_recv += elements[e]->GetNVertices()*spaceDim;
+         }
+      }
+      MPI_Send(&n_send_recv, 1, MPI_INT, 0, 448, MPI_COMM_WORLD);
+      vert.Reserve(n_send_recv);
+      vert.SetSize(0);
+      for (int e = 0; e < NumOfElements; e++)
+      {
+         if (Nodes)
+         {
+            Nodes->GetElementDofValues(e, nodeloc);
+            for (int j = 0; j < nodeloc.Size(); j++)
+            {
+               vert.Append(nodeloc(j));
+            }
+         }
+         else
+         {
+            GetElementVertices(e, ints);
+            for (int i = 0; i < ints.Size(); i++)
+            {
+               double *vdata = const_cast<double *>(GetVertex(ints[i]));
+               for (int d = 0; d < spaceDim; d++)
+               {
+                  vert.Append(vdata[d]);
+               }
+            }
+         }
+      }
+      if (n_send_recv)
+      {
+         MPI_Send(&vert[0], n_send_recv, MPI_DOUBLE, 0, 449, MPI_COMM_WORLD);
+      }
+   }
+
+   if (MyRank == 0)
+   {
+      serialmesh.Printer(os);
+   }
+}
+
 void ParMesh::SaveAsOne(const char *fname, int precision) const
 {
    ofstream ofs;
