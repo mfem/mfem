@@ -671,6 +671,8 @@ int main (int argc, char *argv[])
 
       GridFunctionCoefficient coeff_mat(&mat);
       surf_fit_mat_gf.ProjectDiscCoefficient(coeff_mat, GridFunction::ARITHMETIC);
+      surf_fit_mat_gf.SetTrueVector();
+      surf_fit_mat_gf.SetFromTrueVector();
 
       if (marking_type == 0)
       {
@@ -987,7 +989,7 @@ int main (int argc, char *argv[])
       mesh_name << "optimized.mesh";
       ofstream mesh_ofs(mesh_name.str().c_str());
       mesh_ofs.precision(8);
-      pmesh->PrintAsOneWithAttributes(mesh_ofs);
+      pmesh->PrintAsOne(mesh_ofs);
    }
 
    // Compute the final energy of the functional.
