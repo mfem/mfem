@@ -5155,7 +5155,7 @@ void ParMesh::PrintAsSerial(std::ostream &os) const
    int nbe = NumOfBdrElements;
    int nbe_glob = nbe;
    MPI_Allreduce(&nbe, &nbe_glob, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
-   double dummy_vertex[spaceDim];
+   double *dummy_vertex = new double[spaceDim];
 
    Mesh serialmesh = Mesh(Dim, nvertices_glob, ne_glob, nbe_glob, spaceDim);
 
@@ -5309,10 +5309,12 @@ void ParMesh::PrintAsSerial(std::ostream &os) const
    {
       for (int v = 0; v < nvertices_glob; v++)
       {
-         serialmesh.AddVertex(dummy_vertex);
+         serialmesh.AddVertex(*dummy_vertex);
       }
       serialmesh.FinalizeTopology();
    }
+
+   delete [] dummy_vertex;
 
    // From each processor, we send element-wise vertex/dof locations and
    // overwrite the vertex/dof locations of the serial mesh.
