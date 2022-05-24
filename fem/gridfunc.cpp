@@ -2789,9 +2789,9 @@ double GridFunction::ComputeL2Error(
       {
          const IntegrationPoint &ip = ir->IntPoint(j);
          T->SetIntPoint(&ip);
-         double err = fabs(vals(j) - exsol.Eval(*T, ip));
-         err = pow(err, 2);
-         error += ip.weight * T->Weight() * err;
+         double err_ip = fabs(vals(j) - exsol.Eval(*T, ip));
+         err_ip = pow(err, 2);
+         error += ip.weight * T->Weight() * err_ip;
       }
    }
    // negative quadrature weights may cause the error to be negative
