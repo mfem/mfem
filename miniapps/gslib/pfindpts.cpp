@@ -37,18 +37,26 @@
 //    mpirun -np 2 pfindpts -m ../../data/amr-quad.mesh -o 2
 //    mpirun -np 2 pfindpts -m ../../data/rt-2d-q3.mesh -o 3 -mo 4 -ft 2
 //    mpirun -np 2 pfindpts -m ../../data/inline-quad.mesh -ft 1 -no-vis -sr0
+//    mpirun -np 2 pfindpts -m ../../data/square-mixed.mesh -o 2 -mo 2
+//    mpirun -np 2 pfindpts -m ../../data/square-mixed.mesh -o 2 -mo 2 -hr
+//    mpirun -np 2 pfindpts -m ../../data/square-mixed.mesh -o 2 -mo 3 -ft 2
+//    mpirun -np 2 pfindpts -m ../../data/fichera-mixed.mesh -o 3 -mo 2
+//    mpirun -np 2 pfindpts -m ../../data/inline-pyramid.mesh -o 1 -mo 1
+//    mpirun -np 2 pfindpts -m ../../data/tinyzoo-3d.mesh -o 1 -mo 1
 
 #include "mfem.hpp"
 
 using namespace mfem;
 using namespace std;
 
+double func_order;
+
 // Scalar function to project
 double field_func(const Vector &x)
 {
    const int dim = x.Size();
    double res = 0.0;
-   for (int d = 0; d < dim; d++) { res += x(d) * x(d); }
+   for (int d = 0; d < dim; d++) { res += std::pow(x(d), func_order); }
    return res;
 }
 
@@ -102,7 +110,7 @@ int main (int argc, char *argv[])
                   "Enable search only on rank 0 (disable to search points on all tasks).");
    args.AddOption(&hrefinement, "-hr", "--h-refinement", "-no-hr",
                   "--no-h-refinement",
-                  "Do random h refinements to mesh.");
+                  "Do random h refinements to mesh (does not work for pyramids).");
 
    args.Parse();
    if (!args.Good())
@@ -111,6 +119,8 @@ int main (int argc, char *argv[])
       return 1;
    }
    if (myid == 0) { args.PrintOptions(cout); }
+
+   func_order = std::min(order, 2);
 
    // Initialize and refine the starting mesh.
    Mesh *mesh = new Mesh(mesh_file, 1, 1, false);
@@ -224,7 +234,7 @@ int main (int argc, char *argv[])
    // Generate equidistant points in physical coordinates over the whole mesh.
    // Note that some points might be outside, if the mesh is not a box. Note
    // also that all tasks search the same points (not mandatory).
-   const int pts_cnt_1D = 10;
+   const int pts_cnt_1D = 25;
    int pts_cnt = pow(pts_cnt_1D, dim);
    Vector vxyz(pts_cnt * dim);
    if (dim == 2)
