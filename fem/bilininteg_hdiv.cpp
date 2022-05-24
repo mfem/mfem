@@ -308,6 +308,7 @@ void PAHdivMassApply2D(const int D1D,
 void PAHdivMassAssembleDiagonal2D(const int D1D,
                                   const int Q1D,
                                   const int NE,
+                                  const bool symmetric,
                                   const Array<double> &Bo_,
                                   const Array<double> &Bc_,
                                   const Vector &op_,
@@ -318,7 +319,7 @@ void PAHdivMassAssembleDiagonal2D(const int D1D,
 
    auto Bo = Reshape(Bo_.Read(), Q1D, D1D-1);
    auto Bc = Reshape(Bc_.Read(), Q1D, D1D);
-   auto op = Reshape(op_.Read(), Q1D, Q1D, 3, NE);
+   auto op = Reshape(op_.Read(), Q1D, Q1D, symmetric ? 3 : 4, NE);
    auto diag = Reshape(diag_.ReadWrite(), 2*(D1D-1)*D1D, NE);
 
    MFEM_FORALL(e, NE,
@@ -339,7 +340,7 @@ void PAHdivMassAssembleDiagonal2D(const int D1D,
                for (int qy = 0; qy < Q1D; ++qy)
                {
                   const double wy = (c == 1) ? Bc(qy,dy) : Bo(qy,dy);
-                  mass[qx] += wy*wy*((c == 0) ? op(qx,qy,0,e) : op(qx,qy,2,e));
+                  mass[qx] += wy*wy*((c == 0) ? op(qx,qy,0,e) : op(qx,qy,symmetric ? 2 : 3,e));
                }
             }
 
@@ -363,6 +364,7 @@ void PAHdivMassAssembleDiagonal2D(const int D1D,
 void PAHdivMassAssembleDiagonal3D(const int D1D,
                                   const int Q1D,
                                   const int NE,
+                                  const bool symmetric,
                                   const Array<double> &Bo_,
                                   const Array<double> &Bc_,
                                   const Vector &op_,
@@ -374,7 +376,7 @@ void PAHdivMassAssembleDiagonal3D(const int D1D,
 
    auto Bo = Reshape(Bo_.Read(), Q1D, D1D-1);
    auto Bc = Reshape(Bc_.Read(), Q1D, D1D);
-   auto op = Reshape(op_.Read(), Q1D, Q1D, Q1D, 6, NE);
+   auto op = Reshape(op_.Read(), Q1D, Q1D, Q1D, symmetric ? 6 : 9, NE);
    auto diag = Reshape(diag_.ReadWrite(), 3*(D1D-1)*(D1D-1)*D1D, NE);
 
    MFEM_FORALL(e, NE,
@@ -387,7 +389,8 @@ void PAHdivMassAssembleDiagonal3D(const int D1D,
          const int D1Dy = (c == 1) ? D1D : D1D - 1;
          const int D1Dx = (c == 0) ? D1D : D1D - 1;
 
-         const int opc = (c == 0) ? 0 : ((c == 1) ? 3 : 5);
+         const int opc = (c == 0) ? 0 : ((c == 1) ? (symmetric ? 3 : 4) :
+                                         (symmetric ? 5 : 8));
 
          double mass[HDIV_MAX_Q1D];
 
