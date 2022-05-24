@@ -13,6 +13,7 @@
 
 #include "fem.hpp"
 #include "../general/device.hpp"
+#include "../general/forall.hpp"
 #include <cmath>
 
 namespace mfem
@@ -699,6 +700,42 @@ void BilinearForm::AssembleDiagonal(Vector &diag) const
    Vector local_diag(cP->Height());
    ext->AssembleDiagonal(local_diag);
    cP->AbsMultTranspose(local_diag, diag);
+}
+
+void BilinearForm::SerialEliminateBC(const Array<int> &ess_dofs, SparseMatrix &A)
+{
+   // Eliminate essential DOFs (BCs) from the matrix (what we do here is
+   // equivalent to  DiagonalPolicy::DIAG_ONE).
+   const int n_ess_dofs = ess_dofs.Size();
+   const auto ess_dofs_d = ess_dofs.Read();
+   const auto I = A.ReadI();
+   const auto J = A.ReadJ();
+   auto dA = A.ReadWriteData();
+
+   MFEM_FORALL(i, n_ess_dofs,
+   {
+      const int idof = ess_dofs_d[i];
+      for (int j=I[idof]; j<I[idof+1]; ++j)
+      {
+         const int jdof = J[j];
+         if (jdof != idof)
+         {
+            dA[j] = 0.0;
+            for (int k=I[jdof]; k<I[jdof+1]; ++k)
+            {
+               if (J[k] == idof)
+               {
+                  dA[k] = 0.0;
+                  break;
+               }
+            }
+         }
+         else
+         {
+            dA[j] = 1.0;
+         }
+      }
+   });
 }
 
 void BilinearForm::FormLinearSystem(const Array<int> &ess_tdof_list, Vector &x,

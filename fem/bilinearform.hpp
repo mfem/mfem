@@ -410,6 +410,25 @@ public:
    virtual const Operator *GetOutputRestriction() const
    { return GetRestriction(); }
 
+   /// @brief Compute serial RAP operator and store it in @a A as a SparseMatrix.
+   void SerialRAP(OperatorHandle &A)
+   {
+      MFEM_ASSERT(mat, "SerialRAP requires the SparseMatrix to be assembled.");
+      ConformingAssemble();
+      A.Reset(mat, false);
+   }
+
+   /** @brief Eliminate essential (Dirichlet) boundary conditions in the
+       SparseMatrix @a A
+
+       @param[in] ess_dofs indices of the degrees of freedom belonging to the
+                           essential boundary conditions.
+       @param[in,out] A The SparseMatrix in which the boundary conditions are
+                        eliminated.
+
+       @note Correspond to the DiagonalPolicy::DIAG_ONE. */
+   static void SerialEliminateBC(const Array<int> &ess_dofs, SparseMatrix &A);
+
    /** @brief Form the linear system A X = B, corresponding to this bilinear
        form and the linear form @a b(.). */
    /** This method applies any necessary transformations to the linear system
