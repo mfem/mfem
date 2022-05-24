@@ -2765,46 +2765,46 @@ double GridFunction::ComputeL2Error(
    Coefficient &exsol, const IntegrationRule *irs[],  Array<int> *elems) const
 {
   double error = 0.0;
-   const FiniteElement *fe;
-   ElementTransformation *T;
-   Vector vals;
+  const FiniteElement *fe;
+  ElementTransformation *T;
+  Vector vals;
 
-   for (int i = 0; i < fes->GetNE(); i++)
-   {
-     if (elems != NULL && (*elems)[i] == 0) { continue; }
-     fe = fes->GetFE(i);
-     const IntegrationRule *ir;
-     if (irs)
-       {
+  for (int i = 0; i < fes->GetNE(); i++)
+    {
+      if (elems != NULL && (*elems)[i] == 0) { continue; }
+      fe = fes->GetFE(i);
+      const IntegrationRule *ir;
+      if (irs)
+	{
          ir = irs[fe->GetGeomType()];
-       }
-     else
-       {
-         int intorder = 2*fe->GetOrder() + 3; // <----------
+	}
+      else
+	{
+	  int intorder = 2*fe->GetOrder() + 3; // <----------
          ir = &(IntRules.Get(fe->GetGeomType(), intorder));
-       }
-     GetValues(i, *ir, vals);
-     T = fes->GetElementTransformation(i);
-     for (int j = 0; j < ir->GetNPoints(); j++)
-       {
-         const IntegrationPoint &ip = ir->IntPoint(j);
-         T->SetIntPoint(&ip);
-         double err = fabs(vals(j) - exsol.Eval(*T, ip));
-	 err = pow(err, 2);
-	 error += ip.weight * T->Weight() * err;
-       }
-   }
-   // negative quadrature weights may cause the error to be negative
-   if (error < 0.)
-     {
-       error = -pow(-error, 1.0/2.0);
-     }
-   else
-     {
-       error = pow(error, 1.0/2.0);
-     }
-   
-   return error;
+	}
+      GetValues(i, *ir, vals);
+      T = fes->GetElementTransformation(i);
+      for (int j = 0; j < ir->GetNPoints(); j++)
+	{
+	  const IntegrationPoint &ip = ir->IntPoint(j);
+	  T->SetIntPoint(&ip);
+	  double err = fabs(vals(j) - exsol.Eval(*T, ip));
+	  err = pow(err, 2);
+	  error += ip.weight * T->Weight() * err;
+	}
+    }
+  // negative quadrature weights may cause the error to be negative
+  if (error < 0.)
+    {
+      error = -pow(-error, 1.0/2.0);
+    }
+  else
+    {
+      error = pow(error, 1.0/2.0);
+    }
+  
+  return error;
 }
 
 double GridFunction::ComputeL2Error(
