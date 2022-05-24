@@ -148,6 +148,7 @@ int main(int argc, char *argv[])
    int n_h_iter          = 1;
    bool surface_fit_adapt = false;
    double surface_fit_threshold = -10;
+   int mesh_node_ordering = 0;
 
    // 1. Parse command-line options.
    OptionsParser args(argc, argv);
@@ -277,6 +278,9 @@ int main(int argc, char *argv[])
    args.AddOption(&surface_fit_threshold, "-sft", "--surf-fit-threshold",
                   "Set threshold for surface fitting. TMOP solver will"
                   "terminate when max surface fitting error is below this limit");
+   args.AddOption(&mesh_node_ordering, "-mno", "--mesh_node_ordering",
+                  "Ordering of mesh nodes."
+                  "0 (default): byNodes, 1: byVDIM");
    args.Parse();
    if (!args.Good())
    {
@@ -314,7 +318,7 @@ int main(int argc, char *argv[])
    }
    else { fec = new H1_FECollection(mesh_poly_deg, dim); }
    FiniteElementSpace *fespace = new FiniteElementSpace(mesh, fec, dim,
-                                                        Ordering::byVDIM);
+                                                        mesh_node_ordering);
 
    // 4. Make the mesh curved based on the above finite element space. This
    //    means that we define the mesh elements through a fespace-based
