@@ -286,9 +286,9 @@ public:
                           pfes->GetComm());
    }
 
-  virtual double ComputeL2Error(Coefficient &exsol,
-				const IntegrationRule *irs[] = NULL,
-				Array<int> *elems = NULL) const
+   virtual double ComputeL2Error(Coefficient &exsol,
+                                 const IntegrationRule *irs[] = NULL,
+                                 Array<int> *elems = NULL) const
    {
       return GlobalLpNorm(2.0, GridFunction::ComputeL2Error(exsol, irs, elems),
                           pfes->GetComm());

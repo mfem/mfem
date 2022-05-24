@@ -478,26 +478,26 @@ public:
 
    virtual double ComputeL2Error(Coefficient *exsol[],
                                  const IntegrationRule *irs[] = NULL,
-				 Array<int> *elems = NULL) const;
+                                 Array<int> *elems = NULL) const;
 
    /// Returns ||grad u_ex - grad u_h||_L2 in element ielem for H1 or L2 elements
    virtual double ComputeElementGradError(int ielem, VectorCoefficient *exgrad,
                                           const IntegrationRule *irs[] = NULL) const;
 
-  virtual double ComputeL2Error(Coefficient &exsol,
+   virtual double ComputeL2Error(Coefficient &exsol,
                                  const IntegrationRule *irs[] = NULL,
-				 Array<int> *elems = NULL) const;
+                                 Array<int> *elems = NULL) const;
 
-  virtual double ComputeL2Error(VectorCoefficient &exsol,
-				const IntegrationRule *irs[] = NULL,
-				Array<int> *elems = NULL) const;
-  
-  /// Returns ||grad u_ex - grad u_h||_L2 for H1 or L2 elements
-  virtual double ComputeGradError(VectorCoefficient *exgrad,
+   virtual double ComputeL2Error(VectorCoefficient &exsol,
+                                 const IntegrationRule *irs[] = NULL,
+                                 Array<int> *elems = NULL) const;
+
+   /// Returns ||grad u_ex - grad u_h||_L2 for H1 or L2 elements
+   virtual double ComputeGradError(VectorCoefficient *exgrad,
                                    const IntegrationRule *irs[] = NULL) const;
-  
-  /// Returns ||curl u_ex - curl u_h||_L2 for ND elements
-  virtual double ComputeCurlError(VectorCoefficient *excurl,
+
+   /// Returns ||curl u_ex - curl u_h||_L2 for ND elements
+   virtual double ComputeCurlError(VectorCoefficient *excurl,
                                    const IntegrationRule *irs[] = NULL) const;
 
    /// Returns ||div u_ex - div u_h||_L2 for RT elements
