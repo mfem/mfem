@@ -2760,58 +2760,6 @@ void GridFunction::ProjectBdrCoefficientTangent(
 #endif
 }
 
-/*double GridFunction::ComputeL2Error(
-   Coefficient *exsol[], const IntegrationRule *irs[]) const
-{
-   double error = 0.0, a;
-   const FiniteElement *fe;
-   ElementTransformation *transf;
-   Vector shape;
-   Array<int> vdofs;
-   int fdof, d, i, intorder, j, k;
-
-   for (i = 0; i < fes->GetNE(); i++)
-   {
-      fe = fes->GetFE(i);
-      fdof = fe->GetDof();
-      transf = fes->GetElementTransformation(i);
-      shape.SetSize(fdof);
-      intorder = 2*fe->GetOrder() + 3; // <----------
-      const IntegrationRule *ir;
-      if (irs)
-      {
-         ir = irs[fe->GetGeomType()];
-      }
-      else
-      {
-         ir = &(IntRules.Get(fe->GetGeomType(), intorder));
-      }
-      fes->GetElementVDofs(i, vdofs);
-      for (j = 0; j < ir->GetNPoints(); j++)
-      {
-         const IntegrationPoint &ip = ir->IntPoint(j);
-         fe->CalcShape(ip, shape);
-         for (d = 0; d < fes->GetVDim(); d++)
-         {
-            a = 0;
-            for (k = 0; k < fdof; k++)
-               if (vdofs[fdof*d+k] >= 0)
-               {
-                  a += (*this)(vdofs[fdof*d+k]) * shape(k);
-               }
-               else
-               {
-                  a -= (*this)(-1-vdofs[fdof*d+k]) * shape(k);
-               }
-            transf->SetIntPoint(&ip);
-            a -= exsol[d]->Eval(*transf, ip);
-            error += ip.weight * transf->Weight() * a * a;
-         }
-      }
-   }
-
-   return (error < 0.0) ? -sqrt(-error) : sqrt(error);
-   }*/
 
 double GridFunction::ComputeL2Error(
    Coefficient &exsol, const IntegrationRule *irs[],  Array<int> *elems) const
