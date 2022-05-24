@@ -327,8 +327,6 @@ TEST_CASE("Hcurl/Hdiv diagonal PA",
    {
       for (int coeffType = 0; coeffType < 5; ++coeffType)
       {
-         const int numSpaces = (coeffType == 0) ? 2 : 1;
-
          Coefficient* coeff = nullptr;
          DiagonalMatrixCoefficient* dcoeff = nullptr;
          MatrixCoefficient* mcoeff = nullptr;
@@ -357,9 +355,10 @@ TEST_CASE("Hcurl/Hdiv diagonal PA",
 
          enum Spaces {Hcurl, Hdiv};
 
-         for (int spaceType = 0; spaceType < numSpaces; ++spaceType)
+         for (int spaceType = 0; spaceType < 2; ++spaceType)
          {
-            const int numIntegrators = (dimension == 3 || coeffType < 2) ? 2 : 1;
+            const int numIntegrators = ((dimension == 3 || coeffType < 2) &&
+                                        spaceType == 0) ? 2 : 1;
             for (int integrator = 0; integrator < numIntegrators; ++integrator)
             {
                for (int ne = 1; ne < 3; ++ne)

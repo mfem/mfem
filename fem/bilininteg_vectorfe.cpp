@@ -151,6 +151,7 @@ void PAHcurlH1ApplyTranspose3D(const int D1D,
 void PAHdivMassAssembleDiagonal2D(const int D1D,
                                   const int Q1D,
                                   const int NE,
+                                  const bool symmetric,
                                   const Array<double> &Bo_,
                                   const Array<double> &Bc_,
                                   const Vector &op_,
@@ -159,6 +160,7 @@ void PAHdivMassAssembleDiagonal2D(const int D1D,
 void PAHdivMassAssembleDiagonal3D(const int D1D,
                                   const int Q1D,
                                   const int NE,
+                                  const bool symmetric,
                                   const Array<double> &Bo_,
                                   const Array<double> &Bc_,
                                   const Vector &op_,
@@ -966,7 +968,7 @@ void VectorFEMassIntegrator::AssembleDiagonalPA(Vector& diag)
       else if (trial_fetype == mfem::FiniteElement::DIV &&
                test_fetype == trial_fetype)
       {
-         PAHdivMassAssembleDiagonal3D(dofs1D, quad1D, ne,
+         PAHdivMassAssembleDiagonal3D(dofs1D, quad1D, ne, symmetric,
                                       mapsO->B, mapsC->B, pa_data, diag);
       }
       else
@@ -984,7 +986,7 @@ void VectorFEMassIntegrator::AssembleDiagonalPA(Vector& diag)
       else if (trial_fetype == mfem::FiniteElement::DIV &&
                test_fetype == trial_fetype)
       {
-         PAHdivMassAssembleDiagonal2D(dofs1D, quad1D, ne,
+         PAHdivMassAssembleDiagonal2D(dofs1D, quad1D, ne, symmetric,
                                       mapsO->B, mapsC->B, pa_data, diag);
       }
       else
