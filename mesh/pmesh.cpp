@@ -5136,6 +5136,11 @@ void ParMesh::PrintAsOne(std::ostream &os) const
 
 void ParMesh::PrintAsSerial(std::ostream &os) const
 {
+   if (pncmesh)
+   {
+      MFEM_ABORT("PrintAsSerial currently does not suppor nonconforming meshes.");
+   }
+
    // Define required spaces
    H1_FECollection fec_linear(1, Dim);
    ParMesh *pm = const_cast<ParMesh *>(this);
@@ -5159,7 +5164,8 @@ void ParMesh::PrintAsSerial(std::ostream &os) const
    Array<double> vert;
    Array<int> ints, dofs;
 
-   // First determine the connectivity using the linear H1 space.
+   // First set the connectivity of serial mesh using the True Dofs from
+   // the linear H1 space.
    if (MyRank == 0)
    {
       for (int e = 0; e < NumOfElements; e++)
@@ -5229,14 +5235,13 @@ void ParMesh::PrintAsSerial(std::ostream &os) const
       }
    }
 
-   // Now write out boundary elements
+   // Write out boundary elements
    if (MyRank == 0)
    {
       for (int e = 0; e < NumOfBdrElements; e++)
       {
-         const int attr = GetBdrAttribute(e);
-         const int geom_type = GetBdrElement(e)->GetGeometryType();
-         // write vertices using the linear fespace
+         const int attr = boundary[e]->GetAttribute();
+         const int geom_type = boundary[e]->GetGeometryType();
          pfespace_linear.GetBdrElementDofs(e, dofs);
          for (int j = 0; j < dofs.Size(); j++)
          {
@@ -5258,7 +5263,6 @@ void ParMesh::PrintAsSerial(std::ostream &os) const
          }
          for (int i = 0; i < n_send_recv; )
          {
-            // processor number + 1 as attribute and geometry type
             int attr = ints[i++];
             int geom_type = ints[i++];
             dofs.SetSize(Geometries.GetVertices(geom_type)->GetNPoints());
@@ -5285,8 +5289,8 @@ void ParMesh::PrintAsSerial(std::ostream &os) const
       ints.SetSize(0);
       for (int e = 0; e < NumOfBdrElements; e++)
       {
-         const int attr = GetBdrAttribute(e);
-         const int geom_type = GetBdrElement(e)->GetGeometryType();
+         const int attr = boundary[e]->GetAttribute();
+         const int geom_type = boundary[e]->GetGeometryType();
          ints.Append(attr);
          ints.Append(geom_type);
          pfespace_linear.GetBdrElementDofs(e, dofs);
@@ -5345,7 +5349,7 @@ void ParMesh::PrintAsSerial(std::ostream &os) const
                double *vdata_serial = serialmesh.GetVertex(ints_serial[i]);
                for (int d = 0; d < spaceDim; d++)
                {
-                  vdata_serial[d] = (vdata[d]);
+                  vdata_serial[d] = vdata[d];
                }
             }
          }
@@ -5394,7 +5398,7 @@ void ParMesh::PrintAsSerial(std::ostream &os) const
       {
          if (Nodes)
          {
-            const FiniteElement *fe = GetNodalFESpace()->GetFE(e);
+            const FiniteElement *fe = Nodes->FESpace()->GetFE(e);
             n_send_recv += spaceDim*fe->GetDof();
          }
          else
