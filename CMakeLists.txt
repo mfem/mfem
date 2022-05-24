@@ -431,11 +431,6 @@ if (MFEM_USE_CALIPER)
   find_package(Caliper REQUIRED)
 endif()
 
-# Blitz
-if (MFEM_USE_BLITZ)
-  find_package(Blitz REQUIRED)
-endif()
-
 # Algoim
 if (MFEM_USE_ALGOIM)
   find_package(Algoim REQUIRED)
