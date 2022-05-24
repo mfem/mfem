@@ -19,9 +19,10 @@ void Hrefine(GridFunction &u, Coefficient &gf_ex, double min_thresh,
              double max_thresh);
 
 // void Hrefine2(GridFunction &u, Coefficient &gf_ex, double min_thresh,
-            //   double max_thresh);
-Table * Hrefine2(GridFunction &u, GridFunction &u_ref, Table * refT, Coefficient &gf_ex, double min_thresh,
-              double max_thresh);              
+//   double max_thresh);
+Table * Hrefine2(GridFunction &u, GridFunction &u_ref, Table * refT,
+                 Coefficient &gf_ex, double min_thresh,
+                 double max_thresh);
 
 Table * Refine(Array<int> ref_actions, GridFunction &u, int depth_limit = 100);
 
@@ -163,7 +164,7 @@ int main(int argc, char *argv[])
    u0.SetTime(0.);
    u.ProjectCoefficient(u0);
 
-// reference solution
+   // reference solution
    BilinearForm m_ref(&ref_fes);
    BilinearForm k_ref(&ref_fes);
    m_ref.AddDomainIntegrator(new MassIntegrator);
@@ -488,8 +489,9 @@ void Prefine(FiniteElementSpace & fes_old,
 
 // void Hrefine2(GridFunction &u, Coefficient & ex_coeff, double min_thresh,
 //               double max_thresh)
-Table * Hrefine2(GridFunction &u, GridFunction &u_ref, Table * refT, Coefficient & ex_coeff, double min_thresh,
-              double max_thresh)
+Table * Hrefine2(GridFunction &u, GridFunction &u_ref, Table * refT,
+                 Coefficient & ex_coeff, double min_thresh,
+                 double max_thresh)
 {
    FiniteElementSpace * fes = u.FESpace();
    Mesh * mesh = fes->GetMesh();
@@ -570,11 +572,11 @@ Table * Hrefine2(GridFunction &u, GridFunction &u_ref, Table * refT, Coefficient
 
    // cin.get();
 
-   // compute element errors by 
-   // 1. refine the mesh up to mesh limit 2 
+   // compute element errors by
+   // 1. refine the mesh up to mesh limit 2
    // 2. Prolongate the current solution to the refined mesh
    // 3. Calculate errors and combine them (for the coarse elements)
-   // 4. Derifine mesh 
+   // 4. Derifine mesh
 
    //copy the mesh
    // Mesh * ref_mesh = new Mesh(*mesh);
