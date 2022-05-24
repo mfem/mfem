@@ -2790,7 +2790,7 @@ double GridFunction::ComputeL2Error(
          const IntegrationPoint &ip = ir->IntPoint(j);
          T->SetIntPoint(&ip);
          double err_ip = fabs(vals(j) - exsol.Eval(*T, ip));
-         err_ip = pow(err, 2);
+         err_ip = pow(err_ip, 2);
          error += ip.weight * T->Weight() * err_ip;
       }
    }
