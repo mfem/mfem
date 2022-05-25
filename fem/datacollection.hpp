@@ -568,7 +568,6 @@ public:
     {
         int cycle;
         double t;
-        double Δt;
 
         friend std::istream& operator>>(std::istream& in,
                                         mfem::MFEMDataCollection::MetaInfo& i);

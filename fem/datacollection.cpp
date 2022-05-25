@@ -1181,7 +1181,6 @@ std::istream& operator>>(std::istream& in,
          std::stringstream linestream(line);
          linestream >> i.cycle;
          linestream >> i.t;
-         linestream >> i.Δt;
    }
 
    return in;
@@ -1274,8 +1273,7 @@ void MFEMDataCollection::Save()
    {
       std::ofstream metadata_fs(GetMetafileName(),
                                     std::ios::out | std::ios::app);
-      metadata_fs << GetCycle() << " " << GetTime() << " "
-                     << GetTimeStep() << std::endl;
+      metadata_fs << GetCycle() << " " << GetTime() << std::endl;
    }
 
    // If the mesh is not adaptive, then we just have to store the mesh once.
