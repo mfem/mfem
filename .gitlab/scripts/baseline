@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -29,9 +29,9 @@ mkdir _${BASELINE_TEST} && cd _${BASELINE_TEST}
 
 # run
 if [[ "${MACHINE_NAME}" == "quartz" || "${MACHINE_NAME}" == "ruby" ]]; then
-  srun --nodes=1 -p pdebug ../runtest ../../mfem "${BASELINE_TEST} ${TPLS_DIR}"
+  salloc --nodes=1 -p pdebug ../runtest ../../mfem "${BASELINE_TEST} ${TPLS_DIR}"
 elif [[ ${MACHINE_NAME} == "corona" ]]; then
-  srun --nodes=1 -t 60 -p mi60 ../runtest ../../mfem "${BASELINE_TEST} ${TPLS_DIR}"
+  salloc --nodes=1 -t 60 -p pbatch ../runtest ../../mfem "${BASELINE_TEST} ${TPLS_DIR}"
 elif [[ ${MACHINE_NAME} == "lassen" ]]; then
   lalloc 1 -q pdebug ../runtest ../../mfem "${BASELINE_TEST} ${TPLS_DIR}"
 else

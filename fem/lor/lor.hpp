@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -12,7 +12,7 @@
 #ifndef MFEM_LOR
 #define MFEM_LOR
 
-#include "bilinearform.hpp"
+#include "../bilinearform.hpp"
 
 namespace mfem
 {
@@ -62,11 +62,13 @@ private:
 protected:
    enum FESpaceType { H1, ND, RT, L2, INVALID };
 
+   int ref_type;
    FiniteElementSpace &fes_ho;
-   Mesh *mesh;
-   FiniteElementCollection *fec;
-   FiniteElementSpace *fes;
-   BilinearForm *a;
+   Mesh *mesh = nullptr;
+   FiniteElementCollection *fec = nullptr;
+   FiniteElementSpace *fes = nullptr;
+   BilinearForm *a = nullptr;
+   class BatchedLORAssembly *batched_lor = nullptr;
    OperatorHandle A;
    mutable Array<int> perm;
 
@@ -93,16 +95,24 @@ protected:
    /// Returns the order of the LOR space. 1 for H1 or ND, 0 for L2 or RT.
    int GetLOROrder() const;
 
-   /// Assembles the LOR system (used internally by
-   /// LORDiscretization::AssembleSystem and
-   /// ParLORDiscretization::AssembleSystem).
-   void AssembleSystem_(BilinearForm &a_ho, const Array<int> &ess_dofs);
+   /// Construct the LOR space (overriden for serial and parallel versions).
+   virtual void FormLORSpace() = 0;
 
-   LORBase(FiniteElementSpace &fes_ho_);
+   /// Construct the LORBase object for the given FE space and refinement type.
+   LORBase(FiniteElementSpace &fes_ho_, int ref_type_);
 
 public:
-   /// Returns the assembled LOR system.
+   /// Returns the assembled LOR system (const version).
    const OperatorHandle &GetAssembledSystem() const;
+
+   /// Returns the assembled LOR system (non-const version).
+   OperatorHandle &GetAssembledSystem();
+
+   /// Assembles the LOR system corresponding to @a a_ho.
+   void AssembleSystem(BilinearForm &a_ho, const Array<int> &ess_dofs);
+
+   /// Assembles the LOR system corresponding to @a a_ho using the legacy method.
+   void LegacyAssembleSystem(BilinearForm &a_ho, const Array<int> &ess_dofs);
 
    /// @brief Returns the permutation that maps LOR DOFs to high-order DOFs.
    ///
@@ -118,14 +128,16 @@ public:
    const Array<int> &GetDofPermutation() const;
 
    /// Returns the low-order refined finite element space.
-   FiniteElementSpace &GetFESpace() const { return *fes; }
+   FiniteElementSpace &GetFESpace() const;
 
-   ~LORBase();
+   virtual ~LORBase();
 };
 
 /// Create and assemble a low-order refined version of a BilinearForm.
 class LORDiscretization : public LORBase
 {
+protected:
+   void FormLORSpace() override;
 public:
    /// @brief Construct the low-order refined version of @a a_ho using the given
    /// list of essential DOFs.
@@ -143,9 +155,6 @@ public:
    LORDiscretization(FiniteElementSpace &fes_ho,
                      int ref_type=BasisType::GaussLobatto);
 
-   /// Assembles the LOR system corresponding to @a a_ho.
-   void AssembleSystem(BilinearForm &a_ho, const Array<int> &ess_dofs);
-
    /// Return the assembled LOR operator as a SparseMatrix.
    SparseMatrix &GetAssembledMatrix() const;
 };
@@ -155,6 +164,8 @@ public:
 /// Create and assemble a low-order refined version of a ParBilinearForm.
 class ParLORDiscretization : public LORBase
 {
+protected:
+   void FormLORSpace() override;
 public:
    /// @brief Construct the low-order refined version of @a a_ho using the given
    /// list of essential DOFs.
@@ -171,9 +182,6 @@ public:
    /// (see ParMesh::MakeRefined).
    ParLORDiscretization(ParFiniteElementSpace &fes_ho,
                         int ref_type=BasisType::GaussLobatto);
-
-   /// Assembles the LOR system corresponding to @a a_ho.
-   void AssembleSystem(ParBilinearForm &a_ho, const Array<int> &ess_dofs);
 
    /// Return the assembled LOR operator as a HypreParMatrix.
    HypreParMatrix &GetAssembledMatrix() const;
@@ -198,7 +206,6 @@ protected:
    LORBase *lor;
    bool own_lor = true;
    SolverType solver;
-   mutable Vector px, py;
 public:
    /// @brief Create a solver of type @a SolverType, formed using the assembled
    /// SparseMatrix of the LOR version of @a a_ho. @see LORDiscretization
@@ -258,6 +265,72 @@ public:
 
    ~LORSolver() { if (own_lor) { delete lor; } }
 };
+
+#ifdef MFEM_USE_MPI
+
+// Template specialization for batched LOR AMS (implementation in lor_ams.cpp)
+template <>
+class LORSolver<HypreAMS> : public Solver
+{
+protected:
+   OperatorHandle A; ///< The assembled system matrix.
+   Vector *xyz = nullptr; ///< Data for vertex coordinate vectors.
+   HypreAMS *solver = nullptr; ///< The underlying AMS solver.
+public:
+   /// @brief Creates the AMS solvers for the given form and essential DOFs.
+   ///
+   /// Assembles the LOR matrices for the form @a a_ho and the associated
+   /// discrete gradient matrix and vertex coordinate vectors.
+   LORSolver(ParBilinearForm &a_ho, const Array<int> &ess_tdof_list,
+             int ref_type=BasisType::GaussLobatto);
+
+   /// Calls HypreAMS::SetOperator.
+   void SetOperator(const Operator &op);
+
+   /// Apply the action of the AMS preconditioner.
+   void Mult(const Vector &x, Vector &y) const;
+
+   /// Access the underlying solver.
+   HypreAMS &GetSolver();
+
+   /// Access the underlying solver (const version).
+   const HypreAMS &GetSolver() const;
+
+   ~LORSolver();
+};
+
+// Template specialization for batched LOR ADS (implementation in lor_ads.cpp)
+template <>
+class LORSolver<HypreADS> : public Solver
+{
+protected:
+   OperatorHandle A; ///< The assembled system matrix.
+   Vector *xyz = nullptr; ///< Data for vertex coordinate vectors.
+   HypreADS *solver = nullptr; ///< The underlying ADS solver.
+public:
+   /// @brief Creates the ADS solvers for the given form and essential DOFs.
+   ///
+   /// Assembles the LOR matrices for the form @a a_ho and the associated
+   /// discrete gradient matrix and vertex coordinate vectors.
+   LORSolver(ParBilinearForm &a_ho, const Array<int> &ess_tdof_list,
+             int ref_type=BasisType::GaussLobatto);
+
+   /// Calls HypreADS::SetOperator.
+   void SetOperator(const Operator &op);
+
+   /// Apply the action of the AMS preconditioner.
+   void Mult(const Vector &x, Vector &y) const;
+
+   /// Access the underlying solver.
+   HypreADS &GetSolver();
+
+   /// Access the underlying solver (const version).
+   const HypreADS &GetSolver() const;
+
+   ~LORSolver();
+};
+
+#endif
 
 } // namespace mfem
 

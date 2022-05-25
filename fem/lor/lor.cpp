@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -10,7 +10,10 @@
 // CONTRIBUTING.md for details.
 
 #include "lor.hpp"
-#include "pbilinearform.hpp"
+#include "lor_batched.hpp"
+#include "../restriction.hpp"
+#include "../pbilinearform.hpp"
+#include "../../general/forall.hpp"
 
 namespace mfem
 {
@@ -24,9 +27,10 @@ void LORBase::AddIntegrators(BilinearForm &a_from,
    Array<BilinearFormIntegrator*> *integrators = (a_from.*get_integrators)();
    for (int i=0; i<integrators->Size(); ++i)
    {
-      (a_to.*add_integrator)((*integrators)[i]);
-      ir_map[(*integrators)[i]] = ((*integrators)[i])->GetIntegrationRule();
-      if (ir) { ((*integrators)[i])->SetIntegrationRule(*ir); }
+      BilinearFormIntegrator *integrator = (*integrators)[i];
+      (a_to.*add_integrator)(integrator);
+      ir_map[integrator] = integrator->GetIntegrationRule();
+      if (ir) { integrator->SetIntegrationRule(*ir); }
    }
 }
 
@@ -43,16 +47,17 @@ void LORBase::AddIntegratorsAndMarkers(BilinearForm &a_from,
 
    for (int i=0; i<integrators->Size(); ++i)
    {
+      BilinearFormIntegrator *integrator = (*integrators)[i];
       if (*markers[i])
       {
-         (a_to.*add_integrator_marker)((*integrators)[i], *(*markers[i]));
+         (a_to.*add_integrator_marker)(integrator, *(*markers[i]));
       }
       else
       {
-         (a_to.*add_integrator)((*integrators)[i]);
+         (a_to.*add_integrator)(integrator);
       }
-      ir_map[(*integrators)[i]] = ((*integrators)[i])->GetIntegrationRule();
-      if (ir) { ((*integrators)[i])->SetIntegrationRule(*ir); }
+      ir_map[integrator] = integrator->GetIntegrationRule();
+      if (ir) { integrator->SetIntegrationRule(*ir); }
    }
 }
 
@@ -61,17 +66,17 @@ void LORBase::ResetIntegrationRules(GetIntegratorsFn get_integrators)
    Array<BilinearFormIntegrator*> *integrators = (a->*get_integrators)();
    for (int i=0; i<integrators->Size(); ++i)
    {
-      ((*integrators)[i])->SetIntegrationRule(*ir_map[(*integrators)[i]]);
+      ((*integrators)[i])->SetIntRule(ir_map[(*integrators)[i]]);
    }
 }
 
 LORBase::FESpaceType LORBase::GetFESpaceType() const
 {
-   const FiniteElementCollection *fec = fes_ho.FEColl();
-   if (dynamic_cast<const H1_FECollection*>(fec)) { return H1; }
-   else if (dynamic_cast<const ND_FECollection*>(fec)) { return ND; }
-   else if (dynamic_cast<const RT_FECollection*>(fec)) { return RT; }
-   else if (dynamic_cast<const L2_FECollection*>(fec)) { return L2; }
+   const FiniteElementCollection *fec_ho = fes_ho.FEColl();
+   if (dynamic_cast<const H1_FECollection*>(fec_ho)) { return H1; }
+   else if (dynamic_cast<const ND_FECollection*>(fec_ho)) { return ND; }
+   else if (dynamic_cast<const RT_FECollection*>(fec_ho)) { return RT; }
+   else if (dynamic_cast<const L2_FECollection*>(fec_ho)) { return L2; }
    else { MFEM_ABORT("Bad LOR space type."); }
    return INVALID;
 }
@@ -87,15 +92,15 @@ void LORBase::ConstructLocalDofPermutation(Array<int> &perm_) const
    FESpaceType type = GetFESpaceType();
    MFEM_VERIFY(type != H1 && type != L2, "");
 
-   auto get_dof_map = [](FiniteElementSpace &fes, int i)
+   auto get_dof_map = [](FiniteElementSpace &fes_, int i)
    {
-      const FiniteElement *fe = fes.GetFE(i);
+      const FiniteElement *fe = fes_.GetFE(i);
       auto tfe = dynamic_cast<const TensorBasisElement*>(fe);
       MFEM_ASSERT(tfe != NULL, "");
       return tfe->GetDofMap();
    };
 
-   FiniteElementSpace &fes_lor = *fes;
+   FiniteElementSpace &fes_lor = GetFESpace();
    Mesh &mesh_lor = *fes_lor.GetMesh();
    int dim = mesh_lor.Dimension();
    const CoarseFineTransformations &cf_tr = mesh_lor.GetRefinementTransforms();
@@ -207,7 +212,7 @@ void LORBase::ConstructDofPermutation() const
    if (type == H1 || type == L2)
    {
       // H1 and L2: no permutation necessary, return identity
-      perm.SetSize(fes->GetTrueVSize());
+      perm.SetSize(fes_ho.GetTrueVSize());
       for (int i=0; i<perm.Size(); ++i) { perm[i] = i; }
       return;
    }
@@ -215,7 +220,8 @@ void LORBase::ConstructDofPermutation() const
 #ifdef MFEM_USE_MPI
    ParFiniteElementSpace *pfes_ho
       = dynamic_cast<ParFiniteElementSpace*>(&fes_ho);
-   ParFiniteElementSpace *pfes_lor = dynamic_cast<ParFiniteElementSpace*>(fes);
+   ParFiniteElementSpace *pfes_lor
+      = dynamic_cast<ParFiniteElementSpace*>(&GetFESpace());
    if (pfes_ho && pfes_lor)
    {
       Array<int> l_perm;
@@ -255,33 +261,16 @@ bool LORBase::HasSameDofNumbering() const
    return type == H1 || type == L2;
 }
 
-const OperatorHandle &LORBase::GetAssembledSystem() const
+OperatorHandle &LORBase::GetAssembledSystem()
 {
-   MFEM_VERIFY(a != NULL && A.Ptr() != NULL, "No LOR system assembled");
+   MFEM_VERIFY(A.Ptr() != NULL, "No LOR system assembled");
    return A;
 }
 
-void LORBase::AssembleSystem_(BilinearForm &a_ho, const Array<int> &ess_dofs)
+const OperatorHandle &LORBase::GetAssembledSystem() const
 {
-   a->UseExternalIntegrators();
-   AddIntegrators(a_ho, *a, &BilinearForm::GetDBFI,
-                  &BilinearForm::AddDomainIntegrator, ir_el);
-   AddIntegrators(a_ho, *a, &BilinearForm::GetFBFI,
-                  &BilinearForm::AddInteriorFaceIntegrator, ir_face);
-   AddIntegratorsAndMarkers(a_ho, *a, &BilinearForm::GetBBFI,
-                            &BilinearForm::GetBBFI_Marker,
-                            &BilinearForm::AddBoundaryIntegrator,
-                            &BilinearForm::AddBoundaryIntegrator, ir_face);
-   AddIntegratorsAndMarkers(a_ho, *a, &BilinearForm::GetBFBFI,
-                            &BilinearForm::GetBFBFI_Marker,
-                            &BilinearForm::AddBdrFaceIntegrator,
-                            &BilinearForm::AddBdrFaceIntegrator, ir_face);
-   a->Assemble();
-   a->FormSystemMatrix(ess_dofs, A);
-   ResetIntegrationRules(&BilinearForm::GetDBFI);
-   ResetIntegrationRules(&BilinearForm::GetFBFI);
-   ResetIntegrationRules(&BilinearForm::GetBBFI);
-   ResetIntegrationRules(&BilinearForm::GetBFBFI);
+   MFEM_VERIFY(A.Ptr() != NULL, "No LOR system assembled");
+   return A;
 }
 
 void LORBase::SetupProlongationAndRestriction()
@@ -345,8 +334,8 @@ void CheckBasisType(const FiniteElementSpace &fes)
    // L2 is a bit more complicated, for now don't verify basis type
 }
 
-LORBase::LORBase(FiniteElementSpace &fes_ho_)
-   : irs(0, Quadrature1D::GaussLobatto), fes_ho(fes_ho_)
+LORBase::LORBase(FiniteElementSpace &fes_ho_, int ref_type_)
+   : irs(0, Quadrature1D::GaussLobatto), ref_type(ref_type_), fes_ho(fes_ho_)
 {
    Mesh &mesh_ = *fes_ho_.GetMesh();
    int dim = mesh_.Dimension();
@@ -365,8 +354,82 @@ LORBase::LORBase(FiniteElementSpace &fes_ho_)
    a = NULL;
 }
 
+FiniteElementSpace &LORBase::GetFESpace() const
+{
+   // In the case of "batched assembly", the creation of the LOR mesh and
+   // space can be completely omitted (for efficiency). In this case, the
+   // fes object is NULL, and we need to create it when requested.
+   if (fes == NULL) { const_cast<LORBase*>(this)->FormLORSpace(); }
+   return *fes;
+}
+
+void LORBase::AssembleSystem(BilinearForm &a_ho, const Array<int> &ess_dofs)
+{
+   A.Clear();
+   delete a;
+   if (BatchedLORAssembly::FormIsSupported(a_ho))
+   {
+      // Skip forming the space
+      a = nullptr;
+      if (batched_lor == nullptr)
+      {
+         batched_lor = new BatchedLORAssembly(fes_ho);
+      }
+      batched_lor->Assemble(a_ho, ess_dofs, A);
+   }
+   else
+   {
+      LegacyAssembleSystem(a_ho, ess_dofs);
+   }
+}
+
+void LORBase::LegacyAssembleSystem(BilinearForm &a_ho,
+                                   const Array<int> &ess_dofs)
+{
+   // TODO: use AssemblyLevel::FULL here instead of AssemblyLevel::LEGACY.
+   // This is waiting for parallel assembly + BCs with AssemblyLevel::FULL.
+   // In that case, maybe "LegacyAssembleSystem" is not a very clear name.
+
+   // If the space is not formed already, it will be constructed lazily in
+   // GetFESpace.
+   FiniteElementSpace &fes_lor = GetFESpace();
+#ifdef MFEM_USE_MPI
+   if (auto *pfes = dynamic_cast<ParFiniteElementSpace*>(&fes_lor))
+   {
+      a = new ParBilinearForm(pfes);
+   }
+   else
+#endif
+   {
+      a = new BilinearForm(&fes_lor);
+   }
+
+   a->UseExternalIntegrators();
+   AddIntegrators(a_ho, *a, &BilinearForm::GetDBFI,
+                  &BilinearForm::AddDomainIntegrator, ir_el);
+   AddIntegrators(a_ho, *a, &BilinearForm::GetFBFI,
+                  &BilinearForm::AddInteriorFaceIntegrator, ir_face);
+   AddIntegratorsAndMarkers(a_ho, *a, &BilinearForm::GetBBFI,
+                            &BilinearForm::GetBBFI_Marker,
+                            &BilinearForm::AddBoundaryIntegrator,
+                            &BilinearForm::AddBoundaryIntegrator, ir_face);
+   AddIntegratorsAndMarkers(a_ho, *a, &BilinearForm::GetBFBFI,
+                            &BilinearForm::GetBFBFI_Marker,
+                            &BilinearForm::AddBdrFaceIntegrator,
+                            &BilinearForm::AddBdrFaceIntegrator, ir_face);
+
+   a->Assemble();
+   a->FormSystemMatrix(ess_dofs, A);
+
+   ResetIntegrationRules(&BilinearForm::GetDBFI);
+   ResetIntegrationRules(&BilinearForm::GetFBFI);
+   ResetIntegrationRules(&BilinearForm::GetBBFI);
+   ResetIntegrationRules(&BilinearForm::GetBFBFI);
+}
+
 LORBase::~LORBase()
 {
+   delete batched_lor;
    delete a;
    delete fes;
    delete fec;
@@ -375,17 +438,23 @@ LORBase::~LORBase()
 
 LORDiscretization::LORDiscretization(BilinearForm &a_ho_,
                                      const Array<int> &ess_tdof_list,
-                                     int ref_type)
-   : LORDiscretization(*a_ho_.FESpace(), ref_type)
+                                     int ref_type_)
+   : LORBase(*a_ho_.FESpace(), ref_type_)
 {
+   CheckBasisType(fes_ho);
+   A.SetType(Operator::MFEM_SPARSEMAT);
    AssembleSystem(a_ho_, ess_tdof_list);
 }
 
 LORDiscretization::LORDiscretization(FiniteElementSpace &fes_ho,
-                                     int ref_type) : LORBase(fes_ho)
+                                     int ref_type_) : LORBase(fes_ho, ref_type_)
 {
    CheckBasisType(fes_ho);
+   A.SetType(Operator::MFEM_SPARSEMAT);
+}
 
+void LORDiscretization::FormLORSpace()
+{
    Mesh &mesh_ho = *fes_ho.GetMesh();
    // For H1, ND and RT spaces, use refinement = element order, for DG spaces,
    // use refinement = element order + 1 (since LOR is p = 0 in this case).
@@ -400,21 +469,11 @@ LORDiscretization::LORDiscretization(FiniteElementSpace &fes_ho,
    fec = fes_ho.FEColl()->Clone(GetLOROrder());
    fes = new FiniteElementSpace(mesh, fec);
    SetupProlongationAndRestriction();
-
-   A.SetType(Operator::MFEM_SPARSEMAT);
-}
-
-void LORDiscretization::AssembleSystem(BilinearForm &a_ho,
-                                       const Array<int> &ess_dofs)
-{
-   delete a;
-   a = new BilinearForm(&GetFESpace());
-   AssembleSystem_(a_ho, ess_dofs);
 }
 
 SparseMatrix &LORDiscretization::GetAssembledMatrix() const
 {
-   MFEM_VERIFY(a != NULL && A.Ptr() != NULL, "No LOR system assembled");
+   MFEM_VERIFY(A.Ptr() != nullptr, "No LOR system assembled");
    return *A.As<SparseMatrix>();
 }
 
@@ -422,54 +481,52 @@ SparseMatrix &LORDiscretization::GetAssembledMatrix() const
 
 ParLORDiscretization::ParLORDiscretization(ParBilinearForm &a_ho_,
                                            const Array<int> &ess_tdof_list,
-                                           int ref_type)
-   : ParLORDiscretization(*a_ho_.ParFESpace(), ref_type)
+                                           int ref_type_) : LORBase(*a_ho_.ParFESpace(), ref_type_)
 {
+   ParFiniteElementSpace *pfes_ho = a_ho_.ParFESpace();
+   if (pfes_ho->GetMyRank() == 0) { CheckBasisType(fes_ho); }
+   A.SetType(Operator::Hypre_ParCSR);
    AssembleSystem(a_ho_, ess_tdof_list);
 }
 
-ParLORDiscretization::ParLORDiscretization(ParFiniteElementSpace &fes_ho,
-                                           int ref_type) : LORBase(fes_ho)
+ParLORDiscretization::ParLORDiscretization(
+   ParFiniteElementSpace &fes_ho, int ref_type_) : LORBase(fes_ho, ref_type_)
 {
    if (fes_ho.GetMyRank() == 0) { CheckBasisType(fes_ho); }
-   // TODO: support variable-order spaces in parallel
-   MFEM_VERIFY(!fes_ho.IsVariableOrder(),
-               "Cannot construct LOR operators on variable-order spaces");
-
-   int order = fes_ho.GetMaxElementOrder();
-   if (GetFESpaceType() == L2) { ++order; }
-
-   ParMesh &mesh_ho = *fes_ho.GetParMesh();
-   ParMesh *pmesh = new ParMesh(ParMesh::MakeRefined(mesh_ho, order, ref_type));
-   mesh = pmesh;
-
-   fec = fes_ho.FEColl()->Clone(GetLOROrder());
-   ParFiniteElementSpace *pfes = new ParFiniteElementSpace(pmesh, fec);
-   fes = pfes;
-   SetupProlongationAndRestriction();
-
    A.SetType(Operator::Hypre_ParCSR);
 }
 
-void ParLORDiscretization::AssembleSystem(ParBilinearForm &a_ho,
-                                          const Array<int> &ess_dofs)
+void ParLORDiscretization::FormLORSpace()
 {
-   delete a;
-   a = new ParBilinearForm(&GetParFESpace());
-   AssembleSystem_(a_ho, ess_dofs);
+   ParFiniteElementSpace &pfes_ho = static_cast<ParFiniteElementSpace&>(fes_ho);
+   // TODO: support variable-order spaces in parallel
+   MFEM_VERIFY(!pfes_ho.IsVariableOrder(),
+               "Cannot construct LOR operators on variable-order spaces");
+
+   int order = pfes_ho.GetMaxElementOrder();
+   if (GetFESpaceType() == L2) { ++order; }
+
+   ParMesh &mesh_ho = *pfes_ho.GetParMesh();
+   ParMesh *pmesh = new ParMesh(ParMesh::MakeRefined(mesh_ho, order, ref_type));
+   mesh = pmesh;
+
+   fec = pfes_ho.FEColl()->Clone(GetLOROrder());
+   ParFiniteElementSpace *pfes = new ParFiniteElementSpace(pmesh, fec);
+   fes = pfes;
+   SetupProlongationAndRestriction();
 }
 
 HypreParMatrix &ParLORDiscretization::GetAssembledMatrix() const
 {
-   MFEM_VERIFY(a != NULL && A.Ptr() != NULL, "No LOR system assembled");
+   MFEM_VERIFY(A.Ptr() != nullptr, "No LOR system assembled");
    return *A.As<HypreParMatrix>();
 }
 
 ParFiniteElementSpace &ParLORDiscretization::GetParFESpace() const
 {
-   return static_cast<ParFiniteElementSpace&>(*fes);
+   return static_cast<ParFiniteElementSpace&>(GetFESpace());
 }
 
-#endif
+#endif // MFEM_USE_MPI
 
 } // namespace mfem

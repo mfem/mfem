@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -189,6 +189,9 @@ void Table::GetRow(int i, Array<int> &row) const
    MFEM_ASSERT(i >= 0 && i < size, "Row index " << i << " is out of range [0,"
                << size << ')');
 
+   HostReadJ();
+   HostReadI();
+
    row.SetSize(RowSize(i));
    row.Assign(GetRow(i));
 }
@@ -304,29 +307,29 @@ int Table::Width() const
    return width + 1;
 }
 
-void Table::Print(std::ostream & out, int width) const
+void Table::Print(std::ostream & os, int width) const
 {
    int i, j;
 
    for (i = 0; i < size; i++)
    {
-      out << "[row " << i << "]\n";
+      os << "[row " << i << "]\n";
       for (j = I[i]; j < I[i+1]; j++)
       {
-         out << setw(5) << J[j];
+         os << setw(5) << J[j];
          if ( !((j+1-I[i]) % width) )
          {
-            out << '\n';
+            os << '\n';
          }
       }
       if ((j-I[i]) % width)
       {
-         out << '\n';
+         os << '\n';
       }
    }
 }
 
-void Table::PrintMatlab(std::ostream & out) const
+void Table::PrintMatlab(std::ostream & os) const
 {
    int i, j;
 
@@ -334,24 +337,24 @@ void Table::PrintMatlab(std::ostream & out) const
    {
       for (j = I[i]; j < I[i+1]; j++)
       {
-         out << i << " " << J[j] << " 1. \n";
+         os << i << " " << J[j] << " 1. \n";
       }
    }
 
-   out << flush;
+   os << flush;
 }
 
-void Table::Save(std::ostream &out) const
+void Table::Save(std::ostream &os) const
 {
-   out << size << '\n';
+   os << size << '\n';
 
    for (int i = 0; i <= size; i++)
    {
-      out << I[i] << '\n';
+      os << I[i] << '\n';
    }
    for (int i = 0, nnz = I[size]; i < nnz; i++)
    {
-      out << J[i] << '\n';
+      os << J[i] << '\n';
    }
 }
 

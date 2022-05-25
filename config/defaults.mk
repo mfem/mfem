@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -157,6 +157,7 @@ MFEM_USE_UMPIRE        = NO
 MFEM_USE_SIMD          = NO
 MFEM_USE_ADIOS2        = NO
 MFEM_USE_MKL_CPARDISO  = NO
+MFEM_USE_MOONOLITH     = NO
 MFEM_USE_ADFORWARD     = NO
 MFEM_USE_CODIPACK      = NO
 MFEM_USE_BENCHMARK     = NO
@@ -170,6 +171,20 @@ ifeq ($(MFEM_USE_MPI)$(MFEM_USE_HIP),YESYES)
    MPI_DIR := $(patsubst %/,%,$(dir $(MPI_DIR)))
    MPI_OPT = -I$(MPI_DIR)/include
    MPI_LIB = -L$(MPI_DIR)/lib $(XLINKER)-rpath,$(MPI_DIR)/lib -lmpi
+endif
+
+# ROCM/HIP directory such that ROCM/HIP libraries like rocsparse and rocrand are
+# found in $(HIP_DIR)/lib, usually as links. Typically, this directoory is of
+# the form /opt/rocm-X.Y.Z which is called ROCM_PATH by hipconfig.
+ifeq ($(MFEM_USE_HIP),YES)
+   HIP_DIR := $(patsubst %/,%,$(dir $(shell which $(HIP_CXX))))
+   HIP_DIR := $(patsubst %/,%,$(dir $(HIP_DIR)))
+   ifeq (,$(wildcard $(HIP_DIR)/lib/librocsparse.*))
+      HIP_DIR := $(shell hipconfig --rocmpath 2> /dev/null)
+      ifeq (,$(wildcard $(HIP_DIR)/lib/librocsparse.*))
+         $(error Unable to determine HIP_DIR. Please set it manually.)
+      endif
+   endif
 endif
 
 # Compile and link options for zlib.
@@ -188,6 +203,11 @@ HYPRE_LIB = -L$(HYPRE_DIR)/lib -lHYPRE
 ifeq (YES,$(MFEM_USE_CUDA))
    # This is only necessary when hypre is built with cuda:
    HYPRE_LIB += -lcusparse -lcurand
+endif
+ifeq (YES,$(MFEM_USE_HIP))
+   # This is only necessary when hypre is built with hip:
+   HYPRE_LIB += -L$(HIP_DIR)/lib $(XLINKER)-rpath,$(HIP_DIR)/lib\
+ -lrocsparse -lrocrand
 endif
 
 # METIS library configuration
@@ -368,6 +388,11 @@ ifeq ($(SLEPC_FOUND),YES)
       $(subst $(CXX_XLINKER),$(XLINKER),$(SLEPC_DEP))
 endif
 
+ifeq ($(MFEM_USE_MOONOLITH),YES)
+  include $(MOONOLITH_DIR)/config/moonolith-config.makefile
+  MOONOLITH_LIB=$(MOONOLITH_LIBRARIES)
+endif
+
 # MPFR library configuration
 MPFR_OPT =
 MPFR_LIB = -lmpfr
@@ -430,9 +455,9 @@ GSLIB_LIB = -L$(GSLIB_DIR)/lib -lgs
 CUDA_OPT =
 CUDA_LIB = -lcusparse
 
-# HIP library configuration (currently not needed)
+# HIP library configuration
 HIP_OPT =
-HIP_LIB =
+HIP_LIB = -L$(HIP_DIR)/lib $(XLINKER)-rpath,$(HIP_DIR)/lib -lhipsparse
 
 # OCCA library configuration
 OCCA_DIR = @MFEM_DIR@/../occa
