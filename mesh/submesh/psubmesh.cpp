@@ -188,7 +188,11 @@ ParSubMesh::ParSubMesh(const ParMesh &parent, SubMesh::From from,
 
       boundary.SetSize(NumOfBdrElements);
       be2face.SetSize(NumOfBdrElements);
-      Array<int> parent_face_to_be = parent.GetFaceToBdrElMap();
+      Array<int> parent_face_to_be;
+      if (Dim == 3)
+      {
+         parent_face_to_be = parent.GetFaceToBdrElMap();
+      }
       for (int i = 0, j = 0; i < NumOfFaces; i++)
       {
          if (GetFaceInformation(i).IsBoundary())
