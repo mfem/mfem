@@ -597,15 +597,17 @@ public:
                       ParMesh& mesh_, bool adaptive_mesh_);
 #endif
 
+#ifdef MFEM_USE_MPI
    //! Constructor to load stuff
    MFEMDataCollection(const std::string& collection_name
-#ifdef MFEM_USE_MPI
                       , Format format_ = PARALLEL_FORMAT
-#else
-                      , Format format_ = SERIAL_FORMAT
-#endif
                      );
-
+#else
+   //! Constructor to load stuff
+   MFEMDataCollection(const std::string& collection_name
+                      , Format format_ = SERIAL_FORMAT
+                     );
+#endif
    void ResetMetadata();
 
 #ifdef MFEM_USE_MPI
