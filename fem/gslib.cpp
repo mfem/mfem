@@ -1079,7 +1079,7 @@ void FindPointsGSLIB::InterpolateGeneral(const GridFunction &field_in,
 
             sarray_transfer(struct send_pt, sendpt, proc, 1, cr);
             sdpt = (struct send_pt *)sendpt->ptr;
-            for (int index = 0; index < nptorig; index++)
+            for (int index = 0; index < sendpt->n; index++)
             {
                int idx = field_in.FESpace()->GetOrdering() == Ordering::byNODES ?
                          sdpt->index + j*nptorig :
