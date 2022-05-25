@@ -550,6 +550,9 @@ target_link_libraries(mfem PUBLIC ${TPL_LIBRARIES})
 if (MINGW)
   target_link_libraries(mfem PRIVATE ws2_32)
 endif()
+if (MSVC)
+  target_compile_options(mfem PUBLIC "/wd4819")
+endif()
 message(STATUS "TPL_INCLUDE_DIRS = ${TPL_INCLUDE_DIRS}")
 target_include_directories(mfem
   PUBLIC
