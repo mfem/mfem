@@ -1309,10 +1309,6 @@ void MFEMDataCollection::Save()
          if (pmesh && format == PARALLEL_FORMAT)
          {
             pmesh->ParPrint(mesh_fs);
-
-            mfem::ofgzstream mesh_fs_asone(mesh_filename_raw, false);
-            mesh_fs_asone.precision(precision);
-            pmesh->PrintAsOne(mesh_fs_asone); // Not const-correct
          }
          else
          {
@@ -1320,7 +1316,7 @@ void MFEMDataCollection::Save()
          }
 #else
          MFEM_WARNING("Parallel output format not allowed in serial simulation." << data_folder);
-         error = 3;
+         error = WRITE_ERROR;
          return;
 #endif
       }
@@ -1330,8 +1326,8 @@ void MFEMDataCollection::Save()
       }
       else
       {
-         error = 4;
-         MFEM_WARNING("Unkown output format: " << data_folder);
+         error = WRITE_ERROR;
+         MFEM_WARNING("Unknown output format: " << data_folder);
          return;
       }
    }
@@ -1380,16 +1376,13 @@ void MFEMDataCollection::Load(int cycle_)
 {
    this->cycle = cycle_;
 
-   // std::filesystem::path data_folder = CyclePathName(cycle);
-   // check if the directories are created
+   std::string data_folder = CyclePathName(cycle);
    // if(!std::filesystem::exists(data_folder))
    // {
    //    error = READ_ERROR;
    //    MFEM_WARNING("Unable to find directory: " << data_folder);
    //    return; // do not even try to read the data
    // }
-
-   std::string data_folder = CyclePathName(cycle);
 
    // Clear relevant data.
    if(own_data && adaptive_mesh && !first_io)
@@ -1432,24 +1425,24 @@ void MFEMDataCollection::Load(int cycle_)
       mfem::ifgzstream mesh_fs(mesh_filename);
       if(adaptive_mesh || first_io)
       {
-            if (format == PARALLEL_FORMAT)
-            {
+         if (format == PARALLEL_FORMAT)
+         {
 #ifdef MFEM_USE_MPI
-               mesh = new ParMesh(MPI_COMM_WORLD, mesh_fs);
+            mesh = new ParMesh(MPI_COMM_WORLD, mesh_fs);
 #else
-               error = 3;
-               return;
+            error = READ_ERROR;
+            return;
 #endif
-            }
-            else if(format == SERIAL_FORMAT)
-            {
-               mesh = new Mesh(mesh_fs);
-            }
-            else
-            {
-               error = 4;
-               return;
-            }
+         }
+         else if(format == SERIAL_FORMAT)
+         {
+            mesh = new Mesh(mesh_fs);
+         }
+         else
+         {
+            error = READ_ERROR;
+            return;
+         }
       }
    }
    first_io = false;
@@ -1460,23 +1453,23 @@ void MFEMDataCollection::Load(int cycle_)
       auto field_filename = data_folder + "/" + field_name;
       if (appendRankToFileName)
       {
-            field_filename += "." + to_padded_string(myid, pad_digits_rank);
+         field_filename += "." + to_padded_string(myid, pad_digits_rank);
       }
 
       if (format == PARALLEL_FORMAT)
       {
 #ifdef MFEM_USE_MPI
-            mfem::ifgzstream ifs(field_filename);
-            this->RegisterField(field_name, new ParGridFunction(GetParMesh(), ifs));
+         mfem::ifgzstream ifs(field_filename);
+         this->RegisterField(field_name, new ParGridFunction(GetParMesh(), ifs));
 #else
-      error = 5;
-      return;
+         error = READ_ERROR;
+         return;
 #endif
       }
       else if(format == SERIAL_FORMAT)
       {
-            mfem::ifgzstream ifs(field_filename);
-            this->RegisterField(field_name, new GridFunction(mesh, ifs));
+         mfem::ifgzstream ifs(field_filename);
+         this->RegisterField(field_name, new GridFunction(mesh, ifs));
       }
    }
 
@@ -1485,7 +1478,7 @@ void MFEMDataCollection::Load(int cycle_)
       auto q_field_filename = data_folder + "/" + q_field_name;
       if (appendRankToFileName)
       {
-            q_field_filename += "." + to_padded_string(myid, pad_digits_rank);
+         q_field_filename += "." + to_padded_string(myid, pad_digits_rank);
       }
 
       mfem::ifgzstream ifs(q_field_filename);
@@ -1499,8 +1492,8 @@ std::optional<std::vector<MFEMDataCollection::MetaInfo>> MFEMDataCollection::Rel
    std::vector<MetaInfo> metavector;
    std::ifstream in(GetMetafileName(), std::ios::in);
 
-   field_names_meta.empty();
-   q_field_names_meta.empty();
+   field_names_meta.clear();
+   q_field_names_meta.clear();
 
    std::string line;
    if(std::getline(in, line))
@@ -1529,7 +1522,7 @@ std::optional<std::vector<MFEMDataCollection::MetaInfo>> MFEMDataCollection::Rel
    else
    {
       MFEM_WARNING("Corrputed Metadata. Option line missing.");
-      error = 6;
+      error = READ_ERROR;
       return std::nullopt;
    }
    if(std::getline(in, line))
@@ -1538,13 +1531,13 @@ std::optional<std::vector<MFEMDataCollection::MetaInfo>> MFEMDataCollection::Rel
       std::string field_name;
       while(linestream >> field_name)
       {
-            field_names_meta.push_back(field_name);
+         field_names_meta.push_back(field_name);
       }
    }
    else
    {
       MFEM_WARNING("Corrputed Metadata. Fields line missing.");
-      error = 7;
+      error = READ_ERROR;
       return std::nullopt;
    }
    if(std::getline(in, line))
@@ -1553,13 +1546,13 @@ std::optional<std::vector<MFEMDataCollection::MetaInfo>> MFEMDataCollection::Rel
       std::string field_name;
       while(linestream >> field_name)
       {
-            q_field_names_meta.push_back(field_name);
+         q_field_names_meta.push_back(field_name);
       }
    }
    else
    {
       MFEM_WARNING("Corrputed Metadata. QFields line missing.");
-      error = 8;
+      error = READ_ERROR;
       return std::nullopt;
    }
 

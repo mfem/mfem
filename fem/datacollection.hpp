@@ -20,6 +20,7 @@
 #include <string>
 #include <map>
 #include <fstream>
+#include <optional>
 
 namespace mfem
 {

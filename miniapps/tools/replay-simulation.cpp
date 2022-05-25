@@ -12,20 +12,23 @@ int main(int argc, char *argv[])
     const int myid = mpi.WorldRank();
 
     // 1. Parse command-line options
-    const char *dc_folder = "../../examples/internal/";
-    const char *simulation_name = "Example9P-internal";
+    const char *simulation_name = "../../examples/internal/Example9P-internal";
     const char *field_name = "solution";
-    // const auto t0 = 0.0;
-    // const auto T = std::numeric_limits<double>::infinity();
+    double t0 = 0.0;
+    double T = std::numeric_limits<double>::infinity();
     const char* vishost = "localhost";
     int visport = 19916;
     int precision = 8;
 
     OptionsParser args(argc, argv);
-    args.AddOption(&dc_folder, "-dc", "--data-collection-folder",
-                    "Folder containing the DataCollections in MFEM internal format.");
     args.AddOption(&simulation_name, "-sn", "--simulation-name",
-                    "Name of the DataCollection.");
+                    "Path with name of the MFEMDataCollection.");
+    args.AddOption(&field_name, "-fn", "--field-name",
+                    "Name of the field in the MFEMDataCollection.");
+    args.AddOption(&t0, "-t0", "--first-time-point",
+                    "Time point to begin the replay at.");
+    args.AddOption(&T, "-T", "--last-time-point",
+                    "Time point to end the replay at.");
     args.Parse();
     if (!args.Good())
     {
@@ -42,7 +45,6 @@ int main(int argc, char *argv[])
 
     // Load data collection
     auto dc = std::make_shared<MFEMDataCollection>(simulation_name);
-    dc->SetPrefixPath(dc_folder);
     auto metainfo = dc->ReloadMetaInfo();
     if(!metainfo)
     {
@@ -55,6 +57,8 @@ int main(int argc, char *argv[])
 
     for(auto [cycle, t, Δt] : metainfo.value())
     {
+        if(t < t0 || t > T) continue;
+
         dc->Load(cycle);
         auto pmesh = dc->GetParMesh();
         auto u = dc->GetParField(field_name);
