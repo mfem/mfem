@@ -250,10 +250,10 @@ void PartialFractionExpansion(double scale, Array<double> & poles,
    coeffs = scale;
 
    // Note: C p(z)/q(z) = Σ_i c_i / (z - p_i) results in an system of equations
-   // where the N unknowns are the coefficients c_i. After multiplying the 
-   // system with q(z), the coefficients c_i can be computed analytically by 
-   // choosing N values for z. Choosing z_j = = p_j diagonalizes the system and 
-   // one can obtain an analytic form for the c_i coefficients. The result is 
+   // where the N unknowns are the coefficients c_i. After multiplying the
+   // system with q(z), the coefficients c_i can be computed analytically by
+   // choosing N values for z. Choosing z_j = = p_j diagonalizes the system and
+   // one can obtain an analytic form for the c_i coefficients. The result is
    // implemented in the code block below.
 
    for (int i=0; i<psize; i++)
