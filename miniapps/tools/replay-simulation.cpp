@@ -55,7 +55,7 @@ int main(int argc, char *argv[])
     vis.open(vishost, visport);
     vis.precision(precision);
 
-    for(auto [cycle, t, Δt] : metainfo.value())
+    for(auto [cycle, t] : metainfo.value())
     {
         if(t < t0 || t > T) continue;
 
