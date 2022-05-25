@@ -11,9 +11,14 @@ double sx, sy;
 
 Vector vel;
 
+
 void Prefine(FiniteElementSpace & fes_old,
-             GridFunction &u, Coefficient &gf_ex, GridFunction &orders_gf,
+             GridFunction &u, GridFunction &pref_gf, GridFunction &orders_gf,
              double min_thresh, double max_thresh);
+
+// void Prefine(FiniteElementSpace & fes_old,
+//              GridFunction &u, Coefficient &gf_ex, GridFunction &orders_gf,
+//              double min_thresh, double max_thresh);
 
 void Hrefine(GridFunction &u, Coefficient &gf_ex, double min_thresh,
              double max_thresh);
@@ -53,6 +58,12 @@ public:
    virtual ~FE_Evolution();
 };
 
+enum ref_kind
+{
+   order,        // p refinement
+   geometric     // h refinement
+};
+
 
 int main(int argc, char *argv[])
 {
@@ -66,8 +77,9 @@ int main(int argc, char *argv[])
    double dt = 0.002;
    bool visualization = true;
    int vis_steps = 5;
-
+   int refmode = 0;
    int precision = 8;
+   ref_kind ref_mode = ref_kind::geometric;
    cout.precision(precision);
 
    OptionsParser args(argc, argv);
@@ -90,6 +102,8 @@ int main(int argc, char *argv[])
                   "Enable or disable GLVis visualization.");
    args.AddOption(&vis_steps, "-vs", "--visualization-steps",
                   "Visualize every n-th timestep.");
+   args.AddOption(&refmode, "-rm", "--refinement-mode",
+                  "0: 'p', 1: 'h' ");
    args.Parse();
    if (!args.Good())
    {
@@ -98,30 +112,24 @@ int main(int argc, char *argv[])
    }
    args.PrintOptions(cout);
 
-   Mesh mesh0 = Mesh::MakeCartesian2D(16, 16, mfem::Element::QUADRILATERAL,false,
-                                      sx,
+   ref_mode = (ref_kind)refmode;
+
+   Mesh mesh0 = Mesh::MakeCartesian2D(32,32,mfem::Element::QUADRILATERAL,false,sx,
                                       sy);
-
-
    std::vector<Vector> translations = {Vector({sx,0.0}), Vector({0.0,sy})};
-
-
    Mesh mesh = Mesh::MakePeriodic(mesh0,
                                   mesh0.CreatePeriodicVertexMapping(translations));
-
 
    mesh.EnsureNCMesh();
 
    // compute reference solution
    Mesh ref_mesh(mesh);
 
-
-
    int dim = mesh.Dimension();
 
    ODESolver *ode_solver = new RK4Solver;
    ODESolver *ref_ode_solver = new RK4Solver;
-
+   ODESolver *pref_ode_solver = new RK4Solver;
 
    // 5. Define the discontinuous DG finite element space of the given
    //    polynomial order on the refined mesh.
@@ -129,6 +137,15 @@ int main(int argc, char *argv[])
    FiniteElementSpace fes(&mesh, &fec);
    FiniteElementSpace ref_fes(&ref_mesh, &fec);
    FiniteElementSpace fes_old(&mesh, &fec);
+   FiniteElementSpace pref_fes(&mesh, &fec);
+
+   for (int i = 0; i<mesh.GetNE(); i++)
+   {
+      int order = pref_fes.GetElementOrder(i);
+      pref_fes.SetElementOrder(i,order+2);
+   }
+   pref_fes.Update(false);
+
 
    cout << "Number of unknowns: " << fes.GetVSize() << endl;
 
@@ -164,7 +181,7 @@ int main(int argc, char *argv[])
    u0.SetTime(0.);
    u.ProjectCoefficient(u0);
 
-   // reference solution
+   // reference solution (href)
    BilinearForm m_ref(&ref_fes);
    BilinearForm k_ref(&ref_fes);
    m_ref.AddDomainIntegrator(new MassIntegrator);
@@ -211,24 +228,54 @@ int main(int argc, char *argv[])
    b_ref.Assemble();
 
 
+
+   // reference solution (pref)
+   BilinearForm m_pref(&pref_fes);
+   BilinearForm k_pref(&pref_fes);
+   m_pref.AddDomainIntegrator(new MassIntegrator);
+   k_pref.AddDomainIntegrator(new ConvectionIntegrator(velocity, alpha));
+   k_pref.AddInteriorFaceIntegrator(
+      new NonconservativeDGTraceIntegrator(velocity, alpha));
+   k_pref.AddBdrFaceIntegrator(
+      new NonconservativeDGTraceIntegrator(velocity, alpha));
+
+   LinearForm b_pref(&pref_fes);
+   b_pref.AddBdrFaceIntegrator(
+      new BoundaryFlowIntegrator(inflow, velocity, alpha,-0.5));
+
+   m_pref.Assemble();
+   k_pref.Assemble(skip_zeros);
+   b_pref.Assemble();
+   m_pref.Finalize();
+   k_pref.Finalize(skip_zeros);
+
+   // 7. Define the initial conditions, save the corresponding grid function to
+   //    a file and (optionally) save data in the VisIt format and initialize
+   //    GLVis visualization.
+   GridFunction u_pref(&pref_fes);
+   u_pref.ProjectCoefficient(u0);
+   m_ref.Assemble();
+   m_ref.Finalize();
+   k_ref.Assemble(skip_zeros);
+   k_ref.Finalize(skip_zeros);
+
+
    L2_FECollection orders_fec(0,dim);
    FiniteElementSpace orders_fes(&mesh,&orders_fec);
    GridFunction orders_gf(&orders_fes);
    for (int i = 0; i<mesh.GetNE(); i++) { orders_gf(i) = order; }
 
 
-
-
    socketstream sout;
    // socketstream s_refout;
-   // socketstream meshout;
+   socketstream meshout;
    if (visualization)
    {
       char vishost[] = "localhost";
       int  visport   = 19916;
       sout.open(vishost, visport);
       // s_refout.open(vishost, visport);
-      // meshout.open(vishost, visport);
+      meshout.open(vishost, visport);
       if (!sout)
       {
          cout << "Unable to connect to GLVis server at "
@@ -245,12 +292,10 @@ int main(int argc, char *argv[])
          // s_refout << "solution\n" << ref_mesh << u_ref;
          // s_refout << flush;
 
-
-         // meshout.precision(precision);
-         // meshout << "solution\n" << mesh << orders_gf;
-         // meshout << "mesh\n" << mesh ;
-         // meshout << flush;
-         // cin.get();
+         meshout.precision(precision);
+         meshout << "solution\n" << mesh << orders_gf;
+         meshout << flush;
+         cin.get();
       }
    }
 
@@ -260,16 +305,21 @@ int main(int argc, char *argv[])
    //    iterations, ti, with a time-step dt).
    FE_Evolution adv(m, k, b);
    FE_Evolution ref_adv(m_ref, k_ref, b_ref);
+   FE_Evolution pref_adv(m_pref, k_pref, b_pref);
 
    double t = 0.0;
    adv.SetTime(t);
    double ref_t = 0.0;
    ref_adv.SetTime(ref_t);
 
+   double pref_t = 0.0;
+   pref_adv.SetTime(pref_t);
+
    FunctionCoefficient u_ex(u0_function);
 
    ode_solver->Init(adv);
    ref_ode_solver->Init(ref_adv);
+   pref_ode_solver->Init(pref_adv);
 
    bool done = false;
    for (int ti = 0; !done; )
@@ -278,6 +328,7 @@ int main(int argc, char *argv[])
 
       ode_solver->Step(u, t, dt_real);
       ref_ode_solver->Step(u_ref, ref_t, dt_real);
+      pref_ode_solver->Step(u_pref, pref_t, dt_real);
       ti++;
 
       done = (t >= t_final - 1e-8*dt);
@@ -289,9 +340,18 @@ int main(int argc, char *argv[])
          // Prefine(fes_old,u,u_ex, orders_gf, 5e-5, 5e-4);
 
          mfem::out << "Global L2 Error = " << u.ComputeL2Error(u_ex) << std::endl;
+         // Prefine(fes_old,u,u_ex, orders_gf, 5e-5, 5e-4);
          // Hrefine2(u,u_ex, 5e-5, 5e-4);
          // mfem::out << "refT size = " << refT->Size() << " x " << refT->Width() << endl;
-         refT = Hrefine2(u,u_ref, refT, u_ex, 5e-5, 5e-4);
+         if (ref_mode == ref_kind::geometric)
+         {
+            refT = Hrefine2(u,u_ref, refT, u_ex, 5e-5, 5e-4);
+         }
+         else
+         {
+            // Prefine(fes_old,u,u_ex, orders_gf, 5e-5, 5e-4);
+            Prefine(fes_old,u,u_pref, orders_gf, 5e-5, 5e-4);
+         }
          // mfem::out << "refT size = " << refT->Size() << " x " << refT->Width() << endl;
          // mfem::out << "number of elements = " << mesh.GetNE() << endl;
 
@@ -318,8 +378,7 @@ int main(int argc, char *argv[])
             sout << "solution\n" << mesh << *pr_u << flush;
             // s_refout << "solution\n" << ref_mesh << u_ref << flush;
 
-            // meshout << "solution\n" << mesh << orders_gf << flush;
-            // meshout << "mesh\n" << mesh << flush;
+            meshout << "solution\n" << mesh << orders_gf << flush;
          }
       }
    }
@@ -327,6 +386,7 @@ int main(int argc, char *argv[])
    // 10. Free the used memory.
    delete ode_solver;
    delete ref_ode_solver;
+   delete pref_ode_solver;
 
    return 0;
 }
@@ -437,15 +497,29 @@ double inflow_function(const Vector &x)
 }
 
 
+// void Prefine(FiniteElementSpace & fes_old,
+//              GridFunction &u, Coefficient &ex, GridFunction &orders_gf,
+//              double min_thresh, double max_thresh)
+
 void Prefine(FiniteElementSpace & fes_old,
-             GridFunction &u, Coefficient &ex, GridFunction &orders_gf,
+             GridFunction &u, GridFunction &pref_gf, GridFunction &orders_gf,
              double min_thresh, double max_thresh)
 {
    // get element errors
    FiniteElementSpace * fes = u.FESpace();
    int ne = fes->GetMesh()->GetNE();
    Vector errors(ne);
-   u.ComputeElementL2Errors(ex,errors);
+
+   GridFunction pru(pref_gf.FESpace());
+   PRefinementTransferOperator * P = new PRefinementTransferOperator(*fes,
+                                                                     *pref_gf.FESpace());
+   P->Mult(u,pru);
+   delete P;
+   pru-=pref_gf;
+   ConstantCoefficient zero(0.0);
+   pru.ComputeElementL2Errors(zero,errors);
+
+   // u.ComputeElementL2Errors(ex,errors);
    for (int i = 0; i<ne; i++)
    {
       double error = errors(i);

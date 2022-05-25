@@ -98,7 +98,7 @@ int main(int argc, char *argv[])
    }
    args.PrintOptions(cout);
 
-   Mesh mesh0 = Mesh::MakeCartesian2D(32, 32, mfem::Element::QUADRILATERAL,false,
+   Mesh mesh0 = Mesh::MakeCartesian2D(16, 16, mfem::Element::QUADRILATERAL,false,
                                       sx,
                                       sy);
 
