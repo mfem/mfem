@@ -564,47 +564,47 @@ public:
 class MFEMDataCollection final : public DataCollection
 {
 public:
-    struct MetaInfo
-    {
-        int cycle;
-        double t;
+   struct MetaInfo
+   {
+      int cycle;
+      double t;
 
-        friend std::istream& operator>>(std::istream& in,
-                                        mfem::MFEMDataCollection::MetaInfo& i);
-    };
+      friend std::istream& operator>>(std::istream& in,
+                                      mfem::MFEMDataCollection::MetaInfo& i);
+   };
 
 private:
-    std::string GetMetafileName()
-    {
-        return prefix_path + GetCollectionName() + ".meta";
-    }
+   std::string GetMetafileName()
+   {
+      return prefix_path + GetCollectionName() + ".meta";
+   }
 
-    // We require these two for loading.
-    std::vector<std::string> field_names_meta;
-    std::vector<std::string> q_field_names_meta;
+   // We require these two for loading.
+   std::vector<std::string> field_names_meta;
+   std::vector<std::string> q_field_names_meta;
 
-    bool adaptive_mesh = false;
-    bool first_io = true;
+   bool adaptive_mesh = false;
+   bool first_io = true;
 
 public:
    //! Constructor to store stuff
    MFEMDataCollection(const std::string& collection_name,
-                     Mesh& mesh_, bool adaptive_mesh_);
+                      Mesh& mesh_, bool adaptive_mesh_);
 
 #ifdef MFEM_USE_MPI
    //! Constructor to store stuff
    MFEMDataCollection(const std::string& collection_name,
-                     ParMesh& mesh_, bool adaptive_mesh_);
+                      ParMesh& mesh_, bool adaptive_mesh_);
 #endif
 
    //! Constructor to load stuff
    MFEMDataCollection(const std::string& collection_name
 #ifdef MFEM_USE_MPI
-      , Format format_ = PARALLEL_FORMAT
+                      , Format format_ = PARALLEL_FORMAT
 #else
-      , Format format_ = SERIAL_FORMAT
+                      , Format format_ = SERIAL_FORMAT
 #endif
-      );
+                     );
 
    void ResetMetadata();
 
@@ -619,17 +619,17 @@ public:
 
    std::string CyclePathName(int cycle) const;
 
-    bool IsAMRData() const
-    {
-        return adaptive_mesh;
-    }
+   bool IsAMRData() const
+   {
+      return adaptive_mesh;
+   }
 
-    void Load(int cycle_) override;
+   void Load(int cycle_) override;
 
-    std::optional<std::vector<MetaInfo>> ReloadMetaInfo();
+   std::optional<std::vector<MetaInfo>> ReloadMetaInfo();
 
-    /// Delete the mesh and fields if owned by the collection
-    ~MFEMDataCollection() = default;
+   /// Delete the mesh and fields if owned by the collection
+   ~MFEMDataCollection() = default;
 };
 
 }
