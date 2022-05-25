@@ -123,7 +123,7 @@ public:
               const int npt_max = 256);
    /** Searches positions given in physical space by @a point_pos. These positions
        can be ordered byNodes: (XXX...,YYY...,ZZZ) or byVDim: (XYZ,XYZ,....XYZ)
-       specified by @ordering.
+       specified by @a ordering.
        This function populates the following member variables:
        #gsl_code        Return codes for each point: inside element (0),
                         element boundary (1), not found (2).
@@ -251,12 +251,12 @@ public:
    /** Searches positions given in physical space by @a point_pos. All output
        Arrays and Vectors are expected to have the correct size.
 
-       @param[in]  point_pos  Positions to be found.
-       @param[in]  point_id   Index of the mesh that the point belongs to
-                              (corresponding to @a meshid in Setup).
-       @param[in]  ordering   Ordering of the points:
-                              byNodes: (XXX...,YYY...,ZZZ) or
-                              byVDim: (XYZ,XYZ,....XYZ) */
+       @param[in]  point_pos           Positions to be found.
+       @param[in]  point_id            Index of the mesh that the point belongs
+                                       to (corresponding to @a meshid in Setup).
+       @param[in]  point_pos_ordering  Ordering of the points:
+                                       byNodes: (XXX...,YYY...,ZZZ) or
+                                       byVDim: (XYZ,XYZ,....XYZ) */
    void FindPoints(const Vector &point_pos,
                    Array<unsigned int> &point_id,
                    int point_pos_ordering = Ordering::byNODES);
