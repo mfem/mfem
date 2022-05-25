@@ -490,6 +490,10 @@ public:
        boundary is added to the actual boundary; both the element and boundary
        attributes are set to the processor number.  */
    void PrintAsOne(std::ostream &out = mfem::out) const;
+
+   /** Write the mesh to the stream 'out' on Process 0 as a serial mesh. The
+       output mesh does not have any duplication of vertices/nodes at
+       processor boundaries. */
    void PrintAsSerial(std::ostream &out = mfem::out) const;
 
    /// Save the mesh as a single file (using ParMesh::PrintAsOne). The given

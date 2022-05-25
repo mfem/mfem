@@ -5136,9 +5136,9 @@ void ParMesh::PrintAsOne(std::ostream &os) const
 
 void ParMesh::PrintAsSerial(std::ostream &os) const
 {
-   if (pncmesh)
+   if (pncmesh || NURBSext)
    {
-      MFEM_ABORT("PrintAsSerial currently does not suppor nonconforming meshes.");
+      MFEM_ABORT("Nonconforming meshes and NURBS meshes are not yet supported.");
    }
 
    // Define required spaces
