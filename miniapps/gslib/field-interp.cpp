@@ -156,7 +156,7 @@ int main (int argc, char *argv[])
 
    if (src_fieldtype > -1)
    {
-      src_fes = new FiniteElementSpace(&mesh_1, src_fec, src_ncomp, Ordering::byVDIM);
+      src_fes = new FiniteElementSpace(&mesh_1, src_fec, src_ncomp);
       func_source = new GridFunction(src_fes);
       // Project the grid function using VectorFunctionCoefficient.
       VectorFunctionCoefficient F(src_vdim, vector_func);
@@ -246,7 +246,7 @@ int main (int argc, char *argv[])
       MFEM_ABORT("GridFunction type not supported.");
    }
    std::cout << "Target FE collection: " << tar_fec->Name() << std::endl;
-   tar_fes = new FiniteElementSpace(&mesh_2, tar_fec, tar_vdim, Ordering::byVDIM);
+   tar_fes = new FiniteElementSpace(&mesh_2, tar_fec, tar_vdim);
    GridFunction func_target(tar_fes);
 
    const int NE = mesh_2.GetNE(),
@@ -255,11 +255,11 @@ int main (int argc, char *argv[])
 
    // Generate list of points where the grid function will be evaluated.
    Vector vxyz;
-   int ordering;
+   int point_ordering;
    if (fieldtype == 0 && order == mesh_poly_deg)
    {
       vxyz = *mesh_2.GetNodes();
-      ordering = mesh_2.GetNodes()->FESpace()->GetOrdering();
+      point_ordering = mesh_2.GetNodes()->FESpace()->GetOrdering();
    }
    else
    {
@@ -283,7 +283,7 @@ int main (int argc, char *argv[])
          pos.GetRow(1, rowy);
          if (dim == 3) { pos.GetRow(2, rowz); }
       }
-      ordering = Ordering::byNODES;
+      point_ordering = Ordering::byNODES;
    }
    const int nodes_cnt = vxyz.Size() / dim;
 
@@ -291,7 +291,7 @@ int main (int argc, char *argv[])
    Vector interp_vals(nodes_cnt*tar_ncomp);
    FindPointsGSLIB finder;
    finder.Setup(mesh_1);
-   finder.Interpolate(vxyz, *func_source, interp_vals, ordering);
+   finder.Interpolate(vxyz, *func_source, interp_vals, point_ordering);
 
    // Project the interpolated values to the target FiniteElementSpace.
    if (fieldtype <= 1) // H1 or L2
