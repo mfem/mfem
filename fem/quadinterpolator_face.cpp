@@ -402,7 +402,7 @@ void FaceQuadratureInterpolator::SmemEval3D(
          {
             MFEM_FOREACH_THREAD(c,z,VDIM)
             {
-               r_F[d1][d2][c] = F(d1,d2,c,f);
+               s_F[d1][d2][c] = F(d1,d2,c,f);
             }
          }
       }
@@ -413,7 +413,7 @@ void FaceQuadratureInterpolator::SmemEval3D(
          auto Bu = (double (*)[max_ND1D][max_VDIM])sm2;
          MFEM_FOREACH_THREAD(d2,x,ND1D)
          {
-            MFEM_FOREACH_THREAD(q,y,NQ1D)
+            MFEM_FOREACH_THREAD(q1,y,NQ1D)
             {
                MFEM_FOREACH_THREAD(c,z,VDIM)
                {
@@ -454,7 +454,7 @@ void FaceQuadratureInterpolator::SmemEval3D(
          MFEM_SHARED double Bu[max_NQ1D][max_ND1D][max_VDIM];
          MFEM_FOREACH_THREAD(d2,x,ND1D)
          {
-            MFEM_FOREACH_THREAD(q,y,NQ1D)
+            MFEM_FOREACH_THREAD(q1,y,NQ1D)
             {
                MFEM_FOREACH_THREAD(c,z,VDIM)
                {
