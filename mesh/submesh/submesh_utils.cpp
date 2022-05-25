@@ -95,42 +95,79 @@ void BuildVdofToVdofMap(const FiniteElementSpace& subfes,
    auto *m = subfes.GetMesh();
    vdof_to_vdof_map.SetSize(subfes.GetVSize());
 
+   IntegrationPointTransformation Tr;
+   DenseMatrix T;
+   Array<int> z1;
    for (int i = 0; i < m->GetNE(); i++)
    {
-      if (parentfes.IsDGSpace() &&
-          from == SubMesh::From::Boundary)
+      Array<int> parent_vdofs;
+      if (from == SubMesh::From::Domain)
       {
-         MFEM_ABORT("Transferring from a surface to a volume"
-                    " using L2 spaces is not implemented.");
+         parentfes.GetElementVDofs(parent_element_ids[i], parent_vdofs);
       }
-      else
+      else if (from == SubMesh::From::Boundary)
       {
-         Array<int> parent_vdofs;
-         if (from == SubMesh::From::Domain)
+         if (parentfes.IsDGSpace())
          {
-            parentfes.GetElementVDofs(parent_element_ids[i], parent_vdofs);
-         }
-         else if (from == SubMesh::From::Boundary)
-         {
-            parentfes.GetBdrElementVDofs(parent_element_ids[i], parent_vdofs);
+            int basis_type = static_cast<const L2_FECollection*>
+                             (parentfes.FEColl())->GetBasisType();
+            MFEM_ASSERT(basis_type == BasisType::GaussLobatto,
+                        "Only BasisType::GaussLobatto is supported for L2 spaces");
+
+            auto pm = parentfes.GetMesh();
+
+            int face_info, parent_volel_id;
+            pm->GetBdrElementAdjacentElement(parent_element_ids[i], parent_volel_id,
+                                             face_info);
+            pm->GetLocalFaceTransformation(
+               pm->GetBdrElementType(parent_element_ids[i]),
+               pm->GetElementType(parent_volel_id),
+               Tr.Transf,
+               face_info);
+
+            Geometry::Type face_geom = pm->GetBdrElementBaseGeometry(i);
+            const FiniteElement *face_el =
+               parentfes.GetTraceElement(parent_element_ids[i], face_geom);
+            MFEM_VERIFY(dynamic_cast<const NodalFiniteElement*>(face_el),
+                        "Nodal Finite Element is required");
+
+            face_el->GetTransferMatrix(*parentfes.GetFE(parent_volel_id),
+                                       Tr.Transf,
+                                       T);
+
+            parentfes.GetElementVDofs(parent_volel_id, z1);
+
+            parent_vdofs.SetSize(parentfes.GetVDim() * T.Height());
+            for (int i = 0; i < T.Height(); i++)
+            {
+               for (int j = 0; j < parentfes.GetVDim() * T.Width(); j++)
+               {
+                  if (T(i, j) != 0.0)
+                  {
+                     parent_vdofs[i] = z1[static_cast<int>(j)];
+                  }
+               }
+            }
          }
          else
          {
-            MFEM_ABORT("SubMesh::From type unknown");
+            parentfes.GetBdrElementVDofs(parent_element_ids[i], parent_vdofs);
          }
+      }
+      else
+      {
+         MFEM_ABORT("SubMesh::From type unknown");
+      }
 
-         Array<int> sub_vdofs;
-         subfes.GetElementVDofs(i, sub_vdofs);
-         MFEM_ASSERT(parent_vdofs.Size() == sub_vdofs.Size(), "internal error");
-
-         for (int j = 0; j < parent_vdofs.Size(); j++)
-         {
-            vdof_to_vdof_map[sub_vdofs[j]] = parent_vdofs[j];
-         }
+      Array<int> sub_vdofs;
+      subfes.GetElementVDofs(i, sub_vdofs);
+      MFEM_ASSERT(parent_vdofs.Size() == sub_vdofs.Size(), "internal error");
+      for (int j = 0; j < parent_vdofs.Size(); j++)
+      {
+         vdof_to_vdof_map[sub_vdofs[j]] = parent_vdofs[j];
       }
    }
 }
-
 
 Array<int> BuildFaceMap(const Mesh& pm, const Mesh& sm,
                         const Array<int> &parent_element_ids)
