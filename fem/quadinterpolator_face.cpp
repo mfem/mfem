@@ -395,7 +395,7 @@ void FaceQuadratureInterpolator::SmemEval3D(
       MFEM_SHARED double sm1[max_NQ1D*max_NQ1D*max_VDIM];
       MFEM_SHARED double sm2[max_NQ1D*max_ND1D*max_VDIM];
 
-      auto r_F = (double(*)[max_ND1D][max_VDIM])sm1;
+      auto s_F = (double(*)[max_ND1D][max_VDIM])sm1;
       MFEM_FOREACH_THREAD(d1,x,ND1D)
       {
          MFEM_FOREACH_THREAD(d2,y,ND1D)
@@ -420,9 +420,9 @@ void FaceQuadratureInterpolator::SmemEval3D(
                   double thrdBu = 0.0;
                   for (int d1 = 0; d1 < ND1D; ++d1)
                   {
-                     thrdBu += B(q,d1)*r_F[d1][d2][c];
+                     thrdBu += B(q1,d1)*s_F[d1][d2][c];
                   }
-                  Bu[q][d2][c] = thrdBu;
+                  Bu[q1][d2][c] = thrdBu;
                }
             }
          }
@@ -462,12 +462,12 @@ void FaceQuadratureInterpolator::SmemEval3D(
                   double thrdBu = 0;
                   for (int d1 = 0; d1 < ND1D; ++d1)
                   {
-                     const double u = r_F[d1][d2][c];
-                     thrdBu += B(q,d1)*u;
-                     thrdGu += G(q,d1)*u;
+                     const double u = s_F[d1][d2][c];
+                     thrdBu += B(q1,d1)*u;
+                     thrdGu += G(q1,d1)*u;
                   }
-                  Gu[q][d2][c] = thrdGu;
-                  Bu[q][d2][c] = thrdBu;
+                  Gu[q1][d2][c] = thrdGu;
+                  Bu[q1][d2][c] = thrdBu;
                }
             }
          }
