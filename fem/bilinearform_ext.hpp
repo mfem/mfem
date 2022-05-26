@@ -54,6 +54,9 @@ public:
       MFEM_ABORT("AssembleDiagonal not implemented for this assembly level!");
    }
 
+   virtual void AddMult(const Vector &x, Vector &y,
+                        const double val = 1.0) const = 0;
+
    virtual void FormSystemMatrix(const Array<int> &ess_tdof_list,
                                  OperatorHandle &A) = 0;
    virtual void FormLinearSystem(const Array<int> &ess_tdof_list,
@@ -86,6 +89,7 @@ public:
                          OperatorHandle &A, Vector &X, Vector &B,
                          int copy_interior = 0);
    void Mult(const Vector &x, Vector &y) const;
+   void AddMult(const Vector &x, Vector &y, const double val = 1.0) const;
    void MultTranspose(const Vector &x, Vector &y) const;
    void Update();
 
@@ -111,6 +115,7 @@ public:
 
    void Assemble();
    void Mult(const Vector &x, Vector &y) const;
+   void AddMult(const Vector &x, Vector &y, const double val = 1.0) const;
    void MultTranspose(const Vector &x, Vector &y) const;
 };
 
@@ -126,11 +131,13 @@ public:
 
    void Assemble();
    void Mult(const Vector &x, Vector &y) const;
+   void AddMult(const Vector &x, Vector &y, const double val = 1.0) const;
    void MultTranspose(const Vector &x, Vector &y) const;
 
    /** DGMult and DGMultTranspose use the extended L-vector to perform the
        computation. */
    void DGMult(const Vector &x, Vector &y) const;
+   void DGAddMult(const Vector &x, Vector &y, const double val = 1.0) const;
    void DGMultTranspose(const Vector &x, Vector &y) const;
 };
 
@@ -157,6 +164,7 @@ public:
                          OperatorHandle &A, Vector &X, Vector &B,
                          int copy_interior = 0);
    void Mult(const Vector &x, Vector &y) const;
+   void AddMult(const Vector &x, Vector &y, const double val = 1.0) const;
    void MultTranspose(const Vector &x, Vector &y) const;
    void Update();
 };

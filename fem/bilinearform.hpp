@@ -272,8 +272,7 @@ public:
    { mat->Mult(x, y); mat_e->AddMult(x, y); }
 
    /// Add the matrix vector multiple to a vector:  \f$ y += a M x \f$
-   virtual void AddMult(const Vector &x, Vector &y, const double a = 1.0) const
-   { mat -> AddMult (x, y, a); }
+   virtual void AddMult(const Vector &x, Vector &y, const double a = 1.0) const;
 
    /** @brief Add the original uneliminated matrix vector multiple to a vector.
        The original matrix is \f$ M + Me \f$ so we have:

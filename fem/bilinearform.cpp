@@ -1064,6 +1064,18 @@ void BilinearForm::Mult(const Vector &x, Vector &y) const
    }
 }
 
+void BilinearForm::AddMult(const Vector &x, Vector &y, const double a) const
+{
+   if (ext)
+   {
+      ext->AddMult(x, y, a);
+   }
+   else
+   {
+      mat->AddMult(x, y, a);
+   }
+}
+
 void BilinearForm::MultTranspose(const Vector & x, Vector & y) const
 {
    if (ext)

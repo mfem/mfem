@@ -125,13 +125,28 @@ void MFBilinearFormExtension::FormLinearSystem(const Array<int> &ess_tdof_list,
 
 void MFBilinearFormExtension::Mult(const Vector &x, Vector &y) const
 {
+   if (DeviceCanUseCeed() || !elem_restrict)
+   {
+      y.UseDevice(true);
+      y = 0.0;
+   }
+   else
+   {
+      localY = 0.0;
+   }
+
+   AddMult(x, y);
+}
+
+void MFBilinearFormExtension::AddMult(const Vector &x, Vector &y,
+                                      const double val) const
+{
    Array<BilinearFormIntegrator*> &integrators = *a->GetDBFI();
 
    const int iSz = integrators.Size();
    if (DeviceCanUseCeed() || !elem_restrict)
    {
       y.UseDevice(true); // typically this is a large vector, so store on device
-      y = 0.0;
       for (int i = 0; i < iSz; ++i)
       {
          integrators[i]->AddMultMF(x, y);
@@ -140,7 +155,6 @@ void MFBilinearFormExtension::Mult(const Vector &x, Vector &y) const
    else
    {
       elem_restrict->Mult(x, localX);
-      localY = 0.0;
       for (int i = 0; i < iSz; ++i)
       {
          integrators[i]->AddMultMF(localX, localY);
@@ -179,6 +193,8 @@ void MFBilinearFormExtension::Mult(const Vector &x, Vector &y) const
          bdr_face_restrict_lex->AddMultTranspose(bdr_face_Y, y);
       }
    }
+
+   y *= val;
 }
 
 void MFBilinearFormExtension::MultTranspose(const Vector &x, Vector &y) const
@@ -382,6 +398,23 @@ void PABilinearFormExtension::FormLinearSystem(const Array<int> &ess_tdof_list,
 
 void PABilinearFormExtension::Mult(const Vector &x, Vector &y) const
 {
+
+   if (DeviceCanUseCeed() || !elem_restrict)
+   {
+      y.UseDevice(true);
+      y = 0.0;
+   }
+   else
+   {
+      localY = 0.0;
+   }
+
+   AddMult(x, y);
+}
+
+void PABilinearFormExtension::AddMult(const Vector &x, Vector &y,
+                                      const double val) const
+{
    Array<BilinearFormIntegrator*> &integrators = *a->GetDBFI();
 
    const int iSz = integrators.Size();
@@ -436,6 +469,7 @@ void PABilinearFormExtension::Mult(const Vector &x, Vector &y) const
          bdr_face_restrict_lex->AddMultTranspose(bdr_face_Y, y);
       }
    }
+   y *= val;
 }
 
 void PABilinearFormExtension::MultTranspose(const Vector &x, Vector &y) const
@@ -577,17 +611,31 @@ void EABilinearFormExtension::Assemble()
 
 void EABilinearFormExtension::Mult(const Vector &x, Vector &y) const
 {
+   if (DeviceCanUseCeed() || !elem_restrict)
+   {
+      y.UseDevice(true);
+      y = 0.0;
+   }
+   else
+   {
+      localY = 0.0;
+   }
+
+   AddMult(x, y);
+}
+
+void EABilinearFormExtension::AddMult(const Vector &x, Vector &y,
+                                      const double val) const
+{
    // Apply the Element Restriction
    const bool useRestrict = !DeviceCanUseCeed() && elem_restrict;
    if (!useRestrict)
    {
       y.UseDevice(true); // typically this is a large vector, so store on device
-      y = 0.0;
    }
    else
    {
       elem_restrict->Mult(x, localX);
-      localY = 0.0;
    }
    // Apply the Element Matrices
    {
@@ -701,6 +749,7 @@ void EABilinearFormExtension::Mult(const Vector &x, Vector &y) const
          bdr_face_restrict_lex->AddMultTranspose(bdr_face_Y, y);
       }
    }
+   y *= val;
 }
 
 void EABilinearFormExtension::MultTranspose(const Vector &x, Vector &y) const
@@ -1002,6 +1051,69 @@ void FABilinearFormExtension::DGMult(const Vector &x, Vector &y) const
 #endif
    {
       mat->Mult(x, y);
+   }
+}
+
+void FABilinearFormExtension::DGAddMult(const Vector &x, Vector &y,
+                                        const double val) const
+{
+#ifdef MFEM_USE_MPI
+   const ParFiniteElementSpace *pfes;
+   if ( (pfes = dynamic_cast<const ParFiniteElementSpace*>(test_fes)) )
+   {
+      // DG Prolongation
+      ParGridFunction x_gf;
+      x_gf.MakeRef(const_cast<ParFiniteElementSpace*>(pfes),
+                   const_cast<Vector&>(x),0);
+      x_gf.ExchangeFaceNbrData();
+      Vector &shared_x = x_gf.FaceNbrData();
+      const int local_size = a->FESpace()->GetVSize();
+      auto dg_x_ptr = dg_x.Write();
+      auto x_ptr = x.Read();
+      MFEM_FORALL(i,local_size,
+      {
+         dg_x_ptr[i] = x_ptr[i];
+      });
+      const int shared_size = shared_x.Size();
+      auto shared_x_ptr = shared_x.Read();
+      MFEM_FORALL(i,shared_size,
+      {
+         dg_x_ptr[local_size+i] = shared_x_ptr[i];
+      });
+      ParBilinearForm *pform = nullptr;
+      if ((pform = dynamic_cast<ParBilinearForm*>(a)) && (pform->keep_nbr_block))
+      {
+         mat->AddMult(dg_x, dg_y, val);
+         // DG Restriction
+         auto dg_y_ptr = dg_y.Read();
+         auto y_ptr = y.ReadWrite();
+         MFEM_FORALL(i,local_size,
+         {
+            y_ptr[i] += dg_y_ptr[i];
+         });
+      }
+      else
+      {
+         mat->AddMult(dg_x, y, val);
+      }
+   }
+   else
+#endif
+   {
+      mat->AddMult(x, y, val);
+   }
+}
+
+void FABilinearFormExtension::AddMult(const Vector &x, Vector &y,
+                                      const double val) const
+{
+   if ( a->GetFBFI()->Size()>0 )
+   {
+      DGAddMult(x, y, val);
+   }
+   else
+   {
+      mat->AddMult(x, y, val);
    }
 }
 
