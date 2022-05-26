@@ -5039,7 +5039,7 @@ private:
 
       bool use_lor_cg = true;
       bool use_air_cg = true;
-      bool use_schwarz = true;
+      bool use_schwarz = false;
 
       int term_flag_;
       int vis_flag_;
