@@ -39,7 +39,7 @@ using mfem::internal::make_tensor;
 template <int dim = 3, GradientType gradient_type = GradientType::Symbolic>
 struct NeoHookeanMaterial
 {
-   static_assert(dim == 3, "NeoHookean model only defined in 3D");
+   static_assert(dim == 3, "NeoHookean model currently implemented only in 3D");
 
    /**
     * @brief Compute the stress response.
