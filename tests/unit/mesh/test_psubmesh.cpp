@@ -42,8 +42,6 @@ FiniteElementCollection *create_fec(FECType fectype, int p, int dim)
 void multidomain_test_2d(FECType fec_type)
 {
    const int p = 2;
-
-   constexpr int dim = 2;
    double Hy = 1.0;
    Mesh serial_parent_mesh = Mesh::MakeCartesian2D(5, 5,
                                                    Element::QUADRILATERAL, true, 1.0, Hy,
