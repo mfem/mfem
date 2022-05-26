@@ -203,14 +203,14 @@ double E0rhs7(const Vector &x)
 double InitialPsi7(const Vector &x)
 {
     double l = 5.0*L0;
-    return -L0*log(cosh(x(1)/L0)) - 0.05*exp( - (x(0)/l)*(x(0)/l) - (x(1)/l)*(x(1)/l) );
+    return -L0*log(cosh(x(1)/L0)) + 0.05*exp( - (x(0)/l)*(x(0)/l) - (x(1)/l)*(x(1)/l) );
 }
 
 double InitialJ7(const Vector &x)
 {
     double l = 5.0*L0;
     double exp_xy =exp( - (x(0)/l)*(x(0)/l) - (x(1)/l)*(x(1)/l) );
-    return ( tanh(x(1)/L0)*tanh(x(1)/L0) - 1.0 )/L0  + 0.05*exp_xy/l/l*( 2.0 - 4.0*(x(1)/l)*(x(1)/l) );
+    return ( tanh(x(1)/L0)*tanh(x(1)/L0) - 1.0 )/L0  - 0.05*exp_xy/l/l*( 2.0 - 4.0*(x(1)/l)*(x(1)/l) );
 }
 
 
