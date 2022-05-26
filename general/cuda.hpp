@@ -40,6 +40,7 @@
    } \
    while (0)
 #else
+#include <cassert>
 #define MFEM_GPU_CHECK(x) \
     do { cudaError_t err = (x); assert(err == cudaSuccess); } while (0)
 #endif // MFEM_JIT_COMPILATION

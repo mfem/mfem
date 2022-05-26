@@ -46,7 +46,7 @@ const int MAX_Q1D = 14;
 // build-time configuration (MFEM_USE_CUDA or MFEM_USE_HIP). If neither CUDA nor
 // HIP is enabled, this macro is a no-op.
 #if defined(MFEM_USE_CUDA)
-#define MFEM_GPU_FORALL(i, N,...) CuWrap1D(N, [=] MFEM_DEVICE      \
+#define MFEM_GPU_FORALL(i, N,...) CudaWrap1D(N, [=] MFEM_DEVICE    \
                                        (int i) {__VA_ARGS__})
 #elif defined(MFEM_USE_HIP)
 #define MFEM_GPU_FORALL(i, N,...) HipWrap1D(N, [=] MFEM_DEVICE     \

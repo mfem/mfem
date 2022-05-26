@@ -384,7 +384,7 @@ public:
          Command() << cxx << link << "-shared" << "-o" << symbol
                    << ARprefix() << Lib_ar() << ARpostfix()
                    << Xlinker() + "-rpath,." << libs;
-         if (Call(symbol)) { return EXIT_FAILURE; }
+         if (Call(name)) { return EXIT_FAILURE; }
 
          // Install temporary shared library: symbol => libmjit.so
          Command() << "install" << ARbackup() << symbol << Lib_so();
