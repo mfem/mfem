@@ -3597,7 +3597,8 @@ Operator *DGTransportTDO::NLOperator::GetGradientBlock(int i)
 
                D_schwarz_ = new SchwarzSmoother(cgblf_[i]->ParFESpace()->GetParMesh(),
                                                 0, cgblf_[i]->ParFESpace(), D_cg_);  // TODO: delete this pointer
-               D_mult_ = new MultiplicativePreconditioner(*D_amg_, *D_schwarz_);  // TODO: delete this pointer
+               D_mult_ = new MultiplicativePreconditioner(*D_amg_,
+                                                          *D_schwarz_);  // TODO: delete this pointer
 
                D_mult_->SetOperator(*D_cg_);
                dg_precond_ = new DiscontPSCPreconditioner(*cg2dg_, *D_mult_, *D_smoother_);

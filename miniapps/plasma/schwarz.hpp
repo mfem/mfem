@@ -68,10 +68,10 @@ public:
    std::vector<Array<int>> elem_contr;
    Array<int> host_rank;
    Array<int> patch_natural_order_idx;
-  //Array<int> patch_global_dofs_ids;
+   //Array<int> patch_global_dofs_ids;
 
-  LinePatchInfo(ParMesh * pmesh_, int ref_levels_);
-  ~LinePatchInfo() {}
+   LinePatchInfo(ParMesh * pmesh_, int ref_levels_);
+   ~LinePatchInfo() {}
 };
 
 class PatchDofInfo
@@ -134,24 +134,24 @@ public:
 class SparseBooleanMatrix
 {
 public:
-  SparseBooleanMatrix(int dim) : n(dim), a(dim) { };
+   SparseBooleanMatrix(int dim) : n(dim), a(dim) { };
 
-  SparseBooleanMatrix(SparseBooleanMatrix const& M);
+   SparseBooleanMatrix(SparseBooleanMatrix const& M);
 
-  void SetEntry(int row, int col);
+   void SetEntry(int row, int col);
 
-  int GetSize() const { return n; }
+   int GetSize() const { return n; }
 
-  const std::vector<int>& GetRow(int row) const { return a[row]; }
+   const std::vector<int>& GetRow(int row) const { return a[row]; }
 
-  SparseBooleanMatrix* Mult(SparseBooleanMatrix const& M) const;
+   SparseBooleanMatrix* Mult(SparseBooleanMatrix const& M) const;
 
-  SparseBooleanMatrix* Transpose() const;
+   SparseBooleanMatrix* Transpose() const;
 
 private:
-  const int n;
+   const int n;
 
-  std::vector<std::vector<int>> a;
+   std::vector<std::vector<int>> a;
 };
 
 class SchwarzSmoother : public Solver

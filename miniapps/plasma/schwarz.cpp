@@ -384,742 +384,780 @@ void ParaViewPrintAttributes(const string &fname,
                              const Array<int> *el_number,
                              const Array<int> *vert_number)
 {
-    ofstream out(fname + ".vtu");
+   ofstream out(fname + ".vtu");
 
-    out << "<VTKFile type=\"UnstructuredGrid\" version=\"0.1\"";
-    out << " byte_order=\"" << VTKByteOrder() << "\">\n";
-    out << "<UnstructuredGrid>\n";
+   out << "<VTKFile type=\"UnstructuredGrid\" version=\"0.1\"";
+   out << " byte_order=\"" << VTKByteOrder() << "\">\n";
+   out << "<UnstructuredGrid>\n";
 
-    const string fmt_str = "ascii";
+   const string fmt_str = "ascii";
 
-    int dim = mesh.Dimension();
-    int ne = 0;
-    if (entity_dim == 1)
-    {
-        if (dim == 1) {
-            ne = mesh.GetNE();
-        }
-        else {
-            ne = mesh.GetNEdges();
-        }
-    }
-    else if (entity_dim == 2)
-    {
-        if (dim == 2) {
-            ne = mesh.GetNE();
-        }
-        else {
-            ne = mesh.GetNFaces();
-        }
-    }
-    else if (entity_dim == 3)
-    {
-        ne = mesh.GetNE();
-    }
-    int np = mesh.GetNV();
+   int dim = mesh.Dimension();
+   int ne = 0;
+   if (entity_dim == 1)
+   {
+      if (dim == 1)
+      {
+         ne = mesh.GetNE();
+      }
+      else
+      {
+         ne = mesh.GetNEdges();
+      }
+   }
+   else if (entity_dim == 2)
+   {
+      if (dim == 2)
+      {
+         ne = mesh.GetNE();
+      }
+      else
+      {
+         ne = mesh.GetNFaces();
+      }
+   }
+   else if (entity_dim == 3)
+   {
+      ne = mesh.GetNE();
+   }
+   int np = mesh.GetNV();
 
-    auto get_geom = [mesh,entity_dim,dim](int i)
-    {
-        if (entity_dim == 1) {
-            return Geometry::SEGMENT;
-        }
-        else if (entity_dim == 2 && dim > 2) {
-            return mesh.GetFaceGeometry(i);
-        }
-        else {
-            return mesh.GetElementGeometry(i);
-        }
-    };
+   auto get_geom = [mesh,entity_dim,dim](int i)
+   {
+      if (entity_dim == 1)
+      {
+         return Geometry::SEGMENT;
+      }
+      else if (entity_dim == 2 && dim > 2)
+      {
+         return mesh.GetFaceGeometry(i);
+      }
+      else
+      {
+         return mesh.GetElementGeometry(i);
+      }
+   };
 
-    auto get_verts = [mesh,entity_dim,dim](int i, Array<int> &v)
-    {
-        if (entity_dim == dim) {
-            mesh.GetElementVertices(i, v);
-        }
-        else if (entity_dim == 1) {
-            mesh.GetEdgeVertices(i, v);
-        }
-        else if (entity_dim == 2) {
-            mesh.GetFaceVertices(i, v);
-        }
-    };
+   auto get_verts = [mesh,entity_dim,dim](int i, Array<int> &v)
+   {
+      if (entity_dim == dim)
+      {
+         mesh.GetElementVertices(i, v);
+      }
+      else if (entity_dim == 1)
+      {
+         mesh.GetEdgeVertices(i, v);
+      }
+      else if (entity_dim == 2)
+      {
+         mesh.GetFaceVertices(i, v);
+      }
+   };
 
-    out << "<Piece NumberOfPoints=\"" << np << "\" NumberOfCells=\""
-        << ne << "\">\n";
+   out << "<Piece NumberOfPoints=\"" << np << "\" NumberOfCells=\""
+       << ne << "\">\n";
 
-    // print out the points
-    out << "<Points>\n";
-    out << "<DataArray type=\"" << "Float64"
-        << "\" NumberOfComponents=\"3\" format=\"" << fmt_str << "\">\n";
-    for (int i = 0; i < np; i++)
-    {
-        const double *v = mesh.GetVertex(i);
-        for (int d = 0; d < 3; ++ d)
-        {
-            if (d < mesh.SpaceDimension()) {
-                out << v[d] << " ";
-            }
-            else {
-                out << "0.0 ";
-            }
-        }
-        out << '\n';
-    }
-    out << "</DataArray>" << endl;
-    out << "</Points>" << endl;
+   // print out the points
+   out << "<Points>\n";
+   out << "<DataArray type=\"" << "Float64"
+       << "\" NumberOfComponents=\"3\" format=\"" << fmt_str << "\">\n";
+   for (int i = 0; i < np; i++)
+   {
+      const double *v = mesh.GetVertex(i);
+      for (int d = 0; d < 3; ++ d)
+      {
+         if (d < mesh.SpaceDimension())
+         {
+            out << v[d] << " ";
+         }
+         else
+         {
+            out << "0.0 ";
+         }
+      }
+      out << '\n';
+   }
+   out << "</DataArray>" << endl;
+   out << "</Points>" << endl;
 
-    out << "<Cells>" << endl;
-    out << "<DataArray type=\"Int32\" Name=\"connectivity\" format=\""
-        << fmt_str << "\">" << endl;
-    for (int i = 0; i < ne; i++)
-    {
-        Array<int> v;
-        Geometry::Type geom = get_geom(i);
-        get_verts(i, v);
-        const int *p = VTKGeometry::VertexPermutation[geom];
-        for (int j = 0; j < v.Size(); ++j)
-        {
-            out << v[p ? p[j] : j] << " ";
-        }
-        out << '\n';
-    }
-    out << "</DataArray>" << endl;
+   out << "<Cells>" << endl;
+   out << "<DataArray type=\"Int32\" Name=\"connectivity\" format=\""
+       << fmt_str << "\">" << endl;
+   for (int i = 0; i < ne; i++)
+   {
+      Array<int> v;
+      Geometry::Type geom = get_geom(i);
+      get_verts(i, v);
+      const int *p = VTKGeometry::VertexPermutation[geom];
+      for (int j = 0; j < v.Size(); ++j)
+      {
+         out << v[p ? p[j] : j] << " ";
+      }
+      out << '\n';
+   }
+   out << "</DataArray>" << endl;
 
-    out << "<DataArray type=\"Int32\" Name=\"offsets\" format=\""
-        << fmt_str << "\">" << endl;
-    // offsets
-    int coff = 0;
-    for (int i = 0; i < ne; ++i)
-    {
-        Array<int> v;
-        get_verts(i, v);
-        coff += v.Size();
-        out << coff << '\n';
-    }
-    out << "</DataArray>" << endl;
-    out << "<DataArray type=\"UInt8\" Name=\"types\" format=\""
-        << fmt_str << "\">" << endl;
-    // cell types
-    for (int i = 0; i < ne; i++)
-    {
-        Geometry::Type geom = get_geom(i);
-        out << VTKGeometry::Map[geom] << '\n';
-    }
-    out << "</DataArray>" << endl;
-    out << "</Cells>" << endl;
+   out << "<DataArray type=\"Int32\" Name=\"offsets\" format=\""
+       << fmt_str << "\">" << endl;
+   // offsets
+   int coff = 0;
+   for (int i = 0; i < ne; ++i)
+   {
+      Array<int> v;
+      get_verts(i, v);
+      coff += v.Size();
+      out << coff << '\n';
+   }
+   out << "</DataArray>" << endl;
+   out << "<DataArray type=\"UInt8\" Name=\"types\" format=\""
+       << fmt_str << "\">" << endl;
+   // cell types
+   for (int i = 0; i < ne; i++)
+   {
+      Geometry::Type geom = get_geom(i);
+      out << VTKGeometry::Map[geom] << '\n';
+   }
+   out << "</DataArray>" << endl;
+   out << "</Cells>" << endl;
 
-    out << "<CellData Scalars=\"attribute\">" << endl;
+   out << "<CellData Scalars=\"attribute\">" << endl;
 
-    if (el_number)
-    {
-        string array_name;
-        if (entity_dim == dim) {
-            array_name = "element number";
-        }
-        else if (entity_dim == 2) {
-            array_name = "face number";
-        }
-        else if (entity_dim == 1) {
-            array_name = "edge number";
-        }
-        out << "<DataArray type=\"Int32\" Name=\""
-            << array_name << "\" format=\""
-            << fmt_str << "\">" << endl;
-        for (int i = 0; i < ne; i++)
-        {
-            out << (*el_number)[i] << '\n';
-        }
-        out << "</DataArray>" << endl;
-    }
-    out << "</CellData>" << endl;
+   if (el_number)
+   {
+      string array_name;
+      if (entity_dim == dim)
+      {
+         array_name = "element number";
+      }
+      else if (entity_dim == 2)
+      {
+         array_name = "face number";
+      }
+      else if (entity_dim == 1)
+      {
+         array_name = "edge number";
+      }
+      out << "<DataArray type=\"Int32\" Name=\""
+          << array_name << "\" format=\""
+          << fmt_str << "\">" << endl;
+      for (int i = 0; i < ne; i++)
+      {
+         out << (*el_number)[i] << '\n';
+      }
+      out << "</DataArray>" << endl;
+   }
+   out << "</CellData>" << endl;
 
-    if (vert_number)
-    {
-        out << "<PointData>" << endl;
-        out << "<DataArray type=\"Int32\" Name=\"vertex number\" format=\""
-            << fmt_str << "\">" << endl;
-        for (int i = 0; i < np; i++)
-        {
-            out << (*vert_number)[i] << '\n';
-        }
-        out << "</DataArray>" << endl;
-        out << "</PointData>" << endl;
-    }
+   if (vert_number)
+   {
+      out << "<PointData>" << endl;
+      out << "<DataArray type=\"Int32\" Name=\"vertex number\" format=\""
+          << fmt_str << "\">" << endl;
+      for (int i = 0; i < np; i++)
+      {
+         out << (*vert_number)[i] << '\n';
+      }
+      out << "</DataArray>" << endl;
+      out << "</PointData>" << endl;
+   }
 
-    out << "</Piece>\n"; // need to close the piece open in the PrintVTU method
-    out << "</UnstructuredGrid>\n";
-    out << "</VTKFile>" << endl;
+   out << "</Piece>\n"; // need to close the piece open in the PrintVTU method
+   out << "</UnstructuredGrid>\n";
+   out << "</VTKFile>" << endl;
 }
 
 SparseBooleanMatrix::SparseBooleanMatrix(SparseBooleanMatrix const& M)
-  : n(M.GetSize()), a(M.GetSize())
+   : n(M.GetSize()), a(M.GetSize())
 {
-  for (int row=0; row<n; ++row)
-    {
+   for (int row=0; row<n; ++row)
+   {
       for (auto col : M.GetRow(row))
-	{
-	  a[row].push_back(col);
-	}
-    }
+      {
+         a[row].push_back(col);
+      }
+   }
 }
 
 void SparseBooleanMatrix::SetEntry(int row, int col)
 {
-  bool found = false;
-  for (auto i : a[row])
-    {
+   bool found = false;
+   for (auto i : a[row])
+   {
       if (i == col)
-	found = true;
-    }
+      {
+         found = true;
+      }
+   }
 
-  if (!found)
-    a[row].push_back(col);
+   if (!found)
+   {
+      a[row].push_back(col);
+   }
 }
 
 SparseBooleanMatrix* SparseBooleanMatrix::Transpose() const
 {
-  SparseBooleanMatrix *t = new SparseBooleanMatrix(n);
-  for (int r=0; r<n; ++r)
-    {
+   SparseBooleanMatrix *t = new SparseBooleanMatrix(n);
+   for (int r=0; r<n; ++r)
+   {
       for (auto c : a[r])
-	{
-	  t->SetEntry(c, r);
-	}
-    }
+      {
+         t->SetEntry(c, r);
+      }
+   }
 
-  return t;
+   return t;
 }
 
-SparseBooleanMatrix* SparseBooleanMatrix::Mult(SparseBooleanMatrix const& M) const
+SparseBooleanMatrix* SparseBooleanMatrix::Mult(SparseBooleanMatrix const& M)
+const
 {
-  MFEM_VERIFY(M.GetSize() == n, "");
-  SparseBooleanMatrix *p = new SparseBooleanMatrix(n);
+   MFEM_VERIFY(M.GetSize() == n, "");
+   SparseBooleanMatrix *p = new SparseBooleanMatrix(n);
 
-  // TODO: this could be optimized, but for now just using it for
-  // matrices with 2 nonzeros per row.
+   // TODO: this could be optimized, but for now just using it for
+   // matrices with 2 nonzeros per row.
 
-  SparseBooleanMatrix *Mt = M.Transpose();
+   SparseBooleanMatrix *Mt = M.Transpose();
 
-  for (int r=0; r<n; ++r)
-    {
+   for (int r=0; r<n; ++r)
+   {
       std::set<int> row;
       for (auto c : a[r])
-	{
-	  row.insert(c);
-	}
+      {
+         row.insert(c);
+      }
 
       // TODO: this is O(n^2), which can be improved.
       for (int c=0; c<n; ++c)
-	{
-	  for (auto i : Mt->GetRow(c))  // entry (c,i) is in Mt, so (i,c) is in M
-	    {
-	      std::set<int>::iterator it = row.find(i);
-	      if (it != row.end())
-		{
-		  p->SetEntry(r, c);
-		}
-	    }
-	}
-    }
+      {
+         for (auto i : Mt->GetRow(c))  // entry (c,i) is in Mt, so (i,c) is in M
+         {
+            std::set<int>::iterator it = row.find(i);
+            if (it != row.end())
+            {
+               p->SetEntry(r, c);
+            }
+         }
+      }
+   }
 
-  delete Mt;
+   delete Mt;
 
-  return p;
+   return p;
 }
 
 SparseMatrix* GetAnisotropicGraph_with_distance(ParMesh *pmesh)
 {
-  const int distance = 1;
-  double threshold = 1.5;
+   const int distance = 1;
+   double threshold = 1.5;
 
-  // TODO: generalize to 3D
-  const int dim = 2;
+   // TODO: generalize to 3D
+   const int dim = 2;
 
-  Vector bvec(dim);
-  bvec[0] = 1.0;
-  bvec[1] = 1.0;
+   Vector bvec(dim);
+   bvec[0] = 1.0;
+   bvec[1] = 1.0;
 
-  bvec = 0.0;
+   bvec = 0.0;
 
-  const int nv = pmesh->GetNV();
+   const int nv = pmesh->GetNV();
 
-  Array<bool> node_flag(nv);
-  node_flag = false;
+   Array<bool> node_flag(nv);
+   node_flag = false;
 
-  // TODO: generalize for parallel case
-  SparseBooleanMatrix A(nv);
-  SparseMatrix *G = new SparseMatrix(nv);
+   // TODO: generalize for parallel case
+   SparseBooleanMatrix A(nv);
+   SparseMatrix *G = new SparseMatrix(nv);
 
-  // Set an entry of A for each edge in pmesh, connecting the two vertices
-  for (int i=0; i<pmesh->GetNEdges(); ++i)
-    {
+   // Set an entry of A for each edge in pmesh, connecting the two vertices
+   for (int i=0; i<pmesh->GetNEdges(); ++i)
+   {
       Array<int> vert;
       pmesh->GetEdgeVertices(i, vert);
       MFEM_VERIFY(vert.Size() == 2, "");
       A.SetEntry(vert[0], vert[1]);
       A.SetEntry(vert[1], vert[0]);
-    }
+   }
 
-  if (distance == 1)  // Not using algebraic distance
-    {
+   if (distance == 1)  // Not using algebraic distance
+   {
       // Connect vertices of quadrilateral elements not sharing an edge
       for (int i=0; i<pmesh->GetNE(); ++i)
-	{
-	  Array<int> vert;
-	  pmesh->GetElementVertices(i, vert);
-	  MFEM_VERIFY(vert.Size() == 4, "");
-	  for (int j=0; j<2; ++j) // Loop over diagonals
-	    {
-	      A.SetEntry(vert[j], vert[j+2]);
-	      A.SetEntry(vert[j+2], vert[j]);
-	    }
-	}
-    }
+      {
+         Array<int> vert;
+         pmesh->GetElementVertices(i, vert);
+         MFEM_VERIFY(vert.Size() == 4, "");
+         for (int j=0; j<2; ++j) // Loop over diagonals
+         {
+            A.SetEntry(vert[j], vert[j+2]);
+            A.SetEntry(vert[j+2], vert[j]);
+         }
+      }
+   }
 
-  SparseBooleanMatrix *dis_A = new SparseBooleanMatrix(A);
-  for (int i=0; i<distance-1; ++i)
-    {
+   SparseBooleanMatrix *dis_A = new SparseBooleanMatrix(A);
+   for (int i=0; i<distance-1; ++i)
+   {
       SparseBooleanMatrix *prod = dis_A->Mult(A);
       delete dis_A;
       dis_A = prod;
-    }
+   }
 
-  // Loop over all nonzero entries in dis_A
-  for (int v0=0; v0<dis_A->GetSize(); ++v0)
-    {
+   // Loop over all nonzero entries in dis_A
+   for (int v0=0; v0<dis_A->GetSize(); ++v0)
+   {
       for (auto v1 : dis_A->GetRow(v0))
-	{
-	  // Entry (v0,v1) is in dis_A
-	  Vector midpoint(3);  // used for B-field calculation at midpoint
-	  midpoint = 0.0;
+      {
+         // Entry (v0,v1) is in dis_A
+         Vector midpoint(3);  // used for B-field calculation at midpoint
+         midpoint = 0.0;
 
-	  //Vector tang(dim);
-	  double *v0crd = pmesh->GetVertex(v0);
-	  double *v1crd = pmesh->GetVertex(v1);
+         //Vector tang(dim);
+         double *v0crd = pmesh->GetVertex(v0);
+         double *v1crd = pmesh->GetVertex(v1);
 
-	  double bnorm = 0.0;
-	  double tnorm = 0.0;
-	  double ip = 0.0;
-	  for (int i=0; i<dim; ++i)
-	    {
-	      midpoint[i] = 0.5 * (v0crd[i] + v1crd[i]);
-	    }
+         double bnorm = 0.0;
+         double tnorm = 0.0;
+         double ip = 0.0;
+         for (int i=0; i<dim; ++i)
+         {
+            midpoint[i] = 0.5 * (v0crd[i] + v1crd[i]);
+         }
 
-	  TotBFunc(midpoint, bvec);
+         TotBFunc(midpoint, bvec);
 
-	  { // Rotate bvec
-	    const double tmp = bvec[0];
-	    bvec[0] = -bvec[1];
-	    bvec[1] = tmp;
-	  }
+         {
+            // Rotate bvec
+            const double tmp = bvec[0];
+            bvec[0] = -bvec[1];
+            bvec[1] = tmp;
+         }
 
-	  for (int i=0; i<dim; ++i)
-	    {
-	      midpoint[i] = 0.5 * (v0crd[i] + v1crd[i]);
-	      const double tang_i = v1crd[i] - v0crd[i];
+         for (int i=0; i<dim; ++i)
+         {
+            midpoint[i] = 0.5 * (v0crd[i] + v1crd[i]);
+            const double tang_i = v1crd[i] - v0crd[i];
 
-	      bnorm += bvec[i] * bvec[i];
-	      tnorm += tang_i * tang_i;
+            bnorm += bvec[i] * bvec[i];
+            tnorm += tang_i * tang_i;
 
-	      ip += bvec[i] * tang_i;
-	    }
+            ip += bvec[i] * tang_i;
+         }
 
-	  bnorm = sqrt(bnorm);
-	  tnorm = sqrt(tnorm);
+         bnorm = sqrt(bnorm);
+         tnorm = sqrt(tnorm);
 
-	  const double cos_theta = ip / (bnorm * tnorm);
-	  const double edge_weight = 1.0 / (fabs(cos_theta) + 1.0e-6);
-	  if (edge_weight > threshold)
-	    {
-	      G->Set(v0, v1, edge_weight);
-	      node_flag[v0] = true;
-	      node_flag[v1] = true;
-	    }
-	}
-    }
+         const double cos_theta = ip / (bnorm * tnorm);
+         const double edge_weight = 1.0 / (fabs(cos_theta) + 1.0e-6);
+         if (edge_weight > threshold)
+         {
+            G->Set(v0, v1, edge_weight);
+            node_flag[v0] = true;
+            node_flag[v1] = true;
+         }
+      }
+   }
 
-  delete dis_A;
+   delete dis_A;
 
-  // Find any nodes not in G
-  for (int i=0; i<nv; ++i)
-    {
+   // Find any nodes not in G
+   for (int i=0; i<nv; ++i)
+   {
       if (!node_flag[i])
-	G->Set(i,i,-1.0);  // Weight -1 indicates it is not connected to another node
-    }
+      {
+         G->Set(i,i,-1.0);   // Weight -1 indicates it is not connected to another node
+      }
+   }
 
-  G->Finalize();
-  return G;
+   G->Finalize();
+   return G;
 }
 
 std::vector<int>* GetPathCover(SparseMatrix *G, int& npath)
 {
-  const int nnode = G->Size();
-  int nedge = 0;
+   const int nnode = G->Size();
+   int nedge = 0;
 
-  // Set nedge = G.number_of_edges()
+   // Set nedge = G.number_of_edges()
 
-  // TODO: keep it like this, or simplify by not storing -1 on diagonal for unflagged nodes?
+   // TODO: keep it like this, or simplify by not storing -1 on diagonal for unflagged nodes?
 
-  for (int r=0; r<nnode; ++r)
-    {
+   for (int r=0; r<nnode; ++r)
+   {
       const int s = G->RowSize(r);
       int *cols = G->GetRowColumns(r);
       for (int i=0; i<s; ++i)
-	{
-	  if (cols[i] != r)
-	    nedge++;
-	}
-    }
+      {
+         if (cols[i] != r)
+         {
+            nedge++;
+         }
+      }
+   }
 
-  MFEM_VERIFY(nedge > 0, "");
+   MFEM_VERIFY(nedge > 0, "");
 
-  std::vector<double> weight(nedge);
-  std::vector<std::vector<int>> edgeList(nedge);
+   std::vector<double> weight(nedge);
+   std::vector<std::vector<int>> edgeList(nedge);
 
-  std::vector<std::vector<int>> pathNeighbor(nnode);
-  std::vector<int> *pathFlag = new std::vector<int>();
-  pathFlag->assign(nnode, -2);
+   std::vector<std::vector<int>> pathNeighbor(nnode);
+   std::vector<int> *pathFlag = new std::vector<int>();
+   pathFlag->assign(nnode, -2);
 
-  for (int r=0; r<nnode; ++r)
-    {
+   for (int r=0; r<nnode; ++r)
+   {
       pathNeighbor[r].assign(2, -2);  // Initialize to -2
-    }
+   }
 
-  int cnt = 0;
-  for (int r=0; r<nnode; ++r)
-    {
+   int cnt = 0;
+   for (int r=0; r<nnode; ++r)
+   {
       const int s = G->RowSize(r);
       int *cols = G->GetRowColumns(r);
       double *vals = G->GetRowEntries(r);
       for (int i=0; i<s; ++i)
-	{
-	  if (cols[i] != r)
-	    {
-	      weight[cnt] = vals[i];
-	      edgeList[cnt].resize(2);
-	      edgeList[cnt][0] = r;
-	      edgeList[cnt][1] = cols[i];
-	      cnt++;
-	    }
-	}
-    }
-
-  MFEM_VERIFY(nedge == cnt, "");
-
-  // Find edge indices in order of descending weight
-  std::vector<int> isort(nedge);
-  {
-    for (int i=0; i<nedge; ++i)
       {
-	isort[i] = i;
+         if (cols[i] != r)
+         {
+            weight[cnt] = vals[i];
+            edgeList[cnt].resize(2);
+            edgeList[cnt][0] = r;
+            edgeList[cnt][1] = cols[i];
+            cnt++;
+         }
+      }
+   }
+
+   MFEM_VERIFY(nedge == cnt, "");
+
+   // Find edge indices in order of descending weight
+   std::vector<int> isort(nedge);
+   {
+      for (int i=0; i<nedge; ++i)
+      {
+         isort[i] = i;
       }
 
-    std::sort(isort.begin(), isort.end(), [&](const int& a, const int& b) {
-      return (weight[a] > weight[b]);
-    }
-      );  // descending order
-  }
+      std::sort(isort.begin(), isort.end(), [&](const int& a, const int& b)
+      {
+         return (weight[a] > weight[b]);
+      }
+               );  // descending order
+   }
 
-  npath = 0;
+   npath = 0;
 
-  // TODO: how can pathNeighbor[u][1] be set but not pathNeighbor[u][0]?
+   // TODO: how can pathNeighbor[u][1] be set but not pathNeighbor[u][0]?
 
-  // Loop over edges in order of descending weight
-  for (int i=0; i<nedge; ++i)
-    {
+   // Loop over edges in order of descending weight
+   for (int i=0; i<nedge; ++i)
+   {
       const int e = isort[i];
       const int u = edgeList[e][0];
       const int v = edgeList[e][1];
 
       // If neither node v0 nor node v1 is in a path, create a new path
-      if (pathNeighbor[u][0] == -2 && pathNeighbor[u][1] == -2 && pathNeighbor[v][0] == -2 && pathNeighbor[v][1] == -2)
-	{
-	  pathNeighbor[u][0] = v;
-	  pathNeighbor[v][0] = u;
-	  (*pathFlag)[u] = npath;
-	  (*pathFlag)[v] = npath;
-	  npath++;
-	}
+      if (pathNeighbor[u][0] == -2 && pathNeighbor[u][1] == -2 &&
+          pathNeighbor[v][0] == -2 && pathNeighbor[v][1] == -2)
+      {
+         pathNeighbor[u][0] = v;
+         pathNeighbor[v][0] = u;
+         (*pathFlag)[u] = npath;
+         (*pathFlag)[v] = npath;
+         npath++;
+      }
       // node u is the end point of a path && node v is not in any path, append node v
-      else if ((pathNeighbor[u][0] != -2 | pathNeighbor[u][1] != -2) && pathNeighbor[v][0] == -2 && pathNeighbor[v][1] == -2)
-	{
-	  if (pathNeighbor[u][0] == -2)
-	    {
-	      pathNeighbor[u][0] = v;
-	      pathNeighbor[v][0] = u;
-	      (*pathFlag)[v] = (*pathFlag)[u];
-	    }
-	  else
-	    {
-	      pathNeighbor[u][1] = v;
-	      pathNeighbor[v][0] = u;
-	      (*pathFlag)[v] = (*pathFlag)[u];
-	    }
-	}
+      else if ((pathNeighbor[u][0] != -2 | pathNeighbor[u][1] != -2) &&
+               pathNeighbor[v][0] == -2 && pathNeighbor[v][1] == -2)
+      {
+         if (pathNeighbor[u][0] == -2)
+         {
+            pathNeighbor[u][0] = v;
+            pathNeighbor[v][0] = u;
+            (*pathFlag)[v] = (*pathFlag)[u];
+         }
+         else
+         {
+            pathNeighbor[u][1] = v;
+            pathNeighbor[v][0] = u;
+            (*pathFlag)[v] = (*pathFlag)[u];
+         }
+      }
       // node v is the end point of a path and node u is not in any path, append node u
-      else if (pathNeighbor[u][0] == -2 && pathNeighbor[u][1] == -2 && (pathNeighbor[v][0] == -2 | pathNeighbor[v][1] == -2))
-	{
-	  if (pathNeighbor[v][0] == -2)
-	    {
-	      pathNeighbor[v][0] = u;
-	      pathNeighbor[u][0] = v;
-	      (*pathFlag)[u] = (*pathFlag)[v];
-	    }
-	  else
-	    {
-	      pathNeighbor[v][1] = u;
-	      pathNeighbor[u][0] = v;
-	      (*pathFlag)[u] = (*pathFlag)[v];
-	    }
-	}
+      else if (pathNeighbor[u][0] == -2 && pathNeighbor[u][1] == -2 &&
+               (pathNeighbor[v][0] == -2 | pathNeighbor[v][1] == -2))
+      {
+         if (pathNeighbor[v][0] == -2)
+         {
+            pathNeighbor[v][0] = u;
+            pathNeighbor[u][0] = v;
+            (*pathFlag)[u] = (*pathFlag)[v];
+         }
+         else
+         {
+            pathNeighbor[v][1] = u;
+            pathNeighbor[u][0] = v;
+            (*pathFlag)[u] = (*pathFlag)[v];
+         }
+      }
       // both node u and node v are the end points of a path
-      else if ((pathNeighbor[u][0] == -2 | pathNeighbor[u][1] == -2) && (pathNeighbor[v][0] == -2 | pathNeighbor[v][1] == -2))
-	{
-	  // node u and v are endpoints of different path, merge paths
-	  if ((*pathFlag)[u] != (*pathFlag)[v])
-	    {
-	      // connect node u and v
-                if (pathNeighbor[u][0] == -2 && pathNeighbor[v][0] == -2)
-		  {
-                    pathNeighbor[u][0] = v;
-                    pathNeighbor[v][0] = u;
-		  }
-		else if (pathNeighbor[u][0] == -2 && pathNeighbor[v][1] == -2)
-		  {
-		    pathNeighbor[u][0] = v;
-		    pathNeighbor[v][1] = u;
-		  }
-		else if (pathNeighbor[u][1] == -2 && pathNeighbor[v][0] == -2)
-		  {
-                    pathNeighbor[u][1] = v;
-                    pathNeighbor[v][0] = u;
-		  }
-                else
-		  {
-                    pathNeighbor[u][1] = v;
-                    pathNeighbor[v][1] = u;
-		  }
+      else if ((pathNeighbor[u][0] == -2 | pathNeighbor[u][1] == -2) &&
+               (pathNeighbor[v][0] == -2 | pathNeighbor[v][1] == -2))
+      {
+         // node u and v are endpoints of different path, merge paths
+         if ((*pathFlag)[u] != (*pathFlag)[v])
+         {
+            // connect node u and v
+            if (pathNeighbor[u][0] == -2 && pathNeighbor[v][0] == -2)
+            {
+               pathNeighbor[u][0] = v;
+               pathNeighbor[v][0] = u;
+            }
+            else if (pathNeighbor[u][0] == -2 && pathNeighbor[v][1] == -2)
+            {
+               pathNeighbor[u][0] = v;
+               pathNeighbor[v][1] = u;
+            }
+            else if (pathNeighbor[u][1] == -2 && pathNeighbor[v][0] == -2)
+            {
+               pathNeighbor[u][1] = v;
+               pathNeighbor[v][0] = u;
+            }
+            else
+            {
+               pathNeighbor[u][1] = v;
+               pathNeighbor[v][1] = u;
+            }
 
-		// Merge the paths
-		// TODO: more efficient implementation of this
-                //pathFlag[pathFlag == pathFlag[v]] = pathFlag[u] # this can be done more efficiently
-		const int pfv = (*pathFlag)[v];
-		for (int j=0; j<nnode; ++j)
-		  {
-		    if ((*pathFlag)[j] == pfv)
-		      (*pathFlag)[j] = (*pathFlag)[u];
-		  }
-	    }
-	}
-    } // loop over edges
+            // Merge the paths
+            // TODO: more efficient implementation of this
+            //pathFlag[pathFlag == pathFlag[v]] = pathFlag[u] # this can be done more efficiently
+            const int pfv = (*pathFlag)[v];
+            for (int j=0; j<nnode; ++j)
+            {
+               if ((*pathFlag)[j] == pfv)
+               {
+                  (*pathFlag)[j] = (*pathFlag)[u];
+               }
+            }
+         }
+      }
+   } // loop over edges
 
-  // Find the number of unique paths
-  std::set<int> pathFlags;
-  for (int j=0; j<nnode; ++j)
-    {
+   // Find the number of unique paths
+   std::set<int> pathFlags;
+   for (int j=0; j<nnode; ++j)
+   {
       pathFlags.insert((*pathFlag)[j]);
-    }
+   }
 
-  npath = pathFlags.size();
+   npath = pathFlags.size();
 
-  std::map<int, int> uniquePath;
+   std::map<int, int> uniquePath;
 
-  cnt = 0;
-  for (auto p : pathFlags)
-    {
+   cnt = 0;
+   for (auto p : pathFlags)
+   {
       uniquePath[p] = cnt;
       cnt++;
-    }
+   }
 
-  // Reset path indices to range from 0 to npath-1
+   // Reset path indices to range from 0 to npath-1
 
-  int maxFlag = 0;
-  for (int j=0; j<nnode; ++j)
-    {
+   int maxFlag = 0;
+   for (int j=0; j<nnode; ++j)
+   {
       (*pathFlag)[j] = uniquePath[(*pathFlag)[j]];
       maxFlag = std::max(maxFlag, (*pathFlag)[j]);
-    }
+   }
 
-  MFEM_VERIFY(npath == maxFlag + 1, "");
+   MFEM_VERIFY(npath == maxFlag + 1, "");
 
-  return pathFlag;
+   return pathFlag;
 }
 
-int SetCoarseVertexLinePatches_GraphBased(ParMesh *pmesh, ParFiniteElementSpace *fespace, Array<int> & cdofToGlobalLine)
+int SetCoarseVertexLinePatches_GraphBased(ParMesh *pmesh,
+                                          ParFiniteElementSpace *fespace, Array<int> & cdofToGlobalLine)
 {
-  SparseMatrix *G = GetAnisotropicGraph_with_distance(pmesh);
-  //G = solver.GetAnisotropicGraph_with_distance(mesh, Gmesh, coord, b, distance, threshold)
+   SparseMatrix *G = GetAnisotropicGraph_with_distance(pmesh);
+   //G = solver.GetAnisotropicGraph_with_distance(mesh, Gmesh, coord, b, distance, threshold)
 
-  int npaths = 0;
-  std::vector<int> *pathFlags = GetPathCover(G, npaths);
+   int npaths = 0;
+   std::vector<int> *pathFlags = GetPathCover(G, npaths);
 
-  MFEM_VERIFY(pathFlags->size() == pmesh->GetNV(), "");
+   MFEM_VERIFY(pathFlags->size() == pmesh->GetNV(), "");
 
-  for (int i=0; i<pmesh->GetNV(); ++i)
-    {
+   for (int i=0; i<pmesh->GetNV(); ++i)
+   {
       Array<int> dofs;
       fespace->GetVertexDofs(i, dofs);
       MFEM_VERIFY(dofs.Size() == 1, "");
 
       cdofToGlobalLine[dofs[0]] = (*pathFlags)[i];
-    }
+   }
 
-  // ParaView output
-  bool paraview = false;
-  if (paraview)
-  {
-    Array<int> v(pmesh->GetNV()), edge(pmesh->GetNEdges());
-    v = 0;
-    edge = 0;
+   // ParaView output
+   bool paraview = false;
+   if (paraview)
+   {
+      Array<int> v(pmesh->GetNV()), edge(pmesh->GetNEdges());
+      v = 0;
+      edge = 0;
 
-    for (int i=0; i<v.Size(); ++i)
+      for (int i=0; i<v.Size(); ++i)
       {
-	v[i] = (*pathFlags)[i];
+         v[i] = (*pathFlags)[i];
       }
 
-    ParaViewPrintAttributes("pv_patches", *pmesh, 1, &edge, &v);
-  }
+      ParaViewPrintAttributes("pv_patches", *pmesh, 1, &edge, &v);
+   }
 
-  return npaths;
+   return npaths;
 }
 
-int SetCoarseVertexLinePatches_xline(ParMesh *pmesh, ParFiniteElementSpace *fespace, Array<int> & cdofToGlobalLine)
+int SetCoarseVertexLinePatches_xline(ParMesh *pmesh,
+                                     ParFiniteElementSpace *fespace, Array<int> & cdofToGlobalLine)
 {
-  Vector linecrd;
-  double tol = 1.0e-3;
+   Vector linecrd;
+   double tol = 1.0e-3;
 
-  // TODO: input linecrd rather than hard-coding it as done here.
-  const int nlines = 33;
-  linecrd.SetSize(nlines);
-  for (int i=0; i<nlines; ++i)
-    {
+   // TODO: input linecrd rather than hard-coding it as done here.
+   const int nlines = 33;
+   linecrd.SetSize(nlines);
+   for (int i=0; i<nlines; ++i)
+   {
       linecrd[i] = ((double) i) / ((double) (nlines - 1));
-    }
+   }
 
-  for (int i=0; i<pmesh->GetNV(); ++i)
-    {
+   for (int i=0; i<pmesh->GetNV(); ++i)
+   {
       const double y = pmesh->GetVertex(i)[1];
       int globalLineIndex = -1;
       for (int j=0; j<nlines; ++j)
-	{
-	  if (fabs(linecrd[j] - y) < tol)
-	    {
-	      MFEM_VERIFY(globalLineIndex == -1, "");
-	      globalLineIndex = j;
-	    }
-	}
+      {
+         if (fabs(linecrd[j] - y) < tol)
+         {
+            MFEM_VERIFY(globalLineIndex == -1, "");
+            globalLineIndex = j;
+         }
+      }
 
       Array<int> dofs;
       fespace->GetVertexDofs(i, dofs);
       MFEM_VERIFY(dofs.Size() == 1, "");
 
       cdofToGlobalLine[dofs[0]] = globalLineIndex;
-    }
+   }
 
-  return nlines;
+   return nlines;
 }
 
-int SetCoarseVertexLinePatches_xy45line(ParMesh *pmesh, ParFiniteElementSpace *fespace, Array<int> & cdofToGlobalLine)
+int SetCoarseVertexLinePatches_xy45line(ParMesh *pmesh,
+                                        ParFiniteElementSpace *fespace, Array<int> & cdofToGlobalLine)
 {
-  Vector linecrd;
-  double tol = 1.0e-3;
+   Vector linecrd;
+   double tol = 1.0e-3;
 
-  // TODO: input linecrd rather than hard-coding it as done here.
-  const int n = 33;
-  const int nlines = (2*n) - 1;
+   // TODO: input linecrd rather than hard-coding it as done here.
+   const int n = 33;
+   const int nlines = (2*n) - 1;
 
-  linecrd.SetSize(n);
-  for (int i=0; i<n; ++i)
-    {
+   linecrd.SetSize(n);
+   for (int i=0; i<n; ++i)
+   {
       linecrd[i] = ((double) i) / ((double) (n-1));
-    }
+   }
 
-  for (int i=0; i<pmesh->GetNV(); ++i)
-    {
+   for (int i=0; i<pmesh->GetNV(); ++i)
+   {
       const double x = pmesh->GetVertex(i)[0];
       const double y = pmesh->GetVertex(i)[1];
       int globalLineIndex = -1;
 
       // First, loop over lines y = x - linecrd[i]
       for (int j=0; j<n; ++j)
-	{
-	  if (fabs(linecrd[j] + y - x) < tol)
-	    {
-	      MFEM_VERIFY(globalLineIndex == -1, "");
-	      globalLineIndex = j;
-	    }
-	}
+      {
+         if (fabs(linecrd[j] + y - x) < tol)
+         {
+            MFEM_VERIFY(globalLineIndex == -1, "");
+            globalLineIndex = j;
+         }
+      }
 
       // Second, loop over lines y = x + linecrd[i+1]
       for (int j=0; j<n-1; ++j)
-	{
-	  if (fabs(linecrd[j+1] + x - y) < tol)
-	    {
-	      MFEM_VERIFY(globalLineIndex == -1, "");
-	      globalLineIndex = n + j;
-	    }
-	}
+      {
+         if (fabs(linecrd[j+1] + x - y) < tol)
+         {
+            MFEM_VERIFY(globalLineIndex == -1, "");
+            globalLineIndex = n + j;
+         }
+      }
 
       Array<int> dofs;
       fespace->GetVertexDofs(i, dofs);
       MFEM_VERIFY(dofs.Size() == 1, "");
 
       cdofToGlobalLine[dofs[0]] = globalLineIndex;
-    }
+   }
 
-  return nlines;
+   return nlines;
 }
 
 void ReadPatches(string filename, vector<vector<int>> &patches)
 {
-  ifstream file(filename);
-  string line, word;
-  int count = 0;
+   ifstream file(filename);
+   string line, word;
+   int count = 0;
 
-  while (getline(file, line))
-    {
+   while (getline(file, line))
+   {
       stringstream s(line);
       vector<int> patch;
 
       while (getline(s, word, ','))
-	{
-	  if (word.empty())
-	    break;
+      {
+         if (word.empty())
+         {
+            break;
+         }
 
-	  patch.push_back(stoi(word) - 1);  // Subtract 1 from Matlab indexing
-	}
+         patch.push_back(stoi(word) - 1);  // Subtract 1 from Matlab indexing
+      }
 
       cout << "Patch " << patches.size() << " has size " << patch.size() << endl;
 
       patches.push_back(patch);
-    }
+   }
 
-  file.close();
+   file.close();
 }
 
-int SetCoarseVertexLinePatches_Matlab(ParMesh *pmesh, ParFiniteElementSpace *fespace, Array<int> & cdofToGlobalLine)
+int SetCoarseVertexLinePatches_Matlab(ParMesh *pmesh,
+                                      ParFiniteElementSpace *fespace, Array<int> & cdofToGlobalLine)
 {
-  Vector linecrd;
-  double tol = 1.0e-3;
+   Vector linecrd;
+   double tol = 1.0e-3;
 
-  vector<vector<int>> patches;
-  ReadPatches("cover.csv", patches);
-  const int nlines = patches.size();
-  cout << "Read " << nlines << " from cover.csv" << endl;
+   vector<vector<int>> patches;
+   ReadPatches("cover.csv", patches);
+   const int nlines = patches.size();
+   cout << "Read " << nlines << " from cover.csv" << endl;
 
-  for (int i=0; i<nlines; ++i)
-    {
+   for (int i=0; i<nlines; ++i)
+   {
       for (int j=0; j<patches[i].size(); ++j)
-	{
-	  Array<int> dofs;
-	  fespace->GetVertexDofs(patches[i][j], dofs);
-	  MFEM_VERIFY(dofs.Size() == 1, "");
+      {
+         Array<int> dofs;
+         fespace->GetVertexDofs(patches[i][j], dofs);
+         MFEM_VERIFY(dofs.Size() == 1, "");
 
-	  cdofToGlobalLine[dofs[0]] = i;
-	}
-    }
+         cdofToGlobalLine[dofs[0]] = i;
+      }
+   }
 
-  return nlines;
+   return nlines;
 }
 
 LinePatchInfo::LinePatchInfo(ParMesh *pmesh_, int ref_levels_)
@@ -1140,7 +1178,8 @@ LinePatchInfo::LinePatchInfo(ParMesh *pmesh_, int ref_levels_)
    //const int nlines = SetCoarseVertexLinePatches_xy45line(pmesh, aux_fespace, cdofToGlobalLine);
 
    //int nlines = SetCoarseVertexLinePatches_Matlab(pmesh, aux_fespace, cdofToGlobalLine);
-   int nlines = SetCoarseVertexLinePatches_GraphBased(pmesh, aux_fespace, cdofToGlobalLine);
+   int nlines = SetCoarseVertexLinePatches_GraphBased(pmesh, aux_fespace,
+                                                      cdofToGlobalLine);
 
    // 2. Store the cDofTrueDof Matrix. Required after the refinements
    HypreParMatrix *cDofTrueDof = new HypreParMatrix(
@@ -1148,24 +1187,26 @@ LinePatchInfo::LinePatchInfo(ParMesh *pmesh_, int ref_levels_)
 
    //cdofToGlobalLine.Print(std::cout);
    if (cdofToGlobalLine.Min() == -1)
-     {
-       // Check how many nodes are not in a patch
-       int cnt=0;
-       for (int i=0; i<cdofToGlobalLine.Size(); ++i)
-	 {
-	   if (cdofToGlobalLine[i] < 0)
-	     {
-	       cdofToGlobalLine[i] = nlines;
-	       nlines++;
-	       cnt++;
-	     }
-	 }
+   {
+      // Check how many nodes are not in a patch
+      int cnt=0;
+      for (int i=0; i<cdofToGlobalLine.Size(); ++i)
+      {
+         if (cdofToGlobalLine[i] < 0)
+         {
+            cdofToGlobalLine[i] = nlines;
+            nlines++;
+            cnt++;
+         }
+      }
 
-       cout << "WARNING: " << cnt << " out of " << cdofToGlobalLine.Size() << " nodes are not in a patch and will made into separate patches " << endl;
-     }
+      cout << "WARNING: " << cnt << " out of " << cdofToGlobalLine.Size() <<
+           " nodes are not in a patch and will made into separate patches " << endl;
+   }
 
    MFEM_VERIFY(cDofTrueDof->Height() == cdofToGlobalLine.Size(), "");
-   MFEM_VERIFY(cdofToGlobalLine.Min() == 0, ""); // TODO: in parallel, just check >= 0
+   MFEM_VERIFY(cdofToGlobalLine.Min() == 0,
+               ""); // TODO: in parallel, just check >= 0
 
    // 3. Perform the refinements (if any) and Get the final Prolongation operator
    HypreParMatrix *Pr = nullptr;
@@ -1229,7 +1270,7 @@ LinePatchInfo::LinePatchInfo(ParMesh *pmesh_, int ref_levels_)
 
          cown_vertices_line.SetSize(cnv);
          cown_vertices_line[cnv - 1] = cdofToGlobalLine[k];
-	 touched_lines.insert(cdofToGlobalLine[k]);
+         touched_lines.insert(cdofToGlobalLine[k]);
       }
    }
 
@@ -1241,38 +1282,42 @@ LinePatchInfo::LinePatchInfo(ParMesh *pmesh_, int ref_levels_)
    // Determine ownership of patches, based on minimum MPI rank touching the line patches.
    Array<int> owned_lines;
    {
-     std::vector<int> touchingRank(nlines);
-     //std::vector<int> owningRank(nlines);
+      std::vector<int> touchingRank(nlines);
+      //std::vector<int> owningRank(nlines);
 
-     host_rank.SetSize(nlines);
+      host_rank.SetSize(nlines);
 
-     touchingRank.assign(nlines, num_procs);
-     //owningRank.assign(nlines, num_procs);
-     for (std::set<int>::const_iterator it = touched_lines.begin(); it != touched_lines.end(); ++it)
-       {
-	 touchingRank[*it] = myid;
-       }
+      touchingRank.assign(nlines, num_procs);
+      //owningRank.assign(nlines, num_procs);
+      for (std::set<int>::const_iterator it = touched_lines.begin();
+           it != touched_lines.end(); ++it)
+      {
+         touchingRank[*it] = myid;
+      }
 
-     MPI_Allreduce(touchingRank.data(), host_rank.GetData(), nlines, MPI_INT, MPI_MIN, comm);
+      MPI_Allreduce(touchingRank.data(), host_rank.GetData(), nlines, MPI_INT,
+                    MPI_MIN, comm);
 
-     mynrpatch = 0;
-     for (int i=0; i<nlines; ++i)
-       {
-	 if (host_rank[i] == myid)
-	   mynrpatch++;
-       }
+      mynrpatch = 0;
+      for (int i=0; i<nlines; ++i)
+      {
+         if (host_rank[i] == myid)
+         {
+            mynrpatch++;
+         }
+      }
 
-     owned_lines.SetSize(mynrpatch);
+      owned_lines.SetSize(mynrpatch);
 
-     mynrpatch = 0;
-     for (int i=0; i<nlines; ++i)
-       {
-	 if (host_rank[i] == myid)
-	   {
-	     owned_lines[mynrpatch] = i;
-	     mynrpatch++;
-	   }
-       }
+      mynrpatch = 0;
+      for (int i=0; i<nlines; ++i)
+      {
+         if (host_rank[i] == myid)
+         {
+            owned_lines[mynrpatch] = i;
+            mynrpatch++;
+         }
+      }
    }
 
    // 6. Compute total number of patches
@@ -1281,7 +1326,7 @@ LinePatchInfo::LinePatchInfo(ParMesh *pmesh_, int ref_levels_)
    // Compute total number of patches.
 
    MPI_Allreduce(&mynrpatch, &nrpatch, 1, MPI_INT, MPI_SUM, comm);
-  
+
    MFEM_VERIFY(nrpatch == nlines, "");
 
    //patch_global_dofs_ids.SetSize(nrpatch);
@@ -1333,7 +1378,9 @@ LinePatchInfo::LinePatchInfo(ParMesh *pmesh_, int ref_levels_)
 
    patch_natural_order_idx.SetSize(nrpatch);
    for (int i = 0; i < nrpatch; i++)
-     patch_natural_order_idx[i] = i;
+   {
+      patch_natural_order_idx[i] = i;
+   }
 
    int nvert = pmesh->GetNV();
    // first find all the contributions of the vertices
@@ -1347,15 +1394,15 @@ LinePatchInfo::LinePatchInfo(ParMesh *pmesh_, int ref_levels_)
       int *col = H1pr_diag.GetRowColumns(row);
       for (int j = 0; j < row_size; j++)
       {
-	const int globalLine = cdofToGlobalLine[col[j]];
-	vert_contr[i].Append(globalLine);
-	/*
-         int jv = col[j] + mycdofoffset;
-         if (is_a_patch(jv, patch_global_dofs_ids))
-         {
-            vert_contr[i].Append(jv);
-         }
-	*/
+         const int globalLine = cdofToGlobalLine[col[j]];
+         vert_contr[i].Append(globalLine);
+         /*
+               int jv = col[j] + mycdofoffset;
+               if (is_a_patch(jv, patch_global_dofs_ids))
+               {
+                  vert_contr[i].Append(jv);
+               }
+         */
       }
    }
 
@@ -1369,16 +1416,16 @@ LinePatchInfo::LinePatchInfo(ParMesh *pmesh_, int ref_levels_)
       int *col = H1pr_offd.GetRowColumns(row);
       for (int j = 0; j < row_size; j++)
       {
-	const int globalLine = cdofToGlobalLine[col[j]];
-	vert_contr[i].Append(globalLine);
+         const int globalLine = cdofToGlobalLine[col[j]];
+         vert_contr[i].Append(globalLine);
 
-	/*
-         int jv = cmap[col[j]];
-         if (is_a_patch(jv, patch_global_dofs_ids))
-         {
-            vert_contr[i].Append(jv);
-         }
-	*/
+         /*
+               int jv = cmap[col[j]];
+               if (is_a_patch(jv, patch_global_dofs_ids))
+               {
+                  vert_contr[i].Append(jv);
+               }
+         */
       }
    }
 
@@ -1447,8 +1494,8 @@ LinePatchInfo::LinePatchInfo(ParMesh *pmesh_, int ref_levels_)
 PatchDofInfo::PatchDofInfo(ParMesh *pmesh_, int ref_levels_,
                            ParFiniteElementSpace *fespace)
 {
-  //VertexPatchInfo *patch_nodes = new VertexPatchInfo(pmesh_, ref_levels_);
-  LinePatchInfo *patch_nodes = new LinePatchInfo(pmesh_, ref_levels_);
+   //VertexPatchInfo *patch_nodes = new VertexPatchInfo(pmesh_, ref_levels_);
+   LinePatchInfo *patch_nodes = new LinePatchInfo(pmesh_, ref_levels_);
 
    int num_procs, myid;
    comm = pmesh_->GetComm();
@@ -2160,37 +2207,42 @@ SchwarzSmoother::SchwarzSmoother(ParMesh * cpmesh_, int ref_levels_,
          PatchInv[ip] = new UMFPackSolver;
          PatchInv[ip]->Control[UMFPACK_ORDERING] = UMFPACK_ORDERING_AMD;
          std::cout << "SchwarzSmoother using UMFPackSolver" << std::endl;
+
+         PatchInv[ip]->SetOperator(*P->PatchMat[ip]);
 #else
          PatchInv[ip] = new GMRESSolver;
          PatchInv[ip]->iterative_mode = false;
-         std::cout << "SchwarzSmoother using GMRESSolver size " << P->PatchMat[ip]->Height() << " x " << P->PatchMat[ip]->Width() << " sym " << P->PatchMat[ip]->IsSymmetric() << ", global size " << A_->Height() << std::endl;
-	 PatchInv[ip]->SetRelTol(1e-12);
+         std::cout << "SchwarzSmoother using GMRESSolver size " <<
+                   P->PatchMat[ip]->Height() << " x " << P->PatchMat[ip]->Width() << " sym " <<
+                   P->PatchMat[ip]->IsSymmetric() << ", global size " << A_->Height() << std::endl;
+         PatchInv[ip]->SetRelTol(1e-12);
          PatchInv[ip]->SetMaxIter(100);
 
-	 HypreParMatrix *hmat = nullptr;
-	 { // Set preconditioner based on hypre
-	   HYPRE_BigInt *row_starts = new HYPRE_BigInt(2);
-	   HYPRE_BigInt *col_starts = new HYPRE_BigInt(2);
-	   row_starts[0] = 0;
-	   row_starts[1] = P->PatchMat[ip]->NumRows();
+         HypreParMatrix *hmat = nullptr;
+         {
+            // Set preconditioner based on hypre
+            HYPRE_BigInt *row_starts = new HYPRE_BigInt(2);
+            HYPRE_BigInt *col_starts = new HYPRE_BigInt(2);
+            row_starts[0] = 0;
+            row_starts[1] = P->PatchMat[ip]->NumRows();
 
-	   col_starts[0] = 0;
-	   col_starts[1] = P->PatchMat[ip]->NumCols();
+            col_starts[0] = 0;
+            col_starts[1] = P->PatchMat[ip]->NumCols();
 
-	   //hmat = new HypreParMatrix(MPI_COMM_WORLD, row_starts, col_starts, P->PatchMat[ip]);
-	   hmat = new HypreParMatrix(MPI_COMM_WORLD, P->PatchMat[ip]->NumRows(), row_starts, P->PatchMat[ip]);
+            //hmat = new HypreParMatrix(MPI_COMM_WORLD, row_starts, col_starts, P->PatchMat[ip]);
+            hmat = new HypreParMatrix(MPI_COMM_WORLD, P->PatchMat[ip]->NumRows(),
+                                      row_starts, P->PatchMat[ip]);
 
-	   HypreILU *hilu = new HypreILU();
-	   PatchInv[ip]->SetPreconditioner(*hilu);
-	 }
+            HypreILU *hilu = new HypreILU();
+            PatchInv[ip]->SetPreconditioner(*hilu);
+         }
 
-#endif
-         //PatchInv[ip]->SetOperator(*P->PatchMat[ip]);
          PatchInv[ip]->SetOperator(*hmat);
 
+#endif
          //CheckSPD(P->PatchMat[ip]);
          //MFEM_VERIFY(P->PatchMat[ip]->IsSymmetric() < 1.0e-12, "");
-	 //PatchInv[ip]->SetPrintLevel(1);
+         //PatchInv[ip]->SetPrintLevel(1);
       }
    }
    R = new PatchRestriction(P);
