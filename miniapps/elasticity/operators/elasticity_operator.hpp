@@ -286,7 +286,7 @@ public:
     *
     * @param[in] attr
     */
-   void SetDisplacedAttributes(const Array<int> attr)
+   void SetPrescribedDisplacement(const Array<int> attr)
    {
       h1_fes_.GetEssentialTrueDofs(attr, displaced_tdof_list_);
    }
@@ -297,7 +297,7 @@ public:
     *
     * @return T-vector degrees of freedom that have been marked as displaced
     */
-   const Array<int> &GetDisplacedTDofs() { return displaced_tdof_list_; };
+   const Array<int> &GetPrescribedDisplacementTDofs() { return displaced_tdof_list_; };
 };
 
 } // namespace mfem
