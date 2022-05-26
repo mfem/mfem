@@ -109,9 +109,8 @@ void BuildVdofToVdofMap(const FiniteElementSpace& subfes,
       {
          if (parentfes.IsDGSpace())
          {
-            int basis_type = static_cast<const L2_FECollection*>
-                             (parentfes.FEColl())->GetBasisType();
-            MFEM_ASSERT(basis_type == BasisType::GaussLobatto,
+            MFEM_ASSERT(static_cast<const L2_FECollection*>
+                        (parentfes.FEColl())->GetBasisType() == BasisType::GaussLobatto,
                         "Only BasisType::GaussLobatto is supported for L2 spaces");
 
             auto pm = parentfes.GetMesh();
