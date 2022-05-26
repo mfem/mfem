@@ -37,7 +37,7 @@ endif
 COMMON_O=../common/fem_extras.o ../common/pfem_extras.o \
 	../common/mesh_extras.o \
 	cold_plasma_dielectric_solver.o cold_plasma_dielectric_coefs.o \
-	g_eqdsk_data.o plasma.o transport_solver.o braginskii_coefs.o
+	g_eqdsk_data.o plasma.o transport_solver.o braginskii_coefs.o schwarz.o
 
 # Remove built-in rules
 %: %.cpp

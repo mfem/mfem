@@ -12,6 +12,8 @@
 #include "transport_solver.hpp"
 #include "../../general/text.hpp"
 
+#include "schwarz.hpp"
+
 #ifdef MFEM_USE_MPI
 
 using namespace std;
@@ -2615,6 +2617,62 @@ finish:
 
 void DiscontPSCPreconditioner::SetOperator(const Operator &op) { }
 
+AdditivePreconditioner::AdditivePreconditioner(const Solver &P1_,
+                                               const Solver &P2_)
+   : Solver(P1_.Height()),
+     P1(P1_),
+     P2(P2_),
+     v(P1_.Height())
+{
+}
+
+void AdditivePreconditioner::Mult(const Vector &b, Vector &x) const
+{
+   // Precondition by P1: x = Pb
+   P1.Mult(b, x);
+
+   // Precondition by P2: v = Pb
+   P2.Mult(b, v);
+
+   x += v;
+}
+
+void AdditivePreconditioner::SetOperator(const Operator &op)
+{
+   A = &op;
+}
+
+MultiplicativePreconditioner::MultiplicativePreconditioner(const Solver &P1_,
+                                                           const Solver &P2_)
+   : Solver(P1_.Height()),
+     P1(P1_),
+     P2(P2_),
+     r(P1_.Height()),
+     v(P1_.Height())
+{
+}
+
+void MultiplicativePreconditioner::Mult(const Vector &b, Vector &x) const
+{
+   // Precondition by P1: x = Pb
+   P1.Mult(b, x);
+
+   // Compute residual r = Ax - b = APb - b
+   A->Mult(x, r);
+   r -= b;
+
+   // Precondition by P2: v = Pr
+   P2.Mult(r, v);
+
+   // Now v approximates the error e = A^{-1} r = x - A^{-1} b
+   x -= v;
+}
+
+void MultiplicativePreconditioner::SetOperator(const Operator &op)
+{
+   A = &op;
+}
+
 DGTransportTDO::DGTransportTDO(const MPI_Session &mpi, const DGParams &dg,
                                const PlasmaParams &plasma,
                                const SolverParams & tol,
@@ -3505,15 +3563,51 @@ Operator *DGTransportTDO::NLOperator::GetGradientBlock(int i)
             // Set up the preconditioner in CG space
             if (use_lor_cg)
             {
-               //ParLORDiscretization lor(*blf_[i], ess_dofs);
+               delete D_lor_;
+               D_lor_ = new ParLORDiscretization(*cgblf_[i], cg_ess_tdof_list);
+               if (use_air_cg)
+               {
+                  MFEM_VERIFY(cgblf_[i], "");
+                  const int block_size = cgblf_[i]->ParFESpace()->GetFE(0)->GetDof();
+                  D_amg_ = new LORSolver<AIR_prec>(*D_lor_, block_size);
+               }
+               else
+               {
+                  D_amg_ = new LORSolver<HypreBoomerAMG>(*D_lor_);
+               }
             }
             else
             {
-               D_amg_ = new HypreBoomerAMG(*D_cg_);
+               if (use_air_cg)
+               {
+                  MFEM_VERIFY(cgblf_[i], "");
+                  const int block_size = cgblf_[i]->ParFESpace()->GetFE(0)->GetDof();
+                  D_amg_ = new AIR_prec(block_size);
+                  D_amg_->SetOperator(*D_cg_);
+               }
+               else
+               {
+                  D_amg_ = new HypreBoomerAMG(*D_cg_);
+               }
             }
 
             D_smoother_ = new HypreSmoother(*Dmat, HypreSmoother::Jacobi);
-            dg_precond_ = new DiscontPSCPreconditioner(*cg2dg_, *D_amg_, *D_smoother_);
+            if (use_schwarz)
+            {
+
+               D_schwarz_ = new SchwarzSmoother(cgblf_[i]->ParFESpace()->GetParMesh(),
+                                                0, cgblf_[i]->ParFESpace(), D_cg_);  // TODO: delete this pointer
+               D_mult_ = new MultiplicativePreconditioner(*D_amg_, *D_schwarz_);  // TODO: delete this pointer
+
+               D_mult_->SetOperator(*D_cg_);
+               dg_precond_ = new DiscontPSCPreconditioner(*cg2dg_, *D_mult_, *D_smoother_);
+               //dg_precond_ = new DiscontPSCPreconditioner(*cg2dg_, *D_schwarz_, *D_smoother_);
+               //dg_precond_ = new DiscontPSCPreconditioner(*cg2dg_, *D_amg_, *D_smoother_);
+            }
+            else
+            {
+               dg_precond_ = new DiscontPSCPreconditioner(*cg2dg_, *D_amg_, *D_smoother_);
+            }
          }
          else
          {

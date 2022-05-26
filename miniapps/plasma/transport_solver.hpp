@@ -4889,7 +4889,6 @@ struct DiscontPSCPreconditioner : Solver
    const CG2DG &cg2dg;
    const Solver &cg_solver;
    const Solver &smoother;
-   SparseMatrix Z;
 
    mutable Vector x_z, b_cg, x_cg;
    mutable Vector x_sm;
@@ -4901,6 +4900,35 @@ struct DiscontPSCPreconditioner : Solver
    virtual void SetOperator(const Operator &op);
 };
 
+struct AdditivePreconditioner : Solver
+{
+   const Operator *A;
+   const Solver &P1;
+   const Solver &P2;
+
+   mutable Vector v;
+
+   AdditivePreconditioner(const Solver &P1_,
+                          const Solver &P2_);
+
+   virtual void Mult(const Vector &b, Vector &x) const;
+   virtual void SetOperator(const Operator &op);
+};
+
+struct MultiplicativePreconditioner : Solver
+{
+   const Operator *A;
+   const Solver &P1;
+   const Solver &P2;
+
+   mutable Vector r, v;
+
+   MultiplicativePreconditioner(const Solver &P1_,
+                                const Solver &P2_);
+
+   virtual void Mult(const Vector &b, Vector &x) const;
+   virtual void SetOperator(const Operator &op);
+};
 
 /** The DGTransportTDO class is designed to be used with an implicit
     ODESolver to solve a specific set of coupled transport equations
@@ -4997,14 +5025,21 @@ private:
 
       CG2DG *cg2dg_ = NULL;
       HypreParMatrix *CG2DGmat_ = NULL;
-      HypreBoomerAMG *D_amg_ = NULL;
+      Solver *D_amg_ = NULL;
+      ParLORDiscretization *D_lor_ = NULL;
       HypreSmoother *D_smoother_ = NULL;
       HypreParMatrix *D_cg_ = NULL;
       Solver *dg_precond_ = NULL;
 
+      Solver *D_mult_ = NULL;
+      Solver *D_schwarz_ = NULL;
+      Vector D_diag_;
+
       Array<int> cg_ess_tdof_list;
 
-      bool use_lor_cg = false;
+      bool use_lor_cg = true;
+      bool use_air_cg = true;
+      bool use_schwarz = true;
 
       int term_flag_;
       int vis_flag_;
