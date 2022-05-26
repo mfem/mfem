@@ -337,6 +337,12 @@ public:
       return *mat_e;
    }
 
+   // Returns true if the sparse matrix of eliminated b.c.s is not null, false otherwise.
+   bool HasSpMatElim()
+   {
+      return mat_e != nullptr;
+   }
+
    /// Adds new Domain Integrator. Assumes ownership of @a bfi.
    void AddDomainIntegrator(BilinearFormIntegrator *bfi);
    /// Adds new Domain Integrator restricted to certain elements specified by
