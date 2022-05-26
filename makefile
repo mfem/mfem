@@ -225,6 +225,7 @@ endif
 ifeq ($(MFEM_USE_CUDA)$(MFEM_USE_HIP),NONO)
    MFEM_CXX ?= $(HOST_CXX)
    MFEM_HOST_CXX ?= $(MFEM_CXX)
+	JIT_LANG  = $(if $(jit),-x c++)
    XCOMPILER = $(CXX_XCOMPILER)
    XLINKER   = $(CXX_XLINKER)
 endif
@@ -460,32 +461,43 @@ JIT_SOURCE_FILES = $(SRC)fem/bilininteg_diffusion_pa.cpp \
 $(SRC)fem/bilininteg_mass_pa.cpp
 
 # Definitions to compile the preprocessor and embed the MFEM options
-MFEM_JIT_COMMA :=,
 MFEM_JIT_DEFINES  = -DMFEM_CXX="$(MFEM_CXX)"
 ifneq ($(MFEM_USE_CUDA),YES)
 MFEM_JIT_DEFINES += -Wno-unknown-escape-sequence
 endif
+MFEM_JIT_COMMA :=,
+define esc_comma
+"$(subst $(MFEM_JIT_COMMA),\$(MFEM_JIT_COMMA),$(1))"
+endef
 # Comma has to be escaped to avoid 'macro names must be identifiers' error
-MFEM_JIT_DEFINES += -DMFEM_EXT_LIBS="$(subst $(MFEM_JIT_COMMA),\$(MFEM_JIT_COMMA),$(MFEM_EXT_LIBS))"
-MFEM_JIT_DEFINES += -DMFEM_BUILD_FLAGS="$(subst $(MFEM_JIT_COMMA),\$(MFEM_JIT_COMMA),$(MFEM_BUILD_FLAGS))"
-MFEM_JIT_DEFINES += -DMFEM_LINK_FLAGS="$(subst $(MFEM_JIT_COMMA),\$(MFEM_JIT_COMMA),$(MFEM_LINK_FLAGS))"
+MFEM_JIT_DEFINES += -DMFEM_EXT_LIBS=$(call esc_comma,$(MFEM_EXT_LIBS))
+MFEM_JIT_DEFINES += -DMFEM_BUILD_FLAGS=$(call esc_comma,$(MFEM_BUILD_FLAGS))
+MFEM_JIT_DEFINES += -DMFEM_LINK_FLAGS=$(call esc_comma,$(MFEM_LINK_FLAGS))
 $(BLD)mjit: $(BLD)general/jit/parser.cpp $(CONFIG_MK) makefile\
  $(BLD)general/jit/jit.hpp $(BLD)general/jit/jit.cpp
 	$(MFEM_CXX) $(MFEM_BUILD_FLAGS) $(MFEM_JIT_DEFINES) -o $(@) $(<) $(JIT_LIB)
 
-# Filtering out the objects that will be compiled through the preprocessor
+# Filter out objects that will be compiled through the preprocessor
 JIT_OBJECT_FILES = $(JIT_SOURCE_FILES:$(SRC)%.cpp=$(BLD)%.o)
 STD_OBJECT_FILES = $(filter-out $(JIT_OBJECT_FILES), $(OBJECT_FILES))
 
 $(STD_OBJECT_FILES): $(BLD)%.o: $(SRC)%.cpp $(CONFIG_MK)
 	$(MFEM_CXX) $(MFEM_BUILD_FLAGS) -c $(<) -o $(@)
 
+# Hip compiler does not support target options with stdin input
+ifneq ($(MFEM_USE_HIP),YES)
+MFEM_JIT_FLAGS = $(strip $(MFEM_BUILD_FLAGS)) $(JIT_LANG) -I$(patsubst %/,%,$(<D))
+$(JIT_OBJECT_FILES): $(BLD)%.o: $(SRC)%.cpp $(CONFIG_MK) $(BLD)mjit
+	$(BLD)./mjit $(<) | $(MFEM_CXX) $(MFEM_JIT_FLAGS) -c -o $(@) -
+else # hip
+# Use temporary *_jit.cpp files
 $(BLD)%_jit.cc: $(SRC)%.cpp $(CONFIG_MK) $(BLD)mjit
 	$(BLD)./mjit $(<) -o $(@)
 
 $(BLD)%.o: $(BLD)%_jit.cc $(CONFIG_MK) makefile
 	$(MFEM_CXX) $(strip $(MFEM_BUILD_FLAGS)) -c $(<) -o $(@)
-endif
+endif # hip
+endif # jit
 
 all: examples miniapps $(TEST_DIRS)
 
