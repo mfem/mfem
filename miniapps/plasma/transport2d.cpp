@@ -990,7 +990,7 @@ int main(int argc, char *argv[])
    dg.sigma = -1.0;
    dg.kappa = -1.0;
 
-   int ode_solver_type = 2;
+   int ode_solver_type = 1;
    int ode_limiter_type = 2;
    int logging = 0;
    bool     imex = false;
