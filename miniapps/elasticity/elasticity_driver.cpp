@@ -119,15 +119,15 @@ int main(int argc, char *argv[])
       elasticity_op.SetEssentialAttributes(ess_attr);
    }
 
-   // Define all statically displaced mesh attributes. On these degrees of
-   // freedom (determined from the mesh attributes), a fixed displacement is
-   // prescribed.
+   // Define all statically displaced degrees of freedom on mesh entities in the
+   // defined attributes. On these degrees of freedom (determined from the mesh
+   // attributes), a fixed displacement is prescribed.
    if (pmesh.bdr_attributes.Size())
    {
       Array<int> displaced_attr(pmesh.bdr_attributes.Max());
       displaced_attr = 0;
       displaced_attr[2] = 1;
-      elasticity_op.SetDisplacedAttributes(displaced_attr);
+      elasticity_op.SetPrescribedDisplacement(displaced_attr);
    }
 
    ParGridFunction U_gf(&elasticity_op.h1_fes_);
@@ -137,7 +137,7 @@ int main(int argc, char *argv[])
    U_gf.GetTrueDofs(U);
 
    // Prescribe a fixed displacement to the displaced degrees of freedom.
-   U.SetSubVector(elasticity_op.GetDisplacedTDofs(), 1.0e-2);
+   U.SetSubVector(elasticity_op.GetPrescribedDisplacementTDofs(), 1.0e-2);
 
    // Define the type of preconditioner to use for the linear solver.
    ElasticityDiagonalPreconditioner diagonal_pc(
