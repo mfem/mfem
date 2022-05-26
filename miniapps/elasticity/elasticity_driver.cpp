@@ -99,7 +99,7 @@ int main(int argc, char *argv[])
 
    // As seen in materials/gradient_type.hpp there is a choice of the
    // GradientType with either
-   // * Symbolic
+   // * Symbolic (Manually derived)
    // * EnzymeFwd
    // * EnzymeRev
    // * FiniteDiff
