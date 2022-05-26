@@ -50,20 +50,6 @@ int main(int argc, char *argv[])
    Mesh *mesh_old = new Mesh(20, 20, 5, Element::HEXAHEDRON, false, 4.0, 4.0, 1.0);
    Mesh *mesh_new = new Mesh(30, 30, 8, Element::HEXAHEDRON, false, 4.0, 4.0, 1.0);   
 
-
-   /*Mesh *mesh_test = new Mesh("../../data/ref-cube.mesh");
-
-   Array<int> verts({0,1,2,3,4,5,6});
-   Array<int> faces;
-   mesh_test->FacesWithAllVerts(faces, verts);
-
-   std::cout << "Faces size" << faces.Size() << std::endl;
-   for (int i = 0; i < faces.Size(); i ++)
-   {
-      std::cout << faces[i] << std::endl;
-   }*/
-
-
    // Refine the serial mesh on all processors to increase the resolution. In
    // this example we do 'ref_levels' of uniform refinement.
    for (int l = 0; l < serial_ref_levels; l++)
@@ -92,16 +78,22 @@ int main(int argc, char *argv[])
    RT_ParFESpace *HDivFESpaceNew  = new RT_ParFESpace(&pmesh_new,order,pmesh_new.Dimension());
    ParGridFunction *b = new ParGridFunction(HDivFESpaceOld);
    ParGridFunction *b_new = new ParGridFunction(HDivFESpaceNew);
+   ParGridFunction *b_new_exact = new ParGridFunction(HDivFESpaceNew);
 
    //Set the initial B value
    *b = 0.0;
    *b_new = 0.0;
+   *b_new_exact = 0.0;
    VectorFunctionCoefficient BFieldCoef(3,BFieldFunc);
    b->ProjectCoefficient(BFieldCoef);
-
+   b_new_exact->ProjectCoefficient(BFieldCoef);
 
    BFieldAdvector advector(&pmesh_old, &pmesh_new, 1);
    advector.Advect(b, b_new);
+   Vector diff(*b_new_exact);
+   diff -= *b_new;    //diff = b_new_exact - b_new
+   std::cout << "L2 Error in reconstructed B field on the new mesh:  " << diff.Norml2() << std::endl;
+
 
    ParGridFunction *b_recon = advector.GetReconstructedB();
    ParGridFunction *curl_b = advector.GetCurlB();

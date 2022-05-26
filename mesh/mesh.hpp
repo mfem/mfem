@@ -447,6 +447,7 @@ protected:
 
    void FreeElement(Element *E);
 
+   void GenerateFaces();
    void GenerateNCFaceInfo();
 
    /// Begin construction of a mesh
@@ -1033,8 +1034,6 @@ public:
          : Array<Geometry::Type>(geom_buf, Geometry::NumGeom)
       { mesh.GetGeometries(dim, *this); }
    };
-
-   void GenerateFaces();
 
    /// Returns the indices of the vertices of element i.
    void GetElementVertices(int i, Array<int> &v) const

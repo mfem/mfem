@@ -677,6 +677,49 @@ void MatrixFunctionCoefficient::EvalSymmetric(Vector &K,
    }
 }
 
+MatrixGridFunctionCoefficient::MatrixGridFunctionCoefficient(
+   const GridFunction *gf, int h, int w) : MatrixCoefficient(h, w)
+{
+   GridFunc = gf;
+   if (gf)
+   {
+      MFEM_ASSERT(gf->VectorDim() == h*w, "GridFunction vector dimension"
+         "must equate to the number of matrix entries (h*w)");
+   }
+}
+
+void MatrixGridFunctionCoefficient::SetGridFunction(const GridFunction *gf, int h, int w)
+{
+   GridFunc = gf; 
+   height = h;
+   width = w;
+   if(gf)
+   {
+      MFEM_ASSERT(gf->VectorDim() == h*w, "GridFunction vector dimension"
+         "must equate to the number of matrix entries (h*w)");
+   }
+}
+
+void MatrixGridFunctionCoefficient::Eval(DenseMatrix &K, ElementTransformation &T,
+                                         const IntegrationPoint &ip)
+{
+   Vector V;
+   Mesh *gf_mesh = GridFunc->FESpace()->GetMesh();
+   if (T.mesh == gf_mesh)
+   {
+      GridFunc->GetVectorValue(T, ip, V);
+   }
+   else
+   {
+      IntegrationPoint coarse_ip;
+      ElementTransformation *coarse_T = RefinedToCoarse(*gf_mesh, T, ip, coarse_ip);
+      GridFunc->GetVectorValue(*coarse_T, coarse_ip, V);
+   }
+
+   K.SetSize(height, width);
+   K.Set(1.0, V.begin());
+}
+
 void SymmetricMatrixFunctionCoefficient::SetTime(double t)
 {
    if (Q) { Q->SetTime(t); }

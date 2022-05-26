@@ -194,7 +194,7 @@ void BFieldAdvector::ComputeA(ParGridFunction* b)
    // Extract the parallel grid function corresponding to the finite
    // element approximation A. This is the local solution on each
    // processor.
-   curlCurl->RecoverFEMSolution(A, *clean_curl_b, *a);
+   curlCurl->RecoverFEMSolution(A, rhs, *a);
 
    //Compute the reconstructed b field for comparison
    curl_old->Mult(*a, *recon_b);

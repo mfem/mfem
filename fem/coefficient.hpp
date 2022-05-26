@@ -1158,6 +1158,36 @@ public:
    virtual ~MatrixArrayCoefficient();
 };
 
+/** @brief A matrix coefficient defined using a long vector grid function that
+    will have it's vector components interpreted as an m x n matrix in column
+    major order.  */
+class MatrixGridFunctionCoefficient : public MatrixCoefficient
+{
+protected:
+   const GridFunction *GridFunc;
+
+public:
+   /** @brief Construct the coefficient with the vector grid function @a gf and set
+       the m x n matrix dimensions that the vector grid function will be used to 
+       interpret the long vector as a matrix in column major order.  The vector 
+       dimension of @a gf must equate to the product of m and n.*/
+   MatrixGridFunctionCoefficient(const GridFunction *gf, int h, int w);
+
+   /** @brief Set the vector grid function for this coefficient to @a gf and set
+       the m x n matrix dimensions that the vector grid function will be used to 
+       interpret the long vector as a matrix in column major order.  The vector 
+       dimension of @a gf must equate to the product of m and n.*/
+   void SetGridFunction(const GridFunction *gf, int h, int w);
+
+   ///  Returns a pointer to the grid function in this Coefficient
+   const GridFunction * GetGridFunction() const { return GridFunc; }
+
+   virtual void Eval(DenseMatrix &K, ElementTransformation &T,
+                     const IntegrationPoint &ip);
+
+   virtual ~MatrixGridFunctionCoefficient() { }
+};
+
 
 /** @brief Derived matrix coefficient that has the value of the parent matrix
     coefficient where it is active and is zero otherwise. */
