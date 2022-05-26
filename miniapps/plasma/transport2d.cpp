@@ -2517,7 +2517,8 @@ void record_cmd_line(int argc, char *argv[])
    for (int i=0; i<argc; i++)
    {
       ofs << argv[i] << " ";
-      if (strcmp(argv[i], "-amr-weights"        ) == 0 ||
+      if (strcmp(argv[i], "-m-sol1d"            ) == 0 ||
+          strcmp(argv[i], "-amr-weights"        ) == 0 ||
           strcmp(argv[i], "-amr-w"              ) == 0 ||
           strcmp(argv[i], "-equation-weights"   ) == 0 ||
           strcmp(argv[i], "-eqn-w"              ) == 0 ||
