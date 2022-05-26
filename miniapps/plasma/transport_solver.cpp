@@ -5767,7 +5767,7 @@ DGTransportTDO::IonMomentumOp::IonMomentumOp(const MPI_Session & mpi,
      EtaCoef_(EtaParaCoefPtr_,
               EtaPerpCoefPtr_, B3Coef_),
      miniViCoef_(niCoef_, viCoef_, m_i_kg_, DPerpCoef_, B3Coef_),
-     gradPCoef_(yGF, kGF, z_i_, B3Coef_),
+     negGradPCoef_(yGF, kGF, z_i_, B3Coef_),
      SIZCoef_(z_i_, m_i_kg_, nnCoef_, niCoef_, vnAvgCoef_, izCoef_),
      SRCCoef_(z_i_, m_i_kg_, niCoef_, viCoef_, rcCoef_),
      SCXCoef_(m_i_kg_, nnCoef_, niCoef_, vnAvgCoef_, viCoef_, cxCoef_),
@@ -5841,8 +5841,9 @@ DGTransportTDO::IonMomentumOp::IonMomentumOp(const MPI_Session & mpi,
    */
    if (this->CheckTermFlag(GRADP_SOURCE_TERM))
    {
-      // Source term: b . Grad(p_i + p_e)
-      dlfi_.Append(new DomainLFIntegrator(gradPCoef_));
+      // Source term: - b . Grad(p_i + p_e)
+      // dlfi_.Append(new DomainLFIntegrator(negGradPCoef_));
+      SetSourceTerm(negGradPCoef_, 1.0);
    }
    if (this->CheckTermFlag(IONIZATION_SOURCE_TERM))
    {
@@ -5932,7 +5933,7 @@ void DGTransportTDO::IonMomentumOp::SetTime(double t)
    EtaPerpCoef_.SetTime(t);
    EtaCoef_.SetTime(t);
    miniViCoef_.SetTime(t);
-   gradPCoef_.SetTime(t);
+   negGradPCoef_.SetTime(t);
    SIZCoef_.SetTime(t);
    SRCCoef_.SetTime(t);
    SCXCoef_.SetTime(t);
@@ -6039,7 +6040,7 @@ IonMomentumOp::PrepareDataFields()
    }
    if (this->CheckVisFlag(GRADP_SOURCE_COEF))
    {
-      SGPGF_->ProjectCoefficient(gradPCoef_);
+      SGPGF_->ProjectCoefficient(negGradPCoef_);
    }
    if (this->CheckVisFlag(IONIZATION_SOURCE_COEF))
    {

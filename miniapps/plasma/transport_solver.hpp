@@ -4477,7 +4477,7 @@ public:
    }
 };
 
-class GradPressureCoefficient : public StateVariableCoef
+class NegGradPressureCoefficient : public StateVariableCoef
 {
 private:
    double zi_; // Stored as a double to avoid type casting in Eval methods
@@ -4516,9 +4516,9 @@ private:
    mutable Vector B_;
 
 public:
-   GradPressureCoefficient(ParGridFunctionArray &yGF,
-                           ParGridFunctionArray &kGF,
-                           int zi, VectorCoefficient & B3Coef)
+   NegGradPressureCoefficient(ParGridFunctionArray &yGF,
+                              ParGridFunctionArray &kGF,
+                              int zi, VectorCoefficient & B3Coef)
       : zi_((double)zi), dt_(0.0),
         ni0_(yGF[ION_DENSITY]),
         Ti0_(yGF[ION_TEMPERATURE]),
@@ -4534,7 +4534,7 @@ public:
         grad_dTe0_(kGF[ELECTRON_TEMPERATURE]),
         B3_(&B3Coef), B_(3) {}
 
-   GradPressureCoefficient(const GradPressureCoefficient & other)
+   NegGradPressureCoefficient(const NegGradPressureCoefficient & other)
       : ni0_(other.ni0_),
         Ti0_(other.Ti0_),
         Te0_(other.Te0_),
@@ -4555,9 +4555,9 @@ public:
       B3_ = other.B3_;
    }
 
-   virtual GradPressureCoefficient * Clone() const
+   virtual NegGradPressureCoefficient * Clone() const
    {
-      return new GradPressureCoefficient(*this);
+      return new NegGradPressureCoefficient(*this);
    }
 
    void SetTimeStep(double dt) { dt_ = dt; }
@@ -4604,9 +4604,9 @@ public:
 
       double Bmag = sqrt(B_ * B_);
 
-      return J_per_eV_ * ((zi_ * Te1 + Ti1) * (B_[0] * gni1_[0] + B_[1] * gni1_[1]) +
-                          (zi_ * (B_[0] * gTe1_[0] + B_[1] * gTe1_[1]) +
-                           (B_[0] * gTi1_[0] + B_[1] * gTi1_[1])) * ni1) / Bmag;
+      return -J_per_eV_ * ((zi_ * Te1 + Ti1) * (B_[0] * gni1_[0] + B_[1] * gni1_[1]) +
+                           (zi_ * (B_[0] * gTe1_[0] + B_[1] * gTe1_[1]) +
+                            (B_[0] * gTi1_[0] + B_[1] * gTi1_[1])) * ni1) / Bmag;
    }
 
    double Eval_dNi(ElementTransformation &T,
@@ -4628,8 +4628,8 @@ public:
 
       double Bmag = sqrt(B_ * B_);
 
-      return J_per_eV_ * (dt_ * zi_ * (B_[0] * gTe1_[0] + B_[1] * gTe1_[1]) +
-                          (B_[0] * gTi1_[0] + B_[1] * gTi1_[1])) / Bmag;
+      return -J_per_eV_ * (dt_ * zi_ * (B_[0] * gTe1_[0] + B_[1] * gTe1_[1]) +
+                           (B_[0] * gTi1_[0] + B_[1] * gTi1_[1])) / Bmag;
    }
 
    double Eval_dTi(ElementTransformation &T,
@@ -4647,7 +4647,7 @@ public:
 
       double Bmag = sqrt(B_ * B_);
 
-      return J_per_eV_ * dt_ * (B_[0] * gni1_[0] + B_[1] * gni1_[1]) / Bmag;
+      return -J_per_eV_ * dt_ * (B_[0] * gni1_[0] + B_[1] * gni1_[1]) / Bmag;
    }
 
    double Eval_dTe(ElementTransformation &T,
@@ -4665,7 +4665,7 @@ public:
 
       double Bmag = sqrt(B_ * B_);
 
-      return J_per_eV_ * dt_ * zi_ * (B_[0] * gni1_[0] + B_[1] * gni1_[1]) / Bmag;
+      return -J_per_eV_ * dt_ * zi_ * (B_[0] * gni1_[0] + B_[1] * gni1_[1]) / Bmag;
    }
 };
 /*
@@ -5474,7 +5474,7 @@ private:
 
       IonMomentumAdvectionCoef miniViCoef_;
 
-      GradPressureCoefficient gradPCoef_;
+      NegGradPressureCoefficient negGradPCoef_;
 
       IonMomentumIonizationCoef     SIZCoef_;
       IonMomentumRecombinationCoef  SRCCoef_;
