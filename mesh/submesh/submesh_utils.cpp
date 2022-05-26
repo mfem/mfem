@@ -138,13 +138,13 @@ void BuildVdofToVdofMap(const FiniteElementSpace& subfes,
             parentfes.GetElementVDofs(parent_volel_id, z1);
 
             parent_vdofs.SetSize(parentfes.GetVDim() * T.Height());
-            for (int i = 0; i < T.Height(); i++)
+            for (int j = 0; j < T.Height(); j++)
             {
-               for (int j = 0; j < parentfes.GetVDim() * T.Width(); j++)
+               for (int k = 0; k < parentfes.GetVDim() * T.Width(); k++)
                {
-                  if (T(i, j) != 0.0)
+                  if (T(j, k) != 0.0)
                   {
-                     parent_vdofs[i] = z1[static_cast<int>(j)];
+                     parent_vdofs[j] = z1[static_cast<int>(k)];
                   }
                }
             }
