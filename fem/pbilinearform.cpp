@@ -348,6 +348,12 @@ void ParBilinearForm::FormLinearSystem(
    }
 }
 
+void ParBilinearForm::EliminateVDofsInRHS(
+   const Array<int> &vdofs, const Vector &x, Vector &b)
+{
+   p_mat.EliminateBC(p_mat_e, vdofs, x, b);
+}
+
 void ParBilinearForm::FormSystemMatrix(const Array<int> &ess_tdof_list,
                                        OperatorHandle &A)
 {

@@ -1060,9 +1060,10 @@ void MassIntegrator::AssembleElementMatrix
    for (int i = 0; i < ir->GetNPoints(); i++)
    {
       const IntegrationPoint &ip = ir->IntPoint(i);
-      el.CalcShape(ip, shape);
-
       Trans.SetIntPoint (&ip);
+
+      el.CalcPhysShape(Trans, shape);
+
       w = Trans.Weight() * ip.weight;
       if (Q)
       {

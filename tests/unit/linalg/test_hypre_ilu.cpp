@@ -26,7 +26,8 @@ TEST_CASE("HypreILU and HypreFGMRES wrappers",
    int rank;
    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
    int ne = 40;
-   Mesh mesh(ne, ne, Element::QUADRILATERAL, 1, 1.0, 1.0);
+   Mesh mesh = Mesh::MakeCartesian2D(
+                  ne, ne, Element::QUADRILATERAL, 1, 1.0, 1.0);
    ParMesh pmesh(MPI_COMM_WORLD, mesh);
    mesh.Clear();
 

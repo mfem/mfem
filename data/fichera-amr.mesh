@@ -1,6 +1,7 @@
 MFEM NC mesh v1.0
 
 # NCMesh supported geometry types:
+# SEGMENT     = 1
 # TRIANGLE    = 2
 # SQUARE      = 3
 # TETRAHEDRON = 4

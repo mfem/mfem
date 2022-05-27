@@ -86,6 +86,11 @@ public:
    Vector(int size_, MemoryType mt)
       : data(size_, mt), size(size_) { }
 
+   /** @brief Create a Vector of size @a size_ using host MemoryType @a h_mt and
+       device MemoryType @a d_mt. */
+   Vector(int size_, MemoryType h_mt, MemoryType d_mt)
+      : data(size_, h_mt, d_mt), size(size_) { }
+
    /// Create a vector using a braced initializer list
    template <int N>
    explicit Vector(const double (&values)[N]) : Vector(N)
@@ -169,6 +174,12 @@ public:
 
    /// Destroy a vector
    void Destroy();
+
+   /** @brief Delete the device pointer, if owned. If @a copy_to_host is true
+       and the data is valid only on device, move it to host before deleting.
+       Invalidates the device memory. */
+   void DeleteDevice(bool copy_to_host = true)
+   { data.DeleteDevice(copy_to_host); }
 
    /// Returns the size of the vector.
    inline int Size() const { return size; }

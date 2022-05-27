@@ -80,7 +80,8 @@ int main(int argc, char *argv[])
    socketstream soutv, south;
 
    {
-      Mesh mesh(nx, ny, Element::QUADRILATERAL, 1, 2*M_PI, 2*M_PI);
+      Mesh mesh = Mesh::MakeCartesian2D(
+                     nx, ny, Element::QUADRILATERAL, 1, 2*M_PI, 2*M_PI);
       mesh.SetCurvature(order, true, 3, Ordering::byVDIM);
       mesh.Transform(lissajous_trans_v);
 
@@ -102,7 +103,8 @@ int main(int argc, char *argv[])
    }
 
    {
-      Mesh mesh(nx, ny, Element::QUADRILATERAL, 1, 2*M_PI, 2*M_PI);
+      Mesh mesh = Mesh::MakeCartesian2D(
+                     nx, ny, Element::QUADRILATERAL, 1, 2*M_PI, 2*M_PI);
       mesh.SetCurvature(order, true, 3, Ordering::byVDIM);
       mesh.Transform(lissajous_trans_h);
 

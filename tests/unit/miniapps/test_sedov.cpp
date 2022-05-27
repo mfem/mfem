@@ -1512,7 +1512,7 @@ void QUpdate::UpdateQuadratureData(const Vector &S,
    Vector* S_p = const_cast<Vector*>(&S);
    const int H1_size = H1.GetVSize();
    const int nqp1D = tensors1D->LQshape1D.Width();
-   const double h1order = (double) H1.GetOrder(0);
+   const double h1order = (double) H1.GetElementOrder(0);
    const double infinity = std::numeric_limits<double>::infinity();
    GridFunction d_x, d_v, d_e;
    d_x.MakeRef(&H1,*S_p, 0);
@@ -1644,8 +1644,9 @@ public:
       Me(l2dofs_cnt, l2dofs_cnt, nzones),
       Me_inv(l2dofs_cnt, l2dofs_cnt, nzones),
       integ_rule(IntRules.Get(h1_fes.GetMesh()->GetElementBaseGeometry(0),
-                              (order_q>0)? order_q :
-                              3*h1_fes.GetOrder(0) + l2_fes.GetOrder(0) - 1)),
+                              (order_q > 0) ? order_q :
+                              3*h1_fes.GetElementOrder(0)
+                              + l2_fes.GetElementOrder(0) - 1)),
       quad_data(dim, nzones, integ_rule.GetNPoints()),
       quad_data_is_current(false), forcemat_is_assembled(false),
       T1D(H1FESpace.GetFE(0)->GetOrder(), L2FESpace.GetFE(0)->GetOrder(),
@@ -1709,7 +1710,7 @@ public:
             quad_data.h0 = pow(glob_area / glob_z_cnt, 1.0/3.0); break;
          default: MFEM_ABORT("Unknown zone type!");
       }
-      quad_data.h0 /= (double) H1FESpace.GetOrder(0);
+      quad_data.h0 /= (double) H1FESpace.GetElementOrder(0);
       {
          Vector d;
          (dim == 2) ? VMassPA->ComputeDiagonal2D(d) : VMassPA->ComputeDiagonal3D(d);
@@ -1933,22 +1934,22 @@ int sedov(int myid, int argc, char *argv[])
       if (myid == 0) { args.PrintUsage(cout); }
       return -1;
    }
-   Mesh *mesh;
+   Mesh mesh;
    if (strncmp(mesh_file, "none", 4))
    {
-      mesh = new Mesh(mesh_file, true, true);
-      dim = mesh->Dimension();
+      mesh = Mesh::LoadFromFile(mesh_file, true, true);
+      dim = mesh.Dimension();
    }
    else
    {
       if (dim == 2)
       {
          constexpr Element::Type QUAD = Element::QUADRILATERAL;
-         mesh = new Mesh(2, 2, QUAD, true);
-         const int NBE = mesh->GetNBE();
+         mesh = Mesh::MakeCartesian2D(2, 2, QUAD, true);
+         const int NBE = mesh.GetNBE();
          for (int b = 0; b < NBE; b++)
          {
-            Element *bel = mesh->GetBdrElement(b);
+            Element *bel = mesh.GetBdrElement(b);
             MFEM_ASSERT(bel->GetType() == Element::SEGMENT, "");
             const int attr = (b < NBE/2) ? 2 : 1;
             bel->SetAttribute(attr);
@@ -1956,27 +1957,27 @@ int sedov(int myid, int argc, char *argv[])
       }
       if (dim == 3)
       {
-         mesh = new Mesh(2, 2, 2,Element::HEXAHEDRON, true);
-         const int NBE = mesh->GetNBE();
+         mesh = Mesh::MakeCartesian3D(2, 2, 2,Element::HEXAHEDRON);
+         const int NBE = mesh.GetNBE();
          MFEM_ASSERT(NBE==24,"");
          for (int b = 0; b < NBE; b++)
          {
-            Element *bel = mesh->GetBdrElement(b);
+            Element *bel = mesh.GetBdrElement(b);
             MFEM_ASSERT(bel->GetType() == Element::QUADRILATERAL, "");
             const int attr = (b < NBE/3) ? 3 : (b < 2*NBE/3) ? 1 : 2;
             bel->SetAttribute(attr);
          }
       }
    }
-   dim = mesh->Dimension();
-   for (int lev = 0; lev < rs_levels; lev++) { mesh->UniformRefinement(); }
+   dim = mesh.Dimension();
+   for (int lev = 0; lev < rs_levels; lev++) { mesh.UniformRefinement(); }
    ParMesh *pmesh = NULL;
 #if defined(MFEM_USE_MPI) && defined(MFEM_SEDOV_MPI)
-   pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
+   pmesh = new ParMesh(MPI_COMM_WORLD, mesh);
 #else
-   pmesh = new Mesh(*mesh);
+   pmesh = new Mesh(mesh);
 #endif
-   delete mesh;
+   mesh.Clear();
    for (int lev = 0; lev < rp_levels; lev++) { pmesh->UniformRefinement(); }
    int nzones = pmesh->GetNE(), nzones_min, nzones_max;
    MPI_Reduce(&nzones, &nzones_min, 1, MPI_INT, MPI_MIN, 0, pmesh->GetComm());

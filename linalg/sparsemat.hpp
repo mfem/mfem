@@ -142,8 +142,13 @@ public:
    /// Copy constructor (deep copy).
    /** If @a mat is finalized and @a copy_graph is false, the #I and #J arrays
        will use a shallow copy (copy the pointers only) without transferring
-       ownership. */
-   SparseMatrix(const SparseMatrix &mat, bool copy_graph = true);
+       ownership.
+       If @a mt is MemoryType::PRESERVE the memory type of the resulting
+       SparseMatrix's #I, #J, and #A arrays will be the same as @a mat,
+       otherwise the type will be @a mt for those arrays that are deep
+       copied. */
+   SparseMatrix(const SparseMatrix &mat, bool copy_graph = true,
+                MemoryType mt = MemoryType::PRESERVE);
 
    /// Create a SparseMatrix with diagonal @a v, i.e. A = Diag(v)
    SparseMatrix(const Vector & v);
@@ -619,12 +624,24 @@ public:
    {
       Destroy();
 #ifdef MFEM_USE_CUDA
-      if (handle && SparseMatrixCount==1 && Device::Allows(Backend::CUDA_MASK))
+      if (useCuSparse)
       {
-         cusparseDestroy(handle);
-         CuMemFree(dBuffer);
+         if (SparseMatrixCount==1)
+         {
+            if (handle)
+            {
+               cusparseDestroy(handle);
+               handle = nullptr;
+            }
+            if (dBuffer)
+            {
+               CuMemFree(dBuffer);
+               dBuffer = nullptr;
+               bufferSize = 0;
+            }
+         }
+         SparseMatrixCount--;
       }
-      SparseMatrixCount--;
 #endif
    }
 

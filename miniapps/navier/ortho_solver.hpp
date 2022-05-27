@@ -27,8 +27,10 @@ namespace navier
  */
 class OrthoSolver : public Solver
 {
+private:
+   MPI_Comm mycomm;
 public:
-   OrthoSolver();
+   OrthoSolver(MPI_Comm mycomm_);
 
    virtual void SetOperator(const Operator &op);
 

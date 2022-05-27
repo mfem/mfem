@@ -238,7 +238,7 @@ public:
    /// Set the desired assembly level.
    /** Valid choices are:
 
-       - AssemblyLevel::LEGACYFULL (default)
+       - AssemblyLevel::LEGACY (default)
        - AssemblyLevel::FULL
        - AssemblyLevel::PARTIAL
        - AssemblyLevel::ELEMENT
@@ -576,7 +576,7 @@ public:
    /// Set the desired assembly level.
    /** Valid choices are:
 
-       - AssemblyLevel::LEGACYFULL (default)
+       - AssemblyLevel::LEGACY (default)
        - AssemblyLevel::FULL
        - AssemblyLevel::PARTIAL
        - AssemblyLevel::ELEMENT

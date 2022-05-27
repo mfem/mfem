@@ -40,22 +40,24 @@ TEST_CASE("Derefine")
               ++map_type)
          {
             const int ne = 8;
-            Mesh *mesh = nullptr;
+            Mesh mesh;
             if (dimension == 2)
             {
-               mesh = new Mesh(ne, ne, Element::QUADRILATERAL, true, 1.0, 1.0);
+               mesh = Mesh::MakeCartesian2D(
+                         ne, ne, Element::QUADRILATERAL, true, 1.0, 1.0);
             }
             else
             {
-               mesh = new Mesh(ne, ne, ne, Element::HEXAHEDRON, true, 1.0, 1.0, 1.0);
+               mesh = Mesh::MakeCartesian3D(
+                         ne, ne, ne, Element::HEXAHEDRON, 1.0, 1.0, 1.0);
             }
 
-            mesh->EnsureNCMesh();
-            mesh->SetCurvature(std::max(order,1), false, dimension, Ordering::byNODES);
+            mesh.EnsureNCMesh();
+            mesh.SetCurvature(std::max(order,1), false, dimension, Ordering::byNODES);
 
             L2_FECollection fec(order, dimension, BasisType::Positive, map_type);
 
-            FiniteElementSpace fespace(mesh, &fec);
+            FiniteElementSpace fespace(&mesh, &fec);
 
             GridFunction x(&fespace);
 
@@ -72,7 +74,7 @@ TEST_CASE("Derefine")
             int nonconformity_limit = 0; // 0 meaning allow unlimited ratio
 
             // First refine two elements.
-            mesh->GeneralRefinement(refinements, 1, nonconformity_limit);
+            mesh.GeneralRefinement(refinements, 1, nonconformity_limit);
 
             fespace.Update();
             x.Update();
@@ -82,7 +84,7 @@ TEST_CASE("Derefine")
 
             refinements.DeleteAll();
             refinements.Append(Refinement(2));
-            mesh->GeneralRefinement(refinements, 1, nonconformity_limit);
+            mesh.GeneralRefinement(refinements, 1, nonconformity_limit);
 
             fespace.Update();
             x.Update();
@@ -92,25 +94,23 @@ TEST_CASE("Derefine")
             Table ref_type_to_matrix;
             Array<int> coarse_to_ref_type;
             Array<Geometry::Type> ref_type_to_geom;
-            const CoarseFineTransformations &rtrans = mesh->GetRefinementTransforms();
-            rtrans.GetCoarseToFineMap(*mesh, coarse_to_fine_, coarse_to_ref_type,
+            const CoarseFineTransformations &rtrans = mesh.GetRefinementTransforms();
+            rtrans.GetCoarseToFineMap(mesh, coarse_to_fine_, coarse_to_ref_type,
                                       ref_type_to_matrix, ref_type_to_geom);
             Array<int> tabrow;
 
-            Vector local_err(mesh->GetNE());
+            Vector local_err(mesh.GetNE());
             double threshold = 1.0;
             local_err = 2*threshold;
             coarse_to_fine_.GetRow(2, tabrow);
             for (int j = 0; j < tabrow.Size(); j++) { local_err(tabrow[j]) = 0.0; }
-            mesh->DerefineByError(local_err, threshold, 0, 1);
+            mesh.DerefineByError(local_err, threshold, 0, 1);
 
             fespace.Update();
             x.Update();
 
             diff -= x;
             REQUIRE(diff.Norml2() / x.Norml2() < 1e-11);
-
-            delete mesh;
          }
       }
    }
@@ -127,21 +127,22 @@ TEST_CASE("ParDerefine", "[Parallel]")
               ++map_type)
          {
             const int ne = 8;
-            Mesh *mesh = nullptr;
+            Mesh mesh;
             if (dimension == 2)
             {
-               mesh = new Mesh(ne, ne, Element::QUADRILATERAL, true, 1.0, 1.0);
+               mesh = Mesh::MakeCartesian2D(
+                         ne, ne, Element::QUADRILATERAL, true, 1.0, 1.0);
             }
             else
             {
-               mesh = new Mesh(ne, ne, ne, Element::HEXAHEDRON, true, 1.0, 1.0, 1.0);
+               mesh = Mesh::MakeCartesian3D(
+                         ne, ne, ne, Element::HEXAHEDRON, 1.0, 1.0, 1.0);
             }
 
-            mesh->EnsureNCMesh();
-            mesh->SetCurvature(std::max(order,1), false, dimension, Ordering::byNODES);
+            mesh.EnsureNCMesh();
+            mesh.SetCurvature(std::max(order,1), false, dimension, Ordering::byNODES);
 
-            ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
-            delete mesh;
+            ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, mesh);
 
             L2_FECollection fec(order, dimension, BasisType::Positive, map_type);
             ParFiniteElementSpace fespace(pmesh, &fec);

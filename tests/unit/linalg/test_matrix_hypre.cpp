@@ -25,9 +25,10 @@ TEST_CASE("HypreParMatrixAbsMult",  "[Parallel], [HypreParMatrixAbsMult]")
    int ne = 4;
    for (int order = 1; order <= 3; ++order)
    {
-      Mesh * mesh = new Mesh(ne, ne, Element::QUADRILATERAL, 1, 1.0, 1.0);
-      ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
-      delete mesh;
+      Mesh mesh = Mesh::MakeCartesian2D(
+                     ne, ne, Element::QUADRILATERAL, 1, 1.0, 1.0);
+      ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, mesh);
+      mesh.Clear();
       FiniteElementCollection *hdiv_coll(new RT_FECollection(order, dim));
       FiniteElementCollection *l2_coll(new L2_FECollection(order, dim));
       ParFiniteElementSpace R_space(pmesh, hdiv_coll);

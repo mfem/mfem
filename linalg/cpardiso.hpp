@@ -83,7 +83,7 @@ public:
    ~CPardisoSolver();
 
 private:
-   MPI_Comm comm_;
+   MPI_Fint comm_;
 
    // Global number of rows
    int m;

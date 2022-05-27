@@ -90,7 +90,7 @@ void test_sparse_matrix(const char* input, int order, const Coeff coeff_type,
    INFO(section);
    Mesh mesh(input, 1, 1);
    mesh.EnsureNodes();
-   mesh.UniformRefinement();
+   if (mesh.GetNE() < 16) { mesh.UniformRefinement(); }
    ParMesh pmesh(MPI_COMM_WORLD, mesh);
    int dim = mesh.Dimension();
 

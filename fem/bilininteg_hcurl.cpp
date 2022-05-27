@@ -12,7 +12,6 @@
 #include "../general/forall.hpp"
 #include "bilininteg.hpp"
 #include "gridfunc.hpp"
-#include "libceed/mass.hpp"
 
 using namespace std;
 

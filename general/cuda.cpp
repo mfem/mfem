@@ -61,6 +61,21 @@ void* CuMallocManaged(void** dptr, size_t bytes)
    return *dptr;
 }
 
+void* CuMemAllocHostPinned(void** ptr, size_t bytes)
+{
+#ifdef MFEM_USE_CUDA
+#ifdef MFEM_TRACK_CUDA_MEM
+   mfem::out << "CuMemAllocHostPinned(): allocating " << bytes << " bytes ... "
+             << std::flush;
+#endif
+   MFEM_GPU_CHECK(cudaMallocHost(ptr, bytes));
+#ifdef MFEM_TRACK_CUDA_MEM
+   mfem::out << "done: " << *ptr << std::endl;
+#endif
+#endif
+   return *ptr;
+}
+
 void* CuMemFree(void *dptr)
 {
 #ifdef MFEM_USE_CUDA
@@ -74,6 +89,21 @@ void* CuMemFree(void *dptr)
 #endif
 #endif
    return dptr;
+}
+
+void* CuMemFreeHostPinned(void *ptr)
+{
+#ifdef MFEM_USE_CUDA
+#ifdef MFEM_TRACK_CUDA_MEM
+   mfem::out << "CuMemFreeHostPinned(): deallocating memory @ " << ptr << " ... "
+             << std::flush;
+#endif
+   MFEM_GPU_CHECK(cudaFreeHost(ptr));
+#ifdef MFEM_TRACK_CUDA_MEM
+   mfem::out << "done." << std::endl;
+#endif
+#endif
+   return ptr;
 }
 
 void* CuMemcpyHtoD(void* dst, const void* src, size_t bytes)

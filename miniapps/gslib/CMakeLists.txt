@@ -10,6 +10,9 @@
 # CONTRIBUTING.md for details.
 
 if (MFEM_USE_GSLIB)
+  add_mfem_miniapp(schwarz_ex1
+    MAIN schwarz_ex1.cpp
+    LIBRARIES mfem)
 
   add_mfem_miniapp(field-diff
     MAIN field-diff.cpp
@@ -25,9 +28,12 @@ if (MFEM_USE_GSLIB)
 
   # Parallel apps.
   if (MFEM_USE_MPI)
+    add_mfem_miniapp(schwarz_ex1p
+      MAIN schwarz_ex1p.cpp
+      LIBRARIES mfem)
+
     add_mfem_miniapp(pfindpts
       MAIN pfindpts.cpp
       LIBRARIES mfem)
   endif()
-
 endif()

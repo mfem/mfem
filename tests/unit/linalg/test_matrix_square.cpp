@@ -27,20 +27,22 @@ TEST_CASE("FormLinearSystem", "[FormLinearSystem]")
                    << std::pow(ne, dim) << " elements." << std::endl;
          for (int order = 1; order <= 3; ++order)
          {
-            Mesh * mesh;
+            Mesh mesh;
             if (dim == 2)
             {
-               mesh = new Mesh(ne, ne, Element::QUADRILATERAL, 1, 1.0, 1.0);
+               mesh = Mesh::MakeCartesian2D(
+                         ne, ne, Element::QUADRILATERAL, 1, 1.0, 1.0);
             }
             else
             {
-               mesh = new Mesh(ne, ne, ne, Element::HEXAHEDRON, 1, 1.0, 1.0, 1.0);
+               mesh = Mesh::MakeCartesian3D(
+                         ne, ne, ne, Element::HEXAHEDRON, 1.0, 1.0, 1.0);
             }
             FiniteElementCollection *fec = new H1_FECollection(order, dim);
-            FiniteElementSpace fes(mesh, fec);
+            FiniteElementSpace fes(&mesh, fec);
 
             Array<int> ess_tdof_list;
-            Array<int> ess_bdr(mesh->bdr_attributes.Max());
+            Array<int> ess_bdr(mesh.bdr_attributes.Max());
             ess_bdr = 1;
             fes.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
 
@@ -75,7 +77,6 @@ TEST_CASE("FormLinearSystem", "[FormLinearSystem]")
             std::cout << "    order: " << order << ", error norm: " << error << std::endl;
             REQUIRE(x0.Norml2() == MFEM_Approx(0.0, 1e2*EPS));
 
-            delete mesh;
             delete fec;
          }
       }
@@ -94,17 +95,19 @@ TEST_CASE("ParallelFormLinearSystem", "[Parallel], [ParallelFormLinearSystem]")
                    << std::pow(ne, dim) << " elements." << std::endl;
          for (int order = 1; order <= 3; ++order)
          {
-            Mesh * mesh;
+            Mesh mesh;
             if (dim == 2)
             {
-               mesh = new Mesh(ne, ne, Element::QUADRILATERAL, 1, 1.0, 1.0);
+               mesh = Mesh::MakeCartesian2D(
+                         ne, ne, Element::QUADRILATERAL, 1, 1.0, 1.0);
             }
             else
             {
-               mesh = new Mesh(ne, ne, ne, Element::HEXAHEDRON, 1, 1.0, 1.0, 1.0);
+               mesh = Mesh::MakeCartesian3D(
+                         ne, ne, ne, Element::HEXAHEDRON, 1.0, 1.0, 1.0);
             }
-            ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
-            delete mesh;
+            ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, mesh);
+            mesh.Clear();
 
             FiniteElementCollection *fec = new H1_FECollection(order, dim);
             ParFiniteElementSpace fes(pmesh, fec);

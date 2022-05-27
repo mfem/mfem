@@ -350,10 +350,9 @@ MFEM_USE_SUPERLU5 = YES/NO
 
 MFEM_USE_MUMPS = YES/NO
    Enable MFEM functionality based on the MUMPS library. Currently, this
-   option adds the class MUMPSSolver (a parallel sparse direct solver). 
-   When enabled, this option uses the MUMPS_* library options, see
-   below.
-   
+   option adds the class MUMPSSolver (a parallel sparse direct solver).
+   When enabled, this option uses the MUMPS_* library options, see below.
+
 MFEM_USE_STRUMPACK = YES/NO
    Enable MFEM functionality based on the STRUMPACK sparse direct solver and
    preconditioner through the STRUMPACKSolver and STRUMPACKRowLocMatrix
@@ -460,8 +459,8 @@ MFEM_USE_UMPIRE = YES/NO
    memory devices like NUMA and GPUs.
 
 MFEM_USE_HIOP = YES/NO
-  Enable the usage of HiOp (https://github.com/LLNL/hiop) in MFEM. HiOp is an
-  HPC solver for nonlinear optimization problems.
+   Enable the usage of HiOp (https://github.com/LLNL/hiop) in MFEM. HiOp is an
+   HPC solver for nonlinear optimization problems.
 
 MFEM_USE_CUDA = YES/NO
    Enables support for CUDA devices in MFEM. CUDA is a parallel computing
@@ -675,14 +674,14 @@ The specific libraries and their options are:
   Versions: HIOP >= 0.1.
 
 - GSLIB (optional), used when MFEM_USE_GSLIB = YES. The gslib library must be
-  built prior to the MFEM build, as follows: download gslib-1.0.5, untar it at
-  the same level as MFEM and create a symbolic link: "ln -s gslib-1.0.5 gslib".
+  built prior to the MFEM build, as follows: download gslib-1.0.7, untar it at
+  the same level as MFEM and create a symbolic link: "ln -s gslib-1.0.7 gslib".
   Build gslib in parallel or in serial based on the desired MFEM build: "make
   clean; make CC=mpicc" or "make clean; make CC=gcc MPI=0". Build MFEM with
   MFEM_USE_GSLIB=YES.
-  URL: https://github.com/gslib/gslib/archive/v1.0.5.tar.gz
+  URL: https://github.com/gslib/gslib/archive/v1.0.7.tar.gz
   Options: GSLIB_OPT, GSLIB_LIB.
-  Versions: GSLIB >= 1.0.5.
+  Versions: GSLIB >= 1.0.7.
 
 - MKL CPardiso (optional), used when MFEM_USE_MKL_CPARDISO = YES.
   URL: https://software.intel.com/content/www/us/en/develop/tools/math-kernel-library.html
@@ -692,7 +691,7 @@ The specific libraries and their options are:
 - CUDA (optional), used when MFEM_USE_CUDA = YES.
   URL: https://developer.nvidia.com/cuda-toolkit
   Options: CUDA_CXX, CUDA_ARCH, CUDA_OPT, CUDA_LIB.
-  Versions: CUDA >= 9.1, older versions may work too.
+  Versions: CUDA >= 10.1.168.
 
 - HIP (optional), used when MFEM_USE_HIP = YES.
   URL: https://rocm.github.io/ROCmInstall.html
@@ -707,7 +706,7 @@ The specific libraries and their options are:
   URL: https://github.com/CEED/libCEED
        https://ceed.exascaleproject.org/libceed
   Options: CEED_DIR, CEED_OPT, CEED_LIB.
-  Versions: libCEED >= 0.7.
+  Versions: libCEED >= 0.8.
 
 - RAJA (optional), used when MFEM_USE_RAJA = YES.
   Beginning with MFEM v4.3, only RAJA v0.13.0+ is supported.
@@ -716,6 +715,7 @@ The specific libraries and their options are:
   Versions: RAJA >= 0.13.0.
 
 - Umpire, used when MFEM_USE_UMPIRE = YES.
+  Umpire requires camp when the Umpire version is >= 3.0.0.
   URL: https://github.com/LLNL/Umpire
   Options: UMPIRE_DIR, UMPIRE_OPT, UMPIRE_LIB.
   Versions: Umpire >= 2.0.0.

@@ -77,7 +77,7 @@ public:
    void KeepNbrBlock(bool knb = true) { keep_nbr_block = knb; }
 
    /** @brief Set the operator type id for the parallel matrix/operator when
-       using AssemblyLevel::LEGACYFULL. */
+       using AssemblyLevel::LEGACY. */
    /** If using static condensation or hybridization, call this method *after*
        enabling it. */
    void SetOperatorType(Operator::Type tid)
@@ -184,6 +184,8 @@ public:
    virtual void RecoverFEMSolution(const Vector &X, const Vector &b, Vector &x);
 
    virtual void Update(FiniteElementSpace *nfes = NULL);
+
+   void EliminateVDofsInRHS(const Array<int> &vdofs, const Vector &x, Vector &b);
 
    virtual ~ParBilinearForm() { }
 };
