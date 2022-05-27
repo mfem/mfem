@@ -1143,28 +1143,26 @@ int main(int argc, char *argv[])
 
            if(compute_pressure && paraview)
            {
-              if (!refineMesh){
-                // Get dpsi/dt function
-                ode_solver->GetStateVector(0, vk);
-                int sc = fespace.TrueVSize();
-                Vector v_dpsidt(vk.GetData() +  sc, sc);
-                dpsidt->SetFromTrueDofs(v_dpsidt);
-                
-              }
-
-              //found the origin (x,y)=(0.,0.)
-              Vector point(2);
-              point(0) = 0.;
-              point(1) = 0.;
-              DenseMatrix points(2, 1);
-              points.SetCol(0, point);
-              Array<int> elem_ids;
-              Array<IntegrationPoint> ips;
-              int nfound = pmesh->FindPoints(points, elem_ids, ips);
-              if (elem_ids[0]>0)
-              {
-                cout << "Found " << nfound << " points at element " << elem_ids[0] << "on rank ="<< myid << endl; 
-                cout << "dpsidt = "<<dpsidt->GetValue(elem_ids[0], ips[0]) << endl;
+              // Get dpsi/dt function
+              ode_solver->GetStateVector(0, vk);
+              int sc = fespace.TrueVSize();
+              Vector v_dpsidt(vk.GetData() +  sc, sc);
+              dpsidt->SetFromTrueDofs(v_dpsidt);
+              if (false){
+                //found the origin (x,y)=(0.,0.)
+                Vector point(2);
+                point(0) = 0.;
+                point(1) = 0.;
+                DenseMatrix points(2, 1);
+                points.SetCol(0, point);
+                Array<int> elem_ids;
+                Array<IntegrationPoint> ips;
+                int nfound = pmesh->FindPoints(points, elem_ids, ips);
+                if (elem_ids[0]>0)
+                {
+                  cout << "Found " << nfound << " points at element " << elem_ids[0] << "on rank ="<< myid << endl; 
+                  cout << "dpsidt = "<<dpsidt->GetValue(elem_ids[0], ips[0]) << endl;
+                }
               }
 
               if (!vfes_match){
