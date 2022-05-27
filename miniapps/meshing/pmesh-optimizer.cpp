@@ -57,7 +57,7 @@
 //     mpirun -np 4 pmesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 7 -tid 6 -ni 100 -qo 6 -ex -st 1 -nor
 //   Adapted discrete size+orientation (requires GSLIB):
 //   * mpirun -np 4 pmesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 36 -tid 8 -qo 4 -fd -ae 1 -nor
-//   Adapted discrete aspect_ratio+orientation (requires GSLIB):
+//   Adapted discrete aspect-ratio+orientation (requires GSLIB):
 //   * mpirun -np 4 pmesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 85 -tid 8 -ni 10 -bnd -qt 1 -qo 8 -fd -ae 1
 //   Adapted discrete aspect ratio (3D):
 //     mpirun -np 4 pmesh-optimizer -m cube.mesh -o 2 -rs 2 -mid 302 -tid 7 -ni 20 -bnd -qt 1 -qo 8
@@ -102,9 +102,9 @@
 //   2D untangling:
 //     mpirun -np 4 pmesh-optimizer -m jagged.mesh -o 2 -mid 22 -tid 1 -ni 50 -li 50 -qo 4 -fd -vl 1
 //   2D untangling with shifted barrier metric:
-//     mpirun -np 4 pmesh-optimizer -m jagged.mesh -o 2 -mid 4 -tid 1 -ni 500 -li 50 -qo 4 -fd -vl 1 -uo 1 -no-shifted
+//     mpirun -np 4 pmesh-optimizer -m jagged.mesh -o 2 -mid 4 -tid 1 -ni 500 -li 50 -qo 4 -fd -vl 1 -um 1 -no-shifted
 //   2D untangling with worst case untangling metric:
-//     mpirun -np 4 pmesh-optimizer -m jagged.mesh -o 2 -mid 4 -tid 1 -ni 500 -li 50 -qo 4 -fd -vl 1 -uo 2
+//     mpirun -np 4 pmesh-optimizer -m jagged.mesh -o 2 -mid 4 -tid 1 -ni 500 -li 50 -qo 4 -fd -vl 1 -um 2
 //   3D untangling (the mesh is in the mfem/data GitHub repository):
 //   * mpirun -np 4 pmesh-optimizer -m ../../../mfem_data/cube-holes-inv.mesh -o 3 -mid 313 -tid 1 -rtol 1e-5 -li 50 -qo 4 -fd -vl 1
 
@@ -292,7 +292,7 @@ int main (int argc, char *argv[])
    args.AddOption(&surface_fit_threshold, "-sft", "--surf-fit-threshold",
                   "Set threshold for surface fitting. TMOP solver will"
                   "terminate when max surface fitting error is below this limit");
-   args.AddOption(&untangler_mode, "-uo", "--untangler-optimizer",
+   args.AddOption(&untangler_mode, "-um", "--untangler-mode",
                   "Untangler mode: 0 - none (default), "
                   "1 - untangler optimizer,"
                   "2 - worst-case untangler optimizer");

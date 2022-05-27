@@ -3843,8 +3843,8 @@ void TMOP_Integrator::ComputeUntanglerMetricQuantiles(const Vector &x,
 
    if (!wcuo && !uo) { return; }
 
-   if ( (wcuo && wcuo->ShiftedBarrierMetric()) ||
-        (uo && uo->ShiftedBarrierMetric()))
+   if ( (wcuo && wcuo->IsShiftedBarrierMetric()) ||
+        (uo && uo->IsShiftedBarrierMetric()))
    {
       double min_detT = ComputeUntanglerMinDetT(x, fes);
       if (wcuo) { wcuo->SetMinDetT(min_detT); }
@@ -3869,8 +3869,8 @@ void TMOP_Integrator::ComputeUntanglerMetricQuantiles(const Vector &x,
    if (!wcuo && !uo) { return; }
 
    const FiniteElementSpace *fes = dynamic_cast<const FiniteElementSpace *>(&pfes);
-   if ( (wcuo && wcuo->ShiftedBarrierMetric()) ||
-        (uo && uo->ShiftedBarrierMetric()))
+   if ( (wcuo && wcuo->IsShiftedBarrierMetric()) ||
+        (uo && uo->IsShiftedBarrierMetric()))
    {
       double min_detT = ComputeUntanglerMinDetT(x, *fes);
       double min_detT_all;

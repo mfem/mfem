@@ -35,7 +35,7 @@
 //   Adapted analytic shape:
 //     mesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 2 -tid 4 -ni 200 -bnd -qt 1 -qo 8
 //   Adapted analytic size+orientation:
-//     mesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 14 -tid 4 -ni 100 -bnd -qt 1 -qo 8 -fd
+//     mesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 14 -tid 4 -ni 200 -bnd -qt 1 -qo 8 -fd
 //   Adapted analytic shape+orientation:
 //     mesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 85 -tid 4 -ni 100 -bnd -qt 1 -qo 8 -fd
 //
@@ -101,9 +101,9 @@
 //   2D untangling:
 //     mesh-optimizer -m jagged.mesh -o 2 -mid 22 -tid 1 -ni 50 -li 50 -qo 4 -fd -vl 1
 //   2D untangling with shifted barrier metric:
-//     mesh-optimizer -m jagged.mesh -o 2 -mid 4 -tid 1 -ni 500 -li 50 -qo 4 -fd -vl 1 -barrier
+//     mesh-optimizer -m jagged.mesh -o 2 -mid 4 -tid 1 -ni 500 -li 50 -qo 4 -fd -vl 1 -um 1 -no-shifted
 //   2D untangling with worst case untangling metric:
-//     mesh-optimizer -m jagged.mesh -o 2 -mid 4 -tid 1 -ni 500 -li 50 -qo 4 -fd -vl 1 -worst-case
+//     mesh-optimizer -m jagged.mesh -o 2 -mid 4 -tid 1 -ni 500 -li 50 -qo 4 -fd -vl 1 -um 2
 //   3D untangling (the mesh is in the mfem/data GitHub repository):
 //   * mesh-optimizer -m ../../../mfem_data/cube-holes-inv.mesh -o 3 -mid 313 -tid 1 -rtol 1e-5 -li 50 -qo 4 -fd -vl 1
 
@@ -153,7 +153,7 @@ int main(int argc, char *argv[])
    bool surface_fit_adapt = false;
    double surface_fit_threshold = -10;
    int untangler_mode     = 0;
-   bool shifted_barrier = false;
+   bool shifted_barrier = true;
 
    // 1. Parse command-line options.
    OptionsParser args(argc, argv);
@@ -283,7 +283,7 @@ int main(int argc, char *argv[])
    args.AddOption(&surface_fit_threshold, "-sft", "--surf-fit-threshold",
                   "Set threshold for surface fitting. TMOP solver will"
                   "terminate when max surface fitting error is below this limit");
-   args.AddOption(&untangler_mode, "-uo", "--untangler-optimizer",
+   args.AddOption(&untangler_mode, "-um", "--untangler-mode",
                   "Untangler mode: 0 - none (default), "
                   "1 - untangler optimizer,"
                   "2 - worst-case untangler optimizer");
@@ -477,7 +477,7 @@ int main(int argc, char *argv[])
    if (untangler_mode == 1)
    {
       untangler_metric = new TMOP_UntangleOptimizer_Metric(metric, 1, 1.5,
-                                                           0.0001,
+                                                           0.001,
                                                            shifted_barrier);
    }
    else if (untangler_mode == 2)
@@ -485,8 +485,8 @@ int main(int argc, char *argv[])
       untangler_metric = new TMOP_WorstCaseUntangleOptimizer_Metric(metric,
                                                                     1,
                                                                     1.5,
-                                                                    0.0001,
-                                                                    0.0001,
+                                                                    0.001,
+                                                                    0.001,
                                                                     shifted_barrier);
    }
    else if (untangler_mode > 0)
