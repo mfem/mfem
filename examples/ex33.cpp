@@ -68,6 +68,7 @@
 #include <fstream>
 #include <iostream>
 #include <math.h>
+#include <string>
 
 #include "ex33.hpp"
 
@@ -99,7 +100,7 @@ int main(int argc, char *argv[])
                   "Enable or disable GLVis visualization.");
    args.AddOption(&verification, "-ver", "--verification", "-no-ver",
                   "--no-verification",
-                  "Use sinusoidal function (rhs) for analytic comparison.");
+                  "Use sinusoidal function (f) for analytic comparison.");
    args.Parse();
    if (!args.Good())
    {
@@ -142,8 +143,8 @@ int main(int argc, char *argv[])
    }
 
    // 5. Define a finite element space on the mesh.
-   FiniteElementCollection *fec = new H1_FECollection(order, dim);
-   FiniteElementSpace fespace(&mesh, fec);
+   H1_FECollection fec(order, dim);
+   FiniteElementSpace fespace(&mesh, &fec);
    cout << "Number of finite element unknowns: "
         << fespace.GetTrueVSize() << endl;
 
@@ -164,28 +165,32 @@ int main(int argc, char *argv[])
    FunctionCoefficient f(func);
    ConstantCoefficient one(1.0);
    GridFunction u(&fespace);
-   u = 0.;
+   GridFunction x(&fespace);
+   GridFunction g(&fespace);
+   u = 0.0;
+   x = 0.0;
+   g = 0.0;
 
    // 8. Prepare for visualization.
    char vishost[] = "localhost";
    int  visport   = 19916;
 
-   // 9 Compute Right Hand Side
-   LinearForm rhs(&fespace);
+   // 9. Set up the linear form b(.) for integer-order PDE solves.
+   LinearForm b(&fespace);
    if (verification)
    {
       // This statement is only relevant for the verification of the code. It
-      // uses a different RHS such that an analytic solution is known and easy
+      // uses a different f such that an analytic solution is known and easy
       // to compare with the numerical one. The FPDE becomes:
       // (-Δ)^α u = (2\pi ^2)^α sin(\pi x) sin(\pi y) on [0,1]^2
       // -> u(x,y) = sin(\pi x) sin(\pi y)
-      rhs.AddDomainIntegrator(new DomainLFIntegrator(f));
+      b.AddDomainIntegrator(new DomainLFIntegrator(f));
    }
    else
    {
-      rhs.AddDomainIntegrator(new DomainLFIntegrator(one));
+      b.AddDomainIntegrator(new DomainLFIntegrator(one));
    }
-   rhs.Assemble();
+   b.Assemble();
 
    // ------------------------------------------------------------------------
    // 10. Solve the PDE -Δ ^ N g = f, i.e. compute g = (-Δ)^{-1}^N f.
@@ -208,9 +213,8 @@ int main(int argc, char *argv[])
 
       // 10.3 from the system of equations
       Vector B, X;
-      GridFunction g(&fespace);
       OperatorPtr Op;
-      k.FormLinearSystem(ess_tdof_list, g, rhs, Op, X, B);
+      k.FormLinearSystem(ess_tdof_list, g, b, Op, X, B);
       GSSmoother M((SparseMatrix&)(*Op));
 
       mfem::out << "\nComputing -Δ ^ -" << power_of_laplace
@@ -219,26 +223,40 @@ int main(int argc, char *argv[])
       {
          // 10.4 Solve the linear system A X = B (N times).
          PCG(*Op, M, B, X, 3, 200, 1e-12, 0.0);
+
          // 10.5 Visualize the solution g of -Δ ^ N g = f in the last step
-         if (visualization && i == power_of_laplace - 1)
+         if (i == power_of_laplace - 1)
          {
-            socketstream fout;
-            ostringstream oss_f;
-            fout.open(vishost, visport);
-            fout.precision(8);
-            k.RecoverFEMSolution(X, rhs, g);
-            oss_f.str(""); oss_f.clear();
-            oss_f << "Step " << progress_steps++ << ": Solution of PDE -Δ ^ "
-                  << power_of_laplace
-                  << " g = f";
-            fout << "solution\n" << mesh << g
-                 << "window_title '" << oss_f.str() << "'" << flush;
+            // Needed for visualization and solution verification.
+            k.RecoverFEMSolution(X, b, g);
+            if (integer_order && verification)
+            {
+               // For an integer order PDE, g is also our solution u.
+               u+=g;
+            }
+            if (visualization)
+            {
+               socketstream fout;
+               ostringstream oss_f;
+               fout.open(vishost, visport);
+               fout.precision(8);
+               oss_f.str(""); oss_f.clear();
+               oss_f << "Step " << progress_steps++ << ": Solution of PDE -Δ ^ "
+                     << power_of_laplace
+                     << " g = f";
+               fout << "solution\n" << mesh << g
+                    << "window_title '" << oss_f.str() << "'" << flush;
+            }
          }
+
+         // 10.6 Prepare for next iteration (primal / dual space)
          mass.Mult(X, B);
          X.SetSubVectorComplement(ess_tdof_list,0.0);
       }
-      // 10.6 Extract solution for the next step.
-      rhs = B;
+
+      // 10.7 Extract solution for the next step. The b now corresponds to the
+      //      function g in the PDE.
+      b = B;
    }
 
    // ------------------------------------------------------------------------
@@ -262,60 +280,77 @@ int main(int argc, char *argv[])
       for (int i = 0; i < coeffs.Size(); i++)
       {
          mfem::out << "\nSolving PDE -Δ u + " << -poles[i]
-                   << " u = " << coeffs[i] << " f " << endl;
+                   << " u = " << coeffs[i] << " g " << endl;
 
-         // 11.1 Set up the linear form b(.) for integer-order PDE solve.
-         //      (c_i * g)
-         Vector b (rhs);
-         b *= coeffs[i];
 
-         // 11.2 Define GridFunction for integer-order PDE solve.
-         GridFunction x(&fespace);
+         // 11.1 Reset GridFunction for integer-order PDE solve.
          x = 0.0;
 
-         // 11.3 Set up the bilinear form a(.,.) for integer-order PDE solve.
+         // 11.2 Set up the bilinear form a(.,.) for integer-order PDE solve.
          BilinearForm a(&fespace);
          a.AddDomainIntegrator(new DiffusionIntegrator(one));
-         ConstantCoefficient c2(-poles[i]);
-         a.AddDomainIntegrator(new MassIntegrator(c2));
+         ConstantCoefficient d_i(-poles[i]);
+         a.AddDomainIntegrator(new MassIntegrator(d_i));
          a.Assemble();
 
-         // 11.4 Assemble the bilinear form and the corresponding linear system.
+         // 11.3 Assemble the bilinear form and the corresponding linear system.
          OperatorPtr A;
          Vector B, X;
          a.FormLinearSystem(ess_tdof_list, x, b, A, X, B);
 
-         // 11.5 Solve the linear system A X = B.
+         // 11.4 Solve the linear system A X = B.
          GSSmoother M((SparseMatrix&)(*A));
 
          PCG(*A, M, B, X, 3, 200, 1e-12, 0.0);
 
-         // 11.6 Recover the solution as a finite element grid function.
+         // 11.5 Recover the solution as a finite element grid function.
          a.RecoverFEMSolution(X, b, x);
 
-         // 11.7 Accumulate integer-order PDE solutions.
-         u+=x;
+         // 11.6 Accumulate integer-order PDE solutions.
+         x *= coeffs[i];
+         u += x;
 
-         // 11.8 Send the solutions by socket to a GLVis server.
+         // 11.7 Send fractional PDE solution to a GLVis server.
          if (visualization)
          {
             oss_x.str(""); oss_x.clear();
             oss_x << "Step " << progress_steps
                   << ": Solution of PDE -Δ u + " << -poles[i]
-                  << " u = " << coeffs[i] << " f";
+                  << " u = " << coeffs[i] << " g";
             xout << "solution\n" << mesh << x
                  << "window_title '" << oss_x.str() << "'" << flush;
 
             oss_u.str(""); oss_u.clear();
             oss_u << "Step " << progress_steps + 1
-                  << ": Solution of fractional PDE -Δ^" << alpha
-                  << " u = f";
+                  << ": Solution of fractional PDE -Δ^" << alpha - floor(alpha)
+                  << " u = g";
             uout << "solution\n" << mesh << u
-                 << "window_title '" << oss_u.str() << "'" << flush;
+                 << "window_title '" << oss_u.str() << "'"
+                 << flush;
          }
       }
    }
-   // 12. Free the used memory.
-   delete fec;
+
+   // ------------------------------------------------------------------------
+   // 12. (optional) Verify the solution.
+   // ------------------------------------------------------------------------
+   if (verification)
+   {
+      auto solution = [] (const Vector &x)
+      {
+         return sin(M_PI * x[0]) * sin(M_PI * x[1]);
+      };
+      FunctionCoefficient sol(solution);
+      double l2_error = u.ComputeL2Error(sol);
+
+      mfem::out << "\n" << string(80,'=')
+                << "\n\nSolution Verification\n\n"
+                << "Analytic solution : sin(pi x) sin(pi y)\n"
+                << "Expected mesh     : inline_quad.mesh\n"
+                << "Your mesh         : " << mesh_file << "\n"
+                << "L2 error          : " << l2_error << "\n\n"
+                << string(80,'=') << endl;
+   }
+
    return 0;
 }
