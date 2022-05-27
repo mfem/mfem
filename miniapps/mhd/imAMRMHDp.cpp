@@ -809,7 +809,7 @@ int main(int argc, char *argv[])
       K_amg = new HypreBoomerAMG(*KMat);
       K_amg->SetPrintLevel(0);
       K_pcg = new CGSolver(MPI_COMM_WORLD);
-      SpInvOrthoPC = new mfem::navier::OrthoSolver();
+      SpInvOrthoPC = new mfem::navier::OrthoSolver(MPI_COMM_WORLD);
       SpInvOrthoPC->SetOperator(*K_amg);
       K_pcg->SetOperator(*KMat);
       K_pcg->iterative_mode = false;
@@ -1247,7 +1247,7 @@ int main(int argc, char *argv[])
                 K_amg = new HypreBoomerAMG(*KMat);
                 K_amg->SetPrintLevel(0);
                 K_pcg = new CGSolver(MPI_COMM_WORLD);
-                SpInvOrthoPC = new mfem::navier::OrthoSolver();
+                SpInvOrthoPC = new mfem::navier::OrthoSolver(MPI_COMM_WORLD);
                 SpInvOrthoPC->SetOperator(*K_amg);
                 K_pcg->SetOperator(*KMat);
                 K_pcg->iterative_mode = false;
