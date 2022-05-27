@@ -25,9 +25,6 @@
 #include "jit.hpp" // Hash, ToString, Find
 #include "../device.hpp" // Backend::Id
 
-#define MFEM_JIT_STR(...) #__VA_ARGS__
-#define MFEM_JIT_STRINGIFY(...) MFEM_JIT_STR(__VA_ARGS__)
-
 struct dbg
 {
    static constexpr bool DEBUG = true;
@@ -394,10 +391,11 @@ struct Parser
               << "\n\t" << ker.name << "_%016lx<"<< ker.Tformat << ">"
               << "(backends,"<< ker.Sargs << ");";
 
-      const char *cxx = MFEM_JIT_STRINGIFY(MFEM_CXX);
-      const char *libs = MFEM_JIT_STRINGIFY(MFEM_EXT_LIBS);
-      const char *link = MFEM_JIT_STRINGIFY(MFEM_LINK_FLAGS);
-      const char *flags = MFEM_JIT_STRINGIFY(MFEM_BUILD_FLAGS);
+      // defined on the command line
+      const char *cxx = MFEM_CXX;
+      const char *libs = MFEM_EXT_LIBS;
+      const char *link = MFEM_LINK_FLAGS;
+      const char *flags = MFEM_BUILD_FLAGS;
 
       size_t seed = // src is ready: compute its seed with all the MFEM context
          mfem::Jit::Hash(

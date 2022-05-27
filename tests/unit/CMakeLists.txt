@@ -94,8 +94,8 @@ set(UNIT_TESTS_SRCS
   # miniapps/test_tmop_pa.cpp
   # ceed/test_ceed.cpp
   # ceed/test_ceed_main.cpp
-  # mjit/test_mjit.cpp
-  # mjit/test_mjit_main.cpp
+  # mjit/test_par_main.cpp
+  # mjit/test_seq_main.cpp
 )
 
 #-----------------------------------------------------------
@@ -227,6 +227,28 @@ if (MFEM_USE_CEED)
 endif()
 
 #-----------------------------------------------------------
+# SERIAL MJIT TESTS: test_seq_main
+#-----------------------------------------------------------
+if (MFEM_USE_JIT)
+   set(MJIT_TESTS_SRCS
+      mjit/test_bbps.cpp
+      mjit/test_empty.cpp
+      mjit/test_comments.cpp
+      mjit/test_seq_main.cpp)
+   convert_filenames_to_full_paths(MJIT_TESTS_SRCS)
+   set_mjit_sources_dependencies(MJIT_TESTS_SOURCES MJIT_TESTS_SRCS)
+   #message(NOTICE "MJIT_TESTS_SOURCES:${MJIT_TESTS_SOURCES}")
+   if (MFEM_USE_CUDA)
+      set_property(SOURCE ${MJIT_TESTS_SOURCES} PROPERTY LANGUAGE CUDA)
+   endif(MFEM_USE_CUDA)
+   add_executable(mjit_tests ${MJIT_TESTS_SOURCES})
+   target_link_libraries(mjit_tests mfem)
+   add_dependencies(${MFEM_ALL_TESTS_TARGET_NAME} mjit_tests)
+   add_test(NAME mjit_tests COMMAND mjit_tests)
+   set_property(TEST mjit_tests PROPERTY LABELS JIT)
+endif() # MFEM_USE_JIT
+
+#-----------------------------------------------------------
 # PARALLEL CPU AND CUDA TESTS: {p,pc}unit_tests
 #-----------------------------------------------------------
 # Define executables and tests 'punit_tests' and 'pcunit_tests'
@@ -257,6 +279,22 @@ if (MFEM_USE_MPI)
                   ${MPIEXEC_POSTFLAGS})
       endforeach()
    endif()
+   if (MFEM_USE_JIT)
+      set(PMJIT_TESTS_SRCS
+          mjit/test_bbps.cpp
+          mjit/test_empty.cpp
+          mjit/test_comments.cpp
+          mjit/test_par_main.cpp)
+      if (MFEM_USE_CUDA)
+         set_property(SOURCE ${PMJIT_TESTS_SRCS} PROPERTY LANGUAGE CUDA)
+      endif(MFEM_USE_CUDA)
+      add_executable(pmjit_tests ${PMJIT_TESTS_SRCS})
+      target_link_libraries(pmjit_tests mfem)
+      add_dependencies(${MFEM_ALL_TESTS_TARGET_NAME} pmjit_tests)
+      foreach(np 1 ${MFEM_MPI_NP})
+         add_test(NAME pmjit_tests COMMAND pmjit_tests)
+     endforeach()
+   endif() # MFEM_USE_JIT
 endif(MFEM_USE_MPI)
 
 #-----------------------------------------------------------

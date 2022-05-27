@@ -152,8 +152,9 @@ set(CMAKE_MACOSX_RPATH OFF CACHE BOOL "")
 set(MFEM_CMAKE_PATH ${PROJECT_SOURCE_DIR}/config)
 set(CMAKE_MODULE_PATH ${MFEM_CMAKE_PATH}/cmake/modules)
 
-# Load MFEM CMake utilities.
+# Load MFEM/JIT CMake utilities.
 include(MfemCmakeUtilities)
+include(MjitCmakeUtilities)
 
 string(TOUPPER "${PROJECT_NAME}" PROJECT_NAME_UC)
 mfem_version_to_int(${${PROJECT_NAME}_VERSION} ${PROJECT_NAME_UC}_VERSION)
@@ -523,6 +524,13 @@ if (MFEM_USE_CUDA)
   set_source_files_properties(${SOURCES} PROPERTIES LANGUAGE CUDA)
 endif()
 
+if (MFEM_USE_JIT)
+    add_mjit_executable()
+    set_mjit_sources_dependencies(MJIT_SOURCES JITSRCS)
+else()
+    list(PREPEND SOURCES ${JITSRCS})
+endif()
+
 add_subdirectory(config)
 set(MASTER_HEADERS
   ${PROJECT_SOURCE_DIR}/mfem.hpp
@@ -538,43 +546,9 @@ set(MFEM_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR} CACHE PATH
 set(MFEM_INSTALL_DIR ${CMAKE_INSTALL_PREFIX} CACHE PATH
     "The MFEM install directory" FORCE)
 
-if (MFEM_USE_JIT)
-message(STATUS "MFEM uses JIT")
-#include_directories("${MFEM_SOURCE_DIR}")
-include_directories("${CMAKE_CURRENT_BINARY_DIR}")
-add_executable(mjit general/jit/parser.cpp)
-set_target_properties(mjit PROPERTIES
-                      CXX_STANDARD 11 CXX_STANDARD_REQUIRED ON CXX_EXTENSIONS OFF)
-set(MFEM_JIT_FLAGS "-O3 -Wall -fPIC")
-set(KERNELS "")
-add_custom_target(MFEM_KERNELS)
-foreach(kernel IN LISTS SOURCES)
-   get_filename_component(kername ${kernel} NAME_WE)
-   get_filename_component(dirname ${kernel} DIRECTORY)
-   file(RELATIVE_PATH relpath ${CMAKE_CURRENT_SOURCE_DIR} ${dirname})
-   set(KER_RELPATH ${CMAKE_CURRENT_BINARY_DIR}/${relpath})
-   set(kernel_cpp ${CMAKE_CURRENT_BINARY_DIR}/${relpath}/${kername}.cpp)
-   add_custom_command(
-       OUTPUT ${kernel_cpp}
-       COMMAND ${CMAKE_COMMAND} -E make_directory ${KER_RELPATH}
-       COMMAND mjit ${kernel} -o ${kernel_cpp}
-       DEPENDS mjit ${kernel}
-   )
-   set(KERNELS ${KERNELS} ${kernel_cpp})
-   string(REPLACE " " "_" kernel_d ${relpath}/${kername})
-   string(REPLACE "/" "_" kernel_d ${kernel_d})   
-   add_custom_target(${kernel_d} DEPENDS ${kernel_cpp})
-   add_dependencies(MFEM_KERNELS ${kernel_d})
-   set_source_files_properties(${kernel_cpp} PROPERTIES
-                               COMPILE_OPTIONS -I${dirname} COMPILE_FLAGS -fPIC)
-endforeach()
-set(SOURCES ${KERNELS})
-endif() # MFEM_USE_JIT
-
 # Declaring the library
-mfem_add_library(mfem ${SOURCES} ${HEADERS} ${MASTER_HEADERS})
+mfem_add_library(mfem ${SOURCES} ${MJIT_SOURCES} ${HEADERS} ${MASTER_HEADERS})
 if (MFEM_USE_JIT)
-   add_dependencies(mfem MFEM_KERNELS)
    target_link_libraries(mfem -ldl)
 endif() # MFEM_USE_JIT
 
@@ -823,3 +797,7 @@ install(EXPORT ${PROJECT_NAME_UC}Targets
 #-------------------------------------------------------------------------------
 
 mfem_export_mk_files()
+
+if (MFEM_USE_JIT)
+    set_mjit_compile_definitions()
+endif (MFEM_USE_JIT)

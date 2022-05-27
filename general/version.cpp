@@ -136,6 +136,9 @@ const char *GetConfigStr()
 #ifdef MFEM_USE_OCCA
       "MFEM_USE_OCCA\n"
 #endif
+#ifdef MFEM_USE_JIT
+      "MFEM_USE_JIT\n"
+#endif
 #ifdef MFEM_USE_OPENMP
       "MFEM_USE_OPENMP\n"
 #endif

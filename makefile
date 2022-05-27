@@ -225,7 +225,7 @@ endif
 ifeq ($(MFEM_USE_CUDA)$(MFEM_USE_HIP),NONO)
    MFEM_CXX ?= $(HOST_CXX)
    MFEM_HOST_CXX ?= $(MFEM_CXX)
-	JIT_LANG  = $(if $(jit),-x c++)
+   JIT_LANG  = $(if $(jit),-x c++)
    XCOMPILER = $(CXX_XCOMPILER)
    XLINKER   = $(CXX_XLINKER)
 endif
@@ -461,21 +461,13 @@ JIT_SOURCE_FILES = $(SRC)fem/bilininteg_diffusion_pa.cpp \
 $(SRC)fem/bilininteg_mass_pa.cpp
 
 # Definitions to compile the preprocessor and embed the MFEM options
-MFEM_JIT_DEFINES  = -DMFEM_CXX="$(MFEM_CXX)"
-ifneq ($(MFEM_USE_CUDA),YES)
-MFEM_JIT_DEFINES += -Wno-unknown-escape-sequence
-endif
-MFEM_JIT_COMMA :=,
-define esc_comma
-"$(subst $(MFEM_JIT_COMMA),\$(MFEM_JIT_COMMA),$(1))"
-endef
-# Comma has to be escaped to avoid 'macro names must be identifiers' error
-MFEM_JIT_DEFINES += -DMFEM_EXT_LIBS=$(call esc_comma,$(MFEM_EXT_LIBS))
-MFEM_JIT_DEFINES += -DMFEM_BUILD_FLAGS=$(call esc_comma,$(MFEM_BUILD_FLAGS))
-MFEM_JIT_DEFINES += -DMFEM_LINK_FLAGS=$(call esc_comma,$(MFEM_LINK_FLAGS))
+MFEM_JIT_DEFINES  = -DMFEM_CXX="\"$(MFEM_CXX)\""
+MFEM_JIT_DEFINES += -DMFEM_EXT_LIBS="\"$(MFEM_EXT_LIBS)\""
+MFEM_JIT_DEFINES += -DMFEM_BUILD_FLAGS="\"$(MFEM_BUILD_FLAGS)\""
+MFEM_JIT_DEFINES += -DMFEM_LINK_FLAGS="\"$(MFEM_LINK_FLAGS)\""
 $(BLD)mjit: $(BLD)general/jit/parser.cpp $(CONFIG_MK) makefile\
  $(BLD)general/jit/jit.hpp $(BLD)general/jit/jit.cpp
-	$(MFEM_CXX) $(MFEM_BUILD_FLAGS) $(MFEM_JIT_DEFINES) -o $(@) $(<) $(JIT_LIB)
+	$(MFEM_CXX) $(MFEM_BUILD_FLAGS) $(MFEM_JIT_DEFINES) -o $(@) $(<) #$(JIT_LIB)
 
 # Filter out objects that will be compiled through the preprocessor
 JIT_OBJECT_FILES = $(JIT_SOURCE_FILES:$(SRC)%.cpp=$(BLD)%.o)

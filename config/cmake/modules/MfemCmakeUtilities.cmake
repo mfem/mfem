@@ -903,7 +903,7 @@ function(mfem_export_mk_files)
     endif()
   endforeach()
   # TODO: Add support for MFEM_USE_CUDA=YES
-  set(MFEM_CXX ${CMAKE_CXX_COMPILER})
+  set(MFEM_CXX ${CMAKE_CXX_COMPILER} CACHE STRING "" FORCE)
   set(MFEM_HOST_CXX ${MFEM_CXX})
   set(MFEM_CPPFLAGS "")
   get_target_property(cxx_std mfem CXX_STANDARD)
@@ -916,7 +916,7 @@ function(mfem_export_mk_files)
          MFEM_CXXFLAGS)
   set(MFEM_TPLFLAGS "")
   foreach(dir ${MFEM_TPL_INCLUDE_DIRS})
-    set(MFEM_TPLFLAGS "${MFEM_TPLFLAGS} -I${dir}")
+    set(MFEM_TPLFLAGS "${MFEM_TPLFLAGS} -I${dir}" CACHE STRING "" FORCE)
   endforeach()
   # TODO: MFEM_TPLFLAGS: add other TPL flags, in addition to the -I flags.
   set(MFEM_INCFLAGS "-I\$(MFEM_INC_DIR) \$(MFEM_TPLFLAGS)")
@@ -944,6 +944,7 @@ function(mfem_export_mk_files)
     set(MFEM_SHARED NO)
     set(MFEM_STATIC YES)
   endif()
+  set(MFEM_LIBS ${MFEM_LIBS} CACHE STRING "" FORCE)
   set(MFEM_BUILD_TAG "${CMAKE_SYSTEM}")
   set(MFEM_PREFIX "${CMAKE_INSTALL_PREFIX}")
   # For the next 4 variable, these are the values for the build-tree version of
@@ -1016,9 +1017,10 @@ function(mfem_export_mk_files)
       get_filename_component(fullLibName ${lib} NAME_WE)
       string(REGEX REPLACE "^lib" "" libname ${fullLibName})
       set(MFEM_EXT_LIBS
-          "${MFEM_EXT_LIBS} ${shared_link_flag}${dir} -L${dir} -l${libname}")
+          "${MFEM_EXT_LIBS} ${shared_link_flag}${dir} -L${dir} -l${libname}"
+          CACHE STRING "" FORCE)
     else()
-      set(MFEM_EXT_LIBS "${MFEM_EXT_LIBS} ${lib}")
+      set(MFEM_EXT_LIBS "${MFEM_EXT_LIBS} ${lib}" CACHE STRING "" FORCE)
     endif()
   endforeach()
 
@@ -1032,7 +1034,7 @@ function(mfem_export_mk_files)
     "${PROJECT_BINARY_DIR}/config/test.mk" COPYONLY)
 
   # Update variables for the install-tree version of 'config.mk'
-  set(MFEM_INC_DIR "${CMAKE_INSTALL_PREFIX}/include")
+  set(MFEM_INC_DIR "${CMAKE_INSTALL_PREFIX}/include" CACHE PATH "" FORCE)
   set(MFEM_LIB_DIR "${CMAKE_INSTALL_PREFIX}/lib")
   set(MFEM_TEST_MK "${CMAKE_INSTALL_PREFIX}/share/mfem/test.mk")
   set(MFEM_CONFIG_EXTRA "")
@@ -1048,4 +1050,6 @@ function(mfem_export_mk_files)
   install(FILES ${PROJECT_BINARY_DIR}/config/config-install.mk
     DESTINATION ${CMAKE_INSTALL_PREFIX}/share/mfem/ RENAME config.mk)
 
+set(MFEM_BUILD_FLAGS "${MFEM_CXXFLAGS} -I${MFEM_INC_DIR} ${MFEM_TPLFLAGS}"
+    CACHE STRING "Flags used for compiling all source files" FORCE)
 endfunction()

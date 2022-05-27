@@ -98,7 +98,7 @@ class System // System singleton object
    int *s_ack; // shared status, should be large enough to store one MPI rank
    char *s_mem; // shared memory to store the command for the system call
    uintptr_t size; // of the s_mem shared memory
-   std::string sl_cmd, lib_ar {"libmjit.a"}, lib_so {"./libmjit.so"};
+   std::string lib_ar {"libmjit.a"}, lib_so {"./libmjit.so"};
    bool keep = true;
 
    struct Command
@@ -109,10 +109,10 @@ class System // System singleton object
       operator const char *()
       {
          std::ostringstream cmd_mv = std::move(cmd);
-         //static thread_local std::string sl_cmd;
-         Get().sl_cmd = cmd_mv.str();
+         static thread_local std::string sl_cmd;
+         sl_cmd = cmd_mv.str();
          cmd.clear(); cmd.str(""); // flush for next command
-         return Get().sl_cmd.c_str();
+         return sl_cmd.c_str();
       }
    } command;
 
@@ -254,7 +254,6 @@ public:
       virtual std::string Compiler() { return ""; }
       virtual std::string Pic() { return "-fPIC"; }
       virtual std::string Pipe() { return "-pipe"; }
-      virtual std::string Hidden() { return "-fvisibility=hidden"; }
       virtual std::string Device() { return ""; }
       virtual std::string Linker() { return "-Wl,"; }
    };
@@ -264,7 +263,6 @@ public:
       std::string Compiler() override { return "-Xcompiler="; }
       std::string Pic() override { return Xcompiler() + "-fPIC"; }
       std::string Pipe() override { return Xcompiler() + "-pipe"; }
-      std::string Hidden() override { return Xcompiler() + "-fvisibility=hidden"; }
       std::string Device() override { return "--device-c"; }
       std::string Linker() override { return "-Xlinker="; }
    };
@@ -299,7 +297,6 @@ public:
    static const char *Lib_so() { return Get().lib_so.c_str(); }
    static std::string Xpic() { return Get().cxx.Pic(); }
    static std::string Xpipe() { return Get().cxx.Pipe(); }
-   static std::string Xhidden() { return Get().cxx.Hidden(); }
    static std::string Xdevice() { return Get().cxx.Device(); }
    static std::string Xlinker() { return Get().cxx.Linker(); }
    static std::string Xcompiler() { return Get().cxx.Compiler(); }
@@ -328,7 +325,7 @@ public:
 
    static void *DLopen(const char *path)
    {
-      void *handle = ::dlopen(path, RTLD_NOW | RTLD_LOCAL);
+      void *handle = ::dlopen(path, RTLD_LAZY | RTLD_LOCAL);
       DLerror();
       return handle;
    }
@@ -365,11 +362,16 @@ public:
          source_file.close();
 
          // Compilation: cc => co
+         const char *mfem_hpp = MFEM_INSTALL_DIR "/include/mfem/mfem.hpp";
+         const auto mfem_installed = std::fstream(mfem_hpp);
+         MFEM_VERIFY(mfem_installed, "MFEM has to be installed!");
          auto co = Jit::ToString(hash, ".co"); // output object
          Command() << cxx << flags
-                   << "-I" << MFEM_SOURCE_DIR // JIT w/o MFEM installed
-                   << "-I" << MFEM_INSTALL_DIR
-                   << Xdevice() << Xpic() << Xpipe()
+                   << "-I" << MFEM_INSTALL_DIR "/include/mfem"
+                   << Xdevice() << Xpic()
+#ifndef MFEM_USE_CUDA
+                   << Xpipe()
+#endif
                    << "-c" << "-o" << co << cc
                    << (std::getenv("MFEM_JIT_VERBOSE") ? "-v" : "");
          if (Call(name)) { return EXIT_FAILURE; }
