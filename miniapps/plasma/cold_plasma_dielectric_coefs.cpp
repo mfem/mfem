@@ -1378,19 +1378,23 @@ double PlasmaProfile::Eval(ElementTransformation &T,
       }
       break;
       case NUE:
-      {
-         double rad_res_loc = p_[0];
-         double nu0 = p_[1];
-         double width = 1e-5;
-         double rho = pow(pow(x_[0], 2) + pow(x_[1], 2), 0.5);
-         return nu0*exp(-pow(rho-rad_res_loc, 2)/width) + (4e11)*exp(-(x_[0]-0.6)/0.04);
-      }
+       {
+          double nu0 = p_[0];
+          double decay = p_[1];
+          double shift = p_[2];
+          double nu1 = p_[3];
+          double rad_loc = p_[4];
+          double width = p_[5];
+          double rho = pow(pow(x_[0], 2) + pow(x_[1], 2), 0.5);
+
+          return nu0*exp(-(x_[0]-shift)/decay) + nu1*exp(-pow(rho-rad_loc, 2)/width);
+       }
       break;
       case NUI:
       {
          double rad_res_loc = p_[0];
          double nu0 = p_[1];
-         double width = 3e-5;
+         double width = p_[2];
          double rho = pow(pow(x_[0], 2) + pow(x_[1], 2), 0.5);
          return nu0*exp(-pow(rho-rad_res_loc, 2)/width);
       }
@@ -1408,7 +1412,7 @@ double PlasmaProfile::Eval(ElementTransformation &T,
          double pmin2 = 1e11;
          double pmax2 = 3e19;
          double lam2 = 0.915;
-         double n2 = 46.5;
+         double n2 = 40.0;
          double ne2 = (pmax2 - pmin2)* pow(cosh(pow((rho / lam2), n2)), -1.0) + pmin2;
          return ne1 + ne2;
       }
