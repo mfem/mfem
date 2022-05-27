@@ -142,7 +142,7 @@ public:
 
    virtual void SetMinDetT(double min_detT_) { min_detT = min_detT_; }
 
-   virtual bool ShiftedBarrierMetric() { return shifted; }
+   virtual bool IsShiftedBarrierMetric() { return shifted; }
 };
 
 /// Simultaneous Untangle-Optimizer with worst-case quality improvement
@@ -188,14 +188,14 @@ public:
                           const double weight, DenseMatrix &A) const
    { MFEM_ABORT("Not implemented"); }
 
-   // Computes alpha
+   // Computes mu_tilde.
    virtual double EvalWTilde(const DenseMatrix &Jpt) const;
 
    virtual void SetMinDetT(double min_detT_) { min_detT = min_detT_; }
 
    virtual void SetMaxMuT(double max_muT_) { max_muT = max_muT_; }
 
-   virtual bool ShiftedBarrierMetric() { return shifted; }
+   virtual bool IsShiftedBarrierMetric() { return shifted; }
 };
 
 /// 2D non-barrier metric without a type.
