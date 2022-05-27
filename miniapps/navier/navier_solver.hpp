@@ -192,6 +192,8 @@ public:
    /// Return a pointer to the current pressure ParGridFunction.
    ParGridFunction *GetCurrentPressure() { return &pn_gf; }
 
+   GridFunction *GetCurrentMeshVelocity() { return &wgn_gf; }
+
    /// Add a Dirichlet boundary condition to the velocity field.
    void AddVelDirichletBC(VectorCoefficient *coeff, Array<int> &attr);
 
@@ -284,6 +286,10 @@ public:
     */
    void SetFilterAlpha(double a) { filter_alpha = a; }
 
+   double NekNorm(ParGridFunction &u, int type = 0, bool is_vector = false);
+
+   void TransformMesh(VectorCoefficient &dx);
+
 protected:
    /// Print information about the Navier version.
    void PrintInfo();
@@ -365,6 +371,7 @@ protected:
 
    /// Linear form to compute the mass matrix in various subroutines.
    ParLinearForm *mass_lf = nullptr;
+   ParLinearForm *component_mass_lf = nullptr;
    ConstantCoefficient onecoeff;
    double volume = 0.0;
 
@@ -399,6 +406,10 @@ protected:
                    resu_gf;
 
    ParGridFunction pn_gf, resp_gf;
+
+   GridFunction wgn_gf;
+
+   VectorCoefficient *wg_coef;
 
    // All essential attributes.
    Array<int> vel_ess_attr;
@@ -451,6 +462,18 @@ protected:
 
    // LOR related.
    ParLORDiscretization *lor = nullptr;
+   ParMesh *pmesh_lor = nullptr;
+   FiniteElementCollection *pfec_lor = nullptr;
+   ParFiniteElementSpace *pfes_lor = nullptr;
+   InterpolationGridTransfer *vgt = nullptr, *pgt = nullptr;
+
+   ParBilinearForm *Mv_form_lor = nullptr;
+   ParBilinearForm *Sp_form_lor = nullptr;
+   ParBilinearForm *H_form_lor = nullptr;
+
+   OperatorHandle Mv_lor;
+   OperatorHandle Sp_lor;
+   OperatorHandle H_lor;
 
    // Filter-based stabilization
    int filter_cutoff_modes = 1;
@@ -459,6 +482,8 @@ protected:
    ParFiniteElementSpace *vfes_filter = nullptr;
    ParGridFunction un_NM1_gf;
    ParGridFunction un_filtered_gf;
+
+   ParaViewDataCollection *debug_fields = nullptr;
 };
 
 } // namespace navier

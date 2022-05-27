@@ -241,6 +241,8 @@ miniapps/navier/navier_tgv
 miniapps/navier/navier_shear
 miniapps/navier/navier_3dfoc
 miniapps/navier/navier_turbchan
+miniapps/navier/navier_ale_mms
+miniapps/navier/navier_fsi_beam_mms
 miniapps/navier/tgv_out*.txt
 miniapps/navier/*_output
 

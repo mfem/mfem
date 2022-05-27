@@ -369,6 +369,7 @@ class VectorConvectionNLFIntegrator : public NonlinearFormIntegrator
 {
 private:
    Coefficient *Q{};
+   VectorCoefficient *Z;
    DenseMatrix dshape, dshapex, EF, gradEF, ELV, elmat_comp;
    Vector shape;
    // PA extension
@@ -379,6 +380,10 @@ private:
 
 public:
    VectorConvectionNLFIntegrator(Coefficient &q): Q(&q) { }
+
+   VectorConvectionNLFIntegrator(Coefficient &q, VectorCoefficient &z)
+      : Q(&q), Z(&z)
+   {}
 
    VectorConvectionNLFIntegrator() = default;
 
