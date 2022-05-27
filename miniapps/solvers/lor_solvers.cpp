@@ -57,6 +57,12 @@
 //    lor_solvers -m ../../data/amr-quad.mesh -fe n
 //    lor_solvers -m ../../data/amr-quad.mesh -fe r
 //    lor_solvers -m ../../data/amr-quad.mesh -fe l
+//
+// Device sample runs:
+//    lor_solvers -fe h -d cuda
+//    lor_solvers -fe n -d cuda
+//    lor_solvers -fe r -d cuda
+//    lor_solvers -fe l -d cuda
 
 #include "mfem.hpp"
 #include <fstream>
@@ -76,6 +82,7 @@ int main(int argc, char *argv[])
    int ref_levels = 1;
    int order = 3;
    const char *fe = "h";
+   const char *device_config = "cpu";
    bool visualization = true;
 
    OptionsParser args(argc, argv);
@@ -88,7 +95,12 @@ int main(int argc, char *argv[])
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
+   args.AddOption(&device_config, "-d", "--device",
+                  "Device configuration string, see Device::Configure().");
    args.ParseCheck();
+
+   Device device(device_config);
+   device.Print();
 
    bool H1 = false, ND = false, RT = false, L2 = false;
    if (string(fe) == "h") { H1 = true; }
