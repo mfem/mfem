@@ -72,6 +72,13 @@ set(SRCS
   lininteg.cpp
   lininteg_domain.cpp
   lininteg_domain_grad.cpp
+  lor/lor.cpp
+  lor/lor_ads.cpp
+  lor/lor_ams.cpp
+  lor/lor_batched.cpp
+  lor/lor_h1.cpp
+  lor/lor_nd.cpp
+  lor/lor_rt.cpp
   multigrid.cpp
   nonlinearform.cpp
   nonlinearform_ext.cpp
@@ -121,7 +128,6 @@ set(SRCS
   tmop_amr.cpp
   gslib.cpp
   transfer.cpp
-  lor.cpp
   )
 
 set(HDRS
@@ -166,6 +172,14 @@ set(HDRS
   linearform.hpp
   linearform_ext.hpp
   lininteg.hpp
+  lor/lor.hpp
+  lor/lor_ads.hpp
+  lor/lor_ams.hpp
+  lor/lor_batched.hpp
+  lor/lor_h1.hpp
+  lor/lor_nd.hpp
+  lor/lor_rt.hpp
+  lor/lor_util.hpp
   multigrid.hpp
   nonlinearform.hpp
   nonlinearform_ext.hpp
@@ -192,7 +206,6 @@ set(HDRS
   tmop_amr.hpp
   gslib.hpp
   transfer.hpp
-  lor.hpp
   )
 
 if (MFEM_USE_SIDRE)
