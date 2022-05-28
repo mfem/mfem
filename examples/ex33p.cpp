@@ -3,15 +3,21 @@
 // Compile with: make ex33p
 //
 // Sample runs:  mpirun -np 4 ex33p -m ../data/square-disc.mesh -alpha 0.33 -o 2
+//               mpirun -np 4 ex33p -m ../data/square-disc.mesh -alpha 4.5 -o 3
+//               mpirun -np 4 ex33p -m ../data/star.mesh -alpha 1.4 -o 3
 //               mpirun -np 4 ex33p -m ../data/star.mesh -alpha 0.99 -o 3
 //               mpirun -np 4 ex33p -m ../data/inline-quad.mesh -alpha 0.5 -o 3
 //               mpirun -np 4 ex33p -m ../data/disc-nurbs.mesh -alpha 0.33 -o 3
+//               mpirun -np 4 ex33p -m ../data/disc-nurbs.mesh -alpha 2.4 -o 3 -r 4
 //               mpirun -np 4 ex33p -m ../data/l-shape.mesh -alpha 0.33 -o 3 -r 4
+//               mpirun -np 4 ex33p -m ../data/l-shape.mesh -alpha 1.7 -o 3 -r 5
 //
 // Verification runs:
-//    mpirun -np 4ex33 -m ../data/inline-quad.mesh -ver -alpha <arbi.> -o 2 -r 4
-//    Note: the analytic solution to this problem is u(x) = sin(pi x) sin(pi y)
-//          for all alpha.
+//    mpirun -np 4 ex33p -m ../data/inline-quad.mesh -ver -alpha 0.3 -o 2 -r 4
+//    mpirun -np 4 ex33p -m ../data/inline-quad.mesh -ver -alpha 1.4 -o 3 -r 5
+//    mpirun -np 4 ex33p -m ../data/inline-quad.mesh -ver -alpha 5.7 -o 2 -r 7 -no-vis
+//  Note: the analytic solution to this problem is u(x) = sin(pi x) sin(pi y)
+//        for all alpha.
 //
 // Description:
 //
@@ -19,14 +25,14 @@
 //
 //    ( - Δ )^α u = f  in Ω,      u = 0  on ∂Ω,      0 < α,
 //
-//  To solve this FPDE, we multiply with ( - Δ )^(-N) where the integer
-//  N is given by floor(α). We obtain
+//  To solve this FPDE, we apply the operator ( - Δ )^(-N), where the integer
+//  N is given by floor(α). By doing so, we obtain
 //
 //    ( - Δ )^(α-N) u = ( - Δ )^(-N) f  in Ω,      u = 0  on ∂Ω,      0 < α.
 //
 //  We first compute the right hand side by solving the integer order PDE
 //
-//   ( - Δ )^N g = f  in Ω,      g = 0  on ∂Ω,
+//   ( - Δ )^N g = f  in Ω, g = ( - Δ )^k g = 0 on ∂Ω, k = 1,..,N-1
 //
 //  The remaining FPDE is then given by
 //
@@ -82,10 +88,6 @@ int main(int argc, char *argv[])
    int num_procs = Mpi::WorldSize();
    int myid = Mpi::WorldRank();
    Hypre::Init();
-   if (Mpi::Root())
-   {
-      mfem::out << "\nTotal number of MPI ranks = " << num_procs << endl;
-   }
 
    // 1. Parse command-line options.
    const char *mesh_file = "../data/star.mesh";
@@ -127,11 +129,11 @@ int main(int argc, char *argv[])
 
    // 2. Compute the rational expansion coefficients that define the
    //    integer-order PDEs.
-   int power_of_laplace = floor(alpha);
+   const int power_of_laplace = floor(alpha);
    double exponent_to_approximate = alpha - power_of_laplace;
    bool integer_order = false;
    // Check if alpha is an integer or not.
-   if (alpha - power_of_laplace !=0)
+   if (abs(exponent_to_approximate) > 1e-12)
    {
       if (Mpi::Root())
       {
@@ -141,6 +143,10 @@ int main(int argc, char *argv[])
       }
       ComputePartialFractionApproximation(exponent_to_approximate, coeffs,
                                           poles);
+
+      // If the example is build without LAPACK, the exponent_to_approximate
+      // might be modified by the function call above.
+      alpha = exponent_to_approximate + power_of_laplace;
    }
    else
    {
@@ -217,7 +223,7 @@ int main(int argc, char *argv[])
    b.Assemble();
 
    // ------------------------------------------------------------------------
-   // 10. Solve the PDE -Δ ^ N g = f, i.e. compute g = (-Δ)^{-1}^N f.
+   // 10. Solve the PDE (-Δ)^N g = f, i.e. compute g = (-Δ)^{-1}^N f.
    // ------------------------------------------------------------------------
 
    if (power_of_laplace > 0)
@@ -241,17 +247,16 @@ int main(int argc, char *argv[])
       k.FormLinearSystem(ess_tdof_list, g, b, Op, X, B);
       HypreBoomerAMG prec;
       prec.SetPrintLevel(-1);
-      int print_level = (myid==0) ? 3 : 0;
       CGSolver cg(MPI_COMM_WORLD);
       cg.SetRelTol(1e-12);
       cg.SetMaxIter(2000);
-      cg.SetPrintLevel(print_level);
+      cg.SetPrintLevel(3);
       cg.SetPreconditioner(prec);
       cg.SetOperator(*Op);
 
       if (Mpi::Root())
       {
-         mfem::out << "\nComputing -Δ ^ -" << power_of_laplace
+         mfem::out << "\nComputing (-Δ) ^ -" << power_of_laplace
                    << " ( f ) " << endl;
       }
       for (int i = 0; i < power_of_laplace; i++)
@@ -340,11 +345,10 @@ int main(int argc, char *argv[])
          HypreBoomerAMG prec;
          prec.SetPrintLevel(-1);
 
-         int print_level = (myid==0) ? 3 : 0;
          CGSolver cg(MPI_COMM_WORLD);
          cg.SetRelTol(1e-12);
          cg.SetMaxIter(2000);
-         cg.SetPrintLevel(print_level);
+         cg.SetPrintLevel(3);
          cg.SetPreconditioner(prec);
          cg.SetOperator(*A);
          cg.Mult(B, X);
@@ -369,8 +373,8 @@ int main(int argc, char *argv[])
 
             oss_u.str(""); oss_u.clear();
             oss_u << "Step " << progress_steps + 1
-                  << ": Solution of fractional PDE -Δ^" << alpha - floor(alpha)
-                  << " u = g";
+                  << ": Solution of fractional PDE (-Δ)^" << alpha
+                  << " u = f";
             uout << "parallel " << num_procs << " " << myid << "\n"
                  << "solution\n" << pmesh << u
                  << "window_title '" << oss_u.str() << "'"
