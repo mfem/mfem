@@ -959,6 +959,10 @@ void ParFiniteElementSpace::Build_Dof_TrueDof_Matrix() const // matrix P
    SparseMatrix Pdiag;
    P->GetDiag(Pdiag);
    R = Transpose(Pdiag);
+
+#ifdef HYPRE_USING_GPU
+   hypre_ParCSRMatrixLocalTranspose(*P);
+#endif
 }
 
 HypreParMatrix *ParFiniteElementSpace::GetPartialConformingInterpolation()
@@ -2624,6 +2628,10 @@ int ParFiniteElementSpace
    {
       *P_ = MakeVDimHypreMatrix(pmatrix, ndofs, num_true_dofs,
                                 dof_offs, tdof_offs);
+
+#ifdef HYPRE_USING_GPU
+     hypre_ParCSRMatrixLocalTranspose(**P_);
+#endif
    }
 
    // clean up possible remaining messages in the queue to avoid receiving
@@ -2665,6 +2673,8 @@ int ParFiniteElementSpace
                 << std::endl;
    }
 #endif
+
+
 
    return num_true_dofs*vdim;
 }

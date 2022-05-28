@@ -1833,6 +1833,10 @@ void HypreParMatrix::MultTranspose(double a, const Vector &x,
       }
    }
 
+#ifdef HYPRE_USING_GPU
+   MFEM_VERIFY(A->diagT != NULL, "Transpose action requires hypre_ParCSRMatrixLocalTranspose");
+#endif
+
    hypre_ParCSRMatrixMatvecT(a, A, *Y, b, *X);
 
    if (!yshallow) { y = *X; }  // Deep copy
