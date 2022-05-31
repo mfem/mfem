@@ -467,7 +467,7 @@ MFEM_JIT_DEFINES += -DMFEM_BUILD_FLAGS="\"$(MFEM_BUILD_FLAGS)\""
 MFEM_JIT_DEFINES += -DMFEM_LINK_FLAGS="\"$(MFEM_LINK_FLAGS)\""
 $(BLD)mjit: $(BLD)general/jit/parser.cpp $(CONFIG_MK) makefile\
  $(BLD)general/jit/jit.hpp $(BLD)general/jit/jit.cpp
-	$(MFEM_CXX) $(MFEM_BUILD_FLAGS) $(MFEM_JIT_DEFINES) -o $(@) $(<) #$(JIT_LIB)
+	$(MFEM_CXX) $(MFEM_BUILD_FLAGS) $(MFEM_JIT_DEFINES) -o $(@) $(<)
 
 # Filter out objects that will be compiled through the preprocessor
 JIT_OBJECT_FILES = $(JIT_SOURCE_FILES:$(SRC)%.cpp=$(BLD)%.o)

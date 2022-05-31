@@ -153,8 +153,6 @@
 
 // Enable MFEM functionality based on JIT
 #cmakedefine MFEM_USE_JIT
-#cmakedefine MFEM_JIT_CXX "@MFEM_JIT_CXX@"
-#cmakedefine MFEM_JIT_BUILD_FLAGS "@MFEM_JIT_BUILD_FLAGS@"
 
 // Enable MFEM functionality based on the Umpire library
 #cmakedefine MFEM_USE_UMPIRE

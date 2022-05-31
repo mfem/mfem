@@ -28,6 +28,7 @@
 #include <dlfcn.h> // dlopen/dlsym, not available on Windows
 #include <signal.h> // signals
 #include <unistd.h> // fork
+#include <sys/file.h> // flock
 #include <sys/wait.h> // waitpid
 
 #if !(defined(__linux__) || defined(__APPLE__))
@@ -41,6 +42,36 @@ namespace mfem
 
 namespace jit
 {
+
+namespace io
+{
+
+class Lock
+{
+   int handle;
+   static int Ctrl(int fd, int cmd, int type, bool check = true)
+   {
+      struct ::flock lock {};
+      lock.l_type = type;
+      lock.l_whence = SEEK_SET;
+      int ret = ::fcntl(fd, cmd, &lock);
+      if (check) { MFEM_VERIFY(ret != -1, "fcntl error"); }
+      return check ? ret : (ret != -1);
+   }
+public:
+   Lock(const char *name, bool later = false):
+      handle(::open(name, O_CREAT|O_RDWR))
+   {
+      assert(handle > 0);
+      if (later) { return; }
+      lock();
+   }
+   ~Lock() { Ctrl(handle, F_SETLK, F_UNLCK); ::close(handle); }
+   void lock() { Ctrl(handle, F_SETLKW, F_WRLCK); } // wait if blocked
+   operator bool() const { return Ctrl(handle, F_SETLK, F_WRLCK, false); }
+};
+
+} // namespace io
 
 namespace mpi
 {
@@ -117,10 +148,7 @@ class System // System singleton object
    } command;
 
    template <typename OP> static void Ack(int xx) // spinlock
-   {
-      while (OP()(*Ack(), xx)) // equal_to or not_equal_to OP
-      { std::this_thread::sleep_for(std::chrono::milliseconds(200)); }
-   }
+   { while (OP()(*Ack(), xx)) { Sleep(); } }
    static void AckEQ(int xx = ACK) { Ack<std::equal_to<int>>(xx); }
    static void AckNE(int xx = ACK) { Ack<std::not_equal_to<int>>(xx); }
    static constexpr int ACK = ~0, CALL = 0x3243F6A8, EXIT = 0x9e3779b9;
@@ -134,6 +162,8 @@ class System // System singleton object
    static bool IsCall() { return Read() == CALL; }
    static bool IsExit() { return Read() == EXIT; }
    static bool IsAck() { return Read() == ACK; }
+   static void Sleep(int ms = 200)
+   { std::this_thread::sleep_for(std::chrono::milliseconds(ms)); }
 
    // Ask the parent to launch a system call
    // by default, will use the prepared command
@@ -337,7 +367,7 @@ public:
       DLerror(false); // flush dl errors
 
       void *handle = std::fstream(Lib_so()) ? DLopen(Lib_so()) : nullptr;
-      if (!handle && std::fstream(Lib_ar())) // if not found, try libmjit.a
+      if (!handle && std::fstream(Lib_ar())) // if .so not found, try archive
       {
          int status = EXIT_SUCCESS;
          if (mpi::Root())
@@ -354,44 +384,63 @@ public:
 
       auto RootCompile = [&]() // Compilation only done by the root
       {
-         // Write kernel source file
-         auto cc = Jit::ToString(hash, ".cc"); // input source
-         std::ofstream source_file(cc);
-         MFEM_VERIFY(source_file.good(), "[JIT] Source file error!");
-         source_file << source;
-         source_file.close();
+         auto ck = Jit::ToString(hash, ".ck"); // lock file
+         std::ofstream ck_ofs(ck); // open the file lock
+         MFEM_VERIFY(ck_ofs.good(), "[JIT] Source file error!");
+         {
+            io::Lock ck_lock(ck.c_str(), true);
+            if (ck_lock)
+            {
+               // Write kernel source file
+               auto cc = Jit::ToString(hash, ".cc"); // input source
+               std::ofstream source_file(cc); // open the file lock
+               MFEM_VERIFY(source_file.good(), "[JIT] Source file error!");
+               source_file << source;
+               source_file.close();
 
-         // Compilation: cc => co
-         const char *mfem_hpp = MFEM_INSTALL_DIR "/include/mfem/mfem.hpp";
-         const auto mfem_installed = std::fstream(mfem_hpp);
-         MFEM_VERIFY(mfem_installed, "MFEM has to be installed!");
-         auto co = Jit::ToString(hash, ".co"); // output object
-         Command() << cxx << flags
-                   << "-I" << MFEM_INSTALL_DIR "/include/mfem"
-                   << Xdevice() << Xpic()
+               // Compilation: cc => co
+               const char *mfem_hpp = MFEM_INSTALL_DIR "/include/mfem/mfem.hpp";
+               const auto mfem_installed = std::fstream(mfem_hpp);
+               MFEM_VERIFY(mfem_installed, "MFEM needs to be installed!");
+               auto co = Jit::ToString(hash, ".co"); // output object
+               Command() << cxx << flags
+                         << "-I" << MFEM_INSTALL_DIR "/include/mfem"
+                         << Xdevice() << Xpic()
 #ifndef MFEM_USE_CUDA
-                   << Xpipe()
+                         << Xpipe()
 #endif
-                   << "-c" << "-o" << co << cc
-                   << (std::getenv("MFEM_JIT_VERBOSE") ? "-v" : "");
-         if (Call(name)) { return EXIT_FAILURE; }
-         std::remove(cc.c_str());
+                         << "-c" << "-o" << co << cc
+                         << (std::getenv("MFEM_JIT_VERBOSE") ? "-v" : "");
+               if (Call(name)) { return EXIT_FAILURE; }
+               std::remove(cc.c_str());
 
-         // Update archive: ar += co
-         Command() << "ar -r" << Lib_ar() << co; // v
-         if (Call()) { return EXIT_FAILURE; }
-         std::remove(co.c_str());
+               // Update archive: ar += co
+               auto ak = std::string(Lib_ar()) + ".ak";
+               std::ofstream ak_ofs(ak);
+               MFEM_VERIFY(ak_ofs.good(), "[JIT] Source file error!");
+               {
+                  io::Lock ak_lock(ak.c_str());
+                  Command() << "ar -rv" << Lib_ar() << co;
+                  if (Call()) { return EXIT_FAILURE; }
+                  std::remove(co.c_str());
 
-         // Create temporary shared library: (ar + co) => symbol
-         Command() << cxx << link << "-shared" << "-o" << symbol
-                   << ARprefix() << Lib_ar() << ARpostfix()
-                   << Xlinker() + "-rpath,." << libs;
-         if (Call(name)) { return EXIT_FAILURE; }
+                  // Create temporary shared library: (ar + co) => symbol
+                  Command() << cxx << link << "-shared" << "-o" << symbol
+                            << ARprefix() << Lib_ar() << ARpostfix()
+                            << Xlinker() + "-rpath,." << libs;
+                  if (Call(name)) { return EXIT_FAILURE; }
 
-         // Install temporary shared library: symbol => libmjit.so
-         Command() << "install" << ARbackup() << symbol << Lib_so();
-         if (Call()) { return EXIT_FAILURE; }
-
+                  // Install temporary shared library: symbol => libmjit.so
+                  Command() << "install" << ARbackup() << symbol << Lib_so();
+                  if (Call()) { return EXIT_FAILURE; }
+                  std::remove(symbol);
+               }
+               std::remove(ak.c_str());
+            }
+            else // avoid duplicate compilation
+            { while (std::fstream(ck.c_str())) { System::Sleep(); } }
+         }
+         std::remove(ck.c_str());
          return EXIT_SUCCESS;
       };
 
@@ -399,8 +448,7 @@ public:
       {
          const int status = mpi::Root() ? RootCompile() : EXIT_SUCCESS;
          mpi::Sync(status); // all ranks verify the status
-         std::string symbol_path("./");
-         handle = DLopen((symbol_path + symbol).c_str()); // opens symbol
+         handle = DLopen(Lib_so()); assert(handle);
          mpi::Sync();
          MFEM_VERIFY(handle, "[JIT] Error creating handle:" << ::dlerror());
       }; // WorldCompile
@@ -413,8 +461,6 @@ public:
       // no symbol => launch compilation & update kernel symbol
       if (!kernel) { WorldCompile(); kernel = DLsym(handle, symbol); }
       MFEM_VERIFY(kernel, "[JIT] No kernel could be found!");
-      // remove temporary shared library, the cache will be used afterward
-      std::remove(symbol);
       return kernel;
    }
 };
