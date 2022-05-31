@@ -177,13 +177,6 @@ public:
 
    virtual double EvalW(const DenseMatrix &Jpt) const;
 
-   virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const
-   { MFEM_ABORT("Not implemented"); }
-
-   virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
-                          const double weight, DenseMatrix &A) const
-   { MFEM_ABORT("Not implemented"); }
-
    // Computes mu_tilde.
    virtual double EvalWTilde(const DenseMatrix &Jpt) const;
 
@@ -1651,8 +1644,6 @@ protected:
                                   const FiniteElementSpace &fes);
    double ComputeUntanglerMaxMuT(const Vector &x,
                                  const FiniteElementSpace &fes);
-   void ComputeUntanglerMetricQuantiles(const Vector &x,
-                                        const FiniteElementSpace &fes);
 
 public:
    /** @param[in] m    TMOP_QualityMetric for r-adaptivity (not owned).
@@ -1846,6 +1837,12 @@ public:
 
    /// Get the surface fitting weight.
    double GetSurfaceFittingWeight();
+
+   /// Computes quantiles needed for UntangleMetrics. Note that in parallel,
+   /// the ParFiniteElementSpace must be passed as argument for consistency
+   /// across MPI ranks.
+   void ComputeUntangleMetricQuantiles(const Vector &x,
+                                       const FiniteElementSpace &fes);
 };
 
 class TMOPComboIntegrator : public NonlinearFormIntegrator

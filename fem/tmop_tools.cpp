@@ -705,7 +705,7 @@ void TMOPNewtonSolver::ProcessNewState(const Vector &x) const
             ti->ComputeFDh(x_loc, *pfesc);
             if (compute_metric_quantile_flag)
             {
-               ti->ComputeUntanglerMetricQuantiles(x_loc, *pfesc);
+               ti->ComputeUntangleMetricQuantiles(x_loc, *pfesc);
             }
             UpdateDiscreteTC(*ti, x_loc);
          }
@@ -719,7 +719,7 @@ void TMOPNewtonSolver::ProcessNewState(const Vector &x) const
                ati[j]->ComputeFDh(x_loc, *pfesc);
                if (compute_metric_quantile_flag)
                {
-                  ati[j]->ComputeUntanglerMetricQuantiles(x_loc, *pfesc);
+                  ati[j]->ComputeUntangleMetricQuantiles(x_loc, *pfesc);
                }
                UpdateDiscreteTC(*ati[j], x_loc);
             }
@@ -750,7 +750,7 @@ void TMOPNewtonSolver::ProcessNewState(const Vector &x) const
             ti->ComputeFDh(x_loc, *fesc);
             if (compute_metric_quantile_flag)
             {
-               ti->ComputeUntanglerMetricQuantiles(x_loc, *fesc);
+               ti->ComputeUntangleMetricQuantiles(x_loc, *fesc);
             }
             UpdateDiscreteTC(*ti, x_loc);
          }
@@ -764,7 +764,7 @@ void TMOPNewtonSolver::ProcessNewState(const Vector &x) const
                ati[j]->ComputeFDh(x_loc, *fesc);
                if (compute_metric_quantile_flag)
                {
-                  ati[j]->ComputeUntanglerMetricQuantiles(x_loc, *fesc);
+                  ati[j]->ComputeUntangleMetricQuantiles(x_loc, *fesc);
                }
                UpdateDiscreteTC(*ati[j], x_loc);
             }
