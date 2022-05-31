@@ -270,10 +270,10 @@ protected:
    void ConnectBoundaries();
    void ConnectBoundaries2D(int bnd0, int bnd1);
    void ConnectBoundaries3D(int bnd0, int bnd1);
-   int DofMap(int dof) const
+   /*int DofMap(int dof) const
    {
       return (d_to_d.Size() > 0 )? d_to_d[dof] : dof;
-   };
+   };*/
 
    // also count the global NumOfVertices and the global NumOfDofs
    void GenerateOffsets();
@@ -359,6 +359,25 @@ public:
    Array<int> &GetSlave()  { return  slave; };
    void MergeGridFunctions(GridFunction *gf_array[], int num_pieces,
                            GridFunction &merged);
+
+
+   // ST stuff
+   int DofMap(int dof) const
+   {
+      return (d_to_d.Size() > 0 )? d_to_d[dof] : dof;
+   };
+
+   int DofMap(int dof)
+   {
+      return (d_to_d.Size() > 0 )? d_to_d[dof] : dof;
+   };
+
+   // Gets the local dof
+   int GetActiveDof(int glob) const
+   {
+      return activeDof[glob];
+   };
+
 
    /// Destroy a NURBSExtension
    virtual ~NURBSExtension();
