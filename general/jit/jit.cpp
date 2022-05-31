@@ -62,7 +62,7 @@ public:
    Lock(const char *name, bool later = false):
       handle(::open(name, O_CREAT|O_RDWR))
    {
-      assert(handle > 0);
+      MFEM_VERIFY(handle > 0, "Cannot open " << name);
       if (later) { return; }
       lock();
    }
@@ -364,6 +364,8 @@ public:
                        const char *flags, const char *link, const char *libs,
                        const char *source, const char *symbol)
    {
+      auto pid_ext = std::string(".") + std::to_string(getpid());
+      auto symbol_pid = Jit::ToString(hash, pid_ext.c_str());
       DLerror(false); // flush dl errors
 
       void *handle = std::fstream(Lib_so()) ? DLopen(Lib_so()) : nullptr;
@@ -423,17 +425,6 @@ public:
                   Command() << "ar -rv" << Lib_ar() << co;
                   if (Call()) { return EXIT_FAILURE; }
                   std::remove(co.c_str());
-
-                  // Create temporary shared library: (ar + co) => symbol
-                  Command() << cxx << link << "-shared" << "-o" << symbol
-                            << ARprefix() << Lib_ar() << ARpostfix()
-                            << Xlinker() + "-rpath,." << libs;
-                  if (Call(name)) { return EXIT_FAILURE; }
-
-                  // Install temporary shared library: symbol => libmjit.so
-                  Command() << "install" << ARbackup() << symbol << Lib_so();
-                  if (Call()) { return EXIT_FAILURE; }
-                  std::remove(symbol);
                }
                std::remove(ak.c_str());
             }
@@ -441,6 +432,28 @@ public:
             { while (std::fstream(ck.c_str())) { System::Sleep(); } }
          }
          std::remove(ck.c_str());
+
+         // Create temporary shared library: (ar + co) => symbol_pid
+         Command() << cxx << link << "-shared" << "-o" << symbol_pid
+                   << ARprefix() << Lib_ar() << ARpostfix()
+                   << Xlinker() + "-rpath,." << libs;
+         if (Call(name)) { return EXIT_FAILURE; }
+
+         // Install temporary shared library: symbol_pid => libmjit.so
+         auto ok = std::string(Lib_so()) + ".ok";
+         std::ofstream ok_ofs(ok);
+         MFEM_VERIFY(ok_ofs.good(), "[JIT] Source file error!");
+         {
+            io::Lock ok_lock(ok.c_str(), true);
+            if (ok_lock)
+            {
+               Command() << "install" << ARbackup() << symbol_pid << Lib_so();
+               if (Call()) { return EXIT_FAILURE; }
+            }
+            else // only one update
+            { while (std::fstream(ok.c_str())) { System::Sleep(); } }
+         }
+         std::remove(ok.c_str());
          return EXIT_SUCCESS;
       };
 
@@ -448,7 +461,8 @@ public:
       {
          const int status = mpi::Root() ? RootCompile() : EXIT_SUCCESS;
          mpi::Sync(status); // all ranks verify the status
-         handle = DLopen(Lib_so()); assert(handle);
+         std::string symbol_path("./");
+         handle = DLopen((symbol_path + symbol_pid).c_str()); // opens symbol
          mpi::Sync();
          MFEM_VERIFY(handle, "[JIT] Error creating handle:" << ::dlerror());
       }; // WorldCompile
@@ -461,6 +475,8 @@ public:
       // no symbol => launch compilation & update kernel symbol
       if (!kernel) { WorldCompile(); kernel = DLsym(handle, symbol); }
       MFEM_VERIFY(kernel, "[JIT] No kernel could be found!");
+      // remove temporary shared library, the cache will be used afterward
+      std::remove(symbol_pid.c_str());
       return kernel;
    }
 };

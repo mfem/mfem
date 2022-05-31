@@ -528,7 +528,7 @@ if (MFEM_USE_JIT)
     add_mjit_executable()
     set_mjit_sources_dependencies(MJIT_SOURCES JITSRCS)
 else()
-    list(PREPEND SOURCES ${JITSRCS})
+    list(APPEND SOURCES ${JITSRCS})
 endif()
 
 add_subdirectory(config)
