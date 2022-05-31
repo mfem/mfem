@@ -10,6 +10,9 @@
 
 Version 4.4.1 (development)
 ===========================
+- Added example for body-fitted volumetric and shape integration using the 
+  Algoim library.
+
 - Added WhiteGaussianNoiseDomainLFIntegrator: a LinearFormIntegrator class for
   spatial Gaussian white noise.
 
