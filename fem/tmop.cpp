@@ -76,16 +76,6 @@ double TMOP_UntangleOptimizer_Metric::EvalW(const DenseMatrix &Jpt) const
 double TMOP_WorstCaseUntangleOptimizer_Metric::EvalW(const DenseMatrix &Jpt)
 const
 {
-   double denominator;
-   if (shifted)
-   {
-      denominator = 2.0*(Jpt.Det()-std::min(alpha*min_detT-detT_ep, 0.0));
-   }
-   else
-   {
-      double detT = Jpt.Det();
-      denominator = detT + std::sqrt(detT*detT + detT_ep*detT_ep);
-   }
    double metric = TMOP_UntangleOptimizer_Metric::EvalW(Jpt);
    double beta = max_muT+muT_ep;
    return std::pow(metric/(beta-metric), exponent);
