@@ -3742,6 +3742,8 @@ double TMOP_Integrator::ComputeUntanglerMinDetT(const Vector &x,
       const int dim = fe->GetDim(),
                 dof = fe->GetDof(), nsp = ir.GetNPoints();
       Jpr.SetSize(dim);
+      Jpt.SetSize(dim);
+      Jrt.SetSize(dim);
 
       DSh.SetSize(dof, dim);
       PMatI.SetSize(dof, dim);
@@ -3757,6 +3759,8 @@ double TMOP_Integrator::ComputeUntanglerMinDetT(const Vector &x,
       for (int q = 0; q < nsp; q++)
       {
          const IntegrationPoint &ip = ir.IntPoint(q);
+         const DenseMatrix &Jtr_q = Jtr(q);
+         CalcInverse(Jtr_q, Jrt);
          fe->CalcDShape(ip, DSh);
          MultAtB(PMatI, DSh, Jpr);
          Mult(Jpr, Jrt, Jpt);
@@ -3787,6 +3791,8 @@ double TMOP_Integrator::ComputeUntanglerMaxMuT(const Vector &x,
       const int dim = fe->GetDim(),
                 dof = fe->GetDof(), nsp = ir.GetNPoints();
       Jpr.SetSize(dim);
+      Jrt.SetSize(dim);
+      Jpt.SetSize(dim);
 
       DSh.SetSize(dof, dim);
       PMatI.SetSize(dof, dim);
@@ -3803,6 +3809,7 @@ double TMOP_Integrator::ComputeUntanglerMaxMuT(const Vector &x,
       {
          const IntegrationPoint &ip = ir.IntPoint(q);
          const DenseMatrix &Jtr_q = Jtr(q);
+         CalcInverse(Jtr_q, Jrt);
 
          fe->CalcDShape(ip, DSh);
          MultAtB(PMatI, DSh, Jpr);
@@ -3821,8 +3828,8 @@ double TMOP_Integrator::ComputeUntanglerMaxMuT(const Vector &x,
    return max_muT;
 }
 
-void TMOP_Integrator::ComputeUntanglerMetricQuantiles(const Vector &x,
-                                                      const FiniteElementSpace &fes)
+void TMOP_Integrator::ComputeUntangleMetricQuantiles(const Vector &x,
+                                                     const FiniteElementSpace &fes)
 {
    TMOP_WorstCaseUntangleOptimizer_Metric *wcuo =
       dynamic_cast<TMOP_WorstCaseUntangleOptimizer_Metric *>(metric);

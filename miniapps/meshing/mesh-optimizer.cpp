@@ -936,10 +936,16 @@ int main(int argc, char *argv[])
       if (lim_const != 0.0) { combo->EnableLimiting(x0, dist, lim_coeff); }
 
       a.AddDomainIntegrator(combo);
+      Array<TMOP_Integrator *> ati = combo->GetTMOPIntegrators();
+      for (int j = 0; j < ati.Size(); j++)
+      {
+         ati[j]->ComputeUntangleMetricQuantiles(x, *fespace);
+      }
    }
    else
    {
       a.AddDomainIntegrator(tmop_integ);
+      tmop_integ->ComputeUntangleMetricQuantiles(x, *fespace);
    }
 
    if (pa) { a.Setup(); }
