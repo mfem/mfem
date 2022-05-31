@@ -153,17 +153,13 @@ public:
 /// beta = max(mu_tilde)+muT_ep
 /// tau = det(T), and min(tau) and max(mu_tilde) are calculated over entire mesh
 /// in 2 passes.
-class TMOP_WorstCaseUntangleOptimizer_Metric : public TMOP_QualityMetric
+class TMOP_WorstCaseUntangleOptimizer_Metric : public
+   TMOP_UntangleOptimizer_Metric
 {
 protected:
-   TMOP_QualityMetric *tmop_metric; //non-barrier metric to use
-   double min_detT;                 //point to min-det
    double max_muT;                  //point to max-det
    int exponent;
-   double alpha;                    //scaling factor for min(det(T))
-   double detT_ep;                  //small constant added to detT term
    double muT_ep;                   //small constant added to muT term
-   bool shifted;                    //shifted barrier (true) or pseudo-barrier
 public:
    TMOP_WorstCaseUntangleOptimizer_Metric(TMOP_QualityMetric *tmop_metric_,
                                           int exponent_ = 1,
@@ -171,12 +167,12 @@ public:
                                           double detT_ep_ = 0.0001,
                                           double muT_ep_ = 0.0001,
                                           bool shifted_ = false) :
-      tmop_metric(tmop_metric_),
-      exponent(exponent_), alpha(alpha_), detT_ep(detT_ep_), muT_ep(muT_ep_),
-      shifted(shifted_)  { }
+      TMOP_UntangleOptimizer_Metric(tmop_metric_, 1, alpha_, detT_ep_, shifted_),
+      exponent(exponent_), muT_ep(muT_ep_) { }
+
    virtual void SetTargetJacobian(const DenseMatrix &Jtr_)
    {
-      tmop_metric->SetTargetJacobian(Jtr_);
+      TMOP_UntangleOptimizer_Metric::SetTargetJacobian(Jtr_);
    }
 
    virtual double EvalW(const DenseMatrix &Jpt) const;
@@ -191,11 +187,7 @@ public:
    // Computes mu_tilde.
    virtual double EvalWTilde(const DenseMatrix &Jpt) const;
 
-   virtual void SetMinDetT(double min_detT_) { min_detT = min_detT_; }
-
    virtual void SetMaxMuT(double max_muT_) { max_muT = max_muT_; }
-
-   virtual bool IsShiftedBarrierMetric() { return shifted; }
 };
 
 /// 2D non-barrier metric without a type.
@@ -1596,9 +1588,6 @@ protected:
 
    /** @brief Determines the perturbation, h, for FD-based approximation. */
    void ComputeFDh(const Vector &x, const FiniteElementSpace &fes);
-#ifdef MFEM_USE_MPI
-   void ComputeFDh(const Vector &x, const ParFiniteElementSpace &pfes);
-#endif
    void ComputeMinJac(const Vector &x, const FiniteElementSpace &fes);
 
    void UpdateAfterMeshPositionChange(const Vector &new_x);
@@ -1664,10 +1653,6 @@ protected:
                                  const FiniteElementSpace &fes);
    void ComputeUntanglerMetricQuantiles(const Vector &x,
                                         const FiniteElementSpace &fes);
-#ifdef MFEM_USE_MPI
-   void ComputeUntanglerMetricQuantiles(const Vector &x,
-                                        const ParFiniteElementSpace &pfes);
-#endif
 
 public:
    /** @param[in] m    TMOP_QualityMetric for r-adaptivity (not owned).
