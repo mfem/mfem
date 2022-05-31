@@ -86,7 +86,7 @@ const
       double detT = Jpt.Det();
       denominator = detT + std::sqrt(detT*detT + detT_ep*detT_ep);
    }
-   double metric = tmop_metric->EvalW(Jpt)/denominator;
+   double metric = TMOP_UntangleOptimizer_Metric::EvalW(Jpt);
    double beta = max_muT+muT_ep;
    return std::pow(metric/(beta-metric), exponent);
 }
@@ -94,17 +94,7 @@ const
 double TMOP_WorstCaseUntangleOptimizer_Metric::EvalWTilde(
    const DenseMatrix &Jpt) const
 {
-   double denominator;
-   if (shifted)
-   {
-      denominator = 2.0*(Jpt.Det()-std::min(alpha*min_detT-detT_ep, 0.0));
-   }
-   else
-   {
-      double detT = Jpt.Det();
-      denominator = detT + std::sqrt(detT*detT + detT_ep*detT_ep);
-   }
-   return tmop_metric->EvalW(Jpt)/denominator;
+   return TMOP_UntangleOptimizer_Metric::EvalW(Jpt);
 }
 
 double TMOP_Metric_001::EvalW(const DenseMatrix &Jpt) const
@@ -3698,19 +3688,17 @@ void TMOP_Integrator::ComputeFDh(const Vector &x, const FiniteElementSpace &fes)
 {
    if (!fdflag) { return; }
    ComputeMinJac(x, fes);
-}
-
 #ifdef MFEM_USE_MPI
-void TMOP_Integrator::ComputeFDh(const Vector &x,
-                                 const ParFiniteElementSpace &pfes)
-{
-   if (!fdflag) { return; }
-   ComputeMinJac(x, pfes);
-   double min_jac_all;
-   MPI_Allreduce(&dx, &min_jac_all, 1, MPI_DOUBLE, MPI_MIN, pfes.GetComm());
-   dx = min_jac_all;
-}
+   const ParFiniteElementSpace *pfes =
+      dynamic_cast<const ParFiniteElementSpace *>(&fes);
+   if (pfes)
+   {
+      double min_jac_all;
+      MPI_Allreduce(&dx, &min_jac_all, 1, MPI_DOUBLE, MPI_MIN, pfes->GetComm());
+      dx = min_jac_all;
+   }
 #endif
+}
 
 void TMOP_Integrator::EnableFiniteDifferences(const GridFunction &x)
 {
@@ -3847,48 +3835,35 @@ void TMOP_Integrator::ComputeUntanglerMetricQuantiles(const Vector &x,
         (uo && uo->IsShiftedBarrierMetric()))
    {
       double min_detT = ComputeUntanglerMinDetT(x, fes);
-      if (wcuo) { wcuo->SetMinDetT(min_detT); }
-      else if (uo) {uo->SetMinDetT(min_detT); }
-   }
-
-   if (!wcuo) { return; }
-
-   double max_muT = ComputeUntanglerMaxMuT(x, fes);
-   wcuo->SetMaxMuT(max_muT);
-}
-
+      double min_detT_all = min_detT;
 #ifdef MFEM_USE_MPI
-void TMOP_Integrator::ComputeUntanglerMetricQuantiles(const Vector &x,
-                                                      const ParFiniteElementSpace &pfes)
-{
-   TMOP_WorstCaseUntangleOptimizer_Metric *wcuo =
-      dynamic_cast<TMOP_WorstCaseUntangleOptimizer_Metric *>(metric);
-   TMOP_UntangleOptimizer_Metric *uo =
-      dynamic_cast<TMOP_UntangleOptimizer_Metric *>(metric);
-
-   if (!wcuo && !uo) { return; }
-
-   const FiniteElementSpace *fes = dynamic_cast<const FiniteElementSpace *>(&pfes);
-   if ( (wcuo && wcuo->IsShiftedBarrierMetric()) ||
-        (uo && uo->IsShiftedBarrierMetric()))
-   {
-      double min_detT = ComputeUntanglerMinDetT(x, *fes);
-      double min_detT_all;
-      MPI_Allreduce(&min_detT, &min_detT_all, 1, MPI_DOUBLE, MPI_MIN,
-                    pfes.GetComm());
+      const ParFiniteElementSpace *pfes = dynamic_cast<const ParFiniteElementSpace *>
+                                          (&fes);
+      if (pfes)
+      {
+         MPI_Allreduce(&min_detT, &min_detT_all, 1, MPI_DOUBLE, MPI_MIN,
+                       pfes->GetComm());
+      }
+#endif
       if (wcuo) { wcuo->SetMinDetT(min_detT_all); }
       else if (uo) {uo->SetMinDetT(min_detT_all); }
    }
 
    if (!wcuo) { return; }
 
-   double max_muT = ComputeUntanglerMaxMuT(x, *fes);
-   double max_muT_all;
-   MPI_Allreduce(&max_muT, &max_muT_all, 1, MPI_DOUBLE, MPI_MAX,
-                 pfes.GetComm());
+   double max_muT = ComputeUntanglerMaxMuT(x, fes);
+   double max_muT_all = max_muT;
+#ifdef MFEM_USE_MPI
+   const ParFiniteElementSpace *pfes = dynamic_cast<const ParFiniteElementSpace *>
+                                       (&fes);
+   if (pfes)
+   {
+      MPI_Allreduce(&max_muT, &max_muT_all, 1, MPI_DOUBLE, MPI_MAX,
+                    pfes->GetComm());
+   }
+#endif
    wcuo->SetMaxMuT(max_muT_all);
 }
-#endif
 
 void TMOPComboIntegrator::EnableLimiting(const GridFunction &n0,
                                          const GridFunction &dist,
