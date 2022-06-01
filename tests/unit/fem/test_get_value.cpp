@@ -126,10 +126,13 @@ TEST_CASE("1D GetValue",
           "[GridFunction]"
           "[GridFunctionCoefficient]")
 {
+   int log = 1;
    int n = 1;
    int dim = 1;
    int order = 1;
    int npts = 0;
+
+   double tol = 1e-6;
 
    for (int type = (int)Element::SEGMENT;
         type <= (int)Element::SEGMENT; type++)
@@ -202,6 +205,47 @@ TEST_CASE("1D GetValue",
                   h1_gv_err += fabs(f_val - h1_gv_val);
                   dgv_gv_err += fabs(f_val - dgv_gv_val);
                   dgi_gv_err += fabs(f_val - dgi_gv_val);
+
+                  if (log > 0 && fabs(f_val - h1_gfc_val) > tol)
+                  {
+                     mfem::out << e << ":" << j << " h1  gfc " << f_val << " "
+                               << h1_gfc_val << " " << fabs(f_val - h1_gfc_val)
+                               << std::endl;
+                  }
+                  if (log > 0 && fabs(f_val - dgv_gfc_val) > tol)
+                  {
+                     mfem::out << e << ":" << j << " dgv gfc " << f_val << " "
+                               << dgv_gfc_val << " "
+                               << fabs(f_val - dgv_gfc_val)
+                               << std::endl;
+                  }
+                  if (log > 0 && fabs(f_val - dgi_gfc_val) > tol)
+                  {
+                     mfem::out << e << ":" << j << " dgi gfc " << f_val << " "
+                               << dgi_gfc_val << " "
+                               << fabs(f_val - dgi_gfc_val)
+                               << std::endl;
+                  }
+                  if (log > 0 && fabs(f_val - h1_gv_val) > tol)
+                  {
+                     mfem::out << e << ":" << j << " h1  gv " << f_val << " "
+                               << h1_gv_val << " " << fabs(f_val - h1_gv_val)
+                               << std::endl;
+                  }
+                  if (log > 0 && fabs(f_val - dgv_gv_val) > tol)
+                  {
+                     mfem::out << e << ":" << j << " dgv gv " << f_val << " "
+                               << dgv_gv_val << " "
+                               << fabs(f_val - dgv_gv_val)
+                               << std::endl;
+                  }
+                  if (log > 0 && fabs(f_val - dgi_gv_val) > tol)
+                  {
+                     mfem::out << e << ":" << j << " dgi gv " << f_val << " "
+                               << dgi_gv_val << " "
+                               << fabs(f_val - dgi_gv_val)
+                               << std::endl;
+                  }
                }
 
                h1_gfc_err /= ir.GetNPoints();
@@ -249,6 +293,28 @@ TEST_CASE("1D GetValue",
                   h1_err += fabs(f_val - h1_gfc_val);
                   dgv_err += fabs(f_val - dgv_gfc_val);
                   dgi_err += fabs(f_val - dgi_gfc_val);
+
+                  if (log > 0 && fabs(f_val - h1_gfc_val) > tol)
+                  {
+                     mfem::out << be << ":" << j << " h1  " << f_val << " "
+                               << h1_gfc_val << " "
+                               << fabs(f_val - h1_gfc_val)
+                               << std::endl;
+                  }
+                  if (log > 0 && fabs(f_val - dgv_gfc_val) > tol)
+                  {
+                     mfem::out << be << ":" << j << " dgv " << f_val << " "
+                               << dgv_gfc_val << " "
+                               << fabs(f_val - dgv_gfc_val)
+                               << std::endl;
+                  }
+                  if (log > 0 && fabs(f_val - dgi_gfc_val) > tol)
+                  {
+                     mfem::out << be << ":" << j << " dgi " << f_val << " "
+                               << dgi_gfc_val << " "
+                               << fabs(f_val - dgi_gfc_val)
+                               << std::endl;
+                  }
                }
                h1_err /= ir.GetNPoints();
                dgv_err /= ir.GetNPoints();
@@ -288,6 +354,28 @@ TEST_CASE("1D GetValue",
                   h1_err += fabs(f_val - h1_gfc_val);
                   dgv_err += fabs(f_val - dgv_gfc_val);
                   dgi_err += fabs(f_val - dgi_gfc_val);
+
+                  if (log > 0 && fabs(f_val - h1_gfc_val) > tol)
+                  {
+                     mfem::out << be << ":" << j << " h1  " << f_val << " "
+                               << h1_gfc_val << " "
+                               << fabs(f_val - h1_gfc_val)
+                               << std::endl;
+                  }
+                  if (log > 0 && fabs(f_val - dgv_gfc_val) > tol)
+                  {
+                     mfem::out << be << ":" << j << " dgv " << f_val << " "
+                               << dgv_gfc_val << " "
+                               << fabs(f_val - dgv_gfc_val)
+                               << std::endl;
+                  }
+                  if (log > 0 && fabs(f_val - dgi_gfc_val) > tol)
+                  {
+                     mfem::out << be << ":" << j << " dgi " << f_val << " "
+                               << dgi_gfc_val << " "
+                               << fabs(f_val - dgi_gfc_val)
+                               << std::endl;
+                  }
                }
                h1_err /= ir.GetNPoints();
                dgv_err /= ir.GetNPoints();
@@ -300,6 +388,8 @@ TEST_CASE("1D GetValue",
          }
       }
    }
+   mfem::out << "Checked GridFunction::GetValue at "
+             << npts << " 1D points" << std::endl;
 }
 
 #ifdef MFEM_USE_MPI
@@ -315,10 +405,13 @@ TEST_CASE("1D GetValue in Parallel",
    int my_rank;
    MPI_Comm_rank(MPI_COMM_WORLD, &my_rank);
 
+   int log = 1;
    int n = 2 * num_procs;
    int dim = 1;
    int order = 1;
    int npts = 0;
+
+   double tol = 1e-6;
 
    for (int type = (int)Element::SEGMENT;
         type <= (int)Element::SEGMENT; type++)
@@ -401,6 +494,47 @@ TEST_CASE("1D GetValue in Parallel",
                   h1_gv_err += fabs(f_val - h1_gv_val);
                   dgv_gv_err += fabs(f_val - dgv_gv_val);
                   dgi_gv_err += fabs(f_val - dgi_gv_val);
+
+                  if (log > 0 && fabs(f_val - h1_gfc_val) > tol)
+                  {
+                     mfem::out << e << ":" << j << " h1  gfc " << f_val << " "
+                               << h1_gfc_val << " " << fabs(f_val - h1_gfc_val)
+                               << std::endl;
+                  }
+                  if (log > 0 && fabs(f_val - dgv_gfc_val) > tol)
+                  {
+                     mfem::out << e << ":" << j << " dgv gfc " << f_val << " "
+                               << dgv_gfc_val << " "
+                               << fabs(f_val - dgv_gfc_val)
+                               << std::endl;
+                  }
+                  if (log > 0 && fabs(f_val - dgi_gfc_val) > tol)
+                  {
+                     mfem::out << e << ":" << j << " dgi gfc " << f_val << " "
+                               << dgi_gfc_val << " "
+                               << fabs(f_val - dgi_gfc_val)
+                               << std::endl;
+                  }
+                  if (log > 0 && fabs(f_val - h1_gv_val) > tol)
+                  {
+                     mfem::out << e << ":" << j << " h1  gv " << f_val << " "
+                               << h1_gv_val << " " << fabs(f_val - h1_gv_val)
+                               << std::endl;
+                  }
+                  if (log > 0 && fabs(f_val - dgv_gv_val) > tol)
+                  {
+                     mfem::out << e << ":" << j << " dgv gv " << f_val << " "
+                               << dgv_gv_val << " "
+                               << fabs(f_val - dgv_gv_val)
+                               << std::endl;
+                  }
+                  if (log > 0 && fabs(f_val - dgi_gv_val) > tol)
+                  {
+                     mfem::out << e << ":" << j << " dgi gv " << f_val << " "
+                               << dgi_gv_val << " "
+                               << fabs(f_val - dgi_gv_val)
+                               << std::endl;
+                  }
                }
 
                h1_gfc_err /= ir.GetNPoints();
@@ -422,6 +556,8 @@ TEST_CASE("1D GetValue in Parallel",
          }
       }
    }
+   mfem::out << my_rank << ": Checked GridFunction::GetValue at "
+             << npts << " 1D points" << std::endl;
 }
 
 #endif // MFEM_USE_MPI
@@ -430,10 +566,13 @@ TEST_CASE("2D GetValue",
           "[GridFunction]"
           "[GridFunctionCoefficient]")
 {
+   int log = 1;
    int n = 1;
    int dim = 2;
    int order = 1;
    int npts = 0;
+
+   double tol = 1e-6;
 
    for (int type = (int)Element::TRIANGLE;
         type <= (int)Element::QUADRILATERAL; type++)
@@ -506,6 +645,47 @@ TEST_CASE("2D GetValue",
                   h1_gv_err += fabs(f_val - h1_gv_val);
                   dgv_gv_err += fabs(f_val - dgv_gv_val);
                   dgi_gv_err += fabs(f_val - dgi_gv_val);
+
+                  if (log > 0 && fabs(f_val - h1_gfc_val) > tol)
+                  {
+                     mfem::out << e << ":" << j << " h1  gfc " << f_val << " "
+                               << h1_gfc_val << " " << fabs(f_val - h1_gfc_val)
+                               << std::endl;
+                  }
+                  if (log > 0 && fabs(f_val - dgv_gfc_val) > tol)
+                  {
+                     mfem::out << e << ":" << j << " dgv gfc " << f_val << " "
+                               << dgv_gfc_val << " "
+                               << fabs(f_val - dgv_gfc_val)
+                               << std::endl;
+                  }
+                  if (log > 0 && fabs(f_val - dgi_gfc_val) > tol)
+                  {
+                     mfem::out << e << ":" << j << " dgi gfc " << f_val << " "
+                               << dgi_gfc_val << " "
+                               << fabs(f_val - dgi_gfc_val)
+                               << std::endl;
+                  }
+                  if (log > 0 && fabs(f_val - h1_gv_val) > tol)
+                  {
+                     mfem::out << e << ":" << j << " h1  gv " << f_val << " "
+                               << h1_gv_val << " " << fabs(f_val - h1_gv_val)
+                               << std::endl;
+                  }
+                  if (log > 0 && fabs(f_val - dgv_gv_val) > tol)
+                  {
+                     mfem::out << e << ":" << j << " dgv gv " << f_val << " "
+                               << dgv_gv_val << " "
+                               << fabs(f_val - dgv_gv_val)
+                               << std::endl;
+                  }
+                  if (log > 0 && fabs(f_val - dgi_gv_val) > tol)
+                  {
+                     mfem::out << e << ":" << j << " dgi gv " << f_val << " "
+                               << dgi_gv_val << " "
+                               << fabs(f_val - dgi_gv_val)
+                               << std::endl;
+                  }
                }
 
                h1_gfc_err /= ir.GetNPoints();
@@ -553,6 +733,28 @@ TEST_CASE("2D GetValue",
                   h1_err += fabs(f_val - h1_gfc_val);
                   dgv_err += fabs(f_val - dgv_gfc_val);
                   dgi_err += fabs(f_val - dgi_gfc_val);
+
+                  if (log > 0 && fabs(f_val - h1_gfc_val) > tol)
+                  {
+                     mfem::out << be << ":" << j << " h1  " << f_val << " "
+                               << h1_gfc_val << " "
+                               << fabs(f_val - h1_gfc_val)
+                               << std::endl;
+                  }
+                  if (log > 0 && fabs(f_val - dgv_gfc_val) > tol)
+                  {
+                     mfem::out << be << ":" << j << " dgv " << f_val << " "
+                               << dgv_gfc_val << " "
+                               << fabs(f_val - dgv_gfc_val)
+                               << std::endl;
+                  }
+                  if (log > 0 && fabs(f_val - dgi_gfc_val) > tol)
+                  {
+                     mfem::out << be << ":" << j << " dgi " << f_val << " "
+                               << dgi_gfc_val << " "
+                               << fabs(f_val - dgi_gfc_val)
+                               << std::endl;
+                  }
                }
                h1_err /= ir.GetNPoints();
                dgv_err /= ir.GetNPoints();
@@ -592,6 +794,28 @@ TEST_CASE("2D GetValue",
                   h1_err += fabs(f_val - h1_gfc_val);
                   dgv_err += fabs(f_val - dgv_gfc_val);
                   dgi_err += fabs(f_val - dgi_gfc_val);
+
+                  if (log > 0 && fabs(f_val - h1_gfc_val) > tol)
+                  {
+                     mfem::out << be << ":" << j << " h1  " << f_val << " "
+                               << h1_gfc_val << " "
+                               << fabs(f_val - h1_gfc_val)
+                               << std::endl;
+                  }
+                  if (log > 0 && fabs(f_val - dgv_gfc_val) > tol)
+                  {
+                     mfem::out << be << ":" << j << " dgv " << f_val << " "
+                               << dgv_gfc_val << " "
+                               << fabs(f_val - dgv_gfc_val)
+                               << std::endl;
+                  }
+                  if (log > 0 && fabs(f_val - dgi_gfc_val) > tol)
+                  {
+                     mfem::out << be << ":" << j << " dgi " << f_val << " "
+                               << dgi_gfc_val << " "
+                               << fabs(f_val - dgi_gfc_val)
+                               << std::endl;
+                  }
                }
                h1_err /= ir.GetNPoints();
                dgv_err /= ir.GetNPoints();
@@ -624,6 +848,13 @@ TEST_CASE("2D GetValue",
                   double h1_gfc_val = h1_xCoef.Eval(*T, ip);
 
                   h1_err += fabs(f_val - h1_gfc_val);
+
+                  if (log > 0 && fabs(f_val - h1_gfc_val) > tol)
+                  {
+                     mfem::out << e << ":" << j << " h1  " << f_val << " "
+                               << h1_gfc_val << " " << fabs(f_val - h1_gfc_val)
+                               << std::endl;
+                  }
                }
                h1_err /= ir.GetNPoints();
 
@@ -632,6 +863,8 @@ TEST_CASE("2D GetValue",
          }
       }
    }
+   mfem::out << "Checked GridFunction::GetValue at "
+             << npts << " 2D points" << std::endl;
 }
 
 #ifdef MFEM_USE_MPI
@@ -647,10 +880,13 @@ TEST_CASE("2D GetValue in Parallel",
    int my_rank;
    MPI_Comm_rank(MPI_COMM_WORLD, &my_rank);
 
+   int log = 1;
    int n = (int)ceil(sqrt(2*num_procs));
    int dim = 2;
    int order = 1;
    int npts = 0;
+
+   double tol = 1e-6;
 
    for (int type = (int)Element::TRIANGLE;
         type <= (int)Element::QUADRILATERAL; type++)
@@ -732,6 +968,47 @@ TEST_CASE("2D GetValue in Parallel",
                   h1_gv_err += fabs(f_val - h1_gv_val);
                   dgv_gv_err += fabs(f_val - dgv_gv_val);
                   dgi_gv_err += fabs(f_val - dgi_gv_val);
+
+                  if (log > 0 && fabs(f_val - h1_gfc_val) > tol)
+                  {
+                     mfem::out << e << ":" << j << " h1  gfc " << f_val << " "
+                               << h1_gfc_val << " " << fabs(f_val - h1_gfc_val)
+                               << std::endl;
+                  }
+                  if (log > 0 && fabs(f_val - dgv_gfc_val) > tol)
+                  {
+                     mfem::out << e << ":" << j << " dgv gfc " << f_val << " "
+                               << dgv_gfc_val << " "
+                               << fabs(f_val - dgv_gfc_val)
+                               << std::endl;
+                  }
+                  if (log > 0 && fabs(f_val - dgi_gfc_val) > tol)
+                  {
+                     mfem::out << e << ":" << j << " dgi gfc " << f_val << " "
+                               << dgi_gfc_val << " "
+                               << fabs(f_val - dgi_gfc_val)
+                               << std::endl;
+                  }
+                  if (log > 0 && fabs(f_val - h1_gv_val) > tol)
+                  {
+                     mfem::out << e << ":" << j << " h1  gv " << f_val << " "
+                               << h1_gv_val << " " << fabs(f_val - h1_gv_val)
+                               << std::endl;
+                  }
+                  if (log > 0 && fabs(f_val - dgv_gv_val) > tol)
+                  {
+                     mfem::out << e << ":" << j << " dgv gv " << f_val << " "
+                               << dgv_gv_val << " "
+                               << fabs(f_val - dgv_gv_val)
+                               << std::endl;
+                  }
+                  if (log > 0 && fabs(f_val - dgi_gv_val) > tol)
+                  {
+                     mfem::out << e << ":" << j << " dgi gv " << f_val << " "
+                               << dgi_gv_val << " "
+                               << fabs(f_val - dgi_gv_val)
+                               << std::endl;
+                  }
                }
 
                h1_gfc_err /= ir.GetNPoints();
@@ -753,6 +1030,8 @@ TEST_CASE("2D GetValue in Parallel",
          }
       }
    }
+   mfem::out << my_rank << ": Checked GridFunction::GetValue at "
+             << npts << " 2D points" << std::endl;
 }
 
 #endif // MFEM_USE_MPI
@@ -761,10 +1040,13 @@ TEST_CASE("3D GetValue",
           "[GridFunction]"
           "[GridFunctionCoefficient]")
 {
+   int log = 1;
    int n = 1;
    int dim = 3;
    int order = 1;
    int npts = 0;
+
+   double tol = 1e-6;
 
    for (int type = (int)Element::TETRAHEDRON;
         type <= (int)Element::WEDGE; type++)
@@ -838,6 +1120,47 @@ TEST_CASE("3D GetValue",
                   h1_gv_err += fabs(f_val - h1_gv_val);
                   dgv_gv_err += fabs(f_val - dgv_gv_val);
                   dgi_gv_err += fabs(f_val - dgi_gv_val);
+
+                  if (log > 0 && fabs(f_val - h1_gfc_val) > tol)
+                  {
+                     mfem::out << e << ":" << j << " h1  gfc " << f_val << " "
+                               << h1_gfc_val << " " << fabs(f_val - h1_gfc_val)
+                               << std::endl;
+                  }
+                  if (log > 0 && fabs(f_val - dgv_gfc_val) > tol)
+                  {
+                     mfem::out << e << ":" << j << " dgv gfc " << f_val << " "
+                               << dgv_gfc_val << " "
+                               << fabs(f_val - dgv_gfc_val)
+                               << std::endl;
+                  }
+                  if (log > 0 && fabs(f_val - dgi_gfc_val) > tol)
+                  {
+                     mfem::out << e << ":" << j << " dgi gfc " << f_val << " "
+                               << dgi_gfc_val << " "
+                               << fabs(f_val - dgi_gfc_val)
+                               << std::endl;
+                  }
+                  if (log > 0 && fabs(f_val - h1_gv_val) > tol)
+                  {
+                     mfem::out << e << ":" << j << " h1  gv " << f_val << " "
+                               << h1_gv_val << " " << fabs(f_val - h1_gv_val)
+                               << std::endl;
+                  }
+                  if (log > 0 && fabs(f_val - dgv_gv_val) > tol)
+                  {
+                     mfem::out << e << ":" << j << " dgv gv " << f_val << " "
+                               << dgv_gv_val << " "
+                               << fabs(f_val - dgv_gv_val)
+                               << std::endl;
+                  }
+                  if (log > 0 && fabs(f_val - dgi_gv_val) > tol)
+                  {
+                     mfem::out << e << ":" << j << " dgi gv " << f_val << " "
+                               << dgi_gv_val << " "
+                               << fabs(f_val - dgi_gv_val)
+                               << std::endl;
+                  }
                }
 
                h1_gfc_err /= ir.GetNPoints();
@@ -885,6 +1208,28 @@ TEST_CASE("3D GetValue",
                   h1_err += fabs(f_val - h1_gfc_val);
                   dgv_err += fabs(f_val - dgv_gfc_val);
                   dgi_err += fabs(f_val - dgi_gfc_val);
+
+                  if (log > 0 && fabs(f_val - h1_gfc_val) > tol)
+                  {
+                     mfem::out << be << ":" << j << " h1  " << f_val << " "
+                               << h1_gfc_val << " "
+                               << fabs(f_val - h1_gfc_val)
+                               << std::endl;
+                  }
+                  if (log > 0 && fabs(f_val - dgv_gfc_val) > tol)
+                  {
+                     mfem::out << be << ":" << j << " dgv " << f_val << " "
+                               << dgv_gfc_val << " "
+                               << fabs(f_val - dgv_gfc_val)
+                               << std::endl;
+                  }
+                  if (log > 0 && fabs(f_val - dgi_gfc_val) > tol)
+                  {
+                     mfem::out << be << ":" << j << " dgi " << f_val << " "
+                               << dgi_gfc_val << " "
+                               << fabs(f_val - dgi_gfc_val)
+                               << std::endl;
+                  }
                }
                h1_err /= ir.GetNPoints();
                dgv_err /= ir.GetNPoints();
@@ -924,6 +1269,28 @@ TEST_CASE("3D GetValue",
                   h1_err += fabs(f_val - h1_gfc_val);
                   dgv_err += fabs(f_val - dgv_gfc_val);
                   dgi_err += fabs(f_val - dgi_gfc_val);
+
+                  if (log > 0 && fabs(f_val - h1_gfc_val) > tol)
+                  {
+                     mfem::out << be << ":" << j << " h1  " << f_val << " "
+                               << h1_gfc_val << " "
+                               << fabs(f_val - h1_gfc_val)
+                               << std::endl;
+                  }
+                  if (log > 0 && fabs(f_val - dgv_gfc_val) > tol)
+                  {
+                     mfem::out << be << ":" << j << " dgv " << f_val << " "
+                               << dgv_gfc_val << " "
+                               << fabs(f_val - dgv_gfc_val)
+                               << std::endl;
+                  }
+                  if (log > 0 && fabs(f_val - dgi_gfc_val) > tol)
+                  {
+                     mfem::out << be << ":" << j << " dgi " << f_val << " "
+                               << dgi_gfc_val << " "
+                               << fabs(f_val - dgi_gfc_val)
+                               << std::endl;
+                  }
                }
                h1_err /= ir.GetNPoints();
                dgv_err /= ir.GetNPoints();
@@ -956,6 +1323,13 @@ TEST_CASE("3D GetValue",
                   double h1_gfc_val = h1_xCoef.Eval(*T, ip);
 
                   h1_err += fabs(f_val - h1_gfc_val);
+
+                  if (log > 0 && fabs(f_val - h1_gfc_val) > tol)
+                  {
+                     mfem::out << e << ":" << j << " h1  " << f_val << " "
+                               << h1_gfc_val << " " << fabs(f_val - h1_gfc_val)
+                               << std::endl;
+                  }
                }
                h1_err /= ir.GetNPoints();
 
@@ -984,6 +1358,13 @@ TEST_CASE("3D GetValue",
                   double h1_gfc_val = h1_xCoef.Eval(*T, ip);
 
                   h1_err += fabs(f_val - h1_gfc_val);
+
+                  if (log > 0 && fabs(f_val - h1_gfc_val) > tol)
+                  {
+                     mfem::out << f << ":" << j << " h1  " << f_val << " "
+                               << h1_gfc_val << " " << fabs(f_val - h1_gfc_val)
+                               << std::endl;
+                  }
                }
                h1_err /= ir.GetNPoints();
 
@@ -992,6 +1373,8 @@ TEST_CASE("3D GetValue",
          }
       }
    }
+   mfem::out << "Checked GridFunction::GetValue at "
+             << npts << " 3D points" << std::endl;
 }
 
 #ifdef MFEM_USE_MPI
@@ -1007,10 +1390,13 @@ TEST_CASE("3D GetValue in Parallel",
    int my_rank;
    MPI_Comm_rank(MPI_COMM_WORLD, &my_rank);
 
+   int log = 1;
    int n = (int)ceil(pow(2*num_procs, 1.0 / 3.0));
    int dim = 3;
    int order = 1;
    int npts = 0;
+
+   double tol = 1e-6;
 
    for (int type = (int)Element::TETRAHEDRON;
         type <= (int)Element::WEDGE; type++)
@@ -1100,6 +1486,47 @@ TEST_CASE("3D GetValue in Parallel",
                   h1_gv_err += fabs(f_val - h1_gv_val);
                   dgv_gv_err += fabs(f_val - dgv_gv_val);
                   dgi_gv_err += fabs(f_val - dgi_gv_val);
+
+                  if (log > 0 && fabs(f_val - h1_gfc_val) > tol)
+                  {
+                     mfem::out << e << ":" << j << " h1  gfc " << f_val << " "
+                               << h1_gfc_val << " " << fabs(f_val - h1_gfc_val)
+                               << std::endl;
+                  }
+                  if (log > 0 && fabs(f_val - dgv_gfc_val) > tol)
+                  {
+                     mfem::out << e << ":" << j << " dgv gfc " << f_val << " "
+                               << dgv_gfc_val << " "
+                               << fabs(f_val - dgv_gfc_val)
+                               << std::endl;
+                  }
+                  if (log > 0 && fabs(f_val - dgi_gfc_val) > tol)
+                  {
+                     mfem::out << e << ":" << j << " dgi gfc " << f_val << " "
+                               << dgi_gfc_val << " "
+                               << fabs(f_val - dgi_gfc_val)
+                               << std::endl;
+                  }
+                  if (log > 0 && fabs(f_val - h1_gv_val) > tol)
+                  {
+                     mfem::out << e << ":" << j << " h1  gv " << f_val << " "
+                               << h1_gv_val << " " << fabs(f_val - h1_gv_val)
+                               << std::endl;
+                  }
+                  if (log > 0 && fabs(f_val - dgv_gv_val) > tol)
+                  {
+                     mfem::out << e << ":" << j << " dgv gv " << f_val << " "
+                               << dgv_gv_val << " "
+                               << fabs(f_val - dgv_gv_val)
+                               << std::endl;
+                  }
+                  if (log > 0 && fabs(f_val - dgi_gv_val) > tol)
+                  {
+                     mfem::out << e << ":" << j << " dgi gv " << f_val << " "
+                               << dgi_gv_val << " "
+                               << fabs(f_val - dgi_gv_val)
+                               << std::endl;
+                  }
                }
 
                h1_gfc_err /= ir.GetNPoints();
@@ -1121,6 +1548,8 @@ TEST_CASE("3D GetValue in Parallel",
          }
       }
    }
+   mfem::out << my_rank << ": Checked GridFunction::GetValue at "
+             << npts << " 3D points" << std::endl;
 }
 
 #endif // MFEM_USE_MPI
@@ -1129,10 +1558,13 @@ TEST_CASE("2D GetVectorValue",
           "[GridFunction]"
           "[VectorGridFunctionCoefficient]")
 {
+   int log = 1;
    int n = 1;
    int dim = 2;
    int order = 1;
    int npts = 0;
+
+   double tol = 1e-6;
 
    for (int type = (int)Element::TRIANGLE;
         type <= (int)Element::QUADRILATERAL; type++)
@@ -1269,6 +1701,95 @@ TEST_CASE("2D GetVectorValue",
                   l2_gvv_err  +=  l2_gvv_dist;
                   dgv_gvv_err += dgv_gvv_dist;
                   dgi_gvv_err += dgi_gvv_dist;
+
+                  if (log > 0 && h1_gfc_dist > tol)
+                  {
+                     mfem::out << e << ":" << j << " h1  gfc ("
+                               << f_val[0] << "," << f_val[1] << ") vs. ("
+                               << h1_gfc_val[0] << "," << h1_gfc_val[1] << ") "
+                               << h1_gfc_dist << std::endl;
+                  }
+                  if (log > 0 && nd_gfc_dist > tol)
+                  {
+                     mfem::out << e << ":" << j << " nd  gfc ("
+                               << f_val[0] << "," << f_val[1] << ") vs. ("
+                               << nd_gfc_val[0] << "," << nd_gfc_val[1] << ") "
+                               << nd_gfc_dist << std::endl;
+                  }
+                  if (log > 0 && rt_gfc_dist > tol)
+                  {
+                     mfem::out << e << ":" << j << " rt  gfc ("
+                               << f_val[0] << "," << f_val[1] << ") vs. ("
+                               << rt_gfc_val[0] << "," << rt_gfc_val[1] << ") "
+                               << rt_gfc_dist << std::endl;
+                  }
+                  if (log > 0 && l2_gfc_dist > tol)
+                  {
+                     mfem::out << e << ":" << j << " l2  gfc ("
+                               << f_val[0] << "," << f_val[1] << ") vs. ("
+                               << l2_gfc_val[0] << "," << l2_gfc_val[1] << ") "
+                               << l2_gfc_dist << std::endl;
+                  }
+                  if (log > 0 && dgv_gfc_dist > tol)
+                  {
+                     mfem::out << e << ":" << j << " dgv gfc ("
+                               << f_val[0] << "," << f_val[1] << ") vs. ("
+                               << dgv_gfc_val[0] << ","
+                               << dgv_gfc_val[1] << ") "
+                               << dgv_gfc_dist << std::endl;
+                  }
+                  if (log > 0 && dgi_gfc_dist > tol)
+                  {
+                     mfem::out << e << ":" << j << " dgi gfc ("
+                               << f_val[0] << "," << f_val[1] << ") vs. ("
+                               << dgi_gfc_val[0] << ","
+                               << dgi_gfc_val[1] << ") "
+                               << dgi_gfc_dist << std::endl;
+                  }
+                  if (log > 0 && h1_gvv_dist > tol)
+                  {
+                     mfem::out << e << ":" << j << " h1  gvv ("
+                               << f_val[0] << "," << f_val[1] << ") vs. ("
+                               << h1_gvv_val[0] << "," << h1_gvv_val[1] << ") "
+                               << h1_gvv_dist << std::endl;
+                  }
+                  if (log > 0 && nd_gvv_dist > tol)
+                  {
+                     mfem::out << e << ":" << j << " nd  gvv ("
+                               << f_val[0] << "," << f_val[1] << ") vs. ("
+                               << nd_gvv_val[0] << "," << nd_gvv_val[1] << ") "
+                               << nd_gvv_dist << std::endl;
+                  }
+                  if (log > 0 && rt_gvv_dist > tol)
+                  {
+                     mfem::out << e << ":" << j << " rt  gvv ("
+                               << f_val[0] << "," << f_val[1] << ") vs. ("
+                               << rt_gvv_val[0] << "," << rt_gvv_val[1] << ") "
+                               << rt_gvv_dist << std::endl;
+                  }
+                  if (log > 0 && l2_gvv_dist > tol)
+                  {
+                     mfem::out << e << ":" << j << " l2  gvv ("
+                               << f_val[0] << "," << f_val[1] << ") vs. ("
+                               << l2_gvv_val[0] << "," << l2_gvv_val[1] << ") "
+                               << l2_gvv_dist << std::endl;
+                  }
+                  if (log > 0 && dgv_gvv_dist > tol)
+                  {
+                     mfem::out << e << ":" << j << " dgv gvv ("
+                               << f_val[0] << "," << f_val[1] << ") vs. ("
+                               << dgv_gvv_val[0] << ","
+                               << dgv_gvv_val[1] << ") "
+                               << dgv_gvv_dist << std::endl;
+                  }
+                  if (log > 0 && dgi_gvv_dist > tol)
+                  {
+                     mfem::out << e << ":" << j << " dgi gvv ("
+                               << f_val[0] << "," << f_val[1] << ") vs. ("
+                               << dgi_gvv_val[0] << ","
+                               << dgi_gvv_val[1] << ") "
+                               << dgi_gvv_dist << std::endl;
+                  }
                }
 
                h1_gfc_err  /= ir.GetNPoints();
@@ -1344,6 +1865,51 @@ TEST_CASE("2D GetVectorValue",
                   l2_err  +=  l2_dist;
                   dgv_err += dgv_dist;
                   dgi_err += dgi_dist;
+
+                  if (log > 0 && h1_dist > tol)
+                  {
+                     mfem::out << be << ":" << j << " h1  ("
+                               << f_val[0] << "," << f_val[1] << ") vs. ("
+                               << h1_gfc_val[0] << "," << h1_gfc_val[1] << ") "
+                               << h1_dist << std::endl;
+                  }
+                  if (log > 0 && nd_dist > tol)
+                  {
+                     mfem::out << be << ":" << j << " nd  ("
+                               << f_val[0] << "," << f_val[1] << ") vs. ("
+                               << nd_gfc_val[0] << "," << nd_gfc_val[1] << ") "
+                               << nd_dist << std::endl;
+                  }
+                  if (log > 0 && rt_dist > tol)
+                  {
+                     mfem::out << be << ":" << j << " rt  ("
+                               << f_val[0] << "," << f_val[1] << ") vs. ("
+                               << rt_gfc_val[0] << "," << rt_gfc_val[1] << ") "
+                               << rt_dist << std::endl;
+                  }
+                  if (log > 0 && l2_dist > tol)
+                  {
+                     mfem::out << be << ":" << j << " l2  ("
+                               << f_val[0] << "," << f_val[1] << ") vs. ("
+                               << l2_gfc_val[0] << "," << l2_gfc_val[1] << ") "
+                               << l2_dist << std::endl;
+                  }
+                  if (log > 0 && dgv_dist > tol)
+                  {
+                     mfem::out << be << ":" << j << " dgv ("
+                               << f_val[0] << "," << f_val[1] << ") vs. ("
+                               << dgv_gfc_val[0] << ","
+                               << dgv_gfc_val[1] << ") "
+                               << dgv_dist << std::endl;
+                  }
+                  if (log > 0 && dgi_dist > tol)
+                  {
+                     mfem::out << be << ":" << j << " dgi ("
+                               << f_val[0] << "," << f_val[1] << ") vs. ("
+                               << dgi_gfc_val[0] << ","
+                               << dgi_gfc_val[1] << ") "
+                               << dgi_dist << std::endl;
+                  }
                }
                h1_err  /= ir.GetNPoints();
                nd_err  /= ir.GetNPoints();
@@ -1405,6 +1971,55 @@ TEST_CASE("2D GetVectorValue",
                   l2_err  +=  l2_dist;
                   dgv_err += dgv_dist;
                   dgi_err += dgi_dist;
+
+                  if (log > 0 && h1_dist > tol)
+                  {
+                     mfem::out << be << ":" << j << " h1  ("
+                               << f_val[0] << "," << f_val[1] << ") vs. ("
+                               << h1_gfc_val[0] << ","
+                               << h1_gfc_val[1] << ") "
+                               << h1_dist << std::endl;
+                  }
+                  if (log > 0 && nd_dist > tol)
+                  {
+                     mfem::out << be << ":" << j << " nd  ("
+                               << f_val[0] << "," << f_val[1] << ") vs. ("
+                               << nd_gfc_val[0] << ","
+                               << nd_gfc_val[1] << ") "
+                               << nd_dist << std::endl;
+                  }
+                  if (log > 0 && rt_dist > tol)
+                  {
+                     mfem::out << be << ":" << j << " rt  ("
+                               << f_val[0] << "," << f_val[1] << ") vs. ("
+                               << rt_gfc_val[0] << ","
+                               << rt_gfc_val[1] << ") "
+                               << rt_dist << std::endl;
+                  }
+                  if (log > 0 && l2_dist > tol)
+                  {
+                     mfem::out << be << ":" << j << " l2  ("
+                               << f_val[0] << "," << f_val[1] << ") vs. ("
+                               << l2_gfc_val[0] << ","
+                               << l2_gfc_val[1] << ") "
+                               << l2_dist << std::endl;
+                  }
+                  if (log > 0 && dgv_dist > tol)
+                  {
+                     mfem::out << be << ":" << j << " dgv ("
+                               << f_val[0] << "," << f_val[1] << ") vs. ("
+                               << dgv_gfc_val[0] << ","
+                               << dgv_gfc_val[1] << ") "
+                               << dgv_dist << std::endl;
+                  }
+                  if (log > 0 && dgi_dist > tol)
+                  {
+                     mfem::out << be << ":" << j << " dgi ("
+                               << f_val[0] << "," << f_val[1] << ") vs. ("
+                               << dgi_gfc_val[0] << ","
+                               << dgi_gfc_val[1] << ") "
+                               << dgi_dist << std::endl;
+                  }
                }
                h1_err  /= ir.GetNPoints();
                nd_err  /= ir.GetNPoints();
@@ -1445,6 +2060,14 @@ TEST_CASE("2D GetVectorValue",
                   double  h1_dist = Distance(f_val,  h1_gfc_val, 2);
 
                   h1_err  +=  h1_dist;
+
+                  if (log > 0 && h1_dist > tol)
+                  {
+                     mfem::out << e << ":" << j << " h1  ("
+                               << f_val[0] << "," << f_val[1] << ") vs. ("
+                               << h1_gfc_val[0] << "," << h1_gfc_val[1] << ") "
+                               << h1_dist << std::endl;
+                  }
                }
                h1_err  /= ir.GetNPoints();
 
@@ -1453,6 +2076,8 @@ TEST_CASE("2D GetVectorValue",
          }
       }
    }
+   mfem::out << "Checked GridFunction::GetVectorValue at "
+             << npts << " 2D points" << std::endl;
 }
 
 #ifdef MFEM_USE_MPI
@@ -1468,10 +2093,13 @@ TEST_CASE("2D GetVectorValue in Parallel",
    int my_rank;
    MPI_Comm_rank(MPI_COMM_WORLD, &my_rank);
 
+   int log = 1;
    int n = (int)ceil(sqrt(2*num_procs));
    int dim = 2;
    int order = 1;
    int npts = 0;
+
+   double tol = 1e-6;
 
    for (int type = (int)Element::TRIANGLE;
         type <= (int)Element::QUADRILATERAL; type++)
@@ -1621,6 +2249,105 @@ TEST_CASE("2D GetVectorValue in Parallel",
                   l2_gvv_err  +=  l2_gvv_dist;
                   dgv_gvv_err += dgv_gvv_dist;
                   dgi_gvv_err += dgi_gvv_dist;
+
+                  if (log > 0 && h1_gfc_dist > tol)
+                  {
+                     mfem::out << e << ":" << j << " h1  ("
+                               << f_val[0] << "," << f_val[1] << ") vs. ("
+                               << h1_gfc_val[0] << ","
+                               << h1_gfc_val[1] << ") "
+                               << h1_gfc_dist << std::endl;
+                  }
+                  if (log > 0 && nd_gfc_dist > tol)
+                  {
+                     mfem::out << e << ":" << j << " nd  ("
+                               << f_val[0] << "," << f_val[1] << ") vs. ("
+                               << nd_gfc_val[0] << ","
+                               << nd_gfc_val[1] << ") "
+                               << nd_gfc_dist << std::endl;
+                  }
+                  if (log > 0 && rt_gfc_dist > tol)
+                  {
+                     mfem::out << e << ":" << j << " rt  ("
+                               << f_val[0] << "," << f_val[1] << ") vs. ("
+                               << rt_gfc_val[0] << ","
+                               << rt_gfc_val[1] << ") "
+                               << rt_gfc_dist << std::endl;
+                  }
+                  if (log > 0 && l2_gfc_dist > tol)
+                  {
+                     mfem::out << e << ":" << j << " l2  ("
+                               << f_val[0] << "," << f_val[1] << ") vs. ("
+                               << l2_gfc_val[0] << ","
+                               << l2_gfc_val[1] << ") "
+                               << l2_gfc_dist << std::endl;
+                  }
+                  if (log > 0 && dgv_gfc_dist > tol)
+                  {
+                     mfem::out << e << ":" << j << " dgv ("
+                               << f_val[0] << "," << f_val[1] << ") vs. ("
+                               << dgv_gfc_val[0] << ","
+                               << dgv_gfc_val[1] << ") "
+                               << dgv_gfc_dist << std::endl;
+                  }
+                  if (log > 0 && dgi_gfc_dist > tol)
+                  {
+                     mfem::out << e << ":" << j << " dgi ("
+                               << f_val[0] << "," << f_val[1] << ") vs. ("
+                               << dgi_gfc_val[0] << ","
+                               << dgi_gfc_val[1] << ") "
+                               << dgi_gfc_dist << std::endl;
+                  }
+                  if (log > 0 && h1_gvv_dist > tol)
+                  {
+                     mfem::out << e << ":" << j << " h1  gvv ("
+                               << f_val[0] << "," << f_val[1] << ","
+                               << f_val[2] << ") vs. ("
+                               << h1_gvv_val[0] << "," << h1_gvv_val[1] << ") "
+                               << h1_gvv_dist << std::endl;
+                  }
+                  if (log > 0 && nd_gvv_dist > tol)
+                  {
+                     mfem::out << e << ":" << j << " nd  gvv ("
+                               << f_val[0] << "," << f_val[1] << ","
+                               << f_val[2] << ") vs. ("
+                               << nd_gvv_val[0] << "," << nd_gvv_val[1] << ") "
+                               << nd_gvv_dist << std::endl;
+                  }
+                  if (log > 0 && rt_gvv_dist > tol)
+                  {
+                     mfem::out << e << ":" << j << " rt  gvv ("
+                               << f_val[0] << "," << f_val[1] << ","
+                               << f_val[2] << ") vs. ("
+                               << rt_gvv_val[0] << "," << rt_gvv_val[1] << ") "
+                               << rt_gvv_dist << std::endl;
+                  }
+                  if (log > 0 && l2_gvv_dist > tol)
+                  {
+                     mfem::out << e << ":" << j << " l2  gvv ("
+                               << f_val[0] << "," << f_val[1] << ","
+                               << f_val[2] << ") vs. ("
+                               << l2_gvv_val[0] << "," << l2_gvv_val[1] << ") "
+                               << l2_gvv_dist << std::endl;
+                  }
+                  if (log > 0 && dgv_gvv_dist > tol)
+                  {
+                     mfem::out << e << ":" << j << " dgv gvv ("
+                               << f_val[0] << "," << f_val[1] << ","
+                               << f_val[2] << ") vs. ("
+                               << dgv_gvv_val[0] << ","
+                               << dgv_gvv_val[1] << ") "
+                               << dgv_gvv_dist << std::endl;
+                  }
+                  if (log > 0 && dgi_gvv_dist > tol)
+                  {
+                     mfem::out << e << ":" << j << " dgi gvv ("
+                               << f_val[0] << "," << f_val[1] << ","
+                               << f_val[2] << ") vs. ("
+                               << dgi_gvv_val[0] << ","
+                               << dgi_gvv_val[1] << ") "
+                               << dgi_gvv_dist << std::endl;
+                  }
                }
 
                h1_gfc_err  /= ir.GetNPoints();
@@ -1654,6 +2381,8 @@ TEST_CASE("2D GetVectorValue in Parallel",
          }
       }
    }
+   mfem::out << my_rank << ": Checked GridFunction::GetVectorValue at "
+             << npts << " 2D points" << std::endl;
 }
 
 #endif // MFEM_USE_MPI
@@ -1662,10 +2391,13 @@ TEST_CASE("3D GetVectorValue",
           "[GridFunction]"
           "[VectorGridFunctionCoefficient]")
 {
+   int log = 1;
    int n = 1;
    int dim = 3;
    int order = 1;
    int npts = 0;
+
+   double tol = 1e-6;
 
    for (int type = (int)Element::TETRAHEDRON;
         type <= (int)Element::WEDGE; type++)
@@ -1824,6 +2556,139 @@ TEST_CASE("3D GetVectorValue",
 
                   nd_gvf_err  +=  nd_gvf_dist;
                   rt_gvf_err  +=  rt_gvf_dist;
+
+                  if (log > 0 && h1_gfc_dist > tol)
+                  {
+                     mfem::out << e << ":" << j << " h1  gfc ("
+                               << f_val[0] << "," << f_val[1] << ","
+                               << f_val[2] << ") vs. ("
+                               << h1_gfc_val[0] << "," << h1_gfc_val[1] << ","
+                               << h1_gfc_val[2] << ") "
+                               << h1_gfc_dist << std::endl;
+                  }
+                  if (log > 0 && nd_gfc_dist > tol)
+                  {
+                     mfem::out << e << ":" << j << " nd  gfc ("
+                               << f_val[0] << "," << f_val[1] << ","
+                               << f_val[2] << ") vs. ("
+                               << nd_gfc_val[0] << "," << nd_gfc_val[1] << ","
+                               << nd_gfc_val[2] << ") "
+                               << nd_gfc_dist << std::endl;
+                  }
+                  if (log > 0 && rt_gfc_dist > tol)
+                  {
+                     mfem::out << e << ":" << j << " rt  gfc ("
+                               << f_val[0] << "," << f_val[1] << ","
+                               << f_val[2] << ") vs. ("
+                               << rt_gfc_val[0] << "," << rt_gfc_val[1] << ","
+                               << rt_gfc_val[2] << ") "
+                               << rt_gfc_dist << std::endl;
+                  }
+                  if (log > 0 && l2_gfc_dist > tol)
+                  {
+                     mfem::out << e << ":" << j << " l2  gfc ("
+                               << f_val[0] << "," << f_val[1] << ","
+                               << f_val[2] << ") vs. ("
+                               << l2_gfc_val[0] << "," << l2_gfc_val[1] << ","
+                               << l2_gfc_val[2] << ") "
+                               << l2_gfc_dist << std::endl;
+                  }
+                  if (log > 0 && dgv_gfc_dist > tol)
+                  {
+                     mfem::out << e << ":" << j << " dgv gfc ("
+                               << f_val[0] << "," << f_val[1] << ","
+                               << f_val[2] << ") vs. ("
+                               << dgv_gfc_val[0] << ","
+                               << dgv_gfc_val[1] << ","
+                               << dgv_gfc_val[2] << ") "
+                               << dgv_gfc_dist << std::endl;
+                  }
+                  if (log > 0 && dgi_gfc_dist > tol)
+                  {
+                     mfem::out << e << ":" << j << " dgi gfc ("
+                               << f_val[0] << "," << f_val[1] << ","
+                               << f_val[2] << ") vs. ("
+                               << dgi_gfc_val[0] << ","
+                               << dgi_gfc_val[1] << ","
+                               << dgi_gfc_val[2] << ") "
+                               << dgi_gfc_dist << std::endl;
+                  }
+                  if (log > 0 && h1_gvv_dist > tol)
+                  {
+                     mfem::out << e << ":" << j << " h1  gvv ("
+                               << f_val[0] << "," << f_val[1] << ","
+                               << f_val[2] << ") vs. ("
+                               << h1_gvv_val[0] << "," << h1_gvv_val[1] << ","
+                               << h1_gvv_val[2] << ") "
+                               << h1_gvv_dist << std::endl;
+                  }
+                  if (log > 0 && nd_gvv_dist > tol)
+                  {
+                     mfem::out << e << ":" << j << " nd  gvv ("
+                               << f_val[0] << "," << f_val[1] << ","
+                               << f_val[2] << ") vs. ("
+                               << nd_gvv_val[0] << "," << nd_gvv_val[1] << ","
+                               << nd_gvv_val[2] << ") "
+                               << nd_gvv_dist << std::endl;
+                  }
+                  if (log > 0 && rt_gvv_dist > tol)
+                  {
+                     mfem::out << e << ":" << j << " rt  gvv ("
+                               << f_val[0] << "," << f_val[1] << ","
+                               << f_val[2] << ") vs. ("
+                               << rt_gvv_val[0] << "," << rt_gvv_val[1] << ","
+                               << rt_gvv_val[2] << ") "
+                               << rt_gvv_dist << std::endl;
+                  }
+                  if (log > 0 && l2_gvv_dist > tol)
+                  {
+                     mfem::out << e << ":" << j << " l2  gvv ("
+                               << f_val[0] << "," << f_val[1] << ","
+                               << f_val[2] << ") vs. ("
+                               << l2_gvv_val[0] << "," << l2_gvv_val[1] << ","
+                               << l2_gvv_val[2] << ") "
+                               << l2_gvv_dist << std::endl;
+                  }
+                  if (log > 0 && dgv_gvv_dist > tol)
+                  {
+                     mfem::out << e << ":" << j << " dgv gvv ("
+                               << f_val[0] << "," << f_val[1] << ","
+                               << f_val[2] << ") vs. ("
+                               << dgv_gvv_val[0] << ","
+                               << dgv_gvv_val[1] << ","
+                               << dgv_gvv_val[2] << ") "
+                               << dgv_gvv_dist << std::endl;
+                  }
+                  if (log > 0 && dgi_gvv_dist > tol)
+                  {
+                     mfem::out << e << ":" << j << " dgi gvv ("
+                               << f_val[0] << "," << f_val[1] << ","
+                               << f_val[2] << ") vs. ("
+                               << dgi_gvv_val[0] << ","
+                               << dgi_gvv_val[1] << ","
+                               << dgi_gvv_val[2] << ") "
+                               << dgi_gvv_dist << std::endl;
+                  }
+                  if (log > 0 && nd_gvf_dist > tol)
+                  {
+                     mfem::out << e << ":" << j << " nd  gvf ("
+                               << f_val[0] << "," << f_val[1] << ","
+                               << f_val[2] << ") vs. ("
+                               << nd_gvf_val[0] << ","
+                               << nd_gvf_val[1] << ","
+                               << nd_gvf_val[2] << ") "
+                               << nd_gvf_dist << std::endl;
+                  }
+                  if (log > 0 && rt_gvf_dist > tol)
+                  {
+                     mfem::out << e << ":" << j << " rt  gvf ("
+                               << f_val[0] << "," << f_val[1] << ","
+                               << f_val[2] << ") vs. ("
+                               << rt_gvf_val[0] << ","
+                               << rt_gvf_val[1] << ","
+                               << rt_gvf_val[2] << ") "
+                               << rt_gvf_dist << std::endl;
+                  }
                }
 
                h1_gfc_err  /= ir.GetNPoints();
@@ -1905,6 +2770,61 @@ TEST_CASE("3D GetVectorValue",
                   l2_err  +=  l2_dist;
                   dgv_err += dgv_dist;
                   dgi_err += dgi_dist;
+
+                  if (log > 0 && h1_dist > tol)
+                  {
+                     mfem::out << be << ":" << j << " h1  ("
+                               << f_val[0] << "," << f_val[1] << ","
+                               << f_val[2] << ") vs. ("
+                               << h1_gfc_val[0] << "," << h1_gfc_val[1] << ","
+                               << h1_gfc_val[2] << ") " << h1_dist
+                               << std::endl;
+                  }
+                  if (log > 0 && nd_dist > tol)
+                  {
+                     mfem::out << be << ":" << j << " nd  ("
+                               << f_val[0] << "," << f_val[1] << ","
+                               << f_val[2] << ") vs. ("
+                               << nd_gfc_val[0] << "," << nd_gfc_val[1] << ","
+                               << nd_gfc_val[2] << ") " << nd_dist
+                               << std::endl;
+                  }
+                  if (log > 0 && rt_dist > tol)
+                  {
+                     mfem::out << be << ":" << j << " rt  ("
+                               << f_val[0] << "," << f_val[1] << ","
+                               << f_val[2] << ") vs. ("
+                               << rt_gfc_val[0] << "," << rt_gfc_val[1] << ","
+                               << rt_gfc_val[2] << ") " << rt_dist
+                               << std::endl;
+                  }
+                  if (log > 0 && l2_dist > tol)
+                  {
+                     mfem::out << be << ":" << j << " l2  ("
+                               << f_val[0] << "," << f_val[1] << ","
+                               << f_val[2] << ") vs. ("
+                               << l2_gfc_val[0] << "," << l2_gfc_val[1] << ","
+                               << l2_gfc_val[2] << ") " << l2_dist
+                               << std::endl;
+                  }
+                  if (log > 0 && dgv_dist > tol)
+                  {
+                     mfem::out << be << ":" << j << " dgv ("
+                               << f_val[0] << "," << f_val[1] << ","
+                               << f_val[2] << ") vs. ("
+                               << dgv_gfc_val[0] << "," << dgv_gfc_val[1] << ","
+                               << dgv_gfc_val[2] << ") " << dgv_dist
+                               << std::endl;
+                  }
+                  if (log > 0 && dgi_dist > tol)
+                  {
+                     mfem::out << be << ":" << j << " dgi ("
+                               << f_val[0] << "," << f_val[1] << ","
+                               << f_val[2] << ") vs. ("
+                               << dgi_gfc_val[0] << "," << dgi_gfc_val[1] << ","
+                               << dgi_gfc_val[2] << ") " << dgi_dist
+                               << std::endl;
+                  }
                }
                h1_err  /= ir.GetNPoints();
                nd_err  /= ir.GetNPoints();
@@ -1966,6 +2886,61 @@ TEST_CASE("3D GetVectorValue",
                   l2_err  +=  l2_dist;
                   dgv_err += dgv_dist;
                   dgi_err += dgi_dist;
+
+                  if (log > 0 && h1_dist > tol)
+                  {
+                     mfem::out << be << ":" << j << " h1  ("
+                               << f_val[0] << "," << f_val[1] << ","
+                               << f_val[2] << ") vs. ("
+                               << h1_gfc_val[0] << "," << h1_gfc_val[1] << ","
+                               << h1_gfc_val[2] << ") " << h1_dist
+                               << std::endl;
+                  }
+                  if (log > 0 && nd_dist > tol)
+                  {
+                     mfem::out << be << ":" << j << " nd  ("
+                               << f_val[0] << "," << f_val[1] << ","
+                               << f_val[2] << ") vs. ("
+                               << nd_gfc_val[0] << "," << nd_gfc_val[1] << ","
+                               << nd_gfc_val[2] << ") " << nd_dist
+                               << std::endl;
+                  }
+                  if (log > 0 && rt_dist > tol)
+                  {
+                     mfem::out << be << ":" << j << " rt  ("
+                               << f_val[0] << "," << f_val[1] << ","
+                               << f_val[2] << ") vs. ("
+                               << rt_gfc_val[0] << "," << rt_gfc_val[1] << ","
+                               << rt_gfc_val[2] << ") " << rt_dist
+                               << std::endl;
+                  }
+                  if (log > 0 && l2_dist > tol)
+                  {
+                     mfem::out << be << ":" << j << " l2  ("
+                               << f_val[0] << "," << f_val[1] << ","
+                               << f_val[2] << ") vs. ("
+                               << l2_gfc_val[0] << "," << l2_gfc_val[1] << ","
+                               << l2_gfc_val[2] << ") " << l2_dist
+                               << std::endl;
+                  }
+                  if (log > 0 && dgv_dist > tol)
+                  {
+                     mfem::out << be << ":" << j << " dgv ("
+                               << f_val[0] << "," << f_val[1] << ","
+                               << f_val[2] << ") vs. ("
+                               << dgv_gfc_val[0] << "," << dgv_gfc_val[1] << ","
+                               << dgv_gfc_val[2] << ") " << dgv_dist
+                               << std::endl;
+                  }
+                  if (log > 0 && dgi_dist > tol)
+                  {
+                     mfem::out << be << ":" << j << " dgi ("
+                               << f_val[0] << "," << f_val[1] << ","
+                               << f_val[2] << ") vs. ("
+                               << dgi_gfc_val[0] << "," << dgi_gfc_val[1] << ","
+                               << dgi_gfc_val[2] << ") " << dgi_dist
+                               << std::endl;
+                  }
                }
                h1_err  /= ir.GetNPoints();
                nd_err  /= ir.GetNPoints();
@@ -2006,6 +2981,16 @@ TEST_CASE("3D GetVectorValue",
                   double  h1_dist = Distance(f_val,  h1_gfc_val, dim);
 
                   h1_err  +=  h1_dist;
+
+                  if (log > 0 && h1_dist > tol)
+                  {
+                     mfem::out << e << ":" << j << " h1  ("
+                               << f_val[0] << "," << f_val[1] << ","
+                               << f_val[2] << ") vs. ("
+                               << h1_gfc_val[0] << "," << h1_gfc_val[1] << ","
+                               << h1_gfc_val[2] << ") " << h1_dist
+                               << std::endl;
+                  }
                }
                h1_err  /= ir.GetNPoints();
 
@@ -2036,6 +3021,16 @@ TEST_CASE("3D GetVectorValue",
                   double  h1_dist = Distance(f_val,  h1_gfc_val, dim);
 
                   h1_err  +=  h1_dist;
+
+                  if (log > 0 && h1_dist > tol)
+                  {
+                     mfem::out << f << ":" << j << " h1  ("
+                               << f_val[0] << "," << f_val[1] << ","
+                               << f_val[2] << ") vs. ("
+                               << h1_gfc_val[0] << "," << h1_gfc_val[1] << ","
+                               << h1_gfc_val[2] << ") " << h1_dist
+                               << std::endl;
+                  }
                }
                h1_err  /= ir.GetNPoints();
 
@@ -2044,6 +3039,8 @@ TEST_CASE("3D GetVectorValue",
          }
       }
    }
+   mfem::out << "Checked GridFunction::GetVectorValue at "
+             << npts << " 3D points" << std::endl;
 }
 
 #ifdef MFEM_USE_MPI
@@ -2059,10 +3056,13 @@ TEST_CASE("3D GetVectorValue in Parallel",
    int my_rank;
    MPI_Comm_rank(MPI_COMM_WORLD, &my_rank);
 
+   int log = 1;
    int n = (int)ceil(pow(2*num_procs, 1.0 / 3.0));
    int dim = 3;
    int order = 2;
    int npts = 0;
+
+   double tol = 1e-6;
 
    for (int type = (int)Element::TETRAHEDRON;
         type <= (int)Element::WEDGE; type++)
@@ -2215,6 +3215,121 @@ TEST_CASE("3D GetVectorValue in Parallel",
                   l2_gvv_err  +=  l2_gvv_dist;
                   dgv_gvv_err += dgv_gvv_dist;
                   dgi_gvv_err += dgi_gvv_dist;
+
+                  if (log > 0 && h1_gfc_dist > tol)
+                  {
+                     mfem::out << e << ":" << j << " h1  gfc ("
+                               << f_val[0] << "," << f_val[1] << ","
+                               << f_val[2] << ") vs. ("
+                               << h1_gfc_val[0] << "," << h1_gfc_val[1] << ","
+                               << h1_gfc_val[2] << ") "
+                               << h1_gfc_dist << std::endl;
+                  }
+                  if (log > 0 && nd_gfc_dist > tol)
+                  {
+                     mfem::out << e << ":" << j
+                               << " x = (" << x[0] << "," << x[1] << ","
+                               << x[2] << ")\n nd  gfc ("
+                               << f_val[0] << "," << f_val[1] << ","
+                               << f_val[2] << ")\n vs. ("
+                               << nd_gfc_val[0] << "," << nd_gfc_val[1] << ","
+                               << nd_gfc_val[2] << ") "
+                               << nd_gfc_dist << std::endl;
+                  }
+                  if (log > 0 && rt_gfc_dist > tol)
+                  {
+                     mfem::out << e << ":" << j << " rt  gfc ("
+                               << f_val[0] << "," << f_val[1] << ","
+                               << f_val[2] << ") vs. ("
+                               << rt_gfc_val[0] << "," << rt_gfc_val[1] << ","
+                               << rt_gfc_val[2] << ") "
+                               << rt_gfc_dist << std::endl;
+                  }
+                  if (log > 0 && l2_gfc_dist > tol)
+                  {
+                     mfem::out << e << ":" << j << " l2  gfc ("
+                               << f_val[0] << "," << f_val[1] << ","
+                               << f_val[2] << ") vs. ("
+                               << l2_gfc_val[0] << "," << l2_gfc_val[1] << ","
+                               << l2_gfc_val[2] << ") "
+                               << l2_gfc_dist << std::endl;
+                  }
+                  if (log > 0 && dgv_gfc_dist > tol)
+                  {
+                     mfem::out << e << ":" << j << " dgv gfc ("
+                               << f_val[0] << "," << f_val[1] << ","
+                               << f_val[2] << ") vs. ("
+                               << dgv_gfc_val[0] << ","
+                               << dgv_gfc_val[1] << ","
+                               << dgv_gfc_val[2] << ") "
+                               << dgv_gfc_dist << std::endl;
+                  }
+                  if (log > 0 && dgi_gfc_dist > tol)
+                  {
+                     mfem::out << e << ":" << j << " dgi gfc ("
+                               << f_val[0] << "," << f_val[1] << ","
+                               << f_val[2] << ") vs. ("
+                               << dgi_gfc_val[0] << ","
+                               << dgi_gfc_val[1] << ","
+                               << dgi_gfc_val[2] << ") "
+                               << dgi_gfc_dist << std::endl;
+                  }
+                  if (log > 0 && h1_gvv_dist > tol)
+                  {
+                     mfem::out << e << ":" << j << " h1  gvv ("
+                               << f_val[0] << "," << f_val[1] << ","
+                               << f_val[2] << ") vs. ("
+                               << h1_gvv_val[0] << "," << h1_gvv_val[1] << ","
+                               << h1_gvv_val[2] << ") "
+                               << h1_gvv_dist << std::endl;
+                  }
+                  if (log > 0 && nd_gvv_dist > tol)
+                  {
+                     mfem::out << e << ":" << j << " nd  gvv ("
+                               << f_val[0] << "," << f_val[1] << ","
+                               << f_val[2] << ") vs. ("
+                               << nd_gvv_val[0] << "," << nd_gvv_val[1] << ","
+                               << nd_gvv_val[2] << ") "
+                               << nd_gvv_dist << std::endl;
+                  }
+                  if (log > 0 && rt_gvv_dist > tol)
+                  {
+                     mfem::out << e << ":" << j << " rt  gvv ("
+                               << f_val[0] << "," << f_val[1] << ","
+                               << f_val[2] << ") vs. ("
+                               << rt_gvv_val[0] << "," << rt_gvv_val[1] << ","
+                               << rt_gvv_val[2] << ") "
+                               << rt_gvv_dist << std::endl;
+                  }
+                  if (log > 0 && l2_gvv_dist > tol)
+                  {
+                     mfem::out << e << ":" << j << " l2  gvv ("
+                               << f_val[0] << "," << f_val[1] << ","
+                               << f_val[2] << ") vs. ("
+                               << l2_gvv_val[0] << "," << l2_gvv_val[1] << ","
+                               << l2_gvv_val[2] << ") "
+                               << l2_gvv_dist << std::endl;
+                  }
+                  if (log > 0 && dgv_gvv_dist > tol)
+                  {
+                     mfem::out << e << ":" << j << " dgv gvv ("
+                               << f_val[0] << "," << f_val[1] << ","
+                               << f_val[2] << ") vs. ("
+                               << dgv_gvv_val[0] << ","
+                               << dgv_gvv_val[1] << ","
+                               << dgv_gvv_val[2] << ") "
+                               << dgv_gvv_dist << std::endl;
+                  }
+                  if (log > 0 && dgi_gvv_dist > tol)
+                  {
+                     mfem::out << e << ":" << j << " dgi gvv ("
+                               << f_val[0] << "," << f_val[1] << ","
+                               << f_val[2] << ") vs. ("
+                               << dgi_gvv_val[0] << ","
+                               << dgi_gvv_val[1] << ","
+                               << dgi_gvv_val[2] << ") "
+                               << dgi_gvv_dist << std::endl;
+                  }
                }
 
                h1_gfc_err  /= ir.GetNPoints();
@@ -2248,6 +3363,9 @@ TEST_CASE("3D GetVectorValue in Parallel",
          }
       }
    }
+
+   mfem::out << my_rank << ": Checked GridFunction::GetVectorValue at "
+             << npts << " 3D points" << std::endl;
 }
 
 #endif // MFEM_USE_MPI
@@ -2256,10 +3374,13 @@ TEST_CASE("1D GetGradient",
           "[GridFunction]"
           "[GradientGridFunctionCoefficient]")
 {
+   int log = 1;
    int n = 1;
    int dim = 1;
    int order = 2;
    int npts = 0;
+
+   double tol = 1e-6;
 
    for (int type = (int)Element::SEGMENT;
         type <= (int)Element::SEGMENT; type++)
@@ -2318,6 +3439,21 @@ TEST_CASE("1D GetGradient",
 
                   h1_err  +=  h1_dist;
                   dgv_err += dgv_dist;
+
+                  if (log > 0 && h1_dist > tol)
+                  {
+                     mfem::out << e << ":" << j << " h1  ("
+                               << f_val[0] << ") vs. ("
+                               << h1_gfc_val[0] << ") "
+                               << h1_dist << std::endl;
+                  }
+                  if (log > 0 && dgv_dist > tol)
+                  {
+                     mfem::out << e << ":" << j << " dgv ("
+                               << f_val[0] << ") vs. ("
+                               << dgv_gfc_val[0] << ") "
+                               << dgv_dist << std::endl;
+                  }
                }
                h1_err /= ir.GetNPoints();
                dgv_err /= ir.GetNPoints();
@@ -2354,6 +3490,21 @@ TEST_CASE("1D GetGradient",
 
                   h1_err  +=  h1_dist;
                   dgv_err += dgv_dist;
+
+                  if (log > 0 && h1_dist > tol)
+                  {
+                     mfem::out << be << ":" << j << " h1  ("
+                               << f_val[0] << ") vs. ("
+                               << h1_gfc_val[0] << ") "
+                               << h1_dist << std::endl;
+                  }
+                  if (log > 0 && dgv_dist > tol)
+                  {
+                     mfem::out << be << ":" << j << " dgv ("
+                               << f_val[0] << ") vs. ("
+                               << dgv_gfc_val[0] << ") "
+                               << dgv_dist << std::endl;
+                  }
                }
                h1_err /= ir.GetNPoints();
                dgv_err /= ir.GetNPoints();
@@ -2365,6 +3516,7 @@ TEST_CASE("1D GetGradient",
 
          SECTION("Boundary Evaluation 1D (DG Context)")
          {
+            mfem::out << "Boundary Evaluation 1D (DG Context)" << std::endl;
             for (int be = 0; be < mesh.GetNBE(); be++)
             {
                FaceElementTransformations *T =
@@ -2391,6 +3543,21 @@ TEST_CASE("1D GetGradient",
 
                   h1_err  +=  h1_dist;
                   dgv_err += dgv_dist;
+
+                  if (log > 0 && h1_dist > tol)
+                  {
+                     mfem::out << be << ":" << j << " h1  ("
+                               << f_val[0] << ") vs. ("
+                               << h1_gfc_val[0] << ") "
+                               << h1_dist << std::endl;
+                  }
+                  if (log > 0 && dgv_dist > tol)
+                  {
+                     mfem::out << be << ":" << j << " dgv ("
+                               << f_val[0] << ") vs. ("
+                               << dgv_gfc_val[0] << ") "
+                               << dgv_dist << std::endl;
+                  }
                }
                h1_err /= ir.GetNPoints();
                dgv_err /= ir.GetNPoints();
@@ -2401,16 +3568,21 @@ TEST_CASE("1D GetGradient",
          }
       }
    }
+   mfem::out << "Checked GridFunction::GetGradient at "
+             << npts << " 1D points" << std::endl;
 }
 
 TEST_CASE("2D GetGradient",
           "[GridFunction]"
           "[GradientGridFunctionCoefficient]")
 {
+   int log = 1;
    int n = 1;
    int dim = 2;
    int order = 2;
    int npts = 0;
+
+   double tol = 1e-6;
 
    for (int type = (int)Element::TRIANGLE;
         type <= (int)Element::QUADRILATERAL; type++)
@@ -2469,6 +3641,23 @@ TEST_CASE("2D GetGradient",
 
                   h1_err  +=  h1_dist;
                   dgv_err += dgv_dist;
+
+                  if (log > 0 && h1_dist > tol)
+                  {
+                     mfem::out << e << ":" << j << " h1  ("
+                               << f_val[0] << "," << f_val[1] << ") vs. ("
+                               << h1_gfc_val[0] << ","
+                               << h1_gfc_val[1] << ") "
+                               << h1_dist << std::endl;
+                  }
+                  if (log > 0 && dgv_dist > tol)
+                  {
+                     mfem::out << e << ":" << j << " dgv ("
+                               << f_val[0] << "," << f_val[1] << ") vs. ("
+                               << dgv_gfc_val[0] << ","
+                               << dgv_gfc_val[1] << ") "
+                               << dgv_dist << std::endl;
+                  }
                }
                h1_err /= ir.GetNPoints();
                dgv_err /= ir.GetNPoints();
@@ -2480,6 +3669,7 @@ TEST_CASE("2D GetGradient",
 
          SECTION("Boundary Evaluation 2D (H1 Context)")
          {
+            mfem::out << "Boundary Evaluation 2D (H1 Context)" << std::endl;
             for (int be = 0; be < mesh.GetNBE(); be++)
             {
                ElementTransformation *T = mesh.GetBdrElementTransformation(be);
@@ -2505,6 +3695,23 @@ TEST_CASE("2D GetGradient",
 
                   h1_err  +=  h1_dist;
                   dgv_err += dgv_dist;
+
+                  if (log > 0 && h1_dist > tol)
+                  {
+                     mfem::out << be << ":" << j << " h1  ("
+                               << f_val[0] << "," << f_val[1] << ") vs. ("
+                               << h1_gfc_val[0] << ","
+                               << h1_gfc_val[1] << ") "
+                               << h1_dist << std::endl;
+                  }
+                  if (log > 0 && dgv_dist > tol)
+                  {
+                     mfem::out << be << ":" << j << " dgv ("
+                               << f_val[0] << "," << f_val[1] << ") vs. ("
+                               << dgv_gfc_val[0] << ","
+                               << dgv_gfc_val[1] << ") "
+                               << dgv_dist << std::endl;
+                  }
                }
                h1_err /= ir.GetNPoints();
                dgv_err /= ir.GetNPoints();
@@ -2516,6 +3723,7 @@ TEST_CASE("2D GetGradient",
 
          SECTION("Boundary Evaluation 2D (DG Context)")
          {
+            mfem::out << "Boundary Evaluation 2D (DG Context)" << std::endl;
             for (int be = 0; be < mesh.GetNBE(); be++)
             {
                FaceElementTransformations *T =
@@ -2542,6 +3750,23 @@ TEST_CASE("2D GetGradient",
 
                   h1_err  +=  h1_dist;
                   dgv_err += dgv_dist;
+
+                  if (log > 0 && h1_dist > tol)
+                  {
+                     mfem::out << be << ":" << j << " h1  ("
+                               << f_val[0] << "," << f_val[1] << ") vs. ("
+                               << h1_gfc_val[0] << ","
+                               << h1_gfc_val[1] << ") "
+                               << h1_dist << std::endl;
+                  }
+                  if (log > 0 && dgv_dist > tol)
+                  {
+                     mfem::out << be << ":" << j << " dgv ("
+                               << f_val[0] << "," << f_val[1] << ") vs. ("
+                               << dgv_gfc_val[0] << ","
+                               << dgv_gfc_val[1] << ") "
+                               << dgv_dist << std::endl;
+                  }
                }
                h1_err /= ir.GetNPoints();
                dgv_err /= ir.GetNPoints();
@@ -2552,16 +3777,21 @@ TEST_CASE("2D GetGradient",
          }
       }
    }
+   mfem::out << "Checked GridFunction::GetGradient at "
+             << npts << " 2D points" << std::endl;
 }
 
 TEST_CASE("3D GetGradient",
           "[GridFunction]"
           "[GradientGridFunctionCoefficient]")
 {
+   int log = 1;
    int n = 1;
    int dim = 3;
    int order = 2;
    int npts = 0;
+
+   double tol = 1e-6;
 
    for (int type = (int)Element::TETRAHEDRON;
         type <= (int)Element::WEDGE; type++)
@@ -2621,6 +3851,25 @@ TEST_CASE("3D GetGradient",
 
                   h1_err  +=  h1_dist;
                   dgv_err += dgv_dist;
+
+                  if (log > 0 && h1_dist > tol)
+                  {
+                     mfem::out << e << ":" << j << " h1  ("
+                               << f_val[0] << "," << f_val[1] << ","
+                               << f_val[2] << ") vs. ("
+                               << h1_gfc_val[0] << "," << h1_gfc_val[1] << ","
+                               << h1_gfc_val[2] << ") "
+                               << h1_dist << std::endl;
+                  }
+                  if (log > 0 && dgv_dist > tol)
+                  {
+                     mfem::out << e << ":" << j << " dgv ("
+                               << f_val[0] << "," << f_val[1] << ","
+                               << f_val[2] << ") vs. ("
+                               << dgv_gfc_val[0] << "," << dgv_gfc_val[1] << ","
+                               << dgv_gfc_val[2] << ") " << dgv_dist
+                               << std::endl;
+                  }
                }
                h1_err /= ir.GetNPoints();
                dgv_err /= ir.GetNPoints();
@@ -2657,6 +3906,25 @@ TEST_CASE("3D GetGradient",
 
                   h1_err  +=  h1_dist;
                   dgv_err += dgv_dist;
+
+                  if (log > 0 && h1_dist > tol)
+                  {
+                     mfem::out << be << ":" << j << " h1  ("
+                               << f_val[0] << "," << f_val[1] << ","
+                               << f_val[2] << ") vs. ("
+                               << h1_gfc_val[0] << "," << h1_gfc_val[1] << ","
+                               << h1_gfc_val[2] << ") "
+                               << h1_dist << std::endl;
+                  }
+                  if (log > 0 && dgv_dist > tol)
+                  {
+                     mfem::out << be << ":" << j << " dgv ("
+                               << f_val[0] << "," << f_val[1] << ","
+                               << f_val[2] << ") vs. ("
+                               << dgv_gfc_val[0] << "," << dgv_gfc_val[1] << ","
+                               << dgv_gfc_val[2] << ") " << dgv_dist
+                               << std::endl;
+                  }
                }
                h1_err /= ir.GetNPoints();
                dgv_err /= ir.GetNPoints();
@@ -2694,6 +3962,25 @@ TEST_CASE("3D GetGradient",
 
                   h1_err  +=  h1_dist;
                   dgv_err += dgv_dist;
+
+                  if (log > 0 && h1_dist > tol)
+                  {
+                     mfem::out << be << ":" << j << " h1  ("
+                               << f_val[0] << "," << f_val[1] << ","
+                               << f_val[2] << ") vs. ("
+                               << h1_gfc_val[0] << "," << h1_gfc_val[1] << ","
+                               << h1_gfc_val[2] << ") "
+                               << h1_dist << std::endl;
+                  }
+                  if (log > 0 && dgv_dist > tol)
+                  {
+                     mfem::out << be << ":" << j << " dgv ("
+                               << f_val[0] << "," << f_val[1] << ","
+                               << f_val[2] << ") vs. ("
+                               << dgv_gfc_val[0] << "," << dgv_gfc_val[1] << ","
+                               << dgv_gfc_val[2] << ") " << dgv_dist
+                               << std::endl;
+                  }
                }
                h1_err /= ir.GetNPoints();
                dgv_err /= ir.GetNPoints();
@@ -2704,16 +3991,21 @@ TEST_CASE("3D GetGradient",
          }
       }
    }
+   mfem::out << "Checked GridFunction::GetGradient at "
+             << npts << " 3D points" << std::endl;
 }
 
 TEST_CASE("2D GetCurl",
           "[GridFunction]"
           "[CurlGridFunctionCoefficient]")
 {
+   int log = 1;
    int n = 1;
    int dim = 2;
    int order = 2;
    int npts = 0;
+
+   double tol = 1e-6;
 
    for (int type = (int)Element::TRIANGLE;
         type <= (int)Element::QUADRILATERAL; type++)
@@ -2783,6 +4075,28 @@ TEST_CASE("2D GetCurl",
                   h1_err  +=  h1_dist;
                   nd_err  +=  nd_dist;
                   dgv_err += dgv_dist;
+
+                  if (log > 0 && h1_dist > tol)
+                  {
+                     mfem::out << e << ":" << j << " h1  ("
+                               << f_val[0] << ") vs. ("
+                               << h1_gfc_val[0] << ") " << h1_dist
+                               << std::endl;
+                  }
+                  if (log > 0 && nd_dist > tol)
+                  {
+                     mfem::out << e << ":" << j << " nd  ("
+                               << f_val[0] << ") vs. ("
+                               << nd_gfc_val[0] << ") " << nd_dist
+                               << std::endl;
+                  }
+                  if (log > 0 && dgv_dist > tol)
+                  {
+                     mfem::out << e << ":" << j << " dgv ("
+                               << f_val[0] << ") vs. ("
+                               << dgv_gfc_val[0] << ") " << dgv_dist
+                               << std::endl;
+                  }
                }
                h1_err  /= ir.GetNPoints();
                nd_err  /= ir.GetNPoints();
@@ -2825,6 +4139,28 @@ TEST_CASE("2D GetCurl",
                   h1_err  +=  h1_dist;
                   nd_err  +=  nd_dist;
                   dgv_err += dgv_dist;
+
+                  if (log > 0 && h1_dist > tol)
+                  {
+                     mfem::out << be << ":" << j << " h1  ("
+                               << f_val[0] << ") vs. ("
+                               << h1_gfc_val[0] << ") " << h1_dist
+                               << std::endl;
+                  }
+                  if (log > 0 && nd_dist > tol)
+                  {
+                     mfem::out << be << ":" << j << " nd  ("
+                               << f_val[0] << ") vs. ("
+                               << nd_gfc_val[0] << ") " << nd_dist
+                               << std::endl;
+                  }
+                  if (log > 0 && dgv_dist > tol)
+                  {
+                     mfem::out << be << ":" << j << " dgv ("
+                               << f_val[0] << ") vs. ("
+                               << dgv_gfc_val[0] << ") " << dgv_dist
+                               << std::endl;
+                  }
                }
                h1_err  /= ir.GetNPoints();
                nd_err  /= ir.GetNPoints();
@@ -2868,6 +4204,28 @@ TEST_CASE("2D GetCurl",
                   h1_err  +=  h1_dist;
                   nd_err  +=  nd_dist;
                   dgv_err += dgv_dist;
+
+                  if (log > 0 && h1_dist > tol)
+                  {
+                     mfem::out << be << ":" << j << " h1  ("
+                               << f_val[0] << ") vs. ("
+                               << h1_gfc_val[0] << ") " << h1_dist
+                               << std::endl;
+                  }
+                  if (log > 0 && nd_dist > tol)
+                  {
+                     mfem::out << be << ":" << j << " nd  ("
+                               << f_val[0] << ") vs. ("
+                               << nd_gfc_val[0] << ") " << nd_dist
+                               << std::endl;
+                  }
+                  if (log > 0 && dgv_dist > tol)
+                  {
+                     mfem::out << be << ":" << j << " dgv ("
+                               << f_val[0] << ") vs. ("
+                               << dgv_gfc_val[0] << ") " << dgv_dist
+                               << std::endl;
+                  }
                }
                h1_err  /= ir.GetNPoints();
                nd_err  /= ir.GetNPoints();
@@ -2880,16 +4238,21 @@ TEST_CASE("2D GetCurl",
          }
       }
    }
+   mfem::out << "Checked GridFunction::GetCurl at "
+             << npts << " 2D points" << std::endl;
 }
 
 TEST_CASE("3D GetCurl",
           "[GridFunction]"
           "[CurlGridFunctionCoefficient]")
 {
+   int log = 1;
    int n = 1;
    int dim = 3;
    int order = 2;
    int npts = 0;
+
+   double tol = 1e-6;
 
    for (int type = (int)Element::TETRAHEDRON;
         type <= (int)Element::WEDGE; type++)
@@ -2960,6 +4323,34 @@ TEST_CASE("3D GetCurl",
                   h1_err  +=  h1_dist;
                   nd_err  +=  nd_dist;
                   dgv_err += dgv_dist;
+
+                  if (log > 0 && h1_dist > tol)
+                  {
+                     mfem::out << e << ":" << j << " h1  ("
+                               << f_val[0] << "," << f_val[1] << ","
+                               << f_val[2] << ") vs. ("
+                               << h1_gfc_val[0] << "," << h1_gfc_val[1] << ","
+                               << h1_gfc_val[2] << ") " << h1_dist
+                               << std::endl;
+                  }
+                  if (log > 0 && nd_dist > tol)
+                  {
+                     mfem::out << e << ":" << j << " nd  ("
+                               << f_val[0] << "," << f_val[1] << ","
+                               << f_val[2] << ") vs. ("
+                               << nd_gfc_val[0] << "," << nd_gfc_val[1] << ","
+                               << nd_gfc_val[2] << ") " << nd_dist
+                               << std::endl;
+                  }
+                  if (log > 0 && dgv_dist > tol)
+                  {
+                     mfem::out << e << ":" << j << " dgv ("
+                               << f_val[0] << "," << f_val[1] << ","
+                               << f_val[2] << ") vs. ("
+                               << dgv_gfc_val[0] << "," << dgv_gfc_val[1] << ","
+                               << dgv_gfc_val[2] << ") " << dgv_dist
+                               << std::endl;
+                  }
                }
                h1_err  /= ir.GetNPoints();
                nd_err  /= ir.GetNPoints();
@@ -3002,6 +4393,34 @@ TEST_CASE("3D GetCurl",
                   h1_err  +=  h1_dist;
                   nd_err  +=  nd_dist;
                   dgv_err += dgv_dist;
+
+                  if (log > 0 && h1_dist > tol)
+                  {
+                     mfem::out << be << ":" << j << " h1  ("
+                               << f_val[0] << "," << f_val[1] << ","
+                               << f_val[2] << ") vs. ("
+                               << h1_gfc_val[0] << "," << h1_gfc_val[1] << ","
+                               << h1_gfc_val[2] << ") " << h1_dist
+                               << std::endl;
+                  }
+                  if (log > 0 && nd_dist > tol)
+                  {
+                     mfem::out << be << ":" << j << " nd  ("
+                               << f_val[0] << "," << f_val[1] << ","
+                               << f_val[2] << ") vs. ("
+                               << nd_gfc_val[0] << "," << nd_gfc_val[1] << ","
+                               << nd_gfc_val[2] << ") " << nd_dist
+                               << std::endl;
+                  }
+                  if (log > 0 && dgv_dist > tol)
+                  {
+                     mfem::out << be << ":" << j << " dgv ("
+                               << f_val[0] << "," << f_val[1] << ","
+                               << f_val[2] << ") vs. ("
+                               << dgv_gfc_val[0] << "," << dgv_gfc_val[1] << ","
+                               << dgv_gfc_val[2] << ") " << dgv_dist
+                               << std::endl;
+                  }
                }
                h1_err  /= ir.GetNPoints();
                nd_err  /= ir.GetNPoints();
@@ -3045,6 +4464,34 @@ TEST_CASE("3D GetCurl",
                   h1_err  +=  h1_dist;
                   nd_err  +=  nd_dist;
                   dgv_err += dgv_dist;
+
+                  if (log > 0 && h1_dist > tol)
+                  {
+                     mfem::out << be << ":" << j << " h1  ("
+                               << f_val[0] << "," << f_val[1] << ","
+                               << f_val[2] << ") vs. ("
+                               << h1_gfc_val[0] << "," << h1_gfc_val[1] << ","
+                               << h1_gfc_val[2] << ") " << h1_dist
+                               << std::endl;
+                  }
+                  if (log > 0 && nd_dist > tol)
+                  {
+                     mfem::out << be << ":" << j << " nd  ("
+                               << f_val[0] << "," << f_val[1] << ","
+                               << f_val[2] << ") vs. ("
+                               << nd_gfc_val[0] << "," << nd_gfc_val[1] << ","
+                               << nd_gfc_val[2] << ") " << nd_dist
+                               << std::endl;
+                  }
+                  if (log > 0 && dgv_dist > tol)
+                  {
+                     mfem::out << be << ":" << j << " dgv ("
+                               << f_val[0] << "," << f_val[1] << ","
+                               << f_val[2] << ") vs. ("
+                               << dgv_gfc_val[0] << "," << dgv_gfc_val[1] << ","
+                               << dgv_gfc_val[2] << ") " << dgv_dist
+                               << std::endl;
+                  }
                }
                h1_err  /= ir.GetNPoints();
                nd_err  /= ir.GetNPoints();
@@ -3057,16 +4504,21 @@ TEST_CASE("3D GetCurl",
          }
       }
    }
+   mfem::out << "Checked GridFunction::GetCurl at "
+             << npts << " 3D points" << std::endl;
 }
 
 TEST_CASE("2D GetDivergence",
           "[GridFunction]"
           "[DivergenceGridFunctionCoefficient]")
 {
+   int log = 1;
    int n = 1;
    int dim = 2;
    int order = 2;
    int npts = 0;
+
+   double tol = 1e-6;
 
    for (int type = (int)Element::TRIANGLE;
         type <= (int)Element::QUADRILATERAL; type++)
@@ -3126,6 +4578,28 @@ TEST_CASE("2D GetDivergence",
                   h1_err += fabs(f_val - h1_gfc_val);
                   rt_err += fabs(f_val - rt_gfc_val);
                   dgv_err += fabs(f_val - dgv_gfc_val);
+
+                  if (log > 0 && fabs(f_val - h1_gfc_val) > tol)
+                  {
+                     mfem::out << e << ":" << j << " h1  " << f_val << " "
+                               << h1_gfc_val << " "
+                               << fabs(f_val - h1_gfc_val)
+                               << std::endl;
+                  }
+                  if (log > 0 && fabs(f_val - rt_gfc_val) > tol)
+                  {
+                     mfem::out << e << ":" << j << " rt  " << f_val << " "
+                               << rt_gfc_val << " "
+                               << fabs(f_val - rt_gfc_val)
+                               << std::endl;
+                  }
+                  if (log > 0 && fabs(f_val - dgv_gfc_val) > tol)
+                  {
+                     mfem::out << e << ":" << j << " dgv " << f_val << " "
+                               << dgv_gfc_val << " "
+                               << fabs(f_val - dgv_gfc_val)
+                               << std::endl;
+                  }
                }
                h1_err /= ir.GetNPoints();
                rt_err /= ir.GetNPoints();
@@ -3164,6 +4638,28 @@ TEST_CASE("2D GetDivergence",
                   h1_err += fabs(f_val - h1_gfc_val);
                   rt_err += fabs(f_val - rt_gfc_val);
                   dgv_err += fabs(f_val - dgv_gfc_val);
+
+                  if (log > 0 && fabs(f_val - h1_gfc_val) > tol)
+                  {
+                     mfem::out << be << ":" << j << " h1  " << f_val << " "
+                               << h1_gfc_val << " "
+                               << fabs(f_val - h1_gfc_val)
+                               << std::endl;
+                  }
+                  if (log > 0 && fabs(f_val - rt_gfc_val) > tol)
+                  {
+                     mfem::out << be << ":" << j << " rt  " << f_val << " "
+                               << rt_gfc_val << " "
+                               << fabs(f_val - rt_gfc_val)
+                               << std::endl;
+                  }
+                  if (log > 0 && fabs(f_val - dgv_gfc_val) > tol)
+                  {
+                     mfem::out << be << ":" << j << " dgv " << f_val << " "
+                               << dgv_gfc_val << " "
+                               << fabs(f_val - dgv_gfc_val)
+                               << std::endl;
+                  }
                }
                h1_err /= ir.GetNPoints();
                rt_err /= ir.GetNPoints();
@@ -3203,6 +4699,28 @@ TEST_CASE("2D GetDivergence",
                   h1_err += fabs(f_val - h1_gfc_val);
                   rt_err += fabs(f_val - rt_gfc_val);
                   dgv_err += fabs(f_val - dgv_gfc_val);
+
+                  if (log > 0 && fabs(f_val - h1_gfc_val) > tol)
+                  {
+                     mfem::out << be << ":" << j << " h1  " << f_val << " "
+                               << h1_gfc_val << " "
+                               << fabs(f_val - h1_gfc_val)
+                               << std::endl;
+                  }
+                  if (log > 0 && fabs(f_val - rt_gfc_val) > tol)
+                  {
+                     mfem::out << be << ":" << j << " rt  " << f_val << " "
+                               << rt_gfc_val << " "
+                               << fabs(f_val - rt_gfc_val)
+                               << std::endl;
+                  }
+                  if (log > 0 && fabs(f_val - dgv_gfc_val) > tol)
+                  {
+                     mfem::out << be << ":" << j << " dgv " << f_val << " "
+                               << dgv_gfc_val << " "
+                               << fabs(f_val - dgv_gfc_val)
+                               << std::endl;
+                  }
                }
                h1_err /= ir.GetNPoints();
                rt_err /= ir.GetNPoints();
@@ -3215,16 +4733,21 @@ TEST_CASE("2D GetDivergence",
          }
       }
    }
+   mfem::out << "Checked GridFunction::GetDivergence at "
+             << npts << " 2D points" << std::endl;
 }
 
 TEST_CASE("3D GetDivergence",
           "[GridFunction]"
           "[DivergenceGridFunctionCoefficient]")
 {
+   int log = 1;
    int n = 1;
    int dim = 3;
    int order = 2;
    int npts = 0;
+
+   double tol = 1e-6;
 
    for (int type = (int)Element::TETRAHEDRON;
         type <= (int)Element::WEDGE; type++)
@@ -3285,6 +4808,28 @@ TEST_CASE("3D GetDivergence",
                   h1_err += fabs(f_val - h1_gfc_val);
                   rt_err += fabs(f_val - rt_gfc_val);
                   dgv_err += fabs(f_val - dgv_gfc_val);
+
+                  if (log > 0 && fabs(f_val - h1_gfc_val) > tol)
+                  {
+                     mfem::out << e << ":" << j << " h1  " << f_val << " "
+                               << h1_gfc_val << " "
+                               << fabs(f_val - h1_gfc_val)
+                               << std::endl;
+                  }
+                  if (log > 0 && fabs(f_val - rt_gfc_val) > tol)
+                  {
+                     mfem::out << e << ":" << j << " rt  " << f_val << " "
+                               << rt_gfc_val << " "
+                               << fabs(f_val - rt_gfc_val)
+                               << std::endl;
+                  }
+                  if (log > 0 && fabs(f_val - dgv_gfc_val) > tol)
+                  {
+                     mfem::out << e << ":" << j << " dgv " << f_val << " "
+                               << dgv_gfc_val << " "
+                               << fabs(f_val - dgv_gfc_val)
+                               << std::endl;
+                  }
                }
                h1_err /= ir.GetNPoints();
                rt_err /= ir.GetNPoints();
@@ -3323,6 +4868,28 @@ TEST_CASE("3D GetDivergence",
                   h1_err += fabs(f_val - h1_gfc_val);
                   rt_err += fabs(f_val - rt_gfc_val);
                   dgv_err += fabs(f_val - dgv_gfc_val);
+
+                  if (log > 0 && fabs(f_val - h1_gfc_val) > tol)
+                  {
+                     mfem::out << be << ":" << j << " h1  " << f_val << " "
+                               << h1_gfc_val << " "
+                               << fabs(f_val - h1_gfc_val)
+                               << std::endl;
+                  }
+                  if (log > 0 && fabs(f_val - rt_gfc_val) > tol)
+                  {
+                     mfem::out << be << ":" << j << " rt  " << f_val << " "
+                               << rt_gfc_val << " "
+                               << fabs(f_val - rt_gfc_val)
+                               << std::endl;
+                  }
+                  if (log > 0 && fabs(f_val - dgv_gfc_val) > tol)
+                  {
+                     mfem::out << be << ":" << j << " dgv " << f_val << " "
+                               << dgv_gfc_val << " "
+                               << fabs(f_val - dgv_gfc_val)
+                               << std::endl;
+                  }
                }
                h1_err /= ir.GetNPoints();
                rt_err /= ir.GetNPoints();
@@ -3362,6 +4929,28 @@ TEST_CASE("3D GetDivergence",
                   h1_err += fabs(f_val - h1_gfc_val);
                   rt_err += fabs(f_val - rt_gfc_val);
                   dgv_err += fabs(f_val - dgv_gfc_val);
+
+                  if (log > 0 && fabs(f_val - h1_gfc_val) > tol)
+                  {
+                     mfem::out << be << ":" << j << " h1  " << f_val << " "
+                               << h1_gfc_val << " "
+                               << fabs(f_val - h1_gfc_val)
+                               << std::endl;
+                  }
+                  if (log > 0 && fabs(f_val - rt_gfc_val) > tol)
+                  {
+                     mfem::out << be << ":" << j << " rt  " << f_val << " "
+                               << rt_gfc_val << " "
+                               << fabs(f_val - rt_gfc_val)
+                               << std::endl;
+                  }
+                  if (log > 0 && fabs(f_val - dgv_gfc_val) > tol)
+                  {
+                     mfem::out << be << ":" << j << " dgv " << f_val << " "
+                               << dgv_gfc_val << " "
+                               << fabs(f_val - dgv_gfc_val)
+                               << std::endl;
+                  }
                }
                h1_err /= ir.GetNPoints();
                rt_err /= ir.GetNPoints();
@@ -3374,6 +4963,8 @@ TEST_CASE("3D GetDivergence",
          }
       }
    }
+   mfem::out << "Checked GridFunction::GetDivergence at "
+             << npts << " 3D points" << std::endl;
 }
 
 } // namespace get_value

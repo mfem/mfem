@@ -21,6 +21,8 @@ TEST_CASE("SparseMatrixAbsMult", "[SparseMatrixAbsMult]")
    int ne = 4;
    for (int order = 1; order <= 3; ++order)
    {
+      CAPTURE(order);
+
       Mesh mesh = Mesh::MakeCartesian2D(
                      ne, ne, Element::QUADRILATERAL, 1, 1.0, 1.0);
       FiniteElementCollection *hdiv_coll(new RT_FECollection(order, dim));
@@ -55,6 +57,7 @@ TEST_CASE("SparseMatrixAbsMult", "[SparseMatrixAbsMult]")
 
       Y1 -=Y0;
       double error = Y1.Norml2();
+
       REQUIRE(error == MFEM_Approx(0.0));
 
       Y0.Randomize();
@@ -65,6 +68,7 @@ TEST_CASE("SparseMatrixAbsMult", "[SparseMatrixAbsMult]")
       X1 -=X0;
 
       error = X1.Norml2();
+
       REQUIRE(error == MFEM_Approx(0.0));
 
       delete Aabs;

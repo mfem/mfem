@@ -97,6 +97,8 @@ TEST_CASE("Mass Diagonal PA", "[PartialAssembly][AssembleDiagonal]")
    {
       for (int ne = 1; ne < 3; ++ne)
       {
+         const int n_elements = pow(ne, dimension);
+         CAPTURE(dimension, n_elements);
          for (int order = 1; order < 5; ++order)
          {
             Mesh mesh;
@@ -128,6 +130,8 @@ TEST_CASE("Mass Diagonal PA", "[PartialAssembly][AssembleDiagonal]")
             faform.SpMat().GetDiag(assembly_diag);
 
             assembly_diag -= pa_diag;
+            double error = assembly_diag.Norml2();
+            CAPTURE(order, error);
             REQUIRE(assembly_diag.Norml2() < 1.e-12);
 
             delete h1_fec;
@@ -142,6 +146,9 @@ TEST_CASE("Diffusion Diagonal PA", "[PartialAssembly][AssembleDiagonal]")
    {
       for (int ne = 1; ne < 3; ++ne)
       {
+         const int n_elements = pow(ne, dimension);
+         CAPTURE(dimension, n_elements);
+
          for (int order = 1; order < 5; ++order)
          {
             Mesh mesh;
@@ -216,6 +223,8 @@ TEST_CASE("Diffusion Diagonal PA", "[PartialAssembly][AssembleDiagonal]")
                faform.SpMat().GetDiag(assembly_diag);
 
                assembly_diag -= pa_diag;
+               double error = assembly_diag.Norml2();
+               CAPTURE(order, coeffType, error);
                REQUIRE(assembly_diag.Norml2() < 1.e-12);
 
                delete coeff;
@@ -354,6 +363,9 @@ TEST_CASE("Hcurl/Hdiv diagonal PA",
             {
                for (int ne = 1; ne < 3; ++ne)
                {
+                  const int n_elements = std::pow(ne, dimension);
+                  CAPTURE(dimension, spaceType, integrator, coeffType, n_elements);
+
                   int max_order = (dimension == 3) ? 2 : 3;
 
                   for (int order = 1; order <= max_order; ++order)
@@ -436,6 +448,8 @@ TEST_CASE("Hcurl/Hdiv diagonal PA",
                      faform.SpMat().GetDiag(assembly_diag);
 
                      assembly_diag -= pa_diag;
+                     double error = assembly_diag.Norml2();
+                     CAPTURE(order, error);
                      REQUIRE(assembly_diag.Norml2() < 1.e-11);
 
                      delete fec;

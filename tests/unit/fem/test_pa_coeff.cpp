@@ -137,6 +137,7 @@ TEST_CASE("H1 PA Coefficient", "[PartialAssembly][Coefficient]")
             const int ne = 2;
             for (int order = 1; order < 4; ++order)
             {
+               CAPTURE(dimension, coeffType, integrator, order);
                Mesh mesh = MakeCartesianNonaligned(dimension, ne);
 
                FiniteElementCollection* h1_fec =
@@ -323,6 +324,8 @@ TEST_CASE("Hcurl/Hdiv PA Coefficient",
             {
                for (int order = 1; order < 4; ++order)
                {
+                  CAPTURE(spaceType, dimension, coeffType, integrator, order);
+
                   FiniteElementCollection* fec = nullptr;
                   if (spaceType == Hcurl || spaceType == HcurlHdiv)
                   {
@@ -650,6 +653,7 @@ TEST_CASE("Hcurl/Hdiv Mixed PA Coefficient",
             {
                for (int order = 1; order < 4; ++order)
                {
+                  CAPTURE(spaceType, dimension, coeffType, integrator, order);
                   FiniteElementCollection* vec_fec = nullptr;
                   if (spaceType == HcurlH1 || spaceType == HcurlL2 || spaceType == HcurlH1_2D)
                   {
