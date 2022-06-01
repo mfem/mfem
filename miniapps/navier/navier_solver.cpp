@@ -143,7 +143,7 @@ void NavierSolver::Setup(double dt)
    Array<int> empty;
 
    // GLL integration rule (Numerical Integration)
-  // IntegrationRules rules_ni(0, Quadrature1D::GaussLobatto);
+   // IntegrationRules rules_ni(0, Quadrature1D::GaussLobatto);
    const IntegrationRule &ir_ni = gll_rules.Get(vfes->GetFE(0)->GetGeomType(),
                                                 2 * order - 1);
 

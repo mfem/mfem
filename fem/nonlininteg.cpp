@@ -777,7 +777,7 @@ void VectorConvectionNLFIntegrator::AssembleElementVector(
          Z->Eval(zq, T, ip);
          vec1 -= zq;
       }
-      
+
       gradEF.Mult(vec1, vec2);
       vec2 *= w;
       AddMultVWt(shape, vec2, ELV);

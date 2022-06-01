@@ -53,20 +53,20 @@ void vel(const Vector &coords, double t, Vector &u)
             * sin(ctx.fx * M_PI
                   * (-1.0 + y
                      - (ctx.a * sin(ctx.ft * M_PI * t) * sin(ctx.fx * M_PI * x))
-                          / (ctx.ft * M_PI))));
+                     / (ctx.ft * M_PI))));
    u(1) = ctx.a * cos(ctx.ft * M_PI * t)
-             * cos(ctx.fx * M_PI
-                   * (-1.0 + y
-                      - (ctx.a * sin(ctx.ft * M_PI * t) * sin(ctx.fx * M_PI * x))
-                           / (ctx.ft * M_PI)))
-             * sin(ctx.fx * M_PI * x)
+          * cos(ctx.fx * M_PI
+                * (-1.0 + y
+                   - (ctx.a * sin(ctx.ft * M_PI * t) * sin(ctx.fx * M_PI * x))
+                   / (ctx.ft * M_PI)))
+          * sin(ctx.fx * M_PI * x)
           - (pow(ctx.a, 2.0) * ctx.fx * cos(ctx.ft * M_PI * t)
              * pow(cos(ctx.fx * M_PI * x), 2.0) * sin(ctx.ft * M_PI * t)
              * sin(ctx.fx * M_PI
                    * (-1.0 + y
                       - (ctx.a * sin(ctx.ft * M_PI * t) * sin(ctx.fx * M_PI * x))
-                           / (ctx.ft * M_PI))))
-               / ctx.ft;
+                      / (ctx.ft * M_PI))))
+          / ctx.ft;
 }
 
 double p(const Vector &coords, double t)
@@ -83,161 +83,170 @@ void accel(const Vector &coords, double t, Vector &u)
    double x = coords(0);
    double y = coords(1);
 
-   u(0) = (-(pow(ctx.ft, 2.0) * ctx.fx * M_PI * cos(ctx.ft * M_PI * t) * cos(ctx.fx * M_PI * y)
+   u(0) = (-(pow(ctx.ft, 2.0) * ctx.fx * M_PI * cos(ctx.ft * M_PI * t) * cos(
+                ctx.fx * M_PI * y)
              * sin(ctx.fx * M_PI * x))
            + pow(ctx.a, 2.0) * pow(ctx.ft, 2.0) * ctx.fx * M_PI
-                * pow(cos(ctx.ft * M_PI * t), 2.0) * cos(ctx.fx * M_PI * x)
-                * cos(ctx.fx * M_PI
-                      * (-1.0 + y
-                         - (ctx.a * sin(ctx.ft * M_PI * t) * sin(ctx.fx * M_PI * x))
-                              / (ctx.ft * M_PI)))
-                * sin(ctx.fx * M_PI * x)
+           * pow(cos(ctx.ft * M_PI * t), 2.0) * cos(ctx.fx * M_PI * x)
+           * cos(ctx.fx * M_PI
+                 * (-1.0 + y
+                    - (ctx.a * sin(ctx.ft * M_PI * t) * sin(ctx.fx * M_PI * x))
+                    / (ctx.ft * M_PI)))
+           * sin(ctx.fx * M_PI * x)
            - pow(ctx.a, 2.0) * pow(ctx.ft, 2.0) * ctx.fx * M_PI
-                * pow(cos(ctx.ft * M_PI * t), 2.0) * cos(ctx.fx * M_PI * x)
-                * pow(cos(ctx.fx * M_PI
-                          * (-1.0 + y
-                             - (ctx.a * sin(ctx.ft * M_PI * t) * sin(ctx.fx * M_PI * x))
-                                  / (ctx.ft * M_PI))),
-                      2.0)
-                * sin(ctx.fx * M_PI * x)
-           + 3.0 * pow(ctx.a, 2.0) * ctx.ft * pow(ctx.fx, 3.0) * ctx.kinvis * pow(M_PI, 2.0)
-                * cos(ctx.ft * M_PI * t) * cos(ctx.fx * M_PI * x)
-                * cos(ctx.fx * M_PI
-                      * (-1.0 + y
-                         - (ctx.a * sin(ctx.ft * M_PI * t) * sin(ctx.fx * M_PI * x))
-                              / (ctx.ft * M_PI)))
-                * sin(ctx.ft * M_PI * t) * sin(ctx.fx * M_PI * x)
-           - 2.0 * ctx.a * pow(ctx.ft, 2.0) * pow(ctx.fx, 2.0) * ctx.kinvis * pow(M_PI, 2.0)
-                * cos(ctx.ft * M_PI * t) * cos(ctx.fx * M_PI * x)
-                * sin(ctx.fx * M_PI
-                      * (-1.0 + y
-                         - (ctx.a * sin(ctx.ft * M_PI * t) * sin(ctx.fx * M_PI * x))
-                              / (ctx.ft * M_PI)))
-           + ctx.a * pow(ctx.ft, 3.0) * M_PI * cos(ctx.fx * M_PI * x) * sin(ctx.ft * M_PI * t)
-                * sin(ctx.fx * M_PI
-                      * (-1.0 + y
-                         - (ctx.a * sin(ctx.ft * M_PI * t) * sin(ctx.fx * M_PI * x))
-                              / (ctx.ft * M_PI)))
-           - pow(ctx.a, 3.0) * pow(ctx.fx, 4.0) * ctx.kinvis * pow(M_PI, 2.0) * cos(ctx.ft * M_PI * t)
-                * pow(cos(ctx.fx * M_PI * x), 3.0) * pow(sin(ctx.ft * M_PI * t), 2.0)
-                * sin(ctx.fx * M_PI
-                      * (-1.0 + y
-                         - (ctx.a * sin(ctx.ft * M_PI * t) * sin(ctx.fx * M_PI * x))
-                              / (ctx.ft * M_PI)))
+           * pow(cos(ctx.ft * M_PI * t), 2.0) * cos(ctx.fx * M_PI * x)
+           * pow(cos(ctx.fx * M_PI
+                     * (-1.0 + y
+                        - (ctx.a * sin(ctx.ft * M_PI * t) * sin(ctx.fx * M_PI * x))
+                        / (ctx.ft * M_PI))),
+                 2.0)
+           * sin(ctx.fx * M_PI * x)
+           + 3.0 * pow(ctx.a, 2.0) * ctx.ft * pow(ctx.fx, 3.0) * ctx.kinvis * pow(M_PI,
+                                                                                  2.0)
+           * cos(ctx.ft * M_PI * t) * cos(ctx.fx * M_PI * x)
+           * cos(ctx.fx * M_PI
+                 * (-1.0 + y
+                    - (ctx.a * sin(ctx.ft * M_PI * t) * sin(ctx.fx * M_PI * x))
+                    / (ctx.ft * M_PI)))
+           * sin(ctx.ft * M_PI * t) * sin(ctx.fx * M_PI * x)
+           - 2.0 * ctx.a * pow(ctx.ft, 2.0) * pow(ctx.fx, 2.0) * ctx.kinvis * pow(M_PI,
+                                                                                  2.0)
+           * cos(ctx.ft * M_PI * t) * cos(ctx.fx * M_PI * x)
+           * sin(ctx.fx * M_PI
+                 * (-1.0 + y
+                    - (ctx.a * sin(ctx.ft * M_PI * t) * sin(ctx.fx * M_PI * x))
+                    / (ctx.ft * M_PI)))
+           + ctx.a * pow(ctx.ft, 3.0) * M_PI * cos(ctx.fx * M_PI * x) * sin(
+              ctx.ft * M_PI * t)
+           * sin(ctx.fx * M_PI
+                 * (-1.0 + y
+                    - (ctx.a * sin(ctx.ft * M_PI * t) * sin(ctx.fx * M_PI * x))
+                    / (ctx.ft * M_PI)))
+           - pow(ctx.a, 3.0) * pow(ctx.fx, 4.0) * ctx.kinvis * pow(M_PI,
+                                                                   2.0) * cos(ctx.ft * M_PI * t)
+           * pow(cos(ctx.fx * M_PI * x), 3.0) * pow(sin(ctx.ft * M_PI * t), 2.0)
+           * sin(ctx.fx * M_PI
+                 * (-1.0 + y
+                    - (ctx.a * sin(ctx.ft * M_PI * t) * sin(ctx.fx * M_PI * x))
+                    / (ctx.ft * M_PI)))
            - pow(ctx.a, 2.0) * pow(ctx.ft, 2.0) * ctx.fx * M_PI
-                * pow(cos(ctx.ft * M_PI * t), 2.0) * cos(ctx.fx * M_PI * x)
-                * sin(ctx.fx * M_PI * x)
-                * pow(sin(ctx.fx * M_PI
-                          * (-1.0 + y
-                             - (ctx.a * sin(ctx.ft * M_PI * t) * sin(ctx.fx * M_PI * x))
-                                  / (ctx.ft * M_PI))),
-                      2.0))
+           * pow(cos(ctx.ft * M_PI * t), 2.0) * cos(ctx.fx * M_PI * x)
+           * sin(ctx.fx * M_PI * x)
+           * pow(sin(ctx.fx * M_PI
+                     * (-1.0 + y
+                        - (ctx.a * sin(ctx.ft * M_PI * t) * sin(ctx.fx * M_PI * x))
+                        / (ctx.ft * M_PI))),
+                 2.0))
           / pow(ctx.ft, 2.0);
 
-   u(1) = (2.0 * ctx.a * pow(ctx.ft, 3.0) * pow(ctx.fx, 2.0) * ctx.kinvis * pow(M_PI, 2.0)
-              * cos(ctx.ft * M_PI * t)
-              * cos(ctx.fx * M_PI
-                    * (-1.0 + y
-                       - (ctx.a * sin(ctx.ft * M_PI * t) * sin(ctx.fx * M_PI * x))
-                            / (ctx.ft * M_PI)))
-              * sin(ctx.fx * M_PI * x)
+   u(1) = (2.0 * ctx.a * pow(ctx.ft, 3.0) * pow(ctx.fx,
+                                                2.0) * ctx.kinvis * pow(M_PI, 2.0)
+           * cos(ctx.ft * M_PI * t)
+           * cos(ctx.fx * M_PI
+                 * (-1.0 + y
+                    - (ctx.a * sin(ctx.ft * M_PI * t) * sin(ctx.fx * M_PI * x))
+                    / (ctx.ft * M_PI)))
+           * sin(ctx.fx * M_PI * x)
            - ctx.a * pow(ctx.ft, 4.0) * M_PI
-                * cos(ctx.fx * M_PI
-                      * (-1.0 + y
-                         - (ctx.a * sin(ctx.ft * M_PI * t) * sin(ctx.fx * M_PI * x))
-                              / (ctx.ft * M_PI)))
-                * sin(ctx.ft * M_PI * t) * sin(ctx.fx * M_PI * x)
+           * cos(ctx.fx * M_PI
+                 * (-1.0 + y
+                    - (ctx.a * sin(ctx.ft * M_PI * t) * sin(ctx.fx * M_PI * x))
+                    / (ctx.ft * M_PI)))
+           * sin(ctx.ft * M_PI * t) * sin(ctx.fx * M_PI * x)
            + pow(ctx.a, 3.0) * pow(ctx.ft, 2.0) * pow(ctx.fx, 2.0) * M_PI
-                * pow(cos(ctx.ft * M_PI * t), 2.0) * pow(cos(ctx.fx * M_PI * x), 2.0)
-                * cos(ctx.fx * M_PI
-                      * (-1.0 + y
-                         - (ctx.a * sin(ctx.ft * M_PI * t) * sin(ctx.fx * M_PI * x))
-                              / (ctx.ft * M_PI)))
-                * sin(ctx.ft * M_PI * t) * sin(ctx.fx * M_PI * x)
+           * pow(cos(ctx.ft * M_PI * t), 2.0) * pow(cos(ctx.fx * M_PI * x), 2.0)
+           * cos(ctx.fx * M_PI
+                 * (-1.0 + y
+                    - (ctx.a * sin(ctx.ft * M_PI * t) * sin(ctx.fx * M_PI * x))
+                    / (ctx.ft * M_PI)))
+           * sin(ctx.ft * M_PI * t) * sin(ctx.fx * M_PI * x)
            - pow(ctx.a, 3.0) * pow(ctx.ft, 2.0) * pow(ctx.fx, 2.0) * M_PI
-                * pow(cos(ctx.ft * M_PI * t), 2.0) * pow(cos(ctx.fx * M_PI * x), 2.0)
-                * pow(cos(ctx.fx * M_PI
-                          * (-1.0 + y
-                             - (ctx.a * sin(ctx.ft * M_PI * t) * sin(ctx.fx * M_PI * x))
-                                  / (ctx.ft * M_PI))),
-                      2.0)
-                * sin(ctx.ft * M_PI * t) * sin(ctx.fx * M_PI * x)
-           + 6.0 * pow(ctx.a, 3.0) * ctx.ft * pow(ctx.fx, 4.0) * ctx.kinvis * pow(M_PI, 2.0)
-                * cos(ctx.ft * M_PI * t) * pow(cos(ctx.fx * M_PI * x), 2.0)
-                * cos(ctx.fx * M_PI
-                      * (-1.0 + y
-                         - (ctx.a * sin(ctx.ft * M_PI * t) * sin(ctx.fx * M_PI * x))
-                              / (ctx.ft * M_PI)))
-                * pow(sin(ctx.ft * M_PI * t), 2.0) * sin(ctx.fx * M_PI * x)
-           - pow(ctx.ft, 3.0) * ctx.fx * M_PI * cos(ctx.ft * M_PI * t) * cos(ctx.fx * M_PI * x)
-                * sin(ctx.fx * M_PI * y)
+           * pow(cos(ctx.ft * M_PI * t), 2.0) * pow(cos(ctx.fx * M_PI * x), 2.0)
+           * pow(cos(ctx.fx * M_PI
+                     * (-1.0 + y
+                        - (ctx.a * sin(ctx.ft * M_PI * t) * sin(ctx.fx * M_PI * x))
+                        / (ctx.ft * M_PI))),
+                 2.0)
+           * sin(ctx.ft * M_PI * t) * sin(ctx.fx * M_PI * x)
+           + 6.0 * pow(ctx.a, 3.0) * ctx.ft * pow(ctx.fx, 4.0) * ctx.kinvis * pow(M_PI,
+                                                                                  2.0)
+           * cos(ctx.ft * M_PI * t) * pow(cos(ctx.fx * M_PI * x), 2.0)
+           * cos(ctx.fx * M_PI
+                 * (-1.0 + y
+                    - (ctx.a * sin(ctx.ft * M_PI * t) * sin(ctx.fx * M_PI * x))
+                    / (ctx.ft * M_PI)))
+           * pow(sin(ctx.ft * M_PI * t), 2.0) * sin(ctx.fx * M_PI * x)
+           - pow(ctx.ft, 3.0) * ctx.fx * M_PI * cos(ctx.ft * M_PI * t) * cos(
+              ctx.fx * M_PI * x)
+           * sin(ctx.fx * M_PI * y)
            - pow(ctx.a, 2.0) * pow(ctx.ft, 3.0) * ctx.fx * M_PI
-                * pow(cos(ctx.ft * M_PI * t), 2.0) * pow(cos(ctx.fx * M_PI * x), 2.0)
-                * sin(ctx.fx * M_PI
-                      * (-1.0 + y
-                         - (ctx.a * sin(ctx.ft * M_PI * t) * sin(ctx.fx * M_PI * x))
-                              / (ctx.ft * M_PI)))
+           * pow(cos(ctx.ft * M_PI * t), 2.0) * pow(cos(ctx.fx * M_PI * x), 2.0)
+           * sin(ctx.fx * M_PI
+                 * (-1.0 + y
+                    - (ctx.a * sin(ctx.ft * M_PI * t) * sin(ctx.fx * M_PI * x))
+                    / (ctx.ft * M_PI)))
            - pow(ctx.a, 2.0) * pow(ctx.ft, 3.0) * ctx.fx * M_PI
-                * pow(cos(ctx.ft * M_PI * t), 2.0) * pow(cos(ctx.fx * M_PI * x), 2.0)
-                * cos(ctx.fx * M_PI
-                      * (-1.0 + y
-                         - (ctx.a * sin(ctx.ft * M_PI * t) * sin(ctx.fx * M_PI * x))
-                              / (ctx.ft * M_PI)))
-                * sin(ctx.fx * M_PI
-                      * (-1.0 + y
-                         - (ctx.a * sin(ctx.ft * M_PI * t) * sin(ctx.fx * M_PI * x))
-                              / (ctx.ft * M_PI)))
+           * pow(cos(ctx.ft * M_PI * t), 2.0) * pow(cos(ctx.fx * M_PI * x), 2.0)
+           * cos(ctx.fx * M_PI
+                 * (-1.0 + y
+                    - (ctx.a * sin(ctx.ft * M_PI * t) * sin(ctx.fx * M_PI * x))
+                    / (ctx.ft * M_PI)))
+           * sin(ctx.fx * M_PI
+                 * (-1.0 + y
+                    - (ctx.a * sin(ctx.ft * M_PI * t) * sin(ctx.fx * M_PI * x))
+                    / (ctx.ft * M_PI)))
            - 5.0 * pow(ctx.a, 2.0) * pow(ctx.ft, 2.0) * pow(ctx.fx, 3.0) * ctx.kinvis
-                * pow(M_PI, 2.0) * cos(ctx.ft * M_PI * t)
-                * pow(cos(ctx.fx * M_PI * x), 2.0) * sin(ctx.ft * M_PI * t)
-                * sin(ctx.fx * M_PI
-                      * (-1.0 + y
-                         - (ctx.a * sin(ctx.ft * M_PI * t) * sin(ctx.fx * M_PI * x))
-                              / (ctx.ft * M_PI)))
+           * pow(M_PI, 2.0) * cos(ctx.ft * M_PI * t)
+           * pow(cos(ctx.fx * M_PI * x), 2.0) * sin(ctx.ft * M_PI * t)
+           * sin(ctx.fx * M_PI
+                 * (-1.0 + y
+                    - (ctx.a * sin(ctx.ft * M_PI * t) * sin(ctx.fx * M_PI * x))
+                    / (ctx.ft * M_PI)))
            + pow(ctx.a, 2.0) * pow(ctx.ft, 3.0) * ctx.fx * M_PI
-                * pow(cos(ctx.fx * M_PI * x), 2.0) * pow(sin(ctx.ft * M_PI * t), 2.0)
-                * sin(ctx.fx * M_PI
-                      * (-1.0 + y
-                         - (ctx.a * sin(ctx.ft * M_PI * t) * sin(ctx.fx * M_PI * x))
-                              / (ctx.ft * M_PI)))
-           - pow(ctx.a, 4.0) * pow(ctx.fx, 5.0) * ctx.kinvis * pow(M_PI, 2.0) * cos(ctx.ft * M_PI * t)
-                * pow(cos(ctx.fx * M_PI * x), 4.0) * pow(sin(ctx.ft * M_PI * t), 3.0)
-                * sin(ctx.fx * M_PI
-                      * (-1.0 + y
-                         - (ctx.a * sin(ctx.ft * M_PI * t) * sin(ctx.fx * M_PI * x))
-                              / (ctx.ft * M_PI)))
+           * pow(cos(ctx.fx * M_PI * x), 2.0) * pow(sin(ctx.ft * M_PI * t), 2.0)
+           * sin(ctx.fx * M_PI
+                 * (-1.0 + y
+                    - (ctx.a * sin(ctx.ft * M_PI * t) * sin(ctx.fx * M_PI * x))
+                    / (ctx.ft * M_PI)))
+           - pow(ctx.a, 4.0) * pow(ctx.fx, 5.0) * ctx.kinvis * pow(M_PI,
+                                                                   2.0) * cos(ctx.ft * M_PI * t)
+           * pow(cos(ctx.fx * M_PI * x), 4.0) * pow(sin(ctx.ft * M_PI * t), 3.0)
+           * sin(ctx.fx * M_PI
+                 * (-1.0 + y
+                    - (ctx.a * sin(ctx.ft * M_PI * t) * sin(ctx.fx * M_PI * x))
+                    / (ctx.ft * M_PI)))
            + pow(ctx.a, 2.0) * pow(ctx.ft, 3.0) * ctx.fx * M_PI
-                * pow(cos(ctx.ft * M_PI * t), 2.0) * pow(sin(ctx.fx * M_PI * x), 2.0)
-                * sin(ctx.fx * M_PI
-                      * (-1.0 + y
-                         - (ctx.a * sin(ctx.ft * M_PI * t) * sin(ctx.fx * M_PI * x))
-                              / (ctx.ft * M_PI)))
+           * pow(cos(ctx.ft * M_PI * t), 2.0) * pow(sin(ctx.fx * M_PI * x), 2.0)
+           * sin(ctx.fx * M_PI
+                 * (-1.0 + y
+                    - (ctx.a * sin(ctx.ft * M_PI * t) * sin(ctx.fx * M_PI * x))
+                    / (ctx.ft * M_PI)))
            - pow(ctx.a, 2.0) * pow(ctx.ft, 3.0) * ctx.fx * M_PI
-                * pow(cos(ctx.ft * M_PI * t), 2.0)
-                * cos(ctx.fx * M_PI
-                      * (-1.0 + y
-                         - (ctx.a * sin(ctx.ft * M_PI * t) * sin(ctx.fx * M_PI * x))
-                              / (ctx.ft * M_PI)))
-                * pow(sin(ctx.fx * M_PI * x), 2.0)
-                * sin(ctx.fx * M_PI
-                      * (-1.0 + y
-                         - (ctx.a * sin(ctx.ft * M_PI * t) * sin(ctx.fx * M_PI * x))
-                              / (ctx.ft * M_PI)))
+           * pow(cos(ctx.ft * M_PI * t), 2.0)
+           * cos(ctx.fx * M_PI
+                 * (-1.0 + y
+                    - (ctx.a * sin(ctx.ft * M_PI * t) * sin(ctx.fx * M_PI * x))
+                    / (ctx.ft * M_PI)))
+           * pow(sin(ctx.fx * M_PI * x), 2.0)
+           * sin(ctx.fx * M_PI
+                 * (-1.0 + y
+                    - (ctx.a * sin(ctx.ft * M_PI * t) * sin(ctx.fx * M_PI * x))
+                    / (ctx.ft * M_PI)))
            + 3.0 * pow(ctx.a, 2.0) * pow(ctx.ft, 2.0) * pow(ctx.fx, 3.0) * ctx.kinvis
-                * pow(M_PI, 2.0) * cos(ctx.ft * M_PI * t) * sin(ctx.ft * M_PI * t)
-                * pow(sin(ctx.fx * M_PI * x), 2.0)
-                * sin(ctx.fx * M_PI
-                      * (-1.0 + y
-                         - (ctx.a * sin(ctx.ft * M_PI * t) * sin(ctx.fx * M_PI * x))
-                              / (ctx.ft * M_PI)))
+           * pow(M_PI, 2.0) * cos(ctx.ft * M_PI * t) * sin(ctx.ft * M_PI * t)
+           * pow(sin(ctx.fx * M_PI * x), 2.0)
+           * sin(ctx.fx * M_PI
+                 * (-1.0 + y
+                    - (ctx.a * sin(ctx.ft * M_PI * t) * sin(ctx.fx * M_PI * x))
+                    / (ctx.ft * M_PI)))
            - 2.0 * pow(ctx.a, 3.0) * pow(ctx.ft, 2.0) * pow(ctx.fx, 2.0) * M_PI
-                * pow(cos(ctx.ft * M_PI * t), 2.0) * pow(cos(ctx.fx * M_PI * x), 2.0)
-                * sin(ctx.ft * M_PI * t) * sin(ctx.fx * M_PI * x)
-                * pow(sin(ctx.fx * M_PI
-                          * (-1.0 + y
-                             - (ctx.a * sin(ctx.ft * M_PI * t) * sin(ctx.fx * M_PI * x))
-                                  / (ctx.ft * M_PI))),
-                      2.0))
+           * pow(cos(ctx.ft * M_PI * t), 2.0) * pow(cos(ctx.fx * M_PI * x), 2.0)
+           * sin(ctx.ft * M_PI * t) * sin(ctx.fx * M_PI * x)
+           * pow(sin(ctx.fx * M_PI
+                     * (-1.0 + y
+                        - (ctx.a * sin(ctx.ft * M_PI * t) * sin(ctx.fx * M_PI * x))
+                        / (ctx.ft * M_PI))),
+                 2.0))
           / pow(ctx.ft, 3.0);
 }
 
@@ -366,7 +375,8 @@ int main(int argc, char *argv[])
    ParGridFunction u_ex(*u_gf);
    ParGridFunction p_ex(*p_gf);
 
-   auto userchk = [&](int step) {
+   auto userchk = [&](int step)
+   {
       u_ex.ProjectCoefficient(u_excoeff);
       for (int i = 0; i < u_ex.Size(); ++i)
       {
@@ -413,22 +423,24 @@ int main(int argc, char *argv[])
    auto xi_0 = new GridFunction(*pmesh->GetNodes());
 
    VectorFunctionCoefficient
-      mesh_nodes(2, [&](const Vector &cin, double t, Vector &cout) {
-         double x = cin(0);
-         double y = cin(1);
-         double eta = ctx.a / (M_PI * ctx.ft) * sin(ctx.fx * M_PI * x)
-                      * sin(ctx.ft * M_PI * t);
-         cout(0) = x;
-         cout(1) = (1.0 + eta) * y;
-      });
+   mesh_nodes(2, [&](const Vector &cin, double t, Vector &cout)
+   {
+      double x = cin(0);
+      double y = cin(1);
+      double eta = ctx.a / (M_PI * ctx.ft) * sin(ctx.fx * M_PI * x)
+                   * sin(ctx.ft * M_PI * t);
+      cout(0) = x;
+      cout(1) = (1.0 + eta) * y;
+   });
 
    VectorFunctionCoefficient
-      mesh_nodes_velocity(2, [&](const Vector &cin, double t, Vector &cout) {
-         double x = cin(0);
-         double y = cin(1);
-         cout(0) = 0.0;
-         cout(1) = ctx.a * y * cos(ctx.ft * M_PI * t) * sin(ctx.fx * M_PI * x);
-      });
+   mesh_nodes_velocity(2, [&](const Vector &cin, double t, Vector &cout)
+   {
+      double x = cin(0);
+      double y = cin(1);
+      cout(0) = 0.0;
+      cout(1) = ctx.a * y * cos(ctx.ft * M_PI * t) * sin(ctx.fx * M_PI * x);
+   });
 
    ParaViewDataCollection paraview_dc("fsimms", pmesh);
    paraview_dc.SetLevelsOfDetail(ctx.order);
