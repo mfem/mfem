@@ -2581,7 +2581,7 @@ public:
    Table group__shared_entity_to_vertex[Geometry::NumGeom];
 
    // Write the MeshPart to a stream using the parallel format "MFEM mesh v1.2".
-   void Print(std::ostream &out) const;
+   void Print(std::ostream &os) const;
 
    // Construct a serrial Mesh object from the MeshPart. The nodes of 'mesh' are
    // NOT initialized by this method, however, the nodal FE space and nodal
