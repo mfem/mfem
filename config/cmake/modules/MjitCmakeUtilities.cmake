@@ -64,10 +64,15 @@ endfunction(set_mjit_sources_dependencies)
 # set_mjit_compile_definitions #
 ################################
 function(set_mjit_compile_definitions)
-    #message(NOTICE "${ESC}[1;33m[mjit_configure]${ESC}[m")
-    #message(NOTICE "\t${ESC}[33m[MFEM_CXX] ${MFEM_CXX}${ESC}[m")
-    #message(NOTICE "\t${ESC}[33m[MFEM_EXT_LIBS] ${MFEM_EXT_LIBS}${ESC}[m")
-    #message(NOTICE "\t${ESC}[33m[MFEM_BUILD_FLAGS] ${MFEM_BUILD_FLAGS}${ESC}[m")
+    message(NOTICE "${ESC}[1;33m[mjit_configure]${ESC}[m")
+    message(NOTICE "\t${ESC}[33m[MFEM_CXX] ${MFEM_CXX}${ESC}[m")
+    message(NOTICE "\t${ESC}[33m[MFEM_EXT_LIBS] ${MFEM_EXT_LIBS}${ESC}[m")
+    message(NOTICE "\t${ESC}[33m[MFEM_BUILD_FLAGS] ${MFEM_BUILD_FLAGS}${ESC}[m")
+
+    if(CMAKE_OSX_SYSROOT)
+        message(NOTICE "\t${ESC}[33m[CMAKE_OSX_SYSROOT] ${CMAKE_OSX_SYSROOT}${ESC}[m")
+        set(MFEM_BUILD_FLAGS "${MFEM_BUILD_FLAGS} -isysroot ${CMAKE_OSX_SYSROOT}")
+    endif(CMAKE_OSX_SYSROOT)
 
     if (MFEM_USE_CUDA)
        message("${ESC}[1;32m")
@@ -78,6 +83,7 @@ function(set_mjit_compile_definitions)
        set_source_files_properties(general/jit/parser.cpp PROPERTIES LANGUAGE CUDA)
        #target_compile_options(mjit BEFORE PRIVATE "-Wno-unknown-escape-sequence")
     endif() # MFEM_USE_CUDA
+
 
     target_compile_definitions(mjit PRIVATE
            "MFEM_CXX=\"${MFEM_CXX}\""
