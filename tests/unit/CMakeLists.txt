@@ -279,22 +279,29 @@ if (MFEM_USE_MPI)
                   ${MPIEXEC_POSTFLAGS})
       endforeach()
    endif()
+   # Define executables and tests 'pmjit_tests'
    if (MFEM_USE_JIT)
       set(PMJIT_TESTS_SRCS
           mjit/test_bbps.cpp
           mjit/test_empty.cpp
           mjit/test_comments.cpp
           mjit/test_par_main.cpp)
+      convert_filenames_to_full_paths(PMJIT_TESTS_SRCS)
+      set_mjit_sources_dependencies(PMJIT_TESTS_SOURCES PMJIT_TESTS_SRCS)
+      #message(NOTICE "PMJIT_TESTS_SOURCES:${PMJIT_TESTS_SOURCES}")
       if (MFEM_USE_CUDA)
-         set_property(SOURCE ${PMJIT_TESTS_SRCS} PROPERTY LANGUAGE CUDA)
+         set_property(SOURCE ${PMJIT_TESTS_SOURCES} PROPERTY LANGUAGE CUDA)
       endif(MFEM_USE_CUDA)
-      add_executable(pmjit_tests ${PMJIT_TESTS_SRCS})
+      add_executable(pmjit_tests ${PMJIT_TESTS_SOURCES})
       target_link_libraries(pmjit_tests mfem)
       add_dependencies(${MFEM_ALL_TESTS_TARGET_NAME} pmjit_tests)
       foreach(np 1 ${MFEM_MPI_NP})
-         add_test(NAME pmjit_tests COMMAND pmjit_tests)
+          add_test(NAME pmjit_tests_np=${np}
+                   COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${np}
+                   ${MPIEXEC_PREFLAGS} $<TARGET_FILE:pmjit_tests>
+                   ${MPIEXEC_POSTFLAGS})
      endforeach()
-   endif() # MFEM_USE_JIT
+   endif(MFEM_USE_JIT)
 endif(MFEM_USE_MPI)
 
 #-----------------------------------------------------------

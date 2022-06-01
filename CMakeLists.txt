@@ -152,9 +152,8 @@ set(CMAKE_MACOSX_RPATH OFF CACHE BOOL "")
 set(MFEM_CMAKE_PATH ${PROJECT_SOURCE_DIR}/config)
 set(CMAKE_MODULE_PATH ${MFEM_CMAKE_PATH}/cmake/modules)
 
-# Load MFEM/JIT CMake utilities.
+# Load MFEM CMake utilities.
 include(MfemCmakeUtilities)
-include(MjitCmakeUtilities)
 
 string(TOUPPER "${PROJECT_NAME}" PROJECT_NAME_UC)
 mfem_version_to_int(${${PROJECT_NAME}_VERSION} ${PROJECT_NAME_UC}_VERSION)
@@ -246,6 +245,13 @@ endif()
 if (MFEM_USE_ZLIB)
   find_package(ZLIB REQUIRED)
 endif()
+
+# JIT
+if (MFEM_USE_JIT)
+    set(JIT_FOUND TRUE)
+    set(JIT_INCLUDE_DIRS)
+    set(JIT_LIBRARIES "-ldl")
+endif(MFEM_USE_JIT)
 
 # Backtrace with libunwind
 if (MFEM_USE_LIBUNWIND)
@@ -480,7 +486,7 @@ set(MFEM_TPLS OPENMP HYPRE BLAS LAPACK SuperLUDist METIS SuiteSparse SUNDIALS
     PETSC SLEPC MESQUITE MUMPS STRUMPACK AXOM FMS CONDUIT Ginkgo GNUTLS GSLIB
     NETCDF MPFR PUMI HIOP POSIXCLOCKS MFEMBacktrace ZLIB OCCA CEED RAJA UMPIRE
     ADIOS2 CUSPARSE MKL_CPARDISO AMGX CALIPER CODIPACK BENCHMARK PARELAG
-    MPI_CXX HIP HIPSPARSE MOONOLITH BLITZ ALGOIM)
+    MPI_CXX HIP HIPSPARSE JIT MOONOLITH BLITZ ALGOIM)
 
 # Add all *_FOUND libraries in the variable TPL_LIBRARIES.
 set(TPL_LIBRARIES "")
@@ -503,6 +509,8 @@ if (OPENMP_FOUND)
     set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -Xcompiler=${OpenMP_CXX_FLAGS}")
   endif()
 endif()
+
+include(MjitCmakeUtilities)
 
 message(STATUS "MFEM build type: CMAKE_BUILD_TYPE = ${CMAKE_BUILD_TYPE}")
 message(STATUS "MFEM version: v${MFEM_VERSION_STRING}")
@@ -530,7 +538,7 @@ if (MFEM_USE_CUDA)
 endif()
 
 if (MFEM_USE_JIT)
-    add_mjit_executable()
+    #add_mjit_executable()
     set_mjit_sources_dependencies(MJIT_SOURCES JITSRCS)
 else()
     list(APPEND SOURCES ${JITSRCS})
@@ -553,9 +561,6 @@ set(MFEM_INSTALL_DIR ${CMAKE_INSTALL_PREFIX} CACHE PATH
 
 # Declaring the library
 mfem_add_library(mfem ${SOURCES} ${MJIT_SOURCES} ${HEADERS} ${MASTER_HEADERS})
-if (MFEM_USE_JIT)
-   target_link_libraries(mfem -ldl)
-endif() # MFEM_USE_JIT
 
 # message(STATUS "TPL_LIBRARIES = ${TPL_LIBRARIES}")
 target_link_libraries(mfem PUBLIC ${TPL_LIBRARIES})
@@ -807,5 +812,6 @@ install(EXPORT ${PROJECT_NAME_UC}Targets
 mfem_export_mk_files()
 
 if (MFEM_USE_JIT)
+    add_mjit_executable()
     set_mjit_compile_definitions()
 endif (MFEM_USE_JIT)

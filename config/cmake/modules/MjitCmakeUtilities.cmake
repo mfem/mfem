@@ -19,7 +19,29 @@ message(STATUS "MFEM JIT enabled")
 # ADD MJIT EXECUTABLE  #
 ########################
 function(add_mjit_executable)
+
     add_executable(mjit general/jit/parser.cpp)
+
+    if (MFEM_USE_MPI)
+      if (MPI_CXX_INCLUDE_PATH)
+        target_include_directories(mjit PRIVATE "${MPI_CXX_INCLUDE_PATH}")
+      endif(MPI_CXX_INCLUDE_PATH)
+      if (MPI_CXX_COMPILE_FLAGS)
+        target_compile_options(mjit PRIVATE ${MPI_CXX_COMPILE_ARGS})
+      endif(MPI_CXX_COMPILE_FLAGS)
+      if (MPI_CXX_LINK_FLAGS)
+        set_target_properties(mjit PROPERTIES LINK_FLAGS "${MPI_CXX_LINK_FLAGS}")
+      endif(MPI_CXX_LINK_FLAGS)
+    endif(MFEM_USE_MPI)
+
+    #message(NOTICE "${ESC}[1;32m[MFEM_EXT_LIBS]${MFEM_EXT_LIBS}${ESC}[m")
+    #message(NOTICE "${ESC}[1;32m[MFEM_BUILD_FLAGS]${MFEM_BUILD_FLAGS}${ESC}[m")
+    #message(NOTICE "${ESC}[1;32m[TPL_INCLUDE_DIRS]${TPL_INCLUDE_DIRS}${ESC}[m")
+    #message(NOTICE "${ESC}[1;32m[INCLUDE_INSTALL_DIRS]${INCLUDE_INSTALL_DIRS}${ESC}[m")
+    foreach (dir ${TPL_INCLUDE_DIRS})
+      target_include_directories(mjit PRIVATE ${dir})
+    endforeach (dir "${MFEM_INCLUDE_DIRS}")
+
 endfunction(add_mjit_executable)
 
 #################################
@@ -47,13 +69,13 @@ function(set_mjit_sources_dependencies TARGET SOURCES)
             COMMAND ${CMAKE_COMMAND} -E make_directory ${source_path}
             COMMAND mjit ${source} -o ${jit} DEPENDS mjit ${source})
         set(${TARGET} ${${TARGET}} ${jit})
-        # create the dependency name from source_path and name
-        string(REPLACE " " "_" source_d ${source_path}/${name})
+        # create the dependency name from source_path and name${TARGET}
+        string(REPLACE " " "_" source_d ${TARGET}/${source_path}/${name})
         string(REPLACE "." "_" source_d ${source_d})
         string(REPLACE "-" "_" source_d ${source_d})
         string(REPLACE "/" "_" source_d ${source_d})
         add_custom_target(${source_d} DEPENDS ${jit})
-        #message(NOTICE "\t${ESC}[1;31m${source_d}${ESC}[m")
+        #message(NOTICE "\t${ESC}[1;32m${source_d}${ESC}[m")
         add_dependencies(${TARGET} ${source_d})
         set_source_files_properties(${jit} PROPERTIES COMPILE_OPTIONS -I${dir})
     endforeach()
@@ -65,7 +87,13 @@ endfunction(set_mjit_sources_dependencies)
 ################################
 function(set_mjit_compile_definitions)
     message(NOTICE "${ESC}[1;33m[mjit_configure]${ESC}[m")
+
+    if (MFEM_USE_MPI)
+        message(NOTICE "\t${ESC}[33m[MPI_CXX_COMPILER] ${MPI_CXX_COMPILER}${ESC}[m")
+        set(MFEM_CXX ${MPI_CXX_COMPILER})
+    endif(MFEM_USE_MPI)
     message(NOTICE "\t${ESC}[33m[MFEM_CXX] ${MFEM_CXX}${ESC}[m")
+    message(NOTICE "\t${ESC}[33m[CMAKE_CXX_COMPILER] ${CMAKE_CXX_COMPILER}${ESC}[m")
     message(NOTICE "\t${ESC}[33m[MFEM_EXT_LIBS] ${MFEM_EXT_LIBS}${ESC}[m")
     message(NOTICE "\t${ESC}[33m[MFEM_BUILD_FLAGS] ${MFEM_BUILD_FLAGS}${ESC}[m")
 
@@ -81,9 +109,7 @@ function(set_mjit_compile_definitions)
        message(NOTICE "CUDA_FLAGS: ${CUDA_FLAGS}")
        message("${ESC}[m")
        set_source_files_properties(general/jit/parser.cpp PROPERTIES LANGUAGE CUDA)
-       #target_compile_options(mjit BEFORE PRIVATE "-Wno-unknown-escape-sequence")
     endif() # MFEM_USE_CUDA
-
 
     target_compile_definitions(mjit PRIVATE
            "MFEM_CXX=\"${MFEM_CXX}\""
@@ -91,7 +117,6 @@ function(set_mjit_compile_definitions)
            "MFEM_BUILD_FLAGS=\"${MFEM_BUILD_FLAGS}\""
            "MFEM_LINK_FLAGS=\"${MFEM_BUILD_FLAGS}\"")
 
-    #target_include_directories(mjit PRIVATE "${CMAKE_CURRENT_BINARY_DIR}")
     target_compile_definitions(mjit PRIVATE
       "MFEM_CONFIG_FILE=\"${PROJECT_BINARY_DIR}/config/_config.hpp\"")
 endfunction(set_mjit_compile_definitions)
