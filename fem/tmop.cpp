@@ -3782,8 +3782,7 @@ double TMOP_Integrator::ComputeUntanglerMaxMuT(const Vector &x,
    {
       const FiniteElement *fe = fes.GetFE(i);
       const IntegrationRule &ir = EnergyIntegrationRule(*fe);
-      const int dim = fe->GetDim(),
-                dof = fe->GetDof(), nsp = ir.GetNPoints();
+      const int dof = fe->GetDof(), nsp = ir.GetNPoints();
       Jpr.SetSize(dim);
       Jrt.SetSize(dim);
       Jpt.SetSize(dim);
