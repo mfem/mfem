@@ -52,8 +52,8 @@ struct Jit
       Kernel(const size_t hash, const char *name, const char *cxx,
              const char *flags, const char *link, const char *libs,
              const char *src, const char *symbol):
-         kernel((kernel_t) Jit::Lookup(hash, name, cxx, flags, link, libs, src,
-                                       symbol)) { }
+         kernel((kernel_t)
+                Jit::Lookup(hash, name, cxx, flags, link, libs, src, symbol)) {}
 
       /// Kernel launch
       template<typename... Args> void operator()(Args... as) { kernel(as...); }

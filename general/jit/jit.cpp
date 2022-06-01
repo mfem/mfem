@@ -16,6 +16,7 @@
 #include "../error.hpp"
 #include "jit.hpp"
 
+#include <list>
 #include <string>
 #include <fstream>
 #include <thread> // sleep_for
@@ -89,7 +90,6 @@ public:
       lock_file(str_name),
       fd(::open(filename, O_CREAT|O_RDWR))
    {
-      dbg() << filename;
       MFEM_VERIFY(lock_file.good(), "[FileLock] lock file error!");
       MFEM_VERIFY(fd > 0, "Cannot open " << filename);
       if (later) { return; }
@@ -440,14 +440,22 @@ public:
          MFEM_VERIFY(handle, "[JIT] Error " << Lib_so() << " from " << Lib_ar());
       }
 
+      static struct AtExitRemover
+      {
+         std::list<const char*> symbols{};
+         ~AtExitRemover()
+         { for (auto file: symbols) { std::remove(file); free((void*)file); } }
+         void operator+=(const char *sym) { symbols.push_back(strdup(sym)); }
+      } RemoveAtExit;
+
       /**
        *  close => can't use fcntl/lock
        *                ck: [w-w-w-w-w-w-w-w-w-w-w-w-w-w-w-w-w-w-w]
-       *                cc:  |------C        D
-       *                co:         |--------|                    D
+       *                cc:  |------Close    Delete
+       *                co:         |--------|                    Delete
        *                ar:                   [x-x-x-x-x-x-x-x-x-x]
-       * (ar+co) => symbol:                            |----|
-       *      symbol => so:                                  |----|
+       * (ar+co) => symbol:                           |----| Deleted at exit
+       *      symbol => so:                                 |x-x-x|
        *
        * */
       auto RootCompile = [&]() // Compilation only done by the root
@@ -485,8 +493,10 @@ public:
                       << ARprefix() << Lib_ar() << ARpostfix()
                       << Xlinker() + "-rpath,." << libs;
             if (Call(name)) { return EXIT_FAILURE; }
+            RemoveAtExit += symbol;
 
             // Install temporary shared library: symbol => libmjit.so
+            io::FileLock(std::string(Lib_so()), "ok");
             Command() << "install" << ARbackup() << symbol << Lib_so();
             if (Call()) { return EXIT_FAILURE; }
             std::remove(co.c_str());
@@ -509,17 +519,11 @@ public:
       // no caches => launch compilation
       if (!handle) { WorldCompile(); }
       MFEM_VERIFY(handle, "[JIT] No handle could be created!");
-
       void *kernel = DLsym(handle, symbol); // symbol lookup
+
       // no symbol => launch compilation & update kernel symbol
-      if (!kernel)
-      {
-         WorldCompile();
-         MFEM_VERIFY(handle, "[JIT] No handle could be created!");
-         kernel = DLsym(handle, symbol);
-      }
+      if (!kernel) { WorldCompile(); kernel = DLsym(handle, symbol); }
       MFEM_VERIFY(kernel, "[JIT] No kernel could be found!");
-      if (mpi::Root()) { std::remove(symbol); }
       return kernel;
    }
 };

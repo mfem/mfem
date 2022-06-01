@@ -9,7 +9,6 @@
 # terms of the BSD-3 license. We welcome feedback and contributions, see file
 # CONTRIBUTING.md for details.
 
-# JIT configuration: SOURCES => MJIT => SOURCES
 if (MFEM_USE_JIT)
 
 string(ASCII 27 ESC)
@@ -56,7 +55,6 @@ endfunction(set_mjit_sources_dependencies)
 # ADD MJIT EXECUTABLE  #
 ########################
 function(add_mjit_executable)
-
     add_executable(mjit general/jit/parser.cpp)
 
     if (MFEM_USE_MPI)
@@ -71,21 +69,15 @@ function(add_mjit_executable)
       endif(MPI_CXX_LINK_FLAGS)
     endif(MFEM_USE_MPI)
 
-    #message(NOTICE "${ESC}[1;32m[MFEM_EXT_LIBS]${MFEM_EXT_LIBS}${ESC}[m")
-    #message(NOTICE "${ESC}[1;32m[MFEM_BUILD_FLAGS]${MFEM_BUILD_FLAGS}${ESC}[m")
-    #message(NOTICE "${ESC}[1;32m[TPL_INCLUDE_DIRS]${TPL_INCLUDE_DIRS}${ESC}[m")
-    #message(NOTICE "${ESC}[1;32m[INCLUDE_INSTALL_DIRS]${INCLUDE_INSTALL_DIRS}${ESC}[m")
     foreach (dir ${TPL_INCLUDE_DIRS})
       target_include_directories(mjit PRIVATE ${dir})
     endforeach (dir "${MFEM_INCLUDE_DIRS}")
-
-
-    message(NOTICE "${ESC}[1;33m[mjit_configure]${ESC}[m")
 
     if (MFEM_USE_MPI)
         message(NOTICE "\t${ESC}[33m[MPI_CXX_COMPILER] ${MPI_CXX_COMPILER}${ESC}[m")
         set(MFEM_CXX ${MPI_CXX_COMPILER})
     endif(MFEM_USE_MPI)
+
     message(NOTICE "\t${ESC}[33m[MFEM_CXX] ${MFEM_CXX}${ESC}[m")
     message(NOTICE "\t${ESC}[33m[CMAKE_CXX_COMPILER] ${CMAKE_CXX_COMPILER}${ESC}[m")
     message(NOTICE "\t${ESC}[33m[MFEM_EXT_LIBS] ${MFEM_EXT_LIBS}${ESC}[m")
@@ -115,4 +107,4 @@ function(add_mjit_executable)
       "MFEM_CONFIG_FILE=\"${PROJECT_BINARY_DIR}/config/_config.hpp\"")
 endfunction(add_mjit_executable)
 
-endif() # MFEM_USE_JIT
+endif(MFEM_USE_JIT)

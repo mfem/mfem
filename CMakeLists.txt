@@ -570,9 +570,9 @@ endif()
 message(STATUS "TPL_INCLUDE_DIRS = ${TPL_INCLUDE_DIRS}")
 target_include_directories(mfem
   PUBLIC
-    ${TPL_INCLUDE_DIRS}
     $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}>
-    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>)
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
+    ${TPL_INCLUDE_DIRS})
 set_target_properties(mfem PROPERTIES VERSION "${mfem_VERSION}")
 set_target_properties(mfem PROPERTIES SOVERSION "${mfem_VERSION}")
 
