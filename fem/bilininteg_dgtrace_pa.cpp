@@ -695,6 +695,7 @@ static void PADGTraceApply(const int dim,
    {
       switch ((D1D << 4 ) | Q1D)
       {
+         case 0x22: return SmemPADGTraceApply3D<2,2,1>(NF,B,Bt,op,x,y);
          case 0x23: return SmemPADGTraceApply3D<2,3,1>(NF,B,Bt,op,x,y);
          case 0x34: return SmemPADGTraceApply3D<3,4,2>(NF,B,Bt,op,x,y);
          case 0x45: return SmemPADGTraceApply3D<4,5,2>(NF,B,Bt,op,x,y);
@@ -1124,6 +1125,7 @@ static void PADGTraceApplyTranspose(const int dim,
    {
       switch ((D1D << 4 ) | Q1D)
       {
+         case 0x22: return SmemPADGTraceApplyTranspose3D<2,2>(NF,B,Bt,op,x,y);
          case 0x23: return SmemPADGTraceApplyTranspose3D<2,3>(NF,B,Bt,op,x,y);
          case 0x34: return SmemPADGTraceApplyTranspose3D<3,4>(NF,B,Bt,op,x,y);
          case 0x45: return SmemPADGTraceApplyTranspose3D<4,5>(NF,B,Bt,op,x,y);
