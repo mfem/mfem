@@ -43,12 +43,37 @@ namespace mfem
 namespace jit
 {
 
+struct dbg
+{
+   static constexpr bool DEBUG = true;
+   static constexpr uint8_t COLOR = 226;
+   dbg(): dbg(COLOR) { }
+   dbg(const uint8_t color)
+   {
+      if (!DEBUG) { return; }
+      std::cout << "\033[38;5;" << std::to_string(color==0?COLOR:color) << "m";
+   }
+   ~dbg() { if (DEBUG) { std::cout << "\033[m\n"; std::cout.flush(); } }
+   template <typename T> dbg& operator<<(const T &arg)
+   { if (DEBUG) { std::cout << arg; std::cout.flush(); } return *this; }
+   template<typename T, typename... Args>
+   inline void operator()(const T &arg, Args... args) const
+   { operator<<(arg); operator()(args...); }
+   template<typename T>
+   inline void operator()(const T &arg) const { operator<<(arg); }
+};
+
 namespace io
 {
 
-class Lock
+class FileLock
 {
-   int handle;
+   std::string str_name;
+   const char *filename;
+   std::ofstream lock_file;
+   int fd;
+
+private:
    static int Ctrl(int fd, int cmd, int type, bool check = true)
    {
       struct ::flock lock {};
@@ -58,18 +83,39 @@ class Lock
       if (check) { MFEM_VERIFY(ret != -1, "fcntl error"); }
       return check ? ret : (ret != -1);
    }
+
 public:
-   Lock(const char *name, bool later = false):
-      handle(::open(name, O_CREAT|O_RDWR))
+   FileLock(std::string name, const char *ext, bool later = false):
+      str_name(name+"."+ext),
+      filename(str_name.c_str()),
+      lock_file(str_name),
+      fd(::open(filename, O_CREAT|O_RDWR))
    {
-      MFEM_VERIFY(handle > 0, "Cannot open " << name);
+      dbg() << filename;
+      MFEM_VERIFY(lock_file.good(), "[FileLock] lock file error!");
+      MFEM_VERIFY(fd > 0, "Cannot open " << filename);
       if (later) { return; }
-      lock();
+      this->Lock();
    }
-   ~Lock() { Ctrl(handle, F_SETLK, F_UNLCK); ::close(handle); }
-   void lock() { Ctrl(handle, F_SETLKW, F_WRLCK); } // wait if blocked
-   operator bool() const { return Ctrl(handle, F_SETLK, F_WRLCK, false); }
+
+   ~FileLock() // unlock, close and remove
+   {
+      Ctrl(fd, F_SETLK, F_UNLCK);
+      ::close(fd);
+      std::remove(filename);
+   }
+
+   void Lock() { Ctrl(fd, F_SETLKW, F_WRLCK); } // wait if blocked
+
+   void Wait() const
+   {
+      while (std::fstream(filename))
+      { std::this_thread::sleep_for(std::chrono::milliseconds(100)); }
+   }
+
+   operator bool() const { return Ctrl(fd, F_SETLK, F_WRLCK, false); }
 };
+
 
 } // namespace io
 
@@ -292,7 +338,7 @@ public:
    {
       std::string Compiler() override { return "-Xcompiler="; }
       std::string Pic() override { return Xcompiler() + "-fPIC"; }
-      std::string Pipe() override { return Xcompiler() + "-pipe"; }
+      std::string Pipe() override { return ""; } // not supported
       std::string Device() override { return "--device-c"; }
       std::string Linker() override { return "-Xlinker="; }
    };
@@ -348,7 +394,7 @@ public:
 
    static void* DLsym(void *handle, const char *name) noexcept
    {
-      void *sym = dlsym(handle, name);
+      void *sym = ::dlsym(handle, name);
       DLerror();
       return sym;
    }
@@ -374,6 +420,7 @@ public:
          int status = EXIT_SUCCESS;
          if (mpi::Root())
          {
+            io::FileLock lock(std::string(Lib_so()), "ar2so");
             Command() << cxx << link << "-shared" << "-o" << Lib_so()
                       << ARprefix() << Lib_ar() << ARpostfix()
                       << Xlinker() + "-rpath,." << libs;
@@ -386,12 +433,9 @@ public:
 
       auto RootCompile = [&]() // Compilation only done by the root
       {
-         auto ck = Jit::ToString(hash, ".ck"); // lock file
-         std::ofstream ck_ofs(ck); // open the file lock
-         MFEM_VERIFY(ck_ofs.good(), "[JIT] Source file error!");
          {
-            io::Lock ck_lock(ck.c_str(), true);
-            if (ck_lock)
+            io::FileLock lock(Jit::ToString(hash), "ck", true);
+            if (lock)
             {
                // Write kernel source file
                auto cc = Jit::ToString(hash, ".cc"); // input source
@@ -407,53 +451,39 @@ public:
                auto co = Jit::ToString(hash, ".co"); // output object
                Command() << cxx << flags
                          << "-I" << MFEM_INSTALL_DIR "/include/mfem"
-                         << Xdevice() << Xpic()
-#ifndef MFEM_USE_CUDA
-                         << Xpipe()
-#endif
+                         << Xdevice() << Xpic() << Xpipe()
                          << "-c" << "-o" << co << cc
                          << (std::getenv("MFEM_JIT_VERBOSE") ? "-v" : "");
                if (Call(name)) { return EXIT_FAILURE; }
                std::remove(cc.c_str());
 
                // Update archive: ar += co
-               auto ak = std::string(Lib_ar()) + ".ak";
-               std::ofstream ak_ofs(ak);
-               MFEM_VERIFY(ak_ofs.good(), "[JIT] Source file error!");
                {
-                  io::Lock ak_lock(ak.c_str());
+                  io::FileLock(std::string(Lib_ar()), "ak");
                   Command() << "ar -rv" << Lib_ar() << co;
                   if (Call()) { return EXIT_FAILURE; }
                   std::remove(co.c_str());
                }
-               std::remove(ak.c_str());
             }
-            else // avoid duplicate compilation
-            { while (std::fstream(ck.c_str())) { System::Sleep(); } }
+            else { lock.Wait(); } // avoid duplicate compilation
          }
-         std::remove(ck.c_str());
 
-         // Create temporary shared library: (ar + co) => symbol_pid
+         // Create own temporary shared library: (ar + co) => symbol_pid
          Command() << cxx << link << "-shared" << "-o" << symbol_pid
                    << ARprefix() << Lib_ar() << ARpostfix()
                    << Xlinker() + "-rpath,." << libs;
          if (Call(name)) { return EXIT_FAILURE; }
 
          // Install temporary shared library: symbol_pid => libmjit.so
-         auto ok = std::string(Lib_so()) + ".ok";
-         std::ofstream ok_ofs(ok);
-         MFEM_VERIFY(ok_ofs.good(), "[JIT] Source file error!");
          {
-            io::Lock ok_lock(ok.c_str(), true);
-            if (ok_lock)
+            io::FileLock lock(std::string(Lib_so()), "ok", true);
+            if (lock)
             {
                Command() << "install" << ARbackup() << symbol_pid << Lib_so();
                if (Call()) { return EXIT_FAILURE; }
             }
-            else // only one update
-            { while (std::fstream(ok.c_str())) { System::Sleep(); } }
+            else { lock.Wait(); } // only one update
          }
-         std::remove(ok.c_str());
          return EXIT_SUCCESS;
       };
 
