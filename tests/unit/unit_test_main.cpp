@@ -18,8 +18,6 @@ std::string mfem_data_dir;
 
 int main(int argc, char *argv[])
 {
-   mfem::out.Disable();
-   mfem::err.Disable();
    // Exclude parallel tests.
    return RunCatchSession(argc, argv, {"~[Parallel]"});
 }

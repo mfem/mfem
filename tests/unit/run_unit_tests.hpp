@@ -43,6 +43,12 @@ static int RunCatchSession(int argc, char *argv[],
    if (mfem_data_dir == "") { cfg.testsOrTags.push_back("~[MFEMData]"); }
    session.useConfigData(cfg);
 
+   if (!cfg.showSuccessfulTests)
+   {
+      mfem::out.Disable();
+      mfem::err.Disable();
+   }
+
    if (root)
    {
       std::cout << "INFO: Test filter: ";
