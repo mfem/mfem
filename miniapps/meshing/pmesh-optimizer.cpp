@@ -937,6 +937,8 @@ int main (int argc, char *argv[])
       a.AddDomainIntegrator(tmop_integ);
    }
 
+   tmop_integ->PreProcessAutomaticTCParameters(x, x.ParFESpace());
+
    if (pa) { a.Setup(); }
 
    // Compute the minimum det(J) of the starting mesh.

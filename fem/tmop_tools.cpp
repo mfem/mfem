@@ -586,6 +586,7 @@ void TMOPNewtonSolver::ProcessNewState(const Vector &x) const
          {
             ti->UpdateAfterMeshPositionChange(x_loc);
             ti->ComputeFDh(x_loc, *pfesc);
+            ti->SetAutomaticTCParameters(x_loc, *pfesc);
             UpdateDiscreteTC(*ti, x_loc);
          }
          co = dynamic_cast<TMOPComboIntegrator *>(integs[i]);
@@ -596,6 +597,7 @@ void TMOPNewtonSolver::ProcessNewState(const Vector &x) const
             {
                ati[j]->UpdateAfterMeshPositionChange(x_loc);
                ati[j]->ComputeFDh(x_loc, *pfesc);
+               ati[j]->SetAutomaticTCParameters(x_loc, *pfesc);
                UpdateDiscreteTC(*ati[j], x_loc);
             }
          }
@@ -623,7 +625,7 @@ void TMOPNewtonSolver::ProcessNewState(const Vector &x) const
          {
             ti->UpdateAfterMeshPositionChange(x_loc);
             ti->ComputeFDh(x_loc, *fesc);
-            ti->ComputeMeanGeometricParameters(x_loc, *fesc);
+            ti->SetAutomaticTCParameters(x_loc, *fesc);
             UpdateDiscreteTC(*ti, x_loc);
          }
          co = dynamic_cast<TMOPComboIntegrator *>(integs[i]);
@@ -634,6 +636,7 @@ void TMOPNewtonSolver::ProcessNewState(const Vector &x) const
             {
                ati[j]->UpdateAfterMeshPositionChange(x_loc);
                ati[j]->ComputeFDh(x_loc, *fesc);
+               ati[j]->SetAutomaticTCParameters(x_loc, *fesc);
                UpdateDiscreteTC(*ati[j], x_loc);
             }
          }

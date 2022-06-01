@@ -1533,7 +1533,11 @@ protected:
       return EnergyIntegrationRule(el);
    }
 
-   void ComputeMeanGeometricParameters(Vector &xe, const FiniteElementSpace &fes);
+   void SetAutomaticTCParameters(Vector &xe, const FiniteElementSpace &fes);
+   void SetAutomaticTCParameters(Vector &xe, const ParFiniteElementSpace &pfes);
+   void ComputeMeanGeometricParameters(Vector &xe,
+                                       const FiniteElementSpace &fes,
+                                       Vector &AvgParameters);
 
    // Auxiliary PA methods
    void AssembleGradPA_2D(const Vector&) const;
@@ -1604,8 +1608,15 @@ public:
    void PreProcessAutomaticTCParameters(Vector &xe,
                                         const FiniteElementSpace *fes)
    {
-      ComputeMeanGeometricParameters(xe, *fes);
+      SetAutomaticTCParameters(xe, *fes);
    }
+#ifdef MFEM_USE_MPI
+   void PreProcessAutomaticTCParameters(Vector &xe,
+                                        const ParFiniteElementSpace *pfes)
+   {
+      SetAutomaticTCParameters(xe, *pfes);
+   }
+#endif
 
    /// Sets a scaling Coefficient for the quality metric term of the integrator.
    /** With this addition, the integrator becomes

@@ -1316,9 +1316,6 @@ void AutomaticTC::ComputeElementTargets(int e_id, const FiniteElement &fe,
 {
    DenseMatrix Jtr_loc;
    Jtr_loc.SetSize(fe.GetDim());
-   //    aspr_qavg = 1.0;
-   //    ori_qavg = 0;
-   //    skew_qavg = M_PI/2;
    Jtr_loc(0, 0) = (1.0/std::sqrt(aspr_qavg))*std::cos(ori_qavg);
    Jtr_loc(1, 0) = (1.0/std::sqrt(aspr_qavg))*std::sin(ori_qavg);
 
@@ -3687,7 +3684,8 @@ void TMOP_Integrator::ComputeFDh(const Vector &x, const FiniteElementSpace &fes)
 }
 
 void TMOP_Integrator::ComputeMeanGeometricParameters(Vector &xe,
-                                                     const FiniteElementSpace &fes)
+                                                     const FiniteElementSpace &fes,
+                                                     Vector &AvgParameters)
 {
    if (!auto_tc) { return; }
 
@@ -3737,25 +3735,58 @@ void TMOP_Integrator::ComputeMeanGeometricParameters(Vector &xe,
          const double cos_skew = (col1 * col2) / norm_prod,
                       sin_skew = fabs(Jpr.Det()) / norm_prod;
          double skew_q = std::atan2(sin_skew, cos_skew);
-         //if (skew_q < 0) { skew_q += M_PI; }
          skew_qavg += skew_q;
 
          double ori_q = std::atan2(Jpr(1,0), Jpr(0,0));
-         //if (ori_q < 0) { ori_q += M_PI; }
+         if (ori_q < 0) { ori_q += 2*M_PI; }
          ori_qavg += ori_q;
          count_q++;
       }
    }
 
-   detJ_qavg /= count_q;
-   skew_qavg /= count_q;
-   ori_qavg /= count_q;
-   aspr_qavg /= count_q;
-   auto_tc->SetTargetSize(detJ_qavg);
-   auto_tc->SetTargetSkew(skew_qavg);
-   auto_tc->SetTargetAspectRatio(aspr_qavg);
-   auto_tc->SetTargetOrientation(ori_qavg);
+   AvgParameters(0) = detJ_qavg;
+   AvgParameters(1) = skew_qavg;
+   AvgParameters(2) = ori_qavg;
+   AvgParameters(3) = aspr_qavg;
+   AvgParameters(4) = count_q;
 }
+
+void TMOP_Integrator::SetAutomaticTCParameters(Vector &xe,
+                                               const FiniteElementSpace &fes)
+{
+   const int dim = fes.GetFE(0)->GetDim();
+   MFEM_VERIFY(dim == 2, "Set AutomaticTCParameters only works for"
+               "2D and 3D cases.");
+
+   Vector AvgParameters(dim*dim + 1);
+   ComputeMeanGeometricParameters(xe, fes, AvgParameters);
+   auto_tc->SetTargetSize(AvgParameters(0)/AvgParameters(4));
+   auto_tc->SetTargetSkew(AvgParameters(1)/AvgParameters(4));
+   auto_tc->SetTargetOrientation(AvgParameters(2)/AvgParameters(4));
+   auto_tc->SetTargetAspectRatio(AvgParameters(3)/AvgParameters(4));
+}
+
+#ifdef MFEM_USE_MPI
+void TMOP_Integrator::SetAutomaticTCParameters(Vector &xe,
+                                               const ParFiniteElementSpace &pfes)
+{
+   const int dim = pfes.GetFE(0)->GetDim();
+   MFEM_VERIFY(dim == 2, "Set AutomaticTCParameters only works for"
+               "2D and 3D cases.");
+
+   Vector AvgParameters(dim*dim + 1);
+   ComputeMeanGeometricParameters(xe, pfes, AvgParameters);
+
+   Vector AvgParametersGlob = AvgParameters;
+   MPI_Allreduce(&AvgParameters(0), &AvgParametersGlob(0), AvgParameters.Size(),
+                 MPI_DOUBLE, MPI_SUM, pfes.GetComm());
+
+   auto_tc->SetTargetSize(AvgParametersGlob(0)/AvgParametersGlob(4));
+   auto_tc->SetTargetSkew(AvgParametersGlob(1)/AvgParametersGlob(4));
+   auto_tc->SetTargetOrientation(AvgParametersGlob(2)/AvgParametersGlob(4));
+   auto_tc->SetTargetAspectRatio(AvgParametersGlob(3)/AvgParametersGlob(4));
+}
+#endif
 
 #ifdef MFEM_USE_MPI
 void TMOP_Integrator::ComputeFDh(const Vector &x,

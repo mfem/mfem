@@ -32,6 +32,7 @@
 // Compile with: make mesh-optimizer
 //
 // Sample runs:
+//     make mesh-optimizer -j;./mesh-optimizer -m pat.mesh -o 1 -mid 2 -tid 12 -ni 100 -ls 2 -fix-bnd -qt 1 -qo 3
 //   Adapted analytic shape:
 //     mesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 2 -tid 4 -ni 200 -bnd -qt 1 -qo 8
 //   Adapted analytic size+orientation:
