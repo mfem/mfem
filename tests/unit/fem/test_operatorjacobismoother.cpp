@@ -14,17 +14,16 @@
 
 using namespace mfem;
 
-namespace operatorjacobismoother
-{
-
-TEST_CASE("operatorjacobismoother")
+TEST_CASE("OperatorJacobiSmoother", "[OperatorJacobiSmoother]")
 {
    for (int dimension = 2; dimension < 4; ++dimension)
    {
       for (int ne = 1; ne < 3; ++ne)
       {
+         const int n_elements = std::pow(ne, dimension);
          for (int order = 1; order < 5; ++order)
          {
+            CAPTURE(dimension, n_elements, order);
             Mesh mesh;
             if (dimension == 2)
             {
@@ -84,13 +83,14 @@ TEST_CASE("operatorjacobismoother")
    }
 }
 
-TEST_CASE("operatorjacobifichera")
+TEST_CASE("OperatorJacobiSmoother Fichera", "[OperatorJacobiSmoother]")
 {
    const int dimension = 3;
    for (int refine = 1; refine < 4; ++refine)
    {
       for (int order = 1; order < 5; ++order)
       {
+         CAPTURE(refine, order);
          Mesh mesh("../../data/fichera.mesh", 1, refine, true);
          FiniteElementCollection *h1_fec = new H1_FECollection(order, dimension);
          FiniteElementSpace h1_fespace(&mesh, h1_fec);
@@ -138,5 +138,3 @@ TEST_CASE("operatorjacobifichera")
       }
    }
 }
-
-} // namespace operatorjacobismoother

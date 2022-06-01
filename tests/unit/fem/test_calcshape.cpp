@@ -108,23 +108,22 @@ void TestCalcShape(FiniteElement* fe, int res, double tol=1e-12)
 }
 
 
-TEST_CASE("CalcShape for several Lagrange FiniteElement instances",
+TEST_CASE("CalcShape Lagrange",
           "[Lagrange1DFiniteElement]"
           "[BiLinear2DFiniteElement]"
           "[BiQuad2DFiniteElement]"
           "[LagrangeHexFiniteElement]")
 {
-   int maxOrder = 5;
-   int resolution = 10;
+   static constexpr int maxOrder = 5;
+   static constexpr int resolution = 10;
+   auto order = GENERATE(1, maxOrder);
+
+   CAPTURE(order);
 
    SECTION("Lagrange1DFiniteElement")
    {
-      for (int order = 1; order <= maxOrder; ++order)
-      {
-         INFO("order = " << order);
-         Lagrange1DFiniteElement fe(order);
-         TestCalcShape(&fe, resolution);
-      }
+      Lagrange1DFiniteElement fe(order);
+      TestCalcShape(&fe, resolution);
    }
 
    SECTION("BiLinear2DFiniteElement")
@@ -144,12 +143,15 @@ TEST_CASE("CalcShape for several Lagrange FiniteElement instances",
    {
       // Comments for LagrangeHexFiniteElement state
       // that only degree 2 is functional for this class
-      LagrangeHexFiniteElement fe(2);
-      TestCalcShape(&fe, resolution);
+      if (order == 2)
+      {
+         LagrangeHexFiniteElement fe(order);
+         TestCalcShape(&fe, resolution);
+      }
    }
 }
 
-TEST_CASE("CalcShape for several H1 FiniteElement instances",
+TEST_CASE("CalcShape H1",
           "[H1_SegmentElement]"
           "[H1_TriangleElement]"
           "[H1_QuadrilateralElement]"
@@ -157,67 +159,46 @@ TEST_CASE("CalcShape for several H1 FiniteElement instances",
           "[H1_HexahedronElement]"
           "[H1_WedgeElement]")
 {
-   int maxOrder = 5;
-   int resolution = 10;
+   static constexpr int maxOrder = 5;
+   static constexpr int resolution = 10;
+   auto order = GENERATE(1, maxOrder);
+
+   CAPTURE(order);
 
    SECTION("H1_SegmentElement")
    {
-      for (int order = 1; order <= maxOrder; ++order)
-      {
-         INFO("order = " << order);
-         H1_SegmentElement fe(order);
-         TestCalcShape(&fe, resolution, 2e-11*std::pow(10, order));
-      }
+      H1_SegmentElement fe(order);
+      TestCalcShape(&fe, resolution, 2e-11*std::pow(10, order));
    }
 
    SECTION("H1_TriangleElement")
    {
-      for (int order = 1; order <= maxOrder; ++order)
-      {
-         INFO("order = " << order);
-         H1_TriangleElement fe(order);
-         TestCalcShape(&fe, resolution, 2e-11*std::pow(10, order));
-      }
+      H1_TriangleElement fe(order);
+      TestCalcShape(&fe, resolution, 2e-11*std::pow(10, order));
    }
 
    SECTION("H1_QuadrilateralElement")
    {
-      for (int order = 1; order <= maxOrder; ++order)
-      {
-         INFO("order = " << order);
-         H1_QuadrilateralElement fe(order);
-         TestCalcShape(&fe, resolution, 2e-11*std::pow(10, order));
-      }
+      H1_QuadrilateralElement fe(order);
+      TestCalcShape(&fe, resolution, 2e-11*std::pow(10, order));
    }
 
    SECTION("H1_TetrahedronElement")
    {
-      for (int order = 1; order <= maxOrder; ++order)
-      {
-         INFO("order = " << order);
-         H1_TetrahedronElement fe(order);
-         TestCalcShape(&fe, resolution, 2e-11*std::pow(10, order));
-      }
+      H1_TetrahedronElement fe(order);
+      TestCalcShape(&fe, resolution, 2e-11*std::pow(10, order));
    }
 
    SECTION("H1_HexahedronElement")
    {
-      for (int order = 1; order <= maxOrder; ++order)
-      {
-         INFO("order = " << order);
-         H1_HexahedronElement fe(order);
-         TestCalcShape(&fe, resolution, 2e-11*std::pow(10, order));
-      }
+      H1_HexahedronElement fe(order);
+      TestCalcShape(&fe, resolution, 2e-11*std::pow(10, order));
    }
 
    SECTION("H1_WedgeElement")
    {
-      for (int order = 1; order <= maxOrder; ++order)
-      {
-         INFO("order = " << order);
-         H1_WedgeElement fe(order);
-         TestCalcShape(&fe, resolution, 2e-11*std::pow(10, order));
-      }
+      H1_WedgeElement fe(order);
+      TestCalcShape(&fe, resolution, 2e-11*std::pow(10, order));
    }
 
 }

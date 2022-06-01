@@ -119,6 +119,11 @@ TEST_CASE("First order ODE methods", "[ODE]")
          u +=u0;
          error[0] = u.Norml2();
 
+         mfem::out<<std::setw(12)<<"Error"
+                  <<std::setw(12)<<"Ratio"
+                  <<std::setw(12)<<"Order"<<std::endl;
+         mfem::out<<std::setw(12)<<error[0]<<std::endl;
+
          std::vector<Vector> uh(ode_solver->GetMaxStateSize());
          for (int l = 1; l < levels; l++)
          {
@@ -162,6 +167,10 @@ TEST_CASE("First order ODE methods", "[ODE]")
 
             u += u0;
             error[l] = u.Norml2();
+            mfem::out<<std::setw(12)<<error[l]
+                     <<std::setw(12)<<error[l-1]/error[l]
+                     <<std::setw(12)<<log(error[l-1]/error[l])/log(2)
+                     <<std::endl;
          }
          delete ode_solver;
 

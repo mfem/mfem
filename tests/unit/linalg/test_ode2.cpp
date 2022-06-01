@@ -115,6 +115,15 @@ TEST_CASE("Second order ODE methods", "[ODE]")
          err_u[0] = u.Norml2();
          err_du[0] = du.Norml2();
 
+         mfem::out<<std::setw(12)<<"Error u"
+                  <<std::setw(12)<<"Error du"
+                  <<std::setw(12)<<"Ratio u"
+                  <<std::setw(12)<<"Ratio du"
+                  <<std::setw(12)<<"Order u"
+                  <<std::setw(12)<<"Order du"<<std::endl;
+         mfem::out<<std::setw(12)<<err_u[0]
+                  <<std::setw(12)<<err_du[0]<<std::endl;
+
          std::vector<Vector> uh(ode_solver->GetMaxStateSize());
          for (int l = 1; l< levels; l++)
          {
@@ -162,6 +171,12 @@ TEST_CASE("Second order ODE methods", "[ODE]")
             du -= dudt0;
             err_u[l] = u.Norml2();
             err_du[l] = du.Norml2();
+            mfem::out<<std::setw(12)<<err_u[l]
+                     <<std::setw(12)<<err_du[l]
+                     <<std::setw(12)<<err_u[l-1]/err_u[l]
+                     <<std::setw(12)<<err_du[l-1]/err_du[l]
+                     <<std::setw(12)<<log(err_u[l-1]/err_u[l])/log(2)
+                     <<std::setw(12)<<log(err_du[l-1]/err_du[l])/log(2) <<std::endl;
          }
          delete ode_solver;
 
