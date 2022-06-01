@@ -3406,18 +3406,13 @@ OrthoSolver::OrthoSolver(MPI_Comm mycomm_) : Solver(0, true),
    mycomm(mycomm_), parallel(true) { }
 #endif
 
-void OrthoSolver::SetOperator(const Operator &op)
-{
-   oper = &op;
-}
-
 void OrthoSolver::Mult(const Vector &b, Vector &x) const
 {
    // Orthogonalize input
    Orthogonalize(b, b_ortho);
 
-   // Apply operator
-   oper->Mult(b_ortho, x);
+   // Apply the Solver
+   solver->Mult(b_ortho, x);
 
    // Orthogonalize output
    Orthogonalize(x, x);
