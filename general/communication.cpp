@@ -34,13 +34,6 @@ using namespace std;
 namespace mfem
 {
 
-void MPI_Session::GetRankAndSize()
-{
-   MPI_Comm_rank(MPI_COMM_WORLD, &world_rank);
-   MPI_Comm_size(MPI_COMM_WORLD, &world_size);
-}
-
-
 GroupTopology::GroupTopology(const GroupTopology &gt)
    : MyComm(gt.MyComm),
      group_lproc(gt.group_lproc)

@@ -3205,6 +3205,9 @@ void ParFiniteElementSpace::CopyProlongationAndRestriction(
    MFEM_VERIFY(P == NULL, "");
    MFEM_VERIFY(R == NULL, "");
 
+   // Ensure R and P matrices are built
+   pfes->Dof_TrueDof_Matrix();
+
    SparseMatrix *perm_mat = NULL, *perm_mat_tr = NULL;
    if (perm)
    {
@@ -3541,7 +3544,6 @@ DeviceConformingProlongationOperator::DeviceConformingProlongationOperator(
    const int tdofs = R->Height();
    MFEM_ASSERT(tdofs == R->HostReadI()[tdofs], "");
    ltdof_ldof = Array<int>(const_cast<int*>(R->HostReadJ()), tdofs);
-   ltdof_ldof.UseDevice();
    {
       Table nbr_ltdof;
       gc.GetNeighborLTDofTable(nbr_ltdof);

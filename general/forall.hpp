@@ -25,8 +25,8 @@ namespace mfem
 
 // Maximum size of dofs and quads in 1D.
 #ifdef MFEM_USE_HIP
-const int MAX_D1D = 11;
-const int MAX_Q1D = 11;
+const int MAX_D1D = 10;
+const int MAX_Q1D = 10;
 #else
 const int MAX_D1D = 14;
 const int MAX_Q1D = 14;

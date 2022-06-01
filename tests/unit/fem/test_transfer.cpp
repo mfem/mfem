@@ -268,6 +268,8 @@ TEST_CASE("Variable Order Transfer", "[Transfer][VariableOrder]")
    FiniteElementSpace *f_fespace =
       new FiniteElementSpace(&mesh, f_fec,spaceDimension);
 
+   RandomPRefinement(*f_fespace);
+
    Operator* referenceOperator = nullptr;
 
    referenceOperator = new PRefinementTransferOperator(*c_fespace,

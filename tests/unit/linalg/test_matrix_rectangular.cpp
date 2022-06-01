@@ -27,7 +27,7 @@ void gradf1(const Vector &x, Vector &u)
 {
    u(0) = 2*x(0);
    if (x.Size() >= 2) { u(1) = 3*pow(x(1), 2); }
-   if (x.Size() >= 3) { u(2) = 4*pow(x(1), 3); }
+   if (x.Size() >= 3) { u(2) = 4*pow(x(2), 3); }
 }
 
 TEST_CASE("FormRectangular", "[FormRectangularSystemMatrix]")
@@ -159,7 +159,7 @@ TEST_CASE("ParallelFormRectangular",
    }
 }
 
-TEST_CASE("HypreParMatrixBlocks",
+TEST_CASE("HypreParMatrixBlocksRectangular",
           "[Parallel], [BlockMatrix]")
 {
    SECTION("HypreParMatrixFromBlocks")

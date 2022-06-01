@@ -132,6 +132,9 @@ protected:
    /// Do not allow copy construction, due to assumed ownership.
    MeshOperatorSequence(const MeshOperatorSequence &) { }
 
+   /// Do not allow copy assignment, due to assumed ownership.
+   MeshOperatorSequence& operator=(const MeshOperatorSequence &s) = delete;
+
    /** @brief Apply the MeshOperatorSequence.
        @return ActionInfo value corresponding to the last applied operator from
        the sequence. */
@@ -386,7 +389,7 @@ public:
    }
 
    /// Reset the oscillation order
-   void SetOrder(double order_) { order = order_; }
+   void SetOrder(int order_) { order = order_; }
 
    /** @brief Set the maximum ratio of refinement levels of adjacent elements
        (0 = unlimited). The default value is 1, which helps ensure appropriate

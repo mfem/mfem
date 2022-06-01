@@ -31,6 +31,66 @@ using namespace std;
 namespace mfem
 {
 
+Hypre::Hypre()
+{
+#if MFEM_HYPRE_VERSION >= 21900
+   // Initializing hypre
+   HYPRE_Init();
+#endif
+
+   // Global hypre options that we set by default
+   SetDefaultOptions();
+}
+
+void Hypre::Finalize()
+{
+   Hypre &hypre = Instance();
+   if (!hypre.finalized)
+   {
+#if MFEM_HYPRE_VERSION >= 21900
+      HYPRE_Finalize();
+#endif
+      hypre.finalized = true;
+   }
+}
+
+void Hypre::SetDefaultOptions()
+{
+   // Global hypre options, see
+   // https://hypre.readthedocs.io/en/latest/solvers-boomeramg.html#gpu-supported-options
+
+#if MFEM_HYPRE_VERSION >= 22100
+#ifdef HYPRE_USING_CUDA
+   // Use hypre's SpGEMM instead of cuSPARSE for performance reasons
+   HYPRE_SetSpGemmUseCusparse(0);
+#elif defined(HYPRE_USING_HIP)
+   // Use rocSPARSE instead of hypre's SpGEMM for performance reasons (default)
+   // HYPRE_SetSpGemmUseCusparse(1);
+#endif
+#endif
+
+   // The following options are hypre's defaults as of hypre-2.24
+
+   // Allocate hypre objects in GPU memory (default)
+   // HYPRE_SetMemoryLocation(HYPRE_MEMORY_DEVICE);
+
+   // Where to execute when using UVM (default)
+   // HYPRE_SetExecutionPolicy(HYPRE_EXEC_DEVICE);
+
+   // Use GPU-based random number generator (default)
+   // HYPRE_SetUseGpuRand(1);
+
+   // The following options are to be used with UMPIRE memory pools
+
+   // Set Umpire names for device and UVM memory pools. If names are set by
+   // calling these functions, hypre doesn't own the pool and just uses it.If
+   // these functions are not called, hypre will allocate and own the pool
+   // (provided it is configured with --with-umpire).
+   // HYPRE_SetUmpireDevicePoolName("HYPRE_DEVICE_POOL");
+   // HYPRE_SetUmpireUMPoolName("HYPRE_UVM_POOL");
+}
+
+
 template<typename TargetT, typename SourceT>
 static TargetT *DuplicateAs(const SourceT *array, int size,
                             bool cplusplus = true)
@@ -640,24 +700,18 @@ signed char HypreParMatrix::CopyBoolCSR(Table *bool_csr,
           (mem_csr.data.OwnsHostPtr() ? 2 : 0);
 }
 
-void HypreParMatrix::CopyCSR_J(hypre_CSRMatrix *hypre_csr, int *J)
+// Copy the j array of a MemoryIJData object to the given dst_J array,
+// converting the indices from HYPRE_Int to int.
+#ifdef HYPRE_BIGINT
+static void CopyCSR_J(const int nnz, const MemoryIJData &mem_csr,
+                      Memory<int> &dst_J)
 {
-   HYPRE_Int nnz = hypre_CSRMatrixNumNonzeros(hypre_csr);
-#if MFEM_HYPRE_VERSION >= 21600
-   if (hypre_CSRMatrixBigJ(hypre_csr))
-   {
-      for (HYPRE_Int j = 0; j < nnz; j++)
-      {
-         J[j] = internal::to_int(hypre_CSRMatrixBigJ(hypre_csr)[j]);
-      }
-      return;
-   }
-#endif
-   for (HYPRE_Int j = 0; j < nnz; j++)
-   {
-      J[j] = internal::to_int(hypre_CSRMatrixJ(hypre_csr)[j]);
-   }
+   // Perform the copy using the configured mfem Device
+   auto src_p = mfem::Read(mem_csr.J, nnz);
+   auto dst_p = mfem::Write(dst_J, nnz);
+   MFEM_FORALL(i, nnz, dst_p[i] = src_p[i];);
 }
+#endif
 
 // static method
 signed char HypreParMatrix::HypreCsrToMem(hypre_CSRMatrix *h_mat,
@@ -754,11 +808,13 @@ HypreParMatrix::HypreParMatrix(MPI_Comm comm, HYPRE_BigInt glob_size,
    hypre_ParCSRMatrixSetNumNonzeros(A);
 
    /* Make sure that the first entry in each row is the diagonal one. */
+   HypreReadWrite();
    hypre_CSRMatrixReorder(hypre_ParCSRMatrixDiag(A));
-
-   // FIXME:
 #ifdef HYPRE_BIGINT
-   CopyCSR_J(A->diag, diag->GetJ());
+   if (CanShallowCopy(diag->GetMemoryData(), GetHypreMemoryClass()))
+   {
+      CopyCSR_J(A->diag->num_nonzeros, mem_diag, diag->GetMemoryJ());
+   }
 #endif
 
    hypre_MatvecCommPkgCreate(A);
@@ -796,10 +852,13 @@ HypreParMatrix::HypreParMatrix(MPI_Comm comm,
    /* Make sure that the first entry in each row is the diagonal one. */
    if (row_starts == col_starts)
    {
+      HypreReadWrite();
       hypre_CSRMatrixReorder(hypre_ParCSRMatrixDiag(A));
-      // FIXME:
 #ifdef HYPRE_BIGINT
-      CopyCSR_J(A->diag, diag->GetJ());
+      if (CanShallowCopy(diag->GetMemoryData(), GetHypreMemoryClass()))
+      {
+         CopyCSR_J(A->diag->num_nonzeros, mem_diag, diag->GetMemoryJ());
+      }
 #endif
    }
 
@@ -848,10 +907,13 @@ HypreParMatrix::HypreParMatrix(MPI_Comm comm,
    /* Make sure that the first entry in each row is the diagonal one. */
    if (row_starts == col_starts)
    {
+      HypreReadWrite();
       hypre_CSRMatrixReorder(hypre_ParCSRMatrixDiag(A));
-      // FIXME:
 #ifdef HYPRE_BIGINT
-      CopyCSR_J(A->diag, diag->GetJ());
+      if (CanShallowCopy(diag->GetMemoryData(), GetHypreMemoryClass()))
+      {
+         CopyCSR_J(A->diag->num_nonzeros, mem_diag, diag->GetMemoryJ());
+      }
 #endif
    }
 
@@ -1007,10 +1069,11 @@ HypreParMatrix::HypreParMatrix(MPI_Comm comm,
    /* Make sure that the first entry in each row is the diagonal one. */
    if (row_starts == col_starts)
    {
+      HypreReadWrite();
       hypre_CSRMatrixReorder(hypre_ParCSRMatrixDiag(A));
-      // FIXME:
 #ifdef HYPRE_BIGINT
-      CopyCSR_J(A->diag, diag->GetJ());
+      // No need to sync the J array back to the Table diag.
+      // CopyCSR_J(A->diag->num_nonzeros, mem_diag, diag->GetJMemory());
 #endif
    }
 
@@ -1321,12 +1384,23 @@ void HypreParMatrix::SetOwnerFlags(signed char diag, signed char offd,
 {
    diagOwner = diag;
    mem_diag.I.SetHostPtrOwner((diag >= 0) && (diag & 1));
+   mem_diag.I.SetDevicePtrOwner((diag >= 0) && (diag & 1));
+
    mem_diag.J.SetHostPtrOwner((diag >= 0) && (diag & 1));
+   mem_diag.J.SetDevicePtrOwner((diag >= 0) && (diag & 1));
+
    mem_diag.data.SetHostPtrOwner((diag >= 0) && (diag & 2));
+   mem_diag.data.SetDevicePtrOwner((diag >= 0) && (diag & 2));
+
    offdOwner = offd;
    mem_offd.I.SetHostPtrOwner((offd >= 0) && (offd & 1));
    mem_offd.J.SetHostPtrOwner((offd >= 0) && (offd & 1));
+
+   mem_offd.I.SetDevicePtrOwner((offd >= 0) && (offd & 1));
+   mem_offd.J.SetDevicePtrOwner((offd >= 0) && (offd & 1));
+
    mem_offd.data.SetHostPtrOwner((offd >= 0) && (offd & 2));
+   mem_offd.data.SetDevicePtrOwner((offd >= 0) && (offd & 2));
    colMapOwner = colmap;
 }
 
@@ -2969,22 +3043,35 @@ HypreParMatrix * HypreParMatrixFromBlocks(Array2D<HypreParMatrix*> &blocks,
       }
    }
 
+   MFEM_VERIFY(HYPRE_AssumedPartitionCheck(),
+               "only 'assumed partition' mode is supported");
+
    std::vector<HYPRE_BigInt> rowStarts2(2);
    rowStarts2[0] = first_loc_row;
    rowStarts2[1] = first_loc_row + all_num_loc_rows[rank];
 
-   std::vector<HYPRE_BigInt> colStarts2(2);
-   colStarts2[0] = first_loc_col;
-   colStarts2[1] = first_loc_col + all_num_loc_cols[rank];
+   int square = std::equal(all_num_loc_rows.begin(), all_num_loc_rows.end(),
+                           all_num_loc_cols.begin());
+   if (square)
+   {
+      return new HypreParMatrix(comm, num_loc_rows, glob_nrows, glob_ncols,
+                                opI.data(), opJ.data(),
+                                data.data(),
+                                rowStarts2.data(),
+                                rowStarts2.data());
+   }
+   else
+   {
+      std::vector<HYPRE_BigInt> colStarts2(2);
+      colStarts2[0] = first_loc_col;
+      colStarts2[1] = first_loc_col + all_num_loc_cols[rank];
 
-   MFEM_VERIFY(HYPRE_AssumedPartitionCheck(),
-               "only 'assumed partition' mode is supported");
-
-   return new HypreParMatrix(comm, num_loc_rows, glob_nrows, glob_ncols,
-                             opI.data(), opJ.data(),
-                             data.data(),
-                             rowStarts2.data(),
-                             colStarts2.data());
+      return new HypreParMatrix(comm, num_loc_rows, glob_nrows, glob_ncols,
+                                opI.data(), opJ.data(),
+                                data.data(),
+                                rowStarts2.data(),
+                                colStarts2.data());
+   }
 }
 
 void EliminateBC(const HypreParMatrix &A, const HypreParMatrix &Ae,
@@ -3552,74 +3639,19 @@ HypreSolver::HypreSolver(const HypreParMatrix *A_)
    error_mode = ABORT_HYPRE_ERRORS;
 }
 
-void HypreSolver::Mult(const HypreParVector &b, HypreParVector &x) const
-{
-   HYPRE_Int err_flag;
-   if (A == NULL)
-   {
-      mfem_error("HypreSolver::Mult (...) : HypreParMatrix A is missing");
-      return;
-   }
-
-   if (!iterative_mode)
-   {
-      x.HypreWrite();
-      hypre_ParVectorSetConstantValues(x, 0.0);
-   }
-
-   b.HypreRead();
-   x.HypreReadWrite();
-
-   if (!setup_called)
-   {
-      err_flag = SetupFcn()(*this, *A, b, x);
-      if (error_mode == WARN_HYPRE_ERRORS)
-      {
-         if (err_flag)
-         { MFEM_WARNING("Error during setup! Error code: " << err_flag); }
-      }
-      else if (error_mode == ABORT_HYPRE_ERRORS)
-      {
-         MFEM_VERIFY(!err_flag, "Error during setup! Error code: " << err_flag);
-      }
-      hypre_error_flag = 0;
-      setup_called = 1;
-   }
-
-   err_flag = SolveFcn()(*this, *A, b, x);
-   if (error_mode == WARN_HYPRE_ERRORS)
-   {
-      if (err_flag)
-      { MFEM_WARNING("Error during solve! Error code: " << err_flag); }
-   }
-   else if (error_mode == ABORT_HYPRE_ERRORS)
-   {
-      MFEM_VERIFY(!err_flag, "Error during solve! Error code: " << err_flag);
-   }
-   hypre_error_flag = 0;
-}
-
-void HypreSolver::Mult(const Vector &b, Vector &x) const
+bool HypreSolver::WrapVectors(const Vector &b, Vector &x) const
 {
    MFEM_ASSERT(b.Size() == NumCols(), "");
    MFEM_ASSERT(x.Size() == NumRows(), "");
 
-   if (A == NULL)
-   {
-      mfem_error("HypreSolver::Mult (...) : HypreParMatrix A is missing");
-      return;
-   }
+   MFEM_VERIFY(A != NULL, "HypreParMatrix A is missing");
 
    if (B == NULL)
    {
-      B = new HypreParVector(A->GetComm(),
-                             A -> GetGlobalNumRows(),
-                             nullptr,
-                             A -> GetRowStarts());
-      X = new HypreParVector(A->GetComm(),
-                             A -> GetGlobalNumCols(),
-                             nullptr,
-                             A -> GetColStarts());
+      B = new HypreParVector(A->GetComm(), A->GetGlobalNumRows(),
+                             nullptr, A->GetRowStarts());
+      X = new HypreParVector(A->GetComm(), A->GetGlobalNumCols(),
+                             nullptr, A->GetColStarts());
    }
 
    const bool bshallow = CanShallowCopy(b.GetMemory(), GetHypreMemoryClass());
@@ -3655,9 +3687,74 @@ void HypreSolver::Mult(const Vector &b, Vector &x) const
       }
    }
 
-   Mult(*B, *X);
+   return xshallow;
+}
 
-   if (!xshallow) { x = *X; }  // Deep copy
+void HypreSolver::Setup(const HypreParVector &b, HypreParVector &x) const
+{
+   if (setup_called) { return; }
+
+   MFEM_VERIFY(A != NULL, "HypreParMatrix A is missing");
+
+   HYPRE_Int err_flag = SetupFcn()(*this, *A, b, x);
+   if (error_mode == WARN_HYPRE_ERRORS)
+   {
+      if (err_flag)
+      { MFEM_WARNING("Error during setup! Error code: " << err_flag); }
+   }
+   else if (error_mode == ABORT_HYPRE_ERRORS)
+   {
+      MFEM_VERIFY(!err_flag, "Error during setup! Error code: " << err_flag);
+   }
+   hypre_error_flag = 0;
+   setup_called = 1;
+}
+
+void HypreSolver::Setup(const Vector &b, Vector &x) const
+{
+   const bool x_shallow = WrapVectors(b, x);
+   Setup(*B, *X);
+   if (!x_shallow) { x = *X; }  // Deep copy if shallow copy is impossible
+}
+
+void HypreSolver::Mult(const HypreParVector &b, HypreParVector &x) const
+{
+   HYPRE_Int err_flag;
+   if (A == NULL)
+   {
+      mfem_error("HypreSolver::Mult (...) : HypreParMatrix A is missing");
+      return;
+   }
+
+   if (!iterative_mode)
+   {
+      x.HypreWrite();
+      hypre_ParVectorSetConstantValues(x, 0.0);
+   }
+
+   b.HypreRead();
+   x.HypreReadWrite();
+
+   Setup(b, x);
+
+   err_flag = SolveFcn()(*this, *A, b, x);
+   if (error_mode == WARN_HYPRE_ERRORS)
+   {
+      if (err_flag)
+      { MFEM_WARNING("Error during solve! Error code: " << err_flag); }
+   }
+   else if (error_mode == ABORT_HYPRE_ERRORS)
+   {
+      MFEM_VERIFY(!err_flag, "Error during solve! Error code: " << err_flag);
+   }
+   hypre_error_flag = 0;
+}
+
+void HypreSolver::Mult(const Vector &b, Vector &x) const
+{
+   const bool x_shallow = WrapVectors(b, x);
+   Mult(*B, *X);
+   if (!x_shallow) { x = *X; }  // Deep copy if shallow copy is impossible
 }
 
 HypreSolver::~HypreSolver()
@@ -4484,11 +4581,11 @@ void HypreBoomerAMG::SetDefaultOptions()
    double theta     = 0.25; // strength threshold: 0.25, 0.5, 0.8
 
    // AMG interpolation options:
-   int interp_type  = 6;   // or 3 = direct
+   int interp_type  = 6;    // 6 = extended+i, or 18 = extended+e
    int Pmax         = 4;    // max number of elements per row in P
 
    // AMG relaxation options:
-   int relax_type   = 18;    // or 18 = l1-Jacobi
+   int relax_type   = 18;   // 18 = l1-Jacobi, or 16 = Chebyshev
    int relax_sweeps = 1;    // relaxation sweeps on each level
 
    // Additional options:
@@ -4904,9 +5001,33 @@ HypreAMS::HypreAMS(const HypreParMatrix &A, ParFiniteElementSpace *edge_fespace)
    Init(edge_fespace);
 }
 
-void HypreAMS::Init(ParFiniteElementSpace *edge_fespace)
+HypreAMS::HypreAMS(const HypreParMatrix &A, HypreParMatrix *G_,
+                   HypreParVector *x_, HypreParVector *y_, HypreParVector *z_)
+   : HypreSolver(&A),
+     x(x_),
+     y(y_),
+     z(z_),
+     G(G_),
+     Pi(NULL),
+     Pix(NULL),
+     Piy(NULL),
+     Piz(NULL)
 {
-   int cycle_type       = 13;
+   MFEM_ASSERT(G != NULL, "");
+   MFEM_ASSERT(x != NULL, "");
+   MFEM_ASSERT(y != NULL, "");
+   int sdim = (z == NULL) ? 2 : 3;
+   int cycle_type = 13;
+
+   MakeSolver(sdim, cycle_type);
+
+   HYPRE_ParVector pz = z ? static_cast<HYPRE_ParVector>(*z) : NULL;
+   HYPRE_AMSSetCoordinateVectors(ams, *x, *y, pz);
+   HYPRE_AMSSetDiscreteGradient(ams, *G);
+}
+
+void HypreAMS::MakeSolver(int sdim, int cycle_type)
+{
    int rlx_sweeps       = 1;
    double rlx_weight    = 1.0;
    double rlx_omega     = 1.0;
@@ -4928,6 +5049,34 @@ void HypreAMS::Init(ParFiniteElementSpace *edge_fespace)
    int amg_Pmax         = 4;
 #endif
 
+   HYPRE_AMSCreate(&ams);
+
+   HYPRE_AMSSetDimension(ams, sdim); // 2D H(div) and 3D H(curl) problems
+   HYPRE_AMSSetTol(ams, 0.0);
+   HYPRE_AMSSetMaxIter(ams, 1); // use as a preconditioner
+   HYPRE_AMSSetCycleType(ams, cycle_type);
+   HYPRE_AMSSetPrintLevel(ams, 1);
+
+   // set additional AMS options
+   HYPRE_AMSSetSmoothingOptions(ams, rlx_type, rlx_sweeps, rlx_weight, rlx_omega);
+   HYPRE_AMSSetAlphaAMGOptions(ams, amg_coarsen_type, amg_agg_levels, amg_rlx_type,
+                               theta, amg_interp_type, amg_Pmax);
+   HYPRE_AMSSetBetaAMGOptions(ams, amg_coarsen_type, amg_agg_levels, amg_rlx_type,
+                              theta, amg_interp_type, amg_Pmax);
+
+   HYPRE_AMSSetAlphaAMGCoarseRelaxType(ams, amg_rlx_type);
+   HYPRE_AMSSetBetaAMGCoarseRelaxType(ams, amg_rlx_type);
+
+   // The AMS preconditioner may sometimes require inverting singular matrices
+   // with BoomerAMG, which are handled correctly in hypre's Solve method, but
+   // can produce hypre errors in the Setup (specifically in the l1 row norm
+   // computation). See the documentation of SetErrorMode() for more details.
+   error_mode = IGNORE_HYPRE_ERRORS;
+}
+
+void HypreAMS::MakeGradientAndInterpolation(
+   ParFiniteElementSpace *edge_fespace, int cycle_type)
+{
    int dim = edge_fespace->GetMesh()->Dimension();
    int sdim = edge_fespace->GetMesh()->SpaceDimension();
    const FiniteElementCollection *edge_fec = edge_fespace->FEColl();
@@ -4960,14 +5109,6 @@ void HypreAMS::Init(ParFiniteElementSpace *edge_fespace)
       edge_fespace = new ParFiniteElementSpace(pmesh, nd_tr_fec);
    }
 
-   HYPRE_AMSCreate(&ams);
-
-   HYPRE_AMSSetDimension(ams, sdim); // 2D H(div) and 3D H(curl) problems
-   HYPRE_AMSSetTol(ams, 0.0);
-   HYPRE_AMSSetMaxIter(ams, 1); // use as a preconditioner
-   HYPRE_AMSSetCycleType(ams, cycle_type);
-   HYPRE_AMSSetPrintLevel(ams, 1);
-
    // define the nodal linear finite element space associated with edge_fespace
    FiniteElementCollection *vert_fec;
    if (trace_space)
@@ -4992,25 +5133,29 @@ void HypreAMS::Init(ParFiniteElementSpace *edge_fespace)
       {
          coord = pmesh -> GetVertex(i);
          x_coord(i) = coord[0];
-         y_coord(i) = coord[1];
+         if (sdim >= 2) { y_coord(i) = coord[1]; }
          if (sdim == 3) { z_coord(i) = coord[2]; }
       }
       x = x_coord.ParallelProject();
-      y = y_coord.ParallelProject();
-
+      y = NULL;
+      z = NULL;
       x->HypreReadWrite();
-      y->HypreReadWrite();
-      if (sdim == 2)
+
+      if (sdim >= 2)
       {
-         z = NULL;
-         HYPRE_AMSSetCoordinateVectors(ams, *x, *y, NULL);
+         y = y_coord.ParallelProject();
+         y->HypreReadWrite();
       }
-      else
+      if (sdim == 3)
       {
          z = z_coord.ParallelProject();
          z->HypreReadWrite();
-         HYPRE_AMSSetCoordinateVectors(ams, *x, *y, *z);
       }
+
+      HYPRE_AMSSetCoordinateVectors(ams,
+                                    x ? (HYPRE_ParVector)(*x) : NULL,
+                                    y ? (HYPRE_ParVector)(*y) : NULL,
+                                    z ? (HYPRE_ParVector)(*z) : NULL);
    }
    else
    {
@@ -5065,7 +5210,7 @@ void HypreAMS::Init(ParFiniteElementSpace *edge_fespace)
          Array2D<HypreParMatrix *> Pi_blocks;
          id_ND->GetParBlocks(Pi_blocks);
          Pix = Pi_blocks(0,0);
-         Piy = Pi_blocks(0,1);
+         if (sdim >= 2) { Piy = Pi_blocks(0,1); }
          if (sdim == 3) { Piz = Pi_blocks(0,2); }
       }
 
@@ -5088,22 +5233,14 @@ void HypreAMS::Init(ParFiniteElementSpace *edge_fespace)
       delete edge_fespace;
       delete nd_tr_fec;
    }
+}
 
-   // set additional AMS options
-   HYPRE_AMSSetSmoothingOptions(ams, rlx_type, rlx_sweeps, rlx_weight, rlx_omega);
-   HYPRE_AMSSetAlphaAMGOptions(ams, amg_coarsen_type, amg_agg_levels, amg_rlx_type,
-                               theta, amg_interp_type, amg_Pmax);
-   HYPRE_AMSSetBetaAMGOptions(ams, amg_coarsen_type, amg_agg_levels, amg_rlx_type,
-                              theta, amg_interp_type, amg_Pmax);
-
-   HYPRE_AMSSetAlphaAMGCoarseRelaxType(ams, amg_rlx_type);
-   HYPRE_AMSSetBetaAMGCoarseRelaxType(ams, amg_rlx_type);
-
-   // The AMS preconditioner may sometimes require inverting singular matrices
-   // with BoomerAMG, which are handled correctly in hypre's Solve method, but
-   // can produce hypre errors in the Setup (specifically in the l1 row norm
-   // computation). See the documentation of SetErrorMode() for more details.
-   error_mode = IGNORE_HYPRE_ERRORS;
+void HypreAMS::Init(ParFiniteElementSpace *edge_fespace)
+{
+   int cycle_type = 13;
+   int sdim = edge_fespace->GetMesh()->SpaceDimension();
+   MakeSolver(sdim, cycle_type);
+   MakeGradientAndInterpolation(edge_fespace, cycle_type);
 }
 
 void HypreAMS::SetOperator(const Operator &op)
@@ -5155,9 +5292,32 @@ HypreADS::HypreADS(const HypreParMatrix &A, ParFiniteElementSpace *face_fespace)
    Init(face_fespace);
 }
 
-void HypreADS::Init(ParFiniteElementSpace *face_fespace)
+HypreADS::HypreADS(
+   const HypreParMatrix &A, HypreParMatrix *C_, HypreParMatrix *G_,
+   HypreParVector *x_, HypreParVector *y_, HypreParVector *z_)
+   : HypreSolver(&A),
+     x(x_), y(y_), z(z_),
+     G(G_), C(C_),
+     ND_Pi(NULL), ND_Pix(NULL), ND_Piy(NULL), ND_Piz(NULL),
+     RT_Pi(NULL), RT_Pix(NULL), RT_Piy(NULL), RT_Piz(NULL)
 {
-   int cycle_type       = 11;
+   MFEM_ASSERT(C != NULL, "");
+   MFEM_ASSERT(G != NULL, "");
+   MFEM_ASSERT(x != NULL, "");
+   MFEM_ASSERT(y != NULL, "");
+   MFEM_ASSERT(z != NULL, "");
+   int cycle_type = 11;
+   int ams_cycle_type = 14;
+
+   MakeSolver(cycle_type, ams_cycle_type);
+
+   HYPRE_ADSSetCoordinateVectors(ads, *x, *y, *z);
+   HYPRE_ADSSetDiscreteCurl(ads, *C);
+   HYPRE_ADSSetDiscreteGradient(ads, *G);
+}
+
+void HypreADS::MakeSolver(int cycle_type, int ams_cycle_type)
+{
    int rlx_sweeps       = 1;
    double rlx_weight    = 1.0;
    double rlx_omega     = 1.0;
@@ -5178,8 +5338,33 @@ void HypreADS::Init(ParFiniteElementSpace *face_fespace)
    int amg_interp_type  = 6;
    int amg_Pmax         = 4;
 #endif
-   int ams_cycle_type   = 14;
 
+   HYPRE_ADSCreate(&ads);
+
+   HYPRE_ADSSetTol(ads, 0.0);
+   HYPRE_ADSSetMaxIter(ads, 1); // use as a preconditioner
+   HYPRE_ADSSetCycleType(ads, cycle_type);
+   HYPRE_ADSSetPrintLevel(ads, 1);
+
+   // set additional ADS options
+   HYPRE_ADSSetSmoothingOptions(ads, rlx_type, rlx_sweeps, rlx_weight, rlx_omega);
+   HYPRE_ADSSetAMGOptions(ads, amg_coarsen_type, amg_agg_levels, amg_rlx_type,
+                          theta, amg_interp_type, amg_Pmax);
+   HYPRE_ADSSetAMSOptions(ads, ams_cycle_type, amg_coarsen_type, amg_agg_levels,
+                          amg_rlx_type, theta, amg_interp_type, amg_Pmax);
+
+   // The ADS preconditioner requires inverting singular matrices with BoomerAMG,
+   // which are handled correctly in hypre's Solve method, but can produce hypre
+   // errors in the Setup (specifically in the l1 row norm computation). See the
+   // documentation of SetErrorMode() for more details.
+   error_mode = IGNORE_HYPRE_ERRORS;
+}
+
+void HypreADS::MakeDiscreteMatrices(
+   ParFiniteElementSpace *face_fespace,
+   int cycle_type,
+   int ams_cycle_type)
+{
    const FiniteElementCollection *face_fec = face_fespace->FEColl();
    bool trace_space =
       (dynamic_cast<const RT_Trace_FECollection*>(face_fec) != NULL);
@@ -5196,13 +5381,6 @@ void HypreADS::Init(ParFiniteElementSpace *face_fespace)
          p = face_fespace->GetElementOrder(0);
       }
    }
-
-   HYPRE_ADSCreate(&ads);
-
-   HYPRE_ADSSetTol(ads, 0.0);
-   HYPRE_ADSSetMaxIter(ads, 1); // use as a preconditioner
-   HYPRE_ADSSetCycleType(ads, cycle_type);
-   HYPRE_ADSSetPrintLevel(ads, 1);
 
    // define the nodal and edge finite element spaces associated with face_fespace
    ParMesh *pmesh = (ParMesh *) face_fespace->GetMesh();
@@ -5377,19 +5555,14 @@ void HypreADS::Init(ParFiniteElementSpace *face_fespace)
    delete vert_fespace;
    delete edge_fec;
    delete edge_fespace;
+}
 
-   // set additional ADS options
-   HYPRE_ADSSetSmoothingOptions(ads, rlx_type, rlx_sweeps, rlx_weight, rlx_omega);
-   HYPRE_ADSSetAMGOptions(ads, amg_coarsen_type, amg_agg_levels, amg_rlx_type,
-                          theta, amg_interp_type, amg_Pmax);
-   HYPRE_ADSSetAMSOptions(ads, ams_cycle_type, amg_coarsen_type, amg_agg_levels,
-                          amg_rlx_type, theta, amg_interp_type, amg_Pmax);
-
-   // The ADS preconditioner requires inverting singular matrices with BoomerAMG,
-   // which are handled correctly in hypre's Solve method, but can produce hypre
-   // errors in the Setup (specifically in the l1 row norm computation). See the
-   // documentation of SetErrorMode() for more details.
-   error_mode = IGNORE_HYPRE_ERRORS;
+void HypreADS::Init(ParFiniteElementSpace *face_fespace)
+{
+   int cycle_type = 11;
+   int ams_cycle_type = 14;
+   MakeSolver(cycle_type, ams_cycle_type);
+   MakeDiscreteMatrices(face_fespace, cycle_type, ams_cycle_type);
 }
 
 void HypreADS::SetOperator(const Operator &op)
