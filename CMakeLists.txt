@@ -152,8 +152,9 @@ set(CMAKE_MACOSX_RPATH OFF CACHE BOOL "")
 set(MFEM_CMAKE_PATH ${PROJECT_SOURCE_DIR}/config)
 set(CMAKE_MODULE_PATH ${MFEM_CMAKE_PATH}/cmake/modules)
 
-# Load MFEM CMake utilities.
+# Load MFEM/MJIT CMake utilities.
 include(MfemCmakeUtilities)
+include(MjitCmakeUtilities)
 
 string(TOUPPER "${PROJECT_NAME}" PROJECT_NAME_UC)
 mfem_version_to_int(${${PROJECT_NAME}_VERSION} ${PROJECT_NAME_UC}_VERSION)
@@ -249,7 +250,6 @@ endif()
 # JIT
 if (MFEM_USE_JIT)
     set(JIT_FOUND TRUE)
-    set(JIT_INCLUDE_DIRS)
     set(JIT_LIBRARIES "-ldl")
 endif(MFEM_USE_JIT)
 
@@ -510,8 +510,6 @@ if (OPENMP_FOUND)
   endif()
 endif()
 
-include(MjitCmakeUtilities)
-
 message(STATUS "MFEM build type: CMAKE_BUILD_TYPE = ${CMAKE_BUILD_TYPE}")
 message(STATUS "MFEM version: v${MFEM_VERSION_STRING}")
 message(STATUS "MFEM git string: ${MFEM_GIT_STRING}")
@@ -538,7 +536,6 @@ if (MFEM_USE_CUDA)
 endif()
 
 if (MFEM_USE_JIT)
-    #add_mjit_executable()
     set_mjit_sources_dependencies(MJIT_SOURCES JITSRCS)
 else()
     list(APPEND SOURCES ${JITSRCS})
@@ -813,5 +810,4 @@ mfem_export_mk_files()
 
 if (MFEM_USE_JIT)
     add_mjit_executable()
-    set_mjit_compile_definitions()
 endif (MFEM_USE_JIT)

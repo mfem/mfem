@@ -49,11 +49,11 @@ struct dbg
    dbg(const uint8_t color)
    {
       if (!DEBUG) { return; }
-      std::cout << "\033[38;5;" << std::to_string(color==0?COLOR:color) << "m";
+      mfem::out << "\033[38;5;" << std::to_string(color==0?COLOR:color) << "m";
    }
-   ~dbg() { if (DEBUG) { std::cout << "\033[m\n"; std::cout.flush(); } }
+   ~dbg() { if (DEBUG) { mfem::out << "\033[m\n"; mfem::out.flush(); } }
    template <typename T> dbg& operator<<(const T &arg)
-   { if (DEBUG) { std::cout << arg; std::cout.flush(); } return *this; }
+   { if (DEBUG) { mfem::out << arg; mfem::out.flush(); } return *this; }
    template<typename T, typename... Args>
    inline void operator()(const T &arg, Args... args) const
    { operator<<(arg); operator()(args...); }

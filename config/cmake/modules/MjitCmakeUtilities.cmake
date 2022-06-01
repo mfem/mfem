@@ -13,36 +13,6 @@
 if (MFEM_USE_JIT)
 
 string(ASCII 27 ESC)
-message(STATUS "MFEM JIT enabled")
-
-########################
-# ADD MJIT EXECUTABLE  #
-########################
-function(add_mjit_executable)
-
-    add_executable(mjit general/jit/parser.cpp)
-
-    if (MFEM_USE_MPI)
-      if (MPI_CXX_INCLUDE_PATH)
-        target_include_directories(mjit PRIVATE "${MPI_CXX_INCLUDE_PATH}")
-      endif(MPI_CXX_INCLUDE_PATH)
-      if (MPI_CXX_COMPILE_FLAGS)
-        target_compile_options(mjit PRIVATE ${MPI_CXX_COMPILE_ARGS})
-      endif(MPI_CXX_COMPILE_FLAGS)
-      if (MPI_CXX_LINK_FLAGS)
-        set_target_properties(mjit PROPERTIES LINK_FLAGS "${MPI_CXX_LINK_FLAGS}")
-      endif(MPI_CXX_LINK_FLAGS)
-    endif(MFEM_USE_MPI)
-
-    #message(NOTICE "${ESC}[1;32m[MFEM_EXT_LIBS]${MFEM_EXT_LIBS}${ESC}[m")
-    #message(NOTICE "${ESC}[1;32m[MFEM_BUILD_FLAGS]${MFEM_BUILD_FLAGS}${ESC}[m")
-    #message(NOTICE "${ESC}[1;32m[TPL_INCLUDE_DIRS]${TPL_INCLUDE_DIRS}${ESC}[m")
-    #message(NOTICE "${ESC}[1;32m[INCLUDE_INSTALL_DIRS]${INCLUDE_INSTALL_DIRS}${ESC}[m")
-    foreach (dir ${TPL_INCLUDE_DIRS})
-      target_include_directories(mjit PRIVATE ${dir})
-    endforeach (dir "${MFEM_INCLUDE_DIRS}")
-
-endfunction(add_mjit_executable)
 
 #################################
 # set_mjit_sources_dependencies #
@@ -82,10 +52,34 @@ function(set_mjit_sources_dependencies TARGET SOURCES)
     set(${TARGET} ${${TARGET}} PARENT_SCOPE)
 endfunction(set_mjit_sources_dependencies)
 
-################################
-# set_mjit_compile_definitions #
-################################
-function(set_mjit_compile_definitions)
+########################
+# ADD MJIT EXECUTABLE  #
+########################
+function(add_mjit_executable)
+
+    add_executable(mjit general/jit/parser.cpp)
+
+    if (MFEM_USE_MPI)
+      if (MPI_CXX_INCLUDE_PATH)
+        target_include_directories(mjit PRIVATE "${MPI_CXX_INCLUDE_PATH}")
+      endif(MPI_CXX_INCLUDE_PATH)
+      if (MPI_CXX_COMPILE_FLAGS)
+        target_compile_options(mjit PRIVATE ${MPI_CXX_COMPILE_ARGS})
+      endif(MPI_CXX_COMPILE_FLAGS)
+      if (MPI_CXX_LINK_FLAGS)
+        set_target_properties(mjit PROPERTIES LINK_FLAGS "${MPI_CXX_LINK_FLAGS}")
+      endif(MPI_CXX_LINK_FLAGS)
+    endif(MFEM_USE_MPI)
+
+    #message(NOTICE "${ESC}[1;32m[MFEM_EXT_LIBS]${MFEM_EXT_LIBS}${ESC}[m")
+    #message(NOTICE "${ESC}[1;32m[MFEM_BUILD_FLAGS]${MFEM_BUILD_FLAGS}${ESC}[m")
+    #message(NOTICE "${ESC}[1;32m[TPL_INCLUDE_DIRS]${TPL_INCLUDE_DIRS}${ESC}[m")
+    #message(NOTICE "${ESC}[1;32m[INCLUDE_INSTALL_DIRS]${INCLUDE_INSTALL_DIRS}${ESC}[m")
+    foreach (dir ${TPL_INCLUDE_DIRS})
+      target_include_directories(mjit PRIVATE ${dir})
+    endforeach (dir "${MFEM_INCLUDE_DIRS}")
+
+
     message(NOTICE "${ESC}[1;33m[mjit_configure]${ESC}[m")
 
     if (MFEM_USE_MPI)
@@ -119,6 +113,6 @@ function(set_mjit_compile_definitions)
 
     target_compile_definitions(mjit PRIVATE
       "MFEM_CONFIG_FILE=\"${PROJECT_BINARY_DIR}/config/_config.hpp\"")
-endfunction(set_mjit_compile_definitions)
+endfunction(add_mjit_executable)
 
 endif() # MFEM_USE_JIT

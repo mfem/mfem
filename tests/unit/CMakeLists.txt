@@ -13,9 +13,9 @@ project(mfem-unit-tests NONE)
 
 # Include the top mfem source directory - needed by some tests, e.g. to
 # #include "general/text.hpp".
-include_directories(BEFORE ${mfem_SOURCE_DIR})
+include_directories(BEFORE ${${CMAKE_PROJECT_NAME}_SOURCE_DIR})
 # Include the build directory where mfem.hpp and mfem-performance.hpp are.
-include_directories(BEFORE ${mfem_BINARY_DIR})
+include_directories(BEFORE ${${CMAKE_PROJECT_NAME}_BINARY_DIR})
 # Include the source directory for the unit tests - catch.hpp is there.
 include_directories(BEFORE ${CMAKE_CURRENT_SOURCE_DIR})
 
