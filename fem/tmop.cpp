@@ -3723,17 +3723,17 @@ double TMOP_Integrator::ComputeUntanglerMinDetT(const Vector &x,
 {
    double min_detT = std::numeric_limits<double>::infinity();
    const int NE = fes.GetMesh()->GetNE();
+   const int dim = fes.GetMesh()->Dimension();
    Array<int> xdofs;
+   Jpr.SetSize(dim);
+   Jpt.SetSize(dim);
+   Jrt.SetSize(dim);
 
    for (int i = 0; i < NE; i++)
    {
       const FiniteElement *fe = fes.GetFE(i);
       const IntegrationRule &ir = EnergyIntegrationRule(*fe);
-      const int dim = fe->GetDim(),
-                dof = fe->GetDof(), nsp = ir.GetNPoints();
-      Jpr.SetSize(dim);
-      Jpt.SetSize(dim);
-      Jrt.SetSize(dim);
+      const int dof = fe->GetDof(), nsp = ir.GetNPoints();
 
       DSh.SetSize(dof, dim);
       PMatI.SetSize(dof, dim);
@@ -3766,7 +3766,11 @@ double TMOP_Integrator::ComputeUntanglerMaxMuT(const Vector &x,
 {
    double max_muT = -std::numeric_limits<double>::infinity();
    const int NE = fes.GetMesh()->GetNE();
+   const int dim = fes.GetMesh()->Dimension();
    Array<int> xdofs;
+   Jpr.SetSize(dim);
+   Jpt.SetSize(dim);
+   Jrt.SetSize(dim);
 
    TMOP_WorstCaseUntangleOptimizer_Metric *wcuo =
       dynamic_cast<TMOP_WorstCaseUntangleOptimizer_Metric *>(metric);
@@ -3828,14 +3832,17 @@ void TMOP_Integrator::ComputeUntangleMetricQuantiles(const Vector &x,
 
    if (!wcuo && !uo) { return; }
 
+#ifdef MFEM_USE_MPI
+   const ParFiniteElementSpace *pfes =
+      dynamic_cast<const ParFiniteElementSpace *>(&fes);
+#endif
+
    if ( (wcuo && wcuo->IsShiftedBarrierMetric()) ||
         (uo && uo->IsShiftedBarrierMetric()))
    {
       double min_detT = ComputeUntanglerMinDetT(x, fes);
       double min_detT_all = min_detT;
 #ifdef MFEM_USE_MPI
-      const ParFiniteElementSpace *pfes = dynamic_cast<const ParFiniteElementSpace *>
-                                          (&fes);
       if (pfes)
       {
          MPI_Allreduce(&min_detT, &min_detT_all, 1, MPI_DOUBLE, MPI_MIN,
@@ -3851,8 +3858,6 @@ void TMOP_Integrator::ComputeUntangleMetricQuantiles(const Vector &x,
    double max_muT = ComputeUntanglerMaxMuT(x, fes);
    double max_muT_all = max_muT;
 #ifdef MFEM_USE_MPI
-   const ParFiniteElementSpace *pfes = dynamic_cast<const ParFiniteElementSpace *>
-                                       (&fes);
    if (pfes)
    {
       MPI_Allreduce(&max_muT, &max_muT_all, 1, MPI_DOUBLE, MPI_MAX,
