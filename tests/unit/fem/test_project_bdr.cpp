@@ -29,7 +29,6 @@ TEST_CASE("3D ProjectBdrCoefficientTangent",
           "[GridFunction]"
           "[VectorGridFunctionCoefficient]")
 {
-   int log = 1;
    int n = 1;
    int dim = 3;
    int order = 1;
@@ -104,7 +103,7 @@ TEST_CASE("3D ProjectBdrCoefficientTangent",
 
                   nd_err += nd_dist;
 
-                  if (log > 0 && nd_dist > tol)
+                  if (verbose_tests && nd_dist > tol)
                   {
                      mfem::out << be << ":" << j << " nd ("
                                << f_val[0] << "," << f_val[1] << "," << f_val[2]
