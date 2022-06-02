@@ -32,7 +32,7 @@ struct Jit
    /// Initialize JIT, used in communication Mpi singleton.
    static void Init(int *argc, char ***argv);
 
-   /// Set the archive name to @name.
+   /// Set the archive name to @name. Keep cahe with keep.
    static void Configure(const char *name, bool keep = true);
 
    /// Finalize JIT, used in communication Mpi singleton.
