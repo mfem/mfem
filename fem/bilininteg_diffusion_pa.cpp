@@ -13,7 +13,7 @@
 #include "../general/jit/jit.hpp" // for MFEM_JIT
 #include "bilininteg.hpp"
 #include "gridfunc.hpp"
-#include "ceed/diffusion.hpp"
+#include "ceed/integrators/diffusion/diffusion.hpp"
 
 using namespace std;
 

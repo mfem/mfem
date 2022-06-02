@@ -13,7 +13,7 @@
 #include "../general/jit/jit.hpp" // for MFEM_JIT
 #include "bilininteg.hpp"
 #include "gridfunc.hpp"
-#include "ceed/mass.hpp"
+#include "ceed/integrators/mass/mass.hpp"
 
 using namespace std;
 

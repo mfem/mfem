@@ -11,8 +11,11 @@
 
 #include "full-assembly.hpp"
 
+#include "../../../linalg/sparsemat.hpp"
+#include "../interface/util.hpp"
+#include "../interface/ceed.hpp"
+
 #ifdef MFEM_USE_CEED
-#include "util.hpp"
 
 namespace mfem
 {

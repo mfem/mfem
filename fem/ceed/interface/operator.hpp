@@ -12,8 +12,8 @@
 #ifndef MFEM_LIBCEED_OPERATOR
 #define MFEM_LIBCEED_OPERATOR
 
-#include "util.hpp"
-#include "../../linalg/operator.hpp"
+#include "../../../linalg/operator.hpp"
+#include "ceed.hpp"
 
 namespace mfem
 {
@@ -41,7 +41,6 @@ public:
    void AddMult(const mfem::Vector &x, mfem::Vector &y) const;
    void GetDiagonal(mfem::Vector &diag) const;
    using mfem::Operator::SetupRAP;
-
    virtual ~Operator()
    {
 #ifdef MFEM_USE_CEED

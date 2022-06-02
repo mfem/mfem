@@ -414,8 +414,10 @@ ifneq (,$(filter install,$(MAKECMDGOALS)))
 endif
 
 # Source dirs in logical order
-DIRS = general general/jit linalg linalg/simd mesh fem fem/fe fem/ceed \
- fem/qinterp fem/tmop fem/lor
+DIRS = general general/jit linalg linalg/simd mesh fem fem/ceed/interface \
+       fem/ceed/integrators/mass fem/ceed/integrators/convection \
+       fem/ceed/integrators/diffusion fem/ceed/integrators/nlconvection \
+       fem/ceed/solvers fem/fe fem/lor fem/qinterp fem/tmop
 
 ifeq ($(MFEM_USE_MOONOLITH),YES)
    MFEM_CXXFLAGS += $(MOONOLITH_CXX_FLAGS)
@@ -645,8 +647,14 @@ install: $(if $(static),$(BLD)libmfem.a) $(if $(shared),$(BLD)libmfem.$(SO_EXT))
 	   $(INSTALL) -m 640 $(SRC)$$dir/*.okl $(PREFIX_INC)/mfem/$$dir; \
 	done
 # install libCEED q-function headers
-	mkdir -p $(PREFIX_INC)/mfem/fem/ceed
-	$(INSTALL) -m 640 $(SRC)fem/ceed/*.h $(PREFIX_INC)/mfem/fem/ceed
+	mkdir -p $(PREFIX_INC)/mfem/fem/ceed/integrators/mass
+	$(INSTALL) -m 640 $(SRC)fem/ceed/integrators/mass/*.h $(PREFIX_INC)/mfem/fem/ceed/integrators/mass
+	mkdir -p $(PREFIX_INC)/mfem/fem/ceed/integrators/convection
+	$(INSTALL) -m 640 $(SRC)fem/ceed/integrators/convection/*.h $(PREFIX_INC)/mfem/fem/ceed/integrators/convection
+	mkdir -p $(PREFIX_INC)/mfem/fem/ceed/integrators/diffusion
+	$(INSTALL) -m 640 $(SRC)fem/ceed/integrators/diffusion/*.h $(PREFIX_INC)/mfem/fem/ceed/integrators/diffusion
+	mkdir -p $(PREFIX_INC)/mfem/fem/ceed/integrators/nlconvection
+	$(INSTALL) -m 640 $(SRC)fem/ceed/integrators/nlconvection/*.h $(PREFIX_INC)/mfem/fem/ceed/integrators/nlconvection
 # install config.mk in $(PREFIX_SHARE)
 	mkdir -p $(PREFIX_SHARE)
 	$(MAKE) -C $(BLD)config config-mk CONFIG_MK=config-install.mk
