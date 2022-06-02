@@ -21,6 +21,8 @@
 #include "util.hpp"
 #include "ceed.hpp"
 
+#ifdef MFEM_USE_CEED
+
 namespace mfem
 {
 
@@ -32,8 +34,6 @@ class GridFunction;
 
 namespace ceed
 {
-
-#ifdef MFEM_USE_CEED
 
 struct Coefficient
 {
@@ -434,10 +434,10 @@ void InitCoefficient(Coeff *Q, mfem::Mesh &mesh,
    }
 }
 
-#endif
-
 } // namespace ceed
 
 } // namespace mfem
+
+#endif
 
 #endif // MFEM_LIBCEED_COEFF

@@ -23,9 +23,10 @@ namespace ceed
 #ifdef MFEM_USE_CEED
 /** @brief Initialize a CeedElemRestriction for non-mixed meshes.
 
-    @param[in] fes The finite element space.
-    @param[in] ceed The Ceed object.
-    @param[out] restr The `CeedElemRestriction` to initialize. */
+    @param[in] fes Input finite element space.
+    @param[in] ceed Input Ceed object.
+    @param[out] restr The address of the initialized CeedElemRestriction object.
+*/
 void InitRestriction(const FiniteElementSpace &fes,
                      Ceed ceed,
                      CeedElemRestriction *restr);

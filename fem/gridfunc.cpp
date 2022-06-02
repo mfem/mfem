@@ -1587,6 +1587,7 @@ void GridFunction::GetCurl(ElementTransformation &T, Vector &curl) const
                doftrans->InvTransformPrimal(loc_data);
             }
             DenseMatrix curl_shape(fe->GetDof(), fe->GetCurlDim());
+            curl.SetSize(curl_shape.Width());
             fe->CalcPhysCurlShape(T, curl_shape);
             curl_shape.MultTranspose(loc_data, curl);
          }
@@ -2650,11 +2651,22 @@ void GridFunction::ProjectBdrCoefficient(Coefficient *coeff[], Array<int> &attr)
    ComputeMeans(ARITHMETIC, values_counter);
 
 #ifdef MFEM_DEBUG
-   Array<int> ess_vdofs_marker;
-   fes->GetEssentialVDofs(attr, ess_vdofs_marker);
+   Array<int> ess_vdofs_marker(Size());
+   ess_vdofs_marker = 0;
+   Array<int> component_dof_marker;
+   for (int i = 0; i < fes->GetVDim(); i++)
+   {
+      if (!coeff[i]) { continue; }
+      fes->GetEssentialVDofs(attr, component_dof_marker,i);
+      for (int j = 0; j<Size(); j++)
+      {
+         ess_vdofs_marker[j] = bool(ess_vdofs_marker[j]) ||
+                               bool(component_dof_marker[j]);
+      }
+   }
    for (int i = 0; i < values_counter.Size(); i++)
    {
-      MFEM_ASSERT(bool(values_counter[i]) == bool(ess_vdofs_marker[i]),
+      MFEM_ASSERT(bool(values_counter[i]) == ess_vdofs_marker[i],
                   "internal error");
    }
 #endif
@@ -2839,6 +2851,44 @@ double GridFunction::ComputeL2Error(
       }
    }
 
+   return (error < 0.0) ? -sqrt(-error) : sqrt(error);
+}
+
+double GridFunction::ComputeElementGradError(int ielem,
+                                             VectorCoefficient *exgrad,
+                                             const IntegrationRule *irs[]) const
+{
+   double error = 0.0;
+   const FiniteElement *fe;
+   ElementTransformation *Tr;
+   Array<int> dofs;
+   Vector grad;
+   int intorder;
+   int dim = fes->GetMesh()->SpaceDimension();
+   Vector vec(dim);
+
+   fe = fes->GetFE(ielem);
+   Tr = fes->GetElementTransformation(ielem);
+   intorder = 2*fe->GetOrder() + 3; // <--------
+   const IntegrationRule *ir;
+   if (irs)
+   {
+      ir = irs[fe->GetGeomType()];
+   }
+   else
+   {
+      ir = &(IntRules.Get(fe->GetGeomType(), intorder));
+   }
+   fes->GetElementDofs(ielem, dofs);
+   for (int j = 0; j < ir->GetNPoints(); j++)
+   {
+      const IntegrationPoint &ip = ir->IntPoint(j);
+      Tr->SetIntPoint(&ip);
+      GetGradient(*Tr,grad);
+      exgrad->Eval(vec,*Tr,ip);
+      vec-=grad;
+      error += ip.weight * Tr->Weight() * (vec * vec);
+   }
    return (error < 0.0) ? -sqrt(-error) : sqrt(error);
 }
 
@@ -4180,6 +4230,367 @@ double ZZErrorEstimator(BilinearFormIntegrator &blfi,
    return std::sqrt(total_error);
 }
 
+void TensorProductLegendre(int dim,                // input
+                           int order,              // input
+                           const Vector &x_in,     // input
+                           const Vector &xmax,     // input
+                           const Vector &xmin,     // input
+                           Vector &poly,           // output
+                           double angle,           // input (optional)
+                           const Vector *midpoint) // input (optional)
+{
+   MFEM_VERIFY(dim >= 1, "dim must be positive");
+   MFEM_VERIFY(dim <= 3, "dim cannot be greater than 3");
+   MFEM_VERIFY(order >= 0, "order cannot be negative");
+
+   bool rotate = (angle != 0.0) || (midpoint->Norml2() != 0.0);
+
+   Vector x(dim);
+   if (rotate && dim == 2)
+   {
+      // Rotate coordinates to match rotated bounding box
+      Vector tmp(dim);
+      tmp = x_in;
+      tmp -= *midpoint;
+      x[0] = tmp[0]*cos(-angle) - tmp[1]*sin(-angle);
+      x[1] = tmp[0]*sin(-angle) + tmp[1]*cos(-angle);
+   }
+   else
+   {
+      // Bounding box is not reorientated no need to change orientation
+      x = x_in;
+   }
+
+   // Map x to [0, 1] to use CalcLegendre since it uses shifted Legendre Polynomials.
+   double x1 = (x(0) - xmin(0))/(xmax(0)-xmin(0)), x2, x3;
+   Vector poly_x(order+1), poly_y(order+1), poly_z(order+1);
+   poly1d.CalcLegendre(order, x1, poly_x);
+   if (dim > 1)
+   {
+      x2 = (x(1)-xmin(1))/(xmax(1)-xmin(1));
+      poly1d.CalcLegendre(order, x2, poly_y);
+   }
+   if (dim == 3)
+   {
+      x3 = (x(2)-xmin(2))/(xmax(2)-xmin(2));
+      poly1d.CalcLegendre(order, x3, poly_z);
+   }
+
+   int basis_dimension = pow(order+1,dim);
+   poly.SetSize(basis_dimension);
+   switch (dim)
+   {
+      case 1:
+         {
+            for (int i = 0; i <= order; i++)
+            {
+               poly(i) = poly_x(i);
+            }
+         }
+         break;
+      case 2:
+         {
+            for (int j = 0; j <= order; j++)
+            {
+               for (int i = 0; i <= order; i++)
+               {
+                  int cnt = i + (order+1) * j;
+                  poly(cnt) = poly_x(i) * poly_y(j);
+               }
+            }
+         }
+         break;
+      case 3:
+         {
+            for (int k = 0; k <= order; k++)
+            {
+               for (int j = 0; j <= order; j++)
+               {
+                  for (int i = 0; i <= order; i++)
+                  {
+                     int cnt = i + (order+1) * j + (order+1) * (order+1) * k;
+                     poly(cnt) = poly_x(i) * poly_y(j) * poly_z(k);
+                  }
+               }
+            }
+         }
+         break;
+      default:
+         {
+            MFEM_ABORT("TensorProductLegendre: invalid value of dim");
+         }
+   }
+}
+
+void BoundingBox(const Array<int> &patch,  // input
+                 FiniteElementSpace *ufes, // input
+                 int order,                // input
+                 Vector &xmin,             // output
+                 Vector &xmax,             // output
+                 double &angle,            // output
+                 Vector &midpoint,         // output
+                 int iface)                // input (optional)
+{
+   Mesh *mesh = ufes->GetMesh();
+   int dim = mesh->Dimension();
+   int num_elems = patch.Size();
+   IsoparametricTransformation Tr;
+
+   xmax = -infinity();
+   xmin = infinity();
+   angle = 0.0;
+   midpoint = 0.0;
+   bool rotate = (dim == 2);
+
+   // Rotate bounding box to match the face orientation
+   if (rotate && iface >= 0)
+   {
+      IntegrationPoint reference_pt;
+      mesh->GetFaceTransformation(iface, &Tr);
+      Vector physical_pt(2);
+      Vector physical_diff(2);
+      physical_diff = 0.0;
+      // Get the endpoints of the edge in physical space
+      // then compute midpoint and angle
+      for (int i = 0; i < 2; i++)
+      {
+         reference_pt.Set1w((double)i, 0.0);
+         Tr.Transform(reference_pt, physical_pt);
+         midpoint += physical_pt;
+         physical_pt *= pow(-1.0,i);
+         physical_diff += physical_pt;
+      }
+      midpoint /= 2.0;
+      angle = atan2(physical_diff(1),physical_diff(0));
+   }
+
+   for (int i = 0; i < num_elems; i++)
+   {
+      int ielem = patch[i];
+      const IntegrationRule *ir = &(IntRules.Get(mesh->GetElementGeometry(ielem),
+                                                 order));
+      ufes->GetElementTransformation(ielem, &Tr);
+      for (int k = 0; k < ir->GetNPoints(); k++)
+      {
+         const IntegrationPoint ip = ir->IntPoint(k);
+         Vector transip(dim);
+         Tr.Transform(ip, transip);
+         if (rotate)
+         {
+            transip -= midpoint;
+            Vector tmp(dim);
+            tmp = transip;
+            transip[0] = tmp[0]*cos(-angle) - tmp[1]*sin(-angle);
+            transip[1] = tmp[0]*sin(-angle) + tmp[1]*cos(-angle);
+         }
+         for (int d = 0; d < dim; d++) { xmax(d) = max(xmax(d), transip(d)); }
+         for (int d = 0; d < dim; d++) { xmin(d) = min(xmin(d), transip(d)); }
+      }
+   }
+}
+
+double LSZZErrorEstimator(BilinearFormIntegrator &blfi,  // input
+                          GridFunction &u,               // input
+                          Vector &error_estimates,       // output
+                          bool subdomain_reconstruction, // input (optional)
+                          bool with_coeff,               // input (optional)
+                          double tichonov_coeff)         // input (optional)
+{
+   MFEM_VERIFY(tichonov_coeff >= 0.0, "tichonov_coeff cannot be negative");
+   FiniteElementSpace *ufes = u.FESpace();
+   ElementTransformation *Transf;
+
+   Mesh *mesh = ufes->GetMesh();
+   int dim = mesh->Dimension();
+   int sdim = mesh->SpaceDimension();
+   int nfe = ufes->GetNE();
+   int nfaces = ufes->GetNF();
+
+   Array<int> udofs;
+   Array<int> fdofs;
+   Vector ul, fl, fla;
+
+   error_estimates.SetSize(nfe);
+   error_estimates = 0.0;
+   Array<int> counters(nfe);
+   counters = 0;
+
+   Vector xmax(dim);
+   Vector xmin(dim);
+   double angle = 0.0;
+   Vector midpoint(dim);
+
+   // Compute the number of subdomains
+   int nsd = 1;
+   if (subdomain_reconstruction)
+   {
+      nsd = ufes->GetMesh()->attributes.Max();
+   }
+
+   double total_error = 0.0;
+   for (int iface = 0; iface < nfaces; iface++)
+   {
+      // 1.A. Find all elements in the face patch.
+      int el1;
+      int el2;
+      mesh->GetFaceElements(iface, &el1, &el2);
+      Array<int> patch(2);
+      patch[0] = el1; patch[1] = el2;
+
+      // 1.B. Check if boundary face or non-conforming coarse face and continue if true.
+      if (el1 == -1 || el2 == -1)
+      {
+         continue;
+      }
+
+      // 1.C Check if face patch crosses an attribute interface and
+      // continue if true (only active if subdomain_reconstruction == true)
+      if (nsd > 1)
+      {
+         int el1_attr = ufes->GetAttribute(el1);
+         int el2_attr = ufes->GetAttribute(el2);
+         if (el1_attr != el2_attr) { continue; }
+      }
+
+      // 2. Compute global flux polynomial.
+
+      // 2.A. Compute polynomial order of patch (for hp FEM)
+      const int patch_order = max(ufes->GetElementOrder(el1),
+                                  ufes->GetElementOrder(el2));
+
+      int num_basis_functions = pow(patch_order+1,dim);
+      int flux_order = 2*patch_order + 1;
+      DenseMatrix A(num_basis_functions);
+      Array<double> b(sdim * num_basis_functions);
+      A = 0.0;
+      b = 0.0;
+
+      // 2.B. Estimate the smallest bounding box around the face patch
+      //      (this is used in 2.C.ii. to define a global polynomial basis)
+      BoundingBox(patch, ufes, flux_order,
+                  xmin, xmax, angle, midpoint, iface);
+
+      // 2.C. Compute the normal equations for the least-squares problem
+      // 2.C.i. Evaluate the discrete flux at all integration points in all
+      //        elements in the face patch
+      for (int i = 0; i < patch.Size(); i++)
+      {
+         int ielem = patch[i];
+         const IntegrationRule *ir = &(IntRules.Get(mesh->GetElementGeometry(ielem),
+                                                    flux_order));
+         int num_integration_pts = ir->GetNPoints();
+
+         ufes->GetElementVDofs(ielem, udofs);
+         u.GetSubVector(udofs, ul);
+         Transf = ufes->GetElementTransformation(ielem);
+         FiniteElement *dummy = nullptr;
+         blfi.ComputeElementFlux(*ufes->GetFE(ielem), *Transf, ul,
+                                 *dummy, fl, with_coeff, ir);
+
+         // 2.C.ii. Use global polynomial basis to construct normal
+         //         equations
+         for (int k = 0; k < num_integration_pts; k++)
+         {
+            const IntegrationPoint ip = ir->IntPoint(k);
+            double tmp[3];
+            Vector transip(tmp, 3);
+            Transf->Transform(ip, transip);
+
+            Vector p;
+            TensorProductLegendre(dim, patch_order, transip, xmax, xmin, p, angle,
+                                  &midpoint);
+            AddMultVVt(p, A);
+
+            for (int l = 0; l < num_basis_functions; l++)
+            {
+               // Loop through each component of the discrete flux
+               for (int n = 0; n < sdim; n++)
+               {
+                  b[l + n * num_basis_functions] += p(l) * fl(k + n * num_integration_pts);
+               }
+            }
+         }
+      }
+
+      // 2.D. Shift spectrum of A to avoid conditioning issues.
+      //      Regularization is necessary if the tensor product space used for the
+      //      flux reconstruction leads to an underdetermined system of linear equations.
+      //      This should not happen if there are tensor product elements in the patch,
+      //      but it can happen if there are other element shapes (those with few
+      //      integration points) in the patch.
+      for (int i = 0; i < num_basis_functions; i++)
+      {
+         A(i,i) += tichonov_coeff;
+      }
+
+      // 2.E. Solve for polynomial coefficients
+      Array<int> ipiv(num_basis_functions);
+      LUFactors lu(A.Data(), ipiv);
+      double TOL = 1e-9;
+      if (!lu.Factor(num_basis_functions,TOL))
+      {
+         // Singular matrix
+         mfem::out << "LSZZErrorEstimator: Matrix A is singular.\t"
+                   << "Consider increasing tichonov_coeff." << endl;
+         for (int i = 0; i < num_basis_functions; i++)
+         {
+            A(i,i) += 1e-8;
+         }
+         lu.Factor(num_basis_functions,TOL);
+      }
+      lu.Solve(num_basis_functions, sdim, b);
+
+      // 2.F. Construct l2-minimizing global polynomial
+      auto global_poly_tmp = [=] (const Vector &x, Vector &f)
+      {
+         Vector p;
+         TensorProductLegendre(dim, patch_order, x, xmax, xmin, p, angle, &midpoint);
+         f = 0.0;
+         for (int i = 0; i < num_basis_functions; i++)
+         {
+            for (int j = 0; j < sdim; j++)
+            {
+               f(j) += b[i + j * num_basis_functions] * p(i);
+            }
+         }
+      };
+      VectorFunctionCoefficient global_poly(sdim, global_poly_tmp);
+
+      // 3. Compute error contributions from the face.
+      double element_error = 0.0;
+      double patch_error = 0.0;
+      for (int i = 0; i < patch.Size(); i++)
+      {
+         int ielem = patch[i];
+         element_error = u.ComputeElementGradError(ielem, &global_poly);
+         element_error *= element_error;
+         patch_error += element_error;
+         error_estimates(ielem) += element_error;
+         counters[ielem]++;
+      }
+
+      total_error += patch_error;
+   }
+
+   // 4. Calibrate the final error estimates. Note that the l2 norm of
+   //    error_estimates vector converges to total_error.
+   //    The error estimates have been calibrated so that high order
+   //    benchmark problems with tensor product elements are asymptotically
+   //    exact.
+   for (int ielem = 0; ielem < nfe; ielem++)
+   {
+      if (counters[ielem] == 0)
+      {
+         error_estimates(ielem) = infinity();
+      }
+      else
+      {
+         error_estimates(ielem) /= counters[ielem]/2.0;
+         error_estimates(ielem) = sqrt(error_estimates(ielem));
+      }
+   }
+   return std::sqrt(total_error/dim);
+}
 
 double ComputeElementLpDistance(double p, int i,
                                 GridFunction& gf1, GridFunction& gf2)
