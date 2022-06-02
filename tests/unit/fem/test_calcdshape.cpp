@@ -119,7 +119,7 @@ TEST_CASE("CalcDShape H1",
 {
    const int maxOrder = 5;
    const int resolution = 10;
-   auto order = GENERATE(range(1, maxOrder + 1));
+   auto order = GENERATE_COPY(range(1, maxOrder + 1));
 
    CAPTURE(order);
 
