@@ -17,7 +17,6 @@
 #if !CEED_VERSION_GE(0,10,0)
 #error MFEM requires a libCEED version >= 0.10.0
 #endif
-#endif
 
 namespace mfem
 {
@@ -25,17 +24,12 @@ namespace mfem
 namespace internal
 {
 
-#ifdef MFEM_USE_CEED
 extern Ceed ceed;
-#endif
 
 } // namespace internal
 
-namespace ceed
-{
-
-} // namespace ceed
-
 } // namespace mfem
+
+#endif // MFEM_USE_CEED
 
 #endif // MFEM_LIBCEED_CEED

@@ -131,7 +131,6 @@ static void InitBasisImpl(const FiniteElementSpace &fes,
    }
 }
 
-
 void InitBasis(const FiniteElementSpace &fes,
                const IntegrationRule &ir,
                Ceed ceed, CeedBasis *basis)

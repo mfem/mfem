@@ -24,10 +24,11 @@ namespace ceed
 
 /** @brief Initialize a CeedBasis for non-mixed meshes.
 
-    @param[in] fes The finite element space.
-    @param[in] ir is the integration rule for the operator.
-    @param[in] ceed The Ceed object.
-    @param[out] basis The `CeedBasis` to initialize. */
+   @param[in] fes Input finite element space.
+   @param[in] irm Input integration rule.
+   @param[in] ceed Input Ceed object.
+   @param[out] basis The address of the initialized CeedBasis object.
+*/
 void InitBasis(const FiniteElementSpace &fes,
                const IntegrationRule &ir,
                Ceed ceed, CeedBasis *basis);

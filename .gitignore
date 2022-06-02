@@ -240,6 +240,7 @@ miniapps/navier/navier_kovasznay_vs
 miniapps/navier/navier_tgv
 miniapps/navier/navier_shear
 miniapps/navier/navier_3dfoc
+miniapps/navier/navier_turbchan
 miniapps/navier/tgv_out*.txt
 miniapps/navier/*_output
 
@@ -260,12 +261,14 @@ miniapps/performance/sol.*
 
 miniapps/shifted/distance
 miniapps/shifted/ParaViewDistance
+miniapps/shifted/ParaViewLSF
 miniapps/shifted/extrapolate
 miniapps/shifted/ParaViewExtrapolate
 miniapps/shifted/diffusion
 miniapps/shifted/diffusion.mesh
 miniapps/shifted/diffusion.gf
 miniapps/shifted/ParaViewDiffusion
+miniapps/shifted/lsf_integral
 
 miniapps/tools/display-basis
 miniapps/tools/load-dc
