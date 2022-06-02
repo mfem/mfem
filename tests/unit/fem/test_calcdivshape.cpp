@@ -102,9 +102,9 @@ TEST_CASE("CalcDivShape RT",
           "[RT_WedgeElement]"
           "[RT_HexahedronElement]")
 {
-   static constexpr int maxOrder = 5;
-   static constexpr int resolution = 10;
-   auto order = GENERATE(1, maxOrder);
+   const int maxOrder = 5;
+   const int resolution = 10;
+   auto order = GENERATE(range(1, maxOrder + 1));
 
    CAPTURE(order);
 
