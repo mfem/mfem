@@ -724,7 +724,7 @@ endif()
 if (MFEM_USE_CEED)
   install(DIRECTORY ${MFEM_SOURCE_DIRS}
     DESTINATION ${INSTALL_INCLUDE_DIR}/mfem
-    FILES_MATCHING PATTERN "fem/ceed/*.h")
+    FILES_MATCHING PATTERN "fem/ceed/integrators/*/*.h")
 endif()
 
 # Install ${HEADERS}
