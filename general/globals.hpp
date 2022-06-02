@@ -15,7 +15,7 @@
 #include "../config/config.hpp"
 #include <iostream>
 
-#ifdef MFEM_USE_MPI
+#if defined(MFEM_USE_MPI) && !defined(MFEM_JIT_COMPILATION)
 #include <mpi.h>
 #endif
 
