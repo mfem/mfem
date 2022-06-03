@@ -173,7 +173,7 @@ Operator &ParNonlinearForm::GetGradient(const Vector &x) const
    if (Grad == NULL)
    {
       int nbr_size = 0;
-      if (fnfi.Size()) nbr_size = pfes->GetFaceNbrVSize();
+      if (fnfi.Size()) { nbr_size = pfes->GetFaceNbrVSize(); }
       Grad = new SparseMatrix(fes->GetVSize(), fes->GetVSize()+nbr_size);
    }
 
