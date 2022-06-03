@@ -168,7 +168,8 @@ void ParBilinearForm::ParallelRAP(OperatorHandle &A)
    }
 }
 
-void ParBilinearForm::ParallelEliminateBC(const Array<int> &ess_dofs, HypreParMatrix &A)
+void ParBilinearForm::ParallelEliminateBC(const Array<int> &ess_dofs,
+                                          HypreParMatrix &A)
 {
    hypre_ParCSRMatrix *A_hypre = A;
    A.HypreReadWrite();
@@ -225,8 +226,8 @@ void ParBilinearForm::ParallelEliminateBC(const Array<int> &ess_dofs, HypreParMa
 
       // Try to use device-aware MPI for the communication if available
       comm_handle = hypre_ParCSRCommHandleCreate_v2(
-                     11, comm_pkg, HYPRE_MEMORY_DEVICE, int_buf_data,
-                     HYPRE_MEMORY_DEVICE, eliminate_col);
+                       11, comm_pkg, HYPRE_MEMORY_DEVICE, int_buf_data,
+                       HYPRE_MEMORY_DEVICE, eliminate_col);
    }
 
    // Eliminate rows and columns in the diagonal block

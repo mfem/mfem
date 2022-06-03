@@ -391,9 +391,9 @@ TEST_CASE("Serial H1 Full Assembly", "[AssemblyLevel], [CUDA]")
 {
    auto order = GENERATE(1, 2, 3);
    auto mesh_fname = GENERATE(
-      "../../data/star.mesh",
-      "../../data/fichera.mesh"
-   );
+                        "../../data/star.mesh",
+                        "../../data/fichera.mesh"
+                     );
 
    Mesh mesh(mesh_fname);
    int dim = mesh.Dimension();
@@ -454,9 +454,9 @@ TEST_CASE("Parallel H1 Full Assembly", "[AssemblyLevel], [Parallel], [CUDA]")
 {
    auto order = GENERATE(1, 2, 3);
    auto mesh_fname = GENERATE(
-      "../../data/star.mesh",
-      "../../data/fichera.mesh"
-   );
+                        "../../data/star.mesh",
+                        "../../data/fichera.mesh"
+                     );
 
    Mesh serial_mesh(mesh_fname);
    ParMesh mesh(MPI_COMM_WORLD, serial_mesh);
