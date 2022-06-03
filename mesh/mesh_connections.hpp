@@ -127,7 +127,7 @@ public:
       ConnectionsOfEntity({1,AllIdx,7}, {2,AllIdx,{}}) ->  {2,AllIdx,{0,1}}, ParentsOf relationship
       ConnectionsOfEntity({1,BdrIdx,5}, {2,AllIdx,{}}) ->  {2,AllIdx,{1}}, ParentsOf relationship
       ConnectionsOfEntity({2,AllIdx,0}, {2,AllIdx,{}}) ->  {2,AllIdx,{}}, No connections defined of the same dimension**/
-   void ConnectionsOfEntity(const EntityIndex entity, EntityIndices connected);
+   void ConnectionsOfEntity(const EntityIndex entity, EntityIndices connected) const;
 
    /** @brief General method for getting the @a connected entity indices of the given set of
        @a entities.  This method can represent both parent/child and child/parent relationships
@@ -157,7 +157,7 @@ public:
       ConnectionsOfEntities({0,AllIdx,{0,8}}, {2,AllIdx,{}}, false)      ->  {2,AllIdx,{0,3}}
       ConnectionsOfEntities({1,AllIdx,{0,1,2,6,7}}, {2,AllIdx,{}}, true) ->  {2,AllIdx,{0}}, only elem 0 is covered                     
     */
-   void ConnectionsOfEntities(const EntityIndices entities, EntityIndices connected, bool covered);
+   void ConnectionsOfEntities(const EntityIndices entities, EntityIndices connected, bool covered) const;
 
    /** @brief Returns true if the @a parent entity is indeed a
        a parent of the @a child entity.  For the example mesh
@@ -351,15 +351,13 @@ public:
    void NeighborsOfEntities(const EntityIndices &entities, int shared_dim,
                             EntityIndices &neighbors) const;
 
-   EntityIndex& GetAllIdxFronBdrIdx(const EntityIndex &entity);
-   EntityIndices& GetAllIdxFronBdrIdx(const EntityIndices &entity);
+   int GetAllIdxFromBdrIdx(int bdr_idx) const;
+   int GetBdrIdxFromAllIdx(int all_idx) const;
 
-   EntityIndex& GetBdrIdxFromAllIdx(const EntityIndex &entity);
-   EntityIndices& GetBdrIdxFromAllIdx(const EntityIndices &entity);
-
-    private:
    /// Raw table access
-   Table* GetTable(int row_dim, bool row_ind_type, int col_dim, bool col_ind_type) const;
+   Table* GetTable(int row_dim, EntityIndexType row_ind_type, int col_dim, EntityIndexType col_ind_type) const;
+
+   Table* GetNeighborTable(int entity_dim, EntityIndexType int_type, int shared_dim);
 };
 
 }

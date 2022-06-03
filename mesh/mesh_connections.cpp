@@ -21,7 +21,18 @@ MeshConnections::MeshConnections(const Mesh &m) :
 
 }
 
-bool MeshConnections::IsChild(EntityIndex &parent, EntityIndex &child) const
+void MeshConnections::ConnectionsOfEntity(const EntityIndex entity, EntityIndices connected) const
+{
+
+}
+
+void MeshConnections::ConnectionsOfEntities(const EntityIndices entities, 
+                                            EntityIndices connected, bool covered) const
+{
+
+}
+
+bool MeshConnections::IsChild(const EntityIndex &parent, const EntityIndex &child) const
 {
 
    return false;
@@ -69,8 +80,27 @@ void MeshConnections::NeighborsOfEntities(const EntityIndices &entities,
 
 }
 
-Table* MeshConnections::GetTable(int row_dim, bool row_bndry, int col_dim,
-                                 bool col_bndry) const
+int MeshConnections::GetAllIdxFromBdrIdx(int bdr_idx) const
+{
+   int all_idx;
+   return all_idx;
+}
+
+
+int MeshConnections::GetBdrIdxFromAllIdx(int all_idx) const
+{
+   int bdr_idx;
+   return bdr_idx;
+}
+
+Table* MeshConnections::GetTable(int row_dim, EntityIndexType row_type, 
+                                 int col_dim, EntityIndexType col_type) const
+{
+   return nullptr;
+}
+
+
+Table* MeshConnections::GetNeighborTable(int entity_dim, EntityIndexType ind_type, int shared_dim)
 {
    return nullptr;
 }
