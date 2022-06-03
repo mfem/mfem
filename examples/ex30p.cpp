@@ -1,15 +1,15 @@
-//                        MFEM Example 30 - Parallel Version
+//                       MFEM Example 30 - Parallel Version
 //
 // Compile with: make ex30p
 //
 // Sample runs:  mpirun -np 4 ex30p -m ../data/square-disc.mesh -o 1
 //               mpirun -np 4 ex30p -m ../data/square-disc.mesh -o 2
-//               mpirun -np 4 ex30p -m ../data/square-disc.mesh -o 2 -me 1e3
+//               mpirun -np 4 ex30p -m ../data/square-disc.mesh -o 2 -me 1e+4
 //               mpirun -np 4 ex30p -m ../data/square-disc-nurbs.mesh -o 2
 //               mpirun -np 4 ex30p -m ../data/star.mesh -o 2 -eo 4
-//               mpirun -np 4 oscp -m ../data/fichera.mesh -o 2 -me 1e4
+//               mpirun -np 4 ex30p -m ../data/fichera.mesh -o 2 -me 1e+5 -e 5e-2
 //               mpirun -np 4 ex30p -m ../data/disc-nurbs.mesh -o 2
-//               mpirun -np 4 ex30p -m ../data/ball-nurbs.mesh -o 2 -eo 3 -e 1e-2
+//               mpirun -np 4 ex30p -m ../data/ball-nurbs.mesh -o 2 -eo 3 -e 5e-2 -me 1e+5
 //               mpirun -np 4 ex30p -m ../data/star-surf.mesh -o 2
 //               mpirun -np 4 ex30p -m ../data/square-disc-surf.mesh -o 2
 //               mpirun -np 4 ex30p -m ../data/amr-quad.mesh -l 2
@@ -22,13 +22,13 @@
 //               nonconforming meshes is demonstrated in example 6. In some
 //               problems, the material data or loading data is not sufficiently
 //               resolved on the initial mesh. This missing fine scale data
-//               reduces the accuracy of the solution as well as the accuracy
-//               of some local error estimators. By preprocessing the mesh
-//               before solving the PDE, many issues can be avoided.
+//               reduces the accuracy of the solution as well as the accuracy of
+//               some local error estimators. By preprocessing the mesh before
+//               solving the PDE, many issues can be avoided.
 //
-//               [1] Morin, P., Nochetto, R. H., & Siebert, K. G. (2000).
-//                   Data oscillation and convergence of adaptive FEM. SIAM
-//                   Journal on Numerical Analysis, 38(2), 466-488.
+//               [1] Morin, P., Nochetto, R. H., & Siebert, K. G. (2000). Data
+//                   oscillation and convergence of adaptive FEM. SIAM Journal
+//                   on Numerical Analysis, 38(2), 466-488.
 //
 //               [2] Mitchell, W. F. (2013). A collection of 2D elliptic
 //                   problems for testing adaptive grid refinement algorithms.
@@ -58,12 +58,18 @@ double affine_function(const Vector &p)
 // Piecewise-constant function which is never mesh-conforming
 double jump_function(const Vector &p)
 {
-   if (p.Normlp(2.0) > 0.4 && p.Normlp(2.0) < 0.6) { return 1.0; }
-   return 5.0;
+   if (p.Normlp(2.0) > 0.4 && p.Normlp(2.0) < 0.6)
+   {
+      return 1.0;
+   }
+   else
+   {
+      return 5.0;
+   }
 }
 
-// Singular function derived from the Laplacian of the "steep wavefront"
-// problem in [2].
+// Singular function derived from the Laplacian of the "steep wavefront" problem
+// in [2].
 double singular_function(const Vector &p)
 {
    double x = p(0), y = p(1);
@@ -80,11 +86,11 @@ double singular_function(const Vector &p)
 
 int main(int argc, char *argv[])
 {
-   // 0. Initialize MPI.
-   int num_procs, myid;
-   MPI_Init(&argc, &argv);
-   MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
-   MPI_Comm_rank(MPI_COMM_WORLD, &myid);
+   // 0. Initialize MPI and HYPRE.
+   Mpi::Init(argc, argv);
+   int num_procs = Mpi::WorldSize();
+   int myid = Mpi::WorldRank();
+   Hypre::Init();
 
    // 1. Parse command-line options.
    const char *mesh_file = "../data/star.mesh";
@@ -106,9 +112,6 @@ int main(int argc, char *argv[])
                   "Maximum level of hanging nodes.");
    args.AddOption(&double_max_elems, "-me", "--max-elems",
                   "Stop after reaching this many elements.");
-   args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
-                  "--no-visualization",
-                  "Enable or disable GLVis visualization.");
    args.AddOption(&osc_threshold, "-e", "--error",
                   "relative data oscillation threshold.");
    args.AddOption(&enriched_order, "-eo", "--enriched_order",
@@ -117,7 +120,9 @@ int main(int argc, char *argv[])
                   "-cs", "--conforming-simplices",
                   "For simplicial meshes, enable/disable nonconforming"
                   " refinement");
-
+   args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
+                  "--no-visualization",
+                  "Enable or disable GLVis visualization.");
    args.Parse();
    if (!args.Good())
    {
@@ -125,7 +130,6 @@ int main(int argc, char *argv[])
       {
          args.PrintUsage(cout);
       }
-      MPI_Finalize();
       return 1;
    }
    if (myid == 0)
@@ -138,7 +142,7 @@ int main(int argc, char *argv[])
 
    // 2. Since a NURBS mesh can currently only be refined uniformly, we need to
    //    convert it to a piecewise-polynomial curved mesh. First we refine the
-   //    NURBS mesh a bit more and then project the curvature to quadratic Nodes.
+   //    NURBS mesh a bit and then project the curvature to quadratic Nodes.
    if (mesh.NURBSext)
    {
       for (int i = 0; i < 2; i++)
@@ -149,13 +153,13 @@ int main(int argc, char *argv[])
    }
 
    // 3. Make sure the mesh is in the non-conforming mode to enable local
-   //    refinement of quadrilaterals/hexahedra. Simplices can be refined
-   //    either in conforming or in non-conforming mode. The conforming
-   //    mode however does not support dynamic partitioning.
+   //    refinement of quadrilaterals/hexahedra. Simplices can be refined either
+   //    in conforming or in non-conforming mode. The conforming mode however
+   //    does not support dynamic partitioning.
    mesh.EnsureNCMesh(nc_simplices);
 
-   // 4. Define a parallel mesh by partitioning the serial mesh.
-   //    Once the parallel mesh is defined, the serial mesh can be deleted.
+   // 4. Define a parallel mesh by partitioning the serial mesh. Once the
+   //    parallel mesh is defined, the serial mesh can be deleted.
    ParMesh pmesh(MPI_COMM_WORLD, mesh);
    mesh.Clear();
 
@@ -163,7 +167,7 @@ int main(int argc, char *argv[])
    FunctionCoefficient affine_coeff(affine_function);
    FunctionCoefficient jump_coeff(jump_function);
    FunctionCoefficient singular_coeff(singular_function);
-   CoefficientRefiner coeffrefiner(affine_coeff,order);
+   CoefficientRefiner  coeffrefiner(affine_coeff,order);
 
    // 6. Connect to GLVis.
    char vishost[] = "localhost";
@@ -177,7 +181,7 @@ int main(int argc, char *argv[])
    // 7. Define custom integration rule (optional).
    const IntegrationRule *irs[Geometry::NumGeom];
    int order_quad = 2*order + enriched_order;
-   for (int i=0; i < Geometry::NumGeom; ++i)
+   for (int i = 0; i < Geometry::NumGeom; ++i)
    {
       irs[i] = &(IntRules.Get(i, order_quad));
    }
@@ -189,16 +193,16 @@ int main(int argc, char *argv[])
    coeffrefiner.SetNCLimit(nc_limit);
    coeffrefiner.PrintWarnings();
 
-   // 9. Preprocess mesh to control osc (piecewise-affine function).
-   //    This is mostly just a verification check. The oscillation should
-   //    be zero if the function is mesh-conforming and order > 0.
+   // 9. Preprocess mesh to control osc (piecewise-affine function). This is
+   //    mostly just a verification check. The oscillation should be zero if the
+   //    function is mesh-conforming and order > 0.
    coeffrefiner.PreprocessMesh(pmesh);
 
    int globalNE = pmesh.GetGlobalNE();
    double osc = coeffrefiner.GetOsc();
    if (myid == 0)
    {
-      mfem::out  << "\n";
+      mfem::out << "\n";
       mfem::out << "Function 0 (affine) \n";
       mfem::out << "Number of Elements " << globalNE << "\n";
       mfem::out << "Osc error " << osc << "\n";
@@ -212,7 +216,7 @@ int main(int argc, char *argv[])
    osc = coeffrefiner.GetOsc();
    if (myid == 0)
    {
-      mfem::out  << "\n";
+      mfem::out << "\n";
       mfem::out << "Function 1 (discontinuous) \n";
       mfem::out << "Number of Elements " << globalNE << "\n";
       mfem::out << "Osc error " << osc << "\n";
@@ -226,16 +230,18 @@ int main(int argc, char *argv[])
    osc = coeffrefiner.GetOsc();
    if (myid == 0)
    {
-      mfem::out  << "\n";
+      mfem::out << "\n";
       mfem::out << "Function 2 (singular) \n";
       mfem::out << "Number of Elements " << globalNE << "\n";
       mfem::out << "Osc error " << osc << "\n";
    }
 
-   sol_sock.precision(8);
-   sol_sock << "parallel " << num_procs << " " << myid << "\n";
-   sol_sock << "mesh\n" << pmesh << flush;
+   if (visualization)
+   {
+      sol_sock.precision(8);
+      sol_sock << "parallel " << num_procs << " " << myid << "\n";
+      sol_sock << "mesh\n" << pmesh << flush;
+   }
 
-   MPI_Finalize();
    return 0;
 }

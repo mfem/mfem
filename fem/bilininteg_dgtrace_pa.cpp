@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -43,9 +43,10 @@ static void PADGTraceSetup2D(const int Q1D,
    auto W = w.Read();
    auto qd = Reshape(op.Write(), Q1D, 2, 2, NF);
 
-   MFEM_FORALL(f, NF, // can be optimized with Q1D thread for NF blocks
+   MFEM_FORALL(tid, Q1D*NF,
    {
-      for (int q = 0; q < Q1D; ++q)
+      const int f = tid / Q1D;
+      const int q = tid % Q1D;
       {
          const double r = const_r ? R(0,0) : R(q,f);
          const double v0 = const_v ? V(0,0,0) : V(0,q,f);
@@ -85,11 +86,12 @@ static void PADGTraceSetup3D(const int Q1D,
    auto W = w.Read();
    auto qd = Reshape(op.Write(), Q1D, Q1D, 2, 2, NF);
 
-   MFEM_FORALL(f, NF, // can be optimized with Q1D*Q1D threads for NF blocks
+   MFEM_FORALL(tid, Q1D*Q1D*NF,
    {
-      for (int q1 = 0; q1 < Q1D; ++q1)
+      int f = tid / (Q1D * Q1D);
+      int q2 = (tid / Q1D) % Q1D;
+      int q1 = tid % Q1D;
       {
-         for (int q2 = 0; q2 < Q1D; ++q2)
          {
             const double r = const_r ? R(0,0,0) : R(q1,q2,f);
             const double v0 = const_v ? V(0,0,0,0) : V(0,q1,q2,f);
@@ -140,13 +142,13 @@ void DGTraceIntegrator::SetupPA(const FiniteElementSpace &fes, FaceType type)
    Mesh *mesh = fes.GetMesh();
    const FiniteElement &el =
       *fes.GetTraceElement(0, fes.GetMesh()->GetFaceBaseGeometry(0));
-   FaceElementTransformations &T =
+   FaceElementTransformations &T0 =
       *fes.GetMesh()->GetFaceElementTransformations(0);
    const IntegrationRule *ir = IntRule?
                                IntRule:
-                               &GetRule(el.GetGeomType(), el.GetOrder(), T);
+                               &GetRule(el.GetGeomType(), el.GetOrder(), T0);
    const int symmDims = 4;
-   const int nq = ir->GetNPoints();
+   nq = ir->GetNPoints();
    dim = mesh->Dimension();
    geom = mesh->GetFaceGeometricFactors(
              *ir,
@@ -162,11 +164,11 @@ void DGTraceIntegrator::SetupPA(const FiniteElementSpace &fes, FaceType type)
    {
       vel = c_u->GetVec();
    }
-   else if (VectorQuadratureFunctionCoefficient* c_u =
+   else if (VectorQuadratureFunctionCoefficient* qf_u =
                dynamic_cast<VectorQuadratureFunctionCoefficient*>(u))
    {
       // Assumed to be in lexicographical ordering
-      const QuadratureFunction &qFun = c_u->GetQuadFunction();
+      const QuadratureFunction &qFun = qf_u->GetQuadFunction();
       MFEM_VERIFY(qFun.Size() == dim * nq * nf,
                   "Incompatible QuadratureFunction dimension \n");
 
@@ -182,22 +184,26 @@ void DGTraceIntegrator::SetupPA(const FiniteElementSpace &fes, FaceType type)
       auto C = Reshape(vel.HostWrite(), dim, nq, nf);
       Vector Vq(dim);
       int f_ind = 0;
-      for (int f = 0; f < fes.GetNF(); ++f)
+      for (int f = 0; f < mesh->GetNumFacesWithGhost(); ++f)
       {
-         int e1, e2;
-         int inf1, inf2;
-         fes.GetMesh()->GetFaceElements(f, &e1, &e2);
-         fes.GetMesh()->GetFaceInfos(f, &inf1, &inf2);
-         int face_id = inf1 / 64;
-         if ((type==FaceType::Interior && (e2>=0 || (e2<0 && inf2>=0))) ||
-             (type==FaceType::Boundary && e2<0 && inf2<0) )
+         Mesh::FaceInformation face = mesh->GetFaceInformation(f);
+         if (face.IsNonconformingCoarse())
          {
+            // We skip nonconforming coarse faces as they are treated
+            // by the corresponding nonconforming fine faces.
+            continue;
+         }
+         else if ( face.IsOfFaceType(type) )
+         {
+            const int mask = FaceElementTransformations::HAVE_ELEM1 |
+                             FaceElementTransformations::HAVE_LOC1;
             FaceElementTransformations &T =
-               *fes.GetMesh()->GetFaceElementTransformations(f);
+               *fes.GetMesh()->GetFaceElementTransformations(f, mask);
             for (int q = 0; q < nq; ++q)
             {
                // Convert to lexicographic ordering
-               int iq = ToLexOrdering(dim, face_id, quad1D, q);
+               int iq = ToLexOrdering(dim, face.element[0].local_face_id,
+                                      quad1D, q);
                T.SetAllIntPoints(&ir->IntPoint(q));
                const IntegrationPoint &eip1 = T.GetElement1IntPoint();
                u->Eval(Vq, *T.Elem1, eip1);
@@ -222,10 +228,10 @@ void DGTraceIntegrator::SetupPA(const FiniteElementSpace &fes, FaceType type)
       r.SetSize(1);
       r(0) = c_rho->constant;
    }
-   else if (QuadratureFunctionCoefficient* c_rho =
+   else if (QuadratureFunctionCoefficient* qf_rho =
                dynamic_cast<QuadratureFunctionCoefficient*>(rho))
    {
-      const QuadratureFunction &qFun = c_rho->GetQuadFunction();
+      const QuadratureFunction &qFun = qf_rho->GetQuadFunction();
       MFEM_VERIFY(qFun.Size() == nq * nf,
                   "Incompatible QuadratureFunction dimension \n");
 
@@ -242,31 +248,33 @@ void DGTraceIntegrator::SetupPA(const FiniteElementSpace &fes, FaceType type)
       auto n = Reshape(geom->normal.HostRead(), nq, dim, nf);
       auto C = Reshape(r.HostWrite(), nq, nf);
       int f_ind = 0;
-      for (int f = 0; f < fes.GetNF(); ++f)
+      for (int f = 0; f < mesh->GetNumFacesWithGhost(); ++f)
       {
-         int e1, e2;
-         int inf1, inf2;
-         fes.GetMesh()->GetFaceElements(f, &e1, &e2);
-         fes.GetMesh()->GetFaceInfos(f, &inf1, &inf2);
-         int face_id = inf1 / 64;
-         if ((type==FaceType::Interior && (e2>=0 || (e2<0 && inf2>=0))) ||
-             (type==FaceType::Boundary && e2<0 && inf2<0) )
+         Mesh::FaceInformation face = mesh->GetFaceInformation(f);
+         if (face.IsNonconformingCoarse())
+         {
+            // We skip nonconforming coarse faces as they are treated
+            // by the corresponding nonconforming fine faces.
+            continue;
+         }
+         else if ( face.IsOfFaceType(type) )
          {
             FaceElementTransformations &T =
                *fes.GetMesh()->GetFaceElementTransformations(f);
             for (int q = 0; q < nq; ++q)
             {
                // Convert to lexicographic ordering
-               int iq = ToLexOrdering(dim, face_id, quad1D, q);
+               int iq = ToLexOrdering(dim, face.element[0].local_face_id,
+                                      quad1D, q);
 
                T.SetAllIntPoints(&ir->IntPoint(q));
                const IntegrationPoint &eip1 = T.GetElement1IntPoint();
                const IntegrationPoint &eip2 = T.GetElement2IntPoint();
-               double r;
+               double rq;
 
-               if (inf2 < 0)
+               if ( face.IsBoundary() )
                {
-                  r = rho->Eval(*T.Elem1, eip1);
+                  rq = rho->Eval(*T.Elem1, eip1);
                }
                else
                {
@@ -275,10 +283,10 @@ void DGTraceIntegrator::SetupPA(const FiniteElementSpace &fes, FaceType type)
                   {
                      udotn += C_vel(d,iq,f_ind)*n(iq,d,f_ind);
                   }
-                  if (udotn >= 0.0) { r = rho->Eval(*T.Elem2, eip2); }
-                  else { r = rho->Eval(*T.Elem1, eip1); }
+                  if (udotn >= 0.0) { rq = rho->Eval(*T.Elem2, eip2); }
+                  else { rq = rho->Eval(*T.Elem1, eip1); }
                }
-               C(iq,f_ind) = r;
+               C(iq,f_ind) = rq;
             }
             f_ind++;
          }
@@ -573,8 +581,8 @@ void SmemPADGTraceApply3D(const int NF,
       {
          MFEM_FOREACH_THREAD(d2,y,D1D)
          {
-            u0[tidz][d1][d2] = x(d1,d2,0,f+tidz);
-            u1[tidz][d1][d2] = x(d1,d2,1,f+tidz);
+            u0[tidz][d1][d2] = x(d1,d2,0,f);
+            u1[tidz][d1][d2] = x(d1,d2,1,f);
          }
       }
       MFEM_SYNC_THREAD;
@@ -621,8 +629,8 @@ void SmemPADGTraceApply3D(const int NF,
       {
          MFEM_FOREACH_THREAD(q2,y,Q1D)
          {
-            DBBu[tidz][q1][q2] = op(q1,q2,0,0,f+tidz)*BBu0[tidz][q1][q2] +
-                                 op(q1,q2,1,0,f+tidz)*BBu1[tidz][q1][q2];
+            DBBu[tidz][q1][q2] = op(q1,q2,0,0,f)*BBu0[tidz][q1][q2] +
+                                 op(q1,q2,1,0,f)*BBu1[tidz][q1][q2];
          }
       }
       MFEM_SYNC_THREAD;
@@ -651,8 +659,8 @@ void SmemPADGTraceApply3D(const int NF,
                const double b = Bt(d1,q1);
                BBDBBu_ += b*BDBBu[tidz][q1][d2];
             }
-            y(d1,d2,0,f+tidz) +=  BBDBBu_;
-            y(d1,d2,1,f+tidz) += -BBDBBu_;
+            y(d1,d2,0,f) +=  BBDBBu_;
+            y(d1,d2,1,f) += -BBDBBu_;
          }
       }
    });
@@ -989,8 +997,8 @@ void SmemPADGTraceApplyTranspose3D(const int NF,
       {
          MFEM_FOREACH_THREAD(d2,y,D1D)
          {
-            u0[tidz][d1][d2] = x(d1,d2,0,f+tidz);
-            u1[tidz][d1][d2] = x(d1,d2,1,f+tidz);
+            u0[tidz][d1][d2] = x(d1,d2,0,f);
+            u1[tidz][d1][d2] = x(d1,d2,1,f);
          }
       }
       MFEM_SYNC_THREAD;
@@ -1038,14 +1046,14 @@ void SmemPADGTraceApplyTranspose3D(const int NF,
       {
          MFEM_FOREACH_THREAD(q2,y,Q1D)
          {
-            const double D00 = op(q1,q2,0,0,f+tidz);
-            const double D01 = op(q1,q2,0,1,f+tidz);
-            const double D10 = op(q1,q2,1,0,f+tidz);
-            const double D11 = op(q1,q2,1,1,f+tidz);
-            const double u0 = BBu0[tidz][q1][q2];
-            const double u1 = BBu1[tidz][q1][q2];
-            DBBu0[tidz][q1][q2] = D00*u0 + D01*u1;
-            DBBu1[tidz][q1][q2] = D10*u0 + D11*u1;
+            const double D00 = op(q1,q2,0,0,f);
+            const double D01 = op(q1,q2,0,1,f);
+            const double D10 = op(q1,q2,1,0,f);
+            const double D11 = op(q1,q2,1,1,f);
+            const double u0q = BBu0[tidz][q1][q2];
+            const double u1q = BBu1[tidz][q1][q2];
+            DBBu0[tidz][q1][q2] = D00*u0q + D01*u1q;
+            DBBu1[tidz][q1][q2] = D10*u0q + D11*u1q;
          }
       }
       MFEM_SYNC_THREAD;
@@ -1080,8 +1088,8 @@ void SmemPADGTraceApplyTranspose3D(const int NF,
                BBDBBu0_ += b*BDBBu0[tidz][q1][d2];
                BBDBBu1_ += b*BDBBu1[tidz][q1][d2];
             }
-            y(d1,d2,0,f+tidz) += BBDBBu0_;
-            y(d1,d2,1,f+tidz) += BBDBBu1_;
+            y(d1,d2,0,f) += BBDBBu0_;
+            y(d1,d2,1,f) += BBDBBu1_;
          }
       }
    });

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -32,7 +32,7 @@ protected:
    ParFiniteElementSpace *pfes; ///< Points to the same object as #fes
 
    /// Auxiliary objects used in TrueAddMult().
-   mutable ParGridFunction X, Y;
+   mutable ParGridFunction Xaux, Yaux;
    mutable Vector Ytmp;
 
    OperatorHandle p_mat, p_mat_e;
@@ -211,7 +211,7 @@ protected:
    /// Points to the same object as #test_fes
    ParFiniteElementSpace *test_pfes;
    /// Auxiliary objects used in TrueAddMult().
-   mutable ParGridFunction X, Y;
+   mutable ParGridFunction Xaux, Yaux;
 
    /// Matrix and eliminated matrix
    OperatorHandle p_mat, p_mat_e;

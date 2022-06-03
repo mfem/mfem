@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -24,20 +24,19 @@ MFEM_LIB_FILE = mfem_is_not_built
 BLOCK_SOLVERS_SRC = div_free_solver.cpp block-solvers.cpp
 BLOCK_SOLVERS_OBJ = $(BLOCK_SOLVERS_SRC:.cpp=.o)
 
-SER_MINIAPPS = lor_solvers
+SEQ_MINIAPPS = lor_solvers
 PAR_MINIAPPS = block-solvers plor_solvers
 
 ifeq ($(MFEM_USE_MPI),NO)
-   MINIAPPS = $(SER_MINIAPPS)
+   MINIAPPS = $(SEQ_MINIAPPS)
 else
-   MINIAPPS = $(SER_MINIAPPS) $(PAR_MINIAPPS)
-   MFEM_TESTS = block-solvers
+   MINIAPPS = $(PAR_MINIAPPS) $(SEQ_MINIAPPS)
 endif
 
 .SUFFIXES:
 .SUFFIXES: .o .cpp .mk
 .PHONY: all clean clean-build clean-exec
-.PRECIOUS: %.o
+# .PRECIOUS: %.o
 
 all: $(MINIAPPS)
 
@@ -57,6 +56,7 @@ block-solvers: $(BLOCK_SOLVERS_OBJ)
 %.o: $(SRC)%.cpp $(MFEM_LIB_FILE) $(CONFIG_MK)
 	$(MFEM_CXX) $(MFEM_FLAGS) -c $< -o $@
 
+MFEM_TESTS = MINIAPPS
 include $(MFEM_TEST_MK)
 
 # Testing: Specific execution options
@@ -68,6 +68,11 @@ block-solvers-anisotropic: block-solvers
 	@$(call mfem-test,$<, $(RUN_MPI), BlockSolver miniapp,-r 2\
 	  -m $(SRC)anisotropic.mesh -c $(SRC)anisotropic.coeff\
 	  -eb $(SRC)anisotropic.bdr)
+lor_solvers-test-seq: lor_solvers
+	@$(call mfem-test,$<,, LOR solvers miniapp,-fe n)
+plor_solvers-test-par: plor_solvers
+	@$(call mfem-test,$<, $(RUN_MPI), Parallel LOR solvers miniapp,-fe n\
+	  -m ../../data/fichera.mesh)
 
 # Generate an error message if the MFEM library is not built and exit
 $(MFEM_LIB_FILE):

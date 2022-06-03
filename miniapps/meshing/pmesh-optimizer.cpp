@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -72,9 +72,12 @@
 //  Adaptive surface fitting:
 //    mpirun -np 4 pmesh-optimizer -m square01.mesh -o 3 -rs 1 -mid 58 -tid 1 -ni 200 -vl 1 -sfc 5e4 -rtol 1e-5 -nor
 //    mpirun -np 4 pmesh-optimizer -m square01-tri.mesh -o 3 -rs 0 -mid 58 -tid 1 -ni 200 -vl 1 -sfc 1e4 -rtol 1e-5 -nor
+//  Surface fitting with weight adaptation and termination based on fitting error
+//    mpirun -np 4 pmesh-optimizer -m square01.mesh -o 2 -rs 1 -mid 2 -tid 1 -ni 100 -vl 2 -sfc 10 -rtol 1e-20 -st 0 -sfa -sft 1e-5
 //
 //   Blade shape:
 //     mpirun -np 4 pmesh-optimizer -m blade.mesh -o 4 -mid 2 -tid 1 -ni 30 -ls 3 -art 1 -bnd -qt 1 -qo 8
+//   * mpirun -np 4 pmesh-optimizer -m blade.mesh -o 4 -mid 2 -tid 1 -ni 30 -ls 3 -art 1 -bnd -qt 1 -qo 8 -d cuda
 //   Blade shape with FD-based solver:
 //     mpirun -np 4 pmesh-optimizer -m blade.mesh -o 4 -mid 2 -tid 1 -ni 30 -ls 4 -bnd -qt 1 -qo 8 -fd
 //   Blade limited shape:
@@ -112,11 +115,10 @@ using namespace std;
 
 int main (int argc, char *argv[])
 {
-   // 0. Initialize MPI.
-   int num_procs, myid;
-   MPI_Init(&argc, &argv);
-   MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
-   MPI_Comm_rank(MPI_COMM_WORLD, &myid);
+   // 0. Initialize MPI and HYPRE.
+   Mpi::Init(argc, argv);
+   int myid = Mpi::WorldRank();
+   Hypre::Init();
 
    // 1. Set the method's default parameters.
    const char *mesh_file = "icf.mesh";
@@ -151,6 +153,8 @@ int main (int argc, char *argv[])
    bool pa               = false;
    int n_hr_iter         = 5;
    int n_h_iter          = 1;
+   bool surface_fit_adapt = false;
+   double surface_fit_threshold = -10;
 
    // 2. Parse command-line options.
    OptionsParser args(argc, argv);
@@ -276,6 +280,12 @@ int main (int argc, char *argv[])
    args.AddOption(&n_h_iter, "-nh", "--n_h_iter",
                   "Number of h-adaptivity iterations per r-adaptivity"
                   "iteration.");
+   args.AddOption(&surface_fit_adapt, "-sfa", "--adaptive-surface-fit", "-no-sfa",
+                  "--no-adaptive-surface-fit",
+                  "Enable or disable adaptive surface fitting.");
+   args.AddOption(&surface_fit_threshold, "-sft", "--surf-fit-threshold",
+                  "Set threshold for surface fitting. TMOP solver will"
+                  "terminate when max surface fitting error is below this limit");
    args.Parse();
    if (!args.Good())
    {
@@ -1101,6 +1111,11 @@ int main (int argc, char *argv[])
    const IntegrationRule &ir =
       irules->Get(pfespace->GetFE(0)->GetGeomType(), quad_order);
    TMOPNewtonSolver solver(pfespace->GetComm(), ir, solver_type);
+   if (surface_fit_adapt) { solver.EnableAdaptiveSurfaceFitting(); }
+   if (surface_fit_threshold > 0)
+   {
+      solver.SetTerminationWithMaxSurfaceFittingError(surface_fit_threshold);
+   }
    // Provide all integration rules in case of a mixed mesh.
    solver.SetIntegrationRules(*irules, quad_order);
    if (solver_type == 0)
@@ -1247,6 +1262,5 @@ int main (int argc, char *argv[])
    delete fec;
    delete pmesh;
 
-   MPI_Finalize();
    return 0;
 }

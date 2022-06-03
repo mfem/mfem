@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -329,6 +329,8 @@ protected:
    /// Kinematic viscosity (dimensionless).
    double kin_vis;
 
+   IntegrationRules gll_rules;
+
    /// Velocity \f$H^1\f$ finite element collection.
    FiniteElementCollection *vfec = nullptr;
 
@@ -448,18 +450,7 @@ protected:
    double res_mvsolve = 0.0, res_spsolve = 0.0, res_hsolve = 0.0;
 
    // LOR related.
-   ParMesh *pmesh_lor = nullptr;
-   FiniteElementCollection *pfec_lor = nullptr;
-   ParFiniteElementSpace *pfes_lor = nullptr;
-   InterpolationGridTransfer *vgt = nullptr, *pgt = nullptr;
-
-   ParBilinearForm *Mv_form_lor = nullptr;
-   ParBilinearForm *Sp_form_lor = nullptr;
-   ParBilinearForm *H_form_lor = nullptr;
-
-   OperatorHandle Mv_lor;
-   OperatorHandle Sp_lor;
-   OperatorHandle H_lor;
+   ParLORDiscretization *lor = nullptr;
 
    // Filter-based stabilization
    int filter_cutoff_modes = 1;

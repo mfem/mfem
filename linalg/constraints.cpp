@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -48,31 +48,32 @@ Eliminator::Eliminator(const SparseMatrix& B, const Array<int>& lagrange_tdofs_,
    BsTinverse.Factor(Bs.Height());
 }
 
-void Eliminator::Eliminate(const Vector& in, Vector& out) const
+void Eliminator::Eliminate(const Vector& vin, Vector& vout) const
 {
-   Bp.Mult(in, out);
-   Bsinverse.Solve(Bs.Height(), 1, out);
-   out *= -1.0;
+   Bp.Mult(vin, vout);
+   Bsinverse.Solve(Bs.Height(), 1, vout);
+   vout *= -1.0;
 }
 
-void Eliminator::EliminateTranspose(const Vector& in, Vector& out) const
+void Eliminator::EliminateTranspose(const Vector& vin, Vector& vout) const
 {
-   Vector work(in);
+   Vector work(vin);
    BsTinverse.Solve(Bs.Height(), 1, work);
-   Bp.MultTranspose(work, out);
-   out *= -1.0;
+   Bp.MultTranspose(work, vout);
+   vout *= -1.0;
 }
 
-void Eliminator::LagrangeSecondary(const Vector& in, Vector& out) const
+void Eliminator::LagrangeSecondary(const Vector& vin, Vector& vout) const
 {
-   out = in;
-   Bsinverse.Solve(Bs.Height(), 1, out);
+   vout = vin;
+   Bsinverse.Solve(Bs.Height(), 1, vout);
 }
 
-void Eliminator::LagrangeSecondaryTranspose(const Vector& in, Vector& out) const
+void Eliminator::LagrangeSecondaryTranspose(const Vector& vin,
+                                            Vector& vout) const
 {
-   out = in;
-   BsTinverse.Solve(Bs.Height(), 1, out);
+   vout = vin;
+   BsTinverse.Solve(Bs.Height(), 1, vout);
 }
 
 void Eliminator::ExplicitAssembly(DenseMatrix& mat) const
@@ -92,71 +93,71 @@ EliminationProjection::EliminationProjection(const Operator& A,
 {
 }
 
-void EliminationProjection::Mult(const Vector& in, Vector& out) const
+void EliminationProjection::Mult(const Vector& vin, Vector& vout) const
 {
-   MFEM_ASSERT(in.Size() == width, "Wrong vector size!");
-   MFEM_ASSERT(out.Size() == height, "Wrong vector size!");
+   MFEM_ASSERT(vin.Size() == width, "Wrong vector size!");
+   MFEM_ASSERT(vout.Size() == height, "Wrong vector size!");
 
-   out = in;
+   vout = vin;
 
    for (int k = 0; k < eliminators.Size(); ++k)
    {
       Eliminator* elim = eliminators[k];
       Vector subvec_in;
       Vector subvec_out(elim->SecondaryDofs().Size());
-      in.GetSubVector(elim->PrimaryDofs(), subvec_in);
+      vin.GetSubVector(elim->PrimaryDofs(), subvec_in);
       elim->Eliminate(subvec_in, subvec_out);
-      out.SetSubVector(elim->SecondaryDofs(), subvec_out);
+      vout.SetSubVector(elim->SecondaryDofs(), subvec_out);
    }
 }
 
-void EliminationProjection::MultTranspose(const Vector& in, Vector& out) const
+void EliminationProjection::MultTranspose(const Vector& vin, Vector& vout) const
 {
-   MFEM_ASSERT(in.Size() == height, "Wrong vector size!");
-   MFEM_ASSERT(out.Size() == width, "Wrong vector size!");
+   MFEM_ASSERT(vin.Size() == height, "Wrong vector size!");
+   MFEM_ASSERT(vout.Size() == width, "Wrong vector size!");
 
-   out = in;
+   vout = vin;
 
    for (int k = 0; k < eliminators.Size(); ++k)
    {
       Eliminator* elim = eliminators[k];
       Vector subvec_in;
       Vector subvec_out(elim->PrimaryDofs().Size());
-      in.GetSubVector(elim->SecondaryDofs(), subvec_in);
+      vin.GetSubVector(elim->SecondaryDofs(), subvec_in);
       elim->EliminateTranspose(subvec_in, subvec_out);
-      out.AddElementVector(elim->PrimaryDofs(), subvec_out);
-      out.SetSubVector(elim->SecondaryDofs(), 0.0);
+      vout.AddElementVector(elim->PrimaryDofs(), subvec_out);
+      vout.SetSubVector(elim->SecondaryDofs(), 0.0);
    }
 }
 
 SparseMatrix * EliminationProjection::AssembleExact() const
 {
-   SparseMatrix * out = new SparseMatrix(height, width);
+   SparseMatrix * mat = new SparseMatrix(height, width);
 
    for (int i = 0; i < height; ++i)
    {
-      out->Add(i, i, 1.0);
+      mat->Add(i, i, 1.0);
    }
 
    for (int k = 0; k < eliminators.Size(); ++k)
    {
       Eliminator* elim = eliminators[k];
-      DenseMatrix mat;
-      elim->ExplicitAssembly(mat);
+      DenseMatrix mat_k;
+      elim->ExplicitAssembly(mat_k);
       for (int iz = 0; iz < elim->SecondaryDofs().Size(); ++iz)
       {
          int i = elim->SecondaryDofs()[iz];
          for (int jz = 0; jz < elim->PrimaryDofs().Size(); ++jz)
          {
             int j = elim->PrimaryDofs()[jz];
-            out->Add(i, j, mat(iz, jz));
+            mat->Add(i, j, mat_k(iz, jz));
          }
-         out->Set(i, i, 0.0);
+         mat->Set(i, i, 0.0);
       }
    }
 
-   out->Finalize();
-   return out;
+   mat->Finalize();
+   return mat;
 }
 
 void EliminationProjection::BuildGTilde(const Vector& r, Vector& rtilde) const
@@ -822,7 +823,7 @@ SparseMatrix * BuildNormalConstraints(FiniteElementSpace& fespace,
       }
    }
 
-   SparseMatrix * out = new SparseMatrix(n_rows, fespace.GetTrueVSize());
+   SparseMatrix * mout = new SparseMatrix(n_rows, fespace.GetTrueVSize());
 
    // fill in constraint matrix with normal vector information
    Vector nor(dim);
@@ -871,18 +872,18 @@ SparseMatrix * BuildNormalConstraints(FiniteElementSpace& fespace,
                                                         parallel, d);
                   if (visits == 1)
                   {
-                     out->Add(row, inner_truek, nor[d]);
+                     mout->Add(row, inner_truek, nor[d]);
                   }
                   else
                   {
-                     out->SetColPtr(row);
-                     const double pv = out->SearchRow(inner_truek);
+                     mout->SetColPtr(row);
+                     const double pv = mout->SearchRow(inner_truek);
                      const double scaling = ((double) (visits - 1)) /
                                             ((double) visits);
                      // incremental average, based on how many times
                      // this node has been visited
-                     out->Set(row, inner_truek,
-                              scaling * pv + (1.0 / visits) * nor[d]);
+                     mout->Set(row, inner_truek,
+                               scaling * pv + (1.0 / visits) * nor[d]);
                   }
 
                }
@@ -890,9 +891,9 @@ SparseMatrix * BuildNormalConstraints(FiniteElementSpace& fespace,
          }
       }
    }
-   out->Finalize();
+   mout->Finalize();
 
-   return out;
+   return mout;
 }
 
 #ifdef MFEM_USE_MPI
