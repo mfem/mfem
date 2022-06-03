@@ -89,7 +89,8 @@ void vel_wall(const Vector &x, double t, Vector &u)
 
 int main(int argc, char *argv[])
 {
-   MPI_Session mpi(argc, argv);
+   Mpi::Init();
+   Hypre::Init();
 
    double Lx = 2.0 * M_PI;
    double Ly = 1.0;
@@ -121,7 +122,7 @@ int main(int argc, char *argv[])
    Mesh periodic_mesh = Mesh::MakePeriodic(mesh,
                                            mesh.CreatePeriodicVertexMapping(translations));
 
-   if (mpi.Root())
+   if (Mpi::Root())
    {
       printf("NL=%d NX=%d NY=%d NZ=%d dx+=%f\n", NL, NX, NY, NZ, LC * ctx.Re_tau);
       std::cout << "Number of elements: " << mesh.GetNE() << std::endl;
@@ -193,7 +194,7 @@ int main(int argc, char *argv[])
          dt = 1e-2;
       }
 
-      if (mpi.Root())
+      if (Mpi::Root())
       {
          printf("%11s %11s\n", "Time", "dt");
          printf("%.5E %.5E\n", t, dt);
