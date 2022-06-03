@@ -396,10 +396,10 @@ public:
 
    virtual double ComputeLpError(const double p, Coefficient &exsol,
                                  Coefficient *weight = NULL,
-                                 const IntegrationRule *irs[] = NULL) const
+                                 const IntegrationRule *irs[] = NULL,
+				 Array<int> *elems = NULL) const
    {
-      return GlobalLpNorm(p, GridFunction::ComputeLpError(
-                             p, exsol, weight, irs), pfes->GetComm());
+     return GlobalLpNorm(p, GridFunction::ComputeLpError(p, exsol, weight, irs, elems), pfes->GetComm());
    }
 
    /** When given a vector weight, compute the pointwise (scalar) error as the

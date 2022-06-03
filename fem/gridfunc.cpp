@@ -3353,42 +3353,42 @@ double GridFunction::ComputeLpError(const double p, Coefficient &exsol,
    for (int i = 0; i < fes->GetNE(); i++)
    {
      if (elems != NULL && (*elems)[i] == 0) { continue; }
-      fe = fes->GetFE(i);
-      const IntegrationRule *ir;
-      if (irs)
-      {
+     fe = fes->GetFE(i);
+     const IntegrationRule *ir;
+     if (irs)
+       {
          ir = irs[fe->GetGeomType()];
-      }
-      else
-      {
+       }
+     else
+       {
          int intorder = 2*fe->GetOrder() + 3; // <----------
          ir = &(IntRules.Get(fe->GetGeomType(), intorder));
-      }
-      GetValues(i, *ir, vals);
-      T = fes->GetElementTransformation(i);
-      for (int j = 0; j < ir->GetNPoints(); j++)
-      {
+       }
+     GetValues(i, *ir, vals);
+     T = fes->GetElementTransformation(i);
+     for (int j = 0; j < ir->GetNPoints(); j++)
+       {
          const IntegrationPoint &ip = ir->IntPoint(j);
          T->SetIntPoint(&ip);
-         double diff = fabs(vals(j) - exsol.Eval(*T, ip));
+         double err_ip = fabs(vals(j) - exsol.Eval(*T, ip));
          if (p < infinity())
-         {
-            diff = pow(diff, p);
-            if (weight)
+	   {
+	     err_ip = pow(err_ip, p);
+	     if (weight)
             {
-               diff *= weight->Eval(*T, ip);
+              // diff *= weight->Eval(*T, ip);
             }
-            error += ip.weight * T->Weight() * diff;
-         }
+	     error += ip.weight * T->Weight() * err_ip;
+	   }
          else
-         {
-            if (weight)
-            {
-               diff *= weight->Eval(*T, ip);
-            }
-            error = std::max(error, diff);
-         }
-      }
+	   {
+	     if (weight)
+	       {
+		 err_ip *= weight->Eval(*T, ip);
+	       }
+	     error = std::max(error, err_ip);
+	   }
+       }
    }
 
    if (p < infinity())

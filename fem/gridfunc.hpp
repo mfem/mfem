@@ -577,6 +577,9 @@ public:
                                  const IntegrationRule *irs[] = NULL) const
    { return ComputeLpError(1.0, exsol, NULL, NULL, irs); }
 
+    /* The elems input variable expects a list of markers:
+     an elem marker equal to 1 will compute the L2 error on that element
+     an elem marker equal to 0 will not compute the L2 error on that element */
    virtual double ComputeLpError(const double p, Coefficient &exsol,
                                  Coefficient *weight = NULL,
                                  const IntegrationRule *irs[] = NULL,
