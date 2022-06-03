@@ -975,7 +975,7 @@ void FABilinearFormExtension::EliminateBC(const Array<int> &ess_dofs,
                                           OperatorHandle &A)
 {
 #ifdef MFEM_USE_MPI
-   if ( auto pa = dynamic_cast<ParBilinearForm*>(a) )
+   if ( dynamic_cast<ParBilinearForm*>(a) )
    {
       ParBilinearForm::ParallelEliminateBC(ess_dofs, *A.As<HypreParMatrix>());
    }
