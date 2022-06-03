@@ -144,17 +144,17 @@ static void HypreStealOwnership(HypreParMatrix &A_hyp, SparseMatrix &A_diag)
 void ParBilinearForm::ParallelRAP(OperatorHandle &A)
 {
    MFEM_ASSERT(mat, "ParallelRAP requires a SparseMatrix to be assembled.");
-   ParFiniteElementSpace &pfes = *ParFESpace();
+   ParFiniteElementSpace &pfespace = *ParFESpace();
 
    // Create a block diagonal parallel matrix
    OperatorHandle A_diag(Operator::Hypre_ParCSR);
-   A_diag.MakeSquareBlockDiag(pfes.GetComm(),
-                              pfes.GlobalVSize(),
-                              pfes.GetDofOffsets(),
+   A_diag.MakeSquareBlockDiag(pfespace.GetComm(),
+                              pfespace.GlobalVSize(),
+                              pfespace.GetDofOffsets(),
                               mat);
 
    // Parallel matrix assembly using P^t A P (if needed)
-   if (IsIdentityProlongation(pfes.GetProlongationMatrix()))
+   if (IsIdentityProlongation(pfespace.GetProlongationMatrix()))
    {
       A_diag.SetOperatorOwner(false);
       A.Reset(A_diag.Ptr(), false);
@@ -163,7 +163,7 @@ void ParBilinearForm::ParallelRAP(OperatorHandle &A)
    else
    {
       OperatorHandle P(Operator::Hypre_ParCSR);
-      P.ConvertFrom(pfes.Dof_TrueDof_Matrix());
+      P.ConvertFrom(pfespace.Dof_TrueDof_Matrix());
       A.MakePtAP(A_diag, P);
    }
 }
