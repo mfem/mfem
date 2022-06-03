@@ -6233,7 +6233,6 @@ int Mesh::GetBdrElementEdgeIndex(int i) const
    return -1;
 }
 
-<<<<<<< HEAD
 int GetBdrElementToFaceOrientation(int beid)
 {
    return 0; 

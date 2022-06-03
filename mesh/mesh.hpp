@@ -1108,7 +1108,6 @@ public:
       { mesh.GetGeometries(dim, *this); }
    };
 
-
    //TABLE_EDIT
 
    /**  @brief Returns the indices of the vertices of element i.
@@ -1153,6 +1152,61 @@ public:
        mesh->GetBdrElementToFaceOrientation(i)*/
    MFEM_DEPRECATED void GetBdrElementFace(int i, int *f, int *o) const;
 
+   /** @brief Return the indices of the vertices of face i.
+       Deprecated, please use MeshConnections:
+       mesh->connect.ChildrenOfEntity({MeshDim-1,AllIdx,i}, {0,AllIdx,{}})*/
+   MFEM_DEPRECATED void GetFaceVertices(int i, Array<int> &vert) const;
+
+   /** @brief Return the indices of the vertices of edge i.
+       Deprecated, please use MeshConnections:
+       mesh->connect.ChildrenOfEntity({1,AllIdx,i}, {0,AllIdx,{}})*/
+   MFEM_DEPRECATED void GetEdgeVertices(int i, Array<int> &vert) const;
+
+   /** @brief Get the face to edge Table (3D)
+       Deprecated, please use MeshConnections:
+       mesh->connect.GetTable(2,AllIdx,1,AllIdx)*/
+   MFEM_DEPRECATED Table *GetFaceEdgeTable() const;
+
+   /** @brief Get the edge to vertex Table (3D)
+       Deprecated, please use MeshConnections:
+       mesh->connect.GetTable(1,AllIdx,0,AllIdx)*/
+   MFEM_DEPRECATED Table *GetEdgeVertexTable() const;
+
+   /** @brief  Get the element to element neightbot table
+       Deprecated, please use MeshConnections:
+       mesh->connect.GetNeighborTable(MeshDim,AllIdx,MeshDim-1)*/
+   MFEM_DEPRECATED const Table &ElementToElementTable();
+
+   /** @brief  Get the element to face table
+       which only exists in 3D
+       Deprecated, please use MeshConnections:
+       mesh->connect.GetTable(0,AllIdx,MeshDim,AllIdx)*/
+   MFEM_DEPRECATED const Table &ElementToFaceTable() const;
+
+   /** @brief  Get the element to edge table
+       Deprecated, please use MeshConnections:
+       mesh->connect.GetTable(0,AllIdx,MeshDim,AllIdx)*/
+   MFEM_DEPRECATED const Table &ElementToEdgeTable() const;
+
+   /** @brief  The returned Table must be destroyed by the caller
+       Deprecated, please use MeshConnections:
+       mesh->connect.GetTable(0,AllIdx,MeshDim,AllIdx)*/
+   MFEM_DEPRECATED Table *GetVertexToElementTable();
+
+   /** @brief Return the "face"-element Table. Here "face" refers to face (3D),
+       edge (2D), or vertex (1D).
+       The returned Table must be destroyed by the caller. 
+       Deprecated, please use MeshConnections:
+       mesh->connect.GetTable(MeshDim-1,AllIdx,MeshDim,AllIdx)*/
+   MFEM_DEPRECATED Table *GetFaceToElementTable() const;
+
+   /** @brief Return the vertex index of boundary element i. (1D)
+       Return the edge index of boundary element i. (2D)
+       Return the face index of boundary element i. (3D) 
+       Deprecated, please use MeshConnections:
+       mesh->connect.GetAllIdxFromBdrIdx(i)*/
+   MFEM_DEPRECATED int GetBdrElementEdgeIndex(int i) const;
+
    /** @brief Return the orientation # of the boundary element 
        w.r.t. it's corresponding face.*/ 
    int GetBdrElementToFaceOrientation(int beid);
@@ -1190,62 +1244,6 @@ public:
        followed by the higher vertex number).  If the edge vertices 
        are in this order then we return 1 otherwise we return -1*/
    void GetEdgeOrientationsInBdrElement(int beid, Array<int> &edge_ori);
-
-   /** @brief Return the indices of the vertices of face i.
-       Deprecated, please use MeshConnections:
-       mesh->connect.ChildrenOfEntity({MeshDim-1,AllIdx,i}, {0,AllIdx,{}})*/
-   MFEM_DEPRECATED void GetFaceVertices(int i, Array<int> &vert) const;
-
-   /** @brief Return the indices of the vertices of edge i.
-       Deprecated, please use MeshConnections:
-       mesh->connect.ChildrenOfEntity({1,AllIdx,i}, {0,AllIdx,{}})*/
-   MFEM_DEPRECATED void GetEdgeVertices(int i, Array<int> &vert) const;
-
-   /** @brief Get the face to edge Table (3D)
-       Deprecated, please use MeshConnections:
-       mesh->connect.GetTable(2,AllIdx,1,AllIdx)*/
-   MFEM_DEPRECATED Table *GetFaceEdgeTable() const;
-
-   /** @brief Get the edge to vertex Table (3D)
-       Deprecated, please use MeshConnections:
-       mesh->connect.GetTable(1,AllIdx,0,AllIdx)*/
-   MFEM_DEPRECATED Table *GetEdgeVertexTable() const;
-
-   /** @brief  Get the element to face table
-       which only exists in 3D
-       Deprecated, please use MeshConnections:
-       mesh->connect.GetNeighborTable(MeshDim,AllIdx,MeshDim-1)*/
-   MFEM_DEPRECATED const Table &ElementToElementTable();
-
-   /** @brief  Get the element to face table
-       which only exists in 3D
-       Deprecated, please use MeshConnections:
-       mesh->connect.GetTable(0,AllIdx,MeshDim,AllIdx)*/
-   MFEM_DEPRECATED const Table &ElementToFaceTable() const;
-
-   /** @brief  Get the element to edge table
-       Deprecated, please use MeshConnections:
-       mesh->connect.GetTable(0,AllIdx,MeshDim,AllIdx)*/
-   MFEM_DEPRECATED const Table &ElementToEdgeTable() const;
-
-   /** @brief  The returned Table must be destroyed by the caller
-       Deprecated, please use MeshConnections:
-       mesh->connect.GetTable(0,AllIdx,MeshDim,AllIdx)*/
-   MFEM_DEPRECATED Table *GetVertexToElementTable();
-
-   /** @brief Return the "face"-element Table. Here "face" refers to face (3D),
-       edge (2D), or vertex (1D).
-       The returned Table must be destroyed by the caller. 
-       Deprecated, please use MeshConnections:
-       mesh->connect.GetTable(MeshDim-1,AllIdx,MeshDim,AllIdx)*/
-   MFEM_DEPRECATED Table *GetFaceToElementTable() const;
-
-   /** @brief Return the vertex index of boundary element i. (1D)
-       Return the edge index of boundary element i. (2D)
-       Return the face index of boundary element i. (3D) 
-       Deprecated, please use MeshConnections:
-       mesh->connect.GetAllIdxFromBdrIdx(i)*/
-   MFEM_DEPRECATED int GetBdrElementEdgeIndex(int i) const;
 
    //TABLE_EDIT
 
