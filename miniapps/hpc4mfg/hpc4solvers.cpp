@@ -229,7 +229,13 @@ void NLDiffusion::FSolve()
 
 void NLDiffusion::ASolve(mfem::Vector &rhs)
 {
+    MFEM_ASSERT( !ls, "Liner solver does not exist"); 
+    MFEM_ASSERT( !nf, "Nonlinear form does not exist"); 
 
+    // set operator TODO transpose for non-linear problems
+    ls->SetOperator(nf->GetGradient(sol));
+
+    ls->Mult(rhs,adj);
 }
 
 }

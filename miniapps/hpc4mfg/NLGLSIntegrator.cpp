@@ -84,7 +84,6 @@ void NLGLSIntegrator::AssembleElementVector(const FiniteElement &el,
     DenseMatrix dshape_iso(ndof, ndim);
     // derivatives dN in physical space
     DenseMatrix dshape_xyz(ndof, spaceDim);
-    DenseMatrix dshape_xyzT(spaceDim,ndof);
     DenseMatrix matTensor(spaceDim,spaceDim);
     // discrete gradient matrix
     DenseMatrix Bx;
