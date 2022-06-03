@@ -33,11 +33,11 @@ struct dbg
    dbg(const uint8_t color)
    {
       if (!DEBUG) { return; }
-      std::cout << "\033[38;5;" << std::to_string(color==0?COLOR:color) << "m";
+      std::cerr << "\033[38;5;" << std::to_string(color==0?COLOR:color) << "m";
    }
-   ~dbg() { if (DEBUG) { std::cout << "\033[m\n"; std::cout.flush(); } }
+   ~dbg() { if (DEBUG) { std::cerr << "\033[m\n"; std::cerr.flush(); } }
    template <typename T> dbg& operator<<(const T &arg)
-   { if (DEBUG) { std::cout << arg; std::cout.flush(); } return *this; }
+   { if (DEBUG) { std::cerr << arg; std::cerr.flush(); } return *this; }
    template<typename T, typename... Args>
    inline void operator()(const T &arg, Args... args) const
    { operator<<(arg); operator()(args...); }
@@ -226,6 +226,12 @@ struct Parser
          [](unsigned char c) { return std::tolower(c); });
          return id;
       };
+      auto to_upper = [](std::string &id)
+      {
+         std::transform(id.begin(), id.end(), id.begin(),
+         [](unsigned char c) { return std::toupper(c); });
+         return id;
+      };
       while (good())
       {
          next();
@@ -240,6 +246,8 @@ struct Parser
       }
       ker.advance(); // Targ => Symbol
       check(put()=='>',"no '>' in kernel!");
+      check(ker.Targs.size() > 0, "No JIT templated parameter found (T_*)!");
+      //dbg() << "Targs: " << ker.Targs;
 
       next(); // 'static' ?
       ker.is_static = is_static() ? (out << get_id(), true) : false;
@@ -254,7 +262,7 @@ struct Parser
 
       // Get the arguments
       ker.advance(); // Symbol => Params
-      std::string id{};
+      std::string id {};
       ker.eq = false;
       ker.Sargs.clear();
       ker.Sparams.clear();
@@ -277,16 +285,31 @@ struct Parser
          if (is_lt()) { ker.lt++; }
          if (is_gt()) { ker.lt--; }
          if (is_space() && !id.empty() && id.back() != '.' && !ker.eq) { id += '.'; }
-         if (is_eq()) { ker.eq = true; id = id.substr(0, id.size()-1); }
+         if (is_eq())
+         {
+            ker.eq = true;
+            if (id.back() == '.') { most(id); }
+            std::string last_id = last(id);
+            //dbg(87) << "Targs: " << ker.Targs;
+            //dbg(87) << "last_id:" << last_id;
+            if (ker.Targs.find(last_id) == std::string::npos)
+            {
+               std::string LAST_ID = to_upper(last_id);
+               check(false, std::string("Could not find T_") + LAST_ID);
+            }
+         }
          if (is_id() && !ker.eq) { id += in.peek(); }
          if (is_coma() && ker.lt == 0)
          {
             if (id.back() == '.') { most(id); }
+            //dbg(83) << "Targs: " << ker.Targs;
+            //dbg(83) << "id:"<<id<<", last(id): " << last(id);
             add_arg(ker.Sargs, last(id)); id.clear(); ker.eq = false;
          }
          put();
       }
       add_arg(ker.Sargs, last(id));
+      //dbg() << "Sargs: " << ker.Sargs;
       ker.advance(); // Params => Body
 
       // Make sure we hit the last ')' of the arguments

@@ -390,6 +390,7 @@ ifneq (,$(filter install,$(MAKECMDGOALS)))
    endif
    # Allow changing the PREFIX during install with: make install PREFIX=<dir>
    PREFIX := $(MFEM_PREFIX)
+   PREFIX_BIN   := $(PREFIX)/bin
    PREFIX_INC   := $(PREFIX)/include
    PREFIX_LIB   := $(PREFIX)/lib
    PREFIX_SHARE := $(PREFIX)/share/mfem
@@ -618,6 +619,10 @@ INSTALL_SHARED_LIB = $(MFEM_CXX) $(MFEM_LINK_FLAGS) $(INSTALL_SOFLAGS)\
    cd $(PREFIX_LIB) && ln -sf libmfem.$(SO_VER) libmfem.$(SO_EXT)
 
 install: $(if $(static),$(BLD)libmfem.a) $(if $(shared),$(BLD)libmfem.$(SO_EXT))
+#install mjit binary
+	$(if $(jit),mkdir -p $(PREFIX_BIN))
+	$(if $(jit),$(INSTALL) -m 750 $(BLD)mjit $(PREFIX_BIN))
+
 	mkdir -p $(PREFIX_LIB)
 # install static and/or shared library
 	$(if $(static),$(INSTALL) -m 640 $(BLD)libmfem.a $(PREFIX_LIB))
