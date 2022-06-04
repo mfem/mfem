@@ -491,7 +491,7 @@ public:
    virtual double ComputeL2Error(Coefficient &exsol,
                                  const IntegrationRule *irs[] = NULL,
                                  Array<int> *elems = NULL) const
-  { return ComputeLpError(2.0, exsol, NULL, irs, elems); }
+  { return GridFunction::ComputeLpError(2.0, exsol, NULL, irs, elems); }
 
    virtual double ComputeL2Error(VectorCoefficient &exsol,
                                  const IntegrationRule *irs[] = NULL,
