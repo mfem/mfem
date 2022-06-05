@@ -37,6 +37,35 @@ MFEM_JIT void E(int *r, MFEM_JIT int a, MFEM_JIT int b, int c) { *r = a + b + c;
 
 MFEM_JIT void F(int *r, int a, MFEM_JIT int b) { *r = a + b; }
 
+MFEM_JIT static
+void bbps( const size_t q, double *result,
+           const MFEM_JIT int D,
+           MFEM_JIT const size_t N)
+{
+   const size_t b = 16, p = 8, M = N + D;
+   double s = 0.0,  h = 1.0 / b;
+   for (size_t i = 0, k = q; i <= N; i++, k += p)
+   {
+      double a = b, m = 1.0;
+      for (size_t r = N - i; r > 0; r >>= 1)
+      {
+         auto dmod = [](double x, double y) { return x-((size_t)(x/y))*y;};
+         m = (r&1) ? dmod(m*a,k) : m;
+         a = dmod(a*a,k);
+      }
+      s += m / k;
+      s -= (size_t) s;
+   }
+   for (size_t i = N + 1; i < M; i++, h /= b) { s += h / (p*i+q); }
+   *result = s;
+}
+
+static size_t pi(size_t n, const size_t D = 100)
+{
+   auto p = [&](int k) { double r; bbps(k, &r, D, n-1); return r;};
+   return pow(16,8)*fmod(4.0*p(1) - 2.0*p(4) - p(5) - p(6), 1.0);
+}
+
 TEST_CASE("Params", "[JIT]")
 {
    SECTION("Params")
@@ -46,8 +75,11 @@ TEST_CASE("Params", "[JIT]")
       B(&r,2); REQUIRE(r == 2);
       C(&r,4,3); REQUIRE(r == (4+3));
       D(&r,4,6); REQUIRE(r == (4+6));
+      D(&r,5,6); REQUIRE(r == (5+6));
+      D(&r,6,6); REQUIRE(r == (6+6));
       E(&r,1,2,3); REQUIRE(r == (1+2+3));
       F(&r,1,2); REQUIRE(r == 1+2);
+      REQUIRE(pi(10) == 0x5A308D31ul);
    }
 }
 

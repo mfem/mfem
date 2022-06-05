@@ -26,7 +26,7 @@ namespace mjit_tests
 {
 
 // Bailey–Borwein–Plouffe formula to compute the nth base-16 digit of π
-MFEM_JIT template<int T_DEPTH = 0, int T_N = 0>
+MFEM_JIT template<int T_DEPTH = 0, int T_N = 0> static
 void bbps( const size_t q, double *result, int depth = 0, int n = 0)
 {
    const size_t D = T_DEPTH ? T_DEPTH : (size_t) depth;
@@ -50,7 +50,7 @@ void bbps( const size_t q, double *result, int depth = 0, int n = 0)
    *result = s;
 }
 
-size_t pi(size_t n, const size_t D = 100)
+static size_t pi(size_t n, const size_t D = 100)
 {
    auto p = [&](int k) { double r; bbps(k, &r, D, n-1); return r;};
    return pow(16,8)*fmod(4.0*p(1) - 2.0*p(4) - p(5) - p(6), 1.0);
