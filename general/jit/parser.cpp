@@ -25,6 +25,14 @@
 #include "jit.hpp" // Hash, ToString, Find
 #include "../device.hpp" // Backend::Id
 
+#if !(defined(MFEM_CXX) && defined(MFEM_EXT_LIBS) &&\
+      defined(MFEM_LINK_FLAGS) && defined(MFEM_BUILD_FLAGS))
+#define MFEM_CXX ""
+#define MFEM_EXT_LIBS ""
+#define MFEM_LINK_FLAGS ""
+#define MFEM_BUILD_FLAGS ""
+#endif
+
 struct dbg
 {
    static constexpr bool DEBUG = true;
@@ -52,9 +60,10 @@ struct Parser
       std::string name; // Kernel name
       std::string Targs, Tparams, Tformat; // Template arguments, parameters, format
       std::string Sargs, Sparams, Sparams0; // Symbol arguments, parameters
+      std::string Tadds, Sargs_;
       struct { int dim; std::string e, N, X, Y, Z; std::ostringstream body; } forall;
       std::ostringstream src, dup;
-      bool is_static, eq;
+      bool is_static, is_templated, eq, move_to_template;
       int lt;
 
       struct fsm_t
@@ -78,8 +87,10 @@ struct Parser
       } fsm;
 
       void advance() { fsm.advance(); }
+      bool is_jit()     { return fsm.state == &fsm_t::jit; }
       bool is_wait()    { return fsm.state == &fsm_t::wait; }
       bool is_targs()   { return fsm.state == &fsm_t::targs; }
+      bool is_symbol()  { return fsm.state == &fsm_t::symbol; }
       bool is_params()  { return fsm.state == &fsm_t::params; }
       bool is_prefix()  { return fsm.state == &fsm_t::prefix; }
       bool is_forall()  { return fsm.state == &fsm_t::forall; }
@@ -89,7 +100,12 @@ struct Parser
       bool put(const char c) // returns false if c should not be out.putted
       {
          if (is_targs()) { Tparams += c; }
-         if (is_params()) { Sparams0 += c; if (!eq) { Sparams += c; } }
+         if (is_params())
+         {
+            Sparams0 += c;
+            if (!eq) { Sparams += c; }
+            if (move_to_template) { Tparams += c; }
+         }
          if (is_prefix() || is_postfix()) { src << c; dup << c; return false;}
          if (is_forall() || is_kernel()) { forall.body << c; return false;}
          return true;
@@ -127,7 +143,7 @@ struct Parser
       return c;
    }
 
-   char put() { check(good(),"putt"); return put(get()); }
+   char put() { check(good(),"!good put error"); return put(get()); }
 
    bool is_space() { return good() && std::isspace(in.peek()); }
 
@@ -190,9 +206,10 @@ struct Parser
    std::string peek_n(int n) { return peek([&]() { return true; }, n); }
 
    template<typename L>
-   void next_check(L&&op, const char *msg = "") { next(); check(op(), msg); }
+   void next_check(L &&op, const char *msg = "") { next(); check(op(), msg); }
 
    bool is_string(const char *str) { return peek_n(std::strlen(str)) == str; }
+   bool is_volatile() { return is_string("volatile"); }
    bool is_template() { return is_string("template"); }
    bool is_static() { return is_string("static"); }
    bool is_void() { return is_string("void"); }
@@ -209,45 +226,48 @@ struct Parser
 
    void mfem_jit_prefix()
    {
-      ker.advance(); // wait => jit
-      next_check([&]() {return is_template();}, "'template' token not found!");
-      out << get_id();
+      (ker.advance(), check(ker.is_jit(), "wait => jit"));
 
-      next_check([&]() {return put() == '<';}, "no '<' in kernel!");
-
-      // preparing kernel's: Targs, Tparams & Tformat
-      ker.advance(); // jit => Targ
+      next();
       ker.Targs.clear();
       ker.Tparams.clear();
-      ker.Tformat = "%d";
-      auto to_lower = [](std::string &id)
+      ker.is_templated = is_template();
+      if (ker.is_templated)
       {
-         std::transform(id.begin(), id.end(), id.begin(),
-         [](unsigned char c) { return std::tolower(c); });
-         return id;
-      };
-      auto to_upper = [](std::string &id)
-      {
-         std::transform(id.begin(), id.end(), id.begin(),
-         [](unsigned char c) { return std::toupper(c); });
-         return id;
-      };
-      while (good())
-      {
-         next();
-         if (is_coma()) { ker.Tformat += ",%d";}
-         if (peek_n(2) == "T_")
+         ker.Tformat = "%d";
+         out << get_id();
+         next_check([&]() {return put() == '<';}, "no '<' in kernel!");
+
+         // preparing kernel's: Targs, Tparams & Tformat
+         (ker.advance(), check(ker.is_targs(), "jit => Targ"));
+         auto to_lower = [](std::string &id)
          {
-            std::string id = peek_id();
-            add_arg(ker.Targs, (id.erase(0,2), to_lower(id)));
+            std::transform(id.begin(), id.end(), id.begin(),
+            [](unsigned char c) { return std::tolower(c); });
+            return id;
+         };
+         while (good())
+         {
+            next();
+            if (is_coma()) { ker.Tformat += ",%d"; }
+            if (peek_n(2) == "T_")
+            {
+               std::string id = peek_id();
+               add_arg(ker.Targs, (id.erase(0,2), to_lower(id)));
+            }
+            if (in.peek() == '>') { break;}
+            put(); // '>' to ker.Tparams
          }
-         if (in.peek() == '>') { break;}
-         put(); // to ker.Tparams
+         ker.advance(); // Targ => Symbol
+         check(put()=='>',"no '>' in kernel!");
+         check(ker.Targs.size() > 0, "No JIT templated parameter found (T_*)!");
       }
-      ker.advance(); // Targ => Symbol
-      check(put()=='>',"no '>' in kernel!");
-      check(ker.Targs.size() > 0, "No JIT templated parameter found (T_*)!");
-      //dbg() << "Targs: " << ker.Targs;
+      else
+      {
+         ker.Tformat = "";
+         (ker.advance(), check(ker.is_targs(), "jit => targs"));
+         (ker.advance(), check(ker.is_symbol(), "targs => symbol"));
+      }
 
       next(); // 'static' ?
       ker.is_static = is_static() ? (out << get_id(), true) : false;
@@ -263,13 +283,35 @@ struct Parser
       // Get the arguments
       ker.advance(); // Symbol => Params
       std::string id {};
+      ker.lt = 0;
       ker.eq = false;
+      ker.move_to_template = false;
       ker.Sargs.clear();
+      ker.Sargs_.clear();
       ker.Sparams.clear();
       ker.Sparams0.clear();
       auto most = [](std::string &s) { return s = s.substr(0, s.size()-1); };
+      auto head = [](std::string &s) { return s.substr(0,s.find_last_of('.'));};
       auto last = [](std::string &s) { return s.substr(s.find_last_of('.')+1);};
-      ker.lt = 0;
+      auto to_upper = [](std::string &id)
+      {
+         std::transform(id.begin(), id.end(), id.begin(),
+         [](unsigned char c) { return std::toupper(c); });
+         return id;
+      };
+      auto add_id = [&]()
+      {
+         add_arg(ker.Sargs, last(id));
+         add_arg(ker.Sargs_, last(id) + (ker.move_to_template?"_":""));
+         if (ker.move_to_template)
+         {
+            if (!ker.Tformat.empty()) { ker.Tformat += ","; }
+            ker.Tformat += "%d";
+            add_arg(ker.Targs, last(id));
+            ker.Sparams0 += "_";
+            ker.Tparams += ",";
+         }
+      };
       while (good() && in.peek() != ')')
       {
          if (is_comment())
@@ -282,16 +324,24 @@ struct Parser
          check(is_space() || is_id() || is_star() || is_amp() ||
                is_eq() || is_lt() || is_gt() || is_coma(),
                "while parsing the arguments.");
+
          if (is_lt()) { ker.lt++; }
          if (is_gt()) { ker.lt--; }
-         if (is_space() && !id.empty() && id.back() != '.' && !ker.eq) { id += '.'; }
+         if (is_space() && !id.empty() && id.back() != '.' && !ker.eq)
+         {
+            std::string last_id =  last(id);
+            if (last_id == "MFEM_JIT")
+            {
+               ker.move_to_template = true;
+               id = head(id); // remove the current hit
+            }
+            id += '.';
+         }
          if (is_eq())
          {
             ker.eq = true;
             if (id.back() == '.') { most(id); }
             std::string last_id = last(id);
-            //dbg(87) << "Targs: " << ker.Targs;
-            //dbg(87) << "last_id:" << last_id;
             if (ker.Targs.find(last_id) == std::string::npos)
             {
                std::string LAST_ID = to_upper(last_id);
@@ -302,14 +352,17 @@ struct Parser
          if (is_coma() && ker.lt == 0)
          {
             if (id.back() == '.') { most(id); }
-            //dbg(83) << "Targs: " << ker.Targs;
-            //dbg(83) << "id:"<<id<<", last(id): " << last(id);
-            add_arg(ker.Sargs, last(id)); id.clear(); ker.eq = false;
+            add_id();
+            id.clear();
+            ker.eq = false;
+            ker.move_to_template = false;
          }
          put();
       }
-      add_arg(ker.Sargs, last(id));
-      //dbg() << "Sargs: " << ker.Sargs;
+      add_id();
+      check(!ker.Tparams.empty(), "MFEM_JIT function without JIT argument!");
+      if (!ker.is_templated) { ker.Tparams += " bool done = true"; }
+
       ker.advance(); // Params => Body
 
       // Make sure we hit the last ')' of the arguments
@@ -330,10 +383,10 @@ struct Parser
       ker.src << "\n\tconst unsigned long backends = Device::Backends();";
 
       ker.src << "\n\tconst char *source = R\"_(";
-      // defining 'MFEM_JIT_COMPILATION' to:
-      //   - avoid MFEM_GPU_CHECK in cuda.hpp
-      //   - pull <HYPRE_config.h> in mem_manager.hpp
-      ker.src << "#define MFEM_JIT_COMPILATION"
+      // defining 'MFEM_JIT_COMPILATION' to avoid:
+      //   - MFEM_GPU_CHECK in cuda.hpp
+      //   - HYPRE_config.h in mem_manager.hpp
+      ker.src << "\n#define MFEM_JIT_COMPILATION"
               << "\n#include \"general/forall.hpp\"";
 
       // MFEM_FORALL_2D_JIT
@@ -354,8 +407,10 @@ struct Parser
 
       ker.src << "\nusing namespace mfem;";
 
-      ker.src << "\ntemplate<" << ker.Tparams << ">\nvoid " << ker.name << "_%016lx"
-              << "(const unsigned long backends, " << ker.Sparams0 << "){";
+      ker.src << "\ntemplate<" << ker.Tparams << ">";
+      ker.src << "\nvoid " << ker.name << "_%016lx"
+              << "(const unsigned long backends, "
+              << ker.Sparams0 << "){";
 
       ker.src << "\n#line " << std::to_string(line) << " \"" << file << "\"\n";
       block = 0; // Start counting the block statements
@@ -411,8 +466,9 @@ struct Parser
    {
       ker.src << "}\nextern \"C\" void k%016lx"
               << "(const unsigned long backends," << ker.Sparams0 << "){"
-              << "\n\t" << ker.name << "_%016lx<"<< ker.Tformat << ">"
-              << "(backends,"<< ker.Sargs << ");";
+              << "\n\t" << ker.name << "_%016lx<"
+              << ker.Tformat << ">"
+              << "(backends,"<< ker.Sargs_ << ");";
 
       // defined on the command line
       const char *cxx = MFEM_CXX;
@@ -426,10 +482,15 @@ struct Parser
             std::string(cxx), std::string(libs), std::string(flags),
             std::string(MFEM_SOURCE_DIR), std::string(MFEM_INSTALL_DIR));
 
-      out << ker.dup.str() << "}" // dump the first dup code
-          << "\n"<< (ker.is_static ? "static " : "") // then generate the code
-          << "void " << ker.name << "(" << ker.Sparams0 << ")"
-          << "{" << ker.src.str() << "})_\";"; // end of src
+      if (ker.is_templated) // dup code
+      {
+         out << ker.dup.str() << "}";
+         out << "\n"<< (ker.is_static ? "static " : "") // then generate the code
+             << "void " << ker.name << "(" << ker.Sparams0 << ")";
+         out << "{";
+      }
+
+      out << ker.src.str() << "})_\";"; // end of src
 
       out << "\nconst char *cxx = \"" << cxx << "\";";
       out << "\nconst char *flags = \"" << flags << "\";";
@@ -437,13 +498,16 @@ struct Parser
       out << "\nconst char *libs = \"" << libs << "\";";
 
       out << "\nconst size_t hash = Jit::Hash("
-          << "0x" << std::hex << seed << std::dec << "ul," << ker.Targs << ");";
+          << "0x" << std::hex << seed << std::dec << "ul"
+          << "," << ker.Targs << ");";
+
       out << "\ntypedef void (*kernel_t)"
           <<"(unsigned long backends, " << ker.Sparams << ");";
+
       out << "\nstatic std::unordered_map<size_t, Jit::Kernel<kernel_t>> kernels;"
           << "\nJit::Find(hash, \"" << ker.name  << "<" << ker.Tformat << ">"
-          << "\", cxx, flags, link, libs, source, kernels, " << ker.Targs <<  ")"
-          << ".operator()(backends," << ker.Sargs << ");";
+          << "\", cxx, flags, link, libs, source, kernels" << ", " << ker.Targs
+          <<  ").operator()(backends," << ker.Sargs << ");";
 
       out << "\n#line " << std::to_string(line) << " \"" << file << "\"\n";
       ker.advance(/*postfix => wait*/);
