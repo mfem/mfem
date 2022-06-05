@@ -478,7 +478,7 @@ public:
 
    virtual double ComputeL2Error(Coefficient *exsol[],
                                  const IntegrationRule *irs[] = NULL,
-                                 Array<int> *elems = NULL) const;
+                                 const Array<int> *elems = NULL) const;
 
    /// Returns ||grad u_ex - grad u_h||_L2 in element ielem for H1 or L2 elements
    virtual double ComputeElementGradError(int ielem, VectorCoefficient *exgrad,
@@ -490,12 +490,12 @@ public:
      an elem marker equal to 0 will not compute the L2 error on that element */
    virtual double ComputeL2Error(Coefficient &exsol,
                                  const IntegrationRule *irs[] = NULL,
-                                 Array<int> *elems = NULL) const
+                                 const Array<int> *elems = NULL) const
   { return GridFunction::ComputeLpError(2.0, exsol, NULL, irs, elems); }
 
    virtual double ComputeL2Error(VectorCoefficient &exsol,
                                  const IntegrationRule *irs[] = NULL,
-                                 Array<int> *elems = NULL) const;
+                                 const Array<int> *elems = NULL) const;
 
    /// Returns ||grad u_ex - grad u_h||_L2 for H1 or L2 elements
    virtual double ComputeGradError(VectorCoefficient *exgrad,
@@ -570,7 +570,7 @@ public:
    { return ComputeLpError(1.0, exsol, NULL, irs); }
 
    virtual double ComputeW11Error(Coefficient *exsol, VectorCoefficient *exgrad,
-                                  int norm_type, Array<int> *elems = NULL,
+                                  int norm_type, const Array<int> *elems = NULL,
                                   const IntegrationRule *irs[] = NULL) const;
 
    virtual double ComputeL1Error(VectorCoefficient &exsol,
@@ -583,7 +583,7 @@ public:
    virtual double ComputeLpError(const double p, Coefficient &exsol,
                                  Coefficient *weight = NULL,
                                  const IntegrationRule *irs[] = NULL,
-				 Array<int> *elems = NULL) const;
+				 const Array<int> *elems = NULL) const;
 
    /** Compute the Lp error in each element of the mesh and store the results in
        the Vector @a error. The result should be of length number of elements,

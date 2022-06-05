@@ -280,7 +280,7 @@ public:
 
    virtual double ComputeL2Error(Coefficient *exsol[],
                                  const IntegrationRule *irs[] = NULL,
-                                 Array<int> *elems = NULL) const
+                                 const Array<int> *elems = NULL) const
    {
       return GlobalLpNorm(2.0, GridFunction::ComputeL2Error(exsol, irs, elems),
                           pfes->GetComm());
@@ -288,7 +288,7 @@ public:
 
    virtual double ComputeL2Error(Coefficient &exsol,
                                  const IntegrationRule *irs[] = NULL,
-                                 Array<int> *elems = NULL) const
+                                 const Array<int> *elems = NULL) const
    {
       return GlobalLpNorm(2.0, GridFunction::ComputeL2Error(exsol, irs, elems),
                           pfes->GetComm());
@@ -297,7 +297,7 @@ public:
 
    virtual double ComputeL2Error(VectorCoefficient &exsol,
                                  const IntegrationRule *irs[] = NULL,
-                                 Array<int> *elems = NULL) const
+                                 const Array<int> *elems = NULL) const
    {
       return GlobalLpNorm(2.0, GridFunction::ComputeL2Error(exsol, irs, elems),
                           pfes->GetComm());
@@ -397,7 +397,7 @@ public:
    virtual double ComputeLpError(const double p, Coefficient &exsol,
                                  Coefficient *weight = NULL,
                                  const IntegrationRule *irs[] = NULL,
-				 Array<int> *elems = NULL) const
+				 const Array<int> *elems = NULL) const
    {
      return GlobalLpNorm(p, GridFunction::ComputeLpError(p, exsol, weight, irs, elems), pfes->GetComm());
    }
