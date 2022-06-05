@@ -3371,23 +3371,23 @@ double GridFunction::ComputeLpError(const double p, Coefficient &exsol,
       {
          const IntegrationPoint &ip = ir->IntPoint(j);
          T->SetIntPoint(&ip);
-         double err_ip = fabs(vals(j) - exsol.Eval(*T, ip));
+         double diff = fabs(vals(j) - exsol.Eval(*T, ip));
          if (p < infinity())
          {
-            err_ip = pow(err_ip, p);
+            diff = pow(diff, p);
             if (weight)
             {
                diff *= weight->Eval(*T, ip);
             }
-            error += ip.weight * T->Weight() * err_ip;
+            error += ip.weight * T->Weight() * diff;
          }
          else
          {
             if (weight)
             {
-               err_ip *= weight->Eval(*T, ip);
+               diff *= weight->Eval(*T, ip);
             }
-            error = std::max(error, err_ip);
+            error = std::max(error, diff);
          }
       }
    }
