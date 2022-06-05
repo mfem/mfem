@@ -3377,7 +3377,7 @@ double GridFunction::ComputeLpError(const double p, Coefficient &exsol,
             err_ip = pow(err_ip, p);
             if (weight)
             {
-               // diff *= weight->Eval(*T, ip);
+	      diff *= weight->Eval(*T, ip);
             }
             error += ip.weight * T->Weight() * err_ip;
          }
