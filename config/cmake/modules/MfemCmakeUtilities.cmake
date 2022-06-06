@@ -903,7 +903,7 @@ function(mfem_export_mk_files)
     endif()
   endforeach()
   # TODO: Add support for MFEM_USE_CUDA=YES
-  set(MFEM_CXX ${CMAKE_CXX_COMPILER})
+  set(MFEM_CXX ${CMAKE_CXX_COMPILER} CACHE STRING "" FORCE)
   set(MFEM_HOST_CXX ${MFEM_CXX})
   set(MFEM_CPPFLAGS "")
   get_target_property(cxx_std mfem CXX_STANDARD)
@@ -916,10 +916,10 @@ function(mfem_export_mk_files)
          MFEM_CXXFLAGS)
   set(MFEM_TPLFLAGS "")
   foreach(dir ${MFEM_TPL_INCLUDE_DIRS})
-    set(MFEM_TPLFLAGS "${MFEM_TPLFLAGS} -I${dir}")
+    set(MFEM_TPLFLAGS "${MFEM_TPLFLAGS} -I${dir}" CACHE STRING "" FORCE)
   endforeach()
   # TODO: MFEM_TPLFLAGS: add other TPL flags, in addition to the -I flags.
-  set(MFEM_INCFLAGS "-I\$(MFEM_INC_DIR) \$(MFEM_TPLFLAGS)")
+  set(MFEM_INCFLAGS "-I\$(MFEM_INC_DIR) \$(MFEM_TPLFLAGS)" CACHE STRING "" FORCE)
   set(MFEM_PICFLAG "")
   if (BUILD_SHARED_LIBS)
     set(MFEM_PICFLAG "${CMAKE_SHARED_LIBRARY_CXX_FLAGS}")
@@ -944,6 +944,7 @@ function(mfem_export_mk_files)
     set(MFEM_SHARED NO)
     set(MFEM_STATIC YES)
   endif()
+  set(MFEM_LIBS ${MFEM_LIBS} CACHE STRING "" FORCE)
   set(MFEM_BUILD_TAG "${CMAKE_SYSTEM}")
   set(MFEM_PREFIX "${CMAKE_INSTALL_PREFIX}")
   # For the next 4 variable, these are the values for the build-tree version of
@@ -1049,6 +1050,6 @@ function(mfem_export_mk_files)
   install(FILES ${PROJECT_BINARY_DIR}/config/config-install.mk
     DESTINATION ${CMAKE_INSTALL_PREFIX}/share/mfem/ RENAME config.mk)
 
-set(MFEM_BUILD_FLAGS "${MFEM_CXXFLAGS} -I${MFEM_INC_DIR} ${MFEM_TPLFLAGS}"
+set(MFEM_BUILD_FLAGS "${MFEM_CXXFLAGS} -I${MFEM_INC_DIR}"
     CACHE STRING "Flags used for compiling all source files" FORCE)
 endfunction()

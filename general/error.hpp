@@ -15,6 +15,9 @@
 #include "../config/config.hpp"
 #include <iomanip>
 #include <sstream>
+#ifdef MFEM_JIT_COMPILATION
+#include <iostream> // for std::cout
+#endif
 #ifdef MFEM_USE_HIP
 #include <hip/hip_runtime.h>
 #endif

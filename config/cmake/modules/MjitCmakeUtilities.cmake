@@ -11,8 +11,6 @@
 
 if (MFEM_USE_JIT)
 
-string(ASCII 27 ESC)
-
 #################################
 # set_mjit_sources_dependencies #
 #################################
@@ -50,7 +48,17 @@ endfunction(set_mjit_sources_dependencies)
 function(add_mjit_executable)
     add_executable(mjit general/jit/parser.cpp)
 
+    foreach (dir ${TPL_INCLUDE_DIRS})
+       target_include_directories(mjit PRIVATE ${dir})
+    endforeach (dir "${MFEM_INCLUDE_DIRS}")
+
+    if(CMAKE_OSX_SYSROOT)
+        set(MFEM_BUILD_FLAGS "${MFEM_BUILD_FLAGS} -isysroot ${CMAKE_OSX_SYSROOT}")
+        set(MFEM_LINK_FLAGS "${MFEM_BUILD_FLAGS}")
+    endif(CMAKE_OSX_SYSROOT)
+
     if (MFEM_USE_MPI)
+      set(MFEM_CXX ${MPI_CXX_COMPILER})
       if (MPI_CXX_INCLUDE_PATH)
         target_include_directories(mjit PRIVATE "${MPI_CXX_INCLUDE_PATH}")
       endif(MPI_CXX_INCLUDE_PATH)
@@ -62,56 +70,27 @@ function(add_mjit_executable)
       endif(MPI_CXX_LINK_FLAGS)
     endif(MFEM_USE_MPI)
 
-    foreach (dir ${TPL_INCLUDE_DIRS})
-      target_include_directories(mjit PRIVATE ${dir})
-    endforeach (dir "${MFEM_INCLUDE_DIRS}")
-
-    if (MFEM_USE_MPI)
-        message(NOTICE "\t${ESC}[33m[MPI_CXX_COMPILER] ${MPI_CXX_COMPILER}${ESC}[m")
-        set(MFEM_CXX ${MPI_CXX_COMPILER})
-    endif(MFEM_USE_MPI)
-
-    if(CMAKE_OSX_SYSROOT)
-        message(NOTICE "\t${ESC}[33m[CMAKE_OSX_SYSROOT] ${CMAKE_OSX_SYSROOT}${ESC}[m")
-        set(MFEM_BUILD_FLAGS "${MFEM_BUILD_FLAGS} -isysroot ${CMAKE_OSX_SYSROOT}")
-    endif(CMAKE_OSX_SYSROOT)
-
     if (MFEM_USE_CUDA)
-       message("${ESC}[1;32m")
-       string(TOUPPER "${CMAKE_BUILD_TYPE}" BUILD_TYPE)
-       message(NOTICE "CMAKE_CUDA_COMPILER: ${CMAKE_CUDA_COMPILER}")
-       message(NOTICE "CMAKE_CUDA_HOST_COMPILER: ${CMAKE_CUDA_HOST_COMPILER}")
-       message(NOTICE "CMAKE_CUDA_FLAGS_${BUILD_TYPE}: ${CMAKE_CUDA_FLAGS_${BUILD_TYPE}}")
-       message(NOTICE "CUDA_FLAGS: ${CUDA_FLAGS}")
-       message(NOTICE "CUDA_ARCH: ${CUDA_ARCH}")
-       message(NOTICE "TPL_INCLUDE_DIRS: ${TPL_INCLUDE_DIRS}")
-       message("${ESC}[m")
-
-       set(MFEM_CXX ${CMAKE_CUDA_COMPILER})
        set(MFEM_EXT_LIBS "")
-       set(MFEM_BUILD_FLAGS "${MFEM_BUILD_FLAGS} -x=cu ${CUDA_FLAGS}")
-       set(MFEM_BUILD_FLAGS "${MFEM_BUILD_FLAGS} -arch=${CUDA_ARCH}")
-       set(MFEM_BUILD_FLAGS "${MFEM_BUILD_FLAGS} -ccbin ${CMAKE_CUDA_HOST_COMPILER}")
-       string(REGEX REPLACE "[ ]+" " " MFEM_BUILD_FLAGS "${MFEM_BUILD_FLAGS}")
-
-       string(REPLACE "-x=cu" "" MFEM_LINK_FLAGS ${MFEM_BUILD_FLAGS})
-       string(REPLACE "-xhip" "" MFEM_LINK_FLAGS ${MFEM_LINK_FLAGS})
-       string(REGEX REPLACE "[ ]+" " " MFEM_LINK_FLAGS "${MFEM_LINK_FLAGS}")
-
+       set(MFEM_CXX ${CMAKE_CUDA_COMPILER})
+       set(MFEM_LINK_FLAGS "${MFEM_BUILD_FLAGS} -arch=${CUDA_ARCH} ${CUDA_FLAGS}")
+       set(MFEM_LINK_FLAGS "${MFEM_LINK_FLAGS} -ccbin ${CMAKE_CUDA_HOST_COMPILER}")
+       set(MFEM_BUILD_FLAGS "-x=cu ${MFEM_LINK_FLAGS}")
        set_source_files_properties(general/jit/parser.cpp PROPERTIES LANGUAGE CUDA)
    endif(MFEM_USE_CUDA)
 
-   message(NOTICE "\t${ESC}[33m[MFEM_CXX] ${MFEM_CXX}${ESC}[m")
-   message(NOTICE "\t${ESC}[33m[CMAKE_CXX_COMPILER] ${CMAKE_CXX_COMPILER}${ESC}[m")
-   message(NOTICE "\t${ESC}[33m[MFEM_EXT_LIBS] '${MFEM_EXT_LIBS}'${ESC}[m")
-   message(NOTICE "\t${ESC}[33m[MFEM_BUILD_FLAGS] '${MFEM_BUILD_FLAGS}'${ESC}[m")
-   message(NOTICE "\t${ESC}[33m[MFEM_LINK_FLAGS] '${MFEM_LINK_FLAGS}'${ESC}[m")
+   if (MFEM_USE_HIP)
+      set(MFEM_EXT_LIBS "")
+      set(MFEM_CXX ${HIP_HIPCC_EXECUTABLE})
+      set(MFEM_LINK_FLAGS "${MFEM_BUILD_FLAGS} --offload-arch=${HIP_ARCH}")
+      set(MFEM_BUILD_FLAGS "-x hip ${MFEM_LINK_FLAGS}")
+   endif(MFEM_USE_HIP)
 
    target_compile_definitions(mjit PRIVATE
            "MFEM_CXX=\"${MFEM_CXX}\""
            "MFEM_EXT_LIBS=\"${MFEM_EXT_LIBS}\""
-           "MFEM_BUILD_FLAGS=\"${MFEM_BUILD_FLAGS}\""
-           "MFEM_LINK_FLAGS=\"${MFEM_LINK_FLAGS}\"")
+           "MFEM_LINK_FLAGS=\"${MFEM_LINK_FLAGS}\""
+           "MFEM_BUILD_FLAGS=\"${MFEM_BUILD_FLAGS}\"")
 
     target_compile_definitions(mjit PRIVATE
       "MFEM_CONFIG_FILE=\"${PROJECT_BINARY_DIR}/config/_config.hpp\"")
