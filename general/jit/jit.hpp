@@ -14,7 +14,7 @@
 
 #include "../../config/config.hpp"
 
-#define MFEM_JIT // prefix for labeling kernels in order to be JITed
+#define MFEM_JIT // prefix to label JIT kernels and arguments
 
 #ifdef MFEM_USE_JIT
 
@@ -33,7 +33,7 @@ struct Jit
    static void Init(int *argc, char ***argv);
 
    /// Set the archive name to @name. Keep cahe with keep.
-   static void Configure(const char *name, bool keep = true);
+   static void Configure(const char *name, const char *path, bool keep = true);
 
    /// Finalize JIT, used in communication Mpi singleton.
    static void Finalize();

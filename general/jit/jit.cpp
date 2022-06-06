@@ -161,6 +161,7 @@ class System // System singleton object
    int *s_ack, rank; // shared status, must be able to store one MPI rank
    char *s_mem; // shared memory to store the command for the system call
    uintptr_t size; // of the s_mem shared memory
+   std::string path {"."};
    std::string lib_ar {"libmjit.a"}, lib_so {"./libmjit.so"};
    bool keep = true; // keep lib_ar
 
@@ -297,17 +298,34 @@ public:
       MFEM_VERIFY(Pid()!=0, "Children shall not pass!");
    }
 
-   static void Configure(const char *name, bool keep)
+   static void Configure(const char *name, const char *path, bool keep)
    {
+      Get().path = path;
       Get().keep = keep;
       Get().rank = mpi::Rank();
-      Get().lib_ar =   "lib"; Get().lib_ar += name; Get().lib_ar += ".a";
-      Get().lib_so = "./lib"; Get().lib_so += name;
+
+      auto full_path = [&](const char *ext)
+      {
+         std::string lib = std::string(Get().path);
+         lib += std::string("/") + std::string("lib") + name;
+         lib += std::string(".") + ext;
+         return lib;
+      };
+
+      Get().lib_ar = full_path("a");
+      if (!std::fstream(Get().lib_ar))
+      {
+         MFEM_VERIFY(std::ofstream(Get().lib_ar),
+                     "Error Could not create " << Get().lib_ar);
+         std::remove(Get().lib_ar.c_str());
+      }
+
 #ifdef __APPLE__
-      Get().lib_so += ".dylib";
+      const char *so_ext = "dylib";
 #else
-      Get().lib_so += ".so";
+      const char *so_ext = "so";
 #endif
+      Get().lib_so = full_path(so_ext);
    }
 
    static void Finalize()
@@ -422,7 +440,7 @@ public:
                Command() << cxx << link << "-shared" << "-o" << Lib_so()
                          << ARprefix() << Lib_ar() << ARpostfix()
                          << Xlinker() + "-rpath,." << libs;
-               status = Call(symbol);
+               status = Call();
             }
             mpi::Sync(status);
             handle = DLopen(Lib_so()); // can be removed in the meantime
@@ -529,7 +547,10 @@ using namespace jit;
 
 void Jit::Init(int *argc, char ***argv) { System::Init(argc, argv); }
 
-void Jit::Configure(const char *name, bool keep) { System::Configure(name, keep); }
+void Jit::Configure(const char *name, const char *path, bool keep)
+{
+   System::Configure(name, path, keep);
+}
 
 void Jit::Finalize() { System::Finalize(); }
 

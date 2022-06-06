@@ -130,6 +130,12 @@ jit_7//
 }
 
 MFEM_JIT
+/**/void/**/parser6(int *r,
+                    /**/MFEM_JIT /**/int/**/d,
+                    const //
+                    MFEM_JIT /**/
+                    /**/int c) { *r = d + c; }
+MFEM_JIT
 template<int T_D1D = 0, int T_Q1D = 0>
 void SmemPADiffusionApply3D(const int NE,
                             const double *b_,
