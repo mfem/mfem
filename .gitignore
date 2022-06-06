@@ -47,6 +47,7 @@ doc/warnings.log
 
 examples/ex[0-9]
 examples/ex[0-9]p
+examples/ex9p-continuous
 examples/ex1[04-9]
 examples/ex1[0-9]p
 examples/ex2[0-9]
