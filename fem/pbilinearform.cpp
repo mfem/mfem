@@ -15,6 +15,7 @@
 
 #include "fem.hpp"
 #include "../general/sort_pairs.hpp"
+#include "../linalg/hypre.hpp"
 
 namespace mfem
 {
