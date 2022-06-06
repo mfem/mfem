@@ -238,8 +238,7 @@ void InitCoefficient(mfem::VectorCoefficient *VQ, mfem::Mesh &mesh,
     @param[in] ir is the integration rule.
     @param[in] nelem The number of elements.
     @param[in] indices The indices of the elements of same type in the
-                       `FiniteElementSpace`. If `indices == nullptr`, assumes
-                       that the `FiniteElementSpace` is not mixed.
+                       `FiniteElementSpace`.
     @param[out] coeff_ptr is the structure to store the coefficient for the
                           `CeedOperator`.
     @param[out] ctx is the Context associated to the QFunction. */
@@ -329,8 +328,7 @@ void InitCoefficientWithIndices(mfem::Coefficient *Q, mfem::Mesh &mesh,
     @param[in] ir is the integration rule.
     @param[in] nelem The number of elements.
     @param[in] indices The indices of the elements of same type in the
-                       `FiniteElementSpace`. If `indices == nullptr`, assumes
-                       that the `FiniteElementSpace` is not mixed.
+                       `FiniteElementSpace`.
     @param[out] coeff_ptr is the structure to store the coefficient for the
                           `CeedOperator`.
     @param[out] ctx is the Context associated to the QFunction. */
