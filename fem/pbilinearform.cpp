@@ -177,9 +177,9 @@ void ParBilinearForm::ParallelRAP(SparseMatrix &loc_sp_mat, OperatorHandle &A)
    }
 }
 
-void ParBilinearForm::ParallelEliminateBC(const Array<int> &ess_dofs,
-                                          DiagonalPolicy diag_policy,
-                                          HypreParMatrix &A)
+void ParBilinearForm::EliminateBC(const Array<int> &ess_dofs,
+                                  DiagonalPolicy diag_policy,
+                                  HypreParMatrix &A)
 {
    hypre_ParCSRMatrix *A_hypre = A;
    A.HypreReadWrite();
