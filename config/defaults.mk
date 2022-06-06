@@ -203,7 +203,7 @@ HYPRE_OPT = -I$(HYPRE_DIR)/include
 HYPRE_LIB = -L$(HYPRE_DIR)/lib -lHYPRE
 ifeq (YES,$(MFEM_USE_CUDA))
    # This is only necessary when hypre is built with cuda:
-   HYPRE_LIB += -lcusparse -lcurand
+   HYPRE_LIB += -lcusparse -lcurand -lcublas
 endif
 ifeq (YES,$(MFEM_USE_HIP))
    # This is only necessary when hypre is built with hip:
