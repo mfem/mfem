@@ -121,6 +121,16 @@ void ParBilinearForm::pAllocMat()
    dof_dof.LoseData();
 }
 
+/// @brief Make @a A_hyp steal ownership of its diagonal part @a A_diag.
+///
+/// If @a A_hyp does not own I and J, then they are aliases pointing to the I
+/// and J arrays in @a A_diag. In that case, this function swaps the memory
+/// objects. Similarly for the data array.
+///
+/// After this function is called, @a A_hyp will own all of the arrays of its
+/// diagonal part.
+///
+/// @note I and J can only be aliases when HYPRE_BIGINT is disabled.
 static void HypreStealOwnership(HypreParMatrix &A_hyp, SparseMatrix &A_diag)
 {
 #ifndef HYPRE_BIGINT
@@ -141,9 +151,8 @@ static void HypreStealOwnership(HypreParMatrix &A_hyp, SparseMatrix &A_diag)
    A_hyp.SetOwnerFlags(3, A_hyp.OwnsOffd(), A_hyp.OwnsColMap());
 }
 
-void ParBilinearForm::ParallelRAP(OperatorHandle &A)
+void ParBilinearForm::ParallelRAP(SparseMatrix &loc_sp_mat, OperatorHandle &A)
 {
-   MFEM_ASSERT(mat, "ParallelRAP requires a SparseMatrix to be assembled.");
    ParFiniteElementSpace &pfespace = *ParFESpace();
 
    // Create a block diagonal parallel matrix
@@ -151,14 +160,14 @@ void ParBilinearForm::ParallelRAP(OperatorHandle &A)
    A_diag.MakeSquareBlockDiag(pfespace.GetComm(),
                               pfespace.GlobalVSize(),
                               pfespace.GetDofOffsets(),
-                              mat);
+                              &loc_sp_mat);
 
    // Parallel matrix assembly using P^t A P (if needed)
    if (IsIdentityProlongation(pfespace.GetProlongationMatrix()))
    {
       A_diag.SetOperatorOwner(false);
       A.Reset(A_diag.Ptr(), false);
-      HypreStealOwnership(*A.As<HypreParMatrix>(), *mat);
+      HypreStealOwnership(*A.As<HypreParMatrix>(), loc_sp_mat);
    }
    else
    {
@@ -169,6 +178,7 @@ void ParBilinearForm::ParallelRAP(OperatorHandle &A)
 }
 
 void ParBilinearForm::ParallelEliminateBC(const Array<int> &ess_dofs,
+                                          DiagonalPolicy diag_policy,
                                           HypreParMatrix &A)
 {
    hypre_ParCSRMatrix *A_hypre = A;
@@ -244,8 +254,15 @@ void ParBilinearForm::ParallelEliminateBC(const Array<int> &ess_dofs,
             const int jdof = J[j];
             if (jdof == idof)
             {
-               // Set eliminated diagonal equal to identity
-               data[j] = 1.0;
+               if (diag_policy == DiagonalPolicy::DIAG_ONE)
+               {
+                  data[j] = 1.0;
+               }
+               else if (diag_policy == DiagonalPolicy::DIAG_ZERO)
+               {
+                  data[j] = 0.0;
+               }
+               // else (diag_policy == DiagonalPolicy::DIAG_KEEP)
             }
             else
             {

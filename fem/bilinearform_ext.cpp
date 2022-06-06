@@ -962,7 +962,7 @@ void FABilinearFormExtension::RAP(OperatorHandle &A)
 #ifdef MFEM_USE_MPI
    if ( auto pa = dynamic_cast<ParBilinearForm*>(a) )
    {
-      pa->ParallelRAP(A);
+      pa->ParallelRAP(*pa->mat, A);
    }
    else
 #endif
@@ -977,13 +977,17 @@ void FABilinearFormExtension::EliminateBC(const Array<int> &ess_dofs,
 #ifdef MFEM_USE_MPI
    if ( dynamic_cast<ParBilinearForm*>(a) )
    {
-      ParBilinearForm::ParallelEliminateBC(ess_dofs, *A.As<HypreParMatrix>());
+      ParBilinearForm::ParallelEliminateBC(ess_dofs,
+                                           DiagonalPolicy::DIAG_ONE,
+                                           *A.As<HypreParMatrix>());
    }
    else
 #endif
    {
       SparseMatrix &A_mat = *A.As<SparseMatrix>();
-      BilinearForm::SerialEliminateBC(ess_dofs, A_mat);
+      BilinearForm::SerialEliminateBC(ess_dofs,
+                                      DiagonalPolicy::DIAG_ONE,
+                                      A_mat);
    }
 }
 

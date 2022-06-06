@@ -14,6 +14,7 @@
 #include "../../general/forall.hpp"
 #include <climits>
 #include "../pbilinearform.hpp"
+#include "../../linalg/operator.hpp"
 
 // Specializations
 #include "lor_h1.hpp"
@@ -484,36 +485,14 @@ void BatchedLORAssembly::ParAssemble(
    OperatorHandle A_local;
    AssembleWithoutBC(a, A_local);
 
-   ParFiniteElementSpace *pfes_ho =
-      dynamic_cast<ParFiniteElementSpace*>(&fes_ho);
-   MFEM_VERIFY(pfes_ho != nullptr,
-               "ParAssemble must be called with ParFiniteElementSpace");
+   ParBilinearForm *pa =
+      dynamic_cast<ParBilinearForm*>(&a);
 
-   // Create a block diagonal parallel matrix
-   OperatorHandle A_diag(Operator::Hypre_ParCSR);
-   A_diag.MakeSquareBlockDiag(pfes_ho->GetComm(),
-                              pfes_ho->GlobalVSize(),
-                              pfes_ho->GetDofOffsets(),
-                              A_local.As<SparseMatrix>());
+   pa->ParallelRAP(*A_local.As<SparseMatrix>(), A);
 
-   // Parallel matrix assembly using P^t A P (if needed)
-   if (IsIdentityProlongation(pfes_ho->GetProlongationMatrix()))
-   {
-      A_diag.SetOperatorOwner(false);
-      A.Reset(A_diag.Ptr());
-      HypreStealOwnership(*A.As<HypreParMatrix>(), *A_local.As<SparseMatrix>());
-   }
-   else
-   {
-      OperatorHandle P(Operator::Hypre_ParCSR);
-      P.ConvertFrom(pfes_ho->Dof_TrueDof_Matrix());
-      A.MakePtAP(A_diag, P);
-   }
-
-   // Eliminate the boundary conditions
-   HypreParMatrix *A_mat = A.As<HypreParMatrix>();
-
-   ParBilinearForm::ParallelEliminateBC(ess_dofs, *A_mat);
+   ParBilinearForm::ParallelEliminateBC(ess_dofs,
+                                        Operator::DiagonalPolicy::DIAG_ONE,
+                                        *A.As<HypreParMatrix>());
 }
 #endif
 
@@ -530,34 +509,9 @@ void BatchedLORAssembly::Assemble(
    AssembleWithoutBC(a, A);
    SparseMatrix *A_mat = A.As<SparseMatrix>();
 
-   // Eliminate essential DOFs (BCs) from the matrix (what we do here is
-   // equivalent to  DiagonalPolicy::DIAG_KEEP).
-   const int n_ess_dofs = ess_dofs.Size();
-   const auto ess_dofs_d = ess_dofs.Read();
-   const auto I = A_mat->ReadI();
-   const auto J = A_mat->ReadJ();
-   auto dA = A_mat->ReadWriteData();
-
-   MFEM_FORALL(i, n_ess_dofs,
-   {
-      const int idof = ess_dofs_d[i];
-      for (int j=I[idof]; j<I[idof+1]; ++j)
-      {
-         const int jdof = J[j];
-         if (jdof != idof)
-         {
-            dA[j] = 0.0;
-            for (int k=I[jdof]; k<I[jdof+1]; ++k)
-            {
-               if (J[k] == idof)
-               {
-                  dA[k] = 0.0;
-                  break;
-               }
-            }
-         }
-      }
-   });
+   BilinearForm::SerialEliminateBC(ess_dofs,
+                                   Operator::DiagonalPolicy::DIAG_KEEP,
+                                   *A_mat);
 }
 
 BatchedLORAssembly::BatchedLORAssembly(FiniteElementSpace &fes_ho_)

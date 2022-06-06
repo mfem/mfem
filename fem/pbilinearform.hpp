@@ -115,18 +115,19 @@ public:
    HypreParMatrix *ParallelAssemble(SparseMatrix *m);
 
    /// @brief Compute parallel RAP operator and store it in @a A as a HypreParMatrix.
-   void ParallelRAP(OperatorHandle &A);
+   void ParallelRAP(SparseMatrix &loc_sp_mat, OperatorHandle &A);
 
    /** @brief Eliminate essential (Dirichlet) boundary conditions in the
        HypreParMatrix @a A
 
        @param[in] ess_dofs indices of the degrees of freedom belonging to the
                            essential boundary conditions.
+       @param[in] diag_policy policy for diagonal entries.
        @param[in,out] A The HypreParMatrix in which the boundary conditions are
-                        eliminated.
-
-       @note Correspond to the DiagonalPolicy::DIAG_ONE. */
-   static void ParallelEliminateBC(const Array<int> &ess_dofs, HypreParMatrix &A);
+                        eliminated. */
+   static void ParallelEliminateBC(const Array<int> &ess_dofs,
+                                   DiagonalPolicy diag_policy,
+                                   HypreParMatrix &A);
 
    /** @brief Returns the matrix assembled on the true dofs, i.e.
        @a A = P^t A_local P, in the format (type id) specified by @a A. */
