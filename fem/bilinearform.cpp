@@ -703,6 +703,7 @@ void BilinearForm::AssembleDiagonal(Vector &diag) const
 }
 
 void BilinearForm::SerialEliminateBC(const Array<int> &ess_dofs,
+                                     DiagonalPolicy diag_policy,
                                      SparseMatrix &A)
 {
    // Eliminate essential DOFs (BCs) from the matrix (what we do here is
@@ -733,7 +734,15 @@ void BilinearForm::SerialEliminateBC(const Array<int> &ess_dofs,
          }
          else
          {
-            dA[j] = 1.0;
+            if (diag_policy == DiagonalPolicy::DIAG_ONE)
+            {
+               dA[j] = 1.0;
+            }
+            else if (diag_policy == DiagonalPolicy::DIAG_ZERO)
+            {
+               dA[j] = 0.0;
+            }
+            // else (diag_policy == DiagonalPolicy::DIAG_KEEP)
          }
       }
    });
