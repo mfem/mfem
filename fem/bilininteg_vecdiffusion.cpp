@@ -149,7 +149,8 @@ void VectorDiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
    if (DeviceCanUseCeed())
    {
       delete ceedOp;
-      const bool mixed = mesh->GetNumGeometries(mesh->Dimension()) > 1;
+      const bool mixed = mesh->GetNumGeometries(mesh->Dimension()) > 1 ||
+                         fes.IsVariableOrder();
       if (mixed)
       {
          ceedOp = new ceed::MixedPADiffusionIntegrator(*this, fes, Q);
