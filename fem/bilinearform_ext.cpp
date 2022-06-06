@@ -984,10 +984,9 @@ void FABilinearFormExtension::EliminateBC(const Array<int> &ess_dofs,
    else
 #endif
    {
-      SparseMatrix &A_mat = *A.As<SparseMatrix>();
       BilinearForm::EliminateBC(ess_dofs,
                                 DiagonalPolicy::DIAG_ONE,
-                                A_mat);
+                                *A.As<SparseMatrix>());
    }
 }
 
