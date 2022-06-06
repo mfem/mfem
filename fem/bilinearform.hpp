@@ -337,7 +337,10 @@ public:
       return *mat_e;
    }
 
-   // Returns true if the sparse matrix of eliminated b.c.s is not null, false otherwise.
+   /// @brief Returns true if the sparse matrix of eliminated b.c.s is not null,
+   /// false otherwise.
+   ///
+   /// @sa SpMatElim().
    bool HasSpMatElim()
    {
       return mat_e != nullptr;
