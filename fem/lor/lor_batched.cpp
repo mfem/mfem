@@ -490,9 +490,9 @@ void BatchedLORAssembly::ParAssemble(
 
    pa->ParallelRAP(*A_local.As<SparseMatrix>(), A);
 
-   ParBilinearForm::ParallelEliminateBC(ess_dofs,
-                                        Operator::DiagonalPolicy::DIAG_ONE,
-                                        *A.As<HypreParMatrix>());
+   ParBilinearForm::EliminateBC(ess_dofs,
+                                Operator::DiagonalPolicy::DIAG_ONE,
+                                *A.As<HypreParMatrix>());
 }
 #endif
 
@@ -509,9 +509,9 @@ void BatchedLORAssembly::Assemble(
    AssembleWithoutBC(a, A);
    SparseMatrix *A_mat = A.As<SparseMatrix>();
 
-   BilinearForm::SerialEliminateBC(ess_dofs,
-                                   Operator::DiagonalPolicy::DIAG_KEEP,
-                                   *A_mat);
+   BilinearForm::EliminateBC(ess_dofs,
+                             Operator::DiagonalPolicy::DIAG_KEEP,
+                             *A_mat);
 }
 
 BatchedLORAssembly::BatchedLORAssembly(FiniteElementSpace &fes_ho_)

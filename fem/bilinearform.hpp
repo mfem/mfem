@@ -426,9 +426,9 @@ public:
        @param[in] diag_policy policy for diagonal entries.
        @param[in,out] A The SparseMatrix in which the boundary conditions are
                         eliminated.  */
-   static void SerialEliminateBC(const Array<int> &ess_dofs,
-                                 DiagonalPolicy diag_policy,
-                                 SparseMatrix &A);
+   static void EliminateBC(const Array<int> &ess_dofs,
+                           DiagonalPolicy diag_policy,
+                           SparseMatrix &A);
 
    /** @brief Form the linear system A X = B, corresponding to this bilinear
        form and the linear form @a b(.). */

@@ -977,17 +977,17 @@ void FABilinearFormExtension::EliminateBC(const Array<int> &ess_dofs,
 #ifdef MFEM_USE_MPI
    if ( dynamic_cast<ParBilinearForm*>(a) )
    {
-      ParBilinearForm::ParallelEliminateBC(ess_dofs,
-                                           DiagonalPolicy::DIAG_ONE,
-                                           *A.As<HypreParMatrix>());
+      ParBilinearForm::EliminateBC(ess_dofs,
+                                   DiagonalPolicy::DIAG_ONE,
+                                   *A.As<HypreParMatrix>());
    }
    else
 #endif
    {
       SparseMatrix &A_mat = *A.As<SparseMatrix>();
-      BilinearForm::SerialEliminateBC(ess_dofs,
-                                      DiagonalPolicy::DIAG_ONE,
-                                      A_mat);
+      BilinearForm::EliminateBC(ess_dofs,
+                                DiagonalPolicy::DIAG_ONE,
+                                A_mat);
    }
 }
 

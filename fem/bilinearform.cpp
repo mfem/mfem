@@ -702,9 +702,9 @@ void BilinearForm::AssembleDiagonal(Vector &diag) const
    cP->AbsMultTranspose(local_diag, diag);
 }
 
-void BilinearForm::SerialEliminateBC(const Array<int> &ess_dofs,
-                                     DiagonalPolicy diag_policy,
-                                     SparseMatrix &A)
+void BilinearForm::EliminateBC(const Array<int> &ess_dofs,
+                               DiagonalPolicy diag_policy,
+                               SparseMatrix &A)
 {
    // Eliminate essential DOFs (BCs) from the matrix (what we do here is
    // equivalent to  DiagonalPolicy::DIAG_ONE).
