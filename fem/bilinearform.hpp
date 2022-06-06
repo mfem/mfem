@@ -305,9 +305,9 @@ public:
    /// Finalizes the matrix initialization.
    virtual void Finalize(int skip_zeros = 1);
 
-   /** @brief Returns a const reference to the sparse matrix.
+   /** @brief Returns a const reference to the sparse matrix:  \f$ M \f$
 
-       This will fail if @sa HasSpMat() is false. */
+       This will fail if HasSpMat() is false. */
    const SparseMatrix &SpMat() const
    {
       MFEM_VERIFY(mat, "mat is NULL and can't be dereferenced");
@@ -316,7 +316,7 @@ public:
 
    /** @brief Returns a reference to the sparse matrix:  \f$ M \f$
 
-       This will fail if @sa HasSpMat() is false. */
+       This will fail if HasSpMat() is false. */
    SparseMatrix &SpMat()
    {
       MFEM_VERIFY(mat, "mat is NULL and can't be dereferenced");
@@ -336,18 +336,20 @@ public:
         to it.  Used for transfering ownership. */
    SparseMatrix *LoseMat() { SparseMatrix *tmp = mat; mat = NULL; return tmp; }
 
-   /** Returns a const reference to the sparse matrix of eliminated b.c.: \f$ M_e \f$
+   /** @brief Returns a const reference to the sparse matrix of eliminated b.c.:
+       \f$ M_e \f$
 
-       This will fail if @sa HasSpMatElim() is false. */
+       This will fail if HasSpMatElim() is false. */
    const SparseMatrix &SpMatElim() const
    {
       MFEM_VERIFY(mat_e, "mat_e is NULL and can't be dereferenced");
       return *mat_e;
    }
 
-   /** Returns a reference to the sparse matrix of eliminated b.c.: \f$ M_e \f$
+   /** @brief Returns a reference to the sparse matrix of eliminated b.c.:
+       \f$ M_e \f$
 
-       This will fail if @sa HasSpMatElim() is false. */
+       This will fail if HasSpMatElim() is false. */
    SparseMatrix &SpMatElim()
    {
       MFEM_VERIFY(mat_e, "mat_e is NULL and can't be dereferenced");
