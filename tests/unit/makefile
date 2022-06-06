@@ -269,7 +269,6 @@ endif
 mjit_tests-test-seq: mjit_tests
 	@$(call mfem-test,$<,, Mjit tests,--device cpu,SKIP-NO-VIS)
 
-
 RUN_MPI = $(MFEM_MPIEXEC) $(MFEM_MPIEXEC_NP)
 %-test-par: %
 	@$(call mfem-test,$<, $(RUN_MPI) 1, Parallel unit tests,$(MFEM_DATA_FLAG),SKIP-NO-VIS)

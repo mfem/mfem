@@ -99,8 +99,8 @@ void mfem_warning(const char *msg = NULL);
       mfemMsgStream << std::setprecision(16);                           \
       mfemMsgStream << std::setiosflags(std::ios_base::scientific);     \
       mfemMsgStream << msg << MFEM_LOCATION;                            \
-      std::cout << (mfemMsgStream.str().c_str() ?                       \
-                    mfemMsgStream.str().c_str() : "XXX") << std::endl;  \
+      if (mfemMsgStream.str().c_str())                                  \
+         std::cout << mfemMsgStream.str().c_str() << std::endl;         \
    }
 #endif
 

@@ -25,11 +25,9 @@ public:
    MFEM_HOST_DEVICE
    static inline int result(const int* sizes, T first, Args... args)
    {
-#ifndef MFEM_USE_JIT
-#if !(defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP))
+#if !(defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP) || defined(MFEM_USE_JIT))
       MFEM_ASSERT(first<sizes[N-1],"Trying to access out of boundary.");
 #endif
-#endif // MFEM_USE_JIT
       return first + sizes[N - 1] * TensorInd < N + 1, Dim, Args... >
              ::result(sizes, args...);
    }
@@ -43,11 +41,9 @@ public:
    MFEM_HOST_DEVICE
    static inline int result(const int* sizes, T first, Args... args)
    {
-#ifndef MFEM_USE_JIT
-#if !(defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP))
+#if !(defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP) || defined(MFEM_USE_JIT))
       MFEM_ASSERT(first<sizes[Dim-1],"Trying to access out of boundary.");
 #endif
-#endif // MFEM_USE_JIT
       return first;
    }
 };

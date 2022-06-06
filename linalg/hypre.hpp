@@ -47,7 +47,7 @@
 // device that hypre was configured with (no matter what device was selected
 // in MFEM's runtime configuration).
 #if defined(HYPRE_USING_CUDA)
-#define MFEM_HYPRE_FORALL(i, N,...) CudaWrap1D(N, [=] MFEM_DEVICE    \
+#define MFEM_HYPRE_FORALL(i, N,...) CuWrap1D(N, [=] MFEM_DEVICE      \
                                        (int i) {__VA_ARGS__})
 #elif defined(HYPRE_USING_HIP)
 #define MFEM_HYPRE_FORALL(i, N,...) HipWrap1D(N, [=] MFEM_DEVICE     \
