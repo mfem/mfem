@@ -499,11 +499,15 @@ void FiniteElementSpace::GetEssentialVDofs(const Array<int> &bdr_attr_is_ess,
 {
    Array<int> vdofs, dofs;
 
-   if (overwrite) {
+   if (overwrite)
+   {
       ess_vdofs.SetSize(GetVSize());
       ess_vdofs = 0;
-   } else {
-      MFEM_ASSERT(ess_vdofs.Size() == GetVSize(), "ess_vdofs size is not equal to FESpaces GetVSize().");
+   }
+   else
+   {
+      MFEM_ASSERT(ess_vdofs.Size() == GetVSize(),
+                  "ess_vdofs size is not equal to FESpaces GetVSize().");
    }
 
    for (int i = 0; i < GetNBE(); i++)
@@ -588,20 +592,25 @@ void FiniteElementSpace::GetEssentialTrueDofs(const Array<int> &bdr_attr_is_ess,
                                               Array<int> &ess_tdof_list,
                                               const Array2D<bool> &component)
 {
-   MFEM_ASSERT(component.NumCols() == vdim, "Number of columns of component was not equal to FESpace vdim");
-   MFEM_ASSERT(component.NumRows() == bdr_attr_is_ess.Size(), "Number of rows of component was not equal to bdr_attr_is_ess.Size()");
+   MFEM_ASSERT(component.NumCols() == vdim,
+               "Number of columns of component was not equal to FESpace vdim");
+   MFEM_ASSERT(component.NumRows() == bdr_attr_is_ess.Size(),
+               "Number of rows of component was not equal to bdr_attr_is_ess.Size()");
 
    Array<int> ess_vdofs, ess_tdofs, bdr_attr_is_ess_single_comp;
    bdr_attr_is_ess_single_comp.SetSize(bdr_attr_is_ess.Size());
 
-   for (int i = 0; i < vdim; i++) {
+   for (int i = 0; i < vdim; i++)
+   {
       // Only overwrite ess_vdofs on first iteration
-      // all other iterations we want to preserve values of 
+      // all other iterations we want to preserve values of
       // ess_vdofs.
       const bool overwrite = (i == 0) ? true : false;
       bdr_attr_is_ess_single_comp = 0;
-      for (int j = 0; j < bdr_attr_is_ess.Size(); j++) {
-         if (bdr_attr_is_ess[j] && component[j, i]) {
+      for (int j = 0; j < bdr_attr_is_ess.Size(); j++)
+      {
+         if (bdr_attr_is_ess[j] && component[j, i])
+         {
             bdr_attr_is_ess_single_comp[j] = bdr_attr_is_ess[j];
          }
       }

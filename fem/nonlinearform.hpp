@@ -146,7 +146,7 @@ public:
        have zero entries at the essential true dofs. */
    void SetEssentialBC(const Array<int> &bdr_attr_is_ess, Vector *rhs = NULL);
 
-   /** @brief Specify essential boundary conditions. 
+   /** @brief Specify essential boundary conditions.
 
        For spaces with 'vdim' > 1, the 'bdr_component' array can be used
        to restricts the marked tDOFs per boundary to the specified components.
