@@ -38,6 +38,6 @@ int main(int argc, char *argv[])
    session.cli(cli);
    if (session.applyCommandLine(argc, argv) != 0) { return EXIT_FAILURE; }
    mfem::Device device(device_str.c_str());
-   mfem::Jit::Configure("mjit_test_par", ".", false);
+   mfem::Jit::Configure("mjit_test_par", ".", true);
    return session.run();
 }

@@ -29,6 +29,7 @@
 #include <unistd.h> // fork
 #include <sys/file.h> // flock
 #include <sys/wait.h> // waitpid
+#include <sys/stat.h>
 
 #if !(defined(__linux__) || defined(__APPLE__))
 #error mmap(2) implementation as defined in POSIX.1-2001 not supported.
@@ -423,28 +424,32 @@ public:
       return handle;
    }
 
+   static inline int exists (const char *filename)
+   {
+      struct stat buffer;
+      return (stat(filename, &buffer) == 0);
+   }
+
    static void* Lookup(const size_t hash, const char *name, const char *cxx,
                        const char *flags, const char *link, const char *libs,
                        const char *source, const char *symbol)
    {
       DLerror(false); // flush dl errors
-
+      mpi::Sync(); // make sure everyone is testing files at the same time
       void *handle = std::fstream(Lib_so()) ? DLopen(Lib_so()) : nullptr;
       if (!handle && std::fstream(Lib_ar())) // if .so not found, try archive
       {
-         for (int status = EXIT_SUCCESS; !handle; status = EXIT_SUCCESS) // timeout ?
+         int status = EXIT_SUCCESS;
+         if (mpi::Root())
          {
-            if (mpi::Root())
-            {
-               io::FileLock so_lock(Lib_so(), "ok");
-               Command() << cxx << link << "-shared" << "-o" << Lib_so()
-                         << ARprefix() << Lib_ar() << ARpostfix()
-                         << Xlinker() + "-rpath,." << libs;
-               status = Call();
-            }
-            mpi::Sync(status);
-            handle = DLopen(Lib_so()); // can be removed in the meantime
+            io::FileLock so_lock(Lib_so(), "ok");
+            Command() << cxx << link << "-shared" << "-o" << Lib_so()
+                      << ARprefix() << Lib_ar() << ARpostfix()
+                      << Xlinker() + "-rpath,." << libs;
+            status = Call();
          }
+         mpi::Sync(status);
+         handle = DLopen(Lib_so()); // can be removed in the meantime
          MFEM_VERIFY(handle, "[JIT] Error " << Lib_so() << " from " << Lib_ar());
       }
 
@@ -513,7 +518,7 @@ public:
             else // avoid duplicate compilation
             {
                cc_lock.Wait();
-               if (!std::fstream(Lib_so())) { RootCompile(tmp);} // if removed
+               if (!std::fstream(Lib_so())) { RootCompile(tmp); } // if removed
                install(Lib_so(), tmp);
             }
             return EXIT_SUCCESS;
