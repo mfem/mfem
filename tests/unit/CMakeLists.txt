@@ -227,14 +227,12 @@ if (MFEM_USE_CEED)
 endif()
 
 #-----------------------------------------------------------
-# SERIAL MJIT TESTS: test_seq_main
+# SERIAL MJIT TESTS: mjit_tests
 #-----------------------------------------------------------
 if (MFEM_USE_JIT)
-   set(MJIT_TESTS_SRCS
-      mjit/test_bbps.cpp
-      mjit/test_empty.cpp
-      mjit/test_comments.cpp
-      mjit/test_seq_main.cpp)
+   file(GLOB MJIT_TESTS_SRCS LIST_DIRECTORIES false
+       RELATIVE ${CMAKE_CURRENT_SOURCE_DIR} "mjit/*.cpp")
+   list(REMOVE_ITEM MJIT_TESTS_SRCS mjit/test_par_main.cpp)
    convert_filenames_to_full_paths(MJIT_TESTS_SRCS)
    set_mjit_sources_dependencies(MJIT_TESTS_SOURCES MJIT_TESTS_SRCS)
    if (MFEM_USE_CUDA)
@@ -248,7 +246,7 @@ if (MFEM_USE_JIT)
 endif() # MFEM_USE_JIT
 
 #-----------------------------------------------------------
-# PARALLEL CPU AND CUDA TESTS: {p,pc}unit_tests
+# PARALLEL CPU, JIT AND CUDA TESTS: {p,pc}unit_tests, pmjit_tests
 #-----------------------------------------------------------
 # Define executables and tests 'punit_tests' and 'pcunit_tests'
 if (MFEM_USE_MPI)
@@ -278,16 +276,13 @@ if (MFEM_USE_MPI)
                   ${MPIEXEC_POSTFLAGS})
       endforeach()
    endif()
-   # Define executables and tests 'pmjit_tests'
+   # Define 'pmjit_tests' executable
    if (MFEM_USE_JIT)
-      set(PMJIT_TESTS_SRCS
-          mjit/test_bbps.cpp
-          mjit/test_empty.cpp
-          mjit/test_comments.cpp
-          mjit/test_par_main.cpp)
+      file(GLOB PMJIT_TESTS_SRCS LIST_DIRECTORIES false
+           RELATIVE ${CMAKE_CURRENT_SOURCE_DIR} "mjit/*.cpp")
+      list(REMOVE_ITEM PMJIT_TESTS_SRCS mjit/test_seq_main.cpp)
       convert_filenames_to_full_paths(PMJIT_TESTS_SRCS)
       set_mjit_sources_dependencies(PMJIT_TESTS_SOURCES PMJIT_TESTS_SRCS)
-      #message(NOTICE "PMJIT_TESTS_SOURCES:${PMJIT_TESTS_SOURCES}")
       if (MFEM_USE_CUDA)
          set_property(SOURCE ${PMJIT_TESTS_SOURCES} PROPERTY LANGUAGE CUDA)
       endif(MFEM_USE_CUDA)
@@ -300,6 +295,8 @@ if (MFEM_USE_MPI)
                    ${MPIEXEC_PREFLAGS} $<TARGET_FILE:pmjit_tests>
                    ${MPIEXEC_POSTFLAGS})
           set_property(TEST pmjit_tests_np=${np} PROPERTY LABELS JIT)
+          set_property(TEST pmjit_tests_np=${np} PROPERTY RESOURCE_LOCK pmjit)
+          set_property(TEST pmjit_tests_np=${np} PROPERTY TIMEOUT 60)
      endforeach()
    endif(MFEM_USE_JIT)
 endif(MFEM_USE_MPI)
