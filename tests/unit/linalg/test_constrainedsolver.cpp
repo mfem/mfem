@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -63,7 +63,7 @@ SimpleSaddle::SimpleSaddle(double alpha, double beta, bool parallel)
 #ifdef MFEM_USE_MPI
    if (parallel)
    {
-      HYPRE_Int row_starts[2] = {0, 2};
+      HYPRE_BigInt row_starts[2] = {0, 2};
       hA = new HypreParMatrix(MPI_COMM_WORLD, 2, row_starts, &A);
       hA->CopyRowStarts();
    }
@@ -269,7 +269,7 @@ ParallelTestProblem::ParallelTestProblem()
    Alocal.Add(1, 1, 1.0);
    Alocal.Finalize();
 
-   HYPRE_Int row_starts_a[2] = {2 * rank, 2 * (rank + 1)};
+   HYPRE_BigInt row_starts_a[2] = {2 * rank, 2 * (rank + 1)};
    amat = new HypreParMatrix(MPI_COMM_WORLD, 8, row_starts_a, &Alocal);
    amat->CopyRowStarts();
 
@@ -285,13 +285,13 @@ ParallelTestProblem::ParallelTestProblem()
       Blocal.Add(0, 2*rank + 2, 1.0);
    }
    Blocal.Finalize();
-   HYPRE_Int row_starts_c[2] = { rank, rank + 1 };
-   HYPRE_Int col_starts[2] = { 2*rank, 2 * (rank + 1) };
+   HYPRE_BigInt row_starts_c[2] = { rank, rank + 1 };
+   HYPRE_BigInt col_starts[2] = { 2*rank, 2 * (rank + 1) };
 
-   Array<HYPRE_Int> Blocal_J(Blocal.NumNonZeroElems());
+   Array<HYPRE_BigInt> Blocal_J(Blocal.NumNonZeroElems());
    for (int i=0; i < Blocal_J.Size(); ++i)
    {
-      Blocal_J[i] = static_cast<HYPRE_Int>(Blocal.GetJ()[i]);
+      Blocal_J[i] = static_cast<HYPRE_BigInt>(Blocal.GetJ()[i]);
    }
 
    bmat = new HypreParMatrix(MPI_COMM_WORLD, 1, 4, 8, Blocal.GetI(),
@@ -538,13 +538,13 @@ ParallelTestProblemTwo::ParallelTestProblemTwo()
    Alocal.Add(1, 1, 1.0);
    Alocal.Finalize();
 
-   HYPRE_Int row_starts_a[2] = {2 * rank, 2 * (rank + 1)};
+   HYPRE_BigInt row_starts_a[2] = {2 * rank, 2 * (rank + 1)};
    amat = new HypreParMatrix(MPI_COMM_WORLD, 8, row_starts_a, &Alocal);
    amat->CopyRowStarts();
 
    int blocalrows = rank == 3 ? 1 : 0;
    Blocal = new SparseMatrix(blocalrows, 2);
-   HYPRE_Int row_starts_b[2];
+   HYPRE_BigInt row_starts_b[2];
    if (rank == 3)
    {
       truelambda.SetSize(1);
@@ -560,7 +560,7 @@ ParallelTestProblemTwo::ParallelTestProblemTwo()
       row_starts_b[1] = 0;
    }
    Blocal->Finalize();
-   HYPRE_Int col_starts[2] = { 2*rank, 2 * (rank + 1) };
+   HYPRE_BigInt col_starts[2] = { 2*rank, 2 * (rank + 1) };
 
    bmat = new HypreParMatrix(MPI_COMM_WORLD, 1, 8, row_starts_b, col_starts,
                              Blocal);
@@ -757,7 +757,7 @@ ZerosTestProblem::ZerosTestProblem(bool e0, bool e1)
    if (e1) { B.Add(1, 2, 0.0); }
    B.Finalize(0); // do not skip zeros!
 
-   HYPRE_Int row_starts[2] = {0, 3};
+   HYPRE_BigInt row_starts[2] = {0, 3};
    hA = new HypreParMatrix(MPI_COMM_WORLD, 3, row_starts, &A);
    hA->CopyRowStarts();
 

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -126,6 +126,7 @@ public:
    FiniteElementCollection *OwnFEC() { return fec; }
 
    int VectorDim() const;
+   int CurlDim() const;
 
    /// Read only access to the (optional) internal true-dof Vector.
    /** Note that the returned Vector may be empty, if not previously allocated
@@ -485,6 +486,10 @@ public:
    virtual double ComputeL2Error(VectorCoefficient &exsol,
                                  const IntegrationRule *irs[] = NULL,
                                  Array<int> *elems = NULL) const;
+
+   /// Returns ||grad u_ex - grad u_h||_L2 in element ielem for H1 or L2 elements
+   virtual double ComputeElementGradError(int ielem, VectorCoefficient *exgrad,
+                                          const IntegrationRule *irs[] = NULL) const;
 
    /// Returns ||grad u_ex - grad u_h||_L2 for H1 or L2 elements
    virtual double ComputeGradError(VectorCoefficient *exgrad,
@@ -931,6 +936,58 @@ double ZZErrorEstimator(BilinearFormIntegrator &blfi,
                         Array<int> *aniso_flags = NULL,
                         int with_subdomains = 1,
                         bool with_coeff = false);
+
+/// Defines the global tensor product polynomial space used by NewZZErorrEstimator
+/**
+ *  See BoundingBox(...) for a description of @a angle and @a midpoint
+ */
+void TensorProductLegendre(int dim,                      // input
+                           int order,                    // input
+                           const Vector &x_in,           // input
+                           const Vector &xmax,           // input
+                           const Vector &xmin,           // input
+                           Vector &poly,                 // output
+                           double angle=0.0,             // input (optional)
+                           const Vector *midpoint=NULL); // input (optional)
+
+/// Defines the bounding box for the face patches used by NewZZErorrEstimator
+/**
+ *  By default, BoundingBox(...) computes the parameters of a minimal bounding box
+ *  for the given @a face_patch that is aligned with the physical (i.e. global)
+ *  Cartesian axes. This means that the size of the bounding box will depend on the
+ *  orientation of the patch. It is better to construct an orientation-independent box.
+ *  This is implemented for 2D patches. The parameters @a angle and @a midpoint encode
+ *  the necessary additional geometric information.
+ *
+ *      @a iface     : Index of the face that the patch corresponds to.
+ *                     This is used to compute @a angle and @a midpoint.
+ *
+ *      @a angle     : The angle the patch face makes with the x-axis.
+ *      @a midpoint  : The midpoint of the face.
+ */
+void BoundingBox(const Array<int> &face_patch, // input
+                 FiniteElementSpace *ufes,     // input
+                 int order,                    // input
+                 Vector &xmin,                 // output
+                 Vector &xmax,                 // output
+                 double &angle,                // output
+                 Vector &midpoint,             // output
+                 int iface=-1);                // input (optional)
+
+/// A ``true'' ZZ error estimator that uses face-based patches for flux reconstruction.
+/**
+ *  Only two-element face patches are ever used:
+ *   - For conforming faces, the face patch consists of its two neighboring elements.
+ *   - In the non-conforming setting, only the face patches associated to fine-scale
+ *     element faces are used. These face patches always consist of two elements
+ *     delivered by mesh::GetFaceElements(Face, *Elem1, *Elem2).
+ */
+double LSZZErrorEstimator(BilinearFormIntegrator &blfi,         // input
+                          GridFunction &u,                      // input
+                          Vector &error_estimates,              // output
+                          bool subdomain_reconstruction = true, // input (optional)
+                          bool with_coeff = false,              // input (optional)
+                          double tichonov_coeff = 0.0);         // input (optional)
 
 /// Compute the Lp distance between two grid functions on the given element.
 double ComputeElementLpDistance(double p, int i,

@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -153,10 +153,12 @@ MFEM_USE_RAJA          = NO
 MFEM_USE_OCCA          = NO
 MFEM_USE_CEED          = NO
 MFEM_USE_CALIPER       = NO
+MFEM_USE_ALGOIM        = NO
 MFEM_USE_UMPIRE        = NO
 MFEM_USE_SIMD          = NO
 MFEM_USE_ADIOS2        = NO
 MFEM_USE_MKL_CPARDISO  = NO
+MFEM_USE_MOONOLITH     = NO
 MFEM_USE_ADFORWARD     = NO
 MFEM_USE_CODIPACK      = NO
 MFEM_USE_BENCHMARK     = NO
@@ -387,6 +389,11 @@ ifeq ($(SLEPC_FOUND),YES)
       $(subst $(CXX_XLINKER),$(XLINKER),$(SLEPC_DEP))
 endif
 
+ifeq ($(MFEM_USE_MOONOLITH),YES)
+  include $(MOONOLITH_DIR)/config/moonolith-config.makefile
+  MOONOLITH_LIB=$(MOONOLITH_LIBRARIES)
+endif
+
 # MPFR library configuration
 MPFR_OPT =
 MPFR_LIB = -lmpfr
@@ -462,6 +469,16 @@ OCCA_LIB = $(XLINKER)-rpath,$(OCCA_DIR)/lib -L$(OCCA_DIR)/lib -locca
 CALIPER_DIR = @MFEM_DIR@/../caliper
 CALIPER_OPT = -I$(CALIPER_DIR)/include
 CALIPER_LIB = $(XLINKER)-rpath,$(CALIPER_DIR)/lib64 -L$(CALIPER_DIR)/lib64 -lcaliper
+
+# BLITZ library configuration
+BLITZ_DIR = @MFEM_DIR@/../blitz
+BLITZ_OPT = -I$(BLITZ_DIR)/include
+BLITZ_LIB = $(XLINKER)-rpath,$(BLITZ_DIR)/lib -L$(BLITZ_DIR)/lib -lblitz
+
+# ALGOIM library configuration
+ALGOIM_DIR = @MFEM_DIR@/../algoim
+ALGOIM_OPT = -I$(ALGOIM_DIR)/src $(BLITZ_OPT)
+ALGOIM_LIB = $(BLITZ_LIB)
 
 # BENCHMARK library configuration
 BENCHMARK_DIR = @MFEM_DIR@/../google-benchmark

@@ -43,7 +43,7 @@
 #include <sstream>
 #include <iostream>
 
-// Classes FE_Evolution, RiemannSolver, DomainIntegrator and FaceIntegrator
+// Classes FE_Evolution, RiemannSolver, and FaceIntegrator
 // shared between the serial and parallel version of the example.
 #include "ex18.hpp"
 
@@ -189,7 +189,7 @@ int main(int argc, char *argv[])
    // 7. Set up the nonlinear form corresponding to the DG discretization of the
    //    flux divergence, and assemble the corresponding mass matrix.
    MixedBilinearForm Aflux(&dfes, &fes);
-   Aflux.AddDomainIntegrator(new DomainIntegrator(dim));
+   Aflux.AddDomainIntegrator(new TransposeIntegrator(new GradientIntegrator()));
    Aflux.Assemble();
 
    NonlinearForm A(&vfes);

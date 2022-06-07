@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -1012,6 +1012,9 @@ public:
    void GetElementData(int geom, Array<int> &elem_vtx, Array<int> &attr) const
    { GetElementData(elements, geom, elem_vtx, attr); }
 
+   /// Checks if the mesh has boundary elements
+   virtual bool HasBoundaryElements() const { return (NumOfBdrElements > 0); }
+
    void GetBdrElementData(int geom, Array<int> &bdr_elem_vtx,
                           Array<int> &bdr_attr) const
    { GetElementData(boundary, geom, bdr_elem_vtx, bdr_attr); }
@@ -1358,7 +1361,7 @@ public:
          return element[1].location == Mesh::ElementLocation::FaceNbr;
       }
 
-      /** @brief return true if the face is an interior face to the computaion
+      /** @brief return true if the face is an interior face to the computation
           domain, either a local or shared interior face (not a boundary face)
           which is NOT a master nonconforming face.
        */
@@ -1542,7 +1545,8 @@ public:
 
    /** Set the curvature of the mesh nodes using the given polynomial degree,
        'order', and optionally: discontinuous or continuous FE space, 'discont',
-       new space dimension, 'space_dim' (if != -1), and 'ordering'. */
+       new space dimension, 'space_dim' (if != -1), and 'ordering' (byVDim by
+       default). */
    virtual void SetCurvature(int order, bool discont = false, int space_dim = -1,
                              int ordering = 1);
 
@@ -1635,11 +1639,11 @@ public:
    long GetSequence() const { return sequence; }
 
    /// Print the mesh to the given stream using Netgen/Truegrid format.
-   virtual void PrintXG(std::ostream &out = mfem::out) const;
+   virtual void PrintXG(std::ostream &os = mfem::out) const;
 
    /// Print the mesh to the given stream using the default MFEM mesh format.
    /// \see mfem::ofgzstream() for on-the-fly compression of ascii outputs
-   virtual void Print(std::ostream &out = mfem::out) const { Printer(out); }
+   virtual void Print(std::ostream &os = mfem::out) const { Printer(os); }
 
    /// Save the mesh to a file using Mesh::Print. The given @a precision will be
    /// used for ASCII output.
@@ -1647,22 +1651,22 @@ public:
 
    /// Print the mesh to the given stream using the adios2 bp format
 #ifdef MFEM_USE_ADIOS2
-   virtual void Print(adios2stream &out) const;
+   virtual void Print(adios2stream &os) const;
 #endif
    /// Print the mesh in VTK format (linear and quadratic meshes only).
    /// \see mfem::ofgzstream() for on-the-fly compression of ascii outputs
-   void PrintVTK(std::ostream &out);
+   void PrintVTK(std::ostream &os);
    /** Print the mesh in VTK format. The parameter ref > 0 specifies an element
        subdivision number (useful for high order fields and curved meshes).
        If the optional field_data is set, we also add a FIELD section in the
        beginning of the file with additional dataset information. */
    /// \see mfem::ofgzstream() for on-the-fly compression of ascii outputs
-   void PrintVTK(std::ostream &out, int ref, int field_data=0);
+   void PrintVTK(std::ostream &os, int ref, int field_data=0);
    /** Print the mesh in VTU format. The parameter ref > 0 specifies an element
        subdivision number (useful for high order fields and curved meshes).
        If @a bdr_elements is true, then output (only) the boundary elements,
        otherwise output only the non-boundary elements. */
-   void PrintVTU(std::ostream &out,
+   void PrintVTU(std::ostream &os,
                  int ref=1,
                  VTKFormat format=VTKFormat::ASCII,
                  bool high_order_output=false,
@@ -1688,7 +1692,7 @@ public:
        attribute i+1. */
    /// \see mfem::ofgzstream() for on-the-fly compression of ascii outputs
    void PrintWithPartitioning (int *partitioning,
-                               std::ostream &out, int elem_attr = 0) const;
+                               std::ostream &os, int elem_attr = 0) const;
 
    void PrintElementsWithPartitioning (int *partitioning,
                                        std::ostream &out,
@@ -1744,14 +1748,14 @@ public:
    /** If @a Vh or @a Vk are not NULL, return the element sizes and aspect
        ratios for all elements in the given Vector%s. */
    void PrintCharacteristics(Vector *Vh = NULL, Vector *Vk = NULL,
-                             std::ostream &out = mfem::out);
+                             std::ostream &os = mfem::out);
 
    /** @brief In serial, this method calls PrintCharacteristics(). In parallel,
        additional information about the parallel decomposition is also printed.
    */
-   virtual void PrintInfo(std::ostream &out = mfem::out)
+   virtual void PrintInfo(std::ostream &os = mfem::out)
    {
-      PrintCharacteristics(NULL, NULL, out);
+      PrintCharacteristics(NULL, NULL, os);
    }
 
    void MesquiteSmooth(const int mesquite_option = 0);

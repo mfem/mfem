@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -23,6 +23,7 @@ LinearForm::LinearForm(FiniteElementSpace *f, LinearForm *lf)
    UseDevice(true);
 
    fes = f;
+   ext = nullptr;
    extern_lfs = 1;
 
    // Copy the pointers to the integrators
@@ -99,14 +100,57 @@ void LinearForm::AddInteriorFaceIntegrator(LinearFormIntegrator *lfi)
    interior_face_integs.Append(lfi);
 }
 
-void LinearForm::Assemble()
+bool LinearForm::SupportsDevice()
+{
+   // return false for NURBS meshs, so we don’t convert it to non-NURBS
+   // through Assemble, AssembleDevice, GetGeometricFactors and EnsureNodes
+   if (fes->GetMesh()->NURBSext != nullptr) { return false; }
+
+   // scan domain integrator to verify that all can use device assembly
+   if (domain_integs.Size() > 0)
+   {
+      for (int k = 0; k < domain_integs.Size(); k++)
+      {
+         if (!domain_integs[k]->SupportsDevice()) { return false; }
+      }
+   }
+
+   // boundary, delta and face integrators are not supported yet
+   if (GetBLFI()->Size() > 0 || GetFLFI()->Size() > 0 ||
+       GetDLFI_Delta()->Size() > 0 || GetIFLFI()->Size() > 0) { return false; }
+
+   const Mesh &mesh = *fes->GetMesh();
+
+   // no support for elements with varying polynomial orders
+   if (fes->IsVariableOrder()) { return false; }
+
+   // no support for 1D and embedded meshes
+   const int mesh_dim = mesh.Dimension();
+   if (mesh_dim == 1 || mesh_dim != mesh.SpaceDimension()) { return false; }
+
+   // tensor-product finite element space only
+   // with point values preserving scalar fields
+   for (int e = 0; e < fes->GetNE(); ++e)
+   {
+      const FiniteElement *fe = fes->GetFE(e);
+      if (fe->GetMapType() != FiniteElement::VALUE) { return false; }
+      if (!dynamic_cast<const TensorBasisElement*>(fe)) { return false; }
+   }
+
+   return true;
+}
+
+void LinearForm::Assemble(bool use_device)
 {
    Array<int> vdofs;
    ElementTransformation *eltrans;
    DofTransformation *doftrans;
    Vector elemvect;
 
-   int i;
+   if (!ext && use_device && SupportsDevice())
+   {
+      ext = new LinearFormExtension(this);
+   }
 
    Vector::operator=(0.0);
 
@@ -114,20 +158,23 @@ void LinearForm::Assemble()
    // The first use of AddElementVector() below will move it back to host
    // because both 'vdofs' and 'elemvect' are on host.
 
+   if (ext) { return ext->Assemble(); }
+
    if (domain_integs.Size())
    {
       for (int k = 0; k < domain_integs.Size(); k++)
       {
          if (domain_integs_marker[k] != NULL)
          {
-            MFEM_VERIFY(fes->GetMesh()->attributes.Size() ==
-                        domain_integs_marker[k]->Size(),
+            MFEM_VERIFY(domain_integs_marker[k]->Size() ==
+                        (fes->GetMesh()->attributes.Size() ?
+                         fes->GetMesh()->attributes.Max() : 0),
                         "invalid element marker for domain linear form "
                         "integrator #" << k << ", counting from zero");
          }
       }
 
-      for (i = 0; i < fes -> GetNE(); i++)
+      for (int i = 0; i < fes -> GetNE(); i++)
       {
          int elem_attr = fes->GetMesh()->GetAttribute(i);
          for (int k = 0; k < domain_integs.Size(); k++)
@@ -175,7 +222,7 @@ void LinearForm::Assemble()
          }
       }
 
-      for (i = 0; i < fes -> GetNBE(); i++)
+      for (int i = 0; i < fes -> GetNBE(); i++)
       {
          const int bdr_attr = mesh->GetBdrAttribute(i);
          if (bdr_attr_marker[bdr_attr-1] == 0) { continue; }
@@ -223,7 +270,7 @@ void LinearForm::Assemble()
          }
       }
 
-      for (i = 0; i < mesh->GetNBE(); i++)
+      for (int i = 0; i < mesh->GetNBE(); i++)
       {
          const int bdr_attr = mesh->GetBdrAttribute(i);
          if (bdr_attr_marker[bdr_attr-1] == 0) { continue; }
@@ -253,7 +300,7 @@ void LinearForm::Assemble()
 
       for (int k = 0; k < interior_face_integs.Size(); k++)
       {
-         for (i = 0; i < mesh->GetNumFaces(); i++)
+         for (int i = 0; i < mesh->GetNumFaces(); i++)
          {
             FaceElementTransformations *tr = NULL;
             tr = mesh->GetInteriorFaceTransformations (i);
@@ -274,6 +321,12 @@ void LinearForm::Assemble()
    }
 }
 
+void LinearForm::Update()
+{
+   SetSize(fes->GetVSize()); ResetDeltaLocations();
+   if (ext) { ext->Update(); }
+}
+
 void LinearForm::Update(FiniteElementSpace *f, Vector &v, int v_offset)
 {
    MFEM_ASSERT(v.Size() >= v_offset + f->GetVSize(), "");
@@ -281,6 +334,7 @@ void LinearForm::Update(FiniteElementSpace *f, Vector &v, int v_offset)
    v.UseDevice(true);
    this->Vector::MakeRef(v, v_offset, fes->GetVSize());
    ResetDeltaLocations();
+   if (ext) { ext->Update(); }
 }
 
 void LinearForm::MakeRef(FiniteElementSpace *f, Vector &v, int v_offset)
@@ -356,6 +410,8 @@ LinearForm::~LinearForm()
       for (k=0; k < interior_face_integs.Size(); k++)
       { delete interior_face_integs[k]; }
    }
+
+   delete ext;
 }
 
 }

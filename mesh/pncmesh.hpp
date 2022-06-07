@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -365,7 +365,7 @@ protected: // implementation
       void Load(std::istream &is);
       void Decode(Array<int> &elements) const;
 
-      void SetNCMesh(NCMesh *ncmesh) { this->ncmesh = ncmesh; }
+      void SetNCMesh(NCMesh *ncmesh_) { this->ncmesh = ncmesh_; }
       const NCMesh* GetNCMesh() const { return ncmesh; }
 
    protected:
@@ -444,7 +444,7 @@ protected: // implementation
       { elements.push_back(elem); values.push_back(val); }
 
       /// Set pointer to ParNCMesh (needed to encode the message).
-      void SetNCMesh(ParNCMesh* pncmesh) { this->pncmesh = pncmesh; }
+      void SetNCMesh(ParNCMesh* pncmesh_) { this->pncmesh = pncmesh_; }
 
       ElementValueMessage() : pncmesh(NULL) {}
 

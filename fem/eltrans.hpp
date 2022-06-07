@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -25,7 +25,7 @@ class ElementTransformation
 protected:
    const IntegrationPoint *IntPoint;
    DenseMatrix dFdx, adjJ, invJ;
-   DenseMatrix d2Fdx2;
+   DenseMatrix d2Fdx2, adjJT;
    double Wght;
    int EvalState;
    enum StateMasks
@@ -34,7 +34,8 @@ protected:
       WEIGHT_MASK   = 2,
       ADJUGATE_MASK = 4,
       INVERSE_MASK  = 8,
-      HESSIAN_MASK  = 16
+      HESSIAN_MASK  = 16,
+      TRANS_ADJUGATE_MASK = 32
    };
    Geometry::Type geom;
 
@@ -48,6 +49,7 @@ protected:
 
    double EvalWeight();
    const DenseMatrix &EvalAdjugateJ();
+   const DenseMatrix &EvalTransAdjugateJ();
    const DenseMatrix &EvalInverseJ();
 
 public:
@@ -132,6 +134,11 @@ public:
         at the currently set IntegrationPoint. */
    const DenseMatrix &AdjugateJacobian()
    { return (EvalState & ADJUGATE_MASK) ? adjJ : EvalAdjugateJ(); }
+
+   /** @brief Return the transpose of the adjugate of the Jacobian matrix of
+        the transformation at the currently set IntegrationPoint. */
+   const DenseMatrix &TransposeAdjugateJacobian()
+   { return (EvalState & TRANS_ADJUGATE_MASK) ? adjJT : EvalTransAdjugateJ(); }
 
    /** @brief Return the inverse of the Jacobian matrix of the transformation
         at the currently set IntegrationPoint. */

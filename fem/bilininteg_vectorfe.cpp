@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -113,6 +113,17 @@ void PAHcurlH1Apply2D(const int D1D,
                       const Vector &x,
                       Vector &y);
 
+void PAHcurlH1ApplyTranspose2D(const int D1D,
+                               const int Q1D,
+                               const int NE,
+                               const Array<double> &bc,
+                               const Array<double> &bo,
+                               const Array<double> &bct,
+                               const Array<double> &gct,
+                               const Vector &pa_data,
+                               const Vector &x,
+                               Vector &y);
+
 void PAHcurlH1Apply3D(const int D1D,
                       const int Q1D,
                       const int NE,
@@ -123,6 +134,17 @@ void PAHcurlH1Apply3D(const int D1D,
                       const Vector &pa_data,
                       const Vector &x,
                       Vector &y);
+
+void PAHcurlH1ApplyTranspose3D(const int D1D,
+                               const int Q1D,
+                               const int NE,
+                               const Array<double> &bc,
+                               const Array<double> &bo,
+                               const Array<double> &bct,
+                               const Array<double> &gct,
+                               const Vector &pa_data,
+                               const Vector &x,
+                               Vector &y);
 
 void PAHdivMassAssembleDiagonal2D(const int D1D,
                                   const int Q1D,
@@ -231,7 +253,7 @@ void PAHcurlHdivSetup3D(const int Q1D,
 
                if (coeffDim == 6 || coeffDim == 9) // Matrix coefficient version
                {
-                  // First compute entries of R = MJ
+                  // First compute entries of R = M^T J
                   const double M11 = (!symmetric) ? coeff(i11,qx,qy,qz,e) : coeff(0,qx,qy,qz,e);
                   const double M12 = (!symmetric) ? coeff(i12,qx,qy,qz,e) : coeff(1,qx,qy,qz,e);
                   const double M13 = (!symmetric) ? coeff(i13,qx,qy,qz,e) : coeff(2,qx,qy,qz,e);
@@ -242,25 +264,25 @@ void PAHcurlHdivSetup3D(const int Q1D,
                   const double M32 = (!symmetric) ? coeff(i32,qx,qy,qz,e) : M23;
                   const double M33 = (!symmetric) ? coeff(i33,qx,qy,qz,e) : coeff(5,qx,qy,qz,e);
 
-                  const double R11 = M11*J11 + M12*J12 + M13*J13;
-                  const double R12 = M11*J21 + M12*J22 + M13*J23;
-                  const double R13 = M11*J31 + M12*J32 + M13*J33;
-                  const double R21 = M21*J11 + M22*J12 + M23*J13;
-                  const double R22 = M21*J21 + M22*J22 + M23*J23;
-                  const double R23 = M21*J31 + M22*J32 + M23*J33;
-                  const double R31 = M31*J11 + M32*J12 + M33*J13;
-                  const double R32 = M31*J21 + M32*J22 + M33*J23;
-                  const double R33 = M31*J31 + M32*J32 + M33*J33;
+                  const double R11 = M11*J11 + M21*J21 + M31*J31;
+                  const double R12 = M11*J12 + M21*J22 + M31*J32;
+                  const double R13 = M11*J13 + M21*J23 + M31*J33;
+                  const double R21 = M12*J11 + M22*J21 + M32*J31;
+                  const double R22 = M12*J12 + M22*J22 + M32*J32;
+                  const double R23 = M12*J13 + M22*J23 + M32*J33;
+                  const double R31 = M13*J11 + M23*J21 + M33*J31;
+                  const double R32 = M13*J12 + M23*J22 + M33*J32;
+                  const double R33 = M13*J13 + M23*J23 + M33*J33;
 
-                  // Now set y to detJ J^{-1} R = adj(J) R
+                  // y = (J^{-1} M^T J)^T
                   y(i11,qx,qy,qz,e) = w_detJ * (A11*R11 + A12*R21 + A13*R31); // 1,1
-                  y(i12,qx,qy,qz,e) = w_detJ * (A11*R12 + A12*R22 + A13*R32); // 1,2
-                  y(i13,qx,qy,qz,e) = w_detJ * (A11*R13 + A12*R23 + A13*R33); // 1,3
-                  y(i21,qx,qy,qz,e) = w_detJ * (A21*R11 + A22*R21 + A23*R31); // 2,1
+                  y(i21,qx,qy,qz,e) = w_detJ * (A11*R12 + A12*R22 + A13*R32); // 1,2
+                  y(i31,qx,qy,qz,e) = w_detJ * (A11*R13 + A12*R23 + A13*R33); // 1,3
+                  y(i12,qx,qy,qz,e) = w_detJ * (A21*R11 + A22*R21 + A23*R31); // 2,1
                   y(i22,qx,qy,qz,e) = w_detJ * (A21*R12 + A22*R22 + A23*R32); // 2,2
-                  y(i23,qx,qy,qz,e) = w_detJ * (A21*R13 + A22*R23 + A23*R33); // 2,3
-                  y(i31,qx,qy,qz,e) = w_detJ * (A31*R11 + A32*R21 + A33*R31); // 3,1
-                  y(i32,qx,qy,qz,e) = w_detJ * (A31*R12 + A32*R22 + A33*R32); // 3,2
+                  y(i32,qx,qy,qz,e) = w_detJ * (A21*R13 + A22*R23 + A23*R33); // 2,3
+                  y(i13,qx,qy,qz,e) = w_detJ * (A31*R11 + A32*R21 + A33*R31); // 3,1
+                  y(i23,qx,qy,qz,e) = w_detJ * (A31*R12 + A32*R22 + A33*R32); // 3,2
                   y(i33,qx,qy,qz,e) = w_detJ * (A31*R13 + A32*R23 + A33*R33); // 3,3
                }
                else if (coeffDim == 3)  // Vector coefficient version
@@ -269,14 +291,15 @@ void PAHcurlHdivSetup3D(const int Q1D,
                   const double D2 = coeff(1,qx,qy,qz,e);
                   const double D3 = coeff(2,qx,qy,qz,e);
                   // detJ J^{-1} DJ = adj(J) DJ
+                  // transpose
                   y(i11,qx,qy,qz,e) = w_detJ * (D1*A11*J11 + D2*A12*J21 + D3*A13*J31); // 1,1
-                  y(i12,qx,qy,qz,e) = w_detJ * (D1*A11*J12 + D2*A12*J22 + D3*A13*J32); // 1,2
-                  y(i13,qx,qy,qz,e) = w_detJ * (D1*A11*J13 + D2*A12*J23 + D3*A13*J33); // 1,3
-                  y(i21,qx,qy,qz,e) = w_detJ * (D1*A21*J11 + D2*A22*J21 + D3*A23*J31); // 2,1
+                  y(i21,qx,qy,qz,e) = w_detJ * (D1*A11*J12 + D2*A12*J22 + D3*A13*J32); // 1,2
+                  y(i31,qx,qy,qz,e) = w_detJ * (D1*A11*J13 + D2*A12*J23 + D3*A13*J33); // 1,3
+                  y(i12,qx,qy,qz,e) = w_detJ * (D1*A21*J11 + D2*A22*J21 + D3*A23*J31); // 2,1
                   y(i22,qx,qy,qz,e) = w_detJ * (D1*A21*J12 + D2*A22*J22 + D3*A23*J32); // 2,2
-                  y(i23,qx,qy,qz,e) = w_detJ * (D1*A21*J13 + D2*A22*J23 + D3*A23*J33); // 2,3
-                  y(i31,qx,qy,qz,e) = w_detJ * (D1*A31*J11 + D2*A32*J21 + D3*A33*J31); // 3,1
-                  y(i32,qx,qy,qz,e) = w_detJ * (D1*A31*J12 + D2*A32*J22 + D3*A33*J32); // 3,2
+                  y(i32,qx,qy,qz,e) = w_detJ * (D1*A21*J13 + D2*A22*J23 + D3*A23*J33); // 2,3
+                  y(i13,qx,qy,qz,e) = w_detJ * (D1*A31*J11 + D2*A32*J21 + D3*A33*J31); // 3,1
+                  y(i23,qx,qy,qz,e) = w_detJ * (D1*A31*J12 + D2*A32*J22 + D3*A33*J32); // 3,2
                   y(i33,qx,qy,qz,e) = w_detJ * (D1*A31*J13 + D2*A32*J23 + D3*A33*J33); // 3,3
                }
             }
@@ -318,7 +341,7 @@ void PAHcurlHdivSetup2D(const int Q1D,
             const double J21 = J(qx,qy,1,0,e);
             const double J12 = J(qx,qy,0,1,e);
             const double J22 = J(qx,qy,1,1,e);
-            const double w_detJ = W(qx,qy) / (J11*J22) - (J21*J12);
+            const double w_detJ = W(qx,qy) / ((J11*J22) - (J21*J12));
 
             if (coeffDim == 3 || coeffDim == 4) // Matrix coefficient version
             {
@@ -328,16 +351,17 @@ void PAHcurlHdivSetup2D(const int Q1D,
                const double M21 = (!symmetric) ? coeff(i21,qx,qy,e) : M12;
                const double M22 = (!symmetric) ? coeff(i22,qx,qy,e) : coeff(2,qx,qy,e);
 
-               const double R11 = M11*J11 + M12*J21;
-               const double R12 = M11*J12 + M12*J22;
-               const double R21 = M21*J11 + M22*J21;
-               const double R22 = M21*J12 + M22*J22;
+               // J^{-1} M^T
+               const double R11 = ( J22*M11 - J12*M12); // 1,1
+               const double R12 = ( J22*M21 - J12*M22); // 1,2
+               const double R21 = (-J21*M11 + J11*M12); // 2,1
+               const double R22 = (-J21*M21 + J11*M22); // 2,2
 
-               // Now set y to J^{-1} R
-               y(i11,qx,qy,e) = w_detJ * ( J22*R11 - J12*R21); // 1,1
-               y(i12,qx,qy,e) = w_detJ * ( J22*R12 - J12*R22); // 1,2
-               y(i21,qx,qy,e) = w_detJ * (-J21*R11 + J11*R21); // 2,1
-               y(i22,qx,qy,e) = w_detJ * (-J21*R12 + J11*R22); // 2,2
+               // (RJ)^T
+               y(i11,qx,qy,e) = w_detJ * (R11*J11 + R12*J21); // 1,1
+               y(i21,qx,qy,e) = w_detJ * (R11*J12 + R12*J22); // 1,2 (transpose)
+               y(i12,qx,qy,e) = w_detJ * (R21*J11 + R22*J21); // 2,1 (transpose)
+               y(i22,qx,qy,e) = w_detJ * (R21*J12 + R22*J22); // 2,2
             }
             else if (coeffDim == 2) // Vector coefficient version
             {
@@ -348,8 +372,8 @@ void PAHcurlHdivSetup2D(const int Q1D,
                const double R21 = D2*J21;
                const double R22 = D2*J22;
                y(i11,qx,qy,e) = w_detJ * ( J22*R11 - J12*R21); // 1,1
-               y(i12,qx,qy,e) = w_detJ * ( J22*R12 - J12*R22); // 1,2
-               y(i21,qx,qy,e) = w_detJ * (-J21*R11 + J11*R21); // 2,1
+               y(i21,qx,qy,e) = w_detJ * ( J22*R12 - J12*R22); // 1,2 (transpose)
+               y(i12,qx,qy,e) = w_detJ * (-J21*R11 + J11*R21); // 2,1 (transpose)
                y(i22,qx,qy,e) = w_detJ * (-J21*R12 + J11*R22); // 2,2
             }
          }
@@ -365,6 +389,7 @@ void PAHcurlHdivMassApply3D(const int D1D,
                             const int NE,
                             const bool scalarCoeff,
                             const bool trialHcurl,
+                            const bool transpose,
                             const Array<double> &Bo_,
                             const Array<double> &Bc_,
                             const Array<double> &Bot_,
@@ -388,6 +413,13 @@ void PAHcurlHdivMassApply3D(const int D1D,
    auto x = Reshape(x_.Read(), 3*(D1D-1)*D1D*(trialHcurl ? D1D : D1D-1), NE);
    auto y = Reshape(y_.ReadWrite(), 3*(D1Dtest-1)*D1Dtest*
                     (trialHcurl ? D1Dtest-1 : D1Dtest), NE);
+
+   const int i12 = transpose ? 3 : 1;
+   const int i13 = transpose ? 6 : 2;
+   const int i21 = transpose ? 1 : 3;
+   const int i23 = transpose ? 7 : 5;
+   const int i31 = transpose ? 2 : 6;
+   const int i32 = transpose ? 5 : 7;
 
    MFEM_FORALL(e, NE,
    {
@@ -483,13 +515,13 @@ void PAHcurlHdivMassApply3D(const int D1D,
             for (int qx = 0; qx < Q1D; ++qx)
             {
                const double O11 = op(0,qx,qy,qz,e);
-               const double O12 = scalarCoeff ? 0.0 : op(1,qx,qy,qz,e);
-               const double O13 = scalarCoeff ? 0.0 : op(2,qx,qy,qz,e);
-               const double O21 = scalarCoeff ? 0.0 : op(3,qx,qy,qz,e);
+               const double O12 = scalarCoeff ? 0.0 : op(i12,qx,qy,qz,e);
+               const double O13 = scalarCoeff ? 0.0 : op(i13,qx,qy,qz,e);
+               const double O21 = scalarCoeff ? 0.0 : op(i21,qx,qy,qz,e);
                const double O22 = scalarCoeff ? O11 : op(4,qx,qy,qz,e);
-               const double O23 = scalarCoeff ? 0.0 : op(5,qx,qy,qz,e);
-               const double O31 = scalarCoeff ? 0.0 : op(6,qx,qy,qz,e);
-               const double O32 = scalarCoeff ? 0.0 : op(7,qx,qy,qz,e);
+               const double O23 = scalarCoeff ? 0.0 : op(i23,qx,qy,qz,e);
+               const double O31 = scalarCoeff ? 0.0 : op(i31,qx,qy,qz,e);
+               const double O32 = scalarCoeff ? 0.0 : op(i32,qx,qy,qz,e);
                const double O33 = scalarCoeff ? O11 : op(8,qx,qy,qz,e);
                const double massX = mass[qz][qy][qx][0];
                const double massY = mass[qz][qy][qx][1];
@@ -577,6 +609,7 @@ void PAHcurlHdivMassApply2D(const int D1D,
                             const int NE,
                             const bool scalarCoeff,
                             const bool trialHcurl,
+                            const bool transpose,
                             const Array<double> &Bo_,
                             const Array<double> &Bc_,
                             const Array<double> &Bot_,
@@ -599,6 +632,9 @@ void PAHcurlHdivMassApply2D(const int D1D,
    auto op = Reshape(op_.Read(), scalarCoeff ? 1 : 4, Q1D, Q1D, NE);
    auto x = Reshape(x_.Read(), 2*(D1D-1)*D1D, NE);
    auto y = Reshape(y_.ReadWrite(), 2*(D1Dtest-1)*D1Dtest, NE);
+
+   const int i12 = transpose ? 2 : 1;
+   const int i21 = transpose ? 1 : 2;
 
    MFEM_FORALL(e, NE,
    {
@@ -661,8 +697,8 @@ void PAHcurlHdivMassApply2D(const int D1D,
          for (int qx = 0; qx < Q1D; ++qx)
          {
             const double O11 = op(0,qx,qy,e);
-            const double O12 = scalarCoeff ? 0.0 : op(1,qx,qy,e);
-            const double O21 = scalarCoeff ? 0.0 : op(2,qx,qy,e);
+            const double O12 = scalarCoeff ? 0.0 : op(i12,qx,qy,e);
+            const double O21 = scalarCoeff ? 0.0 : op(i21,qx,qy,e);
             const double O22 = scalarCoeff ? O11 : op(3,qx,qy,e);
             const double massX = mass[qy][qx][0];
             const double massY = mass[qy][qx][1];
@@ -739,7 +775,7 @@ void VectorFEMassIntegrator::AssemblePA(const FiniteElementSpace &trial_fes,
    MFEM_VERIFY(dims == 2 || dims == 3, "");
 
    const int symmDims = (dims * (dims + 1)) / 2; // 1x1: 1, 2x2: 3, 3x3: 6
-   const int nq = ir->GetNPoints();
+   nq = ir->GetNPoints();
    dim = mesh->Dimension();
    MFEM_VERIFY(dim == 2 || dim == 3, "");
 
@@ -761,12 +797,14 @@ void VectorFEMassIntegrator::AssemblePA(const FiniteElementSpace &trial_fes,
    trial_fetype = trial_el->GetDerivType();
    test_fetype = test_el->GetDerivType();
 
+   auto SMQ = dynamic_cast<SymmetricMatrixCoefficient *>(MQ);
+
    const int MQsymmDim = SMQ ? (SMQ->GetSize() * (SMQ->GetSize() + 1)) / 2 : 0;
    const int MQfullDim = MQ ? (MQ->GetHeight() * MQ->GetWidth()) : 0;
-   const int MQdim = MQ ? MQfullDim : MQsymmDim;
-   const int coeffDim = (MQ || SMQ) ? MQdim : (DQ ? DQ->GetVDim() : 1);
+   const int MQdim = SMQ ? MQsymmDim : MQfullDim;
+   const int coeffDim = MQ ? MQdim : (DQ ? DQ->GetVDim() : 1);
 
-   symmetric = (MQ == NULL);
+   symmetric = (SMQ || MQ == NULL);
 
    const bool trial_curl = (trial_fetype == mfem::FiniteElement::CURL);
    const bool trial_div = (trial_fetype == mfem::FiniteElement::DIV);
@@ -783,9 +821,9 @@ void VectorFEMassIntegrator::AssemblePA(const FiniteElementSpace &trial_fes,
    Vector coeff(coeffDim * ne * nq);
    coeff = 1.0;
    auto coeffh = Reshape(coeff.HostWrite(), coeffDim, nq, ne);
-   if (Q || DQ || MQ || SMQ)
+   if (Q || DQ || MQ)
    {
-      Vector D(DQ ? coeffDim : 0);
+      Vector DM(DQ ? coeffDim : 0);
       DenseMatrix M;
       DenseSymmetricMatrix SM;
 
@@ -793,34 +831,25 @@ void VectorFEMassIntegrator::AssemblePA(const FiniteElementSpace &trial_fes,
       {
          MFEM_VERIFY(coeffDim == dim, "");
       }
-      if (MQ)
-      {
-         MFEM_VERIFY(coeffDim == MQdim, "");
-         MFEM_VERIFY(MQ->GetHeight() == dim && MQ->GetWidth() == dim, "");
-         M.SetSize(dim);
-      }
       if (SMQ)
       {
          MFEM_VERIFY(SMQ->GetSize() == dim, "");
          SM.SetSize(dim);
       }
+      else if (MQ)
+      {
+         MFEM_VERIFY(coeffDim == MQdim, "");
+         MFEM_VERIFY(MQ->GetHeight() == dim && MQ->GetWidth() == dim, "");
+         M.SetSize(dim);
+      }
+
 
       for (int e=0; e<ne; ++e)
       {
          ElementTransformation *tr = mesh->GetElementTransformation(e);
          for (int p=0; p<nq; ++p)
          {
-            if (MQ)
-            {
-               MQ->Eval(M, *tr, ir->IntPoint(p));
-
-               for (int i=0; i<dim; ++i)
-                  for (int j=0; j<dim; ++j)
-                  {
-                     coeffh(j+(i*dim), p, e) = M(i,j);
-                  }
-            }
-            else if (SMQ)
+            if (SMQ)
             {
                SMQ->Eval(SM, *tr, ir->IntPoint(p));
                int cnt = 0;
@@ -830,12 +859,22 @@ void VectorFEMassIntegrator::AssemblePA(const FiniteElementSpace &trial_fes,
                      coeffh(cnt, p, e) = SM(i,j);
                   }
             }
+            else if (MQ)
+            {
+               MQ->Eval(M, *tr, ir->IntPoint(p));
+
+               for (int i=0; i<dim; ++i)
+                  for (int j=0; j<dim; ++j)
+                  {
+                     coeffh(j+(i*dim), p, e) = M(i,j);
+                  }
+            }
             else if (DQ)
             {
-               DQ->Eval(D, *tr, ir->IntPoint(p));
+               DQ->Eval(DM, *tr, ir->IntPoint(p));
                for (int i=0; i<coeffDim; ++i)
                {
-                  coeffh(i, p, e) = D[i];
+                  coeffh(i, p, e) = DM[i];
                }
             }
             else
@@ -1000,16 +1039,16 @@ void VectorFEMassIntegrator::AddMultPA(const Vector &x, Vector &y) const
       }
       else if (trial_curl && test_div)
       {
-         const bool scalarCoeff = !(DQ || MQ || SMQ);
+         const bool scalarCoeff = !(DQ || MQ);
          PAHcurlHdivMassApply3D(dofs1D, dofs1Dtest, quad1D, ne, scalarCoeff,
-                                true, mapsO->B, mapsC->B, mapsOtest->Bt,
+                                true, false, mapsO->B, mapsC->B, mapsOtest->Bt,
                                 mapsCtest->Bt, pa_data, x, y);
       }
       else if (trial_div && test_curl)
       {
-         const bool scalarCoeff = !(DQ || MQ || SMQ);
+         const bool scalarCoeff = !(DQ || MQ);
          PAHcurlHdivMassApply3D(dofs1D, dofs1Dtest, quad1D, ne, scalarCoeff,
-                                false, mapsO->B, mapsC->B, mapsOtest->Bt,
+                                false, false, mapsO->B, mapsC->B, mapsOtest->Bt,
                                 mapsCtest->Bt, pa_data, x, y);
       }
       else
@@ -1031,15 +1070,48 @@ void VectorFEMassIntegrator::AddMultPA(const Vector &x, Vector &y) const
       }
       else if ((trial_curl && test_div) || (trial_div && test_curl))
       {
-         const bool scalarCoeff = !(DQ || MQ || SMQ);
+         const bool scalarCoeff = !(DQ || MQ);
          PAHcurlHdivMassApply2D(dofs1D, dofs1Dtest, quad1D, ne, scalarCoeff,
-                                trial_curl, mapsO->B, mapsC->B, mapsOtest->Bt,
-                                mapsCtest->Bt, pa_data, x, y);
+                                trial_curl, false, mapsO->B, mapsC->B,
+                                mapsOtest->Bt, mapsCtest->Bt, pa_data, x, y);
       }
       else
       {
          MFEM_ABORT("Unknown kernel.");
       }
+   }
+}
+
+void VectorFEMassIntegrator::AddMultTransposePA(const Vector &x,
+                                                Vector &y) const
+{
+   const bool trial_curl = (trial_fetype == mfem::FiniteElement::CURL);
+   const bool trial_div = (trial_fetype == mfem::FiniteElement::DIV);
+   const bool test_curl = (test_fetype == mfem::FiniteElement::CURL);
+   const bool test_div = (test_fetype == mfem::FiniteElement::DIV);
+
+   bool symmetricSpaces = true;
+
+   if (dim == 3 && ((trial_div && test_curl) || (trial_curl && test_div)))
+   {
+      const bool scalarCoeff = !(DQ || MQ);
+      PAHcurlHdivMassApply3D(dofs1D, dofs1Dtest, quad1D, ne, scalarCoeff,
+                             trial_div, true, mapsO->B, mapsC->B, mapsOtest->Bt,
+                             mapsCtest->Bt, pa_data, x, y);
+      symmetricSpaces = false;
+   }
+   else if (dim == 2 && ((trial_curl && test_div) || (trial_div && test_curl)))
+   {
+      const bool scalarCoeff = !(DQ || MQ);
+      PAHcurlHdivMassApply2D(dofs1D, dofs1Dtest, quad1D, ne, scalarCoeff,
+                             !trial_curl, true, mapsO->B, mapsC->B, mapsOtest->Bt,
+                             mapsCtest->Bt, pa_data, x, y);
+      symmetricSpaces = false;
+   }
+
+   if (symmetricSpaces)
+   {
+      this->AddMultPA(x, y);
    }
 }
 
@@ -1123,6 +1195,21 @@ void MixedVectorGradientIntegrator::AddMultPA(const Vector &x, Vector &y) const
    else if (dim == 2)
       PAHcurlH1Apply2D(dofs1D, quad1D, ne, mapsC->B, mapsC->G,
                        mapsO->Bt, mapsC->Bt, pa_data, x, y);
+   else
+   {
+      MFEM_ABORT("Unsupported dimension!");
+   }
+}
+
+void MixedVectorGradientIntegrator::AddMultTransposePA(const Vector &x,
+                                                       Vector &y) const
+{
+   if (dim == 3)
+      PAHcurlH1ApplyTranspose3D(dofs1D, quad1D, ne, mapsC->B, mapsO->B,
+                                mapsC->Bt, mapsC->Gt, pa_data, x, y);
+   else if (dim == 2)
+      PAHcurlH1ApplyTranspose2D(dofs1D, quad1D, ne, mapsC->B, mapsO->B,
+                                mapsC->Bt, mapsC->Gt, pa_data, x, y);
    else
    {
       MFEM_ABORT("Unsupported dimension!");

@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -31,11 +31,13 @@ DISTANCE_SRC = distance.cpp dist_solver.cpp
 DISTANCE_OBJ = $(DISTANCE_SRC:.cpp=.o)
 EXTRAPOLATE_SRC = extrapolate.cpp extrapolator.cpp marking.cpp
 EXTRAPOLATE_OBJ = $(EXTRAPOLATE_SRC:.cpp=.o)
+ALGOIM_SRC = integ_algoim.cpp lsf_integral.cpp
+ALGOIM_OBJ = $(ALGOIM_SRC:.cpp=.o)
 
-PAR_MINIAPPS = distance diffusion extrapolate
+PAR_MINIAPPS = distance diffusion extrapolate lsf_integral
 
 ifeq ($(MFEM_USE_MPI),NO)
-   MINIAPPS =
+   MINIAPPS = 
 else
    MINIAPPS = $(PAR_MINIAPPS)
 endif
@@ -60,6 +62,9 @@ COMMON_LIB += $(if $(MFEM_SHARED:YES=),,\
 	$(MFEM_CXX) $(MFEM_FLAGS) -c $< -o $@
 
 all: $(MINIAPPS)
+
+lsf_integral: $(ALGOIM_OBJ)
+	$(MFEM_CXX) $(MFEM_LINK_FLAGS) -o $@ $(ALGOIM_OBJ) $(COMMON_LIB) $(MFEM_LIBS)
 
 distance: $(DISTANCE_OBJ)
 	$(MFEM_CXX) $(MFEM_LINK_FLAGS) -o $@ $(DISTANCE_OBJ) $(COMMON_LIB) $(MFEM_LIBS)
@@ -94,9 +99,9 @@ $(MFEM_LIB_FILE):
 clean: clean-build clean-exec
 
 clean-build:
-	rm -f *.o *~ distance diffusion extrapolate
+	rm -f *.o *~ distance diffusion extrapolate lsf_integral 
 	rm -rf *.dSYM *.TVD.*breakpoints
 
 clean-exec:
 	@rm -f diffusion.mesh diffusion.gf
-	@rm -rf ParaViewDistance ParaViewDiffusion ParaViewExtrapolate
+	@rm -rf ParaViewDistance ParaViewDiffusion ParaViewExtrapolate ParaViewLSF

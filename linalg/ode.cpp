@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -827,29 +827,29 @@ void GeneralizedAlphaSolver::SetRhoInf(double rho_inf)
    gamma = 0.5 + alpha_m - alpha_f;
 }
 
-void GeneralizedAlphaSolver::PrintProperties(std::ostream &out)
+void GeneralizedAlphaSolver::PrintProperties(std::ostream &os)
 {
-   out << "Generalized alpha time integrator:" << std::endl;
-   out << "alpha_m = " << alpha_m << std::endl;
-   out << "alpha_f = " << alpha_f << std::endl;
-   out << "gamma   = " << gamma   << std::endl;
+   os << "Generalized alpha time integrator:" << std::endl;
+   os << "alpha_m = " << alpha_m << std::endl;
+   os << "alpha_f = " << alpha_f << std::endl;
+   os << "gamma   = " << gamma   << std::endl;
 
    if (gamma == 0.5 + alpha_m - alpha_f)
    {
-      out<<"Second order"<<" and ";
+      os<<"Second order"<<" and ";
    }
    else
    {
-      out<<"First order"<<" and ";
+      os<<"First order"<<" and ";
    }
 
    if ((alpha_m >= alpha_f)&&(alpha_f >= 0.5))
    {
-      out<<"Stable"<<std::endl;
+      os<<"Stable"<<std::endl;
    }
    else
    {
-      out<<"Unstable"<<std::endl;
+      os<<"Unstable"<<std::endl;
    }
 }
 
@@ -986,10 +986,10 @@ SIAVSolver::Step(Vector &q, Vector &p, double &t, double &dt)
    }
 }
 
-void SecondOrderODESolver::Init(SecondOrderTimeDependentOperator &f)
+void SecondOrderODESolver::Init(SecondOrderTimeDependentOperator &f_)
 {
-   this->f = &f;
-   mem_type = GetMemoryType(f.GetMemoryClass());
+   this->f = &f_;
+   mem_type = GetMemoryType(f_.GetMemoryClass());
 }
 
 void NewmarkSolver::Init(SecondOrderTimeDependentOperator &f_)
@@ -1000,32 +1000,32 @@ void NewmarkSolver::Init(SecondOrderTimeDependentOperator &f_)
    first = true;
 }
 
-void NewmarkSolver::PrintProperties(std::ostream &out)
+void NewmarkSolver::PrintProperties(std::ostream &os)
 {
-   out << "Newmark time integrator:" << std::endl;
-   out << "beta    = " << beta  << std::endl;
-   out << "gamma   = " << gamma << std::endl;
+   os << "Newmark time integrator:" << std::endl;
+   os << "beta    = " << beta  << std::endl;
+   os << "gamma   = " << gamma << std::endl;
 
    if (gamma == 0.5)
    {
-      out<<"Second order"<<" and ";
+      os<<"Second order"<<" and ";
    }
    else
    {
-      out<<"First order"<<" and ";
+      os<<"First order"<<" and ";
    }
 
    if ((gamma >= 0.5) && (beta >= (gamma + 0.5)*(gamma + 0.5)/4))
    {
-      out<<"A-Stable"<<std::endl;
+      os<<"A-Stable"<<std::endl;
    }
    else if ((gamma >= 0.5) && (beta >= 0.5*gamma))
    {
-      out<<"Conditionally stable"<<std::endl;
+      os<<"Conditionally stable"<<std::endl;
    }
    else
    {
-      out<<"Unstable"<<std::endl;
+      os<<"Unstable"<<std::endl;
    }
 }
 
@@ -1093,32 +1093,32 @@ void GeneralizedAlpha2Solver::SetStateVector(int i, Vector &state)
    nstate = 1;
 }
 
-void GeneralizedAlpha2Solver::PrintProperties(std::ostream &out)
+void GeneralizedAlpha2Solver::PrintProperties(std::ostream &os)
 {
-   out << "Generalized alpha time integrator:" << std::endl;
-   out << "alpha_m = " << alpha_m << std::endl;
-   out << "alpha_f = " << alpha_f << std::endl;
-   out << "beta    = " << beta    << std::endl;
-   out << "gamma   = " << gamma   << std::endl;
+   os << "Generalized alpha time integrator:" << std::endl;
+   os << "alpha_m = " << alpha_m << std::endl;
+   os << "alpha_f = " << alpha_f << std::endl;
+   os << "beta    = " << beta    << std::endl;
+   os << "gamma   = " << gamma   << std::endl;
 
    if (gamma == 0.5 + alpha_m - alpha_f)
    {
-      out<<"Second order"<<" and ";
+      os<<"Second order"<<" and ";
    }
    else
    {
-      out<<"First order"<<" and ";
+      os<<"First order"<<" and ";
    }
 
    if ((alpha_m >= alpha_f)&&
        (alpha_f >= 0.5) &&
        (beta >= 0.25 + 0.5*(alpha_m - alpha_f)))
    {
-      out<<"Stable"<<std::endl;
+      os<<"Stable"<<std::endl;
    }
    else
    {
-      out<<"Unstable"<<std::endl;
+      os<<"Unstable"<<std::endl;
    }
 }
 
