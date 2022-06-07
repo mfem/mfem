@@ -163,7 +163,11 @@ class System // System singleton object
    char *s_mem; // shared memory to store the command for the system call
    uintptr_t size; // of the s_mem shared memory
    std::string path {"."};
+#ifdef __APPLE__
+   std::string lib_ar {"libmjit.a"}, lib_so {"./libmjit.dylib"};
+#else
    std::string lib_ar {"libmjit.a"}, lib_so {"./libmjit.so"};
+#endif
    bool keep = true; // keep lib_ar
 
    struct Command
@@ -439,17 +443,19 @@ public:
       void *handle = std::fstream(Lib_so()) ? DLopen(Lib_so()) : nullptr;
       if (!handle && std::fstream(Lib_ar())) // if .so not found, try archive
       {
-         int status = EXIT_SUCCESS;
-         if (mpi::Root())
+         for (int status = EXIT_SUCCESS; !handle; status = EXIT_SUCCESS)
          {
-            io::FileLock so_lock(Lib_so(), "ok");
-            Command() << cxx << link << "-shared" << "-o" << Lib_so()
-                      << ARprefix() << Lib_ar() << ARpostfix()
-                      << Xlinker() + "-rpath,." << libs;
-            status = Call();
+            if (mpi::Root())
+            {
+               io::FileLock so_lock(Lib_so(), "ok");
+               Command() << cxx << link << "-shared" << "-o" << Lib_so()
+                         << ARprefix() << Lib_ar() << ARpostfix()
+                         << Xlinker() + "-rpath,." << libs;
+               status = Call();
+            }
+            mpi::Sync(status);
+            handle = DLopen(Lib_so()); // can be removed in the meantime
          }
-         mpi::Sync(status);
-         handle = DLopen(Lib_so()); // can be removed in the meantime
          MFEM_VERIFY(handle, "[JIT] Error " << Lib_so() << " from " << Lib_ar());
       }
 
