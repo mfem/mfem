@@ -63,7 +63,7 @@ struct Parser
       std::string Tadds, Sargs_;
       struct { int dim; std::string e, N, X, Y, Z; std::ostringstream body; } forall;
       std::ostringstream src, dup;
-      bool is_static, is_templated, eq, move_to_template;
+      bool is_static, is_templated, eq, mv_to_targs;
       int lt;
 
       struct fsm_t
@@ -104,7 +104,7 @@ struct Parser
          {
             Sparams0 += c;
             if (!eq) { Sparams += c; }
-            if (move_to_template) { Tparams += c; }
+            if (mv_to_targs) { Tparams += c; }
          }
          if (is_prefix() || is_postfix()) { src << c; dup << c; return false;}
          if (is_forall() || is_kernel()) { forall.body << c; return false;}
@@ -139,11 +139,24 @@ struct Parser
    char put(const char c)
    {
       if (c == '\n') { line++; } // always count the line number
-      if (ker.put(c)) { out.put(c); } // output in kernel, and in out if needed
+      if (ker.put(c)) { out.put(c); } // output in kernel, and to out if needed
       return c;
    }
 
    char put() { check(good(),"!good put error"); return put(get()); }
+
+   template<class T> std::string transform(std::string &s, T &&op)
+   { return (std::transform(s.begin(), s.end(), s.begin(), op), s); }
+
+   std::string to_lower(std::string s)
+   { return transform(s, [](unsigned char c) { return std::tolower(c); }); }
+
+   std::string to_upper(std::string s)
+   { return transform(s, [](unsigned char c) { return std::toupper(c); }); }
+
+   std::string most(std::string &s) { return s = s.substr(0, s.size()-1); };
+   std::string head(std::string &s) { return s.substr(0, s.find_last_of('.'));};
+   std::string last(std::string &s) { return s.substr(s.find_last_of('.')+1);};
 
    bool is_space() { return good() && std::isspace(in.peek()); }
 
@@ -237,15 +250,8 @@ struct Parser
          ker.Tformat = "%d";
          out << get_id();
          next_check([&]() {return put() == '<';}, "no '<' in kernel!");
-
          // preparing kernel's: Targs, Tparams & Tformat
          (ker.advance(), check(ker.is_targs(), "jit => Targ"));
-         auto to_lower = [](std::string &id)
-         {
-            std::transform(id.begin(), id.end(), id.begin(),
-            [](unsigned char c) { return std::tolower(c); });
-            return id;
-         };
          while (good())
          {
             next();
@@ -285,25 +291,16 @@ struct Parser
       std::string id {};
       ker.lt = 0;
       ker.eq = false;
-      ker.move_to_template = false;
+      ker.mv_to_targs = false;
       ker.Sargs.clear();
       ker.Sargs_.clear();
       ker.Sparams.clear();
       ker.Sparams0.clear();
-      auto most = [](std::string &s) { return s = s.substr(0, s.size()-1); };
-      auto head = [](std::string &s) { return s.substr(0,s.find_last_of('.'));};
-      auto last = [](std::string &s) { return s.substr(s.find_last_of('.')+1);};
-      auto to_upper = [](std::string &id)
-      {
-         std::transform(id.begin(), id.end(), id.begin(),
-         [](unsigned char c) { return std::toupper(c); });
-         return id;
-      };
       auto add_id = [&]()
       {
          add_arg(ker.Sargs, last(id));
-         add_arg(ker.Sargs_, last(id) + (ker.move_to_template?"_":""));
-         if (ker.move_to_template)
+         add_arg(ker.Sargs_, last(id) + (ker.mv_to_targs?"_":""));
+         if (ker.mv_to_targs)
          {
             if (!ker.Tformat.empty()) { ker.Tformat += ","; }
             ker.Tformat += "%d";
@@ -324,38 +321,25 @@ struct Parser
          check(is_space() || is_id() || is_star() || is_amp() ||
                is_eq() || is_lt() || is_gt() || is_coma(),
                "while parsing the arguments.");
-
          if (is_lt()) { ker.lt++; }
          if (is_gt()) { ker.lt--; }
          if (is_space() && !id.empty() && id.back() != '.' && !ker.eq)
          {
-            std::string last_id =  last(id);
-            if (last_id == "MFEM_JIT")
-            {
-               ker.move_to_template = true;
-               id = head(id); // remove the current hit
-            }
+            if (last(id) == "MFEM_JIT") { ker.mv_to_targs = true; id = head(id); }
             id += '.';
          }
          if (is_eq())
          {
             ker.eq = true;
             if (id.back() == '.') { most(id); }
-            std::string last_id = last(id);
-            if (ker.Targs.find(last_id) == std::string::npos)
-            {
-               std::string LAST_ID = to_upper(last_id);
-               check(false, std::string("Could not find T_") + LAST_ID);
-            }
+            if (ker.Targs.find(last(id)) == std::string::npos)
+            { check(false,std::string("Could not find T_")+to_upper(last(id))); }
          }
          if (is_id() && !ker.eq) { id += in.peek(); }
          if (is_coma() && ker.lt == 0)
          {
             if (id.back() == '.') { most(id); }
-            add_id();
-            id.clear();
-            ker.eq = false;
-            ker.move_to_template = false;
+            add_id(), id.clear(), ker.eq = false, ker.mv_to_targs = false;
          }
          put();
       }
@@ -373,40 +357,31 @@ struct Parser
 
       // Generate the kernel prefix for this kernel
       ker.advance(); // Body => Prefix
-      ker.dup.clear();
-      ker.dup.str(std::string());
-      ker.forall.body.clear();
-      ker.forall.body.str(std::string());
-      ker.src.clear();
-      ker.src.str(std::string());
+      ker.dup.clear(), ker.dup.str(std::string());
+      ker.forall.body.clear(), ker.forall.body.str(std::string());
+      ker.src.clear(), ker.src.str(std::string());
 
       ker.src << "\n\tconst unsigned long backends = Device::Backends();";
-
       ker.src << "\n\tconst char *source = R\"_(";
       // defining 'MFEM_JIT_COMPILATION' to avoid:
       //   - MFEM_GPU_CHECK in cuda.hpp
       //   - HYPRE_config.h in mem_manager.hpp
       ker.src << "\n#define MFEM_JIT_COMPILATION"
               << "\n#include \"general/forall.hpp\"";
-
       // MFEM_FORALL_2D_JIT
       ker.src << "\n#define MFEM_FORALL_2D_JIT(i,N,X,Y,B,...)"
               << "ForallWrap<2>(backends, true, N,"
               <<"[=] MFEM_DEVICE (int i) {__VA_ARGS__},"
               <<"[&] MFEM_LAMBDA (int i) {__VA_ARGS__},"
               <<"X,Y,B)";
-
       // MFEM_FORALL_3D_JIT
       ker.src << "\n#define MFEM_FORALL_3D_JIT(i,N,X,Y,Z,...)"
               << "ForallWrap<3>(backends, true, N,"
               <<"[=] MFEM_DEVICE (int i) {__VA_ARGS__},"
               <<"[&] MFEM_LAMBDA (int i) {__VA_ARGS__},"
               <<"X,Y,Z)";
-
       ker.src << "\n#include \"general/jit/jit.hpp\""; // for Hash, Find
-
       ker.src << "\nusing namespace mfem;";
-
       ker.src << "\ntemplate<" << ker.Tparams << ">";
       ker.src << "\nvoid " << ker.name << "_%016lx"
               << "(const unsigned long backends, "
@@ -451,14 +426,10 @@ struct Parser
       ker.dup << "MFEM_FORALL_"<<ND<<"(";
       ker.src << "MFEM_FORALL_"<<ND<<"_JIT(";
       std::ostringstream forall;
-      forall << ker.forall.e << ","
-             << ker.forall.N << ", "
-             << ker.forall.X << ","
-             << ker.forall.Y << ","
-             << ker.forall.Z << ", "
+      forall << ker.forall.e << "," << ker.forall.N << ", "
+             << ker.forall.X << "," << ker.forall.Y << "," << ker.forall.Z << ", "
              << ker.forall.body.str() << ");";
-      ker.src << forall.str();
-      ker.dup << forall.str();
+      ker.src << forall.str(), ker.dup << forall.str();
       ker.advance(/*kernel => postfix*/);
    }
 
@@ -466,8 +437,7 @@ struct Parser
    {
       ker.src << "}\nextern \"C\" void k%016lx"
               << "(const unsigned long backends," << ker.Sparams0 << "){"
-              << "\n\t" << ker.name << "_%016lx<"
-              << ker.Tformat << ">"
+              << "\n\t" << ker.name << "_%016lx<" << ker.Tformat << ">"
               << "(backends,"<< ker.Sargs_ << ");";
 
       // defined on the command line
@@ -486,29 +456,25 @@ struct Parser
       {
          out << ker.dup.str() << "}";
          out << "\n"<< (ker.is_static ? "static " : "") // then generate the code
-             << "void " << ker.name << "(" << ker.Sparams0 << ")";
-         out << "{";
+             << "void " << ker.name << "(" << ker.Sparams0 << ")"
+             << "{";
       }
 
       out << ker.src.str() << "})_\";"; // end of src
 
-      out << "\nconst char *cxx = \"" << cxx << "\";";
-      out << "\nconst char *flags = \"" << flags << "\";";
+      out << "\nconst char *cxx = \""  << cxx << "\";";
+      out << "\nconst char *flags = \""<< flags << "\";";
       out << "\nconst char *link = \"" << link << "\";";
       out << "\nconst char *libs = \"" << libs << "\";";
-
       out << "\nconst size_t hash = Jit::Hash("
           << "0x" << std::hex << seed << std::dec << "ul"
           << "," << ker.Targs << ");";
-
       out << "\ntypedef void (*kernel_t)"
           <<"(unsigned long backends, " << ker.Sparams << ");";
-
       out << "\nstatic std::unordered_map<size_t, Jit::Kernel<kernel_t>> kernels;"
           << "\nJit::Find(hash, \"" << ker.name  << "<" << ker.Tformat << ">"
           << "\", cxx, flags, link, libs, source, kernels" << ", " << ker.Targs
           <<  ").operator()(backends," << ker.Sargs << ");";
-
       out << "\n#line " << std::to_string(line) << " \"" << file << "\"\n";
       ker.advance(/*postfix => wait*/);
    }
@@ -529,8 +495,8 @@ struct Parser
 
          auto MFEM_token = [&](const std::string &id, const char *token)
          {
-            const size_t mn = strlen("MFEM_"), mt = strlen(token);
-            if (strlen(id.c_str()) != (mn + mt) ||
+            const size_t mn = std::strlen("MFEM_"), mt = std::strlen(token);
+            if (std::strlen(id.c_str()) != (mn + mt) ||
                 strncmp(id.c_str(), "MFEM_", mn) != 0 ||
                 strncmp(id.c_str() + mn, token, mt) != 0) { return false; }
             return true;
@@ -598,8 +564,8 @@ int main(const int argc, char* argv[])
    std::ifstream ifs(input.c_str(), std::ios::in | std::ios::binary);
    std::ofstream ofs(output.c_str(),
                      std::ios::out | std::ios::binary | std::ios::trunc);
-   assert((!ifs.fail()) && "Could not open input!");
-   assert(ifs.is_open() && "Could not open input!");
+   assert((!ifs.fail()) && "Could not open input file!");
+   assert(ifs.is_open() && "Could not open input file!");
    if (ofile) { assert(ofs.is_open() && "Could not open output file!"); }
    const int status = Parser(ifs, ofile ? ofs : std::cout, file).operator()();
    ifs.close();
