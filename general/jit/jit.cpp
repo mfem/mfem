@@ -470,8 +470,6 @@ public:
          * (ar+co) => tmp:                       |---|             Delete
          *             ok:                           |x-x-x|
          *      tmp => so:                             |--|
-         *---------------------------------------------------------
-         * Lock so => tmp:                                   |---| Delete
          **/
          auto RootCompile = [&](const char *tmp)
          {
@@ -500,7 +498,7 @@ public:
                       << "-I" << MFEM_SOURCE_DIR
                       << "-c" << "-o" << co << cc << (Verbose() ? "-v" : "");
             if (Call(name)) { return EXIT_FAILURE; }
-            std::remove(cc.c_str());
+            if (!Debug()) { std::remove(cc.c_str()); }
             // Update archive: ar += co
             io::FileLock ar_lock(Lib_ar(), "ak");
             Command() << "ar -rv" << Lib_ar() << co;
@@ -510,7 +508,7 @@ public:
             Command() << cxx << link << "-shared" << "-o" << tmp
                       << ARprefix() << Lib_ar() << ARpostfix()
                       << Xlinker() + "-rpath,." << libs;
-            if (Call(name)) { return EXIT_FAILURE; }
+            if (Call()) { return EXIT_FAILURE; }
             // Install temporary shared library: tmp => so
             io::FileLock so_lock(Lib_so(), "ok");
             install(tmp, Lib_so());
@@ -522,18 +520,18 @@ public:
          std::string symbol_path(Path() + "/");
          handle = DLopen((symbol_path + tmp).c_str()); // opens symbol
          mpi::Sync();
-         MFEM_VERIFY(handle, "[JIT] Error creating handle:" << DLerror(true));
+         MFEM_VERIFY(handle, "[JIT] Error creating handle!");
          if (mpi::Root()) { std::remove(tmp.c_str()); }
       }; // WorldCompile
 
       // no cache => launch compilation
       if (!handle) { WorldCompile(); }
-      MFEM_VERIFY(handle, "[JIT] No handle created: " << DLerror(true));
+      MFEM_VERIFY(handle, "[JIT] No handle created!");
       void *kernel = DLsym(handle, symbol); // symbol lookup
 
       // no symbol => launch compilation & update kernel symbol
       if (!kernel) { WorldCompile(); kernel = DLsym(handle, symbol); }
-      MFEM_VERIFY(kernel, "[JIT] No kernel found: " << DLerror(true));
+      MFEM_VERIFY(kernel, "[JIT] No kernel found!");
       return kernel;
    }
 };
