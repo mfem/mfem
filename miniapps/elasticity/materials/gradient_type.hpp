@@ -18,7 +18,7 @@ enum class GradientType
    EnzymeFwd, // Enzyme forward mode
    EnzymeRev, // Enzyme reverse mode
    FiniteDiff, // finite differences
-   DualNumbers // native dual number forward mode
+   InternalFwd // native dual number forward mode
 };
 
 #endif

@@ -136,7 +136,7 @@ struct NeoHookeanMaterial
 #endif
       else if (gradient_type == GradientType::FiniteDiff)
       {
-         return action_of_gradient_fd(dudx, ddudx);
+         return action_of_gradient_finite_diff(dudx, ddudx);
       }
       else if (gradient_type == GradientType::DualNumbers)
       {
@@ -193,7 +193,7 @@ struct NeoHookeanMaterial
 #endif
 
    MFEM_HOST_DEVICE tensor<double, dim, dim>
-   action_of_gradient_fd(const tensor<double, dim, dim> &dudx,
+   action_of_gradient_finite_diff(const tensor<double, dim, dim> &dudx,
                          const tensor<double, dim, dim> &ddudx) const
    {
       return (stress(dudx + 1.0e-8 * ddudx) - stress(dudx - 1.0e-8 * ddudx)) /

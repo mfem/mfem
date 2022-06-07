@@ -34,6 +34,14 @@ name(threadIdx.x, threadIdx.y, threadIdx.z) = tensor<T,__VA_ARGS__> {};
 #endif
 
 // Kernel helper functions
+
+/**
+ * @brief Runtime check for memory restrictions that are determined at compile
+ * time.
+ *
+ * @param d1d Number of degrees of freedom in 1D.
+ * @param q1d Number of quadrature points in 1D.
+ */
 inline void CheckMemoryRestriction(int d1d, int q1d)
 {
    MFEM_VERIFY(d1d <= q1d,
@@ -51,24 +59,30 @@ inline void CheckMemoryRestriction(int d1d, int q1d)
 /**
  * @brief Multi-component gradient evaluation from DOFs to quadrature points in
  * reference coordinates.
+ * 
+ * The implementation exploits sum factorization.
  *
  * @note DeviceTensor<2> means RANK=2
  *
- * @tparam dim
- * @tparam d1d
- * @tparam q1d
- * @param B
- * @param G
- * @param smem
- * @param U
- * @param dUdxi
+ * @tparam dim Dimension.
+ * @tparam d1d Number of degrees of freedom in 1D.
+ * @tparam q1d er of quadrature points in 1D.
+ * @param B Basis functions evaluated at quadrature points in column-major
+ * layout q1d x d1d.
+ * @param G Gradients of basis functions evaluated at quadrature points in
+ * column major layout q1d x d1d.
+ * @param smem Block of shared memory for scratch space. Size needed is 2 x 3 x
+ * q1d x q1d x q1d.
+ * @param U Input vector d1d x d1d x d1d x dim.
+ * @param dUdxi Gradient of the input vector wrt to reference coordinates. Size
+ * needed q1d x q1d x q1d x dim x dim.
  */
 template <int dim, int d1d, int q1d>
 static inline MFEM_HOST_DEVICE void
-CalcGrad(const tensor<double, q1d, d1d> &B, // q1d x d1d
-         const tensor<double, q1d, d1d> &G, // q1d x d1d
+CalcGrad(const tensor<double, q1d, d1d> &B,
+         const tensor<double, q1d, d1d> &G,
          tensor<double,2,3,q1d,q1d,q1d> &smem,
-         const DeviceTensor<4, const double> &U, // d1d x d1d x d1d x dim
+         const DeviceTensor<4, const double> &U,
          tensor<double, q1d, q1d, q1d, dim, dim> &dUdxi)
 {
    for (int c = 0; c < dim; ++c)
@@ -155,22 +169,27 @@ CalcGrad(const tensor<double, q1d, d1d> &B, // q1d x d1d
  * @brief Multi-component transpose gradient evaluation from DOFs to quadrature
  * points in reference coordinates with contraction of the D vector.
  *
- * @tparam dim
- * @tparam d1d
- * @tparam q1d
- * @param B
- * @param G
- * @param smem
- * @param U
- * @param F
+ * @tparam dim Dimension.
+ * @tparam d1d Number of degrees of freedom in 1D.
+ * @tparam q1d er of quadrature points in 1D.
+ * @param B Basis functions evaluated at quadrature points in column-major
+ * layout q1d x d1d.
+ * @param G Gradients of basis functions evaluated at quadrature points in
+ * column major layout q1d x d1d.
+ * @param smem Block of shared memory for scratch space. Size needed is 2 x 3 x
+ * q1d x q1d x q1d.
+ * @param U Input vector q1d x q1d x q1d x dim.
+ * @param F Output vector that applied the gradient evaluation from DOFs to
+ * quadrature points in reference coordinates with contraction of the D operator
+ * on the input vectro. Size is d1d x d1d x d1d x dim.
  */
 template <int dim, int d1d, int q1d>
 static inline MFEM_HOST_DEVICE void
 CalcGradTSum(const tensor<double, q1d, d1d> &B,
              const tensor<double, q1d, d1d> &G,
              tensor<double, 2, 3, q1d, q1d, q1d> &smem,
-             const tensor<double, q1d, q1d, q1d, dim, dim> &U, // q1d x q1d x q1d x dim
-             DeviceTensor<4, double> &F)                       // d1d x d1d x d1d x dim
+             const tensor<double, q1d, q1d, q1d, dim, dim> &U,
+             DeviceTensor<4, double> &F)
 {
    for (int c = 0; c < dim; ++c)
    {
@@ -241,19 +260,25 @@ CalcGradTSum(const tensor<double, q1d, d1d> &B,
  *
  * @note TODO: Does not make use of shared memory on the GPU.
  *
- * @tparam dim
- * @tparam d1d
- * @tparam q1d
- * @param qx
- * @param qy
- * @param qz
- * @param B
- * @param G
- * @param invJ
+ * @tparam dim Dimension.
+ * @tparam d1d Number of degrees of freedom in 1D.
+ * @tparam q1d er of quadrature points in 1D.
+ * @param qx Quadrature point x index.
+ * @param qy Quadrature point y index.
+ * @param qz Quadrature point z index.
+ * @param B Basis functions evaluated at quadrature points in column-major
+ * layout q1d x d1d.
+ * @param G Gradients of basis functions evaluated at quadrature points in
+ * column major layout q1d x d1d.
+ * @param invJ Inverse of the Jacobian at the quadrature point. Size is dim x
+ * dim.
+ *
+ * @return Gradient of all shape functions at the quadrature point. Size is d1d
+ * x d1d x d1d x dim.
  */
-template <int dim, int d1d, int q1d> static inline MFEM_HOST_DEVICE
-tensor<double, d1d, d1d, d1d, dim>
-GradAllPhis(int qx, int qy, int qz,
+template <int dim, int d1d, int q1d>
+static inline MFEM_HOST_DEVICE tensor<double, d1d, d1d, d1d, dim>
+GradAllShapeFunctions(int qx, int qy, int qz,
             const tensor<double, q1d, d1d> &B,
             const tensor<double, q1d, d1d> &G,
             const tensor<double, dim, dim> &invJ)
