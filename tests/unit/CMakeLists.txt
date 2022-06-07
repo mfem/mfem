@@ -65,6 +65,7 @@ set(UNIT_TESTS_SRCS
   fem/test_face_elem_trans.cpp
   fem/test_face_permutation.cpp
   fem/test_fe.cpp
+  fem/test_fespace_get_ess_true_dofs.cpp
   fem/test_get_value.cpp
   fem/test_getderivative.cpp
   fem/test_intrules.cpp
