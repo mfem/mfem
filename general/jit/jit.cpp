@@ -46,7 +46,7 @@ namespace jit
 namespace io
 {
 
-static inline int Exists(const char *filename)
+static inline bool Exists(const char *filename)
 {
    struct stat buffer;
    return (stat(filename, &buffer) == 0);
@@ -106,6 +106,17 @@ static bool IsInitialized()
    return false;
 #else
    return Mpi::IsInitialized();
+#endif
+}
+
+static int Init(int *argc, char ***argv)
+{
+#ifdef MFEM_USE_MPI
+   return ::MPI_Init(argc, argv);
+#else
+   MFEM_CONTRACT_VAR(argc);
+   MFEM_CONTRACT_VAR(argv);
+   return EXIT_SUCCESS;
 #endif
 }
 
@@ -185,13 +196,13 @@ class System // System singleton object
          std::ostringstream cmd_mv = std::move(cmd);
          static thread_local std::string sl_cmd;
          sl_cmd = cmd_mv.str();
-         cmd.clear(); cmd.str(""); // flush for next command
+         (cmd.clear(), cmd.str("")); // flush for next command
          return sl_cmd.c_str();
       }
    } command;
 
-   template <typename OP> static void Ack(int xx) // spinlock
-   { while (OP()(*Ack(), xx)) { Sleep(); } }
+   template <typename OP> static
+   void Ack(int xx) { while (OP()(*Ack(), xx)) { Sleep(); } } // spinlock
    static void AckEQ(int xx = ACK) { Ack<std::equal_to<int>>(xx); }
    static void AckNE(int xx = ACK) { Ack<std::not_equal_to<int>>(xx); }
    static constexpr int ACK = ~0, CALL = 0x3243F6A8, EXIT = 0x9e3779b9;
@@ -261,8 +272,6 @@ class System // System singleton object
 public:
    static void Init(int *argc, char ***argv)
    {
-      MFEM_CONTRACT_VAR(argc);
-      MFEM_CONTRACT_VAR(argv);
       MFEM_VERIFY(!mpi::IsInitialized(), "MPI should not be initialized yet!");
       const int env_rank = mpi::EnvRank(); // first env rank is sought for
       if (env_rank >= 0)
@@ -270,20 +279,15 @@ public:
          if (env_rank == 0) { MmapInit(); } // if set, only root will use mmap
          if (env_rank > 0) // other ranks only MPI_Init
          {
-#ifdef MFEM_USE_MPI
-            ::MPI_Init(argc, argv);
-#endif
+            mpi::Init(argc, argv);
             Get().pid = getpid(); // set ourself to be not null for finalize
             return;
          }
       }
       else { MmapInit(); } // everyone gets ready
-
       if ((Get().pid = ::fork()) != 0)
       {
-#ifdef MFEM_USE_MPI
-         ::MPI_Init(argc, argv);
-#endif
+         mpi::Init(argc, argv);
          Write(mpi::Rank()); // inform the child about our rank
          Wait(false); // wait for the child to acknowledge
       }
@@ -315,26 +319,28 @@ public:
       Get().keep = keep;
       Get().rank = mpi::Rank();
 
-      auto full_path = [&](const char *ext)
+      auto create_full_path = [&](const char *ext)
       {
-         std::string lib = std::string(Get().path);
+         std::string lib = Path();
          lib += std::string("/") + std::string("lib") + name;
          lib += std::string(".") + ext;
          return lib;
       };
 
-      Get().lib_ar = full_path("a");
-      if (!io::Exists(Lib_ar()))
+      Get().lib_ar = create_full_path("a");
+      if (mpi::Root() && !io::Exists(Lib_ar())) // if Lib_ar does not exist
       {
          MFEM_VERIFY(std::ofstream(Lib_ar()), "Error creating " << Lib_ar());
+         std::remove(Lib_ar()); // try to touch and remove
       }
+      mpi::Sync();
 
 #ifdef __APPLE__
       const char *so_ext = "dylib";
 #else
       const char *so_ext = "so";
 #endif
-      Get().lib_so = full_path(so_ext);
+      Get().lib_so = create_full_path(so_ext);
    }
 
    static void Finalize()
@@ -405,17 +411,15 @@ public:
    static std::string ARbackup() { return Get().ar.Backup(); }
    static const char *Lib_ar() { return Get().lib_ar.c_str(); }
    static const char *Lib_so() { return Get().lib_so.c_str(); }
+   static bool Debug() { return !!std::getenv("MFEM_JIT_DEBUG"); }
+   static bool Verbose() { return !!std::getenv("MFEM_JIT_VERBOSE"); }
 
-   static const char* DLerror(bool show = true) noexcept
+   static const char* DLerror(bool show = false) noexcept
    {
-      const char* last_error = dlerror();
-#ifndef MFEM_DEBUG
-      MFEM_CONTRACT_VAR(show);
-#else
-      if (show && last_error) { MFEM_WARNING("[JIT] " << last_error); }
+      const char* error = dlerror();
+      if ((show || Debug()) && error) { MFEM_WARNING("[JIT] " << error); }
       MFEM_VERIFY(!::dlerror(), "[JIT] Should result in NULL being returned!");
-#endif
-      return last_error;
+      return error;
    }
 
    static void* DLsym(void *handle, const char *name) noexcept
@@ -426,7 +430,7 @@ public:
 
    static void *DLopen(const char *path)
    {
-      void *handle = ::dlopen(path, RTLD_LAZY | RTLD_LOCAL);
+      void *handle = ::dlopen(path, Debug()?RTLD_NOW:RTLD_LAZY | RTLD_LOCAL);
       return (DLerror(), handle);
    }
 
@@ -435,7 +439,7 @@ public:
                        const char *source, const char *symbol)
    {
       DLerror(false); // flush dl errors
-      mpi::Sync(); // make sure everyone is testing files at the same time
+      mpi::Sync(); // make sure file testing is done at the same time
       void *handle = io::Exists(Lib_so()) ? DLopen(Lib_so()) : nullptr;
       if (!handle && io::Exists(Lib_ar())) // if .so not found, try archive
       {
@@ -491,12 +495,10 @@ public:
             const auto src_mfem_file = std::fstream(src_mfem_hpp);
             MFEM_VERIFY(bin_mfem_file||src_mfem_file, "MFEM header needed!");
             auto co = Jit::ToString(hash, ".co"); // output object
-            Command() << cxx << flags
+            Command() << cxx << flags << Xdevice() << Xpic() << Xpipe()
                       << "-I" << MFEM_INSTALL_DIR "/include/mfem"
                       << "-I" << MFEM_SOURCE_DIR
-                      << Xdevice() << Xpic() << Xpipe()
-                      << "-c" << "-o" << co << cc
-                      << (std::getenv("MFEM_JIT_VERBOSE") ? "-v" : "");
+                      << "-c" << "-o" << co << cc << (Verbose() ? "-v" : "");
             if (Call(name)) { return EXIT_FAILURE; }
             std::remove(cc.c_str());
             // Update archive: ar += co
@@ -520,18 +522,18 @@ public:
          std::string symbol_path(Path() + "/");
          handle = DLopen((symbol_path + tmp).c_str()); // opens symbol
          mpi::Sync();
-         MFEM_VERIFY(handle, "[JIT] Error creating handle:" << ::dlerror());
+         MFEM_VERIFY(handle, "[JIT] Error creating handle:" << DLerror(true));
          if (mpi::Root()) { std::remove(tmp.c_str()); }
       }; // WorldCompile
 
       // no cache => launch compilation
       if (!handle) { WorldCompile(); }
-      MFEM_VERIFY(handle, "[JIT] No handle could be created!");
+      MFEM_VERIFY(handle, "[JIT] No handle created: " << DLerror(true));
       void *kernel = DLsym(handle, symbol); // symbol lookup
 
       // no symbol => launch compilation & update kernel symbol
       if (!kernel) { WorldCompile(); kernel = DLsym(handle, symbol); }
-      MFEM_VERIFY(kernel, "[JIT] No kernel could be found!");
+      MFEM_VERIFY(kernel, "[JIT] No kernel found: " << DLerror(true));
       return kernel;
    }
 };
