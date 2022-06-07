@@ -26,7 +26,7 @@ namespace mfem
  * subset of the parents Mesh and reuses the parallel distribution.
  *
  * The attributes are taken from the parent. That means if a volume is extracted
- * from a volume, it has the same domain attribute as the parent. It's boundary
+ * from a volume, it has the same domain attribute as the parent. Its boundary
  * attributes are generated (there will be one boundary attribute 1 for all of
  * the boundaries).
  *
