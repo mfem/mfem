@@ -350,22 +350,18 @@ public:
        "partially conforming") space. */
    void Synchronize(Array<int> &ldof_marker) const;
 
-   /// Determine the boundary degrees of freedom
-   virtual void GetEssentialVDofs(const Array<int> &bdr_attr_is_ess,
-                                  Array<int> &ess_dofs,
-                                  int component = -1) const;
-
    /** @brief Mark degrees of freedom associated with boundary elements with
        the specified boundary attributes (marked in 'bdr_attr_is_ess').
+
        For spaces with 'vdim' > 1, the 'component' parameter can be used
-       to restrict the marked tDOFs per boundary to the specified components.
-       If vdim > 1 then one can specify per boundary attribute which components
-       on a boundary are essential by assigning the component ID to its location
-       in component array.
-       The component has dimensions number of boundary attributes x vdim. */
+       to restricts the marked vDOFs to the specified component.
+       If overwrite is set to false then values in ess_vdofs are preserved
+       and not reset. However, the assumption here is that ess_vdofs is set to
+       the correct size already.*/
    virtual void GetEssentialVDofs(const Array<int> &bdr_attr_is_ess,
-                                  Array<int> &ess_vdofs,
-                                  const Array2D<int> &component) const;
+                                  Array<int> &ess_dofs,
+                                  int component = -1,
+                                  bool overwrite = true) const;
 
    /** Get a list of essential true dofs, ess_tdof_list, corresponding to the
        boundary attributes marked in the array bdr_attr_is_ess. */
@@ -375,15 +371,16 @@ public:
 
    /** @brief Get a list of essential true dofs, ess_tdof_list, corresponding to the
        boundary attributes marked in the array bdr_attr_is_ess.
+
        For spaces with 'vdim' > 1, the 'component' array can be used
        to restricts the marked tDOFs per boundary to the specified components.
        If vdim > 1 then one can specify per boundary attribute which components
-       on a boundary are essential by assigning the component ID to its location
-       in component array.
+       on a boundary are essential by assigning a value of true to its location
+       in the component array.
        The component has dimensions number of boundary attributes x vdim. */
    virtual void GetEssentialTrueDofs(const Array<int> &bdr_attr_is_ess,
                                      Array<int> &ess_tdof_list,
-                                     const Array2D<int> &component);
+                                     const Array2D<bool> &component);
 
    /** If the given ldof is owned by the current processor, return its local
        tdof number, otherwise return -1 */

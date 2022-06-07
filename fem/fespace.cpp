@@ -494,12 +494,17 @@ static void mark_dofs(const Array<int> &dofs, Array<int> &mark_array)
 
 void FiniteElementSpace::GetEssentialVDofs(const Array<int> &bdr_attr_is_ess,
                                            Array<int> &ess_vdofs,
-                                           int component) const
+                                           int component,
+                                           bool overwrite) const
 {
    Array<int> vdofs, dofs;
 
-   ess_vdofs.SetSize(GetVSize());
-   ess_vdofs = 0;
+   if (overwrite) {
+      ess_vdofs.SetSize(GetVSize());
+      ess_vdofs = 0;
+   } else {
+      MFEM_ASSERT(ess_vdofs.Size() == GetVSize(), "ess_vdofs size is not equal to FESpaces GetVSize().");
+   }
 
    for (int i = 0; i < GetNBE(); i++)
    {
@@ -561,68 +566,6 @@ void FiniteElementSpace::GetEssentialVDofs(const Array<int> &bdr_attr_is_ess,
    }
 }
 
-void FiniteElementSpace::GetEssentialVDofs(const Array<int> &bdr_attr_is_ess,
-                                           Array<int> &ess_vdofs,
-                                           const Array2D<int> &component) const
-{
-   Array<int> vdofs, dofs, ess_comp;
-
-   bool cmpID_rows = false;
-
-   ess_vdofs.SetSize(GetVSize());
-   ess_vdofs = 0;
-
-   ess_comp.SetSize(3);
-   ess_comp = 0;
-
-   for (int i = 0; i < GetNBE(); i++)
-   {
-      int id = GetBdrAttribute(i)-1;
-      if (bdr_attr_is_ess[id])
-      {
-         cmpID_rows = true;
-         //Checking to see if all the values in the row are greater than -1 if so then
-         //all components on a boundary are said to be marked.
-         for (int j = 0; j < component.NumCols(); ++j)
-         {
-            cmpID_rows = cmpID_rows && ( component(id, j) > -1);
-         }
-         if (cmpID_rows) // same as srw component id system
-         {
-            // Mark all components.
-            GetBdrElementVDofs(i, vdofs);
-            mark_dofs(vdofs, ess_vdofs);
-         }
-         else
-         {
-            GetBdrElementDofs(i, dofs);
-            for (int d = 0; d < dofs.Size(); d++)
-            {
-               // loop over actively constrained components
-               for (int k = 0; k < component.NumCols(); ++k)
-               {
-                  if (component(id, k) != -1)   // -1 means inactive component
-                  {
-                     // component(id, k) should be equal to k here
-                     dofs[d] = DofToVDof(dofs[d], component(id, k));
-                  }
-               }
-            }
-            mark_dofs(dofs, ess_vdofs); // do this only once?
-         }
-      }
-   } // end conforming DOFs calculation
-
-   // mark possible hidden boundary edges in a non-conforming mesh, also
-   // local DOFs affected by boundary elements on other processors
-   if (Nonconforming())
-   {
-      mfem_error("FiniteElementSpace::GetEssentialVDofs"
-                 " currently not supported setting per DOF component"
-                 " for nonconforming meshes at this time.");
-   } // nonconforming
-}
-
 void FiniteElementSpace::GetEssentialTrueDofs(const Array<int> &bdr_attr_is_ess,
                                               Array<int> &ess_tdof_list,
                                               int component)
@@ -643,10 +586,28 @@ void FiniteElementSpace::GetEssentialTrueDofs(const Array<int> &bdr_attr_is_ess,
 
 void FiniteElementSpace::GetEssentialTrueDofs(const Array<int> &bdr_attr_is_ess,
                                               Array<int> &ess_tdof_list,
-                                              const Array2D<int> &component)
+                                              const Array2D<bool> &component)
 {
-   Array<int> ess_vdofs, ess_tdofs;
-   GetEssentialVDofs(bdr_attr_is_ess, ess_vdofs, component);
+   MFEM_ASSERT(component.NumCols() == vdim, "Number of columns of component was not equal to FESpace vdim");
+   MFEM_ASSERT(component.NumRows() == bdr_attr_is_ess.Size(), "Number of rows of component was not equal to bdr_attr_is_ess.Size()");
+
+   Array<int> ess_vdofs, ess_tdofs, bdr_attr_is_ess_single_comp;
+   bdr_attr_is_ess_single_comp.SetSize(bdr_attr_is_ess.Size());
+
+   for (int i = 0; i < vdim; i++) {
+      // Only overwrite ess_vdofs on first iteration
+      // all other iterations we want to preserve values of 
+      // ess_vdofs.
+      const bool overwrite = (i == 0) ? true : false;
+      bdr_attr_is_ess_single_comp = 0;
+      for (int j = 0; j < bdr_attr_is_ess.Size(); j++) {
+         if (bdr_attr_is_ess[j] && component[j, i]) {
+            bdr_attr_is_ess_single_comp[j] = bdr_attr_is_ess[j];
+         }
+      }
+      GetEssentialVDofs(bdr_attr_is_ess_single_comp, ess_vdofs, i, overwrite);
+   }
+
    const SparseMatrix *R = GetConformingRestriction();
    if (!R)
    {
