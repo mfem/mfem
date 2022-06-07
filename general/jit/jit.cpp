@@ -79,7 +79,6 @@ public:
       FCntl(F_SETLK, F_UNLCK, true);
       ::close(fd);
       std::remove(f_name);
-      MFEM_VERIFY(!std::fstream(f_name), "[~FileLock] " << f_name << " error!");
    }
 
    void Wait() const
