@@ -21,7 +21,7 @@ namespace mfem
 /**
  * @brief Subdomain representation of a topological parent in another Mesh.
  *
- * SubMesh is a subdomain representation of a Mesh defined on it's parents
+ * SubMesh is a subdomain representation of a Mesh defined on its parents
  * attributes. The current implementation creates either a domain or surface
  * subset of the parents Mesh and reuses the parallel distribution.
  *
