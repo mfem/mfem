@@ -427,7 +427,7 @@ public:
       return handle;
    }
 
-   static inline int exists (const char *filename)
+   static inline int Exists(const char *filename)
    {
       struct stat buffer;
       return (stat(filename, &buffer) == 0);
@@ -439,22 +439,20 @@ public:
    {
       DLerror(false); // flush dl errors
       mpi::Sync(); // make sure everyone is testing files at the same time
-      void *handle = std::fstream(Lib_so()) ? DLopen(Lib_so()) : nullptr;
-      if (!handle && std::fstream(Lib_ar())) // if .so not found, try archive
+      void *handle = Exists(Lib_so()) ? DLopen(Lib_so()) : nullptr;
+      if (!handle && Exists(Lib_ar())) // if .so not found, try archive
       {
-         for (int status = EXIT_SUCCESS; !handle; status = EXIT_SUCCESS)
+         int status = EXIT_SUCCESS;
+         if (mpi::Root())
          {
-            if (mpi::Root())
-            {
-               io::FileLock so_lock(Lib_so(), "ok");
-               Command() << cxx << link << "-shared" << "-o" << Lib_so()
-                         << ARprefix() << Lib_ar() << ARpostfix()
-                         << Xlinker() + "-rpath,." << libs;
-               status = Call();
-            }
-            mpi::Sync(status);
-            handle = DLopen(Lib_so()); // can be removed in the meantime
+            io::FileLock so_lock(Lib_so(), "ok");
+            Command() << cxx << link << "-shared" << "-o" << Lib_so()
+                      << ARprefix() << Lib_ar() << ARpostfix()
+                      << Xlinker() + "-rpath,." << libs;
+            status = Call();
          }
+         mpi::Sync(status);
+         handle = DLopen(Lib_so()); // can be removed in the meantime
          MFEM_VERIFY(handle, "[JIT] Error " << Lib_so() << " from " << Lib_ar());
       }
 
@@ -463,7 +461,7 @@ public:
          auto tid = std::string("_") + std::to_string(mpi::Bcast(getpid()));
          auto tmp = Jit::ToString(hash, tid.c_str());
          /**
-         * Root        ck: [w-w-w-w-w-w-w-w-w-w-w-w-w-w-w-w-w]
+         * Root        ck: [x-x-x-x-x-x-x-x-x-x-x-x-x-x-x-x-x]
          *             cc:  |----|Close  Delete
          *       cc => co:       |------|         Delete
          *             ak:               [x-x-x-x-x-x-x-x-x-x]
@@ -482,50 +480,41 @@ public:
                MFEM_VERIFY(Call() == EXIT_SUCCESS,
                            "[JIT] install error: " << in << " => " << out);
             };
-            io::FileLock cc_lock(Jit::ToString(hash), "ck", false);
-            if (cc_lock)
-            {
-               // Write kernel source file
-               auto cc = Jit::ToString(hash, ".cc"); // input source
-               std::ofstream source_file(cc); // open the source file
-               MFEM_VERIFY(source_file.good(), "[JIT] Source file error!");
-               source_file << source;
-               source_file.close();
-               // Compilation: cc => co
-               const char *bin_mfem_hpp = MFEM_INSTALL_DIR "/include/mfem/mfem.hpp";
-               const auto bin_mfem_file = std::fstream(bin_mfem_hpp);
-               const char *src_mfem_hpp = MFEM_SOURCE_DIR "/mfem.hpp";
-               const auto src_mfem_file = std::fstream(src_mfem_hpp);
-               MFEM_VERIFY(bin_mfem_file||src_mfem_file, "MFEM header needed!");
-               auto co = Jit::ToString(hash, ".co"); // output object
-               Command() << cxx << flags
-                         << "-I" << MFEM_INSTALL_DIR "/include/mfem"
-                         << "-I" << MFEM_SOURCE_DIR
-                         << Xdevice() << Xpic() << Xpipe()
-                         << "-c" << "-o" << co << cc
-                         << (std::getenv("MFEM_JIT_VERBOSE") ? "-v" : "");
-               if (Call(name)) { return EXIT_FAILURE; }
-               std::remove(cc.c_str());
-               // Update archive: ar += co
-               io::FileLock ar_lock(Lib_ar(), "ak");
-               Command() << "ar -rv" << Lib_ar() << co;
-               if (Call()) { return EXIT_FAILURE; }
-               std::remove(co.c_str());
-               // Create temporary shared library: (ar + co) => tmp
-               Command() << cxx << link << "-shared" << "-o" << tmp
-                         << ARprefix() << Lib_ar() << ARpostfix()
-                         << Xlinker() + "-rpath,." << libs;
-               if (Call(name)) { return EXIT_FAILURE; }
-               // Install temporary shared library: tmp => so
-               io::FileLock so_lock(Lib_so(), "ok");
-               install(tmp, Lib_so());
-            }
-            else // avoid duplicate compilation
-            {
-               cc_lock.Wait();
-               if (!std::fstream(Lib_so())) { RootCompile(tmp); } // if removed
-               install(Lib_so(), tmp);
-            }
+            io::FileLock cc_lock(Jit::ToString(hash), "ck");
+            // Write kernel source file
+            auto cc = Jit::ToString(hash, ".cc"); // input source
+            std::ofstream source_file(cc); // open the source file
+            MFEM_VERIFY(source_file.good(), "[JIT] Source file error!");
+            source_file << source;
+            source_file.close();
+            // Compilation: cc => co
+            const char *bin_mfem_hpp = MFEM_INSTALL_DIR "/include/mfem/mfem.hpp";
+            const auto bin_mfem_file = std::fstream(bin_mfem_hpp);
+            const char *src_mfem_hpp = MFEM_SOURCE_DIR "/mfem.hpp";
+            const auto src_mfem_file = std::fstream(src_mfem_hpp);
+            MFEM_VERIFY(bin_mfem_file||src_mfem_file, "MFEM header needed!");
+            auto co = Jit::ToString(hash, ".co"); // output object
+            Command() << cxx << flags
+                      << "-I" << MFEM_INSTALL_DIR "/include/mfem"
+                      << "-I" << MFEM_SOURCE_DIR
+                      << Xdevice() << Xpic() << Xpipe()
+                      << "-c" << "-o" << co << cc
+                      << (std::getenv("MFEM_JIT_VERBOSE") ? "-v" : "");
+            if (Call(name)) { return EXIT_FAILURE; }
+            std::remove(cc.c_str());
+            // Update archive: ar += co
+            io::FileLock ar_lock(Lib_ar(), "ak");
+            Command() << "ar -rv" << Lib_ar() << co;
+            if (Call()) { return EXIT_FAILURE; }
+            std::remove(co.c_str());
+            // Create temporary shared library: (ar + co) => tmp
+            Command() << cxx << link << "-shared" << "-o" << tmp
+                      << ARprefix() << Lib_ar() << ARpostfix()
+                      << Xlinker() + "-rpath,." << libs;
+            if (Call(name)) { return EXIT_FAILURE; }
+            // Install temporary shared library: tmp => so
+            io::FileLock so_lock(Lib_so(), "ok");
+            install(tmp, Lib_so());
             return EXIT_SUCCESS;
          };
          const int status = mpi::Root() ? RootCompile(tmp.c_str()) : EXIT_SUCCESS;
