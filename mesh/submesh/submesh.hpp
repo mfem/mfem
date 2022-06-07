@@ -31,7 +31,7 @@ namespace mfem
  * the boundaries).
  *
  * If a surface is extracted from a volume, the boundary attribute from the
- * parent is assigned to be the new domain attribute. It's boundary attributes
+ * parent is assigned to be the new domain attribute. Its boundary attributes
  * are generated (there will be one boundary attribute 1 for all of the
  * boundaries).
  *
