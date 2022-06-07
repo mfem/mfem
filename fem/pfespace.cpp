@@ -1083,7 +1083,7 @@ void ParFiniteElementSpace::GetEssentialTrueDofs(const Array<int>
       bdr_attr_is_ess_single_comp = 0;
       for (int j = 0; j < bdr_attr_is_ess.Size(); j++)
       {
-         if (bdr_attr_is_ess[j] && component[j, i])
+         if (bdr_attr_is_ess[j] && component(j, i))
          {
             bdr_attr_is_ess_single_comp[j] = bdr_attr_is_ess[j];
          }
