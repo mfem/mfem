@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -53,14 +53,17 @@ void NonlinearForm::SetEssentialBC(const Array<int> &bdr_attr_is_ess,
    }
 }
 
-void NonlinearForm::SetEssentialBCPartial(const Array<int> &bdr_attr_is_ess,
-                                          const Array2D<int> &bdr_component,
-                                          Vector *rhs)
+void NonlinearForm::SetEssentialBC(const Array<int> &bdr_attr_is_ess,
+                                   const Array2D<bool> &bdr_component,
+                                   Vector *rhs)
 {
+   // virtual call, works in parallel too
    fes->GetEssentialTrueDofs(bdr_attr_is_ess, ess_tdof_list, bdr_component);
 
-   if (rhs) {
-      for (int i = 0; i < ess_tdof_list.Size(); i++) {
+   if (rhs)
+   {
+      for (int i = 0; i < ess_tdof_list.Size(); i++)
+      {
          (*rhs)(ess_tdof_list[i]) = 0.0;
       }
    }

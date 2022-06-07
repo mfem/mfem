@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -42,6 +42,17 @@ protected:
    Array<int> offsets;
    Array<int> indices;
    Array<int> gather_map;
+
+   friend class BatchedLORAssembly;
+   friend class BatchedLOR_ADS;
+   friend class BatchedLOR_AMS;
+
+   /// @name Low-level access to the underlying element-dof mappings
+   ///@{
+   const Array<int> &GatherMap() const { return gather_map; }
+   const Array<int> &Indices() const { return indices; }
+   const Array<int> &Offsets() const { return offsets; }
+   ///@}
 
 public:
    ElementRestriction(const FiniteElementSpace&, ElementDofOrdering);

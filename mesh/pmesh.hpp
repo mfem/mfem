@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -83,6 +83,10 @@ protected:
    // glob_elem_offset + local element number defines a global element numbering
    mutable long glob_elem_offset, glob_offset_sequence;
    void ComputeGlobalElementOffset() const;
+
+   // Enable Print() to add the parallel interface as boundary (typically used
+   // for visualization purposes)
+   bool print_shared = true;
 
    /// Create from a nonconforming mesh.
    ParMesh(const ParNCMesh &pncmesh);
@@ -259,7 +263,7 @@ public:
    ParMesh& operator=(ParMesh &&mesh);
 
    /// Explicitly delete the copy assignment operator.
-   ParMesh& operator=(ParMesh &mesh) = delete;
+   ParMesh& operator=(const ParMesh &mesh) = delete;
 
    /// Create a uniformly refined (by any factor) version of @a orig_mesh.
    /** @param[in] orig_mesh  The starting coarse mesh.
@@ -281,6 +285,9 @@ public:
    void Finalize(bool refine = false, bool fix_orientation = false) override;
 
    void SetAttributes() override;
+
+   /// Checks if any rank in the mesh has boundary elements
+   bool HasBoundaryElements() const override;
 
    MPI_Comm GetComm() const { return MyComm; }
    int GetNRanks() const { return NRanks; }
@@ -453,8 +460,13 @@ public:
    /// Save the mesh in a parallel mesh format.
    void ParPrint(std::ostream &out) const;
 
-   /** Print the part of the mesh in the calling processor adding the interface
-       as boundary (for visualization purposes) using the mfem v1.0 format. */
+   // Enable Print() to add the parallel interface as boundary (typically used
+   // for visualization purposes)
+   void SetPrintShared(bool print) { print_shared = print; }
+
+   /** Print the part of the mesh in the calling processor using the mfem v1.0
+       format. Depending on SetPrintShared(), the parallel interface can be
+       added as boundary for visualization (true by default) . */
    void Print(std::ostream &out = mfem::out) const override;
 
    /// Save the ParMesh to files (one for each MPI rank). The files will be

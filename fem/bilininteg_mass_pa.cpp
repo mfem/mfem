@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -12,7 +12,7 @@
 #include "../general/forall.hpp"
 #include "bilininteg.hpp"
 #include "gridfunc.hpp"
-#include "ceed/mass.hpp"
+#include "ceed/integrators/mass/mass.hpp"
 
 using namespace std;
 
@@ -33,8 +33,8 @@ void MassIntegrator::AssemblePA(const FiniteElementSpace &fes)
    Mesh *mesh = fes.GetMesh();
    if (mesh->GetNE() == 0) { return; }
    const FiniteElement &el = *fes.GetFE(0);
-   ElementTransformation *T = mesh->GetElementTransformation(0);
-   const IntegrationRule *ir = IntRule ? IntRule : &GetRule(el, el, *T);
+   ElementTransformation *T0 = mesh->GetElementTransformation(0);
+   const IntegrationRule *ir = IntRule ? IntRule : &GetRule(el, el, *T0);
    if (DeviceCanUseCeed())
    {
       delete ceedOp;
@@ -62,10 +62,10 @@ void MassIntegrator::AssemblePA(const FiniteElementSpace &fes)
       coeff.SetSize(1);
       coeff(0) = cQ->constant;
    }
-   else if (QuadratureFunctionCoefficient* cQ =
+   else if (QuadratureFunctionCoefficient* qfQ =
                dynamic_cast<QuadratureFunctionCoefficient*>(Q))
    {
-      const QuadratureFunction &qFun = cQ->GetQuadFunction();
+      const QuadratureFunction &qFun = qfQ->GetQuadFunction();
       MFEM_VERIFY(qFun.Size() == nq * ne,
                   "Incompatible QuadratureFunction dimension \n");
 
@@ -1179,6 +1179,7 @@ static void PAMassApply(const int dim,
    }
 #endif // MFEM_USE_OCCA
    const int id = (D1D << 4) | Q1D;
+
    if (dim == 2)
    {
       switch (id)

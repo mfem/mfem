@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -23,12 +23,11 @@ using Args = kernels::InvariantsEvaluator3D::Buffers;
 // dP_302 = (dI2b*dI1b + dI1b*dI2b)/9 + (I1b/9)*ddI2b + (I2b/9)*ddI1b
 static MFEM_HOST_DEVICE inline
 void EvalH_302(const int e, const int qx, const int qy, const int qz,
-               const double weight, const double *J, DeviceTensor<8,double> dP)
+               const double weight, const double *J, DeviceTensor<8,double> dP,
+               double *B, double *dI1b, double *ddI1b,
+               double *dI2, double *dI2b, double *ddI2, double *ddI2b,
+               double *dI3b)
 {
-   double B[9];
-   double         dI1b[9],          ddI1b[9];
-   double dI2[9], dI2b[9], ddI2[9], ddI2b[9];
-   double dI3b[9];
    constexpr int DIM = 3;
    kernels::InvariantsEvaluator3D ie(Args()
                                      .J(J).B(B)
@@ -64,12 +63,11 @@ void EvalH_302(const int e, const int qx, const int qy, const int qz,
 // dP_303 = ddI1b/3
 static MFEM_HOST_DEVICE inline
 void EvalH_303(const int e, const int qx, const int qy, const int qz,
-               const double weight, const double *J, DeviceTensor<8,double> dP)
+               const double weight, const double *J, DeviceTensor<8,double> dP,
+               double *B, double *dI1b, double *ddI1, double *ddI1b,
+               double *dI2, double *dI2b, double *ddI2, double *ddI2b,
+               double *dI3b, double *ddI3b)
 {
-   double B[9];
-   double         dI1b[9], ddI1[9], ddI1b[9];
-   double dI2[9], dI2b[9], ddI2[9], ddI2b[9];
-   double dI3b[9], ddI3b[9];
    constexpr int DIM = 3;
    kernels::InvariantsEvaluator3D ie(Args()
                                      .J(J).B(B)
@@ -97,9 +95,9 @@ void EvalH_303(const int e, const int qx, const int qy, const int qz,
 // dP_315 = 2*(dI3b x dI3b) + 2*(I3b - 1)*ddI3b
 static MFEM_HOST_DEVICE inline
 void EvalH_315(const int e, const int qx, const int qy, const int qz,
-               const double weight, const double *J, DeviceTensor<8,double> dP)
+               const double weight, const double *J, DeviceTensor<8,double> dP,
+               double *dI3b, double *ddI3b)
 {
-   double dI3b[9], ddI3b[9];
    constexpr int DIM = 3;
    kernels::InvariantsEvaluator3D ie(Args().
                                      J(J).
@@ -133,12 +131,11 @@ void EvalH_315(const int e, const int qx, const int qy, const int qz,
 //               + (-2*I2/I3b^3)*ddI3b
 static MFEM_HOST_DEVICE inline
 void EvalH_321(const int e, const int qx, const int qy, const int qz,
-               const double weight, const double *J, DeviceTensor<8,double> dP)
+               const double weight, const double *J, DeviceTensor<8,double> dP,
+               double *B, double *dI1b, double *ddI1, double *ddI1b,
+               double *dI2, double *dI2b, double *ddI2, double *ddI2b,
+               double *dI3b, double *ddI3b)
 {
-   double B[9];
-   double         dI1b[9], ddI1[9], ddI1b[9];
-   double dI2[9], dI2b[9], ddI2[9], ddI2b[9];
-   double dI3b[9], ddI3b[9];
    constexpr int DIM = 3;
    kernels::InvariantsEvaluator3D ie(Args()
                                      .J(J).B(B)
@@ -185,12 +182,11 @@ void EvalH_321(const int e, const int qx, const int qy, const int qz,
 static MFEM_HOST_DEVICE inline
 void EvalH_332(const int e, const int qx, const int qy, const int qz,
                const double weight, const double gamma,
-               const double *J, DeviceTensor<8,double> dP)
+               const double *J, DeviceTensor<8,double> dP,
+               double *B, double *dI1b, double *ddI1b,
+               double *dI2, double *dI2b, double *ddI2, double *ddI2b,
+               double *dI3b, double *ddI3b)
 {
-   double B[9];
-   double         dI1b[9],          ddI1b[9];
-   double dI2[9], dI2b[9], ddI2[9], ddI2b[9];
-   double         dI3b[9],          ddI3b[9];
    constexpr int DIM = 3;
    kernels::InvariantsEvaluator3D ie(Args()
                                      .J(J).B(B)
@@ -300,12 +296,38 @@ MFEM_REGISTER_TMOP_KERNELS(void, SetupGradPA_3D,
                double Jpt[9];
                kernels::Mult(3,3,3, Jpr, Jrt, Jpt);
 
+               // InvariantsEvaluator3D buffers used for the metrics
+               double B[9];
+               double         dI1b[9], ddI1[9], ddI1b[9];
+               double dI2[9], dI2b[9], ddI2[9], ddI2b[9];
+               // reuse local arrays, to help register allocation
+               double        *dI3b=Jrt,        *ddI3b=Jpr;
+
                // metric->AssembleH
-               if (mid == 302) { EvalH_302(e,qx,qy,qz,weight,Jpt,H); }
-               if (mid == 303) { EvalH_303(e,qx,qy,qz,weight,Jpt,H); }
-               if (mid == 315) { EvalH_315(e,qx,qy,qz,weight,Jpt,H); }
-               if (mid == 321) { EvalH_321(e,qx,qy,qz,weight,Jpt,H); }
-               if (mid == 332) { EvalH_332(e,qx,qy,qz,weight,metric_param,Jpt,H); }
+               if (mid == 302)
+               {
+                  EvalH_302(e,qx,qy,qz,weight,Jpt,H,
+                            B,dI1b,ddI1b,dI2,dI2b,ddI2,ddI2b,dI3b);
+               }
+               if (mid == 303)
+               {
+                  EvalH_303(e,qx,qy,qz,weight,Jpt,H,
+                            B,dI1b,ddI1,ddI1b,dI2,dI2b,ddI2,ddI2b,dI3b,ddI3b);
+               }
+               if (mid == 315)
+               {
+                  EvalH_315(e,qx,qy,qz,weight,Jpt,H, dI3b,ddI3b);
+               }
+               if (mid == 321)
+               {
+                  EvalH_321(e,qx,qy,qz,weight,Jpt,H,
+                            B,dI1b,ddI1,ddI1b,dI2,dI2b,ddI2,ddI2b,dI3b,ddI3b);
+               }
+               if (mid == 332)
+               {
+                  EvalH_332(e,qx,qy,qz,weight,metric_param,Jpt,H,
+                            B,dI1b,ddI1b,dI2,dI2b,ddI2,ddI2b,dI3b,ddI3b);
+               }
             } // qx
          } // qy
       } // qz

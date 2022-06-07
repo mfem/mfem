@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -14,6 +14,7 @@
 
 #include "../config/config.hpp"
 #include "lininteg.hpp"
+#include "linearform_ext.hpp"
 #include "gridfunc.hpp"
 
 namespace mfem
@@ -22,9 +23,14 @@ namespace mfem
 /// Vector with associated FE space and LinearFormIntegrators.
 class LinearForm : public Vector
 {
+   friend LinearFormExtension;
+
 protected:
    /// FE space on which the LinearForm lives. Not owned.
    FiniteElementSpace *fes;
+
+   /** @brief Extension for supporting different assembly levels. */
+   LinearFormExtension *ext;
 
    /** @brief Indicates the LinearFormIntegrator%s stored in #domain_integs,
        #domain_delta_integs, #boundary_integs, and #boundary_face_integs are
@@ -33,7 +39,8 @@ protected:
 
    /// Set of Domain Integrators to be applied.
    Array<LinearFormIntegrator*> domain_integs;
-   /// Element attribute marker (should be of length mesh->attributes)
+   /// Element attribute marker (should be of length mesh->attributes.Max() or
+   /// 0 if mesh->attributes is empty)
    /// Includes all by default.
    /// 0 - ignore attribute
    /// 1 - include attribute
@@ -75,7 +82,7 @@ public:
    /// Creates linear form associated with FE space @a *f.
    /** The pointer @a f is not owned by the newly constructed object. */
    LinearForm(FiniteElementSpace *f) : Vector(f->GetVSize())
-   { fes = f; extern_lfs = 0; UseDevice(true); }
+   { fes = f; ext = nullptr; extern_lfs = 0; UseDevice(true); }
 
    /** @brief Create a LinearForm on the FiniteElementSpace @a f, using the
        same integrators as the LinearForm @a lf.
@@ -90,7 +97,7 @@ public:
    /** The associated FiniteElementSpace can be set later using one of the
        methods: Update(FiniteElementSpace *) or
        Update(FiniteElementSpace *, Vector &, int). */
-   LinearForm() { fes = NULL; extern_lfs = 0; UseDevice(true); }
+   LinearForm() { fes = NULL; ext = nullptr; extern_lfs = 0; UseDevice(true); }
 
    /// Construct a LinearForm using previously allocated array @a data.
    /** The LinearForm does not assume ownership of @a data which is assumed to
@@ -98,7 +105,7 @@ public:
        for externally allocated array, the pointer @a data can be NULL. The data
        array can be replaced later using the method SetData(). */
    LinearForm(FiniteElementSpace *f, double *data) : Vector(data, f->GetVSize())
-   { fes = f; extern_lfs = 0; }
+   { fes = f; ext = nullptr; extern_lfs = 0; }
 
    /// Copy assignment. Only the data of the base class Vector is copied.
    /** It is assumed that this object and @a rhs use FiniteElementSpace%s that
@@ -155,6 +162,11 @@ public:
        coefficients. */
    Array<LinearFormIntegrator*> *GetDLFI() { return &domain_integs; }
 
+   /** @brief Access all domain markers added with AddDomainIntegrator().
+       If no marker was specified when the integrator was added, the
+       corresponding pointer (to Array<int>) will be NULL. */
+   Array<Array<int>*> *GetDLFI_Marker() { return &domain_integs_marker; }
+
    /** @brief Access all integrators added with AddDomainIntegrator() which are
        DeltaLFIntegrator%s with delta coefficients. */
    Array<DeltaLFIntegrator*> *GetDLFI_Delta() { return &domain_delta_integs; }
@@ -174,7 +186,12 @@ public:
    Array<Array<int>*> *GetFLFI_Marker() { return &boundary_face_integs_marker; }
 
    /// Assembles the linear form i.e. sums over all domain/bdr integrators.
-   void Assemble();
+   /// When @a use_device is set to true and the linearform assembly is
+   /// compatible with device execution, it will be executed on the device.
+   void Assemble(bool use_device = true);
+
+   /// Return true if assembly on device is supported, false otherwise.
+   bool SupportsDevice();
 
    /// Assembles delta functions of the linear form
    void AssembleDelta();
@@ -184,11 +201,10 @@ public:
        updated, e.g. after its associated Mesh object has been refined.
 
        @note This method does not perform assembly. */
-   void Update() { SetSize(fes->GetVSize()); ResetDeltaLocations(); }
+   void Update();
 
    /// Associate a new FE space, @a *f, with this object and Update() it. */
-   void Update(FiniteElementSpace *f)
-   { fes = f; SetSize(f->GetVSize()); ResetDeltaLocations(); }
+   void Update(FiniteElementSpace *f) { fes = f; Update(); }
 
    /** @brief Associate a new FE space, @a *f, with this object and use the data
        of @a v, offset by @a v_offset, to initialize this object's Vector::data.

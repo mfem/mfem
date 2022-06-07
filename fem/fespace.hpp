@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -426,6 +426,9 @@ public:
                       int vdim = 1, int ordering = Ordering::byNODES)
    { Constructor(mesh, ext, fec, vdim, ordering); }
 
+   /// Copy assignment not supported
+   FiniteElementSpace& operator=(const FiniteElementSpace&) = delete;
+
    /// Returns the mesh
    inline Mesh *GetMesh() const { return mesh; }
 
@@ -772,21 +775,16 @@ public:
 
    /** @brief Mark degrees of freedom associated with boundary elements with
        the specified boundary attributes (marked in 'bdr_attr_is_ess').
-       For spaces with 'vdim' > 1, the 'component' parameter can be used
-       to restricts the marked vDOFs to the specified component. */
-   virtual void GetEssentialVDofs(const Array<int> &bdr_attr_is_ess,
-                                  Array<int> &ess_vdofs,
-                                  int component = -1) const;
 
-   /** Mark dofs associated with boundary elements for the attributes
-       specified in bdr_attr_is_ess with the component list in the
-       input component array, if specified. This is a custom
-       implementation for ExaConstit where the element in the compnent
-       array is actual a dof code for dof combinations with prescribed
-       essential boundary conditions. */
+       For spaces with 'vdim' > 1, the 'component' parameter can be used
+       to restricts the marked vDOFs to the specified component.
+       If overwrite is set to false then values in ess_vdofs are preserved
+       and not reset. However, the assumption here is that ess_vdofs is set to
+       the correct size already.*/
    virtual void GetEssentialVDofs(const Array<int> &bdr_attr_is_ess,
                                   Array<int> &ess_vdofs,
-                                  const Array2D<int> & component) const;
+                                  int component = -1,
+                                  bool overwrite = true) const;
 
    /** @brief Get a list of essential true dofs, ess_tdof_list, corresponding to the
        boundary attributes marked in the array bdr_attr_is_ess.
@@ -796,12 +794,19 @@ public:
                                      Array<int> &ess_tdof_list,
                                      int component = -1);
 
-   /** Get a list of essential true dofs, ess_tdof_list, for the boundary
-       attributes marked in the array bdr_attr_is_ess using the components
-       in the input component array, srw */
+
+   /** @brief Get a list of essential true dofs, ess_tdof_list, corresponding to the
+       boundary attributes marked in the array bdr_attr_is_ess.
+
+       For spaces with 'vdim' > 1, the 'component' array can be used
+       to restricts the marked tDOFs per boundary to the specified components.
+       If vdim > 1 then one can specify per boundary attribute which components
+       on a boundary are essential by assigning a value of true to its location
+       in the component array.
+       The component has dimensions number of boundary attributes x vdim. */
    virtual void GetEssentialTrueDofs(const Array<int> &bdr_attr_is_ess,
                                      Array<int> &ess_tdof_list,
-                                     const Array2D<int> & component);
+                                     const Array2D<bool> &component);
 
    /** @brief Get a list of all boundary true dofs, @a boundary_dofs. For spaces
        with 'vdim' > 1, the 'component' parameter can be used to restricts the

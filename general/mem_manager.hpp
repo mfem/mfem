@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -110,13 +110,27 @@ MemoryClass operator*(MemoryClass mc1, MemoryClass mc2);
 /** The template class parameter, T, must be a plain-old-data (POD) type.
 
     In many respects this class behaves like a pointer:
-    * When destroyed, a Memory object does NOT automatically delete any
+    - When destroyed, a Memory object does NOT automatically delete any
       allocated memory.
-    * Only the method Delete() will deallocate a Memory object.
-    * Other methods that modify the object (e.g. New(), Wrap(), etc) will simply
-      overwrite the old contents.
-    * One difference with a pointer is that a const Memory object does not allow
-      modification of the content (unlike e.g. a const pointer).
+    - Only the method Delete() will deallocate a Memory object.
+    - Other methods that modify the object (e.g. New(), Wrap(), etc) will
+      simply overwrite the old contents.
+    In other aspects this class differs from a pointer:
+    - Pointer arithmetic is not supported, MakeAlias() should be used instead.
+    - Const Memory object does not allow modification of the content
+      (unlike e.g. a const pointer).
+    - Move constructor and assignement will transfer ownership flags, and
+      Reset() the moved Memory object.
+    - Copy constructor and assignement copy flags. This may result in two Memory
+      objects owning the data which is an invalid state. This invalid state MUST
+      be resolved by users manually using SetHostPtrOwner(),
+      SetDevicePtrOwner(), or ClearOwnerFlags(). It is also possible to call
+      Delete() on only one of the two Memory objects, however this is
+      discouraged because it bypasses the internal ownership flags.
+    - When moving or copying (between host and device) alias Memory objects
+      and/or their base Memory objects, the consistency of memory flags have
+      to be manually taken care of using either Sync() or SyncAlias(). Failure
+      to do so will result in silent misuse of unsynchronized data.
 
     A Memory object stores up to two different pointers: one host pointer (with
     MemoryType from MemoryClass::HOST) and one device pointer (currently one of
@@ -129,11 +143,11 @@ MemoryClass operator*(MemoryClass mc1, MemoryClass mc2);
     MemoryClass through the methods ReadWrite(), Read(), and Write().
     Requesting such access may result in additional (internally handled)
     memory allocation and/or memory copy.
-    * When ReadWrite() is called, the returned pointer becomes the only
+    - When ReadWrite() is called, the returned pointer becomes the only
       valid pointer.
-    * When Read() is called, the returned pointer becomes valid, however
+    - When Read() is called, the returned pointer becomes valid, however
       the other pointer (host or device) may remain valid as well.
-    * When Write() is called, the returned pointer becomes the only valid
+    - When Write() is called, the returned pointer becomes the only valid
       pointer, however, unlike ReadWrite(), no memory copy will be performed.
 
     The host memory (pointer from MemoryClass::HOST) can be accessed through the
@@ -182,14 +196,25 @@ public:
    /// Copy constructor: default.
    Memory(const Memory &orig) = default;
 
-   /// Move constructor: default.
-   Memory(Memory &&orig) = default;
+   /** Move constructor. Sets the pointers and associated ownership of validity
+       flags of @a *this to those of @a other. Resets @a other. */
+   Memory(Memory &&orig)
+   {
+      *this = orig;
+      orig.Reset();
+   }
 
    /// Copy-assignment operator: default.
    Memory &operator=(const Memory &orig) = default;
 
-   /// Move-assignment operator: default.
-   Memory &operator=(Memory &&orig) = default;
+   /** Move assignment operator. Sets the pointers and associated ownership of
+       validity flags of @a *this to those of @a other. Resets @a other. */
+   Memory &operator=(Memory &&orig)
+   {
+      *this = orig;
+      orig.Reset();
+      return *this;
+   }
 
    /// Allocate host memory for @a size entries.
    /** The allocation uses the current host memory type returned by

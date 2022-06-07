@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -27,13 +27,11 @@
 #endif
 
 #if defined(MFEM_USE_MPI) && defined(MFEM_TMOP_MPI)
-extern mfem::MPI_Session *GlobalMPISession;
 #define PFesGetParMeshGetComm(pfes) pfes.GetComm()
 #define SetDiscreteTargetSize SetParDiscreteTargetSize
 #define SetDiscreteTargetAspectRatio SetParDiscreteTargetAspectRatio
 #define GradientClass HypreParMatrix
 #else
-typedef int MPI_Session;
 #define ParMesh Mesh
 #define ParGridFunction GridFunction
 #define ParNonlinearForm NonlinearForm
@@ -862,7 +860,7 @@ static void tmop_tests(int id = 0, bool all = false)
 #ifndef MFEM_TMOP_DEVICE
 TEST_CASE("tmop_pa", "[TMOP_PA], [Parallel]")
 {
-   tmop_tests(GlobalMPISession->WorldRank(), launch_all_non_regression_tests);
+   tmop_tests(Mpi::WorldRank(), launch_all_non_regression_tests);
 }
 #else
 TEST_CASE("tmop_pa", "[TMOP_PA], [Parallel]")
@@ -870,7 +868,7 @@ TEST_CASE("tmop_pa", "[TMOP_PA], [Parallel]")
    Device device;
    device.Configure(MFEM_TMOP_DEVICE);
    device.Print();
-   tmop_tests(GlobalMPISession->WorldRank(), launch_all_non_regression_tests);
+   tmop_tests(Mpi::WorldRank(), launch_all_non_regression_tests);
 }
 #endif
 #else

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -129,10 +129,10 @@ static bool same(int n,
 
 static void rotateSimplex(int type,
                           int r,
-                          apf::MeshEntity** in,
-                          apf::MeshEntity** out)
+                          apf::MeshEntity** simplex_in,
+                          apf::MeshEntity** simplex_out)
 {
-   int n;
+   int n = -1;
    if (type == apf::Mesh::TRIANGLE) // triangles
    {
       MFEM_ASSERT(r>=0 && r<6, "incorrect rotation");
@@ -151,11 +151,11 @@ static void rotateSimplex(int type,
    for (int i = 0; i < n; i++)
       if (n == 3)
       {
-         out[i] = in[tri_rotation[r][i]];
+         simplex_out[i] = simplex_in[tri_rotation[r][i]];
       }
       else
       {
-         out[i] = in[tet_rotation[r][i]];
+         simplex_out[i] = simplex_in[tet_rotation[r][i]];
       }
 }
 
@@ -165,7 +165,7 @@ static int findSimplexRotation(apf::Mesh2* apf_mesh,
                                apf::MeshEntity** vs)
 {
    int type = apf_mesh->getType(simplex);
-   int dim;
+   int dim = 0;
    if (type == apf::Mesh::TET)
    {
       dim = 3;
@@ -419,7 +419,7 @@ void PumiMesh::ReadSCORECMesh(apf::Mesh2* apf_mesh, apf::Numbering* v_num_loc,
 
    if (!curved)
    {
-      apf::MeshIterator* itr = apf_mesh->begin(0);
+      itr = apf_mesh->begin(0);
       spaceDim = Dim;
 
       while ((ent = apf_mesh->iterate(itr)))
@@ -638,10 +638,10 @@ ParPumiMesh::ParPumiMesh(MPI_Comm comm, apf::Mesh2* apf_mesh,
          apf::Parts res;
          apf_mesh->getResidence(ent, res);
          int kk = 0;
-         for (std::set<int>::iterator itr = res.begin();
-              itr != res.end(); ++itr)
+         for (std::set<int>::iterator res_itr = res.begin();
+              res_itr != res.end(); ++res_itr)
          {
-            eleRanks[kk++] = *itr;
+            eleRanks[kk++] = *res_itr;
          }
 
          group.Recreate(2, eleRanks);
@@ -690,10 +690,10 @@ ParPumiMesh::ParPumiMesh(MPI_Comm comm, apf::Mesh2* apf_mesh,
 
          // Get the IDs
          int kk = 0;
-         for (std::set<int>::iterator itr = res.begin();
-              itr != res.end(); itr++)
+         for (std::set<int>::iterator res_itr = res.begin();
+              res_itr != res.end(); res_itr++)
          {
-            eleRanks[kk++] = *itr;
+            eleRanks[kk++] = *res_itr;
          }
 
          // Generate the group
@@ -733,10 +733,10 @@ ParPumiMesh::ParPumiMesh(MPI_Comm comm, apf::Mesh2* apf_mesh,
 
          // Get the IDs
          int kk = 0;
-         for (std::set<int>::iterator itr = res.begin();
-              itr != res.end(); itr++)
+         for (std::set<int>::iterator res_itr = res.begin();
+              res_itr != res.end(); res_itr++)
          {
-            eleRanks[kk++] = *itr;
+            eleRanks[kk++] = *res_itr;
          }
 
          group.Recreate(eleRanks.Size(), eleRanks);

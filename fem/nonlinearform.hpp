@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -146,23 +146,31 @@ public:
        have zero entries at the essential true dofs. */
    void SetEssentialBC(const Array<int> &bdr_attr_is_ess, Vector *rhs = NULL);
 
-   /// Specify essential boundary conditions on individual displacement components
-   /** In the latest version of MFEM the SetEssentialBC function is virtual and can
-       be overwritten, but I don't want to deal with merge issues right now. This
-       function will lookup BC conditions in my std::unordered_map and apply the
-       active displacement component BC to the correct Vdof, srw.
-   */
-   void SetEssentialBCPartial(const Array<int> &bdr_attr_is_ess,
-                              const Array2D<int> &bdr_component,
-                              Vector *rhs = NULL);
+   /** @brief Specify essential boundary conditions.
+
+       For spaces with 'vdim' > 1, the 'bdr_component' array can be used
+       to restricts the marked tDOFs per boundary to the specified components.
+       If vdim > 1 then one can specify per boundary attribute which components
+       on a boundary are essential by assigning a value of true to its location
+       in the bdr_component array.
+       The bdr_component has dimensions number of boundary attributes x vdim
+
+       This method calls FiniteElementSpace::GetEssentialTrueDofs() and stores
+       the result internally for use by other methods. If the @a rhs pointer is
+       not NULL, its essential true dofs will be set to zero. This makes it
+       "compatible" with the output vectors from the Mult() method which also
+       have zero entries at the essential true dofs. */
+   void SetEssentialBC(const Array<int> &bdr_attr_is_ess,
+                       const Array2D<bool> &bdr_component,
+                       Vector *rhs);
 
    /// Specify essential boundary conditions.
    /** @deprecated Use either SetEssentialBC() or SetEssentialTrueDofs(). */
    void SetEssentialVDofs(const Array<int> &ess_vdofs_list);
 
    /// Specify essential boundary conditions.
-   void SetEssentialTrueDofs(const Array<int> &ess_tdof_list)
-   { ess_tdof_list.Copy(this->ess_tdof_list); }
+   void SetEssentialTrueDofs(const Array<int> &ess_tdof_list_)
+   { ess_tdof_list_.Copy(this->ess_tdof_list); }
 
    /// Return a (read-only) list of all essential true dofs.
    const Array<int> &GetEssentialTrueDofs() const { return ess_tdof_list; }

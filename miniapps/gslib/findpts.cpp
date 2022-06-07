@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -36,6 +36,12 @@
 //    findpts -m ../../data/inline-wedge.mesh -o 3
 //    findpts -m ../../data/amr-quad.mesh -o 2
 //    findpts -m ../../data/rt-2d-q3.mesh -o 3 -mo 4 -ft 2
+//    findpts -m ../../data/square-mixed.mesh -o 2 -mo 2
+//    findpts -m ../../data/square-mixed.mesh -o 2 -mo 2 -hr -pr
+//    findpts -m ../../data/square-mixed.mesh -o 2 -mo 3 -ft 2
+//    findpts -m ../../data/fichera-mixed.mesh -o 3 -mo 2
+//    findpts -m ../../data/inline-pyramid.mesh -o 1 -mo 1
+//    findpts -m ../../data/tinyzoo-3d.mesh -o 1 -mo 1
 
 #include "mfem.hpp"
 
@@ -99,12 +105,14 @@ GridFunction* ProlongToMaxOrder(const GridFunction *x, const int fieldtype)
    return xInt;
 }
 
+double func_order;
+
 // Scalar function to project
 double field_func(const Vector &x)
 {
    const int dim = x.Size();
    double res = 0.0;
-   for (int d = 0; d < dim; d++) { res += x(d) * x(d); }
+   for (int d = 0; d < dim; d++) { res += std::pow(x(d), func_order); }
    return res;
 }
 
@@ -146,10 +154,10 @@ int main (int argc, char *argv[])
                   "Enable or disable GLVis visualization.");
    args.AddOption(&hrefinement, "-hr", "--h-refinement", "-no-hr",
                   "--no-h-refinement",
-                  "Do random h refinements to mesh.");
+                  "Do random h refinements to mesh (does not work for pyramids).");
    args.AddOption(&prefinement, "-pr", "--p-refinement", "-no-pr",
                   "--no-p-refinement",
-                  "Do random p refinements to solution field.");
+                  "Do random p refinements to solution field (does not work for pyramids).");
 
    args.Parse();
    if (!args.Good())
@@ -158,6 +166,8 @@ int main (int argc, char *argv[])
       return 1;
    }
    args.PrintOptions(cout);
+
+   func_order = std::min(order, 2);
 
    // Initialize and refine the starting mesh.
    Mesh mesh(mesh_file, 1, 1, false);

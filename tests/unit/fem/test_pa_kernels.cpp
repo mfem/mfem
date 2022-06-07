@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -9,8 +9,14 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
+#ifdef _WIN32
+#define _USE_MATH_DEFINES
+#include <cmath>
+#endif
+
 #include "unit_tests.hpp"
 #include "mfem.hpp"
+
 #include <fstream>
 #include <iostream>
 
@@ -19,8 +25,32 @@ using namespace mfem;
 namespace pa_kernels
 {
 
+Mesh MakeCartesianNonaligned(const int dim, const int ne)
+{
+   Mesh mesh;
+   if (dim == 2)
+   {
+      mesh = Mesh::MakeCartesian2D(ne, ne, Element::QUADRILATERAL, 1, 1.0, 1.0);
+   }
+   else
+   {
+      mesh = Mesh::MakeCartesian3D(ne, ne, ne, Element::HEXAHEDRON, 1.0, 1.0, 1.0);
+   }
+
+   // Remap vertices so that the mesh is not aligned with axes.
+   for (int i=0; i<mesh.GetNV(); ++i)
+   {
+      double *vcrd = mesh.GetVertex(i);
+      vcrd[1] += 0.2 * vcrd[0];
+      if (dim == 3) { vcrd[2] += 0.3 * vcrd[0]; }
+   }
+
+   return mesh;
+}
+
 double zero_field(const Vector &x)
 {
+   MFEM_CONTRACT_VAR(x);
    return 0.0;
 }
 
@@ -64,16 +94,7 @@ double pa_divergence_testnd(int dim,
                             void (*f1)(const Vector &, Vector &),
                             double (*divf1)(const Vector &))
 {
-   Mesh mesh;
-   if (dim == 2)
-   {
-      mesh = Mesh::MakeCartesian2D(2, 2, Element::QUADRILATERAL, 0, 1.0, 1.0);
-   }
-   if (dim == 3)
-   {
-      mesh = Mesh::MakeCartesian3D(2, 2, 2, Element::HEXAHEDRON, 1.0, 1.0, 1.0);
-   }
-
+   Mesh mesh = MakeCartesianNonaligned(dim, 2);
    int order = 4;
 
    // Vector valued
@@ -106,7 +127,7 @@ double pa_divergence_testnd(int dim,
    return field2.Norml2();
 }
 
-TEST_CASE("PA VectorDivergence", "[PartialAssembly]")
+TEST_CASE("PA VectorDivergence", "[PartialAssembly], [CUDA]")
 {
    SECTION("2D")
    {
@@ -156,16 +177,7 @@ double pa_gradient_testnd(int dim,
                           double (*f1)(const Vector &),
                           void (*gradf1)(const Vector &, Vector &))
 {
-   Mesh mesh;
-   if (dim == 2)
-   {
-      mesh = Mesh::MakeCartesian2D(2, 2, Element::QUADRILATERAL, 0, 1.0, 1.0);
-   }
-   if (dim == 3)
-   {
-      mesh = Mesh::MakeCartesian3D(2, 2, 2, Element::HEXAHEDRON, 1.0, 1.0, 1.0);
-   }
-
+   Mesh mesh = MakeCartesianNonaligned(dim, 2);
    int order = 4;
 
    // Scalar
@@ -198,7 +210,7 @@ double pa_gradient_testnd(int dim,
    return field2.Norml2();
 }
 
-TEST_CASE("PA Gradient", "[PartialAssembly]")
+TEST_CASE("PA Gradient", "[PartialAssembly], [CUDA]")
 {
    SECTION("2D")
    {
@@ -215,17 +227,7 @@ TEST_CASE("PA Gradient", "[PartialAssembly]")
 
 double test_nl_convection_nd(int dim)
 {
-   Mesh mesh;
-
-   if (dim == 2)
-   {
-      mesh = Mesh::MakeCartesian2D(2, 2, Element::QUADRILATERAL, 0, 1.0, 1.0);
-   }
-   if (dim == 3)
-   {
-      mesh = Mesh::MakeCartesian3D(2, 2, 2, Element::HEXAHEDRON, 1.0, 1.0, 1.0);
-   }
-
+   Mesh mesh = MakeCartesianNonaligned(dim, 2);
    int order = 2;
    H1_FECollection fec(order, dim);
    FiniteElementSpace fes(&mesh, &fec, dim);
@@ -250,7 +252,7 @@ double test_nl_convection_nd(int dim)
    return difference;
 }
 
-TEST_CASE("Nonlinear Convection", "[PartialAssembly], [NonlinearPA]")
+TEST_CASE("Nonlinear Convection", "[PartialAssembly], [NonlinearPA], [CUDA]")
 {
    SECTION("2D")
    {
@@ -266,11 +268,7 @@ TEST_CASE("Nonlinear Convection", "[PartialAssembly], [NonlinearPA]")
 template <typename INTEGRATOR>
 double test_vector_pa_integrator(int dim)
 {
-   Mesh mesh =
-      (dim == 2) ?
-      Mesh::MakeCartesian2D(2, 2, Element::QUADRILATERAL, 0, 1.0, 1.0):
-      Mesh::MakeCartesian3D(2, 2, 2, Element::HEXAHEDRON, 1.0, 1.0, 1.0);
-
+   Mesh mesh = MakeCartesianNonaligned(dim, 2);
    int order = 2;
    H1_FECollection fec(order, dim);
    FiniteElementSpace fes(&mesh, &fec, dim);
@@ -296,7 +294,7 @@ double test_vector_pa_integrator(int dim)
    return difference;
 }
 
-TEST_CASE("PA Vector Mass", "[PartialAssembly], [VectorPA]")
+TEST_CASE("PA Vector Mass", "[PartialAssembly], [VectorPA], [CUDA]")
 {
    SECTION("2D")
    {
@@ -309,7 +307,7 @@ TEST_CASE("PA Vector Mass", "[PartialAssembly], [VectorPA]")
    }
 }
 
-TEST_CASE("PA Vector Diffusion", "[PartialAssembly], [VectorPA]")
+TEST_CASE("PA Vector Diffusion", "[PartialAssembly], [VectorPA], [CUDA]")
 {
    SECTION("2D")
    {
@@ -406,6 +404,7 @@ void test_pa_convection(const std::string &meshname, int order, int prob,
 
    k_fa.Assemble();
    k_fa.Finalize();
+   k_fa.SpMat().EnsureMultTranspose();
 
    k_pa.SetAssemblyLevel(AssemblyLevel::PARTIAL);
    k_pa.Assemble();
@@ -414,8 +413,17 @@ void test_pa_convection(const std::string &meshname, int order, int prob,
 
    x.Randomize(1);
 
+   // Testing Mult
    k_fa.Mult(x,y_fa);
    k_pa.Mult(x,y_pa);
+
+   y_pa -= y_fa;
+
+   REQUIRE(y_pa.Norml2() < 1.e-12);
+
+   // Testing MultTranspose
+   k_fa.MultTranspose(x,y_fa);
+   k_pa.MultTranspose(x,y_pa);
 
    y_pa -= y_fa;
 
@@ -426,8 +434,8 @@ void test_pa_convection(const std::string &meshname, int order, int prob,
    delete fec;
 }
 
-// Basic unit test for convection
-TEST_CASE("PA Convection", "[PartialAssembly][MFEMData]")
+// Basic unit tests for convection
+TEST_CASE("PA Convection", "[PartialAssembly], [CUDA]")
 {
    // prob:
    // - 0: CG,
@@ -435,72 +443,111 @@ TEST_CASE("PA Convection", "[PartialAssembly][MFEMData]")
    // - 2: DG discontinuous coeff,
    // - 3: DG Bernstein discontinuous coeff.
    auto prob = GENERATE(0, 1, 2, 3);
-   auto order_2d = GENERATE(2);
-   auto order_3d = GENERATE(2);
+   auto order = GENERATE(2);
    // refinement > 0 => Non-conforming mesh
-   auto refinement_2d = GENERATE(0,1);
-   auto refinement_3d = GENERATE(0,1);
+   auto refinement = GENERATE(0,1);
 
    SECTION("2D")
    {
-      test_pa_convection("../../data/periodic-square.mesh", order_2d, prob,
-                         refinement_2d);
-      if (launch_all_non_regression_tests)
-      {
-         test_pa_convection("../../data/periodic-hexagon.mesh", order_2d, prob,
-                            refinement_2d);
-         test_pa_convection("../../data/star-q3.mesh", order_2d, prob,
-                            refinement_2d);
-         test_pa_convection(mfem_data_dir+"/gmsh/v22/unstructured_quad.v22.msh",
-                            order_2d, prob, refinement_2d);
-      }
+      test_pa_convection("../../data/periodic-square.mesh", order, prob,
+                         refinement);
    }
 
    SECTION("3D")
    {
-      test_pa_convection("../../data/periodic-cube.mesh", order_3d, prob,
-                         refinement_3d);
-      if (launch_all_non_regression_tests)
-      {
-         test_pa_convection("../../data/fichera-q3.mesh", order_3d, prob,
-                            refinement_3d);
-         test_pa_convection(mfem_data_dir+"/gmsh/v22/unstructured_hex.v22.msh",
-                            order_3d, prob, refinement_3d);
-      }
+      test_pa_convection("../../data/periodic-cube.mesh", order, prob,
+                         refinement);
    }
-
 } // test case
 
-TEST_CASE("PA Mass", "[PartialAssembly]")
+// Advanced unit tests for convection
+TEST_CASE("PA Convection advanced", "[PartialAssembly], [MFEMData], [CUDA]")
 {
+   if (launch_all_non_regression_tests)
+   {
+      // prob:
+      // - 0: CG,
+      // - 1: DG continuous coeff,
+      // - 2: DG discontinuous coeff,
+      // - 3: DG Bernstein discontinuous coeff.
+      auto prob = GENERATE(0, 1, 2, 3);
+      auto order = GENERATE(2);
+      // refinement > 0 => Non-conforming mesh
+      auto refinement = GENERATE(0,1);
+
+      SECTION("2D")
+      {
+         test_pa_convection("../../data/periodic-hexagon.mesh", order, prob,
+                            refinement);
+         test_pa_convection("../../data/star-q3.mesh", order, prob,
+                            refinement);
+         test_pa_convection(mfem_data_dir+"/gmsh/v22/unstructured_quad.v22.msh",
+                            order, prob, refinement);
+      }
+
+      SECTION("3D")
+      {
+         test_pa_convection("../../data/fichera-q3.mesh", order, prob,
+                            refinement);
+         test_pa_convection(mfem_data_dir+"/gmsh/v22/unstructured_hex.v22.msh",
+                            order, prob, refinement);
+      }
+   }
+} // PA Convection test case
+
+template <typename INTEGRATOR>
+static void test_pa_integrator()
+{
+   const bool all_tests = launch_all_non_regression_tests;
+
    auto fname = GENERATE("../../data/star.mesh", "../../data/star-q3.mesh",
                          "../../data/fichera.mesh", "../../data/fichera-q3.mesh");
    auto map_type = GENERATE(FiniteElement::VALUE, FiniteElement::INTEGRAL);
-   int order = 2;
+
+   auto order = !all_tests ? 2 : GENERATE(1, 2, 3);
+   auto q_order_inc = !all_tests ? 0 : GENERATE(0, 1, 3);
 
    Mesh mesh(fname);
    int dim = mesh.Dimension();
    L2_FECollection fec(order, dim, BasisType::GaussLobatto, map_type);
    FiniteElementSpace fes(&mesh, &fec);
 
+   const int q_order = 2*order + q_order_inc;
+   // Don't use a special integration rule if q_order_inc == 0
+   const bool use_ir = q_order_inc > 0;
+   const IntegrationRule *ir =
+      use_ir ? &IntRules.Get(mesh.GetElementGeometry(0), q_order) : nullptr;
+
    GridFunction x(&fes), y_fa(&fes), y_pa(&fes);
    x.Randomize(1);
 
+   ConstantCoefficient pi(M_PI);
+
    BilinearForm blf_fa(&fes);
-   blf_fa.AddDomainIntegrator(new MassIntegrator);
+   blf_fa.AddDomainIntegrator(new INTEGRATOR(pi,ir));
    blf_fa.Assemble();
    blf_fa.Finalize();
    blf_fa.Mult(x, y_fa);
 
    BilinearForm blf_pa(&fes);
    blf_pa.SetAssemblyLevel(AssemblyLevel::PARTIAL);
-   blf_pa.AddDomainIntegrator(new MassIntegrator);
+   blf_pa.AddDomainIntegrator(new INTEGRATOR(pi,ir));
    blf_pa.Assemble();
    blf_pa.Mult(x, y_pa);
 
    y_fa -= y_pa;
 
    REQUIRE(y_fa.Normlinf() == MFEM_Approx(0.0));
-} // test case
+}
+
+TEST_CASE("PA Mass", "[PartialAssembly], [CUDA]")
+{
+   test_pa_integrator<MassIntegrator>();
+} // PA Mass test case
+
+TEST_CASE("PA Diffusion", "[PartialAssembly], [CUDA]")
+{
+   test_pa_integrator<DiffusionIntegrator>();
+} // PA Diffusion test case
 
 } // namespace pa_kernels

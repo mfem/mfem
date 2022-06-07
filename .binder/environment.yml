@@ -5,7 +5,7 @@ channels:
 dependencies:
 - xeus-cling=0.13.0
 - xwidgets=0.26.0
-# NOTE: it's possible these aren't needed for the lab frontend
+# NOTE: it is possible that these are not needed for the lab frontend
 - widgetsnbextension=3.5.1
 - pip
 - pip:
