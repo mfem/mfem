@@ -237,7 +237,7 @@ public:
                   use_cache_, recompute_cache_, dsigma_cache_);
                break;
             default:
-               MFEM_ABORT("Not implemented: " << std::hex << id << std::dec);
+               MFEM_ABORT("Not implemented for D1D=" << d1d_ << " and Q1D=" << q1d_);
          }
       };
 
