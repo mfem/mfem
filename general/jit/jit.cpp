@@ -46,6 +46,12 @@ namespace jit
 namespace io
 {
 
+static inline int Exists(const char *filename)
+{
+   struct stat buffer;
+   return (stat(filename, &buffer) == 0);
+}
+
 class FileLock // need to be 'named' to live during the scope
 {
    std::string s_name;
@@ -68,7 +74,7 @@ public:
       lock(f_name),
       fd(::open(f_name, O_RDWR))
    {
-      MFEM_VERIFY(lock.good() && fd > 0, "[FileLock] " << f_name << " error!");
+      MFEM_VERIFY(lock.good() && fd > 0, "File lock " << f_name << " error!");
       if (now) { FCntl(F_SETLKW, F_WRLCK, true); } // wait if locked
    }
 
@@ -220,25 +226,26 @@ class System // System singleton object
    static System singleton;
    static System& Get() { return singleton; }
 
-   ~System() // can't use mpi::Root
+   ~System() // can't use mpi::Root here
    {
-      if (!Get().keep && (Get().rank==0) && std::fstream(Lib_ar()))
+      if (!Get().keep && Rank()==0 && io::Exists(Lib_ar()))
       {
          io::FileLock ar_lock(Lib_ar(), "ak");
          std::remove(Lib_ar());
-
       }
-      if ((Get().rank==0) && std::fstream(Lib_so()))
+      if (Rank()==0 && io::Exists(Lib_so()))
       {
          io::FileLock so_lock(Lib_so(), "ok");
          std::remove(Lib_so());
       }
    }
 
+   static int Rank() { return Get().rank; }
    static pid_t Pid() { return Get().pid; }
    static int* Ack() { return Get().s_ack; }
    static char* Mem() { return Get().s_mem; }
    static uintptr_t Size() { return Get().size; }
+   static std::string Path() { return Get().path; }
    static Command& Command() { return Get().command; }
 
    static void MmapInit()
@@ -317,11 +324,9 @@ public:
       };
 
       Get().lib_ar = full_path("a");
-      if (!std::fstream(Get().lib_ar))
+      if (!io::Exists(Lib_ar()))
       {
-         MFEM_VERIFY(std::ofstream(Get().lib_ar),
-                     "Error Could not create " << Get().lib_ar);
-         std::remove(Get().lib_ar.c_str());
+         MFEM_VERIFY(std::ofstream(Lib_ar()), "Error creating " << Lib_ar());
       }
 
 #ifdef __APPLE__
@@ -390,8 +395,6 @@ public:
    LinkerOptions ar;
 #endif
 
-   static const char *Lib_ar() { return Get().lib_ar.c_str(); }
-   static const char *Lib_so() { return Get().lib_so.c_str(); }
    static std::string Xpic() { return Get().cxx.Pic(); }
    static std::string Xpipe() { return Get().cxx.Pipe(); }
    static std::string Xdevice() { return Get().cxx.Device(); }
@@ -400,6 +403,8 @@ public:
    static std::string ARprefix() { return Get().ar.Prefix();  }
    static std::string ARpostfix() { return Get().ar.Postfix(); }
    static std::string ARbackup() { return Get().ar.Backup(); }
+   static const char *Lib_ar() { return Get().lib_ar.c_str(); }
+   static const char *Lib_so() { return Get().lib_so.c_str(); }
 
    static const char* DLerror(bool show = true) noexcept
    {
@@ -408,7 +413,7 @@ public:
       MFEM_CONTRACT_VAR(show);
 #else
       if (show && last_error) { MFEM_WARNING("[JIT] " << last_error); }
-      MFEM_VERIFY(!dlerror(), "[JIT] Should result in NULL being returned!");
+      MFEM_VERIFY(!::dlerror(), "[JIT] Should result in NULL being returned!");
 #endif
       return last_error;
    }
@@ -416,21 +421,13 @@ public:
    static void* DLsym(void *handle, const char *name) noexcept
    {
       void *sym = ::dlsym(handle, name);
-      DLerror();
-      return sym;
+      return (DLerror(), sym);
    }
 
    static void *DLopen(const char *path)
    {
       void *handle = ::dlopen(path, RTLD_LAZY | RTLD_LOCAL);
-      DLerror();
-      return handle;
-   }
-
-   static inline int Exists(const char *filename)
-   {
-      struct stat buffer;
-      return (stat(filename, &buffer) == 0);
+      return (DLerror(), handle);
    }
 
    static void* Lookup(const size_t hash, const char *name, const char *cxx,
@@ -439,8 +436,8 @@ public:
    {
       DLerror(false); // flush dl errors
       mpi::Sync(); // make sure everyone is testing files at the same time
-      void *handle = Exists(Lib_so()) ? DLopen(Lib_so()) : nullptr;
-      if (!handle && Exists(Lib_ar())) // if .so not found, try archive
+      void *handle = io::Exists(Lib_so()) ? DLopen(Lib_so()) : nullptr;
+      if (!handle && io::Exists(Lib_ar())) // if .so not found, try archive
       {
          int status = EXIT_SUCCESS;
          if (mpi::Root())
@@ -448,7 +445,7 @@ public:
             io::FileLock so_lock(Lib_so(), "ok");
             Command() << cxx << link << "-shared" << "-o" << Lib_so()
                       << ARprefix() << Lib_ar() << ARpostfix()
-                      << Xlinker() + "-rpath,." << libs;
+                      << Xlinker() + std::string("-rpath,") + Path() << libs;
             status = Call();
          }
          mpi::Sync(status);
@@ -472,7 +469,7 @@ public:
          *---------------------------------------------------------
          * Lock so => tmp:                                   |---| Delete
          **/
-         std::function<int(const char *)> RootCompile = [&](const char *tmp)
+         auto RootCompile = [&](const char *tmp)
          {
             auto install = [](const char *in, const char *out)
             {
@@ -518,9 +515,9 @@ public:
             return EXIT_SUCCESS;
          };
          const int status = mpi::Root() ? RootCompile(tmp.c_str()) : EXIT_SUCCESS;
-         MFEM_VERIFY(status == EXIT_SUCCESS, "!EXIT_SUCCESS");
+         MFEM_VERIFY(status == EXIT_SUCCESS, "[JIT] RootCompile error!");
          mpi::Sync(status); // all ranks verify the status
-         std::string symbol_path("./");
+         std::string symbol_path(Path() + "/");
          handle = DLopen((symbol_path + tmp).c_str()); // opens symbol
          mpi::Sync();
          MFEM_VERIFY(handle, "[JIT] Error creating handle:" << ::dlerror());
