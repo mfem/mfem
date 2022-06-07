@@ -24,6 +24,27 @@ namespace mfem
 namespace ElasticityKernels
 {
 
+/**
+ * @brief Apply the 3D elasticity kernel
+ *
+ * @tparam d1d Number of degrees of freedom in 1D.
+ * @tparam q1d Number of quadrature points in 1D.
+ * @tparam material_type Material type which adheres to the material type
+ * interface. See examples in the materials directory.
+ * @param ne Number of elements.
+ * @param B_ Basis functions evaluated at quadrature points in column-major
+ * layout q1d x d1d.
+ * @param G_ Gradients of basis functions evaluated at quadrature points in
+ * column major layout q1d x d1d.
+ * @param W_ Jacobians of the element transformations at all quadrature points
+ * in column-major layout q1d x q1d x q1d x sdim x dim x ne.
+ * @param Jacobian_ Jacobians of the element transformations at all quadrature
+ * points in column-major layout q1d x q1d x q1d x sdim x dim x ne.
+ * @param detJ_ Precomputed determinants of the Jacobians q1d x q1d x q1d x ne.
+ * @param X_ Input vector d1d x d1d x d1d x vdim x ne.
+ * @param Y_ Output vector d1d x d1d x d1d x vdim x ne.
+ * @param material Material object.
+ */
 template <int d1d, int q1d, typename material_type> static inline
 void Apply3D(const int ne,
              const Array<double> &B_,
@@ -37,24 +58,16 @@ void Apply3D(const int ne,
    constexpr int dim = 3;
    KernelHelpers::CheckMemoryRestriction(d1d, q1d);
 
-   // Basis functions evaluated at quadrature points.
    const tensor<double, q1d, d1d> &B =
    make_tensor<q1d, d1d>([&](int i, int j) { return B_[i + q1d*j]; });
 
-   // Gradients of basis functions evaluated at quadrature points.
    const tensor<double, q1d, d1d> &G =
    make_tensor<q1d, d1d>([&](int i, int j) { return G_[i + q1d*j]; });
 
    const auto qweights = Reshape(W_.Read(), q1d, q1d, q1d);
-   // Jacobians of the element transformations at all quadrature points in
-   // column-major layout q1d x q1d x q1d x sdim x dim x ne
    const auto J = Reshape(Jacobian_.Read(), q1d, q1d, q1d, dim, dim, ne);
    const auto detJ = Reshape(detJ_.Read(), q1d, q1d, q1d, ne);
-   // Input vector
-   // d1d x d1d x d1d x vdim x ne
    const auto U = Reshape(X_.Read(), d1d, d1d, d1d, dim, ne);
-   // Output vector
-   // d1d x d1d x d1d x vdim x ne
    auto force = Reshape(Y_.ReadWrite(), d1d, d1d, d1d, dim, ne);
 
    MFEM_FORALL_3D(e, ne, q1d, q1d, q1d,
@@ -80,6 +93,8 @@ void Apply3D(const int ne,
 
                auto dudx = dudxi(qz, qy, qx) * invJqp;
 
+               // This represents the quadrature function operation in the
+               // Finite Element Operator Decomposition e.g. A_Q(x).
                auto sigma = material.stress(dudx);
 
                invJ_sigma_detJw(qx, qy, qz) =
@@ -94,6 +109,35 @@ void Apply3D(const int ne,
    }); // for each element
 }
 
+/**
+ * @brief Apply the 3D elasticity gradient kernel
+ *
+ * @tparam d1d Number of degrees of freedom in 1D.
+ * @tparam q1d Number of quadrature points in 1D.
+ * @tparam material_type Material type which adheres to the material type
+ * interface. See examples in the materials directory.
+ * @param ne Number of elements.
+ * @param B_ Basis functions evaluated at quadrature points in column-major
+ * layout q1d x d1d.
+ * @param G_ Gradients of basis functions evaluated at quadrature points in
+ * column major layout q1d x d1d.
+ * @param W_ Jacobians of the element transformations at all quadrature points
+ * in column-major layout q1d x q1d x q1d x sdim x dim x ne.
+ * @param Jacobian_ Jacobians of the element transformations at all quadrature
+ * points in column-major layout q1d x q1d x q1d x sdim x dim x ne.
+ * @param detJ_ Precomputed determinants of the Jacobians q1d x q1d x q1d x ne.
+ * @param dU_ Input vector d1d x d1d x d1d x vdim x ne. Represents the current
+ * iterate.
+ * @param dF_ Output vector d1d x d1d x d1d x vdim x ne.
+ * @param U_ Input vector d1d x d1d x d1d x vdim x ne. Represents the current
+ * state, e.g. it is fixed during Newton iterations.
+ * @param material Material object.
+ * @param use_cache_ Use cached dsigma/dudx. Useful for linear solves in between
+ * Newton iterations.
+ * @param recompute_cache_ Recompute and cache dsigma/dudx.
+ * @param dsigma_cache_ Vector to use as memory for the cache of dsigma/dudx.
+ * Size needed is ne x q1d x q1d x q1d x dim x dim x dim x dim.
+ */
 template <int d1d, int q1d, typename material_type> static inline
 void ApplyGradient3D(const int ne,
                      const Array<double> &B_, const Array<double> &G_,
@@ -106,27 +150,17 @@ void ApplyGradient3D(const int ne,
    constexpr int dim = 3;
    KernelHelpers::CheckMemoryRestriction(d1d, q1d);
 
-   // Basis functions evaluated at quadrature points.
    const tensor<double, q1d, d1d> &B =
    make_tensor<q1d, d1d>([&](int i, int j) { return B_[i + q1d*j]; });
 
-   // Gradients of basis functions evaluated at quadrature points.
    const tensor<double, q1d, d1d> &G =
    make_tensor<q1d, d1d>([&](int i, int j) { return G_[i + q1d*j]; });
 
    const auto qweights = Reshape(W_.Read(), q1d, q1d, q1d);
-   // Jacobians of the element transformations at all quadrature points in
-   // column-major layout q1d x q1d x q1d x sdim x dim x ne
    const auto J = Reshape(Jacobian_.Read(), q1d, q1d, q1d, dim, dim, ne);
    const auto detJ = Reshape(detJ_.Read(), q1d, q1d, q1d, ne);
-   // Input vector
-   // d1d x d1d x d1d x vdim x ne
    const auto dU = Reshape(dU_.Read(), d1d, d1d, d1d, dim, ne);
-   // Output vector
-   // d1d x d1d x d1d x vdim x ne
    auto force = Reshape(dF_.ReadWrite(), d1d, d1d, d1d, dim, ne);
-   // Input vector
-   // d1d x d1d x d1d x vdim x ne
    const auto U = Reshape(U_.Read(), d1d, d1d, d1d, dim, ne);
 
    auto dsigma_cache = Reshape(dsigma_cache_.ReadWrite(), ne, q1d, q1d, q1d,
@@ -208,6 +242,29 @@ void ApplyGradient3D(const int ne,
    }); // for each element
 }
 
+/**
+ * @brief Assemble the 3D elasticity gradient diagonal.
+ *
+ * @tparam d1d Number of degrees of freedom in 1D.
+ * @tparam q1d Number of quadrature points in 1D.
+ * @tparam material_type Material type which adheres to the material type
+ * interface. See examples in the materials directory.
+ * @param ne Number of elements.
+ * @param B_ Basis functions evaluated at quadrature points in column-major
+ * layout q1d x d1d.
+ * @param G_ Gradients of basis functions evaluated at quadrature points in
+ * column major layout q1d x d1d.
+ * @param W_ Jacobians of the element transformations at all quadrature points
+ * in column-major layout q1d x q1d x q1d x sdim x dim x ne.
+ * @param Jacobian_ Jacobians of the element transformations at all quadrature
+ * points in column-major layout q1d x q1d x q1d x sdim x dim x ne.
+ * @param detJ_ Precomputed determinants of the Jacobians q1d x q1d x q1d x ne.
+ * @param X_ Input vector d1d x d1d x d1d x vdim x ne. Represents the current
+ * state.
+ * @param Ke_diag_memory Vector representing the memory needed for the diagonal
+ * matrices. Size needed is d1d x d1d x d1d x dim x ne x dim.
+ * @param material Material object.
+ */
 template <int d1d, int q1d, typename material_type> static inline
 void AssembleGradientDiagonal3D(const int ne,
                                 const Array<double> &B_,
@@ -222,25 +279,17 @@ void AssembleGradientDiagonal3D(const int ne,
    constexpr int dim = 3;
    KernelHelpers::CheckMemoryRestriction(d1d, q1d);
 
-   // Basis functions evaluated at quadrature points.
    const tensor<double, q1d, d1d> &B =
    make_tensor<q1d, d1d>([&](int i, int j) { return B_[i + q1d*j]; });
 
-   // Gradients of basis functions evaluated at quadrature points.
    const tensor<double, q1d, d1d> &G =
    make_tensor<q1d, d1d>([&](int i, int j) { return G_[i + q1d*j]; });
 
    const auto qweights = Reshape(W_.Read(), q1d, q1d, q1d);
-   // Jacobians of the element transformations at all quadrature points. This
-   // array uses a column-major layout
-   // (q1d x q1d x q1d x sdim x dim x ne)
    const auto J = Reshape(Jacobian_.Read(), q1d, q1d, q1d, dim, dim, ne);
    const auto detJ = Reshape(detJ_.Read(), q1d, q1d, q1d, ne);
-   // Input vector
-   // d1d x d1d x d1d x vdim x ne
    const auto U = Reshape(X_.Read(), d1d, d1d, d1d, dim, ne);
-   // Output vector
-   // d1d x d1d x d1d x vdim x ne
+
    auto Ke_diag_m =
       Reshape(Ke_diag_memory.ReadWrite(), d1d, d1d, d1d, dim, ne, dim);
 
@@ -272,7 +321,7 @@ void AssembleGradientDiagonal3D(const int ne,
                const auto dsigma_ddudx = material.gradient(dudx);
 
                const double JxW = detJ(qx, qy, qz, e) * qweights(qx, qy, qz);
-               const auto dphidx = KernelHelpers::GradAllPhis(qx, qy, qz, B, G, invJqp);
+               const auto dphidx = KernelHelpers::GradAllShapeFunctions(qx, qy, qz, B, G, invJqp);
 
                for (int dx = 0; dx < d1d; dx++)
                {

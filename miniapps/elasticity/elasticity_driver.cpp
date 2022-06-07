@@ -27,8 +27,8 @@
 // provided. Based on these examples, other materials could be implemented.
 //
 // The implementation of NeoHookeanMaterial also demenstrates the use of
-// automatic differentiation using either a native dual number implementation or
-// leveraging the Enzyme third party library.
+// automatic differentiation using either a native dual number forward mode
+// implementation or leveraging the Enzyme third party library.
 
 #include <mfem.hpp>
 
@@ -41,7 +41,7 @@
 using namespace std;
 using namespace mfem;
 
-/// This example only works in 3D.
+/// This example only works in 3D. Kernels for 2D are not implemented.
 constexpr int dimension = 3;
 
 int main(int argc, char *argv[])
@@ -94,7 +94,7 @@ int main(int argc, char *argv[])
    // Create the elasticity operator on the parallel mesh.
    ElasticityOperator elasticity_op(pmesh, order);
 
-   // Create and set the material type. We define it's GradientType during
+   // Create and set the material type. We define its GradientType during
    // instantiation.
 
    // As seen in materials/gradient_type.hpp there is a choice of the
@@ -103,8 +103,8 @@ int main(int argc, char *argv[])
    // * EnzymeFwd
    // * EnzymeRev
    // * FiniteDiff
-   // * DualNumbers
-   const NeoHookeanMaterial<dimension, GradientType::DualNumbers> material{};
+   // * InternalFwd
+   const NeoHookeanMaterial<dimension, GradientType::InternalFwd> material{};
    elasticity_op.SetMaterial(material);
 
    // Define all essential boundaries. In this specific example, this includes
