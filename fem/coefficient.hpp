@@ -2245,7 +2245,7 @@ private:
 
 public:
    /// Constructor with a quadrature function as input
-   VectorQuadratureFunctionCoefficient(QuadratureFunction &qf);
+   VectorQuadratureFunctionCoefficient(const QuadratureFunction &qf);
 
    /** Set the starting index within the QuadFunc that'll be used to project
        outwards as well as the corresponding length. The projected length should
@@ -2273,7 +2273,7 @@ private:
 
 public:
    /// Constructor with a quadrature function as input
-   QuadratureFunctionCoefficient(QuadratureFunction &qf);
+   QuadratureFunctionCoefficient(const QuadratureFunction &qf);
 
    const QuadratureFunction& GetQuadFunction() const { return QuadF; }
 
