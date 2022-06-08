@@ -156,6 +156,7 @@ MFEM_USE_RAJA          = NO
 MFEM_USE_OCCA          = NO
 MFEM_USE_CEED          = NO
 MFEM_USE_CALIPER       = NO
+MFEM_USE_ALGOIM        = NO
 MFEM_USE_UMPIRE        = NO
 MFEM_USE_SIMD          = NO
 MFEM_USE_ADIOS2        = NO
@@ -472,6 +473,16 @@ OCCA_LIB = $(XLINKER)-rpath,$(OCCA_DIR)/lib -L$(OCCA_DIR)/lib -locca
 CALIPER_DIR = @MFEM_DIR@/../caliper
 CALIPER_OPT = -I$(CALIPER_DIR)/include
 CALIPER_LIB = $(XLINKER)-rpath,$(CALIPER_DIR)/lib64 -L$(CALIPER_DIR)/lib64 -lcaliper
+
+# BLITZ library configuration
+BLITZ_DIR = @MFEM_DIR@/../blitz
+BLITZ_OPT = -I$(BLITZ_DIR)/include
+BLITZ_LIB = $(XLINKER)-rpath,$(BLITZ_DIR)/lib -L$(BLITZ_DIR)/lib -lblitz
+
+# ALGOIM library configuration
+ALGOIM_DIR = @MFEM_DIR@/../algoim
+ALGOIM_OPT = -I$(ALGOIM_DIR)/src $(BLITZ_OPT)
+ALGOIM_LIB = $(BLITZ_LIB)
 
 # BENCHMARK library configuration
 BENCHMARK_DIR = @MFEM_DIR@/../google-benchmark
