@@ -16,6 +16,10 @@ Mesh improvements
 - New classes, SubMesh and ParSubMesh, that allow to define a subset of a parent
   Mesh. Both classes allow for the same functionality as Mesh and ParMesh and
   work with all existing interfaces like finite element spaces etc.
+
+- Added example for body-fitted volumetric and shape integration using the 
+  Algoim library.
+
 - Added WhiteGaussianNoiseDomainLFIntegrator: a LinearFormIntegrator class for
   spatial Gaussian white noise.
 
@@ -45,6 +49,7 @@ Mesh improvements
 
 - Added Windows 2022 CI testing with GitHub actions.
 
+- Added support for mixed meshes and pyramids in GSLIB-FindPoints.
 
 Version 4.4, released on March 21, 2022
 =======================================
