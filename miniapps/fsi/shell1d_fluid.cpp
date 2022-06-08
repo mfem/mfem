@@ -20,10 +20,10 @@ using namespace mfem;
 struct
 {
     double a = 0.5;
-    double ft = 2;
-    double fx = 2;
-    double Tbar = 1;
-    double Kbar = 1;
+    double ft = 2.0;
+    double fx = 2.0;
+    double Tbar = 1.0;
+    double Kbar = 1.0;
     double viscosity = 0.05;
 } ctx;
 
@@ -31,7 +31,7 @@ struct
 double InitialSolution(const Vector &pt)
 {
    double x = pt(0);
-   return ctx.a / (M_PI * ctx.ft) * sin(ctx.fx * M_PI * x);
+   return 1.0;
 }
 
 double InitialRate(const Vector &pt)
@@ -43,7 +43,7 @@ double InitialRate(const Vector &pt)
 double ExactSolution(const Vector &pt, const double t)
 {
     double x = pt(0);
-    return ctx.a / (M_PI * ctx.ft) * sin(ctx.fx * M_PI * x) * sin(ctx.ft * M_PI * t) + 1;
+    return ctx.a / (M_PI * ctx.ft) * sin(ctx.fx * M_PI * x) * sin(ctx.ft * M_PI * t) + 1.0;
 }
 
 double Forcing(const Vector &pt, const double t)
@@ -59,12 +59,14 @@ double Forcing(const Vector &pt, const double t)
     // Uses a tiny bit more memory, will be easier to debug.
     // We need to recall that y = eta.
     double eta = ExactSolution(pt,t);
-    double p = cos(ctx.fx * M_PI * x) * cos(ctx.fx * M_PI *eta) * cos(ctx.ft * M_PI * t);
-    double d2EtaDx2 = -ctx.a * ctx.fx * ctx.fx * M_PI / ctx.ft * sin(ctx.fx * M_PI * x) * sin(ctx.ft * M_PI * t);
-    double d2EtaDt2 = -ctx.a * ctx.ft * ctx.ft * M_PI / ctx.ft * sin(ctx.fx * M_PI * x) * sin(ctx.ft * M_PI * t) + 1;
+    double p = cos(ctx.fx * M_PI * x) * cos(ctx.fx * M_PI * eta) * cos(ctx.ft * M_PI * t);
+    //double d2EtaDx2 = -ctx.a * ctx.fx * ctx.fx * M_PI / ctx.ft * sin(ctx.fx * M_PI * x) * sin(ctx.ft * M_PI * t);
+    double d2EtaDx2 = -ctx.fx * ctx.fx * M_PI * M_PI * (eta - 1);
+    // double d2EtaDt2 = -ctx.a * ctx.ft * M_PI * sin(ctx.fx * M_PI * x) * sin(ctx.ft * M_PI * t);
+    double d2EtaDt2 = -ctx.ft * ctx.ft * M_PI * M_PI * (eta - 1);
     double dUDy = -ctx.a * ctx.fx * M_PI * cos(ctx.fx * M_PI *x) * cos(ctx.ft * M_PI * t);
     double dVDy = -ctx.a * ctx.fx * M_PI * cos(ctx.fx * M_PI * x) * cos(ctx.ft * M_PI * t) * dEtaDx;
-    double dVDx =  ctx.a * ctx.fx * M_PI * sin(ctx.fx * M_PI * x) * cos(ctx.ft * M_PI * t);
+    double dVDx =  ctx.a * ctx.fx * M_PI * cos(ctx.fx * M_PI * x) * cos(ctx.ft * M_PI * t) * (1 + dEtaDx * dEtaDx);
 
     // We now have everything we need.
     return ctx.Tbar * d2EtaDt2 + ctx.Kbar * eta - ctx.Tbar * d2EtaDx2 - p*n2 
@@ -127,27 +129,31 @@ ShellOperator::ShellOperator(FiniteElementSpace &f, Array<int> &ess_bdr, double 
    M->FormSystemMatrix(ess_tdof_list, Mmat);
 
    M_solver.iterative_mode = false;
-   M_solver.SetRelTol(rel_tol);
-   M_solver.SetAbsTol(0.0);
+   M_solver.SetRelTol(0.0);
+   M_solver.SetAbsTol(1e-12);
    M_solver.SetMaxIter(1000);
    M_solver.SetPrintLevel(0);
    M_solver.SetPreconditioner(M_prec);
    M_solver.SetOperator(Mmat);
 
+   forcing_function.SetTime(0.0);
    forcing_LF.Update(&fespace);
    dt = dt_;
    forcing_LF.AddDomainIntegrator(new DomainLFIntegrator(forcing_function));
+   forcing_LF.Assemble();
 
    fac0old=0.;
 
    // The overall system matrix does not change. Just build it here.
    S = Mmat;
-   S *= 1.0 + ctx.Kbar / ctx.Tbar;
+   S *= ctx.Tbar + 0.25 * dt * dt * ctx.Kbar;
+   Kmat *= 0.25 * dt * dt * ctx.Tbar;
    S += Kmat;
+   Kmat *= 1 / (0.25 * dt * dt * ctx.Tbar);
 
    S_solver.iterative_mode = false;
-   S_solver.SetRelTol(rel_tol);
-   S_solver.SetAbsTol(0.0);
+   S_solver.SetRelTol(0);
+   S_solver.SetAbsTol(1e-12);
    S_solver.SetMaxIter(1000);
    S_solver.SetPrintLevel(0);
    S_solver.SetPreconditioner(S_prec);
@@ -162,20 +168,28 @@ void ShellOperator::Mult(const Vector &u, const Vector &du_dt,
    Kmat.Mult(u, z);
    z *= -1;
    z += forcing_LF;
+   z[0] = 0.0;
+   z[d2udt2.Size()-1] = 0.0;
+   V[0] = 0.0;
+   V[d2udt2.Size()-1] = 0.0;
    M_solver.Mult(z, V);
 
    d2udt2 = u;
    d2udt2 *= -ctx.Kbar / ctx.Tbar;
    d2udt2 += V;
+
+   // Apply the inhomgenous boundary conditions.
+   d2udt2[0] = 0.0;
+   d2udt2[d2udt2.Size()-1] = 0.0;
 }
 
 void ShellOperator::ImplicitSolve(const double fac0, const double fac1,
                                  const Vector &u, const Vector &dudt, Vector &d2udt2)
 {
    // Solve the equation
-   //    d2udt2 = S^1/fac0*(-Kbar/Tbar M eta - K eta + F).
+   //    d2udt2 = S^1*(-Kbar M eta - Tbar K eta + F).
    // We have the system matrix 
-   //    S = ((1+Kbar/Tbar)M + K).
+   //    S = ((1 + fac0 * Kbar / Tbar) M + fac0 * K).
    
    // We first need to form the right hand side.
    // Assume that ImplicitSolve is called only once per time step.
@@ -188,15 +202,24 @@ void ShellOperator::ImplicitSolve(const double fac0, const double fac1,
 
    // Form the part of the rhs that comes from the current postion.
    Mmat.Mult(u,z);
-   z *= -ctx.Kbar/ctx.Tbar;
+   z *= -ctx.Kbar;
    z += forcing_LF;
    Kmat.Mult(u,V);
-   V *= -1.0;
+   V *= -ctx.Tbar;
    z += V;
-   z *= 1./fac0;
+
+   // Apply the inhomgenous boundary conditions.
+   d2udt2[0] = 0.0;
+   d2udt2[d2udt2.Size()-1] = 0.0;
+   z[0] = 0.0;
+   z[d2udt2.Size()-1] = 0.0;
 
    // Solve the system.
    S_solver.Mult(z,d2udt2);
+
+   // Apply the inhomgenous boundary conditions.
+   d2udt2[0] = 0.0;
+   d2udt2[d2udt2.Size()-1] = 0.0;
 }
 
 ShellOperator::~ShellOperator()
@@ -209,10 +232,11 @@ int main(int argc, char *argv[])
 {
    int order = 2;
    double t_final = 1.0;
-   double dt = 1e-2;
+   double dt = 0.0025;
    bool visualization = true;
-   int vis_steps = 2;
+   int vis_steps = 1;
    int ref_levels = 1;
+   bool verbose = true;
 
    OptionsParser args(argc, argv);
    args.AddOption(&ref_levels, "-r", "--refine",
@@ -273,6 +297,12 @@ int main(int argc, char *argv[])
    dudt_gf.ProjectCoefficient(dudt_0);
    Vector dudt;
    dudt_gf.GetTrueDofs(dudt);
+   dudt[dudt.Size()-1] = 0.0;
+
+   for (int i = 0; i < u.Size(); ++i){
+      //dudt[i] = 0.5 * sin(2.0 * M_PI * static_cast<double>(i)/(static_cast<double>(u.Size())-1.0));
+      std::cout << i << "  " << u[i] << "  " << dudt[i] << std::endl;
+   }
 
    socketstream sout;
    if (visualization)
@@ -304,6 +334,35 @@ int main(int argc, char *argv[])
    ShellOperator oper(fespace, ess_bdr, dt);
    ode_solver->Init(oper);
    double t = 0.0;
+   double L2L2_err = 0.0;
+
+   std::cout << "Initial error" << std::endl;
+
+   int order_quad = max(2, 2*order+1);
+   const IntegrationRule *irs[Geometry::NumGeom];
+   for (int i=0; i < Geometry::NumGeom; ++i)
+   {
+      irs[i] = &(IntRules.Get(i, order_quad));
+   }
+
+   FunctionCoefficient ucoeff (ExactSolution);
+   ucoeff.SetTime(t);
+   u_gf.SetFromTrueDofs(u);
+   
+   GridFunctionCoefficient u_approx_coeff(&u_gf);
+   double err_u  = u_gf.ComputeL2Error(ucoeff, irs);
+   double norm_u = ComputeLpNorm(2., ucoeff, mesh, irs);
+   double norm_u_a = ComputeLpNorm(2.,u_approx_coeff,mesh,irs);
+
+   if (verbose){
+      for (int i = 0; i < u.Size(); ++i){
+         std::cout << i << "  " << u[i] << "\n";
+      }
+   }
+
+   std::cout << "|| u_h - u_ex || = " << err_u  << "\n";
+   std::cout << "|| u_ex || = " << norm_u  << "\n";
+   std::cout << "|| u_h || = " << norm_u_a << "\n";
 
    bool last_step = false;
    for (int ti = 1; !last_step; ti++)
@@ -318,7 +377,7 @@ int main(int argc, char *argv[])
 
       if (last_step || (ti % vis_steps) == 0)
       {
-         cout << "step " << ti << ", t = " << t << endl;
+         cout << "\nstep " << ti << ", t = " << t << endl;
 
          u_gf.SetFromTrueDofs(u);
          dudt_gf.SetFromTrueDofs(dudt);
@@ -327,22 +386,37 @@ int main(int argc, char *argv[])
             sout << "solution\n" << mesh << u_gf << flush;
          }
       }
+
+      int order_quad = max(2, 2*order+1);
+      const IntegrationRule *irs[Geometry::NumGeom];
+      for (int i=0; i < Geometry::NumGeom; ++i)
+      {
+         irs[i] = &(IntRules.Get(i, order_quad));
+      }
+
+      FunctionCoefficient ucoeff (ExactSolution);
+      GridFunctionCoefficient u_approx_coeff(&u_gf);
+      ucoeff.SetTime(t);
+      u_gf.SetFromTrueDofs(u);
+      double err_u  = u_gf.ComputeL2Error(ucoeff, irs);
+      double norm_u = ComputeLpNorm(2., ucoeff, mesh, irs);
+      double norm_u_a = ComputeLpNorm(2.,u_approx_coeff,mesh,irs);
+
+   if (verbose){
+      for (int i = 0; i < u.Size(); ++i){
+         std::cout << i << "  " << u[i] << "\n";
+      }
    }
 
-   int order_quad = max(2, 2*order+1);
-   const IntegrationRule *irs[Geometry::NumGeom];
-   for (int i=0; i < Geometry::NumGeom; ++i)
-   {
-      irs[i] = &(IntRules.Get(i, order_quad));
+      std::cout << "|| u_h - u_ex || = " << err_u << "\n";
+      std::cout << "|| u_ex || = " << norm_u  << "\n";
+      std::cout << "|| u_h || = " << norm_u_a << "\n";
+
+      L2L2_err += err_u;
    }
 
-   FunctionCoefficient ucoeff (ExactSolution);
-   ucoeff.SetTime(t);
-   double err_u  = u_gf.ComputeL2Error(ucoeff, irs);
-   double norm_u = ComputeLpNorm(2., ucoeff, mesh, irs);
-
-   std::cout << "|| u_h - u_ex || / || u_ex || = " << err_u / norm_u << "\n";
-
+   std::cout << "\nOverall errors";
+   std::cout << "\n|| u_h - u_ex ||_L2L2 = " << sqrt(dt*L2L2_err) << std::endl;
    delete ode_solver;
    return 0;
 }
