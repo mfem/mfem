@@ -72,66 +72,6 @@ double inflow_function(const Vector &x);
 // Mesh bounding box
 Vector bb_min, bb_max;
 
-// Type of preconditioner for implicit time integrator
-enum class PrecType : int
-{
-   ILU = 0,
-   AIR = 1
-};
-
-#if MFEM_HYPRE_VERSION >= 21800
-// Algebraic multigrid preconditioner for advective problems based on
-// approximate ideal restriction (AIR). Most effective when matrix is
-// first scaled by DG block inverse, and AIR applied to scaled matrix.
-// See https://doi.org/10.1137/17M1144350.
-class AIR_prec : public Solver
-{
-private:
-   const HypreParMatrix *A;
-   // Copy of A scaled by block-diagonal inverse
-   HypreParMatrix A_s;
-
-   HypreBoomerAMG *AIR_solver;
-   int blocksize;
-
-public:
-   AIR_prec(int blocksize_) : AIR_solver(NULL), blocksize(blocksize_) { }
-
-   void SetOperator(const Operator &op)
-   {
-      width = op.Width();
-      height = op.Height();
-
-      A = dynamic_cast<const HypreParMatrix *>(&op);
-      MFEM_VERIFY(A != NULL, "AIR_prec requires a HypreParMatrix.")
-
-      // Scale A by block-diagonal inverse
-      BlockInverseScale(A, &A_s, NULL, NULL, blocksize,
-                        BlockInverseScaleJob::MATRIX_ONLY);
-      delete AIR_solver;
-      AIR_solver = new HypreBoomerAMG(A_s);
-      AIR_solver->SetAdvectiveOptions(1, "", "FA");
-      AIR_solver->SetPrintLevel(0);
-      AIR_solver->SetMaxLevels(50);
-   }
-
-   virtual void Mult(const Vector &x, Vector &y) const
-   {
-      // Scale the rhs by block inverse and solve system
-      HypreParVector z_s;
-      BlockInverseScale(A, NULL, &x, &z_s, blocksize,
-                        BlockInverseScaleJob::RHS_ONLY);
-      AIR_solver->Mult(z_s, y);
-   }
-
-   ~AIR_prec()
-   {
-      delete AIR_solver;
-   }
-};
-#endif
-
-
 /** A time-dependent operator for the right-hand side of the ODE. The CG weak
     form of du/dt = -v.grad(u) is M du/dt = (D + K) u, where M and K are the mass
     and advection matrices, and D is the artificial viscosity matrix as
@@ -141,6 +81,7 @@ public:
 class FE_Evolution : public TimeDependentOperator
 {
 private:
+   ParFiniteElementSpace &pfes;
    OperatorHandle M, K;
    ParBilinearForm *D_form;
    const Vector &b;
@@ -154,12 +95,10 @@ private:
    Array<int> K_smap;
    mutable Vector z;
    const Vector M_lumped;
-   ParFiniteElementSpace &pfes;
 
 public:
    FE_Evolution(ParBilinearForm &M_, ParBilinearForm &K_,
-                const Vector &b_, const Vector &Mlump,
-                PrecType prec_type);
+                const Vector &b_, const Vector &Mlump);
 
    /** FE_Evolution::build_dij_matrix
    Builds dij_matrix used in the low order approximation, which is based on
@@ -167,6 +106,8 @@ public:
    */
    void build_dij_matrix(const Vector &U,
                          const VectorFunctionCoefficient &velocity) ;
+   // Essentially a Mult function for the dij_matrix operator, however this
+   // has been replaced by a ParallelAssemble function as this function had issues.
    void ApplyDijMatrix(ParGridFunction &u, Vector &du) const;
    virtual void Mult(const Vector &x, Vector &y) const;
    virtual void ImplicitSolve(const double dt, const Vector &x, Vector &k);
@@ -202,11 +143,6 @@ int main(int argc, char *argv[])
    bool adios2 = false;
    bool binary = false;
    int vis_steps = 2;
-#if MFEM_HYPRE_VERSION >= 21800
-   PrecType prec_type = PrecType::AIR;
-#else
-   PrecType prec_type = PrecType::ILU;
-#endif
    int precision = 8;
    cout.precision(precision);
 
@@ -240,8 +176,6 @@ int main(int argc, char *argv[])
                   "Final time; start time is 0.");
    args.AddOption(&dt, "-dt", "--time-step",
                   "Time step.");
-   args.AddOption((int *)&prec_type, "-pt", "--prec-type", "Preconditioner for "
-                  "implicit solves. 0 for ILU, 1 for pAIR-AMG.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -489,7 +423,7 @@ int main(int argc, char *argv[])
    // 10. Define the time-dependent evolution operator describing the ODE
    //     right-hand side, and perform time-integration (looping over the time
    //     iterations, ti, with a time-step dt).
-   FE_Evolution adv(*m, *k, *B, *Mlump, prec_type);
+   FE_Evolution adv(*m, *k, *B, *Mlump);
 
    double t = 0.0;
    adv.SetTime(t);
@@ -587,8 +521,7 @@ int main(int argc, char *argv[])
 Implementation of class FE_Evolution
 */
 FE_Evolution::FE_Evolution(ParBilinearForm &M_, ParBilinearForm &K_,
-                           const Vector &b_, const Vector &Mlump,
-                           PrecType prec_type)
+                           const Vector &b_, const Vector &Mlump)
    : TimeDependentOperator(M_.Height()),
      b(b_),
      pfes(*(M_.ParFESpace())),
@@ -681,13 +614,16 @@ void FE_Evolution::build_dij_matrix(const Vector &U,
       for (int end = I[i+1]; k < end; k++)
       {
          int j = J[k];
-         double kij = K_data[k];
-         double kji = K_data[K_smap[k]];
-         double dij = fmax(abs(kij),abs(kji));
+         if (i != j)
+         {
+            double kij = K_data[k];
+            double kji = K_data[K_smap[k]];
+            double dij = fmax(abs(kij),abs(kji));
 
-         D_data[k] = dij;
-         D_data[K_smap[k]] = dij;
-         if (i != j) { rowsum += dij; }
+            D_data[k] = dij;
+            D_data[K_smap[k]] = dij;
+            rowsum += dij;
+         }
       }
       (*dij_matrix)(i,i) = -rowsum;
    }
@@ -729,7 +665,6 @@ void FE_Evolution::build_dij_matrix(const Vector &U,
 void FE_Evolution::Mult(const Vector &x, Vector &y) const
 {
    // y = Ml^{-1} ((D + K) x)
-   // x = u
 
    /* Deprecated now that ParallelAssemble() is implemented. */
    // ParGridFunction u_gf(&pfes);
@@ -754,6 +689,7 @@ void FE_Evolution::Mult(const Vector &x, Vector &y) const
 FE_Evolution::~FE_Evolution()
 {
    delete M_prec;
+   delete D;
 }
 
 // Velocity coefficient
