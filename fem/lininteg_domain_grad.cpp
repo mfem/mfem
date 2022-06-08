@@ -278,6 +278,7 @@ static void DLFGradAssemble(const FiniteElementSpace &fes,
 
    if (dim==2)
    {
+      if (d==1 && q==1) { ker=DLFGradAssemble2D<1,1>; }
       if (d==2 && q==2) { ker=DLFGradAssemble2D<2,2>; }
       if (d==3 && q==3) { ker=DLFGradAssemble2D<3,3>; }
       if (d==4 && q==4) { ker=DLFGradAssemble2D<4,4>; }
@@ -290,6 +291,7 @@ static void DLFGradAssemble(const FiniteElementSpace &fes,
 
    if (dim==3)
    {
+      if (d==1 && q==1) { ker=DLFGradAssemble3D<1,1>; }
       if (d==2 && q==2) { ker=DLFGradAssemble3D<2,2>; }
       if (d==3 && q==3) { ker=DLFGradAssemble3D<3,3>; }
       if (d==4 && q==4) { ker=DLFGradAssemble3D<4,4>; }
@@ -349,10 +351,12 @@ void DomainLFGradIntegrator::AssembleDevice(const FiniteElementSpace &fes,
       auto C = Reshape(Qvec.HostWrite(), qvdim, nq, ne);
       for (int e = 0; e < ne; ++e)
       {
-         ElementTransformation& T = *fes.GetElementTransformation(e);
+         ElementTransformation& Tr = *fes.GetElementTransformation(e);
          for (int q = 0; q < nq; ++q)
          {
-            Q.Eval(qvec, T, ir->IntPoint(q));
+            const IntegrationPoint &ip = ir->IntPoint(q);
+            Tr.SetIntPoint(&ip);
+            Q.Eval(qvec, Tr, ip);
             for (int c=0; c < qvdim; ++c)
             {
                C(c,q,e) = qvec[c];
@@ -414,7 +418,9 @@ void VectorDomainLFGradIntegrator::AssembleDevice(const FiniteElementSpace &fes,
          ElementTransformation &Tr = *fes.GetElementTransformation(e);
          for (int q = 0; q < nq; ++q)
          {
-            Q.Eval(qvec, Tr, ir->IntPoint(q));
+            const IntegrationPoint &ip = ir->IntPoint(q);
+            Tr.SetIntPoint(&ip);
+            Q.Eval(qvec, Tr, ip);
             for (int c = 0; c<vdim; ++c) { C(c,q,e) = qvec[c]; }
          }
       }

@@ -11,7 +11,7 @@
 
 #include "mass.hpp"
 
-#include "../../config/config.hpp"
+#include "../../../../config/config.hpp"
 #ifdef MFEM_USE_CEED
 #include "mass_qf.h"
 #endif
@@ -28,7 +28,7 @@ struct MassOperatorInfo : public OperatorInfo
    MassContext ctx;
    MassOperatorInfo()
    {
-      header = "/mass_qf.h";
+      header = "/integrators/mass/mass_qf.h";
       build_func_const = ":f_build_mass_const";
       build_qf_const = &f_build_mass_const;
       build_func_quad = ":f_build_mass_quad";
