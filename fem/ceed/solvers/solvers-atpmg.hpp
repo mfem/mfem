@@ -12,11 +12,9 @@
 #ifndef MFEM_CEEDSOLVERS_ATPMG_H
 #define MFEM_CEEDSOLVERS_ATPMG_H
 
-#include "../../config/config.hpp"
+#include "../interface/ceed.hpp"
 
 #ifdef MFEM_USE_CEED
-
-#include <ceed.h>
 
 namespace mfem
 {
