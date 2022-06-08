@@ -453,8 +453,10 @@ public:
             status = Call();
          }
          mpi::Sync(status);
-         handle = DLopen(Lib_so()); // can be removed in the meantime
-         MFEM_VERIFY(handle, "[JIT] Error " << Lib_so() << " from " << Lib_ar());
+         handle = DLopen(Lib_so());
+         if (!handle) // happens when Lib_so is removed in the meantime
+         { return Lookup(hash, name, cxx, flags, link, libs, source, symbol); }
+         MFEM_VERIFY(handle, "[JIT] Error " << Lib_ar() << " => " << Lib_so());
       }
 
       auto WorldCompile = [&]() // but only root compiles
@@ -501,7 +503,7 @@ public:
             if (!Debug()) { std::remove(cc.c_str()); }
             // Update archive: ar += co
             io::FileLock ar_lock(Lib_ar(), "ak");
-            Command() << "ar -rv" << Lib_ar() << co;
+            Command() << "ar -r" << Lib_ar() << co; // v
             if (Call()) { return EXIT_FAILURE; }
             std::remove(co.c_str());
             // Create temporary shared library: (ar + co) => tmp
