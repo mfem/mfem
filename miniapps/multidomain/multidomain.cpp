@@ -324,8 +324,9 @@ int main(int argc, char *argv[])
                   "pause\n" << std::flush;
 
    // Create the transfer map needed in the time integration loop
-   auto *temperature_block_to_cylinder_map = ParSubMesh::CreateTransferMap(
-                                                temperature_block_gf, temperature_cylinder_gf);
+   auto temperature_block_to_cylinder_map = ParSubMesh::CreateTransferMap(
+                                                temperature_block_gf,
+                                                temperature_cylinder_gf);
 
    for (int ti = 1; !last_step; ti++)
    {
@@ -341,8 +342,8 @@ int main(int argc, char *argv[])
          // the cylinder outer surface to act as a boundary condition.
          temperature_block_gf.SetFromTrueDofs(temperature_block);
 
-         temperature_block_to_cylinder_map->Transfer(temperature_block_gf,
-                                                     temperature_cylinder_gf);
+         temperature_block_to_cylinder_map.Transfer(temperature_block_gf,
+                                                    temperature_cylinder_gf);
 
          temperature_cylinder_gf.GetTrueDofs(temperature_cylinder);
       }
@@ -368,8 +369,6 @@ int main(int argc, char *argv[])
                         std::flush;
       }
    }
-
-   delete temperature_block_to_cylinder_map;
 
    return 0;
 }
