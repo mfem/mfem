@@ -94,11 +94,10 @@ private:
 
    Array<int> K_smap;
    mutable Vector z;
-   const Vector M_lumped;
+   Vector *M_lumped;
 
 public:
-   FE_Evolution(ParBilinearForm &M_, ParBilinearForm &K_,
-                const Vector &b_, const Vector &Mlump);
+   FE_Evolution(ParBilinearForm &M_, ParBilinearForm &K_, const Vector &b_);
 
    /** FE_Evolution::build_dij_matrix
    Builds dij_matrix used in the low order approximation, which is based on
@@ -326,8 +325,7 @@ int main(int argc, char *argv[])
    m->Finalize();
    k->Finalize(skip_zeros);
 
-   Vector *Mlump = new Vector;
-   m->SpMat().GetDiag(*Mlump);
+   HypreParMatrix *M = m->ParallelAssemble();
    HypreParMatrix *K = k->ParallelAssemble();
    HypreParVector *B = b->ParallelAssemble();
 
@@ -423,7 +421,7 @@ int main(int argc, char *argv[])
    // 10. Define the time-dependent evolution operator describing the ODE
    //     right-hand side, and perform time-integration (looping over the time
    //     iterations, ti, with a time-step dt).
-   FE_Evolution adv(*m, *k, *B, *Mlump);
+   FE_Evolution adv(*m, *k, *B);
 
    double t = 0.0;
    adv.SetTime(t);
@@ -487,7 +485,6 @@ int main(int argc, char *argv[])
    //     using GLVis: "glvis -np <np> -m ex9-mesh -g ex9-final".
    {
       *u = *U;
-      cout << *u << endl;
       ostringstream sol_name;
       sol_name << "ex9p-continuous-final." << setfill('0') << setw(6) << myid;
       ofstream osol(sol_name.str().c_str());
@@ -521,18 +518,19 @@ int main(int argc, char *argv[])
 Implementation of class FE_Evolution
 */
 FE_Evolution::FE_Evolution(ParBilinearForm &M_, ParBilinearForm &K_,
-                           const Vector &b_, const Vector &Mlump)
+                           const Vector &b_)
    : TimeDependentOperator(M_.Height()),
      b(b_),
      pfes(*(M_.ParFESpace())),
-     M_solver(M_.ParFESpace()->GetComm()),
+     M_solver(pfes.GetComm()),
      z(M_.Height()),
-     M_lumped(Mlump),
      dij_matrix(&K_.SpMat()),
      D_form(&K_),
      K_mat(K_.SpMat()),
      K_smap()
 {
+   M_lumped = new Vector;
+   M_.SpMat().GetDiag(*M_lumped);
    if (M_.GetAssemblyLevel()==AssemblyLevel::LEGACY)
    {
       M.Reset(M_.ParallelAssemble(), true);
@@ -599,7 +597,6 @@ void FE_Evolution::ImplicitSolve(const double dt, const Vector &x, Vector &k)
 void FE_Evolution::build_dij_matrix(const Vector &U,
                                     const VectorFunctionCoefficient &velocity)
 {
-   cout << "Test 3\n";
    const int *I = K_mat.HostReadI(), *J = K_mat.HostReadJ(), n = K_mat.Size();
 
    const double *K_data = K_mat.HostReadData();
@@ -607,7 +604,6 @@ void FE_Evolution::build_dij_matrix(const Vector &U,
    double *D_data = dij_matrix->HostReadWriteData();
    dij_matrix->HostReadWriteI(); dij_matrix->HostReadWriteJ();
 
-   cout << "Test 4\n";
    for (int i = 0, k = 0; i < n; i++)
    {
       double rowsum = 0.;
@@ -627,9 +623,7 @@ void FE_Evolution::build_dij_matrix(const Vector &U,
       }
       (*dij_matrix)(i,i) = -rowsum;
    }
-   cout << "Test 1\n";
    D = D_form->ParallelAssemble(dij_matrix);
-   cout << "Test 5\n";
    /* Check that columns sum to 0. */
    // Vector test_v(U.Size());
    // test_v = 1.;
@@ -672,7 +666,7 @@ void FE_Evolution::Mult(const Vector &x, Vector &y) const
    // ApplyDijMatrix(u_gf, z);
 
    D->Mult(x, z);
-   z += b; // Neumann BCs
+   // z += b; // Neumann BCs
 
    Vector rhs(y.Size());
    K->Mult(x, rhs);
@@ -682,7 +676,7 @@ void FE_Evolution::Mult(const Vector &x, Vector &y) const
    const int s = y.Size();
    for (int i = 0; i < s; i++)
    {
-      y(i) = z(i) / M_lumped(i);
+      y(i) = z(i) / (*M_lumped)(i);
    }
 }
 
