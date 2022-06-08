@@ -133,27 +133,41 @@ public:
 
 
 /** A time-dependent operator for the right-hand side of the ODE. The CG weak
-    form of du/dt = -v.grad(u) is M du/dt = K u, where M and K are the mass
-    and advection matrices. This can be written as a general ODE,
+    form of du/dt = -v.grad(u) is M du/dt = (D + K) u, where M and K are the mass
+    and advection matrices, and D is the artificial viscosity matrix as
+    described in Guermond/Popov 2016. This can be written as a general ODE,
     du/dt = M^{-1} K u, and this class is used to evaluate the right-hand side.
 */
 class FE_Evolution : public TimeDependentOperator
 {
 private:
    OperatorHandle M, K;
+   ParBilinearForm *D_form;
    const Vector &b;
    Solver *M_prec;
    CGSolver M_solver;
 
-   mutable DenseMatrix dij_matrix;
-   mutable Vector z, d;
+   const SparseMatrix &K_mat;
+   mutable SparseMatrix *dij_matrix;
+   HypreParMatrix *D;
+
+   Array<int> K_smap;
+   mutable Vector z;
+   const Vector M_lumped;
+   ParFiniteElementSpace &pfes;
 
 public:
    FE_Evolution(ParBilinearForm &M_, ParBilinearForm &K_,
-                const Vector &b_, PrecType prec_type);
+                const Vector &b_, const Vector &Mlump,
+                PrecType prec_type);
 
-   void build_dij_matrix(const Vector &U, const ParBilinearForm &k,
-                         const VectorFunctionCoefficient &velocity) const;
+   /** FE_Evolution::build_dij_matrix
+   Builds dij_matrix used in the low order approximation, which is based on
+   Guermond/Popov 2016.
+   */
+   void build_dij_matrix(const Vector &U,
+                         const VectorFunctionCoefficient &velocity) ;
+   void ApplyDijMatrix(ParGridFunction &u, Vector &du) const;
    virtual void Mult(const Vector &x, Vector &y) const;
    virtual void ImplicitSolve(const double dt, const Vector &x, Vector &k);
 
@@ -330,6 +344,14 @@ int main(int argc, char *argv[])
       cout << "Number of unknowns: " << global_vSize << endl;
    }
 
+   // Array<int> ess_tdof_list;
+   // if (pmesh->bdr_attributes.Size())
+   // {
+   //    Array<int> ess_bdr(pmesh->bdr_attributes.Max());
+   //    ess_bdr = 1;
+   //    fes->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
+   // }
+
    // 8. Set up and assemble the parallel bilinear and linear forms (and the
    //    parallel hypre matrices) corresponding to the H1 discretization.
    VectorFunctionCoefficient velocity(dim, velocity_function);
@@ -370,13 +392,9 @@ int main(int argc, char *argv[])
    m->Finalize();
    k->Finalize(skip_zeros);
 
+   Vector *Mlump = new Vector;
+   m->SpMat().GetDiag(*Mlump);
    HypreParMatrix *K = k->ParallelAssemble();
-   // int temp = K->Size();
-   // for (int i = 0; i < temp - 1; i++)
-   // {
-   //    cout << "size: " << K->Elem(i, i+1) << endl;
-   // }
-
    HypreParVector *B = b->ParallelAssemble();
 
    // 9. Define the initial conditions, save the corresponding grid function to
@@ -447,7 +465,7 @@ int main(int argc, char *argv[])
       std::string postfix(mesh_file);
       postfix.erase(0, std::string("../data/").size() );
       postfix += "_o" + std::to_string(order);
-      const std::string collection_name = "ex9-p-Continuous-" + postfix + ".bp";
+      const std::string collection_name = "ex9p-continuous-" + postfix + ".bp";
 
       adios2_dc = new ADIOS2DataCollection(MPI_COMM_WORLD, collection_name, pmesh);
       // output data substreams are half the number of mpi processes
@@ -471,7 +489,7 @@ int main(int argc, char *argv[])
    // 10. Define the time-dependent evolution operator describing the ODE
    //     right-hand side, and perform time-integration (looping over the time
    //     iterations, ti, with a time-step dt).
-   FE_Evolution adv(*m, *k, *B, prec_type);
+   FE_Evolution adv(*m, *k, *B, *Mlump, prec_type);
 
    double t = 0.0;
    adv.SetTime(t);
@@ -480,7 +498,8 @@ int main(int argc, char *argv[])
    bool done = false;
    for (int ti = 0; !done; )
    {
-      adv.build_dij_matrix(*U, *k, velocity);
+      // Build new D matrix since this matrix is time dependent
+      adv.build_dij_matrix(*U, velocity);
       double dt_real = min(dt, t_final - t);
       ode_solver->Step(*U, t, dt_real);
       ti++;
@@ -536,7 +555,7 @@ int main(int argc, char *argv[])
       *u = *U;
       cout << *u << endl;
       ostringstream sol_name;
-      sol_name << "ex9-Continuous-final." << setfill('0') << setw(6) << myid;
+      sol_name << "ex9p-continuous-final." << setfill('0') << setw(6) << myid;
       ofstream osol(sol_name.str().c_str());
       osol.precision(precision);
       u->Save(osol);
@@ -564,15 +583,22 @@ int main(int argc, char *argv[])
 }
 
 
-// Implementation of class FE_Evolution
+/*
+Implementation of class FE_Evolution
+*/
 FE_Evolution::FE_Evolution(ParBilinearForm &M_, ParBilinearForm &K_,
-                           const Vector &b_, PrecType prec_type)
+                           const Vector &b_, const Vector &Mlump,
+                           PrecType prec_type)
    : TimeDependentOperator(M_.Height()),
      b(b_),
+     pfes(*(M_.ParFESpace())),
      M_solver(M_.ParFESpace()->GetComm()),
      z(M_.Height()),
-     d(M_.Height()),
-     dij_matrix(M_.Height())
+     M_lumped(Mlump),
+     dij_matrix(&K_.SpMat()),
+     D_form(&K_),
+     K_mat(K_.SpMat()),
+     K_smap()
 {
    if (M_.GetAssemblyLevel()==AssemblyLevel::LEGACY)
    {
@@ -606,8 +632,28 @@ FE_Evolution::FE_Evolution(ParBilinearForm &M_, ParBilinearForm &K_,
    M_solver.SetAbsTol(0.0);
    M_solver.SetMaxIter(100);
    M_solver.SetPrintLevel(0);
+
+   // Assuming K is finalized. (From extrapolator.)
+   // K_smap is used later to symmetrically form dij_matrix
+   const int *I = K_mat.GetI(), *J = K_mat.GetJ(), n = K_mat.Size();
+   K_smap.SetSize(I[n]);
+   for (int row = 0, j = 0; row < n; row++)
+   {
+      for (int end = I[row+1]; j < end; j++)
+      {
+         int col = J[j];
+         // Find the offset, _j, of the (col,row) entry and store it in smap[j].
+         for (int _j = I[col], _end = I[col+1]; true; _j++)
+         {
+            MFEM_VERIFY(_j != _end, "Can't find the symmetric entry!");
+
+            if (J[_j] == row) { K_smap[j] = _j; break; }
+         }
+      }
+   }
 }
 
+// TODO: Implement an ImplicitSolve function
 // Solve the equation:
 //    u_t = M^{-1}(Ku),
 // by solving associated linear system
@@ -617,56 +663,98 @@ void FE_Evolution::ImplicitSolve(const double dt, const Vector &x, Vector &k)
    K->Mult(x, z);
 }
 
-void FE_Evolution::build_dij_matrix(const Vector &U, const ParBilinearForm &k,
-                                    const VectorFunctionCoefficient &velocity) const
+void FE_Evolution::build_dij_matrix(const Vector &U,
+                                    const VectorFunctionCoefficient &velocity)
 {
-   int dim = U.Size();
-   const SparseMatrix k_mat = k.SpMat();
-   for (int i = 0; i < dim; i++)
+   cout << "Test 3\n";
+   const int *I = K_mat.HostReadI(), *J = K_mat.HostReadJ(), n = K_mat.Size();
+
+   const double *K_data = K_mat.HostReadData();
+
+   double *D_data = dij_matrix->HostReadWriteData();
+   dij_matrix->HostReadWriteI(); dij_matrix->HostReadWriteJ();
+
+   cout << "Test 4\n";
+   for (int i = 0, k = 0; i < n; i++)
    {
-      float i_sum = 0;
-      for (int j = 0; j < dim; j++)
+      double rowsum = 0.;
+      for (int end = I[i+1]; k < end; k++)
       {
-         if (i != j) {
-            // TODO: Can optimize for only solving for upper triangular portion
-            // then copy to lower portion.
-            double c_ij = k_mat.Elem(i,j);
-            double c_ji = k_mat.Elem(j,i);
-            // Compute Lambda_max
-            double lambda_max = max(abs(c_ij), abs(c_ji)) * 1.; // TODO: Implement Velocity here.
-            dij_matrix(i,j) = lambda_max;
-            i_sum += lambda_max;
-         }
-         // cout << "(" << i << "," << j << "): " << lambda_max << endl;
+         int j = J[k];
+         double kij = K_data[k];
+         double kji = K_data[K_smap[k]];
+         double dij = fmax(abs(kij),abs(kji));
+
+         D_data[k] = dij;
+         D_data[K_smap[k]] = dij;
+         if (i != j) { rowsum += dij; }
       }
-      dij_matrix(i,i) = -1 * i_sum;
+      (*dij_matrix)(i,i) = -rowsum;
    }
-   dij_matrix.Finalize(0); // Is this needed?
+   cout << "Test 1\n";
+   D = D_form->ParallelAssemble(dij_matrix);
+   cout << "Test 5\n";
+   /* Check that columns sum to 0. */
+   // Vector test_v(U.Size());
+   // test_v = 1.;
+   // cout << "Pre Result: " << test_v[2] << endl;
+   // D.MultTranspose(test_v, test_v);
+   // cout << "Post Result: " << test_v[2] << endl;
+
 }
+
+/* Deprecated now that ParallelAssemble() is implemented. */
+// void FE_Evolution::ApplyDijMatrix(ParGridFunction &u, Vector &du) const
+// {
+//    const int s = u.Size();
+//    const int *I = D.HostReadI(), *J = D.HostReadJ();
+//    const double *D_data = D.HostReadData();
+//
+//    u.ExchangeFaceNbrData();
+//    const Vector &u_np = u.FaceNbrData();
+//
+//    for (int i = 0; i < s; i++)
+//    {
+//       du(i) = 0.0;
+//       for (int k = I[i]; k < I[i + 1]; k++)
+//       {
+//          int j = J[k];
+//          double u_j  = (j < s) ? u(j) : u_np[j - s];
+//          double d_ij = D_data[k];
+//          du(i) += d_ij * u_j;
+//       }
+//    }
+// }
 
 void FE_Evolution::Mult(const Vector &x, Vector &y) const
 {
-   // y = Ml^{-1} (K x)
+   // y = Ml^{-1} ((D + K) x)
    // x = u
-   K->Mult(x, z);
-   z += b; // Neumann BCs
-   dij_matrix.Mult(x, d);
 
-   z += d;
-   M_solver.Mult(z, y);
+   /* Deprecated now that ParallelAssemble() is implemented. */
+   // ParGridFunction u_gf(&pfes);
+   // u_gf = x;
+   // ApplyDijMatrix(u_gf, z);
+
+   D->Mult(x, z);
+   z += b; // Neumann BCs
+
+   Vector rhs(y.Size());
+   K->Mult(x, rhs);
+   z+= rhs;
+
+   // M_solver.Mult(z, y);
+   const int s = y.Size();
+   for (int i = 0; i < s; i++)
+   {
+      y(i) = z(i) / M_lumped(i);
+   }
 }
-// void FE_Evolution::Mult(const Vector &x, Vector &y) const
-// {
-//    // y = M^{-1} (K x)
-//    K->Mult(x, z);
-//    M_solver.Mult(z, y);
-// }
 
 FE_Evolution::~FE_Evolution()
 {
    delete M_prec;
 }
-
 
 // Velocity coefficient
 void velocity_function(const Vector &x, Vector &v)
