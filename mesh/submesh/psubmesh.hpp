@@ -157,12 +157,10 @@ public:
     * The @a src ParGridFunction can either be defined on a ParMesh or a
     * ParSubMesh and is transferred appropriately.
     *
-    * The returned pointer can be stored, reused and must be deleted.
-    *
     * @note Either @a src or @a dst has to be defined on a ParSubMesh.
     */
-   static const ParTransferMap* CreateTransferMap(const ParGridFunction &src,
-                                                  const ParGridFunction &dst);
+   static ParTransferMap CreateTransferMap(const ParGridFunction &src,
+                                           const ParGridFunction &dst);
 
    /**
    * @brief Check if ParMesh @a m is a ParSubMesh.

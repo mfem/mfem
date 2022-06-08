@@ -148,12 +148,10 @@ public:
     * The @a src GridFunction can either be defined on a Mesh or a
     * SubMesh and is transferred appropriately.
     *
-    * The returned pointer can be stored, reused and must be deleted.
-    *
     * @note Either @a src or @a dst has to be defined on a SubMesh.
     */
-   static const TransferMap* CreateTransferMap(const GridFunction &src,
-                                               const GridFunction &dst);
+   static TransferMap CreateTransferMap(const GridFunction &src,
+                                        const GridFunction &dst);
 
    /**
    * @brief Check if Mesh @a m is a SubMesh.

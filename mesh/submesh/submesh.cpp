@@ -109,10 +109,10 @@ void SubMesh::Transfer(const GridFunction &src, GridFunction &dst)
    map.Transfer(src, dst);
 }
 
-const TransferMap* SubMesh::CreateTransferMap(const GridFunction &src,
-                                              const GridFunction &dst)
+TransferMap SubMesh::CreateTransferMap(const GridFunction &src,
+                                       const GridFunction &dst)
 {
-   return new TransferMap(src, dst);
+   return TransferMap(src, dst);
 }
 
 
