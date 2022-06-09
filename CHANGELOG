@@ -10,6 +10,15 @@
 
 Version 4.4.1 (development)
 ===========================
+
+New and updated examples and miniapps
+-------------------------------------
+- Added a new elasticity miniapp that showcases a low-level approach of using
+  MFEM to solve a nonlinear elasticity problem based on the fundamental finite
+  element operator decomposition. The miniapp also integrates with automatic
+  differentiation tools like a native dual number implementation or a third
+  party library such as Enzyme. See miniapps/elasticity for more details.
+
 - Added example for body-fitted volumetric and shape integration using the 
   Algoim library.
 
@@ -46,13 +55,6 @@ Version 4.4.1 (development)
 
 Version 4.4, released on March 21, 2022
 =======================================
-New and updated examples and miniapps
--------------------------------------
-- Added a new elasticity miniapp that showcases a low-level approach of using
-  MFEM to solve a nonlinear elasticity problem based on the fundamental finite
-  element operator decomposition. The miniapp also integrates with automatic
-  differentiation tools like a native dual number implementation or a third
-  party library such as Enzyme. See miniapps/elasticity for more details.
 
 Integrations, testing and documentation
 ---------------------------------------
