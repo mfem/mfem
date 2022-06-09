@@ -181,7 +181,7 @@ CalcGrad(const tensor<double, q1d, d1d> &B,
  * @param U Input vector q1d x q1d x q1d x dim.
  * @param F Output vector that applied the gradient evaluation from DOFs to
  * quadrature points in reference coordinates with contraction of the D operator
- * on the input vectro. Size is d1d x d1d x d1d x dim.
+ * on the input vector. Size is d1d x d1d x d1d x dim.
  */
 template <int dim, int d1d, int q1d>
 static inline MFEM_HOST_DEVICE void
