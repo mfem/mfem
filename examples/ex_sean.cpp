@@ -418,7 +418,7 @@ int main(int argc, char *argv[])
       // Declaring vectors for the mass and volume
       Vector el_mass(NE);
       Vector el_vol(NE);
-      Vector du_LO(u_HO.Size());
+      Vector u_LO(u_HO.Size());
 
       GeometricFactors geom(x, ir, GeometricFactors::DETERMINANTS);
       auto qi_u = u_HO.FESpace()->GetQuadratureInterpolator(ir);
@@ -440,10 +440,10 @@ int main(int argc, char *argv[])
       const int ndofs = u_HO.Size() / NE;
       for (int k = 0; k < NE; k++)
       {
-	 double u_LO = el_mass(k) / el_vol(k);
+	 double zone_avg = el_mass(k) / el_vol(k);
 	 for (int i = 0; i < ndofs; i++)
 	 {
-	   du_LO(k*ndofs + i) = (u_LO - u_HO(k*ndofs + 1)) / dt_real;
+	   u_LO(k*ndofs + i) = zone_avg;
 	 }
       }
       // END OF STUFF I CHANGED ---------------------------------------------
