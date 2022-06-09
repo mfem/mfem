@@ -152,7 +152,7 @@ int main(int argc, char *argv[])
    bool ea = false;
    bool fa = false;
    const char *device_config = "cpu";
-   int ode_solver_type = 4;
+   int ode_solver_type = 1;
    double t_final = 10.0;
    double dt = 0.01;
    bool visualization = true;
@@ -263,7 +263,7 @@ int main(int argc, char *argv[])
 
    // 5. Define the discontinuous DG finite element space of the given
    //    polynomial order on the refined mesh.
-   DG_FECollection fec(order, dim, BasisType::GaussLobatto);
+   DG_FECollection fec(order, dim, BasisType::Positive);
    FiniteElementSpace fes(&mesh, &fec);
 
    cout << "Number of unknowns: " << fes.GetVSize() << endl;
@@ -314,16 +314,16 @@ int main(int argc, char *argv[])
    // 7. Define the initial conditions, save the corresponding grid function to
    //    a file and (optionally) save data in the VisIt format and initialize
    //    GLVis visualization.
-   GridFunction u(&fes);
-   u.ProjectCoefficient(u0);
+   GridFunction u_HO(&fes);
+   u_HO.ProjectCoefficient(u0);
 
    {
-      ofstream omesh("ex9.mesh");
+      ofstream omesh("ex_sean.mesh");
       omesh.precision(precision);
       mesh.Print(omesh);
-      ofstream osol("ex9-init.gf");
+      ofstream osol("ex_sean-init.gf");
       osol.precision(precision);
-      u.Save(osol);
+      u_HO.Save(osol);
    }
 
    // Create data collection for solution output: either VisItDataCollection for
@@ -334,17 +334,17 @@ int main(int argc, char *argv[])
       if (binary)
       {
 #ifdef MFEM_USE_SIDRE
-         dc = new SidreDataCollection("Example9", &mesh);
+         dc = new SidreDataCollection("Example_sean", &mesh);
 #else
          MFEM_ABORT("Must build with MFEM_USE_SIDRE=YES for binary output.");
 #endif
       }
       else
       {
-         dc = new VisItDataCollection("Example9", &mesh);
+         dc = new VisItDataCollection("Example_sean", &mesh);
          dc->SetPrecision(precision);
       }
-      dc->RegisterField("solution", &u);
+      dc->RegisterField("solution", &u_HO);
       dc->SetCycle(0);
       dc->SetTime(0.0);
       dc->Save();
@@ -353,9 +353,9 @@ int main(int argc, char *argv[])
    ParaViewDataCollection *pd = NULL;
    if (paraview)
    {
-      pd = new ParaViewDataCollection("Example9", &mesh);
+      pd = new ParaViewDataCollection("Example_sean", &mesh);
       pd->SetPrefixPath("ParaView");
-      pd->RegisterField("solution", &u);
+      pd->RegisterField("solution", &u_HO);
       pd->SetLevelsOfDetail(order);
       pd->SetDataFormat(VTKFormat::BINARY);
       pd->SetHighOrderOutput(true);
@@ -380,7 +380,7 @@ int main(int argc, char *argv[])
       else
       {
          sout.precision(precision);
-         sout << "solution\n" << mesh << u;
+         sout << "solution\n" << mesh << u_HO;
          sout << "pause\n";
          sout << flush;
          cout << "GLVis visualization paused."
@@ -401,7 +401,53 @@ int main(int argc, char *argv[])
    for (int ti = 0; !done; )
    {
       double dt_real = min(dt, t_final - t);
-      ode_solver->Step(u, t, dt_real);
+      ode_solver->Step(u_HO, t, dt_real);
+
+      // MAIN CHANGES FROM EX 9 ------------------------------------------
+      // Implement the thing from Remhos that you looked at a lot
+      Mesh *mesh = fes.GetMesh();
+      GridFunction x(mesh->GetNodes()->FESpace());
+      mesh->GetNodes(x);
+      
+      auto *Tr = x.FESpace()->GetMesh()->GetElementTransformation(0);
+      const FiniteElement *fe = u_HO.FESpace()->GetFE(0);
+      const IntegrationRule &ir = MassIntegrator::GetRule(*fe, *fe, *Tr);
+      const int nqp = ir.GetNPoints();
+      const int NE = x.FESpace()->GetNE();
+
+      // Declaring vectors for the mass and volume
+      Vector el_mass(NE);
+      Vector el_vol(NE);
+      Vector du_LO(u_HO.Size());
+
+      GeometricFactors geom(x, ir, GeometricFactors::DETERMINANTS);
+      auto qi_u = u_HO.FESpace()->GetQuadratureInterpolator(ir);
+      Vector u_qvals(nqp * NE);
+      qi_u->Values(u_HO, u_qvals);
+
+      for (int k = 0; k < NE; k++)
+      {
+	 el_mass(k) = 0.0;
+	 el_vol(k) = 0.0;
+	 for (int q = 0; q < nqp; q++)
+	 {
+	    const IntegrationPoint &ip = ir.IntPoint(q);
+	    el_mass(k) += ip.weight * geom.detJ(k*nqp + q) * u_qvals(k*nqp + q);
+	    el_vol(k) += ip.weight * geom.detJ(k*nqp + q);
+	 }
+      }
+
+      const int ndofs = u_HO.Size() / NE;
+      for (int k = 0; k < NE; k++)
+      {
+	 double u_LO = el_mass(k) / el_vol(k);
+	 for (int i = 0; i < ndofs; i++)
+	 {
+	   du_LO(k*ndofs + i) = (u_LO - u_HO(k*ndofs + 1)) / dt_real;
+	 }
+      }
+      // END OF STUFF I CHANGED ---------------------------------------------
+      
       ti++;
 
       done = (t >= t_final - 1e-8*dt);
@@ -412,7 +458,7 @@ int main(int argc, char *argv[])
 
          if (visualization)
          {
-            sout << "solution\n" << mesh << u << flush;
+            sout << "solution\n" << mesh << u_HO << flush;
          }
 
          if (visit)
@@ -434,9 +480,9 @@ int main(int argc, char *argv[])
    // 9. Save the final solution. This output can be viewed later using GLVis:
    //    "glvis -m ex9.mesh -g ex9-final.gf".
    {
-      ofstream osol("ex9-final.gf");
+      ofstream osol("ex_sean-final.gf");
       osol.precision(precision);
-      u.Save(osol);
+      u_HO.Save(osol);
    }
 
    // 10. Free the used memory.
