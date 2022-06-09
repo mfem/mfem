@@ -47,11 +47,14 @@ constexpr int dimension = 3;
 int main(int argc, char *argv[])
 {
    Mpi::Init(argc, argv);
+   int num_procs = Mpi::WorldSize();
+   int myid = Mpi::WorldRank();
 
    int order = 1;
    const char *device_config = "cpu";
    int diagpc_type = ElasticityDiagonalPreconditioner::Type::Diagonal;
    int serial_refinement_levels = 0;
+   bool visualization = true;
    bool paraview = false;
 
    OptionsParser args(argc, argv);
@@ -64,6 +67,9 @@ int main(int argc, char *argv[])
                   " (0:Diagonal, 1:BlockDiagonal).");
    args.AddOption(&serial_refinement_levels, "-rs", "--ref-serial",
                   "Number of uniform refinements on the serial mesh.");
+   args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
+                  "--no-visualization",
+                  "Enable or disable GLVis visualization.");
    args.AddOption(&paraview, "-pv", "--paraview", "-no-pv",
                   "--no-paraview",
                   "Enable or disable ParaView DataCollection output.");
@@ -160,6 +166,16 @@ int main(int argc, char *argv[])
    newton.Mult(zero, U);
 
    U_gf.Distribute(U);
+
+   if (visualization)
+   {
+      char vishost[] = "localhost";
+      int  visport   = 19916;
+      socketstream sol_sock(vishost, visport);
+      sol_sock << "parallel " << num_procs << " " << myid << "\n";
+      sol_sock.precision(8);
+      sol_sock << "solution\n" << pmesh << U_gf << flush;
+   }
 
    if (paraview)
    {
