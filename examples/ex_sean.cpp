@@ -154,7 +154,7 @@ int main(int argc, char *argv[])
    const char *device_config = "cpu";
    int ode_solver_type = 1;
    double t_final = 10.0;
-   double dt = 0.01;
+   double dt = 0.001;
    bool visualization = true;
    bool visit = false;
    bool paraview = false;
@@ -440,6 +440,16 @@ int main(int argc, char *argv[])
    adv.SetTime(t);
    ode_solver->Init(adv);
 
+   Mesh *mesh_temp = fes.GetMesh();
+   GridFunction x(mesh_temp->GetNodes()->FESpace());
+   mesh_temp->GetNodes(x);
+   auto *Tr = x.FESpace()->GetMesh()->GetElementTransformation(0);
+
+   // Declaring vectors for the mass and volume
+   const int NE = x.FESpace()->GetNE();
+   Vector el_mass(NE);
+   Vector el_vol(NE);
+
    bool done = false;
    for (int ti = 0; !done; )
    {
@@ -448,20 +458,9 @@ int main(int argc, char *argv[])
 
       // MAIN CHANGES FROM EX 9 ------------------------------------------
       // Implement the thing from Remhos that you looked at a lot
-      Mesh *mesh = fes.GetMesh();
-      GridFunction x(mesh->GetNodes()->FESpace());
-      mesh->GetNodes(x);
-      
-      auto *Tr = x.FESpace()->GetMesh()->GetElementTransformation(0);
       const FiniteElement *fe = u_HO.FESpace()->GetFE(0);
       const IntegrationRule &ir = MassIntegrator::GetRule(*fe, *fe, *Tr);
       const int nqp = ir.GetNPoints();
-      const int NE = x.FESpace()->GetNE();
-
-      // Declaring vectors for the mass and volume
-      Vector el_mass(NE);
-      Vector el_vol(NE);
-      GridFunction u_LO(u_HO);
 
       GeometricFactors geom(x, ir, GeometricFactors::DETERMINANTS);
       auto qi_u = u_HO.FESpace()->GetQuadratureInterpolator(ir);
