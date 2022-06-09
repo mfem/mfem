@@ -154,7 +154,7 @@ int main(int argc, char *argv[])
    const char *device_config = "cpu";
    int ode_solver_type = 1;
    double t_final = 10.0;
-   double dt = 0.001;
+   double dt = 0.0001;
    bool visualization = true;
    bool visit = false;
    bool paraview = false;
