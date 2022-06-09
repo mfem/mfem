@@ -59,7 +59,7 @@ inline void CheckMemoryRestriction(int d1d, int q1d)
 /**
  * @brief Multi-component gradient evaluation from DOFs to quadrature points in
  * reference coordinates.
- * 
+ *
  * The implementation exploits sum factorization.
  *
  * @note DeviceTensor<2> means RANK=2
