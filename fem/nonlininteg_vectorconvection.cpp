@@ -11,7 +11,7 @@
 
 #include "../general/forall.hpp"
 #include "nonlininteg.hpp"
-#include "ceed/nlconvection.hpp"
+#include "ceed/integrators/nlconvection/nlconvection.hpp"
 
 using namespace std;
 
