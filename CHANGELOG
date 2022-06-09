@@ -48,11 +48,11 @@ Version 4.4, released on March 21, 2022
 =======================================
 New and updated examples and miniapps
 -------------------------------------
-- New elasticity miniapp that showcases a lower level approach of using MFEM.
-  Leveraging the transparent concept of the fundamental finite element operator
-  decomposition, a nonlinear elasticity problem is solved. This miniapp also
-  integrates with automatic differentiation tools like a native dual number
-  implementation or a third party approach using Enzyme.
+- Added a new elasticity miniapp that showcases a low-level approach of using
+  MFEM to solve a nonlinear elasticity problem based on the fundamental finite
+  element operator decomposition. The miniapp also integrates with automatic
+  differentiation tools like a native dual number implementation or a third
+  party library such as Enzyme. See miniapps/elasticity for more details.
 
 Integrations, testing and documentation
 ---------------------------------------
