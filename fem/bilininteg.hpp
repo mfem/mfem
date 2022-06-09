@@ -2941,6 +2941,7 @@ protected:
    const DofToQuad *maps;             ///< Not owned
    const FaceGeometricFactors *geom;  ///< Not owned
    int dim, nf, nq, dofs1D, quad1D;
+   Vector *external_vel = nullptr;
 
 private:
    Vector shape1, shape2;
@@ -2951,12 +2952,13 @@ public:
    { rho = NULL; u = &u_; alpha = a; beta = 0.5*a; }
 
    /// Construct integrator with rho = 1.
-   DGTraceIntegrator(VectorCoefficient &u_, double a, double b)
-   { rho = NULL; u = &u_; alpha = a; beta = b; }
+   DGTraceIntegrator(VectorCoefficient &u_, double a, double b, 
+                    Vector *external_vel_ = nullptr)
+   { rho = NULL; u = &u_; alpha = a; beta = b; external_vel = external_vel_;}
 
    DGTraceIntegrator(Coefficient &rho_, VectorCoefficient &u_,
                      double a, double b)
-   { rho = &rho_; u = &u_; alpha = a; beta = b; }
+   { rho = &rho_; u = &u_; alpha = a; beta = b;}
 
    using BilinearFormIntegrator::AssembleFaceMatrix;
    virtual void AssembleFaceMatrix(const FiniteElement &el1,

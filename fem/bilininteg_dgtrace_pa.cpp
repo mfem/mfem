@@ -159,6 +159,7 @@ void DGTraceIntegrator::SetupPA(const FiniteElementSpace &fes, FaceType type)
    quad1D = maps->nqpt;
    pa_data.SetSize(symmDims * nq * nf, Device::GetMemoryType());
    Vector vel;
+
    if (VectorConstantCoefficient *c_u = dynamic_cast<VectorConstantCoefficient*>
                                         (u))
    {
@@ -293,9 +294,21 @@ void DGTraceIntegrator::SetupPA(const FiniteElementSpace &fes, FaceType type)
       }
       MFEM_VERIFY(f_ind==nf, "Incorrect number of faces.");
    }
-   PADGTraceSetup(dim, dofs1D, quad1D, nf, ir->GetWeights(),
-                  geom->detJ, geom->normal, r, vel,
-                  alpha, beta, pa_data);
+
+   if (external_vel)
+   {
+
+      PADGTraceSetup(dim, dofs1D, quad1D, nf, ir->GetWeights(),
+                     geom->detJ, geom->normal, r, *external_vel,
+                     alpha, beta, pa_data);
+   }
+   else
+   {
+
+      PADGTraceSetup(dim, dofs1D, quad1D, nf, ir->GetWeights(),
+                     geom->detJ, geom->normal, r, vel,
+                     alpha, beta, pa_data);
+   }
 }
 
 void DGTraceIntegrator::AssemblePAInteriorFaces(const FiniteElementSpace& fes)
@@ -676,13 +689,16 @@ static void PADGTraceApply(const int dim,
                            const Vector &x,
                            Vector &y)
 {
+
    if (dim == 2)
    {
       switch ((D1D << 4 ) | Q1D)
       {
          case 0x22: return PADGTraceApply2D<2,2>(NF,B,Bt,op,x,y);
          case 0x33: return PADGTraceApply2D<3,3>(NF,B,Bt,op,x,y);
+         case 0x34: return PADGTraceApply2D<3,4>(NF,B,Bt,op,x,y);
          case 0x44: return PADGTraceApply2D<4,4>(NF,B,Bt,op,x,y);
+         case 0x46: return PADGTraceApply2D<4,6>(NF,B,Bt,op,x,y);
          case 0x55: return PADGTraceApply2D<5,5>(NF,B,Bt,op,x,y);
          case 0x66: return PADGTraceApply2D<6,6>(NF,B,Bt,op,x,y);
          case 0x77: return PADGTraceApply2D<7,7>(NF,B,Bt,op,x,y);
@@ -696,8 +712,8 @@ static void PADGTraceApply(const int dim,
       switch ((D1D << 4 ) | Q1D)
       {
          case 0x23: return SmemPADGTraceApply3D<2,3,1>(NF,B,Bt,op,x,y);
-         case 0x34: return SmemPADGTraceApply3D<3,4,2>(NF,B,Bt,op,x,y);
-         case 0x45: return SmemPADGTraceApply3D<4,5,2>(NF,B,Bt,op,x,y);
+         case 0x34: return SmemPADGTraceApply3D<3,4,1>(NF,B,Bt,op,x,y);
+         case 0x45: return SmemPADGTraceApply3D<4,5,1>(NF,B,Bt,op,x,y);
          case 0x56: return SmemPADGTraceApply3D<5,6,1>(NF,B,Bt,op,x,y);
          case 0x67: return SmemPADGTraceApply3D<6,7,1>(NF,B,Bt,op,x,y);
          case 0x78: return SmemPADGTraceApply3D<7,8,1>(NF,B,Bt,op,x,y);
@@ -1111,7 +1127,9 @@ static void PADGTraceApplyTranspose(const int dim,
       {
          case 0x22: return PADGTraceApplyTranspose2D<2,2>(NF,B,Bt,op,x,y);
          case 0x33: return PADGTraceApplyTranspose2D<3,3>(NF,B,Bt,op,x,y);
+         case 0x34: return PADGTraceApplyTranspose2D<3,4>(NF,B,Bt,op,x,y);
          case 0x44: return PADGTraceApplyTranspose2D<4,4>(NF,B,Bt,op,x,y);
+         case 0x46: return PADGTraceApplyTranspose2D<4,6>(NF,B,Bt,op,x,y);
          case 0x55: return PADGTraceApplyTranspose2D<5,5>(NF,B,Bt,op,x,y);
          case 0x66: return PADGTraceApplyTranspose2D<6,6>(NF,B,Bt,op,x,y);
          case 0x77: return PADGTraceApplyTranspose2D<7,7>(NF,B,Bt,op,x,y);
