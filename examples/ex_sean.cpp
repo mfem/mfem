@@ -317,6 +317,9 @@ int main(int argc, char *argv[])
    GridFunction u_HO(&fes);
    u_HO.ProjectCoefficient(u0);
 
+   GridFunction u_LO(u_HO);
+   u_LO.ProjectCoefficient(u0);
+
    {
       ofstream omesh("ex_sean.mesh");
       omesh.precision(precision);
@@ -328,49 +331,71 @@ int main(int argc, char *argv[])
 
    // Create data collection for solution output: either VisItDataCollection for
    // ascii data files, or SidreDataCollection for binary data files.
-   DataCollection *dc = NULL;
+   DataCollection *dc_HO = NULL;
+   DataCollection *dc_LO = NULL;
    if (visit)
    {
       if (binary)
       {
 #ifdef MFEM_USE_SIDRE
-         dc = new SidreDataCollection("Example_sean", &mesh);
+         dc_HO = new SidreDataCollection("Example_sean", &mesh);
+	 dc_LO = new SidreDataCollection("Example_sean", &mesh);
 #else
          MFEM_ABORT("Must build with MFEM_USE_SIDRE=YES for binary output.");
 #endif
       }
       else
       {
-         dc = new VisItDataCollection("Example_sean", &mesh);
-         dc->SetPrecision(precision);
+         dc_HO = new VisItDataCollection("Example_sean", &mesh);
+         dc_HO->SetPrecision(precision);
+
+	 dc_LO = new VisItDataCollection("Example_sean", &mesh);
+         dc_LO->SetPrecision(precision);
       }
-      dc->RegisterField("solution", &u_HO);
-      dc->SetCycle(0);
-      dc->SetTime(0.0);
-      dc->Save();
+      dc_HO->RegisterField("solution", &u_HO);
+      dc_HO->SetCycle(0);
+      dc_HO->SetTime(0.0);
+      dc_HO->Save();
+
+      dc_LO->RegisterField("solution", &u_LO);
+      dc_LO->SetCycle(0);
+      dc_LO->SetTime(0.0);
+      dc_LO->Save();
    }
 
-   ParaViewDataCollection *pd = NULL;
+   ParaViewDataCollection *pd_HO = NULL;
+   ParaViewDataCollection *pd_LO = NULL;
    if (paraview)
    {
-      pd = new ParaViewDataCollection("Example_sean", &mesh);
-      pd->SetPrefixPath("ParaView");
-      pd->RegisterField("solution", &u_HO);
-      pd->SetLevelsOfDetail(order);
-      pd->SetDataFormat(VTKFormat::BINARY);
-      pd->SetHighOrderOutput(true);
-      pd->SetCycle(0);
-      pd->SetTime(0.0);
-      pd->Save();
+      pd_HO = new ParaViewDataCollection("Example_sean", &mesh);
+      pd_HO->SetPrefixPath("ParaView");
+      pd_HO->RegisterField("solution", &u_HO);
+      pd_HO->SetLevelsOfDetail(order);
+      pd_HO->SetDataFormat(VTKFormat::BINARY);
+      pd_HO->SetHighOrderOutput(true);
+      pd_HO->SetCycle(0);
+      pd_HO->SetTime(0.0);
+      pd_HO->Save();
+
+      pd_LO = new ParaViewDataCollection("Example_sean", &mesh);
+      pd_LO->SetPrefixPath("ParaView");
+      pd_LO->RegisterField("solution", &u_LO);
+      pd_LO->SetLevelsOfDetail(order);
+      pd_LO->SetDataFormat(VTKFormat::BINARY);
+      pd_LO->SetHighOrderOutput(true);
+      pd_LO->SetCycle(0);
+      pd_LO->SetTime(0.0);
+      pd_LO->Save();
    }
 
-   socketstream sout;
+   socketstream sout_HO;
+   socketstream sout_LO;
    if (visualization)
    {
       char vishost[] = "localhost";
       int  visport   = 19916;
-      sout.open(vishost, visport);
-      if (!sout)
+      sout_HO.open(vishost, visport);
+      if (!sout_HO)
       {
          cout << "Unable to connect to GLVis server at "
               << vishost << ':' << visport << endl;
@@ -379,10 +404,28 @@ int main(int argc, char *argv[])
       }
       else
       {
-         sout.precision(precision);
-         sout << "solution\n" << mesh << u_HO;
-         sout << "pause\n";
-         sout << flush;
+         sout_HO.precision(precision);
+         sout_HO << "solution\n" << mesh << u_HO;
+         sout_HO << "pause\n";
+         sout_HO << flush;
+         cout << "GLVis visualization paused."
+              << " Press space (in the GLVis window) to resume it.\n";
+      }
+
+      sout_LO.open(vishost, visport);
+      if (!sout_LO)
+      {
+         cout << "Unable to connect to GLVis server at "
+              << vishost << ':' << visport << endl;
+         visualization = false;
+         cout << "GLVis visualization disabled.\n";
+      }
+      else
+      {
+         sout_LO.precision(precision);
+         sout_LO << "solution\n" << mesh << u_LO;
+         sout_LO << "pause\n";
+         sout_LO << flush;
          cout << "GLVis visualization paused."
               << " Press space (in the GLVis window) to resume it.\n";
       }
@@ -418,7 +461,7 @@ int main(int argc, char *argv[])
       // Declaring vectors for the mass and volume
       Vector el_mass(NE);
       Vector el_vol(NE);
-      Vector u_LO(u_HO.Size());
+      GridFunction u_LO(u_HO);
 
       GeometricFactors geom(x, ir, GeometricFactors::DETERMINANTS);
       auto qi_u = u_HO.FESpace()->GetQuadratureInterpolator(ir);
@@ -458,21 +501,30 @@ int main(int argc, char *argv[])
 
          if (visualization)
          {
-            sout << "solution\n" << mesh << u_HO << flush;
+            sout_HO << "solution\n" << mesh << u_HO << flush;
+	    sout_LO << "solution\n" << mesh << u_LO << flush;
          }
 
          if (visit)
          {
-            dc->SetCycle(ti);
-            dc->SetTime(t);
-            dc->Save();
+            dc_HO->SetCycle(ti);
+            dc_HO->SetTime(t);
+            dc_HO->Save();
+
+	    dc_LO->SetCycle(ti);
+            dc_LO->SetTime(t);
+            dc_LO->Save();
          }
 
          if (paraview)
          {
-            pd->SetCycle(ti);
-            pd->SetTime(t);
-            pd->Save();
+            pd_HO->SetCycle(ti);
+            pd_HO->SetTime(t);
+            pd_HO->Save();
+
+	    dc_LO->SetCycle(ti);
+            dc_LO->SetTime(t);
+            dc_LO->Save();
          }
       }
    }
@@ -480,15 +532,21 @@ int main(int argc, char *argv[])
    // 9. Save the final solution. This output can be viewed later using GLVis:
    //    "glvis -m ex9.mesh -g ex9-final.gf".
    {
-      ofstream osol("ex_sean-final.gf");
-      osol.precision(precision);
-      u_HO.Save(osol);
+      ofstream osol_HO("ex_sean-final_HO.gf");
+      osol_HO.precision(precision);
+      u_HO.Save(osol_HO);
+
+      ofstream osol_LO("ex_sean-final_LO.gf");
+      osol_LO.precision(precision);
+      u_LO.Save(osol_LO);
    }
 
    // 10. Free the used memory.
    delete ode_solver;
-   delete pd;
-   delete dc;
+   delete pd_LO;
+   delete pd_HO;
+   delete dc_LO;
+   delete pd_HO;
 
    return 0;
 }
