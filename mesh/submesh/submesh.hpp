@@ -53,7 +53,7 @@ public:
    SubMesh() = delete;
 
    /**
-    * @brief Create a domain SubMesh from it's parent.
+    * @brief Create a domain SubMesh from its parent.
     *
     * The SubMesh object expects the parent Mesh object to be valid for the
     * entire object lifetime. The @a domain_attributes have to mark exactly one
@@ -66,7 +66,7 @@ public:
                                    Array<int> domain_attributes);
 
    /**
-   * @brief Create a surface SubMesh from it's parent.
+   * @brief Create a surface SubMesh from its parent.
    *
    * The SubMesh object expects the parent Mesh object to be valid for the
    * entire object lifetime. The @a boundary_attributes have to mark exactly one

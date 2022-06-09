@@ -27,17 +27,17 @@ namespace mfem
 /**
  * @brief Subdomain representation of a topological parent in another ParMesh.
  *
- * ParSubMesh is a subdomain representation of a ParMesh defined on it's parents
+ * ParSubMesh is a subdomain representation of a ParMesh defined on its parents
  * attributes. The current implementation creates either a domain or surface
  * subset of the parents Mesh and reuses the parallel distribution.
  *
  * The attributes are taken from the parent. That means if a volume is extracted
- * from a volume, it has the same domain attribute as the parent. It's boundary
+ * from a volume, it has the same domain attribute as the parent. Its boundary
  * attributes are generated (there will be one boundary attribute 1 for all of
  * the boundaries).
  *
  * If a surface is extracted from a volume, the boundary attribute from the
- * parent is assigned to be the new domain attribute. It's boundary attributes
+ * parent is assigned to be the new domain attribute. Its boundary attributes
  * are generated (there will be one boundary attribute 1 for all of the
  * boundaries).
  *
