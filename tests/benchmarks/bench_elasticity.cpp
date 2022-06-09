@@ -23,7 +23,7 @@ using namespace mfem::internal; // for IsotropicIdentity
 struct ElasticityBench
 {
    static constexpr int DIM = 3;
-   using material_t = NeoHookeanMaterial<DIM, GradientType::DualNumbers>;
+   using material_t = NeoHookeanMaterial<DIM, GradientType::InternalFwd>;
 
    const int p, c, q, n, nx, ny, nz;
    Mesh mesh;
