@@ -9,33 +9,27 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-#ifndef MFEM_CEED_ASSEMBLE_HPP
-#define MFEM_CEED_ASSEMBLE_HPP
-
-#include "../../config/config.hpp"
+#ifndef MFEM_LIBCEED_CEED
+#define MFEM_LIBCEED_CEED
 
 #ifdef MFEM_USE_CEED
 #include <ceed.h>
-#include "../../linalg/sparsemat.hpp"
+#if !CEED_VERSION_GE(0,10,0)
+#error MFEM requires a libCEED version >= 0.10.0
+#endif
 
 namespace mfem
 {
 
-namespace ceed
+namespace internal
 {
 
-/** @brief Assembles a CeedOperator as an mfem::SparseMatrix
+extern Ceed ceed;
 
-    In parallel, this assembles independently on each processor, that is, it
-    assembles at the L-vector level. The assembly procedure is always performed
-    on the host, but this works also for operators stored on device by copying
-    memory. */
-int CeedOperatorFullAssemble(CeedOperator op, SparseMatrix **mat);
-
-} // namespace ceed
+} // namespace internal
 
 } // namespace mfem
 
-#endif
+#endif // MFEM_USE_CEED
 
-#endif
+#endif // MFEM_LIBCEED_CEED
