@@ -275,7 +275,7 @@ void FaceQuadratureFunction::ProjectSymmetricCoefficient(
 }
 
 void FaceQuadratureFunction::ProjectCoefficient(MatrixCoefficient &coeff,
-                                            bool transpose)
+                                                bool transpose)
 {
    coeff.Project(*this, transpose);
 }
