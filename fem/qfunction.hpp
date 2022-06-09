@@ -78,7 +78,8 @@ public:
    ///
    /// @note The coefficient is stored as a full (non-symmetric) matrix.
    /// @sa ProjectSymmetricCoefficient.
-   virtual void ProjectCoefficient(MatrixCoefficient &coeff, bool transpose=false) = 0;
+   virtual void ProjectCoefficient(MatrixCoefficient &coeff,
+                                   bool transpose=false) = 0;
 
    /// Return all values associated with mesh element @a idx in a Vector.
    /** The result is stored in the Vector @a values as a reference to the

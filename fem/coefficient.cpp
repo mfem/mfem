@@ -771,7 +771,8 @@ void MatrixFunctionCoefficient::EvalSymmetric(Vector &K,
    }
 }
 
-void SymmetricMatrixCoefficient::ProjectSymmetricBase(QuadratureFunctionBase &qf)
+void SymmetricMatrixCoefficient::ProjectSymmetricBase(QuadratureFunctionBase
+                                                      &qf)
 {
    const int vdim = qf.GetVDim();
    MFEM_ASSERT(vdim == height*(height+1)/2, "Wrong sizes.");
