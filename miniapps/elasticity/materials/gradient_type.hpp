@@ -17,8 +17,8 @@ enum class GradientType
    Symbolic, // Manually derived gradient
    EnzymeFwd, // Enzyme forward mode
    EnzymeRev, // Enzyme reverse mode
-   FiniteDiff, // finite differences
-   InternalFwd // native dual number forward mode
+   FiniteDiff, // Finite differences
+   InternalFwd // Native dual number forward mode
 };
 
 #endif
