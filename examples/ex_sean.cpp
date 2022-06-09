@@ -54,6 +54,13 @@ using namespace mfem;
 // inflow boundary condition are chosen based on this parameter.
 int problem;
 
+// Calculate the Low Order Solution
+void CalculateLOSolution(const GridFunction &u_HO,
+			 const GridFunction &x,
+			 GridFunction &u_LO,
+			 Vector &el_mass,
+			 Vector &el_vol);
+
 // Velocity coefficient
 void velocity_function(const Vector &x, Vector &v);
 
@@ -443,7 +450,7 @@ int main(int argc, char *argv[])
    Mesh *mesh_temp = fes.GetMesh();
    GridFunction x(mesh_temp->GetNodes()->FESpace());
    mesh_temp->GetNodes(x);
-   auto *Tr = x.FESpace()->GetMesh()->GetElementTransformation(0);
+   //auto *Tr = x.FESpace()->GetMesh()->GetElementTransformation(0);
 
    // Declaring vectors for the mass and volume
    const int NE = x.FESpace()->GetNE();
@@ -456,40 +463,9 @@ int main(int argc, char *argv[])
       double dt_real = min(dt, t_final - t);
       ode_solver->Step(u_HO, t, dt_real);
 
-      // MAIN CHANGES FROM EX 9 ------------------------------------------
-      // Implement the thing from Remhos that you looked at a lot
-      const FiniteElement *fe = u_HO.FESpace()->GetFE(0);
-      const IntegrationRule &ir = MassIntegrator::GetRule(*fe, *fe, *Tr);
-      const int nqp = ir.GetNPoints();
-
-      GeometricFactors geom(x, ir, GeometricFactors::DETERMINANTS);
-      auto qi_u = u_HO.FESpace()->GetQuadratureInterpolator(ir);
-      Vector u_qvals(nqp * NE);
-      qi_u->Values(u_HO, u_qvals);
-
-      for (int k = 0; k < NE; k++)
-      {
-	 el_mass(k) = 0.0;
-	 el_vol(k) = 0.0;
-	 for (int q = 0; q < nqp; q++)
-	 {
-	    const IntegrationPoint &ip = ir.IntPoint(q);
-	    el_mass(k) += ip.weight * geom.detJ(k*nqp + q) * u_qvals(k*nqp + q);
-	    el_vol(k) += ip.weight * geom.detJ(k*nqp + q);
-	 }
-      }
-
-      const int ndofs = u_HO.Size() / NE;
-      for (int k = 0; k < NE; k++)
-      {
-	 double zone_avg = el_mass(k) / el_vol(k);
-	 for (int i = 0; i < ndofs; i++)
-	 {
-	   u_LO(k*ndofs + i) = zone_avg;
-	 }
-      }
-      // END OF STUFF I CHANGED ---------------------------------------------
-      
+      // Calculate the LO solution using u_HO
+      CalculateLOSolution(u_HO, x, u_LO, el_mass, el_vol);
+            
       ti++;
 
       done = (t >= t_final - 1e-8*dt);
@@ -548,6 +524,52 @@ int main(int argc, char *argv[])
    delete pd_HO;
 
    return 0;
+}
+
+// Calculate the Low Order solution
+void CalculateLOSolution(const GridFunction &u_HO,
+			 const GridFunction &x,
+			 GridFunction &u_LO,
+			 Vector &el_mass,
+			 Vector &el_vol)
+{
+  // Grabbing information from the finite element space
+   auto *Tr = x.FESpace()->GetMesh()->GetElementTransformation(0);
+   const int NE = x.FESpace()->GetNE();
+
+   const FiniteElement *fe = u_HO.FESpace()->GetFE(0);
+   const IntegrationRule &ir = MassIntegrator::GetRule(*fe, *fe, *Tr);
+   const int nqp = ir.GetNPoints();
+
+   // Grabbing information from the quadrature
+   GeometricFactors geom(x, ir, GeometricFactors::DETERMINANTS);
+   auto qi_u = u_HO.FESpace()->GetQuadratureInterpolator(ir);
+   Vector u_qvals(nqp * NE);
+   qi_u->Values(u_HO, u_qvals);
+
+   // Quadrature for calculating the mass and volume
+   for (int k = 0; k < NE; k++)
+   {
+      el_mass(k) = 0.0;
+      el_vol(k) = 0.0;
+      for (int q = 0; q < nqp; q++)
+      {
+         const IntegrationPoint &ip = ir.IntPoint(q);
+         el_mass(k) += ip.weight * geom.detJ(k*nqp + q) * u_qvals(k*nqp + q);
+         el_vol(k) += ip.weight * geom.detJ(k*nqp + q);
+      }
+   }
+
+   // Apply the averaging
+   const int ndofs = u_HO.Size() / NE;
+   for (int k = 0; k < NE; k++)
+   {
+      double zone_avg = el_mass(k) / el_vol(k);
+      for (int i = 0; i < ndofs; i++)
+      {
+         u_LO(k*ndofs + i) = zone_avg;
+      }
+   }
 }
 
 
