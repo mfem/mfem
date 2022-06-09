@@ -138,7 +138,7 @@ struct NeoHookeanMaterial
       {
          return action_of_gradient_finite_diff(dudx, ddudx);
       }
-      else if (gradient_type == GradientType::DualNumbers)
+      else if (gradient_type == GradientType::InternalFwd)
       {
          return action_of_gradient_dual(dudx, ddudx);
       }
