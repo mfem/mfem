@@ -56,10 +56,10 @@ New and updated examples and miniapps
 
 Integrations, testing and documentation
 ---------------------------------------
-- Support for the automatic differentiation LLVM plugin Enzyme
-  (https://github.com/EnzymeAD/Enzyme). Includes build system flags and a
-  convenience header. The functionality and interaction is demonstrated in the
-  new elasticity miniapp.
+- Added support for the LLVM-based automatic differentiation tool Enzyme, see
+  https://github.com/EnzymeAD/Enzyme. Build system flags and a convenience
+  header are provided. The functionality and interaction are demonstrated in a
+  new miniapp in miniapps/elasticity.
 
 
 Linear and nonlinear solvers
