@@ -211,6 +211,7 @@ static void DLFEvalAssemble(const FiniteElementSpace &fes,
 
    if (dim==2)
    {
+      if (d==1 && q==1) { ker=DLFEvalAssemble2D<1,1>; }
       if (d==2 && q==2) { ker=DLFEvalAssemble2D<2,2>; }
       if (d==3 && q==3) { ker=DLFEvalAssemble2D<3,3>; }
       if (d==4 && q==4) { ker=DLFEvalAssemble2D<4,4>; }
@@ -223,6 +224,7 @@ static void DLFEvalAssemble(const FiniteElementSpace &fes,
 
    if (dim==3)
    {
+      if (d==1 && q==1) { ker=DLFEvalAssemble3D<1,1>; }
       if (d==2 && q==2) { ker=DLFEvalAssemble3D<2,2>; }
       if (d==3 && q==3) { ker=DLFEvalAssemble3D<3,3>; }
       if (d==4 && q==4) { ker=DLFEvalAssemble3D<4,4>; }
@@ -280,10 +282,12 @@ void DomainLFIntegrator::AssembleDevice(const FiniteElementSpace &fes,
       auto C = Reshape(coeff.HostWrite(), nq, ne);
       for (int e = 0; e < ne; ++e)
       {
-         ElementTransformation& T = *fes.GetElementTransformation(e);
+         ElementTransformation& Tr = *fes.GetElementTransformation(e);
          for (int q = 0; q < nq; ++q)
          {
-            C(q,e) = Q.Eval(T, ir->IntPoint(q));
+            const IntegrationPoint &ip = ir->IntPoint(q);
+            Tr.SetIntPoint(&ip);
+            C(q,e) = Q.Eval(Tr, ip);
          }
       }
    }
@@ -325,10 +329,12 @@ void VectorDomainLFIntegrator::AssembleDevice(const FiniteElementSpace &fes,
       auto C = Reshape(Qvec.HostWrite(), vdim, nq, ne);
       for (int e = 0; e < ne; ++e)
       {
-         ElementTransformation& T = *fes.GetElementTransformation(e);
+         ElementTransformation& Tr = *fes.GetElementTransformation(e);
          for (int q = 0; q < nq; ++q)
          {
-            Q.Eval(qv, T, ir->IntPoint(q));
+            const IntegrationPoint &ip = ir->IntPoint(q);
+            Tr.SetIntPoint(&ip);
+            Q.Eval(qv, Tr, ip);
             for (int c=0; c<vdim; ++c) { C(c,q,e) = qv[c]; }
          }
       }

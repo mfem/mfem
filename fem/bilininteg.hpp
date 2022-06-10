@@ -15,6 +15,7 @@
 #include "../config/config.hpp"
 #include "nonlininteg.hpp"
 #include "fespace.hpp"
+#include "ceed/interface/util.hpp"
 
 namespace mfem
 {
@@ -2397,8 +2398,9 @@ public:
     scalar function given by FiniteElement through standard transformation.
     Here, u is the trial function and p is the test function.
 
-    Note: the element matrix returned by AssembleElementMatrix2 does NOT depend
-    on the ElementTransformation Trans. */
+    Note: if the test space does not have map type INTEGRAL, then the element
+    matrix returned by AssembleElementMatrix2 will not depend on the
+    ElementTransformation Trans. */
 class VectorFEDivergenceIntegrator : public BilinearFormIntegrator
 {
 protected:
