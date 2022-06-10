@@ -466,9 +466,11 @@ void FiniteElementSpace::BuildDofToArrays()
    dof_elem_array.SetSize (ndofs);
    dof_ldof_array.SetSize (ndofs);
    dof_elem_array = -1;
+   elem_dof->HostReadI();
+   elem_dof->HostReadJ();
    for (int i = 0; i < mesh -> GetNE(); i++)
    {
-      const int *dofs = elem_dof -> GetRow(i);
+      const int *dofs = AsConst(*elem_dof).GetRow(i);
       const int n = elem_dof -> RowSize(i);
       for (int j = 0; j < n; j++)
       {
