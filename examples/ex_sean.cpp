@@ -161,12 +161,13 @@ int main(int argc, char *argv[])
    const char *device_config = "cpu";
    int ode_solver_type = 1;
    double t_final = 10.0;
-   double dt = 0.0001;
+   double dt = 0.001;
    bool visualization = true;
    bool visit = false;
    bool paraview = false;
    bool binary = false;
    int vis_steps = 5;
+   string direction;
 
    int precision = 8;
    cout.precision(precision);
@@ -229,6 +230,10 @@ int main(int argc, char *argv[])
    Mesh mesh(mesh_file, 1, 1);
    int dim = mesh.Dimension();
 
+   // Create the low-order refined mesh
+   int basis_lor = BasisType::GaussLobatto;
+   Mesh mesh_lor = Mesh::MakeRefined(mesh, ref_levels, basis_lor);
+
    // 3. Define the ODE solver used for time integration. Several explicit
    //    Runge-Kutta methods are available.
    ODESolver *ode_solver = NULL;
@@ -273,6 +278,10 @@ int main(int argc, char *argv[])
    DG_FECollection fec(order, dim, BasisType::Positive);
    FiniteElementSpace fes(&mesh, &fec);
 
+   // Discontinuous FE space for LOR
+   //DG_FECollection fec_lor(order, dim, BasisType::Positive);
+   //FiniteElementSpace fes_lor(&mesh_lor, &fec_lor);
+   
    cout << "Number of unknowns: " << fes.GetVSize() << endl;
 
    // 6. Set up and assemble the bilinear and linear forms corresponding to the
@@ -281,9 +290,13 @@ int main(int argc, char *argv[])
    VectorFunctionCoefficient velocity(dim, velocity_function);
    FunctionCoefficient inflow(inflow_function);
    FunctionCoefficient u0(u0_function);
-
+   
    BilinearForm m(&fes);
    BilinearForm k(&fes);
+
+   // Bilinear forms for the lor space
+   //BilinearForm m_lor(&fes_lor);
+   //BilinearForm k_lor(&fes_lor);
    if (pa)
    {
       m.SetAssemblyLevel(AssemblyLevel::PARTIAL);
@@ -300,23 +313,42 @@ int main(int argc, char *argv[])
       k.SetAssemblyLevel(AssemblyLevel::FULL);
    }
    m.AddDomainIntegrator(new MassIntegrator);
+   //m_lor.AddDomainIntegrator(new MassIntegrator);
+   
    constexpr double alpha = -1.0;
    k.AddDomainIntegrator(new ConvectionIntegrator(velocity, alpha));
    k.AddInteriorFaceIntegrator(
       new NonconservativeDGTraceIntegrator(velocity, alpha));
    k.AddBdrFaceIntegrator(
       new NonconservativeDGTraceIntegrator(velocity, alpha));
-
+   /*
+   k_lor.AddDomainIntegrator(new ConvectionIntegrator(velocity, alpha));
+   k_lor.AddInteriorFaceIntegrator(
+      new NonconservativeDGTraceIntegrator(velocity, alpha));
+   k_lor.AddBdrFaceIntegrator(
+      new NonconservativeDGTraceIntegrator(velocity, alpha));
+   */
    LinearForm b(&fes);
+   //LinearForm b_lor(&fes_lor);
    b.AddBdrFaceIntegrator(
       new BoundaryFlowIntegrator(inflow, velocity, alpha));
+   //b_lor.AddBdrFaceIntegrator(
+   //   new BoundaryFlowIntegrator(inflow, velocity, alpha));
+
+   // 
 
    m.Assemble();
+   //m_lor.Assemble();
+   
    int skip_zeros = 0;
    k.Assemble(skip_zeros);
+   //k_lor.Assemble(skip_zeros);
    b.Assemble();
+   //b_lor.Assemble();
    m.Finalize();
+   //m_lor.Finalize();
    k.Finalize(skip_zeros);
+   //k_lor.Finalize(skip_zeros);
 
    // 7. Define the initial conditions, save the corresponding grid function to
    //    a file and (optionally) save data in the VisIt format and initialize
@@ -326,6 +358,10 @@ int main(int argc, char *argv[])
 
    GridFunction u_LO(u_HO);
    u_LO.ProjectCoefficient(u0);
+
+   // Stuff for LOR
+   //GridFunction u_LOR(&fes_lor);
+   //u_LOR.ProjectCoefficient(u0); // Not sure this is necessary
 
    {
       ofstream omesh("ex_sean.mesh");
@@ -447,10 +483,17 @@ int main(int argc, char *argv[])
    adv.SetTime(t);
    ode_solver->Init(adv);
 
+   // Need to declare these variables for calculating u_LO
+   // NOTE WE PROBABLY DON'T NEED TO DO THIS, REVISIT THIS SEAN
    Mesh *mesh_temp = fes.GetMesh();
    GridFunction x(mesh_temp->GetNodes()->FESpace());
    mesh_temp->GetNodes(x);
-   //auto *Tr = x.FESpace()->GetMesh()->GetElementTransformation(0);
+
+   // Same as above but we do this for LOR
+   //Mesh *mesh_temp_LOR = fes_lor.GetMesh();
+   //GridFunction x_lor(mesh_temp_LOR->GetNodes()->FESpace());
+   //mesh_temp_LOR->GetNodes();
+   
 
    // Declaring vectors for the mass and volume
    const int NE = x.FESpace()->GetNE();
@@ -463,9 +506,26 @@ int main(int argc, char *argv[])
       double dt_real = min(dt, t_final - t);
       ode_solver->Step(u_HO, t, dt_real);
 
+      // HO projection (I think)
+      direction = "HO -> LOR @ HO";
+      
       // Calculate the LO solution using u_HO
+      // For LOR, I don't think we need u_LO, but we'll keep it jic
       CalculateLOSolution(u_HO, x, u_LO, el_mass, el_vol);
-            
+
+      // NEW NEW stuff ----------------------------------------------------
+      //GridTransfer *gt;
+      //gt = new L2ProjectionGridTransfer(fes, fes_lor);
+
+      //const Operator &R = gt->ForwardOperator();
+      //const Operator &P = gt->BackwardOperator();
+
+      // LOR->HO prolongation (whatever that means)
+      direction = "HO -> LOR @ LOR";
+      //R.Mult(u_HO, u_LOR);
+      
+      //CalculateLOSolution(u_HO, x_lor, u_LOR, el_mass, el_vol);
+      // END of new stuff -------------------------------------------------      
       ti++;
 
       done = (t >= t_final - 1e-8*dt);
