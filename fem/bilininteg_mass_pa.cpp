@@ -13,7 +13,7 @@
 #include "bilininteg.hpp"
 #include "gridfunc.hpp"
 #include "qfunction.hpp"
-#include "ceed/mass.hpp"
+#include "ceed/integrators/mass/mass.hpp"
 
 using namespace std;
 

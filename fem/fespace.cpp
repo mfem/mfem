@@ -15,7 +15,7 @@
 #include "../general/forall.hpp"
 #include "../mesh/mesh_headers.hpp"
 #include "fem.hpp"
-#include "ceed/util.hpp"
+#include "ceed/interface/util.hpp"
 
 #include <cmath>
 #include <cstdarg>
