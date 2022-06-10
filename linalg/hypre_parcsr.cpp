@@ -1560,8 +1560,8 @@ void hypre_ParCSRMatrixAbsMatvecT(hypre_ParCSRMatrix *A,
 
    if (num_cols_offd)
    {
-#if MFEM_HYPRE_VERSION >= 21100
-      if (A->offdT)
+#if MFEM_HYPRE_VERSION >= 21100 && 0
+      if (A->offdT) //need a gpu version
       {
          // offdT is optional. Used only if it's present.
          hypre_CSRMatrixAbsMatvec(A->offdT, alpha, x, 0., y_tmp);
@@ -1575,8 +1575,8 @@ void hypre_ParCSRMatrixAbsMatvecT(hypre_ParCSRMatrix *A,
 
    comm_handle = hypre_ParCSRCommHandleCreate(2, comm_pkg, y_tmp, y_buf);
 
-#if MFEM_HYPRE_VERSION >= 21100
-   if (A->diagT)
+#if MFEM_HYPRE_VERSION >= 21100 && 0
+   if (A->diagT) //need a gpu version
    {
       // diagT is optional. Used only if it's present.
       hypre_CSRMatrixAbsMatvec(A->diagT, alpha, x, beta, y);
