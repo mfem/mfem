@@ -84,23 +84,20 @@ private:
    ParFiniteElementSpace &pfes;
    Array<int> ess_tdof_list; // this list remains empty for pure Neumann b.c.
 
-   OperatorHandle M, K;
    HypreParMatrix Mmat, Kmat;
    const SparseMatrix K_spmat;
    ParBilinearForm *D_form;
-   const Vector &b;
-   HypreSmoother M_prec;
-   CGSolver M_solver;
+   HypreSolver *M_prec;
+   HyprePCG M_solver; // Symmetric system, can use CG
 
    mutable SparseMatrix dij_matrix;
    HypreParMatrix *D;
 
    Array<int> K_smap;
    mutable Vector z;
-   Vector *M_lumped;
 
 public:
-   FE_Evolution(ParBilinearForm &M_, ParBilinearForm &K_, const Vector &b_);
+   FE_Evolution(ParBilinearForm &M_, ParBilinearForm &K_);
 
    /** FE_Evolution::build_dij_matrix
    Builds dij_matrix used in the low order approximation, which is based on
@@ -324,13 +321,11 @@ int main(int argc, char *argv[])
    int skip_zeros = 0;
    m->Assemble();
    k->Assemble(skip_zeros);
-   b->Assemble();
-   m->Finalize();
+   // m->Finalize();
    k->Finalize(skip_zeros);
-
-   HypreParMatrix *M = m->ParallelAssemble();
+   //
+   // HypreParMatrix *M = m->ParallelAssemble();
    HypreParMatrix *K = k->ParallelAssemble();
-   HypreParVector *B = b->ParallelAssemble();
 
    // 9. Define the initial conditions, save the corresponding grid function to
    //    a file and (optionally) save data in the VisIt format and initialize
@@ -424,7 +419,7 @@ int main(int argc, char *argv[])
    // 10. Define the time-dependent evolution operator describing the ODE
    //     right-hand side, and perform time-integration (looping over the time
    //     iterations, ti, with a time-step dt).
-   FE_Evolution adv(*m, *k, *B);
+   FE_Evolution adv(*m, *k);
 
    double t = 0.0;
    adv.SetTime(t);
@@ -500,7 +495,6 @@ int main(int argc, char *argv[])
    delete u;
    delete k;
    delete m;
-   delete b;
    delete fes;
    delete pmesh;
    delete ode_solver;
@@ -520,10 +514,8 @@ int main(int argc, char *argv[])
 /*
 Implementation of class FE_Evolution
 */
-FE_Evolution::FE_Evolution(ParBilinearForm &M_, ParBilinearForm &K_,
-                           const Vector &b_)
+FE_Evolution::FE_Evolution(ParBilinearForm &M_, ParBilinearForm &K_)
    : TimeDependentOperator(M_.Height()),
-     b(b_),
      pfes(*(M_.ParFESpace())),
      M_solver(pfes.GetComm()),
      z(M_.Height()),
@@ -532,21 +524,17 @@ FE_Evolution::FE_Evolution(ParBilinearForm &M_, ParBilinearForm &K_,
      K_spmat(K_.SpMat()),
      K_smap()
 {
-   cout << "Begin FE_Evolution constructor\n";
-   M_lumped = new Vector;
-   M_.SpMat().GetDiag(*M_lumped);
-
    M_.FormSystemMatrix(ess_tdof_list, Mmat);
    K_.FormSystemMatrix(ess_tdof_list, Kmat);
-   cout << "Test 1\n";
 
    M_solver.iterative_mode = false;
-   M_solver.SetRelTol(1e-9);
-   M_solver.SetAbsTol(0.0);
+   // M_solver.SetRelTol(1e-9);
+   // M_solver.SetAbsTol(0.0);
+   M_solver.SetTol(1e-9);
    M_solver.SetMaxIter(100);
    M_solver.SetPrintLevel(0);
-   M_prec.SetType(HypreSmoother::Jacobi);
-   M_solver.SetPreconditioner(M_prec);
+   M_prec = new HypreBoomerAMG;
+   M_solver.SetPreconditioner(*M_prec);
    M_solver.SetOperator(Mmat);
 
    // Assuming K is finalized. (From extrapolator.)
@@ -567,7 +555,6 @@ FE_Evolution::FE_Evolution(ParBilinearForm &M_, ParBilinearForm &K_,
          }
       }
    }
-   cout << "End FE_Evolution constructor\n";
 }
 
 // TODO: Implement an ImplicitSolve function
@@ -583,7 +570,6 @@ void FE_Evolution::ImplicitSolve(const double dt, const Vector &x, Vector &k)
 void FE_Evolution::build_dij_matrix(const Vector &U,
                                     const VectorFunctionCoefficient &velocity)
 {
-   cout << "Begin buildinng dij matrix\n";
    const int *I = K_spmat.HostReadI(), *J = K_spmat.HostReadJ(), n = K_spmat.Size();
 
    const double *K_data = K_spmat.HostReadData();
@@ -615,9 +601,9 @@ void FE_Evolution::build_dij_matrix(const Vector &U,
    // Vector test_v(U.Size());
    // test_v = 1.;
    // cout << "Pre Result: " << test_v[2] << endl;
-   // D.MultTranspose(test_v, test_v);
+   // D->MultTranspose(test_v, test_v);
    // cout << "Post Result: " << test_v[2] << endl;
-   cout << "End buildinng dij matrix\n";
+   // cout << "End building dij matrix\n";
 }
 
 /* Deprecated now that ParallelAssemble() is implemented. */
@@ -645,7 +631,6 @@ void FE_Evolution::build_dij_matrix(const Vector &U,
 
 void FE_Evolution::Mult(const Vector &x, Vector &y) const
 {
-   cout << "Begin mult step\n";
    // y = Ml^{-1} ((D + K) x)
 
    /* Deprecated now that ParallelAssemble() is implemented. */
@@ -654,7 +639,6 @@ void FE_Evolution::Mult(const Vector &x, Vector &y) const
    // ApplyDijMatrix(u_gf, z);
 
    D->Mult(x, z);
-   // z += b; // Neumann BCs
 
    Vector rhs(y.Size());
    Kmat.Mult(x, rhs);
@@ -666,14 +650,12 @@ void FE_Evolution::Mult(const Vector &x, Vector &y) const
    // {
    //    y(i) = z(i) / (*M_lumped)(i);
    // }
-   cout << "End mult step\n";
 }
 
 FE_Evolution::~FE_Evolution()
 {
    delete D;
-   // delete D_form;
-   delete M_lumped;
+   delete M_prec;
 }
 
 // Velocity coefficient
