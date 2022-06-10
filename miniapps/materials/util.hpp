@@ -124,12 +124,6 @@ double ConstructNormalizationCoefficient(double nu, double l1, double l2,
    const double det = sqrt(l1*l2*l3);
    const double gamma1 = tgamma(nu + static_cast<double>(dim) / 2.0);
    const double gamma2 = tgamma(nu);
-   if (Mpi::Root()){
-      mfem::out << "nu = " << nu << ", dim = " << dim << std::endl;
-      mfem::out << "gamma1 = " << gamma1 << "\n";
-      mfem::out << "gamma2 = " << gamma2 << "\n";
-      mfem::out << "det = " << det << "\n";
-   }
    return sqrt(pow(2 * M_PI, dim / 2.0) * det * gamma1 /
                (gamma2 * pow(nu, dim / 2.0)));
 }
