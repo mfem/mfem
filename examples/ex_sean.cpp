@@ -61,6 +61,15 @@ void CalculateLOSolution(const GridFunction &u_HO,
 			 Vector &el_mass,
 			 Vector &el_vol);
 
+// For visualization, taken from lor-transfer.cpp
+int Wx = 0, Wy = 0; // window position
+int Ww = 350, Wh = 350; // window size
+int offx = Ww + 5, offy = Wh + 25; // window offset
+
+void visualize(VisItDataCollection &, string, int, int);
+
+string direction;
+
 // Velocity coefficient
 void velocity_function(const Vector &x, Vector &v);
 
@@ -167,7 +176,6 @@ int main(int argc, char *argv[])
    bool paraview = false;
    bool binary = false;
    int vis_steps = 5;
-   string direction;
 
    int precision = 8;
    cout.precision(precision);
@@ -231,8 +239,8 @@ int main(int argc, char *argv[])
    int dim = mesh.Dimension();
 
    // Create the low-order refined mesh
-   int basis_lor = BasisType::GaussLobatto;
-   Mesh mesh_lor = Mesh::MakeRefined(mesh, ref_levels, basis_lor);
+   int basis_LOR = BasisType::ClosedUniform;
+   Mesh mesh_LOR = Mesh::MakeRefined(mesh, ref_levels, basis_LOR);
 
    // 3. Define the ODE solver used for time integration. Several explicit
    //    Runge-Kutta methods are available.
@@ -266,12 +274,15 @@ int main(int argc, char *argv[])
    for (int lev = 0; lev < ref_levels; lev++)
    {
       mesh.UniformRefinement();
+      mesh_LOR.UniformRefinement();
    }
    if (mesh.NURBSext)
    {
       mesh.SetCurvature(max(order, 1));
+      mesh_LOR.SetCurvature(max(order,1));
    }
    mesh.GetBoundingBox(bb_min, bb_max, max(order, 1));
+   mesh_LOR.GetBoundingBox(bb_min, bb_max, max(order, 1));
 
    // 5. Define the discontinuous DG finite element space of the given
    //    polynomial order on the refined mesh.
@@ -279,8 +290,8 @@ int main(int argc, char *argv[])
    FiniteElementSpace fes(&mesh, &fec);
 
    // Discontinuous FE space for LOR
-   //DG_FECollection fec_lor(order, dim, BasisType::Positive);
-   //FiniteElementSpace fes_lor(&mesh_lor, &fec_lor);
+   DG_FECollection fec_LOR(order, dim, BasisType::Positive);
+   FiniteElementSpace fes_LOR(&mesh_LOR, &fec_LOR);
    
    cout << "Number of unknowns: " << fes.GetVSize() << endl;
 
@@ -294,9 +305,6 @@ int main(int argc, char *argv[])
    BilinearForm m(&fes);
    BilinearForm k(&fes);
 
-   // Bilinear forms for the lor space
-   //BilinearForm m_lor(&fes_lor);
-   //BilinearForm k_lor(&fes_lor);
    if (pa)
    {
       m.SetAssemblyLevel(AssemblyLevel::PARTIAL);
@@ -312,8 +320,8 @@ int main(int argc, char *argv[])
       m.SetAssemblyLevel(AssemblyLevel::FULL);
       k.SetAssemblyLevel(AssemblyLevel::FULL);
    }
+   
    m.AddDomainIntegrator(new MassIntegrator);
-   //m_lor.AddDomainIntegrator(new MassIntegrator);
    
    constexpr double alpha = -1.0;
    k.AddDomainIntegrator(new ConvectionIntegrator(velocity, alpha));
@@ -321,55 +329,50 @@ int main(int argc, char *argv[])
       new NonconservativeDGTraceIntegrator(velocity, alpha));
    k.AddBdrFaceIntegrator(
       new NonconservativeDGTraceIntegrator(velocity, alpha));
-   /*
-   k_lor.AddDomainIntegrator(new ConvectionIntegrator(velocity, alpha));
-   k_lor.AddInteriorFaceIntegrator(
-      new NonconservativeDGTraceIntegrator(velocity, alpha));
-   k_lor.AddBdrFaceIntegrator(
-      new NonconservativeDGTraceIntegrator(velocity, alpha));
-   */
+
    LinearForm b(&fes);
-   //LinearForm b_lor(&fes_lor);
    b.AddBdrFaceIntegrator(
       new BoundaryFlowIntegrator(inflow, velocity, alpha));
-   //b_lor.AddBdrFaceIntegrator(
-   //   new BoundaryFlowIntegrator(inflow, velocity, alpha));
-
-   // 
 
    m.Assemble();
-   //m_lor.Assemble();
    
    int skip_zeros = 0;
    k.Assemble(skip_zeros);
-   //k_lor.Assemble(skip_zeros);
    b.Assemble();
-   //b_lor.Assemble();
    m.Finalize();
-   //m_lor.Finalize();
-   k.Finalize(skip_zeros);
-   //k_lor.Finalize(skip_zeros);
+   k.Finalize(skip_zeros);;
 
    // 7. Define the initial conditions, save the corresponding grid function to
    //    a file and (optionally) save data in the VisIt format and initialize
    //    GLVis visualization.
    GridFunction u_HO(&fes);
    u_HO.ProjectCoefficient(u0);
-
    GridFunction u_LO(u_HO);
    u_LO.ProjectCoefficient(u0);
+   GridFunction u_LOR(&fes_LOR);
+   u_LOR.ProjectCoefficient(u0); // Not sure this is necessary
 
-   // Stuff for LOR
-   //GridFunction u_LOR(&fes_lor);
-   //u_LOR.ProjectCoefficient(u0); // Not sure this is necessary
+   // Visualization
+   VisItDataCollection HO_dc("HO", &mesh);
+   HO_dc.RegisterField("Density", &u_HO);
+   VisItDataCollection LO_dc("LO", &mesh);
+   LO_dc.RegisterField("Density", &u_LO);
+   VisItDataCollection LOR_dc("LOR", &mesh_LOR);
+   LOR_dc.RegisterField("Density", &u_LOR);
 
-   {
+   {  // Print out meshes and initial solutions
       ofstream omesh("ex_sean.mesh");
       omesh.precision(precision);
       mesh.Print(omesh);
+      ofstream omesh_LOR("ex_sean_LOR.mesh");
+      omesh_LOR.precision(precision);
+      mesh_LOR.Print(omesh_LOR);
       ofstream osol("ex_sean-init.gf");
       osol.precision(precision);
       u_HO.Save(osol);
+      ofstream osol_LOR("ex_sean_LOR.mesh");
+      osol_LOR.precision(precision);
+      u_LOR.Save(osol_LOR);
    }
 
    // Create data collection for solution output: either VisItDataCollection for
@@ -431,49 +434,6 @@ int main(int argc, char *argv[])
       pd_LO->Save();
    }
 
-   socketstream sout_HO;
-   socketstream sout_LO;
-   if (visualization)
-   {
-      char vishost[] = "localhost";
-      int  visport   = 19916;
-      sout_HO.open(vishost, visport);
-      if (!sout_HO)
-      {
-         cout << "Unable to connect to GLVis server at "
-              << vishost << ':' << visport << endl;
-         visualization = false;
-         cout << "GLVis visualization disabled.\n";
-      }
-      else
-      {
-         sout_HO.precision(precision);
-         sout_HO << "solution\n" << mesh << u_HO;
-         sout_HO << "pause\n";
-         sout_HO << flush;
-         cout << "GLVis visualization paused."
-              << " Press space (in the GLVis window) to resume it.\n";
-      }
-
-      sout_LO.open(vishost, visport);
-      if (!sout_LO)
-      {
-         cout << "Unable to connect to GLVis server at "
-              << vishost << ':' << visport << endl;
-         visualization = false;
-         cout << "GLVis visualization disabled.\n";
-      }
-      else
-      {
-         sout_LO.precision(precision);
-         sout_LO << "solution\n" << mesh << u_LO;
-         sout_LO << "pause\n";
-         sout_LO << flush;
-         cout << "GLVis visualization paused."
-              << " Press space (in the GLVis window) to resume it.\n";
-      }
-   }
-
    // 8. Define the time-dependent evolution operator describing the ODE
    //    right-hand side, and perform time-integration (looping over the time
    //    iterations, ti, with a time-step dt).
@@ -490,9 +450,16 @@ int main(int argc, char *argv[])
    mesh_temp->GetNodes(x);
 
    // Same as above but we do this for LOR
-   //Mesh *mesh_temp_LOR = fes_lor.GetMesh();
-   //GridFunction x_lor(mesh_temp_LOR->GetNodes()->FESpace());
-   //mesh_temp_LOR->GetNodes();
+   Mesh *mesh_temp_LOR = fes_LOR.GetMesh();
+   GridFunction x_LOR(mesh_temp_LOR->GetNodes()->FESpace());
+   mesh_temp_LOR->GetNodes();
+
+   // Grid transfer stuff
+   GridTransfer *gt;
+   gt = new L2ProjectionGridTransfer(fes, fes_LOR);
+      
+   const Operator &R = gt->ForwardOperator();
+   const Operator &P = gt->BackwardOperator();
    
 
    // Declaring vectors for the mass and volume
@@ -512,19 +479,14 @@ int main(int argc, char *argv[])
       // Calculate the LO solution using u_HO
       // For LOR, I don't think we need u_LO, but we'll keep it jic
       CalculateLOSolution(u_HO, x, u_LO, el_mass, el_vol);
-
+      
       // NEW NEW stuff ----------------------------------------------------
-      //GridTransfer *gt;
-      //gt = new L2ProjectionGridTransfer(fes, fes_lor);
-
-      //const Operator &R = gt->ForwardOperator();
-      //const Operator &P = gt->BackwardOperator();
-
+      
       // LOR->HO prolongation (whatever that means)
       direction = "HO -> LOR @ LOR";
-      //R.Mult(u_HO, u_LOR);
+      R.Mult(u_HO, u_LOR);
       
-      //CalculateLOSolution(u_HO, x_lor, u_LOR, el_mass, el_vol);
+      CalculateLOSolution(u_HO, x_LOR, u_LOR, el_mass, el_vol);
       // END of new stuff -------------------------------------------------      
       ti++;
 
@@ -533,13 +495,7 @@ int main(int argc, char *argv[])
       if (done || ti % vis_steps == 0)
       {
          cout << "time step: " << ti << ", time: " << t << endl;
-
-         if (visualization)
-         {
-            sout_HO << "solution\n" << mesh << u_HO << flush;
-	    sout_LO << "solution\n" << mesh << u_LO << flush;
-         }
-
+	 
          if (visit)
          {
             dc_HO->SetCycle(ti);
@@ -566,6 +522,14 @@ int main(int argc, char *argv[])
 
    // 9. Save the final solution. This output can be viewed later using GLVis:
    //    "glvis -m ex9.mesh -g ex9-final.gf".
+   if (visualization)
+   {
+       visualize(HO_dc, "HO", Wx, Wy);
+       Wx += offx;
+       visualize(LO_dc, "LO", Wx, Wy);
+       Wx += offx;
+   }
+
    {
       ofstream osol_HO("ex_sean-final_HO.gf");
       osol_HO.precision(precision);
@@ -574,14 +538,14 @@ int main(int argc, char *argv[])
       ofstream osol_LO("ex_sean-final_LO.gf");
       osol_LO.precision(precision);
       u_LO.Save(osol_LO);
-   }
+   } 
 
    // 10. Free the used memory.
    delete ode_solver;
    delete pd_LO;
    delete pd_HO;
    delete dc_LO;
-   delete pd_HO;
+   delete dc_HO;
 
    return 0;
 }
@@ -630,6 +594,22 @@ void CalculateLOSolution(const GridFunction &u_HO,
          u_LO(k*ndofs + i) = zone_avg;
       }
    }
+}
+
+// Visualization function
+void visualize(VisItDataCollection &dc, string prefix, int x, int y)
+{
+   int w = Ww, h = Wh;
+
+   char vishost[] = "localhost";
+   int  visport   = 19916;
+  
+   socketstream sol_sockL2(vishost, visport);
+   sol_sockL2.precision(8);
+     sol_sockL2 << "solution\n" << *dc.GetMesh() << *dc.GetField("Density")
+              << "window_geometry " << x << " " << y << " " << w << " " << h
+              << "plot_caption '" << " " << prefix << " Density'"
+              << "window_title '" << direction << "'" << flush; 
 }
 
 
