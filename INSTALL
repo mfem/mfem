@@ -471,6 +471,14 @@ MFEM_USE_CODIPACK = YES/NO
   Enable automatic differentiation using the CoDiPack library.
   www.scicomp.uni-kl.de/codi/
 
+MFEM_USE_ALGOIM = YES/NO
+  Enable the usage of Algoim - a collection of high-order accurate numerical 
+  methods and C++ algorithms for working with implicitly-defined geometry and 
+  level set methods. The Algoim library requires the Blitz++ library. The MFEM 
+  provides interface to Algoim v1. Thus, to check out the specific state use: 
+  git checkout 9c9ca0ef094d8ab0390ed36367a1151b459bbe0a
+  https://algoim.github.io
+
 MFEM_USE_ADFORWARD = YES/NO
   Enable forward mode for AD packages. This option is valid
   only if the AD package supports two modes (backward/forward).
@@ -519,6 +527,16 @@ MFEM_USE_MKL_CPARDISO = YES/NO
    and MKL_LIBRARY_SUBDIR as shown in defaults.mk. If you configure MFEM with
    MFEM_USE_LAPACK=YES, verify that the MKL LAPACK libraries are used. The
    OpenMP capabilities are disabled at link time.
+
+MFEM_USE_MOONOLITH = YES/NO
+   Enables the ParMoonolith interface for parallel non-conforming, non-matching,
+   variational, volumetric mesh information transfer. It requires the variable
+   MOONOLITH_DIR=<path to installation> to be defined in the environment in
+   order to be used with the Makefile. Makefile users are also required to
+   install moonolith using the command `make install_all`, see
+   https://bitbucket.org/zulianp/par_moonolith for details.
+   Although Moonolith is an MPI-based library, both serial (MFEM_USE_MPI=NO) and
+   parallel (MFEM_USE_MPI=YES) versions of MFEM are supported.
 
 MFEM_USE_CALIPER = YES/NO
    Enables the interface to Caliper. Caliper is a library to integrate
@@ -728,6 +746,22 @@ The specific libraries and their options are:
   Options: GSLIB_OPT, GSLIB_LIB.
   Versions: GSLIB >= 1.0.7.
 
+- ALGOIM (optional), used when MFE_USE_ALGOIM=YES. The library provides only
+  headers so it just needs to be downloaded at the same level as MFEM. Download
+  the specific version we use as:
+  "git clone https://github.com/algoim/algoim.git;
+   git checkout 9c9ca0ef094d8ab0390ed36367a1151b459bbe0a"
+  ALGOIM depends on BLITZ and rhe library must be built prior to the MFEM build.
+  Download v1.0.2, untar it at the same level as MFEM and create a symbolic link:
+  "ln -s blitz-1.0.2 blitz".
+  Build Blitz using CMake as:
+  "cmake . -DCMAKE_INSTALL_PREFIX=.; make lib; make install"
+  URL: https://github.com/blitzpp/blitz/archive/refs/tags/1.0.2.tar.gz
+  Options: BLITZ_OPT, BLITZ_LIB
+  Versions: BLITZ = 1.0.2
+
+
+
 - MKL CPardiso (optional), used when MFEM_USE_MKL_CPARDISO = YES.
   URL: https://software.intel.com/content/www/us/en/develop/tools/math-kernel-library.html
   Options: MKL_CPARDISO_OPT, MKL_CPARDISO_LIB.
@@ -758,6 +792,11 @@ The specific libraries and their options are:
   URL: https://github.com/LLNL/RAJA
   Options: RAJA_DIR, RAJA_OPT, RAJA_LIB.
   Versions: RAJA >= 0.14.0.
+
+- Moonolith (optional), use when MFEM_USE_MOONOLITH = YES.
+  URL: https://bitbucket.org/zulianp/par_moonolith
+  Options: MOONOLITH_DIR
+  Versions: MOONOLITH >= 1.1.0.
 
 - Caliper (optional), used when MFEM_USE_CALIPER = YES.
   URL: https://github.com/LLNL/Caliper
@@ -932,6 +971,7 @@ MFEM_USE_CEED
 MFEM_USE_RAJA
 MFEM_USE_UMPIRE
 MFEM_USE_SIDRE
+MFEM_USE_MOONOLITH
 MFEM_USE_CALIPER
 MFEM_USE_FMS
 MFEM_USE_BENCHMARK
@@ -990,6 +1030,7 @@ The CMake build system adds auto-detection for the following packages/libraries:
  - RAJA
  - UMPIRE
  - AXOM - Used when MFEM_USE_SIDRE is enabled
+ - MOONOLITH
  - CALIPER
  - FMS
  - BENCHMARK

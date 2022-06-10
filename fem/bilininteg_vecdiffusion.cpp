@@ -13,7 +13,7 @@
 #include "bilininteg.hpp"
 #include "gridfunc.hpp"
 #include "qfunction.hpp"
-#include "ceed/diffusion.hpp"
+#include "ceed/integrators/diffusion/diffusion.hpp"
 
 using namespace std;
 

@@ -277,7 +277,7 @@ TEST_CASE("Hcurl/Hdiv PA Coefficient",
       const int ne = 3;
       Mesh mesh = MakeCartesianNonaligned(dimension, ne);
 
-      for (int coeffType = 3; coeffType < 5; ++coeffType)
+      for (int coeffType = 0; coeffType < 5; ++coeffType)
       {
          Coefficient* coeff = nullptr;
          Coefficient* coeff2 = nullptr;
@@ -313,7 +313,7 @@ TEST_CASE("Hcurl/Hdiv PA Coefficient",
 
          enum MixedSpaces {Hcurl, Hdiv, HcurlHdiv, HdivHcurl, NumSpaceTypes};
 
-         for (int spaceType = 2; spaceType < NumSpaceTypes; ++spaceType)
+         for (int spaceType = 0; spaceType < NumSpaceTypes; ++spaceType)
          {
             if (spaceType == Hdiv && coeffType >= 2)
             {
@@ -446,17 +446,33 @@ TEST_CASE("Hcurl/Hdiv PA Coefficient",
                         assemblyform->AddDomainIntegrator(new VectorFEMassIntegrator(*coeff));
                      }
 
-                     if (spaceType == HcurlHdiv && dimension == 3)
+                     if (dimension == 3 && (spaceType == HcurlHdiv || spaceType == HdivHcurl))
                      {
                         if (coeffType == 2)
                         {
-                           paform->AddDomainIntegrator(new MixedVectorCurlIntegrator(*vcoeff));
-                           assemblyform->AddDomainIntegrator(new MixedVectorCurlIntegrator(*vcoeff));
+                           if (spaceType == HcurlHdiv)
+                           {
+                              paform->AddDomainIntegrator(new MixedVectorCurlIntegrator(*vcoeff));
+                              assemblyform->AddDomainIntegrator(new MixedVectorCurlIntegrator(*vcoeff));
+                           }
+                           else
+                           {
+                              paform->AddDomainIntegrator(new MixedVectorWeakCurlIntegrator(*vcoeff));
+                              assemblyform->AddDomainIntegrator(new MixedVectorWeakCurlIntegrator(*vcoeff));
+                           }
                         }
                         else if (coeffType < 2)
                         {
-                           paform->AddDomainIntegrator(new MixedVectorCurlIntegrator(*coeff));
-                           assemblyform->AddDomainIntegrator(new MixedVectorCurlIntegrator(*coeff));
+                           if (spaceType == HcurlHdiv)
+                           {
+                              paform->AddDomainIntegrator(new MixedVectorCurlIntegrator(*coeff));
+                              assemblyform->AddDomainIntegrator(new MixedVectorCurlIntegrator(*coeff));
+                           }
+                           else
+                           {
+                              paform->AddDomainIntegrator(new MixedVectorWeakCurlIntegrator(*coeff));
+                              assemblyform->AddDomainIntegrator(new MixedVectorWeakCurlIntegrator(*coeff));
+                           }
                         }
                      }
 
@@ -467,12 +483,48 @@ TEST_CASE("Hcurl/Hdiv PA Coefficient",
                      paform->FormRectangularSystemMatrix(ess_tdof_list, empty_ess, paopr);
 
                      assemblyform->Assemble();
+                     assemblyform->Finalize();
+
                      OperatorPtr A_explicit;
                      assemblyform->FormRectangularSystemMatrix(ess_tdof_list, empty_ess, A_explicit);
 
                      paopr->Mult(xin, y_pa);
                      assemblyform->Mult(xin, y_assembly);
                      A_explicit->Mult(xin, y_mat);
+
+                     // Test the transpose
+                     if ((spaceType == HcurlHdiv || spaceType == HdivHcurl) &&
+                         dimension == 3)
+                     {
+                        Vector u(testSize);
+                        u.Randomize();
+
+                        Vector v_mat(fespace.GetTrueVSize());
+                        v_mat = 0.0;
+                        Vector v_assembly(fespace.GetTrueVSize());
+                        v_assembly = 0.0;
+                        Vector v_pa(fespace.GetTrueVSize());
+                        v_pa = 0.0;
+
+                        const SparseMatrix& A_spmat = assemblyform->SpMat();
+                        A_spmat.EnsureMultTranspose();
+                        paopr->MultTranspose(u, v_pa);
+                        assemblyform->MultTranspose(u, v_assembly);
+                        A_spmat.MultTranspose(u, v_mat);
+
+                        v_pa -= v_mat;
+                        double pa_error = v_pa.Norml2();
+                        std::cout << "  order: " << order
+                                  << ", pa transpose error norm: " << pa_error << std::endl;
+                        REQUIRE(pa_error < 1.e-12);
+
+                        v_assembly -= v_mat;
+                        double assembly_error = v_assembly.Norml2();
+                        std::cout << "  order: " << order
+                                  << ", assembly transpose error norm: " << assembly_error
+                                  << std::endl;
+                        REQUIRE(assembly_error < 1.e-12);
+                     }
 
                      delete paform;
                      delete assemblyform;

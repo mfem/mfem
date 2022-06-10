@@ -13,7 +13,7 @@
 #include "bilininteg.hpp"
 #include "gridfunc.hpp"
 #include "qfunction.hpp"
-#include "ceed/convection.hpp"
+#include "ceed/integrators/convection/convection.hpp"
 #include "quadinterpolator.hpp"
 
 namespace mfem
