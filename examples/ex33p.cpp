@@ -7,16 +7,19 @@
 //               mpirun -np 4 ex33p -m ../data/star.mesh -alpha 1.4 -o 3
 //               mpirun -np 4 ex33p -m ../data/star.mesh -alpha 0.99 -o 3
 //               mpirun -np 4 ex33p -m ../data/inline-quad.mesh -alpha 0.5 -o 3
-//               mpirun -np 4 ex33p -m ../data/disc-nurbs.mesh -alpha 0.33 -o 3
+//               mpirun -np 4 ex33p -m ../data/amr-quad.mesh -alpha 1.5 -o 3
+//               mpirun -np 4 ex33p -m ../data/disc-nurbs.mesh -alpha 0.33 -o 3 -r 2
 //               mpirun -np 4 ex33p -m ../data/disc-nurbs.mesh -alpha 2.4 -o 3 -r 4
 //               mpirun -np 4 ex33p -m ../data/l-shape.mesh -alpha 0.33 -o 3 -r 4
 //               mpirun -np 4 ex33p -m ../data/l-shape.mesh -alpha 1.7 -o 3 -r 5
 //
 // Verification runs:
-//    mpirun -np 4 ex33p -m ../data/inline-quad.mesh -ver -alpha 0.3 -o 2 -r 4
-//    mpirun -np 4 ex33p -m ../data/inline-quad.mesh -ver -alpha 1.4 -o 3 -r 5
-//    mpirun -np 4 ex33p -m ../data/inline-quad.mesh -ver -alpha 5.7 -o 2 -r 7 -no-vis
-//  Note: the analytic solution to this problem is u(x) = sin(pi x) sin(pi y)
+//    mpirun -np 4 ex33p -m ../data/inline-segment.mesh -ver -alpha 1.7 -o 2 -r 2
+//    mpirun -np 4 ex33p -m ../data/inline-quad.mesh -ver -alpha 1.2 -o 2 -r 2
+//    mpirun -np 4 ex33p -m ../data/amr-quad.mesh -ver -alpha 2.6 -o 2 -r 2
+//    mpirun -np 4 ex33p -m ../data/inline-hex.mesh -ver -alpha 0.3 -o 2 -r 1
+
+//  Note: the analytic solution to this problem is u = ∏_{i=0}^{dim-1} sin(π x_i)
 //        for all alpha.
 //
 // Description:
@@ -190,7 +193,12 @@ int main(int argc, char *argv[])
    // 7. Define diffusion coefficient, load, and solution GridFunction.
    auto func = [&alpha](const Vector &x)
    {
-      return pow(2*pow(M_PI,2), alpha) * sin(M_PI * x[0]) * sin(M_PI * x[1]);
+      double val = 1.0;
+      for (int i=0; i<x.Size(); i++)
+      {
+         val *= sin(M_PI*x(i));
+      }
+      return pow(x.Size()*pow(M_PI,2), alpha) * val;
    };
    FunctionCoefficient f(func);
    ConstantCoefficient one(1.0);
@@ -241,7 +249,7 @@ int main(int argc, char *argv[])
       Array<int> empty;
       m.FormSystemMatrix(empty, mass);
 
-      // 10.3 from the system of equations
+      // 10.3 Form the system of equations
       Vector B, X;
       OperatorPtr Op;
       k.FormLinearSystem(ess_tdof_list, g, b, Op, X, B);
@@ -261,7 +269,7 @@ int main(int argc, char *argv[])
       }
       for (int i = 0; i < power_of_laplace; i++)
       {
-         // 10.4 Solve the linear system A X = B (N times).
+         // 10.4 Solve the linear system Op X = B (N times).
          cg.Mult(B, X);
          // 10.5 Visualize the solution g of -Δ ^ N g = f in the last step
          if (i == power_of_laplace - 1)
@@ -390,17 +398,39 @@ int main(int argc, char *argv[])
    {
       auto solution = [] (const Vector &x)
       {
-         return sin(M_PI * x[0]) * sin(M_PI * x[1]);
+         double val = 1.0;
+         for (int i=0; i<x.Size(); i++)
+         {
+            val *= sin(M_PI*x(i));
+         }
+         return val;
       };
       FunctionCoefficient sol(solution);
       double l2_error = u.ComputeL2Error(sol);
 
       if (Mpi::Root())
       {
+         string analytic_solution,expected_mesh;
+         switch (dim)
+         {
+            case 1:
+               analytic_solution = "sin(π x)";
+               expected_mesh = "inline_segment.mesh";
+               break;
+            case 2:
+               analytic_solution = "sin(π x) sin(π y)";
+               expected_mesh = "inline_quad.mesh";
+               break;
+            default:
+               analytic_solution = "sin(π x) sin(π y) sin(π z)";
+               expected_mesh = "inline_hex.mesh";
+               break;
+         }
+
          mfem::out << "\n" << string(80,'=')
-                   << "\n\nSolution Verification\n\n"
-                   << "Analytic solution : sin(pi x) sin(pi y)\n"
-                   << "Expected mesh     : inline_quad.mesh\n"
+                   << "\n\nSolution Verification in "<< dim << "D \n\n"
+                   << "Analytic solution : " << analytic_solution << "\n"
+                   << "Expected mesh     : " << expected_mesh <<"\n"
                    << "Your mesh         : " << mesh_file << "\n"
                    << "L2 error          : " << l2_error << "\n\n"
                    << string(80,'=') << endl;
