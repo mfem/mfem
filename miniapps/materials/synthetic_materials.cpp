@@ -19,6 +19,7 @@
 #include "rational_approximation.hpp"
 #include "material_metrics.hpp"
 #include "util.hpp"
+#include "solvers.hpp"
 
 using namespace std;
 using namespace mfem;
@@ -127,7 +128,7 @@ int main(int argc, char *argv[])
    }
 
    // 6. Boundary conditions
-   Array<int> ess_tdof_list;
+   const Array<int> ess_tdof_list;
 
    // ========================================================================
    // II. Generate topological support
@@ -184,8 +185,8 @@ int main(int argc, char *argv[])
    //       integer-order PDEs.
    Array<double> coeffs, poles;
    double alpha = (nu + dim / 2.0 ) / 2.0; // fractional exponent
-   const int power_of_laplace = floor(alpha);
-   double exponent_to_approximate = alpha - power_of_laplace;
+   const int int_order_of_operator = floor(alpha);
+   double exponent_to_approximate = alpha - int_order_of_operator;
    bool integer_order = false;
    // Check if alpha is an integer or not.
    if (abs(exponent_to_approximate) > 1e-12)
@@ -201,7 +202,7 @@ int main(int argc, char *argv[])
 
       // If the example is build without LAPACK, the exponent_to_approximate
       // might be modified by the function call above.
-      alpha = exponent_to_approximate + power_of_laplace;
+      alpha = exponent_to_approximate + int_order_of_operator;
    }
    else
    {
@@ -237,66 +238,25 @@ int main(int argc, char *argv[])
    // ------------------------------------------------------------------------
    // III.4 Solve the PDE (-Δ)^N g = f, i.e. compute g = (-Δ)^{-1}^N f.
    // ------------------------------------------------------------------------
+   
 
-   if (power_of_laplace > 0)
+   if (int_order_of_operator > 0)
    {
-      // III.4.1 Compute Stiffnes Matrix
-      ParBilinearForm k(&fespace);
-      k.AddDomainIntegrator(new DiffusionIntegrator(diffusion_coefficient));
-      k.AddDomainIntegrator(new MassIntegrator(one));
-      k.Assemble();
-
-      // III.4.2 Compute Mass Matrix
-      ParBilinearForm m(&fespace);
-      m.AddDomainIntegrator(new MassIntegrator(one));
-      m.Assemble();
-      HypreParMatrix mass;
-      Array<int> empty;
-      m.FormSystemMatrix(empty, mass);
-
-      // III.4.3 from the system of equations
-      Vector B, X;
-      OperatorPtr Op;
-      k.FormLinearSystem(ess_tdof_list, g, b, Op, X, B);
-      HypreBoomerAMG prec;
-      prec.SetPrintLevel(-1);
-      CGSolver cg(MPI_COMM_WORLD);
-      cg.SetRelTol(1e-12);
-      cg.SetMaxIter(2000);
-      cg.SetPrintLevel(3);
-      cg.SetPreconditioner(prec);
-      cg.SetOperator(*Op);
-
       if (Mpi::Root())
-      {
-         mfem::out << "\nComputing (-Δ) ^ -" << power_of_laplace
-                   << " ( f ) " << endl;
-      }
-      for (int i = 0; i < power_of_laplace; i++)
-      {
-         // III.4.4 Solve the linear system A X = B (N times).
-         cg.Mult(B, X);
-         // III.4.5 Visualize the solution g of -Δ ^ N g = f in the last step
-         if (i == power_of_laplace - 1)
          {
-            // Needed for visualization and solution verification.
-            k.RecoverFEMSolution(X, b, g);
-            if (integer_order)
-            {
-               // For an integer order PDE, g is also our solution u.
-               u+=g;
-            }
+            mfem::out << "\nSolving PDE (A)^" << int_order_of_operator
+                      << " u = f" << endl;
          }
-
-         // III.4.6 Prepare for next iteration (primal / dual space)
-         mass.Mult(X, B);
-         X.SetSubVectorComplement(ess_tdof_list,0.0);
+      materials::PDESolver solver(1.0, 
+                                 diffusion_coefficient,
+                                 ess_tdof_list,
+                                 &fespace,
+                                 int_order_of_operator);
+      solver.Solve(b, g);
+      if (integer_order)
+      {
+         u += g;
       }
-
-      // III.4.7 Extract solution for the next step. The b now corresponds to the
-      //      function g in the PDE.
-      const SparseMatrix* rm = fespace.GetRestrictionMatrix();
-      rm->MultTranspose(B, b);
    }
 
    // ------------------------------------------------------------------------
@@ -314,38 +274,12 @@ int main(int argc, char *argv[])
             mfem::out << "\nSolving PDE -Δ u + " << -poles[i]
                       << " u = " << coeffs[i] << " g " << endl;
          }
-
-         // III.5.1 Reset GridFunction for integer-order PDE solve.
          x = 0.0;
-
-         // III.5.2 Set up the bilinear form a(.,.) for integer-order PDE solve.
-         ParBilinearForm a(&fespace);
-         a.AddDomainIntegrator(new DiffusionIntegrator(diffusion_coefficient));
-         ConstantCoefficient d_i(1-poles[i]);
-         a.AddDomainIntegrator(new MassIntegrator(d_i));
-         a.Assemble();
-
-         // III.5.3 Assemble the bilinear form and the corresponding linear system.
-         OperatorPtr A;
-         Vector B, X;
-         a.FormLinearSystem(ess_tdof_list, x, b, A, X, B);
-
-         // III.5.4 Solve the linear system A X = B.
-         HypreBoomerAMG prec;
-         prec.SetPrintLevel(-1);
-
-         CGSolver cg(MPI_COMM_WORLD);
-         cg.SetRelTol(1e-12);
-         cg.SetMaxIter(2000);
-         cg.SetPrintLevel(3);
-         cg.SetPreconditioner(prec);
-         cg.SetOperator(*A);
-         cg.Mult(B, X);
-
-         // III.5.5 Recover the solution as a finite element grid function.
-         a.RecoverFEMSolution(X, b, x);
-
-         // III.5.6 Accumulate integer-order PDE solutions.
+         materials::PDESolver solver(1-poles[i], 
+                                     diffusion_coefficient,
+                                     ess_tdof_list,
+                                     &fespace, 1);
+         solver.Solve(b, x);
          x *= coeffs[i];
          u += x;
       }
