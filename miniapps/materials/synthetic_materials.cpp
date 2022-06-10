@@ -20,6 +20,7 @@
 #include "material_metrics.hpp"
 #include "util.hpp"
 #include "solvers.hpp"
+#include "visualizer.hpp"
 
 using namespace std;
 using namespace mfem;
@@ -298,51 +299,9 @@ int main(int argc, char *argv[])
    // VI. Export visualization to ParaView and GLVis
    // ========================================================================
    
-   if (paraview_export){
-      ParaViewDataCollection paraview_dc("SurrogateMaterial", &pmesh);
-      paraview_dc.SetPrefixPath("ParaView");
-      paraview_dc.SetLevelsOfDetail(order);
-      paraview_dc.SetCycle(0);
-      paraview_dc.SetDataFormat(VTKFormat::BINARY);
-      paraview_dc.SetHighOrderOutput(true);
-      paraview_dc.SetTime(0.0); // set the time
-      paraview_dc.RegisterField("random_field",&u);
-      paraview_dc.RegisterField("topological_support",&v);
-      paraview_dc.RegisterField("imperfect_topology",&w);
-      paraview_dc.Save();
-   }
-
-   if (glvis_export){
-      char vishost[] = "localhost";
-      int  visport   = 19916;
-      socketstream uout, vout, wout;
-      ostringstream oss_u, oss_v, oss_w;
-      uout.open(vishost, visport);
-      uout.precision(8);
-      vout.open(vishost, visport);
-      vout.precision(8);
-      wout.open(vishost, visport);
-      wout.precision(8);
-      oss_u.str(""); oss_u.clear();
-      oss_v.str(""); oss_v.clear();
-      oss_w.str(""); oss_w.clear();
-      oss_u << "Random Field";
-      oss_v << "Topological Support";
-      if (topological_support == TopologicalSupport::kParticles){
-         oss_w << "Imperfect Particles";
-      } else {
-         oss_w << "Imperfect Octet-Truss";
-      }
-      uout << "parallel " << num_procs << " " << myid << "\n"
-            << "solution\n" << pmesh << u
-            << "window_title '" << oss_u.str() << "'" << flush;
-      vout << "parallel " << num_procs << " " << myid << "\n"
-            << "solution\n" << pmesh << v
-            << "window_title '" << oss_v.str() << "'" << flush;
-      wout << "parallel " << num_procs << " " << myid << "\n"
-            << "solution\n" << pmesh << w
-            << "window_title '" << oss_w.str() << "'" << flush;
-   }
+   materials::Visualizer vis(pmesh, order, u, v, w);
+   if (paraview_export){ vis.ExportToParaView(); }
+   if (glvis_export){ vis.SendToGLVis(); }
 
    delete mdm;
    return 0;
