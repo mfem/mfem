@@ -44,6 +44,13 @@ Version 4.4.1 (development)
 
 - Added support for mixed meshes and pyramids in GSLIB-FindPoints.
 
+- Added support for partial assembly and fully matrix-free operators on
+  mixed meshes (different element topologies and p-adaptivity) through
+  libCEED. Include device support, e.g. NVIDIA and AMD GPUs.
+  The p-adaptivity is currently limited by MFEM capabilities, i.e. 2D serial
+  meshes. All mixed element topologies are supported in serial and parallel:
+  segment, triangle, square, tetrahedron, cube, prism, and pyramid.
+
 Version 4.4, released on March 21, 2022
 =======================================
 
