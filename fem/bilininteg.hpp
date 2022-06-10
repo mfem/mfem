@@ -2952,8 +2952,8 @@ public:
    { rho = NULL; u = &u_; alpha = a; beta = 0.5*a; }
 
    /// Construct integrator with rho = 1.
-   DGTraceIntegrator(VectorCoefficient &u_, double a, double b, 
-                    Vector *external_vel_ = nullptr)
+   DGTraceIntegrator(VectorCoefficient &u_, double a, double b,
+                     Vector *external_vel_ = nullptr)
    { rho = NULL; u = &u_; alpha = a; beta = b; external_vel = external_vel_;}
 
    DGTraceIntegrator(Coefficient &rho_, VectorCoefficient &u_,

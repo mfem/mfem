@@ -1695,10 +1695,11 @@ void hypre_ParCSRMatrixBooleanMatvecT(hypre_ParCSRMatrix *A,
    y_buf = mfem_hypre_CTAlloc_host(
               HYPRE_Bool, hypre_ParCSRCommPkgSendMapStart(comm_pkg, num_sends));
 
+
    if (num_cols_offd)
    {
-#if MFEM_HYPRE_VERSION >= 21100
-      if (A->offdT)
+#if MFEM_HYPRE_VERSION >= 21100 && 0
+      if (A->offdT) //need a gpu version
       {
          // offdT is optional. Used only if it's present.
          hypre_CSRMatrixBooleanMatvec(A->offdT, alpha, x, 0, y_tmp);
@@ -1712,10 +1713,10 @@ void hypre_ParCSRMatrixBooleanMatvecT(hypre_ParCSRMatrix *A,
 
    comm_handle = hypre_ParCSRCommHandleCreate_bool(2, comm_pkg, y_tmp, y_buf);
 
-#if MFEM_HYPRE_VERSION >= 21100
-   if (A->diagT)
+#if MFEM_HYPRE_VERSION >= 21100 && 0
+   if (A->diagT) //need a gpu version
    {
-      // diagT is optional. Used only if it's present.
+      //diagT is optional. Used only if it's present.
       hypre_CSRMatrixBooleanMatvec(A->diagT, alpha, x, beta, y);
    }
    else
