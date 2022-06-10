@@ -706,8 +706,6 @@ void BilinearForm::EliminateBC(const Array<int> &ess_dofs,
                                DiagonalPolicy diag_policy,
                                SparseMatrix &A)
 {
-   // Eliminate essential DOFs (BCs) from the matrix (what we do here is
-   // equivalent to  DiagonalPolicy::DIAG_ONE).
    const int n_ess_dofs = ess_dofs.Size();
    const auto ess_dofs_d = ess_dofs.Read();
    const auto I = A.ReadI();
