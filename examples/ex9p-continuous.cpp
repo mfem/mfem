@@ -82,14 +82,17 @@ class FE_Evolution : public TimeDependentOperator
 {
 private:
    ParFiniteElementSpace &pfes;
+   Array<int> ess_tdof_list; // this list remains empty for pure Neumann b.c.
+
    OperatorHandle M, K;
+   HypreParMatrix Mmat, Kmat;
+   const SparseMatrix K_spmat;
    ParBilinearForm *D_form;
    const Vector &b;
-   Solver *M_prec;
+   HypreSmoother M_prec;
    CGSolver M_solver;
 
-   const SparseMatrix &K_mat;
-   mutable SparseMatrix *dij_matrix;
+   mutable SparseMatrix dij_matrix;
    HypreParMatrix *D;
 
    Array<int> K_smap;
@@ -524,49 +527,31 @@ FE_Evolution::FE_Evolution(ParBilinearForm &M_, ParBilinearForm &K_,
      pfes(*(M_.ParFESpace())),
      M_solver(pfes.GetComm()),
      z(M_.Height()),
-     dij_matrix(&K_.SpMat()),
+     dij_matrix(K_.SpMat()),
      D_form(&K_),
-     K_mat(K_.SpMat()),
+     K_spmat(K_.SpMat()),
      K_smap()
 {
+   cout << "Begin FE_Evolution constructor\n";
    M_lumped = new Vector;
    M_.SpMat().GetDiag(*M_lumped);
-   if (M_.GetAssemblyLevel()==AssemblyLevel::LEGACY)
-   {
-      M.Reset(M_.ParallelAssemble(), true);
-      K.Reset(K_.ParallelAssemble(), true);
-   }
-   else
-   {
-      M.Reset(&M_, false);
-      K.Reset(&K_, false);
-   }
 
-   M_solver.SetOperator(*M);
+   M_.FormSystemMatrix(ess_tdof_list, Mmat);
+   K_.FormSystemMatrix(ess_tdof_list, Kmat);
+   cout << "Test 1\n";
 
-   Array<int> ess_tdof_list;
-   if (M_.GetAssemblyLevel()==AssemblyLevel::LEGACY)
-   {
-      HypreParMatrix &M_mat = *M.As<HypreParMatrix>();
-      HypreParMatrix &K_mat = *K.As<HypreParMatrix>();
-      HypreSmoother *hypre_prec = new HypreSmoother(M_mat, HypreSmoother::Jacobi);
-      M_prec = hypre_prec;
-   }
-   else
-   {
-      M_prec = new OperatorJacobiSmoother(M_, ess_tdof_list);
-   }
-
-   M_solver.SetPreconditioner(*M_prec);
    M_solver.iterative_mode = false;
    M_solver.SetRelTol(1e-9);
    M_solver.SetAbsTol(0.0);
    M_solver.SetMaxIter(100);
    M_solver.SetPrintLevel(0);
+   M_prec.SetType(HypreSmoother::Jacobi);
+   M_solver.SetPreconditioner(M_prec);
+   M_solver.SetOperator(Mmat);
 
    // Assuming K is finalized. (From extrapolator.)
    // K_smap is used later to symmetrically form dij_matrix
-   const int *I = K_mat.GetI(), *J = K_mat.GetJ(), n = K_mat.Size();
+   const int *I = K_spmat.GetI(), *J = K_spmat.GetJ(), n = K_spmat.Size();
    K_smap.SetSize(I[n]);
    for (int row = 0, j = 0; row < n; row++)
    {
@@ -582,6 +567,7 @@ FE_Evolution::FE_Evolution(ParBilinearForm &M_, ParBilinearForm &K_,
          }
       }
    }
+   cout << "End FE_Evolution constructor\n";
 }
 
 // TODO: Implement an ImplicitSolve function
@@ -591,18 +577,19 @@ FE_Evolution::FE_Evolution(ParBilinearForm &M_, ParBilinearForm &K_,
 //    (M - dt*K) d = K*u
 void FE_Evolution::ImplicitSolve(const double dt, const Vector &x, Vector &k)
 {
-   K->Mult(x, z);
+   Kmat.Mult(x, z);
 }
 
 void FE_Evolution::build_dij_matrix(const Vector &U,
                                     const VectorFunctionCoefficient &velocity)
 {
-   const int *I = K_mat.HostReadI(), *J = K_mat.HostReadJ(), n = K_mat.Size();
+   cout << "Begin buildinng dij matrix\n";
+   const int *I = K_spmat.HostReadI(), *J = K_spmat.HostReadJ(), n = K_spmat.Size();
 
-   const double *K_data = K_mat.HostReadData();
+   const double *K_data = K_spmat.HostReadData();
 
-   double *D_data = dij_matrix->HostReadWriteData();
-   dij_matrix->HostReadWriteI(); dij_matrix->HostReadWriteJ();
+   double *D_data = dij_matrix.HostReadWriteData();
+   dij_matrix.HostReadWriteI(); dij_matrix.HostReadWriteJ();
 
    for (int i = 0, k = 0; i < n; i++)
    {
@@ -621,16 +608,16 @@ void FE_Evolution::build_dij_matrix(const Vector &U,
             rowsum += dij;
          }
       }
-      (*dij_matrix)(i,i) = -rowsum;
+      dij_matrix(i,i) = -rowsum;
    }
-   D = D_form->ParallelAssemble(dij_matrix);
+   D = D_form->ParallelAssemble(&dij_matrix);
    /* Check that columns sum to 0. */
    // Vector test_v(U.Size());
    // test_v = 1.;
    // cout << "Pre Result: " << test_v[2] << endl;
    // D.MultTranspose(test_v, test_v);
    // cout << "Post Result: " << test_v[2] << endl;
-
+   cout << "End buildinng dij matrix\n";
 }
 
 /* Deprecated now that ParallelAssemble() is implemented. */
@@ -658,6 +645,7 @@ void FE_Evolution::build_dij_matrix(const Vector &U,
 
 void FE_Evolution::Mult(const Vector &x, Vector &y) const
 {
+   cout << "Begin mult step\n";
    // y = Ml^{-1} ((D + K) x)
 
    /* Deprecated now that ParallelAssemble() is implemented. */
@@ -669,21 +657,23 @@ void FE_Evolution::Mult(const Vector &x, Vector &y) const
    // z += b; // Neumann BCs
 
    Vector rhs(y.Size());
-   K->Mult(x, rhs);
+   Kmat.Mult(x, rhs);
    z+= rhs;
 
-   // M_solver.Mult(z, y);
-   const int s = y.Size();
-   for (int i = 0; i < s; i++)
-   {
-      y(i) = z(i) / (*M_lumped)(i);
-   }
+   M_solver.Mult(z, y);
+   // const int s = y.Size();
+   // for (int i = 0; i < s; i++)
+   // {
+   //    y(i) = z(i) / (*M_lumped)(i);
+   // }
+   cout << "End mult step\n";
 }
 
 FE_Evolution::~FE_Evolution()
 {
-   delete M_prec;
    delete D;
+   // delete D_form;
+   delete M_lumped;
 }
 
 // Velocity coefficient
