@@ -16,7 +16,7 @@
 #include "bilinearform.hpp"
 #include "pbilinearform.hpp"
 #include "pgridfunc.hpp"
-#include "ceed/util.hpp"
+#include "ceed/interface/util.hpp"
 
 namespace mfem
 {
