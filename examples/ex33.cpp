@@ -16,6 +16,7 @@
 // Verification runs:
 //    ex33 -m ../data/inline-segment.mesh -ver -alpha 1.7 -o 2 -r 2
 //    ex33 -m ../data/inline-quad.mesh -ver -alpha 1.2 -o 2 -r 2
+//    ex33 -m ../data/amr-quad.mesh -ver -alpha 2.6 -o 2 -r 2
 //    ex33 -m ../data/inline-hex.mesh -ver -alpha 0.3 -o 2 -r 1
 //
 //  Note: the analytic solution to this problem is u = ∏_{i=0}^{dim-1} sin(π x_i)
