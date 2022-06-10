@@ -1560,7 +1560,8 @@ void hypre_ParCSRMatrixAbsMatvecT(hypre_ParCSRMatrix *A,
 
    if (num_cols_offd)
    {
-#if MFEM_HYPRE_VERSION >= 21100
+#if MFEM_HYPRE_VERSION >= 21100 && 0
+      //function below will crash if offdT is on the device
       if (A->offdT)
       {
          // offdT is optional. Used only if it's present.
@@ -1575,7 +1576,8 @@ void hypre_ParCSRMatrixAbsMatvecT(hypre_ParCSRMatrix *A,
 
    comm_handle = hypre_ParCSRCommHandleCreate(2, comm_pkg, y_tmp, y_buf);
 
-#if MFEM_HYPRE_VERSION >= 21100
+#if MFEM_HYPRE_VERSION >= 21100 && 0
+   //function below will crash if offdT is on the device
    if (A->diagT)
    {
       // diagT is optional. Used only if it's present.
