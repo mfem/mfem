@@ -2630,7 +2630,7 @@ int ParFiniteElementSpace
                                 dof_offs, tdof_offs);
 
 #ifdef HYPRE_USING_GPU
-     hypre_ParCSRMatrixLocalTranspose(**P_);
+      hypre_ParCSRMatrixLocalTranspose(**P_);
 #endif
    }
 
