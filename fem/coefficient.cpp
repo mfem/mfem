@@ -60,7 +60,9 @@ void Coefficient::ProjectBase(QuadratureFunctionBase &qf)
       ElementTransformation& T = *qspace.GetTransformation(iel);
       for (int iq = 0; iq < ir.Size(); ++iq)
       {
-         values[iq] = Eval(T, ir[iq]);
+         const IntegrationPoint &ip = ir[iq];
+         T.SetIntPoint(&ip);
+         values[iq] = Eval(T, ip);
       }
    }
 }
@@ -254,8 +256,10 @@ void VectorCoefficient::ProjectBase(QuadratureFunctionBase &qf)
       ElementTransformation& T = *qspace.GetTransformation(iel);
       for (int iq = 0; iq < ir.Size(); ++iq)
       {
+         const IntegrationPoint &ip = ir[iq];
+         T.SetIntPoint(&ip);
          values.GetColumnReference(iq, col);
-         Eval(col, T, ir[iq]);
+         Eval(col, T, ip);
       }
    }
 }
@@ -602,8 +606,10 @@ void MatrixCoefficient::ProjectBase(QuadratureFunctionBase &qf, bool transpose)
       ElementTransformation& T = *qspace.GetTransformation(iel);
       for (int iq = 0; iq < ir.Size(); ++iq)
       {
+         const IntegrationPoint &ip = ir[iq];
+         T.SetIntPoint(&ip);
          matrix.UseExternalData(&values(0, iq), height, width);
-         Eval(matrix, T, ir[iq]);
+         Eval(matrix, T, ip);
          if (transpose) { matrix.Transpose(); }
       }
    }
@@ -788,8 +794,10 @@ void SymmetricMatrixCoefficient::ProjectSymmetricBase(QuadratureFunctionBase
       ElementTransformation& T = *qspace.GetTransformation(iel);
       for (int iq = 0; iq < ir.Size(); ++iq)
       {
+         const IntegrationPoint &ip = ir[iq];
+         T.SetIntPoint(&ip);
          matrix.UseExternalData(&values(0, iq), vdim);
-         Eval(matrix, T, ir[iq]);
+         Eval(matrix, T, ip);
       }
    }
 }
