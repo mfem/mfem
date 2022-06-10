@@ -5136,6 +5136,16 @@ void ParMesh::PrintAsOne(std::ostream &os) const
 
 void ParMesh::PrintAsSerial(std::ostream &os) const
 {
+   int save_rank = 0;
+   Mesh serialmesh = GetSerialMesh(save_rank);
+   if (MyRank == save_rank)
+   {
+      serialmesh.Printer(os);
+   }
+}
+
+Mesh ParMesh::GetSerialMesh(int save_rank) const
+{
    if (pncmesh || NURBSext)
    {
       MFEM_ABORT("Nonconforming meshes and NURBS meshes are not yet supported.");
@@ -5184,11 +5194,11 @@ void ParMesh::PrintAsSerial(std::ostream &os) const
       }
    }
 
-   if (MyRank == 0)
+   if (MyRank == save_rank)
    {
       for (int p = 0; p < NRanks; p++)
       {
-         if ( p != 0)
+         if ( p != save_rank)
          {
             MPI_Recv(&n_send_recv, 1, MPI_INT, p, 444, MPI_COMM_WORLD, &status);
             ints.SetSize(n_send_recv);
@@ -5215,10 +5225,10 @@ void ParMesh::PrintAsSerial(std::ostream &os) const
    }
    else
    {
-      MPI_Send(&n_send_recv, 1, MPI_INT, 0, 444, MPI_COMM_WORLD);
+      MPI_Send(&n_send_recv, 1, MPI_INT, save_rank, 444, MPI_COMM_WORLD);
       if (n_send_recv)
       {
-         MPI_Send(&ints[0], n_send_recv, MPI_INT, 0, 445, MPI_COMM_WORLD);
+         MPI_Send(&ints[0], n_send_recv, MPI_INT, save_rank, 445, MPI_COMM_WORLD);
       }
    }
 
@@ -5232,10 +5242,8 @@ void ParMesh::PrintAsSerial(std::ostream &os) const
    ints.SetSize(0);
    for (int e = 0; e < NumOfBdrElements; e++)
    {
-      const int attr = boundary[e]->GetAttribute();
-      const int geom_type = boundary[e]->GetGeometryType();
-      ints.Append(attr);
-      ints.Append(geom_type);
+      ints.Append(boundary[e]->GetAttribute());
+      ints.Append(boundary[e]->GetGeometryType());
       pfespace_linear.GetBdrElementDofs(e, dofs);
       for (int j = 0; j < dofs.Size(); j++)
       {
@@ -5243,11 +5251,11 @@ void ParMesh::PrintAsSerial(std::ostream &os) const
       }
    }
 
-   if (MyRank == 0)
+   if (MyRank == save_rank)
    {
       for (int p = 0; p < NRanks; p++)
       {
-         if ( p != 0)
+         if ( p != save_rank)
          {
             MPI_Recv(&n_send_recv, 1, MPI_INT, p, 446, MPI_COMM_WORLD, &status);
             ints.SetSize(n_send_recv);
@@ -5274,14 +5282,14 @@ void ParMesh::PrintAsSerial(std::ostream &os) const
    }
    else
    {
-      MPI_Send(&n_send_recv, 1, MPI_INT, 0, 446, MPI_COMM_WORLD);
+      MPI_Send(&n_send_recv, 1, MPI_INT, save_rank, 446, MPI_COMM_WORLD);
       if (n_send_recv)
       {
-         MPI_Send(&ints[0], n_send_recv, MPI_INT, 0, 447, MPI_COMM_WORLD);
+         MPI_Send(&ints[0], n_send_recv, MPI_INT, save_rank, 447, MPI_COMM_WORLD);
       }
    }
 
-   if (MyRank == 0)
+   if (MyRank == save_rank)
    {
       for (int v = 0; v < nvertices_glob; v++)
       {
@@ -5346,11 +5354,11 @@ void ParMesh::PrintAsSerial(std::ostream &os) const
 
    int elem_count = 0; // To keep track of element counter in serial mesh
    Array<int> ints_serial;
-   if (MyRank == 0)
+   if (MyRank == save_rank)
    {
       for (int p = 0; p < NRanks; p++)
       {
-         if ( p != 0)
+         if ( p != save_rank)
          {
             MPI_Recv(&n_send_recv, 1, MPI_INT, p, 448, MPI_COMM_WORLD, &status);
             vert.SetSize(n_send_recv);
@@ -5388,17 +5396,18 @@ void ParMesh::PrintAsSerial(std::ostream &os) const
    }
    else
    {
-      MPI_Send(&n_send_recv, 1, MPI_INT, 0, 448, MPI_COMM_WORLD);
+      MPI_Send(&n_send_recv, 1, MPI_INT, save_rank, 448, MPI_COMM_WORLD);
       if (n_send_recv)
       {
-         MPI_Send(&vert[0], n_send_recv, MPI_DOUBLE, 0, 449, MPI_COMM_WORLD);
+         MPI_Send(&vert[0], n_send_recv, MPI_DOUBLE, save_rank, 449, MPI_COMM_WORLD);
       }
    }
 
-   if (MyRank == 0)
-   {
-      serialmesh.Printer(os);
-   }
+   return serialmesh;
+   //   if (MyRank == 0)
+   //   {
+   //      serialmesh.Printer(os);
+   //   }
 }
 
 void ParMesh::SaveAsOne(const char *fname, int precision) const
