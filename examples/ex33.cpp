@@ -15,7 +15,6 @@
 // Verification runs:
 //    ex33 -m ../data/inline-quad.mesh -ver -alpha 0.3 -o 2 -r 4
 //    ex33 -m ../data/inline-quad.mesh -ver -alpha 1.4 -o 3 -r 5
-//    ex33 -m ../data/inline-quad.mesh -ver -alpha 5.7 -o 2 -r 7 -no-vis
 //  Note: the analytic solution to this problem is u(x) = sin(pi x) sin(pi y)
 //        for all alpha.
 //
@@ -221,7 +220,7 @@ int main(int argc, char *argv[])
       Array<int> empty;
       m.FormSystemMatrix(empty, mass);
 
-      // 10.3 from the system of equations
+      // 10.3 Form the system of equations
       Vector B, X;
       OperatorPtr Op;
       k.FormLinearSystem(ess_tdof_list, g, b, Op, X, B);
@@ -231,8 +230,8 @@ int main(int argc, char *argv[])
                 << " ( f ) " << endl;
       for (int i = 0; i < power_of_laplace; i++)
       {
-         // 10.4 Solve the linear system A X = B (N times).
-         PCG(*Op, M, B, X, 3, 200, 1e-12, 0.0);
+         // 10.4 Solve the linear system Op X = B (N times).
+         PCG(*Op, M, B, X, 3, 300, 1e-12, 0.0);
 
          // 10.5 Visualize the solution g of -Δ ^ N g = f in the last step
          if (i == power_of_laplace - 1)
@@ -311,7 +310,7 @@ int main(int argc, char *argv[])
          // 11.4 Solve the linear system A X = B.
          GSSmoother M((SparseMatrix&)(*A));
 
-         PCG(*A, M, B, X, 3, 200, 1e-12, 0.0);
+         PCG(*A, M, B, X, 3, 300, 1e-12, 0.0);
 
          // 11.5 Recover the solution as a finite element grid function.
          a.RecoverFEMSolution(X, b, x);
