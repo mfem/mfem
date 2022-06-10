@@ -496,6 +496,10 @@ public:
        processor boundaries. */
    void PrintAsSerial(std::ostream &out = mfem::out) const;
 
+   /** Returns a Serial mesh on MPI rank @a save_rank that does not have any
+       duplication of vertices/nodes at processor boundaries. */
+   Mesh GetSerialMesh(int save_rank) const;
+
    /// Save the mesh as a single file (using ParMesh::PrintAsOne). The given
    /// @a precision is used for ASCII output.
    void SaveAsOne(const char *fname, int precision=16) const;
