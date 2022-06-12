@@ -184,6 +184,18 @@ void PAHdivMassApply3D(const int D1D,
                        const Vector &x_,
                        Vector &y_);
 
+void PAHdivMassApply(const int dim,
+                     const int D1D,
+                     const int Q1D,
+                     const int NE,
+                     const Array<double> &Bo,
+                     const Array<double> &Bc,
+                     const Array<double> &Bot,
+                     const Array<double> &Bct,
+                     const Vector &op,
+                     const Vector &x,
+                     Vector &y);
+
 void PAHcurlL2Setup(const int NQ,
                     const int coeffDim,
                     const int NE,
@@ -1034,7 +1046,7 @@ void VectorFEMassIntegrator::AddMultPA(const Vector &x, Vector &y) const
       }
       else if (trial_div && test_div)
       {
-         PAHdivMassApply3D(dofs1D, quad1D, ne, mapsO->B, mapsC->B, mapsO->Bt,
+         PAHdivMassApply(3, dofs1D, quad1D, ne, mapsO->B, mapsC->B, mapsO->Bt,
                            mapsC->Bt, pa_data, x, y);
       }
       else if (trial_curl && test_div)
@@ -1065,7 +1077,7 @@ void VectorFEMassIntegrator::AddMultPA(const Vector &x, Vector &y) const
       }
       else if (trial_div && test_div)
       {
-         PAHdivMassApply2D(dofs1D, quad1D, ne, mapsO->B, mapsC->B, mapsO->Bt,
+         PAHdivMassApply(2, dofs1D, quad1D, ne, mapsO->B, mapsC->B, mapsO->Bt,
                            mapsC->Bt, pa_data, x, y);
       }
       else if ((trial_curl && test_div) || (trial_div && test_curl))
