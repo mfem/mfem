@@ -11,7 +11,7 @@ double analytic_T(const Vector &x);
 double analytic_solution(const Vector &x);
 
 
-class NLGLSIntegrator :public NonlinearFormIntegrator
+class NLGLSIntegrator :public BilinearFormIntegrator //NonlinearFormIntegrator
 {
 public:
     NLGLSIntegrator()
@@ -70,6 +70,11 @@ public:
                              ElementTransformation &trans,
                              const Vector &elfun,
                              DenseMatrix &elmat);
+
+    virtual
+    void AssembleElementMatrix(const FiniteElement &el,
+                             ElementTransformation &trans,
+                             DenseMatrix &elmat);
 private:
 
     MatrixCoefficient* mat = nullptr;
@@ -80,6 +85,63 @@ private:
 
     bool isSUPG = false;
 };
+
+// class GLSLFIntegrator :public LinearFormIntegrator //NonlinearFormIntegrator
+// {
+// public:
+//     GLSLFIntegrator()
+//     {
+//         mat=nullptr;
+//     }
+
+//     GLSLFIntegrator(mfem::MatrixCoefficient* mat_, ParGridFunction * GF_)
+//     {
+//         mat=mat_;
+
+//         U_GF_=GF_;
+//     }
+
+//     GLSLFIntegrator(
+//         mfem::MatrixCoefficient* mat_,
+//         ParGridFunction * GF_,
+//         Coefficient * aCoeff_ )
+//     {
+//         mat=mat_;
+
+//         U_GF_=GF_;
+
+//         Coeff_=aCoeff_;
+//     }
+
+
+//     void SetMaterial(MatrixCoefficient* mat_)
+//     {
+//         mat=mat_;
+//     }
+
+//     void SetVelocity(ParGridFunction* GF_)
+//     {
+//         U_GF_=GF_;
+//     }
+
+//     virtual
+//     ~NLGLSIntegrator(){}
+
+//     virtual
+//     void AssembleRHSElementVect(const FiniteElement &el,
+//                                ElementTransformation &trans,
+//                                Vector &elvect);
+
+// private:
+
+//     MatrixCoefficient* mat = nullptr;
+
+//     ParGridFunction * U_GF_ = nullptr;
+
+//     Coefficient * Coeff_ = nullptr;
+
+//     bool isSUPG = false;
+// };
 
 class NLGLS_Solver{
 public:

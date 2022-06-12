@@ -18,6 +18,10 @@ if (MFEM_USE_MPI)
         NLGLSIntegrator.cpp)
   list(APPEND DIST_COMMON_HEADERS
         NLGLSIntegrator.hpp)
+  list(APPEND DIST_COMMON_SOURCES
+        advection_diffusion_solver.cpp)
+  list(APPEND DIST_COMMON_HEADERS
+        advection_diffusion_solver.hpp)
 
 convert_filenames_to_full_paths(DIST_COMMON_SOURCES)
 convert_filenames_to_full_paths(DIST_COMMON_HEADERS)
@@ -33,6 +37,11 @@ add_mfem_miniapp(ndarcy
 
 add_mfem_miniapp(GLSSolver
     MAIN GLS_Solver.cpp
+    ${DIST_COMMON_FILES}
+    LIBRARIES mfem mfem-common)
+
+add_mfem_miniapp(AdvDiffSolver
+    MAIN AdvDiff_Solver.cpp
     ${DIST_COMMON_FILES}
     LIBRARIES mfem mfem-common)
 

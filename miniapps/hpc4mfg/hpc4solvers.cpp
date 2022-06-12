@@ -232,10 +232,19 @@ void NLDiffusion::ASolve(mfem::Vector &rhs)
     MFEM_ASSERT( !ls, "Liner solver does not exist"); 
     MFEM_ASSERT( !nf, "Nonlinear form does not exist"); 
 
-    // set operator TODO transpose for non-linear problems
-    ls->SetOperator(nf->GetGradient(sol));
+    adj = 0.0;
 
-    ls->Mult(rhs,adj);
+    // ess_tdofv allocated correclty in forwards pass
+    
+    HypreParMatrix A;
+    Vector B, X;
+    //nf->GetGradient(sol).FormLinearSystem(ess_tdofv, adj, rhs, A, X, B);
+
+    ls->SetOperator(A);
+    ls->Mult(B, X);
+
+    adj = X;
+
 }
 
 }
