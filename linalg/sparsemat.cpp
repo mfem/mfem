@@ -2230,22 +2230,22 @@ void SparseMatrix::EliminateBC(const Array<int> &ess_dofs,
 {
    const int n_ess_dofs = ess_dofs.Size();
    const auto ess_dofs_d = ess_dofs.Read();
-   const auto I = ReadI();
-   const auto J = ReadJ();
+   const auto dI = ReadI();
+   const auto dJ = ReadJ();
    auto dA = ReadWriteData();
 
    MFEM_FORALL(i, n_ess_dofs,
    {
       const int idof = ess_dofs_d[i];
-      for (int j=I[idof]; j<I[idof+1]; ++j)
+      for (int j=dI[idof]; j<dI[idof+1]; ++j)
       {
-         const int jdof = J[j];
+         const int jdof = dJ[j];
          if (jdof != idof)
          {
             dA[j] = 0.0;
-            for (int k=I[jdof]; k<I[jdof+1]; ++k)
+            for (int k=dI[jdof]; k<dI[jdof+1]; ++k)
             {
-               if (J[k] == idof)
+               if (dJ[k] == idof)
                {
                   dA[k] = 0.0;
                   break;
