@@ -127,7 +127,7 @@ public:
    void Assemble();
    void RAP(OperatorHandle &A);
    /** @note Always does `DIAG_ONE` policy to be consistent with
-       `ConstrainedOperator`. */
+       `Operator::FormConstrainedSystemOperator`. */
    void EliminateBC(const Array<int> &ess_dofs, OperatorHandle &A);
    void FormSystemMatrix(const Array<int> &ess_tdof_list, OperatorHandle &A);
    void FormLinearSystem(const Array<int> &ess_tdof_list,
