@@ -14,7 +14,6 @@
 #include "../../general/forall.hpp"
 #include <climits>
 #include "../pbilinearform.hpp"
-#include "../../linalg/operator.hpp"
 
 // Specializations
 #include "lor_h1.hpp"
