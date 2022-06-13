@@ -21,14 +21,14 @@ CONFIG_MK = $(MFEM_BUILD_DIR)/config/config.mk
 MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
-ELASTICITY_SRC = elasticity_driver.cpp\
+HOOKE_SRC = hooke.cpp\
 	operators/elasticity_operator.cpp\
 	operators/elasticity_gradient_operator.cpp\
 	preconditioners/diagonal_preconditioner.cpp
-ELASTICITY_OBJ = $(ELASTICITY_SRC:.cpp=.o)
+HOOKE_OBJ = $(HOOKE_SRC:.cpp=.o)
 
-MINIAPPS = elasticity
-MFEM_TESTS = elasticity
+MINIAPPS = hooke
+MFEM_TESTS = hooke
 
 .SUFFIXES:
 .SUFFIXES: .o .cpp .mk
@@ -41,23 +41,23 @@ all: $(MINIAPPS)
 %: %.cpp
 %.o: %.cpp
 
-ELASTICITY_INCLUDES = -I.
+HOOKE_INCLUDES = -I.
 
 %: %.o
 	$(MFEM_CXX) $(MFEM_LINK_FLAGS) $< -o $@ $(MFEM_LIBS)
 
-elasticity: $(ELASTICITY_OBJ)
-	$(MFEM_CXX) $(MFEM_LINK_FLAGS) -o $@ $(ELASTICITY_OBJ) $(MFEM_LIBS)
+hooke: $(HOOKE_OBJ)
+	$(MFEM_CXX) $(MFEM_LINK_FLAGS) -o $@ $(HOOKE_OBJ) $(MFEM_LIBS)
 
 %.o: $(SRC)%.cpp $(MFEM_LIB_FILE) $(CONFIG_MK)
-	$(MFEM_CXX) $(MFEM_FLAGS) $(ELASTICITY_INCLUDES) -c $< -o $@
+	$(MFEM_CXX) $(MFEM_FLAGS) $(HOOKE_INCLUDES) -c $< -o $@
 
 include $(MFEM_TEST_MK)
 
 # Testing: Specific execution options
 RUN_MPI = $(MFEM_MPIEXEC) $(MFEM_MPIEXEC_NP) $(MFEM_MPI_NP)
-elasticity-test: elasticity
-	@$(call mfem-test,$<, $(RUN_MPI), Elasticity miniapp,-rs 0)
+hooke-test: hooke
+	@$(call mfem-test,$<, $(RUN_MPI), Hooke miniapp,-rs 0)
 
 # Generate an error message if the MFEM library is not built and exit
 $(MFEM_LIB_FILE):

@@ -44,6 +44,19 @@ using namespace mfem;
 /// This example only works in 3D. Kernels for 2D are not implemented.
 constexpr int dimension = 3;
 
+void display_banner(ostream& os)
+{
+   os << R"(
+         ___ ___ ________   ________   ____  __.___________
+        /   |   \\_____  \  \_____  \ |    |/ _|\_   _____/
+       /    ~    \/   |   \  /   |   \|      <   |    __)_ 
+       \    Y    /    |    \/    |    \    |  \  |        \
+        \___|_  /\_______  /\_______  /____|__ \/_______  /
+              \/         \/         \/        \/        \/ 
+      )"
+      << endl << flush;
+}
+
 int main(int argc, char *argv[])
 {
    Mpi::Init(argc, argv);
@@ -56,6 +69,10 @@ int main(int argc, char *argv[])
    int serial_refinement_levels = 0;
    bool visualization = true;
    bool paraview = false;
+
+   if (Mpi::Root()) {
+      display_banner(out);
+   }
 
    OptionsParser args(argc, argv);
    args.AddOption(&order, "-o", "--order",
