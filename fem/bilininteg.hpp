@@ -15,6 +15,7 @@
 #include "../config/config.hpp"
 #include "nonlininteg.hpp"
 #include "fespace.hpp"
+#include "ceed/interface/util.hpp"
 
 namespace mfem
 {

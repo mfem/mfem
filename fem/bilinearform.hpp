@@ -305,36 +305,64 @@ public:
    /// Finalizes the matrix initialization.
    virtual void Finalize(int skip_zeros = 1);
 
-   /// Returns a const reference to the sparse matrix.
+   /** @brief Returns a const reference to the sparse matrix:  \f$ M \f$
+
+       This will fail if HasSpMat() is false. */
    const SparseMatrix &SpMat() const
    {
       MFEM_VERIFY(mat, "mat is NULL and can't be dereferenced");
       return *mat;
    }
 
-   /// Returns a reference to the sparse matrix:  \f$ M \f$
+   /** @brief Returns a reference to the sparse matrix:  \f$ M \f$
+
+       This will fail if HasSpMat() is false. */
    SparseMatrix &SpMat()
    {
       MFEM_VERIFY(mat, "mat is NULL and can't be dereferenced");
       return *mat;
    }
 
+   /** @brief Returns true if the sparse matrix is not null, false otherwise.
+
+       @sa SpMat(). */
+   bool HasSpMat()
+   {
+      return mat != nullptr;
+   }
+
+
    /**  @brief Nullifies the internal matrix \f$ M \f$ and returns a pointer
         to it.  Used for transfering ownership. */
    SparseMatrix *LoseMat() { SparseMatrix *tmp = mat; mat = NULL; return tmp; }
 
-   /// Returns a const reference to the sparse matrix of eliminated b.c.: \f$ M_e \f$
+   /** @brief Returns a const reference to the sparse matrix of eliminated b.c.:
+       \f$ M_e \f$
+
+       This will fail if HasSpMatElim() is false. */
    const SparseMatrix &SpMatElim() const
    {
       MFEM_VERIFY(mat_e, "mat_e is NULL and can't be dereferenced");
       return *mat_e;
    }
 
-   /// Returns a reference to the sparse matrix of eliminated b.c.: \f$ M_e \f$
+   /** @brief Returns a reference to the sparse matrix of eliminated b.c.:
+       \f$ M_e \f$
+
+       This will fail if HasSpMatElim() is false. */
    SparseMatrix &SpMatElim()
    {
       MFEM_VERIFY(mat_e, "mat_e is NULL and can't be dereferenced");
       return *mat_e;
+   }
+
+   /**  @brief Returns true if the sparse matrix of eliminated b.c.s is not null,
+        false otherwise.
+
+        @sa SpMatElim(). */
+   bool HasSpMatElim()
+   {
+      return mat_e != nullptr;
    }
 
    /// Adds new Domain Integrator. Assumes ownership of @a bfi.
