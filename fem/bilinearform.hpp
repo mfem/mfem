@@ -446,18 +446,6 @@ public:
       A.Reset(mat, false);
    }
 
-   /** @brief Eliminate essential (Dirichlet) boundary conditions in the
-       SparseMatrix @a A
-
-       @param[in] ess_dofs indices of the degrees of freedom belonging to the
-                           essential boundary conditions.
-       @param[in] diag_policy policy for diagonal entries.
-       @param[in,out] A The SparseMatrix in which the boundary conditions are
-                        eliminated.  */
-   static void EliminateBC(const Array<int> &ess_dofs,
-                           DiagonalPolicy diag_policy,
-                           SparseMatrix &A);
-
    /** @brief Form the linear system A X = B, corresponding to this bilinear
        form and the linear form @a b(.). */
    /** This method applies any necessary transformations to the linear system
