@@ -1903,7 +1903,7 @@ void NewtonSolver::Mult(const Vector &b, Vector &x) const
       mfem::out << "Newton: Number of iterations: " << final_iter << '\n'
                 << "   ||r|| = " << final_norm << '\n';
    }
-   if (print_options.summary || (!converged && print_options.warnings))
+   if (!converged && (print_options.summary || print_options.warnings))
    {
       mfem::out << "Newton: No convergence!\n";
    }
