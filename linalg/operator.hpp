@@ -28,6 +28,7 @@ protected:
    int width;  ///< Dimension of the input / number of columns in the matrix.
 
    /// see FormSystemOperator()
+   /** @note Use DiagonalPolicy::DIAG_ONE. */
    void FormConstrainedSystemOperator(
       const Array<int> &ess_tdof_list, ConstrainedOperator* &Aout);
 
