@@ -13,7 +13,6 @@
 
 #include "fem.hpp"
 #include "../general/device.hpp"
-#include "../general/forall.hpp"
 #include <cmath>
 
 namespace mfem
