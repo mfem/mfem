@@ -13,7 +13,6 @@
 #define MFEM_HYPRE
 
 #include "../config/config.hpp"
-#include "../general/forall.hpp"
 
 #ifdef MFEM_USE_MPI
 
@@ -789,6 +788,14 @@ public:
        (A+Ae) is the original (Neumann) matrix before elimination. */
    void EliminateBC(const HypreParMatrix &Ae, const Array<int> &ess_dof_list,
                     const Vector &X, Vector &B) const;
+
+   /** @brief Eliminate essential (Dirichlet) boundary conditions.
+
+       @param[in] ess_dofs indices of the degrees of freedom belonging to the
+                           essential boundary conditions.
+       @param[in] diag_policy policy for diagonal entries. */
+   void EliminateBC(const Array<int> &ess_dofs,
+                    DiagonalPolicy diag_policy);
 
    /// Update the internal hypre_ParCSRMatrix object, A, to be on host.
    /** After this call A's diagonal and off-diagonal should not be modified
