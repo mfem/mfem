@@ -121,36 +121,6 @@ void ParBilinearForm::pAllocMat()
    dof_dof.LoseData();
 }
 
-/// @brief Make @a A_hyp steal ownership of its diagonal part @a A_diag.
-///
-/// If @a A_hyp does not own I and J, then they are aliases pointing to the I
-/// and J arrays in @a A_diag. In that case, this function swaps the memory
-/// objects. Similarly for the data array.
-///
-/// After this function is called, @a A_hyp will own all of the arrays of its
-/// diagonal part.
-///
-/// @note I and J can only be aliases when HYPRE_BIGINT is disabled.
-static void HypreStealOwnership(HypreParMatrix &A_hyp, SparseMatrix &A_diag)
-{
-#ifndef HYPRE_BIGINT
-   bool own_i = A_hyp.GetDiagMemoryI().OwnsHostPtr();
-   bool own_j = A_hyp.GetDiagMemoryJ().OwnsHostPtr();
-   MFEM_CONTRACT_VAR(own_j);
-   MFEM_ASSERT(own_i == own_j, "Inconsistent ownership");
-   if (!own_i)
-   {
-      std::swap(A_diag.GetMemoryI(), A_hyp.GetDiagMemoryI());
-      std::swap(A_diag.GetMemoryJ(), A_hyp.GetDiagMemoryJ());
-   }
-#endif
-   if (!A_hyp.GetDiagMemoryData().OwnsHostPtr())
-   {
-      std::swap(A_diag.GetMemoryData(), A_hyp.GetDiagMemoryData());
-   }
-   A_hyp.SetOwnerFlags(3, A_hyp.OwnsOffd(), A_hyp.OwnsColMap());
-}
-
 void ParBilinearForm::ParallelRAP(SparseMatrix &loc_sp_mat, OperatorHandle &A)
 {
    ParFiniteElementSpace &pfespace = *ParFESpace();

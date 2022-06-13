@@ -864,6 +864,18 @@ public:
    Type GetType() const { return Hypre_ParCSR; }
 };
 
+/// @brief Make @a A_hyp steal ownership of its diagonal part @a A_diag.
+///
+/// If @a A_hyp does not own I and J, then they are aliases pointing to the I
+/// and J arrays in @a A_diag. In that case, this function swaps the memory
+/// objects. Similarly for the data array.
+///
+/// After this function is called, @a A_hyp will own all of the arrays of its
+/// diagonal part.
+///
+/// @note I and J can only be aliases when HYPRE_BIGINT is disabled.
+void HypreStealOwnership(HypreParMatrix &A_hyp, SparseMatrix &A_diag);
+
 #if MFEM_HYPRE_VERSION >= 21800
 
 enum class BlockInverseScaleJob

@@ -46,30 +46,6 @@ bool HasIntegrators(BilinearForm &a)
    return false;
 }
 
-#ifdef MFEM_USE_MPI
-
-void HypreStealOwnership(HypreParMatrix &A_hyp, SparseMatrix &A_diag)
-{
-#ifndef HYPRE_BIGINT
-   bool own_i = A_hyp.GetDiagMemoryI().OwnsHostPtr();
-   bool own_j = A_hyp.GetDiagMemoryJ().OwnsHostPtr();
-   MFEM_CONTRACT_VAR(own_j);
-   MFEM_ASSERT(own_i == own_j, "Inconsistent ownership");
-   if (!own_i)
-   {
-      std::swap(A_diag.GetMemoryI(), A_hyp.GetDiagMemoryI());
-      std::swap(A_diag.GetMemoryJ(), A_hyp.GetDiagMemoryJ());
-   }
-#endif
-   if (!A_hyp.GetDiagMemoryData().OwnsHostPtr())
-   {
-      std::swap(A_diag.GetMemoryData(), A_hyp.GetDiagMemoryData());
-   }
-   A_hyp.SetOwnerFlags(3, A_hyp.OwnsOffd(), A_hyp.OwnsColMap());
-}
-
-#endif
-
 bool BatchedLORAssembly::FormIsSupported(BilinearForm &a)
 {
    const FiniteElementCollection *fec = a.FESpace()->FEColl();
