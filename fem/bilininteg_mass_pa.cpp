@@ -448,7 +448,7 @@ static void PAMassAssembleDiagonal(const int dim, const int D1D,
          case 0x99: return SmemPAMassAssembleDiagonal2D<9,9,2>(NE,B,D,Y);
          default:   return PAMassAssembleDiagonal2D(NE,B,D,Y,D1D,Q1D);
 #else
-         default: return SmemPAMassAssembleDiagonal2D(NE,B,D,Y,D1D,Q1D);
+         default: return SmemPAMassAssembleDiagonal2D(NE,B,D,Y,D1D,Q1D,1);
 #endif
       }
    }
@@ -1209,7 +1209,7 @@ static void PAMassApply(const int dim,
          case 0x99: return SmemPAMassApply2D<9,9,2>(NE,B,D,X,Y);
          default:   return PAMassApply2D(NE,B,Bt,D,X,Y,D1D,Q1D);
 #else
-         default: return SmemPAMassApply2D(NE,B,D,X,Y,D1D,Q1D);
+         default: return SmemPAMassApply2D(NE,B,D,X,Y,D1D,Q1D,1);
 #endif
       }
    }
@@ -1220,9 +1220,9 @@ static void PAMassApply(const int dim,
       DeviceTensor<4,double> Y = Reshape(y.ReadWrite(), D1D, D1D, D1D, NE);
       switch (id)
       {
-#ifndef MFEM_USE_JIT
          case 0x22: return SmemPAMassApply3D<2,2>(NE,B,D,X,Y);
          case 0x23: return SmemPAMassApply3D<2,3>(NE,B,D,X,Y);
+#ifndef MFEM_USE_JIT
          case 0x24: return SmemPAMassApply3D<2,4>(NE,B,D,X,Y);
          case 0x26: return SmemPAMassApply3D<2,6>(NE,B,D,X,Y);
          case 0x34: return SmemPAMassApply3D<3,4>(NE,B,D,X,Y);

@@ -918,8 +918,8 @@ static void PADiffusionAssembleDiagonal(const int dim,
       DeviceTensor<4,double> Y = Reshape(y.ReadWrite(), D1D, D1D, D1D, NE);
       switch ((D1D << 4 ) | Q1D)
       {
-#ifndef MFEM_USE_JIT
          case 0x22: return SmemPADiffusionDiagonal3D<2,2>(NE,symm,B,G,D,Y);
+#ifndef MFEM_USE_JIT
          case 0x23: return SmemPADiffusionDiagonal3D<2,3>(NE,symm,B,G,D,Y);
          case 0x34: return SmemPADiffusionDiagonal3D<3,4>(NE,symm,B,G,D,Y);
          case 0x45: return SmemPADiffusionDiagonal3D<4,5>(NE,symm,B,G,D,Y);
