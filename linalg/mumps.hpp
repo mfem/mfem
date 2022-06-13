@@ -16,12 +16,12 @@
 
 #ifdef MFEM_USE_MUMPS
 #ifdef MFEM_USE_MPI
+
 #include "operator.hpp"
 #include "hypre.hpp"
-
 #include <mpi.h>
+
 #include "dmumps_c.h"
-#include <vector>
 
 namespace mfem
 {
@@ -37,14 +37,31 @@ public:
    enum MatType
    {
       UNSYMMETRIC = 0,
-      SYMMETRIC_INDEFINITE = 1,
-      SYMMETRIC_POSITIVE_DEFINITE = 2
+      SYMMETRIC_POSITIVE_DEFINITE = 1,
+      SYMMETRIC_INDEFINITE = 2
+   };
+
+   enum ReorderingStrategy
+   {
+      AUTOMATIC = 0,
+      AMD,
+      AMF,
+      PORD,
+      METIS,
+      PARMETIS,
+      SCOTCH,
+      PTSCOTCH
    };
 
    /**
-    * @brief Default Constructor
+    * @brief Constructor with MPI_Comm parameter.
     */
-   MUMPSSolver() {}
+   MUMPSSolver(MPI_Comm comm);
+
+   /**
+    * @brief Constructor with a HypreParMatrix Operator.
+    */
+   MUMPSSolver(const Operator &op);
 
    /**
     * @brief Set the Operator and perform factorization
@@ -76,7 +93,7 @@ public:
     *
     * @param print_lvl Print level
     *
-    * @note This method has to be called before SetOperator.
+    * @note This method has to be called before SetOperator
     */
    void SetPrintLevel(int print_lvl);
 
@@ -88,65 +105,106 @@ public:
     *
     * @param mtype Matrix type
     *
-    * @note This method has to be called before SetOperator.
+    * @note This method has to be called before SetOperator
     */
    void SetMatrixSymType(MatType mtype);
+
+   /**
+    * @brief Set the reordering strategy
+    *
+    * Supported reorderings are: AUTOMATIC, AMD, AMF, PORD, METIS, PARMETIS,
+    * SCOTCH, and PTSCOTCH
+    *
+    * @param method Reordering method
+    *
+    * @note This method has to be called before SetOperator
+    */
+   void SetReorderingStrategy(ReorderingStrategy method);
+
+   /**
+    * @brief Set the flag controlling reuse of the symbolic factorization
+    * for multiple operators
+    *
+    * @param reuse Flag to reuse symbolic factorization
+    *
+    * @note This method has to be called before repeated calls to SetOperator
+    */
+   void SetReorderingReuse(bool reuse);
+
+   /**
+    * @brief Set the tolerance for activating block low-rank (BLR) approximate
+    * factorization
+    *
+    * @param tol Tolerance
+    *
+    * @note This method has to be called before SetOperator
+    */
+#if MFEM_MUMPS_VERSION >= 510
+   void SetBLRTol(double tol);
+#endif
 
    // Destructor
    ~MUMPSSolver();
 
 private:
-
    // MPI communicator
-   MPI_Comm comm;
+   MPI_Comm comm_;
 
    // Number of procs
    int numProcs;
 
-   // local mpi id
+   // MPI rank
    int myid;
 
-   // parameter controling the matrix type
-   MatType mat_type = MatType::UNSYMMETRIC;
+   // Parameter controlling the matrix type
+   MatType mat_type;
 
-   // parameter controling the printing level
-   int print_level = 0;
+   // Parameter controlling the printing level
+   int print_level;
 
-   // local row offsets
+   // Parameter controlling the reordering strategy
+   ReorderingStrategy reorder_method;
+
+   // Parameter controlling whether or not to reuse the symbolic factorization
+   // for multiple calls to SetOperator
+   bool reorder_reuse;
+
+#if MFEM_MUMPS_VERSION >= 510
+   // Parameter controlling the Block Low-Rank (BLR) feature in MUMPS
+   double blr_tol;
+#endif
+
+   // Local row offsets
    int row_start;
 
    // MUMPS object
-   DMUMPS_STRUC_C *id=nullptr;
+   DMUMPS_STRUC_C *id;
+
+   // Method for initialization
+   void Init(MPI_Comm comm);
 
    // Method for setting MUMPS interal parameters
    void SetParameters();
 
 #if MFEM_MUMPS_VERSION >= 530
-
-   // row offests array on all procs
+   // Row offests array on all procs
    Array<int> row_starts;
 
-   // row map
-   int * irhs_loc = nullptr;
+   // Row map
+   int *irhs_loc;
 
    // These two methods are needed to distribute the local solution
    // vectors returned by MUMPS to the original MFEM parallel partition
    int GetRowRank(int i, const Array<int> &row_starts_) const;
 
-   void RedistributeSol(const int * row_map,
-                        const double * x,
-                        double * y) const;
+   void RedistributeSol(const int *row_map,
+                        const double *x,
+                        double *y) const;
 #else
-
    // Arrays needed for MPI_Gather and MPI_Scatter
-   int * recv_counts = nullptr;
-
-   int * displs = nullptr;
-
-   double * rhs_glob = nullptr;
-
+   int *recv_counts, *displs;
+   double *rhs_glob;
 #endif
-
 }; // mfem::MUMPSSolver class
 
 } // namespace mfem
