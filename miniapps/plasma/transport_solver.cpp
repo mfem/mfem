@@ -953,6 +953,14 @@ void EqnCoefficients::ReadCoefs(std::istream &input)
       }
    }
 
+   Coefficient       *sCoef = NULL;
+   VectorCoefficient *vCoef = NULL;
+   MatrixCoefficient *mCoef = NULL;
+
+   StateVariableCoef    *svsCoef = NULL;
+   StateVariableVecCoef *svvCoef = NULL;
+   StateVariableMatCoef *svmCoef = NULL;
+
    input.clear();
    for (int i=0; i<c; i++)
    {
@@ -969,13 +977,31 @@ void EqnCoefficients::ReadCoefs(std::istream &input)
          switch (typ[ord[i]])
          {
             case SCALAR:
-               sCoefs_[ord[i]] = coefFact->GetScalarCoef(iss);
+               sCoef = coefFact->GetScalarCoef(iss);
+               svsCoef = dynamic_cast<StateVariableCoef*>(sCoef);
+               if (svsCoef == NULL)
+               {
+                  svsCoef = new StateVariableStandardCoef(*sCoef);
+               }
+               sCoefs_[ord[i]] = svsCoef;
                break;
             case VECTOR:
-               vCoefs_[ord[i]-nSCoefs] = coefFact->GetVectorCoef(iss);
+               vCoef = coefFact->GetVectorCoef(iss);
+               svvCoef = dynamic_cast<StateVariableVecCoef*>(vCoef);
+               if (svvCoef == NULL)
+               {
+                  svvCoef = new StateVariableStandardVecCoef(*vCoef);
+               }
+               vCoefs_[ord[i]-nSCoefs] = svvCoef;
                break;
             case MATRIX:
-               mCoefs_[ord[i]-nSCoefs-nVCoefs] = coefFact->GetMatrixCoef(iss);
+               mCoef = coefFact->GetMatrixCoef(iss);
+               svmCoef = dynamic_cast<StateVariableMatCoef*>(mCoef);
+               if (svmCoef == NULL)
+               {
+                  svmCoef = new StateVariableStandardMatCoef(*mCoef);
+               }
+               mCoefs_[ord[i]-nSCoefs-nVCoefs] = svmCoef;
                break;
             default:
                MFEM_WARNING("Unrecognized coefficient type");
@@ -3696,15 +3722,15 @@ DGTransportTDO::TransportOp::TransportOp(const MPI_Session & mpi,
      SrcDefCoef_(neCoef_, niCoef_, rcCoef_),
      ScxDefCoef_(nnCoef_, niCoef_, cxCoef_),
      SizCoef_((cmncoefs_(CmnCoefs::IONIZATION_COEF) != NULL)
-              ? const_cast<Coefficient&>
+              ? const_cast<StateVariableCoef&>
               (*cmncoefs_(CmnCoefs::IONIZATION_COEF))
               : SizDefCoef_),
      SrcCoef_((cmncoefs_(CmnCoefs::RECOMBINATION_COEF) != NULL)
-              ? const_cast<Coefficient&>
+              ? const_cast<StateVariableCoef&>
               (*cmncoefs_(CmnCoefs::RECOMBINATION_COEF))
               : SrcDefCoef_),
      ScxCoef_((cmncoefs_(CmnCoefs::CHARGE_EXCHANGE_COEF) != NULL)
-              ? const_cast<Coefficient&>
+              ? const_cast<StateVariableCoef&>
               (*cmncoefs_(CmnCoefs::CHARGE_EXCHANGE_COEF))
               : ScxDefCoef_)
 {
@@ -3720,6 +3746,10 @@ DGTransportTDO::TransportOp::~TransportOp()
    {
       delete svvcoefs_[i];
    }
+   for (int i=0; i<svmcoefs_.Size(); i++)
+   {
+      delete svmcoefs_[i];
+   }
 
    for (int i=0; i<dtSCoefs_.Size(); i++)
    {
@@ -3732,6 +3762,10 @@ DGTransportTDO::TransportOp::~TransportOp()
    for (int i=0; i<dtVCoefs_.Size(); i++)
    {
       delete dtVCoefs_[i];
+   }
+   for (int i=0; i<negdtVCoefs_.Size(); i++)
+   {
+      delete negdtVCoefs_[i];
    }
    for (int i=0; i<dtMCoefs_.Size(); i++)
    {
@@ -3782,6 +3816,10 @@ void DGTransportTDO::TransportOp::SetTime(double t)
    {
       svvcoefs_[i]->SetTime(t);
    }
+   for (int i=0; i<svmcoefs_.Size(); i++)
+   {
+      svmcoefs_[i]->SetTime(t);
+   }
    for (int i=0; i<dtSCoefs_.Size(); i++)
    {
       dtSCoefs_[i]->SetTime(t);
@@ -3793,6 +3831,10 @@ void DGTransportTDO::TransportOp::SetTime(double t)
    for (int i=0; i<dtVCoefs_.Size(); i++)
    {
       dtVCoefs_[i]->SetTime(t);
+   }
+   for (int i=0; i<negdtVCoefs_.Size(); i++)
+   {
+      negdtVCoefs_[i]->SetTime(t);
    }
    for (int i=0; i<dtMCoefs_.Size(); i++)
    {
@@ -3835,6 +3877,10 @@ void DGTransportTDO::TransportOp::SetTimeStep(double dt)
    for (int i=0; i<dtVCoefs_.Size(); i++)
    {
       dtVCoefs_[i]->SetAConst(dt);
+   }
+   for (int i=0; i<negdtVCoefs_.Size(); i++)
+   {
+      negdtVCoefs_[i]->SetAConst(-dt);
    }
    for (int i=0; i<dtMCoefs_.Size(); i++)
    {
@@ -4413,8 +4459,12 @@ DGTransportTDO::TransportOp::SetAdvectionDiffusionTerm(
                                              *dtVCoef));
    }
 
-   Array<int> ess_bdr(pmesh_.bdr_attributes.Max());
-   ess_bdr = 0;
+   Array<int> ess_bdr;
+   if (pmesh_.bdr_attributes.Size() > 0)
+   {
+      ess_bdr.SetSize(pmesh_.bdr_attributes.Max());
+      ess_bdr = 0;
+   }
 
    const Array<CoefficientByAttr*> & dbc = bcs_.GetDirichletBCs();
    for (int i=0; i<dbc.Size(); i++)
@@ -4495,6 +4545,66 @@ DGTransportTDO::TransportOp::SetAdvectionDiffusionTerm(
       blf_[index_]->AddBdrFaceIntegrator(new BoundaryMassIntegrator(*dtaCoef),
                                          *bfbfi_marker_[index_].Last());
    }
+
+   this->SetDiffusionTermGradient(DCoef);
+}
+
+void
+DGTransportTDO::TransportOp::SetDiffusionTermGradient(
+   StateVariableMatCoef &DCoef)
+{
+   if ( mpi_.Root() && logging_ > 0)
+   {
+      cout << eqn_name_ << ": Adding diffusion term to gradient" << endl;
+   }
+
+   VectorCoefficient * dyCoef =
+      new GradientGridFunctionCoefficient(yGF_[index_]);
+   vCoefs_.Append(dyCoef);
+
+   for (int i=0; i<5; i++)
+   {
+      if (DCoef.NonTrivialValue((FieldType)i))
+      {
+         if ( mpi_.Root() && logging_ > 0)
+         {
+            cout << eqn_name_
+                 << ": Adding diffusion term proportional to d "
+                 << FieldSymbol((FieldType)i) << " / dt "
+                 << "in the gradient" << endl;
+         }
+
+         StateVariableMatCoef * coef = DCoef.Clone();
+         coef->SetDerivType((FieldType)i);
+         svmcoefs_.Append(coef);
+
+         VectorCoefficient * DdyCoef = new MatVecCoefficient(*coef, *dyCoef);
+         vCoefs_.Append(DdyCoef);
+
+         ScalarVectorProductCoefficient * negdtDdyCoef =
+            new ScalarVectorProductCoefficient(-dt_, *DdyCoef);
+         negdtVCoefs_.Append(negdtDdyCoef);
+
+         if (blf_[i] == NULL)
+         {
+            blf_[i] = new ParBilinearForm(&fes_);
+         }
+         blf_[i]->AddDomainIntegrator(
+            new ConservativeConvectionIntegrator(*negdtDdyCoef, 1.0));
+         blf_[i]->AddInteriorFaceIntegrator(
+            new DGTraceIntegrator(*negdtDdyCoef, 1.0, -0.5));
+
+         if (h1_fes_ != NULL)
+         {
+            if (cgblf_[i] == NULL)
+            {
+               cgblf_[i] = new ParBilinearForm(h1_fes_);
+            }
+            cgblf_[i]->AddDomainIntegrator(
+               new ConservativeConvectionIntegrator(*negdtDdyCoef, 1.0));
+         }
+      }
+   }
 }
 
 void DGTransportTDO::TransportOp::SetAdvectionTerm(StateVariableVecCoef
@@ -4550,7 +4660,8 @@ void DGTransportTDO::TransportOp::SetAdvectionTerm(StateVariableVecCoef
    */
 }
 
-void DGTransportTDO::TransportOp::SetSourceTerm(Coefficient &SCoef, double s)
+void DGTransportTDO::TransportOp::SetSourceTerm(StateVariableCoef &SCoef,
+                                                double s)
 {
    if ( mpi_.Root() && logging_ > 0)
    {
@@ -4566,11 +4677,7 @@ void DGTransportTDO::TransportOp::SetSourceTerm(Coefficient &SCoef, double s)
 
    dlfi_.Append(new DomainLFIntegrator(*coef));
 
-   StateVariableCoef *SVCoef = dynamic_cast<StateVariableCoef*>(&SCoef);
-   if (SVCoef)
-   {
-      this->SetSourceTermGradient(*SVCoef, s);
-   }
+   this->SetSourceTermGradient(SCoef, s);
 }
 
 void DGTransportTDO::TransportOp::SetSourceTermGradient(
@@ -4891,7 +4998,7 @@ DGTransportTDO::CombinedOp::CombinedOp(const MPI_Session & mpi,
 
    op_ = NULL;
 
-   VectorCoefficient *B3Coef = const_cast<VectorCoefficient*>
+   VectorCoefficient *B3Coef = const_cast<StateVariableVecCoef*>
                                (coefs[5].GetVectorCoefficient(CommonCoefs::MAGNETIC_FIELD_COEF));
 
    if ((op_flag >> 0) & 1)
@@ -5305,7 +5412,7 @@ DGTransportTDO::NeutralDensityOp::NeutralDensityOp(const MPI_Session & mpi,
      ndcoefs_(ndcoefs),
      DDefCoef_(neCoef_, vnBarCoef_, izCoef_, cxCoef_),
      DCoef_((ndcoefs_(NDCoefs::DIFFUSION_COEF) != NULL)
-            ? const_cast<Coefficient&>
+            ? const_cast<StateVariableCoef&>
             (*ndcoefs_(NDCoefs::DIFFUSION_COEF))
             : DDefCoef_),
      DGF_(NULL),
@@ -5358,7 +5465,7 @@ DGTransportTDO::NeutralDensityOp::NeutralDensityOp(const MPI_Session & mpi,
        ndcoefs_(NDCoefs::SOURCE_COEF) != NULL)
    {
       // Source term from command line
-      SetSourceTerm(const_cast<Coefficient&>(*ndcoefs_(NDCoefs::SOURCE_COEF)));
+      SetSourceTerm(const_cast<StateVariableCoef&>(*ndcoefs_(NDCoefs::SOURCE_COEF)));
    }
    if (this->CheckTermFlag(RECYCLING_BDR_SOURCE_TERM))
    {
@@ -5504,7 +5611,7 @@ NeutralDensityOp::PrepareDataFields()
       if (this->CheckTermFlag(SOURCE_TERM))
       {
          SGF_->ProjectCoefficient(
-            const_cast<Coefficient&>(*ndcoefs_(NDCoefs::SOURCE_COEF)));
+            const_cast<StateVariableCoef&>(*ndcoefs_(NDCoefs::SOURCE_COEF)));
       }
       else
       {
@@ -5555,11 +5662,11 @@ DGTransportTDO::IonDensityOp::IonDensityOp(const MPI_Session & mpi,
      idcoefs_(idcoefs),
      DPerpConstCoef_(DPerp),
      DParaCoefPtr_((idcoefs_(IDCoefs::PARA_DIFFUSION_COEF) != NULL)
-                   ? const_cast<Coefficient*>
+                   ? const_cast<StateVariableCoef*>
                    (idcoefs_(IDCoefs::PARA_DIFFUSION_COEF))
                    : NULL),
      DPerpCoefPtr_((idcoefs_(IDCoefs::PERP_DIFFUSION_COEF) != NULL)
-                   ? const_cast<Coefficient*>
+                   ? const_cast<StateVariableCoef*>
                    (idcoefs_(IDCoefs::PERP_DIFFUSION_COEF))
                    : &DPerpConstCoef_),
      DCoef_(DParaCoefPtr_,
@@ -5638,7 +5745,7 @@ DGTransportTDO::IonDensityOp::IonDensityOp(const MPI_Session & mpi,
        idcoefs_(IDCoefs::SOURCE_COEF) != NULL)
    {
       // Source term from command line or input file
-      SetSourceTerm(const_cast<Coefficient&>(*idcoefs_(IDCoefs::SOURCE_COEF)));
+      SetSourceTerm(const_cast<StateVariableCoef&>(*idcoefs_(IDCoefs::SOURCE_COEF)));
    }
 
    if (this->CheckVisFlag(DIFFUSION_PARA_COEF))
@@ -5799,7 +5906,7 @@ void DGTransportTDO::IonDensityOp::PrepareDataFields()
    if (this->CheckVisFlag(SOURCE_COEF) && SGF_ != NULL)
    {
       SGF_->ProjectCoefficient(
-         const_cast<Coefficient&>(*idcoefs_(IDCoefs::SOURCE_COEF)));
+         const_cast<StateVariableCoef&>(*idcoefs_(IDCoefs::SOURCE_COEF)));
    }
 }
 
@@ -5852,11 +5959,11 @@ DGTransportTDO::IonMomentumOp::IonMomentumOp(const MPI_Session & mpi,
      EtaParaCoef_(z_i_, m_i_kg_, lnLambda_, TiCoef_),
      EtaPerpCoef_(DPerpConst_, m_i_kg_, niCoef_),
      EtaParaCoefPtr_((imcoefs_(IMCoefs::PARA_DIFFUSION_COEF) != NULL)
-                     ? const_cast<Coefficient*>
+                     ? const_cast<StateVariableCoef*>
                      (imcoefs_(IMCoefs::PARA_DIFFUSION_COEF))
                      : &EtaParaCoef_),
      EtaPerpCoefPtr_((imcoefs_(IMCoefs::PERP_DIFFUSION_COEF) != NULL)
-                     ? const_cast<Coefficient*>
+                     ? const_cast<StateVariableCoef*>
                      (imcoefs_(IMCoefs::PERP_DIFFUSION_COEF))
                      : &EtaPerpCoef_),
      EtaCoef_(EtaParaCoefPtr_,
@@ -5956,7 +6063,7 @@ DGTransportTDO::IonMomentumOp::IonMomentumOp(const MPI_Session & mpi,
        imcoefs_(IMCoefs::SOURCE_COEF) != NULL)
    {
       // Source term from command line
-      SetSourceTerm(const_cast<Coefficient&>(*imcoefs_(IMCoefs::SOURCE_COEF)));
+      SetSourceTerm(const_cast<StateVariableCoef&>(*imcoefs_(IMCoefs::SOURCE_COEF)));
    }
 
    if (this->CheckVisFlag(DIFFUSION_PARA_COEF))
@@ -6152,7 +6259,7 @@ IonMomentumOp::PrepareDataFields()
    if (this->CheckVisFlag(SOURCE_COEF) && SGF_ != NULL)
    {
       SGF_->ProjectCoefficient(
-         const_cast<Coefficient&>(*imcoefs_(IMCoefs::SOURCE_COEF)));
+         const_cast<StateVariableCoef&>(*imcoefs_(IMCoefs::SOURCE_COEF)));
    }
    if (this->CheckVisFlag(ION_PARA_MOMENTUM))
    {
@@ -6210,11 +6317,11 @@ IonStaticPressureOp(const MPI_Session & mpi,
      ChiParaCoef_(plasma.z_i, plasma.m_i_kg, lnLambda_, niCoef_, TiCoef_),
      ChiPerpCoef_(ChiPerpConst_),
      ChiParaCoefPtr_((ispcoefs_(ISPCoefs::PARA_DIFFUSION_COEF) != NULL)
-                     ? const_cast<Coefficient*>
+                     ? const_cast<StateVariableCoef*>
                      (ispcoefs_(ISPCoefs::PARA_DIFFUSION_COEF))
                      : &ChiParaCoef_),
      ChiPerpCoefPtr_((ispcoefs_(ISPCoefs::PERP_DIFFUSION_COEF) != NULL)
-                     ? const_cast<Coefficient*>
+                     ? const_cast<StateVariableCoef*>
                      (ispcoefs_(ISPCoefs::PERP_DIFFUSION_COEF))
                      : &ChiPerpCoef_),
      ChiCoef_(ChiParaCoefPtr_,
@@ -6271,7 +6378,7 @@ IonStaticPressureOp(const MPI_Session & mpi,
        ispcoefs_(ISPCoefs::SOURCE_COEF) != NULL)
    {
       // Source term from command line
-      SetSourceTerm(const_cast<Coefficient&>
+      SetSourceTerm(const_cast<StateVariableCoef&>
                     (*ispcoefs_(ISPCoefs::SOURCE_COEF)));
    }
 
@@ -6339,7 +6446,7 @@ IonStaticPressureOp::PrepareDataFields()
       if (ispcoefs_(ISPCoefs::PARA_DIFFUSION_COEF) != NULL)
       {
          ChiParaGF_->ProjectCoefficient
-         (const_cast<Coefficient&>
+         (const_cast<StateVariableCoef&>
           (*ispcoefs_(ISPCoefs::PARA_DIFFUSION_COEF)));
       }
       else
@@ -6352,7 +6459,7 @@ IonStaticPressureOp::PrepareDataFields()
       if (ispcoefs_(ISPCoefs::PERP_DIFFUSION_COEF) != NULL)
       {
          ChiPerpGF_->ProjectCoefficient
-         (const_cast<Coefficient&>
+         (const_cast<StateVariableCoef&>
           (*ispcoefs_(ISPCoefs::PERP_DIFFUSION_COEF)));
       }
       else
@@ -6365,7 +6472,7 @@ IonStaticPressureOp::PrepareDataFields()
       if (ispcoefs_(ISPCoefs::SOURCE_COEF) != NULL)
       {
          SGF_->ProjectCoefficient
-         (const_cast<Coefficient&>
+         (const_cast<StateVariableCoef&>
           (*ispcoefs_(ISPCoefs::SOURCE_COEF)));
       }
    }
@@ -6416,11 +6523,11 @@ ElectronStaticPressureOp(const MPI_Session & mpi,
      ChiParaCoef_(plasma.z_i, lnLambda_, neCoef_, TeCoef_),
      ChiPerpCoef_(ChiPerpConst_),
      ChiParaCoefPtr_((espcoefs_(ESPCoefs::PARA_DIFFUSION_COEF) != NULL)
-                     ? const_cast<Coefficient*>
+                     ? const_cast<StateVariableCoef*>
                      (espcoefs_(ESPCoefs::PARA_DIFFUSION_COEF))
                      : &ChiParaCoef_),
      ChiPerpCoefPtr_((espcoefs_(ESPCoefs::PERP_DIFFUSION_COEF) != NULL)
-                     ? const_cast<Coefficient*>
+                     ? const_cast<StateVariableCoef*>
                      (espcoefs_(ESPCoefs::PERP_DIFFUSION_COEF))
                      : &ChiPerpCoef_),
      ChiCoef_(ChiParaCoefPtr_,
@@ -6477,7 +6584,7 @@ ElectronStaticPressureOp(const MPI_Session & mpi,
        espcoefs_(ESPCoefs::SOURCE_COEF) != NULL)
    {
       // Source term from command line
-      SetSourceTerm(const_cast<Coefficient&>
+      SetSourceTerm(const_cast<StateVariableCoef&>
                     (*espcoefs_(ESPCoefs::SOURCE_COEF)));
    }
 
@@ -6545,7 +6652,7 @@ ElectronStaticPressureOp::PrepareDataFields()
       if (espcoefs_(ESPCoefs::PARA_DIFFUSION_COEF) != NULL)
       {
          ChiParaGF_->ProjectCoefficient
-         (const_cast<Coefficient&>
+         (const_cast<StateVariableCoef&>
           (*espcoefs_(ESPCoefs::PARA_DIFFUSION_COEF)));
       }
       else
@@ -6558,7 +6665,7 @@ ElectronStaticPressureOp::PrepareDataFields()
       if (espcoefs_(ESPCoefs::PERP_DIFFUSION_COEF) != NULL)
       {
          ChiPerpGF_->ProjectCoefficient
-         (const_cast<Coefficient&>
+         (const_cast<StateVariableCoef&>
           (*espcoefs_(ESPCoefs::PERP_DIFFUSION_COEF)));
       }
       else
@@ -6569,7 +6676,7 @@ ElectronStaticPressureOp::PrepareDataFields()
    if (espcoefs_(ESPCoefs::SOURCE_COEF) != NULL)
    {
       SGF_->ProjectCoefficient
-      (const_cast<Coefficient&>
+      (const_cast<StateVariableCoef&>
        (*espcoefs_(ESPCoefs::SOURCE_COEF)));
    }
 }
@@ -6710,11 +6817,11 @@ IonTotalEnergyOp(const MPI_Session & mpi, const DGParams & dg,
      ChiParaCoef_(plasma.z_i, plasma.m_i_kg, lnLambda_, niCoef_, TiCoef_),
      ChiPerpCoef_(ChiPerpConst_),
      ChiParaCoefPtr_((itecoefs_(ITECoefs::PARA_DIFFUSION_COEF) != NULL)
-                     ? const_cast<Coefficient*>
+                     ? const_cast<StateVariableCoef*>
                      (itecoefs_(ITECoefs::PARA_DIFFUSION_COEF))
                      : &ChiParaCoef_),
      ChiPerpCoefPtr_((itecoefs_(ITECoefs::PERP_DIFFUSION_COEF) != NULL)
-                     ? const_cast<Coefficient*>
+                     ? const_cast<StateVariableCoef*>
                      (itecoefs_(ITECoefs::PERP_DIFFUSION_COEF))
                      : &ChiPerpCoef_),
      ChiCoef_(ChiParaCoefPtr_,
@@ -6811,7 +6918,7 @@ IonTotalEnergyOp(const MPI_Session & mpi, const DGParams & dg,
        itecoefs_(ITECoefs::SOURCE_COEF) != NULL)
    {
       // Source term from command line
-      SetSourceTerm(const_cast<Coefficient&>
+      SetSourceTerm(const_cast<StateVariableCoef&>
                     (*itecoefs_(ITECoefs::SOURCE_COEF)));
    }
 
@@ -6976,7 +7083,7 @@ void DGTransportTDO::IonTotalEnergyOp::PrepareDataFields()
       if (itecoefs_(ITECoefs::PARA_DIFFUSION_COEF) != NULL)
       {
          ChiParaGF_->ProjectCoefficient
-         (const_cast<Coefficient&>
+         (const_cast<StateVariableCoef&>
           (*itecoefs_(ITECoefs::PARA_DIFFUSION_COEF)));
       }
       else
@@ -6989,7 +7096,7 @@ void DGTransportTDO::IonTotalEnergyOp::PrepareDataFields()
       if (itecoefs_(ITECoefs::PERP_DIFFUSION_COEF) != NULL)
       {
          ChiPerpGF_->ProjectCoefficient
-         (const_cast<Coefficient&>
+         (const_cast<StateVariableCoef&>
           (*itecoefs_(ITECoefs::PERP_DIFFUSION_COEF)));
       }
       else
@@ -7002,7 +7109,7 @@ void DGTransportTDO::IonTotalEnergyOp::PrepareDataFields()
       if (itecoefs_(ITECoefs::SOURCE_COEF) != NULL)
       {
          SGF_->ProjectCoefficient
-         (const_cast<Coefficient&>
+         (const_cast<StateVariableCoef&>
           (*itecoefs_(ITECoefs::SOURCE_COEF)));
       }
    }
@@ -7090,11 +7197,11 @@ ElectronTotalEnergyOp(const MPI_Session & mpi, const DGParams & dg,
      ChiParaCoef_(plasma.z_i, lnLambda_, neCoef_, TeCoef_),
      ChiPerpCoef_(ChiPerpConst_),
      ChiParaCoefPtr_((etecoefs_(ETECoefs::PARA_DIFFUSION_COEF) != NULL)
-                     ? const_cast<Coefficient*>
+                     ? const_cast<StateVariableCoef*>
                      (etecoefs_(ETECoefs::PARA_DIFFUSION_COEF))
                      : &ChiParaCoef_),
      ChiPerpCoefPtr_((etecoefs_(ETECoefs::PERP_DIFFUSION_COEF) != NULL)
-                     ? const_cast<Coefficient*>
+                     ? const_cast<StateVariableCoef*>
                      (etecoefs_(ETECoefs::PERP_DIFFUSION_COEF))
                      : &ChiPerpCoef_),
      ChiCoef_(ChiParaCoefPtr_,
@@ -7184,7 +7291,7 @@ ElectronTotalEnergyOp(const MPI_Session & mpi, const DGParams & dg,
        etecoefs_(ETECoefs::SOURCE_COEF) != NULL)
    {
       // Source term from command line
-      SetSourceTerm(const_cast<Coefficient&>
+      SetSourceTerm(const_cast<StateVariableCoef&>
                     (*etecoefs_(ETECoefs::SOURCE_COEF)));
    }
 
@@ -7339,7 +7446,7 @@ void DGTransportTDO::ElectronTotalEnergyOp::PrepareDataFields()
       if (etecoefs_(ETECoefs::PARA_DIFFUSION_COEF) != NULL)
       {
          ChiParaGF_->ProjectCoefficient
-         (const_cast<Coefficient&>
+         (const_cast<StateVariableCoef&>
           (*etecoefs_(ETECoefs::PARA_DIFFUSION_COEF)));
       }
       else
@@ -7352,7 +7459,7 @@ void DGTransportTDO::ElectronTotalEnergyOp::PrepareDataFields()
       if (etecoefs_(ETECoefs::PERP_DIFFUSION_COEF) != NULL)
       {
          ChiPerpGF_->ProjectCoefficient
-         (const_cast<Coefficient&>
+         (const_cast<StateVariableCoef&>
           (*etecoefs_(ETECoefs::PERP_DIFFUSION_COEF)));
       }
       else
@@ -7365,7 +7472,7 @@ void DGTransportTDO::ElectronTotalEnergyOp::PrepareDataFields()
       if (etecoefs_(ETECoefs::SOURCE_COEF) != NULL)
       {
          SGF_->ProjectCoefficient
-         (const_cast<Coefficient&>
+         (const_cast<StateVariableCoef&>
           (*etecoefs_(ETECoefs::SOURCE_COEF)));
       }
    }

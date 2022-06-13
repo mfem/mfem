@@ -1820,6 +1820,7 @@ int main(int argc, char *argv[])
    }
 
    VectorCoefficient *B3Coef = NULL;
+   StateVariableVecCoef *svB3Coef = NULL;
    if (eqnCoefs(5).GetVectorCoefficient(
           CommonCoefs::MAGNETIC_FIELD_COEF) != NULL)
    {
@@ -1837,8 +1838,9 @@ int main(int argc, char *argv[])
          cout << "Using B field from " << eqdsk_file << endl;
       }
       B3Coef = new B3Coefficient(*nxGradPsiCoef);
+      svB3Coef = new StateVariableStandardVecCoef(*B3Coef);
       eqnCoefs(5).GetVectorCoefficient(CommonCoefs::MAGNETIC_FIELD_COEF) =
-         B3Coef;
+         svB3Coef;
    }
    else
    {
@@ -1847,8 +1849,9 @@ int main(int argc, char *argv[])
          cout << "Using B field from TotBFunc" << endl;
       }
       B3Coef = new VectorFunctionCoefficient(3, TotBFunc);
+      svB3Coef = new StateVariableStandardVecCoef(*B3Coef);
       eqnCoefs(5).GetVectorCoefficient(CommonCoefs::MAGNETIC_FIELD_COEF) =
-         B3Coef;
+         svB3Coef;
    }
 
    Array<double> coefNrm(5);
@@ -2505,7 +2508,11 @@ int main(int argc, char *argv[])
    delete ode_solver;
    delete dc;
    if (eqnCoefs(5).GetVectorCoefficient(
-          CommonCoefs::MAGNETIC_FIELD_COEF) != B3Coef) { delete B3Coef; }
+          CommonCoefs::MAGNETIC_FIELD_COEF) != B3Coef)
+   {
+      delete svB3Coef;
+      delete B3Coef;
+   }
 
    return 0;
 }

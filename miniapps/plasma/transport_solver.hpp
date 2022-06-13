@@ -499,12 +499,17 @@ public:
    const Coefficient * operator[](int i) const { return ess_[i]; }
 };
 
+class StateVariableCoef;
+class StateVariableVecCoef;
+class StateVariableMatCoef;
+
 class EqnCoefficients
 {
 protected:
-   Array<Coefficient *> sCoefs_;
-   Array<VectorCoefficient *> vCoefs_;
-   Array<MatrixCoefficient *> mCoefs_;
+
+   Array<StateVariableCoef *> sCoefs_;
+   Array<StateVariableVecCoef *> vCoefs_;
+   Array<StateVariableMatCoef *> mCoefs_;
 
    std::vector<std::string> sCoefNames_;
    std::vector<std::string> vCoefNames_;
@@ -529,22 +534,22 @@ public:
    void LoadCoefs(common::CoefFactory &cf, std::istream &input)
    { coefFact = &cf; ReadCoefs(input); }
 
-   Coefficient *& operator()(int i) { return sCoefs_[i]; }
-   const Coefficient * operator()(int i) const { return sCoefs_[i]; }
+   StateVariableCoef *& operator()(int i) { return sCoefs_[i]; }
+   const StateVariableCoef * operator()(int i) const { return sCoefs_[i]; }
 
-   Coefficient *& operator[](int i) { return sCoefs_[i]; }
-   const Coefficient * operator[](int i) const { return sCoefs_[i]; }
+   StateVariableCoef *& operator[](int i) { return sCoefs_[i]; }
+   const StateVariableCoef * operator[](int i) const { return sCoefs_[i]; }
 
-   Coefficient *& GetScalarCoefficient(int i) { return sCoefs_[i]; }
-   const Coefficient * GetScalarCoefficient(int i) const
+   StateVariableCoef *& GetScalarCoefficient(int i) { return sCoefs_[i]; }
+   const StateVariableCoef * GetScalarCoefficient(int i) const
    { return sCoefs_[i]; }
 
-   VectorCoefficient *& GetVectorCoefficient(int i) { return vCoefs_[i]; }
-   const VectorCoefficient * GetVectorCoefficient(int i) const
+   StateVariableVecCoef *& GetVectorCoefficient(int i) { return vCoefs_[i]; }
+   const StateVariableVecCoef * GetVectorCoefficient(int i) const
    { return vCoefs_[i]; }
 
-   MatrixCoefficient *& GetMatrixCoefficient(int i) { return mCoefs_[i]; }
-   const MatrixCoefficient * GetMatrixCoefficient(int i) const
+   StateVariableMatCoef *& GetMatrixCoefficient(int i) { return mCoefs_[i]; }
+   const StateVariableMatCoef * GetMatrixCoefficient(int i) const
    { return mCoefs_[i]; }
 };
 
@@ -1057,23 +1062,23 @@ public:
    }
 };
 
-class StateVariableStandardVectorCoef : public StateVariableVecCoef
+class StateVariableStandardVecCoef : public StateVariableVecCoef
 {
 private:
    VectorCoefficient & V_;
 
 public:
-   StateVariableStandardVectorCoef(VectorCoefficient & V)
+   StateVariableStandardVecCoef(VectorCoefficient & V)
       : StateVariableVecCoef(V.GetVDim()), V_(V)
    {}
 
-   StateVariableStandardVectorCoef(const StateVariableStandardVectorCoef &other)
+   StateVariableStandardVecCoef(const StateVariableStandardVecCoef &other)
       : StateVariableVecCoef(other.vdim), V_(other.V_)
    {}
 
-   virtual StateVariableStandardVectorCoef * Clone() const
+   virtual StateVariableStandardVecCoef * Clone() const
    {
-      return new StateVariableStandardVectorCoef(*this);
+      return new StateVariableStandardVecCoef(*this);
    }
 
    virtual bool NonTrivialValue(FieldType deriv) const
@@ -1085,6 +1090,37 @@ public:
                           const IntegrationPoint &ip)
    {
       V_.Eval(V, T, ip);
+   }
+};
+
+class StateVariableStandardMatCoef : public StateVariableMatCoef
+{
+private:
+   MatrixCoefficient & M_;
+
+public:
+   StateVariableStandardMatCoef(MatrixCoefficient & M)
+      : StateVariableMatCoef(M.GetHeight(), M.GetWidth()), M_(M)
+   {}
+
+   StateVariableStandardMatCoef(const StateVariableStandardMatCoef &other)
+      : StateVariableMatCoef(other.height, other.width), M_(other.M_)
+   {}
+
+   virtual StateVariableStandardMatCoef * Clone() const
+   {
+      return new StateVariableStandardMatCoef(*this);
+   }
+
+   virtual bool NonTrivialValue(FieldType deriv) const
+   {
+      return (deriv == INVALID_FIELD_TYPE);
+   }
+
+   virtual void Eval_Func(DenseMatrix & M, ElementTransformation &T,
+                          const IntegrationPoint &ip)
+   {
+      M_.Eval(M, T, ip);
    }
 };
 
@@ -4419,20 +4455,40 @@ public:
 class Aniso2DDiffusionCoef : public StateVariableMatCoef
 {
 private:
-   Coefficient       * Para_;
-   Coefficient       * Perp_;
+   StateVariableCoef * Para_;
+   StateVariableCoef * Perp_;
    VectorCoefficient * B3_;
 
    mutable Vector B_;
 
+   void FormMat(double para, double perp,
+                ElementTransformation &T,
+                const IntegrationPoint &ip,
+                DenseMatrix & M)
+   {
+      M.SetSize(2);
+
+      B3_->Eval(B_, T, ip);
+
+      double Bmag2 = B_ * B_;
+
+      M(0,0) = (B_[0] * B_[0] * para +
+                (B_[1] * B_[1] + B_[2] * B_[2]) * perp ) / Bmag2;
+      M(0,1) = B_[0] * B_[1] * (para - perp) / Bmag2;
+      M(1,0) = M(0,1);
+      M(1,1) = (B_[1] * B_[1] * para +
+                (B_[0] * B_[0] + B_[2] * B_[2]) * perp ) / Bmag2;
+   }
+
 public:
-   Aniso2DDiffusionCoef(Coefficient *ParaCoef, Coefficient *PerpCoef,
+   Aniso2DDiffusionCoef(StateVariableCoef *ParaCoef,
+                        StateVariableCoef *PerpCoef,
                         VectorCoefficient &B3Coef)
       : StateVariableMatCoef(2),
         Para_(ParaCoef), Perp_(PerpCoef),
         B3_(&B3Coef), B_(3) {}
 
-   Aniso2DDiffusionCoef(bool para, Coefficient &Coef,
+   Aniso2DDiffusionCoef(bool para, StateVariableCoef &Coef,
                         VectorCoefficient &B3Coef)
       : StateVariableMatCoef(2),
         Para_(para ? &Coef : NULL), Perp_(para ? NULL : &Coef),
@@ -4452,28 +4508,76 @@ public:
 
    virtual bool NonTrivialValue(FieldType deriv) const
    {
-      return (deriv == INVALID_FIELD_TYPE);
+      bool ntv = deriv == INVALID_FIELD_TYPE;
+      if (Para_)
+      {
+         ntv |= Para_->NonTrivialValue(deriv);
+      }
+      if (Perp_)
+      {
+         ntv |= Perp_->NonTrivialValue(deriv);
+      }
+      return ntv;
    }
 
    void Eval_Func(DenseMatrix & M,
                   ElementTransformation &T,
                   const IntegrationPoint &ip)
    {
-      M.SetSize(2);
-
       double para = Para_ ? Para_->Eval(T, ip) : 0.0;
       double perp = Perp_ ? Perp_->Eval(T, ip) : 0.0;
 
-      B3_->Eval(B_, T, ip);
+      this->FormMat(para, perp, T, ip, M);
+   }
 
-      double Bmag2 = B_ * B_;
+   void Eval_dNn(DenseMatrix & M,
+                 ElementTransformation &T,
+                 const IntegrationPoint &ip)
+   {
+      double para = Para_ ? Para_->Eval_dNn(T, ip) : 0.0;
+      double perp = Perp_ ? Perp_->Eval_dNn(T, ip) : 0.0;
 
-      M(0,0) = (B_[0] * B_[0] * para +
-                (B_[1] * B_[1] + B_[2] * B_[2]) * perp ) / Bmag2;
-      M(0,1) = B_[0] * B_[1] * (para - perp) / Bmag2;
-      M(1,0) = M(0,1);
-      M(1,1) = (B_[1] * B_[1] * para +
-                (B_[0] * B_[0] + B_[2] * B_[2]) * perp ) / Bmag2;
+      this->FormMat(para, perp, T, ip, M);
+   }
+
+   void Eval_dNi(DenseMatrix & M,
+                 ElementTransformation &T,
+                 const IntegrationPoint &ip)
+   {
+      double para = Para_ ? Para_->Eval_dNi(T, ip) : 0.0;
+      double perp = Perp_ ? Perp_->Eval_dNi(T, ip) : 0.0;
+
+      this->FormMat(para, perp, T, ip, M);
+   }
+
+   void Eval_dVi(DenseMatrix & M,
+                 ElementTransformation &T,
+                 const IntegrationPoint &ip)
+   {
+      double para = Para_ ? Para_->Eval_dVi(T, ip) : 0.0;
+      double perp = Perp_ ? Perp_->Eval_dVi(T, ip) : 0.0;
+
+      this->FormMat(para, perp, T, ip, M);
+   }
+
+   void Eval_dTi(DenseMatrix & M,
+                 ElementTransformation &T,
+                 const IntegrationPoint &ip)
+   {
+      double para = Para_ ? Para_->Eval_dTi(T, ip) : 0.0;
+      double perp = Perp_ ? Perp_->Eval_dTi(T, ip) : 0.0;
+
+      this->FormMat(para, perp, T, ip, M);
+   }
+
+   void Eval_dTe(DenseMatrix & M,
+                 ElementTransformation &T,
+                 const IntegrationPoint &ip)
+   {
+      double para = Para_ ? Para_->Eval_dTe(T, ip) : 0.0;
+      double perp = Perp_ ? Perp_->Eval_dTe(T, ip) : 0.0;
+
+      this->FormMat(para, perp, T, ip, M);
    }
 };
 
@@ -5095,9 +5199,11 @@ private:
    protected:
       Array<StateVariableCoef*>    svscoefs_;
       Array<StateVariableVecCoef*> svvcoefs_;
+      Array<StateVariableMatCoef*> svmcoefs_;
       Array<ProductCoefficient*>             dtSCoefs_;
       Array<ProductCoefficient*>             negdtSCoefs_;
       Array<ScalarVectorProductCoefficient*> dtVCoefs_;
+      Array<ScalarVectorProductCoefficient*> negdtVCoefs_;
       Array<ScalarMatrixProductCoefficient*> dtMCoefs_;
       Array<Coefficient*>       sCoefs_;
       Array<VectorCoefficient*> vCoefs_;
@@ -5159,9 +5265,9 @@ private:
       RecombinationSinkCoef   SrcDefCoef_;
       ChargeExchangeSinkCoef  ScxDefCoef_;
 
-      Coefficient & SizCoef_;
-      Coefficient & SrcCoef_;
-      Coefficient & ScxCoef_;
+      StateVariableCoef & SizCoef_;
+      StateVariableCoef & SrcCoef_;
+      StateVariableCoef & ScxCoef_;
 
       TransportOp(const MPI_Session & mpi, const DGParams & dg,
                   const PlasmaParams & plasma, int index,
@@ -5214,6 +5320,7 @@ private:
                                      StateVariableVecCoef &VCoef,
                                      Coefficient *DParaCoef,
                                      Coefficient *DPerpCoef);
+      void SetDiffusionTermGradient(StateVariableMatCoef &DCoef);
 
       /** Sets the advection term on the right hand side of the
       equation to be:
@@ -5222,7 +5329,7 @@ private:
        */
       void SetAdvectionTerm(StateVariableVecCoef &VCoef/*, bool bc = false*/);
 
-      void SetSourceTerm(Coefficient &SCoef, double s = 1.0);
+      void SetSourceTerm(StateVariableCoef &SCoef, double s = 1.0);
       void SetSourceTermGradient(StateVariableCoef &SCoef, double s = 1.0);
       void SetBdrSourceTerm(StateVariableCoef &SCoef,
                             StateVariableVecCoef &VCoef);
@@ -5399,10 +5506,10 @@ private:
 
       const IonDensityCoefs & idcoefs_;
 
-      ConstantCoefficient     DPerpConstCoef_;
-      Coefficient *           DParaCoefPtr_;
-      Coefficient *           DPerpCoefPtr_;
-      Aniso2DDiffusionCoef    DCoef_;
+      StateVariableConstantCoef DPerpConstCoef_;
+      StateVariableCoef *       DParaCoefPtr_;
+      StateVariableCoef *       DPerpCoefPtr_;
+      Aniso2DDiffusionCoef      DCoef_;
 
       IonAdvectionCoef        ViCoef_;
 
@@ -5498,13 +5605,13 @@ private:
       const IonMomentumCoefs & imcoefs_;
 
       double DPerpConst_;
-      ConstantCoefficient DPerpCoef_;
+      StateVariableConstantCoef DPerpCoef_;
 
       IonMomentumParaCoef            momCoef_;
       IonMomentumParaDiffusionCoef   EtaParaCoef_;
       IonMomentumPerpDiffusionCoef   EtaPerpCoef_;
-      Coefficient *                  EtaParaCoefPtr_;
-      Coefficient *                  EtaPerpCoefPtr_;
+      StateVariableCoef *            EtaParaCoefPtr_;
+      StateVariableCoef *            EtaPerpCoefPtr_;
       Aniso2DDiffusionCoef           EtaCoef_;
 
       IonMomentumAdvectionCoef miniViCoef_;
@@ -5600,9 +5707,9 @@ private:
       StaticPressureCoef               presCoef_;
       StaticPressureAdvectionCoef      aniViCoef_;
       IonThermalParaDiffusionCoef      ChiParaCoef_;
-      ConstantCoefficient              ChiPerpCoef_;
-      Coefficient *                    ChiParaCoefPtr_;
-      Coefficient *                    ChiPerpCoefPtr_;
+      StateVariableConstantCoef        ChiPerpCoef_;
+      StateVariableCoef *              ChiParaCoefPtr_;
+      StateVariableCoef *              ChiPerpCoefPtr_;
       Aniso2DDiffusionCoef             ChiCoef_;
       ProductCoefficient               nChiParaCoef_;
       ProductCoefficient               nChiPerpCoef_;
@@ -5685,9 +5792,9 @@ private:
       StaticPressureCoef               presCoef_;
       StaticPressureAdvectionCoef      aneViCoef_;
       ElectronThermalParaDiffusionCoef ChiParaCoef_;
-      ConstantCoefficient              ChiPerpCoef_;
-      Coefficient *                    ChiParaCoefPtr_;
-      Coefficient *                    ChiPerpCoefPtr_;
+      StateVariableConstantCoef        ChiPerpCoef_;
+      StateVariableCoef *              ChiParaCoefPtr_;
+      StateVariableCoef *              ChiPerpCoefPtr_;
       Aniso2DDiffusionCoef             ChiCoef_;
       ProductCoefficient               nChiParaCoef_;
       ProductCoefficient               nChiPerpCoef_;
@@ -5734,7 +5841,7 @@ private:
       StateVariableConstantCoef kBCoef_;
       StateVariableConstantCoef phiIZCoef_;
       StateVariableProductCoef kBphiIZCoef_;
-      StateVariableStandardVectorCoef BSVCoef_;
+      StateVariableStandardVecCoef BSVCoef_;
 
       TotalEnergyOp(const MPI_Session & mpi, const DGParams & dg,
                     const PlasmaParams & plasma, int index,
@@ -5785,9 +5892,9 @@ private:
       TotalEnergyAdvectionCoef         advFluxCoef_;
       StaticPressureAdvectionCoef      aniViCoef_;
       IonThermalParaDiffusionCoef      ChiParaCoef_;
-      ConstantCoefficient              ChiPerpCoef_;
-      Coefficient *                    ChiParaCoefPtr_;
-      Coefficient *                    ChiPerpCoefPtr_;
+      StateVariableConstantCoef        ChiPerpCoef_;
+      StateVariableCoef *              ChiParaCoefPtr_;
+      StateVariableCoef *              ChiPerpCoefPtr_;
       Aniso2DDiffusionCoef             ChiCoef_;
       ProductCoefficient               nChiParaCoef_;
       ProductCoefficient               nChiPerpCoef_;
@@ -5865,9 +5972,9 @@ private:
       TotalEnergyAdvectionCoef         advFluxCoef_;
       StaticPressureAdvectionCoef      aneViCoef_;
       ElectronThermalParaDiffusionCoef ChiParaCoef_;
-      ConstantCoefficient              ChiPerpCoef_;
-      Coefficient *                    ChiParaCoefPtr_;
-      Coefficient *                    ChiPerpCoefPtr_;
+      StateVariableConstantCoef        ChiPerpCoef_;
+      StateVariableCoef *              ChiParaCoefPtr_;
+      StateVariableCoef *              ChiPerpCoefPtr_;
       Aniso2DDiffusionCoef             ChiCoef_;
       ProductCoefficient               nChiParaCoef_;
       ProductCoefficient               nChiPerpCoef_;
