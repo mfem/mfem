@@ -116,12 +116,12 @@ TEST_CASE("CalcShape Lagrange",
 {
    const int maxOrder = 5;
    const int resolution = 10;
-   auto order = GENERATE_COPY(range(1, maxOrder + 1));
 
-   CAPTURE(order);
 
    SECTION("Lagrange1DFiniteElement")
    {
+      auto order = GENERATE_COPY(range(1, maxOrder + 1));
+      CAPTURE(order);
       Lagrange1DFiniteElement fe(order);
       TestCalcShape(&fe, resolution);
    }
@@ -143,11 +143,8 @@ TEST_CASE("CalcShape Lagrange",
    {
       // Comments for LagrangeHexFiniteElement state
       // that only degree 2 is functional for this class
-      if (order == 2)
-      {
-         LagrangeHexFiniteElement fe(order);
-         TestCalcShape(&fe, resolution);
-      }
+      LagrangeHexFiniteElement fe(2);
+      TestCalcShape(&fe, resolution);
    }
 }
 
