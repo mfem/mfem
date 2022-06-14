@@ -13,7 +13,7 @@
 #define MFEM_ELASTICITY_GRADIENT_OP_HPP
 
 #include "elasticity_operator.hpp"
-#include "materials/gradient_type.hpp"
+#include "../materials/gradient_type.hpp"
 
 namespace mfem
 {

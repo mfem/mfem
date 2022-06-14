@@ -12,7 +12,7 @@
 #ifndef MFEM_ELASTICITY_DIAGONAL_PC_HPP
 #define MFEM_ELASTICITY_DIAGONAL_PC_HPP
 
-#include "operators/elasticity_gradient_operator.hpp"
+#include "../operators/elasticity_gradient_operator.hpp"
 
 namespace mfem
 {
