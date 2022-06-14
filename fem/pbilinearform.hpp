@@ -115,9 +115,9 @@ public:
    HypreParMatrix *ParallelAssemble(SparseMatrix *m);
 
    /// @brief Compute parallel RAP operator and store it in @a A as a HypreParMatrix.
-   void ParallelRAP(SparseMatrix &loc_sp_mat,
+   void ParallelRAP(SparseMatrix &loc_A,
                     OperatorHandle &A,
-                    bool steal = false);
+                    bool steal_loc_A = false);
 
    /** @brief Returns the matrix assembled on the true dofs, i.e.
        @a A = P^t A_local P, in the format (type id) specified by @a A. */
