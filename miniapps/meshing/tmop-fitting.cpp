@@ -107,6 +107,7 @@ int main (int argc, char *argv[])
    bool mod_bndr_attr    = false;
    bool trim_mesh        = false;
    bool material         = false;
+   int mesh_node_ordering = 0;
 
    // 2. Parse command-line options.
    OptionsParser args(argc, argv);
@@ -234,6 +235,9 @@ int main (int argc, char *argv[])
                   "-no-trim","--no-trim", "trim the mesh or not.");
    args.AddOption(&material, "-mat", "--mat",
                   "-no-mat","--no-mat", "Use specified material attributes.");
+   args.AddOption(&mesh_node_ordering, "-mno", "--mesh_node_ordering",
+                  "Ordering of mesh nodes."
+                  "0 (default): byNodes, 1: byVDIM");
    args.Parse();
    if (!args.Good())
    {
@@ -332,7 +336,8 @@ int main (int argc, char *argv[])
       mesh_poly_deg = 2;
    }
    else { fec = new H1_FECollection(mesh_poly_deg, dim); }
-   ParFiniteElementSpace *pfespace = new ParFiniteElementSpace(pmesh, fec, dim);
+   ParFiniteElementSpace *pfespace = new ParFiniteElementSpace(pmesh, fec, dim,
+                                                               mesh_node_ordering);
 
    // 5. Make the mesh curved based on the above finite element space. This
    //    means that we define the mesh elements through a fespace-based
