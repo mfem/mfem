@@ -57,9 +57,25 @@ int problem;
 // Calculate the Low Order Solution
 void CalculateLOSolution(const GridFunction &u_HO,
 			 const GridFunction &x,
+			 const double &dt,
+			 GridFunction &du_LO,
 			 GridFunction &u_LO,
 			 Vector &el_mass,
 			 Vector &el_vol);
+
+// Function to calculate the mins and maxes of elements
+void ComputeElementsMinMax(const Vector &u,
+			   const FiniteElementSpace &fes,
+			   Vector &u_min, Vector &u_max,
+			   Array<bool> *active_el,
+			   Array<bool> *active_dof);
+
+// Updating time step
+void UpdateTimeStepEstimate(const Vector &x,
+                            const Vector &dx,
+                            const Vector &x_min,
+                            const Vector &x_max,
+			    double &dt_est);
 
 // For visualization, taken from lor-transfer.cpp
 int Wx = 0, Wy = 0; // window position
@@ -483,11 +499,11 @@ int main(int argc, char *argv[])
    FE_Evolution adv(m, k, b);
 
    double t = 0.0;
+   double dt_est = dt;
    adv.SetTime(t);
    ode_solver->Init(adv);
 
    // Need to declare these variables for calculating u_LO
-   // NOTE WE PROBABLY DON'T NEED TO DO THIS, REVISIT THIS SEAN
    Mesh *mesh_temp = fes.GetMesh();
    GridFunction x(mesh_temp->GetNodes()->FESpace());
    mesh_temp->GetNodes(x);
@@ -500,8 +516,11 @@ int main(int argc, char *argv[])
 
    // Declaring vectors for the mass and volume
    const int NE = x.FESpace()->GetNE();
-   Vector el_mass(NE);
-   Vector el_vol(NE);
+   Vector el_mass(NE);  Vector el_vol(NE);
+   Vector el_min(NE);  Vector el_max(NE);
+
+   // derivative vectors
+   GridFunction du_LO(&fes);
 
    bool done = false;
    for (int ti = 0; !done; )
@@ -513,9 +532,23 @@ int main(int argc, char *argv[])
       if (averaging == 1 || averaging == 3)
       {
         // Calculate the LO solution using u_HO
-        CalculateLOSolution(u_HO, x, u_LO, el_mass, el_vol);
+        CalculateLOSolution(u_HO, x, dt_real, u_LO, du_LO, el_mass, el_vol);
+
+	// Find the mins and maxes of the elements
+	ComputeElementsMinMax(u_HO, fes, el_min, el_max, NULL, NULL);
+
+	// It wouldn't be too hard to implement the time step adjustment
+	// step but as far as I know we're sticking with a fixed timestep so
+	// we're just not going to mess with things right now
+	UpdateTimeStepEstimate(u_LO, du_LO, el_min, el_max, dt_est);
+
+	// I'm not sure what is here is correct, currently my ignorance of
+	// how the meshes are structured is stopping me from having an actual
+	// answer to this.  The dt_est is the same the whole time,
+	// which is wrong.	
       }
-      else if (averaging == 2 || averaging == 3)
+
+      if (averaging == 2 || averaging == 3)
       {
 	// Here we do an L2 projection onto the finer fes, gives u_LOR
         R.Mult(u_HO, u_LOR);
@@ -553,6 +586,8 @@ int main(int argc, char *argv[])
       }
    }
 
+   //cout << du_LO << endl;
+
    // 9. Save the final solution. This output can be viewed later using GLVis:
    if (visualization)
    {
@@ -563,7 +598,8 @@ int main(int argc, char *argv[])
          visualize(LO_dc, "LO", Wx, Wy);
          Wx += offx;
       }
-      else if (averaging == 2 || averaging == 3)
+
+      if (averaging == 2 || averaging == 3)
       {
          visualize(LOR_dc, "LOR", Wx, Wy);
          Wx += offx;
@@ -581,13 +617,14 @@ int main(int argc, char *argv[])
         osol_LO.precision(precision);
         u_LO.Save(osol_LO);
       }
-      else if (averaging == 2 || averaging == 3)
+
+      if (averaging == 2 || averaging == 3)
       {
         ofstream osol_LOR("ex_sean-final_LOR.gf");
         osol_LOR.precision(precision);
         u_LOR.Save(osol_LOR);
       }
-   } 
+   }
 
    // 10. Free the used memory.
    delete ode_solver;
@@ -604,7 +641,9 @@ int main(int argc, char *argv[])
 // Calculate the Low Order solution
 void CalculateLOSolution(const GridFunction &u_HO,
 			 const GridFunction &x,
+			 const double &dt,
 			 GridFunction &u_LO,
+			 GridFunction &du_LO,
 			 Vector &el_mass,
 			 Vector &el_vol)
 {
@@ -643,6 +682,80 @@ void CalculateLOSolution(const GridFunction &u_HO,
       for (int i = 0; i < ndofs; i++)
       {
          u_LO(k*ndofs + i) = zone_avg;
+	 // I think this is wrong... maybe not though?
+	 du_LO(k*ndofs + i) = (u_LO(k*ndofs + i) - u_HO(k*ndofs + i)) / dt;
+      }
+   }
+}
+
+// Updating the time step based on the updated values for u, pretty much
+// take diectly from the Remhos repo
+void UpdateTimeStepEstimate(const Vector &x,
+                            const Vector &dx,
+                            const Vector &x_min,
+                            const Vector &x_max,
+			    double &dt_est)
+{
+  //if (dt_control == TimeStepControl::FixedTimeStep) { return; }
+
+   // x_min <= x + dt * dx <= x_max.
+   int n = x.Size();
+   int NE = x_min.Size();
+   const int ndofs = n / NE;
+   // cout << "n = " << n << endl;
+   // cout << "NE  = " << NE << endl;
+   // cout << "size of u_min is = " << x_min.Size() << endl;
+   // cout << "size of u_max is = " << x_max.Size() << endl;
+   const double eps = 1e-12;
+   double dt = numeric_limits<double>::infinity();
+
+   // I have a fundamental misunderstanding on this part
+   for (int i = 0; i < NE; i++)
+   {
+      if (dx(i*ndofs) > eps)
+      {
+         dt = fmin(dt, (x_max(i) - x(i*ndofs)) / dx(i*ndofs) );
+      }
+      else if (dx(i*ndofs) < -eps)
+      {
+         dt = fmin(dt, (x_min(i) - x(i*ndofs)) / dx(i*ndofs) );
+      }
+   }
+
+   //MPI_Allreduce(MPI_IN_PLACE, &dt, 1, MPI_DOUBLE, MPI_MIN,
+   //              Kbf.ParFESpace()->GetComm());
+
+   dt_est = fmin(dt_est, dt);
+}
+
+// Calculate the min and max of an element
+// This function is essentially the same as the one found in Remhos,
+// which is titled the same.
+void ComputeElementsMinMax(const Vector &u,
+			   const FiniteElementSpace &fes,
+			   Vector &u_min, Vector &u_max,
+			   Array<bool> *active_el,
+			   Array<bool> *active_dof)
+{
+   const int NE = fes.GetNE(), ndof = fes.GetFE(0)->GetDof();
+   int dof_id;
+   u.HostRead(); u_min.HostReadWrite(); u_max.HostReadWrite();
+   for (int k = 0; k < NE; k++)
+   {
+      u_min(k) = numeric_limits<double>::infinity();
+      u_max(k) = -numeric_limits<double>::infinity();
+
+      // Inactive elements don't affect the bounds
+      if (active_el && (*active_el)[k] == false) { continue; }
+
+      for (int i = 0; i < ndof; i++)
+      {
+	 dof_id = k*ndof + i;
+         // Inactive dofs don't affect the bounds.
+         if (active_dof && (*active_dof)[dof_id] == false) { continue; }
+
+         u_min(k) = min(u_min(k), u(dof_id));
+         u_max(k) = max(u_max(k), u(dof_id));
       }
    }
 }
