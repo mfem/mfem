@@ -49,7 +49,7 @@ struct NeoHookeanMaterial
     */
    template <typename T>
    MFEM_HOST_DEVICE tensor<T, dim, dim>
-   stress(const tensor<T, dim, dim> &__restrict__ dudx) const
+   stress(const tensor<T, dim, dim> &dudx) const
    {
       constexpr auto I = mfem::internal::IsotropicIdentity<dim>();
       T J = det(I + dudx);
