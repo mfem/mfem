@@ -17,8 +17,8 @@
 
 using namespace mfem::internal; // for IsotropicIdentity
 
-#include "miniapps/elasticity/materials/neohookean.hpp"
-#include "miniapps/elasticity/kernels/elasticity_kernels.hpp"
+#include "miniapps/hooke/materials/neohookean.hpp"
+#include "miniapps/hooke/kernels/elasticity_kernels.hpp"
 
 struct ElasticityBench
 {

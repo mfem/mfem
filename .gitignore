@@ -307,7 +307,7 @@ miniapps/solvers/sol.*
 miniapps/parelag/MultilevelHcurlHdivSolver
 miniapps/parelag/*.mesh
 
-miniapps/elasticity/elasticity
+miniapps/hooke/hooke
 
 # Unit test binary and outputs
 tests/unit/output_meshes
