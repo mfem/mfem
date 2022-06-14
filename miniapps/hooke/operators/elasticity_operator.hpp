@@ -12,7 +12,7 @@
 #ifndef MFEM_ELASTICITY_OP_HPP
 #define MFEM_ELASTICITY_OP_HPP
 
-#include "kernels/elasticity_kernels.hpp"
+#include "../kernels/elasticity_kernels.hpp"
 #include "mfem.hpp"
 
 namespace mfem
