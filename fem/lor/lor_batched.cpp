@@ -463,7 +463,7 @@ void BatchedLORAssembly::ParAssemble(
    ParBilinearForm *pa =
       dynamic_cast<ParBilinearForm*>(&a);
 
-   pa->ParallelRAP(*A_local.As<SparseMatrix>(), A);
+   pa->ParallelRAP(*A_local.As<SparseMatrix>(), A, true);
 
    A.As<HypreParMatrix>()->EliminateBC(ess_dofs,
                                        Operator::DiagonalPolicy::DIAG_ONE);
