@@ -12,6 +12,7 @@
 #ifndef MFEM_ELASTICITY_KERNEL_HELPERS_HPP
 #define MFEM_ELASTICITY_KERNEL_HELPERS_HPP
 
+#include "mfem.hpp"
 #include "general/forall.hpp"
 #include "linalg/tensor.hpp"
 
