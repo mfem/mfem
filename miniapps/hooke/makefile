@@ -12,7 +12,7 @@
 # Use the MFEM build directory
 MFEM_DIR ?= ../..
 MFEM_BUILD_DIR ?= ../..
-SRC = $(if $(MFEM_DIR:../..=),$(MFEM_DIR)/miniapps/elasticity/,)
+SRC = $(if $(MFEM_DIR:../..=),$(MFEM_DIR)/miniapps/hooke/,)
 CONFIG_MK = $(MFEM_BUILD_DIR)/config/config.mk
 # Use the MFEM install directory
 # MFEM_INSTALL_DIR = ../../mfem
