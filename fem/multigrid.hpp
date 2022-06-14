@@ -51,8 +51,10 @@ public:
    /// Constructs a multigrid hierarchy from the given inputs
    /** Inputs include operators and smoothers on all levels, and ownership of
        the given operators and smoothers */
-   MultigridBase(const Array<Operator*>& operators_, const Array<Solver*>& smoothers_,
-                 const Array<bool>& ownedOperators_, const Array<bool>& ownedSmoothers_);
+   MultigridBase(const Array<Operator*>& operators_,
+                 const Array<Solver*>& smoothers_,
+                 const Array<bool>& ownedOperators_,
+                 const Array<bool>& ownedSmoothers_);
 
    /// Destructor
    virtual ~MultigridBase();

@@ -34,7 +34,8 @@ typedef enum {NOROWPERM, LargeDiag, MY_PERMR}                      RowPerm;
 typedef enum {NOROWPERM, LargeDiag_MC64, LargeDiag_HWPM, MY_PERMR} RowPerm;
 #endif
 typedef enum {NATURAL, MMD_ATA, MMD_AT_PLUS_A, COLAMD,
-              METIS_AT_PLUS_A, PARMETIS, ZOLTAN, MY_PERMC} ColPerm;
+              METIS_AT_PLUS_A, PARMETIS, ZOLTAN, MY_PERMC
+             } ColPerm;
 typedef enum {NOREFINE, SLU_SINGLE=1, SLU_DOUBLE, SLU_EXTRA} IterRefine;
 typedef enum {DOFACT, SamePattern, SamePattern_SameRowPerm, FACTORED} Fact;
 

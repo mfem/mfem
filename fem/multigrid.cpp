@@ -273,7 +273,8 @@ Multigrid::~Multigrid()
    prolongations.DeleteAll();
 }
 
-GeometricMultigrid::GeometricMultigrid(const FiniteElementSpaceHierarchy& fespaces_)
+GeometricMultigrid::
+GeometricMultigrid(const FiniteElementSpaceHierarchy& fespaces_)
    : MultigridBase(), fespaces(fespaces_)
 {}
 

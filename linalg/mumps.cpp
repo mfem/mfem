@@ -19,13 +19,13 @@
 #include <algorithm>
 
 #if MFEM_MUMPS_VERSION >= 530
-  #ifdef MUMPS_INTSIZE64
-    #error "Full 64-bit MUMPS is not yet supported"
-  #endif
+#ifdef MUMPS_INTSIZE64
+#error "Full 64-bit MUMPS is not yet supported"
+#endif
 #else
-  #ifdef INTSIZE64
-    #error "Full 64-bit MUMPS is not yet supported"
-  #endif
+#ifdef INTSIZE64
+#error "Full 64-bit MUMPS is not yet supported"
+#endif
 #endif
 
 // Macro s.t. indices match MUMPS documentation
@@ -238,7 +238,7 @@ void MUMPSSolver::SetOperator(const Operator &op)
             {
                id->MUMPS_ICNTL(14) += 20;
                MFEM_VERIFY(id->MUMPS_ICNTL(14) <= mem_relax_lim,
-                          "Memory relaxation limit reached for MUMPS factorization");
+                           "Memory relaxation limit reached for MUMPS factorization");
                if (print_level > 0)
                {
                   mfem::out << "Re-running MUMPS factorization with memory relaxation "
@@ -392,7 +392,8 @@ void MUMPSSolver::MultTranspose(const Vector &x, Vector &y) const
    id->MUMPS_ICNTL(9) = 1;
 }
 
-void MUMPSSolver::MultTranspose(const Array<Vector *> &X, Array<Vector *> &Y) const
+void MUMPSSolver::MultTranspose(const Array<Vector *> &X,
+                                Array<Vector *> &Y) const
 {
    // Set flag for transpose solve
    id->MUMPS_ICNTL(9) = 0;

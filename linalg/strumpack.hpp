@@ -208,12 +208,12 @@ private:
    void FactorInternal() const;
 
 protected:
+   const STRUMPACKRowLocMatrix *APtr_;
+   STRUMPACKSolverType         *solver_;
+
    bool factor_verbose_;
    bool solve_verbose_;
    bool reorder_reuse_;
-
-   const STRUMPACKRowLocMatrix *APtr_;
-   STRUMPACKSolverType         *solver_;
 
    mutable Vector rhs_, sol_;
    mutable int    nrhs_;
@@ -221,7 +221,7 @@ protected:
 
 class STRUMPACKSolver :
    public STRUMPACKSolverBase<strumpack::
-      SparseSolverMPIDist<double, HYPRE_BigInt>>
+   SparseSolverMPIDist<double, HYPRE_BigInt>>
 {
 public:
    // Constructor with MPI_Comm parameter.
@@ -243,7 +243,7 @@ public:
 #if STRUMPACK_VERSION_MAJOR >= 6 && STRUMPACK_VERSION_MINOR >= 3 && STRUMPACK_VERSION_PATCH > 1
 class STRUMPACKMixedPrecisionSolver :
    public STRUMPACKSolverBase<strumpack::
-      SparseSolverMixedPrecisionMPIDist<float, double, HYPRE_BigInt>>
+   SparseSolverMixedPrecisionMPIDist<float, double, HYPRE_BigInt>>
 {
 public:
    // Constructor with MPI_Comm parameter.

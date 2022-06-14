@@ -503,66 +503,66 @@ void SuperLUSolver::SetOperator(const Operator &op)
          switch (options->Fact)
          {
             case SamePattern_SameRowPerm:
-               {
-                  // Just zero the LU factors
+            {
+               // Just zero the LU factors
 #if SUPERLU_DIST_MAJOR_VERSION > 7 || \
-   (SUPERLU_DIST_MAJOR_VERSION == 7 && SUPERLU_DIST_MINOR_VERSION >= 2)
-                  if (npdep_ > 1)
-                  {
-                     gridinfo3d_t *grid3d = (gridinfo3d_t *)gridPtr_;
+(SUPERLU_DIST_MAJOR_VERSION == 7 && SUPERLU_DIST_MINOR_VERSION >= 2)
+               if (npdep_ > 1)
+               {
+                  gridinfo3d_t *grid3d = (gridinfo3d_t *)gridPtr_;
 
-                     if (grid3d->zscp.Iam == 0)
-                     {
-                        ZeroLblocks(grid3d->iam, APtr_->GetGlobalNumColumns(),
-                                    &(grid3d->grid2d), LUstruct);
-                        ZeroUblocks(grid3d->iam, APtr_->GetGlobalNumColumns(),
-                                    &(grid3d->grid2d), LUstruct);
-                     }
-                  }
-                  else
-#endif
+                  if (grid3d->zscp.Iam == 0)
                   {
-                     gridinfo_t *grid = (gridinfo_t *)gridPtr_;
-
-                     ZeroLblocks(grid->iam, APtr_->GetGlobalNumColumns(),
-                                 grid, LUstruct);
-                     ZeroUblocks(grid->iam, APtr_->GetGlobalNumColumns(),
-                                 grid, LUstruct);
+                     ZeroLblocks(grid3d->iam, APtr_->GetGlobalNumColumns(),
+                                 &(grid3d->grid2d), LUstruct);
+                     ZeroUblocks(grid3d->iam, APtr_->GetGlobalNumColumns(),
+                                 &(grid3d->grid2d), LUstruct);
                   }
                }
-               break;
+               else
+#endif
+               {
+                  gridinfo_t *grid = (gridinfo_t *)gridPtr_;
+
+                  ZeroLblocks(grid->iam, APtr_->GetGlobalNumColumns(),
+                              grid, LUstruct);
+                  ZeroUblocks(grid->iam, APtr_->GetGlobalNumColumns(),
+                              grid, LUstruct);
+               }
+            }
+            break;
             case SamePattern:
             case DOFACT:
             case FACTORED:
-               {
-                  // Delete factors from the prior factorization
+            {
+               // Delete factors from the prior factorization
 #if SUPERLU_DIST_MAJOR_VERSION > 7 || \
-   (SUPERLU_DIST_MAJOR_VERSION == 7 && SUPERLU_DIST_MINOR_VERSION >= 2)
-                  if (npdep_ > 1)
-                  {
-                     gridinfo3d_t *grid3d = (gridinfo3d_t *)gridPtr_;
+(SUPERLU_DIST_MAJOR_VERSION == 7 && SUPERLU_DIST_MINOR_VERSION >= 2)
+               if (npdep_ > 1)
+               {
+                  gridinfo3d_t *grid3d = (gridinfo3d_t *)gridPtr_;
 
-                     if (grid3d->zscp.Iam == 0)
-                     {
-                        Destroy_LU(APtr_->GetGlobalNumColumns(),
-                                   &(grid3d->grid2d), LUstruct);
-                     }
-                     else
-                     {
-                        DeAllocLlu_3d(APtr_->GetGlobalNumColumns(), LUstruct,
-                                      grid3d);
-                        DeAllocGlu_3d(LUstruct);
-                     }
+                  if (grid3d->zscp.Iam == 0)
+                  {
+                     Destroy_LU(APtr_->GetGlobalNumColumns(),
+                                &(grid3d->grid2d), LUstruct);
                   }
                   else
-#endif
                   {
-                     gridinfo_t *grid = (gridinfo_t *)gridPtr_;
-
-                     Destroy_LU(APtr_->GetGlobalNumColumns(), grid, LUstruct);
+                     DeAllocLlu_3d(APtr_->GetGlobalNumColumns(), LUstruct,
+                                   grid3d);
+                     DeAllocGlu_3d(LUstruct);
                   }
                }
-               break;
+               else
+#endif
+               {
+                  gridinfo_t *grid = (gridinfo_t *)gridPtr_;
+
+                  Destroy_LU(APtr_->GetGlobalNumColumns(), grid, LUstruct);
+               }
+            }
+            break;
             default:
                MFEM_ABORT("SuperLUSolver::SetOperator: Unexpected value for "
                           "options->Fact!");
@@ -737,7 +737,8 @@ void SuperLUSolver::MultTranspose(const Vector &x, Vector &y) const
    options->Trans = NOTRANS;
 }
 
-void SuperLUSolver::MultTranspose(const Array<Vector *> &X, Array<Vector *> &Y) const
+void SuperLUSolver::MultTranspose(const Array<Vector *> &X,
+                                  Array<Vector *> &Y) const
 {
    // Set flag for transpose solve
    superlu_dist_options_t *options = (superlu_dist_options_t *)optionsPtr_;

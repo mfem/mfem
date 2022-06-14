@@ -118,10 +118,10 @@ template <typename STRUMPACKSolverType>
 STRUMPACKSolverBase<STRUMPACKSolverType>::
 STRUMPACKSolverBase(MPI_Comm comm, int argc, char *argv[])
    : APtr_(NULL),
-     nrhs_(-1),
      factor_verbose_(false),
      solve_verbose_(false),
-     reorder_reuse_(false)
+     reorder_reuse_(false),
+     nrhs_(-1)
 {
    solver_ = new STRUMPACKSolverType(comm, argc, argv, false);
 }
@@ -130,10 +130,10 @@ template <typename STRUMPACKSolverType>
 STRUMPACKSolverBase<STRUMPACKSolverType>::
 STRUMPACKSolverBase(STRUMPACKRowLocMatrix &A, int argc, char *argv[])
    : APtr_(&A),
-     nrhs_(-1),
      factor_verbose_(false),
      solve_verbose_(false),
-     reorder_reuse_(false)
+     reorder_reuse_(false),
+     nrhs_(-1)
 {
    solver_ = new STRUMPACKSolverType(A.GetComm(), argc, argv, false);
    SetOperator(A);
@@ -407,58 +407,58 @@ Mult(const Array<Vector *> &X, Array<Vector *> &Y) const
 STRUMPACKSolver::
 STRUMPACKSolver(MPI_Comm comm)
    : STRUMPACKSolverBase<strumpack::
-        SparseSolverMPIDist<double, HYPRE_BigInt>>
-        (comm, 0, NULL) {}
+     SparseSolverMPIDist<double, HYPRE_BigInt>>
+     (comm, 0, NULL) {}
 
 STRUMPACKSolver::
 STRUMPACKSolver(STRUMPACKRowLocMatrix &A)
    : STRUMPACKSolverBase<strumpack::
-        SparseSolverMPIDist<double, HYPRE_BigInt>>
-        (A, 0, NULL) {}
+     SparseSolverMPIDist<double, HYPRE_BigInt>>
+     (A, 0, NULL) {}
 
 STRUMPACKSolver::
 STRUMPACKSolver(MPI_Comm comm, int argc, char *argv[])
    : STRUMPACKSolverBase<strumpack::
-        SparseSolverMPIDist<double, HYPRE_BigInt>>
-        (comm, argc, argv) {}
+     SparseSolverMPIDist<double, HYPRE_BigInt>>
+     (comm, argc, argv) {}
 
 STRUMPACKSolver::
 STRUMPACKSolver(STRUMPACKRowLocMatrix &A, int argc, char *argv[])
    : STRUMPACKSolverBase<strumpack::
-        SparseSolverMPIDist<double, HYPRE_BigInt>>
-        (A, argc, argv) {}
+     SparseSolverMPIDist<double, HYPRE_BigInt>>
+     (A, argc, argv) {}
 
 #if STRUMPACK_VERSION_MAJOR >= 6 && STRUMPACK_VERSION_MINOR >= 3 && STRUMPACK_VERSION_PATCH > 1
 STRUMPACKMixedPrecisionSolver::
 STRUMPACKMixedPrecisionSolver(MPI_Comm comm)
    : STRUMPACKSolverBase<strumpack::
-        SparseSolverMixedPrecisionMPIDist<float, double, HYPRE_BigInt>>
-        (comm, 0, NULL) {}
+     SparseSolverMixedPrecisionMPIDist<float, double, HYPRE_BigInt>>
+     (comm, 0, NULL) {}
 
 STRUMPACKMixedPrecisionSolver::
 STRUMPACKMixedPrecisionSolver(STRUMPACKRowLocMatrix &A)
    : STRUMPACKSolverBase<strumpack::
-        SparseSolverMixedPrecisionMPIDist<float, double, HYPRE_BigInt>>
-        (A, 0, NULL) {}
+     SparseSolverMixedPrecisionMPIDist<float, double, HYPRE_BigInt>>
+     (A, 0, NULL) {}
 
 STRUMPACKMixedPrecisionSolver::
 STRUMPACKMixedPrecisionSolver(MPI_Comm comm, int argc, char *argv[])
    : STRUMPACKSolverBase<strumpack::
-        SparseSolverMixedPrecisionMPIDist<float, double, HYPRE_BigInt>>
-        (comm, argc, argv) {}
+     SparseSolverMixedPrecisionMPIDist<float, double, HYPRE_BigInt>>
+     (comm, argc, argv) {}
 
 STRUMPACKMixedPrecisionSolver::
 STRUMPACKMixedPrecisionSolver(STRUMPACKRowLocMatrix &A, int argc, char *argv[])
    : STRUMPACKSolverBase<strumpack::
-        SparseSolverMixedPrecisionMPIDist<float, double, HYPRE_BigInt>>
-        (A, argc, argv) {}
+     SparseSolverMixedPrecisionMPIDist<float, double, HYPRE_BigInt>>
+     (A, argc, argv) {}
 #endif
 
 template class STRUMPACKSolverBase<strumpack::
-   SparseSolverMPIDist<double, HYPRE_BigInt>>;
+                                   SparseSolverMPIDist<double, HYPRE_BigInt>>;
 #if STRUMPACK_VERSION_MAJOR >= 6 && STRUMPACK_VERSION_MINOR >= 3 && STRUMPACK_VERSION_PATCH > 1
 template class STRUMPACKSolverBase<strumpack::
-   SparseSolverMixedPrecisionMPIDist<float, double, HYPRE_BigInt>>;
+                                   SparseSolverMixedPrecisionMPIDist<float, double, HYPRE_BigInt>>;
 #endif
 
 } // mfem namespace
