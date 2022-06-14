@@ -136,7 +136,7 @@ void ParBilinearForm::ParallelRAP(SparseMatrix &loc_sp_mat, OperatorHandle &A)
    if (IsIdentityProlongation(pfespace.GetProlongationMatrix()))
    {
       A_diag.SetOperatorOwner(false);
-      A.Reset(A_diag.Ptr(), false);
+      A.Reset(A_diag.Ptr());
       HypreStealOwnership(*A.As<HypreParMatrix>(), loc_sp_mat);
    }
    else
