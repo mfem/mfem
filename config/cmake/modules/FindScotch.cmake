@@ -22,8 +22,13 @@ mfem_find_package(Scotch Scotch Scotch_DIR "" "" "" ""
   ADD_COMPONENT "scotcherr" "" "" "lib" scotcherr
   ADD_COMPONENT "scotcherrexit" "" "" "lib" scotcherrexit
   ADD_COMPONENT "scotchmetis" "include" "metis.h" "lib" scotchmetis
+  ADD_COMPONENT "scotchmetisv3" "include" "metis.h" "lib" scotchmetisv3
+  ADD_COMPONENT "scotchmetisv5" "include" "metis.h" "lib" scotchmetisv5
+  ADD_COMPONENT "esmumps" "" "" "lib" esmumps
   ADD_COMPONENT "ptscotch" "include" ptscotch.h "lib" ptscotch
   ADD_COMPONENT "ptscotcherr" "" "" "lib" ptscotcherr
   ADD_COMPONENT "ptscotcherrexit" "" "" "lib" ptscotcherrexit
   ADD_COMPONENT "ptscotchparmetis" "include" "parmetis.h" "lib" ptscotchparmetis
+  ADD_COMPONENT "ptscotchparmetisv3" "include" "parmetis.h" "lib" ptscotchparmetisv3
+  ADD_COMPONENT "ptesmumps" "" "" "lib" ptesmumps
   )

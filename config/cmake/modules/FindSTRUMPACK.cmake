@@ -28,7 +28,7 @@ int main(int argc, char *argv[])
 {
    MPI_Init(&argc, &argv);
    MPI_Comm comm = MPI_COMM_WORLD;
-   StrumpackSparseSolverMPIDist<double,int> solver(comm, argc, argv, false);
+   StrumpackSparseSolverMPIDist<double, int> solver(comm, argc, argv, false);
    solver.options().set_from_command_line();
    return 0;
 }

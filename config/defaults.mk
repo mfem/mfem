@@ -223,10 +223,11 @@ ifeq ($(MFEM_USE_SUPERLU)$(MFEM_USE_STRUMPACK)$(MFEM_USE_MUMPS),NONONO)
      METIS_LIB = -L$(METIS_DIR)/lib -lmetis
    endif
 else
-   # ParMETIS: currently needed by SuperLU or STRUMPACK. We assume that METIS 5
-   # (included with ParMETIS) is installed in the same location.
+   # ParMETIS: currently needed by SuperLU or STRUMPACK
+   # We assume that METIS 5 (included with ParMETIS) is installed in the same
+   # location
    # Starting with STRUMPACK v2.2.0, ParMETIS is an optional dependency while
-   # METIS is still required.
+   # METIS is still required (also an optional dependency for MUMPS)
    METIS_DIR = @MFEM_DIR@/../parmetis-4.0.3
    METIS_OPT = -I$(METIS_DIR)/include
    METIS_LIB = -L$(METIS_DIR)/lib -lparmetis -lmetis
@@ -309,7 +310,7 @@ MPI_FORTRAN_LIB = -lmpifort
 # MPI_FORTRAN_LIB += -lgfortran
 
 # MUMPS library configuration
-MUMPS_DIR = @MFEM_DIR@/../MUMPS_5.2.0
+MUMPS_DIR = @MFEM_DIR@/../MUMPS_5.5.0
 MUMPS_OPT = -I$(MUMPS_DIR)/include
 MUMPS_LIB = $(XLINKER)-rpath,$(MUMPS_DIR)/lib -L$(MUMPS_DIR)/lib -ldmumps\
  -lmumps_common -lpord $(SCALAPACK_LIB) $(LAPACK_LIB) $(MPI_FORTRAN_LIB)
