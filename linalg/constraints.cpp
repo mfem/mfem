@@ -470,7 +470,8 @@ void PenaltyConstrainedSolver::Mult(const Vector& b, Vector& x) const
    if (constraint_rhs.Size() > 0)
    {
       Vector temp_rhs(constraint_rhs.Size());
-      temp_rhs = penalty*constraint_rhs;
+      SparseMatrix D(penalty);
+      D.Mult(constraint_rhs, temp_rhs);
       Vector temp(x.Size());
       constraintB.MultTranspose(temp_rhs, temp);
       penalized_rhs += temp;
