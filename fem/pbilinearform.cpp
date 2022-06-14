@@ -132,12 +132,12 @@ void ParBilinearForm::ParallelRAP(SparseMatrix &loc_sp_mat, OperatorHandle &A,
                               pfespace.GlobalVSize(),
                               pfespace.GetDofOffsets(),
                               &loc_sp_mat);
+   A_diag.SetOperatorOwner(false);
 
    // Parallel matrix assembly using P^t A P (if needed)
    if (IsIdentityProlongation(pfespace.GetProlongationMatrix()))
    {
       A.Reset(A_diag.Ptr(), steal);
-      A_diag.SetOperatorOwner(false);
       if (steal)
       {
          HypreStealOwnership(*A.As<HypreParMatrix>(), loc_sp_mat);
