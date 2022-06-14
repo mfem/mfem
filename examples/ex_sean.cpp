@@ -1,6 +1,6 @@
-//                                MFEM Example 9
+//                                MFEM LOR Example
 //
-// Compile with: make ex9
+// Compile with: make ex
 //
 // Sample runs:
 //    ex9 -m ../data/periodic-segment.mesh -p 0 -r 2 -dt 0.005
@@ -67,8 +67,6 @@ int Ww = 350, Wh = 350; // window size
 int offx = Ww + 5, offy = Wh + 25; // window offset
 
 void visualize(VisItDataCollection &, string, int, int);
-
-string direction;
 
 // Velocity coefficient
 void velocity_function(const Vector &x, Vector &v);
@@ -162,20 +160,29 @@ int main(int argc, char *argv[])
    // 1. Parse command-line options.
    problem = 0;
    const char *mesh_file = "../data/periodic-hexagon.mesh";
-   int ref_levels = 2;
+   int ref_levels = 1;
    int order = 3;
    bool pa = false;
    bool ea = false;
    bool fa = false;
    const char *device_config = "cpu";
    int ode_solver_type = 1;
-   double t_final = 10.0;
-   double dt = 0.001;
+   double t_final = 1.0;
+   double dt = 0.0001;
    bool visualization = true;
    bool visit = false;
    bool paraview = false;
    bool binary = false;
    int vis_steps = 5;
+
+   // Here we have a new variable for the cell averaging.
+   // averaging = 0; No cell averaging, just high order solution
+   //             1; Low order cell averaging
+   //             2; Low order refined (LOR)
+   //             3; Both LO solution and LOR solution
+   int averaging = 3;
+   // LOR refinement level (should always be 2)
+   int lref = 2;
 
    int precision = 8;
    cout.precision(precision);
@@ -222,6 +229,9 @@ int main(int argc, char *argv[])
                   "Use binary (Sidre) or ascii format for VisIt data files.");
    args.AddOption(&vis_steps, "-vs", "--visualization-steps",
                   "Visualize every n-th timestep.");
+   args.AddOption(&averaging, "-avgg", "--averaging",
+		  "Level of cell averaging.");
+   args.AddOption(&lref, "-lref", "--lor-ref-level", "LOR refinement level.");
    args.Parse();
    if (!args.Good())
    {
@@ -237,11 +247,7 @@ int main(int argc, char *argv[])
    //    periodic meshes in this code.
    Mesh mesh(mesh_file, 1, 1);
    int dim = mesh.Dimension();
-
-   // Create the low-order refined mesh
-   int basis_LOR = BasisType::ClosedUniform;
-   Mesh mesh_LOR = Mesh::MakeRefined(mesh, ref_levels, basis_LOR);
-
+   
    // 3. Define the ODE solver used for time integration. Several explicit
    //    Runge-Kutta methods are available.
    ODESolver *ode_solver = NULL;
@@ -274,8 +280,12 @@ int main(int argc, char *argv[])
    for (int lev = 0; lev < ref_levels; lev++)
    {
       mesh.UniformRefinement();
-      mesh_LOR.UniformRefinement();
    }
+
+   // Create the low-order refined mesh
+   int basis_LOR = BasisType::ClosedUniform;
+   Mesh mesh_LOR = Mesh::MakeRefined(mesh, lref, basis_LOR);
+   
    if (mesh.NURBSext)
    {
       mesh.SetCurvature(max(order, 1));
@@ -284,14 +294,17 @@ int main(int argc, char *argv[])
    mesh.GetBoundingBox(bb_min, bb_max, max(order, 1));
    mesh_LOR.GetBoundingBox(bb_min, bb_max, max(order, 1));
 
+     
    // 5. Define the discontinuous DG finite element space of the given
    //    polynomial order on the refined mesh.
    DG_FECollection fec(order, dim, BasisType::Positive);
    FiniteElementSpace fes(&mesh, &fec);
 
    // Discontinuous FE space for LOR
-   DG_FECollection fec_LOR(order, dim, BasisType::Positive);
+   int LOR_order = 0;
+   DG_FECollection fec_LOR(LOR_order, dim, BasisType::Positive);
    FiniteElementSpace fes_LOR(&mesh_LOR, &fec_LOR);
+
    
    cout << "Number of unknowns: " << fes.GetVSize() << endl;
 
@@ -347,75 +360,95 @@ int main(int argc, char *argv[])
    //    GLVis visualization.
    GridFunction u_HO(&fes);
    u_HO.ProjectCoefficient(u0);
-   GridFunction u_LO(u_HO);
-   u_LO.ProjectCoefficient(u0);
-   GridFunction u_LOR(&fes_LOR);
-   u_LOR.ProjectCoefficient(u0); // Not sure this is necessary
 
    // Visualization
    VisItDataCollection HO_dc("HO", &mesh);
    HO_dc.RegisterField("Density", &u_HO);
+
+   // Defining everything needed for the LO solution
+   GridFunction u_LO(u_HO);
    VisItDataCollection LO_dc("LO", &mesh);
    LO_dc.RegisterField("Density", &u_LO);
+
+   // Defining everything for the LOR solution
+   GridFunction u_LOR(&fes_LOR);
    VisItDataCollection LOR_dc("LOR", &mesh_LOR);
    LOR_dc.RegisterField("Density", &u_LOR);
 
-   {  // Print out meshes and initial solutions
+   // Print out meshes and initial solution
+   {
       ofstream omesh("ex_sean.mesh");
       omesh.precision(precision);
       mesh.Print(omesh);
-      ofstream omesh_LOR("ex_sean_LOR.mesh");
-      omesh_LOR.precision(precision);
-      mesh_LOR.Print(omesh_LOR);
       ofstream osol("ex_sean-init.gf");
       osol.precision(precision);
       u_HO.Save(osol);
-      ofstream osol_LOR("ex_sean_LOR.mesh");
-      osol_LOR.precision(precision);
-      u_LOR.Save(osol_LOR);
+
+      // We only want to output when specified
+      if (averaging == 2 || averaging == 3)
+      {
+         ofstream omesh_LOR("ex_sean_LOR.mesh");
+         omesh_LOR.precision(precision);
+         mesh_LOR.Print(omesh_LOR);
+		
+         ofstream osol_LOR("ex_sean_LOR-init.gf");
+         osol_LOR.precision(precision);
+         u_LOR.Save(osol_LOR);
+      }
    }
 
    // Create data collection for solution output: either VisItDataCollection for
    // ascii data files, or SidreDataCollection for binary data files.
    DataCollection *dc_HO = NULL;
    DataCollection *dc_LO = NULL;
+   DataCollection *dc_LOR = NULL;
    if (visit)
    {
       if (binary)
       {
 #ifdef MFEM_USE_SIDRE
-         dc_HO = new SidreDataCollection("Example_sean", &mesh);
-	 dc_LO = new SidreDataCollection("Example_sean", &mesh);
+         dc_HO = new SidreDataCollection("Example_sean_HO", &mesh);
+	 dc_LO = new SidreDataCollection("Example_sean_LO", &mesh);
+	 dc_LOR = new SidreDataCollection("Example_sean_LOR", &mesh);
 #else
          MFEM_ABORT("Must build with MFEM_USE_SIDRE=YES for binary output.");
 #endif
       }
       else
       {
-         dc_HO = new VisItDataCollection("Example_sean", &mesh);
+         dc_HO = new VisItDataCollection("Example_sean_HO", &mesh);
          dc_HO->SetPrecision(precision);
 
-	 dc_LO = new VisItDataCollection("Example_sean", &mesh);
+	 dc_LO = new VisItDataCollection("Example_sean_LO", &mesh);
          dc_LO->SetPrecision(precision);
+
+	 dc_LOR = new VisItDataCollection("Example_sean_LOR", &mesh_LOR);
+         dc_LOR->SetPrecision(precision);
       }
-      dc_HO->RegisterField("solution", &u_HO);
+      dc_HO->RegisterField("solution_HO", &u_HO);
       dc_HO->SetCycle(0);
       dc_HO->SetTime(0.0);
       dc_HO->Save();
 
-      dc_LO->RegisterField("solution", &u_LO);
+      dc_LO->RegisterField("solution_LO", &u_LO);
       dc_LO->SetCycle(0);
       dc_LO->SetTime(0.0);
       dc_LO->Save();
+
+      dc_LOR->RegisterField("solution_LOR", &u_LOR);
+      dc_LOR->SetCycle(0);
+      dc_LOR->SetTime(0.0);
+      dc_LOR->Save();
    }
 
    ParaViewDataCollection *pd_HO = NULL;
    ParaViewDataCollection *pd_LO = NULL;
+   ParaViewDataCollection *pd_LOR = NULL;
    if (paraview)
    {
-      pd_HO = new ParaViewDataCollection("Example_sean", &mesh);
+      pd_HO = new ParaViewDataCollection("Example_sean_HO", &mesh);
       pd_HO->SetPrefixPath("ParaView");
-      pd_HO->RegisterField("solution", &u_HO);
+      pd_HO->RegisterField("solution_HO", &u_HO);
       pd_HO->SetLevelsOfDetail(order);
       pd_HO->SetDataFormat(VTKFormat::BINARY);
       pd_HO->SetHighOrderOutput(true);
@@ -423,15 +456,25 @@ int main(int argc, char *argv[])
       pd_HO->SetTime(0.0);
       pd_HO->Save();
 
-      pd_LO = new ParaViewDataCollection("Example_sean", &mesh);
+      pd_LO = new ParaViewDataCollection("Example_sean_LO", &mesh);
       pd_LO->SetPrefixPath("ParaView");
-      pd_LO->RegisterField("solution", &u_LO);
+      pd_LO->RegisterField("solution_LO", &u_LO);
       pd_LO->SetLevelsOfDetail(order);
       pd_LO->SetDataFormat(VTKFormat::BINARY);
       pd_LO->SetHighOrderOutput(true);
       pd_LO->SetCycle(0);
       pd_LO->SetTime(0.0);
       pd_LO->Save();
+
+      pd_LOR = new ParaViewDataCollection("Example_sean_LOR", &mesh_LOR);
+      pd_LOR->SetPrefixPath("ParaView");
+      pd_LOR->RegisterField("solution_LOR", &u_LOR);
+      pd_LOR->SetLevelsOfDetail(order);
+      pd_LOR->SetDataFormat(VTKFormat::BINARY);
+      pd_LOR->SetHighOrderOutput(true);
+      pd_LOR->SetCycle(0);
+      pd_LOR->SetTime(0.0);
+      pd_LOR->Save();
    }
 
    // 8. Define the time-dependent evolution operator describing the ODE
@@ -449,18 +492,11 @@ int main(int argc, char *argv[])
    GridFunction x(mesh_temp->GetNodes()->FESpace());
    mesh_temp->GetNodes(x);
 
-   // Same as above but we do this for LOR
-   Mesh *mesh_temp_LOR = fes_LOR.GetMesh();
-   GridFunction x_LOR(mesh_temp_LOR->GetNodes()->FESpace());
-   mesh_temp_LOR->GetNodes();
-
-   // Grid transfer stuff
+   // Projection onto the LOR space
    GridTransfer *gt;
    gt = new L2ProjectionGridTransfer(fes, fes_LOR);
       
    const Operator &R = gt->ForwardOperator();
-   const Operator &P = gt->BackwardOperator();
-   
 
    // Declaring vectors for the mass and volume
    const int NE = x.FESpace()->GetNE();
@@ -473,21 +509,18 @@ int main(int argc, char *argv[])
       double dt_real = min(dt, t_final - t);
       ode_solver->Step(u_HO, t, dt_real);
 
-      // HO projection (I think)
-      direction = "HO -> LOR @ HO";
-      
-      // Calculate the LO solution using u_HO
-      // For LOR, I don't think we need u_LO, but we'll keep it jic
-      CalculateLOSolution(u_HO, x, u_LO, el_mass, el_vol);
-      
-      // NEW NEW stuff ----------------------------------------------------
-      
-      // LOR->HO prolongation (whatever that means)
-      direction = "HO -> LOR @ LOR";
-      R.Mult(u_HO, u_LOR);
-      
-      CalculateLOSolution(u_HO, x_LOR, u_LOR, el_mass, el_vol);
-      // END of new stuff -------------------------------------------------      
+      // Only compute this if specified
+      if (averaging == 1 || averaging == 3)
+      {
+        // Calculate the LO solution using u_HO
+        CalculateLOSolution(u_HO, x, u_LO, el_mass, el_vol);
+      }
+      else if (averaging == 2 || averaging == 3)
+      {
+	// Here we do an L2 projection onto the finer fes, gives u_LOR
+        R.Mult(u_HO, u_LOR);
+      }
+	
       ti++;
 
       done = (t >= t_final - 1e-8*dt);
@@ -521,13 +554,20 @@ int main(int argc, char *argv[])
    }
 
    // 9. Save the final solution. This output can be viewed later using GLVis:
-   //    "glvis -m ex9.mesh -g ex9-final.gf".
    if (visualization)
    {
-       visualize(HO_dc, "HO", Wx, Wy);
-       Wx += offx;
-       visualize(LO_dc, "LO", Wx, Wy);
-       Wx += offx;
+      visualize(HO_dc, "HO", Wx, Wy);
+      Wx += offx;
+      if (averaging == 1 || averaging == 3)
+      {
+         visualize(LO_dc, "LO", Wx, Wy);
+         Wx += offx;
+      }
+      else if (averaging == 2 || averaging == 3)
+      {
+         visualize(LOR_dc, "LOR", Wx, Wy);
+         Wx += offx;
+      }
    }
 
    {
@@ -535,17 +575,28 @@ int main(int argc, char *argv[])
       osol_HO.precision(precision);
       u_HO.Save(osol_HO);
 
-      ofstream osol_LO("ex_sean-final_LO.gf");
-      osol_LO.precision(precision);
-      u_LO.Save(osol_LO);
+      if (averaging == 1 || averaging == 3)
+      {
+        ofstream osol_LO("ex_sean-final_LO.gf");
+        osol_LO.precision(precision);
+        u_LO.Save(osol_LO);
+      }
+      else if (averaging == 2 || averaging == 3)
+      {
+        ofstream osol_LOR("ex_sean-final_LOR.gf");
+        osol_LOR.precision(precision);
+        u_LOR.Save(osol_LOR);
+      }
    } 
 
    // 10. Free the used memory.
    delete ode_solver;
    delete pd_LO;
+   delete pd_LOR;
    delete pd_HO;
    delete dc_LO;
    delete dc_HO;
+   delete dc_LOR;
 
    return 0;
 }
@@ -606,10 +657,10 @@ void visualize(VisItDataCollection &dc, string prefix, int x, int y)
   
    socketstream sol_sockL2(vishost, visport);
    sol_sockL2.precision(8);
-     sol_sockL2 << "solution\n" << *dc.GetMesh() << *dc.GetField("Density")
+   sol_sockL2 << "solution\n" << *dc.GetMesh() << *dc.GetField("Density")
               << "window_geometry " << x << " " << y << " " << w << " " << h
               << "plot_caption '" << " " << prefix << " Density'"
-              << "window_title '" << direction << "'" << flush; 
+              << "'" << flush; 
 }
 
 
