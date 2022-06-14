@@ -121,7 +121,8 @@ void ParBilinearForm::pAllocMat()
    dof_dof.LoseData();
 }
 
-void ParBilinearForm::ParallelRAP(SparseMatrix &loc_sp_mat, OperatorHandle &A)
+void ParBilinearForm::ParallelRAP(SparseMatrix &loc_sp_mat, OperatorHandle &A,
+                                  bool steal)
 {
    ParFiniteElementSpace &pfespace = *ParFESpace();
 
@@ -135,9 +136,12 @@ void ParBilinearForm::ParallelRAP(SparseMatrix &loc_sp_mat, OperatorHandle &A)
    // Parallel matrix assembly using P^t A P (if needed)
    if (IsIdentityProlongation(pfespace.GetProlongationMatrix()))
    {
-      A_diag.SetOperatorOwner(false);
       A.Reset(A_diag.Ptr());
-      HypreStealOwnership(*A.As<HypreParMatrix>(), loc_sp_mat);
+      A_diag.SetOperatorOwner(false);
+      if (steal)
+      {
+         HypreStealOwnership(*A.As<HypreParMatrix>(), loc_sp_mat);
+      }
    }
    else
    {
