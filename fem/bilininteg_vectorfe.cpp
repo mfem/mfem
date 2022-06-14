@@ -1116,11 +1116,9 @@ void VectorFEMassIntegrator::AddMultTransposePA(const Vector &x,
 
    if (symmetricSpaces)
    {
-      if (MQ)
+      if (MQ && dynamic_cast<SymmetricMatrixCoefficient*>(MQ) == NULL)
       {
-         auto SMQ = dynamic_cast<SymmetricMatrixCoefficient*>(MQ);
-         MFEM_VERIFY(SMQ != NULL,
-                     "VectorFEMassIntegrator transpose not implemented for asymmetric MatrixCoefficient");
+         MFEM_ABORT("VectorFEMassIntegrator transpose not implemented for asymmetric MatrixCoefficient");
       }
 
       this->AddMultPA(x, y);
