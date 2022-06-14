@@ -248,7 +248,7 @@ void SmemPAHdivMassApply2D(const int NE,
    const auto bo = Reshape(Bo_.Read(), Q1D, D1D-1);
    const auto bc = Reshape(Bc_.Read(), Q1D, D1D);
    const auto D = Reshape(op_.Read(), Q1D, Q1D, 3, NE);
-   const auto x = Reshape(x_.Read(), D1D, D1D-1, VDIM, NE);
+   const auto x = Reshape(x_.Read(), D1D*(D1D-1), VDIM, NE);
    auto y = y_.ReadWrite();
 
    MFEM_FORALL_3D(e, NE, Q1D, Q1D, VDIM,
@@ -281,7 +281,7 @@ void SmemPAHdivMassApply2D(const int NE,
          {
             MFEM_FOREACH_THREAD(qx,x,Q1D)
             {
-               if (qx < D1D && dy < (D1D-1)) { X(qx,dy,vd) = x(qx,dy,vd,e); }
+               if (qx < D1D && dy < (D1D-1)) { X(qx,dy,vd) = x(qx+dy*D1D,vd,e); }
                if (tidz == 0)
                {
                   if (dy < (D1D-1)) { Bo(dy,qx) = bo(qx,dy); }
@@ -727,7 +727,7 @@ void SmemPAHdivMassApply3D(const int NE,
    const auto bo = Reshape(Bo_.Read(), Q1D, D1D-1);
    const auto bc = Reshape(Bc_.Read(), Q1D, D1D);
    const auto D = Reshape(op_.Read(), Q1D, Q1D, Q1D, 6, NE);
-   const auto x = Reshape(x_.Read(), D1D, D1D-1, D1D-1, VDIM, NE);
+   const auto x = Reshape(x_.Read(), D1D*(D1D-1)*(D1D-1), VDIM, NE);
    auto y = y_.ReadWrite();
 
    MFEM_FORALL_3D(e, NE, Q1D, Q1D, VDIM,
@@ -766,7 +766,7 @@ void SmemPAHdivMassApply3D(const int NE,
                MFEM_UNROLL(MD1)
                for (int dx = 0; dx < D1D; ++dx)
                {
-                  X(dx,dy,dz,vd) = x(dx,dy,dz,vd,e);
+                  X(dx,dy,dz,vd) = x(dx+(dy+dz*(D1D-1))*D1D,vd,e);
                }
             }
          }
