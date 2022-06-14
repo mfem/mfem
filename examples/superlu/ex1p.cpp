@@ -67,6 +67,7 @@ int main(int argc, char *argv[])
    int slu_colperm = 4;
    int slu_rowperm = 1;
    int slu_iterref = 2;
+   int slu_npdep = 1;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -85,9 +86,11 @@ int main(int argc, char *argv[])
                   "6-ZOLTAN");
    args.AddOption(&slu_rowperm, "-rp", "--rowperm",
                   "SuperLU Row Permutation Method:  0-NOROWPERM, 1-LargeDiag");
-   args.AddOption(&slu_iterref, "-rp", "--rowperm",
+   args.AddOption(&slu_iterref, "-ir", "--iterref",
                   "SuperLU Iterative Refinement:  0-NOREFINE, 1-Single, "
                   "2-Double, 3-Extra");
+   args.AddOption(&slu_npdep, "-npdep", "--npdepth",
+                  "Depth of 3D parition for SuperLU (>= 7.2.0)");
 
    args.Parse();
    if (!args.Good())
@@ -214,7 +217,7 @@ int main(int argc, char *argv[])
    a.FormLinearSystem(ess_tdof_list, x, b, A, X, B);
 
    // 13. Solve the linear system A X = B utilizing SuperLU.
-   SuperLUSolver *superlu = new SuperLUSolver(MPI_COMM_WORLD);
+   SuperLUSolver *superlu = new SuperLUSolver(MPI_COMM_WORLD, slu_npdep);
    Operator *SLU_A = new SuperLURowLocMatrix(*A.As<HypreParMatrix>());
    superlu->SetPrintStatistics(true);
    superlu->SetSymmetricPattern(false);
@@ -281,7 +284,6 @@ int main(int argc, char *argv[])
    superlu->SetOperator(*SLU_A);
    superlu->SetPrintStatistics(true);
    superlu->Mult(B, X);
-   superlu->DismantleGrid();
 
    delete SLU_A;
    delete superlu;

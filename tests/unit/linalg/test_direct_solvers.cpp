@@ -23,6 +23,9 @@ using namespace mfem;
 #ifdef MFEM_USE_SUPERLU
 #define DIRECT_SOLVE_PARALLEL
 #endif
+#ifdef MFEM_USE_STRUMPACK
+#define DIRECT_SOLVE_PARALLEL
+#endif
 
 #if defined(DIRECT_SOLVE_SERIAL) || defined(DIRECT_SOLVE_PARALLEL)
 
@@ -223,6 +226,7 @@ TEST_CASE("direct-parallel", "[Parallel], [CUDA]")
          mumps.SetPrintLevel(0);
          mumps.SetOperator(*A.As<HypreParMatrix>());
          mumps.Mult(B,X);
+
          Vector Y(X.Size());
          A->Mult(X,Y);
          Y-=B;
@@ -244,10 +248,35 @@ TEST_CASE("direct-parallel", "[Parallel], [CUDA]")
          superlu.SetColumnPermutation(superlu::METIS_AT_PLUS_A);
          superlu.SetOperator(SA);
          superlu.Mult(B, X);
+
          Vector Y(X.Size());
          A->Mult(X,Y);
          Y-=B;
          REQUIRE(Y.Norml2() < 1.e-12);
+
+         a.RecoverFEMSolution(X, b, x);
+         VectorFunctionCoefficient grad(dim,gradexact);
+         double error = x.ComputeH1Error(&uex,&grad);
+         REQUIRE(error < 1.e-12);
+      }
+#endif
+#ifdef MFEM_USE_STRUMPACK
+      // Transform to monolithic HypreParMatrix
+      {
+         STRUMPACKRowLocMatrix SA(*A.As<HypreParMatrix>());
+         STRUMPACKSolver strumpack(MPI_COMM_WORLD, argc, argv);
+         strumpack.SetPrintFactorStatistics(false);
+         strumpack.SetPrintSolveStatistics(false);
+         strumpack.SetKrylovSolver(strumpack::KrylovSolver::DIRECT);
+         strumpack.SetReorderingStrategy(strumpack::ReorderingStrategy::METIS);
+         strumpack.SetOperator(SA);
+         strumpack.Mult(B, X);
+
+         Vector Y(X.Size());
+         A->Mult(X,Y);
+         Y-=B;
+         REQUIRE(Y.Norml2() < 1.e-12);
+
          a.RecoverFEMSolution(X, b, x);
          VectorFunctionCoefficient grad(dim,gradexact);
          double error = x.ComputeH1Error(&uex,&grad);
