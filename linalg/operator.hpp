@@ -93,6 +93,26 @@ public:
    virtual void MultTranspose(const Vector &x, Vector &y) const
    { mfem_error("Operator::MultTranspose() is not overloaded!"); }
 
+   /// y += A(x) (default)  or  y += a * A(x)
+   virtual void AddMult(const Vector &x, Vector &y, const double a = 1.0) const;
+
+   /// y += A^t(x) (default)  or  y += a * A^t(x)
+   virtual void AddMultTranspose(const Vector &x, Vector &y, const double a = 1.0) const;
+
+   /// Operator application on a matrix: `Y=A(X)`.
+   virtual void Mult(const Array<Vector *> &X, Array<Vector *> &Y) const;
+
+   /// Action of the transpose operator on a matrix: `Y=A^t(X)`.
+   virtual void MultTranspose(const Array<Vector *> &X, Array<Vector *> &Y) const;
+
+   /// Y += A(X) (default)  or  Y += a * A(X)
+   virtual void AddMult(const Array<Vector *> &X, Array<Vector *> &Y,
+                        const double a = 1.0) const;
+
+   /// Y += A^t(X) (default)  or  Y += a * A^t(X)
+   virtual void AddMultTranspose(const Array<Vector *> &X, Array<Vector *> &Y,
+                                 const double a = 1.0) const;
+
    /** @brief Evaluate the gradient operator at the point @a x. The default
        behavior in class Operator is to generate an error. */
    virtual Operator &GetGradient(const Vector &x) const
