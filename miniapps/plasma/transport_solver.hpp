@@ -173,6 +173,8 @@ inline double eta_i_para(double ma, double Ta,
 }
 */
 
+void DiscontinuitySensor(GridFunction &u, Vector &error);
+
 struct CoefficientByAttr
 {
    Array<int> attr;
@@ -2703,24 +2705,45 @@ private:
    double m_i_kg_;
    const double a_;
 
-   StateVariableCoef * lnLambda_;
-   StateVariableCoef * TiCoef_;
+   StateVariableCoef & lnLambda_;
+   StateVariableCoef & TiCoef_;
+
+   StateVariableCoef & niCoef_;
+   StateVariableCoef & CsCoef_;
+   ParFiniteElementSpace * fes_;
+   Coefficient       * OscCoef_;
+   const double width_;
 
 public:
    IonMomentumParaDiffusionCoef(int ion_charge_number, double ion_mass_kg,
                                 StateVariableCoef &lnLambda,
-                                StateVariableCoef &TiCoef)
+                                StateVariableCoef &TiCoef,
+                                StateVariableCoef &niCoef,
+                                StateVariableCoef &CsCoef,
+                                ParFiniteElementSpace * fes,
+                                Coefficient * OscCoef,
+                                double width)
       : z_i_((double)ion_charge_number), m_i_kg_(ion_mass_kg),
         a_(0.96 * tau_i(m_i_kg_, z_i_, 1.0, 1.0/J_per_eV_, 1.0)),
-        lnLambda_(&lnLambda),
-        TiCoef_(&TiCoef)
+        lnLambda_(lnLambda),
+        TiCoef_(TiCoef),
+        niCoef_(niCoef),
+        CsCoef_(CsCoef),
+        fes_(fes),
+        OscCoef_(OscCoef),
+        width_(width)
    {}
 
    IonMomentumParaDiffusionCoef(const IonMomentumParaDiffusionCoef &other)
       : z_i_(other.z_i_), m_i_kg_(other.m_i_kg_),
         a_(0.96 * tau_i(m_i_kg_, z_i_, 1.0, 1.0/J_per_eV_, 1.0)),
         lnLambda_(other.lnLambda_),
-        TiCoef_(other.TiCoef_)
+        TiCoef_(other.TiCoef_),
+        niCoef_(other.niCoef_),
+        CsCoef_(other.CsCoef_),
+        fes_(other.fes_),
+        OscCoef_(other.OscCoef_),
+        width_(other.width_)
    {
       derivType_ = other.derivType_;
    }
@@ -2738,21 +2761,54 @@ public:
    double Eval_Func(ElementTransformation &T,
                     const IntegrationPoint &ip)
    {
-      double lnLambda = lnLambda_->Eval(T, ip);
-      double Ti_J = std::max(TiCoef_->Eval_Func(T, ip), 1.0) * J_per_eV_;
+      double lnLambda = lnLambda_.Eval(T, ip);
+      double Ti_J = std::max(TiCoef_.Eval_Func(T, ip), 1.0) * J_per_eV_;
 
       // MFEM_VERIFY(Ti_J >= 0.0, "IonMomentumParaDiffusionCoef::Eval_Func: "
       //          "Negative temperature found");
 
       double EtaPara = a_ * sqrt(pow(Ti_J, 5)) / lnLambda;
+
+      if (OscCoef_)
+      {
+         // std::cout << "Element Type: " << T.ElementType
+         //           << ", ElementNo: " << T.ElementNo << std::endl;
+         int elemOrder = 2;//fes_->GetElementOrder(T.ElementNo);
+         double s0 = -4.0 * log10(elemOrder);
+
+         double Se = OscCoef_->Eval(T, ip);
+         double se = log10(Se);
+
+         double eps = 0.0;
+         if (se >= s0 - width_)
+         {
+            double ni = niCoef_.Eval(T, ip);
+            double Cs = CsCoef_.Eval(T, ip);
+
+            double h = pow(T.Weight(), 1.0 / T.GetDimension() );
+            h /= 20.0;
+            double eps0 = m_i_kg_ * ni * Cs * h / elemOrder;
+
+            if (se > s0 + width_)
+            {
+               eps = eps0;
+            }
+            else
+            {
+               eps = 0.5 * eps0 * (1.0 + sin(0.5 * M_PI * (se - s0) / width_));
+            }
+         }
+
+         EtaPara += eps;
+      }
       return EtaPara;
    }
 
    double Eval_dTi(ElementTransformation &T,
                    const IntegrationPoint &ip)
    {
-      double lnLambda = lnLambda_->Eval(T, ip);
-      double Ti_J = std::max(TiCoef_->Eval_Func(T, ip), 1.0) * J_per_eV_;
+      double lnLambda = lnLambda_.Eval(T, ip);
+      double Ti_J = std::max(TiCoef_.Eval_Func(T, ip), 1.0) * J_per_eV_;
 
       // MFEM_VERIFY(Ti_J >= 0.0, "IonMomentumParaDiffusionCoef::Eval_dTi: "
       //          "Negative temperature found");
@@ -4851,6 +4907,7 @@ struct DGParams
 {
    double sigma;
    double kappa;
+   double width;
 };
 
 struct PlasmaParams
@@ -5041,15 +5098,24 @@ struct MultiplicativePreconditioner : Solver
 
     This system of transport equations consists of mass conservation
     equations for one species of neutrals and one species of ions,
-    momentum conservation for the ion species, and static pressure
-    equations for ions and electrons.  The static pressure equations
-    take the place of energy conservation equations.
+    momentum conservation for the ion species, and energy equations
+    for ions and electrons.
 
     The field variables are density of neutrals, density of ions,
     velocity of ions in a direction parallel to the magnetic field,
     and the ion and electron temperatures. The electron density is
     assumed to depend on the ion density in such a way that
     quasi-neutrality is maintained e.g. n_e = z_i n_i.
+
+    The ODE solvers in MFEM integrate, in time, equations of the form
+       du/dt = f(u,t)
+
+    Where f(u,t) can be a non-linear function of the field quantities,
+    u(x,t). The primary function of this class is to implement the
+    ImplicitSolve method which finds a du/dt which satisfies
+       du/dt = f(u + dt * du/dt, t + dt)
+    Since f(u,t) is generally non-linear this is computed using a
+    Newton solver.
 */
 class DGTransportTDO : public TimeDependentOperator
 {
@@ -5603,6 +5669,11 @@ private:
                     };
 
       const IonMomentumCoefs & imcoefs_;
+
+      common::L2_ParFESpace * l2_fes_0_;
+      ParGridFunction       * OscGF_;
+      GridFunctionCoefficient OscCoef_;
+      SoundSpeedCoef          CsCoef_;
 
       double DPerpConst_;
       StateVariableConstantCoef DPerpCoef_;

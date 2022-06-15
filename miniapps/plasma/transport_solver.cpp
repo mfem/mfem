@@ -67,6 +67,90 @@ std::string FieldSymbol(FieldType t)
    }
 }
 
+void DiscontinuitySensor(GridFunction &u, Vector &disc)
+{
+   FiniteElementSpace *fes = u.FESpace();
+
+   MFEM_ASSERT(disc.Size() == fes->GetNE(),
+               "Incorrect size for result vector");
+
+   disc = 0.0;
+   const FiniteElement *fe, *fe_lo;
+   const FiniteElementCollection *fec = fes->FEColl();
+   ElementTransformation *T;
+   Array<int> dofs;
+   // Vector vals;
+
+   for (int i = 0; i < fes->GetNE(); i++)
+   {
+      fe = fes->GetFE(i);
+      fe_lo = fec->GetFE(fe->GetGeomType(), fe->GetOrder() - 1);
+
+      int dof = fe->GetDof();
+      int dof_lo = fe_lo->GetDof();
+
+      const IntegrationRule *ir;
+      int intorder = 2*fe->GetOrder() + 3; // <----------
+      ir = &(IntRules.Get(fe->GetGeomType(), intorder));
+
+      // u.GetValues(i, *ir, vals);
+      T = fes->GetElementTransformation(i);
+
+      Vector DofVal(dof), loc_data(dof);
+      Vector DofVal_lo(dof_lo), loc_data_lo(dof_lo);
+
+      DofTransformation * doftrans = fes->GetElementDofs(i, dofs);
+      u.GetSubVector(dofs, loc_data);
+      if (doftrans)
+      {
+         doftrans->InvTransformPrimal(loc_data);
+      }
+
+      DenseMatrix I;
+      fe_lo->Project(*fe, *T, I);
+      I.Mult(loc_data, loc_data_lo);
+
+      double norm2 = 0.0;
+
+      for (int j = 0; j < ir->GetNPoints(); j++)
+      {
+         const IntegrationPoint &ip = ir->IntPoint(j);
+         T->SetIntPoint(&ip);
+
+         double val = 0.0, val_lo = 0.0;
+         if (fe->GetMapType() == FiniteElement::VALUE)
+         {
+            fe->CalcShape(ip, DofVal);
+            val = DofVal * loc_data;
+
+            fe_lo->CalcShape(ip, DofVal_lo);
+            val_lo = DofVal_lo * loc_data_lo;
+         }
+         else
+         {
+            fe->CalcPhysShape(*T, DofVal);
+            val = DofVal * loc_data;
+
+            fe_lo->CalcPhysShape(*T, DofVal_lo);
+            val_lo = DofVal_lo * loc_data_lo;
+         }
+
+         disc[i] += ip.weight * T->Weight() * pow(fabs(val - val_lo), 2);
+         norm2 += ip.weight * T->Weight() * val * val;
+      }
+
+      norm2 = fabs(norm2);
+      if (norm2 > 0.)
+      {
+         disc[i] /= norm2;
+      }
+      else
+      {
+         disc[i] = 0.;
+      }
+   }
+}
+
 AdvectionDiffusionBC::~AdvectionDiffusionBC()
 {
    for (int i=0; i<dbc.Size(); i++)
@@ -5953,10 +6037,15 @@ DGTransportTDO::IonMomentumOp::IonMomentumOp(const MPI_Session & mpi,
                  bcs, cbcs, cmncoefs, B3Coef, term_flag, vis_flag,
                  logging, log_prefix),
      imcoefs_(imcoefs),
+     l2_fes_0_(new L2_ParFESpace(&pmesh_, 0, pmesh_.SpaceDimension())),
+     OscGF_(new ParGridFunction(l2_fes_0_)),
+     OscCoef_(OscGF_),
+     CsCoef_(m_i_kg_, TiCoef_, TeCoef_),
      DPerpConst_(DPerp),
      DPerpCoef_(DPerp),
      momCoef_(m_i_kg_, niCoef_, viCoef_),
-     EtaParaCoef_(z_i_, m_i_kg_, lnLambda_, TiCoef_),
+     EtaParaCoef_(z_i_, m_i_kg_, lnLambda_, TiCoef_,
+                  niCoef_, CsCoef_, vfes_, &OscCoef_, dg.width),
      EtaPerpCoef_(DPerpConst_, m_i_kg_, niCoef_),
      EtaParaCoefPtr_((imcoefs_(IMCoefs::PARA_DIFFUSION_COEF) != NULL)
                      ? const_cast<StateVariableCoef*>
@@ -5998,6 +6087,9 @@ DGTransportTDO::IonMomentumOp::IonMomentumOp(const MPI_Session & mpi,
       // Set default visualization fields
       vis_flag_ = (logging_ > 1) ? 1023 : this->GetDefaultVisFlag();
    }
+
+   DiscontinuitySensor(*yGF_[2], *OscGF_);
+   OscGF_->ExchangeFaceNbrData();
 
    // Time derivative term: d(m_i n_i v_i)/dt
    SetTimeDerivativeTerm(momCoef_);
@@ -6120,6 +6212,8 @@ DGTransportTDO::IonMomentumOp::~IonMomentumOp()
    delete SRCGF_;
    delete SCXGF_;
    delete SGF_;
+   delete OscGF_;
+   delete l2_fes_0_;
 }
 
 void DGTransportTDO::IonMomentumOp::SetTime(double t)
@@ -6209,6 +6303,11 @@ IonMomentumOp::RegisterDataFields(DataCollection & dc)
       oss << eqn_name_;
       dc.RegisterField(oss.str(), MomParaGF_);
    }
+   {
+      ostringstream oss;
+      oss << eqn_name_ << " Osc";
+      dc.RegisterField(oss.str(), OscGF_);
+   }
 }
 
 void DGTransportTDO::
@@ -6265,6 +6364,9 @@ IonMomentumOp::PrepareDataFields()
    {
       MomParaGF_->ProjectCoefficient(miniViCoef_);
    }
+   {
+      DiscontinuitySensor(*yGF_[2], *OscGF_);
+   }
 }
 
 void DGTransportTDO::IonMomentumOp::Update()
@@ -6273,6 +6375,11 @@ void DGTransportTDO::IonMomentumOp::Update()
    {
       cout << "Entering DGTransportTDO::IonMomentumOp::Update" << endl;
    }
+
+   if (l2_fes_0_  != NULL) { l2_fes_0_->Update(); }
+   if (OscGF_     != NULL) { OscGF_->Update(); }
+   DiscontinuitySensor(*yGF_[2], *OscGF_);
+   OscGF_->ExchangeFaceNbrData();
 
    NLOperator::Update();
 
