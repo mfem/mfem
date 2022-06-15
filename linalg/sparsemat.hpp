@@ -345,7 +345,8 @@ public:
    virtual void Mult(const Vector &x, Vector &y) const;
 
    /// y += A * x (default)  or  y += a * A * x
-   virtual void AddMult(const Vector &x, Vector &y, const double a = 1.0) const;
+   virtual void AddMult(const Vector &x, Vector &y,
+                        const double a = 1.0) const;
 
    /// Multiply a vector with the transposed matrix. y = At * x
    virtual void MultTranspose(const Vector &x, Vector &y) const;

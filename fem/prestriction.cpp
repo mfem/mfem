@@ -124,8 +124,10 @@ void ParNCH1FaceRestriction::Mult(const Vector &x, Vector &y) const
    }
 }
 
-void ParNCH1FaceRestriction::AddMultTranspose(const Vector &x, Vector &y) const
+void ParNCH1FaceRestriction::AddMultTranspose(const Vector &x, Vector &y,
+                                              const double a) const
 {
+   MFEM_VERIFY(a == 1.0, "General coefficient case is not yet supported!");
    if (nf==0) { return; }
    if (x_interp.Size()==0)
    {
@@ -906,8 +908,10 @@ void ParNCL2FaceRestriction::Mult(const Vector& x, Vector& y) const
    }
 }
 
-void ParNCL2FaceRestriction::AddMultTranspose(const Vector &x, Vector &y) const
+void ParNCL2FaceRestriction::AddMultTranspose(const Vector &x, Vector &y,
+                                              const double a) const
 {
+   MFEM_VERIFY(a == 1.0, "General coefficient case is not yet supported!");
    if (nf==0) { return; }
    if (type==FaceType::Interior)
    {

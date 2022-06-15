@@ -678,8 +678,12 @@ public:
 
    virtual void AddMult(const Vector &x, Vector &y, const double a = 1.0) const
    { Mult(a, x, 1.0, y); }
-   virtual void AddMultTranspose(const Vector &x, Vector &y, const double a = 1.0) const
+   virtual void AddMultTranspose(const Vector &x, Vector &y,
+                                 const double a = 1.0) const
    { MultTranspose(a, x, 1.0, y); }
+
+   using Operator::Mult;
+   using Operator::MultTranspose;
 
    /** @brief Computes y = a * |A| * x + b * y, using entry-wise absolute values
        of the matrix A. */
@@ -1040,6 +1044,7 @@ public:
    /// Relax the linear system Ax=b
    virtual void Mult(const HypreParVector &b, HypreParVector &x) const;
    virtual void Mult(const Vector &b, Vector &x) const;
+   using Operator::Mult;
 
    /// Apply transpose of the smoother to relax the linear system Ax=b
    virtual void MultTranspose(const Vector &b, Vector &x) const;
@@ -1116,6 +1121,7 @@ public:
    virtual void Mult(const HypreParVector &b, HypreParVector &x) const;
    /// Solve the linear system Ax=b
    virtual void Mult(const Vector &b, Vector &x) const;
+   using Operator::Mult;
 
    ///@}
 
