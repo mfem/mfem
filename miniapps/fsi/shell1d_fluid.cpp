@@ -4,10 +4,7 @@
 // Description: it solves a 1D equation as described in LANL fsi notes assuming the fluid solve is known.
 //
 // TODO: 
-// 1) Adjust need for dt to be passed to the ShellOperator class if possible
-// 2) Account for nonhomogenous BCs.
-// 3) Make a parallel version.
-// 4) Play with convergence rates more.
+// 1) Make a parallel version.
 
 #include "mfem.hpp"
 #include <fstream>
@@ -30,7 +27,7 @@ struct
 //1D MMS
 double InitialSolution(const Vector &pt)
 {
-   double x = pt(0);
+   //void(pt);
    return 1.0;
 }
 
@@ -51,26 +48,26 @@ double Forcing(const Vector &pt, const double t)
     double x = pt(0);
 
     // Compute the normal vector
-    double dEtaDx = ctx.a * ctx.fx / ctx.ft * cos(ctx.fx * M_PI * x) * sin(ctx.ft * M_PI * t);
-    double n2 = 1/sqrt(1 + dEtaDx * dEtaDx);
-    double n1 = -dEtaDx * n2;
+    // double dEtaDx = ctx.a * ctx.fx / ctx.ft * cos(ctx.fx * M_PI * x) * sin(ctx.ft * M_PI * t);
+    // double n2 = 1/sqrt(1 + dEtaDx * dEtaDx);
+    // double n1 = -dEtaDx * n2;
 
     // Compute pressure, structure, velocity, and required derivatives.
     // Uses a tiny bit more memory, will be easier to debug.
     // We need to recall that y = eta.
     double eta = ExactSolution(pt,t);
-    double p = cos(ctx.fx * M_PI * x) * cos(ctx.fx * M_PI * eta) * cos(ctx.ft * M_PI * t);
+    // double p = cos(ctx.fx * M_PI * x) * cos(ctx.fx * M_PI * eta) * cos(ctx.ft * M_PI * t);
     //double d2EtaDx2 = -ctx.a * ctx.fx * ctx.fx * M_PI / ctx.ft * sin(ctx.fx * M_PI * x) * sin(ctx.ft * M_PI * t);
     double d2EtaDx2 = -ctx.fx * ctx.fx * M_PI * M_PI * (eta - 1);
     // double d2EtaDt2 = -ctx.a * ctx.ft * M_PI * sin(ctx.fx * M_PI * x) * sin(ctx.ft * M_PI * t);
     double d2EtaDt2 = -ctx.ft * ctx.ft * M_PI * M_PI * (eta - 1);
-    double dUDy = -ctx.a * ctx.fx * M_PI * cos(ctx.fx * M_PI *x) * cos(ctx.ft * M_PI * t);
-    double dVDy = -ctx.a * ctx.fx * M_PI * cos(ctx.fx * M_PI * x) * cos(ctx.ft * M_PI * t) * dEtaDx;
-    double dVDx =  ctx.a * ctx.fx * M_PI * cos(ctx.fx * M_PI * x) * cos(ctx.ft * M_PI * t) * (1 + dEtaDx * dEtaDx);
+    // double dUDy = -ctx.a * ctx.fx * M_PI * cos(ctx.fx * M_PI *x) * cos(ctx.ft * M_PI * t);
+    // double dVDy = -ctx.a * ctx.fx * M_PI * cos(ctx.fx * M_PI * x) * cos(ctx.ft * M_PI * t) * dEtaDx;
+    // double dVDx =  ctx.a * ctx.fx * M_PI * cos(ctx.fx * M_PI * x) * cos(ctx.ft * M_PI * t) * (1 + dEtaDx * dEtaDx);
 
     // We now have everything we need.
-    return ctx.Tbar * d2EtaDt2 + ctx.Kbar * eta - ctx.Tbar * d2EtaDx2 - p*n2 
-         + ctx.viscosity * ((dUDy + dVDx) * n1 + 2 * dVDy * n2);
+    return ctx.Tbar * d2EtaDt2 + ctx.Kbar * eta - ctx.Tbar * d2EtaDx2;// - p*n2 
+         //+ ctx.viscosity * ((dUDy + dVDx) * n1 + 2 * dVDy * n2);
 }
 
 class ShellOperator : public SecondOrderTimeDependentOperator
@@ -79,15 +76,15 @@ protected:
    FiniteElementSpace &fespace;
    Array<int> ess_tdof_list; 
 
-   BilinearForm *M, *K;
+   BilinearForm *M, *K, *S;
    LinearForm forcing_LF;
-   SparseMatrix Mmat, Mmat0, Kmat, S;
+   SparseMatrix Mmat, Mmat0, Kmat, Smat;
    Solver *invM, *invS;
    double current_dt, fac0old;
    Array<int> block_trueOffsets;
    FunctionCoefficient forcing_function;
 
-   CGSolver M_solver, S_solver; // Krylov solver for inverting mass and overall system matricies.
+   GMRESSolver M_solver, S_solver; // Krylov solver for inverting mass and overall system matricies.
    DSmoother M_prec, S_prec;  // Preconditioner for the mass matrix M
 
    double current_time, dt;
@@ -95,7 +92,7 @@ protected:
    mutable Vector z, V; // auxiliary vector
 
 public:
-   ShellOperator(FiniteElementSpace &f, Array<int> &ess_bdr, double dt);
+   ShellOperator(FiniteElementSpace &f, Array<int> &ess_bdr);
 
    using SecondOrderTimeDependentOperator::Mult;
    virtual void Mult(const Vector &u, const Vector &du_dt,
@@ -109,11 +106,11 @@ public:
 };
 
 
-ShellOperator::ShellOperator(FiniteElementSpace &f, Array<int> &ess_bdr, double dt_)
+ShellOperator::ShellOperator(FiniteElementSpace &f, Array<int> &ess_bdr)
    : SecondOrderTimeDependentOperator(f.GetTrueVSize(), 0.0), fespace(f), M(NULL),
-     K(NULL), current_dt(0.0), block_trueOffsets(3), forcing_function(Forcing), z(height), V(height) 
+     K(NULL), block_trueOffsets(3), forcing_function(Forcing), z(height), V(height)
 {
-   const double rel_tol = 1e-8;
+   //const double rel_tol = 1e-8;
    ConstantCoefficient one(1);
 
    fespace.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
@@ -121,12 +118,28 @@ ShellOperator::ShellOperator(FiniteElementSpace &f, Array<int> &ess_bdr, double 
    K = new BilinearForm(&fespace);
    K->AddDomainIntegrator(new DiffusionIntegrator(one));
    K->Assemble();
-   K->FormSystemMatrix(ess_tdof_list, Kmat);
+   // Make the full system matrix and deal with boundary conditions manually.
+   K->FormSystemMatrix(Array<int>(), Kmat);
 
    M = new BilinearForm(&fespace);
    M->AddDomainIntegrator(new MassIntegrator());
    M->Assemble();
-   M->FormSystemMatrix(ess_tdof_list, Mmat);
+   // Make the full system matrix and deal with boundary conditions manually.
+   M->FormSystemMatrix(Array<int>(), Mmat);
+
+   forcing_function.SetTime(t);
+   forcing_LF.Update(&fespace);
+   forcing_LF.AddDomainIntegrator(new DomainLFIntegrator(forcing_function));
+   forcing_LF.Assemble();
+
+   fac0old=0.;
+
+   // Make the matricies obey boundary conditions.
+   for (int cond_ind = 0; cond_ind < ess_tdof_list.Size(); ++cond_ind){
+      Kmat.EliminateRow(ess_tdof_list[cond_ind],DIAG_ONE);
+      Mmat.EliminateRow(ess_tdof_list[cond_ind],DIAG_ONE);
+   }
+   Kmat.PrintMatlab();
 
    M_solver.iterative_mode = false;
    M_solver.SetRelTol(0.0);
@@ -135,29 +148,6 @@ ShellOperator::ShellOperator(FiniteElementSpace &f, Array<int> &ess_bdr, double 
    M_solver.SetPrintLevel(0);
    M_solver.SetPreconditioner(M_prec);
    M_solver.SetOperator(Mmat);
-
-   forcing_function.SetTime(0.0);
-   forcing_LF.Update(&fespace);
-   dt = dt_;
-   forcing_LF.AddDomainIntegrator(new DomainLFIntegrator(forcing_function));
-   forcing_LF.Assemble();
-
-   fac0old=0.;
-
-   // The overall system matrix does not change. Just build it here.
-   S = Mmat;
-   S *= ctx.Tbar + 0.25 * dt * dt * ctx.Kbar;
-   Kmat *= 0.25 * dt * dt * ctx.Tbar;
-   S += Kmat;
-   Kmat *= 1 / (0.25 * dt * dt * ctx.Tbar);
-
-   S_solver.iterative_mode = false;
-   S_solver.SetRelTol(0);
-   S_solver.SetAbsTol(1e-12);
-   S_solver.SetMaxIter(1000);
-   S_solver.SetPrintLevel(0);
-   S_solver.SetPreconditioner(S_prec);
-   S_solver.SetOperator(S);
 }
 
 void ShellOperator::Mult(const Vector &u, const Vector &du_dt,
@@ -165,78 +155,133 @@ void ShellOperator::Mult(const Vector &u, const Vector &du_dt,
 {
    // Compute:
    //    d2EtaDt2 = -Kbar / Tbar eta + M^-1(F - K eta)
-   Kmat.Mult(u, z);
-   z *= -1;
+   // BCs.
+   V = u;
+   for (int i = 0; i < ess_tdof_list.Size(); ++i){
+      V[ess_tdof_list[i]] = 1.0;
+   }
+   Kmat.Mult(V, z);
+   z *= ctx.Tbar;
    z += forcing_LF;
-   z[0] = 0.0;
-   z[d2udt2.Size()-1] = 0.0;
-   V[0] = 0.0;
-   V[d2udt2.Size()-1] = 0.0;
    M_solver.Mult(z, V);
 
    d2udt2 = u;
-   d2udt2 *= -ctx.Kbar / ctx.Tbar;
+   d2udt2 *= -ctx.Kbar;
    d2udt2 += V;
+   d2udt2 *= 1/ctx.Tbar;
 
    // Apply the inhomgenous boundary conditions.
-   d2udt2[0] = 0.0;
-   d2udt2[d2udt2.Size()-1] = 0.0;
+   for (int i = 0; i < ess_tdof_list.Size(); ++i){
+      d2udt2[ess_tdof_list[i]] = 0.0;
+   }
 }
 
 void ShellOperator::ImplicitSolve(const double fac0, const double fac1,
                                  const Vector &u, const Vector &dudt, Vector &d2udt2)
 {
    // Solve the equation
-   //    d2udt2 = S^1*(-Kbar M eta - Tbar K eta + F).
+   //    d2udt2 = Smat^1*(-Kbar M eta - Tbar K eta + F).
    // We have the system matrix 
-   //    S = ((1 + fac0 * Kbar / Tbar) M + fac0 * K).
+   //    Smat = ((1 + fac0 * Kbar / Tbar) M + fac0 * K).
+   // Determine if we need to rebuild the system matrix.
+   if (abs(fac0old) < 1e-16){
+      // Initialize the bilinear form.
+      ConstantCoefficient MassCoef(ctx.Tbar + fac0 * ctx.Kbar);
+      ConstantCoefficient DiffCoef(fac0 * ctx.Tbar);
+      S = new BilinearForm(&fespace);
+      S->AddDomainIntegrator(new MassIntegrator(MassCoef));
+      S->AddDomainIntegrator(new DiffusionIntegrator(DiffCoef));
+      S->Assemble();
+      S->FormSystemMatrix(Array<int>(),Smat);
+
+      // Constraints
+      for (int cond_ind = 0; cond_ind < ess_tdof_list.Size(); ++cond_ind){
+         Smat.EliminateRow(ess_tdof_list[cond_ind],DIAG_ONE);
+      }
+
+      // Solver
+      S_solver.iterative_mode = false;
+      S_solver.SetRelTol(0);
+      S_solver.SetAbsTol(1e-8);
+      S_solver.SetMaxIter(100000);
+      S_solver.SetPrintLevel(0);
+      S_solver.SetPreconditioner(S_prec);
+      S_solver.SetOperator(Smat);
+   }
+   else if (abs(fac0-fac0old) > 1e-14){
+      // Reinitialize the bilinear form.
+      ConstantCoefficient MassCoef(ctx.Tbar + fac0 * ctx.Kbar);
+      ConstantCoefficient DiffCoef(fac0 * ctx.Tbar);
+      S = new BilinearForm(&fespace);
+      S->AddDomainIntegrator(new MassIntegrator(MassCoef));
+      S->AddDomainIntegrator(new DiffusionIntegrator(DiffCoef));
+      S->Assemble();
+      S->FormSystemMatrix(Array<int>(),Smat);
+
+      // Constraints
+      for (int cond_ind = 0; cond_ind < ess_tdof_list.Size(); ++cond_ind){
+         Smat.EliminateRow(ess_tdof_list[cond_ind],DIAG_ONE);
+      }
+
+      // Solver
+      S_solver.iterative_mode = false;
+      S_solver.SetRelTol(0);
+      S_solver.SetAbsTol(1e-8);
+      S_solver.SetMaxIter(100000);
+      S_solver.SetPrintLevel(0);
+      S_solver.SetPreconditioner(S_prec);
+      S_solver.SetOperator(Smat);
+   }
    
    // We first need to form the right hand side.
-   // Assume that ImplicitSolve is called only once per time step.
-   // This is probably bad, but is the case for our solver.
-   // TODO: Figure out how to impose time-dependent forcing without something like this.
-   current_time += dt;
-   forcing_function.SetTime(current_time);
+   forcing_function.SetTime(t);
    forcing_LF.Update();
    forcing_LF.Assemble();
 
    // Form the part of the rhs that comes from the current postion.
-   Mmat.Mult(u,z);
+   Vector aux = u;
+   for (int i = 0; i < ess_tdof_list.Size(); ++i){
+      aux[ess_tdof_list[i]] = 1.0;
+   }
+   Mmat.Mult(aux,z);
    z *= -ctx.Kbar;
    z += forcing_LF;
-   Kmat.Mult(u,V);
+   Kmat.Mult(aux,V);
    V *= -ctx.Tbar;
    z += V;
 
    // Apply the inhomgenous boundary conditions.
-   d2udt2[0] = 0.0;
-   d2udt2[d2udt2.Size()-1] = 0.0;
-   z[0] = 0.0;
-   z[d2udt2.Size()-1] = 0.0;
+   for (int i = 0; i < ess_tdof_list.Size(); ++i){
+      z[ess_tdof_list[i]] = 0.0;
+      d2udt2[ess_tdof_list[i]] = 0.0;
+   }
 
    // Solve the system.
    S_solver.Mult(z,d2udt2);
 
    // Apply the inhomgenous boundary conditions.
-   d2udt2[0] = 0.0;
-   d2udt2[d2udt2.Size()-1] = 0.0;
+   // This really shouldn't be required if one is using a Krylov solver, but it can't hurt.
+   for (int i = 0; i < ess_tdof_list.Size(); ++i){
+      d2udt2[ess_tdof_list[i]] = 0.0;
+   }
 }
 
 ShellOperator::~ShellOperator()
 {
    delete M;
    delete K;
+   delete S;
 }
 
 int main(int argc, char *argv[])
 {
    int order = 2;
    double t_final = 1.0;
-   double dt = 0.0025;
+   int ref_levels = 1;
+   double dt = 0.01 * std::pow(2.0,-1.0*(double)ref_levels+1.0); // For the purposes of testing the convergence order. Only ref_levels needs to be adjusted manually.
    bool visualization = true;
    int vis_steps = 1;
-   int ref_levels = 1;
-   bool verbose = true;
+   bool verbose = false;
 
    OptionsParser args(argc, argv);
    args.AddOption(&ref_levels, "-r", "--refine",
@@ -277,9 +322,8 @@ int main(int argc, char *argv[])
         << fespace.GetTrueVSize() << endl;
 
    Array<int> ess_bdr(mesh.bdr_attributes.Max());
-   if (mesh.bdr_attributes.Size())
-   {
-      ess_bdr = 0.0;
+   for (int i = 0; i < ess_bdr.Size(); ++i){
+      ess_bdr[i] = 1;
    }
 
    SecondOrderODESolver *ode_solver = new NewmarkSolver();
@@ -297,7 +341,6 @@ int main(int argc, char *argv[])
    dudt_gf.ProjectCoefficient(dudt_0);
    Vector dudt;
    dudt_gf.GetTrueDofs(dudt);
-   dudt[dudt.Size()-1] = 0.0;
 
    for (int i = 0; i < u.Size(); ++i){
       //dudt[i] = 0.5 * sin(2.0 * M_PI * static_cast<double>(i)/(static_cast<double>(u.Size())-1.0));
@@ -331,7 +374,7 @@ int main(int argc, char *argv[])
       }
    }         
 
-   ShellOperator oper(fespace, ess_bdr, dt);
+   ShellOperator oper(fespace, ess_bdr);
    ode_solver->Init(oper);
    double t = 0.0;
    double L2L2_err = 0.0;
@@ -412,7 +455,7 @@ int main(int argc, char *argv[])
       std::cout << "|| u_ex || = " << norm_u  << "\n";
       std::cout << "|| u_h || = " << norm_u_a << "\n";
 
-      L2L2_err += err_u;
+      L2L2_err += err_u * err_u;
    }
 
    std::cout << "\nOverall errors";
