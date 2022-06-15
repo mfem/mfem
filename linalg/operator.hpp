@@ -879,7 +879,9 @@ public:
            z = A((0,x_b));  b_i -= z_i;  b_b = x_b;
 
        where the "_b" subscripts denote the essential (boundary) indices/dofs of
-       the vectors, and "_i" -- the rest of the entries. */
+       the vectors, and "_i" -- the rest of the entries.
+
+       @note This method is consistent with `DiagonalPolicy::DIAG_ONE`. */
    void EliminateRHS(const Vector &x, Vector &b) const;
 
    /** @brief Constrained operator action.
