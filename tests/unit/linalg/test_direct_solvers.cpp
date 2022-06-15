@@ -220,12 +220,15 @@ TEST_CASE("direct-parallel", "[Parallel], [CUDA]")
       Vector B, X;
       a.FormLinearSystem(ess_tdof_list, x, b, A, X, B);
 
-      Vector X0(X), X1(X), B0(B), B1(B);
-      Array<Vector *> XX(2), BB(2);
-      XX[0] = &X0;
-      XX[1] = &X1;
+      Vector B0(X.Size()), B1(X.Size()), X0(X.Size()), X1(X.Size());
+      B0 = B;
+      B1 = B;
+      B1 *= 2.0;
+      Array<Vector *> BB(2), XX(2);
       BB[0] = &B0;
       BB[1] = &B1;
+      XX[0] = &X0;
+      XX[1] = &X1;
 
 #ifdef MFEM_USE_MUMPS
       {
@@ -233,12 +236,13 @@ TEST_CASE("direct-parallel", "[Parallel], [CUDA]")
          mumps.SetPrintLevel(0);
          mumps.SetOperator(*A.As<HypreParMatrix>());
          mumps.Mult(B,X);
-         mumps.Mult(BB,XX);
 
          Vector Y(X.Size());
          A->Mult(X,Y);
          Y-=B;
          REQUIRE(Y.Norml2() < 1.e-12);
+
+         mumps.Mult(BB,XX);
 
          for (int i = 0; i < XX.Size(); i++)
          {
@@ -263,12 +267,20 @@ TEST_CASE("direct-parallel", "[Parallel], [CUDA]")
          superlu.SetColumnPermutation(superlu::METIS_AT_PLUS_A);
          superlu.SetOperator(SA);
          superlu.Mult(B,X);
-         superlu.Mult(BB,XX);
 
          Vector Y(X.Size());
          A->Mult(X,Y);
          Y-=B;
          REQUIRE(Y.Norml2() < 1.e-12);
+
+         // SuperLUSolver requires constant number of RHS across solves
+         SuperLURowLocMatrix SA2(*A.As<HypreParMatrix>());
+         SuperLUSolver superlu2(MPI_COMM_WORLD);
+         superlu2.SetPrintStatistics(false);
+         superlu2.SetSymmetricPattern(false);
+         superlu2.SetColumnPermutation(superlu::METIS_AT_PLUS_A);
+         superlu2.SetOperator(SA2);
+         superlu2.Mult(BB,XX);
 
          for (int i = 0; i < XX.Size(); i++)
          {
@@ -294,12 +306,13 @@ TEST_CASE("direct-parallel", "[Parallel], [CUDA]")
          strumpack.SetReorderingStrategy(strumpack::ReorderingStrategy::METIS);
          strumpack.SetOperator(SA);
          strumpack.Mult(B,X);
-         strumpack.Mult(BB,XX);
 
          Vector Y(X.Size());
          A->Mult(X,Y);
          Y-=B;
          REQUIRE(Y.Norml2() < 1.e-12);
+
+         strumpack.Mult(BB,XX);
 
          for (int i = 0; i < XX.Size(); i++)
          {

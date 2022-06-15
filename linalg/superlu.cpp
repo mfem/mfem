@@ -610,23 +610,25 @@ void SuperLUSolver::Mult(const Array<Vector *> &X, Array<Vector *> &Y) const
    }
 
    // SuperLU overwrites x with y, so copy x to y and pass that to the solve
-   // routine.
+   // routine. Due to issues with repeated solves and changes in the number
+   // of RHS vectors, this is not supported.
    MFEM_ASSERT(X.Size() == Y.Size(),
                "Number of columns mismatch in SuperLUSolver::Mult!");
+   MFEM_VERIFY(nrhs_ < 1 || nrhs_ == X.Size(),
+               "SuperLUSolver does not support multiple solves with different "
+               "numbers of RHS vectors!");
    int ldx = Height();
    if (X.Size() == 1)
    {
       MFEM_ASSERT(X[0] && Y[0], "Missing Vector in SuperLUSolver::Mult!");
-      sol_.Destroy();
       sol_.MakeRef(*Y[0], 0, Y[0]->Size());
       sol_ = *X[0];
       nrhs_ = 1;
    }
    else
    {
-      if (nrhs_ != X.Size())
+      if (nrhs_ < 1)
       {
-         sol_.Destroy();
          sol_.SetSize(X.Size() * ldx);
          nrhs_ = X.Size();
       }
