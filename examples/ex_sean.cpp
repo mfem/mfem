@@ -43,6 +43,7 @@
 //               (paraview.org) is also illustrated.
 
 #include "mfem.hpp"
+#include "gslib.hpp"
 #include <fstream>
 #include <iostream>
 #include <algorithm>
@@ -499,9 +500,13 @@ int main(int argc, char *argv[])
    FE_Evolution adv(m, k, b);
 
    double t = 0.0;
-   double dt_est = dt;
+   //double dt_est = dt;
    adv.SetTime(t);
    ode_solver->Init(adv);
+
+   // Going to try and grab all the points in the HO mesh
+   FindPointsGSLIB finder;
+   //finder.Setup(mesh);
 
    // Need to declare these variables for calculating u_LO
    Mesh *mesh_temp = fes.GetMesh();
@@ -534,6 +539,7 @@ int main(int argc, char *argv[])
         // Calculate the LO solution using u_HO
         CalculateLOSolution(u_HO, x, dt_real, u_LO, du_LO, el_mass, el_vol);
 
+	/*
 	// Find the mins and maxes of the elements
 	ComputeElementsMinMax(u_HO, fes, el_min, el_max, NULL, NULL);
 
@@ -545,7 +551,8 @@ int main(int argc, char *argv[])
 	// I'm not sure what is here is correct, currently my ignorance of
 	// how the meshes are structured is stopping me from having an actual
 	// answer to this.  The dt_est is the same the whole time,
-	// which is wrong.	
+	// which is wrong.
+	*/	
       }
 
       if (averaging == 2 || averaging == 3)
@@ -585,8 +592,7 @@ int main(int argc, char *argv[])
          }
       }
    }
-
-   //cout << du_LO << endl;
+   
 
    // 9. Save the final solution. This output can be viewed later using GLVis:
    if (visualization)
