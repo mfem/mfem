@@ -2710,9 +2710,14 @@ private:
 
    StateVariableCoef & niCoef_;
    StateVariableCoef & CsCoef_;
+   VectorCoefficient & B3Coef_;
    ParFiniteElementSpace * fes_;
    Coefficient       * OscCoef_;
    const double width_;
+
+   mutable Vector B3_;
+   mutable Vector B2_;
+   mutable Vector JB_;
 
 public:
    IonMomentumParaDiffusionCoef(int ion_charge_number, double ion_mass_kg,
@@ -2720,6 +2725,7 @@ public:
                                 StateVariableCoef &TiCoef,
                                 StateVariableCoef &niCoef,
                                 StateVariableCoef &CsCoef,
+                                VectorCoefficient &B3Coef,
                                 ParFiniteElementSpace * fes,
                                 Coefficient * OscCoef,
                                 double width)
@@ -2729,9 +2735,13 @@ public:
         TiCoef_(TiCoef),
         niCoef_(niCoef),
         CsCoef_(CsCoef),
+        B3Coef_(B3Coef),
         fes_(fes),
         OscCoef_(OscCoef),
-        width_(width)
+        width_(width),
+        B3_(3),
+        B2_(B3_.GetData(), 2),
+        JB_(2)
    {}
 
    IonMomentumParaDiffusionCoef(const IonMomentumParaDiffusionCoef &other)
@@ -2741,9 +2751,13 @@ public:
         TiCoef_(other.TiCoef_),
         niCoef_(other.niCoef_),
         CsCoef_(other.CsCoef_),
+        B3Coef_(other.B3Coef_),
         fes_(other.fes_),
         OscCoef_(other.OscCoef_),
-        width_(other.width_)
+        width_(other.width_),
+        B3_(3),
+        B2_(B3_.GetData(), 2),
+        JB_(2)
    {
       derivType_ = other.derivType_;
    }
@@ -2785,8 +2799,17 @@ public:
             double ni = niCoef_.Eval(T, ip);
             double Cs = CsCoef_.Eval(T, ip);
 
-            double h = pow(T.Weight(), 1.0 / T.GetDimension() );
-            h /= 20.0;
+            B3Coef_.Eval(B3_, T, ip);
+            double B2mag2 = B2_ * B2_;
+
+            JB_.SetSize(2);
+            T.Jacobian().MultTranspose(B2_, JB_);
+            double h = sqrt((JB_ * JB_) / B2mag2);
+
+            // double h = pow(T.Weight(), 1.0 / T.GetDimension() );
+
+            // std::cout << "Estimates of h: " << h << " (by area) vs " << hJ << " (by J*B)" << std::endl;
+
             double eps0 = m_i_kg_ * ni * Cs * h / elemOrder;
 
             if (se > s0 + width_)
