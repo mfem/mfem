@@ -76,6 +76,9 @@ examples/ex9-mesh.*
 examples/ex9-init.*
 examples/ex9-final.*
 examples/ex9p-continuous-final.*
+examples/ex9p-continuous-final-exact.*
+examples/ex9p-continuous-init.*
+examples/ex9p-continuous-mesh.*
 examples/deformed.*
 examples/velocity.*
 examples/elastic_energy.*
@@ -179,6 +182,12 @@ examples/sundials/Example16*
 examples/superlu/ex1p
 examples/superlu/mesh.*
 examples/superlu/sol.*
+
+# Saved output
+examples/ex9p-analysis/saved_output/
+examples/ex9p-analysis/temp_output/
+examples/ex9p-analysis/*.out
+examples/ex9p-analysis/*.txt
 
 miniapps/adjoint/cvsRoberts_ASAi_dns
 miniapps/adjoint/adjoint_advection_diffusion
