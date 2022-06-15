@@ -69,7 +69,7 @@ private:
     http://portal.nersc.gov/project/sparse/strumpack/.
 */
 template <typename STRUMPACKSolverType>
-class STRUMPACKSolverBase : public mfem::Solver
+class STRUMPACKSolverBase : public Solver
 {
 protected:
    // Constructor with MPI_Comm parameter and command line arguments.
@@ -84,6 +84,7 @@ public:
 
    // Factor and solve the linear system y = Op^{-1} x.
    void Mult(const Vector &x, Vector &y) const;
+   void Mult(const Array<Vector *> &X, Array<Vector *> &Y) const;
 
    // Set the operator.
    void SetOperator(const Operator &op);
@@ -202,6 +203,10 @@ public:
 #endif
 #endif
 
+private:
+   // Helper method for calling the STRUMPACK factoriation routine.
+   void FactorInternal() const;
+
 protected:
    bool factor_verbose_;
    bool solve_verbose_;
@@ -209,6 +214,9 @@ protected:
 
    const STRUMPACKRowLocMatrix *APtr_;
    STRUMPACKSolverType         *solver_;
+
+   mutable Vector rhs_, sol_;
+   mutable int    nrhs_;
 };
 
 class STRUMPACKSolver :
@@ -232,7 +240,7 @@ public:
    ~STRUMPACKSolver() {}
 };
 
-#if STRUMPACK_VERSION_MAJOR >= 6
+#if STRUMPACK_VERSION_MAJOR >= 6 && STRUMPACK_VERSION_MINOR >= 3 && STRUMPACK_VERSION_PATCH > 1
 class STRUMPACKMixedPrecisionSolver :
    public STRUMPACKSolverBase<strumpack::
       SparseSolverMixedPrecisionMPIDist<float, double, HYPRE_BigInt>>

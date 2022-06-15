@@ -85,7 +85,7 @@ private:
     double precision types. It is currently maintained by Xiaoye Sherry Li at
     NERSC, see http://crd-legacy.lbl.gov/~xiaoye/SuperLU/.
 */
-class SuperLUSolver : public mfem::Solver
+class SuperLUSolver : public Solver
 {
 public:
    // Constructor with MPI_Comm parameter.
@@ -103,10 +103,12 @@ public:
    // Factor and solve the linear system y = Op^{-1} x.
    // Note: Factorization modifies the operator matrix.
    void Mult(const Vector &x, Vector &y) const;
+   void Mult(const Array<Vector *> &X, Array<Vector *> &Y) const;
 
    // Factor and solve the linear system y = Op^{-T} x.
    // Note: Factorization modifies the operator matrix.
    void MultTranspose(const Vector &x, Vector &y) const;
+   void MultTranspose(const Array<Vector *> &X, Array<Vector *> &Y) const;
 
    // Set various solver options. Refer to SuperLU_DIST documentation for
    // details.
@@ -132,6 +134,16 @@ private:
 protected:
    const SuperLURowLocMatrix *APtr_;
 
+   mutable Vector sol_;
+   mutable int    nrhs_;
+
+   int nprow_;
+   int npcol_;
+   int npdep_;
+
+   bool         LUStructInitialized_;
+   mutable bool firstSolveWithThisA_;
+
    /** The actual types of the following pointers are hidden to avoid exposing
        the SuperLU header files to the entire library. Their types are given in
        the trailing comments. The reason that this is necessary is that SuperLU
@@ -143,13 +155,6 @@ protected:
    void *LUstructPtr_;         //        LUstruct_t *
    void *SOLVEstructPtr_;      //     SOLVEstruct_t *
    void *gridPtr_;             //        gridinfo_t * or gridinfo3d_t *
-
-   int nprow_;
-   int npcol_;
-   int npdep_;
-
-   bool         LUStructInitialized_;
-   mutable bool firstSolveWithThisA_;
 };
 
 } // namespace mfem

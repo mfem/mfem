@@ -118,6 +118,7 @@ template <typename STRUMPACKSolverType>
 STRUMPACKSolverBase<STRUMPACKSolverType>::
 STRUMPACKSolverBase(MPI_Comm comm, int argc, char *argv[])
    : APtr_(NULL),
+     nrhs_(-1),
      factor_verbose_(false),
      solve_verbose_(false),
      reorder_reuse_(false)
@@ -129,6 +130,7 @@ template <typename STRUMPACKSolverType>
 STRUMPACKSolverBase<STRUMPACKSolverType>::
 STRUMPACKSolverBase(STRUMPACKRowLocMatrix &A, int argc, char *argv[])
    : APtr_(&A),
+     nrhs_(-1),
      factor_verbose_(false),
      solve_verbose_(false),
      reorder_reuse_(false)
@@ -318,11 +320,23 @@ SetOperator(const Operator &op)
 
 template <typename STRUMPACKSolverType>
 void STRUMPACKSolverBase<STRUMPACKSolverType>::
-Mult(const Vector &x, Vector &y) const
+FactorInternal() const
 {
    MFEM_ASSERT(APtr_,
                "STRUMPACK: Operator must be set before the system can be "
                "solved!");
+   solver_->options().set_verbose(factor_verbose_);
+   strumpack::ReturnCode ret = solver_->factor();
+   if (ret != strumpack::ReturnCode::SUCCESS)
+   {
+      MFEM_ABORT("STRUMPACK: Factor failed with return code " << ret << "!");
+   }
+}
+
+template <typename STRUMPACKSolverType>
+void STRUMPACKSolverBase<STRUMPACKSolverType>::
+Mult(const Vector &x, Vector &y) const
+{
    MFEM_ASSERT(x.Size() == Width(),
                "STRUMPACK: Invalid x.Size() = " << x.Size() <<
                ", expected size = " << Width() << "!");
@@ -335,18 +349,58 @@ Mult(const Vector &x, Vector &y) const
    const double *xPtr = (const double *)x;
    double *yPtr       = (double *)y;
 
-   solver_->options().set_verbose(factor_verbose_);
-   strumpack::ReturnCode ret = solver_->factor();
-   if (ret != strumpack::ReturnCode::SUCCESS)
-   {
-      MFEM_ABORT("STRUMPACK: Factor failed with return code " << ret << "!");
-   }
-
+   FactorInternal();
    solver_->options().set_verbose(solve_verbose_);
-   ret = solver_->solve(xPtr, yPtr, false);
+   strumpack::ReturnCode ret = solver_->solve(xPtr, yPtr, false);
    if (ret != strumpack::ReturnCode::SUCCESS)
    {
       MFEM_ABORT("STRUMPACK: Solve failed with return code " << ret << "!");
+   }
+}
+
+template <typename STRUMPACKSolverType>
+void STRUMPACKSolverBase<STRUMPACKSolverType>::
+Mult(const Array<Vector *> &X, Array<Vector *> &Y) const
+{
+   MFEM_ASSERT(X.Size() == Y.Size(),
+               "Number of columns mismatch in STRUMPACK solve!");
+   if (X.Size() == 1)
+   {
+      MFEM_ASSERT(X[0] && Y[0], "Missing Vector in STRUMPACK solve!");
+      Mult(*X[0], *Y[0]);
+   }
+
+   // Multiple RHS case
+   int ldx = Height();
+   if (nrhs_ != X.Size())
+   {
+      rhs_.SetSize(nrhs_ * ldx);
+      sol_.SetSize(nrhs_ * ldx);
+      nrhs_ = X.Size();
+   }
+   for (int i = 0; i < nrhs_; i++)
+   {
+      MFEM_ASSERT(X[i] && X[i]->Size() == Width(),
+                  "STRUMPACK: Missing or invalid sized RHS Vector in solve!");
+      Vector s(sol_, i * ldx, ldx);
+      s = *X[i];
+   }
+
+   FactorInternal();
+   solver_->options().set_verbose(solve_verbose_);
+   strumpack::ReturnCode ret = solver_->solve(nrhs_, rhs_.HostRead(), ldx,
+                                              sol_.HostReadWrite(), ldx, false);
+   if (ret != strumpack::ReturnCode::SUCCESS)
+   {
+      MFEM_ABORT("STRUMPACK: Solve failed with return code " << ret << "!");
+   }
+
+   for (int i = 0; i < nrhs_; i++)
+   {
+      MFEM_ASSERT(Y[i] && Y[i]->Size() == Width(),
+                  "STRUMPACK: Missing or invalid sized solution Vector in solve!");
+      Vector s(sol_, i * ldx, ldx);
+      *Y[i] = s;
    }
 }
 
@@ -374,7 +428,7 @@ STRUMPACKSolver(STRUMPACKRowLocMatrix &A, int argc, char *argv[])
         SparseSolverMPIDist<double, HYPRE_BigInt>>
         (A, argc, argv) {}
 
-#if STRUMPACK_VERSION_MAJOR >= 6
+#if STRUMPACK_VERSION_MAJOR >= 6 && STRUMPACK_VERSION_MINOR >= 3 && STRUMPACK_VERSION_PATCH > 1
 STRUMPACKMixedPrecisionSolver::
 STRUMPACKMixedPrecisionSolver(MPI_Comm comm)
    : STRUMPACKSolverBase<strumpack::
@@ -402,7 +456,7 @@ STRUMPACKMixedPrecisionSolver(STRUMPACKRowLocMatrix &A, int argc, char *argv[])
 
 template class STRUMPACKSolverBase<strumpack::
    SparseSolverMPIDist<double, HYPRE_BigInt>>;
-#if STRUMPACK_VERSION_MAJOR >= 6
+#if STRUMPACK_VERSION_MAJOR >= 6 && STRUMPACK_VERSION_MINOR >= 3 && STRUMPACK_VERSION_PATCH > 1
 template class STRUMPACKSolverBase<strumpack::
    SparseSolverMixedPrecisionMPIDist<float, double, HYPRE_BigInt>>;
 #endif

@@ -16,6 +16,8 @@
 
 #include "mumps.hpp"
 
+#include <algorithm>
+
 #if MFEM_MUMPS_VERSION >= 530
   #ifdef MUMPS_INTSIZE64
     #error "Full 64-bit MUMPS is not yet supported"
@@ -35,9 +37,9 @@
 namespace mfem
 {
 
-MUMPSSolver::MUMPSSolver(MPI_Comm comm)
+MUMPSSolver::MUMPSSolver(MPI_Comm comm_)
 {
-   Init(comm);
+   Init(comm_);
 }
 
 MUMPSSolver::MUMPSSolver(const Operator &op)
@@ -48,12 +50,12 @@ MUMPSSolver::MUMPSSolver(const Operator &op)
    SetOperator(op);
 }
 
-void MUMPSSolver::Init(MPI_Comm comm)
+void MUMPSSolver::Init(MPI_Comm comm_)
 {
    id = nullptr;
-   comm_ = comm;
-   MPI_Comm_size(comm_, &numProcs);
-   MPI_Comm_rank(comm_, &myid);
+   comm = comm_;
+   MPI_Comm_size(comm, &numProcs);
+   MPI_Comm_rank(comm, &myid);
 
    mat_type = MatType::UNSYMMETRIC;
    print_level = 0;
@@ -63,11 +65,34 @@ void MUMPSSolver::Init(MPI_Comm comm)
 
 #if MFEM_MUMPS_VERSION >= 530
    irhs_loc = nullptr;
+   rhs_loc = nullptr;
+   isol_loc = nullptr;
+   sol_loc = nullptr;
 #else
    recv_counts = nullptr;
    displs = nullptr;
    rhs_glob = nullptr;
 #endif
+}
+
+MUMPSSolver::~MUMPSSolver()
+{
+#if MFEM_MUMPS_VERSION >= 530
+   delete [] irhs_loc;
+   delete [] rhs_loc;
+   delete [] isol_loc;
+   delete [] sol_loc;
+#else
+   delete [] recv_counts;
+   delete [] displs;
+   delete [] rhs_glob;
+#endif
+   if (id)
+   {
+      id->job = -2;
+      dmumps_c(id);
+      delete id;
+   }
 }
 
 void MUMPSSolver::SetOperator(const Operator &op)
@@ -158,7 +183,7 @@ void MUMPSSolver::SetOperator(const Operator &op)
       data = csr_op->data;
    }
 
-   // New MUMPS object
+   // New MUMPS object or reuse the one from a previous matrix
    if (!id || !reorder_reuse)
    {
       if (id)
@@ -171,7 +196,7 @@ void MUMPSSolver::SetOperator(const Operator &op)
       id->sym = mat_type;
 
       // C to Fortran communicator
-      id->comm_fortran = (MUMPS_INT)MPI_Comm_c2f(comm_);
+      id->comm_fortran = (MUMPS_INT)MPI_Comm_c2f(comm);
 
       // Host is involved in computation
       id->par = 1;
@@ -195,8 +220,6 @@ void MUMPSSolver::SetOperator(const Operator &op)
    }
    else
    {
-      id->n = internal::to_int(parcsr_op->global_num_rows);
-      id->nnz_loc = nnz;
       id->irn_loc = I;
       id->jcn_loc = J;
       id->a_loc = data;
@@ -236,28 +259,36 @@ void MUMPSSolver::SetOperator(const Operator &op)
    delete [] J;
    if (mat_type) { delete [] data; }
 
+   id->nrhs = -1;  // Set up solution storage on first call to Mult
 #if MFEM_MUMPS_VERSION >= 530
    delete [] irhs_loc;
-   irhs_loc = new int[n_loc];
+   delete [] isol_loc;
+   id->nloc_rhs = n_loc;
+   id->lrhs_loc = n_loc;
+   id->lsol_loc = id->MUMPS_INFO(23);
+   irhs_loc = new int[id->lrhs_loc];
+   isol_loc = new int[id->lsol_loc];
    for (int i = 0; i < n_loc; i++)
    {
       irhs_loc[i] = row_start + i + 1;
    }
+   id->irhs_loc = irhs_loc;
+   id->isol_loc = isol_loc;
+
    row_starts.SetSize(numProcs);
-   MPI_Allgather(&row_start, 1, MPI_INT, row_starts, 1, MPI_INT, comm_);
+   MPI_Allgather(&row_start, 1, MPI_INT, row_starts, 1, MPI_INT, comm);
 #else
+   id->lrhs = id->n;
    if (myid == 0)
    {
-      delete [] rhs_glob;
       delete [] recv_counts;
-      rhs_glob = new double[parcsr_op->global_num_rows];
+      delete [] displs;
       recv_counts = new int[numProcs];
+      displs = new int[numProcs];
    }
-   MPI_Gather(&n_loc, 1, MPI_INT, recv_counts, 1, MPI_INT, 0, comm_);
+   MPI_Gather(&n_loc, 1, MPI_INT, recv_counts, 1, MPI_INT, 0, comm);
    if (myid == 0)
    {
-      delete [] displs;
-      displs = new int[numProcs];
       displs[0] = 0;
       int s = 0;
       for (int k = 0; k < numProcs-1; k++)
@@ -269,43 +300,85 @@ void MUMPSSolver::SetOperator(const Operator &op)
 #endif
 }
 
+void MUMPSSolver::InitRhsSol(int nrhs) const
+{
+   if (id->nrhs != nrhs)
+   {
+#if MFEM_MUMPS_VERSION >= 530
+      delete [] rhs_loc;
+      delete [] sol_loc;
+      rhs_loc = (nrhs > 1) ? new double[nrhs * id->lrhs_loc] : nullptr;
+      sol_loc = new double[nrhs * id->lsol_loc];
+      id->rhs_loc = rhs_loc;
+      id->sol_loc = sol_loc;
+#else
+      if (myid == 0)
+      {
+         delete rhs_glob;
+         rhs_glob = new double[nrhs * id->lrhs];
+         id->rhs = rhs_glob;
+      }
+#endif
+   }
+   id->nrhs = nrhs;
+}
+
 void MUMPSSolver::Mult(const Vector &x, Vector &y) const
 {
-   x.HostRead();
-   y.HostReadWrite();
-   id->nrhs = 1;
+   Array<Vector *> X(1), Y(1);
+   X[0] = const_cast<Vector *>(&x);
+   Y[0] = &y;
+   Mult(X, Y);
+}
+
+void MUMPSSolver::Mult(const Array<Vector *> &X, Array<Vector *> &Y) const
+{
+   MFEM_ASSERT(X.Size() == Y.Size(),
+               "Number of columns mismatch in MUMPSSolver::Mult!");
+   InitRhsSol(X.Size());
 #if MFEM_MUMPS_VERSION >= 530
-   id->nloc_rhs = x.Size();
-   id->lrhs_loc = x.Size();
-   id->rhs_loc = x.GetData();
-   id->irhs_loc = irhs_loc;
-
-   id->lsol_loc = id->MUMPS_INFO(23);
-   id->isol_loc = new int[id->MUMPS_INFO(23)];
-   id->sol_loc = new double[id->MUMPS_INFO(23)];
+   if (id->nrhs == 1)
+   {
+      MFEM_ASSERT(X.Size() == 1 && X[0], "Missing Vector in MUMPSSolver::Mult!");
+      X[0]->HostRead();
+      id->rhs_loc = X[0]->GetData();
+   }
+   else
+   {
+      for (int i = 0; i < id->nrhs; i++)
+      {
+         MFEM_ASSERT(X[i], "Missing Vector in MUMPSSolver::Mult!");
+         X[i]->HostRead();
+         std::copy(X[i]->GetData(), X[i]->GetData() + X[i]->Size(),
+                   id->rhs_loc + i * id->lrhs_loc);
+      }
+   }
 
    // MUMPS solve
    id->job = 3;
    dmumps_c(id);
 
-   RedistributeSol(id->isol_loc, id->sol_loc, y.GetData());
-
-   delete [] id->sol_loc;
-   delete [] id->isol_loc;
+   RedistributeSol(id->isol_loc, id->sol_loc, id->lsol_loc, Y);
 #else
-   MPI_Gatherv(x.GetData(), x.Size(), MPI_DOUBLE,
-               rhs_glob, recv_counts,
-               displs, MPI_DOUBLE, 0, comm_);
-
-   if (myid == 0) { id->rhs = rhs_glob; }
+   for (int i = 0; i < id->nrhs; i++)
+   {
+      MFEM_ASSERT(X[i], "Missing Vector in MUMPSSolver::Mult!");
+      X[i]->HostRead();
+      MPI_Gatherv(X[i]->GetData(), X[i]->Size(), MPI_DOUBLE,
+                  id->rhs + i * id->lrhs, recv_counts, displs, MPI_DOUBLE, 0, comm);
+   }
 
    // MUMPS solve
    id->job = 3;
    dmumps_c(id);
 
-   MPI_Scatterv(rhs_glob, recv_counts, displs,
-                MPI_DOUBLE, y.GetData(), y.Size(),
-                MPI_DOUBLE, 0, comm_);
+   for (int i = 0; i < id->nrhs; i++)
+   {
+      MFEM_ASSERT(Y[i], "Missing Vector in MUMPSSolver::Mult!");
+      Y[i]->HostWrite();
+      MPI_Scatterv(id->rhs + i * id->lrhs, recv_counts, displs, MPI_DOUBLE,
+                   Y[i]->GetData(), Y[i]->Size(), MPI_DOUBLE, 0, comm);
+   }
 #endif
 }
 
@@ -314,6 +387,16 @@ void MUMPSSolver::MultTranspose(const Vector &x, Vector &y) const
    // Set flag for transpose solve
    id->MUMPS_ICNTL(9) = 0;
    Mult(x, y);
+
+   // Reset the flag
+   id->MUMPS_ICNTL(9) = 1;
+}
+
+void MUMPSSolver::MultTranspose(const Array<Vector *> &X, Array<Vector *> &Y) const
+{
+   // Set flag for transpose solve
+   id->MUMPS_ICNTL(9) = 0;
+   Mult(X, Y);
 
    // Reset the flag
    id->MUMPS_ICNTL(9) = 1;
@@ -345,23 +428,6 @@ void MUMPSSolver::SetBLRTol(double tol)
    blr_tol = tol;
 }
 #endif
-
-MUMPSSolver::~MUMPSSolver()
-{
-   if (id)
-   {
-#if MFEM_MUMPS_VERSION >= 530
-      delete [] irhs_loc;
-#else
-      delete [] recv_counts;
-      delete [] displs;
-      delete [] rhs_glob;
-#endif
-      id->job = -2;
-      dmumps_c(id);
-      delete id;
-   }
-}
 
 void MUMPSSolver::SetParameters()
 {
@@ -466,21 +532,20 @@ int MUMPSSolver::GetRowRank(int i, const Array<int> &row_starts_) const
    return std::distance(row_starts_.begin(), up) - 1;
 }
 
-void MUMPSSolver::RedistributeSol(const int *row_map,
-                                  const double *x, double *y) const
+void MUMPSSolver::RedistributeSol(const int *rmap, const double *x,
+                                  const int lx_loc, Array<Vector *> &Y) const
 {
-   int size = id->MUMPS_INFO(23);
    int *send_count = new int[numProcs]();
-   for (int i = 0; i < size; i++)
+   for (int i = 0; i < lx_loc; i++)
    {
-      int j = row_map[i] - 1;
+      int j = rmap[i] - 1;
       int row_rank = GetRowRank(j, row_starts);
       if (myid == row_rank) { continue; }
       send_count[row_rank]++;
    }
 
    int *recv_count = new int[numProcs];
-   MPI_Alltoall(send_count, 1, MPI_INT, recv_count, 1, MPI_INT, comm_);
+   MPI_Alltoall(send_count, 1, MPI_INT, recv_count, 1, MPI_INT, comm);
 
    int *send_displ = new int[numProcs]; send_displ[0] = 0;
    int *recv_displ = new int[numProcs]; recv_displ[0] = 0;
@@ -496,52 +561,57 @@ void MUMPSSolver::RedistributeSol(const int *row_map,
 
    int *sendbuf_index = new int[sbuff_size];
    double *sendbuf_values = new double[sbuff_size];
+   int *recvbuf_index = new int[rbuff_size];
+   double *recvbuf_values = new double[rbuff_size];
    int *soffs = new int[numProcs]();
 
-   for (int i = 0; i < size; i++)
+   for (int i = 0; i < lx_loc; i++)
    {
-      int j = row_map[i] - 1;
+      int j = rmap[i] - 1;
       int row_rank = GetRowRank(j, row_starts);
-      if (myid == row_rank)
-      {
-         int local_index = j - row_start;
-         y[local_index] = x[i];
-      }
-      else
+      if (myid != row_rank)
       {
          int k = send_displ[row_rank] + soffs[row_rank];
          sendbuf_index[k] = j;
-         sendbuf_values[k] = x[i];
          soffs[row_rank]++;
       }
    }
 
-   int *recvbuf_index = new int[rbuff_size];
-   double *recvbuf_values = new double[rbuff_size];
-   MPI_Alltoallv(sendbuf_index,
-                 send_count,
-                 send_displ,
-                 MPI_INT,
-                 recvbuf_index,
-                 recv_count,
-                 recv_displ,
-                 MPI_INT,
-                 comm_);
-   MPI_Alltoallv(sendbuf_values,
-                 send_count,
-                 send_displ,
-                 MPI_DOUBLE,
-                 recvbuf_values,
-                 recv_count,
-                 recv_displ,
-                 MPI_DOUBLE,
-                 comm_);
+   MPI_Alltoallv(sendbuf_index, send_count, send_displ, MPI_INT,
+                 recvbuf_index, recv_count, recv_displ, MPI_INT, comm);
 
-   // Unpack recv buffer
-   for (int i = 0; i < rbuff_size; i++)
+   for (int rhs = 0; rhs < Y.Size(); rhs++)
    {
-      int local_index = recvbuf_index[i] - row_start;
-      y[local_index] = recvbuf_values[i];
+      MFEM_ASSERT(Y[rhs], "Missing Vector in MUMPSSolver::Mult!");
+      Y[rhs]->HostWrite();
+
+      std::fill(soffs, soffs + numProcs, 0);
+      for (int i = 0; i < lx_loc; i++)
+      {
+         int j = rmap[i] - 1;
+         int row_rank = GetRowRank(j, row_starts);
+         if (myid == row_rank)
+         {
+            int local_index = j - row_start;
+            (*Y[rhs])(local_index) = x[rhs * lx_loc + i];
+         }
+         else
+         {
+            int k = send_displ[row_rank] + soffs[row_rank];
+            sendbuf_values[k] = x[rhs * lx_loc + i];
+            soffs[row_rank]++;
+         }
+      }
+
+      MPI_Alltoallv(sendbuf_values, send_count, send_displ, MPI_DOUBLE,
+                    recvbuf_values, recv_count, recv_displ, MPI_DOUBLE, comm);
+
+      // Unpack recv buffer
+      for (int i = 0; i < rbuff_size; i++)
+      {
+         int local_index = recvbuf_index[i] - row_start;
+         (*Y[rhs])(local_index) = recvbuf_values[i];
+      }
    }
 
    delete [] recvbuf_values;

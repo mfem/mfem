@@ -225,6 +225,7 @@ SuperLURowLocMatrix::~SuperLURowLocMatrix()
 
 SuperLUSolver::SuperLUSolver(MPI_Comm comm, int npdep)
    : APtr_(NULL),
+     nrhs_(-1),
      npdep_(npdep),
      LUStructInitialized_(false),
      firstSolveWithThisA_(true)
@@ -234,6 +235,7 @@ SuperLUSolver::SuperLUSolver(MPI_Comm comm, int npdep)
 
 SuperLUSolver::SuperLUSolver(SuperLURowLocMatrix &A, int npdep)
    : APtr_(&A),
+     nrhs_(-1),
      npdep_(npdep),
      LUStructInitialized_(false),
      firstSolveWithThisA_(true)
@@ -574,6 +576,14 @@ void SuperLUSolver::SetOperator(const Operator &op)
 
 void SuperLUSolver::Mult(const Vector &x, Vector &y) const
 {
+   Array<Vector *> X(1), Y(1);
+   X[0] = const_cast<Vector *>(&x);
+   Y[0] = &y;
+   Mult(X, Y);
+}
+
+void SuperLUSolver::Mult(const Array<Vector *> &X, Array<Vector *> &Y) const
+{
    MFEM_ASSERT(APtr_ != NULL,
                "SuperLU Error: The operator must be set before"
                " the system can be solved.");
@@ -601,17 +611,39 @@ void SuperLUSolver::Mult(const Vector &x, Vector &y) const
 
    // SuperLU overwrites x with y, so copy x to y and pass that to the solve
    // routine.
-   y = x;
-   double *yPtr = y.HostReadWrite();
-   int locSize = y.Size();
-   int nrhs = 1;
+   MFEM_ASSERT(X.Size() == Y.Size(),
+               "Number of columns mismatch in SuperLUSolver::Mult!");
+   int ldx = Height();
+   if (X.Size() == 1)
+   {
+      MFEM_ASSERT(X[0] && Y[0], "Missing Vector in SuperLUSolver::Mult!");
+      sol_.Destroy();
+      sol_.MakeRef(*Y[0], 0, Y[0]->Size());
+      sol_ = *X[0];
+      nrhs_ = 1;
+   }
+   else
+   {
+      if (nrhs_ != X.Size())
+      {
+         sol_.Destroy();
+         sol_.SetSize(nrhs_ * ldx);
+         nrhs_ = X.Size();
+      }
+      for (int i = 0; i < nrhs_; i++)
+      {
+         MFEM_ASSERT(X[i], "Missing Vector in SuperLUSolver::Mult!");
+         Vector s(sol_, i * ldx, ldx);
+         s = *X[i];
+      }
+   }
 
    // Initialize the statistics variables
    SuperLUStat_t stat;
    PStatInit(&stat);
 
    double *berr;
-   if (!(berr = doubleMalloc_dist(nrhs)))
+   if (!(berr = doubleMalloc_dist(nrhs_)))
    {
       MFEM_ABORT("SuperLUSolver::Mult: Malloc failed for berr!");
    }
@@ -622,14 +654,14 @@ void SuperLUSolver::Mult(const Vector &x, Vector &y) const
    (SUPERLU_DIST_MAJOR_VERSION == 7 && SUPERLU_DIST_MINOR_VERSION >= 2)
    if (npdep_ > 1)
    {
-      pdgssvx3d(options, A, ScalePermstruct, yPtr, locSize, nrhs, grid3d,
-                LUstruct, SOLVEstruct, berr, &stat, &info);
+      pdgssvx3d(options, A, ScalePermstruct, sol_.HostReadWrite(), ldx, nrhs_,
+                grid3d, LUstruct, SOLVEstruct, berr, &stat, &info);
    }
    else
 #endif
    {
-      pdgssvx(options, A, ScalePermstruct, yPtr, locSize, nrhs, grid,
-              LUstruct, SOLVEstruct, berr, &stat, &info);
+      pdgssvx(options, A, ScalePermstruct, sol_.HostReadWrite(), ldx, nrhs_,
+              grid, LUstruct, SOLVEstruct, berr, &stat, &info);
    }
 
    if (info != 0)
@@ -680,14 +712,37 @@ void SuperLUSolver::Mult(const Vector &x, Vector &y) const
    // Reuse factorization for future solves
    options->Fact = FACTORED;
    firstSolveWithThisA_ = false;
+
+   // Copy solution into output (no need to do anything for single RHS since
+   // solution is written directly into output Vector)
+   if (nrhs_ > 1)
+   {
+      for (int i = 0; i < nrhs_; i++)
+      {
+         MFEM_ASSERT(Y[i], "Missing Vector in SuperLUSolver::Mult!");
+         Vector s(sol_, i * ldx, ldx);
+         *Y[i] = s;
+      }
+   }
 }
 
-void SuperLUSolver::MultTranspose(const Vector & x, Vector & y) const
+void SuperLUSolver::MultTranspose(const Vector &x, Vector &y) const
 {
    // Set flag for transpose solve
    superlu_dist_options_t *options = (superlu_dist_options_t *)optionsPtr_;
    options->Trans = TRANS;
    Mult(x, y);
+
+   // Reset the flag
+   options->Trans = NOTRANS;
+}
+
+void SuperLUSolver::MultTranspose(const Array<Vector *> &X, Array<Vector *> &Y) const
+{
+   // Set flag for transpose solve
+   superlu_dist_options_t *options = (superlu_dist_options_t *)optionsPtr_;
+   options->Trans = TRANS;
+   Mult(X, Y);
 
    // Reset the flag
    options->Trans = NOTRANS;

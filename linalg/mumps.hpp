@@ -31,7 +31,7 @@ namespace mfem
  *
  * Interface for the distributed MUMPS solver
  */
-class MUMPSSolver : public mfem::Solver
+class MUMPSSolver : public Solver
 {
 public:
    enum MatType
@@ -56,7 +56,7 @@ public:
    /**
     * @brief Constructor with MPI_Comm parameter.
     */
-   MUMPSSolver(MPI_Comm comm);
+   MUMPSSolver(MPI_Comm comm_);
 
    /**
     * @brief Constructor with a HypreParMatrix Operator.
@@ -79,6 +79,7 @@ public:
     * @param y Solution vector
     */
    void Mult(const Vector &x, Vector &y) const;
+   void Mult(const Array<Vector *> &X, Array<Vector *> &Y) const;
 
    /**
     * @brief Transpose Solve y = Op^{-T} x.
@@ -87,6 +88,7 @@ public:
     * @param y Solution vector
     */
    void MultTranspose(const Vector &x, Vector &y) const;
+   void MultTranspose(const Array<Vector *> &X, Array<Vector *> &Y) const;
 
    /**
     * @brief Set the error print level for MUMPS
@@ -148,7 +150,7 @@ public:
 
 private:
    // MPI communicator
-   MPI_Comm comm_;
+   MPI_Comm comm;
 
    // Number of procs
    int numProcs;
@@ -181,29 +183,32 @@ private:
    DMUMPS_STRUC_C *id;
 
    // Method for initialization
-   void Init(MPI_Comm comm);
+   void Init(MPI_Comm comm_);
 
    // Method for setting MUMPS interal parameters
    void SetParameters();
+
+   // Method for configuring storage for distributed/centralized RHS and
+   // solution
+   void InitRhsSol(int nrhs) const;
 
 #if MFEM_MUMPS_VERSION >= 530
    // Row offests array on all procs
    Array<int> row_starts;
 
-   // Row map
-   int *irhs_loc;
+   // Row maps and storage for distributed RHS and solution
+   int *irhs_loc, *isol_loc;
+   mutable double *rhs_loc, *sol_loc;
 
    // These two methods are needed to distribute the local solution
    // vectors returned by MUMPS to the original MFEM parallel partition
    int GetRowRank(int i, const Array<int> &row_starts_) const;
-
-   void RedistributeSol(const int *row_map,
-                        const double *x,
-                        double *y) const;
+   void RedistributeSol(const int *rmap, const double *x, const int lx_loc,
+                        Array<Vector *> &Y) const;
 #else
-   // Arrays needed for MPI_Gather and MPI_Scatter
+   // Arrays needed for MPI_Gatherv and MPI_Scatterv
    int *recv_counts, *displs;
-   double *rhs_glob;
+   mutable double *rhs_glob;
 #endif
 }; // mfem::MUMPSSolver class
 
