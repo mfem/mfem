@@ -270,7 +270,7 @@ void SmemPAHdivMassApply2D(const int NE,
 
       MFEM_SHARED double sm0[VDIM*MDQ*MDQ];
       MFEM_SHARED double sm1[VDIM*MDQ*MDQ];
-      DeviceCube X(sm0, D1D, D1D-1, VDIM);
+      DeviceMatrix X(sm0, D1D*(D1D-1), VDIM);
       DeviceCube QD(sm1, Q1D, D1D, VDIM);
       DeviceCube QQ(sm0, Q1D, Q1D, VDIM);
 
@@ -281,7 +281,7 @@ void SmemPAHdivMassApply2D(const int NE,
          {
             MFEM_FOREACH_THREAD(qx,x,Q1D)
             {
-               if (qx < D1D && dy < (D1D-1)) { X(qx,dy,vd) = x(qx+dy*D1D,vd,e); }
+               if (qx < D1D && dy < (D1D-1)) { X(qx + dy*D1D,vd) = x(qx+dy*D1D,vd,e); }
                if (tidz == 0)
                {
                   if (dy < (D1D-1)) { Bo(dy,qx) = bo(qx,dy); }
@@ -749,7 +749,7 @@ void SmemPAHdivMassApply3D(const int NE,
 
       MFEM_SHARED double sm0[VDIM*MDQ*MDQ*MDQ];
       MFEM_SHARED double sm1[VDIM*MDQ*MDQ*MDQ];
-      DeviceTensor<4> X(sm0, D1D, D1D-1, D1D-1, VDIM);
+      DeviceMatrix X(sm0, D1D*(D1D-1)*(D1D-1), VDIM);
       DeviceTensor<4> QDD(sm1, Q1D, D1D, D1D, VDIM);
       DeviceTensor<4> QQD(sm0, Q1D, Q1D, D1D, VDIM);
       DeviceTensor<4> QQQ(sm1, Q1D, Q1D, Q1D, VDIM);
@@ -766,7 +766,7 @@ void SmemPAHdivMassApply3D(const int NE,
                MFEM_UNROLL(MD1)
                for (int dx = 0; dx < D1D; ++dx)
                {
-                  X(dx,dy,dz,vd) = x(dx+(dy+dz*(D1D-1))*D1D,vd,e);
+                  X(dx+(dy+dz*(D1D-1))*D1D,vd) = x(dx+(dy+dz*(D1D-1))*D1D,vd,e);
                }
             }
          }
