@@ -52,6 +52,7 @@
 #include "mfem.hpp"
 #include <fstream>
 #include <iostream>
+#include <chrono> // For timer
 
 using namespace std;
 using namespace mfem;
@@ -63,8 +64,10 @@ int problem;
 // Velocity coefficient
 void velocity_function(const Vector &x, Vector &v);
 
-// Initial condition
+// Exact solution
 double u0_function(const Vector &x);
+double exact_sol(const Vector &x, double t);
+double zero_sol(const Vector &x, double t) { return 0;}
 
 // Inflow boundary condition
 double inflow_function(const Vector &x);
@@ -105,9 +108,7 @@ public:
    */
    void build_dij_matrix(const Vector &U,
                          const VectorFunctionCoefficient &velocity) ;
-   // Essentially a Mult function for the dij_matrix operator, however this
-   // has been replaced by a ParallelAssemble function as this function had issues.
-   void ApplyDijMatrix(ParGridFunction &u, Vector &du) const;
+
    virtual void Mult(const Vector &x, Vector &y) const;
    virtual void ImplicitSolve(const double dt, const Vector &x, Vector &k);
 
@@ -117,6 +118,10 @@ public:
 
 int main(int argc, char *argv[])
 {
+   // 0. Start Timer
+   clock_t t_start, t_end;
+   t_start = clock();
+
    // 1. Initialize MPI and HYPRE.
    Mpi::Init();
    int num_procs = Mpi::WorldSize();
@@ -135,7 +140,9 @@ int main(int argc, char *argv[])
    const char *device_config = "cpu";
    int ode_solver_type = 2;
    double t_final = 10.0;
+   bool one_time_step = false;
    double dt = 0.01;
+   bool match_dt_to_h = false;
    bool visualization = true;
    bool visit = false;
    bool paraview = false;
@@ -173,8 +180,14 @@ int main(int argc, char *argv[])
                   "            23 - SDIRK23 (A-stable), 24 - SDIRK34");
    args.AddOption(&t_final, "-tf", "--t-final",
                   "Final time; start time is 0.");
+   args.AddOption(&one_time_step, "-ots", "--one-time-step",
+                  "-no-ots", "--no-one-time-step",
+                  "Set end time to one time step for convergence testing.");
    args.AddOption(&dt, "-dt", "--time-step",
                   "Time step.");
+   args.AddOption(&match_dt_to_h, "-ct", "--conv-test",
+                  "-no-ct", "--no-conv-test",
+                  "Enable convergence testing by matching dt to h.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -265,6 +278,10 @@ int main(int argc, char *argv[])
    {
       pmesh->UniformRefinement();
    }
+   double hmin, hmax, kmin, kmax;
+   pmesh->GetCharacteristics(hmin, hmax, kmin, kmax);
+   if (match_dt_to_h) { dt = hmin; }
+   if (one_time_step) {t_final = dt; }
 
    // 7. Define the parallel H1 finite element space on the
    //    parallel refined mesh of the given polynomial order.
@@ -277,19 +294,11 @@ int main(int argc, char *argv[])
       cout << "Number of unknowns: " << global_vSize << endl;
    }
 
-   // Array<int> ess_tdof_list;
-   // if (pmesh->bdr_attributes.Size())
-   // {
-   //    Array<int> ess_bdr(pmesh->bdr_attributes.Max());
-   //    ess_bdr = 1;
-   //    fes->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
-   // }
-
    // 8. Set up and assemble the parallel bilinear and linear forms (and the
    //    parallel hypre matrices) corresponding to the H1 discretization.
    VectorFunctionCoefficient velocity(dim, velocity_function);
    FunctionCoefficient inflow(inflow_function);
-   FunctionCoefficient u0(u0_function);
+   FunctionCoefficient u0(exact_sol);
 
    ParBilinearForm *m = new ParBilinearForm(fes);
    ParBilinearForm *k = new ParBilinearForm(fes);
@@ -309,7 +318,6 @@ int main(int argc, char *argv[])
       k->SetAssemblyLevel(AssemblyLevel::FULL);
    }
 
-   // m->AddDomainIntegrator(new MassIntegrator);
    m->AddDomainIntegrator(new LumpedIntegrator(new MassIntegrator));
    constexpr double alpha = -1.0;
    k->AddDomainIntegrator(new ConvectionIntegrator(velocity, alpha));
@@ -336,8 +344,8 @@ int main(int argc, char *argv[])
 
    {
       ostringstream mesh_name, sol_name;
-      mesh_name << "ex9-mesh." << setfill('0') << setw(6) << myid;
-      sol_name << "ex9-init." << setfill('0') << setw(6) << myid;
+      mesh_name << "ex9p-continuous-mesh." << setfill('0') << setw(6) << myid;
+      sol_name << "ex9p-continuous-init." << setfill('0') << setw(6) << myid;
       ofstream omesh(mesh_name.str().c_str());
       omesh.precision(precision);
       pmesh->Print(omesh);
@@ -479,8 +487,18 @@ int main(int argc, char *argv[])
       }
    }
 
+   // Output final computation time
+   double computation_time;
+   if (Mpi::Root())
+   {
+      t_end = clock();
+      computation_time = ((float)(t_end - t_start))/CLOCKS_PER_SEC;
+      cout << "Single processor final computation time: "
+           << computation_time << " seconds.\n";
+   }
+
    // 12. Save the final solution in parallel. This output can be viewed later
-   //     using GLVis: "glvis -np <np> -m ex9-mesh -g ex9-final".
+   //     using GLVis: "glvis -np <np> -m ex9p-continuous-mesh -g ex9p-continuous-final".
    {
       *u = *U;
       ostringstream sol_name;
@@ -490,7 +508,62 @@ int main(int argc, char *argv[])
       u->Save(osol);
    }
 
-   // 13. Free the used memory.
+   // 13. Save the exact solution and compute the error. This can be viewed
+   //     later using: "glvis -np <np> -m ex9p-continuous-mesh -g ex9p-continuous-final-exact"
+   {
+      FunctionCoefficient u_exact(exact_sol);
+      u_exact.SetTime(t);
+      ParGridFunction *u_ex = new ParGridFunction(fes);
+      u_ex->ProjectCoefficient(u_exact);
+      ostringstream e_sol_name;
+      e_sol_name << "ex9p-continuous-final-exact." << setfill('0') << setw(6) << myid;
+      ofstream e_osol(e_sol_name.str().c_str());
+      e_osol.precision(precision);
+      u_ex->Save(e_osol);
+
+      double L1_error = u->ComputeL1Error(u_exact);
+      double L2_error = u->ComputeL2Error(u_exact);
+      double Linf_error = u->ComputeMaxError(u_exact);
+
+      if (myid == 0)
+      {
+         cout << "\n|| E_h - E ||_{L^1} = " << L1_error << '\n' << endl;
+         cout << "\n|| E_h - E ||_{L^2} = " << L2_error << '\n' << endl;
+         cout << "\n|| E_h - E ||_{L^inf} = " << Linf_error << '\n' << endl;
+      }
+      if (Mpi::Root())
+      {
+         ostringstream convergence_filename;
+         convergence_filename << "ex9p-analysis/ex9pc_np" << num_procs;// num_procs
+         if (ser_ref_levels != 0) {
+            convergence_filename << "_s" << setfill('0') << setw(2) << ser_ref_levels;
+         }
+         if (par_ref_levels != 0) {
+            convergence_filename << "_p" << setfill('0') << setw(2) << par_ref_levels;
+         }
+         convergence_filename << "_refinement_"
+                              << setfill('0') << setw(2)
+                              << to_string(par_ref_levels + ser_ref_levels)
+                              << ".out";
+         ofstream convergence_file(convergence_filename.str().c_str());
+         convergence_file << "Processor_Runtime " << computation_time << "\n"
+                          << "n_processes " << num_procs << "\n"
+                          << "n_refinements "
+                          << to_string(par_ref_levels + ser_ref_levels) << "\n"
+                          << "n_Dofs " << global_vSize << "\n"
+                          << "h " << hmin << "\n"
+                          << "L1_Error " << L1_error << "\n"
+                          << "L2_Error " << L2_error << "\n"
+                          << "Linf_Error " << Linf_error << "\n"
+                          << "dt " << dt << "\n"
+                          << "Endtime " << t << "\n";
+         convergence_file.close();
+      }
+
+      delete u_ex;
+   }
+
+   // 15. Free the used memory.
    delete U;
    delete u;
    delete k;
@@ -597,37 +670,7 @@ void FE_Evolution::build_dij_matrix(const Vector &U,
       dij_matrix(i,i) = -rowsum;
    }
    D = D_form->ParallelAssemble(&dij_matrix);
-   /* Check that columns sum to 0. */
-   // Vector test_v(U.Size());
-   // test_v = 1.;
-   // cout << "Pre Result: " << test_v[2] << endl;
-   // D->MultTranspose(test_v, test_v);
-   // cout << "Post Result: " << test_v[2] << endl;
-   // cout << "End building dij matrix\n";
 }
-
-/* Deprecated now that ParallelAssemble() is implemented. */
-// void FE_Evolution::ApplyDijMatrix(ParGridFunction &u, Vector &du) const
-// {
-//    const int s = u.Size();
-//    const int *I = D.HostReadI(), *J = D.HostReadJ();
-//    const double *D_data = D.HostReadData();
-//
-//    u.ExchangeFaceNbrData();
-//    const Vector &u_np = u.FaceNbrData();
-//
-//    for (int i = 0; i < s; i++)
-//    {
-//       du(i) = 0.0;
-//       for (int k = I[i]; k < I[i + 1]; k++)
-//       {
-//          int j = J[k];
-//          double u_j  = (j < s) ? u(j) : u_np[j - s];
-//          double d_ij = D_data[k];
-//          du(i) += d_ij * u_j;
-//       }
-//    }
-// }
 
 void FE_Evolution::Mult(const Vector &x, Vector &y) const
 {
@@ -679,7 +722,8 @@ void velocity_function(const Vector &x, Vector &v)
          switch (dim)
          {
             case 1: v(0) = 1.0; break;
-            case 2: v(0) = sqrt(2./3.); v(1) = sqrt(1./3.); break;
+            // case 2: v(0) = sqrt(2./3.); v(1) = sqrt(1./3.); break;
+            case 2: v(0) = sqrt(1./2.); v(1) = sqrt(1./2.); break;
             case 3: v(0) = sqrt(3./6.); v(1) = sqrt(2./6.); v(2) = sqrt(1./6.);
                break;
          }
@@ -766,6 +810,105 @@ double u0_function(const Vector &x)
       }
    }
    return 0.0;
+}
+
+// Exact Solution u(x,t) (so far only implemented for case 0)
+// Note that u(x,0) = u_0(x)
+double exact_sol(const Vector &x, const double t)
+{
+   int dim = x.Size();
+
+   // map to the reference [-1,1] domain
+   Vector X(dim);
+   for (int i = 0; i < dim; i++)
+   {
+      double center = (bb_min[i] + bb_max[i]) * 0.5;
+      X(i) = 2 * (x(i) - center) / (bb_max[i] - bb_min[i]);
+   }
+
+   // Get velocity
+   Vector v = X;
+   velocity_function(X, v);
+   // cout << "velocity: " << v[0] << endl;
+   // cout << "time: " << t << endl;
+   // cout << "problem: " << problem << endl;
+   // cout << "dim: " << dim << endl;
+
+   switch (problem)
+   {
+      case 0:
+      {
+         switch (dim)
+         {
+            case 1:
+            {
+               double coeff = M_PI /(bb_max[0] - bb_min[0]);
+               double val = sin(coeff*(X[0] - v[0]*t));
+               return val;
+            }
+            case 2:
+            {
+               cout << "============= I AM HERE =============" << endl;
+               cout << "bb_max0: " << bb_max[0] << " bb_min0: " << bb_min[0] << endl;
+               cout << "bb_max1: " << bb_max[1] << " bb_min1: " << bb_min[1] << endl;
+               Vector coeff = v;
+               for (int i = 0; i < dim; i++)
+               {
+                  coeff[i] = 2 * M_PI / (bb_max[i] - bb_min[i]);
+               }
+               double val = sin(coeff[0]*(X[0]-v[0]*t))*sin(coeff[1]*(X[1]-v[1]*t));
+               return val;
+            }
+            case 3:
+            {
+               return 0;
+            }
+         }
+      }
+      case 1:
+      {
+         switch (dim)
+         {
+            case 1:
+            {
+               cout << "t: " << t << endl;
+               double val = exp(-40.*pow(X(0)-0.5-v[0]*t,2)); // TODO: This is evaluating to 0 for nearly all vals of x
+               cout << "val: " << val << endl;
+               cout << "v: " << v[0] <<endl;
+               cout << "X: " << X(0) << endl;
+               return val;
+            }
+            case 2:
+            case 3:
+            {
+               double rx = 0.45, ry = 0.25, cx = 0., cy = -0.2, w = 10.;
+               if (dim == 3)
+               {
+                  const double s = (1. + 0.25*cos(2*M_PI*X(2)));
+                  rx *= s;
+                  ry *= s;
+               }
+               double val = ( erfc(w*(X(0)-v[0]*t - cx-rx))*erfc(-w*(X(0)-v[0]*t-cx+rx)) *
+                        erfc(w*(X(1)-v[1]*t - cy-ry))*erfc(-w*(X(1)-v[1]*t-cy+ry)) )/16;
+               cout << "ret val: " << val << endl; // Same problem as dim = 1
+               return val;
+            }
+         }
+      }
+      case 2:
+      {
+         double x_ = X(0), y_ = X(1), rho, phi;
+         rho = hypot(x_, y_);
+         phi = atan2(y_, x_);
+         return pow(sin(M_PI*rho),2)*sin(3*phi);
+      }
+      case 3:
+      {
+         const double f = M_PI;
+         return sin(f*(X(0) - v[0]*t))*sin(f*(X(1)-v[1]*t));
+      }
+   }
+   return 100.;
 }
 
 // Inflow boundary condition (zero for the problems considered in this example)
