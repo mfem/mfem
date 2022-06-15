@@ -676,6 +676,11 @@ public:
    virtual void MultTranspose(const Vector &x, Vector &y) const
    { MultTranspose(1.0, x, 0.0, y); }
 
+   virtual void AddMult(const Vector &x, Vector &y, const double a = 1.0) const
+   { Mult(a, x, 1.0, y); }
+   virtual void AddMultTranspose(const Vector &x, Vector &y, const double a = 1.0) const
+   { MultTranspose(a, x, 1.0, y); }
+
    /** @brief Computes y = a * |A| * x + b * y, using entry-wise absolute values
        of the matrix A. */
    void AbsMult(double a, const Vector &x, double b, Vector &y) const;
