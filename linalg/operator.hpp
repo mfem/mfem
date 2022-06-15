@@ -92,13 +92,14 @@ public:
    /** @brief Action of the transpose operator: `y=A^t(x)`. The default behavior
        in class Operator is to generate an error. */
    virtual void MultTranspose(const Vector &x, Vector &y) const
-   { mfem_error("Operator::MultTranspose() is not overloaded!"); }
+   { mfem_error("Operator::MultTranspose() is not overridden!"); }
 
-   /// y += A(x) (default)  or  y += a * A(x)
+   /// y += A(x) (default) or y += a * A(x)
    virtual void AddMult(const Vector &x, Vector &y, const double a = 1.0) const;
 
-   /// y += A^t(x) (default)  or  y += a * A^t(x)
-   virtual void AddMultTranspose(const Vector &x, Vector &y, const double a = 1.0) const;
+   /// y += A^t(x) (default) or y += a * A^t(x)
+   virtual void AddMultTranspose(const Vector &x, Vector &y,
+                                 const double a = 1.0) const;
 
    /// Operator application on a matrix: `Y=A(X)`.
    virtual void Mult(const Array<Vector *> &X, Array<Vector *> &Y) const;
@@ -118,7 +119,7 @@ public:
        behavior in class Operator is to generate an error. */
    virtual Operator &GetGradient(const Vector &x) const
    {
-      mfem_error("Operator::GetGradient() is not overloaded!");
+      mfem_error("Operator::GetGradient() is not overridden!");
       return const_cast<Operator &>(*this);
    }
 

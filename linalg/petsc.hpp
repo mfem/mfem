@@ -442,7 +442,8 @@ public:
    virtual void AddMult(const Vector &x, Vector &y, const double a = 1.0) const
    { Mult(a, x, 1.0, y); }
 
-   virtual void AddMultTranspose(const Vector &x, Vector &y, const double a = 1.0) const
+   virtual void AddMultTranspose(const Vector &x, Vector &y,
+                                 const double a = 1.0) const
    { MultTranspose(a, x, 1.0, y); }
 
    /// Get the associated MPI communicator
