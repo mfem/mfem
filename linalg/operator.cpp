@@ -55,7 +55,8 @@ void Operator::AddMult(const Vector &x, Vector &y, const double a) const
    y.Add(a, z);
 }
 
-void Operator::AddMultTranspose(const Vector &x, Vector &y, const double a) const
+void Operator::AddMultTranspose(const Vector &x, Vector &y,
+                                const double a) const
 {
    mfem::Vector z(y.Size());
    MultTranspose(x, z);

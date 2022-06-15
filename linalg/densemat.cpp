@@ -221,8 +221,13 @@ void DenseMatrix::MultTranspose(const Vector &x, Vector &y) const
    MultTranspose((const double *)x, (double *)y);
 }
 
-void DenseMatrix::AddMult(const Vector &x, Vector &y) const
+void DenseMatrix::AddMult(const Vector &x, Vector &y, const double a) const
 {
+   if (a != 1.0)
+   {
+      AddMult_a(a, x, y);
+      return;
+   }
    MFEM_ASSERT(height == y.Size() && width == x.Size(),
                "incompatible dimensions");
 
@@ -239,8 +244,14 @@ void DenseMatrix::AddMult(const Vector &x, Vector &y) const
    }
 }
 
-void DenseMatrix::AddMultTranspose(const Vector &x, Vector &y) const
+void DenseMatrix::AddMultTranspose(const Vector &x, Vector &y,
+                                   const double a) const
 {
+   if (a != 1.0)
+   {
+      AddMultTranspose_a(a, x, y);
+      return;
+   }
    MFEM_ASSERT(height == x.Size() && width == y.Size(),
                "incompatible dimensions");
 

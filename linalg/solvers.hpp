@@ -1196,6 +1196,7 @@ public:
    virtual void MultTranspose(const Vector &x, Vector &y) const { Mult(x, y, true); }
    virtual void SetOperator(const Operator &op) { }
    HypreSmoother& GetSmoother() { return *aux_smoother_.As<HypreSmoother>(); }
+   using Operator::Mult;
 };
 #endif // MFEM_USE_MPI
 

@@ -65,8 +65,10 @@ public:
                      requested by @a type in the constructor.
                      The face_dofs should be ordered according to the given
                      ElementDofOrdering.
-       @param[in,out] y The L-vector degrees of freedom. */
-   void AddMultTranspose(const Vector &x, Vector &y) const override;
+       @param[in,out] y The L-vector degrees of freedom.
+       @param[in]  a Scalar coefficient for addition. */
+   void AddMultTranspose(const Vector &x, Vector &y,
+                         const double a = 1.0) const override;
 
 private:
    /** @brief Compute the scatter indices: L-vector to E-vector, the offsets
@@ -262,8 +264,10 @@ public:
                      requested by @a type in the constructor.
                      The face_dofs should be ordered according to the given
                      ElementDofOrdering
-       @param[in,out] y The L-vector degrees of freedom. */
-   void AddMultTranspose(const Vector &x, Vector &y) const override;
+       @param[in,out] y The L-vector degrees of freedom.
+       @param[in]  a Scalar coefficient for addition. */
+   void AddMultTranspose(const Vector &x, Vector &y,
+                         const double a = 1.0) const override;
 
    /** @brief Fill the I array of SparseMatrix corresponding to the sparsity
        pattern given by this ParNCL2FaceRestriction.

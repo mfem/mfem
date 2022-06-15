@@ -732,8 +732,10 @@ void H1FaceRestriction::Mult(const Vector& x, Vector& y) const
    });
 }
 
-void H1FaceRestriction::AddMultTranspose(const Vector& x, Vector& y) const
+void H1FaceRestriction::AddMultTranspose(const Vector& x, Vector& y,
+                                         const double a) const
 {
+   MFEM_VERIFY(a == 1.0, "General coefficient case is not yet supported!");
    if (nf==0) { return; }
    // Assumes all elements have the same number of dofs
    const int nface_dofs = face_dofs;
@@ -1238,8 +1240,10 @@ void L2FaceRestriction::DoubleValuedConformingAddMultTranspose(
    });
 }
 
-void L2FaceRestriction::AddMultTranspose(const Vector& x, Vector& y) const
+void L2FaceRestriction::AddMultTranspose(const Vector& x, Vector& y,
+                                         const double a) const
 {
+   MFEM_VERIFY(a == 1.0, "General coefficient case is not yet supported!");
    if (nf==0) { return; }
    if (m == L2FaceValues::DoubleValued)
    {
@@ -1987,8 +1991,10 @@ void NCL2FaceRestriction::DoubleValuedNonconformingTransposeInterpolation(
    });
 }
 
-void NCL2FaceRestriction::AddMultTranspose(const Vector& x, Vector& y) const
+void NCL2FaceRestriction::AddMultTranspose(const Vector& x, Vector& y,
+                                           const double a) const
 {
+   MFEM_VERIFY(a == 1.0, "General coefficient case is not yet supported!");
    if (nf==0) { return; }
    if (type==FaceType::Interior)
    {
