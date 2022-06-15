@@ -366,30 +366,34 @@ Mult(const Array<Vector *> &X, Array<Vector *> &Y) const
                "Number of columns mismatch in STRUMPACK solve!");
    if (X.Size() == 1)
    {
+      nrhs_ = 1;
       MFEM_ASSERT(X[0] && Y[0], "Missing Vector in STRUMPACK solve!");
       Mult(*X[0], *Y[0]);
+      return;
    }
 
    // Multiple RHS case
    int ldx = Height();
    if (nrhs_ != X.Size())
    {
-      rhs_.SetSize(nrhs_ * ldx);
-      sol_.SetSize(nrhs_ * ldx);
+      rhs_.SetSize(X.Size() * ldx);
+      sol_.SetSize(X.Size() * ldx);
       nrhs_ = X.Size();
    }
    for (int i = 0; i < nrhs_; i++)
    {
       MFEM_ASSERT(X[i] && X[i]->Size() == Width(),
                   "STRUMPACK: Missing or invalid sized RHS Vector in solve!");
-      Vector s(sol_, i * ldx, ldx);
+      Vector s(rhs_, i * ldx, ldx);
       s = *X[i];
    }
+   const double *xPtr = (const double *)rhs_;
+   double *yPtr       = (double *)sol_;
 
    FactorInternal();
    solver_->options().set_verbose(solve_verbose_);
-   strumpack::ReturnCode ret = solver_->solve(nrhs_, rhs_.HostRead(), ldx,
-                                              sol_.HostReadWrite(), ldx, false);
+   strumpack::ReturnCode ret = solver_->solve(nrhs_, xPtr, ldx, yPtr, ldx,
+                                              false);
    if (ret != strumpack::ReturnCode::SUCCESS)
    {
       MFEM_ABORT("STRUMPACK: Solve failed with return code " << ret << "!");

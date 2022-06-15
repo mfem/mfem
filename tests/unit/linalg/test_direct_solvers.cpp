@@ -220,17 +220,32 @@ TEST_CASE("direct-parallel", "[Parallel], [CUDA]")
       Vector B, X;
       a.FormLinearSystem(ess_tdof_list, x, b, A, X, B);
 
+      Vector X0(X), X1(X), B0(B), B1(B);
+      Array<Vector *> XX(2), BB(2);
+      XX[0] = &X0;
+      XX[1] = &X1;
+      BB[0] = &B0;
+      BB[1] = &B1;
+
 #ifdef MFEM_USE_MUMPS
       {
-         MUMPSSolver mumps;
+         MUMPSSolver mumps(MPI_COMM_WORLD);
          mumps.SetPrintLevel(0);
          mumps.SetOperator(*A.As<HypreParMatrix>());
          mumps.Mult(B,X);
+         mumps.Mult(BB,XX);
 
          Vector Y(X.Size());
          A->Mult(X,Y);
          Y-=B;
          REQUIRE(Y.Norml2() < 1.e-12);
+
+         for (int i = 0; i < XX.Size(); i++)
+         {
+            A->Mult(*XX[i],Y);
+            Y-=*BB[i];
+            REQUIRE(Y.Norml2() < 1.e-12);
+         }
 
          a.RecoverFEMSolution(X, b, x);
          VectorFunctionCoefficient grad(dim,gradexact);
@@ -247,12 +262,20 @@ TEST_CASE("direct-parallel", "[Parallel], [CUDA]")
          superlu.SetSymmetricPattern(false);
          superlu.SetColumnPermutation(superlu::METIS_AT_PLUS_A);
          superlu.SetOperator(SA);
-         superlu.Mult(B, X);
+         superlu.Mult(B,X);
+         superlu.Mult(BB,XX);
 
          Vector Y(X.Size());
          A->Mult(X,Y);
          Y-=B;
          REQUIRE(Y.Norml2() < 1.e-12);
+
+         for (int i = 0; i < XX.Size(); i++)
+         {
+            A->Mult(*XX[i],Y);
+            Y-=*BB[i];
+            REQUIRE(Y.Norml2() < 1.e-12);
+         }
 
          a.RecoverFEMSolution(X, b, x);
          VectorFunctionCoefficient grad(dim,gradexact);
@@ -264,18 +287,26 @@ TEST_CASE("direct-parallel", "[Parallel], [CUDA]")
       // Transform to monolithic HypreParMatrix
       {
          STRUMPACKRowLocMatrix SA(*A.As<HypreParMatrix>());
-         STRUMPACKSolver strumpack(MPI_COMM_WORLD, argc, argv);
+         STRUMPACKSolver strumpack(MPI_COMM_WORLD);
          strumpack.SetPrintFactorStatistics(false);
          strumpack.SetPrintSolveStatistics(false);
          strumpack.SetKrylovSolver(strumpack::KrylovSolver::DIRECT);
          strumpack.SetReorderingStrategy(strumpack::ReorderingStrategy::METIS);
          strumpack.SetOperator(SA);
-         strumpack.Mult(B, X);
+         strumpack.Mult(B,X);
+         strumpack.Mult(BB,XX);
 
          Vector Y(X.Size());
          A->Mult(X,Y);
          Y-=B;
          REQUIRE(Y.Norml2() < 1.e-12);
+
+         for (int i = 0; i < XX.Size(); i++)
+         {
+            A->Mult(*XX[i],Y);
+            Y-=*BB[i];
+            REQUIRE(Y.Norml2() < 1.e-12);
+         }
 
          a.RecoverFEMSolution(X, b, x);
          VectorFunctionCoefficient grad(dim,gradexact);

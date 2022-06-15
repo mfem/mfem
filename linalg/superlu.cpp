@@ -627,7 +627,7 @@ void SuperLUSolver::Mult(const Array<Vector *> &X, Array<Vector *> &Y) const
       if (nrhs_ != X.Size())
       {
          sol_.Destroy();
-         sol_.SetSize(nrhs_ * ldx);
+         sol_.SetSize(X.Size() * ldx);
          nrhs_ = X.Size();
       }
       for (int i = 0; i < nrhs_; i++)
