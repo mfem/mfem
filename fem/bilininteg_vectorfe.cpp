@@ -90,6 +90,7 @@ void SmemPAHcurlMassApply3D(const int D1D,
                             Vector &y);
 
 void PAHdivSetup2D(const int Q1D,
+                   const int coeffDim,
                    const int NE,
                    const Array<double> &w,
                    const Vector &j,
@@ -97,6 +98,7 @@ void PAHdivSetup2D(const int Q1D,
                    Vector &op);
 
 void PAHdivSetup3D(const int Q1D,
+                   const int coeffDim,
                    const int NE,
                    const Array<double> &w,
                    const Vector &j,
@@ -150,6 +152,7 @@ void PAHcurlH1ApplyTranspose3D(const int D1D,
 void PAHdivMassAssembleDiagonal2D(const int D1D,
                                   const int Q1D,
                                   const int NE,
+                                  const bool symmetric,
                                   const Array<double> &Bo_,
                                   const Array<double> &Bc_,
                                   const Vector &op_,
@@ -158,6 +161,7 @@ void PAHdivMassAssembleDiagonal2D(const int D1D,
 void PAHdivMassAssembleDiagonal3D(const int D1D,
                                   const int Q1D,
                                   const int NE,
+                                  const bool symmetric,
                                   const Array<double> &Bo_,
                                   const Array<double> &Bc_,
                                   const Vector &op_,
@@ -167,6 +171,7 @@ void PAHdivMassApply(const int dim,
                      const int D1D,
                      const int Q1D,
                      const int NE,
+                     const bool symmetric,
                      const Array<double> &Bo,
                      const Array<double> &Bc,
                      const Array<double> &Bot,
@@ -899,12 +904,12 @@ void VectorFEMassIntegrator::AssemblePA(const FiniteElementSpace &trial_fes,
    }
    else if (trial_div && test_div && dim == 3)
    {
-      PAHdivSetup3D(quad1D, ne, ir->GetWeights(), geom->J,
+      PAHdivSetup3D(quad1D, coeffDim, ne, ir->GetWeights(), geom->J,
                     coeff, pa_data);
    }
    else if (trial_div && test_div && dim == 2)
    {
-      PAHdivSetup2D(quad1D, ne, ir->GetWeights(), geom->J,
+      PAHdivSetup2D(quad1D, coeffDim, ne, ir->GetWeights(), geom->J,
                     coeff, pa_data);
    }
    else if (((trial_curl && test_div) || (trial_div && test_curl)) &&
@@ -965,7 +970,7 @@ void VectorFEMassIntegrator::AssembleDiagonalPA(Vector& diag)
       else if (trial_fetype == mfem::FiniteElement::DIV &&
                test_fetype == trial_fetype)
       {
-         PAHdivMassAssembleDiagonal3D(dofs1D, quad1D, ne,
+         PAHdivMassAssembleDiagonal3D(dofs1D, quad1D, ne, symmetric,
                                       mapsO->B, mapsC->B, pa_data, diag);
       }
       else
@@ -973,7 +978,7 @@ void VectorFEMassIntegrator::AssembleDiagonalPA(Vector& diag)
          MFEM_ABORT("Unknown kernel.");
       }
    }
-   else
+   else // 2D
    {
       if (trial_fetype == mfem::FiniteElement::CURL && test_fetype == trial_fetype)
       {
@@ -983,7 +988,7 @@ void VectorFEMassIntegrator::AssembleDiagonalPA(Vector& diag)
       else if (trial_fetype == mfem::FiniteElement::DIV &&
                test_fetype == trial_fetype)
       {
-         PAHdivMassAssembleDiagonal2D(dofs1D, quad1D, ne,
+         PAHdivMassAssembleDiagonal2D(dofs1D, quad1D, ne, symmetric,
                                       mapsO->B, mapsC->B, pa_data, diag);
       }
       else
@@ -1036,7 +1041,7 @@ void VectorFEMassIntegrator::AddMultPA(const Vector &x, Vector &y) const
       }
       else if (trial_div && test_div)
       {
-         PAHdivMassApply(3, dofs1D, quad1D, ne, mapsO->B, mapsC->B, mapsO->Bt,
+         PAHdivMassApply(3, dofs1D, quad1D, ne, symmetric, mapsO->B, mapsC->B, mapsO->Bt,
                          mapsC->Bt, pa_data, x, y);
       }
       else if (trial_curl && test_div)
@@ -1058,7 +1063,7 @@ void VectorFEMassIntegrator::AddMultPA(const Vector &x, Vector &y) const
          MFEM_ABORT("Unknown kernel.");
       }
    }
-   else
+   else // 2D
    {
       if (trial_curl && test_curl)
       {
@@ -1067,7 +1072,7 @@ void VectorFEMassIntegrator::AddMultPA(const Vector &x, Vector &y) const
       }
       else if (trial_div && test_div)
       {
-         PAHdivMassApply(2, dofs1D, quad1D, ne, mapsO->B, mapsC->B, mapsO->Bt,
+         PAHdivMassApply(2, dofs1D, quad1D, ne, symmetric, mapsO->B, mapsC->B, mapsO->Bt,
                          mapsC->Bt, pa_data, x, y);
       }
       else if ((trial_curl && test_div) || (trial_div && test_curl))
@@ -1113,6 +1118,11 @@ void VectorFEMassIntegrator::AddMultTransposePA(const Vector &x,
 
    if (symmetricSpaces)
    {
+      if (MQ && dynamic_cast<SymmetricMatrixCoefficient*>(MQ) == NULL)
+      {
+         MFEM_ABORT("VectorFEMassIntegrator transpose not implemented for asymmetric MatrixCoefficient");
+      }
+
       this->AddMultPA(x, y);
    }
 }
