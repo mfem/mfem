@@ -176,7 +176,7 @@ int main(int argc, char *argv[])
    // 1. Parse command-line options.
    problem = 0;
    const char *mesh_file = "../data/periodic-square.mesh";
-   int ref_levels = 0;
+   int ref_levels = 2;
    int order = 3;
    bool pa = false;
    bool ea = false;
@@ -607,21 +607,47 @@ int main(int argc, char *argv[])
    int n = x.Size();
    const int ndofs = n / NE;
    
+   // Element restrictions because of the way things are coded I think
+   const Operator *x_elem_restrict_lex(fes.GetElementRestriction(ElementDofOrdering::LEXICOGRAPHIC));
+   
+   Vector x_local;
+   x_local.SetSize(x_elem_restrict_lex->Height());
+   x_elem_restrict_lex->Mult(x,x_local);
+   for (int i = 0; i < x_local.Size(); i++)
+   {
+     // Not sure what's going on here
+     cout << x_local(i) << endl;
+   }
+   cout << endl;
+   
    // Grabbing information from the finite element space
    auto *Tr = x.FESpace()->GetMesh()->GetElementTransformation(0);
    //const int NE = x.FESpace()->GetNE();
    
-   const FiniteElement *fe = u_LO.FESpace()->GetFE(0);
-   const IntegrationRule &ir = MassIntegrator::GetRule(*fe, *fe, *Tr);
-   const int nqp = ir.GetNPoints();
+   const FiniteElement *zone = fes.GetFE(0);
+   int num_ldofs = zone->GetDof();
+   const TensorBasisElement *tb_zone = dynamic_cast<const TensorBasisElement *>(zone);
+   //const Array<int> &dof_map = tb_zone->GetDofMap();
+   IntegrationRule zone_dofs(num_ldofs);
+   // Organize dofs into a lexocographical ordering
+
+   cout << num_ldofs << endl;
+   //cout << dof_map.Size() << endl;
+
+   for (int i = 0; i < num_ldofs; ++i)
+   {
+     zone_dofs[i] = zone->GetNodes()[i];
+   }
+   
    
    // Grabbing information from the quadrature
    //GeometricFactors geom(x, ir, GeometricFactors::DETERMINANTS);
-   auto qi_u = u_LO.FESpace()->GetQuadratureInterpolator(ir);
-   Vector u_LO_dofs(nqp * NE); // unclear
+   auto x_interpolator = u_LO.FESpace()->GetQuadratureInterpolator(zone_dofs);
+   Vector u_LO_dofs(num_ldofs * NE); // unclear
 
+   
    // Evaluates the right hand side gridfunction at x
-   qi_u->Values(x, u_LO_dofs);
+   x_interpolator->Values(x, u_LO_dofs);
    for (int i = 0; i < u_LO_dofs.Size(); i++)
      cout << u_LO_dofs(i) << endl;
 
