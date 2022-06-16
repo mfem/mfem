@@ -990,6 +990,7 @@ int main(int argc, char *argv[])
    dg.sigma = -1.0;
    dg.kappa = -1.0;
    dg.width = -1.0;
+   dg.avisc =  1.0;
 
    int ode_solver_type = 1;
    int ode_limiter_type = 2;
@@ -1111,6 +1112,8 @@ int main(int argc, char *argv[])
    args.AddOption(&dg.width, "-dgw", "--dg-width",
                   "Shock width parameter, should be positive."
                   " Negative values are replaced with 0.01.");
+   args.AddOption(&dg.avisc, "-dga", "--dg-amp",
+                  "Artificial viscosity amplitude, should be positive.");
    args.AddOption(&ttol.lin_abs_tol, "-latol", "--linear-abs-tolerance",
                   "Absolute tolerance for linear solver.");
    args.AddOption(&ttol.lin_rel_tol, "-lrtol", "--linear-rel-tolerance",

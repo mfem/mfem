@@ -2714,6 +2714,7 @@ private:
    ParFiniteElementSpace * fes_;
    Coefficient       * OscCoef_;
    const double width_;
+   const double avisc_;
 
    mutable Vector B3_;
    mutable Vector B2_;
@@ -2728,7 +2729,8 @@ public:
                                 VectorCoefficient &B3Coef,
                                 ParFiniteElementSpace * fes,
                                 Coefficient * OscCoef,
-                                double width)
+                                double width,
+                                double avisc)
       : z_i_((double)ion_charge_number), m_i_kg_(ion_mass_kg),
         a_(0.96 * tau_i(m_i_kg_, z_i_, 1.0, 1.0/J_per_eV_, 1.0)),
         lnLambda_(lnLambda),
@@ -2739,6 +2741,7 @@ public:
         fes_(fes),
         OscCoef_(OscCoef),
         width_(width),
+        avisc_(avisc),
         B3_(3),
         B2_(B3_.GetData(), 2),
         JB_(2)
@@ -2755,6 +2758,7 @@ public:
         fes_(other.fes_),
         OscCoef_(other.OscCoef_),
         width_(other.width_),
+        avisc_(other.avisc_),
         B3_(3),
         B2_(B3_.GetData(), 2),
         JB_(2)
@@ -2810,7 +2814,7 @@ public:
 
             // std::cout << "Estimates of h: " << h << " (by area) vs " << hJ << " (by J*B)" << std::endl;
 
-            double eps0 = m_i_kg_ * ni * Cs * h / elemOrder;
+            double eps0 = avisc_ * m_i_kg_ * ni * Cs * h / elemOrder;
 
             if (se > s0 + width_)
             {
@@ -4931,6 +4935,7 @@ struct DGParams
    double sigma;
    double kappa;
    double width;
+   double avisc;
 };
 
 struct PlasmaParams

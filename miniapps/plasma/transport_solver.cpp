@@ -6048,7 +6048,8 @@ DGTransportTDO::IonMomentumOp::IonMomentumOp(const MPI_Session & mpi,
      DPerpCoef_(DPerp),
      momCoef_(m_i_kg_, niCoef_, viCoef_),
      EtaParaCoef_(z_i_, m_i_kg_, lnLambda_, TiCoef_,
-                  niCoef_, CsCoef_, B3Coef, vfes_, &OscContCoef_, dg.width),
+                  niCoef_, CsCoef_, B3Coef, vfes_, &OscContCoef_,
+                  dg.width, dg.avisc),
      EtaPerpCoef_(DPerpConst_, m_i_kg_, niCoef_),
      EtaParaCoefPtr_((imcoefs_(IMCoefs::PARA_DIFFUSION_COEF) != NULL)
                      ? const_cast<StateVariableCoef*>
