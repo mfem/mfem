@@ -153,10 +153,10 @@ public:
    using Operator::Mult;
    using Operator::MultTranspose;
 
-   /// y += A.x
+   /// y += a * A.x
    virtual void AddMult(const Vector &x, Vector &y, const double a = 1.0) const;
 
-   /// y += A^t x
+   /// y += a * A^t x
    virtual void AddMultTranspose(const Vector &x, Vector &y,
                                  const double a = 1.0) const;
 
