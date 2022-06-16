@@ -12052,13 +12052,15 @@ FaceGeometricFactors::FaceGeometricFactors(const Mesh *mesh,
                                           ElementDofOrdering::LEXICOGRAPHIC,
                                           type,
                                           L2FaceValues::SingleValued );
+
+
+   MemoryType my_d_mt = (d_mt != MemoryType::DEFAULT) ? d_mt :
+                        Device::GetDeviceMemoryType();
+
    Vector Fnodes(face_restr->Height(), my_d_mt);
    face_restr->Mult(*nodes, Fnodes);
 
    unsigned eval_flags = 0;
-
-   MemoryType my_d_mt = (d_mt != MemoryType::DEFAULT) ? d_mt :
-                        Device::GetDeviceMemoryType();
 
    if (flags & FaceGeometricFactors::COORDINATES)
    {
