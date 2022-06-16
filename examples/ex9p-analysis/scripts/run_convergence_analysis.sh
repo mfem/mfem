@@ -15,10 +15,10 @@ rm *.out
 rm *.txt
 
 cd $mfem_dir
-# mpirun -np 4 ex9p-continuous -m ../data/periodic-square.mesh -ct -rs 1 -rp 0 -p 4 -tf 2.8284
-# mpirun -np 4 ex9p-continuous -m ../data/periodic-square.mesh -ct -rs 2 -rp 0 -p 4 -tf 2.8284
-# mpirun -np 4 ex9p-continuous -m ../data/periodic-square.mesh -ct -rs 3 -rp 0 -p 4 -tf 2.8284
-# mpirun -np 4 ex9p-continuous -m ../data/periodic-square.mesh -ct -rs 4 -rp 0 -p 4 -tf 2.8284
+mpirun -np 4 ex9p-continuous -m ../data/periodic-square.mesh -ct -rs 1 -rp 0 -p 4 -tf 2
+mpirun -np 4 ex9p-continuous -m ../data/periodic-square.mesh -ct -rs 2 -rp 0 -p 4 -tf 2
+mpirun -np 4 ex9p-continuous -m ../data/periodic-square.mesh -ct -rs 3 -rp 0 -p 4 -tf 2
+mpirun -np 4 ex9p-continuous -m ../data/periodic-square.mesh -ct -rs 4 -rp 0 -p 4 -tf 2
 
 # mpirun -np 2 ex9p-continuous -m ../data/periodic-square.mesh -ct -rs 1 -rp 0 -p 4 -ots
 # mpirun -np 2 ex9p-continuous -m ../data/periodic-square.mesh -ct -rs 2 -rp 0 -p 4 -ots

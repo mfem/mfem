@@ -18,9 +18,9 @@ cd $mfem_dir
 # mpirun -np 2 ex9p-continuous -m ../data/periodic-segment.mesh -ct -rs 7 -rp 0 -p 4 -tf 2
 # mpirun -np 4 ex9p-continuous -m ../data/periodic-segment.mesh -ct -rs 7 -rp 0 -p 4 -tf 2
 
-mpirun -np 1 ex9p-continuous -m ../data/periodic-square.mesh -dt .001 -rs 3 -rp 0 -p 4 -tf 2.8284
-mpirun -np 2 ex9p-continuous -m ../data/periodic-square.mesh -dt .001 -rs 3 -rp 0 -p 4 -tf 2.8284
-mpirun -np 4 ex9p-continuous -m ../data/periodic-square.mesh -dt .001 -rs 3 -rp 0 -p 4 -tf 2.8284
+mpirun -np 1 ex9p-continuous -m ../data/periodic-square.mesh -ct -rs 3 -rp 0 -p 4 -tf 2
+mpirun -np 2 ex9p-continuous -m ../data/periodic-square.mesh -ct -rs 3 -rp 0 -p 4 -tf 2
+mpirun -np 4 ex9p-continuous -m ../data/periodic-square.mesh -ct -rs 3 -rp 0 -p 4 -tf 2
 
 # mpirun -np 1 ex9p-discontinuous -m ../data/periodic-square.mesh -ct -rs 3 -rp 0 -p 4 -ots
 # mpirun -np 2 ex9p-discontinuous -m ../data/periodic-square.mesh -ct -rs 3 -rp 0 -p 4 -ots

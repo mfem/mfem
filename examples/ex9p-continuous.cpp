@@ -282,7 +282,7 @@ int main(int argc, char *argv[])
    }
    double hmin, hmax, kmin, kmax;
    pmesh->GetCharacteristics(hmin, hmax, kmin, kmax);
-   if (match_dt_to_h) { dt = hmin / sqrt(2); }
+   if (match_dt_to_h) { dt = hmin; }
    if (one_time_step) {t_final = dt; }
 
    // 7. Define the parallel H1 finite element space on the
@@ -767,8 +767,9 @@ void velocity_function(const Vector &x, Vector &v)
          // Translations in 1D, 2D, and 3D
          switch (dim)
          {
-            case 1: v(0) = 1.0; break;
-            case 2: v(0) = sqrt(1./2.); v(1) = sqrt(1./2.); break;
+            case 1:
+            case 2: v(1) = 1.0; break;
+            // case 2: v(0) = sqrt(1./2.); v(1) = sqrt(1./2.); break;
             case 3: v(0) = sqrt(1./3.); v(1) = sqrt(1./3.); v(2) = sqrt(1./3.);
                break;
          }
@@ -911,7 +912,7 @@ double exact_sol(const Vector &x, const double t)
                {
                   coeff[i] = 2 * M_PI / (bb_max[i] - bb_min[i]);
                }
-               double val = sin(coeff[0]*(X[0]-v[0]*t))*sin(coeff[1]*(X[1]-v[1]*t));
+               double val = sin(coeff[0]*(X[0]))*sin(coeff[1]*(X[1]-v[1]*t));
                return val;
             }
             case 3:
