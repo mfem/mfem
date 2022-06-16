@@ -437,11 +437,14 @@ int main(int argc, char *argv[])
    adv.SetTime(t);
    ode_solver->Init(adv);
 
+   // Not time dependent yet!
+   adv.build_dij_matrix(*U, velocity);
+
    bool done = false;
    for (int ti = 0; !done; )
    {
       // Build new D matrix since this matrix is time dependent
-      adv.build_dij_matrix(*U, velocity);
+
       double dt_real = min(dt, t_final - t);
       ode_solver->Step(*U, t, dt_real);
       ti++;
