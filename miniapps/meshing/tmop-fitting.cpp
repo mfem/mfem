@@ -102,6 +102,7 @@ int main (int argc, char *argv[])
    bool adapt_marking     = false;
    bool split_case        = false;
    bool surf_bg_mesh     = false;
+   bool comp_dist     = false;
    int surf_ls_type      = 1;
    int marking_type      = 0;
    bool mod_bndr_attr    = false;
@@ -224,6 +225,8 @@ int main (int argc, char *argv[])
                   "Split case with predefined marking.");
    args.AddOption(&surf_bg_mesh, "-sbgmesh", "--surf-bg-mesh",
                   "-no-sbgmesh","--no-surf-bg-mesh", "Use background mesh for surface fitting.");
+   args.AddOption(&comp_dist, "-dist", "--comp-dist",
+                  "-no-dist","--no-comp-dist", "Compute distance from 0 level set or not.");
    args.AddOption(&surf_ls_type, "-slstype", "--surf-ls-type",
                   "1 - Circle (DEFAULT), 2 - Squircle, 3 - Butterfly.");
    args.AddOption(&marking_type, "-smtype", "--surf-marking-type",
@@ -282,6 +285,10 @@ int main (int argc, char *argv[])
    else if (surf_ls_type == 6) // 3D shape
    {
       ls_coeff = new FunctionCoefficient(object_three);
+   }
+   else if (surf_ls_type == 7) // 3D shape
+   {
+      ls_coeff = new FunctionCoefficient(squircle_with_hole);
    }
    else
    {
@@ -585,8 +592,15 @@ int main (int argc, char *argv[])
       surf_fit_gf0.ProjectCoefficient(*ls_coeff);
       if (surf_bg_mesh)
       {
-         ComputeScalarDistanceFromLevelSet(*pmesh_surf_fit_bg, *ls_coeff, 7,
-                                           *surf_fit_bg_gf0);
+         OptimizeMeshWithAMRAroundZeroLevelSet(*pmesh_surf_fit_bg, *ls_coeff, 5,
+                                               *surf_fit_bg_gf0);
+         if (comp_dist) {
+             ComputeScalarDistanceFromLevelSet(*pmesh_surf_fit_bg, *ls_coeff, 4,
+                                               *surf_fit_bg_gf0);
+         }
+         else {
+             surf_fit_bg_gf0->ProjectCoefficient(*ls_coeff);
+         }
 
          surf_fit_bg_grad_fes = new ParFiniteElementSpace(pmesh_surf_fit_bg,
                                                           surf_fit_bg_fec,
@@ -631,6 +645,25 @@ int main (int argc, char *argv[])
          }
       }
 
+//      {
+//          ParFiniteElementSpace der_fespace(pmesh, surf_fit_fes.FEColl(), pmesh->Dimension());
+//          ParGridFunction dist_grad(&der_fespace);
+//          for (int d = 0; d < pmesh->Dimension(); d++)
+//          {
+//              ParGridFunction dist_grad_comp(&surf_fit_fes,
+//                                             dist_grad.GetData()+d*surf_fit_gf0.Size());
+//              surf_fit_gf0.GetDerivative(1, d, dist_grad_comp);
+//          }
+
+//           for (int i = 0; i < surf_fit_gf0.Size(); i++)
+//          {
+//             double denominator = surf_fit_gf0(i)*surf_fit_gf0(i) +
+//                                  dist_grad(i)*dist_grad(i) +
+//                                  dist_grad(i+surf_fit_gf0.Size())*dist_grad(i+surf_fit_gf0.Size());
+//             surf_fit_gf0(i) = surf_fit_gf0(i)/std::pow(denominator, 0.5);
+//          }
+//      }
+
       for (int i = 0; i < pmesh->GetNE(); i++)
       {
          if (material)
@@ -662,7 +695,7 @@ int main (int argc, char *argv[])
          }
       }
 
-      if (!surf_bg_mesh && surf_ls_type == 3)
+      if (!surf_bg_mesh && comp_dist)
       {
          ComputeScalarDistanceFromLevelSet(*pmesh, *ls_coeff, 0, surf_fit_gf0);
       }

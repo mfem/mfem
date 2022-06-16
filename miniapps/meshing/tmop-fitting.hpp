@@ -194,42 +194,77 @@ double in_pipe(const Vector &x, int pipedir, Vector x_pipe_center,
    return 0.0;
 }
 
+double r_intersect(double r1, double r2)
+{
+    return r1 + r2 - std::pow(r1*r1 + r2*r2, 0.5);
+}
+
+double r_union(double r1, double r2)
+{
+    return r1 + r2 + std::pow(r1*r1 + r2*r2, 0.5);
+}
+
+double r_remove(double r1, double r2)
+{
+    return r_intersect(r1, -r2);
+}
+
 double object_three(const Vector &x)
 {
-   Vector xcc(3);
-   xcc = 0.5;
-   double cube_x = 0.25*2;
-   double cube_y = 0.25*2;
-   double cube_z = 0.25*2;
+   double cubew = 0.24;
+   double rado  = 0.29;
+   double cube;
+   {
+       double cube_x = -(x(0)-0.5)*(x(0)-0.5) + cubew*cubew;
+       double cube_y = -(x(1)-0.5)*(x(1)-0.5) + cubew*cubew;
+       double cube_z = -(x(2)-0.5)*(x(2)-0.5) + cubew*cubew;
+       cube = r_intersect(r_intersect(cube_x, cube_y), cube_z);
+   }
+   double sphere;
+   {
+       Vector xc(x.Size());
+       xc = 0.5;
+       sphere = rado*rado - xc.DistanceSquaredTo(x);
+   }
+   double cylinder_x, cylinder_y, cylinder_z;
+   double cyl_rad = 0.075;
+   {
+       Vector xc(x.Size());
+       xc = 0.5; xc -= x; xc(0) = 0.0;
+       cylinder_x = cyl_rad*cyl_rad - (xc(1)*xc(1) + xc(2)*xc(2));
 
-   double in_cube_val = in_cube(x, xcc(0), xcc(1), xcc(2), cube_x, cube_y, cube_z);
+       xc = 0.5; xc -= x; xc(1) = 0.0;
+       cylinder_y = cyl_rad*cyl_rad - (xc(0)*xc(0) + xc(2)*xc(2));
 
-   Vector x_circle_c(3);
-   x_circle_c = 0.5;
+       xc = 0.5; xc -= x; xc(2) = 0.0;
+       cylinder_z = cyl_rad*cyl_rad - (xc(1)*xc(1) + xc(0)*xc(0));
+   }
+   return r_remove(r_remove(r_remove(r_intersect(cube, sphere), cylinder_x), cylinder_y), cylinder_z)
+}
 
-   double sphere_radius = 0.30;
-   double in_sphere_val = in_circle(x, x_circle_c, sphere_radius);
-   double in_return_val = std::min(in_cube_val, in_sphere_val);
-
-   int pipedir = 1;
-   Vector x_pipe_center(3);
-   x_pipe_center = 0.5;
-   double xmin = 0.5-sphere_radius;
-   double xmax = 0.5+sphere_radius;
-   double pipe_radius = 0.075;
-   double in_pipe_x = in_pipe(x, pipedir, x_pipe_center, pipe_radius, xmin, xmax);
-
-   in_return_val = std::min(in_return_val, -1*in_pipe_x);
-
-   pipedir = 2;
-   in_pipe_x = in_pipe(x, pipedir, x_pipe_center, pipe_radius, xmin, xmax);
-   in_return_val = std::min(in_return_val, -1*in_pipe_x);
-
-   pipedir = 3;
-   in_pipe_x = in_pipe(x, pipedir, x_pipe_center, pipe_radius, xmin, xmax);
-   in_return_val = std::min(in_return_val, -1*in_pipe_x);
-
-   return in_return_val;
+double squircle_with_hole(const Vector &x)
+{
+   double rect;
+   double rectw = 0.25;
+   double rado  = 0.30;
+   double radi  = 0.14;
+   {
+       double rect_x = -(x(0)-0.5)*(x(0)-0.5) + rectw*rectw;
+       double rect_y = -(x(1)-0.5)*(x(1)-0.5) + rectw*rectw;
+       rect = r_intersect(rect_x, rect_y);
+   }
+   double cir;
+   {
+       const double xc = x(0) - 0.5, yc = x(1) - 0.5;
+       cir = rado*rado - (xc*xc + yc*yc);
+   }
+   double hole;
+   {
+       const double xc = x(0) - 0.5, yc = x(1) - 0.5;
+       hole = radi*radi - (xc*xc + yc*yc);
+   }
+//   return r_intersect(rect, cir);
+   return r_remove(r_intersect(rect, cir), hole);
 }
 
 void ModifyAttributeForMarkingDOFS(Mesh *mesh, GridFunction &mat,
@@ -666,9 +701,10 @@ void ModifyAttributeForMarkingDOFS(ParMesh *pmesh, ParGridFunction &mat,
    pmesh->SetAttributes();
 }
 
-void ComputeScalarDistanceFromLevelSet(ParMesh &pmesh,
-                                       FunctionCoefficient &ls_coeff,
-                                       int amr_iter, ParGridFunction &distance_s)
+void OptimizeMeshWithAMRAroundZeroLevelSet(ParMesh &pmesh,
+                                           FunctionCoefficient &ls_coeff,
+                                           int amr_iter,
+                                           ParGridFunction &distance_s)
 {
    mfem::H1_FECollection h1fec(distance_s.ParFESpace()->FEColl()->GetOrder(),
                                pmesh.Dimension());
@@ -695,23 +731,22 @@ void ComputeScalarDistanceFromLevelSet(ParMesh &pmesh,
          Vector x_vals;
          h1fespace.GetElementDofs(e, dofs);
          x.GetSubVector(dofs, x_vals);
-         int refine = 0;
-         double min_val = 100;
-         double max_val = -100;
-         for (int j = 0; j < x_vals.Size(); j++)
-         {
-            double x_dof_val = x_vals(j);
-            min_val = min(x_dof_val, min_val);
-            max_val = max(x_dof_val, max_val);
-         }
+         double min_val = x_vals.Min();
+         double max_val = x_vals.Max();
+//         for (int j = 0; j < x_vals.Size(); j++)
+//         {
+//            double x_dof_val = x_vals(j);
+//            min_val = min(x_dof_val, min_val);
+//            max_val = max(x_dof_val, max_val);
+//         }
+         // If the zero level set cuts the elements, mark it for refinement
          if (min_val < 0 && max_val > 0)
          {
-            refine = 1;
             el_to_refine(e) = 1.0;
          }
       }
 
-      //Refine an element if its neighbor will be refined
+      // Refine an element if its neighbor will be refined
       el_to_refine.ExchangeFaceNbrData();
       GridFunctionCoefficient field_in_dg(&el_to_refine);
       lhx.ProjectDiscCoefficient(field_in_dg, GridFunction::ARITHMETIC);
@@ -735,7 +770,7 @@ void ComputeScalarDistanceFromLevelSet(ParMesh &pmesh,
          }
       }
 
-      //make the list of elements to be refined
+      // Make the list of elements to be refined
       Array<int> el_to_refine_list;
       for (int e = 0; e < el_to_refine.Size(); e++)
       {
@@ -767,22 +802,21 @@ void ComputeScalarDistanceFromLevelSet(ParMesh &pmesh,
       distance_s.ParFESpace()->Update();
       distance_s.Update();
    }
+}
 
-   {
-      ostringstream mesh_name;
-      mesh_name << "background.mesh";
-      ofstream mesh_ofs(mesh_name.str().c_str());
-      mesh_ofs.precision(8);
-      pmesh.PrintAsOne(mesh_ofs);
+void ComputeScalarDistanceFromLevelSet(ParMesh &pmesh,
+                                       FunctionCoefficient &ls_coeff,
+                                       int amr_iter, ParGridFunction &distance_s)
+{
+   mfem::H1_FECollection h1fec(distance_s.ParFESpace()->FEColl()->GetOrder(),
+                               pmesh.Dimension());
+   mfem::ParFiniteElementSpace h1fespace(&pmesh, &h1fec);
+   mfem::ParGridFunction x(&h1fespace);
 
-      ostringstream gf_name;
-      gf_name << "background.gf";
-      ofstream gf_ofs(gf_name.str().c_str());
-      gf_ofs.precision(8);
-      x.SaveAsOne(gf_ofs);
-   }
+   x.ProjectCoefficient(ls_coeff);
+   x.ExchangeFaceNbrData();
 
-   //Now determine distance
+      //Now determine distance
    const double dx = AvgElementSize(pmesh);
    DistanceSolver *dist_solver = NULL;
    int solver_type = 1;
