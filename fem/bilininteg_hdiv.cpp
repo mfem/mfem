@@ -328,7 +328,7 @@ void SmemPAHdivMassApply2D(const int NE,
 
    const auto bo = Reshape(Bo_.Read(), Q1D, D1D-1);
    const auto bc = Reshape(Bc_.Read(), Q1D, D1D);
-   const auto D = Reshape(op_.Read(), Q1D, Q1D, 3, NE);
+   const auto D = Reshape(op_.Read(), Q1D, Q1D, symmetric ? 3 : 4, NE);
    const auto x = Reshape(x_.Read(), D1D*(D1D-1), VDIM, NE);
    auto y = y_.ReadWrite();
 
@@ -423,10 +423,11 @@ void SmemPAHdivMassApply2D(const int NE,
 
                const double D11 = D(qx,qy,0,e);
                const double D12 = D(qx,qy,1,e);
-               const double D22 = D(qx,qy,2,e);
+               const double D21 = symmetric ? D12 : D(qx,qy,2,e);
+               const double D22 = symmetric ? D(qx,qy,2,e) : D(qx,qy,3,e);
 
                QQ(qx,qy,0) = D11*Qx + D12*Qy;
-               QQ(qx,qy,1) = D12*Qx + D22*Qy;
+               QQ(qx,qy,1) = D21*Qx + D22*Qy;
             }
          }
       }
@@ -816,7 +817,7 @@ void SmemPAHdivMassApply3D(const int NE,
 
    const auto bo = Reshape(Bo_.Read(), Q1D, D1D-1);
    const auto bc = Reshape(Bc_.Read(), Q1D, D1D);
-   const auto D = Reshape(op_.Read(), Q1D, Q1D, Q1D, 6, NE);
+   const auto D = Reshape(op_.Read(), Q1D, Q1D, Q1D, symmetric ? 6 : 9, NE);
    const auto x = Reshape(x_.Read(), D1D*(D1D-1)*(D1D-1), VDIM, NE);
    auto y = y_.ReadWrite();
 
@@ -980,13 +981,16 @@ void SmemPAHdivMassApply3D(const int NE,
                   const double D11 = D(qx,qy,qz,0,e);
                   const double D12 = D(qx,qy,qz,1,e);
                   const double D13 = D(qx,qy,qz,2,e);
-                  const double D22 = D(qx,qy,qz,3,e);
-                  const double D23 = D(qx,qy,qz,4,e);
-                  const double D33 = D(qx,qy,qz,5,e);
+                  const double D21 = symmetric ? D12 : D(qx,qy,qz,3,e);
+                  const double D22 = symmetric ? D(qx,qy,qz,3,e) : D(qx,qy,qz,4,e);
+                  const double D23 = symmetric ? D(qx,qy,qz,4,e) : D(qx,qy,qz,5,e);
+                  const double D31 = symmetric ? D13 : D(qx,qy,qz,6,e);
+                  const double D32 = symmetric ? D23 : D(qx,qy,qz,7,e);
+                  const double D33 = symmetric ? D(qx,qy,qz,5,e) : D(qx,qy,qz,8,e);
 
                   QQQ(qx,qy,qz,0) = D11*Qx + D12*Qy + D13*Qz;
-                  QQQ(qx,qy,qz,1) = D12*Qx + D22*Qy + D23*Qz;
-                  QQQ(qx,qy,qz,2) = D13*Qx + D23*Qy + D33*Qz;
+                  QQQ(qx,qy,qz,1) = D21*Qx + D22*Qy + D23*Qz;
+                  QQQ(qx,qy,qz,2) = D31*Qx + D32*Qy + D33*Qz;
                }
             }
          }
