@@ -5694,8 +5694,11 @@ private:
       const IonMomentumCoefs & imcoefs_;
 
       common::L2_ParFESpace * l2_fes_0_;
-      ParGridFunction       * OscGF_;
-      GridFunctionCoefficient OscCoef_;
+      common::H1_ParFESpace * h1_fes_1_;
+      ParGridFunction       * OscDiscGF_;
+      ParGridFunction       * OscContGF_;
+      GridFunctionCoefficient OscDiscCoef_;
+      GridFunctionCoefficient OscContCoef_;
       SoundSpeedCoef          CsCoef_;
 
       double DPerpConst_;

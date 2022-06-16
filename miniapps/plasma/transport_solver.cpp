@@ -6038,14 +6038,17 @@ DGTransportTDO::IonMomentumOp::IonMomentumOp(const MPI_Session & mpi,
                  logging, log_prefix),
      imcoefs_(imcoefs),
      l2_fes_0_(new L2_ParFESpace(&pmesh_, 0, pmesh_.SpaceDimension())),
-     OscGF_(new ParGridFunction(l2_fes_0_)),
-     OscCoef_(OscGF_),
+     h1_fes_1_(new H1_ParFESpace(&pmesh_, 1, pmesh_.SpaceDimension())),
+     OscDiscGF_(new ParGridFunction(l2_fes_0_)),
+     OscContGF_(new ParGridFunction(h1_fes_1_)),
+     OscDiscCoef_(OscDiscGF_),
+     OscContCoef_(OscContGF_),
      CsCoef_(m_i_kg_, TiCoef_, TeCoef_),
      DPerpConst_(DPerp),
      DPerpCoef_(DPerp),
      momCoef_(m_i_kg_, niCoef_, viCoef_),
      EtaParaCoef_(z_i_, m_i_kg_, lnLambda_, TiCoef_,
-                  niCoef_, CsCoef_, B3Coef, vfes_, &OscCoef_, dg.width),
+                  niCoef_, CsCoef_, B3Coef, vfes_, &OscContCoef_, dg.width),
      EtaPerpCoef_(DPerpConst_, m_i_kg_, niCoef_),
      EtaParaCoefPtr_((imcoefs_(IMCoefs::PARA_DIFFUSION_COEF) != NULL)
                      ? const_cast<StateVariableCoef*>
@@ -6088,8 +6091,9 @@ DGTransportTDO::IonMomentumOp::IonMomentumOp(const MPI_Session & mpi,
       vis_flag_ = (logging_ > 1) ? 1023 : this->GetDefaultVisFlag();
    }
 
-   DiscontinuitySensor(*yGF_[2], *OscGF_);
-   OscGF_->ExchangeFaceNbrData();
+   DiscontinuitySensor(*yGF_[2], *OscDiscGF_);
+   OscDiscGF_->ExchangeFaceNbrData();
+   OscContGF_->ProjectDiscCoefficient(OscDiscCoef_, GridFunction::MAXIMUM);
 
    // Time derivative term: d(m_i n_i v_i)/dt
    SetTimeDerivativeTerm(momCoef_);
@@ -6212,7 +6216,8 @@ DGTransportTDO::IonMomentumOp::~IonMomentumOp()
    delete SRCGF_;
    delete SCXGF_;
    delete SGF_;
-   delete OscGF_;
+   delete OscDiscGF_;
+   delete OscContGF_;
    delete l2_fes_0_;
 }
 
@@ -6305,8 +6310,13 @@ IonMomentumOp::RegisterDataFields(DataCollection & dc)
    }
    {
       ostringstream oss;
-      oss << eqn_name_ << " Osc";
-      dc.RegisterField(oss.str(), OscGF_);
+      oss << eqn_name_ << " Osc L2";
+      dc.RegisterField(oss.str(), OscDiscGF_);
+   }
+   {
+      ostringstream oss;
+      oss << eqn_name_ << " Osc H1";
+      dc.RegisterField(oss.str(), OscContGF_);
    }
 }
 
@@ -6365,7 +6375,9 @@ IonMomentumOp::PrepareDataFields()
       MomParaGF_->ProjectCoefficient(miniViCoef_);
    }
    {
-      DiscontinuitySensor(*yGF_[2], *OscGF_);
+      DiscontinuitySensor(*yGF_[2], *OscDiscGF_);
+      OscDiscGF_->ExchangeFaceNbrData();
+      OscContGF_->ProjectDiscCoefficient(OscDiscCoef_, GridFunction::MAXIMUM);
    }
 }
 
@@ -6377,9 +6389,12 @@ void DGTransportTDO::IonMomentumOp::Update()
    }
 
    if (l2_fes_0_  != NULL) { l2_fes_0_->Update(); }
-   if (OscGF_     != NULL) { OscGF_->Update(); }
-   DiscontinuitySensor(*yGF_[2], *OscGF_);
-   OscGF_->ExchangeFaceNbrData();
+   if (h1_fes_1_  != NULL) { h1_fes_1_->Update(); }
+   if (OscDiscGF_     != NULL) { OscDiscGF_->Update(); }
+   if (OscContGF_     != NULL) { OscContGF_->Update(); }
+   DiscontinuitySensor(*yGF_[2], *OscDiscGF_);
+   OscDiscGF_->ExchangeFaceNbrData();
+   OscContGF_->ProjectDiscCoefficient(OscDiscCoef_, GridFunction::MAXIMUM);
 
    NLOperator::Update();
 

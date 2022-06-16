@@ -402,7 +402,7 @@ public:
        determined from the element with maximal attribute. */
    virtual void ProjectDiscCoefficient(VectorCoefficient &coeff);
 
-   enum AvgType {ARITHMETIC, HARMONIC};
+   enum AvgType {ARITHMETIC, HARMONIC, MINIMUM, MAXIMUM};
    /** @brief Projects a discontinuous coefficient so that the values in shared
        vdofs are computed by taking an average of the possible values. */
    virtual void ProjectDiscCoefficient(Coefficient &coeff, AvgType type);

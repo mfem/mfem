@@ -2049,9 +2049,24 @@ void GridFunction::AccumulateAndCountZones(Coefficient &coeff,
          {
             (*this)(vdofs[j]) += vals[j];
          }
+         else if (type == MINIMUM)
+         {
+            (*this)(vdofs[j]) = std::min((*this)(vdofs[j]), vals[j]);
+         }
+         else if (type == MAXIMUM)
+         {
+            (*this)(vdofs[j]) = std::max((*this)(vdofs[j]), vals[j]);
+         }
          else { MFEM_ABORT("Not implemented"); }
 
-         zones_per_vdof[vdofs[j]]++;
+         if (type == MINIMUM || type == MAXIMUM)
+         {
+            zones_per_vdof[vdofs[j]] = 1;
+         }
+         else
+         {
+            zones_per_vdof[vdofs[j]]++;
+         }
       }
    }
 }
@@ -2323,6 +2338,11 @@ void GridFunction::ComputeMeans(AvgType type, Array<int> &zones_per_vdof)
             const int nz = zones_per_vdof[i];
             if (nz) { (*this)(i) = nz/(*this)(i); }
          }
+         break;
+
+      case MINIMUM: // Fall through
+      case MAXIMUM:
+         // Do nothing
          break;
 
       default:

@@ -598,11 +598,29 @@ void ParGridFunction::ProjectDiscCoefficient(Coefficient &coeff, AvgType type)
 
    // Count the zones globally.
    GroupCommunicator &gcomm = pfes->GroupComm();
-   gcomm.Reduce<int>(zones_per_vdof, GroupCommunicator::Sum);
+   if (type == MINIMUM || type == MAXIMUM)
+   {
+      gcomm.Reduce<int>(zones_per_vdof, GroupCommunicator::Max);
+   }
+   else
+   {
+      gcomm.Reduce<int>(zones_per_vdof, GroupCommunicator::Sum);
+   }
    gcomm.Bcast(zones_per_vdof);
 
    // Accumulate for all vdofs.
-   gcomm.Reduce<double>(data, GroupCommunicator::Sum);
+   if (type == MINIMUM)
+   {
+      gcomm.Reduce<double>(data, GroupCommunicator::Min);
+   }
+   else if (type == MAXIMUM)
+   {
+      gcomm.Reduce<double>(data, GroupCommunicator::Max);
+   }
+   else
+   {
+      gcomm.Reduce<double>(data, GroupCommunicator::Sum);
+   }
    gcomm.Bcast<double>(data);
 
    ComputeMeans(type, zones_per_vdof);
