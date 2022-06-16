@@ -296,9 +296,9 @@ TEST_CASE("L2 Assembly Levels", "[AssemblyLevel], [PartialAssembly], [CUDA]")
 #define HYPRE_BigInt int
 #endif // MFEM_USE_MPI
 
-void TestSameMatrices(SparseMatrix &A1, const SparseMatrix &A2,
-                      HYPRE_BigInt *cmap1=nullptr,
-                      std::unordered_map<HYPRE_BigInt,int> *cmap2inv=nullptr)
+void CompareMatricesNonZeros(SparseMatrix &A1, const SparseMatrix &A2,
+                             HYPRE_BigInt *cmap1=nullptr,
+                             std::unordered_map<HYPRE_BigInt,int> *cmap2inv=nullptr)
 {
    REQUIRE(A1.Height() == A2.Height());
    int n = A1.Height();
@@ -339,7 +339,7 @@ void TestSameMatrices(SparseMatrix &A1, const SparseMatrix &A2,
 
 #ifdef MFEM_USE_MPI
 
-void TestSameMatrices(HypreParMatrix &A1, const HypreParMatrix &A2)
+void CompareMatricesNonZeros(HypreParMatrix &A1, const HypreParMatrix &A2)
 {
    HYPRE_BigInt *cmap1, *cmap2;
    SparseMatrix diag1, offd1, diag2, offd2;
@@ -349,17 +349,17 @@ void TestSameMatrices(HypreParMatrix &A1, const HypreParMatrix &A2)
    A1.GetOffd(offd1, cmap1);
    A2.GetOffd(offd2, cmap2);
 
-   TestSameMatrices(diag1, diag2);
+   CompareMatricesNonZeros(diag1, diag2);
 
    if (cmap1)
    {
       std::unordered_map<HYPRE_BigInt,int> cmap2inv;
       for (int i=0; i<offd2.Width(); ++i) { cmap2inv[cmap2[i]] = i; }
-      TestSameMatrices(offd1, offd2, cmap1, &cmap2inv);
+      CompareMatricesNonZeros(offd1, offd2, cmap1, &cmap2inv);
    }
    else
    {
-      TestSameMatrices(offd1, offd2);
+      CompareMatricesNonZeros(offd1, offd2);
    }
 }
 
@@ -371,8 +371,8 @@ void TestSameHypreMatrices(OperatorHandle &A1, OperatorHandle &A2)
    REQUIRE(M1 != NULL);
    REQUIRE(M2 != NULL);
 
-   TestSameMatrices(*M1, *M2);
-   TestSameMatrices(*M2, *M1);
+   CompareMatricesNonZeros(*M1, *M2);
+   CompareMatricesNonZeros(*M2, *M1);
 }
 
 void TestSameSparseMatrices(OperatorHandle &A1, OperatorHandle &A2)
@@ -383,8 +383,8 @@ void TestSameSparseMatrices(OperatorHandle &A1, OperatorHandle &A2)
    REQUIRE(M1 != NULL);
    REQUIRE(M2 != NULL);
 
-   TestSameMatrices(*M1, *M2);
-   TestSameMatrices(*M2, *M1);
+   CompareMatricesNonZeros(*M1, *M2);
+   CompareMatricesNonZeros(*M2, *M1);
 }
 
 TEST_CASE("Serial H1 Full Assembly", "[AssemblyLevel], [CUDA]")
