@@ -189,6 +189,13 @@ examples/ex9p-analysis/temp_output/
 examples/ex9p-analysis/*.out
 examples/ex9p-analysis/*.txt
 
+# Discontinuous check
+examples/ex9p-discontinuous
+examples/ex9p-discontinuous-final.*
+examples/ex9p-discontinuous-final-exact.*
+examples/ex9p-discontinuous-init.*
+examples/ex9p-discontinuous-mesh.*
+
 miniapps/adjoint/cvsRoberts_ASAi_dns
 miniapps/adjoint/adjoint_advection_diffusion
 

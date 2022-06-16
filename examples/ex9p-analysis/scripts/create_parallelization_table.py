@@ -60,7 +60,7 @@ def compute_rates(vals):
                       vals['L1_Error'][i], vals['L2_Error'][i],
                       vals['Linf_Error'][i]])
 
-    s_table = tabulate(table, headers=["# processors",
+    s_table = tabulate(table, floatfmt=(".0f", ".6f", ".3f", ".0f", ".12f", ".12f", ".12f"), headers=["# processors",
                                        "Single Processor Runtime",
                                        "Endtime", "# Dofs", "L1 Error",
                                        "L2 Error", "L-Inf Error"])
