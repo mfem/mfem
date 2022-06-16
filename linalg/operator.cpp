@@ -80,7 +80,7 @@ void Operator::MultTranspose(const Array<Vector *> &X, Array<Vector *> &Y) const
                "Number of columns mismatch in Operator::MultTranspose!");
    for (int i = 0; i < X.Size(); i++)
    {
-      MFEM_ASSERT(X[i] && Y[i], "Missing Vector in Operator::Mult!");
+      MFEM_ASSERT(X[i] && Y[i], "Missing Vector in Operator::MultTranspose!");
       MultTranspose(*X[i], *Y[i]);
    }
 }
@@ -89,10 +89,10 @@ void Operator::AddMult(const Array<Vector *> &X, Array<Vector *> &Y,
                        const double a) const
 {
    MFEM_ASSERT(X.Size() == Y.Size(),
-               "Number of columns mismatch in Operator::Mult!");
+               "Number of columns mismatch in Operator::AddMult!");
    for (int i = 0; i < X.Size(); i++)
    {
-      MFEM_ASSERT(X[i] && Y[i], "Missing Vector in Operator::Mult!");
+      MFEM_ASSERT(X[i] && Y[i], "Missing Vector in Operator::AddMult!");
       AddMult(*X[i], *Y[i], a);
    }
 }
@@ -101,10 +101,10 @@ void Operator::AddMultTranspose(const Array<Vector *> &X, Array<Vector *> &Y,
                                 const double a) const
 {
    MFEM_ASSERT(X.Size() == Y.Size(),
-               "Number of columns mismatch in Operator::MultTranspose!");
+               "Number of columns mismatch in Operator::AddMultTranspose!");
    for (int i = 0; i < X.Size(); i++)
    {
-      MFEM_ASSERT(X[i] && Y[i], "Missing Vector in Operator::Mult!");
+      MFEM_ASSERT(X[i] && Y[i], "Missing Vector in Operator::AddMultTranspose!");
       AddMultTranspose(*X[i], *Y[i], a);
    }
 }
