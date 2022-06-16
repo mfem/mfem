@@ -12052,7 +12052,7 @@ FaceGeometricFactors::FaceGeometricFactors(const Mesh *mesh,
                                           ElementDofOrdering::LEXICOGRAPHIC,
                                           type,
                                           L2FaceValues::SingleValued );
-   Vector Fnodes(face_restr->Height(), d_mt);
+   Vector Fnodes(face_restr->Height(), my_d_mt);
    face_restr->Mult(*nodes, Fnodes);
 
    unsigned eval_flags = 0;
