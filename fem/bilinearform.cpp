@@ -1181,6 +1181,9 @@ MixedBilinearForm::MixedBilinearForm (FiniteElementSpace *tr_fes,
    boundary_integs_marker = mbf->boundary_integs_marker;
    boundary_trace_face_integs_marker = mbf->boundary_trace_face_integs_marker;
 
+   boundary_face_integs = mbf->boundary_face_integs;
+   boundary_face_integs_marker = mbf->boundary_face_integs_marker;
+
    assembly = AssemblyLevel::LEGACY;
    ext = NULL;
 }
@@ -1333,6 +1336,20 @@ void MixedBilinearForm::AddBdrTraceFaceIntegrator(BilinearFormIntegrator *bfi,
 {
    boundary_trace_face_integs.Append(bfi);
    boundary_trace_face_integs_marker.Append(&bdr_marker);
+}
+
+void MixedBilinearForm::AddBdrFaceIntegrator(BilinearFormIntegrator *bfi)
+{
+   boundary_face_integs.Append(bfi);
+   // NULL marker means apply everywhere
+   boundary_face_integs_marker.Append(NULL);
+}
+
+void MixedBilinearForm::AddBdrFaceIntegrator(BilinearFormIntegrator *bfi,
+                                        Array<int> &bdr_marker)
+{
+   boundary_face_integs.Append(bfi);
+   boundary_face_integs_marker.Append(&bdr_marker);
 }
 
 void MixedBilinearForm::Assemble (int skip_zeros)
@@ -1526,6 +1543,69 @@ void MixedBilinearForm::Assemble (int skip_zeros)
          }
       }
    }
+   if (boundary_face_integs.Size())
+   {
+      FaceElementTransformations *btr;
+      Array<int> te_vdofs2;
+      const FiniteElement *trial_fe1, *test_fe1;
+
+      // Which boundary attributes need to be processed?
+      Array<int> bdr_attr_marker(mesh->bdr_attributes.Size() ?
+                                 mesh->bdr_attributes.Max() : 0);
+      bdr_attr_marker = 0;
+      for (int k = 0; k < boundary_face_integs.Size(); k++)
+      {
+         if (boundary_face_integs_marker[k] == NULL)
+         {
+            bdr_attr_marker = 1;
+            break;
+         }
+         Array<int> &bdr_marker = *boundary_face_integs_marker[k];
+         MFEM_ASSERT(bdr_marker.Size() == bdr_attr_marker.Size(),
+                     "invalid boundary marker for boundary face integrator #"
+                     << k << ", counting from zero");
+         for (int i = 0; i < bdr_attr_marker.Size(); i++)
+         {
+            bdr_attr_marker[i] |= bdr_marker[i];
+         }
+      }
+
+      for (int i = 0; i < trial_fes -> GetNBE(); i++)
+      {
+	//elmat.SetSize(test_vdofs.Size(), trial_vdofs.Size());
+	//elmat = 0.0;
+         
+         const int bdr_attr = mesh->GetBdrAttribute(i);
+         if (bdr_attr_marker[bdr_attr-1] == 0) { continue; }
+
+         btr = mesh -> GetBdrFaceTransformations (i);
+         if (btr != NULL)
+         {
+            dom_dof_trans = trial_fes -> GetElementVDofs (btr -> Elem1No, trial_vdofs);
+	    ran_dof_trans = test_fes->GetElementVDofs(btr->Elem1No, test_vdofs);
+            trial_fe1 = trial_fes -> GetFE (btr -> Elem1No);
+	    test_fe1 = test_fes -> GetFE (btr -> Elem1No);
+            
+            for (int k = 0; k < boundary_face_integs.Size(); k++)
+            {
+               if (boundary_face_integs_marker[k] &&
+                   (*boundary_face_integs_marker[k])[bdr_attr-1] == 0)
+               { continue; }
+
+               boundary_face_integs[k] -> AssembleFaceMatrix (*trial_fe1, *test_fe1, *btr,
+                                                              elemmat);
+	       //elmat += elemmat;
+	       if (ran_dof_trans || dom_dof_trans)
+		 {
+		   TransformDual(ran_dof_trans, dom_dof_trans, elemmat);
+		 }
+    
+               mat -> AddSubMatrix (test_vdofs, trial_vdofs, elemmat, skip_zeros);
+            }
+         }
+      }
+   }
+
 }
 
 void MixedBilinearForm::AssembleDiagonal_ADAt(const Vector &D,

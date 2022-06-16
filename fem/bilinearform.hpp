@@ -674,6 +674,10 @@ protected:
    /// Entries are not owned.
    Array<Array<int>*> boundary_trace_face_integs_marker;
 
+  /// Set of boundary face Integrators to be applied.
+   Array<BilinearFormIntegrator*> boundary_face_integs;
+   Array<Array<int>*> boundary_face_integs_marker; ///< Entries are not owned.
+
    DenseMatrix elemmat;
    Array<int>  trial_vdofs, test_vdofs;
 
@@ -764,6 +768,17 @@ public:
    /// Adds a boundary trace face integrator. Assumes ownership of @a bfi.
    void AddBdrTraceFaceIntegrator (BilinearFormIntegrator * bfi,
                                    Array<int> &bdr_marker);
+
+  /// Adds new boundary Face Integrator. Assumes ownership of @a bfi.
+   void AddBdrFaceIntegrator(BilinearFormIntegrator *bfi);
+
+   /** @brief Adds new boundary Face Integrator, restricted to specific boundary
+       attributes.
+
+       Assumes ownership of @a bfi. The array @a bdr_marker is stored internally
+       as a pointer to the given Array<int> object. */
+   void AddBdrFaceIntegrator(BilinearFormIntegrator *bfi,
+                             Array<int> &bdr_marker);
 
    /// Access all integrators added with AddDomainIntegrator().
    Array<BilinearFormIntegrator*> *GetDBFI() { return &domain_integs; }
