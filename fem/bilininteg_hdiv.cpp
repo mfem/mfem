@@ -24,18 +24,20 @@ namespace mfem
 
 // PA H(div) Mass Assemble 2D kernel
 void PAHdivSetup2D(const int Q1D,
+                   const int coeffDim,
                    const int NE,
                    const Array<double> &w,
                    const Vector &j,
                    Vector &coeff_,
                    Vector &op)
 {
+   const bool symmetric = (coeffDim != 4);
    const int NQ = Q1D*Q1D;
    auto W = w.Read();
 
    auto J = Reshape(j.Read(), NQ, 2, 2, NE);
-   auto coeff = Reshape(coeff_.Read(), NQ, NE);
-   auto y = Reshape(op.Write(), NQ, 3, NE);
+   auto C = Reshape(coeff_.Read(), coeffDim, NQ, NE);
+   auto y = Reshape(op.Write(), NQ, symmetric ? 3 : 4, NE);
 
    MFEM_FORALL(e, NE,
    {
@@ -45,28 +47,60 @@ void PAHdivSetup2D(const int Q1D,
          const double J21 = J(q,1,0,e);
          const double J12 = J(q,0,1,e);
          const double J22 = J(q,1,1,e);
-         const double c_detJ = W[q] * coeff(q, e) / ((J11*J22)-(J21*J12));
-         // (c/detJ) J^T J
-         y(q,0,e) = c_detJ * (J11*J11 + J21*J21); // 1,1
-         y(q,1,e) = c_detJ * (J11*J12 + J21*J22); // 1,2
-         y(q,2,e) = c_detJ * (J12*J12 + J22*J22); // 2,2
+         const double c_detJ = W[q] / ((J11*J22)-(J21*J12));
+
+         // (1/detJ) J^T C J
+         if (coeffDim == 3 || coeffDim == 4) // Matrix coefficient
+         {
+            const double C11 = C(0,q,e);
+            const double C12 = C(1,q,e);
+            const double C21 = symmetric ? C12 : C(2,q,e);
+            const double C22 = symmetric ? C(2,q,e) : C(3,q,e);
+            const double R11 = C11*J11 + C12*J21;
+            const double R21 = C21*J11 + C22*J21;
+            const double R12 = C11*J12 + C12*J22;
+            const double R22 = C21*J12 + C22*J22;
+
+            y(q,0,e) = c_detJ * (J11*R11 + J21*R21); // 1,1
+            y(q,1,e) = c_detJ * (J11*R12 + J21*R22); // 1,2
+
+            if (symmetric)
+            {
+               y(q,2,e) = c_detJ * (J12*R12 + J22*R22); // 2,2
+            }
+            else
+            {
+               y(q,2,e) = c_detJ * (J12*R11 + J22*R21); // 2,1
+               y(q,3,e) = c_detJ * (J12*R12 + J22*R22); // 2,2
+            }
+         }
+         else // Vector or scalar coefficient
+         {
+            const double C1 = C(0,q,e);
+            const double C2 = (coeffDim == 2 ? C(1,q,e) : C1);
+            y(q,0,e) = c_detJ * (J11*C1*J11 + J21*C2*J21); // 1,1
+            y(q,1,e) = c_detJ * (J11*C1*J12 + J21*C2*J22); // 1,2
+            y(q,2,e) = c_detJ * (J12*C1*J12 + J22*C2*J22); // 2,2
+         }
       }
    });
 }
 
 // PA H(div) Mass Assemble 3D kernel
 void PAHdivSetup3D(const int Q1D,
+                   const int coeffDim,
                    const int NE,
                    const Array<double> &w,
                    const Vector &j,
                    Vector &coeff_,
                    Vector &op)
 {
+   const bool symmetric = (coeffDim != 9);
    const int NQ = Q1D*Q1D*Q1D;
    auto W = w.Read();
    auto J = Reshape(j.Read(), NQ, 3, 3, NE);
-   auto coeff = Reshape(coeff_.Read(), NQ, NE);
-   auto y = Reshape(op.Write(), NQ, 6, NE);
+   auto C = Reshape(coeff_.Read(), coeffDim, NQ, NE);
+   auto y = Reshape(op.Write(), NQ, symmetric ? 6 : 9, NE);
 
    MFEM_FORALL(e, NE,
    {
@@ -84,14 +118,58 @@ void PAHdivSetup3D(const int Q1D,
          const double detJ = J11 * (J22 * J33 - J32 * J23) -
          /* */               J21 * (J12 * J33 - J32 * J13) +
          /* */               J31 * (J12 * J23 - J22 * J13);
-         const double c_detJ = W[q] * coeff(q, e) / detJ;
-         // (c/detJ) J^T J
-         y(q,0,e) = c_detJ * (J11*J11 + J21*J21 + J31*J31); // 1,1
-         y(q,1,e) = c_detJ * (J12*J11 + J22*J21 + J32*J31); // 2,1
-         y(q,2,e) = c_detJ * (J13*J11 + J23*J21 + J33*J31); // 3,1
-         y(q,3,e) = c_detJ * (J12*J12 + J22*J22 + J32*J32); // 2,2
-         y(q,4,e) = c_detJ * (J13*J12 + J23*J22 + J33*J32); // 3,2
-         y(q,5,e) = c_detJ * (J13*J13 + J23*J23 + J33*J33); // 3,3
+         const double c_detJ = W[q] / detJ;
+
+         // (1/detJ) J^T C J
+         if (coeffDim == 6 || coeffDim == 9) // Matrix coefficient version
+         {
+            double M[3][3];
+            M[0][0] = C(0, q, e);
+            M[0][1] = C(1, q, e);
+            M[0][2] = C(2, q, e);
+            M[1][0] = (!symmetric) ? C(3, q, e) : M[0][1];
+            M[1][1] = (!symmetric) ? C(4, q, e) : C(3, q, e);
+            M[1][2] = (!symmetric) ? C(5, q, e) : C(4, q, e);
+            M[2][0] = (!symmetric) ? C(6, q, e) : M[0][2];
+            M[2][1] = (!symmetric) ? C(7, q, e) : M[1][2];
+            M[2][2] = (!symmetric) ? C(8, q, e) : C(5, q, e);
+
+            int idx = 0;
+            for (int i=0; i<3; ++i)
+               for (int j = (symmetric ? i : 0); j<3; ++j)
+               {
+                  y(q,idx,e) = 0.0;
+                  for (int k=0; k<3; ++k)
+                  {
+                     double MJ_kj = 0.0;
+                     for (int l=0; l<3; ++l)
+                     {
+                        MJ_kj += M[k][l] * J(q,l,j,e);
+                     }
+
+                     y(q,idx,e) += J(q,k,i,e) * MJ_kj;
+                  }
+
+                  y(q,idx,e) *= c_detJ;
+                  idx++;
+               }
+         }
+         else  // Vector or scalar coefficient version
+         {
+            int idx = 0;
+            for (int i=0; i<3; ++i)
+               for (int j=i; j<3; ++j)
+               {
+                  y(q,idx,e) = 0.0;
+                  for (int k=0; k<3; ++k)
+                  {
+                     y(q,idx,e) += J(q,k,i,e) * C(coeffDim == 3 ? k : 0, q, e) * J(q,k,j,e);
+                  }
+
+                  y(q,idx,e) *= c_detJ;
+                  idx++;
+               }
+         }
       }
    });
 }
@@ -99,6 +177,7 @@ void PAHdivSetup3D(const int Q1D,
 void PAHdivMassApply2D(const int D1D,
                        const int Q1D,
                        const int NE,
+                       const bool symmetric,
                        const Array<double> &Bo_,
                        const Array<double> &Bc_,
                        const Array<double> &Bot_,
@@ -115,7 +194,7 @@ void PAHdivMassApply2D(const int D1D,
    auto Bc = Reshape(Bc_.Read(), Q1D, D1D);
    auto Bot = Reshape(Bot_.Read(), D1D-1, Q1D);
    auto Bct = Reshape(Bct_.Read(), D1D, Q1D);
-   auto op = Reshape(op_.Read(), Q1D, Q1D, 3, NE);
+   auto op = Reshape(op_.Read(), Q1D, Q1D, symmetric ? 3 : 4, NE);
    auto x = Reshape(x_.Read(), 2*(D1D-1)*D1D, NE);
    auto y = Reshape(y_.ReadWrite(), 2*(D1D-1)*D1D, NE);
 
@@ -178,11 +257,12 @@ void PAHdivMassApply2D(const int D1D,
          {
             const double O11 = op(qx,qy,0,e);
             const double O12 = op(qx,qy,1,e);
-            const double O22 = op(qx,qy,2,e);
+            const double O21 = symmetric ? O12 : op(qx,qy,2,e);
+            const double O22 = symmetric ? op(qx,qy,2,e) : op(qx,qy,3,e);
             const double massX = mass[qy][qx][0];
             const double massY = mass[qy][qx][1];
             mass[qy][qx][0] = (O11*massX)+(O12*massY);
-            mass[qy][qx][1] = (O12*massX)+(O22*massY);
+            mass[qy][qx][1] = (O21*massX)+(O22*massY);
          }
       }
 
@@ -228,6 +308,7 @@ void PAHdivMassApply2D(const int D1D,
 void PAHdivMassAssembleDiagonal2D(const int D1D,
                                   const int Q1D,
                                   const int NE,
+                                  const bool symmetric,
                                   const Array<double> &Bo_,
                                   const Array<double> &Bc_,
                                   const Vector &op_,
@@ -238,7 +319,7 @@ void PAHdivMassAssembleDiagonal2D(const int D1D,
 
    auto Bo = Reshape(Bo_.Read(), Q1D, D1D-1);
    auto Bc = Reshape(Bc_.Read(), Q1D, D1D);
-   auto op = Reshape(op_.Read(), Q1D, Q1D, 3, NE);
+   auto op = Reshape(op_.Read(), Q1D, Q1D, symmetric ? 3 : 4, NE);
    auto diag = Reshape(diag_.ReadWrite(), 2*(D1D-1)*D1D, NE);
 
    MFEM_FORALL(e, NE,
@@ -259,7 +340,7 @@ void PAHdivMassAssembleDiagonal2D(const int D1D,
                for (int qy = 0; qy < Q1D; ++qy)
                {
                   const double wy = (c == 1) ? Bc(qy,dy) : Bo(qy,dy);
-                  mass[qx] += wy*wy*((c == 0) ? op(qx,qy,0,e) : op(qx,qy,2,e));
+                  mass[qx] += wy*wy*((c == 0) ? op(qx,qy,0,e) : op(qx,qy,symmetric ? 2 : 3,e));
                }
             }
 
@@ -283,6 +364,7 @@ void PAHdivMassAssembleDiagonal2D(const int D1D,
 void PAHdivMassAssembleDiagonal3D(const int D1D,
                                   const int Q1D,
                                   const int NE,
+                                  const bool symmetric,
                                   const Array<double> &Bo_,
                                   const Array<double> &Bc_,
                                   const Vector &op_,
@@ -294,7 +376,7 @@ void PAHdivMassAssembleDiagonal3D(const int D1D,
 
    auto Bo = Reshape(Bo_.Read(), Q1D, D1D-1);
    auto Bc = Reshape(Bc_.Read(), Q1D, D1D);
-   auto op = Reshape(op_.Read(), Q1D, Q1D, Q1D, 6, NE);
+   auto op = Reshape(op_.Read(), Q1D, Q1D, Q1D, symmetric ? 6 : 9, NE);
    auto diag = Reshape(diag_.ReadWrite(), 3*(D1D-1)*(D1D-1)*D1D, NE);
 
    MFEM_FORALL(e, NE,
@@ -307,7 +389,8 @@ void PAHdivMassAssembleDiagonal3D(const int D1D,
          const int D1Dy = (c == 1) ? D1D : D1D - 1;
          const int D1Dx = (c == 0) ? D1D : D1D - 1;
 
-         const int opc = (c == 0) ? 0 : ((c == 1) ? 3 : 5);
+         const int opc = (c == 0) ? 0 : ((c == 1) ? (symmetric ? 3 : 4) :
+                                         (symmetric ? 5 : 8));
 
          double mass[HDIV_MAX_Q1D];
 
@@ -350,6 +433,7 @@ void PAHdivMassAssembleDiagonal3D(const int D1D,
 void PAHdivMassApply3D(const int D1D,
                        const int Q1D,
                        const int NE,
+                       const bool symmetric,
                        const Array<double> &Bo_,
                        const Array<double> &Bc_,
                        const Array<double> &Bot_,
@@ -366,7 +450,7 @@ void PAHdivMassApply3D(const int D1D,
    auto Bc = Reshape(Bc_.Read(), Q1D, D1D);
    auto Bot = Reshape(Bot_.Read(), D1D-1, Q1D);
    auto Bct = Reshape(Bct_.Read(), D1D, Q1D);
-   auto op = Reshape(op_.Read(), Q1D, Q1D, Q1D, 6, NE);
+   auto op = Reshape(op_.Read(), Q1D, Q1D, Q1D, symmetric ? 6 : 9, NE);
    auto x = Reshape(x_.Read(), 3*(D1D-1)*(D1D-1)*D1D, NE);
    auto y = Reshape(y_.ReadWrite(), 3*(D1D-1)*(D1D-1)*D1D, NE);
 
@@ -461,15 +545,19 @@ void PAHdivMassApply3D(const int D1D,
                const double O11 = op(qx,qy,qz,0,e);
                const double O12 = op(qx,qy,qz,1,e);
                const double O13 = op(qx,qy,qz,2,e);
-               const double O22 = op(qx,qy,qz,3,e);
-               const double O23 = op(qx,qy,qz,4,e);
-               const double O33 = op(qx,qy,qz,5,e);
+               const double O21 = symmetric ? O12 : op(qx,qy,qz,3,e);
+               const double O22 = symmetric ? op(qx,qy,qz,3,e) : op(qx,qy,qz,4,e);
+               const double O23 = symmetric ? op(qx,qy,qz,4,e) : op(qx,qy,qz,5,e);
+               const double O31 = symmetric ? O13 : op(qx,qy,qz,6,e);
+               const double O32 = symmetric ? O23 : op(qx,qy,qz,7,e);
+               const double O33 = symmetric ? op(qx,qy,qz,5,e) : op(qx,qy,qz,8,e);
+
                const double massX = mass[qz][qy][qx][0];
                const double massY = mass[qz][qy][qx][1];
                const double massZ = mass[qz][qy][qx][2];
                mass[qz][qy][qx][0] = (O11*massX)+(O12*massY)+(O13*massZ);
-               mass[qz][qy][qx][1] = (O12*massX)+(O22*massY)+(O23*massZ);
-               mass[qz][qy][qx][2] = (O13*massX)+(O23*massY)+(O33*massZ);
+               mass[qz][qy][qx][1] = (O21*massX)+(O22*massY)+(O23*massZ);
+               mass[qz][qy][qx][2] = (O31*massX)+(O32*massY)+(O33*massZ);
             }
          }
       }
@@ -626,7 +714,7 @@ static void PADivDivApply2D(const int D1D,
    {
       double div[MAX_Q1D][MAX_Q1D];
 
-      // div[qy][qx] will be computed as du_x/dx + duy_/dy
+      // div[qy][qx] will be computed as du_x/dx + du_y/dy
 
       for (int qy = 0; qy < Q1D; ++qy)
       {

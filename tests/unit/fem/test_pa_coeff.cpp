@@ -312,11 +312,6 @@ TEST_CASE("Hcurl/Hdiv PA Coefficient",
 
          for (int spaceType = 0; spaceType < NumSpaceTypes; ++spaceType)
          {
-            if (spaceType == Hdiv && coeffType >= 2)
-            {
-               continue;   // Case not implemented yet
-            }
-
             const int numIntegrators =
                (spaceType >= HcurlHdiv) ? 1 : ((coeffType == 2) ? 2 : 3);
 
