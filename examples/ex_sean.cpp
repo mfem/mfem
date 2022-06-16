@@ -43,7 +43,6 @@
 //               (paraview.org) is also illustrated.
 
 #include "mfem.hpp"
-#include "gslib.hpp"
 #include <fstream>
 #include <iostream>
 #include <algorithm>
@@ -176,8 +175,8 @@ int main(int argc, char *argv[])
 {
    // 1. Parse command-line options.
    problem = 0;
-   const char *mesh_file = "../data/periodic-hexagon.mesh";
-   int ref_levels = 1;
+   const char *mesh_file = "../data/periodic-square.mesh";
+   int ref_levels = 0;
    int order = 3;
    bool pa = false;
    bool ea = false;
@@ -504,10 +503,6 @@ int main(int argc, char *argv[])
    adv.SetTime(t);
    ode_solver->Init(adv);
 
-   // Going to try and grab all the points in the HO mesh
-   FindPointsGSLIB finder;
-   //finder.Setup(mesh);
-
    // Need to declare these variables for calculating u_LO
    Mesh *mesh_temp = fes.GetMesh();
    GridFunction x(mesh_temp->GetNodes()->FESpace());
@@ -592,7 +587,51 @@ int main(int argc, char *argv[])
          }
       }
    }
+
+   // Going to try and grab all the points in the HO mesh
+   FindPointsGSLIB finder;
+   finder.Setup(mesh);
+   GridFunction node_vals(&fes);
    
+   GridFunction u_HO_interp(&fes);
+   VisItDataCollection HO_interp_dc("HO_interp", &mesh);
+   HO_interp_dc.RegisterField("Density", &u_HO_interp);
+
+   // This does not give us what we want I think
+   mesh.GetNodes(node_vals);
+   //finder.Interpolate(mesh, node_vals, u_LO, u_HO_interp);
+   //cout << u_HO_interp << endl;
+
+   // Other stuff that I'm trying--------------------------------------------
+   
+   int n = x.Size();
+   const int ndofs = n / NE;
+   
+   // Grabbing information from the finite element space
+   auto *Tr = x.FESpace()->GetMesh()->GetElementTransformation(0);
+   //const int NE = x.FESpace()->GetNE();
+   
+   const FiniteElement *fe = u_LO.FESpace()->GetFE(0);
+   const IntegrationRule &ir = MassIntegrator::GetRule(*fe, *fe, *Tr);
+   const int nqp = ir.GetNPoints();
+   
+   // Grabbing information from the quadrature
+   //GeometricFactors geom(x, ir, GeometricFactors::DETERMINANTS);
+   auto qi_u = u_LO.FESpace()->GetQuadratureInterpolator(ir);
+   Vector u_LO_dofs(nqp * NE); // unclear
+
+   // Evaluates the right hand side gridfunction at x
+   qi_u->Values(x, u_LO_dofs);
+   for (int i = 0; i < u_LO_dofs.Size(); i++)
+     cout << u_LO_dofs(i) << endl;
+
+   finder.Interpolate(mesh, u_LO_dofs, u_LO, u_HO_interp);
+   
+   //cout << u_LO_dofs(0) << endl;
+
+   //finder.Interpolate(mesh, u_LO_dofs, u_LO, u_HO_interp);
+
+   //------------------------------------------------------------------------
 
    // 9. Save the final solution. This output can be viewed later using GLVis:
    if (visualization)
@@ -610,12 +649,18 @@ int main(int argc, char *argv[])
          visualize(LOR_dc, "LOR", Wx, Wy);
          Wx += offx;
       }
+      visualize(HO_interp_dc, "HO_interp", Wx, Wy);
+      Wx += offx;
    }
 
    {
       ofstream osol_HO("ex_sean-final_HO.gf");
       osol_HO.precision(precision);
       u_HO.Save(osol_HO);
+
+      ofstream osol_HO_interp("ex_sean-final_HO_interp.gf");
+      osol_HO_interp.precision(precision);
+      u_HO_interp.Save(osol_HO_interp);
 
       if (averaging == 1 || averaging == 3)
       {
