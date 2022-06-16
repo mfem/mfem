@@ -163,28 +163,6 @@ void PAHdivMassAssembleDiagonal3D(const int D1D,
                                   const Vector &op_,
                                   Vector &diag_);
 
-void PAHdivMassApply2D(const int D1D,
-                       const int Q1D,
-                       const int NE,
-                       const Array<double> &Bo_,
-                       const Array<double> &Bc_,
-                       const Array<double> &Bot_,
-                       const Array<double> &Bct_,
-                       const Vector &op_,
-                       const Vector &x_,
-                       Vector &y_);
-
-void PAHdivMassApply3D(const int D1D,
-                       const int Q1D,
-                       const int NE,
-                       const Array<double> &Bo_,
-                       const Array<double> &Bc_,
-                       const Array<double> &Bot_,
-                       const Array<double> &Bct_,
-                       const Vector &op_,
-                       const Vector &x_,
-                       Vector &y_);
-
 void PAHdivMassApply(const int dim,
                      const int D1D,
                      const int Q1D,
@@ -866,7 +844,6 @@ void VectorFEMassIntegrator::AssemblePA(const FiniteElementSpace &trial_fes,
             MFEM_VERIFY(MQ->GetHeight() == dim && MQ->GetWidth() == dim, "");
             M.SetSize(dim);
          }
-
 
          for (int e=0; e<ne; ++e)
          {
