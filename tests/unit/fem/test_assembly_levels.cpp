@@ -430,8 +430,7 @@ TEST_CASE("Serial H1 Full Assembly", "[AssemblyLevel], [CUDA]")
    GridFunction x1(&fespace);
    LinearForm b1(&fespace);
 
-   // x1.Randomize(1);
-   x1 = 10.0;
+   x1.Randomize(1);
    b1.Randomize(2);
 
    Vector x2(x1);
