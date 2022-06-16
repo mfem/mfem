@@ -714,7 +714,7 @@ static void PADivDivApply2D(const int D1D,
    {
       double div[MAX_Q1D][MAX_Q1D];
 
-      // div[qy][qx] will be computed as du_x/dx + duy_/dy
+      // div[qy][qx] will be computed as du_x/dx + du_y/dy
 
       for (int qy = 0; qy < Q1D; ++qy)
       {
