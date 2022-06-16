@@ -47,7 +47,8 @@ void AMRUpdateTrue(BlockVector &S,
                ParGridFunction &w,
                ParGridFunction &j,
                ParGridFunction *pre,
-               ParGridFunction *dpsidt)
+               ParGridFunction *dpsidt,
+               ParGridFunction *psi_sub)
 {
    FiniteElementSpace* H1FESpace = phi.FESpace();
 
@@ -66,8 +67,9 @@ void AMRUpdateTrue(BlockVector &S,
    
    // Note j stores data as a regular gridfunction
    j.Update();
-   if (pre!=NULL) pre->Update();
-   if (dpsidt!=NULL) dpsidt->Update();
+   if (pre!=NULL)       pre->Update();
+   if (dpsidt!=NULL)    dpsidt->Update();
+   if (psi_sub!=NULL)   psi_sub->Update();
 
    int fe_size = H1FESpace->GetTrueVSize();
 
