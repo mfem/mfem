@@ -135,11 +135,9 @@ TEST_CASE("H1 PA Coefficient", "[PartialAssembly][Coefficient]")
          for (int integrator = 0; integrator < 2; ++integrator)
          {
             const int ne = 2;
-            std::cout << "Testing " << dimension << "D partial assembly with "
-                      << "coeffType " << coeffType << " and "
-                      << "integrator " << integrator << std::endl;
             for (int order = 1; order < 4; ++order)
             {
+               CAPTURE(dimension, coeffType, integrator, order);
                Mesh mesh = MakeCartesianNonaligned(dimension, ne);
 
                FiniteElementCollection* h1_fec =
@@ -251,15 +249,10 @@ TEST_CASE("H1 PA Coefficient", "[PartialAssembly][Coefficient]")
 
                y_pa -= y_mat;
                double pa_error = y_pa.Norml2();
-               std::cout << "  order: " << order
-                         << ", pa error norm: " << pa_error << std::endl;
                REQUIRE(pa_error < 1.e-12);
 
                y_assembly -= y_mat;
                double assembly_error = y_assembly.Norml2();
-               std::cout << "  order: " << order
-                         << ", assembly error norm: " << assembly_error
-                         << std::endl;
                REQUIRE(assembly_error < 1.e-12);
 
                delete coeff;
@@ -329,29 +322,10 @@ TEST_CASE("Hcurl/Hdiv PA Coefficient",
 
             for (int integrator = 0; integrator < numIntegrators; ++integrator)
             {
-               if (spaceType == Hcurl)
-                  std::cout << "Testing " << dimension
-                            << "D ND partial assembly with coeffType "
-                            << coeffType << " and integrator "
-                            << integrator << std::endl;
-               else if (spaceType == Hdiv)
-                  std::cout << "Testing " << dimension
-                            << "D RT partial assembly with coeffType "
-                            << coeffType << " and integrator "
-                            << integrator << std::endl;
-               else if (spaceType == HcurlHdiv)
-                  std::cout << "Testing " << dimension
-                            << "D ND x RT partial assembly with coeffType "
-                            << coeffType << " and integrator "
-                            << integrator << std::endl;
-               else  // HdivHcurl
-                  std::cout << "Testing " << dimension
-                            << "D RT x ND partial assembly with coeffType "
-                            << coeffType << " and integrator "
-                            << integrator << std::endl;
-
                for (int order = 1; order < 4; ++order)
                {
+                  CAPTURE(spaceType, dimension, coeffType, integrator, order);
+
                   FiniteElementCollection* fec = nullptr;
                   if (spaceType == Hcurl || spaceType == HcurlHdiv)
                   {
@@ -518,15 +492,10 @@ TEST_CASE("Hcurl/Hdiv PA Coefficient",
 
                         v_pa -= v_mat;
                         double pa_error = v_pa.Norml2();
-                        std::cout << "  order: " << order
-                                  << ", pa transpose error norm: " << pa_error << std::endl;
                         REQUIRE(pa_error < 1.e-12);
 
                         v_assembly -= v_mat;
                         double assembly_error = v_assembly.Norml2();
-                        std::cout << "  order: " << order
-                                  << ", assembly transpose error norm: " << assembly_error
-                                  << std::endl;
                         REQUIRE(assembly_error < 1.e-12);
                      }
 
@@ -615,15 +584,10 @@ TEST_CASE("Hcurl/Hdiv PA Coefficient",
 
                   y_pa -= y_mat;
                   double pa_error = y_pa.Norml2();
-                  std::cout << "  order: " << order
-                            << ", pa error norm: " << pa_error << std::endl;
                   REQUIRE(pa_error < 1.e-10);
 
                   y_assembly -= y_mat;
                   double assembly_error = y_assembly.Norml2();
-                  std::cout << "  order: " << order
-                            << ", assembly error norm: " << assembly_error
-                            << std::endl;
                   REQUIRE(assembly_error < 1.e-12);
 
                   delete fec;
@@ -687,21 +651,9 @@ TEST_CASE("Hcurl/Hdiv Mixed PA Coefficient",
             const int numIntegrators = (spaceType == HcurlL2 && dimension == 3) ? 2 : 1;
             for (int integrator = 0; integrator < numIntegrators; ++integrator)
             {
-               if (spaceType == HcurlH1)
-                  std::cout << "Testing " << dimension << "D ND H1 mixed partial assembly with "
-                            << "coeffType " << coeffType << " and "
-                            << "integrator " << integrator << std::endl;
-               else if (spaceType == HcurlL2)
-                  std::cout << "Testing " << dimension << "D ND L2 mixed partial assembly with "
-                            << "coeffType " << coeffType << " and "
-                            << "integrator " << integrator << std::endl;
-               else
-                  std::cout << "Testing " << dimension << "D RT L2 mixed partial assembly with "
-                            << "coeffType " << coeffType << " and "
-                            << "integrator " << integrator << std::endl;
-
                for (int order = 1; order < 4; ++order)
                {
+                  CAPTURE(spaceType, dimension, coeffType, integrator, order);
                   FiniteElementCollection* vec_fec = nullptr;
                   if (spaceType == HcurlH1 || spaceType == HcurlL2 || spaceType == HcurlH1_2D)
                   {
@@ -818,15 +770,10 @@ TEST_CASE("Hcurl/Hdiv Mixed PA Coefficient",
 
                   y_pa -= y_mat;
                   double pa_error = y_pa.Norml2();
-                  std::cout << "  order: " << order
-                            << ", pa error norm: " << pa_error << std::endl;
                   REQUIRE(pa_error < 1.e-12);
 
                   y_assembly -= y_mat;
                   double assembly_error = y_assembly.Norml2();
-                  std::cout << "  order: " << order
-                            << ", assembly error norm: " << assembly_error
-                            << std::endl;
                   REQUIRE(assembly_error < 1.e-12);
 
                   delete xin;
@@ -852,15 +799,10 @@ TEST_CASE("Hcurl/Hdiv Mixed PA Coefficient",
 
                      y_pa -= y_mat;
                      pa_error = y_pa.Norml2();
-                     std::cout << "  order: " << order
-                               << ", pa transpose error norm: " << pa_error << std::endl;
                      REQUIRE(pa_error < 1.e-12);
 
                      y_assembly -= y_mat;
                      assembly_error = y_assembly.Norml2();
-                     std::cout << "  order: " << order
-                               << ", assembly transpose error norm: " << assembly_error
-                               << std::endl;
                      REQUIRE(assembly_error < 1.e-12);
                   }
 
