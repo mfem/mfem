@@ -95,8 +95,9 @@ private:
    HypreSolver *M_prec;
    HyprePCG M_solver; // Symmetric system, can use CG
 
-   mutable SparseMatrix dij_matrix;
+   mutable SparseMatrix *dij_matrix;
    HypreParMatrix *D;
+   HypreParMatrix *W;
 
    Array<int> K_smap;
    mutable Vector z;
@@ -460,8 +461,8 @@ int main(int argc, char *argv[])
 
          // 11. Extract the parallel grid function corresponding to the finite
          //     element approximation U (the local solution on each processor).
-         // *u = *U; // Synchronizes MPI processes.
-         u->SetFromTrueDofs(*U);
+         *u = *U; // Synchronizes MPI processes.
+         // u->SetFromTrueDofs(*U);
 
          if (visualization)
          {
@@ -572,11 +573,13 @@ int main(int argc, char *argv[])
       delete u_ex;
    }
 
+   cout << "Freeing memory\n";
    // 15. Free the used memory.
    delete U;
    delete u;
    delete k;
    delete m;
+   cout << "test\n";
    delete fes;
    delete pmesh;
    delete ode_solver;
@@ -588,6 +591,8 @@ int main(int argc, char *argv[])
    }
 #endif
    delete dc;
+
+   cout << "Done Freeing memory!\n";
 
    return 0;
 }
@@ -601,12 +606,12 @@ FE_Evolution::FE_Evolution(ParBilinearForm &M_, ParBilinearForm &K_)
      pfes(*(K_.ParFESpace())),
      M_solver(pfes.GetComm()),
      z(K_.Height()),
-     dij_matrix(K_.SpMat()),
      D_form(&K_),
      K_spmat(K_.SpMat()),
      K_smap(),
      lumpedM()
 {
+   dij_matrix = new SparseMatrix(K_.SpMat());
    M_.FormSystemMatrix(ess_tdof_list, Mmat);
    Mmat.GetDiag(lumpedM);
    K_.FormSystemMatrix(ess_tdof_list, Kmat);
@@ -660,8 +665,8 @@ void FE_Evolution::build_dij_matrix(const Vector &U,
 
    const double *K_data = K_spmat.HostReadData();
 
-   double *D_data = dij_matrix.HostReadWriteData();
-   dij_matrix.HostReadWriteI(); dij_matrix.HostReadWriteJ();
+   double *D_data = dij_matrix->HostReadWriteData();
+   dij_matrix->HostReadWriteI(); dij_matrix->HostReadWriteJ();
 
    for (int i = 0, k = 0; i < n; i++)
    {
@@ -673,26 +678,42 @@ void FE_Evolution::build_dij_matrix(const Vector &U,
          {
             double kij = K_data[k];
             double kji = K_data[K_smap[k]];
-            double dij = fmax(abs(kij),abs(kji));
+            double dij = max(abs(kij),abs(kji));
+            double threshold = 1e-11;
+            if (dij < threshold) {
+               // cout << "setting dij = 0.\n";
+               // cout << threshold << endl;
+               dij = 0.;
+            }
+            // else {
+            //    cout << "dij > 1e-12\n";
+            // }
 
             // D_data[k] = dij;
             // D_data[K_smap[k]] = dij;
-            dij_matrix(i,j) = dij;
-            dij_matrix(j,i) = dij;
+            (*dij_matrix)(i,j) = dij;
+            (*dij_matrix)(j,i) = dij;
             rowsum += dij;
          }
       }
-      dij_matrix(i,i) = -rowsum;
+      (*dij_matrix)(i,i) = -rowsum;
    }
    // Check that our matrix dij is symmetric.
-   if (dij_matrix.IsSymmetric()) {
+   if (dij_matrix->IsSymmetric()) {
       cout << "ERROR: dij matrix must be symmetric.\n";
-      cout << "Val: " << dij_matrix.IsSymmetric() << endl;
+      cout << "Val: " << dij_matrix->IsSymmetric() << endl;
       return;
    }
-   D = D_form->ParallelAssemble(&dij_matrix);
+   // D = D_form->ParallelAssemble(&dij_matrix);
    // D = new HypreParMatrix(MPI_COMM_WORLD, row_starts, col_starts, &dij_matrix);
+   D = new HypreParMatrix(MPI_COMM_WORLD, pfes.GlobalVSize(), pfes.GetDofOffsets(), dij_matrix);
+   W = RAP(D, pfes.Dof_TrueDof_Matrix());
 
+   // HypreParVector ones(MPI_COMM_WORLD, pfes.GlobalVSize(), col_starts);
+   // ones = 1.;
+   // W->Mult(ones, ones);
+   // ones.Print("Test");
+   //
    // if (Mpi::Root())
    // {
    //    cout << "dij:\n";
@@ -700,6 +721,7 @@ void FE_Evolution::build_dij_matrix(const Vector &U,
    //    cout << "K:\n";
    //    K_spmat.Print();
    //    D->Print("test");
+   //    dij_matrix->PrintInfo(cout);
    // }
 
 }
@@ -707,7 +729,7 @@ void FE_Evolution::build_dij_matrix(const Vector &U,
 void FE_Evolution::Mult(const Vector &x, Vector &y) const
 {
    // y = Ml^{-1} ((D + K) x)
-   D->Mult(x, z);
+   W->Mult(x, z);
 
    Vector rhs(y.Size());
    Kmat.Mult(x, rhs);
@@ -724,7 +746,7 @@ void FE_Evolution::Mult(const Vector &x, Vector &y) const
 FE_Evolution::~FE_Evolution()
 {
    delete D;
-   delete M_prec;
+   delete dij_matrix;
 }
 
 // Velocity coefficient
@@ -783,7 +805,6 @@ void velocity_function(const Vector &x, Vector &v)
       }
       case 4:
       {
-         // Translations in 1D, 2D, and 3D
          switch (dim)
          {
             case 1:
@@ -929,6 +950,7 @@ double exact_sol(const Vector &x, const double t)
                for (int i = 0; i < dim; i++)
                {
                   coeff[i] = 2 * M_PI / (bb_max[i] - bb_min[i]);
+                  // cout << "coeff " << i << ": " << coeff[i] << endl;
                }
                double val = sin(coeff[0]*(X[0]-v[0]*t))*sin(coeff[1]*(X[1]-v[1]*t));
                return val;
