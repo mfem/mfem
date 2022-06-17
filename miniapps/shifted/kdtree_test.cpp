@@ -10,7 +10,7 @@ using namespace mfem;
 int main(int argc, char *argv[])
 {
    //   Parse command-line options
-   const char *mesh_file = "../../data/star-q3.mesh";
+   const char *mesh_file = "../../data/ref-square.mesh";
    int ser_ref_levels = 1;
    int order = 2;
    int iorder = 2; //MFEM integration integration points
@@ -71,9 +71,21 @@ int main(int argc, char *argv[])
            pt.xx[1]= distribution(generator);
            pt.xx[2]= distribution(generator);
 
-           kdt->NNS(pt,ind1,dist1);
-           kdt->rNNS(pt,ind2,dist2);
+           kdt->FindClosestPoint(pt,ind1,dist1);
+           kdt->rFindClosestPoint(pt,ind2,dist2);
            std::cout<<"ind1="<<ind1<<" ind2="<<ind2<<" d1="<<dist1<<" d2="<<dist2<<std::endl;
+       }
+
+       for(int i=0;i<1000;i++){
+           pt.xx[0]= distribution(generator);
+           pt.xx[1]= distribution(generator);
+           pt.xx[2]= distribution(generator);
+
+           kdt->FindClosestPoint(pt,ind1,dist1);
+           kdt->rFindClosestPoint(pt,ind2,dist2);
+           if(ind1!=ind2){
+               std::cout<<"ind1="<<ind1<<" ind2="<<ind2<<" d1="<<dist1<<" d2="<<dist2<<std::endl;
+           }
        }
 
        delete kdt;
@@ -81,13 +93,40 @@ int main(int argc, char *argv[])
    if(dim==2){
        KDTree2D* kdt=BuildKDTree2D(mesh);
        KDTree2D::PointND pt;
+
        for(int i=0;i<10;i++){
            pt.xx[0]= distribution(generator);
            pt.xx[1]= distribution(generator);
 
-           kdt->NNS(pt,ind1,dist1);
-           kdt->rNNS(pt,ind2,dist2);
+           kdt->FindClosestPoint(pt,ind1,dist1);
+           kdt->rFindClosestPoint(pt,ind2,dist2);
            std::cout<<"ind1="<<ind1<<" ind2="<<ind2<<" d1="<<dist1<<" d2="<<dist2<<std::endl;
+       }
+
+
+       for(int i=0;i<1000;i++){
+           pt.xx[0]= distribution(generator);
+           pt.xx[1]= distribution(generator);
+
+           kdt->FindClosestPoint(pt,ind1,dist1);
+           kdt->rFindClosestPoint(pt,ind2,dist2);
+           if(ind1!=ind2){
+               std::cout<<"ind1="<<ind1<<" ind2="<<ind2<<" d1="<<dist1<<" d2="<<dist2<<" d1-d2="<<dist1-dist2<<std::endl;
+           }
+       }
+
+
+       {
+           pt.xx[0]= 0.5;
+           pt.xx[1]= 0.0;
+
+           kdt->FindClosestPoint(pt,ind1,dist1);
+           kdt->rFindClosestPoint(pt,ind2,dist2);
+           std::cout<<"ind1="<<ind1<<" ind2="<<ind2<<" d1="<<dist1<<" d2="<<dist2<<std::endl;
+       }
+
+       for(auto itb=kdt->begin();itb!=kdt->end();itb++){
+           std::cout<<itb->ind<<" "<<itb->pt.xx[0]<<" "<<itb->pt.xx[1]<<std::endl;
        }
 
        delete kdt;

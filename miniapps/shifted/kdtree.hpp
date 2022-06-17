@@ -22,8 +22,57 @@
 
 namespace mfem {
 
+namespace KDTreeNorms{
 
-template <typename Tindex, typename Tfloat, size_t ndim=3>
+template <typename Tfloat, int ndim>
+struct Norm_l1{
+    Tfloat tm;
+    Tfloat operator() (const Tfloat* xx)
+    {
+        if(xx[0]<Tfloat(0.0)){ tm=-xx[0];}
+        else{ tm=xx[0];}
+        for(int i=1;i<ndim;i++){
+            if(xx[i]<Tfloat(0.0)){ tm=tm-xx[i]; }
+            else{ tm=tm+xx[i];}
+        }
+        return tm;
+    }
+};
+
+template<typename Tfloat,int ndim>
+struct Norm_l2{
+    Tfloat tm;
+    Tfloat operator() (const Tfloat* xx)
+    {
+        tm=xx[0]*xx[0];
+        for(int i=1;i<ndim;i++){
+            tm=tm+xx[i]*xx[i];
+        }
+        return sqrt(tm);
+    }
+};
+
+template<typename Tfloat,int ndim>
+struct Norm_li{
+    Tfloat tm;
+    Tfloat operator() (const Tfloat* xx)
+    {
+        if(xx[0]<Tfloat(0.0)){ tm=-xx[0];}
+        else{ tm=xx[0];}
+        for(int i=1;i<ndim;i++){
+            if(xx[i]<Tfloat(0.0)){
+                if(tm<(-xx[i])){tm=-xx[i];}
+            }else{
+                if(tm<xx[i]){tm=xx[i];}
+            }
+        }
+        return tm;
+    }
+};
+
+}
+
+template <typename Tindex, typename Tfloat, size_t ndim=3, typename Tnorm=KDTreeNorms::Norm_l2<Tfloat,ndim> >
 class KDTree{
 public:
 
@@ -74,7 +123,7 @@ public:
     void Sort(){ SortInPlace(data.begin(),data.end(),0);}
 
     /// Adds a new node to the point cloud
-    void AddNode(PointND& pt, Tindex ii){
+    void AddPoint(PointND& pt, Tindex ii){
         NodeND nd;
         nd.pt=pt;
         nd.ind=ii;
@@ -82,31 +131,34 @@ public:
     }
 
     /// Adds a new node by 3 coordinates and an associated index
-    void AddNode(Tfloat x, Tfloat y, Tfloat z, Tindex ii)
+    void AddPoint(Tfloat x, Tfloat y, Tfloat z, Tindex ii)
     {
+        MFEM_ASSERT(ndim==3,"The spatial dimension for the KDTree should be 3!")
         NodeND nd;
         nd.pt.xx[0]=x;  nd.pt.xx[1]=y; nd.pt.xx[2]=z; nd.ind=ii;
         data.push_back(nd);
     }
 
     /// Adds a new node by 2 coordinates and an associated index
-    void AddNode(Tfloat x, Tfloat y, Tindex ii)
+    void AddPoint(Tfloat x, Tfloat y, Tindex ii)
     {
+        MFEM_ASSERT(ndim==2,"The spatial dimension for the KDTree should be 2!")
         NodeND nd;
         nd.pt.xx[0]=x;  nd.pt.xx[1]=y; nd.ind=ii;
         data.push_back(nd);
     }
 
     /// Adds a new node by 1 coordinate and an associated index
-    void AddNode(Tfloat x, Tindex ii)
+    void AddPoint(Tfloat x, Tindex ii)
     {
+        MFEM_ASSERT(ndim==1,"The spatial dimension for the KDTree should be 1!")
         NodeND nd;
         nd.pt.xx[0]=x; nd.ind=ii;
         data.push_back(nd);
     }
 
     /// Finds the nearest neighbour index
-    Tindex NNS(PointND& pt)
+    Tindex FindClosestPoint(PointND& pt)
     {
         PointS best_candidate;
         best_candidate.sp=pt;
@@ -119,7 +171,7 @@ public:
     }
 
     /// Returns the closest point and the distance to the input point pt.
-    void NNS(PointND& pt, Tindex& ind, Tfloat& dist)
+    void FindClosestPoint(PointND& pt, Tindex& ind, Tfloat& dist)
     {
         PointS best_candidate;
         best_candidate.sp=pt;
@@ -130,11 +182,11 @@ public:
         PSearch(data.begin(), data.end(), 0, best_candidate);
 
         ind=data[best_candidate.pos].ind;
-        dist=Dist(data[best_candidate.pos].pt, best_candidate.sp);
+        dist=best_candidate.dist;
     }
 
     /// Brute force search - please, use it only for debuging purposes
-    void rNNS(PointND& pt, Tindex& ind, Tfloat& dist)
+    void rFindClosestPoint(PointND& pt, Tindex& ind, Tfloat& dist)
     {
         PointS best_candidate;
         best_candidate.sp=pt;
@@ -152,6 +204,45 @@ public:
 
         ind=data[best_candidate.pos].ind;
         dist=best_candidate.dist;
+    }
+
+    /// Finds all points within a distance R from point pt. The indices are
+    /// returned in the vestor res and the correponding distances in vector dist.
+    void FindNeighborPoints(PointND& pt,Tfloat R, std::vector<Tindex> & res, std::vector<Tfloat> & dist)
+    {
+        FindNeighborPoints(pt,R,data.begin(),data.end(),0,res,dist);
+    }
+
+    /// Finds all points within a distance R from point pt. The indices are
+    /// returned in the vestor res and the correponding distances in vector dist.
+    void FindNeighborPoints(PointND& pt,Tfloat R, std::vector<Tindex> & res)
+    {
+        FindNeighborPoints(pt,R,data.begin(),data.end(),0,res);
+    }
+
+    /// Brute force search - please, use it only for debuging purposes
+    void rFindNeighborPoints(PointND& pt,Tfloat R, std::vector<Tindex> & res, std::vector<Tfloat> & dist)
+    {
+        Tfloat dd;
+        for(auto iti=data.begin(); iti!=data.end();iti++){
+            dd=Dist(iti->pt,  pt);
+            if(dd<R){
+                res.push_back(iti->ind);
+                dist.push_back(dd);
+            }
+        }
+    }
+
+    /// Brute force search - please, use it only for debuging purposes
+    void rFindNeighborPoints(PointND& pt,Tfloat R, std::vector<Tindex> & res)
+    {
+        Tfloat dd;
+        for(auto iti=data.begin(); iti!=data.end();iti++){
+            dd=Dist(iti->pt,  pt);
+            if(dd<R){
+                res.push_back(iti->ind);
+            }
+        }
     }
 
 private:
@@ -178,13 +269,16 @@ private:
         }
     };
 
+    /// Point for storing tmp data
+    PointND tp;
+    Tnorm fnorm;
+
     /// Computes the distance between two nodes
     Tfloat Dist(const PointND& pt1,const  PointND& pt2){
-        Tfloat d=0.0;
         for(size_t i=0;i<ndim;i++){
-            d=d+(pt1.xx[i]-pt2.xx[i])*(pt1.xx[i]-pt2.xx[i]);
+            tp.xx[i]=pt1.xx[i]-pt2.xx[i];
         }
-        return std::sqrt(d);
+        return fnorm(tp.xx);
     }
 
     /// The point cloud is stored in a vector.
@@ -218,7 +312,7 @@ private:
 
     /// Structure utilized for nearest neighbor search (NNS)
     struct PointS{
-        double dist;
+        Tfloat dist;
         size_t pos;
         size_t level;
         PointND sp;
@@ -260,7 +354,7 @@ private:
                     if(!((bc.sp.xx[dim]-bc.dist)>mtb->pt.xx[dim])){
                         PSearch(itb, itb+siz/2, level, bc);
                         {//check central one
-                            double dd=Dist(mtb->pt, bc.sp);
+                            Tfloat dd=Dist(mtb->pt, bc.sp);
                             if(dd<bc.dist){ bc.dist=dd; bc.pos=mtb-data.begin(); bc.level=level; }
                         }//end central point check
                     }
@@ -280,6 +374,132 @@ private:
         }
     }
 
+    /// Returns distances and indices of the n closest points to a point pt.
+    void NNS(PointND& pt,const int& npoints,
+             typename std::vector<NodeND>::iterator itb,
+             typename std::vector<NodeND>::iterator ite,
+             size_t level,
+             std::vector< std::tuple<Tfloat,Tindex> > & res)
+    {
+        std::uint8_t dim=(std::uint8_t) (level%ndim);
+        size_t siz=ite-itb;
+        typename std::vector<NodeND>::iterator mtb=itb+siz/2;
+        if(siz>2){
+            //median is at itb+siz/2
+            level=level+1;
+            Tfloat R=std::get<0>(res[npoints-1]);
+            //check central one
+            Tfloat dd=Dist(mtb->pt, pt);
+            if(dd<R){
+                res[npoints-1]=std::make_tuple(dd,mtb->ind);
+                //std::sort(res.begin(),res.end());
+                std::nth_element(res.begin(), res.end()-1, res.end());
+                R=std::get<0>(res[npoints-1]);
+            }
+            if((pt.xx[dim]-R)>mtb->pt.xx[dim]){//look to the right only
+                NNS(pt, npoints, itb+siz/2+1, ite, level, res);
+            }else
+            if((pt.xx[dim]+R)<mtb->pt.xx[dim]){//look to the left only
+                NNS(pt, npoints, itb, itb+siz/2, level,   res);
+            }else{//check all
+                NNS(pt,npoints, itb+siz/2+1, ite, level, res); //right
+                NNS(pt,npoints, itb, itb+siz/2, level,   res); //left
+            }
+        }else{
+            Tfloat dd;
+            for(auto it=itb; it!=ite; it++){
+                dd=Dist(it->pt, pt);
+                if(dd< std::get<0>(res[npoints-1])){//update the list
+                    res[npoints-1]=std::make_tuple(dd,it->ind);
+                    //std::sort(res.begin(),res.end());
+                    std::nth_element(res.begin(), res.end()-1, res.end());
+                }
+            }
+        }
+    }
+
+    /// Finds the set of indices of points within a distance R of a point pt.
+    void FindNeighborPoints(PointND& pt, Tfloat R,
+             typename std::vector<NodeND>::iterator itb,
+             typename std::vector<NodeND>::iterator ite,
+             size_t level,
+             std::vector<Tindex> & res)
+    {
+        std::uint8_t dim=(std::uint8_t) (level%ndim);
+        size_t siz=ite-itb;
+        typename std::vector<NodeND>::iterator mtb=itb+siz/2;
+        if(siz>2){
+            //median is at itb+siz/2
+            level=level+1;
+            if((pt.xx[dim]-R)>mtb->pt.xx[dim]){//look to the right only
+                    RNS(pt, R, itb+siz/2+1, ite, level, res);
+            }else
+            if((pt.xx[dim]+R)<mtb->pt.xx[dim]){//look to the left only
+                    RNS(pt,R, itb, itb+siz/2, level,   res);
+            }else{//check all
+                    RNS(pt,R, itb+siz/2+1, ite, level, res); //right
+                    RNS(pt,R, itb, itb+siz/2, level,   res); //left
+
+                    //check central one
+                    Tfloat dd=Dist(mtb->pt, pt);
+                    if(dd<R){
+                        res.push_back(mtb->ind);
+                    }
+            }
+        }else{
+            Tfloat dd;
+            for(auto it=itb; it!=ite; it++){
+                dd=Dist(it->pt, pt);
+                if(dd<R){//update bc
+                    res.push_back(it->ind);
+                }
+            }
+        }
+    }
+
+
+    /// Finds the set of indices of points within a distance R of a point pt.
+    void FindNeighborPoints(PointND& pt, Tfloat R,
+             typename std::vector<NodeND>::iterator itb,
+             typename std::vector<NodeND>::iterator ite,
+             size_t level,
+             std::vector<Tindex> & res, std::vector<Tfloat> & dist)
+    {
+        std::uint8_t dim=(std::uint8_t) (level%ndim);
+        size_t siz=ite-itb;
+        typename std::vector<NodeND>::iterator mtb=itb+siz/2;
+        if(siz>2){
+            //median is at itb+siz/2
+            level=level+1;
+            if((pt.xx[dim]-R)>mtb->pt.xx[dim]){//look to the right only
+                    RNS(pt, R, itb+siz/2+1, ite, level, res, dist);
+            }else
+            if((pt.xx[dim]+R)<mtb->pt.xx[dim]){//look to the left only
+                    RNS(pt,R, itb, itb+siz/2, level,   res, dist);
+            }else{//check all
+                    RNS(pt,R, itb+siz/2+1, ite, level, res, dist); //right
+                    RNS(pt,R, itb, itb+siz/2, level,   res, dist); //left
+
+                    //check central one
+                    Tfloat dd=Dist(mtb->pt, pt);
+                    if(dd<R){
+                        res.push_back(mtb->ind);
+                        dist.push_back(dd);
+                    }
+            }
+        }else{
+            Tfloat dd;
+            for(auto it=itb; it!=ite; it++){
+                dd=Dist(it->pt, pt);
+                if(dd<R){//update bc
+                    res.push_back(it->ind);
+                    dist.push_back(dd);
+                }
+            }
+        }
+    }
+
+
 };
 
 typedef KDTree<int,double,3> KDTree3D;
@@ -290,6 +510,113 @@ typedef KDTree<int,double,1> KDTree1D;
 KDTree3D* BuildKDTree3D(Mesh* mesh);
 KDTree2D* BuildKDTree2D(Mesh* mesh);
 KDTree1D* BuildKDTree1D(Mesh* mesh);
+
+
+class KDTreeM
+{
+public:
+    KDTreeM(mfem::GridFunction& coords)
+    {
+        gf=&coords;
+        ndim=coords.VectorDim();
+        data.resize(gf->Size());
+        tp.SetSize(ndim);
+        //initial indices
+        for(int i=0;i<gf->Size();i++)
+        {
+            data[i].xx=coords.GetData()+i*ndim;
+        }
+    }
+
+    /// Returns the spatial dimension of the points
+    int SpatialDimension(){return gf->VectorDim();}
+
+    void Sort(){ SortInPlace(data.begin(),data.end(),0);}
+
+    int FindClosestPoint(mfem::Vector& pt);
+    void FindClosestPoint(Vector& pt, int &ind, double& dist);
+
+
+
+
+
+
+
+
+
+private:
+    mfem::GridFunction* gf;
+    int ndim;
+    Vector tp;
+
+    struct NodeND{
+        double *xx;//coordinates of the node
+    };
+
+    std::vector<NodeND> data;
+
+    /// Structure utilized for nearest neighbor search (NNS)
+    struct PointS{
+        double dist;
+        size_t pos;
+        size_t level;
+        NodeND sp; //index of the point
+    };
+
+    /// Functor utilized in the coordinate comparison
+    /// for building the KDTree
+    struct CompN{
+        /// Current coordinate index
+        std::uint8_t dim;
+
+        /// Constructor for the comparison
+        CompN(std::uint8_t dd):dim(dd){}
+
+        /// Compares two points p1 and p2
+        bool operator() (const NodeND& p1, const NodeND& p2)
+        {
+            return p1.xx[dim]<p2.xx[dim];
+        }
+    };
+
+    /// Computes the distance between two points
+    double Dist(const NodeND& p1, const NodeND& p2)
+    {
+        for(int i=0;i<ndim;i++)
+        {
+            tp(i)=p1.xx[i]-p2.xx[i];
+        }
+        return tp.Norml2();
+    }
+
+    /// Sorts the point cloud
+    void SortInPlace(typename std::vector<NodeND>::iterator itb,
+                     typename std::vector<NodeND>::iterator ite,
+                     size_t level){
+        std::uint8_t cdim=(std::uint8_t)(level%ndim);
+        size_t siz=ite-itb;
+        if(siz>2){
+            std::nth_element(itb, itb+siz/2, ite, CompN(cdim));
+            level=level+1;
+            SortInPlace(itb, itb+siz/2, level);
+            SortInPlace(itb+siz/2+1,ite, level);
+        }
+    }
+
+    /// Finds the closest point to bc.sp in the point cloud
+    /// bounded between [itb,ite).
+    void PSearch(typename std::vector<int>::iterator itb,
+                 typename std::vector<int>::iterator ite,
+                 size_t level, PointS& bc, Vector& pt);
+
+
+
+
+
+
+
+};
+
 
 
 };
