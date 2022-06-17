@@ -18,13 +18,13 @@ cd $mfem_dir
 # mpirun -np 2 ex9p-continuous -m ../data/periodic-segment.mesh -ct -rs 7 -rp 0 -p 4 -tf 2
 # mpirun -np 4 ex9p-continuous -m ../data/periodic-segment.mesh -ct -rs 7 -rp 0 -p 4 -tf 2
 
-mpirun -np 1 ex9p-continuous -m ../data/periodic-square.mesh -ct -rs 3 -rp 0 -p 4 -tf 2
-mpirun -np 2 ex9p-continuous -m ../data/periodic-square.mesh -ct -rs 3 -rp 0 -p 4 -tf 2
-mpirun -np 4 ex9p-continuous -m ../data/periodic-square.mesh -ct -rs 3 -rp 0 -p 4 -tf 2
+mpirun -np 1 ex9p-continuous -m ../data/periodic-square.mesh -ct -rs 4 -rp 0 -p 4 -tf 2.84
+mpirun -np 2 ex9p-continuous -m ../data/periodic-square.mesh -ct -rs 4 -rp 0 -p 4 -tf 2.84
+mpirun -np 4 ex9p-continuous -m ../data/periodic-square.mesh -ct -rs 4 -rp 0 -p 4 -tf 2.84
 
-# mpirun -np 1 ex9p-discontinuous -m ../data/periodic-square.mesh -ct -rs 3 -rp 0 -p 4 -ots
-# mpirun -np 2 ex9p-discontinuous -m ../data/periodic-square.mesh -ct -rs 3 -rp 0 -p 4 -ots
-# mpirun -np 4 ex9p-discontinuous -m ../data/periodic-square.mesh -ct -rs 3 -rp 0 -p 4 -ots
+# mpirun -np 1 ex9p-discontinuous -m ../data/periodic-square.mesh -ct -rs 5 -rp 0 -p 4 -ots
+# mpirun -np 2 ex9p-discontinuous -m ../data/periodic-square.mesh -ct -rs 5 -rp 0 -p 4 -ots
+# mpirun -np 4 ex9p-discontinuous -m ../data/periodic-square.mesh -ct -rs 5 -rp 0 -p 4 -ots
 
 # mpirun -np 1 ex9p-continuous -m ../data/periodic-square.mesh -ct -rs 6 -rp 0 -p 4 -ots
 # mpirun -np 2 ex9p-continuous -m ../data/periodic-square.mesh -ct -rs 6 -rp 0 -p 4 -ots

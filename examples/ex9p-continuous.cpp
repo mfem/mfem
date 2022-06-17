@@ -282,7 +282,7 @@ int main(int argc, char *argv[])
    }
    double hmin, hmax, kmin, kmax;
    pmesh->GetCharacteristics(hmin, hmax, kmin, kmax);
-   if (match_dt_to_h) { dt = hmin; }
+   if (match_dt_to_h) { dt = hmin / sqrt(2); }
    if (one_time_step) {t_final = dt; }
 
    // 7. Define the parallel H1 finite element space on the
@@ -438,7 +438,7 @@ int main(int argc, char *argv[])
    ode_solver->Init(adv);
 
    // Not time dependent yet!
-   adv.build_dij_matrix(*U, velocity);
+   adv.build_dij_matrix(*u, velocity);
 
    bool done = false;
    for (int ti = 0; !done; )
@@ -460,7 +460,8 @@ int main(int argc, char *argv[])
 
          // 11. Extract the parallel grid function corresponding to the finite
          //     element approximation U (the local solution on each processor).
-         *u = *U; // Synchronizes MPI processes.
+         // *u = *U; // Synchronizes MPI processes.
+         u->SetFromTrueDofs(*U);
 
          if (visualization)
          {
@@ -674,15 +675,33 @@ void FE_Evolution::build_dij_matrix(const Vector &U,
             double kji = K_data[K_smap[k]];
             double dij = fmax(abs(kij),abs(kji));
 
-            D_data[k] = dij;
-            D_data[K_smap[k]] = dij;
+            // D_data[k] = dij;
+            // D_data[K_smap[k]] = dij;
+            dij_matrix(i,j) = dij;
+            dij_matrix(j,i) = dij;
             rowsum += dij;
          }
       }
       dij_matrix(i,i) = -rowsum;
    }
+   // Check that our matrix dij is symmetric.
+   if (dij_matrix.IsSymmetric()) {
+      cout << "ERROR: dij matrix must be symmetric.\n";
+      cout << "Val: " << dij_matrix.IsSymmetric() << endl;
+      return;
+   }
    D = D_form->ParallelAssemble(&dij_matrix);
    // D = new HypreParMatrix(MPI_COMM_WORLD, row_starts, col_starts, &dij_matrix);
+
+   // if (Mpi::Root())
+   // {
+   //    cout << "dij:\n";
+   //    dij_matrix.Print();
+   //    cout << "K:\n";
+   //    K_spmat.Print();
+   //    D->Print("test");
+   // }
+
 }
 
 void FE_Evolution::Mult(const Vector &x, Vector &y) const
@@ -768,8 +787,7 @@ void velocity_function(const Vector &x, Vector &v)
          switch (dim)
          {
             case 1:
-            case 2: v(1) = 1.0; break;
-            // case 2: v(0) = sqrt(1./2.); v(1) = sqrt(1./2.); break;
+            case 2: v(0) = sqrt(1./2.); v(1) = sqrt(1./2.); break;
             case 3: v(0) = sqrt(1./3.); v(1) = sqrt(1./3.); v(2) = sqrt(1./3.);
                break;
          }
@@ -912,7 +930,7 @@ double exact_sol(const Vector &x, const double t)
                {
                   coeff[i] = 2 * M_PI / (bb_max[i] - bb_min[i]);
                }
-               double val = sin(coeff[0]*(X[0]))*sin(coeff[1]*(X[1]-v[1]*t));
+               double val = sin(coeff[0]*(X[0]-v[0]*t))*sin(coeff[1]*(X[1]-v[1]*t));
                return val;
             }
             case 3:
@@ -933,7 +951,8 @@ double inflow_function(const Vector &x)
       case 0:
       case 1:
       case 2:
-      case 3: return 0.0;
+      case 3:
+      case 4: return 0.0;
    }
    return 0.0;
 }
