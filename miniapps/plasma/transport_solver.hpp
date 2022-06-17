@@ -173,7 +173,10 @@ inline double eta_i_para(double ma, double Ta,
 }
 */
 
-void DiscontinuitySensor(GridFunction &u, Vector &error);
+void ElementOrder(ParFiniteElementSpace &fes, Vector &elemOrder);
+void DiscontinuitySensor(GridFunction &u, Vector &error, double alpha);
+void ParallelMeshSpacing(ParFiniteElementSpace &fes,
+                         VectorCoefficient &B3, Vector &h);
 
 struct CoefficientByAttr
 {
@@ -2710,15 +2713,13 @@ private:
 
    StateVariableCoef & niCoef_;
    StateVariableCoef & CsCoef_;
-   VectorCoefficient & B3Coef_;
+
    ParFiniteElementSpace * fes_;
+   Coefficient       * elOrdCoef_;
    Coefficient       * OscCoef_;
+   Coefficient       * hCoef_;
    const double width_;
    const double avisc_;
-
-   mutable Vector B3_;
-   mutable Vector B2_;
-   mutable Vector JB_;
 
 public:
    IonMomentumParaDiffusionCoef(int ion_charge_number, double ion_mass_kg,
@@ -2726,9 +2727,10 @@ public:
                                 StateVariableCoef &TiCoef,
                                 StateVariableCoef &niCoef,
                                 StateVariableCoef &CsCoef,
-                                VectorCoefficient &B3Coef,
                                 ParFiniteElementSpace * fes,
+                                Coefficient * elOrdCoef,
                                 Coefficient * OscCoef,
+                                Coefficient * hCoef,
                                 double width,
                                 double avisc)
       : z_i_((double)ion_charge_number), m_i_kg_(ion_mass_kg),
@@ -2737,14 +2739,12 @@ public:
         TiCoef_(TiCoef),
         niCoef_(niCoef),
         CsCoef_(CsCoef),
-        B3Coef_(B3Coef),
         fes_(fes),
+        elOrdCoef_(elOrdCoef),
         OscCoef_(OscCoef),
+        hCoef_(hCoef),
         width_(width),
-        avisc_(avisc),
-        B3_(3),
-        B2_(B3_.GetData(), 2),
-        JB_(2)
+        avisc_(avisc)
    {}
 
    IonMomentumParaDiffusionCoef(const IonMomentumParaDiffusionCoef &other)
@@ -2754,14 +2754,12 @@ public:
         TiCoef_(other.TiCoef_),
         niCoef_(other.niCoef_),
         CsCoef_(other.CsCoef_),
-        B3Coef_(other.B3Coef_),
         fes_(other.fes_),
+        elOrdCoef_(other.elOrdCoef_),
         OscCoef_(other.OscCoef_),
+        hCoef_(other.hCoef_),
         width_(other.width_),
-        avisc_(other.avisc_),
-        B3_(3),
-        B2_(B3_.GetData(), 2),
-        JB_(2)
+        avisc_(other.avisc_)
    {
       derivType_ = other.derivType_;
    }
@@ -2782,16 +2780,11 @@ public:
       double lnLambda = lnLambda_.Eval(T, ip);
       double Ti_J = std::max(TiCoef_.Eval_Func(T, ip), 1.0) * J_per_eV_;
 
-      // MFEM_VERIFY(Ti_J >= 0.0, "IonMomentumParaDiffusionCoef::Eval_Func: "
-      //          "Negative temperature found");
-
       double EtaPara = a_ * sqrt(pow(Ti_J, 5)) / lnLambda;
 
       if (OscCoef_)
       {
-         // std::cout << "Element Type: " << T.ElementType
-         //           << ", ElementNo: " << T.ElementNo << std::endl;
-         int elemOrder = 2;//fes_->GetElementOrder(T.ElementNo);
+         double elemOrder = elOrdCoef_->Eval(T, ip);
          double s0 = -4.0 * log10(elemOrder);
 
          double Se = OscCoef_->Eval(T, ip);
@@ -2802,19 +2795,9 @@ public:
          {
             double ni = niCoef_.Eval(T, ip);
             double Cs = CsCoef_.Eval(T, ip);
+            double h  = hCoef_->Eval(T, ip);
 
-            B3Coef_.Eval(B3_, T, ip);
-            double B2mag2 = B2_ * B2_;
-
-            JB_.SetSize(2);
-            T.Jacobian().MultTranspose(B2_, JB_);
-            double h = sqrt((JB_ * JB_) / B2mag2);
-
-            // double h = pow(T.Weight(), 1.0 / T.GetDimension() );
-
-            // std::cout << "Estimates of h: " << h << " (by area) vs " << hJ << " (by J*B)" << std::endl;
-
-            double eps0 = avisc_ * m_i_kg_ * ni * Cs * h / elemOrder;
+            double eps0 = avisc_ * m_i_kg_ * ni * Cs * h;
 
             if (se > s0 + width_)
             {
@@ -2836,9 +2819,6 @@ public:
    {
       double lnLambda = lnLambda_.Eval(T, ip);
       double Ti_J = std::max(TiCoef_.Eval_Func(T, ip), 1.0) * J_per_eV_;
-
-      // MFEM_VERIFY(Ti_J >= 0.0, "IonMomentumParaDiffusionCoef::Eval_dTi: "
-      //          "Negative temperature found");
 
       double dEtaPara = 2.5 * a_ * sqrt(pow(Ti_J, 3)) * J_per_eV_ / lnLambda;
       return dEtaPara;
@@ -5269,6 +5249,8 @@ private:
       virtual void Mult(const Vector &k, Vector &y) const;
 
       virtual void Update();
+
+      virtual void PrepareGradient() { ; }
       virtual Operator *GetGradientBlock(int i);
 
       virtual Solver *GetPreconditioner() { return dg_precond_; }
@@ -5700,10 +5682,18 @@ private:
 
       common::L2_ParFESpace * l2_fes_0_;
       common::H1_ParFESpace * h1_fes_1_;
+      ParGridFunction       * elOrdDiscGF_;
+      ParGridFunction       * elOrdContGF_;
       ParGridFunction       * OscDiscGF_;
       ParGridFunction       * OscContGF_;
+      ParGridFunction       * hDiscGF_;
+      ParGridFunction       * hContGF_;
+      GridFunctionCoefficient elOrdDiscCoef_;
+      GridFunctionCoefficient elOrdContCoef_;
       GridFunctionCoefficient OscDiscCoef_;
       GridFunctionCoefficient OscContCoef_;
+      GridFunctionCoefficient hDiscCoef_;
+      GridFunctionCoefficient hContCoef_;
       SoundSpeedCoef          CsCoef_;
 
       double DPerpConst_;
@@ -5754,7 +5744,8 @@ private:
       virtual void SetTime(double t);
       virtual void SetTimeStep(double dt);
 
-      void Update();
+      virtual void Update();
+      virtual void PrepareGradient();
 
       virtual int GetDefaultVisFlag() { return 127; }
 

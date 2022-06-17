@@ -67,19 +67,28 @@ std::string FieldSymbol(FieldType t)
    }
 }
 
-void DiscontinuitySensor(GridFunction &u, Vector &disc)
+void ElementOrder(ParFiniteElementSpace &fes, Vector &elemOrder)
+{
+   MFEM_ASSERT(elemOrder.Size() == fes.GetNE(),
+               "Incorrect size for result vector");
+
+   for (int i = 0; i < fes.GetNE(); i++)
+   {
+      elemOrder[i] = fes.GetElementOrder(i);
+   }
+}
+
+void DiscontinuitySensor(GridFunction &u, Vector &disc, double alpha)
 {
    FiniteElementSpace *fes = u.FESpace();
 
    MFEM_ASSERT(disc.Size() == fes->GetNE(),
                "Incorrect size for result vector");
 
-   disc = 0.0;
    const FiniteElement *fe, *fe_lo;
    const FiniteElementCollection *fec = fes->FEColl();
    ElementTransformation *T;
    Array<int> dofs;
-   // Vector vals;
 
    for (int i = 0; i < fes->GetNE(); i++)
    {
@@ -93,7 +102,6 @@ void DiscontinuitySensor(GridFunction &u, Vector &disc)
       int intorder = 2*fe->GetOrder() + 3; // <----------
       ir = &(IntRules.Get(fe->GetGeomType(), intorder));
 
-      // u.GetValues(i, *ir, vals);
       T = fes->GetElementTransformation(i);
 
       Vector DofVal(dof), loc_data(dof);
@@ -111,6 +119,7 @@ void DiscontinuitySensor(GridFunction &u, Vector &disc)
       I.Mult(loc_data, loc_data_lo);
 
       double norm2 = 0.0;
+      double disc_val = 0.0;
 
       for (int j = 0; j < ir->GetNPoints(); j++)
       {
@@ -135,19 +144,44 @@ void DiscontinuitySensor(GridFunction &u, Vector &disc)
             val_lo = DofVal_lo * loc_data_lo;
          }
 
-         disc[i] += ip.weight * T->Weight() * pow(fabs(val - val_lo), 2);
+         disc_val += ip.weight * T->Weight() * pow(fabs(val - val_lo), 2);
          norm2 += ip.weight * T->Weight() * val * val;
       }
 
       norm2 = fabs(norm2);
       if (norm2 > 0.)
       {
-         disc[i] /= norm2;
+         disc_val /= norm2;
       }
       else
       {
-         disc[i] = 0.;
+         disc_val = 0.;
       }
+      disc[i] = (1.0 - alpha) * disc[i] + alpha * disc_val;
+   }
+}
+
+void ParallelMeshSpacing(ParFiniteElementSpace &fes, VectorCoefficient &B3Coef,
+                         Vector &hEffective)
+{
+   Vector B3(3);
+   Vector B2(B3.GetData(), 2);
+   Vector JB(2);
+
+   for (int i=0; i<fes.GetNE(); i++)
+   {
+      ElementTransformation &T = *fes.GetElementTransformation(i);
+      const IntegrationPoint &ip = Geometries.GetCenter(T.GetGeometryType());
+
+      int elemOrder = fes.GetElementOrder(i);
+
+      B3Coef.Eval(B3, T, ip);
+      double B2mag2 = B2 * B2;
+
+      T.Jacobian().MultTranspose(B2, JB);
+      double h = sqrt((JB * JB) / B2mag2);
+
+      hEffective[i] = h / elemOrder;
    }
 }
 
@@ -5399,6 +5433,8 @@ void DGTransportTDO::CombinedOp::UpdateGradient(const Vector &k) const
 
    for (int i=0; i<neq_; i++)
    {
+      op_[i]->PrepareGradient();
+
       for (int j=0; j<neq_; j++)
       {
          Operator * gradIJ = op_[i]->GetGradientBlock(j);
@@ -6039,16 +6075,25 @@ DGTransportTDO::IonMomentumOp::IonMomentumOp(const MPI_Session & mpi,
      imcoefs_(imcoefs),
      l2_fes_0_(new L2_ParFESpace(&pmesh_, 0, pmesh_.SpaceDimension())),
      h1_fes_1_(new H1_ParFESpace(&pmesh_, 1, pmesh_.SpaceDimension())),
+     elOrdDiscGF_(new ParGridFunction(l2_fes_0_)),
+     elOrdContGF_(new ParGridFunction(h1_fes_1_)),
      OscDiscGF_(new ParGridFunction(l2_fes_0_)),
      OscContGF_(new ParGridFunction(h1_fes_1_)),
+     hDiscGF_(new ParGridFunction(l2_fes_0_)),
+     hContGF_(new ParGridFunction(h1_fes_1_)),
+     elOrdDiscCoef_(elOrdDiscGF_),
+     elOrdContCoef_(elOrdContGF_),
      OscDiscCoef_(OscDiscGF_),
      OscContCoef_(OscContGF_),
+     hDiscCoef_(hDiscGF_),
+     hContCoef_(hContGF_),
      CsCoef_(m_i_kg_, TiCoef_, TeCoef_),
      DPerpConst_(DPerp),
      DPerpCoef_(DPerp),
      momCoef_(m_i_kg_, niCoef_, viCoef_),
      EtaParaCoef_(z_i_, m_i_kg_, lnLambda_, TiCoef_,
-                  niCoef_, CsCoef_, B3Coef, vfes_, &OscContCoef_,
+                  niCoef_, CsCoef_, vfes_,
+                  &elOrdContCoef_, &OscContCoef_, &hContCoef_,
                   dg.width, dg.avisc),
      EtaPerpCoef_(DPerpConst_, m_i_kg_, niCoef_),
      EtaParaCoefPtr_((imcoefs_(IMCoefs::PARA_DIFFUSION_COEF) != NULL)
@@ -6092,9 +6137,21 @@ DGTransportTDO::IonMomentumOp::IonMomentumOp(const MPI_Session & mpi,
       vis_flag_ = (logging_ > 1) ? 1023 : this->GetDefaultVisFlag();
    }
 
-   DiscontinuitySensor(*yGF_[2], *OscDiscGF_);
+   ElementOrder(*vfes_, *elOrdDiscGF_);
+   elOrdDiscGF_->ExchangeFaceNbrData();
+   elOrdContGF_->ProjectDiscCoefficient(elOrdDiscCoef_, GridFunction::MINIMUM);
+   elOrdContGF_->ExchangeFaceNbrData();
+
+   (*OscDiscGF_) = 0.0;
+   DiscontinuitySensor(*yGF_[2], *OscDiscGF_, 1.0);
    OscDiscGF_->ExchangeFaceNbrData();
    OscContGF_->ProjectDiscCoefficient(OscDiscCoef_, GridFunction::MAXIMUM);
+   OscContGF_->ExchangeFaceNbrData();
+
+   ParallelMeshSpacing(*vfes_, B3Coef_, *hDiscGF_);
+   hDiscGF_->ExchangeFaceNbrData();
+   hContGF_->ProjectDiscCoefficient(hDiscCoef_, GridFunction::MAXIMUM);
+   hContGF_->ExchangeFaceNbrData();
 
    // Time derivative term: d(m_i n_i v_i)/dt
    SetTimeDerivativeTerm(momCoef_);
@@ -6217,9 +6274,14 @@ DGTransportTDO::IonMomentumOp::~IonMomentumOp()
    delete SRCGF_;
    delete SCXGF_;
    delete SGF_;
+   delete elOrdDiscGF_;
+   delete elOrdContGF_;
    delete OscDiscGF_;
    delete OscContGF_;
+   delete hDiscGF_;
+   delete hContGF_;
    delete l2_fes_0_;
+   delete h1_fes_1_;
 }
 
 void DGTransportTDO::IonMomentumOp::SetTime(double t)
@@ -6311,6 +6373,16 @@ IonMomentumOp::RegisterDataFields(DataCollection & dc)
    }
    {
       ostringstream oss;
+      oss << eqn_name_ << " ElOrd L2";
+      dc.RegisterField(oss.str(), elOrdDiscGF_);
+   }
+   {
+      ostringstream oss;
+      oss << eqn_name_ << " ElOrd H1";
+      dc.RegisterField(oss.str(), elOrdContGF_);
+   }
+   {
+      ostringstream oss;
       oss << eqn_name_ << " Osc L2";
       dc.RegisterField(oss.str(), OscDiscGF_);
    }
@@ -6318,6 +6390,16 @@ IonMomentumOp::RegisterDataFields(DataCollection & dc)
       ostringstream oss;
       oss << eqn_name_ << " Osc H1";
       dc.RegisterField(oss.str(), OscContGF_);
+   }
+   {
+      ostringstream oss;
+      oss << eqn_name_ << " Parallel h L2";
+      dc.RegisterField(oss.str(), hDiscGF_);
+   }
+   {
+      ostringstream oss;
+      oss << eqn_name_ << " Parallel h H1";
+      dc.RegisterField(oss.str(), hContGF_);
    }
 }
 
@@ -6375,11 +6457,17 @@ IonMomentumOp::PrepareDataFields()
    {
       MomParaGF_->ProjectCoefficient(miniViCoef_);
    }
+   /*
    {
       DiscontinuitySensor(*yGF_[2], *OscDiscGF_);
       OscDiscGF_->ExchangeFaceNbrData();
       OscContGF_->ProjectDiscCoefficient(OscDiscCoef_, GridFunction::MAXIMUM);
+
+      ParallelMeshSpacing(*vfes_, B3Coef_, *hDiscGF_);
+      hDiscGF_->ExchangeFaceNbrData();
+      hContGF_->ProjectDiscCoefficient(hDiscCoef_, GridFunction::MAXIMUM);
    }
+   */
 }
 
 void DGTransportTDO::IonMomentumOp::Update()
@@ -6391,11 +6479,15 @@ void DGTransportTDO::IonMomentumOp::Update()
 
    if (l2_fes_0_  != NULL) { l2_fes_0_->Update(); }
    if (h1_fes_1_  != NULL) { h1_fes_1_->Update(); }
-   if (OscDiscGF_     != NULL) { OscDiscGF_->Update(); }
-   if (OscContGF_     != NULL) { OscContGF_->Update(); }
-   DiscontinuitySensor(*yGF_[2], *OscDiscGF_);
-   OscDiscGF_->ExchangeFaceNbrData();
-   OscContGF_->ProjectDiscCoefficient(OscDiscCoef_, GridFunction::MAXIMUM);
+
+   if (elOrdDiscGF_ != NULL) { elOrdDiscGF_->Update(); }
+   if (elOrdContGF_ != NULL) { elOrdContGF_->Update(); }
+
+   if (OscDiscGF_   != NULL) { OscDiscGF_->Update(); }
+   if (OscContGF_   != NULL) { OscContGF_->Update(); }
+
+   if (hDiscGF_     != NULL) { hDiscGF_->Update(); }
+   if (hContGF_     != NULL) { hContGF_->Update(); }
 
    NLOperator::Update();
 
@@ -6412,6 +6504,34 @@ void DGTransportTDO::IonMomentumOp::Update()
    if (mpi_.Root() && logging_ > 1)
    {
       cout << "Leaving DGTransportTDO::IonMomentumOp::Update" << endl;
+   }
+}
+
+void DGTransportTDO::IonMomentumOp::PrepareGradient()
+{
+   if (mpi_.Root() && logging_ > 1)
+   {
+      cout << "Entering DGTransportTDO::IonMomentumOp::PrepareGradient" << endl;
+   }
+
+   ElementOrder(*vfes_, *elOrdDiscGF_);
+   elOrdDiscGF_->ExchangeFaceNbrData();
+   elOrdContGF_->ProjectDiscCoefficient(elOrdDiscCoef_, GridFunction::MINIMUM);
+   elOrdContGF_->ExchangeFaceNbrData();
+
+   DiscontinuitySensor(*yGF_[2], *OscDiscGF_, 0.1);
+   OscDiscGF_->ExchangeFaceNbrData();
+   OscContGF_->ProjectDiscCoefficient(OscDiscCoef_, GridFunction::MAXIMUM);
+   OscContGF_->ExchangeFaceNbrData();
+
+   ParallelMeshSpacing(*vfes_, B3Coef_, *hDiscGF_);
+   hDiscGF_->ExchangeFaceNbrData();
+   hContGF_->ProjectDiscCoefficient(hDiscCoef_, GridFunction::MAXIMUM);
+   hContGF_->ExchangeFaceNbrData();
+
+   if (mpi_.Root() && logging_ > 1)
+   {
+      cout << "Leaving DGTransportTDO::IonMomentumOp::PrepareGradient" << endl;
    }
 }
 

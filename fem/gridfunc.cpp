@@ -2025,7 +2025,14 @@ void GridFunction::AccumulateAndCountZones(Coefficient &coeff,
    // Local interpolation
    Array<int> vdofs;
    Vector vals;
-   *this = 0.0;
+   if (type != MINIMUM)
+   {
+      *this = 0.0;
+   }
+   else
+   {
+      *this = DBL_MAX;
+   }
 
    HostReadWrite();
 
