@@ -55,7 +55,7 @@ void Apply3D(const int ne,
              const Vector &X_, Vector &Y_,
              const material_type &material)
 {
-   constexpr int dim = 3;
+   static constexpr int dim = 3;
    KernelHelpers::CheckMemoryRestriction(d1d, q1d);
 
    const tensor<double, q1d, d1d> &B =
@@ -147,7 +147,7 @@ void ApplyGradient3D(const int ne,
                      const bool use_cache_, const bool recompute_cache_,
                      Vector &dsigma_cache_)
 {
-   constexpr int dim = 3;
+   static constexpr int dim = 3;
    KernelHelpers::CheckMemoryRestriction(d1d, q1d);
 
    const tensor<double, q1d, d1d> &B =
@@ -276,7 +276,7 @@ void AssembleGradientDiagonal3D(const int ne,
                                 Vector &Ke_diag_memory,
                                 const material_type &material)
 {
-   constexpr int dim = 3;
+   static constexpr int dim = 3;
    KernelHelpers::CheckMemoryRestriction(d1d, q1d);
 
    const tensor<double, q1d, d1d> &B =
