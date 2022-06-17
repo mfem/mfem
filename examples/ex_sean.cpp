@@ -176,8 +176,8 @@ int main(int argc, char *argv[])
    // 1. Parse command-line options.
    problem = 0;
    const char *mesh_file = "../data/periodic-square.mesh";
-   int ref_levels = 2;
-   int order = 3;
+   int ref_levels = 0;
+   int order = 1;
    bool pa = false;
    bool ea = false;
    bool fa = false;
@@ -613,12 +613,6 @@ int main(int argc, char *argv[])
    Vector x_local;
    x_local.SetSize(x_elem_restrict_lex->Height());
    x_elem_restrict_lex->Mult(x,x_local);
-   for (int i = 0; i < x_local.Size(); i++)
-   {
-     // Not sure what's going on here
-     cout << x_local(i) << endl;
-   }
-   cout << endl;
    
    // Grabbing information from the finite element space
    auto *Tr = x.FESpace()->GetMesh()->GetElementTransformation(0);
@@ -639,24 +633,35 @@ int main(int argc, char *argv[])
      zone_dofs[i] = zone->GetNodes()[i];
    }
    
-   
    // Grabbing information from the quadrature
    //GeometricFactors geom(x, ir, GeometricFactors::DETERMINANTS);
-   auto x_interpolator = u_LO.FESpace()->GetQuadratureInterpolator(zone_dofs);
-   Vector u_LO_dofs(num_ldofs * NE); // unclear
+   //const int nqp = zone_dofs.GetNPoints();
+   auto x_interpolator = u_HO_interp.FESpace()->GetQuadratureInterpolator(zone_dofs);
+   Vector u_LO_dofs(dim * num_ldofs * NE); // unclear
+
+   // temporary vector for interpolating purposes
+   Vector temp(u_LO_dofs.Size());
 
    
    // Evaluates the right hand side gridfunction at x
    x_interpolator->Values(x, u_LO_dofs);
-   for (int i = 0; i < u_LO_dofs.Size(); i++)
-     cout << u_LO_dofs(i) << endl;
-
-   finder.Interpolate(mesh, u_LO_dofs, u_LO, u_HO_interp);
+   cout << "Before the switch " << endl;
+   for (int i = 0; i < u_LO_dofs.Size() / 2; i++)
+   {
+     cout << "Dof " << i << "  " << u_LO_dofs(2*i) << "  " << u_LO_dofs(2*i+1) << endl;
+     temp(i) = u_LO_dofs(2*i);
+     temp(u_LO_dofs.Size() / 2 + i) = u_LO_dofs(2*i+1);
+   }
+   /*
+   cout << endl;
+   cout << "After reordering" << endl;
+   for (int i = 0; i < u_LO_dofs.Size() / 2; i++)
+   {
+      cout << temp(i) << "  " << temp(u_LO_dofs.Size() / 2 + i) << endl;
+   }
+   */
+   finder.Interpolate(mesh, temp, u_LO, u_HO_interp);
    
-   //cout << u_LO_dofs(0) << endl;
-
-   //finder.Interpolate(mesh, u_LO_dofs, u_LO, u_HO_interp);
-
    //------------------------------------------------------------------------
 
    // 9. Save the final solution. This output can be viewed later using GLVis:
