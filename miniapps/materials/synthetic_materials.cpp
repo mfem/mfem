@@ -236,6 +236,10 @@ int main(int argc, char *argv[])
                                                             l3, dim);
    b *= normalization;
 
+   materials::PDESolver solver(diffusion_coefficient,
+                               ess_tdof_list,
+                               &fespace);
+
    // ------------------------------------------------------------------------
    // III.4 Solve the PDE (-Δ)^N g = f, i.e. compute g = (-Δ)^{-1}^N f.
    // ------------------------------------------------------------------------
@@ -248,16 +252,14 @@ int main(int argc, char *argv[])
             mfem::out << "\nSolving PDE (A)^" << int_order_of_operator
                       << " u = f" << endl;
          }
-      materials::PDESolver solver(1.0, 
-                                 diffusion_coefficient,
-                                 ess_tdof_list,
-                                 &fespace,
-                                 int_order_of_operator);
-      solver.Solve(b, g);
+      solver.ActivateRepeatedSolve();
+      solver.Solve(b, g, 1.0, 1.0, int_order_of_operator);
       if (integer_order)
       {
          u += g;
       }
+      solver.UpdateRHS(b);
+      solver.DeactivateRepeatedSolve();
    }
 
    // ------------------------------------------------------------------------
@@ -276,12 +278,7 @@ int main(int argc, char *argv[])
                       << " u = " << coeffs[i] << " g " << endl;
          }
          x = 0.0;
-         materials::PDESolver solver(1-poles[i], 
-                                     diffusion_coefficient,
-                                     ess_tdof_list,
-                                     &fespace, 1);
-         solver.Solve(b, x);
-         x *= coeffs[i];
+         solver.Solve(b, x, 1.0-poles[i], coeffs[i]);
          u += x;
       }
    }
