@@ -161,6 +161,15 @@ if (MFEM_ENABLE_TESTING)
       $<TARGET_FILE:ex11p> "-no-vis" "--superlu"
       ${MPIEXEC_POSTFLAGS})
   endif()
+
+  # If MUMPS is enabled, add a test run that uses it.
+  if (MFEM_USE_MUMPS)
+    add_test(NAME ex25p_mumps_np=${MFEM_MPI_NP}
+      COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${MFEM_MPI_NP}
+      ${MPIEXEC_PREFLAGS}
+      $<TARGET_FILE:ex25p> "-no-vis" "--mumps-solver"
+      ${MPIEXEC_POSTFLAGS})
+  endif()
 endif()
 
 # Include the examples/amgx directory if AmgX is enabled

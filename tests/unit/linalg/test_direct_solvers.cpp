@@ -217,16 +217,36 @@ TEST_CASE("direct-parallel", "[Parallel], [CUDA]")
       Vector B, X;
       a.FormLinearSystem(ess_tdof_list, x, b, A, X, B);
 
+      Vector B0(X.Size()), B1(X.Size()), X0(X.Size()), X1(X.Size());
+      B0 = B;
+      B1 = B;
+      B1 *= 2.0;
+      Array<Vector *> BB(2), XX(2);
+      BB[0] = &B0;
+      BB[1] = &B1;
+      XX[0] = &X0;
+      XX[1] = &X1;
+
 #ifdef MFEM_USE_MUMPS
       {
-         MUMPSSolver mumps;
+         MUMPSSolver mumps(MPI_COMM_WORLD);
          mumps.SetPrintLevel(0);
          mumps.SetOperator(*A.As<HypreParMatrix>());
          mumps.Mult(B,X);
+
          Vector Y(X.Size());
          A->Mult(X,Y);
          Y-=B;
          REQUIRE(Y.Norml2() < 1.e-12);
+
+         mumps.Mult(BB,XX);
+
+         for (int i = 0; i < XX.Size(); i++)
+         {
+            A->Mult(*XX[i],Y);
+            Y-=*BB[i];
+            REQUIRE(Y.Norml2() < 1.e-12);
+         }
 
          a.RecoverFEMSolution(X, b, x);
          VectorFunctionCoefficient grad(dim,gradexact);
