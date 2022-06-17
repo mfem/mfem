@@ -25,12 +25,12 @@ mfem::KDTree3D* mfem::BuildKDTree3D(mfem::Mesh* mesh)
         for(int i=0;i<mesh->GetNV();i++)
         {
             double* v=mesh->GetVertex(i);
-            kdt->AddNode(v[0],v[1],v[2],i);
+            kdt->AddPoint(v[0],v[1],v[2],i);
         }
     }else{//use the nodes
         for(int i=0;i<nodes->Size();i=i+dim)
         {
-            kdt->AddNode((*nodes)(i),(*nodes)(i+1),(*nodes)(i+2),i/dim);
+            kdt->AddPoint((*nodes)(i),(*nodes)(i+1),(*nodes)(i+2),i/dim);
         }
     }
     kdt->Sort();
@@ -50,12 +50,12 @@ mfem::KDTree2D* mfem::BuildKDTree2D(mfem::Mesh* mesh)
         for(int i=0;i<mesh->GetNV();i++)
         {
             double* v=mesh->GetVertex(i);
-            kdt->AddNode(v[0],v[1],i);
+            kdt->AddPoint(v[0],v[1],i);
         }
     }else{//use the nodes
         for(int i=0;i<nodes->Size();i=i+dim)
         {
-            kdt->AddNode((*nodes)(i),(*nodes)(i+1),i/dim);
+            kdt->AddPoint((*nodes)(i),(*nodes)(i+1),i/dim);
         }
     }
     kdt->Sort();
@@ -75,12 +75,12 @@ mfem::KDTree1D* mfem::BuildKDTree1D(mfem::Mesh* mesh)
         for(int i=0;i<mesh->GetNV();i++)
         {
             double* v=mesh->GetVertex(i);
-            kdt->AddNode(v[0],i);
+            kdt->AddPoint(v[0],i);
         }
     }else{//use the nodes
         for(int i=0;i<nodes->Size();i=i+dim)
         {
-            kdt->AddNode((*nodes)(i),i/dim);
+            kdt->AddPoint((*nodes)(i),i/dim);
         }
     }
     kdt->Sort();
