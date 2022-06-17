@@ -478,11 +478,11 @@ int main(int argc, char *argv[])
    if (!pa && mumps_solver)
    {
       HypreParMatrix *A = Ah.As<ComplexHypreParMatrix>()->GetSystemMatrix();
-      MUMPSSolver mumps;
+      MUMPSSolver mumps(A->GetComm());
       mumps.SetPrintLevel(0);
       mumps.SetMatrixSymType(MUMPSSolver::MatType::UNSYMMETRIC);
       mumps.SetOperator(*A);
-      mumps.Mult(B,X);
+      mumps.Mult(B, X);
       delete A;
    }
 #endif
