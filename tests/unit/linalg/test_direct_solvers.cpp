@@ -217,6 +217,16 @@ TEST_CASE("direct-parallel", "[Parallel], [CUDA]")
       Vector B, X;
       a.FormLinearSystem(ess_tdof_list, x, b, A, X, B);
 
+      Vector B0(X.Size()), B1(X.Size()), X0(X.Size()), X1(X.Size());
+      B0 = B;
+      B1 = B;
+      B1 *= 2.0;
+      Array<Vector *> BB(2), XX(2);
+      BB[0] = &B0;
+      BB[1] = &B1;
+      XX[0] = &X0;
+      XX[1] = &X1;
+
 #ifdef MFEM_USE_MUMPS
       {
          MUMPSSolver mumps;
@@ -243,11 +253,29 @@ TEST_CASE("direct-parallel", "[Parallel], [CUDA]")
          superlu.SetSymmetricPattern(false);
          superlu.SetColumnPermutation(superlu::METIS_AT_PLUS_A);
          superlu.SetOperator(SA);
-         superlu.Mult(B, X);
+         superlu.Mult(B,X);
+
          Vector Y(X.Size());
          A->Mult(X,Y);
          Y-=B;
          REQUIRE(Y.Norml2() < 1.e-12);
+
+         // SuperLUSolver requires constant number of RHS across solves
+         SuperLURowLocMatrix SA2(*A.As<HypreParMatrix>());
+         SuperLUSolver superlu2(MPI_COMM_WORLD);
+         superlu2.SetPrintStatistics(false);
+         superlu2.SetSymmetricPattern(false);
+         superlu2.SetColumnPermutation(superlu::METIS_AT_PLUS_A);
+         superlu2.SetOperator(SA2);
+         superlu2.Mult(BB,XX);
+
+         for (int i = 0; i < XX.Size(); i++)
+         {
+            A->Mult(*XX[i],Y);
+            Y-=*BB[i];
+            REQUIRE(Y.Norml2() < 1.e-12);
+         }
+
          a.RecoverFEMSolution(X, b, x);
          VectorFunctionCoefficient grad(dim,gradexact);
          double error = x.ComputeH1Error(&uex,&grad);
