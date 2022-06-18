@@ -262,12 +262,16 @@ int main(int argc, char *argv[])
 #ifdef MFEM_USE_STRUMPACK
       if (sp_solver)
       {
-         STRUMPACKSolver * strumpack = new STRUMPACKSolver(argc, argv, MPI_COMM_WORLD);
+         STRUMPACKSolver * strumpack = new STRUMPACKSolver(MPI_COMM_WORLD, argc, argv);
          strumpack->SetPrintFactorStatistics(true);
          strumpack->SetPrintSolveStatistics(false);
          strumpack->SetKrylovSolver(strumpack::KrylovSolver::DIRECT);
          strumpack->SetReorderingStrategy(strumpack::ReorderingStrategy::METIS);
-         strumpack->DisableMatching();
+#if STRUMPACK_VERSION_MAJOR >= 3
+         strumpack->SetMatching(strumpack::MatchingJob::NONE);
+#else
+         strumpack->SetMatching(strumpack::MC64Job::NONE);
+#endif
          strumpack->SetOperator(*Arow);
          strumpack->SetFromCommandLine();
          precond = strumpack;
