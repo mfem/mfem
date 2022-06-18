@@ -170,6 +170,7 @@ int main(int argc, char *argv[])
    bool herm_conv = true;
    bool slu_solver  = false;
    bool mumps_solver = false;
+   bool strumpack_solver = false;
    bool visualization = 1;
    bool pa = false;
    const char *device_config = "cpu";
@@ -201,6 +202,11 @@ int main(int argc, char *argv[])
    args.AddOption(&mumps_solver, "-mumps", "--mumps-solver", "-no-mumps",
                   "--no-mumps-solver", "Use the MUMPS Solver.");
 #endif
+#ifdef MFEM_USE_STRUMPACK
+   args.AddOption(&strumpack_solver, "-strumpack", "--strumpack-solver",
+                  "-no-strumpack", "--no-strumpack-solver",
+                  "Use the STRUMPACK Solver.");
+#endif
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -209,13 +215,14 @@ int main(int argc, char *argv[])
    args.AddOption(&device_config, "-d", "--device",
                   "Device configuration string, see Device::Configure().");
    args.Parse();
-   if (slu_solver && mumps_solver)
+   if (slu_solver + mumps_solver + strumpack_solver > 1)
    {
       if (myid == 0)
-         cout << "WARNING: Both SuperLU and MUMPS have been selected,"
-              << " please choose either one." << endl
+         cout << "WARNING: More than one of SuperLU, MUMPS, and STRUMPACK have"
+              << " been selected, please choose only one." << endl
               << "         Defaulting to SuperLU." << endl;
       mumps_solver = false;
+      strumpack_solver = false;
    }
 
    if (iprob > 4) { iprob = 4; }
@@ -474,6 +481,30 @@ int main(int argc, char *argv[])
       delete A;
    }
 #endif
+#ifdef MFEM_USE_STRUMPACK
+   if (!pa && strumpack_solver)
+   {
+      HypreParMatrix *A = Ah.As<ComplexHypreParMatrix>()->GetSystemMatrix();
+      STRUMPACKRowLocMatrix SA(*A);
+      STRUMPACKSolver strumpack(MPI_COMM_WORLD, argc, argv);
+      strumpack.SetPrintFactorStatistics(false);
+      strumpack.SetPrintSolveStatistics(false);
+      strumpack.SetKrylovSolver(strumpack::KrylovSolver::DIRECT);
+      strumpack.SetReorderingStrategy(strumpack::ReorderingStrategy::METIS);
+#if STRUMPACK_VERSION_MAJOR >= 3
+      strumpack.SetMatching(strumpack::MatchingJob::NONE);
+#else
+      strumpack.SetMatching(strumpack::MC64Job::NONE);
+#endif
+#if STRUMPACK_VERSION_MAJOR >= 3
+      strumpack.SetCompression(strumpack::CompressionType::NONE);
+#endif
+      strumpack.SetFromCommandLine();
+      strumpack.SetOperator(SA);
+      strumpack.Mult(B, X);
+      delete A;
+   }
+#endif
 #ifdef MFEM_USE_MUMPS
    if (!pa && mumps_solver)
    {
@@ -493,7 +524,7 @@ int main(int argc, char *argv[])
    //
    //    In PML:   1/mu (abs(1/det(J) J^T J) Curl E, Curl F)
    //              + omega^2 * epsilon (abs(det(J) * (J^T J)^-1) * E, F)
-   if (pa || (!slu_solver && !mumps_solver))
+   if (pa || (!slu_solver && !mumps_solver && !strumpack_solver))
    {
       ConstantCoefficient absomeg(pow(omega, 2) * epsilon);
       RestrictedCoefficient restr_absomeg(absomeg,attr);
