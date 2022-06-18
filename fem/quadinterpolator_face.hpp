@@ -112,6 +112,18 @@ public:
                       Vector &q_det,
                       Vector &q_nor,
                       const int eval_flags);
+
+   template<const int T_VDIM = 0, const int T_ND = 0, const int T_NQ = 0>
+   static void SmemEval3D(const int NF,
+                          const int vdim,
+                          const DofToQuad &maps,
+                          const Array<bool> &signs,
+                          const Vector &e_vec,
+                          Vector &q_val,
+                          Vector &q_der,
+                          Vector &q_det,
+                          Vector &q_nor,
+                          const int eval_flags);
 };
 
 } // mfem namespace
