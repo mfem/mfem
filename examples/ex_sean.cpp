@@ -55,7 +55,7 @@ using namespace mfem;
 int problem;
 
 // Calculate the "new" high order solution based on LOR
-void CalculateHOInterp(GridFunction &u_HO_interp,
+void CalculateLORInterp(GridFunction &u_HO_interp,
 		       const Mesh &mesh,
 		       const Mesh &mesh_LOR,
 		       const GridFunction &x,
@@ -68,7 +68,6 @@ void CalculateHOInterp(GridFunction &u_HO_interp,
 void CalculateLOSolution(const GridFunction &u_HO,
 			 const GridFunction &x,
 			 const double &dt,
-			 GridFunction &du_LO,
 			 GridFunction &u_LO,
 			 Vector &el_mass,
 			 Vector &el_vol);
@@ -187,7 +186,7 @@ int main(int argc, char *argv[])
    problem = 0;
    const char *mesh_file = "../data/periodic-square.mesh";
    int ref_levels = 2;
-   int order = 1;
+   int order = 2;
    bool pa = false;
    bool ea = false;
    bool fa = false;
@@ -529,9 +528,6 @@ int main(int argc, char *argv[])
    Vector el_mass(NE);  Vector el_vol(NE);
    Vector el_min(NE);  Vector el_max(NE);
 
-   // derivative vectors
-   GridFunction du_LO(&fes);
-
    // Here we do the interpolation to recover a smoother solution using
    // the LOR solution.
    FindPointsGSLIB finder;
@@ -555,7 +551,7 @@ int main(int argc, char *argv[])
       if (averaging == 1 || averaging == 3)
       {
         // Calculate the LO solution using u_HO
-        CalculateLOSolution(u_HO, x, dt_real, u_LO, du_LO, el_mass, el_vol);
+        CalculateLOSolution(u_HO, x, dt_real, u_LO, el_mass, el_vol);
 
 	/*
 	// Find the mins and maxes of the elements
@@ -615,7 +611,7 @@ int main(int argc, char *argv[])
    // Here we do the interpolation to recover a smoother solution using
    // the LOR solution.
    
-   CalculateHOInterp(u_HO_interp,
+   CalculateLORInterp(u_HO_interp,
 		     mesh,
 		     mesh_LOR,
 		     x,
@@ -682,7 +678,7 @@ int main(int argc, char *argv[])
 }
 
 
-void CalculateHOInterp(GridFunction &u_HO_interp,
+void CalculateLORInterp(GridFunction &u_HO_interp,
 		       const Mesh &mesh,
 		       const Mesh &mesh_LOR,
 		       const GridFunction &x,
@@ -709,19 +705,27 @@ void CalculateHOInterp(GridFunction &u_HO_interp,
    {
      zone_dofs[i] = zone->GetNodes()[i];
    }
+
+   // Element restriction
+   const Operator *x_elem_restrict_lex = x.FESpace()->GetElementRestriction(ElementDofOrdering::LEXICOGRAPHIC);
+
+   Vector x_local;
+   x_local.SetSize(x_elem_restrict_lex->Height());
+   x_elem_restrict_lex->Mult(x,x_local);
    
    // Grabbing information from the quadrature
    auto x_interpolator = x.FESpace()->GetQuadratureInterpolator(zone_dofs);
    x_interpolator->SetOutputLayout(QVectorLayout::byNODES);
-   Vector u_LO_dofs(dim * num_ldofs * NE);
+   Vector u_HO_dofs(dim * num_ldofs * NE);
 
    // Evaluates the right hand side gridfunction at x
-   x_interpolator->Values(x, u_LO_dofs);
+   x_interpolator->Values(x_local, u_HO_dofs);
 
-   // temporary vector for interpolating purposes
-   Vector u_LO_dofs_xyz(u_LO_dofs);
-   auto u_LO_view = mfem::Reshape(u_LO_dofs.Read(), num_ldofs, dim, NE);
-   auto u_LO_xyz_view = mfem::Reshape(u_LO_dofs_xyz.Write(),num_ldofs*NE, dim);
+   // temporary vector for the interpolating
+   Vector HO_dofs(u_HO_dofs);
+   
+   auto u_LO_view = mfem::Reshape(u_HO_dofs.Read(), num_ldofs, dim, NE);
+   auto u_LO_xyz_view = mfem::Reshape(HO_dofs.Write(),num_ldofs*NE, dim);
 
    cout << endl;
    cout << "Dof List" << endl;
@@ -732,47 +736,10 @@ void CalculateHOInterp(GridFunction &u_HO_interp,
        int ti = i + num_ldofs * e;
        u_LO_xyz_view(ti, 0) = u_LO_view(i, 0, e);
        u_LO_xyz_view(ti, 1) = u_LO_view(i, 1, e);
-       cout << "Dof " << i << "  " << u_LO_xyz_view(i, 0) << "  " << u_LO_xyz_view(i, 1) << endl;
      }
    }
-
-   cout << endl;
-   cout << "Dofs in u_LO_dofs_xyz" << endl;
-   for (int i = 0; i < u_LO_dofs_xyz.Size() / 2; i++)
-     {
-       cout << "Dof " << i << "  " << u_LO_dofs_xyz(i) << "  " << u_LO_dofs_xyz(u_LO_dofs_xyz.Size() / 2 + i) << endl;
-     }
    
-   /*
-   cout << endl;
-   cout << "Dof List" << endl;
-   for (int i = 0; i < ; i++)
-     {
-       cout << u_LO_dofs_xyz(i) << endl;
-     }
-				   
-   // This section only works for order 1 linear basis functions
-   // Output is not the order that Interpolate() likes, so we reorder it
-   // (Probably better way to do this)
-   
-   cout << endl;
-   for (int i = 0; i < u_LO_dofs.Size() / 2; i++)
-   {
-     cout << "Dof " << i << "  " << u_LO_dofs(2*i) << "  " << u_LO_dofs(2*i+1) << endl;
-     temp(i) = u_LO_dofs(2*i);
-     temp(u_LO_dofs.Size() / 2 + i) = u_LO_dofs(2*i+1);
-   }
-
-   
-   cout << endl;
-   cout << "test" << endl;
-   for (int i = 0; i < u_LO_dofs.Size() / 2; i++)
-     {
-       cout << "Dof " << i << "  " << u_LO_dofs(i) << "  " << u_LO_dofs(u_LO_dofs.Size() / 2 + i) << endl;
-     }
-   */
-
-   finder.Interpolate(u_LO_dofs_xyz, u_LOR, u_HO_interp);
+   finder.Interpolate(HO_dofs, u_LOR, u_HO_interp);
 }
 
 
@@ -781,7 +748,6 @@ void CalculateLOSolution(const GridFunction &u_HO,
 			 const GridFunction &x,
 			 const double &dt,
 			 GridFunction &u_LO,
-			 GridFunction &du_LO,
 			 Vector &el_mass,
 			 Vector &el_vol)
 {
@@ -820,8 +786,6 @@ void CalculateLOSolution(const GridFunction &u_HO,
       for (int i = 0; i < ndofs; i++)
       {
          u_LO(k*ndofs + i) = zone_avg;
-	 // I think this is wrong... maybe not though?
-	 du_LO(k*ndofs + i) = (u_LO(k*ndofs + i) - u_HO(k*ndofs + i)) / dt;
       }
    }
 }
