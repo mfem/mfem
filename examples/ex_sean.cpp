@@ -693,25 +693,11 @@ void CalculateHOInterp(GridFunction &u_HO_interp,
    // Grabbing information from the finite element space   
    const FiniteElement *zone = fes.GetFE(0);
    int num_ldofs = zone->GetDof();
-   
-   /*
-   const Operator *x_elem_restrict_lex(fes.GetElementRestriction(ElementDofOrdering::LEXICOGRAPHIC));
-   Vector x_local(dim * num_ldofs * NE);
-   x_elem_restrict_lex->Mult(x,x_local);
-   
-   cout << "x_local" << endl;
-   for (int i = 0; i < x_local.Size(); i++)
-     {
-       cout << x_local(i) << endl;
-     }
-   */
 
    IntegrationRule zone_dofs(num_ldofs);
-   // Organize dofs into a lexocographical ordering
 
-   cout << num_ldofs << endl;
-   //cout << dof_map.Size() << endl;
-
+   // Output number of dofs per cell
+   cout << "Number of dofs per cell: " << num_ldofs << endl;
    for (int i = 0; i < num_ldofs; ++i)
    {
      zone_dofs[i] = zone->GetNodes()[i];
@@ -724,12 +710,13 @@ void CalculateHOInterp(GridFunction &u_HO_interp,
    // temporary vector for interpolating purposes
    Vector temp(u_LO_dofs.Size());
 
-   
    // Evaluates the right hand side gridfunction at x
    x_interpolator->Values(x, u_LO_dofs);
    cout << "Before the switch " << endl;				     
 				   
-   // This section only works for order 1 linear basis functions 
+   // This section only works for order 1 linear basis functions
+   // Output is not the order that Interpolate() likes, so we reorder it
+   // (Probably better way to do this)
    for (int i = 0; i < u_LO_dofs.Size() / 2; i++)
    {
      cout << "Dof " << i << "  " << u_LO_dofs(2*i) << "  " << u_LO_dofs(2*i+1) << endl;
