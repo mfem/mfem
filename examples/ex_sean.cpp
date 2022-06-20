@@ -532,6 +532,19 @@ int main(int argc, char *argv[])
    // derivative vectors
    GridFunction du_LO(&fes);
 
+   // Here we do the interpolation to recover a smoother solution using
+   // the LOR solution.
+   FindPointsGSLIB finder;
+   finder.Setup(mesh_LOR);
+   GridFunction node_vals(x.FESpace());
+   
+   GridFunction u_HO_interp(&fes);
+   VisItDataCollection HO_interp_dc("HO_interp", &mesh);
+   HO_interp_dc.RegisterField("Density", &u_HO_interp);
+
+   const Operator &P = gt->BackwardOperator();
+
+   // Time loop for solving
    bool done = false;
    for (int ti = 0; !done; )
    {
@@ -564,6 +577,7 @@ int main(int argc, char *argv[])
       {
 	// Here we do an L2 projection onto the finer fes, gives u_LOR
         R.Mult(u_HO, u_LOR);
+	//P.Mult(u_LOR, u_HO_interp);
       }
 	
       ti++;
@@ -600,14 +614,7 @@ int main(int argc, char *argv[])
 
    // Here we do the interpolation to recover a smoother solution using
    // the LOR solution.
-   FindPointsGSLIB finder;
-   finder.Setup(mesh_LOR);
-   GridFunction node_vals(x.FESpace());
    
-   GridFunction u_HO_interp(&fes);
-   VisItDataCollection HO_interp_dc("HO_interp", &mesh);
-   HO_interp_dc.RegisterField("Density", &u_HO_interp);
-
    CalculateHOInterp(u_HO_interp,
 		     mesh,
 		     mesh_LOR,
@@ -616,7 +623,7 @@ int main(int argc, char *argv[])
 		     node_vals,
 		     finder,
 		     fes);
-
+   
   
    // 9. Save the final solution. This output can be viewed later using GLVis:
    if (visualization)
@@ -705,27 +712,67 @@ void CalculateHOInterp(GridFunction &u_HO_interp,
    
    // Grabbing information from the quadrature
    auto x_interpolator = x.FESpace()->GetQuadratureInterpolator(zone_dofs);
-   Vector u_LO_dofs(dim * num_ldofs * NE); // unclear
-
-   // temporary vector for interpolating purposes
-   Vector temp(u_LO_dofs.Size());
+   x_interpolator->SetOutputLayout(QVectorLayout::byNODES);
+   Vector u_LO_dofs(dim * num_ldofs * NE);
 
    // Evaluates the right hand side gridfunction at x
    x_interpolator->Values(x, u_LO_dofs);
-   cout << "Before the switch " << endl;				     
+
+   // temporary vector for interpolating purposes
+   Vector u_LO_dofs_xyz(u_LO_dofs);
+   auto u_LO_view = mfem::Reshape(u_LO_dofs.Read(), num_ldofs, dim, NE);
+   auto u_LO_xyz_view = mfem::Reshape(u_LO_dofs_xyz.Write(),num_ldofs*NE, dim);
+
+   cout << endl;
+   cout << "Dof List" << endl;
+   for (int e = 0; e < NE; ++e)
+   {
+     for (int i = 0; i < num_ldofs; ++i)
+     {
+       int ti = i + num_ldofs * e;
+       u_LO_xyz_view(ti, 0) = u_LO_view(i, 0, e);
+       u_LO_xyz_view(ti, 1) = u_LO_view(i, 1, e);
+       cout << "Dof " << i << "  " << u_LO_xyz_view(i, 0) << "  " << u_LO_xyz_view(i, 1) << endl;
+     }
+   }
+
+   cout << endl;
+   cout << "Dofs in u_LO_dofs_xyz" << endl;
+   for (int i = 0; i < u_LO_dofs_xyz.Size() / 2; i++)
+     {
+       cout << "Dof " << i << "  " << u_LO_dofs_xyz(i) << "  " << u_LO_dofs_xyz(u_LO_dofs_xyz.Size() / 2 + i) << endl;
+     }
+   
+   /*
+   cout << endl;
+   cout << "Dof List" << endl;
+   for (int i = 0; i < ; i++)
+     {
+       cout << u_LO_dofs_xyz(i) << endl;
+     }
 				   
    // This section only works for order 1 linear basis functions
    // Output is not the order that Interpolate() likes, so we reorder it
    // (Probably better way to do this)
+   
+   cout << endl;
    for (int i = 0; i < u_LO_dofs.Size() / 2; i++)
    {
      cout << "Dof " << i << "  " << u_LO_dofs(2*i) << "  " << u_LO_dofs(2*i+1) << endl;
      temp(i) = u_LO_dofs(2*i);
      temp(u_LO_dofs.Size() / 2 + i) = u_LO_dofs(2*i+1);
    }
-   
 
-   finder.Interpolate(temp, u_LOR, u_HO_interp);
+   
+   cout << endl;
+   cout << "test" << endl;
+   for (int i = 0; i < u_LO_dofs.Size() / 2; i++)
+     {
+       cout << "Dof " << i << "  " << u_LO_dofs(i) << "  " << u_LO_dofs(u_LO_dofs.Size() / 2 + i) << endl;
+     }
+   */
+
+   finder.Interpolate(u_LO_dofs_xyz, u_LOR, u_HO_interp);
 }
 
 
