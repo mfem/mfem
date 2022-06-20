@@ -54,6 +54,16 @@ using namespace mfem;
 // inflow boundary condition are chosen based on this parameter.
 int problem;
 
+// Calculate the "new" high order solution based on LOR
+void CalculateHOInterp(GridFunction &u_HO_interp,
+		       const Mesh &mesh,
+		       const Mesh &mesh_LOR,
+		       const GridFunction &x,
+		       const GridFunction &u_LOR,
+		       GridFunction &node_vals,
+		       FindPointsGSLIB &finder,
+		       const FiniteElementSpace &fes);
+
 // Calculate the Low Order Solution
 void CalculateLOSolution(const GridFunction &u_HO,
 			 const GridFunction &x,
@@ -176,7 +186,7 @@ int main(int argc, char *argv[])
    // 1. Parse command-line options.
    problem = 0;
    const char *mesh_file = "../data/periodic-square.mesh";
-   int ref_levels = 0;
+   int ref_levels = 2;
    int order = 1;
    bool pa = false;
    bool ea = false;
@@ -197,7 +207,7 @@ int main(int argc, char *argv[])
    //             2; Low order refined (LOR)
    //             3; Both LO solution and LOR solution
    int averaging = 3;
-   // LOR refinement level (should always be 2)
+   // LOR refinement level
    int lref = 2;
 
    int precision = 8;
@@ -588,82 +598,26 @@ int main(int argc, char *argv[])
       }
    }
 
-   // Going to try and grab all the points in the HO mesh
+   // Here we do the interpolation to recover a smoother solution using
+   // the LOR solution.
    FindPointsGSLIB finder;
-   finder.Setup(mesh);
-   GridFunction node_vals(&fes);
+   finder.Setup(mesh_LOR);
+   GridFunction node_vals(x.FESpace());
    
    GridFunction u_HO_interp(&fes);
    VisItDataCollection HO_interp_dc("HO_interp", &mesh);
    HO_interp_dc.RegisterField("Density", &u_HO_interp);
 
-   // This does not give us what we want I think
-   mesh.GetNodes(node_vals);
-   //finder.Interpolate(mesh, node_vals, u_LO, u_HO_interp);
-   //cout << u_HO_interp << endl;
+   CalculateHOInterp(u_HO_interp,
+		     mesh,
+		     mesh_LOR,
+		     x,
+		     u_LOR,
+		     node_vals,
+		     finder,
+		     fes);
 
-   // Other stuff that I'm trying--------------------------------------------
-   
-   int n = x.Size();
-   const int ndofs = n / NE;
-   
-   // Element restrictions because of the way things are coded I think
-   const Operator *x_elem_restrict_lex(fes.GetElementRestriction(ElementDofOrdering::LEXICOGRAPHIC));
-   
-   Vector x_local;
-   x_local.SetSize(x_elem_restrict_lex->Height());
-   x_elem_restrict_lex->Mult(x,x_local);
-   
-   // Grabbing information from the finite element space
-   auto *Tr = x.FESpace()->GetMesh()->GetElementTransformation(0);
-   //const int NE = x.FESpace()->GetNE();
-   
-   const FiniteElement *zone = fes.GetFE(0);
-   int num_ldofs = zone->GetDof();
-   const TensorBasisElement *tb_zone = dynamic_cast<const TensorBasisElement *>(zone);
-   //const Array<int> &dof_map = tb_zone->GetDofMap();
-   IntegrationRule zone_dofs(num_ldofs);
-   // Organize dofs into a lexocographical ordering
-
-   cout << num_ldofs << endl;
-   //cout << dof_map.Size() << endl;
-
-   for (int i = 0; i < num_ldofs; ++i)
-   {
-     zone_dofs[i] = zone->GetNodes()[i];
-   }
-   
-   // Grabbing information from the quadrature
-   //GeometricFactors geom(x, ir, GeometricFactors::DETERMINANTS);
-   //const int nqp = zone_dofs.GetNPoints();
-   auto x_interpolator = u_HO_interp.FESpace()->GetQuadratureInterpolator(zone_dofs);
-   Vector u_LO_dofs(dim * num_ldofs * NE); // unclear
-
-   // temporary vector for interpolating purposes
-   Vector temp(u_LO_dofs.Size());
-
-   
-   // Evaluates the right hand side gridfunction at x
-   x_interpolator->Values(x, u_LO_dofs);
-   cout << "Before the switch " << endl;
-   for (int i = 0; i < u_LO_dofs.Size() / 2; i++)
-   {
-     cout << "Dof " << i << "  " << u_LO_dofs(2*i) << "  " << u_LO_dofs(2*i+1) << endl;
-     temp(i) = u_LO_dofs(2*i);
-     temp(u_LO_dofs.Size() / 2 + i) = u_LO_dofs(2*i+1);
-   }
-   /*
-   cout << endl;
-   cout << "After reordering" << endl;
-   for (int i = 0; i < u_LO_dofs.Size() / 2; i++)
-   {
-      cout << temp(i) << "  " << temp(u_LO_dofs.Size() / 2 + i) << endl;
-   }
-   */
-   finder.Interpolate(mesh, temp, u_LO, u_HO_interp);
-   
-   //------------------------------------------------------------------------
-
+  
    // 9. Save the final solution. This output can be viewed later using GLVis:
    if (visualization)
    {
@@ -719,6 +673,74 @@ int main(int argc, char *argv[])
 
    return 0;
 }
+
+
+void CalculateHOInterp(GridFunction &u_HO_interp,
+		       const Mesh &mesh,
+		       const Mesh &mesh_LOR,
+		       const GridFunction &x,
+		       const GridFunction &u_LOR,
+		       GridFunction &node_vals,
+		       FindPointsGSLIB &finder,
+		       const FiniteElementSpace &fes)
+{
+   const int NE = x.FESpace()->GetNE();
+   int dim = mesh.Dimension();
+
+   // This does not give us what we want I think
+   mesh.GetNodes(node_vals);
+   
+   // Grabbing information from the finite element space   
+   const FiniteElement *zone = fes.GetFE(0);
+   int num_ldofs = zone->GetDof();
+   
+   /*
+   const Operator *x_elem_restrict_lex(fes.GetElementRestriction(ElementDofOrdering::LEXICOGRAPHIC));
+   Vector x_local(dim * num_ldofs * NE);
+   x_elem_restrict_lex->Mult(x,x_local);
+   
+   cout << "x_local" << endl;
+   for (int i = 0; i < x_local.Size(); i++)
+     {
+       cout << x_local(i) << endl;
+     }
+   */
+
+   IntegrationRule zone_dofs(num_ldofs);
+   // Organize dofs into a lexocographical ordering
+
+   cout << num_ldofs << endl;
+   //cout << dof_map.Size() << endl;
+
+   for (int i = 0; i < num_ldofs; ++i)
+   {
+     zone_dofs[i] = zone->GetNodes()[i];
+   }
+   
+   // Grabbing information from the quadrature
+   auto x_interpolator = x.FESpace()->GetQuadratureInterpolator(zone_dofs);
+   Vector u_LO_dofs(dim * num_ldofs * NE); // unclear
+
+   // temporary vector for interpolating purposes
+   Vector temp(u_LO_dofs.Size());
+
+   
+   // Evaluates the right hand side gridfunction at x
+   x_interpolator->Values(x, u_LO_dofs);
+   cout << "Before the switch " << endl;				     
+				   
+   // This section only works for order 1 linear basis functions 
+   for (int i = 0; i < u_LO_dofs.Size() / 2; i++)
+   {
+     cout << "Dof " << i << "  " << u_LO_dofs(2*i) << "  " << u_LO_dofs(2*i+1) << endl;
+     temp(i) = u_LO_dofs(2*i);
+     temp(u_LO_dofs.Size() / 2 + i) = u_LO_dofs(2*i+1);
+   }
+   
+
+   finder.Interpolate(temp, u_LOR, u_HO_interp);
+}
+
 
 // Calculate the Low Order solution
 void CalculateLOSolution(const GridFunction &u_HO,
