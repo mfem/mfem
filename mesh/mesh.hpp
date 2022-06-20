@@ -692,6 +692,9 @@ public:
         int *boundary_attributes, int num_boundary_elements,
         int dimension, int space_dimension = -1);
 
+   /// Construct a Mesh from a NURBSExtension
+   Mesh( const NURBSExtension& ext );
+
    /** @anchor mfem_Mesh_init_ctor
        @brief _Init_ constructor: begin the construction of a Mesh object. */
    Mesh(int Dim_, int NVert, int NElem, int NBdrElem = 0, int spaceDim_ = -1)
@@ -719,7 +722,7 @@ public:
    int AddTriangle(int v1, int v2, int v3, int attr = 1);
    int AddTriangle(const int *vi, int attr = 1);
    int AddTri(const int *vi, int attr = 1) { return AddTriangle(vi, attr); }
-
+	
    int AddQuad(int v1, int v2, int v3, int v4, int attr = 1);
    int AddQuad(const int *vi, int attr = 1);
 
@@ -811,7 +814,7 @@ public:
        that are in physical proximity closer in memory. It can also be used to
        obtain a space-filling curve ordering for ParNCMesh partitioning.
        @param[out] ordering Output element ordering.
-       @param iterations Total number of V cycles. The ordering may improve with
+       @param 
        more iterations. The best iteration is returned at the end.
        @param window Initial window size. This determines the number of
        permutations tested at each multigrid level and strongly influences the

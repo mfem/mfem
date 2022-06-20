@@ -41,6 +41,9 @@ public:
    KnotVector() { }
    KnotVector(std::istream &input);
    KnotVector(int Order_, int NCP);
+   KnotVector(int Order_, int num_intervals, int continuity);
+   /// Construct a knot vector corresponding to the number of intervals in the input array intervals and having inter-element continuity given by the array continuity.  The length of the continuity array must be 1 greater than the length of the interval array.
+   KnotVector(int Order_, const Array<double> intervals, const Array<int> continuity );
    KnotVector(const KnotVector &kv) { (*this) = kv; }
 
    KnotVector &operator=(const KnotVector &kv);
@@ -115,6 +118,11 @@ public:
    NURBSPatch(const KnotVector *kv0, const KnotVector *kv1,
               const KnotVector *kv2, int dim_);
    NURBSPatch(Array<const KnotVector *> &kv, int dim_);
+
+   NURBSPatch(const KnotVector *kv0, const KnotVector *kv1, int dim_, const double* control_points);
+   NURBSPatch(const KnotVector *kv0, const KnotVector *kv1,
+              const KnotVector *kv2, int dim_, const double* control_points);
+   NURBSPatch(Array<const KnotVector *> &kv, int dim_, const double* control_points);
 
    NURBSPatch& operator=(const NURBSPatch&) = delete;
 
@@ -305,6 +313,7 @@ protected:
 public:
    /// Copy constructor: deep copy
    NURBSExtension(const NURBSExtension &orig);
+
    /// Read-in a NURBSExtension
    NURBSExtension(std::istream &input);
    /** @brief Create a NURBSExtension with elevated order by repeating the
@@ -320,7 +329,8 @@ public:
    NURBSExtension(NURBSExtension *parent, const Array<int> &newOrders);
    /// Construct a NURBSExtension by merging a partitioned NURBS mesh
    NURBSExtension(Mesh *mesh_array[], int num_pieces);
-
+   /// Construct a NURBSExtension from a Mesh and a vector of NURBSPatch pointers
+   NURBSExtension( const Mesh *mesh, const Array<const NURBSPatch*> patches );
    /// Copy assignment not supported
    NURBSExtension& operator=(const NURBSExtension&) = delete;
 

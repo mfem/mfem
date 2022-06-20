@@ -43,6 +43,34 @@ KnotVector::KnotVector(int Order_, int NCP)
    knot = -1.;
 }
 
+KnotVector::KnotVector(int Order_, const Array<double> intervals,
+		       const Array<int> continuity) {
+  Order = Order_;
+  NumOfElements = intervals.Size();
+  const int num_knots = Order * continuity.Size() - continuity.Sum();
+  NumOfControlPoints = num_knots - Order - 1;
+  knot.SetSize(num_knots);
+  double accum = 0;
+  int iknot = 0;
+  for (int i = 0; i < intervals.Size(); ++i) {
+    const int multiplicity = max(1, Order - continuity[i]);
+    for (int j = 0; j < multiplicity; ++j) {
+      knot[iknot] = accum;
+      ++iknot;
+    }
+    accum += intervals[i];
+  }
+  if (intervals.Size() < continuity.Size()) {
+    const int multiplicity = max(1, Order - continuity[continuity.Size() - 1]);
+    for (int j = 0; j < multiplicity; ++j) {
+      knot[iknot] = accum;
+      ++iknot;
+    }
+  } else {
+    /// The periodic case is not handled right now
+  }
+}
+
 KnotVector &KnotVector::operator=(const KnotVector &kv)
 {
    Order = kv.Order;
@@ -529,6 +557,39 @@ NURBSPatch::NURBSPatch(Array<const KnotVector *> &kv_,  int dim_)
       kv[i] = new KnotVector(*kv_[i]);
    }
    init(dim_);
+}
+
+NURBSPatch::NURBSPatch(const KnotVector *kv0, const KnotVector *kv1, int dim_, const double* control_points)
+{
+   kv.SetSize(2);
+   kv[0] = new KnotVector(*kv0);
+   kv[1] = new KnotVector(*kv1);
+   init(dim_);
+   memcpy(data, control_points, sizeof (double) * ni * nj * dim_);
+}
+
+NURBSPatch::NURBSPatch(const KnotVector *kv0, const KnotVector *kv1,
+                       const KnotVector *kv2, int dim_, const double* control_points)
+{
+   kv.SetSize(3);
+   kv[0] = new KnotVector(*kv0);
+   kv[1] = new KnotVector(*kv1);
+   kv[2] = new KnotVector(*kv2);
+   init(dim_);
+   memcpy(data, control_points, sizeof (double) * ni * nj * nk * dim_);
+}
+
+NURBSPatch::NURBSPatch(Array<const KnotVector *> &kv_,  int dim_, const double* control_points)
+{
+   kv.SetSize(kv_.Size());
+   size_t n = dim_;
+   for (int i = 0; i < kv.Size(); i++)
+   {
+      kv[i] = new KnotVector(*kv_[i]);
+      n *= kv[i]->GetNCP();
+   }
+   init(dim_);
+   memcpy(data, control_points, n);
 }
 
 NURBSPatch::NURBSPatch(NURBSPatch *parent, int dir, int Order, int NCP)
@@ -1674,6 +1735,73 @@ NURBSExtension::NURBSExtension(Mesh *mesh_array[], int num_pieces)
    MergeWeights(mesh_array, num_pieces);
 }
 
+NURBSExtension::NURBSExtension(const Mesh *patch_topology, const Array<const NURBSPatch*> p)
+{
+   patchTopo = new Mesh( *patch_topology );
+   patchTopo->GetEdgeVertexTable();
+   own_topo = 1;
+   patches.Reserve(p.Size());
+   Array<int> edges;
+   Array<int> oedges;
+   Array<int> kvs(3);
+   edge_to_knot.SetSize(patch_topology->GetNEdges());
+   NumOfKnotVectors = 0;
+   NumOfElements = 0;
+   for(size_t ielem = 0; ielem < patch_topology->GetNE(); ++ielem)
+   {
+      patches.Append(new NURBSPatch(*p[ielem]));
+      NURBSPatch& patch = *patches[ielem];
+      int num_patch_elems = 1;
+      for(int ikv = 0; ikv < patch.GetNKV(); ++ikv)
+      {
+	 kvs[ikv] = knotVectors.Size();
+	 knotVectors.Append(new KnotVector(*patch.GetKV(ikv)));
+	 num_patch_elems *= patch.GetKV(ikv)->GetNE();
+	 ++NumOfKnotVectors;
+      }
+      NumOfElements += num_patch_elems;
+      patch_topology->GetElementEdges(ielem, edges, oedges);
+      for(size_t iedge = 0; iedge < edges.Size(); ++iedge)
+      {
+	 if(iedge < 8)
+	 {
+	    if(iedge & 1)
+	    {
+	       edge_to_knot[edges[iedge]] = kvs[0];
+	    }
+	    else
+	    {
+	       edge_to_knot[edges[iedge]] = kvs[1];
+	    }
+	 }
+	 else
+	 {
+	       edge_to_knot[edges[iedge]] = kvs[2];
+	 }
+	 if (oedges[iedge] < 0)
+	 {
+	    edge_to_knot[edges[iedge]] = -1 - edge_to_knot[edges[iedge]];
+	 }
+      }
+   }
+
+   GenerateOffsets();
+   CountBdrElements();
+   NumOfActiveElems = NumOfElements;
+   activeElem.SetSize(NumOfElements);
+   activeElem = true;
+
+   SetOrdersFromKnotVectors();
+
+   GenerateActiveVertices();
+   InitDofMap();
+   GenerateElementDofTable();
+   GenerateActiveBdrElems();
+   GenerateBdrElementDofTable();
+
+   weights.SetSize(GetNDof());
+}
+
 NURBSExtension::~NURBSExtension()
 {
    if (patches.Size() == 0)
@@ -2001,7 +2129,6 @@ void NURBSExtension::ConnectBoundaries3D(int bnd0, int bnd1)
 void NURBSExtension::GenerateActiveVertices()
 {
    int vert[8], nv, g_el, nx, ny, nz, dim = Dimension();
-
    NURBSPatchMap p2g(this);
    const KnotVector *kv[3];
 

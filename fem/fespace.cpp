@@ -523,7 +523,7 @@ void FiniteElementSpace::GetEssentialVDofs(const Array<int> &bdr_attr_is_ess,
 
    // mark possible hidden boundary edges in a non-conforming mesh, also
    // local DOFs affected by boundary elements on other processors
-   if (Nonconforming())
+   if (mesh->Nonconforming())
    {
       Array<int> bdr_verts, bdr_edges;
       mesh->ncmesh->GetBoundaryClosure(bdr_attr_is_ess, bdr_verts, bdr_edges);
