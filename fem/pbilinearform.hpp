@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -32,7 +32,8 @@ protected:
    ParFiniteElementSpace *pfes; ///< Points to the same object as #fes
 
    /// Auxiliary objects used in TrueAddMult().
-   mutable ParGridFunction X, Y;
+   mutable ParGridFunction Xaux, Yaux;
+   mutable Vector Ytmp;
 
    OperatorHandle p_mat, p_mat_e;
 
@@ -93,7 +94,7 @@ public:
    /** @brief Assemble the diagonal of the bilinear form into @a diag. Note that
        @a diag is a true-dof Vector.
 
-       When the AssemblyLevel is not LEGACYFULL, and the mesh is nonconforming,
+       When the AssemblyLevel is not LEGACY, and the mesh is nonconforming,
        this method returns |P^T| d_l, where d_l is the local diagonal of the
        form before applying parallel/conforming assembly, P^T is the transpose
        of the parallel/conforming prolongation, and |.| denotes the entry-wise
@@ -210,7 +211,7 @@ protected:
    /// Points to the same object as #test_fes
    ParFiniteElementSpace *test_pfes;
    /// Auxiliary objects used in TrueAddMult().
-   mutable ParGridFunction X, Y;
+   mutable ParGridFunction Xaux, Yaux;
 
    /// Matrix and eliminated matrix
    OperatorHandle p_mat, p_mat_e;

@@ -2,19 +2,19 @@
 //
 // Compile with: make ex6p
 //
-// Sample runs:  mpirun -np 4 ex6p -m ../data/star.mesh -o 3
-//               mpirun -np 4 ex6p -m ../data/square-disc.mesh -o 1 -cs
+// Sample runs:  mpirun -np 4 ex6p -m ../data/star-hilbert.mesh -o 2
+//               mpirun -np 4 ex6p -m ../data/square-disc.mesh -rm 1 -o 1
+//               mpirun -np 4 ex6p -m ../data/square-disc.mesh -rm 1 -o 2 -h1
 //               mpirun -np 4 ex6p -m ../data/square-disc.mesh -o 2 -cs
-//               mpirun -np 4 ex6p -m ../data/square-disc.mesh -o 2
 //               mpirun -np 4 ex6p -m ../data/square-disc-nurbs.mesh -o 2
 //               mpirun -np 4 ex6p -m ../data/fichera.mesh -o 2
-//               mpirun -np 4 ex6p -m ../data/escher.mesh -o 2
+//               mpirun -np 4 ex6p -m ../data/escher.mesh -rm 2 -o 2
 //               mpirun -np 4 ex6p -m ../data/escher.mesh -o 2 -cs
 //               mpirun -np 4 ex6p -m ../data/disc-nurbs.mesh -o 2
 //               mpirun -np 4 ex6p -m ../data/ball-nurbs.mesh
 //               mpirun -np 4 ex6p -m ../data/pipe-nurbs.mesh
 //               mpirun -np 4 ex6p -m ../data/star-surf.mesh -o 2
-//               mpirun -np 4 ex6p -m ../data/square-disc-surf.mesh -o 2 -cs
+//               mpirun -np 4 ex6p -m ../data/square-disc-surf.mesh -rm 2 -o 2
 //               mpirun -np 4 ex6p -m ../data/inline-segment.mesh -o 1 -md 200
 //               mpirun -np 4 ex6p -m ../data/amr-quad.mesh
 //               mpirun -np 4 ex6p --restart
@@ -52,11 +52,11 @@ using namespace mfem;
 
 int main(int argc, char *argv[])
 {
-   // 1. Initialize MPI.
-   int num_procs, myid;
-   MPI_Init(&argc, &argv);
-   MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
-   MPI_Comm_rank(MPI_COMM_WORLD, &myid);
+   // 1. Initialize MPI and HYPRE.
+   Mpi::Init(argc, argv);
+   int num_procs = Mpi::WorldSize();
+   int myid = Mpi::WorldRank();
+   Hypre::Init();
 
    // 2. Parse command-line options.
    const char *mesh_file = "../data/star.mesh";
@@ -102,7 +102,6 @@ int main(int argc, char *argv[])
       {
          args.PrintUsage(cout);
       }
-      MPI_Finalize();
       return 1;
    }
    if (myid == 0)
@@ -263,7 +262,7 @@ int main(int argc, char *argv[])
    //     current mesh, visualize the solution, and refine the mesh.
    for (int it = 0; ; it++)
    {
-      HYPRE_Int global_dofs = fespace.GlobalTrueVSize();
+      HYPRE_BigInt global_dofs = fespace.GlobalTrueVSize();
       if (myid == 0)
       {
          cout << "\nAMR iteration " << it << endl;
@@ -394,6 +393,5 @@ int main(int argc, char *argv[])
    delete smooth_flux_fec;
    delete pmesh;
 
-   MPI_Finalize();
    return 0;
 }

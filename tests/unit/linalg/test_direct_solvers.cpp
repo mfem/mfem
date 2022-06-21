@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -65,7 +65,7 @@ void gradexact(const Vector& x, Vector & grad)
    }
 }
 
-double d2uexact(const Vector& x) // retuns \Delta u
+double d2uexact(const Vector& x) // returns \Delta u
 {
    double d2u;
    switch (dim)
@@ -83,7 +83,7 @@ double d2uexact(const Vector& x) // retuns \Delta u
    return d2u;
 }
 
-double fexact(const Vector& x) // retuns -\Delta u
+double fexact(const Vector& x) // returns -\Delta u
 {
    double d2u = d2uexact(x);
    return -d2u;
@@ -152,8 +152,8 @@ TEST_CASE("direct-serial","[CUDA]")
 
       a.RecoverFEMSolution(X, b, x);
       VectorFunctionCoefficient grad(dim,gradexact);
-      double err = x.ComputeH1Error(&uex,&grad);
-      REQUIRE(err < 1.e-12);
+      double error = x.ComputeH1Error(&uex,&grad);
+      REQUIRE(error < 1.e-12);
       delete fec;
    }
 }
@@ -230,8 +230,8 @@ TEST_CASE("direct-parallel", "[Parallel], [CUDA]")
 
          a.RecoverFEMSolution(X, b, x);
          VectorFunctionCoefficient grad(dim,gradexact);
-         double err = x.ComputeH1Error(&uex,&grad);
-         REQUIRE(err < 1.e-12);
+         double error = x.ComputeH1Error(&uex,&grad);
+         REQUIRE(error < 1.e-12);
       }
 #endif
 #ifdef MFEM_USE_SUPERLU
@@ -250,8 +250,8 @@ TEST_CASE("direct-parallel", "[Parallel], [CUDA]")
          REQUIRE(Y.Norml2() < 1.e-12);
          a.RecoverFEMSolution(X, b, x);
          VectorFunctionCoefficient grad(dim,gradexact);
-         double err = x.ComputeH1Error(&uex,&grad);
-         REQUIRE(err < 1.e-12);
+         double error = x.ComputeH1Error(&uex,&grad);
+         REQUIRE(error < 1.e-12);
       }
 #endif
       delete fec;

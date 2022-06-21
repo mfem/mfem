@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -21,32 +21,40 @@ CONFIG_MK = $(MFEM_BUILD_DIR)/config/config.mk
 MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
-BLOCK_COMMON_SRC = div_free_solver.cpp
-BLOCK_COMMON_OBJ = $(BLOCK_COMMON_SRC:.cpp=.o)
+BLOCK_SOLVERS_SRC = div_free_solver.cpp block-solvers.cpp
+BLOCK_SOLVERS_OBJ = $(BLOCK_SOLVERS_SRC:.cpp=.o)
 
-PAR_MINIAPPS = block-solvers
+SEQ_MINIAPPS = lor_solvers
+PAR_MINIAPPS = block-solvers plor_solvers
 
 ifeq ($(MFEM_USE_MPI),NO)
-   MINIAPPS =
+   MINIAPPS = $(SEQ_MINIAPPS)
 else
-   MINIAPPS = $(PAR_MINIAPPS)
+   MINIAPPS = $(PAR_MINIAPPS) $(SEQ_MINIAPPS)
 endif
 
 .SUFFIXES:
 .SUFFIXES: .o .cpp .mk
 .PHONY: all clean clean-build clean-exec
+# .PRECIOUS: %.o
+
+all: $(MINIAPPS)
 
 # Remove built-in rules
 %: %.cpp
 %.o: %.cpp
 
-%: $(SRC)%.cpp $(BLOCK_COMMON_OBJ)
-	$(MFEM_CXX) $(MFEM_LINK_FLAGS) $< -o $@ $(BLOCK_COMMON_OBJ) $(MFEM_LIBS)
+lor_solvers.o: $(SRC)lor_mms.hpp
+plor_solvers.o: $(SRC)lor_mms.hpp
+
+%: %.o
+	$(MFEM_CXX) $(MFEM_LINK_FLAGS) $< -o $@ $(MFEM_LIBS)
+
+block-solvers: $(BLOCK_SOLVERS_OBJ)
+	$(MFEM_CXX) $(MFEM_LINK_FLAGS) -o $@ $(BLOCK_SOLVERS_OBJ) $(MFEM_LIBS)
 
 %.o: $(SRC)%.cpp $(MFEM_LIB_FILE) $(CONFIG_MK)
 	$(MFEM_CXX) $(MFEM_FLAGS) -c $< -o $@
-
-all: $(MINIAPPS)
 
 MFEM_TESTS = MINIAPPS
 include $(MFEM_TEST_MK)
@@ -60,6 +68,11 @@ block-solvers-anisotropic: block-solvers
 	@$(call mfem-test,$<, $(RUN_MPI), BlockSolver miniapp,-r 2\
 	  -m $(SRC)anisotropic.mesh -c $(SRC)anisotropic.coeff\
 	  -eb $(SRC)anisotropic.bdr)
+lor_solvers-test-seq: lor_solvers
+	@$(call mfem-test,$<,, LOR solvers miniapp,-fe n)
+plor_solvers-test-par: plor_solvers
+	@$(call mfem-test,$<, $(RUN_MPI), Parallel LOR solvers miniapp,-fe n\
+	  -m ../../data/fichera.mesh)
 
 # Generate an error message if the MFEM library is not built and exit
 $(MFEM_LIB_FILE):
@@ -68,8 +81,8 @@ $(MFEM_LIB_FILE):
 clean: clean-build clean-exec
 
 clean-build:
-	rm -f *.o *~ $(PAR_MINIAPPS)
+	rm -f *.o *~ $(MINIAPPS)
 	rm -rf *.dSYM *.TVD.*breakpoints
 
 clean-exec:
-	@rm -rf block-solvers
+	@rm -rf mesh.* sol.* ParaView

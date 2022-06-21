@@ -2,10 +2,10 @@
 //
 // Compile with: make nurbs_ex1
 //
-// Sample runs:  nurbs_ex1 -m square-nurbs.mesh -o 2 -no-ibp
-//               nurbs_ex1 -m square-nurbs.mesh -o 2 --weak-bc
-//               nurbs_ex1 -m cube-nurbs.mesh -o 2 -no-ibp
-//               nurbs_ex1 -m pipe-nurbs-2d.mesh -o 2 -no-ibp
+// Sample runs:  nurbs_ex1 -m ../../data/square-nurbs.mesh -o 2 -no-ibp
+//               nurbs_ex1 -m ../../data/square-nurbs.mesh -o 2 --weak-bc
+//               nurbs_ex1 -m ../../data/cube-nurbs.mesh -o 2 -no-ibp
+//               nurbs_ex1 -m ../../data/pipe-nurbs-2d.mesh -o 2 -no-ibp
 //               nurbs_ex1 -m ../../data/square-disc-nurbs.mesh -o -1
 //               nurbs_ex1 -m ../../data/disc-nurbs.mesh -o -1
 //               nurbs_ex1 -m ../../data/pipe-nurbs.mesh -o -1
@@ -109,11 +109,11 @@ public:
             w *= Q->Eval(Trans, ip);
          }
 
-         for (int j = 0; j < nd; j++)
+         for (int jj = 0; jj < nd; jj++)
          {
-            for (int i = 0; i < nd; i++)
+            for (int ii = 0; ii < nd; ii++)
             {
-               elmat(i, j) += w*shape(i)*laplace(j);
+               elmat(ii, jj) += w*shape(ii)*laplace(jj);
             }
          }
       }
