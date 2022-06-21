@@ -33,6 +33,12 @@ doc/CodeDocumentation
 doc/undoc.log
 doc/warnings.log
 
+# vscode directory
+.vscode
+
+# Build directory
+build
+
 # Temporary files created by the tests.
 *.stderr
 
