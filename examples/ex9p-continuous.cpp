@@ -89,7 +89,6 @@ private:
 
    HypreParMatrix Mmat, Kmat;
    HypreParVector lumpedM;
-   HYPRE_BigInt * row_starts, *col_starts;
    const SparseMatrix K_spmat;
    ParBilinearForm *D_form;
    HypreSolver *M_prec;
@@ -142,7 +141,7 @@ int main(int argc, char *argv[])
    bool fa = false;
    const char *device_config = "cpu";
    int ode_solver_type = 1;
-   double t_final = 10.0;
+   double t_final = 2.84; // Period of the exact solution for p.4
    bool one_time_step = false;
    double dt = 0.01;
    bool match_dt_to_h = false;
@@ -283,8 +282,8 @@ int main(int argc, char *argv[])
    }
    double hmin, hmax, kmin, kmax;
    pmesh->GetCharacteristics(hmin, hmax, kmin, kmax);
-   if (match_dt_to_h) { dt = hmin / sqrt(2); }
-   if (one_time_step) {t_final = dt; }
+   if (match_dt_to_h) { dt = hmin; }
+   if (one_time_step) { t_final = dt; }
 
    // 7. Define the parallel H1 finite element space on the
    //    parallel refined mesh of the given polynomial order.
@@ -326,19 +325,14 @@ int main(int argc, char *argv[])
    constexpr double alpha = -1.0;
    k->AddDomainIntegrator(new ConvectionIntegrator(velocity, alpha));
 
-   // ParLinearForm *b = new ParLinearForm(fes);
-   // b->AddBdrFaceIntegrator(
-   //    new BoundaryFlowIntegrator(inflow, velocity, alpha));
-
    int skip_zeros = 0;
    m->Assemble();
    k->Assemble(skip_zeros);
    m->Finalize();
    k->Finalize(skip_zeros);
-   //
-
-   HypreParMatrix *M = m->ParallelAssemble();
-   HypreParMatrix *K = k->ParallelAssemble();
+   
+   // HypreParMatrix *M = m->ParallelAssemble();
+   // HypreParMatrix *K = k->ParallelAssemble();
 
    // 9. Define the initial conditions, save the corresponding grid function to
    //    a file and (optionally) save data in the VisIt format and initialize
@@ -438,14 +432,12 @@ int main(int argc, char *argv[])
    adv.SetTime(t);
    ode_solver->Init(adv);
 
-   // Not time dependent yet!
+   // dij_matrix has no time dependence
    adv.build_dij_matrix(*u, velocity);
 
    bool done = false;
    for (int ti = 0; !done; )
    {
-      // Build new D matrix since this matrix is time dependent
-
       double dt_real = min(dt, t_final - t);
       ode_solver->Step(*U, t, dt_real);
       ti++;
@@ -461,8 +453,8 @@ int main(int argc, char *argv[])
 
          // 11. Extract the parallel grid function corresponding to the finite
          //     element approximation U (the local solution on each processor).
-         *u = *U; // Synchronizes MPI processes.
-         // u->SetFromTrueDofs(*U);
+         // *u = *U; // Synchronizes MPI processes.
+         u->SetFromTrueDofs(*U);
 
          if (visualization)
          {
@@ -615,8 +607,6 @@ FE_Evolution::FE_Evolution(ParBilinearForm &M_, ParBilinearForm &K_)
    M_.FormSystemMatrix(ess_tdof_list, Mmat);
    Mmat.GetDiag(lumpedM);
    K_.FormSystemMatrix(ess_tdof_list, Kmat);
-   row_starts = Kmat.GetRowStarts();
-   col_starts = Kmat.GetColStarts();
 
    // M_solver.iterative_mode = false;
    // M_solver.SetRelTol(1e-9);
@@ -666,64 +656,34 @@ void FE_Evolution::build_dij_matrix(const Vector &U,
    const double *K_data = K_spmat.HostReadData();
 
    double *D_data = dij_matrix->HostReadWriteData();
-   dij_matrix->HostReadWriteI(); dij_matrix->HostReadWriteJ();
+   double rowsum;
 
    for (int i = 0, k = 0; i < n; i++)
    {
-      double rowsum = 0.;
+      rowsum = 0.;
       for (int end = I[i+1]; k < end; k++)
       {
          int j = J[k];
-         if (i != j)
-         {
-            double kij = K_data[k];
-            double kji = K_data[K_smap[k]];
-            double dij = max(abs(kij),abs(kji));
-            double threshold = 1e-11;
-            if (dij < threshold) {
-               // cout << "setting dij = 0.\n";
-               // cout << threshold << endl;
-               dij = 0.;
-            }
-            // else {
-            //    cout << "dij > 1e-12\n";
-            // }
-
-            // D_data[k] = dij;
-            // D_data[K_smap[k]] = dij;
-            (*dij_matrix)(i,j) = dij;
-            (*dij_matrix)(j,i) = dij;
-            rowsum += dij;
-         }
+         double kij = K_data[k];
+         double kji = K_data[K_smap[k]];
+         double dij = fmax(fmax(0.0,-kij),-kji);
+         D_data[k] = dij;
+         D_data[K_smap[k]] = dij;
+         if (i != j) { rowsum += dij; }
       }
-      (*dij_matrix)(i,i) = -rowsum;
+      (*dij_matrix)(i,i) = - rowsum;
    }
+
    // Check that our matrix dij is symmetric.
    if (dij_matrix->IsSymmetric()) {
       cout << "ERROR: dij matrix must be symmetric.\n";
       cout << "Val: " << dij_matrix->IsSymmetric() << endl;
       return;
    }
+   
    // D = D_form->ParallelAssemble(&dij_matrix);
-   // D = new HypreParMatrix(MPI_COMM_WORLD, row_starts, col_starts, &dij_matrix);
    D = new HypreParMatrix(MPI_COMM_WORLD, pfes.GlobalVSize(), pfes.GetDofOffsets(), dij_matrix);
    W = RAP(D, pfes.Dof_TrueDof_Matrix());
-
-   // HypreParVector ones(MPI_COMM_WORLD, pfes.GlobalVSize(), col_starts);
-   // ones = 1.;
-   // W->Mult(ones, ones);
-   // ones.Print("Test");
-   //
-   // if (Mpi::Root())
-   // {
-   //    cout << "dij:\n";
-   //    dij_matrix.Print();
-   //    cout << "K:\n";
-   //    K_spmat.Print();
-   //    D->Print("test");
-   //    dij_matrix->PrintInfo(cout);
-   // }
-
 }
 
 void FE_Evolution::Mult(const Vector &x, Vector &y) const
@@ -761,6 +721,9 @@ void velocity_function(const Vector &x, Vector &v)
       double center = (bb_min[i] + bb_max[i]) * 0.5;
       X(i) = 2 * (x(i) - center) / (bb_max[i] - bb_min[i]);
    }
+
+   // Reset the velocity vector
+   v = 0.0;
 
    switch (problem)
    {
@@ -807,7 +770,7 @@ void velocity_function(const Vector &x, Vector &v)
       {
          switch (dim)
          {
-            case 1:
+            case 1: v(0) = 1; break;
             case 2: v(0) = sqrt(1./2.); v(1) = sqrt(1./2.); break;
             case 3: v(0) = sqrt(1./3.); v(1) = sqrt(1./3.); v(2) = sqrt(1./3.);
                break;
@@ -817,61 +780,8 @@ void velocity_function(const Vector &x, Vector &v)
    }
 }
 
-// Initial condition
-double u0_function(const Vector &x)
-{
-   int dim = x.Size();
 
-   // map to the reference [-1,1] domain
-   Vector X(dim);
-   for (int i = 0; i < dim; i++)
-   {
-      double center = (bb_min[i] + bb_max[i]) * 0.5;
-      X(i) = 2 * (x(i) - center) / (bb_max[i] - bb_min[i]);
-   }
-
-   switch (problem)
-   {
-      case 4: // Putting case 4 at the beginning to default to latter cases
-      case 0:
-      case 1:
-      {
-         switch (dim)
-         {
-            case 1:
-               return exp(-40.*pow(X(0)-0.5,2));
-            case 2:
-            case 3:
-            {
-               double rx = 0.45, ry = 0.25, cx = 0., cy = -0.2, w = 10.;
-               if (dim == 3)
-               {
-                  const double s = (1. + 0.25*cos(2*M_PI*X(2)));
-                  rx *= s;
-                  ry *= s;
-               }
-               return ( erfc(w*(X(0)-cx-rx))*erfc(-w*(X(0)-cx+rx)) *
-                        erfc(w*(X(1)-cy-ry))*erfc(-w*(X(1)-cy+ry)) )/16;
-            }
-         }
-      }
-      case 2:
-      {
-         double x_ = X(0), y_ = X(1), rho, phi;
-         rho = hypot(x_, y_);
-         phi = atan2(y_, x_);
-         return pow(sin(M_PI*rho),2)*sin(3*phi);
-      }
-      case 3:
-      {
-         const double f = M_PI;
-         return sin(f*X(0))*sin(f*X(1));
-      }
-   }
-   return 0.0;
-}
-
-// Exact Solution u(x,t) (so far only implemented for case 0)
+// Exact Solution u(x,t) 
 // Note that u(x,0) = u_0(x)
 double exact_sol(const Vector &x, const double t)
 {
@@ -888,10 +798,6 @@ double exact_sol(const Vector &x, const double t)
    // Get velocity
    Vector v = X;
    velocity_function(X, v);
-   // cout << "velocity: " << v[0] << " " << v[1] << endl;
-   // cout << "time: " << t << endl;
-   // cout << "problem: " << problem << endl;
-   // cout << "dim: " << dim << endl;
 
    switch (problem)
    {
@@ -917,7 +823,6 @@ double exact_sol(const Vector &x, const double t)
                }
                double val = ( erfc(w*(X(0)-v[0]*t - cx-rx))*erfc(-w*(X(0)-v[0]*t-cx+rx)) *
                         erfc(w*(X(1)-v[1]*t - cy-ry))*erfc(-w*(X(1)-v[1]*t-cy+ry)) )/16;
-               cout << "ret val: " << val << endl;
                return val;
             }
          }
@@ -950,7 +855,6 @@ double exact_sol(const Vector &x, const double t)
                for (int i = 0; i < dim; i++)
                {
                   coeff[i] = 2 * M_PI / (bb_max[i] - bb_min[i]);
-                  // cout << "coeff " << i << ": " << coeff[i] << endl;
                }
                double val = sin(coeff[0]*(X[0]-v[0]*t))*sin(coeff[1]*(X[1]-v[1]*t));
                return val;
