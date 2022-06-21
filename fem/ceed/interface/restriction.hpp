@@ -60,14 +60,6 @@ void InitStridedRestriction(const mfem::FiniteElementSpace &fes,
                             const CeedInt *strides,
                             CeedElemRestriction *restr);
 
-/** @brief Initialize a tensor CeedElemRestriction for non-mixed meshes.
-
-    @param[in] fes The finite element space.
-    @param[in] ceed The Ceed object.
-    @param[out] restr The `CeedElemRestriction` to initialize. */
-void InitTensorRestriction(const FiniteElementSpace &fes,
-                           Ceed ceed, CeedElemRestriction *restr);
-
 /** @brief Initialize a CeedElemRestriction for a mfem::Coefficient on a mixed
     mesh.
 
