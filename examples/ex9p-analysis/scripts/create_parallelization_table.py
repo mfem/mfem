@@ -29,6 +29,7 @@ def main():
 
 def gather_vals():
     vals = {'Processor_Runtime': [],
+            'Speedup': [],
             'n_processes': [],
             'n_refinements': [],
             'n_Dofs': [],
@@ -53,26 +54,54 @@ def gather_vals():
 def compute_rates(vals):
 
     # Use tabulate to create a formatted table
-    table = []
+    p_table = []
+    s_table = []
+    serial_time = 0
     for i in range(len(vals['h'])):
-        table.append([vals['n_processes'][i], vals['Processor_Runtime'][i],
-                      vals['Endtime'][i], vals['n_Dofs'][i],
-                      vals['L1_Error'][i], vals['L2_Error'][i],
-                      vals['Linf_Error'][i]])
+        if i == 0:
+            serial_time = vals['Processor_Runtime'][i]
+            vals['Speedup'].append(0.)
+        else:
+            _time = vals['Processor_Runtime'][i]
+            # assert(_time != 0, "Division by Zero.")
+            
+            vals['Speedup'].append(serial_time / _time)
+            print('_time = ', _time)
+            print('speedup: ', serial_time / _time)
 
-    s_table = tabulate(table, floatfmt=(".0f", ".6f", ".3f", ".0f", ".12f", ".12f", ".12f"), headers=["# processors",
-                                       "Single Processor Runtime",
-                                       "Endtime", "# Dofs", "L1 Error",
-                                       "L2 Error", "L-Inf Error"])
+        p_table.append([vals['n_processes'][i], vals['Endtime'][i], vals['n_Dofs'][i],
+                      vals['L1_Error'][i], vals['L2_Error'][i], vals['Linf_Error'][i]])
+
+        s_table.append([vals['n_processes'][i], 
+                        vals['Processor_Runtime'][i],
+                        vals['Speedup'][i]])
+
+    p_table_tab = tabulate(p_table, 
+                       floatfmt=(".0f", ".3f", ".0f", ".12f", ".12f", ".12f"), 
+                       headers=["# processors",
+                                "Endtime", "# Dofs", "L1 Error",
+                                "L2 Error", "L-Inf Error"],
+                       tablefmt="latex")
+    
+    s_table_tab = tabulate(s_table, 
+                           floatfmt=(".0f", ".3f", ".3f"),
+                           headers=["# processors", "Wall-clock time", "Speedup"],
+                           tablefmt="latex")
 
     # Output table to console
     print("             ")
-    print(s_table)
+    print(p_table_tab)
+    print("             ")
+    print(s_table_tab)
 
     # Output table to txt file
-    f = open("../convergence_rates.txt", "w+")
-    f.write(s_table)
+    f = open("../parallelization_table.txt", "w+")
+    f.write(p_table_tab)
     f.close()
+
+    g = open("../speedup_table.txt", "w+")
+    g.write(s_table_tab)
+    g.close()
 
 # then we put main at the bottom to run everything
 main()
