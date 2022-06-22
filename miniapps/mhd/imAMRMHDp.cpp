@@ -453,7 +453,7 @@ int main(int argc, char *argv[])
      w.MakeTRef(&fespace, vx, fe_offset3[2]);
 
    //+++++Set the initial conditions, and the boundary conditions
-   FunctionCoefficient phiInit(InitialPhi);
+   FunctionCoefficient phiInit(InitialPhi), psi7(BackPsi7);
    phi.ProjectCoefficient(phiInit);
    phi.SetTrueVector();
    phi.SetFromTrueVector(); 
@@ -672,7 +672,7 @@ int main(int argc, char *argv[])
    
    //++++recover pressure and vector fields++++
    ParFiniteElementSpace *vfes;
-   ParGridFunction *vel, *mag, *gradP, *BgradB, *gradBP, *gfv, *pre=NULL, *dpsidt=NULL;
+   ParGridFunction *vel, *mag, *gradP, *BgradB, *gradBP, *gfv, *pre=NULL, *dpsidt=NULL, *psi_sub=NULL;
    ParMixedBilinearForm *grad, *div;
    ParBilinearForm *a;
    ParNonlinearForm *convect;
@@ -701,6 +701,7 @@ int main(int argc, char *argv[])
       gfv = new ParGridFunction(vfes);
       pre = new ParGridFunction(&fespace);
       dpsidt = new ParGridFunction(&fespace);
+      if (icase==7) {psi_sub = new ParGridFunction(&fespace);}
       grad = new ParMixedBilinearForm(&fespace, vfes);
       div = new ParMixedBilinearForm(vfes, &fespace);
       convect = new ParNonlinearForm(vfes);
@@ -853,6 +854,11 @@ int main(int argc, char *argv[])
       M_solver.Mult(zv, zv2);
       gradBP->SetFromTrueDofs(zv2);
 
+      if (icase==7){
+        ParGridFunction psiBack(&fespace);
+        psiBack.ProjectCoefficient(psi7);
+        subtract(psi,psiBack,*psi_sub);
+      }
       vfes_match=true;
    }
 
@@ -871,6 +877,7 @@ int main(int argc, char *argv[])
           pd->RegisterField("B", mag);
           pd->RegisterField("pre", pre);
           pd->RegisterField("dpsidt", dpsidt);
+          if (icase==7) {pd->RegisterField("psi_sub", psi_sub);}
           pd->RegisterField("grad pre", gradP);
           pd->RegisterField("grad mag pre", gradBP);
           pd->RegisterField("B.gradB", BgradB);
@@ -977,7 +984,7 @@ int main(int argc, char *argv[])
                dpsidt->SetFromTrueDofs(v_dpsidt);
            }
 
-           AMRUpdateTrue(vx, fe_offset3, phi, psi, w, j, pre, dpsidt);
+           AMRUpdateTrue(vx, fe_offset3, phi, psi, w, j, pre, dpsidt, psi_sub);
            oper.UpdateGridFunction();
            if (compute_pressure) {
                vfes->Update();
@@ -1005,7 +1012,7 @@ int main(int argc, char *argv[])
            }
 
            //---Update solutions after rebalancing---
-           AMRUpdateTrue(vx, fe_offset3, phi, psi, w, j, pre, dpsidt);
+           AMRUpdateTrue(vx, fe_offset3, phi, psi, w, j, pre, dpsidt, psi_sub);
            oper.UpdateGridFunction();
            if (compute_pressure) {
                vfes->Update();
@@ -1066,7 +1073,7 @@ int main(int argc, char *argv[])
              }
 
              //---Update solutions first---
-             AMRUpdateTrue(vx, fe_offset3, phi, psi, w, j, pre, dpsidt);
+             AMRUpdateTrue(vx, fe_offset3, phi, psi, w, j, pre, dpsidt, psi_sub);
              oper.UpdateGridFunction();
              if (compute_pressure) {
                 vfes->Update();
@@ -1095,7 +1102,7 @@ int main(int argc, char *argv[])
              }
 
              //---Update solutions after rebalancing---
-             AMRUpdateTrue(vx, fe_offset3, phi, psi, w, j, pre, dpsidt);
+             AMRUpdateTrue(vx, fe_offset3, phi, psi, w, j, pre, dpsidt, psi_sub);
              oper.UpdateGridFunction();
              if (compute_pressure) {
                 vfes->Update();
@@ -1143,11 +1150,14 @@ int main(int argc, char *argv[])
 
            if(compute_pressure && paraview)
            {
-              // Get dpsi/dt function
-              ode_solver->GetStateVector(0, vk);
-              int sc = fespace.TrueVSize();
-              Vector v_dpsidt(vk.GetData() +  sc, sc);
-              dpsidt->SetFromTrueDofs(v_dpsidt);
+              // Get dpsi/dt function only if it is not updated during AMR stage
+              if ( (!refineMesh          && !derefineMesh) || 
+                   (!(refiner.Refined()) && !(derefiner.Derefined())) ){
+                ode_solver->GetStateVector(0, vk);
+                int sc = fespace.TrueVSize();
+                Vector v_dpsidt(vk.GetData() +  sc, sc);
+                dpsidt->SetFromTrueDofs(v_dpsidt);
+              }
               if (false){
                 //found the origin (x,y)=(0.,0.)
                 Vector point(2);
@@ -1163,6 +1173,12 @@ int main(int argc, char *argv[])
                   cout << "Found " << nfound << " points at element " << elem_ids[0] << "on rank ="<< myid << endl; 
                   cout << "dpsidt = "<<dpsidt->GetValue(elem_ids[0], ips[0]) << endl;
                 }
+              }
+
+              if (icase==7){
+                ParGridFunction psiBack(&fespace);
+                psiBack.ProjectCoefficient(psi7);
+                subtract(psi,psiBack,*psi_sub);
               }
 
               if (!vfes_match){
@@ -1497,6 +1513,7 @@ int main(int argc, char *argv[])
       delete zLFscalar; 
       delete pre;      
       delete dpsidt;      
+      delete psi_sub;      
       delete grad;     
       delete div ;     
       delete convect;  

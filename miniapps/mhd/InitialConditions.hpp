@@ -49,6 +49,7 @@ double InitialJ6(const Vector &x);
 double InitialPsi6(const Vector &x);
 
 double InitialPsi7(const Vector &x);
+double BackPsi7(const Vector &x);
 double InitialJ7(const Vector &x);
 double E0rhs7(const Vector &x);
 
