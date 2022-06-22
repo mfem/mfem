@@ -119,6 +119,7 @@ int main(int argc, char *argv[])
    //    'ref_levels' of uniform refinement. We choose 'ref_levels' to be the
    //    largest number that gives a final mesh with no more than 50,000
    //    elements.
+   /*
    {
       int ref_levels =
          (int)floor(log(50000./mesh.GetNE())/log(2.)/dim);
@@ -127,6 +128,7 @@ int main(int argc, char *argv[])
          mesh.UniformRefinement();
       }
    }
+   */
 
    // 5. Define a finite element space on the mesh. Here we use continuous
    //    Lagrange finite elements of the specified order. If order < 1, we
@@ -184,7 +186,19 @@ int main(int argc, char *argv[])
    //    domain integrator.
    BilinearForm a(&fespace);
    if (pa) { a.SetAssemblyLevel(AssemblyLevel::PARTIAL); }
-   a.AddDomainIntegrator(new DiffusionIntegrator(one));
+
+   DiffusionIntegrator *di = new DiffusionIntegrator(one);
+   NURBSPatchProductRule *patchRule = nullptr;
+   if (order < 0)
+   {
+      const int ir_order = 2*fec->GetOrder();
+      IntegrationRule *ir = const_cast<IntegrationRule*> (&IntRules.Get(
+                                                             Geometry::SEGMENT, ir_order));
+      patchRule = new NURBSPatchProductRule(ir, ir, dim == 3 ? ir : nullptr);
+      di->SetNURBSPatchIntRule(patchRule);
+   }
+
+   a.AddDomainIntegrator(di);
 
    // 10. Assemble the bilinear form and the corresponding linear system,
    //     applying any necessary transformations such as: eliminating boundary
@@ -192,6 +206,7 @@ int main(int argc, char *argv[])
    //     static condensation, etc.
    if (static_cond) { a.EnableStaticCondensation(); }
    a.Assemble();
+   delete patchRule;
 
    OperatorPtr A;
    Vector B, X;
