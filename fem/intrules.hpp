@@ -261,6 +261,24 @@ public:
    ~IntegrationRule() { }
 };
 
+class NURBSPatchProductRule
+{
+public:
+   NURBSPatchProductRule(IntegrationRule *irx, IntegrationRule *iry,
+                         IntegrationRule *irz = nullptr);
+
+   IntegrationRule &GetElementRule(const int patch, int *ijk) const
+   {
+      return *ir;
+   }
+
+   ~NURBSPatchProductRule()
+   { delete ir; }
+
+private:
+   IntegrationRule *ir = nullptr;
+};
+
 /// A Class that defines 1-D numerical quadrature rules on [0,1].
 class QuadratureFunctions1D
 {

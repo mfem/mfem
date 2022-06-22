@@ -832,10 +832,25 @@ void DiffusionIntegrator::AssembleElementMatrix
 
    const IntegrationRule *ir = IntRule ? IntRule : &GetRule(el, el);
 
-   elmat = 0.0;
-   for (int i = 0; i < ir->GetNPoints(); i++)
+   const NURBSFiniteElement *NURBSFE =
+      dynamic_cast<const NURBSFiniteElement *>(&el);
+
+   IntegrationRule *irn = nullptr;
+   if (NURBSFE && NURBSPatchRule)
    {
-      const IntegrationPoint &ip = ir->IntPoint(i);
+      const int patch = NURBSFE->GetPatch();
+      int ijk[3];
+      NURBSFE->GetIJK(ijk);
+
+      irn = &NURBSPatchRule->GetElementRule(patch, ijk);
+   }
+
+   const int numIP = irn ? irn->GetNPoints() : ir->GetNPoints();
+
+   elmat = 0.0;
+   for (int i = 0; i < numIP; i++)
+   {
+      const IntegrationPoint &ip = irn ? irn->IntPoint(i) : ir->IntPoint(i);
       el.CalcDShape(ip, dshape);
 
       Trans.SetIntPoint(&ip);

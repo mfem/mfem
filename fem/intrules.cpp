@@ -1725,4 +1725,18 @@ IntegrationRule *IntegrationRules::CubeIntegrationRule(int Order)
    return CubeIntRules[Order];
 }
 
+NURBSPatchProductRule::NURBSPatchProductRule(IntegrationRule *irx,
+                                             IntegrationRule *iry,
+                                             IntegrationRule *irz)
+{
+   if (irz)
+   {
+      ir = new IntegrationRule(*irx, *iry, *irz);
+   }
+   else
+   {
+      ir = new IntegrationRule(*irx, *iry);
+   }
+}
+
 }
