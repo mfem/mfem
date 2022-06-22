@@ -66,8 +66,10 @@ def compute_rates(vals):
                           vals['L2_Error'][i], L2_rate,
                           vals['Linf_Error'][i], Linf_rate])
 
-    s_table = tabulate(table, headers=["# dof", "L1 Error", "Rate", "L2 Error",
-                                       "Rate", "L-Inf Error", "Rate"])
+    s_table = tabulate(table, 
+                       headers=["# dof", "L1 Error", "Rate", "L2 Error",
+                                "Rate", "L-Inf Error", "Rate"],
+                       tablefmt="latex")
 
     # Output table to console
     print("             ")
