@@ -1279,7 +1279,7 @@ int main(int argc, char *argv[])
    }
    if (dg.width < 0.0)
    {
-      dg.width = 0.01;
+      dg.width = 3.0;
    }
    if (op_flag < 0) { op_flag = 0; }
    /*
