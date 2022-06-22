@@ -52,7 +52,7 @@ struct dual
 /** @brief addition of a dual number and a non-dual number */
 template <typename value_type, typename gradient_type> MFEM_HOST_DEVICE
 constexpr auto operator+(dual<value_type, gradient_type> a,
-                         double b) -> dual<value_type, gradient_type>
+                         value_type b) -> dual<value_type, gradient_type>
 {
    return {a.value + b, a.gradient};
 }
@@ -67,7 +67,7 @@ constexpr auto operator+(dual<value_type, gradient_type> a,
 
 /** @brief addition of a dual number and a non-dual number */
 template <typename value_type, typename gradient_type> MFEM_HOST_DEVICE
-constexpr auto operator+(double a,
+constexpr auto operator+(value_type a,
                          dual<value_type, gradient_type> b) -> dual<value_type, gradient_type>
 {
    return {a + b.value, b.gradient};
@@ -178,7 +178,7 @@ constexpr auto operator/(dual<value_type_a, gradient_type_a> a,
  * Comparisons are conducted against the "value" part of the dual number
  * @param[in] x The comparison operator to overload
  */
-#define binary_comparator_overload(x)                           \
+#define mfem_binary_comparator_overload(x)                      \
   template <typename value_type, typename gradient_type>        \
   MFEM_HOST_DEVICE constexpr bool operator x(                   \
      const dual<value_type, gradient_type>& a,                  \
@@ -206,13 +206,13 @@ constexpr auto operator/(dual<value_type_a, gradient_type_a> a,
     return a.value x b.value;                                   \
   }
 
-binary_comparator_overload(<)   ///< implement operator<  for dual numbers
-binary_comparator_overload(<=)  ///< implement operator<= for dual numbers
-binary_comparator_overload(==)  ///< implement operator== for dual numbers
-binary_comparator_overload(>=)  ///< implement operator>= for dual numbers
-binary_comparator_overload(>)   ///< implement operator>  for dual numbers
+mfem_binary_comparator_overload(<)   ///< implement operator<  for dual numbers
+mfem_binary_comparator_overload(<=)  ///< implement operator<= for dual numbers
+mfem_binary_comparator_overload(==)  ///< implement operator== for dual numbers
+mfem_binary_comparator_overload(>=)  ///< implement operator>= for dual numbers
+mfem_binary_comparator_overload(>)   ///< implement operator>  for dual numbers
 
-#undef binary_comparator_overload
+#undef mfem_binary_comparator_overload
 
 /** @brief compound assignment (+) for dual numbers */
 template <typename value_type, typename gradient_type> MFEM_HOST_DEVICE

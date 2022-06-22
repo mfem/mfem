@@ -287,7 +287,7 @@ MFEM_HOST_DEVICE zero dot(zero, const T&)
  */
 template <typename T, int n1, int n2 = 1>
 using reduced_tensor = typename std::conditional<
-                       (n1 == 1 && n2 == 1), double,
+                       (n1 == 1 && n2 == 1), T,
                        typename std::conditional<n1 == 1, tensor<T, n2>,
                        typename std::conditional<n2 == 1, tensor<T, n1>, tensor<T, n1, n2>
                        >::type
@@ -611,7 +611,7 @@ tensor<S, n...>& operator+=(tensor<S, n...>& A,
 template <typename T> MFEM_HOST_DEVICE
 tensor<T>& operator+=(tensor<T>& A, const T& B)
 {
-   return A.value += B;
+   return A.values += B;
 }
 
 /**
@@ -623,7 +623,7 @@ tensor<T>& operator+=(tensor<T>& A, const T& B)
 template <typename T> MFEM_HOST_DEVICE
 tensor<T, 1>& operator+=(tensor<T, 1>& A, const T& B)
 {
-   return A.value += B;
+   return A.values += B;
 }
 
 /**
@@ -635,7 +635,7 @@ tensor<T, 1>& operator+=(tensor<T, 1>& A, const T& B)
 template <typename T> MFEM_HOST_DEVICE
 tensor<T, 1, 1>& operator+=(tensor<T, 1, 1>& A, const T& B)
 {
-   return A.value += B;
+   return A.values += B;
 }
 
 /**
@@ -753,7 +753,7 @@ zero outer(const tensor<T, n>&, zero)
 
 /**
  * @overload
- * @note this overload implements the case where the left argument is a tensor, and the right argument is `zero`
+ * @note this overload implements the case where the left argument is a tensor, and the right argument is a tensor
  */
 template <typename S, typename T, int m, int n> MFEM_HOST_DEVICE
 tensor<decltype(S{} * T{}), m, n> outer(S A, const tensor<T, m, n>& B)
@@ -907,7 +907,8 @@ decltype(S {} * T{})
 }
 
 /**
- * @brief this function contracts over the "middle" index of the two tensor arguments
+ * @brief this function contracts over the "middle" index of the two tensor
+ * arguments. E.g. returns tensor C, such that C_ij = sum_kl A_ijkl B_kl.
  * @tparam S the underlying type of the tensor (lefthand) argument
  * @tparam T the underlying type of the tensor (righthand) argument
  * @tparam n integers describing the tensor shape
@@ -1119,7 +1120,8 @@ tensor<decltype(S {} * T{}), m, n>
 
 /**
  * @overload
- * @note 3rd-order-tensor : 2nd-order-tensor
+ * @note 3rd-order-tensor : 2nd-order-tensor. Returns vector C, such that C_i =
+ * sum_jk A_ijk B_jk.
  */
 template <typename S, typename T, int m, int n, int p> MFEM_HOST_DEVICE
 auto ddot(const tensor<S, m, n, p>& A, const tensor<T, n, p>& B) ->
@@ -1183,7 +1185,10 @@ T sqnorm(const tensor<T, m>& A)
    return total;
 }
 
-/// @overload
+/**
+ * @overload 
+ * @brief Returns the squared Frobenius norm of the tensor
+ */
 template <typename T, int m, int n> MFEM_HOST_DEVICE
 T sqnorm(const tensor<T, m, n>& A)
 {
@@ -1198,7 +1203,6 @@ T sqnorm(const tensor<T, m, n>& A)
    return total;
 }
 
-// /// @overload
 /**
  * @brief Returns the Frobenius norm of the tensor
  * @param[in] A The tensor to obtain the norm from
@@ -1335,17 +1339,17 @@ T det(const tensor<T, 3, 3>& A)
  *
  * @tparam n The height of the tensor
  * @param A The square rank 2 tensor
- * @param tolerance The tolerance to check for symmetry
+ * @param abs_tolerance The absolute tolerance to check for symmetry
  * @return Whether the square rank 2 tensor (matrix) is symmetric
  */
 template <int n> MFEM_HOST_DEVICE
-bool is_symmetric(tensor<double, n, n> A, double tolerance = 1.0e-8)
+bool is_symmetric(tensor<double, n, n> A, double abs_tolerance = 1.0e-8)
 {
    for (int i = 0; i < n; ++i)
    {
       for (int j = i + 1; j < n; ++j)
       {
-         if (std::abs(A(i, j) - A(j, i)) > tolerance)
+         if (std::abs(A(i, j) - A(j, i)) > abs_tolerance)
          {
             return false;
          }

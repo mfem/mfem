@@ -525,6 +525,16 @@ PARELAG_OPT = -I$(PARELAG_DIR)/src -I$(PARELAG_DIR)/build/src
 PARELAG_LIB = -L$(PARELAG_DIR)/build/src -lParELAG
 
 # Enzyme configuration
+
+# If you want to enable automatic differentiation at compile time, use the
+# options below, adapted to your configuration. To be more flexible, we
+# recommend using the Enzyme plugin during link time optimization. One option is
+# to add your options to the global compiler/linker flags like
+#
+# BASE_FLAGS += -flto
+# CXX_XLINKER += -fuse-ld=lld -Wl,--lto-legacy-pass-manager\
+#                -Wl,-mllvm=-load=$(ENZYME_DIR)/LLDEnzyme-$(ENZYME_VERSION).so -Wl,
+#
 ENZYME_DIR ?= @MFEM_DIR@/../enzyme
 ENZYME_VERSION ?= 14
 ENZYME_OPT = -fno-experimental-new-pass-manager -Xclang -load -Xclang $(ENZYME_DIR)/ClangEnzyme-$(ENZYME_VERSION).so
