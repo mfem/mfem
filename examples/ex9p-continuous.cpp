@@ -101,6 +101,8 @@ private:
    Array<int> K_smap;
    mutable Vector z;
 
+   double timestep;
+
 public:
    FE_Evolution(ParBilinearForm &M_, ParBilinearForm &K_);
 
@@ -110,6 +112,8 @@ public:
    */
    void build_dij_matrix(const Vector &U,
                          const VectorFunctionCoefficient &velocity) ;
+   void calculate_timestep();
+   double get_timestep();
 
    virtual void Mult(const Vector &x, Vector &y) const;
    virtual void ImplicitSolve(const double dt, const Vector &x, Vector &k);
@@ -282,7 +286,7 @@ int main(int argc, char *argv[])
    }
    double hmin, hmax, kmin, kmax;
    pmesh->GetCharacteristics(hmin, hmax, kmin, kmax);
-   if (match_dt_to_h) { dt = hmin; }
+   if (match_dt_to_h) { dt = hmin/2.; }
    if (one_time_step) { t_final = dt; }
 
    // 7. Define the parallel H1 finite element space on the
@@ -434,6 +438,11 @@ int main(int argc, char *argv[])
 
    // dij_matrix has no time dependence
    adv.build_dij_matrix(*u, velocity);
+   adv.calculate_timestep();
+
+   // Verify our timestamp satisfies the cfl condition
+   cout << "dt: " << dt << endl;
+   assert (dt <= adv.get_timestep());
 
    bool done = false;
    for (int ti = 0; !done; )
@@ -601,7 +610,8 @@ FE_Evolution::FE_Evolution(ParBilinearForm &M_, ParBilinearForm &K_)
      D_form(&K_),
      K_spmat(K_.SpMat()),
      K_smap(),
-     lumpedM()
+     lumpedM(),
+     timestep(0.)
 {
    dij_matrix = new SparseMatrix(K_.SpMat());
    M_.FormSystemMatrix(ess_tdof_list, Mmat);
@@ -667,6 +677,12 @@ void FE_Evolution::build_dij_matrix(const Vector &U,
          double kij = K_data[k];
          double kji = K_data[K_smap[k]];
          double dij = fmax(fmax(0.0,-kij),-kji);
+         /* This is the broken code.
+         double temp_threshold = 0.000000000001;
+         if (abs(kij) < temp_threshold) { kij = 0.; } else { kij = abs(kij); }
+         if (abs(kji) < temp_threshold) { kji = 0.; } else { kji = abs(kji); }
+         double dij = fmax(kij, kji);
+         */
          D_data[k] = dij;
          D_data[K_smap[k]] = dij;
          if (i != j) { rowsum += dij; }
@@ -684,6 +700,41 @@ void FE_Evolution::build_dij_matrix(const Vector &U,
    // D = D_form->ParallelAssemble(&dij_matrix);
    D = new HypreParMatrix(MPI_COMM_WORLD, pfes.GlobalVSize(), pfes.GetDofOffsets(), dij_matrix);
    W = RAP(D, pfes.Dof_TrueDof_Matrix());
+}
+
+/******************************************************************************
+ * FE_Evolution::calculate_timestep()
+ * Purpose:
+ *    Compute maximum timestep according to global CFL condition outline in
+ *    Corollary 4.2 in Guermond 2016.
+ * ***************************************************************************/
+void FE_Evolution::calculate_timestep()
+{
+   cout << "Calculating timestep.\n"; 
+   int n = lumpedM.Size();
+   double t_min = 0;
+   double t_temp = 0;
+   Vector dii;
+   dij_matrix->GetDiag(dii);
+
+   for (int i = 0; i < n; i++) 
+   {
+      t_temp = lumpedM(i) / (2. * abs(dii[i]));
+      if (t_temp > t_min) { t_min = t_temp; }
+   }
+
+   cout << "Minimized timestep: " << t_min << endl;
+   this->timestep = t_min;
+}
+
+/******************************************************************************
+ * FE_Evolution::get_timestep()
+ * Purpose:
+ *    Retrieve timestep.
+ * ***************************************************************************/
+double FE_Evolution::get_timestep()
+{
+   return timestep;
 }
 
 void FE_Evolution::Mult(const Vector &x, Vector &y) const
@@ -861,7 +912,13 @@ double exact_sol(const Vector &x, const double t)
             }
             case 3:
             {
-               return 0;
+               Vector coeff = v;
+               for (int i = 0; i < dim; i++)
+               {
+                  coeff[i] = 2 * M_PI / (bb_max[i] - bb_min[i]);
+               }
+               double val = sin(coeff[0]*(X[0]-v[0]*t))*sin(coeff[1]*(X[1]-v[1]*t))*sin(coeff[2]*(X[2]-v[2]*t));
+               return val;
             }
          }
       }
