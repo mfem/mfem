@@ -1186,7 +1186,7 @@ T sqnorm(const tensor<T, m>& A)
 }
 
 /**
- * @overload 
+ * @overload
  * @brief Returns the squared Frobenius norm of the tensor
  */
 template <typename T, int m, int n> MFEM_HOST_DEVICE

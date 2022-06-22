@@ -67,9 +67,9 @@ struct is_dual_number<dual<value_type, gradient_type> >
 
 /** @brief addition of a dual number and a non-dual number */
 template <typename other_type, typename value_type, typename gradient_type,
-typename = typename std::enable_if<
-   std::is_arithmetic<other_type>::value ||
-   is_dual_number<other_type>::value>::type>
+          typename = typename std::enable_if<
+             std::is_arithmetic<other_type>::value ||
+             is_dual_number<other_type>::value>::type>
 MFEM_HOST_DEVICE
 constexpr auto operator+(dual<value_type, gradient_type> a,
                          other_type b) -> dual<value_type, gradient_type>
@@ -87,9 +87,9 @@ constexpr auto operator+(dual<value_type, gradient_type> a,
 
 /** @brief addition of a dual number and a non-dual number */
 template <typename other_type, typename value_type, typename gradient_type,
-typename = typename std::enable_if<
-   std::is_arithmetic<other_type>::value ||
-   is_dual_number<other_type>::value>::type>
+          typename = typename std::enable_if<
+             std::is_arithmetic<other_type>::value ||
+             is_dual_number<other_type>::value>::type>
 MFEM_HOST_DEVICE
 constexpr auto operator+(other_type a,
                          dual<value_type, gradient_type> b) -> dual<value_type, gradient_type>
