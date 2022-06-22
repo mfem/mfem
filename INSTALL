@@ -558,6 +558,14 @@ MFEM_USE_PARELAG = YES/NO
    use ParELAG. In fact, ParELAG is dependent on MFEM. Therefore, this option
    currently only concerns the miniapps.
 
+MFEM_USE_ENZYME = YES/NO
+   Enables automatic differentiation support through the LLVM plugin Enzyme.
+   This requires the compiler to be set to clang (>=14.0.0). We also advise to
+   use the link time optimization (LTO) plugin, to enable functions that you
+   define over multiple files (compilation units) and want to be differentiated
+   automatically, to work. This requires to also use LLVM/LLD for linking.
+   Recommended options are in config/defaults.mk.
+
 MFEM_BUILD_TAG = (any value)
    An optional tag to characterize the build. Exported to config/config.mk.
    Can be used to identify the MFEM build from other makefiles.
