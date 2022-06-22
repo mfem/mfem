@@ -18,6 +18,7 @@
 #ifndef MFEM_INTERNAL_DUAL_HPP
 #define MFEM_INTERNAL_DUAL_HPP
 
+#include <type_traits> // for is_arithmetic
 #include <cmath>
 #include "../general/backends.hpp"
 
@@ -49,10 +50,29 @@ struct dual
    }
 };
 
+/** @brief class for checking if a type is a dual number or not */
+template <typename T>
+struct is_dual_number
+{
+   /// whether or not type T is a dual number
+   static constexpr bool value = false;
+};
+
+/** @brief class for checking if a type is a dual number or not */
+template <typename value_type, typename gradient_type>
+struct is_dual_number<dual<value_type, gradient_type> >
+{
+   static constexpr bool value = true;  ///< whether or not type T is a dual number
+};
+
 /** @brief addition of a dual number and a non-dual number */
-template <typename value_type, typename gradient_type> MFEM_HOST_DEVICE
+template <typename other_type, typename value_type, typename gradient_type,
+typename = typename std::enable_if<
+   std::is_arithmetic<other_type>::value ||
+   is_dual_number<other_type>::value>::type>
+MFEM_HOST_DEVICE
 constexpr auto operator+(dual<value_type, gradient_type> a,
-                         value_type b) -> dual<value_type, gradient_type>
+                         other_type b) -> dual<value_type, gradient_type>
 {
    return {a.value + b, a.gradient};
 }
@@ -60,14 +80,18 @@ constexpr auto operator+(dual<value_type, gradient_type> a,
 // C++17 version of the above
 //
 // template <typename value_type, typename gradient_type>
-// constexpr auto operator+(dual<value_type, gradient_type> a, double b)
+// constexpr auto operator+(dual<value_type, gradient_type> a, value_type b)
 // {
 //    return dual{a.value + b, a.gradient};
 // }
 
 /** @brief addition of a dual number and a non-dual number */
-template <typename value_type, typename gradient_type> MFEM_HOST_DEVICE
-constexpr auto operator+(value_type a,
+template <typename other_type, typename value_type, typename gradient_type,
+typename = typename std::enable_if<
+   std::is_arithmetic<other_type>::value ||
+   is_dual_number<other_type>::value>::type>
+MFEM_HOST_DEVICE
+constexpr auto operator+(other_type a,
                          dual<value_type, gradient_type> b) -> dual<value_type, gradient_type>
 {
    return {a + b.value, b.gradient};
@@ -391,21 +415,6 @@ MFEM_HOST_DEVICE gradient_type get_gradient(dual<value_type, gradient_type> arg)
 {
    return arg.gradient;
 }
-
-/** @brief class for checking if a type is a dual number or not */
-template <typename T>
-struct is_dual_number
-{
-   /// whether or not type T is a dual number
-   static constexpr bool value = false;
-};
-
-/** @brief class for checking if a type is a dual number or not */
-template <typename value_type, typename gradient_type>
-struct is_dual_number<dual<value_type, gradient_type> >
-{
-   static constexpr bool value = true;  ///< whether or not type T is a dual number
-};
 
 } // namespace internal
 } // namespace mfem
