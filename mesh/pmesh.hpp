@@ -352,6 +352,11 @@ public:
    void SetCurvature(int order, bool discont = false, int space_dim = -1,
                      int ordering = 1) override;
 
+   /** Replace the internal node GridFunction with a new GridFunction defined
+       on the given FiniteElementSpace. The new node coordinates are projected
+       (derived) from the current nodes/vertices. */
+   void SetNodalFESpace(ParFiniteElementSpace *npfes);
+
    int GetNFaceNeighbors() const { return face_nbr_group.Size(); }
    int GetNFaceNeighborElements() const { return face_nbr_elements.Size(); }
    int GetFaceNbrGroup(int fn) const { return face_nbr_group[fn]; }
