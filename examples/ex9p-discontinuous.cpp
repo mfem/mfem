@@ -1005,7 +1005,13 @@ double exact_sol(const Vector &x, double t)
             }
             case 3:
             {
-               return 0;
+               Vector coeff = v;
+               for (int i = 0; i < dim; i++)
+               {
+                  coeff[i] = 2 * M_PI / (bb_max[i] - bb_min[i]);
+               }
+               double val = sin(coeff[0]*(X[0]-v[0]*t))*sin(coeff[1]*(X[1]-v[1]*t))*sin(coeff[2]*(X[2]-v[2]*t));
+               return val;
             }
          }
       }
