@@ -11,6 +11,9 @@
 
 #include "forall.hpp"
 #include "occa.hpp"
+#ifdef MFEM_USE_MPI
+#include <HYPRE_config.h> // HYPRE_USING_GPU
+#endif
 #ifdef MFEM_USE_CEED
 #include "../fem/ceed/interface/util.hpp"
 #endif
@@ -575,7 +578,13 @@ void Device::Setup(const int device_id)
          CeedDeviceSetup(device_option);
       }
    }
-   if (Allows(Backend::DEBUG_DEVICE)) { ngpu = 1; }
+   if (Allows(Backend::DEBUG_DEVICE))
+   {
+#ifdef HYPRE_USING_GPU
+      MFEM_ABORT("Device debug does not support Hypre built for GPU.");
+#endif
+      ngpu = 1;
+   }
 }
 
 } // mfem
