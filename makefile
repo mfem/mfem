@@ -465,23 +465,37 @@ else
 JIT_SOURCE_FILES = $(SRC)fem/bilininteg_diffusion_pa.cpp \
 $(SRC)fem/bilininteg_mass_pa.cpp
 
-# Definitions to compile the preprocessor and embed the MFEM options
-MFEM_JIT_DEFINES  = -DMFEM_CXX="\"$(MFEM_CXX)\""
-MFEM_JIT_DEFINES += -DMFEM_EXT_LIBS="\"$(MFEM_EXT_LIBS)\""
-MFEM_JIT_DEFINES += -DMFEM_BUILD_FLAGS="\"$(MFEM_BUILD_FLAGS)\""
-MFEM_JIT_DEFINES += -DMFEM_LINK_FLAGS="\"$(MFEM_LINK_FLAGS)\""
-$(BLD)mjit: $(BLD)general/jit/parser.cpp $(CONFIG_MK) makefile\
- $(BLD)general/jit/jit.hpp $(BLD)general/jit/jit.cpp
-	$(MFEM_CXX) $(MFEM_BUILD_FLAGS) $(MFEM_JIT_DEFINES) -o $(@) $(<)
-
 # Filter out objects that will be compiled through the preprocessor
 JIT_OBJECT_FILES = $(JIT_SOURCE_FILES:$(SRC)%.cpp=$(BLD)%.o)
-STD_OBJECT_FILES = $(filter-out $(JIT_OBJECT_FILES), $(OBJECT_FILES))
+# Filter out objects that will require specific MAKEFILE definitions
+OPT_OBJECT_FILES = $(BLD)general/jit/jit.o
+STD_OBJECT_FILES = $(filter-out $(JIT_OBJECT_FILES) $(OPT_OBJECT_FILES), $(OBJECT_FILES))
+
+# Definitions to compile the preprocessor and embed the MFEM options
+MFEM_JIT_DEFINES  = -DMFEM_CXX="\"$(MFEM_CXX)\""
+MFEM_JIT_DEFINES += -DMFEM_EXT_LIBS="\"$(strip $(MFEM_EXT_LIBS))\""
+MFEM_JIT_DEFINES += -DMFEM_BUILD_FLAGS="\"$(strip $(MFEM_BUILD_FLAGS))\""
+MFEM_JIT_DEFINES += -DMFEM_LINK_FLAGS="\"$(strip $(MFEM_LINK_FLAGS))\""
+$(BLD)mjit: $(BLD)general/jit/parser.cpp $(CONFIG_MK) makefile\
+ $(BLD)general/jit/jit.hpp
+	$(MFEM_CXX) $(strip $(MFEM_BUILD_FLAGS)) $(MFEM_JIT_DEFINES) $(<) -o $(@)
+
+# MFEM CXX/AR/install options embedded in the general/jit/jit object file 
+MFEM_JIT_OPTIONS  = -DMFEM_SO_EXT="\"$(SO_EXT)\""
+MFEM_JIT_OPTIONS += -DMFEM_XCOMPILER="\"$(XCOMPILER)\""
+MFEM_JIT_OPTIONS += -DMFEM_XLINKER="\"$(XLINKER)\""
+MFEM_JIT_OPTIONS += -DMFEM_AR="\"$(AR)\""
+MFEM_JIT_OPTIONS += -DMFEM_PICFLAG="\"$(PICFLAG)\""
+MFEM_JIT_OPTIONS += -DMFEM_INSTALL_BACKUP="\"$(INSTALL_BACKUP)\""
+MFEM_JIT_OPTIONS += -DMFEM_SO_PREFIX="\"$(SO_PREFIX)\""
+MFEM_JIT_OPTIONS += -DMFEM_SO_POSTFIX="\"$(SO_POSTFIX)\""
+$(OPT_OBJECT_FILES): $(BLD)%.o: $(SRC)%.cpp $(SRC)%.hpp makefile $(CONFIG_MK)
+	$(MFEM_CXX) $(strip $(MFEM_BUILD_FLAGS)) $(MFEM_JIT_OPTIONS) -c $(<) -o $(@)
 
 $(STD_OBJECT_FILES): $(BLD)%.o: $(SRC)%.cpp $(CONFIG_MK)
 	$(MFEM_CXX) $(MFEM_BUILD_FLAGS) -c $(<) -o $(@)
 
-# Hip compiler does not support target options with stdin input
+# HIP compiler does not support target options with stdin input
 ifneq ($(MFEM_USE_HIP),YES)
 MFEM_JIT_FLAGS = $(strip $(MFEM_BUILD_FLAGS)) $(JIT_LANG) -I$(patsubst %/,%,$(<D))
 $(JIT_OBJECT_FILES): $(BLD)%.o: $(SRC)%.cpp $(CONFIG_MK) $(BLD)mjit
@@ -491,7 +505,7 @@ else # hip
 $(BLD)%_jit.cc: $(SRC)%.cpp $(CONFIG_MK) $(BLD)mjit
 	$(BLD)./mjit $(<) -o $(@)
 
-$(BLD)%.o: $(BLD)%_jit.cc $(CONFIG_MK) makefile
+$(JIT_OBJECT_FILES): $(BLD)%.o: $(BLD)%_jit.cc $(CONFIG_MK) makefile
 	$(MFEM_CXX) $(strip $(MFEM_BUILD_FLAGS)) -c $(<) -o $(@)
 endif # hip
 endif # jit

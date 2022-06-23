@@ -27,6 +27,7 @@
 
 #if !(defined(MFEM_CXX) && defined(MFEM_EXT_LIBS) &&\
       defined(MFEM_LINK_FLAGS) && defined(MFEM_BUILD_FLAGS))
+#error MFEM_[CXX, EXT_LIBS, LINK_FLAGS, BUILD_FLAGS] must be defined!
 #define MFEM_CXX ""
 #define MFEM_EXT_LIBS ""
 #define MFEM_LINK_FLAGS ""

@@ -441,7 +441,7 @@ public:
    int CheckFinite() const { return mfem::CheckFinite(data, size); }
 
    /// Destroys vector.
-   virtual ~Vector();
+   virtual inline ~Vector();
 
    /// Shortcut for mfem::Read(vec.GetMemory(), vec.Size(), on_dev).
    virtual const double *Read(bool on_dev = true) const

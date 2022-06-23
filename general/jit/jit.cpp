@@ -37,6 +37,21 @@
 #include <sys/mman.h> // mmap
 #endif
 
+#if !(defined(MFEM_SO_EXT) && defined(MFEM_XCOMPILER) &&\
+      defined(MFEM_XLINKER) && defined(MFEM_AR) &&\
+      defined(MFEM_INSTALL_BACKUP) && defined(MFEM_SO_PREFIX) &&\
+      defined(MFEM_SO_POSTFIX) && defined(MFEM_PICFLAG))
+#error MFEM_[SO_EXT, XCOMPILER, XLINKER, AR, INSTALL_BACKUP, SO_PREFIX, SO_POSTFIX, PICFLAGS] must be defined!
+#define MFEM_SO_EXT ""
+#define MFEM_XCOMPILER ""
+#define MFEM_XLINKER ""
+#define MFEM_AR ""
+#define MFEM_INSTALL_BACKUP ""
+#define MFEM_SO_PREFIX ""
+#define MFEM_SO_POSTFIX ""
+#define MFEM_PICFLAG ""
+#endif
+
 namespace mfem
 {
 
@@ -179,11 +194,7 @@ class System // System singleton object
    char *s_mem; // shared memory to store the command for the system call
    uintptr_t size; // of the s_mem shared memory
    std::string path {"."};
-#ifdef __APPLE__
-   std::string lib_ar {"libmjit.a"}, lib_so {"./libmjit.dylib"};
-#else
-   std::string lib_ar {"libmjit.a"}, lib_so {"./libmjit.so"};
-#endif
+   std::string lib_ar {"libmjit.a"}, lib_so {"./libmjit." MFEM_SO_EXT};
    bool keep = true; // keep lib_ar
 
    struct Command
@@ -243,11 +254,6 @@ class System // System singleton object
       {
          io::FileLock ar_lock(Lib_ar(), "ak");
          std::remove(Lib_ar());
-      }
-      if (Rank()==0 && io::Exists(Lib_so()))
-      {
-         io::FileLock so_lock(Lib_so(), "ok");
-         std::remove(Lib_so());
       }
    }
 
@@ -335,11 +341,7 @@ public:
       }
       mpi::Sync();
 
-#ifdef __APPLE__
-      const char *so_ext = "dylib";
-#else
-      const char *so_ext = "so";
-#endif
+      const char *so_ext = MFEM_SO_EXT;
       Get().lib_so = create_full_path(so_ext);
    }
 
@@ -357,60 +359,16 @@ public:
       { MFEM_ABORT("[JIT] Finalize memory error!"); }
    }
 
-   struct CompilerOptions
-   {
-      virtual std::string Compiler() { return ""; }
-      virtual std::string Pic() { return "-fPIC"; }
-      virtual std::string Pipe() { return "-pipe"; }
-      virtual std::string Device() { return ""; }
-      virtual std::string Linker() { return "-Wl,"; }
-   };
+   static std::string Xpic() { return MFEM_PICFLAG; }
+   static std::string Xlinker() { return MFEM_XLINKER; }
+   static std::string Xcompiler() { return MFEM_XCOMPILER; }
+   static std::string Xprefix() { return MFEM_SO_PREFIX;  }
+   static std::string Xpostfix() { return MFEM_SO_POSTFIX; }
+   static std::string Xbackup() { return MFEM_INSTALL_BACKUP; }
 
-   struct NvccOptions: CompilerOptions
-   {
-      std::string Compiler() override { return "-Xcompiler="; }
-      std::string Pic() override { return Xcompiler() + "-fPIC"; }
-      std::string Pipe() override { return ""; } // not supported
-      std::string Device() override { return "--device-c"; }
-      std::string Linker() override { return "-Xlinker="; }
-   };
-
-   struct LinkerOptions
-   {
-      virtual std::string Backup() { return "--backup=none"; }
-      virtual std::string Prefix() { return Xlinker() + "--whole-archive"; }
-      virtual std::string Postfix() { return Xlinker() + "--no-whole-archive"; }
-   };
-
-   struct DarwinOptions: public LinkerOptions
-   {
-      std::string Backup() override { return ""; }
-      std::string Prefix() override { return "-all_load"; }
-      std::string Postfix() override { return ""; }
-   };
-
-#ifdef MFEM_USE_CUDA
-   NvccOptions cxx;
-#else
-   CompilerOptions cxx;
-#endif
-
-#ifdef __APPLE__
-   DarwinOptions ar;
-#else
-   LinkerOptions ar;
-#endif
-
-   static std::string Xpic() { return Get().cxx.Pic(); }
-   static std::string Xpipe() { return Get().cxx.Pipe(); }
-   static std::string Xdevice() { return Get().cxx.Device(); }
-   static std::string Xlinker() { return Get().cxx.Linker(); }
-   static std::string Xcompiler() { return Get().cxx.Compiler(); }
-   static std::string ARprefix() { return Get().ar.Prefix();  }
-   static std::string ARpostfix() { return Get().ar.Postfix(); }
-   static std::string ARbackup() { return Get().ar.Backup(); }
    static const char *Lib_ar() { return Get().lib_ar.c_str(); }
    static const char *Lib_so() { return Get().lib_so.c_str(); }
+
    static bool Debug() { return !!std::getenv("MFEM_JIT_DEBUG"); }
    static bool Verbose() { return !!std::getenv("MFEM_JIT_VERBOSE"); }
 
@@ -448,7 +406,7 @@ public:
          {
             io::FileLock so_lock(Lib_so(), "ok");
             Command() << cxx << link << "-shared" << "-o" << Lib_so()
-                      << ARprefix() << Lib_ar() << ARpostfix()
+                      << Xprefix() << Lib_ar() << Xpostfix()
                       << Xlinker() + std::string("-rpath,") + Path() << libs;
             status = Call();
          }
@@ -477,7 +435,7 @@ public:
          {
             auto install = [](const char *in, const char *out)
             {
-               Command() << "install" << ARbackup() << in << out;
+               Command() << "install" << Xbackup() << in << out;
                MFEM_VERIFY(Call() == EXIT_SUCCESS,
                            "[JIT] install error: " << in << " => " << out);
             };
@@ -495,20 +453,23 @@ public:
             const auto src_mfem_file = std::fstream(src_mfem_hpp);
             MFEM_VERIFY(bin_mfem_file||src_mfem_file, "MFEM header needed!");
             auto co = Jit::ToString(hash, ".co"); // output object
-            Command() << cxx << flags << Xdevice() << Xpic() << Xpipe()
+            Command() << cxx << flags << Xpic() << (Verbose() ? "-v" : "")
+#ifdef MFEM_USE_CUDA
+                      << "--device-c"
+#endif
                       << "-I" << MFEM_INSTALL_DIR "/include/mfem"
                       << "-I" << MFEM_SOURCE_DIR
-                      << "-c" << "-o" << co << cc << (Verbose() ? "-v" : "");
+                      << "-c" << "-o" << co << cc;
             if (Call(name)) { return EXIT_FAILURE; }
             if (!Debug()) { std::remove(cc.c_str()); }
             // Update archive: ar += co
             io::FileLock ar_lock(Lib_ar(), "ak");
-            Command() << "ar -r" << Lib_ar() << co; // v
+            Command() << MFEM_AR << "-r" << Lib_ar() << co; // v
             if (Call()) { return EXIT_FAILURE; }
             std::remove(co.c_str());
             // Create temporary shared library: (ar + co) => tmp
             Command() << cxx << link << "-shared" << "-o" << tmp
-                      << ARprefix() << Lib_ar() << ARpostfix()
+                      << Xprefix() << Lib_ar() << Xpostfix()
                       << Xlinker() + "-rpath,." << libs;
             if (Call()) { return EXIT_FAILURE; }
             // Install temporary shared library: tmp => so
