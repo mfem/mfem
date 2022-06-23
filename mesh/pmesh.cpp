@@ -1990,6 +1990,18 @@ void ParMesh::SetCurvature(int order, bool discont, int space_dim, int ordering)
    Nodes->MakeOwner(nfec);
 }
 
+void ParMesh::SetNodalFESpace(FiniteElementSpace *nfes)
+{
+   if (dynamic_cast<ParFiniteElementSpace*>(nfes) != NULL)
+   {
+      SetNodalFESpace(dynamic_cast<ParFiniteElementSpace*>(nfes));
+   }
+   else
+   {
+      Mesh::SetNodalFESpace(nfes);
+   }
+}
+
 void ParMesh::SetNodalFESpace(ParFiniteElementSpace *npfes)
 {
    ParGridFunction *nodes = new ParGridFunction(npfes);
