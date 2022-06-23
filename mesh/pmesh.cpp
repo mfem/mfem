@@ -1992,9 +1992,10 @@ void ParMesh::SetCurvature(int order, bool discont, int space_dim, int ordering)
 
 void ParMesh::SetNodalFESpace(FiniteElementSpace *nfes)
 {
-   if (dynamic_cast<ParFiniteElementSpace*>(nfes) != NULL)
+   ParFiniteElementSpace *npfes = dynamic_cast<ParFiniteElementSpace*>(nfes);
+   if (npfes)
    {
-      SetNodalFESpace(dynamic_cast<ParFiniteElementSpace*>(nfes));
+      SetNodalFESpace(npfes);
    }
    else
    {
