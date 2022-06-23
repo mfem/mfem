@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -128,7 +128,8 @@ public:
    Surface(Opt &opt, bool): Mesh(), opt(opt) { }
 
    // Generate 2D quad surface mesh
-   Surface(Opt &opt): Mesh(opt.nx, opt.ny, QUAD, true), opt(opt) { }
+   Surface(Opt &opt)
+      : Mesh(Mesh::MakeCartesian2D(opt.nx, opt.ny, QUAD, true)), opt(opt) { }
 
    // Generate 2D generic surface mesh
    Surface(Opt &opt, int nv, int ne, int nbe):
@@ -398,16 +399,18 @@ public:
       void Amr()
       {
          MFEM_VERIFY(opt.amr_threshold >= 0.0 && opt.amr_threshold <= 1.0, "");
-         Mesh *mesh = S.mesh;
+         Mesh *smesh = S.mesh;
          Array<Refinement> amr;
-         const int NE = mesh->GetNE();
+         const int NE = smesh->GetNE();
          DenseMatrix Jadjt, Jadj(DIM, SDIM);
          for (int e = 0; e < NE; e++)
          {
             double minW = +NL_DMAX;
             double maxW = -NL_DMAX;
-            ElementTransformation *eTr = mesh->GetElementTransformation(e);
-            const Geometry::Type &type = mesh->GetElement(e)->GetGeometryType();
+            ElementTransformation *eTr = smesh->GetElementTransformation(e);
+            const Geometry::Type &type =
+               smesh->GetElement(e)->GetGeometryType();
+
             const IntegrationRule *ir = &IntRules.Get(type, opt.order);
             const int NQ = ir->GetNPoints();
             for (int q = 0; q < NQ; q++)
@@ -430,8 +433,8 @@ public:
          }
          if (amr.Size()>0)
          {
-            mesh->GetNodes()->HostReadWrite();
-            mesh->GeneralRefinement(amr);
+            smesh->GetNodes()->HostReadWrite();
+            smesh->GeneralRefinement(amr);
             S.fes->Update();
             x.HostReadWrite();
             x.Update();
@@ -1227,7 +1230,7 @@ static double qf(const int order, const int ker, Mesh &m,
 static int Problem1(Opt &opt)
 {
    const int order = opt.order;
-   Mesh smesh(opt.nx, opt.ny, QUAD);
+   Mesh smesh = Mesh::MakeCartesian2D(opt.nx, opt.ny, QUAD);
    smesh.SetCurvature(opt.order, false, DIM, Ordering::byNODES);
    for (int l = 0; l < opt.refine; l++) { smesh.UniformRefinement(); }
    ParMesh mesh(MPI_COMM_WORLD, smesh);
@@ -1286,9 +1289,11 @@ static int Problem1(Opt &opt)
 int main(int argc, char *argv[])
 {
    Opt opt;
-   MPI_Init(&argc, &argv);
-   MPI_Comm_rank(MPI_COMM_WORLD, &opt.id);
-   MPI_Comm_size(MPI_COMM_WORLD, &opt.sz);
+   Mpi::Init(argc, argv);
+   opt.id = Mpi::WorldRank();
+   opt.sz = Mpi::WorldSize();
+   Hypre::Init();
+
    // Parse command-line options.
    OptionsParser args(argc, argv);
    args.AddOption(&opt.pb, "-p", "--problem", "Problem to solve.");
@@ -1324,7 +1329,7 @@ int main(int argc, char *argv[])
    args.AddOption(&opt.snapshot, "-ss", "--snapshot", "-no-ss", "--no-snapshot",
                   "Enable or disable GLVis snapshot.");
    args.Parse();
-   if (!args.Good()) { args.PrintUsage(mfem::out); MPI_Finalize(); return 1; }
+   if (!args.Good()) { args.PrintUsage(mfem::out); return 1; }
    MFEM_VERIFY(opt.lambda >= 0.0 && opt.lambda <= 1.0,"");
    if (!opt.id) { args.PrintOptions(mfem::out); }
 
@@ -1336,6 +1341,5 @@ int main(int argc, char *argv[])
 
    if (opt.pb == 1) { Problem1(opt); }
 
-   MPI_Finalize();
    return 0;
 }

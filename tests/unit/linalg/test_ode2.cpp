@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -15,8 +15,7 @@
 
 using namespace mfem;
 
-TEST_CASE("Second order ODE methods",
-          "[ODE2]")
+TEST_CASE("Second order ODE methods", "[ODE]")
 {
    double tol = 0.1;
 
@@ -79,13 +78,13 @@ TEST_CASE("Second order ODE methods",
          dt = t_final/double(ti_steps);
       };
 
-      void init_hist(SecondOrderODESolver* ode_solver,double dt)
+      void init_hist(SecondOrderODESolver* ode_solver,double dt_)
       {
          int nstate = ode_solver->GetStateSize();
 
          for (int s = 0; s< nstate; s++)
          {
-            double t = -(s)*dt;
+            double t = -(s)*dt_;
             Vector uh(1);
             uh[0] = -cos(t) - sin(t);
             ode_solver->SetStateVector(s,uh);
@@ -95,7 +94,7 @@ TEST_CASE("Second order ODE methods",
 
       double order(SecondOrderODESolver* ode_solver, bool init_hist_ = false)
       {
-         double dt,t;
+         double dt_order,t;
          Vector u(1);
          Vector du(1);
          Vector err_u(levels);
@@ -103,12 +102,12 @@ TEST_CASE("Second order ODE methods",
          int steps = ti_steps;
 
          t = 0.0;
-         dt = t_final/double(steps);
+         dt_order = t_final/double(steps);
          u = u0;
          du = dudt0;
          ode_solver->Init(*oper);
-         if (init_hist_) { init_hist(ode_solver,dt); }
-         ode_solver->Run(u, du, t, dt,t_final - 1e-12);
+         if (init_hist_) { init_hist(ode_solver,dt_order); }
+         ode_solver->Run(u, du, t, dt_order, t_final - 1e-12);
 
          u -= u0;
          du -= dudt0;
@@ -116,13 +115,13 @@ TEST_CASE("Second order ODE methods",
          err_u[0] = u.Norml2();
          err_du[0] = du.Norml2();
 
-         std::cout<<std::setw(12)<<"Error u"
+         mfem::out<<std::setw(12)<<"Error u"
                   <<std::setw(12)<<"Error du"
                   <<std::setw(12)<<"Ratio u"
                   <<std::setw(12)<<"Ratio du"
                   <<std::setw(12)<<"Order u"
                   <<std::setw(12)<<"Order du"<<std::endl;
-         std::cout<<std::setw(12)<<err_u[0]
+         mfem::out<<std::setw(12)<<err_u[0]
                   <<std::setw(12)<<err_du[0]<<std::endl;
 
          std::vector<Vector> uh(ode_solver->GetMaxStateSize());
@@ -130,19 +129,19 @@ TEST_CASE("Second order ODE methods",
          {
             int lvl = pow(2,l);
             t = 0.0;
-            dt *= 0.5;
+            dt_order *= 0.5;
             u = u0;
             du = dudt0;
             ode_solver->Init(*oper);
-            if (init_hist_) { init_hist(ode_solver,dt); }
+            if (init_hist_) { init_hist(ode_solver,dt_order); }
 
             // Instead of single run command:
-            // ode_solver->Run(u, du, t, dt, t_final - 1e-12);
+            // ode_solver->Run(u, du, t, dt_order, t_final - 1e-12);
             // Chop-up sequence with Get/Set in between
             // in order to test these routines
             for (int ti = 0; ti < steps; ti++)
             {
-               ode_solver->Step(u, du, t, dt);
+               ode_solver->Step(u, du, t, dt_order);
             }
 
             int nstate = ode_solver->GetStateSize();
@@ -159,7 +158,7 @@ TEST_CASE("Second order ODE methods",
                }
                for (int ti = 0; ti < steps; ti++)
                {
-                  ode_solver->Step(u, du, t, dt);
+                  ode_solver->Step(u, du, t, dt_order);
                }
                nstate = ode_solver->GetStateSize();
                for (int s = 0; s< nstate; s++)
@@ -172,7 +171,7 @@ TEST_CASE("Second order ODE methods",
             du -= dudt0;
             err_u[l] = u.Norml2();
             err_du[l] = du.Norml2();
-            std::cout<<std::setw(12)<<err_u[l]
+            mfem::out<<std::setw(12)<<err_u[l]
                      <<std::setw(12)<<err_du[l]
                      <<std::setw(12)<<err_u[l-1]/err_u[l]
                      <<std::setw(12)<<err_du[l-1]/err_du[l]
@@ -190,28 +189,24 @@ TEST_CASE("Second order ODE methods",
    // Newmark-based solvers
    SECTION("Newmark")
    {
-      std::cout <<"\nTesting NewmarkSolver" << std::endl;
       double conv_rate = check.order(new NewmarkSolver);
       REQUIRE(conv_rate + tol > 2.0);
    }
 
    SECTION("LinearAcceleration")
    {
-      std::cout <<"\nLinearAccelerationSolver" << std::endl;
       double conv_rate = check.order(new LinearAccelerationSolver);
       REQUIRE(conv_rate + tol > 2.0);
    }
 
    SECTION("CentralDifference")
    {
-      std::cout <<"\nTesting CentralDifference" << std::endl;
       double conv_rate = check.order(new CentralDifferenceSolver);
       REQUIRE(conv_rate + tol > 2.0);
    }
 
    SECTION("FoxGoodwin")
    {
-      std::cout <<"\nTesting FoxGoodwin" << std::endl;
       double conv_rate = check.order(new FoxGoodwinSolver);
       REQUIRE(conv_rate + tol > 4.0);
    }
@@ -219,28 +214,24 @@ TEST_CASE("Second order ODE methods",
    // Generalized-alpha based solvers
    SECTION("GeneralizedAlpha(0.0)")
    {
-      std::cout <<"\nTesting GeneralizedAlpha(0.0)" << std::endl;
       double conv_rate = check.order(new GeneralizedAlpha2Solver(0.0));
       REQUIRE(conv_rate + tol > 2.0);
    }
 
    SECTION("GeneralizedAlpha(0.5)")
    {
-      std::cout <<"\nTesting GeneralizedAlpha(0.5)" << std::endl;
       double conv_rate = check.order(new GeneralizedAlpha2Solver(0.5));
       REQUIRE(conv_rate + tol > 2.0);
    }
 
    SECTION("GeneralizedAlpha(0.5) - restart")
    {
-      std::cout <<"\nTesting GeneralizedAlpha(0.5) - restart" << std::endl;
       double conv_rate = check.order(new GeneralizedAlpha2Solver(0.5),true);
       REQUIRE(conv_rate + tol > 2.0);
    }
 
    SECTION("GeneralizedAlpha(1.0)")
    {
-      std::cout <<"\nTesting GeneralizedAlpha(1.0)" << std::endl;
       double conv_rate = check.order(new GeneralizedAlpha2Solver(1.0));
       REQUIRE(conv_rate + tol > 2.0);
    }
@@ -248,49 +239,42 @@ TEST_CASE("Second order ODE methods",
 
    SECTION("AverageAcceleration")
    {
-      std::cout <<"\nTesting AverageAcceleration" << std::endl;
       double conv_rate = check.order(new AverageAccelerationSolver);
       REQUIRE(conv_rate + tol > 2.0);
    }
 
    SECTION("HHTAlpha(2/3)")
    {
-      std::cout <<"\nTesting HHTAlpha(2/3)" << std::endl;
       double conv_rate = check.order(new HHTAlphaSolver(2.0/3.0));
       REQUIRE(conv_rate + tol > 2.0);
    }
 
    SECTION("HHTAlpha(0.75)")
    {
-      std::cout <<"\nTesting HHTAlpha(0.75)" << std::endl;
       double conv_rate = check.order(new HHTAlphaSolver(0.75));
       REQUIRE(conv_rate + tol > 2.0);
    }
 
    SECTION("HHTAlpha(1.0)")
    {
-      std::cout <<"\nTesting HHTAlpha(1.0)" << std::endl;
       double conv_rate = check.order(new HHTAlphaSolver(1.0));
       REQUIRE(conv_rate + tol > 2.0);
    }
 
    SECTION("WBZAlpha(0.0)")
    {
-      std::cout <<"\nTesting WBZAlpha(0.0)" << std::endl;
       double conv_rate = check.order(new WBZAlphaSolver(0.0));
       REQUIRE(conv_rate + tol > 2.0);
    }
 
    SECTION("WBZAlpha(0.5)")
    {
-      std::cout <<"\nTesting WBZAlpha(0.5)" << std::endl;
       double conv_rate = check.order(new WBZAlphaSolver(0.5));
       REQUIRE(conv_rate + tol > 2.0);
    }
 
    SECTION("WBZAlpha(1.0)")
    {
-      std::cout <<"\nTesting WBZAlpha(1.0)" << std::endl;
       double conv_rate = check.order(new WBZAlphaSolver(1.0));
       REQUIRE(conv_rate + tol > 2.0);
    }

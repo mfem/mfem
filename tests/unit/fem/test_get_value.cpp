@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -126,7 +126,6 @@ TEST_CASE("1D GetValue",
           "[GridFunction]"
           "[GridFunctionCoefficient]")
 {
-   int log = 1;
    int n = 1;
    int dim = 1;
    int order = 1;
@@ -137,7 +136,7 @@ TEST_CASE("1D GetValue",
    for (int type = (int)Element::SEGMENT;
         type <= (int)Element::SEGMENT; type++)
    {
-      Mesh mesh(n, 2.0);
+      Mesh mesh = Mesh::MakeCartesian1D(n, 2.0);
 
       FunctionCoefficient funcCoef(func_1D_lin);
 
@@ -167,7 +166,6 @@ TEST_CASE("1D GetValue",
 
          SECTION("Domain Evaluation 1D")
          {
-            std::cout << "Domain Evaluation 1D" << std::endl;
             for (int e = 0; e < mesh.GetNE(); e++)
             {
                ElementTransformation *T = mesh.GetElementTransformation(e);
@@ -207,42 +205,42 @@ TEST_CASE("1D GetValue",
                   dgv_gv_err += fabs(f_val - dgv_gv_val);
                   dgi_gv_err += fabs(f_val - dgi_gv_val);
 
-                  if (log > 0 && fabs(f_val - h1_gfc_val) > tol)
+                  if (verbose_tests && fabs(f_val - h1_gfc_val) > tol)
                   {
-                     std::cout << e << ":" << j << " h1  gfc " << f_val << " "
+                     mfem::out << e << ":" << j << " h1  gfc " << f_val << " "
                                << h1_gfc_val << " " << fabs(f_val - h1_gfc_val)
                                << std::endl;
                   }
-                  if (log > 0 && fabs(f_val - dgv_gfc_val) > tol)
+                  if (verbose_tests && fabs(f_val - dgv_gfc_val) > tol)
                   {
-                     std::cout << e << ":" << j << " dgv gfc " << f_val << " "
+                     mfem::out << e << ":" << j << " dgv gfc " << f_val << " "
                                << dgv_gfc_val << " "
                                << fabs(f_val - dgv_gfc_val)
                                << std::endl;
                   }
-                  if (log > 0 && fabs(f_val - dgi_gfc_val) > tol)
+                  if (verbose_tests && fabs(f_val - dgi_gfc_val) > tol)
                   {
-                     std::cout << e << ":" << j << " dgi gfc " << f_val << " "
+                     mfem::out << e << ":" << j << " dgi gfc " << f_val << " "
                                << dgi_gfc_val << " "
                                << fabs(f_val - dgi_gfc_val)
                                << std::endl;
                   }
-                  if (log > 0 && fabs(f_val - h1_gv_val) > tol)
+                  if (verbose_tests && fabs(f_val - h1_gv_val) > tol)
                   {
-                     std::cout << e << ":" << j << " h1  gv " << f_val << " "
+                     mfem::out << e << ":" << j << " h1  gv " << f_val << " "
                                << h1_gv_val << " " << fabs(f_val - h1_gv_val)
                                << std::endl;
                   }
-                  if (log > 0 && fabs(f_val - dgv_gv_val) > tol)
+                  if (verbose_tests && fabs(f_val - dgv_gv_val) > tol)
                   {
-                     std::cout << e << ":" << j << " dgv gv " << f_val << " "
+                     mfem::out << e << ":" << j << " dgv gv " << f_val << " "
                                << dgv_gv_val << " "
                                << fabs(f_val - dgv_gv_val)
                                << std::endl;
                   }
-                  if (log > 0 && fabs(f_val - dgi_gv_val) > tol)
+                  if (verbose_tests && fabs(f_val - dgi_gv_val) > tol)
                   {
-                     std::cout << e << ":" << j << " dgi gv " << f_val << " "
+                     mfem::out << e << ":" << j << " dgi gv " << f_val << " "
                                << dgi_gv_val << " "
                                << fabs(f_val - dgi_gv_val)
                                << std::endl;
@@ -269,7 +267,6 @@ TEST_CASE("1D GetValue",
 
          SECTION("Boundary Evaluation 1D (H1 Context)")
          {
-            std::cout << "Boundary Evaluation 1D (H1 Context)" << std::endl;
             for (int be = 0; be < mesh.GetNBE(); be++)
             {
                ElementTransformation *T = mesh.GetBdrElementTransformation(be);
@@ -296,23 +293,23 @@ TEST_CASE("1D GetValue",
                   dgv_err += fabs(f_val - dgv_gfc_val);
                   dgi_err += fabs(f_val - dgi_gfc_val);
 
-                  if (log > 0 && fabs(f_val - h1_gfc_val) > tol)
+                  if (verbose_tests && fabs(f_val - h1_gfc_val) > tol)
                   {
-                     std::cout << be << ":" << j << " h1  " << f_val << " "
+                     mfem::out << be << ":" << j << " h1  " << f_val << " "
                                << h1_gfc_val << " "
                                << fabs(f_val - h1_gfc_val)
                                << std::endl;
                   }
-                  if (log > 0 && fabs(f_val - dgv_gfc_val) > tol)
+                  if (verbose_tests && fabs(f_val - dgv_gfc_val) > tol)
                   {
-                     std::cout << be << ":" << j << " dgv " << f_val << " "
+                     mfem::out << be << ":" << j << " dgv " << f_val << " "
                                << dgv_gfc_val << " "
                                << fabs(f_val - dgv_gfc_val)
                                << std::endl;
                   }
-                  if (log > 0 && fabs(f_val - dgi_gfc_val) > tol)
+                  if (verbose_tests && fabs(f_val - dgi_gfc_val) > tol)
                   {
-                     std::cout << be << ":" << j << " dgi " << f_val << " "
+                     mfem::out << be << ":" << j << " dgi " << f_val << " "
                                << dgi_gfc_val << " "
                                << fabs(f_val - dgi_gfc_val)
                                << std::endl;
@@ -330,7 +327,6 @@ TEST_CASE("1D GetValue",
 
          SECTION("Boundary Evaluation 1D (DG Context)")
          {
-            std::cout << "Boundary Evaluation 1D (DG Context)" << std::endl;
             for (int be = 0; be < mesh.GetNBE(); be++)
             {
                FaceElementTransformations *T =
@@ -358,23 +354,23 @@ TEST_CASE("1D GetValue",
                   dgv_err += fabs(f_val - dgv_gfc_val);
                   dgi_err += fabs(f_val - dgi_gfc_val);
 
-                  if (log > 0 && fabs(f_val - h1_gfc_val) > tol)
+                  if (verbose_tests && fabs(f_val - h1_gfc_val) > tol)
                   {
-                     std::cout << be << ":" << j << " h1  " << f_val << " "
+                     mfem::out << be << ":" << j << " h1  " << f_val << " "
                                << h1_gfc_val << " "
                                << fabs(f_val - h1_gfc_val)
                                << std::endl;
                   }
-                  if (log > 0 && fabs(f_val - dgv_gfc_val) > tol)
+                  if (verbose_tests && fabs(f_val - dgv_gfc_val) > tol)
                   {
-                     std::cout << be << ":" << j << " dgv " << f_val << " "
+                     mfem::out << be << ":" << j << " dgv " << f_val << " "
                                << dgv_gfc_val << " "
                                << fabs(f_val - dgv_gfc_val)
                                << std::endl;
                   }
-                  if (log > 0 && fabs(f_val - dgi_gfc_val) > tol)
+                  if (verbose_tests && fabs(f_val - dgi_gfc_val) > tol)
                   {
-                     std::cout << be << ":" << j << " dgi " << f_val << " "
+                     mfem::out << be << ":" << j << " dgi " << f_val << " "
                                << dgi_gfc_val << " "
                                << fabs(f_val - dgi_gfc_val)
                                << std::endl;
@@ -391,7 +387,7 @@ TEST_CASE("1D GetValue",
          }
       }
    }
-   std::cout << "Checked GridFunction::GetValue at "
+   mfem::out << "Checked GridFunction::GetValue at "
              << npts << " 1D points" << std::endl;
 }
 
@@ -408,7 +404,6 @@ TEST_CASE("1D GetValue in Parallel",
    int my_rank;
    MPI_Comm_rank(MPI_COMM_WORLD, &my_rank);
 
-   int log = 1;
    int n = 2 * num_procs;
    int dim = 1;
    int order = 1;
@@ -419,9 +414,9 @@ TEST_CASE("1D GetValue in Parallel",
    for (int type = (int)Element::SEGMENT;
         type <= (int)Element::SEGMENT; type++)
    {
-      Mesh *mesh = new Mesh(n, 2.0);
-      ParMesh pmesh(MPI_COMM_WORLD, *mesh);
-      delete mesh;
+      Mesh mesh = Mesh::MakeCartesian1D(n, 2.0);
+      ParMesh pmesh(MPI_COMM_WORLD, mesh);
+      mesh.Clear();
 
       FunctionCoefficient funcCoef(func_1D_lin);
 
@@ -455,10 +450,6 @@ TEST_CASE("1D GetValue in Parallel",
 
          SECTION("Shared Face Evaluation 1D")
          {
-            if (my_rank == 0)
-            {
-               std::cout << "Shared Face Evaluation 1D" << std::endl;
-            }
             for (int sf = 0; sf < pmesh.GetNSharedFaces(); sf++)
             {
                FaceElementTransformations *FET =
@@ -502,42 +493,42 @@ TEST_CASE("1D GetValue in Parallel",
                   dgv_gv_err += fabs(f_val - dgv_gv_val);
                   dgi_gv_err += fabs(f_val - dgi_gv_val);
 
-                  if (log > 0 && fabs(f_val - h1_gfc_val) > tol)
+                  if (verbose_tests && fabs(f_val - h1_gfc_val) > tol)
                   {
-                     std::cout << e << ":" << j << " h1  gfc " << f_val << " "
+                     mfem::out << e << ":" << j << " h1  gfc " << f_val << " "
                                << h1_gfc_val << " " << fabs(f_val - h1_gfc_val)
                                << std::endl;
                   }
-                  if (log > 0 && fabs(f_val - dgv_gfc_val) > tol)
+                  if (verbose_tests && fabs(f_val - dgv_gfc_val) > tol)
                   {
-                     std::cout << e << ":" << j << " dgv gfc " << f_val << " "
+                     mfem::out << e << ":" << j << " dgv gfc " << f_val << " "
                                << dgv_gfc_val << " "
                                << fabs(f_val - dgv_gfc_val)
                                << std::endl;
                   }
-                  if (log > 0 && fabs(f_val - dgi_gfc_val) > tol)
+                  if (verbose_tests && fabs(f_val - dgi_gfc_val) > tol)
                   {
-                     std::cout << e << ":" << j << " dgi gfc " << f_val << " "
+                     mfem::out << e << ":" << j << " dgi gfc " << f_val << " "
                                << dgi_gfc_val << " "
                                << fabs(f_val - dgi_gfc_val)
                                << std::endl;
                   }
-                  if (log > 0 && fabs(f_val - h1_gv_val) > tol)
+                  if (verbose_tests && fabs(f_val - h1_gv_val) > tol)
                   {
-                     std::cout << e << ":" << j << " h1  gv " << f_val << " "
+                     mfem::out << e << ":" << j << " h1  gv " << f_val << " "
                                << h1_gv_val << " " << fabs(f_val - h1_gv_val)
                                << std::endl;
                   }
-                  if (log > 0 && fabs(f_val - dgv_gv_val) > tol)
+                  if (verbose_tests && fabs(f_val - dgv_gv_val) > tol)
                   {
-                     std::cout << e << ":" << j << " dgv gv " << f_val << " "
+                     mfem::out << e << ":" << j << " dgv gv " << f_val << " "
                                << dgv_gv_val << " "
                                << fabs(f_val - dgv_gv_val)
                                << std::endl;
                   }
-                  if (log > 0 && fabs(f_val - dgi_gv_val) > tol)
+                  if (verbose_tests && fabs(f_val - dgi_gv_val) > tol)
                   {
-                     std::cout << e << ":" << j << " dgi gv " << f_val << " "
+                     mfem::out << e << ":" << j << " dgi gv " << f_val << " "
                                << dgi_gv_val << " "
                                << fabs(f_val - dgi_gv_val)
                                << std::endl;
@@ -563,7 +554,7 @@ TEST_CASE("1D GetValue in Parallel",
          }
       }
    }
-   std::cout << my_rank << ": Checked GridFunction::GetValue at "
+   mfem::out << my_rank << ": Checked GridFunction::GetValue at "
              << npts << " 1D points" << std::endl;
 }
 
@@ -573,7 +564,6 @@ TEST_CASE("2D GetValue",
           "[GridFunction]"
           "[GridFunctionCoefficient]")
 {
-   int log = 1;
    int n = 1;
    int dim = 2;
    int order = 1;
@@ -584,7 +574,7 @@ TEST_CASE("2D GetValue",
    for (int type = (int)Element::TRIANGLE;
         type <= (int)Element::QUADRILATERAL; type++)
    {
-      Mesh mesh(n, n, (Element::Type)type, 1, 2.0, 3.0);
+      Mesh mesh = Mesh::MakeCartesian2D(n, n, (Element::Type)type, 1, 2.0, 3.0);
 
       FunctionCoefficient funcCoef(func_2D_lin);
 
@@ -614,7 +604,6 @@ TEST_CASE("2D GetValue",
 
          SECTION("Domain Evaluation 2D")
          {
-            std::cout << "Domain Evaluation 2D" << std::endl;
             for (int e = 0; e < mesh.GetNE(); e++)
             {
                ElementTransformation *T = mesh.GetElementTransformation(e);
@@ -654,42 +643,42 @@ TEST_CASE("2D GetValue",
                   dgv_gv_err += fabs(f_val - dgv_gv_val);
                   dgi_gv_err += fabs(f_val - dgi_gv_val);
 
-                  if (log > 0 && fabs(f_val - h1_gfc_val) > tol)
+                  if (verbose_tests && fabs(f_val - h1_gfc_val) > tol)
                   {
-                     std::cout << e << ":" << j << " h1  gfc " << f_val << " "
+                     mfem::out << e << ":" << j << " h1  gfc " << f_val << " "
                                << h1_gfc_val << " " << fabs(f_val - h1_gfc_val)
                                << std::endl;
                   }
-                  if (log > 0 && fabs(f_val - dgv_gfc_val) > tol)
+                  if (verbose_tests && fabs(f_val - dgv_gfc_val) > tol)
                   {
-                     std::cout << e << ":" << j << " dgv gfc " << f_val << " "
+                     mfem::out << e << ":" << j << " dgv gfc " << f_val << " "
                                << dgv_gfc_val << " "
                                << fabs(f_val - dgv_gfc_val)
                                << std::endl;
                   }
-                  if (log > 0 && fabs(f_val - dgi_gfc_val) > tol)
+                  if (verbose_tests && fabs(f_val - dgi_gfc_val) > tol)
                   {
-                     std::cout << e << ":" << j << " dgi gfc " << f_val << " "
+                     mfem::out << e << ":" << j << " dgi gfc " << f_val << " "
                                << dgi_gfc_val << " "
                                << fabs(f_val - dgi_gfc_val)
                                << std::endl;
                   }
-                  if (log > 0 && fabs(f_val - h1_gv_val) > tol)
+                  if (verbose_tests && fabs(f_val - h1_gv_val) > tol)
                   {
-                     std::cout << e << ":" << j << " h1  gv " << f_val << " "
+                     mfem::out << e << ":" << j << " h1  gv " << f_val << " "
                                << h1_gv_val << " " << fabs(f_val - h1_gv_val)
                                << std::endl;
                   }
-                  if (log > 0 && fabs(f_val - dgv_gv_val) > tol)
+                  if (verbose_tests && fabs(f_val - dgv_gv_val) > tol)
                   {
-                     std::cout << e << ":" << j << " dgv gv " << f_val << " "
+                     mfem::out << e << ":" << j << " dgv gv " << f_val << " "
                                << dgv_gv_val << " "
                                << fabs(f_val - dgv_gv_val)
                                << std::endl;
                   }
-                  if (log > 0 && fabs(f_val - dgi_gv_val) > tol)
+                  if (verbose_tests && fabs(f_val - dgi_gv_val) > tol)
                   {
-                     std::cout << e << ":" << j << " dgi gv " << f_val << " "
+                     mfem::out << e << ":" << j << " dgi gv " << f_val << " "
                                << dgi_gv_val << " "
                                << fabs(f_val - dgi_gv_val)
                                << std::endl;
@@ -716,7 +705,6 @@ TEST_CASE("2D GetValue",
 
          SECTION("Boundary Evaluation 2D (H1 Context)")
          {
-            std::cout << "Boundary Evaluation 2D (H1 Context)" << std::endl;
             for (int be = 0; be < mesh.GetNBE(); be++)
             {
                ElementTransformation *T = mesh.GetBdrElementTransformation(be);
@@ -743,23 +731,23 @@ TEST_CASE("2D GetValue",
                   dgv_err += fabs(f_val - dgv_gfc_val);
                   dgi_err += fabs(f_val - dgi_gfc_val);
 
-                  if (log > 0 && fabs(f_val - h1_gfc_val) > tol)
+                  if (verbose_tests && fabs(f_val - h1_gfc_val) > tol)
                   {
-                     std::cout << be << ":" << j << " h1  " << f_val << " "
+                     mfem::out << be << ":" << j << " h1  " << f_val << " "
                                << h1_gfc_val << " "
                                << fabs(f_val - h1_gfc_val)
                                << std::endl;
                   }
-                  if (log > 0 && fabs(f_val - dgv_gfc_val) > tol)
+                  if (verbose_tests && fabs(f_val - dgv_gfc_val) > tol)
                   {
-                     std::cout << be << ":" << j << " dgv " << f_val << " "
+                     mfem::out << be << ":" << j << " dgv " << f_val << " "
                                << dgv_gfc_val << " "
                                << fabs(f_val - dgv_gfc_val)
                                << std::endl;
                   }
-                  if (log > 0 && fabs(f_val - dgi_gfc_val) > tol)
+                  if (verbose_tests && fabs(f_val - dgi_gfc_val) > tol)
                   {
-                     std::cout << be << ":" << j << " dgi " << f_val << " "
+                     mfem::out << be << ":" << j << " dgi " << f_val << " "
                                << dgi_gfc_val << " "
                                << fabs(f_val - dgi_gfc_val)
                                << std::endl;
@@ -777,7 +765,6 @@ TEST_CASE("2D GetValue",
 
          SECTION("Boundary Evaluation 2D (DG Context)")
          {
-            std::cout << "Boundary Evaluation 2D (DG Context)" << std::endl;
             for (int be = 0; be < mesh.GetNBE(); be++)
             {
                FaceElementTransformations *T =
@@ -805,23 +792,23 @@ TEST_CASE("2D GetValue",
                   dgv_err += fabs(f_val - dgv_gfc_val);
                   dgi_err += fabs(f_val - dgi_gfc_val);
 
-                  if (log > 0 && fabs(f_val - h1_gfc_val) > tol)
+                  if (verbose_tests && fabs(f_val - h1_gfc_val) > tol)
                   {
-                     std::cout << be << ":" << j << " h1  " << f_val << " "
+                     mfem::out << be << ":" << j << " h1  " << f_val << " "
                                << h1_gfc_val << " "
                                << fabs(f_val - h1_gfc_val)
                                << std::endl;
                   }
-                  if (log > 0 && fabs(f_val - dgv_gfc_val) > tol)
+                  if (verbose_tests && fabs(f_val - dgv_gfc_val) > tol)
                   {
-                     std::cout << be << ":" << j << " dgv " << f_val << " "
+                     mfem::out << be << ":" << j << " dgv " << f_val << " "
                                << dgv_gfc_val << " "
                                << fabs(f_val - dgv_gfc_val)
                                << std::endl;
                   }
-                  if (log > 0 && fabs(f_val - dgi_gfc_val) > tol)
+                  if (verbose_tests && fabs(f_val - dgi_gfc_val) > tol)
                   {
-                     std::cout << be << ":" << j << " dgi " << f_val << " "
+                     mfem::out << be << ":" << j << " dgi " << f_val << " "
                                << dgi_gfc_val << " "
                                << fabs(f_val - dgi_gfc_val)
                                << std::endl;
@@ -839,7 +826,6 @@ TEST_CASE("2D GetValue",
 
          SECTION("Edge Evaluation 2D (H1 Context)")
          {
-            std::cout << "Edge Evaluation 2D (H1 Context)" << std::endl;
             for (int e = 0; e < mesh.GetNEdges(); e++)
             {
                ElementTransformation *T = mesh.GetEdgeTransformation(e);
@@ -860,9 +846,9 @@ TEST_CASE("2D GetValue",
 
                   h1_err += fabs(f_val - h1_gfc_val);
 
-                  if (log > 0 && fabs(f_val - h1_gfc_val) > tol)
+                  if (verbose_tests && fabs(f_val - h1_gfc_val) > tol)
                   {
-                     std::cout << e << ":" << j << " h1  " << f_val << " "
+                     mfem::out << e << ":" << j << " h1  " << f_val << " "
                                << h1_gfc_val << " " << fabs(f_val - h1_gfc_val)
                                << std::endl;
                   }
@@ -874,7 +860,7 @@ TEST_CASE("2D GetValue",
          }
       }
    }
-   std::cout << "Checked GridFunction::GetValue at "
+   mfem::out << "Checked GridFunction::GetValue at "
              << npts << " 2D points" << std::endl;
 }
 
@@ -891,7 +877,6 @@ TEST_CASE("2D GetValue in Parallel",
    int my_rank;
    MPI_Comm_rank(MPI_COMM_WORLD, &my_rank);
 
-   int log = 1;
    int n = (int)ceil(sqrt(2*num_procs));
    int dim = 2;
    int order = 1;
@@ -902,9 +887,9 @@ TEST_CASE("2D GetValue in Parallel",
    for (int type = (int)Element::TRIANGLE;
         type <= (int)Element::QUADRILATERAL; type++)
    {
-      Mesh *mesh = new Mesh(n, n, (Element::Type)type, 1, 2.0, 3.0);
-      ParMesh pmesh(MPI_COMM_WORLD, *mesh);
-      delete mesh;
+      Mesh mesh = Mesh::MakeCartesian2D(n, n, (Element::Type)type, 1, 2.0, 3.0);
+      ParMesh pmesh(MPI_COMM_WORLD, mesh);
+      mesh.Clear();
 
       FunctionCoefficient funcCoef(func_2D_lin);
 
@@ -938,10 +923,6 @@ TEST_CASE("2D GetValue in Parallel",
 
          SECTION("Shared Face Evaluation 2D")
          {
-            if (my_rank == 0)
-            {
-               std::cout << "Shared Face Evaluation 2D" << std::endl;
-            }
             for (int sf = 0; sf < pmesh.GetNSharedFaces(); sf++)
             {
                FaceElementTransformations *FET =
@@ -984,42 +965,42 @@ TEST_CASE("2D GetValue in Parallel",
                   dgv_gv_err += fabs(f_val - dgv_gv_val);
                   dgi_gv_err += fabs(f_val - dgi_gv_val);
 
-                  if (log > 0 && fabs(f_val - h1_gfc_val) > tol)
+                  if (verbose_tests && fabs(f_val - h1_gfc_val) > tol)
                   {
-                     std::cout << e << ":" << j << " h1  gfc " << f_val << " "
+                     mfem::out << e << ":" << j << " h1  gfc " << f_val << " "
                                << h1_gfc_val << " " << fabs(f_val - h1_gfc_val)
                                << std::endl;
                   }
-                  if (log > 0 && fabs(f_val - dgv_gfc_val) > tol)
+                  if (verbose_tests && fabs(f_val - dgv_gfc_val) > tol)
                   {
-                     std::cout << e << ":" << j << " dgv gfc " << f_val << " "
+                     mfem::out << e << ":" << j << " dgv gfc " << f_val << " "
                                << dgv_gfc_val << " "
                                << fabs(f_val - dgv_gfc_val)
                                << std::endl;
                   }
-                  if (log > 0 && fabs(f_val - dgi_gfc_val) > tol)
+                  if (verbose_tests && fabs(f_val - dgi_gfc_val) > tol)
                   {
-                     std::cout << e << ":" << j << " dgi gfc " << f_val << " "
+                     mfem::out << e << ":" << j << " dgi gfc " << f_val << " "
                                << dgi_gfc_val << " "
                                << fabs(f_val - dgi_gfc_val)
                                << std::endl;
                   }
-                  if (log > 0 && fabs(f_val - h1_gv_val) > tol)
+                  if (verbose_tests && fabs(f_val - h1_gv_val) > tol)
                   {
-                     std::cout << e << ":" << j << " h1  gv " << f_val << " "
+                     mfem::out << e << ":" << j << " h1  gv " << f_val << " "
                                << h1_gv_val << " " << fabs(f_val - h1_gv_val)
                                << std::endl;
                   }
-                  if (log > 0 && fabs(f_val - dgv_gv_val) > tol)
+                  if (verbose_tests && fabs(f_val - dgv_gv_val) > tol)
                   {
-                     std::cout << e << ":" << j << " dgv gv " << f_val << " "
+                     mfem::out << e << ":" << j << " dgv gv " << f_val << " "
                                << dgv_gv_val << " "
                                << fabs(f_val - dgv_gv_val)
                                << std::endl;
                   }
-                  if (log > 0 && fabs(f_val - dgi_gv_val) > tol)
+                  if (verbose_tests && fabs(f_val - dgi_gv_val) > tol)
                   {
-                     std::cout << e << ":" << j << " dgi gv " << f_val << " "
+                     mfem::out << e << ":" << j << " dgi gv " << f_val << " "
                                << dgi_gv_val << " "
                                << fabs(f_val - dgi_gv_val)
                                << std::endl;
@@ -1045,7 +1026,7 @@ TEST_CASE("2D GetValue in Parallel",
          }
       }
    }
-   std::cout << my_rank << ": Checked GridFunction::GetValue at "
+   mfem::out << my_rank << ": Checked GridFunction::GetValue at "
              << npts << " 2D points" << std::endl;
 }
 
@@ -1055,7 +1036,6 @@ TEST_CASE("3D GetValue",
           "[GridFunction]"
           "[GridFunctionCoefficient]")
 {
-   int log = 1;
    int n = 1;
    int dim = 3;
    int order = 1;
@@ -1066,7 +1046,8 @@ TEST_CASE("3D GetValue",
    for (int type = (int)Element::TETRAHEDRON;
         type <= (int)Element::WEDGE; type++)
    {
-      Mesh mesh(n, n, n, (Element::Type)type, 1, 2.0, 3.0, 5.0);
+      Mesh mesh = Mesh::MakeCartesian3D(
+                     n, n, n, (Element::Type)type, 2.0, 3.0, 5.0);
 
       FunctionCoefficient funcCoef(func_3D_lin);
 
@@ -1096,7 +1077,6 @@ TEST_CASE("3D GetValue",
 
          SECTION("Domain Evaluation 3D")
          {
-            std::cout << "Domain Evaluation 3D" << std::endl;
             for (int e = 0; e < mesh.GetNE(); e++)
             {
                ElementTransformation *T = mesh.GetElementTransformation(e);
@@ -1136,42 +1116,42 @@ TEST_CASE("3D GetValue",
                   dgv_gv_err += fabs(f_val - dgv_gv_val);
                   dgi_gv_err += fabs(f_val - dgi_gv_val);
 
-                  if (log > 0 && fabs(f_val - h1_gfc_val) > tol)
+                  if (verbose_tests && fabs(f_val - h1_gfc_val) > tol)
                   {
-                     std::cout << e << ":" << j << " h1  gfc " << f_val << " "
+                     mfem::out << e << ":" << j << " h1  gfc " << f_val << " "
                                << h1_gfc_val << " " << fabs(f_val - h1_gfc_val)
                                << std::endl;
                   }
-                  if (log > 0 && fabs(f_val - dgv_gfc_val) > tol)
+                  if (verbose_tests && fabs(f_val - dgv_gfc_val) > tol)
                   {
-                     std::cout << e << ":" << j << " dgv gfc " << f_val << " "
+                     mfem::out << e << ":" << j << " dgv gfc " << f_val << " "
                                << dgv_gfc_val << " "
                                << fabs(f_val - dgv_gfc_val)
                                << std::endl;
                   }
-                  if (log > 0 && fabs(f_val - dgi_gfc_val) > tol)
+                  if (verbose_tests && fabs(f_val - dgi_gfc_val) > tol)
                   {
-                     std::cout << e << ":" << j << " dgi gfc " << f_val << " "
+                     mfem::out << e << ":" << j << " dgi gfc " << f_val << " "
                                << dgi_gfc_val << " "
                                << fabs(f_val - dgi_gfc_val)
                                << std::endl;
                   }
-                  if (log > 0 && fabs(f_val - h1_gv_val) > tol)
+                  if (verbose_tests && fabs(f_val - h1_gv_val) > tol)
                   {
-                     std::cout << e << ":" << j << " h1  gv " << f_val << " "
+                     mfem::out << e << ":" << j << " h1  gv " << f_val << " "
                                << h1_gv_val << " " << fabs(f_val - h1_gv_val)
                                << std::endl;
                   }
-                  if (log > 0 && fabs(f_val - dgv_gv_val) > tol)
+                  if (verbose_tests && fabs(f_val - dgv_gv_val) > tol)
                   {
-                     std::cout << e << ":" << j << " dgv gv " << f_val << " "
+                     mfem::out << e << ":" << j << " dgv gv " << f_val << " "
                                << dgv_gv_val << " "
                                << fabs(f_val - dgv_gv_val)
                                << std::endl;
                   }
-                  if (log > 0 && fabs(f_val - dgi_gv_val) > tol)
+                  if (verbose_tests && fabs(f_val - dgi_gv_val) > tol)
                   {
-                     std::cout << e << ":" << j << " dgi gv " << f_val << " "
+                     mfem::out << e << ":" << j << " dgi gv " << f_val << " "
                                << dgi_gv_val << " "
                                << fabs(f_val - dgi_gv_val)
                                << std::endl;
@@ -1198,7 +1178,6 @@ TEST_CASE("3D GetValue",
 
          SECTION("Boundary Evaluation 3D (H1 Context)")
          {
-            std::cout << "Boundary Evaluation 3D (H1 Context)" << std::endl;
             for (int be = 0; be < mesh.GetNBE(); be++)
             {
                ElementTransformation *T = mesh.GetBdrElementTransformation(be);
@@ -1225,23 +1204,23 @@ TEST_CASE("3D GetValue",
                   dgv_err += fabs(f_val - dgv_gfc_val);
                   dgi_err += fabs(f_val - dgi_gfc_val);
 
-                  if (log > 0 && fabs(f_val - h1_gfc_val) > tol)
+                  if (verbose_tests && fabs(f_val - h1_gfc_val) > tol)
                   {
-                     std::cout << be << ":" << j << " h1  " << f_val << " "
+                     mfem::out << be << ":" << j << " h1  " << f_val << " "
                                << h1_gfc_val << " "
                                << fabs(f_val - h1_gfc_val)
                                << std::endl;
                   }
-                  if (log > 0 && fabs(f_val - dgv_gfc_val) > tol)
+                  if (verbose_tests && fabs(f_val - dgv_gfc_val) > tol)
                   {
-                     std::cout << be << ":" << j << " dgv " << f_val << " "
+                     mfem::out << be << ":" << j << " dgv " << f_val << " "
                                << dgv_gfc_val << " "
                                << fabs(f_val - dgv_gfc_val)
                                << std::endl;
                   }
-                  if (log > 0 && fabs(f_val - dgi_gfc_val) > tol)
+                  if (verbose_tests && fabs(f_val - dgi_gfc_val) > tol)
                   {
-                     std::cout << be << ":" << j << " dgi " << f_val << " "
+                     mfem::out << be << ":" << j << " dgi " << f_val << " "
                                << dgi_gfc_val << " "
                                << fabs(f_val - dgi_gfc_val)
                                << std::endl;
@@ -1259,7 +1238,6 @@ TEST_CASE("3D GetValue",
 
          SECTION("Boundary Evaluation 3D (DG Context)")
          {
-            std::cout << "Boundary Evaluation 3D (DG Context)" << std::endl;
             for (int be = 0; be < mesh.GetNBE(); be++)
             {
                FaceElementTransformations *T =
@@ -1287,23 +1265,23 @@ TEST_CASE("3D GetValue",
                   dgv_err += fabs(f_val - dgv_gfc_val);
                   dgi_err += fabs(f_val - dgi_gfc_val);
 
-                  if (log > 0 && fabs(f_val - h1_gfc_val) > tol)
+                  if (verbose_tests && fabs(f_val - h1_gfc_val) > tol)
                   {
-                     std::cout << be << ":" << j << " h1  " << f_val << " "
+                     mfem::out << be << ":" << j << " h1  " << f_val << " "
                                << h1_gfc_val << " "
                                << fabs(f_val - h1_gfc_val)
                                << std::endl;
                   }
-                  if (log > 0 && fabs(f_val - dgv_gfc_val) > tol)
+                  if (verbose_tests && fabs(f_val - dgv_gfc_val) > tol)
                   {
-                     std::cout << be << ":" << j << " dgv " << f_val << " "
+                     mfem::out << be << ":" << j << " dgv " << f_val << " "
                                << dgv_gfc_val << " "
                                << fabs(f_val - dgv_gfc_val)
                                << std::endl;
                   }
-                  if (log > 0 && fabs(f_val - dgi_gfc_val) > tol)
+                  if (verbose_tests && fabs(f_val - dgi_gfc_val) > tol)
                   {
-                     std::cout << be << ":" << j << " dgi " << f_val << " "
+                     mfem::out << be << ":" << j << " dgi " << f_val << " "
                                << dgi_gfc_val << " "
                                << fabs(f_val - dgi_gfc_val)
                                << std::endl;
@@ -1321,7 +1299,6 @@ TEST_CASE("3D GetValue",
 
          SECTION("Edge Evaluation 3D (H1 Context)")
          {
-            std::cout << "Edge Evaluation 3D (H1 Context)" << std::endl;
             for (int e = 0; e < mesh.GetNEdges(); e++)
             {
                ElementTransformation *T = mesh.GetEdgeTransformation(e);
@@ -1342,9 +1319,9 @@ TEST_CASE("3D GetValue",
 
                   h1_err += fabs(f_val - h1_gfc_val);
 
-                  if (log > 0 && fabs(f_val - h1_gfc_val) > tol)
+                  if (verbose_tests && fabs(f_val - h1_gfc_val) > tol)
                   {
-                     std::cout << e << ":" << j << " h1  " << f_val << " "
+                     mfem::out << e << ":" << j << " h1  " << f_val << " "
                                << h1_gfc_val << " " << fabs(f_val - h1_gfc_val)
                                << std::endl;
                   }
@@ -1357,7 +1334,6 @@ TEST_CASE("3D GetValue",
 
          SECTION("Face Evaluation 3D (H1 Context)")
          {
-            std::cout << "Face Evaluation 3D (H1 Context)" << std::endl;
             for (int f = 0; f < mesh.GetNFaces(); f++)
             {
                ElementTransformation *T = mesh.GetFaceTransformation(f);
@@ -1378,9 +1354,9 @@ TEST_CASE("3D GetValue",
 
                   h1_err += fabs(f_val - h1_gfc_val);
 
-                  if (log > 0 && fabs(f_val - h1_gfc_val) > tol)
+                  if (verbose_tests && fabs(f_val - h1_gfc_val) > tol)
                   {
-                     std::cout << f << ":" << j << " h1  " << f_val << " "
+                     mfem::out << f << ":" << j << " h1  " << f_val << " "
                                << h1_gfc_val << " " << fabs(f_val - h1_gfc_val)
                                << std::endl;
                   }
@@ -1392,7 +1368,7 @@ TEST_CASE("3D GetValue",
          }
       }
    }
-   std::cout << "Checked GridFunction::GetValue at "
+   mfem::out << "Checked GridFunction::GetValue at "
              << npts << " 3D points" << std::endl;
 }
 
@@ -1409,7 +1385,6 @@ TEST_CASE("3D GetValue in Parallel",
    int my_rank;
    MPI_Comm_rank(MPI_COMM_WORLD, &my_rank);
 
-   int log = 1;
    int n = (int)ceil(pow(2*num_procs, 1.0 / 3.0));
    int dim = 3;
    int order = 1;
@@ -1420,9 +1395,10 @@ TEST_CASE("3D GetValue in Parallel",
    for (int type = (int)Element::TETRAHEDRON;
         type <= (int)Element::WEDGE; type++)
    {
-      Mesh *mesh = new Mesh(n, n, n, (Element::Type)type, 1, 2.0, 3.0, 5.0);
-      ParMesh pmesh(MPI_COMM_WORLD, *mesh);
-      delete mesh;
+      Mesh mesh = Mesh::MakeCartesian3D(
+                     n, n, n, (Element::Type)type, 2.0, 3.0, 5.0);
+      ParMesh pmesh(MPI_COMM_WORLD, mesh);
+      mesh.Clear();
 
       FunctionCoefficient funcCoef(func_3D_lin);
 
@@ -1462,10 +1438,6 @@ TEST_CASE("3D GetValue in Parallel",
 
          SECTION("Shared Face Evaluation 3D")
          {
-            if (my_rank == 0)
-            {
-               std::cout << "Shared Face Evaluation 3D" << std::endl;
-            }
             for (int sf = 0; sf < pmesh.GetNSharedFaces(); sf++)
             {
                FaceElementTransformations *FET =
@@ -1509,42 +1481,42 @@ TEST_CASE("3D GetValue in Parallel",
                   dgv_gv_err += fabs(f_val - dgv_gv_val);
                   dgi_gv_err += fabs(f_val - dgi_gv_val);
 
-                  if (log > 0 && fabs(f_val - h1_gfc_val) > tol)
+                  if (verbose_tests && fabs(f_val - h1_gfc_val) > tol)
                   {
-                     std::cout << e << ":" << j << " h1  gfc " << f_val << " "
+                     mfem::out << e << ":" << j << " h1  gfc " << f_val << " "
                                << h1_gfc_val << " " << fabs(f_val - h1_gfc_val)
                                << std::endl;
                   }
-                  if (log > 0 && fabs(f_val - dgv_gfc_val) > tol)
+                  if (verbose_tests && fabs(f_val - dgv_gfc_val) > tol)
                   {
-                     std::cout << e << ":" << j << " dgv gfc " << f_val << " "
+                     mfem::out << e << ":" << j << " dgv gfc " << f_val << " "
                                << dgv_gfc_val << " "
                                << fabs(f_val - dgv_gfc_val)
                                << std::endl;
                   }
-                  if (log > 0 && fabs(f_val - dgi_gfc_val) > tol)
+                  if (verbose_tests && fabs(f_val - dgi_gfc_val) > tol)
                   {
-                     std::cout << e << ":" << j << " dgi gfc " << f_val << " "
+                     mfem::out << e << ":" << j << " dgi gfc " << f_val << " "
                                << dgi_gfc_val << " "
                                << fabs(f_val - dgi_gfc_val)
                                << std::endl;
                   }
-                  if (log > 0 && fabs(f_val - h1_gv_val) > tol)
+                  if (verbose_tests && fabs(f_val - h1_gv_val) > tol)
                   {
-                     std::cout << e << ":" << j << " h1  gv " << f_val << " "
+                     mfem::out << e << ":" << j << " h1  gv " << f_val << " "
                                << h1_gv_val << " " << fabs(f_val - h1_gv_val)
                                << std::endl;
                   }
-                  if (log > 0 && fabs(f_val - dgv_gv_val) > tol)
+                  if (verbose_tests && fabs(f_val - dgv_gv_val) > tol)
                   {
-                     std::cout << e << ":" << j << " dgv gv " << f_val << " "
+                     mfem::out << e << ":" << j << " dgv gv " << f_val << " "
                                << dgv_gv_val << " "
                                << fabs(f_val - dgv_gv_val)
                                << std::endl;
                   }
-                  if (log > 0 && fabs(f_val - dgi_gv_val) > tol)
+                  if (verbose_tests && fabs(f_val - dgi_gv_val) > tol)
                   {
-                     std::cout << e << ":" << j << " dgi gv " << f_val << " "
+                     mfem::out << e << ":" << j << " dgi gv " << f_val << " "
                                << dgi_gv_val << " "
                                << fabs(f_val - dgi_gv_val)
                                << std::endl;
@@ -1570,7 +1542,7 @@ TEST_CASE("3D GetValue in Parallel",
          }
       }
    }
-   std::cout << my_rank << ": Checked GridFunction::GetValue at "
+   mfem::out << my_rank << ": Checked GridFunction::GetValue at "
              << npts << " 3D points" << std::endl;
 }
 
@@ -1580,7 +1552,6 @@ TEST_CASE("2D GetVectorValue",
           "[GridFunction]"
           "[VectorGridFunctionCoefficient]")
 {
-   int log = 1;
    int n = 1;
    int dim = 2;
    int order = 1;
@@ -1591,7 +1562,7 @@ TEST_CASE("2D GetVectorValue",
    for (int type = (int)Element::TRIANGLE;
         type <= (int)Element::QUADRILATERAL; type++)
    {
-      Mesh mesh(n, n, (Element::Type)type, 1, 2.0, 3.0);
+      Mesh mesh = Mesh::MakeCartesian2D(n, n, (Element::Type)type, 1, 2.0, 3.0);
 
       VectorFunctionCoefficient funcCoef(dim, Func_2D_lin);
 
@@ -1653,7 +1624,6 @@ TEST_CASE("2D GetVectorValue",
 
          SECTION("Domain Evaluation 2D")
          {
-            std::cout << "Domain Evaluation 2D" << std::endl;
             for (int e = 0; e < mesh.GetNE(); e++)
             {
                ElementTransformation *T = mesh.GetElementTransformation(e);
@@ -1725,89 +1695,89 @@ TEST_CASE("2D GetVectorValue",
                   dgv_gvv_err += dgv_gvv_dist;
                   dgi_gvv_err += dgi_gvv_dist;
 
-                  if (log > 0 && h1_gfc_dist > tol)
+                  if (verbose_tests && h1_gfc_dist > tol)
                   {
-                     std::cout << e << ":" << j << " h1  gfc ("
+                     mfem::out << e << ":" << j << " h1  gfc ("
                                << f_val[0] << "," << f_val[1] << ") vs. ("
                                << h1_gfc_val[0] << "," << h1_gfc_val[1] << ") "
                                << h1_gfc_dist << std::endl;
                   }
-                  if (log > 0 && nd_gfc_dist > tol)
+                  if (verbose_tests && nd_gfc_dist > tol)
                   {
-                     std::cout << e << ":" << j << " nd  gfc ("
+                     mfem::out << e << ":" << j << " nd  gfc ("
                                << f_val[0] << "," << f_val[1] << ") vs. ("
                                << nd_gfc_val[0] << "," << nd_gfc_val[1] << ") "
                                << nd_gfc_dist << std::endl;
                   }
-                  if (log > 0 && rt_gfc_dist > tol)
+                  if (verbose_tests && rt_gfc_dist > tol)
                   {
-                     std::cout << e << ":" << j << " rt  gfc ("
+                     mfem::out << e << ":" << j << " rt  gfc ("
                                << f_val[0] << "," << f_val[1] << ") vs. ("
                                << rt_gfc_val[0] << "," << rt_gfc_val[1] << ") "
                                << rt_gfc_dist << std::endl;
                   }
-                  if (log > 0 && l2_gfc_dist > tol)
+                  if (verbose_tests && l2_gfc_dist > tol)
                   {
-                     std::cout << e << ":" << j << " l2  gfc ("
+                     mfem::out << e << ":" << j << " l2  gfc ("
                                << f_val[0] << "," << f_val[1] << ") vs. ("
                                << l2_gfc_val[0] << "," << l2_gfc_val[1] << ") "
                                << l2_gfc_dist << std::endl;
                   }
-                  if (log > 0 && dgv_gfc_dist > tol)
+                  if (verbose_tests && dgv_gfc_dist > tol)
                   {
-                     std::cout << e << ":" << j << " dgv gfc ("
+                     mfem::out << e << ":" << j << " dgv gfc ("
                                << f_val[0] << "," << f_val[1] << ") vs. ("
                                << dgv_gfc_val[0] << ","
                                << dgv_gfc_val[1] << ") "
                                << dgv_gfc_dist << std::endl;
                   }
-                  if (log > 0 && dgi_gfc_dist > tol)
+                  if (verbose_tests && dgi_gfc_dist > tol)
                   {
-                     std::cout << e << ":" << j << " dgi gfc ("
+                     mfem::out << e << ":" << j << " dgi gfc ("
                                << f_val[0] << "," << f_val[1] << ") vs. ("
                                << dgi_gfc_val[0] << ","
                                << dgi_gfc_val[1] << ") "
                                << dgi_gfc_dist << std::endl;
                   }
-                  if (log > 0 && h1_gvv_dist > tol)
+                  if (verbose_tests && h1_gvv_dist > tol)
                   {
-                     std::cout << e << ":" << j << " h1  gvv ("
+                     mfem::out << e << ":" << j << " h1  gvv ("
                                << f_val[0] << "," << f_val[1] << ") vs. ("
                                << h1_gvv_val[0] << "," << h1_gvv_val[1] << ") "
                                << h1_gvv_dist << std::endl;
                   }
-                  if (log > 0 && nd_gvv_dist > tol)
+                  if (verbose_tests && nd_gvv_dist > tol)
                   {
-                     std::cout << e << ":" << j << " nd  gvv ("
+                     mfem::out << e << ":" << j << " nd  gvv ("
                                << f_val[0] << "," << f_val[1] << ") vs. ("
                                << nd_gvv_val[0] << "," << nd_gvv_val[1] << ") "
                                << nd_gvv_dist << std::endl;
                   }
-                  if (log > 0 && rt_gvv_dist > tol)
+                  if (verbose_tests && rt_gvv_dist > tol)
                   {
-                     std::cout << e << ":" << j << " rt  gvv ("
+                     mfem::out << e << ":" << j << " rt  gvv ("
                                << f_val[0] << "," << f_val[1] << ") vs. ("
                                << rt_gvv_val[0] << "," << rt_gvv_val[1] << ") "
                                << rt_gvv_dist << std::endl;
                   }
-                  if (log > 0 && l2_gvv_dist > tol)
+                  if (verbose_tests && l2_gvv_dist > tol)
                   {
-                     std::cout << e << ":" << j << " l2  gvv ("
+                     mfem::out << e << ":" << j << " l2  gvv ("
                                << f_val[0] << "," << f_val[1] << ") vs. ("
                                << l2_gvv_val[0] << "," << l2_gvv_val[1] << ") "
                                << l2_gvv_dist << std::endl;
                   }
-                  if (log > 0 && dgv_gvv_dist > tol)
+                  if (verbose_tests && dgv_gvv_dist > tol)
                   {
-                     std::cout << e << ":" << j << " dgv gvv ("
+                     mfem::out << e << ":" << j << " dgv gvv ("
                                << f_val[0] << "," << f_val[1] << ") vs. ("
                                << dgv_gvv_val[0] << ","
                                << dgv_gvv_val[1] << ") "
                                << dgv_gvv_dist << std::endl;
                   }
-                  if (log > 0 && dgi_gvv_dist > tol)
+                  if (verbose_tests && dgi_gvv_dist > tol)
                   {
-                     std::cout << e << ":" << j << " dgi gvv ("
+                     mfem::out << e << ":" << j << " dgi gvv ("
                                << f_val[0] << "," << f_val[1] << ") vs. ("
                                << dgi_gvv_val[0] << ","
                                << dgi_gvv_val[1] << ") "
@@ -1847,7 +1817,6 @@ TEST_CASE("2D GetVectorValue",
 
          SECTION("Boundary Evaluation 2D (H1 Context)")
          {
-            std::cout << "Boundary Evaluation 2D (H1 Context)" << std::endl;
             for (int be = 0; be < mesh.GetNBE(); be++)
             {
                ElementTransformation *T = mesh.GetBdrElementTransformation(be);
@@ -1890,45 +1859,45 @@ TEST_CASE("2D GetVectorValue",
                   dgv_err += dgv_dist;
                   dgi_err += dgi_dist;
 
-                  if (log > 0 && h1_dist > tol)
+                  if (verbose_tests && h1_dist > tol)
                   {
-                     std::cout << be << ":" << j << " h1  ("
+                     mfem::out << be << ":" << j << " h1  ("
                                << f_val[0] << "," << f_val[1] << ") vs. ("
                                << h1_gfc_val[0] << "," << h1_gfc_val[1] << ") "
                                << h1_dist << std::endl;
                   }
-                  if (log > 0 && nd_dist > tol)
+                  if (verbose_tests && nd_dist > tol)
                   {
-                     std::cout << be << ":" << j << " nd  ("
+                     mfem::out << be << ":" << j << " nd  ("
                                << f_val[0] << "," << f_val[1] << ") vs. ("
                                << nd_gfc_val[0] << "," << nd_gfc_val[1] << ") "
                                << nd_dist << std::endl;
                   }
-                  if (log > 0 && rt_dist > tol)
+                  if (verbose_tests && rt_dist > tol)
                   {
-                     std::cout << be << ":" << j << " rt  ("
+                     mfem::out << be << ":" << j << " rt  ("
                                << f_val[0] << "," << f_val[1] << ") vs. ("
                                << rt_gfc_val[0] << "," << rt_gfc_val[1] << ") "
                                << rt_dist << std::endl;
                   }
-                  if (log > 0 && l2_dist > tol)
+                  if (verbose_tests && l2_dist > tol)
                   {
-                     std::cout << be << ":" << j << " l2  ("
+                     mfem::out << be << ":" << j << " l2  ("
                                << f_val[0] << "," << f_val[1] << ") vs. ("
                                << l2_gfc_val[0] << "," << l2_gfc_val[1] << ") "
                                << l2_dist << std::endl;
                   }
-                  if (log > 0 && dgv_dist > tol)
+                  if (verbose_tests && dgv_dist > tol)
                   {
-                     std::cout << be << ":" << j << " dgv ("
+                     mfem::out << be << ":" << j << " dgv ("
                                << f_val[0] << "," << f_val[1] << ") vs. ("
                                << dgv_gfc_val[0] << ","
                                << dgv_gfc_val[1] << ") "
                                << dgv_dist << std::endl;
                   }
-                  if (log > 0 && dgi_dist > tol)
+                  if (verbose_tests && dgi_dist > tol)
                   {
-                     std::cout << be << ":" << j << " dgi ("
+                     mfem::out << be << ":" << j << " dgi ("
                                << f_val[0] << "," << f_val[1] << ") vs. ("
                                << dgi_gfc_val[0] << ","
                                << dgi_gfc_val[1] << ") "
@@ -1953,7 +1922,6 @@ TEST_CASE("2D GetVectorValue",
 
          SECTION("Boundary Evaluation 2D (DG Context)")
          {
-            std::cout << "Boundary Evaluation 2D (DG Context)" << std::endl;
             for (int be = 0; be < mesh.GetNBE(); be++)
             {
                FaceElementTransformations *T =
@@ -1997,49 +1965,49 @@ TEST_CASE("2D GetVectorValue",
                   dgv_err += dgv_dist;
                   dgi_err += dgi_dist;
 
-                  if (log > 0 && h1_dist > tol)
+                  if (verbose_tests && h1_dist > tol)
                   {
-                     std::cout << be << ":" << j << " h1  ("
+                     mfem::out << be << ":" << j << " h1  ("
                                << f_val[0] << "," << f_val[1] << ") vs. ("
                                << h1_gfc_val[0] << ","
                                << h1_gfc_val[1] << ") "
                                << h1_dist << std::endl;
                   }
-                  if (log > 0 && nd_dist > tol)
+                  if (verbose_tests && nd_dist > tol)
                   {
-                     std::cout << be << ":" << j << " nd  ("
+                     mfem::out << be << ":" << j << " nd  ("
                                << f_val[0] << "," << f_val[1] << ") vs. ("
                                << nd_gfc_val[0] << ","
                                << nd_gfc_val[1] << ") "
                                << nd_dist << std::endl;
                   }
-                  if (log > 0 && rt_dist > tol)
+                  if (verbose_tests && rt_dist > tol)
                   {
-                     std::cout << be << ":" << j << " rt  ("
+                     mfem::out << be << ":" << j << " rt  ("
                                << f_val[0] << "," << f_val[1] << ") vs. ("
                                << rt_gfc_val[0] << ","
                                << rt_gfc_val[1] << ") "
                                << rt_dist << std::endl;
                   }
-                  if (log > 0 && l2_dist > tol)
+                  if (verbose_tests && l2_dist > tol)
                   {
-                     std::cout << be << ":" << j << " l2  ("
+                     mfem::out << be << ":" << j << " l2  ("
                                << f_val[0] << "," << f_val[1] << ") vs. ("
                                << l2_gfc_val[0] << ","
                                << l2_gfc_val[1] << ") "
                                << l2_dist << std::endl;
                   }
-                  if (log > 0 && dgv_dist > tol)
+                  if (verbose_tests && dgv_dist > tol)
                   {
-                     std::cout << be << ":" << j << " dgv ("
+                     mfem::out << be << ":" << j << " dgv ("
                                << f_val[0] << "," << f_val[1] << ") vs. ("
                                << dgv_gfc_val[0] << ","
                                << dgv_gfc_val[1] << ") "
                                << dgv_dist << std::endl;
                   }
-                  if (log > 0 && dgi_dist > tol)
+                  if (verbose_tests && dgi_dist > tol)
                   {
-                     std::cout << be << ":" << j << " dgi ("
+                     mfem::out << be << ":" << j << " dgi ("
                                << f_val[0] << "," << f_val[1] << ") vs. ("
                                << dgi_gfc_val[0] << ","
                                << dgi_gfc_val[1] << ") "
@@ -2064,7 +2032,6 @@ TEST_CASE("2D GetVectorValue",
 
          SECTION("Edge Evaluation 2D")
          {
-            std::cout << "Edge Evaluation 2D" << std::endl;
             for (int e = 0; e < mesh.GetNEdges(); e++)
             {
                ElementTransformation *T = mesh.GetEdgeTransformation(e);
@@ -2087,9 +2054,9 @@ TEST_CASE("2D GetVectorValue",
 
                   h1_err  +=  h1_dist;
 
-                  if (log > 0 && h1_dist > tol)
+                  if (verbose_tests && h1_dist > tol)
                   {
-                     std::cout << e << ":" << j << " h1  ("
+                     mfem::out << e << ":" << j << " h1  ("
                                << f_val[0] << "," << f_val[1] << ") vs. ("
                                << h1_gfc_val[0] << "," << h1_gfc_val[1] << ") "
                                << h1_dist << std::endl;
@@ -2102,7 +2069,7 @@ TEST_CASE("2D GetVectorValue",
          }
       }
    }
-   std::cout << "Checked GridFunction::GetVectorValue at "
+   mfem::out << "Checked GridFunction::GetVectorValue at "
              << npts << " 2D points" << std::endl;
 }
 
@@ -2119,7 +2086,6 @@ TEST_CASE("2D GetVectorValue in Parallel",
    int my_rank;
    MPI_Comm_rank(MPI_COMM_WORLD, &my_rank);
 
-   int log = 1;
    int n = (int)ceil(sqrt(2*num_procs));
    int dim = 2;
    int order = 1;
@@ -2130,9 +2096,9 @@ TEST_CASE("2D GetVectorValue in Parallel",
    for (int type = (int)Element::TRIANGLE;
         type <= (int)Element::QUADRILATERAL; type++)
    {
-      Mesh *mesh = new Mesh(n, n, (Element::Type)type, 1, 2.0, 3.0);
-      ParMesh pmesh(MPI_COMM_WORLD, *mesh);
-      delete mesh;
+      Mesh mesh = Mesh::MakeCartesian2D(n, n, (Element::Type)type, 1, 2.0, 3.0);
+      ParMesh pmesh(MPI_COMM_WORLD, mesh);
+      mesh.Clear();
 
       VectorFunctionCoefficient funcCoef(dim, Func_2D_lin);
 
@@ -2201,10 +2167,6 @@ TEST_CASE("2D GetVectorValue in Parallel",
 
          SECTION("Shared Face Evaluation 2D")
          {
-            if (my_rank == 0)
-            {
-               std::cout << "Shared Face Evaluation 2D" << std::endl;
-            }
             for (int sf = 0; sf < pmesh.GetNSharedFaces(); sf++)
             {
                FaceElementTransformations *FET =
@@ -2280,98 +2242,98 @@ TEST_CASE("2D GetVectorValue in Parallel",
                   dgv_gvv_err += dgv_gvv_dist;
                   dgi_gvv_err += dgi_gvv_dist;
 
-                  if (log > 0 && h1_gfc_dist > tol)
+                  if (verbose_tests && h1_gfc_dist > tol)
                   {
-                     std::cout << e << ":" << j << " h1  ("
+                     mfem::out << e << ":" << j << " h1  ("
                                << f_val[0] << "," << f_val[1] << ") vs. ("
                                << h1_gfc_val[0] << ","
                                << h1_gfc_val[1] << ") "
                                << h1_gfc_dist << std::endl;
                   }
-                  if (log > 0 && nd_gfc_dist > tol)
+                  if (verbose_tests && nd_gfc_dist > tol)
                   {
-                     std::cout << e << ":" << j << " nd  ("
+                     mfem::out << e << ":" << j << " nd  ("
                                << f_val[0] << "," << f_val[1] << ") vs. ("
                                << nd_gfc_val[0] << ","
                                << nd_gfc_val[1] << ") "
                                << nd_gfc_dist << std::endl;
                   }
-                  if (log > 0 && rt_gfc_dist > tol)
+                  if (verbose_tests && rt_gfc_dist > tol)
                   {
-                     std::cout << e << ":" << j << " rt  ("
+                     mfem::out << e << ":" << j << " rt  ("
                                << f_val[0] << "," << f_val[1] << ") vs. ("
                                << rt_gfc_val[0] << ","
                                << rt_gfc_val[1] << ") "
                                << rt_gfc_dist << std::endl;
                   }
-                  if (log > 0 && l2_gfc_dist > tol)
+                  if (verbose_tests && l2_gfc_dist > tol)
                   {
-                     std::cout << e << ":" << j << " l2  ("
+                     mfem::out << e << ":" << j << " l2  ("
                                << f_val[0] << "," << f_val[1] << ") vs. ("
                                << l2_gfc_val[0] << ","
                                << l2_gfc_val[1] << ") "
                                << l2_gfc_dist << std::endl;
                   }
-                  if (log > 0 && dgv_gfc_dist > tol)
+                  if (verbose_tests && dgv_gfc_dist > tol)
                   {
-                     std::cout << e << ":" << j << " dgv ("
+                     mfem::out << e << ":" << j << " dgv ("
                                << f_val[0] << "," << f_val[1] << ") vs. ("
                                << dgv_gfc_val[0] << ","
                                << dgv_gfc_val[1] << ") "
                                << dgv_gfc_dist << std::endl;
                   }
-                  if (log > 0 && dgi_gfc_dist > tol)
+                  if (verbose_tests && dgi_gfc_dist > tol)
                   {
-                     std::cout << e << ":" << j << " dgi ("
+                     mfem::out << e << ":" << j << " dgi ("
                                << f_val[0] << "," << f_val[1] << ") vs. ("
                                << dgi_gfc_val[0] << ","
                                << dgi_gfc_val[1] << ") "
                                << dgi_gfc_dist << std::endl;
                   }
-                  if (log > 0 && h1_gvv_dist > tol)
+                  if (verbose_tests && h1_gvv_dist > tol)
                   {
-                     std::cout << e << ":" << j << " h1  gvv ("
+                     mfem::out << e << ":" << j << " h1  gvv ("
                                << f_val[0] << "," << f_val[1] << ","
                                << f_val[2] << ") vs. ("
                                << h1_gvv_val[0] << "," << h1_gvv_val[1] << ") "
                                << h1_gvv_dist << std::endl;
                   }
-                  if (log > 0 && nd_gvv_dist > tol)
+                  if (verbose_tests && nd_gvv_dist > tol)
                   {
-                     std::cout << e << ":" << j << " nd  gvv ("
+                     mfem::out << e << ":" << j << " nd  gvv ("
                                << f_val[0] << "," << f_val[1] << ","
                                << f_val[2] << ") vs. ("
                                << nd_gvv_val[0] << "," << nd_gvv_val[1] << ") "
                                << nd_gvv_dist << std::endl;
                   }
-                  if (log > 0 && rt_gvv_dist > tol)
+                  if (verbose_tests && rt_gvv_dist > tol)
                   {
-                     std::cout << e << ":" << j << " rt  gvv ("
+                     mfem::out << e << ":" << j << " rt  gvv ("
                                << f_val[0] << "," << f_val[1] << ","
                                << f_val[2] << ") vs. ("
                                << rt_gvv_val[0] << "," << rt_gvv_val[1] << ") "
                                << rt_gvv_dist << std::endl;
                   }
-                  if (log > 0 && l2_gvv_dist > tol)
+                  if (verbose_tests && l2_gvv_dist > tol)
                   {
-                     std::cout << e << ":" << j << " l2  gvv ("
+                     mfem::out << e << ":" << j << " l2  gvv ("
                                << f_val[0] << "," << f_val[1] << ","
                                << f_val[2] << ") vs. ("
                                << l2_gvv_val[0] << "," << l2_gvv_val[1] << ") "
                                << l2_gvv_dist << std::endl;
                   }
-                  if (log > 0 && dgv_gvv_dist > tol)
+                  if (verbose_tests && dgv_gvv_dist > tol)
                   {
-                     std::cout << e << ":" << j << " dgv gvv ("
+                     mfem::out << e << ":" << j << " dgv gvv ("
                                << f_val[0] << "," << f_val[1] << ","
                                << f_val[2] << ") vs. ("
                                << dgv_gvv_val[0] << ","
                                << dgv_gvv_val[1] << ") "
                                << dgv_gvv_dist << std::endl;
                   }
-                  if (log > 0 && dgi_gvv_dist > tol)
+                  if (verbose_tests && dgi_gvv_dist > tol)
                   {
-                     std::cout << e << ":" << j << " dgi gvv ("
+                     mfem::out << e << ":" << j << " dgi gvv ("
                                << f_val[0] << "," << f_val[1] << ","
                                << f_val[2] << ") vs. ("
                                << dgi_gvv_val[0] << ","
@@ -2411,7 +2373,7 @@ TEST_CASE("2D GetVectorValue in Parallel",
          }
       }
    }
-   std::cout << my_rank << ": Checked GridFunction::GetVectorValue at "
+   mfem::out << my_rank << ": Checked GridFunction::GetVectorValue at "
              << npts << " 2D points" << std::endl;
 }
 
@@ -2421,7 +2383,6 @@ TEST_CASE("3D GetVectorValue",
           "[GridFunction]"
           "[VectorGridFunctionCoefficient]")
 {
-   int log = 1;
    int n = 1;
    int dim = 3;
    int order = 1;
@@ -2430,9 +2391,10 @@ TEST_CASE("3D GetVectorValue",
    double tol = 1e-6;
 
    for (int type = (int)Element::TETRAHEDRON;
-        type <= (int)Element::HEXAHEDRON; type++)
+        type <= (int)Element::WEDGE; type++)
    {
-      Mesh mesh(n, n, n, (Element::Type)type, 1, 2.0, 3.0, 5.0);
+      Mesh mesh = Mesh::MakeCartesian3D(
+                     n, n, n, (Element::Type)type, 2.0, 3.0, 5.0);
 
       VectorFunctionCoefficient funcCoef(dim, Func_3D_lin);
 
@@ -2492,9 +2454,14 @@ TEST_CASE("3D GetVectorValue",
          Vector dgv_gvv_val(dim); dgv_gvv_val = 0.0;
          Vector dgi_gvv_val(dim); dgi_gvv_val = 0.0;
 
+         Vector  nd_gvf_val(dim);  nd_gvf_val = 0.0;
+         Vector  rt_gvf_val(dim);  rt_gvf_val = 0.0;
+         DenseMatrix nd_gvf_vals;
+         DenseMatrix rt_gvf_vals;
+         DenseMatrix tr;
+
          SECTION("Domain Evaluation 3D")
          {
-            std::cout << "Domain Evaluation 3D" << std::endl;
             for (int e = 0; e < mesh.GetNE(); e++)
             {
                ElementTransformation *T = mesh.GetElementTransformation(e);
@@ -2515,6 +2482,12 @@ TEST_CASE("3D GetVectorValue",
                double  l2_gvv_err = 0.0;
                double dgv_gvv_err = 0.0;
                double dgi_gvv_err = 0.0;
+
+               double  nd_gvf_err = 0.0;
+               double  rt_gvf_err = 0.0;
+
+               nd_x.GetVectorFieldValues(e, ir, nd_gvf_vals, tr);
+               rt_x.GetVectorFieldValues(e, ir, rt_gvf_vals, tr);
 
                for (int j=0; j<ir.GetNPoints(); j++)
                {
@@ -2538,6 +2511,9 @@ TEST_CASE("3D GetVectorValue",
                   dgv_x.GetVectorValue(e, ip, dgv_gvv_val);
                   dgi_x.GetVectorValue(e, ip, dgi_gvv_val);
 
+                  nd_gvf_vals.GetRow(j, nd_gvf_val);
+                  rt_gvf_vals.GetRow(j, rt_gvf_val);
+
                   double  h1_gfc_dist = Distance(f_val,  h1_gfc_val, dim);
                   double  nd_gfc_dist = Distance(f_val,  nd_gfc_val, dim);
                   double  rt_gfc_dist = Distance(f_val,  rt_gfc_val, dim);
@@ -2551,6 +2527,9 @@ TEST_CASE("3D GetVectorValue",
                   double  l2_gvv_dist = Distance(f_val,  l2_gvv_val, dim);
                   double dgv_gvv_dist = Distance(f_val, dgv_gvv_val, dim);
                   double dgi_gvv_dist = Distance(f_val, dgi_gvv_val, dim);
+
+                  double  nd_gvf_dist = Distance(f_val,  nd_gvf_val, dim);
+                  double  rt_gvf_dist = Distance(f_val,  rt_gvf_val, dim);
 
                   h1_gfc_err  +=  h1_gfc_dist;
                   nd_gfc_err  +=  nd_gfc_dist;
@@ -2566,45 +2545,48 @@ TEST_CASE("3D GetVectorValue",
                   dgv_gvv_err += dgv_gvv_dist;
                   dgi_gvv_err += dgi_gvv_dist;
 
-                  if (log > 0 && h1_gfc_dist > tol)
+                  nd_gvf_err  +=  nd_gvf_dist;
+                  rt_gvf_err  +=  rt_gvf_dist;
+
+                  if (verbose_tests && h1_gfc_dist > tol)
                   {
-                     std::cout << e << ":" << j << " h1  gfc ("
+                     mfem::out << e << ":" << j << " h1  gfc ("
                                << f_val[0] << "," << f_val[1] << ","
                                << f_val[2] << ") vs. ("
                                << h1_gfc_val[0] << "," << h1_gfc_val[1] << ","
                                << h1_gfc_val[2] << ") "
                                << h1_gfc_dist << std::endl;
                   }
-                  if (log > 0 && nd_gfc_dist > tol)
+                  if (verbose_tests && nd_gfc_dist > tol)
                   {
-                     std::cout << e << ":" << j << " nd  gfc ("
+                     mfem::out << e << ":" << j << " nd  gfc ("
                                << f_val[0] << "," << f_val[1] << ","
                                << f_val[2] << ") vs. ("
                                << nd_gfc_val[0] << "," << nd_gfc_val[1] << ","
                                << nd_gfc_val[2] << ") "
                                << nd_gfc_dist << std::endl;
                   }
-                  if (log > 0 && rt_gfc_dist > tol)
+                  if (verbose_tests && rt_gfc_dist > tol)
                   {
-                     std::cout << e << ":" << j << " rt  gfc ("
+                     mfem::out << e << ":" << j << " rt  gfc ("
                                << f_val[0] << "," << f_val[1] << ","
                                << f_val[2] << ") vs. ("
                                << rt_gfc_val[0] << "," << rt_gfc_val[1] << ","
                                << rt_gfc_val[2] << ") "
                                << rt_gfc_dist << std::endl;
                   }
-                  if (log > 0 && l2_gfc_dist > tol)
+                  if (verbose_tests && l2_gfc_dist > tol)
                   {
-                     std::cout << e << ":" << j << " l2  gfc ("
+                     mfem::out << e << ":" << j << " l2  gfc ("
                                << f_val[0] << "," << f_val[1] << ","
                                << f_val[2] << ") vs. ("
                                << l2_gfc_val[0] << "," << l2_gfc_val[1] << ","
                                << l2_gfc_val[2] << ") "
                                << l2_gfc_dist << std::endl;
                   }
-                  if (log > 0 && dgv_gfc_dist > tol)
+                  if (verbose_tests && dgv_gfc_dist > tol)
                   {
-                     std::cout << e << ":" << j << " dgv gfc ("
+                     mfem::out << e << ":" << j << " dgv gfc ("
                                << f_val[0] << "," << f_val[1] << ","
                                << f_val[2] << ") vs. ("
                                << dgv_gfc_val[0] << ","
@@ -2612,9 +2594,9 @@ TEST_CASE("3D GetVectorValue",
                                << dgv_gfc_val[2] << ") "
                                << dgv_gfc_dist << std::endl;
                   }
-                  if (log > 0 && dgi_gfc_dist > tol)
+                  if (verbose_tests && dgi_gfc_dist > tol)
                   {
-                     std::cout << e << ":" << j << " dgi gfc ("
+                     mfem::out << e << ":" << j << " dgi gfc ("
                                << f_val[0] << "," << f_val[1] << ","
                                << f_val[2] << ") vs. ("
                                << dgi_gfc_val[0] << ","
@@ -2622,45 +2604,45 @@ TEST_CASE("3D GetVectorValue",
                                << dgi_gfc_val[2] << ") "
                                << dgi_gfc_dist << std::endl;
                   }
-                  if (log > 0 && h1_gvv_dist > tol)
+                  if (verbose_tests && h1_gvv_dist > tol)
                   {
-                     std::cout << e << ":" << j << " h1  gvv ("
+                     mfem::out << e << ":" << j << " h1  gvv ("
                                << f_val[0] << "," << f_val[1] << ","
                                << f_val[2] << ") vs. ("
                                << h1_gvv_val[0] << "," << h1_gvv_val[1] << ","
                                << h1_gvv_val[2] << ") "
                                << h1_gvv_dist << std::endl;
                   }
-                  if (log > 0 && nd_gvv_dist > tol)
+                  if (verbose_tests && nd_gvv_dist > tol)
                   {
-                     std::cout << e << ":" << j << " nd  gvv ("
+                     mfem::out << e << ":" << j << " nd  gvv ("
                                << f_val[0] << "," << f_val[1] << ","
                                << f_val[2] << ") vs. ("
                                << nd_gvv_val[0] << "," << nd_gvv_val[1] << ","
                                << nd_gvv_val[2] << ") "
                                << nd_gvv_dist << std::endl;
                   }
-                  if (log > 0 && rt_gvv_dist > tol)
+                  if (verbose_tests && rt_gvv_dist > tol)
                   {
-                     std::cout << e << ":" << j << " rt  gvv ("
+                     mfem::out << e << ":" << j << " rt  gvv ("
                                << f_val[0] << "," << f_val[1] << ","
                                << f_val[2] << ") vs. ("
                                << rt_gvv_val[0] << "," << rt_gvv_val[1] << ","
                                << rt_gvv_val[2] << ") "
                                << rt_gvv_dist << std::endl;
                   }
-                  if (log > 0 && l2_gvv_dist > tol)
+                  if (verbose_tests && l2_gvv_dist > tol)
                   {
-                     std::cout << e << ":" << j << " l2  gvv ("
+                     mfem::out << e << ":" << j << " l2  gvv ("
                                << f_val[0] << "," << f_val[1] << ","
                                << f_val[2] << ") vs. ("
                                << l2_gvv_val[0] << "," << l2_gvv_val[1] << ","
                                << l2_gvv_val[2] << ") "
                                << l2_gvv_dist << std::endl;
                   }
-                  if (log > 0 && dgv_gvv_dist > tol)
+                  if (verbose_tests && dgv_gvv_dist > tol)
                   {
-                     std::cout << e << ":" << j << " dgv gvv ("
+                     mfem::out << e << ":" << j << " dgv gvv ("
                                << f_val[0] << "," << f_val[1] << ","
                                << f_val[2] << ") vs. ("
                                << dgv_gvv_val[0] << ","
@@ -2668,15 +2650,35 @@ TEST_CASE("3D GetVectorValue",
                                << dgv_gvv_val[2] << ") "
                                << dgv_gvv_dist << std::endl;
                   }
-                  if (log > 0 && dgi_gvv_dist > tol)
+                  if (verbose_tests && dgi_gvv_dist > tol)
                   {
-                     std::cout << e << ":" << j << " dgi gvv ("
+                     mfem::out << e << ":" << j << " dgi gvv ("
                                << f_val[0] << "," << f_val[1] << ","
                                << f_val[2] << ") vs. ("
                                << dgi_gvv_val[0] << ","
                                << dgi_gvv_val[1] << ","
                                << dgi_gvv_val[2] << ") "
                                << dgi_gvv_dist << std::endl;
+                  }
+                  if (verbose_tests && nd_gvf_dist > tol)
+                  {
+                     mfem::out << e << ":" << j << " nd  gvf ("
+                               << f_val[0] << "," << f_val[1] << ","
+                               << f_val[2] << ") vs. ("
+                               << nd_gvf_val[0] << ","
+                               << nd_gvf_val[1] << ","
+                               << nd_gvf_val[2] << ") "
+                               << nd_gvf_dist << std::endl;
+                  }
+                  if (verbose_tests && rt_gvf_dist > tol)
+                  {
+                     mfem::out << e << ":" << j << " rt  gvf ("
+                               << f_val[0] << "," << f_val[1] << ","
+                               << f_val[2] << ") vs. ("
+                               << rt_gvf_val[0] << ","
+                               << rt_gvf_val[1] << ","
+                               << rt_gvf_val[2] << ") "
+                               << rt_gvf_dist << std::endl;
                   }
                }
 
@@ -2694,6 +2696,9 @@ TEST_CASE("3D GetVectorValue",
                dgv_gvv_err /= ir.GetNPoints();
                dgi_gvv_err /= ir.GetNPoints();
 
+               nd_gvf_err  /= ir.GetNPoints();
+               rt_gvf_err  /= ir.GetNPoints();
+
                REQUIRE( h1_gfc_err == MFEM_Approx(0.0));
                REQUIRE( nd_gfc_err == MFEM_Approx(0.0));
                REQUIRE( rt_gfc_err == MFEM_Approx(0.0));
@@ -2707,12 +2712,14 @@ TEST_CASE("3D GetVectorValue",
                REQUIRE( l2_gvv_err == MFEM_Approx(0.0));
                REQUIRE(dgv_gvv_err == MFEM_Approx(0.0));
                REQUIRE(dgi_gvv_err == MFEM_Approx(0.0));
+
+               REQUIRE( nd_gvf_err == MFEM_Approx(0.0));
+               REQUIRE( rt_gvf_err == MFEM_Approx(0.0));
             }
          }
 
          SECTION("Boundary Evaluation 3D (H1 Context)")
          {
-            std::cout << "Boundary Evaluation 3D (H1 Context)" << std::endl;
             for (int be = 0; be < mesh.GetNBE(); be++)
             {
                ElementTransformation *T = mesh.GetBdrElementTransformation(be);
@@ -2755,54 +2762,54 @@ TEST_CASE("3D GetVectorValue",
                   dgv_err += dgv_dist;
                   dgi_err += dgi_dist;
 
-                  if (log > 0 && h1_dist > tol)
+                  if (verbose_tests && h1_dist > tol)
                   {
-                     std::cout << be << ":" << j << " h1  ("
+                     mfem::out << be << ":" << j << " h1  ("
                                << f_val[0] << "," << f_val[1] << ","
                                << f_val[2] << ") vs. ("
                                << h1_gfc_val[0] << "," << h1_gfc_val[1] << ","
                                << h1_gfc_val[2] << ") " << h1_dist
                                << std::endl;
                   }
-                  if (log > 0 && nd_dist > tol)
+                  if (verbose_tests && nd_dist > tol)
                   {
-                     std::cout << be << ":" << j << " nd  ("
+                     mfem::out << be << ":" << j << " nd  ("
                                << f_val[0] << "," << f_val[1] << ","
                                << f_val[2] << ") vs. ("
                                << nd_gfc_val[0] << "," << nd_gfc_val[1] << ","
                                << nd_gfc_val[2] << ") " << nd_dist
                                << std::endl;
                   }
-                  if (log > 0 && rt_dist > tol)
+                  if (verbose_tests && rt_dist > tol)
                   {
-                     std::cout << be << ":" << j << " rt  ("
+                     mfem::out << be << ":" << j << " rt  ("
                                << f_val[0] << "," << f_val[1] << ","
                                << f_val[2] << ") vs. ("
                                << rt_gfc_val[0] << "," << rt_gfc_val[1] << ","
                                << rt_gfc_val[2] << ") " << rt_dist
                                << std::endl;
                   }
-                  if (log > 0 && l2_dist > tol)
+                  if (verbose_tests && l2_dist > tol)
                   {
-                     std::cout << be << ":" << j << " l2  ("
+                     mfem::out << be << ":" << j << " l2  ("
                                << f_val[0] << "," << f_val[1] << ","
                                << f_val[2] << ") vs. ("
                                << l2_gfc_val[0] << "," << l2_gfc_val[1] << ","
                                << l2_gfc_val[2] << ") " << l2_dist
                                << std::endl;
                   }
-                  if (log > 0 && dgv_dist > tol)
+                  if (verbose_tests && dgv_dist > tol)
                   {
-                     std::cout << be << ":" << j << " dgv ("
+                     mfem::out << be << ":" << j << " dgv ("
                                << f_val[0] << "," << f_val[1] << ","
                                << f_val[2] << ") vs. ("
                                << dgv_gfc_val[0] << "," << dgv_gfc_val[1] << ","
                                << dgv_gfc_val[2] << ") " << dgv_dist
                                << std::endl;
                   }
-                  if (log > 0 && dgi_dist > tol)
+                  if (verbose_tests && dgi_dist > tol)
                   {
-                     std::cout << be << ":" << j << " dgi ("
+                     mfem::out << be << ":" << j << " dgi ("
                                << f_val[0] << "," << f_val[1] << ","
                                << f_val[2] << ") vs. ("
                                << dgi_gfc_val[0] << "," << dgi_gfc_val[1] << ","
@@ -2828,7 +2835,6 @@ TEST_CASE("3D GetVectorValue",
 
          SECTION("Boundary Evaluation 3D (DG Context)")
          {
-            std::cout << "Boundary Evaluation 3D (DG Context)" << std::endl;
             for (int be = 0; be < mesh.GetNBE(); be++)
             {
                FaceElementTransformations *T =
@@ -2872,54 +2878,54 @@ TEST_CASE("3D GetVectorValue",
                   dgv_err += dgv_dist;
                   dgi_err += dgi_dist;
 
-                  if (log > 0 && h1_dist > tol)
+                  if (verbose_tests && h1_dist > tol)
                   {
-                     std::cout << be << ":" << j << " h1  ("
+                     mfem::out << be << ":" << j << " h1  ("
                                << f_val[0] << "," << f_val[1] << ","
                                << f_val[2] << ") vs. ("
                                << h1_gfc_val[0] << "," << h1_gfc_val[1] << ","
                                << h1_gfc_val[2] << ") " << h1_dist
                                << std::endl;
                   }
-                  if (log > 0 && nd_dist > tol)
+                  if (verbose_tests && nd_dist > tol)
                   {
-                     std::cout << be << ":" << j << " nd  ("
+                     mfem::out << be << ":" << j << " nd  ("
                                << f_val[0] << "," << f_val[1] << ","
                                << f_val[2] << ") vs. ("
                                << nd_gfc_val[0] << "," << nd_gfc_val[1] << ","
                                << nd_gfc_val[2] << ") " << nd_dist
                                << std::endl;
                   }
-                  if (log > 0 && rt_dist > tol)
+                  if (verbose_tests && rt_dist > tol)
                   {
-                     std::cout << be << ":" << j << " rt  ("
+                     mfem::out << be << ":" << j << " rt  ("
                                << f_val[0] << "," << f_val[1] << ","
                                << f_val[2] << ") vs. ("
                                << rt_gfc_val[0] << "," << rt_gfc_val[1] << ","
                                << rt_gfc_val[2] << ") " << rt_dist
                                << std::endl;
                   }
-                  if (log > 0 && l2_dist > tol)
+                  if (verbose_tests && l2_dist > tol)
                   {
-                     std::cout << be << ":" << j << " l2  ("
+                     mfem::out << be << ":" << j << " l2  ("
                                << f_val[0] << "," << f_val[1] << ","
                                << f_val[2] << ") vs. ("
                                << l2_gfc_val[0] << "," << l2_gfc_val[1] << ","
                                << l2_gfc_val[2] << ") " << l2_dist
                                << std::endl;
                   }
-                  if (log > 0 && dgv_dist > tol)
+                  if (verbose_tests && dgv_dist > tol)
                   {
-                     std::cout << be << ":" << j << " dgv ("
+                     mfem::out << be << ":" << j << " dgv ("
                                << f_val[0] << "," << f_val[1] << ","
                                << f_val[2] << ") vs. ("
                                << dgv_gfc_val[0] << "," << dgv_gfc_val[1] << ","
                                << dgv_gfc_val[2] << ") " << dgv_dist
                                << std::endl;
                   }
-                  if (log > 0 && dgi_dist > tol)
+                  if (verbose_tests && dgi_dist > tol)
                   {
-                     std::cout << be << ":" << j << " dgi ("
+                     mfem::out << be << ":" << j << " dgi ("
                                << f_val[0] << "," << f_val[1] << ","
                                << f_val[2] << ") vs. ("
                                << dgi_gfc_val[0] << "," << dgi_gfc_val[1] << ","
@@ -2945,7 +2951,6 @@ TEST_CASE("3D GetVectorValue",
 
          SECTION("Edge Evaluation 3D")
          {
-            std::cout << "Edge Evaluation 3D" << std::endl;
             for (int e = 0; e < mesh.GetNEdges(); e++)
             {
                ElementTransformation *T = mesh.GetEdgeTransformation(e);
@@ -2968,9 +2973,9 @@ TEST_CASE("3D GetVectorValue",
 
                   h1_err  +=  h1_dist;
 
-                  if (log > 0 && h1_dist > tol)
+                  if (verbose_tests && h1_dist > tol)
                   {
-                     std::cout << e << ":" << j << " h1  ("
+                     mfem::out << e << ":" << j << " h1  ("
                                << f_val[0] << "," << f_val[1] << ","
                                << f_val[2] << ") vs. ("
                                << h1_gfc_val[0] << "," << h1_gfc_val[1] << ","
@@ -2986,7 +2991,6 @@ TEST_CASE("3D GetVectorValue",
 
          SECTION("Face Evaluation 3D")
          {
-            std::cout << "Face Evaluation 3D" << std::endl;
             for (int f = 0; f < mesh.GetNFaces(); f++)
             {
                ElementTransformation *T = mesh.GetFaceTransformation(f);
@@ -3009,9 +3013,9 @@ TEST_CASE("3D GetVectorValue",
 
                   h1_err  +=  h1_dist;
 
-                  if (log > 0 && h1_dist > tol)
+                  if (verbose_tests && h1_dist > tol)
                   {
-                     std::cout << f << ":" << j << " h1  ("
+                     mfem::out << f << ":" << j << " h1  ("
                                << f_val[0] << "," << f_val[1] << ","
                                << f_val[2] << ") vs. ("
                                << h1_gfc_val[0] << "," << h1_gfc_val[1] << ","
@@ -3026,7 +3030,7 @@ TEST_CASE("3D GetVectorValue",
          }
       }
    }
-   std::cout << "Checked GridFunction::GetVectorValue at "
+   mfem::out << "Checked GridFunction::GetVectorValue at "
              << npts << " 3D points" << std::endl;
 }
 
@@ -3043,24 +3047,20 @@ TEST_CASE("3D GetVectorValue in Parallel",
    int my_rank;
    MPI_Comm_rank(MPI_COMM_WORLD, &my_rank);
 
-   int log = 1;
    int n = (int)ceil(pow(2*num_procs, 1.0 / 3.0));
    int dim = 3;
-   int order = 1;
+   int order = 2;
    int npts = 0;
 
    double tol = 1e-6;
 
    for (int type = (int)Element::TETRAHEDRON;
-        type <= (int)Element::HEXAHEDRON; type++)
+        type <= (int)Element::WEDGE; type++)
    {
-      Mesh *mesh = new Mesh(n, n, n, (Element::Type)type, 1, 2.0, 3.0, 5.0);
-      ParMesh pmesh(MPI_COMM_WORLD, *mesh);
-      if (type == Element::TETRAHEDRON)
-      {
-         pmesh.ReorientTetMesh();
-      }
-      delete mesh;
+      Mesh mesh = Mesh::MakeCartesian3D(
+                     n, n, n, (Element::Type)type, 2.0, 3.0, 5.0);
+      ParMesh pmesh(MPI_COMM_WORLD, mesh);
+      mesh.Clear();
 
       VectorFunctionCoefficient funcCoef(dim, Func_3D_lin);
 
@@ -3111,6 +3111,7 @@ TEST_CASE("3D GetVectorValue in Parallel",
          dgv_x.ExchangeFaceNbrData();
          dgi_x.ExchangeFaceNbrData();
 
+         Vector           x(dim);           x = 0.0;
          Vector       f_val(dim);       f_val = 0.0;
 
          Vector  h1_gfc_val(dim);  h1_gfc_val = 0.0;
@@ -3129,10 +3130,6 @@ TEST_CASE("3D GetVectorValue in Parallel",
 
          SECTION("Shared Face Evaluation 3D")
          {
-            if (my_rank == 0)
-            {
-               std::cout << "Shared Face Evaluation 3D" << std::endl;
-            }
             for (int sf = 0; sf < pmesh.GetNSharedFaces(); sf++)
             {
                FaceElementTransformations *FET =
@@ -3163,6 +3160,7 @@ TEST_CASE("3D GetVectorValue in Parallel",
                   npts++;
                   const IntegrationPoint &ip = ir.IntPoint(j);
                   T->SetIntPoint(&ip);
+                  T->Transform(ip, x);
 
                   funcCoef.Eval(f_val, *T, ip);
 
@@ -3208,45 +3206,47 @@ TEST_CASE("3D GetVectorValue in Parallel",
                   dgv_gvv_err += dgv_gvv_dist;
                   dgi_gvv_err += dgi_gvv_dist;
 
-                  if (log > 0 && h1_gfc_dist > tol)
+                  if (verbose_tests && h1_gfc_dist > tol)
                   {
-                     std::cout << e << ":" << j << " h1  gfc ("
+                     mfem::out << e << ":" << j << " h1  gfc ("
                                << f_val[0] << "," << f_val[1] << ","
                                << f_val[2] << ") vs. ("
                                << h1_gfc_val[0] << "," << h1_gfc_val[1] << ","
                                << h1_gfc_val[2] << ") "
                                << h1_gfc_dist << std::endl;
                   }
-                  if (log > 0 && nd_gfc_dist > tol)
+                  if (verbose_tests && nd_gfc_dist > tol)
                   {
-                     std::cout << e << ":" << j << " nd  gfc ("
+                     mfem::out << e << ":" << j
+                               << " x = (" << x[0] << "," << x[1] << ","
+                               << x[2] << ")\n nd  gfc ("
                                << f_val[0] << "," << f_val[1] << ","
-                               << f_val[2] << ") vs. ("
+                               << f_val[2] << ")\n vs. ("
                                << nd_gfc_val[0] << "," << nd_gfc_val[1] << ","
                                << nd_gfc_val[2] << ") "
                                << nd_gfc_dist << std::endl;
                   }
-                  if (log > 0 && rt_gfc_dist > tol)
+                  if (verbose_tests && rt_gfc_dist > tol)
                   {
-                     std::cout << e << ":" << j << " rt  gfc ("
+                     mfem::out << e << ":" << j << " rt  gfc ("
                                << f_val[0] << "," << f_val[1] << ","
                                << f_val[2] << ") vs. ("
                                << rt_gfc_val[0] << "," << rt_gfc_val[1] << ","
                                << rt_gfc_val[2] << ") "
                                << rt_gfc_dist << std::endl;
                   }
-                  if (log > 0 && l2_gfc_dist > tol)
+                  if (verbose_tests && l2_gfc_dist > tol)
                   {
-                     std::cout << e << ":" << j << " l2  gfc ("
+                     mfem::out << e << ":" << j << " l2  gfc ("
                                << f_val[0] << "," << f_val[1] << ","
                                << f_val[2] << ") vs. ("
                                << l2_gfc_val[0] << "," << l2_gfc_val[1] << ","
                                << l2_gfc_val[2] << ") "
                                << l2_gfc_dist << std::endl;
                   }
-                  if (log > 0 && dgv_gfc_dist > tol)
+                  if (verbose_tests && dgv_gfc_dist > tol)
                   {
-                     std::cout << e << ":" << j << " dgv gfc ("
+                     mfem::out << e << ":" << j << " dgv gfc ("
                                << f_val[0] << "," << f_val[1] << ","
                                << f_val[2] << ") vs. ("
                                << dgv_gfc_val[0] << ","
@@ -3254,9 +3254,9 @@ TEST_CASE("3D GetVectorValue in Parallel",
                                << dgv_gfc_val[2] << ") "
                                << dgv_gfc_dist << std::endl;
                   }
-                  if (log > 0 && dgi_gfc_dist > tol)
+                  if (verbose_tests && dgi_gfc_dist > tol)
                   {
-                     std::cout << e << ":" << j << " dgi gfc ("
+                     mfem::out << e << ":" << j << " dgi gfc ("
                                << f_val[0] << "," << f_val[1] << ","
                                << f_val[2] << ") vs. ("
                                << dgi_gfc_val[0] << ","
@@ -3264,45 +3264,45 @@ TEST_CASE("3D GetVectorValue in Parallel",
                                << dgi_gfc_val[2] << ") "
                                << dgi_gfc_dist << std::endl;
                   }
-                  if (log > 0 && h1_gvv_dist > tol)
+                  if (verbose_tests && h1_gvv_dist > tol)
                   {
-                     std::cout << e << ":" << j << " h1  gvv ("
+                     mfem::out << e << ":" << j << " h1  gvv ("
                                << f_val[0] << "," << f_val[1] << ","
                                << f_val[2] << ") vs. ("
                                << h1_gvv_val[0] << "," << h1_gvv_val[1] << ","
                                << h1_gvv_val[2] << ") "
                                << h1_gvv_dist << std::endl;
                   }
-                  if (log > 0 && nd_gvv_dist > tol)
+                  if (verbose_tests && nd_gvv_dist > tol)
                   {
-                     std::cout << e << ":" << j << " nd  gvv ("
+                     mfem::out << e << ":" << j << " nd  gvv ("
                                << f_val[0] << "," << f_val[1] << ","
                                << f_val[2] << ") vs. ("
                                << nd_gvv_val[0] << "," << nd_gvv_val[1] << ","
                                << nd_gvv_val[2] << ") "
                                << nd_gvv_dist << std::endl;
                   }
-                  if (log > 0 && rt_gvv_dist > tol)
+                  if (verbose_tests && rt_gvv_dist > tol)
                   {
-                     std::cout << e << ":" << j << " rt  gvv ("
+                     mfem::out << e << ":" << j << " rt  gvv ("
                                << f_val[0] << "," << f_val[1] << ","
                                << f_val[2] << ") vs. ("
                                << rt_gvv_val[0] << "," << rt_gvv_val[1] << ","
                                << rt_gvv_val[2] << ") "
                                << rt_gvv_dist << std::endl;
                   }
-                  if (log > 0 && l2_gvv_dist > tol)
+                  if (verbose_tests && l2_gvv_dist > tol)
                   {
-                     std::cout << e << ":" << j << " l2  gvv ("
+                     mfem::out << e << ":" << j << " l2  gvv ("
                                << f_val[0] << "," << f_val[1] << ","
                                << f_val[2] << ") vs. ("
                                << l2_gvv_val[0] << "," << l2_gvv_val[1] << ","
                                << l2_gvv_val[2] << ") "
                                << l2_gvv_dist << std::endl;
                   }
-                  if (log > 0 && dgv_gvv_dist > tol)
+                  if (verbose_tests && dgv_gvv_dist > tol)
                   {
-                     std::cout << e << ":" << j << " dgv gvv ("
+                     mfem::out << e << ":" << j << " dgv gvv ("
                                << f_val[0] << "," << f_val[1] << ","
                                << f_val[2] << ") vs. ("
                                << dgv_gvv_val[0] << ","
@@ -3310,9 +3310,9 @@ TEST_CASE("3D GetVectorValue in Parallel",
                                << dgv_gvv_val[2] << ") "
                                << dgv_gvv_dist << std::endl;
                   }
-                  if (log > 0 && dgi_gvv_dist > tol)
+                  if (verbose_tests && dgi_gvv_dist > tol)
                   {
-                     std::cout << e << ":" << j << " dgi gvv ("
+                     mfem::out << e << ":" << j << " dgi gvv ("
                                << f_val[0] << "," << f_val[1] << ","
                                << f_val[2] << ") vs. ("
                                << dgi_gvv_val[0] << ","
@@ -3353,7 +3353,8 @@ TEST_CASE("3D GetVectorValue in Parallel",
          }
       }
    }
-   std::cout << my_rank << ": Checked GridFunction::GetVectorValue at "
+
+   mfem::out << my_rank << ": Checked GridFunction::GetVectorValue at "
              << npts << " 3D points" << std::endl;
 }
 
@@ -3363,7 +3364,6 @@ TEST_CASE("1D GetGradient",
           "[GridFunction]"
           "[GradientGridFunctionCoefficient]")
 {
-   int log = 1;
    int n = 1;
    int dim = 1;
    int order = 2;
@@ -3374,7 +3374,7 @@ TEST_CASE("1D GetGradient",
    for (int type = (int)Element::SEGMENT;
         type <= (int)Element::SEGMENT; type++)
    {
-      Mesh mesh(n, 2.0);
+      Mesh mesh = Mesh::MakeCartesian1D(n, 2.0);
 
       FunctionCoefficient funcCoef(func_1D_quad);
       VectorFunctionCoefficient dFuncCoef(dim, dfunc_1D_quad);
@@ -3403,7 +3403,6 @@ TEST_CASE("1D GetGradient",
 
          SECTION("Domain Evaluation 1D")
          {
-            std::cout << "Domain Evaluation 1D" << std::endl;
             for (int e = 0; e < mesh.GetNE(); e++)
             {
                ElementTransformation *T = mesh.GetElementTransformation(e);
@@ -3430,16 +3429,16 @@ TEST_CASE("1D GetGradient",
                   h1_err  +=  h1_dist;
                   dgv_err += dgv_dist;
 
-                  if (log > 0 && h1_dist > tol)
+                  if (verbose_tests && h1_dist > tol)
                   {
-                     std::cout << e << ":" << j << " h1  ("
+                     mfem::out << e << ":" << j << " h1  ("
                                << f_val[0] << ") vs. ("
                                << h1_gfc_val[0] << ") "
                                << h1_dist << std::endl;
                   }
-                  if (log > 0 && dgv_dist > tol)
+                  if (verbose_tests && dgv_dist > tol)
                   {
-                     std::cout << e << ":" << j << " dgv ("
+                     mfem::out << e << ":" << j << " dgv ("
                                << f_val[0] << ") vs. ("
                                << dgv_gfc_val[0] << ") "
                                << dgv_dist << std::endl;
@@ -3455,7 +3454,6 @@ TEST_CASE("1D GetGradient",
 
          SECTION("Boundary Evaluation 1D (H1 Context)")
          {
-            std::cout << "Boundary Evaluation 1D (H1 Context)" << std::endl;
             for (int be = 0; be < mesh.GetNBE(); be++)
             {
                ElementTransformation *T = mesh.GetBdrElementTransformation(be);
@@ -3482,16 +3480,16 @@ TEST_CASE("1D GetGradient",
                   h1_err  +=  h1_dist;
                   dgv_err += dgv_dist;
 
-                  if (log > 0 && h1_dist > tol)
+                  if (verbose_tests && h1_dist > tol)
                   {
-                     std::cout << be << ":" << j << " h1  ("
+                     mfem::out << be << ":" << j << " h1  ("
                                << f_val[0] << ") vs. ("
                                << h1_gfc_val[0] << ") "
                                << h1_dist << std::endl;
                   }
-                  if (log > 0 && dgv_dist > tol)
+                  if (verbose_tests && dgv_dist > tol)
                   {
-                     std::cout << be << ":" << j << " dgv ("
+                     mfem::out << be << ":" << j << " dgv ("
                                << f_val[0] << ") vs. ("
                                << dgv_gfc_val[0] << ") "
                                << dgv_dist << std::endl;
@@ -3507,7 +3505,7 @@ TEST_CASE("1D GetGradient",
 
          SECTION("Boundary Evaluation 1D (DG Context)")
          {
-            std::cout << "Boundary Evaluation 1D (DG Context)" << std::endl;
+            mfem::out << "Boundary Evaluation 1D (DG Context)" << std::endl;
             for (int be = 0; be < mesh.GetNBE(); be++)
             {
                FaceElementTransformations *T =
@@ -3535,16 +3533,16 @@ TEST_CASE("1D GetGradient",
                   h1_err  +=  h1_dist;
                   dgv_err += dgv_dist;
 
-                  if (log > 0 && h1_dist > tol)
+                  if (verbose_tests && h1_dist > tol)
                   {
-                     std::cout << be << ":" << j << " h1  ("
+                     mfem::out << be << ":" << j << " h1  ("
                                << f_val[0] << ") vs. ("
                                << h1_gfc_val[0] << ") "
                                << h1_dist << std::endl;
                   }
-                  if (log > 0 && dgv_dist > tol)
+                  if (verbose_tests && dgv_dist > tol)
                   {
-                     std::cout << be << ":" << j << " dgv ("
+                     mfem::out << be << ":" << j << " dgv ("
                                << f_val[0] << ") vs. ("
                                << dgv_gfc_val[0] << ") "
                                << dgv_dist << std::endl;
@@ -3559,7 +3557,7 @@ TEST_CASE("1D GetGradient",
          }
       }
    }
-   std::cout << "Checked GridFunction::GetGradient at "
+   mfem::out << "Checked GridFunction::GetGradient at "
              << npts << " 1D points" << std::endl;
 }
 
@@ -3567,7 +3565,6 @@ TEST_CASE("2D GetGradient",
           "[GridFunction]"
           "[GradientGridFunctionCoefficient]")
 {
-   int log = 1;
    int n = 1;
    int dim = 2;
    int order = 2;
@@ -3578,7 +3575,7 @@ TEST_CASE("2D GetGradient",
    for (int type = (int)Element::TRIANGLE;
         type <= (int)Element::QUADRILATERAL; type++)
    {
-      Mesh mesh(n, n, (Element::Type)type, 1, 2.0, 3.0);
+      Mesh mesh = Mesh::MakeCartesian2D(n, n, (Element::Type)type, 1, 2.0, 3.0);
 
       FunctionCoefficient funcCoef(func_2D_quad);
       VectorFunctionCoefficient dFuncCoef(dim, dfunc_2D_quad);
@@ -3607,7 +3604,6 @@ TEST_CASE("2D GetGradient",
 
          SECTION("Domain Evaluation 2D")
          {
-            std::cout << "Domain Evaluation 2D" << std::endl;
             for (int e = 0; e < mesh.GetNE(); e++)
             {
                ElementTransformation *T = mesh.GetElementTransformation(e);
@@ -3634,17 +3630,17 @@ TEST_CASE("2D GetGradient",
                   h1_err  +=  h1_dist;
                   dgv_err += dgv_dist;
 
-                  if (log > 0 && h1_dist > tol)
+                  if (verbose_tests && h1_dist > tol)
                   {
-                     std::cout << e << ":" << j << " h1  ("
+                     mfem::out << e << ":" << j << " h1  ("
                                << f_val[0] << "," << f_val[1] << ") vs. ("
                                << h1_gfc_val[0] << ","
                                << h1_gfc_val[1] << ") "
                                << h1_dist << std::endl;
                   }
-                  if (log > 0 && dgv_dist > tol)
+                  if (verbose_tests && dgv_dist > tol)
                   {
-                     std::cout << e << ":" << j << " dgv ("
+                     mfem::out << e << ":" << j << " dgv ("
                                << f_val[0] << "," << f_val[1] << ") vs. ("
                                << dgv_gfc_val[0] << ","
                                << dgv_gfc_val[1] << ") "
@@ -3661,7 +3657,7 @@ TEST_CASE("2D GetGradient",
 
          SECTION("Boundary Evaluation 2D (H1 Context)")
          {
-            std::cout << "Boundary Evaluation 2D (H1 Context)" << std::endl;
+            mfem::out << "Boundary Evaluation 2D (H1 Context)" << std::endl;
             for (int be = 0; be < mesh.GetNBE(); be++)
             {
                ElementTransformation *T = mesh.GetBdrElementTransformation(be);
@@ -3688,17 +3684,17 @@ TEST_CASE("2D GetGradient",
                   h1_err  +=  h1_dist;
                   dgv_err += dgv_dist;
 
-                  if (log > 0 && h1_dist > tol)
+                  if (verbose_tests && h1_dist > tol)
                   {
-                     std::cout << be << ":" << j << " h1  ("
+                     mfem::out << be << ":" << j << " h1  ("
                                << f_val[0] << "," << f_val[1] << ") vs. ("
                                << h1_gfc_val[0] << ","
                                << h1_gfc_val[1] << ") "
                                << h1_dist << std::endl;
                   }
-                  if (log > 0 && dgv_dist > tol)
+                  if (verbose_tests && dgv_dist > tol)
                   {
-                     std::cout << be << ":" << j << " dgv ("
+                     mfem::out << be << ":" << j << " dgv ("
                                << f_val[0] << "," << f_val[1] << ") vs. ("
                                << dgv_gfc_val[0] << ","
                                << dgv_gfc_val[1] << ") "
@@ -3715,7 +3711,7 @@ TEST_CASE("2D GetGradient",
 
          SECTION("Boundary Evaluation 2D (DG Context)")
          {
-            std::cout << "Boundary Evaluation 2D (DG Context)" << std::endl;
+            mfem::out << "Boundary Evaluation 2D (DG Context)" << std::endl;
             for (int be = 0; be < mesh.GetNBE(); be++)
             {
                FaceElementTransformations *T =
@@ -3743,17 +3739,17 @@ TEST_CASE("2D GetGradient",
                   h1_err  +=  h1_dist;
                   dgv_err += dgv_dist;
 
-                  if (log > 0 && h1_dist > tol)
+                  if (verbose_tests && h1_dist > tol)
                   {
-                     std::cout << be << ":" << j << " h1  ("
+                     mfem::out << be << ":" << j << " h1  ("
                                << f_val[0] << "," << f_val[1] << ") vs. ("
                                << h1_gfc_val[0] << ","
                                << h1_gfc_val[1] << ") "
                                << h1_dist << std::endl;
                   }
-                  if (log > 0 && dgv_dist > tol)
+                  if (verbose_tests && dgv_dist > tol)
                   {
-                     std::cout << be << ":" << j << " dgv ("
+                     mfem::out << be << ":" << j << " dgv ("
                                << f_val[0] << "," << f_val[1] << ") vs. ("
                                << dgv_gfc_val[0] << ","
                                << dgv_gfc_val[1] << ") "
@@ -3769,7 +3765,7 @@ TEST_CASE("2D GetGradient",
          }
       }
    }
-   std::cout << "Checked GridFunction::GetGradient at "
+   mfem::out << "Checked GridFunction::GetGradient at "
              << npts << " 2D points" << std::endl;
 }
 
@@ -3777,7 +3773,6 @@ TEST_CASE("3D GetGradient",
           "[GridFunction]"
           "[GradientGridFunctionCoefficient]")
 {
-   int log = 1;
    int n = 1;
    int dim = 3;
    int order = 2;
@@ -3788,7 +3783,8 @@ TEST_CASE("3D GetGradient",
    for (int type = (int)Element::TETRAHEDRON;
         type <= (int)Element::WEDGE; type++)
    {
-      Mesh mesh(n, n, n, (Element::Type)type, 1, 2.0, 3.0, 5.0);
+      Mesh mesh = Mesh::MakeCartesian3D(
+                     n, n, n, (Element::Type)type, 2.0, 3.0, 5.0);
 
       FunctionCoefficient funcCoef(func_3D_quad);
       VectorFunctionCoefficient dFuncCoef(dim, dfunc_3D_quad);
@@ -3817,7 +3813,6 @@ TEST_CASE("3D GetGradient",
 
          SECTION("Domain Evaluation 3D")
          {
-            std::cout << "Domain Evaluation 3D" << std::endl;
             for (int e = 0; e < mesh.GetNE(); e++)
             {
                ElementTransformation *T = mesh.GetElementTransformation(e);
@@ -3844,18 +3839,18 @@ TEST_CASE("3D GetGradient",
                   h1_err  +=  h1_dist;
                   dgv_err += dgv_dist;
 
-                  if (log > 0 && h1_dist > tol)
+                  if (verbose_tests && h1_dist > tol)
                   {
-                     std::cout << e << ":" << j << " h1  ("
+                     mfem::out << e << ":" << j << " h1  ("
                                << f_val[0] << "," << f_val[1] << ","
                                << f_val[2] << ") vs. ("
                                << h1_gfc_val[0] << "," << h1_gfc_val[1] << ","
                                << h1_gfc_val[2] << ") "
                                << h1_dist << std::endl;
                   }
-                  if (log > 0 && dgv_dist > tol)
+                  if (verbose_tests && dgv_dist > tol)
                   {
-                     std::cout << e << ":" << j << " dgv ("
+                     mfem::out << e << ":" << j << " dgv ("
                                << f_val[0] << "," << f_val[1] << ","
                                << f_val[2] << ") vs. ("
                                << dgv_gfc_val[0] << "," << dgv_gfc_val[1] << ","
@@ -3873,7 +3868,6 @@ TEST_CASE("3D GetGradient",
 
          SECTION("Boundary Evaluation 3D (H1 Context)")
          {
-            std::cout << "Boundary Evaluation 3D (H1 Context)" << std::endl;
             for (int be = 0; be < mesh.GetNBE(); be++)
             {
                ElementTransformation *T = mesh.GetBdrElementTransformation(be);
@@ -3900,18 +3894,18 @@ TEST_CASE("3D GetGradient",
                   h1_err  +=  h1_dist;
                   dgv_err += dgv_dist;
 
-                  if (log > 0 && h1_dist > tol)
+                  if (verbose_tests && h1_dist > tol)
                   {
-                     std::cout << be << ":" << j << " h1  ("
+                     mfem::out << be << ":" << j << " h1  ("
                                << f_val[0] << "," << f_val[1] << ","
                                << f_val[2] << ") vs. ("
                                << h1_gfc_val[0] << "," << h1_gfc_val[1] << ","
                                << h1_gfc_val[2] << ") "
                                << h1_dist << std::endl;
                   }
-                  if (log > 0 && dgv_dist > tol)
+                  if (verbose_tests && dgv_dist > tol)
                   {
-                     std::cout << be << ":" << j << " dgv ("
+                     mfem::out << be << ":" << j << " dgv ("
                                << f_val[0] << "," << f_val[1] << ","
                                << f_val[2] << ") vs. ("
                                << dgv_gfc_val[0] << "," << dgv_gfc_val[1] << ","
@@ -3929,7 +3923,6 @@ TEST_CASE("3D GetGradient",
 
          SECTION("Boundary Evaluation 3D (DG Context)")
          {
-            std::cout << "Boundary Evaluation 3D (DG Context)" << std::endl;
             for (int be = 0; be < mesh.GetNBE(); be++)
             {
                FaceElementTransformations *T =
@@ -3957,18 +3950,18 @@ TEST_CASE("3D GetGradient",
                   h1_err  +=  h1_dist;
                   dgv_err += dgv_dist;
 
-                  if (log > 0 && h1_dist > tol)
+                  if (verbose_tests && h1_dist > tol)
                   {
-                     std::cout << be << ":" << j << " h1  ("
+                     mfem::out << be << ":" << j << " h1  ("
                                << f_val[0] << "," << f_val[1] << ","
                                << f_val[2] << ") vs. ("
                                << h1_gfc_val[0] << "," << h1_gfc_val[1] << ","
                                << h1_gfc_val[2] << ") "
                                << h1_dist << std::endl;
                   }
-                  if (log > 0 && dgv_dist > tol)
+                  if (verbose_tests && dgv_dist > tol)
                   {
-                     std::cout << be << ":" << j << " dgv ("
+                     mfem::out << be << ":" << j << " dgv ("
                                << f_val[0] << "," << f_val[1] << ","
                                << f_val[2] << ") vs. ("
                                << dgv_gfc_val[0] << "," << dgv_gfc_val[1] << ","
@@ -3985,7 +3978,7 @@ TEST_CASE("3D GetGradient",
          }
       }
    }
-   std::cout << "Checked GridFunction::GetGradient at "
+   mfem::out << "Checked GridFunction::GetGradient at "
              << npts << " 3D points" << std::endl;
 }
 
@@ -3993,7 +3986,6 @@ TEST_CASE("2D GetCurl",
           "[GridFunction]"
           "[CurlGridFunctionCoefficient]")
 {
-   int log = 1;
    int n = 1;
    int dim = 2;
    int order = 2;
@@ -4004,7 +3996,7 @@ TEST_CASE("2D GetCurl",
    for (int type = (int)Element::TRIANGLE;
         type <= (int)Element::QUADRILATERAL; type++)
    {
-      Mesh mesh(n, n, (Element::Type)type, 1, 2.0, 3.0);
+      Mesh mesh = Mesh::MakeCartesian2D(n, n, (Element::Type)type, 1, 2.0, 3.0);
 
       VectorFunctionCoefficient funcCoef(dim, Func_2D_quad);
       VectorFunctionCoefficient dFuncCoef(1, RotFunc_2D_quad);
@@ -4040,7 +4032,6 @@ TEST_CASE("2D GetCurl",
 
          SECTION("Domain Evaluation 2D")
          {
-            std::cout << "Domain Evaluation 2D" << std::endl;
             for (int e = 0; e < mesh.GetNE(); e++)
             {
                ElementTransformation *T = mesh.GetElementTransformation(e);
@@ -4071,23 +4062,23 @@ TEST_CASE("2D GetCurl",
                   nd_err  +=  nd_dist;
                   dgv_err += dgv_dist;
 
-                  if (log > 0 && h1_dist > tol)
+                  if (verbose_tests && h1_dist > tol)
                   {
-                     std::cout << e << ":" << j << " h1  ("
+                     mfem::out << e << ":" << j << " h1  ("
                                << f_val[0] << ") vs. ("
                                << h1_gfc_val[0] << ") " << h1_dist
                                << std::endl;
                   }
-                  if (log > 0 && nd_dist > tol)
+                  if (verbose_tests && nd_dist > tol)
                   {
-                     std::cout << e << ":" << j << " nd  ("
+                     mfem::out << e << ":" << j << " nd  ("
                                << f_val[0] << ") vs. ("
                                << nd_gfc_val[0] << ") " << nd_dist
                                << std::endl;
                   }
-                  if (log > 0 && dgv_dist > tol)
+                  if (verbose_tests && dgv_dist > tol)
                   {
-                     std::cout << e << ":" << j << " dgv ("
+                     mfem::out << e << ":" << j << " dgv ("
                                << f_val[0] << ") vs. ("
                                << dgv_gfc_val[0] << ") " << dgv_dist
                                << std::endl;
@@ -4105,7 +4096,6 @@ TEST_CASE("2D GetCurl",
 
          SECTION("Boundary Evaluation 2D (H1 Context)")
          {
-            std::cout << "Boundary Evaluation 2D (H1 Context)" << std::endl;
             for (int be = 0; be < mesh.GetNBE(); be++)
             {
                ElementTransformation *T = mesh.GetBdrElementTransformation(be);
@@ -4136,23 +4126,23 @@ TEST_CASE("2D GetCurl",
                   nd_err  +=  nd_dist;
                   dgv_err += dgv_dist;
 
-                  if (log > 0 && h1_dist > tol)
+                  if (verbose_tests && h1_dist > tol)
                   {
-                     std::cout << be << ":" << j << " h1  ("
+                     mfem::out << be << ":" << j << " h1  ("
                                << f_val[0] << ") vs. ("
                                << h1_gfc_val[0] << ") " << h1_dist
                                << std::endl;
                   }
-                  if (log > 0 && nd_dist > tol)
+                  if (verbose_tests && nd_dist > tol)
                   {
-                     std::cout << be << ":" << j << " nd  ("
+                     mfem::out << be << ":" << j << " nd  ("
                                << f_val[0] << ") vs. ("
                                << nd_gfc_val[0] << ") " << nd_dist
                                << std::endl;
                   }
-                  if (log > 0 && dgv_dist > tol)
+                  if (verbose_tests && dgv_dist > tol)
                   {
-                     std::cout << be << ":" << j << " dgv ("
+                     mfem::out << be << ":" << j << " dgv ("
                                << f_val[0] << ") vs. ("
                                << dgv_gfc_val[0] << ") " << dgv_dist
                                << std::endl;
@@ -4170,7 +4160,6 @@ TEST_CASE("2D GetCurl",
 
          SECTION("Boundary Evaluation 2D (DG Context)")
          {
-            std::cout << "Boundary Evaluation 2D (DG Context)" << std::endl;
             for (int be = 0; be < mesh.GetNBE(); be++)
             {
                FaceElementTransformations *T =
@@ -4202,23 +4191,23 @@ TEST_CASE("2D GetCurl",
                   nd_err  +=  nd_dist;
                   dgv_err += dgv_dist;
 
-                  if (log > 0 && h1_dist > tol)
+                  if (verbose_tests && h1_dist > tol)
                   {
-                     std::cout << be << ":" << j << " h1  ("
+                     mfem::out << be << ":" << j << " h1  ("
                                << f_val[0] << ") vs. ("
                                << h1_gfc_val[0] << ") " << h1_dist
                                << std::endl;
                   }
-                  if (log > 0 && nd_dist > tol)
+                  if (verbose_tests && nd_dist > tol)
                   {
-                     std::cout << be << ":" << j << " nd  ("
+                     mfem::out << be << ":" << j << " nd  ("
                                << f_val[0] << ") vs. ("
                                << nd_gfc_val[0] << ") " << nd_dist
                                << std::endl;
                   }
-                  if (log > 0 && dgv_dist > tol)
+                  if (verbose_tests && dgv_dist > tol)
                   {
-                     std::cout << be << ":" << j << " dgv ("
+                     mfem::out << be << ":" << j << " dgv ("
                                << f_val[0] << ") vs. ("
                                << dgv_gfc_val[0] << ") " << dgv_dist
                                << std::endl;
@@ -4235,7 +4224,7 @@ TEST_CASE("2D GetCurl",
          }
       }
    }
-   std::cout << "Checked GridFunction::GetCurl at "
+   mfem::out << "Checked GridFunction::GetCurl at "
              << npts << " 2D points" << std::endl;
 }
 
@@ -4243,7 +4232,6 @@ TEST_CASE("3D GetCurl",
           "[GridFunction]"
           "[CurlGridFunctionCoefficient]")
 {
-   int log = 1;
    int n = 1;
    int dim = 3;
    int order = 2;
@@ -4252,9 +4240,10 @@ TEST_CASE("3D GetCurl",
    double tol = 1e-6;
 
    for (int type = (int)Element::TETRAHEDRON;
-        type <= (int)Element::HEXAHEDRON; type++)
+        type <= (int)Element::WEDGE; type++)
    {
-      Mesh mesh(n, n, n, (Element::Type)type, 1, 2.0, 3.0, 5.0);
+      Mesh mesh = Mesh::MakeCartesian3D(
+                     n, n, n, (Element::Type)type, 2.0, 3.0, 5.0);
 
       VectorFunctionCoefficient funcCoef(dim, Func_3D_quad);
       VectorFunctionCoefficient dFuncCoef(dim, CurlFunc_3D_quad);
@@ -4290,7 +4279,6 @@ TEST_CASE("3D GetCurl",
 
          SECTION("Domain Evaluation 3D")
          {
-            std::cout << "Domain Evaluation 3D" << std::endl;
             for (int e = 0; e < mesh.GetNE(); e++)
             {
                ElementTransformation *T = mesh.GetElementTransformation(e);
@@ -4321,27 +4309,27 @@ TEST_CASE("3D GetCurl",
                   nd_err  +=  nd_dist;
                   dgv_err += dgv_dist;
 
-                  if (log > 0 && h1_dist > tol)
+                  if (verbose_tests && h1_dist > tol)
                   {
-                     std::cout << e << ":" << j << " h1  ("
+                     mfem::out << e << ":" << j << " h1  ("
                                << f_val[0] << "," << f_val[1] << ","
                                << f_val[2] << ") vs. ("
                                << h1_gfc_val[0] << "," << h1_gfc_val[1] << ","
                                << h1_gfc_val[2] << ") " << h1_dist
                                << std::endl;
                   }
-                  if (log > 0 && nd_dist > tol)
+                  if (verbose_tests && nd_dist > tol)
                   {
-                     std::cout << e << ":" << j << " nd  ("
+                     mfem::out << e << ":" << j << " nd  ("
                                << f_val[0] << "," << f_val[1] << ","
                                << f_val[2] << ") vs. ("
                                << nd_gfc_val[0] << "," << nd_gfc_val[1] << ","
                                << nd_gfc_val[2] << ") " << nd_dist
                                << std::endl;
                   }
-                  if (log > 0 && dgv_dist > tol)
+                  if (verbose_tests && dgv_dist > tol)
                   {
-                     std::cout << e << ":" << j << " dgv ("
+                     mfem::out << e << ":" << j << " dgv ("
                                << f_val[0] << "," << f_val[1] << ","
                                << f_val[2] << ") vs. ("
                                << dgv_gfc_val[0] << "," << dgv_gfc_val[1] << ","
@@ -4361,7 +4349,6 @@ TEST_CASE("3D GetCurl",
 
          SECTION("Boundary Evaluation 3D (H1 Context)")
          {
-            std::cout << "Boundary Evaluation 3D (H1 Context)" << std::endl;
             for (int be = 0; be < mesh.GetNBE(); be++)
             {
                ElementTransformation *T = mesh.GetBdrElementTransformation(be);
@@ -4392,27 +4379,27 @@ TEST_CASE("3D GetCurl",
                   nd_err  +=  nd_dist;
                   dgv_err += dgv_dist;
 
-                  if (log > 0 && h1_dist > tol)
+                  if (verbose_tests && h1_dist > tol)
                   {
-                     std::cout << be << ":" << j << " h1  ("
+                     mfem::out << be << ":" << j << " h1  ("
                                << f_val[0] << "," << f_val[1] << ","
                                << f_val[2] << ") vs. ("
                                << h1_gfc_val[0] << "," << h1_gfc_val[1] << ","
                                << h1_gfc_val[2] << ") " << h1_dist
                                << std::endl;
                   }
-                  if (log > 0 && nd_dist > tol)
+                  if (verbose_tests && nd_dist > tol)
                   {
-                     std::cout << be << ":" << j << " nd  ("
+                     mfem::out << be << ":" << j << " nd  ("
                                << f_val[0] << "," << f_val[1] << ","
                                << f_val[2] << ") vs. ("
                                << nd_gfc_val[0] << "," << nd_gfc_val[1] << ","
                                << nd_gfc_val[2] << ") " << nd_dist
                                << std::endl;
                   }
-                  if (log > 0 && dgv_dist > tol)
+                  if (verbose_tests && dgv_dist > tol)
                   {
-                     std::cout << be << ":" << j << " dgv ("
+                     mfem::out << be << ":" << j << " dgv ("
                                << f_val[0] << "," << f_val[1] << ","
                                << f_val[2] << ") vs. ("
                                << dgv_gfc_val[0] << "," << dgv_gfc_val[1] << ","
@@ -4432,7 +4419,6 @@ TEST_CASE("3D GetCurl",
 
          SECTION("Boundary Evaluation 3D (DG Context)")
          {
-            std::cout << "Boundary Evaluation 3D (DG Context)" << std::endl;
             for (int be = 0; be < mesh.GetNBE(); be++)
             {
                FaceElementTransformations *T =
@@ -4464,27 +4450,27 @@ TEST_CASE("3D GetCurl",
                   nd_err  +=  nd_dist;
                   dgv_err += dgv_dist;
 
-                  if (log > 0 && h1_dist > tol)
+                  if (verbose_tests && h1_dist > tol)
                   {
-                     std::cout << be << ":" << j << " h1  ("
+                     mfem::out << be << ":" << j << " h1  ("
                                << f_val[0] << "," << f_val[1] << ","
                                << f_val[2] << ") vs. ("
                                << h1_gfc_val[0] << "," << h1_gfc_val[1] << ","
                                << h1_gfc_val[2] << ") " << h1_dist
                                << std::endl;
                   }
-                  if (log > 0 && nd_dist > tol)
+                  if (verbose_tests && nd_dist > tol)
                   {
-                     std::cout << be << ":" << j << " nd  ("
+                     mfem::out << be << ":" << j << " nd  ("
                                << f_val[0] << "," << f_val[1] << ","
                                << f_val[2] << ") vs. ("
                                << nd_gfc_val[0] << "," << nd_gfc_val[1] << ","
                                << nd_gfc_val[2] << ") " << nd_dist
                                << std::endl;
                   }
-                  if (log > 0 && dgv_dist > tol)
+                  if (verbose_tests && dgv_dist > tol)
                   {
-                     std::cout << be << ":" << j << " dgv ("
+                     mfem::out << be << ":" << j << " dgv ("
                                << f_val[0] << "," << f_val[1] << ","
                                << f_val[2] << ") vs. ("
                                << dgv_gfc_val[0] << "," << dgv_gfc_val[1] << ","
@@ -4503,7 +4489,7 @@ TEST_CASE("3D GetCurl",
          }
       }
    }
-   std::cout << "Checked GridFunction::GetCurl at "
+   mfem::out << "Checked GridFunction::GetCurl at "
              << npts << " 3D points" << std::endl;
 }
 
@@ -4511,7 +4497,6 @@ TEST_CASE("2D GetDivergence",
           "[GridFunction]"
           "[DivergenceGridFunctionCoefficient]")
 {
-   int log = 1;
    int n = 1;
    int dim = 2;
    int order = 2;
@@ -4522,7 +4507,7 @@ TEST_CASE("2D GetDivergence",
    for (int type = (int)Element::TRIANGLE;
         type <= (int)Element::QUADRILATERAL; type++)
    {
-      Mesh mesh(n, n, (Element::Type)type, 1, 2.0, 3.0);
+      Mesh mesh = Mesh::MakeCartesian2D(n, n, (Element::Type)type, 1, 2.0, 3.0);
 
       VectorFunctionCoefficient funcCoef(dim, Func_2D_quad);
       FunctionCoefficient dFuncCoef(DivFunc_2D_quad);
@@ -4552,7 +4537,6 @@ TEST_CASE("2D GetDivergence",
 
          SECTION("Domain Evaluation 2D")
          {
-            std::cout << "Domain Evaluation 2D" << std::endl;
             for (int e = 0; e < mesh.GetNE(); e++)
             {
                ElementTransformation *T = mesh.GetElementTransformation(e);
@@ -4579,23 +4563,23 @@ TEST_CASE("2D GetDivergence",
                   rt_err += fabs(f_val - rt_gfc_val);
                   dgv_err += fabs(f_val - dgv_gfc_val);
 
-                  if (log > 0 && fabs(f_val - h1_gfc_val) > tol)
+                  if (verbose_tests && fabs(f_val - h1_gfc_val) > tol)
                   {
-                     std::cout << e << ":" << j << " h1  " << f_val << " "
+                     mfem::out << e << ":" << j << " h1  " << f_val << " "
                                << h1_gfc_val << " "
                                << fabs(f_val - h1_gfc_val)
                                << std::endl;
                   }
-                  if (log > 0 && fabs(f_val - rt_gfc_val) > tol)
+                  if (verbose_tests && fabs(f_val - rt_gfc_val) > tol)
                   {
-                     std::cout << e << ":" << j << " rt  " << f_val << " "
+                     mfem::out << e << ":" << j << " rt  " << f_val << " "
                                << rt_gfc_val << " "
                                << fabs(f_val - rt_gfc_val)
                                << std::endl;
                   }
-                  if (log > 0 && fabs(f_val - dgv_gfc_val) > tol)
+                  if (verbose_tests && fabs(f_val - dgv_gfc_val) > tol)
                   {
-                     std::cout << e << ":" << j << " dgv " << f_val << " "
+                     mfem::out << e << ":" << j << " dgv " << f_val << " "
                                << dgv_gfc_val << " "
                                << fabs(f_val - dgv_gfc_val)
                                << std::endl;
@@ -4613,7 +4597,6 @@ TEST_CASE("2D GetDivergence",
 
          SECTION("Boundary Evaluation 2D (H1 Context)")
          {
-            std::cout << "Boundary Evaluation 2D (H1 Context)" << std::endl;
             for (int be = 0; be < mesh.GetNBE(); be++)
             {
                ElementTransformation *T = mesh.GetBdrElementTransformation(be);
@@ -4640,23 +4623,23 @@ TEST_CASE("2D GetDivergence",
                   rt_err += fabs(f_val - rt_gfc_val);
                   dgv_err += fabs(f_val - dgv_gfc_val);
 
-                  if (log > 0 && fabs(f_val - h1_gfc_val) > tol)
+                  if (verbose_tests && fabs(f_val - h1_gfc_val) > tol)
                   {
-                     std::cout << be << ":" << j << " h1  " << f_val << " "
+                     mfem::out << be << ":" << j << " h1  " << f_val << " "
                                << h1_gfc_val << " "
                                << fabs(f_val - h1_gfc_val)
                                << std::endl;
                   }
-                  if (log > 0 && fabs(f_val - rt_gfc_val) > tol)
+                  if (verbose_tests && fabs(f_val - rt_gfc_val) > tol)
                   {
-                     std::cout << be << ":" << j << " rt  " << f_val << " "
+                     mfem::out << be << ":" << j << " rt  " << f_val << " "
                                << rt_gfc_val << " "
                                << fabs(f_val - rt_gfc_val)
                                << std::endl;
                   }
-                  if (log > 0 && fabs(f_val - dgv_gfc_val) > tol)
+                  if (verbose_tests && fabs(f_val - dgv_gfc_val) > tol)
                   {
-                     std::cout << be << ":" << j << " dgv " << f_val << " "
+                     mfem::out << be << ":" << j << " dgv " << f_val << " "
                                << dgv_gfc_val << " "
                                << fabs(f_val - dgv_gfc_val)
                                << std::endl;
@@ -4674,7 +4657,6 @@ TEST_CASE("2D GetDivergence",
 
          SECTION("Boundary Evaluation 2D (DG Context)")
          {
-            std::cout << "Boundary Evaluation 2D (DG Context)" << std::endl;
             for (int be = 0; be < mesh.GetNBE(); be++)
             {
                FaceElementTransformations *T =
@@ -4702,23 +4684,23 @@ TEST_CASE("2D GetDivergence",
                   rt_err += fabs(f_val - rt_gfc_val);
                   dgv_err += fabs(f_val - dgv_gfc_val);
 
-                  if (log > 0 && fabs(f_val - h1_gfc_val) > tol)
+                  if (verbose_tests && fabs(f_val - h1_gfc_val) > tol)
                   {
-                     std::cout << be << ":" << j << " h1  " << f_val << " "
+                     mfem::out << be << ":" << j << " h1  " << f_val << " "
                                << h1_gfc_val << " "
                                << fabs(f_val - h1_gfc_val)
                                << std::endl;
                   }
-                  if (log > 0 && fabs(f_val - rt_gfc_val) > tol)
+                  if (verbose_tests && fabs(f_val - rt_gfc_val) > tol)
                   {
-                     std::cout << be << ":" << j << " rt  " << f_val << " "
+                     mfem::out << be << ":" << j << " rt  " << f_val << " "
                                << rt_gfc_val << " "
                                << fabs(f_val - rt_gfc_val)
                                << std::endl;
                   }
-                  if (log > 0 && fabs(f_val - dgv_gfc_val) > tol)
+                  if (verbose_tests && fabs(f_val - dgv_gfc_val) > tol)
                   {
-                     std::cout << be << ":" << j << " dgv " << f_val << " "
+                     mfem::out << be << ":" << j << " dgv " << f_val << " "
                                << dgv_gfc_val << " "
                                << fabs(f_val - dgv_gfc_val)
                                << std::endl;
@@ -4735,7 +4717,7 @@ TEST_CASE("2D GetDivergence",
          }
       }
    }
-   std::cout << "Checked GridFunction::GetDivergence at "
+   mfem::out << "Checked GridFunction::GetDivergence at "
              << npts << " 2D points" << std::endl;
 }
 
@@ -4743,7 +4725,6 @@ TEST_CASE("3D GetDivergence",
           "[GridFunction]"
           "[DivergenceGridFunctionCoefficient]")
 {
-   int log = 1;
    int n = 1;
    int dim = 3;
    int order = 2;
@@ -4752,9 +4733,10 @@ TEST_CASE("3D GetDivergence",
    double tol = 1e-6;
 
    for (int type = (int)Element::TETRAHEDRON;
-        type <= (int)Element::HEXAHEDRON; type++)
+        type <= (int)Element::WEDGE; type++)
    {
-      Mesh mesh(n, n, n, (Element::Type)type, 1, 2.0, 3.0, 5.0);
+      Mesh mesh = Mesh::MakeCartesian3D(
+                     n, n, n, (Element::Type)type, 2.0, 3.0, 5.0);
 
       VectorFunctionCoefficient funcCoef(dim, Func_3D_quad);
       FunctionCoefficient dFuncCoef(DivFunc_3D_quad);
@@ -4784,7 +4766,6 @@ TEST_CASE("3D GetDivergence",
 
          SECTION("Domain Evaluation 3D")
          {
-            std::cout << "Domain Evaluation 3D" << std::endl;
             for (int e = 0; e < mesh.GetNE(); e++)
             {
                ElementTransformation *T = mesh.GetElementTransformation(e);
@@ -4811,23 +4792,23 @@ TEST_CASE("3D GetDivergence",
                   rt_err += fabs(f_val - rt_gfc_val);
                   dgv_err += fabs(f_val - dgv_gfc_val);
 
-                  if (log > 0 && fabs(f_val - h1_gfc_val) > tol)
+                  if (verbose_tests && fabs(f_val - h1_gfc_val) > tol)
                   {
-                     std::cout << e << ":" << j << " h1  " << f_val << " "
+                     mfem::out << e << ":" << j << " h1  " << f_val << " "
                                << h1_gfc_val << " "
                                << fabs(f_val - h1_gfc_val)
                                << std::endl;
                   }
-                  if (log > 0 && fabs(f_val - rt_gfc_val) > tol)
+                  if (verbose_tests && fabs(f_val - rt_gfc_val) > tol)
                   {
-                     std::cout << e << ":" << j << " rt  " << f_val << " "
+                     mfem::out << e << ":" << j << " rt  " << f_val << " "
                                << rt_gfc_val << " "
                                << fabs(f_val - rt_gfc_val)
                                << std::endl;
                   }
-                  if (log > 0 && fabs(f_val - dgv_gfc_val) > tol)
+                  if (verbose_tests && fabs(f_val - dgv_gfc_val) > tol)
                   {
-                     std::cout << e << ":" << j << " dgv " << f_val << " "
+                     mfem::out << e << ":" << j << " dgv " << f_val << " "
                                << dgv_gfc_val << " "
                                << fabs(f_val - dgv_gfc_val)
                                << std::endl;
@@ -4845,7 +4826,6 @@ TEST_CASE("3D GetDivergence",
 
          SECTION("Boundary Evaluation 3D (H1 Context)")
          {
-            std::cout << "Boundary Evaluation 3D (H1 Context)" << std::endl;
             for (int be = 0; be < mesh.GetNBE(); be++)
             {
                ElementTransformation *T = mesh.GetBdrElementTransformation(be);
@@ -4872,23 +4852,23 @@ TEST_CASE("3D GetDivergence",
                   rt_err += fabs(f_val - rt_gfc_val);
                   dgv_err += fabs(f_val - dgv_gfc_val);
 
-                  if (log > 0 && fabs(f_val - h1_gfc_val) > tol)
+                  if (verbose_tests && fabs(f_val - h1_gfc_val) > tol)
                   {
-                     std::cout << be << ":" << j << " h1  " << f_val << " "
+                     mfem::out << be << ":" << j << " h1  " << f_val << " "
                                << h1_gfc_val << " "
                                << fabs(f_val - h1_gfc_val)
                                << std::endl;
                   }
-                  if (log > 0 && fabs(f_val - rt_gfc_val) > tol)
+                  if (verbose_tests && fabs(f_val - rt_gfc_val) > tol)
                   {
-                     std::cout << be << ":" << j << " rt  " << f_val << " "
+                     mfem::out << be << ":" << j << " rt  " << f_val << " "
                                << rt_gfc_val << " "
                                << fabs(f_val - rt_gfc_val)
                                << std::endl;
                   }
-                  if (log > 0 && fabs(f_val - dgv_gfc_val) > tol)
+                  if (verbose_tests && fabs(f_val - dgv_gfc_val) > tol)
                   {
-                     std::cout << be << ":" << j << " dgv " << f_val << " "
+                     mfem::out << be << ":" << j << " dgv " << f_val << " "
                                << dgv_gfc_val << " "
                                << fabs(f_val - dgv_gfc_val)
                                << std::endl;
@@ -4906,7 +4886,6 @@ TEST_CASE("3D GetDivergence",
 
          SECTION("Boundary Evaluation 3D (DG Context)")
          {
-            std::cout << "Boundary Evaluation 3D (DG Context)" << std::endl;
             for (int be = 0; be < mesh.GetNBE(); be++)
             {
                FaceElementTransformations *T =
@@ -4934,23 +4913,23 @@ TEST_CASE("3D GetDivergence",
                   rt_err += fabs(f_val - rt_gfc_val);
                   dgv_err += fabs(f_val - dgv_gfc_val);
 
-                  if (log > 0 && fabs(f_val - h1_gfc_val) > tol)
+                  if (verbose_tests && fabs(f_val - h1_gfc_val) > tol)
                   {
-                     std::cout << be << ":" << j << " h1  " << f_val << " "
+                     mfem::out << be << ":" << j << " h1  " << f_val << " "
                                << h1_gfc_val << " "
                                << fabs(f_val - h1_gfc_val)
                                << std::endl;
                   }
-                  if (log > 0 && fabs(f_val - rt_gfc_val) > tol)
+                  if (verbose_tests && fabs(f_val - rt_gfc_val) > tol)
                   {
-                     std::cout << be << ":" << j << " rt  " << f_val << " "
+                     mfem::out << be << ":" << j << " rt  " << f_val << " "
                                << rt_gfc_val << " "
                                << fabs(f_val - rt_gfc_val)
                                << std::endl;
                   }
-                  if (log > 0 && fabs(f_val - dgv_gfc_val) > tol)
+                  if (verbose_tests && fabs(f_val - dgv_gfc_val) > tol)
                   {
-                     std::cout << be << ":" << j << " dgv " << f_val << " "
+                     mfem::out << be << ":" << j << " dgv " << f_val << " "
                                << dgv_gfc_val << " "
                                << fabs(f_val - dgv_gfc_val)
                                << std::endl;
@@ -4967,7 +4946,7 @@ TEST_CASE("3D GetDivergence",
          }
       }
    }
-   std::cout << "Checked GridFunction::GetDivergence at "
+   mfem::out << "Checked GridFunction::GetDivergence at "
              << npts << " 3D points" << std::endl;
 }
 

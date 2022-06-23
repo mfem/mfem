@@ -1,4 +1,4 @@
-//                               MFEM Example 24
+//                                MFEM Example 24
 //
 // Compile with: make ex24
 //
@@ -113,7 +113,6 @@ int main(int argc, char *argv[])
          mesh->UniformRefinement();
       }
    }
-   mesh->ReorientTetMesh();
 
    // 5. Define a finite element space on the mesh. Here we use Nedelec or
    //    Raviart-Thomas finite elements of the specified order.

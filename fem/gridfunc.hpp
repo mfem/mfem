@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -39,7 +39,7 @@ protected:
        If not NULL, this pointer is owned by the GridFunction. */
    FiniteElementCollection *fec;
 
-   long sequence; // see FiniteElementSpace::sequence, Mesh::sequence
+   long fes_sequence; // see FiniteElementSpace::sequence, Mesh::sequence
 
    /** Optional, internal true-dof vector: if the FiniteElementSpace #fes has a
        non-trivial (i.e. not NULL) prolongation operator, this Vector may hold
@@ -67,20 +67,23 @@ protected:
        degree of freedom. */
    void ProjectDiscCoefficient(VectorCoefficient &coeff, Array<int> &dof_attr);
 
+   /// Loading helper.
+   void LegacyNCReorder();
+
    void Destroy();
 
 public:
 
-   GridFunction() { fes = NULL; fec = NULL; sequence = 0; UseDevice(true); }
+   GridFunction() { fes = NULL; fec = NULL; fes_sequence = 0; UseDevice(true); }
 
    /// Copy constructor. The internal true-dof vector #t_vec is not copied.
    GridFunction(const GridFunction &orig)
-      : Vector(orig), fes(orig.fes), fec(NULL), sequence(orig.sequence)
+      : Vector(orig), fes(orig.fes), fec(NULL), fes_sequence(orig.fes_sequence)
    { UseDevice(true); }
 
    /// Construct a GridFunction associated with the FiniteElementSpace @a *f.
    GridFunction(FiniteElementSpace *f) : Vector(f->GetVSize())
-   { fes = f; fec = NULL; sequence = f->GetSequence(); UseDevice(true); }
+   { fes = f; fec = NULL; fes_sequence = f->GetSequence(); UseDevice(true); }
 
    /// Construct a GridFunction using previously allocated array @a data.
    /** The GridFunction does not assume ownership of @a data which is assumed to
@@ -90,7 +93,13 @@ public:
     */
    GridFunction(FiniteElementSpace *f, double *data)
       : Vector(data, f->GetVSize())
-   { fes = f; fec = NULL; sequence = f->GetSequence(); UseDevice(true); }
+   { fes = f; fec = NULL; fes_sequence = f->GetSequence(); UseDevice(true); }
+
+   /** @brief Construct a GridFunction using previously allocated Vector @a base
+       starting at the given offset, @a base_offset. */
+   GridFunction(FiniteElementSpace *f, Vector &base, int base_offset = 0)
+      : Vector(base, base_offset, f->GetVSize())
+   { fes = f; fec = NULL; fes_sequence = f->GetSequence(); UseDevice(true); }
 
    /// Construct a GridFunction on the given Mesh, using the data from @a input.
    /** The content of @a input should be in the format created by the method
@@ -110,13 +119,14 @@ public:
    { return operator=((const Vector &)rhs); }
 
    /// Make the GridFunction the owner of #fec and #fes.
-   /** If the new FiniteElementCollection, @a _fec, is NULL, ownership of #fec
+   /** If the new FiniteElementCollection, @a fec_, is NULL, ownership of #fec
        and #fes is taken away. */
-   void MakeOwner(FiniteElementCollection *_fec) { fec = _fec; }
+   void MakeOwner(FiniteElementCollection *fec_) { fec = fec_; }
 
    FiniteElementCollection *OwnFEC() { return fec; }
 
    int VectorDim() const;
+   int CurlDim() const;
 
    /// Read only access to the (optional) internal true-dof Vector.
    /** Note that the returned Vector may be empty, if not previously allocated
@@ -127,9 +137,7 @@ public:
        or set. */
    Vector &GetTrueVector() { return t_vec; }
 
-   /// @brief Extract the true-dofs from the GridFunction. If all dofs are true,
-   /// then `tv` will be set to point to the data of `*this`.
-   /** @warning This method breaks const-ness when all dofs are true. */
+   /// Extract the true-dofs from the GridFunction.
    void GetTrueDofs(Vector &tv) const;
 
    /// Shortcut for calling GetTrueDofs() with GetTrueVector() as argument.
@@ -303,6 +311,16 @@ public:
 
    void ProjectVectorFieldOn(GridFunction &vec_field, int comp = 0);
 
+   /** @brief Compute a certain derivative of a function's component.
+       Derivatives of the function are computed at the DOF locations of @a der,
+       and averaged over overlapping DOFs. Thus this function projects the
+       derivative to the FiniteElementSpace of @a der.
+       @param[in]  comp  Index of the function's component to be differentiated.
+                         The index is 1-based, i.e., use 1 for scalar functions.
+       @param[in]  der_comp  Use 0/1/2 for derivatives in x/y/z directions.
+       @param[out] der       The resulting derivative (scalar function). The
+                             FiniteElementSpace of this function must be set
+                             before the call. */
    void GetDerivative(int comp, int der_comp, GridFunction &der);
 
    double GetDivergence(ElementTransformation &tr) const;
@@ -334,9 +352,9 @@ public:
     *  through SLBPQ optimization.
     *  Intended to be used for discontinuous FE functions. */
    void ImposeBounds(int i, const Vector &weights,
-                     const Vector &_lo, const Vector &_hi);
+                     const Vector &lo_, const Vector &hi_);
    void ImposeBounds(int i, const Vector &weights,
-                     double _min = 0.0, double _max = infinity());
+                     double min_ = 0.0, double max_ = infinity());
 
    /** On a non-conforming mesh, make sure the function lies in the conforming
        space by multiplying with R and then with P, the conforming restriction
@@ -371,6 +389,10 @@ public:
        on that element. */
    void ProjectCoefficient(VectorCoefficient &vcoeff, Array<int> &dofs);
 
+   /** @brief Project @a vcoeff VectorCoefficient to @a this GridFunction, only
+       projecting onto elements with the given @a attribute */
+   void ProjectCoefficient(VectorCoefficient &vcoeff, int attribute);
+
    /** @brief Analogous to the version with argument @a vcoeff VectorCoefficient
        but using an array of scalar coefficients for each component. */
    void ProjectCoefficient(Coefficient *coeff[]);
@@ -399,6 +421,12 @@ protected:
        shared vdofs and counts in how many zones each vdof appears. */
    void AccumulateAndCountZones(VectorCoefficient &vcoeff, AvgType type,
                                 Array<int> &zones_per_vdof);
+
+   /** @brief Used for the serial and parallel implementations of the
+       GetDerivative() method; see its documentation. */
+   void AccumulateAndCountDerivativeValues(int comp, int der_comp,
+                                           GridFunction &der,
+                                           Array<int> &zones_per_dof);
 
    void AccumulateAndCountBdrValues(Coefficient *coeff[],
                                     VectorCoefficient *vcoeff, Array<int> &attr,
@@ -458,6 +486,10 @@ public:
    virtual double ComputeL2Error(VectorCoefficient &exsol,
                                  const IntegrationRule *irs[] = NULL,
                                  Array<int> *elems = NULL) const;
+
+   /// Returns ||grad u_ex - grad u_h||_L2 in element ielem for H1 or L2 elements
+   virtual double ComputeElementGradError(int ielem, VectorCoefficient *exgrad,
+                                          const IntegrationRule *irs[] = NULL) const;
 
    /// Returns ||grad u_ex - grad u_h||_L2 for H1 or L2 elements
    virtual double ComputeGradError(VectorCoefficient *exgrad,
@@ -668,6 +700,10 @@ public:
    /// Save the GridFunction to an output stream.
    virtual void Save(std::ostream &out) const;
 
+   /// Save the GridFunction to a file. The given @a precision will be used for
+   /// ASCII output.
+   virtual void Save(const char *fname, int precision=16) const;
+
 #ifdef MFEM_USE_ADIOS2
    /// Save the GridFunction to a binary output stream using adios2 bp format.
    virtual void Save(adios2stream &out, const std::string& variable_name,
@@ -871,6 +907,22 @@ public:
 
    /// Write the QuadratureFunction to the stream @a out.
    void Save(std::ostream &out) const;
+
+   /// @brief Write the QuadratureFunction to @a out in VTU (ParaView) format.
+   ///
+   /// The data will be uncompressed if @a compression_level is zero, or if the
+   /// format is VTKFormat::ASCII. Otherwise, zlib compression will be used for
+   /// binary data.
+   void SaveVTU(std::ostream &out, VTKFormat format=VTKFormat::ASCII,
+                int compression_level=0) const;
+
+   /// @brief Save the QuadratureFunction to a VTU (ParaView) file.
+   ///
+   /// The extension ".vtu" will be appended to @a filename.
+   /// @sa SaveVTU(std::ostream &out, VTKFormat format=VTKFormat::ASCII,
+   ///             int compression_level=0)
+   void SaveVTU(const std::string &filename, VTKFormat format=VTKFormat::ASCII,
+                int compression_level=0) const;
 };
 
 /// Overload operator<< for std::ostream and QuadratureFunction.
@@ -885,6 +937,58 @@ double ZZErrorEstimator(BilinearFormIntegrator &blfi,
                         int with_subdomains = 1,
                         bool with_coeff = false);
 
+/// Defines the global tensor product polynomial space used by NewZZErorrEstimator
+/**
+ *  See BoundingBox(...) for a description of @a angle and @a midpoint
+ */
+void TensorProductLegendre(int dim,                      // input
+                           int order,                    // input
+                           const Vector &x_in,           // input
+                           const Vector &xmax,           // input
+                           const Vector &xmin,           // input
+                           Vector &poly,                 // output
+                           double angle=0.0,             // input (optional)
+                           const Vector *midpoint=NULL); // input (optional)
+
+/// Defines the bounding box for the face patches used by NewZZErorrEstimator
+/**
+ *  By default, BoundingBox(...) computes the parameters of a minimal bounding box
+ *  for the given @a face_patch that is aligned with the physical (i.e. global)
+ *  Cartesian axes. This means that the size of the bounding box will depend on the
+ *  orientation of the patch. It is better to construct an orientation-independent box.
+ *  This is implemented for 2D patches. The parameters @a angle and @a midpoint encode
+ *  the necessary additional geometric information.
+ *
+ *      @a iface     : Index of the face that the patch corresponds to.
+ *                     This is used to compute @a angle and @a midpoint.
+ *
+ *      @a angle     : The angle the patch face makes with the x-axis.
+ *      @a midpoint  : The midpoint of the face.
+ */
+void BoundingBox(const Array<int> &face_patch, // input
+                 FiniteElementSpace *ufes,     // input
+                 int order,                    // input
+                 Vector &xmin,                 // output
+                 Vector &xmax,                 // output
+                 double &angle,                // output
+                 Vector &midpoint,             // output
+                 int iface=-1);                // input (optional)
+
+/// A ``true'' ZZ error estimator that uses face-based patches for flux reconstruction.
+/**
+ *  Only two-element face patches are ever used:
+ *   - For conforming faces, the face patch consists of its two neighboring elements.
+ *   - In the non-conforming setting, only the face patches associated to fine-scale
+ *     element faces are used. These face patches always consist of two elements
+ *     delivered by mesh::GetFaceElements(Face, *Elem1, *Elem2).
+ */
+double LSZZErrorEstimator(BilinearFormIntegrator &blfi,         // input
+                          GridFunction &u,                      // input
+                          Vector &error_estimates,              // output
+                          bool subdomain_reconstruction = true, // input (optional)
+                          bool with_coeff = false,              // input (optional)
+                          double tichonov_coeff = 0.0);         // input (optional)
+
 /// Compute the Lp distance between two grid functions on the given element.
 double ComputeElementLpDistance(double p, int i,
                                 GridFunction& gf1, GridFunction& gf2);
@@ -898,8 +1002,8 @@ private:
    Mesh *mesh_in;
    Coefficient &sol_in;
 public:
-   ExtrudeCoefficient(Mesh *m, Coefficient &s, int _n)
-      : n(_n), mesh_in(m), sol_in(s) { }
+   ExtrudeCoefficient(Mesh *m, Coefficient &s, int n_)
+      : n(n_), mesh_in(m), sol_in(s) { }
    virtual double Eval(ElementTransformation &T, const IntegrationPoint &ip);
    virtual ~ExtrudeCoefficient() { }
 };

@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -22,8 +22,8 @@ MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
 ifeq ($(MFEM_USE_GSLIB),YES)
-   SEQ_MINIAPPS = findpts field-diff field-interp
-   PAR_MINIAPPS = pfindpts
+   SEQ_MINIAPPS = findpts field-diff field-interp schwarz_ex1
+   PAR_MINIAPPS = pfindpts schwarz_ex1p
 else
    SEQ_MINIAPPS =
    PAR_MINIAPPS =
@@ -47,6 +47,22 @@ endif
 	$(MFEM_CXX) $(MFEM_FLAGS) $< -o $@ $(MFEM_LIBS)
 
 all: $(MINIAPPS)
+
+# For out-of-source builds, link the data files from the source tree:
+ifneq ($(SRC),)
+DATA_FILES = triple-pt-1.mesh triple-pt-2.mesh triple-pt-1.gf triple-pt-2.gf
+$(DATA_FILES): %: $(SRC)%
+	ln -sf $(<) .
+field-diff field-interp: | $(DATA_FILES)
+.PHONY: copy-data
+copy-data: | $(DATA_FILES)
+# For out-of-source builds, the test and sample runs for 'field-interp' need
+# data from the meshing miniapps directory:
+field-interp: | meshing-data
+.PHONY: meshing-data
+meshing-data:
+	$(MAKE) -C ../meshing copy-data
+endif
 
 ifeq ($(MFEM_USE_GSLIB),NO)
 $(MINIAPPS):

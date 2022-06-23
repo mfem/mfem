@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -14,32 +14,31 @@
 
 using namespace mfem;
 
-namespace operatorjacobismoother
-{
-
-TEST_CASE("operatorjacobismoother")
+TEST_CASE("OperatorJacobiSmoother", "[OperatorJacobiSmoother]")
 {
    for (int dimension = 2; dimension < 4; ++dimension)
    {
       for (int ne = 1; ne < 3; ++ne)
       {
-         std::cout << "Testing " << dimension << "D partial assembly smoother: "
-                   << std::pow(ne, dimension) << " elements." << std::endl;
+         const int n_elements = std::pow(ne, dimension);
          for (int order = 1; order < 5; ++order)
          {
-            Mesh * mesh;
+            CAPTURE(dimension, n_elements, order);
+            Mesh mesh;
             if (dimension == 2)
             {
-               mesh = new Mesh(ne, ne, Element::QUADRILATERAL, 1, 1.0, 1.0);
+               mesh = Mesh::MakeCartesian2D(
+                         ne, ne, Element::QUADRILATERAL, 1, 1.0, 1.0);
             }
             else
             {
-               mesh = new Mesh(ne, ne, ne, Element::HEXAHEDRON, 1, 1.0, 1.0, 1.0);
+               mesh = Mesh::MakeCartesian3D(
+                         ne, ne, ne, Element::HEXAHEDRON, 1.0, 1.0, 1.0);
             }
             FiniteElementCollection *h1_fec = new H1_FECollection(order, dimension);
-            FiniteElementSpace h1_fespace(mesh, h1_fec);
+            FiniteElementSpace h1_fespace(&mesh, h1_fec);
             Array<int> ess_tdof_list;
-            Array<int> ess_bdr(mesh->bdr_attributes.Max());
+            Array<int> ess_bdr(mesh.bdr_attributes.Max());
             ess_bdr = 1;
             h1_fespace.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
 
@@ -76,32 +75,27 @@ TEST_CASE("operatorjacobismoother")
             pa_smoother.Mult(xin, y_pa);
 
             y_fa -= y_pa;
-            double error = y_fa.Norml2();
-            std::cout << "    order: " << order << ", error norm: " << error << std::endl;
             REQUIRE(y_fa.Norml2() < 1.e-12);
 
-            delete mesh;
             delete h1_fec;
          }
       }
    }
 }
 
-TEST_CASE("operatorjacobifichera")
+TEST_CASE("OperatorJacobiSmoother Fichera", "[OperatorJacobiSmoother]")
 {
    const int dimension = 3;
    for (int refine = 1; refine < 4; ++refine)
    {
-      std::cout << "Testing " << 3 << "D partial assembly smoother: "
-                << "fichera mesh, refine level " << refine << std::endl;
       for (int order = 1; order < 5; ++order)
       {
-         Mesh * mesh;
-         mesh = new Mesh("../../data/fichera.mesh", 1, refine, true);
+         CAPTURE(refine, order);
+         Mesh mesh("../../data/fichera.mesh", 1, refine, true);
          FiniteElementCollection *h1_fec = new H1_FECollection(order, dimension);
-         FiniteElementSpace h1_fespace(mesh, h1_fec);
+         FiniteElementSpace h1_fespace(&mesh, h1_fec);
          Array<int> ess_tdof_list;
-         Array<int> ess_bdr(mesh->bdr_attributes.Max());
+         Array<int> ess_bdr(mesh.bdr_attributes.Max());
          ess_bdr = 1;
          h1_fespace.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
 
@@ -138,14 +132,9 @@ TEST_CASE("operatorjacobifichera")
          pa_smoother.Mult(xin, y_pa);
 
          y_fa -= y_pa;
-         double error = y_fa.Norml2();
-         std::cout << "    order: " << order << ", error norm: " << error << std::endl;
          REQUIRE(y_fa.Norml2() < 1.e-12);
 
-         delete mesh;
          delete h1_fec;
       }
    }
 }
-
-} // namespace operatorjacobismoother
