@@ -136,8 +136,7 @@ int main(int argc, char *argv[])
                   "Resistivity coefficient.");
    args.AddOption(&ALPHA, "-alpha", "--hyperdiff",
                   "Numerical hyprediffusion coefficient.");
-   args.AddOption(&beta, "-beta", "--perturb",
-                  "Pertubation coefficient in initial conditions.");
+   args.AddOption(&beta, "-beta", "--perturb", "Pertubation coefficient in initial conditions.");
    args.AddOption(&ltol_amr, "-ltol", "--local-tol",
                   "Local AMR tolerance.");
    args.AddOption(&err_ratio, "-err-ratio", "--err-ratio",
