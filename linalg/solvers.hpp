@@ -1138,11 +1138,10 @@ private:
 #ifdef MFEM_USE_MPI
    MPI_Comm mycomm;
    mutable HYPRE_BigInt global_size;
+   const bool parallel;
 #else
    mutable int global_size;
 #endif
-
-   const bool parallel;
 
 public:
    OrthoSolver();

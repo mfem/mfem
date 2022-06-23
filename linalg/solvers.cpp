@@ -3400,7 +3400,11 @@ void ProductSolver::MultTranspose(const Vector & x, Vector & y) const
 }
 
 OrthoSolver::OrthoSolver()
-   : Solver(0, false), global_size(-1), parallel(false) { }
+   : Solver(0, false), global_size(-1)
+#ifdef MFEM_USE_MPI
+   , parallel(false)
+#endif
+{ }
 
 #ifdef MFEM_USE_MPI
 OrthoSolver::OrthoSolver(MPI_Comm mycomm_)
