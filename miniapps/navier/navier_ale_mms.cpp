@@ -195,7 +195,8 @@ int main(int argc, char *argv[])
    ParGridFunction u_ex(*u_gf);
    ParGridFunction p_ex(*p_gf);
 
-   auto userchk = [&](int step) {
+   auto userchk = [&](int step)
+   {
       u_ex.ProjectCoefficient(u_excoeff);
       for (int i = 0; i < u_ex.Size(); ++i)
       {
@@ -242,28 +243,30 @@ int main(int argc, char *argv[])
    auto xi_0 = new GridFunction(*pmesh->GetNodes());
 
    VectorFunctionCoefficient
-      mesh_nodes(2, [&](const Vector &cin, double t, Vector &cout) {
-         double x = cin(0);
-         double y = cin(1);
-         cout(0) = x
-                   + ctx.A * sin((2.0 * M_PI * t) / ctx.tg)
-                        * sin((2.0 * M_PI * (ctx.L / 2. + y)) / ctx.L);
-         cout(1) = y
-                   + ctx.A * sin((2.0 * M_PI * t) / ctx.tg)
-                        * sin((2.0 * M_PI * (ctx.L / 2. + x)) / ctx.L);
-      });
+   mesh_nodes(2, [&](const Vector &cin, double t, Vector &cout)
+   {
+      double x = cin(0);
+      double y = cin(1);
+      cout(0) = x
+                + ctx.A * sin((2.0 * M_PI * t) / ctx.tg)
+                * sin((2.0 * M_PI * (ctx.L / 2. + y)) / ctx.L);
+      cout(1) = y
+                + ctx.A * sin((2.0 * M_PI * t) / ctx.tg)
+                * sin((2.0 * M_PI * (ctx.L / 2. + x)) / ctx.L);
+   });
 
    VectorFunctionCoefficient
-      mesh_nodes_velocity(2, [&](const Vector &cin, double t, Vector &cout) {
-         double x = cin(0);
-         double y = cin(1);
-         cout(0) = (2.0 * ctx.A * M_PI * cos((2.0 * M_PI * t) / ctx.tg)
-                    * sin((2.0 * M_PI * (ctx.L / 2. + y)) / ctx.L))
-                   / ctx.tg;
-         cout(1) = (2.0 * ctx.A * M_PI * cos((2.0 * M_PI * t) / ctx.tg)
-                    * sin((2.0 * M_PI * (ctx.L / 2. + x)) / ctx.L))
-                   / ctx.tg;
-      });
+   mesh_nodes_velocity(2, [&](const Vector &cin, double t, Vector &cout)
+   {
+      double x = cin(0);
+      double y = cin(1);
+      cout(0) = (2.0 * ctx.A * M_PI * cos((2.0 * M_PI * t) / ctx.tg)
+                 * sin((2.0 * M_PI * (ctx.L / 2. + y)) / ctx.L))
+                / ctx.tg;
+      cout(1) = (2.0 * ctx.A * M_PI * cos((2.0 * M_PI * t) / ctx.tg)
+                 * sin((2.0 * M_PI * (ctx.L / 2. + x)) / ctx.L))
+                / ctx.tg;
+   });
 
    ParaViewDataCollection paraview_dc("navier_ale_mms", pmesh);
    paraview_dc.SetLevelsOfDetail(ctx.order);

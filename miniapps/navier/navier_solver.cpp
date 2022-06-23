@@ -113,7 +113,7 @@ NavierSolver::NavierSolver(ParMesh *mesh, int order, double kin_vis)
    debug_fields->RegisterField("resu", &resu_gf);
    debug_fields->RegisterField("un_next", &un_next_gf);
    debug_fields->RegisterField("pn", &resu_gf);
-   
+
    PrintInfo();
 }
 
@@ -145,7 +145,7 @@ void NavierSolver::Setup(double dt)
 
    nlcoeff.constant = -1.0;
    N = new ParNonlinearForm(vfes);
-   auto *nlc_nlfi = new VectorConvectionNLFIntegrator(nlcoeff);
+   auto *nlc_nlfi = new VectorConvectionNLFIntegrator(nlcoeff, *wg_coef);
    if (numerical_integ)
    {
       nlc_nlfi->SetIntRule(&ir_ni);
@@ -153,8 +153,16 @@ void NavierSolver::Setup(double dt)
    N->AddDomainIntegrator(nlc_nlfi);
    if (partial_assembly)
    {
-      N->SetAssemblyLevel(AssemblyLevel::PARTIAL);
-      N->Setup();
+      if (ale_formulation)
+      {
+         MFEM_WARNING("VectorConvectionNLFIntegrator does not support ALE"
+                      " formulation with AssemblyLevel::PARTIAL."
+                      " Fallback to AssemblyLevel::FULL")
+      }
+      else
+      {
+         N->SetAssemblyLevel(AssemblyLevel::PARTIAL);
+      }
    }
 
    Mv_form = new ParBilinearForm(vfes);
@@ -168,8 +176,6 @@ void NavierSolver::Setup(double dt)
    {
       Mv_form->SetAssemblyLevel(AssemblyLevel::PARTIAL);
    }
-   Mv_form->Assemble();
-   Mv_form->FormSystemMatrix(empty, Mv);
 
    Sp_form = new ParBilinearForm(pfes);
    auto *sp_blfi = new DiffusionIntegrator;
@@ -182,8 +188,6 @@ void NavierSolver::Setup(double dt)
    {
       Sp_form->SetAssemblyLevel(AssemblyLevel::PARTIAL);
    }
-   Sp_form->Assemble();
-   Sp_form->FormSystemMatrix(pres_ess_tdof, Sp);
 
    D_form = new ParMixedBilinearForm(vfes, pfes);
    auto *vd_mblfi = new VectorDivergenceIntegrator();
@@ -196,8 +200,6 @@ void NavierSolver::Setup(double dt)
    {
       D_form->SetAssemblyLevel(AssemblyLevel::PARTIAL);
    }
-   D_form->Assemble();
-   D_form->FormRectangularSystemMatrix(empty, empty, D);
 
    G_form = new ParMixedBilinearForm(pfes, vfes);
    auto *g_mblfi = new GradientIntegrator();
@@ -210,8 +212,6 @@ void NavierSolver::Setup(double dt)
    {
       G_form->SetAssemblyLevel(AssemblyLevel::PARTIAL);
    }
-   G_form->Assemble();
-   G_form->FormRectangularSystemMatrix(empty, empty, G);
 
    H_lincoeff.constant = kin_vis;
    H_bdfcoeff.constant = 1.0 / dt;
@@ -229,8 +229,6 @@ void NavierSolver::Setup(double dt)
    {
       H_form->SetAssemblyLevel(AssemblyLevel::PARTIAL);
    }
-   H_form->Assemble();
-   H_form->FormSystemMatrix(vel_ess_tdof, H);
 
    FText_gfcoeff = new VectorGridFunctionCoefficient(&FText_gf);
    FText_bdr_form = new ParLinearForm(pfes);
@@ -267,74 +265,8 @@ void NavierSolver::Setup(double dt)
       f_form->AddDomainIntegrator(vdlfi);
    }
 
-   if (partial_assembly)
-   {
-      Vector diag_pa(vfes->GetTrueVSize());
-      Mv_form->AssembleDiagonal(diag_pa);
-      MvInvPC = new OperatorJacobiSmoother(diag_pa, empty);
-   }
-   else
-   {
-      MvInvPC = new HypreSmoother(*Mv.As<HypreParMatrix>());
-      dynamic_cast<HypreSmoother *>(MvInvPC)->SetType(HypreSmoother::Jacobi, 1);
-   }
-   MvInv = new CGSolver(vfes->GetComm());
-   MvInv->iterative_mode = false;
-   MvInv->SetOperator(*Mv);
-   MvInv->SetPreconditioner(*MvInvPC);
-   MvInv->SetPrintLevel(pl_mvsolve);
-   MvInv->SetRelTol(1e-12);
-   MvInv->SetMaxIter(200);
-
-   if (partial_assembly)
-   {
-      lor = new ParLORDiscretization(*Sp_form, pres_ess_tdof);
-      SpInvPC = new HypreBoomerAMG(lor->GetAssembledMatrix());
-      SpInvPC->SetPrintLevel(pl_amg);
-      SpInvPC->Mult(resp, pn);
-      SpInvOrthoPC = new OrthoSolver(vfes->GetComm());
-      SpInvOrthoPC->SetOperator(*SpInvPC);
-   }
-   else
-   {
-      SpInvPC = new HypreBoomerAMG(*Sp.As<HypreParMatrix>());
-      SpInvPC->SetPrintLevel(0);
-      SpInvOrthoPC = new OrthoSolver(vfes->GetComm());
-      SpInvOrthoPC->SetOperator(*SpInvPC);
-   }
-   SpInv = new CGSolver(vfes->GetComm());
-   SpInv->iterative_mode = true;
-   SpInv->SetOperator(*Sp);
-   if (pres_dbcs.empty())
-   {
-      SpInv->SetPreconditioner(*SpInvOrthoPC);
-   }
-   else
-   {
-      SpInv->SetPreconditioner(*SpInvPC);
-   }
-   SpInv->SetPrintLevel(pl_spsolve);
-   SpInv->SetRelTol(rtol_spsolve);
-   SpInv->SetMaxIter(200);
-
-   if (partial_assembly)
-   {
-      Vector diag_pa(vfes->GetTrueVSize());
-      H_form->AssembleDiagonal(diag_pa);
-      HInvPC = new OperatorJacobiSmoother(diag_pa, vel_ess_tdof);
-   }
-   else
-   {
-      HInvPC = new HypreSmoother(*H.As<HypreParMatrix>());
-      dynamic_cast<HypreSmoother *>(HInvPC)->SetType(HypreSmoother::Jacobi, 1);
-   }
-   HInv = new CGSolver(vfes->GetComm());
-   HInv->iterative_mode = true;
-   HInv->SetOperator(*H);
-   HInv->SetPreconditioner(*HInvPC);
-   HInv->SetPrintLevel(pl_hsolve);
-   HInv->SetRelTol(rtol_hsolve);
-   HInv->SetMaxIter(200);
+   SetupForms();
+   SetupSolvers();
 
    // If the initial condition was set, it has to be aligned with dependent
    // Vectors and GridFunctions
@@ -1123,91 +1055,17 @@ void NavierSolver::AddAccelTerm(VecFuncT *f, Array<int> &attr)
 
 void NavierSolver::TransformMesh(VectorCoefficient &dx)
 {
+   MFEM_ASSERT(ale_formulation, "Only supported in ALE formulations."
+               "Use Navier::EnableALE() to enable ALE.");
+
    GridFunction xnew(pmesh->GetNodes()->FESpace());
    xnew = *pmesh->GetNodes();
    xnew.ProjectCoefficient(dx);
    *pmesh->GetNodes() = xnew;
    pmesh->DeleteGeometricFactors();
 
-   delete pmesh_lor;
-   delete pfes_lor;
-   pmesh_lor = new ParMesh(pmesh, order, BasisType::GaussLobatto);
-   pfes_lor = new ParFiniteElementSpace(pmesh_lor, pfec_lor);
-
-   Array<int> empty;
-
-   N->Update();
-   N->Setup();
-
-   Mv_form->Update();
-   Mv_form->Assemble();
-   Mv_form->FormSystemMatrix(empty, Mv);
-   if (partial_assembly)
-   {
-      Vector diag_pa(vfes->GetTrueVSize());
-      Mv_form->AssembleDiagonal(diag_pa);
-      MvInvPC = new OperatorJacobiSmoother(diag_pa, empty);
-   }
-   MvInv->SetOperator(*Mv);
-   MvInv->SetPreconditioner(*MvInvPC);
-
-   delete Sp_form;
-   delete Sp_form_lor;
-   delete SpInvOrthoPC;
-   delete SpInvPC;
-   delete SpInv;
-
-   Sp_form = new ParBilinearForm(pfes);
-   BilinearFormIntegrator *sp_blfi = new DiffusionIntegrator;
-   Sp_form->AddDomainIntegrator(sp_blfi);
-   Sp_form->SetAssemblyLevel(AssemblyLevel::PARTIAL);
-   Sp_form->Assemble();
-   Sp_form->FormSystemMatrix(pres_ess_tdof, Sp);
-   Sp_form_lor = new ParBilinearForm(pfes_lor);
-   Sp_form_lor->UseExternalIntegrators();
-   CopyDBFIntegrators(Sp_form, Sp_form_lor);
-   Sp_form_lor->Assemble();
-   Sp_form_lor->FormSystemMatrix(pres_ess_tdof, Sp_lor);
-   SpInvPC = new HypreBoomerAMG(*Sp_lor.As<HypreParMatrix>());
-   SpInvPC->SetPrintLevel(pl_amg);
-   SpInvOrthoPC = new OrthoSolver();
-   SpInvOrthoPC->SetOperator(*SpInvPC);
-   SpInv = new CGSolver(MPI_COMM_WORLD);
-   SpInv->iterative_mode = true;
-   SpInv->SetOperator(*Sp);
-   if (pres_dbcs.empty())
-   {
-      SpInv->SetPreconditioner(*SpInvOrthoPC);
-   }
-   else
-   {
-      SpInv->SetPreconditioner(*SpInvPC);
-   }
-   SpInv->SetPrintLevel(pl_spsolve);
-   SpInv->SetRelTol(rtol_spsolve);
-   SpInv->SetMaxIter(200);
-
-   D_form->Update();
-   D_form->Assemble();
-   D_form->FormRectangularSystemMatrix(empty, empty, D);
-
-   G_form->Update();
-   G_form->Assemble();
-   G_form->FormRectangularSystemMatrix(empty, empty, G);
-
-   H_form->Update();
-   H_form->Assemble();
-   H_form->FormSystemMatrix(vel_ess_tdof, H);
-
-   f_form->Update();
-   FText_bdr_form->Update();
-   g_bdr_form->Update();
-
-   delete mass_lf;
-   mass_lf = nullptr;
-
-   delete component_mass_lf;
-   component_mass_lf = nullptr;
+   SetupForms();
+   SetupSolvers();
 }
 
 void NavierSolver::SetTimeIntegrationCoefficients(int step)
@@ -1262,6 +1120,128 @@ void NavierSolver::SetTimeIntegrationCoefficients(int step)
       ab3 = (pow(rho2, 2.0) * rho1 * (1.0 + rho1)) / (1.0 + rho2);
    }
 }
+
+void NavierSolver::SetupForms()
+{
+   Array<int> empty;
+
+   N->Update();
+   N->Setup();
+
+   Mv_form->Update();
+   Mv_form->Assemble();
+   Mv_form->FormSystemMatrix(empty, Mv);
+
+   Sp_form->Update();
+   Sp_form->Assemble();
+   Sp_form->FormSystemMatrix(pres_ess_tdof, Sp);
+
+   D_form->Update();
+   D_form->Assemble();
+   D_form->FormRectangularSystemMatrix(empty, empty, D);
+
+   G_form->Update();
+   G_form->Assemble();
+   G_form->FormRectangularSystemMatrix(empty, empty, G);
+
+   H_form->Update();
+   H_form->Assemble();
+   H_form->FormSystemMatrix(vel_ess_tdof, H);
+
+   f_form->Update();
+   FText_bdr_form->Update();
+   g_bdr_form->Update();
+
+   delete mass_lf;
+   mass_lf = nullptr;
+
+   delete component_mass_lf;
+   component_mass_lf = nullptr;
+}
+
+void NavierSolver::SetupSolvers()
+{
+   Array<int> empty;
+
+   if (partial_assembly)
+   {
+      Vector diag_pa(vfes->GetTrueVSize());
+      Mv_form->AssembleDiagonal(diag_pa);
+      delete MvInvPC;
+      MvInvPC = new OperatorJacobiSmoother(diag_pa, empty);
+   }
+   else
+   {
+      delete MvInvPC;
+      MvInvPC = new HypreSmoother(*Mv.As<HypreParMatrix>());
+      dynamic_cast<HypreSmoother *>(MvInvPC)->SetType(HypreSmoother::Jacobi, 1);
+   }
+   delete MvInv;
+   MvInv = new CGSolver(vfes->GetComm());
+   MvInv->iterative_mode = false;
+   MvInv->SetOperator(*Mv);
+   MvInv->SetPreconditioner(*MvInvPC);
+   MvInv->SetPrintLevel(pl_mvsolve);
+   MvInv->SetRelTol(1e-12);
+   MvInv->SetMaxIter(200);
+
+   if (partial_assembly)
+   {
+      delete lor;
+      lor = new ParLORDiscretization(*Sp_form, pres_ess_tdof);
+      delete SpInvPC;
+      SpInvPC = new HypreBoomerAMG(lor->GetAssembledMatrix());
+      SpInvPC->SetPrintLevel(pl_amg);
+      SpInvPC->Mult(resp, pn);
+      delete SpInvOrthoPC;
+      SpInvOrthoPC = new OrthoSolver(vfes->GetComm());
+      SpInvOrthoPC->SetOperator(*SpInvPC);
+   }
+   else
+   {
+      delete SpInvPC;
+      SpInvPC = new HypreBoomerAMG(*Sp.As<HypreParMatrix>());
+      SpInvPC->SetPrintLevel(0);
+      delete SpInvOrthoPC;
+      SpInvOrthoPC = new OrthoSolver(vfes->GetComm());
+      SpInvOrthoPC->SetOperator(*SpInvPC);
+   }
+   delete SpInv;
+   SpInv = new CGSolver(vfes->GetComm());
+   SpInv->iterative_mode = true;
+   SpInv->SetOperator(*Sp);
+   if (pres_dbcs.empty())
+   {
+      SpInv->SetPreconditioner(*SpInvOrthoPC);
+   }
+   else
+   {
+      SpInv->SetPreconditioner(*SpInvPC);
+   }
+   SpInv->SetPrintLevel(pl_spsolve);
+   SpInv->SetRelTol(rtol_spsolve);
+   SpInv->SetMaxIter(200);
+
+   if (partial_assembly)
+   {
+      Vector diag_pa(vfes->GetTrueVSize());
+      H_form->AssembleDiagonal(diag_pa);
+      HInvPC = new OperatorJacobiSmoother(diag_pa, vel_ess_tdof);
+   }
+   else
+   {
+      HInvPC = new HypreSmoother(*H.As<HypreParMatrix>());
+      dynamic_cast<HypreSmoother *>(HInvPC)->SetType(HypreSmoother::Jacobi, 1);
+   }
+   HInv = new CGSolver(vfes->GetComm());
+   HInv->iterative_mode = true;
+   HInv->SetOperator(*H);
+   HInv->SetPreconditioner(*HInvPC);
+   HInv->SetPrintLevel(pl_hsolve);
+   HInv->SetRelTol(rtol_hsolve);
+   HInv->SetMaxIter(200);
+}
+
 
 void NavierSolver::PrintTimingData()
 {

@@ -71,7 +71,8 @@ int main(int argc, char *argv[])
 
    auto xi_0 = new GridFunction(*pmesh->GetNodes());
 
-   FunctionCoefficient ex_coef([&](const Vector &cin, double t) {
+   FunctionCoefficient ex_coef([&](const Vector &cin, double t)
+   {
       double x = cin(0);
       double y = cin(1);
 
@@ -79,22 +80,25 @@ int main(int argc, char *argv[])
    });
 
    VectorFunctionCoefficient
-      mesh_nodes(2, [&](const Vector &cin, double t, Vector &cout) {
-         double x = cin(0);
-         double y = cin(1);
-         cout(0) = x + ctx.A * sin(t) * sin(x) * sin(y);
-         cout(1) = y + ctx.A * sin(t) * sin(x) * sin(y);
-      });
+   mesh_nodes(2, [&](const Vector &cin, double t, Vector &cout)
+   {
+      double x = cin(0);
+      double y = cin(1);
+      cout(0) = x + ctx.A * sin(t) * sin(x) * sin(y);
+      cout(1) = y + ctx.A * sin(t) * sin(x) * sin(y);
+   });
 
    VectorFunctionCoefficient
-      mesh_nodes_velocity(2, [&](const Vector &cin, double t, Vector &cout) {
-         double x = cin(0);
-         double y = cin(1);
-         cout(0) = ctx.A * cos(t) * sin(x) * sin(y);
-         cout(1) = ctx.A * cos(t) * sin(x) * sin(y);
-      });
+   mesh_nodes_velocity(2, [&](const Vector &cin, double t, Vector &cout)
+   {
+      double x = cin(0);
+      double y = cin(1);
+      cout(0) = ctx.A * cos(t) * sin(x) * sin(y);
+      cout(1) = ctx.A * cos(t) * sin(x) * sin(y);
+   });
 
-   auto TransformMesh = [&](VectorCoefficient &dx) {
+   auto TransformMesh = [&](VectorCoefficient &dx)
+   {
       GridFunction xnew(pmesh->GetNodes()->FESpace());
       xnew = *pmesh->GetNodes();
       xnew.ProjectCoefficient(dx);

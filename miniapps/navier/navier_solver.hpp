@@ -220,6 +220,9 @@ public:
    /// the nodal points.
    void EnableNI(bool ni) { numerical_integ = ni; }
 
+   /// Enable Arbitrary-Lagrangian-Eulerian formulation for moving meshes.
+   void EnableALE(bool ale) { ale_formulation = ale; }
+
    /// Print timing summary of the solving routine.
    /**
     * The summary shows the timing in seconds in the first row of
@@ -304,6 +307,13 @@ protected:
     */
    void SetTimeIntegrationCoefficients(int step);
 
+   /// Update and assemble all forms. This must be called after moving the mesh
+   /// and before re-using solvers again.
+   void SetupForms();
+
+   /// Update all solvers and preconditioners after forms have changed.
+   void SetupSolvers();
+
    /// Eliminate essential BCs in an Operator and apply to RHS.
    void EliminateRHS(Operator &A,
                      ConstrainedOperator &constrainedA,
@@ -325,6 +335,10 @@ protected:
 
    /// Enable/disable numerical integration rules of forms.
    bool numerical_integ = false;
+
+   /// Enable/disable Arbitrary-Lagrangian-Eulerian formulation for moving
+   /// meshes.
+   bool ale_formulation = false;
 
    /// The parallel mesh.
    ParMesh *pmesh = nullptr;
