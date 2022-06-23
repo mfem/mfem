@@ -982,7 +982,8 @@ public:
        destructor). */
    const FaceGeometricFactors* GetFaceGeometricFactors(const IntegrationRule& ir,
                                                        const int flags,
-                                                       FaceType type);
+                                                       FaceType type,
+                                                       MemoryType d_mt = MemoryType::DEFAULT);
 
    /// Destroy all GeometricFactors stored by the Mesh.
    /** This method can be used to force recomputation of the GeometricFactors,
@@ -1882,7 +1883,7 @@ public:
    };
 
    FaceGeometricFactors(const Mesh *mesh, const IntegrationRule &ir, int flags,
-                        FaceType type);
+                        FaceType type, MemoryType d_mt = MemoryType::DEFAULT);
 
    /// Mapped (physical) coordinates of all quadrature points.
    /** This array uses a column-major layout with dimensions (NQ x SDIM x NF)
