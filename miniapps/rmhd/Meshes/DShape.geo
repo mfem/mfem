@@ -1202,6 +1202,3 @@ Line Loop(801)={
 799,
 800 };
 Plane Surface(802) = { 801 };
-//+
-SetFactory("OpenCASCADE");
-Circle(801) = {1, 0, 0, 0.1, 0, 2*Pi};
