@@ -804,7 +804,7 @@ int main(int argc, char *argv[])
       for (int i = 0; i < mesh->GetNE(); i++)
       {
          mat(i) = material_id(i, surf_fit_gf0);
-         mesh->SetAttribute(i, mat(i) + 1);
+         mesh->SetAttribute(i, static_cast<int>(mat(i) + 1));
       }
 
       GridFunctionCoefficient mat_coeff(&mat);

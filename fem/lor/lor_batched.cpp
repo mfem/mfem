@@ -103,7 +103,7 @@ void BatchedLORAssembly::FormLORVertexCoordinates(FiniteElementSpace &fes_ho,
    const int nel_ho = mesh_ho.GetNE();
    const int order = fes_ho.GetMaxElementOrder();
    const int nd1d = order + 1;
-   const int ndof_per_el = pow(nd1d, dim);
+   const int ndof_per_el = static_cast<int>(pow(nd1d, dim));
 
    const GridFunction *nodal_gf = mesh_ho.GetNodes();
    const FiniteElementSpace *nodal_fes = nodal_gf->FESpace();
@@ -307,7 +307,7 @@ void BatchedLORAssembly::FillJAndData(SparseMatrix &A) const
          const bool plus = si_E >= 0;
          const int i_E = plus ? si_E : -1 - si_E;
          i_elts[e_i] = i_E/ndof_per_el;
-         const double i_Bi = i_E%ndof_per_el;
+         const int i_Bi = i_E % ndof_per_el;
          i_B[e_i] = plus ? i_Bi : -1 - i_Bi; // encode with sign
       }
       for (int j=0; j<nnz_per_row; ++j)
@@ -337,7 +337,7 @@ void BatchedLORAssembly::FillJAndData(SparseMatrix &A) const
                const bool plus = sj_E >= 0;
                const int j_E = plus ? sj_E : -1 - sj_E;
                j_elts[e_j] = j_E/ndof_per_el;
-               const double j_Bj = j_E%ndof_per_el;
+               const int j_Bj = j_E % ndof_per_el;
                j_B[e_j] = plus ? j_Bj : -1 - j_Bj; // encode with sign
             }
             const int min_e = GetMinElt(i_elts, i_ne, j_elts, j_ne);

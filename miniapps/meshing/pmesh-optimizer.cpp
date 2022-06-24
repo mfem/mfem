@@ -839,7 +839,7 @@ int main (int argc, char *argv[])
       for (int i = 0; i < pmesh->GetNE(); i++)
       {
          mat(i) = material_id(i, surf_fit_gf0);
-         pmesh->SetAttribute(i, mat(i) + 1);
+         pmesh->SetAttribute(i, static_cast<int>(mat(i) + 1));
       }
 
       GridFunctionCoefficient coeff_mat(&mat);
