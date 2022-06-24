@@ -809,5 +809,5 @@ install(EXPORT ${PROJECT_NAME_UC}Targets
 mfem_export_mk_files()
 
 if (MFEM_USE_JIT)
-    add_mjit_executable()
+    mfem_mjit_configure()
 endif (MFEM_USE_JIT)

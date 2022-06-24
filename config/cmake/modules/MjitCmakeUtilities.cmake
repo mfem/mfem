@@ -42,10 +42,10 @@ function(set_mjit_sources_dependencies TARGET SOURCES)
     set(${TARGET} ${${TARGET}} PARENT_SCOPE)
 endfunction(set_mjit_sources_dependencies)
 
-########################
-# ADD MJIT EXECUTABLE  #
-########################
-function(add_mjit_executable)
+######################
+# MFEM JIT CONFIGURE #
+######################
+function(mfem_mjit_configure)
     add_executable(mjit general/jit/parser.cpp)
 
     foreach (dir ${TPL_INCLUDE_DIRS})
@@ -77,6 +77,8 @@ function(add_mjit_executable)
        set(MFEM_LINK_FLAGS "${MFEM_LINK_FLAGS} -ccbin ${CMAKE_CUDA_HOST_COMPILER}")
        set(MFEM_BUILD_FLAGS "-x=cu ${MFEM_LINK_FLAGS}")
        set_source_files_properties(general/jit/parser.cpp PROPERTIES LANGUAGE CUDA)
+       set(MFEM_XCOMPILER "-Xcompiler=")
+       set(MFEM_XLINKER "-Xlinker=")
    endif(MFEM_USE_CUDA)
 
    if (MFEM_USE_HIP)
@@ -93,7 +95,29 @@ function(add_mjit_executable)
            "MFEM_BUILD_FLAGS=\"${MFEM_BUILD_FLAGS}\"")
 
     target_compile_definitions(mjit PRIVATE
-      "MFEM_CONFIG_FILE=\"${PROJECT_BINARY_DIR}/config/_config.hpp\"")
-endfunction(add_mjit_executable)
+           "MFEM_CONFIG_FILE=\"${PROJECT_BINARY_DIR}/config/_config.hpp\"")
+
+    if (APPLE)
+        set(MFEM_SO_PREFIX "-all_load")
+        set(MFEM_SO_POSTFIX "")
+        set(MFEM_INSTALL_BACKUP "")
+    else(APPLE)
+        set(MFEM_SO_PREFIX "${MFEM_XLINKER}--whole-archive")
+        set(MFEM_SO_POSTFIX "${MFEM_XLINKER}--no-whole-archive")
+        set(MFEM_INSTALL_BACKUP "--backup=none")
+    endif(APPLE)
+
+    set_property(SOURCE general/jit/jit.cpp
+                 PROPERTY COMPILE_DEFINITIONS
+                 MFEM_SO_EXT="${CMAKE_SHARED_LIBRARY_SUFFIX}"
+                 MFEM_PICFLAG="${MFEM_XCOMPILER}${CMAKE_SHARED_LIBRARY_CXX_FLAGS}"
+                 MFEM_XCOMPILER="${MFEM_XCOMPILER}"
+                 MFEM_XLINKER="${MFEM_XLINKER}"
+                 MFEM_AR="ar"
+                 MFEM_INSTALL_BACKUP="${MFEM_INSTALL_BACKUP}"
+                 MFEM_SO_PREFIX="${MFEM_SO_PREFIX}"
+                 MFEM_SO_POSTFIX="${MFEM_SO_POSTFIX}")
+
+endfunction(mfem_mjit_configure)
 
 endif(MFEM_USE_JIT)
