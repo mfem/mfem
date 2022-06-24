@@ -2414,10 +2414,15 @@ void HypreParMatrix::EliminateBC(const Array<int> &ess_dofs,
          int_buf_data[i] = eliminate_row[k];
       });
 
+#if defined(HYPRE_USING_GPU)
       // Try to use device-aware MPI for the communication if available
       comm_handle = hypre_ParCSRCommHandleCreate_v2(
                        11, comm_pkg, HYPRE_MEMORY_DEVICE, int_buf_data,
                        HYPRE_MEMORY_DEVICE, eliminate_col);
+#else
+      comm_handle = hypre_ParCSRCommHandleCreate(
+                       11, comm_pkg, int_buf_data, eliminate_col );
+#endif
    }
 
    // Eliminate rows and columns in the diagonal block
