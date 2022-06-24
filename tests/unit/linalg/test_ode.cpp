@@ -128,7 +128,7 @@ TEST_CASE("First order ODE methods",
          std::vector<Vector> uh(ode_solver->GetMaxStateSize());
          for (int l = 1; l < levels; l++)
          {
-            int lvl = pow(2,l);
+            int lvl = static_cast<int>(pow(2,l));
             t = 0.0;
             dt_order *= 0.5;
             u = u0;

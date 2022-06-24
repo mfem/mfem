@@ -4276,7 +4276,7 @@ void TensorProductLegendre(int dim,                // input
       poly1d.CalcLegendre(order, x3, poly_z);
    }
 
-   int basis_dimension = pow(order+1,dim);
+   int basis_dimension = static_cast<int>(pow(order+1,dim));
    poly.SetSize(basis_dimension);
    switch (dim)
    {
@@ -4458,7 +4458,7 @@ double LSZZErrorEstimator(BilinearFormIntegrator &blfi,  // input
       const int patch_order = max(ufes->GetElementOrder(el1),
                                   ufes->GetElementOrder(el2));
 
-      int num_basis_functions = pow(patch_order+1,dim);
+      int num_basis_functions = static_cast<int>(pow(patch_order+1,dim));
       int flux_order = 2*patch_order + 1;
       DenseMatrix A(num_basis_functions);
       Array<double> b(sdim * num_basis_functions);
