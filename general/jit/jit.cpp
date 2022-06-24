@@ -42,14 +42,14 @@
       defined(MFEM_INSTALL_BACKUP) && defined(MFEM_SO_PREFIX) &&\
       defined(MFEM_SO_POSTFIX) && defined(MFEM_PICFLAG))
 #error MFEM_[SO_EXT, XCOMPILER, XLINKER, AR, INSTALL_BACKUP, SO_PREFIX, SO_POSTFIX, PICFLAGS] must be defined!
-#define MFEM_SO_EXT
-#define MFEM_XCOMPILER
-#define MFEM_XLINKER
 #define MFEM_AR
-#define MFEM_INSTALL_BACKUP
+#define MFEM_SO_EXT
+#define MFEM_PICFLAG
+#define MFEM_XLINKER
+#define MFEM_XCOMPILER
 #define MFEM_SO_PREFIX
 #define MFEM_SO_POSTFIX
-#define MFEM_PICFLAG
+#define MFEM_INSTALL_BACKUP
 #endif
 
 namespace mfem

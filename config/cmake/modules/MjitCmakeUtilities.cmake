@@ -70,6 +70,8 @@ function(mfem_mjit_configure)
       endif(MPI_CXX_LINK_FLAGS)
     endif(MFEM_USE_MPI)
 
+    set(MFEM_XLINKER "-Wl,")
+
     if (MFEM_USE_CUDA)
        set(MFEM_EXT_LIBS "")
        set(MFEM_CXX ${CMAKE_CUDA_COMPILER})
