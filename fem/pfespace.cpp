@@ -960,8 +960,10 @@ void ParFiniteElementSpace::Build_Dof_TrueDof_Matrix() const // matrix P
    P->GetDiag(Pdiag);
    R = Transpose(Pdiag);
 
+#if (MFEM_HYPRE_VERSION <= 22300) && !(MFEM_HYPRE_VERSION == 22300 && HYPRE_DEVELOP_NUMBER >=8)
 #ifdef HYPRE_USING_GPU
    hypre_ParCSRMatrixLocalTranspose(*P);
+#endif
 #endif
 }
 
@@ -2629,8 +2631,10 @@ int ParFiniteElementSpace
       *P_ = MakeVDimHypreMatrix(pmatrix, ndofs, num_true_dofs,
                                 dof_offs, tdof_offs);
 
+#if (MFEM_HYPRE_VERSION <= 22300) && !(MFEM_HYPRE_VERSION == 22300 && HYPRE_DEVELOP_NUMBER >=8)
 #ifdef HYPRE_USING_GPU
       hypre_ParCSRMatrixLocalTranspose(**P_);
+#endif
 #endif
    }
 
@@ -2673,8 +2677,6 @@ int ParFiniteElementSpace
                 << std::endl;
    }
 #endif
-
-
 
    return num_true_dofs*vdim;
 }

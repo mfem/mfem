@@ -1833,9 +1833,11 @@ void HypreParMatrix::MultTranspose(double a, const Vector &x,
       }
    }
 
+#if (MFEM_HYPRE_VERSION <= 22300) && !(MFEM_HYPRE_VERSION == 22300 && HYPRE_DEVELOP_NUMBER >=8)
 #ifdef HYPRE_USING_GPU
    MFEM_VERIFY(A->diagT != NULL,
                "Transpose action requires hypre_ParCSRMatrixLocalTranspose");
+#endif
 #endif
 
    hypre_ParCSRMatrixMatvecT(a, A, *Y, b, *X);
