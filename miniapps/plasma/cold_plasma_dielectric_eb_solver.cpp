@@ -48,15 +48,7 @@ double ElectricEnergyDensityCoef::Eval(ElementTransformation &T,
 
    epsrCoef_.Eval(eps_r_, T, ip);
    epsiCoef_.Eval(eps_i_, T, ip);
-   /*
-   if (T.ElementNo == 1)
-   {
-      cout << "eps_r" << endl;
-      eps_r_.Print(std::cout, 3);
-      cout << "eps_i" << endl;
-      eps_i_.Print(std::cout, 3);
-   }
-   */
+
    eps_r_.Mult(Er_, Dr_);
    eps_i_.AddMult_a(-1.0, Ei_, Dr_);
 
