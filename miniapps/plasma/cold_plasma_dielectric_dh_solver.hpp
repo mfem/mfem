@@ -844,7 +844,7 @@ public:
    double GetHFieldError(const VectorCoefficient & HReCoef,
                          const VectorCoefficient & HImCoef) const;
 
-   void GetErrorEstimates(Vector & errors);
+   void GetErrorEstimates(Vector & errors, bool err_h = true);
 
    void RegisterVisItFields(VisItDataCollection & visit_dc);
 
@@ -1244,8 +1244,8 @@ private:
 
    ParComplexGridFunction   h_;   // Complex magnetic field (HCurl)
    ParComplexGridFunction   h_dbc_;   // Complex magnetic field (HCurl)
-   ParComplexGridFunction * e_;   // Complex electric field (HCurl)
-   ParComplexGridFunction * d_;   // Complex electric flux (HDiv)
+   ParComplexGridFunction   e_;   // Complex electric field (HCurl)
+   // ParComplexGridFunction * d_;   // Complex electric flux (HDiv)
    ParComplexGridFunction * j_;   // Complex current density (HDiv)
    ParComplexLinearForm   * curlj_; // Curl of current density (HCurl)
    ParComplexGridFunction * phi_; // Complex sheath potential (H1)
@@ -1261,6 +1261,7 @@ private:
    ParGridFunction        * h_t_; // Time dependent magnetic field
    ComplexVectorFieldVisObject h_v_;
    ComplexVectorFieldVisObject d_v_;
+   ComplexVectorFieldVisObject e_v_;
    ComplexVectorFieldVisObject h_dbc_v_;
    ScalarFieldVisObject phi_v_;
    ScalarFieldBdrVisObject z_v_;

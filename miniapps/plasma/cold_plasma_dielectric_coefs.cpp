@@ -266,7 +266,16 @@ complex<double> P_cold_plasma(double omega,
       complex<double> w_p = omega_p(n, q, m_eff);
       val -= w_p * w_p / (omega * omega);
    }
-   return val*1e-0;
+   double val_mag = std::abs(val);
+   if (val_mag > 1e-2)
+   {
+      return val;
+   }
+   else
+   {
+      complex<double> ve(0.0, 1e-0 * exp(-val_mag * val_mag/100.0));
+      return val + ve;
+   }
 }
 // """""""""""""""""""""""""""""""""""""""""""""""""""""""
 // Jim's old sheath impedance parameterization code for Kohno et al 2017
@@ -936,6 +945,33 @@ double StixPCoef::Eval(ElementTransformation &T,
    {
       return P.imag();
    }
+}
+
+StixDensityCoef::StixDensityCoef(const ParGridFunction & B,
+                                 const ParGridFunction & nue,
+                                 const ParGridFunction & nui,
+                                 const BlockVector & density,
+                                 const BlockVector & temp,
+                                 const ParFiniteElementSpace & L2FESpace,
+                                 const ParFiniteElementSpace & H1FESpace,
+                                 double omega,
+                                 const Vector & charges,
+                                 const Vector & masses,
+                                 int nuprof,
+                                 bool realPart,
+                                 double a, int p)
+   : StixCoefBase(B, nue, nui, density, temp, L2FESpace, H1FESpace, omega,
+                  charges, masses, nuprof, realPart), a_(a), p_(p)
+{}
+
+double StixDensityCoef::Eval(ElementTransformation &T,
+                             const IntegrationPoint &ip)
+{
+   // Collect density and temperature field values
+   this->fillDensityVals(T, ip);
+   this->fillTemperatureVals(T, ip);
+
+   return a_ * pow(density_vals_[0], p_);
 }
 
 StixTensorBase::StixTensorBase(const ParGridFunction & B,

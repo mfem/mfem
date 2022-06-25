@@ -475,6 +475,65 @@ public:
    }
 };
 
+class StixInvSPCoef: public Coefficient, public StixCoefBase
+{
+public:
+   StixInvSPCoef(const ParGridFunction & B,
+                 const ParGridFunction & nue,
+                 const ParGridFunction & nui,
+                 const BlockVector & density,
+                 const BlockVector & temp,
+                 const ParFiniteElementSpace & L2FESpace,
+                 const ParFiniteElementSpace & H1FESpace,
+                 double omega,
+                 const Vector & charges,
+                 const Vector & masses,
+                 int nuprof,
+                 bool realPart)
+      : StixCoefBase(B, nue, nui, density, temp, L2FESpace, H1FESpace, omega,
+                     charges, masses, nuprof, realPart)
+   {}
+
+   StixInvSPCoef(StixCoefBase &s) : StixCoefBase(s) {}
+
+   virtual double Eval(ElementTransformation &T,
+                       const IntegrationPoint &ip)
+   {
+      // Collect density, temperature, and magnetic field values
+      double Bmag = this->getBMagnitude(T, ip);
+      nue_vals_ = nue_.GetValue(T, ip);
+      nui_vals_ = nui_.GetValue(T, ip);
+
+      this->fillDensityVals(T, ip);
+      this->fillTemperatureVals(T, ip);
+
+      // Evaluate Stix Coefficient
+      complex<double> S = S_cold_plasma(omega_, Bmag, nue_vals_, nui_vals_,
+                                        density_vals_,
+                                        charges_, masses_, temp_vals_, nuprof_);
+      complex<double> P = P_cold_plasma(omega_, nue_vals_, density_vals_,
+                                        charges_, masses_, temp_vals_, nuprof_);
+
+      complex<double> SP = S * P;
+      double absSP = std::abs(SP);
+      double argSP = std::arg(SP);
+      complex<double> InvSP = (absSP > 1e-4) ? 1.0 / (S * P) :
+                              std::polar(1e4, -argSP);
+
+      // Return the selected component
+      if (realPart_)
+      {
+         return InvSP.real();
+      }
+      else
+      {
+         return InvSP.imag();
+      }
+   }
+
+   virtual ~StixInvSPCoef() {}
+};
+
 void AdaptInitialMesh(MPI_Session &mpi,
                       ParMesh &pmesh,
                       ParFiniteElementSpace &err_fespace,
@@ -636,6 +695,7 @@ int main(int argc, char *argv[])
    bool logo = false;
    bool cyl = false;
    bool check_eps_inv = false;
+   bool err_h = true;
    bool pa = false;
    const char *device_config = "cpu";
 
@@ -848,6 +908,8 @@ int main(int argc, char *argv[])
                   "Neumann Boundary Condition (surface current) "
                   "Value 2 (v_x v_y v_z) or "
                   "(Re(v_x) Re(v_y) Re(v_z) Im(v_x) Im(v_y) Im(v_z))");
+   args.AddOption(&err_h, "-amr-h", "--amr-err-h", "-amr-e", "--amr-err-e",
+                  "AMR based on error estimate for H or E.");
    args.AddOption(&maxit, "-maxit", "--max-amr-iterations",
                   "Max number of iterations in the main AMR loop.");
    args.AddOption(&herm_conv, "-herm", "--hermitian", "-no-herm",
@@ -1464,7 +1526,8 @@ int main(int argc, char *argv[])
    if (strcmp(init_amr,""))
    {
       if (strcmp(init_amr,"S") && strcmp(init_amr,"D") &&
-          strcmp(init_amr,"L") && strcmp(init_amr,"R"))
+          strcmp(init_amr,"L") && strcmp(init_amr,"R") &&
+          strcmp(init_amr,"ISP"))
       {
          if (mpi.Root())
          {
@@ -1475,8 +1538,16 @@ int main(int argc, char *argv[])
       }
       if (mpi.Root())
       {
-         cout << "Adapting mesh to Stix '" << init_amr << "' coefficient."
-              << endl;
+         if (strcmp(init_amr,"ISP"))
+         {
+            cout << "Adapting mesh to Stix '" << init_amr << "' coefficient."
+                 << endl;
+         }
+         else
+         {
+            cout << "Adapting mesh to Stix coefficient function '1/(SP)'."
+                 << endl;
+         }
       }
 
       Coefficient *ReCoefPtr = NULL;
@@ -1525,6 +1596,19 @@ int main(int argc, char *argv[])
                                    omega, charges, masses, nuprof,
                                    false);
       }
+      else if (!strcmp(init_amr,"ISP"))
+      {
+         ReCoefPtr = new StixInvSPCoef(BField, nue_gf, nui_gf,
+                                       density, temperature,
+                                       L2FESpace, H1FESpace,
+                                       omega, charges, masses, nuprof,
+                                       true);
+         ImCoefPtr = new StixInvSPCoef(BField, nue_gf, nui_gf,
+                                       density, temperature,
+                                       L2FESpace, H1FESpace,
+                                       omega, charges, masses, nuprof,
+                                       false);
+      }
 
       L2_ParFESpace err_fes(&pmesh, 0, pmesh.Dimension());
 
@@ -1551,7 +1635,14 @@ int main(int argc, char *argv[])
 
    // Create a coefficient describing the magnetic permeability
    ConstantCoefficient muCoef(mu0_);
-
+   /*
+   StixDensityCoef muCoef(BField, nue_gf, nui_gf, density,
+           temperature,
+           L2FESpace, H1FESpace,
+           omega, charges, masses, nuprof,
+           true,
+           mu0_, 1);
+   */
    // Create a coefficient describing the surface admittance
    Coefficient * etaCoef = SetupImpedanceCoefficient(pmesh, abcs);
 
@@ -2146,17 +2237,27 @@ int main(int argc, char *argv[])
 
       // Estimate element errors using the Zienkiewicz-Zhu error estimator.
       Vector errors(pmesh.GetNE());
-      CPD.GetErrorEstimates(errors);
+      CPD.GetErrorEstimates(errors, err_h);
 
-      double local_max_err = errors.Max();
-      double global_max_err;
-      MPI_Allreduce(&local_max_err, &global_max_err, 1,
-                    MPI_DOUBLE, MPI_MAX, pmesh.GetComm());
+      double threshold = 1.0;
+      if (false)
+      {
+         double local_max_err = errors.Max();
+         double global_max_err;
+         MPI_Allreduce(&local_max_err, &global_max_err, 1,
+                       MPI_DOUBLE, MPI_MAX, pmesh.GetComm());
 
-      // Refine the elements whose error is larger than a fraction of the
-      // maximum element error.
-      const double frac = 0.5;
-      double threshold = frac * global_max_err;
+         // Refine the elements whose error is larger than a fraction of the
+         // maximum element error.
+         const double frac = 0.5;
+         threshold = frac * global_max_err;
+      }
+      else
+      {
+         double global_l2_err = sqrt(fabs(InnerProduct(MPI_COMM_WORLD,
+                                                       errors, errors)));
+         threshold = 1.5 * global_l2_err / pmesh.GetGlobalNE();
+      }
       if (mpi.Root()) { cout << "Refining ..." << endl; }
       {
          pmesh.RefineByError(errors, threshold);

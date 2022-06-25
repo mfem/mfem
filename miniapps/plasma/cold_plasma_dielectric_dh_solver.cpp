@@ -936,9 +936,9 @@ CPDSolverDH::CPDSolverDH(ParMesh & pmesh, int order, double omega,
      kImCross_(NULL),
      h_(HCurlFESpace_),
      h_dbc_(HCurlFESpace_),
-     e_(NULL),
+     e_(HCurlFESpace_),
      // e_tmp_(NULL),
-     d_(NULL),
+     // d_(NULL),
      j_(NULL),
      curlj_(NULL),
      phi_(NULL),
@@ -951,6 +951,7 @@ CPDSolverDH::CPDSolverDH(ParMesh & pmesh, int order, double omega,
      h_t_(NULL),
      h_v_("H", L2VSFESpace_, L2FESpace_, cyl_, false),
      d_v_("D", L2VSFESpace_, L2FESpace_, cyl_, true),
+     e_v_("E", L2VSFESpace_, L2FESpace_, cyl_, false),
      h_dbc_v_("H_DBC", L2VSFESpace_, L2FESpace_, cyl_, false),
      phi_v_("Phi", L2FESpace_, cyl_, true),
      z_v_("Sheath_Impedance", L2FESpace_, cyl_, true),
@@ -1396,6 +1397,327 @@ CPDSolverDH::CPDSolverDH(ParMesh & pmesh, int order, double omega,
    m12EpsRe_->AddDomainIntegrator(new VectorFEMassIntegrator(*epsReCoef_));
    m12EpsIm_->AddDomainIntegrator(new VectorFEMassIntegrator(*epsImCoef_));
    */
+   if (myid_ == 0 && false)
+   {
+      Mesh mesh1 = Mesh::MakeCartesian2D(1, 1, Element::QUADRILATERAL, true, 1.0,
+                                         1.0);
+      Mesh mesh2 = Mesh::MakeCartesian2D(1, 1, Element::QUADRILATERAL, true, 2.0,
+                                         2.0);
+
+      H1_FECollection fec0(1, 2);
+      ND_R2D_FECollection fec1(1, 2);
+
+      FiniteElementSpace fes0m1(&mesh1, &fec0);
+      FiniteElementSpace fes0m2(&mesh2, &fec0);
+      FiniteElementSpace fes1m1(&mesh1, &fec1);
+      FiniteElementSpace fes1m2(&mesh2, &fec1);
+
+      BilinearForm m0m1(&fes0m1);
+      BilinearForm m0m2(&fes0m2);
+
+      BilinearForm m1m1(&fes1m1);
+      BilinearForm m1m2(&fes1m2);
+
+      MixedBilinearForm d01m1(&fes0m1, &fes1m1);
+      MixedBilinearForm d01m2(&fes0m2, &fes1m2);
+
+      MixedBilinearForm d10m1(&fes1m1, &fes0m1);
+      MixedBilinearForm d10m2(&fes1m2, &fes0m2);
+
+      m0m1.AddBoundaryIntegrator(new MassIntegrator);
+      m0m2.AddBoundaryIntegrator(new MassIntegrator);
+      m1m1.AddDomainIntegrator(new VectorFEMassIntegrator);
+      m1m2.AddDomainIntegrator(new VectorFEMassIntegrator);
+
+      m0m1.Assemble(); m0m1.Finalize();
+      m0m2.Assemble(); m0m2.Finalize();
+      m1m1.Assemble(); m1m1.Finalize();
+      m1m2.Assemble(); m1m2.Finalize();
+
+      ofstream ofs_m1m1("m1m1.mat");
+      ofstream ofs_m1m2("m1m2.mat");
+      m1m1.SpMat().Print(ofs_m1m1);
+      m1m2.SpMat().Print(ofs_m1m2);
+
+      cout << "m0(0,0) " << m0m1(0,0) << " vs " << m0m2(0,0) << endl;
+      cout << "m1(0,0) " << m1m1(0,0) << " vs " << m1m2(0,0) << endl;
+
+      d01m1.AddBoundaryIntegrator(new nxGradIntegrator);
+      d01m2.AddBoundaryIntegrator(new nxGradIntegrator);
+
+      d01m1.Assemble(); d01m1.Finalize();
+      d01m2.Assemble(); d01m2.Finalize();
+
+      ofstream ofs_d01m1("d01m1.mat");
+      ofstream ofs_d01m2("d01m2.mat");
+      d01m1.SpMat().Print(ofs_d01m1);
+      d01m2.SpMat().Print(ofs_d01m2);
+      cout << "d01(0,1) " << d01m1.Elem(0,1) << " vs " << d01m2.Elem(0,1) << endl;
+
+      d10m1.AddBoundaryIntegrator(new nDotCurlIntegrator);
+      d10m2.AddBoundaryIntegrator(new nDotCurlIntegrator);
+
+      d10m1.Assemble(); d10m1.Finalize();
+      d10m2.Assemble(); d10m2.Finalize();
+
+      ofstream ofs_d10m1("d10m1.mat");
+      ofstream ofs_d10m2("d10m2.mat");
+      d10m1.SpMat().Print(ofs_d10m1);
+      d10m2.SpMat().Print(ofs_d10m2);
+      cout << "d10(0,1) " << d10m1.Elem(0,1) << " vs " << d10m2.Elem(0,1) << endl;
+   }
+   if (myid_ == 0 && false)
+   {
+      class PhiCoefficient : public Coefficient
+      {
+      private:
+         double p00, p01, p10, p11;
+         double sx, sy;
+      public:
+         PhiCoefficient(double p00, double p01, double p10, double p11,
+                        double sx, double sy)
+            : p00(p00), p01(p01), p10(p10), p11(p11), sx(sx), sy(sy) {}
+
+         double Eval(ElementTransformation &T, const IntegrationPoint &ip)
+         {
+            double xPtr[2];
+            Vector xVec(xPtr, 2);
+            T.Transform(ip, xVec);
+
+            double x = xPtr[0] / sx, y = xPtr[1] / sy;
+            return p00 * (1.0 - x) * (1.0 - y)
+                   + p01 * (1.0 - x) * y
+                   + p10 * x * (1.0 - y)
+                   + p11 * x * y;
+         }
+      };
+
+      class GradPhiCoefficient : public VectorCoefficient
+      {
+      private:
+         double p00, p01, p10, p11;
+         double sx, sy;
+      public:
+         GradPhiCoefficient(double p00, double p01, double p10, double p11,
+                            double sx, double sy)
+            : VectorCoefficient(2),
+              p00(p00), p01(p01), p10(p10), p11(p11), sx(sx), sy(sy) {}
+
+         void Eval(Vector &dPhi,
+                   ElementTransformation &T,
+                   const IntegrationPoint &ip)
+         {
+            dPhi.SetSize(2);
+
+            double xPtr[2];
+            Vector xVec(xPtr, 2);
+            T.Transform(ip, xVec);
+
+            double x = xPtr[0] / sx, y = xPtr[1] / sy;
+            dPhi[0] = ((p10 - p00) * (1.0 - y) + (p11 - p01) * y) / sx;
+            dPhi[1] = ((p01 - p00) * (1.0 - x) + (p11 - p10) * x) / sy;
+         }
+      };
+      /*
+      class nxGradPhiCoefficient : public VectorCoefficient
+      {
+      private:
+        int a;
+        mutable Vector dPhi;
+        GradPhiCoefficient dPhiCoef;
+
+      public:
+        nxGradPhiCoefficient(int a) : VectorCoefficient(3), a(a), dPhi(2) {}
+        void Eval(Vector &nxdPhi,
+       ElementTransformation &T,
+       const IntegrationPoint &ip)
+        {
+      nxdPhi.SetSize(3); nxdPhi = 0.0;
+      dPhiCoef.Eval(dPhi, T, ip);
+
+      switch(a)
+      {
+      case 0:
+       nxdPhi[2] = dPhi[0];
+       break;
+      case 1:
+       nxdPhi[2] = dPhi[1];
+       break;
+      case 2:
+       nxdPhi[2] = -dPhi[0];
+       break;
+      case 3:
+       nxdPhi[2] = -dPhi[1];
+       break;
+      }
+        }
+      };
+      */
+      class JSrcCoefficient : public VectorCoefficient
+      {
+      private:
+         double dp1, dp2, dp3, dp4;
+         double sx, sy;
+
+      public:
+         JSrcCoefficient(double p00, double p01, double p10, double p11,
+                         double e1, double e2, double e3, double e4,
+                         double sx, double sy)
+            : VectorCoefficient(3),
+              dp1(e1*(p10-p00)/sx), dp2(e2*(p11-p10)/sy),
+              dp3(e3*(p11-p01)/sx), dp4(e4*(p01-p00)/sy),
+              sx(sx), sy(sy)
+         {}
+
+         void Eval(Vector &JSrc,
+                   ElementTransformation &T,
+                   const IntegrationPoint &ip)
+         {
+            JSrc.SetSize(3); JSrc = 0.0;
+
+            double xPtr[2];
+            Vector xVec(xPtr, 2);
+            T.Transform(ip, xVec);
+
+            double x = xPtr[0] / sx, y = xPtr[1] / sy;
+            JSrc[2] = 0.5 * (-dp1 * sy * y * (2.0 - y)
+                             +dp2 * sx * x * x
+                             -dp3 * sy * y * y
+                             +dp4 * sx * x * (2.0 - x));
+         }
+      };
+      class HExactCoefficient : public VectorCoefficient
+      {
+      private:
+         double dp1, dp2, dp3, dp4;
+         double sx, sy;
+
+      public:
+         HExactCoefficient(double p00, double p01, double p10, double p11,
+                           double e1, double e2, double e3, double e4,
+                           double sx, double sy)
+            : VectorCoefficient(3),
+              dp1(e1*(p10-p00)/sx), dp2(e2*(p11-p10)/sy),
+              dp3(e3*(p11-p01)/sx), dp4(e4*(p01-p00)/sy),
+              sx(sx), sy(sy)
+         {}
+
+         void Eval(Vector &H,
+                   ElementTransformation &T,
+                   const IntegrationPoint &ip)
+         {
+            H.SetSize(3); H = 0.0;
+
+            double xPtr[2];
+            Vector xVec(xPtr, 2);
+            T.Transform(ip, xVec);
+
+            double x = xPtr[0], y = xPtr[1];
+            H[2] = 0.5 * (+dp1 * (2.0 + (2.0 * sy - y) * y) / sy
+                          +dp2 * (2.0 - x * x) / sx
+                          -dp3 * (2.0 - y * y) / sy
+                          -dp4 * (2.0 + (2.0 * sx - x) * x) / sx);
+         }
+      };
+
+      double sx = 1.0, sy = 1.0;
+      Mesh mesh = Mesh::MakeCartesian2D(1, 1, Element::QUADRILATERAL,
+                                        true, sx, sy);
+
+      H1_FECollection fec0(3, 2);
+      ND_R2D_FECollection fec1(3, 2);
+
+      FiniteElementSpace fes0(&mesh, &fec0);
+      FiniteElementSpace fes1(&mesh, &fec1);
+
+      ConstantCoefficient negOneCoef(-1.0);
+      BilinearForm a1(&fes1);
+      a1.AddDomainIntegrator(new CurlCurlIntegrator);
+      a1.AddDomainIntegrator(new VectorFEMassIntegrator(negOneCoef));
+      a1.Assemble(); a1.Finalize();
+
+      double ph00 = 0.0, ph01 = 1.0, ph10 = 2.0, ph11 = 3.0;
+      double et1 = 1.0, et2 = 1.0, et3 = 1.0, et4 = 1.0;
+
+      PhiCoefficient phiCoef(ph00, ph01, ph10, ph11, sx, sy);
+      JSrcCoefficient JCoef(ph00, ph01, ph10, ph11,
+                            et1, et2, et3, et4, sx, sy);
+      HExactCoefficient HCoef(ph00, ph01, ph10, ph11,
+                              et1, et2, et3, et4, sx, sy);
+
+      Array<int> bdr_marker(4);
+      bdr_marker = 0;
+      if (et1 > 0.5) { bdr_marker[0] = 1; }
+      if (et2 > 0.5) { bdr_marker[1] = 1; }
+      if (et3 > 0.5) { bdr_marker[2] = 1; }
+      if (et4 > 0.5) { bdr_marker[3] = 1; }
+
+      MixedBilinearForm d01(&fes0, &fes1);
+      d01.AddBoundaryIntegrator(new nxGradIntegrator, bdr_marker);
+      d01.Assemble(); d01.Finalize();
+
+      ofstream ofs_d01("d01o2.mat");
+      d01.SpMat().Print(ofs_d01);
+
+      GridFunction phi(&fes0);
+      phi.ProjectCoefficient(phiCoef);
+
+      ofstream ofsphi("phi.vec");
+      phi.Print(ofsphi);
+
+      LinearForm dh(&fes1);
+      d01.Mult(phi, dh);
+
+      ofstream ofsdh("dh.vec");
+      dh.Print(ofsdh);
+
+      LinearForm j(&fes1);
+      j.AddDomainIntegrator(new VectorFEDomainLFIntegrator(JCoef));
+      j.Assemble();
+
+      ofstream ofsj("j.vec");
+      j.Print(ofsj);
+
+      //nxGradPhiCoefficient hCoef(0);
+      GridFunction hExact(&fes1); hExact.ProjectCoefficient(HCoef);
+      double errhe = hExact.ComputeL2Error(HCoef);
+      cout << "Error in hExact: " << errhe << endl;
+      ofstream ofshe("h_exact.vec");
+      hExact.Print(ofshe);
+
+      GridFunction h(&fes1); h = 0.0;
+
+      j.Add(-1.0, dh);
+      CG(a1, j, h, 1);
+
+      double errh = h.ComputeL2Error(HCoef);
+      cout << "Error in h: " << errh << endl;
+      ofstream ofsh("h.vec");
+      h.Print(ofsh);
+
+      ElementTransformation *TPtr = fes1.GetElementTransformation(0);
+      IntegrationPoint ip;
+      ip.y = 0.0; ip.z = 0.0;
+
+      Vector hExactVal(3);
+      Vector hVal(3);
+
+      for (int i=0; i<5; i++)
+      {
+         ip.x = 0.25 * i;
+         TPtr->SetIntPoint(&ip);
+
+         hExact.GetVectorValue(*TPtr, ip, hExactVal);
+         h.GetVectorValue(*TPtr, ip, hVal);
+
+         cout << ip.x << " (" << hExactVal[0] << "," << hExactVal[1] << "," <<
+              hExactVal[2] << ")" << " vs " << "(" << hVal[0] << "," << hVal[1] << "," <<
+              hVal[2] << ")" << endl;
+      }
+   }
+   /*
+   MFEM_ASSERT(false, "Exiting");
+   */
    if (pa_)
    {
       // TODO: PA
@@ -1482,14 +1804,14 @@ CPDSolverDH::CPDSolverDH(ParMesh & pmesh, int order, double omega,
    // h_  = new ParComplexGridFunction(HCurlFESpace_);
    h_ = 0.0;
 
-   e_  = new ParComplexGridFunction(HCurlFESpace_);
-   *e_ = 0.0;
+   // e_  = new ParComplexGridFunction(HCurlFESpace_);
+   e_ = 0.0;
 
    // temp_ = new ParGridFunction(HCurlFESpace_);
    // *temp_ = 0.0;
 
-   d_  = new ParComplexGridFunction(HDivFESpace_);
-   *d_ = 0.0;
+   // d_  = new ParComplexGridFunction(HDivFESpace_);
+   // *d_ = 0.0;
 
    j_  = new ParComplexGridFunction(HDivFESpace_);
    *j_ = 0.0;
@@ -1669,8 +1991,8 @@ CPDSolverDH::~CPDSolverDH()
    // delete e_r_;
    // delete e_i_;
    // delete h_;
-   delete e_;
-   delete d_;
+   // delete e_;
+   // delete d_;
    delete j_;
    delete curlj_;
    // delete temp_;
@@ -2036,8 +2358,8 @@ CPDSolverDH::Update()
    // Inform the grid functions that the space has changed.
    h_.Update();
    h_dbc_.Update();
-   e_->Update();
-   d_->Update();
+   e_.Update();
+   // d_->Update();
    j_->Update();
    curlj_->Update();
    phi_->Update();
@@ -2054,6 +2376,7 @@ CPDSolverDH::Update()
    // if (h_tilde_) { h_tilde_->Update(); }
    // if (e_v_) { e_v_->Update(); }
    d_v_.Update();
+   e_v_.Update();
    phi_v_.Update();
    z_v_.Update();
    // if (j_v_) { j_v_->Update(); }
@@ -2376,7 +2699,7 @@ CPDSolverDH::Solve()
    ampere_.ComputeD();
 
    // Compute E from D: E = epsilon^{-1} D with BC given by -Grad(phi)
-   // this->computeE(*d_, *e_);
+   this->computeE(ampere_.GetElectricFlux(), e_);
 
    if (myid_ == 0)
    {
@@ -2534,15 +2857,15 @@ double
 CPDSolverDH::GetEFieldError(const VectorCoefficient & EReCoef,
                             const VectorCoefficient & EImCoef) const
 {
-   ParComplexGridFunction z(e_->ParFESpace());
+   ParComplexGridFunction z(e_);
    z = 0.0;
 
    double solNorm = z.ComputeL2Error(const_cast<VectorCoefficient&>(EReCoef),
                                      const_cast<VectorCoefficient&>(EImCoef));
 
 
-   double solErr = e_->ComputeL2Error(const_cast<VectorCoefficient&>(EReCoef),
-                                      const_cast<VectorCoefficient&>(EImCoef));
+   double solErr = e_.ComputeL2Error(const_cast<VectorCoefficient&>(EReCoef),
+                                     const_cast<VectorCoefficient&>(EImCoef));
 
    return (solNorm > 0.0) ? solErr / solNorm : solErr;
 }
@@ -2567,7 +2890,7 @@ CPDSolverDH::GetHFieldError(const VectorCoefficient & HReCoef,
 }
 
 void
-CPDSolverDH::GetErrorEstimates(Vector & errors)
+CPDSolverDH::GetErrorEstimates(Vector & errors, bool err_h)
 {
    if ( myid_ == 0 && logging_ > 0 )
    { cout << "Estimating Error ... " << flush; }
@@ -2592,7 +2915,15 @@ CPDSolverDH::GetErrorEstimates(Vector & errors)
    }
 
    // Space for the discontinuous (original) flux
-   CurlCurlIntegrator flux_integrator(*epsInvReCoef_);
+   CurlCurlIntegrator *flux_integrator = NULL;
+   if (err_h)
+   {
+      flux_integrator = new CurlCurlIntegrator(*epsInvReCoef_);
+   }
+   else
+   {
+      flux_integrator = new CurlCurlIntegrator(muInvCoef_);
+   }
    ParFiniteElementSpace flux_fes(pmesh_, flux_fec);
 
    // Space for the smoothed (conforming) flux
@@ -2601,9 +2932,9 @@ CPDSolverDH::GetErrorEstimates(Vector & errors)
 
    Vector err_i(errors.Size());
 
-   L2ZZErrorEstimator(flux_integrator, h_.real(),
+   L2ZZErrorEstimator(*flux_integrator, (err_h) ? h_.real() : e_.real(),
                       smooth_flux_fes, flux_fes, errors, norm_p);
-   L2ZZErrorEstimator(flux_integrator, h_.imag(),
+   L2ZZErrorEstimator(*flux_integrator, (err_h) ? h_.imag() : e_.imag(),
                       smooth_flux_fes, flux_fes, err_i, norm_p);
 
    errors += err_i;
@@ -2645,6 +2976,7 @@ void CPDSolverDH::prepareVisFields()
    h_v_.PrepareVisField(h_, kReCoef_, kImCoef_);
    h_dbc_v_.PrepareVisField(h_dbc_, kReCoef_, kImCoef_);
    d_v_.PrepareVisField(ampere_.GetElectricFlux(), kReCoef_, kImCoef_);
+   e_v_.PrepareVisField(e_, kReCoef_, kImCoef_);
    if (phi_)
    {
       phi_v_.PrepareVisField(*phi_, kReCoef_, kImCoef_);
@@ -2744,6 +3076,7 @@ CPDSolverDH::RegisterVisItFields(VisItDataCollection & visit_dc)
    h_v_.RegisterVisItFields(visit_dc);
    h_dbc_v_.RegisterVisItFields(visit_dc);
    d_v_.RegisterVisItFields(visit_dc);
+   e_v_.RegisterVisItFields(visit_dc);
    if (phi_) { phi_v_.RegisterVisItFields(visit_dc); }
    // if (phi_) { z_v_.RegisterVisItFields(visit_dc); }
    /*

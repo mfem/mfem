@@ -466,6 +466,34 @@ public:
    virtual ~StixPCoef() {}
 };
 
+class StixDensityCoef: public Coefficient, public StixCoefBase
+{
+private:
+   double a_;
+   int p_;
+
+public:
+   StixDensityCoef(const ParGridFunction & B,
+                   const ParGridFunction & nue,
+                   const ParGridFunction & nui,
+                   const BlockVector & density,
+                   const BlockVector & temp,
+                   const ParFiniteElementSpace & L2FESpace,
+                   const ParFiniteElementSpace & H1FESpace,
+                   double omega,
+                   const Vector & charges,
+                   const Vector & masses,
+                   int nuprof,
+                   bool realPart,
+                   double a, int p);
+
+   StixDensityCoef(StixCoefBase &s) : StixCoefBase(s) {}
+
+   virtual double Eval(ElementTransformation &T,
+                       const IntegrationPoint &ip);
+   virtual ~StixDensityCoef() {}
+};
+
 class StixTensorBase: public StixCoefBase
 {
 public:

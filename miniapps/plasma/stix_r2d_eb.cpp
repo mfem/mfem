@@ -416,6 +416,65 @@ public:
    }
 };
 
+class StixInvSPCoef: public Coefficient, public StixCoefBase
+{
+public:
+   StixInvSPCoef(const ParGridFunction & B,
+                 const ParGridFunction & nue,
+                 const ParGridFunction & nui,
+                 const BlockVector & density,
+                 const BlockVector & temp,
+                 const ParFiniteElementSpace & L2FESpace,
+                 const ParFiniteElementSpace & H1FESpace,
+                 double omega,
+                 const Vector & charges,
+                 const Vector & masses,
+                 int nuprof,
+                 bool realPart)
+      : StixCoefBase(B, nue, nui, density, temp, L2FESpace, H1FESpace, omega,
+                     charges, masses, nuprof, realPart)
+   {}
+
+   StixInvSPCoef(StixCoefBase &s) : StixCoefBase(s) {}
+
+   virtual double Eval(ElementTransformation &T,
+                       const IntegrationPoint &ip)
+   {
+      // Collect density, temperature, and magnetic field values
+      double Bmag = this->getBMagnitude(T, ip);
+      nue_vals_ = nue_.GetValue(T, ip);
+      nui_vals_ = nui_.GetValue(T, ip);
+
+      this->fillDensityVals(T, ip);
+      this->fillTemperatureVals(T, ip);
+
+      // Evaluate Stix Coefficient
+      complex<double> S = S_cold_plasma(omega_, Bmag, nue_vals_, nui_vals_,
+                                        density_vals_,
+                                        charges_, masses_, temp_vals_, nuprof_);
+      complex<double> P = P_cold_plasma(omega_, nue_vals_, density_vals_,
+                                        charges_, masses_, temp_vals_, nuprof_);
+
+      complex<double> SP = S * P;
+      double absSP = std::abs(SP);
+      double argSP = std::arg(SP);
+      complex<double> InvSP = (absSP > 1e-4) ? 1.0 / (S * P) :
+                              std::polar(1e4, -argSP);
+
+      // Return the selected component
+      if (realPart_)
+      {
+         return InvSP.real();
+      }
+      else
+      {
+         return InvSP.imag();
+      }
+   }
+
+   virtual ~StixInvSPCoef() {}
+};
+
 void AdaptInitialMesh(MPI_Session &mpi,
                       ParMesh &pmesh,
                       ParFiniteElementSpace &err_fespace,
@@ -1200,7 +1259,8 @@ int main(int argc, char *argv[])
    if (strcmp(init_amr,""))
    {
       if (strcmp(init_amr,"S") && strcmp(init_amr,"D") &&
-          strcmp(init_amr,"L") && strcmp(init_amr,"R"))
+          strcmp(init_amr,"L") && strcmp(init_amr,"R") &&
+          strcmp(init_amr,"ISP"))
       {
          if (mpi.Root())
          {
@@ -1211,8 +1271,16 @@ int main(int argc, char *argv[])
       }
       if (mpi.Root())
       {
-         cout << "Adapting mesh to Stix '" << init_amr << "' coefficient."
-              << endl;
+         if (strcmp(init_amr,"ISP"))
+         {
+            cout << "Adapting mesh to Stix '" << init_amr << "' coefficient."
+                 << endl;
+         }
+         else
+         {
+            cout << "Adapting mesh to Stix coefficient function '1/(SP)'."
+                 << endl;
+         }
       }
 
       Coefficient *ReCoefPtr = NULL;
@@ -1260,6 +1328,19 @@ int main(int argc, char *argv[])
                                    L2FESpace, H1FESpace,
                                    omega, charges, masses, nuprof,
                                    false);
+      }
+      else if (!strcmp(init_amr,"ISP"))
+      {
+         ReCoefPtr = new StixInvSPCoef(BField, nue_gf, nui_gf,
+                                       density, temperature,
+                                       L2FESpace, H1FESpace,
+                                       omega, charges, masses, nuprof,
+                                       true);
+         ImCoefPtr = new StixInvSPCoef(BField, nue_gf, nui_gf,
+                                       density, temperature,
+                                       L2FESpace, H1FESpace,
+                                       omega, charges, masses, nuprof,
+                                       false);
       }
 
       L2_ParFESpace err_fes(&pmesh, 0, pmesh.Dimension());
@@ -1862,7 +1943,7 @@ int main(int argc, char *argv[])
 
       // Wait for user input. Ask every 10th iteration.
       char c = 'c';
-      if (mpi.Root() && (it % 10 == 0))
+      if (mpi.Root() && (it % 50 == 0))
       {
          cout << "press (q)uit or (c)ontinue --> " << flush;
          cin >> c;
