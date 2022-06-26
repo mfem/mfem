@@ -646,10 +646,8 @@ void BilinearForm::AssembleBoundaryFaceIntegrators(int skip_zeros)
       return;
    }
 
-   ElementTransformation *eltrans;
-   DofTransformation * doftrans;
    Mesh *mesh = fes -> GetMesh();
-   DenseMatrix elmat, *elmat_p;
+   DenseMatrix elmat;
 
    if (mat == NULL)
    {
