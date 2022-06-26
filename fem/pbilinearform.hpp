@@ -91,11 +91,11 @@ public:
    /// Assemble the local matrix
    void Assemble(int skip_zeros = 1);
 
-  /// Assembles the domain intgrators bilinear forms only i.e. sums over all domain integrators only.
-  void AssembleDomainIntegrators(int skip_zeros = 1) {BilinearForm::AssembleDomainIntegrators(skip_zeros);}
+   /// Assembles the domain intgrators bilinear forms only i.e. sums over all domain integrators only.
+   void AssembleDomainIntegrators(int skip_zeros = 1) {BilinearForm::AssembleDomainIntegrators(skip_zeros);}
 
-  /// Assembles the boundary intgrators bilinear forms only i.e. sums over all boundary integrators only.
-  void AssembleBoundaryFaceIntegrators(int skip_zeros = 1){BilinearForm::AssembleBoundaryFaceIntegrators(skip_zeros);}
+   /// Assembles the boundary intgrators bilinear forms only i.e. sums over all boundary integrators only.
+   void AssembleBoundaryFaceIntegrators(int skip_zeros = 1) {BilinearForm::AssembleBoundaryFaceIntegrators(skip_zeros);}
 
    /** @brief Assemble the diagonal of the bilinear form into @a diag. Note that
        @a diag is a true-dof Vector.

@@ -382,7 +382,7 @@ public:
    /// Assembles the domain intgrators bilinear forms only i.e. sums over all domain integrators only.
    void AssembleDomainIntegrators(int skip_zeros = 1);
 
-  /// Assembles the boundary intgrators bilinear forms only i.e. sums over all boundary integrators only.
+   /// Assembles the boundary intgrators bilinear forms only i.e. sums over all boundary integrators only.
    void AssembleBoundaryFaceIntegrators(int skip_zeros = 1);
 
    /** @brief Assemble the diagonal of the bilinear form into @a diag. Note that
@@ -680,7 +680,7 @@ protected:
    /// Entries are not owned.
    Array<Array<int>*> boundary_trace_face_integs_marker;
 
-  /// Set of boundary face Integrators to be applied.
+   /// Set of boundary face Integrators to be applied.
    Array<BilinearFormIntegrator*> boundary_face_integs;
    Array<Array<int>*> boundary_face_integs_marker; ///< Entries are not owned.
 
@@ -775,7 +775,7 @@ public:
    void AddBdrTraceFaceIntegrator (BilinearFormIntegrator * bfi,
                                    Array<int> &bdr_marker);
 
-  /// Adds new boundary Face Integrator. Assumes ownership of @a bfi.
+   /// Adds new boundary Face Integrator. Assumes ownership of @a bfi.
    void AddBdrFaceIntegrator(BilinearFormIntegrator *bfi);
 
    /** @brief Adds new boundary Face Integrator, restricted to specific boundary

@@ -1511,7 +1511,7 @@ void MixedBilinearForm::AddBdrFaceIntegrator(BilinearFormIntegrator *bfi)
 }
 
 void MixedBilinearForm::AddBdrFaceIntegrator(BilinearFormIntegrator *bfi,
-                                        Array<int> &bdr_marker)
+                                             Array<int> &bdr_marker)
 {
    boundary_face_integs.Append(bfi);
    boundary_face_integs_marker.Append(&bdr_marker);
@@ -1737,9 +1737,9 @@ void MixedBilinearForm::Assemble (int skip_zeros)
 
       for (int i = 0; i < trial_fes -> GetNBE(); i++)
       {
-	//elmat.SetSize(test_vdofs.Size(), trial_vdofs.Size());
-	//elmat = 0.0;
-         
+         //elmat.SetSize(test_vdofs.Size(), trial_vdofs.Size());
+         //elmat = 0.0;
+
          const int bdr_attr = mesh->GetBdrAttribute(i);
          if (bdr_attr_marker[bdr_attr-1] == 0) { continue; }
 
@@ -1747,10 +1747,10 @@ void MixedBilinearForm::Assemble (int skip_zeros)
          if (btr != NULL)
          {
             dom_dof_trans = trial_fes -> GetElementVDofs (btr -> Elem1No, trial_vdofs);
-	    ran_dof_trans = test_fes->GetElementVDofs(btr->Elem1No, test_vdofs);
+            ran_dof_trans = test_fes->GetElementVDofs(btr->Elem1No, test_vdofs);
             trial_fe1 = trial_fes -> GetFE (btr -> Elem1No);
-	    test_fe1 = test_fes -> GetFE (btr -> Elem1No);
-            
+            test_fe1 = test_fes -> GetFE (btr -> Elem1No);
+
             for (int k = 0; k < boundary_face_integs.Size(); k++)
             {
                if (boundary_face_integs_marker[k] &&
@@ -1759,12 +1759,12 @@ void MixedBilinearForm::Assemble (int skip_zeros)
 
                boundary_face_integs[k] -> AssembleFaceMatrix (*trial_fe1, *test_fe1, *btr,
                                                               elemmat);
-	       //elmat += elemmat;
-	       if (ran_dof_trans || dom_dof_trans)
-		 {
-		   TransformDual(ran_dof_trans, dom_dof_trans, elemmat);
-		 }
-    
+               //elmat += elemmat;
+               if (ran_dof_trans || dom_dof_trans)
+               {
+                  TransformDual(ran_dof_trans, dom_dof_trans, elemmat);
+               }
+
                mat -> AddSubMatrix (test_vdofs, trial_vdofs, elemmat, skip_zeros);
             }
          }
