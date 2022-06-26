@@ -379,6 +379,12 @@ public:
    /// Assembles the form i.e. sums over all domain/bdr integrators.
    void Assemble(int skip_zeros = 1);
 
+   /// Assembles the domain intgrators bilinear forms only i.e. sums over all domain integrators only.
+   void AssembleDomainIntegrators(int skip_zeros = 1);
+
+  /// Assembles the boundary intgrators bilinear forms only i.e. sums over all boundary integrators only.
+   void AssembleBoundaryFaceIntegrators(int skip_zeros = 1);
+
    /** @brief Assemble the diagonal of the bilinear form into @a diag. Note that
        @a diag is a tdof Vector.
 
