@@ -228,7 +228,6 @@ protected:
    void CheckBdrPatches();
 
    void GetPatchKnotVectors   (int p, Array<KnotVector *> &kv);
-   void GetPatchKnotVectors   (int p, Array<const KnotVector *> &kv) const;
    void GetBdrPatchKnotVectors(int p, Array<KnotVector *> &kv);
    void GetBdrPatchKnotVectors(int p, Array<const KnotVector *> &kv) const;
 
@@ -363,6 +362,8 @@ public:
 
    int GetNTotalDof() const { return NumOfDofs; }
    int GetNDof()      const { return NumOfActiveDofs; }
+
+   void GetPatchKnotVectors(int p, Array<const KnotVector *> &kv) const;
 
    // Knotvector read-only access function
    const KnotVector *GetKnotVector(int i) const { return knotVectors[i]; }

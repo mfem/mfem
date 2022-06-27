@@ -261,15 +261,36 @@ public:
    ~IntegrationRule() { }
 };
 
+// TODO: rename?
 class NURBSPatchProductRule
 {
 public:
+   // Construct a rule for each patch, using SetPatchRule.
+   NURBSPatchProductRule(const int numPatches) : patchRule(numPatches)
+   {
+      patchRule = nullptr;
+   }
+
+   /// Construct a tensor product of 1D rules, to be applied to all patches.
    NURBSPatchProductRule(IntegrationRule *irx, IntegrationRule *iry,
                          IntegrationRule *irz = nullptr);
 
+   // TODO: remove ijk argument?
    IntegrationRule &GetElementRule(const int patch, int *ijk) const
    {
-      return *ir;
+      if (patchRule.Size())
+      {
+         return *patchRule[patch];
+      }
+      else
+      {
+         return *ir;
+      }
+   }
+
+   void SetPatchRule(const int patch, IntegrationRule *ir_patch)
+   {
+      patchRule[patch] = ir_patch;
    }
 
    ~NURBSPatchProductRule()
@@ -277,6 +298,7 @@ public:
 
 private:
    IntegrationRule *ir = nullptr;
+   Array<IntegrationRule*> patchRule;
 };
 
 /// A Class that defines 1-D numerical quadrature rules on [0,1].
