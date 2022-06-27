@@ -112,6 +112,7 @@ public:
    */
    void build_dij_matrix(const Vector &U,
                          const VectorFunctionCoefficient &velocity) ;
+   void apply_dij(ParGridFunction &u, Vector &du) const;
    void calculate_timestep();
    double get_timestep();
 
@@ -299,6 +300,7 @@ int main(int argc, char *argv[])
    if (Mpi::Root())
    {
       cout << "Number of unknowns: " << global_vSize << endl;
+      cout << "Dim: " << dim << endl;
    }
 
    // 8. Set up and assemble the parallel bilinear and linear forms (and the
@@ -328,6 +330,7 @@ int main(int argc, char *argv[])
    m->AddDomainIntegrator(new LumpedIntegrator(new MassIntegrator));
    constexpr double alpha = -1.0;
    k->AddDomainIntegrator(new ConvectionIntegrator(velocity, alpha));
+   k->KeepNbrBlock(true);
 
    int skip_zeros = 0;
    m->Assemble();
@@ -343,7 +346,10 @@ int main(int argc, char *argv[])
    //    GLVis visualization.
    ParGridFunction *u = new ParGridFunction(fes);
    u->ProjectCoefficient(u0);
-   HypreParVector *U = u->GetTrueDofs();
+   u->GetTrueDofs();
+
+   // cout << "my id: " << myid << "ldof size: " << u->Size() << endl;
+   // cout << myid << " ????????????? Local V size?: " << fes->GetVSize() << endl;
 
    {
       ostringstream mesh_name, sol_name;
@@ -441,15 +447,16 @@ int main(int argc, char *argv[])
    adv.calculate_timestep();
 
    // Verify our timestamp satisfies the cfl condition
-   cout << "dt: " << dt << endl;
+   // cout << "dt: " << dt << endl;
    assert (dt <= adv.get_timestep());
 
    bool done = false;
    for (int ti = 0; !done; )
    {
       double dt_real = min(dt, t_final - t);
-      ode_solver->Step(*U, t, dt_real);
+      ode_solver->Step(*u, t, dt_real);
       ti++;
+      u->SetTrueVector();
 
       done = (t >= t_final - 1e-8*dt);
 
@@ -463,7 +470,8 @@ int main(int argc, char *argv[])
          // 11. Extract the parallel grid function corresponding to the finite
          //     element approximation U (the local solution on each processor).
          // *u = *U; // Synchronizes MPI processes.
-         u->SetFromTrueDofs(*U);
+         // u->SetFromTrueDofs(*U);
+         // u->ExchangeFaceNbrData();
 
          if (visualization)
          {
@@ -510,7 +518,6 @@ int main(int argc, char *argv[])
    // 12. Save the final solution in parallel. This output can be viewed later
    //     using GLVis: "glvis -np <np> -m ex9p-continuous-mesh -g ex9p-continuous-final".
    {
-      *u = *U;
       ostringstream sol_name;
       sol_name << "ex9p-continuous-final." << setfill('0') << setw(6) << myid;
       ofstream osol(sol_name.str().c_str());
@@ -534,12 +541,16 @@ int main(int argc, char *argv[])
       double L1_error = u->ComputeL1Error(u_exact);
       double L2_error = u->ComputeL2Error(u_exact);
       double Linf_error = u->ComputeMaxError(u_exact);
+      
+      ConstantCoefficient zero(0.0);
+      double zero_L2_error = u->ComputeL2Error(zero);
 
       if (myid == 0)
       {
          cout << "\n|| E_h - E ||_{L^1} = " << L1_error << '\n' << endl;
          cout << "\n|| E_h - E ||_{L^2} = " << L2_error << '\n' << endl;
          cout << "\n|| E_h - E ||_{L^inf} = " << Linf_error << '\n' << endl;
+         cout << "\n|| E ||_{L^2} = " << zero_L2_error << '\n' << endl;
       }
       if (Mpi::Root())
       {
@@ -576,11 +587,9 @@ int main(int argc, char *argv[])
 
    cout << "Freeing memory\n";
    // 15. Free the used memory.
-   delete U;
    delete u;
    delete k;
    delete m;
-   cout << "test\n";
    delete fes;
    delete pmesh;
    delete ode_solver;
@@ -613,6 +622,7 @@ FE_Evolution::FE_Evolution(ParBilinearForm &M_, ParBilinearForm &K_)
      lumpedM(),
      timestep(0.)
 {
+   // cout << "Initialize FE_Evolution class.\n";
    dij_matrix = new SparseMatrix(K_.SpMat());
    M_.FormSystemMatrix(ess_tdof_list, Mmat);
    Mmat.GetDiag(lumpedM);
@@ -658,10 +668,19 @@ void FE_Evolution::ImplicitSolve(const double dt, const Vector &x, Vector &k)
    Kmat.Mult(x, z);
 }
 
+/******************************************************************************
+ * FE_Evolution::build_dij_matrix(const Vector &U,
+                                    const VectorFunctionCoefficient &velocity)
+ * Purpose:
+ * ***************************************************************************/
 void FE_Evolution::build_dij_matrix(const Vector &U,
                                     const VectorFunctionCoefficient &velocity)
 {
-   const int *I = K_spmat.HostReadI(), *J = K_spmat.HostReadJ(), n = K_spmat.Size();
+   // cout << "Build dij\n";
+   const int *I = K_spmat.HostReadI(), *J = K_spmat.HostReadJ();
+   const int n = K_spmat.Size(), n_local = 0;
+   // n is the size of local dof + nbr dof
+   // need n_loc as well
 
    const double *K_data = K_spmat.HostReadData();
 
@@ -674,18 +693,17 @@ void FE_Evolution::build_dij_matrix(const Vector &U,
       for (int end = I[i+1]; k < end; k++)
       {
          int j = J[k];
-         double kij = K_data[k];
-         double kji = K_data[K_smap[k]];
-         double dij = fmax(fmax(0.0,-kij),-kji);
-         /* This is the broken code.
-         double temp_threshold = 0.000000000001;
-         if (abs(kij) < temp_threshold) { kij = 0.; } else { kij = abs(kij); }
-         if (abs(kji) < temp_threshold) { kji = 0.; } else { kji = abs(kji); }
-         double dij = fmax(kij, kji);
-         */
-         D_data[k] = dij;
-         D_data[K_smap[k]] = dij;
-         if (i != j) { rowsum += dij; }
+         if (i != j)
+         {
+            double kij = K_data[k];
+            double kji = K_data[K_smap[k]];
+            double dij = fmax(abs(kij), abs(kji));
+            
+            D_data[k] = dij;
+            D_data[K_smap[k]] = dij;
+            rowsum += dij; 
+         }
+         
       }
       (*dij_matrix)(i,i) = - rowsum;
    }
@@ -696,10 +714,58 @@ void FE_Evolution::build_dij_matrix(const Vector &U,
       cout << "Val: " << dij_matrix->IsSymmetric() << endl;
       return;
    }
+
+   // Output information about dij_matrix
+   // double temp_threshold = 0.0000000000001;
+   // cout << "Num elements below threshold " 
+   //      << temp_threshold 
+   //      << ": " 
+   //      << dij_matrix->CountSmallElems(temp_threshold)
+   //      << endl;
+   // Vector rowsums(n);
+   // dij_matrix->GetRowSums(rowsums);
+   // for (int i = 0; i < rowsums.Size(); i++)
+   // {
+   //    cout << "Row i: " << i << " sum: " << rowsums[i] << " removed val: " << removed[i] << endl;
+   // }
+   // if (Mpi::WorldRank() == 2) {
+   //    cout << "Printing CSR:\n";
+   //    dij_matrix->PrintCSR(cout);
+   // }
    
    // D = D_form->ParallelAssemble(&dij_matrix);
-   D = new HypreParMatrix(MPI_COMM_WORLD, pfes.GlobalVSize(), pfes.GetDofOffsets(), dij_matrix);
+   D = new HypreParMatrix(MPI_COMM_WORLD, pfes.GlobalVSize(), pfes.GetDofOffsets(), dij_matrix);  
    W = RAP(D, pfes.Dof_TrueDof_Matrix());
+   // cout << "W size" << W->Height() << "," << W->Width() << endl;
+}
+
+/******************************************************************************
+ * FE_Evolution::apply_dij(ParGridFunction &u, Vector &du) const
+ * Purpose:
+ * ***************************************************************************/
+void FE_Evolution::apply_dij(ParGridFunction &u, Vector &du) const
+{
+   const int s = u.Size();
+   const int *I = dij_matrix->HostReadI(), *J = dij_matrix->HostReadJ();
+   const double *D_data = dij_matrix->HostReadData();
+
+   u.ExchangeFaceNbrData();
+   const Vector &u_np = u.FaceNbrData();
+   
+   for (int i = 0; i < s; i++)
+   {
+      du(i) = 0.;
+      for (int k = I[i]; k < I[i + 1]; k++)
+      {
+         int j = J[k];
+
+         double u_j = (j < s) ? u(j) : u_np[j - s];
+
+         double d_ij = D_data[k];
+         du(i) += d_ij * u_j;
+      }
+   }
+
 }
 
 /******************************************************************************
@@ -723,7 +789,7 @@ void FE_Evolution::calculate_timestep()
       if (t_temp > t_min) { t_min = t_temp; }
    }
 
-   cout << "Minimized timestep: " << t_min << endl;
+   // cout << "Minimized timestep: " << t_min << endl;
    this->timestep = t_min;
 }
 
@@ -737,13 +803,84 @@ double FE_Evolution::get_timestep()
    return timestep;
 }
 
+/******************************************************************************
+ * FE_Evolution::Mult()
+ * Purpose:
+ * ***************************************************************************/
 void FE_Evolution::Mult(const Vector &x, Vector &y) const
 {
    // y = Ml^{-1} ((D + K) x)
+   // W->Mult(x, z);
+   // cout << "Begin mult\n";
+   ParGridFunction u_gf(&pfes);
+   u_gf = x;
+   // apply_dij(u_gf, z);
    W->Mult(x, z);
 
-   Vector rhs(y.Size());
-   Kmat.Mult(x, rhs);
+   // int myid = Mpi::WorldRank();
+
+   // if (Mpi::Root()) {
+   //    cout << "Sizes: \n";
+   //    cout << "????????????? Local V size?: " << pfes.GetVSize() << endl;
+   //    cout << "True V Size: " << pfes.GetTrueVSize() << endl;
+   //    cout << "Global V Size: " << pfes.GlobalVSize() << endl;
+   //    cout << "dij size: " << dij_matrix->Height() << "," << dij_matrix->Width() <<endl;
+   //    cout << "D size: " << D->Height() << "," << D->Width() <<endl;
+   //    cout << "W size: " << W->Height() << "," << W->Width() << endl;
+   //    cout << "K_spmat size: " << K_spmat.Height() << "," << K_spmat.Width() << endl;
+   //    cout << "Kmat size: " << Kmat.Height() << "," << Kmat.Width() << endl;
+   //    cout << "x size: " << x.Size() << endl;
+   //    cout << "u_gf size: " << u_gf.Size() << endl;
+   //    cout << "lumpedM Size: " << lumpedM.Size() << endl;
+   //    assert(false);
+   // }
+
+   // if (myid == 1) {
+   //    cout << "Process 2\n";
+   //    cout << "Sizes: \n";
+   //    cout << "????????????? Local V size?: " << pfes.GetVSize() << endl;
+   //    cout << "True V Size: " << pfes.GetTrueVSize() << endl;
+   //    cout << "Global V Size: " << pfes.GlobalVSize() << endl;
+   //    cout << "dij size: " << dij_matrix->Height() << "," << dij_matrix->Width() <<endl;
+   //    cout << "D size: " << D->Height() << "," << D->Width() <<endl;
+   //    cout << "W size: " << W->Height() << "," << W->Width() << endl;
+   //    cout << "K_spmat size: " << K_spmat.Height() << "," << K_spmat.Width() << endl;
+   //    cout << "Kmat size: " << Kmat.Height() << "," << Kmat.Width() << endl;
+   //    cout << "x size: " << x.Size() << endl;
+   //    cout << "u_gf size: " << u_gf.Size() << endl;
+   // }
+
+   // if (myid == 2) {
+   //    cout << "Process 3\n";
+   //    cout << "Sizes: \n";
+   //    cout << "????????????? Local V size?: " << pfes.GetVSize() << endl;
+   //    cout << "True V Size: " << pfes.GetTrueVSize() << endl;
+   //    cout << "Global V Size: " << pfes.GlobalVSize() << endl;
+   //    cout << "dij size: " << dij_matrix->Height() << "," << dij_matrix->Width() <<endl;
+   //    cout << "D size: " << D->Height() << "," << D->Width() <<endl;
+   //    cout << "W size: " << W->Height() << "," << W->Width() << endl;
+   //    cout << "K_spmat size: " << K_spmat.Height() << "," << K_spmat.Width() << endl;
+   //    cout << "Kmat size: " << Kmat.Height() << "," << Kmat.Width() << endl;
+   //    cout << "x size: " << x.Size() << endl;
+   //    cout << "u_gf size: " << u_gf.Size() << endl;
+   // }
+
+   // if (myid == 3) {
+   //    cout << "Process 4\n";
+   //    cout << "Sizes: \n";
+   //    cout << "True V Size: " << pfes.GetTrueVSize() << endl;
+   //    cout << "Global V Size: " << pfes.GlobalVSize() << endl;
+   //    cout << "dij size: " << dij_matrix->Height() << "," << dij_matrix->Width() <<endl;
+   //    cout << "D size: " << D->Height() << "," << D->Width() <<endl;
+   //    cout << "W size: " << W->Height() << "," << W->Width() << endl;
+   //    cout << "K_spmat size: " << K_spmat.Height() << "," << K_spmat.Width() << endl;
+   //    cout << "Kmat size: " << Kmat.Height() << "," << Kmat.Width() << endl;
+   //    cout << "x size: " << x.Size() << endl;
+   //    cout << "u_gf size: " << u_gf.Size() << endl;
+   // }
+
+   Vector rhs(x.Size());
+   Kmat.Mult(u_gf, rhs);
    z+= rhs;
 
    // M_solver.Mult(z, y);
@@ -752,8 +889,14 @@ void FE_Evolution::Mult(const Vector &x, Vector &y) const
    {
       y(i) = z(i) / lumpedM(i);
    }
+
+   assert (y.Size() == x.Size());
 }
 
+/******************************************************************************
+ * FE_Evolution::~FE_Evolution()
+ * Purpose:
+ * ***************************************************************************/
 FE_Evolution::~FE_Evolution()
 {
    delete D;
@@ -818,6 +961,7 @@ void velocity_function(const Vector &x, Vector &v)
          break;
       }
       case 4:
+      case 5:
       {
          switch (dim)
          {
@@ -921,6 +1065,24 @@ double exact_sol(const Vector &x, const double t)
                return val;
             }
          }
+      }
+      case 5: // step function
+      {
+         switch (dim)
+         {
+            case 1:
+            case 2:
+            {
+               if (pow(X[0],2) + pow(X[1], 2) < 0.25)
+               {
+                  return 1.;
+               }
+               else{
+                  return 0.;
+               }
+            }
+         }
+         
       }
    }
    return 100.;
