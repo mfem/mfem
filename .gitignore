@@ -39,6 +39,10 @@ doc/warnings.log
 # Build directory
 build
 
+# qt files
+mfem-qt
+mfem.code-workspace
+
 # Temporary files created by the tests.
 *.stderr
 
