@@ -192,9 +192,55 @@ int main(int argc, char *argv[])
    if (order < 0)
    {
       const int ir_order = 2*fec->GetOrder();
-      IntegrationRule *ir = const_cast<IntegrationRule*> (&IntRules.Get(
-                                                             Geometry::SEGMENT, ir_order));
-      patchRule = new NURBSPatchProductRule(ir, ir, dim == 3 ? ir : nullptr);
+
+      bool uniformRule = false;
+      if (uniformRule)
+      {
+         IntegrationRule *ir = const_cast<IntegrationRule*> (&IntRules.Get(
+                                                                Geometry::SEGMENT, ir_order));
+         patchRule = new NURBSPatchProductRule(ir, ir, dim == 3 ? ir : nullptr);
+      }
+      else
+      {
+         patchRule = new NURBSPatchProductRule(mesh.NURBSext->GetNP());
+         // Loop over patches and set a different rule for each patch.
+         for (int p=0; p<mesh.NURBSext->GetNP(); ++p)
+         {
+            Array<const KnotVector*> kv(dim);
+            mesh.NURBSext->GetPatchKnotVectors(p, kv);
+
+            Array<IntegrationRule*> ir1D(dim);
+            for (int i=0; i<dim; ++i)
+            {
+               const IntegrationRule *ir = &IntRules.Get(Geometry::SEGMENT, ir_order);
+               const int np = ir->GetNPoints();
+
+               ir1D[i] = new IntegrationRule(np);
+
+               const double x0 = (*kv[i])[0];
+               const double x1 = (*kv[i])[kv[i]->Size() - 1];
+               const double s = x1 - x0;
+
+               //cout << "KV range " << x0 << " to " << x1 << endl;
+
+               for (int j=0; j<ir->GetNPoints(); ++j)
+               {
+                  const double x = x0 + s * ((*ir)[j].x - x0);
+                  (*ir1D[i])[j].Set1w(x, (*ir)[j].weight);
+               }
+            }
+
+            if (dim == 3)
+            {
+               patchRule->SetPatchRule(p, new IntegrationRule(*ir1D[0], *ir1D[1], *ir1D[2]));
+            }
+            else
+            {
+               patchRule->SetPatchRule(p, new IntegrationRule(*ir1D[0], *ir1D[1]));
+            }
+         }
+      }
+
       di->SetNURBSPatchIntRule(patchRule);
    }
 
