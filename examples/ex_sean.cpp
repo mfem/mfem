@@ -1,6 +1,6 @@
 //                                MFEM LOR Example
 //
-// Compile with: make ex
+// Compile with: make ex_sean
 //
 // Sample runs:
 //    ex9 -m ../data/periodic-segment.mesh -p 0 -r 2 -dt 0.005
@@ -63,7 +63,12 @@ void CalculateLORInterp(GridFunction &u_HO_interp,
 		       GridFunction &node_vals,
 		       FindPointsGSLIB &finder,
 		       const FiniteElementSpace &fes);
-
+/*
+// Calculate the Low Order Refined Solution
+void CalculateLORSolution(GridTransfer &gt,
+			  const GridFunction &u_HO,
+			  GridFunction &u_LOR);
+*/
 // Calculate the Low Order Solution
 void CalculateLOSolution(const GridFunction &u_HO,
 			 const GridFunction &x,
@@ -185,7 +190,7 @@ int main(int argc, char *argv[])
    // 1. Parse command-line options.
    problem = 0;
    const char *mesh_file = "../data/periodic-square.mesh";
-   int ref_levels = 2;
+   int ref_levels = 3;
    int order = 2;
    bool pa = false;
    bool ea = false;
@@ -742,6 +747,22 @@ void CalculateLORInterp(GridFunction &u_HO_interp,
    finder.Interpolate(HO_dofs, u_LOR, u_HO_interp);
 }
 
+/*
+// Calculate the Low Order Refined Solution
+void CalculateLORSolution(GridTransfer &gt,
+			  const GridFunction &u_HO,
+			  GridFunction &u_LOR)
+{
+   // Projection onto the LOR space
+  
+   GridTransfer *gt;
+   gt = new L2ProjectionGridTransfer(fes, fes_LOR);
+      
+   const Operator &R = gt->ForwardOperator();
+  
+   R.Mult(u_HO, u_LOR);
+}
+*/
 
 // Calculate the Low Order solution
 void CalculateLOSolution(const GridFunction &u_HO,
