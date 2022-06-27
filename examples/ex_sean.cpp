@@ -110,6 +110,17 @@ double inflow_function(const Vector &x);
 // Mesh bounding box
 Vector bb_min, bb_max;
 
+//FCT_Project
+// Solves M xy = m, so that y_min <= xy_i / x_i <= y_max.
+// @Sean - take x to be a vector of ones....
+void FCT_Project(DenseMatrix &M,
+                 DenseMatrixInverse &M_inv,
+                 Vector &m,
+                 Vector &x,
+                 double y_min,
+                 double y_max,
+                 Vector &xy);
+
 class DG_Solver : public Solver
 {
 private:
@@ -277,7 +288,7 @@ int main(int argc, char *argv[])
    //    periodic meshes in this code.
    Mesh mesh(mesh_file, 1, 1);
    int dim = mesh.Dimension();
-   
+
    // 3. Define the ODE solver used for time integration. Several explicit
    //    Runge-Kutta methods are available.
    ODESolver *ode_solver = NULL;
@@ -315,7 +326,7 @@ int main(int argc, char *argv[])
    // Create the low-order refined mesh
    int basis_LOR = BasisType::ClosedUniform;
    Mesh mesh_LOR = Mesh::MakeRefined(mesh, lref, basis_LOR);
-   
+
    if (mesh.NURBSext)
    {
       mesh.SetCurvature(max(order, 1));
@@ -324,7 +335,7 @@ int main(int argc, char *argv[])
    mesh.GetBoundingBox(bb_min, bb_max, max(order, 1));
    mesh_LOR.GetBoundingBox(bb_min, bb_max, max(order, 1));
 
-     
+
    // 5. Define the discontinuous DG finite element space of the given
    //    polynomial order on the refined mesh.
    DG_FECollection fec(order, dim, BasisType::Positive);
@@ -335,7 +346,7 @@ int main(int argc, char *argv[])
    DG_FECollection fec_LOR(LOR_order, dim, BasisType::Positive);
    FiniteElementSpace fes_LOR(&mesh_LOR, &fec_LOR);
 
-   
+
    cout << "Number of unknowns: " << fes.GetVSize() << endl;
 
    // 6. Set up and assemble the bilinear and linear forms corresponding to the
@@ -344,7 +355,7 @@ int main(int argc, char *argv[])
    VectorFunctionCoefficient velocity(dim, velocity_function);
    FunctionCoefficient inflow(inflow_function);
    FunctionCoefficient u0(u0_function);
-   
+
    BilinearForm m(&fes);
    BilinearForm k(&fes);
 
@@ -363,9 +374,9 @@ int main(int argc, char *argv[])
       m.SetAssemblyLevel(AssemblyLevel::FULL);
       k.SetAssemblyLevel(AssemblyLevel::FULL);
    }
-   
+
    m.AddDomainIntegrator(new MassIntegrator);
-   
+
    constexpr double alpha = -1.0;
    k.AddDomainIntegrator(new ConvectionIntegrator(velocity, alpha));
    k.AddInteriorFaceIntegrator(
@@ -378,7 +389,7 @@ int main(int argc, char *argv[])
       new BoundaryFlowIntegrator(inflow, velocity, alpha));
 
    m.Assemble();
-   
+
    int skip_zeros = 0;
    k.Assemble(skip_zeros);
    b.Assemble();
@@ -420,7 +431,7 @@ int main(int argc, char *argv[])
          ofstream omesh_LOR("ex_sean_LOR.mesh");
          omesh_LOR.precision(precision);
          mesh_LOR.Print(omesh_LOR);
-		
+
          ofstream osol_LOR("ex_sean_LOR-init.gf");
          osol_LOR.precision(precision);
          u_LOR.Save(osol_LOR);
@@ -525,7 +536,7 @@ int main(int argc, char *argv[])
    // Projection onto the LOR space
    GridTransfer *gt;
    gt = new L2ProjectionGridTransfer(fes, fes_LOR);
-      
+
    const Operator &R = gt->ForwardOperator();
 
    // Declaring vectors for the mass and volume
@@ -538,7 +549,7 @@ int main(int argc, char *argv[])
    FindPointsGSLIB finder;
    finder.Setup(mesh_LOR);
    GridFunction node_vals(x.FESpace());
-   
+
    GridFunction u_HO_interp(&fes);
    VisItDataCollection HO_interp_dc("HO_interp", &mesh);
    HO_interp_dc.RegisterField("Density", &u_HO_interp);
@@ -571,7 +582,7 @@ int main(int argc, char *argv[])
 	// how the meshes are structured is stopping me from having an actual
 	// answer to this.  The dt_est is the same the whole time,
 	// which is wrong.
-	*/	
+	*/
       }
 
       if (averaging == 2 || averaging == 3)
@@ -580,7 +591,7 @@ int main(int argc, char *argv[])
         R.Mult(u_HO, u_LOR);
 	//P.Mult(u_LOR, u_HO_interp);
       }
-	
+
       ti++;
 
       done = (t >= t_final - 1e-8*dt);
@@ -588,7 +599,7 @@ int main(int argc, char *argv[])
       if (done || ti % vis_steps == 0)
       {
          cout << "time step: " << ti << ", time: " << t << endl;
-	 
+
          if (visit)
          {
             dc_HO->SetCycle(ti);
@@ -615,7 +626,7 @@ int main(int argc, char *argv[])
 
    // Here we do the interpolation to recover a smoother solution using
    // the LOR solution.
-   
+
    CalculateLORInterp(u_HO_interp,
 		     mesh,
 		     mesh_LOR,
@@ -624,8 +635,8 @@ int main(int argc, char *argv[])
 		     node_vals,
 		     finder,
 		     fes);
-   
-  
+
+
    // 9. Save the final solution. This output can be viewed later using GLVis:
    if (visualization)
    {
@@ -697,8 +708,8 @@ void CalculateLORInterp(GridFunction &u_HO_interp,
 
    // This does not give us what we want I think
    mesh.GetNodes(node_vals);
-   
-   // Grabbing information from the finite element space   
+
+   // Grabbing information from the finite element space
    const FiniteElement *zone = fes.GetFE(0);
    int num_ldofs = zone->GetDof();
 
@@ -717,7 +728,7 @@ void CalculateLORInterp(GridFunction &u_HO_interp,
    Vector x_local;
    x_local.SetSize(x_elem_restrict_lex->Height());
    x_elem_restrict_lex->Mult(x,x_local);
-   
+
    // Grabbing information from the quadrature
    auto x_interpolator = x.FESpace()->GetQuadratureInterpolator(zone_dofs);
    x_interpolator->SetOutputLayout(QVectorLayout::byNODES);
@@ -728,7 +739,7 @@ void CalculateLORInterp(GridFunction &u_HO_interp,
 
    // temporary vector for the interpolating
    Vector HO_dofs(u_HO_dofs);
-   
+
    auto u_LO_view = mfem::Reshape(u_HO_dofs.Read(), num_ldofs, dim, NE);
    auto u_LO_xyz_view = mfem::Reshape(HO_dofs.Write(),num_ldofs*NE, dim);
 
@@ -743,7 +754,7 @@ void CalculateLORInterp(GridFunction &u_HO_interp,
        u_LO_xyz_view(ti, 1) = u_LO_view(i, 1, e);
      }
    }
-   
+
    finder.Interpolate(HO_dofs, u_LOR, u_HO_interp);
 }
 
@@ -890,13 +901,13 @@ void visualize(VisItDataCollection &dc, string prefix, int x, int y)
 
    char vishost[] = "localhost";
    int  visport   = 19916;
-  
+
    socketstream sol_sockL2(vishost, visport);
    sol_sockL2.precision(8);
    sol_sockL2 << "solution\n" << *dc.GetMesh() << *dc.GetField("Density")
               << "window_geometry " << x << " " << y << " " << w << " " << h
               << "plot_caption '" << " " << prefix << " Density'"
-              << "'" << flush; 
+              << "'" << flush;
 }
 
 
@@ -1070,4 +1081,139 @@ double inflow_function(const Vector &x)
       case 3: return 0.0;
    }
    return 0.0;
+}
+
+
+void FCT_Project(DenseMatrix &M,
+                 DenseMatrixInverse &M_inv,
+                 Vector &m,
+                 Vector &x,
+                 double y_min,
+                 double y_max,
+                 Vector &xy)
+{
+  // [IN]  - M, M_inv, m, x, y_min, y_max
+  // [OUT] - xy
+
+  m.HostReadWrite();
+  x.HostReadWrite();
+  xy.HostReadWrite();
+  const int s = M.Size();
+
+  xy.SetSize(s);
+
+  // Compute the lumped mass matrix in ML
+  Vector ML(s);
+  M.GetRowSums(ML);
+
+  // Compute the high-order projection in xy
+  M_inv.Mult(m, xy);
+
+  // Q0 solutions can't be adjusted conservatively. It's what it is.
+  if (xy.Size() == 1)
+    {
+      return;
+    }
+
+  double dMLX(0);
+  for (int i = 0; i < x.Size(); ++i)
+    {
+      dMLX += ML(i) * x(i);
+    }
+
+  const double y_avg = m.Sum() / dMLX;
+
+  if(!(y_min < y_avg + 1e-12 && y_avg < y_max + 1e-12))
+    {
+      std::cout<<"Average is out of bounds: "
+               << "y_min < y_avg + 1e-12 && y_avg < y_max + 1e-12 " << y_min << " " << y_avg
+               << " " << y_max<<std::endl;
+    }
+
+  Vector z(s);
+  Vector beta(s);
+  Vector Mxy(s);
+  M.Mult(xy, Mxy);
+  for (int i = 0; i < s; i++)
+    {
+      // Some different options for beta:
+      //beta(i) = 1.0;
+      beta(i) = ML(i) * x(i);
+      //beta(i) = ML(i)*(x(i) + 1e-14);
+      //beta(i) = ML(i);
+      //beta(i) = Mxy(i);
+
+      // The low order flux correction
+      z(i) = m(i) - ML(i) * x(i) * y_avg;
+    }
+
+  // Make beta_i sum to 1
+  beta /= beta.Sum();
+
+  DenseMatrix F(s);
+  for (int i = 1; i < s; i++)
+    {
+      for (int j = 0; j < i; j++)
+        {
+          F(i, j) = M(i, j) * (xy(i) - xy(j)) + (beta(j) * z(i) - beta(i) * z(j));
+        }
+    }
+
+  Vector gp(s), gm(s);
+  gp = 0.0;
+  gm = 0.0;
+  for (int i = 1; i < s; i++)
+    {
+      for (int j = 0; j < i; j++)
+        {
+          double fij = F(i, j);
+          if (fij >= 0.0)
+            {
+              gp(i) += fij;
+              gm(j) -= fij;
+            }
+          else
+            {
+              gm(i) += fij;
+              gp(j) -= fij;
+            }
+        }
+    }
+
+  for (int i = 0; i < s; i++)
+    {
+      xy(i) = x(i) * y_avg;
+    }
+
+  for (int i = 0; i < s; i++)
+    {
+      double mi = ML(i), xyLi = xy(i);
+      double rp = std::max(mi * (x(i) * y_max - xyLi), 0.0);
+      double rm = std::min(mi * (x(i) * y_min - xyLi), 0.0);
+      double sp = gp(i), sm = gm(i);
+
+      gp(i) = (rp < sp) ? rp / sp : 1.0;
+      gm(i) = (rm > sm) ? rm / sm : 1.0;
+    }
+
+  for (int i = 1; i < s; i++)
+    {
+      for (int j = 0; j < i; j++)
+        {
+          double fij = F(i, j), aij;
+
+          if (fij >= 0.0)
+            {
+              aij = std::min(gp(i), gm(j));
+            }
+          else
+            {
+              aij = std::min(gm(i), gp(j));
+            }
+
+          fij *= aij;
+          xy(i) += fij / ML(i);
+          xy(j) -= fij / ML(j);
+        }
+    }
 }
