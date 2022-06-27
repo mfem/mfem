@@ -580,9 +580,6 @@ void Device::Setup(const int device_id)
    }
    if (Allows(Backend::DEBUG_DEVICE))
    {
-#ifdef HYPRE_USING_GPU
-      MFEM_ABORT("Device debug does not support Hypre built for GPU.");
-#endif
       ngpu = 1;
    }
 }
