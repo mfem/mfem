@@ -24,7 +24,7 @@ namespace mfem
  * - Diagonal: A classic Jacobi type preconditioner
  * - BlockDiagonal: A Jacobi type preconditioner which calculates the diagonal
  *   contribution of ElasticityOperator on each diagonal element and applies
- *   it's inverted submatrix.
+ *   its inverted submatrix.
  */
 class ElasticityDiagonalPreconditioner : public Solver
 {

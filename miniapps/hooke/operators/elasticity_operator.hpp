@@ -122,7 +122,7 @@ public:
    mutable Vector current_state;
    mutable Vector cstate_local_;
    mutable Vector cstate_el_;
-   /// Temporary vector for the pertubation of the solution with essential
+   /// Temporary vector for the perturbation of the solution with essential
    /// boundaries eliminated. Defined as a T-vector.
    mutable Vector dX_ess_;
 
