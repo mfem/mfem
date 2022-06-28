@@ -78,17 +78,9 @@ static void InitRestrictionImpl(const mfem::FiniteElementSpace &fes,
    const mfem::FiniteElement *fe = fes.GetFE(0);
    const mfem::TensorBasisElement * tfe =
       dynamic_cast<const mfem::TensorBasisElement *>(fe);
-   if (tfe)
+   if ( tfe && tfe->GetDofMap().Size()>0 ) // Native ordering using dof_map
    {
-      const mfem::Array<int>& dof_map = tfe->GetDofMap();
-      if (dof_map.Size()>0) // Native ordering using dof_map
-      {
-         InitNativeRestr(fes, ceed, restr);
-      }
-      else  // Lexicographic ordering
-      {
-         InitLexicoRestr(fes, ceed, restr);
-      }
+      InitNativeRestr(fes, ceed, restr);
    }
    else  // Lexicographic ordering
    {
@@ -168,17 +160,9 @@ static void InitRestrictionWithIndicesImpl(
    const mfem::FiniteElement *fe = fes.GetFE(indices[0]);
    const mfem::TensorBasisElement * tfe =
       dynamic_cast<const mfem::TensorBasisElement *>(fe);
-   if (tfe)
+   if ( tfe && tfe->GetDofMap().Size()>0 ) // Native ordering using dof_map
    {
-      const mfem::Array<int>& dof_map = tfe->GetDofMap();
-      if (dof_map.Size() > 0) // Native ordering using dof_map
-      {
-         InitNativeRestrWithIndices(fes, nelem, indices, ceed, restr);
-      }
-      else  // Lexicographic ordering
-      {
-         InitLexicoRestrWithIndices(fes, nelem, indices, ceed, restr);
-      }
+      InitNativeRestrWithIndices(fes, nelem, indices, ceed, restr);
    }
    else  // Lexicographic ordering
    {

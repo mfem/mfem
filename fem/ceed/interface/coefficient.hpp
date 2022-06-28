@@ -12,6 +12,8 @@
 #ifndef MFEM_LIBCEED_COEFF
 #define MFEM_LIBCEED_COEFF
 
+#ifdef MFEM_USE_CEED
+
 #include "../../../general/forall.hpp"
 #include "../../../config/config.hpp"
 #include "../../../linalg/vector.hpp"
@@ -20,8 +22,6 @@
 #include "../../gridfunc.hpp"
 #include "util.hpp"
 #include "ceed.hpp"
-
-#ifdef MFEM_USE_CEED
 
 namespace mfem
 {
