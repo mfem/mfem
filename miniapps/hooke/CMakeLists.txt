@@ -27,12 +27,20 @@ if (MFEM_USE_MPI)
   convert_filenames_to_full_paths(HOOKE_SOURCES)
   convert_filenames_to_full_paths(HOOKE_HEADERS)
 
-  set(NAVIER_COMMON_FILES
+  set(HOOKE_COMMON_FILES
       EXTRA_SOURCES ${HOOKE_SOURCES}
       EXTRA_HEADERS ${HOOKE_HEADERS})
 
   add_mfem_miniapp(hooke
     MAIN hooke.cpp
-    ${NAVIER_COMMON_FILES}
+    ${HOOKE_COMMON_FILES}
     LIBRARIES mfem)
+
+  # Add parallel tests.
+  if (MFEM_ENABLE_TESTING)
+    add_test(NAME hooke_np=${MFEM_MPI_NP}
+      COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${MFEM_MPI_NP}
+      ${MPIEXEC_PREFLAGS} $<TARGET_FILE:hooke> -rs 0 -no-vis
+      ${MPIEXEC_POSTFLAGS})
+  endif()
 endif ()

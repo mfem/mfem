@@ -27,8 +27,14 @@ HOOKE_SRC = hooke.cpp\
 	preconditioners/diagonal_preconditioner.cpp
 HOOKE_OBJ = $(HOOKE_SRC:.cpp=.o)
 
-MINIAPPS = hooke
-MFEM_TESTS = hooke
+SEQ_MINIAPPS =
+PAR_MINIAPPS = hooke
+ifeq ($(MFEM_USE_MPI),NO)
+   MINIAPPS = $(SEQ_MINIAPPS)
+else
+   MINIAPPS = $(PAR_MINIAPPS) $(SEQ_MINIAPPS)
+endif
+MFEM_TESTS = MINIAPPS
 
 .SUFFIXES:
 .SUFFIXES: .o .cpp .mk
@@ -43,9 +49,6 @@ all: $(MINIAPPS)
 
 HOOKE_INCLUDES = -I.
 
-%: %.o
-	$(MFEM_CXX) $(MFEM_LINK_FLAGS) $< -o $@ $(MFEM_LIBS)
-
 hooke: $(HOOKE_OBJ)
 	$(MFEM_CXX) $(MFEM_LINK_FLAGS) -o $@ $(HOOKE_OBJ) $(MFEM_LIBS)
 
@@ -56,7 +59,7 @@ include $(MFEM_TEST_MK)
 
 # Testing: Specific execution options
 RUN_MPI = $(MFEM_MPIEXEC) $(MFEM_MPIEXEC_NP) $(MFEM_MPI_NP)
-hooke-test: hooke
+hooke-test-par: hooke
 	@$(call mfem-test,$<, $(RUN_MPI), Hooke miniapp,-rs 0)
 
 # Generate an error message if the MFEM library is not built and exit
@@ -66,7 +69,7 @@ $(MFEM_LIB_FILE):
 clean: clean-build clean-exec
 
 clean-build:
-	rm -f *.o *~ $(MINIAPPS) kernels/*.o operators/*.o preconditioners/*.o
+	rm -f *.o *~ $(SEQ_MINIAPPS) $(PAR_MINIAPPS) $(HOOKE_OBJ)
 	rm -rf *.dSYM *.TVD.*breakpoints
 
 clean-exec:
