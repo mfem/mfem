@@ -15,10 +15,10 @@ message(STATUS "   in ENZYME_DIR = ${ENZYME_DIR}")
 # Make sure the directory and version combination works. Do nothing otherwise.
 if(EXISTS "${ENZYME_DIR}/ClangEnzyme-${ENZYME_VERSION}.so")
   message(STATUS "Found ENZYME: ${ENZYME_DIR}/ClangEnzyme-${ENZYME_VERSION}.so")
-  
+
   # Set ENZYME_FOUND
   set(ENZYME_FOUND TRUE CACHE BOOL "ENZYME was found." FORCE)
-  
+
   # Set CXX flags to accomodate the Enzyme Clang plugin
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Xclang -load -Xclang ${ENZYME_DIR}/ClangEnzyme-${ENZYME_VERSION}.so -mllvm -enzyme-loose-types=1")
   set(MFEM_USE_ENZYME YES)

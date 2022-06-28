@@ -768,8 +768,6 @@ The specific libraries and their options are:
   Options: BLITZ_OPT, BLITZ_LIB
   Versions: BLITZ = 1.0.2
 
-
-
 - MKL CPardiso (optional), used when MFEM_USE_MKL_CPARDISO = YES.
   URL: https://software.intel.com/content/www/us/en/develop/tools/math-kernel-library.html
   Options: MKL_CPARDISO_OPT, MKL_CPARDISO_LIB.
@@ -845,6 +843,12 @@ The specific libraries and their options are:
 - ParELAG, used when MFEM_USE_PARELAG = YES.
   URL: https://github.com/LLNL/parelag
   Options: PARELAG_DIR, PARELAG_OPT, PARELAG_LIB.
+
+- Enzyme, used when MFEM_USE_ENZYME = YES. Requires LLVM/Clang >= 14.0.0.
+  URL: https://github.com/EnzymeAD/Enzyme
+  Options: ENZYME_DIR, ENZYME_OPT, ENZYME_LIB.
+  Versions: Enzyme >= v0.0.33.
+
 
 Building with CMake
 ===================
@@ -984,6 +988,7 @@ MFEM_USE_CALIPER
 MFEM_USE_FMS
 MFEM_USE_BENCHMARK
 MFEM_USE_PARELAG
+MFEM_USE_ENZYME
 
 The following options are CMake specific:
 
@@ -1043,6 +1048,7 @@ The CMake build system adds auto-detection for the following packages/libraries:
  - FMS
  - BENCHMARK
  - ParELAG
+ - Enzyme
 
 The following built-in CMake packages are also used:
 
