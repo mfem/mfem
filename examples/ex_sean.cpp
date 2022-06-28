@@ -54,6 +54,11 @@ using namespace mfem;
 // inflow boundary condition are chosen based on this parameter.
 int problem;
 
+// Node transform Function
+void NodeShift(const IntegrationPoint &ip,
+							 const int &s,
+						   Vector &ip_trans);
+
 // Calculate the "new" high order solution based on LOR
 void CalculateLORInterp(GridFunction &u_HO_interp,
 		       const Mesh &mesh,
@@ -89,7 +94,7 @@ void UpdateTimeStepEstimate(const Vector &x,
                             const Vector &dx,
                             const Vector &x_min,
                             const Vector &x_max,
-			    double &dt_est);
+			    									double &dt_est);
 
 // For visualization, taken from lor-transfer.cpp
 int Wx = 0, Wy = 0; // window position
@@ -201,7 +206,7 @@ int main(int argc, char *argv[])
    // 1. Parse command-line options.
    problem = 0;
    const char *mesh_file = "../data/periodic-square.mesh";
-   int ref_levels = 3;
+   int ref_levels = 1;
    int order = 2;
    bool pa = false;
    bool ea = false;
@@ -568,21 +573,6 @@ int main(int argc, char *argv[])
       {
         // Calculate the LO solution using u_HO
         CalculateLOSolution(u_HO, x, dt_real, u_LO, el_mass, el_vol);
-
-	/*
-	// Find the mins and maxes of the elements
-	ComputeElementsMinMax(u_HO, fes, el_min, el_max, NULL, NULL);
-
-	// It wouldn't be too hard to implement the time step adjustment
-	// step but as far as I know we're sticking with a fixed timestep so
-	// we're just not going to mess with things right now
-	UpdateTimeStepEstimate(u_LO, du_LO, el_min, el_max, dt_est);
-
-	// I'm not sure what is here is correct, currently my ignorance of
-	// how the meshes are structured is stopping me from having an actual
-	// answer to this.  The dt_est is the same the whole time,
-	// which is wrong.
-	*/
       }
 
       if (averaging == 2 || averaging == 3)
@@ -624,9 +614,72 @@ int main(int argc, char *argv[])
       }
    }
 
+	 //---------------------------------------------------------------------------
+	 // Trying to send the LOR solution to the HO the chad L2 projection way
+
+	 Mesh *mesh_temp_LOR = fes_LOR.GetMesh();
+   GridFunction x_LOR(mesh_temp_LOR->GetNodes()->FESpace());
+   mesh_temp_LOR->GetNodes(x_LOR);
+
+	 auto *Tr_LOR = x_LOR.FESpace()->GetMesh()->GetElementTransformation(0);
+	 const int NE_LOR = x_LOR.FESpace()->GetNE();
+	 // Need this alue because it's how many subcells there are to a cell.
+	 const int subcell_num = lref * lref;
+
+	 const FiniteElement *fe_LOR = u_LOR.FESpace()->GetFE(0);
+	 const IntegrationRule &ir_LOR = MassIntegrator::GetRule(*fe_LOR, *fe_LOR, *Tr_LOR);
+	 const int nqp_LOR = ir_LOR.GetNPoints();
+	 //cout << "ir_LOR(0) = " << ir_LOR->IntPoint(0) << endl;
+
+	 // This creates a matrix of basis functions evaluated at
+	 // quadrature points.  Storage is nqpt x ndofs
+	 const DofToQuad &maps = fe_LOR->GetDofToQuad(ir_LOR, DofToQuad::TENSOR);
+	 cout << maps.B[0] << endl;
+
+	 // Grabbing information from the quadrature
+	 GeometricFactors geom_LOR(x_LOR, ir_LOR, GeometricFactors::DETERMINANTS);
+	 auto qi_u_LOR = u_LOR.FESpace()->GetQuadratureInterpolator(ir_LOR);
+	 Vector u_LOR_qvals(subcell_num * nqp_LOR * NE);
+
+	 qi_u_LOR->Values(u_LOR, u_LOR_qvals);
+
+	 Vector m_proj(nqp_LOR * NE);
+	 Vector ip_trans(3);
+
+	 // Integration loop to calculate main looping
+
+	 for (int k = 0; k < NE; k++)
+	 {
+		  for (int s = 0; s < subcell_num; s++)
+			{
+				 for (int q = 0; q < nqp_LOR; q++)
+				 {
+					  const IntegrationPoint &ip_LOR = ir_LOR.IntPoint(q);
+						//cout << "x coord of ir_LOR = " << ip_LOR.x << endl;
+						//cout << "y coord of ir_LOR = " << ip_LOR.y << endl;
+						//cout << endl;
+						NodeShift(ip_LOR, s, ip_trans);
+						//cout << "x coord of new ir_LOR = " << ip_trans(0) << endl;
+						//cout << "y coord of new ir_LOR = " << ip_trans(1) << endl;
+						//cout << endl;
+
+						// The indexing is a little confusing but this should be correct
+						// Need to map these values into the HO space
+						// The nods on the reference element here are smol compared to the
+						// macro element, so we need a function to essentially map
+						// [0,1] to [0,.5]
+					  m_proj(k) += ip_LOR.weight
+											* geom_LOR.detJ(k*subcell_num*nqp_LOR + s*nqp_LOR + q)
+											* u_LOR_qvals(k*subcell_num + s);
+				 }
+			}
+	 }
+
+	 //---------------------------------------------------------------------------
+
+
    // Here we do the interpolation to recover a smoother solution using
    // the LOR solution.
-
    CalculateLORInterp(u_HO_interp,
 		     mesh,
 		     mesh_LOR,
@@ -693,6 +746,29 @@ int main(int argc, char *argv[])
    return 0;
 }
 
+// Need this function to shift the reference node values for the L2 Projection
+void NodeShift(const IntegrationPoint &ip,
+							 const int &s,
+						   Vector &ip_trans)
+{
+	 Vector temp(3);
+	 ip_trans(0) = ip.x;
+	 ip_trans(1) = ip.y;
+	 ip_trans(2) = 1;
+
+	 DenseMatrix trans(3);
+	 trans(0,0) = .5;
+	 trans(1,1) = .5;
+	 trans(2,2) = 1;
+
+	 if (s == 1){ trans(0,2) = .5; }
+	 else if (s == 2){ trans(1,2) = .5; }
+	 else if (s == 3){ trans(0,2) = .5; trans(1,2) = .5; }
+
+	 trans.Mult(ip_trans, temp);
+
+	 ip_trans = temp;
+}
 
 void CalculateLORInterp(GridFunction &u_HO_interp,
 		       const Mesh &mesh,
@@ -743,8 +819,6 @@ void CalculateLORInterp(GridFunction &u_HO_interp,
    auto u_LO_view = mfem::Reshape(u_HO_dofs.Read(), num_ldofs, dim, NE);
    auto u_LO_xyz_view = mfem::Reshape(HO_dofs.Write(),num_ldofs*NE, dim);
 
-   cout << endl;
-   cout << "Dof List" << endl;
    for (int e = 0; e < NE; ++e)
    {
      for (int i = 0; i < num_ldofs; ++i)
@@ -757,23 +831,6 @@ void CalculateLORInterp(GridFunction &u_HO_interp,
 
    finder.Interpolate(HO_dofs, u_LOR, u_HO_interp);
 }
-
-/*
-// Calculate the Low Order Refined Solution
-void CalculateLORSolution(GridTransfer &gt,
-			  const GridFunction &u_HO,
-			  GridFunction &u_LOR)
-{
-   // Projection onto the LOR space
-  
-   GridTransfer *gt;
-   gt = new L2ProjectionGridTransfer(fes, fes_LOR);
-      
-   const Operator &R = gt->ForwardOperator();
-  
-   R.Mult(u_HO, u_LOR);
-}
-*/
 
 // Calculate the Low Order solution
 void CalculateLOSolution(const GridFunction &u_HO,
