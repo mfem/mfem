@@ -753,7 +753,8 @@ zero outer(const tensor<T, n>&, zero)
 
 /**
  * @overload
- * @note this overload implements the case where the left argument is a tensor, and the right argument is a tensor
+ * @note this overload implements the case where the left argument is a scalar,
+ * and the right argument is a tensor
  */
 template <typename S, typename T, int m, int n> MFEM_HOST_DEVICE
 tensor<decltype(S{} * T{}), m, n> outer(S A, const tensor<T, m, n>& B)

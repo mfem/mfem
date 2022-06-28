@@ -26,7 +26,7 @@
 // By default the NeoHookeanMaterial is used. A linear elastic material is also
 // provided. Based on these examples, other materials could be implemented.
 //
-// The implementation of NeoHookeanMaterial also demenstrates the use of
+// The implementation of NeoHookeanMaterial also demonstrates the use of
 // automatic differentiation using either a native dual number forward mode
 // implementation or leveraging the Enzyme third party library.
 
@@ -70,7 +70,8 @@ int main(int argc, char *argv[])
    bool visualization = true;
    bool paraview = false;
 
-   if (Mpi::Root()) {
+   if (Mpi::Root())
+   {
       display_banner(out);
    }
 
