@@ -14,12 +14,14 @@ if (MFEM_USE_MPI)
       navier_solver.cpp
       ortho_solver.cpp
       navier_3d_brink_workflow.cpp
-      ascii.cpp)
+      ascii.cpp
+      MeshOptSolver.cpp)
   list(APPEND NAVIER_COMMON_HEADERS
       navier_solver.hpp
       ortho_solver.hpp
       navier_3d_brink_workflow.hpp
-      ascii.hpp)
+      ascii.hpp
+      MeshOptSolver.hpp)
 
   convert_filenames_to_full_paths(NAVIER_COMMON_SOURCES)
   convert_filenames_to_full_paths(NAVIER_COMMON_HEADERS)
