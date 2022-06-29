@@ -29,45 +29,25 @@ namespace mfem
 
 struct Jit
 {
-   /// Initialize JIT, used in communication Mpi singleton.
+   /// Initialize JIT, used in communication MPI singleton.
    static void Init(int *argc, char ***argv);
 
-   /// Set the archive name to @name. Keep cahe with keep.
+   /// Set the archive name to @a name and the path to @a path.
+   /// If @a keep is set to false, the cache will be removed by the MPI root.
    static void Configure(const char *name, const char *path, bool keep = true);
 
-   /// Finalize JIT, used in communication Mpi singleton.
+   /// Finalize JIT, used in communication MPI singleton.
    static void Finalize();
-
-   /// Lookup symbol in the cache, launch the compile if needed.
-   static void* Lookup(const size_t hash, const char *name, const char *cxx,
-                       const char *flags, const char *link, const char *libs,
-                       const char *source, const char *symbol);
-
-   /// Kernel class
-   template<typename kernel_t> struct Kernel
-   {
-      kernel_t kernel;
-
-      /// \brief Kernel constructor
-      Kernel(const size_t hash, const char *name, const char *cxx,
-             const char *flags, const char *link, const char *libs,
-             const char *src, const char *symbol):
-         kernel((kernel_t)
-                Jit::Lookup(hash, name, cxx, flags, link, libs, src, symbol)) {}
-
-      /// Kernel launch
-      template<typename... Args> void operator()(Args... as) { kernel(as...); }
-   };
-
-   /// \brief Terminal binary arguments hash combine function.
-   template <typename T> static inline
-   size_t Hash(const size_t &h, const T &a) noexcept
-   { return h ^ (std::hash<T> {}(a) + 0x9e3779b97f4a7c15ull + (h<<12) + (h>>4));}
 
    /// \brief Variadic hash combine function.
    template<typename T, typename... Args> static inline
    size_t Hash(const size_t &h, const T &arg, Args ...args) noexcept
    { return Hash(Hash(h, arg), args...); }
+
+   /// \brief Terminal binary arguments hash combine function.
+   template <typename T> static inline
+   size_t Hash(const size_t &h, const T &a) noexcept
+   { return h ^ (std::hash<T> {}(a) + 0x9e3779b97f4a7c15ull + (h<<12) + (h>>4));}
 
    /// \brief Creates a string from the hash and the optional extension.
    static std::string ToString(const size_t hash, const char *ext = "")
@@ -78,27 +58,43 @@ struct Jit
       return ss.str();
    }
 
+   /// Lookup symbol in the cache and launch the compilation if needed.
+   static void* Lookup(const size_t hash, const char *name, const char *cxx,
+                       const char *flags, const char *link, const char *libs,
+                       const char *source, const char *symbol);
+
+   /// Kernel construction and launcher
+   template<typename kernel_t> struct Kernel
+   {
+      kernel_t kernel;
+      Kernel(const size_t hash, const char *name, const char *cxx, const char *flags,
+             const char *link, const char *libs, const char *src, const char *sym):
+         kernel((kernel_t) Jit::Lookup(hash, name, cxx, flags, link, libs, src, sym)) {}
+
+      template<typename... Args> void operator()(Args... as) { kernel(as...); }
+   };
+
    /// \brief Find a Kernel in the given @a map.
    /// If the kernel cannot be found, it will be inserted into the map.
    template <typename T, typename... Args> static inline
-   Kernel<T> Find(const size_t hash, const char *name, const char *cxx,
+   Kernel<T> Find(const size_t hash, const char *kernel_name, const char *cxx,
                   const char *flags, const char *link, const char *libs,
-                  const char *source,
-                  std::unordered_map<size_t, Kernel<T>> &map, Args ...args)
+                  const char *src, std::unordered_map<size_t, Kernel<T>> &map,
+                  Args ...args)
    {
-      auto kernel_it = map.find(hash);
-      if (kernel_it == map.end())
+      auto kit = map.find(hash);
+      if (kit == map.end())
       {
-         const int n = snprintf(nullptr, 0, source, hash, hash, hash, args...);
-         const int m = snprintf(nullptr, 0, name, args...);
-         std::string src(n+1, '\0'), knm(m+1, '\0');
-         snprintf(&src[0], n+1, source, hash, hash, hash, args...);
-         snprintf(&knm[0], m+1, name, args...);
-         map.emplace(hash, Kernel<T>(hash, &knm[0], cxx, flags, link, libs,
-                                     &src[0], ToString(hash).c_str()));
-         kernel_it = map.find(hash);
+         const int n = snprintf(nullptr, 0, src, hash, hash, hash, args...);
+         const int m = snprintf(nullptr, 0, kernel_name, args...);
+         std::string buf(n+1, '\0'), ker(m+1, '\0');
+         snprintf(&buf[0], n+1, src, hash, hash, hash, args...);
+         snprintf(&ker[0], m+1, kernel_name, args...); // ker_name<...>
+         map.emplace(hash, Kernel<T>(hash, &ker[0], cxx, flags, link, libs,
+                                     &buf[0], ToString(hash).c_str()));
+         kit = map.find(hash);
       }
-      return kernel_it->second;
+      return kit->second;
    }
 };
 
