@@ -468,7 +468,7 @@ public:
                Command() << cxx << link << "-shared" << "-o" << so
                          << Xprefix() << Lib_ar() << Xpostfix()
                          << Xlinker() + "-rpath,." << libs;
-               if (Call()) { return EXIT_FAILURE; }
+               if (Call(Debug()?name:nullptr)) { return EXIT_FAILURE; }
                // Install temporary shared library: so => Lib_so
                io::FileLock so_lock(Lib_so(), "ok");
                install(so, Lib_so());

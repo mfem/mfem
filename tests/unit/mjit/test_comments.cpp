@@ -39,6 +39,7 @@ MFEM_JIT template<int T_Q> void parser2(int q = 0)
       {
          /*3*/
          MFEM_CONTRACT_VAR(q);
+         // {}}}
          // ~3
       }
       /*~2*/
@@ -159,6 +160,7 @@ void SmemPADiffusionApply3D(const int NE,
       MFEM_CONTRACT_VAR(b);
       MFEM_CONTRACT_VAR(g);
       MFEM_CONTRACT_VAR(x);
+      assert("{""{{}""}}}}}");
    });
    // after forall
    assert(NE > 0);

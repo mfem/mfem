@@ -133,6 +133,14 @@ struct Parser
 
    void skip_space() { while (is_space()) { put(); } }
 
+   void skip_string()
+   {
+      if (!in.eof() && good() && is_quote())
+      {
+         for (check(put()=='"'); !is_quote(); put());
+      }
+   }
+
    bool is_comment()
    {
       if (!good()) { return false; }
@@ -145,7 +153,7 @@ struct Parser
       return false;
    }
 
-   void comments()
+   void skip_comments()
    {
       while (!in.eof() && good() && is_comment())
       {
@@ -163,7 +171,7 @@ struct Parser
       }
    }
 
-   void next() { skip_space(); comments(); }
+   void next() { skip_space(); skip_string(); skip_comments(); }
 
    bool is_id() { const char c = in.peek(); return std::isalnum(c) || c == '_'; }
 
@@ -202,6 +210,7 @@ struct Parser
    bool is_slash() { return is_char('/'); }
    bool is_star() { return is_char('*'); }
    bool is_coma() { return is_char(','); }
+   bool is_quote() { return is_char('"'); }
    bool is_amp() { return is_char('&'); }
    bool is_eq() { return is_char('='); }
    bool is_lt() { return is_char('<'); }
@@ -282,7 +291,7 @@ struct Parser
       {
          if (is_comment())
          {
-            comments();
+            skip_comments();
             if (!id.empty() && id.back() != '.' && !ker.eq) { id += '.'; }
          }
          check(good());
