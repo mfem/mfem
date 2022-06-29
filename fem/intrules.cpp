@@ -1728,6 +1728,7 @@ IntegrationRule *IntegrationRules::CubeIntegrationRule(int Order)
 NURBSPatchProductRule::NURBSPatchProductRule(IntegrationRule *irx,
                                              IntegrationRule *iry,
                                              IntegrationRule *irz)
+   : dim(irz ? 3 : 2)
 {
    if (irz)
    {
@@ -1738,5 +1739,102 @@ NURBSPatchProductRule::NURBSPatchProductRule(IntegrationRule *irx,
       ir = new IntegrationRule(*irx, *iry);
    }
 }
+
+IntegrationRule& NURBSPatchProductRule::GetElementRule(const int patch,
+                                                       int *ijk,
+                                                       Array<const KnotVector*> const& kv) const
+{
+   if (patchRules1D.NumRows())
+   {
+      MFEM_VERIFY(kv.Size() == dim, "");
+
+      int np = 1;
+      std::vector<std::vector<double>> el(dim);
+
+      std::vector<int> npd;
+      npd.assign(3, 0);
+
+      for (int d=0; d<dim; ++d)
+      {
+         const int order = kv[d]->GetOrder();
+
+         const double kv0 = (*kv[d])[order + ijk[d]];
+         const double kv1 = (*kv[d])[order + ijk[d] + 1];
+
+         const bool rightEnd = (order + ijk[d] + 1) == (kv[d]->Size() - 1);
+
+         for (int i=0; i<patchRules1D(patch,d)->Size(); ++i)
+         {
+            IntegrationPoint& ip = (*patchRules1D(patch,d))[i];
+            if (kv0 <= ip.x && (ip.x < kv1 || rightEnd))
+            {
+               const double x = (ip.x - kv0) / (kv1 - kv0);
+               el[d].push_back(x);
+               el[d].push_back(ip.weight);
+            }
+         }
+
+         npd[d] = el[d].size() / 2;
+         np *= npd[d];
+      }
+
+      if (irp == nullptr)
+      {
+         irp = new IntegrationRule(np);
+      }
+      else
+      {
+         irp->SetSize(np);
+      }
+
+      // Set (*irp)[i + j*npd[0] + k*npd[0]*npd[1]] = (el[0][2*i], el[1][2*j], el[2][2*k])
+
+      MFEM_VERIFY(npd[0] > 0 && npd[1] > 0, "Assuming 2D or 3D");
+
+      for (int i = 0; i < npd[0]; ++i)
+      {
+         for (int j = 0; j < npd[1]; ++j)
+         {
+            for (int k = 0; k < std::max(npd[2], 1); ++k)
+            {
+               const int id = i + j*npd[0] + k*npd[0]*npd[1];
+               (*irp)[id].x = el[0][2*i];
+               (*irp)[id].y = el[1][2*j];
+
+               (*irp)[id].weight = el[0][(2*i)+1];
+               (*irp)[id].weight *= el[1][(2*j)+1];
+
+               if (npd[2] > 0)
+               {
+                  (*irp)[id].z = el[2][2*k];
+                  (*irp)[id].weight *= el[2][(2*k)+1];
+               }
+            }
+         }
+      }
+
+      return *irp;
+   }
+   else if (patchRule.Size())  // TODO: this case is never used. Remove it?
+   {
+      return *patchRule[patch];
+   }
+   else
+   {
+      return *ir;
+   }
+}
+
+void NURBSPatchProductRule::SetPatchRules1D(const int patch,
+                                            std::vector<IntegrationRule*> & ir1D)
+{
+   MFEM_VERIFY(ir1D.size() == dim, "Wrong dimension");
+
+   for (int i=0; i<dim; ++i)
+   {
+      patchRules1D(patch,i) = ir1D[i];
+   }
+}
+
 
 }

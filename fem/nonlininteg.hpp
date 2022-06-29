@@ -44,6 +44,7 @@ public:
    virtual void SetIntRule(const IntegrationRule *ir) { IntRule = ir; }
 
    void SetNURBSPatchIntRule(NURBSPatchProductRule *pr) { NURBSPatchRule = pr; }
+   bool HasNURBSPatchRule() { return NURBSPatchRule != nullptr; }
 
    /// Prescribe a fixed IntegrationRule to use.
    void SetIntegrationRule(const IntegrationRule &ir) { SetIntRule(&ir); }
