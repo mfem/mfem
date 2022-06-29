@@ -18,6 +18,8 @@
 namespace mfem
 {
 
+class KnotVector;
+
 /* Classes for IntegrationPoint, IntegrationRule, and container class
    IntegrationRules.  Declares the global variable IntRules */
 
@@ -266,7 +268,8 @@ class NURBSPatchProductRule
 {
 public:
    // Construct a rule for each patch, using SetPatchRule.
-   NURBSPatchProductRule(const int numPatches) : patchRule(numPatches)
+   NURBSPatchProductRule(const int numPatches, const int dim_) :
+      patchRule(numPatches), patchRules1D(numPatches, dim_), dim(dim_)
    {
       patchRule = nullptr;
    }
@@ -275,30 +278,26 @@ public:
    NURBSPatchProductRule(IntegrationRule *irx, IntegrationRule *iry,
                          IntegrationRule *irz = nullptr);
 
-   // TODO: remove ijk argument?
-   IntegrationRule &GetElementRule(const int patch, int *ijk) const
-   {
-      if (patchRule.Size())
-      {
-         return *patchRule[patch];
-      }
-      else
-      {
-         return *ir;
-      }
-   }
+   IntegrationRule &GetElementRule(const int patch, int *ijk,
+                                   Array<const KnotVector*> const& kv) const;
 
    void SetPatchRule(const int patch, IntegrationRule *ir_patch)
    {
       patchRule[patch] = ir_patch;
    }
 
+   void SetPatchRules1D(const int patch, std::vector<IntegrationRule*> & ir1D);
+
    ~NURBSPatchProductRule()
    { delete ir; }
 
 private:
    IntegrationRule *ir = nullptr;
+   mutable IntegrationRule *irp = nullptr;
    Array<IntegrationRule*> patchRule;
+   Array2D<IntegrationRule*> patchRules1D;
+
+   const int dim;
 };
 
 /// A Class that defines 1-D numerical quadrature rules on [0,1].

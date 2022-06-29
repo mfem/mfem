@@ -120,23 +120,23 @@ void BilinearFormIntegrator::AssembleDiagonalMF(Vector &)
                "   is not implemented for this class.");
 }
 
-void BilinearFormIntegrator::AssembleElementMatrix (
+void BilinearFormIntegrator::AssembleElementMatrix(
    const FiniteElement &el, ElementTransformation &Trans,
-   DenseMatrix &elmat )
+   DenseMatrix &elmat)
 {
    mfem_error ("BilinearFormIntegrator::AssembleElementMatrix(...)\n"
                "   is not implemented for this class.");
 }
 
-void BilinearFormIntegrator::AssembleElementMatrix2 (
+void BilinearFormIntegrator::AssembleElementMatrix2(
    const FiniteElement &el1, const FiniteElement &el2,
-   ElementTransformation &Trans, DenseMatrix &elmat )
+   ElementTransformation &Trans, DenseMatrix &elmat)
 {
    mfem_error ("BilinearFormIntegrator::AssembleElementMatrix2(...)\n"
                "   is not implemented for this class.");
 }
 
-void BilinearFormIntegrator::AssembleFaceMatrix (
+void BilinearFormIntegrator::AssembleFaceMatrix(
    const FiniteElement &el1, const FiniteElement &el2,
    FaceElementTransformations &Trans, DenseMatrix &elmat)
 {
@@ -151,6 +151,14 @@ void BilinearFormIntegrator::AssembleFaceMatrix(
 {
    MFEM_ABORT("AssembleFaceMatrix (mixed form) is not implemented for this"
               " Integrator class.");
+}
+
+void BilinearFormIntegrator::AssembleNURBSPatchMatrix(
+   const FiniteElement &el, ElementTransformation &Trans,
+   DenseMatrix &elmat)
+{
+   mfem_error ("BilinearFormIntegrator::AssembleNURBSPatchMatrix(...)\n"
+               "   is not implemented for this class.");
 }
 
 void BilinearFormIntegrator::AssembleElementVector(
@@ -841,8 +849,15 @@ void DiffusionIntegrator::AssembleElementMatrix
       const int patch = NURBSFE->GetPatch();
       int ijk[3];
       NURBSFE->GetIJK(ijk);
+      Array<const KnotVector*>& kv = NURBSFE->KnotVectors();
+      /*
+      cout << "Patch " << patch << ", ijk " << ijk[0] << ", " << ijk[1] << ", " <<
+           ijk[2] << endl;
+      */
 
-      irn = &NURBSPatchRule->GetElementRule(patch, ijk);
+      MFEM_VERIFY(kv.Size() == dim, "Sanity check (remove later)");
+
+      irn = &NURBSPatchRule->GetElementRule(patch, ijk, kv);
    }
 
    const int numIP = irn ? irn->GetNPoints() : ir->GetNPoints();
