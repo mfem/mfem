@@ -1660,6 +1660,15 @@ private:
    /// Nedelec interpolation matrix and its components
    HypreParMatrix *Pi, *Pix, *Piy, *Piz;
 
+   /// Spatial dimension of the underlying mesh
+   int sdim = 0;
+   /// flag set if `SetSingularProblem` is called, needed in `ResetAMSPrecond`
+   bool singular = false;
+
+   // Saves the options from ams, destroys it, allocates a new
+   // one, and sets its options to the saved values.
+   void ResetAMSPrecond();
+
 public:
    /// @brief Construct the AMS solver on the given edge finite element space.
    ///
@@ -1682,7 +1691,7 @@ public:
    void SetPrintLevel(int print_lvl);
 
    /// Set this option when solving a curl-curl problem with zero mass term
-   void SetSingularProblem() { HYPRE_AMSSetBetaPoissonMatrix(ams, NULL); }
+   void SetSingularProblem() { HYPRE_AMSSetBetaPoissonMatrix(ams, NULL); singular = true; }
 
    /// The typecast to HYPRE_Solver returns the internal ams object
    virtual operator HYPRE_Solver() const { return ams; }
