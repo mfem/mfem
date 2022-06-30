@@ -42,7 +42,7 @@ LinearForm::LinearForm(FiniteElementSpace *f, LinearForm *lf)
 }
 
 LinearForm::LinearForm(LinearForm &&other)
-   : Vector(std::move(other)), fes(other.fes), extern_lfs(other.extern_lfs)
+   : Vector(std::move(other)), fes(other.fes), ext(other.ext), extern_lfs(other.extern_lfs)
 {
    // Linear forms are stored on the device
    UseDevice(true);
@@ -58,6 +58,8 @@ LinearForm::LinearForm(LinearForm &&other)
    mfem::Swap(interior_face_integs, other.interior_face_integs);
 
    other.fes = nullptr;
+
+   other.ext = nullptr;
 
    // moved LinearForm now set to owns its integrators, though none are stored
    // since we swapped our newly constructed empty Arrays with its Arrays
@@ -141,6 +143,9 @@ LinearForm& LinearForm::operator=(LinearForm &&other)
 
       fes = other.fes;
       other.fes = nullptr;
+
+      ext = other.ext;
+      other.ext = nullptr;
 
       extern_lfs = other.extern_lfs;
       // moved LinearForm now set to owns its integrators, though none are stored
