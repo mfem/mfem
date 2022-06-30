@@ -1660,8 +1660,9 @@ private:
    /// Nedelec interpolation matrix and its components
    HypreParMatrix *Pi, *Pix, *Piy, *Piz;
 
+   /// TODO: dont need either of these two fields if Hypre iterface is updated
    /// Spatial dimension of the underlying mesh
-   int sdim = 0;
+   int space_dim = 0;
    /// flag set if `SetSingularProblem` is called, needed in `ResetAMSPrecond`
    bool singular = false;
 
