@@ -39,17 +39,35 @@ void velocity_function(const Vector &x, Vector &v)
 }
 
 /// A kernel testing DG Convection
-struct Kernel
+struct KernelMesh
 {
-   const int N, p, q, dim = 3;
+   const int N;
    Mesh mesh;
+
+   KernelMesh(int N, double prob)
+   : N(N), mesh(Mesh::MakeCartesian3D(N,N,N,Element::HEXAHEDRON))
+   {
+      if (prob >= 0.0)
+      {
+         mesh.EnsureNCMesh();
+         if (prob > 0.0)
+         {
+            mesh.RandomRefinement(prob);
+         }            
+      }
+   }
+};
+
+struct Kernel: public KernelMesh
+{
+   const int p, q, dim = 3;
    DG_FECollection fec;
    FiniteElementSpace fes;
-   const Geometry::Type geom_type;
-   IntegrationRules IntRulesGLL;
-   const IntegrationRule *irGLL;
-   const IntegrationRule *ir;
-   ConstantCoefficient one;
+   // const Geometry::Type geom_type;
+   // IntegrationRules IntRulesGLL;
+   // const IntegrationRule *irGLL;
+   // const IntegrationRule *ir;
+   // ConstantCoefficient one;
    const int dofs;
    GridFunction x,y;
    BilinearForm a;
@@ -58,17 +76,16 @@ struct Kernel
 
    Kernel(int order, int N, double prob = -1, bool GLL = false)
    : 
-      N(N),
+      KernelMesh(N, prob),
       p(order),
       q(2*p + (GLL?-1:3)),
-      mesh(Mesh::MakeCartesian3D(N,N,N,Element::HEXAHEDRON)),
       fec(p, dim, BasisType::GaussLobatto),
       fes(&mesh, &fec),
-      geom_type(fes.GetFE(0)->GetGeomType()),
-      IntRulesGLL(0, Quadrature1D::GaussLobatto),
-      irGLL(&IntRulesGLL.Get(geom_type, q)),
-      ir(&IntRules.Get(geom_type, q)),
-      one(1.0),
+      // geom_type(fes.GetFE(0)->GetGeomType()),
+      // IntRulesGLL(0, Quadrature1D::GaussLobatto),
+      // irGLL(&IntRulesGLL.Get(geom_type, q)),
+      // ir(&IntRules.Get(geom_type, q)),
+      // one(1.0),
       dofs(fes.GetTrueVSize()),
       x(&fes),
       y(&fes),
@@ -78,14 +95,6 @@ struct Kernel
    {
       if (is_runnable())
       {
-         if (prob >= 0)
-         {
-            mesh.EnsureNCMesh();
-            if (prob > 0)
-            {
-               mesh.RandomRefinement(prob);
-            }            
-         }         
          x.Randomize(1);
          a.SetAssemblyLevel(AssemblyLevel::PARTIAL);
          a.AddDomainIntegrator(new ConvectionIntegrator(velocity, -1.0));
