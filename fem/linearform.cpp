@@ -42,7 +42,8 @@ LinearForm::LinearForm(FiniteElementSpace *f, LinearForm *lf)
 }
 
 LinearForm::LinearForm(LinearForm &&other)
-   : Vector(std::move(other)), fes(other.fes), ext(other.ext), extern_lfs(other.extern_lfs)
+   : Vector(std::move(other)), fes(other.fes), ext(other.ext),
+     extern_lfs(other.extern_lfs)
 {
    // Linear forms are stored on the device
    UseDevice(true);
