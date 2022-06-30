@@ -464,6 +464,9 @@ complex<double> yi(double w, double wci, double bx, double xi,
 complex<double> ytot(double w, double wci, double bx, double xi,
                      double mass_e, double mass_i)
 {
+   // cout << "ye " << ye(bx,xi)  << endl;
+   // cout << "yd " << yd(w,wci,bx,xi,mass_e,mass_i)  << endl;
+   // cout << "yi " << yi(w,wci,bx,xi,mass_e,mass_i)  << endl;
    complex<double> ytot = ye(bx,xi) +
                           yd(w,wci,bx,xi,mass_e,mass_i) + yi(w,wci,bx,xi,mass_e,mass_i);
    return (ytot);
@@ -586,15 +589,14 @@ SheathImpedance::SheathImpedance(const ParGridFunction & B,
      B_(B)
 {}
 
-double SheathImpedance::Eval(ElementTransformation &T,
-                             const IntegrationPoint &ip)
+complex<double> SheathImpedance::z(const complex<double> &phi,
+                                   ElementTransformation &T,
+                                   const IntegrationPoint &ip)
 {
    // Collect density, temperature, magnetic field, and potential field values
    Vector B(3);
    B_.GetVectorValue(T, ip, B);
    double Bmag = B.Norml2();                         // Units: T
-
-   complex<double> phi = EvalSheathPotential(T, ip); // Units: V
 
    double density_val = EvalIonDensity(T, ip);       // Units: # / m^3
    double temp_val = EvalElectronTemp(T, ip);        // Units: eV
@@ -613,11 +615,14 @@ double SheathImpedance::Eval(ElementTransformation &T,
    nor.SetSize(3);
    double normag = nor.Norml2();
    double bn = (B * nor)/(normag*Bmag); // Unitless
-
+   // cout << "bn " << bn << endl;
+   // cout << "wci " << wci << endl;
+   // cout << "wpi " << wpi << endl;
+   // cout << "dl " << debye_length << endl;
    // Setting up normalized V_RF:
    // Jim's newest parametrization (Myra et al 2017):
    double volt_norm = (phi_mag)/temp_val ; // Unitless: V zero-to-peak
-
+   // cout << "vn " << volt_norm << endl;
    // Jim's old parametrization (Kohno et al 2017):
    //double volt_norm = (2*phi_mag)/temp_val ; // Unitless: V peak-to-peak
 
@@ -629,7 +634,9 @@ double SheathImpedance::Eval(ElementTransformation &T,
    // Jim's newest parametrization (Myra et al 2017):
    complex<double> zsheath_norm = 1.0 / ytot(w_norm, wci_norm, bn, volt_norm,
                                              masses_[0], masses_[1]);
-
+   // cout << "m0 " << masses_[0] << endl;
+   // cout << "m1 " << masses_[1] << endl;
+   // cout << "ytot " << 1.0 / zsheath_norm << endl;
    // Jim's old parametrization (Kohno et al 2017):
    //complex<double> zsheath_norm = 1.0 / ftotcmplxANY(w_norm, volt_norm);
 
@@ -645,15 +652,42 @@ double SheathImpedance::Eval(ElementTransformation &T,
    cout << "Check 6:" << yi(0.2, 0.3, 0.4, 13,masses_[0], masses_[1]).real() - 0.006543897148693344 << yi(0.2, 0.3, 0.4, 13,masses_[0], masses_[1]).imag()+0.013727440802110503 << endl;
    cout << "Check 7:" << ytot(0.2, 0.3, 0.4, 13,masses_[0], masses_[1]).real()-0.05185050837032144 << ytot(0.2, 0.3, 0.4, 13,masses_[0], masses_[1]).imag()+0.0394656455302314 << endl;
     */
+   if (isnan(zsheath_norm.real()))
+   {
+      zsheath_norm = complex<double>(0.0, zsheath_norm.imag());
+   }
+   if (isnan(zsheath_norm.imag()))
+   {
+      zsheath_norm = complex<double>(zsheath_norm.real(), 0.0);
+   }
+   return zsheath_norm*debye_length/(epsilon0_*wpi); // Units: Ohm m^2
+   /*
+    if (realPart_)
+    {
+       return (zsheath_norm.real()*debye_length)/(epsilon0_*wpi); // Units: Ohm m^2
+
+    }
+    else
+    {
+       return (zsheath_norm.imag()*debye_length)/(epsilon0_*wpi); // Units: Ohm m^2
+    }
+   */
+}
+
+double SheathImpedance::Eval(ElementTransformation &T,
+                             const IntegrationPoint &ip)
+{
+   complex<double> phi = EvalSheathPotential(T, ip); // Units: V
+
+   complex<double> zsheath = z(phi, T, ip);
 
    if (realPart_)
    {
-      return (zsheath_norm.real()*debye_length)/(epsilon0_*wpi); // Units: Ohm m^2
-
+      return zsheath.real();
    }
    else
    {
-      return (zsheath_norm.imag()*debye_length)/(epsilon0_*wpi); // Units: Ohm m^2
+      return zsheath.imag();
    }
 }
 

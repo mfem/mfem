@@ -562,6 +562,7 @@ int main(int argc, char *argv[])
    int par_ref_levels = 0;
    int order = 1;
    int maxit = 1;
+   int smaxit = 1;
    int sol = 2;
    int prec = 1;
    // int nspecies = 2;
@@ -1784,6 +1785,10 @@ int main(int argc, char *argv[])
    if (sbca.Size() > 0)
    {
       stixBCs.AddSheathBC(sbca, z_r, z_i);
+
+      // For testing just use a fixed number of iterations for the
+      // nonlinear sheath BC
+      smaxit = 5;
    }
 
    if (axis.Size() > 0)
@@ -1848,6 +1853,9 @@ int main(int argc, char *argv[])
       visit_dc.RegisterField("Electron Collisional Profile", &nue_gf);
       visit_dc.RegisterField("Ion Collisional Profile", &nui_gf);
 
+      // Visualizing B is not this easy because B is in R^3
+      // visit_dc.RegisterField("Background B Field", &BField);
+
       if (false)
       {
          auxFields.SetSize(2);
@@ -1885,47 +1893,54 @@ int main(int argc, char *argv[])
       // Assemble all forms
       CPD.Assemble();
 
-      // Solve the system and compute any auxiliary fields
-      CPD.Solve();
-
-      if (wave_type[0] != ' ')
+      for (int sit=0; sit < smaxit; sit++)
       {
-         // Compute error
-         /*
-          double glb_error_H = CPD.GetHFieldError(HReCoef, HImCoef);
-               if (mpi.Root())
-               {
-                  cout << "Global L2 Error in H field " << glb_error_H << endl;
-               }
-         */
-         /*
-              double glb_error_E = CPD.GetEFieldError(EReCoef, EImCoef);
-              if (mpi.Root())
-              {
-                 cout << "Global L2 Error in E field " << glb_error_E << endl;
-              }
-         */
+         // Solve the system and compute any auxiliary fields
+         CPD.Solve();
+
+         if (wave_type[0] != ' ')
+         {
+            // Compute error
+            /*
+             double glb_error_H = CPD.GetHFieldError(HReCoef, HImCoef);
+                  if (mpi.Root())
+                  {
+                     cout << "Global L2 Error in H field " << glb_error_H << endl;
+                  }
+            */
+            /*
+                 double glb_error_E = CPD.GetEFieldError(EReCoef, EImCoef);
+                 if (mpi.Root())
+                 {
+                    cout << "Global L2 Error in E field " << glb_error_E << endl;
+                 }
+            */
+         }
+
+         // Write fields to disk for VisIt
+         if ( visit )
+         {
+            CPD.WriteVisItFields(10*it+sit);
+         }
+
+         // Send the solution by socket to a GLVis server.
+         if (visualization)
+         {
+            CPD.DisplayToGLVis();
+         }
+
+         if (mpi.Root())
+         {
+            cout << "Sheath BC iteration " << sit << " complete." << endl;
+         }
       }
-
-      // Determine the current size of the linear system
-      int prob_size = CPD.GetProblemSize();
-
-      // Write fields to disk for VisIt
-      if ( visit )
-      {
-         CPD.WriteVisItFields(it);
-      }
-
-      // Send the solution by socket to a GLVis server.
-      if (visualization)
-      {
-         CPD.DisplayToGLVis();
-      }
-
       if (mpi.Root())
       {
          cout << "AMR iteration " << it << " complete." << endl;
       }
+
+      // Determine the current size of the linear system
+      int prob_size = CPD.GetProblemSize();
 
       // Check stopping criteria
       if (prob_size > max_dofs)

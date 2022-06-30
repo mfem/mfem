@@ -787,6 +787,92 @@ public:
    void ComputeD();
 };
 
+class SheathPotential
+{
+private:
+   const bool pa_;
+   const double omega_;
+
+   const Array<ComplexCoefficientByAttr*> & sbc_;
+
+   const ParComplexGridFunction & d_; // Complex electric displacement (HDiv)
+
+   ParFiniteElementSpace & fes_h1_;
+   ParFiniteElementSpace & fes_nd_;
+   const ParFiniteElementSpace & fes_rt_;
+   // ParFiniteElementSpace & fes_l2_;
+
+   FiniteElementCollection * fec_rtt_;
+   ParFiniteElementSpace     fes_rtt_;
+
+   ParDiscreteGradOperator grad_;
+
+   ParComplexGridFunction phi_h1_; // Complex sheath potential (H1)
+   // ParComplexGridFunction phi_l2_; // Complex sheath potential (L2)
+   ParComplexGridFunction phi_rtt_; // Complex sheath potential (RT Trace)
+
+   Array<int> sbc_marker_;
+   Array<int> non_sbc_h1_tdofs_;
+
+   GridFunctionCoefficient PhiReCoef_;
+   GridFunctionCoefficient PhiImCoef_;
+
+   ConstantCoefficient zeroCoef_;
+
+   ParComplexLinearForm phi_lf_; // Dual potential (H1)
+   ParBilinearForm m_; // H1 mass matrix
+
+   mutable Vector RHS_;
+   mutable Vector PHI_;
+
+   int fpslv_;
+   int minit_;
+   int maxit_;
+   long int sumit_;
+
+   void UpdateDofs();
+
+public:
+   SheathPotential(double omega,
+                   const Array<ComplexCoefficientByAttr*> & sbc,
+                   const ParComplexGridFunction &d,
+                   ParFiniteElementSpace &H1,
+                   ParFiniteElementSpace &HCurl,
+                   ParFiniteElementSpace &L2,
+                   bool pa);
+
+   ~SheathPotential();
+
+   ParComplexGridFunction & GetSheathPotential() { return phi_h1_; }
+
+   void NegGrad(ParComplexGridFunction &e);
+
+   const Array<int> & GetBoundaryMarker() const { return sbc_marker_; }
+
+   void Update();
+   void Assemble();
+   void ComputePhi();
+
+   void PrintStatistics() const;
+};
+
+class ParallelElectricFieldVisObject : public ScalarFieldVisObject
+{
+private:
+
+   VectorCoefficient & BCoef_;
+
+public:
+   ParallelElectricFieldVisObject(const std::string & field_name,
+                                  VectorCoefficient &BCoef,
+                                  L2_ParFESpace *sfes,
+                                  bool cyl, bool pseudo);
+
+   void PrepareVisField(const ParComplexGridFunction &e,
+                        VectorCoefficient *kr,
+                        VectorCoefficient *ki);
+};
+
 class ElectricEnergyDensityVisObject : public ScalarFieldVisObject
 {
 private:
@@ -1008,6 +1094,7 @@ private:
 
    ParMesh * pmesh_;
 
+   H1_ParFESpace * H1FESpace_;
    L2_ParFESpace * L2FESpace_;
    L2_ParFESpace * L2FESpace2p_;
    L2_ParFESpace * L2VSFESpace_;
@@ -1031,6 +1118,8 @@ private:
    ScalarFieldVisObject dd_v_; // Complex divergence of electric flux (L2)
    ComplexVectorFieldVisObject j_v_;
    ComplexVectorFieldVisObject k_v_;
+   ScalarFieldVisObject phi_v_; // Complex sheath potential (L2)
+   ParallelElectricFieldVisObject eb_v_;
    ElectricEnergyDensityVisObject ue_v_;
    MagneticEnergyDensityVisObject ub_v_;
    EnergyDensityVisObject u_v_;
@@ -1112,12 +1201,13 @@ private:
    const Array<AttributeArrays*> & axis_; // Cylindrical Axis
    Array<int> axis_tdofs_;
 
-   Maxwell2ndE    maxwell_;
-   CurrentSourceE current_;
-   FaradaysLaw    faraday_;
-   GausssLaw      divB_;
-   Displacement   displacement_;
-   GausssLaw      divD_;
+   Maxwell2ndE     maxwell_;
+   CurrentSourceE  current_;
+   FaradaysLaw     faraday_;
+   GausssLaw       divB_;
+   Displacement    displacement_;
+   SheathPotential sheathPot_;
+   GausssLaw       divD_;
 
    Array<VectorCoefficient*> vCoefs_;
 

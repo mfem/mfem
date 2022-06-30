@@ -3234,7 +3234,7 @@ void RT_R2D_FECollection::InitFaces(const int p, const int dim,
       SegDofOrd[i] = NULL;
    }
 
-   if (dim == 2)
+   // if (dim == 2)
    {
       L2_SegmentElement *l2_seg = new L2_SegmentElement(p, ob_type);
       l2_seg->SetMapType(map_type);

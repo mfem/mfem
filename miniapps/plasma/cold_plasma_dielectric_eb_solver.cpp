@@ -809,6 +809,432 @@ void Displacement::ComputeD()
    delete pcg;
 }
 
+SheathPotential::SheathPotential(double omega,
+                                 const Array<ComplexCoefficientByAttr*> & sbc,
+                                 const ParComplexGridFunction &d,
+                                 ParFiniteElementSpace & H1,
+                                 ParFiniteElementSpace & HCurl,
+                                 ParFiniteElementSpace & L2,
+                                 bool pa)
+   : pa_(pa),
+     omega_(omega),
+     sbc_(sbc),
+     d_(d),
+     fes_h1_(H1),
+     fes_nd_(HCurl),
+     fes_rt_(*d.ParFESpace()),
+     // fes_l2_(L2),
+     // fec_rtt_(d.ParFESpace()->GetElementOrder(0),
+     //        H1.GetParMesh()->Dimension()),
+     fec_rtt_(fes_rt_.FEColl()->GetTraceCollection()),
+     fes_rtt_(H1.GetParMesh(), fec_rtt_),
+     grad_(&fes_h1_, &fes_nd_),
+     phi_h1_(&fes_h1_),
+     // phi_l2_(&fes_l2_),
+     phi_rtt_(&fes_rtt_),
+     PhiReCoef_(&phi_rtt_.real()),
+     PhiImCoef_(&phi_rtt_.imag()),
+     zeroCoef_(0.0),
+     phi_lf_(&H1),
+     m_(&H1)
+{
+   phi_h1_ = 0.0;
+   // phi_l2_ = 0.0;
+   phi_rtt_ = 0.0;
+
+   ParMesh & pmesh = *(d_.ParFESpace()->GetParMesh());
+   sbc_marker_.SetSize(pmesh.bdr_attributes.Max());
+   sbc_marker_ = 0;
+
+   for (int i=0; i<sbc_.Size(); i++)
+   {
+      for (int j=0; j<sbc_[i]->attr.Size(); j++)
+      {
+         sbc_marker_[sbc_[i]->attr[j] - 1] = 1;
+      }
+
+      SheathBase *z_r = dynamic_cast<SheathBase*>(sbc_[i]->real);
+      SheathBase *z_i = dynamic_cast<SheathBase*>(sbc_[i]->imag);
+
+      if (z_r == NULL && z_i == NULL)
+      {
+         cout << "Sheath Impedance coefficients not of type SheathImpedance"
+              << endl;
+      }
+      if (z_r)
+      {
+         z_r->SetPotential(phi_h1_);
+      }
+      if (z_i)
+      {
+         z_i->SetPotential(phi_h1_);
+      }
+   }
+
+   this->UpdateDofs();
+   // phi_lf_.AddBoundaryIntegrator(new DomainLFIntegrator(PhiReCoef_),
+   //           new DomainLFIntegrator(PhiImCoef_),
+   //           sbc_marker_);
+
+   if (pa_) { m_.SetAssemblyLevel(AssemblyLevel::PARTIAL); }
+   m_.AddDomainIntegrator(new MassIntegrator(zeroCoef_)); // set sparsity pattern
+   m_.AddBoundaryIntegrator(new MassIntegrator);
+}
+
+SheathPotential::~SheathPotential()
+{
+   delete fec_rtt_;
+}
+
+void SheathPotential::NegGrad(ParComplexGridFunction &e)
+{
+   grad_.Mult(phi_h1_.real(), e.real());
+   grad_.Mult(phi_h1_.imag(), e.imag());
+
+   e *= -1.0;
+}
+
+void SheathPotential::UpdateDofs()
+{
+   Array<int> sbc_h1_tdof;
+   fes_h1_.GetEssentialTrueDofs(sbc_marker_, sbc_h1_tdof);
+
+   Array<int> sbc_h1_tdof_marker;
+   fes_h1_.ListToMarker(sbc_h1_tdof, fes_h1_.GetTrueVSize(),
+                        sbc_h1_tdof_marker, 1);
+   /*
+   {
+     ofstream ofs("sbc_h1_tdof_marker.dat");
+     sbc_h1_tdof_marker.Print(ofs);
+     ofs.close();
+   }
+   */
+   // Invert marker
+   for (int i=0; i<sbc_h1_tdof_marker.Size(); i++)
+   {
+      sbc_h1_tdof_marker[i] = 1 - sbc_h1_tdof_marker[i];
+   }
+   /*
+   {
+     ofstream ofs("non_sbc_h1_tdof_marker.dat");
+     sbc_h1_tdof_marker.Print(ofs);
+     ofs.close();
+   }
+   */
+   fes_h1_.MarkerToList(sbc_h1_tdof_marker, non_sbc_h1_tdofs_);
+   /*
+   {
+     ofstream ofs("non_sbc_h1_tdofs.dat");
+     non_sbc_h1_tdofs_.Print(ofs, 1);
+     ofs.close();
+   }
+   {
+     ofstream ofs("sbc_marker.dat");
+     sbc_marker_.Print(ofs);
+     ofs.close();
+   }
+   {
+     ofstream ofs("sbc_h1_tdof.dat");
+     sbc_h1_tdof.Print(ofs);
+     ofs.close();
+   }
+   */
+}
+
+void SheathPotential::Update()
+{
+   phi_h1_.Update();
+   // phi_l2_.Update();
+   phi_rtt_.Update();
+
+   this->UpdateDofs();
+
+   grad_.Update();
+   m_.Update();
+   phi_lf_.Update();
+}
+
+void SheathPotential::Assemble()
+{
+   grad_.Assemble();
+   m_.Assemble(0);
+   if (!pa_) { m_.Finalize(); }
+}
+
+void SheathPotential::ComputePhi()
+{
+   ParMesh & pmesh = *(d_.ParFESpace()->GetParMesh());
+
+   Array<int> vdofs_rt;
+   Array<int> vdofs_rtt;
+   Array<int> vdofs_h1;
+
+   Vector lvec_d_r_rt, lvec_d_i_rt;
+   Vector lvec_phi0_r_rtt, lvec_phi0_i_rtt;
+   Vector lvec_phi1_r_rtt, lvec_phi1_i_rtt;
+   Vector lvec_phi_r_h1, lvec_phi_i_h1;
+
+   DenseMatrix shape_rtt;
+   Vector      shape_rtt_ip;
+
+   DenseMatrix shape_h1;
+   Vector      shape_h1_ip;
+
+   Vector tmp_r, tmp_i;
+
+   phi_lf_.real() = 0.0;
+   phi_lf_.imag() = 0.0;
+
+   minit_ = INT_MAX;
+   maxit_ = 0;
+   fpslv_ = 0;
+   sumit_ = 0;
+
+   for (int be=0; be<pmesh.GetNBE(); be++)
+   {
+      const int bdr_attr = pmesh.GetBdrAttribute(be);
+      if (sbc_marker_[bdr_attr-1] == 0) { continue; }
+
+      for (int i=0; i<sbc_.Size(); i++)
+      {
+         if (sbc_[i]->attr_marker[bdr_attr-1] == 0) { continue; }
+
+         fes_rt_.GetBdrElementVDofs(be, vdofs_rt);
+         fes_rtt_.GetBdrElementVDofs(be, vdofs_rtt);
+         fes_h1_.GetBdrElementVDofs(be, vdofs_h1);
+
+         d_.real().GetSubVector(vdofs_rt, lvec_d_r_rt);
+         d_.imag().GetSubVector(vdofs_rt, lvec_d_i_rt);
+
+         phi_rtt_.real().GetSubVector(vdofs_rtt, lvec_phi0_r_rtt);
+         phi_rtt_.imag().GetSubVector(vdofs_rtt, lvec_phi0_i_rtt);
+
+         lvec_phi1_r_rtt = lvec_phi0_r_rtt;
+         lvec_phi1_i_rtt = lvec_phi0_i_rtt;
+
+         // We have found a boundary element on one of the sheath boundaries
+         // const FiniteElement &rt = *fes_rt_.GetBE(be);
+         const FiniteElement &rtt = *fes_rtt_.GetBE(be);
+         const FiniteElement &h1 = *fes_h1_.GetBE(be);
+         ElementTransformation &T = *fes_rt_.GetBdrElementTransformation(be);
+
+         // Compute average value of sheath impedance on this boundary element
+         const IntegrationRule &ir = IntRules.Get(h1.GetGeomType(),
+                                                  2 * h1.GetOrder() + 1);
+
+         shape_rtt.SetSize(vdofs_rtt.Size(), ir.GetNPoints());
+         shape_h1.SetSize(vdofs_h1.Size(), ir.GetNPoints());
+
+         double area = 0.0;
+
+         for (int j=0; j<ir.GetNPoints(); j++)
+         {
+            const IntegrationPoint &ip = ir.IntPoint(j);
+            T.SetIntPoint(&ip);
+
+            const double detJ = T.Weight();
+            area += ip.weight * detJ;
+
+            shape_rtt.GetColumnReference(j, shape_rtt_ip);
+            rtt.CalcPhysShape(T, shape_rtt_ip);
+
+            shape_h1.GetColumnReference(j, shape_h1_ip);
+            h1.CalcPhysShape(T, shape_h1_ip);
+         }
+
+         SheathImpedance * zCoef = dynamic_cast<SheathImpedance*>(sbc_[i]->real);
+
+         int it = 0;
+         while (it < 10)
+         {
+            lvec_phi1_r_rtt = lvec_phi0_r_rtt;
+            lvec_phi1_i_rtt = lvec_phi0_i_rtt;
+
+            complex<double> zAvg(0.0, 0.0);
+            // cout << "computing zAvg" << endl;
+            for (int j=0; j<ir.GetNPoints(); j++)
+            {
+               const IntegrationPoint &ip = ir.IntPoint(j);
+               T.SetIntPoint(&ip);
+
+               shape_rtt.GetColumnReference(j, shape_rtt_ip);
+
+               complex<double> phi(lvec_phi1_r_rtt * shape_rtt_ip,
+                                   lvec_phi1_i_rtt * shape_rtt_ip);
+
+               complex<double> z = zCoef->z(phi, T, ip);
+               // cout << ip.x << " phi " << phi << " -> z(phi) " << z << endl;
+               const double detJ = T.Weight();
+               zAvg += z * ip.weight * detJ;
+            }
+            zAvg /= area;
+            // cout << "computed zAvg in " << it << " iterations " << zAvg << endl;
+            // phi = i omega z D
+            add(omega_ * zAvg.imag(), lvec_d_r_rt,
+                -omega_ * zAvg.real(), lvec_d_i_rt, lvec_phi0_r_rtt);
+            add(omega_ * zAvg.real(), lvec_d_r_rt,
+                -omega_ * zAvg.imag(), lvec_d_i_rt, lvec_phi0_i_rtt);
+
+            lvec_phi1_r_rtt -= lvec_phi0_r_rtt;
+            lvec_phi1_i_rtt -= lvec_phi0_i_rtt;
+
+            double norm = sqrt(lvec_phi0_r_rtt * lvec_phi0_r_rtt +
+                               lvec_phi0_i_rtt * lvec_phi0_i_rtt);
+            double diff = sqrt(lvec_phi1_r_rtt * lvec_phi1_r_rtt +
+                               lvec_phi1_i_rtt * lvec_phi1_i_rtt);
+
+            it++;
+
+            //cout << it << " diff vs norm " << diff << " " << norm << endl;
+            if (it > 1 && diff < 1e-4 * norm)
+            {
+               break;
+            }
+         }
+
+         minit_ = std::min(it, minit_);
+         maxit_ = std::max(it, maxit_);
+         sumit_ += it;
+         fpslv_++;
+
+         phi_rtt_.real().SetSubVector(vdofs_rtt, lvec_phi0_r_rtt);
+         phi_rtt_.imag().SetSubVector(vdofs_rtt, lvec_phi0_i_rtt);
+
+         tmp_r.SetSize(ir.GetNPoints());
+         tmp_i.SetSize(ir.GetNPoints());
+         shape_rtt.MultTranspose(lvec_phi0_r_rtt, tmp_r);
+         shape_rtt.MultTranspose(lvec_phi0_i_rtt, tmp_i);
+
+         lvec_phi_r_h1.SetSize(vdofs_h1.Size());
+         lvec_phi_i_h1.SetSize(vdofs_h1.Size());
+
+         lvec_phi_r_h1 = 0.0;
+         lvec_phi_i_h1 = 0.0;
+
+         for (int j=0; j<ir.GetNPoints(); j++)
+         {
+            const IntegrationPoint &ip = ir.IntPoint(j);
+            T.SetIntPoint(&ip);
+            const double detJ = T.Weight();
+
+            shape_h1.GetColumnReference(j, shape_h1_ip);
+
+            lvec_phi_r_h1.Add(ip.weight * detJ * tmp_r[j], shape_h1_ip);
+            lvec_phi_i_h1.Add(ip.weight * detJ * tmp_i[j], shape_h1_ip);
+         }
+
+         phi_lf_.real().AddElementVector(vdofs_h1, lvec_phi_r_h1);
+         phi_lf_.imag().AddElementVector(vdofs_h1, lvec_phi_i_h1);
+      }
+   }
+
+   OperatorPtr M;
+   m_.FormSystemMatrix(non_sbc_h1_tdofs_, M);
+   /*
+   {
+     M.As<HypreParMatrix>()->Print("M.mat");
+   }
+   */
+   int tvsize = fes_h1_.TrueVSize();
+   PHI_.SetSize(tvsize);
+   RHS_.SetSize(tvsize);
+
+   Operator *diag = NULL;
+   Operator *pcg = NULL;
+   if (pa_)
+   {
+      diag = new OperatorJacobiSmoother(m_, non_sbc_h1_tdofs_);
+      CGSolver *cg = new CGSolver(MPI_COMM_WORLD);
+      cg->SetOperator(*M);
+      cg->SetPreconditioner(static_cast<OperatorJacobiSmoother&>(*diag));
+      cg->SetRelTol(1e-12);
+      cg->SetMaxIter(1000);
+      pcg = cg;
+   }
+   else
+   {
+      diag = new HypreDiagScale(*M.As<HypreParMatrix>());
+      HyprePCG *cg = new HyprePCG(*M.As<HypreParMatrix>());
+      cg->SetLogging(3);
+      cg->SetPreconditioner(static_cast<HypreDiagScale&>(*diag));
+      cg->SetTol(1e-12);
+      cg->SetMaxIter(1000);
+      pcg = cg;
+   }
+
+   // phi_lf_.Assemble();
+   // phi_lf_ = 0.0;
+   phi_lf_.SyncAlias();
+
+   phi_lf_.real().ParallelAssemble(RHS_);
+   PHI_ = 0.0;
+   pcg->Mult(RHS_, PHI_);
+   phi_h1_.real().Distribute(PHI_);
+
+   phi_lf_.imag().ParallelAssemble(RHS_);
+   if (phi_lf_.GetConvention() == ComplexOperator::BLOCK_SYMMETRIC)
+   {
+      RHS_ *= -1.0;
+   }
+   PHI_ = 0.0;
+   pcg->Mult(RHS_, PHI_);
+   phi_h1_.imag().Distribute(PHI_);
+
+   delete diag;
+   delete pcg;
+}
+
+void SheathPotential::PrintStatistics() const
+{
+   int glbminit = INT_MAX;
+   int glbmaxit = 0;
+   int glbfpslv = 0;
+   long int glbsumit = 0;
+
+   MPI_Allreduce(&minit_, &glbminit, 1, MPI_INTEGER, MPI_MIN,
+                 fes_rt_.GetComm());
+   MPI_Allreduce(&maxit_, &glbmaxit, 1, MPI_INTEGER, MPI_MAX,
+                 fes_rt_.GetComm());
+   MPI_Allreduce(&fpslv_, &glbfpslv, 1, MPI_INTEGER, MPI_SUM,
+                 fes_rt_.GetComm());
+   MPI_Allreduce(&sumit_, &glbsumit, 1, MPI_LONG, MPI_SUM,
+                 fes_rt_.GetComm());
+
+   int myrank = 0;
+   MPI_Comm_rank(fes_rt_.GetComm(), &myrank);
+   if (myrank == 0)
+   {
+      cout << "Sheath Potential Statistics: ";
+      cout << "iterations (min, max, avg) = ( "
+           << glbminit << ", " << glbmaxit << ", " << glbsumit / glbfpslv << ")"
+           << endl;
+   }
+}
+
+ParallelElectricFieldVisObject::ParallelElectricFieldVisObject(
+   const std::string & field_name,
+   VectorCoefficient & BCoef,
+   L2_ParFESpace *sfes,
+   bool cyl, bool pseudo)
+   : ScalarFieldVisObject(field_name, sfes, cyl, pseudo), BCoef_(BCoef)
+{}
+
+void ParallelElectricFieldVisObject::PrepareVisField(const
+                                                     ParComplexGridFunction &e,
+                                                     VectorCoefficient *kr,
+                                                     VectorCoefficient *ki)
+{
+   VectorGridFunctionCoefficient Er(&e.real());
+   VectorGridFunctionCoefficient Ei(&e.imag());
+
+   NormalizedVectorCoefficient BUnit(BCoef_);
+
+   InnerProductCoefficient EBr(BUnit, Er);
+   InnerProductCoefficient EBi(BUnit, Ei);
+
+   this->ScalarFieldVisObject::PrepareVisField(EBr, EBi, kr, ki);
+}
+
 ElectricEnergyDensityVisObject::ElectricEnergyDensityVisObject(
    const std::string & field_name,
    L2_ParFESpace *sfes,
@@ -966,6 +1392,7 @@ CPDSolverEB::CPDSolverEB(ParMesh & pmesh, int order, double omega,
      pa_(pa),
      omega_(omega),
      pmesh_(&pmesh),
+     H1FESpace_(new H1_ParFESpace(pmesh_, order, pmesh_->Dimension())),
      L2FESpace_(new L2_ParFESpace(pmesh_, order-1, pmesh_->Dimension())),
      L2FESpace2p_(new L2_ParFESpace(pmesh_,2*order-1,pmesh_->Dimension())),
      L2VSFESpace_(new L2_ParFESpace(pmesh_,order,pmesh_->Dimension(),
@@ -987,6 +1414,8 @@ CPDSolverEB::CPDSolverEB(ParMesh & pmesh, int order, double omega,
      dd_v_("DivD", L2FESpace_, cyl_, true),
      j_v_("J", L2VSFESpace_, L2FESpace_, cyl_, true),
      k_v_("K", L2VSFESpace_, L2FESpace_, cyl_, true),
+     phi_v_("Phi", L2FESpace_, cyl_, false),
+     eb_v_("ParallelE", BCoef, L2FESpace_, cyl_, true),
      ue_v_("uE", L2FESpace_, cyl_, true),
      ub_v_("uB", L2FESpace_, cyl_, true),
      u_v_("u", L2FESpace_, cyl_, true),
@@ -1054,6 +1483,8 @@ CPDSolverEB::CPDSolverEB(ParMesh & pmesh, int order, double omega,
      faraday_(e_, *HDivFESpace_, omega, kReCoef, kImCoef),
      divB_(faraday_.GetMagneticFlux(), *L2FESpace_, kReCoef, kImCoef),
      displacement_(e_, *HDivFESpace_, epsReCoef, epsImCoef, pa_),
+     sheathPot_(omega_, sbcs_, displacement_.GetDisplacement(),
+                *H1FESpace_, *HCurlFESpace_, *L2FESpace_, pa_),
      divD_(displacement_.GetDisplacement(), *L2FESpace_, kReCoef, kImCoef),
      visit_dc_(NULL)
 {
@@ -1166,6 +1597,14 @@ CPDSolverEB::CPDSolverEB(ParMesh & pmesh, int order, double omega,
       ess_bdr_tdofs_.Append(axis_bdr_z_tdofs);
 
       delete tv;
+   }
+
+   if (sbcs_.Size() > 0)
+   {
+      Array<int> sbc_bdr_tdofs;
+      HCurlFESpace_->GetEssentialTrueDofs(sheathPot_.GetBoundaryMarker(),
+                                          sbc_bdr_tdofs);
+      ess_bdr_tdofs_.Append(sbc_bdr_tdofs);
    }
 
    // Setup various coefficients
@@ -1349,6 +1788,7 @@ CPDSolverEB::~CPDSolverEB()
 
    delete b1_;
 
+   delete H1FESpace_;
    delete L2FESpace_;
    delete L2FESpace2p_;
    delete L2VSFESpace_;
@@ -1400,6 +1840,7 @@ CPDSolverEB::Assemble()
    current_.Assemble();
    faraday_.Assemble();
    displacement_.Assemble();
+   sheathPot_.Assemble();
    divB_.Assemble();
    divD_.Assemble();
 
@@ -1422,7 +1863,7 @@ CPDSolverEB::Update()
    // Inform the spaces that the mesh has changed
    // Note: we don't need to interpolate any GridFunctions on the new mesh
    // so we pass 'false' to skip creation of any transformation matrices.
-   // H1FESpace_->Update(false);
+   H1FESpace_->Update(false);
    if (L2FESpace_) { L2FESpace_->Update(); }
    if (L2FESpace2p_) { L2FESpace2p_->Update(); }
    if (L2VSFESpace_) { L2VSFESpace_->Update(); }
@@ -1497,6 +1938,7 @@ CPDSolverEB::Update()
    d_v_.Update();
    j_v_.Update();
    k_v_.Update();
+   phi_v_.Update();
    ue_v_.Update();
    ub_v_.Update();
    u_v_.Update();
@@ -1527,6 +1969,7 @@ CPDSolverEB::Update()
    current_.Update();
    faraday_.Update();
    displacement_.Update();
+   sheathPot_.Update();
    divB_.Update();
    divD_.Update();
    // if ( grad_        ) { grad_->Update(); }
@@ -1547,6 +1990,11 @@ CPDSolverEB::Solve()
 
    OperatorHandle A1;
    Vector E, RHS;
+
+   if (sbcs_.Size() > 0)
+   {
+      sheathPot_.NegGrad(e_);
+   }
 
    if (dbcs_.Size() > 0)
    {
@@ -1835,6 +2283,14 @@ CPDSolverEB::Solve()
 
    faraday_.ComputeB();
    displacement_.ComputeD();
+   if (sbcs_.Size() > 0)
+   {
+      sheathPot_.ComputePhi();
+      if (logging_ > 0)
+      {
+         sheathPot_.PrintStatistics();
+      }
+   }
 
    delete BDP;
    if (pci != pcr) { delete pci; }
@@ -2013,10 +2469,12 @@ void CPDSolverEB::prepareVisFields()
    e_v_.PrepareVisField(e_, kReCoef_, kImCoef_);
    b_v_.PrepareVisField(faraday_.GetMagneticFlux(), kReCoef_, kImCoef_);
    d_v_.PrepareVisField(displacement_.GetDisplacement(), kReCoef_, kImCoef_);
+   phi_v_.PrepareVisField(sheathPot_.GetSheathPotential(), kReCoef_, kImCoef_);
    j_v_.PrepareVisField(current_.GetVolumeCurrentDensity(),
                         kReCoef_, kImCoef_);
    k_v_.PrepareVisField(current_.GetSurfaceCurrentDensity(),
                         kReCoef_, kImCoef_);
+   eb_v_.PrepareVisField(e_, kReCoef_, kImCoef_);
    ue_v_.PrepareVisField(e_, *epsReCoef_, *epsImCoef_);
    ub_v_.PrepareVisField(e_, omega_, *muInvCoef_);
    u_v_.PrepareVisField(e_, omega_, *epsReCoef_, *epsImCoef_, *muInvCoef_);
@@ -2126,6 +2584,8 @@ CPDSolverEB::RegisterVisItFields(VisItDataCollection & visit_dc)
    d_v_.RegisterVisItFields(visit_dc);
    j_v_.RegisterVisItFields(visit_dc);
    k_v_.RegisterVisItFields(visit_dc);
+   phi_v_.RegisterVisItFields(visit_dc);
+   eb_v_.RegisterVisItFields(visit_dc);
    ue_v_.RegisterVisItFields(visit_dc);
    ub_v_.RegisterVisItFields(visit_dc);
    u_v_.RegisterVisItFields(visit_dc);

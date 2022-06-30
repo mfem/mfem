@@ -271,6 +271,10 @@ public:
                    bool realPart)
       : SheathBase(sb, realPart), B_(B) {}
 
+   std::complex<double> z(const std::complex<double> &phi,
+                          ElementTransformation &T,
+                          const IntegrationPoint &ip);
+
    double Eval(ElementTransformation &T,
                const IntegrationPoint &ip);
 
