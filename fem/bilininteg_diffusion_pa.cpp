@@ -12,7 +12,7 @@
 #include "../general/forall.hpp"
 #include "bilininteg.hpp"
 #include "gridfunc.hpp"
-#include "ceed/diffusion.hpp"
+#include "ceed/integrators/diffusion/diffusion.hpp"
 
 using namespace std;
 
@@ -362,7 +362,7 @@ void DiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
    if (DeviceCanUseCeed())
    {
       delete ceedOp;
-      MFEM_VERIFY(!VQ && !MQ && !SMQ,
+      MFEM_VERIFY(!VQ && !MQ,
                   "Only scalar coefficient supported for DiffusionIntegrator"
                   " with libCEED");
       ceedOp = new ceed::PADiffusionIntegrator(fes, *ir, Q);
@@ -381,41 +381,14 @@ void DiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
    int coeffDim = 1;
    Vector coeff;
    const int MQfullDim = MQ ? MQ->GetHeight() * MQ->GetWidth() : 0;
-   if (MQ)
-   {
-      symmetric = false;
-      MFEM_VERIFY(MQ->GetHeight() == dim && MQ->GetWidth() == dim, "");
-
-      coeffDim = MQfullDim;
-
-      coeff.SetSize(MQfullDim * nq * ne);
-
-      DenseMatrix GM;
-      GM.SetSize(dim);
-
-      auto C = Reshape(coeff.HostWrite(), MQfullDim, nq, ne);
-      for (int e=0; e<ne; ++e)
-      {
-         ElementTransformation *tr = mesh->GetElementTransformation(e);
-         for (int p=0; p<nq; ++p)
-         {
-            MQ->Eval(GM, *tr, ir->IntPoint(p));
-            for (int i=0; i<dim; ++i)
-               for (int j=0; j<dim; ++j)
-               {
-                  C(j+(i*dim), p, e) = GM(i,j);
-               }
-         }
-      }
-   }
-   else if (SMQ)
+   if (auto *SMQ = dynamic_cast<SymmetricMatrixCoefficient *>(MQ))
    {
       MFEM_VERIFY(SMQ->GetSize() == dim, "");
       coeffDim = symmDims;
       coeff.SetSize(symmDims * nq * ne);
 
-      DenseSymmetricMatrix SM;
-      SM.SetSize(dim);
+      DenseSymmetricMatrix sym_mat;
+      sym_mat.SetSize(dim);
 
       auto C = Reshape(coeff.HostWrite(), symmDims, nq, ne);
 
@@ -424,12 +397,39 @@ void DiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
          ElementTransformation *tr = mesh->GetElementTransformation(e);
          for (int p=0; p<nq; ++p)
          {
-            SMQ->Eval(SM, *tr, ir->IntPoint(p));
+            SMQ->Eval(sym_mat, *tr, ir->IntPoint(p));
             int cnt = 0;
             for (int i=0; i<dim; ++i)
                for (int j=i; j<dim; ++j, ++cnt)
                {
-                  C(cnt, p, e) = SM(i,j);
+                  C(cnt, p, e) = sym_mat(i,j);
+               }
+         }
+      }
+   }
+   else if (MQ)
+   {
+      symmetric = false;
+      MFEM_VERIFY(MQ->GetHeight() == dim && MQ->GetWidth() == dim, "");
+
+      coeffDim = MQfullDim;
+
+      coeff.SetSize(MQfullDim * nq * ne);
+
+      DenseMatrix mat;
+      mat.SetSize(dim);
+
+      auto C = Reshape(coeff.HostWrite(), MQfullDim, nq, ne);
+      for (int e=0; e<ne; ++e)
+      {
+         ElementTransformation *tr = mesh->GetElementTransformation(e);
+         for (int p=0; p<nq; ++p)
+         {
+            MQ->Eval(mat, *tr, ir->IntPoint(p));
+            for (int i=0; i<dim; ++i)
+               for (int j=0; j<dim; ++j)
+               {
+                  C(j+(i*dim), p, e) = mat(i,j);
                }
          }
       }

@@ -12,7 +12,7 @@
 #include "../general/forall.hpp"
 #include "bilininteg.hpp"
 #include "gridfunc.hpp"
-#include "ceed/mass.hpp"
+#include "ceed/integrators/mass/mass.hpp"
 
 using namespace std;
 

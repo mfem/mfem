@@ -119,7 +119,7 @@ $(if $(word 2,$(SRC)),$(error Spaces in SRC = "$(SRC)" are not supported))
 MFEM_GIT_STRING = $(shell [ -d $(MFEM_DIR)/.git ] && git -C $(MFEM_DIR) \
    describe --all --long --abbrev=40 --dirty --always 2> /dev/null)
 
-EXAMPLE_SUBDIRS = amgx caliper ginkgo hiop petsc pumi sundials superlu
+EXAMPLE_SUBDIRS = amgx caliper ginkgo hiop petsc pumi sundials superlu moonolith
 EXAMPLE_DIRS := examples $(addprefix examples/,$(EXAMPLE_SUBDIRS))
 EXAMPLE_TEST_DIRS := examples
 
@@ -274,7 +274,9 @@ endif
 # List of MFEM dependencies, that require the *_LIB variable to be non-empty
 MFEM_REQ_LIB_DEPS = SUPERLU MUMPS METIS FMS CONDUIT SIDRE LAPACK SUNDIALS MESQUITE\
  SUITESPARSE STRUMPACK GINKGO GNUTLS NETCDF PETSC SLEPC MPFR PUMI HIOP GSLIB\
- OCCA CEED RAJA UMPIRE MKL_CPARDISO AMGX CALIPER PARELAG BENCHMARK
+ OCCA CEED RAJA UMPIRE MKL_CPARDISO AMGX CALIPER PARELAG BENCHMARK MOONOLITH\
+ ALGOIM
+
 
 PETSC_ERROR_MSG = $(if $(PETSC_FOUND),,. PETSC config not found: $(PETSC_VARS))
 SLEPC_ERROR_MSG = $(if $(SLEPC_FOUND),,. SLEPC config not found: $(SLEPC_VARS))
@@ -338,10 +340,10 @@ MFEM_DEFINES = MFEM_VERSION MFEM_VERSION_STRING MFEM_GIT_STRING MFEM_USE_MPI\
  MFEM_USE_STRUMPACK MFEM_USE_GNUTLS MFEM_USE_NETCDF MFEM_USE_PETSC\
  MFEM_USE_SLEPC MFEM_USE_MPFR MFEM_USE_SIDRE MFEM_USE_FMS MFEM_USE_CONDUIT\
  MFEM_USE_PUMI MFEM_USE_HIOP MFEM_USE_GSLIB MFEM_USE_CUDA MFEM_USE_HIP\
- MFEM_USE_OCCA MFEM_USE_CEED MFEM_USE_RAJA MFEM_USE_UMPIRE MFEM_USE_SIMD\
+ MFEM_USE_OCCA MFEM_USE_MOONOLITH MFEM_USE_CEED MFEM_USE_RAJA MFEM_USE_UMPIRE MFEM_USE_SIMD\
  MFEM_USE_ADIOS2 MFEM_USE_MKL_CPARDISO MFEM_USE_AMGX MFEM_USE_MUMPS\
  MFEM_USE_ADFORWARD MFEM_USE_CODIPACK MFEM_USE_CALIPER MFEM_USE_BENCHMARK\
- MFEM_USE_PARELAG MFEM_SOURCE_DIR MFEM_INSTALL_DIR
+ MFEM_USE_PARELAG MFEM_SOURCE_DIR MFEM_INSTALL_DIR MFEM_USE_ALGOIM
 
 # List of makefile variables that will be written to config.mk:
 MFEM_CONFIG_VARS = MFEM_CXX MFEM_HOST_CXX MFEM_CPPFLAGS MFEM_CXXFLAGS\
@@ -409,7 +411,18 @@ ifneq (,$(filter install,$(MAKECMDGOALS)))
 endif
 
 # Source dirs in logical order
-DIRS = general linalg linalg/simd mesh fem fem/fe fem/ceed fem/qinterp fem/tmop
+DIRS = general linalg linalg/simd mesh fem fem/ceed/interface \
+       fem/ceed/integrators/mass fem/ceed/integrators/convection \
+       fem/ceed/integrators/diffusion fem/ceed/integrators/nlconvection \
+       fem/ceed/solvers fem/fe fem/lor fem/qinterp fem/tmop
+
+ifeq ($(MFEM_USE_MOONOLITH),YES)
+   MFEM_CXXFLAGS += $(MOONOLITH_CXX_FLAGS)
+   MFEM_INCFLAGS += -I$(MFEM_DIR)/fem/moonolith $(MOONOLITH_INCLUDES)
+   MFEM_TPLFLAGS += $(MOONOLITH_INCLUDES)
+   DIRS += fem/moonolith
+endif
+
 SOURCE_FILES = $(foreach dir,$(DIRS),$(wildcard $(SRC)$(dir)/*.cpp))
 RELSRC_FILES = $(patsubst $(SRC)%,%,$(SOURCE_FILES))
 OBJECT_FILES = $(patsubst $(SRC)%,$(BLD)%,$(SOURCE_FILES:.cpp=.o))
@@ -586,8 +599,14 @@ install: $(if $(static),$(BLD)libmfem.a) $(if $(shared),$(BLD)libmfem.$(SO_EXT))
 	   $(INSTALL) -m 640 $(SRC)$$dir/*.okl $(PREFIX_INC)/mfem/$$dir; \
 	done
 # install libCEED q-function headers
-	mkdir -p $(PREFIX_INC)/mfem/fem/ceed
-	$(INSTALL) -m 640 $(SRC)fem/ceed/*.h $(PREFIX_INC)/mfem/fem/ceed
+	mkdir -p $(PREFIX_INC)/mfem/fem/ceed/integrators/mass
+	$(INSTALL) -m 640 $(SRC)fem/ceed/integrators/mass/*.h $(PREFIX_INC)/mfem/fem/ceed/integrators/mass
+	mkdir -p $(PREFIX_INC)/mfem/fem/ceed/integrators/convection
+	$(INSTALL) -m 640 $(SRC)fem/ceed/integrators/convection/*.h $(PREFIX_INC)/mfem/fem/ceed/integrators/convection
+	mkdir -p $(PREFIX_INC)/mfem/fem/ceed/integrators/diffusion
+	$(INSTALL) -m 640 $(SRC)fem/ceed/integrators/diffusion/*.h $(PREFIX_INC)/mfem/fem/ceed/integrators/diffusion
+	mkdir -p $(PREFIX_INC)/mfem/fem/ceed/integrators/nlconvection
+	$(INSTALL) -m 640 $(SRC)fem/ceed/integrators/nlconvection/*.h $(PREFIX_INC)/mfem/fem/ceed/integrators/nlconvection
 # install config.mk in $(PREFIX_SHARE)
 	mkdir -p $(PREFIX_SHARE)
 	$(MAKE) -C $(BLD)config config-mk CONFIG_MK=config-install.mk
@@ -674,11 +693,13 @@ status info:
 	$(info MFEM_USE_RAJA          = $(MFEM_USE_RAJA))
 	$(info MFEM_USE_OCCA          = $(MFEM_USE_OCCA))
 	$(info MFEM_USE_CALIPER       = $(MFEM_USE_CALIPER))
+	$(info MFEM_USE_ALGOIM        = $(MFEM_USE_ALGOIM))
 	$(info MFEM_USE_CEED          = $(MFEM_USE_CEED))
 	$(info MFEM_USE_UMPIRE        = $(MFEM_USE_UMPIRE))
 	$(info MFEM_USE_SIMD          = $(MFEM_USE_SIMD))
 	$(info MFEM_USE_ADIOS2        = $(MFEM_USE_ADIOS2))
 	$(info MFEM_USE_MKL_CPARDISO  = $(MFEM_USE_MKL_CPARDISO))
+	$(info MFEM_USE_MOONOLITH     = $(MFEM_USE_MOONOLITH))
 	$(info MFEM_USE_ADFORWARD     = $(MFEM_USE_ADFORWARD))
 	$(info MFEM_USE_CODIPACK      = $(MFEM_USE_CODIPACK))
 	$(info MFEM_USE_BENCHMARK     = $(MFEM_USE_BENCHMARK))
