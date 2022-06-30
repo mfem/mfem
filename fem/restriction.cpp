@@ -1831,7 +1831,6 @@ void NCL2FaceRestriction::DoubleValuedNonconformingInterpolation(
          {
             MFEM_FOREACH_THREAD(dof,x,nface_dofs)
             {
-               const int i = face*nface_dofs + dof;
                dof_values[dof] = d_y(dof, c, master_side, face);
             }
             MFEM_SYNC_THREAD;
@@ -1878,6 +1877,13 @@ void NCL2FaceRestriction::SingleValuedNonconformingTransposeInterpolation(
       x_interp.SetSize(x.Size());
    }
    x_interp = x;
+   SingleValuedNonconformingTransposeInterpolation(x_interp);
+}
+
+
+void NCL2FaceRestriction::SingleValuedNonconformingTransposeInterpolation(
+   Vector& x) const
+{
    // Assumes all elements have the same number of dofs
    const int nface_dofs = face_dofs;
    const int vd = vdim;
@@ -1931,11 +1937,17 @@ void NCL2FaceRestriction::DoubleValuedNonconformingTransposeInterpolation(
       x_interp.SetSize(x.Size());
    }
    x_interp = x;
+   DoubleValuedNonconformingTransposeInterpolation(x_interp);
+}
+
+void NCL2FaceRestriction::DoubleValuedNonconformingTransposeInterpolation(
+   Vector& x) const
+{
    // Assumes all elements have the same number of dofs
    const int nface_dofs = face_dofs;
    const int vd = vdim;
    // Interpolation
-   auto d_x = Reshape(x_interp.ReadWrite(), nface_dofs, vd, 2, nf);
+   auto d_x = Reshape(x.ReadWrite(), nface_dofs, vd, 2, nf);
    auto interp_config_ptr = interpolations.GetFaceInterpConfig().Read();
    auto interpolators = interpolations.GetInterpolators().Read();
    const int nc_size = interpolations.GetNumInterpolators();
@@ -1987,6 +1999,35 @@ void NCL2FaceRestriction::AddMultTranspose(const Vector& x, Vector& y) const
       {
          SingleValuedNonconformingTransposeInterpolation(x);
          SingleValuedConformingAddMultTranspose(x_interp, y);
+      }
+   }
+   else
+   {
+      if ( m==L2FaceValues::DoubleValued )
+      {
+         DoubleValuedConformingAddMultTranspose(x, y);
+      }
+      else if ( m==L2FaceValues::SingleValued )
+      {
+         SingleValuedConformingAddMultTranspose(x, y);
+      }
+   }
+}
+
+void NCL2FaceRestriction::AddMultTranspose(Vector& x, Vector& y) const
+{
+   if (nf==0) { return; }
+   if (type==FaceType::Interior)
+   {
+      if ( m==L2FaceValues::DoubleValued )
+      {
+         DoubleValuedNonconformingTransposeInterpolation(x);
+         DoubleValuedConformingAddMultTranspose(x, y);
+      }
+      else if ( m==L2FaceValues::SingleValued )
+      {
+         SingleValuedNonconformingTransposeInterpolation(x);
+         SingleValuedConformingAddMultTranspose(x, y);
       }
    }
    else
