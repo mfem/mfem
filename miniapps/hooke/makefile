@@ -47,12 +47,13 @@ all: $(MINIAPPS)
 %: %.cpp
 %.o: %.cpp
 
-HOOKE_INCLUDES = -I.
+HOOKE_INCLUDES = $(if $(SRC),-I$(MFEM_DIR))
 
 hooke: $(HOOKE_OBJ)
 	$(MFEM_CXX) $(MFEM_LINK_FLAGS) -o $@ $(HOOKE_OBJ) $(MFEM_LIBS)
 
-%.o: $(SRC)%.cpp $(MFEM_LIB_FILE) $(CONFIG_MK)
+$(HOOKE_OBJ): %.o: $(SRC)%.cpp $(MFEM_LIB_FILE) $(CONFIG_MK)
+	@mkdir -p $(@D)
 	$(MFEM_CXX) $(MFEM_FLAGS) $(HOOKE_INCLUDES) -c $< -o $@
 
 include $(MFEM_TEST_MK)
