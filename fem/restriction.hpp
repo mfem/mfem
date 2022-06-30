@@ -838,6 +838,14 @@ public:
                      ElementDofOrdering. */
    virtual void DoubleValuedNonconformingMult(const Vector& x, Vector& y) const;
 
+   /** @brief Apply a change of basis from coarse element basis to fine element
+       basis for the coarse face dofs.
+
+       @param[in,out] x The dofs vector that needs coarse dofs to be express in
+                        term of the fine basis.
+   */
+   void DoubleValuedNonconformingInterpolation(Vector& x) const;
+
    /** @brief Apply a change of basis from fine element basis to coarse element
        basis for the coarse face dofs. Should only be used when:
        L2FaceValues m == L2FaceValues::SingleValued
