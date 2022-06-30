@@ -22,18 +22,29 @@
 
 struct Parser
 {
+   /**
+   * @brief The kernel_t struct holds the folowing information:
+   *    - name,
+   *    - templated format strings, arguments strings,
+   *    - (single) FORALL data,
+   *    - original source and its duplicate for the JIT'ed one,
+   *    - various flags.
+   */
    struct kernel_t
    {
-      std::string name; // Kernel name
-      std::string Targs, Tparams, Tformat; // Template arguments, parameters, format
-      std::string Sargs, Sparams, Sparams0; // Symbol arguments, parameters
+      std::string name;
+      std::string Targs, Tparams, Tformat; // Templated info: <%d,%d>
+      std::string Sargs, Sparams, Sparams0; // Symbol call arguments
       std::string Tadds, Sargs_us;
-      struct { int dim; std::string e, N, X, Y, Z; std::ostringstream body; } forall;
+      struct { int dim; std::string e,N,X,Y,Z; std::ostringstream body; } forall;
       std::ostringstream src, dup;
       bool is_static, is_templated, eq, mv_to_targs;
-      int lt;
 
-      // finite state machine for handling the kernel 'filtering' and MFEM token
+      /**
+       * @brief The fsm_t struct is a minimal finite state machine mostly to
+       * handle the 'filtering' towards the Templated and/or Symbol strings.
+       * Each character emitted through 'put' is filtered when parsing a kernel.
+       */
       struct fsm_t
       {
          using State = void (fsm_t::*)();
@@ -53,6 +64,8 @@ struct Parser
          void postfix() { next(&fsm_t::wait); }    // Postfix code after forall
          template<State S> bool is() { return state == S; }
       } fsm;
+
+      void advance() { fsm.advance(); }
       bool is_jit()     { return fsm.is<&fsm_t::jit>(); }
       bool is_wait()    { return fsm.is<&fsm_t::wait>(); }
       bool is_targs()   { return fsm.is<&fsm_t::targs>(); }
@@ -62,7 +75,6 @@ struct Parser
       bool is_forall()  { return fsm.is<&fsm_t::forall>(); }
       bool is_kernel()  { return fsm.is<&fsm_t::kernel>(); }
       bool is_postfix() { return fsm.is<&fsm_t::postfix>(); }
-      void advance() { fsm.advance(); }
 
       bool filter(const char c) // returns false if c should not be out.put'ed
       {
@@ -95,6 +107,11 @@ struct Parser
    };
    void error(std::string msg) { throw error_t(line, filename, msg);}
    void check(const bool tst, std::string msg = "") { if (!tst) { error(msg); }}
+
+   /**
+    * @brief pp_line returns an pre-processor line used by to locate file and
+    * line number.
+    */
    std::string pp_line()
    {
       std::ostringstream oss {};
@@ -135,10 +152,7 @@ struct Parser
 
    void skip_string()
    {
-      if (!in.eof() && good() && is_quote())
-      {
-         for (check(put()=='"'); !is_quote(); put());
-      }
+      if (good() && is_quote()) { for (check(put()=='"'); !is_quote(); put()); }
    }
 
    bool is_comment()
@@ -146,7 +160,7 @@ struct Parser
       if (!good()) { return false; }
       if (in.peek() != '/') { return false; }
       in.get();
-      check(!in.eof(), "end of file found while in comment!");
+      check(good(), "end of file found while in comment!");
       const int c = in.peek();
       in.unget();
       if (c == '/' || c == '*') { return true; }
@@ -155,7 +169,7 @@ struct Parser
 
    void skip_comments()
    {
-      while (!in.eof() && good() && is_comment())
+      while (good() && is_comment())
       {
          check(put()=='/', "unknown comment");
          check(is_slash() || is_star(), "error in end-of-comment");
@@ -188,7 +202,7 @@ struct Parser
       int k = 0;
       check(n < M, "peek size error!");
       static char c[M];
-      for (k = 0; k < n && good() && !in.eof() && op(); k++) { c[k] = get(); }
+      for (k = 0; k < n && good() && op(); k++) { c[k] = get(); }
       std::string str((c[k]=0, c));
       for (int l = 0; l < k; l++) { in.unget(); }
       if (!good()) { return str; }
@@ -216,6 +230,13 @@ struct Parser
    bool is_lt() { return is_char('<'); }
    bool is_gt() { return is_char('>'); }
 
+   /**
+    * @brief mfem_jit_prefix is the main parser part: it prepares the templated
+    * format and argument strings, verify the signature, parse and prepare the
+    * arguments, prepare the prefix which will load the runtime device backends,
+    * switch the MFEM_FORALL_*D to MFEM_FORALL_*D_JIT and set the pre-processor
+    * line to the current source file and line location.
+    */
    void mfem_jit_prefix()
    {
       (ker.advance(), check(ker.is_jit(), "wait => jit")); // FSM update
@@ -267,7 +288,7 @@ struct Parser
       // Get the arguments
       ker.advance(); // Symbol => Params
       std::string id {};
-      ker.lt = 0;
+      int lt = 0;
       ker.eq = false;
       ker.mv_to_targs = false;
       ker.Sargs.clear();
@@ -299,8 +320,8 @@ struct Parser
          check(is_space() || is_id() || is_star() || is_amp() ||
                is_eq() || is_lt() || is_gt() || is_coma(),
                "while parsing the arguments.");
-         if (is_lt()) { ker.lt++; }
-         if (is_gt()) { ker.lt--; }
+         if (is_lt()) { lt++; }
+         if (is_gt()) { lt--; }
          if (is_space() && !id.empty() && id.back() != '.' && !ker.eq)
          {
             if (last(id) == "MFEM_JIT") { ker.mv_to_targs = true; id = head(id); }
@@ -314,7 +335,7 @@ struct Parser
             { check(false,std::string("Could not find T_")+to_upper(last(id))); }
          }
          if (is_id() && !ker.eq) { id += in.peek(); }
-         if (is_coma() && ker.lt == 0)
+         if (is_coma() && lt == 0)
          {
             if (id.back() == '.') { most(id); }
             add_id(), id.clear(), ker.eq = false, ker.mv_to_targs = false;
@@ -368,6 +389,12 @@ struct Parser
       block = 0; // Start counting the block statements
    }
 
+   /**
+    * @brief mfem_forall_prefix parse the MFEM_FORALL_?D(e,N,X,Y,Z,...).
+    * It stops before the body of the FORALL, which will not be parsed, but just
+    * filtered through the out.put().
+    * @param id holds the MFEM_* id from the token function.
+    */
    void mfem_forall_prefix(const std::string &id)
    {
       // Switch from prefix capturing, to the forall one
@@ -376,22 +403,22 @@ struct Parser
       ker.forall.dim = id.c_str()[12] - 0x30;
       check(ker.forall.dim == 2 || ker.forall.dim == 3, "FORALL dim error!");
       ker.forall.body.str(std::string());
-      auto next_check_id = [&](std::string &ker_forall_id, const char sep = ',')
+      next_check([&]() {return get() == '(';}, "no '(' in MFEM_FORALL");
+      auto get_expr= [&](std::string &expr)
       {
-         next_check([&]() {return get() == sep;}, "no sep in MFEM_FORALL");
-         next_check([&]() {return is_id();}, "no id in MFEM_FORALL");
-         ker_forall_id = get_id();
+         for (expr.clear(); good() && !is_coma(); expr += get()) {}
+         get(/*coma*/);
       };
-      next_check_id(ker.forall.e, '(');
-      next_check_id(ker.forall.N);
-      next_check_id(ker.forall.X);
-      next_check_id(ker.forall.Y);
-      next_check_id(ker.forall.Z);
-      next_check([&]() {return get()==',';}, "no last coma in MFEM_FORALL");
+      get_expr(ker.forall.e), get_expr(ker.forall.N); // get e, N and XYZ
+      get_expr(ker.forall.X), get_expr(ker.forall.Y), get_expr(ker.forall.Z);
       parenthesis = 0; // Start counting MFEM_FORALL's parentheses
       ker.advance(); // forall => kernel
    }
 
+   /**
+    * @brief mfem_forall_postfix creates both source (initial untouched kernel)
+    * and the duplicate which will be capable to use the JIT compilation.
+    */
    void mfem_forall_postfix()
    {
       check(get()==')',"no last right parenthesis found");
@@ -407,6 +434,15 @@ struct Parser
       ker.advance(/*kernel => postfix*/);
    }
 
+   /**
+    * @brief mfem_jit_postfix prepare:
+    *   - the JIT inputs: compiler, flags, libraries from the build system,
+    *   - computes the hash of the source, compiler, libraries, flags,
+    *     MFEM_SOURCE_DIR and MFEM_INSTALL_DIR,
+    *   - the per-kernel local unordered_map which holds the different kernel
+    *     symbols that have already been loaded,
+    *   - updates the pre-processor line.
+    */
    void mfem_jit_postfix() // output all kernel source, with updated hash
    {
       ker.src << "}\nextern \"C\" void k%016lx"
@@ -452,6 +488,10 @@ struct Parser
       ker.advance(/*postfix => wait*/);
    }
 
+   /**
+    * @brief token triggers the parser for each MFEM_* encountered.
+    * Depending on the FSM state, it also counts the blocks and parenthesis.
+    */
    void token()
    {
       auto is_end_of = [&](int &chr, const char beg_chr, const char end_chr)
@@ -475,11 +515,9 @@ struct Parser
          };
          const bool JIT = is(id, "JIT");
          if (ker.is_wait() && JIT) { mfem_jit_prefix(); }
-
          const bool FORALL = is(id, "FORALL_2D") || is(id, "FORALL_3D");
          if (ker.is_postfix() && FORALL) { error("Single FORALL is supported!"); }
          if (ker.is_prefix() && FORALL) { mfem_forall_prefix(id); }
-
          if (ker.is_wait()) { out << id; }
          if (ker.is_prefix() && !JIT) { ker.src << id; ker.dup << id; }
          if (ker.is_forall()) { ker.forall.body << id; }
@@ -487,12 +525,15 @@ struct Parser
       } // MFEM_*
 
       if (ker.is_kernel() && is_end_of(parenthesis,'(',')')) { mfem_forall_postfix(); }
-
       const bool is_end_blocks = is_end_of(block,'{','}');
       if (ker.is_prefix() && is_end_blocks) { ker.fsm.forall(); ker.fsm.kernel(); }
       if (ker.is_postfix() && is_end_blocks) { mfem_jit_postfix(); }
    }
 
+   /**
+    * @brief Parser operator which processes all the tokens.
+    * @return EXIT_SUCCESS or EXIT_FAILURE
+    */
    int operator()()
    {
       try { while (good()) { put(); next(); token(); } }
@@ -535,8 +576,7 @@ int main(const int argc, char* argv[])
    assert(ifs.is_open() && "Could not open input file!");
    assert((empty || ofs.is_open()) && "Could not open output file!");
    const int status = Parser(ifs, empty ? std::cout : ofs, file).operator()();
-   ifs.close();
-   ofs.close();
+   ifs.close(), ofs.close();
    return status;
 }
 

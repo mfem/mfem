@@ -109,9 +109,12 @@ function(mfem_mjit_configure)
         set(MFEM_INSTALL_BACKUP "--backup=none")
     endif(APPLE)
 
+    # CMAKE_SHARED_LIBRARY_SUFFIX has an extra "." prefix to remove
+    string(REPLACE "." "" MFEM_SO_EXT "${CMAKE_SHARED_LIBRARY_SUFFIX}")
+
     set_property(SOURCE general/jit/jit.cpp
                  PROPERTY COMPILE_DEFINITIONS
-                 MFEM_SO_EXT="${CMAKE_SHARED_LIBRARY_SUFFIX}"
+                 MFEM_SO_EXT="${MFEM_SO_EXT}"
                  MFEM_PICFLAG="${MFEM_XCOMPILER}${CMAKE_SHARED_LIBRARY_CXX_FLAGS}"
                  MFEM_XCOMPILER="${MFEM_XCOMPILER}"
                  MFEM_XLINKER="${MFEM_XLINKER}"
