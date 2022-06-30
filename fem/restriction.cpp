@@ -1774,6 +1774,31 @@ void InterpolationManager::LinearizeInterpolatorMapIntoVector()
    interp_map.clear();
 }
 
+void InterpolationManager::InitializeNCInterpConfig()
+{
+   // Count nonconforming faces
+   int num_nc_faces = 0;
+   for (size_t i = 0; i < interp_config.Size(); i++)
+   {
+      if ( interp_config[i].is_non_conforming )
+      {
+         num_nc_faces++;
+      }
+   }
+   // Set nc_interp_config
+   nc_interp_config.SetSize(num_nc_faces);
+   int nc_index = 0;
+   for (size_t i = 0; i < interp_config.Size(); i++)
+   {
+      auto & config = interp_config[i];
+      if ( config.is_non_conforming )
+      {
+         nc_interp_config[nc_index] = NCInterpConfig(i, config);
+         nc_index++;
+      }
+   }
+}
+
 NCL2FaceRestriction::NCL2FaceRestriction(const FiniteElementSpace &fes,
                                          const ElementDofOrdering ordering,
                                          const FaceType type,
@@ -1813,20 +1838,23 @@ void NCL2FaceRestriction::DoubleValuedNonconformingInterpolation(
    const int nface_dofs = face_dofs;
    const int vd = vdim;
    auto d_y = Reshape(y.ReadWrite(), nface_dofs, vd, 2, nf);
-   auto interp_config_ptr = interpolations.GetFaceInterpConfig().Read();
+   auto &nc_interp_config = interpolations.GetNCFaceInterpConfig();
+   const int num_nc_faces = nc_interp_config.Size();
+   auto interp_config_ptr = nc_interp_config.Read();
    const int nc_size = interpolations.GetNumInterpolators();
    auto d_interp = Reshape(interpolations.GetInterpolators().Read(),
                            nface_dofs, nface_dofs, nc_size);
    static constexpr int max_nd = 16*16;
    MFEM_VERIFY(nface_dofs<=max_nd, "Too many degrees of freedom.");
-   MFEM_FORALL_3D(face, nf, nface_dofs, 1, 1,
+   MFEM_FORALL_3D(nc_face, num_nc_faces, nface_dofs, 1, 1,
    {
       MFEM_SHARED double dof_values[max_nd];
-      const InterpConfig conf = interp_config_ptr[face];
+      const NCInterpConfig conf = interp_config_ptr[nc_face];
       if ( conf.is_non_conforming )
       {
          const int master_side = conf.master_side;
          const int interp_index = conf.index;
+         const int face = conf.face_index;
          for (int c = 0; c < vd; ++c)
          {
             MFEM_FOREACH_THREAD(dof,x,nface_dofs)
@@ -1889,18 +1917,21 @@ void NCL2FaceRestriction::SingleValuedNonconformingTransposeInterpolation(
    const int vd = vdim;
    // Interpolation
    auto d_x = Reshape(x_interp.ReadWrite(), nface_dofs, vd, nf);
-   auto interp_config_ptr = interpolations.GetFaceInterpConfig().Read();
+   auto &nc_interp_config = interpolations.GetNCFaceInterpConfig();
+   const int num_nc_faces = nc_interp_config.Size();
+   auto interp_config_ptr = nc_interp_config.Read();
    auto interpolators = interpolations.GetInterpolators().Read();
    const int nc_size = interpolations.GetNumInterpolators();
    auto d_interp = Reshape(interpolators, nface_dofs, nface_dofs, nc_size);
    static constexpr int max_nd = 16*16;
    MFEM_VERIFY(nface_dofs<=max_nd, "Too many degrees of freedom.");
-   MFEM_FORALL_3D(face, nf, nface_dofs, 1, 1,
+   MFEM_FORALL_3D(nc_face, num_nc_faces, nface_dofs, 1, 1,
    {
       MFEM_SHARED double dof_values[max_nd];
-      const InterpConfig conf = interp_config_ptr[face];
+      const NCInterpConfig conf = interp_config_ptr[nc_face];
       const int master_side = conf.master_side;
       const int interp_index = conf.index;
+      const int face = conf.face_index;
       if ( conf.is_non_conforming && master_side==0 )
       {
          // Interpolation from fine to coarse
@@ -1948,18 +1979,21 @@ void NCL2FaceRestriction::DoubleValuedNonconformingTransposeInterpolation(
    const int vd = vdim;
    // Interpolation
    auto d_x = Reshape(x.ReadWrite(), nface_dofs, vd, 2, nf);
-   auto interp_config_ptr = interpolations.GetFaceInterpConfig().Read();
+   auto &nc_interp_config = interpolations.GetNCFaceInterpConfig();
+   const int num_nc_faces = nc_interp_config.Size();
+   auto interp_config_ptr = nc_interp_config.Read();
    auto interpolators = interpolations.GetInterpolators().Read();
    const int nc_size = interpolations.GetNumInterpolators();
    auto d_interp = Reshape(interpolators, nface_dofs, nface_dofs, nc_size);
    static constexpr int max_nd = 16*16;
    MFEM_VERIFY(nface_dofs<=max_nd, "Too many degrees of freedom.");
-   MFEM_FORALL_3D(face, nf, nface_dofs, 1, 1,
+   MFEM_FORALL_3D(nc_face, num_nc_faces, nface_dofs, 1, 1,
    {
       MFEM_SHARED double dof_values[max_nd];
-      const InterpConfig conf = interp_config_ptr[face];
+      const NCInterpConfig conf = interp_config_ptr[nc_face];
       const int master_side = conf.master_side;
       const int interp_index = conf.index;
+      const int face = conf.face_index;
       if ( conf.is_non_conforming )
       {
          // Interpolation from fine to coarse
@@ -2143,6 +2177,7 @@ void NCL2FaceRestriction::ComputeScatterIndicesAndOffsets(
 
    // Transform the interpolation matrix map into a contiguous memory structure.
    interpolations.LinearizeInterpolatorMapIntoVector();
+   interpolations.InitializeNCInterpConfig();
 }
 
 void NCL2FaceRestriction::ComputeGatherIndices(
