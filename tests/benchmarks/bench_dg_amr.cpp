@@ -142,7 +142,7 @@ static void BK_DG(bm::State &state){
    const int target_dofs = state.range(0);
    const int elem_dofs = pow(p+1, dim);
    const int N = pow(target_dofs / elem_dofs, 1.0/dim) + 1;
-   const double prob = state.range(2);
+   const double prob = ((double)state.range(2))/100;
    Kernel ker(p, N, prob);
    if ( !ker.is_runnable() ) { state.SkipWithError("MAX_MEM"); }
    while (state.KeepRunning()) { ker.benchmark_action(); }
@@ -154,7 +154,7 @@ static void BK_DG(bm::State &state){
 BENCHMARK(BK_DG)->ArgsProduct({
       benchmark::CreateRange(1024, max_dofs, /*step=*/2),
       benchmark::CreateDenseRange(1, max_order, /*step=*/1),
-      {-1, 0, 0.01, 0.1, 0.5}
+      {-1, 0, 1, 10, 50}
     })->Unit(bm::kMillisecond);
 
 /**
