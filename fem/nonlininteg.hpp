@@ -16,7 +16,7 @@
 #include "fe.hpp"
 #include "coefficient.hpp"
 #include "fespace.hpp"
-#include "ceed/operator.hpp"
+#include "ceed/interface/operator.hpp"
 
 namespace mfem
 {

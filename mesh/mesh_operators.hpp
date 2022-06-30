@@ -389,7 +389,7 @@ public:
    }
 
    /// Reset the oscillation order
-   void SetOrder(double order_) { order = order_; }
+   void SetOrder(int order_) { order = order_; }
 
    /** @brief Set the maximum ratio of refinement levels of adjacent elements
        (0 = unlimited). The default value is 1, which helps ensure appropriate

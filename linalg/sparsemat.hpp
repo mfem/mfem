@@ -170,6 +170,15 @@ public:
    /// Create a SparseMatrix with diagonal @a v, i.e. A = Diag(v)
    SparseMatrix(const Vector & v);
 
+   /// @brief Sets the height and width of the matrix.
+   /** @warning This does not modify in any way the underlying CSR or LIL
+       representation of the matrix.
+
+       This function should generally be called when manually constructing the
+       CSR #I, #J, and #A arrays in conjunction with the
+       SparseMatrix::SparseMatrix() constructor. */
+   void OverrideSize(int height_, int width_);
+
    /** @brief Runtime option to use cuSPARSE or hipSPARSE. Only valid when using
        a CUDA or HIP backend.
 
