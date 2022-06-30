@@ -78,11 +78,8 @@ double exactPsiRe(const Vector &x, double t)
       + U/4/A0*( (d*exp(-A0*Y/d) + A0*Y)*erfc((Y-A0*t)/2./sqrt(d*t)) + (d*exp(A0*Y/d)-A0*Y)*erfc((A0*t+Y)/2./sqrt(d*t)));
 }
 
-
-
 double BackPsi(const Vector &x)
 {
-    //this is the background psi (for post-processing/plotting only)
     return -x(1);
 }
 
@@ -101,13 +98,11 @@ double InitialJ2(const Vector &x)
 
 double InitialPsi2(const Vector &x)
 {
-    return log(cosh(lambda*(x(1)-.5)))/lambda
-           +beta*sin(M_PI*x(1))*cos(2.0*M_PI/Lx*x(0));
+    return log(cosh(lambda*(x(1)-.5)))/lambda + beta*sin(M_PI*x(1))*cos(2.0*M_PI/Lx*x(0));
 }
 
 double BackPsi2(const Vector &x)
 {
-    //this is the background psi (for post-processing/plotting only)
     return log(cosh(lambda*(x(1)-.5)))/lambda;
 }
 
@@ -202,8 +197,10 @@ double E0rhs7(const Vector &x)
 
 double InitialPsi7(const Vector &x)
 {
-    double lx = 5.0*L0, ly = L0;
-    return -L0*log(cosh(x(1)/L0)) + beta*exp( - (x(0)/lx)*(x(0)/lx) - (x(1)/ly)*(x(1)/ly) );
+    double lx = 5.0*L0, ly = L0, llong = 50.0*L0;
+    //return -L0*log(cosh(x(1)/L0)) + beta*exp( - (x(0)/lx)*(x(0)/lx) - (x(1)/ly)*(x(1)/ly) );
+    //return -L0*log(cosh(x(1)/L0)) + beta*sin(M_PI/llong*x(1))*cos(M_PI/lx*x(0));
+    return -L0*log(cosh(x(1)/L0)) + beta*exp(-(x(1)/ly)*(x(1)/ly))*cos(M_PI/lx*x(0));
 }
 
 double BackPsi7(const Vector &x)
@@ -213,7 +210,27 @@ double BackPsi7(const Vector &x)
 
 double InitialJ7(const Vector &x)
 {
+    double lx = 5.0*L0, ly = L0, llong = 50.0*L0;
+    double exp_xy =exp( - (x(0)/lx)*(x(0)/lx) - (x(1)/ly)*(x(1)/ly) );
+    //return ( tanh(x(1)/L0)*tanh(x(1)/L0) - 1.0 )/L0  - beta*exp_xy*( 2.0/lx/lx + 2.0/ly/ly - 4.0*(x(0)/lx)*(x(0)/lx)/lx/lx - 4.0*(x(1)/ly)*(x(1)/ly)/ly/ly );
+    //return ( tanh(x(1)/L0)*tanh(x(1)/L0) - 1.0 )/L0  - beta*sin(M_PI/llong*x(1))*cos(M_PI/lx*x(0))*M_PI*M_PI*(1.0/llong/llong+1.0/lx/lx);
+    return ( tanh(x(1)/L0)*tanh(x(1)/L0) - 1.0 )/L0  + beta*exp(-(x(1)/ly)*(x(1)/ly))*cos(M_PI/lx*x(0))*(-M_PI*M_PI/lx/lx - 2/ly/ly + 4*x(1)*x(1)/ly/ly/ly/ly);
+}
+
+double InitialPsi8(const Vector &x)
+{
     double lx = 5.0*L0, ly = L0;
+    return -L0*( log(cosh(x(1)/L0)) + x(1) ) + beta*exp( - (x(0)/lx)*(x(0)/lx) - (x(1)/ly)*(x(1)/ly) );
+}
+
+double BackPsi8(const Vector &x)
+{
+    return -L0*( log(cosh(x(1)/L0)) + x(1) );
+}
+
+double InitialJ8(const Vector &x)
+{
+    double lx = 5.0*L0, ly = L0, llong = 50.0*L0;
     double exp_xy =exp( - (x(0)/lx)*(x(0)/lx) - (x(1)/ly)*(x(1)/ly) );
     return ( tanh(x(1)/L0)*tanh(x(1)/L0) - 1.0 )/L0  - beta*exp_xy*( 2.0/lx/lx + 2.0/ly/ly - 4.0*(x(0)/lx)*(x(0)/lx)/lx/lx - 4.0*(x(1)/ly)*(x(1)/ly)/ly/ly );
 }

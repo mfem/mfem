@@ -218,7 +218,7 @@ int main(int argc, char *argv[])
       MPI_Finalize();
       return 1;
    }
-   if (icase==2 || icase == 7)
+   if (icase==2 || icase==7 || icase==8)
    {
       resiG=resi;
    }
@@ -379,6 +379,11 @@ int main(int argc, char *argv[])
            FunctionCoefficient psiInit(InitialPsi7);
            psiTmp.ProjectCoefficient(psiInit);
       }
+      else if (icase==8)
+      {
+           FunctionCoefficient psiInit(InitialPsi8);
+           psiTmp.ProjectCoefficient(psiInit);
+      }
       psiTmp.SetTrueVector();
 
       if (icase==1)
@@ -405,6 +410,11 @@ int main(int argc, char *argv[])
       {
            FunctionCoefficient jInit7(InitialJ7);
            jTmp.ProjectCoefficient(jInit7);
+      }
+      else if (icase==8)
+      {
+           FunctionCoefficient jInit8(InitialJ8);
+           jTmp.ProjectCoefficient(jInit8);
       }
       jTmp.SetTrueVector();
 
@@ -452,7 +462,7 @@ int main(int argc, char *argv[])
      w.MakeTRef(&fespace, vx, fe_offset3[2]);
 
    //+++++Set the initial conditions, and the boundary conditions
-   FunctionCoefficient phiInit(InitialPhi), psi7(BackPsi7);
+   FunctionCoefficient phiInit(InitialPhi), psi7(BackPsi7), psi8(BackPsi8);
    phi.ProjectCoefficient(phiInit);
    phi.SetTrueVector();
    phi.SetFromTrueVector(); 
@@ -482,6 +492,11 @@ int main(int argc, char *argv[])
         FunctionCoefficient psiInit(InitialPsi7);
         psi.ProjectCoefficient(psiInit);
    }
+   else if (icase==8)
+   {
+        FunctionCoefficient psiInit(InitialPsi8);
+        psi.ProjectCoefficient(psiInit);
+   }
    psi.SetTrueVector();
    psi.SetFromTrueVector(); 
 
@@ -499,12 +514,12 @@ int main(int argc, char *argv[])
    else if (icase==3 || icase==4){
        oper.SetRHSEfield(E0rhs3);
    }
-   else if (icase==7){
+   else if (icase==7 || icase==8){
        oper.SetRHSEfield(E0rhs7);
    }
 
    //set initial J
-   FunctionCoefficient jInit1(InitialJ), jInit2(InitialJ2), jInit3(InitialJ3), jInit4(InitialJ4), jInit7(InitialJ7), *jptr;
+   FunctionCoefficient jInit1(InitialJ), jInit2(InitialJ2), jInit3(InitialJ3), jInit4(InitialJ4), jInit7(InitialJ7), jInit8(InitialJ8), *jptr;
    if (icase==1)
        jptr=&jInit1;
    else if (icase==2)
@@ -515,6 +530,8 @@ int main(int argc, char *argv[])
        jptr=&jInit4;
    else if (icase==7)
        jptr=&jInit7;
+   else if (icase==8)
+       jptr=&jInit8;
    j.ProjectCoefficient(*jptr);
    j.SetTrueVector();
    oper.SetInitialJ(*jptr);
@@ -700,7 +717,7 @@ int main(int argc, char *argv[])
       gfv = new ParGridFunction(vfes);
       pre = new ParGridFunction(&fespace);
       dpsidt = new ParGridFunction(&fespace);
-      if (icase==7) {psi_sub = new ParGridFunction(&fespace);}
+      if (icase==7 || icase==8) {psi_sub = new ParGridFunction(&fespace);}
       grad = new ParMixedBilinearForm(&fespace, vfes);
       div = new ParMixedBilinearForm(vfes, &fespace);
       convect = new ParNonlinearForm(vfes);
@@ -858,6 +875,11 @@ int main(int argc, char *argv[])
         psiBack.ProjectCoefficient(psi7);
         subtract(psi,psiBack,*psi_sub);
       }
+      else if(icase==8){
+        ParGridFunction psiBack(&fespace);
+        psiBack.ProjectCoefficient(psi8);
+        subtract(psi,psiBack,*psi_sub);
+      }
       vfes_match=true;
    }
 
@@ -876,7 +898,7 @@ int main(int argc, char *argv[])
           pd->RegisterField("B", mag);
           pd->RegisterField("pre", pre);
           pd->RegisterField("dpsidt", dpsidt);
-          if (icase==7) {pd->RegisterField("psi_sub", psi_sub);}
+          if (icase==7 || icase==8) {pd->RegisterField("psi_sub", psi_sub);}
           pd->RegisterField("grad pre", gradP);
           pd->RegisterField("grad mag pre", gradBP);
           pd->RegisterField("B.gradB", BgradB);
@@ -1177,6 +1199,11 @@ int main(int argc, char *argv[])
               if (icase==7){
                 ParGridFunction psiBack(&fespace);
                 psiBack.ProjectCoefficient(psi7);
+                subtract(psi,psiBack,*psi_sub);
+              }
+              else if(icase==8){
+                ParGridFunction psiBack(&fespace);
+                psiBack.ProjectCoefficient(psi8);
                 subtract(psi,psiBack,*psi_sub);
               }
 
