@@ -5049,6 +5049,7 @@ void HypreAMS::MakeSolver(int sdim, int cycle_type)
    int amg_Pmax         = 4;
 #endif
 
+   space_dim = sdim;
    HYPRE_AMSCreate(&ams);
 
    HYPRE_AMSSetDimension(ams, sdim); // 2D H(div) and 3D H(curl) problems
@@ -5078,7 +5079,7 @@ void HypreAMS::MakeGradientAndInterpolation(
    ParFiniteElementSpace *edge_fespace, int cycle_type)
 {
    int dim = edge_fespace->GetMesh()->Dimension();
-   sdim = edge_fespace->GetMesh()->SpaceDimension();
+   int sdim = edge_fespace->GetMesh()->SpaceDimension();
    const FiniteElementCollection *edge_fec = edge_fespace->FEColl();
 
    bool trace_space, rt_trace_space;
@@ -5359,7 +5360,7 @@ void HypreAMS::ResetAMSPrecond()
    HYPRE_AMSDestroy(ams);
    HYPRE_AMSCreate(&ams);
 
-   HYPRE_AMSSetDimension(ams, sdim); // 2D H(div) and 3D H(curl) problems
+   HYPRE_AMSSetDimension(ams, space_dim); // 2D H(div) and 3D H(curl) problems
    HYPRE_AMSSetTol(ams, 0.0);
    HYPRE_AMSSetMaxIter(ams, 1); // use as a preconditioner
    HYPRE_AMSSetCycleType(ams, cycle_type);
