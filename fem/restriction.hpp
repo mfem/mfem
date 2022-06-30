@@ -241,6 +241,8 @@ public:
                      ElementDofOrdering. */
    void Mult(const Vector &x, Vector &y) const override;
 
+   using FaceRestriction::AddMultTranspose;
+
    /** @brief Gather the degrees of freedom, i.e. goes from face E-Vector to
        L-Vector.
 
@@ -369,6 +371,8 @@ public:
                      The face_dofs are ordered according to the given
                      ElementDofOrdering. */
    void Mult(const Vector &x, Vector &y) const override;
+
+   using FaceRestriction::AddMultTranspose;
 
    /** @brief Gather the degrees of freedom, i.e. goes from face E-Vector to
        L-Vector.
@@ -597,6 +601,37 @@ struct InterpConfig
    InterpConfig &operator=(const InterpConfig &rhs) = default;
 };
 
+struct NCInterpConfig
+{
+   int face_index;
+   uint32_t is_non_conforming : 1;
+   uint32_t master_side : 1;
+   uint32_t index : 30;
+
+   // default constructor.
+   NCInterpConfig() = default;
+
+   // Non-conforming face
+   NCInterpConfig(int face_index, int master_side, int nc_index)
+      : face_index(face_index),
+        is_non_conforming(1),
+        master_side(master_side),
+        index(nc_index)
+   { }
+
+   // Non-conforming face
+   NCInterpConfig(int face_index, InterpConfig & config)
+      : face_index(face_index),
+        is_non_conforming(config.is_non_conforming),
+        master_side(config.master_side),
+        index(config.index)
+   { }
+
+   NCInterpConfig(const NCInterpConfig&) = default;
+
+   NCInterpConfig &operator=(const NCInterpConfig &rhs) = default;
+};
+
 /** @brief This class manages the storage and computation of the interpolations
     from master (coarse) face to slave (fine) face.
 */
@@ -606,6 +641,7 @@ protected:
    const FiniteElementSpace &fes;
    const ElementDofOrdering ordering;
    Array<InterpConfig> interp_config; // interpolator index for each face
+   Array<NCInterpConfig> nc_interp_config; // interpolator index for each ncface
    Vector interpolators; // face_dofs x face_dofs x num_interpolators
    int nc_cpt; // Counter for interpolators, and used as index.
 
@@ -651,6 +687,8 @@ public:
        structure. */
    void LinearizeInterpolatorMapIntoVector();
 
+   void InitializeNCInterpConfig();
+
    /// @brief Return the total number of interpolators.
    int GetNumInterpolators() const
    {
@@ -670,6 +708,14 @@ public:
    const Array<InterpConfig>& GetFaceInterpConfig() const
    {
       return interp_config;
+   }
+
+   /** @brief Return an array containing the interpolation configuration for
+       each face registered with RegisterFaceConformingInterpolation and
+       RegisterFaceCoarseToFineInterpolation. */
+   const Array<NCInterpConfig>& GetNCFaceInterpConfig() const
+   {
+      return nc_interp_config;
    }
 
 private:
