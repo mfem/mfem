@@ -54,8 +54,9 @@ all: $(MINIAPPS)
 # Rules for building the miniapps
 %: $(SRC)%.cpp %_solver.o $(MFEM_LIB_FILE) $(CONFIG_MK) | lib-common
 	$(MFEM_CXX) $(MFEM_FLAGS) -c $(<)
+	$(MFEM_CXX) $(MFEM_FLAGS) -c bfield_remhos.cpp
 	$(MFEM_CXX) $(MFEM_LINK_FLAGS) -o $@ $@.o $@_solver.o $(COMMON_LIB) \
-	  $(MFEM_LIBS)
+	  $(MFEM_LIBS) bfield_remhos.o
 
 # Rules for compiling miniapp dependencies
 $(addsuffix _solver.o,$(MINIAPPS)): \

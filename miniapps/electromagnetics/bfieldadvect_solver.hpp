@@ -11,6 +11,7 @@
 
 #include "../common/pfem_extras.hpp"
 #include "../common/mesh_extras.hpp"
+#include "bfield_remhos.hpp"
 
 namespace mfem
 {
@@ -30,7 +31,8 @@ class BFieldAdvector
 {
    public:
    BFieldAdvector(ParMesh *pmesh_old, ParMesh *pmesh_new, int order);
-   void SetMeshes(ParMesh *pmesh_old, ParMesh *pmesh_new);
+   void SetMesh(ParMesh *pmesh_old, ParMesh *pmesh_new);
+   void SetMeshNodes(ParGridFunction *old_nodes, ParGridFunction *new_nodes);
    void Advect(ParGridFunction* b_old, ParGridFunction* b_new);
 
    ParGridFunction* GetVectorPotential() {return a;}
@@ -49,11 +51,11 @@ class BFieldAdvector
    /** The fieldtype variable goes from 0 forms to 3 forms in order 0-H1, 1-H(curl), 2-H(div), 3-L2
    **/
    void FindPtsInterpolateToTargetMesh(const ParGridFunction *old_gf, ParGridFunction *new_gf, int fieldtype);
+   void RemhosRemap(ParGridFunction* b_old, ParGridFunction* b_new);
 
    int order;
-   int pmeshNewOrder;
    MPI_Comm myComm;
-   ParMesh *pmeshOld, *pmeshNew;         //The old/source mesh and new/target mesh
+   ParMesh *pmeshOld, *pmeshNew;
    H1_ParFESpace *H1FESpaceOld, *H1FESpaceNew;
    ND_ParFESpace *HCurlFESpaceOld, *HCurlFESpaceNew;
    RT_ParFESpace *HDivFESpaceOld, *HDivFESpaceNew;
@@ -71,6 +73,55 @@ class BFieldAdvector
    ParGridFunction *curl_b;
    ParGridFunction *clean_curl_b;
    ParGridFunction *recon_b;
+};
+
+
+class AdvectionOperator : public TimeDependentOperator
+{
+private:
+   BilinearForm &Mbf, &ml;
+   ParBilinearForm &Kbf;
+   ParBilinearForm &M_HO, &K_HO;
+   Vector &lumpedM;
+
+   Vector start_mesh_pos, start_submesh_pos;
+   GridFunction &mesh_pos, *submesh_pos, &mesh_vel, &submesh_vel;
+
+   mutable ParGridFunction x_gf;
+
+   double dt;
+   mutable double dt_est;
+   Assembly &asmbl;
+
+   LowOrderMethod &lom;
+   DofInfo &dofs;
+
+   HOSolver *ho_solver;
+   LOSolver *lo_solver;
+   FCTSolver *fct_solver;
+
+public:
+   AdvectionOperator(int size, BilinearForm &Mbf_, BilinearForm &_ml,
+                     Vector &_lumpedM,
+                     ParBilinearForm &Kbf_,
+                     ParBilinearForm &M_HO_, ParBilinearForm &K_HO_,
+                     GridFunction &pos, GridFunction *sub_pos,
+                     GridFunction &vel, GridFunction &sub_vel,
+                     Assembly &_asmbl, LowOrderMethod &_lom, DofInfo &_dofs,
+                     HOSolver *hos, LOSolver *los, FCTSolver *fct);
+
+   virtual void Mult(const Vector &x, Vector &y) const;
+
+   void SetDt(double dt_) { dt = dt_; dt_est = dt; }
+   double GetTimeStepEstimate() { return dt_est; }
+
+   void SetRemapStartPos(const Vector &m_pos, const Vector &sm_pos)
+   {
+      start_mesh_pos    = m_pos;
+      start_submesh_pos = sm_pos;
+   }
+
+   virtual ~AdvectionOperator() { }
 };
 
 } // namespace electromagnetics

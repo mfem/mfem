@@ -1,10 +1,12 @@
 #include "bfieldadvect_solver.hpp"
+#include <random>
 
 using namespace std;
 using namespace mfem;
 using namespace mfem::electromagnetics;
 
 void BFieldFunc(const Vector &, Vector&);
+void PeturbBoxMesh(Mesh *mesh, double xlen, double ylen, double zlen, double window);
 
 int main(int argc, char *argv[])
 {
@@ -48,7 +50,10 @@ int main(int argc, char *argv[])
    }
 
    Mesh *mesh_old = new Mesh(20, 20, 5, Element::HEXAHEDRON, false, 4.0, 4.0, 1.0);
-   Mesh *mesh_new = new Mesh(30, 30, 8, Element::HEXAHEDRON, false, 4.0, 4.0, 1.0);   
+   Mesh *mesh_new = new Mesh(*mesh_old, true);
+   double dl = 1.0/5.0;
+   PeturbBoxMesh(mesh_new, 4.0, 4.0, 1.0, 0.05*dl);
+
 
    // Refine the serial mesh on all processors to increase the resolution. In
    // this example we do 'ref_levels' of uniform refinement.
@@ -90,15 +95,18 @@ int main(int argc, char *argv[])
 
    BFieldAdvector advector(&pmesh_old, &pmesh_new, 1);
    advector.Advect(b, b_new);
-   Vector diff(*b_new_exact);
-   diff -= *b_new;    //diff = b_new_exact - b_new
-   std::cout << "L2 Error in reconstructed B field on the new mesh:  " << diff.Norml2() << std::endl;
-
-
    ParGridFunction *b_recon = advector.GetReconstructedB();
    ParGridFunction *curl_b = advector.GetCurlB();
    ParGridFunction *a = advector.GetA();
    ParGridFunction *a_new = advector.GetANew();
+
+   Vector diff_b(*b_new_exact);
+   diff_b -= *b_new;    //diff = b_new_exact - b_new
+   std::cout << "Vector diff in B field on the new mesh:  " << diff_b.Normlinf() << std::endl;
+
+   Vector diff_a(*a);
+   diff_a -= *a_new;    //diff = b_new_exact - b_new
+   std::cout << "Vector diff in A field on the new mesh:  " << diff_a.Normlinf() << ", " << a->Normlinf() << std::endl;
 
    // Handle the visit visualization
    if (visit)
@@ -129,4 +137,34 @@ void BFieldFunc(const Vector &x, Vector &B)
    B[0] =  x[1] - 2.0;
    B[1] = -(x[0] - 2.0);
    B[2] =  0.0;
+}
+
+
+void PeturbBoxMesh(Mesh *mesh, double xlen, double ylen, double zlen, double window)
+{
+   Vector displacements(3*mesh->GetNV());
+   displacements = 0.0;
+   std::random_device rd;  // Will be used to obtain a seed for the random number engine
+   std::mt19937 gen(rd()); // Standard mersenne_twister_engine seeded with rd()
+   std::uniform_real_distribution<> r(-0.5*window, 0.5*window);   
+   for (int vi = 0; vi < mesh->GetNV(); ++vi)
+   {
+      double *v = mesh->GetVertex(vi);
+      if (fabs(v[0]) > 1e-6 && fabs(v[0] - xlen) > 1e-6)
+      {
+         displacements[3*vi+0] = r(gen);
+      }
+
+      if (fabs(v[1]) > 1e-6 && fabs(v[1] - ylen) > 1e-6)
+      {
+         displacements[3*vi+1] = r(gen);
+      }
+
+      if (fabs(v[2]) > 1e-6 && fabs(v[2] - zlen) > 1e-6)
+      {
+         displacements[3*vi+2] = r(gen);
+      }      
+   }
+   std::cout << "Displacement norm:  " << displacements.Norml2() << std::endl;
+   mesh->MoveVertices(displacements);
 }
