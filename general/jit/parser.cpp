@@ -22,8 +22,8 @@
 
 struct Parser
 {
-   /**
-   * @brief The kernel_t struct holds the folowing information:
+   /*
+   * The kernel_t struct holds the folowing information:
    *    - name,
    *    - templated format strings, arguments strings,
    *    - (single) FORALL data,
@@ -40,8 +40,8 @@ struct Parser
       std::ostringstream src, dup;
       bool is_static, is_templated, eq, mv_to_targs;
 
-      /**
-       * @brief The fsm_t struct is a minimal finite state machine mostly to
+      /*
+       * The fsm_t struct is a minimal finite state machine mostly to
        * handle the 'filtering' towards the Templated and/or Symbol strings.
        * Each character emitted through 'put' is filtered when parsing a kernel.
        */
@@ -108,8 +108,8 @@ struct Parser
    void error(std::string msg) { throw error_t(line, filename, msg);}
    void check(const bool tst, std::string msg = "") { if (!tst) { error(msg); }}
 
-   /**
-    * @brief pp_line returns an pre-processor line used by to locate file and
+   /*
+    * pp_line returns an pre-processor line used by to locate file and
     * line number.
     */
    std::string pp_line()
@@ -230,8 +230,8 @@ struct Parser
    bool is_lt() { return is_char('<'); }
    bool is_gt() { return is_char('>'); }
 
-   /**
-    * @brief mfem_jit_prefix is the main parser part: it prepares the templated
+   /*
+    * mfem_jit_prefix is the main parser part: it prepares the templated
     * format and argument strings, verify the signature, parse and prepare the
     * arguments, prepare the prefix which will load the runtime device backends,
     * switch the MFEM_FORALL_*D to MFEM_FORALL_*D_JIT and set the pre-processor
@@ -389,7 +389,7 @@ struct Parser
       block = 0; // Start counting the block statements
    }
 
-   /**
+   /*
     * @brief mfem_forall_prefix parse the MFEM_FORALL_?D(e,N,X,Y,Z,...).
     * It stops before the body of the FORALL, which will not be parsed, but just
     * filtered through the out.put().
@@ -415,7 +415,7 @@ struct Parser
       ker.advance(); // forall => kernel
    }
 
-   /**
+   /*
     * @brief mfem_forall_postfix creates both source (initial untouched kernel)
     * and the duplicate which will be capable to use the JIT compilation.
     */
@@ -434,7 +434,7 @@ struct Parser
       ker.advance(/*kernel => postfix*/);
    }
 
-   /**
+   /*
     * @brief mfem_jit_postfix prepare:
     *   - the JIT inputs: compiler, flags, libraries from the build system,
     *   - computes the hash of the source, compiler, libraries, flags,
@@ -488,7 +488,7 @@ struct Parser
       ker.advance(/*postfix => wait*/);
    }
 
-   /**
+   /*
     * @brief token triggers the parser for each MFEM_* encountered.
     * Depending on the FSM state, it also counts the blocks and parenthesis.
     */
@@ -530,7 +530,7 @@ struct Parser
       if (ker.is_postfix() && is_end_blocks) { mfem_jit_postfix(); }
    }
 
-   /**
+   /*
     * @brief Parser operator which processes all the tokens.
     * @return EXIT_SUCCESS or EXIT_FAILURE
     */
