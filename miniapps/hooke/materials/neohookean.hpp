@@ -142,6 +142,9 @@ struct NeoHookeanMaterial
       {
          return action_of_gradient_dual(dudx, ddudx);
       }
+      // Getting to this point is an error.
+      // For now we just return a zero tensor to suppress a warning:
+      return tensor<double, dim, dim>{};
    }
 
    MFEM_HOST_DEVICE tensor<double, dim, dim>
