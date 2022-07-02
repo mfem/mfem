@@ -22,7 +22,7 @@
 #include <thread> // sleep_for
 #include <chrono> // (milli) seconds
 
-#include <cassert>
+//#include <cassert>
 #include <cstring> // strlen
 #include <cstdlib> // exit, system
 #include <dlfcn.h> // dlopen/dlsym, not available on Windows
@@ -478,7 +478,6 @@ public:
             }
             else // avoid duplicate compilation
             {
-               assert(false);
                cc_lock.Wait();
                // if removed or timeout, rerun the compilation
                if (!std::fstream(Lib_so())) { RootCompile(so); }

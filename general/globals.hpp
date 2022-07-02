@@ -15,7 +15,7 @@
 #include "../config/config.hpp"
 #include <iostream>
 
-#if defined(MFEM_USE_MPI) && !defined(MFEM_JIT_COMPILATION)
+#ifdef MFEM_USE_MPI
 #include <mpi.h>
 #endif
 
@@ -84,7 +84,8 @@ extern OutStream err;
 std::string MakeParFilename(const std::string &prefix, const int myid,
                             const std::string suffix = "", const int width = 6);
 
-#if defined(MFEM_USE_MPI) && !defined(MFEM_JIT_COMPILATION)
+
+#ifdef MFEM_USE_MPI
 
 /** @name MFEM "global" communicator functions.
 
