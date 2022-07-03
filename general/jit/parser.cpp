@@ -20,6 +20,15 @@
 #include <fstream>
 #include <algorithm> // std::transform
 
+#if !(defined(MFEM_CXX) && defined(MFEM_EXT_LIBS) &&\
+      defined(MFEM_LINK_FLAGS) && defined(MFEM_BUILD_FLAGS))
+#error MFEM_[CXX, EXT_LIBS, LINK_FLAGS, BUILD_FLAGS] must be defined!
+#define MFEM_CXX
+#define MFEM_EXT_LIBS
+#define MFEM_LINK_FLAGS
+#define MFEM_BUILD_FLAGS
+#endif
+
 struct Parser
 {
    /*
@@ -450,10 +459,10 @@ struct Parser
               << "\n\t" << ker.name << "_%016lx<" << ker.Tformat << ">"
               << "(backends,"<< ker.Sargs_us << ");";
 
-      const char *cxx = MFEM_CXX;
-      const char *libs = MFEM_EXT_LIBS;
-      const char *link = MFEM_LINK_FLAGS;
-      const char *flags = MFEM_BUILD_FLAGS;
+      const char *cxx = "" MFEM_CXX;
+      const char *libs = "" MFEM_EXT_LIBS;
+      const char *link = "" MFEM_LINK_FLAGS;
+      const char *flags = "" MFEM_BUILD_FLAGS;
 
       size_t seed = // src is ready: compute its seed with all the MFEM context
          mfem::Jit::Hash(

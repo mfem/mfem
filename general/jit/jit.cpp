@@ -50,6 +50,21 @@
 // The 'MFEM_JIT_VERBOSE' environement variable adds a verbose flag during the
 // compilation stage.
 
+#if !(defined(MFEM_SO_EXT) && defined(MFEM_XCOMPILER) &&\
+      defined(MFEM_XLINKER) && defined(MFEM_AR) &&\
+      defined(MFEM_INSTALL_BACKUP) && defined(MFEM_SO_PREFIX) &&\
+      defined(MFEM_SO_POSTFIX) && defined(MFEM_PICFLAG))
+#error MFEM_[SO_EXT, XCOMPILER, XLINKER, AR, INSTALL_BACKUP, SO_PREFIX, SO_POSTFIX, PICFLAGS] must be defined!
+#define MFEM_AR
+#define MFEM_SO_EXT
+#define MFEM_PICFLAG
+#define MFEM_XLINKER
+#define MFEM_XCOMPILER
+#define MFEM_SO_PREFIX
+#define MFEM_SO_POSTFIX
+#define MFEM_INSTALL_BACKUP
+#endif
+
 namespace mfem
 {
 
@@ -339,7 +354,7 @@ public:
       }
       mpi::Sync();
 
-      const char *so_ext = MFEM_SO_EXT; // declared on the compile line
+      const char *so_ext = "" MFEM_SO_EXT; // declared on the compile line
       Get().lib_so = create_full_path(so_ext);
    }
 
@@ -357,12 +372,12 @@ public:
       { MFEM_ABORT("[JIT] Finalize memory error!"); }
    }
 
-   static std::string Xpic() { return MFEM_PICFLAG; }
-   static std::string Xlinker() { return MFEM_XLINKER; }
-   static std::string Xcompiler() { return MFEM_XCOMPILER; }
-   static std::string Xprefix() { return MFEM_SO_PREFIX;  }
-   static std::string Xpostfix() { return MFEM_SO_POSTFIX; }
-   static std::string Xbackup() { return MFEM_INSTALL_BACKUP; }
+   static std::string Xpic() { return "" MFEM_PICFLAG; }
+   static std::string Xlinker() { return "" MFEM_XLINKER; }
+   static std::string Xcompiler() { return "" MFEM_XCOMPILER; }
+   static std::string Xprefix() { return "" MFEM_SO_PREFIX;  }
+   static std::string Xpostfix() { return "" MFEM_SO_POSTFIX; }
+   static std::string Xbackup() { return "" MFEM_INSTALL_BACKUP; }
 
    static const char *Lib_ar() { return Get().lib_ar.c_str(); }
    static const char *Lib_so() { return Get().lib_so.c_str(); }
@@ -464,7 +479,7 @@ public:
                if (!Debug()) { std::remove(cc.c_str()); }
                // Update archive: ar += co
                io::FileLock ar_lock(Lib_ar(), "ak");
-               Command() << MFEM_AR << "-r" << Lib_ar() << co; // v
+               Command() << ("" MFEM_AR) << "-r" << Lib_ar() << co; // v
                if (Call()) { return EXIT_FAILURE; }
                std::remove(co.c_str());
                // Create temporary shared library: (ar + co) => so
