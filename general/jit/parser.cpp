@@ -390,10 +390,10 @@ struct Parser
    }
 
    /*
-    * @brief mfem_forall_prefix parse the MFEM_FORALL_?D(e,N,X,Y,Z,...).
+    * mfem_forall_prefix parse the MFEM_FORALL_?D(e,N,X,Y,Z,...).
     * It stops before the body of the FORALL, which will not be parsed, but just
     * filtered through the out.put().
-    * @param id holds the MFEM_* id from the token function.
+    * id holds the MFEM_* id from the token function.
     */
    void mfem_forall_prefix(const std::string &id)
    {
@@ -416,7 +416,7 @@ struct Parser
    }
 
    /*
-    * @brief mfem_forall_postfix creates both source (initial untouched kernel)
+    * mfem_forall_postfix creates both source (initial untouched kernel)
     * and the duplicate which will be capable to use the JIT compilation.
     */
    void mfem_forall_postfix()
@@ -435,7 +435,7 @@ struct Parser
    }
 
    /*
-    * @brief mfem_jit_postfix prepare:
+    * mfem_jit_postfix prepare:
     *   - the JIT inputs: compiler, flags, libraries from the build system,
     *   - computes the hash of the source, compiler, libraries, flags,
     *     MFEM_SOURCE_DIR and MFEM_INSTALL_DIR,
@@ -489,7 +489,7 @@ struct Parser
    }
 
    /*
-    * @brief token triggers the parser for each MFEM_* encountered.
+    * token triggers the parser for each MFEM_* encountered.
     * Depending on the FSM state, it also counts the blocks and parenthesis.
     */
    void token()
@@ -531,8 +531,8 @@ struct Parser
    }
 
    /*
-    * @brief Parser operator which processes all the tokens.
-    * @return EXIT_SUCCESS or EXIT_FAILURE
+    * Parser operator which processes all the tokens.
+    * EXIT_SUCCESS or EXIT_FAILURE
     */
    int operator()()
    {
