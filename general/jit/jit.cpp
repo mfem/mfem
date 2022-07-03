@@ -421,7 +421,7 @@ public:
          // this is used to handle parallel compilations of the same source
          auto id = std::string("_") + std::to_string(mpi::Bcast(getpid()));
          auto so = Jit::ToString(hash, id.c_str());
-         /**
+         /*
          * Root lock::ck: [w-w-w-w-w-w-w-w-w-w-w-w-w-w-w-w-w]
          *            cc:  |----|Close  Delete
          *      cc => co:       |------|         Delete
@@ -430,7 +430,7 @@ public:
          * (ar+co) => so:                       |---|             Delete
          *      lock::ok:                           |x-x-x|
          *  so => Lib_so:                             |--|
-         **/
+         */
          std::function<int(const char *)> RootCompile = [&](const char *so)
          {
             auto install = [](const char *in, const char *out)
@@ -480,8 +480,8 @@ public:
             {
                cc_lock.Wait();
                // if removed or timeout, rerun the compilation
-               if (!std::fstream(Lib_so())) { RootCompile(so); }
-               install(Lib_so(), so); //
+               if (!std::fstream(Lib_so())) { return RootCompile(so); }
+               install(Lib_so(), so);
             }
             return EXIT_SUCCESS;
          };

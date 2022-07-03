@@ -498,7 +498,7 @@ $(STD_OBJECT_FILES): $(BLD)%.o: $(SRC)%.cpp $(CONFIG_MK)
 # HIP/XLC compilers don't support target options with stdin input
 MFEM_JIT_XLC = $(if $(shell $(MFEM_CXX) -dM -E -x c++\
  $(SRC)tests/unit/mjit/test_empty.cpp| grep __ibmxl__),YES,NO)
-ifneq (,$(filter YES,$(MFEM_USE_HIP)$(MFEM_USE_XLC))) # or condition
+ifeq ($(MFEM_USE_HIP)$(MFEM_JIT_XLC),NONO)
 MFEM_JIT_FLAGS = $(strip $(MFEM_BUILD_FLAGS)) $(JIT_LANG) -I$(patsubst %/,%,$(<D))
 $(JIT_OBJECT_FILES): $(BLD)%.o: $(SRC)%.cpp $(CONFIG_MK) $(BLD)mjit
 	$(BLD)./mjit $(<) | $(MFEM_CXX) $(MFEM_JIT_FLAGS) -c -o $(@) -
