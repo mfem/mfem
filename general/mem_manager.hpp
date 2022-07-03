@@ -17,7 +17,7 @@
 #include <cstring> // std::memcpy
 #include <type_traits> // std::is_const
 #include <cstddef> // std::max_align_t
-#ifdef MFEM_USE_MPI
+#if defined(MFEM_USE_MPI) && !defined(MFEM_JIT_COMPILATION)
 #include <HYPRE_config.h> // HYPRE_USING_GPU
 #endif
 
