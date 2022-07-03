@@ -20,40 +20,20 @@
 #include <fstream>
 #include <algorithm> // std::transform
 
-#if !(defined(MFEM_CXX) && defined(MFEM_EXT_LIBS) &&\
-      defined(MFEM_LINK_FLAGS) && defined(MFEM_BUILD_FLAGS))
-#error MFEM_[CXX, EXT_LIBS, LINK_FLAGS, BUILD_FLAGS] must be defined!
-#define MFEM_CXX
-#define MFEM_EXT_LIBS
-#define MFEM_LINK_FLAGS
-#define MFEM_BUILD_FLAGS
-#endif
-
 struct Parser
 {
-   /*
-   * The kernel_t struct holds the folowing information:
-   *    - name,
-   *    - templated format strings, arguments strings,
-   *    - (single) FORALL data,
-   *    - original source and its duplicate for the JIT'ed one,
-   *    - various flags.
-   */
    struct kernel_t
    {
-      std::string name;
-      std::string Targs, Tparams, Tformat; // Templated info: <%d,%d>
-      std::string Sargs, Sparams, Sparams0; // Symbol call arguments
+      std::string name; // Kernel name
+      std::string Targs, Tparams, Tformat; // Template arguments, parameters, format
+      std::string Sargs, Sparams, Sparams0; // Symbol arguments, parameters
       std::string Tadds, Sargs_us;
-      struct { int dim; std::string e,N,X,Y,Z; std::ostringstream body; } forall;
+      struct { int dim; std::string e, N, X, Y, Z; std::ostringstream body; } forall;
       std::ostringstream src, dup;
       bool is_static, is_templated, eq, mv_to_targs;
+      int lt;
 
-      /*
-       * The fsm_t struct is a minimal finite state machine mostly to
-       * handle the 'filtering' towards the Templated and/or Symbol strings.
-       * Each character emitted through 'put' is filtered when parsing a kernel.
-       */
+      // finite state machine for handling the kernel 'filtering' and MFEM token
       struct fsm_t
       {
          using State = void (fsm_t::*)();
@@ -73,8 +53,6 @@ struct Parser
          void postfix() { next(&fsm_t::wait); }    // Postfix code after forall
          template<State S> bool is() { return state == S; }
       } fsm;
-
-      void advance() { fsm.advance(); }
       bool is_jit()     { return fsm.is<&fsm_t::jit>(); }
       bool is_wait()    { return fsm.is<&fsm_t::wait>(); }
       bool is_targs()   { return fsm.is<&fsm_t::targs>(); }
@@ -84,6 +62,7 @@ struct Parser
       bool is_forall()  { return fsm.is<&fsm_t::forall>(); }
       bool is_kernel()  { return fsm.is<&fsm_t::kernel>(); }
       bool is_postfix() { return fsm.is<&fsm_t::postfix>(); }
+      void advance() { fsm.advance(); }
 
       bool filter(const char c) // returns false if c should not be out.put'ed
       {
@@ -116,11 +95,6 @@ struct Parser
    };
    void error(std::string msg) { throw error_t(line, filename, msg);}
    void check(const bool tst, std::string msg = "") { if (!tst) { error(msg); }}
-
-   /*
-    * pp_line returns an pre-processor line used by to locate file and
-    * line number.
-    */
    std::string pp_line()
    {
       std::ostringstream oss {};
@@ -239,13 +213,6 @@ struct Parser
    bool is_lt() { return is_char('<'); }
    bool is_gt() { return is_char('>'); }
 
-   /*
-    * mfem_jit_prefix is the main parser part: it prepares the templated
-    * format and argument strings, verify the signature, parse and prepare the
-    * arguments, prepare the prefix which will load the runtime device backends,
-    * switch the MFEM_FORALL_*D to MFEM_FORALL_*D_JIT and set the pre-processor
-    * line to the current source file and line location.
-    */
    void mfem_jit_prefix()
    {
       (ker.advance(), check(ker.is_jit(), "wait => jit")); // FSM update
@@ -398,12 +365,6 @@ struct Parser
       block = 0; // Start counting the block statements
    }
 
-   /*
-    * mfem_forall_prefix parse the MFEM_FORALL_?D(e,N,X,Y,Z,...).
-    * It stops before the body of the FORALL, which will not be parsed, but just
-    * filtered through the out.put().
-    * id holds the MFEM_* id from the token function.
-    */
    void mfem_forall_prefix(const std::string &id)
    {
       // Switch from prefix capturing, to the forall one
@@ -424,10 +385,6 @@ struct Parser
       ker.advance(); // forall => kernel
    }
 
-   /*
-    * mfem_forall_postfix creates both source (initial untouched kernel)
-    * and the duplicate which will be capable to use the JIT compilation.
-    */
    void mfem_forall_postfix()
    {
       check(get()==')',"no last right parenthesis found");
@@ -443,15 +400,6 @@ struct Parser
       ker.advance(/*kernel => postfix*/);
    }
 
-   /*
-    * mfem_jit_postfix prepare:
-    *   - the JIT inputs: compiler, flags, libraries from the build system,
-    *   - computes the hash of the source, compiler, libraries, flags,
-    *     MFEM_SOURCE_DIR and MFEM_INSTALL_DIR,
-    *   - the per-kernel local unordered_map which holds the different kernel
-    *     symbols that have already been loaded,
-    *   - updates the pre-processor line.
-    */
    void mfem_jit_postfix() // output all kernel source, with updated hash
    {
       ker.src << "}\nextern \"C\" void k%016lx"
@@ -459,10 +407,10 @@ struct Parser
               << "\n\t" << ker.name << "_%016lx<" << ker.Tformat << ">"
               << "(backends,"<< ker.Sargs_us << ");";
 
-      const char *cxx = "" MFEM_CXX;
-      const char *libs = "" MFEM_EXT_LIBS;
-      const char *link = "" MFEM_LINK_FLAGS;
-      const char *flags = "" MFEM_BUILD_FLAGS;
+      const char *cxx = MFEM_CXX;
+      const char *libs = MFEM_EXT_LIBS;
+      const char *link = MFEM_LINK_FLAGS;
+      const char *flags = MFEM_BUILD_FLAGS;
 
       size_t seed = // src is ready: compute its seed with all the MFEM context
          mfem::Jit::Hash(
@@ -497,10 +445,6 @@ struct Parser
       ker.advance(/*postfix => wait*/);
    }
 
-   /*
-    * token triggers the parser for each MFEM_* encountered.
-    * Depending on the FSM state, it also counts the blocks and parenthesis.
-    */
    void token()
    {
       auto is_end_of = [&](int &chr, const char beg_chr, const char end_chr)
@@ -539,10 +483,6 @@ struct Parser
       if (ker.is_postfix() && is_end_blocks) { mfem_jit_postfix(); }
    }
 
-   /*
-    * Parser operator which processes all the tokens.
-    * EXIT_SUCCESS or EXIT_FAILURE
-    */
    int operator()()
    {
       try { while (good()) { put(); next(); token(); } }
