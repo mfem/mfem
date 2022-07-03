@@ -164,7 +164,6 @@ $(MJIT_OBJ): %.o: $(SRC)%.cpp $(HEADER_FILES) $(CONFIG_MK) $(MFEM_DIR)/mjit
 	@mkdir -p $(@D)
 	$(MFEM_DIR)/mjit $(abspath $(<)) | $(CCC) -c $(MJIT_FLAGS) $(INCLUDES) -o $(@) -
 else
-#	$(MFEM_DIR)/mjit $(abspath $(<)) -o $(@)
 #%.o: %_jit.cpp $(CONFIG_MK)
 #	$(CCC) -c $(<) $(MJIT_FLAGS) $(INCLUDES) -o $(@)
 endif # xlc
