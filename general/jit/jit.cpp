@@ -20,7 +20,7 @@
 #include <string>
 #include <fstream>
 #include <thread> // sleep_for
-#include <chrono> // (milli) seconds
+#include <chrono> // milliseconds
 
 #include <cstring> // strlen
 #include <cstdlib> // exit, system
@@ -107,10 +107,7 @@ public:
    ~FileLock() // unlock, close and remove
    { (FCntl(F_SETLK, F_UNLCK, true), ::close(fd), std::remove(f_name)); }
 
-   void Wait() const
-   {
-      SleepWhile([&]() { return static_cast<bool>(std::fstream(f_name)); });
-   }
+   void Wait() const { SleepWhile([&]() { return std::fstream(f_name); }); }
 };
 
 } // namespace io
@@ -208,8 +205,9 @@ class System // System singleton object
       Command& operator<<(const std::string &s) { return *this << s.c_str(); }
       operator const char *()
       {
+         std::ostringstream cmd_mv = std::move(cmd);
          static thread_local std::string sl_cmd;
-         sl_cmd = cmd.str();
+         sl_cmd = cmd_mv.str();
          (cmd.clear(), cmd.str("")); // flush for next command
          return sl_cmd.c_str();
       }

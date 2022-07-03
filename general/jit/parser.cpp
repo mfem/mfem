@@ -135,7 +135,10 @@ struct Parser
 
    void skip_string()
    {
-      if (good() && is_quote()) { for (check(put()=='"'); !is_quote(); put()); }
+      if (!in.eof() && good() && is_quote())
+      {
+         for (check(put()=='"'); !is_quote(); put());
+      }
    }
 
    bool is_comment()
@@ -143,7 +146,7 @@ struct Parser
       if (!good()) { return false; }
       if (in.peek() != '/') { return false; }
       in.get();
-      check(good(), "end of file found while in comment!");
+      check(!in.eof(), "end of file found while in comment!");
       const int c = in.peek();
       in.unget();
       if (c == '/' || c == '*') { return true; }
@@ -152,7 +155,7 @@ struct Parser
 
    void skip_comments()
    {
-      while (good() && is_comment())
+      while (!in.eof() && good() && is_comment())
       {
          check(put()=='/', "unknown comment");
          check(is_slash() || is_star(), "error in end-of-comment");
@@ -185,7 +188,7 @@ struct Parser
       int k = 0;
       check(n < M, "peek size error!");
       static char c[M];
-      for (k = 0; k < n && good() && op(); k++) { c[k] = get(); }
+      for (k = 0; k < n && good() && !in.eof() && op(); k++) { c[k] = get(); }
       std::string str((c[k]=0, c));
       for (int l = 0; l < k; l++) { in.unget(); }
       if (!good()) { return str; }
@@ -264,7 +267,7 @@ struct Parser
       // Get the arguments
       ker.advance(); // Symbol => Params
       std::string id {};
-      int lt = 0;
+      ker.lt = 0;
       ker.eq = false;
       ker.mv_to_targs = false;
       ker.Sargs.clear();
@@ -296,8 +299,8 @@ struct Parser
          check(is_space() || is_id() || is_star() || is_amp() ||
                is_eq() || is_lt() || is_gt() || is_coma(),
                "while parsing the arguments.");
-         if (is_lt()) { lt++; }
-         if (is_gt()) { lt--; }
+         if (is_lt()) { ker.lt++; }
+         if (is_gt()) { ker.lt--; }
          if (is_space() && !id.empty() && id.back() != '.' && !ker.eq)
          {
             if (last(id) == "MFEM_JIT") { ker.mv_to_targs = true; id = head(id); }
@@ -311,7 +314,7 @@ struct Parser
             { check(false,std::string("Could not find T_")+to_upper(last(id))); }
          }
          if (is_id() && !ker.eq) { id += in.peek(); }
-         if (is_coma() && lt == 0)
+         if (is_coma() && ker.lt == 0)
          {
             if (id.back() == '.') { most(id); }
             add_id(), id.clear(), ker.eq = false, ker.mv_to_targs = false;
@@ -373,14 +376,18 @@ struct Parser
       ker.forall.dim = id.c_str()[12] - 0x30;
       check(ker.forall.dim == 2 || ker.forall.dim == 3, "FORALL dim error!");
       ker.forall.body.str(std::string());
-      next_check([&]() {return get() == '(';}, "no '(' in MFEM_FORALL");
-      auto get_expr= [&](std::string &expr)
+      auto next_check_id = [&](std::string &ker_forall_id, const char sep = ',')
       {
-         for (expr.clear(); good() && !is_coma(); expr += get()) {}
-         get(/*coma*/);
+         next_check([&]() {return get() == sep;}, "no sep in MFEM_FORALL");
+         next_check([&]() {return is_id();}, "no id in MFEM_FORALL");
+         ker_forall_id = get_id();
       };
-      get_expr(ker.forall.e), get_expr(ker.forall.N); // get e, N and XYZ
-      get_expr(ker.forall.X), get_expr(ker.forall.Y), get_expr(ker.forall.Z);
+      next_check_id(ker.forall.e, '(');
+      next_check_id(ker.forall.N);
+      next_check_id(ker.forall.X);
+      next_check_id(ker.forall.Y);
+      next_check_id(ker.forall.Z);
+      next_check([&]() {return get()==',';}, "no last coma in MFEM_FORALL");
       parenthesis = 0; // Start counting MFEM_FORALL's parentheses
       ker.advance(); // forall => kernel
    }
@@ -468,9 +475,11 @@ struct Parser
          };
          const bool JIT = is(id, "JIT");
          if (ker.is_wait() && JIT) { mfem_jit_prefix(); }
+
          const bool FORALL = is(id, "FORALL_2D") || is(id, "FORALL_3D");
          if (ker.is_postfix() && FORALL) { error("Single FORALL is supported!"); }
          if (ker.is_prefix() && FORALL) { mfem_forall_prefix(id); }
+
          if (ker.is_wait()) { out << id; }
          if (ker.is_prefix() && !JIT) { ker.src << id; ker.dup << id; }
          if (ker.is_forall()) { ker.forall.body << id; }
@@ -478,6 +487,7 @@ struct Parser
       } // MFEM_*
 
       if (ker.is_kernel() && is_end_of(parenthesis,'(',')')) { mfem_forall_postfix(); }
+
       const bool is_end_blocks = is_end_of(block,'{','}');
       if (ker.is_prefix() && is_end_blocks) { ker.fsm.forall(); ker.fsm.kernel(); }
       if (ker.is_postfix() && is_end_blocks) { mfem_jit_postfix(); }
@@ -525,7 +535,8 @@ int main(const int argc, char* argv[])
    assert(ifs.is_open() && "Could not open input file!");
    assert((empty || ofs.is_open()) && "Could not open output file!");
    const int status = Parser(ifs, empty ? std::cout : ofs, file).operator()();
-   ifs.close(), ofs.close();
+   ifs.close();
+   ofs.close();
    return status;
 }
 
