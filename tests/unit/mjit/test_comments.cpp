@@ -176,12 +176,15 @@ void ToUseOrNotToUse(int *ab, int a = 0, int b = 0)
    *ab = T_A + T_B; // T_A, T_B will always be set
 }
 
-TEST_CASE("Comments", "[JIT]")
+TEST_CASE("Parser", "[JIT]")
 {
-   int ab = 0, tab = 0;
-   ToUseOrNotToUse(&ab,1,2);
-   ToUseOrNotToUse<1,2>(&tab);
-   REQUIRE(ab == tab);
+   SECTION("ToUseOrNotToUse")
+   {
+      int ab = 0, tab = 0;
+      ToUseOrNotToUse(&ab,1,2);
+      ToUseOrNotToUse<1,2>(&tab);
+      REQUIRE(ab == tab);
+   }
 }
 
 } // mjit_tests

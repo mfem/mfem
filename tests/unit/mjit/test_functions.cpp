@@ -66,18 +66,21 @@ static size_t pi(size_t n, const size_t D = 100)
    return pow(16,8)*fmod(4.0*p(1) - 2.0*p(4) - p(5) - p(6), 1.0);
 }
 
-TEST_CASE("Functions", "[JIT]")
+TEST_CASE("Params", "[JIT]")
 {
-   int r = 0;
-   A(&r,1); REQUIRE(r == 1);
-   B(&r,2); REQUIRE(r == 2);
-   C(&r,4,3); REQUIRE(r == (4+3));
-   D(&r,4,6); REQUIRE(r == (4+6));
-   D(&r,5,6); REQUIRE(r == (5+6));
-   D(&r,6,6); REQUIRE(r == (6+6));
-   E(&r,1,2,3); REQUIRE(r == (1+2+3));
-   F(&r,1,2); REQUIRE(r == 1+2);
-   REQUIRE(pi(10) == 0x5A308D31ul);
+   SECTION("Params")
+   {
+      int r = 0;
+      A(&r,1); REQUIRE(r == 1);
+      B(&r,2); REQUIRE(r == 2);
+      C(&r,4,3); REQUIRE(r == (4+3));
+      D(&r,4,6); REQUIRE(r == (4+6));
+      D(&r,5,6); REQUIRE(r == (5+6));
+      D(&r,6,6); REQUIRE(r == (6+6));
+      E(&r,1,2,3); REQUIRE(r == (1+2+3));
+      F(&r,1,2); REQUIRE(r == 1+2);
+      REQUIRE(pi(10) == 0x5A308D31ul);
+   }
 }
 
 } // mjit_tests

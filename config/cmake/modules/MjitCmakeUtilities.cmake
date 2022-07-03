@@ -47,13 +47,10 @@ endfunction(set_mjit_sources_dependencies)
 ######################
 function(mfem_mjit_configure)
     add_executable(mjit general/jit/parser.cpp)
-    #message(WARNING "[JIT] MFEM_BUILD_FLAGS: ${MFEM_BUILD_FLAGS}")
 
-    set(MFEM_TPLFLAGS "")
     foreach (dir ${TPL_INCLUDE_DIRS})
        target_include_directories(mjit PRIVATE ${dir})
-       set(MFEM_TPLFLAGS "${MFEM_TPLFLAGS} -I${dir}")
-    endforeach (dir "${TPL_INCLUDE_DIRS}")
+    endforeach (dir "${MFEM_INCLUDE_DIRS}")
 
     if(CMAKE_OSX_SYSROOT)
         set(MFEM_BUILD_FLAGS "${MFEM_BUILD_FLAGS} -isysroot ${CMAKE_OSX_SYSROOT}")
@@ -61,6 +58,7 @@ function(mfem_mjit_configure)
     endif(CMAKE_OSX_SYSROOT)
 
     if (MFEM_USE_MPI)
+      set(MFEM_CXX ${MPI_CXX_COMPILER})
       if (MPI_CXX_INCLUDE_PATH)
         target_include_directories(mjit PRIVATE "${MPI_CXX_INCLUDE_PATH}")
       endif(MPI_CXX_INCLUDE_PATH)
@@ -78,11 +76,7 @@ function(mfem_mjit_configure)
        set(MFEM_EXT_LIBS "")
        set(MFEM_CXX ${CMAKE_CUDA_COMPILER})
        set(MFEM_LINK_FLAGS "${MFEM_BUILD_FLAGS} -arch=${CUDA_ARCH} ${CUDA_FLAGS}")
-       if (MFEM_USE_MPI)
-          set(MFEM_LINK_FLAGS "${MFEM_LINK_FLAGS} -ccbin ${MPI_CXX_COMPILER}")
-       else(MFEM_USE_MPI)
-          set(MFEM_LINK_FLAGS "${MFEM_LINK_FLAGS} -ccbin ${CMAKE_CUDA_HOST_COMPILER}")
-       endif(MFEM_USE_MPI)
+       set(MFEM_LINK_FLAGS "${MFEM_LINK_FLAGS} -ccbin ${CMAKE_CUDA_HOST_COMPILER}")
        set(MFEM_BUILD_FLAGS "-x=cu ${MFEM_LINK_FLAGS}")
        set_source_files_properties(general/jit/parser.cpp PROPERTIES LANGUAGE CUDA)
        set(MFEM_XCOMPILER "-Xcompiler=")
@@ -100,7 +94,7 @@ function(mfem_mjit_configure)
            "MFEM_CXX=\"${MFEM_CXX}\""
            "MFEM_EXT_LIBS=\"${MFEM_EXT_LIBS}\""
            "MFEM_LINK_FLAGS=\"${MFEM_LINK_FLAGS}\""
-           "MFEM_BUILD_FLAGS=\"${MFEM_BUILD_FLAGS} ${MFEM_TPLFLAGS}\"")
+           "MFEM_BUILD_FLAGS=\"${MFEM_BUILD_FLAGS}\"")
 
     target_compile_definitions(mjit PRIVATE
            "MFEM_CONFIG_FILE=\"${PROJECT_BINARY_DIR}/config/_config.hpp\"")
@@ -115,12 +109,9 @@ function(mfem_mjit_configure)
         set(MFEM_INSTALL_BACKUP "--backup=none")
     endif(APPLE)
 
-    # CMAKE_SHARED_LIBRARY_SUFFIX has an extra "." prefix to remove
-    string(REPLACE "." "" MFEM_SO_EXT "${CMAKE_SHARED_LIBRARY_SUFFIX}")
-
     set_property(SOURCE general/jit/jit.cpp
                  PROPERTY COMPILE_DEFINITIONS
-                 MFEM_SO_EXT="${MFEM_SO_EXT}"
+                 MFEM_SO_EXT="${CMAKE_SHARED_LIBRARY_SUFFIX}"
                  MFEM_PICFLAG="${MFEM_XCOMPILER}${CMAKE_SHARED_LIBRARY_CXX_FLAGS}"
                  MFEM_XCOMPILER="${MFEM_XCOMPILER}"
                  MFEM_XLINKER="${MFEM_XLINKER}"

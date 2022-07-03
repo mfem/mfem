@@ -156,21 +156,9 @@ $(CEED_OBJ): %.o: $(SRC)%.cpp $(HEADER_FILES) $(CONFIG_MK)
 	@mkdir -p $(@D)
 	$(CCC) -c $(abspath $(<)) $(MFEM_FLAGS) $(INCLUDES) -o $(@)
 
-# XLC compilers does not support stdin input
-MFEM_JIT_XLC = $(if $(shell $(CCC) -dM -E -x c++\
- mjit/test_empty.cpp | grep __ibmxl__),YES,NO)
-ifeq ($(MFEM_JIT_XLC),NO)
 $(MJIT_OBJ): %.o: $(SRC)%.cpp $(HEADER_FILES) $(CONFIG_MK) $(MFEM_DIR)/mjit
 	@mkdir -p $(@D)
 	$(MFEM_DIR)/mjit $(abspath $(<)) | $(CCC) -c $(MJIT_FLAGS) $(INCLUDES) -o $(@) -
-else # xlc, use temporary %_jit.cpp file
-$(SRC)%_jit.cpp: $(SRC)%.cpp $(CONFIG_MK) $(MFEM_DIR)/mjit
-	@mkdir -p $(@D)
-	$(MFEM_DIR)/mjit $(abspath $(<)) -o $(@)
-%.o: $(SRC)%_jit.cpp $(CONFIG_MK)
-	@mkdir -p $(@D)
-	$(CCC) -c $(<) $(MJIT_FLAGS) $(INCLUDES) -o $(@)
-endif # xlc
 
 # Template rule for devices
 # SEDOV Template rule for devices
