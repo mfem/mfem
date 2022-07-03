@@ -56,23 +56,20 @@ static size_t pi(size_t n, const size_t D = 100)
    return pow(16,8)*fmod(4.0*p(1) - 2.0*p(4) - p(5) - p(6), 1.0);
 }
 
-TEST_CASE("Bbps", "[JIT]")
+TEST_CASE("BBPS", "[JIT]")
 {
-   SECTION("bbps")
-   {
-      double a = 0.0;
-      bbps<64,17>(1,&a);
-      const size_t ax = (size_t)(pow(16,8)*a);
+   double a = 0.0;
+   bbps<64,17>(1,&a);
+   const size_t ax = (size_t)(pow(16,8)*a);
 
-      double b = 0.0;
-      bbps(1,&b,64,17);
-      const size_t bx = (size_t)(pow(16,8)*b);
+   double b = 0.0;
+   bbps(1,&b,64,17);
+   const size_t bx = (size_t)(pow(16,8)*b);
 
-      //printf("\033[33m[0x%lx:0x%lx]\033[m",ax,bx);
-      REQUIRE(ax == bx);
+   //printf("\033[33m[0x%lx:0x%lx]\033[m",ax,bx);
+   REQUIRE(ax == bx);
 
-      REQUIRE(pi(10) == 0x5A308D31ul);
-   }
+   REQUIRE(pi(10) == 0x5A308D31ul);
 }
 
 } // mjit_tests
