@@ -495,19 +495,19 @@ $(OPT_OBJECT_FILES): $(BLD)%.o: $(SRC)%.cpp $(SRC)%.hpp makefile $(CONFIG_MK)
 $(STD_OBJECT_FILES): $(BLD)%.o: $(SRC)%.cpp $(CONFIG_MK)
 	$(MFEM_CXX) $(MFEM_BUILD_FLAGS) -c $(<) -o $(@)
 
-# HIP compiler does not support target options with stdin input
-ifneq ($(MFEM_USE_HIP),YES)
+# HIP/XLC compilers don't support target options with stdin input
+MFEM_JIT_XLC = $(if $(shell $(MFEM_CXX) -dM -E -x c++\
+ $(SRC)tests/unit/mjit/test_empty.cpp| grep __ibmxl__),YES,NO)
+ifeq ($(MFEM_USE_HIP)$(MFEM_JIT_XLC),NONO)
 MFEM_JIT_FLAGS = $(strip $(MFEM_BUILD_FLAGS)) $(JIT_LANG) -I$(patsubst %/,%,$(<D))
 $(JIT_OBJECT_FILES): $(BLD)%.o: $(SRC)%.cpp $(CONFIG_MK) $(BLD)mjit
 	$(BLD)./mjit $(<) | $(MFEM_CXX) $(MFEM_JIT_FLAGS) -c -o $(@) -
-else # hip
-# Use temporary *_jit.cpp files
-$(BLD)%_jit.cc: $(SRC)%.cpp $(CONFIG_MK) $(BLD)mjit
+else # hip/xlc, use temporary %_jit.cpp file
+$(BLD)%_jit.cpp: $(SRC)%.cpp $(CONFIG_MK) $(BLD)mjit
 	$(BLD)./mjit $(<) -o $(@)
-
-$(JIT_OBJECT_FILES): $(BLD)%.o: $(BLD)%_jit.cc $(CONFIG_MK) makefile
+$(BLD)%.o: $(BLD)%_jit.cpp $(CONFIG_MK) makefile
 	$(MFEM_CXX) $(strip $(MFEM_BUILD_FLAGS)) -c $(<) -o $(@)
-endif # hip
+endif # hip/xlc
 endif # jit
 
 all: examples miniapps $(TEST_DIRS)
