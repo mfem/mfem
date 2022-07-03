@@ -165,7 +165,6 @@ $(MJIT_OBJ): %.o: $(SRC)%.cpp $(HEADER_FILES) $(CONFIG_MK) $(MFEM_DIR)/mjit
 	$(MFEM_DIR)/mjit $(abspath $(<)) | $(CCC) -c $(MJIT_FLAGS) $(INCLUDES) -o $(@) -
 else
 #%.o: %_jit.cpp $(CONFIG_MK)
-#	$(CCC) -c $(<) $(MJIT_FLAGS) $(INCLUDES) -o $(@)
 endif # xlc
 
 # Template rule for devices
