@@ -157,11 +157,10 @@ $(CEED_OBJ): %.o: $(SRC)%.cpp $(HEADER_FILES) $(CONFIG_MK)
 	$(CCC) -c $(abspath $(<)) $(MFEM_FLAGS) $(INCLUDES) -o $(@)
 
 # XLC compilers does not support stdin input
-MFEM_JIT_XLC = $(if $(shell $(CC) -E -x c++ \
+MFEM_JIT_XLC = $(if $(shell $(CC) -dM -E -x c++ \
  $(SRC)tests/unit/mjit/test_empty.cpp 2>&1 | grep __ibmxl__),YES,NO)
 ifeq ($(MFEM_JIT_XLC),NO)
 $(MJIT_OBJ): %.o: $(SRC)%.cpp $(HEADER_FILES) $(CONFIG_MK) $(MFEM_DIR)/mjit
-	@mkdir -p $(@D)
 	$(MFEM_DIR)/mjit $(abspath $(<)) | $(CCC) -c $(MJIT_FLAGS) $(INCLUDES) -o $(@) -
 else
 endif # xlc
