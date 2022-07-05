@@ -31,7 +31,7 @@ CONFIG_HPP = _config.hpp
 CONFIG_MK = config.mk
 
 .SUFFIXES:
-.PHONY: all get-hypre-version header config-mk
+.PHONY: all get-hypre-version get_jit_version header config-mk
 
 all: header config-mk
 
@@ -46,7 +46,6 @@ JIT = $(MFEM_USE_JIT:NO=)
 JIT_NO_PIPE = XLC ROCM
 JCV_CXX ?= $(MFEM_CXX)
 JCV = get_jit_version
-JCV_FLAGS = $(subst @MFEM_DIR@,$(if $(MFEM_DIR),$(MFEM_DIR),..),$(JIT_OPT))
 
 # Set MFEM_USE_SIMMETRIX
 SMX = $(if $(MFEM_USE_PUMI:NO=),MFEM_USE_SIMMETRIX)
@@ -90,7 +89,7 @@ get-jit-version: $(JCV).out
 	$(eval MFEM_JIT_CXX:=$(shell cat $(JCV).out))
 	$(if $(MFEM_JIT_CXX),\
         $(eval MFEM_JIT_PIPE:=$(if $(filter $(MFEM_JIT_CXX),$(JIT_NO_PIPE)),NO,YES))\
-        $(eval export MFEM_JIT_PIPE)$(info MFEM_JIT_PIPE: $(MFEM_JIT_PIPE)),\
+        $(info MFEM_JIT_PIPE: $(MFEM_JIT_PIPE))$(eval export MFEM_JIT_PIPE),\
         $(error Unable to determine JIT CXX version))
 
 check-smx:
@@ -122,7 +121,7 @@ header: $(if $(MPI),get-hypre-version,) $(if $(SMX),check-smx,) \
 
 # The target below uses the values of the shell variables listed in
 # the shell variables MFEM_DEFINES and MFEM_CONFIG_VARS
-config-mk:
+config-mk: $(if $(JIT),get-jit-version,)
 	$(call mfem-info, Writing $(CONFIG_MK) ...)
 	@set -- && \
 	for ref in $${MFEM_DEFINES} $${MFEM_CONFIG_VARS}; do \
