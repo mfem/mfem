@@ -43,6 +43,7 @@ GHV_FLAGS = $(subst @MFEM_DIR@,$(if $(MFEM_DIR),$(MFEM_DIR),..),$(HYPRE_OPT))
 
 # Set MFEM_JIT_CXX, used for MFEM_JIT_PIPE
 JIT = $(MFEM_USE_JIT:NO=)
+JIT_NO_PIPE = XLC ROCM
 JCV_CXX ?= $(MFEM_CXX)
 JCV = get_jit_version
 JCV_FLAGS = $(subst @MFEM_DIR@,$(if $(MFEM_DIR),$(MFEM_DIR),..),$(JIT_OPT))
@@ -87,10 +88,11 @@ get-hypre-version: $(GHV).out
 
 get-jit-version: $(JCV).out
 	$(eval MFEM_JIT_CXX:=$(shell cat $(JCV).out))
-		$(if $(MFEM_JIT_CXX),\
-			$(eval MFEM_JIT_PIPE:=$(if $(filter $(MFEM_JIT_CXX),XLC ROCM),NO,YES))\
-			$(eval export MFEM_JIT_PIPE)$(info MFEM_JIT_PIPE: $(MFEM_JIT_PIPE)),\
-		$(error Unable to determine JIT CXX version))
+	$(if $(MFEM_JIT_CXX),\
+        $(eval MFEM_JIT_PIPE:=$(if $(filter $(MFEM_JIT_CXX),$(JIT_NO_PIPE)),NO,YES))\
+        $(eval export MFEM_JIT_PIPE)$(info MFEM_JIT_PIPE: $(MFEM_JIT_PIPE)),\
+        $(error Unable to determine JIT CXX version))
+
 
 check-smx:
 	$(call mfem-info, Checking for Simmetrix header [$(SMX_FILE)] ...)
@@ -109,8 +111,7 @@ header: $(if $(MPI),get-hypre-version,) $(if $(SMX),check-smx,) \
 	$(call mfem-info, Writing $(CONFIG_HPP) ...)
 	@set -- && \
 	for def in $${MFEM_DEFINES} $(if $(MPI),MFEM_HYPRE_VERSION) $(SMX) \
-                   $(if $(MUMPS),MFEM_MUMPS_VERSION) \
-                   $(if $(JIT),MFEM_JIT_PIPE); do \
+                   $(if $(MUMPS),MFEM_MUMPS_VERSION); do \
 	   eval var=\$$$$def && \
 	   if [ "NO" != "$${var}" ]; then \
 	      set -- "$$@" -e "s|// \(#define $${def} \)|\1|" && \
