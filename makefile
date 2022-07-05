@@ -371,6 +371,7 @@ MFEM_PREFIX    ?= $(PREFIX)
 MFEM_INC_DIR   ?= $(if $(CONFIG_FILE_DEF),@MFEM_BUILD_DIR@,@MFEM_DIR@)
 MFEM_LIB_DIR   ?= $(if $(CONFIG_FILE_DEF),@MFEM_BUILD_DIR@,@MFEM_DIR@)
 MFEM_TEST_MK   ?= @MFEM_DIR@/config/test.mk
+MFEM_JIT_PIPE  ?= YES
 # Use "\n" (interpreted by sed) to add a newline.
 MFEM_CONFIG_EXTRA ?= $(if $(CONFIG_FILE_DEF),MFEM_BUILD_DIR ?= @MFEM_DIR@,)
 

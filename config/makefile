@@ -93,7 +93,6 @@ get-jit-version: $(JCV).out
         $(eval export MFEM_JIT_PIPE)$(info MFEM_JIT_PIPE: $(MFEM_JIT_PIPE)),\
         $(error Unable to determine JIT CXX version))
 
-
 check-smx:
 	$(call mfem-info, Checking for Simmetrix header [$(SMX_FILE)] ...)
 	$(eval MFEM_USE_SIMMETRIX:=$(if $(wildcard $(SMX_FILE)),YES,NO))
