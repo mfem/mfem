@@ -555,10 +555,6 @@ int main(int argc, char *argv[])
    finder.Setup(mesh_LOR);
    GridFunction node_vals(x.FESpace());
 
-   GridFunction u_HO_interp(&fes);
-   VisItDataCollection HO_interp_dc("HO_interp", &mesh);
-   HO_interp_dc.RegisterField("Density", &u_HO_interp);
-
    const Operator &P = gt->BackwardOperator();
 
    // Time loop for solving
@@ -619,11 +615,16 @@ int main(int argc, char *argv[])
 	 auto *Tr = x.FESpace()->GetMesh()->GetElementTransformation(0);
 	 const FiniteElement *fe = u_HO.FESpace()->GetFE(0);
    const IntegrationRule &ir = MassIntegrator::GetRule(*fe, *fe, *Tr);
+	 // Store important data in emat
+	 // It's stored such that emat[dof1 + height*(dof2 + elem*width)]
+	 Vector emat(16 * 16 * NE);
+	 MassIntegrator mass_int(&ir);
+	 mass_int.AssembleEA(fes, emat, false);
 
 	 Mesh *mesh_temp_LOR = fes_LOR.GetMesh();
    GridFunction x_LOR(mesh_temp_LOR->GetNodes()->FESpace());
    mesh_temp_LOR->GetNodes(x_LOR);
-	 cout << "u_LOR size = " << u_LOR.Size() << endl;
+	 //cout << "u_LOR size = " << u_LOR.Size() << endl;
 
 	 auto *Tr_LOR = x_LOR.FESpace()->GetMesh()->GetElementTransformation(0);
 	 const int NE_LOR = x_LOR.FESpace()->GetNE();
@@ -644,7 +645,6 @@ int main(int argc, char *argv[])
 
 	 Vector m_rhs(16);
 	 Vector ip_trans(3);
-	 Vector emat(16 * 16 * NE);
 
 	 // Declarations for the FCT Function
 	 Vector x_FCT(16);
@@ -652,12 +652,67 @@ int main(int argc, char *argv[])
 	 double y_min = -std::numeric_limits<double>::max();
 	 double y_max = std::numeric_limits<double>::max();
 	 Vector xy(16);
+	 Vector sol_vec(16 * NE);
+
+	 // IMPORTANT
+	 int mesh_width = 6;
+	 int mesh_height = 6;
+	 int subcell_x = 2;
+	 int subcell_y = subcell_x;
+
+	 Vector El_trans(mesh_width * mesh_height * subcell_x * subcell_y);
+	 for (int i = 0; i < mesh_height; i++)
+	 {
+		 for (int j = 0; j < mesh_width; j++)
+		 {
+			 for (int sy = 0; sy < subcell_y; sy++)
+			 {
+				 for (int sx = 0; sx < subcell_x; sx++)
+				 {
+					 cout << sx + subcell_x*(sy+subcell_y*(j+mesh_width*i)) <<
+					 " -> " << sx+2*mesh_width*sy+2*j+4*mesh_width*i << endl;
+
+					 El_trans(sx + subcell_x*(sy+subcell_y*(j+mesh_width*i)))
+					 	= sx+2*mesh_width*sy+2*j+4*mesh_width*i;
+				 }
+			 }
+		 }
+	 }
+	 cout << endl;
+
+	 Vector u_LOR_vec(4*NE);
+	 Vector u_LOR_trans(4*NE);
+
+	 for (int i = 0; i < 4*NE; i++)
+	 {
+		 u_LOR_vec(i) = u_LOR(i);
+		 u_LOR_trans(i) = u_LOR(El_trans(i));
+		 cout << "u_LOR_vec(" << i << ") = " << u_LOR_vec(i) << "  u_LOR_trans("
+		 	<< u_LOR_trans(i) << ")" << endl;
+	 }
+
 
 	 // Integration loop to calculate main looping
 	 for (int k = 0; k < NE; k++)
 	 {
+		 /*
+		 const FiniteElement *fe_test = fes.GetFE(k);
+		 int num_ldofs = fe_test->GetDof();
+
+		 IntegrationRule zone_dofs(num_ldofs);
+		 zone_dofs = fe_test->GetNodes();
+
+		 // Output number of dofs per cell
+		 cout << "Element Number: " << k << endl;
+		 for (int i = 0; i < num_ldofs; ++i)
+		 {
+			 IntegrationPoint ip_test = zone_dofs.IntPoint(i);
+			 cout << "Node " << i << ": " << ip_test.x << " " << ip_test.y << endl;
+		 }
+		 cout << endl;
+		 */
+
 		 m_rhs = 0.0;
-		 emat = 0.0;
 		 for (int i = 0; i < 16; i++)
 		 {
 		  for (int s = 0; s < subcell_num; s++)
@@ -672,6 +727,8 @@ int main(int argc, char *argv[])
 				 }
 				 const DofToQuad &maps = fe_LOR->GetDofToQuad(my_ir, DofToQuad::TENSOR);
 				 Array<double> B2(maps.nqpt * maps.nqpt * maps.ndof * maps.ndof);
+
+				 //cout << "Size of B2 = " << maps.nqpt * maps.nqpt * maps.ndof * maps.ndof << endl;
 
 				 for (int i2 = 0; i2 < maps.ndof; i2++)
 				 {
@@ -692,32 +749,45 @@ int main(int argc, char *argv[])
 				 {
 					  m_rhs(i) += my_ir[q].weight
 											* geom_LOR.detJ(k*subcell_num*nqp_LOR + s*nqp_LOR + q)
-											* u_LOR(k*subcell_num + s)
+											* u_LOR_trans(k*subcell_num + s)
 											* B2[q+nqp_LOR*i];
 				 }
 			 }
-			}
-
-			// Store important data in emat
-	 	  // It's stored such that emat[dof1 + dof2*(height + elem*height*width)]
-	 	  MassIntegrator mass_int(&ir);
-	 	  mass_int.AssembleEA(fes, emat, false);
+		 }
 
 			// Handle the mass matrix for the linear solve for each element
 			DenseMatrix M(16,16);
-			for (int i = 0; i<16; i++)
+			//DenseMatrix M1(16,16);
+			for (int j = 0; j<16; j++)
 			{
-				for (int j = 0; j<16; j++)
+				for (int i = 0; i<16; i++)
 				{
-					M(i,j) = emat(i + j*(16 + k*16));
-					cout << "M(" << i << ")(" << j << ") = " << M(i,j) << endl;
+					M(i,j) = m.Elem(i + 16*k, j + 16*k);
+					//M1(j,i) = emat(i + 16*(j + 16*k));
+					//cout << "difference = " << M(i,j) - M1(j,i) << endl;
+					//cout << "M(" << i << ")(" << j << ") = " << M(i,j) << endl;
 				}
 			}
+
 			DenseMatrixInverse M_inv(M);
 			DenseMatrix M_temp;
 			M_inv.GetInverseMatrix(M_temp);
+			M_inv.Factor();
 
+			// verification
+			/*
+			DenseMatrix result(M.Size());
+			M_inv.Mult(M,result);
+			for (int i = 0; i < M.Size(); i++)
+			{
+				cout << result(i,0) << endl;
+			}
+			*/
 
+			//cout << "determinant of M = " << M.Det() << endl;
+			//cout << "determinant of M1 = " << M1.Det() << endl;
+
+/*
 			for (int i = 0; i<16; i++)
 			{
 				for (int j = 0; j < 16; j++)
@@ -725,16 +795,32 @@ int main(int argc, char *argv[])
 					cout << "M_inv(" << i << ")(" << j << ") = " << M_temp(i,j) << endl;
 				}
 			}
+			*/
+
+			Vector m_test(16);
+			m_test = 1.0;
+
+			//M_inv.Mult(m_test, xy);
 
 
-			FCT_Project(M, M_inv, m_rhs, x_FCT, y_min, y_max, xy);
+			FCT_Project(M, M_inv, m_test, x_FCT, y_min, y_max, xy);
+
+
+			for (int i = 0; i < xy.Size(); i++)
+			{
+				cout << "xy(" << i << ") = " << xy(i) << endl;
+			}
 /*
 			for (int i = 0; i < xy.Size(); i++)
 			{
+				sol_vec(i+k*16) = xy(i);
 				cout << xy(i) << endl;
-			}
-			*/
+			}*/
 	 }
+
+	 GridFunction u_HO_interp(&fes, sol_vec, 0);
+   VisItDataCollection HO_interp_dc("HO_interp", &mesh);
+   HO_interp_dc.RegisterField("Density", &u_HO_interp);
 
 	 //---------------------------------------------------------------------------
 
