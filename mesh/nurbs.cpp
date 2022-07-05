@@ -1765,7 +1765,7 @@ NURBSExtension::NURBSExtension(const Mesh *patch_topology, const Array<const NUR
       {
 	 if(iedge < 8)
 	 {
-	    if(iedge & 1)
+	    if(not (iedge & 1))
 	    {
 	       edge_to_knot[edges[iedge]] = kvs[0];
 	    }
@@ -1777,10 +1777,6 @@ NURBSExtension::NURBSExtension(const Mesh *patch_topology, const Array<const NUR
 	 else
 	 {
 	       edge_to_knot[edges[iedge]] = kvs[2];
-	 }
-	 if (oedges[iedge] < 0)
-	 {
-	    edge_to_knot[edges[iedge]] = -1 - edge_to_knot[edges[iedge]];
 	 }
       }
    }
@@ -1800,6 +1796,8 @@ NURBSExtension::NURBSExtension(const Mesh *patch_topology, const Array<const NUR
    GenerateBdrElementDofTable();
 
    weights.SetSize(GetNDof());
+
+   CheckPatches();
 }
 
 NURBSExtension::~NURBSExtension()
