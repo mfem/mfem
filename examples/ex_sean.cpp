@@ -60,6 +60,7 @@ void NodeShift(const IntegrationPoint &ip,
 						   Vector &ip_trans);
 
 // Calculate the "new" high order solution based on LOR
+/*
 void CalculateLORInterp(GridFunction &u_HO_interp,
 		       const Mesh &mesh,
 		       const Mesh &mesh_LOR,
@@ -68,6 +69,7 @@ void CalculateLORInterp(GridFunction &u_HO_interp,
 		       GridFunction &node_vals,
 		       FindPointsGSLIB &finder,
 		       const FiniteElementSpace &fes);
+					 */
 /*
 // Calculate the Low Order Refined Solution
 void CalculateLORSolution(GridTransfer &gt,
@@ -551,8 +553,8 @@ int main(int argc, char *argv[])
 
    // Here we do the interpolation to recover a smoother solution using
    // the LOR solution.
-   FindPointsGSLIB finder;
-   finder.Setup(mesh_LOR);
+   //FindPointsGSLIB finder;
+   //finder.Setup(mesh_LOR);
    GridFunction node_vals(x.FESpace());
 
    const Operator &P = gt->BackwardOperator();
@@ -660,6 +662,7 @@ int main(int argc, char *argv[])
 	 int subcell_x = 2;
 	 int subcell_y = subcell_x;
 
+
 	 Vector El_trans(mesh_width * mesh_height * subcell_x * subcell_y);
 	 for (int i = 0; i < mesh_height; i++)
 	 {
@@ -686,14 +689,18 @@ int main(int argc, char *argv[])
 	 for (int i = 0; i < 4*NE; i++)
 	 {
 		 u_LOR_vec(i) = u_LOR(i);
-		 u_LOR_trans(i) = u_LOR(El_trans(i));
-		 cout << "u_LOR_vec(" << i << ") = " << u_LOR_vec(i) << "  u_LOR_trans("
-		 	<< u_LOR_trans(i) << ")" << endl;
+	 }
+
+	 for (int i = 0; i < 14; i++)
+	 {
+		 u_LOR_trans(i) = u_LOR_vec(El_trans(i));
+		 cout << "u_LOR(" << i << ") = " << u_LOR_vec(i) << "-> u_LOR_trans("
+		 	<< i << ") = " << u_LOR_trans(i) << endl;
 	 }
 
 
 	 // Integration loop to calculate main looping
-	 for (int k = 0; k < NE; k++)
+	 for (int k = 0; k < 4; k++)
 	 {
 		 /*
 		 const FiniteElement *fe_test = fes.GetFE(k);
@@ -724,11 +731,14 @@ int main(int argc, char *argv[])
 						NodeShift(ip_LOR, s, ip_trans);
 						ip_LOR.Set(ip_trans(0), ip_trans(1), 0, ip_LOR.weight);
 						my_ir[q] = ip_LOR;
+						//cout << ir_LOR[q].x << "  " << ir_LOR[q].y << " -> " << my_ir[q].x << "  " << my_ir[q].y << endl;
 				 }
-				 const DofToQuad &maps = fe_LOR->GetDofToQuad(my_ir, DofToQuad::TENSOR);
+				 const DofToQuad &maps = fe->GetDofToQuad(my_ir, DofToQuad::TENSOR);
 				 Array<double> B2(maps.nqpt * maps.nqpt * maps.ndof * maps.ndof);
 
 				 //cout << "Size of B2 = " << maps.nqpt * maps.nqpt * maps.ndof * maps.ndof << endl;
+				 //cout << "Size of maps.nqpt = " << maps.nqpt << endl;
+				 //cout << "Size of maps.ndof = " << maps.ndof << endl;
 
 				 for (int i2 = 0; i2 < maps.ndof; i2++)
 				 {
@@ -748,9 +758,13 @@ int main(int argc, char *argv[])
 				 for (int q = 0; q < nqp_LOR; q++)
 				 {
 					  m_rhs(i) += my_ir[q].weight
-											* geom_LOR.detJ(k*subcell_num*nqp_LOR + s*nqp_LOR + q)
+											* geom_LOR.detJ(El_trans(k*subcell_num + s)*nqp_LOR + q)
 											* u_LOR_trans(k*subcell_num + s)
 											* B2[q+nqp_LOR*i];
+											//if (s == 0 && k == 0)
+											//cout << "u_LOR_trans(" << k*subcell_num + s << ") = " << u_LOR_trans(k*subcell_num + s) << endl;
+											//if (s == 0 && k == 0)
+										  //cout << "u_LOR(" << k*subcell_num + s << ") = " << u_LOR(k*subcell_num + s) << endl;
 				 }
 			 }
 		 }
@@ -802,20 +816,22 @@ int main(int argc, char *argv[])
 
 			//M_inv.Mult(m_test, xy);
 
+			//m_rhs.Print();
+			cout << endl;
 
-			FCT_Project(M, M_inv, m_test, x_FCT, y_min, y_max, xy);
+			FCT_Project(M, M_inv, m_rhs, x_FCT, y_min, y_max, xy);
 
 
 			for (int i = 0; i < xy.Size(); i++)
 			{
-				cout << "xy(" << i << ") = " << xy(i) << endl;
+				//cout << "xy(" << i << ") = " << xy(i) << endl;
 			}
-/*
+//cout << "Size of maps.nqpt = " << maps.nqpt << endl;
 			for (int i = 0; i < xy.Size(); i++)
 			{
 				sol_vec(i+k*16) = xy(i);
-				cout << xy(i) << endl;
-			}*/
+				//cout << xy(i) << endl;
+			}
 	 }
 
 	 GridFunction u_HO_interp(&fes, sol_vec, 0);
@@ -917,7 +933,7 @@ void NodeShift(const IntegrationPoint &ip,
 
 	 ip_trans = temp;
 }
-
+/*
 void CalculateLORInterp(GridFunction &u_HO_interp,
 		       const Mesh &mesh,
 		       const Mesh &mesh_LOR,
@@ -981,7 +997,7 @@ void CalculateLORInterp(GridFunction &u_HO_interp,
 
 	 cout << "Why aren't you working" << endl;
 }
-
+*/
 // Calculate the Low Order solution
 void CalculateLOSolution(const GridFunction &u_HO,
 			 const GridFunction &x,
