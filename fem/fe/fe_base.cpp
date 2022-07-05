@@ -551,7 +551,7 @@ const DofToQuad &ScalarFiniteElement::GetTensorDofToQuad(
    for (int i = 0; i < dof2quad_array.Size(); i++)
    {
       const DofToQuad &d2q = *dof2quad_array[i];
-      if (d2q.IntRule == &ir && d2q.mode == mode) { return d2q; }
+      //if (d2q.IntRule == &ir && d2q.mode == mode) { return d2q; }
    }
 
    DofToQuad *d2q = new DofToQuad;
