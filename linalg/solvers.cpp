@@ -3399,6 +3399,93 @@ void ProductSolver::MultTranspose(const Vector & x, Vector & y) const
    y += S0Tz;
 }
 
+OrthoSolver::OrthoSolver()
+   : Solver(0, false), global_size(-1)
+#ifdef MFEM_USE_MPI
+   , parallel(false)
+#endif
+{ }
+
+#ifdef MFEM_USE_MPI
+OrthoSolver::OrthoSolver(MPI_Comm mycomm_)
+   : Solver(0, false), mycomm(mycomm_), global_size(-1), parallel(true) { }
+#endif
+
+void OrthoSolver::SetSolver(Solver &s)
+{
+   solver = &s;
+   height = s.Height();
+   width = s.Width();
+   MFEM_VERIFY(height == width, "Solver must be a square Operator!");
+   global_size = -1; // lazy evaluated
+}
+
+void OrthoSolver::SetOperator(const Operator &op)
+{
+   MFEM_VERIFY(solver, "Solver hasn't been set, call SetSolver() first.");
+   solver->SetOperator(op);
+   height = solver->Height();
+   width = solver->Width();
+   MFEM_VERIFY(height == width, "Solver must be a square Operator!");
+   global_size = -1; // lazy evaluated
+}
+
+void OrthoSolver::Mult(const Vector &b, Vector &x) const
+{
+   MFEM_VERIFY(solver, "Solver hasn't been set, call SetSolver() first.");
+   MFEM_VERIFY(height == solver->Height(),
+               "solver was modified externally! call SetSolver() again!");
+   MFEM_VERIFY(height == b.Size(), "incompatible input Vector size!");
+   MFEM_VERIFY(height == x.Size(), "incompatible output Vector size!");
+
+   // Orthogonalize input
+   Orthogonalize(b, b_ortho);
+
+   // Propagate iterative_mode to the solver:
+   solver->iterative_mode = iterative_mode;
+
+   // Apply the Solver
+   solver->Mult(b_ortho, x);
+
+   // Orthogonalize output
+   Orthogonalize(x, x);
+}
+
+void OrthoSolver::Orthogonalize(const Vector &v, Vector &v_ortho) const
+{
+   if (global_size == -1)
+   {
+      global_size = height;
+#ifdef MFEM_USE_MPI
+      if (parallel)
+      {
+         MPI_Allreduce(MPI_IN_PLACE, &global_size, 1, HYPRE_MPI_BIG_INT,
+                       MPI_SUM, mycomm);
+      }
+#endif
+   }
+
+   // TODO: GPU/device implementation
+
+   double global_sum = v.Sum();
+
+#ifdef MFEM_USE_MPI
+   if (parallel)
+   {
+      MPI_Allreduce(MPI_IN_PLACE, &global_sum, 1, MPI_DOUBLE, MPI_SUM, mycomm);
+   }
+#endif
+
+   double ratio = global_sum / static_cast<double>(global_size);
+   v_ortho.SetSize(v.Size());
+   v.HostRead();
+   v_ortho.HostWrite();
+   for (int i = 0; i < v_ortho.Size(); ++i)
+   {
+      v_ortho(i) = v(i) - ratio;
+   }
+}
+
 #ifdef MFEM_USE_MPI
 AuxSpaceSmoother::AuxSpaceSmoother(const HypreParMatrix &op,
                                    HypreParMatrix *aux_map,
