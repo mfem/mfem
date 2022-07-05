@@ -12,7 +12,7 @@
 # Use the MFEM build directory
 MFEM_DIR ?= ../..
 MFEM_BUILD_DIR ?= ../..
-SRC = $(if $(MFEM_DIR:../..=),$(MFEM_DIR)/miniapps/navier/,)
+SRC = $(if $(MFEM_DIR:../..=),$(MFEM_DIR)/miniapps/hooke/,)
 CONFIG_MK = $(MFEM_BUILD_DIR)/config/config.mk
 # Use the MFEM install directory
 # MFEM_INSTALL_DIR = ../../mfem
@@ -21,51 +21,47 @@ CONFIG_MK = $(MFEM_BUILD_DIR)/config/config.mk
 MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
-NAVIER_COMMON_SRC = navier_solver.cpp
-NAVIER_COMMON_OBJ = $(NAVIER_COMMON_SRC:.cpp=.o)
+HOOKE_SRC = hooke.cpp\
+	operators/elasticity_operator.cpp\
+	operators/elasticity_gradient_operator.cpp\
+	preconditioners/diagonal_preconditioner.cpp
+HOOKE_OBJ = $(HOOKE_SRC:.cpp=.o)
 
-PAR_MINIAPPS = navier_mms navier_kovasznay navier_kovasznay_vs navier_tgv\
- navier_shear navier_3dfoc navier_turbchan
-ifeq ($(MFEM_USE_GSLIB),YES)
-   PAR_MINIAPPS += navier_cht
-endif
-
+SEQ_MINIAPPS =
+PAR_MINIAPPS = hooke
 ifeq ($(MFEM_USE_MPI),NO)
-   MINIAPPS =
+   MINIAPPS = $(SEQ_MINIAPPS)
 else
-   MINIAPPS = $(PAR_MINIAPPS)
+   MINIAPPS = $(PAR_MINIAPPS) $(SEQ_MINIAPPS)
 endif
+MFEM_TESTS = MINIAPPS
 
 .SUFFIXES:
 .SUFFIXES: .o .cpp .mk
 .PHONY: all clean clean-build clean-exec
+.PRECIOUS: %.o
+
+all: $(MINIAPPS)
 
 # Remove built-in rules
 %: %.cpp
 %.o: %.cpp
 
-%: %.o $(NAVIER_COMMON_OBJ)
-	$(MFEM_CXX) $(MFEM_LINK_FLAGS) $^ -o $@ $(MFEM_LIBS)
+HOOKE_INCLUDES = $(if $(SRC),-I$(MFEM_DIR))
 
-%.o: $(SRC)%.cpp $(MFEM_LIB_FILE) $(CONFIG_MK)
-	$(MFEM_CXX) $(MFEM_FLAGS) -c $< -o $@
+hooke: $(HOOKE_OBJ)
+	$(MFEM_CXX) $(MFEM_LINK_FLAGS) -o $@ $(HOOKE_OBJ) $(MFEM_LIBS)
 
-all: $(MINIAPPS)
+$(HOOKE_OBJ): %.o: $(SRC)%.cpp $(MFEM_LIB_FILE) $(CONFIG_MK)
+	@mkdir -p $(@D)
+	$(MFEM_CXX) $(MFEM_FLAGS) $(HOOKE_INCLUDES) -c $< -o $@
 
-PAR_TEST_EXECS = navier_mms navier_kovasznay navier_tgv
-MFEM_TESTS = TEST_EXECS
 include $(MFEM_TEST_MK)
 
+# Testing: Specific execution options
 RUN_MPI = $(MFEM_MPIEXEC) $(MFEM_MPIEXEC_NP) $(MFEM_MPI_NP)
-
-navier_mms-test-par: navier_mms
-	@$(call mfem-test,$<, $(RUN_MPI), Navier,-cr)
-
-navier_kovasznay-test-par: navier_kovasznay
-	@$(call mfem-test,$<, $(RUN_MPI), Navier,-cr)
-
-navier_tgv-test-par: navier_tgv
-	@$(call mfem-test,$<, $(RUN_MPI), Navier,-cr)
+hooke-test-par: hooke
+	@$(call mfem-test,$<, $(RUN_MPI), Hooke miniapp,-rs 0)
 
 # Generate an error message if the MFEM library is not built and exit
 $(MFEM_LIB_FILE):
@@ -74,8 +70,8 @@ $(MFEM_LIB_FILE):
 clean: clean-build clean-exec
 
 clean-build:
-	rm -f *.o *~ $(PAR_MINIAPPS)
+	rm -f *.o *~ $(SEQ_MINIAPPS) $(PAR_MINIAPPS) $(HOOKE_OBJ)
 	rm -rf *.dSYM *.TVD.*breakpoints
 
 clean-exec:
-	@rm -rf tgv_out*.txt *_output
+	@rm -rf mesh.* sol.* ParaView
