@@ -346,7 +346,7 @@ MFEM_DEFINES = MFEM_VERSION MFEM_VERSION_STRING MFEM_GIT_STRING MFEM_USE_MPI\
  MFEM_USE_ADIOS2 MFEM_USE_MKL_CPARDISO MFEM_USE_AMGX MFEM_USE_MUMPS\
  MFEM_USE_ADFORWARD MFEM_USE_CODIPACK MFEM_USE_CALIPER MFEM_USE_BENCHMARK\
  MFEM_USE_PARELAG MFEM_SOURCE_DIR MFEM_INSTALL_DIR MFEM_USE_ALGOIM\
- MFEM_USE_JIT
+ MFEM_USE_JIT MFEM_JIT_PIPE
 
 # List of makefile variables that will be written to config.mk:
 MFEM_CONFIG_VARS = MFEM_CXX MFEM_HOST_CXX MFEM_CPPFLAGS MFEM_CXXFLAGS\
@@ -495,19 +495,17 @@ $(OPT_OBJECT_FILES): $(BLD)%.o: $(SRC)%.cpp $(SRC)%.hpp makefile $(CONFIG_MK)
 $(STD_OBJECT_FILES): $(BLD)%.o: $(SRC)%.cpp $(CONFIG_MK)
 	$(MFEM_CXX) $(MFEM_BUILD_FLAGS) -c $(<) -o $(@)
 
-# HIP/XLC compilers don't support target options with stdin input
-MFEM_JIT_XLC = $(if $(shell $(MFEM_CXX) -dM -E -x c++\
- $(SRC)tests/unit/mjit/test_empty.cpp| grep __ibmxl__),YES,NO)
-ifeq ($(MFEM_USE_HIP)$(MFEM_JIT_XLC),NONO)
+ifeq ($(MFEM_JIT_PIPE),YES)
 MFEM_JIT_FLAGS = $(strip $(MFEM_BUILD_FLAGS)) $(JIT_LANG) -I$(patsubst %/,%,$(<D))
 $(JIT_OBJECT_FILES): $(BLD)%.o: $(SRC)%.cpp $(CONFIG_MK) $(BLD)mjit
 	$(BLD)./mjit $(<) | $(MFEM_CXX) $(MFEM_JIT_FLAGS) -c -o $(@) -
-else # hip/xlc, use temporary %_jit.cpp file
+else # pipe, use temporary %_jit.cpp file
 $(BLD)%_jit.cpp: $(SRC)%.cpp $(CONFIG_MK) $(BLD)mjit
 	$(BLD)./mjit $(<) -o $(@)
-$(BLD)%.o: $(BLD)%_jit.cpp $(CONFIG_MK) makefile
+$(JIT_OBJECT_FILES): $(BLD)%.o: $(BLD)%_jit.cpp $(CONFIG_MK) makefile
 	$(MFEM_CXX) $(strip $(MFEM_BUILD_FLAGS)) -c $(<) -o $(@)
-endif # hip/xlc
+	rm $(<)
+endif # pipe
 endif # jit
 
 all: examples miniapps $(TEST_DIRS)
@@ -787,6 +785,7 @@ status info:
 	$(info MFEM_PREFIX            = $(value MFEM_PREFIX))
 	$(info MFEM_INC_DIR           = $(value MFEM_INC_DIR))
 	$(info MFEM_LIB_DIR           = $(value MFEM_LIB_DIR))
+	$(info MFEM_JIT_PIPE          = $(value MFEM_JIT_PIPE))
 	$(info MFEM_STATIC            = $(MFEM_STATIC))
 	$(info MFEM_SHARED            = $(MFEM_SHARED))
 	$(info MFEM_BUILD_DIR         = $(MFEM_BUILD_DIR))
