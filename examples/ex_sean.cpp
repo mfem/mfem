@@ -177,7 +177,7 @@ int main(int argc, char *argv[]) {
   problem = 0;
   const char *mesh_file = "../data/periodic-square.mesh";
   int ref_levels = 0;
-  int order = 3;
+  int order = 1;
   bool pa = false;
   bool ea = false;
   bool fa = false;
@@ -656,11 +656,11 @@ int main(int argc, char *argv[]) {
   for (int i = 0; i < 4 * NE; i++) {
     u_LOR_vec(i) = u_LOR(i);
     u_LOR_trans(i) = u_LOR(El_trans(i));
-    cout << "u_LOR_vec(" << i << ") = " << u_LOR_vec(i) << "  u_LOR_trans("
-         << u_LOR_trans(i) << ")" << endl;
+    //cout << "u_LOR_vec(" << i << ") = " << u_LOR_vec(i) << "  u_LOR_trans("
+    //<< u_LOR_trans(i) << ")" << endl;
   }
 
-  std::cout << "nqp_LOR = " << nqp_LOR << std::endl;
+  //std::cout << "nqp_LOR = " << nqp_LOR << std::endl;
 
   // Integration loop to calculate main looping
   for (int k = 0; k < NE; k++) {
@@ -683,6 +683,7 @@ int main(int argc, char *argv[]) {
     */
 
     m_rhs = 0.0;
+    std::cout<<"ndofs = "<<ndofs<<std::endl;
     for (int i = 0; i < ndofs; i++) {
       for (int s = 0; s < subcell_num; s++) {
         IntegrationRule my_ir = ir_LOR;
@@ -692,7 +693,7 @@ int main(int argc, char *argv[]) {
           ip_LOR.Set(ip_trans(0), ip_trans(1), 0, ip_LOR.weight);
           my_ir[q] = ip_LOR;
         }
-        const DofToQuad &maps = fe_LOR->GetDofToQuad(my_ir, DofToQuad::TENSOR);
+        const DofToQuad &maps = fe->GetDofToQuad(my_ir, DofToQuad::TENSOR);
         Array<double> B2(maps.nqpt * maps.nqpt * maps.ndof * maps.ndof);
 
         // cout << "Size of B2 = " << maps.nqpt * maps.nqpt * maps.ndof *
@@ -704,19 +705,26 @@ int main(int argc, char *argv[]) {
               for (int k1 = 0; k1 < maps.nqpt; k1++) {
                 B2[k1 + maps.nqpt * (k2 + maps.nqpt * (i1 + maps.ndof * i2))] =
                     maps.B[k1 + maps.nqpt * i1] * maps.B[k2 + maps.nqpt * i2];
+                //std::cout<<"B2 = "<<B2[k1 + maps.nqpt * (k2 + maps.nqpt * (i1 + maps.ndof * i2))]<<std::endl;
               }
             }
           }
         }
 
+        int i1 = i % maps.ndof;
+        int i2 = i / maps.ndof;
+        
         for (int q = 0; q < nqp_LOR; q++) {
+          int q1 = q % maps.nqpt;
+          int q2 = q / maps.nqpt;
           m_rhs(i) +=
               my_ir[q].weight *
               geom_LOR.detJ(k * subcell_num * nqp_LOR + s * nqp_LOR + q) *
-              u_LOR_trans(k * subcell_num + s) * B2[q + nqp_LOR * i];
+            1.0 * maps.B[q1 + i1*maps.nqpt] * maps.B[q2 + i2*maps.nqpt];  //B2[q + nqp_LOR * i];
+          //u_LOR_trans(k * subcell_num + s) * B2[q + nqp_LOR * i];
         }
       }
-    }
+    }//loop over i
 
     // Handle the mass matrix for the linear solve for each element
     DenseMatrix M(ndofs, ndofs);
@@ -767,12 +775,12 @@ int main(int argc, char *argv[]) {
     FCT_Project(M, M_inv, m_test, x_FCT, y_min, y_max, xy);
 
     for (int i = 0; i < xy.Size(); i++) {
-      cout << "xy(" << i << ") = " << xy(i) << endl;
+      //  cout << "xy(" << i << ") = " << xy(i) << endl;
     }
 
     for (int i = 0; i < xy.Size(); i++) {
       sol_vec(i + k * ndofs) = xy(i);
-      cout << xy(i) << endl;
+      //cout << xy(i) << endl;
     }
   }
 
