@@ -164,6 +164,7 @@ const Vector &NonlinearForm::Prolongate(const Vector &x) const
 
 void NonlinearForm::Mult(const Vector &x, Vector &y) const
 {
+   MFEM_PERF_SCOPE("NonlinearForm::Mult");
    const Vector &px = Prolongate(x);
    if (P) { aux2.SetSize(P->Height()); }
 
@@ -311,6 +312,7 @@ void NonlinearForm::Mult(const Vector &x, Vector &y) const
 
 Operator &NonlinearForm::GetGradient(const Vector &x) const
 {
+   MFEM_PERF_SCOPE("NonlinearForm::GetGradient");
    if (ext)
    {
       hGrad.Clear();
@@ -486,6 +488,7 @@ void NonlinearForm::Update()
 
 void NonlinearForm::Setup()
 {
+   MFEM_PERF_SCOPE("NonlinearForm::Setup");
    if (ext) { ext->Assemble(); }
 }
 

@@ -13,6 +13,7 @@
 #define MFEM_OPERATOR
 
 #include "vector.hpp"
+#include "../general/annotation.hpp"
 
 namespace mfem
 {
@@ -778,7 +779,7 @@ public:
 
    /// Operator application.
    virtual void Mult(const Vector & x, Vector & y) const
-   { P.Mult(x, Px); A.Mult(Px, APx); Rt.MultTranspose(APx, y); }
+   { MFEM_PERF_SCOPE("RAPOperator::Mult"); P.Mult(x, Px); A.Mult(Px, APx); Rt.MultTranspose(APx, y); }
 
    /// Approximate diagonal of the RAP Operator.
    /** Returns the diagonal of A, as returned by its AssembleDiagonal method,

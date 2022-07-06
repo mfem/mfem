@@ -107,6 +107,7 @@ void PANonlinearFormExtension::PAGradient::AssembleGrad(const Vector &g)
 
 void PANonlinearFormExtension::PAGradient::Mult(const Vector &x, Vector &y) const
 {
+   MFEM_PERF_SCOPE("PANonlinearFormExtension::PAGradient::Mult");
    ext.ye = 0.0;
    ext.elemR->Mult(x, ext.xe);
    for (int i = 0; i < ext.dnfi.Size(); ++i)
@@ -157,6 +158,7 @@ void EANonlinearFormExtension::EAGradient::AssembleGrad(const Vector &g)
 
 void EANonlinearFormExtension::EAGradient::Mult(const Vector &x, Vector &y) const
 {
+   MFEM_PERF_SCOPE("EANonlinearFormExtension::EAGradient::Mult");
    ext.ye = 0.0;
    ext.elemR->Mult(x, ext.xe);
 
@@ -244,6 +246,7 @@ void FANonlinearFormExtension::FAGradient::AssembleGrad(const Vector &g)
 
 void FANonlinearFormExtension::FAGradient::Mult(const Vector &x, Vector &y) const
 {
+   MFEM_PERF_SCOPE("FANonlinearFormExtension::FAGradient::Mult");
    // not certain this is the behavior we want but...
    y = 0.0;
    ext.mat->Mult(x, y);
