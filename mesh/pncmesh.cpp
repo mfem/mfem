@@ -1119,16 +1119,59 @@ void ParNCMesh::GetFaceNeighbors(ParMesh &pmesh)
             const DenseMatrix* pm = full_list.point_matrices[sf.geom][sf.matrix];
             if (!sloc && Dim == 3)
             {
-               // TODO: does this handle triangle faces correctly?
-
                // ghost slave in 3D needs flipping orientation
-               DenseMatrix* pm2 = new DenseMatrix(*pm);
-               std::swap((*pm2)(0,1), (*pm2)(0,3));
-               std::swap((*pm2)(1,1), (*pm2)(1,3));
-               aux_pm_store.Append(pm2);
+               if(pm->Width() == 4) // Quad
+               {
+                  DenseMatrix* pm2 = new DenseMatrix(*pm);
+                  std::swap((*pm2)(0,1), (*pm2)(0,3));
+                  std::swap((*pm2)(1,1), (*pm2)(1,3));
+                  aux_pm_store.Append(pm2);
+                  pm = pm2;
+               }
+               else if(pm->Width() == 3) // Tri
+               {
+                  const int orientation = fi.Elem2Inf%64;
+                  MFEM_ASSERT(orientation < 6, "Invalid orientation.");
+                  switch(orientation)
+                  {
+                  case 0:
+                  case 1:
+                  {
+                     DenseMatrix* pm2 = new DenseMatrix(*pm);
+                     std::swap((*pm2)(0,1), (*pm2)(0,2));
+                     std::swap((*pm2)(1,1), (*pm2)(1,2));
+                     aux_pm_store.Append(pm2);
+                     pm = pm2;
+                     break;
+                  }
+                  case 2:
+                  case 3:
+                  {
+                     DenseMatrix* pm2 = new DenseMatrix(*pm);
+                     std::swap((*pm2)(0,0), (*pm2)(0,1));
+                     std::swap((*pm2)(1,0), (*pm2)(1,1));
+                     aux_pm_store.Append(pm2);
+                     pm = pm2;
+                     break;
+                  }
+                  case 4:
+                  case 5:
+                  {
+                     DenseMatrix* pm2 = new DenseMatrix(*pm);
+                     std::swap((*pm2)(0,0), (*pm2)(0,2));
+                     std::swap((*pm2)(1,0), (*pm2)(1,2));
+                     aux_pm_store.Append(pm2);
+                     pm = pm2;
+                     break;
+                  }
+                  }
+               }
+               else 
+               {
+                  MFEM_ABORT("Unknown face geometry: " << pm->Width());
+               }
 
                fi.Elem2Inf ^= 1;
-               pm = pm2;
 
                // The problem is that sf.point_matrix is designed for P matrix
                // construction and always has orientation relative to the slave
