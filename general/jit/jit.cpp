@@ -22,7 +22,6 @@
 #include <thread> // sleep_for
 #include <chrono> // (milli) seconds
 
-//#include <cassert>
 #include <cstring> // strlen
 #include <cstdlib> // exit, system
 #include <dlfcn.h> // dlopen/dlsym, not available on Windows
@@ -33,27 +32,27 @@
 #include <sys/stat.h>
 
 #if !(defined(__linux__) || defined(__APPLE__))
-#error mmap(2) implementation as defined in POSIX.1-2001 not supported.
+#error mmap implementation as defined in POSIX.1-2001 is not supported!
 #else
 #include <sys/mman.h> // mmap
 #endif
 
-// The folowing identifiers need to be defined at compile time:
-// MFEM_PICFLAG, MFEM_XLINKER, MFEM_XCOMPILER, MFEM_SO_EXT
-// MFEM_SO_PREFIX, MFEM_SO_POSTFIX, MFEM_INSTALL_BACKUP.
-// These options are set by default in defaults.mk and MjitCmakeUtilities.cmake
+// MFEM_AR, MFEM_PICFLAG, MFEM_XLINKER, MFEM_XCOMPILER, MFEM_SO_EXT
+// MFEM_SO_PREFIX, MFEM_SO_POSTFIX and MFEM_INSTALL_BACKUP have to defined at
+// compile time.
+// They are set by default in defaults.mk and MjitCmakeUtilities.cmake.
 
-// The 'MFEM_JIT_DEBUG' environement variable can be set to ouput dl errors,
-// force the dlopen to resolve all symbols 'NOW' instead of lazily and keep
-// intermediate sources files.
+// The 'MFEM_JIT_DEBUG' environement variable can be set to:
+//   - ouput dl errors,
+//   - force the dlopen to resolve all symbols 'NOW', instead of lazily,
+//   - keep intermediate sources files.
 
-// The 'MFEM_JIT_VERBOSE' environement variable adds a verbose flag during the
-// compilation stage.
+// The 'MFEM_JIT_VERBOSE' environement variable adds a verbose (-v) flag during
+// the compilation stage.
 
-#if !(defined(MFEM_SO_EXT) && defined(MFEM_XCOMPILER) &&\
-      defined(MFEM_XLINKER) && defined(MFEM_AR) &&\
-      defined(MFEM_INSTALL_BACKUP) && defined(MFEM_SO_PREFIX) &&\
-      defined(MFEM_SO_POSTFIX) && defined(MFEM_PICFLAG))
+#if !(defined(MFEM_AR) && defined(MFEM_INSTALL_BACKUP) &&\
+ defined(MFEM_SO_EXT) && defined(MFEM_SO_PREFIX) && defined(MFEM_SO_POSTFIX) &&\
+ defined(MFEM_PICFLAG) && defined(MFEM_XLINKER) && defined(MFEM_XCOMPILER))
 #error MFEM_[SO_EXT, XCOMPILER, XLINKER, AR, INSTALL_BACKUP, SO_PREFIX, SO_POSTFIX, PICFLAGS] must be defined!
 #define MFEM_AR
 #define MFEM_SO_EXT
@@ -66,6 +65,9 @@
 #endif
 
 namespace mfem
+{
+
+namespace internal
 {
 
 namespace jit
@@ -525,7 +527,9 @@ System System::singleton {}; // Initialize the unique System context.
 
 } // namespace jit
 
-using namespace jit;
+} // namespace internal
+
+using namespace internal::jit;
 
 void Jit::Init(int *argc, char ***argv) { System::Init(argc, argv); }
 

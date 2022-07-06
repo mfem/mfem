@@ -15,22 +15,20 @@
 
 int main()
 {
-   const char *cxx = NULL;
+   const char *host_cxx = NULL;
 #if defined(__ibmxl__)
-   cxx = "XLC";
-#elif defined(__NVCC__)
-   cxx = "NVCC";
+   host_cxx = "XLC";
 #elif defined(__clang_version__)
    const std::string ROC("RadeonOpenCompute");
    const std::string clang_version(__clang_version__);
-   if (clang_version.find(ROC) != std::string::npos) { cxx = "ROCM"; }
-   else { cxx = "CLANG"; }
+   if (clang_version.find(ROC) != std::string::npos) { host_cxx = "ROCM"; }
+   else { host_cxx = "CLANG"; }
 #elif defined(__GNUC__)
-   cxx = "GNU";
+   host_cxx = "GNU";
 #else
-   cxx = "UNKNOWN";
+   host_cxx = "UNKNOWN";
 #endif
-   assert(cxx && "Unknown compiler in config/get_jit_version.cpp");
-   std::cout << cxx << std::endl;
+   assert(host_cxx && "Unknown compiler in config/get_jit_version.cpp");
+   std::cout << host_cxx << std::endl;
    return 0;
 }

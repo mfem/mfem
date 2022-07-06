@@ -41,10 +41,10 @@ GHV_CXX ?= $(MFEM_CXX)
 GHV = get_hypre_version
 GHV_FLAGS = $(subst @MFEM_DIR@,$(if $(MFEM_DIR),$(MFEM_DIR),..),$(HYPRE_OPT))
 
-# Set MFEM_JIT_CXX, used for MFEM_JIT_PIPE
+# Set MFEM_JIT_PIPE
+# get_jit_version.out can be one of: XLC, ROCM, CLANG, GNU & UNKNOWN
 JIT = $(MFEM_USE_JIT:NO=)
-JIT_NO_PIPE = XLC ROCM
-JCV_CXX ?= $(MFEM_CXX)
+JIT_USE_PIPE = CLANG GNU
 JCV = get_jit_version
 
 # Set MFEM_USE_SIMMETRIX
@@ -66,8 +66,8 @@ $(GHV).out: $(GHV)
 .INTERMEDIATE: $(GHV) $(GHV).out
 
 $(JCV): $(SRC)$(JCV).cpp
-	$(call mfem-info, Determining JIT CXX version ...)
-	$(JCV_CXX) ${JCV_FLAGS} $(SRC)$(JCV).cpp -o $(JCV)
+	$(call mfem-info, Determining host CXX version ...)
+	$(MFEM_HOST_CXX) $(SRC)$(JCV).cpp -o $(JCV)
 $(JCV).out: $(JCV)
 	./$(JCV) > $(JCV).out
 .INTERMEDIATE: $(JCV) $(JCV).out
@@ -88,7 +88,7 @@ get-hypre-version: $(GHV).out
 get-jit-version: $(JCV).out
 	$(eval MFEM_JIT_CXX:=$(shell cat $(JCV).out))
 	$(if $(MFEM_JIT_CXX),\
-        $(eval MFEM_JIT_PIPE:=$(if $(filter $(MFEM_JIT_CXX),$(JIT_NO_PIPE)),NO,YES))\
+        $(eval MFEM_JIT_PIPE:=$(if $(filter $(MFEM_JIT_CXX),$(JIT_USE_PIPE)),YES,NO))\
         $(info MFEM_JIT_PIPE: $(MFEM_JIT_PIPE))$(eval export MFEM_JIT_PIPE),\
         $(error Unable to determine JIT CXX version))
 
@@ -105,7 +105,7 @@ get-mumps-version: $(GMV).out
 	$(error Unable to determine MUMPS version))
 
 header: $(if $(MPI),get-hypre-version,) $(if $(SMX),check-smx,) \
- $(if $(MUMPS),get-mumps-version,) $(if $(JIT),get-jit-version,)
+ $(if $(MUMPS),get-mumps-version,)
 	$(call mfem-info, Writing $(CONFIG_HPP) ...)
 	@set -- && \
 	for def in $${MFEM_DEFINES} $(if $(MPI),MFEM_HYPRE_VERSION) $(SMX) \
