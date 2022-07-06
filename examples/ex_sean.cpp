@@ -683,48 +683,34 @@ int main(int argc, char *argv[]) {
     */
 
     m_rhs = 0.0;
-    std::cout<<"ndofs = "<<ndofs<<std::endl;
+    //std::cout<<"ndofs = "<<ndofs<<std::endl;
     for (int i = 0; i < ndofs; i++) {
+
       for (int s = 0; s < subcell_num; s++) {
+
         IntegrationRule my_ir = ir_LOR;
+
         for (int q = 0; q < nqp_LOR; q++) {
+
           IntegrationPoint ip_LOR = ir_LOR.IntPoint(q);
           NodeShift(ip_LOR, s, ip_trans);
           ip_LOR.Set(ip_trans(0), ip_trans(1), 0, ip_LOR.weight);
-          my_ir[q] = ip_LOR;
-        }
-        const DofToQuad &maps = fe->GetDofToQuad(my_ir, DofToQuad::TENSOR);
-        Array<double> B2(maps.nqpt * maps.nqpt * maps.ndof * maps.ndof);
 
-        // cout << "Size of B2 = " << maps.nqpt * maps.nqpt * maps.ndof *
-        // maps.ndof << endl;
-
-        for (int i2 = 0; i2 < maps.ndof; i2++) {
-          for (int i1 = 0; i1 < maps.ndof; i1++) {
-            for (int k2 = 0; k2 < maps.nqpt; k2++) {
-              for (int k1 = 0; k1 < maps.nqpt; k1++) {
-                B2[k1 + maps.nqpt * (k2 + maps.nqpt * (i1 + maps.ndof * i2))] =
-                    maps.B[k1 + maps.nqpt * i1] * maps.B[k2 + maps.nqpt * i2];
-                //std::cout<<"B2 = "<<B2[k1 + maps.nqpt * (k2 + maps.nqpt * (i1 + maps.ndof * i2))]<<std::endl;
-              }
-            }
-          }
-        }
-
-        int i1 = i % maps.ndof;
-        int i2 = i / maps.ndof;
-        
-        for (int q = 0; q < nqp_LOR; q++) {
-          int q1 = q % maps.nqpt;
-          int q2 = q / maps.nqpt;
+          Vector shape(ndofs); 
+          fe->CalcShape(ip_LOR, shape);
           m_rhs(i) +=
               my_ir[q].weight *
               geom_LOR.detJ(k * subcell_num * nqp_LOR + s * nqp_LOR + q) *
-            1.0 * maps.B[q1 + i1*maps.nqpt] * maps.B[q2 + i2*maps.nqpt];  //B2[q + nqp_LOR * i];
-          //u_LOR_trans(k * subcell_num + s) * B2[q + nqp_LOR * i];
+            //  u_LOR_trans(k * subcell_num + s) * shape(i);
+            5.0 * shape(i);
+            //1.0 * maps.B[q1 + i1*maps.nqpt] * maps.B[q2 + i2*maps.nqpt];  //B2[q + nqp_LOR * i];
+            //u_LOR_trans(k * subcell_num + s) * B2[q + nqp_LOR * i];
         }
+        //std::cout<<std::endl;
       }
-    }//loop over i
+      //exit(-1);
+        
+     }//loop over i
 
     // Handle the mass matrix for the linear solve for each element
     DenseMatrix M(ndofs, ndofs);
@@ -740,8 +726,8 @@ int main(int argc, char *argv[]) {
 
     DenseMatrixInverse M_inv(M);
     DenseMatrix M_temp;
-    M_inv.GetInverseMatrix(M_temp);
     M_inv.Factor();
+    M_inv.GetInverseMatrix(M_temp);
 
     // verification
     /*
@@ -770,14 +756,16 @@ int main(int argc, char *argv[]) {
     Vector m_test(ndofs);
     m_test = m_rhs;
 
-    // M_inv.Mult(m_test, xy);
+    //M_temp.Mult(m_test, xy);
 
+    //m_test.Print();
     FCT_Project(M, M_inv, m_test, x_FCT, y_min, y_max, xy);
 
     for (int i = 0; i < xy.Size(); i++) {
       //  cout << "xy(" << i << ") = " << xy(i) << endl;
     }
 
+    xy.Print();
     for (int i = 0; i < xy.Size(); i++) {
       sol_vec(i + k * ndofs) = xy(i);
       //cout << xy(i) << endl;
