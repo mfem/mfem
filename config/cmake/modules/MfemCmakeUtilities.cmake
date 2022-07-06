@@ -893,7 +893,8 @@ function(mfem_export_mk_files)
       MFEM_USE_CONDUIT MFEM_USE_PUMI MFEM_USE_HIOP MFEM_USE_GSLIB MFEM_USE_CUDA
       MFEM_USE_HIP MFEM_USE_RAJA MFEM_USE_OCCA MFEM_USE_CEED MFEM_USE_CALIPER
       MFEM_USE_UMPIRE MFEM_USE_SIMD MFEM_USE_ADIOS2 MFEM_USE_MKL_CPARDISO
-      MFEM_USE_ADFORWARD MFEM_USE_CODIPACK MFEM_USE_BENCHMARK MFEM_USE_PARELAG)
+      MFEM_USE_ADFORWARD MFEM_USE_CODIPACK MFEM_USE_BENCHMARK MFEM_USE_PARELAG
+      MFEM_USE_MOONOLITH MFEM_USE_ALGOIM)
   foreach(var ${CONFIG_MK_BOOL_VARS})
     if (${var})
       set(${var} YES)
@@ -977,9 +978,11 @@ function(mfem_export_mk_files)
       string(REGEX REPLACE "^SCOREC::" "" libname ${pumilib})
       string(FIND "${pumilib}" ".a" staticlib)
       string(FIND "${pumilib}" ".so" sharedlib)
+      string(FIND "${pumilib}" ".dylib" dynamiclib)
       find_library(lib ${libname} PATHS ${PUMI_DIR}/lib NO_DEFAULT_PATH)
       if (NOT "${sharedlib}" MATCHES "-1" OR
-          NOT "${staticlib}" MATCHES "-1"   )
+          NOT "${staticlib}" MATCHES "-1" OR
+          NOT "${dynamiclib}" MATCHES "-1"  )
         set(MFEM_EXT_LIBS "${pumilib} ${MFEM_EXT_LIBS}")
       elseif (NOT "${lib}" MATCHES "lib-NOTFOUND")
         set(MFEM_EXT_LIBS "${lib} ${MFEM_EXT_LIBS}")
@@ -994,7 +997,7 @@ function(mfem_export_mk_files)
   foreach(lib ${TPL_LIBRARIES})
     get_filename_component(suffix ${lib} EXT)
     # handle interfaces (e.g., SCOREC::apf)
-    if ("${lib}" MATCHES "SCOREC::.*" OR "${lib}" MATCHES "Ginkgo::.*")
+    if ("${lib}" MATCHES "SCOREC::.*" OR "${lib}" MATCHES "Ginkgo::.*" OR "${lib}" MATCHES "ParMoonolith::.*")
     elseif (TARGET "${lib}")
       mfem_get_target_options(${lib} CompileOpts LinkOpts)
       # Removing duplicates may lead to issues:

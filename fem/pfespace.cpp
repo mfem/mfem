@@ -1020,25 +1020,15 @@ void ParFiniteElementSpace::Synchronize(Array<int> &ldof_marker) const
 
 void ParFiniteElementSpace::GetEssentialVDofs(const Array<int> &bdr_attr_is_ess,
                                               Array<int> &ess_dofs,
-                                              int component) const
+                                              int component,
+                                              bool overwrite) const
 {
-   FiniteElementSpace::GetEssentialVDofs(bdr_attr_is_ess, ess_dofs, component);
+   FiniteElementSpace::GetEssentialVDofs(bdr_attr_is_ess, ess_dofs, component,
+                                         overwrite);
 
    // Make sure that processors without boundary elements mark
    // their boundary dofs (if they have any).
    Synchronize(ess_dofs);
-}
-
-void ParFiniteElementSpace::GetEssentialVDofs(const Array<int> &bdr_attr_is_ess,
-                                              Array<int> &ess_dofs,
-                                              Array2D<int> componentID) const
-{
-   FiniteElementSpace::GetEssentialVDofs(bdr_attr_is_ess, ess_dofs, componentID);
-
-   if (Conforming())
-   {
-      Synchronize(ess_dofs);
-   }
 }
 
 void ParFiniteElementSpace::GetEssentialTrueDofs(const Array<int>
@@ -1074,12 +1064,52 @@ void ParFiniteElementSpace::GetEssentialTrueDofs(const Array<int>
 void ParFiniteElementSpace::GetEssentialTrueDofs(const Array<int>
                                                  &bdr_attr_is_ess,
                                                  Array<int> &ess_tdof_list,
-                                                 Array2D<int> componentID)
+                                                 const Array2D<bool> &component)
 {
-   Array<int> ess_dofs, true_ess_dofs;
+   MFEM_ASSERT(component.NumCols() == vdim,
+               "Number of columns of component was not equal to ParFESpace vdim");
+   MFEM_ASSERT(component.NumRows() == bdr_attr_is_ess.Size(),
+               "Number of rows of component was not equal to bdr_attr_is_ess.Size()");
 
-   GetEssentialVDofs(bdr_attr_is_ess, ess_dofs, componentID);
+   Array<int> ess_dofs, true_ess_dofs, bdr_attr_is_ess_single_comp;
+   bdr_attr_is_ess_single_comp.SetSize(bdr_attr_is_ess.Size());
+
+   for (int i = 0; i < vdim; i++)
+   {
+      // Only overwrite ess_vdofs on first iteration
+      // all other iterations we want to preserve values of
+      // ess_vdofs.
+      const bool overwrite = (i == 0) ? true : false;
+      bdr_attr_is_ess_single_comp = 0;
+      for (int j = 0; j < bdr_attr_is_ess.Size(); j++)
+      {
+         if (bdr_attr_is_ess[j] && component(j, i))
+         {
+            bdr_attr_is_ess_single_comp[j] = bdr_attr_is_ess[j];
+         }
+      }
+      GetEssentialVDofs(bdr_attr_is_ess_single_comp, ess_dofs, i, overwrite);
+   }
+
    GetRestrictionMatrix()->BooleanMult(ess_dofs, true_ess_dofs);
+
+#ifdef MFEM_DEBUG
+   // Verify that in boolean arithmetic: P^T ess_dofs = R ess_dofs.
+   Array<int> true_ess_dofs2(true_ess_dofs.Size());
+   HypreParMatrix *Pt = Dof_TrueDof_Matrix()->Transpose();
+   const int *ess_dofs_data = ess_dofs.HostRead();
+   Pt->BooleanMult(1, ess_dofs_data, 0, true_ess_dofs2);
+   delete Pt;
+   int counter = 0;
+   const int *ted = true_ess_dofs.HostRead();
+   for (int i = 0; i < true_ess_dofs.Size(); i++)
+   {
+      if (bool(ted[i]) != bool(true_ess_dofs2[i])) { counter++; }
+   }
+   MFEM_VERIFY(counter == 0, "internal MFEM error: counter = " << counter
+               << ", rank = " << MyRank);
+#endif
+
    MarkerToList(true_ess_dofs, ess_tdof_list);
 }
 
@@ -3228,6 +3258,9 @@ void ParFiniteElementSpace::CopyProlongationAndRestriction(
    MFEM_VERIFY(pfes != NULL, "");
    MFEM_VERIFY(P == NULL, "");
    MFEM_VERIFY(R == NULL, "");
+
+   // Ensure R and P matrices are built
+   pfes->Dof_TrueDof_Matrix();
 
    SparseMatrix *perm_mat = NULL, *perm_mat_tr = NULL;
    if (perm)

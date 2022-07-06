@@ -883,14 +883,17 @@ class VectorFunctionRestrictedCoefficient : public VectorCoefficient
 private:
    void (*TDFunction)(int, Vector &);
    const Array<int> &active_attr;
+   const Array2D<double> &active_scale;
    Coefficient *Q;
 
 public:
    /// Construct a time-dependent vector coefficient from a C-function
    VectorFunctionRestrictedCoefficient(int dim,
                                        void (*TDF)(int, Vector &),
-                                       Array<int> &attr, Coefficient *q = NULL)
-      : VectorCoefficient(dim), Q(q), active_attr(attr)
+                                       Array<int> &attr,
+                                       Array2D<double> &scale,
+                                       Coefficient *q = NULL)
+      : VectorCoefficient(dim), Q(q), active_attr(attr), active_scale(scale)
    {
       TDFunction = TDF;
    }
@@ -902,6 +905,7 @@ public:
    virtual ~VectorFunctionRestrictedCoefficient() { }
 
    const Array<int> &GetActiveAttr() { return active_attr; }
+   const Array2D<double> &GetActiveScale() { return active_scale; }
 
 };
 typedef VectorCoefficient DiagonalMatrixCoefficient;
@@ -1281,33 +1285,38 @@ public:
 
 
 /// Base class for symmetric matrix coefficients that optionally depend on time and space.
-class SymmetricMatrixCoefficient
+class SymmetricMatrixCoefficient : public MatrixCoefficient
 {
 protected:
-   int dim;
-   double time;
-
+   /// Internal matrix used when evaluating this coefficient as a DenseMatrix.
+   DenseSymmetricMatrix mat;
 public:
    /// Construct a dim x dim matrix coefficient.
    explicit SymmetricMatrixCoefficient(int dimension)
-   { dim = dimension; time = 0.; }
-
-   /// Set the time for time dependent coefficients
-   virtual void SetTime(double t) { time = t; }
-
-   /// Get the time for time dependent coefficients
-   double GetTime() { return time; }
+      : MatrixCoefficient(dimension, true) { }
 
    /// Get the size of the matrix.
-   int GetSize() const { return dim; }
+   int GetSize() const { return height; }
 
    /** @brief Evaluate the matrix coefficient in the element described by @a T
-       at the point @a ip, storing the result in @a K. */
+       at the point @a ip, storing the result as a symmetric matrix @a K. */
    /** @note When this method is called, the caller must make sure that the
        IntegrationPoint associated with @a T is the same as @a ip. This can be
        achieved by calling T.SetIntPoint(&ip). */
    virtual void Eval(DenseSymmetricMatrix &K, ElementTransformation &T,
                      const IntegrationPoint &ip) = 0;
+
+   using MatrixCoefficient::Eval;
+   /** @brief Evaluate the matrix coefficient in the element described by @a T
+       at the point @a ip, storing the result as a dense matrix @a K. */
+   /** This function allows the use of SymmetricMatrixCoefficient in situations
+       where the symmetry is not taken advantage of.
+
+       @note When this method is called, the caller must make sure that the
+       IntegrationPoint associated with @a T is the same as @a ip. This can be
+       achieved by calling T.SetIntPoint(&ip). */
+   virtual void Eval(DenseMatrix &K, ElementTransformation &T,
+                     const IntegrationPoint &ip);
 
    virtual ~SymmetricMatrixCoefficient() { }
 };
@@ -1323,6 +1332,7 @@ public:
    ///Construct using matrix @a m for the constant.
    SymmetricMatrixConstantCoefficient(const DenseSymmetricMatrix &m)
       : SymmetricMatrixCoefficient(m.Height()), mat(m) { }
+   using MatrixCoefficient::Eval;
    using SymmetricMatrixCoefficient::Eval;
    /// Evaluate the matrix coefficient at @a ip.
    virtual void Eval(DenseSymmetricMatrix &M, ElementTransformation &T,
@@ -1374,6 +1384,8 @@ public:
    /// Set the time for internally stored coefficients
    void SetTime(double t);
 
+   using MatrixCoefficient::Eval;
+   using SymmetricMatrixCoefficient::Eval;
    /// Evaluate the matrix coefficient at @a ip.
    virtual void Eval(DenseSymmetricMatrix &K, ElementTransformation &T,
                      const IntegrationPoint &ip);

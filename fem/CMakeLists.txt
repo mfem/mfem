@@ -58,17 +58,29 @@ set(SRCS
   gridfunc.cpp
   hybridization.cpp
   intrules.cpp
-  ceed/algebraic.cpp
-  ceed/full-assembly.cpp
-  ceed/solvers-atpmg.cpp
-  ceed/convection.cpp
-  ceed/diffusion.cpp
-  ceed/nlconvection.cpp
-  ceed/mass.cpp
-  ceed/operator.cpp
-  ceed/util.cpp
+  ceed/interface/basis.cpp
+  ceed/interface/restriction.cpp
+  ceed/interface/operator.cpp
+  ceed/interface/util.cpp
+  ceed/integrators/convection/convection.cpp
+  ceed/integrators/diffusion/diffusion.cpp
+  ceed/integrators/nlconvection/nlconvection.cpp
+  ceed/integrators/mass/mass.cpp
+  ceed/solvers/algebraic.cpp
+  ceed/solvers/full-assembly.cpp
+  ceed/solvers/solvers-atpmg.cpp
   linearform.cpp
+  linearform_ext.cpp
   lininteg.cpp
+  lininteg_domain.cpp
+  lininteg_domain_grad.cpp
+  lor/lor.cpp
+  lor/lor_ads.cpp
+  lor/lor_ams.cpp
+  lor/lor_batched.cpp
+  lor/lor_h1.cpp
+  lor/lor_nd.cpp
+  lor/lor_rt.cpp
   multigrid.cpp
   nonlinearform.cpp
   nonlinearform_ext.cpp
@@ -118,7 +130,6 @@ set(SRCS
   tmop_amr.cpp
   gslib.cpp
   transfer.cpp
-  lor.cpp
   )
 
 set(HDRS
@@ -149,19 +160,31 @@ set(HDRS
   gridfunc.hpp
   hybridization.hpp
   intrules.hpp
-  ceed/algebraic.hpp
-  ceed/full-assembly.hpp
-  ceed/solvers-atpmg.hpp
-  ceed/coefficient.hpp
-  ceed/convection.hpp
-  ceed/diffusion.hpp
-  ceed/integrator.hpp
-  ceed/mass.hpp
-  ceed/nlconvection.hpp
-  ceed/operator.hpp
-  ceed/util.hpp
+  ceed/interface/basis.hpp
+  ceed/interface/integrator.hpp
+  ceed/interface/interface.hpp
+  ceed/interface/operator.hpp
+  ceed/interface/restriction.hpp
+  ceed/interface/util.hpp
+  ceed/integrators/convection/convection.hpp
+  ceed/integrators/diffusion/diffusion.hpp
+  ceed/integrators/mass/mass.hpp
+  ceed/integrators/nlconvection/nlconvection.hpp
+  ceed/interface/coefficient.hpp
+  ceed/solvers/algebraic.hpp
+  ceed/solvers/full-assembly.hpp
+  ceed/solvers/solvers-atpmg.hpp
   linearform.hpp
+  linearform_ext.hpp
   lininteg.hpp
+  lor/lor.hpp
+  lor/lor_ads.hpp
+  lor/lor_ams.hpp
+  lor/lor_batched.hpp
+  lor/lor_h1.hpp
+  lor/lor_nd.hpp
+  lor/lor_rt.hpp
+  lor/lor_util.hpp
   multigrid.hpp
   nonlinearform.hpp
   nonlinearform_ext.hpp
@@ -188,7 +211,6 @@ set(HDRS
   tmop_amr.hpp
   gslib.hpp
   transfer.hpp
-  lor.hpp
   )
 
 if (MFEM_USE_SIDRE)
