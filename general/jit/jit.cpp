@@ -83,11 +83,11 @@ static inline bool Exists(const char *path)
 }
 
 template <typename T> static
-void SleepWhile(T &&op, std::chrono::seconds timeout = std::chrono::seconds(10))
+void Sleep(T &&op)
 {
+   std::chrono::milliseconds tick(0);
    constexpr std::chrono::milliseconds tock(200);
-   for (std::chrono::milliseconds tick(0); op() && tick < timeout;
-        tick += tock) { std::this_thread::sleep_for(tock); }
+   for (; op(); tick += tock) { std::this_thread::sleep_for(tock); }
 }
 
 // fcntl wrapper to provide file locks
@@ -125,10 +125,7 @@ public:
    ~FileLock() // unlock, close and remove
    { (FCntl(F_SETLK, F_UNLCK, true), ::close(fd), std::remove(f_name)); }
 
-   void Wait() const
-   {
-      SleepWhile([&]() { return static_cast<bool>(std::fstream(f_name)); });
-   }
+   void Wait() const { Sleep([&]() {return static_cast<bool>(std::fstream(f_name));}); }
 };
 
 } // namespace io
@@ -234,7 +231,7 @@ class System // System singleton object
    } command;
 
    template <typename OP> static
-   void Ack(int xx) { io::SleepWhile([&]() { return OP()(*Ack(), xx); }); }
+   void Ack(int xx) { io::Sleep([&]() { return OP()(*Ack(), xx); }); }
    static void AckEQ(int xx = ACK) { Ack<std::equal_to<int>>(xx); }
    static void AckNE(int xx = ACK) { Ack<std::not_equal_to<int>>(xx); }
    static constexpr int ACK = ~0, CALL = 0x3243F6A8, EXIT = 0x9e3779b9;
@@ -403,7 +400,7 @@ public:
 
    static void *DLopen(const char *path)
    {
-      void *handle = ::dlopen(path, Debug()?RTLD_NOW:RTLD_LAZY | RTLD_LOCAL);
+      void *handle = ::dlopen(path, (Debug()?RTLD_NOW:RTLD_LAZY)|RTLD_LOCAL);
       return (DLerror(), handle);
    }
 
@@ -419,6 +416,7 @@ public:
          int status = EXIT_SUCCESS;
          if (mpi::Root())
          {
+            io::FileLock ar_lock(Lib_ar(), "ak");
             io::FileLock so_lock(Lib_so(), "ok");
             Command() << cxx << link << "-shared" << "-o" << Lib_so()
                       << Xprefix() << Lib_ar() << Xpostfix()
@@ -461,34 +459,42 @@ public:
             {
                // Create source file: source => cc
                auto cc = Jit::ToString(hash, ".cc"); // input source
-               std::ofstream cc_file(cc); // open the source file
-               MFEM_VERIFY(cc_file.good(), "[JIT] Source file error!");
-               cc_file << source;
-               cc_file.close();
+               {
+                  std::ofstream cc_file(cc); // open the source file
+                  MFEM_VERIFY(cc_file.good(), "[JIT] Source file error!");
+                  cc_file << source;
+                  cc_file.close();
+               }
                // Compilation: cc => co
-               MFEM_VERIFY(std::fstream(MFEM_SOURCE_DIR "/mfem.hpp") ||
-                           std::fstream(MFEM_INSTALL_DIR "/include/mfem/mfem.hpp"),
-                           "[JIT] Could not find any MFEM header!");
                auto co = Jit::ToString(hash, ".co"); // output object
-               Command() << cxx << flags << Xpic() << (Verbose() ? "-v" : "")
+               {
+                  MFEM_VERIFY(io::Exists(MFEM_SOURCE_DIR "/mfem.hpp") ||
+                              io::Exists(MFEM_INSTALL_DIR "/include/mfem/mfem.hpp"),
+                              "[JIT] Could not find any MFEM header!");
+                  Command() << cxx << flags << Xpic() << (Verbose() ? "-v" : "")
 #ifdef MFEM_USE_CUDA
-                         << "--device-c"
+                            << "--device-c"
 #endif
-                         << "-I" << MFEM_INSTALL_DIR "/include/mfem"
-                         << "-I" << MFEM_SOURCE_DIR
-                         << "-c" << "-o" << co << cc;
-               if (Call(name)) { return EXIT_FAILURE; }
-               if (!Debug()) { std::remove(cc.c_str()); }
+                            << "-I" << MFEM_INSTALL_DIR "/include/mfem"
+                            << "-I" << MFEM_SOURCE_DIR
+                            << "-c" << "-o" << co << cc;
+                  if (Call(name)) { return EXIT_FAILURE; }
+                  if (!Debug()) { std::remove(cc.c_str()); }
+               }
                // Update archive: ar += co
                io::FileLock ar_lock(Lib_ar(), "ak");
-               Command() << ("" MFEM_AR) << "-r" << Lib_ar() << co; // v
-               if (Call()) { return EXIT_FAILURE; }
-               std::remove(co.c_str());
+               {
+                  Command() << ("" MFEM_AR) << "-r" << Lib_ar() << co; // v
+                  if (Call()) { return EXIT_FAILURE; }
+                  std::remove(co.c_str());
+               }
                // Create temporary shared library: (ar + co) => so
-               Command() << cxx << link << "-shared" << "-o" << so
-                         << Xprefix() << Lib_ar() << Xpostfix()
-                         << Xlinker() + "-rpath,." << libs;
-               if (Call(Debug()?name:nullptr)) { return EXIT_FAILURE; }
+               {
+                  Command() << cxx << link << "-shared" << "-o" << so
+                            << Xprefix() << Lib_ar() << Xpostfix()
+                            << Xlinker() + "-rpath,." << libs;
+                  if (Call(Debug()?name:nullptr)) { return EXIT_FAILURE; }
+               }
                // Install temporary shared library: so => Lib_so
                io::FileLock so_lock(Lib_so(), "ok");
                install(so, Lib_so());
@@ -496,8 +502,9 @@ public:
             else // avoid duplicate compilation
             {
                cc_lock.Wait();
-               // if removed or timeout, rerun the compilation
-               if (!std::fstream(Lib_so())) { return RootCompile(so); }
+               // if removed, rerun the compilation
+               if (!io::Exists(Lib_so())) { return RootCompile(so); }
+               io::FileLock so_lock(Lib_so(), "ok");
                install(Lib_so(), so);
             }
             return EXIT_SUCCESS;
