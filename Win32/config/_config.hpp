@@ -13,17 +13,17 @@
 #define MFEM_CONFIG_HEADER
 
 // MFEM version: integer of the form: (major*100 + minor)*100 + patch.
-#define MFEM_VERSION 30400
+#define MFEM_VERSION 40400
 
 // MFEM version string of the form "3.3" or "3.3.1".
-#define MFEM_VERSION_STRING "3.4.0"
+#define MFEM_VERSION_STRING "4.4.0"
 
 // MFEM version type, see the MFEM_VERSION_TYPE_* constants below.
 #define MFEM_VERSION_TYPE ((MFEM_VERSION)%2)
 
 // MFEM version type constants.
-#define MFEM_VERSION_TYPE_RELEASE 0
-#define MFEM_VERSION_TYPE_DEVELOPMENT 1
+#define MFEM_VERSION_TYPE_RELEASE 1
+#define MFEM_VERSION_TYPE_DEVELOPMENT 0
 
 // Separate MFEM version numbers for major, minor, and patch.
 #define MFEM_VERSION_MAJOR ((MFEM_VERSION)/10000)
@@ -31,7 +31,7 @@
 #define MFEM_VERSION_PATCH ((MFEM_VERSION)%100)
 
 // Description of the git commit used to build MFEM.
-#define MFEM_GIT_STRING "heads/feature/bramwell/mfem-0-g77f956eb950d289cdcbdf35d00d60cb26bb106b5-dirty"
+#define MFEM_GIT_STRING "a1f6902ed72552f3e680d1489f1aa6ade2e0d3b2"
 
 // Build the parallel MFEM library.
 // Requires an MPI compiler, and the libraries HYPRE and METIS.
@@ -116,7 +116,7 @@
 #endif
 
 // Version of HYPRE used for building MFEM.
-#define MFEM_HYPRE_VERSION 22000
+#define MFEM_HYPRE_VERSION 22500
 
 // Macro defined when PUMI is built with support for the Simmetrix SimModSuite
 // library.

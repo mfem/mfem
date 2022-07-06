@@ -203,7 +203,7 @@
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='ParDebug|x64'">
     <ClCompile>
-      <AdditionalIncludeDirectories>config;..\..\zlib;..\..\zlib\projects\visualc6;..\..\conduit\src\libs\conduit;..\..\conduit\src\libs\blueprint;..\..\conduit\src\libs\relay;..\..\conduit\Win32\conduit;..\..\conduit\Win32\relay;..\..\conduit\Win32\blueprint;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>config;..\..\zlib;..\..\zlib\projects\visualc6;..\..\hypre\src\parcsr_block_mv;..\..\conduit\src\libs\conduit;..\..\conduit\src\libs\blueprint;..\..\conduit\src\libs\relay;..\..\conduit\Win32\conduit;..\..\conduit\Win32\relay;..\..\conduit\Win32\blueprint;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <BasicRuntimeChecks>EnableFastChecks</BasicRuntimeChecks>
       <CompileAs>CompileAsCpp</CompileAs>
       <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
