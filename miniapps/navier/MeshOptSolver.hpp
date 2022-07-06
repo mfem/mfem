@@ -29,6 +29,7 @@ protected:
     mutable int metricIDRelax_ = -1; // will default to 1 in 2D, 301 in 3D
     mutable int newtonIterRelax_ = 3;
     mutable bool relax = false;
+    bool surface_fit_adapt = false;
 
 public:
     // Constructor that specifies a level-set function that must be used to

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -21,18 +21,21 @@ namespace mfem
 static void GetSigns(const FiniteElementSpace &fes, const FaceType type,
                      Array<bool> &signs)
 {
-   const int dim = fes.GetMesh()->SpaceDimension();
-   int e1, e2;
-   int inf1, inf2;
+   const Mesh &mesh = *fes.GetMesh();
+   const int dim = mesh.SpaceDimension();
    int face_id;
    int f_ind = 0;
-   for (int f = 0; f < fes.GetNF(); ++f)
+   for (int f = 0; f < mesh.GetNumFacesWithGhost(); ++f)
    {
-      fes.GetMesh()->GetFaceElements(f, &e1, &e2);
-      fes.GetMesh()->GetFaceInfos(f, &inf1, &inf2);
-      face_id = inf1 / 64;
-      if ( (type==FaceType::Interior && (e2>=0 || (e2<0 && inf2>=0))) ||
-           (type==FaceType::Boundary && e2<0 && inf2<0) )
+      Mesh::FaceInformation face = mesh.GetFaceInformation(f);
+      face_id = face.element[0].local_face_id;
+      if (face.IsNonconformingCoarse())
+      {
+         // We skip nonconforming coarse-fine faces as they are treated
+         // by the corresponding nonconforming fine-coarse faces.
+         continue;
+      }
+      else if ( face.IsOfFaceType(type) )
       {
          if (dim==2)
          {

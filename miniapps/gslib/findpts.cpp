@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -30,6 +30,7 @@
 //    findpts -m ../../data/rt-2d-p4-tri.mesh -o 4
 //    findpts -m ../../data/inline-tri.mesh -o 3
 //    findpts -m ../../data/inline-quad.mesh -o 3
+//    findpts -m ../../data/inline-quad.mesh -o 3 -hr -pr
 //    findpts -m ../../data/inline-tet.mesh -o 3
 //    findpts -m ../../data/inline-hex.mesh -o 3
 //    findpts -m ../../data/inline-wedge.mesh -o 3
@@ -40,6 +41,63 @@
 
 using namespace mfem;
 using namespace std;
+
+// Experimental - required for visualizing functions on p-refined spaces.
+GridFunction* ProlongToMaxOrder(const GridFunction *x, const int fieldtype)
+{
+   const FiniteElementSpace *fespace = x->FESpace();
+   Mesh *mesh = fespace->GetMesh();
+   const FiniteElementCollection *fec = fespace->FEColl();
+
+   // find the max order in the space
+   int max_order = 1;
+   for (int i = 0; i < mesh->GetNE(); i++)
+   {
+      max_order = std::max(fespace->GetElementOrder(i), max_order);
+   }
+
+   // create a visualization space of max order for all elements
+   FiniteElementCollection *fecInt = NULL;
+   if (fieldtype == 0)
+   {
+      fecInt = new H1_FECollection(max_order, mesh->Dimension());
+   }
+   else if (fieldtype == 1)
+   {
+      fecInt = new L2_FECollection(max_order, mesh->Dimension());
+   }
+   FiniteElementSpace *spaceInt = new FiniteElementSpace(mesh, fecInt);
+
+   IsoparametricTransformation T;
+   DenseMatrix I;
+
+   GridFunction *xInt = new GridFunction(spaceInt);
+
+   // interpolate solution vector in the larger space
+   for (int i = 0; i < mesh->GetNE(); i++)
+   {
+      Geometry::Type geom = mesh->GetElementGeometry(i);
+      T.SetIdentityTransformation(geom);
+
+      Array<int> dofs;
+      fespace->GetElementDofs(i, dofs);
+      Vector elemvect, vectInt;
+      x->GetSubVector(dofs, elemvect);
+
+      const auto *fe = fec->GetFE(geom, fespace->GetElementOrder(i));
+      const auto *feInt = fecInt->GetFE(geom, max_order);
+
+      feInt->GetTransferMatrix(*fe, T, I);
+      spaceInt->GetElementDofs(i, dofs);
+      vectInt.SetSize(dofs.Size());
+
+      I.Mult(elemvect, vectInt);
+      xInt->SetSubVector(dofs, vectInt);
+   }
+
+   xInt->MakeOwner(fecInt);
+   return xInt;
+}
 
 // Scalar function to project
 double field_func(const Vector &x)
@@ -66,6 +124,8 @@ int main (int argc, char *argv[])
    bool visualization    = true;
    int fieldtype         = 0;
    int ncomp             = 1;
+   bool hrefinement      = false;
+   bool prefinement      = false;
 
    // Parse command-line options.
    OptionsParser args(argc, argv);
@@ -84,6 +144,13 @@ int main (int argc, char *argv[])
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
+   args.AddOption(&hrefinement, "-hr", "--h-refinement", "-no-hr",
+                  "--no-h-refinement",
+                  "Do random h refinements to mesh.");
+   args.AddOption(&prefinement, "-pr", "--p-refinement", "-no-pr",
+                  "--no-p-refinement",
+                  "Do random p refinements to solution field.");
+
    args.Parse();
    if (!args.Good())
    {
@@ -105,6 +172,7 @@ int main (int argc, char *argv[])
    Vector pos_min, pos_max;
    MFEM_VERIFY(mesh_poly_deg > 0, "The order of the mesh must be positive.");
    mesh.GetBoundingBox(pos_min, pos_max, mesh_poly_deg);
+   if (hrefinement || prefinement) { mesh.EnsureNCMesh(); }
    cout << "--- Generating equidistant point for:\n"
         << "x in [" << pos_min(0) << ", " << pos_max(0) << "]\n"
         << "y in [" << pos_min(1) << ", " << pos_max(1) << "]\n";
@@ -112,6 +180,9 @@ int main (int argc, char *argv[])
    {
       cout << "z in [" << pos_min(2) << ", " << pos_max(2) << "]\n";
    }
+
+   // Random h-refinements to mesh
+   if (hrefinement) { mesh.RandomRefinement(0.5); }
 
    // Curve the mesh based on the chosen polynomial degree.
    H1_FECollection fecm(mesh_poly_deg, dim);
@@ -153,9 +224,28 @@ int main (int argc, char *argv[])
    FiniteElementSpace sc_fes(&mesh, fec, ncomp);
    GridFunction field_vals(&sc_fes);
 
+   // Random p-refinements to the solution field
+   if (prefinement)
+   {
+      for (int e = 0; e < mesh.GetNE(); e++)
+      {
+         if (rand() % 2 == 0)
+         {
+            int element_order = sc_fes.GetElementOrder(e);
+            sc_fes.SetElementOrder(e, element_order + 1);
+         }
+      }
+      sc_fes.Update(false);
+      field_vals.Update();
+   }
+
    // Project the GridFunction using VectorFunctionCoefficient.
    VectorFunctionCoefficient F(vec_dim, F_exact);
    field_vals.ProjectCoefficient(F);
+
+   GridFunction *field_vals_pref = prefinement ?
+                                   ProlongToMaxOrder(&field_vals, fieldtype) :
+                                   &field_vals;
 
    // Display the mesh and the field through glvis.
    if (visualization)
@@ -172,7 +262,7 @@ int main (int argc, char *argv[])
       else
       {
          sout.precision(8);
-         sout << "solution\n" << mesh << field_vals;
+         sout << "solution\n" << mesh << *field_vals_pref;
          if (dim == 2) { sout << "keys RmjA*****\n"; }
          if (dim == 3) { sout << "keys mA\n"; }
          sout << flush;
@@ -192,8 +282,8 @@ int main (int argc, char *argv[])
       for (int i = 0; i < ir.GetNPoints(); i++)
       {
          const IntegrationPoint &ip = ir.IntPoint(i);
-         vxyz(i)           = 100*pos_min(0) + ip.x * (pos_max(0)-pos_min(0));
-         vxyz(pts_cnt + i) = 100*pos_min(1) + ip.y * (pos_max(1)-pos_min(1));
+         vxyz(i)           = pos_min(0) + ip.x * (pos_max(0)-pos_min(0));
+         vxyz(pts_cnt + i) = pos_min(1) + ip.y * (pos_max(1)-pos_min(1));
       }
    }
    else
@@ -252,6 +342,7 @@ int main (int argc, char *argv[])
    // Free the internal gslib data.
    finder.FreeData();
 
+   if (prefinement) { delete field_vals_pref; }
    delete fec;
 
    return 0;

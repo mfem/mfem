@@ -24,9 +24,9 @@ namespace navier
 struct s_NavierContext
 {
    int order = 2;
-   double kin_vis = 4.0e-4;//0.04231;//0.0456 ;  //0.055
-   double t_final = 1.2;
-   double dt = 0.1e-4;
+   double kin_vis = 4.9e-3;//0.04231;//0.0456 ;  //0.055
+   double t_final = 0.6;
+   double dt = 1.0e-4;
 };
 
 class DensityCoeff:public mfem::Coefficient
@@ -35,7 +35,7 @@ class DensityCoeff:public mfem::Coefficient
 
     enum ProjectionType {zero_one, continuous}; 
 
-    enum PatternType {Ball, Gyroid, SchwarzP, SchwarzD,FCC, BCC};
+    enum PatternType {Ball, Gyroid, SchwarzP, SchwarzD,FCC, BCC, Octet};
 
 private:
 
@@ -192,6 +192,54 @@ public:
             if(fabs(vv)>eta){ return 0.0;}
             else{return 1.0;}
         }else
+        if(pttype==Octet){
+            std::vector< double > Val(24);
+
+            double x[3];
+            Vector transip(x, 3);
+            T.Transform(ip,transip);
+
+            Val[0] =   std::abs( x[1] - x[0] ) + x[2] ;
+            Val[1] =   std::abs( x[1] + x[0] - 1.0 ) + x[2];
+            Val[2] =   std::abs( x[1] - x[0] ) + std::abs( x[2] - 1.0 );
+            Val[3] =   std::abs( x[1] + x[0] - 1.0 ) + std::abs( x[2] - 1.0 );
+
+            Val[4] =   std::abs( x[1] - x[2] ) + x[0] ;
+            Val[5] =   std::abs( x[1] + x[2] - 1.0 ) + x[0];
+            Val[6] =   std::abs( x[1] - x[2] ) + std::abs( x[0] - 1.0 );
+            Val[7] =   std::abs( x[1] + x[2] - 1.0 ) + std::abs( x[0] - 1.0 );
+
+            Val[8] =   std::abs( x[2] - x[0] ) + x[1] ;
+            Val[9] =   std::abs( x[2] + x[0] - 1.0 ) + x[1];
+            Val[10] =  std::abs( x[2] - x[0] ) + std::abs( x[1] - 1.0 );
+            Val[11] =  std::abs( x[2] + x[0] - 1.0 ) + std::abs( x[1] - 1.0 );
+
+            Val[12] =  std::abs( x[1] - x[0] + 0.5 ) + std::abs( x[2] - 0.5);
+            Val[13] =  std::abs( x[1] + x[0] - 1.5 ) + std::abs( x[2] - 0.5);
+            Val[14] =  std::abs( x[1] - x[0] - 0.5 ) + std::abs( x[2] - 0.5);
+            Val[15] =  std::abs( x[1] + x[0] - 0.5 ) + std::abs( x[2] - 0.5);
+
+            Val[16] =  std::abs( x[1] - x[2] + 0.5 ) + std::abs( x[0] - 0.5);
+            Val[17] =  std::abs( x[1] + x[2] - 1.5 ) + std::abs( x[0] - 0.5);
+            Val[18] =  std::abs( x[1] - x[2] - 0.5 ) + std::abs( x[0] - 0.5);
+            Val[19] =  std::abs( x[1] + x[2] - 0.5 ) + std::abs( x[0] - 0.5);
+
+            Val[20] =  std::abs( x[2] - x[0] + 0.5 ) + std::abs( x[1] - 0.5);
+            Val[21] =  std::abs( x[2] + x[0] - 1.5 ) + std::abs( x[1] - 0.5);
+            Val[22] =  std::abs( x[2] - x[0] - 0.5 ) + std::abs( x[1] - 0.5);
+            Val[23] =  std::abs( x[2] + x[0] - 0.5 ) + std::abs( x[1] - 0.5);
+
+            double vv = DBL_MAX;
+            // loop over corners
+            for( int Ik =0; Ik <24; Ik++)
+            {
+                vv = std::min( vv, Val[Ik]);           
+            }
+            if(prtype==continuous){return vv;}
+
+            if(fabs(vv)>eta){ return 0.0;}
+            else{return 1.0;}
+        }else
         if(pttype==Gyroid){
             const double period = 2.0 * M_PI;
             double xv[3];
@@ -204,7 +252,19 @@ public:
             double vv=std::sin(x)*std::cos(y) +
                       std::sin(y)*std::cos(z) +
                       std::sin(z)*std::cos(x);
-            if(prtype==continuous){return vv;}
+            if(prtype==continuous)
+            {
+                double val;
+                if( vv > 0 )
+                {
+                    return -1.0*( vv - eta );
+                }
+                else
+                {
+                    return vv + eta;
+                }
+                
+            }
 
             if(fabs(vv)>-eta && fabs(vv)<eta){ return 1.0;}
             else{return 0.0;}
@@ -342,7 +402,7 @@ private:
 
    BrinkPenalAccel * mBp = nullptr;
 
-   bool mVisualization = false;
+   bool mVisualization = true;
    
 public:
 

@@ -10,30 +10,155 @@ double analytic_T(const Vector &x);
 
 double analytic_solution(const Vector &x);
 
+// class AdvectionDiffusionGLSStabRHS:public LinearFormIntegrator
+// {
+// public:
+//     AdvectionDiffusionGLSStabRHS(mfem::VectorCoefficient* vel, mfem::VectorCoefficient* gratT, mfem::Coefficient* diff, double stc=1.0)
+//     {
+//         velocity=vel;
+//         gradTemp=gratT;
+//         cdiff=diff;
+//         mdiff=nullptr;
+//         stab_coeff=stc;
+//     }
+
+//     AdvectionDiffusionGLSStabRHS(mfem::VectorCoefficient* vel, mfem::VectorCoefficient* gratT, mfem::MatrixCoefficient* diff, double stc=1.0)
+//     {
+//         velocity=vel;
+//         gradTemp=gratT;
+//         mdiff=diff;
+//         cdiff=nullptr;
+//         stab_coeff=stc;
+//     }
+
+//     virtual
+//     void AssembleRHSElementVect(const FiniteElement &el, ElementTransformation &Trans, Vector &elvect)
+//     {
+
+//         const int dim=Trans.GetSpaceDim();
+//         const int ndof=el.GetDof();
+//         elvect.SetSize(ndof); elvect=0.0;
+
+//         DenseMatrix dshape(ndof,dim);
+//         Vector      sshape(ndof);
+//         Vector      rshape(ndof);
+//         DenseMatrix B(dim*ndof,ndof); //flux operator
+
+//         double diffc;
+//         DenseMatrix diffm(dim);
+//         Vector vel(dim);
+//         Vector nodalGradT(dim*ndof);
+
+//         el.Project( gradTemp, Trans, nodalGradT);              // ordered (x1, y1, x2, y2 ....)
+
+//         if(mdiff==nullptr){
+//             // const IntegrationRule *nodes= &(el.GetNodes());
+//             // for (int k = 0; k < ndof; k++)
+//             // {
+//             //     const IntegrationPoint &ip = nodes->IntPoint(k);
+//             //     Trans.SetIntPoint(&ip);
+//             //     el.CalcPhysDShape(Trans,dshape);
+//             //     el.CalcPhysShape(Trans,sshape);
+//             //     diffc=cdiff->Eval(Trans,ip);
+//             //     velocity->Eval(vel,Trans,ip);
+//             //     for(int j=0; j<ndof; j++){
+//             //     for(int d=0; d<dim;  d++){
+//             //         B(k+ndof*d,j)=-diffc*dshape(j,d)+vel(d)*sshape(j);
+//             //     }}
+//             // }
+//         }else{//matrix coefficient
+//             const IntegrationRule *nodes= &(el.GetNodes());
+//             for (int k = 0; k < ndof; k++)
+//             {
+//                 const IntegrationPoint &ip = nodes->IntPoint(k);
+//                 Trans.SetIntPoint(&ip);
+//                 el.CalcPhysDShape(Trans,dshape);
+//                 el.CalcPhysShape(Trans,sshape);
+//                 mdiff->Eval(diffm,Trans,ip);
+//                 velocity->Eval(vel,Trans,ip);
+//                 for(int j=0; j<ndof; j++){
+//                 for(int d=0; d<dim;  d++){
+//                     B(k+ndof*d,j)= vel(d)*sshape(j);
+//                     for(int p=0;p<dim;p++){
+//                         B(k+ndof*d,j)=B(k+ndof*d,j)-diffm(d,p)*dshape(j,p);}
+//                 }}
+//             }
+//         }
+
+//     }
+
+// private:
+//     double stab_coeff;
+//     mfem::VectorCoefficient* velocity;
+//     mfem::VectorCoefficient* gradTemp;
+//     //only one the diffusion coefficients should be different than zero
+//     mfem::MatrixCoefficient* mdiff; //matrix diffusion coefficient
+//     mfem::Coefficient* cdiff; //scalar diffusion coefficient
+// };
+
 
 class NLGLSIntegrator :public BilinearFormIntegrator //NonlinearFormIntegrator
 {
 public:
+
+ class GLSCoefficient : public mfem::Coefficient
+    {
+    public:
+        GLSCoefficient(
+            mfem::ParMesh* mesh_,
+            mfem::VectorCoefficient* vel,
+             mfem::MatrixCoefficient* Material ) :
+            pmesh_(mesh_),
+            vel_(vel),
+            MaterialCoeff_(Material)
+        {
+
+            int dim_=pmesh_->Dimension();
+
+        };
+
+        virtual ~GLSCoefficient() {  };
+
+        double Eval(
+             mfem::ElementTransformation & T,
+             const IntegrationPoint & ip);
+
+    private:
+
+    mfem::ParMesh* pmesh_ = nullptr;
+
+    mfem::VectorCoefficient* vel_ = nullptr;
+
+    mfem::MatrixCoefficient* MaterialCoeff_; 
+
+    int dim_ = 0;
+
+    double hmin_ = 0.0;
+
+    };
+    
     NLGLSIntegrator()
     {
         mat=nullptr;
     }
 
-    NLGLSIntegrator(mfem::MatrixCoefficient* mat_, ParGridFunction * GF_)
+    NLGLSIntegrator(mfem::MatrixCoefficient* mat_, mfem::VectorCoefficient* vel)
     {
         mat=mat_;
 
-        U_GF_=GF_;
+         vel_=vel;
     }
 
     NLGLSIntegrator(
         mfem::MatrixCoefficient* mat_,
-        ParGridFunction * GF_,
-        Coefficient * aCoeff_ )
+        mfem::VectorCoefficient* vel,
+        mfem::Coefficient * aStabCoeff_,
+        mfem::Coefficient * aCoeff_= nullptr )
     {
         mat=mat_;
 
-        U_GF_=GF_;
+        vel_=vel;
+        StabCoeff_=aStabCoeff_;
 
         Coeff_=aCoeff_;
     }
@@ -44,9 +169,9 @@ public:
         mat=mat_;
     }
 
-    void SetVelocity(ParGridFunction* GF_)
+    void SetVelocity(mfem::VectorCoefficient* vel)
     {
-        U_GF_=GF_;
+        vel_=vel;
     }
 
     virtual
@@ -79,11 +204,13 @@ private:
 
     MatrixCoefficient* mat = nullptr;
 
-    ParGridFunction * U_GF_ = nullptr;
+    mfem::VectorCoefficient* vel_ = nullptr;
 
     Coefficient * Coeff_ = nullptr;
 
-    bool isSUPG = false;
+    Coefficient * StabCoeff_ = nullptr;
+
+    bool isSUPG = true;
 };
 
 // class GLSLFIntegrator :public LinearFormIntegrator //NonlinearFormIntegrator

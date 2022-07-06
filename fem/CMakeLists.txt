@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -68,7 +68,10 @@ set(SRCS
   ceed/operator.cpp
   ceed/util.cpp
   linearform.cpp
+  linearform_ext.cpp
   lininteg.cpp
+  lininteg_domain.cpp
+  lininteg_domain_grad.cpp
   multigrid.cpp
   nonlinearform.cpp
   nonlinearform_ext.cpp
@@ -161,6 +164,7 @@ set(HDRS
   ceed/operator.hpp
   ceed/util.hpp
   linearform.hpp
+  linearform_ext.hpp
   lininteg.hpp
   multigrid.hpp
   nonlinearform.hpp

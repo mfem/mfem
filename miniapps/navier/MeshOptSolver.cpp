@@ -54,6 +54,24 @@ int MeshMorphingSolver::Solve(
         mfem::ParFiniteElementSpace matFes(pmesh_, &matColl);
         mfem::ParGridFunction mat(&matFes);
 
+        bool resetMarker(true);
+        if ( resetMarker )
+        {
+            int polinomialOrder = 1;
+            ::mfem::L2_FECollection FECol_L2(polinomialOrder, dim);
+            ::mfem::ParFiniteElementSpace FESpace_L2(pmesh_, &FECol_L2, 1);
+
+            ::mfem::GridFunctionCoefficient finalLSFCoeff(&LSF_OptStep);
+            for (int e = 0; e < pmesh_->GetNE(); e++)
+            {
+                ::mfem::Vector eval(FESpace_L2.GetFE(e)->GetDof());
+                FESpace_L2.GetFE(e)->Project(finalLSFCoeff, *(FESpace_L2.GetElementTransformation(e)), eval);
+                int attr = eval.Sum() > 0.0 ? 1 : 2;
+                pmesh_->GetElement(e)->SetAttribute(attr);
+            }
+            pmesh_->SetAttributes();
+        }
+
         for (int i = 0; i < pmesh_->GetNE(); i++)
         {
             mat(i) = pmesh_->GetAttribute(i)-1;
@@ -378,7 +396,7 @@ int MeshMorphingSolver::Solve(
 
     int solverType       = 0;
     double solverRTol    = 1e-5;
-    int maxLinIter       = 100;
+    int maxLinIter       = 50;
 
     mfem::Solver *S = nullptr;
     const double linsol_rtol = 1e-12;
@@ -413,8 +431,11 @@ int MeshMorphingSolver::Solve(
     solver.SetMaxIter(newtonIter_);
     if (surfaceFit_ > 0.0)
     {
-        solver.EnableAdaptiveSurfaceFitting();
-        solver.SetTerminationWithMaxSurfaceFittingError(1e-5);
+        if( surface_fit_adapt )
+        {
+            solver.EnableAdaptiveSurfaceFitting();
+        }
+        solver.SetTerminationWithMaxSurfaceFittingError(1e-7);
     }
     nodeDisp.SetTrueVector();
     solver.Mult(b, nodeDisp.GetTrueVector());

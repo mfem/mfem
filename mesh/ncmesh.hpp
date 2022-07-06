@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -34,11 +34,14 @@ namespace mfem
     in the X, Y and Z directions, respectively (Z is ignored for quads). */
 struct Refinement
 {
+   enum : char { X = 1, Y = 2, Z = 4, XY = 3, XZ = 5, YZ = 6, XYZ = 7 };
    int index; ///< Mesh element number
    char ref_type; ///< refinement XYZ bit mask (7 = full isotropic)
 
    Refinement() = default;
-   Refinement(int index, int type = 7) : index(index), ref_type(type) {}
+
+   Refinement(int index, int type = Refinement::XYZ)
+      : index(index), ref_type(type) {}
 };
 
 
@@ -132,13 +135,21 @@ public:
    /// Deep copy of another instance.
    NCMesh(const NCMesh &other);
 
+   /// Copy assignment not supported
+   NCMesh& operator=(NCMesh&) = delete;
+
    virtual ~NCMesh();
 
+   /// Return the dimension of the NCMesh.
    int Dimension() const { return Dim; }
+   /// Return the space dimension of the NCMesh.
    int SpaceDimension() const { return spaceDim; }
 
+   /// Return the number of vertices in the NCMesh.
    int GetNVertices() const { return NVertices; }
+   /// Return the number of edges in the NCMesh.
    int GetNEdges() const { return NEdges; }
+   /// Return the number of (2D) faces in the NCMesh.
    int GetNFaces() const { return NFaces; }
    virtual int GetNGhostElements() const { return 0; }
 
@@ -531,8 +542,34 @@ protected: // implementation
    Table element_vertex; ///< leaf-element to vertex table, see FindSetNeighbors
 
 
+   /// Update the leaf elements indices in leaf_elements
    void UpdateLeafElements();
+
+   /** @brief This method assigns indices to vertices (Node::vert_index) that
+       will be seen by the Mesh class and the rest of MFEM.
+
+       We must be careful to:
+       1. Stay compatible with the conforming code, which expects top-level
+          (original) vertices to be indexed first, otherwise GridFunctions
+          defined on a conforming mesh would no longer be valid when the
+          mesh is converted to an NC mesh.
+
+       2. Make sure serial NCMesh is compatible with the parallel ParNCMesh,
+          so it is possible to read parallel partial solutions in serial code
+          (e.g., serial GLVis). This means handling ghost elements, if present.
+
+       3. Assign vertices in a globally consistent order for parallel meshes:
+          if two vertices i,j are shared by two ranks r1,r2, and i<j on r1,
+          then i<j on r2 as well. This is true for top-level vertices but also
+          for the remaining shared vertices thanks to the globally consistent
+          SFC ordering of the leaf elements. This property reduces communication
+          and simplifies ParNCMesh. */
    void UpdateVertices(); ///< update Vertex::index and vertex_nodeId
+
+   /** Collect the leaf elements in leaf_elements, and the ghost elements in
+       ghosts. Compute and set the element indices of @a elements. On quad and
+       hex refined elements tries to order leaf elements along a space-filling
+       curve according to the given @a state variable. */
    void CollectLeafElements(int elem, int state, Array<int> &ghosts,
                             int &counter);
 
@@ -542,11 +579,17 @@ protected: // implementation
        Mesh::GetGeckoElementOrdering. */
    void InitRootState(int root_count);
 
+   /** Compute the Geometry::Type present in the root elements (coarse elements)
+       and set @a Geoms bitmask accordingly. */
    void InitGeomFlags();
 
+   /// Return true if the mesh contains prism elements.
    bool HavePrisms() const { return Geoms & (1 << Geometry::PRISM); }
+
+   /// Return true if the mesh contains tetrahedral elements.
    bool HaveTets() const   { return Geoms & (1 << Geometry::TETRAHEDRON); }
 
+   /// Return true if the Element @a el is a ghost element.
    bool IsGhost(const Element &el) const { return el.rank != MyRank; }
 
 
@@ -558,9 +601,14 @@ protected: // implementation
 
    Table derefinements; ///< possible derefinements, see GetDerefinementTable
 
+   /** Refine the element @a elem with the refinement @a ref_type
+       (c.f. Refinement::enum) */
    void RefineElement(int elem, char ref_type);
+
+   /// Derefine the element @a elem, does nothing on leaf elements.
    void DerefineElement(int elem);
 
+   // Add an Element @a el to the NCMesh, optimized to reuse freed elements.
    int AddElement(const Element &el)
    {
       if (free_element_ids.Size())
@@ -572,6 +620,8 @@ protected: // implementation
       }
       return elements.Append(el);
    }
+
+   // Free the element with index @a id.
    void FreeElement(int id)
    {
       free_element_ids.Append(id);
@@ -737,6 +787,8 @@ protected: // implementation
 
       Point() { dim = 0; }
 
+      Point(const Point &) = default;
+
       Point(double x)
       { dim = 1; coord[0] = x; }
 
@@ -774,6 +826,22 @@ protected: // implementation
       }
    };
 
+   /** @brief The PointMatrix stores the coordinates of the slave face using the
+       master face coordinate as reference.
+
+       In 2D, the point matrix has the orientation of the parent
+       edge, so its columns need to be flipped when applying it, see
+       ApplyLocalSlaveTransformation.
+
+       In 3D, the orientation part of Elem2Inf is encoded in the point
+       matrix.
+
+       The following transformation gives the relation between the
+       reference quad face coordinates (xi, eta) in [0,1]^2, and the fine quad
+       face coordinates (x, y):
+       x = a0*(1-xi)*(1-eta) + a1*xi*(1-eta) + a2*xi*eta + a3*(1-xi)*eta
+       y = b0*(1-xi)*(1-eta) + b1*xi*(1-eta) + b2*xi*eta + b3*(1-xi)*eta
+   */
    struct PointMatrix
    {
       int np;

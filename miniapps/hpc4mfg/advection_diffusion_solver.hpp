@@ -10,7 +10,80 @@ double analytic_T(const Vector &x);
 
 double analytic_solution(const Vector &x);
 
-class Advection_Diffusion_Solver{
+class Advection_Diffusion_Solver
+{
+    class RHSAdvCoeff : public mfem::Coefficient
+    {
+    public:
+        RHSAdvCoeff(
+            mfem::ParMesh* mesh_,
+            mfem::VectorCoefficient* vel,
+            mfem::VectorCoefficient* avgTemp,
+            double sign = 1.0 ) :
+            pmesh_(mesh_),
+            vel_(vel),
+            avgGradTemp_(avgTemp),
+            sign_(sign)
+        {
+
+            int dim_=pmesh_->Dimension();
+
+        };
+
+        virtual ~RHSAdvCoeff() {  };
+
+        double Eval(
+             mfem::ElementTransformation & T,
+             const IntegrationPoint & ip) override;
+
+    private:
+
+    mfem::ParMesh* pmesh_ = nullptr;
+
+    mfem::VectorCoefficient* vel_ = nullptr;
+
+    mfem::VectorCoefficient* avgGradTemp_ = nullptr;
+
+    int dim_ = 0;
+
+    double sign_ = 1.0;
+    };
+
+class RHSDiffCoeff : public mfem::VectorCoefficient
+{
+    public:
+        RHSDiffCoeff(
+            mfem::ParMesh* mesh_,
+            mfem::VectorCoefficient* avgTemp,
+            mfem::MatrixCoefficient* Material,
+            double sign = 1.0 ) :
+            VectorCoefficient(mesh_->Dimension()),
+            pmesh_(mesh_),
+            avgGradTemp_(avgTemp),
+            MaterialCoeff_(Material),
+            sign_(sign)
+        {
+
+        };
+
+        virtual ~RHSDiffCoeff() {  };
+
+        void Eval(
+             mfem::Vector & V,
+             mfem::ElementTransformation & T,
+             const IntegrationPoint & ip) override;
+
+    private:
+
+    mfem::ParMesh* pmesh_ = nullptr;
+
+    mfem::VectorCoefficient* avgGradTemp_ = nullptr;
+
+    mfem::MatrixCoefficient* MaterialCoeff_; 
+
+    double sign_ = 1.0;
+};
+
 public:
     Advection_Diffusion_Solver(mfem::ParMesh* mesh_, int order_=2)
     {
@@ -93,6 +166,16 @@ public:
         materials.push_back(nmat);
     }
 
+    void SetVelocity( mfem::VectorCoefficient* vel )
+    {
+        vel_ = vel;
+    }
+
+    void SetGradTempMean( mfem::VectorCoefficient* avgGradTemp )
+    {
+        avgGradTemp_ = avgGradTemp;
+    }
+
     /// Returns the solution vector.
     mfem::Vector& GetSol(){return sol;}
 
@@ -113,6 +196,9 @@ private:
     mfem::Vector sol;
     mfem::Vector rhs;
     mfem::ParGridFunction solgf;
+
+    mfem::VectorCoefficient* vel_ = nullptr;
+    mfem::VectorCoefficient* avgGradTemp_ = nullptr;
 
     mfem::FiniteElementCollection *fec;
     mfem::ParFiniteElementSpace	  *fes;

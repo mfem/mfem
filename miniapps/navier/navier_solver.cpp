@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -27,8 +27,8 @@ void CopyDBFIntegrators(ParBilinearForm *src, ParBilinearForm *dst)
 }
 
 NavierSolver::NavierSolver(ParMesh *mesh, int order, double kin_vis)
-   : pmesh(mesh), order(order), gll_rules(0, Quadrature1D::GaussLobatto),
-     kin_vis(kin_vis)
+   : pmesh(mesh), order(order), kin_vis(kin_vis),
+     gll_rules(0, Quadrature1D::GaussLobatto)
 {
    vfec = new H1_FECollection(order, pmesh->Dimension());
    pfec = new H1_FECollection(order);
@@ -123,15 +123,12 @@ void NavierSolver::Setup(double dt)
    const IntegrationRule &ir_ni = gll_rules.Get(vfes->GetFE(0)->GetGeomType(),
                                                 2 * order - 1);
 
-   const IntegrationRule &ir = gll_rules.Get(vfes->GetFE(0)->GetGeomType(),
-                                             2 * order - 1);
-
    nlcoeff.constant = -1.0;
    N = new ParNonlinearForm(vfes);
    auto *nlc_nlfi = new VectorConvectionNLFIntegrator(nlcoeff);
    if (numerical_integ)
    {
-      nlc_nlfi->SetIntRule(&ir);
+      nlc_nlfi->SetIntRule(&ir_ni);
    }
    N->AddDomainIntegrator(nlc_nlfi);
    if (partial_assembly)
@@ -367,11 +364,12 @@ void NavierSolver::UpdateTimestepHistory(double dt)
    un_gf.SetFromTrueDofs(un);
 }
 
-void NavierSolver::Step(double &time, double dt, int cur_step, bool provisional)
+void NavierSolver::Step(double &time, double dt, int current_step,
+                        bool provisional)
 {
    sw_step.Start();
 
-   SetTimeIntegrationCoefficients(cur_step);
+   SetTimeIntegrationCoefficients(current_step);
 
    // Set current time for velocity Dirichlet boundary conditions.
    for (auto &vel_dbc : vel_dbcs)
@@ -886,7 +884,7 @@ void NavierSolver::ComputeCurl2D(ParGridFunction &u,
 
 double NavierSolver::ComputeCFL(ParGridFunction &u, double dt)
 {
-   ParMesh *pmesh = u.ParFESpace()->GetParMesh();
+   ParMesh *pmesh_u = u.ParFESpace()->GetParMesh();
    FiniteElementSpace *fes = u.FESpace();
    int vdim = fes->GetVDim();
 
@@ -915,7 +913,7 @@ double NavierSolver::ComputeCFL(ParGridFunction &u, double dt)
          ut.SetSize(uz.Size());
       }
 
-      double hmin = pmesh->GetElementSize(e, 1) /
+      double hmin = pmesh_u->GetElementSize(e, 1) /
                     (double) fes->GetElementOrder(0);
 
       for (int i = 0; i < ir.GetNPoints(); ++i)
@@ -960,7 +958,7 @@ double NavierSolver::ComputeCFL(ParGridFunction &u, double dt)
                  1,
                  MPI_DOUBLE,
                  MPI_MAX,
-                 pmesh->GetComm());
+                 pmesh_u->GetComm());
 
    return cflmax_global;
 }

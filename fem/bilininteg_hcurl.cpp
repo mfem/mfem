@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -17,6 +17,15 @@ using namespace std;
 
 namespace mfem
 {
+
+void PAHcurlHdivSetup3D(const int Q1D,
+                        const int coeffDim,
+                        const int NE,
+                        const bool transpose,
+                        const Array<double> &w_,
+                        const Vector &j,
+                        Vector &coeff_,
+                        Vector &op);
 
 void PAHcurlMassApply2D(const int D1D,
                         const int Q1D,
@@ -917,6 +926,26 @@ static void PACurlCurlSetup3D(const int Q1D,
    });
 }
 
+// PA H(curl)-L2 assemble 2D kernel
+static void PACurlL2Setup2D(const int Q1D,
+                            const int NE,
+                            const Array<double> &w,
+                            Vector &coeff,
+                            Vector &op)
+{
+   const int NQ = Q1D*Q1D;
+   auto W = w.Read();
+   auto C = Reshape(coeff.Read(), NQ, NE);
+   auto y = Reshape(op.Write(), NQ, NE);
+   MFEM_FORALL(e, NE,
+   {
+      for (int q = 0; q < NQ; ++q)
+      {
+         y(q,e) = W[q] * C(q,e);
+      }
+   });
+}
+
 void CurlCurlIntegrator::AssemblePA(const FiniteElementSpace &fes)
 {
    // Assumes tensor-product elements
@@ -934,7 +963,7 @@ void CurlCurlIntegrator::AssemblePA(const FiniteElementSpace &fes)
    const int dims = el->GetDim();
    MFEM_VERIFY(dims == 2 || dims == 3, "");
 
-   const int nq = ir->GetNPoints();
+   nq = ir->GetNPoints();
    dim = mesh->Dimension();
    MFEM_VERIFY(dim == 2 || dim == 3, "");
 
@@ -949,12 +978,14 @@ void CurlCurlIntegrator::AssemblePA(const FiniteElementSpace &fes)
 
    MFEM_VERIFY(dofs1D == mapsO->ndof + 1 && quad1D == mapsO->nqpt, "");
 
+   auto SMQ = dynamic_cast<SymmetricMatrixCoefficient *>(MQ);
+
    const int MQsymmDim = SMQ ? (SMQ->GetSize() * (SMQ->GetSize() + 1)) / 2 : 0;
    const int MQfullDim = MQ ? (MQ->GetHeight() * MQ->GetWidth()) : 0;
-   const int MQdim = MQ ? MQfullDim : MQsymmDim;
-   const int coeffDim = (MQ || SMQ) ? MQdim : (DQ ? DQ->GetVDim() : 1);
+   const int MQdim = SMQ ? MQsymmDim : MQfullDim;
+   const int coeffDim = MQ ? MQdim : (DQ ? DQ->GetVDim() : 1);
 
-   symmetric = (MQ == NULL);
+   symmetric = (SMQ || MQ == NULL);
 
    const int symmDims = (dims * (dims + 1)) / 2; // 1x1: 1, 2x2: 3, 3x3: 6
    const int ndata = (dim == 2) ? 1 : (symmetric ? symmDims : MQfullDim);
@@ -963,26 +994,26 @@ void CurlCurlIntegrator::AssemblePA(const FiniteElementSpace &fes)
    Vector coeff(coeffDim * ne * nq);
    coeff = 1.0;
    auto coeffh = Reshape(coeff.HostWrite(), coeffDim, nq, ne);
-   if (Q || DQ || MQ || SMQ)
+   if (Q || DQ || MQ)
    {
-      Vector D(DQ ? coeffDim : 0);
-      DenseMatrix M;
+      Vector DM(DQ ? coeffDim : 0);
+      DenseMatrix GM;
       DenseSymmetricMatrix SM;
 
       if (DQ)
       {
          MFEM_VERIFY(coeffDim == dimc, "");
       }
-      if (MQ)
-      {
-         M.SetSize(dimc);
-         MFEM_VERIFY(coeffDim == MQdim, "");
-         MFEM_VERIFY(MQ->GetHeight() == dimc && MQ->GetWidth() == dimc, "");
-      }
       if (SMQ)
       {
          SM.SetSize(dimc);
          MFEM_VERIFY(SMQ->GetSize() == dimc, "");
+      }
+      else if (MQ)
+      {
+         GM.SetSize(dimc);
+         MFEM_VERIFY(coeffDim == MQdim, "");
+         MFEM_VERIFY(MQ->GetHeight() == dimc && MQ->GetWidth() == dimc, "");
       }
 
       for (int e=0; e<ne; ++e)
@@ -990,18 +1021,7 @@ void CurlCurlIntegrator::AssemblePA(const FiniteElementSpace &fes)
          ElementTransformation *tr = mesh->GetElementTransformation(e);
          for (int p=0; p<nq; ++p)
          {
-            if (MQ)
-            {
-               MQ->Eval(M, *tr, ir->IntPoint(p));
-
-               for (int i=0; i<dimc; ++i)
-                  for (int j=0; j<dimc; ++j)
-                  {
-                     coeffh(j+(i*dimc), p, e) = M(i,j);
-                  }
-
-            }
-            else if (SMQ)
+            if (SMQ)
             {
                SMQ->Eval(SM, *tr, ir->IntPoint(p));
 
@@ -1013,12 +1033,23 @@ void CurlCurlIntegrator::AssemblePA(const FiniteElementSpace &fes)
                   }
 
             }
+            else if (MQ)
+            {
+               MQ->Eval(GM, *tr, ir->IntPoint(p));
+
+               for (int i=0; i<dimc; ++i)
+                  for (int j=0; j<dimc; ++j)
+                  {
+                     coeffh(j+(i*dimc), p, e) = GM(i,j);
+                  }
+
+            }
             else if (DQ)
             {
-               DQ->Eval(D, *tr, ir->IntPoint(p));
+               DQ->Eval(DM, *tr, ir->IntPoint(p));
                for (int i=0; i<coeffDim; ++i)
                {
-                  coeffh(i, p, e) = D[i];
+                  coeffh(i, p, e) = DM[i];
                }
             }
             else
@@ -1708,7 +1739,7 @@ static void SmemPACurlCurlApply3D(const int D1D,
 
    const int s = symmetric ? 6 : 9;
 
-   MFEM_FORALL_3D(e, NE, Q1D, Q1D, Q1D,
+   auto device_kernel = [=] MFEM_DEVICE (int e)
    {
       constexpr int VDIM = 3;
 
@@ -1987,6 +2018,240 @@ static void SmemPACurlCurlApply3D(const int D1D,
             }
          }
       } // qz
+   }; // end of element loop
+
+   auto host_kernel = [&] MFEM_LAMBDA (int)
+   {
+      MFEM_ABORT_KERNEL("This kernel should only be used on GPU.");
+   };
+
+   ForallWrap<3>(true, NE, device_kernel, host_kernel, Q1D, Q1D, Q1D);
+}
+
+static void PACurlL2Apply2D(const int D1D,
+                            const int D1Dtest,
+                            const int Q1D,
+                            const int NE,
+                            const Array<double> &bo,
+                            const Array<double> &bot,
+                            const Array<double> &bt,
+                            const Array<double> &gc,
+                            const Vector &pa_data,
+                            const Vector &x, // trial = H(curl)
+                            Vector &y)  // test = L2 or H1
+{
+   constexpr static int VDIM = 2;
+   constexpr static int MAX_D1D = HCURL_MAX_D1D;
+   constexpr static int MAX_Q1D = HCURL_MAX_Q1D;
+   const int H1 = (D1Dtest == D1D);
+
+   MFEM_VERIFY(y.Size() == NE*D1Dtest*D1Dtest, "Test vector of wrong dimension");
+
+   auto Bo = Reshape(bo.Read(), Q1D, D1D-1);
+   auto Bot = Reshape(bot.Read(), D1D-1, Q1D);
+   auto Bt = Reshape(bt.Read(), D1D, Q1D);
+   auto Gc = Reshape(gc.Read(), Q1D, D1D);
+   auto op = Reshape(pa_data.Read(), Q1D, Q1D, NE);
+   auto X = Reshape(x.Read(), 2*(D1D-1)*D1D, NE);
+   auto Y = Reshape(y.ReadWrite(), D1Dtest, D1Dtest, NE);
+
+   MFEM_FORALL(e, NE,
+   {
+      double curl[MAX_Q1D][MAX_Q1D];
+
+      // curl[qy][qx] will be computed as du_y/dx - du_x/dy
+
+      for (int qy = 0; qy < Q1D; ++qy)
+      {
+         for (int qx = 0; qx < Q1D; ++qx)
+         {
+            curl[qy][qx] = 0.0;
+         }
+      }
+
+      int osc = 0;
+
+      for (int c = 0; c < VDIM; ++c)  // loop over x, y components
+      {
+         const int D1Dy = (c == 1) ? D1D - 1 : D1D;
+         const int D1Dx = (c == 0) ? D1D - 1 : D1D;
+
+         for (int dy = 0; dy < D1Dy; ++dy)
+         {
+            double gradX[MAX_Q1D];
+            for (int qx = 0; qx < Q1D; ++qx)
+            {
+               gradX[qx] = 0;
+            }
+
+            for (int dx = 0; dx < D1Dx; ++dx)
+            {
+               const double t = X(dx + (dy * D1Dx) + osc, e);
+               for (int qx = 0; qx < Q1D; ++qx)
+               {
+                  gradX[qx] += t * ((c == 0) ? Bo(qx,dx) : Gc(qx,dx));
+               }
+            }
+
+            for (int qy = 0; qy < Q1D; ++qy)
+            {
+               const double wy = (c == 0) ? -Gc(qy,dy) : Bo(qy,dy);
+               for (int qx = 0; qx < Q1D; ++qx)
+               {
+                  curl[qy][qx] += gradX[qx] * wy;
+               }
+            }
+         }
+
+         osc += D1Dx * D1Dy;
+      }  // loop (c) over components
+
+      // Apply D operator.
+      for (int qy = 0; qy < Q1D; ++qy)
+      {
+         for (int qx = 0; qx < Q1D; ++qx)
+         {
+            curl[qy][qx] *= op(qx,qy,e);
+         }
+      }
+
+      for (int qy = 0; qy < Q1D; ++qy)
+      {
+         double sol_x[MAX_D1D];
+         for (int dx = 0; dx < D1Dtest; ++dx)
+         {
+            sol_x[dx] = 0.0;
+         }
+         for (int qx = 0; qx < Q1D; ++qx)
+         {
+            const double s = curl[qy][qx];
+            for (int dx = 0; dx < D1Dtest; ++dx)
+            {
+               sol_x[dx] += s * ((H1 == 1) ? Bt(dx,qx) : Bot(dx,qx));
+            }
+         }
+         for (int dy = 0; dy < D1Dtest; ++dy)
+         {
+            const double wy = (H1 == 1) ? Bt(dy,qy) : Bot(dy,qy);
+
+            for (int dx = 0; dx < D1Dtest; ++dx)
+            {
+               Y(dx,dy,e) += sol_x[dx] * wy;
+            }
+         }
+      }  // loop qy
+   }); // end of element loop
+}
+
+static void PACurlL2ApplyTranspose2D(const int D1D,
+                                     const int D1Dtest,
+                                     const int Q1D,
+                                     const int NE,
+                                     const Array<double> &bo,
+                                     const Array<double> &bot,
+                                     const Array<double> &b,
+                                     const Array<double> &gct,
+                                     const Vector &pa_data,
+                                     const Vector &x, // trial = H(curl)
+                                     Vector &y)  // test = L2 or H1
+{
+   constexpr static int VDIM = 2;
+   constexpr static int MAX_D1D = HCURL_MAX_D1D;
+   constexpr static int MAX_Q1D = HCURL_MAX_Q1D;
+   const int H1 = (D1Dtest == D1D);
+
+   MFEM_VERIFY(x.Size() == NE*D1Dtest*D1Dtest, "Test vector of wrong dimension");
+
+   auto Bo = Reshape(bo.Read(), Q1D, D1D-1);
+   auto B = Reshape(b.Read(), Q1D, D1D);
+   auto Bot = Reshape(bot.Read(), D1D-1, Q1D);
+   auto Gct = Reshape(gct.Read(), D1D, Q1D);
+   auto op = Reshape(pa_data.Read(), Q1D, Q1D, NE);
+   auto X = Reshape(x.Read(), D1Dtest, D1Dtest, NE);
+   auto Y = Reshape(y.ReadWrite(), 2*(D1D-1)*D1D, NE);
+
+   MFEM_FORALL(e, NE,
+   {
+      double mass[MAX_Q1D][MAX_Q1D];
+
+      // Zero-order term in L2 or H1 test space
+
+      for (int qy = 0; qy < Q1D; ++qy)
+      {
+         for (int qx = 0; qx < Q1D; ++qx)
+         {
+            mass[qy][qx] = 0.0;
+         }
+      }
+
+      for (int dy = 0; dy < D1Dtest; ++dy)
+      {
+         double sol_x[MAX_Q1D];
+         for (int qy = 0; qy < Q1D; ++qy)
+         {
+            sol_x[qy] = 0.0;
+         }
+         for (int dx = 0; dx < D1Dtest; ++dx)
+         {
+            const double s = X(dx,dy,e);
+            for (int qx = 0; qx < Q1D; ++qx)
+            {
+               sol_x[qx] += s * ((H1 == 1) ? B(qx,dx) : Bo(qx,dx));
+            }
+         }
+         for (int qy = 0; qy < Q1D; ++qy)
+         {
+            const double d2q = (H1 == 1) ? B(qy,dy) : Bo(qy,dy);
+            for (int qx = 0; qx < Q1D; ++qx)
+            {
+               mass[qy][qx] += d2q * sol_x[qx];
+            }
+         }
+      }
+
+      // Apply D operator.
+      for (int qy = 0; qy < Q1D; ++qy)
+      {
+         for (int qx = 0; qx < Q1D; ++qx)
+         {
+            mass[qy][qx] *= op(qx,qy,e);
+         }
+      }
+
+      for (int qy = 0; qy < Q1D; ++qy)
+      {
+         int osc = 0;
+
+         for (int c = 0; c < VDIM; ++c)  // loop over x, y components
+         {
+            const int D1Dy = (c == 1) ? D1D - 1 : D1D;
+            const int D1Dx = (c == 0) ? D1D - 1 : D1D;
+
+            double gradX[MAX_D1D];
+            for (int dx = 0; dx < D1Dx; ++dx)
+            {
+               gradX[dx] = 0.0;
+            }
+            for (int qx = 0; qx < Q1D; ++qx)
+            {
+               for (int dx = 0; dx < D1Dx; ++dx)
+               {
+                  gradX[dx] += mass[qy][qx] * ((c == 0) ? Bot(dx,qx) : Gct(dx,qx));
+               }
+            }
+            for (int dy = 0; dy < D1Dy; ++dy)
+            {
+               const double wy = (c == 0) ? -Gct(dy,qy) : Bot(dy,qy);
+
+               for (int dx = 0; dx < D1Dx; ++dx)
+               {
+                  Y(dx + (dy * D1Dx) + osc, e) += gradX[dx] * wy;
+               }
+            }
+
+            osc += D1Dx * D1Dy;
+         }  // loop c
+      }  // loop qy
    }); // end of element loop
 }
 
@@ -2705,6 +2970,205 @@ void PAHcurlH1Apply3D(const int D1D,
    }); // end of element loop
 }
 
+// Apply to x corresponding to DOF's in H(curl), integrated
+// against gradients of H^1 functions corresponding to y.
+void PAHcurlH1ApplyTranspose3D(const int D1D,
+                               const int Q1D,
+                               const int NE,
+                               const Array<double> &bc,
+                               const Array<double> &bo,
+                               const Array<double> &bct,
+                               const Array<double> &gct,
+                               const Vector &pa_data,
+                               const Vector &x,
+                               Vector &y)
+{
+   constexpr static int MAX_D1D = HCURL_MAX_D1D;
+   constexpr static int MAX_Q1D = HCURL_MAX_Q1D;
+
+   MFEM_VERIFY(D1D <= MAX_D1D, "Error: D1D > MAX_D1D");
+   MFEM_VERIFY(Q1D <= MAX_Q1D, "Error: Q1D > MAX_Q1D");
+
+   constexpr static int VDIM = 3;
+
+   auto Bc = Reshape(bc.Read(), Q1D, D1D);
+   auto Bo = Reshape(bo.Read(), Q1D, D1D-1);
+   auto Bt = Reshape(bct.Read(), D1D, Q1D);
+   auto Gt = Reshape(gct.Read(), D1D, Q1D);
+   auto op = Reshape(pa_data.Read(), Q1D, Q1D, Q1D, 6, NE);
+   auto X = Reshape(x.Read(), 3*(D1D-1)*D1D*D1D, NE);
+   auto Y = Reshape(y.ReadWrite(), D1D, D1D, D1D, NE);
+
+   MFEM_FORALL(e, NE,
+   {
+      double mass[MAX_Q1D][MAX_Q1D][MAX_Q1D][VDIM];
+
+      for (int qz = 0; qz < Q1D; ++qz)
+      {
+         for (int qy = 0; qy < Q1D; ++qy)
+         {
+            for (int qx = 0; qx < Q1D; ++qx)
+            {
+               for (int c = 0; c < VDIM; ++c)
+               {
+                  mass[qz][qy][qx][c] = 0.0;
+               }
+            }
+         }
+      }
+
+      int osc = 0;
+
+      for (int c = 0; c < VDIM; ++c)  // loop over x, y, z components
+      {
+         const int D1Dz = (c == 2) ? D1D - 1 : D1D;
+         const int D1Dy = (c == 1) ? D1D - 1 : D1D;
+         const int D1Dx = (c == 0) ? D1D - 1 : D1D;
+
+         for (int dz = 0; dz < D1Dz; ++dz)
+         {
+            double massXY[MAX_Q1D][MAX_Q1D];
+            for (int qy = 0; qy < Q1D; ++qy)
+            {
+               for (int qx = 0; qx < Q1D; ++qx)
+               {
+                  massXY[qy][qx] = 0.0;
+               }
+            }
+
+            for (int dy = 0; dy < D1Dy; ++dy)
+            {
+               double massX[MAX_Q1D];
+               for (int qx = 0; qx < Q1D; ++qx)
+               {
+                  massX[qx] = 0.0;
+               }
+
+               for (int dx = 0; dx < D1Dx; ++dx)
+               {
+                  const double t = X(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc, e);
+                  for (int qx = 0; qx < Q1D; ++qx)
+                  {
+                     massX[qx] += t * ((c == 0) ? Bo(qx,dx) : Bc(qx,dx));
+                  }
+               }
+
+               for (int qy = 0; qy < Q1D; ++qy)
+               {
+                  const double wy = (c == 1) ? Bo(qy,dy) : Bc(qy,dy);
+                  for (int qx = 0; qx < Q1D; ++qx)
+                  {
+                     const double wx = massX[qx];
+                     massXY[qy][qx] += wx * wy;
+                  }
+               }
+            }
+
+            for (int qz = 0; qz < Q1D; ++qz)
+            {
+               const double wz = (c == 2) ? Bo(qz,dz) : Bc(qz,dz);
+               for (int qy = 0; qy < Q1D; ++qy)
+               {
+                  for (int qx = 0; qx < Q1D; ++qx)
+                  {
+                     mass[qz][qy][qx][c] += massXY[qy][qx] * wz;
+                  }
+               }
+            }
+         }
+
+         osc += D1Dx * D1Dy * D1Dz;
+      }  // loop (c) over components
+
+      // Apply D operator.
+      for (int qz = 0; qz < Q1D; ++qz)
+      {
+         for (int qy = 0; qy < Q1D; ++qy)
+         {
+            for (int qx = 0; qx < Q1D; ++qx)
+            {
+               const double O11 = op(qx,qy,qz,0,e);
+               const double O12 = op(qx,qy,qz,1,e);
+               const double O13 = op(qx,qy,qz,2,e);
+               const double O22 = op(qx,qy,qz,3,e);
+               const double O23 = op(qx,qy,qz,4,e);
+               const double O33 = op(qx,qy,qz,5,e);
+               const double massX = mass[qz][qy][qx][0];
+               const double massY = mass[qz][qy][qx][1];
+               const double massZ = mass[qz][qy][qx][2];
+               mass[qz][qy][qx][0] = (O11*massX)+(O12*massY)+(O13*massZ);
+               mass[qz][qy][qx][1] = (O12*massX)+(O22*massY)+(O23*massZ);
+               mass[qz][qy][qx][2] = (O13*massX)+(O23*massY)+(O33*massZ);
+            }
+         }
+      }
+
+      for (int qz = 0; qz < Q1D; ++qz)
+      {
+         double gradXY[MAX_D1D][MAX_D1D][3];
+         for (int dy = 0; dy < D1D; ++dy)
+         {
+            for (int dx = 0; dx < D1D; ++dx)
+            {
+               gradXY[dy][dx][0] = 0;
+               gradXY[dy][dx][1] = 0;
+               gradXY[dy][dx][2] = 0;
+            }
+         }
+         for (int qy = 0; qy < Q1D; ++qy)
+         {
+            double gradX[MAX_D1D][3];
+            for (int dx = 0; dx < D1D; ++dx)
+            {
+               gradX[dx][0] = 0;
+               gradX[dx][1] = 0;
+               gradX[dx][2] = 0;
+            }
+            for (int qx = 0; qx < Q1D; ++qx)
+            {
+               const double gX = mass[qz][qy][qx][0];
+               const double gY = mass[qz][qy][qx][1];
+               const double gZ = mass[qz][qy][qx][2];
+               for (int dx = 0; dx < D1D; ++dx)
+               {
+                  const double wx  = Bt(dx,qx);
+                  const double wDx = Gt(dx,qx);
+                  gradX[dx][0] += gX * wDx;
+                  gradX[dx][1] += gY * wx;
+                  gradX[dx][2] += gZ * wx;
+               }
+            }
+            for (int dy = 0; dy < D1D; ++dy)
+            {
+               const double wy  = Bt(dy,qy);
+               const double wDy = Gt(dy,qy);
+               for (int dx = 0; dx < D1D; ++dx)
+               {
+                  gradXY[dy][dx][0] += gradX[dx][0] * wy;
+                  gradXY[dy][dx][1] += gradX[dx][1] * wDy;
+                  gradXY[dy][dx][2] += gradX[dx][2] * wy;
+               }
+            }
+         }
+         for (int dz = 0; dz < D1D; ++dz)
+         {
+            const double wz  = Bt(dz,qz);
+            const double wDz = Gt(dz,qz);
+            for (int dy = 0; dy < D1D; ++dy)
+            {
+               for (int dx = 0; dx < D1D; ++dx)
+               {
+                  Y(dx,dy,dz,e) +=
+                     ((gradXY[dy][dx][0] * wz) +
+                      (gradXY[dy][dx][1] * wz) +
+                      (gradXY[dy][dx][2] * wDz));
+               }
+            }
+         }
+      }  // loop qz
+   }); // end of element loop
+}
+
 // Apply to x corresponding to DOF's in H^1 (trial), whose gradients are
 // integrated against H(curl) test functions corresponding to y.
 void PAHcurlH1Apply2D(const int D1D,
@@ -2829,6 +3293,131 @@ void PAHcurlH1Apply2D(const int D1D,
    }); // end of element loop
 }
 
+// Apply to x corresponding to DOF's in H(curl), integrated
+// against gradients of H^1 functions corresponding to y.
+void PAHcurlH1ApplyTranspose2D(const int D1D,
+                               const int Q1D,
+                               const int NE,
+                               const Array<double> &bc,
+                               const Array<double> &bo,
+                               const Array<double> &bct,
+                               const Array<double> &gct,
+                               const Vector &pa_data,
+                               const Vector &x,
+                               Vector &y)
+{
+   constexpr static int VDIM = 2;
+   constexpr static int MAX_D1D = HCURL_MAX_D1D;
+   constexpr static int MAX_Q1D = HCURL_MAX_Q1D;
+
+   auto Bc = Reshape(bc.Read(), Q1D, D1D);
+   auto Bo = Reshape(bo.Read(), Q1D, D1D-1);
+   auto Bt = Reshape(bct.Read(), D1D, Q1D);
+   auto Gt = Reshape(gct.Read(), D1D, Q1D);
+   auto op = Reshape(pa_data.Read(), Q1D, Q1D, 3, NE);
+   auto X = Reshape(x.Read(), 2*(D1D-1)*D1D, NE);
+   auto Y = Reshape(y.ReadWrite(), D1D, D1D, NE);
+
+   MFEM_FORALL(e, NE,
+   {
+      double mass[MAX_Q1D][MAX_Q1D][VDIM];
+
+      for (int qy = 0; qy < Q1D; ++qy)
+      {
+         for (int qx = 0; qx < Q1D; ++qx)
+         {
+            for (int c = 0; c < VDIM; ++c)
+            {
+               mass[qy][qx][c] = 0.0;
+            }
+         }
+      }
+
+      int osc = 0;
+
+      for (int c = 0; c < VDIM; ++c)  // loop over x, y components
+      {
+         const int D1Dy = (c == 1) ? D1D - 1 : D1D;
+         const int D1Dx = (c == 0) ? D1D - 1 : D1D;
+
+         for (int dy = 0; dy < D1Dy; ++dy)
+         {
+            double massX[MAX_Q1D];
+            for (int qx = 0; qx < Q1D; ++qx)
+            {
+               massX[qx] = 0.0;
+            }
+
+            for (int dx = 0; dx < D1Dx; ++dx)
+            {
+               const double t = X(dx + (dy * D1Dx) + osc, e);
+               for (int qx = 0; qx < Q1D; ++qx)
+               {
+                  massX[qx] += t * ((c == 0) ? Bo(qx,dx) : Bc(qx,dx));
+               }
+            }
+
+            for (int qy = 0; qy < Q1D; ++qy)
+            {
+               const double wy = (c == 1) ? Bo(qy,dy) : Bc(qy,dy);
+               for (int qx = 0; qx < Q1D; ++qx)
+               {
+                  mass[qy][qx][c] += massX[qx] * wy;
+               }
+            }
+         }
+
+         osc += D1Dx * D1Dy;
+      }  // loop (c) over components
+
+      // Apply D operator.
+      for (int qy = 0; qy < Q1D; ++qy)
+      {
+         for (int qx = 0; qx < Q1D; ++qx)
+         {
+            const double O11 = op(qx,qy,0,e);
+            const double O12 = op(qx,qy,1,e);
+            const double O22 = op(qx,qy,2,e);
+            const double massX = mass[qy][qx][0];
+            const double massY = mass[qy][qx][1];
+            mass[qy][qx][0] = (O11*massX)+(O12*massY);
+            mass[qy][qx][1] = (O12*massX)+(O22*massY);
+         }
+      }
+
+      for (int qy = 0; qy < Q1D; ++qy)
+      {
+         double gradX[MAX_D1D][2];
+         for (int dx = 0; dx < D1D; ++dx)
+         {
+            gradX[dx][0] = 0;
+            gradX[dx][1] = 0;
+         }
+         for (int qx = 0; qx < Q1D; ++qx)
+         {
+            const double gX = mass[qy][qx][0];
+            const double gY = mass[qy][qx][1];
+            for (int dx = 0; dx < D1D; ++dx)
+            {
+               const double wx  = Bt(dx,qx);
+               const double wDx = Gt(dx,qx);
+               gradX[dx][0] += gX * wDx;
+               gradX[dx][1] += gY * wx;
+            }
+         }
+         for (int dy = 0; dy < D1D; ++dy)
+         {
+            const double wy  = Bt(dy,qy);
+            const double wDy = Gt(dy,qy);
+            for (int dx = 0; dx < D1D; ++dx)
+            {
+               Y(dx,dy,e) += ((gradX[dx][0] * wy) + (gradX[dx][1] * wDy));
+            }
+         }
+      }
+   }); // end of element loop
+}
+
 // PA H(curl) Mass Assemble 3D kernel
 void PAHcurlL2Setup(const int NQ,
                     const int coeffDim,
@@ -2851,6 +3440,105 @@ void PAHcurlL2Setup(const int NQ,
          }
       }
    });
+}
+
+void MixedScalarCurlIntegrator::AssemblePA(const FiniteElementSpace &trial_fes,
+                                           const FiniteElementSpace &test_fes)
+{
+   // Assumes tensor-product elements
+   Mesh *mesh = trial_fes.GetMesh();
+   const FiniteElement *fel = trial_fes.GetFE(0); // In H(curl)
+   const FiniteElement *eltest = test_fes.GetFE(0); // In scalar space
+
+   const VectorTensorFiniteElement *el =
+      dynamic_cast<const VectorTensorFiniteElement*>(fel);
+   MFEM_VERIFY(el != NULL, "Only VectorTensorFiniteElement is supported!");
+
+   if (el->GetDerivType() != mfem::FiniteElement::CURL)
+   {
+      MFEM_ABORT("Unknown kernel.");
+   }
+
+   const IntegrationRule *ir
+      = IntRule ? IntRule : &MassIntegrator::GetRule(*eltest, *eltest,
+                                                     *mesh->GetElementTransformation(0));
+
+   const int dims = el->GetDim();
+   MFEM_VERIFY(dims == 2, "");
+
+   const int nq = ir->GetNPoints();
+   dim = mesh->Dimension();
+   MFEM_VERIFY(dim == 2, "");
+
+   ne = test_fes.GetNE();
+   mapsC = &el->GetDofToQuad(*ir, DofToQuad::TENSOR);
+   mapsO = &el->GetDofToQuadOpen(*ir, DofToQuad::TENSOR);
+   dofs1D = mapsC->ndof;
+   quad1D = mapsC->nqpt;
+
+   MFEM_VERIFY(dofs1D == mapsO->ndof + 1 && quad1D == mapsO->nqpt, "");
+
+   if (el->GetOrder() == eltest->GetOrder())
+   {
+      dofs1Dtest = dofs1D;
+   }
+   else
+   {
+      dofs1Dtest = dofs1D - 1;
+   }
+
+   pa_data.SetSize(nq * ne, Device::GetMemoryType());
+
+   Vector coeff(ne * nq);
+   coeff = 1.0;
+   auto coeffh = Reshape(coeff.HostWrite(), nq, ne);
+   if (Q)
+   {
+      for (int e=0; e<ne; ++e)
+      {
+         ElementTransformation *tr = mesh->GetElementTransformation(e);
+         for (int p=0; p<nq; ++p)
+         {
+            coeffh(p, e) = Q->Eval(*tr, ir->IntPoint(p));
+         }
+      }
+   }
+
+   if (dim == 2)
+   {
+      PACurlL2Setup2D(quad1D, ne, ir->GetWeights(), coeff, pa_data);
+   }
+   else
+   {
+      MFEM_ABORT("Unsupported dimension!");
+   }
+}
+
+void MixedScalarCurlIntegrator::AddMultPA(const Vector &x, Vector &y) const
+{
+   if (dim == 2)
+   {
+      PACurlL2Apply2D(dofs1D, dofs1Dtest, quad1D, ne, mapsO->B, mapsO->Bt,
+                      mapsC->Bt, mapsC->G, pa_data, x, y);
+   }
+   else
+   {
+      MFEM_ABORT("Unsupported dimension!");
+   }
+}
+
+void MixedScalarCurlIntegrator::AddMultTransposePA(const Vector &x,
+                                                   Vector &y) const
+{
+   if (dim == 2)
+   {
+      PACurlL2ApplyTranspose2D(dofs1D, dofs1Dtest, quad1D, ne, mapsO->B, mapsO->Bt,
+                               mapsC->B, mapsC->Gt, pa_data, x, y);
+   }
+   else
+   {
+      MFEM_ABORT("Unsupported dimension!");
+   }
 }
 
 void MixedVectorCurlIntegrator::AssemblePA(const FiniteElementSpace &trial_fes,
@@ -2899,7 +3587,11 @@ void MixedVectorCurlIntegrator::AssemblePA(const FiniteElementSpace &trial_fes,
    const int symmDims = (dims * (dims + 1)) / 2; // 1x1: 1, 2x2: 3, 3x3: 6
    coeffDim = (DQ ? 3 : 1);
 
-   pa_data.SetSize(symmDims * nq * ne, Device::GetMemoryType());
+   const bool curlSpaces = (testType == mfem::FiniteElement::CURL &&
+                            trialType == mfem::FiniteElement::CURL);
+
+   const int ndata = curlSpaces ? (coeffDim == 1 ? 1 : 9) : symmDims;
+   pa_data.SetSize(ndata * nq * ne, Device::GetMemoryType());
 
    Vector coeff(coeffDim * nq * ne);
    coeff = 1.0;
@@ -2937,7 +3629,15 @@ void MixedVectorCurlIntegrator::AssemblePA(const FiniteElementSpace &trial_fes,
    if (testType == mfem::FiniteElement::CURL &&
        trialType == mfem::FiniteElement::CURL && dim == 3)
    {
-      PAHcurlL2Setup(nq, coeffDim, ne, ir->GetWeights(), coeff, pa_data);
+      if (coeffDim == 1)
+      {
+         PAHcurlL2Setup(nq, coeffDim, ne, ir->GetWeights(), coeff, pa_data);
+      }
+      else
+      {
+         PAHcurlHdivSetup3D(quad1D, coeffDim, ne, false, ir->GetWeights(),
+                            geom->J, coeff, pa_data);
+      }
    }
    else if (testType == mfem::FiniteElement::DIV &&
             trialType == mfem::FiniteElement::CURL && dim == 3 &&
@@ -3224,9 +3924,30 @@ static void PAHcurlL2Apply3D(const int D1D,
          {
             for (int qx = 0; qx < Q1D; ++qx)
             {
-               for (int c = 0; c < VDIM; ++c)
+               const double O11 = op(0,qx,qy,qz,e);
+               if (coeffDim == 1)
                {
-                  curl[qz][qy][qx][c] *= op(coeffDim == 3 ? c : 0, qx,qy,qz,e);
+                  for (int c = 0; c < VDIM; ++c)
+                  {
+                     curl[qz][qy][qx][c] *= O11;
+                  }
+               }
+               else
+               {
+                  const double O21 = op(1,qx,qy,qz,e);
+                  const double O31 = op(2,qx,qy,qz,e);
+                  const double O12 = op(3,qx,qy,qz,e);
+                  const double O22 = op(4,qx,qy,qz,e);
+                  const double O32 = op(5,qx,qy,qz,e);
+                  const double O13 = op(6,qx,qy,qz,e);
+                  const double O23 = op(7,qx,qy,qz,e);
+                  const double O33 = op(8,qx,qy,qz,e);
+                  const double curlX = curl[qz][qy][qx][0];
+                  const double curlY = curl[qz][qy][qx][1];
+                  const double curlZ = curl[qz][qy][qx][2];
+                  curl[qz][qy][qx][0] = (O11*curlX)+(O12*curlY)+(O13*curlZ);
+                  curl[qz][qy][qx][1] = (O21*curlX)+(O22*curlY)+(O23*curlZ);
+                  curl[qz][qy][qx][2] = (O31*curlX)+(O32*curlY)+(O33*curlZ);
                }
             }
          }
@@ -3318,10 +4039,10 @@ static void SmemPAHcurlL2Apply3D(const int D1D,
    auto X = Reshape(x.Read(), 3*(D1D-1)*D1D*D1D, NE);
    auto Y = Reshape(y.ReadWrite(), 3*(D1D-1)*D1D*D1D, NE);
 
-   MFEM_FORALL_3D(e, NE, Q1D, Q1D, Q1D,
+   auto device_kernel = [=] MFEM_DEVICE (int e)
    {
       constexpr int VDIM = 3;
-      constexpr int maxCoeffDim = 3;
+      constexpr int maxCoeffDim = 9;
 
       MFEM_SHARED double sBo[MAX_D1D][MAX_Q1D];
       MFEM_SHARED double sBc[MAX_D1D][MAX_Q1D];
@@ -3531,13 +4252,28 @@ static void SmemPAHcurlL2Apply3D(const int D1D,
 
                      for (int qx = 0; qx < Q1D; ++qx)
                      {
-                        const double O1 = sop[0][qx][qy];
-                        const double O2 = (coeffDim == 3) ? sop[1][qx][qy] : O1;
-                        const double O3 = (coeffDim == 3) ? sop[2][qx][qy] : O1;
-
-                        const double c1 = O1 * curl[qy][qx][0];
-                        const double c2 = O2 * curl[qy][qx][1];
-                        const double c3 = O3 * curl[qy][qx][2];
+                        const double O11 = sop[0][qx][qy];
+                        double c1, c2, c3;
+                        if (coeffDim == 1)
+                        {
+                           c1 = O11 * curl[qy][qx][0];
+                           c2 = O11 * curl[qy][qx][1];
+                           c3 = O11 * curl[qy][qx][2];
+                        }
+                        else
+                        {
+                           const double O21 = sop[1][qx][qy];
+                           const double O31 = sop[2][qx][qy];
+                           const double O12 = sop[3][qx][qy];
+                           const double O22 = sop[4][qx][qy];
+                           const double O32 = sop[5][qx][qy];
+                           const double O13 = sop[6][qx][qy];
+                           const double O23 = sop[7][qx][qy];
+                           const double O33 = sop[8][qx][qy];
+                           c1 = (O11*curl[qy][qx][0])+(O12*curl[qy][qx][1])+(O13*curl[qy][qx][2]);
+                           c2 = (O21*curl[qy][qx][0])+(O22*curl[qy][qx][1])+(O23*curl[qy][qx][2]);
+                           c3 = (O31*curl[qy][qx][0])+(O32*curl[qy][qx][1])+(O33*curl[qy][qx][2]);
+                        }
 
                         const double wcx = sBc[dx][qx];
 
@@ -3579,7 +4315,14 @@ static void SmemPAHcurlL2Apply3D(const int D1D,
             }
          }
       } // qz
-   }); // end of element loop
+   }; // end of element loop
+
+   auto host_kernel = [&] MFEM_LAMBDA (int)
+   {
+      MFEM_ABORT_KERNEL("This kernel should only be used on GPU.");
+   };
+
+   ForallWrap<3>(true, NE, device_kernel, host_kernel, Q1D, Q1D, Q1D);
 }
 
 // Apply to x corresponding to DOF's in H(curl) (trial), whose curl is
@@ -3938,35 +4681,393 @@ static void PAHcurlHdivApply3D(const int D1D,
    }); // end of element loop
 }
 
+// Apply to x corresponding to DOF's in H(div) (test), integrated against the
+// curl of H(curl) trial functions corresponding to y.
+template<int MAX_D1D = HCURL_MAX_D1D, int MAX_Q1D = HCURL_MAX_Q1D>
+static void PAHcurlHdivApply3DTranspose(const int D1D,
+                                        const int D1Dtest,
+                                        const int Q1D,
+                                        const int NE,
+                                        const Array<double> &bo,
+                                        const Array<double> &bc,
+                                        const Array<double> &bot,
+                                        const Array<double> &bct,
+                                        const Array<double> &gct,
+                                        const Vector &pa_data,
+                                        const Vector &x,
+                                        Vector &y)
+{
+   MFEM_VERIFY(D1D <= MAX_D1D, "Error: D1D > MAX_D1D");
+   MFEM_VERIFY(Q1D <= MAX_Q1D, "Error: Q1D > MAX_Q1D");
+   // Using Piola transformations (\nabla\times u) F = 1/det(dF) dF \hat{\nabla}\times\hat{u}
+   // for u in H(curl) and w = (1 / det (dF)) dF \hat{w} for w in H(div), we get
+   // (\nabla\times u) \cdot w = 1/det(dF)^2 \hat{\nabla}\times\hat{u}^T dF^T dF \hat{w}
+   // If c = 0, \hat{\nabla}\times\hat{u} reduces to [0, (u_0)_{x_2}, -(u_0)_{x_1}]
+   // If c = 1, \hat{\nabla}\times\hat{u} reduces to [-(u_1)_{x_2}, 0, (u_1)_{x_0}]
+   // If c = 2, \hat{\nabla}\times\hat{u} reduces to [(u_2)_{x_1}, -(u_2)_{x_0}, 0]
+
+   constexpr static int VDIM = 3;
+
+   auto Bo = Reshape(bo.Read(), Q1D, D1D-1);
+   auto Bc = Reshape(bc.Read(), Q1D, D1D);
+   auto Bot = Reshape(bot.Read(), D1Dtest-1, Q1D);
+   auto Bct = Reshape(bct.Read(), D1Dtest, Q1D);
+   auto Gct = Reshape(gct.Read(), D1D, Q1D);
+   auto op = Reshape(pa_data.Read(), Q1D, Q1D, Q1D, 6, NE);
+   auto X = Reshape(x.Read(), 3*(D1Dtest-1)*(D1Dtest-1)*D1D, NE);
+   auto Y = Reshape(y.ReadWrite(), 3*(D1D-1)*D1D*D1D, NE);
+
+   MFEM_FORALL(e, NE,
+   {
+      double mass[MAX_Q1D][MAX_Q1D][MAX_Q1D][VDIM];  // Assuming HDIV_MAX_D1D <= HCURL_MAX_D1D
+
+      for (int qz = 0; qz < Q1D; ++qz)
+      {
+         for (int qy = 0; qy < Q1D; ++qy)
+         {
+            for (int qx = 0; qx < Q1D; ++qx)
+            {
+               for (int c = 0; c < VDIM; ++c)
+               {
+                  mass[qz][qy][qx][c] = 0.0;
+               }
+            }
+         }
+      }
+
+      int osc = 0;
+
+      for (int c = 0; c < VDIM; ++c)  // loop over x, y, z components
+      {
+         const int D1Dz = (c == 2) ? D1D : D1D - 1;
+         const int D1Dy = (c == 1) ? D1D : D1D - 1;
+         const int D1Dx = (c == 0) ? D1D : D1D - 1;
+
+         for (int dz = 0; dz < D1Dz; ++dz)
+         {
+            double massXY[HDIV_MAX_Q1D][HDIV_MAX_Q1D];
+            for (int qy = 0; qy < Q1D; ++qy)
+            {
+               for (int qx = 0; qx < Q1D; ++qx)
+               {
+                  massXY[qy][qx] = 0.0;
+               }
+            }
+
+            for (int dy = 0; dy < D1Dy; ++dy)
+            {
+               double massX[HDIV_MAX_Q1D];
+               for (int qx = 0; qx < Q1D; ++qx)
+               {
+                  massX[qx] = 0.0;
+               }
+
+               for (int dx = 0; dx < D1Dx; ++dx)
+               {
+                  const double t = X(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc, e);
+                  for (int qx = 0; qx < Q1D; ++qx)
+                  {
+                     massX[qx] += t * ((c == 0) ? Bc(qx,dx) : Bo(qx,dx));
+                  }
+               }
+
+               for (int qy = 0; qy < Q1D; ++qy)
+               {
+                  const double wy = (c == 1) ? Bc(qy,dy) : Bo(qy,dy);
+                  for (int qx = 0; qx < Q1D; ++qx)
+                  {
+                     const double wx = massX[qx];
+                     massXY[qy][qx] += wx * wy;
+                  }
+               }
+            }
+
+            for (int qz = 0; qz < Q1D; ++qz)
+            {
+               const double wz = (c == 2) ? Bc(qz,dz) : Bo(qz,dz);
+               for (int qy = 0; qy < Q1D; ++qy)
+               {
+                  for (int qx = 0; qx < Q1D; ++qx)
+                  {
+                     mass[qz][qy][qx][c] += massXY[qy][qx] * wz;
+                  }
+               }
+            }
+         }
+
+         osc += D1Dx * D1Dy * D1Dz;
+      }  // loop (c) over components
+
+      // Apply D operator.
+      for (int qz = 0; qz < Q1D; ++qz)
+      {
+         for (int qy = 0; qy < Q1D; ++qy)
+         {
+            for (int qx = 0; qx < Q1D; ++qx)
+            {
+               const double O11 = op(qx,qy,qz,0,e);
+               const double O12 = op(qx,qy,qz,1,e);
+               const double O13 = op(qx,qy,qz,2,e);
+               const double O22 = op(qx,qy,qz,3,e);
+               const double O23 = op(qx,qy,qz,4,e);
+               const double O33 = op(qx,qy,qz,5,e);
+               const double massX = mass[qz][qy][qx][0];
+               const double massY = mass[qz][qy][qx][1];
+               const double massZ = mass[qz][qy][qx][2];
+               mass[qz][qy][qx][0] = (O11*massX)+(O12*massY)+(O13*massZ);
+               mass[qz][qy][qx][1] = (O12*massX)+(O22*massY)+(O23*massZ);
+               mass[qz][qy][qx][2] = (O13*massX)+(O23*massY)+(O33*massZ);
+            }
+         }
+      }
+
+      // x component
+      osc = 0;
+      {
+         const int D1Dz = D1D;
+         const int D1Dy = D1D;
+         const int D1Dx = D1D - 1;
+
+         for (int qz = 0; qz < Q1D; ++qz)
+         {
+            double gradXY12[MAX_D1D][MAX_D1D];
+            double gradXY21[MAX_D1D][MAX_D1D];
+
+            for (int dy = 0; dy < D1Dy; ++dy)
+            {
+               for (int dx = 0; dx < D1Dx; ++dx)
+               {
+                  gradXY12[dy][dx] = 0.0;
+                  gradXY21[dy][dx] = 0.0;
+               }
+            }
+            for (int qy = 0; qy < Q1D; ++qy)
+            {
+               double massX[MAX_D1D][2];
+               for (int dx = 0; dx < D1Dx; ++dx)
+               {
+                  for (int n = 0; n < 2; ++n)
+                  {
+                     massX[dx][n] = 0.0;
+                  }
+               }
+               for (int qx = 0; qx < Q1D; ++qx)
+               {
+                  for (int dx = 0; dx < D1Dx; ++dx)
+                  {
+                     const double wx = Bot(dx,qx);
+
+                     massX[dx][0] += wx * mass[qz][qy][qx][1];
+                     massX[dx][1] += wx * mass[qz][qy][qx][2];
+                  }
+               }
+               for (int dy = 0; dy < D1Dy; ++dy)
+               {
+                  const double wy = Bct(dy,qy);
+                  const double wDy = Gct(dy,qy);
+
+                  for (int dx = 0; dx < D1Dx; ++dx)
+                  {
+                     gradXY21[dy][dx] += massX[dx][0] * wy;
+                     gradXY12[dy][dx] += massX[dx][1] * wDy;
+                  }
+               }
+            }
+
+            for (int dz = 0; dz < D1Dz; ++dz)
+            {
+               const double wz = Bct(dz,qz);
+               const double wDz = Gct(dz,qz);
+               for (int dy = 0; dy < D1Dy; ++dy)
+               {
+                  for (int dx = 0; dx < D1Dx; ++dx)
+                  {
+                     // \hat{\nabla}\times\hat{u} is [0, (u_0)_{x_2}, -(u_0)_{x_1}]
+                     // (u_0)_{x_2} * (op * curl)_1 - (u_0)_{x_1} * (op * curl)_2
+                     Y(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc,
+                       e) += (gradXY21[dy][dx] * wDz) - (gradXY12[dy][dx] * wz);
+                  }
+               }
+            }
+         }  // loop qz
+
+         osc += D1Dx * D1Dy * D1Dz;
+      }
+
+      // y component
+      {
+         const int D1Dz = D1D;
+         const int D1Dy = D1D - 1;
+         const int D1Dx = D1D;
+
+         for (int qz = 0; qz < Q1D; ++qz)
+         {
+            double gradXY02[MAX_D1D][MAX_D1D];
+            double gradXY20[MAX_D1D][MAX_D1D];
+
+            for (int dy = 0; dy < D1Dy; ++dy)
+            {
+               for (int dx = 0; dx < D1Dx; ++dx)
+               {
+                  gradXY02[dy][dx] = 0.0;
+                  gradXY20[dy][dx] = 0.0;
+               }
+            }
+            for (int qx = 0; qx < Q1D; ++qx)
+            {
+               double massY[MAX_D1D][2];
+               for (int dy = 0; dy < D1Dy; ++dy)
+               {
+                  massY[dy][0] = 0.0;
+                  massY[dy][1] = 0.0;
+               }
+               for (int qy = 0; qy < Q1D; ++qy)
+               {
+                  for (int dy = 0; dy < D1Dy; ++dy)
+                  {
+                     const double wy = Bot(dy,qy);
+
+                     massY[dy][0] += wy * mass[qz][qy][qx][2];
+                     massY[dy][1] += wy * mass[qz][qy][qx][0];
+                  }
+               }
+               for (int dx = 0; dx < D1Dx; ++dx)
+               {
+                  const double wx = Bct(dx,qx);
+                  const double wDx = Gct(dx,qx);
+
+                  for (int dy = 0; dy < D1Dy; ++dy)
+                  {
+                     gradXY02[dy][dx] += massY[dy][0] * wDx;
+                     gradXY20[dy][dx] += massY[dy][1] * wx;
+                  }
+               }
+            }
+
+            for (int dz = 0; dz < D1Dz; ++dz)
+            {
+               const double wz = Bct(dz,qz);
+               const double wDz = Gct(dz,qz);
+               for (int dy = 0; dy < D1Dy; ++dy)
+               {
+                  for (int dx = 0; dx < D1Dx; ++dx)
+                  {
+                     // \hat{\nabla}\times\hat{u} is [-(u_1)_{x_2}, 0, (u_1)_{x_0}]
+                     // -(u_1)_{x_2} * (op * curl)_0 + (u_1)_{x_0} * (op * curl)_2
+                     Y(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc,
+                       e) += (-gradXY20[dy][dx] * wDz) + (gradXY02[dy][dx] * wz);
+                  }
+               }
+            }
+         }  // loop qz
+
+         osc += D1Dx * D1Dy * D1Dz;
+      }
+
+      // z component
+      {
+         const int D1Dz = D1D - 1;
+         const int D1Dy = D1D;
+         const int D1Dx = D1D;
+
+         for (int qx = 0; qx < Q1D; ++qx)
+         {
+            double gradYZ01[MAX_D1D][MAX_D1D];
+            double gradYZ10[MAX_D1D][MAX_D1D];
+
+            for (int dy = 0; dy < D1Dy; ++dy)
+            {
+               for (int dz = 0; dz < D1Dz; ++dz)
+               {
+                  gradYZ01[dz][dy] = 0.0;
+                  gradYZ10[dz][dy] = 0.0;
+               }
+            }
+            for (int qy = 0; qy < Q1D; ++qy)
+            {
+               double massZ[MAX_D1D][2];
+               for (int dz = 0; dz < D1Dz; ++dz)
+               {
+                  for (int n = 0; n < 2; ++n)
+                  {
+                     massZ[dz][n] = 0.0;
+                  }
+               }
+               for (int qz = 0; qz < Q1D; ++qz)
+               {
+                  for (int dz = 0; dz < D1Dz; ++dz)
+                  {
+                     const double wz = Bot(dz,qz);
+
+                     massZ[dz][0] += wz * mass[qz][qy][qx][0];
+                     massZ[dz][1] += wz * mass[qz][qy][qx][1];
+                  }
+               }
+               for (int dy = 0; dy < D1Dy; ++dy)
+               {
+                  const double wy = Bct(dy,qy);
+                  const double wDy = Gct(dy,qy);
+
+                  for (int dz = 0; dz < D1Dz; ++dz)
+                  {
+                     gradYZ01[dz][dy] += wy * massZ[dz][1];
+                     gradYZ10[dz][dy] += wDy * massZ[dz][0];
+                  }
+               }
+            }
+
+            for (int dx = 0; dx < D1Dx; ++dx)
+            {
+               const double wx = Bct(dx,qx);
+               const double wDx = Gct(dx,qx);
+
+               for (int dy = 0; dy < D1Dy; ++dy)
+               {
+                  for (int dz = 0; dz < D1Dz; ++dz)
+                  {
+                     // \hat{\nabla}\times\hat{u} is [(u_2)_{x_1}, -(u_2)_{x_0}, 0]
+                     // (u_2)_{x_1} * (op * curl)_0 - (u_2)_{x_0} * (op * curl)_1
+                     Y(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc,
+                       e) += (gradYZ10[dz][dy] * wx) - (gradYZ01[dz][dy] * wDx);
+                  }
+               }
+            }
+         }  // loop qx
+      }
+   }); // end of element loop
+}
+
 void MixedVectorCurlIntegrator::AddMultPA(const Vector &x, Vector &y) const
 {
    if (testType == mfem::FiniteElement::CURL &&
        trialType == mfem::FiniteElement::CURL && dim == 3)
    {
+      const int ndata = coeffDim == 1 ? 1 : 9;
+
       if (Device::Allows(Backend::DEVICE_MASK))
       {
          const int ID = (dofs1D << 4) | quad1D;
          switch (ID)
          {
-            case 0x23: return SmemPAHcurlL2Apply3D<2,3>(dofs1D, quad1D, coeffDim, ne,
+            case 0x23: return SmemPAHcurlL2Apply3D<2,3>(dofs1D, quad1D, ndata, ne,
                                                            mapsO->B, mapsC->B,
                                                            mapsC->G, pa_data, x, y);
-            case 0x34: return SmemPAHcurlL2Apply3D<3,4>(dofs1D, quad1D, coeffDim, ne,
+            case 0x34: return SmemPAHcurlL2Apply3D<3,4>(dofs1D, quad1D, ndata, ne,
                                                            mapsO->B, mapsC->B,
                                                            mapsC->G, pa_data, x, y);
-            case 0x45: return SmemPAHcurlL2Apply3D<4,5>(dofs1D, quad1D, coeffDim, ne,
+            case 0x45: return SmemPAHcurlL2Apply3D<4,5>(dofs1D, quad1D, ndata, ne,
                                                            mapsO->B, mapsC->B,
                                                            mapsC->G, pa_data, x, y);
-            case 0x56: return SmemPAHcurlL2Apply3D<5,6>(dofs1D, quad1D, coeffDim, ne,
+            case 0x56: return SmemPAHcurlL2Apply3D<5,6>(dofs1D, quad1D, ndata, ne,
                                                            mapsO->B, mapsC->B,
                                                            mapsC->G, pa_data, x, y);
-            default: return SmemPAHcurlL2Apply3D(dofs1D, quad1D, coeffDim, ne, mapsO->B,
-                                                    mapsC->B,
-                                                    mapsC->G, pa_data, x, y);
+            default: return SmemPAHcurlL2Apply3D(dofs1D, quad1D, ndata, ne,
+                                                    mapsO->B, mapsC->B, mapsC->G,
+                                                    pa_data, x, y);
          }
       }
       else
-         PAHcurlL2Apply3D(dofs1D, quad1D, coeffDim, ne, mapsO->B, mapsC->B,
+         PAHcurlL2Apply3D(dofs1D, quad1D, ndata, ne, mapsO->B, mapsC->B,
                           mapsO->Bt, mapsC->Bt, mapsC->G, pa_data, x, y);
    }
    else if (testType == mfem::FiniteElement::DIV &&
@@ -3974,6 +5075,20 @@ void MixedVectorCurlIntegrator::AddMultPA(const Vector &x, Vector &y) const
       PAHcurlHdivApply3D(dofs1D, dofs1Dtest, quad1D, ne, mapsO->B,
                          mapsC->B, mapsOtest->Bt, mapsCtest->Bt, mapsC->G,
                          pa_data, x, y);
+   else
+   {
+      MFEM_ABORT("Unsupported dimension or space!");
+   }
+}
+
+void MixedVectorCurlIntegrator::AddMultTransposePA(const Vector &x,
+                                                   Vector &y) const
+{
+   if (testType == mfem::FiniteElement::DIV &&
+       trialType == mfem::FiniteElement::CURL && dim == 3)
+      PAHcurlHdivApply3DTranspose(dofs1D, dofs1Dtest, quad1D, ne, mapsO->B,
+                                  mapsC->B, mapsOtest->Bt, mapsCtest->Bt,
+                                  mapsC->Gt, pa_data, x, y);
    else
    {
       MFEM_ABORT("Unsupported dimension or space!");
@@ -4018,9 +5133,18 @@ void MixedVectorWeakCurlIntegrator::AssemblePA(const FiniteElementSpace
 
    MFEM_VERIFY(dofs1D == mapsO->ndof + 1 && quad1D == mapsO->nqpt, "");
 
-   coeffDim = DQ ? 3 : 1;
+   testType = test_el->GetDerivType();
+   trialType = trial_el->GetDerivType();
 
-   pa_data.SetSize(coeffDim * nq * ne, Device::GetMemoryType());
+   const bool curlSpaces = (testType == mfem::FiniteElement::CURL &&
+                            trialType == mfem::FiniteElement::CURL);
+
+   const int symmDims = (dims * (dims + 1)) / 2; // 1x1: 1, 2x2: 3, 3x3: 6
+
+   coeffDim = DQ ? 3 : 1;
+   const int ndata = curlSpaces ? (DQ ? 9 : 1) : symmDims;
+
+   pa_data.SetSize(ndata * nq * ne, Device::GetMemoryType());
 
    Vector coeff(coeffDim * nq * ne);
    coeff = 1.0;
@@ -4055,12 +5179,23 @@ void MixedVectorWeakCurlIntegrator::AssemblePA(const FiniteElementSpace
       }
    }
 
-   testType = test_el->GetDerivType();
-   trialType = trial_el->GetDerivType();
-
    if (trialType == mfem::FiniteElement::CURL && dim == 3)
    {
-      PAHcurlL2Setup(nq, coeffDim, ne, ir->GetWeights(), coeff, pa_data);
+      if (coeffDim == 1)
+      {
+         PAHcurlL2Setup(nq, coeffDim, ne, ir->GetWeights(), coeff, pa_data);
+      }
+      else
+      {
+         PAHcurlHdivSetup3D(quad1D, coeffDim, ne, false, ir->GetWeights(),
+                            geom->J, coeff, pa_data);
+      }
+   }
+   else if (trialType == mfem::FiniteElement::DIV && dim == 3 &&
+            test_el->GetOrder() == trial_el->GetOrder())
+   {
+      PACurlCurlSetup3D(quad1D, coeffDim, ne, ir->GetWeights(), geom->J, coeff,
+                        pa_data);
    }
    else
    {
@@ -4188,9 +5323,30 @@ static void PAHcurlL2Apply3DTranspose(const int D1D,
          {
             for (int qx = 0; qx < Q1D; ++qx)
             {
-               for (int c=0; c<VDIM; ++c)
+               const double O11 = op(0,qx,qy,qz,e);
+               if (coeffDim == 1)
                {
-                  mass[qz][qy][qx][c] *= op(coeffDim == 3 ? c : 0, qx,qy,qz,e);
+                  for (int c = 0; c < VDIM; ++c)
+                  {
+                     mass[qz][qy][qx][c] *= O11;
+                  }
+               }
+               else
+               {
+                  const double O12 = op(1,qx,qy,qz,e);
+                  const double O13 = op(2,qx,qy,qz,e);
+                  const double O21 = op(3,qx,qy,qz,e);
+                  const double O22 = op(4,qx,qy,qz,e);
+                  const double O23 = op(5,qx,qy,qz,e);
+                  const double O31 = op(6,qx,qy,qz,e);
+                  const double O32 = op(7,qx,qy,qz,e);
+                  const double O33 = op(8,qx,qy,qz,e);
+                  const double massX = mass[qz][qy][qx][0];
+                  const double massY = mass[qz][qy][qx][1];
+                  const double massZ = mass[qz][qy][qx][2];
+                  mass[qz][qy][qx][0] = (O11*massX)+(O12*massY)+(O13*massZ);
+                  mass[qz][qy][qx][1] = (O21*massX)+(O22*massY)+(O23*massZ);
+                  mass[qz][qy][qx][2] = (O31*massX)+(O32*massY)+(O33*massZ);
                }
             }
          }
@@ -4434,10 +5590,10 @@ static void SmemPAHcurlL2Apply3DTranspose(const int D1D,
    auto X = Reshape(x.Read(), 3*(D1D-1)*D1D*D1D, NE);
    auto Y = Reshape(y.ReadWrite(), 3*(D1D-1)*D1D*D1D, NE);
 
-   MFEM_FORALL_3D(e, NE, Q1D, Q1D, Q1D,
+   auto device_kernel = [=] MFEM_DEVICE (int e)
    {
       constexpr int VDIM = 3;
-      constexpr int maxCoeffDim = 3;
+      constexpr int maxCoeffDim = 9;
 
       MFEM_SHARED double sBo[MAX_D1D][MAX_Q1D];
       MFEM_SHARED double sBc[MAX_D1D][MAX_Q1D];
@@ -4582,13 +5738,29 @@ static void SmemPAHcurlL2Apply3DTranspose(const int D1D,
 
                      for (int qx = 0; qx < Q1D; ++qx)
                      {
-                        const double O1 = sop[0][qx][qy];
-                        const double O2 = (coeffDim == 3) ? sop[1][qx][qy] : O1;
-                        const double O3 = (coeffDim == 3) ? sop[2][qx][qy] : O1;
+                        const double O11 = sop[0][qx][qy];
+                        double c1, c2, c3;
+                        if (coeffDim == 1)
+                        {
+                           c1 = O11 * mass[qy][qx][0];
+                           c2 = O11 * mass[qy][qx][1];
+                           c3 = O11 * mass[qy][qx][2];
+                        }
+                        else
+                        {
+                           const double O12 = sop[1][qx][qy];
+                           const double O13 = sop[2][qx][qy];
+                           const double O21 = sop[3][qx][qy];
+                           const double O22 = sop[4][qx][qy];
+                           const double O23 = sop[5][qx][qy];
+                           const double O31 = sop[6][qx][qy];
+                           const double O32 = sop[7][qx][qy];
+                           const double O33 = sop[8][qx][qy];
 
-                        const double c1 = O1 * mass[qy][qx][0];
-                        const double c2 = O2 * mass[qy][qx][1];
-                        const double c3 = O3 * mass[qy][qx][2];
+                           c1 = (O11*mass[qy][qx][0])+(O12*mass[qy][qx][1])+(O13*mass[qy][qx][2]);
+                           c2 = (O21*mass[qy][qx][0])+(O22*mass[qy][qx][1])+(O23*mass[qy][qx][2]);
+                           c3 = (O31*mass[qy][qx][0])+(O32*mass[qy][qx][1])+(O33*mass[qy][qx][2]);
+                        }
 
                         const double wcx = sBc[dx][qx];
                         const double wDx = sGc[dx][qx];
@@ -4632,7 +5804,14 @@ static void SmemPAHcurlL2Apply3DTranspose(const int D1D,
             }
          }
       } // qz
-   }); // end of element loop
+   }; // end of element loop
+
+   auto host_kernel = [&] MFEM_LAMBDA (int)
+   {
+      MFEM_ABORT_KERNEL("This kernel should only be used on GPU.");
+   };
+
+   ForallWrap<3>(true, NE, device_kernel, host_kernel, Q1D, Q1D, Q1D);
 }
 
 void MixedVectorWeakCurlIntegrator::AddMultPA(const Vector &x, Vector &y) const
@@ -4640,31 +5819,55 @@ void MixedVectorWeakCurlIntegrator::AddMultPA(const Vector &x, Vector &y) const
    if (testType == mfem::FiniteElement::CURL &&
        trialType == mfem::FiniteElement::CURL && dim == 3)
    {
+      const int ndata = coeffDim == 1 ? 1 : 9;
       if (Device::Allows(Backend::DEVICE_MASK))
       {
          const int ID = (dofs1D << 4) | quad1D;
          switch (ID)
          {
-            case 0x23: return SmemPAHcurlL2Apply3DTranspose<2,3>(dofs1D, quad1D, coeffDim,
+            case 0x23: return SmemPAHcurlL2Apply3DTranspose<2,3>(dofs1D, quad1D, ndata,
                                                                     ne, mapsO->B, mapsC->B,
                                                                     mapsC->G, pa_data, x, y);
-            case 0x34: return SmemPAHcurlL2Apply3DTranspose<3,4>(dofs1D, quad1D, coeffDim,
+            case 0x34: return SmemPAHcurlL2Apply3DTranspose<3,4>(dofs1D, quad1D, ndata,
                                                                     ne, mapsO->B, mapsC->B,
                                                                     mapsC->G, pa_data, x, y);
-            case 0x45: return SmemPAHcurlL2Apply3DTranspose<4,5>(dofs1D, quad1D, coeffDim,
+            case 0x45: return SmemPAHcurlL2Apply3DTranspose<4,5>(dofs1D, quad1D, ndata,
                                                                     ne, mapsO->B, mapsC->B,
                                                                     mapsC->G, pa_data, x, y);
-            case 0x56: return SmemPAHcurlL2Apply3DTranspose<5,6>(dofs1D, quad1D, coeffDim,
+            case 0x56: return SmemPAHcurlL2Apply3DTranspose<5,6>(dofs1D, quad1D, ndata,
                                                                     ne, mapsO->B, mapsC->B,
                                                                     mapsC->G, pa_data, x, y);
-            default: return SmemPAHcurlL2Apply3DTranspose(dofs1D, quad1D, coeffDim, ne,
+            default: return SmemPAHcurlL2Apply3DTranspose(dofs1D, quad1D, ndata, ne,
                                                              mapsO->B, mapsC->B,
                                                              mapsC->G, pa_data, x, y);
          }
       }
       else
-         PAHcurlL2Apply3DTranspose(dofs1D, quad1D, coeffDim, ne, mapsO->B, mapsC->B,
-                                   mapsO->Bt, mapsC->Bt, mapsC->Gt, pa_data, x, y);
+         PAHcurlL2Apply3DTranspose(dofs1D, quad1D, ndata, ne, mapsO->B,
+                                   mapsC->B, mapsO->Bt, mapsC->Bt, mapsC->Gt, pa_data, x, y);
+   }
+   else if (testType == mfem::FiniteElement::CURL &&
+            trialType == mfem::FiniteElement::DIV && dim == 3)
+   {
+      PAHcurlHdivApply3DTranspose(dofs1D, dofs1D, quad1D, ne, mapsO->B,
+                                  mapsC->B, mapsO->Bt, mapsC->Bt,
+                                  mapsC->Gt, pa_data, x, y);
+   }
+   else
+   {
+      MFEM_ABORT("Unsupported dimension or space!");
+   }
+}
+
+void MixedVectorWeakCurlIntegrator::AddMultTransposePA(const Vector &x,
+                                                       Vector &y) const
+{
+   if (testType == mfem::FiniteElement::CURL &&
+       trialType == mfem::FiniteElement::DIV && dim == 3)
+   {
+      PAHcurlHdivApply3D(dofs1D, dofs1D, quad1D, ne, mapsO->B,
+                         mapsC->B, mapsO->Bt, mapsC->Bt, mapsC->G,
+                         pa_data, x, y);
    }
    else
    {

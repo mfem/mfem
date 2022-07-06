@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -58,7 +58,7 @@ if (MFEM_USE_MPI)
   add_mfem_miniapp(navier_3dfoc
     MAIN navier_3dfoc.cpp
     ${NAVIER_COMMON_FILES}
-    LIBRARIES mfem)  
+    LIBRARIES mfem)
 
   add_mfem_miniapp(navier_turbchan
     MAIN navier_turbchan.cpp
@@ -67,6 +67,11 @@ if (MFEM_USE_MPI)
 
   add_mfem_miniapp(navier_3dbrink
     MAIN navier_3dbrink.cpp
+    ${NAVIER_COMMON_FILES}
+    LIBRARIES mfem) 
+
+  add_mfem_miniapp(navier_3dbrink_TMOP
+    MAIN navier_3dbrink_TMOP.cpp
     ${NAVIER_COMMON_FILES}
     LIBRARIES mfem) 
 
@@ -92,4 +97,14 @@ if (MFEM_USE_MPI)
           COMMENT "copy: ${MESH_FILE}")
     endforeach()
   endif ()
+
+  if (MFEM_ENABLE_TESTING)
+    foreach (test "mms" "kovasznay" "tgv")
+      add_test(NAME navier_${test}_np${MFEM_MPI_NP}
+        COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${MFEM_MPI_NP}
+        ${MPIEXEC_PREFLAGS}
+        $<TARGET_FILE:navier_${test}> -cr -no-vis
+        ${MPIEXEC_POSTFLAGS})
+    endforeach()
+endif()
 endif ()

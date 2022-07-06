@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -119,6 +119,32 @@ public:
    Memory<int> &GetJMemory() { return J; }
    const Memory<int> &GetIMemory() const { return I; }
    const Memory<int> &GetJMemory() const { return J; }
+
+   const int *ReadI(bool on_dev = true) const
+   { return mfem::Read(I, I.Capacity(), on_dev); }
+   int *WriteI(bool on_dev = true)
+   { return mfem::Write(I, I.Capacity(), on_dev); }
+   int *ReadWriteI(bool on_dev = true)
+   { return mfem::ReadWrite(I, I.Capacity(), on_dev); }
+   const int *HostReadI() const
+   { return mfem::Read(I, I.Capacity(), false); }
+   int *HostWriteI()
+   { return mfem::Write(I, I.Capacity(), false); }
+   int *HostReadWriteI()
+   { return mfem::ReadWrite(I, I.Capacity(), false); }
+
+   const int *ReadJ(bool on_dev = true) const
+   { return mfem::Read(J, J.Capacity(), on_dev); }
+   int *WriteJ(bool on_dev = true)
+   { return mfem::Write(J, J.Capacity(), on_dev); }
+   int *ReadWriteJ(bool on_dev = true)
+   { return mfem::ReadWrite(J, J.Capacity(), on_dev); }
+   const int *HostReadJ() const
+   { return mfem::Read(J, J.Capacity(), false); }
+   int *HostWriteJ()
+   { return mfem::Write(J, J.Capacity(), false); }
+   int *HostReadWriteJ()
+   { return mfem::ReadWrite(J, J.Capacity(), false); }
 
    /// @brief Sort the column (TYPE II) indices in each row.
    void SortRows();

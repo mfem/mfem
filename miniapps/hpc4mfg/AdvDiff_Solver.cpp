@@ -114,13 +114,24 @@ int main(int argc, char *argv[])
    // Allocate the nonlinear diffusion solver
    mfem::Advection_Diffusion_Solver* solver=new mfem::Advection_Diffusion_Solver(pmesh,order);
 
-   solver->SetLinearSolver(1e-10, 1e-13, 10000);
+   solver->SetLinearSolver(1e-12, 1e-15, 10000);
 
    //add boundary conditions
-   //solver->AddDirichletBC(1,3.0);
+   solver->AddDirichletBC(1,3.0);
 
    //add material
    solver->AddMaterial(new mfem::IdentityMatrixCoefficient(dim));
+
+
+   mfem::Vector ConstVelVector(pmesh->Dimension());   ConstVelVector = 1.0;   //ConstVelVector(0) = 1.0;
+   mfem::VectorConstantCoefficient velCoeff(ConstVelVector);
+
+   solver->SetVelocity( &velCoeff );
+
+   mfem::Vector ConstVector(pmesh->Dimension());   ConstVector = 0.0;   //ConstVector(0) = 1.0;
+   mfem::VectorConstantCoefficient avgTemp(ConstVector);
+
+   solver->SetGradTempMean( &avgTemp );
 
    //solve
    solver->FSolve();

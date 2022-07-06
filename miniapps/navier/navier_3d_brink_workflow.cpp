@@ -37,10 +37,11 @@ void Navier3dBrinkWorkflow::SetDensityCoeff()
    //dens.SetBallR(0.1);
    mDensCoeff->SetThreshold(meta);
    mDensCoeff->SetPatternType(DensityCoeff::PatternType::Gyroid);
-  // mDensCoeff->SetPatternType(DensityCoeff::PatternType::BCC);
+  // mDensCoeff->SetPatternType(DensityCoeff::PatternType::Octet);
    //mDensCoeff->SetPatternType(DensityCoeff::PatternType::SchwarzP);
    //mDensCoeff->SetPatternType(DensityCoeff::PatternType::SchwarzD);
-   mDensCoeff->SetProjectionType(DensityCoeff::ProjectionType::zero_one);
+   //mDensCoeff->SetProjectionType(DensityCoeff::ProjectionType::zero_one);
+   mDensCoeff->SetProjectionType(DensityCoeff::ProjectionType::continuous);
 }
 
 
@@ -55,8 +56,32 @@ void Navier3dBrinkWorkflow::SetupFlowSolver()
 void Navier3dBrinkWorkflow::SetInitialConditions( std::function<void(const Vector &, double, Vector &)> TDF )
 {
    ParGridFunction *u_ic = mFlowsolver->GetCurrentVelocity();
-   VectorFunctionCoefficient u_excoeff(mPMesh->Dimension(), TDF);
-   u_ic->ProjectCoefficient(u_excoeff);
+
+   if(false)
+   {
+      VectorFunctionCoefficient u_excoeff(mPMesh->Dimension(), TDF);
+      u_ic->ProjectCoefficient(u_excoeff);
+   }
+   else
+   {
+      std::string tStringIn = "VelGF";
+      int n = 6;
+      std::string tWorlsRank = std::to_string( mMPI.WorldRank());
+    
+      int precision = n - tWorlsRank.size();
+      std::string s = std::string(precision, '0').append(tWorlsRank);
+
+      tStringIn= tStringIn +"."+s;
+
+      std::ifstream inp(tStringIn);
+      ParGridFunction tLoadGF(mPMesh, inp);
+
+      *u_ic = tLoadGF;
+
+      //u_ic->Print();
+   }
+   
+
 
    // Add Dirichlet boundary conditions to velocity space restricted to
    // selected attributes on the mesh.
@@ -129,20 +154,19 @@ void Navier3dBrinkWorkflow::Perform( )
    //    //mBp->SetVel(flowsolver.GetProvisionalVelocity());
       if( mVisualization )
       {
-       if (step % 200 == 0)
-       {
-          mPvdc->SetCycle(step);
-          mPvdc->SetTime(t);
-          mPvdc->Save();
-       }
-
-       if (mMPI.Root())
-       {
-          printf("%11s %11s\n", "Time", "dt");
-          printf("%.5E %.5E\n", t, dt);
-          fflush(stdout);
-       }
+         if (step % 200 == 0)
+         {
+           mPvdc->SetCycle(step);
+            mPvdc->SetTime(t);
+            mPvdc->Save();
+         }
       }
+         if (mMPI.Root())
+         {
+            printf("%11s %11s\n", "Time", "dt");
+            printf("%.5E %.5E\n", t, dt);
+            fflush(stdout);
+         }
     }
 
     mFlowsolver->PrintTimingData();
@@ -151,6 +175,10 @@ void Navier3dBrinkWorkflow::Perform( )
 void Navier3dBrinkWorkflow::Postprocess(const int & runID)
 {
    ParGridFunction * u = mFlowsolver->GetCurrentVelocity();
+
+   std::string tOutputNameGF = "VelGF";
+
+   u->Save( tOutputNameGF.c_str() );
 
    FiniteElementSpace *fes = u->FESpace();
    int vdim = fes->GetVDim();

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -211,13 +211,13 @@ void HeatDistanceSolver::ComputeScalarDistance(Coefficient &zero_level_set,
       a_n.RecoverFEMSolution(X, b, u_neumann);
       delete prec2;
 
-      for (int i = 0; i < diffused_source.Size(); i++)
+      for (int ii = 0; ii < diffused_source.Size(); ii++)
       {
          // This assumes that the magnitudes of the two solutions are somewhat
          // similar; otherwise one of the solutions would dominate and the BC
          // won't look correct. To avoid this, it's good to have the source
          // away from the boundary (i.e. have more resolution).
-         diffused_source(i) = 0.5 * (u_neumann(i) + u_dirichlet(i));
+         diffused_source(ii) = 0.5 * (u_neumann(ii) + u_dirichlet(ii));
       }
       source = diffused_source;
    }

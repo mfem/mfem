@@ -234,16 +234,18 @@ void NLDiffusion::ASolve(mfem::Vector &rhs)
 
     adj = 0.0;
 
-    // ess_tdofv allocated correclty in forwards pass
-    
     HypreParMatrix A;
     Vector B, X;
+
+    // ess_tdofv allocated correclty in forwards pass
     //nf->GetGradient(sol).FormLinearSystem(ess_tdofv, adj, rhs, A, X, B);
 
-    ls->SetOperator(A);
-    ls->Mult(B, X);
+    //ls->SetOperator(a.GetGradient(sol->GetTrueVector()));
+    //ls->Mult(B.GetTrueVector(), X.GetTrueVector());
 
     adj = X;
+
+   // nodeDisp.SetFromTrueVector();
 
 }
 

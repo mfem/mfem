@@ -21,7 +21,7 @@ int main(int argc, char *argv[])
    const char *mesh_file = "../../../data/one_ele.mesh";
    int ser_ref_levels = 0;
    int par_ref_levels = 0;
-   int order = 1;
+   int order = 8;
    bool visualization = true;
    double newton_rel_tol = 1e-4;
    double newton_abs_tol = 1e-6;
@@ -112,13 +112,14 @@ int main(int argc, char *argv[])
    }
 
    // Allocate the nonlinear diffusion solver
-   mfem::NLGLS_Solver* solver=new mfem::NLGLS_Solver(pmesh,8);
+   mfem::NLGLS_Solver* solver=new mfem::NLGLS_Solver(pmesh,order);
 
    //add boundary conditions
    solver->AddDirichletBC(1,0.0);
 
    //add material
    solver->AddMaterial(new mfem::IdentityMatrixCoefficient(dim));
+
 
    //solve
    solver->FSolve();

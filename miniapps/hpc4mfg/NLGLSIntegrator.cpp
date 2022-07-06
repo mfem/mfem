@@ -136,7 +136,7 @@ void NLGLSIntegrator::AssembleElementVector(const FiniteElement &el,
         mat->Eval( matTensor, trans, ip );
       
         // gaccess GF value at GP
-        U_GF_->GetVectorValue( trans, ip, UVal);
+        vel_->Eval( UVal, trans,ip );
        
         // inner product 
         double AdvTerm =  UVal*dT;     
@@ -154,11 +154,11 @@ void NLGLSIntegrator::AssembleElementVector(const FiniteElement &el,
                 // TODO ckeck if this is correct
                 Bx_temp_dim.Add(matTensor( Ik,Ii ), Bx_subMat[Ii]);
             }
-         
+
             // get second derivative matrix
             dshape_xyz.GetColumn(Ik, bx_i);
             Bx_temp_dim.MultTranspose(bx_i, gradTestFlux_i);  
-            
+
             // get divFlux i
             divFlux -= elfun*gradTestFlux_i;
 
@@ -236,7 +236,7 @@ void NLGLSIntegrator::AssembleElementGrad(const FiniteElement &el,
         mat->Eval( matTensor, trans, ip );
       
         // gaccess GF value at GP
-        U_GF_->GetVectorValue( trans, ip, UVal);    
+        vel_->Eval( UVal, trans,ip ); 
         
         dshape_xyz.Mult(UVal, testVec);
 
@@ -328,7 +328,7 @@ void NLGLSIntegrator::AssembleElementMatrix(const FiniteElement &el,
         mat->Eval( matTensor, trans, ip );
       
         // gaccess GF value at GP
-        U_GF_->GetVectorValue( trans, ip, UVal);    
+        vel_->Eval( UVal, trans,ip );  
         
         dshape_xyz.Mult(UVal, testVec);
 
@@ -353,127 +353,59 @@ void NLGLSIntegrator::AssembleElementMatrix(const FiniteElement &el,
             testVec -= gradTestFlux_i;
         }
 
+        double tStabVal = StabCoeff_->Eval(trans, ip);
+
         if( isSUPG )
         {
-            AddMult_a_VWt(w, testVecSUPG, testVec, elmat);
+            AddMult_a_VWt(w*tStabVal, testVecSUPG, testVec, elmat);
         }
         else
         {
-            AddMult_a_VVt(w*0.00001, testVec, elmat);
+            AddMult_a_VVt(w*tStabVal, testVec, elmat);
         }
     }
 }
 
+double NLGLSIntegrator::GLSCoefficient::Eval(
+    mfem::ElementTransformation & T,
+    const IntegrationPoint & ip)
+    {
+        // double tStabVal = 1.0/std::sqrt( std::pow(2.0* UVal.Norml2()/hmin_,2) + std::pow(4.0*1.0/std::sqrt(hmin_),2) );
+        double tStabVal = 0.0;
+        double diffc = 0.0;
+        double h = 0.0;
 
-// void GLSLFIntegrator::AssembleRHSElementVect(const FiniteElement &el,
-//                                                   ElementTransformation &trans,
-//                                                   Vector &elvect)
-// {
-//     const int ndof = el.GetDof();
-//     const int ndim = el.GetDim();
-//     const int spaceDim = trans.GetSpaceDim();
-//     int order = 2 * el.GetOrder() + trans.OrderGrad(&el);
-//     const IntegrationRule &ir(IntRules.Get(el.GetGeomType(), order));
+        DenseMatrix diffm(dim_);
+        Vector vel(dim_);
 
-//     // shape function N
-//     Vector shapef(ndof);
-//     // derivatives dN in isoparametric coordinates
-//     DenseMatrix dshape_iso(ndof, ndim);
-//     // derivatives dN in physical space
-//     DenseMatrix dshape_xyz(ndof, spaceDim);
-//     DenseMatrix matTensor(spaceDim,spaceDim);
-//     // discrete gradient matrix
-//     DenseMatrix Bx;
-//     Vector lvec(ndof);
-//     Vector testVec(ndof);
-//     Vector testVecSUPG(ndof);
-//     Vector UVal(ndim);
-//     Vector bx_i(ndof);
-//     Vector gradTestFlux_i(ndof);
-//     // elemental R vector
-//     elvect.SetSize(ndof);
-//     elvect = 0.0;
+        {
+            if(MaterialCoeff_!=nullptr)
+            {
+                MaterialCoeff_->Eval(diffm,T,ip);
+                diffc=diffm.CalcSingularvalue(dim_-1);
+            }
+            else
+            {
+                //diffc=cdiff->Eval(T,ip);
+            }
+               
+            h=pow(T.Weight(),1./dim_);
+            if(diffc>h)
+            {
+                tStabVal=h*h;
+            }
+            else
+            {
+                vel_->Eval( vel, T,ip );
+                tStabVal=h/std::fmax(fabs(vel.Normlinf()),1e-12);
+            }
+        }
 
-//     if(mat==nullptr){return;}
 
-//     Vector dT(ndim);
 
-//     std::vector< DenseMatrix > Bx_subMat(spaceDim, DenseMatrix(ndof, ndof));
-//     std::vector< Vector > NodalFlux(spaceDim, Vector(ndof));
 
-//     double w;
-
-//     // Compute the discrete gradient matrix from the given FiniteElement onto 'this' FiniteElement
-//     el.ProjectGrad(el, trans, Bx);
-    
-//     for( int Ik = 0; Ik < ndim; Ik++)
-//     {
-//         Bx_subMat[Ik] = 0.0;
-//         Bx_subMat[Ik].CopyRows(Bx, ndof*Ik,ndof*(Ik+1)-1);
-//     }
-
-//     for (int i = 0; i < ir.GetNPoints(); i++)
-//     {
-//         const IntegrationPoint &ip = ir.IntPoint(i);
-//         trans.SetIntPoint(&ip);
-//         w = trans.Weight();
-//         w = ip.weight * w;
-
-//         // get derivatives of shape function for integration point
-//         el.CalcDShape(ip, dshape_iso);
-//         // get shape function for integration point
-//         el.CalcShape(ip, shapef);
-//         // compute derivatives of shape function in physical space
-//         Mult(dshape_iso, trans.InverseJacobian(), dshape_xyz);
-//         // calculate the gradient in physical space
-//         dshape_xyz.MultTranspose(elfun, dT);
-
-//         // Get material tensor
-//         mat->Eval( matTensor, trans, ip );
-      
-//         // gaccess GF value at GP
-//         U_GF_->GetVectorValue( trans, ip, UVal);
-       
-//         // inner product 
-//         double AdvTerm =  UVal*dT;     
-        
-//         dshape_xyz.Mult(UVal, testVec);
-
-//         double divFlux = 0.0;
-
-//         for( int Ik = 0; Ik < ndim; Ik++)
-//         {
-//             DenseMatrix Bx_temp_dim(Bx_subMat[Ik]); Bx_temp_dim = 0.0;
-
-//             for( int Ii = 0; Ii < ndim; Ii++)
-//             {
-//                 // TODO ckeck if this is correct
-//                 Bx_temp_dim.Add(matTensor( Ik,Ii ), Bx_subMat[Ii]);
-//             }
-         
-//             // get second derivative matrix
-//             dshape_xyz.GetColumn(Ik, bx_i);
-//             Bx_temp_dim.MultTranspose(bx_i, gradTestFlux_i);  
-            
-//             // get divFlux i
-//             divFlux -= elfun*gradTestFlux_i;
-
-//             if( !isSUPG )
-//             {
-//                 testVec -= gradTestFlux_i;
-//             }
-//         }
-
-//         elvect.Add(divFlux*w,testVec);
-//         elvect.Add(AdvTerm*w,testVec);
-
-//         if( Coeff_ )
-//         {
-//             elvect.Add( -1.0*Coeff_->Eval(trans, ip)*w, testVec);
-//         }
-
-//     }//end integration loop
-// }
+        return tStabVal;
+    }
 
 void NLGLS_Solver::FSolve()
 {
@@ -491,14 +423,15 @@ void NLGLS_Solver::FSolve()
     std::cout<<"BC dofs size="<<ess_tdofv.Size()<<std::endl;
 
     // FIXME
-    ParGridFunction tU_GF(fes_u);
-    tU_GF = 1.0;
+    ParGridFunction velocityGF(fes_u);
+    velocityGF = 1.0;
+    mfem::VectorGridFunctionCoefficient velocity(&velocityGF);
 
     //allocate the non-linear form and add the integrators
     if(nf==nullptr){
         nf=new mfem::ParNonlinearForm(fes);
         for(size_t i=0;i<materials.size();i++){
-            nf->AddDomainIntegrator(new NLGLSIntegrator(materials[i], &tU_GF, &s0));
+            nf->AddDomainIntegrator(new NLGLSIntegrator(materials[i], &velocity, new NLGLSIntegrator::GLSCoefficient(pmesh,&velocity,materials[i]), &s0));
         }
     }
 
