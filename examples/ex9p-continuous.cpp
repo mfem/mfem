@@ -64,12 +64,6 @@ int problem;
 // Velocity coefficient
 void velocity_function(const Vector &x, Vector &v);
 
-void test_func(ParGridFunction &u, Vector &U, ParFiniteElementSpace &pfes);
-
-void test_merged(SparseMatrix & spm);
-
-SparseMatrix test_pbf(ParBilinearForm & pbf);
-
 // Exact solution
 double u0_function(const Vector &x);
 double exact_sol(const Vector &x, double t);
@@ -100,14 +94,14 @@ private:
    HypreSolver *M_prec;
    HyprePCG M_solver; // Symmetric system, can use CG
 
-   mutable SparseMatrix *dij_matrix;
-   SparseMatrix * K_spmat;
+   mutable SparseMatrix dij_matrix;
+   SparseMatrix K_spmat;
    SparseMatrix K_spmat_wide;
    HypreParMatrix *D;
    HypreParMatrix *W;
 
    Array<int> K_smap;
-   mutable Vector z;
+   mutable Vector z, rhs;
 
    double timestep;
 
@@ -120,9 +114,7 @@ public:
    */
    void build_dij_matrix(const Vector &U,
                          const VectorFunctionCoefficient &velocity) ;
-   void build_dij_matrix_modified(const Vector &U,
-                         const VectorFunctionCoefficient &velocity) ;
-   void apply_dij(ParGridFunction &u, Vector &du) const;
+   void apply_dij(const Vector &u, Vector &du) const;
    void calculate_timestep();
    double get_timestep();
 
@@ -300,10 +292,6 @@ int main(int argc, char *argv[])
    if (match_dt_to_h) { dt = hmin/2.; }
    if (one_time_step) { t_final = dt; }
 
-   // int nfaces = pmesh->GetNSharedFaces();
-   // cout << myid << " nfaces: " << nfaces << endl;
-   // assert(false);
-
    // 7. Define the parallel H1 finite element space on the
    //    parallel refined mesh of the given polynomial order.
    // H1_FECollection fec(order, dim, BasisType::Positive);
@@ -344,25 +332,13 @@ int main(int argc, char *argv[])
    m->AddDomainIntegrator(new LumpedIntegrator(new MassIntegrator));
    constexpr double alpha = -1.0;
    k->AddDomainIntegrator(new ConvectionIntegrator(velocity, alpha));
-   k->KeepNbrBlock(false);
+   k->KeepNbrBlock(true);
 
    int skip_zeros = 0;
    m->Assemble();
    k->Assemble(skip_zeros);
    m->Finalize();
    k->Finalize(skip_zeros);
-
-   
-   // SparseMatrix modified_sp = test_pbf(*k);
-   // Vector modified_sums, sums_;
-   // modified_sp.GetRowSums(modified_sums);
-   // k->SpMat().PrintInfo(cout);
-   // cout << "modified sp: " << endl;
-   // modified_sp.PrintInfo(cout);
-   // k->SpMat().GetRowSums(sums_);
-   // modified_sums -= sums_;
-   // modified_sums.Print(cout);
-
 
    // 9. Define the initial conditions, save the corresponding grid function to
    //    a file and (optionally) save data in the VisIt format and initialize
@@ -371,15 +347,7 @@ int main(int argc, char *argv[])
    u->ProjectCoefficient(u0);
    HypreParVector *U = u->GetTrueDofs();
 
-   ParGridFunction u_gf = *u;
-   // k->GetProlongation()->Mult(*U, *U);
-   // cout << "post prolong\n";
-   // test_func(*u, *U, *fes);
-
    ConstantCoefficient zero(0.0);
-
-   // cout << "my id: " << myid << "ldof size: " << u->Size() << endl;
-   // cout << myid << " ????????????? Local V size?: " << fes->GetVSize() << endl;
 
    {
       ostringstream mesh_name, sol_name;
@@ -473,11 +441,10 @@ int main(int argc, char *argv[])
    ode_solver->Init(adv);
 
    // dij_matrix has no time dependence
-   adv.build_dij_matrix_modified(*u, velocity);
+   adv.build_dij_matrix(*u, velocity);
    adv.calculate_timestep();
 
    // Verify our timestamp satisfies the cfl condition
-   // cout << "dt: " << dt << endl;
    assert (dt <= adv.get_timestep());
 
    bool done = false;
@@ -486,13 +453,6 @@ int main(int argc, char *argv[])
       double dt_real = min(dt, t_final - t);
       ode_solver->Step(*U, t, dt_real);
       ti++;
-
-      // Testing
-      // double zero_L2_error = u->ComputeL2Error(zero);
-      // double zero_L2_error_gf = u_gf.ComputeL2Error(zero);
-      // cout << "u L2: " << zero_L2_error << endl;
-      // cout << "u_gf L2: " << zero_L2_error_gf << endl;
-
 
       done = (t >= t_final - 1e-8*dt);
 
@@ -505,10 +465,7 @@ int main(int argc, char *argv[])
 
          // 11. Extract the parallel grid function corresponding to the finite
          //     element approximation U (the local solution on each processor).
-         // *u = *U; // Synchronizes MPI processes.
-         u->SetFromTrueDofs(*U);
-         // u->ExchangeFaceNbrData();
-         // u->SetTrueVector();
+         *u = *U; // Synchronizes MPI processes.
 
          if (visualization)
          {
@@ -655,9 +612,7 @@ FE_Evolution::FE_Evolution(ParBilinearForm &M_, ParBilinearForm &K_)
      K_smap(),
      lumpedM(&pfes),
      timestep(0.),
-     K_pbf(K_),
-     K_spmat(&K_pbf.SpMat()),
-     dij_matrix(&K_pbf.SpMat())
+     K_pbf(K_)
 {
    if (pfes.GetParMesh()->bdr_attributes.Size())
    {
@@ -669,14 +624,9 @@ FE_Evolution::FE_Evolution(ParBilinearForm &M_, ParBilinearForm &K_)
    cout << "Initialize FE_Evolution class.\n";
    M_.FormSystemMatrix(ess_tdof_list, M_hpm);
    M_hpm.GetDiag(lumpedM);
-   // cout << "K_ shape" << K_.Height() << "," << K_.Width() << endl;
-   K_hpm = K_.ParallelAssemble();
-   // K_.FormSystemMatrix(ess_tdof_list, *K_hpm);
-   // K_pbf.FormSystemMatrix(ess_tdof_list, *K_hpm);
-   // cout << "K_hpm size: " << K_hpm->Height() << "," << K_hpm->Width() << endl;
-   // assert(false);
-
-   K_hpm->MergeDiagAndOffd(K_spmat_wide);
+   K_hpm = K_pbf.ParallelAssemble();
+   K_hpm->GetDiag(K_spmat);
+   dij_matrix = K_spmat;
 
    // M_solver.iterative_mode = false;
    // M_solver.SetRelTol(1e-9);
@@ -690,15 +640,7 @@ FE_Evolution::FE_Evolution(ParBilinearForm &M_, ParBilinearForm &K_)
 
    // Assuming K is finalized. (From extrapolator.)
    // K_smap is used later to symmetrically form dij_matrix
-   
-   // K_hpm = K_pbf.ParallelAssemble();
-   // Array<HYPRE_BigInt> gi;
-   // pfes.GetParMesh()->GetGlobalVertexIndices(gi);
-   // K_spmat = dynamic_cast<SparseMatrix *>(K_hpm->ExtractSubmatrix(gi));
-   // cout << "Khpme size: " << K_spmat->Height() << "," << K_spmat->Width() << endl;
-   // assert(false);
-
-   const int *I = K_spmat->GetI(), *J = K_spmat->GetJ(), n = K_spmat->Size();
+   const int *I = K_spmat.GetI(), *J = K_spmat.GetJ(), n = K_spmat.Size();
    K_smap.SetSize(I[n]);
    for (int row = 0, j = 0; row < n; row++)
    {
@@ -736,19 +678,14 @@ void FE_Evolution::build_dij_matrix(const Vector &U,
                                     const VectorFunctionCoefficient &velocity)
 {
    cout << "Build dij\n";
-   // const SparseMatrix K_spmat = K_pbf.SpMat();
-   const int *I = K_spmat->HostReadI(), *J = K_spmat->HostReadJ();
-   const int n = K_spmat->Size(), n_local = 0;
-   
-   // cout << "K_spmat size: " << K_spmat->Height() << "," << K_spmat->Width() << endl;
-   // n is the size of local dof + nbr dof
-   // need n_loc as well
 
-   const double *K_data = K_spmat->HostReadData();
+   const int *I = K_spmat.HostReadI(), *J = K_spmat.HostReadJ();
+   const int n = K_spmat.Size(), n_local = 0;
 
-   double *D_data = dij_matrix->HostReadWriteData();
+   const double *K_data = K_spmat.HostReadData();
+
+   double *D_data = dij_matrix.HostReadWriteData();
    double rowsum;
-   assert (false);
 
    for (int i = 0, k = 0; i < n; i++)
    {
@@ -768,93 +705,30 @@ void FE_Evolution::build_dij_matrix(const Vector &U,
          }
          
       }
-      (*dij_matrix)(i,i) = - rowsum;
+      dij_matrix(i,i) = - rowsum;
    }
 
    // Check that our matrix dij is symmetric.
-   if (dij_matrix->IsSymmetric()) {
+   if (dij_matrix.IsSymmetric()) {
       cout << "ERROR: dij matrix must be symmetric.\n";
-      cout << "Val: " << dij_matrix->IsSymmetric() << endl;
+      cout << "Val: " << dij_matrix.IsSymmetric() << endl;
       return;
    }
    
    // D = D_form->ParallelAssemble(&dij_matrix);
-   D = new HypreParMatrix(MPI_COMM_WORLD, pfes.GlobalVSize(), pfes.GetDofOffsets(), dij_matrix);  
-   W = RAP(D, pfes.Dof_TrueDof_Matrix());
-
-   cout << "End dij construction.\n";
-}
-
-void FE_Evolution::build_dij_matrix_modified(const Vector &U,
-                                    const VectorFunctionCoefficient &velocity)
-{
-   cout << "Build dij modified\n";
-   // const SparseMatrix K_spmat = K_pbf.SpMat();
-   const int *I = K_spmat_wide.HostReadI(), *J = K_spmat_wide.HostReadJ(), *J_norm = K_spmat->HostReadJ();
-   const int n = K_spmat_wide.Size();
-   const int n_ldofs = K_spmat->Size();
-
-   const double *K_data = K_spmat_wide.HostReadData();
-
-   double *D_data = dij_matrix->HostReadWriteData();
-   double rowsum;
-
-   for (int i = 0, k = 0; i < n; i++)
-   {
-      rowsum = 0.;
-      for (int end = I[i+1]; k < end; k++)
-      {
-         int j = J[k];
-         int local_j = pfes.GetLocalTDofNumber(j);
-         if (j != local_j) {
-            if (local_j >= n_ldofs) {
-               cout << "Houston, we have a problem.\n";
-               cout << "local_j: " << local_j << " n_ldofs: " << n_ldofs << endl;
-            }
-         }
-         
-
-         if (i != j)
-         {
-            double kij = K_spmat_wide(i, j);
-            double kji = (*K_spmat)(local_j, i);
-            double dij = fmax(abs(kij), abs(kji));
-            
-            (*dij_matrix)(i,local_j) = dij;
-            (*dij_matrix)(local_j,i) = dij;
-            rowsum += dij; 
-         }
-         
-      }
-      (*dij_matrix)(i,i) = - rowsum;
-   }
-
-   // Check that our matrix dij is symmetric.
-   if (dij_matrix->IsSymmetric()) {
-      cout << "ERROR: dij matrix must be symmetric.\n";
-      cout << "Val: " << dij_matrix->IsSymmetric() << endl;
-      return;
-   }
-   
-   // D = D_form->ParallelAssemble(&dij_matrix);
-   D = new HypreParMatrix(MPI_COMM_WORLD, pfes.GlobalVSize(), pfes.GetDofOffsets(), dij_matrix);  
-   W = RAP(D, pfes.Dof_TrueDof_Matrix());
-
-   cout << "End dij construction.\n";
+   // D = new HypreParMatrix(MPI_COMM_WORLD, pfes.GlobalVSize(), pfes.GetDofOffsets(), &dij_matrix);  
+   // W = RAP(D, pfes.Dof_TrueDof_Matrix());
 }
 
 /******************************************************************************
  * FE_Evolution::apply_dij(ParGridFunction &u, Vector &du) const
  * Purpose:
  * ***************************************************************************/
-void FE_Evolution::apply_dij(ParGridFunction &u, Vector &du) const
+void FE_Evolution::apply_dij(const Vector &u, Vector &du) const
 {
    const int s = u.Size();
-   const int *I = dij_matrix->HostReadI(), *J = dij_matrix->HostReadJ();
-   const double *D_data = dij_matrix->HostReadData();
-
-   u.ExchangeFaceNbrData();
-   const Vector &u_np = u.FaceNbrData();
+   const int *I = dij_matrix.HostReadI(), *J = dij_matrix.HostReadJ();
+   const double *D_data = dij_matrix.HostReadData();
    
    for (int i = 0; i < s; i++)
    {
@@ -863,13 +737,9 @@ void FE_Evolution::apply_dij(ParGridFunction &u, Vector &du) const
       {
          int j = J[k];
 
-         double u_j = (j < s) ? u(j) : u_np[j - s];
-
-         double d_ij = D_data[k];
-         du(i) += d_ij * u_j;
+         du(i) += D_data[k] * u(j);
       }
    }
-
 }
 
 /******************************************************************************
@@ -885,7 +755,7 @@ void FE_Evolution::calculate_timestep()
    double t_min = 0;
    double t_temp = 0;
    Vector dii;
-   dij_matrix->GetDiag(dii);
+   dij_matrix.GetDiag(dii);
 
    for (int i = 0; i < n; i++) 
    {
@@ -893,8 +763,8 @@ void FE_Evolution::calculate_timestep()
       if (t_temp > t_min) { t_min = t_temp; }
    }
 
-   // cout << "Minimized timestep: " << t_min << endl;
    this->timestep = t_min;
+   cout << "Finished calculating timestep.\n";
 }
 
 /******************************************************************************
@@ -913,151 +783,21 @@ double FE_Evolution::get_timestep()
  * ***************************************************************************/
 void FE_Evolution::Mult(const Vector &x, Vector &y) const
 {
-   ParGridFunction x_gf(&pfes), z_gf(&pfes), rhs_gf(&pfes);
-   pfes.GetProlongationMatrix()->Mult(x, x_gf);
+   K_hpm->Mult(x, z);
 
-   int myid = Mpi::WorldRank();
-   
-   // {
-   //    cout << myid << " GetNE(): " << pfes.GetParMesh()->GetNE() << endl;
-   //    // cout << myid << " GetNRanks: " << pfes.GetNRanks() << endl;
-   //    cout << myid << " GetMyRank: " << pfes.GetMyRank() << endl;
-   //    cout << myid << " GetMyDofOffset: " << pfes.GetMyDofOffset() << endl;
-   //    // cout << myid << " GetNBE(): " << pfes.GetParMesh()->GetNBE() << endl;
-   //    cout << myid << " N ldofs: " << pfes.GetVSize() << endl;
-   //    cout << myid << " N tdofs: " << pfes.GetTrueVSize() << endl;
-   //    pfes.ExchangeFaceNbrData();
-   //    cout << myid << " Face Nbr Vsize: " << pfes.GetFaceNbrVSize() << endl;
-   //    cout << myid << " x size: " << x.Size() << endl;
-   //    cout << myid << " x_gf size: " << x_gf.Size() << endl;
-   //    cout << myid << " D size: " << D->Height() << "," << D->Width() <<endl;
-   //    if (myid == 1)
-   //    {
-   //       for (int i = 0; i < pfes.GetVSize(); i++)
-   //       {
-   //          cout << "i: " << i << ", Global tdof number: " << pfes.GetGlobalTDofNumber(i) << endl;
-   //       }
-   //    }
-         
-   //    Array<HYPRE_BigInt> gi;
-   //    pfes.GetParMesh()->GetGlobalVertexIndices(gi);
-   //    cout << myid << " Global Vertex Indices length: " << gi.Size() << endl;
-   //    assert(false);
-   // }
+   const int s = x.Size();
+   rhs.SetSize(s);
+   y.SetSize(s);
 
-   y.SetSize(x.Size());
-   y = 0.;
-   // cout << "x size: " << x.Size() << endl;
-   // cout << "y size: " << y.Size() << endl;
-   // x is a tdof vector
-   ConstantCoefficient zero(0.0);
-   
-   // y = Ml^{-1} ((D + K) x)
-   // cout << "Begin mult\n";
-   
+   apply_dij(x, rhs);
+   z += rhs; 
 
-   // apply_dij(x_gf, z_gf);
-   D->Mult(x_gf, z_gf);
+   assert(lumpedM.Size() == s);
 
-   // SparseMatrix tester;
-   // K_hpm->GetDiag(tester);
-   // Vector diag_sums(tester.Height()), diag_off_sums(tester.Height());
-   // tester.GetRowSums(diag_sums);
-   // cout << "tester size: " << tester.Height() << "," << tester.Width() << endl;
-   // K_hpm->MergeDiagAndOffd(tester);
-   // cout << "Merged tester size: " << tester.Height() << "," << tester.Width() << endl;
-   // tester.GetRowSums(diag_off_sums);
-   // diag_sums -= diag_off_sums;
-   // diag_sums.Print(cout);
-   // test_merged(tester);
-   // Array<HYPRE_BigInt> extracted_indices;
-   // pfes.GetParMesh()->GetGlobalElementIndices(extracted_indices);
-   // HypreParMatrix *extracted = K_hpm->ExtractSubmatrix(extracted_indices);
-   // cout << "Extracted size: " << extracted->Height() << "," << extracted->Width() << endl;
-
-   // if (Mpi::Root()) {
-   //    cout << "Sizes: \n";
-   //    cout << "????????????? Local V size?: " << pfes.GetVSize() << endl;
-   //    cout << "True V Size: " << pfes.GetTrueVSize() << endl;
-   //    cout << "Global V Size: " << pfes.GlobalVSize() << endl;
-   //    cout << "dij size: " << dij_matrix->Height() << "," << dij_matrix->Width() <<endl;
-   //    cout << "D size: " << D->Height() << "," << D->Width() <<endl;
-   //    cout << "W size: " << W->Height() << "," << W->Width() << endl;
-   //    cout << "K_hpm size: " << K_hpm.Height() << "," << K_hpm.Width() << endl;
-   //    cout << "x size: " << x.Size() << endl;
-   //    cout << "x_gf size: " << x_gf.Size() << endl;
-   //    cout << "lumpedM Size: " << lumpedM.Size() << endl;
-   // }
-   // if (myid == 1) {
-   //    cout << "Process 2\n";
-   //    cout << "Sizes: \n";
-   //    cout << "????????????? Local V size?: " << pfes.GetVSize() << endl;
-   //    cout << "True V Size: " << pfes.GetTrueVSize() << endl;
-   //    cout << "Global V Size: " << pfes.GlobalVSize() << endl;
-   //    cout << "dij size: " << dij_matrix->Height() << "," << dij_matrix->Width() <<endl;
-   //    cout << "D size: " << D->Height() << "," << D->Width() <<endl;
-   //    cout << "W size: " << W->Height() << "," << W->Width() << endl;
-   //    cout << "K_pbf size: " << K_pbf.Height() << "," << K_pbf.Width() << endl;
-   //    cout << "lumped M size: " << lumpedM.Size() << endl;
-   //    cout << "x size: " << x.Size() << endl;
-   //    cout << "x_gf size: " << x_gf.Size() << endl;
-   //    assert(false);
-   // }
-   // if (myid == 2) {
-   //    cout << "Process 3\n";
-   //    cout << "Sizes: \n";
-   //    cout << "????????????? Local V size?: " << pfes.GetVSize() << endl;
-   //    cout << "True V Size: " << pfes.GetTrueVSize() << endl;
-   //    cout << "Global V Size: " << pfes.GlobalVSize() << endl;
-   //    cout << "dij size: " << dij_matrix->Height() << "," << dij_matrix->Width() <<endl;
-   //    cout << "D size: " << D->Height() << "," << D->Width() <<endl;
-   //    cout << "W size: " << W->Height() << "," << W->Width() << endl;
-   //    cout << "K_spmat size: " << K_spmat->Height() << "," << K_spmat->Width() << endl;
-   //    cout << "K_hpm size: " << K_hpm.Height() << "," << K_hpm.Width() << endl;
-   //    cout << "x size: " << x.Size() << endl;
-   //    cout << "u_gf size: " << u_gf.Size() << endl;
-   // }
-   // if (myid == 3) {
-   //    cout << "Process 4\n";
-   //    cout << "Sizes: \n";
-   //    cout << "True V Size: " << pfes.GetTrueVSize() << endl;
-   //    cout << "Global V Size: " << pfes.GlobalVSize() << endl;
-   //    cout << "dij size: " << dij_matrix->Height() << "," << dij_matrix->Width() <<endl;
-   //    cout << "D size: " << D->Height() << "," << D->Width() <<endl;
-   //    cout << "W size: " << W->Height() << "," << W->Width() << endl;
-   //    cout << "K_spmat size: " << K_spmat->Height() << "," << K_spmat->Width() << endl;
-   //    cout << "K_hpm size: " << K_hpm.Height() << "," << K_hpm.Width() << endl;
-   //    cout << "x size: " << x.Size() << endl;
-   //    cout << "u_gf size: " << u_gf.Size() << endl;
-   // }
-
-   K_pbf.Mult(x_gf, rhs_gf);
-   z_gf += rhs_gf;
-   pfes.GetRestrictionMatrix()->Mult(z_gf, y);
-   
-   // W->Mult(x,y);
-   // K_pbf.TrueAddMult(x, y, 1.0);
-   // z_gf += rhs;
-   // K_spmat->Mult(x_gf, z_gf);
-   
-
-   // M_solver.Mult(z, y);
-   const int s = y.Size();
-   // cout << "size: " << s << endl;
    for (int i = 0; i < s; i++)
    {
-      y(i) = y(i) / lumpedM(i);
-      // cout << "lumpedM " << i << ": " << lumpedM(i) << endl;
-      
+      y(i) = z(i) / lumpedM(i);
    }
-
-   // cout << "x_gf: " << x_gf.ComputeL2Error(zero) << endl;
-   // cout << "y_gf: " << y_gf.ComputeL2Error(zero) << endl;
-   // cout << "z_gf: " << z_gf.ComputeL2Error(zero) << endl;
-   // assert(false);
-
-   // y_gf.SetFromTrueDofs(*z_gf.GetTrueDofs());
-   // y = y_gf;
 
    assert (y.Size() == x.Size());
 }
@@ -1068,8 +808,7 @@ void FE_Evolution::Mult(const Vector &x, Vector &y) const
  * ***************************************************************************/
 FE_Evolution::~FE_Evolution()
 {
-   delete D;
-   // delete dij_matrix;
+   // delete D;
 }
 
 // Velocity coefficient
@@ -1143,7 +882,6 @@ void velocity_function(const Vector &x, Vector &v)
       }
    }
 }
-
 
 // Exact Solution u(x,t) 
 // Note that u(x,0) = u_0(x)
@@ -1269,90 +1007,4 @@ double inflow_function(const Vector &x)
       case 4: return 0.0;
    }
    return 0.0;
-}
-
-void test_func(ParGridFunction &u, Vector &U, ParFiniteElementSpace &pfes)
-{
-   ParGridFunction u_gf(&pfes);
-   u_gf = U;
-
-   ConstantCoefficient zero(0.0);
-   double zero_L2_error = u.ComputeL2Error(zero);
-   double zero_vector = u_gf.ComputeL2Error(zero);
-
-   cout << "PGF error: " << zero_L2_error << endl;
-   cout << "HPM error: " << zero_vector << endl;
-   assert(false);
-}
-
-void test_merged(SparseMatrix & spm)
-{
-   const int s = spm.Height();
-   const int *I = spm.HostReadI(), *J = spm.HostReadJ();
-   const double *D_data = spm.HostReadData();
-
-   // u.ExchangeFaceNbrData();
-   // const Vector &u_np = u.FaceNbrData();
-
-   double rowsum, rowsum_d;
-
-   cout << "s: " << s << endl;
-   
-   for (int i = 0; i < s; i++)
-   {
-      rowsum = 0.;
-      rowsum_d = 0.;
-      for (int k = I[i]; k < I[i + 1]; k++)
-      {
-         int j = J[k];
-         if (i != j)
-         {
-            double kij = D_data[k];
-            if (kij != 0 && j >= s)
-            {
-               // cout << "s: " << s << " i: " << i << " j: " << j << " kij: " << kij << endl;
-            }
-            else
-            {
-               rowsum_d += kij;
-            }
-            rowsum += kij;
-         }
-      }
-      // cout << "i: " << i << " rowsum: " << rowsum << " rowsum_d: " << rowsum_d << endl;
-   }
-   // assert(false);
-}
-
-SparseMatrix test_pbf(ParBilinearForm & pbf)
-{
-   DenseMatrix elmat;
-   int skip_zeros = 0;
-   
-   ParFiniteElementSpace * pfes = pbf.ParFESpace();
-   ParBilinearForm pbf_copy(pfes);
-   Array<int> dofs;
-
-   // cout << "pbf size: " << pbf.Height() << "," << pbf.Width() << endl;
-   // cout << "True V Size: " << pfes->GetTrueVSize() << endl;
-
-   for (int i = 0; i < 10; i++)
-   {
-      // per url
-      // https://github.com/mfem/mfem/issues/484
-      // pfes->GetElementDofs(i, dofs);
-      pbf.ComputeElementMatrix(i, elmat);
-      pbf.AssembleElementMatrix(i, elmat, dofs, skip_zeros);
-      if (i == 1)
-      {
-         elmat.Print(cout);
-      }
-   }
-
-   pbf.Finalize();
-   // SparseMatrix test = pbf.SpMat();
-   // test.Print(cout);
-
-
-   return pbf.SpMat();
 }
