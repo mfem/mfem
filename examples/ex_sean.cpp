@@ -604,8 +604,12 @@ int main(int argc, char *argv[]) {
   const int subcell_num = lref * lref;
 
   const FiniteElement *fe_LOR = u_LOR.FESpace()->GetFE(0);
-  const IntegrationRule &ir_LOR =
-      MassIntegrator::GetRule(*fe_LOR, *fe_LOR, *Tr_LOR);
+  //const IntegrationRule &ir_LOR =
+  //MassIntegrator::GetRule(*fe_LOR, *fe_LOR, *Tr_LOR);
+
+    const IntegrationRule &ir_LOR =
+      MassIntegrator::GetRule(*fe, *fe, *Tr);
+  
   const int nqp_LOR = ir_LOR.GetNPoints();
   // cout << "ir_LOR(0) = " << ir_LOR->IntPoint(0) << endl;
 
@@ -701,7 +705,7 @@ int main(int argc, char *argv[]) {
           m_rhs(i) +=
               my_ir[q].weight *
               geom_LOR.detJ(k * subcell_num * nqp_LOR + s * nqp_LOR + q) *
-            //  u_LOR_trans(k * subcell_num + s) * shape(i);
+            //u_LOR_trans(k * subcell_num + s) * shape(i);
             5.0 * shape(i);
             //1.0 * maps.B[q1 + i1*maps.nqpt] * maps.B[q2 + i2*maps.nqpt];  //B2[q + nqp_LOR * i];
             //u_LOR_trans(k * subcell_num + s) * B2[q + nqp_LOR * i];
