@@ -55,21 +55,15 @@ using namespace mfem;
 int problem;
 
 // Node transform Function
-void NodeShift(const IntegrationPoint &ip, const int &s, Vector &ip_trans);
+void NodeShift(const IntegrationPoint &ip, const int &s, Vector &ip_trans,
+               const int &dim);
 
-// Calculate the "new" high order solution based on LOR
-/*
-void CalculateLORInterp(GridFunction &u_HO_interp, const Mesh &mesh,
-                        const Mesh &mesh_LOR, const GridFunction &x,
-                        const GridFunction &u_LOR, GridFunction &node_vals,
-                        FindPointsGSLIB &finder, const FiniteElementSpace &fes);
-                        */
-/*
-// Calculate the Low Order Refined Solution
-void CalculateLORSolution(GridTransfer &gt,
-                          const GridFunction &u_HO,
-                          GridFunction &u_LOR);
-*/
+// Calculate the LOR projection to the HO FESpace
+void CalculateLORProjection(const GridFunction &x, const GridFunction &u_HO,
+                            const GridFunction &u_LOR, const FiniteElementSpace &fes,
+                            const FiniteElementSpace &fes_LOR, const int &order,
+                            const int &lref, const Mesh &mesh, Vector &sol_vec);
+
 // Calculate the Low Order Solution
 void CalculateLOSolution(const GridFunction &u_HO, const GridFunction &x,
                          const double &dt, GridFunction &u_LO, Vector &el_mass,
@@ -178,14 +172,14 @@ int main(int argc, char *argv[]) {
   // 1. Parse command-line options.
   problem = 0;
   const char *mesh_file = "../data/periodic-square.mesh";
-  int ref_levels = 0;
-  int order = 1;
+  int ref_levels = 3;
+  int order = 2;
   bool pa = false;
   bool ea = false;
   bool fa = false;
   const char *device_config = "cpu";
   int ode_solver_type = 1;
-  double t_final = 0.01;
+  double t_final = 1.0;
   double dt = 0.0001;
   bool visualization = true;
   bool visit = false;
@@ -524,13 +518,16 @@ int main(int argc, char *argv[]) {
   Vector el_min(NE);
   Vector el_max(NE);
 
-  // Here we do the interpolation to recover a smoother solution using
-  // the LOR solution.
-  //FindPointsGSLIB finder;
-  //finder.Setup(mesh_LOR);
   GridFunction node_vals(x.FESpace());
 
-  const Operator &P = gt->BackwardOperator();
+  // Some values needed for the LOR projection to the HO space
+  int ndofs = (order + 1);
+  if (dim == 2)
+    ndofs *= (order + 1);
+  if (dim == 3)
+    ndofs *= (order + 1) * (order + 1);
+
+  Vector sol_vec(ndofs * NE);
 
   // Time loop for solving
   bool done = false;
@@ -547,7 +544,6 @@ int main(int argc, char *argv[]) {
     if (averaging == 2 || averaging == 3) {
       // Here we do an L2 projection onto the finer fes, gives u_LOR
       R.Mult(u_HO, u_LOR);
-      // P.Mult(u_LOR, u_HO_interp);
     }
 
     ti++;
@@ -579,223 +575,16 @@ int main(int argc, char *argv[]) {
     }
   }
 
-  //---------------------------------------------------------------------------
-  // Trying to send the LOR solution to the HO the chad L2 projection way
-  int ndofs = (order + 1);
-  if (dim == 2)
-    ndofs *= (order + 1);
-  if (dim == 3)
-    ndofs *= (order + 1);
-  auto *Tr = x.FESpace()->GetMesh()->GetElementTransformation(0);
-  const FiniteElement *fe = u_HO.FESpace()->GetFE(0);
-  const IntegrationRule &ir = MassIntegrator::GetRule(*fe, *fe, *Tr);
-  // Store important data in emat
-  // It's stored such that emat[dof1 + height*(dof2 + elem*width)]
-  Vector emat(ndofs * ndofs * NE);
-  MassIntegrator mass_int(&ir);
-  mass_int.AssembleEA(fes, emat, false);
-
-  Mesh *mesh_temp_LOR = fes_LOR.GetMesh();
-  GridFunction x_LOR(mesh_temp_LOR->GetNodes()->FESpace());
-  mesh_temp_LOR->GetNodes(x_LOR);
-  // cout << "u_LOR size = " << u_LOR.Size() << endl;
-
-  auto *Tr_LOR = x_LOR.FESpace()->GetMesh()->GetElementTransformation(0);
-  const int NE_LOR = x_LOR.FESpace()->GetNE();
-  // Need this alue because it's how many subcells there are to a cell.
-  const int subcell_num = lref * lref;
-
-  const FiniteElement *fe_LOR = u_LOR.FESpace()->GetFE(0);
-  //const IntegrationRule &ir_LOR =
-  //MassIntegrator::GetRule(*fe_LOR, *fe_LOR, *Tr_LOR);
-
-    const IntegrationRule &ir_LOR =
-      MassIntegrator::GetRule(*fe, *fe, *Tr);
-
-  const int nqp_LOR = ir_LOR.GetNPoints();
-  // cout << "ir_LOR(0) = " << ir_LOR->IntPoint(0) << endl;
-
-  // Grabbing information from the quadrature
-  GeometricFactors geom_LOR(x_LOR, ir_LOR, GeometricFactors::DETERMINANTS);
-  auto qi_u_LOR = u_LOR.FESpace()->GetQuadratureInterpolator(ir_LOR);
-  Vector u_LOR_qvals(subcell_num * nqp_LOR * NE);
-
-  qi_u_LOR->Values(u_LOR, u_LOR_qvals);
-
-  Vector m_rhs(ndofs);
-  Vector ip_trans(3);
-
-  // Declarations for the FCT Function
-  Vector x_FCT(ndofs);
-  x_FCT = 1.0;
-  double y_min = -std::numeric_limits<double>::max();
-  double y_max = std::numeric_limits<double>::max();
-  Vector xy(ndofs);
-  Vector sol_vec(ndofs * NE);
-
-  // IMPORTANT
-  int mesh_width = 3;
-  int mesh_height = 3;
-  int subcell_x = 2;
-  int subcell_y = subcell_x;
-
-  Vector El_trans(mesh_width * mesh_height * subcell_x * subcell_y);
-  for (int i = 0; i < mesh_height; i++) {
-    for (int j = 0; j < mesh_width; j++) {
-      for (int sy = 0; sy < subcell_y; sy++) {
-        for (int sx = 0; sx < subcell_x; sx++) {
-          cout << sx + subcell_x * (sy + subcell_y * (j + mesh_width * i))
-               << " -> "
-               << sx + 2 * mesh_width * sy + 2 * j + 4 * mesh_width * i << endl;
-
-          El_trans(sx + subcell_x * (sy + subcell_y * (j + mesh_width * i))) =
-              sx + 2 * mesh_width * sy + 2 * j + 4 * mesh_width * i;
-        }
-      }
-    }
-  }
-  cout << endl;
-
-  Vector u_LOR_vec(4 * NE);
-  Vector u_LOR_trans(4 * NE);
-
-  for (int i = 0; i < 4 * NE; i++) {
-    u_LOR_vec(i) = u_LOR(i);
-    u_LOR_trans(i) = u_LOR(El_trans(i));
-    //cout << "u_LOR_vec(" << i << ") = " << u_LOR_vec(i) << "  u_LOR_trans("
-    //<< u_LOR_trans(i) << ")" << endl;
+  if (averaging == 2 || averaging == 3) {
+    // Projection back into the HO space
+    // NOTE that this can be called whenever we want but for the sake of
+    // computing time we just run it at the final timestep
+    CalculateLORProjection(x, u_HO, u_LOR, fes, fes_LOR, order, lref, mesh, sol_vec);
   }
 
-  //std::cout << "nqp_LOR = " << nqp_LOR << std::endl;
-
-  // Integration loop to calculate main looping
-  for (int k = 0; k < NE; k++) {
-    /*
-    const FiniteElement *fe_test = fes.GetFE(k);
-    int num_ldofs = fe_test->GetDof();
-
-    IntegrationRule zone_dofs(num_ldofs);
-    zone_dofs = fe_test->GetNodes();
-
-    // Output number of dofs per cell
-    cout << "Element Number: " << k << endl;
-    for (int i = 0; i < num_ldofs; ++i)
-    {
-            IntegrationPoint ip_test = zone_dofs.IntPoint(i);
-            cout << "Node " << i << ": " << ip_test.x << " " << ip_test.y <<
-    endl;
-    }
-    cout << endl;
-    */
-
-    m_rhs = 0.0;
-    //std::cout<<"ndofs = "<<ndofs<<std::endl;
-    for (int i = 0; i < ndofs; i++) {
-
-      for (int s = 0; s < subcell_num; s++) {
-
-        IntegrationRule my_ir = ir_LOR;
-
-        for (int q = 0; q < nqp_LOR; q++) {
-
-          IntegrationPoint ip_LOR = ir_LOR.IntPoint(q);
-          NodeShift(ip_LOR, s, ip_trans);
-          ip_LOR.Set(ip_trans(0), ip_trans(1), 0, ip_LOR.weight);
-
-          Vector shape(ndofs);
-          fe->CalcShape(ip_LOR, shape);
-          m_rhs(i) +=
-              my_ir[q].weight *
-              geom_LOR.detJ(k * subcell_num * nqp_LOR + s * nqp_LOR + q) *
-            //u_LOR_trans(k * subcell_num + s) * shape(i);
-            5.0 * shape(i);
-            //1.0 * maps.B[q1 + i1*maps.nqpt] * maps.B[q2 + i2*maps.nqpt];  //B2[q + nqp_LOR * i];
-            //u_LOR_trans(k * subcell_num + s) * B2[q + nqp_LOR * i];
-        }
-        //std::cout<<std::endl;
-      }
-      //exit(-1);
-
-     }//loop over i
-
-    // Handle the mass matrix for the linear solve for each element
-    DenseMatrix M(ndofs, ndofs);
-    // DenseMatrix M1(ndofs,ndofs);
-    for (int j = 0; j < ndofs; j++) {
-      for (int i = 0; i < ndofs; i++) {
-        // M(i,j) = m.Elem(i + ndofs*k, j + ndofs*k);
-        M(j, i) = emat(i + ndofs * (j + ndofs * k));
-        // cout << "difference = " << M(i,j) - M1(j,i) << endl;
-        // cout << "M(" << i << ")(" << j << ") = " << M(i,j) << endl;
-      }
-    }
-
-    DenseMatrixInverse M_inv(M);
-    DenseMatrix M_temp;
-    M_inv.Factor();
-    M_inv.GetInverseMatrix(M_temp);
-
-    // verification
-    /*
-    DenseMatrix result(M.Size());
-    M_inv.Mult(M,result);
-    for (int i = 0; i < M.Size(); i++)
-    {
-            cout << result(i,0) << endl;
-    }
-    */
-
-    // cout << "determinant of M = " << M.Det() << endl;
-    // cout << "determinant of M1 = " << M1.Det() << endl;
-
-    /*
-                            for (int i = 0; i<ndofs; i++)
-                            {
-                                    for (int j = 0; j < ndofs; j++)
-                                    {
-                                            cout << "M_inv(" << i << ")(" << j
-       << ") = " << M_temp(i,j) << endl;
-                                    }
-                            }
-                            */
-
-    Vector m_test(ndofs);
-    m_test = m_rhs;
-
-    //M_temp.Mult(m_test, xy);
-
-    //m_test.Print();
-    FCT_Project(M, M_inv, m_test, x_FCT, y_min, y_max, xy);
-
-    for (int i = 0; i < xy.Size(); i++) {
-      //  cout << "xy(" << i << ") = " << xy(i) << endl;
-    }
-
-    xy.Print();
-    for (int i = 0; i < xy.Size(); i++) {
-      sol_vec(i + k * ndofs) = xy(i);
-      //cout << xy(i) << endl;
-    }
-  }
-
-  GridFunction u_HO_interp(&fes, sol_vec, 0);
-  VisItDataCollection HO_interp_dc("HO_interp", &mesh);
-  HO_interp_dc.RegisterField("Density", &u_HO_interp);
-
-  //---------------------------------------------------------------------------
-
-  // Here we do the interpolation to recover a smoother solution using
-  // the LOR solution.
-  /*
-CalculateLORInterp(u_HO_interp,
-              mesh,
-              mesh_LOR,
-              x,
-              u_LOR,
-              node_vals,
-              finder,
-              fes);
-*/
+  GridFunction u_HO_Proj(&fes, sol_vec, 0);
+  VisItDataCollection HO_Proj_dc("HO_interp", &mesh);
+  HO_Proj_dc.RegisterField("Density", &u_HO_Proj);
 
   // 9. Save the final solution. This output can be viewed later using GLVis:
   if (visualization) {
@@ -809,18 +598,14 @@ CalculateLORInterp(u_HO_interp,
     if (averaging == 2 || averaging == 3) {
       visualize(LOR_dc, "LOR", Wx, Wy);
       Wx += offx;
+      visualize(HO_Proj_dc, "HO_Proj", Wx, Wy);
+      Wx += offx;
     }
-    visualize(HO_interp_dc, "HO_interp", Wx, Wy);
-    Wx += offx;
   }
 
   ofstream osol_HO("ex_sean-final_HO.gf");
   osol_HO.precision(precision);
   u_HO.Save(osol_HO);
-
-  ofstream osol_HO_interp("ex_sean-final_HO_interp.gf");
-  osol_HO_interp.precision(precision);
-  u_HO_interp.Save(osol_HO_interp);
 
   if (averaging == 1 || averaging == 3) {
     ofstream osol_LO("ex_sean-final_LO.gf");
@@ -832,6 +617,9 @@ CalculateLORInterp(u_HO_interp,
     ofstream osol_LOR("ex_sean-final_LOR.gf");
     osol_LOR.precision(precision);
     u_LOR.Save(osol_LOR);
+    ofstream osol_HO_Proj("ex_sean-final_HO_Proj.gf");
+    osol_HO_Proj.precision(precision);
+    u_HO_Proj.Save(osol_HO_Proj);
   }
 
   // 10. Free the used memory.
@@ -846,90 +634,162 @@ CalculateLORInterp(u_HO_interp,
   return 0;
 }
 
-// Need this function to shift the reference node values for the L2 Projection
-void NodeShift(const IntegrationPoint &ip, const int &s, Vector &ip_trans) {
-  Vector temp(3);
-  ip_trans(0) = ip.x;
-  ip_trans(1) = ip.y;
-  ip_trans(2) = 1;
+// Need this function to calculate the projection from the LOR space to the HO
+// HO space
+void CalculateLORProjection(const GridFunction &x, const GridFunction &u_HO,
+                            const GridFunction &u_LOR, const FiniteElementSpace &fes,
+                            const FiniteElementSpace &fes_LOR, const int &order,
+                            const int &lref, const Mesh &mesh, Vector &sol_vec) {
+  int dim = mesh.Dimension();
+  const int NE = x.FESpace()->GetNE();
 
-  DenseMatrix trans(3);
-  trans(0, 0) = .5;
-  trans(1, 1) = .5;
-  trans(2, 2) = 1;
+  int ndofs = (order + 1);
+  if (dim == 2)
+    ndofs *= (order + 1);
+  if (dim == 3)
+    ndofs *= (order + 1) * (order + 1);
 
-  if (s == 1) {
-    trans(0, 2) = .5;
-  } else if (s == 2) {
-    trans(1, 2) = .5;
-  } else if (s == 3) {
-    trans(0, 2) = .5;
-    trans(1, 2) = .5;
+  auto *Tr = x.FESpace()->GetMesh()->GetElementTransformation(0);
+  const FiniteElement *fe = u_HO.FESpace()->GetFE(0);
+  const IntegrationRule &ir = MassIntegrator::GetRule(*fe, *fe, *Tr);
+  // Store important data in emat
+  // It's stored such that emat[dof1 + height*(dof2 + elem*width)]
+  Vector emat(ndofs * ndofs * NE);
+
+  MassIntegrator mass_int(&ir);
+  mass_int.AssembleEA(fes, emat, false);
+
+  Mesh *mesh_temp_LOR = fes_LOR.GetMesh();
+  GridFunction x_LOR(mesh_temp_LOR->GetNodes()->FESpace());
+  mesh_temp_LOR->GetNodes(x_LOR);
+
+  int subcell_num;
+  if (dim == 2) {
+    subcell_num = lref * lref;
+  } else if (dim == 3) {
+    subcell_num = lref * lref * lref;
   }
 
+  const IntegrationRule &ir_LOR = MassIntegrator::GetRule(*fe, *fe, *Tr);
+  const int nqp_LOR = ir_LOR.GetNPoints();
+  GeometricFactors geom_LOR(x_LOR, ir_LOR, GeometricFactors::DETERMINANTS);
+
+  Vector m_rhs(ndofs);
+  Vector ip_trans(dim + 1);
+
+  // Declarations for the FCT Function
+  Vector x_FCT(ndofs);
+  x_FCT = 1.0;
+  double y_min = -std::numeric_limits<double>::max();
+  double y_max = std::numeric_limits<double>::max();
+  Vector xy(ndofs);
+
+
+  // Integration loop for the LOR projection
+  for (int k = 0; k < NE; k++) {
+    m_rhs = 0.0;
+    for (int i = 0; i < ndofs; i++) {
+      for (int s = 0; s < subcell_num; s++) {
+        IntegrationRule my_ir = ir_LOR;
+        for (int q = 0; q < nqp_LOR; q++) {
+          IntegrationPoint ip_LOR = ir_LOR.IntPoint(q);
+          NodeShift(ip_LOR, s, ip_trans, dim);
+          if (dim == 2) {
+            ip_LOR.Set(ip_trans(0), ip_trans(1), 0, ip_LOR.weight);
+          } else if (dim == 3) {
+            ip_LOR.Set(ip_trans(0), ip_trans(1), ip_trans(2), ip_LOR.weight);
+          }
+
+          Vector shape(ndofs);
+          fe->CalcShape(ip_LOR, shape);
+          m_rhs(i) +=
+              my_ir[q].weight *
+              geom_LOR.detJ(k * subcell_num * nqp_LOR + s * nqp_LOR + q) *
+              u_LOR(k * subcell_num + s) * shape(i);
+        }
+      }
+    }
+
+    // Handle the mass matrix for the linear solve for each element
+    DenseMatrix M(ndofs, ndofs);
+    for (int j = 0; j < ndofs; j++) {
+      for (int i = 0; i < ndofs; i++) {
+        M(j, i) = emat(i + ndofs * (j + ndofs * k));
+      }
+    }
+
+    DenseMatrixInverse M_inv(M);
+    DenseMatrix M_temp;
+    M_inv.Factor();
+    M_inv.GetInverseMatrix(M_temp);
+
+    FCT_Project(M, M_inv, m_rhs, x_FCT, y_min, y_max, xy);
+
+    for (int i = 0; i < xy.Size(); i++) {
+      sol_vec(i + k * ndofs) = xy(i);
+    }
+  }
+}
+
+// Need this function to shift the reference node values for the L2 Projection
+void NodeShift(const IntegrationPoint &ip, const int &s, Vector &ip_trans,
+               const int &dim) {
+  Vector temp(dim + 1);
+  DenseMatrix trans(dim + 1);
+  if (dim == 2) {
+    ip_trans(0) = ip.x;
+    ip_trans(1) = ip.y;
+    ip_trans(2) = 1;
+
+    trans(0, 0) = 0.5;
+    trans(1, 1) = 0.5;
+    trans(2, 2) = 1;
+
+    if (s == 1) {
+      trans(0, 2) = 0.5;
+    } else if (s == 2) {
+      trans(1, 2) = 0.5;
+    } else if (s == 3) {
+      trans(0, 2) = 0.5;
+      trans(1, 2) = 0.5;
+    }
+  } else if (dim == 3) {
+    ip_trans(0) = ip.x;
+    ip_trans(1) = ip.y;
+    ip_trans(2) = ip.z;
+    ip_trans(3) = 1;
+
+    trans(0, 0) = 0.5;
+    trans(1, 1) = 0.5;
+    trans(2, 2) = 0.5;
+    trans(3, 3) = 1;
+
+    if (s == 1) {
+      trans(0, 3) = 0.5;
+    } else if (s == 2) {
+      trans(1, 3) = 0.5;
+    } else if (s == 3) {
+      trans(0, 3) = 0.5;
+      trans(1, 3) = 0.5;
+    } else if (s == 4) {
+      trans(2, 3) = 0.5;
+    } else if (s == 5) {
+      trans(0, 3) = 0.5;
+      trans(2, 3) = 0.5;
+    } else if (s == 6) {
+      trans(1, 3) = 0.5;
+      trans(2, 3) = 0.5;
+    } else if (s == 7) {
+      trans(0, 3) = 0.5;
+      trans(1, 3) = 0.5;
+      trans(2, 3) = 0.5;
+    }
+  }
   trans.Mult(ip_trans, temp);
 
   ip_trans = temp;
 }
-/*
-void CalculateLORInterp(GridFunction &u_HO_interp, const Mesh &mesh,
-                        const Mesh &mesh_LOR, const GridFunction &x,
-                        const GridFunction &u_LOR, GridFunction &node_vals,
-                        FindPointsGSLIB &finder,
-                        const FiniteElementSpace &fes) {
-  const int NE = x.FESpace()->GetNE();
-  int dim = mesh.Dimension();
 
-  // This does not give us what we want I think
-  mesh.GetNodes(node_vals);
-
-  // Grabbing information from the finite element space
-  const FiniteElement *zone = fes.GetFE(0);
-  int num_ldofs = zone->GetDof();
-
-  IntegrationRule zone_dofs(num_ldofs);
-
-  // Output number of dofs per cell
-  cout << "Number of dofs per cell: " << num_ldofs << endl;
-  for (int i = 0; i < num_ldofs; ++i) {
-    zone_dofs[i] = zone->GetNodes()[i];
-  }
-
-  // Element restriction
-  const Operator *x_elem_restrict_lex =
-      x.FESpace()->GetElementRestriction(ElementDofOrdering::LEXICOGRAPHIC);
-
-  Vector x_local;
-  x_local.SetSize(x_elem_restrict_lex->Height());
-  x_elem_restrict_lex->Mult(x, x_local);
-
-  // Grabbing information from the quadrature
-  auto x_interpolator = x.FESpace()->GetQuadratureInterpolator(zone_dofs);
-  x_interpolator->SetOutputLayout(QVectorLayout::byNODES);
-  Vector u_HO_dofs(dim * num_ldofs * NE);
-
-  // Evaluates the right hand side gridfunction at x
-  x_interpolator->Values(x_local, u_HO_dofs);
-
-  // temporary vector for the interpolating
-  Vector HO_dofs(u_HO_dofs);
-
-  auto u_LO_view = mfem::Reshape(u_HO_dofs.Read(), num_ldofs, dim, NE);
-  auto u_LO_xyz_view = mfem::Reshape(HO_dofs.Write(), num_ldofs * NE, dim);
-
-  for (int e = 0; e < NE; ++e) {
-    for (int i = 0; i < num_ldofs; ++i) {
-      int ti = i + num_ldofs * e;
-      u_LO_xyz_view(ti, 0) = u_LO_view(i, 0, e);
-      u_LO_xyz_view(ti, 1) = u_LO_view(i, 1, e);
-    }
-  }
-
-  finder.Interpolate(HO_dofs, u_LOR, u_HO_interp);
-
-  cout << "Why aren't you working" << endl;
-}
-*/
 // Calculate the Low Order solution
 void CalculateLOSolution(const GridFunction &u_HO, const GridFunction &x,
                          const double &dt, GridFunction &u_LO, Vector &el_mass,
