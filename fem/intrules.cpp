@@ -173,6 +173,51 @@ void IntegrationRule::GrundmannMollerSimplexRule(int s, int n)
    }
 }
 
+IntegrationRule*
+IntegrationRule::ApplyToKnotIntervals(KnotVector const& kv) const
+{
+   const int np = this->GetNPoints();
+   const int ne = kv.GetNE();
+
+   IntegrationRule *kvir = new IntegrationRule(ne * np);
+
+   double x0 = kv[0];
+   double x1 = x0;
+
+   int id = 0;
+   for (int e=0; e<ne; ++e)
+   {
+      x0 = x1;
+
+      if (e == ne-1)
+      {
+         x1 = kv[kv.Size() - 1];
+      }
+      else
+      {
+         // Find the next unique knot
+         while (id < kv.Size() - 1)
+         {
+            id++;
+            if (kv[id] != x0)
+            {
+               x1 = kv[id];
+               break;
+            }
+         }
+      }
+
+      const double s = x1 - x0;
+
+      for (int j=0; j<this->GetNPoints(); ++j)
+      {
+         const double x = x0 + (s * (*this)[j].x);
+         (*kvir)[(e * np) + j].Set1w(x, (*this)[j].weight);
+      }
+   }
+
+   return kvir;
+}
 
 #ifdef MFEM_USE_MPFR
 
@@ -1725,9 +1770,9 @@ IntegrationRule *IntegrationRules::CubeIntegrationRule(int Order)
    return CubeIntRules[Order];
 }
 
-NURBSPatchProductRule::NURBSPatchProductRule(IntegrationRule *irx,
-                                             IntegrationRule *iry,
-                                             IntegrationRule *irz)
+NURBSPatchRule::NURBSPatchRule(IntegrationRule *irx,
+                               IntegrationRule *iry,
+                               IntegrationRule *irz)
    : dim(irz ? 3 : 2)
 {
    if (irz)
@@ -1740,9 +1785,9 @@ NURBSPatchProductRule::NURBSPatchProductRule(IntegrationRule *irx,
    }
 }
 
-IntegrationRule& NURBSPatchProductRule::GetElementRule(const int patch,
-                                                       int *ijk,
-                                                       Array<const KnotVector*> const& kv) const
+IntegrationRule& NURBSPatchRule::GetElementRule(const int patch,
+                                                int *ijk,
+                                                Array<const KnotVector*> const& kv) const
 {
    if (patchRules1D.NumRows())
    {
@@ -1825,8 +1870,8 @@ IntegrationRule& NURBSPatchProductRule::GetElementRule(const int patch,
    }
 }
 
-void NURBSPatchProductRule::SetPatchRules1D(const int patch,
-                                            std::vector<IntegrationRule*> & ir1D)
+void NURBSPatchRule::SetPatchRules1D(const int patch,
+                                     std::vector<IntegrationRule*> & ir1D)
 {
    MFEM_VERIFY(ir1D.size() == dim, "Wrong dimension");
 

@@ -190,7 +190,7 @@ int main(int argc, char *argv[])
    if (pa) { a.SetAssemblyLevel(AssemblyLevel::PARTIAL); }
 
    DiffusionIntegrator *di = new DiffusionIntegrator(one);
-   NURBSPatchProductRule *patchRule = nullptr;
+   NURBSPatchRule *patchRule = nullptr;
    if (order < 0)
    {
       const int ir_order = 2*fec->GetOrder();
@@ -200,11 +200,11 @@ int main(int argc, char *argv[])
       {
          IntegrationRule *ir = const_cast<IntegrationRule*> (&IntRules.Get(
                                                                 Geometry::SEGMENT, ir_order));
-         patchRule = new NURBSPatchProductRule(ir, ir, dim == 3 ? ir : nullptr);
+         patchRule = new NURBSPatchRule(ir, ir, dim == 3 ? ir : nullptr);
       }
       else
       {
-         patchRule = new NURBSPatchProductRule(mesh.NURBSext->GetNP(), dim);
+         patchRule = new NURBSPatchRule(mesh.NURBSext->GetNP(), dim);
          // Loop over patches and set a different rule for each patch.
          for (int p=0; p<mesh.NURBSext->GetNP(); ++p)
          {
@@ -212,47 +212,10 @@ int main(int argc, char *argv[])
             mesh.NURBSext->GetPatchKnotVectors(p, kv);
 
             std::vector<IntegrationRule*> ir1D(dim);
+            const IntegrationRule *ir = &IntRules.Get(Geometry::SEGMENT, ir_order);
             for (int i=0; i<dim; ++i)
             {
-               const IntegrationRule *ir = &IntRules.Get(Geometry::SEGMENT, ir_order);
-               const int np = ir->GetNPoints();
-               const int ne = kv[i]->GetNE();
-
-               ir1D[i] = new IntegrationRule(ne * np);
-
-               double x0 = (*kv[i])[0];
-               double x1 = x0;
-
-               int id = 0;
-               for (int e=0; e<ne; ++e)
-               {
-                  x0 = x1;
-
-                  if (e == ne-1)
-                  {
-                     x1 = (*kv[i])[kv[i]->Size() - 1];
-                  }
-                  else
-                  {
-                     while (id < kv[i]->Size() - 1)
-                     {
-                        id++;
-                        if ((*kv[i])[id] != x0)
-                        {
-                           x1 = (*kv[i])[id];
-                           break;
-                        }
-                     }
-                  }
-
-                  const double s = x1 - x0;
-
-                  for (int j=0; j<ir->GetNPoints(); ++j)
-                  {
-                     const double x = x0 + (s * (*ir)[j].x);
-                     (*ir1D[i])[(e * np) + j].Set1w(x, (*ir)[j].weight);
-                  }
-               }
+               ir1D[i] = ir->ApplyToKnotIntervals(*kv[i]);
             }
 
             /*

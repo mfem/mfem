@@ -844,7 +844,7 @@ void DiffusionIntegrator::AssembleElementMatrix
       dynamic_cast<const NURBSFiniteElement *>(&el);
 
    IntegrationRule *irn = nullptr;
-   if (NURBSFE && NURBSPatchRule)
+   if (NURBSFE && patchRule)
    {
       const int patch = NURBSFE->GetPatch();
       int ijk[3];
@@ -857,7 +857,7 @@ void DiffusionIntegrator::AssembleElementMatrix
 
       MFEM_VERIFY(kv.Size() == dim, "Sanity check (remove later)");
 
-      irn = &NURBSPatchRule->GetElementRule(patch, ijk, kv);
+      irn = &patchRule->GetElementRule(patch, ijk, kv);
    }
 
    const int numIP = irn ? irn->GetNPoints() : ir->GetNPoints();
