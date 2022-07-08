@@ -5697,6 +5697,7 @@ void Mesh::GetBdrElementEdges(int i, Array<int> &edges, Array<int> &cor) const
    }
 }
 
+
 void Mesh::GetFaceEdges(int i, Array<int> &edges, Array<int> &o) const
 {
    if (Dim == 2)
@@ -6121,6 +6122,26 @@ void Mesh::EdgesWithAllVerts(Array<int> &edges, const Array<int> &verts)
    }
    edges.SetSize(num_edges);
 }
+
+
+void Mesh::EdgesInBdrElems(Array<int> &edges, const Array<int> &belems)
+{
+   std::set<int> touched_edges;
+   Array<int> be_edges;
+   Array<int> cor;
+   for (int bei = 0; bei < belems.Size(); ++bei)
+   {
+      GetBdrElementEdges(bei, be_edges, cor);
+      for (int edgei = 0; edgei < be_edges.Size(); ++edgei)
+      {
+         touched_edges.insert(be_edges[edgei]);
+      }
+   }
+
+   edges.SetSize(touched_edges.size());
+   std::copy(touched_edges.begin(), touched_edges.end(), edges.begin());
+}
+
 
 
 int Mesh::GetBdrElementEdgeIndex(int i) const

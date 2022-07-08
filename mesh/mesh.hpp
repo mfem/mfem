@@ -1094,6 +1094,8 @@ public:
    void FacesWithAllVerts(Array<int> &faces, const Array<int> &verts);
    void EdgesWithAllVerts(Array<int> &edges, const Array<int> &verts);
 
+   /// Return the edges found in the list of boundary elements
+   void EdgesInBdrElems(Array<int> &edges, const Array<int> &belems);
 
    /** Return the vertex index of boundary element i. (1D)
        Return the edge index of boundary element i. (2D)
