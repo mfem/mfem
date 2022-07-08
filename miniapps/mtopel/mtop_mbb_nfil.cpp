@@ -222,9 +222,7 @@ int main(int argc, char *argv[])
    fsolv->AddBC(1,0.0);
    mfem::ParGridFunction oddens(fsolv->GetDesignFES());
    mfem::Vector vdens; vdens.SetSize(fsolv->GetDesignFES()->GetTrueVSize()); vdens=0.0;
-   {
-       oddens=0.5;
-   }
+   oddens=0.5;
    oddens.GetTrueDofs(vdens);
 
    mfem::VolForce* volforce;

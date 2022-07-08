@@ -238,11 +238,7 @@ int main(int argc, char *argv[])
    mfem::ParGridFunction oddens(fsolv->GetDesignFES());
    mfem::Vector vdens; vdens.SetSize(fsolv->GetFilterFES()->GetTrueVSize()); vdens=0.0;
    mfem::Vector vtmpv; vtmpv.SetSize(fsolv->GetDesignFES()->GetTrueVSize()); vtmpv=0.0;
-   {
-       mfem::FunctionCoefficient fco(InitialDens);
-       oddens.ProjectCoefficient(fco);
-       oddens=0.5;
-   }
+   oddens=0.5;
    oddens.GetTrueDofs(vtmpv);
    fsolv->Mult(vtmpv,vdens); //filter
    pgdens.SetFromTrueDofs(vdens);
@@ -289,10 +285,6 @@ int main(int argc, char *argv[])
    }
    double max_vol=0.5*tot_vol;
 
-   //intermediate volume for information purposes
-   mfem::VolumeQoI* ivobj=new mfem::VolumeQoI(fsolv->GetFilterFES());
-   ivobj->SetProjection(0.5,32);
-
    //gradients with respect to the filtered field
    mfem::Vector ograd(fsolv->GetFilterFES()->GetTrueVSize()); ograd=0.0; //of the objective
    mfem::Vector vgrad(fsolv->GetFilterFES()->GetTrueVSize()); vgrad=0.0; //of the volume contr.
@@ -316,10 +308,6 @@ int main(int argc, char *argv[])
 
    double cpl; //compliance
    double vol; //volume
-   double ivol; //intermediate volume
-
-//   mfem::Vector ndesign; ndesign.SetSize(fsolv->GetFilterFES()->GetTrueVSize());
-//   mfem::Vector fvector; fvector.SetSize(fsolv->GetFilterFES()->GetTrueVSize());
 
    if(restart>0)
    {
@@ -341,9 +329,8 @@ int main(int argc, char *argv[])
        esolv->FSolve();
        cpl=cobj->Eval();
        vol=vobj->Eval(vdens);
-       ivol=ivobj->Eval(vdens);
        if(myrank==0){
-           std::cout<<"it: "<<00<<" obj="<<cpl<<" vol="<<vol<<" ivol="<<ivol<<std::endl;
+           std::cout<<"it: "<<00<<" obj="<<cpl<<" vol="<<vol<<std::endl;
        }
 
    }
@@ -376,14 +363,12 @@ int main(int argc, char *argv[])
            //compute the objective and the vol constraint
            cpl=cobj->Eval();
            vol=vobj->Eval(vdens);
-           ivol=ivobj->Eval(vdens);
            if(myrank==0){
-               std::cout<<"it: "<<i<<" obj="<<cpl<<" vol="<<vol<<" ivol="<<ivol<<" pp="<<pp<<std::endl;
+               std::cout<<"it: "<<i<<" obj="<<cpl<<" vol="<<vol<<" pp="<<pp<<std::endl;
            }
            //compute the gradients
            cobj->Grad(ograd);
            vobj->Grad(vdens,vgrad);
-           //ivobj->Grad(vdens,vgrad);
            //compute the original gradients
            fsolv->MultTranspose(ograd,ogrado);
            fsolv->MultTranspose(vgrad,vgrado);
@@ -400,17 +385,10 @@ int main(int argc, char *argv[])
            //double con=ivol-max_vol;
            double con=vol-max_vol;
            mma->Update(vtmpv,ogrado,&con,&vgrado,xxmin,xxmax);
-           /*
-           {
-               //project vtmpv
-               for(int li=0;li<vtmpv.Size();li++){
-                   if(vtmpv[li]>=1.0){vtmpv[li]=1.0;}
-                   else if(vtmpv[li]<=0.0){vtmpv[li]=0.0;}
-               }
-           }
-           */
 
+           //filter the updated design
            fsolv->Mult(vtmpv,vdens);
+           //set the grid function
            pgdens.SetFromTrueDofs(vdens);
 
            //save the design and the solution
@@ -448,7 +426,6 @@ int main(int argc, char *argv[])
 
    delete mma;
    delete vobj;
-   delete ivobj;
    delete cobj;
    delete esolv;
    delete E;
