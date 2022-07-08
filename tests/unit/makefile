@@ -156,17 +156,14 @@ $(CEED_OBJ): %.o: $(SRC)%.cpp $(HEADER_FILES) $(CONFIG_MK)
 	@mkdir -p $(@D)
 	$(CCC) -c $(abspath $(<)) $(MFEM_FLAGS) $(INCLUDES) -o $(@)
 
-ifeq ($(MFEM_JIT_PIPE),YES)
 $(MJIT_OBJ): %.o: $(SRC)%.cpp $(HEADER_FILES) $(CONFIG_MK) $(MFEM_DIR)/mjit
 	@mkdir -p $(@D)
+ifeq ($(MFEM_JIT_PIPE),YES)
 	$(MFEM_DIR)/mjit $(abspath $(<)) | $(CCC) -c $(MJIT_FLAGS) $(INCLUDES) -o $(@) -
-else # xlc, use temporary %_jit.cpp file
-$(SRC)%_jit.cpp: $(SRC)%.cpp $(CONFIG_MK) $(MFEM_DIR)/mjit
-	$(MFEM_DIR)/mjit $(abspath $(<)) -o $(@)
-$(MJIT_OBJ): %.o: $(SRC)%_jit.cpp $(CONFIG_MK)
-	@mkdir -p $(@D)
-	$(CCC) -c $(<) $(MJIT_FLAGS) $(INCLUDES) -o $(@)
-	rm $(<)
+else # xlc, use temporary *_jit.cpp file
+	$(MFEM_DIR)/mjit $(abspath $(<)) -o $(*)_jit.cpp
+	$(CCC) -c $(*)_jit.cpp $(MJIT_FLAGS) $(INCLUDES) -o $(@)
+	rm $(*)_jit.cpp
 endif # MFEM_JIT_PIPE
 
 # Template rule for devices

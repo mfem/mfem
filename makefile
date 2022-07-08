@@ -497,16 +497,13 @@ $(OPT_OBJECT_FILES): $(BLD)%.o: $(SRC)%.cpp $(SRC)%.hpp makefile $(CONFIG_MK)
 $(STD_OBJECT_FILES): $(BLD)%.o: $(SRC)%.cpp $(CONFIG_MK)
 	$(MFEM_CXX) $(MFEM_BUILD_FLAGS) -c $(<) -o $(@)
 
+$(JIT_OBJECT_FILES): $(BLD)%.o: $(SRC)%.cpp $(CONFIG_MK) $(BLD)mjit makefile
 ifeq ($(MFEM_JIT_PIPE),YES)
-MFEM_JIT_FLAGS = $(strip $(MFEM_BUILD_FLAGS)) $(JIT_LANG) -I$(patsubst %/,%,$(<D))
-$(JIT_OBJECT_FILES): $(BLD)%.o: $(SRC)%.cpp $(CONFIG_MK) $(BLD)mjit
-	$(BLD)./mjit $(<) | $(MFEM_CXX) $(MFEM_JIT_FLAGS) -c -o $(@) -
+	$(BLD)./mjit $(<) | $(MFEM_CXX) $(strip $(MFEM_BUILD_FLAGS)) $(JIT_LANG) -I$(patsubst %/,%,$(<D)) -c -o $(@) -
 else # pipe, use temporary %_jit.cpp file
-$(BLD)%_jit.cpp: $(SRC)%.cpp $(CONFIG_MK) $(BLD)mjit
-	$(BLD)./mjit $(<) -o $(@)
-$(JIT_OBJECT_FILES): $(BLD)%.o: $(BLD)%_jit.cpp $(CONFIG_MK) makefile
-	$(MFEM_CXX) $(strip $(MFEM_BUILD_FLAGS)) -c $(<) -o $(@)
-	rm $(<)
+	$(BLD)./mjit $(<) -o $(*)_jit.cpp
+	$(MFEM_CXX) $(strip $(MFEM_BUILD_FLAGS)) -c $(*)_jit.cpp -o $(@)
+	rm $(*)_jit.cpp
 endif # pipe
 endif # jit
 
