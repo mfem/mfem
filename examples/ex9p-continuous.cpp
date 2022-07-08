@@ -340,12 +340,24 @@ int main(int argc, char *argv[])
    m->Finalize();
    k->Finalize(skip_zeros);
 
+   HypreParMatrix * K = k->ParallelAssemble(); 
+   SparseMatrix K_diag;
+   K->GetDiag(K_diag);  
+
    // 9. Define the initial conditions, save the corresponding grid function to
    //    a file and (optionally) save data in the VisIt format and initialize
    //    GLVis visualization.
    ParGridFunction *u = new ParGridFunction(fes);
    u->ProjectCoefficient(u0);
    HypreParVector *U = u->GetTrueDofs();
+
+   if (Mpi::Root())
+   {
+      cout << "Root:\n"
+           << "k size: " << k->SpMat().Height() << "," << k->SpMat().Width() << endl
+           << "u size: " << u->Size() << " U size: " << U->Size() << endl
+           << "K_diag size: " << K_diag.Height() << "," << K_diag.Width() << endl;
+   }
 
    ConstantCoefficient zero(0.0);
 
