@@ -58,33 +58,37 @@ void TMOP_Combo_QualityMetric::AssembleH(const DenseMatrix &Jpt,
    }
 }
 
-double TMOP_UntangleOptimizer_Metric::EvalW(const DenseMatrix &Jpt) const
+double TMOP_WorstCaseUntangleOptimizer_Metric::EvalW(const DenseMatrix &Jpt)
+const
 {
-   double denominator;
-   if (shifted)
+   double metric_tilde = EvalWBarrier(Jpt);
+   double metric = metric_tilde;
+   if (wctype == WorstCaseType::PMean)
+   {
+      metric = std::pow(metric_tilde, exponent);
+   }
+   else if (wctype == WorstCaseType::Beta)
+   {
+      double beta = max_muT+muT_ep;
+      metric = metric_tilde/(beta-metric_tilde);
+   }
+   return metric;
+}
+
+double TMOP_WorstCaseUntangleOptimizer_Metric::EvalWBarrier(
+   const DenseMatrix &Jpt) const
+{
+   double denominator = 1.0;
+   if (btype == BarrierType::Shifted)
    {
       denominator = 2.0*(Jpt.Det()-std::min(alpha*min_detT-detT_ep, 0.0));
    }
-   else
+   else if (btype == BarrierType::Pseudo)
    {
       double detT = Jpt.Det();
       denominator = detT + std::sqrt(detT*detT + detT_ep*detT_ep);
    }
-   return std::pow(tmop_metric->EvalW(Jpt)/denominator, exponent);
-}
-
-double TMOP_WorstCaseUntangleOptimizer_Metric::EvalW(const DenseMatrix &Jpt)
-const
-{
-   double metric = TMOP_UntangleOptimizer_Metric::EvalW(Jpt);
-   double beta = max_muT+muT_ep;
-   return std::pow(metric/(beta-metric), exponent);
-}
-
-double TMOP_WorstCaseUntangleOptimizer_Metric::EvalWTilde(
-   const DenseMatrix &Jpt) const
-{
-   return TMOP_UntangleOptimizer_Metric::EvalW(Jpt);
+   return tmop_metric->EvalW(Jpt)/denominator;
 }
 
 double TMOP_Metric_001::EvalW(const DenseMatrix &Jpt) const
@@ -3774,9 +3778,12 @@ double TMOP_Integrator::ComputeUntanglerMaxMuT(const Vector &x,
 
    TMOP_WorstCaseUntangleOptimizer_Metric *wcuo =
       dynamic_cast<TMOP_WorstCaseUntangleOptimizer_Metric *>(metric);
-   TMOP_UntangleOptimizer_Metric *uo =
-      dynamic_cast<TMOP_UntangleOptimizer_Metric *>(metric);
-   if (!wcuo && !uo) { return 0.0; }
+
+   if (!wcuo || wcuo->GetWorstCaseType() !=
+       TMOP_WorstCaseUntangleOptimizer_Metric::WorstCaseType::Beta)
+   {
+      return 0.0;
+   }
 
    for (int i = 0; i < NE; i++)
    {
@@ -3812,7 +3819,7 @@ double TMOP_Integrator::ComputeUntanglerMaxMuT(const Vector &x,
          if (wcuo)
          {
             wcuo->SetTargetJacobian(Jtr_q);
-            metric_val = wcuo->EvalWTilde(Jpt);
+            metric_val = wcuo->EvalWBarrier(Jpt);
          }
 
          max_muT = std::max(max_muT, metric_val);
@@ -3826,18 +3833,16 @@ void TMOP_Integrator::ComputeUntangleMetricQuantiles(const Vector &x,
 {
    TMOP_WorstCaseUntangleOptimizer_Metric *wcuo =
       dynamic_cast<TMOP_WorstCaseUntangleOptimizer_Metric *>(metric);
-   TMOP_UntangleOptimizer_Metric *uo =
-      dynamic_cast<TMOP_UntangleOptimizer_Metric *>(metric);
 
-   if (!wcuo && !uo) { return; }
+   if (!wcuo) { return; }
 
 #ifdef MFEM_USE_MPI
    const ParFiniteElementSpace *pfes =
       dynamic_cast<const ParFiniteElementSpace *>(&fes);
 #endif
 
-   if ( (wcuo && wcuo->IsShiftedBarrierMetric()) ||
-        (uo && uo->IsShiftedBarrierMetric()))
+   if (wcuo && wcuo->GetBarrierType() ==
+       TMOP_WorstCaseUntangleOptimizer_Metric::BarrierType::Shifted)
    {
       double min_detT = ComputeUntanglerMinDetT(x, fes);
       double min_detT_all = min_detT;
@@ -3849,10 +3854,7 @@ void TMOP_Integrator::ComputeUntangleMetricQuantiles(const Vector &x,
       }
 #endif
       if (wcuo) { wcuo->SetMinDetT(min_detT_all); }
-      else if (uo) {uo->SetMinDetT(min_detT_all); }
    }
-
-   if (!wcuo) { return; }
 
    double max_muT = ComputeUntanglerMaxMuT(x, fes);
    double max_muT_all = max_muT;

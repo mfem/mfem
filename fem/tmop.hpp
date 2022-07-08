@@ -106,26 +106,48 @@ public:
 
 /// Simultaneous Untangle-Optimizer
 /// (mu_k/phi(tau,ep))^p where
-/// phi(tau,ep) = 2*(tau - min(alpha*min(tau)-ep,0)), when shifted=true and
+/// phi(tau,ep) = 1, when BarrierType=1
+///             = 2*(tau - min(alpha*min(tau)-detT_ep,0)), when BarrierType=shifted
 ///             = tau^2 + sqrt(tau^2 + ep^2), when shifted=false i.e. pseudo-barrier
 /// where tau = det(T), and min(tau) is computed over the entire mesh
-class TMOP_UntangleOptimizer_Metric : public TMOP_QualityMetric
+class TMOP_WorstCaseUntangleOptimizer_Metric : public TMOP_QualityMetric
 {
+public:
+   enum class BarrierType
+   {
+      None,
+      Shifted,
+      Pseudo
+   };
+   enum class WorstCaseType
+   {
+      None,
+      Beta,
+      PMean
+   };
+
 protected:
    TMOP_QualityMetric *tmop_metric; //non-barrier metric to use
-   double min_detT;                 //point to min-det
-   int exponent;
+   double min_detT;                 //minimum Jacobian in the mesh
+   double max_muT;                  //max mu_k/phi(tau,ep) in the mesh
+   int exponent;                    //used for p-mean metrics
    double alpha;                    //scaling factor for min(det(T))
-   double detT_ep;                  //small constant
-   bool shifted;                    //shifted barrier (true) or pseudo-barrier
+   double detT_ep;                  //small constant subtracted from min(detT)
+   double muT_ep;                   //small constant added to muT term
+   BarrierType btype;
+   WorstCaseType wctype;
+
 public:
-   TMOP_UntangleOptimizer_Metric(TMOP_QualityMetric *tmop_metric_,
-                                 int exponent_ = 1,
-                                 double alpha_ = 1.5,
-                                 double detT_ep_ = 0.0001,
-                                 bool shifted_ = true) :
+   TMOP_WorstCaseUntangleOptimizer_Metric(TMOP_QualityMetric *tmop_metric_,
+                                          int exponent_ = 1,
+                                          double alpha_ = 1.5,
+                                          double detT_ep_ = 0.0001,
+                                          double muT_ep_ = 0.0001,
+                                          BarrierType btype_ = BarrierType::None,
+                                          WorstCaseType wctype_ = WorstCaseType::None) :
       tmop_metric(tmop_metric_), exponent(exponent_), alpha(alpha_),
-      detT_ep(detT_ep_), shifted(shifted_) { }
+      detT_ep(detT_ep_), muT_ep(muT_ep_), btype(btype_), wctype(wctype_) { }
+
    virtual void SetTargetJacobian(const DenseMatrix &Jtr_)
    {
       tmop_metric->SetTargetJacobian(Jtr_);
@@ -140,9 +162,15 @@ public:
                           const double weight, DenseMatrix &A) const
    { MFEM_ABORT("Not implemented"); }
 
+   virtual double EvalWBarrier(const DenseMatrix &Jpt) const;
+
    virtual void SetMinDetT(double min_detT_) { min_detT = min_detT_; }
 
-   virtual bool IsShiftedBarrierMetric() { return shifted; }
+   virtual void SetMaxMuT(double max_muT_) { max_muT = max_muT_; }
+
+   virtual BarrierType GetBarrierType() { return btype; }
+
+   virtual WorstCaseType GetWorstCaseType() { return wctype; }
 };
 
 /// Simultaneous Untangle-Optimizer with worst-case quality improvement
@@ -153,35 +181,35 @@ public:
 /// beta = max(mu_tilde)+muT_ep
 /// tau = det(T), and min(tau) and max(mu_tilde) are calculated over entire mesh
 /// in 2 passes.
-class TMOP_WorstCaseUntangleOptimizer_Metric : public
-   TMOP_UntangleOptimizer_Metric
-{
-protected:
-   double max_muT;                  //point to max-det
-   int exponent;
-   double muT_ep;                   //small constant added to muT term
-public:
-   TMOP_WorstCaseUntangleOptimizer_Metric(TMOP_QualityMetric *tmop_metric_,
-                                          int exponent_ = 1,
-                                          double alpha_ = 1.5,
-                                          double detT_ep_ = 0.0001,
-                                          double muT_ep_ = 0.0001,
-                                          bool shifted_ = false) :
-      TMOP_UntangleOptimizer_Metric(tmop_metric_, 1, alpha_, detT_ep_, shifted_),
-      exponent(exponent_), muT_ep(muT_ep_) { }
+//class TMOP_WorstCaseUntangleOptimizer_Metric : public
+//   TMOP_UntangleOptimizer_Metric
+//{
+//protected:
+//   double max_muT;                  //point to max-det
+//   int exponent;
+//   double muT_ep;                   //small constant added to muT term
+//public:
+//   TMOP_WorstCaseUntangleOptimizer_Metric(TMOP_QualityMetric *tmop_metric_,
+//                                          int exponent_ = 1,
+//                                          double alpha_ = 1.5,
+//                                          double detT_ep_ = 0.0001,
+//                                          double muT_ep_ = 0.0001,
+//                                          bool shifted_ = false) :
+//      TMOP_UntangleOptimizer_Metric(tmop_metric_, 1, alpha_, detT_ep_, shifted_),
+//      exponent(exponent_), muT_ep(muT_ep_) { }
 
-   virtual void SetTargetJacobian(const DenseMatrix &Jtr_)
-   {
-      TMOP_UntangleOptimizer_Metric::SetTargetJacobian(Jtr_);
-   }
+//   virtual void SetTargetJacobian(const DenseMatrix &Jtr_)
+//   {
+//      TMOP_UntangleOptimizer_Metric::SetTargetJacobian(Jtr_);
+//   }
 
-   virtual double EvalW(const DenseMatrix &Jpt) const;
+//   virtual double EvalW(const DenseMatrix &Jpt) const;
 
-   // Computes mu_tilde.
-   virtual double EvalWTilde(const DenseMatrix &Jpt) const;
+//   // Computes mu_tilde.
+//   virtual double EvalWTilde(const DenseMatrix &Jpt) const;
 
-   virtual void SetMaxMuT(double max_muT_) { max_muT = max_muT_; }
-};
+//   virtual void SetMaxMuT(double max_muT_) { max_muT = max_muT_; }
+//};
 
 /// 2D non-barrier metric without a type.
 class TMOP_Metric_001 : public TMOP_QualityMetric
