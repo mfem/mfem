@@ -259,28 +259,33 @@ public:
        a call like this: `IntPoint(i).weight`. */
    const Array<double> &GetWeights() const;
 
+   /// Return an integration rule for KnotVector @a kv, defined by applying this
+   /// rule on each knot interval.
+   IntegrationRule* ApplyToKnotIntervals(KnotVector const& kv) const;
+
    /// Destroys an IntegrationRule object
    ~IntegrationRule() { }
 };
 
-// TODO: rename?
-class NURBSPatchProductRule
+/// Class for defining different integration rules on each NURBS patch.
+class NURBSPatchRule
 {
 public:
-   // Construct a rule for each patch, using SetPatchRule.
-   NURBSPatchProductRule(const int numPatches, const int dim_) :
+   /// Construct a rule for each patch, using SetPatchRule.
+   NURBSPatchRule(const int numPatches, const int dim_) :
       patchRule(numPatches), patchRules1D(numPatches, dim_), dim(dim_)
    {
       patchRule = nullptr;
    }
 
    /// Construct a tensor product of 1D rules, to be applied to all patches.
-   NURBSPatchProductRule(IntegrationRule *irx, IntegrationRule *iry,
-                         IntegrationRule *irz = nullptr);
+   NURBSPatchRule(IntegrationRule *irx, IntegrationRule *iry,
+                  IntegrationRule *irz = nullptr);
 
    IntegrationRule &GetElementRule(const int patch, int *ijk,
                                    Array<const KnotVector*> const& kv) const;
 
+   /// Set the integration rule for the NURBS patch of the given index.
    void SetPatchRule(const int patch, IntegrationRule *ir_patch)
    {
       patchRule[patch] = ir_patch;
@@ -288,7 +293,7 @@ public:
 
    void SetPatchRules1D(const int patch, std::vector<IntegrationRule*> & ir1D);
 
-   ~NURBSPatchProductRule()
+   ~NURBSPatchRule()
    { delete ir; }
 
 private:
