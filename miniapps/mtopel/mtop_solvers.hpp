@@ -742,7 +742,7 @@ public:
     ComplianceObjective()
     {
         esolv=nullptr;
-        fsolv=nullptr;
+        dfes=nullptr;
         nf=nullptr;
         dens=nullptr;
         nu=0.2;
@@ -755,7 +755,12 @@ public:
     }
 
     void SetFilter(FilterSolver* fsolv_){
-        fsolv=fsolv_;
+        dfes=fsolv_->GetDesignFES();
+    }
+
+    void SetDesignFES(ParFiniteElementSpace* fes)
+    {
+        dfes=fes;
     }
 
     void SetE(YoungModulus* E_){
@@ -783,7 +788,7 @@ public:
 
 private:
     ElasticitySolver* esolv;
-    FilterSolver*     fsolv;
+    ParFiniteElementSpace* dfes;//design space
     ParNonlinearForm* nf;
     ComplianceNLIntegrator* intgr;
     YoungModulus* Ecoef;

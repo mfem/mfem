@@ -1000,12 +1000,12 @@ double ComplianceObjective::Eval()
         MFEM_ABORT("esolv in ComplianceObjective should be set before calling the Eval method!");
     }
 
-    if(fsolv==nullptr){
-        MFEM_ABORT("fsolv in ComplianceObjective should be set before calling the Eval method!");
+    if(dfes==nullptr){
+        MFEM_ABORT("fsolv of dfes in ComplianceObjective should be set before calling the Eval method!");
     }
 
     if(nf==nullptr){
-        nf=new ParNonlinearForm(fsolv->GetFilterFES());
+        nf=new ParNonlinearForm(dfes);
         intgr=new ComplianceNLIntegrator();
         nf->AddDomainIntegrator(intgr);
     }
@@ -1031,12 +1031,12 @@ void ComplianceObjective::Grad(Vector& grad)
         MFEM_ABORT("esolv in ComplianceObjective should be set before calling the Grad method!");
     }
 
-    if(fsolv==nullptr){
-        MFEM_ABORT("fsolv in ComplianceObjective should be set before calling the Grad method!");
+    if(dfes==nullptr){
+        MFEM_ABORT("fsolv or dfes in ComplianceObjective should be set before calling the Grad method!");
     }
 
     if(nf==nullptr){
-        nf=new ParNonlinearForm(fsolv->GetFilterFES());
+        nf=new ParNonlinearForm(dfes);
         intgr=new ComplianceNLIntegrator();
         nf->AddDomainIntegrator(intgr);
     }
