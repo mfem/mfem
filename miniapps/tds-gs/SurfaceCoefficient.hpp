@@ -15,7 +15,7 @@ protected:
    bool Xfix;
 public:
    GreenCoefficient (double(*F)(Vector &, Vector &))
-      : Function(std::move(F)) {Xfix=true;}
+      : GreenFunction(std::move(F)) {Xfix=true;}
    SetXVec(Vector & x_) { X=x_; Xfix=true;}
    SetYVec(Vector & y_) { Y=y_; Xfix=false;}
    double Eval (ElementTransformation &T, const IntegrationPoint &ip)
@@ -26,11 +26,11 @@ public:
 
       if (Xfix)
       {
-         return Function(X, transip);
+         return GreenFunction(X, transip);
       }
       else
       {
-         return Function(transip, Y);
+         return GreenFunction(transip, Y);
       }
    }
 }
