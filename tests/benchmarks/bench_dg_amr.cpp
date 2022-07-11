@@ -158,12 +158,12 @@ static void BK_DG(bm::State &state){
    state.counters["MDof/s"] = bm::Counter(ker.SumMdofs(), bm::Counter::kIsRate);
    state.counters["Dofs"] = bm::Counter(ker.dofs, bm::Counter::kDefaults);
    state.counters["Order"] = bm::Counter(ker.p);
-   state.counters["Prob"] = bm::Counter(prob);}
+   state.counters["Prob"] = bm::Counter(state.range(2));}
 
 BENCHMARK(BK_DG)->ArgsProduct({
       benchmark::CreateRange(1024, max_dofs, /*step=*/2),
       benchmark::CreateDenseRange(1, max_order, /*step=*/1),
-      {-1, 0, 1, 10, 50}
+      {-1, 0, 1, 10, 30}
     })->Unit(bm::kMillisecond);
 
 /**
