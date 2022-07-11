@@ -1778,7 +1778,7 @@ void InterpolationManager::InitializeNCInterpConfig()
 {
    // Count nonconforming faces
    int num_nc_faces = 0;
-   for (size_t i = 0; i < interp_config.Size(); i++)
+   for (int i = 0; i < interp_config.Size(); i++)
    {
       if ( interp_config[i].is_non_conforming )
       {
@@ -1788,7 +1788,7 @@ void InterpolationManager::InitializeNCInterpConfig()
    // Set nc_interp_config
    nc_interp_config.SetSize(num_nc_faces);
    int nc_index = 0;
-   for (size_t i = 0; i < interp_config.Size(); i++)
+   for (int i = 0; i < interp_config.Size(); i++)
    {
       auto & config = interp_config[i];
       if ( config.is_non_conforming )
