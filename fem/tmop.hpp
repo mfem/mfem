@@ -104,12 +104,20 @@ public:
                           const double weight, DenseMatrix &A) const;
 };
 
-/// Simultaneous Untangle-Optimizer
-/// (mu_k/phi(tau,ep))^p where
-/// phi(tau,ep) = 1, when BarrierType=1
-///             = 2*(tau - min(alpha*min(tau)-detT_ep,0)), when BarrierType=shifted
-///             = tau^2 + sqrt(tau^2 + ep^2), when shifted=false i.e. pseudo-barrier
-/// where tau = det(T), and min(tau) is computed over the entire mesh
+/// Simultaneous Untangler + Worst Case Improvement Metric
+/// Uses a base metric mu and is defined as:
+/// mu_tilde = mu_hat,                 when WorstCaseType = None,
+///          = mu_hat/(beta - mu_hat), when WorstCaseType = Beta,
+///          = mu_hat^p,               when WorstCaseType = PMean,
+/// where beta = max(mu_hat) + muT_ep,
+/// and mu_hat = (mu/2phi(tau,ep)) where
+/// 2phi(tau,ep) = 1, when                                 when BarrierType = None,
+///             = 2*(tau - min(alpha*min(tau)-detT_ep,0)), when BarrierType = Shifted
+///             = tau^2 + sqrt(tau^2 + ep^2),              when BarrierType = Pseuso
+/// where tau = det(T), and max(mu_hat) and min(tau) are computed over the
+/// entire mesh.
+/// Ultimately, this metric can be used for mesh untangling with the BarrierType
+/// option and for worst case quality improvement with the WorstCaseType option.
 class TMOP_WorstCaseUntangleOptimizer_Metric : public TMOP_QualityMetric
 {
 public:
