@@ -601,7 +601,7 @@ TEST_CASE("Hcurl/Hdiv PA Coefficient",
 TEST_CASE("Hcurl/Hdiv Mixed PA Coefficient",
           "[CUDA][PartialAssembly][Coefficient]")
 {
-   const double tol = 2e-12;
+   const double tol = 4e-12;
 
    for (dimension = 2; dimension < 4; ++dimension)
    {
