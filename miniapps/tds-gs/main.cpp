@@ -13,6 +13,7 @@
 //       find x-point, max point
 //
 #include "mfem.hpp"
+#include "SurfaceCoefficient.hpp"
 #include <fstream>
 #include <iostream>
 

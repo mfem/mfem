@@ -10,30 +10,31 @@ double greenfunc(Vector X, Vector Y)
 class GreenCoefficient : public Coefficient
 {
 protected:
-   std::function<double(const Vector &, const Vector &)> GreenFunction;
-   Vector X(3), Y(3);
-   bool Xfix;
+  std::function<double(const Vector &, const Vector &)> GreenFunction;
+  Vector X;
+  Vector Y;
+  bool Xfix;
 public:
-   GreenCoefficient (double(*F)(Vector &, Vector &))
-      : GreenFunction(std::move(F)) {Xfix=true;}
-   SetXVec(Vector & x_) { X=x_; Xfix=true;}
-   SetYVec(Vector & y_) { Y=y_; Xfix=false;}
-   double Eval (ElementTransformation &T, const IntegrationPoint &ip)
-   {
-      double x[3];
-      Vector transip(x, 3);
-      T.Transform(ip, transip);
+  GreenCoefficient (function<double(const Vector &, const Vector &)> F)
+    : GreenFunction(move(F)) {Xfix=true;}
+  void SetXVec(Vector & x_) { X=x_; Xfix=true;}
+  void SetYVec(Vector & y_) { Y=y_; Xfix=false;}
+  double Eval (ElementTransformation &T, const IntegrationPoint &ip)
+  {
+    double x[3];
+    Vector transip(x, 3);
+    T.Transform(ip, transip);
 
-      if (Xfix)
+    if (Xfix)
       {
-         return GreenFunction(X, transip);
+        return GreenFunction(X, transip);
       }
-      else
+    else
       {
-         return GreenFunction(transip, Y);
+        return GreenFunction(transip, Y);
       }
-   }
-}
+  }
+};
 
 /*  Define a coefficient to compute
  *      int_Γ G(x,y) Phi(x) dSx
@@ -42,24 +43,24 @@ public:
 class YFixSurfaceCoefficient : public Coefficient
 {
 private:
-   GridFunction *Psi;
-   GreenCoefficient Green;
-   ParFiniteElementSpace *fespace;
-   ParGridFunction ones;
+  GridFunction *Psi;
+  GreenCoefficient Green;
+  FiniteElementSpace *fespace;
+  GridFunction ones;
 public:
-   YFixSurfaceCoefficient(GridFunction *psi_);
-   double Eval(ElementTransformation &T, const IntegrationPoint &ip)
-   virtual ~YFixSurfaceCoefficient() { }
+  YFixSurfaceCoefficient(GridFunction *psi_);
+  double Eval(ElementTransformation &T, const IntegrationPoint &ip);
+  virtual ~YFixSurfaceCoefficient() { }
 };
 
 YFixSurfaceCoefficient::YFixSurfaceCoefficient( GridFunction *psi_ )
-   : Green(greenfunc), fespace(psi_->ParFESpace()), ones(psi_->ParFESpace())
+   : Green(greenfunc), fespace(psi_->FESpace()), ones(psi_->FESpace())
 {
    ones=1.0;
    Psi=psi_;
 }
 
-doubl YFixSurfaceCoefficient::Eval(ElementTransformation &T,
+double YFixSurfaceCoefficient::Eval(ElementTransformation &T,
                                    const IntegrationPoint &ip)
 {
    double x[3], value;
@@ -69,12 +70,12 @@ doubl YFixSurfaceCoefficient::Eval(ElementTransformation &T,
    Green.SetYVec(transip);
 
    // Evalute int_Γ G(x,y) Phi(x) dSx
-   ParBilinearForm IntSurf(fespace);
-   ParLinearForm IntPhi(fespace);
-   IntSurf.AddBoundaryIntegrator(new BoundaryLFIntegrator(Green));
+   BilinearForm IntSurf(fespace);
+   LinearForm IntPhi(fespace);
+   IntSurf.AddBoundaryIntegrator(new BoundaryMassIntegrator(Green));
    IntSurf.SetAssemblyLevel(AssemblyLevel::PARTIAL);
    IntSurf.Assemble();
-   IntSurf.Mult(Phi, IntPhi);
+   IntSurf.Mult(*Psi, IntPhi);
    value = IntPhi(ones);
    return value;
 }
