@@ -115,6 +115,14 @@ private:
        @param[in] x The dofs vector that needs coarse dofs to be express in term
                     of the coarse basis, the result is stored in x_interp.
    */
+   void NonconformingTransposeInterpolation(const Vector& x) const;
+
+   /** @brief Apply a change of basis from fine element basis to coarse element
+       basis for the coarse face dofs.
+
+       @param[in] x The dofs vector that needs coarse dofs to be express in term
+                    of the coarse basis, the result is stored in x_interp.
+   */
    void NonconformingTransposeInterpolation(Vector& x) const;
 };
 

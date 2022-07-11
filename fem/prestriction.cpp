@@ -93,18 +93,26 @@ void ParNCH1FaceRestriction::NonconformingInterpolation(Vector& y) const
 void ParNCH1FaceRestriction::AddMultTranspose(const Vector &x, Vector &y) const
 {
    if (nf==0) { return; }
+   NonconformingTransposeInterpolation(x);
+   H1FaceRestriction::AddMultTranspose(x_interp, y);
+}
+
+void ParNCH1FaceRestriction::AddMultTranspose(Vector &x, Vector &y) const
+{
+   if (nf==0) { return; }
+   NonconformingTransposeInterpolation(x);
+   H1FaceRestriction::AddMultTranspose(x, y);
+}
+
+void ParNCH1FaceRestriction::NonconformingTransposeInterpolation(
+   const Vector& x) const
+{
    if (x_interp.Size()==0)
    {
       x_interp.SetSize(x.Size());
    }
    x_interp = x;
-   AddMultTranspose(x_interp, y);
-}
-
-void ParNCH1FaceRestriction::AddMultTranspose(Vector &x, Vector &y) const
-{
-   NonconformingTransposeInterpolation(x);
-   H1FaceRestriction::AddMultTranspose(x, y);
+   NonconformingTransposeInterpolation(x_interp);
 }
 
 void ParNCH1FaceRestriction::NonconformingTransposeInterpolation(
