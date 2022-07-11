@@ -126,14 +126,15 @@ void ParNCH1FaceRestriction::NonconformingTransposeInterpolation(
                               nface_dofs, nface_dofs, nc_size);
       static constexpr int max_nd = 1024;
       MFEM_VERIFY(nface_dofs<=max_nd, "Too many degrees of freedom.");
-      MFEM_FORALL_3D(face, num_nc_faces, nface_dofs, 1, 1,
+      MFEM_FORALL_3D(nc_face, num_nc_faces, nface_dofs, 1, 1,
       {
          MFEM_SHARED double dof_values[max_nd];
-         const NCInterpConfig conf = interp_config_ptr[face];
+         const NCInterpConfig conf = interp_config_ptr[nc_face];
          const int master_side = conf.master_side;
-         const int interp_index = conf.index;
          if ( conf.is_non_conforming && master_side==0 )
          {
+            const int interp_index = conf.index;
+            const int face = conf.face_index;
             // Interpolation from fine to coarse
             for (int c = 0; c < vd; ++c)
             {
