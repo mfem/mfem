@@ -265,6 +265,19 @@ public:
        @param[in,out] y The L-vector degrees of freedom. */
    void AddMultTranspose(const Vector &x, Vector &y) const override;
 
+   /** @brief Gather the degrees of freedom, i.e. goes from face E-Vector to
+       L-Vector.
+
+       @param[in]  x The face E-Vector degrees of freedom with the given format:
+                     if L2FacesValues::DoubleValued (face_dofs x vdim x 2 x nf),
+                     if L2FacesValues::SingleValued (face_dofs x vdim x nf),
+                     where nf is the number of interior or boundary faces
+                     requested by @a type in the constructor.
+                     The face_dofs should be ordered according to the given
+                     ElementDofOrdering
+       @param[in,out] y The L-vector degrees of freedom. */
+   void AddMultTranspose(Vector &x, Vector &y) const override;
+
    /** @brief Fill the I array of SparseMatrix corresponding to the sparsity
        pattern given by this ParNCL2FaceRestriction.
 
