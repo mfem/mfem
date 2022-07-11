@@ -64,7 +64,7 @@ void ParNCH1FaceRestriction::NonconformingInterpolation(Vector& y) const
    {
       MFEM_SHARED double dof_values[max_nd];
       const NCInterpConfig conf = interp_config_ptr[nc_face];
-      if ( conf.is_non_conforming && conf.master_side == 0)
+      if ( conf.is_non_conforming && conf.master_side == 0 )
       {
          const int interp_index = conf.index;
          const int face = conf.face_index;

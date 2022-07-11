@@ -63,11 +63,6 @@ struct Kernel: public KernelMesh
    const int p, q, dim = 3;
    DG_FECollection fec;
    FiniteElementSpace fes;
-   // const Geometry::Type geom_type;
-   // IntegrationRules IntRulesGLL;
-   // const IntegrationRule *irGLL;
-   // const IntegrationRule *ir;
-   // ConstantCoefficient one;
    const int dofs;
    GridFunction x,y;
    BilinearForm a;
@@ -81,11 +76,6 @@ struct Kernel: public KernelMesh
       q(2*p + (GLL?-1:3)),
       fec(p, dim, BasisType::GaussLobatto),
       fes(&mesh, &fec),
-      // geom_type(fes.GetFE(0)->GetGeomType()),
-      // IntRulesGLL(0, Quadrature1D::GaussLobatto),
-      // irGLL(&IntRulesGLL.Get(geom_type, q)),
-      // ir(&IntRules.Get(geom_type, q)),
-      // one(1.0),
       dofs(fes.GetTrueVSize()),
       x(&fes),
       y(&fes),
@@ -145,7 +135,8 @@ struct Kernel: public KernelMesh
 };
 
 /// BK_DG inspired benchmark for the action
-static void BK_DG(bm::State &state){
+static void BK_DG(bm::State &state)
+{
    const int dim = 3;
    const int p = state.range(1);
    const int target_dofs = state.range(0);
@@ -158,7 +149,8 @@ static void BK_DG(bm::State &state){
    state.counters["MDof/s"] = bm::Counter(ker.SumMdofs(), bm::Counter::kIsRate);
    state.counters["Dofs"] = bm::Counter(ker.dofs, bm::Counter::kDefaults);
    state.counters["Order"] = bm::Counter(ker.p);
-   state.counters["Prob"] = bm::Counter(state.range(2));}
+   state.counters["Prob"] = bm::Counter(state.range(2));
+}
 
 BENCHMARK(BK_DG)->ArgsProduct({
       benchmark::CreateRange(1024, max_dofs, /*step=*/2),
