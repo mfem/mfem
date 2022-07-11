@@ -152,8 +152,8 @@ int main(int argc, char *argv[])
    int n_h_iter          = 1;
    bool surface_fit_adapt = false;
    double surface_fit_threshold = -10;
-   int untangler_mode     = 0;
-   bool shifted_barrier = true;
+   int barrier_type       = 0;
+   int worst_case_type    = 0;
 
    // 1. Parse command-line options.
    OptionsParser args(argc, argv);
@@ -283,13 +283,14 @@ int main(int argc, char *argv[])
    args.AddOption(&surface_fit_threshold, "-sft", "--surf-fit-threshold",
                   "Set threshold for surface fitting. TMOP solver will"
                   "terminate when max surface fitting error is below this limit");
-   args.AddOption(&untangler_mode, "-um", "--untangler-mode",
-                  "Untangler mode: 0 - none (default), "
-                  "1 - untangler optimizer,"
-                  "2 - worst-case untangler optimizer");
-   args.AddOption(&shifted_barrier, "-shifted", "--shifted", "-no-shifted",
-                  "--no-shifted", "Enable shifted barrier on metric or"
-                  "use pseudo barrier, when untangler_mode > 0.");
+   args.AddOption(&barrier_type, "-btype", "--barrier-type",
+                  "0 - None,"
+                  "1 - Shifted Barrier,"
+                  "2 - Pseudo Barrier.");
+   args.AddOption(&worst_case_type, "-wctype", "--worst-case-type",
+                  "0 - None,"
+                  "1 - Beta,"
+                  "2 - PMean.");
    args.Parse();
    if (!args.Good())
    {
@@ -473,25 +474,48 @@ int main(int argc, char *argv[])
             return 3;
       }
    }
-   TMOP_QualityMetric *untangler_metric = NULL;
-   if (untangler_mode == 1)
+
+   TMOP_WorstCaseUntangleOptimizer_Metric::BarrierType btype;
+   switch (barrier_type)
    {
-      untangler_metric = new TMOP_UntangleOptimizer_Metric(metric, 1, 1.5,
-                                                           0.001,
-                                                           shifted_barrier);
+      case 0: btype = TMOP_WorstCaseUntangleOptimizer_Metric::BarrierType::None;
+         break;
+      case 1: btype = TMOP_WorstCaseUntangleOptimizer_Metric::BarrierType::Shifted;
+         break;
+      case 2: btype = TMOP_WorstCaseUntangleOptimizer_Metric::BarrierType::Pseudo;
+         break;
+      default: cout << "barrier_type not supported: " << barrier_type << endl;
+         return 3;
    }
-   else if (untangler_mode == 2)
+
+   TMOP_WorstCaseUntangleOptimizer_Metric::WorstCaseType wctype;
+   switch (worst_case_type)
    {
+      case 0: wctype = TMOP_WorstCaseUntangleOptimizer_Metric::WorstCaseType::None;
+         break;
+      case 1: wctype = TMOP_WorstCaseUntangleOptimizer_Metric::WorstCaseType::Beta;
+         break;
+      case 2: wctype = TMOP_WorstCaseUntangleOptimizer_Metric::WorstCaseType::PMean;
+         break;
+      default: cout << "worst_case_type not supported: " << worst_case_type << endl;
+         return 3;
+   }
+
+   TMOP_QualityMetric *untangler_metric = NULL;
+   if (barrier_type > 0 || worst_case_type > 0)
+   {
+      if (barrier_type > 0)
+      {
+         MFEM_VERIFY(metric_id == 4 || metric_id == 14 || metric_id == 66,
+                     "Metric not supported for shifted/pseudo barriers.");
+      }
       untangler_metric = new TMOP_WorstCaseUntangleOptimizer_Metric(metric,
                                                                     1,
                                                                     1.5,
+                                                                    0.001, //0.01 for pseudo barrier
                                                                     0.001,
-                                                                    0.001,
-                                                                    shifted_barrier);
-   }
-   else if (untangler_mode > 0)
-   {
-      MFEM_ABORT("Invalid untangler mode.");
+                                                                    btype,
+                                                                    wctype);
    }
 
    if (metric_id < 300 || h_metric_id < 300)
@@ -735,7 +759,7 @@ int main(int argc, char *argv[])
       target_c = new TargetConstructor(target_t);
    }
    target_c->SetNodes(x0);
-   TMOP_QualityMetric *metric_to_use = untangler_mode > 0
+   TMOP_QualityMetric *metric_to_use = barrier_type > 0 || worst_case_type > 0
                                        ? untangler_metric
                                        : metric;
    TMOP_Integrator *tmop_integ = new TMOP_Integrator(metric_to_use, target_c,
@@ -966,7 +990,7 @@ int main(int argc, char *argv[])
    }
    cout << "Minimum det(J) of the original mesh is " << min_detJ << endl;
 
-   if (min_detJ < 0.0 && untangler_mode == 0
+   if (min_detJ < 0.0 && barrier_type == 0
        && metric_id != 22 && metric_id != 211 && metric_id != 252
        && metric_id != 311 && metric_id != 313 && metric_id != 352)
    {
