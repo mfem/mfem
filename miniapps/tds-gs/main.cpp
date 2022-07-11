@@ -7,12 +7,11 @@
 // After, run:
 //               glvis -m mesh.mesh -g sol.gf
 //
-// Description: This example code demonstrates the most basic usage of MFEM to
-//              define a simple finite element discretization of the Laplace
-//              problem -Delta u = 1 with zero Dirichlet boundary conditions.
-//              General 2D/3D mesh files and finite element polynomial degrees
-//              can be specified by command line options.
-
+// Description: 
+//
+// TODO: double boundary integral
+//       find x-point, max point
+//
 #include "mfem.hpp"
 #include <fstream>
 #include <iostream>
@@ -34,7 +33,7 @@ private:
   double r0;
 public:
   PlasmaModel(double & alpha_, double & beta_, double & lambda_, double & gamma_, double & mu0_, double & r0_) :
-    alpha(alpha_), beta(beta_), lambda(lambda_), gamma(gamma_), mu0(mu0_), r0(r0) { }
+    alpha(alpha_), beta(beta_), lambda(lambda_), gamma(gamma_), mu0(mu0_), r0(r0_) { }
   double S_p_prime(double & psi_N) const;
   double S_ff_prime(double & psi_N) const;
   double S_prime_p_prime(double & psi_N) const;
@@ -53,6 +52,14 @@ public:
   DiffusionIntegratorCoefficient(PlasmaModel *model_) : model(model_) { }
   virtual double Eval(ElementTransformation &T, const IntegrationPoint &ip);
   virtual ~DiffusionIntegratorCoefficient() { }
+};
+
+class TestCoefficient : public Coefficient
+{
+public:
+  TestCoefficient() { }
+  virtual double Eval(ElementTransformation &T, const IntegrationPoint &ip);
+  virtual ~TestCoefficient() { }
 };
 
 // option:
@@ -76,8 +83,10 @@ public:
 int main(int argc, char *argv[])
 {
    // Parse command line options.
-   const char *mesh_file = "meshes/gs_simple_mesh.msh";
+   const char *mesh_file = "meshes/gs_mesh.msh";
    int order = 1;
+
+   // constants associated with plasma model
    double alpha = 2.0;
    double beta = 1.0;
    double lambda = 1.0;
@@ -110,15 +119,43 @@ int main(int argc, char *argv[])
    // Extract the list of all the boundary DOFs. These will be marked as
    // Dirichlet in order to enforce zero boundary conditions.
    Array<int> boundary_dofs;
-   fespace.GetBoundaryTrueDofs(boundary_dofs);
-
+   Array<int> bdr_attribs(mesh.bdr_attributes);
+   Array<int> ess_bdr(bdr_attribs.Max());
+   ess_bdr = 1;
+   ess_bdr[900-1] = 0;
+   fespace.GetEssentialTrueDofs(ess_bdr, boundary_dofs, 1);
+   // fespace.GetBoundaryTrueDofs(boundary_dofs);
+   
    // Define the solution x as a finite element grid function in fespace. Set
    // the initial guess to zero, which also sets the boundary conditions.
    GridFunction x(&fespace);
    x = 0.0;
 
-   // Set up the linear form b(.) corresponding to the right-hand side.
-   LinearForm b(&fespace);
+   // Newton iteration
+   // d_psi a(psi^k, v, phi^k) = l(I, v) - a(psi^k, v), for all v in V
+   //
+   // a = + int 1/(mu r) grad psi dot grad v dr dz  (term1)
+   //     - int (r Sp + 1/(mu r) Sff) v dr dz       (term2)
+   //     + int_Gamma 1/mu psi(x) N(x) v(x) dS(x)   (term3)
+   //     + int_Gamma int_Gamma 1/(2 mu) (psi(x) - psi(y)) M(x, y) (v(x) - v(y)) dS(x) dS(y)  (term4)
+   //
+   // d_psi a = + int 1/(mu r) grad phi dot grad v dr dz           (term1')
+   //           - int (r Sp' + 1/(mu r) Sff') d_psi psi_N v dr dz  (term2')
+   //           + int_Gamma 1/mu phi(x) N(x) v(x) dS(x)            (term3')
+   //           + int_Gamma int_Gamma 1/(2 mu) (phi(x) - phi(y)) M(x, y) (v(x) - v(y)) dS(x) dS(y)  (term4')
+   //           
+   // l(I, v): coil_term:     coil contribution
+   // term1:   diff_operator: diffusion integrator
+   // term2:   plasma_term:   nonlinear contribution from plasma
+   // term3:   
+   // term4:   
+   // term1':  diff_operator:      diffusion integrator (shared with term1)
+   // term2':  diff_plasma_term_i: derivative of nonlinear contribution from plasma (i=1,2,3)
+   // term3':  
+   // term4': 
+   
+   // Set up the contribution from the coils
+   LinearForm coil_term(&fespace);
    // these are the unique element attributes used by the mesh
    Array<int> attribs(mesh.attributes);
    Vector coil_current(attribs.Max());
@@ -135,40 +172,45 @@ int main(int argc, char *argv[])
      }
    }
    PWConstCoefficient coil_current_pw(coil_current);
-   b.AddDomainIntegrator(new DomainLFIntegrator(coil_current_pw));
-   b.Assemble();
+   coil_term.AddDomainIntegrator(new DomainLFIntegrator(coil_current_pw));
+   coil_term.Assemble();
 
-   // Set up the bilinear form a(.,.) corresponding to the -Delta operator.
-   DiffusionIntegratorCoefficient acoeff(&model);
-   BilinearForm a(&fespace);
-   a.AddDomainIntegrator(new DiffusionIntegrator(acoeff));
-   a.Assemble();
+   // Set up the bilinear form diff_operator corresponding to the diffusion integrator
+   DiffusionIntegratorCoefficient diff_op_coeff(&model);
+   BilinearForm diff_operator(&fespace);
+   diff_operator.AddDomainIntegrator(new DiffusionIntegrator(diff_op_coeff));
+   ConstantCoefficient coeff(1.0);
+   diff_operator.AddBoundaryIntegrator(new MassIntegrator(coeff));
+   diff_operator.Assemble();
+
+   // boundary integral
+   // https://en.cppreference.com/w/cpp/experimental/special_functions
+   
 
    // Form the linear system A X = B. This includes eliminating boundary
    // conditions, applying AMR constraints, and other transformations.
    SparseMatrix A;
    Vector B, X;
-   a.FormLinearSystem(boundary_dofs, x, b, A, X, B);
+   diff_operator.FormLinearSystem(boundary_dofs, x, coil_term, A, X, B);
 
    // Solve the system using PCG with symmetric Gauss-Seidel preconditioner.
    GSSmoother M(A);
    PCG(A, M, B, X, 1, 200, 1e-12, 0.0);
+   diff_operator.RecoverFEMSolution(X, coil_term, x);
 
-   // Recover the solution x as a grid function and save to file. The output
-   // can be viewed using GLVis as follows: "glvis -m mesh.mesh -g sol.gf"
-   a.RecoverFEMSolution(X, b, x);
-
+   // plasma term
    NonlinearGridCoefficient nlgcoeff1(&model, 1);
    nlgcoeff1.set_grid_function(&x);
-   LinearForm c(&fespace);
-   c.AddDomainIntegrator(new DomainLFIntegrator(nlgcoeff1));
-   c.Assemble();
-   
+   LinearForm plasma_term(&fespace);
+   plasma_term.AddDomainIntegrator(new DomainLFIntegrator(nlgcoeff1));
+   plasma_term.Assemble();
+
+   // derivative of plasma term
    NonlinearGridCoefficient nlgcoeff2(&model, 2);
    nlgcoeff2.set_grid_function(&x);
-   BilinearForm d(&fespace);
-   d.AddDomainIntegrator(new MassIntegrator(nlgcoeff2));
-   d.Assemble();
+   BilinearForm diff_plasma_term(&fespace);
+   diff_plasma_term.AddDomainIntegrator(new MassIntegrator(nlgcoeff2));
+   diff_plasma_term.Assemble();
    
    x.Save("sol.gf");
    mesh.Save("mesh.mesh");
@@ -176,8 +218,110 @@ int main(int argc, char *argv[])
    //
    GridFunction y(&fespace);
    y= 0.0;
-   a.Mult(x, y);
+   diff_operator.Mult(x, y);
    y.Save("y.gf");
+
+
+   //
+   TestCoefficient tcoeff;
+   GridFunction z(&fespace);
+   z.ProjectCoefficient(tcoeff);
+   z.Save("z.gf");
+
+   Table* vertex_map = mesh.GetVertexToElementTable();
+   for (int i = 0; i < vertex_map->Size(); ++i) {
+     int num_elems = vertex_map->RowSize(i);
+     const int *elems = vertex_map->GetRow(i);
+     cout << i << " ";
+     for (int j = 0; j < num_elems; ++j) {
+       cout << elems[j] << " ";
+
+       Array<int> vertices;
+       fespace.GetElementVertices(j, vertices);
+       
+     }
+     cout << endl;
+   }
+   
+   // map<int, vector<int>> vertex_map;
+   // // vector<int> empty;
+   // // vertex_map[1] = new vector<int>;
+   // // vertex_map[1] = 3;
+   // // vertex_map[1].push_back(3);
+   // // vertex_map[1].push_back(4);
+   // // cout << vertex_map[1] << endl;
+   // // cout << vertex_map[1][0] << endl;
+   
+   
+   // // ElementTransformation *Trans;
+   // const FiniteElement *fe;
+   // ElementTransformation *transf;
+   // Vector shape;
+   // Array<int> vdofs;
+   // int fdof, d, i, intorder, j, k;
+   // for (i = 0; i < fespace.GetNE(); i++)
+   //   {
+   //    fe = fespace.GetFE(i);
+   //    fdof = fe->GetDof();
+   //    transf = fespace.GetElementTransformation(i);
+   //    shape.SetSize(fdof);
+   //    intorder = 2*fe->GetOrder() + 3; // <----------
+   //    const IntegrationRule *ir;
+   //    fespace.GetElementVDofs(i, vdofs);
+
+   //    Array<double> nval;
+   //    z.GetNodalValues(i, nval);
+
+   //    Array<int> vert;
+   //    mesh.GetFaceVertices(i, vert);
+   //    if (vert.Size() == 3) {
+   //      vertex_map[vert[0]].push_back(vert[1]);
+   //      vertex_map[vert[0]].push_back(vert[2]);
+   //      vertex_map[vert[1]].push_back(vert[0]);
+   //      vertex_map[vert[1]].push_back(vert[2]);
+   //      vertex_map[vert[2]].push_back(vert[0]);
+   //      vertex_map[vert[2]].push_back(vert[1]);
+        
+   //    }
+   //    // ir = &(IntRules.Get(fe->GetGeomType(), intorder));
+   //    // for (j = 0; j < ir->GetNPoints(); j++)
+   //    // {
+   //    //    const IntegrationPoint &ip = ir->IntPoint(j);
+         
+   //    // }
+   //   }
+
+   // for(map<int, vector<int>>::iterator iter = vertex_map.begin(); iter != vertex_map.end(); ++iter)
+   //   {
+   //     int key = iter->first;
+   //     vector<int> adjacent = iter->second;
+
+   //     cout << key;
+   //     for (int j = 0; j < adjacent.size(); ++j)
+   //       {
+   //         cout << adjacent[j];
+   //       }
+   //     cout << endl;
+   //   }
+   
+
+   //     Trans = fespace.GetElementTransformation(i);
+   //     const IntegrationRule *ir;
+   //     int order = Trans->OrderGrad(&fe) + Trans->Order() + fe.GetOrder();
+   //     ir = &IntRules.Get(fe.GetGeomType(), order);
+   //     double x_[3];
+   //     Vector x(x_, 3);       
+   //     Trans->Transform(ir, x);
+
+   //     double x1(x(0));
+   //     double x2(x(1));
+
+   //     const int *pd = elem_pdof.GetRow(i);
+
+   //     pow(x1, 2.0) * pow(x2, 3.0);
+   //   }
+   
+
    
 
    return 0;
@@ -274,5 +418,23 @@ double DiffusionIntegratorCoefficient::Eval(ElementTransformation & T,
    T.Transform(ip, x);
    double ri(x(0));
 
+   if (T.Attribute == 900) {
+
+     cout << "asdf" << endl;
+   }
    return 1.0 / (ri * model->get_mu());
+}
+
+double TestCoefficient::Eval(ElementTransformation & T,
+                                            const IntegrationPoint & ip)
+{
+   double x_[3];
+   Vector x(x_, 3);
+   T.Transform(ip, x);
+   double x1(x(0));
+   double x2(x(1));
+   double k = 4.0;
+   
+   // return pow(x1, 2.0) * pow(x2, 3.0);
+   return cos(k * x1) * cos(k * x2) * exp(- pow(x1, 2.0) - pow(x2, 2.0));
 }
