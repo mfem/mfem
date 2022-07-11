@@ -101,6 +101,7 @@ private:
    void ComputeGatherIndices(const ElementDofOrdering ordering,
                              const FaceType type);
 
+public: // For nvcc
    /** @brief Apply a change of basis from coarse element basis to fine element
        basis for the coarse face dofs.
 
