@@ -181,44 +181,6 @@ public:
    virtual WorstCaseType GetWorstCaseType() { return wctype; }
 };
 
-/// Simultaneous Untangle-Optimizer with worst-case quality improvement
-/// (mu_tilde/(beta-mu_tilde))^p, where
-/// mu_tilde = (mu/phi(tau,ep)), where
-/// phi(tau,ep) = 2*(tau - min(alpha*min(tau)-ep,0)), when shifted=true and
-///             = tau + sqrt(tau^2 + ep^2), when shifted=false i.e. pseudo-barrier
-/// beta = max(mu_tilde)+muT_ep
-/// tau = det(T), and min(tau) and max(mu_tilde) are calculated over entire mesh
-/// in 2 passes.
-//class TMOP_WorstCaseUntangleOptimizer_Metric : public
-//   TMOP_UntangleOptimizer_Metric
-//{
-//protected:
-//   double max_muT;                  //point to max-det
-//   int exponent;
-//   double muT_ep;                   //small constant added to muT term
-//public:
-//   TMOP_WorstCaseUntangleOptimizer_Metric(TMOP_QualityMetric *tmop_metric_,
-//                                          int exponent_ = 1,
-//                                          double alpha_ = 1.5,
-//                                          double detT_ep_ = 0.0001,
-//                                          double muT_ep_ = 0.0001,
-//                                          bool shifted_ = false) :
-//      TMOP_UntangleOptimizer_Metric(tmop_metric_, 1, alpha_, detT_ep_, shifted_),
-//      exponent(exponent_), muT_ep(muT_ep_) { }
-
-//   virtual void SetTargetJacobian(const DenseMatrix &Jtr_)
-//   {
-//      TMOP_UntangleOptimizer_Metric::SetTargetJacobian(Jtr_);
-//   }
-
-//   virtual double EvalW(const DenseMatrix &Jpt) const;
-
-//   // Computes mu_tilde.
-//   virtual double EvalWTilde(const DenseMatrix &Jpt) const;
-
-//   virtual void SetMaxMuT(double max_muT_) { max_muT = max_muT_; }
-//};
-
 /// 2D non-barrier metric without a type.
 class TMOP_Metric_001 : public TMOP_QualityMetric
 {
