@@ -113,7 +113,6 @@ void ParNCH1FaceRestriction::NonconformingTransposeInterpolation(
    // Assumes all elements have the same number of dofs
    const int nface_dofs = face_dofs;
    const int vd = vdim;
-   const bool t = byvdim;
    if ( type==FaceType::Interior )
    {
       // Interpolation from slave to master face dofs
