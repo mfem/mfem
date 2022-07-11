@@ -5142,6 +5142,7 @@ void ParMesh::PrintAsSerial(std::ostream &os) const
    {
       serialmesh.Printer(os);
    }
+   MPI_Barrier(MyComm);
 }
 
 Mesh ParMesh::GetSerialMesh(int save_rank) const
@@ -5453,6 +5454,7 @@ Mesh ParMesh::GetSerialMesh(int save_rank) const
       }
    }
 
+   MPI_Barrier(MyComm);
    return serialmesh;
 }
 
