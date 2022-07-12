@@ -54,6 +54,7 @@ void ParNCH1FaceRestriction::NonconformingInterpolation(Vector& y) const
    auto d_y = Reshape(y.ReadWrite(), nface_dofs, vd, nf);
    auto &nc_interp_config = interpolations.GetNCFaceInterpConfig();
    const int num_nc_faces = nc_interp_config.Size();
+   if ( num_nc_faces == 0 ) { return; }
    auto interp_config_ptr = nc_interp_config.Read();
    const int nc_size = interpolations.GetNumInterpolators();
    auto d_interp = Reshape(interpolations.GetInterpolators().Read(),
