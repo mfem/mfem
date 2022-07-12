@@ -102,9 +102,9 @@
 //   2D untangling:
 //     mpirun -np 4 pmesh-optimizer -m jagged.mesh -o 2 -mid 22 -tid 1 -ni 50 -li 50 -qo 4 -fd -vl 1
 //   2D untangling with shifted barrier metric:
-//     mpirun -np 4 pmesh-optimizer -m jagged.mesh -o 2 -mid 4 -tid 1 -ni 500 -li 50 -qo 4 -fd -vl 1 -um 1 -btype 1
+//     mpirun -np 4 pmesh-optimizer -m jagged.mesh -o 2 -mid 4 -tid 1 -ni 500 -li 50 -qo 4 -fd -vl 1 -btype 1
 //   2D untangling with worst case improvement (pmean) + shifted barrier untangling:
-//     mpirun -np 4 pmesh-optimizer -m jagged.mesh -o 2 -mid 4 -tid 1 -ni 500 -li 50 -qo 4 -fd -vl 1 -um 2 -btype 1 -wctype 1
+//     mpirun -np 4 pmesh-optimizer -m jagged.mesh -o 2 -mid 4 -tid 1 -ni 500 -li 50 -qo 4 -fd -vl 1 -btype 1 -wctype 1
 //   3D untangling (the mesh is in the mfem/data GitHub repository):
 //   * mpirun -np 4 pmesh-optimizer -m ../../../mfem_data/cube-holes-inv.mesh -o 3 -mid 313 -tid 1 -rtol 1e-5 -li 50 -qo 4 -fd -vl 1
 
@@ -536,7 +536,7 @@ int main (int argc, char *argv[])
                      "Metric not supported for shifted/pseudo barriers.");
       }
       untangler_metric = new TMOP_WorstCaseUntangleOptimizer_Metric(metric,
-                                                                    1,
+                                                                    2,
                                                                     1.5,
                                                                     0.001,//0.01 for pseudo barrier
                                                                     0.001,

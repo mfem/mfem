@@ -156,11 +156,6 @@ public:
       tmop_metric(tmop_metric_), exponent(exponent_), alpha(alpha_),
       detT_ep(detT_ep_), muT_ep(muT_ep_), btype(btype_), wctype(wctype_) { }
 
-   virtual void SetTargetJacobian(const DenseMatrix &Jtr_)
-   {
-      tmop_metric->SetTargetJacobian(Jtr_);
-   }
-
    virtual double EvalW(const DenseMatrix &Jpt) const;
 
    virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const
@@ -170,6 +165,7 @@ public:
                           const double weight, DenseMatrix &A) const
    { MFEM_ABORT("Not implemented"); }
 
+   // Compute mu_hat.
    virtual double EvalWBarrier(const DenseMatrix &Jpt) const;
 
    virtual void SetMinDetT(double min_detT_) { min_detT = min_detT_; }
@@ -1638,10 +1634,11 @@ protected:
    void AssemblePA_Limiting();
    void ComputeAllElementTargets(const Vector &xe = Vector()) const;
 
-   double ComputeUntanglerMinDetT(const Vector &x,
-                                  const FiniteElementSpace &fes);
-   double ComputeUntanglerMaxMuT(const Vector &x,
-                                 const FiniteElementSpace &fes);
+   // Compute Min(Det(Jpt)) in the mesh.
+   double ComputeMinDetT(const Vector &x, const FiniteElementSpace &fes);
+   // Compute Max(mu_hat) for the TMOP_WorstCaseUntangleOptimizer_Metric.
+   double ComputeUntanglerMaxMuBarrier(const Vector &x,
+                                       const FiniteElementSpace &fes);
 
 public:
    /** @param[in] m    TMOP_QualityMetric for r-adaptivity (not owned).

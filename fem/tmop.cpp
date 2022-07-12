@@ -3722,8 +3722,8 @@ void TMOP_Integrator::EnableFiniteDifferences(const ParGridFunction &x)
 }
 #endif
 
-double TMOP_Integrator::ComputeUntanglerMinDetT(const Vector &x,
-                                                const FiniteElementSpace &fes)
+double TMOP_Integrator::ComputeMinDetT(const Vector &x,
+                                       const FiniteElementSpace &fes)
 {
    double min_detT = std::numeric_limits<double>::infinity();
    const int NE = fes.GetMesh()->GetNE();
@@ -3765,8 +3765,8 @@ double TMOP_Integrator::ComputeUntanglerMinDetT(const Vector &x,
    return min_detT;
 }
 
-double TMOP_Integrator::ComputeUntanglerMaxMuT(const Vector &x,
-                                               const FiniteElementSpace &fes)
+double TMOP_Integrator::ComputeUntanglerMaxMuBarrier(const Vector &x,
+                                                     const FiniteElementSpace &fes)
 {
    double max_muT = -std::numeric_limits<double>::infinity();
    const int NE = fes.GetMesh()->GetNE();
@@ -3844,7 +3844,7 @@ void TMOP_Integrator::ComputeUntangleMetricQuantiles(const Vector &x,
    if (wcuo && wcuo->GetBarrierType() ==
        TMOP_WorstCaseUntangleOptimizer_Metric::BarrierType::Shifted)
    {
-      double min_detT = ComputeUntanglerMinDetT(x, fes);
+      double min_detT = ComputeMinDetT(x, fes);
       double min_detT_all = min_detT;
 #ifdef MFEM_USE_MPI
       if (pfes)
@@ -3856,7 +3856,7 @@ void TMOP_Integrator::ComputeUntangleMetricQuantiles(const Vector &x,
       if (wcuo) { wcuo->SetMinDetT(min_detT_all); }
    }
 
-   double max_muT = ComputeUntanglerMaxMuT(x, fes);
+   double max_muT = ComputeUntanglerMaxMuBarrier(x, fes);
    double max_muT_all = max_muT;
 #ifdef MFEM_USE_MPI
    if (pfes)
