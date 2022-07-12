@@ -68,7 +68,7 @@ void InitStridedRestriction(const mfem::FiniteElementSpace &fes,
     @param[in] indices The indices of the elements of same type in the
                        `FiniteElementSpace`.
     @param[in] nquads is the total number of quadrature points
-    @param[in] ncomp is the number of data per quadrature poin
+    @param[in] ncomp is the number of data per quadrature point
     @param[in] ceed The Ceed object.
     @param[out] restr The `CeedElemRestriction` to initialize. */
 void InitCoeffRestrictionWithIndices(const FiniteElementSpace &fes,

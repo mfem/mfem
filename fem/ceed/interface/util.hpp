@@ -156,7 +156,7 @@ namespace internal
 
 #ifdef MFEM_USE_CEED
 /** @warning These maps have a tendency to create bugs when adding new "types"
- * of CeedBasis and CeedElemRestriction. */
+    of CeedBasis and CeedElemRestriction. */
 extern ceed::BasisMap ceed_basis_map;
 extern ceed::RestrMap ceed_restr_map;
 #endif

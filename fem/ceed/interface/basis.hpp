@@ -25,7 +25,7 @@ namespace ceed
 /** @brief Initialize a CeedBasis for non-mixed meshes.
 
    @param[in] fes Input finite element space.
-   @param[in] irm Input integration rule.
+   @param[in] ir Input integration rule.
    @param[in] ceed Input Ceed object.
    @param[out] basis The address of the initialized CeedBasis object.
 */
