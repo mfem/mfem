@@ -857,7 +857,7 @@ void DiffusionIntegrator::AssembleElementMatrix
 
       MFEM_VERIFY(kv.Size() == dim, "Sanity check (remove later)");
 
-      irn = &patchRule->GetElementRule(patch, ijk, kv);
+      irn = &patchRule->GetElementRule(NURBSFE->GetElement(), patch, ijk, kv);
    }
 
    const int numIP = irn ? irn->GetNPoints() : ir->GetNPoints();

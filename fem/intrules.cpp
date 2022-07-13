@@ -1785,10 +1785,17 @@ NURBSPatchRule::NURBSPatchRule(IntegrationRule *irx,
    }
 }
 
-IntegrationRule& NURBSPatchRule::GetElementRule(const int patch,
-                                                int *ijk,
+IntegrationRule& NURBSPatchRule::GetElementRule(const int elem,
+                                                const int patch, int *ijk,
                                                 Array<const KnotVector*> const& kv) const
 {
+   // First check whether a rule has been assigned to element index elem.
+   auto search = elementToRule.find(elem);
+   if (search != elementToRule.end())
+   {
+      return *elementRule[search->second];
+   }
+
    if (patchRules1D.NumRows())
    {
       MFEM_VERIFY(kv.Size() == dim, "");
@@ -1881,5 +1888,10 @@ void NURBSPatchRule::SetPatchRules1D(const int patch,
    }
 }
 
+NURBSPatchRule::~NURBSPatchRule()
+{
+   delete ir;
+   delete irp;
+}
 
 }
