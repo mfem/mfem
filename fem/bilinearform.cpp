@@ -64,7 +64,7 @@ void BilinearForm::AllocMat()
 }
 
 BilinearForm::BilinearForm(FiniteElementSpace * f)
-   : Matrix (f->GetVSize())
+  : Matrix (f->GetVSize())
 {
    fes = f;
    sequence = f->GetSequence();
@@ -75,6 +75,7 @@ BilinearForm::BilinearForm(FiniteElementSpace * f)
    hybridization = NULL;
    precompute_sparsity = 0;
    diag_policy = DIAG_KEEP;
+   
 
    assembly = AssemblyLevel::LEGACY;
    batch = 1;
@@ -1280,6 +1281,7 @@ void BilinearForm::Update(FiniteElementSpace *nfes)
    height = width = fes->GetVSize();
 
    if (ext) { ext->Update(); }
+   
 }
 
 void BilinearForm::SetDiagonalPolicy(DiagonalPolicy policy)
@@ -1467,6 +1469,14 @@ void MixedBilinearForm::GetBlocks(Array2D<SparseMatrix *> &blocks) const
 void MixedBilinearForm::AddDomainIntegrator (BilinearFormIntegrator * bfi)
 {
    domain_integs.Append (bfi);
+   domain_integs_marker.Append(NULL);
+}
+
+void MixedBilinearForm::AddDomainIntegrator(BilinearFormIntegrator *bfi,
+                                       Array<int> &elem_marker)
+{
+   domain_integs.Append(bfi);
+   domain_integs_marker.Append(&elem_marker);
 }
 
 void MixedBilinearForm::AddBoundaryIntegrator (BilinearFormIntegrator * bfi)
@@ -1537,26 +1547,43 @@ void MixedBilinearForm::Assemble (int skip_zeros)
 
    if (domain_integs.Size())
    {
+     for (int k = 0; k < domain_integs.Size(); k++)
+       {
+	 if (domain_integs_marker[k] != NULL)
+	   {
+	     MFEM_VERIFY(domain_integs_marker[k]->Size() ==
+			 (mesh->attributes.Size() ? mesh->attributes.Max() : 0),
+			 "invalid element marker for domain integrator #"
+			 << k << ", counting from zero");
+	   }
+       }
+
       for (int i = 0; i < test_fes -> GetNE(); i++)
       {
-         dom_dof_trans = trial_fes -> GetElementVDofs (i, trial_vdofs);
-         ran_dof_trans = test_fes  -> GetElementVDofs (i, test_vdofs);
-         eltrans = test_fes -> GetElementTransformation (i);
-
-         elmat.SetSize(test_vdofs.Size(), trial_vdofs.Size());
-         elmat = 0.0;
-         for (int k = 0; k < domain_integs.Size(); k++)
-         {
-            domain_integs[k] -> AssembleElementMatrix2 (*trial_fes -> GetFE(i),
-                                                        *test_fes  -> GetFE(i),
-                                                        *eltrans, elemmat);
-            elmat += elemmat;
-         }
-         if (ran_dof_trans || dom_dof_trans)
-         {
-            TransformDual(ran_dof_trans, dom_dof_trans, elmat);
-         }
-         mat -> AddSubMatrix (test_vdofs, trial_vdofs, elmat, skip_zeros);
+	int elem_attr = test_fes->GetMesh()->GetAttribute(i);
+	elmat = 0.0;
+	for (int k = 0; k < domain_integs.Size(); k++)
+	  {
+	    if ( domain_integs_marker[k] == NULL ||
+		 (*(domain_integs_marker[k]))[elem_attr-1] == 1)
+	      {
+		
+		dom_dof_trans = trial_fes -> GetElementVDofs (i, trial_vdofs);
+		ran_dof_trans = test_fes  -> GetElementVDofs (i, test_vdofs);
+		eltrans = test_fes -> GetElementTransformation (i);
+		
+		elmat.SetSize(test_vdofs.Size(), trial_vdofs.Size());
+		domain_integs[k] -> AssembleElementMatrix2 (*trial_fes -> GetFE(i),
+							    *test_fes  -> GetFE(i),
+							    *eltrans, elemmat);
+		elmat += elemmat;
+	      }
+	    if (ran_dof_trans || dom_dof_trans)
+	      {
+		TransformDual(ran_dof_trans, dom_dof_trans, elmat);
+	      }
+	  }
+	mat -> AddSubMatrix (test_vdofs, trial_vdofs, elmat, skip_zeros);
       }
    }
 

@@ -668,6 +668,13 @@ protected:
    /// Domain integrators.
    Array<BilinearFormIntegrator*> domain_integs;
 
+   /// Element attribute marker (should be of length mesh->attributes.Max() or
+   /// 0 if mesh->attributes is empty)
+   /// Includes all by default.
+   /// 0 - ignore attribute
+   /// 1 - include attribute
+   Array<Array<int>*>             domain_integs_marker;
+
    /// Boundary integrators.
    Array<BilinearFormIntegrator*> boundary_integs;
    Array<Array<int>*> boundary_integs_marker; ///< Entries are not owned.
@@ -736,7 +743,7 @@ public:
    /// Finalizes the matrix initialization.
    virtual void Finalize(int skip_zeros = 1);
 
-   /** Extract the associated matrix as SparseMatrix blocks. The number of
+  /** Extract the associated matrix as SparseMatrix blocks. The number of
        block rows and columns is given by the vector dimensions (vdim) of the
        test and trial spaces, respectively. */
    void GetBlocks(Array2D<SparseMatrix *> &blocks) const;
@@ -753,6 +760,11 @@ public:
 
    /// Adds a domain integrator. Assumes ownership of @a bfi.
    void AddDomainIntegrator(BilinearFormIntegrator *bfi);
+
+     /// Adds new Domain Integrator restricted to certain elements specified by
+   /// the @a elem_attr_marker.
+   void AddDomainIntegrator(BilinearFormIntegrator *bfi,
+                            Array<int> &elem_marker);
 
    /// Adds a boundary integrator. Assumes ownership of @a bfi.
    void AddBoundaryIntegrator(BilinearFormIntegrator *bfi);
