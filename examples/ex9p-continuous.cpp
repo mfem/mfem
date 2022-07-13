@@ -63,6 +63,9 @@ int problem;
 
 // Velocity coefficient
 void velocity_function(const Vector &x, Vector &v);
+void test_sparse_matrices(const SparseMatrix &A, const SparseMatrix &AT);
+void create_global_expansion_matrix(ParFiniteElementSpace &pfes, SparseMatrix & spm);
+void test_hpm_pgf(HypreParVector U, HypreParMatrix k);
 
 // Exact solution
 double u0_function(const Vector &x);
@@ -85,28 +88,30 @@ class FE_Evolution : public TimeDependentOperator
 {
 private:
    ParFiniteElementSpace &pfes;
+   ParMesh &pmesh;
    Array<int> ess_tdof_list; 
+   Array<HYPRE_BigInt> gi;
 
-   HypreParMatrix M_hpm, *K_hpm;
+   HypreParMatrix M_hpm, *K_hpm, *KT_hpm;
    HypreParVector lumpedM;
    ParBilinearForm *D_form;
-   ParBilinearForm &K_pbf;
+   ParBilinearForm &K_pbf, &KT_pbf;
    HypreSolver *M_prec;
    HyprePCG M_solver; // Symmetric system, can use CG
 
-   mutable SparseMatrix dij_matrix;
-   SparseMatrix K_spmat;
+   DenseMatrix dij_matrix;
+   SparseMatrix dij_sparse;
+   SparseMatrix K_spmat, KT_spmat;
    SparseMatrix K_spmat_wide;
    HypreParMatrix *D;
    HypreParMatrix *W;
 
    Array<int> K_smap;
-   mutable Vector z, rhs;
 
    double timestep;
 
 public:
-   FE_Evolution(ParBilinearForm &M_, ParBilinearForm &K_);
+   FE_Evolution(ParBilinearForm &M_, ParBilinearForm &K_, ParBilinearForm &KT_);
 
    /** FE_Evolution::build_dij_matrix
    Builds dij_matrix used in the low order approximation, which is based on
@@ -313,36 +318,39 @@ int main(int argc, char *argv[])
 
    ParBilinearForm *m = new ParBilinearForm(fes);
    ParBilinearForm *k = new ParBilinearForm(fes);
+   ParBilinearForm *kT = new ParBilinearForm(fes);
+
    if (pa)
    {
       m->SetAssemblyLevel(AssemblyLevel::PARTIAL);
       k->SetAssemblyLevel(AssemblyLevel::PARTIAL);
+      kT->SetAssemblyLevel(AssemblyLevel::PARTIAL);
    }
    else if (ea)
    {
       m->SetAssemblyLevel(AssemblyLevel::ELEMENT);
       k->SetAssemblyLevel(AssemblyLevel::ELEMENT);
+      kT->SetAssemblyLevel(AssemblyLevel::ELEMENT);
    }
    else if (fa)
    {
       m->SetAssemblyLevel(AssemblyLevel::FULL);
       k->SetAssemblyLevel(AssemblyLevel::FULL);
+      kT->SetAssemblyLevel(AssemblyLevel::FULL);
    }
 
    m->AddDomainIntegrator(new LumpedIntegrator(new MassIntegrator));
    constexpr double alpha = -1.0;
    k->AddDomainIntegrator(new ConvectionIntegrator(velocity, alpha));
-   k->KeepNbrBlock(true);
+   kT->AddDomainIntegrator(new ConservativeConvectionIntegrator(velocity, -alpha));
 
    int skip_zeros = 0;
    m->Assemble();
    k->Assemble(skip_zeros);
+   kT->Assemble(skip_zeros);
    m->Finalize();
    k->Finalize(skip_zeros);
-
-   HypreParMatrix * K = k->ParallelAssemble(); 
-   SparseMatrix K_diag;
-   K->GetDiag(K_diag);  
+   kT->Finalize(skip_zeros);
 
    // 9. Define the initial conditions, save the corresponding grid function to
    //    a file and (optionally) save data in the VisIt format and initialize
@@ -350,14 +358,22 @@ int main(int argc, char *argv[])
    ParGridFunction *u = new ParGridFunction(fes);
    u->ProjectCoefficient(u0);
    HypreParVector *U = u->GetTrueDofs();
+   *U = 1.; // Set U to ones for testing row sums and mat-vec multiplication
 
-   if (Mpi::Root())
-   {
-      cout << "Root:\n"
-           << "k size: " << k->SpMat().Height() << "," << k->SpMat().Width() << endl
-           << "u size: " << u->Size() << " U size: " << U->Size() << endl
-           << "K_diag size: " << K_diag.Height() << "," << K_diag.Width() << endl;
-   }
+   HypreParMatrix * K = k->ParallelAssemble(); 
+   test_hpm_pgf(*U, *K);
+
+   
+   // SparseMatrix K_diag;
+   // K->GetDiag(K_diag);  
+
+   // if (Mpi::Root())
+   // {
+   //    cout << "Root:\n"
+   //         << "k size: " << k->SpMat().Height() << "," << k->SpMat().Width() << endl
+   //         << "u size: " << u->Size() << " U size: " << U->Size() << endl
+   //         << "K_diag size: " << K_diag.Height() << "," << K_diag.Width() << endl;
+   // }
 
    ConstantCoefficient zero(0.0);
 
@@ -446,7 +462,7 @@ int main(int argc, char *argv[])
    // 10. Define the time-dependent evolution operator describing the ODE
    //     right-hand side, and perform time-integration (looping over the time
    //     iterations, ti, with a time-step dt).
-   FE_Evolution adv(*m, *k);
+   FE_Evolution adv(*m, *k, *kT);
 
    double t = 0.0;
    adv.SetTime(t);
@@ -463,7 +479,7 @@ int main(int argc, char *argv[])
    for (int ti = 0; !done; )
    {
       double dt_real = min(dt, t_final - t);
-      ode_solver->Step(*U, t, dt_real);
+      ode_solver->Step(*u, t, dt_real);
       ti++;
 
       done = (t >= t_final - 1e-8*dt);
@@ -477,7 +493,7 @@ int main(int argc, char *argv[])
 
          // 11. Extract the parallel grid function corresponding to the finite
          //     element approximation U (the local solution on each processor).
-         *u = *U; // Synchronizes MPI processes.
+         // *u = *U; // Synchronizes MPI processes.
 
          if (visualization)
          {
@@ -615,60 +631,80 @@ int main(int argc, char *argv[])
 /*
 Implementation of class FE_Evolution
 */
-FE_Evolution::FE_Evolution(ParBilinearForm &M_, ParBilinearForm &K_)
+FE_Evolution::FE_Evolution(ParBilinearForm &M_, ParBilinearForm &K_, ParBilinearForm &KT_)
    : TimeDependentOperator(K_.Height()),
      pfes(*(K_.ParFESpace())),
+     pmesh(*(pfes.GetParMesh())),
      M_solver(pfes.GetComm()),
-     z(K_.Height()),
      D_form(&K_),
      K_smap(),
      lumpedM(&pfes),
      timestep(0.),
-     K_pbf(K_)
+     K_pbf(K_),
+     KT_pbf(KT_),
+     dij_matrix(K_pbf.Height())
 {
    if (pfes.GetParMesh()->bdr_attributes.Size())
    {
-      Array<int> ess_bdr(pfes.GetParMesh()->bdr_attributes.Max());
+      Array<int> ess_bdr(pmesh.bdr_attributes.Max());
       ess_bdr = 1;
       pfes.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
    }
 
+   pmesh.GetGlobalVertexIndices(gi);
+
    cout << "Initialize FE_Evolution class.\n";
    M_.FormSystemMatrix(ess_tdof_list, M_hpm);
    M_hpm.GetDiag(lumpedM);
-   K_hpm = K_pbf.ParallelAssemble();
-   K_hpm->GetDiag(K_spmat);
-   dij_matrix = K_spmat;
 
-   // M_solver.iterative_mode = false;
+   K_hpm = K_pbf.ParallelAssemble();
+   K_hpm->MergeDiagAndOffd(K_spmat);
+   create_global_expansion_matrix(pfes, K_spmat);
+   assert(false);
+
+   DenseMatrix * den = K_spmat.ToDenseMatrix();
+   DenseMatrix denT;
+   den->Transpose(denT);
+   Vector sums_;
+   denT.GetRowSums(sums_);
+   sums_.Print(cout);
+   // assert(false);
+
+   KT_hpm = KT_pbf.ParallelAssemble();
+   KT_hpm->MergeDiagAndOffd(KT_spmat);
+
+   cout << "K_spmat size: (" << K_spmat.Height() << ',' << K_spmat.Width() << ")\n";
+   cout << "KT_spmat size: (" << KT_spmat.Height() << ',' << KT_spmat.Width() << ")\n";
+
+   M_solver.iterative_mode = false;
    // M_solver.SetRelTol(1e-9);
-   // M_solver.SetAbsTol(0.0);
-   // M_solver.SetTol(1e-9);
-   // M_solver.SetMaxIter(100);
-   // M_solver.SetPrintLevel(0);
-   // M_prec = new HypreBoomerAMG;
-   // M_solver.SetPreconditioner(*M_prec);
-   // M_solver.SetOperator(M_hpm);
+   M_solver.SetAbsTol(0.0);
+   M_solver.SetTol(1e-9);
+   M_solver.SetMaxIter(100);
+   M_solver.SetPrintLevel(0);
+   M_prec = new HypreBoomerAMG;
+   M_solver.SetPreconditioner(*M_prec);
+   M_solver.SetOperator(M_hpm);
 
    // Assuming K is finalized. (From extrapolator.)
    // K_smap is used later to symmetrically form dij_matrix
-   const int *I = K_spmat.GetI(), *J = K_spmat.GetJ(), n = K_spmat.Size();
-   K_smap.SetSize(I[n]);
-   for (int row = 0, j = 0; row < n; row++)
-   {
-      for (int end = I[row+1]; j < end; j++)
-      {
-         int col = J[j];
-         // Find the offset, _j, of the (col,row) entry and store it in smap[j].
-         for (int _j = I[col], _end = I[col+1]; true; _j++)
-         {
-            MFEM_VERIFY(_j != _end, "Can't find the symmetric entry!");
+//    const int *I = K_spmat.GetI(), *J = K_spmat.GetJ(), n = K_spmat.Size();
+//    K_smap.SetSize(I[n]);
+//    for (int row = 0, j = 0; row < n; row++)
+//    {
+//       for (int end = I[row+1]; j < end; j++)
+//       {
+//          int col = J[j];
+//          // Find the offset, _j, of the (col,row) entry and store it in smap[j].
+//          for (int _j = I[col], _end = I[col+1]; true; _j++)
+//          {
+//             MFEM_VERIFY(_j != _end, "Can't find the symmetric entry!");
 
-            if (J[_j] == row) { K_smap[j] = _j; break; }
-         }
-      }
-   }
-   cout << "End FEEvolution constructor.\n";
+//             if (J[_j] == row) { K_smap[j] = _j; break; }
+//          }
+//       }
+//    }
+//    cout << "End FEEvolution constructor.\n";
 }
 
 // TODO: Implement an ImplicitSolve function
@@ -690,69 +726,84 @@ void FE_Evolution::build_dij_matrix(const Vector &U,
                                     const VectorFunctionCoefficient &velocity)
 {
    cout << "Build dij\n";
+   cout << "dij size: " << dij_matrix.Height() << "," << dij_matrix.Width() << endl;
 
    const int *I = K_spmat.HostReadI(), *J = K_spmat.HostReadJ();
    const int n = K_spmat.Size(), n_local = 0;
 
    const double *K_data = K_spmat.HostReadData();
+   const double *KT_data = KT_spmat.HostReadData();
 
-   double *D_data = dij_matrix.HostReadWriteData();
+   // double *D_data = dij_matrix.HostReadWriteData();
    double rowsum;
 
    for (int i = 0, k = 0; i < n; i++)
    {
+      int i_local = pfes.GetLocalTDofNumber(i);
       rowsum = 0.;
       for (int end = I[i+1]; k < end; k++)
       {
          int j = J[k];
-         if (i != j)
+         if (j > i) // We only need to look at the upper diagonal since we have access to the transpose.
          {
             double kij = K_data[k];
-            double kji = K_data[K_smap[k]];
+            double kji = KT_data[k];
             double dij = fmax(abs(kij), abs(kji));
+
+            int j_local = pfes.GetLocalTDofNumber(j);
             
-            D_data[k] = dij;
-            D_data[K_smap[k]] = dij;
-            rowsum += dij; 
+            dij_matrix(i_local,j_local) = dij;
+            dij_matrix(j_local,i_local) = dij;
+            cout << "i: " << i << " i_local: " << i_local 
+                 << " j: " << j << " j_local: " << j_local << endl;
          }
-         
       }
-      dij_matrix(i,i) = - rowsum;
+   }
+
+   // TODO: better way to set row sums?
+   Vector row_sums(n);
+   dij_matrix.GetRowSums(row_sums);
+   row_sums *= -1;
+   
+   for (int i = 0; i < n; i++)
+   {
+      dij_matrix(i,i) = row_sums[i];
    }
 
    // Check that our matrix dij is symmetric.
-   if (dij_matrix.IsSymmetric()) {
-      cout << "ERROR: dij matrix must be symmetric.\n";
-      cout << "Val: " << dij_matrix.IsSymmetric() << endl;
-      return;
-   }
+   // if (dij_matrix.IsSymmetric()) {
+   //    cout << "ERROR: dij matrix must be symmetric.\n";
+   //    cout << "Val: " << dij_matrix.IsSymmetric() << endl;
+   //    return;
+   // }
    
    // D = D_form->ParallelAssemble(&dij_matrix);
    // D = new HypreParMatrix(MPI_COMM_WORLD, pfes.GlobalVSize(), pfes.GetDofOffsets(), &dij_matrix);  
    // W = RAP(D, pfes.Dof_TrueDof_Matrix());
+   cout << "Finished dij matrix.\n";
 }
 
 /******************************************************************************
  * FE_Evolution::apply_dij(ParGridFunction &u, Vector &du) const
  * Purpose:
  * ***************************************************************************/
-void FE_Evolution::apply_dij(const Vector &u, Vector &du) const
-{
-   const int s = u.Size();
-   const int *I = dij_matrix.HostReadI(), *J = dij_matrix.HostReadJ();
-   const double *D_data = dij_matrix.HostReadData();
+// void FE_Evolution::apply_dij(const Vector &u, Vector &du) const
+// {
+//    const int s = u.Size();
+//    const int *I = dij_matrix.HostReadI(), *J = dij_matrix.HostReadJ();
+//    const double *D_data = dij_matrix.HostReadData();
    
-   for (int i = 0; i < s; i++)
-   {
-      du(i) = 0.;
-      for (int k = I[i]; k < I[i + 1]; k++)
-      {
-         int j = J[k];
+//    for (int i = 0; i < s; i++)
+//    {
+//       du(i) = 0.;
+//       for (int k = I[i]; k < I[i + 1]; k++)
+//       {
+//          int j = J[k];
 
-         du(i) += D_data[k] * u(j);
-      }
-   }
-}
+//          du(i) += D_data[k] * u(j);
+//       }
+//    }
+// }
 
 /******************************************************************************
  * FE_Evolution::calculate_timestep()
@@ -795,21 +846,27 @@ double FE_Evolution::get_timestep()
  * ***************************************************************************/
 void FE_Evolution::Mult(const Vector &x, Vector &y) const
 {
-   K_hpm->Mult(x, z);
+   ParGridFunction u(&pfes), z(&pfes), rhs(&pfes), temp(&pfes);
+   u = x;
+   K_pbf.Mult(u, z);
 
-   const int s = x.Size();
-   rhs.SetSize(s);
-   y.SetSize(s);
+   const int s = u.Size();
 
-   apply_dij(x, rhs);
-   z += rhs; 
+   dij_matrix.Mult(u, rhs);
+   z += rhs;
 
-   assert(lumpedM.Size() == s);
+   HypreParVector *U = z.GetTrueDofs();
+   int s_true = U->Size();
 
-   for (int i = 0; i < s; i++)
-   {
-      y(i) = z(i) / lumpedM(i);
-   }
+   assert(lumpedM.Size() == s_true);
+
+   // for (int i = 0; i < s_true; i++)
+   // {
+   //    U[i] = U[i] / lumpedM(i);
+   // }
+   M_solver.Mult(z, temp);
+   u.SetFromTrueDofs(*temp.GetTrueDofs());
+   y = u;
 
    assert (y.Size() == x.Size());
 }
@@ -1019,4 +1076,89 @@ double inflow_function(const Vector &x)
       case 4: return 0.0;
    }
    return 0.0;
+}
+
+// Function to test the matrix generated by the conservative convection integrator is in fact
+// the right matrix we need
+void test_sparse_matrices(const SparseMatrix &A, const SparseMatrix &AT)
+{
+   const int *I = A.HostReadI(), *J = A.HostReadJ();
+   const int n = A.Size();
+   const double *K_data = A.HostReadData();
+
+   const int *IT = AT.HostReadI(), *JT = AT.HostReadJ();
+   const int nT = AT.Size();
+   const double *KT_data = AT.HostReadData();
+
+   if (!Mpi::Root())
+   {
+      cout << "n: " << n << " nT: " << nT << endl;
+
+      for (int i = 0, k = 0; i < n; i++)
+      {
+         // int end = I[i+1], endT = IT[i+1];
+         // cout << "row i, end: " << end << " endT: " << endT << endl;
+         for (int end = I[i+1]; k < end; k++)
+         {
+            int j = J[k], jT = JT[k];
+            if (j != jT) { 
+               cout << "row i, j: " << j << " jT: " << jT << endl;
+            }
+            // if (i != j)
+            // {
+            //    double kij = A[k];
+            //    double kji = AT[k];
+            // }
+            
+         }
+      }
+   }
+}
+
+void create_global_expansion_matrix(ParFiniteElementSpace &pfes, SparseMatrix & spm)
+{
+   const int *I = spm.HostReadI(), *J = spm.HostReadJ();
+   const int n = spm.Height();
+   const double *K_data = spm.HostReadData();
+
+   for (int i = 0, k = 0, i_new = 0; i < n; i++)
+   {
+      for (int end = I[i+1]; k < end; k++)
+         {
+            int j = J[k];
+            cout << "row i: " << i << " j: " << j << " local j: " << pfes.GetLocalTDofNumber(j) << endl;
+         }
+   }
+   cout << "Num of face neighbord dofs: " << pfes.num_face_nbr_dofs << endl;
+}
+
+void test_hpm_pgf(HypreParVector U, HypreParMatrix K_hpm)
+{
+   if (!Mpi::Root()) // Just output results on one processor.
+   {
+      // U = 1; // tdof
+      cout << "Testing row sums\n";
+      SparseMatrix K_spm, K_diag;
+      K_hpm.GetDiag(K_spm); // tdof x tdof
+      K_hpm.MergeDiagAndOffd(K_diag); // tdof x gdof
+      cout << "K_spm size: (" << K_spm.Height() << "," << K_spm.Width() << ")" << endl;
+      cout << "K_diag size: (" << K_diag.Height() << "," << K_diag.Width() << ")" << endl;
+      cout << "U size: " << U.Size() << endl;
+
+      Vector y(U.Size());
+      K_diag.Mult(U, y); // Test to see how HypreParVector handles multiplication with mismatched sizes.
+      cout << "Resulting vector y values: \n";
+      y.Print(cout);
+      Vector DiagRowSums(K_diag.Height()), SpmRowSums(K_spm.Height());
+      K_diag.GetRowSums(DiagRowSums);
+      K_spm.GetRowSums(SpmRowSums);
+      cout << "(tdof x gdof) Row Sums: \n";
+      DiagRowSums.Print(cout);
+
+      cout << "(tdof x tdof) Row Sums: \n";
+      SpmRowSums.Print(cout);
+
+      assert(false); // terminate the program early
+   }
+   
 }
