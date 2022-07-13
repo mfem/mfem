@@ -1840,6 +1840,7 @@ void NCL2FaceRestriction::DoubleValuedNonconformingInterpolation(
    auto d_y = Reshape(y.ReadWrite(), nface_dofs, vd, 2, nf);
    auto &nc_interp_config = interpolations.GetNCFaceInterpConfig();
    const int num_nc_faces = nc_interp_config.Size();
+   if ( num_nc_faces == 0 ) { return; }
    auto interp_config_ptr = nc_interp_config.Read();
    const int nc_size = interpolations.GetNumInterpolators();
    auto d_interp = Reshape(interpolations.GetInterpolators().Read(),
@@ -1919,6 +1920,7 @@ void NCL2FaceRestriction::SingleValuedNonconformingTransposeInterpolation(
    auto d_x = Reshape(x_interp.ReadWrite(), nface_dofs, vd, nf);
    auto &nc_interp_config = interpolations.GetNCFaceInterpConfig();
    const int num_nc_faces = nc_interp_config.Size();
+   if ( num_nc_faces == 0 ) { return; }
    auto interp_config_ptr = nc_interp_config.Read();
    auto interpolators = interpolations.GetInterpolators().Read();
    const int nc_size = interpolations.GetNumInterpolators();
@@ -1981,6 +1983,7 @@ void NCL2FaceRestriction::DoubleValuedNonconformingTransposeInterpolation(
    auto d_x = Reshape(x.ReadWrite(), nface_dofs, vd, 2, nf);
    auto &nc_interp_config = interpolations.GetNCFaceInterpConfig();
    const int num_nc_faces = nc_interp_config.Size();
+   if ( num_nc_faces == 0 ) { return; }
    auto interp_config_ptr = nc_interp_config.Read();
    auto interpolators = interpolations.GetInterpolators().Read();
    const int nc_size = interpolations.GetNumInterpolators();
