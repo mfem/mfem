@@ -1700,7 +1700,7 @@ void hypre_ParCSRMatrixBooleanMatvecT(hypre_ParCSRMatrix *A,
    if (num_cols_offd)
    {
 #if MFEM_HYPRE_VERSION >= 21100 && 0
-      //function below will crash if offdT is on the device
+      // Disabled for now, until we implement hypre_CSRMatrixAbsMatvec on device
       if (A->offdT)
       {
          // offdT is optional. Used only if it's present.
