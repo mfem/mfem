@@ -917,6 +917,7 @@ int Quadrature1D::CheckClosed(int type)
    {
       case GaussLobatto:
       case ClosedUniform:
+      case ClosedGL:
          return type;
       default:
          return Invalid;
