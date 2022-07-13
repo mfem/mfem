@@ -438,6 +438,14 @@ public:
    virtual const Operator *GetOutputRestriction() const
    { return GetRestriction(); }
 
+   /// @brief Compute serial RAP operator and store it in @a A as a SparseMatrix.
+   void SerialRAP(OperatorHandle &A)
+   {
+      MFEM_ASSERT(mat, "SerialRAP requires the SparseMatrix to be assembled.");
+      ConformingAssemble();
+      A.Reset(mat, false);
+   }
+
    /** @brief Form the linear system A X = B, corresponding to this bilinear
        form and the linear form @a b(.). */
    /** This method applies any necessary transformations to the linear system
