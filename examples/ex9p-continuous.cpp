@@ -99,7 +99,7 @@ private:
    HypreSolver *M_prec;
    HyprePCG M_solver; // Symmetric system, can use CG
 
-   DenseMatrix dij_matrix;
+   SparseMatrix dij_matrix;
    SparseMatrix dij_sparse;
    SparseMatrix K_spmat, KT_spmat;
    SparseMatrix K_spmat_wide;
@@ -361,7 +361,15 @@ int main(int argc, char *argv[])
    *U = 1.; // Set U to ones for testing row sums and mat-vec multiplication
 
    HypreParMatrix * K = k->ParallelAssemble(); 
+   // HypreParMatrix *K_e = k->ParallelAssembleElim();
+   // cout << "K size: (" << K->Height() << "," << K->Width() << ")" << endl;
+   // cout << "K_e size: (" << K_e->Height() << "," << K_e->Width() << ")" << endl;
+   cout << "pfes.GetVSize(): " << fes->GetVSize() << endl;
+   cout << "pfes.GetTrueVSize(): " << fes->GetTrueVSize() << endl;
+   cout << "pfes.GetFaceNbrVSize(): " << fes->GetFaceNbrVSize() << endl;
+
    test_hpm_pgf(*U, *K);
+   assert(false);
 
    
    // SparseMatrix K_diag;
@@ -470,16 +478,16 @@ int main(int argc, char *argv[])
 
    // dij_matrix has no time dependence
    adv.build_dij_matrix(*u, velocity);
-   adv.calculate_timestep();
+   // adv.calculate_timestep();
 
    // Verify our timestamp satisfies the cfl condition
-   assert (dt <= adv.get_timestep());
+   // assert (dt <= adv.get_timestep());
 
    bool done = false;
    for (int ti = 0; !done; )
    {
       double dt_real = min(dt, t_final - t);
-      ode_solver->Step(*u, t, dt_real);
+      ode_solver->Step(*U, t, dt_real);
       ti++;
 
       done = (t >= t_final - 1e-8*dt);
@@ -641,8 +649,9 @@ FE_Evolution::FE_Evolution(ParBilinearForm &M_, ParBilinearForm &K_, ParBilinear
      lumpedM(&pfes),
      timestep(0.),
      K_pbf(K_),
-     KT_pbf(KT_),
-     dij_matrix(K_pbf.Height())
+     KT_pbf(KT_)
+   //   ,
+   //   dij_matrix(K_pbf.Height())
 {
    if (pfes.GetParMesh()->bdr_attributes.Size())
    {
@@ -659,22 +668,22 @@ FE_Evolution::FE_Evolution(ParBilinearForm &M_, ParBilinearForm &K_, ParBilinear
 
    K_hpm = K_pbf.ParallelAssemble();
    K_hpm->MergeDiagAndOffd(K_spmat);
-   create_global_expansion_matrix(pfes, K_spmat);
-   assert(false);
+   // create_global_expansion_matrix(pfes, K_spmat);
+   dij_matrix = K_spmat;
 
    DenseMatrix * den = K_spmat.ToDenseMatrix();
    DenseMatrix denT;
    den->Transpose(denT);
    Vector sums_;
    denT.GetRowSums(sums_);
-   sums_.Print(cout);
+   // sums_.Print(cout);
    // assert(false);
 
    KT_hpm = KT_pbf.ParallelAssemble();
    KT_hpm->MergeDiagAndOffd(KT_spmat);
 
-   cout << "K_spmat size: (" << K_spmat.Height() << ',' << K_spmat.Width() << ")\n";
-   cout << "KT_spmat size: (" << KT_spmat.Height() << ',' << KT_spmat.Width() << ")\n";
+   // cout << "K_spmat size: (" << K_spmat.Height() << ',' << K_spmat.Width() << ")\n";
+   // cout << "KT_spmat size: (" << KT_spmat.Height() << ',' << KT_spmat.Width() << ")\n";
 
    M_solver.iterative_mode = false;
    // M_solver.SetRelTol(1e-9);
@@ -734,13 +743,8 @@ void FE_Evolution::build_dij_matrix(const Vector &U,
    const double *K_data = K_spmat.HostReadData();
    const double *KT_data = KT_spmat.HostReadData();
 
-   // double *D_data = dij_matrix.HostReadWriteData();
-   double rowsum;
-
    for (int i = 0, k = 0; i < n; i++)
    {
-      int i_local = pfes.GetLocalTDofNumber(i);
-      rowsum = 0.;
       for (int end = I[i+1]; k < end; k++)
       {
          int j = J[k];
@@ -749,13 +753,9 @@ void FE_Evolution::build_dij_matrix(const Vector &U,
             double kij = K_data[k];
             double kji = KT_data[k];
             double dij = fmax(abs(kij), abs(kji));
-
-            int j_local = pfes.GetLocalTDofNumber(j);
             
-            dij_matrix(i_local,j_local) = dij;
-            dij_matrix(j_local,i_local) = dij;
-            cout << "i: " << i << " i_local: " << i_local 
-                 << " j: " << j << " j_local: " << j_local << endl;
+            dij_matrix(i,j) = dij;
+            if (j < n) { dij_matrix(j,i) = dij; }
          }
       }
    }
@@ -769,6 +769,8 @@ void FE_Evolution::build_dij_matrix(const Vector &U,
    {
       dij_matrix(i,i) = row_sums[i];
    }
+
+   cout << "dij_matrix size: (" << dij_matrix.Height() << ',' << dij_matrix.Width() << ")\n";
 
    // Check that our matrix dij is symmetric.
    // if (dij_matrix.IsSymmetric()) {
@@ -846,14 +848,15 @@ double FE_Evolution::get_timestep()
  * ***************************************************************************/
 void FE_Evolution::Mult(const Vector &x, Vector &y) const
 {
+   cout << "FE_Evolution::Mult()\n";
    ParGridFunction u(&pfes), z(&pfes), rhs(&pfes), temp(&pfes);
    u = x;
    K_pbf.Mult(u, z);
 
    const int s = u.Size();
 
-   dij_matrix.Mult(u, rhs);
-   z += rhs;
+   // dij_matrix.Mult(u, rhs);
+   // z += rhs;
 
    HypreParVector *U = z.GetTrueDofs();
    int s_true = U->Size();
@@ -869,6 +872,7 @@ void FE_Evolution::Mult(const Vector &x, Vector &y) const
    y = u;
 
    assert (y.Size() == x.Size());
+   cout << "FE_Evolution::Mult() end.\n";
 }
 
 /******************************************************************************
@@ -1132,33 +1136,81 @@ void create_global_expansion_matrix(ParFiniteElementSpace &pfes, SparseMatrix & 
    cout << "Num of face neighbord dofs: " << pfes.num_face_nbr_dofs << endl;
 }
 
+// void test_hpm_pgf(HypreParVector U, HypreParMatrix K_hpm)
+// {
+//    if (!Mpi::Root()) // Just output results on one processor.
+//    {
+//       // U = 1; // tdof
+//       cout << "Testing row sums\n";
+//       SparseMatrix K_spm, K_diag;
+//       K_hpm.GetDiag(K_spm); // tdof x tdof
+//       K_hpm.MergeDiagAndOffd(K_diag); // tdof x gdof
+//       cout << "K_hpm size: (" << K_hpm.Height() << "," << K_hpm.Width() << ")" << endl;
+//       cout << "K_spm size: (" << K_spm.Height() << "," << K_spm.Width() << ")" << endl;
+//       cout << "K_diag size: (" << K_diag.Height() << "," << K_diag.Width() << ")" << endl;
+//       cout << "U size: " << U.Size() << endl;
+
+//       // Vector z(U.Size());
+//       // K_hpm.Mult(U, z);
+//       // cout << "Resulting vector z values: \n";
+//       // z.Print(cout);
+//       Vector y(U.Size());
+//       K_spm.Mult(U, y); // Test to see how HypreParVector handles multiplication with mismatched sizes.
+//       cout << "Resulting vector y values: \n";
+//       y.Print(cout);
+//       Vector DiagRowSums(K_diag.Height()), SpmRowSums(K_spm.Height());
+//       K_diag.GetRowSums(DiagRowSums);
+//       K_spm.GetRowSums(SpmRowSums);
+//       cout << "(tdof x gdof) Row Sums: \n";
+//       DiagRowSums.Print(cout);
+//       cout << "K_diag spmat.Print()\n";
+//       K_diag.Print(cout);
+
+//       cout << "(tdof x tdof) Row Sums: \n";
+//       SpmRowSums.Print(cout);
+//       cout << "K_spm spmat.Print()\n";
+//       K_spm.Print(cout);
+
+//       assert(false); // terminate the program early
+//    }
+   
+// }
+
 void test_hpm_pgf(HypreParVector U, HypreParMatrix K_hpm)
 {
+   // *U = 1.; // Set U to ones for testing row sums and mat-vec multiplication
+   Vector y(U.Size());
+
    if (!Mpi::Root()) // Just output results on one processor.
    {
       // U = 1; // tdof
       cout << "Testing row sums\n";
-      SparseMatrix K_spm, K_diag;
-      K_hpm.GetDiag(K_spm); // tdof x tdof
-      K_hpm.MergeDiagAndOffd(K_diag); // tdof x gdof
-      cout << "K_spm size: (" << K_spm.Height() << "," << K_spm.Width() << ")" << endl;
-      cout << "K_diag size: (" << K_diag.Height() << "," << K_diag.Width() << ")" << endl;
+      SparseMatrix K_spm_diag, K_spm_merged;
+      K_hpm.GetDiag(K_spm_diag); // tdof x tdof
+      K_hpm.MergeDiagAndOffd(K_spm_merged); // tdof x gdof
+      cout << "K_spm_diag size: ("
+           << K_spm_diag.Height() << "," << K_spm_diag.Width() << ")\n";
+      cout << "K_spm_merged size: ("
+           << K_spm_merged.Height() << "," << K_spm_merged.Width() << ")\n";
       cout << "U size: " << U.Size() << endl;
 
-      Vector y(U.Size());
-      K_diag.Mult(U, y); // Test to see how HypreParVector handles multiplication with mismatched sizes.
+      Vector U_full(K_spm_merged.Width()); U_full = 1.0;
+
+      // See how HypreParVector handles multiplication with mismatched sizes.
+      K_spm_merged.Mult(U_full, y);
       cout << "Resulting vector y values: \n";
-      y.Print(cout);
-      Vector DiagRowSums(K_diag.Height()), SpmRowSums(K_spm.Height());
-      K_diag.GetRowSums(DiagRowSums);
-      K_spm.GetRowSums(SpmRowSums);
-      cout << "(tdof x gdof) Row Sums: \n";
-      DiagRowSums.Print(cout);
+      y.Print();
+      cout << endl;
 
-      cout << "(tdof x tdof) Row Sums: \n";
-      SpmRowSums.Print(cout);
-
-      assert(false); // terminate the program early
+      Vector DiagRowSums(K_spm_diag.Height()),
+             MergedRowSums(K_spm_merged.Height());
+      K_spm_merged.GetRowSums(MergedRowSums);
+      K_spm_diag.GetRowSums(DiagRowSums);
+      cout << "Diag (tdof x tdof) Row Sums: \n"; DiagRowSums.Print();
+      cout << "Merged (tdof x gdof) Row Sums: \n"; MergedRowSums.Print();
    }
-   
+
+   y = 0.0;
+   K_hpm.Mult(U, y);
+   if (!Mpi::Root()) { cout << endl; y.Print(); }
 }
