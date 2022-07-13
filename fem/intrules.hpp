@@ -15,6 +15,9 @@
 #include "../config/config.hpp"
 #include "../general/array.hpp"
 
+#include <vector>
+#include <map>
+
 namespace mfem
 {
 
@@ -282,7 +285,8 @@ public:
    NURBSPatchRule(IntegrationRule *irx, IntegrationRule *iry,
                   IntegrationRule *irz = nullptr);
 
-   IntegrationRule &GetElementRule(const int patch, int *ijk,
+   /// Returns a rule for the element.
+   IntegrationRule &GetElementRule(const int elem, const int patch, int *ijk,
                                    Array<const KnotVector*> const& kv) const;
 
    /// Set the integration rule for the NURBS patch of the given index.
@@ -291,16 +295,33 @@ public:
       patchRule[patch] = ir_patch;
    }
 
+   /// Add a rule to be used for individual elements. Returns the rule index.
+   std::size_t AddElementRule(IntegrationRule *ir_element)
+   {
+      elementRule.push_back(ir_element);
+      return elementRule.size() - 1;
+   }
+
+   /// Set the integration rule for the element of the given index. This rule is
+   /// used instead of the rule for the patch containing the element.
+   void SetElementRule(const std::size_t element,
+                       const std::size_t elementRuleIndex)
+   {
+      elementToRule[element] = elementRuleIndex;
+   }
+
    void SetPatchRules1D(const int patch, std::vector<IntegrationRule*> & ir1D);
 
-   ~NURBSPatchRule()
-   { delete ir; }
+   ~NURBSPatchRule();
 
 private:
    IntegrationRule *ir = nullptr;
    mutable IntegrationRule *irp = nullptr;
    Array<IntegrationRule*> patchRule;
    Array2D<IntegrationRule*> patchRules1D;
+   std::vector<IntegrationRule*> elementRule;
+
+   std::map<std::size_t, std::size_t> elementToRule;
 
    const int dim;
 };
