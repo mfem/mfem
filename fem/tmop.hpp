@@ -154,7 +154,11 @@ public:
                                           BarrierType btype_ = BarrierType::None,
                                           WorstCaseType wctype_ = WorstCaseType::None) :
       tmop_metric(tmop_metric_), exponent(exponent_), alpha(alpha_),
-      detT_ep(detT_ep_), muT_ep(muT_ep_), btype(btype_), wctype(wctype_) { }
+      detT_ep(detT_ep_), muT_ep(muT_ep_), btype(btype_), wctype(wctype_)
+   {
+      MFEM_VERIFY(wctype == WorstCaseType::None,
+                  "Worst-case optimization has not been fully developed!");
+   }
 
    virtual double EvalW(const DenseMatrix &Jpt) const;
 
