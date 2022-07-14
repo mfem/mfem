@@ -92,23 +92,44 @@ void QuadratureSpace::Save(std::ostream &os) const
       << "Order: " << order << '\n';
 }
 
-FaceQuadratureSpace::FaceQuadratureSpace(Mesh &mesh_, const IntegrationRule &ir)
-   : QuadratureSpaceBase(mesh_, mesh_.GetFaceGeometry(0), ir)
+FaceQuadratureSpace::FaceQuadratureSpace(Mesh &mesh_, int order_,
+                                         FaceType face_type_)
+   : QuadratureSpaceBase(mesh_, order_),
+     face_type(face_type_),
+     num_faces(mesh.GetNFbyType(face_type))
+{
+   Construct();
+}
+
+FaceQuadratureSpace::FaceQuadratureSpace(Mesh &mesh_, const IntegrationRule &ir,
+                                         FaceType face_type_)
+   : QuadratureSpaceBase(mesh_, mesh_.GetFaceGeometry(0), ir),
+     face_type(face_type_),
+     num_faces(mesh.GetNFbyType(face_type))
 {
    ConstructOffsets();
 }
 
 void FaceQuadratureSpace::ConstructOffsets()
 {
-   const int num_faces = mesh.GetNumFaces();
+   face_indices.SetSize(num_faces);
    offsets.SetSize(num_faces + 1);
    int offset = 0;
-   for (int i = 0; i < num_faces; i++)
+   int f_idx = 0;
+   for (int i = 0; i < mesh.GetNumFacesWithGhost(); i++)
    {
-      offsets[i] = offset;
+      const Mesh::FaceInformation face = mesh.GetFaceInformation(i);
+      if (face.IsNonconformingCoarse() || !face.IsOfFaceType(face_type))
+      {
+         continue;
+      }
+      face_indices[f_idx] = i;
+      offsets[f_idx] = offset;
       Geometry::Type geom = mesh.GetFaceGeometry(i);
       MFEM_ASSERT(int_rule[geom] != NULL, "Missing integration rule");
       offset += int_rule[geom]->GetNPoints();
+
+      f_idx++;
    }
    offsets[num_faces] = size = offset;
 }

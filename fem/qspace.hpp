@@ -101,30 +101,36 @@ public:
 /// Class representing the storage layout of a FaceQuadratureFunction.
 class FaceQuadratureSpace : public QuadratureSpaceBase
 {
+   FaceType face_type;
+   const int num_faces;
+   Array<int> face_indices;
    void ConstructOffsets();
    void Construct();
 
 public:
    /// Create a FaceQuadratureSpace based on the global rules from #IntRules.
-   FaceQuadratureSpace(Mesh &mesh_, int order_)
-      : QuadratureSpaceBase(mesh_, order_) { Construct(); }
+   FaceQuadratureSpace(Mesh &mesh_, int order_, FaceType face_type_);
 
    /// @brief Create a FaceQuadratureSpace with an IntegrationRule, valid only
    /// when the mesh has one type of face geometry.
-   FaceQuadratureSpace(Mesh &mesh_, const IntegrationRule &ir);
+   FaceQuadratureSpace(Mesh &mesh_, const IntegrationRule &ir,
+                       FaceType face_type_);
 
    /// Returns number of faces in the mesh.
-   inline int GetNumFaces() const { return mesh.GetNumFaces(); }
+   inline int GetNumFaces() const { return num_faces; }
+
+   /// Returns the face type of the FaceQuadratureSpace.
+   FaceType GetFaceType() const { return face_type; }
 
    ElementTransformation *GetTransformation(int idx) override
-   { return mesh.GetFaceTransformation(idx); }
+   { return mesh.GetFaceTransformation(face_indices[idx]); }
 
    Geometry::Type GetGeometry(int idx) const override
-   { return mesh.GetFaceGeometry(idx); }
+   { return mesh.GetFaceGeometry(face_indices[idx]); }
 
    /// Get the IntegrationRule associated with mesh element @a idx.
    const IntegrationRule &GetFaceIntRule(int idx) const
-   { return *int_rule[mesh.GetFaceGeometry(idx)]; }
+   { return *int_rule[GetGeometry(idx)]; }
 };
 
 }
