@@ -1648,8 +1648,8 @@ void CoefficientVector::Project(Coefficient &coeff)
    }
    else
    {
-      delete qf;
-      qf = new QuadratureFunction(qs);
+      if (qf == nullptr) { qf = new QuadratureFunction(qs); }
+      qf->SetVDim(1);
       coeff.Project(*qf);
       MakeRef(*qf, 0, qf->Size());
    }
@@ -1676,8 +1676,8 @@ void CoefficientVector::Project(VectorCoefficient &coeff)
    }
    else
    {
-      delete qf;
-      qf = new QuadratureFunction(qs, vdim);
+      if (qf == nullptr) { qf = new QuadratureFunction(qs, vdim); }
+      qf->SetVDim(vdim);
       coeff.Project(*qf);
       MakeRef(*qf, 0, qf->Size());
    }
@@ -1685,20 +1685,15 @@ void CoefficientVector::Project(VectorCoefficient &coeff)
 
 void CoefficientVector::Project(MatrixCoefficient &coeff, bool transpose)
 {
-   delete qf;
    auto *sym_coeff = dynamic_cast<SymmetricMatrixCoefficient*>(&coeff);
-   if (sym_coeff && (storage & CoefficientStorage::SYMMETRIC))
-   {
-      vdim = sym_coeff->GetSize()*(sym_coeff->GetSize() + 1)/2;
-      qf = new QuadratureFunction(qs, vdim);
-      sym_coeff->ProjectSymmetric(*qf);
-   }
-   else
-   {
-      vdim = coeff.GetWidth()*coeff.GetHeight();
-      qf = new QuadratureFunction(qs, vdim);
-      coeff.Project(*qf, transpose);
-   }
+   const bool sym = (sym_coeff && (storage & CoefficientStorage::SYMMETRIC));
+   const int height = coeff.GetHeight();
+   const int width = coeff.GetWidth();
+   vdim = sym ? height*(height + 1)/2 : width*height;
+   if (qf == nullptr) { qf = new QuadratureFunction(qs, vdim); }
+   qf->SetVDim(vdim);
+   if (sym) { sym_coeff->ProjectSymmetric(*qf); }
+   else { coeff.Project(*qf, transpose); }
    MakeRef(*qf, 0, qf->Size());
 }
 
