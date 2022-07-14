@@ -11,6 +11,7 @@
 
 #include "qfunction.hpp"
 #include "quadinterpolator.hpp"
+#include "quadinterpolator_face.hpp"
 
 namespace mfem
 {
@@ -96,10 +97,38 @@ void QuadratureFunction::ProjectGridFunction(const GridFunction &gf)
       R->Mult(gf, e_vec);
 
       // Use quadrature interpolator to go from E-vector to Q-vector
-      const QuadratureInterpolator *qi(gf_fes.GetQuadratureInterpolator(*qs_elem));
+      const QuadratureInterpolator *qi = gf_fes.GetQuadratureInterpolator(*qs_elem);
       qi->SetOutputLayout(QVectorLayout::byVDIM);
       qi->DisableTensorProducts(!use_tensor_products);
       qi->Values(e_vec, *this);
+   }
+   else if (auto *qs_face = dynamic_cast<FaceQuadratureSpace*>(qspace))
+   {
+      const FiniteElementSpace &gf_fes = *gf.FESpace();
+      const bool use_tensor_products = UsesTensorBasis(gf_fes);
+      const ElementDofOrdering ordering = use_tensor_products ?
+                                          ElementDofOrdering::LEXICOGRAPHIC :
+                                          ElementDofOrdering::NATIVE;
+
+      const FaceType face_type = qs_face->GetFaceType();
+
+      // Use element restriction to go from L-vector to E-vector
+      const Operator *R = gf_fes.GetFaceRestriction(
+                             ordering, face_type, L2FaceValues::SingleValued);
+      Vector e_vec(R->Height());
+      R->Mult(gf, e_vec);
+
+      // Use quadrature interpolator to go from E-vector to Q-vector
+      const FaceQuadratureInterpolator *qi =
+         gf_fes.GetFaceQuadratureInterpolator(qspace->GetIntRule(0), face_type);
+      qi->SetOutputLayout(QVectorLayout::byVDIM);
+      qi->DisableTensorProducts(!use_tensor_products);
+      qi->Values(e_vec, *this);
+   }
+   else
+   {
+      // This branch should be unreachable
+      MFEM_ABORT("Unsupported case.");
    }
 }
 
