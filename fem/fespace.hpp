@@ -47,6 +47,14 @@ public:
    static void DofsToVDofs(int ndofs, int vdim, Array<int> &dofs);
 };
 
+/// @brief Type describing possible layouts for Q-vectors.
+/// @sa QuadratureInterpolator and FaceQuadratureInterpolator.
+enum class QVectorLayout
+{
+   byNODES,  ///< NQPT x VDIM x NE (values) / NQPT x VDIM x DIM x NE (grads)
+   byVDIM    ///< VDIM x NQPT x NE (values) / VDIM x DIM x NQPT x NE (grads)
+};
+
 template <> inline int
 Ordering::Map<Ordering::byNODES>(int ndofs, int vdim, int dof, int vd)
 {
