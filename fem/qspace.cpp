@@ -140,4 +140,21 @@ void FaceQuadratureSpace::Construct()
    ConstructOffsets();
 }
 
+int FaceQuadratureSpace::GetPermutedIndex(int idx, int iq) const
+{
+   const int f_idx = face_indices[idx];
+   if (Geometry::IsTensorProduct(GetGeometry(idx)))
+   {
+      const int dim = mesh.Dimension();
+      const IntegrationRule &ir = GetIntRule(idx);
+      const int q1d = (int)floor(pow(ir.GetNPoints(), 1.0/(dim-1)) + 0.5);
+      const Mesh::FaceInformation face = mesh.GetFaceInformation(f_idx);
+      return ToLexOrdering(dim, face.element[0].local_face_id, q1d, iq);
+   }
+   else
+   {
+      return iq;
+   }
+}
+
 } // namespace mfem
