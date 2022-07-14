@@ -61,6 +61,9 @@ public:
 
    virtual int GetPermutedIndex(int idx, int iq) const = 0;
 
+   /// Write the QuadratureSpace to the stream @a out.
+   virtual void Save(std::ostream &out) const = 0;
+
    virtual ~QuadratureSpaceBase() { }
 };
 
@@ -99,7 +102,7 @@ public:
    int GetPermutedIndex(int idx, int iq) const override { return iq; }
 
    /// Write the QuadratureSpace to the stream @a out.
-   void Save(std::ostream &out) const;
+   void Save(std::ostream &out) const override;
 };
 
 /// Class representing the storage layout of a FaceQuadratureFunction.
@@ -137,6 +140,9 @@ public:
    { return *int_rule[GetGeometry(idx)]; }
 
    int GetPermutedIndex(int idx, int iq) const override;
+
+   /// Write the FaceQuadratureSpace to the stream @a out.
+   void Save(std::ostream &out) const override;
 };
 
 }
