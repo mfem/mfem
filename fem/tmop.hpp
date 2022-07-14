@@ -135,13 +135,13 @@ public:
    };
 
 protected:
-   TMOP_QualityMetric &tmop_metric; //non-barrier metric to use
-   double min_detT;                 //minimum Jacobian in the mesh
-   double max_muT;                  //max mu_k/phi(tau,ep) in the mesh
-   int exponent;                    //used for p-mean metrics
-   double alpha;                    //scaling factor for min(det(T))
-   double detT_ep;                  //small constant subtracted from min(detT)
-   double muT_ep;                   //small constant added to muT term
+   TMOP_QualityMetric &tmop_metric; // non-barrier metric to use
+   double min_detT;                 // minimum Jacobian in the mesh
+   double max_muT;                  // max mu_k/phi(tau,ep) in the mesh
+   int exponent;                    // used for p-mean metrics
+   double alpha;                    // scaling factor for min(det(T))
+   double detT_ep;                  // small constant subtracted from min(detT)
+   double muT_ep;                   // small constant added to muT term
    BarrierType btype;
    WorstCaseType wctype;
 
