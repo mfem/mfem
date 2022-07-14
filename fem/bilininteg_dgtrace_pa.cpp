@@ -137,6 +137,9 @@ static void PADGTraceSetup(const int dim,
 
 void DGTraceIntegrator::SetupPA(const FiniteElementSpace &fes, FaceType type)
 {
+   const MemoryType mt = (pa_mt == MemoryType::DEFAULT) ?
+                         Device::GetDeviceMemoryType() : pa_mt;
+
    nf = fes.GetNFbyType(type);
    if (nf==0) { return; }
    // Assumes tensor-product elements
@@ -154,7 +157,7 @@ void DGTraceIntegrator::SetupPA(const FiniteElementSpace &fes, FaceType type)
    geom = mesh->GetFaceGeometricFactors(
              *ir,
              FaceGeometricFactors::DETERMINANTS |
-             FaceGeometricFactors::NORMALS, type);
+             FaceGeometricFactors::NORMALS, type, mt);
    maps = &el.GetDofToQuad(*ir, DofToQuad::TENSOR);
    dofs1D = maps->ndof;
    quad1D = maps->nqpt;
@@ -629,6 +632,7 @@ static void PADGTraceApply(const int dim,
    {
       switch ((D1D << 4 ) | Q1D)
       {
+         case 0x22: return SmemPADGTraceApply3D<2,2,1>(NF,B,Bt,op,x,y);
          case 0x23: return SmemPADGTraceApply3D<2,3,1>(NF,B,Bt,op,x,y);
          case 0x34: return SmemPADGTraceApply3D<3,4,2>(NF,B,Bt,op,x,y);
          case 0x45: return SmemPADGTraceApply3D<4,5,2>(NF,B,Bt,op,x,y);
@@ -1058,6 +1062,7 @@ static void PADGTraceApplyTranspose(const int dim,
    {
       switch ((D1D << 4 ) | Q1D)
       {
+         case 0x22: return SmemPADGTraceApplyTranspose3D<2,2>(NF,B,Bt,op,x,y);
          case 0x23: return SmemPADGTraceApplyTranspose3D<2,3>(NF,B,Bt,op,x,y);
          case 0x34: return SmemPADGTraceApplyTranspose3D<3,4>(NF,B,Bt,op,x,y);
          case 0x45: return SmemPADGTraceApplyTranspose3D<4,5>(NF,B,Bt,op,x,y);
