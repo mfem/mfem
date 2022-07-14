@@ -205,6 +205,10 @@ jobs:
       env:
         VCPKG_DEFAULT_BINARY_CACHE: ${{ github.workspace }}/vcpkg_cache
       run: |
+        $PortFile = 'C:\vcpkg\ports\metis\portfile.cmake'
+        $OriginalURL = 'http://glaros.dtc.umn.edu/gkhome/fetch/sw/metis/metis-${METIS_VERSION}.tar.gz'
+        $NewURL = 'https://github.com/mfem/tpls/raw/gh-pages/metis-5.1.0.tar.gz'
+        (Get-Content $PortFile).replace($OriginalURL, $NewURL) | Set-Content $PortFile
         vcpkg install metis --triplet=x64-windows-static
 
     # MFEM build and test
