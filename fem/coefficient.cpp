@@ -1704,16 +1704,15 @@ void CoefficientVector::ProjectTranspose(MatrixCoefficient &coeff)
    Project(coeff, true);
 }
 
-void CoefficientVector::MakeRef(const QuadratureFunction &qf)
+void CoefficientVector::MakeRef(const QuadratureFunction &qf_)
 {
-   vdim = qf.GetVDim();
-   const QuadratureSpaceBase *qs2 = qf.GetSpace();
+   vdim = qf_.GetVDim();
+   const QuadratureSpaceBase *qs2 = qf_.GetSpace();
    MFEM_CONTRACT_VAR(qs2); // qs2 used only for asserts
    MFEM_ASSERT(qs2 != NULL, "Invalid QuadratureSpace.")
    MFEM_ASSERT(qs2->GetMesh() == qs.GetMesh(), "Meshes differ.");
    MFEM_ASSERT(qs2->GetOrder() == qs.GetOrder(), "Orders differ.");
-   QuadratureFunction &qf2 = const_cast<QuadratureFunction&>(qf);
-   Vector::MakeRef(qf2, 0, qf2.Size());
+   Vector::MakeRef(const_cast<QuadratureFunction&>(qf_), 0, qf_.Size());
 }
 
 void CoefficientVector::SetConstant(double constant)

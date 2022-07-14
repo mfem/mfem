@@ -2245,7 +2245,7 @@ public:
    void ProjectTranspose(MatrixCoefficient &coeff);
 
    /// Make this vector a reference to the given QuadratureFunction.
-   void MakeRef(const QuadratureFunction &qf);
+   void MakeRef(const QuadratureFunction &qf_);
 
    /// Set this vector to the given constant.
    void SetConstant(double constant);
