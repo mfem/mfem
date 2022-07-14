@@ -31,6 +31,7 @@
 #include "mfem.hpp"
 #include <fstream>
 #include <iostream>
+#include "coefficients.hpp"
 
 using namespace std;
 using namespace mfem;
@@ -121,11 +122,11 @@ int main(int argc, char *argv[])
    //    component. We don't assemble the discrete problem yet, this will be
    //    done in the main loop.
    VectorArrayCoefficient f(dim);
-   for (int i = 0; i < dim-1; i++)
-   {
-      f.Set(i, new ConstantCoefficient(0.0));
+   f.Set(0, new ConstantCoefficient(0.0));
+   f.Set(1, new ConstantCoefficient(1.0));
+   if(dim==3){
+       f.Set(2, new ConstantCoefficient(0.0));
    }
-   f.Set(dim-1, new ConstantCoefficient(1.0));
 
    ParLinearForm b(&fespace);
 
@@ -194,10 +195,19 @@ int main(int argc, char *argv[])
                                        smooth_flux_fespace);
 
 
+   //strain fields
+   L2_FECollection strain_fec(order-1,dim);
+   ParFiniteElementSpace strain_fespace(&pmesh,&strain_fec, dim*(dim+1)/2);
+   ParGridFunction estrains; estrains.SetSpace(&strain_fespace);
+   ParGridFunction sstrains; sstrains.SetSpace(&strain_fespace);
+
+
    // ParaView output.
    ParaViewDataCollection dacol("ParaView", &pmesh);
    dacol.SetLevelsOfDetail(order);
    dacol.RegisterField("disp", &x);
+   dacol.RegisterField("estr",&estrains);
+   dacol.RegisterField("sstr",&sstrains);
    dacol.SetTime(1.0);
    dacol.SetCycle(1);
    dacol.Save();
@@ -259,6 +269,13 @@ int main(int argc, char *argv[])
       //     finite element GridFunction. Constrained nodes are interpolated
       //     from true DOFs (it may therefore happen that x.Size() >= X.Size()).
       a.RecoverFEMSolution(X, b, x);
+
+      //compute the starins
+      EngStrainCoefficient estr(x);
+      StrainCoefficient sstr(x);
+
+      estrains.ProjectCoefficient(estr);
+      sstrains.ProjectCoefficient(sstr);
 
       //ParaView output
       dacol.SetTime(double(it+1));
@@ -328,6 +345,10 @@ int main(int argc, char *argv[])
       //     interpolation matrix which is then used by GridFunction::Update().
       fespace.Update();
       x.Update();
+
+      strain_fespace.Update();
+      estrains.Update();
+      sstrains.Update();
 
       // 21. Load balance the mesh, and update the space and solution. Currently
       //     available only for nonconforming meshes.
