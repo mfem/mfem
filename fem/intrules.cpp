@@ -173,6 +173,51 @@ void IntegrationRule::GrundmannMollerSimplexRule(int s, int n)
    }
 }
 
+IntegrationRule*
+IntegrationRule::ApplyToKnotIntervals(KnotVector const& kv) const
+{
+   const int np = this->GetNPoints();
+   const int ne = kv.GetNE();
+
+   IntegrationRule *kvir = new IntegrationRule(ne * np);
+
+   double x0 = kv[0];
+   double x1 = x0;
+
+   int id = 0;
+   for (int e=0; e<ne; ++e)
+   {
+      x0 = x1;
+
+      if (e == ne-1)
+      {
+         x1 = kv[kv.Size() - 1];
+      }
+      else
+      {
+         // Find the next unique knot
+         while (id < kv.Size() - 1)
+         {
+            id++;
+            if (kv[id] != x0)
+            {
+               x1 = kv[id];
+               break;
+            }
+         }
+      }
+
+      const double s = x1 - x0;
+
+      for (int j=0; j<this->GetNPoints(); ++j)
+      {
+         const double x = x0 + (s * (*this)[j].x);
+         (*kvir)[(e * np) + j].Set1w(x, (*this)[j].weight);
+      }
+   }
+
+   return kvir;
+}
 
 #ifdef MFEM_USE_MPFR
 
@@ -1723,6 +1768,130 @@ IntegrationRule *IntegrationRules::CubeIntegrationRule(int Order)
                              *SegmentIntRules[RealOrder],
                              *SegmentIntRules[RealOrder]);
    return CubeIntRules[Order];
+}
+
+NURBSPatchRule::NURBSPatchRule(IntegrationRule *irx,
+                               IntegrationRule *iry,
+                               IntegrationRule *irz)
+   : dim(irz ? 3 : 2)
+{
+   if (irz)
+   {
+      ir = new IntegrationRule(*irx, *iry, *irz);
+   }
+   else
+   {
+      ir = new IntegrationRule(*irx, *iry);
+   }
+}
+
+IntegrationRule& NURBSPatchRule::GetElementRule(const int elem,
+                                                const int patch, int *ijk,
+                                                Array<const KnotVector*> const& kv) const
+{
+   // First check whether a rule has been assigned to element index elem.
+   auto search = elementToRule.find(elem);
+   if (search != elementToRule.end())
+   {
+      return *elementRule[search->second];
+   }
+
+   if (patchRules1D.NumRows())
+   {
+      MFEM_VERIFY(kv.Size() == dim, "");
+
+      int np = 1;
+      std::vector<std::vector<double>> el(dim);
+
+      std::vector<int> npd;
+      npd.assign(3, 0);
+
+      for (int d=0; d<dim; ++d)
+      {
+         const int order = kv[d]->GetOrder();
+
+         const double kv0 = (*kv[d])[order + ijk[d]];
+         const double kv1 = (*kv[d])[order + ijk[d] + 1];
+
+         const bool rightEnd = (order + ijk[d] + 1) == (kv[d]->Size() - 1);
+
+         for (int i=0; i<patchRules1D(patch,d)->Size(); ++i)
+         {
+            IntegrationPoint& ip = (*patchRules1D(patch,d))[i];
+            if (kv0 <= ip.x && (ip.x < kv1 || rightEnd))
+            {
+               const double x = (ip.x - kv0) / (kv1 - kv0);
+               el[d].push_back(x);
+               el[d].push_back(ip.weight);
+            }
+         }
+
+         npd[d] = el[d].size() / 2;
+         np *= npd[d];
+      }
+
+      if (irp == nullptr)
+      {
+         irp = new IntegrationRule(np);
+      }
+      else
+      {
+         irp->SetSize(np);
+      }
+
+      // Set (*irp)[i + j*npd[0] + k*npd[0]*npd[1]] = (el[0][2*i], el[1][2*j], el[2][2*k])
+
+      MFEM_VERIFY(npd[0] > 0 && npd[1] > 0, "Assuming 2D or 3D");
+
+      for (int i = 0; i < npd[0]; ++i)
+      {
+         for (int j = 0; j < npd[1]; ++j)
+         {
+            for (int k = 0; k < std::max(npd[2], 1); ++k)
+            {
+               const int id = i + j*npd[0] + k*npd[0]*npd[1];
+               (*irp)[id].x = el[0][2*i];
+               (*irp)[id].y = el[1][2*j];
+
+               (*irp)[id].weight = el[0][(2*i)+1];
+               (*irp)[id].weight *= el[1][(2*j)+1];
+
+               if (npd[2] > 0)
+               {
+                  (*irp)[id].z = el[2][2*k];
+                  (*irp)[id].weight *= el[2][(2*k)+1];
+               }
+            }
+         }
+      }
+
+      return *irp;
+   }
+   else if (patchRule.Size())  // TODO: this case is never used. Remove it?
+   {
+      return *patchRule[patch];
+   }
+   else
+   {
+      return *ir;
+   }
+}
+
+void NURBSPatchRule::SetPatchRules1D(const int patch,
+                                     std::vector<IntegrationRule*> & ir1D)
+{
+   MFEM_VERIFY(ir1D.size() == dim, "Wrong dimension");
+
+   for (int i=0; i<dim; ++i)
+   {
+      patchRules1D(patch,i) = ir1D[i];
+   }
+}
+
+NURBSPatchRule::~NURBSPatchRule()
+{
+   delete ir;
+   delete irp;
 }
 
 }

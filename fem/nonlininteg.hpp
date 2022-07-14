@@ -28,6 +28,7 @@ class NonlinearFormIntegrator
 {
 protected:
    const IntegrationRule *IntRule;
+   NURBSPatchRule *patchRule = nullptr;
 
    // CEED extension
    ceed::Operator* ceedOp;
@@ -41,6 +42,9 @@ public:
    /** @brief Prescribe a fixed IntegrationRule to use (when @a ir != NULL) or
        let the integrator choose (when @a ir == NULL). */
    virtual void SetIntRule(const IntegrationRule *ir) { IntRule = ir; }
+
+   void SetNURBSPatchIntRule(NURBSPatchRule *pr) { patchRule = pr; }
+   bool HasNURBSPatchRule() { return patchRule != nullptr; }
 
    /// Prescribe a fixed IntegrationRule to use.
    void SetIntegrationRule(const IntegrationRule &ir) { SetIntRule(&ir); }

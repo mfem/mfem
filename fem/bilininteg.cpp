@@ -120,23 +120,23 @@ void BilinearFormIntegrator::AssembleDiagonalMF(Vector &)
                "   is not implemented for this class.");
 }
 
-void BilinearFormIntegrator::AssembleElementMatrix (
+void BilinearFormIntegrator::AssembleElementMatrix(
    const FiniteElement &el, ElementTransformation &Trans,
-   DenseMatrix &elmat )
+   DenseMatrix &elmat)
 {
    mfem_error ("BilinearFormIntegrator::AssembleElementMatrix(...)\n"
                "   is not implemented for this class.");
 }
 
-void BilinearFormIntegrator::AssembleElementMatrix2 (
+void BilinearFormIntegrator::AssembleElementMatrix2(
    const FiniteElement &el1, const FiniteElement &el2,
-   ElementTransformation &Trans, DenseMatrix &elmat )
+   ElementTransformation &Trans, DenseMatrix &elmat)
 {
    mfem_error ("BilinearFormIntegrator::AssembleElementMatrix2(...)\n"
                "   is not implemented for this class.");
 }
 
-void BilinearFormIntegrator::AssembleFaceMatrix (
+void BilinearFormIntegrator::AssembleFaceMatrix(
    const FiniteElement &el1, const FiniteElement &el2,
    FaceElementTransformations &Trans, DenseMatrix &elmat)
 {
@@ -151,6 +151,14 @@ void BilinearFormIntegrator::AssembleFaceMatrix(
 {
    MFEM_ABORT("AssembleFaceMatrix (mixed form) is not implemented for this"
               " Integrator class.");
+}
+
+void BilinearFormIntegrator::AssembleNURBSPatchMatrix(
+   const FiniteElement &el, ElementTransformation &Trans,
+   DenseMatrix &elmat)
+{
+   mfem_error ("BilinearFormIntegrator::AssembleNURBSPatchMatrix(...)\n"
+               "   is not implemented for this class.");
 }
 
 void BilinearFormIntegrator::AssembleElementVector(
@@ -832,10 +840,32 @@ void DiffusionIntegrator::AssembleElementMatrix
 
    const IntegrationRule *ir = IntRule ? IntRule : &GetRule(el, el);
 
-   elmat = 0.0;
-   for (int i = 0; i < ir->GetNPoints(); i++)
+   const NURBSFiniteElement *NURBSFE =
+      dynamic_cast<const NURBSFiniteElement *>(&el);
+
+   IntegrationRule *irn = nullptr;
+   if (NURBSFE && patchRule)
    {
-      const IntegrationPoint &ip = ir->IntPoint(i);
+      const int patch = NURBSFE->GetPatch();
+      int ijk[3];
+      NURBSFE->GetIJK(ijk);
+      Array<const KnotVector*>& kv = NURBSFE->KnotVectors();
+      /*
+      cout << "Patch " << patch << ", ijk " << ijk[0] << ", " << ijk[1] << ", " <<
+           ijk[2] << endl;
+      */
+
+      MFEM_VERIFY(kv.Size() == dim, "Sanity check (remove later)");
+
+      irn = &patchRule->GetElementRule(NURBSFE->GetElement(), patch, ijk, kv);
+   }
+
+   const int numIP = irn ? irn->GetNPoints() : ir->GetNPoints();
+
+   elmat = 0.0;
+   for (int i = 0; i < numIP; i++)
+   {
+      const IntegrationPoint &ip = irn ? irn->IntPoint(i) : ir->IntPoint(i);
       el.CalcDShape(ip, dshape);
 
       Trans.SetIntPoint(&ip);

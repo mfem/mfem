@@ -56,6 +56,11 @@ public:
    Vector              &Weights    ()         const { return weights; }
    /// Update the NURBSFiniteElement according to the currently set knot vectors
    virtual void         SetOrder   ()         const { }
+
+   void GetIJK(int *IJK) const
+   {
+      for (int i=0; i<3; ++i) { IJK[i] = ijk[i]; }
+   }
 };
 
 

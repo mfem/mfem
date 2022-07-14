@@ -15,8 +15,13 @@
 #include "../config/config.hpp"
 #include "../general/array.hpp"
 
+#include <vector>
+#include <map>
+
 namespace mfem
 {
+
+class KnotVector;
 
 /* Classes for IntegrationPoint, IntegrationRule, and container class
    IntegrationRules.  Declares the global variable IntRules */
@@ -257,8 +262,68 @@ public:
        a call like this: `IntPoint(i).weight`. */
    const Array<double> &GetWeights() const;
 
+   /// Return an integration rule for KnotVector @a kv, defined by applying this
+   /// rule on each knot interval.
+   IntegrationRule* ApplyToKnotIntervals(KnotVector const& kv) const;
+
    /// Destroys an IntegrationRule object
    ~IntegrationRule() { }
+};
+
+/// Class for defining different integration rules on each NURBS patch.
+class NURBSPatchRule
+{
+public:
+   /// Construct a rule for each patch, using SetPatchRule.
+   NURBSPatchRule(const int numPatches, const int dim_) :
+      patchRule(numPatches), patchRules1D(numPatches, dim_), dim(dim_)
+   {
+      patchRule = nullptr;
+   }
+
+   /// Construct a tensor product of 1D rules, to be applied to all patches.
+   NURBSPatchRule(IntegrationRule *irx, IntegrationRule *iry,
+                  IntegrationRule *irz = nullptr);
+
+   /// Returns a rule for the element.
+   IntegrationRule &GetElementRule(const int elem, const int patch, int *ijk,
+                                   Array<const KnotVector*> const& kv) const;
+
+   /// Set the integration rule for the NURBS patch of the given index.
+   void SetPatchRule(const int patch, IntegrationRule *ir_patch)
+   {
+      patchRule[patch] = ir_patch;
+   }
+
+   /// Add a rule to be used for individual elements. Returns the rule index.
+   std::size_t AddElementRule(IntegrationRule *ir_element)
+   {
+      elementRule.push_back(ir_element);
+      return elementRule.size() - 1;
+   }
+
+   /// Set the integration rule for the element of the given index. This rule is
+   /// used instead of the rule for the patch containing the element.
+   void SetElementRule(const std::size_t element,
+                       const std::size_t elementRuleIndex)
+   {
+      elementToRule[element] = elementRuleIndex;
+   }
+
+   void SetPatchRules1D(const int patch, std::vector<IntegrationRule*> & ir1D);
+
+   ~NURBSPatchRule();
+
+private:
+   IntegrationRule *ir = nullptr;
+   mutable IntegrationRule *irp = nullptr;
+   Array<IntegrationRule*> patchRule;
+   Array2D<IntegrationRule*> patchRules1D;
+   std::vector<IntegrationRule*> elementRule;
+
+   std::map<std::size_t, std::size_t> elementToRule;
+
+   const int dim;
 };
 
 /// A Class that defines 1-D numerical quadrature rules on [0,1].
