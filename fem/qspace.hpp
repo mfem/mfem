@@ -59,6 +59,8 @@ public:
    const IntegrationRule &GetIntRule(int idx) const
    { return *int_rule[GetGeometry(idx)]; }
 
+   virtual int GetPermutedIndex(int idx, int iq) const = 0;
+
    virtual ~QuadratureSpaceBase() { }
 };
 
@@ -93,6 +95,8 @@ public:
    /// Get the IntegrationRule associated with mesh element @a idx.
    const IntegrationRule &GetElementIntRule(int idx) const
    { return *int_rule[mesh.GetElementBaseGeometry(idx)]; }
+
+   int GetPermutedIndex(int idx, int iq) const override { return iq; }
 
    /// Write the QuadratureSpace to the stream @a out.
    void Save(std::ostream &out) const;
@@ -131,6 +135,8 @@ public:
    /// Get the IntegrationRule associated with mesh element @a idx.
    const IntegrationRule &GetFaceIntRule(int idx) const
    { return *int_rule[GetGeometry(idx)]; }
+
+   int GetPermutedIndex(int idx, int iq) const override;
 };
 
 }

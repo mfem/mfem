@@ -62,7 +62,8 @@ void Coefficient::Project(QuadratureFunction &qf)
       {
          const IntegrationPoint &ip = ir[iq];
          T.SetIntPoint(&ip);
-         values[iq] = Eval(T, ip);
+         const int iq_p = qspace.GetPermutedIndex(iel, iq);
+         values[iq_p] = Eval(T, ip);
       }
    }
 }
@@ -248,7 +249,8 @@ void VectorCoefficient::Project(QuadratureFunction &qf)
       {
          const IntegrationPoint &ip = ir[iq];
          T.SetIntPoint(&ip);
-         values.GetColumnReference(iq, col);
+         const int iq_p = qspace.GetPermutedIndex(iel, iq);
+         values.GetColumnReference(iq_p, col);
          Eval(col, T, ip);
       }
    }
@@ -588,7 +590,8 @@ void MatrixCoefficient::Project(QuadratureFunction &qf, bool transpose)
       {
          const IntegrationPoint &ip = ir[iq];
          T.SetIntPoint(&ip);
-         matrix.UseExternalData(&values(0, iq), height, width);
+         const int iq_p = qspace.GetPermutedIndex(iel, iq);
+         matrix.UseExternalData(&values(0, iq_p), height, width);
          Eval(matrix, T, ip);
          if (transpose) { matrix.Transpose(); }
       }
