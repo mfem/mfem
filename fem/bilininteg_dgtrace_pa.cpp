@@ -159,88 +159,24 @@ void DGTraceIntegrator::SetupPA(const FiniteElementSpace &fes, FaceType type)
    dofs1D = maps->ndof;
    quad1D = maps->nqpt;
    pa_data.SetSize(symmDims * nq * nf, Device::GetMemoryType());
-   Vector vel;
-   if (VectorConstantCoefficient *c_u = dynamic_cast<VectorConstantCoefficient*>
-                                        (u))
-   {
-      vel = c_u->GetVec();
-   }
-   else if (VectorQuadratureFunctionCoefficient* qf_u =
-               dynamic_cast<VectorQuadratureFunctionCoefficient*>(u))
-   {
-      // Assumed to be in lexicographical ordering
-      const QuadratureFunction &qf = qf_u->GetQuadFunction();
-      MFEM_VERIFY(qf.Size() == dim * nq * nf,
-                  "Incompatible QuadratureFunction dimension \n");
 
-      MFEM_VERIFY(ir == &qf.GetSpace()->GetIntRule(0),
-                  "IntegrationRule used within integrator and in"
-                  " QuadratureFunction appear to be different");
-      qf.Read();
-      vel.MakeRef(const_cast<QuadratureFunction&>(qf),0);
-   }
-   else
+   FaceQuadratureSpace qs(*mesh, *ir, type);
+   CoefficientVector vel(*u, qs, CoefficientStorage::COMPRESSED);
+
+   CoefficientVector r(qs, CoefficientStorage::COMPRESSED);
+   if (rho == nullptr)
    {
-      vel.SetSize(dim * nq * nf);
-      auto C = Reshape(vel.HostWrite(), dim, nq, nf);
-      Vector Vq(dim);
-      int f_ind = 0;
-      for (int f = 0; f < mesh->GetNumFacesWithGhost(); ++f)
-      {
-         Mesh::FaceInformation face = mesh->GetFaceInformation(f);
-         if (face.IsNonconformingCoarse())
-         {
-            // We skip nonconforming coarse faces as they are treated
-            // by the corresponding nonconforming fine faces.
-            continue;
-         }
-         else if ( face.IsOfFaceType(type) )
-         {
-            const int mask = FaceElementTransformations::HAVE_ELEM1 |
-                             FaceElementTransformations::HAVE_LOC1;
-            FaceElementTransformations &T =
-               *fes.GetMesh()->GetFaceElementTransformations(f, mask);
-            for (int q = 0; q < nq; ++q)
-            {
-               // Convert to lexicographic ordering
-               int iq = ToLexOrdering(dim, face.element[0].local_face_id,
-                                      quad1D, q);
-               T.SetAllIntPoints(&ir->IntPoint(q));
-               const IntegrationPoint &eip1 = T.GetElement1IntPoint();
-               u->Eval(Vq, *T.Elem1, eip1);
-               for (int i = 0; i < dim; ++i)
-               {
-                  C(i,iq,f_ind) = Vq(i);
-               }
-            }
-            f_ind++;
-         }
-      }
-      MFEM_VERIFY(f_ind==nf, "Incorrect number of faces.");
+      r.SetConstant(1.0);
    }
-   Vector r;
-   if (rho==nullptr)
+   else if (ConstantCoefficient *const_rho = dynamic_cast<ConstantCoefficient*>
+                                             (rho))
    {
-      r.SetSize(1);
-      r(0) = 1.0;
-   }
-   else if (ConstantCoefficient *c_rho = dynamic_cast<ConstantCoefficient*>(rho))
-   {
-      r.SetSize(1);
-      r(0) = c_rho->constant;
+      r.SetConstant(const_rho->constant);
    }
    else if (QuadratureFunctionCoefficient* qf_rho =
                dynamic_cast<QuadratureFunctionCoefficient*>(rho))
    {
-      const QuadratureFunction &qf = qf_rho->GetQuadFunction();
-      MFEM_VERIFY(qf.Size() == nq * nf,
-                  "Incompatible QuadratureFunction dimension \n");
-
-      MFEM_VERIFY(ir == &qf.GetSpace()->GetIntRule(0),
-                  "IntegrationRule used within integrator and in"
-                  " QuadratureFunction appear to be different");
-      qf.Read();
-      r.MakeRef(const_cast<QuadratureFunction&>(qf),0);
+      r.MakeRef(qf_rho->GetQuadFunction());
    }
    else
    {
@@ -252,45 +188,42 @@ void DGTraceIntegrator::SetupPA(const FiniteElementSpace &fes, FaceType type)
       for (int f = 0; f < mesh->GetNumFacesWithGhost(); ++f)
       {
          Mesh::FaceInformation face = mesh->GetFaceInformation(f);
-         if (face.IsNonconformingCoarse())
+         if (face.IsNonconformingCoarse() || !face.IsOfFaceType(type))
          {
             // We skip nonconforming coarse faces as they are treated
             // by the corresponding nonconforming fine faces.
             continue;
          }
-         else if ( face.IsOfFaceType(type) )
+         FaceElementTransformations &T =
+            *fes.GetMesh()->GetFaceElementTransformations(f);
+         for (int q = 0; q < nq; ++q)
          {
-            FaceElementTransformations &T =
-               *fes.GetMesh()->GetFaceElementTransformations(f);
-            for (int q = 0; q < nq; ++q)
+            // Convert to lexicographic ordering
+            int iq = ToLexOrdering(dim, face.element[0].local_face_id,
+                                   quad1D, q);
+
+            T.SetAllIntPoints(&ir->IntPoint(q));
+            const IntegrationPoint &eip1 = T.GetElement1IntPoint();
+            const IntegrationPoint &eip2 = T.GetElement2IntPoint();
+            double rq;
+
+            if (face.IsBoundary())
             {
-               // Convert to lexicographic ordering
-               int iq = ToLexOrdering(dim, face.element[0].local_face_id,
-                                      quad1D, q);
-
-               T.SetAllIntPoints(&ir->IntPoint(q));
-               const IntegrationPoint &eip1 = T.GetElement1IntPoint();
-               const IntegrationPoint &eip2 = T.GetElement2IntPoint();
-               double rq;
-
-               if ( face.IsBoundary() )
-               {
-                  rq = rho->Eval(*T.Elem1, eip1);
-               }
-               else
-               {
-                  double udotn = 0.0;
-                  for (int d=0; d<dim; ++d)
-                  {
-                     udotn += C_vel(d,iq,f_ind)*n(iq,d,f_ind);
-                  }
-                  if (udotn >= 0.0) { rq = rho->Eval(*T.Elem2, eip2); }
-                  else { rq = rho->Eval(*T.Elem1, eip1); }
-               }
-               C(iq,f_ind) = rq;
+               rq = rho->Eval(*T.Elem1, eip1);
             }
-            f_ind++;
+            else
+            {
+               double udotn = 0.0;
+               for (int d=0; d<dim; ++d)
+               {
+                  udotn += C_vel(d,iq,f_ind)*n(iq,d,f_ind);
+               }
+               if (udotn >= 0.0) { rq = rho->Eval(*T.Elem2, eip2); }
+               else { rq = rho->Eval(*T.Elem1, eip1); }
+            }
+            C(iq,f_ind) = rq;
          }
+         f_ind++;
       }
       MFEM_VERIFY(f_ind==nf, "Incorrect number of faces.");
    }
