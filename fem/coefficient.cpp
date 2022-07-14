@@ -48,7 +48,7 @@ ElementTransformation *RefinedToCoarse(
    return coarse_T;
 }
 
-void Coefficient::ProjectBase(QuadratureFunctionBase &qf)
+void Coefficient::Project(QuadratureFunction &qf)
 {
    QuadratureSpaceBase &qspace = *qf.GetSpace();
    const int ng = qspace.GetNGroups();
@@ -67,17 +67,7 @@ void Coefficient::ProjectBase(QuadratureFunctionBase &qf)
    }
 }
 
-void Coefficient::Project(QuadratureFunction &qf)
-{
-   ProjectBase(qf);
-}
-
-void Coefficient::Project(FaceQuadratureFunction &qf)
-{
-   ProjectBase(qf);
-}
-
-void ConstantCoefficient::ProjectBase(QuadratureFunctionBase &qf)
+void ConstantCoefficient::Project(QuadratureFunction &qf)
 {
    qf = constant;
 }
@@ -242,7 +232,7 @@ void VectorCoefficient::Eval(DenseMatrix &M, ElementTransformation &T,
    }
 }
 
-void VectorCoefficient::ProjectBase(QuadratureFunctionBase &qf)
+void VectorCoefficient::Project(QuadratureFunction &qf)
 {
    MFEM_ASSERT(vdim == qf.GetVDim(), "Wrong sizes.");
    QuadratureSpaceBase &qspace = *qf.GetSpace();
@@ -262,16 +252,6 @@ void VectorCoefficient::ProjectBase(QuadratureFunctionBase &qf)
          Eval(col, T, ip);
       }
    }
-}
-
-void VectorCoefficient::Project(QuadratureFunction &qf)
-{
-   ProjectBase(qf);
-}
-
-void VectorCoefficient::Project(FaceQuadratureFunction &qf)
-{
-   ProjectBase(qf);
 }
 
 void PWVectorCoefficient::InitMap(const Array<int> & attr,
@@ -593,7 +573,7 @@ void VectorRestrictedCoefficient::Eval(
    }
 }
 
-void MatrixCoefficient::ProjectBase(QuadratureFunctionBase &qf, bool transpose)
+void MatrixCoefficient::Project(QuadratureFunction &qf, bool transpose)
 {
    MFEM_ASSERT(qf.GetVDim() == height*width, "Wrong sizes.");
    QuadratureSpaceBase &qspace = *qf.GetSpace();
@@ -613,16 +593,6 @@ void MatrixCoefficient::ProjectBase(QuadratureFunctionBase &qf, bool transpose)
          if (transpose) { matrix.Transpose(); }
       }
    }
-}
-
-void MatrixCoefficient::Project(QuadratureFunction &qf, bool transpose)
-{
-   ProjectBase(qf, transpose);
-}
-
-void MatrixCoefficient::Project(FaceQuadratureFunction &qf, bool transpose)
-{
-   ProjectBase(qf, transpose);
 }
 
 void PWMatrixCoefficient::InitMap(const Array<int> & attr,
@@ -777,8 +747,7 @@ void MatrixFunctionCoefficient::EvalSymmetric(Vector &K,
    }
 }
 
-void SymmetricMatrixCoefficient::ProjectSymmetricBase(QuadratureFunctionBase
-                                                      &qf)
+void SymmetricMatrixCoefficient::ProjectSymmetric(QuadratureFunction &qf)
 {
    const int vdim = qf.GetVDim();
    MFEM_ASSERT(vdim == height*(height+1)/2, "Wrong sizes.");
@@ -802,15 +771,6 @@ void SymmetricMatrixCoefficient::ProjectSymmetricBase(QuadratureFunctionBase
    }
 }
 
-void SymmetricMatrixCoefficient::ProjectSymmetric(QuadratureFunction &qf)
-{
-   ProjectSymmetricBase(qf);
-}
-
-void SymmetricMatrixCoefficient::ProjectSymmetric(FaceQuadratureFunction &qf)
-{
-   ProjectSymmetricBase(qf);
-}
 
 void SymmetricMatrixCoefficient::Eval(DenseMatrix &K, ElementTransformation &T,
                                       const IntegrationPoint &ip)
@@ -1555,7 +1515,7 @@ double ComputeGlobalLpNorm(double p, VectorCoefficient &coeff, ParMesh &pmesh,
 #endif
 
 VectorQuadratureFunctionCoefficient::VectorQuadratureFunctionCoefficient(
-   QuadratureFunctionBase &qf)
+   QuadratureFunction &qf)
    : VectorCoefficient(qf.GetVDim()), QuadF(qf), index(0) { }
 
 void VectorQuadratureFunctionCoefficient::SetComponent(int index_, int length_)
@@ -1596,14 +1556,13 @@ void VectorQuadratureFunctionCoefficient::Eval(Vector &V,
    return;
 }
 
-void VectorQuadratureFunctionCoefficient::ProjectBase(QuadratureFunctionBase
-                                                      &qf)
+void VectorQuadratureFunctionCoefficient::Project(QuadratureFunction &qf)
 {
    qf = QuadF;
 }
 
 QuadratureFunctionCoefficient::QuadratureFunctionCoefficient(
-   QuadratureFunctionBase &qf) : QuadF(qf)
+   QuadratureFunction &qf) : QuadF(qf)
 {
    MFEM_VERIFY(qf.GetVDim() == 1, "QuadratureFunction's vdim must be 1");
 }
@@ -1617,7 +1576,7 @@ double QuadratureFunctionCoefficient::Eval(ElementTransformation &T,
    return temp[0];
 }
 
-void QuadratureFunctionCoefficient::ProjectBase(QuadratureFunctionBase &qf)
+void QuadratureFunctionCoefficient::Project(QuadratureFunction &qf)
 {
    qf = QuadF;
 }
@@ -1683,22 +1642,15 @@ void CoefficientVector::Project(Coefficient &coeff)
       MFEM_ASSERT(qs2 != NULL, "Invalid QuadratureSpace.")
       MFEM_ASSERT(qs2->GetMesh() == qs.GetMesh(), "Meshes differ.");
       MFEM_ASSERT(qs2->GetOrder() == qs.GetOrder(), "Orders differ.");
-      QuadratureFunctionBase &qf2 =
-         const_cast<QuadratureFunctionBase&>(qf_coeff->GetQuadFunction());
+      QuadratureFunction &qf2 =
+         const_cast<QuadratureFunction&>(qf_coeff->GetQuadFunction());
       MakeRef(qf2, 0, qf2.Size());
    }
    else
    {
       delete qf;
-      if (auto *qs_elem = dynamic_cast<QuadratureSpace*>(&qs))
-      {
-         qf = new QuadratureFunction(qs_elem);
-      }
-      else if (auto *qs_face = dynamic_cast<FaceQuadratureSpace*>(&qs))
-      {
-         qf = new FaceQuadratureFunction(qs_face);
-      }
-      qf->ProjectCoefficient(coeff);
+      qf = new QuadratureFunction(qs);
+      coeff.Project(*qf);
       MakeRef(*qf, 0, qf->Size());
    }
 }
@@ -1718,22 +1670,15 @@ void CoefficientVector::Project(VectorCoefficient &coeff)
       MFEM_ASSERT(qs2 != NULL, "Invalid QuadratureSpace.")
       MFEM_ASSERT(qs2->GetMesh() == qs.GetMesh(), "Meshes differ.");
       MFEM_ASSERT(qs2->GetOrder() == qs.GetOrder(), "Orders differ.");
-      QuadratureFunctionBase &qf2 =
-         const_cast<QuadratureFunctionBase&>(qf_coeff->GetQuadFunction());
+      QuadratureFunction &qf2 =
+         const_cast<QuadratureFunction&>(qf_coeff->GetQuadFunction());
       MakeRef(qf2, 0, qf2.Size());
    }
    else
    {
       delete qf;
-      if (auto *qs_elem = dynamic_cast<QuadratureSpace*>(&qs))
-      {
-         qf = new QuadratureFunction(qs_elem, vdim);
-      }
-      else if (auto *qs_face = dynamic_cast<FaceQuadratureSpace*>(&qs))
-      {
-         qf = new FaceQuadratureFunction(qs_face, vdim);
-      }
-      qf->ProjectCoefficient(coeff);
+      qf = new QuadratureFunction(qs, vdim);
+      coeff.Project(*qf);
       MakeRef(*qf, 0, qf->Size());
    }
 }
@@ -1745,29 +1690,14 @@ void CoefficientVector::Project(MatrixCoefficient &coeff, bool transpose)
    if (sym_coeff && (storage & CoefficientStorage::SYMMETRIC))
    {
       vdim = sym_coeff->GetSize()*(sym_coeff->GetSize() + 1)/2;
-      if (auto *qs_elem = dynamic_cast<QuadratureSpace*>(&qs))
-      {
-         qf = new QuadratureFunction(qs_elem, vdim);
-      }
-      else if (auto *qs_face = dynamic_cast<FaceQuadratureSpace*>(&qs))
-      {
-         qf = new FaceQuadratureFunction(qs_face, vdim);
-      }
-      qf->ProjectSymmetricCoefficient(*sym_coeff);
+      qf = new QuadratureFunction(qs, vdim);
+      sym_coeff->ProjectSymmetric(*qf);
    }
    else
    {
-      delete qf;
       vdim = coeff.GetWidth()*coeff.GetHeight();
-      if (auto *qs_elem = dynamic_cast<QuadratureSpace*>(&qs))
-      {
-         qf = new QuadratureFunction(qs_elem, vdim);
-      }
-      else if (auto *qs_face = dynamic_cast<FaceQuadratureSpace*>(&qs))
-      {
-         qf = new FaceQuadratureFunction(qs_face, vdim);
-      }
-      qf->ProjectCoefficient(coeff, transpose);
+      qf = new QuadratureFunction(qs, vdim);
+      coeff.Project(*qf, transpose);
    }
    MakeRef(*qf, 0, qf->Size());
 }
