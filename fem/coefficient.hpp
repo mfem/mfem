@@ -981,6 +981,8 @@ public:
    /// Evaluate the matrix coefficient at @a ip.
    virtual void Eval(DenseMatrix &M, ElementTransformation &T,
                      const IntegrationPoint &ip) { M = mat; }
+   /// Return a reference to the constant matrix.
+   const DenseMatrix& GetMatrix() { return mat; }
 };
 
 
@@ -1328,6 +1330,9 @@ public:
        achieved by calling T.SetIntPoint(&ip). */
    virtual void Eval(DenseMatrix &K, ElementTransformation &T,
                      const IntegrationPoint &ip);
+
+   /// Return a reference to the constant matrix.
+   const DenseSymmetricMatrix& GetMatrix() { return mat; }
 
    virtual ~SymmetricMatrixCoefficient() { }
 };
