@@ -88,7 +88,7 @@ double TMOP_WorstCaseUntangleOptimizer_Metric::EvalWBarrier(
       double detT = Jpt.Det();
       denominator = detT + std::sqrt(detT*detT + detT_ep*detT_ep);
    }
-   return tmop_metric->EvalW(Jpt)/denominator;
+   return tmop_metric.EvalW(Jpt)/denominator;
 }
 
 double TMOP_Metric_001::EvalW(const DenseMatrix &Jpt) const
