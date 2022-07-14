@@ -2244,6 +2244,9 @@ public:
    /// @sa Project(MatrixCoefficient&, QuadratureSpace&, bool, bool)
    void ProjectTranspose(MatrixCoefficient &coeff);
 
+   /// Make this vector a reference to the given QuadratureFunction.
+   void MakeRef(const QuadratureFunction &qf);
+
    /// Set this vector to the given constant.
    void SetConstant(double constant);
 
@@ -2252,6 +2255,9 @@ public:
 
    /// Set this vector to the given constant matrix.
    void SetConstant(const DenseMatrix &constant);
+
+   /// Set this vector to the given constant symmetric matrix.
+   void SetConstant(const DenseSymmetricMatrix &constant);
 
    /// Return the number of values per quadrature point.
    int GetVDim() const;
