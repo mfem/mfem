@@ -71,12 +71,11 @@ void QuadratureFunction::SetSpace(
 
 void QuadratureFunction::Save(std::ostream &os) const
 {
-   MFEM_ABORT("Not implemented.");
-   // GetSpace()->Save(os);
-   // os << "VDim: " << vdim << '\n'
-   //    << '\n';
-   // Vector::Print(os, vdim);
-   // os.flush();
+   GetSpace()->Save(os);
+   os << "VDim: " << vdim << '\n'
+      << '\n';
+   Vector::Print(os, vdim);
+   os.flush();
 }
 
 void QuadratureFunction::ProjectGridFunction(const GridFunction &gf)
