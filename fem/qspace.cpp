@@ -157,4 +157,11 @@ int FaceQuadratureSpace::GetPermutedIndex(int idx, int iq) const
    }
 }
 
+void FaceQuadratureSpace::Save(std::ostream &os) const
+{
+   os << "FaceQuadratureSpace\n"
+      << "Type: default_quadrature\n"
+      << "Order: " << order << '\n';
+}
+
 } // namespace mfem
