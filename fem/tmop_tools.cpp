@@ -438,8 +438,9 @@ double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
 
    const double detJ_factor = (solver_type == 1) ? 0.25 : 0.5;
    compute_metric_quantile_flag = false;
-   // TODO customized line search for worst-quality optimization.
-   // TODO what is the Newton exit criterion for worst-quality optimization.
+   // TODO:
+   // - Customized line search for worst-quality optimization.
+   // - What is the Newton exit criterion for worst-quality optimization?
 
    // Perform the line search.
    for (int i = 0; i < 12; i++)
