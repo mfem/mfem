@@ -1637,21 +1637,14 @@ void CoefficientVector::Project(Coefficient &coeff)
    }
    else if (auto *qf_coeff = dynamic_cast<QuadratureFunctionCoefficient*>(&coeff))
    {
-      const QuadratureSpaceBase *qs2 = qf_coeff->GetQuadFunction().GetSpace();
-      MFEM_CONTRACT_VAR(qs2); // qs2 used only for asserts
-      MFEM_ASSERT(qs2 != NULL, "Invalid QuadratureSpace.")
-      MFEM_ASSERT(qs2->GetMesh() == qs.GetMesh(), "Meshes differ.");
-      MFEM_ASSERT(qs2->GetOrder() == qs.GetOrder(), "Orders differ.");
-      QuadratureFunction &qf2 =
-         const_cast<QuadratureFunction&>(qf_coeff->GetQuadFunction());
-      MakeRef(qf2, 0, qf2.Size());
+      MakeRef(qf_coeff->GetQuadFunction());
    }
    else
    {
       if (qf == nullptr) { qf = new QuadratureFunction(qs); }
       qf->SetVDim(1);
       coeff.Project(*qf);
-      MakeRef(*qf, 0, qf->Size());
+      Vector::MakeRef(*qf, 0, qf->Size());
    }
 }
 
@@ -1665,41 +1658,59 @@ void CoefficientVector::Project(VectorCoefficient &coeff)
    else if (auto *qf_coeff =
                dynamic_cast<VectorQuadratureFunctionCoefficient*>(&coeff))
    {
-      const QuadratureSpaceBase *qs2 = qf_coeff->GetQuadFunction().GetSpace();
-      MFEM_CONTRACT_VAR(qs2); // qs2 used only for asserts
-      MFEM_ASSERT(qs2 != NULL, "Invalid QuadratureSpace.")
-      MFEM_ASSERT(qs2->GetMesh() == qs.GetMesh(), "Meshes differ.");
-      MFEM_ASSERT(qs2->GetOrder() == qs.GetOrder(), "Orders differ.");
-      QuadratureFunction &qf2 =
-         const_cast<QuadratureFunction&>(qf_coeff->GetQuadFunction());
-      MakeRef(qf2, 0, qf2.Size());
+      MakeRef(qf_coeff->GetQuadFunction());
    }
    else
    {
       if (qf == nullptr) { qf = new QuadratureFunction(qs, vdim); }
       qf->SetVDim(vdim);
       coeff.Project(*qf);
-      MakeRef(*qf, 0, qf->Size());
+      Vector::MakeRef(*qf, 0, qf->Size());
    }
 }
 
 void CoefficientVector::Project(MatrixCoefficient &coeff, bool transpose)
 {
-   auto *sym_coeff = dynamic_cast<SymmetricMatrixCoefficient*>(&coeff);
-   const bool sym = (sym_coeff && (storage & CoefficientStorage::SYMMETRIC));
-   const int height = coeff.GetHeight();
-   const int width = coeff.GetWidth();
-   vdim = sym ? height*(height + 1)/2 : width*height;
-   if (qf == nullptr) { qf = new QuadratureFunction(qs, vdim); }
-   qf->SetVDim(vdim);
-   if (sym) { sym_coeff->ProjectSymmetric(*qf); }
-   else { coeff.Project(*qf, transpose); }
-   MakeRef(*qf, 0, qf->Size());
+   if (auto *const_coeff = dynamic_cast<MatrixConstantCoefficient*>(&coeff))
+   {
+      SetConstant(const_coeff->GetMatrix());
+   }
+   else if (auto *const_sym_coeff =
+               dynamic_cast<SymmetricMatrixConstantCoefficient*>(&coeff))
+   {
+      SetConstant(const_sym_coeff->GetMatrix());
+   }
+   else
+   {
+      auto *sym_coeff = dynamic_cast<SymmetricMatrixCoefficient*>(&coeff);
+      const bool sym = sym_coeff && (storage & CoefficientStorage::SYMMETRIC);
+      const int height = coeff.GetHeight();
+      const int width = coeff.GetWidth();
+      vdim = sym ? height*(height + 1)/2 : width*height;
+
+      if (qf == nullptr) { qf = new QuadratureFunction(qs, vdim); }
+      qf->SetVDim(vdim);
+      if (sym) { sym_coeff->ProjectSymmetric(*qf); }
+      else { coeff.Project(*qf, transpose); }
+      Vector::MakeRef(*qf, 0, qf->Size());
+   }
 }
 
 void CoefficientVector::ProjectTranspose(MatrixCoefficient &coeff)
 {
    Project(coeff, true);
+}
+
+void CoefficientVector::MakeRef(const QuadratureFunction &qf)
+{
+   vdim = qf.GetVDim();
+   const QuadratureSpaceBase *qs2 = qf.GetSpace();
+   MFEM_CONTRACT_VAR(qs2); // qs2 used only for asserts
+   MFEM_ASSERT(qs2 != NULL, "Invalid QuadratureSpace.")
+   MFEM_ASSERT(qs2->GetMesh() == qs.GetMesh(), "Meshes differ.");
+   MFEM_ASSERT(qs2->GetOrder() == qs.GetOrder(), "Orders differ.");
+   QuadratureFunction &qf2 = const_cast<QuadratureFunction&>(qf);
+   Vector::MakeRef(qf2, 0, qf2.Size());
 }
 
 void CoefficientVector::SetConstant(double constant)
@@ -1727,8 +1738,8 @@ void CoefficientVector::SetConstant(const Vector &constant)
 void CoefficientVector::SetConstant(const DenseMatrix &constant)
 {
    const int nq = (storage & CoefficientStorage::CONSTANTS) ? 1 : qs.GetSize();
-   int width = constant.Width();
-   int height = constant.Height();
+   const int width = constant.Width();
+   const int height = constant.Height();
    vdim = width*height;
    SetSize(nq*vdim);
    for (int iq = 0; iq < nq; ++iq)
@@ -1739,6 +1750,24 @@ void CoefficientVector::SetConstant(const DenseMatrix &constant)
          {
             (*this)[i + j*height + iq*vdim] = constant(i, j);
          }
+      }
+   }
+}
+
+void CoefficientVector::SetConstant(const DenseSymmetricMatrix &constant)
+{
+   const int nq = (storage & CoefficientStorage::CONSTANTS) ? 1 : qs.GetSize();
+   const int height = constant.Height();
+   const bool sym = storage & CoefficientStorage::SYMMETRIC;
+   vdim = sym ? height*(height + 1)/2 : height*height;
+   SetSize(nq*vdim);
+   for (int iq = 0; iq < nq; ++iq)
+   {
+      for (int vd = 0; vd < vdim; ++vd)
+      {
+         const double value = sym ? constant.GetData()[vd] : constant(vd % height,
+                                                                      vd / height);
+         (*this)[vd + iq*vdim] = value;
       }
    }
 }
