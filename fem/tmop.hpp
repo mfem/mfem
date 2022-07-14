@@ -135,7 +135,7 @@ public:
    };
 
 protected:
-   TMOP_QualityMetric *tmop_metric; //non-barrier metric to use
+   TMOP_QualityMetric &tmop_metric; //non-barrier metric to use
    double min_detT;                 //minimum Jacobian in the mesh
    double max_muT;                  //max mu_k/phi(tau,ep) in the mesh
    int exponent;                    //used for p-mean metrics
@@ -146,7 +146,7 @@ protected:
    WorstCaseType wctype;
 
 public:
-   TMOP_WorstCaseUntangleOptimizer_Metric(TMOP_QualityMetric *tmop_metric_,
+   TMOP_WorstCaseUntangleOptimizer_Metric(TMOP_QualityMetric &tmop_metric_,
                                           int exponent_ = 1,
                                           double alpha_ = 1.5,
                                           double detT_ep_ = 0.0001,
@@ -158,6 +158,12 @@ public:
    {
       MFEM_VERIFY(wctype == WorstCaseType::None,
                   "Worst-case optimization has not been fully developed!");
+      if (btype != BarrierType::None)
+      {
+         const int m_id = tmop_metric.Id();
+         MFEM_VERIFY(m_id == 4 || m_id == 14 || m_id == 66,
+                     "Incorrect input barrier metric --  must be 4 / 14 / 66");
+      }
    }
 
    virtual double EvalW(const DenseMatrix &Jpt) const;
