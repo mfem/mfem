@@ -1634,9 +1634,10 @@ protected:
    void AssemblePA_Limiting();
    void ComputeAllElementTargets(const Vector &xe = Vector()) const;
 
-   // Compute Min(Det(Jpt)) in the mesh.
+   // Compute Min(Det(Jpt)) in the mesh, does not reduce over MPI.
    double ComputeMinDetT(const Vector &x, const FiniteElementSpace &fes);
-   // Compute Max(mu_hat) for the TMOP_WorstCaseUntangleOptimizer_Metric.
+   // Compute Max(mu_hat) for the TMOP_WorstCaseUntangleOptimizer_Metric,
+   // does not reduce over MPI.
    double ComputeUntanglerMaxMuBarrier(const Vector &x,
                                        const FiniteElementSpace &fes);
 
