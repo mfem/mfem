@@ -19,21 +19,44 @@
 namespace mfem
 {
 
-class QuadratureFunctionBase : public Vector
+class QuadratureFunction : public Vector
 {
 protected:
    QuadratureSpaceBase *qspace; ///< Associated QuadratureSpaceBase object
    bool own_qspace;             ///< QuadratureSpaceBase ownership flag
    int vdim;
 
-   QuadratureFunctionBase() : qspace(nullptr), own_qspace(false), vdim(0) { }
+public:
+   QuadratureFunction() : qspace(nullptr), own_qspace(false), vdim(0) { }
 
-   QuadratureFunctionBase(QuadratureSpaceBase *qspace_, int vdim_ = 1)
-      : Vector(vdim_*qspace_->GetSize()),
-        qspace(qspace_), own_qspace(false), vdim(vdim_)
+   /// Create a QuadratureFunction based on the given QuadratureSpaceBase.
+   /** The QuadratureFunction does not assume ownership of the
+       QuadratureSpaceBase.
+       @note The Vector data is not initialized. */
+   QuadratureFunction(QuadratureSpaceBase &qspace_, int vdim_ = 1)
+      : Vector(vdim_*qspace_.GetSize()),
+        qspace(&qspace_), own_qspace(false), vdim(vdim_)
    { }
 
-public:
+   /// Create a QuadratureFunction based on the given QuadratureSpaceBase.
+   /** The QuadratureFunction does not assume ownership of the
+       QuadratureSpaceBase.
+       @warning @a qspace_ may not be NULL. */
+   QuadratureFunction(QuadratureSpaceBase *qspace_, int vdim_ = 1)
+      : QuadratureFunction(*qspace_, vdim_) { }
+
+   /** @brief Copy constructor. The QuadratureSpace ownership flag, #own_qspace,
+       in the new object is set to false. */
+   QuadratureFunction(const QuadratureFunction &orig)
+      : QuadratureFunction(*orig.qspace, orig.vdim)
+   {
+      Vector::operator=(orig);
+   }
+
+   /// Read a QuadratureFunction from the stream @a in.
+   /** The QuadratureFunction assumes ownership of the read QuadratureSpace. */
+   QuadratureFunction(Mesh *mesh, std::istream &in);
+
    /// Get the vector dimension.
    int GetVDim() const { return vdim; }
 
@@ -47,6 +70,30 @@ public:
    /// Get the associated QuadratureSpaceBase object (const version).
    const QuadratureSpaceBase *GetSpace() const { return qspace; }
 
+   /// Change the QuadratureSpaceBase and optionally the vector dimension.
+   /** If the new QuadratureSpaceBase is different from the current one, the
+       QuadratureFunction will not assume ownership of the new space; otherwise,
+       the ownership flag remains the same.
+
+       If the new vector dimension @a vdim_ < 0, the vector dimension remains
+       the same.
+
+       The data size is updated by calling Vector::SetSize(). */
+   inline void SetSpace(QuadratureSpaceBase *qspace_, int vdim_ = -1);
+
+   /** @brief Change the QuadratureSpaceBase, the data array, and optionally the
+       vector dimension. */
+   /** If the new QuadratureSpaceBase is different from the current one, the
+       QuadratureFunction will not assume ownership of the new space; otherwise,
+       the ownership flag remains the same.
+
+       If the new vector dimension @a vdim_ < 0, the vector dimension remains
+       the same.
+
+       The data array is replaced by calling Vector::NewDataAndSize(). */
+   inline void SetSpace(QuadratureSpaceBase *qspace_, double *qf_data,
+                        int vdim_ = -1);
+
    /// Get the QuadratureSpaceBase ownership flag.
    bool OwnsSpace() { return own_qspace; }
 
@@ -54,32 +101,16 @@ public:
    void SetOwnsSpace(bool own) { own_qspace = own; }
 
    /// Set this equal to a constant value.
-   QuadratureFunctionBase &operator=(double value);
+   QuadratureFunction &operator=(double value);
 
    /// Copy the data from @a v.
    /** The size of @a v must be equal to the size of the associated
-       QuadratureSpaceBase #qspace times the QuadratureFunctionBase vector
+       QuadratureSpaceBase #qspace times the QuadratureFunction vector
        dimension i.e. QuadratureFunction::Size(). */
-   QuadratureFunctionBase &operator=(const Vector &v);
+   QuadratureFunction &operator=(const Vector &v);
 
-   /// Evaluate the given coefficient at each quadrature point.
-   virtual void ProjectCoefficient(Coefficient &coeff) = 0;
-
-   /// Evaluate the given vector coefficient at each quadrature point.
-   virtual void ProjectCoefficient(VectorCoefficient &coeff) = 0;
-
-   /// @brief Evaluate the given symmetric matrix coefficient at each
-   /// quadrature point, and store the values in "symmetric format".
-   ///
-   /// @sa DenseSymmetricMatrix
-   virtual void ProjectSymmetricCoefficient(SymmetricMatrixCoefficient &coeff) = 0;
-
-   /// @brief Evaluate the given matrix coefficient at each quadrature point.
-   ///
-   /// @note The coefficient is stored as a full (non-symmetric) matrix.
-   /// @sa ProjectSymmetricCoefficient.
-   virtual void ProjectCoefficient(MatrixCoefficient &coeff,
-                                   bool transpose=false) = 0;
+   /// Evaluate a grid function at each quadrature point.
+   void ProjectGridFunction(const GridFunction &gf);
 
    /// Return all values associated with mesh element @a idx in a Vector.
    /** The result is stored in the Vector @a values as a reference to the
@@ -127,143 +158,9 @@ public:
     */
    inline void GetValues(int idx, DenseMatrix &values) const;
 
-   virtual ~QuadratureFunctionBase()
-   {
-      if (own_qspace) { delete qspace; }
-   }
-};
-
-/** @brief Class representing a function through its values (scalar or vector)
-    at quadrature points. */
-class QuadratureFunction : public QuadratureFunctionBase
-{
-public:
-   /// Create an empty QuadratureFunction.
-   /** The object can be initialized later using the SetSpace() methods. */
-   QuadratureFunction() { }
-
-   /** @brief Copy constructor. The QuadratureSpace ownership flag, #own_qspace,
-       in the new object is set to false. */
-   QuadratureFunction(const QuadratureFunction &orig)
-      : QuadratureFunctionBase(orig.qspace, orig.vdim)
-   {
-      Vector::operator=(orig);
-   }
-
-   /// Create a QuadratureFunction based on the given QuadratureSpace.
-   /** The QuadratureFunction does not assume ownership of the QuadratureSpace.
-       @note The Vector data is not initialized. */
-   QuadratureFunction(QuadratureSpace *qspace_, int vdim_ = 1)
-      : QuadratureFunctionBase(qspace_, vdim_) { }
-
-   /// Read a QuadratureFunction from the stream @a in.
-   /** The QuadratureFunction assumes ownership of the read QuadratureSpace. */
-   QuadratureFunction(Mesh *mesh, std::istream &in);
-
-   /// Get the associated QuadratureSpace.
-   QuadratureSpace *GetSpace() const
-   { return static_cast<QuadratureSpace*>(qspace); }
-
-   /// Change the QuadratureSpace and optionally the vector dimension.
-   /** If the new QuadratureSpace is different from the current one, the
-       QuadratureFunction will not assume ownership of the new space; otherwise,
-       the ownership flag remains the same.
-
-       If the new vector dimension @a vdim_ < 0, the vector dimension remains
-       the same.
-
-       The data size is updated by calling Vector::SetSize(). */
-   inline void SetSpace(QuadratureSpace *qspace_, int vdim_ = -1);
-
-   /** @brief Change the QuadratureSpace, the data array, and optionally the
-       vector dimension. */
-   /** If the new QuadratureSpace is different from the current one, the
-       QuadratureFunction will not assume ownership of the new space; otherwise,
-       the ownership flag remains the same.
-
-       If the new vector dimension @a vdim_ < 0, the vector dimension remains
-       the same.
-
-       The data array is replaced by calling Vector::NewDataAndSize(). */
-   inline void SetSpace(QuadratureSpace *qspace_, double *qf_data,
-                        int vdim_ = -1);
-
-   /// Evaluate a grid function at each quadrature point.
-   void ProjectGridFunction(const GridFunction &gf);
-
-   /// Evaluate the given coefficient at each quadrature point.
-   void ProjectCoefficient(Coefficient &coeff);
-
-   /// Evaluate the given vector coefficient at each quadrature point.
-   void ProjectCoefficient(VectorCoefficient &coeff);
-
-   /// @brief Evaluate the given symmetric matrix coefficient at each
-   /// quadrature point, and store the values in "symmetric format".
-   ///
-   /// @sa DenseSymmetricMatrix
-   void ProjectSymmetricCoefficient(SymmetricMatrixCoefficient &coeff);
-
-   /// @brief Evaluate the given matrix coefficient at each quadrature point.
-   ///
-   /// @note The coefficient is stored as a full (non-symmetric) matrix.
-   /// @sa ProjectSymmetricCoefficient.
-   void ProjectCoefficient(MatrixCoefficient &coeff, bool transpose=false);
-
-   /// Get the IntegrationRule associated with mesh element @a idx.
-   const IntegrationRule &GetElementIntRule(int idx) const
-   { return GetSpace()->GetElementIntRule(idx); }
-
-   /// Return all values associated with mesh element @a idx in a Vector.
-   /** The result is stored in the Vector @a values as a reference to the
-       global values.
-
-       Inside the Vector @a values, the index `i+vdim*j` corresponds to the
-       `i`-th vector component at the `j`-th quadrature point.
-    */
-   void GetElementValues(int idx, Vector &values)
-   { GetValues(idx, values); }
-
-   /// Return all values associated with mesh element @a idx in a Vector.
-   /** The result is stored in the Vector @a values as a copy of the
-       global values.
-
-       Inside the Vector @a values, the index `i+vdim*j` corresponds to the
-       `i`-th vector component at the `j`-th quadrature point.
-    */
-   void GetElementValues(int idx, Vector &values) const
-   { GetValues(idx, values); }
-
-   /// Return the quadrature function values at an integration point.
-   /** The result is stored in the Vector @a values as a reference to the
-       global values. */
-   void GetElementValues(int idx, const int ip_num, Vector &values)
-   { GetValues(idx, ip_num, values); }
-
-   /// Return the quadrature function values at an integration point.
-   /** The result is stored in the Vector @a values as a copy to the
-       global values. */
-   void GetElementValues(int idx, const int ip_num, Vector &values) const
-   { GetValues(idx, ip_num, values); }
-
-   /// Return all values associated with mesh element @a idx in a DenseMatrix.
-   /** The result is stored in the DenseMatrix @a values as a reference to the
-       global values.
-
-       Inside the DenseMatrix @a values, the `(i,j)` entry corresponds to the
-       `i`-th vector component at the `j`-th quadrature point.
-    */
-   void GetElementValues(int idx, DenseMatrix &values)
-   { GetValues(idx, values); }
-
-   /// Return all values associated with mesh element @a idx in a const DenseMatrix.
-   /** The result is stored in the DenseMatrix @a values as a copy of the
-       global values.
-
-       Inside the DenseMatrix @a values, the `(i,j)` entry corresponds to the
-       `i`-th vector component at the `j`-th quadrature point.
-    */
-   void GetElementValues(int idx, DenseMatrix &values) const
-   { GetValues(idx, values); }
+   /// Get the IntegrationRule associated with entity (element or face) @a idx.
+   const IntegrationRule &GetIntRule(int idx) const
+   { return GetSpace()->GetIntRule(idx); }
 
    /// Write the QuadratureFunction to the stream @a out.
    void Save(std::ostream &out) const;
@@ -283,91 +180,16 @@ public:
    ///             int compression_level=0)
    void SaveVTU(const std::string &filename, VTKFormat format=VTKFormat::ASCII,
                 int compression_level=0) const;
-};
 
-class FaceQuadratureFunction : public QuadratureFunctionBase
-{
-public:
-   /** @brief Copy constructor. The FaceQuadratureSpace ownership flag, #own_qspace,
-       in the new object is set to false. */
-   FaceQuadratureFunction(const FaceQuadratureFunction &orig)
-      : QuadratureFunctionBase(orig.qspace, orig.vdim)
+   virtual ~QuadratureFunction()
    {
-      Vector::operator=(orig);
+      if (own_qspace) { delete qspace; }
    }
-
-   /// Create a FaceQuadratureFunction based on the given FaceQuadratureSpace.
-   /** The FaceQuadratureFunction does not assume ownership of the
-       FaceQuadratureSpace.
-       @note The Vector data is not initialized. */
-   FaceQuadratureFunction(FaceQuadratureSpace *qspace_, int vdim_ = 1)
-      : QuadratureFunctionBase(qspace_, vdim_) { }
-
-   /// Get the associated FaceQuadratureSpace.
-   FaceQuadratureSpace *GetSpace() const
-   { return static_cast<FaceQuadratureSpace*>(qspace); }
-
-   /// Change the FaceQuadratureSpace and optionally the vector dimension.
-   /** If the new FaceQuadratureSpace is different from the current one, the
-       QuadratureFunction will not assume ownership of the new space; otherwise,
-       the ownership flag remains the same.
-
-       If the new vector dimension @a vdim_ < 0, the vector dimension remains
-       the same.
-
-       The data size is updated by calling Vector::SetSize(). */
-   inline void SetSpace(FaceQuadratureSpace *qspace_, int vdim_ = -1);
-
-   /// Evaluate the given coefficient at each quadrature point.
-   void ProjectCoefficient(Coefficient &coeff);
-
-   /// Evaluate the given vector coefficient at each quadrature point.
-   void ProjectCoefficient(VectorCoefficient &coeff);
-
-   /// @brief Evaluate the given symmetric matrix coefficient at each
-   /// quadrature point, and store the values in "symmetric format".
-   ///
-   /// @sa DenseSymmetricMatrix
-   void ProjectSymmetricCoefficient(SymmetricMatrixCoefficient &coeff);
-
-   /// @brief Evaluate the given matrix coefficient at each quadrature point.
-   ///
-   /// @note The coefficient is stored as a full (non-symmetric) matrix.
-   /// @sa ProjectSymmetricCoefficient.
-   void ProjectCoefficient(MatrixCoefficient &coeff, bool transpose=false);
-
-   /// Get the IntegrationRule associated with mesh face @a idx.
-   const IntegrationRule &GetFaceIntRule(int idx) const
-   { return GetSpace()->GetFaceIntRule(idx); }
-
-   /// Return all values associated with mesh face @a idx in a Vector.
-   void GetFaceValues(int idx, Vector &values)
-   { GetValues(idx, values); }
-
-   /// Return all values associated with mesh face @a idx in a Vector.
-   void GetFaceValues(int idx, Vector &values) const
-   { GetValues(idx, values); }
-
-   /// Return the quadrature function values at an integration point.
-   void GetFaceValues(int idx, const int ip_num, Vector &values)
-   { GetValues(idx, ip_num, values); }
-
-   /// Return the quadrature function values at an integration point.
-   void GetFaceValues(int idx, const int ip_num, Vector &values) const
-   { GetValues(idx, ip_num, values); }
-
-   /// Return all values associated with mesh face @a idx in a DenseMatrix.
-   void GetFaceValues(int idx, DenseMatrix &values)
-   { GetValues(idx, values); }
-
-   /// Return all values associated with mesh face @a idx in a const DenseMatrix.
-   void GetFaceValues(int idx, DenseMatrix &values) const
-   { GetValues(idx, values); }
 };
 
 // Inline methods
 
-inline void QuadratureFunctionBase::GetValues(
+inline void QuadratureFunction::GetValues(
    int idx, Vector &values)
 {
    const int s_offset = qspace->offsets[idx];
@@ -375,7 +197,7 @@ inline void QuadratureFunctionBase::GetValues(
    values.NewDataAndSize(data + vdim*s_offset, vdim*sl_size);
 }
 
-inline void QuadratureFunctionBase::GetValues(
+inline void QuadratureFunction::GetValues(
    int idx, Vector &values) const
 {
    const int s_offset = qspace->offsets[idx];
@@ -388,14 +210,14 @@ inline void QuadratureFunctionBase::GetValues(
    }
 }
 
-inline void QuadratureFunctionBase::GetValues(
+inline void QuadratureFunction::GetValues(
    int idx, const int ip_num, Vector &values)
 {
    const int s_offset = qspace->offsets[idx] * vdim + ip_num * vdim;
    values.NewDataAndSize(data + s_offset, vdim);
 }
 
-inline void QuadratureFunctionBase::GetValues(
+inline void QuadratureFunction::GetValues(
    int idx, const int ip_num, Vector &values) const
 {
    const int s_offset = qspace->offsets[idx] * vdim + ip_num * vdim;
@@ -407,7 +229,7 @@ inline void QuadratureFunctionBase::GetValues(
    }
 }
 
-inline void QuadratureFunctionBase::GetValues(
+inline void QuadratureFunction::GetValues(
    int idx, DenseMatrix &values)
 {
    const int s_offset = qspace->offsets[idx];
@@ -415,7 +237,7 @@ inline void QuadratureFunctionBase::GetValues(
    values.Reset(data + vdim*s_offset, vdim, sl_size);
 }
 
-inline void QuadratureFunctionBase::GetValues(
+inline void QuadratureFunction::GetValues(
    int idx, DenseMatrix &values) const
 {
    const int s_offset = qspace->offsets[idx];

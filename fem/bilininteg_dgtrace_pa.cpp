@@ -169,16 +169,15 @@ void DGTraceIntegrator::SetupPA(const FiniteElementSpace &fes, FaceType type)
                dynamic_cast<VectorQuadratureFunctionCoefficient*>(u))
    {
       // Assumed to be in lexicographical ordering
-      const QuadratureFunctionBase &qf_base = qf_u->GetQuadFunction();
-      auto *qf = dynamic_cast<const QuadratureFunction*>(&qf_base);
-      MFEM_VERIFY(qf->Size() == dim * nq * nf,
+      const QuadratureFunction &qf = qf_u->GetQuadFunction();
+      MFEM_VERIFY(qf.Size() == dim * nq * nf,
                   "Incompatible QuadratureFunction dimension \n");
 
-      MFEM_VERIFY(ir == &qf->GetSpace()->GetElementIntRule(0),
+      MFEM_VERIFY(ir == &qf.GetSpace()->GetIntRule(0),
                   "IntegrationRule used within integrator and in"
                   " QuadratureFunction appear to be different");
-      qf->Read();
-      vel.MakeRef(const_cast<QuadratureFunction&>(*qf),0);
+      qf.Read();
+      vel.MakeRef(const_cast<QuadratureFunction&>(qf),0);
    }
    else
    {
@@ -233,17 +232,15 @@ void DGTraceIntegrator::SetupPA(const FiniteElementSpace &fes, FaceType type)
    else if (QuadratureFunctionCoefficient* qf_rho =
                dynamic_cast<QuadratureFunctionCoefficient*>(rho))
    {
-      const QuadratureFunctionBase &qf_base = qf_rho->GetQuadFunction();
-      const auto *qf = dynamic_cast<const QuadratureFunction*>(&qf_base);
-      MFEM_VERIFY(qf != nullptr, "Wrong type of QuadratureFunction");
-      MFEM_VERIFY(qf->Size() == nq * nf,
+      const QuadratureFunction &qf = qf_rho->GetQuadFunction();
+      MFEM_VERIFY(qf.Size() == nq * nf,
                   "Incompatible QuadratureFunction dimension \n");
 
-      MFEM_VERIFY(ir == &qf->GetSpace()->GetElementIntRule(0),
+      MFEM_VERIFY(ir == &qf.GetSpace()->GetIntRule(0),
                   "IntegrationRule used within integrator and in"
                   " QuadratureFunction appear to be different");
-      qf->Read();
-      r.MakeRef(const_cast<QuadratureFunction&>(*qf),0);
+      qf.Read();
+      r.MakeRef(const_cast<QuadratureFunction&>(qf),0);
    }
    else
    {

@@ -24,9 +24,7 @@ namespace mfem
 
 class Mesh;
 class QuadratureSpaceBase;
-class QuadratureFunctionBase;
 class QuadratureFunction;
-class FaceQuadratureFunction;
 
 #ifdef MFEM_USE_MPI
 class ParMesh;
@@ -44,13 +42,6 @@ class Coefficient
 {
 protected:
    double time;
-
-   /// @brief Fill the QuadratureFunctionBase @a qf by evaluating the
-   /// coefficient at the quadrature points.
-   ///
-   /// Used as a fallback when specialized versions for QuadratureFunction and
-   /// FaceQuadratureFunction are not needed.
-   virtual void ProjectBase(QuadratureFunctionBase &qf);
 
 public:
    Coefficient() { time = 0.; }
@@ -85,10 +76,6 @@ public:
    /// the quadrature points.
    virtual void Project(QuadratureFunction &qf);
 
-   /// @brief Fill the FaceQuadratureFunction @a qf by evaluating the coefficient at
-   /// the quadrature points.
-   virtual void Project(FaceQuadratureFunction &qf);
-
    virtual ~Coefficient() { }
 };
 
@@ -96,8 +83,6 @@ public:
 /// A coefficient that is constant across space and time
 class ConstantCoefficient : public Coefficient
 {
-   /// Fill the QuadratureFunctionBase @a qf with the constant value.
-   void ProjectBase(QuadratureFunctionBase &qf);
 public:
    double constant;
 
@@ -108,6 +93,9 @@ public:
    virtual double Eval(ElementTransformation &T,
                        const IntegrationPoint &ip)
    { return (constant); }
+
+   /// Fill the QuadratureFunction @a qf with the constant value.
+   void Project(QuadratureFunction &qf);
 };
 
 /** @brief A piecewise constant coefficient with the constants keyed
@@ -463,8 +451,6 @@ protected:
    int vdim;
    double time;
 
-   virtual void ProjectBase(QuadratureFunctionBase &qf);
-
 public:
    /// Initialize the VectorCoefficient with vector dimension @a vd.
    VectorCoefficient(int vd) { vdim = vd; time = 0.; }
@@ -507,13 +493,6 @@ public:
    /// The @a vdim of the VectorCoefficient should be equal to the @a vdim of
    /// the QuadratureFunction.
    virtual void Project(QuadratureFunction &qf);
-
-   /// @brief Fill the FaceQuadratureFunction @a qf by evaluating the
-   /// coefficient at the quadrature points.
-   ///
-   /// The @a vdim of the VectorCoefficient should be equal to the @a vdim of
-   /// the FaceQuadratureFunction.
-   virtual void Project(FaceQuadratureFunction &qf);
 
    virtual ~VectorCoefficient() { }
 };
@@ -931,8 +910,6 @@ protected:
    double time;
    bool symmetric;  // deprecated
 
-   virtual void ProjectBase(QuadratureFunctionBase &qf, bool transpose);
-
 public:
    /// Construct a dim x dim matrix coefficient.
    explicit MatrixCoefficient(int dim, bool symm=false)
@@ -975,14 +952,6 @@ public:
    /// The @a vdim of the QuadratureFunction should be equal to the height times
    /// the width of the matrix.
    virtual void Project(QuadratureFunction &qf, bool transpose=false);
-
-   /// @brief Fill the FaceQuadratureFunction @a qf by evaluating the
-   /// coefficient at the quadrature points. The matrix will be transposed or
-   /// not according to the boolean argument @a transpose.
-   ///
-   /// The @a vdim of the FaceQuadratureFunction should be equal to the height
-   /// times the width of the matrix.
-   virtual void Project(FaceQuadratureFunction &qf, bool transpose=false);
 
    /// (DEPRECATED) Evaluate a symmetric matrix coefficient.
    /** @brief Evaluate the upper triangular entries of the matrix coefficient
@@ -1323,8 +1292,6 @@ class SymmetricMatrixCoefficient : public MatrixCoefficient
 protected:
    /// Internal matrix used when evaluating this coefficient as a DenseMatrix.
    DenseSymmetricMatrix mat;
-
-   virtual void ProjectSymmetricBase(QuadratureFunctionBase &qf);
 public:
    /// Construct a dim x dim matrix coefficient.
    explicit SymmetricMatrixCoefficient(int dimension)
@@ -1341,15 +1308,6 @@ public:
    ///
    /// The @a vdim of the coefficient should be equal to height*(height+1)/2.
    virtual void ProjectSymmetric(QuadratureFunction &qf);
-
-   /// @brief Fill the FaceQuadratureFunction @a qf by evaluating the
-   /// coefficient at the quadrature points.
-   ///
-   /// @note As opposed to MatrixCoefficient::Eval, this function stores only
-   /// the @a symmetric part of the matrix at each quadrature point.
-   ///
-   /// The @a vdim of the coefficient should be equal to height*(height+1)/2.
-   virtual void ProjectSymmetric(FaceQuadratureFunction &qf);
 
    /** @brief Evaluate the matrix coefficient in the element described by @a T
        at the point @a ip, storing the result as a symmetric matrix @a K. */
@@ -2146,26 +2104,25 @@ public:
 class VectorQuadratureFunctionCoefficient : public VectorCoefficient
 {
 private:
-   const QuadratureFunctionBase &QuadF; //do not own
+   const QuadratureFunction &QuadF; //do not own
    int index;
-
-protected:
-   virtual void ProjectBase(QuadratureFunctionBase &qf);
 
 public:
    /// Constructor with a quadrature function as input
-   VectorQuadratureFunctionCoefficient(QuadratureFunctionBase &qf);
+   VectorQuadratureFunctionCoefficient(QuadratureFunction &qf);
 
    /** Set the starting index within the QuadFunc that'll be used to project
        outwards as well as the corresponding length. The projected length should
        have the bounds of 1 <= length <= (length QuadFunc - index). */
    void SetComponent(int index_, int length_);
 
-   const QuadratureFunctionBase& GetQuadFunction() const { return QuadF; }
+   const QuadratureFunction& GetQuadFunction() const { return QuadF; }
 
    using VectorCoefficient::Eval;
    virtual void Eval(Vector &V, ElementTransformation &T,
                      const IntegrationPoint &ip);
+
+   virtual void Project(QuadratureFunction &qf);
 
    virtual ~VectorQuadratureFunctionCoefficient() { }
 };
@@ -2176,18 +2133,17 @@ public:
 class QuadratureFunctionCoefficient : public Coefficient
 {
 private:
-   const QuadratureFunctionBase &QuadF;
-
-protected:
-   virtual void ProjectBase(QuadratureFunctionBase &qf);
+   const QuadratureFunction &QuadF;
 
 public:
    /// Constructor with a quadrature function as input
-   QuadratureFunctionCoefficient(QuadratureFunctionBase &qf);
+   QuadratureFunctionCoefficient(QuadratureFunction &qf);
 
-   const QuadratureFunctionBase& GetQuadFunction() const { return QuadF; }
+   const QuadratureFunction& GetQuadFunction() const { return QuadF; }
 
    virtual double Eval(ElementTransformation &T, const IntegrationPoint &ip);
+
+   virtual void Project(QuadratureFunction &qf);
 
    virtual ~QuadratureFunctionCoefficient() { }
 };
@@ -2227,8 +2183,7 @@ protected:
    CoefficientStorage storage; ///< Storage optimizations (see CoefficientStorage).
    int vdim; ///< Number of values per quadrature point.
    QuadratureSpaceBase &qs; ///< Associated QuadratureSpaceBase.
-   QuadratureFunctionBase
-   *qf; ///< Internal QuadratureFunctionBase (owned, may be NULL).
+   QuadratureFunction *qf; ///< Internal QuadratureFunction (owned, may be NULL).
 public:
    /// Create an empty CoefficientVector.
    CoefficientVector(QuadratureSpaceBase &qs_,

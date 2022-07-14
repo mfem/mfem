@@ -21,7 +21,7 @@ namespace mfem
 class QuadratureSpaceBase
 {
 protected:
-   friend class QuadratureFunctionBase; // Uses the offsets.
+   friend class QuadratureFunction; // Uses the offsets.
 
    Mesh &mesh;
    int order;
@@ -45,6 +45,9 @@ public:
    int GetOrder() const { return order; }
 
    int GetNGroups() const { return offsets.Size() - 1; }
+
+   // MFEM_DEPRECATED
+   int GetNE() const { return GetNGroups(); }
 
    /// Returns the mesh
    inline Mesh *GetMesh() const { return &mesh; }

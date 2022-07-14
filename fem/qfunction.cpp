@@ -15,13 +15,13 @@
 namespace mfem
 {
 
-QuadratureFunctionBase &QuadratureFunctionBase::operator=(double value)
+QuadratureFunction &QuadratureFunction::operator=(double value)
 {
    Vector::operator=(value);
    return *this;
 }
 
-QuadratureFunctionBase &QuadratureFunctionBase::operator=(const Vector &v)
+QuadratureFunction &QuadratureFunction::operator=(const Vector &v)
 {
    MFEM_ASSERT(qspace && v.Size() == this->Size(), "");
    Vector::operator=(v);
@@ -43,7 +43,7 @@ QuadratureFunction::QuadratureFunction(Mesh *mesh, std::istream &in)
    Load(in, vdim*qspace->GetSize());
 }
 
-void QuadratureFunction::SetSpace(QuadratureSpace *qspace_, int vdim_)
+void QuadratureFunction::SetSpace(QuadratureSpaceBase *qspace_, int vdim_)
 {
    if (qspace_ != qspace)
    {
@@ -56,7 +56,7 @@ void QuadratureFunction::SetSpace(QuadratureSpace *qspace_, int vdim_)
 }
 
 void QuadratureFunction::SetSpace(
-   QuadratureSpace *qspace_, double *qf_data, int vdim_)
+   QuadratureSpaceBase *qspace_, double *qf_data, int vdim_)
 {
    if (qspace_ != qspace)
    {
@@ -70,58 +70,37 @@ void QuadratureFunction::SetSpace(
 
 void QuadratureFunction::Save(std::ostream &os) const
 {
-   GetSpace()->Save(os);
-   os << "VDim: " << vdim << '\n'
-      << '\n';
-   Vector::Print(os, vdim);
-   os.flush();
+   MFEM_ABORT("Not implemented.");
+   // GetSpace()->Save(os);
+   // os << "VDim: " << vdim << '\n'
+   //    << '\n';
+   // Vector::Print(os, vdim);
+   // os.flush();
 }
 
 void QuadratureFunction::ProjectGridFunction(const GridFunction &gf)
 {
    SetVDim(gf.VectorDim());
 
-   const FiniteElementSpace &gf_fes = *gf.FESpace();
-   const bool use_tensor_products = UsesTensorBasis(gf_fes);
-   const ElementDofOrdering ordering = use_tensor_products ?
-                                       ElementDofOrdering::LEXICOGRAPHIC :
-                                       ElementDofOrdering::NATIVE;
+   if (auto *qs_elem = dynamic_cast<QuadratureSpace*>(qspace))
+   {
+      const FiniteElementSpace &gf_fes = *gf.FESpace();
+      const bool use_tensor_products = UsesTensorBasis(gf_fes);
+      const ElementDofOrdering ordering = use_tensor_products ?
+                                          ElementDofOrdering::LEXICOGRAPHIC :
+                                          ElementDofOrdering::NATIVE;
 
-   // Use element restriction to go from L-vector to E-vector
-   const Operator *R = gf_fes.GetElementRestriction(ordering);
-   Vector e_vec(R->Height());
-   R->Mult(gf, e_vec);
+      // Use element restriction to go from L-vector to E-vector
+      const Operator *R = gf_fes.GetElementRestriction(ordering);
+      Vector e_vec(R->Height());
+      R->Mult(gf, e_vec);
 
-   // Use quadrature interpolator to go from E-vector to Q-vector
-   const QuadratureInterpolator *qi(gf_fes.GetQuadratureInterpolator(*GetSpace()));
-   qi->SetOutputLayout(QVectorLayout::byVDIM);
-   qi->DisableTensorProducts(!use_tensor_products);
-   qi->Values(e_vec, *this);
-}
-
-void QuadratureFunction::ProjectCoefficient(Coefficient &coeff)
-{
-   coeff.Project(*this);
-}
-
-void QuadratureFunction::ProjectCoefficient(VectorCoefficient &coeff)
-{
-   // Should we automatically resize, or check the vdim?
-   // MFEM_ASSERT(vdim == coeff.GetVDim(), "Wrong sizes.");
-   SetVDim(coeff.GetVDim());
-   coeff.Project(*this);
-}
-
-void QuadratureFunction::ProjectSymmetricCoefficient(
-   SymmetricMatrixCoefficient &coeff)
-{
-   coeff.ProjectSymmetric(*this);
-}
-
-void QuadratureFunction::ProjectCoefficient(MatrixCoefficient &coeff,
-                                            bool transpose)
-{
-   coeff.Project(*this, transpose);
+      // Use quadrature interpolator to go from E-vector to Q-vector
+      const QuadratureInterpolator *qi(gf_fes.GetQuadratureInterpolator(*qs_elem));
+      qi->SetOutputLayout(QVectorLayout::byVDIM);
+      qi->DisableTensorProducts(!use_tensor_products);
+      qi->Values(e_vec, *this);
+   }
 }
 
 std::ostream &operator<<(std::ostream &os, const QuadratureFunction &qf)
@@ -165,7 +144,7 @@ void QuadratureFunction::SaveVTU(std::ostream &os, VTKFormat format,
    for (int i = 0; i < ne; i++)
    {
       ElementTransformation &T = *mesh.GetElementTransformation(i);
-      const IntegrationRule &ir = GetElementIntRule(i);
+      const IntegrationRule &ir = GetIntRule(i);
       for (int j = 0; j < ir.Size(); j++)
       {
          T.Transform(ir[j], pt);
@@ -226,7 +205,7 @@ void QuadratureFunction::SaveVTU(std::ostream &os, VTKFormat format,
    for (int i = 0; i < ne; i++)
    {
       DenseMatrix vals;
-      GetElementValues(i, vals);
+      GetValues(i, vals);
       for (int j = 0; j < vals.Size(); ++j)
       {
          for (int vd = 0; vd < vdim; ++vd)
@@ -253,31 +232,6 @@ void QuadratureFunction::SaveVTU(const std::string &filename, VTKFormat format,
 {
    std::ofstream f(filename + ".vtu");
    SaveVTU(f, format, compression_level);
-}
-
-void FaceQuadratureFunction::ProjectCoefficient(Coefficient &coeff)
-{
-   coeff.Project(*this);
-}
-
-void FaceQuadratureFunction::ProjectCoefficient(VectorCoefficient &coeff)
-{
-   // Should we automatically resize, or check the vdim?
-   // MFEM_ASSERT(vdim == coeff.GetVDim(), "Wrong sizes.");
-   SetVDim(coeff.GetVDim());
-   coeff.Project(*this);
-}
-
-void FaceQuadratureFunction::ProjectSymmetricCoefficient(
-   SymmetricMatrixCoefficient &coeff)
-{
-   coeff.ProjectSymmetric(*this);
-}
-
-void FaceQuadratureFunction::ProjectCoefficient(MatrixCoefficient &coeff,
-                                                bool transpose)
-{
-   coeff.Project(*this, transpose);
 }
 
 }
