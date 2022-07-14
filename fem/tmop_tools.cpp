@@ -451,10 +451,7 @@ double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
          else     { cP->Mult(x_out, x_out_loc); }
       }
 #ifdef MFEM_USE_MPI
-      else
-      {
-         fes->GetProlongationMatrix()->Mult(x_out, x_out_loc);
-      }
+      else { fes->GetProlongationMatrix()->Mult(x_out, x_out_loc); }
 #endif
 
       // Check the changes in detJ.
