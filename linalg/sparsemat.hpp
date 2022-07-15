@@ -487,6 +487,14 @@ public:
    void EliminateRowCol(int rc, SparseMatrix &Ae,
                         DiagonalPolicy dpolicy = DIAG_ONE);
 
+   /** @brief Eliminate essential (Dirichlet) boundary conditions.
+
+      @param[in] ess_dofs indices of the degrees of freedom belonging to the
+                          essential boundary conditions.
+      @param[in] diag_policy policy for diagonal entries. */
+   void EliminateBC(const Array<int> &ess_dofs,
+                    DiagonalPolicy diag_policy);
+
    /// If a row contains only one diag entry of zero, set it to 1.
    void SetDiagIdentity();
    /// If a row contains only zeros, set its diagonal to 1.
