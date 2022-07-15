@@ -101,7 +101,7 @@ private:
    HyprePCG M_solver; // Symmetric system, can use CG
 
    DenseMatrix dij_dense;
-   SparseMatrix * dij_sparse;
+   SparseMatrix dij_sparse;
    Vector dii;
    SparseMatrix K_spmat, KT_spmat;
    SparseMatrix K_spmat_wide;
@@ -670,11 +670,10 @@ FE_Evolution::FE_Evolution(ParBilinearForm &M_, ParBilinearForm &K_, ParBilinear
 
    K_hpm = K_pbf.ParallelAssemble();
    K_hpm->MergeDiagAndOffd(K_spmat);
+   dij_sparse = K_spmat;
 
    KT_hpm = KT_pbf.ParallelAssemble();
    KT_hpm->MergeDiagAndOffd(KT_spmat);
-
-   dij_dense.SetSize(K_spmat.Height(), K_spmat.Width());
 
    M_solver.iterative_mode = false;
    M_solver.SetAbsTol(0.0);
@@ -726,137 +725,89 @@ void FE_Evolution::build_dij_matrix(const Vector &U,
                                     const VectorFunctionCoefficient &velocity)
 {
    cout << "Build dij\n";
-   cout << "dij size: " << dij_dense.Height() << "," << dij_dense.Width() << endl;
 
-   const int m = dij_dense.Height(), n = dij_dense.Width();
+   const int m = dij_sparse.Height(), n = dij_sparse.Width();
    const int *I = K_spmat.HostReadI(), *J = K_spmat.HostReadJ();
 
    const double *K_data = K_spmat.HostReadData();
    const double *KT_data = KT_spmat.HostReadData();
 
-   DenseMatrix * K_dm = K_spmat.ToDenseMatrix();
-   DenseMatrix *KT_dm = KT_spmat.ToDenseMatrix();
-
-   // int i_ = 0;
-   // int j_ = 8;
-   // int counter_ = 0;
-
-   // for (int i=0; i < m; i++)
-   // {
-   //    for (int j = 0; j<n; j++)
-   //    {
-   //       if ((*K_dm)(i,j) != 0 && j < m)
-   //       {
-   //          i_ = i;
-   //          j_ = j;
-   //          if (counter_ == 4) { break; } else { counter_++; }
-   //       }
-   //    }
-   // }
-
-   // cout << "i_: " << i_ << " j_: " << j_ << endl;
-   // cout << "K(3,5): " << (*K_dm)(i_,j_) << endl;
-   // cout << "KT(5,3): " << (*KT_dm)(j_,i_) << endl;
-   // cout << "K(5,3): " << (*K_dm)(j_,i_) << endl;
-   // cout << "KT(3,5): " << (*KT_dm)(i_,j_) << endl;
-   // assert(false);
-
-   for (int i = 0; i < m; i++)
+   for (int i = 0, k = 0; i < m; i++)
    {
-      for (int j = 0; j < n; j++)
+      double rowsum = 0;
+      for (int end = I[i+1]; k < end; k++)
       {
-         double kij = (*K_dm)(i, j);
-         double kji = (*KT_dm)(j,i);
-         double dij = fmax(abs(kij), abs(kji));
+         int j = J[k];
 
-         dij_dense(i,j) = dij;
-      }
-   }
-
-   // for (int i = 0, k = 0; i < m; i++)
-   // {
-   //    for (int end = I[i+1]; k < end; k++)
-   //    {
-   //       int j = J[k];
-   //       if (j > i) // We only need to look at the upper diagonal since we have access to the transpose.
-   //       {
-   //          double kij = K_data[k];
-   //          double kji = KT_data[k];
-   //          double dij = fmax(abs(kij), abs(kji));
+         if (i != j) {
+            double kij = K_spmat(i,j);
+            double kji = KT_spmat(i,j);
+            double dij = fmax(abs(kij), abs(kji));
+            cout << "i: " << i << " j: " << j << " dij: " << dij << endl;
             
-   //          dij_dense(i,j) = dij;
-   //          if (j < m) { dij_dense(j,i) = dij; }
-   //       }
-   //    }
-   // }
+            dij_sparse(i,j) = dij;
 
-
-   cout << "building diag\n";
+            rowsum += dij;
+         }
+      } 
+      
+      dii(i) = -1 * rowsum;     
+   }
 
    // TODO: better way to set row sums?
    // dij_dense.GetRowSums(row_sums); // Can't use as this doesnt take the absolute value
-   for (int i = 0; i < m; i++)
-   {
-      double d = 0.0;;
-      for (int j = 0; j < n; j++)
-      {
-         d += abs(dij_dense(i,j));
-      }
-      dij_dense(i,i) = -1 * d;
-      dii(i) = -1 * d;
-   }
-
-   cout << "Dense built.\n";
+   // for (int i = 0; i < m; i++)
+   // {
+   //    double d = 0.0;;
+   //    for (int j = 0; j < n; j++)
+   //    {
+   //       d += abs(dij_sparse(i,j));
+   //    }
+   //    dij_sparse(i,i) = -1 * d;
+   //    dii(i) = -1 * d;
+   // }
    
    // Array<int> rows(m), cols(n);
    // for (int i = 0; i < m; i++) { rows[i] = i; }
    // for (int i = 0; i < n; i++) { cols[i] = i; }
-   // dij_sparse->SetSubMatrix(rows, cols, dij_dense);
+   // dij_sparse.SetSubMatrix(rows, cols, dij_dense);
    
    /* 
    ========== Building SparseMatrix Here ========== 
    */
-   double a;
-   // const int m = dm.Height(), n = dm.Width(); // redundant
+   // double a;
 
-   Array<int> I_dij, J_dij;
-   Array<double> data_dij;
-   int counter = 0;
-   I_dij.Append(counter);
+   // Array<int> I_dij, J_dij;
+   // Array<double> data_dij;
+   // int counter = 0;
+   // I_dij.Append(counter);
 
-   for (int i = 0; i < m; i++)
-   {
-      for (int j = 0; j < n; j++)
-      {
-         a = dij_dense(i,j);
-         if (a != 0)
-         {
-            data_dij.Append(a);
-            J_dij.Append(j);
-            // Increment counter for I array
-            counter++;
-         }
-      }
-      I_dij.Append(counter);
-   }
+   // for (int i = 0; i < m; i++)
+   // {
+   //    for (int j = 0; j < n; j++)
+   //    {
+   //       a = dij_dense(i,j);
+   //       if (a != 0)
+   //       {
+   //          data_dij.Append(a);
+   //          J_dij.Append(j);
+   //          // Increment counter for I array
+   //          counter++;
+   //       }
+   //    }
+   //    I_dij.Append(counter);
+   // }
 
-   dij_sparse = new SparseMatrix(I_dij, J_dij, data_dij, m, n);
-
-   
-   cout << "I_dij\n";
-   I_dij.Print();
-   // assert(false);
-   // cout << "I_dij[m] = " << I_dij[m] << endl;
-   // cout << "m*m = " << m*n << endl;
-
-   // cout << "============= Num nonzeros: " << dij_sparse->NumNonZeroElems() << endl;
+   // dij_sparse = new SparseMatrix(I_dij, J_dij, data_dij, m, n);
 
    /* 
    ========== Finished building SparseMatrix Here ========== 
    */
 
-   dij_sparse->PrintInfo(cout);
-   dij_sparse->Finalize();
+   dij_sparse.PrintInfo(cout);
+   dij_sparse.Finalize();
+
+   // assert(false);
 
    // Check that our matrix dij is symmetric.
    // if (dij_matrix->IsSymmetric()) {
@@ -870,8 +821,6 @@ void FE_Evolution::build_dij_matrix(const Vector &U,
    // HypreParMatrix (MPI_Comm comm, HYPRE_BigInt global_num_rows, HYPRE_BigInt global_num_cols, HYPRE_BigInt *row_starts, HYPRE_BigInt *col_starts, SparseMatrix *diag) 
    // D = new HypreParMatrix(MPI_COMM_WORLD, pfes.GlobalVSize(), pfes.GlobalVSize(), pfes.GetTrueDofOffsets(), pfes.GetDofOffsets(), dij_sparse);
    // W = RAP(D, pfes.Dof_TrueDof_Matrix());
-   delete KT_dm;
-   delete K_dm;
    cout << "Finished dij matrix.\n";
 }
 
@@ -945,33 +894,16 @@ void FE_Evolution::Mult(const Vector &x, Vector &y) const
    Vector z(n), rhs(n);
    K_hpm->Mult(*U, z);
 
-   // const int m_ = dij_dense.Height(), n_ = dij_dense.Width();
-   // double threshold = 0.000000000001;
-   // for (int i = 0; i < m_; i++) {
-   //    for (int j = 0; j < n_; j++) {
-   //       if (abs(dij_dense(i,j)) > threshold || abs((*x_global)[j]) > threshold)
-   //       {
-   //          cout << "i: " << i << " j: " << j << endl;
-   //          cout << "d(i,j): " << dij_dense(i,j) << " U[j]: " << (*x_global)[j] << endl;
-   //       }
-   //    }
-   // }
-   // assert(false);
-   cout << "Pre dij matrix\n";
-   Vector U_full(dij_sparse->Width()); U_full = 1.0;
-   dij_sparse->Mult(U_full, rhs);
-   rhs.Print();
-   assert(false);
-
-   cout << "Post dij matrix\n";
-   // z += rhs;
+   dij_sparse.Mult(*x_global, rhs);
+   z += rhs;
 
    assert(lumpedM.Size() == n);
    y.SetSize(n); // TODO: Somehow y is of size local at this point. Resizing is a bandaid.
 
    for (int i = 0; i < n; i++)
    {
-      y[i] = z[i] / lumpedM(i);
+      double diag_comp = dii(i) * x(i); // Leftover piece from rhs due to sparsity issue in dij.
+      y[i] = ( z[i] + diag_comp ) / lumpedM(i);
    }
    // M_solver.Mult(z, y);
 
