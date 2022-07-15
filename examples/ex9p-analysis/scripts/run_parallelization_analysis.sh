@@ -20,7 +20,7 @@ cd $mfem_dir
 
 mpirun -np 1 ex9p-continuous -m ../data/periodic-square.mesh -dt 0.005 -rs 5 -rp 0 -p 4 -tf 2.84
 mpirun -np 2 ex9p-continuous -m ../data/periodic-square.mesh -dt 0.005 -rs 5 -rp 0 -p 4 -tf 2.84
-mpirun -np 4 --oversubscribe ex9p-continuous -m ../data/periodic-square.mesh -dt 0.005 -rs 5 -rp 0 -p 4 -tf 2.84
+mpirun -np 4 ex9p-continuous -m ../data/periodic-square.mesh -dt 0.005 -rs 5 -rp 0 -p 4 -tf 2.84
 
 # mpirun -np 1 ex9p-discontinuous -m ../data/periodic-square.mesh -ct -rs 5 -rp 0 -p 4 -ots
 # mpirun -np 2 ex9p-discontinuous -m ../data/periodic-square.mesh -ct -rs 5 -rp 0 -p 4 -ots

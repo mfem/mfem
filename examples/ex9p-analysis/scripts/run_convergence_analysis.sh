@@ -15,10 +15,10 @@ rm *.out
 rm *.txt
 
 cd $mfem_dir
-# mpirun -np 4 --oversubscribe ex9p-continuous -m ../data/periodic-square.mesh -dt .001 -rs 1 -rp 0 -p 4 -tf 2.84
-# mpirun -np 4 --oversubscribe ex9p-continuous -m ../data/periodic-square.mesh -dt .001 -rs 2 -rp 0 -p 4 -tf 2.84
-# mpirun -np 4 --oversubscribe ex9p-continuous -m ../data/periodic-square.mesh -dt .001 -rs 3 -rp 0 -p 4 -tf 2.84
-# mpirun -np 4 --oversubscribe ex9p-continuous -m ../data/periodic-square.mesh -dt .001 -rs 4 -rp 0 -p 4 -tf 2.84
+mpirun -np 4 --oversubscribe ex9p-continuous -m ../data/periodic-square.mesh -dt .001 -rs 1 -rp 0 -p 4 -tf 2.84
+mpirun -np 4 --oversubscribe ex9p-continuous -m ../data/periodic-square.mesh -dt .001 -rs 2 -rp 0 -p 4 -tf 2.84
+mpirun -np 4 --oversubscribe ex9p-continuous -m ../data/periodic-square.mesh -dt .001 -rs 3 -rp 0 -p 4 -tf 2.84
+mpirun -np 4 --oversubscribe ex9p-continuous -m ../data/periodic-square.mesh -dt .001 -rs 4 -rp 0 -p 4 -tf 2.84
 # mpirun -np 4 --oversubscribe ex9p-continuous -m ../data/periodic-square.mesh -dt .001 -rs 5 -rp 0 -p 4 -tf 2.84
 # mpirun -np 4 --oversubscribe ex9p-continuous -m ../data/periodic-square.mesh -dt .001 -rs 6 -rp 0 -p 4 -tf 2.84
 # mpirun -np 4 --oversubscribe ex9p-continuous -m ../data/periodic-square.mesh -dt .001 -rs 7 -rp 0 -p 4 -tf 2.84
