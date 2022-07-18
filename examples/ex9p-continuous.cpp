@@ -90,7 +90,7 @@ class FE_Evolution : public TimeDependentOperator
 private:
    ParFiniteElementSpace &pfes;
    ParMesh &pmesh;
-   Array<int> ess_tdof_list; 
+   Array<int> ess_tdof_list;
    Array<HYPRE_BigInt> gi;
 
    HypreParMatrix M_hpm, *K_hpm, *KT_hpm;
@@ -360,30 +360,6 @@ int main(int argc, char *argv[])
    ParGridFunction *u = new ParGridFunction(fes);
    u->ProjectCoefficient(u0);
    HypreParVector *U = u->GetTrueDofs();
-   // *U = 1.; // Set U to ones for testing row sums and mat-vec multiplication
-
-   // HypreParMatrix * K = k->ParallelAssemble(); 
-   // HypreParMatrix *K_e = k->ParallelAssembleElim();
-   // cout << "K size: (" << K->Height() << "," << K->Width() << ")" << endl;
-   // cout << "K_e size: (" << K_e->Height() << "," << K_e->Width() << ")" << endl;
-   // cout << "pfes.GetVSize(): " << fes->GetVSize() << endl;
-   // cout << "pfes.GetTrueVSize(): " << fes->GetTrueVSize() << endl;
-   // cout << "pfes.GetFaceNbrVSize(): " << fes->GetFaceNbrVSize() << endl;
-
-   // test_hpm_pgf(*U, *K);
-   // assert(false);
-
-   
-   // SparseMatrix K_diag;
-   // K->GetDiag(K_diag);  
-
-   // if (Mpi::Root())
-   // {
-   //    cout << "Root:\n"
-   //         << "k size: " << k->SpMat().Height() << "," << k->SpMat().Width() << endl
-   //         << "u size: " << u->Size() << " U size: " << U->Size() << endl
-   //         << "K_diag size: " << K_diag.Height() << "," << K_diag.Width() << endl;
-   // }
 
    ConstantCoefficient zero(0.0);
 
@@ -504,7 +480,6 @@ int main(int argc, char *argv[])
          // 11. Extract the parallel grid function corresponding to the finite
          //     element approximation U (the local solution on each processor).
          *u = *U; // Synchronizes MPI processes.
-         
 
          if (visualization)
          {
@@ -684,25 +659,6 @@ FE_Evolution::FE_Evolution(ParBilinearForm &M_, ParBilinearForm &K_, ParBilinear
    M_solver.SetPreconditioner(*M_prec);
    M_solver.SetOperator(M_hpm);
 
-   // Assuming K is finalized. (From extrapolator.)
-   // K_smap is used later to symmetrically form dij_matrix
-//    const int *I = K_spmat.GetI(), *J = K_spmat.GetJ(), n = K_spmat.Size();
-//    K_smap.SetSize(I[n]);
-//    for (int row = 0, j = 0; row < n; row++)
-//    {
-//       for (int end = I[row+1]; j < end; j++)
-//       {
-//          int col = J[j];
-//          // Find the offset, _j, of the (col,row) entry and store it in smap[j].
-//          for (int _j = I[col], _end = I[col+1]; true; _j++)
-//          {
-//             MFEM_VERIFY(_j != _end, "Can't find the symmetric entry!");
-
-//             if (J[_j] == row) { K_smap[j] = _j; break; }
-//          }
-//       }
-//    }
-
    cout << "End FEEvolution constructor.\n";
 }
 
@@ -737,88 +693,28 @@ void FE_Evolution::build_dij_matrix(const Vector &U,
       double rowsum = 0;
       for (int end = I[i+1]; k < end; k++)
       {
-         int j = J[k];
+         int j = J[k]; // global index
 
          if (i != j) {
             double kij = K_spmat(i,j);
             double kji = KT_spmat(i,j);
             double dij = fmax(abs(kij), abs(kji));
-            cout << "i: " << i << " j: " << j << " dij: " << dij << endl;
-            
+
             dij_sparse(i,j) = dij;
 
             rowsum += dij;
          }
-      } 
-      
-      dii(i) = -1 * rowsum;     
+         else {
+            dij_sparse(i, j) = 0.; // Need to clear entry before Mult()
+         }
+      }
+
+      dii(i) = -1 * rowsum; // To be used in Mult()
    }
 
-   // TODO: better way to set row sums?
-   // dij_dense.GetRowSums(row_sums); // Can't use as this doesnt take the absolute value
-   // for (int i = 0; i < m; i++)
-   // {
-   //    double d = 0.0;;
-   //    for (int j = 0; j < n; j++)
-   //    {
-   //       d += abs(dij_sparse(i,j));
-   //    }
-   //    dij_sparse(i,i) = -1 * d;
-   //    dii(i) = -1 * d;
-   // }
-   
-   // Array<int> rows(m), cols(n);
-   // for (int i = 0; i < m; i++) { rows[i] = i; }
-   // for (int i = 0; i < n; i++) { cols[i] = i; }
-   // dij_sparse.SetSubMatrix(rows, cols, dij_dense);
-   
-   /* 
-   ========== Building SparseMatrix Here ========== 
-   */
-   // double a;
-
-   // Array<int> I_dij, J_dij;
-   // Array<double> data_dij;
-   // int counter = 0;
-   // I_dij.Append(counter);
-
-   // for (int i = 0; i < m; i++)
-   // {
-   //    for (int j = 0; j < n; j++)
-   //    {
-   //       a = dij_dense(i,j);
-   //       if (a != 0)
-   //       {
-   //          data_dij.Append(a);
-   //          J_dij.Append(j);
-   //          // Increment counter for I array
-   //          counter++;
-   //       }
-   //    }
-   //    I_dij.Append(counter);
-   // }
-
-   // dij_sparse = new SparseMatrix(I_dij, J_dij, data_dij, m, n);
-
-   /* 
-   ========== Finished building SparseMatrix Here ========== 
-   */
-
-   dij_sparse.PrintInfo(cout);
-   dij_sparse.Finalize();
-
-   // assert(false);
-
-   // Check that our matrix dij is symmetric.
-   // if (dij_matrix->IsSymmetric()) {
-   //    cout << "ERROR: dij matrix must be symmetric.\n";
-   //    cout << "Val: " << dij_matrix->IsSymmetric() << endl;
-   //    return;
-   // }
-   
-   // D = D_form->ParallelAssemble(dij_sparse);
-   // D = new HypreParMatrix(MPI_COMM_WORLD, pfes.GlobalVSize(), pfes.GetDofOffsets(), dij_sparse); 
-   // HypreParMatrix (MPI_Comm comm, HYPRE_BigInt global_num_rows, HYPRE_BigInt global_num_cols, HYPRE_BigInt *row_starts, HYPRE_BigInt *col_starts, SparseMatrix *diag) 
+   // D = D_form->ParallelAssemble(&dij_sparse);
+   // D = new HypreParMatrix(MPI_COMM_WORLD, pfes.GlobalVSize(), pfes.GetDofOffsets(), dij_sparse);
+   // HypreParMatrix (MPI_Comm comm, HYPRE_BigInt global_num_rows, HYPRE_BigInt global_num_cols, HYPRE_BigInt *row_starts, HYPRE_BigInt *col_starts, SparseMatrix *diag)
    // D = new HypreParMatrix(MPI_COMM_WORLD, pfes.GlobalVSize(), pfes.GlobalVSize(), pfes.GetTrueDofOffsets(), pfes.GetDofOffsets(), dij_sparse);
    // W = RAP(D, pfes.Dof_TrueDof_Matrix());
    cout << "Finished dij matrix.\n";
@@ -833,7 +729,7 @@ void FE_Evolution::build_dij_matrix(const Vector &U,
 //    const int s = u.Size();
 //    const int *I = dij_matrix->HostReadI(), *J = dij_matrix->HostReadJ();
 //    const double *D_data = dij_matrix->HostReadData();
-   
+
 //    for (int i = 0; i < s; i++)
 //    {
 //       du(i) = 0.;
@@ -854,14 +750,12 @@ void FE_Evolution::build_dij_matrix(const Vector &U,
  * ***************************************************************************/
 void FE_Evolution::calculate_timestep()
 {
-   cout << "Calculating timestep.\n"; 
+   cout << "Calculating timestep.\n";
    int n = lumpedM.Size();
    double t_min = 0;
    double t_temp = 0;
-   Vector dii;
-   dij_dense.GetDiag(dii);
 
-   for (int i = 0; i < n; i++) 
+   for (int i = 0; i < n; i++)
    {
       t_temp = lumpedM(i) / (2. * abs(dii[i]));
       if (t_temp > t_min) { t_min = t_temp; }
@@ -891,7 +785,7 @@ void FE_Evolution::Mult(const Vector &x, Vector &y) const
    Vector * x_global = U->GlobalVector();
 
    int n = x.Size();
-   Vector z(n), rhs(n);
+   Vector z(n), rhs(n), z_2(n), rhs_2(n);
    K_hpm->Mult(*U, z);
 
    dij_sparse.Mult(*x_global, rhs);
@@ -905,7 +799,6 @@ void FE_Evolution::Mult(const Vector &x, Vector &y) const
       double diag_comp = dii(i) * x(i); // Leftover piece from rhs due to sparsity issue in dij.
       y[i] = ( z[i] + diag_comp ) / lumpedM(i);
    }
-   // M_solver.Mult(z, y);
 
    assert (y.Size() == n);
 }
@@ -992,7 +885,7 @@ void velocity_function(const Vector &x, Vector &v)
    }
 }
 
-// Exact Solution u(x,t) 
+// Exact Solution u(x,t)
 // Note that u(x,0) = u_0(x)
 double exact_sol(const Vector &x, const double t)
 {
@@ -1098,7 +991,7 @@ double exact_sol(const Vector &x, const double t)
                }
             }
          }
-         
+
       }
    }
    return 100.;
@@ -1141,7 +1034,7 @@ void test_sparse_matrices(const SparseMatrix &A, const SparseMatrix &AT)
          for (int end = I[i+1]; k < end; k++)
          {
             int j = J[k], jT = JT[k];
-            if (j != jT) { 
+            if (j != jT) {
                cout << "row i, j: " << j << " jT: " << jT << endl;
             }
             // if (i != j)
@@ -1149,7 +1042,7 @@ void test_sparse_matrices(const SparseMatrix &A, const SparseMatrix &AT)
             //    double kij = A[k];
             //    double kji = AT[k];
             // }
-            
+
          }
       }
    }
@@ -1209,7 +1102,7 @@ void create_global_expansion_matrix(ParFiniteElementSpace &pfes, SparseMatrix & 
 
 //       assert(false); // terminate the program early
 //    }
-   
+
 // }
 
 void test_hpm_pgf(HypreParVector U, HypreParMatrix K_hpm)
@@ -1245,7 +1138,7 @@ void test_hpm_pgf(HypreParVector U, HypreParMatrix K_hpm)
       cout << "Diag (tdof x tdof) Row Sums: \n"; DiagRowSums.Print();
       cout << "Merged (tdof x gdof) Row Sums: \n"; MergedRowSums.Print();
       y -= MergedRowSums;
-      cout << "Should be 0s: \n"; y.Print(); 
+      cout << "Should be 0s: \n"; y.Print();
    }
 
    // This will be the way we should implement the mulitplication. By using the hpm.
