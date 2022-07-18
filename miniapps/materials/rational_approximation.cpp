@@ -233,12 +233,12 @@ void ComputePartialFractionApproximation(double & alpha,
    if (print_warning)
    {
       mfem::out
-            << "\n" << string(80, '=')
+            << "\n" << std::string(80, '=')
             << "\nMFEM is compiled without LAPACK."
             << "\nUsing precomputed values for PartialFractionApproximation."
             << "\nOnly alpha = 0.33, 0.5, and 0.99 are available."
-            << "\nThe default is alpha = 0.5.\n" << string(80, '=') << "\n"
-            << endl;
+            << "\nThe default is alpha = 0.5.\n" << std::string(80, '=') << "\n"
+            << std::endl;
    }
    const double eps = std::numeric_limits<double>::epsilon();
 
