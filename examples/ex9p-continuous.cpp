@@ -91,24 +91,12 @@ private:
    ParFiniteElementSpace &pfes;
    ParMesh &pmesh;
    Array<int> ess_tdof_list;
-   Array<HYPRE_BigInt> gi;
 
    HypreParMatrix M_hpm, *K_hpm, *KT_hpm;
    HypreParVector lumpedM;
-   ParBilinearForm *D_form;
    ParBilinearForm &K_pbf, &KT_pbf;
-   HypreSolver *M_prec;
-   HyprePCG M_solver; // Symmetric system, can use CG
-
-   DenseMatrix dij_dense;
-   SparseMatrix dij_sparse;
+   SparseMatrix dij_sparse, K_spmat, KT_spmat;
    Vector dii;
-   SparseMatrix K_spmat, KT_spmat;
-   SparseMatrix K_spmat_wide;
-   HypreParMatrix *D;
-   HypreParMatrix *W;
-
-   Array<int> K_smap;
 
    double timestep;
 
@@ -120,8 +108,7 @@ public:
    Guermond/Popov 2016.
    */
    void build_dij_matrix(const Vector &U,
-                         const VectorFunctionCoefficient &velocity) ;
-   void apply_dij(const Vector &u, Vector &du) const;
+                         const VectorFunctionCoefficient &velocity);
    void calculate_timestep();
    double get_timestep();
 
@@ -456,10 +443,8 @@ int main(int argc, char *argv[])
 
    // dij_matrix has no time dependence
    adv.build_dij_matrix(*u, velocity);
-   // adv.calculate_timestep();
-
-   // Verify our timestamp satisfies the cfl condition
-   // assert (dt <= adv.get_timestep());
+   adv.calculate_timestep();
+   dt = adv.get_timestep(); // According to CFL, take min across processors.
 
    bool done = false;
    for (int ti = 0; !done; )
@@ -621,9 +606,6 @@ FE_Evolution::FE_Evolution(ParBilinearForm &M_, ParBilinearForm &K_, ParBilinear
    : TimeDependentOperator(K_.Height()),
      pfes(*(K_.ParFESpace())),
      pmesh(*(pfes.GetParMesh())),
-     M_solver(pfes.GetComm()),
-     D_form(&K_),
-     K_smap(),
      lumpedM(&pfes),
      timestep(0.),
      K_pbf(K_),
@@ -637,8 +619,6 @@ FE_Evolution::FE_Evolution(ParBilinearForm &M_, ParBilinearForm &K_, ParBilinear
       pfes.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
    }
 
-   pmesh.GetGlobalVertexIndices(gi);
-
    cout << "Initialize FE_Evolution class.\n";
    M_.FormSystemMatrix(ess_tdof_list, M_hpm);
    M_hpm.GetDiag(lumpedM);
@@ -649,15 +629,6 @@ FE_Evolution::FE_Evolution(ParBilinearForm &M_, ParBilinearForm &K_, ParBilinear
 
    KT_hpm = KT_pbf.ParallelAssemble();
    KT_hpm->MergeDiagAndOffd(KT_spmat);
-
-   M_solver.iterative_mode = false;
-   M_solver.SetAbsTol(0.0);
-   M_solver.SetTol(1e-9);
-   M_solver.SetMaxIter(100);
-   M_solver.SetPrintLevel(0);
-   M_prec = new HypreBoomerAMG;
-   M_solver.SetPreconditioner(*M_prec);
-   M_solver.SetOperator(M_hpm);
 
    cout << "End FEEvolution constructor.\n";
 }
@@ -712,35 +683,8 @@ void FE_Evolution::build_dij_matrix(const Vector &U,
       dii(i) = -1 * rowsum; // To be used in Mult()
    }
 
-   // D = D_form->ParallelAssemble(&dij_sparse);
-   // D = new HypreParMatrix(MPI_COMM_WORLD, pfes.GlobalVSize(), pfes.GetDofOffsets(), dij_sparse);
-   // HypreParMatrix (MPI_Comm comm, HYPRE_BigInt global_num_rows, HYPRE_BigInt global_num_cols, HYPRE_BigInt *row_starts, HYPRE_BigInt *col_starts, SparseMatrix *diag)
-   // D = new HypreParMatrix(MPI_COMM_WORLD, pfes.GlobalVSize(), pfes.GlobalVSize(), pfes.GetTrueDofOffsets(), pfes.GetDofOffsets(), dij_sparse);
-   // W = RAP(D, pfes.Dof_TrueDof_Matrix());
    cout << "Finished dij matrix.\n";
 }
-
-/******************************************************************************
- * FE_Evolution::apply_dij(ParGridFunction &u, Vector &du) const
- * Purpose:
- * ***************************************************************************/
-// void FE_Evolution::apply_dij(const Vector &u, Vector &du) const
-// {
-//    const int s = u.Size();
-//    const int *I = dij_matrix->HostReadI(), *J = dij_matrix->HostReadJ();
-//    const double *D_data = dij_matrix->HostReadData();
-
-//    for (int i = 0; i < s; i++)
-//    {
-//       du(i) = 0.;
-//       for (int k = I[i]; k < I[i + 1]; k++)
-//       {
-//          int j = J[k];
-
-//          du(i) += D_data[k] * u(j);
-//       }
-//    }
-// }
 
 /******************************************************************************
  * FE_Evolution::calculate_timestep()
@@ -772,6 +716,7 @@ void FE_Evolution::calculate_timestep()
  * ***************************************************************************/
 double FE_Evolution::get_timestep()
 {
+   MPI_Allreduce(MPI_IN_PLACE, &this->timestep, 1, MPI_DOUBLE, MPI_MIN, pmesh.GetComm());
    return timestep;
 }
 
@@ -809,8 +754,6 @@ void FE_Evolution::Mult(const Vector &x, Vector &y) const
  * ***************************************************************************/
 FE_Evolution::~FE_Evolution()
 {
-   // delete D;
-   // delete dij_sparse;
 }
 
 // Velocity coefficient
