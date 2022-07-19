@@ -347,3 +347,9 @@ pkg.gitcommit
 
 # Jupyter Notebook Checkpoints
 .ipynb_checkpoints
+
+*.user
+*.obj
+*.tlog
+*.pdb
+Win32/x64/*/*.log
