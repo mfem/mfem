@@ -105,7 +105,7 @@ int main(int argc, char *argv[])
    MPI_Comm_rank(MPI_COMM_WORLD, &myrank);
 
    // Parse command-line options.
-   const char *mesh_file = "../../data/star.mesh";
+   const char *mesh_file = "./bar2d.msh";
    int order = 1;
    bool static_cond = false;
    int ser_ref_levels = 1;
@@ -238,7 +238,9 @@ int main(int argc, char *argv[])
    E->SetDens(&oddens);
    //E->SetProjParam(0.5,8.0);//threshold 0.7
    E->SetEMaxMin(1e-6,1.0);
-   E->SetPenal(3.0);
+
+   double pp=3.0;
+   E->SetPenal(pp);
 
    mfem::ElasticitySolver* esolv=new mfem::ElasticitySolver(&pmesh,1);
    esolv->AddDispBC(2,4,0.0);
@@ -309,9 +311,6 @@ int main(int argc, char *argv[])
        paraview_dc.RegisterField("disp",&disp);
        paraview_dc.RegisterField("odesign",&oddens);
        paraview_dc.RegisterField("pdesign",&pdesign);
-
-       double pp=3.0;
-       E->SetPenal(pp);
 
        for(int i=1;i<max_it;i++){
 

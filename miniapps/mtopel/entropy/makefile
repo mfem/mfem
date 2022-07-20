@@ -10,9 +10,9 @@
 # CONTRIBUTING.md for details.
 
 # Use the MFEM build directory
-MFEM_DIR ?= ../mfem
-MFEM_BUILD_DIR ?= ../mfem
-SRC = $(if $(MFEM_DIR:../mfem=),$(MFEM_DIR)/../entropy/,)
+MFEM_DIR ?= ../../..
+MFEM_BUILD_DIR ?= ../../..
+SRC = $(if $(MFEM_DIR:../../..=),$(MFEM_DIR)/miniapps/mtopel/entropy/,)
 CONFIG_MK = $(MFEM_BUILD_DIR)/config/config.mk
 # Use the MFEM install directory
 # MFEM_INSTALL_DIR = ../../mfem

@@ -201,7 +201,7 @@ public:
 int main(int argc, char *argv[])
 {
    // 1. Parse command-line options.
-   const char *mesh_file = "../mfem/data/beam-quad.mesh";
+   const char *mesh_file = "../bar2d.msh";
    int ref_levels = 2;
    int order = 2;
    double beta = 1.0;
@@ -291,7 +291,7 @@ int main(int argc, char *argv[])
    //    on boundary attribute 2 is indicated by the use of piece-wise constants
    //    coefficient for its last component.
 
-   VolForce f(0.05,7.9,0.5,0.0,-1.0e-2);
+   VolForce f(0.05,2.90,0.5,0.0,-1.0);
    // VectorArrayCoefficient f(dim);
    // f.Set(dim-1, new ConstantCoefficient(-1.0e-2));
    // for (int i = 0; i < dim-1; i++)
