@@ -302,6 +302,98 @@ private:
    complex<double> P_;
 };
 
+class MultiStrapAntennaH : public VectorCoefficient
+{
+private:
+   bool real_part_;
+   int num_straps_;
+   double tol_;
+   Vector params_;
+   Vector x_;
+
+public:
+   MultiStrapAntennaH(int n, const Vector &params,
+                      bool real_part, double tol = 1e-6)
+      : VectorCoefficient(3), real_part_(real_part), num_straps_(n),
+        tol_(tol), params_(params), x_(2)
+   {
+      MFEM_ASSERT(params.Size() == 10 * n,
+                  "Incorrect number of parameters provided to "
+                  "MultiStrapAntennaH");
+   }
+
+   void Eval(Vector &V, ElementTransformation &T,
+             const IntegrationPoint &ip)
+   {
+      V.SetSize(3); V = 0.0;
+      T.Transform(ip, x_);
+      for (int i=0; i<num_straps_; i++)
+      {
+          double x0  = params_[10 * i + 0];
+          double y0  = params_[10 * i + 1];
+          double x1  = params_[10 * i + 2];
+          double y1  = params_[10 * i + 3];
+          double x2  = params_[10 * i + 4];
+          double y2  = params_[10 * i + 5];
+          double x3  = params_[10 * i + 6];
+          double y3  = params_[10 * i + 7];
+
+          double ReI = params_[10 * i + 8];
+          double ImI = params_[10 * i + 9];
+
+          double d01 = sqrt(pow(x1 - x0, 2) + pow(y1 - y0, 2));
+          double d12 = sqrt(pow(x2 - x1, 2) + pow(y2 - y1, 2));
+          double d23 = sqrt(pow(x3 - x2, 2) + pow(y3 - y2, 2));
+          double d30 = sqrt(pow(x0 - x3, 2) + pow(y0 - y3, 2));
+
+          double   H = (real_part_ ? ReI : ImI) / (d01 + d12 + d23 + d30);
+          
+          // *** The following will break on any vertical sides ***
+           // Bottom of Antenna Strap:
+           double s1 = (y1-y0)/(x1-x0);
+           double b1 = y1 - s1*x1;
+           // Right of Antenna Strap:
+           double s2 = (y2-y1)/(x2-x1);
+           double b2 = y2 - s2*x2;
+           // Top of Antenna Strap:
+           double s3 = (y3-y2)/(x3-x2);
+           double b3 = y3 - s3*x3;
+           // Left of Antenna Strap:
+           double s4 = (y3-y0)/(x3-x0);
+           double b4 = y3 - s4*x3;
+
+           if (fabs(x_[1] - (s1*x_[0]+b1)) <= tol_
+               && x_[0] >= x0 && x_[0] <= x1)
+           {
+              V[0] = (x1 - x0) * H / d01;
+              V[1] = (y1 - y0) * H / d01;
+              break;
+           }
+           else if (fabs(x_[1] - (s2*x_[0]+b2)) <= tol_
+                    && x_[1] >= y1 && x_[1] <= y2)
+           {
+              V[0] = (x2 - x1) * H / d12;
+              V[1] = (y2 - y1) * H / d12;
+              break;
+           }
+           else if (fabs(x_[1] - (s3*x_[0]+b3)) <= tol_
+                    && x_[0] >= x3 && x_[0] <= x2)
+           {
+              V[0] = (x3 - x2) * H / d23;
+              V[1] = (y3 - y2) * H / d23;
+              break;
+           }
+           else if (fabs(x_[1] - (s4*x_[0]+b4)) <= tol_
+                    && x_[1] >= y0 && x_[1] <= y3)
+           {
+              V[0] = (x0 - x3) * H / d30;
+              V[1] = (y0 - y3) * H / d30;
+              break;
+           }
+      }
+   }
+};
+
 void Update(ParFiniteElementSpace & H1FESpace,
             ParFiniteElementSpace & HCurlFESpace,
             ParFiniteElementSpace & HDivFESpace,
@@ -390,6 +482,7 @@ int main(int argc, char *argv[])
    Array<int> peca; // Perfect Electric Conductor BC attributes
    Array<int> dbca1; // Dirichlet BC attributes
    Array<int> dbca2; // Dirichlet BC attributes
+   Array<int> nbcas; // Neumann BC attributes for multi-strap antenna source
    Array<int> nbca1; // Neumann BC attributes
    Array<int> nbca2; // Neumann BC attributes
    Vector dbcv1; // Dirichlet BC values
@@ -398,6 +491,9 @@ int main(int argc, char *argv[])
    Vector nbcv2; // Neumann BC values
 
    int num_elements = 10;
+    
+    int msa_n = 0;
+    Vector msa_p(0);
 
    SolverOptions solOpts;
    solOpts.maxIter = 1000;
@@ -410,6 +506,7 @@ int main(int argc, char *argv[])
    bool per_y = false;
    bool pa = false;
    const char *device_config = "cpu";
+    const char *eqdsk_file = "";
 
    OptionsParser args(argc, argv);
    args.AddOption(&logo, "-logo", "--print-logo", "-no-logo",
@@ -500,6 +597,8 @@ int main(int argc, char *argv[])
                   "Phase shift vector across periodic directions."
                   " For complex phase shifts input 3 real phase shifts "
                   "followed by 3 imaginary phase shifts");
+   args.AddOption(&msa_n, "-ns", "--num-straps","");
+   args.AddOption(&msa_p, "-sp", "--strap-params","");
    args.AddOption(&charges, "-q", "--charges",
                   "Charges of the various species "
                   "(in units of electron charge)");
@@ -558,6 +657,9 @@ int main(int argc, char *argv[])
    args.AddOption(&dbcv2, "-dbcv2", "--dirichlet-bc-2-vals",
                   "Dirichlet Boundary Condition Value 2 (v_x v_y v_z)"
                   " or (Re(v_x) Re(v_y) Re(v_z) Im(v_x) Im(v_y) Im(v_z))");
+  args.AddOption(&nbcas, "-nbcs-msa", "--neumann-bc-straps",
+                     "Neumann Boundary Condition Surfaces Using "
+                     "Multi-Strap Antenna");
    args.AddOption(&nbca1, "-nbcs1", "--neumann-bc-1-surf",
                   "Neumann Boundary Condition Surfaces Using Value 1");
    args.AddOption(&nbca2, "-nbcs2", "--neumann-bc-2-surf",
@@ -588,6 +690,8 @@ int main(int argc, char *argv[])
                   "--no-partial-assembly", "Enable Partial Assembly.");
    args.AddOption(&device_config, "-d", "--device",
                   "Device configuration string, see Device::Configure().");
+   args.AddOption(&eqdsk_file, "-eqdsk", "--eqdsk-file",
+                   "G EQDSK input file.");
    args.Parse();
    if (!args.Good())
    {
@@ -885,8 +989,25 @@ int main(int argc, char *argv[])
    PlasmaProfile nuiCoef(nipt, nipp);
    nui_gf.ProjectCoefficient(nuiCoef);
 
-   BFieldProfile BCoef(bpt, bpp, false);
-   BFieldProfile BUnitCoef(bpt, bpp, true);
+    G_EQDSK_Data *eqdsk = NULL;
+    {
+       named_ifgzstream ieqdsk(eqdsk_file);
+       if (ieqdsk)
+       {
+          eqdsk = new G_EQDSK_Data(ieqdsk);
+          if (mpi.Root())
+          {
+             eqdsk->PrintInfo();
+             if (logging > 0)
+             {
+                eqdsk->DumpGnuPlotData("stix2d_eqdsk");
+             }
+          }
+       }
+    }
+    
+   BFieldProfile BCoef(bpt, bpp, false, eqdsk);
+   BFieldProfile BUnitCoef(bpt, bpp, true, eqdsk);
 
    BField.ProjectCoefficient(BCoef);
 
@@ -956,6 +1077,9 @@ int main(int argc, char *argv[])
    SheathImpedance z_i(BField, density, temperature,
                        L2FESpace, H1FESpace,
                        omega, charges, masses, false);
+
+  MultiStrapAntennaH HReStrapCoef(msa_n, msa_p, true);
+  MultiStrapAntennaH HImStrapCoef(msa_n, msa_p, false);
 
    ColdPlasmaPlaneWaveE EReCoef(wave_type[0], omega, BVec,
                                 numbers, charges, masses, temps, nuprof, true);
@@ -1207,7 +1331,7 @@ int main(int argc, char *argv[])
       }
    }
 
-   int nbcsSize = (nbca1.Size() > 0) + (nbca2.Size() > 0);
+   int nbcsSize = (nbca1.Size() > 0) + (nbca2.Size() > 0) + (nbcas.Size() > 0);
 
    Array<ComplexVectorCoefficientByAttr*> nbcs(nbcsSize);
 
@@ -1273,6 +1397,14 @@ int main(int argc, char *argv[])
          nbcs[c]->imag = &nbc2ImCoef;
          c++;
       }
+       if (nbcas.Size() > 0)
+       {
+          nbcs[c] = new ComplexVectorCoefficientByAttr;
+          nbcs[c]->attr = nbcas;
+          nbcs[c]->real = &HReStrapCoef;
+          nbcs[c]->imag = &HImStrapCoef;
+          c++;
+       }
    }
 
    Array<ComplexCoefficientByAttr*> sbcs((sbca.Size() > 0)? 1 : 0);
@@ -1322,7 +1454,7 @@ int main(int argc, char *argv[])
    if ( visit )
    {
       CPD.RegisterVisItFields(visit_dc);
-
+      /*
       auxFields.SetSize(1);
       auxFields[0] = new ParComplexGridFunction(&HCurlFESpace);
 
@@ -1330,6 +1462,20 @@ int main(int argc, char *argv[])
 
       visit_dc.RegisterField("Re_E_Exact", &auxFields[0]->real());
       visit_dc.RegisterField("Im_E_Exact", &auxFields[0]->imag());
+       */
+       temperature_gf.MakeRef(&H1FESpace, temperature.GetBlock(0));
+       visit_dc.RegisterField("Electron_Temp", &temperature_gf);
+
+       density_gf.MakeRef(&L2FESpace, density.GetBlock(0));
+       visit_dc.RegisterField("Electron_Density", &density_gf);
+
+       //nue_gf *= 1/omega;
+       visit_dc.RegisterField("Collisional Profile", &nue_gf);
+
+       visit_dc.RegisterField("B_background", &BField);
+
+       visit_dc.SetCycle(0);
+       visit_dc.Save();
    }
    if (mpi.Root()) { cout << "Initialization done." << endl; }
 
