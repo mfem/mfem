@@ -653,7 +653,7 @@ void FE_Evolution::build_dij_matrix(const Vector &U,
 {
    cout << "Build dij\n";
 
-   const int m = dij_sparse.Height(), n = dij_sparse.Width();
+   const int m = dij_sparse.Height();
    const int *I = K_spmat.HostReadI(), *J = K_spmat.HostReadJ();
 
    const double *K_data = K_spmat.HostReadData();
@@ -701,6 +701,7 @@ void FE_Evolution::calculate_timestep()
 
    for (int i = 0; i < n; i++)
    {
+      assert(lumpedM(i) > 0); // Assumption, equation (3.6)
       t_temp = lumpedM(i) / (2. * abs(dii[i]));
       if (t_temp > t_min) { t_min = t_temp; }
    }
@@ -716,7 +717,12 @@ void FE_Evolution::calculate_timestep()
  * ***************************************************************************/
 double FE_Evolution::get_timestep()
 {
-   MPI_Allreduce(MPI_IN_PLACE, &this->timestep, 1, MPI_DOUBLE, MPI_MIN, pmesh.GetComm());
+   MPI_Allreduce(MPI_IN_PLACE,
+                 &this->timestep,
+                 1,
+                 MPI_DOUBLE,
+                 MPI_MIN,
+                 pmesh.GetComm());
    return timestep;
 }
 
@@ -730,7 +736,7 @@ void FE_Evolution::Mult(const Vector &x, Vector &y) const
    Vector * x_global = U->GlobalVector();
 
    int n = x.Size();
-   Vector z(n), rhs(n), z_2(n), rhs_2(n);
+   Vector z(n), rhs(n);
    K_hpm->Mult(*U, z);
 
    dij_sparse.Mult(*x_global, rhs);
