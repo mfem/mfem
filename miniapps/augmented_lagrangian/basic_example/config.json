@@ -1,0 +1,20 @@
+{
+    "prob_config" : {
+        "size" : 5,
+        "x0"   : [1, 1, 0.5, 1, 1],
+        "lam0" : 1.0
+    },
+
+    "design_update" : {
+        "step_length" : 1e0,
+        "initial_sample_size" : 10,
+        "norm_test_factor" : 0.1,
+        "tolerance" : 5e-3
+    },
+
+    "multiplier_update" : {
+        "step_length" : 1e0,
+        "tolerance" : 1e-3
+    }
+
+}

@@ -1,0 +1,51 @@
+description:
+    name: basic_example
+    description: adaptive sampling for a basic augmented lagrangian example with deterministic constraints
+
+env:
+    variables:
+        OUTPUT_PATH: ./output
+        INPUT_PATH: ./input
+        CONFIG: config.json
+        RECORD: record.json
+        SAMPLE_GRAD: sample_gradient.txt
+        SAMPLE_GRAD_LIST: sample_gradient_list.txt
+        EXE_DIR: $(SPECROOT)
+        INITIAL_EXE: initialize.py
+        PRIMAL_EXE: primal_gradients.py
+        PRIMAL_UPDATE_EXE: primal_update.py
+        DUAL_UPDATE_EXE: dual_update.py
+
+study:
+    - name: initialize
+      description: Generate the initial guesses for the primal and dual problems
+      run:
+        cmd: |
+          python3 $(EXE_DIR)/$(INITIAL_EXE) -c $(EXE_DIR)/$(CONFIG) -r $(EXE_DIR)/$(RECORD) -i $(ENCORE_ITERATION) 
+
+    - name: primal_gradients
+      description: Generate gradients for the primal problem
+      run:
+        cmd: |
+          python3 $(EXE_DIR)/$(PRIMAL_EXE) -c $(EXE_DIR)/$(CONFIG) -r $(EXE_DIR)/$(RECORD) -g $(SAMPLE_GRAD) -i $(ENCORE_ITERATION)  -s $(SAMPLE)
+        depends: [initialize]
+    
+    - name: primal_update
+      description: Update the design variable
+      run:
+        cmd: |
+          ls $(primal_gradients.workspace)/*/$(SAMPLE_GRAD) > $(EXE_DIR)/$(SAMPLE_GRAD_LIST);
+          python3 $(EXE_DIR)/$(PRIMAL_UPDATE_EXE) -c $(EXE_DIR)/$(CONFIG) -r $(EXE_DIR)/$(RECORD) -gl $(EXE_DIR)/$(SAMPLE_GRAD_LIST) -i $(ENCORE_ITERATION)
+        depends: [primal_gradients*]
+
+    - name: dual_update
+      description: Decide whether to exit
+      run:
+        cmd: |
+          python3 $(EXE_DIR)/$(DUAL_UPDATE_EXE) -c $(EXE_DIR)/$(CONFIG) -r $(EXE_DIR)/$(RECORD) -i $(ENCORE_ITERATION) -o $(OUTPUT_PATH)
+        depends: [primal_update]
+
+global.parameters:
+    SAMPLE:
+        values: [1, 2, 3, 4, 5]
+        label: SAMPLE.%%
