@@ -411,6 +411,7 @@ int main(int argc, char *argv[])
       if (prob != 2)
       {
          mfem::out << "\n  Ref |" 
+                  << "       Mesh       |"
                   << "    Dofs    |" 
                   << "   ω   |" 
                   << "  L2 Error  |" 
@@ -418,12 +419,14 @@ int main(int argc, char *argv[])
                   << "  Rate  |" 
                   << "  Residual  |" 
                   << "  Rate  |" 
-                  << " PCG it |" << endl;
+                  << " PCG it |"
+                  << " PCG time |"  << endl;
          mfem::out << " --------------------"      
                   <<  "---------------------"    
                   <<  "---------------------"    
                   <<  "---------------------"    
-                  <<  "----------" << endl;      
+                  <<  "---------------------"    
+                  <<  "-------------------" << endl;      
       }
    }
 
@@ -553,8 +556,7 @@ int main(int argc, char *argv[])
 
 
       StopWatch chrono;
-      chrono.Clear();
-      chrono.Start();
+
       CGSolver cg(MPI_COMM_WORLD);
       cg.SetRelTol(1e-7);
       cg.SetAbsTol(1e-7);
@@ -562,16 +564,28 @@ int main(int argc, char *argv[])
       cg.SetPrintLevel(0);
       cg.SetPreconditioner(*M); 
       cg.SetOperator(blockA);
+      chrono.Clear();
+      chrono.Start();
       cg.Mult(B, X);
       chrono.Stop();
 
       int ne = pmesh.GetNE();
       MPI_Allreduce(MPI_IN_PLACE,&ne,1,MPI_INT,MPI_SUM,MPI_COMM_WORLD);
-      int ne_x = (int)sqrt(ne);
+      int ne_x = (dim == 2) ? (int)sqrt(ne) : (int)cbrt(ne);
+      ostringstream oss;
+      double pcg_time = chrono.RealTime();
       if (myid == 0)
       {
-         mfem::out << "Mesh = " << ne_x << " x " << ne_x << std::endl;
-         mfem::out << "PCG time = " << chrono.RealTime() << std::endl;
+         if (dim == 2)
+         {
+            oss << ne_x << " x " << ne_x ;
+         }
+         else
+         {
+            oss << ne_x << " x " << ne_x << " x " << ne_x ;
+         }
+         // mfem::out << "Mesh: " << oss.str() << std::endl;
+         // mfem::out << "PCG time = " << pcg_time << std::endl;
       }
 
       int num_iter = cg.GetNumIterations();
@@ -649,13 +663,14 @@ int main(int argc, char *argv[])
       dof0 = dofs;
       if (myid == 0)
       {
-         mfem::out << "dof0     = " << dof0 << endl;
-         mfem::out << "residual = " << globalresidual << endl;
-         mfem::out << "num_iter = " << num_iter << endl;
+         // mfem::out << "dof0     = " << dof0 << endl;
+         // mfem::out << "residual = " << globalresidual << endl;
+         // mfem::out << "num_iter = " << num_iter << endl;
 
          if (prob != 2)
          {  
             mfem::out << std::right << std::setw(5) << it << " | " 
+                     << std::setw(16) << oss.str() << " | " 
                      << std::setw(10) <<  dof0 << " | " 
                      << std::setprecision(0) << std::fixed
                      << std::setw(2) <<  2*rnum << " π  | " 
@@ -671,6 +686,7 @@ int main(int argc, char *argv[])
                      << std::setw(6) << std::fixed << rate_res << " | " 
                      << std::setw(6) << std::fixed << num_iter << " | " 
                      << std::setprecision(5) 
+                     << std::setw(8) << std::fixed << pcg_time << " | " 
                      << std::scientific 
                      << std::endl;
          }
