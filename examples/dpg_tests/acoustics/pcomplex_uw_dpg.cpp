@@ -1,7 +1,9 @@
 //                   MFEM Ultraweak DPG acoustics example
 //
-// Compile with: make uw_dpg
+// Compile with: make pcomplex_uw_dpg
 //
+// sample runs
+// ./pcomplex_uw_dpg -o 3 -m ../../../data/inline-quad.mesh -sref 2 -pref 3 -rnum 4.1 -prob 0 -sc -graph-norm
 
 //     - Δ p - ω^2 p = f̃ ,   in Ω
 //                 p = p_0, on ∂Ω

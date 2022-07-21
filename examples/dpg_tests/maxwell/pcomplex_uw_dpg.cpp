@@ -3,7 +3,7 @@
 // Compile with: make pcomplex_uw_dpg
 //
 // sample run 
-// mpirun -np 4 ./pcomplex_uw_dpg -o 3 -m ../../../data/inline-quad.mesh -sref 3 -pref 2 -rnum 4.1 -prob 1 -sc
+// ./pcomplex_uw_dpg -o 3 -m ../../../data/inline-quad.mesh -sref 2 -pref 3 -rnum 4.1 -prob 1 -sc -graph-norm
 
 //      ∇×(1/μ ∇×E) - ω^2 ϵ E = Ĵ ,   in Ω
 //                E×n = E_0, on ∂Ω
@@ -427,7 +427,7 @@ int main(int argc, char *argv[])
       }
    }
 
-   for (int i = 0; i<pr; i++)
+   for (int it = 0; it<pr; it++)
    {
       if (static_cond) { a->EnableStaticCondensation(); }
       a->Assemble();
@@ -534,7 +534,7 @@ int main(int argc, char *argv[])
       HypreSolver * solver_hatH = nullptr;
       HypreAMS * solver_hatE = new HypreAMS((HypreParMatrix &)BlockA_r->GetBlock(skip,skip), 
                                hatE_fes);
-      solver_hatE->SetPrintLevel(0);                               
+      solver_hatE->SetPrintLevel(0);  
       if (dim == 2)
       {
          solver_hatH = new HypreBoomerAMG((HypreParMatrix &)BlockA_r->GetBlock(skip+1,skip+1));
@@ -551,14 +551,29 @@ int main(int argc, char *argv[])
       M->SetDiagonalBlock(skip+num_blocks,solver_hatE);
       M->SetDiagonalBlock(skip+num_blocks+1,solver_hatH);
 
+
+      StopWatch chrono;
+      chrono.Clear();
+      chrono.Start();
       CGSolver cg(MPI_COMM_WORLD);
-      cg.SetRelTol(1e-3);
-      cg.SetAbsTol(1e-3);
-      cg.SetMaxIter(10000);
-      cg.SetPrintLevel(1);
+      cg.SetRelTol(1e-7);
+      cg.SetAbsTol(1e-7);
+      cg.SetMaxIter(100000);
+      cg.SetPrintLevel(0);
       cg.SetPreconditioner(*M); 
       cg.SetOperator(blockA);
       cg.Mult(B, X);
+      chrono.Stop();
+
+      int ne = pmesh.GetNE();
+      MPI_Allreduce(MPI_IN_PLACE,&ne,1,MPI_INT,MPI_SUM,MPI_COMM_WORLD);
+      int ne_x = (int)sqrt(ne);
+      if (myid == 0)
+      {
+         mfem::out << "Mesh = " << ne_x << " x " << ne_x << std::endl;
+         mfem::out << "PCG time = " << chrono.RealTime() << std::endl;
+      }
+
       int num_iter = cg.GetNumIterations();
       delete M;
 
@@ -626,8 +641,8 @@ int main(int argc, char *argv[])
 
       double rel_err = L2Error/L2norm;
 
-      double rate_err = (i) ? dim*log(err0/rel_err)/log((double)dof0/dofs) : 0.0;
-      double rate_res = (i) ? dim*log(res0/globalresidual)/log((double)dof0/dofs) : 0.0;
+      double rate_err = (it) ? dim*log(err0/rel_err)/log((double)dof0/dofs) : 0.0;
+      double rate_res = (it) ? dim*log(res0/globalresidual)/log((double)dof0/dofs) : 0.0;
 
       err0 = rel_err;
       res0 = globalresidual;
@@ -640,7 +655,7 @@ int main(int argc, char *argv[])
 
          if (prob != 2)
          {  
-            mfem::out << std::right << std::setw(5) << i << " | " 
+            mfem::out << std::right << std::setw(5) << it << " | " 
                      << std::setw(10) <<  dof0 << " | " 
                      << std::setprecision(0) << std::fixed
                      << std::setw(2) <<  2*rnum << " π  | " 
@@ -689,7 +704,7 @@ int main(int argc, char *argv[])
 
       }
 
-      if (i == pr-1)
+      if (it == pr-1)
          break;
 
       pmesh.GeneralRefinement(elements_to_refine,1,1);
