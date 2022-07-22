@@ -444,7 +444,19 @@ int main(int argc, char *argv[])
    // dij_matrix has no time dependence
    adv.build_dij_matrix(*u, velocity);
    adv.calculate_timestep();
-   dt = adv.get_timestep(); // According to CFL, take min across processors.
+
+   // Optimize time step, unless running convergence analysis
+   if (!match_dt_to_h)
+   {
+      dt = adv.get_timestep(); // According to CFL, take min across processors.
+   }
+
+   cout << "dt: " << dt << endl;
+   cout << "cfl: " << adv.get_timestep() << endl;
+   // assert(dt <= adv.get_timestep()); // In either case, we must satisfy the CFL.
+   if (dt > adv.get_timestep()) {
+      cout << "CFL condition not satisfied.\n";
+   }
 
    bool done = false;
    for (int ti = 0; !done; )
@@ -703,7 +715,11 @@ void FE_Evolution::calculate_timestep()
    {
       assert(lumpedM(i) > 0); // Assumption, equation (3.6)
       t_temp = lumpedM(i) / (2. * abs(dii[i]));
-      if (t_temp > t_min) { t_min = t_temp; }
+      if (i == 0) { t_min = t_temp; } // t_min must be initialized to something other than 0
+      else // all other indices 
+      {
+         if (t_temp < t_min) { t_min = t_temp; }
+      }
    }
 
    this->timestep = t_min;
