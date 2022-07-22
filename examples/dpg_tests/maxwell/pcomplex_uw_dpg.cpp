@@ -3,7 +3,7 @@
 // Compile with: make pcomplex_uw_dpg
 //
 // sample run 
-// ./pcomplex_uw_dpg -o 3 -m ../../../data/inline-quad.mesh -sref 2 -pref 3 -rnum 4.1 -prob 1 -sc -graph-norm
+// mpirun -np 2 ./pcomplex_uw_dpg -o 3 -m ../../../data/inline-quad.mesh -sref 2 -pref 3 -rnum 4.1 -prob 1 -sc -graph-norm
 
 //      ∇×(1/μ ∇×E) - ω^2 ϵ E = Ĵ ,   in Ω
 //                E×n = E_0, on ∂Ω
@@ -568,6 +568,7 @@ int main(int argc, char *argv[])
       chrono.Start();
       cg.Mult(B, X);
       chrono.Stop();
+      delete M;
 
       int ne = pmesh.GetNE();
       MPI_Allreduce(MPI_IN_PLACE,&ne,1,MPI_INT,MPI_SUM,MPI_COMM_WORLD);
@@ -589,7 +590,6 @@ int main(int argc, char *argv[])
       }
 
       int num_iter = cg.GetNumIterations();
-      delete M;
 
       a->RecoverFEMSolution(X,x);
 

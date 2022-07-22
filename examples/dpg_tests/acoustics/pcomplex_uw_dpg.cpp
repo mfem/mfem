@@ -287,24 +287,27 @@ int main(int argc, char *argv[])
    int dof0;
    if (myid == 0)
    {
-      mfem::out << "\n Refinement |" 
-               << "    Dofs    |" 
-               << "   ω   |" 
-               << "  L2 Error  |" 
-               << " Relative % |" 
-               << "  Rate  |" 
-               << "  Residual  |" 
-               << "  Rate  |" 
-               << " PCG it |" << endl;
+      mfem::out << "\n  Ref |" 
+                << "       Mesh       |"
+                << "    Dofs    |" 
+                << "   ω   |" 
+                << "  L2 Error  |" 
+                << " Relative % |" 
+                << "  Rate  |" 
+                << "  Residual  |" 
+                << "  Rate  |" 
+                << " PCG it |"
+                << " PCG time |"  << endl;
       mfem::out << " --------------------"      
-               <<  "---------------------"    
-               <<  "---------------------"    
-               <<  "---------------------"    
-               <<  "----------------" << endl;   
+                <<  "---------------------"    
+                <<  "---------------------"    
+                <<  "---------------------"    
+                <<  "---------------------"    
+                <<  "-------------------" << endl;      
    }
 
 
-   for (int i = 0; i<pr; i++)
+   for (int it = 0; it<pr; it++)
    {
       if (static_cond) { a->EnableStaticCondensation(); }
       a->Assemble();
@@ -357,85 +360,75 @@ int main(int argc, char *argv[])
       BlockOperator * BlockA_r = dynamic_cast<BlockOperator *>(&Ahc->real());
       BlockOperator * BlockA_i = dynamic_cast<BlockOperator *>(&Ahc->imag());
 
+      int num_blocks = BlockA_r->NumRowBlocks();
+      Array<int> tdof_offsets(2*num_blocks+1);
 
-      MFEM_VERIFY(static_cond, "preconditioner not implemented for the non-static condensation case");
-
-      Array<int> tdof_offsets(5);
       tdof_offsets[0] = 0;
-      tdof_offsets[1] = hatp_fes->GetTrueVSize();
-      tdof_offsets[2] = hatu_fes->GetTrueVSize();
-      tdof_offsets[3] = hatp_fes->GetTrueVSize();
-      tdof_offsets[4] = hatu_fes->GetTrueVSize();
-
+      int skip = (static_cond) ? 0 : 2;
+      int k = (static_cond) ? 2 : 0;
+      for (int i=0; i<num_blocks;i++)
+      {
+         tdof_offsets[i+1] = trial_fes[i+k]->GetTrueVSize(); 
+         tdof_offsets[num_blocks+i+1] = trial_fes[i+k]->GetTrueVSize(); 
+      }
       tdof_offsets.PartialSum();
 
       BlockOperator blockA(tdof_offsets);
-      blockA.SetBlock(0,0, &BlockA_r->GetBlock(0,0));
-      blockA.SetBlock(0,1, &BlockA_r->GetBlock(0,1));
-      blockA.SetBlock(1,0, &BlockA_r->GetBlock(1,0));
-      blockA.SetBlock(1,1, &BlockA_r->GetBlock(1,1));
-
-      blockA.SetBlock(0,2, &BlockA_i->GetBlock(0,0),-1.0);
-      blockA.SetBlock(0,3, &BlockA_i->GetBlock(0,1),-1.0);
-      blockA.SetBlock(1,2, &BlockA_i->GetBlock(1,0),-1.0);
-      blockA.SetBlock(1,3, &BlockA_i->GetBlock(1,1),-1.0);
-
-
-      blockA.SetBlock(2,2, &BlockA_r->GetBlock(0,0));
-      blockA.SetBlock(2,3, &BlockA_r->GetBlock(0,1));
-      blockA.SetBlock(3,2, &BlockA_r->GetBlock(1,0));
-      blockA.SetBlock(3,3, &BlockA_r->GetBlock(1,1));
-
-      blockA.SetBlock(2,0, &BlockA_i->GetBlock(0,0));
-      blockA.SetBlock(2,1, &BlockA_i->GetBlock(0,1));
-      blockA.SetBlock(3,0, &BlockA_i->GetBlock(1,0));
-      blockA.SetBlock(3,1, &BlockA_i->GetBlock(1,1));
+      for (int i = 0; i<num_blocks; i++)
+      {
+         for (int j = 0; j<num_blocks; j++)
+         {
+            blockA.SetBlock(i,j,&BlockA_r->GetBlock(i,j));
+            blockA.SetBlock(i,j+num_blocks,&BlockA_i->GetBlock(i,j), -1.0);
+            blockA.SetBlock(i+num_blocks,j+num_blocks,&BlockA_r->GetBlock(i,j));
+            blockA.SetBlock(i+num_blocks,j,&BlockA_i->GetBlock(i,j));
+         }
+      }
 
 
-
-      // int numblocks = BlockA_r->NumRowBlocks();
-      // Array2D<HypreParMatrix *> Ab_r(numblocks,numblocks);
-      // Array2D<HypreParMatrix *> Ab_i(numblocks,numblocks);
-
-      // for (int ii = 0; ii<numblocks; ii++)
-      // {
-      //    for (int jj = 0; jj<numblocks; jj++)
-      //    {
-      //       Ab_r(ii,jj) = dynamic_cast<HypreParMatrix*>(&BlockA_r->GetBlock(ii,jj));
-      //       Ab_i(ii,jj) = dynamic_cast<HypreParMatrix*>(&BlockA_i->GetBlock(ii,jj));
-      //    }
-      // }
-      // HypreParMatrix * A_r = HypreParMatrixFromBlocks(Ab_r);
-      // HypreParMatrix * A_i = HypreParMatrixFromBlocks(Ab_i);
-
-      // ComplexHypreParMatrix Ac(A_r,A_i,true,true);
-
-      // HypreParMatrix * A = Ac.GetSystemMatrix();
-
-      // if (myid == 0)
-      // {   
-      //    mfem::out << "Size of the (condensed) linear system: " << A->Height() << std::endl;
-      // }
       X = 0.;
 
       BlockDiagonalPreconditioner * M = new BlockDiagonalPreconditioner(tdof_offsets);
-      HypreBoomerAMG * amg = new HypreBoomerAMG((HypreParMatrix &)BlockA_r->GetBlock(0,0));
-      // amg->SetCycleNumSweeps(5, 5);
-      amg->SetPrintLevel(0);
-      HypreAMS * ams = new HypreAMS((HypreParMatrix &)BlockA_r->GetBlock(1,1), hatu_fes);
-      ams->SetPrintLevel(0);
-      M->SetDiagonalBlock(0,amg);
-      M->SetDiagonalBlock(1,ams);
-      M->SetDiagonalBlock(2,amg);
-      M->SetDiagonalBlock(3,ams);
-      // for (int i =0; i<2; i++)
-      // {
-      //    MUMPSSolver * mumps = new MUMPSSolver;
-      //    mumps->SetOperator((HypreParMatrix &)BlockA_r->GetBlock(i,i));
-      //    M->SetDiagonalBlock(i,mumps);
-      //    M->SetDiagonalBlock(i+2,mumps);
-      // }
 
+
+      if (!static_cond)
+      {
+         HypreBoomerAMG * solver_p = new HypreBoomerAMG((HypreParMatrix &)BlockA_r->GetBlock(0,0));
+         solver_p->SetPrintLevel(0);
+         solver_p->SetSystemsOptions(dim);
+         HypreBoomerAMG * solver_u = new HypreBoomerAMG((HypreParMatrix &)BlockA_r->GetBlock(1,1));
+         solver_u->SetPrintLevel(0);
+         solver_u->SetSystemsOptions(dim);
+         M->SetDiagonalBlock(0,solver_p);
+         M->SetDiagonalBlock(1,solver_u);
+         M->SetDiagonalBlock(num_blocks,solver_p);
+         M->SetDiagonalBlock(num_blocks+1,solver_u);
+      }
+
+
+      HypreBoomerAMG * solver_hatp = new HypreBoomerAMG((HypreParMatrix &)BlockA_r->GetBlock(skip,skip));
+      // amg->SetCycleNumSweeps(5, 5);
+      solver_hatp->SetPrintLevel(0);
+      
+      HypreSolver * solver_hatu = nullptr;
+      if (dim == 2)
+      {
+         solver_hatu = new HypreAMS((HypreParMatrix &)BlockA_r->GetBlock(skip+1,skip+1),hatu_fes);
+         dynamic_cast<HypreAMS*>(solver_hatu)->SetPrintLevel(0);
+      }
+      else
+      {
+         solver_hatu = new HypreADS((HypreParMatrix &)BlockA_r->GetBlock(skip+1,skip+1), hatu_fes);
+         dynamic_cast<HypreAMS*>(solver_hatu)->SetPrintLevel(0);
+      }
+      
+
+      M->SetDiagonalBlock(skip,solver_hatp);
+      M->SetDiagonalBlock(skip+1,solver_hatu);
+      M->SetDiagonalBlock(skip+num_blocks,solver_hatp);
+      M->SetDiagonalBlock(skip+num_blocks+1,solver_hatu);
+
+      StopWatch chrono;
       
       CGSolver cg(MPI_COMM_WORLD);
       cg.SetRelTol(1e-7);
@@ -444,10 +437,30 @@ int main(int argc, char *argv[])
       cg.SetPrintLevel(0);
       cg.SetPreconditioner(*M); 
       cg.SetOperator(blockA);
+      chrono.Clear();
+      chrono.Start();
       cg.Mult(B, X);
-      int num_iter = cg.GetNumIterations();
+      chrono.Stop();
       delete M;
-      // delete A;
+
+      int ne = pmesh.GetNE();
+      MPI_Allreduce(MPI_IN_PLACE,&ne,1,MPI_INT,MPI_SUM,MPI_COMM_WORLD);
+      int ne_x = (dim == 2) ? (int)sqrt(ne) : (int)cbrt(ne);
+      ostringstream oss;
+      double pcg_time = chrono.RealTime();
+      if (myid == 0)
+      {
+         if (dim == 2)
+         {
+            oss << ne_x << " x " << ne_x ;
+         }
+         else
+         {
+            oss << ne_x << " x " << ne_x << " x " << ne_x ;
+         }
+      }
+
+      int num_iter = cg.GetNumIterations();
 
       a->RecoverFEMSolution(X,x);
 
@@ -508,7 +521,7 @@ int main(int argc, char *argv[])
       double L2Error = sqrt(p_error*p_error + u_error*u_error);
       double L2norm = sqrt(p_norm*p_norm + u_norm*u_norm);
 
-      double rel_error = L2Error/L2norm;
+      double rel_err = L2Error/L2norm;
 
       int dofs = p_fes->GlobalTrueVSize()
                + u_fes->GlobalTrueVSize()
@@ -516,34 +529,35 @@ int main(int argc, char *argv[])
                + hatu_fes->GlobalTrueVSize();
 
 
-      double rate_err = (i) ? dim*log(err0/L2Error)/log((double)dof0/dofs) : 0.0;
-      double rate_res = (i) ? dim*log(res0/globalresidual)/log((double)dof0/dofs) : 0.0;
+      double rate_err = (it) ? dim*log(err0/rel_err)/log((double)dof0/dofs) : 0.0;
+      double rate_res = (it) ? dim*log(res0/globalresidual)/log((double)dof0/dofs) : 0.0;
 
-      err0 = L2Error;
+      err0 = rel_err;
       res0 = globalresidual;
       dof0 = dofs;
 
-      std::ios oldState(nullptr);
       if (myid == 0)
       {
-         mfem::out << std::right << std::setw(11) << i << " | " 
-                   << std::setw(10) <<  dof0 << " | " 
-                   << std::setprecision(0) << std::fixed
-                   << std::setw(2) <<  2*rnum << " π  | " 
-                   << std::setprecision(3) 
-                   << std::setw(10) << std::scientific <<  err0 << " | " 
-                   << std::setprecision(3) 
-                   << std::setw(10) << std::fixed <<  rel_error * 100. << " | " 
-                   << std::setprecision(2) 
-                   << std::setw(6) << std::fixed << rate_err << " | " 
-                   << std::setprecision(3) 
-                   << std::setw(10) << std::scientific <<  res0 << " | " 
-                   << std::setprecision(2) 
-                   << std::setw(6) << std::fixed << rate_res << " | " 
-                   << std::setw(6) << std::fixed << num_iter << " | " 
-                   << std::setprecision(5) 
-                   << std::scientific 
-                   << std::endl;
+         mfem::out << std::right << std::setw(5) << it << " | " 
+                  << std::setw(16) << oss.str() << " | " 
+                  << std::setw(10) <<  dof0 << " | " 
+                  << std::setprecision(0) << std::fixed
+                  << std::setw(2) <<  2*rnum << " π  | " 
+                  << std::setprecision(3) 
+                  << std::setw(10) << std::scientific <<  err0 << " | " 
+                  << std::setprecision(3) 
+                  << std::setw(10) << std::fixed <<  rel_err * 100. << " | " 
+                  << std::setprecision(2) 
+                  << std::setw(6) << std::fixed << rate_err << " | " 
+                  << std::setprecision(3) 
+                  << std::setw(10) << std::scientific <<  res0 << " | " 
+                  << std::setprecision(2) 
+                  << std::setw(6) << std::fixed << rate_res << " | " 
+                  << std::setw(6) << std::fixed << num_iter << " | " 
+                  << std::setprecision(5) 
+                  << std::setw(8) << std::fixed << pcg_time << " | " 
+                  << std::scientific 
+                  << std::endl;
       }   
 
       if (visualization)
@@ -561,7 +575,7 @@ int main(int argc, char *argv[])
                   << flush;         
       }
 
-      if (i == pr)
+      if (it == pr)
          break;
 
       pmesh.GeneralRefinement(elements_to_refine,1,1);
