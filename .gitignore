@@ -198,6 +198,7 @@ examples/ex9p-analysis/saved_output/
 examples/ex9p-analysis/temp_output/
 examples/ex9p-analysis/*.out
 examples/ex9p-analysis/*.txt
+examples/ex9p-analysis/scripts/*.sh
 
 # Discontinuous check
 examples/ex9p-discontinuous
