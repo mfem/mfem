@@ -1,71 +1,89 @@
-//                                Solution of distributed control problem
 //
 // Compile with: make optimal_design
 //
 // Sample runs:
-//    optimal_design -r 3
-//    optimal_design -m ../../data/star.mesh -r 3
-//    optimal_design -sl 1 -m ../../data/mobius-strip.mesh -r 4
-//    optimal_design -m ../../data/star.mesh -sl 5 -r 3 -mf 0.5 -o 5 -max 0.75
+//    ./ouu_heat_sink_H1 -gamma 0.1 -epsilon 0.05 -alpha 0.01 -beta 5.0
 //
-// Description:  This examples solves the following PDE-constrained
-//               optimization problem:
+//         min J(K) = <g,u>
+//                            
+//                                 Γ_2    
+//               _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _   
+//              |         |         |         |         |  
+//              |         |         |         |         |  
+//              |---------|---------|---------|---------|  
+//              |         |         |         |         |  
+//              |         |         |         |         |  
+//              |---------|---------|---------|---------|  
+//              |         |         |         |         |  
+//              |         |         |         |         |  
+//              |---------|---------|---------|---------|  
+//              |         |         |         |         |  
+//              |         |         |         |         |  
+//               ---------------------------------------  
+//                  |̂                              |̂  
+//                 Γ_1                            Γ_1  
 //
-//         min J(K) = (f,u)
 //
-//         subject to   - div( K\nabla u ) = f    in \Omega
-//                                       u = 0    on \partial\Omega
+//
+//         subject to   - div( K\nabla u ) = 0    in \Omega
+//                                       u = 0    on Γ_1
+//                               (K ∇ u)⋅n = g    on Γ_2
+//                                   ∇ u⋅n = 0    on ∂Ω\(Γ_1 ∪ Γ_2) 
 //         and            \int_\Omega K dx <= V ⋅ vol(\Omega)
 //         and            a <= K(x) <= b
-//
-//   Joachim Peterson 1999 for proof
 
 #include "mfem.hpp"
 #include <memory>
 #include <iostream>
 #include <fstream>
 #include <random>
+#include "common/fpde.hpp"
 
 using namespace std;
 using namespace mfem;
 
+// Let H^1_Γ_1 := {v ∈ H^1(Ω) | v|Γ_1 = 0}
 /** The Lagrangian for this problem is
  *    
- *    L(u,K,p,λ) = (f,u) - (K \nabla u, \nabla p) + (f,p) - λ (∫_Ω K dx - V ⋅ vol(\Omega))
- *                                                + β/2 (∫_Ω K dx - V ⋅ vol(\Omega))^2    
- *      u, p \in H^1_0(\Omega)
- *      K \in L^\infty(\Omega)
+ *    L(u,K,p,λ) = <g,u> - (K ∇u, ∇p) + <g,v>
+ *                + γϵ/2 (∇K, ∇K)
+ *                + γ/(2ϵ) ∫_Ω K(1-K) dx
+ *                - λ (∫_Ω K dx - V ⋅ vol(Ω))
+ *                + β/2 (∫_Ω K dx - V ⋅ vol(Ω))^2    
+ *      u, p \in H^1_Γ_1
+ *      K \in H^1(Ω)
  * 
  *  Note that
  * 
- *    \partial_p L = 0        (1)
+ *    ∂_p L = 0        (1)
  *  
  *  delivers the state equation
  *    
- *    (\nabla u, \nabla v) = (f,v)  for all v in H^1_0(\Omega)
+ *    (K ∇u, ∇ v) = <g,v> for all v in 
  * 
  *  and
  *  
- *    \partial_u L = 0        (2)
+ *    ∂_u L = 0        (2)
  * 
  *  delivers the adjoint equation (same as the state eqn)
  * 
- *    (\nabla p, \nabla v) = (f,v)  for all v in H^1_0(\Omega)
+ *    (∇ p, ∇ v) = <g,v>  for all v H^1_Γ_1
  *    
  *  and at the solutions u=p of (1) and (2), respectively,
  * 
- *  D_K J = D_K L = \partial_u L \partial_K u + \partial_p L \partial_K p
- *                + \partial_K L
- *                = \partial_K L
- *                = (-|\nabla u|^2 - λ + β(∫_Ω K dx - V ⋅ vol(\Omega)), \cdot)
+ *  D_K J = D_K L = ∂_u L ∂_K u + ∂_p L ∂_K p
+ *                + ∂_K L
+ *                = ∂_K L
+ *                = (-|∇ u|^2 - λ + β(∫_Ω K dx - V ⋅ vol(Ω)), ⋅)
+ *                + γϵ(∇ K,∇⋅) + γ/ϵ(1/2-K,⋅)
  * 
  * We update the control K_k with projected gradient descent via
  * 
  *  1. Initialize λ 
  *  2. update until convergence 
- *     K <- P (K + α |\nabla u|^2 + λ)
+ *     K <- P (K - α( γ/ϵ(1/2+K) - λ + β(∫_Ω K dx - V ⋅ vol(Ω)) - R^{-1}( |∇ u|^2 + 2K ) )
  *  3. update λ 
- *     λ <- λ - β (∫_Ω K dx - V)
+ *     λ <- λ - β (∫_Ω K dx - V ⋅ vol(Ω))
  * 
  * P is the projection operator enforcing a <= K(x) <= b, and α  is a specified
  * step length.
@@ -75,64 +93,39 @@ using namespace mfem;
 class RandomFunctionCoefficient : public Coefficient
 {
 private:
-   double a = 0.45;
+   double a = .45;
    double b = 0.55;
-   double x1,y1;
+   double m;
    std::default_random_engine generator;
    std::uniform_real_distribution<double> * distribution;
-   double (*Function)(const Vector &, double, double);
+   double (*Function)(const Vector &, double);
 public:
-   RandomFunctionCoefficient(double (*F)(const Vector &, double, double)) 
+   RandomFunctionCoefficient(double (*F)(const Vector &, double)) 
    : Function(F) 
    {
       distribution = new std::uniform_real_distribution<double> (a,b);
-      x1 = (*distribution)(generator);
-      y1 = (*distribution)(generator);
+      m = (*distribution)(generator);
    }
    virtual double Eval(ElementTransformation &T,
                        const IntegrationPoint &ip)
    {
       Vector transip(3);
       T.Transform(ip, transip);
-      return ((*Function)(transip, x1, y1));
+      return ((*Function)(transip, m));
    }
    void resample()
    {
-      x1 = (*distribution)(generator);
-      y1 = (*distribution)(generator);
+      m = (*distribution)(generator);
    }
 };
 
-double randomload(const Vector & X, double x1, double y1)
+double randomload(const Vector & X, double m)
 {
-   double x = X(0) - x1;
-   double y = X(1) - y1;
-   double r = sqrt(x*x + y*y);
-   if (r <= 0.3)
-   {
-      return 1.0;
-   }
-   else
-   {
-      return 0.0;
-   }
-   // return 1.0;
-}
-
-
-double load(const Vector & x)
-{
-   double x1 = x(0);
-   double x2 = x(1);
-   double r = sqrt(x1*x1 + x2*x2);
-   if (r <= 0.5)
-   {
-      return 1.0;
-   }
-   else
-   {
-      return 0.0;
-   }
+   double sigma = 0.1;
+   double alpha = 1.0/(sigma * sqrt(2.0*M_PI));
+//    double beta = -0.5*pow( (X(0)-0.5)/sigma,2);
+   double beta = -0.5*pow( (X(0)-m)/sigma,2);
+   return alpha * exp(beta);
 }
 
 int main(int argc, char *argv[])
@@ -144,13 +137,15 @@ int main(int argc, char *argv[])
    bool visualization = true;
    double alpha = 1.0;
    double beta = 1.0;
+   double gamma = 1.0;
+   double epsilon = 1.0;
    double theta = 0.5;
    double mass_fraction = 0.5;
    double compliance_max = 0.15;
    int max_it = 1e2;
-   double tol_K = 1e-3;
-   double tol_lambda = 1e-3;
-   double K_max = 0.9;
+   double tol_K = 1e-2;
+   double tol_lambda = 1e-2;
+   double K_max = 1.0;
    double K_min = 1e-3;
    int prob = 0;
    int batch_size_min = 5;
@@ -165,7 +160,11 @@ int main(int argc, char *argv[])
    args.AddOption(&alpha, "-alpha", "--alpha-step-length",
                   "Step length for gradient descent.");
    args.AddOption(&beta, "-beta", "--beta-step-length",
-                  "Step length for λ");   
+                  "Step length for λ"); 
+   args.AddOption(&gamma, "-gamma", "--gamma-penalty",
+                  "gamma penalty weight");
+   args.AddOption(&epsilon, "-epsilon", "--epsilon-thickness",
+                  "epsilon phase field thickness");
    args.AddOption(&theta, "-theta", "--theta-sampling-ratio",
                   "Sampling ratio theta");                  
    args.AddOption(&max_it, "-mi", "--max-it",
@@ -202,10 +201,44 @@ int main(int argc, char *argv[])
    ostringstream file_name;
    file_name << "conv_order" << order << "_GD" << ".csv";
    ofstream conv(file_name.str().c_str());
-   conv << "Step,    Compliance,    Mass Fraction" << endl;
+   conv << "Step,    Sample Size,    Compliance,    Mass Fraction" << endl;
 
    Mesh mesh(mesh_file, 1, 1);
    int dim = mesh.Dimension();
+
+   mesh.UniformRefinement();
+
+   Vector center;
+   for (int i = 0; i<mesh.GetNBE(); i++)
+   {
+      Element * be = mesh.GetBdrElement(i);
+      Array<int> vertices;
+      be->GetVertices(vertices);
+
+      double * coords1 = mesh.GetVertex(vertices[0]);
+      double * coords2 = mesh.GetVertex(vertices[1]);
+
+      Vector center(2);
+      center(0) = 0.5*(coords1[0] + coords2[0]);
+      center(1) = 0.5*(coords1[1] + coords2[1]);
+
+
+      if (abs(center(1) - 1.0) < 1e-10)
+      {
+         // the top edge
+         be->SetAttribute(1);
+      }
+      else if(abs(center(1)) < 1e-10 && (center(0) < 0.125 || center(0) > 0.875))
+      {
+         // bottom edge (left and right "corners")
+         be->SetAttribute(2);
+      }
+      else
+      {
+         be->SetAttribute(3);
+      }
+   }
+   mesh.SetAttributes();
 
    for (int lev = 0; lev < ref_levels; lev++)
    {
@@ -215,7 +248,7 @@ int main(int argc, char *argv[])
    // 5. Define the vector finite element spaces representing the state variable u,
    //    adjoint variable p, and the control variable f.
    H1_FECollection state_fec(order, dim);
-   L2_FECollection control_fec(order-1, dim, BasisType::Positive);
+   H1_FECollection control_fec(order-1, dim, BasisType::Positive);
    FiniteElementSpace state_fes(&mesh, &state_fec);
    FiniteElementSpace control_fes(&mesh, &control_fec);
 
@@ -224,25 +257,49 @@ int main(int argc, char *argv[])
    cout << "Number of state unknowns: " << state_size << endl;
    cout << "Number of control unknowns: " << control_size << endl;
 
-   Array<int> ess_bdr(mesh.bdr_attributes.Max());
-   ess_bdr = 1;
-   Array<int> ess_tdof_list;
-   state_fes.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
-
    // 7. Set the initial guess for f and the boundary conditions for u.
    GridFunction u(&state_fes);
    GridFunction K(&control_fes);
    GridFunction K_old(&control_fes);
    u = 0.0;
-   K = 1.0;
+   K = 0.5;
    K_old = 0.0;
 
-
-   RandomFunctionCoefficient load_coeff(randomload);
-
    // 8. Set up the linear form b(.) for the state and adjoint equations.
-   LinearForm b(&state_fes);
-   b.AddDomainIntegrator(new DomainLFIntegrator(load_coeff));
+   
+   Array<int> ess_bdr(mesh.bdr_attributes.Max());
+   Array<int> inhomogenous_neuman_bdr(mesh.bdr_attributes.Max());
+   ess_bdr = 0;
+   ess_bdr[1] = 1;
+   inhomogenous_neuman_bdr = 0;
+   inhomogenous_neuman_bdr[0] = 1;
+
+
+   FPDESolver * PoissonSolver = new FPDESolver();
+   PoissonSolver->SetMesh(&mesh);
+   PoissonSolver->SetOrder(order);
+   PoissonSolver->SetAlpha(1.0);
+   PoissonSolver->SetBeta(0.0);
+   PoissonSolver->SetupFEM();
+   RandomFunctionCoefficient load_coeff(randomload);
+   PoissonSolver->SetEssentialBoundary(ess_bdr);
+   PoissonSolver->SetNeumannBoundary(inhomogenous_neuman_bdr);
+   PoissonSolver->SetNeumannData(&load_coeff);
+   PoissonSolver->Init();
+
+
+   ConstantCoefficient eps2_cf(epsilon*epsilon);
+   FPDESolver * H1Projection = new FPDESolver();
+   H1Projection->SetMesh(&mesh);
+   H1Projection->SetOrder(order-1);
+   H1Projection->SetAlpha(1.0);
+   H1Projection->SetBeta(1.0);
+   H1Projection->SetDiffusionCoefficient(&eps2_cf);
+   Array<int> ess_bdr_K(mesh.bdr_attributes.Max()); ess_bdr_K = 0;
+   H1Projection->SetEssentialBoundary(ess_bdr_K);
+   H1Projection->Init();
+   H1Projection->SetupFEM();
+
    // b.AddDomainIntegrator(new DomainLFIntegrator(f));
    OperatorPtr A;
    Vector B, C, X;
@@ -273,6 +330,17 @@ int main(int argc, char *argv[])
       sout_K.precision(8);
    }
 
+   mfem::ParaViewDataCollection paraview_dc("Heat_sink", &mesh);
+   paraview_dc.SetPrefixPath("ParaView");
+   paraview_dc.SetLevelsOfDetail(order);
+   paraview_dc.SetCycle(0);
+   paraview_dc.SetDataFormat(VTKFormat::BINARY);
+   paraview_dc.SetHighOrderOutput(true);
+   paraview_dc.SetTime(0.0); // set the time
+   paraview_dc.RegisterField("soln",&u);
+   paraview_dc.RegisterField("dens",&K);
+   paraview_dc.Save();
+
    // Project initial K onto constraint set.
    for (int i = 0; i < K.Size(); i++)
    {
@@ -291,6 +359,7 @@ int main(int argc, char *argv[])
 
 
    // 12. AL iterations
+   int step = 0;
    double lambda = 0.0;
    for (int k = 1; k < max_it; k++)
    {
@@ -298,60 +367,51 @@ int main(int argc, char *argv[])
 
       for (int l = 1; l < max_it; l++)
       {
+         step++;
          cout << "Step = " << l << endl;
          cout << "batch_size = " << batch_size << endl;
 
          avg_grad = 0.0;
          double avg_grad_norm = 0.;
+         double avg_compliance = 0.;
+
+         GridFunctionCoefficient diffusion_coeff(&K);
+         double mf = vol_form(K)/domain_volume;
          for (int ib = 0; ib<batch_size; ib++)
          {
-            BilinearForm a(&state_fes);
-            GridFunctionCoefficient diffusion_coeff(&K);
-            a.AddDomainIntegrator(new DiffusionIntegrator(diffusion_coeff));
-            a.Assemble();
-
+            PoissonSolver->SetDiffusionCoefficient(&diffusion_coeff);
             load_coeff.resample();
-            b.Assemble(false);
+            PoissonSolver->Solve();
+            u = *PoissonSolver->GetFEMSolution();
 
-            a.FormLinearSystem(ess_tdof_list, u, b, A, X, B);
+            cout << "norm of u = " << u.Norml2() << endl;
 
-            // B. Solve state equation
-            GSSmoother M((SparseMatrix&)(*A));
-            PCG(*A, M, B, X, 0, 800, 1e-12, 0.0);
-
-            // C. Recover state variable
-            a.RecoverFEMSolution(X, b, u);
-
-            // H. Constuct gradient function (i.e., -|\nabla u|^2 - λ + β(∫_Ω K dx - V ⋅ vol(\Omega)))
+            // H. Constuct gradient function
+            // i.e., \nabla J = \gamma/\epsilon (1/2 + K) - λ + β(∫_Ω K dx - V ⋅ vol(\Omega)) - R^{-1}(|\nabla u|^2 + 2\gamma/\epsilon K)
             GradientGridFunctionCoefficient grad_u(&u);
             InnerProductCoefficient norm2_grad_u(grad_u,grad_u);
+            SumCoefficient grad_cf(norm2_grad_u,diffusion_coeff,-1.0,-2.0*gamma/epsilon);
+            H1Projection->SetRHSCoefficient(&grad_cf);
+            H1Projection->Solve();
+            
+            grad = K;
+            grad += (K_max-K_min)/2.0;
+            grad *= gamma/epsilon;
+            grad += *H1Projection->GetFEMSolution();
 
-            LinearForm d(&control_fes);
-            d.AddDomainIntegrator(new DomainLFIntegrator(norm2_grad_u));
-         
-            ConstantCoefficient lambda_cf(lambda);
-            d.AddDomainIntegrator(new DomainLFIntegrator(lambda_cf));
-            d.Assemble(false);
-            BilinearForm L2proj(&control_fes);
-            InverseIntegrator * m = new InverseIntegrator(new MassIntegrator());
-            L2proj.AddDomainIntegrator(m);
-            L2proj.Assemble();
-            Array<int> empty_list;
-            OperatorPtr invM;
-            L2proj.FormSystemMatrix(empty_list,invM);   
-            invM->Mult(d,grad);
-         
-            grad *= -1.0;
-
-            // β(∫_Ω K dx - V ⋅ vol(\Omega)))
-            grad += beta * (vol_form(K)/domain_volume - mass_fraction)/domain_volume;
+            // - λ + β(∫_Ω K dx - V ⋅ vol(\Omega)))
+            grad -= lambda;
+            grad += beta * (mf - mass_fraction)/domain_volume;
 
             avg_grad += grad;
             double grad_norm = grad.ComputeL2Error(zero);
             avg_grad_norm += grad_norm*grad_norm;
+            avg_compliance += (*(PoissonSolver->GetLinearForm()))(u);
+
          } // enf of loop through batch samples
          avg_grad_norm /= (double)batch_size;  
          avg_grad /= (double)batch_size;
+         avg_compliance /= (double)batch_size;  
 
          double norm_avg_grad = pow(avg_grad.ComputeL2Error(zero),2);
          double variance = (avg_grad_norm - norm_avg_grad)/(batch_size - 1);  
@@ -379,21 +439,25 @@ int main(int argc, char *argv[])
          double norm_K = K.ComputeL2Error(tmp)/alpha;
          K_old = K;
          mfem::out << "norm of reduced gradient = " << norm_K << endl;
-         mfem::out << "compliance = " << b(u) << endl;
+         mfem::out << "avg_compliance = " << avg_compliance << endl;
          mfem::out << "variance = " << variance << std::endl;
          if (norm_K < tol_K)
          {
             break;
          }
 
+
          double ratio = sqrt(abs(variance)) / norm_K ;
          mfem::out << "ratio = " << ratio << std::endl;
+         conv << step << ",   " << batch_size << ",   " << avg_compliance << ",   " << mf << endl;
+         
+         
          MFEM_VERIFY(IsFinite(ratio), "ratio not finite");
          if (ratio > theta)
          {
             batch_size = (int)(pow(ratio / theta,2.) * batch_size); 
          }
-         else if (ratio < 0.5*theta)
+         else if (ratio < 0.1*theta)
          {
             batch_size = max(batch_size/2,batch_size_min);
          }
@@ -421,6 +485,10 @@ int main(int argc, char *argv[])
 
          sout_K << "solution\n" << mesh << K
                 << "window_title 'Control K'" << flush;
+
+         paraview_dc.SetCycle(step);
+         paraview_dc.SetTime((double)k);
+         paraview_dc.Save();
       }
 
       if (abs(lambda_inc) < tol_lambda)

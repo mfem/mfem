@@ -347,31 +347,17 @@ int main(int argc, char *argv[])
             a.RecoverFEMSolution(X, b, u);
 
             // H. Constuct gradient function
-            // i.e., \nabla J = \gamma/\epsilon (1/2 - K) - λ + β(∫_Ω K dx - V ⋅ vol(\Omega)) - R^{-1}(|\nabla u|^2)
+            // i.e., \nabla J = \gamma/\epsilon (1/2 + K) - λ + β(∫_Ω K dx - V ⋅ vol(\Omega)) - R^{-1}(|\nabla u|^2 + 2\gamma/\epsilon K)
             GradientGridFunctionCoefficient grad_u(&u);
             InnerProductCoefficient norm2_grad_u(grad_u,grad_u);
-
-            // LinearForm d(&control_fes);
-            // d.AddDomainIntegrator(new DomainLFIntegrator(norm2_grad_u));
-         
-            // ConstantCoefficient lambda_cf(lambda);
-            // d.AddDomainIntegrator(new DomainLFIntegrator(lambda_cf));
-            // d.Assemble(false);/
-            // BilinearForm L2proj(&control_fes);
-            // InverseIntegrator * m = new InverseIntegrator(new MassIntegrator());
-            // L2proj.AddDomainIntegrator(m);
-            // L2proj.Assemble();
-            // Array<int> empty_list;
-            // OperatorPtr invM;
-            // L2proj.FormSystemMatrix(empty_list,invM);   
-            // invM->Mult(d,grad);
-            PoissonSolver->SetRHSCoefficient(&norm2_grad_u);
+            SumCoefficient grad_cf(norm2_grad_u,diffusion_coeff,-1.0,-2.0*gamma/epsilon);
+            PoissonSolver->SetRHSCoefficient(&grad_cf);
             PoissonSolver->Solve();
             
             grad = K;
-            grad -= (K_max-K_min)/2.0;
-            grad *= -gamma/epsilon;
-            grad -= *PoissonSolver->GetFEMSolution();
+            grad += (K_max-K_min)/2.0;
+            grad *= gamma/epsilon;
+            grad += *PoissonSolver->GetFEMSolution();
 
             // - λ + β(∫_Ω K dx - V ⋅ vol(\Omega)))
             grad -= lambda;
