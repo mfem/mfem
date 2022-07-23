@@ -56,7 +56,7 @@ int problem;
 
 // Node transform Function
 void NodeShift(const IntegrationPoint &ip, const int &s, Vector &ip_trans,
-               const int &dim);
+               const int &dim, const int &lref);
 
 // Calculate the LOR projection to the HO FESpace
 void CalculateLORProjection(const GridFunction &x, const GridFunction &u_HO,
@@ -179,7 +179,7 @@ int main(int argc, char *argv[]) {
   bool fa = false;
   const char *device_config = "cpu";
   int ode_solver_type = 1;
-  double t_final = 1.0;
+  double t_final = 0.1;
   double dt = 0.0001;
   bool visualization = true;
   bool visit = false;
@@ -544,6 +544,11 @@ int main(int argc, char *argv[]) {
     if (averaging == 2 || averaging == 3) {
       // Here we do an L2 projection onto the finer fes, gives u_LOR
       R.Mult(u_HO, u_LOR);
+/*
+      Vector u_LOR_vec(NE * lref * lref);
+      for (int i = 0; i < NE * lref * lref; i++) {
+        u_LOR(i) = i;
+      }*/
     }
 
     ti++;
@@ -685,6 +690,11 @@ void CalculateLORProjection(const GridFunction &x, const GridFunction &u_HO,
   Vector xy(ndofs);
 
 
+  cout << "subcell_num = " << subcell_num << endl;
+  cout << "number of elements = " << NE << endl;
+  cout << "number of LOR elements = " << fes_LOR.GetNE() << endl;
+
+
   // Integration loop for the LOR projection
   for (int k = 0; k < NE; k++) {
     m_rhs = 0.0;
@@ -693,7 +703,9 @@ void CalculateLORProjection(const GridFunction &x, const GridFunction &u_HO,
         IntegrationRule my_ir = ir_LOR;
         for (int q = 0; q < nqp_LOR; q++) {
           IntegrationPoint ip_LOR = ir_LOR.IntPoint(q);
-          NodeShift(ip_LOR, s, ip_trans, dim);
+
+          // I've checked it over, the remap is correct
+          NodeShift(ip_LOR, s, ip_trans, dim, lref);
           if (dim == 2) {
             ip_LOR.Set(ip_trans(0), ip_trans(1), 0, ip_LOR.weight);
           } else if (dim == 3) {
@@ -704,10 +716,12 @@ void CalculateLORProjection(const GridFunction &x, const GridFunction &u_HO,
           fe->CalcShape(ip_LOR, shape);
           m_rhs(i) +=
               my_ir[q].weight *
-              geom_LOR.detJ(k * subcell_num * nqp_LOR + s * nqp_LOR + q) *
+              geom_LOR.detJ((k * subcell_num + s) * nqp_LOR + q) *
               u_LOR(k * subcell_num + s) * shape(i);
+              //cout << "quadrature weight = " << my_ir[q].weight << endl;
         }
       }
+      //cout << "shape(" << i << ") = " << shape(i) << endl;
     }
 
     // Handle the mass matrix for the linear solve for each element
@@ -733,58 +747,62 @@ void CalculateLORProjection(const GridFunction &x, const GridFunction &u_HO,
 
 // Need this function to shift the reference node values for the L2 Projection
 void NodeShift(const IntegrationPoint &ip, const int &s, Vector &ip_trans,
-               const int &dim) {
+               const int &dim, const int &lref) {
   Vector temp(dim + 1);
   DenseMatrix trans(dim + 1);
+
+  int count = 0;
   if (dim == 2) {
     ip_trans(0) = ip.x;
     ip_trans(1) = ip.y;
     ip_trans(2) = 1;
 
-    trans(0, 0) = 0.5;
-    trans(1, 1) = 0.5;
+    double lref_temp = lref * 1.0;
+
+    trans(0, 0) = 1.0 / lref_temp;
+    trans(1, 1) = 1.0 / lref_temp;
     trans(2, 2) = 1;
 
-    if (s == 1) {
-      trans(0, 2) = 0.5;
-    } else if (s == 2) {
-      trans(1, 2) = 0.5;
-    } else if (s == 3) {
-      trans(0, 2) = 0.5;
-      trans(1, 2) = 0.5;
+    for (int y = 0; y < lref; y++) {
+      for (int x = 0; x < lref; x++) {
+        trans(0, dim) = x / lref_temp;
+        trans(1, dim) = y / lref_temp;
+        if (count == s) {
+          goto exit_dim2;
+        }
+        count++;
+      }
     }
+    exit_dim2:;
   } else if (dim == 3) {
     ip_trans(0) = ip.x;
     ip_trans(1) = ip.y;
     ip_trans(2) = ip.z;
     ip_trans(3) = 1;
 
-    trans(0, 0) = 0.5;
-    trans(1, 1) = 0.5;
-    trans(2, 2) = 0.5;
+    double lref_temp = lref * 1.0;
+
+    trans(0, 0) = 1.0 / lref_temp;
+    trans(1, 1) = 1.0 / lref_temp;
+    trans(2, 2) = 1.0 / lref_temp;
     trans(3, 3) = 1;
 
-    if (s == 1) {
-      trans(0, 3) = 0.5;
-    } else if (s == 2) {
-      trans(1, 3) = 0.5;
-    } else if (s == 3) {
-      trans(0, 3) = 0.5;
-      trans(1, 3) = 0.5;
-    } else if (s == 4) {
-      trans(2, 3) = 0.5;
-    } else if (s == 5) {
-      trans(0, 3) = 0.5;
-      trans(2, 3) = 0.5;
-    } else if (s == 6) {
-      trans(1, 3) = 0.5;
-      trans(2, 3) = 0.5;
-    } else if (s == 7) {
-      trans(0, 3) = 0.5;
-      trans(1, 3) = 0.5;
-      trans(2, 3) = 0.5;
+    for (int z = 0; z < lref; z++) {
+      for (int y = 0; y < lref; y++) {
+        for (int x = 0; x < lref; x++) {
+          trans(0, dim) = x / lref_temp;
+          trans(1, dim) = y / lref_temp;
+          trans(2, dim) = z / lref_temp;
+          if (count == s) {
+            goto exit_dim3;
+          }
+          count++;
+        }
+      }
     }
+    exit_dim3:;
   }
+
   trans.Mult(ip_trans, temp);
 
   ip_trans = temp;
