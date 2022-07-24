@@ -60,6 +60,8 @@ New and updated examples and miniapps
   outputs an `OperatorHandle` containing a `SparseMatrix` in serial, and an
   `HypreParMatrix` in parallel (instead of a `ConstrainedOperator`).
 
+- Added TMOP metrics for mesh untangling and worst-case quality improvement.
+
 Version 4.4, released on March 21, 2022
 =======================================
 
