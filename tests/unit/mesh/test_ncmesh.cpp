@@ -62,8 +62,7 @@ TEST_CASE("NCMesh PA diagonal", "[NCMesh]")
          nc_a.AssembleDiagonal(nc_diag);
 
          double error = fabs(diag.Norml2() - nc_diag.Norml2());
-         std::cout << "Testing quad NCMesh PA diag:    "
-                   "order: " << order << ", error: " << error << std::endl;
+         CAPTURE(order, error);
          REQUIRE(error == MFEM_Approx(0.0, EPS));
       }
    }
@@ -107,8 +106,7 @@ TEST_CASE("NCMesh PA diagonal", "[NCMesh]")
          nc_a.AssembleDiagonal(nc_diag);
 
          double error = fabs(diag.Sum() - nc_diag.Sum());
-         std::cout << "Testing hexa NCMesh PA diag:    "
-                   "order: " << order << ", error: " << error << std::endl;
+         CAPTURE(order, error);
          REQUIRE(error == MFEM_Approx(0.0, EPS));
       }
    }
@@ -174,11 +172,7 @@ TEST_CASE("pNCMesh PA diagonal",  "[Parallel], [NCMesh]")
          MPI_Allreduce(&nc_diag_lsum, &nc_diag_gsum, 1, MPI_DOUBLE, MPI_SUM,
                        MPI_COMM_WORLD);
          double error = fabs(diag_gsum - nc_diag_gsum);
-         if (rank==0)
-         {
-            std::cout << "Testing quad pNCMesh PA diag:    "
-                      "order: " << order << ", error: " << error << std::endl;
-         }
+         CAPTURE(order, error);
          REQUIRE(error == MFEM_Approx(0.0, EPS));
          MPI_Barrier(MPI_COMM_WORLD);
       }
@@ -232,11 +226,7 @@ TEST_CASE("pNCMesh PA diagonal",  "[Parallel], [NCMesh]")
          MPI_Allreduce(&nc_diag_lsum, &nc_diag_gsum, 1, MPI_DOUBLE, MPI_SUM,
                        MPI_COMM_WORLD);
          double error = fabs(diag_gsum - nc_diag_gsum);
-         if (rank==0)
-         {
-            std::cout << "Testing hexa pNCMesh PA diag:    "
-                      "order: " << order << ", error: " << error << std::endl;
-         }
+         CAPTURE(order, error);
          REQUIRE(error == MFEM_Approx(0.0, EPS));
          MPI_Barrier(MPI_COMM_WORLD);
       }

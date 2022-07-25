@@ -137,7 +137,7 @@ int main (int argc, char *argv[])
    bool hrefinement      = false;
    bool prefinement      = false;
    int point_ordering    = 0;
-   int fespace_ordering  = 0;
+   int gf_ordering       = 0;
 
    // Parse command-line options.
    OptionsParser args(argc, argv);
@@ -165,7 +165,7 @@ int main (int argc, char *argv[])
    args.AddOption(&point_ordering, "-po", "--point-ordering",
                   "Ordering of points to be found."
                   "0 (default): byNodes, 1: byVDIM");
-   args.AddOption(&fespace_ordering, "-fo", "--fespace-ordering",
+   args.AddOption(&gf_ordering, "-fo", "--fespace-ordering",
                   "Ordering of fespace that will be used for gridfunction to be interpolated."
                   "0 (default): byNodes, 1: byVDIM");
 
@@ -241,7 +241,7 @@ int main (int argc, char *argv[])
    {
       MFEM_ABORT("Invalid field type.");
    }
-   FiniteElementSpace sc_fes(&mesh, fec, ncomp, fespace_ordering);
+   FiniteElementSpace sc_fes(&mesh, fec, ncomp, gf_ordering);
    GridFunction field_vals(&sc_fes);
 
    // Random p-refinements to the solution field
@@ -364,7 +364,7 @@ int main (int argc, char *argv[])
             }
             Vector exact_val(vec_dim);
             F_exact(pos, exact_val);
-            err = fespace_ordering == Ordering::byNODES ?
+            err = gf_ordering == Ordering::byNODES ?
                   fabs(exact_val(j) - interp_vals[i + j*pts_cnt]) :
                   fabs(exact_val(j) - interp_vals[i*vec_dim + j]);
             max_err  = std::max(max_err, err);

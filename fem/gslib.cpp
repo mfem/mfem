@@ -168,7 +168,8 @@ void FindPointsGSLIB::Setup(Mesh &m, const double bb_t, const double newt_tol,
    setupflag = true;
 }
 
-void FindPointsGSLIB::FindPoints(const Vector &point_pos, int ordering)
+void FindPointsGSLIB::FindPoints(const Vector &point_pos,
+                                 int point_pos_ordering)
 {
    MFEM_VERIFY(setupflag, "Use FindPointsGSLIB::Setup before finding points.");
    points_cnt = point_pos.Size() / dim;
@@ -182,7 +183,7 @@ void FindPointsGSLIB::FindPoints(const Vector &point_pos, int ordering)
    unsigned xv_stride[dim];
    for (int d = 0; d < dim; d++)
    {
-      if (ordering == Ordering::byNODES)
+      if (point_pos_ordering == Ordering::byNODES)
       {
          xv_base[d] = point_pos.GetData() + d*points_cnt;
          xv_stride[d] = sizeof(double);
@@ -229,14 +230,14 @@ void FindPointsGSLIB::FindPoints(const Vector &point_pos, int ordering)
 }
 
 void FindPointsGSLIB::FindPoints(Mesh &m, const Vector &point_pos,
-                                 int ordering, const double bb_t,
+                                 int point_pos_ordering, const double bb_t,
                                  const double newt_tol, const int npt_max)
 {
    if (!setupflag || (mesh != &m) )
    {
       Setup(m, bb_t, newt_tol, npt_max);
    }
-   FindPoints(point_pos, ordering);
+   FindPoints(point_pos, point_pos_ordering);
 }
 
 void FindPointsGSLIB::Interpolate(const Vector &point_pos,
@@ -963,7 +964,7 @@ void FindPointsGSLIB::InterpolateGeneral(const GridFunction &field_in,
                field_out(index + i*npt) = localval(i);
             }
          }
-         else   //byVDIM
+         else //byVDIM
          {
             for (int i = 0; i < ncomp; i++)
             {
