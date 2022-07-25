@@ -457,10 +457,10 @@ int main(int argc, char *argv[])
          {
             batch_size = (int)(pow(ratio / theta,2.) * batch_size); 
          }
-         else if (ratio < 0.1*theta)
-         {
-            batch_size = max(batch_size/2,batch_size_min);
-         }
+        //  else if (ratio < 0.1*theta)
+        //  {
+        //     batch_size = max(batch_size/2,batch_size_min);
+        //  }
 
       }
       // λ <- λ - β (∫_Ω K dx - V⋅ vol(\Omega))
