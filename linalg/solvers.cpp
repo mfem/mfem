@@ -528,7 +528,7 @@ void SLISolver::Mult(const Vector &b, Vector &x) const
 
    // Optimized preconditioned SLI with fixed number of iterations and given
    // initial guess
-   if (!rel_tol && iterative_mode && prec)
+   if (rel_tol == 0.0 && iterative_mode && prec)
    {
       for (i = 0; i < max_iter; i++)
       {
@@ -544,7 +544,7 @@ void SLISolver::Mult(const Vector &b, Vector &x) const
 
    // Optimized preconditioned SLI with fixed number of iterations and zero
    // initial guess
-   if (!rel_tol && !iterative_mode && prec)
+   if (rel_tol == 0.0 && !iterative_mode && prec)
    {
       prec->Mult(b, x);     // x = B b (initial guess 0)
       for (i = 1; i < max_iter; i++)
