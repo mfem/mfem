@@ -406,13 +406,15 @@ int main(int argc, char *argv[])
 
    // Not in PML
    // i ω μ (H, F)
+   RestrictedCoefficient muomeg_restr(muomeg,attr);
+
    if (dim == 3)
    {
-      a->AddTrialIntegrator(nullptr,new TransposeIntegrator(new VectorFEMassIntegrator(muomeg)),1,0);
+      a->AddTrialIntegrator(nullptr,new TransposeIntegrator(new VectorFEMassIntegrator(muomeg_restr)),1,0);
    }
    else
    {
-      a->AddTrialIntegrator(nullptr,new MixedScalarMassIntegrator(muomeg),1,0);
+      a->AddTrialIntegrator(nullptr,new MixedScalarMassIntegrator(muomeg_restr),1,0);
    }
 
    // In PML 
@@ -496,6 +498,8 @@ int main(int argc, char *argv[])
    // additional integrators for the adjoint graph norm
    if (adjoint_graph_norm)
    {   
+
+      // not in PML
       if(dim == 3)
       {
          // μ^2 ω^2 (F,δF)
@@ -536,6 +540,47 @@ int main(int argc, char *argv[])
          // ϵ^2 ω^2 (G,δG)
          a->AddTestIntegrator(new VectorFEMassIntegrator(eps2omeg2),nullptr,1,1);            
       }
+
+      // In PML
+      if(dim == 3)
+      {
+         // μ^2 ω^2 (|α|^-2 F,δF)
+         // a->AddTestIntegrator(new VectorFEMassIntegrator(mu2omeg2),nullptr,0,0);
+         // -i ω μ (α^-* F,∇ × δG) = (F, ω μ α^-1 ∇ × δ G)
+         // a->AddTestIntegrator(nullptr,new MixedVectorWeakCurlIntegrator(negmuomeg),0,1);
+         // -i ω ϵ (β ∇ × F, δG)
+         // a->AddTestIntegrator(nullptr,new MixedVectorCurlIntegrator(negepsomeg),0,1);
+         // i ω μ (α^-1 ∇ × G,δF)
+         // a->AddTestIntegrator(nullptr,new MixedVectorCurlIntegrator(epsomeg),1,0);
+         // i ω ϵ (β^* G, ∇ × δF )
+         // a->AddTestIntegrator(nullptr,new MixedVectorWeakCurlIntegrator(muomeg),1,0);
+         // ϵ^2 ω^2 (|β|^2 G,δG)
+         // a->AddTestIntegrator(new VectorFEMassIntegrator(eps2omeg2),nullptr,1,1);
+      }
+      else
+      {
+         // μ^2 ω^2 (|α|^-2 F,δF)
+         a->AddTestIntegrator(new MassIntegrator(mu2omeg2),nullptr,0,0);
+
+         // -i ω μ (α^-* F,∇ × δG) = (F, ω μ α^-1 ∇ × δ G)
+         // a->AddTestIntegrator(nullptr,
+            // new TransposeIntegrator(new CurlIntegrator(negmuomeg)),0,1);
+
+         // -i ω ϵ (β ∇ × F, δG) = i (- ω ϵ β A ∇ F,δG), A = [0 1; -1; 0] 
+         // a->AddTestIntegrator(nullptr,new MixedVectorGradientIntegrator(negepsrot),0,1);   
+
+         // i ω μ (∇ × G,δF) = i (ω μ α^-1 ∇ × G, δF )
+         // a->AddTestIntegrator(nullptr,new CurlIntegrator(muomeg),1,0);
+
+         // i ω ϵ (G, ∇ × δF ) =  i (ω ϵ β^* G, A ∇ δF) = i ( G , ω ϵ β A ∇ δF) 
+         // a->AddTestIntegrator(nullptr,
+                  //  new TransposeIntegrator(new MixedVectorGradientIntegrator(epsrot)),1,0);
+
+         // ϵ^2 ω^2 (|β|^2 G,δG)
+         // a->AddTestIntegrator(new VectorFEMassIntegrator(eps2omeg2),nullptr,1,1);            
+      }
+
+
    }
 
    // RHS
@@ -638,7 +683,7 @@ int main(int argc, char *argv[])
          dynamic_cast<HypreBoomerAMG*>(solver_hatH)->SetPrintLevel(0);
       }
       else
-      {
+      {  
          solver_hatH = new HypreAMS((HypreParMatrix &)BlockA_r->GetBlock(skip+1,skip+1), hatH_fes);
          dynamic_cast<HypreAMS*>(solver_hatH)->SetPrintLevel(0);
       }
