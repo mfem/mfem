@@ -36,6 +36,12 @@ void LinearFormIntegrator::AssembleRHSElementVect(
    mfem_error("LinearFormIntegrator::AssembleRHSElementVect(...)");
 }
 
+void LinearFormIntegrator::AssembleNURBSPatchVect(
+	const FiniteElement &el, ElementTransformation &Tr, Vector &elvect)
+{
+   mfem_error("LinearFormIntegrator::AssembleNURBSPatchVect(...)");
+}
+
 void DomainLFIntegrator::AssembleRHSElementVect(const FiniteElement &el,
                                                 ElementTransformation &Tr,
                                                 Vector &elvect)
@@ -286,9 +292,27 @@ void VectorDomainLFIntegrator::AssembleRHSElementVect(
       ir = &IntRules.Get(el.GetGeomType(), intorder);
    }
 
-   for (int i = 0; i < ir->GetNPoints(); i++)
+   const NURBSFiniteElement *NURBSFE =
+	   dynamic_cast<const NURBSFiniteElement *>(&el);
+
+   IntegrationRule *irn = nullptr;
+   if (NURBSFE && patchRule)
    {
-      const IntegrationPoint &ip = ir->IntPoint(i);
+      const int patch = NURBSFE->GetPatch();
+      int ijk[3];
+      NURBSFE->GetIJK(ijk);
+      Array<const KnotVector*>& kv = NURBSFE->KnotVectors();
+
+      irn = &patchRule->GetElementRule(NURBSFE->GetElement(), patch, ijk, kv);
+   }
+
+   const int numIP = irn ? irn->GetNPoints() : ir->GetNPoints();
+
+   // for (int i = 0; i < ir->GetNPoints(); i++)
+   for (int i = 0; i < numIP; i++)
+   {
+      // const IntegrationPoint &ip = ir->IntPoint(i);
+      const IntegrationPoint &ip = irn ? irn->IntPoint(i) : ir->IntPoint(i);
 
       Tr.SetIntPoint (&ip);
       val = Tr.Weight();
