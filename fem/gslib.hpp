@@ -121,9 +121,9 @@ public:
    void Setup(Mesh &m, const double bb_t = 0.1,
               const double newt_tol = 1.0e-12,
               const int npt_max = 256);
-   /** Searches positions given in physical space by @a point_pos. These positions
-       can be ordered byNodes: (XXX...,YYY...,ZZZ) or byVDim: (XYZ,XYZ,....XYZ)
-       specified by @a ordering.
+   /** Searches positions given in physical space by @a point_pos.
+       These positions can be ordered byNodes: (XXX...,YYY...,ZZZ) or
+       byVDim: (XYZ,XYZ,....XYZ) specified by @a point_pos_ordering.
        This function populates the following member variables:
        #gsl_code        Return codes for each point: inside element (0),
                         element boundary (1), not found (2).
@@ -141,10 +141,11 @@ public:
                         Defaults to 0 for points that were not found.
        #gsl_dist        Distance between the sought and the found point
                         in physical space. */
-   void FindPoints(const Vector &point_pos, int ordering = Ordering::byNODES);
+   void FindPoints(const Vector &point_pos,
+                   int point_pos_ordering = Ordering::byNODES);
    /// Setup FindPoints and search positions
    void FindPoints(Mesh &m, const Vector &point_pos,
-                   int ordering = Ordering::byNODES,
+                   int point_pos_ordering = Ordering::byNODES,
                    const double bb_t = 0.1,
                    const double newt_tol = 1.0e-12,  const int npt_max = 256);
 

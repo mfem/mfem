@@ -454,6 +454,10 @@ double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
    const double norm_in = Norm(r);
 
    const double detJ_factor = (solver_type == 1) ? 0.25 : 0.5;
+   compute_metric_quantile_flag = false;
+   // TODO:
+   // - Customized line search for worst-quality optimization.
+   // - What is the Newton exit criterion for worst-quality optimization?
 
    // Perform the line search.
    for (int i = 0; i < 12; i++)
@@ -467,10 +471,7 @@ double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
          else     { cP->Mult(x_out, x_out_loc); }
       }
 #ifdef MFEM_USE_MPI
-      else
-      {
-         fes->GetProlongationMatrix()->Mult(x_out, x_out_loc);
-      }
+      else { fes->GetProlongationMatrix()->Mult(x_out, x_out_loc); }
 #endif
 
       // Check the changes in detJ.
@@ -574,6 +575,7 @@ double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
    if (x_out_ok == false) { scale = 0.0; }
 
    if (adaptive_surf_fit) { update_surf_fit_coeff = true; }
+   compute_metric_quantile_flag = true;
 
    return scale;
 }
@@ -718,6 +720,10 @@ void TMOPNewtonSolver::ProcessNewState(const Vector &x) const
          {
             ti->UpdateAfterMeshPositionChange(x_loc, pfesc->GetOrdering());
             ti->ComputeFDh(x_loc, *pfesc);
+            if (compute_metric_quantile_flag)
+            {
+               ti->ComputeUntangleMetricQuantiles(x_loc, *pfesc);
+            }
             UpdateDiscreteTC(*ti, x_loc, pfesc->GetOrdering());
          }
          co = dynamic_cast<TMOPComboIntegrator *>(integs[i]);
@@ -728,6 +734,10 @@ void TMOPNewtonSolver::ProcessNewState(const Vector &x) const
             {
                ati[j]->UpdateAfterMeshPositionChange(x_loc, pfesc->GetOrdering());
                ati[j]->ComputeFDh(x_loc, *pfesc);
+               if (compute_metric_quantile_flag)
+               {
+                  ati[j]->ComputeUntangleMetricQuantiles(x_loc, *pfesc);
+               }
                UpdateDiscreteTC(*ati[j], x_loc, pfesc->GetOrdering());
             }
          }
@@ -755,6 +765,10 @@ void TMOPNewtonSolver::ProcessNewState(const Vector &x) const
          {
             ti->UpdateAfterMeshPositionChange(x_loc, fesc->GetOrdering());
             ti->ComputeFDh(x_loc, *fesc);
+            if (compute_metric_quantile_flag)
+            {
+               ti->ComputeUntangleMetricQuantiles(x_loc, *fesc);
+            }
             UpdateDiscreteTC(*ti, x_loc, fesc->GetOrdering());
          }
          co = dynamic_cast<TMOPComboIntegrator *>(integs[i]);
@@ -765,6 +779,10 @@ void TMOPNewtonSolver::ProcessNewState(const Vector &x) const
             {
                ati[j]->UpdateAfterMeshPositionChange(x_loc, fesc->GetOrdering());
                ati[j]->ComputeFDh(x_loc, *fesc);
+               if (compute_metric_quantile_flag)
+               {
+                  ati[j]->ComputeUntangleMetricQuantiles(x_loc, *fesc);
+               }
                UpdateDiscreteTC(*ati[j], x_loc, fesc->GetOrdering());
             }
          }

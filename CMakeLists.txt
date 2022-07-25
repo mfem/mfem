@@ -431,6 +431,11 @@ if (MFEM_USE_CALIPER)
   find_package(Caliper REQUIRED)
 endif()
 
+# Algoim
+if (MFEM_USE_ALGOIM)
+  find_package(Algoim REQUIRED)
+endif()
+
 # ADIOS2 for parallel I/O
 if (MFEM_USE_ADIOS2)
    find_package(ADIOS2 REQUIRED)
@@ -445,6 +450,11 @@ endif()
 # PARELAG
 if (MFEM_USE_PARELAG)
    find_package(PARELAG REQUIRED)
+endif()
+
+# Enzyme
+if (MFEM_USE_ENZYME)
+   find_package(ENZYME REQUIRED)
 endif()
 
 # MFEM_TIMER_TYPE
@@ -474,7 +484,7 @@ set(MFEM_TPLS OPENMP HYPRE BLAS LAPACK SuperLUDist METIS SuiteSparse SUNDIALS
     PETSC SLEPC MESQUITE MUMPS STRUMPACK AXOM FMS CONDUIT Ginkgo GNUTLS GSLIB
     NETCDF MPFR PUMI HIOP POSIXCLOCKS MFEMBacktrace ZLIB OCCA CEED RAJA UMPIRE
     ADIOS2 CUSPARSE MKL_CPARDISO AMGX CALIPER CODIPACK BENCHMARK PARELAG
-    MPI_CXX HIP HIPSPARSE MOONOLITH)
+    MPI_CXX HIP HIPSPARSE MOONOLITH BLITZ ALGOIM ENZYME)
 
 # Add all *_FOUND libraries in the variable TPL_LIBRARIES.
 set(TPL_LIBRARIES "")
@@ -545,12 +555,15 @@ target_link_libraries(mfem PUBLIC ${TPL_LIBRARIES})
 if (MINGW)
   target_link_libraries(mfem PRIVATE ws2_32)
 endif()
+if (MSVC)
+  target_compile_options(mfem PUBLIC "/wd4819")
+endif()
 message(STATUS "TPL_INCLUDE_DIRS = ${TPL_INCLUDE_DIRS}")
 target_include_directories(mfem
   PUBLIC
-    ${TPL_INCLUDE_DIRS}
     $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}>
-    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>)
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
+    ${TPL_INCLUDE_DIRS})
 set_target_properties(mfem PROPERTIES VERSION "${mfem_VERSION}")
 set_target_properties(mfem PROPERTIES SOVERSION "${mfem_VERSION}")
 
@@ -716,7 +729,7 @@ endif()
 if (MFEM_USE_CEED)
   install(DIRECTORY ${MFEM_SOURCE_DIRS}
     DESTINATION ${INSTALL_INCLUDE_DIR}/mfem
-    FILES_MATCHING PATTERN "fem/ceed/*.h")
+    FILES_MATCHING PATTERN "fem/ceed/integrators/*/*.h")
 endif()
 
 # Install ${HEADERS}
