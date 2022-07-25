@@ -750,57 +750,33 @@ void NodeShift(const IntegrationPoint &ip, const int &s, Vector &ip_trans,
                const int &dim, const int &lref) {
   Vector temp(dim + 1);
   DenseMatrix trans(dim + 1);
+  double lref_temp = lref * 1.0;
 
-  int count = 0;
   if (dim == 2) {
     ip_trans(0) = ip.x;
     ip_trans(1) = ip.y;
     ip_trans(2) = 1;
 
-    double lref_temp = lref * 1.0;
-
     trans(0, 0) = 1.0 / lref_temp;
     trans(1, 1) = 1.0 / lref_temp;
     trans(2, 2) = 1;
 
-    for (int y = 0; y < lref; y++) {
-      for (int x = 0; x < lref; x++) {
-        trans(0, dim) = x / lref_temp;
-        trans(1, dim) = y / lref_temp;
-        if (count == s) {
-          goto exit_dim2;
-        }
-        count++;
-      }
-    }
-    exit_dim2:;
+    trans(0, dim) = (s % lref) / lref_temp;
+    trans(1, dim) = (s / lref) / lref_temp;
   } else if (dim == 3) {
     ip_trans(0) = ip.x;
     ip_trans(1) = ip.y;
     ip_trans(2) = ip.z;
     ip_trans(3) = 1;
 
-    double lref_temp = lref * 1.0;
-
     trans(0, 0) = 1.0 / lref_temp;
     trans(1, 1) = 1.0 / lref_temp;
     trans(2, 2) = 1.0 / lref_temp;
     trans(3, 3) = 1;
 
-    for (int z = 0; z < lref; z++) {
-      for (int y = 0; y < lref; y++) {
-        for (int x = 0; x < lref; x++) {
-          trans(0, dim) = x / lref_temp;
-          trans(1, dim) = y / lref_temp;
-          trans(2, dim) = z / lref_temp;
-          if (count == s) {
-            goto exit_dim3;
-          }
-          count++;
-        }
-      }
-    }
-    exit_dim3:;
+    trans(0, dim) = ((s % lref) % lref) / lref_temp;
+    trans(1, dim) = ((s / lref) % lref) / lref_temp;
+    trans(2, dim) = ((s / lref) / lref) / lref_temp;
   }
 
   trans.Mult(ip_trans, temp);
