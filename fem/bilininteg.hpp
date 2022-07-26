@@ -2423,6 +2423,7 @@ private:
    const DofToQuad *mapsO;         ///< Not owned. DOF-to-quad map, open.
    const DofToQuad *L2mapsO;       ///< Not owned. DOF-to-quad map, open.
    const DofToQuad *mapsC;         ///< Not owned. DOF-to-quad map, closed.
+   const GeometricFactors *geom;   ///< Not owned.
    int dim, ne, dofs1D, L2dofs1D, quad1D;
 
 public:
@@ -2737,7 +2738,8 @@ private:
 
 public:
    DivDivIntegrator() { Q = NULL; }
-   DivDivIntegrator(Coefficient &q) : Q(&q) { }
+   DivDivIntegrator(Coefficient &q, const IntegrationRule *ir = NULL) :
+      BilinearFormIntegrator(ir), Q(&q) { }
 
    virtual void AssembleElementMatrix(const FiniteElement &el,
                                       ElementTransformation &Trans,
