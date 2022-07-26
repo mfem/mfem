@@ -851,7 +851,8 @@ public:
    void SortRows()
    {
 #if defined(HYPRE_USING_CUSPARSE) || defined(HYPRE_USING_ROCSPARSE)
-      hypre_CSRMatrixSortRow(A);
+      hypre_CSRMatrixSortRow( hypre_ParCSRMatrixDiag(A) );
+      hypre_CSRMatrixSortRow( hypre_ParCSRMatrixOffd(A) );
 #endif
    }
 
