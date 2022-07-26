@@ -16,8 +16,6 @@ using namespace mfem;
 
 TEST_CASE("FA Determinism", "[PartialAssembly][CUDA]")
 {
-   Vector b_reference;
-
    const int order = 3;
    const char *mesh_filename = "../../data/star-q3.mesh";
 
@@ -28,8 +26,9 @@ TEST_CASE("FA Determinism", "[PartialAssembly][CUDA]")
    H1_FECollection fec(order, dim);
    FiniteElementSpace fes(&mesh, &fec);
 
-   const int ntrials = 100;
+   Vector x, b_reference;
 
+   const int ntrials = 100 + 1;
    for (int i = 0; i < ntrials; ++i)
    {
       BilinearForm a(&fes);
@@ -41,22 +40,23 @@ TEST_CASE("FA Determinism", "[PartialAssembly][CUDA]")
       SparseMatrix &A = a.SpMat();
       const int n = A.Height();
 
-      Vector x(n), b(n);
+      if (x.Size() == 0)
+      {
+         x.SetSize(n);
+         x.Randomize(1);
+      }
 
-      x.Randomize(1);
-      b = 0.0;
-
+      Vector b(n);
       A.Mult(x, b);
 
-      if (b_reference.Size() > 0)
+      if (b_reference.Size() == 0)
       {
-         Vector b2 = b_reference;
-         b2 -= b;
-         REQUIRE(b2.Normlinf() == 0.0);
+         b_reference = b;
       }
       else
       {
-         b_reference = b;
+         b -= b_reference;
+         REQUIRE(b.Normlinf() == 0.0);
       }
    }
 }
