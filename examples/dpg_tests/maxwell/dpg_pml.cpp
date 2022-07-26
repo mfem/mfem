@@ -108,27 +108,27 @@ public:
 };
 
 // Class for returning the PML coefficients of the bilinear form
-class PMLDiagMatrixCoefficient : public VectorCoefficient
+class PMLMatrixCoefficient : public MatrixCoefficient
 {
 private:
    CartesianPML * pml = nullptr;
-   void (*Function)(const Vector &, CartesianPML *, Vector &);
+   void (*Function)(const Vector &, CartesianPML *, DenseMatrix &);
 public:
-   PMLDiagMatrixCoefficient(int dim, void(*F)(const Vector &, CartesianPML *,
-                                              Vector &),
+   PMLMatrixCoefficient(int dim, void(*F)(const Vector &, CartesianPML *,
+                                              DenseMatrix &),
                             CartesianPML * pml_)
-      : VectorCoefficient(dim), pml(pml_), Function(F)
+      : MatrixCoefficient(dim), pml(pml_), Function(F)
    {}
 
-   using VectorCoefficient::Eval;
+   using MatrixCoefficient::Eval;
 
-   virtual void Eval(Vector &K, ElementTransformation &T,
+   virtual void Eval(DenseMatrix &K, ElementTransformation &T,
                      const IntegrationPoint &ip)
    {
       double x[3];
       Vector transip(x, 3);
       T.Transform(ip, transip);
-      K.SetSize(vdim);
+      K.SetSize(height,width);
       (*Function)(transip, pml, K);
    }
 };
@@ -161,14 +161,17 @@ void source(const Vector &x, Vector & f);
 
 // Functions for computing the necessary coefficients after PML stretching.
 // J is the Jacobian matrix of the stretching function
-void inv_alpha_function_re(const Vector &x, CartesianPML * pml, Vector & D);
-void inv_alpha_function_im(const Vector &x, CartesianPML * pml, Vector & D);
+void inv_alpha_function_re(const Vector &x, CartesianPML * pml, DenseMatrix & K);
+void inv_alpha_function_im(const Vector &x, CartesianPML * pml, DenseMatrix & K);
+void inv_abs2_alpha_function(const Vector &x, CartesianPML * pml, DenseMatrix & K);
 
 double inv_scalar_alpha_function_re(const Vector &x, CartesianPML * pml);
 double inv_scalar_alpha_function_im(const Vector &x, CartesianPML * pml);
+double inv_scalar_abs2_alpha_function(const Vector &x, CartesianPML * pml);
 
-void beta_function_re(const Vector &x, CartesianPML * pml, Vector & D);
-void beta_function_im(const Vector &x, CartesianPML * pml, Vector & D);
+void beta_function_re(const Vector &x, CartesianPML * pml, DenseMatrix & K);
+void beta_function_im(const Vector &x, CartesianPML * pml, DenseMatrix & K);
+void abs2_beta_function(const Vector &x, CartesianPML * pml, DenseMatrix & K);
 
 Array2D<double> comp_domain_bdr;
 Array2D<double> domain_bdr;
@@ -323,8 +326,8 @@ int main(int argc, char *argv[])
 
    // PML coefficients
    // α^-1 = |J| J^-1 J-T (in case of d=2  α the scalar |J|)
-   PMLDiagMatrixCoefficient * inv_alpha_re=nullptr; 
-   PMLDiagMatrixCoefficient * inv_alpha_im=nullptr; 
+   PMLMatrixCoefficient * inv_alpha_re=nullptr; 
+   PMLMatrixCoefficient * inv_alpha_im=nullptr; 
 
    PMLScalarCoefficient * inv_scalar_alpha_re=nullptr; 
    PMLScalarCoefficient * inv_scalar_alpha_im=nullptr; 
@@ -336,13 +339,13 @@ int main(int argc, char *argv[])
    }
    else
    {
-      inv_alpha_re = new PMLDiagMatrixCoefficient(dim,inv_alpha_function_re, pml);
-      inv_alpha_im = new PMLDiagMatrixCoefficient(dim,inv_alpha_function_im, pml);
+      inv_alpha_re = new PMLMatrixCoefficient(dim,inv_alpha_function_re, pml);
+      inv_alpha_im = new PMLMatrixCoefficient(dim,inv_alpha_function_im, pml);
    }
 
 
-   PMLDiagMatrixCoefficient beta_re(dim, beta_function_re,pml);
-   PMLDiagMatrixCoefficient beta_im(dim, beta_function_im,pml);
+   PMLMatrixCoefficient beta_re(dim, beta_function_re,pml);
+   PMLMatrixCoefficient beta_im(dim, beta_function_im,pml);
 
    VectorFunctionCoefficient f(dim, source);
 
@@ -396,10 +399,10 @@ int main(int argc, char *argv[])
    // In PML region
    // -i ω ϵ (β E , G) = -i ω ϵ ((β_re + i β_im) E, G) 
    //                  = (ω ϵ β_im E, G) + i (- ω ϵ β_re E, G)  
-   ScalarVectorProductCoefficient c1_re(epsomeg, beta_im);
-   ScalarVectorProductCoefficient c1_im(negepsomeg, beta_re);
-   VectorRestrictedCoefficient restr_c1_re(c1_re,attrPML);
-   VectorRestrictedCoefficient restr_c1_im(c1_im,attrPML);
+   ScalarMatrixProductCoefficient c1_re(epsomeg, beta_im);
+   ScalarMatrixProductCoefficient c1_im(negepsomeg, beta_re);
+   MatrixRestrictedCoefficient restr_c1_re(c1_re,attrPML);
+   MatrixRestrictedCoefficient restr_c1_im(c1_im,attrPML);
 
    a->AddTrialIntegrator(new TransposeIntegrator(new VectorFEMassIntegrator(restr_c1_re)),new TransposeIntegrator(new VectorFEMassIntegrator(restr_c1_im)),0,1);
    
@@ -421,10 +424,10 @@ int main(int argc, char *argv[])
    // i ω μ (α^-1 H, F) = i ω μ ( (α^-1_re + i α^-1_im) H, F) 
    //                   = (- ω μ α^-1_im, H,F) + i *(ω μ α^-1_re H, F)
 
-   ScalarVectorProductCoefficient * c2_re = nullptr;
-   ScalarVectorProductCoefficient * c2_im = nullptr;
-   VectorRestrictedCoefficient * restr_c2_re = nullptr;
-   VectorRestrictedCoefficient * restr_c2_im = nullptr;
+   ScalarMatrixProductCoefficient * c2_re = nullptr;
+   ScalarMatrixProductCoefficient * c2_im = nullptr;
+   MatrixRestrictedCoefficient * restr_c2_re = nullptr;
+   MatrixRestrictedCoefficient * restr_c2_im = nullptr;
    ProductCoefficient * scalar_c2_re = nullptr;
    ProductCoefficient * scalar_c2_im = nullptr;
    RestrictedCoefficient * restr_scalar_c2_re = nullptr;
@@ -438,10 +441,10 @@ int main(int argc, char *argv[])
    }
    else
    {
-      c2_re = new ScalarVectorProductCoefficient(negmuomeg,*inv_alpha_im);
-      c2_im = new ScalarVectorProductCoefficient(muomeg,*inv_alpha_re);
-      restr_c2_re = new VectorRestrictedCoefficient(*c2_re,attrPML);
-      restr_c2_im = new VectorRestrictedCoefficient(*c2_im,attrPML);
+      c2_re = new ScalarMatrixProductCoefficient(negmuomeg,*inv_alpha_im);
+      c2_im = new ScalarMatrixProductCoefficient(muomeg,*inv_alpha_re);
+      restr_c2_re = new MatrixRestrictedCoefficient(*c2_re,attrPML);
+      restr_c2_im = new MatrixRestrictedCoefficient(*c2_im,attrPML);
    }
 
 
@@ -496,88 +499,174 @@ int main(int argc, char *argv[])
    a->AddTestIntegrator(new VectorFEMassIntegrator(one),nullptr,1,1);
 
    // additional integrators for the adjoint graph norm
+   RestrictedCoefficient * restr_mu2omeg2 = nullptr;
+   RestrictedCoefficient * restr_negmuomeg = nullptr;
+   RestrictedCoefficient * restr_negepsomeg = nullptr;
+   RestrictedCoefficient * restr_epsomeg = nullptr;
+   RestrictedCoefficient * restr_muomeg = nullptr;
+   RestrictedCoefficient * restr_eps2omeg2 = nullptr;
+   MatrixRestrictedCoefficient *restr_negepsrot = nullptr;
+   MatrixRestrictedCoefficient *restr_epsrot = nullptr;
+
+   // PML Coefficients
+   // μ^2 ω^2 |α|^-2
+   // 3D
+   PMLMatrixCoefficient * inv_abs2alpha = nullptr;
+   ScalarMatrixProductCoefficient * mu2omeg2_inv_abs2alpha = nullptr;
+   MatrixRestrictedCoefficient * restr_mu2omeg2_inv_abs2alpha = nullptr;
+   // 2D
+   PMLScalarCoefficient * inv_abs2_scalar_alpha = nullptr;
+   ProductCoefficient * mu2omeg2_inv_abs2_scalar_alpha = nullptr;
+   RestrictedCoefficient * restr_mu2omeg2_inv_abs2_scalar_alpha = nullptr;
+   
+   // i ω μ α^-1 ---> restr_c2_re, restr_c2_im & restr_scalar_c2_re, restr_scalar_c2_im
+   // -i ω ϵ β = - i ω ϵ (β_re + i β_im) = ω ϵ β_im - i ω ϵ β_re   ---> restr_c1_re & restr_c1_im
+   
+      
+   // i ω ϵ β^* =  i ω ϵ (β_re^T - i β_im^T) = i ω ϵ (β_re - i β_im) = ω ϵ β_im + i ω ϵ β_re ---> restr_c1_re, -restr_c1_im
+
+
+   // ϵ^2 ω^2 |β|^2
+   PMLMatrixCoefficient * absbeta2 = nullptr;
+   ScalarMatrixProductCoefficient * eps2omeg2_abs2beta = nullptr;
+   MatrixRestrictedCoefficient * restr_eps2omeg2_abs2beta = nullptr;
+
    if (adjoint_graph_norm)
    {   
 
       // not in PML
+      // Restricted coefficients in computational domain
+      restr_mu2omeg2 = new RestrictedCoefficient(mu2omeg2, attr);
+      restr_negmuomeg = new RestrictedCoefficient(negmuomeg,attr);
+      restr_negepsomeg = new RestrictedCoefficient(negepsomeg,attr);
+      restr_epsomeg = new RestrictedCoefficient(epsomeg,attr);
+      restr_muomeg = new RestrictedCoefficient(muomeg,attr);
+      restr_eps2omeg2 = new RestrictedCoefficient(eps2omeg2,attr);
+
       if(dim == 3)
       {
          // μ^2 ω^2 (F,δF)
-         a->AddTestIntegrator(new VectorFEMassIntegrator(mu2omeg2),nullptr,0,0);
+         a->AddTestIntegrator(new VectorFEMassIntegrator(*restr_mu2omeg2),nullptr,0,0);
          // -i ω μ (F,∇ × δG) = (F, ω μ ∇ × δ G)
-         a->AddTestIntegrator(nullptr,new MixedVectorWeakCurlIntegrator(negmuomeg),0,1);
+         a->AddTestIntegrator(nullptr,new MixedVectorWeakCurlIntegrator(*restr_negmuomeg),0,1);
          // -i ω ϵ (∇ × F, δG)
-         a->AddTestIntegrator(nullptr,new MixedVectorCurlIntegrator(negepsomeg),0,1);
+         a->AddTestIntegrator(nullptr,new MixedVectorCurlIntegrator(*restr_negepsomeg),0,1);
          // i ω μ (∇ × G,δF)
-         a->AddTestIntegrator(nullptr,new MixedVectorCurlIntegrator(epsomeg),1,0);
+         a->AddTestIntegrator(nullptr,new MixedVectorCurlIntegrator(*restr_muomeg),1,0);
          // i ω ϵ (G, ∇ × δF )
-         a->AddTestIntegrator(nullptr,new MixedVectorWeakCurlIntegrator(muomeg),1,0);
+         a->AddTestIntegrator(nullptr,new MixedVectorWeakCurlIntegrator(*restr_epsomeg),1,0);
          // ϵ^2 ω^2 (G,δG)
-         a->AddTestIntegrator(new VectorFEMassIntegrator(eps2omeg2),nullptr,1,1);
+         a->AddTestIntegrator(new VectorFEMassIntegrator(*restr_eps2omeg2),nullptr,1,1);
       }
       else
       {
          // μ^2 ω^2 (F,δF)
-         a->AddTestIntegrator(new MassIntegrator(mu2omeg2),nullptr,0,0);
+         a->AddTestIntegrator(new MassIntegrator(*restr_mu2omeg2),nullptr,0,0);
 
          // -i ω μ (F,∇ × δG) = i (F, -ω μ ∇ × δ G)
          a->AddTestIntegrator(nullptr,
-            new TransposeIntegrator(new CurlIntegrator(negmuomeg)),0,1);
+            new TransposeIntegrator(new CurlIntegrator(*restr_negmuomeg)),0,1);
 
          // -i ω ϵ (∇ × F, δG) = i (- ω ϵ A ∇ F,δG), A = [0 1; -1; 0]
-         a->AddTestIntegrator(nullptr,new MixedVectorGradientIntegrator(negepsrot),0,1);   
+         restr_negepsrot = new MatrixRestrictedCoefficient(negepsrot, attr);
+         a->AddTestIntegrator(nullptr,new MixedVectorGradientIntegrator(*restr_negepsrot),0,1);   
 
          // i ω μ (∇ × G,δF) = i (ω μ ∇ × G, δF )
          a->AddTestIntegrator(nullptr,new CurlIntegrator(muomeg),1,0);
 
          // i ω ϵ (G, ∇ × δF ) =  i (ω ϵ G, A ∇ δF) = i ( G , ω ϵ A ∇ δF) 
+         restr_epsrot = new MatrixRestrictedCoefficient(epsrot,attr);
          a->AddTestIntegrator(nullptr,
-                   new TransposeIntegrator(new MixedVectorGradientIntegrator(epsrot)),1,0);
+                   new TransposeIntegrator(new MixedVectorGradientIntegrator(*restr_epsrot)),1,0);
 
          // or    i ( ω ϵ A^t G, ∇ δF) = i (- ω ϵ A G, ∇ δF)
          // a->AddTestIntegrator(nullptr,
                   //  new MixedVectorWeakDivergenceIntegrator(epsrot),1,0);
          // ϵ^2 ω^2 (G,δG)
-         a->AddTestIntegrator(new VectorFEMassIntegrator(eps2omeg2),nullptr,1,1);            
+         a->AddTestIntegrator(new VectorFEMassIntegrator(*restr_eps2omeg2),nullptr,1,1);            
       }
 
       // In PML
+      // Restricted Coefficient in the PML region
       if(dim == 3)
       {
          // μ^2 ω^2 (|α|^-2 F,δF)
-         // a->AddTestIntegrator(new VectorFEMassIntegrator(mu2omeg2),nullptr,0,0);
-         // -i ω μ (α^-* F,∇ × δG) = (F, ω μ α^-1 ∇ × δ G)
-         // a->AddTestIntegrator(nullptr,new MixedVectorWeakCurlIntegrator(negmuomeg),0,1);
-         // -i ω ϵ (β ∇ × F, δG)
-         // a->AddTestIntegrator(nullptr,new MixedVectorCurlIntegrator(negepsomeg),0,1);
-         // i ω μ (α^-1 ∇ × G,δF)
-         // a->AddTestIntegrator(nullptr,new MixedVectorCurlIntegrator(epsomeg),1,0);
-         // i ω ϵ (β^* G, ∇ × δF )
-         // a->AddTestIntegrator(nullptr,new MixedVectorWeakCurlIntegrator(muomeg),1,0);
+         inv_abs2alpha = new PMLMatrixCoefficient(dim,inv_abs2_alpha_function,pml);
+         mu2omeg2_inv_abs2alpha = new ScalarMatrixProductCoefficient(mu2omeg2,*inv_abs2alpha);
+         restr_mu2omeg2_inv_abs2alpha = new MatrixRestrictedCoefficient(*mu2omeg2_inv_abs2alpha,attrPML);
+         a->AddTestIntegrator(new VectorFEMassIntegrator(*restr_mu2omeg2_inv_abs2alpha),nullptr,0,0);
+         // -i ω μ (α^-* F,∇ × δG) = i (F, - ω μ α^-1 ∇ × δ G)
+         //                        = i (F, - ω μ (α^-1_re + i α^-1_im) ∇ × δ G)
+         //                        = (F, - ω μ α^-1_im ∇ × δ G) + i (F, - ω μ α^-1_re ∇×δG)
+         ScalarMatrixProductCoefficient * neg_restr_c2_im 
+         = new ScalarMatrixProductCoefficient(-1.0,*restr_c2_im);
+         a->AddTestIntegrator(new MixedVectorWeakCurlIntegrator(*restr_c2_re),
+                              new MixedVectorWeakCurlIntegrator(*neg_restr_c2_im),0,1);
+
+         // -i ω ϵ (β ∇ × F, δG) = -i ω ϵ ((β_re + i β_im) ∇ × F, δG) 
+         //                      = (ω ϵ β_im  ∇ × F, δG) + i (- ω ϵ β_re ∇ × F, δG)
+
+         a->AddTestIntegrator(new MixedVectorCurlIntegrator(restr_c1_re),
+                              new MixedVectorCurlIntegrator(restr_c1_im),0,1);
+         // i ω μ (α^-1 ∇ × G,δF) = i ω μ ((α^-1_re + i α^-1_im) ∇ × G,δF) 
+         //                       = (- ω μ α^-1_im ∇ × G,δF) + i (ω μ α^-1_re ∇ × G,δF)
+
+         a->AddTestIntegrator(new MixedVectorCurlIntegrator(*restr_c2_re),
+                              new MixedVectorCurlIntegrator(*restr_c2_im),1,0);
+
+         // i ω ϵ (β^* G, ∇×δF) = i ω ϵ ( (β_re - i β_im) G, ∇×δF)
+         //                     = (ω ϵ β_im G, ∇×δF) + i ( ω ϵ β_re G, ∇×δF)
+         ScalarMatrixProductCoefficient *neg_restr_c1_im 
+         = new ScalarMatrixProductCoefficient(-1.0, restr_c1_im);
+
+         a->AddTestIntegrator(new MixedVectorWeakCurlIntegrator(restr_c1_re),
+                              new MixedVectorWeakCurlIntegrator(*neg_restr_c1_im),1,0);
          // ϵ^2 ω^2 (|β|^2 G,δG)
-         // a->AddTestIntegrator(new VectorFEMassIntegrator(eps2omeg2),nullptr,1,1);
+         absbeta2 = new PMLMatrixCoefficient(dim, abs2_beta_function,pml);
+         eps2omeg2_abs2beta = new ScalarMatrixProductCoefficient(eps2omeg2, *absbeta2);
+         restr_eps2omeg2_abs2beta = new MatrixRestrictedCoefficient(*eps2omeg2_abs2beta, attrPML);
+         a->AddTestIntegrator(new VectorFEMassIntegrator(*restr_eps2omeg2_abs2beta),nullptr,1,1);
       }
       else
       {
          // μ^2 ω^2 (|α|^-2 F,δF)
-         a->AddTestIntegrator(new MassIntegrator(mu2omeg2),nullptr,0,0);
+         inv_abs2_scalar_alpha = new PMLScalarCoefficient(inv_scalar_abs2_alpha_function,pml);
+         mu2omeg2_inv_abs2_scalar_alpha = new ProductCoefficient(mu2omeg2, *inv_abs2_scalar_alpha);
+         restr_mu2omeg2_inv_abs2_scalar_alpha = 
+            new RestrictedCoefficient(*mu2omeg2_inv_abs2_scalar_alpha,attrPML);
+         a->AddTestIntegrator(new MassIntegrator(*restr_mu2omeg2_inv_abs2_scalar_alpha),nullptr,0,0);
 
          // -i ω μ (α^-* F,∇ × δG) = (F, ω μ α^-1 ∇ × δ G)
-         // a->AddTestIntegrator(nullptr,
-            // new TransposeIntegrator(new CurlIntegrator(negmuomeg)),0,1);
+         ProductCoefficient *neg_restr_scalar_c2_im = new ProductCoefficient(-1.0, *restr_scalar_c2_im);
+
+         a->AddTestIntegrator(new TransposeIntegrator(new CurlIntegrator(*restr_scalar_c2_re)),
+                              new TransposeIntegrator(new CurlIntegrator(*neg_restr_scalar_c2_im)),0,1);
 
          // -i ω ϵ (β ∇ × F, δG) = i (- ω ϵ β A ∇ F,δG), A = [0 1; -1; 0] 
-         // a->AddTestIntegrator(nullptr,new MixedVectorGradientIntegrator(negepsrot),0,1);   
+         
+         MatrixProductCoefficient * restr_betaA_re = new MatrixProductCoefficient(restr_c1_re, rot); 
+         MatrixProductCoefficient * restr_betaA_im = new MatrixProductCoefficient(restr_c1_im, rot); 
+         a->AddTestIntegrator(new MixedVectorGradientIntegrator(*restr_betaA_re),
+                              new MixedVectorGradientIntegrator(*restr_betaA_im),0,1);   
 
-         // i ω μ (∇ × G,δF) = i (ω μ α^-1 ∇ × G, δF )
-         // a->AddTestIntegrator(nullptr,new CurlIntegrator(muomeg),1,0);
+         // i ω μ (α^-1 ∇ × G,δF) = i (ω μ α^-1 ∇ × G, δF )
+         a->AddTestIntegrator(new CurlIntegrator(*restr_scalar_c2_re),
+                              new CurlIntegrator(*restr_scalar_c2_im),1,0);
 
-         // i ω ϵ (G, ∇ × δF ) =  i (ω ϵ β^* G, A ∇ δF) = i ( G , ω ϵ β A ∇ δF) 
-         // a->AddTestIntegrator(nullptr,
-                  //  new TransposeIntegrator(new MixedVectorGradientIntegrator(epsrot)),1,0);
+         // i ω ϵ (β^* G, ∇ × δF ) =  i (ω ϵ β^* G, A ∇ δF) = i ( G , ω ϵ β A ∇ δF) 
+         // = i ( G , ω ϵ (β_re + i β_im) A ∇ δF) 
+         // =  ( G , ω ϵ β_im A ∇ δF) + i ( G , ω ϵ β_re A ∇ δF)
+
+         MatrixProductCoefficient * d1_re = new MatrixProductCoefficient(beta_im, epsrot);
+         MatrixProductCoefficient * d1_im = new MatrixProductCoefficient(beta_re, epsrot);
+         a->AddTestIntegrator(new TransposeIntegrator(new MixedVectorGradientIntegrator(*d1_re)),
+                              new TransposeIntegrator(new MixedVectorGradientIntegrator(*d1_im)),1,0);
 
          // ϵ^2 ω^2 (|β|^2 G,δG)
-         // a->AddTestIntegrator(new VectorFEMassIntegrator(eps2omeg2),nullptr,1,1);            
+         absbeta2 = new PMLMatrixCoefficient(dim, abs2_beta_function,pml);
+         eps2omeg2_abs2beta = new ScalarMatrixProductCoefficient(eps2omeg2, *absbeta2);
+         restr_eps2omeg2_abs2beta = new MatrixRestrictedCoefficient(*eps2omeg2_abs2beta, attrPML);
+         a->AddTestIntegrator(new VectorFEMassIntegrator(*restr_eps2omeg2_abs2beta),nullptr,1,1);            
       }
 
 
@@ -816,7 +905,7 @@ void E_bdr_data_Im(const Vector &x, Vector &E)
 
 // α = |J|^-1 J^T J (in 2D it's the scalar |J|^-1)
 // α^-1 = |J| J^-1 J^-T (in 2D it's the scalar |J|)
-void inv_alpha_function_re(const Vector &x, CartesianPML * pml, Vector & D)
+void inv_alpha_function_re(const Vector &x, CartesianPML * pml, DenseMatrix & K)
 {
    vector<complex<double>> dxs(dim);
    complex<double> det(1.0, 0.0);
@@ -827,13 +916,14 @@ void inv_alpha_function_re(const Vector &x, CartesianPML * pml, Vector & D)
       det *= dxs[i];
    }
 
+   K = 0.0;
    for (int i = 0; i < dim; ++i)
    {
-      D(i) = (det/pow(dxs[i], 2)).real();
+      K(i,i) = (det/pow(dxs[i], 2)).real();
    }
 }
 
-void inv_alpha_function_im(const Vector &x, CartesianPML * pml, Vector & D)
+void inv_alpha_function_im(const Vector &x, CartesianPML * pml, DenseMatrix & K)
 {
    vector<complex<double>> dxs(dim);
    complex<double> det = 1.0;
@@ -843,10 +933,28 @@ void inv_alpha_function_im(const Vector &x, CartesianPML * pml, Vector & D)
    {
       det *= dxs[i];
    }
+   K = 0.0;
+   for (int i = 0; i < dim; ++i)
+   {
+      K(i,i) = (det/pow(dxs[i], 2)).imag();
+   }
+}
+
+void inv_abs2_alpha_function(const Vector &x, CartesianPML * pml, DenseMatrix & K)
+{
+   vector<complex<double>> dxs(dim);
+   complex<double> det = 1.0;
+   pml->StretchFunction(x, dxs);
 
    for (int i = 0; i < dim; ++i)
    {
-      D(i) = (det/pow(dxs[i], 2)).imag();
+      det *= dxs[i];
+   }
+   K=0.0;
+   for (int i = 0; i < dim; ++i)
+   {
+      complex<double> a = det/pow(dxs[i], 2);
+      K(i,i) = a.imag() * a.imag() + a.real() * a.real();
    }
 }
 
@@ -878,25 +986,7 @@ double inv_scalar_alpha_function_im(const Vector &x, CartesianPML * pml)
    return det.imag();
 }
 
-// β = |J| J^-1 J^-T
-void beta_function_re(const Vector &x, CartesianPML * pml, Vector & D)
-{
-   vector<complex<double>> dxs(dim);
-   complex<double> det(1.0, 0.0);
-   pml->StretchFunction(x, dxs);
-
-   for (int i = 0; i < dim; ++i)
-   {
-      det *= dxs[i];
-   }
-
-   for (int i = 0; i < dim; ++i)
-   {
-      D(i) = (det / pow(dxs[i], 2)).real();
-   }
-}
-
-void beta_function_im(const Vector &x, CartesianPML * pml, Vector & D)
+double inv_scalar_abs2_alpha_function(const Vector &x, CartesianPML * pml)
 {
    vector<complex<double>> dxs(dim);
    complex<double> det = 1.0;
@@ -907,14 +997,62 @@ void beta_function_im(const Vector &x, CartesianPML * pml, Vector & D)
       det *= dxs[i];
    }
 
+   return det.imag()*det.imag() + det.real()*det.real();
+}
+
+// β = |J| J^-1 J^-T
+void beta_function_re(const Vector &x, CartesianPML * pml, DenseMatrix & K)
+{
+   vector<complex<double>> dxs(dim);
+   complex<double> det(1.0, 0.0);
+   pml->StretchFunction(x, dxs);
+
    for (int i = 0; i < dim; ++i)
    {
-      D(i) = (det / pow(dxs[i], 2)).imag();
+      det *= dxs[i];
+   }
+   K=0.0;
+   for (int i = 0; i < dim; ++i)
+   {
+      K(i,i) = (det / pow(dxs[i], 2)).real();
    }
 }
 
+void beta_function_im(const Vector &x, CartesianPML * pml, DenseMatrix & K)
+{
+   vector<complex<double>> dxs(dim);
+   complex<double> det = 1.0;
+   pml->StretchFunction(x, dxs);
 
+   for (int i = 0; i < dim; ++i)
+   {
+      det *= dxs[i];
+   }
+   K = 0.0;
+   for (int i = 0; i < dim; ++i)
+   {
+      K(i,i) = (det / pow(dxs[i], 2)).imag();
+   }
+}
 
+void abs2_beta_function(const Vector &x, CartesianPML * pml, DenseMatrix & K)
+{
+   vector<complex<double>> dxs(dim);
+   complex<double> det = 1.0;
+   pml->StretchFunction(x, dxs);
+
+   for (int i = 0; i < dim; ++i)
+   {
+      det *= dxs[i];
+   }
+   K = 0.0;
+   for (int i = 0; i < dim; ++i)
+   {
+      complex<double> a = det/pow(dxs[i], 2);
+
+      K(i,i) = a.imag()*a.imag() + a.real()*a.real();
+   }
+}
 
 
 CartesianPML::CartesianPML(Mesh *mesh_, Array2D<double> length_)

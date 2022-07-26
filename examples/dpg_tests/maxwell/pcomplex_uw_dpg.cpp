@@ -273,7 +273,7 @@ int main(int argc, char *argv[])
    // (E,∇ × F)
    a->AddTrialIntegrator(new TransposeIntegrator(new CurlIntegrator(one)),nullptr,0,0);
 
-   // -i ω ϵ (E , G)
+   // -i ω ϵ (E , G) = i (- ω ϵ E, G)
    a->AddTrialIntegrator(nullptr,new TransposeIntegrator(new VectorFEMassIntegrator(negepsomeg)),0,1);
 
    // i ω μ (H, F)
@@ -331,14 +331,14 @@ int main(int argc, char *argv[])
       {
          // μ^2 ω^2 (F,δF)
          a->AddTestIntegrator(new VectorFEMassIntegrator(mu2omeg2),nullptr,0,0);
-         // -i ω μ (F,∇ × δG) = (F, ω μ ∇ × δ G)
+         // -i ω μ (F,∇ × δG) = i (F, ω μ ∇ × δ G)
          a->AddTestIntegrator(nullptr,new MixedVectorWeakCurlIntegrator(negmuomeg),0,1);
          // -i ω ϵ (∇ × F, δG)
          a->AddTestIntegrator(nullptr,new MixedVectorCurlIntegrator(negepsomeg),0,1);
          // i ω μ (∇ × G,δF)
-         a->AddTestIntegrator(nullptr,new MixedVectorCurlIntegrator(epsomeg),1,0);
+         a->AddTestIntegrator(nullptr,new MixedVectorCurlIntegrator(muomeg),1,0);
          // i ω ϵ (G, ∇ × δF )
-         a->AddTestIntegrator(nullptr,new MixedVectorWeakCurlIntegrator(muomeg),1,0);
+         a->AddTestIntegrator(nullptr,new MixedVectorWeakCurlIntegrator(epsomeg),1,0);
          // ϵ^2 ω^2 (G,δG)
          a->AddTestIntegrator(new VectorFEMassIntegrator(eps2omeg2),nullptr,1,1);
       }
