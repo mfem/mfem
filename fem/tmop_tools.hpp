@@ -67,7 +67,7 @@ public:
 
    virtual void ComputeAtNewPosition(const Vector &new_nodes,
                                      Vector &new_field,
-                                     int ordering = Ordering::byNODES);
+                                     int new_nodes_ordering = Ordering::byNODES);
 
    ~InterpolatorFP()
    {
