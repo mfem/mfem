@@ -980,7 +980,7 @@ protected:
    // Owned.
    Mesh *mesh;
    FiniteElementSpace *fes;
-   int ordering;
+   int fes_ordering;
 
 #ifdef MFEM_USE_MPI
    // Owned.
@@ -1004,13 +1004,13 @@ public:
        be evaluated. The given mesh will be copied into the internal object. */
    void SetSerialMetaInfo(const Mesh &m,
                           const FiniteElementCollection &fec, int num_comp,
-                          int ordering_=Ordering::byNODES);
+                          int fes_ordering_=Ordering::byNODES);
 
 #ifdef MFEM_USE_MPI
    /// Parallel version of SetSerialMetaInfo.
    void SetParMetaInfo(const ParMesh &m,
                        const FiniteElementCollection &fec, int num_comp,
-                       int ordering_=Ordering::byNODES);
+                       int fes_ordering_=Ordering::byNODES);
 #endif
 
    // TODO use GridFunctions to make clear it's on the ldofs?
@@ -1019,7 +1019,7 @@ public:
 
    virtual void ComputeAtNewPosition(const Vector &new_nodes,
                                      Vector &new_field,
-                                     int ordering = Ordering::byNODES) = 0;
+                                     int new_nodes_ordering = Ordering::byNODES) = 0;
 
    void ClearGeometricFactors();
 };
@@ -1335,10 +1335,10 @@ public:
        new mesh positions are given by new_x. If @a use_flags is true, repeated
        calls won't do anything until ResetUpdateFlags() is called. */
    void UpdateTargetSpecification(const Vector &new_x, bool use_flag = false,
-                                  int ordering=Ordering::byNODES);
+                                  int new_x_ordering=Ordering::byNODES);
 
    void UpdateTargetSpecification(Vector &new_x, Vector &IntData,
-                                  int ordering=Ordering::byNODES);
+                                  int new_x_ordering=Ordering::byNODES);
 
    void UpdateTargetSpecificationAtNode(const FiniteElement &el,
                                         ElementTransformation &T,
@@ -1353,14 +1353,14 @@ public:
        ResetUpdateFlags() is called. */
    void UpdateGradientTargetSpecification(const Vector &x, double dx,
                                           bool use_flag = false,
-                                          int ordering = Ordering::byNODES);
+                                          int x_ordering = Ordering::byNODES);
    /** Used for finite-difference based computations. Computes the target
        specifications after two mesh perturbations in x and/or y direction.
        If @a use_flags is true, repeated calls won't do anything until
        ResetUpdateFlags() is called. */
    void UpdateHessianTargetSpecification(const Vector &x, double dx,
                                          bool use_flag = false,
-                                         int ordering = Ordering::byNODES);
+                                         int x_ordering = Ordering::byNODES);
 
    void SetAdaptivityEvaluator(AdaptivityEvaluator *ae)
    {
@@ -1596,7 +1596,7 @@ protected:
    void ComputeMinJac(const Vector &x, const FiniteElementSpace &fes);
 
    void UpdateAfterMeshPositionChange(const Vector &new_x,
-                                      int ordering = Ordering::byNODES);
+                                      int new_x_ordering = Ordering::byNODES);
 
    void DisableLimiting()
    {
