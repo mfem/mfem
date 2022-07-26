@@ -585,7 +585,11 @@ public:
 
    /** Creates mesh by reading a file in MFEM, Netgen, or VTK format. If
        generate_edges = 0 (default) edges are not generated, if 1 edges are
-       generated. */
+       generated.
+
+       @note @a filename is not cached by the Mesh object and can be
+       safely destroyed following this function call.
+   */
    static Mesh LoadFromFile(const char *filename,
                             int generate_edges = 0, int refine = 1,
                             bool fix_orientation = true);
@@ -881,6 +885,8 @@ public:
                  bool fix_orientation = true);
 
    /// Create a disjoint mesh from the given mesh array
+   ///
+   /// @note Data is copied from the meshes in @a mesh_array.
    Mesh(Mesh *mesh_array[], int num_pieces);
 
    /// Deprecated: see @a MakeRefined.
@@ -1005,8 +1011,13 @@ public:
    const double *GetVertex(int i) const { return vertices[i](); }
 
    /// @brief Return pointer to vertex i's coordinates.
+   ///
    /// @warning For high-order meshes (when Nodes != NULL) vertices may not
    /// being updated and should not be used!
+   ///
+   /// @note The pointer returned by this function can be used to
+   /// alter vertex locations but the pointer itself must not be
+   /// changed by the caller.
    double *GetVertex(int i) { return vertices[i](); }
 
    void GetElementData(int geom, Array<int> &elem_vtx, Array<int> &attr) const
