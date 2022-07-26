@@ -69,7 +69,6 @@ void test_hpm_pgf(HypreParVector U, HypreParMatrix k);
 SparseMatrix build_sparse_from_dense(DenseMatrix & dm);
 
 // Exact solution
-double u0_function(const Vector &x);
 double exact_sol(const Vector &x, double t);
 double zero_sol(const Vector &x, double t) { return 0;}
 
@@ -283,7 +282,7 @@ int main(int argc, char *argv[])
    }
    double hmin, hmax, kmin, kmax;
    pmesh->GetCharacteristics(hmin, hmax, kmin, kmax);
-   if (match_dt_to_h) { dt = hmin/2.; }
+   if (match_dt_to_h) { dt = hmin; }
    if (one_time_step) { t_final = dt; }
 
    // 7. Define the parallel H1 finite element space on the
@@ -443,13 +442,13 @@ int main(int argc, char *argv[])
 
    // dij_matrix has no time dependence
    adv.build_dij_matrix(*u, velocity);
-   adv.calculate_timestep();
+   // adv.calculate_timestep();
 
    // Optimize time step, unless running convergence analysis
-   if (!match_dt_to_h)
-   {
-      dt = adv.get_timestep(); // According to CFL, take min across processors.
-   }
+   // if (!match_dt_to_h)
+   // {
+   //    dt = adv.get_timestep(); // According to CFL, take min across processors.
+   // }
 
    cout << "dt: " << dt << endl;
    cout << "cfl: " << adv.get_timestep() << endl;
@@ -910,32 +909,22 @@ double exact_sol(const Vector &x, const double t)
       }
       case 4:
       {
+         double coeff = M_PI;
          switch (dim)
          {
             case 1:
             {
-               double coeff = M_PI /(bb_max[0] - bb_min[0]);
                double val = sin(coeff*(X[0] - v[0]*t));
                return val;
             }
             case 2:
             {
-               Vector coeff = v;
-               for (int i = 0; i < dim; i++)
-               {
-                  coeff[i] = 2 * M_PI / (bb_max[i] - bb_min[i]);
-               }
-               double val = sin(coeff[0]*(X[0]-v[0]*t))*sin(coeff[1]*(X[1]-v[1]*t));
+               double val = sin(coeff*(X[0]-v[0]*t))*sin(coeff*(X[1]-v[1]*t));
                return val;
             }
             case 3:
             {
-               Vector coeff = v;
-               for (int i = 0; i < dim; i++)
-               {
-                  coeff[i] = 2 * M_PI / (bb_max[i] - bb_min[i]);
-               }
-               double val = sin(coeff[0]*(X[0]-v[0]*t))*sin(coeff[1]*(X[1]-v[1]*t))*sin(coeff[2]*(X[2]-v[2]*t));
+               double val = sin(coeff*(X[0]-v[0]*t))*sin(coeff*(X[1]-v[1]*t))*sin(coeff*(X[2]-v[2]*t));
                return val;
             }
          }
@@ -945,9 +934,18 @@ double exact_sol(const Vector &x, const double t)
          switch (dim)
          {
             case 1:
+            {
+               if (pow(X[0] - v[0]*t, 2) < 0.25)
+               { 
+                  return 1.;
+               }
+               else {
+                  return 0.;
+               }
+            }
             case 2:
             {
-               if (pow(X[0],2) + pow(X[1], 2) < 0.25)
+               if (pow(X[0]-v[0]*t,2) + pow(X[1]-v[1]*t, 2) < 0.25)
                {
                   return 1.;
                }
@@ -971,7 +969,8 @@ double inflow_function(const Vector &x)
       case 1:
       case 2:
       case 3:
-      case 4: return 0.0;
+      case 4: 
+      case 5: return 0.0;
    }
    return 0.0;
 }
