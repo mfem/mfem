@@ -954,10 +954,10 @@ public:
    virtual int GetNFbyType(FaceType type) const;
 
    /// Utility function: sum integers from all processors (Allreduce).
-   virtual long ReduceInt(int value) const { return value; }
+   virtual long long ReduceInt(int value) const { return value; }
 
    /// Return the total (global) number of elements.
-   long GetGlobalNE() const { return ReduceInt(NumOfElements); }
+   long long GetGlobalNE() const { return ReduceInt(NumOfElements); }
 
    /** @brief Return the mesh geometric factors corresponding to the given
        integration rule.
