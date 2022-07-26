@@ -133,7 +133,6 @@ bool LinearForm::SupportsDevice()
    for (int e = 0; e < fes->GetNE(); ++e)
    {
       const FiniteElement *fe = fes->GetFE(e);
-      if (fe->GetMapType() != FiniteElement::VALUE) { return false; }
       if (!dynamic_cast<const TensorBasisElement*>(fe)) { return false; }
    }
 

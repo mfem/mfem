@@ -85,7 +85,12 @@ MFEM_REGISTER_TMOP_KERNELS(void, DatcSize,
       for (int wrk = MFEM_CUDA_BLOCKS >> 1; wrk > 0; wrk >>= 1)
       {
          MFEM_FOREACH_THREAD(t,x,MFEM_CUDA_BLOCKS)
-         { if (t < wrk) { min_size[t] = fmin(min_size[t], min_size[t+wrk]); } }
+         {
+            if (t < wrk && MFEM_THREAD_ID(y)==0 && MFEM_THREAD_ID(z)==0)
+            {
+               min_size[t] = fmin(min_size[t], min_size[t+wrk]);
+            }
+         }
          MFEM_SYNC_THREAD;
       }
       min = min_size[0];
