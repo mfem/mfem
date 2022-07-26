@@ -81,7 +81,8 @@ protected:
    IsoparametricTransformation FaceNbrTransformation;
 
    // glob_elem_offset + local element number defines a global element numbering
-   mutable long glob_elem_offset, glob_offset_sequence;
+   mutable long long glob_elem_offset;
+   mutable long glob_offset_sequence;
    void ComputeGlobalElementOffset() const;
 
    // Enable Print() to add the parallel interface as boundary (typically used
@@ -295,10 +296,10 @@ public:
 
    /** Map a global element number to a local element number. If the global
        element is not on this processor, return -1. */
-   int GetLocalElementNum(long global_element_num) const;
+   int GetLocalElementNum(long long global_element_num) const;
 
    /// Map a local element number to a global element number.
-   long GetGlobalElementNum(int local_element_num) const;
+   long long GetGlobalElementNum(int local_element_num) const;
 
    /** The following functions define global indices for all local vertices,
        edges, faces, or elements. The global indices have no meaning or
@@ -446,7 +447,7 @@ public:
    MFEM_DEPRECATED void ReorientTetMesh() override;
 
    /// Utility function: sum integers from all processors (Allreduce).
-   long ReduceInt(int value) const override;
+   long long ReduceInt(int value) const override;
 
    /** Load balance the mesh by equipartitioning the global space-filling
        sequence of elements. Works for nonconforming meshes only. */
