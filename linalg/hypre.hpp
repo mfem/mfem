@@ -848,6 +848,13 @@ public:
    /// Read a matrix saved as a HYPRE_IJMatrix
    void Read_IJMatrix(MPI_Comm comm, const char *fname);
 
+   void SortRows()
+   {
+#if defined(HYPRE_USING_CUSPARSE) || defined(HYPRE_USING_ROCSPARSE)
+      hypre_CSRMatrixSortRow(A);
+#endif
+   }
+
    /// Print information about the hypre_ParCSRCommPkg of the HypreParMatrix.
    void PrintCommPkg(std::ostream &out = mfem::out) const;
 
