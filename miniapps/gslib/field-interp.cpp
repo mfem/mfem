@@ -58,12 +58,13 @@ int main (int argc, char *argv[])
    const char *src_mesh_file = "../meshing/square01.mesh";
    const char *tar_mesh_file = "../../data/inline-tri.mesh";
    const char *src_sltn_file = "must_be_provided_by_the_user.gf";
-   int src_fieldtype  = 0;
-   int src_ncomp      = 1;
-   int ref_levels     = 0;
-   int fieldtype      = -1;
-   int order          = 3;
-   bool visualization = true;
+   int src_fieldtype   = 0;
+   int src_ncomp       = 1;
+   int src_gf_ordering = 0;
+   int ref_levels      = 0;
+   int fieldtype       = -1;
+   int order           = 3;
+   bool visualization  = true;
 
    // Parse command-line options.
    OptionsParser args(argc, argv);
@@ -79,6 +80,8 @@ int main (int argc, char *argv[])
                   "0 - H1 (default), 1 - L2, 2 - H(div), 3 - H(curl).");
    args.AddOption(&src_ncomp, "-nc", "--ncomp",
                   "Number of components for H1 or L2 GridFunctions.");
+   args.AddOption(&src_gf_ordering, "-gfo", "--gfo",
+                  "Node ordering: 0 (byNodes) or 1 (byVDim)");
    args.AddOption(&ref_levels, "-r", "--refine",
                   "Number of refinements of the interpolation mesh.");
    args.AddOption(&fieldtype, "-ft", "--field-type",
@@ -156,7 +159,10 @@ int main (int argc, char *argv[])
 
    if (src_fieldtype > -1)
    {
-      src_fes = new FiniteElementSpace(&mesh_1, src_fec, src_ncomp);
+      MFEM_VERIFY(src_gf_ordering >= 0 && src_gf_ordering <= 1,
+                  " Source grid function ordering must be 0 (byNodes)"
+                  " or 1 (byVDIM.");
+      src_fes = new FiniteElementSpace(&mesh_1, src_fec, src_ncomp, src_gf_ordering);
       func_source = new GridFunction(src_fes);
       // Project the grid function using VectorFunctionCoefficient.
       VectorFunctionCoefficient F(src_vdim, vector_func);
@@ -246,7 +252,8 @@ int main (int argc, char *argv[])
       MFEM_ABORT("GridFunction type not supported.");
    }
    std::cout << "Target FE collection: " << tar_fec->Name() << std::endl;
-   tar_fes = new FiniteElementSpace(&mesh_2, tar_fec, tar_vdim);
+   tar_fes = new FiniteElementSpace(&mesh_2, tar_fec, tar_vdim,
+                                    src_fes->GetOrdering());
    GridFunction func_target(tar_fes);
 
    const int NE = mesh_2.GetNE(),
@@ -315,7 +322,9 @@ int main (int argc, char *argv[])
                for (int d = 0; d < tar_ncomp; d++)
                {
                   // Arrange values byNodes
-                  elem_dof_vals(j+d*nsp) = interp_vals(d*nsp*NE + i*nsp + j);
+                  int idx = src_fes->GetOrdering() == Ordering::byNODES ?
+                            d*nsp*NE + i*nsp + j : i*nsp*dim + d + j*dim;
+                  elem_dof_vals(j + d*nsp) = interp_vals(idx);
                }
             }
             func_target.SetSubVector(vdofs, elem_dof_vals);
@@ -337,7 +346,9 @@ int main (int argc, char *argv[])
             for (int d = 0; d < tar_ncomp; d++)
             {
                // Arrange values byVDim
-               elem_dof_vals(j*tar_ncomp+d) = interp_vals(d*nsp*NE + i*nsp + j);
+               int idx = src_fes->GetOrdering() == Ordering::byNODES ?
+                         d*nsp*NE + i*nsp + j : i*nsp*dim + d + j*dim;
+               elem_dof_vals(j*tar_ncomp+d) = interp_vals(idx);
             }
          }
          tar_fes->GetFE(i)->ProjectFromNodes(elem_dof_vals,
