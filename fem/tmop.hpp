@@ -64,13 +64,11 @@ public:
 
        Computes weight * d(dW_dxi)_d(xj) at the current point, for all i and j,
        where x1 ... xn are the FE dofs. This function is usually defined using
-       the matrix invariants and their derivatives.
-   */
+       the matrix invariants and their derivatives. */
    virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
                           const double weight, DenseMatrix &A) const = 0;
 
-   /** @brief Return the metric ID.
-    */
+   /** @brief Return the metric ID. */
    virtual int Id() const { return 0; }
 };
 
@@ -446,7 +444,7 @@ public:
                           const double weight, DenseMatrix &A) const;
 };
 
-/// 3D barrier Shape (S) metric.
+/// 3D barrier Shape (S) metric, well-posed.
 class TMOP_Metric_301 : public TMOP_QualityMetric
 {
 protected:
@@ -462,7 +460,7 @@ public:
                           const double weight, DenseMatrix &A) const;
 };
 
-/// 3D barrier Shape (S) metric.
+/// 3D barrier Shape (S) metric, well-posed.
 class TMOP_Metric_302 : public TMOP_QualityMetric
 {
 protected:
@@ -480,14 +478,14 @@ public:
    virtual int Id() const { return 302; }
 };
 
-/// 3D barrier Shape (S) metric.
+/// 3D barrier Shape (S) metric, well-posed.
 class TMOP_Metric_303 : public TMOP_QualityMetric
 {
 protected:
    mutable InvariantsEvaluator3D<double> ie;
 
 public:
-   // W = |J|^2 / 3 * det(J)^(-2/3) - 1.
+   // W = |J|^2 / 3 / det(J)^(2/3) - 1.
    virtual double EvalW(const DenseMatrix &Jpt) const;
 
    virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const;
@@ -496,6 +494,24 @@ public:
                           const double weight, DenseMatrix &A) const;
 
    virtual int Id() const { return 303; }
+};
+
+/// 3D barrier Shape (S) metric, well-posed.
+class TMOP_Metric_304 : public TMOP_QualityMetric
+{
+protected:
+   mutable InvariantsEvaluator3D<double> ie;
+
+public:
+   // W = |J|^3 / 3^(3/2) / det(J) - 1.
+   virtual double EvalW(const DenseMatrix &Jpt) const;
+
+   virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const;
+
+   virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
+                          const double weight, DenseMatrix &A) const;
+
+   virtual int Id() const { return 304; }
 };
 
 /// 3D Size (V) untangling metric.
@@ -538,7 +554,7 @@ public:
    virtual int Id() const { return 313; }
 };
 
-/// 3D non-barrier Size (V) metric.
+/// 3D non-barrier metric without a type.
 class TMOP_Metric_315 : public TMOP_QualityMetric
 {
 protected:
@@ -556,7 +572,7 @@ public:
    virtual int Id() const { return 315; }
 };
 
-/// 3D barrier Size (V) metric.
+/// 3D barrier metric without a type.
 class TMOP_Metric_316 : public TMOP_QualityMetric
 {
 protected:
@@ -574,7 +590,7 @@ public:
                           const double weight, DenseMatrix &A) const;
 };
 
-/// 3D barrier Shape+Size (VS) metric.
+/// 3D barrier Shape+Size (VS) metric, well-posed.
 class TMOP_Metric_321 : public TMOP_QualityMetric
 {
 protected:
@@ -678,7 +694,7 @@ public:
    virtual ~TMOP_Metric_334() { delete sh_metric; delete sz_metric; }
 };
 
-/// Shifted barrier form of 3D metric 16 (volume, ideal barrier metric), 3D
+/// 3D shifted barrier form of metric 316 (not typed).
 class TMOP_Metric_352 : public TMOP_QualityMetric
 {
 protected:

@@ -189,7 +189,8 @@ int main (int argc, char *argv[])
                   // "252: 0.5(tau-1)^2/(tau-tau_0)       -- 2D untangling\n\t"
                   "301: (|T||T^-1|)/3-1              -- 3D shape\n\t"
                   "302: (|T|^2|T^-1|^2)/9-1          -- 3D shape\n\t"
-                  "303: (|T|^2)/3*tau^(2/3)-1        -- 3D shape\n\t"
+                  "303: (|T|^2)/3/tau^(2/3)-1        -- 3D shape\n\t"
+                  "304: (|T|^3)/3^{3/2}/tau-1        -- 3D shape\n\t"
                   // "311: (tau-1)^2-tau+sqrt(tau^2+eps)-- 3D untangling\n\t"
                   "313: (|T|^2)(tau-tau0)^(-2/3)/3   -- 3D untangling\n\t"
                   "315: (tau-1)^2                    -- 3D size\n\t"
@@ -443,6 +444,7 @@ int main (int argc, char *argv[])
       case 301: metric = new TMOP_Metric_301; break;
       case 302: metric = new TMOP_Metric_302; break;
       case 303: metric = new TMOP_Metric_303; break;
+      case 304: metric = new TMOP_Metric_304; break;
       // case 311: metric = new TMOP_Metric_311; break;
       case 313: metric = new TMOP_Metric_313(tauval); break;
       case 315: metric = new TMOP_Metric_315; break;
