@@ -789,6 +789,14 @@ public:
    void EliminateBC(const HypreParMatrix &Ae, const Array<int> &ess_dof_list,
                     const Vector &X, Vector &B) const;
 
+   /** @brief Eliminate essential (Dirichlet) boundary conditions.
+
+       @param[in] ess_dofs indices of the degrees of freedom belonging to the
+                           essential boundary conditions.
+       @param[in] diag_policy policy for diagonal entries. */
+   void EliminateBC(const Array<int> &ess_dofs,
+                    DiagonalPolicy diag_policy);
+
    /// Update the internal hypre_ParCSRMatrix object, A, to be on host.
    /** After this call A's diagonal and off-diagonal should not be modified
        until after a suitable call to {Host,Hypre}{Write,ReadWrite}. */
@@ -855,6 +863,18 @@ public:
 
    Type GetType() const { return Hypre_ParCSR; }
 };
+
+/// @brief Make @a A_hyp steal ownership of its diagonal part @a A_diag.
+///
+/// If @a A_hyp does not own I and J, then they are aliases pointing to the I
+/// and J arrays in @a A_diag. In that case, this function swaps the memory
+/// objects. Similarly for the data array.
+///
+/// After this function is called, @a A_hyp will own all of the arrays of its
+/// diagonal part.
+///
+/// @note I and J can only be aliases when HYPRE_BIGINT is disabled.
+void HypreStealOwnership(HypreParMatrix &A_hyp, SparseMatrix &A_diag);
 
 #if MFEM_HYPRE_VERSION >= 21800
 
