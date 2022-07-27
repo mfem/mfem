@@ -82,9 +82,9 @@ def compute_rates(vals):
             L2_rate = 0.
             Linf_rate = 0.
         else:
-            L1_rate = np.log(vals['L1_Error'][i]/vals['L1_Error'][i-1]) / np.log(vals['n_Dofs'][i-1]/vals['n_Dofs'][i])
-            L2_rate = np.log(vals['L2_Error'][i]/vals['L2_Error'][i-1]) / np.log(vals['n_Dofs'][i-1]/vals['n_Dofs'][i])
-            Linf_rate = np.log(vals['Linf_Error'][i]/vals['Linf_Error'][i-1]) / np.log(vals['n_Dofs'][i-1]/vals['n_Dofs'][i])
+            L1_rate = np.log(vals['L1_Error'][i]/vals['L1_Error'][i-1]) / np.log(vals['h'][i]/vals['h'][i-1])
+            L2_rate = np.log(vals['L2_Error'][i]/vals['L2_Error'][i-1]) / np.log(vals['h'][i]/vals['h'][i-1])
+            Linf_rate = np.log(vals['Linf_Error'][i]/vals['Linf_Error'][i-1]) / np.log(vals['h'][i]/vals['h'][i-1])
             
         vals['L1_Rates'].append(L1_rate)
         vals['L2_Rates'].append(L2_rate)
