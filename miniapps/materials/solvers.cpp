@@ -6,14 +6,19 @@ namespace materials {
 PDESolver::PDESolver(MatrixConstantCoefficient& diff_coefficient,
                      const Array<int>& ess_tdof_list,
                      ParFiniteElementSpace* fespace)
-  : ess_tdof_list_(ess_tdof_list), fespace_ptr_(fespace), k_(fespace), 
-    m_(fespace) {
+    : ess_tdof_list_(ess_tdof_list),
+      fespace_ptr_(fespace),
+      k_(fespace),
+      m_(fespace),
+      restriction_matrix_(nullptr),
+      prolongation_matrix_(nullptr),
+      Op_(nullptr) {
   StopWatch sw;
-  if (Mpi::Root()){
+  if (Mpi::Root()) {
     mfem::out << "Initialize Solver .." << std::endl;
   }
   sw.Start();
-  
+
   // Assemble stiffness matrix
   k_.AddDomainIntegrator(new DiffusionIntegrator(diff_coefficient));
   k_.Assemble();
@@ -34,76 +39,74 @@ PDESolver::PDESolver(MatrixConstantCoefficient& diff_coefficient,
   prolongation_matrix_ = fespace->GetProlongationMatrix();
 
   // Resize the the vectors B and X to the appropriate size
-  if (prolongation_matrix_){
+  if (prolongation_matrix_) {
     B_.SetSize(prolongation_matrix_->Width());
   } else {
-    mfem::err << "PDESolver::Solve: prolongation matrix is not defined" 
+    mfem::err << "PDESolver::Solve: prolongation matrix is not defined"
               << std::endl;
   }
-  if (restriction_matrix_){
+  if (restriction_matrix_) {
     X_.SetSize(restriction_matrix_->Height());
   } else {
-    mfem::err << "PDESolver::Solve: restriction matrix is not defined" 
+    mfem::err << "PDESolver::Solve: restriction matrix is not defined"
               << std::endl;
   }
 
   sw.Stop();
-  if (Mpi::Root()){
+  if (Mpi::Root()) {
     mfem::out << "Done. (" << sw.RealTime() << " sec)" << std::endl;
   }
 }
 
-void PDESolver::Solve(const LinearForm &b, GridFunction &x, 
-                      double alpha, double beta, 
-                      int exponent) {
-
-  // Form system of equations. This is less general than 
-  // BilinearForm::FormLinearSystem and kind of resembles the necessary subset 
+void PDESolver::Solve(const LinearForm &b, GridFunction &x, double alpha,
+                      double beta, int exponent) {
+  // Form system of equations. This is less general than
+  // BilinearForm::FormLinearSystem and kind of resembles the necessary subset
   // of instructions that we need in this case.
-  if (prolongation_matrix_){
+  if (prolongation_matrix_) {
     prolongation_matrix_->MultTranspose(b, B_);
   } else {
     B_ = b;
   }
   B_ *= beta;
-  X_ = 0.0; // Initialize X_ to zero. Important! Might contain nan/inf -> crash.
+  // Initialize X_ to zero. Important! Might contain nan/inf -> crash.
+  X_ = 0.0; 
+  delete Op_;
   Op_ = Add(1.0, stiffness_, alpha, mass_bc_); //  construct Operator
 
-  for (int i = 0; i < exponent; i++){
+  for (int i = 0; i < exponent; i++) {
     // Solve the linear system Op_ X_ = B_
     SolveLinearSystem();
 
-    if (i == exponent - 1)
-    {
+    if (i == exponent - 1) {
       // Update x to contain the solution of the problem in the last step.
       k_.RecoverFEMSolution(X_, b, x);
-    } 
+    }
     if (repeated_solve_) {
-      // Prepare for next iteration. X is a primal and B is a dual vector. B_ 
+      // Prepare for next iteration. X is a primal and B is a dual vector. B_
       // must be updated to represent X_ in the next step. Instead of copying
       // it, we must transform it appropriately with the mass matrix.
       mass_0_.Mult(X_, B_);
-      X_.SetSubVectorComplement(ess_tdof_list_,0.0);
+      X_.SetSubVectorComplement(ess_tdof_list_, 0.0);
     }
   }
-
 }
 
-void PDESolver::UpdateRHS(LinearForm&b){
-  if (!repeated_solve_){
+void PDESolver::UpdateRHS(LinearForm &b) {
+  if (!repeated_solve_) {
     // This function is only relevant for repeated solves.
     return;
   }
-  if (restriction_matrix_){
-    // This effectively writes the solution of the previous iteration X_ to the 
+  if (restriction_matrix_) {
+    // This effectively writes the solution of the previous iteration X_ to the
     // linear form b. Note that at the end of solve we update B_ = Mass * X_.
-    restriction_matrix_->MultTranspose(B_,b);
+    restriction_matrix_->MultTranspose(B_, b);
   } else {
-      b = B_;
+    b = B_;
   }
 }
 
-void PDESolver::SolveLinearSystem(){
+void PDESolver::SolveLinearSystem() {
   HypreBoomerAMG prec(*Op_);
   prec.SetPrintLevel(-1);
   CGSolver cg(MPI_COMM_WORLD);
