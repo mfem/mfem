@@ -143,6 +143,7 @@ int main(int argc, char *argv[])
    int ode_solver_type = 1;
    double t_final = 2.84; // Period of the exact solution for p.4
    bool one_time_step = false;
+   bool optimize_timestep = false;
    double dt = 0.01;
    bool match_dt_to_h = false;
    bool visualization = true;
@@ -185,6 +186,9 @@ int main(int argc, char *argv[])
    args.AddOption(&one_time_step, "-ots", "--one-time-step",
                   "-no-ots", "--no-one-time-step",
                   "Set end time to one time step for convergence testing.");
+   args.AddOption(&optimize_timestep, "-ot", "--optimize-timestep",
+                  "-no-ot", "--no-optimize-timestep",
+                  "Set timestep according to CFL.");
    args.AddOption(&dt, "-dt", "--time-step",
                   "Time step.");
    args.AddOption(&match_dt_to_h, "-ct", "--conv-test",
@@ -442,13 +446,13 @@ int main(int argc, char *argv[])
 
    // dij_matrix has no time dependence
    adv.build_dij_matrix(*u, velocity);
-   // adv.calculate_timestep();
+   adv.calculate_timestep();
 
    // Optimize time step, unless running convergence analysis
-   // if (!match_dt_to_h)
-   // {
-   //    dt = adv.get_timestep(); // According to CFL, take min across processors.
-   // }
+   if (optimize_timestep && !match_dt_to_h)
+   {
+      dt = adv.get_timestep(); // According to CFL, take min across processors.
+   }
 
    cout << "dt: " << dt << endl;
    cout << "cfl: " << adv.get_timestep() << endl;
@@ -914,7 +918,7 @@ double exact_sol(const Vector &x, const double t)
          {
             case 1:
             {
-               double val = sin(coeff*(X[0] - v[0]*t));
+               double val = sin(coeff*(X[0]-v[0]*t));
                return val;
             }
             case 2:
@@ -1026,7 +1030,7 @@ void create_global_expansion_matrix(ParFiniteElementSpace &pfes, SparseMatrix & 
             cout << "row i: " << i << " j: " << j << " local j: " << pfes.GetLocalTDofNumber(j) << endl;
          }
    }
-   cout << "Num of face neighbord dofs: " << pfes.num_face_nbr_dofs << endl;
+   cout << "Num of face neighbor dofs: " << pfes.num_face_nbr_dofs << endl;
 }
 
 // void test_hpm_pgf(HypreParVector U, HypreParMatrix K_hpm)
