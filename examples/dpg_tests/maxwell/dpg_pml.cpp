@@ -384,6 +384,21 @@ int main(int argc, char *argv[])
    test_fec.Append(F_fec);
    test_fec.Append(G_fec);
 
+   if (myid == 0)
+   {
+      mfem::out << "\n  Ref |" 
+                << "       Mesh       |"
+                << "    Dofs    |" 
+                << "   ω   |" 
+                << " PCG it |"
+                << " PCG time |"  << endl;
+      mfem::out << " --------------------"      
+                <<  "---------------------"    
+                <<  "------"    
+                <<  "-------------------" << endl;      
+   }
+
+
    ComplexParNormalEquations * a = new ComplexParNormalEquations(trial_fes,test_fec);
    // a->StoreMatrices();
 
@@ -676,10 +691,17 @@ int main(int argc, char *argv[])
    
    a->AddDomainLFIntegrator(new VectorFEDomainLFIntegrator(f),nullptr,1);
    
-
+   int dofs;
 
    for (int it = 0; it<pr; it++)
    {
+
+      dofs = 0;
+      for (int i = 0; i<trial_fes.Size(); i++)
+      {
+         dofs += trial_fes[i]->GlobalTrueVSize();
+      }
+
       if (static_cond) { a->EnableStaticCondensation(); }
       a->Assemble();
 
@@ -786,10 +808,10 @@ int main(int argc, char *argv[])
       StopWatch chrono;
 
       CGSolver cg(MPI_COMM_WORLD);
-      cg.SetRelTol(1e-7);
-      cg.SetAbsTol(1e-7);
-      cg.SetMaxIter(1000);
-      cg.SetPrintLevel(1);
+      cg.SetRelTol(1e-6);
+      cg.SetAbsTol(1e-6);
+      cg.SetMaxIter(10000);
+      cg.SetPrintLevel(0);
       cg.SetPreconditioner(*M); 
       cg.SetOperator(blockA);
       chrono.Clear();
@@ -798,6 +820,26 @@ int main(int argc, char *argv[])
       chrono.Stop();
       delete M;
 
+      int ne = pmesh.GetNE();
+      MPI_Allreduce(MPI_IN_PLACE,&ne,1,MPI_INT,MPI_SUM,MPI_COMM_WORLD);
+      int ne_x = (dim == 2) ? (int)sqrt(ne) : (int)cbrt(ne);
+      ostringstream oss;
+      double pcg_time = chrono.RealTime();
+      if (myid == 0)
+      {
+         if (dim == 2)
+         {
+            oss << ne_x << " x " << ne_x ;
+         }
+         else
+         {
+            oss << ne_x << " x " << ne_x << " x " << ne_x ;
+         }
+         // mfem::out << "Mesh: " << oss.str() << std::endl;
+         // mfem::out << "PCG time = " << pcg_time << std::endl;
+      }
+
+      int num_iter = cg.GetNumIterations();
 
       a->RecoverFEMSolution(X,x);
 
@@ -806,6 +848,19 @@ int main(int argc, char *argv[])
       E.real().MakeRef(E_fes,x.GetData());
       E.imag().MakeRef(E_fes,&x.GetData()[offsets.Last()]);
 
+      if (myid == 0)
+      {
+         mfem::out << std::right << std::setw(5) << it << " | " 
+                   << std::setw(16) << oss.str() << " | " 
+                   << std::setw(10) <<  dofs << " | " 
+                   << std::setprecision(0) << std::fixed
+                   << std::setw(2) <<  2*rnum << " π  | " 
+                   << std::setw(6) << std::fixed << num_iter << " | " 
+                   << std::setprecision(5) 
+                   << std::setw(8) << std::fixed << pcg_time << " | " 
+                   << std::scientific 
+                  << std::endl;
+      }
 
       if (visualization)
       {
