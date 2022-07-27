@@ -1230,7 +1230,7 @@ int main (int argc, char *argv[])
       mesh_name << "optimized.mesh";
       ofstream mesh_ofs(mesh_name.str().c_str());
       mesh_ofs.precision(8);
-      pmesh->PrintAsSerial(mesh_ofs);
+      pmesh->PrintAsOne(mesh_ofs);
    }
 
    // Compute the final energy of the functional.
