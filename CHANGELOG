@@ -119,6 +119,11 @@ Meshing improvements
 - Added a simpler interface to access mesh face information, see FaceInformation
   and GetFaceInformation in the Mesh class.
 
+- Added the method ParMesh::GetSerialMesh() that reconstructs a partitioned
+  parallel mesh on a given single rank. Also, added the method
+  ParMesh::PrintAsSerial() that saves the reconstructed serial mesh to a C++
+  stream on rank 0.
+
 - Gmsh meshes where all elements have zero physical tag (the default Gmsh output
   format if no physical groups are defined) are now successfully loaded, and
   elements are reassigned attribute number 1.
@@ -220,6 +225,13 @@ Miscellaneous
   QuadratureFunction::SaveVTU and ParaViewDataCollection::RegisterQField.
 
 - Fixed several MinGW build issues on Windows.
+
+- In various places in the library, replace the use of 'long' with 'long long'
+  to better support Win64 builds where 'long' is 32-bit and 'long long' is
+  64-bit. On Linux and MacOS, both types are typically 64-bit.
+
+- Update various "MemoryUsage" methods to return 'std::size_t' instead of 'long'
+  since the latter is 32-bit in Win64 builds.
 
 - Added 'double' atomicAdd implementation for previous versions of CUDA.
 
