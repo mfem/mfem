@@ -479,7 +479,7 @@ void dipole_pulse(const Vector &x, double t, Vector &j)
       j = v;
    }
 
-   j *= a * (t - b) * exp(-0.5 * pow((t-b)/c, 2.0) / (c * c));
+   j *= a * (t - b) * exp(-0.5 * pow((t-b)/c, 2.0)) / (c * c);
 }
 
 void
