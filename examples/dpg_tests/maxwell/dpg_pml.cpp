@@ -201,6 +201,8 @@ int main(int argc, char *argv[])
    int pr = 1;
 
    OptionsParser args(argc, argv);
+   args.AddOption(&mesh_file, "-m", "--mesh",
+                  "Mesh file to use.");
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree)");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
@@ -259,13 +261,6 @@ int main(int argc, char *argv[])
    }
    ParMesh pmesh(MPI_COMM_WORLD, mesh);
    mesh.Clear();
-
-   {
-      for (int l = 0; l < pr; l++)
-      {
-         pmesh.UniformRefinement();
-      }
-   }
 
    // 8. Set element attributes in order to distinguish elements in the PML
    pml->SetAttributes(&pmesh);
@@ -768,6 +763,9 @@ int main(int argc, char *argv[])
       }
 
       X = 0.;
+      StopWatch chrono1;
+      chrono1.Clear();
+      chrono1.Start();
       BlockDiagonalPreconditioner * M = new BlockDiagonalPreconditioner(tdof_offsets);
 
       if (!static_cond)
@@ -805,15 +803,20 @@ int main(int argc, char *argv[])
       M->SetDiagonalBlock(skip+num_blocks+1,solver_hatH);
 
 
-      StopWatch chrono;
 
       CGSolver cg(MPI_COMM_WORLD);
-      cg.SetRelTol(1e-6);
-      cg.SetAbsTol(1e-6);
+      cg.SetRelTol(1e-5);
+      cg.SetAbsTol(1e-5);
       cg.SetMaxIter(10000);
       cg.SetPrintLevel(0);
       cg.SetPreconditioner(*M); 
       cg.SetOperator(blockA);
+      chrono1.Stop();
+      if (myid == 0)
+      {
+         mfem::out << "T setup = " << chrono1.RealTime() << endl;
+      }
+      StopWatch chrono;
       chrono.Clear();
       chrono.Start();
       cg.Mult(B, X);

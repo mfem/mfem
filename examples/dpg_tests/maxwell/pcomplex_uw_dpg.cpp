@@ -122,7 +122,7 @@ int main(int argc, char *argv[])
    int myid = Mpi::WorldRank();
    Hypre::Init();
 
-   const char *mesh_file = "../../../data/inline-hex.mesh";
+   const char *mesh_file = "../../../data/inline-quad.mesh";
    int order = 1;
    int delta_order = 1;
    bool visualization = true;
@@ -558,8 +558,8 @@ int main(int argc, char *argv[])
       StopWatch chrono;
 
       CGSolver cg(MPI_COMM_WORLD);
-      cg.SetRelTol(1e-7);
-      cg.SetAbsTol(1e-7);
+      cg.SetRelTol(1e-6);
+      cg.SetAbsTol(1e-6);
       cg.SetMaxIter(100000);
       cg.SetPrintLevel(0);
       cg.SetPreconditioner(*M); 
