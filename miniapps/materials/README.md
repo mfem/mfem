@@ -51,15 +51,15 @@ particles and $x_k$ is the position of particle $k$.
 
 Generate 5 paticles with random imperfections
 ```bash
-mpirun -np 4 synthetic_materials -o 1 -r 5 -nu 2 \
-       -l1 0.0003 -l2 0.0003 -l3 0.0003 -z 0.01 \
+mpirun -np 4 synthetic_materials -o 1 -r 3 -rp 2 -nu 2 \
+       -l1 0.015 -l2 0.015 -l3 0.015 -z 0.01 \
        -t 0.08 -n 5 -pl2 3 -top 0
 ```
 
 Generate an Octet-Truss with random imperfections
 ```bash
-mpirun -np 4 synthetic_materials -o 1 -r 5 -nu 2 \
-       -l1 0.0001 -l2 0.0001 -l3 0.0001 -z 0.01 \
+mpirun -np 4 synthetic_materials -o 1 -r 3 -rp 2 -nu 2 \
+       -l1 0.02 -l2 0.02 -l3 0.02 -z 0.01 \
        -t 0.08 -top 1
 ```
 

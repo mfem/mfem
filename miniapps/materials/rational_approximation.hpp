@@ -49,7 +49,6 @@ void RationalApproximation_AAA(const Vector &val, const Vector &pt,
                                Array<double> &z, Array<double> &f, Vector &w,
                                double tol, int max_order);
 
-
 /** ComputePolesAndZeros: compute the @a poles [out] and @a zeros [out] of the
     rational function f(z) = C p(z)/q(z) from its ration barycentric form.
 
@@ -62,7 +61,8 @@ void RationalApproximation_AAA(const Vector &val, const Vector &pt,
 
     See pg. A1501 of Nakatsukasa et al. [1]. */
 void ComputePolesAndZeros(const Vector &z, const Vector &f, const Vector &w,
-                          Array<double> & poles, Array<double> & zeros, double &scale);
+                          Array<double> &poles, Array<double> &zeros,
+                          double &scale);
 
 /** PartialFractionExpansion: compute the partial fraction expansion of the
     rational function f(z) = Σ_i c_i / (z - p_i) from its @a poles [in] and
@@ -72,8 +72,8 @@ void ComputePolesAndZeros(const Vector &z, const Vector &f, const Vector &w,
     @param[in]  zeros   Array of zeros
     @param[in]  scale   Scaling constant
     @param[out] coeffs  Coefficients c_i */
-void PartialFractionExpansion(double scale, Array<double> & poles,
-                              Array<double> & zeros, Array<double> & coeffs);
+void PartialFractionExpansion(double scale, Array<double> &poles,
+                              Array<double> &zeros, Array<double> &coeffs);
 
 /** ComputePartialFractionApproximation: compute a rational approximation (RA)
     in partial fraction form, e.g., f(z) ≈ Σ_i c_i / (z - p_i), from sampled
@@ -92,10 +92,10 @@ void PartialFractionExpansion(double scale, Array<double> & poles,
            @a alpha != 0.99, then @a alpha = 0.5 is used by default.
 
    See pg. A1501 of Nakatsukasa et al. [1]. */
-void ComputePartialFractionApproximation(double & alpha,
-                                         Array<double> & coeffs, Array<double> & poles,
+void ComputePartialFractionApproximation(double &alpha, Array<double> &coeffs,
+                                         Array<double> &poles,
                                          double lmax = 1000.,
-                                         double tol=1e-10, int npoints = 1000,
+                                         double tol = 1e-10, int npoints = 1000,
                                          int max_order = 100);
 
 } // namespace mfem
