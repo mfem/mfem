@@ -1711,6 +1711,16 @@ HypreParMatrix *HypreParMatrix::ExtractSubmatrix(const Array<int> &indices,
 }
 #endif
 
+void HypreParMatrix::EnsureMultTranspose() const
+{
+#if (MFEM_HYPRE_VERSION == 22500 && HYPRE_DEVELOP_NUMBER >= 1) || \
+    (MFEM_HYPRE_VERSION > 22500)
+#ifdef HYPRE_USING_GPU
+   hypre_ParCSRMatrixLocalTranspose(A);
+#endif
+#endif
+}
+
 HYPRE_Int HypreParMatrix::Mult(HypreParVector &x, HypreParVector &y,
                                double a, double b) const
 {
@@ -1833,10 +1843,11 @@ void HypreParMatrix::MultTranspose(double a, const Vector &x,
       }
    }
 
-#if (MFEM_HYPRE_VERSION <= 22300) && !(MFEM_HYPRE_VERSION == 22300 && HYPRE_DEVELOP_NUMBER >=8)
+#if (MFEM_HYPRE_VERSION == 22500 && HYPRE_DEVELOP_NUMBER >= 1) || \
+    (MFEM_HYPRE_VERSION > 22500)
 #ifdef HYPRE_USING_GPU
    MFEM_VERIFY(A->diagT != NULL,
-               "Transpose action requires hypre_ParCSRMatrixLocalTranspose");
+               "Transpose action requires EnsureMultTranspose()");
 #endif
 #endif
 
@@ -1855,6 +1866,13 @@ HYPRE_Int HypreParMatrix::Mult(HYPRE_ParVector x, HYPRE_ParVector y,
 HYPRE_Int HypreParMatrix::MultTranspose(HypreParVector & x, HypreParVector & y,
                                         double a, double b) const
 {
+#if (MFEM_HYPRE_VERSION == 22500 && HYPRE_DEVELOP_NUMBER >= 1) || \
+    (MFEM_HYPRE_VERSION > 22500)
+#ifdef HYPRE_USING_GPU
+   MFEM_VERIFY(A->diagT != NULL,
+               "Transpose action requires EnsureMultTranspose()");
+#endif
+#endif
    x.HypreRead();
    (b == 0.0) ? y.HypreWrite() : y.HypreReadWrite();
    return hypre_ParCSRMatrixMatvecT(a, A, x, b, y);
