@@ -1,6 +1,5 @@
 {
-    "dependencies": [ "metis" ],
-    "overrides": [
+    "dependencies": [
         { "name": "metis", "version": "5.1.0" }
     ]
 }
