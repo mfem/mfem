@@ -62,6 +62,8 @@ New and updated examples and miniapps
 
 - Added TMOP metrics for mesh untangling and worst-case quality improvement.
 
+- Added support for ordering search points byVDIM in FindPointsGSLIB.
+
 Version 4.4, released on March 21, 2022
 =======================================
 
