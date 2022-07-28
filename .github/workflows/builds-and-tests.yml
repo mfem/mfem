@@ -188,6 +188,7 @@ jobs:
         archive: ${{ env.METIS_ARCHIVE }}
         dir: ${{ env.METIS_TOP_DIR }}
 
+    # Installing Windows dependencies
     # Any change to config/vcpkg/vcpkg.json will result in a new installation
     - name: cache vcpkg (Windows)
       if: matrix.os == 'windows-2022'
@@ -195,19 +196,19 @@ jobs:
       uses: actions/cache@v3
       with:
         path: vcpkg_cache
-        key: ${{ runner.os }}-${{ matrix.mpi }}-vcpkg-${{ hashFiles('config/vcpkg/vcpkg.json') }}
+        key: ${{ runner.os }}-vcpkg-${{ hashFiles('${{ env.MFEM_TOP_DIR }}/config/vcpkg/vcpkg-${{ matrix.mpi }}.json') }}
 
-    - name: prepare binary cache location (Windows)
+    # For Windows package manager, we use a manifest file.
+    # At the moment, pin-pointing a version can only be done in a manifest file.
+    # It is convenient to hash that file for changes in the cache key.
+    - name: install dependencies (Windows)
       if: matrix.os == 'windows-2022' && steps.vcpkg-cache.outputs.cache-hit != 'true'
-      run: |
-        mkdir -p vcpkg_cache
-
-    - name: install metis (Windows)
-      if: matrix.mpi == 'par' && matrix.os == 'windows-2022'
       env:
         VCPKG_DEFAULT_BINARY_CACHE: ${{ github.workspace }}/vcpkg_cache
       run: |
-        vcpkg install metis --triplet=x64-windows-static
+        mkdir -p vcpkg_cache
+        cp ${{ env.MFEM_TOP_DIR }}/config/vcpkg/vcpkg-${{ matrix.mpi }}.json ./vcpkg.json
+        vcpkg install --triplet=x64-windows-static
 
     # MFEM build and test
     - name: build
@@ -230,7 +231,7 @@ jobs:
     - name: checks
       if: matrix.build-system == 'make' && matrix.target == 'dbg'
       run: |
-        cd ${{ env.MFEM_TOP_DIR }}  && make check
+        cd ${{ env.MFEM_TOP_DIR }} && make check
 
     - name: unit tests
       if: matrix.build-system == 'make' && matrix.target == 'opt'
