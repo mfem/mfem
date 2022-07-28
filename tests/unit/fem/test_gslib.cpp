@@ -48,20 +48,23 @@ std::string SpaceName(Space space)
 
 TEST_CASE("GSLIBInterpolate", "[GSLIBInterpolate]")
 {
-   auto space = GENERATE(Space::H1, Space::L2);
-   auto simplex = GENERATE(true, false);
-   int dim = GENERATE(2, 3);
-   func_order = GENERATE(1, 3);
-   int mesh_order = GENERATE(1, 3);
-   int mesh_node_ordering = GENERATE(0, 1);
-   int point_ordering = GENERATE(0, 1);
-   int ncomp      = GENERATE(1, 2);
-   int gf_ordering = GENERATE(0, 1);
+   auto space               = GENERATE(Space::H1, Space::L2);
+   auto simplex             = GENERATE(true, false);
+   int dim                  = GENERATE(2, 3);
+   func_order               = GENERATE(1, 2);
+   int mesh_order           = GENERATE(1, 2);
+   int mesh_node_ordering   = GENERATE(0, 1);
+   int point_ordering       = GENERATE(0, 1);
+   int ncomp                = GENERATE(1, 2);
+   int gf_ordering          = GENERATE(0, 1);
+   bool href                = GENERATE(true, false);
+   bool pref                = GENERATE(true, false);
 
    int ne = 4;
 
    int total_ne = std::pow(ne, dim);
-   CAPTURE(dim, simplex, total_ne, func_order, mesh_order);
+   CAPTURE(space, simplex, dim, func_order, mesh_order, mesh_node_ordering,
+           point_ordering, ncomp, gf_ordering, href, pref);
 
    Mesh mesh;
    if (dim == 2)
@@ -74,6 +77,9 @@ TEST_CASE("GSLIBInterpolate", "[GSLIBInterpolate]")
       Element::Type type = simplex ? Element::TETRAHEDRON : Element::HEXAHEDRON;
       mesh = Mesh::MakeCartesian3D(ne, ne, ne, type, 1.0, 1.0, 1.0);
    }
+
+   if (href || pref) { mesh.EnsureNCMesh(); }
+   if (href) { mesh.RandomRefinement(0.5); }
 
    // Set Mesh NodalFESpace
    H1_FECollection fecm(mesh_order, dim);
