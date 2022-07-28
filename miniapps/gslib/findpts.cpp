@@ -50,63 +50,6 @@
 using namespace mfem;
 using namespace std;
 
-// Experimental - required for visualizing functions on p-refined spaces.
-GridFunction* ProlongToMaxOrder(const GridFunction *x, const int fieldtype)
-{
-   const FiniteElementSpace *fespace = x->FESpace();
-   Mesh *mesh = fespace->GetMesh();
-   const FiniteElementCollection *fec = fespace->FEColl();
-
-   // find the max order in the space
-   int max_order = 1;
-   for (int i = 0; i < mesh->GetNE(); i++)
-   {
-      max_order = std::max(fespace->GetElementOrder(i), max_order);
-   }
-
-   // create a visualization space of max order for all elements
-   FiniteElementCollection *fecInt = NULL;
-   if (fieldtype == 0)
-   {
-      fecInt = new H1_FECollection(max_order, mesh->Dimension());
-   }
-   else if (fieldtype == 1)
-   {
-      fecInt = new L2_FECollection(max_order, mesh->Dimension());
-   }
-   FiniteElementSpace *spaceInt = new FiniteElementSpace(mesh, fecInt);
-
-   IsoparametricTransformation T;
-   DenseMatrix I;
-
-   GridFunction *xInt = new GridFunction(spaceInt);
-
-   // interpolate solution vector in the larger space
-   for (int i = 0; i < mesh->GetNE(); i++)
-   {
-      Geometry::Type geom = mesh->GetElementGeometry(i);
-      T.SetIdentityTransformation(geom);
-
-      Array<int> dofs;
-      fespace->GetElementDofs(i, dofs);
-      Vector elemvect, vectInt;
-      x->GetSubVector(dofs, elemvect);
-
-      const auto *fe = fec->GetFE(geom, fespace->GetElementOrder(i));
-      const auto *feInt = fecInt->GetFE(geom, max_order);
-
-      feInt->GetTransferMatrix(*fe, T, I);
-      spaceInt->GetElementDofs(i, dofs);
-      vectInt.SetSize(dofs.Size());
-
-      I.Mult(elemvect, vectInt);
-      xInt->SetSubVector(dofs, vectInt);
-   }
-
-   xInt->MakeOwner(fecInt);
-   return xInt;
-}
-
 double func_order;
 
 // Scalar function to project
@@ -213,19 +156,23 @@ int main (int argc, char *argv[])
    MFEM_VERIFY(ncomp > 0, "Invalid number of components.");
    int vec_dim = ncomp;
    FiniteElementCollection *fec = NULL;
+   FiniteElementCollection *fec_pref = NULL;
    if (fieldtype == 0)
    {
       fec = new H1_FECollection(order, dim);
+      if (prefinement) { fec_pref =  new H1_FECollection(order+1, dim); }
       cout << "H1-GridFunction\n";
    }
    else if (fieldtype == 1)
    {
       fec = new L2_FECollection(order, dim);
+      if (prefinement) { fec_pref =  new L2_FECollection(order+1, dim); }
       cout << "L2-GridFunction\n";
    }
    else if (fieldtype == 2)
    {
       fec = new RT_FECollection(order, dim);
+      if (prefinement) { fec_pref =  new RT_FECollection(order+1, dim); }
       ncomp = 1;
       vec_dim = dim;
       cout << "H(div)-GridFunction\n";
@@ -233,6 +180,7 @@ int main (int argc, char *argv[])
    else if (fieldtype == 3)
    {
       fec = new ND_FECollection(order, dim);
+      if (prefinement) { fec_pref =  new ND_FECollection(order+1, dim); }
       ncomp = 1;
       vec_dim = dim;
       cout << "H(curl)-GridFunction\n";
@@ -251,8 +199,7 @@ int main (int argc, char *argv[])
       {
          if (rand() % 2 == 0)
          {
-            int element_order = sc_fes.GetElementOrder(e);
-            sc_fes.SetElementOrder(e, element_order + 1);
+            sc_fes.SetElementOrder(e, order + 1);
          }
       }
       sc_fes.Update(false);
@@ -263,13 +210,22 @@ int main (int argc, char *argv[])
    VectorFunctionCoefficient F(vec_dim, F_exact);
    field_vals.ProjectCoefficient(F);
 
-   GridFunction *field_vals_pref = prefinement ?
-                                   ProlongToMaxOrder(&field_vals, fieldtype) :
-                                   &field_vals;
-
    // Display the mesh and the field through glvis.
    if (visualization)
    {
+      FiniteElementSpace *sc_fes_pref = NULL;
+      GridFunction *field_vals_pref = NULL;
+      if (prefinement)
+      {
+         sc_fes_pref = new FiniteElementSpace(&mesh, fec_pref, ncomp, gf_ordering);
+         field_vals_pref = new GridFunction(sc_fes_pref);
+         field_vals_pref->ProjectCoefficient(F);
+      }
+      else
+      {
+         field_vals_pref = &field_vals;
+      }
+
       char vishost[] = "localhost";
       int  visport   = 19916;
       socketstream sout;
@@ -286,6 +242,10 @@ int main (int argc, char *argv[])
          if (dim == 2) { sout << "keys RmjA*****\n"; }
          if (dim == 3) { sout << "keys mA\n"; }
          sout << flush;
+      }
+      if (prefinement)
+      {
+         delete field_vals_pref; delete sc_fes_pref; delete fec_pref;
       }
    }
 
@@ -387,7 +347,6 @@ int main (int argc, char *argv[])
    // Free the internal gslib data.
    finder.FreeData();
 
-   if (prefinement) { delete field_vals_pref; }
    delete fec;
 
    return 0;
