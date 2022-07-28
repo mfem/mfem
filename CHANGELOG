@@ -11,6 +11,38 @@
 Version 4.4.1 (development)
 ===========================
 
+Meshing improvements
+--------------------
+- Added support for mixed meshes and pyramids in GSLIB-FindPoints.
+
+Discretization improvements
+---------------------------
+- Added support for assembling low-order-refined matrices using a GPU-enabled
+  "batched" algorithm. The lor_solvers and plor_solvers now fully support GPU
+  acceleration.
+
+- Added support for partial assembly and fully matrix-free operators on mixed
+  meshes (different element types and p-adaptivity) through libCEED, including
+  device acceleration, e.g. with NVIDIA and AMD GPUs. The p-adaptivity is
+  currently limited by MFEM capabilities, i.e. 2D serial meshes. All mixed
+  element topologies are supported in serial and parallel: segment, triangle,
+  square, tetrahedron, cube, prism, and pyramid.
+
+- Added full assembly and device support for several LinearForm integrators:
+  * DomainLF: (f, v)
+  * VectorDomainLF: ((f1,...,fn), (v1,...,vn))
+  * DomainLFGrad: (f, grad(v))
+  * VectorDomainLFGrad: ((f1x,f1y,f1z,...,fnx,fny,fnz), grad(v1,...,vn))
+
+- Added WhiteGaussianNoiseDomainLFIntegrator: a LinearFormIntegrator class for
+  spatial Gaussian white noise.
+
+- Added a new Zienkiewicz-Zhu patch recovery-based a posteriori error estimator.
+  See fem/estimators.hpp.
+
+Linear and nonlinear solvers
+----------------------------
+
 New and updated examples and miniapps
 -------------------------------------
 - Added a new elasticity miniapp, Hooke, that showcases a low-level approach of
@@ -19,14 +51,12 @@ New and updated examples and miniapps
   automatic differentiation tools like a native dual number implementation or a
   third party library such as Enzyme. See miniapps/elasticity for more details.
 
-- Added example for body-fitted volumetric and shape integration using the 
-  Algoim library.
+- Add a new example code, Example 33/33p, to demonstrate the solution of
+  spectral fractional PDEs with MFEM.
 
-- Added WhiteGaussianNoiseDomainLFIntegrator: a LinearFormIntegrator class for
-  spatial Gaussian white noise.
-
-- Added a new Zienkiewicz-Zhu patch recovery-based a posteriori error estimator.
-  See fem/estimators.hpp.
+Integrations, testing and documentation
+---------------------------------------
+- Added a Dockerfile for a simple MFEM container, see config/docker/README.md.
 
 - Added support for ParMoonolith, https://bitbucket.org/zulianp/par_moonolith,
   which provides parallel non-conforming, non-matching, variational, volumetric
@@ -34,24 +64,20 @@ New and updated examples and miniapps
   between arbitrarily distributed and unrelated finite element meshes in a
   variationally consistent way.
 
-- Added full assembly and device support for several LinearForm integrators:
-  * DomainLF: (f, v)
-  * VectorDomainLF: ((f1,...,fn), (v1,...,vn))
-  * DomainLFGrad: (f, grad(v))
-  * VectorDomainLFGrad: ((f1x,f1y,f1z,...,fnx,fny,fnz), grad(v1,...,vn))
+- Added support for the LLVM-based automatic differentiation tool Enzyme, see
+  https://github.com/EnzymeAD/Enzyme. Build system flags and a convenience
+  header are provided. The functionality and interaction are demonstrated in a
+  new miniapp in miniapps/elasticity.
 
-- Add a new example code, Example 33/33p, to demonstrate the solution of
-  spectral fractional PDEs with MFEM.
-
-- Added a Dockerfile for a simple MFEM container, see config/docker/README.md.
-
-- Added support for assembling low-order-refined matrices using a GPU-enabled
-  "batched" algorithm. The lor_solvers and plor_solvers now fully support GPU
-  acceleration.
+- Added example for body-fitted volumetric and shape integration using the
+  Algoim library.
 
 - Added Windows 2022 CI testing with GitHub actions.
 
-- Added support for mixed meshes and pyramids in GSLIB-FindPoints.
+Miscellaneous
+-------------
+- Various other simplifications, extensions, and bugfixes in the code.
+
 
 - Added boundary elimination with device support for `SparseMatrix` and
   `HypreParMatrix`.
@@ -64,14 +90,6 @@ New and updated examples and miniapps
 
 Version 4.4, released on March 21, 2022
 =======================================
-
-Integrations, testing and documentation
----------------------------------------
-- Added support for the LLVM-based automatic differentiation tool Enzyme, see
-  https://github.com/EnzymeAD/Enzyme. Build system flags and a convenience
-  header are provided. The functionality and interaction are demonstrated in a
-  new miniapp in miniapps/elasticity.
-
 
 Linear and nonlinear solvers
 ----------------------------
