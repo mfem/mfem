@@ -490,6 +490,7 @@ public:
        boundary is added to the actual boundary; both the element and boundary
        attributes are set to the processor number.  */
    void PrintAsOne(std::ostream &out = mfem::out) const;
+   void PrintAsSerial(std::ostream &out = mfem::out) const;
 
    /// Save the mesh as a single file (using ParMesh::PrintAsOne). The given
    /// @a precision is used for ASCII output.
