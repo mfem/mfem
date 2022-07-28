@@ -218,7 +218,7 @@ int main(int argc, char *argv[])
       MPI_Finalize();
       return 1;
    }
-   if (icase==2 || icase==7 || icase==8)
+   if (icase==2 || icase==7 || icase==8 || icase==9)
    {
       resiG=resi;
    }
@@ -384,6 +384,11 @@ int main(int argc, char *argv[])
            FunctionCoefficient psiInit(InitialPsi8);
            psiTmp.ProjectCoefficient(psiInit);
       }
+      else if (icase==9)
+      {
+           FunctionCoefficient psiInit(InitialPsi9);
+           psiTmp.ProjectCoefficient(psiInit);
+      }
       psiTmp.SetTrueVector();
 
       if (icase==1)
@@ -415,6 +420,11 @@ int main(int argc, char *argv[])
       {
            FunctionCoefficient jInit8(InitialJ8);
            jTmp.ProjectCoefficient(jInit8);
+      }
+      else if (icase==9)
+      {
+           FunctionCoefficient jInit9(InitialJ9);
+           jTmp.ProjectCoefficient(jInit9);
       }
       jTmp.SetTrueVector();
 
@@ -462,8 +472,11 @@ int main(int argc, char *argv[])
      w.MakeTRef(&fespace, vx, fe_offset3[2]);
 
    //+++++Set the initial conditions, and the boundary conditions
-   FunctionCoefficient phiInit(InitialPhi), psi7(BackPsi7), psi8(BackPsi8);
-   phi.ProjectCoefficient(phiInit);
+   FunctionCoefficient phiInit(InitialPhi), phiInit9(InitialPhi9), psi7(BackPsi7), psi8(BackPsi8);
+   if (icase!=9)
+      phi.ProjectCoefficient(phiInit);
+   else
+      phi.ProjectCoefficient(phiInit9);
    phi.SetTrueVector();
    phi.SetFromTrueVector(); 
 
@@ -497,11 +510,19 @@ int main(int argc, char *argv[])
         FunctionCoefficient psiInit(InitialPsi8);
         psi.ProjectCoefficient(psiInit);
    }
+   else if (icase==9)
+   {
+        FunctionCoefficient psiInit(InitialPsi9);
+        psi.ProjectCoefficient(psiInit);
+   }
    psi.SetTrueVector();
    psi.SetFromTrueVector(); 
 
-   FunctionCoefficient wInit(InitialW);
-   w.ProjectCoefficient(wInit);
+   FunctionCoefficient wInit(InitialW), wInit9(InitialW9);
+   if (icase!=9)
+      w.ProjectCoefficient(wInit);
+   else
+      w.ProjectCoefficient(wInit9);
    w.SetTrueVector();
    w.SetFromTrueVector();
    
@@ -514,24 +535,26 @@ int main(int argc, char *argv[])
    else if (icase==3 || icase==4){
        oper.SetRHSEfield(E0rhs3);
    }
-   else if (icase==7 || icase==8){
+   else if (icase==7 || icase==8 || icase==9){
        oper.SetRHSEfield(E0rhs7);
    }
 
    //set initial J
-   FunctionCoefficient jInit1(InitialJ), jInit2(InitialJ2), jInit3(InitialJ3), jInit4(InitialJ4), jInit7(InitialJ7), jInit8(InitialJ8), *jptr;
+   FunctionCoefficient *jptr;
    if (icase==1)
-       jptr=&jInit1;
+       jptr=new FunctionCoefficient(InitialJ);
    else if (icase==2)
-       jptr=&jInit2;
+       jptr=new FunctionCoefficient(InitialJ2);
    else if (icase==3)
-       jptr=&jInit3;
+       jptr=new FunctionCoefficient(InitialJ3);
    else if (icase==4)
-       jptr=&jInit4;
+       jptr=new FunctionCoefficient(InitialJ4);
    else if (icase==7)
-       jptr=&jInit7;
+       jptr=new FunctionCoefficient(InitialJ7);
    else if (icase==8)
-       jptr=&jInit8;
+       jptr=new FunctionCoefficient(InitialJ8);
+   else if (icase==9)
+       jptr=new FunctionCoefficient(InitialJ9);
    j.ProjectCoefficient(*jptr);
    j.SetTrueVector();
    oper.SetInitialJ(*jptr);
@@ -717,7 +740,7 @@ int main(int argc, char *argv[])
       gfv = new ParGridFunction(vfes);
       pre = new ParGridFunction(&fespace);
       dpsidt = new ParGridFunction(&fespace);
-      if (icase==7 || icase==8) {psi_sub = new ParGridFunction(&fespace);}
+      if (icase==7 || icase==8 || icase==9) {psi_sub = new ParGridFunction(&fespace);}
       grad = new ParMixedBilinearForm(&fespace, vfes);
       div = new ParMixedBilinearForm(vfes, &fespace);
       convect = new ParNonlinearForm(vfes);
@@ -870,7 +893,7 @@ int main(int argc, char *argv[])
       M_solver.Mult(zv, zv2);
       gradBP->SetFromTrueDofs(zv2);
 
-      if (icase==7){
+      if (icase==7 || icase==9){
         ParGridFunction psiBack(&fespace);
         psiBack.ProjectCoefficient(psi7);
         subtract(psi,psiBack,*psi_sub);
@@ -898,7 +921,7 @@ int main(int argc, char *argv[])
           pd->RegisterField("B", mag);
           pd->RegisterField("pre", pre);
           pd->RegisterField("dpsidt", dpsidt);
-          if (icase==7 || icase==8) {pd->RegisterField("psi_sub", psi_sub);}
+          if (icase==7 || icase==8 || icase==9) {pd->RegisterField("psi_sub", psi_sub);}
           pd->RegisterField("grad pre", gradP);
           pd->RegisterField("grad mag pre", gradBP);
           pd->RegisterField("B.gradB", BgradB);
@@ -1196,7 +1219,7 @@ int main(int argc, char *argv[])
                 }
               }
 
-              if (icase==7){
+              if (icase==7 || icase==9){
                 ParGridFunction psiBack(&fespace);
                 psiBack.ProjectCoefficient(psi7);
                 subtract(psi,psiBack,*psi_sub);

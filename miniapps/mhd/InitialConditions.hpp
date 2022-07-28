@@ -57,6 +57,13 @@ double InitialPsi8(const Vector &x);
 double BackPsi8(const Vector &x);
 double InitialJ8(const Vector &x);
 
+double InitialPsi9(const Vector &x);
+double InitialJ9(const Vector &x);
+double InitialPhi9(const Vector &x);
+double InitialW9(const Vector &x);
+
+
+
 double resiVari(const Vector &x);
 
 
