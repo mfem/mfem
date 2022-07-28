@@ -188,15 +188,16 @@ jobs:
         archive: ${{ env.METIS_ARCHIVE }}
         dir: ${{ env.METIS_TOP_DIR }}
 
+    # Any change to config/vcpkg/vcpkg.json will result in a new installation
     - name: cache vcpkg (Windows)
       if: matrix.os == 'windows-2022'
       id: vcpkg-cache
       uses: actions/cache@v3
       with:
         path: vcpkg_cache
-        key: ${{ runner.os }}-${{ matrix.mpi }}-vcpkg-v1
+        key: ${{ runner.os }}-${{ matrix.mpi }}-vcpkg-${{ hashFiles('config/vcpkg/vcpkg.json') }}
 
-    - name: prepare binary cache location
+    - name: prepare binary cache location (Windows)
       if: matrix.os == 'windows-2022' && steps.vcpkg-cache.outputs.cache-hit != 'true'
       run: |
         mkdir -p vcpkg_cache
@@ -206,10 +207,6 @@ jobs:
       env:
         VCPKG_DEFAULT_BINARY_CACHE: ${{ github.workspace }}/vcpkg_cache
       run: |
-        $PortFile = 'C:\vcpkg\ports\metis\portfile.cmake'
-        $OriginalURL = 'http://glaros.dtc.umn.edu/gkhome/fetch/sw/metis/metis-${METIS_VERSION}.tar.gz'
-        $NewURL = 'https://github.com/mfem/tpls/raw/gh-pages/metis-5.1.0.tar.gz'
-        (Get-Content $PortFile).replace($OriginalURL, $NewURL) | Set-Content $PortFile
         vcpkg install metis --triplet=x64-windows-static
 
     # MFEM build and test
