@@ -189,6 +189,7 @@ jobs:
         dir: ${{ env.METIS_TOP_DIR }}
 
     - name: cache vcpkg (Windows)
+      if: matrix.os == 'windows-2022'
       id: vcpkg-cache
       uses: actions/cache@v3
       with:
