@@ -196,7 +196,7 @@ jobs:
       uses: actions/cache@v3
       with:
         path: vcpkg_cache
-        key: ${{ runner.os }}-vcpkg-${{ hashFiles('${{ env.MFEM_TOP_DIR }}/config/vcpkg/vcpkg-${{ matrix.mpi }}.json') }}
+        key: ${{ runner.os }}-vcpkg-${{ hashFiles( format('**/vcpkg-{0}.json', ${{ matrix.mpi }}) ) }}
 
     # For Windows package manager, we use a manifest file.
     # At the moment, pin-pointing a version can only be done in a manifest file.
