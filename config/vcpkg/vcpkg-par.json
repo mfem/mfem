@@ -1,5 +1,8 @@
 {
-    "dependencies": [
+    "dependencies": [],
+    "builtin-baseline": "e20e1c79080f076dbdeac37579a6e9e009a8ff31",
+    "overrides": [
         { "name": "metis", "version": "5.1.0" }
     ]
+
 }
