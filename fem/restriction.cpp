@@ -324,7 +324,8 @@ int ElementRestriction::FillI(SparseMatrix &mat) const
 
       int i_elts[Max];
       const int i_gm = e*elt_dofs + i;
-      const int i_L = d_gather_map[i_gm];
+      const int si_L = d_gather_map[i_gm];
+      const int i_L = (si_L >= 0) ? si_L : -1-si_L;
       const int i_offset = d_offsets[i_L];
       const int i_next_offset = d_offsets[i_L+1];
       const int i_nbElts = i_next_offset - i_offset;
@@ -334,13 +335,15 @@ int ElementRestriction::FillI(SparseMatrix &mat) const
          "MaxNbNbr variable to comply with your mesh.");
       for (int e_i = 0; e_i < i_nbElts; ++e_i)
       {
-         const int i_E = d_indices[i_offset+e_i];
+         const int si_E = d_indices[i_offset+e_i];
+         const int i_E = (si_E >= 0) ? si_E : -1 - si_E;
          i_elts[e_i] = i_E/elt_dofs;
       }
       for (int j = 0; j < elt_dofs; j++)
       {
          const int j_gm = e*elt_dofs + j;
-         const int j_L = d_gather_map[j_gm];
+         const int sj_L = d_gather_map[j_gm];
+         const int j_L = (sj_L >= 0) ? sj_L : -1-sj_L;
          const int j_offset = d_offsets[j_L];
          const int j_next_offset = d_offsets[j_L+1];
          const int j_nbElts = j_next_offset - j_offset;
@@ -353,7 +356,8 @@ int ElementRestriction::FillI(SparseMatrix &mat) const
             int j_elts[Max];
             for (int e_j = 0; e_j < j_nbElts; ++e_j)
             {
-               const int j_E = d_indices[j_offset+e_j];
+               const int sj_E = d_indices[j_offset+e_j];
+               const int j_E = (sj_E >= 0) ? sj_E : -1-sj_E;
                const int elt = j_E/elt_dofs;
                j_elts[e_j] = elt;
             }
@@ -402,7 +406,8 @@ void ElementRestriction::FillJAndData(const Vector &ea_data,
       int i_elts[Max];
       int i_B[Max];
       const int i_gm = e*elt_dofs + i;
-      const int i_L = d_gather_map[i_gm];
+      const int si_L = d_gather_map[i_gm];
+      const int i_L = (si_L >= 0) ? si_L : -1-si_L;
       const int i_offset = d_offsets[i_L];
       const int i_next_offset = d_offsets[i_L+1];
       const int i_nbElts = i_next_offset - i_offset;
@@ -412,14 +417,19 @@ void ElementRestriction::FillJAndData(const Vector &ea_data,
          "MaxNbNbr variable to comply with your mesh.");
       for (int e_i = 0; e_i < i_nbElts; ++e_i)
       {
-         const int i_E = d_indices[i_offset+e_i];
+         const int si_E = d_indices[i_offset+e_i];
+         const bool plus = si_E >= 0;
+         const int i_E = plus ? si_E : -1 - si_E;
          i_elts[e_i] = i_E/elt_dofs;
-         i_B[e_i]    = i_E%elt_dofs;
+         const int i_Bi = i_E%elt_dofs;
+         i_B[e_i] = plus ? i_Bi : -1 - i_Bi;
       }
       for (int j = 0; j < elt_dofs; j++)
       {
          const int j_gm = e*elt_dofs + j;
-         const int j_L = d_gather_map[j_gm];
+         const int sj_L = d_gather_map[j_gm];
+         const int j_L = (sj_L >= 0) ? sj_L : -1-sj_L;
+         const int sgn = ((sj_L >=0 && si_L >= 0) || (sj_L < 0 && si_L <0)) ? 1 : -1;
          const int j_offset = d_offsets[j_L];
          const int j_next_offset = d_offsets[j_L+1];
          const int j_nbElts = j_next_offset - j_offset;
@@ -427,7 +437,7 @@ void ElementRestriction::FillJAndData(const Vector &ea_data,
          {
             const int nnz = GetAndIncrementNnzIndex(i_L, I);
             J[nnz] = j_L;
-            Data[nnz] = mat_ea(j,i,e);
+            Data[nnz] = sgn * mat_ea(j,i,e);
          }
          else // assembly required
          {
@@ -435,10 +445,13 @@ void ElementRestriction::FillJAndData(const Vector &ea_data,
             int j_B[Max];
             for (int e_j = 0; e_j < j_nbElts; ++e_j)
             {
-               const int j_E = d_indices[j_offset+e_j];
+               const int sj_E = d_indices[j_offset+e_j];
+               const bool plus = sj_E >= 0;
+               const int j_E = plus ? sj_E : -1-sj_E;
                const int elt = j_E/elt_dofs;
                j_elts[e_j] = elt;
-               j_B[e_j]    = j_E%elt_dofs;
+               const int j_Bj = j_E%elt_dofs;
+               j_B[e_j] = plus ? j_Bj : -1 - j_Bj;
             }
             int min_e = GetMinElt(i_elts, i_nbElts, j_elts, j_nbElts);
             if (e == min_e) // add the nnz only once
@@ -447,14 +460,18 @@ void ElementRestriction::FillJAndData(const Vector &ea_data,
                for (int k = 0; k < i_nbElts; k++)
                {
                   const int e_i = i_elts[k];
-                  const int i_Bloc = i_B[k];
+                  const int si_Bloc = i_B[k];
+                  const int i_Bloc = (si_Bloc >= 0) ? si_Bloc : -1 -si_Bloc;
                   for (int l = 0; l < j_nbElts; l++)
                   {
                      const int e_j = j_elts[l];
-                     const int j_Bloc = j_B[l];
                      if (e_i == e_j)
                      {
-                        val += mat_ea(j_Bloc, i_Bloc, e_i);
+                        const int sj_Bloc = j_B[l];
+                        const int j_Bloc = (sj_Bloc >= 0) ? sj_Bloc : -1 -sj_Bloc;
+                        const int sgn_2 = ((sj_Bloc >=0 && si_Bloc >= 0)
+                                           || (sj_Bloc < 0 && si_Bloc <0)) ? 1 : -1;
+                        val += sgn_2 * mat_ea(j_Bloc, i_Bloc, e_i);
                      }
                   }
                }
