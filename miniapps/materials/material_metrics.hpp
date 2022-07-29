@@ -32,7 +32,10 @@ public:
 /// Class that implements the particle topology.
 class ParticleTopology : public MaterialTopology {
 public:
-  /// Constructor.
+  /// Constructor. The length of the vectors random_positions and 
+  /// random_rotations must be 3 * number_of_particles and 
+  /// 9 * number_of_particles, respectively. They implicitly define the the 
+  /// number of the particles.  
   /// @param[in]  (length_x, length_y, length_z) - particle shape
   /// @param[in]  random_positions - vector with random positions for partices
   /// @param[in]  random_rotations - vector with random rotations for particles
@@ -55,7 +58,7 @@ private:
   void Initialize(std::vector<double> &random_positions,
                   std::vector<double> &random_rotations);
 
-  std::vector<Vector> particle_positions_;         // A_k * x_k
+  std::vector<Vector> particle_positions_;         // A_k * x_k, scaled!
   std::vector<DenseMatrix> particle_orientations_; // Random rotations of shape
   Vector particle_shape_;                          // The shape of the particle.
   int number_of_particles_;                        // The number of particles.
