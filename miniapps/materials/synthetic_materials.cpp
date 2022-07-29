@@ -16,7 +16,6 @@
 #include <string>
 
 #include "material_metrics.hpp"
-#include "rational_approximation.hpp"
 #include "solvers.hpp"
 #include "util.hpp"
 #include "visualizer.hpp"
@@ -116,10 +115,9 @@ int main(int argc, char *argv[]) {
   H1_FECollection fec(order, dim);
   ParFiniteElementSpace fespace(&pmesh, &fec);
   HYPRE_BigInt size = fespace.GlobalTrueVSize();
-   if (Mpi::Root())
-   {
-      cout << "Number of finite element unknowns: " << size << endl;
-   }
+  if (Mpi::Root()) {
+    cout << "Number of finite element unknowns: " << size << endl;
+  }
 
   // 6. Boundary conditions
   const Array<int> ess_tdof_list;
@@ -172,89 +170,29 @@ int main(int argc, char *argv[]) {
   // III. Generate random imperfections via fractional PDE
   // ========================================================================
 
-  // III.1 Compute the rational expansion coefficients that define the
-  //       integer-order PDEs.
-  Array<double> coeffs, poles;
-  double alpha = (nu + dim / 2.0) / 2.0; // fractional exponent
-  const int int_order_of_operator = floor(alpha);
-  double exponent_to_approximate = alpha - int_order_of_operator;
-  bool integer_order = false;
-  // Check if alpha is an integer or not.
-  if (abs(exponent_to_approximate) > 1e-12) {
-    if (Mpi::Root()) {
-      mfem::out << "Approximating the fractional exponent "
-                << exponent_to_approximate << endl;
-    }
-    ComputePartialFractionApproximation(exponent_to_approximate, coeffs, poles);
-
-    // If the example is build without LAPACK, the exponent_to_approximate
-    // might be modified by the function call above.
-    alpha = exponent_to_approximate + int_order_of_operator;
-  } else {
-    integer_order = true;
-    if (Mpi::Root()) {
-      mfem::out << "Treating integer order PDE." << endl;
-    }
-  }
-
-  // III.2 Define coeffiecients and solution GridFunction(s).
-  ConstantCoefficient one(1.0);
-  auto diffusion_tensor = ConstructMatrixCoefficient(l1, l2, l3, e1, 
-                                                     e2, e3, nu, dim);
-  MatrixConstantCoefficient diffusion_coefficient(diffusion_tensor);
-  ParGridFunction u(&fespace); // Solution for the fractional PDE.
-  ParGridFunction g(&fespace); // Solution for the integer-order PDE.
-  ParGridFunction x(&fespace); // Solution for the integer-order PDEs (approx).
+  /// III.1 Define the fractional PDE solution
+  ParGridFunction u(&fespace);
   u = 0.0;
-  g = 0.0;
-  x = 0.0;
 
-  // III.3 Set up the linear form b(.) for integer-order PDE solves.
+  // III.2 Define Diffusion Tensor for the anisotropic SPDE method. The function
+  // below creates a diagonal matrix (l1, l2, l3)^2 and rotates it by the Euler
+  // angles (e1, e2, e3). nu and dim normalize.
+  auto diffusion_tensor =
+      ConstructMatrixCoefficient(l1, l2, l3, e1, e2, e3, nu, dim);
+  MatrixConstantCoefficient diffusion_coefficient(diffusion_tensor);
+
+  // III.3 Define the right hand side, for us this is a normalized white noise.
   ParLinearForm b(&fespace);
-  int seed = 4000;
-  auto *WhiteNoise = new WhiteGaussianNoiseDomainLFIntegrator(seed);
+  auto *WhiteNoise = new WhiteGaussianNoiseDomainLFIntegrator(4000);
   b.AddDomainIntegrator(WhiteNoise);
   b.Assemble();
   double normalization = ConstructNormalizationCoefficient(nu, l1, l2, l3, dim);
   b *= normalization;
 
-  materials::PDESolver solver(diffusion_coefficient, ess_tdof_list, &fespace);
-
-  // ------------------------------------------------------------------------
-  // III.4 Solve the PDE (-Δ)^N g = f, i.e. compute g = (-Δ)^{-1}^N f.
-  // ------------------------------------------------------------------------
-
-  if (int_order_of_operator > 0) {
-    if (Mpi::Root()) {
-      mfem::out << "\nSolving PDE (A)^" << int_order_of_operator << " u = f"
-                << endl;
-    }
-    solver.ActivateRepeatedSolve();
-    solver.Solve(b, g, 1.0, 1.0, int_order_of_operator);
-    if (integer_order) {
-      u += g;
-    }
-    solver.UpdateRHS(b);
-    solver.DeactivateRepeatedSolve();
-  }
-
-  // ------------------------------------------------------------------------
-  // III.5 Solve the fractional PDE by solving M integer order PDEs and adding
-  //       up the solutions.
-  // ------------------------------------------------------------------------
-  if (!integer_order) {
-    // Iterate over all expansion coefficient that contribute to the
-    // solution.
-    for (int i = 0; i < coeffs.Size(); i++) {
-      if (Mpi::Root()) {
-        mfem::out << "\nSolving PDE -Δ u + " << -poles[i]
-                  << " u = " << coeffs[i] << " g " << endl;
-      }
-      x = 0.0;
-      solver.Solve(b, x, 1.0 - poles[i], coeffs[i]);
-      u += x;
-    }
-  }
+  // III.4 Solve the SPDE problem
+  materials::SPDESolver solver(diffusion_coefficient, nu, ess_tdof_list,
+                               &fespace);
+  solver.Solve(b, u);
 
   // ========================================================================
   // III. Combine topological support and random field
