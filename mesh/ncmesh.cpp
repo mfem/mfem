@@ -33,6 +33,7 @@ void NCMesh::GeomInfo::InitGeom(Geometry::Type geom)
    {
       case Geometry::CUBE: elem = new Hexahedron; break;
       case Geometry::PRISM: elem = new Wedge; break;
+      case Geometry::PYRAMID: elem = new Pyramid; break;
       case Geometry::SQUARE: elem = new Quadrilateral; break;
       case Geometry::SEGMENT: elem = new Segment; break;
       case Geometry::TRIANGLE: elem = new Triangle; break;
@@ -97,7 +98,7 @@ static void CheckSupportedGeom(Geometry::Type geom)
    MFEM_VERIFY(geom == Geometry::SEGMENT ||
                geom == Geometry::TRIANGLE || geom == Geometry::SQUARE ||
                geom == Geometry::CUBE || geom == Geometry::PRISM ||
-               geom == Geometry::TETRAHEDRON,
+               geom == Geometry::PYRAMID || geom == Geometry::TETRAHEDRON,
                "Element type " << geom << " is not supported by NCMesh.");
 }
 
@@ -546,6 +547,35 @@ int NCMesh::NewTetrahedron(int n0, int n1, int n2, int n3, int attr,
    f[1]->attribute = fattr1;
    f[2]->attribute = fattr2;
    f[3]->attribute = fattr3;
+
+   return new_id;
+}
+int NCMesh::NewPyramid(int n0, int n1, int n2, int n3, int n4, int attr,
+                           int fattr0, int fattr1, int fattr2, int fattr3,
+                           int fattr4)
+{
+   // create new element, initialize nodes
+   int new_id = AddElement(Element(Geometry::PYRAMID, attr));
+   Element &el = elements[new_id];
+
+   el.node[0] = n0, el.node[1] = n1, el.node[2] = n2, el.node[3] = n3;
+   el.node[4] = n4;
+
+   // get faces and assign face attributes
+   Face* f[5];
+   const GeomInfo &gi_pyr = GI[Geometry::PYRAMID];
+   for (int i = 0; i < gi_pyr.nf; i++)
+   {
+      const int* fv = gi_pyr.faces[i];
+      f[i] = faces.Get(el.node[fv[0]], el.node[fv[1]],
+                       el.node[fv[2]], el.node[fv[3]]);
+   }
+
+   f[0]->attribute = fattr0;
+   f[1]->attribute = fattr1;
+   f[2]->attribute = fattr2;
+   f[3]->attribute = fattr3;
+   f[4]->attribute = fattr4;
 
    return new_id;
 }
@@ -1408,59 +1438,149 @@ void NCMesh::RefineElement(int elem, char ref_type)
                                    -1, -1, fa[3], -1);
       }
    }
-   else if (el.Geom() == Geometry::SQUARE)
+   else if (el.Geom() == Geometry::PYRAMID)
    {
-      ref_type &= 0x3; // ignore Z bit
+      // Pyramid vertex numbering:
+      //
+      //    4
+      //     + \_                       Faces: 0 bottom (3,2,1,0)
+      //     |\\_ \_                           1 front (0, 1, 4)
+      //     ||  \_ \__                        2 left (1, 2, 4)
+      //     | \   \_   \__                    3 back (2, 3, 4)
+      //     |  +____\_ ____\                  3 right(3, 0, 4)
+      //     | /3      \_   2   Z  Y
+      //     |/          \ /    | /
+      //     +------------+     *--X
+      //    0              1
 
-      if (ref_type == 1) // X split
-      {
-         int mid01 = nodes.GetId(no[0], no[1]);
-         int mid23 = nodes.GetId(no[2], no[3]);
+      ref_type = 7; // for consistence
 
-         child[0] = NewQuadrilateral(no[0], mid01, mid23, no[3],
-                                     attr, fa[0], -1, fa[2], fa[3]);
+      int mid01 = GetMidEdgeNode(no[0], no[1]);
+      int mid03 = GetMidEdgeNode(no[0], no[3]);
+      int mid12 = GetMidEdgeNode(no[1], no[2]);
+      int mid23 = GetMidEdgeNode(no[2], no[3]);
 
-         child[1] = NewQuadrilateral(mid01, no[1], no[2], mid23,
-                                     attr, fa[0], fa[1], fa[2], -1);
-      }
-      else if (ref_type == 2) // Y split
-      {
-         int mid12 = nodes.GetId(no[1], no[2]);
-         int mid30 = nodes.GetId(no[3], no[0]);
+      int mid04 = GetMidEdgeNode(no[0], no[4]);
+      int mid14 = GetMidEdgeNode(no[1], no[4]);
+      int mid24 = GetMidEdgeNode(no[2], no[4]);
+      int mid34 = GetMidEdgeNode(no[3], no[4]);
 
-         child[0] = NewQuadrilateral(no[0], no[1], mid12, mid30,
-                                     attr, fa[0], fa[1], -1, fa[3]);
+      //child[0] = NewTetrahedron(no[0], mid01, mid02, mid03, attr,
+                                //-1, fa[1], fa[2], fa[3]);
 
-         child[1] = NewQuadrilateral(mid30, mid12, no[2], no[3],
-                                     attr, -1, fa[1], fa[2], fa[3]);
-      }
-      else if (ref_type == 3) // iso split
-      {
-         int mid01 = nodes.GetId(no[0], no[1]);
-         int mid12 = nodes.GetId(no[1], no[2]);
-         int mid23 = nodes.GetId(no[2], no[3]);
-         int mid30 = nodes.GetId(no[3], no[0]);
+      //child[1] = NewTetrahedron(mid01, no[1], mid12, mid13, attr,
+                                //fa[0], -1, fa[2], fa[3]);
 
-         int midel = nodes.GetId(mid01, mid23);
+      //child[2] = NewTetrahedron(mid02, mid12, no[2], mid23, attr,
+                                //fa[0], fa[1], -1, fa[3]);
 
-         child[0] = NewQuadrilateral(no[0], mid01, midel, mid30,
-                                     attr, fa[0], -1, -1, fa[3]);
+      //child[3] = NewTetrahedron(mid03, mid13, mid23, no[3], attr,
+                                //fa[0], fa[1], fa[2], -1);
 
-         child[1] = NewQuadrilateral(mid01, no[1], mid12, midel,
-                                     attr, fa[0], fa[1], -1, -1);
+      //// There are three ways to split the inner octahedron. A good strategy is
+      //// to use the shortest diagonal. At the moment we don't have the geometric
+      //// information in this class to determine which diagonal is the shortest,
+      //// but it seems that with reasonable shapes of the coarse tets and MFEM's
+      //// default tet orientation, always using tet_type == 0 produces stable
+      //// refinements. Types 1 and 2 are unused for now.
+      //el.tet_type = 0;
 
-         child[2] = NewQuadrilateral(midel, mid12, no[2], mid23,
-                                     attr, -1, fa[1], fa[2], -1);
+      //if (el.tet_type == 0) // shortest diagonal mid01--mid23
+      //{
+         //child[4] = NewTetrahedron(mid01, mid23, mid02, mid03, attr,
+                                   //fa[1], -1, -1, -1);
 
-         child[3] = NewQuadrilateral(mid30, midel, mid23, no[3],
-                                     attr, -1, -1, fa[2], fa[3]);
-      }
-      else
-      {
-         MFEM_ABORT("Invalid refinement type.");
-      }
+         //child[5] = NewTetrahedron(mid01, mid23, mid03, mid13, attr,
+                                   //-1, fa[2], -1, -1);
 
-      if (ref_type != 3) { Iso = false; }
+         //child[6] = NewTetrahedron(mid01, mid23, mid13, mid12, attr,
+                                   //fa[0], -1, -1, -1);
+
+         //child[7] = NewTetrahedron(mid01, mid23, mid12, mid02, attr,
+                                   //-1, fa[3], -1, -1);
+      //}
+      //else if (el.tet_type == 1) // shortest diagonal mid12--mid03
+      //{
+         //child[4] = NewTetrahedron(mid03, mid01, mid02, mid12, attr,
+                                   //fa[3], -1, -1, -1);
+
+         //child[5] = NewTetrahedron(mid03, mid02, mid23, mid12, attr,
+                                   //-1, -1, -1, fa[1]);
+
+         //child[6] = NewTetrahedron(mid03, mid23, mid13, mid12, attr,
+                                   //fa[0], -1, -1, -1);
+
+         //child[7] = NewTetrahedron(mid03, mid13, mid01, mid12, attr,
+                                   //-1, -1, -1, fa[2]);
+      //}
+      //else // el.tet_type == 2, shortest diagonal mid02--mid13
+      //{
+         //child[4] = NewTetrahedron(mid02, mid01, mid13, mid03, attr,
+                                   //fa[2], -1, -1, -1);
+
+         //child[5] = NewTetrahedron(mid02, mid03, mid13, mid23, attr,
+                                   //-1, -1, fa[1], -1);
+
+         //child[6] = NewTetrahedron(mid02, mid23, mid13, mid12, attr,
+                                   //fa[0], -1, -1, -1);
+
+         //child[7] = NewTetrahedron(mid02, mid12, mid13, mid01, attr,
+                                   //-1, -1, fa[3], -1);
+      //}
+   //}
+   //else if (el.Geom() == Geometry::SQUARE)
+   //{
+      //ref_type &= 0x3; // ignore Z bit
+
+      //if (ref_type == 1) // X split
+      //{
+         //int mid01 = nodes.GetId(no[0], no[1]);
+         //int mid23 = nodes.GetId(no[2], no[3]);
+
+         //child[0] = NewQuadrilateral(no[0], mid01, mid23, no[3],
+                                     //attr, fa[0], -1, fa[2], fa[3]);
+
+         //child[1] = NewQuadrilateral(mid01, no[1], no[2], mid23,
+                                     //attr, fa[0], fa[1], fa[2], -1);
+      //}
+      //else if (ref_type == 2) // Y split
+      //{
+         //int mid12 = nodes.GetId(no[1], no[2]);
+         //int mid30 = nodes.GetId(no[3], no[0]);
+
+         //child[0] = NewQuadrilateral(no[0], no[1], mid12, mid30,
+                                     //attr, fa[0], fa[1], -1, fa[3]);
+
+         //child[1] = NewQuadrilateral(mid30, mid12, no[2], no[3],
+                                     //attr, -1, fa[1], fa[2], fa[3]);
+      //}
+      //else if (ref_type == 3) // iso split
+      //{
+         //int mid01 = nodes.GetId(no[0], no[1]);
+         //int mid12 = nodes.GetId(no[1], no[2]);
+         //int mid23 = nodes.GetId(no[2], no[3]);
+         //int mid30 = nodes.GetId(no[3], no[0]);
+
+         //int midel = nodes.GetId(mid01, mid23);
+
+         //child[0] = NewQuadrilateral(no[0], mid01, midel, mid30,
+                                     //attr, fa[0], -1, -1, fa[3]);
+
+         //child[1] = NewQuadrilateral(mid01, no[1], mid12, midel,
+                                     //attr, fa[0], fa[1], -1, -1);
+
+         //child[2] = NewQuadrilateral(midel, mid12, no[2], mid23,
+                                     //attr, -1, fa[1], fa[2], -1);
+
+         //child[3] = NewQuadrilateral(mid30, midel, mid23, no[3],
+                                     //attr, -1, -1, fa[2], fa[3]);
+      //}
+      //else
+      //{
+         //MFEM_ABORT("Invalid refinement type.");
+      //}
+
+      //if (ref_type != 3) { Iso = false; }
    }
    else if (el.Geom() == Geometry::TRIANGLE)
    {
@@ -1590,6 +1710,12 @@ int NCMesh::RetrieveNode(const Element &el, int index)
          ch = el.child[ch];
          break;
 
+      case Geometry::PYRAMID:
+         ch = pyramid_deref_table[el.ref_type - 1][index];
+         MFEM_ASSERT(ch != -1, "");
+         ch = el.child[ch];
+         break;
+
       case Geometry::SQUARE:
          ch = el.child[quad_deref_table[el.ref_type - 1][index]];
          break;
@@ -1658,6 +1784,24 @@ void NCMesh::DerefineElement(int elem)
       for (int i = 0; i < 5; i++)
       {
          Element &ch = elements[child[prism_deref_table[rt1][i + 6]]];
+         const int* fv = GI[el.Geom()].faces[i];
+         fa[i] = faces.Find(ch.node[fv[0]], ch.node[fv[1]],
+                            ch.node[fv[2]], ch.node[fv[3]])->attribute;
+      }
+   }
+   else if (el.Geom() == Geometry::PYRAMID)
+   {
+      MFEM_ASSERT(pyramid_deref_table[rt1][0] != -1, "invalid pyramid refinement");
+      for (int i = 0; i < 5; i++)
+      {
+         Element &ch = elements[child[pyramid_deref_table[rt1][i]]];
+         el.node[i] = ch.node[i];
+      }
+      el.node[5] = el.node[6] = el.node[7] = -1;
+
+      for (int i = 0; i < 5; i++)
+      {
+         Element &ch = elements[child[pyramid_deref_table[rt1][i + 6]]];
          const int* fv = GI[el.Geom()].faces[i];
          fa[i] = faces.Find(ch.node[fv[0]], ch.node[fv[1]],
                             ch.node[fv[2]], ch.node[fv[3]])->attribute;
@@ -2237,6 +2381,7 @@ mfem::Element* NCMesh::NewMeshElement(int geom) const
    {
       case Geometry::CUBE: return new mfem::Hexahedron;
       case Geometry::PRISM: return new mfem::Wedge;
+      case Geometry::PYRAMID: return new mfem::Pyramid;
       case Geometry::TETRAHEDRON: return new mfem::Tetrahedron;
       case Geometry::SQUARE: return new mfem::Quadrilateral;
       case Geometry::TRIANGLE: return new mfem::Triangle;
@@ -2319,7 +2464,8 @@ void NCMesh::GetMeshComponents(Mesh &mesh) const
          if (face->Boundary())
          {
             if ((nc_elem.geom == Geometry::CUBE) ||
-                (nc_elem.geom == Geometry::PRISM && nfv == 4))
+               ((nc_elem.geom == Geometry::PRISM ||
+                 nc_elem.geom == Geometry::PYRAMID) && nfv == 4))
             {
                auto* quad = (Quadrilateral*) mesh.NewElement(Geometry::SQUARE);
                quad->SetAttribute(face->attribute);
@@ -2330,6 +2476,7 @@ void NCMesh::GetMeshComponents(Mesh &mesh) const
                mesh.boundary.Append(quad);
             }
             else if (nc_elem.geom == Geometry::PRISM ||
+                     nc_elem.geom == Geometry::PYRAMID ||
                      nc_elem.geom == Geometry::TETRAHEDRON)
             {
                MFEM_ASSERT(nfv == 3, "");
@@ -3740,6 +3887,10 @@ static bool RefPointInside(Geometry::Type geom, const RefCoord pt[3])
          return (pt[0] >= 0) && (pt[1] >= 0) && (pt[0] + pt[1] <= T_ONE) &&
                 (pt[2] >= 0) && (pt[2] <= T_ONE);
 
+      case Geometry::PYRAMID: // FIXME
+         return (pt[0] >= 0) && (pt[1] >= 0) && (pt[0] + pt[2] <= T_ONE) &&
+                (pt[1] + pt[2] <= T_ONE);
+
       default:
          MFEM_ABORT("unsupported geometry");
          return false;
@@ -3828,6 +3979,10 @@ NCMesh::PointMatrix NCMesh::pm_prism_identity(
    Point(0, 0, 0), Point(1, 0, 0), Point(0, 1, 0),
    Point(0, 0, 1), Point(1, 0, 1), Point(0, 1, 1)
 );
+NCMesh::PointMatrix NCMesh::pm_pyramid_identity(
+   Point(0, 0, 0), Point(1, 0, 0), Point(1, 1, 0),
+   Point(0, 1, 0), Point(1, 0, 0)
+);
 NCMesh::PointMatrix NCMesh::pm_hex_identity(
    Point(0, 0, 0), Point(1, 0, 0), Point(1, 1, 0), Point(0, 1, 0),
    Point(0, 0, 1), Point(1, 0, 1), Point(1, 1, 1), Point(0, 1, 1)
@@ -3842,6 +3997,7 @@ const NCMesh::PointMatrix& NCMesh::GetGeomIdentity(Geometry::Type geom)
       case Geometry::SQUARE:      return pm_quad_identity;
       case Geometry::TETRAHEDRON: return pm_tet_identity;
       case Geometry::PRISM:       return pm_prism_identity;
+      case Geometry::PYRAMID:     return pm_pyramid_identity;
       case Geometry::CUBE:        return pm_hex_identity;
       default:
          MFEM_ABORT("unsupported geometry " << geom);
@@ -4145,6 +4301,9 @@ void NCMesh::GetPointMatrix(Geometry::Type geom, const char* ref_path,
                pm = PointMatrix(midf3, midf4, midf2, mid45, mid53, mid34);
             }
          }
+      }
+      else if (geom == Geometry::PRISM)
+      { // FIXME
       }
       else if (geom == Geometry::TETRAHEDRON)
       {
@@ -5114,6 +5273,9 @@ void NCMesh::CountSplits(int elem, int splits[3]) const
       splits[2] = max6(flevel[2][1], flevel[3][1], flevel[4][1],
                        elevel[6], elevel[7], elevel[8]);
    }
+   else if (el.Geom() == Geometry::PYRAMID)
+   { // FIXME
+   }
    else if (el.Geom() == Geometry::TETRAHEDRON)
    {
       splits[0] = std::max(
@@ -5377,6 +5539,7 @@ void NCMesh::Print(std::ostream &out) const
        "# TETRAHEDRON = 4\n"
        "# CUBE        = 5\n"
        "# PRISM       = 6\n";
+       "# PYRAMID     = 7\n";
 
    out << "\ndimension\n" << Dim << "\n";
 
