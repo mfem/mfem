@@ -41,6 +41,8 @@
    everything else: coils
 
    TODO: double boundary integral
+   TODO: coil-dependent currents
+
 */
 
 #include "mfem.hpp"
@@ -167,8 +169,9 @@ int main(int argc, char *argv[])
    FiniteElementSpace fespace(&mesh, &fec);
    cout << "Number of unknowns: " << fespace.GetTrueVSize() << endl;
 
-   // Extract the list of all the boundary DOFs. These will be marked as
-   // Dirichlet in order to enforce zero boundary conditions.
+   // Extract the list of all the boundary DOFs.
+   // The r=0 boundary will be marked as dirichlet (psi=0)
+   // and the far-field will not be marked as dirichlet
    Array<int> boundary_dofs;
    Array<int> bdr_attribs(mesh.bdr_attributes);
    Array<int> ess_bdr(bdr_attribs.Max());
@@ -189,9 +192,9 @@ int main(int argc, char *argv[])
    coil_current = 0.0;
    for (int i = 0; i < attribs.Size(); ++i) {
      int attrib = attribs[i];
-     if (attrib == 2000) {
+     if (attrib == attr_ext) {
        // exterior domain
-     } else if (attrib == 1000) {
+     } else if (attrib == attr_lim) {
        // limiter domain
      } else {
        // coil domain
@@ -207,18 +210,17 @@ int main(int argc, char *argv[])
    BilinearForm diff_operator(&fespace);
    diff_operator.AddDomainIntegrator(new DiffusionIntegrator(diff_op_coeff));
 
+   // boundary integral
+   // https://en.cppreference.com/w/cpp/experimental/special_functions
    // GreenCoefficient green(greenfunc);
    // LinearForm fi(&fespace);
    // fi.AddBoundaryIntegrator(new BoundaryLFIntegrator(green));
-
    // ConstantCoefficient coeff(1.0);
    // YFixSurfaceCoefficient coeff(&fespace);
    // diff_operator.AddBoundaryIntegrator(new MassIntegrator(coeff));
-   diff_operator.Assemble();
 
-   // boundary integral
-   // https://en.cppreference.com/w/cpp/experimental/special_functions
-   
+   // assemble diff_operator
+   diff_operator.Assemble();
 
    // Form the linear system A X = B. This includes eliminating boundary
    // conditions, applying AMR constraints, and other transformations.
@@ -231,6 +233,7 @@ int main(int argc, char *argv[])
    PCG(A, M, B, X, 1, 200, 1e-12, 0.0);
    diff_operator.RecoverFEMSolution(X, coil_term, x);
 
+   // now that we have solution, we can define nonlinear RHS terms
    // plasma term
    NonlinearGridCoefficient nlgcoeff1(&model, 1);
    nlgcoeff1.set_grid_function(&x);
@@ -268,7 +271,6 @@ int main(int argc, char *argv[])
    z.GetNodalValues(nval);
    map<int, vector<int>> vertex_map;
 
-   DSTable v_to_v(mesh.GetNV());
    int stop = 0;
    // get vertex to vertex mapping
    for (int i = 0; i < mesh.GetNE(); i++) {
@@ -276,17 +278,8 @@ int main(int argc, char *argv[])
      const int ne = mesh.GetElement(i)->GetNEdges();
      for (int j = 0; j < ne; j++) {
        const int *e = mesh.GetElement(i)->GetEdgeVertices(j);
-       v_to_v.Push(v[e[0]], v[e[1]]);
-
        vertex_map[v[e[0]]].push_back(v[e[1]]);
-       
-       // cout << v[e[0]] << " : " << v[e[1]] << endl;
-       // cout << nval[v[e[0]]] << " : " << nval[v[e[1]]] << endl;
-       // stop++;
      }
-     // if (stop > 10) {
-     //   break;
-     // }
    }
 
    int count = 0;
@@ -352,124 +345,6 @@ int main(int argc, char *argv[])
    }
 
    cout << "total saddles: " << count << endl;
-   int key = 62198;
-   vector<int> adjacent = vertex_map[key];
-
-   // cout << key;
-   // for (int j = 0; j < adjacent.size(); ++j)
-   //   {
-   //     cout << " " << adjacent[j];
-   //   }
-   // cout << endl;
-
-   
-
-   int i;
-   for (DSTable::RowIterator it(v_to_v, i); !it; ++it) {
-     it.Column();
-     // J_v2v.Append(Pair<int,int>(it.Column(), it.Index()));
-   }
-   
-   // cout << "rows: " << v_to_v.NumberOfRows() << endl;
-   // cout << "entries: " << v_to_v.NumberOfEntries() << endl;
-
-   
-
-   // Table* vertex_map = mesh.GetVertexToElementTable();
-   // for (int i = 0; i < vertex_map->Size(); ++i) {
-   //   int num_elems = vertex_map->RowSize(i);
-   //   const int *elems = vertex_map->GetRow(i);
-   //   cout << i << " ";
-   //   for (int j = 0; j < num_elems; ++j) {
-   //     cout << elems[j] << " ";
-
-   //     Array<int> vertices;
-   //     fespace.GetElementVertices(j, vertices);
-       
-   //   }
-   //   cout << endl;
-   // }
-   
-   // map<int, vector<int>> vertex_map;
-   // // vector<int> empty;
-   // // vertex_map[1] = new vector<int>;
-   // // vertex_map[1] = 3;
-   // // vertex_map[1].push_back(3);
-   // // vertex_map[1].push_back(4);
-   // // cout << vertex_map[1] << endl;
-   // // cout << vertex_map[1][0] << endl;
-   
-   
-   // // ElementTransformation *Trans;
-   // const FiniteElement *fe;
-   // ElementTransformation *transf;
-   // Vector shape;
-   // Array<int> vdofs;
-   // int fdof, d, i, intorder, j, k;
-   // for (i = 0; i < fespace.GetNE(); i++)
-   //   {
-   //    fe = fespace.GetFE(i);
-   //    fdof = fe->GetDof();
-   //    transf = fespace.GetElementTransformation(i);
-   //    shape.SetSize(fdof);
-   //    intorder = 2*fe->GetOrder() + 3; // <----------
-   //    const IntegrationRule *ir;
-   //    fespace.GetElementVDofs(i, vdofs);
-
-   //    Array<double> nval;
-   //    z.GetNodalValues(i, nval);
-
-   //    Array<int> vert;
-   //    mesh.GetFaceVertices(i, vert);
-   //    if (vert.Size() == 3) {
-   //      vertex_map[vert[0]].push_back(vert[1]);
-   //      vertex_map[vert[0]].push_back(vert[2]);
-   //      vertex_map[vert[1]].push_back(vert[0]);
-   //      vertex_map[vert[1]].push_back(vert[2]);
-   //      vertex_map[vert[2]].push_back(vert[0]);
-   //      vertex_map[vert[2]].push_back(vert[1]);
-        
-   //    }
-   //    // ir = &(IntRules.Get(fe->GetGeomType(), intorder));
-   //    // for (j = 0; j < ir->GetNPoints(); j++)
-   //    // {
-   //    //    const IntegrationPoint &ip = ir->IntPoint(j);
-         
-   //    // }
-   //   }
-
-   // for(map<int, vector<int>>::iterator iter = vertex_map.begin(); iter != vertex_map.end(); ++iter)
-   //   {
-   //     int key = iter->first;
-   //     vector<int> adjacent = iter->second;
-
-   //     cout << key;
-   //     for (int j = 0; j < adjacent.size(); ++j)
-   //       {
-   //         cout << adjacent[j];
-   //       }
-   //     cout << endl;
-   //   }
-   
-
-   //     Trans = fespace.GetElementTransformation(i);
-   //     const IntegrationRule *ir;
-   //     int order = Trans->OrderGrad(&fe) + Trans->Order() + fe.GetOrder();
-   //     ir = &IntRules.Get(fe.GetGeomType(), order);
-   //     double x_[3];
-   //     Vector x(x_, 3);       
-   //     Trans->Transform(ir, x);
-
-   //     double x1(x(0));
-   //     double x2(x(1));
-
-   //     const int *pd = elem_pdof.GetRow(i);
-
-   //     pow(x1, 2.0) * pow(x2, 3.0);
-   //   }
-   
-
-   
 
    return 0;
 }
