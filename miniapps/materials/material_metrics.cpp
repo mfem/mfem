@@ -89,7 +89,7 @@ void OctetTrussTopology::Initialize() {
   double p2_data[3] = {0, 1, 1};
   double p3_data[3] = {1, 0, 1};
   double p4_data[3] = {1, 1, 0};
-  
+
   Vector p1(p1_data, 3);
   Vector p2(p2_data, 3);
   Vector p3(p3_data, 3);
@@ -117,10 +117,10 @@ void OctetTrussTopology::CreatePeriodicPoints(
   double d_y[3] = {0, 1, 0};
   double d_z[3] = {0, 0, 1};
 
-  Vector dispcement_x(d_x,3);
-  Vector dispcement_y(d_y,3);
-  Vector dispcement_z(d_z,3);
-  
+  Vector dispcement_x(d_x, 3);
+  Vector dispcement_y(d_y, 3);
+  Vector dispcement_z(d_z, 3);
+
   Vector x_shifted_x_pos = x;
   x_shifted_x_pos += dispcement_x;
   Vector x_shifted_x_neg = x;
