@@ -54,6 +54,7 @@ using namespace std;
 using namespace mfem;
 
 int test();
+void compute_saddle_points(GridFunction & z, Mesh & mesh);
 double one_over_r_mu(const Vector & x, double & mu);
 
 /*
@@ -267,84 +268,7 @@ int main(int argc, char *argv[])
      Test vertex to vertex mapping...
     */
 
-   Vector nval;
-   z.GetNodalValues(nval);
-   map<int, vector<int>> vertex_map;
-
-   int stop = 0;
-   // get vertex to vertex mapping
-   for (int i = 0; i < mesh.GetNE(); i++) {
-     const int *v = mesh.GetElement(i)->GetVertices();
-     const int ne = mesh.GetElement(i)->GetNEdges();
-     for (int j = 0; j < ne; j++) {
-       const int *e = mesh.GetElement(i)->GetEdgeVertices(j);
-       vertex_map[v[e[0]]].push_back(v[e[1]]);
-     }
-   }
-
-   int count = 0;
-   // loop through vertices and check neighboring vertices to see if we found a saddle point
-   for(int iv = 0; iv < mesh.GetNV(); ++iv) {
-     vector<int> adjacent = vertex_map[iv];
-     int j = 0;
-     double* x0 = mesh.GetVertex(iv);
-     double* a = mesh.GetVertex(adjacent[j]);
-
-     // cout << pow(x0[0] - 1.0, 2.0) + pow(x0[1], 2.0) << endl;
-     // cout << nval[iv] << endl;
-     // cout << x0[0] << ", " << x0[1] << endl;
-     map<double, double> clock;
-     set<double> ordered_angs;
-     for (j = 0; j < adjacent.size(); ++j) {
-       int jv = adjacent[j];
-       double* b = mesh.GetVertex(jv);
-       double diff = nval[jv] - nval[iv];
-       // cout << b[0] << ", " << b[1] << endl;
-
-       double ax = a[0]-x0[0];
-       double ay = a[1]-x0[1];
-       double bx = b[0]-x0[0];
-       double by = b[1]-x0[1];
-
-       double ang = atan2(by, bx);
-       // double ang = asin( (ax*by-bx*ay)
-       //                    / (sqrt(pow(ax,2.0)+pow(ay,2.0))
-       //                       * sqrt(pow(bx,2.0)+pow(by,2.0))) );
-       clock[ang] = diff;
-       ordered_angs.insert(ang);
-     }
-
-     int sign_changes = 0;
-     set<double>::iterator it = ordered_angs.begin();
-     double init = clock[*it];
-     double prev = clock[*it];
-     // cout << *it << " : " << clock[*it] << endl;
-     ++it;
-     for (; it != ordered_angs.end(); ++it) {
-       if (clock[*it] * prev < 0.0) {
-         ++sign_changes;
-       }
-       prev = clock[*it];
-       // cout << *it << " : " << clock[*it] << endl;
-     }
-     if (prev * init < 0.0) {
-       ++sign_changes;
-     }
-     // cout << "sign changes: " << sign_changes << endl;
-     // cout << endl;
-
-     if (sign_changes >= 4) {
-       printf("Found saddle at (%9.6f, %9.6f)\n", x0[0], x0[1]);
-       ++count;
-     }
- 
-     // stop++;
-     // if (stop > 5) {
-     //   break;
-     // }
-   }
-
-   cout << "total saddles: " << count << endl;
+   compute_saddle_points(z, mesh);
 
    return 0;
 }
@@ -461,4 +385,74 @@ double TestCoefficient::Eval(ElementTransformation & T,
    return cos(k * x1) * cos(k * x2) * exp(- pow(x1, 2.0) - pow(x2, 2.0));
    // return pow(x1 - 1.0, 2.0) + pow(x2, 2.0);
    // return pow(x1 - 1.0, 2.0) - pow(x2, 2.0);
+}
+
+
+void compute_saddle_points(GridFunction & z, Mesh & mesh) {
+
+   Vector nval;
+   z.GetNodalValues(nval);
+
+   // get map between vertices and neighboring vertices
+   map<int, vector<int>> vertex_map;
+   for (int i = 0; i < mesh.GetNE(); i++) {
+     const int *v = mesh.GetElement(i)->GetVertices();
+     const int ne = mesh.GetElement(i)->GetNEdges();
+     for (int j = 0; j < ne; j++) {
+       const int *e = mesh.GetElement(i)->GetEdgeVertices(j);
+       vertex_map[v[e[0]]].push_back(v[e[1]]);
+     }
+   }
+
+   int count = 0;
+   // loop through vertices and check neighboring vertices to see if we found a saddle point
+   for(int iv = 0; iv < mesh.GetNV(); ++iv) {
+     vector<int> adjacent = vertex_map[iv];
+     int j = 0;
+     double* x0 = mesh.GetVertex(iv);
+     double* a = mesh.GetVertex(adjacent[j]);
+
+     map<double, double> clock;
+     set<double> ordered_angs;
+     for (j = 0; j < adjacent.size(); ++j) {
+       int jv = adjacent[j];
+       double* b = mesh.GetVertex(jv);
+       double diff = nval[jv] - nval[iv];
+       // cout << b[0] << ", " << b[1] << endl;
+
+       double ax = a[0]-x0[0];
+       double ay = a[1]-x0[1];
+       double bx = b[0]-x0[0];
+       double by = b[1]-x0[1];
+
+       double ang = atan2(by, bx);
+       clock[ang] = diff;
+       ordered_angs.insert(ang);
+     }
+
+     int sign_changes = 0;
+     set<double>::iterator it = ordered_angs.begin();
+     double init = clock[*it];
+     double prev = clock[*it];
+     ++it;
+     for (; it != ordered_angs.end(); ++it) {
+       if (clock[*it] * prev < 0.0) {
+         ++sign_changes;
+       }
+       prev = clock[*it];
+     }
+     if (prev * init < 0.0) {
+       ++sign_changes;
+     }
+
+     if (sign_changes >= 4) {
+       printf("Found saddle at (%9.6f, %9.6f)\n", x0[0], x0[1]);
+       ++count;
+     }
+ 
+   }
+
+   cout << "total saddles: " << count << endl;
+
+   
 }
