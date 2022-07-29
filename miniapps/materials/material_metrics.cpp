@@ -85,10 +85,16 @@ double OctetTrussTopology::ComputeMetric(const Vector &x) {
 void OctetTrussTopology::Initialize() {
   // 1. Create the points defining the topology (begin and end points of the
   //    edges).
-  Vector p1({0, 0, 0});
-  Vector p2({0, 1, 1});
-  Vector p3({1, 0, 1});
-  Vector p4({1, 1, 0});
+  double p1_data[3] = {0, 0, 0};
+  double p2_data[3] = {0, 1, 1};
+  double p3_data[3] = {1, 0, 1};
+  double p4_data[3] = {1, 1, 0};
+  
+  Vector p1(p1_data, 3);
+  Vector p2(p2_data, 3);
+  Vector p3(p3_data, 3);
+  Vector p4(p4_data, 3);
+
   points_.push_back(p1);
   points_.push_back(p2);
   points_.push_back(p3);
@@ -107,9 +113,14 @@ void OctetTrussTopology::CreatePeriodicPoints(
     const Vector &x, std::vector<Vector> &periodic_points) {
   Vector xx(x);
   // Compute the diplaced ghost points. Computation assumes domain [0,1]^3.
-  Vector dispcement_x({1, 0, 0});
-  Vector dispcement_y({0, 1, 0});
-  Vector dispcement_z({0, 0, 1});
+  double d_x[3] = {1, 0, 0};
+  double d_y[3] = {0, 1, 0};
+  double d_z[3] = {0, 0, 1};
+
+  Vector dispcement_x(d_x,3);
+  Vector dispcement_y(d_y,3);
+  Vector dispcement_z(d_z,3);
+  
   Vector x_shifted_x_pos = x;
   x_shifted_x_pos += dispcement_x;
   Vector x_shifted_x_neg = x;
