@@ -32,7 +32,8 @@ using namespace mfem;
 
 double greenfunc(Vector X, Vector Y)
 {
-   return 1.0/(X(0)*X(0)+X(1)*X(1)+Y(0)*Y(0)+Y(1)*Y(1)); //just an example
+  // return 1.0/(X(0)*X(0)+X(1)*X(1)+Y(0)*Y(0)+Y(1)*Y(1)); //just an example
+  return 1.0;
 }
 
 class GreenCoefficient : public Coefficient
@@ -71,41 +72,60 @@ public:
 class YFixSurfaceCoefficient : public Coefficient
 {
 private:
-  GridFunction *Psi; // this is unknown
+  // GridFunction *Psi; // this is unknown
   GreenCoefficient Green;
   FiniteElementSpace *fespace;
   GridFunction ones;
 public:
-  YFixSurfaceCoefficient(GridFunction *psi_);
+  // YFixSurfaceCoefficient(GridFunction *psi_);
+  YFixSurfaceCoefficient(FiniteElementSpace * fes);
   double Eval(ElementTransformation &T, const IntegrationPoint &ip);
   virtual ~YFixSurfaceCoefficient() { }
 };
 
-YFixSurfaceCoefficient::YFixSurfaceCoefficient( GridFunction *psi_ )
-   : Green(greenfunc), fespace(psi_->FESpace()), ones(psi_->FESpace())
+YFixSurfaceCoefficient::YFixSurfaceCoefficient(FiniteElementSpace * fes)
+  : Green(greenfunc), fespace(fes)
 {
    ones=1.0;
-   Psi=psi_;
 }
 
 double YFixSurfaceCoefficient::Eval(ElementTransformation &T,
                                    const IntegrationPoint &ip)
 {
 
+  // compute: f_i(x) := int_Gamma v_i(y) M(x, y) dS(y)
+  double x[3], value;
+  // Compute y value for the given quadrature ip
+  Vector transip(x, 3);
+  T.Transform(ip, transip); //transip is coordinate for a given point ip
+  Green.SetYVec(transip);
+
+  LinearForm f(fespace);
+  f.AddBoundaryIntegrator(new BoundaryLFIntegrator(Green));
+
+  int i = ip.index;
+  const FiniteElement &be = *fespace->GetBE(i);
+  Vector shape;
+  int nd = be.GetDof();
+  shape.SetSize(nd);
+  ElementTransformation *eltrans;
+  eltrans = fespace -> GetBdrElementTransformation (i);
+  eltrans->SetIntPoint (&ip);
+  be.CalcPhysShape(*eltrans, shape);
   
-   double x[3], value;
-   // Compute y value for the given quaderture ip
-   Vector transip(x, 3);
-   T.Transform(ip, transip); //transip is coordinate for a given point ip
-   Green.SetYVec(transip);
+  
+  
+  GridFunction v_i = ones;
+  double f_i = f(ones); // fix me
+
+  return f_i;
 
    // Evalute int_Γ G(x,y) Phi(x) dSx
-   BilinearForm IntSurf(fespace);
-   LinearForm IntPhi(fespace);
-   IntSurf.AddBoundaryIntegrator(new BoundaryMassIntegrator(Green));
-   IntSurf.SetAssemblyLevel(AssemblyLevel::PARTIAL);
-   IntSurf.Assemble();
-   IntSurf.Mult(*Psi, IntPhi); // psi is unknown
-   value = IntPhi(ones);
-   return value;
+   // BilinearForm IntSurf(fespace);
+   // IntSurf.AddBoundaryIntegrator(new BoundaryLFIntegrator(Green));
+   // IntSurf.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+   // IntSurf.Assemble();
+   // IntSurf.Mult(*Psi, IntPhi); // psi is unknown
+   // value = IntPhi(ones);
+   
 }
