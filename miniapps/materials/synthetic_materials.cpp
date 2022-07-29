@@ -115,10 +115,11 @@ int main(int argc, char *argv[]) {
   // 5. Define a finite element space on the mesh.
   H1_FECollection fec(order, dim);
   ParFiniteElementSpace fespace(&pmesh, &fec);
-  if (Mpi::Root()) {
-    cout << "Number of finite element unknowns: " << fespace.GetTrueVSize()
-         << endl;
-  }
+  HYPRE_BigInt size = fespace.GlobalTrueVSize();
+   if (Mpi::Root())
+   {
+      cout << "Number of finite element unknowns: " << size << endl;
+   }
 
   // 6. Boundary conditions
   const Array<int> ess_tdof_list;
