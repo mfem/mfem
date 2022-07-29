@@ -1,19 +1,49 @@
-// Compile with: make dan
-//
-// Sample runs:  ./dan
-//               ./dan -m meshes/DShape.msh
-//               ./dan -m meshes/DShape.msh -o 2
-//
-// After, run:
-//               glvis -m mesh.mesh -g sol.gf
-//
-// Description: 
-//
-// TODO: double boundary integral
-//       find x-point, max point
-//
+/* 
+   Compile with: make dan
+
+   Sample runs:  
+   ./dan
+   ./dan -m meshes/gs_mesh.msh
+   ./dan -m meshes/gs_mesh.msh -o 2
+
+   After, run:
+   glvis -m mesh.mesh -g sol.gf
+
+   Description: 
+   Solve the Grad-Shafranov equation using a newton iteration:
+   d_psi a(psi^k, v, phi^k) = l(I, v) - a(psi^k, v), for all v in V
+   
+   a = + int 1/(mu r) grad psi dot grad v dr dz  (term1)
+       - int (r Sp + 1/(mu r) Sff) v dr dz       (term2)
+       + int_Gamma 1/mu psi(x) N(x) v(x) dS(x)   (term3)
+       + int_Gamma int_Gamma 1/(2 mu) (psi(x) - psi(y)) M(x, y) (v(x) - v(y)) dS(x) dS(y)  (term4)
+   
+   d_psi a = + int 1/(mu r) grad phi dot grad v dr dz           (term1')
+             - int (r Sp' + 1/(mu r) Sff') d_psi psi_N v dr dz  (term2')
+             + int_Gamma 1/mu phi(x) N(x) v(x) dS(x)            (term3')
+             + int_Gamma int_Gamma 1/(2 mu) (phi(x) - phi(y)) M(x, y) (v(x) - v(y)) dS(x) dS(y)  (term4')
+             
+   l(I, v): coil_term:     coil contribution
+   term1:   diff_operator: diffusion integrator
+   term2:   plasma_term:   nonlinear contribution from plasma
+   term3:   
+   term4:   
+   term1':  diff_operator:      diffusion integrator (shared with term1)
+   term2':  diff_plasma_term_i: derivative of nonlinear contribution from plasma (i=1,2,3)
+   term3':  
+   term4':
+
+   Mesh attributes:
+   831:  r=0 boundary
+   900:  far-field boundary
+   1000: limiter
+   2000: exterior
+   everything else: coils
+
+   TODO: double boundary integral
+*/
+
 #include "mfem.hpp"
-#include "SurfaceCoefficient.hpp"
 #include <fstream>
 #include <iostream>
 #include <set>
@@ -24,6 +54,10 @@ using namespace mfem;
 int test();
 double one_over_r_mu(const Vector & x, double & mu);
 
+/*
+  Contains functions associated with the plasma model. 
+  They appear on the RHS of the equation.
+*/
 class PlasmaModel
 {
 private:
@@ -44,6 +78,9 @@ public:
   ~PlasmaModel() { }
 };
 
+/*
+  Coefficient for diffusion integrator.
+*/
 class DiffusionIntegratorCoefficient : public Coefficient
 {
 private:
@@ -56,6 +93,9 @@ public:
   virtual ~DiffusionIntegratorCoefficient() { }
 };
 
+/*
+  Used to test saddle point calculator
+ */
 class TestCoefficient : public Coefficient
 {
 public:
@@ -64,11 +104,14 @@ public:
   virtual ~TestCoefficient() { }
 };
 
-// option:
-//   1: r S_p' + S_ff' / mu r
-//   2: (r S'_p' + S'_ff' / mu r) / (psi_bdp - psi_max)
-//   3: - (r S'_p' + S'_ff' / mu r) (1 - psi_N) / (psi_bdp - psi_max)
-//   4: - (r S'_p' + S'_ff' / mu r) psi_N / (psi_bdp - psi_max)
+/*
+  Coefficient for the nonlinear term
+  option:
+  1: r S_p' + S_ff' / mu r
+  2: (r S'_p' + S'_ff' / mu r) / (psi_bdp - psi_max)
+  3: - (r S'_p' + S'_ff' / mu r) (1 - psi_N) / (psi_bdp - psi_max)
+  4: - (r S'_p' + S'_ff' / mu r) psi_N / (psi_bdp - psi_max)
+*/
 class NonlinearGridCoefficient : public Coefficient
 {
 private:
@@ -81,6 +124,7 @@ public:
   virtual double Eval(ElementTransformation &T, const IntegrationPoint &ip);
   virtual ~NonlinearGridCoefficient() { }
 };
+
 
 int main(int argc, char *argv[])
 {
@@ -95,6 +139,11 @@ int main(int argc, char *argv[])
    double gamma = 2.0;
    double mu = 1.0;
    double r0 = 1.0;
+
+   int attr_r_eq_0_bdr = 831;
+   int attr_ff_bdr = 900;
+   int attr_lim = 1000;
+   int attr_ext = 2000;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh", "Mesh file to use.");
@@ -118,40 +167,14 @@ int main(int argc, char *argv[])
    FiniteElementSpace fespace(&mesh, &fec);
    cout << "Number of unknowns: " << fespace.GetTrueVSize() << endl;
 
-   /*
-   Newton iteration
-   d_psi a(psi^k, v, phi^k) = l(I, v) - a(psi^k, v), for all v in V
-   
-   a = + int 1/(mu r) grad psi dot grad v dr dz  (term1)
-       - int (r Sp + 1/(mu r) Sff) v dr dz       (term2)
-       + int_Gamma 1/mu psi(x) N(x) v(x) dS(x)   (term3)
-       + int_Gamma int_Gamma 1/(2 mu) (psi(x) - psi(y)) M(x, y) (v(x) - v(y)) dS(x) dS(y)  (term4)
-   
-   d_psi a = + int 1/(mu r) grad phi dot grad v dr dz           (term1')
-             - int (r Sp' + 1/(mu r) Sff') d_psi psi_N v dr dz  (term2')
-             + int_Gamma 1/mu phi(x) N(x) v(x) dS(x)            (term3')
-             + int_Gamma int_Gamma 1/(2 mu) (phi(x) - phi(y)) M(x, y) (v(x) - v(y)) dS(x) dS(y)  (term4')
-             
-   l(I, v): coil_term:     coil contribution
-   term1:   diff_operator: diffusion integrator
-   term2:   plasma_term:   nonlinear contribution from plasma
-   term3:   
-   term4:   
-   term1':  diff_operator:      diffusion integrator (shared with term1)
-   term2':  diff_plasma_term_i: derivative of nonlinear contribution from plasma (i=1,2,3)
-   term3':  
-   term4':
-   */
-
    // Extract the list of all the boundary DOFs. These will be marked as
    // Dirichlet in order to enforce zero boundary conditions.
    Array<int> boundary_dofs;
    Array<int> bdr_attribs(mesh.bdr_attributes);
    Array<int> ess_bdr(bdr_attribs.Max());
    ess_bdr = 1;
-   ess_bdr[900-1] = 0;
+   ess_bdr[attr_ff_bdr-1] = 0;
    fespace.GetEssentialTrueDofs(ess_bdr, boundary_dofs, 1);
-   // fespace.GetBoundaryTrueDofs(boundary_dofs);
    
    // Define the solution x as a finite element grid function in fespace. Set
    // the initial guess to zero, which also sets the boundary conditions.
