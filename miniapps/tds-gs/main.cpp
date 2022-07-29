@@ -16,6 +16,7 @@
 #include "SurfaceCoefficient.hpp"
 #include <fstream>
 #include <iostream>
+#include <set>
 
 using namespace std;
 using namespace mfem;
@@ -117,6 +118,31 @@ int main(int argc, char *argv[])
    FiniteElementSpace fespace(&mesh, &fec);
    cout << "Number of unknowns: " << fespace.GetTrueVSize() << endl;
 
+   /*
+   Newton iteration
+   d_psi a(psi^k, v, phi^k) = l(I, v) - a(psi^k, v), for all v in V
+   
+   a = + int 1/(mu r) grad psi dot grad v dr dz  (term1)
+       - int (r Sp + 1/(mu r) Sff) v dr dz       (term2)
+       + int_Gamma 1/mu psi(x) N(x) v(x) dS(x)   (term3)
+       + int_Gamma int_Gamma 1/(2 mu) (psi(x) - psi(y)) M(x, y) (v(x) - v(y)) dS(x) dS(y)  (term4)
+   
+   d_psi a = + int 1/(mu r) grad phi dot grad v dr dz           (term1')
+             - int (r Sp' + 1/(mu r) Sff') d_psi psi_N v dr dz  (term2')
+             + int_Gamma 1/mu phi(x) N(x) v(x) dS(x)            (term3')
+             + int_Gamma int_Gamma 1/(2 mu) (phi(x) - phi(y)) M(x, y) (v(x) - v(y)) dS(x) dS(y)  (term4')
+             
+   l(I, v): coil_term:     coil contribution
+   term1:   diff_operator: diffusion integrator
+   term2:   plasma_term:   nonlinear contribution from plasma
+   term3:   
+   term4:   
+   term1':  diff_operator:      diffusion integrator (shared with term1)
+   term2':  diff_plasma_term_i: derivative of nonlinear contribution from plasma (i=1,2,3)
+   term3':  
+   term4':
+   */
+
    // Extract the list of all the boundary DOFs. These will be marked as
    // Dirichlet in order to enforce zero boundary conditions.
    Array<int> boundary_dofs;
@@ -132,29 +158,6 @@ int main(int argc, char *argv[])
    GridFunction x(&fespace);
    x = 0.0;
 
-   // Newton iteration
-   // d_psi a(psi^k, v, phi^k) = l(I, v) - a(psi^k, v), for all v in V
-   //
-   // a = + int 1/(mu r) grad psi dot grad v dr dz  (term1)
-   //     - int (r Sp + 1/(mu r) Sff) v dr dz       (term2)
-   //     + int_Gamma 1/mu psi(x) N(x) v(x) dS(x)   (term3)
-   //     + int_Gamma int_Gamma 1/(2 mu) (psi(x) - psi(y)) M(x, y) (v(x) - v(y)) dS(x) dS(y)  (term4)
-   //
-   // d_psi a = + int 1/(mu r) grad phi dot grad v dr dz           (term1')
-   //           - int (r Sp' + 1/(mu r) Sff') d_psi psi_N v dr dz  (term2')
-   //           + int_Gamma 1/mu phi(x) N(x) v(x) dS(x)            (term3')
-   //           + int_Gamma int_Gamma 1/(2 mu) (phi(x) - phi(y)) M(x, y) (v(x) - v(y)) dS(x) dS(y)  (term4')
-   //           
-   // l(I, v): coil_term:     coil contribution
-   // term1:   diff_operator: diffusion integrator
-   // term2:   plasma_term:   nonlinear contribution from plasma
-   // term3:   
-   // term4:   
-   // term1':  diff_operator:      diffusion integrator (shared with term1)
-   // term2':  diff_plasma_term_i: derivative of nonlinear contribution from plasma (i=1,2,3)
-   // term3':  
-   // term4': 
-   
    // Set up the contribution from the coils
    LinearForm coil_term(&fespace);
    // these are the unique element attributes used by the mesh
@@ -180,8 +183,14 @@ int main(int argc, char *argv[])
    DiffusionIntegratorCoefficient diff_op_coeff(&model);
    BilinearForm diff_operator(&fespace);
    diff_operator.AddDomainIntegrator(new DiffusionIntegrator(diff_op_coeff));
-   ConstantCoefficient coeff(1.0);
-   diff_operator.AddBoundaryIntegrator(new MassIntegrator(coeff));
+
+   // GreenCoefficient green(greenfunc);
+   // LinearForm fi(&fespace);
+   // fi.AddBoundaryIntegrator(new BoundaryLFIntegrator(green));
+
+   // ConstantCoefficient coeff(1.0);
+   // YFixSurfaceCoefficient coeff(&fespace);
+   // diff_operator.AddBoundaryIntegrator(new MassIntegrator(coeff));
    diff_operator.Assemble();
 
    // boundary integral
@@ -222,27 +231,141 @@ int main(int argc, char *argv[])
    diff_operator.Mult(x, y);
    y.Save("y.gf");
 
-
    //
    TestCoefficient tcoeff;
    GridFunction z(&fespace);
    z.ProjectCoefficient(tcoeff);
    z.Save("z.gf");
 
-   Table* vertex_map = mesh.GetVertexToElementTable();
-   for (int i = 0; i < vertex_map->Size(); ++i) {
-     int num_elems = vertex_map->RowSize(i);
-     const int *elems = vertex_map->GetRow(i);
-     cout << i << " ";
-     for (int j = 0; j < num_elems; ++j) {
-       cout << elems[j] << " ";
+   /*
+     Test vertex to vertex mapping...
+    */
 
-       Array<int> vertices;
-       fespace.GetElementVertices(j, vertices);
+   Vector nval;
+   z.GetNodalValues(nval);
+   map<int, vector<int>> vertex_map;
+
+   DSTable v_to_v(mesh.GetNV());
+   int stop = 0;
+   // get vertex to vertex mapping
+   for (int i = 0; i < mesh.GetNE(); i++) {
+     const int *v = mesh.GetElement(i)->GetVertices();
+     const int ne = mesh.GetElement(i)->GetNEdges();
+     for (int j = 0; j < ne; j++) {
+       const int *e = mesh.GetElement(i)->GetEdgeVertices(j);
+       v_to_v.Push(v[e[0]], v[e[1]]);
+
+       vertex_map[v[e[0]]].push_back(v[e[1]]);
        
+       // cout << v[e[0]] << " : " << v[e[1]] << endl;
+       // cout << nval[v[e[0]]] << " : " << nval[v[e[1]]] << endl;
+       // stop++;
      }
-     cout << endl;
+     // if (stop > 10) {
+     //   break;
+     // }
    }
+
+   int count = 0;
+   // loop through vertices and check neighboring vertices to see if we found a saddle point
+   for(int iv = 0; iv < mesh.GetNV(); ++iv) {
+     vector<int> adjacent = vertex_map[iv];
+     int j = 0;
+     double* x0 = mesh.GetVertex(iv);
+     double* a = mesh.GetVertex(adjacent[j]);
+
+     // cout << pow(x0[0] - 1.0, 2.0) + pow(x0[1], 2.0) << endl;
+     // cout << nval[iv] << endl;
+     // cout << x0[0] << ", " << x0[1] << endl;
+     map<double, double> clock;
+     set<double> ordered_angs;
+     for (j = 0; j < adjacent.size(); ++j) {
+       int jv = adjacent[j];
+       double* b = mesh.GetVertex(jv);
+       double diff = nval[jv] - nval[iv];
+       // cout << b[0] << ", " << b[1] << endl;
+
+       double ax = a[0]-x0[0];
+       double ay = a[1]-x0[1];
+       double bx = b[0]-x0[0];
+       double by = b[1]-x0[1];
+
+       double ang = atan2(by, bx);
+       // double ang = asin( (ax*by-bx*ay)
+       //                    / (sqrt(pow(ax,2.0)+pow(ay,2.0))
+       //                       * sqrt(pow(bx,2.0)+pow(by,2.0))) );
+       clock[ang] = diff;
+       ordered_angs.insert(ang);
+     }
+
+     int sign_changes = 0;
+     set<double>::iterator it = ordered_angs.begin();
+     double init = clock[*it];
+     double prev = clock[*it];
+     // cout << *it << " : " << clock[*it] << endl;
+     ++it;
+     for (; it != ordered_angs.end(); ++it) {
+       if (clock[*it] * prev < 0.0) {
+         ++sign_changes;
+       }
+       prev = clock[*it];
+       // cout << *it << " : " << clock[*it] << endl;
+     }
+     if (prev * init < 0.0) {
+       ++sign_changes;
+     }
+     // cout << "sign changes: " << sign_changes << endl;
+     // cout << endl;
+
+     if (sign_changes >= 4) {
+       printf("Found saddle at (%9.6f, %9.6f)\n", x0[0], x0[1]);
+       ++count;
+     }
+ 
+     // stop++;
+     // if (stop > 5) {
+     //   break;
+     // }
+   }
+
+   cout << "total saddles: " << count << endl;
+   int key = 62198;
+   vector<int> adjacent = vertex_map[key];
+
+   // cout << key;
+   // for (int j = 0; j < adjacent.size(); ++j)
+   //   {
+   //     cout << " " << adjacent[j];
+   //   }
+   // cout << endl;
+
+   
+
+   int i;
+   for (DSTable::RowIterator it(v_to_v, i); !it; ++it) {
+     it.Column();
+     // J_v2v.Append(Pair<int,int>(it.Column(), it.Index()));
+   }
+   
+   // cout << "rows: " << v_to_v.NumberOfRows() << endl;
+   // cout << "entries: " << v_to_v.NumberOfEntries() << endl;
+
+   
+
+   // Table* vertex_map = mesh.GetVertexToElementTable();
+   // for (int i = 0; i < vertex_map->Size(); ++i) {
+   //   int num_elems = vertex_map->RowSize(i);
+   //   const int *elems = vertex_map->GetRow(i);
+   //   cout << i << " ";
+   //   for (int j = 0; j < num_elems; ++j) {
+   //     cout << elems[j] << " ";
+
+   //     Array<int> vertices;
+   //     fespace.GetElementVertices(j, vertices);
+       
+   //   }
+   //   cout << endl;
+   // }
    
    // map<int, vector<int>> vertex_map;
    // // vector<int> empty;
@@ -427,7 +550,7 @@ double DiffusionIntegratorCoefficient::Eval(ElementTransformation & T,
 }
 
 double TestCoefficient::Eval(ElementTransformation & T,
-                                            const IntegrationPoint & ip)
+                             const IntegrationPoint & ip)
 {
    double x_[3];
    Vector x(x_, 3);
@@ -438,4 +561,6 @@ double TestCoefficient::Eval(ElementTransformation & T,
    
    // return pow(x1, 2.0) * pow(x2, 3.0);
    return cos(k * x1) * cos(k * x2) * exp(- pow(x1, 2.0) - pow(x2, 2.0));
+   // return pow(x1 - 1.0, 2.0) + pow(x2, 2.0);
+   // return pow(x1 - 1.0, 2.0) - pow(x2, 2.0);
 }
