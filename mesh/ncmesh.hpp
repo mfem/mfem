@@ -545,6 +545,7 @@ protected: // implementation
    void InitGeomFlags();
 
    bool HavePrisms() const { return Geoms & (1 << Geometry::PRISM); }
+   bool HavePyramids() const { return Geoms & (1 << Geometry::PYRAMID); }
    bool HaveTets() const   { return Geoms & (1 << Geometry::TETRAHEDRON); }
 
    bool IsGhost(const Element &el) const { return el.rank != MyRank; }
@@ -592,6 +593,10 @@ protected: // implementation
    int NewTetrahedron(int n0, int n1, int n2, int n3, int attr,
                       int fattr0, int fattr1, int fattr2, int fattr3);
 
+   int NewPyramid(int n0, int n1, int n2, int n3, int n4, int attr,
+                      int fattr0, int fattr1, int fattr2, int fattr3,
+                      int fattr4);
+
    int NewQuadrilateral(int n0, int n1, int n2, int n3, int attr,
                         int eattr0, int eattr1, int eattr2, int eattr3);
 
@@ -614,6 +619,9 @@ protected: // implementation
 
    void CheckAnisoPrism(int vn1, int vn2, int vn3, int vn4,
                         const Refinement *refs, int nref);
+
+   void CheckAnisoPyramid(int vn1, int vn2, int vn3, int vn4,
+                          const Refinement *refs, int nref);
 
    void CheckAnisoFace(int vn1, int vn2, int vn3, int vn4,
                        int mid12, int mid34, int level = 0);
@@ -793,6 +801,13 @@ protected: // implementation
       { np = 4; points[0] = p0; points[1] = p1; points[2] = p2; points[3] = p3; }
 
       PointMatrix(const Point& p0, const Point& p1, const Point& p2,
+                  const Point& p3, const Point& p4)
+      {
+         np = 5;
+         points[0] = p0; points[1] = p1; points[2] = p2;
+         points[3] = p3; points[4] = p4;
+      }
+      PointMatrix(const Point& p0, const Point& p1, const Point& p2,
                   const Point& p3, const Point& p4, const Point& p5)
       {
          np = 6;
@@ -821,6 +836,7 @@ protected: // implementation
    static PointMatrix pm_quad_identity;
    static PointMatrix pm_tet_identity;
    static PointMatrix pm_prism_identity;
+   static PointMatrix pm_pyramid_identity;
    static PointMatrix pm_hex_identity;
 
    static const PointMatrix& GetGeomIdentity(Geometry::Type geom);
