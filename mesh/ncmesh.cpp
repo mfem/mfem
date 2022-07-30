@@ -2290,7 +2290,7 @@ void NCMesh::UpdateVertices()
 #else // old ordering for debugging/testing only
    bool parallel = false;
 #ifdef MFEM_USE_MPI
-   //if (dynamic_cast<ParNCMesh*>(this)) { parallel = true; }
+   if (dynamic_cast<ParNCMesh*>(this)) { parallel = true; }
 #endif
 
    if (!parallel)
