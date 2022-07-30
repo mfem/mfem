@@ -28,8 +28,8 @@ public:
 #if !(defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP) || defined(MFEM_USE_JIT))
       MFEM_ASSERT(first<sizes[N-1],"Trying to access out of boundary.");
 #endif
-      return first + sizes[N - 1] * TensorInd < N + 1, Dim, Args... >
-             ::result(sizes, args...);
+      return static_cast<int>(first + sizes[N - 1] * TensorInd < N + 1, Dim, Args... >
+                              ::result(sizes, args...));
    }
 };
 
@@ -44,7 +44,7 @@ public:
 #if !(defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP) || defined(MFEM_USE_JIT))
       MFEM_ASSERT(first<sizes[Dim-1],"Trying to access out of boundary.");
 #endif
-      return first;
+      return static_cast<int>(first);
    }
 };
 
