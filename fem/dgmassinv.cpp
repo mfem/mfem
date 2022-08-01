@@ -117,7 +117,7 @@ void DGMassInverse::DGMassCGIteration(const Vector &b_, Vector &u_) const
    const int d1d = m->dofs1D;
    const int q1d = m->quad1D;
 
-   const int ND = pow(d1d, DIM);
+   const int ND = static_cast<int>(pow(d1d, DIM));
 
    const auto B = m->maps->B.Read();
    const auto Bt = m->maps->Bt.Read();
@@ -160,10 +160,12 @@ void DGMassInverse::DGMassCGIteration(const Vector &b_, Vector &u_) const
       b = b_.Read();
    }
 
-   const int NB = Q1D ? Q1D : 1; // block size
+   constexpr int NB = Q1D ? Q1D : 1; // block size
 
    MFEM_FORALL_2D(e, NE, NB, NB, 1,
    {
+      constexpr int NB = Q1D ? Q1D : 1; // redefine here for some compilers
+
       // Perform change of basis if needed
       if (change_basis)
       {
@@ -215,8 +217,8 @@ void DGMassInverse::DGMassCGIteration(const Vector &b_, Vector &u_) const
       double den = DGMassDot<NB>(e, NE, ND, z, d);
       if (den <= 0.0)
       {
-         const double d2 = DGMassDot<NB>(e, NE, ND, d, d);
-         if (d2 > 0.0 && tid == 0) { printf("Not positive definite.\n"); }
+         DGMassDot<NB>(e, NE, ND, d, d);
+         // d2 > 0 => not positive definite
          if (den == 0.0) { return; }
       }
 
@@ -243,6 +245,7 @@ void DGMassInverse::DGMassCGIteration(const Vector &b_, Vector &u_) const
          if (den <= 0.0)
          {
             DGMassDot<NB>(e, NE, ND, d, d);
+            // d2 > 0 => not positive definite
             if (den == 0.0) { break; }
          }
          nom = betanom;
