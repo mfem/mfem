@@ -289,8 +289,8 @@ class EliminationGMRESSolver : public EliminationSolver
 {
 public:
    EliminationGMRESSolver(HypreParMatrix& A, SparseMatrix& B,
-                       Array<int>& constraint_rowstarts,
-                       int dimension_=0, bool reorder_=false) :
+                          Array<int>& constraint_rowstarts,
+                          int dimension_=0, bool reorder_=false) :
       EliminationSolver(A, B, constraint_rowstarts),
       dimension(dimension_), reorder(reorder_)
    { }
@@ -398,19 +398,19 @@ class PenaltyGMRESSolver : public PenaltyConstrainedSolver
 {
 public:
    PenaltyGMRESSolver(HypreParMatrix& A, SparseMatrix& B, double penalty_,
-                    int dimension=0, bool reorder=false) :
+                      int dimension=0, bool reorder=false) :
       PenaltyConstrainedSolver(A, B, penalty_),
       dimension_(dimension), reorder_(reorder)
    { }
 
    PenaltyGMRESSolver(HypreParMatrix& A, HypreParMatrix& B, double penalty_,
-                    int dimension=0, bool reorder=false) :
+                      int dimension=0, bool reorder=false) :
       PenaltyConstrainedSolver(A, B, penalty_),
       dimension_(dimension), reorder_(reorder)
    { }
 
    PenaltyGMRESSolver(HypreParMatrix& A, HypreParMatrix& B, Vector& penalty_,
-                    int dimension=0, bool reorder=false) :
+                      int dimension=0, bool reorder=false) :
       PenaltyConstrainedSolver(A, B, penalty_),
       dimension_(dimension), reorder_(reorder)
    { }

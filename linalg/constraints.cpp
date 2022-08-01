@@ -360,7 +360,8 @@ void EliminationSolver::Mult(const Vector& rhs, Vector& sol) const
    sol += rtilde;
 }
 
-void PenaltyConstrainedSolver::Initialize(HypreParMatrix& A, HypreParMatrix& B, HypreParMatrix& D)
+void PenaltyConstrainedSolver::Initialize(HypreParMatrix& A, HypreParMatrix& B,
+                                          HypreParMatrix& D)
 {
    HypreParMatrix * hBTB = RAP(&D, &B);
    // this matrix doesn't get cleanly deleted?
