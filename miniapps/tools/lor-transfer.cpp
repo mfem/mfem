@@ -75,6 +75,8 @@ int main(int argc, char *argv[])
    bool vis = true;
    bool useH1 = false;
    bool use_pointwise_transfer = false;
+   int rs_levels = 0;
+   int mesh_order = 1;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -84,6 +86,10 @@ int main(int argc, char *argv[])
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree) or -1 for"
                   " isoparametric space.");
+   args.AddOption(&mesh_order, "-mo", "--mesh-order",
+                  "Order (degree) of the mesh.");
+   args.AddOption(&rs_levels, "-rs", "--refine-serial",
+                  "Number of times to refine the mesh uniformly in serial.");
    args.AddOption(&lref, "-lref", "--lor-ref-level", "LOR refinement level.");
    args.AddOption(&lorder, "-lo", "--lor-order",
                   "LOR space order (polynomial degree, zero by default).");
@@ -106,10 +112,31 @@ int main(int argc, char *argv[])
    // Read the mesh from the given mesh file.
    Mesh mesh(mesh_file, 1, 1);
    int dim = mesh.Dimension();
+   for (int lev = 0; lev < rs_levels; lev++) { mesh.UniformRefinement(); }
+
+   // Put in 8/1/2022, If we change the mesh order for the mesh it messes
+   // things up as far as mass goes.
+
+   // Check if the input mesh is periodic.
+   const bool periodic = mesh.GetNodes() != NULL &&
+                         dynamic_cast<const L2_FECollection *>
+                         (mesh.GetNodes()->FESpace()->FEColl()) != NULL;
+   mesh.SetCurvature(mesh_order, periodic);
 
    // Create the low-order refined mesh
    int basis_lor = BasisType::GaussLobatto; // BasisType::ClosedUniform;
    Mesh mesh_lor = Mesh::MakeRefined(mesh, lref, basis_lor);
+   //Mesh mesh_lor(mesh);
+   //mesh_lor.UniformRefinement();
+
+   // Check if the input mesh is periodic.
+   mesh_lor.SetCurvature(mesh_order, periodic);
+
+   OperatorPtr N;
+   mesh_lor.GetNodalFESpace()->GetTransferOperator(*mesh.GetNodalFESpace(),N);
+
+   N->Mult(*mesh.GetNodes(), *mesh_lor.GetNodes());
+
 
    // Create spaces
    FiniteElementCollection *fec, *fec_lor;
@@ -172,6 +199,14 @@ int main(int argc, char *argv[])
    const Operator &R = gt->ForwardOperator();
    const Operator &P = gt->BackwardOperator();
 
+   // Mesh outputs
+   ofstream meshHO("meshHO.mesh");
+   meshHO.precision(12);
+   mesh.Print(meshHO);
+   ofstream meshLOR("meshLOR.mesh");
+   meshLOR.precision(12);
+   mesh_lor.Print(meshLOR);
+
    // HO->LOR restriction
    direction = "HO -> LOR @ LOR";
    R.Mult(rho, rho_lor);
@@ -182,6 +217,48 @@ int main(int argc, char *argv[])
    direction = "HO -> LOR @ HO";
    GridFunction rho_prev = rho;
    P.Mult(rho_lor, rho);
+
+   //---------------------------------------------------------------
+   // Testing this out instead of using Mult
+   // This was taken directly from the transfer.cpp file
+   /*
+   FiniteElementSpace fes_ho = fespace;
+   FiniteElementSpace fes_lor = fespace_lor;
+   Table ho2lor;
+   GridFunction x_gf = rho;
+   GridFunction y_gf = rho_lor;
+   Array<int> offsets;
+
+   int vdim = fes_ho.GetVDim();
+   Array<int> vdofs;
+   DenseMatrix xel_mat, yel_mat;
+    for (int iho = 0; iho < fes_ho.GetNE(); ++iho)
+    {
+       int nref = ho2lor.RowSize(iho);
+       int ndof_ho = fes_ho.GetFE(iho)->GetDof();
+       int ndof_lor = fes_lor.GetFE(ho2lor.GetRow(iho)[0])->GetDof();
+       xel_mat.SetSize(ndof_ho, vdim);
+       yel_mat.SetSize(ndof_lor*nref, vdim);
+       DenseMatrix R_iho(&R[offsets[iho]], ndof_lor*nref, ndof_ho);
+
+       fes_ho.GetElementVDofs(iho, vdofs);
+       x_gf.GetSubVector(vdofs, xel_mat.GetData());
+       mfem::Mult(R_iho, xel_mat, yel_mat);
+       // Place result correctly into the low-order vector
+       for (int iref = 0; iref < nref; ++iref)
+       {
+          int ilor = ho2lor.GetRow(iho)[iref];
+          for (int vd=0; vd<vdim; ++vd)
+          {
+             fes_lor.GetElementDofs(ilor, vdofs);
+             fes_lor.DofsToVDofs(vd, vdofs);
+             y_gf.SetSubVector(vdofs, &yel_mat(iref*ndof_lor,vd));
+          }
+       }
+    }
+    */
+   //---------------------------------------------------------------
+
    compute_mass(&fespace, ho_mass, HO_dc, "P(R(HO)) ");
    if (vis) { visualize(HO_dc, "P(R(HO))", Wx, Wy); Wx = 0; Wy += offy; }
 
@@ -210,7 +287,7 @@ int main(int argc, char *argv[])
    if (vis) { visualize(LOR_dc, "LOR", Wx, Wy); Wx += offx; }
 
    // Prolongate to HO space
-   direction = "LOR -> HO @ HO";
+   direction = "LOR -> HO @ HO";   
    P.Mult(rho_lor, rho);
    compute_mass(&fespace, lor_mass, HO_dc, "P(LOR)   ");
    if (vis) { visualize(HO_dc, "P(LOR)", Wx, Wy); Wx += offx; }
