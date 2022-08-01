@@ -421,6 +421,10 @@ int material_id(int el_id, const GridFunction &g)
       Tr->SetIntPoint(&ip);
       integral += ip.weight * g_vals(q) * Tr->Weight();
    }
+   double minval = g_vals.Min();
+   double maxval = g_vals.Max();
+//   return maxval <= 0 ? 1.0 : 0.0;
+   return minval > 0.0 ? 1.0 : 0.0;
    return (integral > 0.0) ? 1.0 : 0.0;
 }
 

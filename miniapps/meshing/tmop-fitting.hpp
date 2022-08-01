@@ -24,7 +24,7 @@ double circle_level_set(const Vector &x)
    {
       const double xc = x(0) - 0.5, yc = x(1) - 0.5;
       const double r = sqrt(xc*xc + yc*yc);
-      return r-0.3; // circle of radius 0.1
+      return r-0.25; // circle of radius 0.1
    }
    else
    {
@@ -32,6 +32,15 @@ double circle_level_set(const Vector &x)
       const double r = sqrt(xc*xc + yc*yc + zc*zc);
       return r-0.3;
    }
+}
+
+double sine_level_set(const Vector &x)
+{
+    const double sine = 0.25 * std::sin(4 * M_PI * x(0)) +
+                           0.05 * std::sin(16 * M_PI * x(0));
+//    return sine;
+    return -std::tanh(2.00*(x(1)-sine-0.5));
+    return (x(1) >= sine + 0.5) ? -1.0 : 1.0;
 }
 
 double donut_level_set(const Vector &coord)
@@ -112,6 +121,18 @@ double in_parabola(const Vector &x, double h, double k, double t)
    return -1.0;
 }
 
+double in_parabola_rad(const Vector &x, double h, double k, double t, double rad)
+{
+   double phi_p1 = (x(0)-h-t/2) - k*x(1)*x(1);
+   double phi_p2 = (x(0)-h+t/2) - k*x(1)*x(1);
+   double r = x.Norml2();
+   if (phi_p1 <= 0.0 && phi_p2 >= 0.0 && r <= rad)
+   {
+      return 1.0;
+   }
+   return -1.0;
+}
+
 double in_rectangle(const Vector &x, double xc, double yc, double w, double h)
 {
    double dx = fabs(x(0) - xc);
@@ -146,10 +167,10 @@ double reactor(const Vector &x)
    double in_parabola_val = in_parabola(x, h, k, t);
    return_val = max(return_val, in_parabola_val);
 
-   double in_rectangle_val = in_rectangle(x, 1.0, 0.0, 0.12, 0.35);
+   double in_rectangle_val = in_rectangle(x, 0.99, 0.0, 0.12, 0.35);
    return_val = max(return_val, in_rectangle_val);
 
-   double in_rectangle_val2 = in_rectangle(x, 1.0, 0.5, 0.12, 0.28);
+   double in_rectangle_val2 = in_rectangle(x, 0.99, 0.5, 0.12, 0.28);
    return_val = max(return_val, in_rectangle_val2);
    return return_val;
 }
@@ -239,31 +260,42 @@ double object_three(const Vector &x)
        xc = 0.5; xc -= x; xc(2) = 0.0;
        cylinder_z = cyl_rad*cyl_rad - (xc(1)*xc(1) + xc(0)*xc(0));
    }
-   return r_remove(r_remove(r_remove(r_intersect(cube, sphere), cylinder_x), cylinder_y), cylinder_z)
+   return r_remove(r_remove(r_remove(r_intersect(cube, sphere), cylinder_x), cylinder_y), cylinder_z);
 }
 
 double squircle_with_hole(const Vector &x)
 {
    double rect;
-   double rectw = 0.25;
-   double rado  = 0.30;
+   double rectw = 0.24;
+   double rado  = 0.29;
    double radi  = 0.14;
    {
        double rect_x = -(x(0)-0.5)*(x(0)-0.5) + rectw*rectw;
        double rect_y = -(x(1)-0.5)*(x(1)-0.5) + rectw*rectw;
+
        rect = r_intersect(rect_x, rect_y);
+
+       double rect_x1 = 0.75-x(0);
+       double rect_x2 = x(0)-0.25;
+       double rect_y1 = 0.75-x(1);
+       double rect_y2 = x(1)-0.25;
+       rect = r_intersect(r_intersect(r_intersect(rect_x1, rect_x2),rect_y1),rect_y2);
+//       rect = r_intersect(rect_x1, rect_x2);
    }
    double cir;
    {
        const double xc = x(0) - 0.5, yc = x(1) - 0.5;
        cir = rado*rado - (xc*xc + yc*yc);
+       cir = rado - sqrt(xc*xc + yc*yc);
    }
+//   return rect;
+//   return r_intersect(rect, cir);
    double hole;
    {
        const double xc = x(0) - 0.5, yc = x(1) - 0.5;
        hole = radi*radi - (xc*xc + yc*yc);
+       hole = radi - sqrt(xc*xc + yc*yc);
    }
-//   return r_intersect(rect, cir);
    return r_remove(r_intersect(rect, cir), hole);
 }
 
@@ -729,45 +761,52 @@ void OptimizeMeshWithAMRAroundZeroLevelSet(ParMesh &pmesh,
       {
          Array<int> dofs;
          Vector x_vals;
+         DenseMatrix x_grad;
          h1fespace.GetElementDofs(e, dofs);
-         x.GetSubVector(dofs, x_vals);
+         const IntegrationRule &ir =
+            IntRules.Get(x.ParFESpace()->GetFE(e)->GetGeomType(), 6);
+         x.GetValues(e, ir, x_vals);
          double min_val = x_vals.Min();
          double max_val = x_vals.Max();
-//         for (int j = 0; j < x_vals.Size(); j++)
-//         {
-//            double x_dof_val = x_vals(j);
-//            min_val = min(x_dof_val, min_val);
-//            max_val = max(x_dof_val, max_val);
-//         }
          // If the zero level set cuts the elements, mark it for refinement
-         if (min_val < 0 && max_val > 0)
+         if (min_val < 0 && max_val >= 0)
          {
             el_to_refine(e) = 1.0;
          }
+         // Check gradient magnitude
+//         x.GetGradients(*(x.FESpace()->GetElementTransformation(e)), ir, x_grad);
+//         Vector gradl2(x_vals.Size());
+//         x_grad.Norm2(gradl2);
+//         double min_grad_val = gradl2.Min();
+//         if (min_grad_val < 0.9)
+//         {
+//            el_to_refine(e) = 1.0;
+//         }
+//         std::cout << e << " " << gradl2.Min() << " k10gradl2min\n";
       }
 
       // Refine an element if its neighbor will be refined
-      el_to_refine.ExchangeFaceNbrData();
-      GridFunctionCoefficient field_in_dg(&el_to_refine);
-      lhx.ProjectDiscCoefficient(field_in_dg, GridFunction::ARITHMETIC);
-      for (int e = 0; e < pmesh.GetNE(); e++)
+      for (int inner_iter = 0; inner_iter < 2; inner_iter++)
       {
-         Array<int> dofs;
-         Vector x_vals;
-         lhfespace.GetElementDofs(e, dofs);
-         lhx.GetSubVector(dofs, x_vals);
-         int refine = 0;
-         double max_val = -100;
-         for (int j = 0; j < x_vals.Size(); j++)
-         {
-            double x_dof_val = x_vals(j);
-            max_val = max(x_dof_val, max_val);
-         }
-         if (max_val > 0)
-         {
-            refine = 1;
-            el_to_refine(e) = 1.0;
-         }
+         el_to_refine.ExchangeFaceNbrData();
+          GridFunctionCoefficient field_in_dg(&el_to_refine);
+          lhx.ProjectDiscCoefficient(field_in_dg, GridFunction::ARITHMETIC);
+          for (int e = 0; e < pmesh.GetNE(); e++)
+          {
+             Array<int> dofs;
+             Vector x_vals;
+             lhfespace.GetElementDofs(e, dofs);
+    //         lhx.GetSubVector(dofs, x_vals);
+             const IntegrationRule &ir =
+                IntRules.Get(lhx.ParFESpace()->GetFE(e)->GetGeomType(), 5);
+             lhx.GetValues(e, ir, x_vals);
+
+             double max_val = x_vals.Max();
+             if (max_val > 0)
+             {
+                el_to_refine(e) = 1.0;
+             }
+          }
       }
 
       // Make the list of elements to be refined
@@ -806,7 +845,7 @@ void OptimizeMeshWithAMRAroundZeroLevelSet(ParMesh &pmesh,
 
 void ComputeScalarDistanceFromLevelSet(ParMesh &pmesh,
                                        FunctionCoefficient &ls_coeff,
-                                       int amr_iter, ParGridFunction &distance_s)
+                                       ParGridFunction &distance_s)
 {
    mfem::H1_FECollection h1fec(distance_s.ParFESpace()->FEColl()->GetOrder(),
                                pmesh.Dimension());
@@ -857,7 +896,8 @@ void ComputeScalarDistanceFromLevelSet(ParMesh &pmesh,
    distance_s.SetFromTrueVector();
    for (int i = 0; i < distance_s.Size(); i++)
    {
-      distance_s(i) = std::fabs(distance_s(i));
+      //distance_s(i) = std::fabs(distance_s(i));
+       distance_s(i) *= -1;
    }
 }
 #endif
