@@ -414,7 +414,7 @@ TeslaSolver::GetErrorEstimates(Vector & errors)
    ParFiniteElementSpace flux_fes(pmesh_, &flux_fec);
 
    // Space for the smoothed (conforming) flux
-   double norm_p = 1;
+   int norm_p = 1;
    ND_FECollection smooth_flux_fec(order_, pmesh_->Dimension());
    ParFiniteElementSpace smooth_flux_fes(pmesh_, &smooth_flux_fec);
 
