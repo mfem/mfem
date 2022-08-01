@@ -235,7 +235,7 @@ public:
    void SetOperator(const Operator& op) override
    { MFEM_ABORT("Operator cannot be reset!"); }
 
-   void SetPreconditioner(Solver * precond)
+   void SetPreconditioner(Solver * precond) override
    { prec = precond; }
 
 protected:
