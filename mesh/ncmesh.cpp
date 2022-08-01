@@ -801,6 +801,30 @@ void NCMesh::CheckAnisoPrism(int vn1, int vn2, int vn3, int vn4,
    }
 }
 
+void NCMesh::CheckAnisoPyramid(int vn1, int vn2, int vn3, int vn4,
+                             const Refinement *refs, int nref)
+{
+   MeshId buf[4];
+   Array<MeshId> eid(buf, 4);
+   FindEdgeElements(vn1, vn2, vn3, vn4, eid);
+
+   // see if there is an element that has not been force-refined yet
+   for (int i = 0, j; i < eid.Size(); i++)
+   {
+      int elem = eid[i].element;
+      for (j = 0; j < nref; j++)
+      {
+         if (refs[j].index == elem) { break; }
+      }
+      if (j == nref) // elem not found in refs[]
+      {
+         // schedule prism refinement along Z axis
+         MFEM_ASSERT(elements[elem].Geom() == Geometry::PYRAMID, "");
+         ref_stack.Append(Refinement(elem, 4));
+      }
+   }
+}
+
 
 void NCMesh::CheckAnisoFace(int vn1, int vn2, int vn3, int vn4,
                             int mid12, int mid34, int level)
@@ -856,6 +880,21 @@ void NCMesh::CheckAnisoFace(int vn1, int vn2, int vn3, int vn4,
             else
             {
                CheckAnisoPrism(mid23, vn3, vn4, mid41, NULL, 0);
+            }
+         }
+         if (HavePyramids() && nodes[midf].HasEdge())
+         {
+            // Check if there is a pyramid with edge (mid23, mid41) that we may
+            // have missed in 'CheckAnisoFace', and force-refine it if present.
+
+            if (ref_stack.Size() > rs)
+            {
+               CheckAnisoPyramid(mid23, vn3, vn4, mid41,
+                                 &ref_stack[rs], ref_stack.Size() - rs);
+            }
+            else
+            {
+               CheckAnisoPyramid(mid23, vn3, vn4, mid41, NULL, 0);
             }
          }
 
