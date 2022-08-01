@@ -102,18 +102,20 @@ public:
                                  const double a = 1.0) const;
 
    /// Operator application on a matrix: `Y=A(X)`.
-   virtual void Mult(const Array<Vector *> &X, Array<Vector *> &Y) const;
+   virtual void Mult(const Array<const Vector *> &X, Array<Vector *> &Y) const;
 
    /// Action of the transpose operator on a matrix: `Y=A^t(X)`.
-   virtual void MultTranspose(const Array<Vector *> &X, Array<Vector *> &Y) const;
+   virtual void MultTranspose(const Array<const Vector *> &X,
+                              Array<Vector *> &Y) const;
 
    /// Operator application on a matrix: `Y+=A(X)` (default) or `Y+=a*A(X)`.
-   virtual void AddMult(const Array<Vector *> &X, Array<Vector *> &Y,
+   virtual void AddMult(const Array<const Vector *> &X, Array<Vector *> &Y,
                         const double a = 1.0) const;
 
    /** @brief Operator transpose application on a matrix: `Y+=A^t(X)` (default)
        or `Y+=a*A^t(X)`. */
-   virtual void AddMultTranspose(const Array<Vector *> &X, Array<Vector *> &Y,
+   virtual void AddMultTranspose(const Array<const Vector *> &X,
+                                 Array<Vector *> &Y,
                                  const double a = 1.0) const;
 
    /** @brief Evaluate the gradient operator at the point @a x. The default

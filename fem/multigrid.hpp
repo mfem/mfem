@@ -107,7 +107,8 @@ public:
 
    /// Application of the multigrid as a preconditioner
    virtual void Mult(const Vector& x, Vector& y) const override;
-   virtual void Mult(const Array<Vector*>& X_, Array<Vector*>& Y_) const override;
+   virtual void Mult(const Array<const Vector*>& X_,
+                     Array<Vector*>& Y_) const override;
 
    /// Not supported for multigrid
    virtual void SetOperator(const Operator& op) override
