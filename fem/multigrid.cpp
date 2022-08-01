@@ -105,13 +105,15 @@ void MultigridBase::SetCycleType(CycleType cycleType_, int preSmoothingSteps_,
 
 void MultigridBase::Mult(const Vector& x, Vector& y) const
 {
-   Array<Vector*> X_(1), Y_(1);
-   X_[0] = const_cast<Vector*>(&x);
+   Array<const Vector*> X_(1);
+   Array<Vector*> Y_(1);
+   X_[0] = &x;
    Y_[0] = &y;
    Mult(X_, Y_);
 }
 
-void MultigridBase::Mult(const Array<Vector*>& X_, Array<Vector*>& Y_) const
+void MultigridBase::Mult(const Array<const Vector*>& X_,
+                         Array<Vector*>& Y_) const
 {
    MFEM_ASSERT(operators.Size() > 0,
                "Multigrid solver does not have operators set!");

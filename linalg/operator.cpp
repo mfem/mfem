@@ -63,7 +63,7 @@ void Operator::AddMultTranspose(const Vector &x, Vector &y,
    y.Add(a, z);
 }
 
-void Operator::Mult(const Array<Vector *> &X, Array<Vector *> &Y) const
+void Operator::Mult(const Array<const Vector *> &X, Array<Vector *> &Y) const
 {
    MFEM_ASSERT(X.Size() == Y.Size(),
                "Number of columns mismatch in Operator::Mult!");
@@ -74,7 +74,8 @@ void Operator::Mult(const Array<Vector *> &X, Array<Vector *> &Y) const
    }
 }
 
-void Operator::MultTranspose(const Array<Vector *> &X, Array<Vector *> &Y) const
+void Operator::MultTranspose(const Array<const Vector *> &X,
+                             Array<Vector *> &Y) const
 {
    MFEM_ASSERT(X.Size() == Y.Size(),
                "Number of columns mismatch in Operator::MultTranspose!");
@@ -85,7 +86,7 @@ void Operator::MultTranspose(const Array<Vector *> &X, Array<Vector *> &Y) const
    }
 }
 
-void Operator::AddMult(const Array<Vector *> &X, Array<Vector *> &Y,
+void Operator::AddMult(const Array<const Vector *> &X, Array<Vector *> &Y,
                        const double a) const
 {
    MFEM_ASSERT(X.Size() == Y.Size(),
@@ -97,8 +98,8 @@ void Operator::AddMult(const Array<Vector *> &X, Array<Vector *> &Y,
    }
 }
 
-void Operator::AddMultTranspose(const Array<Vector *> &X, Array<Vector *> &Y,
-                                const double a) const
+void Operator::AddMultTranspose(const Array<const Vector *> &X,
+                                Array<Vector *> &Y, const double a) const
 {
    MFEM_ASSERT(X.Size() == Y.Size(),
                "Number of columns mismatch in Operator::AddMultTranspose!");
