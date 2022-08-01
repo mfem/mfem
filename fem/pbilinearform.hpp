@@ -91,13 +91,16 @@ public:
    /// Assemble the local matrix
    void Assemble(int skip_zeros = 1);
 
-   /// Assembles the domain intgrators bilinear forms only i.e. sums over all domain integrators only.
-   void AssembleDomainIntegrators(int skip_zeros = 1) {BilinearForm::AssembleDomainIntegrators(skip_zeros);}
+  /// Assembles the domain intgrators bilinear forms only i.e. sums over all domain integrators only.
+   void AssembleDomainIntegrators(int skip_zeros = 1);
 
    /// Assembles the boundary intgrators bilinear forms only i.e. sums over all boundary integrators only.
-   void AssembleBoundaryFaceIntegrators(int skip_zeros = 1) {BilinearForm::AssembleBoundaryFaceIntegrators(skip_zeros);}
+   void AssembleBoundaryFaceIntegrators(int skip_zeros = 1);
 
-   /** @brief Assemble the diagonal of the bilinear form into @a diag. Note that
+  /// Assembles the interior face intgrators bilinear forms only i.e. sums over all boundary integrators only.
+   void AssembleInteriorFaceIntegrators(int skip_zeros = 1);
+
+  /** @brief Assemble the diagonal of the bilinear form into @a diag. Note that
        @a diag is a true-dof Vector.
 
        When the AssemblyLevel is not LEGACY, and the mesh is nonconforming,
@@ -219,6 +222,8 @@ protected:
    /// Auxiliary objects used in TrueAddMult().
    mutable ParGridFunction Xaux, Yaux;
 
+  bool keep_nbr_block;
+
    /// Matrix and eliminated matrix
    OperatorHandle p_mat, p_mat_e;
 
@@ -241,6 +246,7 @@ public:
    {
       trial_pfes = trial_fes;
       test_pfes  = test_fes;
+      keep_nbr_block = false;
    }
 
    /** @brief Create a ParMixedBilinearForm on the given FiniteElementSpace%s
@@ -260,6 +266,7 @@ public:
    {
       trial_pfes = trial_fes;
       test_pfes  = test_fes;
+      keep_nbr_block = false;
    }
 
    /// Returns the matrix assembled on the true dofs, i.e. P_test^t A P_trial.
@@ -269,6 +276,11 @@ public:
        @a A = P_test^t A_local P_trial, in the format (type id) specified by
        @a A. */
    void ParallelAssemble(OperatorHandle &A);
+
+  /// Assemble the local matrix
+   void Assemble(int skip_zeros = 1);
+  
+  void AssembleSharedFaces(int skip_zeros = 1);
 
    using MixedBilinearForm::FormRectangularSystemMatrix;
    using MixedBilinearForm::FormRectangularLinearSystem;
@@ -294,6 +306,15 @@ public:
 
    /// Compute y += a (P^t A P) x, where x and y are vectors on the true dofs
    void TrueAddMult(const Vector &x, Vector &y, const double a = 1.0) const;
+
+     /** When set to true and the ParBilinearForm has interior face integrators,
+	 the local SparseMatrix will include the rows (in addition to the columns)
+	 corresponding to face-neighbor dofs. The default behavior is to disregard
+	 those rows. Must be called before the first Assemble call. */
+  void KeepNbrBlock(bool knb = true) { keep_nbr_block = knb; }
+
+  // Allocate mat - called when (mat == NULL && fbfi.Size() > 0)
+   void pAllocMat();
 
    virtual ~ParMixedBilinearForm() { }
 };

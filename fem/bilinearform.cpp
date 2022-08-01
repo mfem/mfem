@@ -27,7 +27,6 @@ void BilinearForm::AllocMat()
       mat = new SparseMatrix(height);
       return;
    }
-
    const Table &elem_dof = fes->GetElementToDofTable();
    Table dof_dof;
 
@@ -561,9 +560,10 @@ void BilinearForm::Assemble(int skip_zeros)
          tr = mesh -> GetInteriorFaceTransformations (i);
          if (tr != NULL)
          {
+	    vdofs.DeleteAll();
             fes -> GetElementVDofs (tr -> Elem1No, vdofs);
             fes -> GetElementVDofs (tr -> Elem2No, vdofs2);
-            vdofs.Append (vdofs2);
+	    vdofs.Append (vdofs2);
             for (int k = 0; k < interior_face_integs.Size(); k++)
             {
                interior_face_integs[k]->
@@ -641,11 +641,11 @@ void BilinearForm::Assemble(int skip_zeros)
 
 void BilinearForm::AssembleBoundaryFaceIntegrators(int skip_zeros)
 {
-   if (ext)
+  /* if (ext)
    {
       ext->Assemble();
       return;
-   }
+   }*/
 
    Mesh *mesh = fes -> GetMesh();
    DenseMatrix elmat;
@@ -654,7 +654,6 @@ void BilinearForm::AssembleBoundaryFaceIntegrators(int skip_zeros)
    {
       AllocMat();
    }
-
 
    if (boundary_face_integs.Size())
    {
@@ -713,11 +712,11 @@ void BilinearForm::AssembleBoundaryFaceIntegrators(int skip_zeros)
 
 void BilinearForm::AssembleDomainIntegrators(int skip_zeros)
 {
-   if (ext)
+  /* if (ext)
    {
       ext->Assemble();
       return;
-   }
+   }*/
 
    ElementTransformation *eltrans;
    DofTransformation * doftrans;
@@ -800,6 +799,51 @@ void BilinearForm::AssembleDomainIntegrators(int skip_zeros)
       }
    }
 }
+
+void BilinearForm::AssembleInteriorFaceIntegrators(int skip_zeros)
+{
+  /* if (ext)
+   {
+      ext->Assemble();
+      return;
+   }*/
+
+   if (mat == NULL)
+   {
+      AllocMat();
+   }
+
+   Mesh *mesh = fes -> GetMesh();
+   DenseMatrix elmat;
+
+
+   if (interior_face_integs.Size())
+   {
+      FaceElementTransformations *tr;
+      Array<int> vdofs2;
+
+      int nfaces = mesh->GetNumFaces();
+      for (int i = 0; i < nfaces; i++)
+      {
+         tr = mesh -> GetInteriorFaceTransformations (i);
+         if (tr != NULL)
+         {
+            fes -> GetElementVDofs (tr -> Elem1No, vdofs);
+            fes -> GetElementVDofs (tr -> Elem2No, vdofs2);
+	    vdofs.Append (vdofs2);
+            for (int k = 0; k < interior_face_integs.Size(); k++)
+            {
+               interior_face_integs[k]->
+               AssembleFaceMatrix(*fes->GetFE(tr->Elem1No),
+                                  *fes->GetFE(tr->Elem2No),
+                                  *tr, elemmat);
+               mat -> AddSubMatrix (vdofs, vdofs, elemmat, skip_zeros);
+            }
+         }
+      }
+   }
+}
+
 
 void BilinearForm::ConformingAssemble()
 {
@@ -1318,6 +1362,7 @@ MixedBilinearForm::MixedBilinearForm (FiniteElementSpace *tr_fes,
 {
    trial_fes = tr_fes;
    test_fes = te_fes;
+   precompute_sparsity = 0;
    mat = NULL;
    mat_e = NULL;
    extern_bfs = 0;
@@ -1332,6 +1377,7 @@ MixedBilinearForm::MixedBilinearForm (FiniteElementSpace *tr_fes,
 {
    trial_fes = tr_fes;
    test_fes = te_fes;
+   precompute_sparsity = 0;
    mat = NULL;
    mat_e = NULL;
    extern_bfs = 1;
@@ -1348,6 +1394,8 @@ MixedBilinearForm::MixedBilinearForm (FiniteElementSpace *tr_fes,
 
    boundary_face_integs = mbf->boundary_face_integs;
    boundary_face_integs_marker = mbf->boundary_face_integs_marker;
+
+   interior_face_integs = mbf->interior_face_integs;
 
    assembly = AssemblyLevel::LEGACY;
    ext = NULL;
@@ -1479,6 +1527,11 @@ void MixedBilinearForm::AddDomainIntegrator(BilinearFormIntegrator *bfi,
    domain_integs_marker.Append(&elem_marker);
 }
 
+void MixedBilinearForm::AddInteriorFaceIntegrator(BilinearFormIntegrator * bfi)
+{
+   interior_face_integs.Append (bfi);
+}
+
 void MixedBilinearForm::AddBoundaryIntegrator (BilinearFormIntegrator * bfi)
 {
    boundary_integs.Append (bfi);
@@ -1561,7 +1614,7 @@ void MixedBilinearForm::Assemble (int skip_zeros)
       for (int i = 0; i < test_fes -> GetNE(); i++)
       {
 	int elem_attr = test_fes->GetMesh()->GetAttribute(i);
-	elmat = 0.0;
+	elmat.SetSize(0);
 	for (int k = 0; k < domain_integs.Size(); k++)
 	  {
 	    if ( domain_integs_marker[k] == NULL ||
@@ -1576,14 +1629,14 @@ void MixedBilinearForm::Assemble (int skip_zeros)
 		domain_integs[k] -> AssembleElementMatrix2 (*trial_fes -> GetFE(i),
 							    *test_fes  -> GetFE(i),
 							    *eltrans, elemmat);
-		elmat += elemmat;
-	      }
-	    if (ran_dof_trans || dom_dof_trans)
-	      {
-		TransformDual(ran_dof_trans, dom_dof_trans, elmat);
+		if (ran_dof_trans || dom_dof_trans)
+		  {
+		    TransformDual(ran_dof_trans, dom_dof_trans, elemmat);
+		  }
+
+		mat -> AddSubMatrix (test_vdofs, trial_vdofs, elemmat, skip_zeros);
 	      }
 	  }
-	mat -> AddSubMatrix (test_vdofs, trial_vdofs, elmat, skip_zeros);
       }
    }
 
@@ -1790,6 +1843,46 @@ void MixedBilinearForm::Assemble (int skip_zeros)
                   TransformDual(ran_dof_trans, dom_dof_trans, elemmat);
                }
 
+               mat -> AddSubMatrix (test_vdofs, trial_vdofs, elemmat, skip_zeros);
+            }
+         }
+      }
+   }
+   if (interior_face_integs.Size())
+   {
+      FaceElementTransformations *btr;
+      Array<int> test_vdofs2, trial_vdofs2;
+      const FiniteElement *trial_face_fe, *test_fe1, *test_fe2, *trial_fe1, *trial_fe2;
+     
+      int nfaces = mesh->GetNumFaces();
+      for (int i = 0; i < nfaces; i++)
+      {
+         btr = mesh -> GetInteriorFaceTransformations (i);
+         if (btr != NULL)
+         {
+	   test_vdofs.DeleteAll();
+	   trial_vdofs.DeleteAll();
+	   
+	   test_fes->GetElementVDofs(btr->Elem1No, test_vdofs);
+	   test_fes->GetElementVDofs(btr->Elem2No, test_vdofs2);
+	   trial_fes->GetElementVDofs(btr->Elem1No, trial_vdofs);
+	   trial_fes->GetElementVDofs(btr->Elem2No, trial_vdofs2);
+
+	   test_vdofs.Append(test_vdofs2);
+	   trial_vdofs.Append(trial_vdofs2);
+	   
+	   trial_face_fe = trial_fes->GetFaceElement(i);
+	   test_fe1 = test_fes->GetFE(btr->Elem1No);
+	   test_fe2 = test_fes->GetFE(btr->Elem2No);
+
+	   trial_fe1 = trial_fes->GetFE(btr->Elem1No);
+	   trial_fe2 = trial_fes->GetFE(btr->Elem2No);
+
+	   for (int k = 0; k < interior_face_integs.Size(); k++)
+            {
+               interior_face_integs[k]->
+		 AssembleFaceMatrix(*trial_fe1,*trial_fe2,*test_fe1,*test_fe2,
+                                  *btr, elemmat);
                mat -> AddSubMatrix (test_vdofs, trial_vdofs, elemmat, skip_zeros);
             }
          }

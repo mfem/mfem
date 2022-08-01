@@ -385,6 +385,9 @@ public:
    /// Assembles the boundary intgrators bilinear forms only i.e. sums over all boundary integrators only.
    void AssembleBoundaryFaceIntegrators(int skip_zeros = 1);
 
+  /// Assembles the interior face intgrators bilinear forms only i.e. sums over all boundary integrators only.
+   void AssembleInteriorFaceIntegrators(int skip_zeros = 1);
+
    /** @brief Assemble the diagonal of the bilinear form into @a diag. Note that
        @a diag is a tdof Vector.
 
@@ -682,6 +685,9 @@ protected:
    /// Trace face (skeleton) integrators.
    Array<BilinearFormIntegrator*> trace_face_integs;
 
+   /// Set of interior face Integrators to be applied.
+   Array<BilinearFormIntegrator*> interior_face_integs;
+
    /// Boundary trace face (skeleton) integrators.
    Array<BilinearFormIntegrator*> boundary_trace_face_integs;
    /// Entries are not owned.
@@ -691,6 +697,8 @@ protected:
    Array<BilinearFormIntegrator*> boundary_face_integs;
    Array<Array<int>*> boundary_face_integs_marker; ///< Entries are not owned.
 
+  int precompute_sparsity;
+   
    DenseMatrix elemmat;
    Array<int>  trial_vdofs, test_vdofs;
 
@@ -798,7 +806,15 @@ public:
    void AddBdrFaceIntegrator(BilinearFormIntegrator *bfi,
                              Array<int> &bdr_marker);
 
-   /// Access all integrators added with AddDomainIntegrator().
+  /// Adds new interior Face Integrator. Assumes ownership of @a bfi.
+  void AddInteriorFaceIntegrator(BilinearFormIntegrator *bfi);
+
+  /** @brief For scalar FE spaces, precompute the sparsity pattern of the matrix
+      (assuming dense element matrices) based on the types of integrators
+      present in the bilinear form. */
+  void UsePrecomputedSparsity(int ps = 1) { precompute_sparsity = ps; }
+
+  /// Access all integrators added with AddDomainIntegrator().
    Array<BilinearFormIntegrator*> *GetDBFI() { return &domain_integs; }
 
    /// Access all integrators added with AddBoundaryIntegrator().

@@ -27,8 +27,8 @@ void ParBilinearForm::pAllocMat()
    {
       if (keep_nbr_block)
       {
-         mat = new SparseMatrix(height + nbr_size, width + nbr_size);
-      }
+	mat = new SparseMatrix(height + nbr_size, width + nbr_size);
+    }
       else
       {
          mat = new SparseMatrix(height, width + nbr_size);
@@ -222,8 +222,8 @@ void ParBilinearForm::AssembleSharedFaces(int skip_zeros)
                             *T, elemmat);
          if (keep_nbr_block)
          {
-            mat->AddSubMatrix(vdofs_all, vdofs_all, elemmat, skip_zeros);
-         }
+	   mat->AddSubMatrix(vdofs_all, vdofs_all, elemmat, skip_zeros);
+	 }
          else
          {
             mat->AddSubMatrix(vdofs1, vdofs_all, elemmat, skip_zeros);
@@ -249,6 +249,51 @@ void ParBilinearForm::Assemble(int skip_zeros)
    {
       AssembleSharedFaces(skip_zeros);
    }
+}
+
+void ParBilinearForm::AssembleInteriorFaceIntegrators(int skip_zeros)
+{
+   if (interior_face_integs.Size())
+   {
+      pfes->ExchangeFaceNbrData();
+      if (!ext && mat == NULL)
+      {
+         pAllocMat();
+      }
+   }
+   BilinearForm::AssembleInteriorFaceIntegrators(skip_zeros);
+   if (!ext && interior_face_integs.Size() > 0)
+   {
+     AssembleSharedFaces(skip_zeros);
+   }
+}
+
+void ParBilinearForm::AssembleDomainIntegrators(int skip_zeros)
+{
+   if (interior_face_integs.Size())
+   {
+      pfes->ExchangeFaceNbrData();
+      if (!ext && mat == NULL)
+      {
+         pAllocMat();
+      }
+   }
+
+   BilinearForm::AssembleDomainIntegrators(skip_zeros);
+}
+
+void ParBilinearForm::AssembleBoundaryFaceIntegrators(int skip_zeros)
+{
+   if (interior_face_integs.Size())
+   {
+      pfes->ExchangeFaceNbrData();
+      if (!ext && mat == NULL)
+      {
+         pAllocMat();
+      }
+   }
+
+   BilinearForm::AssembleBoundaryFaceIntegrators(skip_zeros);
 }
 
 void ParBilinearForm::AssembleDiagonal(Vector &diag) const
@@ -532,6 +577,114 @@ void ParMixedBilinearForm::ParallelAssemble(OperatorHandle &A)
    P_trial.ConvertFrom(trial_pfes->Dof_TrueDof_Matrix());
 
    A.MakeRAP(P_test, dA, P_trial);
+}
+
+  void ParMixedBilinearForm::pAllocMat()
+{
+   int test_nbr_size = test_pfes->GetFaceNbrVSize();
+   int trial_nbr_size = trial_pfes->GetFaceNbrVSize();
+
+   if (precompute_sparsity == 0 || test_fes->GetVDim() > 1)
+   {
+      if (keep_nbr_block)
+      {
+         mat = new SparseMatrix(height + test_nbr_size, width + trial_nbr_size);
+      }
+      else
+      {
+         mat = new SparseMatrix(height, width + trial_nbr_size);
+      }
+      return;
+   }
+}
+
+void ParMixedBilinearForm::AssembleSharedFaces(int skip_zeros)
+{
+   ParMesh *pmesh = test_pfes->GetParMesh();
+   FaceElementTransformations *T;
+   Array<int> test_vdofs1, test_vdofs2, trial_vdofs1, trial_vdofs2, trial_vdofs_all, test_vdofs_all;
+   DenseMatrix elemmat;
+   const FiniteElement *trial_face_fe, *test_fe1, *test_fe2, *trial_fe1, *trial_fe2;
+     
+   int nfaces = pmesh->GetNSharedFaces();
+   for (int i = 0; i < nfaces; i++)
+   {
+      T = pmesh->GetSharedFaceTransformations(i);
+      int Elem2NbrNo = T->Elem2No - pmesh->GetNE();
+      //      pfes->GetElementVDofs(T->Elem1No, vdofs1);
+      test_pfes->GetElementVDofs(T->Elem1No, test_vdofs1);
+      test_pfes->GetFaceNbrElementVDofs(Elem2NbrNo, test_vdofs2);
+      
+      trial_pfes->GetElementVDofs(T->Elem1No, trial_vdofs1);
+      trial_pfes->GetFaceNbrElementVDofs(Elem2NbrNo, trial_vdofs2);
+      
+      trial_vdofs1.Copy(trial_vdofs_all);
+      test_vdofs1.Copy(test_vdofs_all);
+      trial_face_fe = trial_pfes->GetFaceElement(i);
+      test_fe1 = test_pfes->GetFE(T->Elem1No);
+      test_fe2 = test_pfes->GetFaceNbrFE(Elem2NbrNo);
+
+      trial_fe1 = trial_pfes->GetFE(T->Elem1No);
+      trial_fe2 = trial_pfes->GetFaceNbrFE(Elem2NbrNo);
+      for (int j = 0; j < test_vdofs2.Size(); j++)
+      {
+         if (test_vdofs2[j] >= 0)
+         {
+            test_vdofs2[j] += height;
+         }
+         else
+         {
+            test_vdofs2[j] -= height;
+         }
+      }
+      for (int j = 0; j < trial_vdofs2.Size(); j++)
+	{
+	  if (trial_vdofs2[j] >= 0)
+	    {
+	      trial_vdofs2[j] += width;
+	    }
+	  else
+	    {
+	      trial_vdofs2[j] -= width;
+	    }
+	}
+      
+      test_vdofs_all.Append(test_vdofs2);
+      trial_vdofs_all.Append(trial_vdofs2);
+      for (int k = 0; k < interior_face_integs.Size(); k++)
+      {
+	interior_face_integs[k]->
+	  AssembleFaceMatrix(*trial_fe1,*trial_fe2,*test_fe1,*test_fe2,
+                            *T, elemmat);
+	if (keep_nbr_block)
+	  {
+            mat->AddSubMatrix(test_vdofs_all, trial_vdofs_all, elemmat, skip_zeros);
+	  }
+	else
+	  {
+            mat->AddSubMatrix(test_vdofs1, trial_vdofs_all, elemmat, skip_zeros);
+	  }
+      }
+   }
+}
+
+void ParMixedBilinearForm::Assemble(int skip_zeros)
+{
+   if (interior_face_integs.Size())
+   {
+      trial_pfes->ExchangeFaceNbrData();
+      test_pfes->ExchangeFaceNbrData();
+      if (!ext && mat == NULL)
+      {
+         pAllocMat();
+      }
+   }
+
+   MixedBilinearForm::Assemble(skip_zeros);
+   if (!ext && interior_face_integs.Size() > 0)
+   {
+     AssembleSharedFaces(skip_zeros);
+   }
 }
 
 /// Compute y += a (P^t A P) x, where x and y are vectors on the true dofs
