@@ -235,8 +235,8 @@ public:
    void SetOperator(const Operator& op) override
    { MFEM_ABORT("Operator cannot be reset!"); }
 
-   void SetPreconditioner(Solver * precond) override
-   { prec = precond; }
+   void SetPreconditioner(Solver& precond) override
+   { prec = &precond; }
 
 protected:
    /// Internal utility routine; assembles eliminated matrix explicitly
@@ -335,8 +335,8 @@ public:
    void SetOperator(const Operator& op) override
    { MFEM_ABORT("Operator cannot be reset!"); }
 
-   void SetPreconditioner(Solver * precond)
-   { prec = precond; }
+   void SetPreconditioner(Solver& precond) override
+   { prec = &precond; }
 
 protected:
    void Initialize(HypreParMatrix& A, HypreParMatrix& B, HypreParMatrix& D);
