@@ -416,11 +416,11 @@ double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
 #endif
 
    double scale = 1.0;
+   double avg_surf_fit_err, max_surf_fit_err = 0.0;
    if (surf_fit_max_threshold > 0.0)
    {
-      double avg_err, max_err;
-      GetSurfaceFittingError(avg_err, max_err);
-      if (max_err < surf_fit_max_threshold)
+      GetSurfaceFittingError(avg_surf_fit_err, max_surf_fit_err);
+      if (max_surf_fit_err < surf_fit_max_threshold)
       {
          if (print_options.iterations)
          {
@@ -512,6 +512,19 @@ double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
 
       // Check the changes in total energy.
       ProcessNewState(x_out);
+
+      double avg_fit_err, max_fit_err = 0.0;
+      if (surf_fit_max_threshold > 0.0)
+      {
+         GetSurfaceFittingError(avg_fit_err, max_fit_err);
+      }
+      if (surf_fit_max_threshold > 0.0 && max_fit_err >= 1.2*max_surf_fit_err) {
+          if (print_options.iterations)
+          {
+             mfem::out << "Scale = " << scale << " Surf fit err increased.\n";
+          }
+          scale *= 0.5; continue;
+      }
 
       if (serial)
       {

@@ -58,6 +58,24 @@ void TMOP_Combo_QualityMetric::AssembleH(const DenseMatrix &Jpt,
    }
 }
 
+double TMOP_Metric_000::EvalW(const DenseMatrix &Jpt) const
+{
+   return 0.0;
+}
+
+void TMOP_Metric_000::EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const
+{
+   P = 0.0;
+}
+
+void TMOP_Metric_000::AssembleH(const DenseMatrix &Jpt,
+                                const DenseMatrix &DS,
+                                const double weight,
+                                DenseMatrix &A) const
+{
+   A = 0.0;
+}
+
 double TMOP_Metric_001::EvalW(const DenseMatrix &Jpt) const
 {
    ie.SetJacobian(Jpt.GetData());
