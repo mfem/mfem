@@ -91,7 +91,7 @@ private:
    ParMesh &pmesh;
    Array<int> ess_tdof_list;
 
-   HypreParMatrix M_hpm, *K_hpm, *KT_hpm;
+   HypreParMatrix *M_hpm, *K_hpm, *KT_hpm;
    HypreParVector lumpedM;
    ParBilinearForm &K_pbf, &KT_pbf;
    SparseMatrix dij_sparse, K_spmat, KT_spmat;
@@ -454,8 +454,6 @@ int main(int argc, char *argv[])
       dt = adv.get_timestep(); // According to CFL, take min across processors.
    }
 
-   cout << "dt: " << dt << endl;
-   cout << "cfl: " << adv.get_timestep() << endl;
    // assert(dt <= adv.get_timestep()); // In either case, we must satisfy the CFL.
    if (dt > adv.get_timestep()) {
       cout << "CFL condition not satisfied.\n";
@@ -591,8 +589,9 @@ int main(int argc, char *argv[])
       delete u_ex;
    }
 
-   cout << "Freeing memory\n";
+
    // 15. Free the used memory.
+   cout << "Freeing memory\n";
    delete u;
    delete k;
    delete m;
@@ -635,8 +634,8 @@ FE_Evolution::FE_Evolution(ParBilinearForm &M_, ParBilinearForm &K_, ParBilinear
    }
 
    cout << "Initialize FE_Evolution class.\n";
-   M_.FormSystemMatrix(ess_tdof_list, M_hpm);
-   M_hpm.GetDiag(lumpedM);
+   M_hpm = M_.ParallelAssemble();
+   M_hpm->GetDiag(lumpedM);
 
    K_hpm = K_pbf.ParallelAssemble();
    K_hpm->MergeDiagAndOffd(K_spmat);
@@ -669,8 +668,9 @@ void FE_Evolution::build_dij_matrix(const Vector &U,
    cout << "Build dij\n";
 
    const int m = dij_sparse.Height();
-   const int *I = K_spmat.HostReadI(), *J = K_spmat.HostReadJ();
+   const int *I = dij_sparse.HostReadI(), *J = dij_sparse.HostReadJ();
 
+   double *D_data = dij_sparse.HostReadWriteData();
    const double *K_data = K_spmat.HostReadData();
    const double *KT_data = KT_spmat.HostReadData();
 
@@ -686,16 +686,15 @@ void FE_Evolution::build_dij_matrix(const Vector &U,
             double kji = KT_spmat(i,j);
             double dij = fmax(abs(kij), abs(kji));
 
-            dij_sparse(i,j) = dij;
+            D_data[k] = dij;
 
             rowsum += dij;
          }
          else {
-            dij_sparse(i, j) = 0.; // Need to clear entry before Mult()
+            D_data[k] = 0; // Need to clear entry before Mult()
          }
       }
-
-      dii(i) = -1 * rowsum; // To be used in Mult()
+      dii(i) = -1 *  rowsum; // To be used in Mult() in place of diagonal entries
    }
 
    cout << "Finished dij matrix.\n";
@@ -762,6 +761,7 @@ void FE_Evolution::Mult(const Vector &x, Vector &y) const
    z += rhs;
 
    assert(lumpedM.Size() == n);
+   assert(dii.Size() == n);
    y.SetSize(n); // TODO: Somehow y is of size local at this point. Resizing is a bandaid.
 
    for (int i = 0; i < n; i++)
@@ -928,7 +928,7 @@ double exact_sol(const Vector &x, const double t)
             }
             case 3:
             {
-               double val = sin(coeff*(X[0]-v[0]*t))*sin(coeff*(X[1]-v[1]*t))*sin(coeff*(X[2]-v[2]*t));
+               double val = cos(coeff*(X[0]-v[0]*t)) * cos(coeff*(X[1]-v[1]*t)) * cos(coeff*(X[2]-v[2]*t));
                return val;
             }
          }
@@ -950,6 +950,16 @@ double exact_sol(const Vector &x, const double t)
             case 2:
             {
                if (pow(X[0]-v[0]*t,2) + pow(X[1]-v[1]*t, 2) < 0.25)
+               {
+                  return 1.;
+               }
+               else{
+                  return 0.;
+               }
+            }
+            case 3:
+            {
+               if (pow(X[0]-v[0]*t,2) + pow(X[1]-v[1]*t,2) + pow(X[2]-v[2]*t,2) < 0.25)
                {
                   return 1.;
                }
