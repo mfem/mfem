@@ -970,6 +970,9 @@ void BilinearForm::EliminateVDofs(const Array<int> &vdofs_,
                                   DiagonalPolicy dpolicy)
 {
    vdofs_.HostRead();
+   mat->HostReadI();
+   mat->HostReadJ();
+   mat->HostReadData();
    for (int i = 0; i < vdofs_.Size(); i++)
    {
       int vdof = vdofs_[i];
@@ -992,6 +995,10 @@ void BilinearForm::EliminateVDofs(const Array<int> &vdofs_,
       mat_e = new SparseMatrix(height);
    }
 
+   vdofs_.HostRead();
+   mat->HostReadI();
+   mat->HostReadJ();
+   mat->HostReadData();
    for (int i = 0; i < vdofs_.Size(); i++)
    {
       int vdof = vdofs_[i];
