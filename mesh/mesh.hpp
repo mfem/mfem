@@ -1531,7 +1531,7 @@ public:
    /** Replace the internal node GridFunction with a new GridFunction defined
        on the given FiniteElementSpace. The new node coordinates are projected
        (derived) from the current nodes/vertices. */
-   void SetNodalFESpace(FiniteElementSpace *nfes);
+   virtual void SetNodalFESpace(FiniteElementSpace *nfes);
    /** Replace the internal node GridFunction with the given GridFunction. The
        given GridFunction is updated with node coordinates projected (derived)
        from the current nodes/vertices. */
