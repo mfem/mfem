@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -387,6 +387,7 @@ class PRefinementTransferOperator : public Operator
 private:
    const FiniteElementSpace& lFESpace;
    const FiniteElementSpace& hFESpace;
+   bool isvar_order;
 
 public:
    /// @brief Constructs a transfer operator from \p lFESpace to \p hFESpace
@@ -452,14 +453,15 @@ public:
    virtual void MultTranspose(const Vector& x, Vector& y) const override;
 };
 
-#ifdef MFEM_USE_MPI
 /// @brief Matrix-free transfer operator between finite element spaces working
 /// on true degrees of freedom
 class TrueTransferOperator : public Operator
 {
 private:
-   const ParFiniteElementSpace& lFESpace;
-   const ParFiniteElementSpace& hFESpace;
+   const FiniteElementSpace& lFESpace;
+   const FiniteElementSpace& hFESpace;
+   const Operator * P = nullptr;
+   const SparseMatrix * R = nullptr;
    TransferOperator* localTransferOperator;
    mutable Vector tmpL;
    mutable Vector tmpH;
@@ -467,8 +469,8 @@ private:
 public:
    /// @brief Constructs a transfer operator working on true degrees of freedom
    /// from \p lFESpace to \p hFESpace
-   TrueTransferOperator(const ParFiniteElementSpace& lFESpace_,
-                        const ParFiniteElementSpace& hFESpace_);
+   TrueTransferOperator(const FiniteElementSpace& lFESpace_,
+                        const FiniteElementSpace& hFESpace_);
 
    /// Destructor
    ~TrueTransferOperator();
@@ -484,7 +486,6 @@ public:
        the true dof vector \p y corresponding to the coarse space. */
    virtual void MultTranspose(const Vector& x, Vector& y) const override;
 };
-#endif
 
 } // namespace mfem
 

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -63,6 +63,7 @@ protected:
 
    Memory<double> data;
    int size;
+   bool global_seed_set = false;
 
 public:
 
@@ -306,6 +307,12 @@ public:
 
    Vector &operator+=(const Vector &v);
 
+   /// operator- is not supported. Use @ref subtract or @ref Add.
+   Vector &operator-(const Vector &v) = delete;
+
+   /// operator+ is not supported. Use @ref Add.
+   Vector &operator+(const Vector &v) = delete;
+
    /// (*this) += a * Va
    Vector &Add(const double a, const Vector &Va);
 
@@ -408,6 +415,8 @@ public:
 
    /// Set random values in the vector.
    void Randomize(int seed = 0);
+   /// Set global seed for random values in sequential calls to Randomize().
+   void SetGlobalSeed(int gseed);
    /// Returns the l2 norm of the vector.
    double Norml2() const;
    /// Returns the l_infinity norm of the vector.

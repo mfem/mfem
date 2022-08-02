@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -214,6 +214,8 @@ protected:
    static const double TInv_data[24];
    static const DenseTensor T, TInv;
    int order;
+   int nedofs; // number of DoFs per edge
+   int nfdofs; // number of DoFs per face
 
    ND_DofTransformation(int size, int order);
 
@@ -267,7 +269,6 @@ public:
 };
 
 /// DoF transformation implementation for the Nedelec basis on wedge elements
-/** TODO: (Under development) */
 class ND_WedgeDofTransformation : public ND_DofTransformation
 {
 public:

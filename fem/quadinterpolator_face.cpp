@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -10,6 +10,7 @@
 // CONTRIBUTING.md for details.
 
 #include "quadinterpolator_face.hpp"
+#include "../general/annotation.hpp"
 #include "../general/forall.hpp"
 #include "../linalg/dtensor.hpp"
 #include "../linalg/kernels.hpp"
@@ -21,18 +22,21 @@ namespace mfem
 static void GetSigns(const FiniteElementSpace &fes, const FaceType type,
                      Array<bool> &signs)
 {
-   const int dim = fes.GetMesh()->SpaceDimension();
-   int e1, e2;
-   int inf1, inf2;
+   const Mesh &mesh = *fes.GetMesh();
+   const int dim = mesh.SpaceDimension();
    int face_id;
    int f_ind = 0;
-   for (int f = 0; f < fes.GetNF(); ++f)
+   for (int f = 0; f < mesh.GetNumFacesWithGhost(); ++f)
    {
-      fes.GetMesh()->GetFaceElements(f, &e1, &e2);
-      fes.GetMesh()->GetFaceInfos(f, &inf1, &inf2);
-      face_id = inf1 / 64;
-      if ( (type==FaceType::Interior && (e2>=0 || (e2<0 && inf2>=0))) ||
-           (type==FaceType::Boundary && e2<0 && inf2<0) )
+      Mesh::FaceInformation face = mesh.GetFaceInformation(f);
+      face_id = face.element[0].local_face_id;
+      if (face.IsNonconformingCoarse())
+      {
+         // We skip nonconforming coarse-fine faces as they are treated
+         // by the corresponding nonconforming fine-coarse faces.
+         continue;
+      }
+      else if ( face.IsOfFaceType(type) )
       {
          if (dim==2)
          {
@@ -214,9 +218,6 @@ void FaceQuadratureInterpolator::Eval3D(
                "Derivatives on the faces are not yet supported.");
    MFEM_FORALL(f, NF,
    {
-      const int ND1D = T_ND1D ? T_ND1D : nd1d;
-      const int NQ1D = T_NQ1D ? T_NQ1D : nq1d;
-      const int VDIM = T_VDIM ? T_VDIM : vdim;
       constexpr int max_ND1D = T_ND1D ? T_ND1D : MAX_ND1D;
       constexpr int max_NQ1D = T_NQ1D ? T_NQ1D : MAX_NQ1D;
       constexpr int max_VDIM = T_VDIM ? T_VDIM : MAX_VDIM3D;
@@ -352,6 +353,184 @@ void FaceQuadratureInterpolator::Eval3D(
    });
 }
 
+template<const int T_VDIM, const int T_ND1D, const int T_NQ1D>
+void FaceQuadratureInterpolator::SmemEval3D(
+   const int NF,
+   const int vdim,
+   const DofToQuad &maps,
+   const Array<bool> &signs,
+   const Vector &e_vec,
+   Vector &q_val,
+   Vector &q_der,
+   Vector &q_det,
+   Vector &q_nor,
+   const int eval_flags)
+{
+   MFEM_PERF_SCOPE("FaceQuadInterpolator::SmemEval3D");
+   const int nd1d = maps.ndof;
+   const int nq1d = maps.nqpt;
+   const int ND1D = T_ND1D ? T_ND1D : nd1d;
+   const int NQ1D = T_NQ1D ? T_NQ1D : nq1d;
+   const int VDIM = T_VDIM ? T_VDIM : vdim;
+   MFEM_VERIFY(ND1D <= MAX_ND1D, "");
+   MFEM_VERIFY(NQ1D <= MAX_NQ1D, "");
+   MFEM_VERIFY(VDIM == 3 || !(eval_flags & DETERMINANTS), "");
+   auto B = Reshape(maps.B.Read(), NQ1D, ND1D);
+   auto G = Reshape(maps.G.Read(), NQ1D, ND1D);
+   auto F = Reshape(e_vec.Read(), ND1D, ND1D, VDIM, NF);
+   auto sign = signs.Read();
+   auto val = Reshape(q_val.Write(), NQ1D, NQ1D, VDIM, NF);
+   // auto der = Reshape(q_der.Write(), NQ1D, VDIM, 3, NF);
+   auto det = Reshape(q_det.Write(), NQ1D, NQ1D, NF);
+   auto nor = Reshape(q_nor.Write(), NQ1D, NQ1D, 3, NF);
+   MFEM_VERIFY(eval_flags | DERIVATIVES,
+               "Derivatives on the faces are not yet supported.");
+
+   MFEM_FORALL_3D(f, NF, NQ1D, NQ1D, VDIM,
+   {
+      constexpr int max_ND1D = T_ND1D ? T_ND1D : MAX_ND1D;
+      constexpr int max_NQ1D = T_NQ1D ? T_NQ1D : MAX_NQ1D;
+      constexpr int max_VDIM = T_VDIM ? T_VDIM : MAX_VDIM3D;
+
+      MFEM_SHARED double sm1[max_NQ1D*max_NQ1D*max_VDIM];
+      MFEM_SHARED double sm2[max_NQ1D*max_ND1D*max_VDIM];
+
+      auto s_F = (double(*)[max_ND1D][max_VDIM])sm1;
+      MFEM_FOREACH_THREAD(d1,x,ND1D)
+      {
+         MFEM_FOREACH_THREAD(d2,y,ND1D)
+         {
+            MFEM_FOREACH_THREAD(c,z,VDIM)
+            {
+               s_F[d1][d2][c] = F(d1,d2,c,f);
+            }
+         }
+      }
+      MFEM_SYNC_THREAD;
+
+      if (eval_flags & VALUES)
+      {
+         auto Bu = (double (*)[max_ND1D][max_VDIM])sm2;
+         MFEM_FOREACH_THREAD(d2,x,ND1D)
+         {
+            MFEM_FOREACH_THREAD(q1,y,NQ1D)
+            {
+               MFEM_FOREACH_THREAD(c,z,VDIM)
+               {
+                  double thrdBu = 0.0;
+                  for (int d1 = 0; d1 < ND1D; ++d1)
+                  {
+                     thrdBu += B(q1,d1)*s_F[d1][d2][c];
+                  }
+                  Bu[q1][d2][c] = thrdBu;
+               }
+            }
+         }
+         MFEM_SYNC_THREAD;
+
+         MFEM_FOREACH_THREAD(q2,x,NQ1D)
+         {
+            MFEM_FOREACH_THREAD(q1,y,NQ1D)
+            {
+               MFEM_FOREACH_THREAD(c,z,VDIM)
+               {
+                  double v = 0.0;
+                  for (int d2 = 0; d2 < ND1D; ++d2)
+                  {
+                     v += B(q2,d2)*Bu[q1][d2][c];
+                  }
+                  val(q1,q2,c,f) = v;
+               }
+            }
+         }
+      }
+
+      if ((eval_flags & DERIVATIVES)
+          || (eval_flags & DETERMINANTS)
+          || (eval_flags & NORMALS))
+      {
+         // We only compute the tangential derivatives
+         auto Gu = (double (*)[max_ND1D][max_VDIM])sm2;
+         MFEM_SHARED double Bu[max_NQ1D][max_ND1D][max_VDIM];
+         MFEM_FOREACH_THREAD(d2,x,ND1D)
+         {
+            MFEM_FOREACH_THREAD(q1,y,NQ1D)
+            {
+               MFEM_FOREACH_THREAD(c,z,VDIM)
+               {
+                  double thrdGu = 0;
+                  double thrdBu = 0;
+                  for (int d1 = 0; d1 < ND1D; ++d1)
+                  {
+                     const double u = s_F[d1][d2][c];
+                     thrdBu += B(q1,d1)*u;
+                     thrdGu += G(q1,d1)*u;
+                  }
+                  Gu[q1][d2][c] = thrdGu;
+                  Bu[q1][d2][c] = thrdBu;
+               }
+            }
+         }
+         MFEM_SYNC_THREAD;
+
+         auto BGu = (double (*)[max_NQ1D][max_VDIM])sm1;
+         MFEM_SHARED double GBu[max_NQ1D][max_NQ1D][max_VDIM];
+         MFEM_FOREACH_THREAD(q2,x,NQ1D)
+         {
+            MFEM_FOREACH_THREAD(q1,y,NQ1D)
+            {
+               MFEM_FOREACH_THREAD(c,z,VDIM)
+               {
+                  double thrdBGu = 0.0;
+                  double thrdGBu = 0.0;
+                  for (int d2 = 0; d2 < ND1D; ++d2)
+                  {
+                     thrdBGu += B(q2,d2)*Gu[q1][d2][c];
+                     thrdGBu += G(q2,d2)*Bu[q1][d2][c];
+                  }
+                  BGu[q2][q1][c] = thrdBGu;
+                  GBu[q2][q1][c] = thrdGBu;
+               }
+            }
+         }
+         MFEM_SYNC_THREAD;
+
+         if (VDIM == 3 && ((eval_flags & NORMALS) ||
+                           (eval_flags & DETERMINANTS)))
+         {
+            double n[3];
+            MFEM_FOREACH_THREAD(q2,x,NQ1D)
+            {
+               MFEM_FOREACH_THREAD(q1,y,NQ1D)
+               {
+                  if (MFEM_THREAD_ID(z) == 0)
+                  {
+                     const double s = sign[f] ? -1.0 : 1.0;
+                     n[0] = s*( BGu[q2][q1][1]*GBu[q2][q1][2]-GBu[q2][q1][1]*
+                                BGu[q2][q1][2] );
+                     n[1] = s*(-BGu[q2][q1][0]*GBu[q2][q1][2]+GBu[q2][q1][0]*
+                               BGu[q2][q1][2] );
+                     n[2] = s*( BGu[q2][q1][0]*GBu[q2][q1][1]-GBu[q2][q1][0]*
+                                BGu[q2][q1][1] );
+
+                     const double norm = sqrt(n[0]*n[0]+n[1]*n[1]+n[2]*n[2]);
+
+                     if (eval_flags & DETERMINANTS) { det(q1,q2,f) = norm; }
+
+                     if (eval_flags & NORMALS)
+                     {
+                        nor(q1,q2,0,f) = n[0]/norm;
+                        nor(q1,q2,1,f) = n[1]/norm;
+                        nor(q1,q2,2,f) = n[2]/norm;
+                     }
+                  }
+               }
+            }
+         }
+      }
+   });
+}
+
 void FaceQuadratureInterpolator::Mult(
    const Vector &e_vec, unsigned eval_flags,
    Vector &q_val, Vector &q_der, Vector &q_det, Vector &q_nor) const
@@ -411,21 +590,22 @@ void FaceQuadratureInterpolator::Mult(
          switch (10*nd1d + nq1d)
          {
             // Q0
-            case 11: eval_func = &Eval3D<1,1,1>; break;
-            case 12: eval_func = &Eval3D<1,1,2>; break;
+            case 11: eval_func = &SmemEval3D<1,1,1>; break;
+            case 12: eval_func = &SmemEval3D<1,1,2>; break;
             // Q1
-            case 22: eval_func = &Eval3D<1,2,2>; break;
-            case 23: eval_func = &Eval3D<1,2,3>; break;
+            case 22: eval_func = &SmemEval3D<1,2,2>; break;
+            case 23: eval_func = &SmemEval3D<1,2,3>; break;
+            case 24: eval_func = &SmemEval3D<1,2,4>; break;
             // Q2
-            case 33: eval_func = &Eval3D<1,3,3>; break;
-            case 34: eval_func = &Eval3D<1,3,4>; break;
+            case 33: eval_func = &SmemEval3D<1,3,3>; break;
+            case 34: eval_func = &SmemEval3D<1,3,4>; break;
             // Q3
-            case 44: eval_func = &Eval3D<1,4,4>; break;
-            case 45: eval_func = &Eval3D<1,4,5>; break;
-            case 46: eval_func = &Eval3D<1,4,6>; break;
+            case 44: eval_func = &SmemEval3D<1,4,4>; break;
+            case 45: eval_func = &SmemEval3D<1,4,5>; break;
+            case 46: eval_func = &SmemEval3D<1,4,6>; break;
             // Q4
-            case 55: eval_func = &Eval3D<1,5,5>; break;
-            case 56: eval_func = &Eval3D<1,5,6>; break;
+            case 55: eval_func = &SmemEval3D<1,5,5>; break;
+            case 56: eval_func = &SmemEval3D<1,5,6>; break;
          }
          if (nq1d >= 10 || !eval_func)
          {
@@ -465,18 +645,19 @@ void FaceQuadratureInterpolator::Mult(
          switch (10*nd1d + nq1d)
          {
             // Q1
-            case 22: eval_func = &Eval3D<3,2,2>; break;
-            case 23: eval_func = &Eval3D<3,2,3>; break;
+            case 22: eval_func = &SmemEval3D<3,2,2>; break;
+            case 23: eval_func = &SmemEval3D<3,2,3>; break;
+            case 24: eval_func = &SmemEval3D<3,2,4>; break;
             // Q2
-            case 33: eval_func = &Eval3D<3,3,3>; break;
-            case 34: eval_func = &Eval3D<3,3,4>; break;
+            case 33: eval_func = &SmemEval3D<3,3,3>; break;
+            case 34: eval_func = &SmemEval3D<3,3,4>; break;
             // Q3
-            case 44: eval_func = &Eval3D<3,4,4>; break;
-            case 45: eval_func = &Eval3D<3,4,5>; break;
-            case 46: eval_func = &Eval3D<3,4,6>; break;
+            case 44: eval_func = &SmemEval3D<3,4,4>; break;
+            case 45: eval_func = &SmemEval3D<3,4,5>; break;
+            case 46: eval_func = &SmemEval3D<3,4,6>; break;
             // Q4
-            case 55: eval_func = &Eval3D<3,5,5>; break;
-            case 56: eval_func = &Eval3D<3,5,6>; break;
+            case 55: eval_func = &SmemEval3D<3,5,5>; break;
+            case 56: eval_func = &SmemEval3D<3,5,6>; break;
          }
          if (nq1d >= 10 || !eval_func)
          {

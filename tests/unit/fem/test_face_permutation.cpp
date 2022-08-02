@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -167,7 +167,7 @@ double TestFaceRestriction(Mesh &mesh, int order)
    L2FaceRestriction restr(fes, ElementDofOrdering::LEXICOGRAPHIC,
                            FaceType::Interior, L2FaceValues::DoubleValued);
 
-   const int ndof_face = pow(order+1, dim-1);
+   const int ndof_face = static_cast<int>(pow(order+1, dim-1));
 
    Vector face_values(ndof_face*2);
 
@@ -198,8 +198,8 @@ double TestFaceRestriction(Mesh &mesh, int order)
 
       for (int i=0; i<ndof_face; ++i)
       {
-         double err = std::abs(face_values(i) - face_values(i + ndof_face));
-         max_err = std::max(max_err, err);
+         double error = std::abs(face_values(i) - face_values(i + ndof_face));
+         max_err = std::max(max_err, error);
       }
    }
    return max_err;
@@ -214,12 +214,11 @@ TEST_CASE("2D Face Permutation", "[Face Permutation]")
       for (int fp1=0; fp1<4; ++fp1)
       {
          Mesh *mesh = mesh_2d_orientation(fp1, fp2);
-         double err = TestFaceRestriction(*mesh, order);
-         max_err = std::max(max_err, err);
+         double error = TestFaceRestriction(*mesh, order);
+         max_err = std::max(max_err, error);
          delete mesh;
       }
    }
-   std::cout << "2D Face Permutation: max_err = " << max_err << '\n';
    REQUIRE(max_err < 1e-15);
 }
 
@@ -232,11 +231,10 @@ TEST_CASE("3D Face Permutation", "[Face Permutation]")
       for (int fp1=0; fp1<24; ++fp1)
       {
          Mesh *mesh = mesh_3d_orientation(fp1, fp2);
-         double err = TestFaceRestriction(*mesh, order);
-         max_err = std::max(max_err, err);
+         double error = TestFaceRestriction(*mesh, order);
+         max_err = std::max(max_err, error);
          delete mesh;
       }
    }
-   std::cout << "3D Face Permutation: max_err = " << max_err << '\n';
    REQUIRE(max_err < 1e-15);
 }

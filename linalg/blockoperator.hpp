@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -164,11 +164,11 @@ public:
 
    //! Return a reference to block i,i.
    Operator & GetDiagonalBlock(int iblock)
-   { MFEM_VERIFY(op[iblock], ""); return *op[iblock]; }
+   { MFEM_VERIFY(ops[iblock], ""); return *ops[iblock]; }
 
    //! Return a reference to block i,i (const version).
    const Operator & GetDiagonalBlock(int iblock) const
-   { MFEM_VERIFY(op[iblock], ""); return *op[iblock]; }
+   { MFEM_VERIFY(ops[iblock], ""); return *ops[iblock]; }
 
    //! Return the offsets for block starts
    Array<int> & Offsets() { return offsets; }
@@ -195,7 +195,7 @@ private:
    //! Offsets for the starting position of each block
    Array<int> offsets;
    //! 1D array that stores each block of the operator.
-   Array<Operator *> op;
+   Array<Operator *> ops;
    //! Temporary Vectors used to efficiently apply the Mult and MultTranspose
    //! methods.
    mutable BlockVector xblock;
@@ -240,7 +240,7 @@ public:
     * @param op      The Operator to be inserted.
     */
    void SetDiagonalBlock(int iblock, Operator *op);
-   //! Add a block op in the block-entry (iblock, jblock).
+   //! Add a block opt in the block-entry (iblock, jblock).
    /**
     * @param iRow, iCol  The block will be inserted in location (iRow, iCol).
     * @param op          The Operator to be inserted.
@@ -254,7 +254,7 @@ public:
 
    //! Return a reference to block i,j.
    Operator & GetBlock(int iblock, int jblock)
-   { MFEM_VERIFY(op(iblock,jblock), ""); return *op(iblock,jblock); }
+   { MFEM_VERIFY(ops(iblock,jblock), ""); return *ops(iblock,jblock); }
 
    //! Return the offsets for block starts
    Array<int> & Offsets() { return offsets; }
@@ -278,7 +278,7 @@ private:
    //! Offsets for the starting position of each block
    Array<int> offsets;
    //! 2D array that stores each block of the operator.
-   Array2D<Operator *> op;
+   Array2D<Operator *> ops;
 
    //! Temporary Vectors used to efficiently apply the Mult and MultTranspose
    //! methods.

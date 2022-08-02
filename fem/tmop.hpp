@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -104,6 +104,89 @@ public:
                           const double weight, DenseMatrix &A) const;
 };
 
+/// Simultaneous Untangler + Worst Case Improvement Metric
+/// Uses a base metric mu and is defined as:
+/// mu_tilde = mu_hat,                 when WorstCaseType = None,
+///          = mu_hat/(beta - mu_hat), when WorstCaseType = Beta,
+///          = mu_hat^p,               when WorstCaseType = PMean,
+/// where beta = max(mu_hat) + muT_ep,
+/// and mu_hat = (mu/2phi(tau,ep)) where
+/// 2phi(tau,ep) = 1, when                                 when BarrierType = None,
+///             = 2*(tau - min(alpha*min(tau)-detT_ep,0)), when BarrierType = Shifted
+///             = tau^2 + sqrt(tau^2 + ep^2),              when BarrierType = Pseuso
+/// where tau = det(T), and max(mu_hat) and min(tau) are computed over the
+/// entire mesh.
+/// Ultimately, this metric can be used for mesh untangling with the BarrierType
+/// option and for worst case quality improvement with the WorstCaseType option.
+class TMOP_WorstCaseUntangleOptimizer_Metric : public TMOP_QualityMetric
+{
+public:
+   enum class BarrierType
+   {
+      None,
+      Shifted,
+      Pseudo
+   };
+   enum class WorstCaseType
+   {
+      None,
+      Beta,
+      PMean
+   };
+
+protected:
+   TMOP_QualityMetric &tmop_metric; // non-barrier metric to use
+   double min_detT;                 // minimum Jacobian in the mesh
+   double max_muT;                  // max mu_k/phi(tau,ep) in the mesh
+   int exponent;                    // used for p-mean metrics
+   double alpha;                    // scaling factor for min(det(T))
+   double detT_ep;                  // small constant subtracted from min(detT)
+   double muT_ep;                   // small constant added to muT term
+   BarrierType btype;
+   WorstCaseType wctype;
+
+public:
+   TMOP_WorstCaseUntangleOptimizer_Metric(TMOP_QualityMetric &tmop_metric_,
+                                          int exponent_ = 1,
+                                          double alpha_ = 1.5,
+                                          double detT_ep_ = 0.0001,
+                                          double muT_ep_ = 0.0001,
+                                          BarrierType btype_ = BarrierType::None,
+                                          WorstCaseType wctype_ = WorstCaseType::None) :
+      tmop_metric(tmop_metric_), exponent(exponent_), alpha(alpha_),
+      detT_ep(detT_ep_), muT_ep(muT_ep_), btype(btype_), wctype(wctype_)
+   {
+      MFEM_VERIFY(wctype == WorstCaseType::None,
+                  "Worst-case optimization has not been fully developed!");
+      if (btype != BarrierType::None)
+      {
+         const int m_id = tmop_metric.Id();
+         MFEM_VERIFY(m_id == 4 || m_id == 14 || m_id == 66,
+                     "Incorrect input barrier metric --  must be 4 / 14 / 66");
+      }
+   }
+
+   virtual double EvalW(const DenseMatrix &Jpt) const;
+
+   virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const
+   { MFEM_ABORT("Not implemented"); }
+
+   virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
+                          const double weight, DenseMatrix &A) const
+   { MFEM_ABORT("Not implemented"); }
+
+   // Compute mu_hat.
+   virtual double EvalWBarrier(const DenseMatrix &Jpt) const;
+
+   virtual void SetMinDetT(double min_detT_) { min_detT = min_detT_; }
+
+   virtual void SetMaxMuT(double max_muT_) { max_muT = max_muT_; }
+
+   virtual BarrierType GetBarrierType() { return btype; }
+
+   virtual WorstCaseType GetWorstCaseType() { return wctype; }
+};
+
 /// 2D non-barrier metric without a type.
 class TMOP_Metric_001 : public TMOP_QualityMetric
 {
@@ -198,6 +281,24 @@ public:
                           const double weight, DenseMatrix &A) const;
 
    virtual int Id() const { return 2; }
+};
+
+/// 2D non-barrier shape (S) metric.
+class TMOP_Metric_004 : public TMOP_QualityMetric
+{
+protected:
+   mutable InvariantsEvaluator2D<double> ie;
+
+public:
+   // W = |J|^2 - 2*det(J)
+   virtual double EvalW(const DenseMatrix &Jpt) const;
+
+   virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const;
+
+   virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
+                          const double weight, DenseMatrix &A) const;
+
+   virtual int Id() const { return 4; }
 };
 
 /// 2D barrier Shape+Size (VS) metric (not polyconvex).
@@ -334,6 +435,29 @@ public:
 
    virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
                           const double weight, DenseMatrix &A) const;
+};
+
+/// 2D non-barrier Shape+Size (VS) metric.
+class TMOP_Metric_066 : public TMOP_Combo_QualityMetric
+{
+protected:
+   mutable InvariantsEvaluator2D<double> ie;
+   double gamma;
+   TMOP_QualityMetric *sh_metric, *sz_metric;
+
+public:
+   TMOP_Metric_066(double gamma_) : gamma(gamma_),
+      sh_metric(new TMOP_Metric_004),
+      sz_metric(new TMOP_Metric_055)
+   {
+      // (1-gamma) mu_4 + gamma mu_55
+      AddQualityMetric(sh_metric, 1.-gamma_);
+      AddQualityMetric(sz_metric, gamma_);
+   }
+   virtual int Id() const { return 66; }
+   double GetGamma() const { return gamma; }
+
+   virtual ~TMOP_Metric_066() { delete sh_metric; delete sz_metric; }
 };
 
 /// 2D barrier size (V) metric (polyconvex).
@@ -487,7 +611,7 @@ protected:
    mutable InvariantsEvaluator3D<double> ie;
 
 public:
-   // W = |J|^2 / 3 * det(J)^(-2/3) - 1.
+   // W = |J|^2 / (3 * det(J)^(2/3)) - 1.
    virtual double EvalW(const DenseMatrix &Jpt) const;
 
    virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const;
@@ -1133,7 +1257,7 @@ protected:
 
    // Evaluation of the discrete target specification on different meshes.
    // Owned.
-   AdaptivityEvaluator *adapt_lim_eval;
+   AdaptivityEvaluator *adapt_eval;
 
    void SetDiscreteTargetBase(const GridFunction &tspec_);
    void SetTspecAtIndex(int idx, const GridFunction &tspec_);
@@ -1156,7 +1280,7 @@ public:
 #endif
         amr_el(-1), lim_min_size(-0.1),
         good_tspec(false), good_tspec_grad(false), good_tspec_hess(false),
-        adapt_lim_eval(NULL) { }
+        adapt_eval(NULL) { }
 
    virtual ~DiscreteAdaptTC();
 
@@ -1232,8 +1356,8 @@ public:
 
    void SetAdaptivityEvaluator(AdaptivityEvaluator *ae)
    {
-      if (adapt_lim_eval) { delete adapt_lim_eval; }
-      adapt_lim_eval = ae;
+      if (adapt_eval) { delete adapt_eval; }
+      adapt_eval = ae;
    }
 
    const Vector &GetTspecPert1H()   { return tspec_pert1h; }
@@ -1341,8 +1465,7 @@ protected:
    AdaptivityEvaluator *adapt_lim_eval;  // Not owned.
 
    // Surface fitting.
-   GridFunction *surf_fit_gf,
-                *surf_fit_gf_bar;       // Owned, Updated by surf_fit_eval.
+   GridFunction *surf_fit_gf;       // Owned, Updated by surf_fit_eval.
    const Array<bool> *surf_fit_marker;  // Not owned.
    Coefficient *surf_fit_coeff;         // Not owned.
    AdaptivityEvaluator *surf_fit_eval;  // Not owned.
@@ -1448,13 +1571,12 @@ protected:
    // First derivative of the surface fitting term.
    void AssembleElemVecSurfFit(const FiniteElement &el_x,
                                IsoparametricTransformation &Tpr,
-                               const IntegrationRule &ir_quad,
-                               const Vector &weights, DenseMatrix &mat);
+                               DenseMatrix &mat);
+
    // Second derivative of the surface fitting term.
    void AssembleElemGradSurfFit(const FiniteElement &el_x,
                                 IsoparametricTransformation &Tpr,
-                                const IntegrationRule &ir_quad,
-                                const Vector &weights, DenseMatrix &mat);
+                                DenseMatrix &mat);
 
    double GetFDDerivative(const FiniteElement &el,
                           ElementTransformation &T,
@@ -1463,9 +1585,6 @@ protected:
 
    /** @brief Determines the perturbation, h, for FD-based approximation. */
    void ComputeFDh(const Vector &x, const FiniteElementSpace &fes);
-#ifdef MFEM_USE_MPI
-   void ComputeFDh(const Vector &x, const ParFiniteElementSpace &pfes);
-#endif
    void ComputeMinJac(const Vector &x, const FiniteElementSpace &fes);
 
    void UpdateAfterMeshPositionChange(const Vector &new_x);
@@ -1525,6 +1644,13 @@ protected:
    void AssemblePA_Limiting();
    void ComputeAllElementTargets(const Vector &xe = Vector()) const;
 
+   // Compute Min(Det(Jpt)) in the mesh, does not reduce over MPI.
+   double ComputeMinDetT(const Vector &x, const FiniteElementSpace &fes);
+   // Compute Max(mu_hat) for the TMOP_WorstCaseUntangleOptimizer_Metric,
+   // does not reduce over MPI.
+   double ComputeUntanglerMaxMuBarrier(const Vector &x,
+                                       const FiniteElementSpace &fes);
+
 public:
    /** @param[in] m    TMOP_QualityMetric for r-adaptivity (not owned).
        @param[in] tc   Target-matrix construction algorithm to use (not owned).
@@ -1537,7 +1663,7 @@ public:
         lim_dist(NULL), lim_func(NULL), lim_normal(1.0),
         adapt_lim_gf0(NULL), adapt_lim_gf(NULL), adapt_lim_coeff(NULL),
         adapt_lim_eval(NULL),
-        surf_fit_gf(NULL), surf_fit_gf_bar(NULL), surf_fit_marker(NULL),
+        surf_fit_gf(NULL), surf_fit_marker(NULL),
         surf_fit_coeff(NULL),
         surf_fit_eval(NULL), surf_fit_normal(1.0),
         discr_tc(dynamic_cast<DiscreteAdaptTC *>(tc)),
@@ -1551,7 +1677,7 @@ public:
 
    /// Release the device memory of large PA allocations. This will copy device
    /// memory back to the host before releasing.
-   void ReleasePADeviceMemory();
+   void ReleasePADeviceMemory(bool copy_to_host = true);
 
    /// Prescribe a set of integration rules; relevant for mixed meshes.
    /** This function has priority over SetIntRule(), if both are called. */
@@ -1632,6 +1758,7 @@ public:
                              AdaptivityEvaluator &ae);
 #endif
    void GetSurfaceFittingErrors(double &err_avg, double &err_max);
+   bool IsSurfaceFittingEnabled() { return (surf_fit_gf != NULL); }
 
    /// Update the original/reference nodes used for limiting.
    void SetLimitingNodes(const GridFunction &n0) { lim_nodes0 = &n0; }
@@ -1710,6 +1837,18 @@ public:
 
    /** @brief Flag to control if exact action of Integration is effected. */
    void SetExactActionFlag(bool flag_) { exact_action = flag_; }
+
+   /// Update the surface fitting weight as surf_fit_coeff *= factor;
+   void UpdateSurfaceFittingWeight(double factor);
+
+   /// Get the surface fitting weight.
+   double GetSurfaceFittingWeight();
+
+   /// Computes quantiles needed for UntangleMetrics. Note that in parallel,
+   /// the ParFiniteElementSpace must be passed as argument for consistency
+   /// across MPI ranks.
+   void ComputeUntangleMetricQuantiles(const Vector &x,
+                                       const FiniteElementSpace &fes);
 };
 
 class TMOPComboIntegrator : public NonlinearFormIntegrator

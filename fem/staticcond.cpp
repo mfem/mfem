@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -284,7 +284,7 @@ void StaticCondensation::Finalize()
 }
 
 void StaticCondensation::EliminateReducedTrueDofs(
-   const Array<int> &ess_rtdof_list, Matrix::DiagonalPolicy dpolicy)
+   const Array<int> &ess_rtdof_list_, Matrix::DiagonalPolicy dpolicy)
 {
    if (!Parallel() || S) // not parallel or not finalized
    {
@@ -292,16 +292,16 @@ void StaticCondensation::EliminateReducedTrueDofs(
       {
          S_e = new SparseMatrix(S->Height());
       }
-      for (int i = 0; i < ess_rtdof_list.Size(); i++)
+      for (int i = 0; i < ess_rtdof_list_.Size(); i++)
       {
-         S->EliminateRowCol(ess_rtdof_list[i], *S_e, dpolicy);
+         S->EliminateRowCol(ess_rtdof_list_[i], *S_e, dpolicy);
       }
    }
    else // parallel and finalized
    {
 #ifdef MFEM_USE_MPI
       MFEM_ASSERT(pS_e.Ptr() == NULL, "essential b.c. already eliminated");
-      pS_e.EliminateRowsCols(pS, ess_rtdof_list);
+      pS_e.EliminateRowsCols(pS, ess_rtdof_list_);
 #endif
    }
 }
