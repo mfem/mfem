@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -1143,30 +1143,30 @@ int main (int argc, char *argv[])
 
       if (mk == 'S')
       {
-         const char mesh_file[] = "mesh-explorer.mesh";
-         ofstream omesh(mesh_file);
+         const char omesh_file[] = "mesh-explorer.mesh";
+         ofstream omesh(omesh_file);
          omesh.precision(14);
          mesh->Print(omesh);
-         cout << "New mesh file: " << mesh_file << endl;
+         cout << "New mesh file: " << omesh_file << endl;
       }
 
       if (mk == 'V')
       {
-         const char mesh_file[] = "mesh-explorer.vtk";
-         ofstream omesh(mesh_file);
+         const char omesh_file[] = "mesh-explorer.vtk";
+         ofstream omesh(omesh_file);
          omesh.precision(14);
          mesh->PrintVTK(omesh);
-         cout << "New VTK mesh file: " << mesh_file << endl;
+         cout << "New VTK mesh file: " << omesh_file << endl;
       }
 
 #ifdef MFEM_USE_ZLIB
       if (mk == 'Z')
       {
-         const char mesh_file[] = "mesh-explorer.mesh.gz";
-         ofgzstream omesh(mesh_file, "zwb9");
+         const char omesh_file[] = "mesh-explorer.mesh.gz";
+         ofgzstream omesh(omesh_file, "zwb9");
          omesh.precision(14);
          mesh->Print(omesh);
-         cout << "New mesh file: " << mesh_file << endl;
+         cout << "New mesh file: " << omesh_file << endl;
       }
 #endif
 

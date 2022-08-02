@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -9,11 +9,8 @@
 # terms of the BSD-3 license. We welcome feedback and contributions, see file
 # CONTRIBUTING.md for details.
 
-# Include the top mfem source directory - needed by some tests, e.g. to
-# #include "general/text.hpp".
-include_directories(BEFORE ${PROJECT_SOURCE_DIR})
-# Include the build directory where mfem.hpp and mfem-performance.hpp are.
-include_directories(BEFORE ${PROJECT_BINARY_DIR})
+project(mfem-unit-tests NONE)
+
 # Include the source directory for the unit tests - catch.hpp is there.
 include_directories(BEFORE ${CMAKE_CURRENT_SOURCE_DIR})
 
@@ -50,11 +47,17 @@ set(UNIT_TESTS_SRCS
   fem/test_1d_bilininteg.cpp
   fem/test_2d_bilininteg.cpp
   fem/test_3d_bilininteg.cpp
+  fem/test_r1d_bilininteg.cpp
+  fem/test_r2d_bilininteg.cpp
   fem/test_assemblediagonalpa.cpp
   fem/test_assembly_levels.cpp
   fem/test_bilinearform.cpp
   fem/test_blocknonlinearform.cpp
   fem/test_calcshape.cpp
+  fem/test_calcvshape.cpp
+  fem/test_calcdshape.cpp
+  fem/test_calccurlshape.cpp
+  fem/test_calcdivshape.cpp
   fem/test_coefficient.cpp
   fem/test_datacollection.cpp
   fem/test_derefine.cpp
@@ -71,6 +74,7 @@ set(UNIT_TESTS_SRCS
   fem/test_lin_interp.cpp
   fem/test_linear_fes.cpp
   fem/test_lor.cpp
+  fem/test_lor_batched.cpp
   fem/test_operatorjacobismoother.cpp
   fem/test_pa_coeff.cpp
   fem/test_pa_grad.cpp
@@ -83,6 +87,7 @@ set(UNIT_TESTS_SRCS
   fem/test_tet_reorder.cpp
   fem/test_transfer.cpp
   fem/test_var_order.cpp
+  fem/test_white_noise.cpp
   # The following are tested separately (keep the comment as a reminder):
   # miniapps/test_debug_device.cpp
   # miniapps/test_sedov.cpp

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -57,7 +57,7 @@
 //     mpirun -np 4 pmesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 7 -tid 6 -ni 100 -qo 6 -ex -st 1 -nor
 //   Adapted discrete size+orientation (requires GSLIB):
 //   * mpirun -np 4 pmesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 36 -tid 8 -qo 4 -fd -ae 1 -nor
-//   Adapted discrete aspect_ratio+orientation (requires GSLIB):
+//   Adapted discrete aspect-ratio+orientation (requires GSLIB):
 //   * mpirun -np 4 pmesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 85 -tid 8 -ni 10 -bnd -qt 1 -qo 8 -fd -ae 1
 //   Adapted discrete aspect ratio (3D):
 //     mpirun -np 4 pmesh-optimizer -m cube.mesh -o 2 -rs 2 -mid 302 -tid 7 -ni 20 -bnd -qt 1 -qo 8
@@ -72,9 +72,12 @@
 //  Adaptive surface fitting:
 //    mpirun -np 4 pmesh-optimizer -m square01.mesh -o 3 -rs 1 -mid 58 -tid 1 -ni 200 -vl 1 -sfc 5e4 -rtol 1e-5 -nor
 //    mpirun -np 4 pmesh-optimizer -m square01-tri.mesh -o 3 -rs 0 -mid 58 -tid 1 -ni 200 -vl 1 -sfc 1e4 -rtol 1e-5 -nor
+//  Surface fitting with weight adaptation and termination based on fitting error
+//    mpirun -np 4 pmesh-optimizer -m square01.mesh -o 2 -rs 1 -mid 2 -tid 1 -ni 100 -vl 2 -sfc 10 -rtol 1e-20 -st 0 -sfa -sft 1e-5
 //
 //   Blade shape:
 //     mpirun -np 4 pmesh-optimizer -m blade.mesh -o 4 -mid 2 -tid 1 -ni 30 -ls 3 -art 1 -bnd -qt 1 -qo 8
+//   * mpirun -np 4 pmesh-optimizer -m blade.mesh -o 4 -mid 2 -tid 1 -ni 30 -ls 3 -art 1 -bnd -qt 1 -qo 8 -d cuda
 //   Blade shape with FD-based solver:
 //     mpirun -np 4 pmesh-optimizer -m blade.mesh -o 4 -mid 2 -tid 1 -ni 30 -ls 4 -bnd -qt 1 -qo 8 -fd
 //   Blade limited shape:
@@ -98,6 +101,8 @@
 //
 //   2D untangling:
 //     mpirun -np 4 pmesh-optimizer -m jagged.mesh -o 2 -mid 22 -tid 1 -ni 50 -li 50 -qo 4 -fd -vl 1
+//   2D untangling with shifted barrier metric:
+//     mpirun -np 4 pmesh-optimizer -m jagged.mesh -o 2 -mid 4 -tid 1 -ni 50 -qo 4 -fd -vl 1 -btype 1
 //   3D untangling (the mesh is in the mfem/data GitHub repository):
 //   * mpirun -np 4 pmesh-optimizer -m ../../../mfem_data/cube-holes-inv.mesh -o 3 -mid 313 -tid 1 -rtol 1e-5 -li 50 -qo 4 -fd -vl 1
 
@@ -112,11 +117,10 @@ using namespace std;
 
 int main (int argc, char *argv[])
 {
-   // 0. Initialize MPI.
-   int num_procs, myid;
-   MPI_Init(&argc, &argv);
-   MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
-   MPI_Comm_rank(MPI_COMM_WORLD, &myid);
+   // 0. Initialize MPI and HYPRE.
+   Mpi::Init(argc, argv);
+   int myid = Mpi::WorldRank();
+   Hypre::Init();
 
    // 1. Set the method's default parameters.
    const char *mesh_file = "icf.mesh";
@@ -151,6 +155,10 @@ int main (int argc, char *argv[])
    bool pa               = false;
    int n_hr_iter         = 5;
    int n_h_iter          = 1;
+   bool surface_fit_adapt = false;
+   double surface_fit_threshold = -10;
+   int barrier_type       = 0;
+   int worst_case_type    = 0;
 
    // 2. Parse command-line options.
    OptionsParser args(argc, argv);
@@ -276,6 +284,21 @@ int main (int argc, char *argv[])
    args.AddOption(&n_h_iter, "-nh", "--n_h_iter",
                   "Number of h-adaptivity iterations per r-adaptivity"
                   "iteration.");
+   args.AddOption(&surface_fit_adapt, "-sfa", "--adaptive-surface-fit", "-no-sfa",
+                  "--no-adaptive-surface-fit",
+                  "Enable or disable adaptive surface fitting.");
+   args.AddOption(&surface_fit_threshold, "-sft", "--surf-fit-threshold",
+                  "Set threshold for surface fitting. TMOP solver will"
+                  "terminate when max surface fitting error is below this limit");
+   args.AddOption(&barrier_type, "-btype", "--barrier-type",
+                  "0 - None,"
+                  "1 - Shifted Barrier,"
+                  "2 - Pseudo Barrier.");
+   args.AddOption(&worst_case_type, "-wctype", "--worst-case-type",
+                  "0 - None,"
+                  "1 - Beta,"
+                  "2 - PMean.");
+
    args.Parse();
    if (!args.Good())
    {
@@ -358,9 +381,9 @@ int main (int argc, char *argv[])
       }
       vol_loc += pmesh->GetElementVolume(i);
    }
-   double volume;
-   MPI_Allreduce(&vol_loc, &volume, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
-   const double small_phys_size = pow(volume, 1.0 / dim) / 100.0;
+   double vol_glb;
+   MPI_Allreduce(&vol_loc, &vol_glb, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+   const double small_phys_size = pow(vol_glb, 1.0 / dim) / 100.0;
 
    // 9. Add a random perturbation to the nodes in the interior of the domain.
    //    We define a random grid function of fespace and make sure that it is
@@ -409,32 +432,34 @@ int main (int argc, char *argv[])
    x0 = x;
 
    // 12. Form the integrator that uses the chosen metric and target.
-   double tauval = -0.1;
+   double min_detJ = -0.1;
    TMOP_QualityMetric *metric = NULL;
    switch (metric_id)
    {
       // T-metrics
       case 1: metric = new TMOP_Metric_001; break;
       case 2: metric = new TMOP_Metric_002; break;
+      case 4: metric = new TMOP_Metric_004; break;
       case 7: metric = new TMOP_Metric_007; break;
       case 9: metric = new TMOP_Metric_009; break;
       case 14: metric = new TMOP_Metric_014; break;
-      case 22: metric = new TMOP_Metric_022(tauval); break;
+      case 22: metric = new TMOP_Metric_022(min_detJ); break;
       case 50: metric = new TMOP_Metric_050; break;
       case 55: metric = new TMOP_Metric_055; break;
       case 56: metric = new TMOP_Metric_056; break;
       case 58: metric = new TMOP_Metric_058; break;
+      case 66: metric = new TMOP_Metric_066(0.5); break;
       case 77: metric = new TMOP_Metric_077; break;
       case 80: metric = new TMOP_Metric_080(0.5); break;
       case 85: metric = new TMOP_Metric_085; break;
       case 98: metric = new TMOP_Metric_098; break;
       // case 211: metric = new TMOP_Metric_211; break;
-      // case 252: metric = new TMOP_Metric_252(tauval); break;
+      // case 252: metric = new TMOP_Metric_252(min_detJ); break;
       case 301: metric = new TMOP_Metric_301; break;
       case 302: metric = new TMOP_Metric_302; break;
       case 303: metric = new TMOP_Metric_303; break;
       // case 311: metric = new TMOP_Metric_311; break;
-      case 313: metric = new TMOP_Metric_313(tauval); break;
+      case 313: metric = new TMOP_Metric_313(min_detJ); break;
       case 315: metric = new TMOP_Metric_315; break;
       case 316: metric = new TMOP_Metric_316; break;
       case 321: metric = new TMOP_Metric_321; break;
@@ -442,7 +467,7 @@ int main (int argc, char *argv[])
       case 332: metric = new TMOP_Metric_332(0.5); break;
       case 333: metric = new TMOP_Metric_333(0.5); break;
       case 334: metric = new TMOP_Metric_334(0.5); break;
-      // case 352: metric = new TMOP_Metric_352(tauval); break;
+      // case 352: metric = new TMOP_Metric_352(min_detJ); break;
       // A-metrics
       case 11: metric = new TMOP_AMetric_011; break;
       case 36: metric = new TMOP_AMetric_036; break;
@@ -472,6 +497,49 @@ int main (int argc, char *argv[])
                           endl;
             return 3;
       }
+   }
+
+   TMOP_WorstCaseUntangleOptimizer_Metric::BarrierType btype;
+   switch (barrier_type)
+   {
+      case 0: btype = TMOP_WorstCaseUntangleOptimizer_Metric::BarrierType::None;
+         break;
+      case 1: btype = TMOP_WorstCaseUntangleOptimizer_Metric::BarrierType::Shifted;
+         break;
+      case 2: btype = TMOP_WorstCaseUntangleOptimizer_Metric::BarrierType::Pseudo;
+         break;
+      default: cout << "barrier_type not supported: " << barrier_type << endl;
+         return 3;
+   }
+
+   TMOP_WorstCaseUntangleOptimizer_Metric::WorstCaseType wctype;
+   switch (worst_case_type)
+   {
+      case 0: wctype = TMOP_WorstCaseUntangleOptimizer_Metric::WorstCaseType::None;
+         break;
+      case 1: wctype = TMOP_WorstCaseUntangleOptimizer_Metric::WorstCaseType::Beta;
+         break;
+      case 2: wctype = TMOP_WorstCaseUntangleOptimizer_Metric::WorstCaseType::PMean;
+         break;
+      default: cout << "worst_case_type not supported: " << worst_case_type << endl;
+         return 3;
+   }
+
+   TMOP_QualityMetric *untangler_metric = NULL;
+   if (barrier_type > 0 || worst_case_type > 0)
+   {
+      if (barrier_type > 0)
+      {
+         MFEM_VERIFY(metric_id == 4 || metric_id == 14 || metric_id == 66,
+                     "Metric not supported for shifted/pseudo barriers.");
+      }
+      untangler_metric = new TMOP_WorstCaseUntangleOptimizer_Metric(*metric,
+                                                                    2,
+                                                                    1.5,
+                                                                    0.001,//0.01 for pseudo barrier
+                                                                    0.001,
+                                                                    btype,
+                                                                    wctype);
    }
 
    if (metric_id < 300 || h_metric_id < 300)
@@ -723,7 +791,10 @@ int main (int argc, char *argv[])
       target_c = new TargetConstructor(target_t, MPI_COMM_WORLD);
    }
    target_c->SetNodes(x0);
-   TMOP_Integrator *tmop_integ = new TMOP_Integrator(metric, target_c,
+   TMOP_QualityMetric *metric_to_use = barrier_type > 0 || worst_case_type > 0
+                                       ? untangler_metric
+                                       : metric;
+   TMOP_Integrator *tmop_integ = new TMOP_Integrator(metric_to_use, target_c,
                                                      h_metric);
 
    // Finite differences for computations of derivatives.
@@ -829,7 +900,7 @@ int main (int argc, char *argv[])
       for (int i = 0; i < pmesh->GetNE(); i++)
       {
          mat(i) = material_id(i, surf_fit_gf0);
-         pmesh->SetAttribute(i, mat(i) + 1);
+         pmesh->SetAttribute(i, static_cast<int>(mat(i) + 1));
       }
 
       GridFunctionCoefficient coeff_mat(&mat);
@@ -932,7 +1003,7 @@ int main (int argc, char *argv[])
    if (pa) { a.Setup(); }
 
    // Compute the minimum det(J) of the starting mesh.
-   tauval = infinity();
+   min_detJ = infinity();
    const int NE = pmesh->GetNE();
    for (int i = 0; i < NE; i++)
    {
@@ -942,33 +1013,34 @@ int main (int argc, char *argv[])
       for (int j = 0; j < ir.GetNPoints(); j++)
       {
          transf->SetIntPoint(&ir.IntPoint(j));
-         tauval = min(tauval, transf->Jacobian().Det());
+         min_detJ = min(min_detJ, transf->Jacobian().Det());
       }
    }
    double minJ0;
-   MPI_Allreduce(&tauval, &minJ0, 1, MPI_DOUBLE, MPI_MIN, MPI_COMM_WORLD);
-   tauval = minJ0;
+   MPI_Allreduce(&min_detJ, &minJ0, 1, MPI_DOUBLE, MPI_MIN, MPI_COMM_WORLD);
+   min_detJ = minJ0;
    if (myid == 0)
-   { cout << "Minimum det(J) of the original mesh is " << tauval << endl; }
+   { cout << "Minimum det(J) of the original mesh is " << min_detJ << endl; }
 
-   if (tauval < 0.0 && metric_id != 22 && metric_id != 211 && metric_id != 252
+   if (min_detJ < 0.0 && barrier_type == 0
+       && metric_id != 22 && metric_id != 211 && metric_id != 252
        && metric_id != 311 && metric_id != 313 && metric_id != 352)
    {
       MFEM_ABORT("The input mesh is inverted! Try an untangling metric.");
    }
-   if (tauval < 0.0)
+   if (min_detJ < 0.0)
    {
       MFEM_VERIFY(target_t == TargetConstructor::IDEAL_SHAPE_UNIT_SIZE,
                   "Untangling is supported only for ideal targets.");
 
       const DenseMatrix &Wideal =
          Geometries.GetGeomToPerfGeomJac(pfespace->GetFE(0)->GetGeomType());
-      tauval /= Wideal.Det();
+      min_detJ /= Wideal.Det();
 
       double h0min = h0.Min(), h0min_all;
       MPI_Allreduce(&h0min, &h0min_all, 1, MPI_DOUBLE, MPI_MIN, MPI_COMM_WORLD);
       // Slightly below minJ0 to avoid div by 0.
-      tauval -= 0.01 * h0min_all;
+      min_detJ -= 0.01 * h0min_all;
    }
 
    // For HR tests, the energy is normalized by the number of elements.
@@ -1019,7 +1091,7 @@ int main (int argc, char *argv[])
          if (attr == 1 || attr == 2 || attr == 3) { n += nd; }
          if (attr == 4) { n += nd * dim; }
       }
-      Array<int> ess_vdofs(n), vdofs;
+      Array<int> ess_vdofs(n);
       n = 0;
       for (int i = 0; i < pmesh->GetNBE(); i++)
       {
@@ -1101,6 +1173,11 @@ int main (int argc, char *argv[])
    const IntegrationRule &ir =
       irules->Get(pfespace->GetFE(0)->GetGeomType(), quad_order);
    TMOPNewtonSolver solver(pfespace->GetComm(), ir, solver_type);
+   if (surface_fit_adapt) { solver.EnableAdaptiveSurfaceFitting(); }
+   if (surface_fit_threshold > 0)
+   {
+      solver.SetTerminationWithMaxSurfaceFittingError(surface_fit_threshold);
+   }
    // Provide all integration rules in case of a mixed mesh.
    solver.SetIntegrationRules(*irules, quad_order);
    if (solver_type == 0)
@@ -1109,7 +1186,7 @@ int main (int argc, char *argv[])
       solver.SetPreconditioner(*S);
    }
    // For untangling, the solver will update the min det(T) values.
-   if (tauval < 0.0) { solver.SetMinDetPtr(&tauval); }
+   solver.SetMinDetPtr(&min_detJ);
    solver.SetMaxIter(solver_iter);
    solver.SetRelTol(solver_rtol);
    solver.SetAbsTol(0.0);
@@ -1243,10 +1320,10 @@ int main (int argc, char *argv[])
    delete adapt_coeff;
    delete h_metric;
    delete metric;
+   delete untangler_metric;
    delete pfespace;
    delete fec;
    delete pmesh;
 
-   MPI_Finalize();
    return 0;
 }
