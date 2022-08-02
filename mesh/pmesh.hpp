@@ -81,7 +81,8 @@ protected:
    IsoparametricTransformation FaceNbrTransformation;
 
    // glob_elem_offset + local element number defines a global element numbering
-   mutable long glob_elem_offset, glob_offset_sequence;
+   mutable long long glob_elem_offset;
+   mutable long glob_offset_sequence;
    void ComputeGlobalElementOffset() const;
 
    // Enable Print() to add the parallel interface as boundary (typically used
@@ -295,10 +296,10 @@ public:
 
    /** Map a global element number to a local element number. If the global
        element is not on this processor, return -1. */
-   int GetLocalElementNum(long global_element_num) const;
+   int GetLocalElementNum(long long global_element_num) const;
 
    /// Map a local element number to a global element number.
-   long GetGlobalElementNum(int local_element_num) const;
+   long long GetGlobalElementNum(int local_element_num) const;
 
    /** The following functions define global indices for all local vertices,
        edges, faces, or elements. The global indices have no meaning or
@@ -452,7 +453,7 @@ public:
    MFEM_DEPRECATED void ReorientTetMesh() override;
 
    /// Utility function: sum integers from all processors (Allreduce).
-   long ReduceInt(int value) const override;
+   long long ReduceInt(int value) const override;
 
    /** Load balance the mesh by equipartitioning the global space-filling
        sequence of elements. Works for nonconforming meshes only. */
@@ -496,6 +497,15 @@ public:
        boundary is added to the actual boundary; both the element and boundary
        attributes are set to the processor number.  */
    void PrintAsOne(std::ostream &out = mfem::out) const;
+
+   /** Write the mesh to the stream 'out' on Process 0 as a serial mesh. The
+       output mesh does not have any duplication of vertices/nodes at
+       processor boundaries. */
+   void PrintAsSerial(std::ostream &out = mfem::out) const;
+
+   /** Returns a Serial mesh on MPI rank @a save_rank that does not have any
+       duplication of vertices/nodes at processor boundaries. */
+   Mesh GetSerialMesh(int save_rank) const;
 
    /// Save the mesh as a single file (using ParMesh::PrintAsOne). The given
    /// @a precision is used for ASCII output.
