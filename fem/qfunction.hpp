@@ -19,14 +19,16 @@
 namespace mfem
 {
 
+/// Represents values or vectors of values at quadrature points on a mesh.
 class QuadratureFunction : public Vector
 {
 protected:
-   QuadratureSpaceBase *qspace; ///< Associated QuadratureSpaceBase object
-   bool own_qspace;             ///< QuadratureSpaceBase ownership flag
-   int vdim;
+   QuadratureSpaceBase *qspace; ///< Associated QuadratureSpaceBase object.
+   bool own_qspace; ///< Does this own the associated QuadratureSpaceBase?
+   int vdim; ///< Vector dimension.
 
 public:
+   /// Default constructor, results in an empty vector.
    QuadratureFunction() : qspace(nullptr), own_qspace(false), vdim(0) { }
 
    /// Create a QuadratureFunction based on the given QuadratureSpaceBase.
