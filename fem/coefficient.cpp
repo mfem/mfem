@@ -51,9 +51,9 @@ ElementTransformation *RefinedToCoarse(
 void Coefficient::Project(QuadratureFunction &qf)
 {
    QuadratureSpaceBase &qspace = *qf.GetSpace();
-   const int ng = qspace.GetNGroups();
+   const int ne = qspace.GetNE();
    Vector values;
-   for (int iel = 0; iel < ng; ++iel)
+   for (int iel = 0; iel < ne; ++iel)
    {
       qf.GetValues(iel, values);
       const IntegrationRule &ir = qspace.GetIntRule(iel);
@@ -237,10 +237,10 @@ void VectorCoefficient::Project(QuadratureFunction &qf)
 {
    MFEM_ASSERT(vdim == qf.GetVDim(), "Wrong sizes.");
    QuadratureSpaceBase &qspace = *qf.GetSpace();
-   const int ng = qspace.GetNGroups();
+   const int ne = qspace.GetNE();
    DenseMatrix values;
    Vector col;
-   for (int iel = 0; iel < ng; ++iel)
+   for (int iel = 0; iel < ne; ++iel)
    {
       qf.GetValues(iel, values);
       const IntegrationRule &ir = qspace.GetIntRule(iel);
@@ -579,9 +579,9 @@ void MatrixCoefficient::Project(QuadratureFunction &qf, bool transpose)
 {
    MFEM_ASSERT(qf.GetVDim() == height*width, "Wrong sizes.");
    QuadratureSpaceBase &qspace = *qf.GetSpace();
-   const int ng = qspace.GetNGroups();
+   const int ne = qspace.GetNE();
    DenseMatrix values, matrix;
-   for (int iel = 0; iel < ng; ++iel)
+   for (int iel = 0; iel < ne; ++iel)
    {
       qf.GetValues(iel, values);
       const IntegrationRule &ir = qspace.GetIntRule(iel);
@@ -756,10 +756,10 @@ void SymmetricMatrixCoefficient::ProjectSymmetric(QuadratureFunction &qf)
    MFEM_ASSERT(vdim == height*(height+1)/2, "Wrong sizes.");
 
    QuadratureSpaceBase &qspace = *qf.GetSpace();
-   const int ng = qspace.GetNGroups();
+   const int ne = qspace.GetNE();
    DenseMatrix values;
    DenseSymmetricMatrix matrix;
-   for (int iel = 0; iel < ng; ++iel)
+   for (int iel = 0; iel < ne; ++iel)
    {
       qf.GetValues(iel, values);
       const IntegrationRule &ir = qspace.GetIntRule(iel);
