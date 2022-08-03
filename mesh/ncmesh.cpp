@@ -5622,7 +5622,7 @@ void NCMesh::Print(std::ostream &os) const
        "# SQUARE      = 3\n"
        "# TETRAHEDRON = 4\n"
        "# CUBE        = 5\n"
-       "# PRISM       = 6\n";
+       "# PRISM       = 6\n"
        "# PYRAMID     = 7\n";
 
    os << "\ndimension\n" << Dim << "\n";
