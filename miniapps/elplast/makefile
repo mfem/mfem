@@ -25,8 +25,8 @@ include $(DEFAULTS_MK)
 MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
-ADAPT_SRC = 
-ADAPT_OBJ = $(DIFFUSION_SRC:.cpp=.o)
+ADAPT_SRC = adaptive_el.cpp
+ADAPT_OBJ = $(ADAPT_SRC:.cpp=.o)
 
 PAR_MINIAPPS = adaptel
 
@@ -47,17 +47,23 @@ COMMON_LIB += $(if $(MFEM_SHARED:YES=),,\
 .SUFFIXES: .o .cpp .mk
 .PHONY: all lib-common clean clean-build clean-exec
 
-# Remove built-in rule
+
+# Remove built-in rules
 %: %.cpp
 %.o: %.cpp
 
-%.o: $(SRC)%.cpp $(SRC)sbm_aux.hpp $(wildcard $(SRC)%.hpp) $(MFEM_LIB_FILE)\
- $(CONFIG_MK) | lib-common
+%: %.o $(NAVIER_COMMON_OBJ)
+	$(MFEM_CXX) $(MFEM_LINK_FLAGS) $^ -o $@ $(MFEM_LIBS)
+
+%.o: $(SRC)%.cpp $(MFEM_LIB_FILE) $(CONFIG_MK)
 	$(MFEM_CXX) $(MFEM_FLAGS) -c $< -o $@
+
+
+
 
 all: $(MINIAPPS)
 
-adaptel: $(ADAPT_OBJ)
+adaptel: $(ADAPT_OBJ) lib-common
 	$(MFEM_CXX) $(MFEM_LINK_FLAGS) -o $@ $(ADAPT_OBJ) $(COMMON_LIB) $(MFEM_LIBS)
 
 # Rule for building lib-common
