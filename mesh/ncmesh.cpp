@@ -1487,159 +1487,42 @@ void NCMesh::RefineElement(int elem, char ref_type)
       //     |/          \ /    | /
       //     +------------+     *--X
       //    0              1
-      //FIXME
 
-      //Question for Jakub:
-      //For the triangle faces do we need to provide 4 pts to
-      //make sure the the multiple correct parents end up in the
-      //tree???  Or do we just use one of the GetMidEdgeNode calls?
-      // int midf0 = GetMidFaceNode(mid23, mid12, mid01, mid03);
-      // int midf1 = GetMidFaceNode(mid01, mid04, no[4], mid14);
-      // int midf2 = GetMidFaceNode(mid12, mid14, no[4], mid24);
-      // int midf3 = GetMidFaceNode(mid23, mid24, no[4], mid34);
-      // int midf4 = GetMidFaceNode(mid03, mid04, no[4], mid34);
-      // int mide0 = GetMidEdgeNode(midf1, midf3);      
+      ref_type = Refinement::XYZ; // for consistence
 
-      //Question for Jakub
-      //What will I do with the Check ISO and Check Aniso methods for these??
+      int mid01 = GetMidEdgeNode(no[0], no[1]);
+      int mid12 = GetMidEdgeNode(no[1], no[2]);
+      int mid23 = GetMidEdgeNode(no[2], no[3]);
+      int mid03 = GetMidEdgeNode(no[0], no[3]);
+      int mid04 = GetMidEdgeNode(no[0], no[4]);
+      int mid14 = GetMidEdgeNode(no[1], no[4]);
+      int mid24 = GetMidEdgeNode(no[2], no[4]);
+      int mid34 = GetMidEdgeNode(no[3], no[4]);
+      int midf0 = GetMidFaceNode(mid23, mid12, mid01, mid03);
 
-      //Question for Jakub
-      //What am I counting with the count splits method??  How for pyramids?
+      child[0] = NewPyramid(no[0], mid01, midf0, mid03, mid04,
+                            attr, fa[0], fa[1], -1, -1, fa[4]);
+      child[1] = NewTetrahedron(mid01, midf0, mid04, mid14,
+                                attr, -1, -1, -1, fa[1]);
+      child[2] = NewPyramid(mid01, no[1], mid12, midf0, mid14,
+                            attr, fa[0], fa[1], fa[2], -1, -1);
+      child[3] = NewTetrahedron(midf0, mid14, mid12, mid24,
+                                attr, -1, -1, fa[2], -1);
+      child[4] = NewPyramid(midf0, mid12, no[2], mid23, mid24,
+                            attr, fa[0], -1, fa[2], fa[3], -1);
+      child[5] = NewTetrahedron(midf0, mid23, mid34, mid24,
+                                attr, -1, -1, fa[3], -1);
+      child[6] = NewPyramid(mid03, midf0, mid23, no[3], mid34,
+                            attr, fa[0], -1, -1, fa[3], fa[4]); 
+      child[7] = NewTetrahedron(mid03, midf0, mid04, mid34,
+                                attr, -1, -1, -1, fa[4]);
 
+      child[8] = NewPyramid(mid24, mid34, mid04, mid14, midf0,
+                            attr, -1, -1, -1, -1, -1);
+      child[9] = NewPyramid(mid04, mid14, mid24, mid34, no[4],
+                            attr, -1, fa[1], fa[2], fa[3], fa[4]);
 
-      if (ref_type == 1) // split along X axis
-      {
-         int mid01 = GetMidEdgeNode(no[0], no[1]);
-         int mid23 = GetMidEdgeNode(no[2], no[3]);
-
-         child[0] = NewPyramid(no[0], mid01, mid23, no[3], no[4],
-                               attr, fa[0], fa[1], -1, fa[3], fa[4]);
-         child[1] = NewPyramid(mid01, no[1], no[2], mid23, no[4],
-                               attr, fa[0], fa[1], fa[2], fa[3], -1);
-      }
-      else if (ref_type == 2) // split along Y axis
-      {
-         int mid03 = GetMidEdgeNode(no[0], no[3]);
-         int mid12 = GetMidEdgeNode(no[1], no[2]);
-
-         child[0] = NewPyramid(no[0], no[1], mid12, mid03, no[4],
-                               attr, fa[0], fa[1], fa[2], -1, fa[4]);
-         child[1] = NewPyramid(mid03, mid12, no[2], no[3], no[4],
-                               attr, fa[0], -1, fa[2], fa[3], fa[4]);
-      }
-      else if (ref_type == 4) // split along Z axis
-      {
-         int mid04 = GetMidEdgeNode(no[0], no[4]);
-         int mid14 = GetMidEdgeNode(no[1], no[4]);
-         int mid24 = GetMidEdgeNode(no[2], no[4]);
-         int mid34 = GetMidEdgeNode(no[3], no[4]);
-
-         child[0] = NewHexahedron(no[0], no[1], no[2], no[3],
-                                  mid04, mid14, mid24, mid34,
-                                  attr, fa[0], fa[1], fa[2], fa[3], fa[4], -1);
-         child[1] = NewPyramid(mid04, mid14, mid24, mid34, no[4],
-                               attr, -1, fa[1], fa[2], fa[3], fa[4]);
-      }
-      else if (ref_type == 3) // split along XY axis
-      {
-         int mid01 = GetMidEdgeNode(no[0], no[1]);
-         int mid12 = GetMidEdgeNode(no[1], no[2]);
-         int mid23 = GetMidEdgeNode(no[2], no[3]);
-         int mid03 = GetMidEdgeNode(no[0], no[3]);
-         int midf0 = GetMidFaceNode(mid23, mid12, mid01, mid03);    
-
-         child[0] = NewPyramid(no[0], mid01, midf0, mid03, no[4],
-                               attr, fa[0], fa[1], -1, -1, fa[4]);
-         child[1] = NewPyramid(mid01, no[1], mid12, midf0, no[4],
-                               attr, fa[0], fa[1], fa[2], -1, -1);
-         child[2] = NewPyramid(midf0, mid12, no[2], mid23, no[4],
-                               attr, fa[0], -1, fa[2], fa[3], -1);
-         child[3] = NewPyramid(mid03, midf0, mid23, no[3], no[4],
-                               attr, fa[0], -1, -1, fa[3], fa[4]);
-      }
-      else if (ref_type == 5) // split along XZ axis
-      {
-         int mid01 = GetMidEdgeNode(no[0], no[1]);
-         int mid23 = GetMidEdgeNode(no[2], no[3]);
-         int mid04 = GetMidEdgeNode(no[0], no[4]);
-         int mid14 = GetMidEdgeNode(no[1], no[4]);
-         int mid24 = GetMidEdgeNode(no[2], no[4]);
-         int mid34 = GetMidEdgeNode(no[3], no[4]);
-         int midf1 = GetMidFaceNode(mid01, mid04, no[4], mid14);
-         int midf3 = GetMidFaceNode(mid23, mid24, no[4], mid34);         
-
-         child[0] = NewHexahedron(no[0], mid01, mid23, no[3], 
-                                  mid04, midf1, midf3, mid34,
-                                  attr, fa[0], fa[1], -1, fa[3], fa[4], -1);
-         child[1] = NewHexahedron(mid01, no[1], no[2], mid23, 
-                                  midf1, mid14, mid24, midf3,
-                                  attr, fa[0], fa[1], fa[2], fa[3], -1, -1);
-         child[2] = NewPyramid(mid04, midf1, midf3, mid34, no[4],
-                               attr, -1, fa[1], -1, fa[3], fa[4]);
-         child[3] = NewPyramid(midf1, mid14, mid24, midf3, no[4],
-                               attr, -1, fa[1], fa[2], fa[3], -1);
-      }
-      else if (ref_type == 6) // split along YZ axis
-      {
-         int mid12 = GetMidEdgeNode(no[1], no[2]);
-         int mid03 = GetMidEdgeNode(no[0], no[3]);
-         int mid04 = GetMidEdgeNode(no[0], no[4]);
-         int mid14 = GetMidEdgeNode(no[1], no[4]);
-         int mid24 = GetMidEdgeNode(no[2], no[4]);
-         int mid34 = GetMidEdgeNode(no[3], no[4]);
-         int midf2 = GetMidFaceNode(mid12, mid14, no[4], mid24);
-         int midf4 = GetMidFaceNode(mid03, mid04, no[4], mid34);   
-
-         child[0] = NewHexahedron(no[0], no[1], mid12, mid03, 
-                                  mid04, mid14, midf2, midf4,
-                                  attr, fa[0], fa[1], fa[2], -1, fa[4], -1);
-         child[1] = NewHexahedron(mid03, mid12, no[2], no[3],
-                                  midf4, midf2, mid24, mid34,
-                                  attr, fa[0], -1, fa[2], fa[3], fa[4], -1);
-         child[2] = NewPyramid(mid04, mid14, midf2, midf4, no[4],
-                               attr, -1, fa[1], fa[2], -1, fa[4]);
-         child[3] = NewPyramid(midf4, midf2, mid24, mid34, no[4],
-                               attr, -1, -1, fa[2], fa[3], fa[4]);
-      }
-      else if (ref_type == 7) // iso split
-      {
-         int mid01 = GetMidEdgeNode(no[0], no[1]);
-         int mid12 = GetMidEdgeNode(no[1], no[2]);
-         int mid23 = GetMidEdgeNode(no[2], no[3]);
-         int mid03 = GetMidEdgeNode(no[0], no[3]);
-         int mid04 = GetMidEdgeNode(no[0], no[4]);
-         int mid14 = GetMidEdgeNode(no[1], no[4]);
-         int mid24 = GetMidEdgeNode(no[2], no[4]);
-         int mid34 = GetMidEdgeNode(no[3], no[4]);
-         int midf0 = GetMidFaceNode(mid23, mid12, mid01, mid03);
-         int midf1 = GetMidFaceNode(mid01, mid04, no[4], mid14);
-         int midf2 = GetMidFaceNode(mid12, mid14, no[4], mid24);
-         int midf3 = GetMidFaceNode(mid23, mid24, no[4], mid34);
-         int midf4 = GetMidFaceNode(mid03, mid04, no[4], mid34);
-         int mide0 = GetMidEdgeNode(midf1, midf3);
-
-         child[0] = NewHexahedron(no[0], mid01, midf0, mid03, 
-                                  mid04, midf1, mide0, midf4,
-                                  attr, fa[0], fa[1], -1, -1, fa[4], -1);
-         child[1] = NewHexahedron(mid01, no[1], mid12, midf0,
-                                  midf1, mid14, midf2, mide0,
-                                  attr, fa[0], fa[1], fa[2], -1, -1, -1);
-         child[2] = NewHexahedron(midf0, mid12, no[2], mid23,
-                                  mide0, midf2, mid24, midf3,
-                                  attr, fa[0], -1, fa[2], fa[3], -1, -1);
-         child[3] = NewHexahedron(mid03, midf0, mid23, no[3],
-                                  midf4, mide0, midf3, mid34,
-                                  attr, fa[0], -1, -1, fa[3], fa[4], -1);
-         child[4] = NewPyramid(mid04, midf1, mide0, midf4, no[4],
-                               attr, -1, fa[1], -1, -1, fa[4]);
-         child[5] = NewPyramid(midf1, mid14, midf2, mide0, no[4],
-                               attr, -1, fa[1], fa[2], -1, -1);
-         child[6] = NewPyramid(mide0, midf2, mid24, midf3, no[4],
-                               attr, -1, -1, fa[2], fa[3], -1);
-         child[7] = NewPyramid(midf4, mide0, midf3, mid34, no[4],
-                               attr, -1, -1, -1, fa[3], fa[4]);
-      }           
-
+      CheckIsoFace(no[3], no[2], no[1], no[0], mid23, mid12, mid01, mid03, midf0);
    }
    else if (el.Geom() == Geometry::SQUARE)
    {
@@ -4450,174 +4333,52 @@ void NCMesh::GetPointMatrix(Geometry::Type geom, const char* ref_path,
       }
       else if (geom == Geometry::PYRAMID)
       {
-         if (ref_type == 1) // split along X axis
-         {
-            Point mid01(pm(0), pm(1)), mid23(pm(2), pm(3));
+         Point mid01(pm(0), pm(1)), mid23(pm(2), pm(3));
+         Point mid03(pm(0), pm(3)), mid12(pm(1), pm(2));
+         Point mid04(pm(0), pm(4)), mid14(pm(1), pm(4));
+         Point mid24(pm(2), pm(4)), mid34(pm(3), pm(4));
+         Point midf0(mid23, mid12, mid01, mid03);
 
-            if (child == 0)
-            {
-               pm = PointMatrix(pm(0), mid01, mid23, pm(3), pm(4));
-            }
-            else if (child == 1)
-            {
-               pm = PointMatrix(mid01, pm(1), pm(2), mid23, pm(4));
-            }
+         if (child == 0)   //Pyramid
+         {
+            pm = PointMatrix(pm(0), mid01, midf0, mid03, mid04);
          }
-         else if (ref_type == 2) // split along Y axis
+         if (child == 1)   //Tet
          {
-            Point mid03(pm(0), pm(3)), mid12(pm(1), pm(2));
-
-            if (child == 0)
-            {
-               pm = PointMatrix(pm(0), pm(1), mid12, mid03, pm(4));
-            }
-            else if (child == 1)
-            {
-               pm = PointMatrix(mid03, mid12, pm(2), pm(3), pm(4));
-            }
+            pm = PointMatrix(mid01, midf0, mid04, mid14);
          }
-         else if (ref_type == 4) // split along Z axis
+         if (child == 2)   //Pyramid
          {
-            Point mid04(pm(0), pm(4)), mid14(pm(1), pm(4));
-            Point mid24(pm(2), pm(4)), mid34(pm(3), pm(4));
-
-            if (child == 0)         //Cube
-            {
-               pm = PointMatrix(pm(0), pm(1), pm(2), pm(3),
-                                mid04, mid14, mid24, mid34);
-            }
-            else if (child == 1)    //Pyramid
-            {
-               pm = PointMatrix(mid04, mid14, mid24, mid34, pm(4));
-            }
+            pm = PointMatrix(mid01, pm(1), mid12, midf0, mid14);
          }
-         else if (ref_type == 3) // split along XY axis
+         if (child == 3)   //Tet
          {
-            Point mid01(pm(0), pm(1)), mid23(pm(2), pm(3));
-            Point mid03(pm(0), pm(3)), mid12(pm(1), pm(2));
-            Point midf0(mid23, mid12, mid01, mid03);
-
-            if (child == 0)
-            {
-               pm = PointMatrix(pm(0), mid01, midf0, mid03, pm(4));
-            }
-            else if (child == 1)
-            {
-               pm = PointMatrix(mid01, pm(1), mid12, midf0, pm(4));
-            }
-            else if (child == 2)
-            {
-               pm = PointMatrix(midf0, mid12, pm(2), mid23, pm(4));
-            }
-            else if (child == 3)
-            {
-               pm = PointMatrix(mid03, midf0, mid23, pm(3), pm(4));
-            }
+            pm = PointMatrix(midf0, mid14, mid12, mid24);
          }
-         else if (ref_type == 5) // split along XZ axis
+         if (child == 4)   //Pyramid
          {
-            Point mid01(pm(0), pm(1)), mid23(pm(2), pm(3));
-            Point mid04(pm(0), pm(4)), mid14(pm(1), pm(4));
-            Point mid24(pm(2), pm(4)), mid34(pm(3), pm(4));
-            Point midf1(mid04, mid14);
-            Point midf3(mid24, mid34);
-
-            if (child == 0)         //Cube
-            {
-               pm = PointMatrix(pm(0), mid01, mid23, pm(3), 
-                                mid04, midf1, midf3, mid34);
-            }
-            else if (child == 1)    //Cube
-            {
-               pm = PointMatrix(mid01, pm(1), pm(2), mid23, 
-                                midf1, mid14, mid24, midf3);
-            }
-            else if (child == 2)    //Pyramid
-            {
-               pm = PointMatrix(mid04, midf1, midf3, mid34, pm(4));
-            }
-            else if (child == 3)    //Pyramid
-            {
-               pm = PointMatrix(midf1, mid14, mid24, midf3, pm(4));
-            }
+            pm = PointMatrix(midf0, mid12, pm(2), mid23, mid24);
          }
-         else if (ref_type == 6) // split along YZ axis
+         if (child == 5)   //Tet
          {
-            Point mid03(pm(0), pm(3)), mid12(pm(1), pm(2));
-            Point mid04(pm(0), pm(4)), mid14(pm(1), pm(4));
-            Point mid24(pm(2), pm(4)), mid34(pm(3), pm(4));
-            Point midf2(mid14, mid24);
-            Point midf4(mid04, mid34);
-
-            if (child == 0)         //Cube
-            {
-               pm = PointMatrix(pm(0), pm(1), mid12, mid03, 
-                                mid04, mid14, midf2, midf4);
-            }
-            else if (child == 1)    //Cube
-            {
-               pm = PointMatrix(mid03, mid12, pm(2), pm(3),
-                                midf4, midf2, mid24, mid34);
-            }
-            else if (child == 2)    //Pyramid
-            {
-               pm = PointMatrix(mid04, mid14, midf2, midf4, pm(4));
-            }
-            else if (child == 3)    //Pyramid
-            {
-               pm = PointMatrix(midf4, midf2, mid24, mid34, pm(4));
-            }
+            pm = PointMatrix(midf0, mid23, mid34, mid24);
          }
-         else if (ref_type == 7) // iso split
+         if (child == 6)   //Pyramid
          {
-            Point mid01(pm(0), pm(1)), mid23(pm(2), pm(3));
-            Point mid03(pm(0), pm(3)), mid12(pm(1), pm(2));
-            Point mid04(pm(0), pm(4)), mid14(pm(1), pm(4));
-            Point mid24(pm(2), pm(4)), mid34(pm(3), pm(4));
-            Point midf0(mid23, mid12, mid01, mid03);            
-            Point midf1(mid04, mid14);            
-            Point midf2(mid14, mid24);
-            Point midf3(mid24, mid34);
-            Point midf4(mid04, mid34);
-            Point mide0(midf1, midf2, midf3, midf4);
-
-            if (child == 0)         //Cube
-            {
-               pm = PointMatrix(pm(0), mid01, midf0, mid03, 
-                                mid04, midf1, mide0, midf4);
-            }
-            else if (child == 1)    //Cube
-            {
-               pm = PointMatrix(mid01, pm(1), mid12, midf0,
-                                midf1, mid14, midf2, mide0);
-            }
-            else if (child == 2)    //Cube
-            {
-               pm = PointMatrix(midf0, mid12, pm(2), mid23,
-                                mide0, midf2, mid24, midf3);
-            }
-            else if (child == 3)    //Cube
-            {
-               pm = PointMatrix(mid03, midf0, mid23, pm(3),
-                                midf4, mide0, midf3, mid34);
-            }
-            else if (child == 4)    //Pyramid
-            {
-               pm = PointMatrix(mid04, midf1, mide0, midf4, pm(4));
-            }
-            else if (child == 5)    //Pyramid
-            {
-               pm = PointMatrix(midf1, mid14, midf2, mide0, pm(4));
-            }
-            else if (child == 6)    //Pyramid
-            {
-               pm = PointMatrix(mide0, midf2, mid24, midf3, pm(4));
-            }
-            else if (child == 7)    //Pyramid
-            {
-               pm = PointMatrix(midf4, mide0, midf3, mid34, pm(4));
-            }            
-         }         
+            pm = PointMatrix(mid03, midf0, mid23, pm(3), mid34);
+         }
+         if (child == 7)   //Tet
+         {
+            pm = PointMatrix(mid03, midf0, mid04, mid34);
+         }
+         if (child == 8)   //Pyramid
+         {
+            pm = PointMatrix(mid24, mid34, mid04, mid14, midf0);
+         }
+         if (child == 9)   //Pyramid
+         {
+            pm = PointMatrix(mid04, mid14, mid24, mid34, pm(4));
+         }
       }
       else if (geom == Geometry::TETRAHEDRON)
       {
@@ -5588,7 +5349,16 @@ void NCMesh::CountSplits(int elem, int splits[3]) const
                        elevel[6], elevel[7], elevel[8]);
    }
    else if (el.Geom() == Geometry::PYRAMID)
-   { // FIXME
+   {
+      splits[0] = std::max(
+                     max6(flevel[0][0], flevel[1][0], 0,
+                          flevel[2][0], flevel[3][0], flevel[4][0]),
+                     max8(elevel[0], elevel[1], elevel[2],
+                          elevel[3], elevel[4], elevel[5],
+                          elevel[6], elevel[7]));
+
+      splits[1] = splits[0];
+      splits[2] = splits[0];      
    }
    else if (el.Geom() == Geometry::TETRAHEDRON)
    {
