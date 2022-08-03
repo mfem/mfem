@@ -1387,7 +1387,16 @@ void ConvectionIntegrator::AssemblePA(const FiniteElementSpace &fes)
    if (DeviceCanUseCeed())
    {
       delete ceedOp;
-      ceedOp = new ceed::PAConvectionIntegrator(fes, *ir, Q, alpha);
+      const bool mixed = mesh->GetNumGeometries(mesh->Dimension()) > 1 ||
+                         fes.IsVariableOrder();
+      if (mixed)
+      {
+         ceedOp = new ceed::MixedPAConvectionIntegrator(*this, fes, Q, alpha);
+      }
+      else
+      {
+         ceedOp = new ceed::PAConvectionIntegrator(fes, *ir, Q, alpha);
+      }
       return;
    }
    const int dims = el.GetDim();

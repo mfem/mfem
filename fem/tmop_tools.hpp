@@ -136,6 +136,9 @@ protected:
 
    // Minimum determinant over the whole mesh. Used for mesh untangling.
    double *min_det_ptr = nullptr;
+   // Flag to compute minimum determinant and maximum metric in ProcessNewState,
+   // which is required for TMOP_WorstCaseUntangleOptimizer_Metric.
+   mutable bool compute_metric_quantile_flag = true;
 
    // Quadrature points that are checked for negative Jacobians etc.
    const IntegrationRule &ir;
