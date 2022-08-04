@@ -150,9 +150,13 @@ int main(int argc, char *argv[])
    FiniteElementCollection *Uh_fec(new DG_FECollection(order, dim));
    FiniteElementCollection *Uhbar_fec = NULL;
    if (hdg)
-	   Uhbar_fec = new DG_Interface_FECollection(order, dim);
+   {
+      Uhbar_fec = new DG_Interface_FECollection(order, dim);
+   }
    else
-	   Uhbar_fec = new H1_Trace_FECollection(order, dim);
+   {
+      Uhbar_fec = new H1_Trace_FECollection(order, dim);
+   }
 
    // Finite element spaces:
    // Uh_space is the DG space on elements

@@ -1,6 +1,18 @@
-// Integrators for the HDG discretizations
-// Contributed by: T. Horvath, S. Rhebergen, A. Sivas
-//                 University of Waterloo
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
+//
+// This file is part of the MFEM library. For more information and source code
+// availability visit https://mfem.org.
+//
+// MFEM is free software; you can redistribute it and/or modify it under the
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
+//
+// Implementation of Bilinear Form Integrators
+//
+// Contributed by: T. Horvath: Oakland University
+//                 S. Rhebergen, A. Sivas: University of Waterloo
 
 #ifndef MFEM_HDGINTEG
 #define MFEM_HDGINTEG
@@ -119,14 +131,14 @@ public:
 //
 // The output is
 //
-//         [elemmat1 elemmat2]
-// elmat = [elemmat3   0.0   ]
+//         [local_A11 local_A12]
+// elmat = [local_A21    0.0   ]
 //
-// elemmat1 = -(\nu^{-1} q, v)
-// elemmat2 = (u, div(v))
-// elemmat3 = (div(q), w)
+// local_A11 = -(\nu^{-1} q, v)
+// local_A12 = (u, div(v))
+// local_A21 = (div(q), w)
 //
-// elemmat3 = elemmat2^T
+// local_A21 = local_A12^T
 //
 // \nu is the constant diffusion coefficient
 class HDGDomainIntegratorDiffusion : public BilinearFormIntegrator
@@ -153,27 +165,27 @@ public:
 //
 // The output is
 //
-//          [ 0.0   0.0  ]
-// elmat1 = [ 0.0 local2 ]  - the face based integral for matrix A
+//          [ 0.0    0.0   ]
+// elmat1 = [ 0.0 local_A22 ]  - the face based integral for matrix A
 //
-//          [ local1 ]
-// elmat2 = [ local3 ]  - the face based integral for matrix B
+//          [ local_B1 ]
+// elmat2 = [ local_B2 ]  - the face based integral for matrix B
 //
-// elmat3 = [ local4  local5 ]  - the face based integral for matrix C
+// elmat3 = [ local_C1  local_C2 ]  - the face based integral for matrix C
 //
-// elmat4 = local6  - the face based integral for matrix D
+// elmat4 = local_D  - the face based integral for matrix D
 //
 // where
-// local1 = < \lambda,v\cdot n>
-// local2 = < \tau u, w>
-// local3 = -< tau \lambda, w>
-// local4 = < \lambda, v\cdot n>
-// local5 = -< \tau \lambda, w>
-// local6 = < \tau \lambda, \mu>
+// local_B1 = < \lambda,v\cdot n>
+// local_A22 = < \tau u, w>
+// local_B2 = -< tau \lambda, w>
+// local_C1 = < \lambda, v\cdot n>
+// local_C2 = -< \tau \lambda, w>
+// local_D = < \tau \lambda, \mu>
 //
 // q_diff_coeff is the constant diffusion coefficient
-// local4 = local1^T
-// local5 = local3^T
+// local_C1 = local_B1^T
+// local_C2 = local_B2^T
 class HDGFaceIntegratorDiffusion : public BilinearFormIntegrator
 {
 private:

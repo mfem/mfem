@@ -154,7 +154,8 @@ void BilinearFormIntegrator::AssembleFaceMatrix(
 }
 
 /* HDG optimized integrators starts */
-void BilinearFormIntegrator::AssembleElementMatrix2FES(const FiniteElement &fe_q,
+void BilinearFormIntegrator::AssembleElementMatrix2FES(const FiniteElement
+                                                       &fe_q,
                                                        const FiniteElement &fe_u,
                                                        ElementTransformation &Trans,
                                                        DenseMatrix &elmat1)

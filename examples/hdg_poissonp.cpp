@@ -226,9 +226,13 @@ int main(int argc, char *argv[])
    FiniteElementCollection *dg_coll(new DG_FECollection(order, dim));
    FiniteElementCollection *face = NULL;
    if (hdg)
-	   face = new DG_Interface_FECollection(order, dim);
+   {
+      face = new DG_Interface_FECollection(order, dim);
+   }
    else
-	   face = new H1_Trace_FECollection(order, dim);
+   {
+      face = new H1_Trace_FECollection(order, dim);
+   }
 
    // Finite element spaces:
    // V_space is the vector valued DG space on elements for q_h

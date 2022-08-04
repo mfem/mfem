@@ -197,9 +197,13 @@ int main(int argc, char *argv[])
    FiniteElementCollection *Uh_fec(new DG_FECollection(order, dim));
    FiniteElementCollection *Uhbar_fec = NULL;
    if (hdg)
-	   Uhbar_fec = new DG_Interface_FECollection(order, dim);
+   {
+      Uhbar_fec = new DG_Interface_FECollection(order, dim);
+   }
    else
-	   Uhbar_fec = new H1_Trace_FECollection(order, dim);
+   {
+      Uhbar_fec = new H1_Trace_FECollection(order, dim);
+   }
 
    ParFiniteElementSpace *Uh_space   = new ParFiniteElementSpace(pmesh, Uh_fec);
    ParFiniteElementSpace *Uhbar_space = new ParFiniteElementSpace(pmesh,
