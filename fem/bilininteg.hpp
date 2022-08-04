@@ -168,8 +168,7 @@ public:
    /* HDG */
    /* For the optimized HDG calculations  */
    /* 1 element based 1 face based FES */
-   virtual void AssembleFaceMatrixOneElement1and1FES(const FiniteElement &fe_uL,
-                                                     const FiniteElement &fe_uR,
+   virtual void AssembleFaceMatrixOneElement1and1FES(const FiniteElement &fe_u,
                                                      const FiniteElement &face_fe,
                                                      FaceElementTransformations &Trans,
                                                      const int elem1or2,
@@ -179,10 +178,8 @@ public:
                                                      DenseMatrix &elmat3,
                                                      DenseMatrix &elmat4);
    /* 2 element based 1 face based FES */
-   virtual void AssembleFaceMatrixOneElement2and1FES(const FiniteElement &fe_qL,
-                                                     const FiniteElement &fe_qR,
-                                                     const FiniteElement &fe_uL,
-                                                     const FiniteElement &fe_uR,
+   virtual void AssembleFaceMatrixOneElement2and1FES(const FiniteElement &fe_q,
+                                                     const FiniteElement &fe_u,
                                                      const FiniteElement &face_fe,
                                                      FaceElementTransformations &Trans,
                                                      const int elem1or2,

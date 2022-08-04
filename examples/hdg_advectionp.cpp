@@ -66,6 +66,7 @@ int main(int argc, char *argv[])
    int total_ref_levels  = 1;
    bool visualization   = true;
    bool save          = true;
+   bool hdg = true;
    double memA = 0.0;
    double memB = 0.0;
    bool petsc = false;
@@ -87,6 +88,9 @@ int main(int argc, char *argv[])
    args.AddOption(&save, "-save", "--save-files", "-no-save",
                   "--no-save-files",
                   "Enable or disable file saving.");
+   args.AddOption(&hdg, "-hdg", "--hybrid", "-edg",
+                  "--embedded",
+                  "HDG / EDG option.");
    args.AddOption(&memA, "-memA", "--memoryA",
                   "Storage of A.");
    args.AddOption(&memB, "-memB", "--memoryB",
@@ -191,7 +195,11 @@ int main(int argc, char *argv[])
 
    // 5. Define the finite element spaces on the mesh.
    FiniteElementCollection *Uh_fec(new DG_FECollection(order, dim));
-   FiniteElementCollection *Uhbar_fec(new DG_Interface_FECollection(order, dim));
+   FiniteElementCollection *Uhbar_fec = NULL;
+   if (hdg)
+	   Uhbar_fec = new DG_Interface_FECollection(order, dim);
+   else
+	   Uhbar_fec = new H1_Trace_FECollection(order, dim);
 
    ParFiniteElementSpace *Uh_space   = new ParFiniteElementSpace(pmesh, Uh_fec);
    ParFiniteElementSpace *Uhbar_space = new ParFiniteElementSpace(pmesh,

@@ -96,8 +96,7 @@ void HDGDomainIntegratorAdvection::AssembleElementMatrix(
 }
 //---------------------------------------------------------------------
 void HDGFaceIntegratorAdvection::AssembleFaceMatrixOneElement1and1FES(
-   const FiniteElement &fe_uL,
-   const FiniteElement &fe_uR,
+   const FiniteElement &fe_u,
    const FiniteElement &face_fe,
    FaceElementTransformations &Trans,
    const int elem1or2,
@@ -107,11 +106,10 @@ void HDGFaceIntegratorAdvection::AssembleFaceMatrixOneElement1and1FES(
    DenseMatrix &elmat3,
    DenseMatrix &elmat4)
 {
-   int dim, ndof_uL, ndof, ndof_face;
+   int dim, ndof, ndof_face;
    double w;
 
-   dim = fe_uL.GetDim();
-   ndof_uL = fe_uL.GetDof();
+   dim = fe_u.GetDim();
    ndof_face = face_fe.GetDof();
 
    shape_face.SetSize(ndof_face);
@@ -121,14 +119,8 @@ void HDGFaceIntegratorAdvection::AssembleFaceMatrixOneElement1and1FES(
    invJ.SetSize(dim);
    adv.SetSize(dim);
 
-   if (elem1or2 == 1)
-   {
-      ndof = ndof_uL;
-   }
-   else
-   {
-      ndof = fe_uR.GetDof();
-   }
+   ndof = fe_u.GetDof();
+
    shape.SetSize(ndof);
    dshape.SetSize(ndof, dim);
    dshape_normal.SetSize(ndof);
@@ -148,14 +140,7 @@ void HDGFaceIntegratorAdvection::AssembleFaceMatrixOneElement1and1FES(
    {
       // a simple choice for the integration order
       int order;
-      if (elem1or2 == 1)
-      {
-         order = 2*max(fe_uL.GetOrder(), face_fe.GetOrder());
-      }
-      else
-      {
-         order = 2*max(fe_uR.GetOrder(), face_fe.GetOrder());
-      }
+      order = 2*fe_u.GetOrder();
 
       ir = &IntRules.Get(Trans.FaceGeom, order);
    }
@@ -163,24 +148,24 @@ void HDGFaceIntegratorAdvection::AssembleFaceMatrixOneElement1and1FES(
    for (int p = 0; p < ir->GetNPoints(); p++)
    {
       const IntegrationPoint &ip = ir->IntPoint(p);
-      IntegrationPoint eip_L, eip_R;
+      IntegrationPoint eip; // element integration point
 
       Trans.Face->SetIntPoint(&ip);
       face_fe.CalcShape(ip, shape_face);
 
       if (dim == 1)
       {
-         normal(0) = 2*eip_L.x - 1.0;
+         normal(0) = 2*eip.x - 1.0;
       }
       else
       {
          CalcOrtho(Trans.Face->Jacobian(), normal);
       }
 
-      Trans.Loc1.Transform(ip, eip_L);
-      Trans.Elem1->SetIntPoint(&eip_L);
+      Trans.Loc1.Transform(ip, eip);
+      Trans.Elem1->SetIntPoint(&eip);
 
-      avec->Eval(adv, *Trans.Elem1, eip_L);
+      avec->Eval(adv, *Trans.Elem1, eip);
       double an = adv * normal;
       double an_L = an;
 
@@ -192,23 +177,22 @@ void HDGFaceIntegratorAdvection::AssembleFaceMatrixOneElement1and1FES(
 
       if (elem1or2 == 1)
       {
-         fe_uL.CalcShape(eip_L, shape);
-
          zeta = zeta_L;
       }
       else
       {
-         Trans.Loc2.Transform(ip, eip_R);
-         Trans.Elem2->SetIntPoint(&eip_R);
-         fe_uR.CalcShape(eip_R, shape);
+         Trans.Loc2.Transform(ip, eip);
+         Trans.Elem2->SetIntPoint(&eip);
 
-         avec->Eval(adv, *Trans.Elem2, eip_R);
+         avec->Eval(adv, *Trans.Elem2, eip);
          an = adv * normal;
          an *= -1.;
 
          zeta_R = 1.0 - zeta_L;
          zeta = zeta_R;
       }
+
+      fe_u.CalcShape(eip, shape);
 
       w = ip.weight;
 
@@ -372,18 +356,18 @@ void HDGDomainIntegratorDiffusion::AssembleElementMatrix2FES(
    // for vector diffusion the matrix is built up from partial matrices
    partelmat.SetSize(ndof_q);
 
-   DenseMatrix elmat1, elmat2, elmat3;
+   DenseMatrix local_A11, local_A12, local_A21;
 
    // setting the sizes of the local element matrices
-   elmat1.SetSize(dim*ndof_q, dim*ndof_q);
-   elmat2.SetSize(ndof_q, vdim*ndof_u);
-   elmat3.SetSize(ndof_q, vdim*ndof_u);
+   local_A11.SetSize(dim*ndof_q, dim*ndof_q);
+   local_A12.SetSize(vdim*ndof_q, ndof_u);
+   local_A21.SetSize(ndof_u, vdim*ndof_q);
 
    elmat.SetSize(dim*ndof_q + ndof_u);
 
-   elmat1 = 0.0;
-   elmat2 = 0.0;
-   elmat3 = 0.0;
+   local_A11 = 0.0;
+   local_A12 = 0.0;
+   local_A21 = 0.0;
    elmat  = 0.0;
 
    // setting the order of integration
@@ -426,49 +410,51 @@ void HDGDomainIntegratorDiffusion::AssembleElementMatrix2FES(
 
       shape *= c;
       // compute the (u, \div v) term
-      AddMultVWt (shape, divshape, elmat3);
+      AddMultVWt (shape, divshape, local_A21);
 
       // assemble -(q, v) from the partial matrices
       partelmat *= norm*(-1.0);
       for (int k = 0; k < vdim; k++)
       {
-         elmat1.AddMatrix(partelmat, ndof_q*k, ndof_q*k);
+    	  local_A11.AddMatrix(partelmat, ndof_q*k, ndof_q*k);
       }
 
    }
 
-   elmat2.Transpose(elmat3);
+   local_A12.Transpose(local_A21);
 
    int block_size1 = dim*ndof_q;
    int block_size2 = ndof_u;
 
-   for (int i = 0; i<block_size1; i++)
-   {
-      for (int j = 0; j<block_size1; j++)
-      {
-         elmat(i,j) = elmat1(i,j);
-      }
-      for (int j = 0; j<block_size2; j++)
-      {
-         elmat(i,j+block_size1) = elmat2(i,j);
-      }
-   }
+   elmat.CopyMN(local_A11, 0, 0);
+   elmat.CopyMN(local_A12, 0, block_size1);
+   elmat.CopyMN(local_A21, block_size1, 0);
 
-   for (int i = 0; i<block_size2; i++)
-   {
-      for (int j = 0; j<block_size1; j++)
-      {
-         elmat(i+block_size1,j) = elmat3(i,j);
-      }
-   }
+//   for (int i = 0; i<block_size1; i++)
+//   {
+//      for (int j = 0; j<block_size1; j++)
+//      {
+//         elmat(i,j) = local_A11(i,j);
+//      }
+//      for (int j = 0; j<block_size2; j++)
+//      {
+//         elmat(i,j+block_size1) = local_A12(i,j);
+//      }
+//   }
+//
+//   for (int i = 0; i<block_size2; i++)
+//   {
+//      for (int j = 0; j<block_size1; j++)
+//      {
+//         elmat(i+block_size1,j) = local_A21(i,j);
+//      }
+//   }
 }
 
 
 void HDGFaceIntegratorDiffusion::AssembleFaceMatrixOneElement2and1FES(
-   const FiniteElement &fe_qL,
-   const FiniteElement &fe_qR,
-   const FiniteElement &fe_uL,
-   const FiniteElement &fe_uR,
+   const FiniteElement &fe_q,
+   const FiniteElement &fe_u,
    const FiniteElement &face_fe,
    FaceElementTransformations &Trans,
    const int elem1or2,
@@ -481,25 +467,17 @@ void HDGFaceIntegratorDiffusion::AssembleFaceMatrixOneElement2and1FES(
    // Get DoF from faces and the dimension
    int ndof_face = face_fe.GetDof();
    int ndof_q, ndof_u;
-   int dim = fe_qL.GetDim();
+   int dim = fe_q.GetDim();
    int vdim = dim;
-   int order, order1, order2, order3, order4;
+   int order;
 
    DenseMatrix shape1_n_mtx;
 
-   // set the dofs for u and q according to the element
-   if (elem1or2 == 1)
-   {
-      ndof_u = fe_uL.GetDof();
-      ndof_q = fe_qL.GetDof();
-   }
-   else
-   {
-      ndof_u = fe_uR.GetDof();
-      ndof_q = fe_qR.GetDof();
-   }
+   // set the dofs for u and q
+   ndof_u = fe_u.GetDof();
+   ndof_q = fe_q.GetDof();
 
-   DenseMatrix local1, local2, local3, local4, local5, local6;
+   DenseMatrix local_B1, local_A22, local_B2, local_C1, local_C2, local_D;
 
    // set the shape functions, the normal and the advection
    shapeu.SetSize(ndof_u);
@@ -508,18 +486,18 @@ void HDGFaceIntegratorDiffusion::AssembleFaceMatrixOneElement2and1FES(
    normal.SetSize(dim);
 
    // set the proper size for the matrices
-   local1.SetSize(vdim*ndof_q, ndof_face);
-   local1 = 0.0;
-   local2.SetSize(ndof_u, ndof_u);
-   local2 = 0.0;
-   local3.SetSize(ndof_u, ndof_face);
-   local3 = 0.0;
-   local4.SetSize(vdim*ndof_q, ndof_face);
-   local4 = 0.0;
-   local5.SetSize(ndof_u, ndof_face);
-   local5 = 0.0;
-   local6.SetSize(ndof_face, ndof_face);
-   local6 = 0.0;
+   local_B1.SetSize(vdim*ndof_q, ndof_face);
+   local_B1 = 0.0;
+   local_A22.SetSize(ndof_u, ndof_u);
+   local_A22 = 0.0;
+   local_B2.SetSize(ndof_u, ndof_face);
+   local_B2 = 0.0;
+   local_C1.SetSize(vdim*ndof_q, ndof_face);
+   local_C1 = 0.0;
+   local_C2.SetSize(ndof_u, ndof_face);
+   local_C2 = 0.0;
+   local_D.SetSize(ndof_face, ndof_face);
+   local_D = 0.0;
 
    int sub_block_size1 = vdim*ndof_q;
    int sub_block_size2 = ndof_u;
@@ -545,25 +523,8 @@ void HDGFaceIntegratorDiffusion::AssembleFaceMatrixOneElement2and1FES(
    const IntegrationRule *ir = IntRule;
    if (ir == NULL)
    {
-      if (Trans.Elem2No >= 0)
-      {
-         order1 = max(fe_qL.GetOrder(), fe_qR.GetOrder());
-         order2 = 2*fe_qR.GetOrder();
-      }
-      else
-      {
-         order1 = fe_qL.GetOrder();
-         order2 = 2*fe_qL.GetOrder();
-      }
-      order1 += face_fe.GetOrder();
-      order1 += 2;
-      order2 += 2;
-
-      order3 = max(order1, order2);
-      order4 = 2*face_fe.GetOrder();
-      order4 += 2;
-
-      order = max(order3, order4);
+      order = 2*max(max(fe_q.GetOrder(), fe_u.GetOrder()), face_fe.GetOrder());
+      order += 2;
 
       // IntegrationRule depends on the Geometry of the face (pont, line, triangle, rectangular)
       ir = &IntRules.Get(Trans.FaceGeom, order);
@@ -572,7 +533,7 @@ void HDGFaceIntegratorDiffusion::AssembleFaceMatrixOneElement2and1FES(
    for (int p = 0; p < ir->GetNPoints(); p++)
    {
       const IntegrationPoint &ip = ir->IntPoint(p);
-      IntegrationPoint eip1, eip2; // integration points on the elements
+      IntegrationPoint eip; // integration point on the element
 
       // Trace finite element shape function
       Trans.Face->SetIntPoint(&ip);
@@ -581,7 +542,7 @@ void HDGFaceIntegratorDiffusion::AssembleFaceMatrixOneElement2and1FES(
       // calculate the normal at the integration point
       if (dim == 1)
       {
-         normal(0) = 2*eip1.x - 1.0;
+         normal(0) = 2*eip.x - 1.0;
       }
       else
       {
@@ -591,20 +552,18 @@ void HDGFaceIntegratorDiffusion::AssembleFaceMatrixOneElement2and1FES(
       if (elem1or2 == 1)
       {
          // Side 1 finite element shape function
-         Trans.Loc1.Transform(ip, eip1);
-         fe_uL.CalcShape(eip1, shapeu);
-         fe_qL.CalcShape(eip1, shapeq);
-         MultVWt(shapeq, normal, shape_dot_n) ;
+         Trans.Loc1.Transform(ip, eip);
       }
       else
       {
-
          // Side 2 finite element shape function
-         Trans.Loc2.Transform(ip, eip2);
-         fe_uR.CalcShape(eip2, shapeu);
-         fe_qR.CalcShape(eip2, shapeq);
-         MultVWt(shapeq, normal, shape_dot_n) ;
+         Trans.Loc2.Transform(ip, eip);
       }
+
+      fe_u.CalcShape(eip, shapeu);
+      fe_q.CalcShape(eip, shapeq);
+      MultVWt(shapeq, normal, shape_dot_n) ;
+
 
       // set the coefficients for the different terms
       // if the normal is involved Trans.Face->Weight() is not required
@@ -619,68 +578,76 @@ void HDGFaceIntegratorDiffusion::AssembleFaceMatrixOneElement2and1FES(
 
       double w3 = -w2;
 
-      // local1 = < \lambda,\nu v\cdot n>
+      // local_B1 = < \lambda,\nu v\cdot n>
       for (int i = 0; i < vdim; i++)
          for (int k = 0; k < ndof_q; k++)
             for (int j = 0; j < ndof_face; j++)
             {
-               local1(i*ndof_q + k, j) +=
-                  shape_face(j) * shape_dot_n(k,i) * w1;
+            	local_B1(i*ndof_q + k, j) += shape_face(j) * shape_dot_n(k,i) * w1;
             }
 
-      // local2 =  < \tau u, w>
-      // local3 = -< tau \lambda, w>
-      // local5 = -< tau \lambda, w>
+      // local_A22 =  < \tau u, w>
+      // local_B2= -< tau \lambda, w>
+      // local_C2 = -< tau \lambda, w>
       for (int i = 0; i < ndof_u; i++)
       {
          for (int j = 0; j < ndof_u; j++)
          {
-            local2(i, j) += w2 * shapeu(i) * shapeu(j);
+        	 local_A22(i, j) += w2 * shapeu(i) * shapeu(j);
          }
 
          for (int j = 0; j < ndof_face; j++)
          {
-            local3(i, j) += w3 * shapeu(i) * shape_face(j);
+        	 local_B2(i, j) += w3 * shapeu(i) * shape_face(j);
          }
       }
 
       if (!onlyB)
       {
-         // local6 = < \tau \lambda, \mu>
+         // local_D = < \tau \lambda, \mu>
 
-         AddMult_a_VVt(w2, shape_face, local6);
+         AddMult_a_VVt(w2, shape_face, local_D);
       }
    }
 
-   local4.Transpose(local1);
-   local5.Transpose(local3);
+   local_C1.Transpose(local_B1);
+   local_C2.Transpose(local_B2);
 
-   for (int i = 0; i<sub_block_size2; i++)
-   {
-      for (int j = 0; j<sub_block_size2; j++)
-      {
-         elmat1(i+sub_block_size1,j+sub_block_size1) = local2(i,j);
-      }
-   }
+   elmat1.CopyMN(local_A22, sub_block_size1, sub_block_size1);
 
-   for (int i = 0; i<block_size2; i++)
-   {
-      for (int j = 0; j<sub_block_size1; j++)
-      {
-         elmat2(j,i) = local1(j,i);
+   elmat2.CopyMN(local_B1, 0, 0);
+   elmat2.CopyMN(local_B2, sub_block_size1, 0);
 
-         elmat3(i,j) = local4(i,j);
-      }
-      for (int j = 0; j<sub_block_size2; j++)
-      {
-         elmat2(j+sub_block_size1,i) = local3(j,i);
+   elmat3.CopyMN(local_C1, 0, 0);
+   elmat3.CopyMN(local_C2, 0, sub_block_size1);
 
-         elmat3(i,j+sub_block_size1) = local5(i,j);
-      }
-   }
+//   for (int i = 0; i<sub_block_size2; i++)
+//   {
+//      for (int j = 0; j<sub_block_size2; j++)
+//      {
+//         elmat1(i+sub_block_size1,j+sub_block_size1) = local_A22(i,j);
+//      }
+//   }
+//
+//   for (int i = 0; i<block_size2; i++)
+//   {
+//      for (int j = 0; j<sub_block_size1; j++)
+//      {
+//         elmat2(j,i) = local_B1(j,i);
+//
+//         elmat3(i,j) = local_C1(i,j);
+//      }
+//      for (int j = 0; j<sub_block_size2; j++)
+//      {
+//         elmat2(j+sub_block_size1,i) = local_B2(j,i);
+//
+//         elmat3(i,j+sub_block_size1) = local_C2(i,j);
+//      }
+//   }
 
-   elmat4 = local6;
+   elmat4 = local_D;
 }
 
 
 }
+;

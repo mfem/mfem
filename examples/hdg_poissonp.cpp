@@ -108,6 +108,7 @@ int main(int argc, char *argv[])
    bool verbose = (myid == 0);
    bool post = true;
    bool save = true;
+   bool hdg = true;
    double memA = 0.0;
    double memB = 0.0;
    bool petsc = false;
@@ -131,6 +132,9 @@ int main(int argc, char *argv[])
    args.AddOption(&save, "-save", "--save-files", "-no-save",
                   "--no-save-files",
                   "Enable or disable file saving.");
+   args.AddOption(&hdg, "-hdg", "--hybrid", "-edg",
+                  "--embedded",
+                  "HDG / EDG option.");
    args.AddOption(&memA, "-memA", "--memoryA",
                   "Storage of A.");
    args.AddOption(&memB, "-memB", "--memoryB",
@@ -220,7 +224,11 @@ int main(int argc, char *argv[])
 
    // 5. Define a finite element collections and spaces on the mesh.
    FiniteElementCollection *dg_coll(new DG_FECollection(order, dim));
-   FiniteElementCollection *face(new DG_Interface_FECollection(order, dim));
+   FiniteElementCollection *face = NULL;
+   if (hdg)
+	   face = new DG_Interface_FECollection(order, dim);
+   else
+	   face = new H1_Trace_FECollection(order, dim);
 
    // Finite element spaces:
    // V_space is the vector valued DG space on elements for q_h

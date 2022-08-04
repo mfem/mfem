@@ -258,43 +258,28 @@ void HDGBilinearForm::compute_face_integrals(const int elem, const int edge,
    // see comment above
    tr = mesh->GetFaceElementTransformations(edge);
 
-   const FiniteElement &trial_face_fe = *fes2[0]->GetFaceElement(edge);
-   const FiniteElement &testu1_fe1 = *fes1[0]->GetFE(tr->Elem1No);
+   const FiniteElement &trace_fe = *fes2[0]->GetFaceElement(edge);
+   const FiniteElement &volume_fe = *fes1[0]->GetFE(elem);
 
-   // this is a setup for the case of the boundary
-   const FiniteElement &testu1_fe2 = *fes1[0]->GetFE(tr->Elem1No);
-   if (isboundary == -1)
-   {
-      // if not a boundary edge use the neighbouring element
-      const FiniteElement &testu1_fe2 = *fes1[0]->GetFE(tr->Elem2No);
-   }
    // Compute the integrals depending on which element do we need to use
    int elem_1or2 = 1 + (tr->Elem2No == elem);
    switch (NInteriorFES)
    {
       case 1:
       {
-         hdg_fbfi[0]->AssembleFaceMatrixOneElement1and1FES(testu1_fe1, testu1_fe2,
-                                                           trial_face_fe, *tr,
-                                                           elem_1or2, onlyB,
+         hdg_fbfi[0]->AssembleFaceMatrixOneElement1and1FES(volume_fe,
+                                                           trace_fe,
+														   *tr, elem_1or2, onlyB,
                                                            elemmat1, elemmat2,
                                                            elemmat3, elemmat4);
          break;
       }
       case 2:
       {
-         const FiniteElement &testu2_fe1 = *fes1[1]->GetFE(tr->Elem1No);
-         // this is a setup for the case of the boundary
-         const FiniteElement &testu2_fe2 = *fes1[1]->GetFE(tr->Elem1No);
-         if (isboundary == -1)
-         {
-            // if not a boundary edge use the neighbouring element
-            const FiniteElement &testu2_fe2 = *fes1[0]->GetFE(tr->Elem2No);
-         }
-         hdg_fbfi[0]->AssembleFaceMatrixOneElement2and1FES(testu1_fe1, testu1_fe2,
-                                                           testu2_fe1, testu2_fe2,
-                                                           trial_face_fe,
-                                                           *tr, elem_1or2, onlyB,
+         const FiniteElement &volume_fe2 = *fes1[1]->GetFE(tr->Elem1No);
+         hdg_fbfi[0]->AssembleFaceMatrixOneElement2and1FES(volume_fe, volume_fe2,
+        		 	 	 	 	 	 	 	 	 	 	   trace_fe,
+														   *tr, elem_1or2, onlyB,
                                                            elemmat1, elemmat2,
                                                            elemmat3, elemmat4);
          break;
@@ -857,24 +842,16 @@ void HDGBilinearForm::compute_face_integrals_shared(const int elem,
 
    tr = pmesh->GetSharedFaceTransformations(sf);
 
-   const FiniteElement &trial_face_fe = *fes2[0]->GetFaceElement(edge);
-   const FiniteElement &testu1_fe1 = *fes1[0]->GetFE(tr->Elem1No);
-   //    const FiniteElement &testu1_fe2 = *fes1[0]->GetFE(tr->Elem2No);
-   //    const FiniteElement &testu1_fe2 = *pfes1->GetFaceNbrFE(tr->Elem2No);
-   const FiniteElement &testu1_fe2 = *fes1[0]->GetFE(tr->Elem1No);
+   const FiniteElement &trace_fe = *fes2[0]->GetFaceElement(edge);
+   const FiniteElement &volume_fe = *fes1[0]->GetFE(elem);
 
    // For parallel the element the processor owns is tr->Elem1No
-   //    hdg_fbfi[0]->AssembleFaceMatrixOneElement1and1FES(test_fe1, test_fe2,
-   //                            trial_face_fe, *tr,
-   //                            1, onlyB,
-   //                            elemmat1, elemmat2,
-   //                            elemmat3, elemmat4);
    switch (NInteriorFES)
    {
       case 1:
       {
-         hdg_fbfi[0]->AssembleFaceMatrixOneElement1and1FES(testu1_fe1, testu1_fe2,
-                                                           trial_face_fe, *tr,
+         hdg_fbfi[0]->AssembleFaceMatrixOneElement1and1FES(volume_fe,
+        		 	 	 	 	 	 	 	 	 	 	   trace_fe, *tr,
                                                            1, onlyB,
                                                            elemmat1, elemmat2,
                                                            elemmat3, elemmat4);
@@ -883,13 +860,9 @@ void HDGBilinearForm::compute_face_integrals_shared(const int elem,
       case 2:
       {
          ParFiniteElementSpace* pfes2 = dynamic_cast<ParFiniteElementSpace*>(fes1[1]);
-         const FiniteElement &testu2_fe1 = *fes1[1]->GetFE(tr->Elem1No);
-         //          const FiniteElement &testu2_fe2 = *fes1[1]->GetFE(tr->Elem2No);
-         //          const FiniteElement &testu2_fe2 = *pfes2->GetFaceNbrFE(tr->Elem2No);
-         const FiniteElement &testu2_fe2 = *fes1[1]->GetFE(tr->Elem1No);
-         hdg_fbfi[0]->AssembleFaceMatrixOneElement2and1FES(testu1_fe1, testu1_fe2,
-                                                           testu2_fe1, testu2_fe2,
-                                                           trial_face_fe,
+         const FiniteElement &volume_fe2 = *fes1[1]->GetFE(elem);
+         hdg_fbfi[0]->AssembleFaceMatrixOneElement2and1FES(volume_fe, volume_fe2,
+                                                           trace_fe,
                                                            *tr, 1, onlyB,
                                                            elemmat1, elemmat2,
                                                            elemmat3, elemmat4);
