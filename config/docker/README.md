@@ -1,7 +1,8 @@
 # mfem Docker
 
-We provide a [Dockerfile](Dockerfile) to build an ubuntu base image. You can use
-this image for a demo of using mfem! 🎉️
+We provide a [Dockerfile.base](Dockerfile.base) to build an ubuntu base image,
+and a [Dockerfile](Dockerfile) to build a smaller one with a multi-stage build.
+You can use this image for a demo of using mfem! 🎉️
 
 Updated containers are built and deployed on merges to the main branch and releases.
 If you want to request a build on demand, you can [manually run the workflow](https://docs.github.com/en/actions/managing-workflow-runs/manually-running-a-workflow) thanks to the workflow dispatch event.
@@ -14,18 +15,33 @@ is the [GitHub packages](https://github.com/features/packages) registry that sup
  Docker images and other OCI artifacts. From the root of the repository:
 
 ```bash
-$ docker build -f config/docker/Dockerfile -t ghcr.io/mfem/mfem-ubuntu-base .
+$ docker build -f config/docker/Dockerfile -t ghcr.io/mfem/mfem-ubuntu .
+$ docker build -f config/docker/Dockerfile.base -t ghcr.io/mfem/mfem-ubuntu-base .
 ```
 
-or this directory:
+### Shell Ubuntu
+
+To shell into the container:
 
 ```bash
-$ docker build -f Dockerfile -t ghcr.io/mfem/mfem-ubuntu-base ../../
+$ docker run -it ghcr.io/mfem/mfem-ubuntu
 ```
 
-### Shell
+This smaller image has a view where everything is installed.
 
-To shell into a container (here is an example with ubuntu):
+```bash
+$ ls
+bin  etc  include  lib  libexec  sbin  share  var
+```
+
+ - Examples are in share/mfem/examples
+ - Examples are in share/mfem/miniapps
+
+You can read more about interaction with these examples and miniapps below.
+
+### Shell Ubuntu Base
+
+To shell into the container:
 
 ```bash
 $ docker run -it ghcr.io/mfem/mfem-ubuntu-base bash
@@ -128,3 +144,4 @@ $ docker run -it ghcr.io/mfem/mfem-ubuntu-base -v $PWD:/src bash
 In the above, we can pretend your project is in the present working directory (PWD) and we are
 binding to source. You can then use the mfem in the container for development, and if you
 want to distribute your library or app in a container, you can use the mfem container as the base.
+

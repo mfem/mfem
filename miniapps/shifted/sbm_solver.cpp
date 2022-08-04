@@ -181,7 +181,7 @@ void SBM2DirichletIntegrator::AssembleFaceMatrix(
 
       for (int i = 0; i < nterms; i++)
       {
-         int sz1 = pow(dim, i+1);
+         int sz1 = static_cast<int>(pow(dim, i+1));
          dkphi_dxk[i] = new DenseMatrix(ndof, ndof*sz1*dim);
          int loc_col_per_dof = sz1;
          int tot_col_per_dof = loc_col_per_dof*dim;
@@ -290,7 +290,7 @@ void SBM2DirichletIntegrator::AssembleFaceMatrix(
       q_hess_dot_d = 0.;
       for (int i = 0; i < nterms; i++)
       {
-         int sz1 = pow(dim, i+1);
+         int sz1 = static_cast<int>(pow(dim, i+1));
          DenseMatrix T1(dim, ndof*sz1);
          Vector T1_wrk(T1.GetData(), dim*ndof*sz1);
          dkphi_dxk[i]->MultTranspose(shape, T1_wrk);
@@ -299,7 +299,7 @@ void SBM2DirichletIntegrator::AssembleFaceMatrix(
          Vector T2_wrk;
          for (int j = 0; j < i+1; j++)
          {
-            int sz2 = pow(dim, i-j);
+            int sz2 = static_cast<int>(pow(dim, i-j));
             T2.SetSize(dim, ndof*sz2);
             T2_wrk.SetDataAndSize(T2.GetData(), dim*ndof*sz2);
             T1.MultTranspose(D, T2_wrk);
@@ -488,7 +488,7 @@ void SBM2DirichletLFIntegrator::AssembleRHSElementVect(
 
       for (int i = 0; i < nterms; i++)
       {
-         int sz1 = pow(dim, i+1);
+         int sz1 = static_cast<int>(pow(dim, i+1));
          dkphi_dxk[i] = new DenseMatrix(ndof, ndof*sz1*dim);
          int loc_col_per_dof = sz1;
          for (int k = 0; k < dim; k++)
@@ -609,7 +609,7 @@ void SBM2DirichletLFIntegrator::AssembleRHSElementVect(
       q_hess_dot_d = 0.;
       for (int i = 0; i < nterms; i++)
       {
-         int sz1 = pow(dim, i+1);
+         int sz1 = static_cast<int>(pow(dim, i+1));
          DenseMatrix T1(dim, ndof*sz1);
          Vector T1_wrk(T1.GetData(), dim*ndof*sz1);
          dkphi_dxk[i]->MultTranspose(shape, T1_wrk);
@@ -618,7 +618,7 @@ void SBM2DirichletLFIntegrator::AssembleRHSElementVect(
          Vector T2_wrk;
          for (int j = 0; j < i+1; j++)
          {
-            int sz2 = pow(dim, i-j);
+            int sz2 = static_cast<int>(pow(dim, i-j));
             T2.SetSize(dim, ndof*sz2);
             T2_wrk.SetDataAndSize(T2.GetData(), dim*ndof*sz2);
             T1.MultTranspose(D, T2_wrk);
@@ -778,7 +778,7 @@ void SBM2NeumannIntegrator::AssembleFaceMatrix(
 
       for (int i = 0; i < nterms; i++)
       {
-         int sz1 = pow(dim, i+1);
+         int sz1 = static_cast<int>(pow(dim, i+1));
          dkphi_dxk[i] = new DenseMatrix(ndof, ndof*sz1*dim);
          int loc_col_per_dof = sz1;
          int tot_col_per_dof = loc_col_per_dof*dim;
@@ -894,7 +894,7 @@ void SBM2NeumannIntegrator::AssembleFaceMatrix(
       q_hess_dot_d_nhat = 0.;
       for (int i = 0; i < nterms; i++)
       {
-         int sz1 = pow(dim, i+1);
+         int sz1 = static_cast<int>(pow(dim, i+1));
          DenseMatrix T1(dim, ndof*sz1);
          Vector T1_wrk(T1.GetData(), dim*ndof*sz1);
          dkphi_dxk[i]->MultTranspose(shape, T1_wrk);
@@ -903,7 +903,7 @@ void SBM2NeumannIntegrator::AssembleFaceMatrix(
          Vector T2_wrk;
          for (int j = 0; j < i+1; j++)
          {
-            int sz2 = pow(dim, i-j);
+            int sz2 = static_cast<int>(pow(dim, i-j));
             T2.SetSize(dim, ndof*sz2);
             T2_wrk.SetDataAndSize(T2.GetData(), dim*ndof*sz2);
             T1.MultTranspose(D, T2_wrk);

@@ -964,10 +964,10 @@ public:
    virtual int GetNFbyType(FaceType type) const;
 
    /// Utility function: sum integers from all processors (Allreduce).
-   virtual long ReduceInt(int value) const { return value; }
+   virtual long long ReduceInt(int value) const { return value; }
 
    /// Return the total (global) number of elements.
-   long GetGlobalNE() const { return ReduceInt(NumOfElements); }
+   long long GetGlobalNE() const { return ReduceInt(NumOfElements); }
 
    /** @brief Return the mesh geometric factors corresponding to the given
        integration rule.
@@ -992,7 +992,8 @@ public:
        destructor). */
    const FaceGeometricFactors* GetFaceGeometricFactors(const IntegrationRule& ir,
                                                        const int flags,
-                                                       FaceType type);
+                                                       FaceType type,
+                                                       MemoryType d_mt = MemoryType::DEFAULT);
 
    /// Destroy all GeometricFactors stored by the Mesh.
    /** This method can be used to force recomputation of the GeometricFactors,
@@ -1587,7 +1588,7 @@ public:
    /** Replace the internal node GridFunction with a new GridFunction defined
        on the given FiniteElementSpace. The new node coordinates are projected
        (derived) from the current nodes/vertices. */
-   void SetNodalFESpace(FiniteElementSpace *nfes);
+   virtual void SetNodalFESpace(FiniteElementSpace *nfes);
    /** Replace the internal node GridFunction with the given GridFunction. The
        given GridFunction is updated with node coordinates projected (derived)
        from the current nodes/vertices. */
@@ -1939,7 +1940,7 @@ public:
    };
 
    FaceGeometricFactors(const Mesh *mesh, const IntegrationRule &ir, int flags,
-                        FaceType type);
+                        FaceType type, MemoryType d_mt = MemoryType::DEFAULT);
 
    /// Mapped (physical) coordinates of all quadrature points.
    /** This array uses a column-major layout with dimensions (NQ x SDIM x NF)
