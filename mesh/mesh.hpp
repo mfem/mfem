@@ -710,6 +710,7 @@ public:
        "init constructor". */
    ///@{
 
+   /// @note The returned object should be deleted by the caller.
    Element *NewElement(int geom);
 
    int AddVertex(double x, double y = 0.0, double z = 0.0);
@@ -744,7 +745,10 @@ public:
    void AddHexAsPyramids(const int *vi, int attr = 1);
 
    /// The parameter @a elem should be allocated using the NewElement() method
+   /// @note Ownership of @a elem will pass to the Mesh object
    int AddElement(Element *elem);
+   /// The parameter @a elem should be allocated using the NewElement() method
+   /// @note Ownership of @a elem will pass to the Mesh object
    int AddBdrElement(Element *elem);
 
    int AddBdrSegment(int v1, int v2, int attr = 1);
@@ -1041,12 +1045,34 @@ public:
    const Element* const *GetElementsArray() const
    { return elements.GetData(); }
 
+   /// @brief Return pointer to the i'th element object
+   ///
+   /// The index @a i should be in the range [0, this->Mesh::GetNE())
+   ///
+   /// In parallel, @a i is the local element index which is in the
+   /// same range mentioned above.
    const Element *GetElement(int i) const { return elements[i]; }
 
+   /// @brief Return pointer to the i'th element object
+   ///
+   /// @note Provides read/write access to the i'th element object so
+   /// that element attributes or connectivity can be adjusted. However,
+   /// the Element object itself should not be deleted by the caller.
    Element *GetElement(int i) { return elements[i]; }
 
+   /// @brief Return pointer to the i'th boundary element object
+   ///
+   /// The index @a i should be in the range [0, this->Mesh::GetNBE())
+   ///
+   /// In parallel, @a i is the local boundary element index which is
+   /// in the same range mentioned above.
    const Element *GetBdrElement(int i) const { return boundary[i]; }
 
+   /// @brief Return pointer to the i'th boundary element object
+   ///
+   /// @note Provides read/write access to the i'th boundary element object so
+   /// that boundary attributes or connectivity can be adjusted. However,
+   /// the Element object itself should not be deleted by the caller.
    Element *GetBdrElement(int i) { return boundary[i]; }
 
    const Element *GetFace(int i) const { return faces[i]; }
@@ -1144,9 +1170,13 @@ public:
    void GetEdgeVertices(int i, Array<int> &vert) const;
 
    /// Returns the face-to-edge Table (3D)
+   ///
+   /// @note The returned object should NOT be deleted by the caller.
    Table *GetFaceEdgeTable() const;
 
    /// Returns the edge-to-vertex Table (3D)
+   ///
+   /// @note The returned object should NOT be deleted by the caller.
    Table *GetEdgeVertexTable() const;
 
    /// Return the indices and the orientations of all faces of element i.
@@ -1178,6 +1208,10 @@ public:
       every vertex we give its coordinates in space of dimension Dim. */
    void GetBdrPointMatrix(int i, DenseMatrix &pointmat) const;
 
+   /// @brief Return FiniteElement for reference element of the specified type
+   ///
+   /// @note The returned object is a pointer to a global object and
+   /// must not be deleted by the caller.
    static FiniteElement *GetTransformationFEforElementType(Element::Type);
 
    /** Builds the transformation defining the i-th element in the user-defined
@@ -1185,6 +1219,8 @@ public:
    void GetElementTransformation(int i, IsoparametricTransformation *ElTr);
 
    /// Returns the transformation defining the i-th element
+   ///
+   /// @note The returned object should NOT be deleted by the caller.
    ElementTransformation *GetElementTransformation(int i);
 
    /** Return the transformation defining the i-th element assuming
@@ -1193,6 +1229,7 @@ public:
                                  IsoparametricTransformation *ElTr);
 
    /// Returns the transformation defining the i-th boundary element
+   /// @note The returned object should NOT be deleted by the caller.
    ElementTransformation * GetBdrElementTransformation(int i);
    void GetBdrElementTransformation(int i, IsoparametricTransformation *ElTr);
 
@@ -1210,6 +1247,7 @@ public:
                                    int info);
 
    /// Returns the transformation defining the given face element
+   /// @note The returned object should NOT be deleted by the caller.
    ElementTransformation *GetFaceTransformation(int FaceNo);
 
    /** Returns the transformation defining the given edge element.
@@ -1217,6 +1255,7 @@ public:
    void GetEdgeTransformation(int i, IsoparametricTransformation *EdTr);
 
    /// Returns the transformation defining the given face element
+   /// @note The returned object should NOT be deleted by the caller.
    ElementTransformation *GetEdgeTransformation(int EdgeNo);
 
    /// Returns (a pointer to an object containing) the following data:
@@ -1249,16 +1288,20 @@ public:
    ///    mask & 4 - Loc1, mask & 8 - Loc2, mask & 16 - Face.
    /// These mask values are defined in the ConfigMasks enum type as part of the
    /// FaceElementTransformations class in fem/eltrans.hpp.
+   ///
+   /// @note The returned object should NOT be deleted by the caller.
    virtual FaceElementTransformations *GetFaceElementTransformations(
       int FaceNo,
       int mask = 31);
 
+   /// @note The returned object should NOT be deleted by the caller.
    FaceElementTransformations *GetInteriorFaceTransformations (int FaceNo)
    {
       if (faces_info[FaceNo].Elem2No < 0) { return NULL; }
       return GetFaceElementTransformations (FaceNo);
    }
 
+   /// @note The returned object should NOT be deleted by the caller.
    FaceElementTransformations *GetBdrFaceTransformations (int BdrElemNo);
 
    /// Return the local face index for the given boundary face.
@@ -1498,7 +1541,9 @@ public:
        @note Refinement does not work after a call to this method! */
    MFEM_DEPRECATED virtual void ReorientTetMesh();
 
+   /// @note The returned array must be deleted by the caller.
    int *CartesianPartitioning(int nxyz[]);
+   /// @note The returned array must be deleted by the caller.
    int *GeneratePartitioning(int nparts, int part_method = 1);
    void CheckPartitioning(int *partitioning_);
 
@@ -1524,6 +1569,7 @@ public:
    void SetNodes(const Vector &node_coord);
 
    /// Return a pointer to the internal node GridFunction (may be NULL).
+   /// @note The returned object should NOT be deleted by the caller.
    GridFunction *GetNodes() { return Nodes; }
    const GridFunction *GetNodes() const { return Nodes; }
    /// Return the mesh nodes ownership flag.
