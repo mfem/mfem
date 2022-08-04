@@ -369,6 +369,7 @@ public:
 
    /** Similar to Mesh::GetFaceToElementTable with added face-neighbor elements
        with indices offset by the local number of elements. */
+   /// @note The returned Table must be destroyed by the caller
    Table *GetFaceToAllElementTable() const;
 
    /// Returns (a pointer to an object containing) the following data:
@@ -401,6 +402,8 @@ public:
    ///    mask & 4 - Loc1, mask & 8 - Loc2, mask & 16 - Face.
    /// These mask values are defined in the ConfigMasks enum type as part of the
    /// FaceElementTransformations class in fem/eltrans.hpp.
+   ///
+   /// @note The returned object should NOT be deleted by the caller.
    FaceElementTransformations *GetFaceElementTransformations(
       int FaceNo,
       int mask = 31) override;
@@ -410,6 +413,8 @@ public:
        for elem2 of the face should be computed or not.
        In the returned object, 1 and 2 refer to the local and the neighbor
        elements, respectively. */
+   ///
+   /// @note The returned object should NOT be deleted by the caller.
    FaceElementTransformations *
    GetSharedFaceTransformations(int sf, bool fill2 = true);
 
@@ -418,9 +423,12 @@ public:
        for elem2 of the face should be computed or not.
        In the returned object, 1 and 2 refer to the local and the neighbor
        elements, respectively. */
+   ///
+   /// @note The returned object should NOT be deleted by the caller.
    FaceElementTransformations *
    GetSharedFaceTransformationsByLocalIndex(int FaceNo, bool fill2 = true);
 
+   /// @note The returned object should NOT be deleted by the caller.
    ElementTransformation *
    GetFaceNbrElementTransformation(int i)
    {
