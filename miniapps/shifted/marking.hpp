@@ -19,7 +19,7 @@ namespace mfem
 
 class ElementMarker{
 public:
-    ElementMarker(ParMesh& mesh, bool include_cut=false)
+    ElementMarker(ParMesh& mesh, bool include_cut=false, bool use_cut=false, int h1_order_=2)
     {
         pmesh=&mesh;
         const int dim=pmesh->SpaceDimension();
@@ -27,7 +27,9 @@ public:
         elfes=new ParFiniteElementSpace(pmesh,elfec,1);
         elgf.SetSpace(elfes);
         include_cut_elements=include_cut;
-        ls_func=nullptr;
+        use_cut_marks=use_cut;
+
+        h1_order=h1_order_;
     }
 
     ~ElementMarker()
@@ -36,11 +38,13 @@ public:
         delete elfec;
     }
 
-    enum SBElementType {INSIDE = 0, OUTSIDE = 1};
+    enum SBElementType {INSIDE = 0, OUTSIDE = 1, CUT = 2};
 
     enum SBFaceType {UNDEFINED = 0, SURROGATE = 1};
 
     void SetLevelSetFunction(const ParGridFunction& ls_fun);
+
+    void SetLevelSetFunction(Coefficient& ls_fun);
 
     /// Mark all the elements in the mesh using the @a SBElementType
     void MarkElements(Array<int> &elem_marker);
@@ -54,13 +58,15 @@ public:
                             Array<int> &ess_tdof_list) const;
 
 private:
-    const ParGridFunction* ls_func;
     ParMesh* pmesh;
     FiniteElementCollection* elfec;
     ParFiniteElementSpace* elfes;
     ParGridFunction elgf;
 
     bool include_cut_elements;
+    bool use_cut_marks;
+
+    int h1_order; //order of the H1 FE space for level set functions defined by coefficient
 
 };
 

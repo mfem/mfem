@@ -16,7 +16,10 @@ if (MFEM_USE_MPI)
         marking.cpp
 	extrapolator.cpp
 	integ_algoim.cpp
-	elasticity.cpp)
+	elasticity.cpp
+	mtop_filters.cpp
+	elasticity_exint.cpp)
+
   list(APPEND DIST_COMMON_HEADERS
         dist_solver.hpp
         sbm_solver.hpp
@@ -24,7 +27,9 @@ if (MFEM_USE_MPI)
         marking.hpp
 	elasticity.hpp
 	extrapolator.hpp
-	integ_algoim.hpp)
+	integ_algoim.hpp
+	mtop_filters.hpp
+	elasticity_exint.hpp)
 
   convert_filenames_to_full_paths(DIST_COMMON_SOURCES)
   convert_filenames_to_full_paths(DIST_COMMON_HEADERS)
@@ -58,6 +63,16 @@ add_mfem_miniapp(elast_nntest
         ${DIST_COMMON_FILES}
         LIBRARIES mfem mfem-common)
 
+add_mfem_miniapp(elast_nntest01
+        MAIN elast_nntest01.cpp
+        ${DIST_COMMON_FILES}
+        LIBRARIES mfem mfem-common)
+
+add_mfem_miniapp(filter_test
+	MAIN filter_test.cpp
+	${DIST_COMMON_FILES}
+        LIBRARIES mfem mfem-common)
+
   add_mfem_miniapp(extrapolate
     MAIN extrapolate.cpp
     ${DIST_COMMON_FILES}
@@ -67,6 +82,7 @@ add_mfem_miniapp(elast_nntest
     MAIN algoim_test.cpp
     ${DIST_COMMON_FILES}
     LIBRARIES mfem mfem-common)
+
 
   if (MFEM_ENABLE_TESTING)
     add_test(NAME shifted_distance_np${MFEM_MPI_NP}

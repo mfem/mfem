@@ -810,7 +810,9 @@ public:
     ~LevelSetElasticitySolver();
 
     /// Set the Linear Solver
-    void SetLinearSolver(double rtol=1e-8, double atol=1e-12, int miter=1000);
+    void SetLinearSolver(double rtol=1e-8, double atol=1e-12, int miter=1000, int restart=50);
+
+    void SetPrintLevel(int prtl=0);
 
     /// Set the level-set information
     void SetLSF(mfem::ParGridFunction* lf);
@@ -827,6 +829,8 @@ public:
 
     /// Adds displacement BC in direction 0(x),1(y),2(z), or 4(all).
     void AddDispBC(int id, int dir, mfem::Coefficient& val);
+
+    void AddDispBC(int id, mfem::VectorCoefficient& val);
 
     /// Set the values of the volumetric force.
     void SetVolForce(double fx,double fy, double fz);
@@ -853,6 +857,7 @@ public:
         if(nf!=nullptr)
         {
             delete nf; nf=nullptr;
+            delete pf; pf=nullptr;
         }
         materials.push_back(nmat);
     }
@@ -878,6 +883,8 @@ private:
     mfem::Vector adj;
     //RHS
     mfem::Vector rhs;
+    //tmp vector
+    mfem::Vector tmv;
 
     /// Volumetric force created by the solver.
     mfem::VectorConstantCoefficient* lvforce;
@@ -896,6 +903,9 @@ private:
     std::map<int, mfem::Coefficient*> bccy;
     std::map<int, mfem::Coefficient*> bccz;
 
+    // holds BC in vector coefficient form
+    std::map<int, mfem::VectorCoefficient*> bcca;
+
     // holds the displacement contrained DOFs
     mfem::Array<int> ess_tdofv;
 
@@ -908,6 +918,8 @@ private:
     double linear_rtol;
     double linear_atol;
     int linear_iter;
+    int linear_rest;
+    int print_level;
 
     mfem::ParNonlinearForm *nf;
     mfem::ParNonlinearForm *pf; //nf for preconditioning
@@ -919,10 +931,12 @@ private:
 
     //Level-set function and its derivatives
     mfem::ParGridFunction* lsfunc;
+    mfem::GridFunctionCoefficient* distco;
+    mfem::GradientGridFunctionCoefficient* gradco;
 
     mfem::Array<int> element_markers;
     mfem::Array<int> face_markers;
-    mfem::Array<int> ess_tdof_list;
+    mfem::Array<int> markers_tdof_list;
 
 
 

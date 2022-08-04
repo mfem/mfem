@@ -176,6 +176,36 @@ public:
       T.Mult(lsfun,lsvec);
    }
 
+   /// Construct Algoim object using a finite element of order eo, its
+   /// transformation and level-set function defined over the element
+   /// using a coefficient. The argument io provides the order of the
+   /// 1D Gaussian integration used for deriving the vol/surface
+   /// integration rules.
+   AlgoimIntegrationRule(int io, int eo,
+                         ElementTransformation &trans, Coefficient& lsfun)
+   {
+      int_order=io;
+      vir=nullptr;
+      sir=nullptr;
+
+      if(trans.GetGeometryType()==Geometry::Type::SQUARE)
+      {
+         pe=new H1Pos_QuadrilateralElement(eo);
+      }
+      else if (trans.GetGeometryType()==Geometry::Type::CUBE)
+      {
+         pe=new H1Pos_HexahedronElement(eo);
+      }
+      else
+      {
+         MFEM_ABORT("AlgoimIntegrationRule: The element type is not supported by Algoim!\n");
+      }
+
+      //project the level-set function onto Bernstein basis
+      lsvec.SetSize(pe->GetDof());
+      pe->Project(lsfun,trans,lsvec);
+   }
+
 
    /// Destructor of the Algoim object
    ~AlgoimIntegrationRule()

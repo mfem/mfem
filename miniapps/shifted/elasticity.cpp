@@ -1969,7 +1969,9 @@ void SBM2NNIntegrator::AssembleElementVector(const FiniteElement &el,
            //calculate the distance
            double d=dist_coeff->Eval(*fctr,ip);
            //calculate the gradient of the SDF
-           dist_grad->Eval(nvec,*fctr,ip);
+           //the gradient can be evaluated only over a element and
+           //cannot be evaluated over a face
+           dist_grad->Eval(nvec,*ltr,ip);
            //normalize nvec - the true normal
            double nn=nvec.Norml2();
            if(nn>std::numeric_limits<double>::epsilon()){nvec/=nn;}
@@ -2170,7 +2172,7 @@ void SBM2NNIntegrator::AssembleElementGrad(const FiniteElement &el,
            //calculate the distance
            double d=dist_coeff->Eval(*fctr,ip);
            //calculate the gradient of the SDF
-           dist_grad->Eval(nvec,*fctr,ip);
+           dist_grad->Eval(nvec,*ltr,ip);
            //normalize nvec - the true normal
            double nn=nvec.Norml2();
            if(nn>std::numeric_limits<double>::epsilon()){nvec/=nn;}
@@ -2433,14 +2435,405 @@ void SBM2NNIntegrator::FormL2Grad(const FiniteElement &el, ElementTransformation
     }
 }
 
+
+LevelSetElasticitySolver::LevelSetElasticitySolver(mfem::ParMesh& mesh, int vorder)
+{
+    pmesh=&mesh;
+    int dim=pmesh->Dimension();
+    vfec=new H1_FECollection(vorder,dim);
+    vfes=new mfem::ParFiniteElementSpace(pmesh,vfec,dim, Ordering::byVDIM);
+
+    fdisp.SetSpace(vfes); fdisp=0.0;
+    adisp.SetSpace(vfes); adisp=0.0;
+
+    sol.SetSize(vfes->GetTrueVSize()); sol=0.0;
+    rhs.SetSize(vfes->GetTrueVSize()); rhs=0.0;
+    adj.SetSize(vfes->GetTrueVSize()); adj=0.0;
+    tmv.SetSize(vfes->GetTrueVSize()); tmv=0.0;
+
+    SetLinearSolver();
+    SetPrintLevel();
+
+    lvforce=nullptr;
+    volforce=nullptr;
+
+    nf=nullptr; //nonlinear form
+    pf=nullptr; //nonlinear form for the preconditioner
+
+    lsfunc=nullptr; //level-set function
+    distco=nullptr;
+    gradco=nullptr;
+
+}
+
+LevelSetElasticitySolver::~LevelSetElasticitySolver()
+{
+    delete nf;
+    delete pf;
+
+    delete lvforce;
+
+    delete vfes;
+    delete vfec;
+
+    for(unsigned int i=0;i<materials.size();i++)
+    {
+        delete materials[i];
+    }
+
+    delete distco;
+    delete gradco;
+}
+
+void LevelSetElasticitySolver::SetPrintLevel(int prtl)
+{
+    print_level=prtl;
+}
+
+void LevelSetElasticitySolver::SetLinearSolver(double rtol, double atol, int miter, int restart)
+{
+    linear_rtol=rtol;
+    linear_atol=atol;
+    linear_iter=miter;
+    linear_rest=restart;
+}
+
 void LevelSetElasticitySolver::SetLSF(mfem::ParGridFunction *lf)
 {
-    lsfunc=lf;
-    ess_tdof_list.DeleteAll();
-    //mark the elements including the crossed ones
-    mfem::ElementMarker smarker(*pmesh,true);
-    smarker.SetLevelSetFunction(*lsfunc);
-    smarker.MarkElements(element_markers);
-    smarker.MarkFaces(face_markers);
-    smarker.ListEssentialTDofs(element_markers,*vfes,ess_tdof_list);
+    delete distco; distco=nullptr;
+    delete gradco; gradco=nullptr;
+
+    if(lf==nullptr)
+    {
+        lsfunc=lf;
+        markers_tdof_list.DeleteAll();
+        element_markers.DeleteAll();
+        face_markers.DeleteAll();
+    }
+    else
+    {
+        lsfunc=lf;
+        markers_tdof_list.DeleteAll();
+        //mark the elements including the crossed ones
+        mfem::ElementMarker smarker(*pmesh,true);
+        smarker.SetLevelSetFunction(*lsfunc);
+        smarker.MarkElements(element_markers);
+        smarker.MarkFaces(face_markers);
+        smarker.ListEssentialTDofs(element_markers,*vfes,markers_tdof_list);
+
+        distco=new GridFunctionCoefficient(lsfunc);
+        gradco=new GradientGridFunctionCoefficient(lsfunc);
+    }
+
+
+    //delete the forms
+    delete nf; nf=nullptr;
+    delete pf; pf=nullptr;
+}
+
+void LevelSetElasticitySolver::AddDispBC(int id, int dir, double val)
+{
+    if(dir==0){
+        bcx[id]=mfem::ConstantCoefficient(val);
+        AddDispBC(id,dir,bcx[id]);
+    }
+    if(dir==1){
+        bcy[id]=mfem::ConstantCoefficient(val);
+        AddDispBC(id,dir,bcy[id]);
+
+    }
+    if(dir==2){
+        bcz[id]=mfem::ConstantCoefficient(val);
+        AddDispBC(id,dir,bcz[id]);
+    }
+    if(dir==4){
+        bcx[id]=mfem::ConstantCoefficient(val);
+        bcy[id]=mfem::ConstantCoefficient(val);
+        bcz[id]=mfem::ConstantCoefficient(val);
+        AddDispBC(id,0,bcx[id]);
+        AddDispBC(id,1,bcy[id]);
+        AddDispBC(id,2,bcz[id]);
+    }
+}
+
+void LevelSetElasticitySolver::AddDispBC(int id, int dir, mfem::Coefficient &val)
+{
+    if(dir==0){ bccx[id]=&val; }
+    if(dir==1){ bccy[id]=&val; }
+    if(dir==2){ bccz[id]=&val; }
+    if(dir==4){ bccx[id]=&val; bccy[id]=&val; bccz[id]=&val;}
+    if(pmesh->Dimension()==2)
+    {
+        bccz.clear();
+    }
+}
+
+void LevelSetElasticitySolver::AddDispBC(int id, mfem::VectorCoefficient& val)
+{
+    bcca[id]=&val;
+}
+
+
+void LevelSetElasticitySolver::SetVolForce(double fx, double fy, double fz)
+{
+    delete lvforce;
+    int dim=pmesh->Dimension();
+    mfem::Vector ff(dim); ff(0)=fx; ff(1)=fy;
+    if(dim==3){ff(2)=fz;}
+    lvforce=new mfem::VectorConstantCoefficient(ff);
+    volforce=lvforce;
+
+}
+
+void LevelSetElasticitySolver::SetVolForce(mfem::VectorCoefficient& fv)
+{
+    volforce=&fv;
+}
+
+void LevelSetElasticitySolver::FSolve()
+{
+    // Set the BC
+    ess_tdofv.DeleteAll();
+    Array<int> ess_tdofx;
+    Array<int> ess_tdofy;
+    Array<int> ess_tdofz;
+
+    sol=0.0;
+
+    int dim=pmesh->Dimension();
+    {
+        for(auto it=bccx.begin();it!=bccx.end();it++)
+        {
+            mfem::Array<int> ess_bdr(pmesh->bdr_attributes.Max());
+            ess_bdr=0;
+            ess_bdr[it->first -1]=1;
+            mfem::Array<int> ess_tdof_list;
+            vfes->GetEssentialTrueDofs(ess_bdr,ess_tdof_list,0);
+            ess_tdofx.Append(ess_tdof_list);
+
+            mfem::VectorArrayCoefficient pcoeff(dim);
+            pcoeff.Set(0, it->second, false);
+            fdisp.ProjectBdrCoefficient(pcoeff, ess_bdr);
+        }
+
+        //copy tdofsx from velocity grid function
+        {
+            fdisp.GetTrueDofs(rhs); // use the rhs vector as a tmp vector
+            for(int ii=0;ii<ess_tdofx.Size();ii++)
+            {
+                sol[ess_tdofx[ii]]=rhs[ess_tdofx[ii]];
+            }
+        }
+        ess_tdofv.Append(ess_tdofx);
+
+        for(auto it=bccy.begin();it!=bccy.end();it++)
+        {
+            mfem::Array<int> ess_bdr(pmesh->bdr_attributes.Max());
+            ess_bdr=0;
+            ess_bdr[it->first -1]=1;
+            mfem::Array<int> ess_tdof_list;
+            vfes->GetEssentialTrueDofs(ess_bdr,ess_tdof_list,1);
+            ess_tdofy.Append(ess_tdof_list);
+
+            mfem::VectorArrayCoefficient pcoeff(dim);
+            pcoeff.Set(1, it->second, false);
+            fdisp.ProjectBdrCoefficient(pcoeff, ess_bdr);
+        }
+        //copy tdofsy from velocity grid function
+        {
+            fdisp.GetTrueDofs(rhs); // use the rhs vector as a tmp vector
+            for(int ii=0;ii<ess_tdofy.Size();ii++)
+            {
+                sol[ess_tdofy[ii]]=rhs[ess_tdofy[ii]];
+            }
+        }
+        ess_tdofv.Append(ess_tdofy);
+
+        if(dim==3){
+            for(auto it=bccz.begin();it!=bccz.end();it++)
+            {
+                mfem::Array<int> ess_bdr(pmesh->bdr_attributes.Max());
+                ess_bdr=0;
+                ess_bdr[it->first -1]=1;
+                mfem::Array<int> ess_tdof_list;
+                vfes->GetEssentialTrueDofs(ess_bdr,ess_tdof_list,2);
+                ess_tdofz.Append(ess_tdof_list);
+
+                mfem::VectorArrayCoefficient pcoeff(dim);
+                pcoeff.Set(2, it->second, false);
+                fdisp.ProjectBdrCoefficient(pcoeff, ess_bdr);
+            }
+
+            //copy tdofsz from velocity grid function
+            {
+                fdisp.GetTrueDofs(rhs); // use the rhs vector as a tmp vector
+                for(int ii=0;ii<ess_tdofz.Size();ii++)
+                {
+                    sol[ess_tdofz[ii]]=rhs[ess_tdofz[ii]];
+                }
+            }
+            ess_tdofv.Append(ess_tdofz);
+        }
+
+        //set vector coefficients
+        for(auto it=bcca.begin();it!=bcca.end();it++)
+        {
+            mfem::Array<int> ess_bdr(pmesh->bdr_attributes.Max());
+            ess_bdr=0;
+            ess_bdr[it->first -1]=1;
+            mfem::Array<int> ess_tdof_list;
+            vfes->GetEssentialTrueDofs(ess_bdr,ess_tdof_list);
+            fdisp.ProjectBdrCoefficient(*(it->second), ess_bdr);
+            //copy tdofs from velocity grid function
+            fdisp.GetTrueDofs(rhs); // use the rhs vector as a tmp vector
+            for(int ii=0;ii<ess_tdof_list.Size();ii++)
+            {
+                sol[ess_tdof_list[ii]]=rhs[ess_tdof_list[ii]];
+            }
+            ess_tdofv.Append(ess_tdof_list);
+        }
+    }//the solution vector is populated with the BCs
+
+
+    //allocate the nf
+    if(nf==nullptr)
+    {
+        nf=new mfem::ParNonlinearForm(vfes);
+        pf=new mfem::ParNonlinearForm(vfes);
+
+        //add the integrators
+        for(unsigned int i=0;i<materials.size();i++)
+        {
+            mfem::SBM2NNIntegrator* tin=new mfem::SBM2NNIntegrator(pmesh,vfes,
+                                                                   element_markers,face_markers);
+
+            if(lsfunc!=nullptr){tin->SetDistance(distco,gradco);}
+            tin->SetShiftOrder(vfes->GetOrder(0));
+            tin->SetElasticityCoefficient(materials[i]);
+            nf->AddDomainIntegrator(tin);
+
+            tin=new mfem::SBM2NNIntegrator(pmesh,vfes,element_markers,face_markers);
+            if(lsfunc!=nullptr){tin->SetDistance(distco,gradco);}
+            tin->SetShiftOrder(vfes->GetOrder(0));
+            tin->SetElasticityCoefficient(materials[i]);
+            tin->SetAssemblyInterior(true);
+            pf->AddDomainIntegrator(tin);
+        }
+
+        if(volforce!=nullptr){
+            nf->AddDomainIntegrator(new NLVolForceIntegrator(volforce));
+        }
+    }
+
+    nf->SetGradientType(mfem::Operator::Type::Hypre_ParCSR);
+    pf->SetGradientType(mfem::Operator::Type::Hypre_ParCSR);
+
+    tmv=0.0;
+    mfem::Operator& A=nf->GetGradient(tmv);
+    mfem::Operator& P=pf->GetGradient(tmv);
+
+    //set the rhs
+    nf->Mult(tmv,rhs); rhs*=-1.0;
+
+    // create a union between ess_tdofv and markers_tdof_list
+    mfem::Array<int> ess_tdof_list;
+    ess_tdof_list=markers_tdof_list;
+    ess_tdof_list.Append(ess_tdofv);
+    ess_tdof_list.Sort();
+    ess_tdof_list.Unique();
+
+
+    mfem::HypreParMatrix* M=static_cast<mfem::HypreParMatrix*>(&A);
+    mfem::HypreParMatrix* Ae=M->EliminateRowsCols(ess_tdof_list);
+    M->EliminateZeroRows();
+    M->EliminateBC(*Ae,ess_tdof_list, sol, rhs);
+    delete Ae;
+
+    mfem::HypreParMatrix* K=static_cast<mfem::HypreParMatrix*>(&P);
+    mfem::HypreParMatrix* Ke=K->EliminateRowsCols(ess_tdof_list);
+    K->EliminateZeroRows();
+    delete Ke;
+
+    //allocate the solvers and solve the problem
+    {
+        mfem::GMRESSolver *ls;
+        mfem::HypreBoomerAMG *prec;
+
+        prec=new mfem::HypreBoomerAMG();
+        prec->SetSystemsOptions(pmesh->Dimension());
+        prec->SetElasticityOptions(vfes);
+        prec->SetPrintLevel(print_level);
+        prec->SetOperator(*K);
+
+        ls=new mfem::GMRESSolver(pmesh->GetComm());
+        ls->SetPrintLevel(print_level);
+        ls->SetAbsTol(linear_atol);
+        ls->SetRelTol(linear_rtol);
+        ls->SetMaxIter(linear_iter);
+        ls->SetKDim(linear_rest);
+        ls->SetOperator(*M);
+        ls->SetPreconditioner(*prec);
+
+        ls->Mult(rhs,sol);
+
+        delete ls;
+        delete prec;
+    }
+}
+
+void LevelSetElasticitySolver::ASolve(mfem::Vector &rhs)
+{
+    if(nf==nullptr){
+        MFEM_ABORT("FSolve() should be called before calling ASolve()");
+    }
+
+    //one can reuse the operators
+    mfem::Operator& A=nf->GetGradient(tmv);
+    mfem::Operator& P=pf->GetGradient(tmv);
+
+    // create a union between ess_tdofv and markers_tdof_list
+    mfem::Array<int> ess_tdof_list;
+    ess_tdof_list=markers_tdof_list;
+    ess_tdof_list.Append(ess_tdofv);
+    ess_tdof_list.Sort();
+    ess_tdof_list.Unique();
+
+    adj=0.0;
+
+    mfem::HypreParMatrix* M=static_cast<mfem::HypreParMatrix*>(&A);
+    mfem::HypreParMatrix* Mt=M->Transpose();
+    mfem::HypreParMatrix* Ae=Mt->EliminateRowsCols(ess_tdof_list);
+    Mt->EliminateZeroRows();
+    Mt->EliminateBC(*Ae,ess_tdof_list, adj, rhs);
+    delete Ae;
+
+    mfem::HypreParMatrix* K=static_cast<mfem::HypreParMatrix*>(&P);
+    mfem::HypreParMatrix* Ke=K->EliminateRowsCols(ess_tdof_list);
+    K->EliminateZeroRows();
+    delete Ke;
+
+    mfem::GMRESSolver *ls;
+    mfem::HypreBoomerAMG *prec;
+
+    prec=new mfem::HypreBoomerAMG();
+    prec->SetSystemsOptions(pmesh->Dimension());
+    prec->SetElasticityOptions(vfes);
+    prec->SetPrintLevel(print_level);
+    prec->SetOperator(*K);
+
+    ls=new mfem::GMRESSolver(pmesh->GetComm());
+    ls->SetPrintLevel(print_level);
+    ls->SetAbsTol(linear_atol);
+    ls->SetRelTol(linear_rtol);
+    ls->SetMaxIter(linear_iter);
+    ls->SetKDim(linear_rest);
+    ls->SetOperator(*M);
+    ls->SetPreconditioner(*prec);
+
+    ls->Mult(rhs,adj);
+
+    delete ls;
+    delete prec;
+    delete Mt;
+
 }

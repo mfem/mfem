@@ -497,11 +497,11 @@ int main(int argc, char *argv[])
        distco=new mfem::FunctionCoefficient(TestDistFunc3D);
    }
    */
-   //distco=new mfem::FunctionCoefficient(Circ);
-   //gradco=new mfem::VectorFunctionCoefficient(dim,CircGrad);
+   distco=new mfem::FunctionCoefficient(Circ);
+   gradco=new mfem::VectorFunctionCoefficient(dim,CircGrad);
 
-   distco=new mfem::FunctionCoefficient(CplxComp);
-   gradco=new mfem::VectorFunctionCoefficient(dim,CplxCompGrad);
+   //distco=new mfem::FunctionCoefficient(CplxComp);
+   //gradco=new mfem::VectorFunctionCoefficient(dim,CplxCompGrad);
 
 
    mfem::H1_FECollection fec(order,dim);
