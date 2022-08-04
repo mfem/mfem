@@ -131,6 +131,7 @@ The MFEM source code has the following structure:
   │   ├── common
   │   ├── electromagnetics
   │   ├── gslib
+  │   ├── hooke
   │   ├── meshing
   │   ├── mtop
   │   ├── navier
