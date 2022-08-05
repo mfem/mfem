@@ -49,6 +49,30 @@ int main(int argc, char *argv[])
       args.PrintOptions(cout);
    }
 
+
+   Mesh *test_mesh = new Mesh("../../data/ref-pyramid.mesh", 1, 1);
+   std::cout << test_mesh->GetElementVolume(0) << std::endl;
+   Array<Refinement> ref(1);
+   ref[0].ref_type = Refinement::XYZ;
+   ref[0].index = 0;
+   test_mesh->GeneralRefinement(ref, 1);
+   double sum = 0.0;
+   for (int i = 0; i < 10; ++i)
+      sum += test_mesh->GetElementVolume(i);
+   std::cout << sum << std::endl;
+   Array<double> elem_error(10);
+   for (int i = 0; i < 10; ++i)
+      elem_error[i] = 0.0;
+   test_mesh->DerefineByError(elem_error, 1.0);
+   std::cout << test_mesh->GetElementVolume(0) << std::endl;
+
+   VisItDataCollection visit_dc_test("test", test_mesh);
+   visit_dc_test.SetCycle(0);
+   visit_dc_test.SetTime(0);
+   visit_dc_test.Save();
+
+
+
    Mesh *mesh_old = new Mesh(20, 20, 5, Element::HEXAHEDRON, false, 4.0, 4.0, 1.0);
    Mesh *mesh_new = new Mesh(*mesh_old, true);
    double dl = 1.0/5.0;

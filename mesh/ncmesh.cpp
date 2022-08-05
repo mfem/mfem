@@ -33,11 +33,11 @@ void NCMesh::GeomInfo::InitGeom(Geometry::Type geom)
    {
       case Geometry::CUBE: elem = new Hexahedron; break;
       case Geometry::PRISM: elem = new Wedge; break;
+      case Geometry::TETRAHEDRON: elem = new Tetrahedron; break;      
       case Geometry::PYRAMID: elem = new Pyramid; break;
       case Geometry::SQUARE: elem = new Quadrilateral; break;
+      case Geometry::TRIANGLE: elem = new Triangle; break;      
       case Geometry::SEGMENT: elem = new Segment; break;
-      case Geometry::TRIANGLE: elem = new Triangle; break;
-      case Geometry::TETRAHEDRON: elem = new Tetrahedron; break;
       default: MFEM_ABORT("unsupported geometry " << geom);
    }
 
@@ -119,6 +119,13 @@ NCMesh::NCMesh(const Mesh *mesh)
       Geometry::Type geom = elem->GetGeometryType();
       CheckSupportedGeom(geom);
       GI[geom].InitGeom(geom);
+
+      //If we have pyramids we will need tets after refinement
+      if (geom == Geometry::PYRAMID)
+      {
+         CheckSupportedGeom(Geometry::TETRAHEDRON);  
+         GI[Geometry::TETRAHEDRON].InitGeom(Geometry::TETRAHEDRON);
+      }
 
       // create NCMesh::Element for this mfem::Element
       int root_id = AddElement(Element(geom, elem->GetAttribute()));
@@ -455,7 +462,7 @@ NCMesh::Element::Element(Geometry::Type geom, int attr)
    : geom(geom), ref_type(0), tet_type(0), flag(0), index(-1)
    , rank(0), attribute(attr), parent(-1)
 {
-   for (int i = 0; i < 8; i++) { node[i] = -1; }
+   for (int i = 0; i < MaxElemNodes; i++) { node[i] = -1; }
 
    // NOTE: in 2D the 8-element node/child arrays are not optimal, however,
    // testing shows we would only save 17% of the total NCMesh memory if
@@ -477,7 +484,7 @@ int NCMesh::NewHexahedron(int n0, int n1, int n2, int n3,
    el.node[4] = n4, el.node[5] = n5, el.node[6] = n6, el.node[7] = n7;
 
    // get faces and assign face attributes
-   Face* f[6];
+   Face* f[MaxElemFaces];
    const GeomInfo &gi_hex = GI[Geometry::CUBE];
    for (int i = 0; i < gi_hex.nf; i++)
    {
@@ -964,7 +971,7 @@ void NCMesh::RefineElement(int elem, char ref_type)
       char remaining = ref_type & ~el.ref_type;
 
       // do the remaining splits on the children
-      for (int i = 0; i < 8; i++)
+      for (int i = 0; i < MaxElemChildren; i++)
       {
          if (el.child[i] >= 0) { RefineElement(el.child[i], remaining); }
       }
@@ -981,11 +988,11 @@ void NCMesh::RefineElement(int elem, char ref_type)
    int* no = el.node;
    int attr = el.attribute;
 
-   int child[8];
-   for (int i = 0; i < 8; i++) { child[i] = -1; }
+   int child[MaxElemChildren];
+   for (int i = 0; i < MaxElemChildren; i++) { child[i] = -1; }
 
    // get parent's face attributes
-   int fa[6];
+   int fa[MaxElemFaces];
    GeomInfo& gi = GI[el.Geom()];
    for (int i = 0; i < gi.nf; i++)
    {
@@ -1514,10 +1521,9 @@ void NCMesh::RefineElement(int elem, char ref_type)
                                 attr, -1, -1, fa[3], -1);
       child[6] = NewPyramid(mid03, midf0, mid23, no[3], mid34,
                             attr, fa[0], -1, -1, fa[3], fa[4]); 
-      child[7] = NewTetrahedron(mid03, midf0, mid04, mid34,
-                                attr, -1, -1, -1, fa[4]);
-
-      child[8] = NewPyramid(mid24, mid34, mid04, mid14, midf0,
+      child[7] = NewTetrahedron(mid03, mid04, midf0, mid34,
+                                attr, -1, fa[4], -1, -1);
+      child[8] = NewPyramid(mid24, mid14, mid04, mid34, midf0,
                             attr, -1, -1, -1, -1, -1);
       child[9] = NewPyramid(mid04, mid14, mid24, mid34, no[4],
                             attr, -1, fa[1], fa[2], fa[3], fa[4]);
@@ -1606,20 +1612,20 @@ void NCMesh::RefineElement(int elem, char ref_type)
    }
 
    // start using the nodes of the children, create edges & faces
-   for (int i = 0; i < 8 && child[i] >= 0; i++)
+   for (int i = 0; i < MaxElemChildren && child[i] >= 0; i++)
    {
       ReferenceElement(child[i]);
    }
 
-   int buf[6];
-   Array<int> parentFaces(buf, 6);
+   int buf[MaxElemFaces];
+   Array<int> parentFaces(buf, MaxElemFaces);
    parentFaces.SetSize(0);
 
    // sign off of all nodes of the parent, clean up unused nodes, but keep faces
    UnreferenceElement(elem, parentFaces);
 
    // register the children in their faces
-   for (int i = 0; i < 8 && child[i] >= 0; i++)
+   for (int i = 0; i < MaxElemChildren && child[i] >= 0; i++)
    {
       RegisterFaces(child[i]);
    }
@@ -1628,7 +1634,7 @@ void NCMesh::RefineElement(int elem, char ref_type)
    DeleteUnusedFaces(parentFaces);
 
    // make the children inherit our rank; set the parent element
-   for (int i = 0; i < 8 && child[i] >= 0; i++)
+   for (int i = 0; i < MaxElemChildren && child[i] >= 0; i++)
    {
       Element &ch = elements[child[i]];
       ch.rank = el.rank;
@@ -1734,11 +1740,11 @@ void NCMesh::DerefineElement(int elem)
    Element &el = elements[elem];
    if (!el.ref_type) { return; }
 
-   int child[8];
+   int child[MaxElemChildren];
    std::memcpy(child, el.child, sizeof(child));
 
    // first make sure that all children are leaves, derefine them if not
-   for (int i = 0; i < 8 && child[i] >= 0; i++)
+   for (int i = 0; i < MaxElemChildren && child[i] >= 0; i++)
    {
       if (elements[child[i]].ref_type)
       {
@@ -1746,10 +1752,10 @@ void NCMesh::DerefineElement(int elem)
       }
    }
 
-   int faces_attribute[6];
+   int faces_attribute[MaxElemFaces];
    int ref_type_key = el.ref_type - 1;
 
-   for (int i = 0; i < 8; i++) { el.node[i] = -1; }
+   for (int i = 0; i < MaxElemNodes; i++) { el.node[i] = -1; }
 
    // retrieve original corner nodes and face attributes from the children
    if (el.Geom() == Geometry::CUBE)
@@ -1807,19 +1813,28 @@ void NCMesh::DerefineElement(int elem)
    else if (el.Geom() == Geometry::PYRAMID)
    {
       MFEM_ASSERT(pyramid_deref_table[ref_type_key][0] != -1, "invalid pyramid refinement");
-      for (int i = 0; i < 5; i++)
+      constexpr int nb_pyramid_childs = 5;
+      for (int i = 0; i < nb_pyramid_childs; i++)
       {
-         Element &ch = elements[child[pyramid_deref_table[ref_type_key][i]]];
+         const int child_local_index = pyramid_deref_table[ref_type_key][i];
+         const int child_global_index = child[child_local_index];
+         Element &ch = elements[child_global_index];
          el.node[i] = ch.node[i];
       }
       el.node[5] = el.node[6] = el.node[7] = -1;
 
-      for (int i = 0; i < 5; i++)
+
+      constexpr int nb_pyramid_faces = 5;
+      for (int i = 0; i < nb_pyramid_faces; i++)
       {
-         Element &ch = elements[child[pyramid_deref_table[ref_type_key][i + 6]]];
+         const int child_local_index = pyramid_deref_table[ref_type_key]
+                                       [i + nb_pyramid_childs];
+         const int child_global_index = child[child_local_index];
+         Element &ch = elements[child_global_index];
          const int* fv = GI[el.Geom()].faces[i];
          faces_attribute[i] = faces.Find(ch.node[fv[0]], ch.node[fv[1]],
-                            ch.node[fv[2]], ch.node[fv[3]])->attribute;
+                                         ch.node[fv[2]], ch.node[fv[3]])
+                              ->attribute;
       }
    }
    else if (el.Geom() == Geometry::TETRAHEDRON)
@@ -1889,13 +1904,13 @@ void NCMesh::DerefineElement(int elem)
    // sign in to all nodes
    ReferenceElement(elem);
 
-   int buf[8*6];
-   Array<int> childFaces(buf, 8*6);
+   int buf[MaxElemChildren*MaxElemFaces];
+   Array<int> childFaces(buf, MaxElemChildren*MaxElemFaces);
    childFaces.SetSize(0);
 
    // delete children, determine rank
    el.rank = std::numeric_limits<int>::max();
-   for (int i = 0; i < 8 && child[i] >= 0; i++)
+   for (int i = 0; i < MaxElemChildren && child[i] >= 0; i++)
    {
       el.rank = std::min(el.rank, elements[child[i]].rank);
       UnreferenceElement(child[i], childFaces);
@@ -1919,7 +1934,7 @@ void NCMesh::CollectDerefinements(int elem, Array<Connection> &list)
    if (!el.ref_type) { return; }
 
    int total = 0, ref = 0, ghost = 0;
-   for (int i = 0; i < 8 && el.child[i] >= 0; i++)
+   for (int i = 0; i < MaxElemChildren && el.child[i] >= 0; i++)
    {
       total++;
       Element &ch = elements[el.child[i]];
@@ -1931,7 +1946,7 @@ void NCMesh::CollectDerefinements(int elem, Array<Connection> &list)
    {
       // can be derefined, add to list
       int next_row = list.Size() ? (list.Last().from + 1) : 0;
-      for (int i = 0; i < 8 && el.child[i] >= 0; i++)
+      for (int i = 0; i < MaxElemChildren && el.child[i] >= 0; i++)
       {
          Element &ch = elements[el.child[i]];
          list.Append(Connection(next_row, ch.index));
@@ -1939,7 +1954,7 @@ void NCMesh::CollectDerefinements(int elem, Array<Connection> &list)
    }
    else
    {
-      for (int i = 0; i < 8 && el.child[i] >= 0; i++)
+      for (int i = 0; i < MaxElemChildren && el.child[i] >= 0; i++)
       {
          CollectDerefinements(el.child[i], list);
       }
@@ -2049,7 +2064,7 @@ void NCMesh::SetDerefMatrixCodes(int parent, Array<int> &fine_coarse)
 {
    // encode the ref_type and child number for GetDerefinementTransforms()
    Element &prn = elements[parent];
-   for (int i = 0; i < 8 && prn.child[i] >= 0; i++)
+   for (int i = 0; i < MaxElemChildren && prn.child[i] >= 0; i++)
    {
       Element &ch = elements[prn.child[i]];
       if (ch.index >= 0)
@@ -2121,7 +2136,7 @@ void NCMesh::CollectLeafElements(int elem, int state, Array<int> &ghosts,
       }
       else // no space filling curve tables yet for remaining cases
       {
-         for (int i = 0; i < 8; i++)
+         for (int i = 0; i < MaxElemChildren; i++)
          {
             if (el.child[i] >= 0)
             {
@@ -2375,7 +2390,8 @@ void NCMesh::InitRootState(int root_count)
       if (v_in < 0) { v_in = 0; }
 
       // determine which nodes are shared with the next element
-      bool shared[8] = { 0, 0, 0, 0, 0, 0, 0, 0 };
+      bool shared[MaxElemNodes];
+      for (int ni = 0; ni < MaxElemNodes; ++ni) { shared[ni] = 0; }
       if (i+1 < root_count)
       {
          Element &next = elements[i+1];
@@ -2750,7 +2766,7 @@ bool NCMesh::TriFaceSplit(int v1, int v2, int v3, int mid[3]) const
 
 int NCMesh::find_node(const Element &el, int node)
 {
-   for (int i = 0; i < 8; i++)
+   for (int i = 0; i < MaxElemNodes; i++)
    {
       if (el.node[i] == node) { return i; }
    }
@@ -3772,7 +3788,7 @@ void NCMesh::FindNeighbors(int elem, Array<int> &neighbors,
       }
       else
       {
-         for (int i = 0; i < 8 && el.child[i] >= 0; i++)
+         for (int i = 0; i < MaxElemChildren && el.child[i] >= 0; i++)
          {
             stack.Append(el.child[i]);
          }
@@ -3884,8 +3900,8 @@ int NCMesh::GetVertexRootCoord(int elem, RefCoord coord[3]) const
       MFEM_ASSERT(pa.ref_type, "internal error");
 
       int ch = 0;
-      while (ch < 8 && pa.child[ch] != elem) { ch++; }
-      MFEM_ASSERT(ch < 8, "internal error");
+      while (ch < MaxElemChildren && pa.child[ch] != elem) { ch++; }
+      MFEM_ASSERT(ch < MaxElemChildren, "internal error");
 
       MFEM_ASSERT(geom_parent[el.Geom()], "unsupported geometry");
       const RefTrf &tr = geom_parent[el.Geom()][(int) pa.ref_type][ch];
@@ -3937,7 +3953,7 @@ void NCMesh::CollectIncidentElements(int elem, const RefCoord coord[3],
    }
 
    RefCoord tcoord[3];
-   for (int ch = 0; ch < 8 && el.child[ch] >= 0; ch++)
+   for (int ch = 0; ch < MaxElemChildren && el.child[ch] >= 0; ch++)
    {
       const RefTrf &tr = geom_child[el.Geom()][(int) el.ref_type][ch];
       tr.Apply(coord, tcoord);
@@ -4366,14 +4382,14 @@ void NCMesh::GetPointMatrix(Geometry::Type geom, const char* ref_path,
          if (child == 6)   //Pyramid
          {
             pm = PointMatrix(mid03, midf0, mid23, pm(3), mid34);
-         }
+         }     
          if (child == 7)   //Tet
          {
-            pm = PointMatrix(mid03, midf0, mid04, mid34);
+            pm = PointMatrix(mid03, mid04, midf0, mid34);
          }
          if (child == 8)   //Pyramid
          {
-            pm = PointMatrix(mid24, mid34, mid04, mid14, midf0);
+            pm = PointMatrix(mid24, mid14, mid04, mid34, midf0);
          }
          if (child == 9)   //Pyramid
          {
@@ -4539,7 +4555,7 @@ void NCMesh::TraverseRefinements(int elem, int coarse_index,
       ref_path.push_back(el.ref_type);
       ref_path.push_back(0);
 
-      for (int i = 0; i < 8; i++)
+      for (int i = 0; i < MaxElemChildren; i++)
       {
          if (el.child[i] >= 0)
          {
@@ -5297,14 +5313,14 @@ void NCMesh::CountSplits(int elem, int splits[3]) const
    const int* node = el.node;
    GeomInfo& gi = GI[el.Geom()];
 
-   int elevel[12];
+   int elevel[MaxElemEdges];
    for (int i = 0; i < gi.ne; i++)
    {
       const int* ev = gi.edges[i];
       elevel[i] = EdgeSplitLevel(node[ev[0]], node[ev[1]]);
    }
 
-   int flevel[6][2];
+   int flevel[MaxElemFaces][2];
    if (Dim >= 3)
    {
       for (int i = 0; i < gi.nf; i++)
@@ -5644,7 +5660,7 @@ void NCMesh::Print(std::ostream &os) const
       if (el.parent == -2) { os << "-1\n"; continue; } // unused element
 
       os << int(el.geom) << " " << int(el.ref_type);
-      for (int j = 0; j < 8 && el.node[j] >= 0; j++)
+      for (int j = 0; j < MaxElemNodes && el.node[j] >= 0; j++)
       {
          os << " " << el.node[j];
       }
@@ -5701,7 +5717,7 @@ void NCMesh::InitRootElements()
       Element &el = elements[i];
       if (el.ref_type)
       {
-         for (int j = 0; j < 8 && el.child[j] >= 0; j++)
+         for (int j = 0; j < MaxElemChildren && el.child[j] >= 0; j++)
          {
             int child = el.child[j];
             MFEM_VERIFY(child < elements.Size(), "invalid mesh file: "
@@ -5923,7 +5939,7 @@ void NCMesh::CopyElements(int elem,
    Element &el = elements[elem];
    if (el.ref_type)
    {
-      for (int i = 0; i < 8 && el.child[i] >= 0; i++)
+      for (int i = 0; i < MaxElemChildren && el.child[i] >= 0; i++)
       {
          int old_id = el.child[i];
          // here we know 'free_element_ids' is empty
@@ -6292,7 +6308,7 @@ void NCMesh::DebugLeafOrder(std::ostream &os) const
       {
          double sum = 0.0;
          int count = 0;
-         for (int k = 0; k < 8; k++)
+         for (int k = 0; k < MaxElemNodes; k++)
          {
             if (elem->node[k] >= 0)
             {

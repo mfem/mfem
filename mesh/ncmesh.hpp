@@ -421,6 +421,11 @@ protected: // implementation
    int Geoms; ///< bit mask of element geometries present, see InitGeomFlags()
    bool Legacy; ///< true if the mesh was loaded from the legacy v1.1 format
 
+   static const int MaxElemNodes = 8;       ///< Size of the buffers for nodes of an element
+   static const int MaxElemEdges = 12;      ///< Size of the buffers for faces of an element
+   static const int MaxElemFaces = 6;       ///< Size of the buffers for faces of an element
+   static const int MaxElemChildren = 10;   ///< Size of the buffers for children of an element
+
    /** A Node can hold a vertex, an edge, or both. Elements directly point to
        their corner nodes, but edge nodes also exist and can be accessed using
        a hash-table given their two end-point node IDs. All nodes can be
@@ -482,8 +487,8 @@ protected: // implementation
       int attribute;
       union
       {
-         int node[8];  ///< element corners (if ref_type == 0)
-         int child[8]; ///< 2-8 children (if ref_type != 0)
+         int node[MaxElemNodes];  ///< element corners (if ref_type == 0)
+         int child[MaxElemChildren]; ///< 2-10 children (if ref_type != 0)
       };
       int parent; ///< parent element, -1 if this is a root element, -2 if free'd
 
@@ -855,7 +860,7 @@ protected: // implementation
    struct PointMatrix
    {
       int np;
-      Point points[8];
+      Point points[MaxElemNodes];
 
       PointMatrix() : np(0) {}
 
@@ -994,9 +999,9 @@ protected: // implementation
    struct GeomInfo
    {
       int nv, ne, nf;   // number of: vertices, edges, faces
-      int edges[12][2]; // edge vertices (up to 12 edges)
-      int faces[6][4];  // face vertices (up to 6 faces)
-      int nfv[6];       // number of face vertices
+      int edges[MaxElemEdges][2]; // edge vertices (up to 12 edges)
+      int faces[MaxElemFaces][4];  // face vertices (up to 6 faces)
+      int nfv[MaxElemFaces];       // number of face vertices
 
       bool initialized;
       GeomInfo() : initialized(false) {}

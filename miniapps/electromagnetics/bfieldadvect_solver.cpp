@@ -363,7 +363,7 @@ void BFieldAdvector::FindPtsInterpolateToTargetMesh(const ParGridFunction *old_g
 
 void BFieldAdvector::RemhosRemap(ParGridFunction* b_old, ParGridFunction* b_new)
 {
-#if 1
+#if 0
    const int NE  = pmeshOld->GetNE();
    const int mesh_order = pmeshOld->GetNodalFESpace()->GetMaxElementOrder();
    const int dim = pmeshOld->Dimension();
