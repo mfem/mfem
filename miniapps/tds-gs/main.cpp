@@ -154,16 +154,34 @@ class NonlinearGridCoefficient : public Coefficient
 {
 private:
   const GridFunction *psi;
-  const PlasmaModel *model;
+  PlasmaModel *model;
   int option;
 public:
-  NonlinearGridCoefficient(const PlasmaModel *pm, int option_) : model(pm), option(option_) { }
-  void set_grid_function(const GridFunction *psi_) {psi = psi_;}
+  NonlinearGridCoefficient(PlasmaModel *pm, int option_, const GridFunction *psi_) : model(pm), option(option_), psi(psi_) { }
   virtual double Eval(ElementTransformation &T, const IntegrationPoint &ip);
   virtual ~NonlinearGridCoefficient() { }
 };
 
+/*
+  Mult:
+  diff_operator * psi - plasma_term(psi) * psi - coil_term
 
+  GetGradient:
+  diff_operator - sum_{i=1}^3 diff_plasma_term_i(psi)
+ */
+class SysOperator : public Operator
+{
+private:
+  BilinearForm *diff_operator;
+  LinearForm *coil_term;
+  PlasmaModel *model;
+  FiniteElementSpace *fespace;
+public:
+  SysOperator(BilinearForm *diff_operator_, LinearForm *coil_term_, PlasmaModel *model_, FiniteElementSpace *fespace_) : diff_operator(diff_operator_), coil_term(coil_term_), model(model_), fespace(fespace_) {}
+  virtual void Mult(const Vector &psi, Vector &y) const;
+  virtual Operator &GetGradient(const Vector &psi) const;
+  virtual ~SysOperator() { };
+};
 
 
 
@@ -267,12 +285,6 @@ int main(int argc, char *argv[])
    BoundaryCoefficient first_boundary_coeff(rho_gamma, &model, 1);
    diff_operator.AddBoundaryIntegrator(new MassIntegrator(first_boundary_coeff));
    // https://en.cppreference.com/w/cpp/experimental/special_functions
-   // GreenCoefficient green(greenfunc);
-   // LinearForm fi(&fespace);
-   // fi.AddBoundaryIntegrator(new BoundaryLFIntegrator(green));
-   // ConstantCoefficient coeff(1.0);
-   // YFixSurfaceCoefficient coeff(&fespace);
-   // diff_operator.AddBoundaryIntegrator(new MassIntegrator(coeff));
 
    // assemble diff_operator
    diff_operator.Assemble();
@@ -287,29 +299,38 @@ int main(int argc, char *argv[])
    GSSmoother M(A);
    PCG(A, M, B, X, 1, 200, 1e-12, 0.0);
    diff_operator.RecoverFEMSolution(X, coil_term, x);
+   // x is the recovered solution
 
-   // now that we have solution, we can define nonlinear RHS terms
-   // plasma term
-   NonlinearGridCoefficient nlgcoeff1(&model, 1);
-   nlgcoeff1.set_grid_function(&x);
-   LinearForm plasma_term(&fespace);
-   plasma_term.AddDomainIntegrator(new DomainLFIntegrator(nlgcoeff1));
-   plasma_term.Assemble();
+   // now we have an initial guess: x
 
-   // derivative of plasma term
-   NonlinearGridCoefficient nlgcoeff2(&model, 2);
-   nlgcoeff2.set_grid_function(&x);
-   BilinearForm diff_plasma_term(&fespace);
-   diff_plasma_term.AddDomainIntegrator(new MassIntegrator(nlgcoeff2));
-   diff_plasma_term.Assemble();
+   SysOperator op(&diff_operator, &coil_term, &model, &fespace);
+   LinearForm out_vec(&fespace);
+   op.Mult(x, out_vec);
+   
+   // // now that we have solution, we can define nonlinear RHS terms
+   // // plasma term
+   // NonlinearGridCoefficient nlgcoeff1(&model, 1);
+   // nlgcoeff1.set_grid_function(x);
+   // LinearForm plasma_term(&fespace);
+   // plasma_term.AddDomainIntegrator(new DomainLFIntegrator(nlgcoeff1));
+   // plasma_term.Assemble();
 
-   // boundary term
-   BoundaryCoefficient boundary_coeff(rho_gamma, &model, 2);
-   DoubleIntegralCoefficient double_integral_coeff(&boundary_coeff, &fespace);
-   double_integral_coeff.set_grid_function(&x);
-   LinearForm boundary_term(&fespace);
-   boundary_term.AddBoundaryIntegrator(new BoundaryLFIntegrator(double_integral_coeff));
-   boundary_term.Assemble();
+   // // derivative of plasma term
+   // NonlinearGridCoefficient nlgcoeff2(&model, 2);
+   // nlgcoeff2.set_grid_function(x);
+   // BilinearForm diff_plasma_term(&fespace);
+   // diff_plasma_term.AddDomainIntegrator(new MassIntegrator(nlgcoeff2));
+   // diff_plasma_term.Assemble();
+
+   // // boundary term
+   // if (false) {
+   //   BoundaryCoefficient boundary_coeff(rho_gamma, &model, 2);
+   //   DoubleIntegralCoefficient double_integral_coeff(&boundary_coeff, &fespace);
+   //   double_integral_coeff.set_grid_function(&x);
+   //   LinearForm boundary_term(&fespace);
+   //   boundary_term.AddBoundaryIntegrator(new BoundaryLFIntegrator(double_integral_coeff));
+   //   boundary_term.Assemble();
+   // }
      
    x.Save("sol.gf");
    mesh.Save("mesh.mesh");
@@ -477,6 +498,7 @@ double DoubleIntegralCoefficient::Eval(ElementTransformation & T,
   LinearForm lf(fespace);
 
   bf.AddBoundaryIntegrator(new BoundaryMassIntegrator(*boundary_coeff));
+  // bf.SetAssemblyLevel(AssemblyLevel::PARTIAL);
   bf.Assemble();
   bf.Mult(*psi, lf);
 
@@ -573,4 +595,26 @@ void compute_saddle_points(GridFunction & z, Mesh & mesh) {
    cout << "total saddles: " << count << endl;
 
    
+}
+
+
+void SysOperator::Mult(const Vector &psi, Vector &y) const {
+  // diff_operator * psi - plasma_term(psi) * psi - coil_term
+
+  GridFunction x(fespace);
+  x = psi;
+  NonlinearGridCoefficient nlgcoeff1(model, 1, &x);
+  LinearForm plasma_term(fespace);
+  plasma_term.AddDomainIntegrator(new DomainLFIntegrator(nlgcoeff1));
+  plasma_term.Assemble();
+  
+  add(y, *coil_term, y);
+  add(y, -1.0, plasma_term, y);
+  diff_operator->Mult(psi, y);
+}
+
+Operator &SysOperator::GetGradient(const Vector &psi) const {
+  // diff_operator - sum_{i=1}^3 diff_plasma_term_i(psi)
+  // TODO
+   return *diff_operator;
 }
