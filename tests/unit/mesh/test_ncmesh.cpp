@@ -113,6 +113,39 @@ TEST_CASE("NCMesh PA diagonal", "[NCMesh]")
 
 } // test case
 
+TEST_CASE("NCMesh Refined volume", "[NCMesh]")
+{
+   auto mesh_fname = GENERATE("../../data/ref-triangle.mesh",
+                              "../../data/ref-square.mesh",
+                              "../../data/ref-tetrahedron.mesh",
+                              "../../data/ref-cube.mesh",
+                              "../../data/ref-prism.mesh",
+                              "../../data/ref-pyramid.mesh"
+                     );
+ 
+      Mesh mesh(mesh_fname, 1, 1);
+      double original_volume = mesh.GetElementVolume(0);
+      Array<Refinement> ref(1);
+      ref[0].ref_type = Refinement::XYZ; ref[0].index = 0;
+
+      mesh.GeneralRefinement(ref, 1);
+      double summed_volume = 0.0;
+      for (int i = 0; i < mesh.GetNE(); ++i)
+      {
+         summed_volume += mesh.GetElementVolume(i);
+      }
+      REQUIRE(summed_volume == MFEM_Approx(original_volume));
+
+      Array<double> elem_error(mesh.GetNE());
+      for (int i = 0; i < mesh.GetNE(); ++i)
+      {
+         elem_error[i] = 0.0;
+      }
+      mesh.DerefineByError(elem_error, 1.0);
+      double derefined_volume = mesh.GetElementVolume(0);
+      REQUIRE(derefined_volume == MFEM_Approx(original_volume));
+} // test case
+
 #ifdef MFEM_USE_MPI
 
 // Test case: Verify that a conforming mesh yields the same norm for the
