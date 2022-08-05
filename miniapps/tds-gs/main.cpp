@@ -2,9 +2,9 @@
    Compile with: make dan
 
    Sample runs:  
-   ./dan
-   ./dan -m meshes/gs_mesh.msh
-   ./dan -m meshes/gs_mesh.msh -o 2
+   ./main.o
+   ./main.o -m meshes/gs_mesh.msh
+   ./main.o -m meshes/gs_mesh.msh -o 2
 
    After, run:
    glvis -m mesh.mesh -g sol.gf
@@ -26,11 +26,11 @@
    l(I, v): coil_term:     coil contribution
    term1:   diff_operator: diffusion integrator
    term2:   plasma_term:   nonlinear contribution from plasma
-   term3:   
+   term3:   (contained inside of diff operator)
    term4:   
    term1':  diff_operator:      diffusion integrator (shared with term1)
    term2':  diff_plasma_term_i: derivative of nonlinear contribution from plasma (i=1,2,3)
-   term3':  
+   term3':  (contained inside of diff operator)
    term4':
 
    Mesh attributes:
@@ -41,14 +41,17 @@
    everything else: coils
 
    TODO: double boundary integral
-   TODO: coil-dependent currents
-
+   TODO: saddle point
+   TODO: local max and mins
 */
 
 #include "mfem.hpp"
 #include <fstream>
 #include <iostream>
 #include <set>
+// #include <cmath>
+#include <math.h>
+#include "elliptic_integral.hpp"
 
 using namespace std;
 using namespace mfem;
@@ -87,14 +90,46 @@ public:
 class DiffusionIntegratorCoefficient : public Coefficient
 {
 private:
-  // double mu;
   PlasmaModel *model;
 public:
-  // DiffusionIntegratorCoefficient(double & mu_) : mu(mu_) { }
   DiffusionIntegratorCoefficient(PlasmaModel *model_) : model(model_) { }
   virtual double Eval(ElementTransformation &T, const IntegrationPoint &ip);
   virtual ~DiffusionIntegratorCoefficient() { }
 };
+
+/*
+  Coefficient denoted as N(x) (order = 1) or M(x) (order = 2) in notes
+*/
+class BoundaryCoefficient : public Coefficient
+{
+private:
+  // radius of far field boundary
+  double rho_gamma;
+  PlasmaModel *model;
+  int order;
+  Vector y;
+public:
+  BoundaryCoefficient(double & rho_gamma_, PlasmaModel *model_, int order_) : rho_gamma(rho_gamma_), model(model_), order(order_) { }
+  virtual void SetY(Vector & y_) {y=y_;}
+  virtual double Eval(ElementTransformation &T, const IntegrationPoint &ip);
+  virtual ~BoundaryCoefficient() { }
+};
+
+class DoubleIntegralCoefficient : public Coefficient
+{
+private:
+  // radius of far field boundary
+  BoundaryCoefficient *boundary_coeff;
+  const GridFunction *psi;
+  GridFunction *ones;
+  FiniteElementSpace *fespace;
+public:
+  DoubleIntegralCoefficient(BoundaryCoefficient *boundary_coeff_, FiniteElementSpace *fespace_) : boundary_coeff(boundary_coeff_), fespace(fespace_) { ones = new GridFunction(fespace); ones[0] = 1.0;}
+  void set_grid_function(const GridFunction *psi_) {psi = psi_;}
+  virtual double Eval(ElementTransformation &T, const IntegrationPoint &ip);
+  virtual ~DoubleIntegralCoefficient() { }
+};
+
 
 /*
   Used to test saddle point calculator
@@ -129,6 +164,9 @@ public:
 };
 
 
+
+
+
 int main(int argc, char *argv[])
 {
    // Parse command line options.
@@ -142,11 +180,22 @@ int main(int argc, char *argv[])
    double gamma = 2.0;
    double mu = 1.0;
    double r0 = 1.0;
+   // boundary of far-field
+   double rho_gamma = 2.5;
 
-   int attr_r_eq_0_bdr = 831;
-   int attr_ff_bdr = 900;
-   int attr_lim = 1000;
-   int attr_ext = 2000;
+   const int attr_r_eq_0_bdr = 831;
+   const int attr_ff_bdr = 900;
+   const int attr_lim = 1000;
+   const int attr_ext = 2000;
+   map<int, double> coil_current_values;
+   // 832 is the long current
+   coil_current_values[832] = 0.0;
+   coil_current_values[833] = 1.0;
+   coil_current_values[834] = 1.0;
+   coil_current_values[835] = 1.0;
+   coil_current_values[836] = 1.0;
+   coil_current_values[837] = 1.0;
+   coil_current_values[838] = 1.0;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh", "Mesh file to use.");
@@ -191,15 +240,18 @@ int main(int argc, char *argv[])
    Array<int> attribs(mesh.attributes);
    Vector coil_current(attribs.Max());
    coil_current = 0.0;
+   // 832 is the long coil
    for (int i = 0; i < attribs.Size(); ++i) {
      int attrib = attribs[i];
-     if (attrib == attr_ext) {
+     switch(attrib) {
+     case attr_ext:
        // exterior domain
-     } else if (attrib == attr_lim) {
+       break;
+     case attr_lim:
        // limiter domain
-     } else {
-       // coil domain
-       coil_current(attrib-1) = 1.0;
+       break;
+     default:
+       coil_current(attrib-1) = coil_current_values[attrib];
      }
    }
    PWConstCoefficient coil_current_pw(coil_current);
@@ -212,6 +264,8 @@ int main(int argc, char *argv[])
    diff_operator.AddDomainIntegrator(new DiffusionIntegrator(diff_op_coeff));
 
    // boundary integral
+   BoundaryCoefficient first_boundary_coeff(rho_gamma, &model, 1);
+   diff_operator.AddBoundaryIntegrator(new MassIntegrator(first_boundary_coeff));
    // https://en.cppreference.com/w/cpp/experimental/special_functions
    // GreenCoefficient green(greenfunc);
    // LinearForm fi(&fespace);
@@ -248,7 +302,15 @@ int main(int argc, char *argv[])
    BilinearForm diff_plasma_term(&fespace);
    diff_plasma_term.AddDomainIntegrator(new MassIntegrator(nlgcoeff2));
    diff_plasma_term.Assemble();
-   
+
+   // boundary term
+   BoundaryCoefficient boundary_coeff(rho_gamma, &model, 2);
+   DoubleIntegralCoefficient double_integral_coeff(&boundary_coeff, &fespace);
+   double_integral_coeff.set_grid_function(&x);
+   LinearForm boundary_term(&fespace);
+   boundary_term.AddBoundaryIntegrator(new BoundaryLFIntegrator(double_integral_coeff));
+   boundary_term.Assemble();
+     
    x.Save("sol.gf");
    mesh.Save("mesh.mesh");
 
@@ -271,6 +333,7 @@ int main(int argc, char *argv[])
    compute_saddle_points(z, mesh);
 
    return 0;
+
 }
 
 double PlasmaModel::S_p_prime(double & psi_N) const
@@ -364,11 +427,66 @@ double DiffusionIntegratorCoefficient::Eval(ElementTransformation & T,
    T.Transform(ip, x);
    double ri(x(0));
 
-   if (T.Attribute == 900) {
-
-     cout << "asdf" << endl;
-   }
    return 1.0 / (ri * model->get_mu());
+}
+
+double BoundaryCoefficient::Eval(ElementTransformation & T,
+                                 const IntegrationPoint & ip)
+{
+   double x_[3];
+   Vector x(x_, 3);
+   T.Transform(ip, x);
+   double xr(x(0));
+   double xz(x(1));
+
+   if (order == 1) {
+     double delta_p = sqrt(pow(xr, 2.0) + pow(rho_gamma + xz, 2.0));
+     double delta_m = sqrt(pow(xr, 2.0) + pow(rho_gamma - xz, 2.0));
+
+     if (xr == 0.0) {
+       // coefficient blows up at r=0, however psi=0 at r=0
+       return 0.0;
+     }
+     return (1.0 / delta_p + 1.0 / delta_m - 1.0 / rho_gamma) / (xr * model->get_mu());
+   } else {
+
+     double yr(y(0));
+     double yz(y(1));
+
+     double kxy = sqrt((4.0 * xr * yr)
+                       / (pow(xr + yr, 2.0) + pow(xz - yz, 2.0)));
+     
+     double K = elliptic_fk(kxy);
+     double E = elliptic_ek(kxy);
+
+     return kxy * (E * (2.0 - pow(kxy, 2.0)) / (2.0 - 2.0 * pow(kxy, 2.0)) - K)
+       / (4.0 * M_PI * pow(xr * yr, 1.5) * model->get_mu());
+   }
+}
+
+double DoubleIntegralCoefficient::Eval(ElementTransformation & T,
+                                       const IntegrationPoint & ip)
+{
+
+  double y_[3];
+  Vector y(y_, 3);
+  T.Transform(ip, y);
+  boundary_coeff->SetY(y);
+
+  BilinearForm bf(fespace);
+  LinearForm lf(fespace);
+
+  bf.AddBoundaryIntegrator(new BoundaryMassIntegrator(*boundary_coeff));
+  bf.Assemble();
+  bf.Mult(*psi, lf);
+
+  return lf(*ones);
+  // } else {
+  //  LinearForm lf(fespace);
+  //  lf.AddBoundaryIntegrator(BoundaryLFIntegrator(*boundary_coeff));
+  //  lf.Assemble()
+  //  bf.
+  // }
 }
 
 double TestCoefficient::Eval(ElementTransformation & T,
