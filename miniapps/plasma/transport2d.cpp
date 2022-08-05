@@ -3108,18 +3108,21 @@ private:
     double mu_;
     double sig_;
     double v_;
+    double c_;
     
     mutable Vector x_;
 
 public:
-    GaussianFluxIonDenIC(double a, double mu, double sig, double v)
-       : a_(a), mu_(mu), sig_(sig), v_(v), x_(3) {}
+    GaussianFluxIonDenIC(double a, double mu, double sig, double v, double c)
+       : a_(a), mu_(mu), sig_(sig), v_(v), c_(c), x_(3) {}
 
    double Eval(ElementTransformation &T, const IntegrationPoint &ip)
    {
       T.Transform(ip, x_);
-      return a_ * (2.0 + exp(- pow((-mu_ - v_ * time + x_[0]),2)/pow((2.0 * sig_),2)) + 
-             exp(- pow((-mu_ + v_ * time + x_[0]),2)/pow((2.0 + sig_),2)));
+      //return a_ * (2.0 + exp(- pow((-mu_ - v_ * time + x_[0]),2)/pow((2.0 * sig_),2)) + 
+        //     exp(- pow((-mu_ + v_ * time + x_[0]),2)/pow((2.0 + sig_),2)));
+   
+      return a_ * exp(- pow((x_[0] - mu_),2) / (2.0 * sig_)) + c_; 
    }
 };
 
@@ -3130,20 +3133,23 @@ private:
     double mu_;
     double sig_;
     double v_;
+    double c_;
     
     mutable Vector x_;
 
 public:
-    GaussianFluxIonVelIC(double a, double mu, double sig, double v)
-       : a_(a), mu_(mu), sig_(sig), v_(v), x_(3) {}
+    GaussianFluxIonVelIC(double a, double mu, double sig, double v, double c)
+       : a_(a), mu_(mu), sig_(sig), v_(v), c_(c), x_(3) {}
 
    double Eval(ElementTransformation &T, const IntegrationPoint &ip)
    {
       T.Transform(ip, x_);
-      return a_ * ((exp(- pow((-mu_ - v_ * time + x_[0]),2)/pow((2.0 * sig_),2)) - 
+      /*return a_ * ((exp(- pow((-mu_ - v_ * time + x_[0]),2)/pow((2.0 * sig_),2)) - 
              exp(- pow((-mu_ + v_ * time + x_[0]),2)/pow((2.0 + sig_),2))) / 
                 (2.0 + exp(- pow((-mu_ - v_ * time + x_[0]),2)/pow((2.0 * sig_),2)) + 
                     exp(- pow((-mu_ + v_ * time + x_[0]),2)/pow((2.0 + sig_),2)))); 
+      */
+      return a_ * exp(- pow((x_[0] - mu_),2) / (2.0 * sig_)) - c_;  
    }
 };
 
@@ -3664,15 +3670,15 @@ Transport2DCoefFactory::GetScalarCoef(std::string &name, std::istream &input)
    }
    else if (name == "GaussianFluxIonDenIC")
    {
-      double a, mu, sig, v;
-      input >> a >> mu >> sig >> v;
-      coef_idx = sCoefs.Append(new GaussianFluxIonDenIC(a, mu, sig, v));
+      double a, mu, sig, v, c;
+      input >> a >> mu >> sig >> v >> c;
+      coef_idx = sCoefs.Append(new GaussianFluxIonDenIC(a, mu, sig, v, c));
    }
    else if (name == "GaussianFluxIonVelIC")
    {
-      double a, mu, sig, v;
-      input >> a >> mu >> sig >> v;
-      coef_idx = sCoefs.Append(new GaussianFluxIonVelIC(a, mu, sig, v));
+      double a, mu, sig, v, c;
+      input >> a >> mu >> sig >> v >> c;
+      coef_idx = sCoefs.Append(new GaussianFluxIonVelIC(a, mu, sig, v, c));
    }
    else if (name == "Gaussian")
    {
