@@ -49,6 +49,16 @@ const int prism_deref_table[7][6 + 5] =
    { 0, 1, 2, 4, 5, 6, /**/  0, 5, 0, 5, 0 }  // 7 - iso
 };
 
+const int pyramid_deref_table[7][5 + 5] =
+{
+   {-1,-1,-1,-1,-1, /**/ -1,-1,-1,-1,-1 }, // 1
+   {-1,-1,-1,-1,-1, /**/ -1,-1,-1,-1,-1 }, // 2
+   {-1,-1,-1,-1,-1, /**/ -1,-1,-1,-1,-1 }, // 3
+   {-1,-1,-1,-1,-1, /**/ -1,-1,-1,-1,-1 }, // 4
+   {-1,-1,-1,-1,-1, /**/ -1,-1,-1,-1,-1 }, // 5
+   {-1,-1,-1,-1,-1, /**/ -1,-1,-1,-1,-1 }, // 6            
+   { 0, 2, 4, 6, 9, /**/  0, 9, 9, 9, 9 }  // 7 - iso
+};
 
 // child ordering tables
 
@@ -140,8 +150,17 @@ const RefCoord prism_corners[6][3] =
    {    0, T_ONE, T_ONE}
 };
 
+const RefCoord pyramid_corners[5][3] =
+{
+   {    0,     0,     0},
+   {T_ONE,     0,     0},
+   {T_ONE, T_ONE,     0},
+   {    0, T_ONE,     0},
+   {    0,     0, T_ONE}
+};
+
 typedef RefCoord RefPoint[3];
-const RefPoint* geom_corners[7] =
+const RefPoint* geom_corners[8] =
 {
    NULL, // point
    NULL, // segment
@@ -149,7 +168,8 @@ const RefPoint* geom_corners[7] =
    quad_corners,
    NULL, // tetrahedron
    hex_corners,
-   prism_corners
+   prism_corners,
+   pyramid_corners
 };
 
 // reference domain transform: 3 scales, 3 translations
