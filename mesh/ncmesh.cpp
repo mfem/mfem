@@ -33,10 +33,10 @@ void NCMesh::GeomInfo::InitGeom(Geometry::Type geom)
    {
       case Geometry::CUBE: elem = new Hexahedron; break;
       case Geometry::PRISM: elem = new Wedge; break;
-      case Geometry::TETRAHEDRON: elem = new Tetrahedron; break;      
+      case Geometry::TETRAHEDRON: elem = new Tetrahedron; break;
       case Geometry::PYRAMID: elem = new Pyramid; break;
       case Geometry::SQUARE: elem = new Quadrilateral; break;
-      case Geometry::TRIANGLE: elem = new Triangle; break;      
+      case Geometry::TRIANGLE: elem = new Triangle; break;
       case Geometry::SEGMENT: elem = new Segment; break;
       default: MFEM_ABORT("unsupported geometry " << geom);
    }
@@ -123,7 +123,7 @@ NCMesh::NCMesh(const Mesh *mesh)
       //If we have pyramids we will need tets after refinement
       if (geom == Geometry::PYRAMID)
       {
-         CheckSupportedGeom(Geometry::TETRAHEDRON);  
+         CheckSupportedGeom(Geometry::TETRAHEDRON);
          GI[Geometry::TETRAHEDRON].InitGeom(Geometry::TETRAHEDRON);
       }
 
@@ -558,8 +558,8 @@ int NCMesh::NewTetrahedron(int n0, int n1, int n2, int n3, int attr,
    return new_id;
 }
 int NCMesh::NewPyramid(int n0, int n1, int n2, int n3, int n4, int attr,
-                           int fattr0, int fattr1, int fattr2, int fattr3,
-                           int fattr4)
+                       int fattr0, int fattr1, int fattr2, int fattr3,
+                       int fattr4)
 {
    // create new element, initialize nodes
    int new_id = AddElement(Element(Geometry::PYRAMID, attr));
@@ -809,7 +809,7 @@ void NCMesh::CheckAnisoPrism(int vn1, int vn2, int vn3, int vn4,
 }
 
 void NCMesh::CheckAnisoPyramid(int vn1, int vn2, int vn3, int vn4,
-                             const Refinement *refs, int nref)
+                               const Refinement *refs, int nref)
 {
    MeshId buf[4];
    Array<MeshId> eid(buf, 4);
@@ -1520,7 +1520,7 @@ void NCMesh::RefineElement(int elem, char ref_type)
       child[5] = NewTetrahedron(midf0, mid23, mid34, mid24,
                                 attr, -1, -1, fa[3], -1);
       child[6] = NewPyramid(mid03, midf0, mid23, no[3], mid34,
-                            attr, fa[0], -1, -1, fa[3], fa[4]); 
+                            attr, fa[0], -1, -1, fa[3], fa[4]);
       child[7] = NewTetrahedron(mid03, mid04, midf0, mid34,
                                 attr, -1, fa[4], -1, -1);
       child[8] = NewPyramid(mid24, mid14, mid04, mid34, midf0,
@@ -1812,7 +1812,8 @@ void NCMesh::DerefineElement(int elem)
    }
    else if (el.Geom() == Geometry::PYRAMID)
    {
-      MFEM_ASSERT(pyramid_deref_table[ref_type_key][0] != -1, "invalid pyramid refinement");
+      MFEM_ASSERT(pyramid_deref_table[ref_type_key][0] != -1,
+                  "invalid pyramid refinement");
       constexpr int nb_pyramid_childs = 5;
       for (int i = 0; i < nb_pyramid_childs; i++)
       {
@@ -2508,8 +2509,8 @@ void NCMesh::GetMeshComponents(Mesh &mesh) const
          if (face->Boundary())
          {
             if ((nc_elem.geom == Geometry::CUBE) ||
-               ((nc_elem.geom == Geometry::PRISM ||
-                 nc_elem.geom == Geometry::PYRAMID) && nfv == 4))
+                ((nc_elem.geom == Geometry::PRISM ||
+                  nc_elem.geom == Geometry::PYRAMID) && nfv == 4))
             {
                auto* quad = (Quadrilateral*) mesh.NewElement(Geometry::SQUARE);
                quad->SetAttribute(face->attribute);
@@ -3932,7 +3933,7 @@ static bool RefPointInside(Geometry::Type geom, const RefCoord pt[3])
                 (pt[2] >= 0) && (pt[2] <= T_ONE);
 
       case Geometry::PYRAMID:
-         return (pt[0] >= 0) && (pt[1] >= 0) && (pt[2] >= 0.0) && 
+         return (pt[0] >= 0) && (pt[1] >= 0) && (pt[2] >= 0.0) &&
                 (pt[0] + pt[2] <= T_ONE) && (pt[1] + pt[2] <= T_ONE) &&
                 (pt[2] <= T_ONE);
 
@@ -4382,7 +4383,7 @@ void NCMesh::GetPointMatrix(Geometry::Type geom, const char* ref_path,
          if (child == 6)   //Pyramid
          {
             pm = PointMatrix(mid03, midf0, mid23, pm(3), mid34);
-         }     
+         }
          if (child == 7)   //Tet
          {
             pm = PointMatrix(mid03, mid04, midf0, mid34);
@@ -5374,7 +5375,7 @@ void NCMesh::CountSplits(int elem, int splits[3]) const
                           elevel[6], elevel[7]));
 
       splits[1] = splits[0];
-      splits[2] = splits[0];      
+      splits[2] = splits[0];
    }
    else if (el.Geom() == Geometry::TETRAHEDRON)
    {
@@ -5632,14 +5633,14 @@ bool NCMesh::ZeroRootStates() const
 void NCMesh::Print(std::ostream &os) const
 {
    os << "MFEM NC mesh v1.0\n\n"
-       "# NCMesh supported geometry types:\n"
-       "# SEGMENT     = 1\n"
-       "# TRIANGLE    = 2\n"
-       "# SQUARE      = 3\n"
-       "# TETRAHEDRON = 4\n"
-       "# CUBE        = 5\n"
-       "# PRISM       = 6\n"
-       "# PYRAMID     = 7\n";
+      "# NCMesh supported geometry types:\n"
+      "# SEGMENT     = 1\n"
+      "# TRIANGLE    = 2\n"
+      "# SQUARE      = 3\n"
+      "# TETRAHEDRON = 4\n"
+      "# CUBE        = 5\n"
+      "# PRISM       = 6\n"
+      "# PYRAMID     = 7\n";
 
    os << "\ndimension\n" << Dim << "\n";
 

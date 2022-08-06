@@ -421,10 +421,14 @@ protected: // implementation
    int Geoms; ///< bit mask of element geometries present, see InitGeomFlags()
    bool Legacy; ///< true if the mesh was loaded from the legacy v1.1 format
 
-   static const int MaxElemNodes = 8;       ///< Size of the buffers for nodes of an element
-   static const int MaxElemEdges = 12;      ///< Size of the buffers for faces of an element
-   static const int MaxElemFaces = 6;       ///< Size of the buffers for faces of an element
-   static const int MaxElemChildren = 10;   ///< Size of the buffers for children of an element
+   static const int MaxElemNodes =
+      8;       ///< Size of the buffers for nodes of an element
+   static const int MaxElemEdges =
+      12;      ///< Size of the buffers for faces of an element
+   static const int MaxElemFaces =
+      6;       ///< Size of the buffers for faces of an element
+   static const int MaxElemChildren =
+      10;   ///< Size of the buffers for children of an element
 
    /** A Node can hold a vertex, an edge, or both. Elements directly point to
        their corner nodes, but edge nodes also exist and can be accessed using
@@ -591,7 +595,7 @@ protected: // implementation
    /// Return true if the mesh contains prism elements.
    bool HavePrisms() const { return Geoms & (1 << Geometry::PRISM); }
 
-    /// Return true if the mesh contains pyramid elements.
+   /// Return true if the mesh contains pyramid elements.
    bool HavePyramids() const { return Geoms & (1 << Geometry::PYRAMID); }
 
    /// Return true if the mesh contains tetrahedral elements.
@@ -651,8 +655,8 @@ protected: // implementation
                       int fattr0, int fattr1, int fattr2, int fattr3);
 
    int NewPyramid(int n0, int n1, int n2, int n3, int n4, int attr,
-                      int fattr0, int fattr1, int fattr2, int fattr3,
-                      int fattr4);
+                  int fattr0, int fattr1, int fattr2, int fattr3,
+                  int fattr4);
 
    int NewQuadrilateral(int n0, int n1, int n2, int n3, int attr,
                         int eattr0, int eattr1, int eattr2, int eattr3);
