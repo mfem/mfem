@@ -989,8 +989,14 @@ int main(int argc, char *argv[])
    DGParams dg;
    dg.sigma = -1.0;
    dg.kappa = -1.0;
-   dg.width = -1.0;
-   dg.avisc =  1.0;
+
+   std::vector<ArtViscParams> av(5);
+   av[1].log_width    = 3.0;
+   av[1].art_visc_amp = 1.0;
+   av[1].osc_thresh   = 1.0e19;
+   av[2].log_width    = 3.0;
+   av[2].art_visc_amp = 1.0;
+   av[2].osc_thresh   = 1.0e4;
 
    int ode_solver_type = 1;
    int ode_limiter_type = 2;
@@ -1109,11 +1115,18 @@ int main(int argc, char *argv[])
    args.AddOption(&dg.kappa, "-dgk", "--dg-kappa",
                   "One of the two DG penalty parameters, should be positive."
                   " Negative values are replaced with (order+1)^2.");
-   args.AddOption(&dg.width, "-dgw", "--dg-width",
-                  "Shock width parameter, should be positive."
-                  " Negative values are replaced with 0.01.");
-   args.AddOption(&dg.avisc, "-dga", "--dg-amp",
+   args.AddOption(&av[1].log_width, "-avnw", "--av-ni-width",
+                  "Shock width parameter, should be positive.");
+   args.AddOption(&av[1].art_visc_amp, "-avna", "--av-ni-amp",
                   "Artificial viscosity amplitude, should be positive.");
+   args.AddOption(&av[1].osc_thresh, "-avnt", "--av-ni-thresh",
+                  "Threshold below which discontinuity sensor is disabled.");
+   args.AddOption(&av[2].log_width, "-avvw", "--av-vel-width",
+                  "Shock width parameter, should be positive.");
+   args.AddOption(&av[2].art_visc_amp, "-avva", "--av-vel-amp",
+                  "Artificial viscosity amplitude, should be positive.");
+   args.AddOption(&av[2].osc_thresh, "-avvt", "--av-vel-thresh",
+                  "Threshold below which discontinuity sensor is disabled.");
    args.AddOption(&ttol.lin_abs_tol, "-latol", "--linear-abs-tolerance",
                   "Absolute tolerance for linear solver.");
    args.AddOption(&ttol.lin_rel_tol, "-lrtol", "--linear-rel-tolerance",
@@ -1276,10 +1289,6 @@ int main(int argc, char *argv[])
    if (dg.kappa < 0.0)
    {
       dg.kappa = (double)(order+1)*(order+1);
-   }
-   if (dg.width < 0.0)
-   {
-      dg.width = 3.0;
    }
    if (op_flag < 0) { op_flag = 0; }
    /*
@@ -1990,7 +1999,7 @@ int main(int argc, char *argv[])
    }
    */
 
-   DGTransportTDO oper(mpi, dg, plasma, ttol, eqn_weights, fld_weights,
+   DGTransportTDO oper(mpi, dg, av, plasma, ttol, eqn_weights, fld_weights,
                        fes, vfes, ffes, fes_h1,
                        offsets, yGF, kGF,
                        bcs, eqnCoefs, Di_perp, Xi_perp, Xe_perp,
