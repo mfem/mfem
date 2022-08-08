@@ -278,12 +278,18 @@ int main(int argc, char *argv[])
    // 16. Send the solution by socket to a GLVis server.
    if (visualization)
    {
-      char vishost[] = "localhost";
-      int  visport   = 19916;
-      socketstream sol_sock(vishost, visport);
-      sol_sock << "parallel " << num_procs << " " << myid << "\n";
-      sol_sock.precision(8);
-      sol_sock << "solution\n" << pmesh << x << flush;
+      // char vishost[] = "localhost";
+      // int  visport   = 19916;
+      // socketstream sol_sock(vishost, visport);
+      // sol_sock << "parallel " << num_procs << " " << myid << "\n";
+      // sol_sock.precision(8);
+      // sol_sock << "solution\n" << pmesh << x << flush;
+
+        ParaViewDataCollection vis("InterfaceHeatSourceProb", &pmesh);
+        vis.RegisterField("temperature", &x);
+        vis.SetCycle(1);
+        vis.SetTime(1);
+        vis.Save();
    }
 
    // 17. Free the used memory.

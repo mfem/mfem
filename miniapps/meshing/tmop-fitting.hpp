@@ -110,6 +110,17 @@ double in_trapezium(const Vector &x, double a, double b, double l)
    return -1.0;
 }
 
+double in_trapezium_rad(const Vector &x, double a, double b, double l, double rad)
+{
+   double phi_t = x(1) + (a-b)*x(0)/l - a;
+   double r = x.Norml2();
+   if (phi_t <= 0.0 && r <= rad)
+   {
+      return 1.0;
+   }
+   return -1.0;
+}
+
 double in_parabola(const Vector &x, double h, double k, double t)
 {
    double phi_p1 = (x(0)-h-t/2) - k*x(1)*x(1);
