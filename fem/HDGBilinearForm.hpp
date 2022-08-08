@@ -51,12 +51,12 @@ protected:
    /// Table that contains the faces for all elements
    Table *el_to_face;
 
-   /// List that separates the interior edges from the boundary edges
+   /// List that separates the interior edges from the shared edges
    Array<int> ess_dofs, Edge_to_SharedEdge;
    Array<int> vdofs1, vdofs2, vdofs3;
 
    /// Vectors to store A and B, the corresponding offsets and the number
-   /// of elements on which A and B will be stroed
+   /// of elements on which A and B will be stored
    Array<int> A_offsets, B_offsets;
    double *A_data, *B_data;
    int elements_A, elements_B;
