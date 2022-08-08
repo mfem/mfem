@@ -173,8 +173,16 @@ inline double eta_i_para(double ma, double Ta,
 }
 */
 
+struct ArtViscParams
+{
+   double log_width;
+   double art_visc_amp;
+   double osc_thresh;
+};
+
 void ElementOrder(ParFiniteElementSpace &fes, Vector &elemOrder);
-void DiscontinuitySensor(GridFunction &u, Vector &error, double alpha);
+void DiscontinuitySensor(GridFunction &u, double uRef, double alpha,
+                         Vector &error);
 void ParallelMeshSpacing(ParFiniteElementSpace &fes,
                          VectorCoefficient &B3, Vector &h);
 
@@ -2314,6 +2322,91 @@ public:
 
 };
 
+/**
+*/
+class IonDensityParaDiffusionCoef : public StateVariableCoef
+{
+private:
+   StateVariableCoef & CsCoef_;
+
+   Coefficient       * elOrdCoef_;
+   Coefficient       * OscCoef_;
+   Coefficient       * hCoef_;
+   const double width_;
+   const double avisc_;
+
+public:
+   IonDensityParaDiffusionCoef(StateVariableCoef &CsCoef,
+                               Coefficient * elOrdCoef,
+                               Coefficient * OscCoef,
+                               Coefficient * hCoef,
+                               const ArtViscParams &av)
+      : CsCoef_(CsCoef),
+        elOrdCoef_(elOrdCoef),
+        OscCoef_(OscCoef),
+        hCoef_(hCoef),
+        width_(av.log_width),
+        avisc_(av.art_visc_amp)
+   {}
+
+   IonDensityParaDiffusionCoef(const IonDensityParaDiffusionCoef &other)
+      : CsCoef_(other.CsCoef_),
+        elOrdCoef_(other.elOrdCoef_),
+        OscCoef_(other.OscCoef_),
+        hCoef_(other.hCoef_),
+        width_(other.width_),
+        avisc_(other.avisc_)
+   {
+      derivType_ = other.derivType_;
+   }
+
+   virtual IonDensityParaDiffusionCoef * Clone() const
+   {
+      return new IonDensityParaDiffusionCoef(*this);
+   }
+
+   virtual bool NonTrivialValue(FieldType deriv) const
+   {
+      return (deriv == INVALID_FIELD_TYPE || deriv == ION_TEMPERATURE);
+   }
+
+   double Eval_Func(ElementTransformation &T,
+                    const IntegrationPoint &ip)
+   {
+      double DPara = 0.0;
+
+      if (OscCoef_)
+      {
+         double elemOrder = elOrdCoef_->Eval(T, ip);
+         double s0 = -4.0 * log10(elemOrder);
+
+         double Se = OscCoef_->Eval(T, ip);
+         double se = log10(Se);
+
+         double eps = 0.0;
+         if (se >= s0 - width_)
+         {
+            double Cs = CsCoef_.Eval(T, ip);
+            double h  = hCoef_->Eval(T, ip);
+
+            double eps0 = avisc_ * Cs * h;
+
+            if (se > s0 + width_)
+            {
+               eps = eps0;
+            }
+            else
+            {
+               eps = 0.5 * eps0 * (1.0 + sin(0.5 * M_PI * (se - s0) / width_));
+            }
+         }
+
+         DPara += eps;
+      }
+      return DPara;
+   }
+};
+
 class IonAdvectionCoef : public StateVariableVecCoef
 {
 private:
@@ -2714,7 +2807,6 @@ private:
    StateVariableCoef & niCoef_;
    StateVariableCoef & CsCoef_;
 
-   ParFiniteElementSpace * fes_;
    Coefficient       * elOrdCoef_;
    Coefficient       * OscCoef_;
    Coefficient       * hCoef_;
@@ -2727,24 +2819,21 @@ public:
                                 StateVariableCoef &TiCoef,
                                 StateVariableCoef &niCoef,
                                 StateVariableCoef &CsCoef,
-                                ParFiniteElementSpace * fes,
                                 Coefficient * elOrdCoef,
                                 Coefficient * OscCoef,
                                 Coefficient * hCoef,
-                                double width,
-                                double avisc)
+                                const ArtViscParams &av)
       : z_i_((double)ion_charge_number), m_i_kg_(ion_mass_kg),
         a_(0.96 * tau_i(m_i_kg_, z_i_, 1.0, 1.0/J_per_eV_, 1.0)),
         lnLambda_(lnLambda),
         TiCoef_(TiCoef),
         niCoef_(niCoef),
         CsCoef_(CsCoef),
-        fes_(fes),
         elOrdCoef_(elOrdCoef),
         OscCoef_(OscCoef),
         hCoef_(hCoef),
-        width_(width),
-        avisc_(avisc)
+        width_(av.log_width),
+        avisc_(av.art_visc_amp)
    {}
 
    IonMomentumParaDiffusionCoef(const IonMomentumParaDiffusionCoef &other)
@@ -2754,7 +2843,6 @@ public:
         TiCoef_(other.TiCoef_),
         niCoef_(other.niCoef_),
         CsCoef_(other.CsCoef_),
-        fes_(other.fes_),
         elOrdCoef_(other.elOrdCoef_),
         OscCoef_(other.OscCoef_),
         hCoef_(other.hCoef_),
@@ -2793,7 +2881,7 @@ public:
          double eps = 0.0;
          if (se >= s0 - width_)
          {
-            double ni = niCoef_.Eval(T, ip);
+            double ni = std::max(niCoef_.Eval(T, ip), 1.0);
             double Cs = CsCoef_.Eval(T, ip);
             double h  = hCoef_->Eval(T, ip);
 
@@ -4914,8 +5002,6 @@ struct DGParams
 {
    double sigma;
    double kappa;
-   double width;
-   double avisc;
 };
 
 struct PlasmaParams
@@ -5325,13 +5411,15 @@ private:
 
       const CommonCoefs & cmncoefs_;
 
+      GridFunctionCoefficient elOrdCoef_;
+      GridFunctionCoefficient hCoef_;
+
       VectorCoefficient & B3Coef_;
       VectorXYCoefficient BxyCoef_;
 
       Coefficient       * massCoef_;
       Coefficient       * diffusionCoef_;
       MatrixCoefficient * diffusionMatrixCoef_;
-      VectorCoefficient * advectionCoef_;
 
       ApproxIonizationRate    izCoef_;
       ApproxRecombinationRate rcCoef_;
@@ -5353,6 +5441,8 @@ private:
                   ParFiniteElementSpace * h1_fes,
                   ParGridFunctionArray & yGF,
                   ParGridFunctionArray & kGF,
+                  ParGridFunction & elOrdGF,
+                  ParGridFunction & hGF,
                   const AdvectionDiffusionBC & bcs,
                   const CoupledBCs & cbcs,
                   const CommonCoefs & common_coefs,
@@ -5392,10 +5482,10 @@ private:
              Div(DCoef Grad y[index] - VCoef y[index])
            where index is the index of the equation.
        */
-      void SetAdvectionDiffusionTerm(StateVariableMatCoef &DCoef,
-                                     StateVariableVecCoef &VCoef,
-                                     Coefficient *DParaCoef,
-                                     Coefficient *DPerpCoef);
+      // void SetAdvectionDiffusionTerm(StateVariableMatCoef &DCoef,
+      //                              StateVariableVecCoef &VCoef,
+      //                              Coefficient *DParaCoef,
+      //                              Coefficient *DPerpCoef);
       void SetDiffusionTermGradient(StateVariableMatCoef &DCoef);
 
       /** Sets the advection term on the right hand side of the
@@ -5403,7 +5493,7 @@ private:
              Div(VCoef y[index])
           where index is the index of the equation.
        */
-      void SetAdvectionTerm(StateVariableVecCoef &VCoef/*, bool bc = false*/);
+      // void SetAdvectionTerm(StateVariableVecCoef &VCoef/*, bool bc = false*/);
 
       void SetSourceTerm(StateVariableCoef &SCoef, double s = 1.0);
       void SetSourceTermGradient(StateVariableCoef &SCoef, double s = 1.0);
@@ -5427,6 +5517,75 @@ private:
       inline Coefficient       * GetDiffusionCoef() { return diffusionCoef_; }
       inline MatrixCoefficient * GetDiffusionMatrixCoef()
       { return diffusionMatrixCoef_; }
+   };
+
+   class AdvTransportOp : public TransportOp
+   {
+   protected:
+
+      VectorCoefficient     * advectionCoef_;
+      common::L2_ParFESpace * l2_fes_0_;
+      common::H1_ParFESpace * h1_fes_1_;
+      ParGridFunction       * elOrdDiscGF_;
+      ParGridFunction       * elOrdContGF_;
+      ParGridFunction       * OscDiscGF_;
+      ParGridFunction       * OscContGF_;
+      ParGridFunction       * hDiscGF_;
+      ParGridFunction       * hContGF_;
+      GridFunctionCoefficient elOrdDiscCoef_;
+      GridFunctionCoefficient elOrdContCoef_;
+      GridFunctionCoefficient OscDiscCoef_;
+      GridFunctionCoefficient OscContCoef_;
+      GridFunctionCoefficient hDiscCoef_;
+      GridFunctionCoefficient hContCoef_;
+      SoundSpeedCoef          CsCoef_;
+
+      AdvTransportOp(const MPI_Session & mpi, const DGParams & dg,
+                     const PlasmaParams & plasma, int index,
+                     const std::string &eqn_name,
+                     const std::string &field_name,
+                     ParFiniteElementSpace * vfes,
+                     ParFiniteElementSpace * h1_fes,
+                     ParGridFunctionArray & yGF,
+                     ParGridFunctionArray & kGF,
+                     ParGridFunction & elOrdGF,
+                     ParGridFunction & hGF,
+                     const AdvectionDiffusionBC & bcs,
+                     const CoupledBCs & cbcs,
+                     const CommonCoefs & common_coefs,
+                     VectorCoefficient & B3Coef,
+                     int term_flag, int vis_flag,
+                     int logging,
+                     const std::string & log_prefix);
+
+      /** Sets the advection-diffusion term on the right hand side of the
+          equation to be:
+             Div(DCoef Grad y[index] - VCoef y[index])
+           where index is the index of the equation.
+       */
+      void SetAdvectionDiffusionTerm(StateVariableMatCoef &DCoef,
+                                     StateVariableVecCoef &VCoef,
+                                     Coefficient *DParaCoef,
+                                     Coefficient *DPerpCoef);
+
+      /** Sets the advection term on the right hand side of the
+      equation to be:
+             Div(VCoef y[index])
+          where index is the index of the equation.
+       */
+      void SetAdvectionTerm(StateVariableVecCoef &VCoef/*, bool bc = false*/);
+
+   public:
+      virtual ~AdvTransportOp();
+
+      virtual void SetTime(double t);
+      // virtual void SetTimeStep(double dt);
+
+      virtual void Update();
+
+      // virtual void InitializeGLVis();
+      // virtual void DisplayToGLVis();
+
       inline VectorCoefficient * GetAdvectionCoef() { return advectionCoef_; }
    };
 
@@ -5499,6 +5658,8 @@ private:
                        ParFiniteElementSpace & h1_fes,
                        ParGridFunctionArray & yGF,
                        ParGridFunctionArray & kGF,
+                       ParGridFunction & elOrdGF,
+                       ParGridFunction & hGF,
                        const AdvectionDiffusionBC & bcs,
                        const CoupledBCs & cbcs,
                        const NDCoefs & ndcoefs,
@@ -5562,7 +5723,7 @@ private:
        Currently, (dt Div(n_i b_hat)) and (-dt d S_i / d T_e) are not
        implemented.
     */
-   class IonDensityOp : public TransportOp
+   class IonDensityOp : public AdvTransportOp
    {
    private:
       enum TermFlag {DIFFUSION_TERM = 0,
@@ -5582,10 +5743,13 @@ private:
 
       const IonDensityCoefs & idcoefs_;
 
-      StateVariableConstantCoef DPerpConstCoef_;
-      StateVariableCoef *       DParaCoefPtr_;
-      StateVariableCoef *       DPerpCoefPtr_;
-      Aniso2DDiffusionCoef      DCoef_;
+      const ArtViscParams & av_;
+
+      StateVariableConstantCoef   DPerpConstCoef_;
+      IonDensityParaDiffusionCoef DParaCoef_;
+      StateVariableCoef *         DParaCoefPtr_;
+      StateVariableCoef *         DPerpCoefPtr_;
+      Aniso2DDiffusionCoef        DCoef_;
 
       IonAdvectionCoef        ViCoef_;
 
@@ -5598,11 +5762,14 @@ private:
 
    public:
       IonDensityOp(const MPI_Session & mpi, const DGParams & dg,
+                   const ArtViscParams & av,
                    const PlasmaParams & plasma,
                    ParFiniteElementSpace & vfes,
                    ParFiniteElementSpace & h1_fes,
                    ParGridFunctionArray & yGF,
                    ParGridFunctionArray & kGF,
+                   ParGridFunction & elOrdGF,
+                   ParGridFunction & hGF,
                    const AdvectionDiffusionBC & bcs,
                    const CoupledBCs & cbcs,
                    const IDCoefs & idcoefs,
@@ -5661,7 +5828,7 @@ private:
        Currently, the static pressure terms and the derivatives of Eta
        do not contribute to the Jacobian.
     */
-   class IonMomentumOp : public TransportOp
+   class IonMomentumOp : public AdvTransportOp
    {
    private:
       enum TermFlag {DIFFUSION_TERM = 0,
@@ -5680,6 +5847,9 @@ private:
 
       const IonMomentumCoefs & imcoefs_;
 
+      const ArtViscParams & av_;
+
+      /*
       common::L2_ParFESpace * l2_fes_0_;
       common::H1_ParFESpace * h1_fes_1_;
       ParGridFunction       * elOrdDiscGF_;
@@ -5694,7 +5864,8 @@ private:
       GridFunctionCoefficient OscContCoef_;
       GridFunctionCoefficient hDiscCoef_;
       GridFunctionCoefficient hContCoef_;
-      SoundSpeedCoef          CsCoef_;
+      */
+      // SoundSpeedCoef          CsCoef_;
 
       double DPerpConst_;
       StateVariableConstantCoef DPerpCoef_;
@@ -5726,10 +5897,13 @@ private:
 
    public:
       IonMomentumOp(const MPI_Session & mpi, const DGParams & dg,
+                    const ArtViscParams & av,
                     const PlasmaParams & plasma,
                     ParFiniteElementSpace & vfes,
                     ParFiniteElementSpace & h1_fes,
                     ParGridFunctionArray & yGF, ParGridFunctionArray & kGF,
+                    ParGridFunction & elOrdGF,
+                    ParGridFunction & hGF,
                     const AdvectionDiffusionBC & bcs,
                     const CoupledBCs & cbcs,
                     const IMCoefs & imcoefs,
@@ -5785,7 +5959,7 @@ private:
 
        MLS: Many more terms will arise once the full equation is implemented.
    */
-   class IonStaticPressureOp : public TransportOp
+   class IonStaticPressureOp : public AdvTransportOp
    {
    private:
       enum TermFlag {DIFFUSION_TERM = 0, ADVECTION_TERM, SOURCE_TERM};
@@ -5817,6 +5991,8 @@ private:
                           const PlasmaParams & plasma,
                           ParGridFunctionArray & yGF,
                           ParGridFunctionArray & kGF,
+                          ParGridFunction & elOrdGF,
+                          ParGridFunction & hGF,
                           const AdvectionDiffusionBC & bcs,
                           const CoupledBCs & cbcs,
                           const ISPCoefs & ispcoefs,
@@ -5870,7 +6046,7 @@ private:
 
        MLS: Many more terms will arise once the full equation is implemented.
    */
-   class ElectronStaticPressureOp : public TransportOp
+   class ElectronStaticPressureOp : public AdvTransportOp
    {
    private:
       enum TermFlag {DIFFUSION_TERM = 0, ADVECTION_TERM, SOURCE_TERM};
@@ -5902,6 +6078,8 @@ private:
                                const PlasmaParams & plasma,
                                ParGridFunctionArray & yGF,
                                ParGridFunctionArray & kGF,
+                               ParGridFunction & elOrdGF,
+                               ParGridFunction & hGF,
                                const AdvectionDiffusionBC & bcs,
                                const CoupledBCs & cbcs,
                                const ESPCoefs & espcoefs,
@@ -5925,7 +6103,7 @@ private:
       virtual int GetDefaultVisFlag() { return 4; }
    };
 
-   class TotalEnergyOp : public TransportOp
+   class TotalEnergyOp : public AdvTransportOp
    {
    protected:
 
@@ -5944,6 +6122,8 @@ private:
                     ParFiniteElementSpace & h1_fes,
                     ParGridFunctionArray & yGF,
                     ParGridFunctionArray & kGF,
+                    ParGridFunction & elOrdGF,
+                    ParGridFunction & hGF,
                     const AdvectionDiffusionBC & bcs,
                     const CoupledBCs & cbcs,
                     const CommonCoefs & common_coefs,
@@ -6018,6 +6198,8 @@ private:
                        ParFiniteElementSpace & h1_fes,
                        ParGridFunctionArray & yGF,
                        ParGridFunctionArray & kGF,
+                       ParGridFunction & elOrdGF,
+                       ParGridFunction & hGF,
                        const AdvectionDiffusionBC & bcs,
                        const CoupledBCs & cbcs,
                        const ITECoefs & espcoefs,
@@ -6096,6 +6278,8 @@ private:
                             ParFiniteElementSpace & h1_fes,
                             ParGridFunctionArray & yGF,
                             ParGridFunctionArray & kGF,
+                            ParGridFunction & elOrdGF,
+                            ParGridFunction & hGF,
                             const AdvectionDiffusionBC & bcs,
                             const CoupledBCs & cbcs,
                             const ETECoefs & espcoefs,
@@ -6126,6 +6310,8 @@ private:
               const PlasmaParams & plasma,
               ParGridFunctionArray & yGF,
               ParGridFunctionArray & kGF,
+              ParGridFunction & elOrdGF,
+              ParGridFunction & hGF,
               const AdvectionDiffusionBC & bcs,
               const CoupledBCs & cbcs,
               const CommonCoefs & cmncoefs,
@@ -6170,10 +6356,24 @@ private:
       Array<int> & offsets_;
       mutable BlockOperator *grad_;
 
+      common::L2_ParFESpace   l2_fes_0_;
+      common::H1_ParFESpace   h1_fes_1_;
+
+      VectorCoefficient & B3Coef_;
+
+      mutable ParGridFunction         elOrdDiscGF_;
+      mutable GridFunctionCoefficient elOrdDiscCoef_;
+      mutable ParGridFunction         elOrdContGF_;
+
+      mutable ParGridFunction         hDiscGF_;
+      mutable GridFunctionCoefficient hDiscCoef_;
+      mutable ParGridFunction         hContGF_;
+
       void updateOffsets();
 
    public:
       CombinedOp(const MPI_Session & mpi, const DGParams & dg,
+                 const std::vector<ArtViscParams> & av,
                  const PlasmaParams & plasma, const Vector &eqn_weights,
                  ParFiniteElementSpace & vfes,
                  ParFiniteElementSpace & h1_fes,
@@ -6361,6 +6561,7 @@ private:
 
 public:
    DGTransportTDO(const MPI_Session & mpi, const DGParams & dg,
+                  const std::vector<ArtViscParams> & av,
                   const PlasmaParams & plasma,
                   const SolverParams & tol,
                   const Vector &eqn_weights,
@@ -6409,7 +6610,7 @@ public:
    void Update();
 };
 
-class DGTransportTDO::VisualizationOp : public TransportOp
+class DGTransportTDO::VisualizationOp : public AdvTransportOp
 {
 private:
    enum VisField {B_POLOIDAL = 0,
@@ -6433,7 +6634,7 @@ private:
    ApproxIonizationRate      SigmaIZCoef_;
    ApproxRecombinationRate   SigmaRCCoef_;
    ApproxChargeExchangeRate  SigmaCXCoef_;
-   SoundSpeedCoef            CsCoef_;
+   // SoundSpeedCoef            CsCoef_;
 
    ParGridFunction * BxyGF_;
    ParGridFunction * BzGF_;
@@ -6451,6 +6652,8 @@ public:
                    ParFiniteElementSpace &vfes,
                    ParGridFunctionArray & yGF,
                    ParGridFunctionArray & kGF,
+                   ParGridFunction & elOrdGF,
+                   ParGridFunction & hGF,
                    const AdvectionDiffusionBC & bcs,
                    const CoupledBCs & cbcs,
                    const CommonCoefs & cmncoefs,
