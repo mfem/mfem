@@ -36,9 +36,9 @@ class HDGBilinearForm
 {
 protected:
    /// FE spaces on which the form lives.
-   Array<FiniteElementSpace*> fes1, fes2;
+   Array<FiniteElementSpace*> volume_fes, skeletal_fes;
 
-   int NInteriorFES, NBdrFES;
+   int NVolumeFES, NSkeletalFES;
 
    bool parallel;
 
@@ -52,8 +52,8 @@ protected:
    Table *el_to_face;
 
    /// List that separates the interior edges from the boundary edges
-   Array<int> Edge_to_Be, ess_dofs, Edge_to_SharedEdge;
-   Array<int>  vdofs1, vdofs2, vdofs3;
+   Array<int> ess_dofs, Edge_to_SharedEdge;
+   Array<int> vdofs1, vdofs2, vdofs3;
 
    /// Vectors to store A and B, the corresponding offsets and the number
    /// of elements on which A and B will be stroed
@@ -71,17 +71,17 @@ protected:
    // may be used in the construction of derived classes
    HDGBilinearForm()
    {
-      for (int i =0; i<NInteriorFES; i++)
+      for (int i =0; i<NVolumeFES; i++)
       {
-         delete fes1[i];
+         delete volume_fes[i];
       }
-      for (int i =0; i<NBdrFES; i++)
+      for (int i =0; i<NSkeletalFES; i++)
       {
-         delete fes2[i];
+         delete skeletal_fes[i];
       }
-      NInteriorFES = 0;
-      NBdrFES = 0;
-      fes1 = NULL; fes2 = NULL;
+      NVolumeFES = 0;
+      NSkeletalFES = 0;
+      volume_fes = NULL; skeletal_fes = NULL;
       parallel = false;
       mat = NULL;
       rhs_SC = NULL;
@@ -92,8 +92,8 @@ protected:
 
 public:
    /// Creates bilinear form associated with FE spaces *_fes1 and _fes2.
-   HDGBilinearForm(Array<FiniteElementSpace*> &_fes1,
-                   Array<FiniteElementSpace*> &_fes2,
+   HDGBilinearForm(Array<FiniteElementSpace*> &_volume_fes,
+                   Array<FiniteElementSpace*> &_skeletal_fes,
                    bool _parallel = false);
 
    // Advection-reaction test case without FES arrays
@@ -128,10 +128,10 @@ public:
    void GetInteriorSubVector(const Array<GridFunction*> &rhs_vector,
                              int i, int ndof, Vector &SubVector) const;
 
-   void SetInteriorSubVector(Array<GridFunction*> &rhs_vector,
+   void SetInteriorSubVector(Array<GridFunction*> &sol_gridfunctions,
                              int i, int ndof, Vector &SubVector);
 
-   void GetBdrVDofs(int i, Array<int> &vdofs) const;
+   void GetFaceVDofs(int face, Array<int> &vdofs) const;
 
    SparseMatrix *SpMatSC()
    {
@@ -190,7 +190,7 @@ public:
    /// Computes face based integrators
    void compute_face_integrals(const int elem,
                                const int edge,
-                               const int isboundary,
+                               const int ishared,
                                const bool is_reconstruction,
                                DenseMatrix *A_local,
                                DenseMatrix *B_local,
@@ -222,16 +222,6 @@ public:
    virtual ~HDGBilinearForm();
 
 #ifdef MFEM_USE_MPI
-   /// Computes face based integrators for shared faces
-   void compute_face_integrals_shared(const int elem,
-                                      const int edge,
-                                      const int sf,
-                                      const bool is_reconstruction,
-                                      DenseMatrix *A_local,
-                                      DenseMatrix *B_local,
-                                      DenseMatrix *C_local,
-                                      DenseMatrix *D_local);
-
    /// Returns the matrix assembled on the true dofs, i.e. P^t A P.
    HypreParMatrix *ParallelAssembleSC() { return ParallelAssembleSC(mat); }
    /// Return the matrix m assembled on the true dofs, i.e. P^t A P

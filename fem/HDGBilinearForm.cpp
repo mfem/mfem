@@ -30,17 +30,17 @@ HDGBilinearForm::HDGBilinearForm (Array<FiniteElementSpace*> &_fes1,
                                   Array<FiniteElementSpace*> &_fes2,
                                   bool _parallel)
 {
-   NInteriorFES = _fes1.Size();
-   NBdrFES = _fes2.Size();
-   fes1.SetSize(NInteriorFES);
-   fes2.SetSize(NBdrFES);
-   for (int fes=0; fes < NInteriorFES; fes++)
+   NVolumeFES = _fes1.Size();
+   NSkeletalFES = _fes2.Size();
+   volume_fes.SetSize(NVolumeFES);
+   skeletal_fes.SetSize(NSkeletalFES);
+   for (int fes=0; fes < NVolumeFES; fes++)
    {
-      fes1[fes] = _fes1[fes];
+      volume_fes[fes] = _fes1[fes];
    }
-   for (int fes=0; fes < NBdrFES; fes++)
+   for (int fes=0; fes < NSkeletalFES; fes++)
    {
-      fes2[fes] = _fes2[fes];
+      skeletal_fes[fes] = _fes2[fes];
    }
 
    parallel = _parallel;
@@ -52,18 +52,18 @@ HDGBilinearForm::HDGBilinearForm (Array<FiniteElementSpace*> &_fes1,
    elements_A = elements_B = 0;
 }
 
-HDGBilinearForm::HDGBilinearForm(FiniteElementSpace *_fes1,
-                                 FiniteElementSpace *_fes2,
+HDGBilinearForm::HDGBilinearForm(FiniteElementSpace *_volume_fes,
+                                 FiniteElementSpace *_skeletal_fes,
                                  bool _parallel)
 {
-   NInteriorFES = 1;
-   NBdrFES = 1;
-   fes1.SetSize(NInteriorFES);
-   fes2.SetSize(NBdrFES);
+   NVolumeFES = 1;
+   NSkeletalFES = 1;
+   volume_fes.SetSize(NVolumeFES);
+   skeletal_fes.SetSize(NSkeletalFES);
 
-   fes1[0] = _fes1;
+   volume_fes[0] = _volume_fes;
 
-   fes2[0] = _fes2;
+   skeletal_fes[0] = _skeletal_fes;
 
    parallel = _parallel;
    mat = NULL;
@@ -79,15 +79,15 @@ HDGBilinearForm::HDGBilinearForm(FiniteElementSpace *_fes1,
                                  FiniteElementSpace *_fes3,
                                  bool _parallel)
 {
-   NInteriorFES = 2;
-   NBdrFES = 1;
-   fes1.SetSize(NInteriorFES);
-   fes2.SetSize(NBdrFES);
+   NVolumeFES = 2;
+   NSkeletalFES = 1;
+   volume_fes.SetSize(NVolumeFES);
+   skeletal_fes.SetSize(NSkeletalFES);
 
-   fes1[0] = _fes1;
-   fes1[1] = _fes2;
+   volume_fes[0] = _fes1;
+   volume_fes[1] = _fes2;
 
-   fes2[0] = _fes3;
+   skeletal_fes[0] = _fes3;
 
    parallel = _parallel;
    mat = NULL;
@@ -130,8 +130,8 @@ void HDGBilinearForm::Update(FiniteElementSpace *nfes1,
 {
    if (nfes1)
    {
-      fes1 = nfes1;
-      fes2 = nfes2;
+      volume_fes = nfes1;
+      skeletal_fes = nfes2;
    }
 
    delete mat;
@@ -156,9 +156,9 @@ void HDGBilinearForm::GetInteriorVDofs(int i, Array<int> &vdofs) const
 {
    vdofs.SetSize(0);
    Array<int> vdofs_fes;
-   for (int fes=0; fes < NInteriorFES; fes++)
+   for (int fes=0; fes < NVolumeFES; fes++)
    {
-      fes1[fes]->GetElementVDofs(i, vdofs_fes);
+      volume_fes[fes]->GetElementVDofs(i, vdofs_fes);
       vdofs.Append(vdofs_fes);
    }
 }
@@ -172,9 +172,9 @@ void HDGBilinearForm::GetInteriorSubVector(const Array<GridFunction*>
    Array<int> vdofs_fes;
 
    int counter = 0;
-   for (int fes=0; fes < NInteriorFES; fes++)
+   for (int fes=0; fes < NVolumeFES; fes++)
    {
-      fes1[fes]->GetElementVDofs(i, vdofs_fes);
+      volume_fes[fes]->GetElementVDofs(i, vdofs_fes);
       rhs_vector[fes]->GetSubVector(vdofs_fes, LocalVector);
       for (int k = 0; k<vdofs_fes.Size(); k++)
       {
@@ -185,7 +185,7 @@ void HDGBilinearForm::GetInteriorSubVector(const Array<GridFunction*>
    }
 }
 
-void HDGBilinearForm::SetInteriorSubVector(Array<GridFunction*> &rhs_vector,
+void HDGBilinearForm::SetInteriorSubVector(Array<GridFunction*> &sol_gridfunctions,
                                            int i, int ndof, Vector &SubVector)
 {
    SubVector.SetSize(ndof);
@@ -193,28 +193,28 @@ void HDGBilinearForm::SetInteriorSubVector(Array<GridFunction*> &rhs_vector,
    Array<int> vdofs_fes;
 
    int counter = 0;
-   for (int fes=0; fes < NInteriorFES; fes++)
+   for (int fes=0; fes < NVolumeFES; fes++)
    {
-      fes1[fes]->GetElementVDofs(i, vdofs_fes);
+      volume_fes[fes]->GetElementVDofs(i, vdofs_fes);
       LocalVector.SetSize(vdofs_fes.Size());
       for (int k = 0; k<vdofs_fes.Size(); k++)
       {
          LocalVector(k) = SubVector(counter + k);
       }
 
-      rhs_vector[fes]->SetSubVector(vdofs_fes, LocalVector);
+      sol_gridfunctions[fes]->SetSubVector(vdofs_fes, LocalVector);
 
       counter += vdofs_fes.Size();
    }
 }
 
-void HDGBilinearForm::GetBdrVDofs(int i, Array<int> &vdofs) const
+void HDGBilinearForm::GetFaceVDofs(int face, Array<int> &vdofs) const
 {
    vdofs.SetSize(0);
    Array<int> vdofs_fes;
-   for (int fes=0; fes < NBdrFES; fes++)
+   for (int fes=0; fes < NSkeletalFES; fes++)
    {
-      fes2[fes]->GetFaceVDofs(i, vdofs_fes);
+      skeletal_fes[fes]->GetFaceVDofs(face, vdofs_fes);
       vdofs.Append(vdofs_fes);
    }
 }
@@ -225,10 +225,10 @@ void HDGBilinearForm::compute_domain_integrals(const int elem,
 {
    // get the element transformation and the finite elements for the variables
    ElementTransformation *eltrans;
-   eltrans = fes1[0]->GetElementTransformation(elem);
-   const FiniteElement &fe_u1 = *fes1[0]->GetFE(elem);
+   eltrans = volume_fes[0]->GetElementTransformation(elem);
+   const FiniteElement &fe_u1 = *volume_fes[0]->GetFE(elem);
 
-   switch (NInteriorFES)
+   switch (NVolumeFES)
    {
       case 1:
       {
@@ -238,7 +238,7 @@ void HDGBilinearForm::compute_domain_integrals(const int elem,
       }
       case 2:
       {
-         const FiniteElement &fe_u2 = *fes1[1]->GetFE(elem);
+         const FiniteElement &fe_u2 = *volume_fes[1]->GetFE(elem);
          // compute the integrals
          hdg_dbfi[0]->AssembleElementMatrix2FES(fe_u1, fe_u2, *eltrans, elemmat1);
          break;
@@ -259,25 +259,39 @@ void HDGBilinearForm::compute_domain_integrals(const int elem,
  * The bool onlyB should be false when creating the Schur complement, true when reconstructing u from ubar.
 */
 void HDGBilinearForm::compute_face_integrals(const int elem, const int edge,
-                                             const int isboundary,
+                                             const int isshared,
                                              const bool onlyB,
                                              DenseMatrix *A_local,
                                              DenseMatrix *B_local,
                                              DenseMatrix *C_local,
                                              DenseMatrix *D_local)
 {
-   Mesh *mesh = fes1[0] -> GetMesh();
    FaceElementTransformations *tr;
 
-   // see comment above
-   tr = mesh->GetFaceElementTransformations(edge);
+   if (isshared == -1)
+   {
+	   Mesh *mesh = volume_fes[0] -> GetMesh();
+	   tr = mesh->GetFaceElementTransformations(edge);
+   }
+   else
+   {
+#ifdef MFEM_USE_MPI
+	   ParFiniteElementSpace* pfes1 = dynamic_cast<ParFiniteElementSpace*>(volume_fes[0]);
 
-   const FiniteElement &trace_fe = *fes2[0]->GetFaceElement(edge);
-   const FiniteElement &volume_fe = *fes1[0]->GetFE(elem);
+	   // do we need the next line?
+	   pfes1->ExchangeFaceNbrData();
+	   ParMesh *pmesh = pfes1 -> GetParMesh();
+	   // in the case of a shared mesh the 3rd input is isshared, not isboundary
+	   tr = pmesh->GetSharedFaceTransformations(isshared);
+#endif
+   }
+
+   const FiniteElement &trace_fe = *skeletal_fes[0]->GetFaceElement(edge);
+   const FiniteElement &volume_fe = *volume_fes[0]->GetFE(elem);
 
    // Compute the integrals depending on which element do we need to use
    int elem_1or2 = 1 + (tr->Elem2No == elem);
-   switch (NInteriorFES)
+   switch (NVolumeFES)
    {
       case 1:
       {
@@ -290,7 +304,7 @@ void HDGBilinearForm::compute_face_integrals(const int elem, const int edge,
       }
       case 2:
       {
-         const FiniteElement &volume_fe2 = *fes1[1]->GetFE(tr->Elem1No);
+         const FiniteElement &volume_fe2 = *volume_fes[1]->GetFE(tr->Elem1No);
          hdg_fbfi[0]->AssembleFaceMatrixOneElement2and1FES(volume_fe, volume_fe2,
                                                            trace_fe,
                                                            *tr, elem_1or2, onlyB,
@@ -327,9 +341,7 @@ void HDGBilinearForm::compute_face_integrals(const int elem, const int edge,
 void HDGBilinearForm::Allocate(const Array<int> &bdr_attr_is_ess,
                                const double memA, const double memB)
 {
-   Mesh *mesh = fes1[0] -> GetMesh();
-   mesh->GetEdgeToBdrFace(Edge_to_Be);
-
+   Mesh *mesh = volume_fes[0] -> GetMesh();
 
    // Get the list of the faces of every element
    if (mesh->Dimension() == 2)
@@ -343,12 +355,12 @@ void HDGBilinearForm::Allocate(const Array<int> &bdr_attr_is_ess,
 
 
 #ifdef MFEM_USE_MPI
-   int nedge = Edge_to_Be.Size();
+   int n_skeleton_elements = mesh->Dimension() == 2 ? mesh->GetNEdges() : mesh->GetNFaces();
 
-   Edge_to_SharedEdge.SetSize(nedge);
+   Edge_to_SharedEdge.SetSize(n_skeleton_elements);
    Edge_to_SharedEdge = -1;
    // ExchangeFaceNbrData to be able to use shared faces
-   ParFiniteElementSpace* pfes1 = dynamic_cast<ParFiniteElementSpace*>(fes1[0]);
+   ParFiniteElementSpace* pfes1 = dynamic_cast<ParFiniteElementSpace*>(volume_fes[0]);
 
    if (parallel)
    {
@@ -367,19 +379,19 @@ void HDGBilinearForm::Allocate(const Array<int> &bdr_attr_is_ess,
 
    if (mat == NULL)
    {
-      mat = new SparseMatrix(fes2[0]->GetVSize());
+      mat = new SparseMatrix(skeletal_fes[0]->GetVSize());
    }
 
    if (rhs_SC == NULL)
    {
-      rhs_SC = new Vector(fes2[0]->GetVSize());
+      rhs_SC = new Vector(skeletal_fes[0]->GetVSize());
       *rhs_SC = 0.0;
    }
 
-   fes2[0]->GetEssentialVDofs(bdr_attr_is_ess, ess_dofs);
+   skeletal_fes[0]->GetEssentialVDofs(bdr_attr_is_ess, ess_dofs);
 
-   elements_A = (int)(memA * fes1[0]->GetNE());
-   elements_B = (int)(memB * fes1[0]->GetNE());
+   elements_A = (int)(memA * volume_fes[0]->GetNE());
+   elements_B = (int)(memB * volume_fes[0]->GetNE());
 
    // Set the offset vectors
    A_offsets.SetSize(elements_A+1);
@@ -391,7 +403,7 @@ void HDGBilinearForm::Allocate(const Array<int> &bdr_attr_is_ess,
    int ndof_u;
 
    // loop over the elements to find the offset entries
-   for (int i=0; i< fes1[0]->GetNE(); i++)
+   for (int i=0; i< volume_fes[0]->GetNE(); i++)
    {
       // Get the local number of dof for u
       GetInteriorVDofs(i, vdofs_u);
@@ -415,7 +427,7 @@ void HDGBilinearForm::Allocate(const Array<int> &bdr_attr_is_ess,
       {
          for (int edge1=0; edge1<no_faces; edge1++)
          {
-            GetBdrVDofs(fcs[edge1], vdofs3);
+            GetFaceVDofs(fcs[edge1], vdofs3);
             ndof_edge_all += vdofs3.Size();
          }
 
@@ -445,10 +457,10 @@ void HDGBilinearForm::AssembleSC(GridFunction *F,
    RHSGridFunctions.SetSize(1);
    RHSGridFunctions[0] = F;
    Array<int> ess_bdr;
-   ess_bdr.SetSize(fes1[0]->GetMesh()->bdr_attributes.Max());
+   ess_bdr.SetSize(volume_fes[0]->GetMesh()->bdr_attributes.Max());
    ess_bdr = 0; // dummy
 
-   GridFunction sol(fes2[0]);
+   GridFunction sol(skeletal_fes[0]);
    sol = 0.0;
 
    AssembleSC(RHSGridFunctions, ess_bdr, sol, 0, memA, memB, skip_zeros);
@@ -477,7 +489,7 @@ void HDGBilinearForm::AssembleSC(Array<GridFunction*> &rhs_F,
 {
    Allocate(bdr_attr_is_ess, memA, memB);
 
-   DenseMatrix A_local, AC_local, SC_local;
+   DenseMatrix A_local, CA_local, SC_local;
    Vector F_local, F1_local, F2_local, CAinvF, AinvF;
 
    Array<int> fcs;
@@ -493,7 +505,7 @@ void HDGBilinearForm::AssembleSC(Array<GridFunction*> &rhs_F,
    DenseMatrix *D_local;
    Vector G_local;
 
-   for (int i=0; i< fes1[0]->GetNE(); i++)
+   for (int i=0; i< volume_fes[0]->GetNE(); i++)
    {
       GetInteriorVDofs(i, vdofs_u);
       ndof_u  = vdofs_u.Size();
@@ -514,31 +526,31 @@ void HDGBilinearForm::AssembleSC(Array<GridFunction*> &rhs_F,
       GetInteriorSubVector(rhs_F, i, ndof_u, F_local);
 
       // compute the face integrals for A, B, C and D
-      for (int edge1=0; edge1<no_faces; edge1++)
+      for (int edge=0; edge<no_faces; edge++)
       {
-         GetBdrVDofs(fcs[edge1], vdofs_e1);
+         GetFaceVDofs(fcs[edge], vdofs_e1);
          ndof_e1 = vdofs_e1.Size();
 
-         B_local[edge1].SetSize(ndof_u, ndof_e1);
-         C_local[edge1].SetSize(ndof_e1, ndof_u);
-         D_local[edge1].SetSize(ndof_e1, ndof_e1);
+         B_local[edge].SetSize(ndof_u, ndof_e1);
+         C_local[edge].SetSize(ndof_e1, ndof_u);
+         D_local[edge].SetSize(ndof_e1, ndof_e1);
 
-         B_local[edge1] = 0.0;
-         C_local[edge1] = 0.0;
-         D_local[edge1] = 0.0;
+         B_local[edge] = 0.0;
+         C_local[edge] = 0.0;
+         D_local[edge] = 0.0;
 #ifdef MFEM_USE_MPI
          // compute the face integrals
-         if ( Edge_to_SharedEdge[fcs[edge1]] > -1 )
+         if ( Edge_to_SharedEdge[fcs[edge]] > -1 )
          {
-            compute_face_integrals_shared(i, fcs[edge1], Edge_to_SharedEdge[fcs[edge1]],
+            compute_face_integrals(i, fcs[edge], Edge_to_SharedEdge[fcs[edge]],
                                           false,
-                                          &A_local, &B_local[edge1], &C_local[edge1], &D_local[edge1]);
+										  &A_local, &B_local[edge], &C_local[edge], &D_local[edge]);
          }
          else
          {
 #endif
-            compute_face_integrals(i, fcs[edge1], Edge_to_Be[fcs[edge1]], false,
-                                   &A_local, &B_local[edge1], &C_local[edge1], &D_local[edge1]);
+            compute_face_integrals(i, fcs[edge], -1, false,
+                                   &A_local, &B_local[edge], &C_local[edge], &D_local[edge]);
 #ifdef MFEM_USE_MPI
          }
 #endif
@@ -561,10 +573,10 @@ void HDGBilinearForm::AssembleSC(Array<GridFunction*> &rhs_F,
       if (i<elements_B)
       {
          int size_B_copied = 0;
-         for (int edge1=0; edge1<no_faces; edge1++)
+         for (int edge=0; edge<no_faces; edge++)
          {
-            B_local_data = B_local[edge1].GetData();
-            GetBdrVDofs(fcs[edge1], vdofs_e1);
+            B_local_data = B_local[edge].GetData();
+            GetFaceVDofs(fcs[edge], vdofs_e1);
 
             for (int j = 0; j<(ndof_u*(vdofs_e1.Size())); j++)
             {
@@ -575,16 +587,16 @@ void HDGBilinearForm::AssembleSC(Array<GridFunction*> &rhs_F,
          }
       }
 
-      for (int edge1=0; edge1<no_faces; edge1++)
+      for (int edge=0; edge<no_faces; edge++)
       {
-         GetBdrVDofs(fcs[edge1], vdofs_e1);
+         GetFaceVDofs(fcs[edge], vdofs_e1);
          ndof_e1 = vdofs_e1.Size();
          G_local.SetSize(ndof_e1);
          G_local = 0.0;
          if (elimBC == 1)
          {
             Eliminate_BC(vdofs_e1, ndof_u, sol, &F_local, &G_local,
-                         &B_local[edge1], &C_local[edge1], &D_local[edge1]);
+                         &B_local[edge], &C_local[edge], &D_local[edge]);
          }
 
          rhs_SC->AddElementVector(vdofs_e1, 1.0, G_local);
@@ -594,30 +606,30 @@ void HDGBilinearForm::AssembleSC(Array<GridFunction*> &rhs_F,
       A_local.Mult(F_local, AinvF);
 
       // Loop over all the possible face pairs
-      for (int edge1=0; edge1<no_faces; edge1++)
+      for (int edge_i=0; edge_i<no_faces; edge_i++)
       {
-         GetBdrVDofs(fcs[edge1], vdofs_e1);
+         GetFaceVDofs(fcs[edge_i], vdofs_e1);
          ndof_e1 = vdofs_e1.Size();
-         (D_local[edge1]).Threshold(1.0e-16);
-         mat->AddSubMatrix(vdofs_e1, vdofs_e1, D_local[edge1], skip_zeros);
+         D_local[edge_i].Threshold(1.0e-16);
+         mat->AddSubMatrix(vdofs_e1, vdofs_e1, D_local[edge_i], skip_zeros);
 
          CAinvF.SetSize(ndof_e1);
-         (C_local[edge1]).Mult(AinvF, CAinvF);
+         C_local[edge_i].Mult(AinvF, CAinvF);
          rhs_SC->AddElementVector(vdofs_e1, 1.0, CAinvF);
 
-         AC_local.SetSize(ndof_e1, ndof_u);
-         Mult(C_local[edge1], A_local, AC_local);
+         CA_local.SetSize(ndof_e1, ndof_u);
+         Mult(C_local[edge_i], A_local, CA_local);
 
-         for (int edge2=0; edge2<no_faces; edge2++)
+         for (int edge_j=0; edge_j<no_faces; edge_j++)
          {
             // Get the unknowns belonging to the edge
-            GetBdrVDofs(fcs[edge2], vdofs_e2);
+            GetFaceVDofs(fcs[edge_j], vdofs_e2);
             ndof_e2 = vdofs_e2.Size();
 
             SC_local.SetSize(ndof_e1, ndof_e2);
 
             // Compute the product that will be added to the Schur complement
-            Mult(AC_local, B_local[edge2], SC_local);
+            Mult(CA_local, B_local[edge_j], SC_local);
 
             SC_local.Threshold(1.0e-16);
             mat->AddSubMatrix(vdofs_e1, vdofs_e2, SC_local, skip_zeros);
@@ -722,13 +734,13 @@ void HDGBilinearForm::Reconstruct(Array<GridFunction*> &F,
 
    Array<int> fcs;
 
-   Array<int> vdofs_u, vdofs_e1;
-   int ndof_u, ndof_e1;
+   Array<int> vdofs_u, vdofs_e;
+   int ndof_u, ndof_e;
 
    DenseMatrix dummy_DM;
    DenseMatrix *B_local;
 
-   for (int i=0; i< fes1[0]->GetNE(); i++)
+   for (int i=0; i< volume_fes[0]->GetNE(); i++)
    {
       GetInteriorVDofs(i, vdofs_u);
       ndof_u  = vdofs_u.Size();
@@ -760,49 +772,49 @@ void HDGBilinearForm::Reconstruct(Array<GridFunction*> &F,
       GetInteriorSubVector(F, i, ndof_u, F_local);
 
 
-      for (int edge1=0; edge1<no_faces; edge1++)
+      for (int edge=0; edge<no_faces; edge++)
       {
-         GetBdrVDofs(fcs[edge1], vdofs_e1);
-         ndof_e1 = vdofs_e1.Size();
+         GetFaceVDofs(fcs[edge], vdofs_e);
+         ndof_e = vdofs_e.Size();
 
-         B_local[edge1].SetSize(ndof_u, ndof_e1);
-         B_local[edge1] = 0.0;
+         B_local[edge].SetSize(ndof_u, ndof_e);
+         B_local[edge] = 0.0;
          // If B is not saved then compute the face integrals
          // otherwise load the matrices
          if (i>=elements_B)
          {
 #ifdef MFEM_USE_MPI
-            if ( Edge_to_SharedEdge[fcs[edge1]] > -1 )
+            if ( Edge_to_SharedEdge[fcs[edge]] > -1 )
             {
-               compute_face_integrals_shared(i, fcs[edge1], Edge_to_SharedEdge[fcs[edge1]],
+               compute_face_integrals(i, fcs[edge], Edge_to_SharedEdge[fcs[edge]],
                                              true,
-                                             &A_local, &B_local[edge1], &dummy_DM, &dummy_DM);
+                                             &A_local, &B_local[edge], &dummy_DM, &dummy_DM);
             }
             else
             {
 #endif
-               compute_face_integrals(i, fcs[edge1], Edge_to_Be[fcs[edge1]], true,
-                                      &A_local, &B_local[edge1], &dummy_DM, &dummy_DM);
+               compute_face_integrals(i, fcs[edge], -1, true,
+                                      &A_local, &B_local[edge], &dummy_DM, &dummy_DM);
 #ifdef MFEM_USE_MPI
             }
 #endif
          }
          else
          {
-            for (int row = 0; row < ndof_e1; row++)
+            for (int row = 0; row < ndof_e; row++)
                for (int col = 0; col < (ndof_u); col++)
                {
-                  (B_local[edge1])(col,row) = B_data[B_offsets[i] + B_values_read + row*ndof_u +
+                  (B_local[edge])(col,row) = B_data[B_offsets[i] + B_values_read + row*ndof_u +
                                                      col];
                }
 
-            B_values_read += ndof_u*ndof_e1;
+            B_values_read += ndof_u*ndof_e;
          }
 
-         ubar_local.SetSize(ndof_e1);
+         ubar_local.SetSize(ndof_e);
 
-         ubar->GetSubVector(vdofs_e1, ubar_local);
-         (B_local[edge1]).Mult(ubar_local, Bubar_local);
+         ubar->GetSubVector(vdofs_e, ubar_local);
+         B_local[edge].Mult(ubar_local, Bubar_local);
 
          F_local.Add(-1.0, Bubar_local);
       }
@@ -837,69 +849,6 @@ void HDGBilinearForm::Reconstruct(Array<GridFunction*> &F,
 
 
 #ifdef MFEM_USE_MPI
-// Compute the face integrals for B and C
-/* They both contain only TraceInteriorFaceIntegrators and TraceBoundaryFaceIntegrators.
- * The bool onlyB should be false when creating the Schur complement, true when reconstructing u from ubar.
-*/
-void HDGBilinearForm::compute_face_integrals_shared(const int elem,
-                                                    const int edge,
-                                                    const int sf,
-                                                    const bool onlyB,
-                                                    DenseMatrix *A_local,
-                                                    DenseMatrix *B_local,
-                                                    DenseMatrix *C_local,
-                                                    DenseMatrix *D_local)
-{
-   ParFiniteElementSpace* pfes1 = dynamic_cast<ParFiniteElementSpace*>(fes1[0]);
-   ParMesh *pmesh = pfes1 -> GetParMesh();
-   FaceElementTransformations *tr;
-
-   tr = pmesh->GetSharedFaceTransformations(sf);
-
-   const FiniteElement &trace_fe = *fes2[0]->GetFaceElement(edge);
-   const FiniteElement &volume_fe = *fes1[0]->GetFE(elem);
-
-   // For parallel the element the processor owns is tr->Elem1No
-   switch (NInteriorFES)
-   {
-      case 1:
-      {
-         hdg_fbfi[0]->AssembleFaceMatrixOneElement1and1FES(volume_fe,
-                                                           trace_fe, *tr,
-                                                           1, onlyB,
-                                                           elemmat1, elemmat2,
-                                                           elemmat3, elemmat4);
-         break;
-      }
-      case 2:
-      {
-         ParFiniteElementSpace* pfes2 = dynamic_cast<ParFiniteElementSpace*>(fes1[1]);
-         const FiniteElement &volume_fe2 = *fes1[1]->GetFE(elem);
-         hdg_fbfi[0]->AssembleFaceMatrixOneElement2and1FES(volume_fe, volume_fe2,
-                                                           trace_fe,
-                                                           *tr, 1, onlyB,
-                                                           elemmat1, elemmat2,
-                                                           elemmat3, elemmat4);
-         break;
-      }
-      default:
-      {
-         mfem_error("HDGBilinearForm::compute_face_integrals is defined only for 1 or 2 interior FES");
-         break;
-      }
-
-   }
-
-   A_local->Add(1.0, elemmat1);
-   B_local->Add(1.0, elemmat2);
-   // If it is not reconstruction C and D are needed
-   if (!onlyB)
-   {
-      C_local->Add(1.0, elemmat3);
-      D_local->Add(1.0, elemmat4);
-   }
-}
-
 HypreParMatrix *HDGBilinearForm::ParallelAssembleSC(SparseMatrix *m)
 {
    if (m == NULL) { return NULL; }
@@ -907,7 +856,7 @@ HypreParMatrix *HDGBilinearForm::ParallelAssembleSC(SparseMatrix *m)
    MFEM_VERIFY(m->Finalized(), "local matrix needs to be finalized for "
                "ParallelAssemble3");
 
-   ParFiniteElementSpace* pfes2 = dynamic_cast<ParFiniteElementSpace*>(fes2[0]);
+   ParFiniteElementSpace* pfes2 = dynamic_cast<ParFiniteElementSpace*>(skeletal_fes[0]);
 
    int lvsize = pfes2->GetVSize();
    const HYPRE_Int *face_nbr_glob_ldof = pfes2->GetFaceNbrGlobalDofMap();
@@ -942,7 +891,7 @@ HypreParMatrix *HDGBilinearForm::ParallelAssembleSC(SparseMatrix *m)
 
 HypreParVector *HDGBilinearForm::ParallelVectorSC()
 {
-   ParFiniteElementSpace* pfes2 = dynamic_cast<ParFiniteElementSpace*>(fes2[0]);
+   ParFiniteElementSpace* pfes2 = dynamic_cast<ParFiniteElementSpace*>(skeletal_fes[0]);
    HypreParVector *tv = pfes2->NewTrueDofVector();
 
    pfes2->Dof_TrueDof_Matrix()->MultTranspose(*rhs_SC, *tv);
