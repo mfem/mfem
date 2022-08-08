@@ -131,11 +131,16 @@ public:
    /// Read only access to the (optional) internal true-dof Vector.
    /** Note that the returned Vector may be empty, if not previously allocated
        or set. */
-   const Vector &GetTrueVector() const { return t_vec; }
+   const Vector &GetTrueVector() const
+   {
+      MFEM_VERIFY(t_vec.Size() > 0, "SetTrueVector() before GetTrueVector()");
+      return t_vec;
+   }
    /// Read and write access to the (optional) internal true-dof Vector.
    /** Note that the returned Vector may be empty, if not previously allocated
        or set. */
-   Vector &GetTrueVector() { return t_vec; }
+   Vector &GetTrueVector()
+   { if (t_vec.Size() == 0) { SetTrueVector(); }; return t_vec; }
 
    /// Extract the true-dofs from the GridFunction.
    void GetTrueDofs(Vector &tv) const;
