@@ -61,22 +61,19 @@ void ThermalInterfaceHeatSourceIntegrator::AssembleRHSElementVect(const mfem::Fi
     int dim, ndof1, ndof2, ndof, ndoftotal;
     double w;
     mfem::Vector temp_elvect1, temp_elvect2;
-// cout << "---------------------- 1 ----------------------" << endl;
-   // elem_marker_->Print();
-   // exit(0);
+
     // grab sizes
     dim = el1.GetDim();
     ndof1 = el1.GetDof();
     ndof2 = el2.GetDof();
     ndoftotal = ndof1 + ndof2;
-// cout << "... NEproc_ = "<<NEproc_<<", par_shared_face_count_ = "<<par_shared_face_count_<<", oa_ = "<<oa_<<", ob_ = "<<ob_<<endl;
 
     if (Tr.Elem2No >= NEproc_ ||
         Tr.ElementType == ElementTransformation::BDR_FACE)
     {
         ndoftotal = ndof1;
     }
-    
+
     // output vector
     elvect.SetSize(ndoftotal);
     elvect = 0.0;
@@ -99,7 +96,7 @@ void ThermalInterfaceHeatSourceIntegrator::AssembleRHSElementVect(const mfem::Fi
     {
         marker2 = (elem_marker_)[elem2];
     }
-    
+
     // Only integrate interfaces
     if ( marker1==marker2 )
     {
@@ -129,7 +126,9 @@ void ThermalInterfaceHeatSourceIntegrator::AssembleRHSElementVect(const mfem::Fi
          wrk1.Set(w, shape1);
          temp_elvect1.Add(1., wrk1);
 
-         if (Tr.ElementType != mfem::ElementTransformation::BDR_FACE)
+         // if (Tr.ElementType != mfem::ElementTransformation::BDR_FACE)
+         if (!(Tr.Elem2No >= NEproc_ ||
+            Tr.ElementType == ElementTransformation::BDR_FACE))
          {
             el2.CalcShape(eip2, shape2);
             w = ip.weight * Qface_.Eval(Tr, ip);
@@ -177,8 +176,7 @@ void InterfaceFaceMarker::MarkElements(const ParGridFunction &marker_gf,
    {
       const IntegrationRule &ir = pfes_sltn->GetFE(i)->GetNodes();
       marker_gf.GetValues(i, ir, vals);
-// vals.Print();
-// cout << "***********" << endl;
+
       bool NegLSReg(vals.Sum()<0.0 ? true : false);
 
       if (NegLSReg) 
@@ -284,9 +282,11 @@ int main(int argc, char *argv[])
    ParMesh mesh(MPI_COMM_WORLD, serial_mesh);
    serial_mesh.Clear(); // the serial mesh is no longer needed
    
-   bool refineMesh(false);
+   mesh.ExchangeFaceNbrData();
+   bool refineMesh(true);
    if (refineMesh)
    {
+      mesh.UniformRefinement();
       mesh.UniformRefinement();
    }
 
@@ -348,9 +348,10 @@ int main(int argc, char *argv[])
 
       GridFunctionCoefficient coeff_lsf(&lsf);
       marker_gf.ProjectDiscCoefficient(coeff_lsf, GridFunction::ARITHMETIC);
-// marker_gf.Print(); 
+      marker_gf.ExchangeFaceNbrData();
+
       marker.MarkElements(marker_gf, elem_marker);
-// elem_marker.Print();
+
       // Get a list of dofs associated with shifted boundary (SB) faces.
       mfem::Array<int> sb_dofs; // Array of dofs on SB faces
       marker.InterfaceFaceDofs(elem_marker, sb_dofs); 
@@ -391,9 +392,17 @@ int main(int argc, char *argv[])
    // x.Save("sol");
    // mesh.Save("mesh");
 
+   int myid(0);
+   MPI_Comm_rank(MPI_COMM_WORLD,&myid);
+   L2_FECollection mat_coll(0, mesh.Dimension());
+   ParFiniteElementSpace mat_fes(&mesh, &mat_coll);
+   ParGridFunction procRank(&mat_fes);
+   procRank = myid;
+
    ParaViewDataCollection vis("InterfaceHeatSourceProb", &mesh);
    vis.RegisterField("temperature", &x);
    vis.RegisterField("interface_dofs", &face_dofs);
+   vis.RegisterField("processor_rank", &procRank);
    vis.SetCycle(1);
    vis.SetTime(1);
    vis.Save();
