@@ -42,19 +42,15 @@
 //
 // Sample runs:
 //  Interface fitting:
-//    mpirun -np 4 tmop-fitting -m square01.mesh -o 3 -rs 1 -mid 58 -tid 1 -ni 200 -vl 1 -sfc 5e4 -rtol 1e-5 -nor
-//    mpirun -np 4 tmop-fitting -m square01-tri.mesh -o 3 -rs 0 -mid 58 -tid 1 -ni 200 -vl 1 -sfc 1e4 -rtol 1e-5 -nor
+//    mpirun -np 4 tmop-fitting -m square01.mesh -o 3 -rs 1 -mid 58 -tid 1 -ni 200 -vl 1 -sfc 5e4 -rtol 1e-5
+//    mpirun -np 4 tmop-fitting -m square01-tri.mesh -o 3 -rs 0 -mid 58 -tid 1 -ni 200 -vl 1 -sfc 1e4 -rtol 1e-5
 //  Surface fitting with weight adaptation and termination based on fitting error
 //    mpirun -np 4 tmop-fitting -m square01.mesh -o 2 -rs 1 -mid 2 -tid 1 -ni 100 -vl 2 -sfc 10 -rtol 1e-20 -st 0 -sfa 10.0 -sft 1e-5
 
-// mpirun -np 6 tmop-fitting -m square01.mesh -o 2 -rs 2 -mid 2 -tid 1 -vl 2 -sfc 100 -rtol 1e-12 -ni 100 -ae 1 -fix-bnd -sbgmesh -slstype 1 -smtype 2 -trim -sfa 10.0
-// mpirun -np 6 tmop-fitting -m square01.mesh -o 2 -rs 3 -mid 2 -tid 1 -vl 2 -sfc 100 -rtol 1e-12 -ni 100 -ae 1 -bnd -sbgmesh -slstype 3 -smtype 0 -sfa 10.0 -sft 1e-4
+// mpirun -np 6 tmop-fitting -m square01.mesh -o 2 -rs 2 -mid 2 -tid 1 -vl 2 -sfc 100 -rtol 1e-12 -ni 100 -ae 1 -fix-bnd -sbgmesh -slstype 1 -smtype 3 -trim -sfa 10.0
+// mpirun -np 6 tmop-fitting -m square01.mesh -o 2 -rs 3 -mid 2 -tid 1 -vl 2 -sfc 100 -rtol 1e-12 -ni 100 -ae 1 -bnd -sbgmesh -slstype 3 -smtype 0 -sfa 10.0 -sft 1e-4 -amriter 5 -dist
 
-// fit to line with split
-// mpirun -np 6 tmop-fitting -m quad-split2.mesh -o 2 -rs 0 -mid 2 -tid 1 -ni 100 -vl 2 -sfc 1000 -rtol 1e-20 -st 0 -sfa 10.0 -bnd -marking -slstype 5 -mat
-// mpirun -np 6 tmop-fitting -m quad-8x8-mat.mesh -o 2 -rs 0 -mid 2 -tid 1 -ni 100 -vl 2 -sfc 1000 -rtol 1e-20 -st 0 -sfa 10.0 -bnd -marking -slstype 5 -mat -qo 8
-
-// mpirun -np 6 tmop-fitting -m cube.mesh -o 2 -rs 4 -mid 303 -tid 1 -vl 2 -sfc 100 -rtol 1e-12 -ni 100 -ae 1 -bnd -slstype 6 -smtype 0 -sfa 10.0 -sft 1e-4 -sbgmesh
+// make tmop-fitting;mpirun -np 6 tmop-fitting -m cube.mesh -o 3 -rs 2 -mid 303 -tid 1 -ni 100 -vl 2 -sfc 100 -rtol 1e-20 -st 0 -sfa 10.0 -sft 1e-10  -split
 
 #include "mfem.hpp"
 #include "../common/mfem-common.hpp"

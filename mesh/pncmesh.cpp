@@ -1330,8 +1330,8 @@ void ParNCMesh::LimitNCLevel(int max_nc_level)
       Array<Refinement> refinements;
       GetLimitRefinements(refinements, max_nc_level);
 
-      long size = refinements.Size(), glob_size;
-      MPI_Allreduce(&size, &glob_size, 1, MPI_LONG, MPI_SUM, MyComm);
+      long long size = refinements.Size(), glob_size;
+      MPI_Allreduce(&size, &glob_size, 1, MPI_LONG_LONG, MPI_SUM, MyComm);
 
       if (!glob_size) { break; }
 
@@ -2755,15 +2755,15 @@ void ParNCMesh::Trim()
    ClearAuxPM();
 }
 
-long ParNCMesh::RebalanceDofMessage::MemoryUsage() const
+std::size_t ParNCMesh::RebalanceDofMessage::MemoryUsage() const
 {
    return (elem_ids.capacity() + dofs.capacity()) * sizeof(int);
 }
 
 template<typename K, typename V>
-static long map_memory_usage(const std::map<K, V> &map)
+static std::size_t map_memory_usage(const std::map<K, V> &map)
 {
-   long result = 0;
+   std::size_t result = 0;
    for (typename std::map<K, V>::const_iterator
         it = map.begin(); it != map.end(); ++it)
    {
@@ -2773,9 +2773,9 @@ static long map_memory_usage(const std::map<K, V> &map)
    return result;
 }
 
-long ParNCMesh::GroupsMemoryUsage() const
+std::size_t ParNCMesh::GroupsMemoryUsage() const
 {
-   long groups_size = groups.capacity() * sizeof(CommGroup);
+   std::size_t groups_size = groups.capacity() * sizeof(CommGroup);
    for (unsigned i = 0; i < groups.size(); i++)
    {
       groups_size += groups[i].capacity() * sizeof(int);
@@ -2786,9 +2786,9 @@ long ParNCMesh::GroupsMemoryUsage() const
 }
 
 template<typename Type, int Size>
-static long arrays_memory_usage(const Array<Type> (&arrays)[Size])
+static std::size_t arrays_memory_usage(const Array<Type> (&arrays)[Size])
 {
-   long total = 0;
+   std::size_t total = 0;
    for (int i = 0; i < Size; i++)
    {
       total += arrays[i].MemoryUsage();
@@ -2796,9 +2796,9 @@ static long arrays_memory_usage(const Array<Type> (&arrays)[Size])
    return total;
 }
 
-long ParNCMesh::MemoryUsage(bool with_base) const
+std::size_t ParNCMesh::MemoryUsage(bool with_base) const
 {
-   long total_groups_owners = 0;
+   std::size_t total_groups_owners = 0;
    for (int i = 0; i < 3; i++)
    {
       total_groups_owners += entity_owner[i].MemoryUsage() +
