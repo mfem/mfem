@@ -869,8 +869,9 @@ void ParMesh::ComputeGlobalElementOffset() const
 {
    if (glob_offset_sequence != sequence) // mesh has changed
    {
-      long local_elems = NumOfElements;
-      MPI_Scan(&local_elems, &glob_elem_offset, 1, MPI_LONG, MPI_SUM, MyComm);
+      long long local_elems = NumOfElements;
+      MPI_Scan(&local_elems, &glob_elem_offset, 1, MPI_LONG_LONG, MPI_SUM,
+               MyComm);
       glob_elem_offset -= local_elems;
 
       glob_offset_sequence = sequence; // don't recalculate until refinement etc.
@@ -1526,15 +1527,15 @@ void ParMesh::Finalize(bool refine, bool fix_orientation)
    FinalizeParTopo();
 }
 
-int ParMesh::GetLocalElementNum(long global_element_num) const
+int ParMesh::GetLocalElementNum(long long global_element_num) const
 {
    ComputeGlobalElementOffset();
-   long local = global_element_num - glob_elem_offset;
+   long long local = global_element_num - glob_elem_offset;
    if (local < 0 || local >= NumOfElements) { return -1; }
    return local;
 }
 
-long ParMesh::GetGlobalElementNum(int local_element_num) const
+long long ParMesh::GetGlobalElementNum(int local_element_num) const
 {
    ComputeGlobalElementOffset();
    return glob_elem_offset + local_element_num;
@@ -1988,6 +1989,25 @@ void ParMesh::SetCurvature(int order, bool discont, int space_dim, int ordering)
    GetNodes(*pnodes);
    NewNodes(*pnodes, true);
    Nodes->MakeOwner(nfec);
+}
+
+void ParMesh::SetNodalFESpace(FiniteElementSpace *nfes)
+{
+   ParFiniteElementSpace *npfes = dynamic_cast<ParFiniteElementSpace*>(nfes);
+   if (npfes)
+   {
+      SetNodalFESpace(npfes);
+   }
+   else
+   {
+      Mesh::SetNodalFESpace(nfes);
+   }
+}
+
+void ParMesh::SetNodalFESpace(ParFiniteElementSpace *npfes)
+{
+   ParGridFunction *nodes = new ParGridFunction(npfes);
+   SetNodalGridFunction(nodes, true);
 }
 
 void ParMesh::EnsureParNodes()
@@ -3870,7 +3890,7 @@ bool ParMesh::NonconformingDerefinement(Array<double> &elem_error,
       if (error < threshold) { derefs.Append(i); }
    }
 
-   long glob_size = ReduceInt(derefs.Size());
+   long long glob_size = ReduceInt(derefs.Size());
    if (!glob_size) { return false; }
 
    // Destroy face-neighbor data only when actually de-refining.
@@ -5136,36 +5156,64 @@ void ParMesh::PrintAsOne(std::ostream &os) const
 
 void ParMesh::PrintAsSerial(std::ostream &os) const
 {
-   // Define required spaces
+   int save_rank = 0;
+   Mesh serialmesh = GetSerialMesh(save_rank);
+   if (MyRank == save_rank)
+   {
+      serialmesh.Printer(os);
+   }
+   MPI_Barrier(MyComm);
+}
+
+Mesh ParMesh::GetSerialMesh(int save_rank) const
+{
+   if (pncmesh || NURBSext)
+   {
+      MFEM_ABORT("Nonconforming meshes and NURBS meshes are not yet supported.");
+   }
+
+   // Define linear H1 space for vertex numbering
    H1_FECollection fec_linear(1, Dim);
    ParMesh *pm = const_cast<ParMesh *>(this);
    ParFiniteElementSpace pfespace_linear(pm, &fec_linear);
 
-   int ne_glob = GetGlobalNE();
+   long long ne_glob_l = GetGlobalNE(); // needs to be called by all ranks
+   MFEM_VERIFY(int(ne_glob_l) == ne_glob_l,
+               "overflow in the number of elements!");
+   int ne_glob = (save_rank == MyRank) ? int(ne_glob_l) : 0;
 
-   int nvertices = pfespace_linear.GetTrueVSize();
-   int nvertices_glob = nvertices;
-   MPI_Allreduce(&nvertices, &nvertices_glob, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
+   long long nvertices = pfespace_linear.GetTrueVSize();
+   long long nvertices_glob_l = 0;
+   MPI_Reduce(&nvertices, &nvertices_glob_l, 1, MPI_LONG_LONG, MPI_SUM,
+              save_rank, MyComm);
+   int nvertices_glob = int(nvertices_glob_l);
+   MFEM_VERIFY(nvertices_glob == nvertices_glob_l,
+               "overflow in the number of vertices!");
 
-   int nbe = NumOfBdrElements;
-   int nbe_glob = nbe;
-   MPI_Allreduce(&nbe, &nbe_glob, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
-   double *dummy_vertex = new double[spaceDim];
+   long long nbe = NumOfBdrElements;
+   long long nbe_glob_l = 0;
+   MPI_Reduce(&nbe, &nbe_glob_l, 1, MPI_LONG_LONG, MPI_SUM, save_rank, MyComm);
+   int nbe_glob = int(nbe_glob_l);
+   MFEM_VERIFY(nbe_glob == nbe_glob_l,
+               "overflow in the number of boundary elements!");
 
-   Mesh serialmesh = Mesh(Dim, nvertices_glob, ne_glob, nbe_glob, spaceDim);
+   // On ranks other than save_rank, the *_glob variables are 0, so the serial
+   // mesh is empty.
+   Mesh serialmesh(Dim, nvertices_glob, ne_glob, nbe_glob, spaceDim);
 
    int n_send_recv;
    MPI_Status status;
    Array<double> vert;
    Array<int> ints, dofs;
 
-   // First determine the connectivity using the linear H1 space.
-   if (MyRank == 0)
+   // First set the connectivity of serial mesh using the True Dofs from
+   // the linear H1 space.
+   if (MyRank == save_rank)
    {
       for (int e = 0; e < NumOfElements; e++)
       {
          const int attr = elements[e]->GetAttribute();
-         const int geom_type = elements[e]->GetGeometryType();;
+         const int geom_type = elements[e]->GetGeometryType();
          pfespace_linear.GetElementDofs(e, dofs);
          for (int j = 0; j < dofs.Size(); j++)
          {
@@ -5177,26 +5225,22 @@ void ParMesh::PrintAsSerial(std::ostream &os) const
          serialmesh.AddElement(elem);
       }
 
-      for (int p = 1; p < NRanks; p++)
+      for (int p = 0; p < NRanks; p++)
       {
-         MPI_Recv(&n_send_recv, 1, MPI_INT, p, 444, MPI_COMM_WORLD, &status);
+         if (p == save_rank) { continue; }
+         MPI_Recv(&n_send_recv, 1, MPI_INT, p, 444, MyComm, &status);
          ints.SetSize(n_send_recv);
          if (n_send_recv)
          {
-            MPI_Recv(&ints[0], n_send_recv, MPI_INT, p, 445, MPI_COMM_WORLD, &status);
+            MPI_Recv(&ints[0], n_send_recv, MPI_INT, p, 445, MyComm, &status);
          }
          for (int i = 0; i < n_send_recv; )
          {
             int attr = ints[i++];
             int geom_type = ints[i++];
-            dofs.SetSize(Geometries.GetVertices(geom_type)->GetNPoints());
-            for (int j = 0; j < dofs.Size(); j++)
-            {
-               dofs[j] = ints[i++];
-            }
             Element *elem = serialmesh.NewElement(geom_type);
             elem->SetAttribute(attr);
-            elem->SetVertices(dofs);
+            elem->SetVertices(&ints[i]); i += Geometry::NumVerts[geom_type];
             serialmesh.AddElement(elem);
          }
       }
@@ -5208,7 +5252,7 @@ void ParMesh::PrintAsSerial(std::ostream &os) const
       {
          n_send_recv += 2 + elements[e]->GetNVertices();
       }
-      MPI_Send(&n_send_recv, 1, MPI_INT, 0, 444, MPI_COMM_WORLD);
+      MPI_Send(&n_send_recv, 1, MPI_INT, save_rank, 444, MyComm);
       ints.Reserve(n_send_recv);
       ints.SetSize(0);
       for (int e = 0; e < NumOfElements; e++)
@@ -5225,18 +5269,17 @@ void ParMesh::PrintAsSerial(std::ostream &os) const
       }
       if (n_send_recv)
       {
-         MPI_Send(&ints[0], n_send_recv, MPI_INT, 0, 445, MPI_COMM_WORLD);
+         MPI_Send(&ints[0], n_send_recv, MPI_INT, save_rank, 445, MyComm);
       }
    }
 
-   // Now write out boundary elements
-   if (MyRank == 0)
+   // Write out boundary elements
+   if (MyRank == save_rank)
    {
       for (int e = 0; e < NumOfBdrElements; e++)
       {
-         const int attr = GetBdrAttribute(e);
-         const int geom_type = GetBdrElement(e)->GetGeometryType();
-         // write vertices using the linear fespace
+         const int attr = boundary[e]->GetAttribute();
+         const int geom_type = boundary[e]->GetGeometryType();
          pfespace_linear.GetBdrElementDofs(e, dofs);
          for (int j = 0; j < dofs.Size(); j++)
          {
@@ -5248,31 +5291,26 @@ void ParMesh::PrintAsSerial(std::ostream &os) const
          serialmesh.AddBdrElement(elem);
       }
 
-      for (int p = 1; p < NRanks; p++)
+      for (int p = 0; p < NRanks; p++)
       {
-         MPI_Recv(&n_send_recv, 1, MPI_INT, p, 446, MPI_COMM_WORLD, &status);
+         if (p == save_rank) { continue; }
+         MPI_Recv(&n_send_recv, 1, MPI_INT, p, 446, MyComm, &status);
          ints.SetSize(n_send_recv);
          if (n_send_recv)
          {
-            MPI_Recv(&ints[0], n_send_recv, MPI_INT, p, 447, MPI_COMM_WORLD, &status);
+            MPI_Recv(&ints[0], n_send_recv, MPI_INT, p, 447, MyComm, &status);
          }
          for (int i = 0; i < n_send_recv; )
          {
-            // processor number + 1 as attribute and geometry type
             int attr = ints[i++];
             int geom_type = ints[i++];
-            dofs.SetSize(Geometries.GetVertices(geom_type)->GetNPoints());
-            for (int j = 0; j < dofs.Size(); j++)
-            {
-               dofs[j] = ints[i++];
-            }
             Element *elem = serialmesh.NewElement(geom_type);
             elem->SetAttribute(attr);
-            elem->SetVertices(dofs);
+            elem->SetVertices(&ints[i]); i += Geometry::NumVerts[geom_type];
             serialmesh.AddBdrElement(elem);
          }
       }
-   } //MyRank == 0
+   } // MyRank == save_rank
    else
    {
       n_send_recv = 0;
@@ -5280,13 +5318,13 @@ void ParMesh::PrintAsSerial(std::ostream &os) const
       {
          n_send_recv += 2 + GetBdrElement(e)->GetNVertices();
       }
-      MPI_Send(&n_send_recv, 1, MPI_INT, 0, 446, MPI_COMM_WORLD);
+      MPI_Send(&n_send_recv, 1, MPI_INT, save_rank, 446, MyComm);
       ints.Reserve(n_send_recv);
       ints.SetSize(0);
       for (int e = 0; e < NumOfBdrElements; e++)
       {
-         const int attr = GetBdrAttribute(e);
-         const int geom_type = GetBdrElement(e)->GetGeometryType();
+         const int attr = boundary[e]->GetAttribute();
+         const int geom_type = boundary[e]->GetGeometryType();
          ints.Append(attr);
          ints.Append(geom_type);
          pfespace_linear.GetBdrElementDofs(e, dofs);
@@ -5297,35 +5335,40 @@ void ParMesh::PrintAsSerial(std::ostream &os) const
       }
       if (n_send_recv)
       {
-         MPI_Send(&ints[0], n_send_recv, MPI_INT, 0, 447, MPI_COMM_WORLD);
+         MPI_Send(&ints[0], n_send_recv, MPI_INT, save_rank, 447, MyComm);
       }
-   } //MyRank != 0
+   } // MyRank != save_rank
 
-   if (MyRank == 0)
+   if (MyRank == save_rank)
    {
       for (int v = 0; v < nvertices_glob; v++)
       {
-         serialmesh.AddVertex(*dummy_vertex);
+         serialmesh.AddVertex(0.0); // all other coordinates are 0 by default
       }
       serialmesh.FinalizeTopology();
    }
 
-   delete [] dummy_vertex;
-
    // From each processor, we send element-wise vertex/dof locations and
    // overwrite the vertex/dof locations of the serial mesh.
-   FiniteElementSpace *fespace_serial = NULL;
-   if (Nodes)
+   if (MyRank == save_rank && Nodes)
    {
+      FiniteElementSpace *fespace_serial = NULL;
+      // Duplicate the FE collection to make sure the serial mesh is completely
+      // independent of the parallel mesh:
+      auto fec_serial = FiniteElementCollection::New(
+                           GetNodalFESpace()->FEColl()->Name());
       fespace_serial = new FiniteElementSpace(&serialmesh,
-                                              GetNodalFESpace()->FEColl(),
+                                              fec_serial,
                                               spaceDim,
                                               GetNodalFESpace()->GetOrdering());
       serialmesh.SetNodalFESpace(fespace_serial);
+      serialmesh.GetNodes()->MakeOwner(fec_serial);
+      // The serial mesh owns its Nodes and they, in turn, own fec_serial and
+      // fespace_serial.
    }
 
-   int elem_count = 0; // To keep track of element counter in serial mesh
-   if (MyRank == 0)
+   int elem_count = 0; // To keep track of element count in serial mesh
+   if (MyRank == save_rank)
    {
       Vector nodeloc;
       Array<int> ints_serial;
@@ -5343,35 +5386,32 @@ void ParMesh::PrintAsSerial(std::ostream &os) const
             serialmesh.GetElementVertices(elem_count++, ints_serial);
             for (int i = 0; i < ints.Size(); i++)
             {
-               double *vdata = const_cast<double *>(GetVertex(ints[i]));
+               const double *vdata = GetVertex(ints[i]);
                double *vdata_serial = serialmesh.GetVertex(ints_serial[i]);
                for (int d = 0; d < spaceDim; d++)
                {
-                  vdata_serial[d] = (vdata[d]);
+                  vdata_serial[d] = vdata[d];
                }
             }
          }
       }
 
-      for (int p = 1; p < NRanks; p++)
+      for (int p = 0; p < NRanks; p++)
       {
-         MPI_Recv(&n_send_recv, 1, MPI_INT, p, 448, MPI_COMM_WORLD, &status);
+         if (p == save_rank) { continue; }
+         MPI_Recv(&n_send_recv, 1, MPI_INT, p, 448, MyComm, &status);
          vert.SetSize(n_send_recv);
          if (n_send_recv)
          {
-            MPI_Recv(&vert[0], n_send_recv, MPI_DOUBLE, p, 449, MPI_COMM_WORLD, &status);
+            MPI_Recv(&vert[0], n_send_recv, MPI_DOUBLE, p, 449, MyComm, &status);
          }
-         for (int i = 0; i < n_send_recv;)
+         for (int i = 0; i < n_send_recv; )
          {
             if (Nodes)
             {
                serialmesh.GetNodalFESpace()->GetElementVDofs(elem_count++, dofs);
-               nodeloc.SetSize(dofs.Size());
-               for (int d = 0; d < dofs.Size(); d++)
-               {
-                  nodeloc(d) = vert[i++];
-               }
-               serialmesh.GetNodes()->SetSubVector(dofs, nodeloc);
+               serialmesh.GetNodes()->SetSubVector(dofs, &vert[i]);
+               i += dofs.Size();
             }
             else
             {
@@ -5387,7 +5427,7 @@ void ParMesh::PrintAsSerial(std::ostream &os) const
             }
          }
       }
-   } //MyRank == 0
+   } // MyRank == save_rank
    else
    {
       n_send_recv = 0;
@@ -5396,7 +5436,7 @@ void ParMesh::PrintAsSerial(std::ostream &os) const
       {
          if (Nodes)
          {
-            const FiniteElement *fe = GetNodalFESpace()->GetFE(e);
+            const FiniteElement *fe = Nodes->FESpace()->GetFE(e);
             n_send_recv += spaceDim*fe->GetDof();
          }
          else
@@ -5404,7 +5444,7 @@ void ParMesh::PrintAsSerial(std::ostream &os) const
             n_send_recv += elements[e]->GetNVertices()*spaceDim;
          }
       }
-      MPI_Send(&n_send_recv, 1, MPI_INT, 0, 448, MPI_COMM_WORLD);
+      MPI_Send(&n_send_recv, 1, MPI_INT, save_rank, 448, MyComm);
       vert.Reserve(n_send_recv);
       vert.SetSize(0);
       for (int e = 0; e < NumOfElements; e++)
@@ -5422,7 +5462,7 @@ void ParMesh::PrintAsSerial(std::ostream &os) const
             GetElementVertices(e, ints);
             for (int i = 0; i < ints.Size(); i++)
             {
-               double *vdata = const_cast<double *>(GetVertex(ints[i]));
+               const double *vdata = GetVertex(ints[i]);
                for (int d = 0; d < spaceDim; d++)
                {
                   vert.Append(vdata[d]);
@@ -5432,14 +5472,12 @@ void ParMesh::PrintAsSerial(std::ostream &os) const
       }
       if (n_send_recv)
       {
-         MPI_Send(&vert[0], n_send_recv, MPI_DOUBLE, 0, 449, MPI_COMM_WORLD);
+         MPI_Send(&vert[0], n_send_recv, MPI_DOUBLE, save_rank, 449, MyComm);
       }
    }
 
-   if (MyRank == 0)
-   {
-      serialmesh.Printer(os);
-   }
+   MPI_Barrier(MyComm);
+   return serialmesh;
 }
 
 void ParMesh::SaveAsOne(const char *fname, int precision) const
@@ -6051,8 +6089,8 @@ void ParMesh::PrintInfo(std::ostream &os)
 
    // TODO: collect and print stats by geometry
 
-   long ldata[5]; // vert, edge, face, elem, neighbors;
-   long mindata[5], maxdata[5], sumdata[5];
+   long long ldata[5]; // vert, edge, face, elem, neighbors;
+   long long mindata[5], maxdata[5], sumdata[5];
 
    // count locally owned vertices, edges, and faces
    ldata[0] = GetNV();
@@ -6071,9 +6109,9 @@ void ParMesh::PrintInfo(std::ostream &os)
       }
    }
 
-   MPI_Reduce(ldata, mindata, 5, MPI_LONG, MPI_MIN, 0, MyComm);
-   MPI_Reduce(ldata, sumdata, 5, MPI_LONG, MPI_SUM, 0, MyComm);
-   MPI_Reduce(ldata, maxdata, 5, MPI_LONG, MPI_MAX, 0, MyComm);
+   MPI_Reduce(ldata, mindata, 5, MPI_LONG_LONG, MPI_MIN, 0, MyComm);
+   MPI_Reduce(ldata, sumdata, 5, MPI_LONG_LONG, MPI_SUM, 0, MyComm);
+   MPI_Reduce(ldata, maxdata, 5, MPI_LONG_LONG, MPI_MAX, 0, MyComm);
 
    if (MyRank == 0)
    {
@@ -6124,10 +6162,10 @@ void ParMesh::PrintInfo(std::ostream &os)
    }
 }
 
-long ParMesh::ReduceInt(int value) const
+long long ParMesh::ReduceInt(int value) const
 {
-   long local = value, global;
-   MPI_Allreduce(&local, &global, 1, MPI_LONG, MPI_SUM, MyComm);
+   long long local = value, global;
+   MPI_Allreduce(&local, &global, 1, MPI_LONG_LONG, MPI_SUM, MyComm);
    return global;
 }
 
@@ -6488,7 +6526,8 @@ void ParMesh::GetGlobalElementIndices(Array<HYPRE_BigInt> &gi) const
 {
    ComputeGlobalElementOffset();
 
-   const HYPRE_BigInt offset = glob_elem_offset; // Cast from long to HYPRE_BigInt
+   // Cast from long long to HYPRE_BigInt
+   const HYPRE_BigInt offset = glob_elem_offset;
 
    gi.SetSize(GetNE());
    for (int i=0; i<GetNE(); ++i)

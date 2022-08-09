@@ -251,6 +251,7 @@ PABilinearFormExtension::PABilinearFormExtension(BilinearForm *form)
 
 void PABilinearFormExtension::SetupRestrictionOperators(const L2FaceValues m)
 {
+   if ( Device::Allows(Backend::CEED_MASK) ) { return; }
    ElementDofOrdering ordering = UsesTensorBasis(*a->FESpace())?
                                  ElementDofOrdering::LEXICOGRAPHIC:
                                  ElementDofOrdering::NATIVE;

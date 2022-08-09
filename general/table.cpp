@@ -398,7 +398,7 @@ void Table::Swap(Table & other)
    mfem::Swap(J, other.J);
 }
 
-long Table::MemoryUsage() const
+std::size_t Table::MemoryUsage() const
 {
    if (size < 0 || I == NULL) { return 0; }
    return (size+1 + I[size]) * sizeof(int);

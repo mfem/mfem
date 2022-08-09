@@ -129,12 +129,7 @@ bool LinearForm::SupportsDevice()
    if (mesh_dim == 1 || mesh_dim != mesh.SpaceDimension()) { return false; }
 
    // tensor-product finite element space only
-   // with point values preserving scalar fields
-   for (int e = 0; e < fes->GetNE(); ++e)
-   {
-      const FiniteElement *fe = fes->GetFE(e);
-      if (!dynamic_cast<const TensorBasisElement*>(fe)) { return false; }
-   }
+   if (!UsesTensorBasis(*fes)) { return false; }
 
    return true;
 }

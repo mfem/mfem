@@ -248,7 +248,7 @@ int main(int argc, char *argv[])
    // Set element attributes in the mesh object before saving
    for (int i = 0; i < mesh.GetNE(); i++)
    {
-      mesh.SetAttribute(i, attr(i));
+      mesh.SetAttribute(i, static_cast<int>(attr(i)));
    }
    mesh.SetAttributes();
 
@@ -356,7 +356,7 @@ int material(const ParsePGM &pgm, int NC, Vector &x, Vector &xmin, Vector &xmax)
    int M = pgm.Width();
    int N = pgm.Height();
 
-   int i = x(1)*N, j = x(0)*M;
+   int i = (int)x(1)*N, j = (int)x(0)*M;
    if (i == N) { i = N-1; }
    if (j == M) { j = M-1; }
    i = N-1-i;
