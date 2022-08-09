@@ -1,13 +1,13 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
 #include "../config/config.hpp"
 
@@ -33,13 +33,6 @@ using namespace std;
 
 namespace mfem
 {
-
-void MPI_Session::GetRankAndSize()
-{
-   MPI_Comm_rank(MPI_COMM_WORLD, &world_rank);
-   MPI_Comm_size(MPI_COMM_WORLD, &world_size);
-}
-
 
 GroupTopology::GroupTopology(const GroupTopology &gt)
    : MyComm(gt.MyComm),
@@ -265,27 +258,27 @@ void GroupTopology::Create(ListOfIntegerSets &groups, int mpitag)
    // debug barrier: MPI_Barrier(MyComm);
 }
 
-void GroupTopology::Save(ostream &out) const
+void GroupTopology::Save(ostream &os) const
 {
-   out << "\ncommunication_groups\n";
-   out << "number_of_groups " << NGroups() << "\n\n";
+   os << "\ncommunication_groups\n";
+   os << "number_of_groups " << NGroups() << "\n\n";
 
-   out << "# number of entities in each group, followed by group ids in group\n";
+   os << "# number of entities in each group, followed by group ids in group\n";
    for (int group_id = 0; group_id < NGroups(); ++group_id)
    {
       int group_size = GetGroupSize(group_id);
       const int * group_ptr = GetGroup(group_id);
-      out << group_size;
+      os << group_size;
       for ( int group_member_index = 0; group_member_index < group_size;
             ++group_member_index)
       {
-         out << " " << GetNeighborRank( group_ptr[group_member_index] );
+         os << " " << GetNeighborRank( group_ptr[group_member_index] );
       }
-      out << "\n";
+      os << "\n";
    }
 
    // For future use, optional ownership strategy.
-   // out << "# ownership";
+   // os << "# ownership";
 }
 
 void GroupTopology::Load(istream &in)
@@ -331,6 +324,15 @@ void GroupTopology::Copy(GroupTopology& copy) const
    groupmaster_lproc.Copy(copy.groupmaster_lproc);
    lproc_proc.Copy(copy.lproc_proc);
    group_mgroup.Copy(copy.group_mgroup);
+}
+
+void GroupTopology::Swap(GroupTopology &other)
+{
+   mfem::Swap(MyComm, other.MyComm);
+   mfem::Swap(group_lproc, other.group_lproc);
+   mfem::Swap(groupmaster_lproc, other.groupmaster_lproc);
+   mfem::Swap(lproc_proc, other.lproc_proc);
+   mfem::Swap(group_mgroup, other.group_mgroup);
 }
 
 // Initialize the static mpi_type for the specializations of MPITypeMap:
@@ -511,6 +513,78 @@ void GroupCommunicator::SetLTDofTable(const Array<int> &ldof_ltdof)
       }
    }
    group_ltdof.ShiftUpI();
+}
+
+void GroupCommunicator::GetNeighborLTDofTable(Table &nbr_ltdof) const
+{
+   nbr_ltdof.MakeI(nbr_send_groups.Size());
+   for (int nbr = 1; nbr < nbr_send_groups.Size(); nbr++)
+   {
+      const int num_send_groups = nbr_send_groups.RowSize(nbr);
+      if (num_send_groups > 0)
+      {
+         const int *grp_list = nbr_send_groups.GetRow(nbr);
+         for (int i = 0; i < num_send_groups; i++)
+         {
+            const int group = grp_list[i];
+            const int nltdofs = group_ltdof.RowSize(group);
+            nbr_ltdof.AddColumnsInRow(nbr, nltdofs);
+         }
+      }
+   }
+   nbr_ltdof.MakeJ();
+   for (int nbr = 1; nbr < nbr_send_groups.Size(); nbr++)
+   {
+      const int num_send_groups = nbr_send_groups.RowSize(nbr);
+      if (num_send_groups > 0)
+      {
+         const int *grp_list = nbr_send_groups.GetRow(nbr);
+         for (int i = 0; i < num_send_groups; i++)
+         {
+            const int group = grp_list[i];
+            const int nltdofs = group_ltdof.RowSize(group);
+            const int *ltdofs = group_ltdof.GetRow(group);
+            nbr_ltdof.AddConnections(nbr, ltdofs, nltdofs);
+         }
+      }
+   }
+   nbr_ltdof.ShiftUpI();
+}
+
+void GroupCommunicator::GetNeighborLDofTable(Table &nbr_ldof) const
+{
+   nbr_ldof.MakeI(nbr_recv_groups.Size());
+   for (int nbr = 1; nbr < nbr_recv_groups.Size(); nbr++)
+   {
+      const int num_recv_groups = nbr_recv_groups.RowSize(nbr);
+      if (num_recv_groups > 0)
+      {
+         const int *grp_list = nbr_recv_groups.GetRow(nbr);
+         for (int i = 0; i < num_recv_groups; i++)
+         {
+            const int group = grp_list[i];
+            const int nldofs = group_ldof.RowSize(group);
+            nbr_ldof.AddColumnsInRow(nbr, nldofs);
+         }
+      }
+   }
+   nbr_ldof.MakeJ();
+   for (int nbr = 1; nbr < nbr_recv_groups.Size(); nbr++)
+   {
+      const int num_recv_groups = nbr_recv_groups.RowSize(nbr);
+      if (num_recv_groups > 0)
+      {
+         const int *grp_list = nbr_recv_groups.GetRow(nbr);
+         for (int i = 0; i < num_recv_groups; i++)
+         {
+            const int group = grp_list[i];
+            const int nldofs = group_ldof.RowSize(group);
+            const int *ldofs = group_ldof.GetRow(group);
+            nbr_ldof.AddConnections(nbr, ldofs, nldofs);
+         }
+      }
+   }
+   nbr_ldof.ShiftUpI();
 }
 
 template <class T>
@@ -754,7 +828,7 @@ void GroupCommunicator::BcastBegin(T *ldata, int layout) const
       }
    }
 
-   comm_lock = 1; // 1 - locked fot Bcast
+   comm_lock = 1; // 1 - locked for Bcast
    num_requests = request_counter;
 }
 
@@ -1083,7 +1157,7 @@ void GroupCommunicator::BitOR(OpData<T> opd)
    }
 }
 
-void GroupCommunicator::PrintInfo(std::ostream &out) const
+void GroupCommunicator::PrintInfo(std::ostream &os) const
 {
    char c = '\0';
    const int tag = 46800;
@@ -1169,36 +1243,36 @@ void GroupCommunicator::PrintInfo(std::ostream &out) const
    }
    else
    {
-      out << "\nGroupCommunicator:\n";
+      os << "\nGroupCommunicator:\n";
    }
-   out << "Rank " << myid << ":\n"
-       "   mode             = " <<
-       (mode == byGroup ? "byGroup" : "byNeighbor") << "\n"
-       "   number of sends  = " << num_sends <<
-       " (" << mem_sends << " bytes)\n"
-       "   number of recvs  = " << num_recvs <<
-       " (" << mem_recvs << " bytes)\n";
-   out <<
-       "   num groups       = " << group_ldof.Size() << " = " <<
-       num_master_groups << " + " <<
-       group_ldof.Size()-num_master_groups-num_empty_groups << " + " <<
-       num_empty_groups << " (master + slave + empty)\n";
+   os << "Rank " << myid << ":\n"
+      "   mode             = " <<
+      (mode == byGroup ? "byGroup" : "byNeighbor") << "\n"
+      "   number of sends  = " << num_sends <<
+      " (" << mem_sends << " bytes)\n"
+      "   number of recvs  = " << num_recvs <<
+      " (" << mem_recvs << " bytes)\n";
+   os <<
+      "   num groups       = " << group_ldof.Size() << " = " <<
+      num_master_groups << " + " <<
+      group_ldof.Size()-num_master_groups-num_empty_groups << " + " <<
+      num_empty_groups << " (master + slave + empty)\n";
    if (mode == byNeighbor)
    {
-      out <<
-          "   num neighbors    = " << nbr_send_groups.Size() << " = " <<
-          num_active_neighbors << " + " <<
-          nbr_send_groups.Size()-num_active_neighbors <<
-          " (active + inactive)\n";
+      os <<
+         "   num neighbors    = " << nbr_send_groups.Size() << " = " <<
+         num_active_neighbors << " + " <<
+         nbr_send_groups.Size()-num_active_neighbors <<
+         " (active + inactive)\n";
    }
    if (myid != gtopo.NRanks()-1)
    {
-      out << std::flush;
+      os << std::flush;
       MPI_Send(&c, 1, MPI_CHAR, myid+1, tag, gtopo.GetComm());
    }
    else
    {
-      out << std::endl;
+      os << std::endl;
    }
    MPI_Barrier(gtopo.GetComm());
 }
@@ -1322,7 +1396,7 @@ MPI_Comm ReorderRanksZCurve(MPI_Comm comm)
 
       KdTreeSort(coords, 0, dim, size);
 
-      //DebugRankCoords(coords, dim, size);
+      // DebugRankCoords(coords, dim, size);
 
       for (int i = 0; i < size; i++)
       {

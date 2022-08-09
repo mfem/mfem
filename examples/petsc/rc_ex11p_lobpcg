@@ -1,0 +1,11 @@
+# Options for the eigenvalue solver
+-eps_monitor
+-eps_converged_reason
+-eps_view_values
+-eps_type lobpcg
+-eps_gen_hermitian
+-eps_smallest_real
+-eps_lobpcg_blocksize 5
+# Options for the spectral transform
+-st_type precond
+-st_pc_type gamg

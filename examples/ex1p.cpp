@@ -9,6 +9,9 @@
 //               mpirun -np 4 ex1p -m ../data/fichera.mesh
 //               mpirun -np 4 ex1p -m ../data/fichera-mixed.mesh
 //               mpirun -np 4 ex1p -m ../data/toroid-wedge.mesh
+//               mpirun -np 4 ex1p -m ../data/octahedron.mesh -o 1
+//               mpirun -np 4 ex1p -m ../data/periodic-annulus-sector.msh
+//               mpirun -np 4 ex1p -m ../data/periodic-torus-sector.msh
 //               mpirun -np 4 ex1p -m ../data/square-disc-p2.vtk -o 2
 //               mpirun -np 4 ex1p -m ../data/square-disc-p3.mesh -o 3
 //               mpirun -np 4 ex1p -m ../data/square-disc-nurbs.mesh -o -1
@@ -27,8 +30,19 @@
 //
 // Device sample runs:
 //               mpirun -np 4 ex1p -pa -d cuda
+//               mpirun -np 4 ex1p -fa -d cuda
 //               mpirun -np 4 ex1p -pa -d occa-cuda
 //               mpirun -np 4 ex1p -pa -d raja-omp
+//               mpirun -np 4 ex1p -pa -d ceed-cpu
+//               mpirun -np 4 ex1p -pa -d ceed-cpu -o 4 -a
+//               mpirun -np 4 ex1p -pa -d ceed-cpu -m ../data/square-mixed.mesh
+//               mpirun -np 4 ex1p -pa -d ceed-cpu -m ../data/fichera-mixed.mesh
+//             * mpirun -np 4 ex1p -pa -d ceed-cuda
+//             * mpirun -np 4 ex1p -pa -d ceed-hip
+//               mpirun -np 4 ex1p -pa -d ceed-cuda:/gpu/cuda/shared
+//               mpirun -np 4 ex1p -pa -d ceed-cuda:/gpu/cuda/shared -m ../data/square-mixed.mesh
+//               mpirun -np 4 ex1p -pa -d ceed-cuda:/gpu/cuda/shared -m ../data/fichera-mixed.mesh
+//               mpirun -np 4 ex1p -m ../data/beam-tet.mesh -pa -d ceed-cpu
 //
 // Description:  This example code demonstrates the use of MFEM to define a
 //               simple finite element discretization of the Laplace problem
@@ -54,19 +68,21 @@ using namespace mfem;
 
 int main(int argc, char *argv[])
 {
-   // 1. Initialize MPI.
-   int num_procs, myid;
-   MPI_Init(&argc, &argv);
-   MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
-   MPI_Comm_rank(MPI_COMM_WORLD, &myid);
+   // 1. Initialize MPI and HYPRE.
+   Mpi::Init();
+   int num_procs = Mpi::WorldSize();
+   int myid = Mpi::WorldRank();
+   Hypre::Init();
 
    // 2. Parse command-line options.
    const char *mesh_file = "../data/star.mesh";
    int order = 1;
    bool static_cond = false;
    bool pa = false;
-   const char *device = "cpu";
+   bool fa = false;
+   const char *device_config = "cpu";
    bool visualization = true;
+   bool algebraic_ceed = false;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -78,8 +94,15 @@ int main(int argc, char *argv[])
                   "--no-static-condensation", "Enable static condensation.");
    args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
                   "--no-partial-assembly", "Enable Partial Assembly.");
-   args.AddOption(&device, "-d", "--device",
+   args.AddOption(&fa, "-fa", "--full-assembly", "-no-fa",
+                  "--no-full-assembly", "Enable Full Assembly.");
+   args.AddOption(&device_config, "-d", "--device",
                   "Device configuration string, see Device::Configure().");
+#ifdef MFEM_USE_CEED
+   args.AddOption(&algebraic_ceed, "-a", "--algebraic",
+                  "-no-a", "--no-algebraic",
+                  "Use algebraic Ceed solver");
+#endif
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -90,7 +113,6 @@ int main(int argc, char *argv[])
       {
          args.PrintUsage(cout);
       }
-      MPI_Finalize();
       return 1;
    }
    if (myid == 0)
@@ -98,49 +120,57 @@ int main(int argc, char *argv[])
       args.PrintOptions(cout);
    }
 
-   // 3. Read the (serial) mesh from the given mesh file on all processors.  We
+   // 3. Enable hardware devices such as GPUs, and programming models such as
+   //    CUDA, OCCA, RAJA and OpenMP based on command line options.
+   Device device(device_config);
+   if (myid == 0) { device.Print(); }
+
+   // 4. Read the (serial) mesh from the given mesh file on all processors.  We
    //    can handle triangular, quadrilateral, tetrahedral, hexahedral, surface
    //    and volume meshes with the same code.
-   Mesh *mesh = new Mesh(mesh_file, 1, 1);
-   int dim = mesh->Dimension();
+   Mesh mesh(mesh_file, 1, 1);
+   int dim = mesh.Dimension();
 
-   // 4. Refine the serial mesh on all processors to increase the resolution. In
+   // 5. Refine the serial mesh on all processors to increase the resolution. In
    //    this example we do 'ref_levels' of uniform refinement. We choose
    //    'ref_levels' to be the largest number that gives a final mesh with no
    //    more than 10,000 elements.
    {
       int ref_levels =
-         (int)floor(log(10000./mesh->GetNE())/log(2.)/dim);
+         (int)floor(log(10000./mesh.GetNE())/log(2.)/dim);
       for (int l = 0; l < ref_levels; l++)
       {
-         mesh->UniformRefinement();
+         mesh.UniformRefinement();
       }
    }
 
-   // 5. Define a parallel mesh by a partitioning of the serial mesh. Refine
+   // 6. Define a parallel mesh by a partitioning of the serial mesh. Refine
    //    this mesh further in parallel to increase the resolution. Once the
    //    parallel mesh is defined, the serial mesh can be deleted.
-   ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
-   delete mesh;
+   ParMesh pmesh(MPI_COMM_WORLD, mesh);
+   mesh.Clear();
    {
       int par_ref_levels = 2;
       for (int l = 0; l < par_ref_levels; l++)
       {
-         pmesh->UniformRefinement();
+         pmesh.UniformRefinement();
       }
    }
 
-   // 6. Define a parallel finite element space on the parallel mesh. Here we
+   // 7. Define a parallel finite element space on the parallel mesh. Here we
    //    use continuous Lagrange finite elements of the specified order. If
    //    order < 1, we instead use an isoparametric/isogeometric space.
    FiniteElementCollection *fec;
+   bool delete_fec;
    if (order > 0)
    {
       fec = new H1_FECollection(order, dim);
+      delete_fec = true;
    }
-   else if (pmesh->GetNodes())
+   else if (pmesh.GetNodes())
    {
-      fec = pmesh->GetNodes()->OwnFEC();
+      fec = pmesh.GetNodes()->OwnFEC();
+      delete_fec = false;
       if (myid == 0)
       {
          cout << "Using isoparametric FEs: " << fec->Name() << endl;
@@ -149,69 +179,82 @@ int main(int argc, char *argv[])
    else
    {
       fec = new H1_FECollection(order = 1, dim);
+      delete_fec = true;
    }
-   ParFiniteElementSpace *fespace = new ParFiniteElementSpace(pmesh, fec);
-   HYPRE_Int size = fespace->GlobalTrueVSize();
+   ParFiniteElementSpace fespace(&pmesh, fec);
+   HYPRE_BigInt size = fespace.GlobalTrueVSize();
    if (myid == 0)
    {
       cout << "Number of finite element unknowns: " << size << endl;
    }
 
-   // 7. Determine the list of true (i.e. parallel conforming) essential
+   // 8. Determine the list of true (i.e. parallel conforming) essential
    //    boundary dofs. In this example, the boundary conditions are defined
    //    by marking all the boundary attributes from the mesh as essential
    //    (Dirichlet) and converting them to a list of true dofs.
    Array<int> ess_tdof_list;
-   if (pmesh->bdr_attributes.Size())
+   if (pmesh.bdr_attributes.Size())
    {
-      Array<int> ess_bdr(pmesh->bdr_attributes.Max());
+      Array<int> ess_bdr(pmesh.bdr_attributes.Max());
       ess_bdr = 1;
-      fespace->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
+      fespace.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
    }
 
-   // 8. Set up the parallel linear form b(.) which corresponds to the
+   // 9. Set up the parallel linear form b(.) which corresponds to the
    //    right-hand side of the FEM linear system, which in this case is
    //    (1,phi_i) where phi_i are the basis functions in fespace.
-   ParLinearForm *b = new ParLinearForm(fespace);
+   ParLinearForm b(&fespace);
    ConstantCoefficient one(1.0);
-   b->AddDomainIntegrator(new DomainLFIntegrator(one));
-   b->Assemble();
+   b.AddDomainIntegrator(new DomainLFIntegrator(one));
+   b.Assemble();
 
-   // 9. Set device config parameters from the command line options and switch
-   //    to working on the device.
-   Device::Configure(device);
-   if (myid == 0) { Device::Print(); }
-   Device::Enable();
-
-   // 10. Define the solution vector x as a parallel finite element grid function
-   //     corresponding to fespace. Initialize x with initial guess of zero,
-   //     which satisfies the boundary conditions.
-   ParGridFunction x(fespace);
+   // 10. Define the solution vector x as a parallel finite element grid
+   //     function corresponding to fespace. Initialize x with initial guess of
+   //     zero, which satisfies the boundary conditions.
+   ParGridFunction x(&fespace);
    x = 0.0;
 
    // 11. Set up the parallel bilinear form a(.,.) on the finite element space
-   //     corresponding to the Laplacian operator -Delta, by adding the Diffusion
-   //     domain integrator.
-   ParBilinearForm *a = new ParBilinearForm(fespace);
-   if (pa) { a->SetAssemblyLevel(AssemblyLevel::PARTIAL); }
-   a->AddDomainIntegrator(new DiffusionIntegrator(one));
+   //     corresponding to the Laplacian operator -Delta, by adding the
+   //     Diffusion domain integrator.
+   ParBilinearForm a(&fespace);
+   if (pa) { a.SetAssemblyLevel(AssemblyLevel::PARTIAL); }
+   if (fa) { a.SetAssemblyLevel(AssemblyLevel::FULL); }
+   a.AddDomainIntegrator(new DiffusionIntegrator(one));
 
    // 12. Assemble the parallel bilinear form and the corresponding linear
    //     system, applying any necessary transformations such as: parallel
    //     assembly, eliminating boundary conditions, applying conforming
    //     constraints for non-conforming AMR, static condensation, etc.
-   if (static_cond) { a->EnableStaticCondensation(); }
-   a->Assemble();
+   if (static_cond) { a.EnableStaticCondensation(); }
+   a.Assemble();
 
    OperatorPtr A;
    Vector B, X;
-   a->FormLinearSystem(ess_tdof_list, x, *b, A, X, B);
+   a.FormLinearSystem(ess_tdof_list, x, b, A, X, B);
 
    // 13. Solve the linear system A X = B.
    //     * With full assembly, use the BoomerAMG preconditioner from hypre.
-   //     * With partial assembly, use no preconditioner, for now.
+   //     * With partial assembly, use Jacobi smoothing, for now.
    Solver *prec = NULL;
-   if (!pa) { prec = new HypreBoomerAMG; }
+   if (pa)
+   {
+      if (UsesTensorBasis(fespace))
+      {
+         if (algebraic_ceed)
+         {
+            prec = new ceed::AlgebraicSolver(a, ess_tdof_list);
+         }
+         else
+         {
+            prec = new OperatorJacobiSmoother(a, ess_tdof_list);
+         }
+      }
+   }
+   else
+   {
+      prec = new HypreBoomerAMG;
+   }
    CGSolver cg(MPI_COMM_WORLD);
    cg.SetRelTol(1e-12);
    cg.SetMaxIter(2000);
@@ -223,12 +266,9 @@ int main(int argc, char *argv[])
 
    // 14. Recover the parallel grid function corresponding to X. This is the
    //     local finite element solution on each processor.
-   a->RecoverFEMSolution(X, *b, x);
+   a.RecoverFEMSolution(X, b, x);
 
-   // 15. Switch back to the host.
-   Device::Disable();
-
-   // 16. Save the refined mesh and the solution in parallel. This output can
+   // 15. Save the refined mesh and the solution in parallel. This output can
    //     be viewed later using GLVis: "glvis -np <np> -m mesh -g sol".
    {
       ostringstream mesh_name, sol_name;
@@ -237,14 +277,14 @@ int main(int argc, char *argv[])
 
       ofstream mesh_ofs(mesh_name.str().c_str());
       mesh_ofs.precision(8);
-      pmesh->Print(mesh_ofs);
+      pmesh.Print(mesh_ofs);
 
       ofstream sol_ofs(sol_name.str().c_str());
       sol_ofs.precision(8);
       x.Save(sol_ofs);
    }
 
-   // 17. Send the solution by socket to a GLVis server.
+   // 16. Send the solution by socket to a GLVis server.
    if (visualization)
    {
       char vishost[] = "localhost";
@@ -252,17 +292,14 @@ int main(int argc, char *argv[])
       socketstream sol_sock(vishost, visport);
       sol_sock << "parallel " << num_procs << " " << myid << "\n";
       sol_sock.precision(8);
-      sol_sock << "solution\n" << *pmesh << x << flush;
+      sol_sock << "solution\n" << pmesh << x << flush;
    }
 
-   // 18. Free the used memory.
-   delete a;
-   delete b;
-   delete fespace;
-   if (order > 0) { delete fec; }
-   delete pmesh;
-
-   MPI_Finalize();
+   // 17. Free the used memory.
+   if (delete_fec)
+   {
+      delete fec;
+   }
 
    return 0;
 }

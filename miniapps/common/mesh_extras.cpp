@@ -1,13 +1,13 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
 #include "mesh_extras.hpp"
 
@@ -16,7 +16,7 @@ using namespace std;
 namespace mfem
 {
 
-namespace miniapps
+namespace common
 {
 
 ElementMeshStream::ElementMeshStream(Element::Type e)
@@ -109,6 +109,26 @@ ElementMeshStream::ElementMeshStream(Element::Type e)
                << "1 1 1" << endl
                << "0 1 1" << endl;
          break;
+      case Element::WEDGE:
+         *this << "dimension" << endl << 3 << endl
+               << "elements" << endl << 1 << endl
+               << "1 6 0 1 2 3 4 5" << endl
+               << "boundary" << endl << 5 << endl
+               << "1 2 2 1 0" << endl
+               << "1 2 3 4 5" << endl
+               << "1 3 0 1 4 3" << endl
+               << "1 3 1 2 5 4" << endl
+               << "1 3 2 0 3 5" << endl
+               << "vertices" << endl
+               << "6" << endl
+               << "3" << endl
+               << "0 0 0" << endl
+               << "1 0 0" << endl
+               << "0 1 0" << endl
+               << "0 0 1" << endl
+               << "1 0 1" << endl
+               << "0 1 1" << endl;
+         break;
       default:
          mfem_error("Invalid element type!");
          break;
@@ -116,22 +136,24 @@ ElementMeshStream::ElementMeshStream(Element::Type e)
 
 }
 
-double ComputeVolume(Mesh &mesh, int ir_order)
+double ComputeVolume(const Mesh &mesh, int ir_order)
 {
    double vol = 0.0;
 
+   IsoparametricTransformation T;
+   
    for (int i=0; i<mesh.GetNE(); i++)
    {
-      ElementTransformation *T = mesh.GetElementTransformation(i);
+      const_cast<Mesh&>(mesh).GetElementTransformation(i, &T);
       Geometry::Type geom = mesh.GetElementBaseGeometry(i);
       const IntegrationRule *ir = &IntRules.Get(geom, ir_order);
 
       for (int j = 0; j < ir->GetNPoints(); j++)
       {
          const IntegrationPoint &ip = ir->IntPoint(j);
-         T->SetIntPoint(&ip);
+         T.SetIntPoint(&ip);
 
-         double w = T->Weight() * ip.weight;
+         double w = T.Weight() * ip.weight;
 
          vol += w;
       }
@@ -139,22 +161,25 @@ double ComputeVolume(Mesh &mesh, int ir_order)
    return vol;
 }
 
-double ComputeSurfaceArea(Mesh &mesh, int ir_order)
+double ComputeSurfaceArea(const Mesh &mesh, int ir_order)
 {
    double area = 0.0;
 
+   IsoparametricTransformation T;
+
    for (int i=0; i<mesh.GetNBE(); i++)
    {
-      ElementTransformation *T = mesh.GetBdrElementTransformation(i);
+     // ElementTransformation *T = mesh.GetBdrElementTransformation(i);
+      const_cast<Mesh&>(mesh).GetBdrElementTransformation(i, &T);
       Geometry::Type geom = mesh.GetBdrElementBaseGeometry(i);
       const IntegrationRule *ir = &IntRules.Get(geom, ir_order);
 
       for (int j = 0; j < ir->GetNPoints(); j++)
       {
          const IntegrationPoint &ip = ir->IntPoint(j);
-         T->SetIntPoint(&ip);
+         T.SetIntPoint(&ip);
 
-         double w = T->Weight() * ip.weight;
+         double w = T.Weight() * ip.weight;
 
          area += w;
       }
@@ -162,23 +187,25 @@ double ComputeSurfaceArea(Mesh &mesh, int ir_order)
    return area;
 }
 
-double ComputeZerothMoment(Mesh &mesh, Coefficient &rho,
+double ComputeZerothMoment(const Mesh &mesh, Coefficient &rho,
                            int ir_order)
 {
    double mom = 0.0;
 
+   IsoparametricTransformation T;
+      
    for (int i=0; i<mesh.GetNE(); i++)
    {
-      ElementTransformation *T = mesh.GetElementTransformation(i);
+      const_cast<Mesh&>(mesh).GetElementTransformation(i, &T);
       Geometry::Type geom = mesh.GetElementBaseGeometry(i);
       const IntegrationRule *ir = &IntRules.Get(geom, ir_order);
 
       for (int j = 0; j < ir->GetNPoints(); j++)
       {
          const IntegrationPoint &ip = ir->IntPoint(j);
-         T->SetIntPoint(&ip);
+         T.SetIntPoint(&ip);
 
-         double w = T->Weight() * ip.weight * rho.Eval(*T, ip);
+         double w = T.Weight() * ip.weight * rho.Eval(T, ip);
 
          mom += w;
       }
@@ -187,7 +214,7 @@ double ComputeZerothMoment(Mesh &mesh, Coefficient &rho,
    return mom;
 }
 
-void ComputeElementZerothMoments(Mesh &mesh, Coefficient &rho,
+void ComputeElementZerothMoments(const Mesh &mesh, Coefficient &rho,
                                  int ir_order, GridFunction &m)
 {
    MFEM_ASSERT(m.Size() == mesh.GetNE(), "Invalid GridFunction.  "
@@ -197,9 +224,11 @@ void ComputeElementZerothMoments(Mesh &mesh, Coefficient &rho,
 
    Array<int> vdofs;
 
+   IsoparametricTransformation T;
+   
    for (int i=0; i<mesh.GetNE(); i++)
    {
-      ElementTransformation *T = mesh.GetElementTransformation(i);
+      const_cast<Mesh&>(mesh).GetElementTransformation(i, &T);
       Geometry::Type geom = mesh.GetElementBaseGeometry(i);
       const IntegrationRule *ir = &IntRules.Get(geom, ir_order);
 
@@ -210,9 +239,9 @@ void ComputeElementZerothMoments(Mesh &mesh, Coefficient &rho,
       for (int j = 0; j < ir->GetNPoints(); j++)
       {
          const IntegrationPoint &ip = ir->IntPoint(j);
-         T->SetIntPoint(&ip);
+         T.SetIntPoint(&ip);
 
-         double w = T->Weight() * ip.weight * rho.Eval(*T, ip);
+         double w = T.Weight() * ip.weight * rho.Eval(T, ip);
 
          mom += w;
       }
@@ -221,7 +250,7 @@ void ComputeElementZerothMoments(Mesh &mesh, Coefficient &rho,
    }
 }
 
-double ComputeFirstMoment(Mesh &mesh, Coefficient &rho,
+double ComputeFirstMoment(const Mesh &mesh, Coefficient &rho,
                           int ir_order, Vector &mom)
 {
    double mom0 = 0.0;
@@ -234,19 +263,21 @@ double ComputeFirstMoment(Mesh &mesh, Coefficient &rho,
    double x_data[3];
    Vector x(x_data, sdim);
 
+   IsoparametricTransformation T;
+   
    for (int i=0; i<mesh.GetNE(); i++)
    {
-      ElementTransformation *T = mesh.GetElementTransformation(i);
+      const_cast<Mesh&>(mesh).GetElementTransformation(i, &T);
       Geometry::Type geom = mesh.GetElementBaseGeometry(i);
       const IntegrationRule *ir = &IntRules.Get(geom, ir_order);
 
       for (int j = 0; j < ir->GetNPoints(); j++)
       {
          const IntegrationPoint &ip = ir->IntPoint(j);
-         T->SetIntPoint(&ip);
-         T->Transform(ip, x);
+         T.SetIntPoint(&ip);
+         T.Transform(ip, x);
 
-         double w = T->Weight() * ip.weight * rho.Eval(*T, ip);
+         double w = T.Weight() * ip.weight * rho.Eval(T, ip);
 
          mom0 += w;
          mom.Add(w, x);
@@ -256,7 +287,7 @@ double ComputeFirstMoment(Mesh &mesh, Coefficient &rho,
    return mom0;
 }
 
-double ComputeSecondMoment(Mesh &mesh, Coefficient &rho,
+double ComputeSecondMoment(const Mesh &mesh, Coefficient &rho,
                            const Vector &center,
                            int ir_order, DenseMatrix &mom)
 {
@@ -270,22 +301,24 @@ double ComputeSecondMoment(Mesh &mesh, Coefficient &rho,
    double x_data[3];
    Vector x(x_data, sdim);
 
+   IsoparametricTransformation T;
+   
    for (int i=0; i<mesh.GetNE(); i++)
    {
-      ElementTransformation *T = mesh.GetElementTransformation(i);
+      const_cast<Mesh&>(mesh).GetElementTransformation(i, &T);
       Geometry::Type geom = mesh.GetElementBaseGeometry(i);
       const IntegrationRule *ir = &IntRules.Get(geom, ir_order);
 
       for (int j = 0; j < ir->GetNPoints(); j++)
       {
          const IntegrationPoint &ip = ir->IntPoint(j);
-         T->SetIntPoint(&ip);
-         T->Transform(ip, x);
+         T.SetIntPoint(&ip);
+         T.Transform(ip, x);
          x.Add(-1.0, center);
 
          double r2 = x * x;
 
-         double w = T->Weight() * ip.weight * rho.Eval(*T, ip);
+         double w = T.Weight() * ip.weight * rho.Eval(T, ip);
 
          mom0 += w;
 
@@ -311,7 +344,7 @@ double ComputeSecondMoment(Mesh &mesh, Coefficient &rho,
    return mom0;
 }
 
-void ComputeElementCentersOfMass(Mesh &mesh, Coefficient &rho,
+void ComputeElementCentersOfMass(const Mesh &mesh, Coefficient &rho,
                                  int ir_order, GridFunction &c)
 {
    int sdim = mesh.SpaceDimension();
@@ -329,9 +362,11 @@ void ComputeElementCentersOfMass(Mesh &mesh, Coefficient &rho,
 
    c = 0.0;
 
+   IsoparametricTransformation T;
+   
    for (int i=0; i<mesh.GetNE(); i++)
    {
-      ElementTransformation *T = mesh.GetElementTransformation(i);
+      const_cast<Mesh&>(mesh).GetElementTransformation(i, &T);
       Geometry::Type geom = mesh.GetElementBaseGeometry(i);
       const IntegrationRule *ir = &IntRules.Get(geom, ir_order);
 
@@ -342,10 +377,10 @@ void ComputeElementCentersOfMass(Mesh &mesh, Coefficient &rho,
       for (int j = 0; j < ir->GetNPoints(); j++)
       {
          const IntegrationPoint &ip = ir->IntPoint(j);
-         T->SetIntPoint(&ip);
-         T->Transform(ip, x);
+         T.SetIntPoint(&ip);
+         T.Transform(ip, x);
 
-         double w = T->Weight() * ip.weight * rho.Eval(*T, ip);
+         double w = T.Weight() * ip.weight * rho.Eval(T, ip);
 
          mom0 += w;
 
@@ -361,6 +396,104 @@ void ComputeElementCentersOfMass(Mesh &mesh, Coefficient &rho,
    }
 }
 
-} // namespace miniapps
+void
+MergeMeshNodes(Mesh * mesh, int logging)
+{
+   int dim  = mesh->Dimension();
+   int sdim = mesh->SpaceDimension();
+
+   double h_min, h_max, k_min, k_max;
+   mesh->GetCharacteristics(h_min, h_max, k_min, k_max);
+
+   // Set tolerance for merging vertices
+   double tol = 1.0e-8 * h_min;
+
+   if ( logging > 0 )
+      cout << "Euler Number of Initial Mesh:  "
+           << ((dim==3)?mesh->EulerNumber() :
+               ((dim==2)?mesh->EulerNumber2D() :
+                mesh->GetNV() - mesh->GetNE())) << endl;
+
+   vector<int> v2v(mesh->GetNV());
+
+   Vector vd(sdim);
+
+   for (int i = 0; i < mesh->GetNV(); i++)
+   {
+      Vector vi(mesh->GetVertex(i), sdim);
+
+      v2v[i] = -1;
+
+      for (int j = 0; j < i; j++)
+      {
+         Vector vj(mesh->GetVertex(j), sdim);
+         add(vi, -1.0, vj, vd);
+
+         if ( vd.Norml2() < tol )
+         {
+            v2v[i] = j;
+            break;
+         }
+      }
+      if ( v2v[i] < 0 ) { v2v[i] = i; }
+   }
+
+   // renumber elements
+   for (int i = 0; i < mesh->GetNE(); i++)
+   {
+      Element *el = mesh->GetElement(i);
+      int *v = el->GetVertices();
+      int nv = el->GetNVertices();
+      for (int j = 0; j < nv; j++)
+      {
+         v[j] = v2v[v[j]];
+      }
+   }
+   // renumber boundary elements
+   for (int i = 0; i < mesh->GetNBE(); i++)
+   {
+      Element *el = mesh->GetBdrElement(i);
+      int *v = el->GetVertices();
+      int nv = el->GetNVertices();
+      for (int j = 0; j < nv; j++)
+      {
+         v[j] = v2v[v[j]];
+      }
+   }
+
+   mesh->RemoveUnusedVertices();
+
+   if ( logging > 0 )
+   {
+      cout << "Euler Number of Final Mesh:    "
+           << ((dim==3) ? mesh->EulerNumber() :
+               ((dim==2) ? mesh->EulerNumber2D() :
+                mesh->GetNV() - mesh->GetNE()))
+           << endl;
+   }
+}
+
+void AttrToMarker(int max_attr, const Array<int> &attrs, Array<int> &marker)
+{
+   MFEM_ASSERT(attrs.Max() <= max_attr, "Invalid attribute number present.");
+
+   marker.SetSize(max_attr);
+   if (attrs.Size() == 1 && attrs[0] == -1)
+   {
+      marker = 1;
+   }
+   else
+   {
+      marker = 0;
+      for (int j=0; j<attrs.Size(); j++)
+      {
+         int attr = attrs[j];
+         MFEM_VERIFY(attr > 0, "Attribute number less than one!");
+         marker[attr-1] = 1;
+      }
+   }
+}
+
+} // namespace common
 
 } // namespace mfem

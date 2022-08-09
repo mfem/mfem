@@ -19,43 +19,44 @@ using namespace std;
 namespace mfem
 {
 
-namespace miniapps
+namespace common
 {
 
-double ComputeVolume(ParMesh &pmesh, int ir_order)
+double ComputeVolume(const ParMesh &pmesh, int ir_order)
 {
-   double loc_vol = ComputeVolume(dynamic_cast<Mesh&>(pmesh), ir_order);
+   double loc_vol = ComputeVolume(dynamic_cast<const Mesh&>(pmesh), ir_order);
    double glb_vol = 0.0;
    MPI_Allreduce(&loc_vol, &glb_vol, 1, MPI_DOUBLE, MPI_SUM, pmesh.GetComm());
    return glb_vol;
 }
 
-double ComputeSurfaceArea(ParMesh &pmesh, int ir_order)
+double ComputeSurfaceArea(const ParMesh &pmesh, int ir_order)
 {
-   double loc_area = ComputeSurfaceArea(dynamic_cast<Mesh&>(pmesh), ir_order);
+   double loc_area = ComputeSurfaceArea(dynamic_cast<const Mesh&>(pmesh),
+					ir_order);
    double glb_area = 0.0;
    MPI_Allreduce(&loc_area, &glb_area, 1, MPI_DOUBLE, MPI_SUM, pmesh.GetComm());
    return glb_area;
 }
 
-double ComputeZerothMoment(ParMesh &pmesh, Coefficient &rho,
+double ComputeZerothMoment(const ParMesh &pmesh, Coefficient &rho,
                            int ir_order)
 {
-   double loc_mom = ComputeZerothMoment(dynamic_cast<Mesh&>(pmesh),
+   double loc_mom = ComputeZerothMoment(dynamic_cast<const Mesh&>(pmesh),
                                         rho, ir_order);
    double glb_mom = 0.0;
    MPI_Allreduce(&loc_mom, &glb_mom, 1, MPI_DOUBLE, MPI_SUM, pmesh.GetComm());
    return glb_mom;
 }
 
-double ComputeFirstMoment(ParMesh &pmesh, Coefficient &rho,
+double ComputeFirstMoment(const ParMesh &pmesh, Coefficient &rho,
                           int ir_order, Vector &mom)
 {
    int sdim = pmesh.SpaceDimension();
    mom.SetSize(sdim);
    double loc_mom_data[3];
    Vector loc_mom(loc_mom_data, sdim);
-   double loc_mom0 = ComputeFirstMoment(dynamic_cast<Mesh&>(pmesh),
+   double loc_mom0 = ComputeFirstMoment(dynamic_cast<const Mesh&>(pmesh),
                                         rho, ir_order, loc_mom);
    double glb_mom0 = 0.0;
    MPI_Allreduce(&loc_mom0, &glb_mom0, 1, MPI_DOUBLE, MPI_SUM, pmesh.GetComm());
@@ -64,7 +65,7 @@ double ComputeFirstMoment(ParMesh &pmesh, Coefficient &rho,
    return glb_mom0;
 }
 
-double ComputeSecondMoment(ParMesh &pmesh, Coefficient &rho,
+double ComputeSecondMoment(const ParMesh &pmesh, Coefficient &rho,
                            const Vector &center,
                            int ir_order, DenseMatrix &mom)
 {
@@ -72,7 +73,7 @@ double ComputeSecondMoment(ParMesh &pmesh, Coefficient &rho,
    mom.SetSize(sdim);
    double loc_mom_data[9];
    DenseMatrix loc_mom(loc_mom_data, sdim, sdim);
-   double loc_mom0 = ComputeSecondMoment(dynamic_cast<Mesh&>(pmesh),
+   double loc_mom0 = ComputeSecondMoment(dynamic_cast<const Mesh&>(pmesh),
                                          rho, center, ir_order, loc_mom);
    double glb_mom0 = 0.0;
    MPI_Allreduce(&loc_mom0, &glb_mom0, 1, MPI_DOUBLE, MPI_SUM, pmesh.GetComm());
@@ -81,7 +82,7 @@ double ComputeSecondMoment(ParMesh &pmesh, Coefficient &rho,
    return glb_mom0;
 }
 
-} // namespace miniapps
+} // namespace common
 
 } // namespace mfem
 

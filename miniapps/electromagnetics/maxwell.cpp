@@ -1,13 +1,13 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 //
 //    ------------------------------------------------------------------
 //    Maxwell Miniapp:  Simple Full-Wave Electromagnetic Simulation Code
@@ -80,7 +80,7 @@
 
 using namespace std;
 using namespace mfem;
-using namespace mfem::miniapps;
+using namespace mfem::common;
 using namespace mfem::electromagnetics;
 
 // Permittivity Function
@@ -108,7 +108,7 @@ void dipole_pulse(const Vector &x, double t, Vector &j);
 void j_src(const Vector &x, double t, Vector &j) { dipole_pulse(x, t, j); }
 
 // dE/dt Boundary Condition: The following function returns zero but any time
-// depenent function could be used.
+// dependent function could be used.
 void dEdtBCFunc(const Vector &x, double t, Vector &E);
 
 // The following functions return zero but they could be modified to set initial
@@ -126,9 +126,10 @@ void display_banner(ostream & os);
 
 int main(int argc, char *argv[])
 {
-   MPI_Session mpi(argc, argv);
+   Mpi::Init();
+   Hypre::Init();
 
-   if ( mpi.Root() ) { display_banner(cout); }
+   if ( Mpi::Root() ) { display_banner(cout); }
 
    // Parse command-line options.
    const char *mesh_file = "../../data/ball-nurbs.mesh";
@@ -189,13 +190,13 @@ int main(int argc, char *argv[])
    args.Parse();
    if (!args.Good())
    {
-      if (mpi.Root())
+      if (Mpi::Root())
       {
          args.PrintUsage(cout);
       }
       return 1;
    }
-   if (mpi.Root())
+   if (Mpi::Root())
    {
       args.PrintOptions(cout);
    }
@@ -207,7 +208,7 @@ int main(int argc, char *argv[])
    ifstream imesh(mesh_file);
    if (!imesh)
    {
-      if (mpi.Root())
+      if (Mpi::Root())
       {
          cerr << "\nCan not open mesh file: " << mesh_file << '\n' << endl;
       }
@@ -266,7 +267,7 @@ int main(int argc, char *argv[])
 
    // Compute the energy of the initial fields
    double energy = Maxwell.GetEnergy();
-   if ( mpi.Root() )
+   if ( Mpi::Root() )
    {
       cout << "Energy(" << ti << "ns):  " << energy << "J" << endl;
    }
@@ -279,14 +280,14 @@ int main(int argc, char *argv[])
    tf *= tScale_;
    ts *= tScale_;
 
-   if ( mpi.Root() )
+   if ( Mpi::Root() )
    {
       cout << "Maximum Time Step:     " << dtmax / tScale_ << "ns" << endl;
    }
 
    // Round down the time step so that tf-ti is an integer multiple of dt
    int nsteps = SnapTimeStep(tf-ti, dtsf * dtmax, dt);
-   if ( mpi.Root() )
+   if ( Mpi::Root() )
    {
       cout << "Number of Time Steps:  " << nsteps << endl;
       cout << "Time Step Size:        " << dt / tScale_ << "ns" << endl;
@@ -336,7 +337,7 @@ int main(int argc, char *argv[])
 
       // Approximate the current energy if the fields
       energy = Maxwell.GetEnergy();
-      if ( mpi.Root() )
+      if ( Mpi::Root() )
       {
          cout << "Energy(" << t/tScale_ << "ns):  " << energy << "J" << endl;
       }
@@ -433,7 +434,7 @@ double conductive_sphere(const Vector &x)
 }
 
 // A cylindrical rod of current density.  The rod has two axis end points, a
-// radus, a current amplitude in Amperes, a center time, and a width.  All of
+// radius, a current amplitude in Amperes, a center time, and a width.  All of
 // these parameters are stored in dp_params_.
 void dipole_pulse(const Vector &x, double t, Vector &j)
 {
@@ -478,7 +479,7 @@ void dipole_pulse(const Vector &x, double t, Vector &j)
       j = v;
    }
 
-   j *= a * (t - b) * exp(-0.5 * pow((t-b)/c, 2)) / (c * c);
+   j *= a * (t - b) * exp(-0.5 * pow((t-b)/c, 2.0)) / (c * c);
 }
 
 void
@@ -507,7 +508,7 @@ SnapTimeStep(double tmax, double dtmax, double & dt)
 {
    double dsteps = tmax/dtmax;
 
-   int nsteps = pow(10,(int)ceil(log10(dsteps)));
+   int nsteps = static_cast<int>(pow(10,(int)ceil(log10(dsteps))));
 
    for (int i=1; i<=5; i++)
    {

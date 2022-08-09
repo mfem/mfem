@@ -19,28 +19,30 @@
 namespace mfem
 {
 
-namespace miniapps
+namespace common
 {
 
-double ComputeVolume(ParMesh &pmesh, int ir_order);
-double ComputeSurfaceArea(ParMesh &pmesh, int ir_order);
+double ComputeVolume(const ParMesh &pmesh, int ir_order);
+double ComputeSurfaceArea(const ParMesh &pmesh, int ir_order);
 
-double ComputeZerothMoment(ParMesh &pmesh, Coefficient &rho,
+double ComputeZerothMoment(const ParMesh &pmesh, Coefficient &rho,
                            int ir_order);
-double ComputeFirstMoment(ParMesh &pmesh, Coefficient &rho,
+double ComputeFirstMoment(const ParMesh &pmesh, Coefficient &rho,
                           int ir_order, Vector &mom);
-double ComputeSecondMoment(ParMesh &pmesh, Coefficient &rho,
+double ComputeSecondMoment(const ParMesh &pmesh, Coefficient &rho,
                            const Vector &center,
                            int ir_order, DenseMatrix &mom);
 
-inline void ComputeNormalizedFirstMoment(ParMesh &pmesh, Coefficient &rho,
+inline void ComputeNormalizedFirstMoment(const ParMesh &pmesh,
+					 Coefficient &rho,
                                          int ir_order, Vector &mom)
 {
    double mom0 = ComputeFirstMoment(pmesh, rho, ir_order, mom);
    mom /= mom0;
 }
 
-inline void ComputeNormalizedSecondMoment(ParMesh &pmesh, Coefficient &rho,
+inline void ComputeNormalizedSecondMoment(const ParMesh &pmesh,
+					  Coefficient &rho,
                                           const Vector &center,
                                           int ir_order, DenseMatrix &mom)
 {
@@ -48,7 +50,7 @@ inline void ComputeNormalizedSecondMoment(ParMesh &pmesh, Coefficient &rho,
    mom *= 1.0 / mom0;
 }
 
-} // namespace miniapps
+} // namespace common
 
 } // namespace mfem
 

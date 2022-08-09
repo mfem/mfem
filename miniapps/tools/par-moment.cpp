@@ -6,7 +6,7 @@
 
 using namespace std;
 using namespace mfem;
-using namespace mfem::miniapps;
+using namespace mfem::common;
 
 static int prob_ = -1;
 

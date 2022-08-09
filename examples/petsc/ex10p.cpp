@@ -27,8 +27,11 @@
 //               method HyperelasticOperator::ImplicitSolve is the only
 //               requirement for high-order implicit (SDIRK) time integration.
 //               If using PETSc to solve the nonlinear problem, use the option
-//               file provided (rc_ex10p) that customizes the
-//               Newton-Krylov method.
+//               files provided (see rc_ex10p, rc_ex10p_mf, rc_ex10p_mfop) that
+//               customize the Newton-Krylov method.
+//               When option --jfnk is used, PETSc will use a Jacobian-free
+//               Newton-Krylov method, using a user-defined preconditioner
+//               constructed with the PetscPreconditionerFactory class.
 //
 //               We recommend viewing examples 2 and 9 before viewing this
 //               example.
@@ -86,12 +89,15 @@ protected:
    Solver *J_solver;
    /// Preconditioner for the Jacobian solve in the Newton method
    Solver *J_prec;
+   /// Preconditioner factory for JFNK
+   PetscPreconditionerFactory *J_factory;
 
    mutable Vector z; // auxiliary vector
 
 public:
    HyperelasticOperator(ParFiniteElementSpace &f, Array<int> &ess_bdr,
-                        double visc, double mu, double K, bool use_petsc);
+                        double visc, double mu, double K,
+                        bool use_petsc, bool petsc_use_jfnk);
 
    /// Compute the right-hand side of the ODE system.
    virtual void Mult(const Vector &vx, Vector &dvx_dt) const;
@@ -136,8 +142,21 @@ public:
    virtual Operator &GetGradient(const Vector &k) const;
 
    virtual ~ReducedSystemOperator();
+
 };
 
+/** Auxiliary class to provide preconditioners for matrix-free methods */
+class PreconditionerFactory : public PetscPreconditionerFactory
+{
+private:
+   // const ReducedSystemOperator& op; // unused for now (generates warning)
+
+public:
+   PreconditionerFactory(const ReducedSystemOperator& op_, const string& name_)
+      : PetscPreconditionerFactory(name_) /* , op(op_) */ {}
+   virtual mfem::Solver* NewPreconditioner(const mfem::OperatorHandle&);
+   virtual ~PreconditionerFactory() {}
+};
 
 /** Function representing the elastic energy density for the given hyperelastic
     model+deformation. Used in HyperelasticOperator::GetElasticEnergyDensity. */
@@ -159,18 +178,18 @@ void InitialDeformation(const Vector &x, Vector &y);
 
 void InitialVelocity(const Vector &x, Vector &v);
 
-void visualize(ostream &out, ParMesh *mesh, ParGridFunction *deformed_nodes,
+void visualize(ostream &os, ParMesh *mesh, ParGridFunction *deformed_nodes,
                ParGridFunction *field, const char *field_name = NULL,
                bool init_vis = false);
 
 
 int main(int argc, char *argv[])
 {
-   // 1. Initialize MPI.
-   int num_procs, myid;
-   MPI_Init(&argc, &argv);
-   MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
-   MPI_Comm_rank(MPI_COMM_WORLD, &myid);
+   // 1. Initialize MPI and HYPRE.
+   Mpi::Init(argc, argv);
+   int num_procs = Mpi::WorldSize();
+   int myid = Mpi::WorldRank();
+   Hypre::Init();
 
    // 2. Parse command-line options.
    const char *mesh_file = "../../data/beam-quad.mesh";
@@ -187,6 +206,7 @@ int main(int argc, char *argv[])
    int vis_steps = 1;
    bool use_petsc = true;
    const char *petscrc_file = "";
+   bool petsc_use_jfnk = false;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -221,6 +241,9 @@ int main(int argc, char *argv[])
                   "Use or not PETSc to solve the nonlinear system.");
    args.AddOption(&petscrc_file, "-petscopts", "--petscopts",
                   "PetscOptions file to use.");
+   args.AddOption(&petsc_use_jfnk, "-jfnk", "--jfnk", "-no-jfnk",
+                  "--no-jfnk",
+                  "Use JFNK with user-defined preconditioner factory.");
    args.Parse();
    if (!args.Good())
    {
@@ -228,7 +251,6 @@ int main(int argc, char *argv[])
       {
          args.PrintUsage(cout);
       }
-      MPI_Finalize();
       return 1;
    }
    if (myid == 0)
@@ -272,7 +294,6 @@ int main(int argc, char *argv[])
          {
             cout << "Unknown ODE solver type: " << ode_solver_type << '\n';
          }
-         MPI_Finalize();
          return 3;
    }
 
@@ -303,7 +324,7 @@ int main(int argc, char *argv[])
    H1_FECollection fe_coll(order, dim);
    ParFiniteElementSpace fespace(pmesh, &fe_coll, dim);
 
-   HYPRE_Int glob_size = fespace.GlobalTrueVSize();
+   HYPRE_BigInt glob_size = fespace.GlobalTrueVSize();
    if (myid == 0)
    {
       cout << "Number of velocity/deformation unknowns: " << glob_size << endl;
@@ -344,7 +365,8 @@ int main(int argc, char *argv[])
    // 9. Initialize the hyperelastic operator, the GLVis visualization and print
    //    the initial energies.
    HyperelasticOperator *oper = new HyperelasticOperator(fespace, ess_bdr, visc,
-                                                         mu, K, use_petsc);
+                                                         mu, K, use_petsc,
+                                                         petsc_use_jfnk);
 
    socketstream vis_v, vis_w;
    if (visualization)
@@ -448,15 +470,13 @@ int main(int argc, char *argv[])
    // We finalize PETSc
    if (use_petsc) { MFEMFinalizePetsc(); }
 
-   MPI_Finalize();
-
    return 0;
 }
 
-void visualize(ostream &out, ParMesh *mesh, ParGridFunction *deformed_nodes,
+void visualize(ostream &os, ParMesh *mesh, ParGridFunction *deformed_nodes,
                ParGridFunction *field, const char *field_name, bool init_vis)
 {
-   if (!out)
+   if (!os)
    {
       return;
    }
@@ -466,25 +486,25 @@ void visualize(ostream &out, ParMesh *mesh, ParGridFunction *deformed_nodes,
 
    mesh->SwapNodes(nodes, owns_nodes);
 
-   out << "parallel " << mesh->GetNRanks() << " " << mesh->GetMyRank() << "\n";
-   out << "solution\n" << *mesh << *field;
+   os << "parallel " << mesh->GetNRanks() << " " << mesh->GetMyRank() << "\n";
+   os << "solution\n" << *mesh << *field;
 
    mesh->SwapNodes(nodes, owns_nodes);
 
    if (init_vis)
    {
-      out << "window_size 800 800\n";
-      out << "window_title '" << field_name << "'\n";
+      os << "window_size 800 800\n";
+      os << "window_title '" << field_name << "'\n";
       if (mesh->SpaceDimension() == 2)
       {
-         out << "view 0 0\n"; // view from top
-         out << "keys jl\n";  // turn off perspective and light
+         os << "view 0 0\n"; // view from top
+         os << "keys jl\n";  // turn off perspective and light
       }
-      out << "keys cm\n";         // show colorbar and mesh
-      out << "autoscale value\n"; // update value-range; keep mesh-extents fixed
-      out << "pause\n";
+      os << "keys cm\n";         // show colorbar and mesh
+      os << "autoscale value\n"; // update value-range; keep mesh-extents fixed
+      os << "pause\n";
    }
-   out << flush;
+   os << flush;
 }
 
 
@@ -520,7 +540,7 @@ Operator &ReducedSystemOperator::GetGradient(const Vector &k) const
    add(*v, dt, k, w);
    add(*x, dt, w, z);
    localJ->Add(dt*dt, H->GetLocalGradient(z));
-   // if we are using PETSc, the HypreParCSR jacobian will be converted to
+   // if we are using PETSc, the HypreParCSR Jacobian will be converted to
    // PETSc's AIJ on the fly
    Jacobian = M->ParallelAssemble(localJ);
    delete localJ;
@@ -537,7 +557,8 @@ ReducedSystemOperator::~ReducedSystemOperator()
 
 HyperelasticOperator::HyperelasticOperator(ParFiniteElementSpace &f,
                                            Array<int> &ess_bdr, double visc,
-                                           double mu, double K, bool use_petsc)
+                                           double mu, double K, bool use_petsc,
+                                           bool use_petsc_factory)
    : TimeDependentOperator(2*f.TrueVSize(), 0.0), fespace(f),
      M(&fespace), S(&fespace), H(&fespace),
      viscosity(visc), M_solver(f.GetComm()),
@@ -590,6 +611,8 @@ HyperelasticOperator::HyperelasticOperator(ParFiniteElementSpace &f,
       J_minres->SetPreconditioner(*J_prec);
       J_solver = J_minres;
 
+      J_factory = NULL;
+
       newton_solver.iterative_mode = false;
       newton_solver.SetSolver(*J_solver);
       newton_solver.SetOperator(*reduced_oper);
@@ -600,12 +623,20 @@ HyperelasticOperator::HyperelasticOperator(ParFiniteElementSpace &f,
    }
    else
    {
-      // if using PETSc, we create the same solver (NEWTON+MINRES+Jacobi)
+      // if using PETSc, we create the same solver (Newton + MINRES + Jacobi)
       // by command line options (see rc_ex10p)
       J_solver = NULL;
       J_prec = NULL;
+      J_factory = NULL;
       pnewton_solver = new PetscNonlinearSolver(f.GetComm(),
                                                 *reduced_oper);
+
+      // we can setup a factory to construct a "physics-based" preconditioner
+      if (use_petsc_factory)
+      {
+         J_factory = new PreconditionerFactory(*reduced_oper, "JFNK preconditioner");
+         pnewton_solver->SetPreconditionerFactory(J_factory);
+      }
       pnewton_solver->SetPrintLevel(1); // print Newton iterations
       pnewton_solver->SetRelTol(rel_tol);
       pnewton_solver->SetAbsTol(0.0);
@@ -691,12 +722,26 @@ HyperelasticOperator::~HyperelasticOperator()
 {
    delete J_solver;
    delete J_prec;
+   delete J_factory;
    delete reduced_oper;
    delete model;
    delete Mmat;
    delete pnewton_solver;
 }
 
+// This method gets called every time we need a preconditioner "oh"
+// contains the PetscParMatrix that wraps the operator constructed in
+// the GetGradient() method (see also PetscSolver::SetJacobianType()).
+// In this example, we just return a customizable PetscPreconditioner
+// using that matrix. However, the OperatorHandle argument can be
+// ignored, and any "physics-based" solver can be constructed since we
+// have access to the HyperElasticOperator class.
+Solver* PreconditionerFactory::NewPreconditioner(const mfem::OperatorHandle& oh)
+{
+   PetscParMatrix *pP;
+   oh.Get(pP);
+   return new PetscPreconditioner(*pP,"jfnk_");
+}
 
 double ElasticEnergyCoefficient::Eval(ElementTransformation &T,
                                       const IntegrationPoint &ip)
@@ -710,8 +755,8 @@ double ElasticEnergyCoefficient::Eval(ElementTransformation &T,
 
 void InitialDeformation(const Vector &x, Vector &y)
 {
-   // set the initial configuration to be the same as the reference, stress
-   // free, configuration
+   // set the initial configuration to be the same as the reference,
+   // stress free, configuration
    y = x;
 }
 
