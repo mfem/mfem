@@ -10,17 +10,23 @@
 
 Version 4.4.1 (development)
 ===========================
-- Added WhiteGaussianNoiseDomainLFIntegrator: a LinearFormIntegrator class for
-  spatial Gaussian white noise.
 
-- Added a new Zienkiewicz-Zhu patch recovery-based a posteriori error estimator.
-  See fem/estimators.hpp.
+Meshing improvements
+--------------------
+- Added support for mixed meshes and pyramids in GSLIB-FindPoints.
 
-- Added support for ParMoonolith, https://bitbucket.org/zulianp/par_moonolith,
-  which provides parallel non-conforming, non-matching, variational, volumetric
-  mesh information transfer. With ParMortarAssember, fields can be exchanged
-  between arbitrarily distributed and unrelated finite element meshes in a
-  variationally consistent way.
+Discretization improvements
+---------------------------
+- Added support for assembling low-order-refined matrices using a GPU-enabled
+  "batched" algorithm. The lor_solvers and plor_solvers now fully support GPU
+  acceleration.
+
+- Added support for partial assembly and fully matrix-free operators on mixed
+  meshes (different element types and p-adaptivity) through libCEED, including
+  device acceleration, e.g. with NVIDIA and AMD GPUs. The p-adaptivity is
+  currently limited by MFEM capabilities, i.e. 2D serial meshes. All mixed
+  element topologies are supported in serial and parallel: segment, triangle,
+  square, tetrahedron, cube, prism, and pyramid.
 
 - Added full assembly and device support for several LinearForm integrators:
   * DomainLF: (f, v)
@@ -28,18 +34,59 @@ Version 4.4.1 (development)
   * DomainLFGrad: (f, grad(v))
   * VectorDomainLFGrad: ((f1x,f1y,f1z,...,fnx,fny,fnz), grad(v1,...,vn))
 
+- Added WhiteGaussianNoiseDomainLFIntegrator: a LinearFormIntegrator class for
+  spatial Gaussian white noise.
+
+- Added a new Zienkiewicz-Zhu patch recovery-based a posteriori error estimator.
+  See fem/estimators.hpp.
+
+Linear and nonlinear solvers
+----------------------------
+
+New and updated examples and miniapps
+-------------------------------------
+- Added a new elasticity miniapp, Hooke, that showcases a low-level approach of
+  using MFEM to solve a nonlinear elasticity problem based on the fundamental
+  finite element operator decomposition. The miniapp also integrates with
+  automatic differentiation tools like a native dual number implementation or a
+  third party library such as Enzyme. See miniapps/elasticity for more details.
+
 - Add a new example code, Example 33/33p, to demonstrate the solution of
   spectral fractional PDEs with MFEM.
 
-- Added a Dockerfile for a simple MFEM container, see config/docker/README.md
+Integrations, testing and documentation
+---------------------------------------
+- Added a Dockerfile for a simple MFEM container, see config/docker/README.md.
 
-- Added support for assembling low-order-refined matrices using a GPU-enabled
-  "batched" algorithm. The lor_solvers and plor_solvers now fully support GPU
-  acceleration.
+- Added support for ParMoonolith, https://bitbucket.org/zulianp/par_moonolith,
+  which provides parallel non-conforming, non-matching, variational, volumetric
+  mesh information transfer. With ParMortarAssember, fields can be exchanged
+  between arbitrarily distributed and unrelated finite element meshes in a
+  variationally consistent way.
+
+- Added support for the LLVM-based automatic differentiation tool Enzyme, see
+  https://github.com/EnzymeAD/Enzyme. Build system flags and a convenience
+  header are provided. The functionality and interaction are demonstrated in a
+  new miniapp in miniapps/elasticity.
+
+- Added example for body-fitted volumetric and shape integration using the
+  Algoim library.
 
 - Added Windows 2022 CI testing with GitHub actions.
 
-- Added support for mixed meshes and pyramids in GSLIB-FindPoints.
+Miscellaneous
+-------------
+- Various other simplifications, extensions, and bugfixes in the code.
+
+
+- Added boundary elimination with device support for `SparseMatrix` and
+  `HypreParMatrix`.
+  
+- When using `AssemblyLevel::FULL`, `FABilinearFormExtension::FormSystemMatrix`
+  outputs an `OperatorHandle` containing a `SparseMatrix` in serial, and an
+  `HypreParMatrix` in parallel (instead of a `ConstrainedOperator`).
+
+- Added TMOP metrics for mesh untangling and worst-case quality improvement.
 
 Version 4.4, released on March 21, 2022
 =======================================
@@ -71,6 +118,11 @@ Meshing improvements
 
 - Added a simpler interface to access mesh face information, see FaceInformation
   and GetFaceInformation in the Mesh class.
+
+- Added the method ParMesh::GetSerialMesh() that reconstructs a partitioned
+  parallel mesh on a given single rank. Also, added the method
+  ParMesh::PrintAsSerial() that saves the reconstructed serial mesh to a C++
+  stream on rank 0.
 
 - Gmsh meshes where all elements have zero physical tag (the default Gmsh output
   format if no physical groups are defined) are now successfully loaded, and
@@ -173,6 +225,13 @@ Miscellaneous
   QuadratureFunction::SaveVTU and ParaViewDataCollection::RegisterQField.
 
 - Fixed several MinGW build issues on Windows.
+
+- In various places in the library, replace the use of 'long' with 'long long'
+  to better support Win64 builds where 'long' is 32-bit and 'long long' is
+  64-bit. On Linux and MacOS, both types are typically 64-bit.
+
+- Update various "MemoryUsage" methods to return 'std::size_t' instead of 'long'
+  since the latter is 32-bit in Win64 builds.
 
 - Added 'double' atomicAdd implementation for previous versions of CUDA.
 
