@@ -194,9 +194,9 @@ protected:
 
 public:
    // W = |J|^2.
-    virtual double EvalW(const DenseMatrix &Jpt) const { return 0.0; };
+   virtual double EvalW(const DenseMatrix &Jpt) const { return 0.0; };
 
-    virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const {P=0.0;};
+   virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const {P=0.0;};
 
    virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
                           const double weight, DenseMatrix &A) const {A=0.0;};

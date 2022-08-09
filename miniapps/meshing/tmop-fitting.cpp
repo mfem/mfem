@@ -598,19 +598,21 @@ int main (int argc, char *argv[])
                   "Surface fitting with PA is not implemented yet.");
 
       surf_fit_gf0.ProjectCoefficient(*ls_coeff);
-//      surf_fit_gf0 *= -1;
+      //      surf_fit_gf0 *= -1;
       if (surf_bg_mesh)
       {
          OptimizeMeshWithAMRAroundZeroLevelSet(*pmesh_surf_fit_bg, *ls_coeff, amr_iters,
                                                *surf_fit_bg_gf0);
          surf_fit_bg_gf0_prim = new ParGridFunction(surf_fit_bg_fes);
          surf_fit_bg_gf0_prim->ProjectCoefficient(*ls_coeff);
-         if (comp_dist) {
-             ComputeScalarDistanceFromLevelSet(*pmesh_surf_fit_bg, *ls_coeff,
-                                               *surf_fit_bg_gf0);
+         if (comp_dist)
+         {
+            ComputeScalarDistanceFromLevelSet(*pmesh_surf_fit_bg, *ls_coeff,
+                                              *surf_fit_bg_gf0);
          }
-         else {
-             surf_fit_bg_gf0->ProjectCoefficient(*ls_coeff);
+         else
+         {
+            surf_fit_bg_gf0->ProjectCoefficient(*ls_coeff);
          }
 
 
@@ -620,26 +622,26 @@ int main (int argc, char *argv[])
          surf_fit_bg_grad = new ParGridFunction(surf_fit_bg_grad_fes);
          if (smooth_dist)
          {
-             for (int d = 0; d < pmesh_surf_fit_bg->Dimension(); d++)
-             {
-                ParGridFunction surf_fit_bg_grad_comp(surf_fit_bg_fes,
-                                                      surf_fit_bg_grad->GetData()+d*surf_fit_bg_gf0->Size());
-                surf_fit_bg_gf0->GetDerivative(1, d, surf_fit_bg_grad_comp);
-             }
+            for (int d = 0; d < pmesh_surf_fit_bg->Dimension(); d++)
+            {
+               ParGridFunction surf_fit_bg_grad_comp(surf_fit_bg_fes,
+                                                     surf_fit_bg_grad->GetData()+d*surf_fit_bg_gf0->Size());
+               surf_fit_bg_gf0->GetDerivative(1, d, surf_fit_bg_grad_comp);
+            }
 
-             for (int i = 0; i < surf_fit_bg_gf0->Size(); i++)
-             {
-                double denominator = pow((*surf_fit_bg_gf0)(i), 2.0) +
-                                     pow((*surf_fit_bg_grad)(i), 2.0) +
-                                     pow((*surf_fit_bg_grad)(i+surf_fit_bg_gf0->Size()), 2.0);
-                (*surf_fit_bg_gf0)(i) = (*surf_fit_bg_gf0)(i)/std::pow(denominator, 0.5);
-             }
+            for (int i = 0; i < surf_fit_bg_gf0->Size(); i++)
+            {
+               double denominator = pow((*surf_fit_bg_gf0)(i), 2.0) +
+                                    pow((*surf_fit_bg_grad)(i), 2.0) +
+                                    pow((*surf_fit_bg_grad)(i+surf_fit_bg_gf0->Size()), 2.0);
+               (*surf_fit_bg_gf0)(i) = (*surf_fit_bg_gf0)(i)/std::pow(denominator, 0.5);
+            }
          }
 
-//         surf_fit_bg_grad_fes = new ParFiniteElementSpace(pmesh_surf_fit_bg,
-//                                                          surf_fit_bg_fec,
-//                                                          pmesh_surf_fit_bg->Dimension());
-//         surf_fit_bg_grad = new ParGridFunction(surf_fit_bg_grad_fes);
+         //         surf_fit_bg_grad_fes = new ParFiniteElementSpace(pmesh_surf_fit_bg,
+         //                                                          surf_fit_bg_fec,
+         //                                                          pmesh_surf_fit_bg->Dimension());
+         //         surf_fit_bg_grad = new ParGridFunction(surf_fit_bg_grad_fes);
          surf_fit_grad_fes = new ParFiniteElementSpace(pmesh, &surf_fit_fec,
                                                        pmesh->Dimension());
          surf_fit_grad = new ParGridFunction(surf_fit_grad_fes);
@@ -682,28 +684,30 @@ int main (int argc, char *argv[])
       if (visualization)
       {
          socketstream vis1, vis2, vis3, vis4, vis5;
-         common::VisualizeField(vis1, "localhost", 19916, surf_fit_gf0, "un smoothed Level Set 0",
+         common::VisualizeField(vis1, "localhost", 19916, surf_fit_gf0,
+                                "un smoothed Level Set 0",
                                 300, 600, 300, 300);
       }
 
       if (smooth_dist)
       {
-          ParFiniteElementSpace der_fespace(pmesh, surf_fit_fes.FEColl(), pmesh->Dimension());
-          ParGridFunction dist_grad(&der_fespace);
-          for (int d = 0; d < pmesh->Dimension(); d++)
-          {
-              ParGridFunction dist_grad_comp(&surf_fit_fes,
-                                             dist_grad.GetData()+d*surf_fit_gf0.Size());
-              surf_fit_gf0.GetDerivative(1, d, dist_grad_comp);
-          }
+         ParFiniteElementSpace der_fespace(pmesh, surf_fit_fes.FEColl(),
+                                           pmesh->Dimension());
+         ParGridFunction dist_grad(&der_fespace);
+         for (int d = 0; d < pmesh->Dimension(); d++)
+         {
+            ParGridFunction dist_grad_comp(&surf_fit_fes,
+                                           dist_grad.GetData()+d*surf_fit_gf0.Size());
+            surf_fit_gf0.GetDerivative(1, d, dist_grad_comp);
+         }
 
-           for (int i = 0; i < surf_fit_gf0.Size(); i++)
-          {
-             double denominator = surf_fit_gf0(i)*surf_fit_gf0(i) +
-                                  dist_grad(i)*dist_grad(i) +
-                                  dist_grad(i+surf_fit_gf0.Size())*dist_grad(i+surf_fit_gf0.Size());
-             surf_fit_gf0(i) = surf_fit_gf0(i)/std::pow(denominator, 0.5);
-          }
+         for (int i = 0; i < surf_fit_gf0.Size(); i++)
+         {
+            double denominator = surf_fit_gf0(i)*surf_fit_gf0(i) +
+                                 dist_grad(i)*dist_grad(i) +
+                                 dist_grad(i+surf_fit_gf0.Size())*dist_grad(i+surf_fit_gf0.Size());
+            surf_fit_gf0(i) = surf_fit_gf0(i)/std::pow(denominator, 0.5);
+         }
       }
 
       for (int i = 0; i < pmesh->GetNE(); i++)
@@ -757,63 +761,75 @@ int main (int argc, char *argv[])
 
       if (marking_type < 0)
       {
-          mat.ExchangeFaceNbrData();
-          for (int e = 0; e < pmesh->GetNE(); e++) {
-              Array<int> faces, ori;
-              if (pmesh->Dimension() == 2)
-              {
-                 pmesh->GetElementEdges(e, faces, ori);
-              }
-              else
-              {
-                 pmesh->GetElementFaces(e, faces, ori);
-              }
-              int inf1, inf2, *ncface;
-              int elem1, elem2, attr1, attr2;
-              int diff_attr_count = 0;
-              attr1 = mat(e);
-              bool bdr_element = false;
-              for (int f = 0; f < faces.Size(); f++) {
-                  pmesh->GetFaceElements(faces[f], &elem1, &elem2);
-                  if (elem2 >= 0) {
-                      attr2 = elem1 == e ? (int)(mat(elem2)) : (int)(mat(elem1));
-                      if (attr1 != attr2) {
-                          diff_attr_count += 1;
-                      }
+         mat.ExchangeFaceNbrData();
+         for (int e = 0; e < pmesh->GetNE(); e++)
+         {
+            Array<int> faces, ori;
+            if (pmesh->Dimension() == 2)
+            {
+               pmesh->GetElementEdges(e, faces, ori);
+            }
+            else
+            {
+               pmesh->GetElementFaces(e, faces, ori);
+            }
+            int inf1, inf2, *ncface;
+            int elem1, elem2, attr1, attr2;
+            int diff_attr_count = 0;
+            attr1 = mat(e);
+            bool bdr_element = false;
+            for (int f = 0; f < faces.Size(); f++)
+            {
+               pmesh->GetFaceElements(faces[f], &elem1, &elem2);
+               if (elem2 >= 0)
+               {
+                  attr2 = elem1 == e ? (int)(mat(elem2)) : (int)(mat(elem1));
+                  if (attr1 != attr2)
+                  {
+                     diff_attr_count += 1;
                   }
-                  else {
-                      pmesh->GetFaceInfos(faces[f], &inf1, &inf2);
-                      if (inf2 >= 0) {
-                          Vector dof_vals;
-                          Array<int> dofs;
-                          mat.GetElementDofValues(pmesh->GetNE() + (-1-elem2), dof_vals);
-                          attr2 = (int)(dof_vals(0));
-                          if (attr1 != attr2) {
-                              diff_attr_count += 1;
-                          }
-                      }
-                      else {
-                          bdr_element = true;
-                      }
+               }
+               else
+               {
+                  pmesh->GetFaceInfos(faces[f], &inf1, &inf2);
+                  if (inf2 >= 0)
+                  {
+                     Vector dof_vals;
+                     Array<int> dofs;
+                     mat.GetElementDofValues(pmesh->GetNE() + (-1-elem2), dof_vals);
+                     attr2 = (int)(dof_vals(0));
+                     if (attr1 != attr2)
+                     {
+                        diff_attr_count += 1;
+                     }
                   }
-              }
-              Array<int> dofs;
-              surf_fit_fes.GetElementDofs(e, dofs);
-              std::cout << e << " " << diff_attr_count << " " << faces.Size() << " " <<
-                           bdr_element << " k101\n";
-              if (diff_attr_count == faces.Size()-1 && !bdr_element) {
-                  for (int d = 0; d < dofs.Size(); d++) {
-                      surf_fit_marker[dofs[d]] = true;
-                      surf_fit_mat_gf(dofs[d]) = 1.0;
+                  else
+                  {
+                     bdr_element = true;
                   }
-              }
-              else {
-                  for (int d = 0; d < dofs.Size(); d++) {
-                      surf_fit_marker[dofs[d]] = false;
-                      surf_fit_mat_gf(dofs[d]) = 0.0;
-                  }
-              }
-          }
+               }
+            }
+            Array<int> dofs;
+            surf_fit_fes.GetElementDofs(e, dofs);
+            std::cout << e << " " << diff_attr_count << " " << faces.Size() << " " <<
+                      bdr_element << " k101\n";
+            if (diff_attr_count == faces.Size()-1 && !bdr_element)
+            {
+               for (int d = 0; d < dofs.Size(); d++)
+               {
+                  surf_fit_marker[dofs[d]] = true;
+                  surf_fit_mat_gf(dofs[d]) = 1.0;
+               }
+            }
+            else
+            {
+               for (int d = 0; d < dofs.Size(); d++)
+               {
+                  surf_fit_marker[dofs[d]] = false;
+                  surf_fit_mat_gf(dofs[d]) = 0.0;
+               }
+            }
+         }
       }
       else if (marking_type == 0)
       {
@@ -913,12 +929,12 @@ int main (int argc, char *argv[])
 
       if (surf_bg_mesh)
       {
-             VisItDataCollection visit_dc("background", pmesh_surf_fit_bg);
-             visit_dc.RegisterField("level_set_fun", surf_fit_bg_gf0);
-             visit_dc.RegisterField("level_set_fun_prim", surf_fit_bg_gf0_prim);
-             visit_dc.SetFormat(DataCollection::SERIAL_FORMAT);
-             visit_dc.Save();
-       }
+         VisItDataCollection visit_dc("background", pmesh_surf_fit_bg);
+         visit_dc.RegisterField("level_set_fun", surf_fit_bg_gf0);
+         visit_dc.RegisterField("level_set_fun_prim", surf_fit_bg_gf0_prim);
+         visit_dc.SetFormat(DataCollection::SERIAL_FORMAT);
+         visit_dc.Save();
+      }
    }
 
    // 13. Setup the final NonlinearForm (which defines the integral of interest,
@@ -1100,12 +1116,12 @@ int main (int argc, char *argv[])
 
 
    {
-          VisItDataCollection visit_dc("perturbed", pmesh);
-          visit_dc.RegisterField("material", &mat);
-          visit_dc.RegisterField("level_set_fun", &surf_fit_gf0);
-          visit_dc.SetFormat(DataCollection::SERIAL_FORMAT);
-          visit_dc.Save();
-    }
+      VisItDataCollection visit_dc("perturbed", pmesh);
+      visit_dc.RegisterField("material", &mat);
+      visit_dc.RegisterField("level_set_fun", &surf_fit_gf0);
+      visit_dc.SetFormat(DataCollection::SERIAL_FORMAT);
+      visit_dc.Save();
+   }
 
    // Perform the nonlinear optimization.
    const IntegrationRule &ir =
@@ -1152,12 +1168,12 @@ int main (int argc, char *argv[])
    }
 
    {
-          VisItDataCollection visit_dc("optimized", pmesh);
-          visit_dc.RegisterField("material", &mat);
-          visit_dc.RegisterField("level_set_fun", &surf_fit_gf0);
-          visit_dc.SetFormat(DataCollection::SERIAL_FORMAT);
-          visit_dc.Save();
-    }
+      VisItDataCollection visit_dc("optimized", pmesh);
+      visit_dc.RegisterField("material", &mat);
+      visit_dc.RegisterField("level_set_fun", &surf_fit_gf0);
+      visit_dc.SetFormat(DataCollection::SERIAL_FORMAT);
+      visit_dc.Save();
+   }
 
    // Compute the final energy of the functional.
    const double fin_energy = a.GetParGridFunctionEnergy(x);
