@@ -23,7 +23,12 @@ namespace common
 {
 
 double ComputeVolume(const ParMesh &pmesh, int ir_order);
+double ComputeVolume(const ParMesh &mesh, const Array<int> &attr_marker,
+		     int ir_order);
 double ComputeSurfaceArea(const ParMesh &pmesh, int ir_order);
+double ComputeSurfaceArea(const ParMesh &mesh,
+			  const Array<int> &bdr_attr_marker,
+			  int ir_order);
 
 double ComputeZerothMoment(const ParMesh &pmesh, Coefficient &rho,
                            int ir_order);

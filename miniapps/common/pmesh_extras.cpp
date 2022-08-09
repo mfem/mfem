@@ -22,6 +22,16 @@ namespace mfem
 namespace common
 {
 
+double ComputeVolume(const ParMesh &pmesh, const Array<int> &attr_marker,
+		     int ir_order)
+{
+   double loc_vol = ComputeVolume(dynamic_cast<const Mesh&>(pmesh),
+				  attr_marker, ir_order);
+   double glb_vol = 0.0;
+   MPI_Allreduce(&loc_vol, &glb_vol, 1, MPI_DOUBLE, MPI_SUM, pmesh.GetComm());
+   return glb_vol;
+}
+
 double ComputeVolume(const ParMesh &pmesh, int ir_order)
 {
    double loc_vol = ComputeVolume(dynamic_cast<const Mesh&>(pmesh), ir_order);
@@ -34,6 +44,16 @@ double ComputeSurfaceArea(const ParMesh &pmesh, int ir_order)
 {
    double loc_area = ComputeSurfaceArea(dynamic_cast<const Mesh&>(pmesh),
 					ir_order);
+   double glb_area = 0.0;
+   MPI_Allreduce(&loc_area, &glb_area, 1, MPI_DOUBLE, MPI_SUM, pmesh.GetComm());
+   return glb_area;
+}
+
+double ComputeSurfaceArea(const ParMesh &pmesh,
+			  const Array<int> &bdr_attr_marker, int ir_order)
+{
+   double loc_area = ComputeSurfaceArea(dynamic_cast<const Mesh&>(pmesh),
+					bdr_attr_marker, ir_order);
    double glb_area = 0.0;
    MPI_Allreduce(&loc_area, &glb_area, 1, MPI_DOUBLE, MPI_SUM, pmesh.GetComm());
    return glb_area;

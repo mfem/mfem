@@ -161,6 +161,35 @@ double ComputeVolume(const Mesh &mesh, int ir_order)
    return vol;
 }
 
+double ComputeVolume(const Mesh &mesh, const Array<int> &attr_marker,
+		     int ir_order)
+{
+   double vol = 0.0;
+
+   IsoparametricTransformation T;
+   
+   for (int i=0; i<mesh.GetNE(); i++)
+   {
+      int attr = mesh.GetAttribute(i);
+      if (attr_marker[attr-1] == 0) { continue; }
+     
+      const_cast<Mesh&>(mesh).GetElementTransformation(i, &T);
+      Geometry::Type geom = mesh.GetElementBaseGeometry(i);
+      const IntegrationRule *ir = &IntRules.Get(geom, ir_order);
+
+      for (int j = 0; j < ir->GetNPoints(); j++)
+      {
+         const IntegrationPoint &ip = ir->IntPoint(j);
+         T.SetIntPoint(&ip);
+
+         double w = T.Weight() * ip.weight;
+
+         vol += w;
+      }
+   }
+   return vol;
+}
+
 double ComputeSurfaceArea(const Mesh &mesh, int ir_order)
 {
    double area = 0.0;
@@ -170,6 +199,35 @@ double ComputeSurfaceArea(const Mesh &mesh, int ir_order)
    for (int i=0; i<mesh.GetNBE(); i++)
    {
      // ElementTransformation *T = mesh.GetBdrElementTransformation(i);
+      const_cast<Mesh&>(mesh).GetBdrElementTransformation(i, &T);
+      Geometry::Type geom = mesh.GetBdrElementBaseGeometry(i);
+      const IntegrationRule *ir = &IntRules.Get(geom, ir_order);
+
+      for (int j = 0; j < ir->GetNPoints(); j++)
+      {
+         const IntegrationPoint &ip = ir->IntPoint(j);
+         T.SetIntPoint(&ip);
+
+         double w = T.Weight() * ip.weight;
+
+         area += w;
+      }
+   }
+   return area;
+}
+
+double ComputeSurfaceArea(const Mesh &mesh, const Array<int> &bdr_attr_marker,
+			  int ir_order)
+{
+   double area = 0.0;
+
+   IsoparametricTransformation T;
+
+   for (int i=0; i<mesh.GetNBE(); i++)
+   {
+      int attr = mesh.GetBdrAttribute(i);
+      if (bdr_attr_marker[attr-1] == 0) { continue; }
+     
       const_cast<Mesh&>(mesh).GetBdrElementTransformation(i, &T);
       Geometry::Type geom = mesh.GetBdrElementBaseGeometry(i);
       const IntegrationRule *ir = &IntRules.Get(geom, ir_order);
