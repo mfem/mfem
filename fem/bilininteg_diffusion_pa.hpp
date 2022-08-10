@@ -1088,6 +1088,8 @@ static void SmemPADiffusionApply3D(const int NE,
    });
 }
 
+constexpr int ipow(int x, int p) { return p == 0 ? 1 : x*ipow(x, p-1); }
+
 template <int DIM, int D1D, int Q1D>
 void DiffusionIntegrator::AddApplySpecialization()
 {
@@ -1095,11 +1097,8 @@ void DiffusionIntegrator::AddApplySpecialization()
 
    if (DIM == 2)
    {
-      constexpr int NBZ = (D1D <= 2) ? 16 :
-                          (D1D <= 5) ? 8 :
-                          (D1D <= 7) ? 4 :
-                          (D1D <= 9) ? 2 :
-                          1;
+      constexpr int D = (11 - D1D) / 2;
+      constexpr int NBZ = ipow(2, D >= 0 ? D : 0);
       apply_dispatch_table.map[key] = SmemPADiffusionApply2D<D1D, Q1D, NBZ>;
    }
    else if (DIM == 3)
