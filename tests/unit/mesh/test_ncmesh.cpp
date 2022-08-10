@@ -124,6 +124,7 @@ TEST_CASE("NCMesh Refined volume", "[NCMesh]")
                      );
  
       Mesh mesh(mesh_fname, 1, 1);
+      mesh.EnsureNCMesh(true);
       double original_volume = mesh.GetElementVolume(0);
       Array<Refinement> ref(1);
       ref[0].ref_type = Refinement::XYZ; ref[0].index = 0;
