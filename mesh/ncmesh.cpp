@@ -463,8 +463,9 @@ NCMesh::Element::Element(Geometry::Type geom, int attr)
    , rank(0), attribute(attr), parent(-1)
 {
    for (int i = 0; i < MaxElemNodes; i++) { node[i] = -1; }
+   for (int i = 0; i < MaxElemChildren; i++) { child[i] = -1; }
 
-   // NOTE: in 2D the 8-element node/child arrays are not optimal, however,
+   // NOTE: in 2D the 8/10-element node/child arrays are not optimal, however,
    // testing shows we would only save 17% of the total NCMesh memory if
    // 4-element arrays were used (e.g. through templates); we thus prefer to
    // keep the code as simple as possible.
