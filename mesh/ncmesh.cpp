@@ -1510,24 +1510,33 @@ void NCMesh::RefineElement(int elem, char ref_type)
 
       child[0] = NewPyramid(no[0], mid01, midf0, mid03, mid04,
                             attr, fa[0], fa[1], -1, -1, fa[4]);
-      child[1] = NewTetrahedron(mid01, midf0, mid04, mid14,
-                                attr, -1, -1, -1, fa[1]);
-      child[2] = NewPyramid(mid01, no[1], mid12, midf0, mid14,
+  
+      child[1] = NewPyramid(mid01, no[1], mid12, midf0, mid14,
                             attr, fa[0], fa[1], fa[2], -1, -1);
-      child[3] = NewTetrahedron(midf0, mid14, mid12, mid24,
-                                attr, -1, -1, fa[2], -1);
-      child[4] = NewPyramid(midf0, mid12, no[2], mid23, mid24,
+
+      child[2] = NewPyramid(midf0, mid12, no[2], mid23, mid24,
                             attr, fa[0], -1, fa[2], fa[3], -1);
-      child[5] = NewTetrahedron(midf0, mid23, mid34, mid24,
-                                attr, -1, -1, fa[3], -1);
-      child[6] = NewPyramid(mid03, midf0, mid23, no[3], mid34,
+
+      child[3] = NewPyramid(mid03, midf0, mid23, no[3], mid34,
                             attr, fa[0], -1, -1, fa[3], fa[4]);
-      child[7] = NewTetrahedron(mid03, mid04, midf0, mid34,
-                                attr, -1, fa[4], -1, -1);
-      child[8] = NewPyramid(mid24, mid14, mid04, mid34, midf0,
+
+      child[4] = NewPyramid(mid24, mid14, mid04, mid34, midf0,
                             attr, -1, -1, -1, -1, -1);
-      child[9] = NewPyramid(mid04, mid14, mid24, mid34, no[4],
+
+      child[5] = NewPyramid(mid04, mid14, mid24, mid34, no[4],
                             attr, -1, fa[1], fa[2], fa[3], fa[4]);
+
+      child[6] = NewTetrahedron(mid01, midf0, mid04, mid14,
+                                attr, -1, -1, -1, fa[1]);
+
+      child[7] = NewTetrahedron(midf0, mid14, mid12, mid24,
+                                attr, -1, -1, fa[2], -1);
+
+      child[8] = NewTetrahedron(midf0, mid23, mid34, mid24,
+                                attr, -1, -1, fa[3], -1);
+
+      child[9] = NewTetrahedron(mid03, mid04, midf0, mid34,
+                                attr, -1, fa[4], -1, -1);      
 
       CheckIsoFace(no[3], no[2], no[1], no[0], mid23, mid12, mid01, mid03, midf0);
    }
@@ -4361,41 +4370,44 @@ void NCMesh::GetPointMatrix(Geometry::Type geom, const char* ref_path,
          {
             pm = PointMatrix(pm(0), mid01, midf0, mid03, mid04);
          }
-         if (child == 1)   //Tet
-         {
-            pm = PointMatrix(mid01, midf0, mid04, mid14);
-         }
-         if (child == 2)   //Pyramid
+
+         if (child == 1)   //Pyramid
          {
             pm = PointMatrix(mid01, pm(1), mid12, midf0, mid14);
          }
-         if (child == 3)   //Tet
-         {
-            pm = PointMatrix(midf0, mid14, mid12, mid24);
-         }
-         if (child == 4)   //Pyramid
+
+         if (child == 2)   //Pyramid
          {
             pm = PointMatrix(midf0, mid12, pm(2), mid23, mid24);
          }
-         if (child == 5)   //Tet
-         {
-            pm = PointMatrix(midf0, mid23, mid34, mid24);
-         }
-         if (child == 6)   //Pyramid
+
+         if (child == 3)   //Pyramid
          {
             pm = PointMatrix(mid03, midf0, mid23, pm(3), mid34);
          }
-         if (child == 7)   //Tet
-         {
-            pm = PointMatrix(mid03, mid04, midf0, mid34);
-         }
-         if (child == 8)   //Pyramid
+         if (child == 4)   //Pyramid
          {
             pm = PointMatrix(mid24, mid14, mid04, mid34, midf0);
          }
-         if (child == 9)   //Pyramid
+         if (child == 5)   //Pyramid
          {
             pm = PointMatrix(mid04, mid14, mid24, mid34, pm(4));
+         }
+         if (child == 6)   //Tet
+         {
+            pm = PointMatrix(mid01, midf0, mid04, mid14);
+         }
+         if (child == 7)   //Tet
+         {
+            pm = PointMatrix(midf0, mid14, mid12, mid24);
+         }
+         if (child == 8)   //Tet
+         {
+            pm = PointMatrix(midf0, mid23, mid34, mid24);
+         }
+         if (child == 9)   //Tet
+         {
+            pm = PointMatrix(mid03, mid04, midf0, mid34);
          }
       }
       else if (geom == Geometry::TETRAHEDRON)
