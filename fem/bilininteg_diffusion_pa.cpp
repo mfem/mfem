@@ -21,7 +21,7 @@ namespace mfem
 // PA Diffusion Integrator
 
 // define dispatch table static member
-DiffusionIntegrator::DispatchTable DiffusionIntegrator::apply_dispatch_table;
+DiffusionIntegrator::DispatchTable DiffusionIntegrator::dispatch_table;
 
 DiffusionIntegrator::DispatchTable::DispatchTable()
 {
@@ -534,51 +534,6 @@ void DiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
                     geom->J, coeff, pa_data);
 }
 
-static void PADiffusionAssembleDiagonal(const int dim,
-                                        const int D1D,
-                                        const int Q1D,
-                                        const int NE,
-                                        const bool symm,
-                                        const Array<double> &B,
-                                        const Array<double> &G,
-                                        const Vector &D,
-                                        Vector &Y)
-{
-   if (dim == 2)
-   {
-      switch ((D1D << 4 ) | Q1D)
-      {
-         case 0x22: return SmemPADiffusionDiagonal2D<2,2,8>(NE,symm,B,G,D,Y);
-         case 0x33: return SmemPADiffusionDiagonal2D<3,3,8>(NE,symm,B,G,D,Y);
-         case 0x44: return SmemPADiffusionDiagonal2D<4,4,4>(NE,symm,B,G,D,Y);
-         case 0x55: return SmemPADiffusionDiagonal2D<5,5,4>(NE,symm,B,G,D,Y);
-         case 0x66: return SmemPADiffusionDiagonal2D<6,6,2>(NE,symm,B,G,D,Y);
-         case 0x77: return SmemPADiffusionDiagonal2D<7,7,2>(NE,symm,B,G,D,Y);
-         case 0x88: return SmemPADiffusionDiagonal2D<8,8,1>(NE,symm,B,G,D,Y);
-         case 0x99: return SmemPADiffusionDiagonal2D<9,9,1>(NE,symm,B,G,D,Y);
-         default: return PADiffusionDiagonal2D(NE,symm,B,G,D,Y,D1D,Q1D);
-      }
-   }
-   else if (dim == 3)
-   {
-      switch ((D1D << 4 ) | Q1D)
-      {
-         case 0x22: return SmemPADiffusionDiagonal3D<2,2>(NE,symm,B,G,D,Y);
-         case 0x23: return SmemPADiffusionDiagonal3D<2,3>(NE,symm,B,G,D,Y);
-         case 0x34: return SmemPADiffusionDiagonal3D<3,4>(NE,symm,B,G,D,Y);
-         case 0x45: return SmemPADiffusionDiagonal3D<4,5>(NE,symm,B,G,D,Y);
-         case 0x46: return SmemPADiffusionDiagonal3D<4,6>(NE,symm,B,G,D,Y);
-         case 0x56: return SmemPADiffusionDiagonal3D<5,6>(NE,symm,B,G,D,Y);
-         case 0x67: return SmemPADiffusionDiagonal3D<6,7>(NE,symm,B,G,D,Y);
-         case 0x78: return SmemPADiffusionDiagonal3D<7,8>(NE,symm,B,G,D,Y);
-         case 0x89: return SmemPADiffusionDiagonal3D<8,9>(NE,symm,B,G,D,Y);
-         case 0x9A: return SmemPADiffusionDiagonal3D<9,10>(NE,symm,B,G,D,Y);
-         default: return PADiffusionDiagonal3D(NE,symm,B,G,D,Y,D1D,Q1D);
-      }
-   }
-   MFEM_ABORT("Unknown kernel.");
-}
-
 void DiffusionIntegrator::AssembleDiagonalPA(Vector &diag)
 {
    if (DeviceCanUseCeed())
@@ -588,8 +543,33 @@ void DiffusionIntegrator::AssembleDiagonalPA(Vector &diag)
    else
    {
       if (pa_data.Size()==0) { AssemblePA(*fespace); }
-      PADiffusionAssembleDiagonal(dim, dofs1D, quad1D, ne, symmetric,
-                                  maps->B, maps->G, pa_data, diag);
+
+      const int D1D = dofs1D;
+      const int Q1D = quad1D;
+      const int NE = ne;
+      const bool symm = symmetric;
+      const Array<double> &B = maps->B;
+      const Array<double> &G = maps->G;
+      const Vector &Dv = pa_data;
+
+      auto it = dispatch_table.diagonal.find({dim, dofs1D, quad1D});
+      if (it != dispatch_table.diagonal.end())
+      {
+         mfem::out << "Diagonal specialized\n";
+         it->second(NE,symm,B,G,Dv,diag,D1D,Q1D);
+      }
+      else
+      {
+         mfem::out << "Diagonal fallback\n";
+         if (dim == 2)
+         {
+            return PADiffusionDiagonal2D(NE,symm,B,G,Dv,diag,D1D,Q1D);
+         }
+         else if (dim == 3)
+         {
+            return PADiffusionDiagonal3D(NE,symm,B,G,Dv,diag,D1D,Q1D);
+         }
+      }
    }
 }
 
@@ -730,8 +710,8 @@ void DiffusionIntegrator::AddMultPA(const Vector &x, Vector &y) const
       }
 #endif // MFEM_USE_OCCA
 
-      auto it = apply_dispatch_table.map.find({dim, D1D, Q1D});
-      if (it != apply_dispatch_table.map.end())
+      auto it = dispatch_table.apply.find({dim, D1D, Q1D});
+      if (it != dispatch_table.apply.end())
       {
          mfem::out << "Specialized\n";
          return it->second(NE,symm,B,G,Dv,x,y,D1D,Q1D);
