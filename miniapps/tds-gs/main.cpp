@@ -46,6 +46,7 @@
 */
 
 #include "mfem.hpp"
+#include <limits>
 #include <fstream>
 #include <iostream>
 #include <set>
@@ -56,8 +57,16 @@
 using namespace std;
 using namespace mfem;
 
+const int attr_r_eq_0_bdr = 831;
+const int attr_ff_bdr = 900;
+const int attr_lim = 1000;
+const int attr_ext = 2000;
+
 int test();
-void compute_saddle_points(GridFunction & z, Mesh & mesh);
+void compute_plasma_points(const GridFunction & z, const Mesh & mesh,
+                           const map<int, vector<int>> & vertex_map,
+                           int &ind_min, int &ind_max, double &min_val, double & max_val);
+map<int, vector<int>> compute_vertex_map(Mesh & mesh, int with_attrib = -1);
 double one_over_r_mu(const Vector & x, double & mu);
 
 /*
@@ -156,8 +165,13 @@ private:
   const GridFunction *psi;
   PlasmaModel *model;
   int option;
+  double psi_max;
+  double psi_bdp;
 public:
-  NonlinearGridCoefficient(PlasmaModel *pm, int option_, const GridFunction *psi_) : model(pm), option(option_), psi(psi_) { }
+  NonlinearGridCoefficient(PlasmaModel *pm, int option_, const GridFunction *psi_,
+                           double & psi_max_, double & psi_bdp_) :
+    model(pm), option(option_), psi(psi_),
+    psi_max(psi_max_), psi_bdp(psi_bdp_) { }
   virtual double Eval(ElementTransformation &T, const IntegrationPoint &ip);
   virtual ~NonlinearGridCoefficient() { }
 };
@@ -176,8 +190,18 @@ private:
   LinearForm *coil_term;
   PlasmaModel *model;
   FiniteElementSpace *fespace;
+  Mesh *mesh;
+  map<int, vector<int>> vertex_map;
+  mutable SparseMatrix *Mat;
 public:
-  SysOperator(BilinearForm *diff_operator_, LinearForm *coil_term_, PlasmaModel *model_, FiniteElementSpace *fespace_) : diff_operator(diff_operator_), coil_term(coil_term_), model(model_), fespace(fespace_) {}
+  SysOperator(BilinearForm *diff_operator_, LinearForm *coil_term_,
+              PlasmaModel *model_, FiniteElementSpace *fespace_,
+              Mesh *mesh_) :
+    diff_operator(diff_operator_), coil_term(coil_term_),
+    model(model_), fespace(fespace_),
+    mesh(mesh_), Mat(NULL) {
+    vertex_map = compute_vertex_map(*mesh, attr_lim);
+  }
   virtual void Mult(const Vector &psi, Vector &y) const;
   virtual Operator &GetGradient(const Vector &psi) const;
   virtual ~SysOperator() { };
@@ -201,10 +225,6 @@ int main(int argc, char *argv[])
    // boundary of far-field
    double rho_gamma = 2.5;
 
-   const int attr_r_eq_0_bdr = 831;
-   const int attr_ff_bdr = 900;
-   const int attr_lim = 1000;
-   const int attr_ext = 2000;
    map<int, double> coil_current_values;
    // 832 is the long current
    coil_current_values[832] = 0.0;
@@ -303,9 +323,10 @@ int main(int argc, char *argv[])
 
    // now we have an initial guess: x
 
-   SysOperator op(&diff_operator, &coil_term, &model, &fespace);
+   SysOperator op(&diff_operator, &coil_term, &model, &fespace, &mesh);
    LinearForm out_vec(&fespace);
    op.Mult(x, out_vec);
+   op.GetGradient(x);
    
    // // now that we have solution, we can define nonlinear RHS terms
    // // plasma term
@@ -351,7 +372,6 @@ int main(int argc, char *argv[])
      Test vertex to vertex mapping...
     */
 
-   compute_saddle_points(z, mesh);
 
    return 0;
 
@@ -399,6 +419,12 @@ double NonlinearGridCoefficient::Eval(ElementTransformation & T,
   double psi_val;
   Mesh *gf_mesh = psi->FESpace()->GetMesh();
   int Component = 1;
+
+  // check that we are in the limiter region
+  if (T.Attribute != attr_lim) {
+    return 0.0;
+  }
+
   if (T.mesh == gf_mesh)
     {
       psi_val = psi->GetValue(T, ip, Component);
@@ -406,31 +432,36 @@ double NonlinearGridCoefficient::Eval(ElementTransformation & T,
   else
     {
       cout << "problem!!!" << endl;
-      // IntegrationPoint coarse_ip;
-      // ElementTransformation *coarse_T = RefinedToCoarse(*gf_mesh, T, ip, coarse_ip);
-      // psi_val = psi->GetValue(*coarse_T, coarse_ip, Component);
       psi_val = 1.0;
     }
 
    double x_[3];
    Vector x(x_, 3);
    T.Transform(ip, x);
-
    double ri(x(0));
-   // todo, need to compute these
-   double psi_max = 1.0;
-   double psi_bdp = 0.0;
    double psi_N = normalized_psi(psi_val, psi_max, psi_bdp);
 
+   // const int *v = gf_mesh->GetElement(T.ElementNo)->GetVertices();
+   // if ((v[0] == 201) || (v[1] == 201) || (v[2] == 201)) {
+   //   printf("element %d, int point %d, x %.6f, y %.6f\n", T.ElementNo, ip.index, x(0), x(1));
+   // }
+
+   // TODO:
+   // plasma model in only one region
+   // get phi(x_max) and phi(x_sp) here
+   
    if (option == 1) {
      return ri * (model->S_p_prime(psi_N)) + (model->S_ff_prime(psi_N)) / (model->get_mu() * ri);
    } else {
      double coeff = 1.0;
      if (option == 2) {
+       // coefficient for phi
        coeff = 1.0 / (psi_bdp - psi_max);
      } else if (option == 3) {
+       // coefficient for phi_max
        coeff = - (1 - psi_N) / (psi_bdp - psi_max);
      } else if (option == 4) {
+       // coefficient for phi_min
        coeff = - psi_N / (psi_bdp - psi_max);
      }
      
@@ -528,35 +559,68 @@ double TestCoefficient::Eval(ElementTransformation & T,
 }
 
 
-void compute_saddle_points(GridFunction & z, Mesh & mesh) {
+map<int, vector<int>> compute_vertex_map(Mesh & mesh, int with_attrib) {
+  // get map between vertices and neighboring vertices
+  map<int, vector<int>> vertex_map;
+  for (int i = 0; i < mesh.GetNE(); i++) {
+    const int *v = mesh.GetElement(i)->GetVertices();
+    const int ne = mesh.GetElement(i)->GetNEdges();
+    const int attrib = mesh.GetElement(i)->GetAttribute();
+
+    if ((with_attrib == -1) || (attrib == with_attrib)) {
+      for (int j = 0; j < ne; j++) {
+        const int *e = mesh.GetElement(i)->GetEdgeVertices(j);
+        vertex_map[v[e[0]]].push_back(v[e[1]]);
+      }
+    }
+  }
+  return vertex_map;
+}
+
+void compute_plasma_points(const GridFunction & z, const Mesh & mesh,
+                           const map<int, vector<int>> & vertex_map,
+                           int &ind_min, int &ind_max, double &min_val, double & max_val) {
 
    Vector nval;
    z.GetNodalValues(nval);
 
-   // get map between vertices and neighboring vertices
-   map<int, vector<int>> vertex_map;
-   for (int i = 0; i < mesh.GetNE(); i++) {
-     const int *v = mesh.GetElement(i)->GetVertices();
-     const int ne = mesh.GetElement(i)->GetNEdges();
-     for (int j = 0; j < ne; j++) {
-       const int *e = mesh.GetElement(i)->GetEdgeVertices(j);
-       vertex_map[v[e[0]]].push_back(v[e[1]]);
-     }
-   }
+   min_val = + numeric_limits<double>::infinity();
+   max_val = - numeric_limits<double>::infinity();
+   ind_min = 0;
+   ind_max = 0;
 
    int count = 0;
    // loop through vertices and check neighboring vertices to see if we found a saddle point
    for(int iv = 0; iv < mesh.GetNV(); ++iv) {
-     vector<int> adjacent = vertex_map[iv];
+
+     // ensure point is in vertex map
+     vector<int> adjacent;
+     try {
+       adjacent = vertex_map.at(iv);
+     } catch (...) {
+       continue;
+     }
+
+     // min/max checker
+     if (nval[iv] < min_val) {
+       min_val = nval[iv];
+       ind_min = iv;
+     }
+     if (nval[iv] > max_val) {
+       max_val = nval[iv];
+       ind_max = iv;
+     }
+     
+     // saddle point checker
      int j = 0;
-     double* x0 = mesh.GetVertex(iv);
-     double* a = mesh.GetVertex(adjacent[j]);
+     const double* x0 = mesh.GetVertex(iv);
+     const double* a = mesh.GetVertex(adjacent[j]);
 
      map<double, double> clock;
      set<double> ordered_angs;
      for (j = 0; j < adjacent.size(); ++j) {
-       int jv = adjacent[j];
-       double* b = mesh.GetVertex(jv);
+       const int jv = adjacent[j];
+       const double* b = mesh.GetVertex(jv);
        double diff = nval[jv] - nval[iv];
        // cout << b[0] << ", " << b[1] << endl;
 
@@ -588,11 +652,19 @@ void compute_saddle_points(GridFunction & z, Mesh & mesh) {
      if (sign_changes >= 4) {
        printf("Found saddle at (%9.6f, %9.6f)\n", x0[0], x0[1]);
        ++count;
-     }
+     } 
  
    }
 
    cout << "total saddles: " << count << endl;
+
+   const double* x_min = mesh.GetVertex(ind_min);
+   printf("min of %9.6f at (%9.6f, %9.6f), ind %d\n", min_val, x_min[0], x_min[1], ind_min);
+   const double* x_max = mesh.GetVertex(ind_max);
+   printf("min of %9.6f at (%9.6f, %9.6f), ind %d\n", max_val, x_max[0], x_max[1], ind_max);
+   
+   // magnetic axis: max
+   // x point: either closest saddle point or min
 
    
 }
@@ -603,7 +675,10 @@ void SysOperator::Mult(const Vector &psi, Vector &y) const {
 
   GridFunction x(fespace);
   x = psi;
-  NonlinearGridCoefficient nlgcoeff1(model, 1, &x);
+  int ind_min, ind_max;
+  double min_val, max_val;
+  compute_plasma_points(x, *mesh, vertex_map, ind_min, ind_max, min_val, max_val);
+  NonlinearGridCoefficient nlgcoeff1(model, 1, &x, min_val, max_val);
   LinearForm plasma_term(fespace);
   plasma_term.AddDomainIntegrator(new DomainLFIntegrator(nlgcoeff1));
   plasma_term.Assemble();
@@ -615,6 +690,73 @@ void SysOperator::Mult(const Vector &psi, Vector &y) const {
 
 Operator &SysOperator::GetGradient(const Vector &psi) const {
   // diff_operator - sum_{i=1}^3 diff_plasma_term_i(psi)
-  // TODO
-   return *diff_operator;
+  // mask
+
+  // make the matrix mutable!
+
+  delete Mat;
+  GridFunction x(fespace);
+  x = psi;
+
+  int ind_min, ind_max;
+  double min_val, max_val;
+  compute_plasma_points(x, *mesh, vertex_map, ind_min, ind_max, min_val, max_val);
+ 
+  NonlinearGridCoefficient nlgcoeff_2(model, 2, &x, max_val, min_val);
+  BilinearForm diff_plasma_term_2(fespace);
+  diff_plasma_term_2.AddDomainIntegrator(new MassIntegrator(nlgcoeff_2));
+  diff_plasma_term_2.Assemble();
+
+  NonlinearGridCoefficient nlgcoeff_3(model, 3, &x, max_val, min_val);
+  LinearForm diff_plasma_term_3(fespace);
+  diff_plasma_term_3.AddDomainIntegrator(new DomainLFIntegrator(nlgcoeff_3));
+  diff_plasma_term_3.Assemble();
+
+  NonlinearGridCoefficient nlgcoeff_4(model, 4, &x, max_val, min_val);
+  LinearForm diff_plasma_term_4(fespace);
+  diff_plasma_term_4.AddDomainIntegrator(new DomainLFIntegrator(nlgcoeff_4));
+  diff_plasma_term_4.Assemble();
+
+  const SparseMatrix M1 = diff_operator->SpMat();
+  SparseMatrix M2 = diff_plasma_term_2.SpMat();
+  M2.Finalize();
+  
+  int m = fespace->GetTrueVSize();
+  Mat = new SparseMatrix(m, m);
+  for (int k = 0; k < m; ++k) {
+    Mat->Add(k, ind_max, diff_plasma_term_3[k]);
+    Mat->Add(k, ind_min, diff_plasma_term_4[k]);
+  }
+
+  int height;
+  const auto II1 = M1.ReadI();
+  const auto JJ1 = M1.ReadJ();
+  const auto AA1 = M1.ReadData();
+  height = M1.Height();
+  for (int i = 0; i < height; ++i) {
+    const int begin1 = II1[i];
+    const int end1 = II1[i+1];
+    
+    int j;
+    for (j = begin1; j < end1; j++) {
+      Mat->Add(i, JJ1[j], AA1[j]);
+    }
+  }
+  const auto II2 = M2.ReadI();
+  const auto JJ2 = M2.ReadJ();
+  const auto AA2 = M2.ReadData();
+  
+  height = M2.Height();
+  for (int i = 0; i < height; ++i) {
+    const int begin2 = II2[i];
+    const int end2 = II2[i+1];
+
+    int j;
+    for (j = begin2; j < end2; j++) {
+      Mat->Add(i, JJ2[j], AA2[j]);
+    }
+  }  
+  Mat->Finalize();
+  
+  return *Mat;
 }
