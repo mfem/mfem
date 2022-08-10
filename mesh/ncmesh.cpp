@@ -1510,7 +1510,7 @@ void NCMesh::RefineElement(int elem, char ref_type)
 
       child[0] = NewPyramid(no[0], mid01, midf0, mid03, mid04,
                             attr, fa[0], fa[1], -1, -1, fa[4]);
-  
+
       child[1] = NewPyramid(mid01, no[1], mid12, midf0, mid14,
                             attr, fa[0], fa[1], fa[2], -1, -1);
 
@@ -1536,7 +1536,7 @@ void NCMesh::RefineElement(int elem, char ref_type)
                                 attr, -1, -1, fa[3], -1);
 
       child[9] = NewTetrahedron(mid03, mid04, midf0, mid34,
-                                attr, -1, fa[4], -1, -1);      
+                                attr, -1, fa[4], -1, -1);
 
       CheckIsoFace(no[3], no[2], no[1], no[0], mid23, mid12, mid01, mid03, midf0);
    }
