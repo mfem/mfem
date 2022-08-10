@@ -1093,17 +1093,18 @@ constexpr int ipow(int x, int p) { return p == 0 ? 1 : x*ipow(x, p-1); }
 template <int DIM, int D1D, int Q1D>
 void DiffusionIntegrator::AddApplySpecialization()
 {
-   DispatchKey key = {DIM, D1D, Q1D};
-
+   constexpr DispatchKey key = {DIM, D1D, Q1D};
    if (DIM == 2)
    {
       constexpr int D = (11 - D1D) / 2;
       constexpr int NBZ = ipow(2, D >= 0 ? D : 0);
-      apply_dispatch_table.map[key] = SmemPADiffusionApply2D<D1D, Q1D, NBZ>;
+      dispatch_table.apply[key] = SmemPADiffusionApply2D<D1D, Q1D, NBZ>;
+      dispatch_table.diagonal[key] = SmemPADiffusionDiagonal2D<D1D, Q1D, NBZ/2>;
    }
    else if (DIM == 3)
    {
-      apply_dispatch_table.map[key] = SmemPADiffusionApply3D<D1D, Q1D>;
+      dispatch_table.apply[key] = SmemPADiffusionApply3D<D1D, Q1D>;
+      dispatch_table.diagonal[key] = SmemPADiffusionDiagonal3D<D1D, Q1D>;
    }
 }
 

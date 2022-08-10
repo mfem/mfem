@@ -2104,6 +2104,15 @@ private:
                                const int d1d,
                                const int q1d);
 
+   using DiagonalKernel = void(*)(const int NE,
+                                  const bool symmetric,
+                                  const Array<double> &b_,
+                                  const Array<double> &g_,
+                                  const Vector &d_,
+                                  Vector &y_,
+                                  const int d1d,
+                                  const int q1d);
+
    struct DispatchKey
    {
       const int dim, d1d, q1d;
@@ -2122,10 +2131,11 @@ private:
    };
    struct DispatchTable
    {
-      std::unordered_map<DispatchKey, ApplyKernel, DispatchKeyHash> map;
+      std::unordered_map<DispatchKey, ApplyKernel, DispatchKeyHash> apply;
+      std::unordered_map<DispatchKey, DiagonalKernel, DispatchKeyHash> diagonal;
       DispatchTable();
    };
-   static DispatchTable apply_dispatch_table;
+   static DispatchTable dispatch_table;
 
 public:
    /// Construct a diffusion integrator with coefficient Q = 1

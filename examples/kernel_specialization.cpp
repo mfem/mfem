@@ -35,12 +35,16 @@ int main(int argc, char *argv[])
    Array<int> ess_dofs;
    fespace.GetBoundaryTrueDofs(ess_dofs);
 
+   Vector diag(fespace.GetTrueVSize());
+
    OperatorPtr A;
    a.FormSystemMatrix(ess_dofs, A);
    A->Mult(X, B);
+   a.AssembleDiagonal(diag);
 
    DiffusionIntegrator::AddApplySpecialization<2,2,3>();
    A->Mult(X, B);
+   a.AssembleDiagonal(diag);
 
    return 0;
 }
