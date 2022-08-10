@@ -2094,6 +2094,39 @@ private:
    Vector pa_data;
    bool symmetric = true; ///< False if using a nonsymmetric matrix coefficient
 
+   using ApplyKernel = void(*)(const int NE,
+                               const bool symmetric,
+                               const Array<double> &b_,
+                               const Array<double> &g_,
+                               const Vector &d_,
+                               const Vector &x_,
+                               Vector &y_,
+                               const int d1d,
+                               const int q1d);
+
+   struct DispatchKey
+   {
+      const int dim, d1d, q1d;
+      bool operator==(const DispatchKey &k) const
+      {
+         return (dim == k.dim) && (d1d == k.d1d) && (q1d == k.q1d);
+      }
+   };
+   struct DispatchKeyHash
+   {
+      std::hash<int> h;
+      std::size_t operator()(const DispatchKey &k) const
+      {
+         return h(k.dim + 4*k.d1d + 4*32*k.q1d);
+      }
+   };
+   struct DispatchTable
+   {
+      std::unordered_map<DispatchKey, ApplyKernel, DispatchKeyHash> map;
+      DispatchTable();
+   };
+   static DispatchTable apply_dispatch_table;
+
 public:
    /// Construct a diffusion integrator with coefficient Q = 1
    DiffusionIntegrator(const IntegrationRule *ir = nullptr)
@@ -2169,6 +2202,9 @@ public:
    bool SupportsCeed() const { return DeviceCanUseCeed(); }
 
    Coefficient *GetCoefficient() const { return Q; }
+
+   template <int DIM, int D1D, int Q1D>
+   static void AddApplySpecialization();
 };
 
 /** Class for local mass matrix assembling a(u,v) := (Q u, v) */
