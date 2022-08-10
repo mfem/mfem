@@ -1095,7 +1095,12 @@ void DiffusionIntegrator::AddApplySpecialization()
 
    if (DIM == 2)
    {
-      apply_dispatch_table.map[key] = SmemPADiffusionApply2D<D1D, Q1D>;
+      constexpr int NBZ = (D1D <= 2) ? 16 :
+                          (D1D <= 5) ? 8 :
+                          (D1D <= 7) ? 4 :
+                          (D1D <= 9) ? 2 :
+                          1;
+      apply_dispatch_table.map[key] = SmemPADiffusionApply2D<D1D, Q1D, NBZ>;
    }
    else if (DIM == 3)
    {
