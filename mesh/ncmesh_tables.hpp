@@ -19,6 +19,10 @@ const int ref_type_num_children[8] = { 0, 2, 2, 4, 2, 4, 4, 8 };
 
 
 // derefinement tables
+// The first n numbers in each line are the refined elements that contain 
+// the vertices of the parent element.  The next m numbers in each line
+// are the refined elements that contain the faces attributes of the parent
+// element.
 
 const int quad_deref_table[3][4 + 4] =
 {
@@ -57,7 +61,7 @@ const int pyramid_deref_table[7][5 + 5] =
    {-1,-1,-1,-1,-1, /**/ -1,-1,-1,-1,-1 }, // 4
    {-1,-1,-1,-1,-1, /**/ -1,-1,-1,-1,-1 }, // 5
    {-1,-1,-1,-1,-1, /**/ -1,-1,-1,-1,-1 }, // 6
-   { 0, 2, 4, 6, 9, /**/  0, 9, 9, 9, 9 }  // 7 - iso
+   { 0, 1, 2, 3, 5, /**/  0, 5, 5, 5, 5 }  // 7 - iso
 };
 
 // child ordering tables
