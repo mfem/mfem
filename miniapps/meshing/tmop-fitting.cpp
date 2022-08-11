@@ -51,6 +51,7 @@
 // mpirun -np 6 tmop-fitting -m square01.mesh -o 2 -rs 3 -mid 2 -tid 1 -vl 2 -sfc 100 -rtol 1e-12 -ni 100 -ae 1 -bnd -sbgmesh -slstype 3 -smtype 0 -sfa 10.0 -sft 1e-4 -amriter 5 -dist
 
 // make tmop-fitting;mpirun -np 6 tmop-fitting -m cube.mesh -o 3 -rs 2 -mid 303 -tid 1 -ni 100 -vl 2 -sfc 100 -rtol 1e-20 -st 0 -sfa 10.0 -sft 1e-10  -split
+// mpirun -np 6 tmop-fitting -m square01-tri.mesh -o 1 -rs 4 -mid 58 -tid 1 -ni 200 -vl 1 -sfc 10 -rtol 1e-5 -smtype 0 -slstype 3 -sbgmesh -amriter 4 -ae 1 -dist -sfa 10
 
 #include "mfem.hpp"
 #include "../common/mfem-common.hpp"
@@ -73,7 +74,6 @@ int main (int argc, char *argv[])
    int mesh_poly_deg     = 1;
    int rs_levels         = 0;
    int rp_levels         = 0;
-   double jitter         = 0.0;
    int metric_id         = 1;
    int target_id         = 1;
    double surface_fit_const = 0.0;
@@ -88,11 +88,8 @@ int main (int argc, char *argv[])
    bool move_bnd         = true;
    bool visualization    = true;
    int verbosity_level   = 0;
-   bool fdscheme         = false;
    int adapt_eval        = 0;
-   bool exactaction      = false;
    const char *devopt    = "cpu";
-   bool pa               = false;
    double surface_fit_adapt = 0.0;
    double surface_fit_threshold = -10;
    bool adapt_marking     = false;
@@ -117,8 +114,6 @@ int main (int argc, char *argv[])
                   "Number of times to refine the mesh uniformly in serial.");
    args.AddOption(&rp_levels, "-rp", "--refine-parallel",
                   "Number of times to refine the mesh uniformly in parallel.");
-   args.AddOption(&jitter, "-ji", "--jitter",
-                  "Random perturbation scaling factor.");
    args.AddOption(&metric_id, "-mid", "--metric-id",
                   "Mesh optimization metric:\n\t"
                   "T-metrics\n\t"
@@ -192,12 +187,6 @@ int main (int argc, char *argv[])
    args.AddOption(&move_bnd, "-bnd", "--move-boundary", "-fix-bnd",
                   "--fix-boundary",
                   "Enable motion along horizontal and vertical boundaries.");
-   args.AddOption(&fdscheme, "-fd", "--fd_approximation",
-                  "-no-fd", "--no-fd-approx",
-                  "Enable finite difference based derivative computations.");
-   args.AddOption(&exactaction, "-ex", "--exact_action",
-                  "-no-ex", "--no-exact-action",
-                  "Enable exact action of TMOP_Integrator.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -207,8 +196,6 @@ int main (int argc, char *argv[])
                   "0 - Advection based (DEFAULT), 1 - GSLIB.");
    args.AddOption(&devopt, "-d", "--device",
                   "Device configuration string, see Device::Configure().");
-   args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
-                  "--no-partial-assembly", "Enable Partial Assembly.");
    args.AddOption(&surface_fit_adapt, "-sfa", "--adaptive-surface-fit",
                   "Enable or disable adaptive surface fitting.");
    args.AddOption(&surface_fit_threshold, "-sft", "--surf-fit-threshold",
@@ -273,25 +260,9 @@ int main (int argc, char *argv[])
    {
       ls_coeff = new FunctionCoefficient(reactor);
    }
-   else if (surf_ls_type == 4) // donut
-   {
-      ls_coeff = new FunctionCoefficient(donut_level_set);
-   }
-   else if (surf_ls_type == 5) // linear
-   {
-      ls_coeff = new FunctionCoefficient(linear_level_set);
-   }
    else if (surf_ls_type == 6) // 3D shape
    {
       ls_coeff = new FunctionCoefficient(object_three);
-   }
-   else if (surf_ls_type == 7) // 3D shape
-   {
-      ls_coeff = new FunctionCoefficient(squircle_with_hole);
-   }
-   else if (surf_ls_type == 8) // 3D shape
-   {
-      ls_coeff = new FunctionCoefficient(sine_level_set);
    }
    else
    {
@@ -309,7 +280,6 @@ int main (int argc, char *argv[])
 
    ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
    delete mesh;
-   pmesh->ExchangeFaceNbrData();
 
    for (int lev = 0; lev < rp_levels; lev++)
    {
@@ -323,13 +293,14 @@ int main (int argc, char *argv[])
       Mesh *mesh_surf_fit_bg = NULL;
       if (dim == 2)
       {
-         mesh_surf_fit_bg =  new Mesh("../../data/inline-quad.mesh", 1, 1, false);
+         mesh_surf_fit_bg = new Mesh(Mesh::MakeCartesian2D(4, 4, Element::QUADRILATERAL,
+                                                           true));
       }
       else if (dim == 3)
       {
-         mesh_surf_fit_bg =  new Mesh("../../data/inline-hex.mesh", 1, 1, false);
+         mesh_surf_fit_bg = new Mesh(Mesh::MakeCartesian3D(4, 4, 4, Element::HEXAHEDRON,
+                                                           true));
       }
-      //for (int lev = 0; lev < 5; lev++) { mesh_surf_fit_bg->UniformRefinement(); }
       mesh_surf_fit_bg->EnsureNCMesh();
       pmesh_surf_fit_bg = new ParMesh(MPI_COMM_WORLD, *mesh_surf_fit_bg);
       delete mesh_surf_fit_bg;
@@ -362,61 +333,7 @@ int main (int argc, char *argv[])
    //    changing x automatically changes the shapes of the mesh elements.
    ParGridFunction x(pfespace);
    pmesh->SetNodalGridFunction(&x);
-
-   // 8. Define a vector representing the minimal local mesh size in the mesh
-   //    nodes. We index the nodes using the scalar version of the degrees of
-   //    freedom in pfespace. Note: this is partition-dependent.
-   //
-   //    In addition, compute average mesh size and total volume.
-   Vector h0(pfespace->GetNDofs());
-   h0 = infinity();
-   double vol_loc = 0.0;
-   Array<int> dofs;
-   for (int i = 0; i < pmesh->GetNE(); i++)
-   {
-      // Get the local scalar element degrees of freedom in dofs.
-      pfespace->GetElementDofs(i, dofs);
-      // Adjust the value of h0 in dofs based on the local mesh size.
-      const double hi = pmesh->GetElementSize(i);
-      for (int j = 0; j < dofs.Size(); j++)
-      {
-         h0(dofs[j]) = min(h0(dofs[j]), hi);
-      }
-      vol_loc += pmesh->GetElementVolume(i);
-   }
-   double vol_glb;
-   MPI_Allreduce(&vol_loc, &vol_glb, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
-
-   // 9. Add a random perturbation to the nodes in the interior of the domain.
-   //    We define a random grid function of fespace and make sure that it is
-   //    zero on the boundary and its values are locally of the order of h0.
-   //    The latter is based on the DofToVDof() method which maps the scalar to
-   //    the vector degrees of freedom in pfespace.
-   ParGridFunction rdm(pfespace);
-   rdm.Randomize();
-   rdm -= 0.25; // Shift to random values in [-0.5,0.5].
-   rdm *= jitter;
-   rdm.HostReadWrite();
-   // Scale the random values to be of order of the local mesh size.
-   for (int i = 0; i < pfespace->GetNDofs(); i++)
-   {
-      for (int d = 0; d < dim; d++)
-      {
-         rdm(pfespace->DofToVDof(i,d)) *= h0(i);
-      }
-   }
-   Array<int> vdofs;
-   for (int i = 0; i < pfespace->GetNBE(); i++)
-   {
-      // Get the vector degrees of freedom in the boundary element.
-      pfespace->GetBdrElementVDofs(i, vdofs);
-      // Set the boundary values to zero.
-      for (int j = 0; j < vdofs.Size(); j++) { rdm(vdofs[j]) = 0.0; }
-   }
-   x -= rdm;
-   // Set the perturbation of all nodes from the true nodes.
    x.SetTrueVector();
-   x.SetFromTrueVector();
 
    // 10. Save the starting (prior to the optimization) mesh to a file. This
    //     output can be viewed later using GLVis: "glvis -m perturbed -np
@@ -441,25 +358,12 @@ int main (int argc, char *argv[])
       // T-metrics
       case 1: metric = new TMOP_Metric_001; break;
       case 2: metric = new TMOP_Metric_002; break;
-      case 7: metric = new TMOP_Metric_007; break;
-      case 9: metric = new TMOP_Metric_009; break;
-      case 14: metric = new TMOP_Metric_014; break;
-      case 22: metric = new TMOP_Metric_022(tauval); break;
-      case 50: metric = new TMOP_Metric_050; break;
       case 55: metric = new TMOP_Metric_055; break;
-      case 56: metric = new TMOP_Metric_056; break;
       case 58: metric = new TMOP_Metric_058; break;
-      case 77: metric = new TMOP_Metric_077; break;
       case 80: metric = new TMOP_Metric_080(0.5); break;
-      case 85: metric = new TMOP_Metric_085; break;
-      case 98: metric = new TMOP_Metric_098; break;
-      // case 211: metric = new TMOP_Metric_211; break;
-      // case 252: metric = new TMOP_Metric_252(tauval); break;
       case 301: metric = new TMOP_Metric_301; break;
       case 302: metric = new TMOP_Metric_302; break;
       case 303: metric = new TMOP_Metric_303; break;
-      // case 311: metric = new TMOP_Metric_311; break;
-      case 313: metric = new TMOP_Metric_313(tauval); break;
       case 315: metric = new TMOP_Metric_315; break;
       case 316: metric = new TMOP_Metric_316; break;
       case 321: metric = new TMOP_Metric_321; break;
@@ -467,12 +371,6 @@ int main (int argc, char *argv[])
       case 332: metric = new TMOP_Metric_332(0.5); break;
       case 333: metric = new TMOP_Metric_333(0.5); break;
       case 334: metric = new TMOP_Metric_334(0.5); break;
-      // case 352: metric = new TMOP_Metric_352(tauval); break;
-      // A-metrics
-      case 11: metric = new TMOP_AMetric_011; break;
-      case 36: metric = new TMOP_AMetric_036; break;
-      case 107: metric = new TMOP_AMetric_107a; break;
-      case 126: metric = new TMOP_AMetric_126(0.9); break;
       default:
          if (myid == 0) { cout << "Unknown metric_id: " << metric_id << endl; }
          return 3;
@@ -489,7 +387,6 @@ int main (int argc, char *argv[])
 
    TargetConstructor::TargetType target_t;
    TargetConstructor *target_c = NULL;
-
    switch (target_id)
    {
       case 1: target_t = TargetConstructor::IDEAL_SHAPE_UNIT_SIZE; break;
@@ -507,14 +404,6 @@ int main (int argc, char *argv[])
    }
    target_c->SetNodes(x0);
    TMOP_Integrator *tmop_integ = new TMOP_Integrator(metric, target_c);
-
-   // Finite differences for computations of derivatives.
-   if (fdscheme)
-   {
-      MFEM_VERIFY(pa == false, "PA for finite differences is not implemented.");
-      tmop_integ->EnableFiniteDifferences(x);
-   }
-   tmop_integ->SetExactActionFlag(exactaction);
 
    // Setup the quadrature rules for the TMOP integrator.
    IntegrationRules *irules = NULL;
@@ -546,6 +435,7 @@ int main (int argc, char *argv[])
    }
 
    // Modify boundary attribute for surface node movement
+   // Sets attributes of a boundary element to 1/2/3 if it is parallel to x/y/z.
    if (mod_bndr_attr)
    {
       ModifyBoundaryAttributesForNodeMovement(pmesh, x);
@@ -572,39 +462,34 @@ int main (int argc, char *argv[])
    H1_FECollection *surf_fit_bg_fec = NULL;
    ParFiniteElementSpace *surf_fit_bg_fes = NULL;
    ParGridFunction *surf_fit_bg_gf0 = NULL;
-   ParGridFunction *surf_fit_bg_gf0_prim = NULL;
    ParFiniteElementSpace *surf_fit_bg_grad_fes = NULL;
    ParGridFunction *surf_fit_bg_grad = NULL;
-   ParFiniteElementSpace *surf_fit_grad_fes = NULL;
-   ParGridFunction *surf_fit_grad = NULL;
    ParFiniteElementSpace *surf_fit_bg_hess_fes = NULL;
    ParGridFunction *surf_fit_bg_hess = NULL;
+
+   // If a background mesh is used, we interpolate the Gradient and Hessian
+   // from that mesh to the current mesh being optimized.
+   ParFiniteElementSpace *surf_fit_grad_fes = NULL;
+   ParGridFunction *surf_fit_grad = NULL;
    ParFiniteElementSpace *surf_fit_hess_fes = NULL;
    ParGridFunction *surf_fit_hess = NULL;
+
    if (surf_bg_mesh)
    {
       pmesh_surf_fit_bg->SetCurvature(mesh_poly_deg);
-
       surf_fit_bg_fec = new H1_FECollection(mesh_poly_deg+1, dim);
       surf_fit_bg_fes = new ParFiniteElementSpace(pmesh_surf_fit_bg, surf_fit_bg_fec);
       surf_fit_bg_gf0 = new ParGridFunction(surf_fit_bg_fes);
    }
 
-   bool smooth_dist = false;
-
+   Array<int> vdofs;
    if (surface_fit_const > 0.0)
    {
-      MFEM_VERIFY(pa == false,
-                  "Surface fitting with PA is not implemented yet.");
-
       surf_fit_gf0.ProjectCoefficient(*ls_coeff);
-      //      surf_fit_gf0 *= -1;
       if (surf_bg_mesh)
       {
          OptimizeMeshWithAMRAroundZeroLevelSet(*pmesh_surf_fit_bg, *ls_coeff, amr_iters,
                                                *surf_fit_bg_gf0);
-         surf_fit_bg_gf0_prim = new ParGridFunction(surf_fit_bg_fes);
-         surf_fit_bg_gf0_prim->ProjectCoefficient(*ls_coeff);
          if (comp_dist)
          {
             ComputeScalarDistanceFromLevelSet(*pmesh_surf_fit_bg, *ls_coeff,
@@ -620,28 +505,7 @@ int main (int argc, char *argv[])
                                                           surf_fit_bg_fec,
                                                           pmesh_surf_fit_bg->Dimension());
          surf_fit_bg_grad = new ParGridFunction(surf_fit_bg_grad_fes);
-         if (smooth_dist)
-         {
-            for (int d = 0; d < pmesh_surf_fit_bg->Dimension(); d++)
-            {
-               ParGridFunction surf_fit_bg_grad_comp(surf_fit_bg_fes,
-                                                     surf_fit_bg_grad->GetData()+d*surf_fit_bg_gf0->Size());
-               surf_fit_bg_gf0->GetDerivative(1, d, surf_fit_bg_grad_comp);
-            }
 
-            for (int i = 0; i < surf_fit_bg_gf0->Size(); i++)
-            {
-               double denominator = pow((*surf_fit_bg_gf0)(i), 2.0) +
-                                    pow((*surf_fit_bg_grad)(i), 2.0) +
-                                    pow((*surf_fit_bg_grad)(i+surf_fit_bg_gf0->Size()), 2.0);
-               (*surf_fit_bg_gf0)(i) = (*surf_fit_bg_gf0)(i)/std::pow(denominator, 0.5);
-            }
-         }
-
-         //         surf_fit_bg_grad_fes = new ParFiniteElementSpace(pmesh_surf_fit_bg,
-         //                                                          surf_fit_bg_fec,
-         //                                                          pmesh_surf_fit_bg->Dimension());
-         //         surf_fit_bg_grad = new ParGridFunction(surf_fit_bg_grad_fes);
          surf_fit_grad_fes = new ParFiniteElementSpace(pmesh, &surf_fit_fec,
                                                        pmesh->Dimension());
          surf_fit_grad = new ParGridFunction(surf_fit_grad_fes);
@@ -680,36 +544,15 @@ int main (int argc, char *argv[])
             }
          }
       }
-
-      if (visualization)
+      else // !surf_bg_mesh
       {
-         socketstream vis1, vis2, vis3, vis4, vis5;
-         common::VisualizeField(vis1, "localhost", 19916, surf_fit_gf0,
-                                "un smoothed Level Set 0",
-                                300, 600, 300, 300);
-      }
-
-      if (smooth_dist)
-      {
-         ParFiniteElementSpace der_fespace(pmesh, surf_fit_fes.FEColl(),
-                                           pmesh->Dimension());
-         ParGridFunction dist_grad(&der_fespace);
-         for (int d = 0; d < pmesh->Dimension(); d++)
+         if (comp_dist)
          {
-            ParGridFunction dist_grad_comp(&surf_fit_fes,
-                                           dist_grad.GetData()+d*surf_fit_gf0.Size());
-            surf_fit_gf0.GetDerivative(1, d, dist_grad_comp);
-         }
-
-         for (int i = 0; i < surf_fit_gf0.Size(); i++)
-         {
-            double denominator = surf_fit_gf0(i)*surf_fit_gf0(i) +
-                                 dist_grad(i)*dist_grad(i) +
-                                 dist_grad(i+surf_fit_gf0.Size())*dist_grad(i+surf_fit_gf0.Size());
-            surf_fit_gf0(i) = surf_fit_gf0(i)/std::pow(denominator, 0.5);
+            ComputeScalarDistanceFromLevelSet(*pmesh, *ls_coeff, surf_fit_gf0);
          }
       }
 
+      // Set material gridfunction
       for (int i = 0; i < pmesh->GetNE(); i++)
       {
          if (material)
@@ -719,35 +562,12 @@ int main (int argc, char *argv[])
          else
          {
             mat(i) = material_id(i, surf_fit_gf0);
-         }
-         if (split_case)
-         {
-            Vector center(pmesh->Dimension());
-            pmesh->GetElementCenter(i, center);
-            if ( (center(0) > 0.25 && center(0) < 0.75 && center(1) > 0.25 &&
-                  center(1) < 0.75) && (dim == 2 || (dim == 3 && center(2) > 0.25 &&
-                                                     center(2) < 0.75)))
-            {
-               mat(i) = 0;
-            }
-            else
-            {
-               mat(i) = 1;
-            }
-            pmesh->SetAttribute(i, mat(i) + 1);
-         }
-         else
-         {
             pmesh->SetAttribute(i, mat(i) + 1);
          }
       }
 
-      if (!surf_bg_mesh && comp_dist)
-      {
-         ComputeScalarDistanceFromLevelSet(*pmesh, *ls_coeff, surf_fit_gf0);
-      }
-
-      // Fix attributes for marking
+      // Adapt attributes for marking such that if all but 1 face of an element
+      // are marked, the element attribute is switched.
       if (adapt_marking)
       {
          ModifyAttributeForMarkingDOFS(pmesh, mat, 0);
@@ -759,101 +579,58 @@ int main (int argc, char *argv[])
       surf_fit_mat_gf.SetTrueVector();
       surf_fit_mat_gf.SetFromTrueVector();
 
-      if (marking_type < 0)
+      // Set DOFs for fitting
+      // Strategy 1: Automatically choose face between elements of different attribute.
+      if (marking_type == 0)
       {
          mat.ExchangeFaceNbrData();
-         for (int e = 0; e < pmesh->GetNE(); e++)
-         {
-            Array<int> faces, ori;
-            if (pmesh->Dimension() == 2)
-            {
-               pmesh->GetElementEdges(e, faces, ori);
-            }
-            else
-            {
-               pmesh->GetElementFaces(e, faces, ori);
-            }
-            int inf1, inf2, *ncface;
-            int elem1, elem2, attr1, attr2;
-            int diff_attr_count = 0;
-            attr1 = mat(e);
-            bool bdr_element = false;
-            for (int f = 0; f < faces.Size(); f++)
-            {
-               pmesh->GetFaceElements(faces[f], &elem1, &elem2);
-               if (elem2 >= 0)
-               {
-                  attr2 = elem1 == e ? (int)(mat(elem2)) : (int)(mat(elem1));
-                  if (attr1 != attr2)
-                  {
-                     diff_attr_count += 1;
-                  }
-               }
-               else
-               {
-                  pmesh->GetFaceInfos(faces[f], &inf1, &inf2);
-                  if (inf2 >= 0)
-                  {
-                     Vector dof_vals;
-                     Array<int> dofs;
-                     mat.GetElementDofValues(pmesh->GetNE() + (-1-elem2), dof_vals);
-                     attr2 = (int)(dof_vals(0));
-                     if (attr1 != attr2)
-                     {
-                        diff_attr_count += 1;
-                     }
-                  }
-                  else
-                  {
-                     bdr_element = true;
-                  }
-               }
-            }
-            Array<int> dofs;
-            surf_fit_fes.GetElementDofs(e, dofs);
-            std::cout << e << " " << diff_attr_count << " " << faces.Size() << " " <<
-                      bdr_element << " k101\n";
-            if (diff_attr_count == faces.Size()-1 && !bdr_element)
-            {
-               for (int d = 0; d < dofs.Size(); d++)
-               {
-                  surf_fit_marker[dofs[d]] = true;
-                  surf_fit_mat_gf(dofs[d]) = 1.0;
-               }
-            }
-            else
-            {
-               for (int d = 0; d < dofs.Size(); d++)
-               {
-                  surf_fit_marker[dofs[d]] = false;
-                  surf_fit_mat_gf(dofs[d]) = 0.0;
-               }
-            }
-         }
-      }
-      else if (marking_type == 0)
-      {
-         for (int j = 0; j < surf_fit_marker.Size(); j++)
-         {
-            if (surf_fit_mat_gf(j) > 0.1 && surf_fit_mat_gf(j) < 0.9)
-            {
-               surf_fit_marker[j] = true;
-               surf_fit_mat_gf(j) = 1.0;
-            }
-            else
-            {
-               surf_fit_marker[j] = false;
-               surf_fit_mat_gf(j) = 0.0;
-            }
-         }
-      }
-      else if (marking_type > 0)
-      {
+         const Vector &FaceNbrData = mat.FaceNbrData();
          for (int j = 0; j < surf_fit_marker.Size(); j++)
          {
             surf_fit_marker[j] = false;
          }
          surf_fit_mat_gf = 0.0;
+
+         Array<int> dof_list;
+         Array<int> dofs;
+         for (int i = 0; i < pmesh->GetNumFaces(); i++)
+         {
+            FaceElementTransformations *tr = pmesh->GetInteriorFaceTransformations(i);
+            if (tr != NULL)
+            {
+               int mat1 = mat(tr->Elem1No);
+               int mat2 = mat(tr->Elem2No);
+               if (mat1 != mat2)
+               {
+                  surf_fit_gf0.ParFESpace()->GetFaceDofs(i, dofs);
+                  dof_list.Append(dofs);
+               }
+            }
+         }
+         for (int i = 0; i < pmesh->GetNSharedFaces(); i++)
+         {
+            FaceElementTransformations *tr = pmesh->GetSharedFaceTransformations(i);
+            if (tr != NULL)
+            {
+               int faceno = pmesh->GetSharedFace(i);
+               int mat1 = mat(tr->Elem1No);
+               int mat2 = FaceNbrData(tr->Elem2No-pmesh->GetNE());
+               if (mat1 != mat2)
+               {
+                  surf_fit_gf0.ParFESpace()->GetFaceDofs(faceno, dofs);
+                  dof_list.Append(dofs);
+               }
+            }
+         }
+         for (int i = 0; i < dof_list.Size(); i++)
+         {
+            surf_fit_marker[dof_list[i]] = true;
+            surf_fit_mat_gf(dof_list[i]) = 1.0;
+         }
+      }
+      // Strategy 2: Mark all boundaries with attribute marking_type
+      else if (marking_type > 0)
+      {
          for (int i = 0; i < pmesh->GetNBE(); i++)
          {
             const int attr = pmesh->GetBdrElement(i)->GetAttribute();
@@ -921,19 +698,7 @@ int main (int argc, char *argv[])
             common::VisualizeField(vis4, "localhost", 19916, *surf_fit_bg_gf0,
                                    "Level Set 0 Source",
                                    300, 600, 300, 300);
-            common::VisualizeField(vis5, "localhost", 19916, *surf_fit_bg_gf0_prim,
-                                   "Level Set Gradient",
-                                   600, 600, 300, 300);
          }
-      }
-
-      if (surf_bg_mesh)
-      {
-         VisItDataCollection visit_dc("background", pmesh_surf_fit_bg);
-         visit_dc.RegisterField("level_set_fun", surf_fit_bg_gf0);
-         visit_dc.RegisterField("level_set_fun_prim", surf_fit_bg_gf0_prim);
-         visit_dc.SetFormat(DataCollection::SERIAL_FORMAT);
-         visit_dc.Save();
       }
    }
 
@@ -944,11 +709,8 @@ int main (int argc, char *argv[])
    //     no command-line options for the weights and the type of the second
    //     metric; one should update those in the code.
    ParNonlinearForm a(pfespace);
-   if (pa) { a.SetAssemblyLevel(AssemblyLevel::PARTIAL); }
    ConstantCoefficient *metric_coeff1 = NULL;
    a.AddDomainIntegrator(tmop_integ);
-
-   if (pa) { a.Setup(); }
 
    // Compute the minimum det(J) of the starting mesh.
    tauval = infinity();
@@ -983,14 +745,8 @@ int main (int argc, char *argv[])
       const DenseMatrix &Wideal =
          Geometries.GetGeomToPerfGeomJac(pfespace->GetFE(0)->GetGeomType());
       tauval /= Wideal.Det();
-
-      double h0min = h0.Min(), h0min_all;
-      MPI_Allreduce(&h0min, &h0min_all, 1, MPI_DOUBLE, MPI_MIN, MPI_COMM_WORLD);
-      // Slightly below minJ0 to avoid div by 0.
-      tauval -= 0.01 * h0min_all;
    }
 
-   // For HR tests, the energy is normalized by the number of elements.
    const double init_energy = a.GetParGridFunctionEnergy(x);
    double init_metric_energy = init_energy;
    if (surface_fit_const > 0.0)
@@ -1094,33 +850,14 @@ int main (int argc, char *argv[])
       else { minres->SetPrintLevel(verbosity_level == 2 ? 3 : -1); }
       if (lin_solver == 3 || lin_solver == 4)
       {
-         if (pa)
-         {
-            MFEM_VERIFY(lin_solver != 4, "PA l1-Jacobi is not implemented");
-            auto js = new OperatorJacobiSmoother;
-            js->SetPositiveDiagonal(true);
-            S_prec = js;
-         }
-         else
-         {
-            auto hs = new HypreSmoother;
-            hs->SetType((lin_solver == 3) ? HypreSmoother::Jacobi
-                        /* */             : HypreSmoother::l1Jacobi, 1);
-            hs->SetPositiveDiagonal(true);
-            S_prec = hs;
-         }
+         auto hs = new HypreSmoother;
+         hs->SetType((lin_solver == 3) ? HypreSmoother::Jacobi
+                     /* */             : HypreSmoother::l1Jacobi, 1);
+         hs->SetPositiveDiagonal(true);
+         S_prec = hs;
          minres->SetPreconditioner(*S_prec);
       }
       S = minres;
-   }
-
-
-   {
-      VisItDataCollection visit_dc("perturbed", pmesh);
-      visit_dc.RegisterField("material", &mat);
-      visit_dc.RegisterField("level_set_fun", &surf_fit_gf0);
-      visit_dc.SetFormat(DataCollection::SERIAL_FORMAT);
-      visit_dc.Save();
    }
 
    // Perform the nonlinear optimization.
@@ -1167,14 +904,6 @@ int main (int argc, char *argv[])
       pmesh->PrintAsSerial(mesh_ofs);
    }
 
-   {
-      VisItDataCollection visit_dc("optimized", pmesh);
-      visit_dc.RegisterField("material", &mat);
-      visit_dc.RegisterField("level_set_fun", &surf_fit_gf0);
-      visit_dc.SetFormat(DataCollection::SERIAL_FORMAT);
-      visit_dc.Save();
-   }
-
    // Compute the final energy of the functional.
    const double fin_energy = a.GetParGridFunctionEnergy(x);
    double fin_metric_energy = fin_energy;
@@ -1184,6 +913,7 @@ int main (int argc, char *argv[])
       fin_metric_energy  = a.GetParGridFunctionEnergy(x);
       surf_fit_coeff.constant  = surface_fit_const;
    }
+
    if (myid == 0)
    {
       std::cout << std::scientific << std::setprecision(4);
