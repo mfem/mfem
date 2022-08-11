@@ -66,16 +66,18 @@
 using namespace std;
 using namespace mfem;
 
+double spherical_obstacle(const Vector &pt);
 
 class LogarithmGridFunctionCoefficient : public Coefficient
 {
 protected:
    GridFunction *u; // grid function
+   FunctionCoefficient *obstacle;
    double min_val;
 
 public:
-   LogarithmGridFunctionCoefficient(GridFunction &u_, double min_val_=1e-12)
-      : u(&u_), min_val(min_val_) { }
+   LogarithmGridFunctionCoefficient(GridFunction &u_, FunctionCoefficient &obst_, double min_val_=1e-12)
+      : u(&u_), obstacle(&obst_), min_val(min_val_) { }
 
    virtual double Eval(ElementTransformation &T, const IntegrationPoint &ip);
 };
@@ -96,13 +98,14 @@ public:
 class ReciprocalGridFunctionCoefficient : public Coefficient
 {
 protected:
-   GridFunction *u; // grid function
+   GridFunction *u;
+   FunctionCoefficient *obstacle;
    double min_val;
    double max_val;
 
 public:
-   ReciprocalGridFunctionCoefficient(GridFunction &u_, double min_val_=1e-12, double max_val_=1e12)
-      : u(&u_), min_val(min_val_), max_val(max_val_) { }
+   ReciprocalGridFunctionCoefficient(GridFunction &u_, FunctionCoefficient &obst_, double min_val_=1e-12, double max_val_=1e12)
+      : u(&u_), obstacle(&obst_), min_val(min_val_), max_val(max_val_) { }
 
    virtual double Eval(ElementTransformation &T, const IntegrationPoint &ip);
 };
@@ -225,8 +228,10 @@ int main(int argc, char *argv[])
       // return -x.Size()*pow(M_PI,2) * val;
       return x.Size()*pow(M_PI,2) * val;
    };
-   FunctionCoefficient f(func);
+   ConstantCoefficient f(-1.0);
+   // FunctionCoefficient f(func);
    ConstantCoefficient one(1.0);
+   FunctionCoefficient obstacle(spherical_obstacle);
 
    // 8. Define the solution vector x as a finite element grid function
    //    corresponding to fespace. Initialize x with initial guess of zero,
@@ -235,42 +240,63 @@ int main(int argc, char *argv[])
    GridFunction delta_u(&fespace);
    GridFunction u_old(&fespace);
    GridFunction tmp_gf(&fespace);
-   u = 0.5;
+   u = 1.0;
    delta_u = 0.0;
-   u_old = 0.5;
+   u_old = 1.0;
    tmp_gf = 0.5;
 
    OperatorPtr A;
    Vector B, X;
 
+   char vishost[] = "localhost";
+   int  visport   = 19916;
+   socketstream sol_sock(vishost, visport);
+   sol_sock.precision(8);
+
    // 12. Iterate
-   double alpha = 0.1;
+   double alpha0 = 0.1;
    for (int k = 1; k <= max_it; k++)
    {
-      // alpha *= 2.0;
+      // double alpha = alpha0 / sqrt(k);
+      double alpha = alpha0 * sqrt(k);
+      // alpha *= 2;
       for (int j = 1; j <= 10; j++)
       {
          // A. Assembly
+         
+         // MD
+         // double c1 = 1.0;
+         // double c2 = 1.0 - alpha;
+
+         // IMD
+         double c1 = 1.0 + alpha;
+         double c2 = 1.0;
+
          BilinearForm a(&fespace);
          ConstantCoefficient alpha_cf(alpha);
-         ReciprocalGridFunctionCoefficient one_over_u(u);
-         a.AddDomainIntegrator(new DiffusionIntegrator(alpha_cf));
+         ConstantCoefficient c1_cf(c1);
+         ReciprocalGridFunctionCoefficient one_over_u(u, obstacle);
+
+         a.AddDomainIntegrator(new DiffusionIntegrator(c1_cf));
          // a.AddDomainIntegrator(new MassIntegrator(alpha_cf));
          a.AddDomainIntegrator(new MassIntegrator(one_over_u));
          a.Assemble();
 
          LinearForm b(&fespace);
-         GradientGridFunctionCoefficient grad_u(&u_old);
-         ScalarVectorProductCoefficient minus_alpha_grad_u(-alpha, grad_u);
-         b.AddDomainIntegrator(new DomainLFGradIntegrator(minus_alpha_grad_u));
+         GradientGridFunctionCoefficient grad_u(&u);
+         GradientGridFunctionCoefficient grad_u_old(&u_old);
+         VectorSumCoefficient gradient_term_RHS(grad_u, grad_u_old, -c1, c2);
+         b.AddDomainIntegrator(new DomainLFGradIntegrator(gradient_term_RHS));
+         // ScalarVectorProductCoefficient minus_alpha_grad_u_old(-alpha, grad_u_old);
+         // b.AddDomainIntegrator(new DomainLFGradIntegrator(minus_alpha_grad_u_old));
          // GridFunctionCoefficient u_cf(&u);
          // ProductCoefficient minus_alpha_u(-alpha, u_cf);
          // b.AddDomainIntegrator(new DomainLFIntegrator(minus_alpha_u));
          ProductCoefficient alpha_f(alpha, f);
          b.AddDomainIntegrator(new DomainLFIntegrator(alpha_f));
-         LogarithmGridFunctionCoefficient log_u_prev(u_old);
-         b.AddDomainIntegrator(new DomainLFIntegrator(log_u_prev));
-         LogarithmGridFunctionCoefficient log_u(u);
+         LogarithmGridFunctionCoefficient log_u_old(u_old, obstacle);
+         b.AddDomainIntegrator(new DomainLFIntegrator(log_u_old));
+         LogarithmGridFunctionCoefficient log_u(u, obstacle);
          ProductCoefficient minus_log_u(-1.0, log_u);
          b.AddDomainIntegrator(new DomainLFIntegrator(minus_log_u));
          b.Assemble();
@@ -284,44 +310,32 @@ int main(int argc, char *argv[])
          a.RecoverFEMSolution(X, b, delta_u);
 
          double gamma = 0.5;
-         while (true)
-         {
-            tmp_gf = delta_u;
-            tmp_gf *= gamma;
-            tmp_gf += u;
-            double min_u = tmp_gf.Min();
-            if (min_u <= 0.0)
-            {
-               gamma /= 2.0;
-            }
-            else
-            {
-               u = tmp_gf;
-               break;
-            }
-         }
+         // while (true)
+         // {
+         //    tmp_gf = delta_u;
+         //    tmp_gf *= gamma;
+         //    tmp_gf += u;
+         //    double min_u = tmp_gf.Min();
+         //    if (min_u <= -1e-8)
+         //    {
+         //       gamma /= 2.0;
+         //    }
+         //    else
+         //    {
+         //       u = tmp_gf;
+         //       break;
+         //    }
+         // }
+         delta_u *= gamma;
+         u += delta_u;
       }
       u_old = u;
-   }
-   u = u_old;
 
-   // 13. Save the refined mesh and the solution. This output can be viewed later
-   //     using GLVis: "glvis -m refined.mesh -g sol.gf".
-   ofstream mesh_ofs("refined.mesh");
-   mesh_ofs.precision(8);
-   mesh.Print(mesh_ofs);
-   ofstream sol_ofs("sol.gf");
-   sol_ofs.precision(8);
-   u.Save(sol_ofs);
-
-   // 14. Send the solution by socket to a GLVis server.
-   if (visualization)
-   {
-      char vishost[] = "localhost";
-      int  visport   = 19916;
-      socketstream sol_sock(vishost, visport);
-      sol_sock.precision(8);
-      sol_sock << "solution\n" << mesh << u << flush;
+      // 14. Send the solution by socket to a GLVis server.
+      if (visualization)
+      {
+         sol_sock << "solution\n" << mesh << u << flush;
+      }
    }
 
    // 15. Free the used memory.
@@ -338,7 +352,7 @@ double LogarithmGridFunctionCoefficient::Eval(ElementTransformation &T,
 {
    MFEM_ASSERT(u != NULL, "grid function is not set");
 
-   double val = u->GetValue(T, ip);
+   double val = u->GetValue(T, ip) - obstacle->Eval(T, ip);
    return max(min_val, log(val));
 }
 
@@ -356,11 +370,33 @@ double ReciprocalGridFunctionCoefficient::Eval(ElementTransformation &T,
 {
    MFEM_ASSERT(u != NULL, "grid function is not set");
 
-   double val = u->GetValue(T, ip);
-   return min(max_val, max(min_val, 1.0/val) );
+   double val = u->GetValue(T, ip) - obstacle->Eval(T, ip);
+   if (val < 0)
+   {
+      return max_val;
+   }
+   else
+   {
+      return min(max_val, max(min_val, 1.0/val) );
+   }
 }
 
+double spherical_obstacle(const Vector &pt)
+{
+   double x = pt(0), y = pt(1);
+   double r = sqrt(x*x + y*y);
+   double r0 = 0.5;
 
+   if (r > r0)
+   {
+      return 0.0;
+   }
+   else
+   {
+      // return 0.0;
+      return r0 + sqrt(r0*r0-r*r);
+   }
+}
 
    // for (int k = 1; k <= max_it; k++)
    // {
