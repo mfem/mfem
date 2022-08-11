@@ -16,6 +16,7 @@ from tabulate import tabulate
 # check command line inputs
 assert len(sys.argv) == 2, "This file needs 1 input argument: directory, but " + str(len(sys.argv)) + " were given."
 directory = str(sys.argv[1])
+rate_precision = 6
 # iterations = int(sys.argv[2])
 # increment = int(sys.argv[3])
 # plot_organization = False
@@ -59,14 +60,14 @@ def compute_rates(vals):
             table.append([vals['n_Dofs'][i], vals['L1_Error'][i], "---", vals['L2_Error'][i], "---",
                           vals['Linf_Error'][i], "---"])
         else:
-            L1_rate = np.log(vals['L1_Error'][i]/vals['L1_Error'][i-1]) / np.log(vals['h'][i]/vals['h'][i-1])
-            L2_rate = np.log(vals['L2_Error'][i]/vals['L2_Error'][i-1]) / np.log(vals['h'][i]/vals['h'][i-1])
-            Linf_rate = np.log(vals['Linf_Error'][i]/vals['Linf_Error'][i-1]) / np.log(vals['h'][i]/vals['h'][i-1])
+            L1_rate = np.around(np.log(vals['L1_Error'][i]/vals['L1_Error'][i-1]) / np.log(vals['h'][i]/vals['h'][i-1]), decimals=rate_precision)
+            L2_rate = np.around(np.log(vals['L2_Error'][i]/vals['L2_Error'][i-1]) / np.log(vals['h'][i]/vals['h'][i-1]), decimals=rate_precision)
+            Linf_rate = np.around(np.log(vals['Linf_Error'][i]/vals['Linf_Error'][i-1]) / np.log(vals['h'][i]/vals['h'][i-1]), decimals=rate_precision)
             table.append([vals['n_Dofs'][i], vals['L1_Error'][i], L1_rate,
                           vals['L2_Error'][i], L2_rate,
                           vals['Linf_Error'][i], Linf_rate])
 
-    s_table = tabulate(table, 
+    s_table = tabulate(table,
                        headers=["# dof", "L1 Error", "Rate", "L2 Error",
                                 "Rate", "L-Inf Error", "Rate"],
                        tablefmt="latex")
