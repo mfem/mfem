@@ -638,6 +638,34 @@ public:
                                        ) const
    { ComputeElementLpErrors(infinity(), exsol, error, NULL, NULL, irs); }
 
+   virtual double ComputeIntegral(Coefficient &weight,
+                                  int ir_order);
+
+   virtual double ComputeIntegral(const Array<int> &attr_marker,
+                                  Coefficient &weight,
+                                  int ir_order);
+
+   virtual double ComputeIntegral(VectorCoefficient &v_weight,
+                                  int ir_order);
+
+   virtual double ComputeIntegral(const Array<int> &attr_marker,
+                                  VectorCoefficient &v_weight,
+                                  int ir_order);
+
+   virtual double ComputeBdrIntegral(Coefficient &weight,
+                                     int ir_order);
+
+   virtual double ComputeBdrIntegral(const Array<int> &bdr_attr_marker,
+                                     Coefficient &weight,
+                                     int ir_order);
+
+   virtual double ComputeBdrIntegral(VectorCoefficient &v_weight,
+                                     int ir_order);
+
+   virtual double ComputeBdrIntegral(const Array<int> &bdr_attr_marker,
+                                     VectorCoefficient &v_weight,
+                                     int ir_order);
+
    virtual void ComputeFlux(BilinearFormIntegrator &blfi,
                             GridFunction &flux,
                             bool wcoef = true, int subdomain = -1);

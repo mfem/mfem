@@ -3653,6 +3653,278 @@ void GridFunction::ComputeElementLpErrors(const double p,
    }
 }
 
+double GridFunction::ComputeIntegral(Coefficient &weight,
+                                     int ir_order)
+{
+   double val = 0.0;
+   const FiniteElement *fe;
+   ElementTransformation *T;
+   Vector vals;
+
+   for (int i = 0; i < fes->GetNE(); i++)
+   {
+      fe = fes->GetFE(i);
+      const IntegrationRule *ir = &(IntRules.Get(fe->GetGeomType(), ir_order));
+      T = fes->GetElementTransformation(i);
+      GetValues(*T, *ir, vals);
+
+      for (int j = 0; j < ir->GetNPoints(); j++)
+      {
+         const IntegrationPoint &ip = ir->IntPoint(j);
+         T->SetIntPoint(&ip);
+
+         val += ip.weight * T->Weight() * vals[j] * weight.Eval(*T, ip);
+      }
+   }
+
+   return val;
+}
+
+double GridFunction::ComputeIntegral(const Array<int> &attr_marker,
+                                     Coefficient &weight,
+                                     int ir_order)
+{
+   double val = 0.0;
+   const FiniteElement *fe;
+   ElementTransformation *T;
+   Vector vals;
+
+   for (int i = 0; i < fes->GetNE(); i++)
+   {
+      int attr = fes->GetAttribute(i);
+      if (attr_marker[attr-1] == 0) { continue; }
+
+      fe = fes->GetFE(i);
+      const IntegrationRule *ir = &(IntRules.Get(fe->GetGeomType(), ir_order));
+      T = fes->GetElementTransformation(i);
+      GetValues(*T, *ir, vals);
+
+      for (int j = 0; j < ir->GetNPoints(); j++)
+      {
+         const IntegrationPoint &ip = ir->IntPoint(j);
+         T->SetIntPoint(&ip);
+
+         val += ip.weight * T->Weight() * vals[j] * weight.Eval(*T, ip);
+      }
+   }
+
+   return val;
+}
+
+double GridFunction::ComputeIntegral(VectorCoefficient &v_weight,
+                                     int ir_order)
+{
+   double val = 0.0;
+   const FiniteElement *fe;
+   ElementTransformation *T;
+   DenseMatrix vals, v_weights;
+
+   for (int i = 0; i < fes->GetNE(); i++)
+   {
+      fe = fes->GetFE(i);
+      const IntegrationRule *ir = &(IntRules.Get(fe->GetGeomType(), ir_order));
+      T = fes->GetElementTransformation(i);
+      GetVectorValues(*T, *ir, vals);
+
+      v_weight.Eval(v_weights, *T, *ir);
+
+      // column-wise dot product of the vector field values (in vals) and the
+      // vector weights (in v_weight)
+      for (int j = 0; j < ir->GetNPoints(); j++)
+      {
+         const IntegrationPoint &ip = ir->IntPoint(j);
+         T->SetIntPoint(&ip);
+
+         double val_ip = 0.0;
+         for (int d = 0; d < vals.Height(); d++)
+         {
+            val_ip += vals(d,j)*v_weights(d,j);
+         }
+
+         val += ip.weight * T->Weight() * val_ip;
+      }
+   }
+
+   return val;
+}
+
+double GridFunction::ComputeIntegral(const Array<int> &attr_marker,
+                                     VectorCoefficient &v_weight,
+                                     int ir_order)
+{
+   double val = 0.0;
+   const FiniteElement *fe;
+   ElementTransformation *T;
+   DenseMatrix vals, v_weights;
+
+   for (int i = 0; i < fes->GetNE(); i++)
+   {
+      int attr = fes->GetAttribute(i);
+      if (attr_marker[attr-1] == 0) { continue; }
+
+      fe = fes->GetFE(i);
+      const IntegrationRule *ir = &(IntRules.Get(fe->GetGeomType(), ir_order));
+      T = fes->GetElementTransformation(i);
+      GetVectorValues(*T, *ir, vals);
+
+      v_weight.Eval(v_weights, *T, *ir);
+
+      // column-wise dot product of the vector field values (in vals) and the
+      // vector weights (in v_weight)
+      for (int j = 0; j < ir->GetNPoints(); j++)
+      {
+         const IntegrationPoint &ip = ir->IntPoint(j);
+         T->SetIntPoint(&ip);
+
+         double val_ip = 0.0;
+         for (int d = 0; d < vals.Height(); d++)
+         {
+            val_ip += vals(d,j)*v_weights(d,j);
+         }
+
+         val += ip.weight * T->Weight() * val_ip;
+      }
+   }
+
+   return val;
+}
+
+double GridFunction::ComputeBdrIntegral(Coefficient &weight,
+                                        int ir_order)
+{
+   double val = 0.0;
+   const FiniteElement *fe;
+   ElementTransformation *T;
+   Vector vals;
+
+   for (int i = 0; i < fes->GetNBE(); i++)
+   {
+      fe = fes->GetBE(i);
+      const IntegrationRule *ir = &(IntRules.Get(fe->GetGeomType(), ir_order));
+      T = fes->GetBdrElementTransformation(i);
+      GetValues(*T, *ir, vals);
+
+      for (int j = 0; j < ir->GetNPoints(); j++)
+      {
+         const IntegrationPoint &ip = ir->IntPoint(j);
+         T->SetIntPoint(&ip);
+
+         val += ip.weight * T->Weight() * vals[j] * weight.Eval(*T, ip);
+      }
+   }
+
+   return val;
+}
+
+double GridFunction::ComputeBdrIntegral(const Array<int> &bdr_attr_marker,
+                                        Coefficient &weight,
+                                        int ir_order)
+{
+   double val = 0.0;
+   const FiniteElement *fe;
+   ElementTransformation *T;
+   Vector vals;
+
+   for (int i = 0; i < fes->GetNBE(); i++)
+   {
+      int attr = fes->GetBdrAttribute(i);
+      if (bdr_attr_marker[attr-1] == 0) { continue; }
+
+      fe = fes->GetBE(i);
+      const IntegrationRule *ir = &(IntRules.Get(fe->GetGeomType(), ir_order));
+      T = fes->GetBdrElementTransformation(i);
+      GetValues(*T, *ir, vals);
+
+      for (int j = 0; j < ir->GetNPoints(); j++)
+      {
+         const IntegrationPoint &ip = ir->IntPoint(j);
+         T->SetIntPoint(&ip);
+
+         val += ip.weight * T->Weight() * vals[j] * weight.Eval(*T, ip);
+      }
+   }
+
+   return val;
+}
+
+double GridFunction::ComputeBdrIntegral(VectorCoefficient &v_weight,
+                                        int ir_order)
+{
+   double val = 0.0;
+   const FiniteElement *fe;
+   ElementTransformation *T;
+   DenseMatrix vals, v_weights;
+
+   for (int i = 0; i < fes->GetNBE(); i++)
+   {
+      fe = fes->GetBE(i);
+      const IntegrationRule *ir = &(IntRules.Get(fe->GetGeomType(), ir_order));
+      T = fes->GetBdrElementTransformation(i);
+      GetVectorValues(*T, *ir, vals);
+
+      v_weight.Eval(v_weights, *T, *ir);
+
+      // column-wise dot product of the vector field values (in vals) and the
+      // vector weights (in v_weight)
+      for (int j = 0; j < ir->GetNPoints(); j++)
+      {
+         const IntegrationPoint &ip = ir->IntPoint(j);
+         T->SetIntPoint(&ip);
+
+         double val_ip = 0.0;
+         for (int d = 0; d < vals.Height(); d++)
+         {
+            val_ip += vals(d,j)*v_weights(d,j);
+         }
+
+         val += ip.weight * T->Weight() * val_ip;
+      }
+   }
+
+   return val;
+}
+
+double GridFunction::ComputeBdrIntegral(const Array<int> &bdr_attr_marker,
+                                        VectorCoefficient &v_weight,
+                                        int ir_order)
+{
+   double val = 0.0;
+   const FiniteElement *fe;
+   ElementTransformation *T;
+   DenseMatrix vals, v_weights;
+
+   for (int i = 0; i < fes->GetNBE(); i++)
+   {
+      int attr = fes->GetBdrAttribute(i);
+      if (bdr_attr_marker[attr-1] == 0) { continue; }
+
+      fe = fes->GetBE(i);
+      const IntegrationRule *ir = &(IntRules.Get(fe->GetGeomType(), ir_order));
+      T = fes->GetBdrElementTransformation(i);
+      GetVectorValues(*T, *ir, vals);
+
+      v_weight.Eval(v_weights, *T, *ir);
+
+      // column-wise dot product of the vector field values (in vals) and the
+      // vector weights (in v_weight)
+      for (int j = 0; j < ir->GetNPoints(); j++)
+      {
+         const IntegrationPoint &ip = ir->IntPoint(j);
+         T->SetIntPoint(&ip);
+
+         double val_ip = 0.0;
+         for (int d = 0; d < vals.Height(); d++)
+         {
+            val_ip += vals(d,j)*v_weights(d,j);
+         }
+
+         val += ip.weight * T->Weight() * val_ip;
+      }
+   }
+
+   return val;
+}
+
 GridFunction & GridFunction::operator=(double value)
 {
    Vector::operator=(value);
