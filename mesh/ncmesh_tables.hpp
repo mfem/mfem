@@ -19,7 +19,7 @@ const int ref_type_num_children[8] = { 0, 2, 2, 4, 2, 4, 4, 8 };
 
 
 // derefinement tables
-// The first n numbers in each line are the refined elements that contain 
+// The first n numbers in each line are the refined elements that contain
 // the vertices of the parent element.  The next m numbers in each line
 // are the refined elements that contain the faces attributes of the parent
 // element.
