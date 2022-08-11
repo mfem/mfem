@@ -106,18 +106,20 @@ bool LinearForm::SupportsDevice()
    // through Assemble, AssembleDevice, GetGeometricFactors and EnsureNodes
    if (fes->GetMesh()->NURBSext != nullptr) { return false; }
 
-   // scan domain integrator to verify that all can use device assembly
-   if (domain_integs.Size() > 0)
+   // scan integrators to verify that all can use device assembly
+   auto IntegratorsSupportDevice = [](const Array<LinearFormIntegrator*> &integ)
    {
-      for (int k = 0; k < domain_integs.Size(); k++)
+      for (int k = 0; k < integ.Size(); k++)
       {
-         if (!domain_integs[k]->SupportsDevice()) { return false; }
+         if (!integ[k]->SupportsDevice()) { return false; }
       }
-   }
+      return true;
+   };
 
-   // boundary, delta and face integrators are not supported yet
-   if (GetBLFI()->Size() > 0 || GetFLFI()->Size() > 0 ||
-       GetDLFI_Delta()->Size() > 0 || GetIFLFI()->Size() > 0) { return false; }
+   if (!IntegratorsSupportDevice(domain_integs)) { return false; }
+   if (!IntegratorsSupportDevice(boundary_integs)) { return false; }
+   if (boundary_face_integs.Size() > 0 || interior_face_integs.Size() > 0 ||
+       domain_delta_integs.Size() > 0) { return false; }
 
    const Mesh &mesh = *fes->GetMesh();
 
