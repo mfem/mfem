@@ -2214,7 +2214,7 @@ public:
    Coefficient *GetCoefficient() const { return Q; }
 
    template <int DIM, int D1D, int Q1D>
-   static void AddApplySpecialization();
+   static void AddSpecialization();
 };
 
 /** Class for local mass matrix assembling a(u,v) := (Q u, v) */

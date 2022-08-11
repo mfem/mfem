@@ -42,7 +42,7 @@ int main(int argc, char *argv[])
    A->Mult(X, B);
    a.AssembleDiagonal(diag);
 
-   DiffusionIntegrator::AddApplySpecialization<2,2,3>();
+   DiffusionIntegrator::AddSpecialization<2,2,3>();
    A->Mult(X, B);
    a.AssembleDiagonal(diag);
 
