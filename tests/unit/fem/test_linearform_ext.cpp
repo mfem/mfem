@@ -18,7 +18,7 @@ using namespace mfem;
 
 struct LinearFormExtTest
 {
-   enum { DLFEval, QLFEval, DLFGrad, VDLFEval, VQLFEval, VDLFGrad };
+   enum { DLFEval, BLFEval, QLFEval, DLFGrad, VDLFEval, VQLFEval, VDLFGrad };
    const double abs_tol = 1e-14, rel_tol = 1e-14;
    const char *mesh_filename;
    Mesh mesh;
@@ -72,6 +72,11 @@ struct LinearFormExtTest
          lfi_dev = new DomainLFIntegrator(cst_coeff);
          lfi_std = new DomainLFIntegrator(cst_coeff);
       }
+      else if (problem == BLFEval)
+      {
+         lfi_dev = new BoundaryLFIntegrator(cst_coeff);
+         lfi_std = new BoundaryLFIntegrator(cst_coeff);
+      }
       else if (problem == QLFEval)
       {
          lfi_dev = new QuadratureLFIntegrator(qfc,NULL);
@@ -99,14 +104,22 @@ struct LinearFormExtTest
       }
       else { REQUIRE(false); }
 
-      if (problem != QLFEval && problem != VQLFEval)
+      if (problem != QLFEval && problem != VQLFEval && problem != BLFEval)
       {
          lfi_dev->SetIntRule(gll ? irGLL : ir);
          lfi_std->SetIntRule(gll ? irGLL : ir);
       }
 
-      lf_dev.AddDomainIntegrator(lfi_dev, elem_marker);
-      lf_std.AddDomainIntegrator(lfi_std, elem_marker);
+      if (problem != BLFEval)
+      {
+         lf_dev.AddDomainIntegrator(lfi_dev, elem_marker);
+         lf_std.AddDomainIntegrator(lfi_std, elem_marker);
+      }
+      else
+      {
+         lf_dev.AddBoundaryIntegrator(lfi_dev);
+         lf_std.AddBoundaryIntegrator(lfi_std);
+      }
    }
 
    void Run()
@@ -147,7 +160,8 @@ TEST_CASE("Linear Form Extension", "[LinearFormExtension], [CUDA]")
       const auto gll = GENERATE(false, true);
       const auto problem = GENERATE(LinearFormExtTest::DLFEval,
                                     LinearFormExtTest::QLFEval,
-                                    LinearFormExtTest::DLFGrad);
+                                    LinearFormExtTest::DLFGrad,
+                                    LinearFormExtTest::BLFEval);
       LinearFormExtTest(mesh_file, 1, Ordering::byNODES, gll, problem, p).Run();
    }
 
