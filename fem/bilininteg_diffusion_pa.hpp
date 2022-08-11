@@ -1091,7 +1091,7 @@ static void SmemPADiffusionApply3D(const int NE,
 constexpr int ipow(int x, int p) { return p == 0 ? 1 : x*ipow(x, p-1); }
 
 template <int DIM, int D1D, int Q1D>
-void DiffusionIntegrator::AddApplySpecialization()
+void DiffusionIntegrator::AddSpecialization()
 {
    constexpr DispatchKey key = {DIM, D1D, Q1D};
    if (DIM == 2)
