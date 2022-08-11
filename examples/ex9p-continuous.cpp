@@ -10,20 +10,8 @@
 // Sample runs:
 //    mpirun -np 4 ex9p-continuous -m ../data/periodic-segment.mesh -p 0 -dt 0.005
 //    mpirun -np 4 ex9p-continuous -m ../data/periodic-square.mesh -p 0 -dt 0.01
-//    mpirun -np 4 ex9p-continuous -m ../data/periodic-hexagon.mesh -p 0 -dt 0.01
-//    mpirun -np 4 ex9p-continuous -m ../data/periodic-square.mesh -p 1 -dt 0.005 -tf 9
-//    mpirun -np 4 ex9p-continuous -m ../data/periodic-hexagon.mesh -p 1 -dt 0.005 -tf 9
-//    mpirun -np 4 ex9p-continuous -m ../data/amr-quad.mesh -p 1 -rp 1 -dt 0.002 -tf 9
-//    mpirun -np 4 ex9p-continuous -m ../data/amr-quad.mesh -p 1 -rp 1 -dt 0.02 -s 13 -tf 9
-//    mpirun -np 4 ex9p-continuous -m ../data/star-q3.mesh -p 1 -rp 1 -dt 0.004 -tf 9
-//    mpirun -np 4 ex9p-continuous -m ../data/star-mixed.mesh -p 1 -rp 1 -dt 0.004 -tf 9
-//    mpirun -np 4 ex9p-continuous -m ../data/disc-nurbs.mesh -p 1 -rp 1 -dt 0.005 -tf 9
-//    mpirun -np 4 ex9p-continuous -m ../data/disc-nurbs.mesh -p 2 -rp 1 -dt 0.005 -tf 9
-//    mpirun -np 4 ex9p-continuous -m ../data/periodic-square.mesh -p 3 -rp 2 -dt 0.0025 -tf 9 -vs 20
-//    mpirun -np 4 ex9p-continuous -m ../data/periodic-cube.mesh -p 0 -o 2 -rp 1 -dt 0.01 -tf 8
-//    mpirun -np 4 ex9p-continuous -m ../data/periodic-square.msh -p 0 -rs 2 -dt 0.005 -tf 2
-//    mpirun -np 4 ex9p-continuous -m ../data/periodic-cube.msh -p 0 -rs 1 -o 2 -tf 2
-//    mpirun -np 3 ex9p-continuous -m ../data/amr-hex.mesh -p 1 -rs 1 -rp 0 -dt 0.005 -tf 0.5
+//    mpirun -np 4 ex9p-continuous -m ../data/ref-segment.mesh -ot -rs 1 -rp 0 -p 6 -f 2 -tf 0.5
+//    mpirun -np 4 ex9p-continuous -m ../data/ref-square.mesh -ot -rs 1 -rp 0 -p 6 -f 2 -tf 0.5
 //
 // Device sample runs:
 //    mpirun -np 4 ex9p-continuous -pa
@@ -60,6 +48,9 @@ using namespace mfem;
 // Choice for the problem setup. The fluid velocity, initial condition and
 // inflow boundary condition are chosen based on this parameter.
 int problem;
+
+// Choice for the flux. The form K and Dij is determined based on this value.
+int flux;
 
 // Velocity coefficient
 void velocity_function(const Vector &x, Vector &v);
@@ -106,8 +97,7 @@ public:
    Builds dij_matrix used in the low order approximation, which is based on
    Guermond/Popov 2016.
    */
-   void build_dij_matrix(const Vector &U,
-                         const VectorFunctionCoefficient &velocity);
+   void build_dij_matrix(const Vector &U);
    void calculate_timestep();
    double get_timestep();
 
@@ -132,6 +122,7 @@ int main(int argc, char *argv[])
 
    // 2. Parse command-line options.
    problem = 4;
+   flux = 1;
    const char *mesh_file = "../data/periodic-square.mesh";
    int ser_ref_levels = 3;
    int par_ref_levels = 0;
@@ -160,6 +151,9 @@ int main(int argc, char *argv[])
                   "Mesh file to use.");
    args.AddOption(&problem, "-p", "--problem",
                   "Problem setup to use. See options in velocity_function().");
+   args.AddOption(&flux, "-f", "--flux",
+                  "Flux type: 1 - Linear Transport,\n\t"
+                  "           2 - Burgers");
    args.AddOption(&ser_ref_levels, "-rs", "--refine-serial",
                   "Number of times to refine the mesh uniformly in serial.");
    args.AddOption(&par_ref_levels, "-rp", "--refine-parallel",
@@ -302,51 +296,11 @@ int main(int argc, char *argv[])
       cout << "Dim: " << dim << endl;
    }
 
-   // 8. Set up and assemble the parallel bilinear and linear forms (and the
-   //    parallel hypre matrices) corresponding to the H1 discretization.
-   VectorFunctionCoefficient velocity(dim, velocity_function);
-   FunctionCoefficient inflow(inflow_function);
-   FunctionCoefficient u0(exact_sol);
-
-   ParBilinearForm *m = new ParBilinearForm(fes);
-   ParBilinearForm *k = new ParBilinearForm(fes);
-   ParBilinearForm *kT = new ParBilinearForm(fes);
-
-   if (pa)
-   {
-      m->SetAssemblyLevel(AssemblyLevel::PARTIAL);
-      k->SetAssemblyLevel(AssemblyLevel::PARTIAL);
-      kT->SetAssemblyLevel(AssemblyLevel::PARTIAL);
-   }
-   else if (ea)
-   {
-      m->SetAssemblyLevel(AssemblyLevel::ELEMENT);
-      k->SetAssemblyLevel(AssemblyLevel::ELEMENT);
-      kT->SetAssemblyLevel(AssemblyLevel::ELEMENT);
-   }
-   else if (fa)
-   {
-      m->SetAssemblyLevel(AssemblyLevel::FULL);
-      k->SetAssemblyLevel(AssemblyLevel::FULL);
-      kT->SetAssemblyLevel(AssemblyLevel::FULL);
-   }
-
-   m->AddDomainIntegrator(new LumpedIntegrator(new MassIntegrator));
-   constexpr double alpha = -1.0;
-   k->AddDomainIntegrator(new ConvectionIntegrator(velocity, alpha));
-   kT->AddDomainIntegrator(new ConservativeConvectionIntegrator(velocity, -alpha));
-
-   int skip_zeros = 0;
-   m->Assemble();
-   k->Assemble(skip_zeros);
-   kT->Assemble(skip_zeros);
-   m->Finalize();
-   k->Finalize(skip_zeros);
-   kT->Finalize(skip_zeros);
-
-   // 9. Define the initial conditions, save the corresponding grid function to
+   // 8. Define the initial conditions, save the corresponding grid function to
    //    a file and (optionally) save data in the VisIt format and initialize
    //    GLVis visualization.
+   FunctionCoefficient inflow(inflow_function);
+   FunctionCoefficient u0(exact_sol);
    ParGridFunction *u = new ParGridFunction(fes);
    u->ProjectCoefficient(u0);
    HypreParVector *U = u->GetTrueDofs();
@@ -435,6 +389,60 @@ int main(int argc, char *argv[])
       sout.open(vishost, visport);
    }
 
+   // 9. Set up and assemble the parallel bilinear and linear forms (and the
+   //    parallel hypre matrices) corresponding to the H1 discretization.
+   ParBilinearForm *m = new ParBilinearForm(fes);
+   ParBilinearForm *k = new ParBilinearForm(fes);
+   ParBilinearForm *kT = new ParBilinearForm(fes);
+
+   if (pa)
+   {
+      m->SetAssemblyLevel(AssemblyLevel::PARTIAL);
+      k->SetAssemblyLevel(AssemblyLevel::PARTIAL);
+      kT->SetAssemblyLevel(AssemblyLevel::PARTIAL);
+   }
+   else if (ea)
+   {
+      m->SetAssemblyLevel(AssemblyLevel::ELEMENT);
+      k->SetAssemblyLevel(AssemblyLevel::ELEMENT);
+      kT->SetAssemblyLevel(AssemblyLevel::ELEMENT);
+   }
+   else if (fa)
+   {
+      m->SetAssemblyLevel(AssemblyLevel::FULL);
+      k->SetAssemblyLevel(AssemblyLevel::FULL);
+      kT->SetAssemblyLevel(AssemblyLevel::FULL);
+   }
+
+   m->AddDomainIntegrator(new LumpedIntegrator(new MassIntegrator));
+   constexpr double alpha = -1.0;
+
+   switch (flux) 
+   {
+      case 1:
+      {
+         VectorFunctionCoefficient velocity(dim, velocity_function);
+         k->AddDomainIntegrator(new ConvectionIntegrator(velocity, alpha));
+         kT->AddDomainIntegrator(new ConservativeConvectionIntegrator(velocity, -alpha));
+         break;
+      }
+      case 2:
+      {
+         VectorGridFunctionCoefficient velocity(u);
+         k->AddDomainIntegrator(new ConvectionIntegrator(velocity, alpha));
+         kT->AddDomainIntegrator(new ConservativeConvectionIntegrator(velocity, -alpha));
+         break;
+      }
+   }
+
+   int skip_zeros = 0;
+   m->Assemble();
+   k->Assemble(skip_zeros);
+   kT->Assemble(skip_zeros);
+   m->Finalize();
+   k->Finalize(skip_zeros);
+   kT->Finalize(skip_zeros);
+
    // 10. Define the time-dependent evolution operator describing the ODE
    //     right-hand side, and perform time-integration (looping over the time
    //     iterations, ti, with a time-step dt).
@@ -445,7 +453,7 @@ int main(int argc, char *argv[])
    ode_solver->Init(adv);
 
    // dij_matrix has no time dependence
-   adv.build_dij_matrix(*u, velocity);
+   adv.build_dij_matrix(*u);
    adv.calculate_timestep();
 
    // Optimize time step, unless running convergence analysis
@@ -662,8 +670,7 @@ void FE_Evolution::ImplicitSolve(const double dt, const Vector &x, Vector &k)
                                     const VectorFunctionCoefficient &velocity)
  * Purpose:
  * ***************************************************************************/
-void FE_Evolution::build_dij_matrix(const Vector &U,
-                                    const VectorFunctionCoefficient &velocity)
+void FE_Evolution::build_dij_matrix(const Vector &U)
 {
    cout << "Build dij\n";
 
@@ -687,6 +694,7 @@ void FE_Evolution::build_dij_matrix(const Vector &U,
             double dij = fmax(abs(kij), abs(kji));
 
             D_data[k] = dij;
+            if (i == 0) { cout << "dij: " << dij << endl; }
 
             rowsum += dij;
          }
@@ -694,6 +702,7 @@ void FE_Evolution::build_dij_matrix(const Vector &U,
             D_data[k] = 0; // Need to clear entry before Mult()
          }
       }
+      if (i == 0) { cout << "rowsum: " << rowsum << endl; }
       dii(i) = -1 *  rowsum; // To be used in Mult() in place of diagonal entries
    }
 
@@ -710,23 +719,26 @@ void FE_Evolution::calculate_timestep()
 {
    cout << "Calculating timestep.\n";
    int n = lumpedM.Size();
-   double t_min = 0;
+   double t_min = 1.;
    double t_temp = 0;
 
    for (int i = 0; i < n; i++)
    {
       assert(lumpedM(i) > 0); // Assumption, equation (3.6)
-      t_temp = lumpedM(i) / (2. * abs(dii[i]));
-      if (i == 0) { t_min = t_temp; } // t_min must be initialized to something other than 0
-      else // all other indices 
+      if (dii[i] >= 0)
       {
-         if (t_temp < t_min) { t_min = t_temp; }
+         cout << "i: " << i << ", dii: " << dii[i] << endl;
       }
+      assert(dii[i] < 0);
+      t_temp = lumpedM(i) / (2. * abs(dii[i]));
+      
+      if (t_temp < t_min && t_temp > 1e-12) { t_min = t_temp; }
    }
 
    this->timestep = t_min;
    cout << "Finished calculating timestep.\n";
 }
+
 
 /******************************************************************************
  * FE_Evolution::get_timestep()
@@ -969,6 +981,60 @@ double exact_sol(const Vector &x, const double t)
             }
          }
 
+      }
+      case 6: // max(0.5 - abs(x), 0.) wave for Burgers' eq
+      {
+         switch (dim)
+         {
+            case 1:
+            {
+               return max(0., 0.5 - abs(X[0]));
+               break;
+            }
+            case 2:
+            {
+               // return max(0.5 - sqrt(pow(X[0],2) + pow(X[1],2)), 0.);
+               if (x[0] < 1./2. - 3.*t/5.) {
+                  if (x[1] > 1/2 + 3*t/20) {
+                     return -0.2;
+                  } else {
+                     return 0.5;
+                  }
+
+               } else if (x[0] < 1./2. - t/4.) {
+                  if (x[1] > -8*x[0]/7 + 15/14 - 15*t/28) {
+                     return -1;
+                  } else {
+                     return 0.5;
+                  }
+
+               } else if (x[0] < 1./2. + t/2.) {
+                  if (x[1] > x[0]/6 + 5/12 - 5*t/24) {
+                     return -1.;
+                  } else {
+                     return 0.5;
+                  }
+
+               } else if (x[0] < 1./2. + 4.*t/5.) {
+                  if (x[1] > x[0] - (5/(18*t)) * pow((x[0] + t - 1/2),2) ) {
+                     return -1;
+                  } else {
+                     return (2 * x[0] - 1) / (2 * t);
+                  }
+
+               } else {
+                  // cout << "x: " << x[0] << endl;
+                  assert(x[0] >= 1./2. + 4.*t/5.);
+                  if (x[1] > 1./2. - t/10) {
+                     return -1;
+                  } else {
+                     return 0.8;
+                  }
+               }
+
+               break;
+            }
+         }
       }
    }
    return 100.;
