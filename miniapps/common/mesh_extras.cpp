@@ -141,7 +141,7 @@ double ComputeVolume(const Mesh &mesh, int ir_order)
    double vol = 0.0;
 
    IsoparametricTransformation T;
-   
+
    for (int i=0; i<mesh.GetNE(); i++)
    {
       const_cast<Mesh&>(mesh).GetElementTransformation(i, &T);
@@ -162,17 +162,17 @@ double ComputeVolume(const Mesh &mesh, int ir_order)
 }
 
 double ComputeVolume(const Mesh &mesh, const Array<int> &attr_marker,
-		     int ir_order)
+                     int ir_order)
 {
    double vol = 0.0;
 
    IsoparametricTransformation T;
-   
+
    for (int i=0; i<mesh.GetNE(); i++)
    {
       int attr = mesh.GetAttribute(i);
       if (attr_marker[attr-1] == 0) { continue; }
-     
+
       const_cast<Mesh&>(mesh).GetElementTransformation(i, &T);
       Geometry::Type geom = mesh.GetElementBaseGeometry(i);
       const IntegrationRule *ir = &IntRules.Get(geom, ir_order);
@@ -198,7 +198,7 @@ double ComputeSurfaceArea(const Mesh &mesh, int ir_order)
 
    for (int i=0; i<mesh.GetNBE(); i++)
    {
-     // ElementTransformation *T = mesh.GetBdrElementTransformation(i);
+      // ElementTransformation *T = mesh.GetBdrElementTransformation(i);
       const_cast<Mesh&>(mesh).GetBdrElementTransformation(i, &T);
       Geometry::Type geom = mesh.GetBdrElementBaseGeometry(i);
       const IntegrationRule *ir = &IntRules.Get(geom, ir_order);
@@ -217,7 +217,7 @@ double ComputeSurfaceArea(const Mesh &mesh, int ir_order)
 }
 
 double ComputeSurfaceArea(const Mesh &mesh, const Array<int> &bdr_attr_marker,
-			  int ir_order)
+                          int ir_order)
 {
    double area = 0.0;
 
@@ -227,7 +227,7 @@ double ComputeSurfaceArea(const Mesh &mesh, const Array<int> &bdr_attr_marker,
    {
       int attr = mesh.GetBdrAttribute(i);
       if (bdr_attr_marker[attr-1] == 0) { continue; }
-     
+
       const_cast<Mesh&>(mesh).GetBdrElementTransformation(i, &T);
       Geometry::Type geom = mesh.GetBdrElementBaseGeometry(i);
       const IntegrationRule *ir = &IntRules.Get(geom, ir_order);
@@ -251,7 +251,7 @@ double ComputeZerothMoment(const Mesh &mesh, Coefficient &rho,
    double mom = 0.0;
 
    IsoparametricTransformation T;
-      
+
    for (int i=0; i<mesh.GetNE(); i++)
    {
       const_cast<Mesh&>(mesh).GetElementTransformation(i, &T);
@@ -283,7 +283,7 @@ void ComputeElementZerothMoments(const Mesh &mesh, Coefficient &rho,
    Array<int> vdofs;
 
    IsoparametricTransformation T;
-   
+
    for (int i=0; i<mesh.GetNE(); i++)
    {
       const_cast<Mesh&>(mesh).GetElementTransformation(i, &T);
@@ -322,7 +322,7 @@ double ComputeFirstMoment(const Mesh &mesh, Coefficient &rho,
    Vector x(x_data, sdim);
 
    IsoparametricTransformation T;
-   
+
    for (int i=0; i<mesh.GetNE(); i++)
    {
       const_cast<Mesh&>(mesh).GetElementTransformation(i, &T);
@@ -360,7 +360,7 @@ double ComputeSecondMoment(const Mesh &mesh, Coefficient &rho,
    Vector x(x_data, sdim);
 
    IsoparametricTransformation T;
-   
+
    for (int i=0; i<mesh.GetNE(); i++)
    {
       const_cast<Mesh&>(mesh).GetElementTransformation(i, &T);
@@ -421,7 +421,7 @@ void ComputeElementCentersOfMass(const Mesh &mesh, Coefficient &rho,
    c = 0.0;
 
    IsoparametricTransformation T;
-   
+
    for (int i=0; i<mesh.GetNE(); i++)
    {
       const_cast<Mesh&>(mesh).GetElementTransformation(i, &T);

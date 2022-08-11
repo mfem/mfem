@@ -12,31 +12,31 @@ static int prob_ = -1;
 
 double densityFunc(const Vector &x)
 {
-  switch(prob_)
-    {
-    case 0:
-      // Linear in the radius
-      return sqrt(x * x);
-    case 1:
-      // Hydrostatic equilibrium (1D)
-      return pow(cosh(sqrt(0.5 * (x * x))), -2.0);
-    case 2:
-      // Hydrostatic equilibrium (2D)
-      return pow(1.0 + 0.125 * (x * x), -2.0);
-    case 3:
-      // Hydrostatic equilibrium (3D), approx.
-      return pow(1.0 + (x * x) / 9.0, -1.5);
-    case 4:
-      // Off-center Gaussian
+   switch (prob_)
+   {
+      case 0:
+         // Linear in the radius
+         return sqrt(x * x);
+      case 1:
+         // Hydrostatic equilibrium (1D)
+         return pow(cosh(sqrt(0.5 * (x * x))), -2.0);
+      case 2:
+         // Hydrostatic equilibrium (2D)
+         return pow(1.0 + 0.125 * (x * x), -2.0);
+      case 3:
+         // Hydrostatic equilibrium (3D), approx.
+         return pow(1.0 + (x * x) / 9.0, -1.5);
+      case 4:
+         // Off-center Gaussian
       {
-	double s_data[3];
-	Vector s(s_data, x.Size());
-	s = 0.0; s[0] = -1.0; s += x;
-	return exp(-(s * s));
+         double s_data[3];
+         Vector s(s_data, x.Size());
+         s = 0.0; s[0] = -1.0; s += x;
+         return exp(-(s * s));
       }
-    }  
-  // Default to homogeneous
-  return 1.0;
+   }
+   // Default to homogeneous
+   return 1.0;
 }
 
 int main(int argc, char *argv[])
@@ -65,12 +65,12 @@ int main(int argc, char *argv[])
                   "Integration rule order.");
    args.AddOption(&prob_, "-d", "--density",
                   "Density profile:\n"
-		  "  0 - Linear increase with radius,\n"
-		  "  1 - Hydrostatic equilibrium in 1D,\n"
-		  "  2 - Hydrostatic equilibrium in 2D,\n"
-		  "  3 - Hydrostatic equilibrium in 3D (approximately),\n"
-		  "  4 - Gaussian centered at x = 1,\n"
-		  "  Default - homogeneous.");
+                  "  0 - Linear increase with radius,\n"
+                  "  1 - Hydrostatic equilibrium in 1D,\n"
+                  "  2 - Hydrostatic equilibrium in 2D,\n"
+                  "  3 - Hydrostatic equilibrium in 3D (approximately),\n"
+                  "  4 - Gaussian centered at x = 1,\n"
+                  "  Default - homogeneous.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");

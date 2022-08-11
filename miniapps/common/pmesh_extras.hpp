@@ -24,11 +24,11 @@ namespace common
 
 double ComputeVolume(const ParMesh &pmesh, int ir_order);
 double ComputeVolume(const ParMesh &mesh, const Array<int> &attr_marker,
-		     int ir_order);
+                     int ir_order);
 double ComputeSurfaceArea(const ParMesh &pmesh, int ir_order);
 double ComputeSurfaceArea(const ParMesh &mesh,
-			  const Array<int> &bdr_attr_marker,
-			  int ir_order);
+                          const Array<int> &bdr_attr_marker,
+                          int ir_order);
 
 double ComputeZerothMoment(const ParMesh &pmesh, Coefficient &rho,
                            int ir_order);
@@ -39,7 +39,7 @@ double ComputeSecondMoment(const ParMesh &pmesh, Coefficient &rho,
                            int ir_order, DenseMatrix &mom);
 
 inline void ComputeNormalizedFirstMoment(const ParMesh &pmesh,
-					 Coefficient &rho,
+                                         Coefficient &rho,
                                          int ir_order, Vector &mom)
 {
    double mom0 = ComputeFirstMoment(pmesh, rho, ir_order, mom);
@@ -47,7 +47,7 @@ inline void ComputeNormalizedFirstMoment(const ParMesh &pmesh,
 }
 
 inline void ComputeNormalizedSecondMoment(const ParMesh &pmesh,
-					  Coefficient &rho,
+                                          Coefficient &rho,
                                           const Vector &center,
                                           int ir_order, DenseMatrix &mom)
 {
