@@ -2558,6 +2558,7 @@ void TMOP_Integrator::EnableSurfaceFitting(const ParGridFunction &s0,
                                  surf_fit_gf->FESpace()->GetOrdering());
    surf_fit_eval->SetInitialField
    (*surf_fit_gf->FESpace()->GetMesh()->GetNodes(), *surf_fit_gf);
+   surf_fit_gf_bg = false;
 }
 
 void TMOP_Integrator::EnableSurfaceFittingFromSource(const ParGridFunction
@@ -2581,26 +2582,39 @@ void TMOP_Integrator::EnableSurfaceFittingFromSource(const ParGridFunction
 
    surf_fit_gf_bg = true;
    surf_fit_eval->SetParMetaInfo(*s0_bg.ParFESpace()->GetParMesh(),
-                                 *s0_bg.ParFESpace()->FEColl(), 1);
+                                 *s0_bg.ParFESpace()->FEColl(), 1,
+                                 s0_bg.ParFESpace()->GetOrdering());
    surf_fit_eval->SetInitialField
    (*s0_bg.FESpace()->GetMesh()->GetNodes(), s0_bg);
+
+   MFEM_VERIFY(s0_bg_grad.ParFESpace()->GetOrdering() ==
+               s0_grad.ParFESpace()->GetOrdering(),
+               "Nodal ordering for gridfunction on source mesh and current mesh"
+               "should be the same.");
 
    // Setup gradient and Hessian on background mesh
    surf_fit_eval_bg_grad = &age;
    surf_fit_eval_bg_hess = &ahe;
    surf_fit_eval_bg_grad->SetParMetaInfo(*s0_bg_grad.ParFESpace()->GetParMesh(),
                                          *s0_bg_grad.ParFESpace()->FEColl(),
-                                         s0_bg_grad.ParFESpace()->GetVDim());
+                                         s0_bg_grad.ParFESpace()->GetVDim(),
+                                         s0_bg_grad.ParFESpace()->GetOrdering());
    surf_fit_eval_bg_grad->SetInitialField
    (*s0_bg_grad.FESpace()->GetMesh()->GetNodes(), s0_bg_grad);
 
    delete surf_fit_grad;
    surf_fit_grad = new GridFunction(s0_grad);
 
+   MFEM_VERIFY(s0_bg_hess.ParFESpace()->GetOrdering() ==
+               s0_hess.ParFESpace()->GetOrdering(),
+               "Nodal ordering for gridfunction on source mesh and current mesh"
+               "should be the same.");
+
    // Setup Hessian on background mesh
    surf_fit_eval_bg_hess->SetParMetaInfo(*s0_bg_hess.ParFESpace()->GetParMesh(),
                                          *s0_bg_hess.ParFESpace()->FEColl(),
-                                         s0_bg_hess.ParFESpace()->GetVDim());
+                                         s0_bg_hess.ParFESpace()->GetVDim(),
+                                         s0_bg_hess.ParFESpace()->GetOrdering());
    surf_fit_eval_bg_hess->SetInitialField
    (*s0_bg_hess.FESpace()->GetMesh()->GetNodes(), s0_bg_hess);
 

@@ -34,35 +34,6 @@ double circle_level_set(const Vector &x)
    }
 }
 
-double sine_level_set(const Vector &x)
-{
-   const double sine = 0.25 * std::sin(4 * M_PI * x(0)) +
-                       0.05 * std::sin(16 * M_PI * x(0));
-   //    return sine;
-   return -std::tanh(2.00*(x(1)-sine-0.5));
-   return (x(1) >= sine + 0.5) ? -1.0 : 1.0;
-}
-
-double donut_level_set(const Vector &coord)
-{
-   MFEM_VERIFY(coord.Size() == 3,"Donut level set for 3D only.");
-   // map [0,1] to [-1,1].
-   double x = 2*coord(0)-1.0, y = 2*coord(1)-1.0, z = 2*coord(2)-1.0;
-
-   bool doughnut;
-   const double R = 0.8, r = 0.15;
-   const double t = R - std::sqrt(x*x + y*y);
-   doughnut = t*t + z*z - r*r <= 0;
-
-   return (doughnut) ? 1.0 : -1.0;
-}
-
-double linear_level_set(const Vector &x)
-{
-   double y_line = 0.75 - 0.5*x(0);
-   return std::pow(y_line-x(1),1.0);
-}
-
 double squircle_level_set(const Vector &x)
 {
    double power = 4.0;
@@ -115,19 +86,6 @@ double in_parabola(const Vector &x, double h, double k, double t)
    double phi_p1 = (x(0)-h-t/2) - k*x(1)*x(1);
    double phi_p2 = (x(0)-h+t/2) - k*x(1)*x(1);
    if (phi_p1 <= 0.0 && phi_p2 >= 0.0)
-   {
-      return 1.0;
-   }
-   return -1.0;
-}
-
-double in_parabola_rad(const Vector &x, double h, double k, double t,
-                       double rad)
-{
-   double phi_p1 = (x(0)-h-t/2) - k*x(1)*x(1);
-   double phi_p2 = (x(0)-h+t/2) - k*x(1)*x(1);
-   double r = x.Norml2();
-   if (phi_p1 <= 0.0 && phi_p2 >= 0.0 && r <= rad)
    {
       return 1.0;
    }
@@ -233,72 +191,40 @@ double r_remove(double r1, double r2)
 
 double object_three(const Vector &x)
 {
-   double cubew = 0.24;
-   double rado  = 0.29;
-   double cube;
-   {
-      double cube_x = -(x(0)-0.5)*(x(0)-0.5) + cubew*cubew;
-      double cube_y = -(x(1)-0.5)*(x(1)-0.5) + cubew*cubew;
-      double cube_z = -(x(2)-0.5)*(x(2)-0.5) + cubew*cubew;
-      cube = r_intersect(r_intersect(cube_x, cube_y), cube_z);
-   }
-   double sphere;
-   {
-      Vector xc(x.Size());
-      xc = 0.5;
-      sphere = rado*rado - xc.DistanceSquaredTo(x);
-   }
-   double cylinder_x, cylinder_y, cylinder_z;
-   double cyl_rad = 0.075;
-   {
-      Vector xc(x.Size());
-      xc = 0.5; xc -= x; xc(0) = 0.0;
-      cylinder_x = cyl_rad*cyl_rad - (xc(1)*xc(1) + xc(2)*xc(2));
+   Vector xcc(3);
+   xcc = 0.5;
+   double cube_x = 0.25*2;
+   double cube_y = 0.25*2;
+   double cube_z = 0.25*2;
 
-      xc = 0.5; xc -= x; xc(1) = 0.0;
-      cylinder_y = cyl_rad*cyl_rad - (xc(0)*xc(0) + xc(2)*xc(2));
+   double in_cube_val = in_cube(x, xcc(0), xcc(1), xcc(2), cube_x, cube_y, cube_z);
 
-      xc = 0.5; xc -= x; xc(2) = 0.0;
-      cylinder_z = cyl_rad*cyl_rad - (xc(1)*xc(1) + xc(0)*xc(0));
-   }
-   return r_remove(r_remove(r_remove(r_intersect(cube, sphere), cylinder_x),
-                            cylinder_y), cylinder_z);
-}
+   Vector x_circle_c(3);
+   x_circle_c = 0.5;
 
-double squircle_with_hole(const Vector &x)
-{
-   double rect;
-   double rectw = 0.24;
-   double rado  = 0.29;
-   double radi  = 0.14;
-   {
-      double rect_x = -(x(0)-0.5)*(x(0)-0.5) + rectw*rectw;
-      double rect_y = -(x(1)-0.5)*(x(1)-0.5) + rectw*rectw;
+   double sphere_radius = 0.30;
+   double in_sphere_val = in_circle(x, x_circle_c, sphere_radius);
+   double in_return_val = std::min(in_cube_val, in_sphere_val);
 
-      rect = r_intersect(rect_x, rect_y);
+   int pipedir = 1;
+   Vector x_pipe_center(3);
+   x_pipe_center = 0.5;
+   double xmin = 0.5-sphere_radius;
+   double xmax = 0.5+sphere_radius;
+   double pipe_radius = 0.075;
+   double in_pipe_x = in_pipe(x, pipedir, x_pipe_center, pipe_radius, xmin, xmax);
 
-      double rect_x1 = 0.75-x(0);
-      double rect_x2 = x(0)-0.25;
-      double rect_y1 = 0.75-x(1);
-      double rect_y2 = x(1)-0.25;
-      rect = r_intersect(r_intersect(r_intersect(rect_x1, rect_x2),rect_y1),rect_y2);
-      //       rect = r_intersect(rect_x1, rect_x2);
-   }
-   double cir;
-   {
-      const double xc = x(0) - 0.5, yc = x(1) - 0.5;
-      cir = rado*rado - (xc*xc + yc*yc);
-      cir = rado - sqrt(xc*xc + yc*yc);
-   }
-   //   return rect;
-   //   return r_intersect(rect, cir);
-   double hole;
-   {
-      const double xc = x(0) - 0.5, yc = x(1) - 0.5;
-      hole = radi*radi - (xc*xc + yc*yc);
-      hole = radi - sqrt(xc*xc + yc*yc);
-   }
-   return r_remove(r_intersect(rect, cir), hole);
+   in_return_val = std::min(in_return_val, -1*in_pipe_x);
+
+   pipedir = 2;
+   in_pipe_x = in_pipe(x, pipedir, x_pipe_center, pipe_radius, xmin, xmax);
+   in_return_val = std::min(in_return_val, -1*in_pipe_x);
+
+   pipedir = 3;
+   in_pipe_x = in_pipe(x, pipedir, x_pipe_center, pipe_radius, xmin, xmax);
+   in_return_val = std::min(in_return_val, -1*in_pipe_x);
+
+   return in_return_val;
 }
 
 void ModifyAttributeForMarkingDOFS(Mesh *mesh, GridFunction &mat,

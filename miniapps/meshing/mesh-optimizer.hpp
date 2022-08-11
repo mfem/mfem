@@ -415,17 +415,23 @@ int material_id(int el_id, const GridFunction &g)
    double integral = 0.0;
    g.GetValues(el_id, ir, g_vals);
    ElementTransformation *Tr = fes->GetMesh()->GetElementTransformation(el_id);
-   for (int q = 0; q < ir.GetNPoints(); q++)
+   int approach = 1;
+   if (approach == 0)   // integral based
    {
-      const IntegrationPoint &ip = ir.IntPoint(q);
-      Tr->SetIntPoint(&ip);
-      integral += ip.weight * g_vals(q) * Tr->Weight();
+      for (int q = 0; q < ir.GetNPoints(); q++)
+      {
+         const IntegrationPoint &ip = ir.IntPoint(q);
+         Tr->SetIntPoint(&ip);
+         integral += ip.weight * g_vals(q) * Tr->Weight();
+      }
+      return (integral > 0.0) ? 1.0 : 0.0;
    }
-   double minval = g_vals.Min();
-   double maxval = g_vals.Max();
-   //   return maxval <= 0 ? 1.0 : 0.0;
-   return minval > 0.0 ? 1.0 : 0.0;
-   return (integral > 0.0) ? 1.0 : 0.0;
+   else if (approach == 1)   // minimum value based
+   {
+      double minval = g_vals.Min();
+      return minval > 0.0 ? 1.0 : 0.0;
+   }
+   return 0.0;
 }
 
 void DiffuseField(GridFunction &field, int smooth_steps)
