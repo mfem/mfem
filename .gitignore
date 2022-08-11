@@ -39,6 +39,9 @@ doc/warnings.log
 # Build directory
 build
 
+# Output directory
+output
+
 # qt files
 mfem-qt
 mfem.code-workspace
@@ -374,3 +377,6 @@ pkg.gitcommit
 
 # Jupyter Notebook Checkpoints
 .ipynb_checkpoints
+
+# test meshes
+data/periodic-segment2.mesh
