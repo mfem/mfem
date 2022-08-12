@@ -261,6 +261,7 @@ int main(int argc, char *argv[])
    bool one_time_step = false;
    double dt = 0.01;
    bool match_dt_to_h = false;
+   bool gif = false;
    bool visualization = true;
    bool visit = false;
    bool paraview = false;
@@ -311,6 +312,9 @@ int main(int argc, char *argv[])
    args.AddOption(&match_dt_to_h, "-ct", "--conv-test",
                   "-no-ct", "--no-conv-test",
                   "Enable convergence testing by matching dt to h.");
+   args.AddOption(&gif, "-gif", "--save-files-for-gif", "-no-gif", 
+                  "--dont-save-files-for-gif",
+                  "Enable or disable file output for gif creation.");         
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -608,6 +612,15 @@ int main(int argc, char *argv[])
          {
             sout << "parallel " << num_procs << " " << myid << "\n";
             sout << "solution\n" << *pmesh << *u << flush;
+         }
+
+         if (gif)
+         {
+            ostringstream sol_name;
+            sol_name << "ex9p-discontinuous:" << to_string(double(t/t_final)) << ":." << setfill('0') << setw(6) << myid;
+            ofstream osol(sol_name.str().c_str());
+            osol.precision(precision);
+            u->Save(osol);
          }
 
          if (visit)
