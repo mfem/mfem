@@ -239,8 +239,8 @@ public:
    virtual void ProjectCoefficient(Coefficient &coeff);
 
    /* HDG */
-   using GridFunction::ProjectCoefficientSkeletonDG;
-   void ProjectCoefficientSkeletonDG(Coefficient &coeff);
+   using GridFunction::ProjectCoefficientSkeleton;
+   void ProjectCoefficientSkeleton(Coefficient &coeff);
 
    using GridFunction::ProjectDiscCoefficient;
    /** @brief Project a discontinuous vector coefficient as a grid function on

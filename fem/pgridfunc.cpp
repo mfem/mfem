@@ -544,13 +544,13 @@ void ParGridFunction::ProjectCoefficient(Coefficient &coeff)
 }
 
 /* HDG */
-void ParGridFunction::ProjectCoefficientSkeletonDG(Coefficient &coeff)
+void ParGridFunction::ProjectCoefficientSkeleton(Coefficient &coeff)
 {
    DeltaCoefficient *delta_c = dynamic_cast<DeltaCoefficient *>(&coeff);
 
    if (delta_c == NULL)
    {
-      GridFunction::ProjectCoefficientSkeletonDG(coeff);
+      GridFunction::ProjectCoefficientSkeleton(coeff);
    }
    else
    {

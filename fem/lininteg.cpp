@@ -132,9 +132,60 @@ void SkeletonMassIntegratorRHS::AssembleRHSElementVect(const FiniteElement &el,
       add(elvect, ip.weight * val, shape, elvect);
    }
 }
-
 /* HDG */
 void SkeletonMassIntegratorRHS::AssembleRHSElementVect(
+   const FiniteElement &el, ElementTransformation &Tr, Vector &elvect)
+{
+   mfem_error("Not implemented \n");
+}
+
+/* HDG */
+void VectorSkeletonMassIntegratorRHS::AssembleRHSElementVect(
+   const FiniteElement &el,
+   FaceElementTransformations &Tr,
+   Vector &elvect)
+{
+   int dof = el.GetDof();
+   int vdim = el.GetDim() + 1;
+
+   shape.SetSize(dof);       // vector of size dof
+   elvect.SetSize(vdim * dof);
+   elvect = 0.0;
+
+   partelvect.SetSize(vdim * dof);
+   partelvect = 0.0;
+   Vector Q_val;
+
+
+   const IntegrationRule *ir = IntRule;
+   if (ir == NULL)
+   {
+      ir = &IntRules.Get(el.GetGeomType(), oa * el.GetOrder() + ob);
+   }
+
+   for (int i = 0; i < ir->GetNPoints(); i++)
+   {
+      const IntegrationPoint &ip = ir->IntPoint(i);
+
+      Tr.Face->SetIntPoint (&ip);
+      Q.Eval(Q_val, *Tr.Face, ip);
+
+      Q_val *= Tr.Face->Weight();
+
+      el.CalcShape(ip, shape);
+
+      for (int dim = 0; dim <vdim; dim++)
+         for (int j = 0; j<dof; j++)
+         {
+            partelvect(dim*dof + j) = shape(j)*Q_val(dim);
+         }
+
+
+      add(elvect, ip.weight, partelvect, elvect);
+   }
+}
+/* HDG */
+void VectorSkeletonMassIntegratorRHS::AssembleRHSElementVect(
    const FiniteElement &el, ElementTransformation &Tr, Vector &elvect)
 {
    mfem_error("Not implemented \n");

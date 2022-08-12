@@ -2420,6 +2420,78 @@ void GridFunction::ProjectCoefficientSkeletonDG(Coefficient &coeff)
       SetSubVector(vdofs, vals);
    }
 }
+void GridFunction::ProjectCoefficientSkeletonDGVector(VectorCoefficient &vcoeff)
+{
+   Array<int> vdofs;
+   Vector vals, local_rhs, shape;
+   DenseMatrix local_mtx;
+   Mesh *mesh = fes->GetMesh();
+   int nfaces = mesh->GetNumFaces();
+   FaceElementTransformations *ftr;
+   VectorSkeletonMassIntegrator Mi;
+   VectorSkeletonMassIntegratorRHS MiRHS(vcoeff);
+
+   for (int i = 0; i < nfaces; i++)
+   {
+      ftr = mesh->GetFaceElementTransformations(i);
+      Mi.AssembleFaceMatrix(*fes->GetFaceElement(i),
+                            *ftr, local_mtx);
+      MiRHS.AssembleRHSElementVect(*fes->GetFaceElement(i),
+                                   *ftr, local_rhs);
+      fes->GetFaceVDofs(i, vdofs);
+      vals.SetSize(vdofs.Size());
+
+      local_mtx.Invert();
+      local_mtx.Mult(local_rhs, vals);
+      SetSubVector(vdofs, vals);
+   }
+}
+void GridFunction::ProjectCoefficientSkeleton(Coefficient &coeff)
+{
+   DeltaCoefficient *delta_c = dynamic_cast<DeltaCoefficient *>(&coeff);
+
+   if (delta_c == NULL)
+   {
+      Mesh *mesh = fes->GetMesh();
+      int nfaces = mesh->GetNumFaces();
+      Array<int> vdofs;
+      Vector vals;
+
+      for (int i = 0; i < nfaces; i++)
+      {
+         fes->GetFaceVDofs(i, vdofs);
+         vals.SetSize(vdofs.Size());
+         fes->GetFaceElement(i)->Project(coeff, *mesh->GetFaceElementTransformations(i),
+                                         vals);
+         SetSubVector(vdofs, vals);
+      }
+   }
+   else
+   {
+      double integral;
+
+      ProjectDeltaCoefficient(*delta_c, integral);
+
+      (*this) *= (delta_c->Scale() / integral);
+   }
+}
+void GridFunction::ProjectCoefficientSkeletonVector(VectorCoefficient &vcoeff)
+{
+   Mesh *mesh = fes->GetMesh();
+   int nfaces = mesh->GetNumFaces();
+   Array<int> vdofs;
+   Vector vals;
+
+   for (int i = 0; i < nfaces; i++)
+   {
+      fes->GetFaceVDofs(i, vdofs);
+      vals.SetSize(vdofs.Size());
+      fes->GetFaceElement(i)->Project(vcoeff, *mesh->GetFaceElementTransformations(i),
+                                      vals);
+      SetSubVector(vdofs, vals);
+   }
+}
+/* HDG ends */
 
 void GridFunction::ProjectCoefficient(Coefficient &coeff)
 {

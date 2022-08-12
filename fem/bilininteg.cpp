@@ -1287,6 +1287,47 @@ void SkeletonMassIntegrator::AssembleFaceMatrix(const FiniteElement &face_fe,
    }
 
 }
+void VectorSkeletonMassIntegrator::AssembleFaceMatrix(const FiniteElement
+                                                      &face_fe,
+                                                      FaceElementTransformations &Trans,
+                                                      DenseMatrix &elmat)
+{
+   int ndof;
+   double w;
+   int vdim = face_fe.GetDim() + 1;
+
+   ndof = face_fe.GetDof();
+   elmat.SetSize(vdim*ndof);
+   elmat = 0.0;
+   shape.SetSize(ndof);
+   partelmat.SetSize(ndof);
+
+   const IntegrationRule *ir = IntRule;
+   if (ir == NULL)
+   {
+      int order = 2 * face_fe.GetOrder();
+      order += 3;
+
+      ir = &IntRules.Get(Trans.FaceGeom, order);
+   }
+
+   for (int i = 0; i < ir->GetNPoints(); i++)
+   {
+      const IntegrationPoint &ip = ir->IntPoint(i);
+      face_fe.CalcShape(ip, shape);
+
+      Trans.Face->SetIntPoint(&ip);
+
+      w = Trans.Face->Weight() * ip.weight;
+
+      MultVVt(shape, partelmat);
+      partelmat *=w;
+      for (int k = 0; k < vdim; k++)
+      {
+         elmat.AddMatrix(partelmat, ndof*k, ndof*k);
+      }
+   }
+}
 
 const IntegrationRule &DiffusionIntegrator::GetRule(
    const FiniteElement &trial_fe, const FiniteElement &test_fe)

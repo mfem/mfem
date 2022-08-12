@@ -306,7 +306,7 @@ void HDGBilinearForm::compute_face_integrals(const int elem, const int edge,
       }
       case 2:
       {
-         const FiniteElement &volume_fe2 = *volume_fes[1]->GetFE(tr->Elem1No);
+         const FiniteElement &volume_fe2 = *volume_fes[1]->GetFE(elem);
          hdg_fbfi[0]->AssembleFaceMatrixOneElement2and1FES(volume_fe, volume_fe2,
                                                            trace_fe,
                                                            *tr, elem_1or2, onlyB,
@@ -814,8 +814,6 @@ void HDGBilinearForm::Reconstruct(Array<GridFunction*> &F,
       u_local.SetSize(ndof_u);
       A_local.Mult(F_local, u_local);
 
-      //        u->SetSubVector(vdofs_u, u_local);
-
       SetInteriorSubVector(u, i, ndof_u, u_local);
 
       delete [] B_local;
@@ -868,11 +866,11 @@ HypreParMatrix *HDGBilinearForm::ParallelAssembleSC(SparseMatrix *m)
 
 HypreParVector *HDGBilinearForm::ParallelVectorSC()
 {
-   ParFiniteElementSpace* pfes2 = dynamic_cast<ParFiniteElementSpace*>
-                                  (skeletal_fes[0]);
-   HypreParVector *tv = pfes2->NewTrueDofVector();
+   ParFiniteElementSpace* pfes = dynamic_cast<ParFiniteElementSpace*>
+                                 (skeletal_fes[0]);
+   HypreParVector *tv = pfes->NewTrueDofVector();
 
-   pfes2->Dof_TrueDof_Matrix()->MultTranspose(*rhs_SC, *tv);
+   pfes->Dof_TrueDof_Matrix()->MultTranspose(*rhs_SC, *tv);
    return tv;
 }
 
