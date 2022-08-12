@@ -25,7 +25,7 @@ void DLFEvalAssemble2D(const int vdim, const int ne, const int d, const int q,
    const auto F = coeff.Read();
    const auto M = Reshape(markers, ne);
    const auto B = Reshape(b, q, d);
-   const auto J = Reshape(j, q, q, 2,2, ne);
+   const auto J = Reshape(j, q, q, ne);
    const auto W = Reshape(weights, q, q);
    const bool cst = coeff.Size() == vdim;
    const auto C = cst ? Reshape(F,vdim,1,1,1) : Reshape(F,vdim,q,q,ne);
@@ -55,19 +55,7 @@ void DLFEvalAssemble2D(const int vdim, const int ne, const int d, const int q,
          {
             MFEM_FOREACH_THREAD(y,y,q)
             {
-               double detJ;
-               if (map_type == FiniteElement::VALUE)
-               {
-                  const double J11 = J(x,y,0,0,e);
-                  const double J21 = J(x,y,1,0,e);
-                  const double J12 = J(x,y,0,1,e);
-                  const double J22 = J(x,y,1,1,e);
-                  detJ = J11 * J22 - J21 * J12;
-               }
-               else
-               {
-                  detJ = 1.0;
-               }
+               const double detJ = (map_type == FiniteElement::VALUE) ? J(x,y,e) : 1.0;
                const double coeff_val = cst ? cst_val : C(c,x,y,e);
                QQ(y,x) = W(x,y) * coeff_val * detJ;
             }
@@ -106,7 +94,7 @@ void DLFEvalAssemble3D(const int vdim, const int ne, const int d, const int q,
    const auto F = coeff.Read();
    const auto M = Reshape(markers, ne);
    const auto B = Reshape(b, q,d);
-   const auto J = Reshape(j, q,q,q, 3,3, ne);
+   const auto J = Reshape(j, q, q, q, ne);
    const auto W = Reshape(weights, q,q,q);
    const bool cst_coeff = coeff.Size() == vdim;
    const auto C = cst_coeff ? Reshape(F,vdim,1,1,1,1):Reshape(F,vdim,q,q,q,ne);
@@ -138,26 +126,7 @@ void DLFEvalAssemble3D(const int vdim, const int ne, const int d, const int q,
             {
                for (int z = 0; z < q; ++z)
                {
-                  double detJ;
-                  if (map_type == FiniteElement::VALUE)
-                  {
-                     const double J11 = J(x,y,z,0,0,e);
-                     const double J21 = J(x,y,z,1,0,e);
-                     const double J31 = J(x,y,z,2,0,e);
-                     const double J12 = J(x,y,z,0,1,e);
-                     const double J22 = J(x,y,z,1,1,e);
-                     const double J32 = J(x,y,z,2,1,e);
-                     const double J13 = J(x,y,z,0,2,e);
-                     const double J23 = J(x,y,z,1,2,e);
-                     const double J33 = J(x,y,z,2,2,e);
-                     detJ = J11 * (J22 * J33 - J32 * J23) -
-                     /* */  J21 * (J12 * J33 - J32 * J13) +
-                     /* */  J31 * (J12 * J23 - J22 * J13);
-                  }
-                  else
-                  {
-                     detJ = 1.0;
-                  }
+                  const double detJ = (map_type == FiniteElement::VALUE) ? J(x,y,z,e) : 1.0;
                   const double coeff_val = cst_coeff ? cst_val : C(c,x,y,z,e);
                   QQQ(z,y,x) = W(x,y,z) * coeff_val * detJ;
                }
@@ -222,7 +191,7 @@ static void DLFEvalAssemble(const FiniteElementSpace &fes,
    const MemoryType mt = Device::GetDeviceMemoryType();
    const DofToQuad &maps = el.GetDofToQuad(*ir, DofToQuad::TENSOR);
    const int d = maps.ndof, q = maps.nqpt;
-   constexpr int flags = GeometricFactors::JACOBIANS;
+   constexpr int flags = GeometricFactors::DETERMINANTS;
    const GeometricFactors *geom = mesh->GetGeometricFactors(*ir, flags, mt);
    const int map_type = fes.GetFE(0)->GetMapType();
    decltype(&DLFEvalAssemble2D<>) ker =
@@ -260,7 +229,7 @@ static void DLFEvalAssemble(const FiniteElementSpace &fes,
    const int ne = fes.GetMesh()->GetNE();
    const int *M = markers.Read();
    const double *B = maps.B.Read();
-   const double *J = geom->J.Read();
+   const double *J = geom->detJ.Read();
    const double *W = ir->GetWeights().Read();
    double *Y = y.ReadWrite();
    ker(vdim, ne, d, q, map_type, M, B, J, W, coeff, Y);
