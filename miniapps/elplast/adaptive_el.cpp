@@ -205,6 +205,7 @@ int main(int argc, char *argv[])
    // ParaView output.
    ParaViewDataCollection dacol("ParaView", &pmesh);
    dacol.SetLevelsOfDetail(order);
+   dacol.SetDataFormat(VTKFormat::ASCII);
    dacol.RegisterField("disp", &x);
    dacol.RegisterField("estr",&estrains);
    dacol.RegisterField("sstr",&sstrains);
@@ -222,7 +223,7 @@ int main(int argc, char *argv[])
 
    // 12. The main AMR loop. In each iteration we solve the problem on the
    //     current mesh, visualize the solution, and refine the mesh.
-   const int max_dofs = 500000;
+   const int max_dofs = 100000;
    const int max_amr_itr = 20;
    for (int it = 0; it <= max_amr_itr; it++)
    {
