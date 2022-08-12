@@ -13,6 +13,7 @@
 #define MFEM_LIBCEED_MASS_HPP
 
 #include "../../interface/integrator.hpp"
+#include "../../interface/mixed_integrator.hpp"
 #include "../../../fespace.hpp"
 
 namespace mfem
@@ -26,8 +27,20 @@ class PAMassIntegrator : public PAIntegrator
 {
 public:
    PAMassIntegrator(const mfem::FiniteElementSpace &fes,
-                    const mfem::IntegrationRule &irm,
+                    const mfem::IntegrationRule &ir,
                     mfem::Coefficient *Q);
+};
+
+class MixedPAMassIntegrator : public MixedIntegrator<PAIntegrator>
+{
+public:
+   MixedPAMassIntegrator(const MassIntegrator &integ,
+                         const mfem::FiniteElementSpace &fes,
+                         mfem::Coefficient *Q);
+
+   MixedPAMassIntegrator(const VectorMassIntegrator &integ,
+                         const mfem::FiniteElementSpace &fes,
+                         mfem::Coefficient *Q);
 };
 
 /// Represent a MassIntegrator with AssemblyLevel::None using libCEED.
@@ -35,8 +48,20 @@ class MFMassIntegrator : public MFIntegrator
 {
 public:
    MFMassIntegrator(const mfem::FiniteElementSpace &fes,
-                    const mfem::IntegrationRule &irm,
+                    const mfem::IntegrationRule &ir,
                     mfem::Coefficient *Q);
+};
+
+class MixedMFMassIntegrator : public MixedIntegrator<MFIntegrator>
+{
+public:
+   MixedMFMassIntegrator(const MassIntegrator &integ,
+                         const mfem::FiniteElementSpace &fes,
+                         mfem::Coefficient *Q);
+
+   MixedMFMassIntegrator(const VectorMassIntegrator &integ,
+                         const mfem::FiniteElementSpace &fes,
+                         mfem::Coefficient *Q);
 };
 
 }

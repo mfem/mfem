@@ -213,6 +213,8 @@ int main(int argc, char *argv[])
    dacol.SetCycle(1);
    dacol.Save();
 
+   MPI_Barrier(MPI_COMM_WORLD);
+   exit(0);
 
    // 11. A refiner selects and refines elements based on a refinement strategy.
    //     The strategy here is to refine elements with errors larger than a
