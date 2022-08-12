@@ -163,8 +163,8 @@ static void BLFEvalAssemble(const FiniteElementSpace &fes,
    const MemoryType mt = Device::GetDeviceMemoryType();
    const DofToQuad &maps = el.GetDofToQuad(ir, DofToQuad::TENSOR);
    const int d = maps.ndof, q = maps.nqpt;
-   // can we make this optional (depending on normals)?
-   int flags = FaceGeometricFactors::DETERMINANTS | FaceGeometricFactors::NORMALS;
+   int flags = FaceGeometricFactors::DETERMINANTS;
+   if (normals) { flags |= FaceGeometricFactors::NORMALS; }
    const FaceGeometricFactors *geom = mesh.GetFaceGeometricFactors(
                                          ir, flags, FaceType::Boundary, mt);
    auto ker = (dim == 2) ? BLFEvalAssemble2D<> : BLFEvalAssemble3D<>;
