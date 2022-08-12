@@ -137,6 +137,7 @@ int main(int argc, char *argv[])
    bool optimize_timestep = false;
    double dt = 0.01;
    bool match_dt_to_h = false;
+   bool gif = false;
    bool visualization = true;
    bool visit = false;
    bool paraview = false;
@@ -188,6 +189,9 @@ int main(int argc, char *argv[])
    args.AddOption(&match_dt_to_h, "-ct", "--conv-test",
                   "-no-ct", "--no-conv-test",
                   "Enable convergence testing by matching dt to h.");
+   args.AddOption(&gif, "-gif", "--save-files-for-gif", "-no-gif", 
+                  "--dont-save-files-for-gif",
+                  "Enable or disable file output for gif creation.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -493,6 +497,15 @@ int main(int argc, char *argv[])
             sout << "solution\n" << *pmesh << *u << flush;
          }
 
+         if (gif)
+         {
+            ostringstream sol_name;
+            sol_name << "ex9p-continuous:" << to_string(double(t/t_final)) << ":." << setfill('0') << setw(6) << myid;
+            ofstream osol(sol_name.str().c_str());
+            osol.precision(precision);
+            u->Save(osol);
+         }
+
          if (visit)
          {
             dc->SetCycle(ti);
@@ -694,7 +707,6 @@ void FE_Evolution::build_dij_matrix(const Vector &U)
             double dij = fmax(abs(kij), abs(kji));
 
             D_data[k] = dij;
-            if (i == 0) { cout << "dij: " << dij << endl; }
 
             rowsum += dij;
          }
@@ -702,7 +714,6 @@ void FE_Evolution::build_dij_matrix(const Vector &U)
             D_data[k] = 0; // Need to clear entry before Mult()
          }
       }
-      if (i == 0) { cout << "rowsum: " << rowsum << endl; }
       dii(i) = -1 *  rowsum; // To be used in Mult() in place of diagonal entries
    }
 
@@ -717,7 +728,6 @@ void FE_Evolution::build_dij_matrix(const Vector &U)
  * ***************************************************************************/
 void FE_Evolution::calculate_timestep()
 {
-   cout << "Calculating timestep.\n";
    int n = lumpedM.Size();
    double t_min = 1.;
    double t_temp = 0;
@@ -725,18 +735,14 @@ void FE_Evolution::calculate_timestep()
    for (int i = 0; i < n; i++)
    {
       assert(lumpedM(i) > 0); // Assumption, equation (3.6)
-      if (dii[i] >= 0)
-      {
-         cout << "i: " << i << ", dii: " << dii[i] << endl;
-      }
       assert(dii[i] < 0);
+
       t_temp = lumpedM(i) / (2. * abs(dii[i]));
       
       if (t_temp < t_min && t_temp > 1e-12) { t_min = t_temp; }
    }
 
    this->timestep = t_min;
-   cout << "Finished calculating timestep.\n";
 }
 
 
@@ -988,7 +994,7 @@ double exact_sol(const Vector &x, const double t)
          {
             case 1:
             {
-               return max(0., 0.5 - abs(X[0]));
+               return max(0.1, 0.5 - abs(X[0]));
                break;
             }
             case 2:
@@ -1033,6 +1039,16 @@ double exact_sol(const Vector &x, const double t)
                }
 
                break;
+            }
+         }
+      }
+      case 7:
+      {
+         switch (dim) 
+         {
+            case 1:
+            {
+               return (.5 + sin(x[0]));
             }
          }
       }
