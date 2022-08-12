@@ -107,12 +107,9 @@ bool LinearForm::SupportsDevice()
    if (fes->GetMesh()->NURBSext != nullptr) { return false; }
 
    // scan domain integrator to verify that all can use device assembly
-   if (domain_integs.Size() > 0)
+   for (int k = 0; k < domain_integs.Size(); k++)
    {
-      for (int k = 0; k < domain_integs.Size(); k++)
-      {
-         if (!domain_integs[k]->SupportsDevice()) { return false; }
-      }
+      if (!domain_integs[k]->SupportsDevice()) { return false; }
    }
 
    // boundary, delta and face integrators are not supported yet
