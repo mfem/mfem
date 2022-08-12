@@ -26,8 +26,8 @@ protected:
    const DenseMatrix *Jtr; /**< Jacobian of the reference-element to
                                 target-element transformation. */
 
-   /** @brief The method SetTransformation() is hidden for TMOP_QualityMetric%s,
-       because it is not used. */
+   /** @brief The method HyperelasticModel::SetTransformation() is hidden
+       for TMOP_QualityMetric%s, because it is not used. */
    void SetTransformation(ElementTransformation &) { }
 
 public:
@@ -41,6 +41,11 @@ public:
        be written just as a function of the target->physical Jacobian matrix,
        Jpt. */
    virtual void SetTargetJacobian(const DenseMatrix &Jtr_) { Jtr = &Jtr_; }
+
+   /** @brief Evaluates the metric in matrix form (opposed to invariant form).
+       Used for debugging the invariant evaluations. */
+   virtual double EvalWMatrixForm(const DenseMatrix &Jpt) const
+   { MFEM_ABORT("Not implemented for the used metric!"); return 0.0; }
 
    /** @brief Evaluate the strain energy density function, W = W(Jpt).
        @param[in] Jpt  Represents the target->physical transformation
@@ -189,6 +194,8 @@ protected:
 public:
    // W = 0.5|J|^2 / det(J) - 1.
    virtual double EvalW(const DenseMatrix &Jpt) const;
+
+   virtual double EvalWMatrixForm(const DenseMatrix &Jpt) const;
 
    virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const;
 
@@ -504,6 +511,9 @@ protected:
 
 public:
    // W = |J|^3 / 3^(3/2) / det(J) - 1.
+   virtual double EvalWMatrixForm(const DenseMatrix &Jpt) const;
+
+   // W = |J|^3 / 3^(3/2) / det(J) - 1.
    virtual double EvalW(const DenseMatrix &Jpt) const;
 
    virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const;
@@ -598,6 +608,27 @@ protected:
 
 public:
    // W = |J - J^-t|^2.
+   virtual double EvalW(const DenseMatrix &Jpt) const;
+
+   virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const;
+
+   virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
+                          const double weight, DenseMatrix &A) const;
+
+   virtual int Id() const { return 321; }
+};
+
+/// 3D barrier Shape+Size (VS) metric, well-posed.
+class TMOP_Metric_322 : public TMOP_QualityMetric
+{
+protected:
+   mutable InvariantsEvaluator3D<double> ie;
+
+public:
+   // W = |J - adjJ^-t|^2.
+   virtual double EvalWMatrixForm(const DenseMatrix &Jpt) const;
+
+   // W = I1b / (I3b^-1/3) / 6 + I2b (I3b^1/3) / 6 - 1
    virtual double EvalW(const DenseMatrix &Jpt) const;
 
    virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const;
@@ -1490,6 +1521,7 @@ protected:
       delete lim_func; lim_func = NULL;
    }
 
+public:
    const IntegrationRule &EnergyIntegrationRule(const FiniteElement &el) const
    {
       if (IntegRules)
