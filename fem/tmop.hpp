@@ -1521,7 +1521,6 @@ protected:
       delete lim_func; lim_func = NULL;
    }
 
-public:
    const IntegrationRule &EnergyIntegrationRule(const FiniteElement &el) const
    {
       if (IntegRules)
