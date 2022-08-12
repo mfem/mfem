@@ -59,7 +59,8 @@ void LinearFormExtension::Assemble()
       // Assemble the linear form
       b = 0.0;
       domain_integs[k]->AssembleDevice(fes, markers, b);
-      elem_restrict_lex->MultTranspose(b, *lf);
+      if (k == 0) { elem_restrict_lex->MultTranspose(b, *lf); }
+      else { elem_restrict_lex->AddMultTranspose(b, *lf); }
    }
 }
 
@@ -79,7 +80,8 @@ void LinearFormExtension::Update()
    for (int i = 0; i < NE; ++i) { attributes[i] = mesh.GetAttribute(i); }
 
    constexpr ElementDofOrdering ordering = ElementDofOrdering::LEXICOGRAPHIC;
-   elem_restrict_lex = fes.GetElementRestriction(ordering);
+   elem_restrict_lex = dynamic_cast<const ElementRestrictionOperator*>(
+                          fes.GetElementRestriction(ordering));
    MFEM_VERIFY(elem_restrict_lex, "Element restriction not available");
    b.SetSize(elem_restrict_lex->Height(), Device::GetMemoryType());
    b.UseDevice(true);

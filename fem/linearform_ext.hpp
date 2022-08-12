@@ -34,7 +34,7 @@ class LinearFormExtension
    LinearForm *lf;
 
    /// Operator that converts FiniteElementSpace L-vectors to E-vectors.
-   const Operator *elem_restrict_lex; // Not owned
+   const ElementRestrictionOperator *elem_restrict_lex; // Not owned
 
    /// Internal E-vectors.
    mutable Vector b;
