@@ -18,7 +18,10 @@ using namespace mfem;
 
 struct LinearFormExtTest
 {
-   enum { DLFEval, BLFEval, QLFEval, DLFGrad, VDLFEval, VQLFEval, VDLFGrad };
+   enum { DLFEval, QLFEval, DLFGrad, // scalar domain
+          VDLFEval, VQLFEval, VDLFGrad, // vector domain
+          BLFEval, BNLFEval // boundary
+        };
    const double abs_tol = 1e-14, rel_tol = 1e-14;
    const char *mesh_filename;
    Mesh mesh;
@@ -72,11 +75,6 @@ struct LinearFormExtTest
          lfi_dev = new DomainLFIntegrator(cst_coeff);
          lfi_std = new DomainLFIntegrator(cst_coeff);
       }
-      else if (problem == BLFEval)
-      {
-         lfi_dev = new BoundaryLFIntegrator(cst_coeff);
-         lfi_std = new BoundaryLFIntegrator(cst_coeff);
-      }
       else if (problem == QLFEval)
       {
          lfi_dev = new QuadratureLFIntegrator(qfc,NULL);
@@ -102,15 +100,26 @@ struct LinearFormExtTest
          lfi_dev = new VectorDomainLFGradIntegrator(vdim_dim_cst_coeff);
          lfi_std = new VectorDomainLFGradIntegrator(vdim_dim_cst_coeff);
       }
+      else if (problem == BLFEval)
+      {
+         lfi_dev = new BoundaryLFIntegrator(cst_coeff);
+         lfi_std = new BoundaryLFIntegrator(cst_coeff);
+      }
+      else if (problem == BNLFEval)
+      {
+         lfi_dev = new BoundaryNormalLFIntegrator(dim_cst_coeff);
+         lfi_std = new BoundaryNormalLFIntegrator(dim_cst_coeff);
+      }
       else { REQUIRE(false); }
 
-      if (problem != QLFEval && problem != VQLFEval && problem != BLFEval)
+      if (problem != QLFEval && problem != VQLFEval && problem != BLFEval &&
+          problem != BNLFEval)
       {
          lfi_dev->SetIntRule(gll ? irGLL : ir);
          lfi_std->SetIntRule(gll ? irGLL : ir);
       }
 
-      if (problem != BLFEval)
+      if (problem != BLFEval && problem != BNLFEval)
       {
          lf_dev.AddDomainIntegrator(lfi_dev, elem_marker);
          lf_std.AddDomainIntegrator(lfi_std, elem_marker);
@@ -161,7 +170,8 @@ TEST_CASE("Linear Form Extension", "[LinearFormExtension], [CUDA]")
       const auto problem = GENERATE(LinearFormExtTest::DLFEval,
                                     LinearFormExtTest::QLFEval,
                                     LinearFormExtTest::DLFGrad,
-                                    LinearFormExtTest::BLFEval);
+                                    LinearFormExtTest::BLFEval,
+                                    LinearFormExtTest::BNLFEval);
       LinearFormExtTest(mesh_file, 1, Ordering::byNODES, gll, problem, p).Run();
    }
 
