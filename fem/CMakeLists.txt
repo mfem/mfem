@@ -128,6 +128,7 @@ set(SRCS
   tmop_amr.cpp
   gslib.cpp
   transfer.cpp
+  auxiliary.cpp
   )
 
 set(HDRS
@@ -206,6 +207,7 @@ set(HDRS
   tmop_amr.hpp
   gslib.hpp
   transfer.hpp
+  auxiliary.hpp
   )
 
 if (MFEM_USE_SIDRE)
