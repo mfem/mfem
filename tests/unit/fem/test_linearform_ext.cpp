@@ -105,6 +105,13 @@ struct LinearFormExtTest
          lfi_std->SetIntRule(gll ? irGLL : ir);
       }
 
+      // Test accumulation of integrators
+      if (vdim == 1)
+      {
+         lf_dev.AddDomainIntegrator(new DomainLFIntegrator(cst_coeff));
+         lf_std.AddDomainIntegrator(new DomainLFIntegrator(cst_coeff));
+      }
+
       lf_dev.AddDomainIntegrator(lfi_dev, elem_marker);
       lf_std.AddDomainIntegrator(lfi_std, elem_marker);
    }
