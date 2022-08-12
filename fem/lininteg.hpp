@@ -217,6 +217,13 @@ public:
    BoundaryNormalLFIntegrator(VectorCoefficient &QG, int a = 1, int b = 1)
       : Q(QG), oa(a), ob(b) { }
 
+   virtual bool SupportsDevice() { return true; }
+
+   /// Method defining assembly on device
+   virtual void AssembleDevice(const FiniteElementSpace &fes,
+                               const Array<int> &markers,
+                               Vector &b);
+
    virtual void AssembleRHSElementVect(const FiniteElement &el,
                                        ElementTransformation &Tr,
                                        Vector &elvect);

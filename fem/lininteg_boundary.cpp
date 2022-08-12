@@ -18,17 +18,19 @@ namespace mfem
 
 template<int T_D1D = 0, int T_Q1D = 0> static
 void BLFEvalAssemble2D(const int vdim, const int nbe, const int d, const int q,
-                       const int *markers, const double *b,
-                       const double *detj, const double *weights,
+                       const bool normals, const int *markers, const double *b,
+                       const double *detj, const double *n, const double *weights,
                        const Vector &coeff, double *y)
 {
    const auto F = coeff.Read();
    const auto M = Reshape(markers, nbe);
    const auto B = Reshape(b, q, d);
    const auto detJ = Reshape(detj, q, nbe);
+   const auto N = Reshape(n, q, 2, nbe);
    const auto W = Reshape(weights, q);
-   const bool cst = coeff.Size() == vdim;
-   const auto C = cst ? Reshape(F,vdim,1,1) : Reshape(F,vdim,q,nbe);
+   const int cvdim = normals ? 2 : 1;
+   const bool cst = coeff.Size() == cvdim;
+   const auto C = cst ? Reshape(F,cvdim,1,1) : Reshape(F,cvdim,q,nbe);
    auto Y = Reshape(y, d, vdim, nbe);
 
    MFEM_FORALL(e, nbe,
@@ -40,10 +42,21 @@ void BLFEvalAssemble2D(const int vdim, const int nbe, const int d, const int q,
 
       for (int c = 0; c < vdim; ++c)
       {
-         const double cst_val = C(c,0,0);
          for (int qx = 0; qx < q; ++qx)
          {
-            const double coeff_val = cst ? cst_val : C(c,qx,e);
+            double coeff_val = 0.0;
+            if (normals)
+            {
+               for (int cd = 0; cd < 2; ++cd)
+               {
+                  const double cval = cst ? C(cd,0,0) : C(cd,qx,e);
+                  coeff_val += cval * N(qx, cd, e);
+               }
+            }
+            else
+            {
+               coeff_val = cst ? C(0,0,0) : C(0,qx,e);
+            }
             QQ[qx] = W(qx) * coeff_val * detJ(qx,e);
          }
          for (int dx = 0; dx < d; ++dx)
@@ -58,19 +71,20 @@ void BLFEvalAssemble2D(const int vdim, const int nbe, const int d, const int q,
 
 template<int T_D1D = 0, int T_Q1D = 0> static
 void BLFEvalAssemble3D(const int vdim, const int nbe, const int d, const int q,
-                       const int *markers, const double *b,
-                       const double *detj, const double *weights,
+                       const bool normals, const int *markers, const double *b,
+                       const double *detj, const double *n, const double *weights,
                        const Vector &coeff, double *y)
 {
    const auto F = coeff.Read();
    const auto M = Reshape(markers, nbe);
    const auto B = Reshape(b, q, d);
    const auto detJ = Reshape(detj, q, q, nbe);
+   const auto N = Reshape(n, q, q, 3, nbe);
    const auto W = Reshape(weights, q, q);
-   const bool cst = coeff.Size() == vdim;
-   const auto C = cst ? Reshape(F,vdim,1,1,1) : Reshape(F,vdim,q,q,nbe);
+   const int cvdim = normals ? 3 : 1;
+   const bool cst = coeff.Size() == cvdim;
+   const auto C = cst ? Reshape(F,cvdim,1,1,1) : Reshape(F,cvdim,q,q,nbe);
    auto Y = Reshape(y, d, d, vdim, nbe);
-
 
    MFEM_FORALL_2D(e, nbe, q, q, 1,
    {
@@ -91,12 +105,23 @@ void BLFEvalAssemble3D(const int vdim, const int nbe, const int d, const int q,
 
       for (int c = 0; c < vdim; ++c)
       {
-         const double cst_val = C(c,0,0,0);
          MFEM_FOREACH_THREAD(x,x,q)
          {
             MFEM_FOREACH_THREAD(y,y,q)
             {
-               const double coeff_val = cst ? cst_val : C(c,x,y,e);
+               double coeff_val = 0.0;
+               if (normals)
+               {
+                  for (int cd = 0; cd < 3; ++cd)
+                  {
+                     double cval = cst ? C(cd,0,0,0) : C(cd,x,y,e);
+                     coeff_val += cval * N(x,y,cd,e);
+                  }
+               }
+               else
+               {
+                  coeff_val = cst ? C(0,0,0,0) : C(0,x,y,e);
+               }
                QQ(y,x) = W(x,y) * coeff_val * detJ(x,y,e);
             }
          }
@@ -129,6 +154,7 @@ static void BLFEvalAssemble(const FiniteElementSpace &fes,
                             const IntegrationRule &ir,
                             const Array<int> &markers,
                             const Vector &coeff,
+                            const bool normals,
                             Vector &y)
 {
    Mesh &mesh = *fes.GetMesh();
@@ -137,7 +163,8 @@ static void BLFEvalAssemble(const FiniteElementSpace &fes,
    const MemoryType mt = Device::GetDeviceMemoryType();
    const DofToQuad &maps = el.GetDofToQuad(ir, DofToQuad::TENSOR);
    const int d = maps.ndof, q = maps.nqpt;
-   constexpr int flags = FaceGeometricFactors::DETERMINANTS;
+   // can we make this optional (depending on normals)?
+   int flags = FaceGeometricFactors::DETERMINANTS | FaceGeometricFactors::NORMALS;
    const FaceGeometricFactors *geom = mesh.GetFaceGeometricFactors(
                                          ir, flags, FaceType::Boundary, mt);
    auto ker = (dim == 2) ? BLFEvalAssemble2D<> : BLFEvalAssemble3D<>;
@@ -175,9 +202,10 @@ static void BLFEvalAssemble(const FiniteElementSpace &fes,
    const int *M = markers.Read();
    const double *B = maps.B.Read();
    const double *detJ = geom->detJ.Read();
+   const double *n = geom->normal.Read();
    const double *W = ir.GetWeights().Read();
    double *Y = y.ReadWrite();
-   ker(vdim, nbe, d, q, M, B, detJ, W, coeff, Y);
+   ker(vdim, nbe, d, q, normals, M, B, detJ, n, W, coeff, Y);
 }
 
 void BoundaryLFIntegrator::AssembleDevice(const FiniteElementSpace &fes,
@@ -213,7 +241,45 @@ void BoundaryLFIntegrator::AssembleDevice(const FiniteElementSpace &fes,
          }
       }
    }
-   BLFEvalAssemble(fes, ir, markers, coeff, b);
+   BLFEvalAssemble(fes, ir, markers, coeff, false, b);
+}
+
+void BoundaryNormalLFIntegrator::AssembleDevice(const FiniteElementSpace &fes,
+                                                const Array<int> &markers,
+                                                Vector &b)
+{
+   const FiniteElement &fe = *fes.GetBE(0);
+   const int qorder = oa * fe.GetOrder() + ob;
+   const Geometry::Type gtype = fe.GetGeomType();
+   const IntegrationRule &ir = IntRule ? *IntRule : IntRules.Get(gtype, qorder);
+   const int nq = ir.GetNPoints();
+   const int nbe = fes.GetMesh()->GetNBE();
+   const int dim = fes.GetMesh()->Dimension();
+
+   Vector coeff;
+   if (const auto *cQ = dynamic_cast<VectorConstantCoefficient*>(&Q))
+   {
+      coeff = cQ->GetVec();
+   }
+   else
+   {
+
+      Vector coeff_val(dim);
+      coeff.SetSize(dim * nq * nbe);
+      auto C = Reshape(coeff.HostWrite(), dim, nq, nbe);
+      for (int e = 0; e < nbe; ++e)
+      {
+         ElementTransformation& Tr = *fes.GetBdrElementTransformation(e);
+         for (int q = 0; q < nq; ++q)
+         {
+            const IntegrationPoint &ip = ir[q];
+            Tr.SetIntPoint(&ip);
+            Q.Eval(coeff_val, Tr, ip);
+            for (int d=0; d<dim; ++d) { C(d,q,e) = coeff_val[d]; }
+         }
+      }
+   }
+   BLFEvalAssemble(fes, ir, markers, coeff, true, b);
 }
 
 } // namespace mfem
