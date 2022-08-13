@@ -47,7 +47,8 @@ public:
    virtual double EvalWMatrixForm(const DenseMatrix &Jpt) const
    { MFEM_ABORT("Not implemented for the used metric!"); return 0.0; }
 
-   /** @brief Evaluate the strain energy density function, W = W(Jpt).
+   /** @brief Evaluate the strain energy density function, W = W(Jpt), by using
+       the 2D or 3D matrix invariants, see linalg/invariants.hpp.
        @param[in] Jpt  Represents the target->physical transformation
                        Jacobian matrix. */
    virtual double EvalW(const DenseMatrix &Jpt) const = 0;
@@ -192,10 +193,11 @@ protected:
    mutable InvariantsEvaluator2D<double> ie;
 
 public:
-   // W = 0.5|J|^2 / det(J) - 1.
-   virtual double EvalW(const DenseMatrix &Jpt) const;
-
+   // W = 0.5 |J|^2 / det(J) - 1.
    virtual double EvalWMatrixForm(const DenseMatrix &Jpt) const;
+
+   // W = 0.5 I1b - 1.
+   virtual double EvalW(const DenseMatrix &Jpt) const;
 
    virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const;
 
@@ -458,7 +460,10 @@ protected:
    mutable InvariantsEvaluator3D<double> ie;
 
 public:
-   // W = |J| |J^-1| / 3 - 1.
+   // W = 1/3 |J| |J^-1| - 1.
+   virtual double EvalWMatrixForm(const DenseMatrix &Jpt) const;
+
+   // W = 1/3 sqrt(I1b * I2b) - 1
    virtual double EvalW(const DenseMatrix &Jpt) const;
 
    virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const;
@@ -513,7 +518,7 @@ public:
    // W = |J|^3 / 3^(3/2) / det(J) - 1.
    virtual double EvalWMatrixForm(const DenseMatrix &Jpt) const;
 
-   // W = |J|^3 / 3^(3/2) / det(J) - 1.
+   // W = (I1b/3)^3/2 - 1.
    virtual double EvalW(const DenseMatrix &Jpt) const;
 
    virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const;
@@ -636,7 +641,28 @@ public:
    virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
                           const double weight, DenseMatrix &A) const;
 
-   virtual int Id() const { return 321; }
+   virtual int Id() const { return 322; }
+};
+
+/// 3D barrier Shape+Size (VS) metric, well-posed.
+class TMOP_Metric_323 : public TMOP_QualityMetric
+{
+protected:
+   mutable InvariantsEvaluator3D<double> ie;
+
+public:
+   // W = |J|^3 - 3 sqrt(3) ln(det(J)) - 3 sqrt(3).
+   virtual double EvalWMatrixForm(const DenseMatrix &Jpt) const;
+
+   // W = I1^3/2 - 3 sqrt(3) ln(I3b) - 3 sqrt(3).
+   virtual double EvalW(const DenseMatrix &Jpt) const;
+
+   virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const;
+
+   virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
+                          const double weight, DenseMatrix &A) const;
+
+   virtual int Id() const { return 323; }
 };
 
 /// 3D barrier Shape+Size (VS) metric (polyconvex).
