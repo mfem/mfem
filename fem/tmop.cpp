@@ -622,6 +622,14 @@ double TMOP_Metric_301::EvalW(const DenseMatrix &Jpt) const
    return std::sqrt(ie.Get_I1b()*ie.Get_I2b())/3. - 1.;
 }
 
+double TMOP_Metric_301::EvalWMatrixForm(const DenseMatrix &Jpt) const
+{
+   ie.SetJacobian(Jpt.GetData());
+   DenseMatrix inv(3);
+   CalcInverse(Jpt, inv);
+   return Jpt.FNorm() * inv.FNorm() / 3.0 - 1.0;
+}
+
 void TMOP_Metric_301::EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const
 {
    //  W = (1/3)*sqrt(I1b*I2b) - 1
@@ -933,14 +941,14 @@ void TMOP_Metric_321::AssembleH(const DenseMatrix &Jpt,
    ie.Assemble_TProd(-3*c0*c3, ie.Get_dI3b(), A.GetData());
 }
 
-double TMOP_Metric_322::EvalWMatrixForm(const DenseMatrix &J) const
+double TMOP_Metric_322::EvalWMatrixForm(const DenseMatrix &Jpt) const
 {
    // mu_322 = 1 / (6 det(J)) |J - adj(J)^t|^2
    DenseMatrix adj_J_t(3);
-   CalcAdjugateTranspose(J, adj_J_t);
+   CalcAdjugateTranspose(Jpt, adj_J_t);
    adj_J_t *= -1.0;
-   adj_J_t.Add(1.0, J);
-   return 1.0 / 6.0 / J.Det() * adj_J_t.FNorm2();
+   adj_J_t.Add(1.0, Jpt);
+   return 1.0 / 6.0 / Jpt.Det() * adj_J_t.FNorm2();
 }
 
 double TMOP_Metric_322::EvalW(const DenseMatrix &Jpt) const
@@ -957,8 +965,8 @@ double TMOP_Metric_322::EvalW(const DenseMatrix &Jpt) const
 void TMOP_Metric_322::EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const
 {
    // mu_322 = I1b (I3b^-1/3) / 6 + I2b (I3b^1/3) / 6 - 1
-   // P      =   1/6 dI1b (I3b^-1/3) - 1/18 I1b (I3b^-4/3) dI3b
-   //          + 1/6 dI2b (I3b^1/3)  + 1/18 I2b (I3b^-2/3) dI3b
+   // P      =   1/6 (I3b^-1/3) dI1b - 1/18 I1b (I3b^-4/3) dI3b
+   //          + 1/6 (I3b^1/3) dI2b  + 1/18 I2b (I3b^-2/3) dI3b
    ie.SetJacobian(Jpt.GetData());
    P.Set(1.0/6.0 * pow(ie.Get_I3b(), -1.0/3.0),
          ie.Get_dI1b());
@@ -973,8 +981,8 @@ void TMOP_Metric_322::EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const
 void TMOP_Metric_322::AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
                                 const double weight, DenseMatrix &A) const
 {
-   //  P =   1/6 dI1b (I3b^-1/3) - 1/18 I1b (I3b^-4/3) dI3b
-   //      + 1/6 dI2b (I3b^1/3)  + 1/18 I2b (I3b^-2/3) dI3b
+   //  P =   1/6 (I3b^-1/3) dI1b - 1/18 I1b (I3b^-4/3) dI3b
+   //      + 1/6 (I3b^1/3) dI2b  + 1/18 I2b (I3b^-2/3) dI3b
    // dP =   1/6 (I3b^-1/3) ddI1b - 1/18 (I3b^-4/3) (dI1b x dI3b)
    //      - 1/18 I1b (I3b^-4/3) ddI3b
    //      - 1/18 (I3b^-4/3) (dI3b x dI1b)
@@ -1004,6 +1012,45 @@ void TMOP_Metric_322::AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
                      ie.Get_dI2b(), ie.Get_dI3b(), A.GetData());
    ie.Assemble_ddI3b(1.0/18.0 * ie.Get_I2b() * m23, A.GetData());
    ie.Assemble_TProd(-1.0/27.0 * ie.Get_I2b() * m53,
+                     ie.Get_dI3b(), A.GetData());
+}
+
+double TMOP_Metric_323::EvalWMatrixForm(const DenseMatrix &Jpt) const
+{
+   // mu_323 = |J|^3 - 3 sqrt(3) ln(det(J)) - 3 sqrt(3).
+   double fnorm = Jpt.FNorm();
+   return fnorm * fnorm * fnorm - 3.0 * sqrt(3.0) * (log(Jpt.Det()) + 1.0);
+}
+
+double TMOP_Metric_323::EvalW(const DenseMatrix &Jpt) const
+{
+   // mu_323 = I1^3/2 - 3 sqrt(3) ln(I3b) - 3 sqrt(3).
+   ie.SetJacobian(Jpt.GetData());
+   return pow(ie.Get_I1(), 1.5) - 3.0 * sqrt(3.0) * (log(ie.Get_I3b()) + 1.0);
+}
+
+void TMOP_Metric_323::EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const
+{
+   // mu_323 = I1^3/2 - 3 sqrt(3) ln(I3b) - 3 sqrt(3).
+   // P      = 3/2 (I1^1/2) dI1 - 3 sqrt(3) (I3b^-1) dI3b.
+   ie.SetJacobian(Jpt.GetData());
+   P.Set(1.5 * sqrt(ie.Get_I1()), ie.Get_dI1());
+   P.Add(- 3.0 * sqrt(3.0) / ie.Get_I3b(), ie.Get_dI3b());
+}
+
+void TMOP_Metric_323::AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
+                                const double weight, DenseMatrix &A) const
+{
+   // P  =   3/2 (I1^1/2) dI1 - 3 sqrt(3) (I3b^-1) dI3b
+   // dP =   3/2 (I1^1/2) ddI1 + 3/4 (I1^-1/2) (dI1 x dI1)
+   //      - 3 sqrt(3) (I3b^-1) ddI3b + 3 sqrt(3) (I3b^-2) (dI3b x dI3b)
+   ie.SetJacobian(Jpt.GetData());
+   ie.SetDerivativeMatrix(DS.Height(), DS.GetData());
+   ie.Assemble_ddI1(weight * 1.5 * sqrt(ie.Get_I1()), A.GetData());
+   ie.Assemble_TProd(weight * 0.75 / sqrt(ie.Get_I1()),
+                     ie.Get_dI1(), A.GetData());
+   ie.Assemble_ddI3b(- weight * 3.0 * sqrt(3.0) / ie.Get_I3b(), A.GetData());
+   ie.Assemble_TProd(weight * 3.0 * sqrt(3.0) / ie.Get_I3b() / ie.Get_I3b(),
                      ie.Get_dI3b(), A.GetData());
 }
 
