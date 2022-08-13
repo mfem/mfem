@@ -20,6 +20,16 @@ namespace mfem
 
 // Target-matrix optimization paradigm (TMOP) mesh quality metrics.
 
+double TMOP_Combo_QualityMetric::EvalWMatrixForm(const DenseMatrix &Jpt) const
+{
+   double metric = 0.;
+   for (int i = 0; i < tmop_q_arr.Size(); i++)
+   {
+      metric += wt_arr[i]*tmop_q_arr[i]->EvalWMatrixForm(Jpt);
+   }
+   return metric;
+}
+
 double TMOP_Combo_QualityMetric::EvalW(const DenseMatrix &Jpt) const
 {
    double metric = 0.;
@@ -879,6 +889,12 @@ void TMOP_Metric_315::AssembleH(const DenseMatrix &Jpt,
    ie.SetDerivativeMatrix(DS.Height(), DS.GetData());
    ie.Assemble_TProd(2*weight, ie.Get_dI3b(), A.GetData());
    ie.Assemble_ddI3b(2*weight*(ie.Get_I3b() - 1.0), A.GetData());
+}
+
+double TMOP_Metric_316::EvalWMatrixForm(const DenseMatrix &Jpt) const
+{
+   // mu_316 = 0.5 (det(J) + 1/det(J)) - 1.
+   return 0.5 * (Jpt.Det() + 1.0 / Jpt.Det()) - 1.0;
 }
 
 double TMOP_Metric_316::EvalW(const DenseMatrix &Jpt) const
