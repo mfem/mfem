@@ -99,16 +99,17 @@ int main(int argc, char *argv[])
       T(0, 0) += T_vec.Max();
       if (T.Det() <= 0.0) { continue; }
 
-      const double diff = fabs(metric->EvalW(T) - metric->EvalWMatrixForm(T));
+      const double i_form = metric->EvalW(T),
+                   m_form = metric->EvalWMatrixForm(T);
+      const double diff = fabs(i_form - m_form) / fabs(m_form);
       if (diff > 1e-8)
       {
          bad_cnt++;
          if (verbose)
          {
             cout << "Wrong metric computation: "
-                 << metric->EvalW(T) << " (invariant), "
-                 << metric->EvalWMatrixForm(T) << " (matrix form) "
-                 << diff << " (difference) " << endl;
+                 << i_form << " (invariant), " << m_form << " (matrix form) "
+                 << diff << " (normalized difference) " << endl;
          }
       }
       valid_cnt++;

@@ -616,18 +616,20 @@ void TMOP_Metric_252::AssembleH(const DenseMatrix &Jpt,
    ie.Assemble_ddI2b(weight*(c - 0.5*c*c), A.GetData());
 }
 
-double TMOP_Metric_301::EvalW(const DenseMatrix &Jpt) const
-{
-   ie.SetJacobian(Jpt.GetData());
-   return std::sqrt(ie.Get_I1b()*ie.Get_I2b())/3. - 1.;
-}
-
 double TMOP_Metric_301::EvalWMatrixForm(const DenseMatrix &Jpt) const
 {
+   // mu_301 = 1/3 |J| |J^-1| - 1.
    ie.SetJacobian(Jpt.GetData());
    DenseMatrix inv(3);
    CalcInverse(Jpt, inv);
    return Jpt.FNorm() * inv.FNorm() / 3.0 - 1.0;
+}
+
+double TMOP_Metric_301::EvalW(const DenseMatrix &Jpt) const
+{
+   // mu_301 = 1/3 sqrt(I1b * I2b) - 1
+   ie.SetJacobian(Jpt.GetData());
+   return std::sqrt(ie.Get_I1b()*ie.Get_I2b())/3. - 1.;
 }
 
 void TMOP_Metric_301::EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const
@@ -674,6 +676,15 @@ void TMOP_Metric_301::AssembleH(const DenseMatrix &Jpt,
    ie.Assemble_TProd(a/(2*I1b_I2b), d_I1b_I2b_data, A.GetData());
 }
 
+double TMOP_Metric_302::EvalWMatrixForm(const DenseMatrix &Jpt) const
+{
+   // mu_301 = |J|^2 |J^{-1}|^2 / 9 - 1.
+   ie.SetJacobian(Jpt.GetData());
+   DenseMatrix inv(3);
+   CalcInverse(Jpt, inv);
+   return Jpt.FNorm2() * inv.FNorm2() / 9.0 - 1.0;
+}
+
 double TMOP_Metric_302::EvalW(const DenseMatrix &Jpt) const
 {
    // mu_2 = |J|^2 |J^{-1}|^2 / 9 - 1
@@ -706,6 +717,13 @@ void TMOP_Metric_302::AssembleH(const DenseMatrix &Jpt,
    ie.Assemble_TProd(c1, ie.Get_dI1b(), ie.Get_dI2b(), A.GetData());
    ie.Assemble_ddI2b(c1*ie.Get_I1b(), A.GetData());
    ie.Assemble_ddI1b(c1*ie.Get_I2b(), A.GetData());
+}
+
+double TMOP_Metric_303::EvalWMatrixForm(const DenseMatrix &Jpt) const
+{
+   // mu_303 = |J|^2 / 3 / det(J)^(2/3) - 1.
+   ie.SetJacobian(Jpt.GetData());
+   return Jpt.FNorm2() / 3.0 / pow(Jpt.Det(), 2.0 / 3.0) - 1.0;
 }
 
 double TMOP_Metric_303::EvalW(const DenseMatrix &Jpt) const
@@ -891,6 +909,16 @@ void TMOP_Metric_316::AssembleH(const DenseMatrix &Jpt,
    ie.Assemble_TProd(weight/(ie.Get_I3()*ie.Get_I3b()),
                      ie.Get_dI3b(), A.GetData());
    ie.Assemble_ddI3b(weight*(0.5 - 0.5/ie.Get_I3()), A.GetData());
+}
+
+double TMOP_Metric_321::EvalWMatrixForm(const DenseMatrix &Jpt) const
+{
+   // mu_321 = |J - J^-t|^2.
+   ie.SetJacobian(Jpt.GetData());
+   DenseMatrix invt(3);
+   CalcInverseTranspose(Jpt, invt);
+   invt.Add(-1.0, Jpt);
+   return invt.FNorm2();
 }
 
 double TMOP_Metric_321::EvalW(const DenseMatrix &Jpt) const

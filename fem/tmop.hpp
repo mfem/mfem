@@ -43,9 +43,9 @@ public:
    virtual void SetTargetJacobian(const DenseMatrix &Jtr_) { Jtr = &Jtr_; }
 
    /** @brief Evaluates the metric in matrix form (opposed to invariant form).
-       Used for debugging the invariant evaluations. */
+       Used for validating the invariant evaluations. */
    virtual double EvalWMatrixForm(const DenseMatrix &Jpt) const
-   { MFEM_ABORT("Not implemented for the used metric!"); return 0.0; }
+   { return -1.0; /* not implemented -> checks would fail. */ }
 
    /** @brief Evaluate the strain energy density function, W = W(Jpt), by using
        the 2D or 3D matrix invariants, see linalg/invariants.hpp.
@@ -479,7 +479,10 @@ protected:
    mutable InvariantsEvaluator3D<double> ie;
 
 public:
-   // W = |J|^2 |J^-1|^2 / 9 - 1.
+   // W = |J|^2 |J^{-1}|^2 / 9 - 1.
+   virtual double EvalWMatrixForm(const DenseMatrix &Jpt) const;
+
+   // W = I1b * I2b / 9 - 1.
    virtual double EvalW(const DenseMatrix &Jpt) const;
 
    virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const;
@@ -498,6 +501,9 @@ protected:
 
 public:
    // W = |J|^2 / 3 / det(J)^(2/3) - 1.
+   virtual double EvalWMatrixForm(const DenseMatrix &Jpt) const;
+
+   // W = I1b / 3 - 1.
    virtual double EvalW(const DenseMatrix &Jpt) const;
 
    virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const;
@@ -613,6 +619,9 @@ protected:
 
 public:
    // W = |J - J^-t|^2.
+   virtual double EvalWMatrixForm(const DenseMatrix &Jpt) const;
+
+   // W = I1 + I2/I3 - 6.
    virtual double EvalW(const DenseMatrix &Jpt) const;
 
    virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const;
