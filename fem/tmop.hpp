@@ -100,6 +100,8 @@ public:
       }
    }
 
+   virtual double EvalWMatrixForm(const DenseMatrix &Jpt) const;
+
    virtual double EvalW(const DenseMatrix &Jpt) const;
 
    virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const;
@@ -453,7 +455,7 @@ public:
                           const double weight, DenseMatrix &A) const;
 };
 
-/// 3D barrier Shape (S) metric, well-posed.
+/// 3D barrier Shape (S) metric, well-posed (polyconvex & invex).
 class TMOP_Metric_301 : public TMOP_QualityMetric
 {
 protected:
@@ -472,7 +474,7 @@ public:
                           const double weight, DenseMatrix &A) const;
 };
 
-/// 3D barrier Shape (S) metric, well-posed.
+/// 3D barrier Shape (S) metric, well-posed (polyconvex & invex).
 class TMOP_Metric_302 : public TMOP_QualityMetric
 {
 protected:
@@ -493,7 +495,7 @@ public:
    virtual int Id() const { return 302; }
 };
 
-/// 3D barrier Shape (S) metric, well-posed.
+/// 3D barrier Shape (S) metric, well-posed (polyconvex & invex).
 class TMOP_Metric_303 : public TMOP_QualityMetric
 {
 protected:
@@ -514,7 +516,7 @@ public:
    virtual int Id() const { return 303; }
 };
 
-/// 3D barrier Shape (S) metric, well-posed.
+/// 3D barrier Shape (S) metric, well-posed (polyconvex & invex).
 class TMOP_Metric_304 : public TMOP_QualityMetric
 {
 protected:
@@ -600,9 +602,10 @@ protected:
    mutable InvariantsEvaluator3D<double> ie;
 
 public:
-   // W = 0.5( sqrt(det(J)) - 1 / sqrt(det(J)) )^2
-   //   = 0.5( det(J) - 1 )^2 / det(J)
-   //   = 0.5( det(J) + 1/det(J) ) - 1.
+   // W = 0.5 (det(J) + 1/det(J)) - 1.
+   virtual double EvalWMatrixForm(const DenseMatrix &Jpt) const;
+
+   // W = 0.5 (I3b + 1/I3b) - 1.
    virtual double EvalW(const DenseMatrix &Jpt) const;
 
    virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const;
@@ -611,7 +614,7 @@ public:
                           const double weight, DenseMatrix &A) const;
 };
 
-/// 3D barrier Shape+Size (VS) metric, well-posed.
+/// 3D barrier Shape+Size (VS) metric, well-posed (invex).
 class TMOP_Metric_321 : public TMOP_QualityMetric
 {
 protected:
@@ -632,7 +635,7 @@ public:
    virtual int Id() const { return 321; }
 };
 
-/// 3D barrier Shape+Size (VS) metric, well-posed.
+/// 3D barrier Shape+Size (VS) metric, well-posed (invex).
 class TMOP_Metric_322 : public TMOP_QualityMetric
 {
 protected:
@@ -653,7 +656,7 @@ public:
    virtual int Id() const { return 322; }
 };
 
-/// 3D barrier Shape+Size (VS) metric, well-posed.
+/// 3D barrier Shape+Size (VS) metric, well-posed (invex).
 class TMOP_Metric_323 : public TMOP_QualityMetric
 {
 protected:
@@ -718,7 +721,7 @@ public:
    virtual ~TMOP_Metric_332() { delete sh_metric; delete sz_metric; }
 };
 
-/// 3D barrier Shape+Size (VS) metric (polyconvex).
+/// 3D barrier Shape+Size (VS) metric, well-posed (polyconvex).
 class TMOP_Metric_333 : public TMOP_Combo_QualityMetric
 {
 protected:
@@ -739,7 +742,7 @@ public:
    virtual ~TMOP_Metric_333() { delete sh_metric; delete sz_metric; }
 };
 
-/// 3D barrier Shape+Size (VS) metric (polyconvex).
+/// 3D barrier Shape+Size (VS) metric, well-posed (polyconvex).
 class TMOP_Metric_334 : public TMOP_Combo_QualityMetric
 {
 protected:
@@ -757,7 +760,34 @@ public:
       AddQualityMetric(sz_metric, gamma_);
    }
 
+   virtual int Id() const { return 334; }
+   double GetGamma() const { return gamma; }
+
    virtual ~TMOP_Metric_334() { delete sh_metric; delete sz_metric; }
+};
+
+/// 3D barrier Shape+Size (VS) metric, well-posed (polyconvex).
+class TMOP_Metric_347 : public TMOP_Combo_QualityMetric
+{
+protected:
+   mutable InvariantsEvaluator2D<double> ie;
+   double gamma;
+   TMOP_QualityMetric *sh_metric, *sz_metric;
+
+public:
+   TMOP_Metric_347(double gamma_) : gamma(gamma_),
+      sh_metric(new TMOP_Metric_304),
+      sz_metric(new TMOP_Metric_316)
+   {
+      // (1-gamma) mu_304 + gamma mu_316
+      AddQualityMetric(sh_metric, 1.-gamma_);
+      AddQualityMetric(sz_metric, gamma_);
+   }
+
+   virtual int Id() const { return 347; }
+   double GetGamma() const { return gamma; }
+
+   virtual ~TMOP_Metric_347() { delete sh_metric; delete sz_metric; }
 };
 
 /// 3D shifted barrier form of metric 316 (not typed).
