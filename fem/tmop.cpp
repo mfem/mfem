@@ -1034,7 +1034,7 @@ void TMOP_Metric_322::AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
    //      + 1/6 (I3b^1/3) ddI2b + 1/18 (I3b^-2/3) (dI2b x dI3b)
    //      + 1/18 I2b (I3b^-2/3) ddI3b
    //      + 1/18 (I3b^-2/3) (dI3b x dI2b)
-   //     a - 1/27 I2b (I3b^-5/3) (dI3b x dI3b)
+   //      - 1/27 I2b (I3b^-5/3) (dI3b x dI3b)
    ie.SetJacobian(Jpt.GetData());
    ie.SetDerivativeMatrix(DS.Height(), DS.GetData());
    const double p13 = weight * pow(ie.Get_I3b(),  1.0/3.0),
