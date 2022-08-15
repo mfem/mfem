@@ -23,6 +23,7 @@ set(UNIT_TESTS_SRCS
   linalg/test_cg_indefinite.cpp
   linalg/test_chebyshev.cpp
   linalg/test_complex_operator.cpp
+  linalg/test_complex_dense_matrix.cpp
   linalg/test_constrainedsolver.cpp
   linalg/test_direct_solvers.cpp
   linalg/test_hypre_ilu.cpp
