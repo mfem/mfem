@@ -355,6 +355,29 @@ public:
    /// Perform (ro+i,co+j)+=a*A(i,j) for 0<=i<A.Height, 0<=j<A.Width
    void AddMatrix(double a, const DenseMatrix &A, int ro, int co);
 
+   /// GetSubMatrix
+   void GetSubMatrix(const Array<int> & idx, DenseMatrix & A) const;
+   void GetSubMatrix(const Array<int> & idx_i, const Array<int> & idx_j,
+                     DenseMatrix & A) const;
+
+   // Get submatrix i,j ∈ [ibeg, iend)
+   void GetSubMatrix(int ibeg, int iend, DenseMatrix & A);
+   // Get submatrix i ∈ [ibeg, iend), j ∈ [jbeg, jend)
+   void GetSubMatrix(int ibeg, int iend, int jbeg, int jend, DenseMatrix & A);
+
+   void SetSubMatrix(const Array<int> & idx, const DenseMatrix & A);
+   void SetSubMatrix(const Array<int> & idx_i, const Array<int> & idx_j,
+                     const DenseMatrix & A);
+   void SetSubMatrix(int ibeg, const DenseMatrix & A);
+   void SetSubMatrix(int ibeg, int jbeg, const DenseMatrix & A);
+
+   void AddSubMatrix(const Array<int> & idx, const DenseMatrix & A);
+   void AddSubMatrix(const Array<int> & idx_i, const Array<int> & idx_j,
+                     const DenseMatrix & A);
+   void AddSubMatrix(int ibeg, const DenseMatrix & A);
+   void AddSubMatrix(int ibeg, int jbeg, const DenseMatrix & A);
+
+
    /// Add the matrix 'data' to the Vector 'v' at the given 'offset'
    void AddToVector(int offset, Vector &v) const;
    /// Get the matrix 'data' from the Vector 'v' at the given 'offset'
@@ -523,6 +546,12 @@ void AddMult_a_VWt(const double a, const Vector &v, const Vector &w,
 /// VVt += a * v v^t
 void AddMult_a_VVt(const double a, const Vector &v, DenseMatrix &VVt);
 
+/// Computes matrix P^t * A * P
+void RAP(const DenseMatrix &A, const DenseMatrix &P, DenseMatrix & RAP);
+
+/// Computes the matrix Rt^t * A * P
+void RAP(const DenseMatrix &Rt, const DenseMatrix &A,
+         const DenseMatrix &P, DenseMatrix & RAP);
 
 /** Abstract class that can compute factorization of external data and perform various
     operations with the factored data. */
