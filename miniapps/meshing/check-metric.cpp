@@ -223,7 +223,7 @@ int main(int argc, char *argv[])
             if (verbose)
             {
                cout << "ddF error for dof " << i << ", " << k << ": " << err_k
-                         << " " << r << endl;
+                    << " " << r << endl;
             }
 
          }
