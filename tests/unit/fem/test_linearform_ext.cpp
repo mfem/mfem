@@ -132,32 +132,94 @@ struct LinearFormExtTest
    }
 };
 
-TEST_CASE("Linear Form Extension", "[LinearformExt], [CUDA]")
+TEST_CASE("Linear Form Extension", "[LinearFormExtension], [CUDA]")
 {
    const bool all = launch_all_non_regression_tests;
 
-   const auto mesh =
+   const auto mesh_file =
       all ? GENERATE("../../data/star.mesh", "../../data/star-q3.mesh",
                      "../../data/fichera.mesh", "../../data/fichera-q3.mesh") :
       GENERATE("../../data/star-q3.mesh", "../../data/fichera-q3.mesh");
    const auto p = all ? GENERATE(1,2,3,4,5,6) : GENERATE(1,3);
-   const auto gll = GENERATE(false, true);
 
    SECTION("Scalar")
    {
+      const auto gll = GENERATE(false, true);
       const auto problem = GENERATE(LinearFormExtTest::DLFEval,
                                     LinearFormExtTest::QLFEval,
                                     LinearFormExtTest::DLFGrad);
-      LinearFormExtTest(mesh, 1, Ordering::byNODES, gll, problem, p).Run();
+      LinearFormExtTest(mesh_file, 1, Ordering::byNODES, gll, problem, p).Run();
    }
 
    SECTION("Vector")
    {
+      const auto gll = GENERATE(false, true);
       const auto vdim = all ? GENERATE(1,5,7) : GENERATE(1,5);
       const auto ordering = GENERATE(Ordering::byVDIM, Ordering::byNODES);
       const auto problem = GENERATE(LinearFormExtTest::VDLFEval,
                                     LinearFormExtTest::VQLFEval,
                                     LinearFormExtTest::VDLFGrad);
-      LinearFormExtTest(mesh, vdim, ordering, gll, problem, p).Run();
+      LinearFormExtTest(mesh_file, vdim, ordering, gll, problem, p).Run();
+   }
+
+   SECTION("SetIntPoint")
+   {
+      Mesh mesh(mesh_file);
+      const int dim = mesh.Dimension();
+      CAPTURE(mesh_file, dim, p);
+
+      H1_FECollection H1(p, dim);
+      FiniteElementSpace H1fes(&mesh, &H1);
+
+      FunctionCoefficient f([](const Vector& x)
+      { return std::sin(M_PI*x(0)) * std::sin(M_PI*x(1)); });
+
+      GridFunction x(&H1fes);
+      x.ProjectCoefficient(f);
+      GradientGridFunctionCoefficient grad_x(&x);
+      InnerProductCoefficient norm2_grad_x(grad_x,grad_x);
+
+      L2_FECollection L2(p-1, dim);
+      FiniteElementSpace L2fes(&mesh, &L2);
+
+      LinearForm d1(&L2fes);
+      d1.AddDomainIntegrator(new DomainLFIntegrator(norm2_grad_x));
+      d1.Assemble();
+
+      LinearForm d2(&L2fes);
+      d2.AddDomainIntegrator(new DomainLFIntegrator(norm2_grad_x));
+      d2.Assemble(false);
+
+      d1 -= d2;
+
+      REQUIRE(d1.Norml2() == MFEM_Approx(0.0));
+   }
+
+   SECTION("L2 MapType")
+   {
+      auto map_type = GENERATE(FiniteElement::VALUE, FiniteElement::INTEGRAL);
+      Mesh mesh(mesh_file);
+      const int dim = mesh.Dimension();
+
+      CAPTURE(mesh_file, dim, p, map_type);
+
+      L2_FECollection fec(p, dim, BasisType::GaussLegendre, map_type);
+      FiniteElementSpace fes(&mesh, &fec);
+
+      ConstantCoefficient coeff(1.0);
+
+      LinearForm d1(&fes);
+      d1.AddDomainIntegrator(new DomainLFIntegrator(coeff));
+      d1.Assemble();
+
+      LinearForm d2(&fes);
+      d2.AddDomainIntegrator(new DomainLFIntegrator(coeff));
+      d2.Assemble(false);
+
+      CAPTURE(d1.Norml2(), d2.Norml2());
+
+      d1 -= d2;
+
+      REQUIRE(d1.Norml2() == MFEM_Approx(0.0));
    }
 }

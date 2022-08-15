@@ -307,6 +307,12 @@ public:
 
    Vector &operator+=(const Vector &v);
 
+   /// operator- is not supported. Use @ref subtract or @ref Add.
+   Vector &operator-(const Vector &v) = delete;
+
+   /// operator+ is not supported. Use @ref Add.
+   Vector &operator+(const Vector &v) = delete;
+
    /// (*this) += a * Va
    Vector &Add(const double a, const Vector &Va);
 
