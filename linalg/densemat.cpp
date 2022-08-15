@@ -1450,10 +1450,10 @@ void DenseMatrix::GradToCurl(DenseMatrix &curl)
          int j = i+n;
 
          // curl of (Ui,0)
-         curl(i,0) = -y;
+         curl(i,0) = y;
 
          // curl of (0,Ui)
-         curl(j,0) =  x;
+         curl(j,0) = -x;
       }
    }
    else
@@ -1715,6 +1715,250 @@ void DenseMatrix::AddMatrix(double a, const DenseMatrix &A, int ro, int co)
       }
       p  += h;
       ap += ah;
+   }
+}
+
+void DenseMatrix::GetSubMatrix(const Array<int> & idx, DenseMatrix & A) const
+{
+   int k = idx.Size();
+   A.SetSize(k);
+   double * adata = A.Data();
+
+   int ii, jj;
+   for (int i = 0; i<k; i++)
+   {
+      ii = idx[i];
+      for (int j = 0; j<k; j++)
+      {
+         jj = idx[j];
+         adata[i+j*k] = this->data[ii+jj*height];
+      }
+   }
+}
+
+void DenseMatrix::GetSubMatrix(const Array<int> & idx_i,
+                               const Array<int> & idx_j, DenseMatrix & A) const
+{
+   int k = idx_i.Size();
+   int l = idx_j.Size();
+   A.SetSize(k,l);
+   double * adata = A.Data();
+
+   int ii, jj;
+   for (int i = 0; i<k; i++)
+   {
+      ii = idx_i[i];
+      for (int j = 0; j<l; j++)
+      {
+         jj = idx_j[j];
+         adata[i+j*k] = this->data[ii+jj*height];
+      }
+   }
+}
+
+void DenseMatrix::GetSubMatrix(int ibeg, int iend, DenseMatrix & A)
+{
+   int k = iend - ibeg + 1;
+   A.SetSize(k);
+   double * adata = A.Data();
+
+   int ii, jj;
+   for (int i = 0; i<k; i++)
+   {
+      ii = ibeg + i;
+      for (int j = 0; j<k; j++)
+      {
+         jj = ibeg + j;
+         adata[i+j*k] = this->data[ii+jj*height];
+      }
+   }
+}
+
+void DenseMatrix::GetSubMatrix(int ibeg, int iend, int jbeg, int jend,
+                               DenseMatrix & A)
+{
+   int k = iend - ibeg;
+   int l = jend - jbeg;
+   A.SetSize(k,l);
+   double * adata = A.Data();
+
+   int ii, jj;
+   for (int i = 0; i<k; i++)
+   {
+      ii = ibeg + i;
+      for (int j = 0; j<l; j++)
+      {
+         jj = jbeg + j;
+         adata[i+j*k] = this->data[ii+jj*height];
+      }
+   }
+}
+
+void DenseMatrix::SetSubMatrix(const Array<int> & idx, const DenseMatrix & A)
+{
+   int k = idx.Size();
+   MFEM_VERIFY(A.Height() == k &&
+               A.Width() == k, "DenseMatrix::SetSubMatrix:Inconsistent matrix dimensions");
+   double * adata = A.Data();
+
+   int ii, jj;
+   for (int i = 0; i<k; i++)
+   {
+      ii = idx[i];
+      for (int j = 0; j<k; j++)
+      {
+         jj = idx[j];
+         this->data[ii+jj*height] = adata[i+j*k];
+      }
+   }
+}
+
+void DenseMatrix::SetSubMatrix(const Array<int> & idx_i,
+                               const Array<int> & idx_j, const DenseMatrix & A)
+{
+   int k = idx_i.Size();
+   int l = idx_j.Size();
+   MFEM_VERIFY(k == A.Height() &&
+               l == A.Width(),"DenseMatrix::SetSubMatrix:Inconsistent matrix dimensions");
+   double * adata = A.Data();
+
+   int ii, jj;
+   for (int i = 0; i<k; i++)
+   {
+      ii = idx_i[i];
+      for (int j = 0; j<l; j++)
+      {
+         jj = idx_j[j];
+         this->data[ii+jj*height] = adata[i+j*k];
+      }
+   }
+}
+
+void DenseMatrix::SetSubMatrix(int ibeg, const DenseMatrix & A)
+{
+   int k = A.Height();
+   double * adata = A.Data();
+
+   int ii, jj;
+   for (int i = 0; i<k; i++)
+   {
+      ii = ibeg + i;
+      for (int j = 0; j<k; j++)
+      {
+         jj = ibeg + j;
+         this->data[ii+jj*height] = adata[i+j*k];
+      }
+   }
+}
+
+void DenseMatrix::SetSubMatrix(int ibeg, int jbeg, const DenseMatrix & A)
+{
+   int k = A.Height();
+   int l = A.Width();
+   double * adata = A.Data();
+
+   int ii, jj;
+   for (int i = 0; i<k; i++)
+   {
+      ii = ibeg + i;
+      for (int j = 0; j<l; j++)
+      {
+         jj = jbeg + j;
+         this->data[ii+jj*height] = adata[i+j*k];
+      }
+   }
+}
+
+void DenseMatrix::AddSubMatrix(const Array<int> & idx, const DenseMatrix & A)
+{
+   int k = idx.Size();
+   MFEM_VERIFY(A.Height() == k &&
+               A.Width() == k, "DenseMatrix::SetSubMatrix:Inconsistent matrix dimensions");
+   double * adata = A.Data();
+
+   int ii, jj;
+   for (int i = 0; i<k; i++)
+   {
+      ii = idx[i];
+      for (int j = 0; j<k; j++)
+      {
+         jj = idx[j];
+         this->data[ii+jj*height] += adata[i+j*k];
+      }
+   }
+}
+
+void DenseMatrix::AddSubMatrix(const Array<int> & idx_i,
+                               const Array<int> & idx_j, const DenseMatrix & A)
+{
+   int k = idx_i.Size();
+   int l = idx_j.Size();
+   MFEM_VERIFY(k == A.Height() &&
+               l == A.Width(),"DenseMatrix::SetSubMatrix:Inconsistent matrix dimensions");
+   double * adata = A.Data();
+
+   int ii, jj;
+   for (int i = 0; i<k; i++)
+   {
+      ii = idx_i[i];
+      for (int j = 0; j<l; j++)
+      {
+         jj = idx_j[j];
+         this->data[ii+jj*height] += adata[i+j*k];
+      }
+   }
+}
+
+void DenseMatrix::AddSubMatrix(int ibeg, const DenseMatrix & A)
+{
+   int k = A.Height();
+   double * adata = A.Data();
+
+   int ii, jj;
+   for (int i = 0; i<k; i++)
+   {
+      ii = ibeg + i;
+      for (int j = 0; j<k; j++)
+      {
+         jj = ibeg + j;
+         this->data[ii+jj*height] += adata[i+j*k];
+      }
+   }
+}
+
+void RAP(const DenseMatrix &A, const DenseMatrix &P, DenseMatrix & RAP)
+{
+   DenseMatrix RA(P.Width(),A.Width());
+   MultAtB(P,A,RA);
+   RAP.SetSize(RA.Height(), P.Width());
+   Mult(RA,P, RAP);
+}
+
+/// General R^tAP with given R, A and P
+void RAP(const DenseMatrix &Rt, const DenseMatrix &A,
+         const DenseMatrix &P, DenseMatrix & RAP)
+{
+   DenseMatrix RA(Rt.Width(),A.Width());
+   MultAtB(Rt,A,RA);
+   RAP.SetSize(RA.Height(), P.Width());
+   Mult(RA,P, RAP);
+}
+
+void DenseMatrix::AddSubMatrix(int ibeg, int jbeg, const DenseMatrix & A)
+{
+   int k = A.Height();
+   int l = A.Width();
+   double * adata = A.Data();
+
+   int ii, jj;
+   for (int i = 0; i<k; i++)
+   {
+      ii = ibeg + i;
+      for (int j = 0; j<l; j++)
+      {
+         jj = jbeg + j;
+         this->data[ii+jj*height] += adata[i+j*k];
+      }
    }
 }
 
