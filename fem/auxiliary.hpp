@@ -17,7 +17,7 @@ private:
    FiniteElementSpace * vfes;
    Operator &A;
    SparseMatrix &Aflux;
-   DenseTensor Me_inv;
+   std::vector<DenseMatrix> Me_inv;
 
    mutable Vector state;
    mutable DenseMatrix f;
@@ -33,7 +33,8 @@ public:
 
    virtual void Mult(const Vector &x, Vector &y) const;
 
-   virtual ~EulerSystem() { }
+   virtual ~EulerSystem() {}
+
 };
 
 // Implements a simple Rusanov flux
@@ -83,22 +84,26 @@ EulerSystem::EulerSystem(FiniteElementSpace &vfes_,
      num_equation(num_equation_),
      A(A_),
      Aflux(Aflux_),
-     Me_inv(vfes->GetFE(0)->GetDof(), vfes->GetFE(0)->GetDof(), vfes->GetNE()),
      state(num_equation),
      f(num_equation, dim),
      flux(vfes->GetNDofs(), dim, num_equation),
      z(A.Height())
 {
-   // Standard local assembly and inversion for energy mass matrices.
-   const int dof = vfes->GetFE(0)->GetDof();
-   DenseMatrix Me(dof);
-   DenseMatrixInverse inv(&Me);
    MassIntegrator mi;
-   for (int i = 0; i < vfes->GetNE(); i++)
-   {
+
+   for (int i = 0; i < vfes->GetNE(); i++) {
+      // Standard local assembly and inversion for energy mass matrices.
+      int dof = vfes->GetFE(i)->GetDof();
+      DenseMatrix Me(dof);
+      DenseMatrixInverse inv(&Me);
+
+      DenseMatrix inv_mi = DenseMatrix(vfes->GetFE(i)->GetDof(), vfes->GetFE(i)->GetDof());
+
       mi.AssembleElementMatrix(*vfes->GetFE(i), *vfes->GetElementTransformation(i), Me);
       inv.Factor();
-      inv.GetInverseMatrix(Me_inv(i));
+      inv.GetInverseMatrix(inv_mi);
+
+      Me_inv.push_back(inv_mi);
    }
 }
 
@@ -125,15 +130,16 @@ void EulerSystem::Mult(const Vector &x, Vector &y) const
    // 3. Multiply element-wise by the inverse mass matrices.
    Vector zval;
    Array<int> vdofs;
-   const int dof = vfes->GetFE(0)->GetDof();
-   DenseMatrix zmat, ymat(dof, num_equation);
 
    for (int i = 0; i < vfes->GetNE(); i++) {
+      int dof = vfes->GetFE(i)->GetDof();
+      DenseMatrix zmat, ymat(dof, num_equation);
+
       // Return the vdofs ordered byNODES
       vfes->GetElementVDofs(i, vdofs);
       z.GetSubVector(vdofs, zval);
       zmat.UseExternalData(zval.GetData(), dof, num_equation);
-      mfem::Mult(Me_inv(i), zmat, ymat);
+      mfem::Mult(Me_inv[i], zmat, ymat);
       y.SetSubVector(vdofs, ymat.GetData());
    }
 }
