@@ -1,4 +1,3 @@
-```
                     Finite Element Discretization Library
                                    __
                        _ __ ___   / _|  ___  _ __ ___
@@ -8,19 +7,18 @@
 
                                https://mfem.org
 
-```
-
-MFEM is a modular parallel C++ library for finite element methods. Its goal is
-to enable high-performance scalable finite element discretization research and
-application development on a wide variety of platforms, ranging from laptops to
-supercomputers.
+[MFEM](https://mfem.org) is a modular parallel C++ library for finite element
+methods. Its goal is to enable high-performance scalable finite element
+discretization research and application development on a wide variety of
+platforms, ranging from laptops to supercomputers.
 
 We welcome contributions and feedback from the community. Please see the file
-[CONTRIBUTING.md](CONTRIBUTING.md) for additional details about our development process.
+[CONTRIBUTING.md](CONTRIBUTING.md) for additional details about our development
+process.
 
 * For building instructions, see the file [INSTALL](INSTALL), or type "make help".
 
-* Copyright and licensing information can be found in files LICENSE and NOTICE.
+* Copyright and licensing information can be found in files [LICENSE](LICENSE) and [NOTICE](NOTICE).
 
 * The best starting point for new users interested in MFEM's features is to
   review the examples and miniapps at https://mfem.org/examples.
@@ -63,14 +61,16 @@ solvers from the hypre library. Comprehensive support for other external
 packages, e.g. PETSc, SUNDIALS and libCEED is also included, giving access to
 additional linear and nonlinear solvers, preconditioners, time integrators, etc.
 
-For examples of using MFEM, see the examples/ and miniapps/ directories, as well
-as the OpenGL visualization tool GLVis which is available at https://glvis.org.
+For examples of using MFEM, see the [examples/](examples) and [miniapps/](miniapps)
+directories, as well as the OpenGL visualization tool GLVis which is available
+at https://glvis.org.
 
 ## License
 
 MFEM is distributed under the terms of the BSD-3 license. All new contributions
-must be made under this license. See LICENSE and NOTICE for details.
+must be made under this license. See [LICENSE](LICENSE) and [NOTICE](NOTICE) for
+details.
 
-SPDX-License-Identifier: BSD-3-Clause
-LLNL Release Number: LLNL-CODE-806117
+SPDX-License-Identifier: BSD-3-Clause <br>
+LLNL Release Number: LLNL-CODE-806117 <br>
 DOI: 10.11578/dc.20171025.1248

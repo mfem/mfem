@@ -12,7 +12,7 @@
 #include "../general/forall.hpp"
 #include "bilininteg.hpp"
 #include "gridfunc.hpp"
-#include "ceed/diffusion.hpp"
+#include "ceed/integrators/diffusion/diffusion.hpp"
 
 using namespace std;
 
@@ -271,18 +271,21 @@ void PADiffusionSetup3D(const int Q1D,
                   D(qx,qy,qz,1,e) = D12; // 1,2
                   D(qx,qy,qz,2,e) = w_detJ * (A11*R13 + A12*R23 + A13*R33); // 1,3
 
-                  const double D21 = w_detJ * (A21*R11 + A22*R21 + A23*R31);
                   const double D22 = w_detJ * (A21*R12 + A22*R22 + A23*R32);
                   const double D23 = w_detJ * (A21*R13 + A22*R23 + A23*R33);
 
                   const double D33 = w_detJ * (A31*R13 + A32*R23 + A33*R33);
 
-                  D(qx,qy,qz,3,e) = symmetric ? D22 : D21; // 2,2 or 2,1
                   D(qx,qy,qz,4,e) = symmetric ? D23 : D22; // 2,3 or 2,2
                   D(qx,qy,qz,5,e) = symmetric ? D33 : D23; // 3,3 or 2,3
 
-                  if (!symmetric)
+                  if (symmetric)
                   {
+                     D(qx,qy,qz,3,e) = D22; // 2,2
+                  }
+                  else
+                  {
+                     D(qx,qy,qz,3,e) = w_detJ * (A21*R11 + A22*R21 + A23*R31); // 2,1
                      D(qx,qy,qz,6,e) = w_detJ * (A31*R11 + A32*R21 + A33*R31); // 3,1
                      D(qx,qy,qz,7,e) = w_detJ * (A31*R12 + A32*R22 + A33*R32); // 3,2
                      D(qx,qy,qz,8,e) = D33; // 3,3
@@ -365,7 +368,16 @@ void DiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
       MFEM_VERIFY(!VQ && !MQ,
                   "Only scalar coefficient supported for DiffusionIntegrator"
                   " with libCEED");
-      ceedOp = new ceed::PADiffusionIntegrator(fes, *ir, Q);
+      const bool mixed = mesh->GetNumGeometries(mesh->Dimension()) > 1 ||
+                         fes.IsVariableOrder();
+      if (mixed)
+      {
+         ceedOp = new ceed::MixedPADiffusionIntegrator(*this, fes, Q);
+      }
+      else
+      {
+         ceedOp = new ceed::PADiffusionIntegrator(fes, *ir, Q);
+      }
       return;
    }
    const int dims = el.GetDim();

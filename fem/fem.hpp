@@ -51,6 +51,7 @@
 #include "blockstaticcond.hpp"
 #include "complex_normal_equations.hpp"
 #include "complex_blockstaticcond.hpp"
+#include "ceed/solvers/algebraic.hpp"
 #include "lor/lor.hpp"
 
 #ifdef MFEM_USE_MPI

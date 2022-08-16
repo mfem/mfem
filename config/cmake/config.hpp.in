@@ -160,6 +160,9 @@
 // Enable MFEM functionality based on the Caliper library
 #cmakedefine MFEM_USE_CALIPER
 
+// Enable MFEM functionality based on the Algoim library
+#cmakedefine MFEM_USE_ALGOIM
+
 // Which library functions to use in class StopWatch for measuring time.
 // For a list of the available options, see INSTALL.
 // If not defined, an option is selected automatically.
@@ -186,5 +189,8 @@
 
 // Enable MFEM functionality based on the Google Benchmark library.
 #cmakedefine MFEM_USE_BENCHMARK
+
+// Enable Enzyme for AD
+#cmakedefine MFEM_USE_ENZYME
 
 #endif // MFEM_CONFIG_HEADER
