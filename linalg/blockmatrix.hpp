@@ -71,7 +71,7 @@ public:
        treated according to that policy. */
    void EliminateRowCol(int rc, DiagonalPolicy dpolicy = DIAG_ONE);
 
-   void EliminateRowCols(Array<int> vdofs, BlockMatrix *Ae,
+   void EliminateRowCols(const Array<int> & vdofs, BlockMatrix *Ae,
                          DiagonalPolicy dpolicy = DIAG_ONE);
 
    //! Symmetric elimination of the marked degree of freedom.
