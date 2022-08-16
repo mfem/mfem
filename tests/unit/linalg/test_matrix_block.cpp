@@ -299,6 +299,62 @@ TEST_CASE("BlockMatrix", "[BlockMatrix]")
       REQUIRE(error < tol );
    }
 
+   Vector y1(A->Height());
+   Vector y2(Amono->Height());
+   SECTION("Check PartMult")
+   {
+      Array<int> rows{{10,39,509,289,1112,1321,927}};
+      x.Randomize();
+      y1.Randomize();
+      y2 = y1;
+      A->PartMult(rows,x,y1);
+      Amono->PartMult(rows,x,y2);
+      y1-=y2;
+      REQUIRE(y1.Norml2() == MFEM_Approx(0.0));
+   }
+
+   SECTION("Check PartAddMult")
+   {
+      Array<int> rows{{8,92,591,203,1094,1211,927}};
+      x.Randomize();
+      y1.Randomize();
+      y2 = y1;
+      A->PartAddMult(rows,x,y1);
+      Amono->PartAddMult(rows,x,y2);
+      y1-=y2;
+      REQUIRE(y1.Norml2() == MFEM_Approx(0.0));
+   }
+
+   SECTION("Check EliminateRowCols")
+   {
+      Array<int> rows{{18,72,1342,951,423,877,1234}};
+      BlockMatrix Ae(offsets); Ae.owns_blocks = 1;
+
+      for (int i = 0; i<Ae.NumRowBlocks(); i++)
+      {
+         int h = offsets[i+1] - offsets[i];
+         for (int j = 0; j<Ae.NumColBlocks(); j++)
+         {
+            int w = offsets[j+1] - offsets[j];
+            Ae.SetBlock(i,j,new SparseMatrix(h, w));
+         }
+      }
+
+      A->EliminateRowCols(rows,&Ae);
+
+      SparseMatrix Amono_e(offsets.Last());
+      Array<int> colmarker;
+      mfem::FiniteElementSpace::ListToMarker(rows,offsets.Last(),colmarker);
+      Amono->EliminateCols(colmarker,Amono_e);
+      for (int i = 0; i<rows.Size(); i++) { Amono->EliminateRow(rows[i]); } 
+
+      x.Randomize();
+      Ae.Mult(x,y1);
+      Amono_e.Mult(x,y2);
+      y1-=y2;
+      REQUIRE(y1.Norml2() == MFEM_Approx(0.0));
+   }
+
    delete A;
    delete Amono;
 }
