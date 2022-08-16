@@ -116,8 +116,7 @@ void EulerSystem::Mult(const Vector &x, Vector &y) const
    DenseMatrix xmat(x.GetData(), vfes->GetNDofs(), num_equation);
    GetFlux(xmat, flux);
 
-   for (int k = 0; k < num_equation; k++)
-   {
+   for (int k = 0; k < num_equation; k++) {
       Vector fk(flux(k).GetData(), dim * vfes->GetNDofs());
       Vector zk(z.GetData() + k * vfes->GetNDofs(), vfes->GetNDofs());
       Aflux.AddMult(fk, zk);
@@ -129,8 +128,7 @@ void EulerSystem::Mult(const Vector &x, Vector &y) const
    const int dof = vfes->GetFE(0)->GetDof();
    DenseMatrix zmat, ymat(dof, num_equation);
 
-   for (int i = 0; i < vfes->GetNE(); i++)
-   {
+   for (int i = 0; i < vfes->GetNE(); i++) {
       // Return the vdofs ordered byNODES
       vfes->GetElementVDofs(i, vdofs);
       z.GetSubVector(vdofs, zval);
@@ -144,90 +142,103 @@ void EulerSystem::Mult(const Vector &x, Vector &y) const
 bool StateIsPhysical(const Vector &state, const int dim);
 
 // Pressure (EOS) computation
-inline double ComputePressure(const Vector &state, int dim,
+inline double ComputePressure(const Vector &state, int num_equation,
                               double specific_heat_ratio)
 {
+   const int udim = num_equation - 2;
    const double den = state(0);
-   const Vector den_vel(state.GetData() + 1, dim);
-   const double den_energy = state(1 + dim);
+   const Vector den_vel(state.GetData() + 1, udim);
+   const double den_energy = state(num_equation - 1);
 
    double den_vel2 = 0;
-   for (int d = 0; d < dim; d++) { den_vel2 += den_vel(d) * den_vel(d); }
+   for (int d = 0; d < udim; d++) {
+      den_vel2 += den_vel(d)*den_vel(d);
+   }
    den_vel2 /= den;
 
-   return (specific_heat_ratio - 1.0) * (den_energy - 0.5 * den_vel2);
+   return (specific_heat_ratio-1.0)*(den_energy - 0.5*den_vel2);
 }
 
 // Compute the vector flux F(u)
 void ComputeFlux(const Vector &state, int dim, DenseMatrix &flux, 
-                 double specific_heat_ratio)
+                 double specific_heat_ratio, int num_equation)
 {
+   const int udim = num_equation - 2;
    const double den = state(0);
-   const Vector den_vel(state.GetData() + 1, dim);
-   const double den_energy = state(1 + dim);
+   const Vector den_vel(state.GetData() + 1, udim);
+   const double den_energy = state(num_equation - 1);
 
    MFEM_ASSERT(StateIsPhysical(state, dim), "");
 
-   const double pres = ComputePressure(state, dim, specific_heat_ratio);
+   const double pres = ComputePressure(state, num_equation, specific_heat_ratio);
+   const double H = (den_energy + pres)/den;
 
-   for (int d = 0; d < dim; d++)
-   {
-      flux(0, d) = den_vel(d);
-      for (int i = 0; i < dim; i++)
-      {
-         flux(1+i, d) = den_vel(i) * den_vel(d) / den;
+   // Hard-code quasi-1D cases
+   if (num_equation == 3) {
+      // Set x-flux
+      flux(0, 0) = den_vel(0);
+      flux(1, 0) = den_vel(0)*den_vel(0)/den + pres;
+      flux(2, 0) = den_vel(0)*H;
+
+      // Zero other components
+      for (int d = 1; d < dim; d++) {
+         for (int eq = 0; eq < num_equation; eq++){
+            flux(eq, d) = 0.0;
+         }
       }
-      flux(1+d, d) += pres;
    }
-
-   const double H = (den_energy + pres) / den;
-   for (int d = 0; d < dim; d++)
-   {
-      flux(1+dim, d) = den_vel(d) * H;
+   else {
+      MFEM_ASSERT(num_equation == dim + 2, "2D/3D solutions must be of size dim+2.")
+      for (int d = 0; d < dim; d++) {
+         flux(0, d) = den_vel(d);
+         for (int i = 0; i < dim; i++) {
+            flux(1+i, d) = den_vel(i) * den_vel(d) / den;
+         }
+         flux(1+d, d) += pres;
+      }
+      for (int d = 0; d < dim; d++) {
+         flux(1+dim, d) = den_vel(d) * H;
+      }
    }
 }
 
 // Compute the scalar F(u).n
-void ComputeFluxDotN(const Vector &state, const Vector &nor,
-                     Vector &fluxN, double specific_heat_ratio)
+void ComputeFluxDotN(const Vector &state, const Vector &nor, Vector &fluxN, 
+                     double specific_heat_ratio, int num_equation)
 {
+   const int udim = num_equation - 2;
    // NOTE: nor in general is not a unit normal
    const int dim = nor.Size();
-   const double den = state(0);
-   const Vector den_vel(state.GetData() + 1, dim);
-   const double den_energy = state(1 + dim);
-
    MFEM_ASSERT(StateIsPhysical(state, dim), "");
 
-   const double pres = ComputePressure(state, dim, specific_heat_ratio);
+   DenseMatrix flux = DenseMatrix(num_equation, dim);
+   ComputeFlux(state, dim, flux, specific_heat_ratio, num_equation);
 
-   double den_velN = 0;
-   for (int d = 0; d < dim; d++) { den_velN += den_vel(d) * nor(d); }
-
-   fluxN(0) = den_velN;
-   for (int d = 0; d < dim; d++)
-   {
-      fluxN(1+d) = den_velN * den_vel(d) / den + pres * nor(d);
+   for (int i = 0; i < num_equation; i++) {
+      fluxN(i) = 0.0;
+      for (int d = 0; d < dim; d++) {
+         fluxN(i) += nor(d)*flux(i,d);
+      }
    }
-
-   const double H = (den_energy + pres) / den;
-   fluxN(1 + dim) = den_velN * H;
 }
 
 // Compute the maximum characteristic speed.
 inline double ComputeMaxCharSpeed(const Vector &state, const int dim,
-                                  double specific_heat_ratio)
+                                  double specific_heat_ratio, int num_equation)
 {
+   const int udim = num_equation - 2;
    const double den = state(0);
-   const Vector den_vel(state.GetData() + 1, dim);
+   const Vector den_vel(state.GetData() + 1, udim);
 
    double den_vel2 = 0;
-   for (int d = 0; d < dim; d++) { den_vel2 += den_vel(d) * den_vel(d); }
+   for (int d = 0; d < udim; d++) {
+      den_vel2 += den_vel(d)*den_vel(d);
+   }
    den_vel2 /= den;
 
-   const double pres = ComputePressure(state, dim, specific_heat_ratio);
-   const double sound = sqrt(specific_heat_ratio * pres / den);
-   const double vel = sqrt(den_vel2 / den);
+   const double pres = ComputePressure(state, num_equation, specific_heat_ratio);
+   const double sound = sqrt(specific_heat_ratio*pres/den);
+   const double vel = sqrt(den_vel2/den);
 
    return vel + sound;
 }
@@ -238,15 +249,15 @@ void EulerSystem::GetFlux(const DenseMatrix &x_, DenseTensor &flux_) const
    const int flux_dof = flux_.SizeI();
    const int flux_dim = flux_.SizeJ();
 
-   for (int i = 0; i < flux_dof; i++)
-   {
-      for (int k = 0; k < num_equation; k++) { state(k) = x_(i, k); }
-      ComputeFlux(state, flux_dim, f, specific_heat_ratio);
+   for (int i = 0; i < flux_dof; i++) {
+      for (int k = 0; k < num_equation; k++) {
+         state(k) = x_(i, k);
+      }
 
-      for (int d = 0; d < flux_dim; d++)
-      {
-         for (int k = 0; k < num_equation; k++)
-         {
+      ComputeFlux(state, flux_dim, f, specific_heat_ratio, num_equation);
+
+      for (int d = 0; d < flux_dim; d++) {
+         for (int k = 0; k < num_equation; k++) {
             flux_(i, d, k) = f(k, d);
          }
       }
@@ -269,23 +280,21 @@ double RiemannSolver::Eval(const Vector &state1, const Vector &state2,
    MFEM_ASSERT(StateIsPhysical(state1, dim), "");
    MFEM_ASSERT(StateIsPhysical(state2, dim), "");
 
-   const double maxE1 = ComputeMaxCharSpeed(state1, dim, specific_heat_ratio);
-   const double maxE2 = ComputeMaxCharSpeed(state2, dim, specific_heat_ratio);
+   const double maxE1 = ComputeMaxCharSpeed(state1, dim, specific_heat_ratio, num_equation);
+   const double maxE2 = ComputeMaxCharSpeed(state2, dim, specific_heat_ratio, num_equation);
 
    const double maxE = max(maxE1, maxE2);
 
-   ComputeFluxDotN(state1, nor, flux1, specific_heat_ratio);
-   ComputeFluxDotN(state2, nor, flux2, specific_heat_ratio);
+   ComputeFluxDotN(state1, nor, flux1, specific_heat_ratio, num_equation);
+   ComputeFluxDotN(state2, nor, flux2, specific_heat_ratio, num_equation);
 
    double normag = 0;
-   for (int i = 0; i < dim; i++)
-   {
+   for (int i = 0; i < dim; i++) {
       normag += nor(i) * nor(i);
    }
    normag = sqrt(normag);
 
-   for (int i = 0; i < num_equation; i++)
-   {
+   for (int i = 0; i < num_equation; i++) {
       flux(i) = 0.5 * (flux1(i) + flux2(i))
                 - 0.5 * maxE * (state2(i) - state1(i)) * normag;
    }
@@ -331,18 +340,16 @@ void FaceIntegrator::AssembleFaceVector(const FiniteElement &el1,
    if (Tr.Elem2No >= 0)
       intorder = (min(Tr.Elem1->OrderW(), Tr.Elem2->OrderW()) +
                   2*max(el1.GetOrder(), el2.GetOrder()));
-   else
-   {
+   else {
       intorder = Tr.Elem1->OrderW() + 2*el1.GetOrder();
    }
-   if (el1.Space() == FunctionSpace::Pk)
-   {
+
+   if (el1.Space() == FunctionSpace::Pk) {
       intorder++;
    }
-   const IntegrationRule *ir = &IntRules.Get(Tr.GetGeometryType(), intorder);
 
-   for (int i = 0; i < ir->GetNPoints(); i++)
-   {
+   const IntegrationRule *ir = &IntRules.Get(Tr.GetGeometryType(), intorder);
+   for (int i = 0; i < ir->GetNPoints(); i++) {
       const IntegrationPoint &ip = ir->IntPoint(i);
 
       Tr.SetAllIntPoints(&ip); // set face and element int. points
@@ -360,14 +367,11 @@ void FaceIntegrator::AssembleFaceVector(const FiniteElement &el1,
       const double mcs = rsolver.Eval(funval1, funval2, nor, fluxN);
 
       fluxN *= ip.weight;
-      for (int k = 0; k < num_equation; k++)
-      {
-         for (int s = 0; s < dof1; s++)
-         {
+      for (int k = 0; k < num_equation; k++) {
+         for (int s = 0; s < dof1; s++) {
             elvect1_mat(s, k) -= fluxN(k) * shape1(s);
          }
-         for (int s = 0; s < dof2; s++)
-         {
+         for (int s = 0; s < dof2; s++) {
             elvect2_mat(s, k) += fluxN(k) * shape2(s);
          }
       }
@@ -381,21 +385,17 @@ bool StateIsPhysical(const Vector &state, const int dim)
    const Vector den_vel(state.GetData() + 1, dim);
    const double den_energy = state(1 + dim);
 
-   if (den < 0)
-   {
+   if (den < 0) {
       cout << "Negative density: ";
-      for (int i = 0; i < state.Size(); i++)
-      {
+      for (int i = 0; i < state.Size(); i++) {
          cout << state(i) << " ";
       }
       cout << endl;
       return false;
    }
-   if (den_energy <= 0)
-   {
+   if (den_energy <= 0) {
       cout << "Negative energy: ";
-      for (int i = 0; i < state.Size(); i++)
-      {
+      for (int i = 0; i < state.Size(); i++) {
          cout << state(i) << " ";
       }
       cout << endl;
@@ -408,11 +408,9 @@ bool StateIsPhysical(const Vector &state, const int dim)
 
    const double int_energy = den_energy - 0.5 * den_vel2;
 
-   if (int_energy <= 0)
-   {
+   if (int_energy <= 0) {
       cout << "Negative internal energy: " << int_energy << ", state: ";
-      for (int i = 0; i < state.Size(); i++)
-      {
+      for (int i = 0; i < state.Size(); i++) {
          cout << state(i) << " ";
       }
       cout << endl;
