@@ -2756,7 +2756,6 @@ protected:
 
 private:
 #ifndef MFEM_THREAD_SAFE
-   Vector divshape;
    Vector divshape, te_divshape;
 #endif
 
