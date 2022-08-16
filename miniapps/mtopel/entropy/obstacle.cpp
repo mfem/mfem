@@ -67,6 +67,7 @@ using namespace std;
 using namespace mfem;
 
 double spherical_obstacle(const Vector &pt);
+double exact_solution(const Vector &pt);
 
 class LogarithmGridFunctionCoefficient : public Coefficient
 {
@@ -206,9 +207,9 @@ int main(int argc, char *argv[])
    //    the boundary attributes from the mesh as essential (Dirichlet) and
    //    converting them to a list of true dofs.
    Array<int> ess_tdof_list;
+   Array<int> ess_bdr(mesh.bdr_attributes.Max());
    if (mesh.bdr_attributes.Size())
    {
-      Array<int> ess_bdr(mesh.bdr_attributes.Max());
       ess_bdr = 1;
       fespace.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
    }
@@ -228,7 +229,8 @@ int main(int argc, char *argv[])
       // return -x.Size()*pow(M_PI,2) * val;
       return x.Size()*pow(M_PI,2) * val;
    };
-   ConstantCoefficient f(-1.0);
+   ConstantCoefficient f(0.0);
+   ConstantCoefficient bdry_coef(0.0);
    // FunctionCoefficient f(func);
    ConstantCoefficient one(1.0);
    FunctionCoefficient obstacle(spherical_obstacle);
@@ -241,8 +243,9 @@ int main(int argc, char *argv[])
    GridFunction u_old(&fespace);
    GridFunction tmp_gf(&fespace);
    u = 1.0;
+   u.ProjectBdrCoefficient(bdry_coef, ess_bdr);
    delta_u = 0.0;
-   u_old = 1.0;
+   u_old = u;
    tmp_gf = 0.5;
 
    OperatorPtr A;
@@ -334,8 +337,22 @@ int main(int argc, char *argv[])
       // 14. Send the solution by socket to a GLVis server.
       if (visualization)
       {
-         sol_sock << "solution\n" << mesh << u << flush;
+         sol_sock << "solution\n" << mesh << u << "window_title 'Discrete solution'" << flush;
       }
+   }
+
+   // 14. Exact solution.
+   if (visualization)
+   {
+      socketstream err_sock(vishost, visport);
+      err_sock.precision(8);
+      FunctionCoefficient exact_coef(exact_solution);
+
+      u_old = 0.0;
+      u_old.ProjectCoefficient(exact_coef);
+      u_old -= u;
+
+      err_sock << "solution\n" << mesh << u_old << "window_title 'Error'"  << flush;
    }
 
    // 15. Free the used memory.
@@ -389,12 +406,29 @@ double spherical_obstacle(const Vector &pt)
 
    if (r > r0)
    {
-      return 0.0;
+      return -1.0;
    }
    else
    {
-      // return 0.0;
-      return r0 + sqrt(r0*r0-r*r);
+      return sqrt(r0*r0-r*r);
+   }
+}
+
+double exact_solution(const Vector &pt)
+{
+   double x = pt(0), y = pt(1);
+   double r = sqrt(x*x + y*y);
+   double r0 = 0.5;
+   double a =  0.348982574111686;
+   double A = -0.340129705945858;
+
+   if (r > a)
+   {
+      return A * log(r);
+   }
+   else
+   {
+      return sqrt(r0*r0-r*r);
    }
 }
 
