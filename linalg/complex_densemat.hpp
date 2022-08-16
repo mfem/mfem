@@ -55,7 +55,7 @@ public:
 ComplexDenseMatrix * Mult(const ComplexDenseMatrix &B,
                           const ComplexDenseMatrix &C);
 
-/// Multiply the Complex transpose of a matrix A with a matrix B. A^H*B
+/// Multiply the complex conjugate transpose of a matrix A with a matrix B. A^H*B
 ComplexDenseMatrix * MultAtB(const ComplexDenseMatrix &A,
                              const ComplexDenseMatrix &B);
 
@@ -184,7 +184,7 @@ public:
 
 
 /** Class that can compute Cholesky factorizations of external data of an
-    Hermitian PD matrix and perform various operations with the factored data. */
+    Hermitian positive matrix and perform various operations with the factored data. */
 class ComplexCholeskyFactors : public ComplexFactors
 {
 public:
