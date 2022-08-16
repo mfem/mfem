@@ -2252,9 +2252,6 @@ void VectorCurlCurlIntegrator::AssembleElementMatrix(
    }
 }
 
-
-
-
 double VectorCurlCurlIntegrator::GetElementEnergy(
    const FiniteElement &el, ElementTransformation &Tr, const Vector &elfun)
 {
