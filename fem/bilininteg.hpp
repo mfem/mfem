@@ -2757,6 +2757,7 @@ protected:
 private:
 #ifndef MFEM_THREAD_SAFE
    Vector divshape;
+   Vector divshape, te_divshape;
 #endif
 
    // PA extension
@@ -2774,6 +2775,12 @@ public:
    virtual void AssembleElementMatrix(const FiniteElement &el,
                                       ElementTransformation &Trans,
                                       DenseMatrix &elmat);
+
+   virtual void AssembleElementMatrix2(const FiniteElement &trial_fe,
+                                       const FiniteElement &test_fe,
+                                       ElementTransformation &Trans,
+                                       DenseMatrix &elmat);
+
    const Coefficient *GetCoefficient() const { return Q; }
 };
 
