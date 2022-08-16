@@ -2003,6 +2003,161 @@ void CurlCurlIntegrator::AssembleElementMatrix
    }
 }
 
+void CurlIntegrator::AssembleElementMatrix2(
+   const FiniteElement &trial_fe, const FiniteElement &test_fe,
+   ElementTransformation &Trans,  DenseMatrix &elmat)
+{
+   int dim = trial_fe.GetDim();
+   int trial_dof = trial_fe.GetDof();
+   int test_dof = test_fe.GetDof();
+   int dimc = (dim == 3) ? 3 : 1;
+
+   MFEM_ASSERT(trial_fe.GetMapType() == mfem::FiniteElement::H_CURL ||
+               dim == 2 && trial_fe.GetMapType() == mfem::FiniteElement::VALUE,
+               "Trial finite element must be either 2D/3D H(Curl) or 2D H1");
+   MFEM_ASSERT(test_fe.GetMapType() == mfem::FiniteElement::VALUE ||
+               test_fe.GetMapType() == mfem::FiniteElement::INTEGRAL,
+               "Test finite element must be in H1/L2");
+
+   bool spaceH1 = (trial_fe.GetMapType() == mfem::FiniteElement::VALUE);
+
+   if (spaceH1)
+   {
+      dshape.SetSize(trial_dof,dim);
+      curlshape.SetSize(dim*trial_dof,1);
+      dimc = dim;
+   }
+   else
+   {
+      curlshape.SetSize(trial_dof,dimc);
+      elmat_comp.SetSize(test_dof, trial_dof);
+   }
+   elmat.SetSize(dimc * test_dof, trial_dof);
+   shape.SetSize(test_dof);
+   elmat = 0.0;
+
+   double c;
+   Vector d_col;
+   const IntegrationRule *ir = IntRule;
+
+   if (ir == NULL)
+   {
+      int order = trial_fe.GetOrder() + test_fe.GetOrder() + Trans.OrderJ();
+      ir = &IntRules.Get(trial_fe.GetGeomType(), order);
+   }
+
+   for (int i = 0; i < ir->GetNPoints(); i++)
+   {
+      const IntegrationPoint &ip = ir->IntPoint(i);
+      Trans.SetIntPoint(&ip);
+      if (spaceH1)
+      {
+         trial_fe.CalcPhysDShape(Trans, dshape);
+         dshape.GradToCurl(curlshape);
+      }
+      else
+      {
+         trial_fe.CalcPhysCurlShape(Trans, curlshape);
+      }
+      test_fe.CalcPhysShape(Trans, shape);
+      c = ip.weight*Trans.Weight();
+      if (Q)
+      {
+         c *= Q->Eval(Trans, ip);
+      }
+      shape *= c;
+
+      for (int d = 0; d < dimc; ++d)
+      {
+         double * curldata = &(curlshape.GetData())[d*trial_dof];
+         for (int jj = 0; jj < trial_dof; ++jj)
+         {
+            for (int ii = 0; ii < test_dof; ++ii)
+            {
+               elmat(d * test_dof + ii, jj) += shape(ii) * curldata[jj];
+            }
+         }
+      }
+   }
+}
+
+void CurlCurlIntegrator::AssembleElementMatrix2(const FiniteElement &trial_fe,
+                                                const FiniteElement &test_fe,
+                                                ElementTransformation &Trans,
+                                                DenseMatrix &elmat)
+{
+   int tr_nd = trial_fe.GetDof();
+   int te_nd = test_fe.GetDof();
+   dim = trial_fe.GetDim();
+   int dimc = trial_fe.GetCurlDim();
+   double w;
+
+#ifdef MFEM_THREAD_SAFE
+   Vector D;
+   DenseMatrix curlshape(tr_nd,dimc), curlshape_dFt(tr_nd,dimc), M;
+   DenseMatrix te_curlshape(te_nd,dimc), te_curlshape_dFt(te_nd,dimc), M;
+#else
+   curlshape.SetSize(tr_nd,dimc);
+   curlshape_dFt.SetSize(tr_nd,dimc);
+   te_curlshape.SetSize(te_nd,dimc);
+   te_curlshape_dFt.SetSize(te_nd,dimc);
+#endif
+   elmat.SetSize(te_nd, tr_nd);
+
+   if (MQ) { M.SetSize(dimc); }
+   if (DQ) { D.SetSize(dimc); }
+
+   const IntegrationRule *ir = IntRule;
+   if (ir == NULL)
+   {
+      int order;
+      if (trial_fe.Space() == FunctionSpace::Pk)
+      {
+         order = test_fe.GetOrder() + trial_fe.GetOrder() - 2;
+      }
+      else
+      {
+         order = test_fe.GetOrder() + trial_fe.GetOrder() + trial_fe.GetDim() - 1;
+      }
+      ir = &IntRules.Get(trial_fe.GetGeomType(), order);
+   }
+
+   elmat = 0.0;
+   for (int i = 0; i < ir->GetNPoints(); i++)
+   {
+      const IntegrationPoint &ip = ir->IntPoint(i);
+
+      Trans.SetIntPoint(&ip);
+
+      w = ip.weight * Trans.Weight();
+      trial_fe.CalcPhysCurlShape(Trans, curlshape_dFt);
+      test_fe.CalcPhysCurlShape(Trans, te_curlshape_dFt);
+
+      if (MQ)
+      {
+         MQ->Eval(M, Trans, ip);
+         M *= w;
+         Mult(te_curlshape_dFt, M, te_curlshape);
+         AddMultABt(te_curlshape, curlshape_dFt, elmat);
+      }
+      else if (DQ)
+      {
+         DQ->Eval(D, Trans, ip);
+         D *= w;
+         AddMultADBt(te_curlshape_dFt,D,curlshape_dFt,elmat);
+      }
+      else
+      {
+         if (Q)
+         {
+            w *= Q->Eval(Trans, ip);
+         }
+         curlshape_dFt *= w;
+         AddMultABt(te_curlshape_dFt, curlshape_dFt, elmat);
+      }
+   }
+}
+
 void CurlCurlIntegrator
 ::ComputeElementFlux(const FiniteElement &el, ElementTransformation &Trans,
                      Vector &u, const FiniteElement &fluxelem, Vector &flux,
