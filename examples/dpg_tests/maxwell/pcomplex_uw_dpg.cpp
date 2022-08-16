@@ -627,9 +627,24 @@ int main(int argc, char *argv[])
       VectorFunctionCoefficient H_ex_i(dimc,H_exact_i);
       
       int dofs = 0;
+      int scdofs = 0;
       for (int i = 0; i<trial_fes.Size(); i++)
       {
          dofs += trial_fes[i]->GlobalTrueVSize();
+         if (static_cond)
+         {
+            if (i>1)
+            {
+               scdofs += trial_fes[i]->GlobalTrueVSize();
+            }
+         }
+      }
+      if (!static_cond) scdofs = dofs;
+
+      if (myid == 0)
+      {
+         mfem::out << "Total dofs = " << dofs << endl;
+         mfem::out << "scdofs = " << scdofs << endl;
       }
 
       double E_err_r = E.real().ComputeL2Error(E_ex_r);
