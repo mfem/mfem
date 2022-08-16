@@ -329,7 +329,6 @@ void BlockMatrix::EliminateRowCols(const Array<int> & vdofs, BlockMatrix *Ae,
 
    std::vector<Array<int>> cols(nRowBlocks);
    std::vector<Array<int>> rows(nRowBlocks);
-   SparseMatrix * tmp = nullptr;
 
    for (int k = 0; k < vdofs.Size(); k++)
    {
