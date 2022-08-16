@@ -138,6 +138,8 @@ public:
    //! If owns_blocks the SparseMatrix objects Aij will be deallocated.
    int owns_blocks;
 
+   virtual Type GetType() const { return MFEM_Block_Matrix; }
+
 private:
    //! Given a global row iglobal finds to which row iloc in block iblock belongs to.
    inline void findGlobalRow(int iglobal, int & iblock, int & iloc) const;
