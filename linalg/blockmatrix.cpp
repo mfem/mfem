@@ -350,11 +350,11 @@ void BlockMatrix::EliminateRowCols(const Array<int> & vdofs, BlockMatrix *Ae,
 
       for (int i = 0; i<nRowBlocks; i++)
       {
-         if (IsZeroBlock(i,j)) continue;
-         GetBlock(i,j).EliminateCols(colmarker,Ae->GetBlock(i,j)); 
+         if (IsZeroBlock(i,j)) { continue; }
+         GetBlock(i,j).EliminateCols(colmarker,Ae->GetBlock(i,j));
          for (int k = 0; k < cols[j].Size(); k++)
          {
-            if (IsZeroBlock(j,i)) continue;
+            if (IsZeroBlock(j,i)) { continue; }
             GetBlock(j,i).EliminateRow(cols[j][k]);
          }
       }

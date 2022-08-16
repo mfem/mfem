@@ -346,7 +346,7 @@ TEST_CASE("BlockMatrix", "[BlockMatrix]")
       Array<int> colmarker;
       mfem::FiniteElementSpace::ListToMarker(rows,offsets.Last(),colmarker);
       Amono->EliminateCols(colmarker,Amono_e);
-      for (int i = 0; i<rows.Size(); i++) { Amono->EliminateRow(rows[i]); } 
+      for (int i = 0; i<rows.Size(); i++) { Amono->EliminateRow(rows[i]); }
 
       x.Randomize();
       Ae.Mult(x,y1);
