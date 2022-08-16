@@ -517,6 +517,45 @@ void BlockMatrix::AddMultTranspose(const Vector & x, Vector & y,
    }
 }
 
+void BlockMatrix::PartMult(const Array<int> &rows, const Vector &x,
+                           Vector &y) const
+{
+   Array<int> cols;
+   Vector srow;
+   for (int i = 0; i<rows.Size(); i++)
+   {
+      int dof = (rows[i]>=0) ? rows[i] : -1-rows[i];
+      GetRow(dof,cols,srow);
+
+      double s=0.0;
+      for (int k = 0; k <cols.Size(); k++)
+      {
+         s += srow[k] * x[cols[k]];
+      }
+      y[dof] = s;
+   }
+}
+void BlockMatrix::PartAddMult(const Array<int> &rows, const Vector &x,
+                              Vector &y,
+                              const double a) const
+{
+   Array<int> cols;
+   Vector srow;
+   for (int i = 0; i<rows.Size(); i++)
+   {
+      int dof = (rows[i]>=0) ? rows[i] : -1-rows[i];
+      GetRow(dof,cols,srow);
+
+      double s=0.0;
+      for (int k = 0; k <cols.Size(); k++)
+      {
+         s += srow[k] * x[cols[k]];
+      }
+      y[dof] += a * s;
+   }
+}
+
+
 SparseMatrix * BlockMatrix::CreateMonolithic() const
 {
    int nnz = NumNonZeroElems();
