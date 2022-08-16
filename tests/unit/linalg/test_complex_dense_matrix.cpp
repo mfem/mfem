@@ -601,7 +601,6 @@ TEST_CASE("ComplexDenseMatrix", "[ComplexDenseMatrix]")
    SECTION("ComplexCholeskyFactors::LMult")
    {
       ComplexDenseMatrix exactL(&BL_r, &BL_i, false,false);
-      ComplexDenseMatrix A(&A_r, &A_i, false,false);
       ComplexDenseMatrix * LA = mfem::Mult(exactL,A);
 
       DenseMatrix LA_r(A_r);
