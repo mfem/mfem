@@ -252,10 +252,10 @@ ComplexDenseMatrix * ComplexDenseMatrix::ComputeInverse()
    double * datac_r = C_r->Data();
    double * datac_i = C_i->Data();
 
-   for (int i = 0; i < h*w; i++)
+   for (int k = 0; k < h*w; k++)
    {
-      datac_r[i] = data[i].real();
-      datac_i[i] = data[i].imag();
+      datac_r[k] = data[k].real();
+      datac_i[k] = data[k].imag();
    }
    delete [] data;
    return new ComplexDenseMatrix(C_r,C_i,true,true);

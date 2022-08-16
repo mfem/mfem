@@ -44,7 +44,6 @@
 #include "transfer.hpp"
 #include "fespacehierarchy.hpp"
 #include "multigrid.hpp"
-#include "ceed/algebraic.hpp"
 #include "blocklinearform.hpp"
 #include "blockbilinearform.hpp"
 #include "normal_equations.hpp"
