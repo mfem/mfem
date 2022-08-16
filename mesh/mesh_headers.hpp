@@ -26,6 +26,7 @@
 #include "mesh.hpp"
 #include "mesh_operators.hpp"
 #include "submesh/submesh.hpp"
+#include "submesh/submesh_utils.hpp"
 #include "submesh/transfermap.hpp"
 #include "submesh/transfer_category.hpp"
 #include "nurbs.hpp"

@@ -15,7 +15,9 @@ Mesh improvements
 -----------------
 - New classes, SubMesh and ParSubMesh, that allow to define a subset of a parent
   Mesh. Both classes allow for the same functionality as Mesh and ParMesh and
-  work with all existing interfaces like finite element spaces etc.
+  work with all existing interfaces like finite element spaces etc. Additionally
+  the interface allows for interaction between SubMesh and parent Mesh as well
+  as between SubMesh objects from the same parent.
 
 - Added example for body-fitted volumetric and shape integration using the 
   Algoim library.
