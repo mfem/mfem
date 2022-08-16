@@ -2327,7 +2327,7 @@ void MixedCurlIntegrator::AssembleElementMatrix2(
    int dimc = (dim == 3) ? 3 : 1;
 
    MFEM_ASSERT(trial_fe.GetMapType() == mfem::FiniteElement::H_CURL ||
-               dim == 2 && trial_fe.GetMapType() == mfem::FiniteElement::VALUE,
+               (dim == 2 && trial_fe.GetMapType() == mfem::FiniteElement::VALUE),
                "Trial finite element must be either 2D/3D H(Curl) or 2D H1");
    MFEM_ASSERT(test_fe.GetMapType() == mfem::FiniteElement::VALUE ||
                test_fe.GetMapType() == mfem::FiniteElement::INTEGRAL,
