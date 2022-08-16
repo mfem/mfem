@@ -874,6 +874,7 @@ void velocity_function(const Vector &x, Vector &v)
          }
          break;
       }
+      case 5:
       case 4:
       {
          // Translations in 1D, 2D, and 3D
@@ -1027,6 +1028,43 @@ double exact_sol(const Vector &x, double t)
                return val;
             }
          }
+      }
+      case 5: // step function
+      {
+         switch (dim)
+         {
+            case 1:
+            {
+               if (pow(fmod(x[0] - v[0]*t, 2.), 2) < 0.25)
+               { 
+                  return 1.;
+               }
+               else {
+                  return 0.;
+               }
+            }
+            case 2:
+            {
+               if (pow(X[0]-v[0]*t,2) + pow(X[1]-v[1]*t,2) < 0.25)
+               {
+                  return 1.;
+               }
+               else{
+                  return 0.;
+               }
+            }
+            case 3:
+            {
+               if (pow(X[0]-v[0]*t,2) + pow(X[1]-v[1]*t,2) + pow(X[2]-v[2]*t,2) < 0.25)
+               {
+                  return 1.;
+               }
+               else{
+                  return 0.;
+               }
+            }
+         }
+
       }
    }
    return 0.0;
