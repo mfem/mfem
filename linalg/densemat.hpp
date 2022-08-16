@@ -383,7 +383,7 @@ public:
    /// Invert and print the numerical conditioning of the inversion.
    void TestInversion();
 
-   long MemoryUsage() const { return data.Capacity() * sizeof(double); }
+   std::size_t MemoryUsage() const { return data.Capacity() * sizeof(double); }
 
    /// Shortcut for mfem::Read( GetMemory(), TotalSize(), on_dev).
    const double *Read(bool on_dev = true) const
@@ -1008,7 +1008,7 @@ public:
    void Clear()
    { UseExternalData(NULL, 0, 0, 0); }
 
-   long MemoryUsage() const { return nk*Mk.MemoryUsage(); }
+   std::size_t MemoryUsage() const { return nk*Mk.MemoryUsage(); }
 
    /// Shortcut for mfem::Read( GetMemory(), TotalSize(), on_dev).
    const double *Read(bool on_dev = true) const
