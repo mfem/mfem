@@ -363,33 +363,33 @@ public:
    void GetSubMatrix(const Array<int> & idx_i, const Array<int> & idx_j,
                      DenseMatrix & A) const;
 
-   /** Get the square submatrix which corresponds to the range 
+   /** Get the square submatrix which corresponds to the range
        [ @a ibeg, @a iend ) */
    void GetSubMatrix(int ibeg, int iend, DenseMatrix & A);
 
-   /** Get the square submatrix which corresponds to the range 
+   /** Get the square submatrix which corresponds to the range
       i ∈ [ @a ibeg, @a iend ) and j ∈ [ @a jbeg, @a jend ) */
    void GetSubMatrix(int ibeg, int iend, int jbeg, int jend, DenseMatrix & A);
 
-   /// Set (*this)(idx[i],idx[j]) = A(i,j) 
+   /// Set (*this)(idx[i],idx[j]) = A(i,j)
    void SetSubMatrix(const Array<int> & idx, const DenseMatrix & A);
 
-   /// Set (*this)(idx_i[i],idx_j[j]) = A(i,j) 
+   /// Set (*this)(idx_i[i],idx_j[j]) = A(i,j)
    void SetSubMatrix(const Array<int> & idx_i, const Array<int> & idx_j,
                      const DenseMatrix & A);
-   
-   /** Set a submatrix of (this) to the given matrix @a A 
+
+   /** Set a submatrix of (this) to the given matrix @a A
        with row and column offset @a ibeg */
    void SetSubMatrix(int ibeg, const DenseMatrix & A);
 
-   /** Set a submatrix of (this) to the given matrix @a A 
+   /** Set a submatrix of (this) to the given matrix @a A
        with row and column offset @a ibeg and @a jbeg respectively */
    void SetSubMatrix(int ibeg, int jbeg, const DenseMatrix & A);
 
-   /// (*this)(idx[i],idx[j]) += A(i,j) 
+   /// (*this)(idx[i],idx[j]) += A(i,j)
    void AddSubMatrix(const Array<int> & idx, const DenseMatrix & A);
 
-   /// (*this)(idx_i[i],idx_j[j]) += A(i,j) 
+   /// (*this)(idx_i[i],idx_j[j]) += A(i,j)
    void AddSubMatrix(const Array<int> & idx_i, const Array<int> & idx_j,
                      const DenseMatrix & A);
 
