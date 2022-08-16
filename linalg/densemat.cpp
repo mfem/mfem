@@ -1926,24 +1926,6 @@ void DenseMatrix::AddSubMatrix(int ibeg, const DenseMatrix & A)
    }
 }
 
-void RAP(const DenseMatrix &A, const DenseMatrix &P, DenseMatrix & RAP)
-{
-   DenseMatrix RA(P.Width(),A.Width());
-   MultAtB(P,A,RA);
-   RAP.SetSize(RA.Height(), P.Width());
-   Mult(RA,P, RAP);
-}
-
-/// General R^tAP with given R, A and P
-void RAP(const DenseMatrix &Rt, const DenseMatrix &A,
-         const DenseMatrix &P, DenseMatrix & RAP)
-{
-   DenseMatrix RA(Rt.Width(),A.Width());
-   MultAtB(Rt,A,RA);
-   RAP.SetSize(RA.Height(), P.Width());
-   Mult(RA,P, RAP);
-}
-
 void DenseMatrix::AddSubMatrix(int ibeg, int jbeg, const DenseMatrix & A)
 {
    int k = A.Height();
@@ -3101,6 +3083,22 @@ void AddMult_a_VVt(const double a, const Vector &v, DenseMatrix &VVt)
    }
 }
 
+void RAP(const DenseMatrix &A, const DenseMatrix &P, DenseMatrix & RAP)
+{
+   DenseMatrix RA(P.Width(),A.Width());
+   MultAtB(P,A,RA);
+   RAP.SetSize(RA.Height(), P.Width());
+   Mult(RA,P, RAP);
+}
+
+void RAP(const DenseMatrix &Rt, const DenseMatrix &A,
+         const DenseMatrix &P, DenseMatrix & RAP)
+{
+   DenseMatrix RA(Rt.Width(),A.Width());
+   MultAtB(Rt,A,RA);
+   RAP.SetSize(RA.Height(), P.Width());
+   Mult(RA,P, RAP);
+}
 
 bool LUFactors::Factor(int m, double TOL)
 {
