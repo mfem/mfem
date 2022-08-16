@@ -58,9 +58,9 @@ private:
    /**
     * @brief Communicate from each local processor which index in map is set.
     *
-    * The results is accumulated in the member variable indices_set_global_ and
-    * indicates which processor and how many processors in total will set a
-    * certain degree of freedom.
+    * The result is accumulated in the member variable indices_set_global_ and
+    * indicates which and how many processors in total will set a certain degree
+    * of freedom.
     *
     * Convenience method for tidyness. Uses and changes member variables.
     */
@@ -79,11 +79,11 @@ private:
    TransferCategory category_;
 
    /// Mapping of the ParGridFunction defined on the SubMesh to the
-   /// ParGridfunction of it's parent ParMesh.
+   /// ParGridfunction of its parent ParMesh.
    Array<int> sub1_to_parent_map_;
 
    /// Mapping of the ParGridFunction defined on the second SubMesh to the
-   /// ParGridFunction of it's parent ParMesh. This is only used if this
+   /// ParGridFunction of its parent ParMesh. This is only used if this
    /// ParTransferMap represents a ParSubMesh to ParSubMesh transfer.
    Array<int> sub2_to_parent_map_;
 

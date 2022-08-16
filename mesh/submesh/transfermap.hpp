@@ -56,11 +56,11 @@ private:
    TransferCategory category_;
 
    /// Mapping of the GridFunction defined on the SubMesh to the Gridfunction
-   /// of it's parent Mesh.
+   /// of its parent Mesh.
    Array<int> sub1_to_parent_map_;
 
    /// Mapping of the GridFunction defined on the second SubMesh to the
-   /// GridFunction of it's parent Mesh. This is only used if this TransferMap
+   /// GridFunction of its parent Mesh. This is only used if this TransferMap
    /// represents a SubMesh to SubMesh transfer.
    Array<int> sub2_to_parent_map_;
 

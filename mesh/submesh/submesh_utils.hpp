@@ -74,11 +74,11 @@ AddElementsToMesh(const Mesh& parent,
                   bool from_boundary = false);
 
 /**
- * @brief Given a two meshes that have a parent to SubMesh relationship create a
+ * @brief Given two meshes that have a parent to SubMesh relationship create a
  * face map, using a SubMesh to parent Mesh element id map.
  *
  * @param parent The parent Mesh.
- * @param mesh The Mesh to match it's parents faces.
+ * @param mesh The Mesh to match its parents faces.
  * @param parent_element_ids The Mesh element to parent element id map.
  */
 Array<int> BuildFaceMap(const Mesh& parent, const Mesh& mesh,
@@ -88,8 +88,9 @@ Array<int> BuildFaceMap(const Mesh& parent, const Mesh& mesh,
  * @brief Build the vdof to vdof mapping between two FiniteElementSpace objects.
  *
  * Given two FiniteElementSpace objects and the map parent_element_ids, which
- * maps the element ids of the subfes to elements on the parentfes (depending on
- * from these can be elements or boundary elements), create a vdof to vdof map.
+ * maps the element ids of the subfes to elements on the parentfes (or boundary
+ * elements depending on the type of transfer, volume or surface), create a vdof
+ * to vdof map.
  *
  * This map is entirely serial and has no knowledge about parallel groups.
  *

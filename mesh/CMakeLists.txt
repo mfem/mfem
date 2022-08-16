@@ -51,6 +51,8 @@ set(HDRS
   vertex.hpp
   vtk.hpp
   wedge.hpp
+  submesh/submesh.hpp
+  submesh/submesh_utils.hpp
   submesh/transfer_category.hpp
   submesh/transfermap.hpp
   )
