@@ -2602,6 +2602,31 @@ public:
                                    const Vector &elfun);
 };
 
+/** Class for integrating the bilinear form a(u,v) := (Q curl u, v) where Q is a
+    scalar coefficient, and v is a vector with components v_i in the L2 or H1 space.
+    u can be in H(curl) (2D or 3D) or it can be a scalar H1.
+    Note: If u is scalar H1 then curl u = [0 1; -1 0] grad u */
+class MixedCurlIntegrator : public BilinearFormIntegrator
+{
+protected:
+   Coefficient *Q;
+
+private:
+   Vector shape;
+   DenseMatrix dshape;
+   DenseMatrix curlshape;
+   DenseMatrix elmat_comp;
+public:
+   MixedCurlIntegrator() : Q{NULL} { }
+   MixedCurlIntegrator(Coefficient *q_) :  Q{q_} { }
+   MixedCurlIntegrator(Coefficient &q) :  Q{&q} { }
+
+   virtual void AssembleElementMatrix2(const FiniteElement &trial_fe,
+                                       const FiniteElement &test_fe,
+                                       ElementTransformation &Trans,
+                                       DenseMatrix &elmat);
+};
+
 /** Integrator for (Q u, v), where Q is an optional coefficient (of type scalar,
     vector (diagonal matrix), or matrix), trial function u is in H(Curl) or
     H(Div), and test function v is in H(Curl), H(Div), or v=(v1,...,vn), where
