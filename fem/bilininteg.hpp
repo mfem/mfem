@@ -2737,7 +2737,8 @@ private:
 
 public:
    DivDivIntegrator() { Q = NULL; }
-   DivDivIntegrator(Coefficient &q) : Q(&q) { }
+   DivDivIntegrator(Coefficient &q, const IntegrationRule *ir = NULL) :
+      BilinearFormIntegrator(ir), Q(&q) { }
 
    virtual void AssembleElementMatrix(const FiniteElement &el,
                                       ElementTransformation &Trans,

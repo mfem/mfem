@@ -861,7 +861,7 @@ const GeometricFactors* Mesh::GetGeometricFactors(const IntegrationRule& ir,
 
 const FaceGeometricFactors* Mesh::GetFaceGeometricFactors(
    const IntegrationRule& ir,
-   const int flags, FaceType type)
+   const int flags, FaceType type, MemoryType d_mt)
 {
    for (int i = 0; i < face_geom_factors.Size(); i++)
    {
@@ -875,7 +875,8 @@ const FaceGeometricFactors* Mesh::GetFaceGeometricFactors(
 
    this->EnsureNodes();
 
-   FaceGeometricFactors *gf = new FaceGeometricFactors(this, ir, flags, type);
+   FaceGeometricFactors *gf = new FaceGeometricFactors(this, ir, flags, type,
+                                                       d_mt);
    face_geom_factors.Append(gf);
    return gf;
 }
@@ -12046,7 +12047,8 @@ void GeometricFactors::Compute(const GridFunction &nodes,
 
 FaceGeometricFactors::FaceGeometricFactors(const Mesh *mesh,
                                            const IntegrationRule &ir,
-                                           int flags, FaceType type)
+                                           int flags, FaceType type,
+                                           MemoryType d_mt)
    : type(type)
 {
    this->mesh = mesh;
@@ -12063,28 +12065,34 @@ FaceGeometricFactors::FaceGeometricFactors(const Mesh *mesh,
                                           ElementDofOrdering::LEXICOGRAPHIC,
                                           type,
                                           L2FaceValues::SingleValued );
-   Vector Fnodes(face_restr->Height());
+
+
+   MemoryType my_d_mt = (d_mt != MemoryType::DEFAULT) ? d_mt :
+                        Device::GetDeviceMemoryType();
+
+   Vector Fnodes(face_restr->Height(), my_d_mt);
    face_restr->Mult(*nodes, Fnodes);
 
    unsigned eval_flags = 0;
+
    if (flags & FaceGeometricFactors::COORDINATES)
    {
-      X.SetSize(vdim*NQ*NF);
+      X.SetSize(vdim*NQ*NF, my_d_mt);
       eval_flags |= FaceQuadratureInterpolator::VALUES;
    }
    if (flags & FaceGeometricFactors::JACOBIANS)
    {
-      J.SetSize(vdim*vdim*NQ*NF);
+      J.SetSize(vdim*vdim*NQ*NF, my_d_mt);
       eval_flags |= FaceQuadratureInterpolator::DERIVATIVES;
    }
    if (flags & FaceGeometricFactors::DETERMINANTS)
    {
-      detJ.SetSize(NQ*NF);
+      detJ.SetSize(NQ*NF, my_d_mt);
       eval_flags |= FaceQuadratureInterpolator::DETERMINANTS;
    }
    if (flags & FaceGeometricFactors::NORMALS)
    {
-      normal.SetSize(vdim*NQ*NF);
+      normal.SetSize(vdim*NQ*NF, my_d_mt);
       eval_flags |= FaceQuadratureInterpolator::NORMALS;
    }
 

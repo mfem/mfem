@@ -167,7 +167,7 @@ double TestFaceRestriction(Mesh &mesh, int order)
    L2FaceRestriction restr(fes, ElementDofOrdering::LEXICOGRAPHIC,
                            FaceType::Interior, L2FaceValues::DoubleValued);
 
-   const int ndof_face = pow(order+1, dim-1);
+   const int ndof_face = static_cast<int>(pow(order+1, dim-1));
 
    Vector face_values(ndof_face*2);
 
@@ -219,7 +219,6 @@ TEST_CASE("2D Face Permutation", "[Face Permutation]")
          delete mesh;
       }
    }
-   std::cout << "2D Face Permutation: max_err = " << max_err << '\n';
    REQUIRE(max_err < 1e-15);
 }
 
@@ -237,6 +236,5 @@ TEST_CASE("3D Face Permutation", "[Face Permutation]")
          delete mesh;
       }
    }
-   std::cout << "3D Face Permutation: max_err = " << max_err << '\n';
    REQUIRE(max_err < 1e-15);
 }
