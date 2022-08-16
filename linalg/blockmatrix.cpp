@@ -320,6 +320,52 @@ void BlockMatrix::EliminateRowCol(Array<int> & ess_bc_dofs, Vector & sol,
    }
 }
 
+void BlockMatrix::EliminateRowCols(Array<int> vdofs, BlockMatrix *Ae,
+                                   DiagonalPolicy dpolicy)
+{
+   MFEM_VERIFY(nRowBlocks == nColBlocks,
+               "BlockMatrix::EliminateRowCols supported only for"
+               "nRowBlocks = nColBlocks");
+
+   std::vector<Array<int>> cols(nRowBlocks);
+   std::vector<Array<int>> rows(nRowBlocks);
+   SparseMatrix * tmp = nullptr;
+
+   for (int k = 0; k < vdofs.Size(); k++)
+   {
+      int vdof = (vdofs[k]) >=0 ? vdofs[k] : -1 - vdofs[k];
+      // find block
+      int iblock, dof;
+      findGlobalCol(vdof,iblock,dof);
+      cols[iblock].Append(dof);
+      tmp = &GetBlock(iblock,iblock);
+      if (tmp)
+      {
+         tmp->EliminateRowCol(dof,Ae->GetBlock(iblock,iblock), dpolicy);
+      }
+   }
+
+   // Eliminate col from off-diagonal blocks
+   for (int j = 0; j<nColBlocks; j++)
+   {
+      if (!cols[j].Size()) { continue; }
+      Array<int> colmarker;
+      int blocksize = col_offsets[j+1] - col_offsets[j];
+      mfem::FiniteElementSpace::ListToMarker(cols[j],blocksize,colmarker);
+      for (int i = 0; i<nRowBlocks; i++)
+      {
+         if (i == j) { continue; }
+         tmp = &GetBlock(i,j);
+         if (tmp) { tmp->EliminateCols(colmarker,Ae->GetBlock(i,j)); }
+         for (int k = 0; k < cols[j].Size(); k++)
+         {
+            tmp = &GetBlock(j,i);
+            if (tmp) { tmp->EliminateRow(cols[j][k]); }
+         }
+      }
+   }
+}
+
 void BlockMatrix::EliminateZeroRows(const double threshold)
 {
    MFEM_VERIFY(nRowBlocks == nColBlocks, "not a square matrix");
