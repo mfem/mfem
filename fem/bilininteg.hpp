@@ -2524,6 +2524,7 @@ private:
 #ifndef MFEM_THREAD_SAFE
    Vector D;
    DenseMatrix curlshape, curlshape_dFt, M;
+   DenseMatrix te_curlshape, te_curlshape_dFt;
    DenseMatrix vshape, projcurl;
 #endif
 
@@ -2556,6 +2557,11 @@ public:
    virtual void AssembleElementMatrix(const FiniteElement &el,
                                       ElementTransformation &Trans,
                                       DenseMatrix &elmat);
+
+   virtual void AssembleElementMatrix2(const FiniteElement &trial_fe,
+                                       const FiniteElement &test_fe,
+                                       ElementTransformation &Trans,
+                                       DenseMatrix &elmat);
 
    virtual void ComputeElementFlux(const FiniteElement &el,
                                    ElementTransformation &Trans,
