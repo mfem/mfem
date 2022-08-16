@@ -41,8 +41,8 @@
    everything else: coils
 
    TODO: double boundary integral
-   TODO: saddle point
-   TODO: local max and mins
+   TODO: initial condition
+   TODO: masking
 */
 
 #include "mfem.hpp"
@@ -65,10 +65,11 @@ const int attr_ext = 2000;
 int test();
 void compute_plasma_points(const GridFunction & z, const Mesh & mesh,
                            const map<int, vector<int>> & vertex_map,
-                           int &ind_min, int &ind_max, double &min_val, double & max_val);
+                           int &ind_min, int &ind_max, double &min_val, double & max_val,
+                           int iprint);
 map<int, vector<int>> compute_vertex_map(Mesh & mesh, int with_attrib = -1);
 double one_over_r_mu(const Vector & x, double & mu);
-
+double GetMaxError(LinearForm &res);
 /*
   Contains functions associated with the plasma model. 
   They appear on the RHS of the equation.
@@ -317,16 +318,72 @@ int main(int argc, char *argv[])
 
    // Solve the system using PCG with symmetric Gauss-Seidel preconditioner.
    GSSmoother M(A);
-   PCG(A, M, B, X, 1, 200, 1e-12, 0.0);
+   PCG(A, M, B, X, 0, 400, 1e-12, 0.0);
    diff_operator.RecoverFEMSolution(X, coil_term, x);
    // x is the recovered solution
 
    // now we have an initial guess: x
-
-   SysOperator op(&diff_operator, &coil_term, &model, &fespace, &mesh);
+   x.Save("sol.gf");
+   mesh.Save("mesh.mesh");
+   
+   GridFunction dx(&fespace);
    LinearForm out_vec(&fespace);
+   SysOperator op(&diff_operator, &coil_term, &model, &fespace, &mesh);
+   dx = 0.0;
+   for (int i = 0; i < 20; ++i) {
+
+     op.Mult(x, out_vec);
+     double error = GetMaxError(out_vec);
+     printf("\n\n********************************\n");
+     printf("i: %d, max error: %.3e\n", i, error);
+     printf("********************************\n\n");
+
+     int kdim = 10000;
+     int max_iter = 400;
+     double tol = 1e-12;
+     // PCG(op.GetGradient(x), M, out_vec, dx, 0, 400, 1e-12, 0.0);
+     GMRES(op.GetGradient(x), dx, out_vec, M, max_iter, kdim, tol, 0.0, 0);
+     x -= dx;
+
+   }
    op.Mult(x, out_vec);
-   op.GetGradient(x);
+   double error = GetMaxError(out_vec);
+   printf("\n\n********************************\n");
+   printf("final max error: %.3e\n", error);
+   printf("********************************\n\n");
+   // diff_operator.RecoverFEMSolution(X, coil_term, x);
+   // double rel_tol = 1e-12;
+   // // HypreSmoother *J_hypreSmoother = new HypreSmoother;
+   // // J_hypreSmoother->SetType(HypreSmoother::l1Jacobi);
+   // // J_hypreSmoother->SetPositiveDiagonal(true);
+   // // J_prec = J_hypreSmoother;
+
+   // MINRESSolver *J_minres = new MINRESSolver();
+   // J_minres->SetRelTol(rel_tol);
+   // J_minres->SetAbsTol(0.0);
+   // J_minres->SetMaxIter(300);
+   // J_minres->SetPrintLevel(-1);
+   // // J_minres->SetPreconditioner(*J_prec);
+
+   // NewtonSolver newton_solver;
+   // newton_solver.iterative_mode = false;
+   // newton_solver.SetSolver(*J_minres);
+   // newton_solver.SetOperator(op);
+   // newton_solver.SetPrintLevel(1); // print Newton iterations
+   // newton_solver.SetRelTol(rel_tol);
+   // newton_solver.SetAbsTol(0.0);
+   // newton_solver.SetMaxIter(10);
+
+   // Vector zero;
+   // zero = 0.0;
+   // Vector xx;
+   // xx = x.GetData();
+   // newton_solver.Mult(zero, xx);
+   // MFEM_VERIFY(newton_solver.GetConverged(),
+   //             "Newton solver did not converge.");
+   
+
+   
    
    // // now that we have solution, we can define nonlinear RHS terms
    // // plasma term
@@ -353,20 +410,18 @@ int main(int argc, char *argv[])
    //   boundary_term.Assemble();
    // }
      
-   x.Save("sol.gf");
-   mesh.Save("mesh.mesh");
 
    //
-   GridFunction y(&fespace);
-   y= 0.0;
-   diff_operator.Mult(x, y);
-   y.Save("y.gf");
+   // GridFunction y(&fespace);
+   // y= 0.0;
+   // diff_operator.Mult(x, y);
+   // y.Save("y.gf");
 
-   //
-   TestCoefficient tcoeff;
-   GridFunction z(&fespace);
-   z.ProjectCoefficient(tcoeff);
-   z.Save("z.gf");
+   // //
+   // TestCoefficient tcoeff;
+   // GridFunction z(&fespace);
+   // z.ProjectCoefficient(tcoeff);
+   // z.Save("z.gf");
 
    /*
      Test vertex to vertex mapping...
@@ -376,6 +431,20 @@ int main(int argc, char *argv[])
    return 0;
 
 }
+
+double GetMaxError(LinearForm &res) {
+  double *resv = res.GetData();
+  int size = res.FESpace()->GetTrueVSize();
+
+  double max_val = - numeric_limits<double>::infinity();
+  for (int i = 0; i < size; ++i) {
+    if (abs(resv[i]) > max_val) {
+      max_val = abs(resv[i]);
+    }
+  }
+  return max_val;
+}
+
 
 double PlasmaModel::S_p_prime(double & psi_N) const
 {
@@ -579,7 +648,8 @@ map<int, vector<int>> compute_vertex_map(Mesh & mesh, int with_attrib) {
 
 void compute_plasma_points(const GridFunction & z, const Mesh & mesh,
                            const map<int, vector<int>> & vertex_map,
-                           int &ind_min, int &ind_max, double &min_val, double & max_val) {
+                           int &ind_min, int &ind_max, double &min_val, double & max_val,
+                           int iprint) {
 
    Vector nval;
    z.GetNodalValues(nval);
@@ -650,22 +720,25 @@ void compute_plasma_points(const GridFunction & z, const Mesh & mesh,
      }
 
      if (sign_changes >= 4) {
-       printf("Found saddle at (%9.6f, %9.6f)\n", x0[0], x0[1]);
+       if (iprint) {
+         printf("Found saddle at (%9.6f, %9.6f)\n", x0[0], x0[1]);
+       }
        ++count;
      } 
  
    }
 
-   cout << "total saddles: " << count << endl;
 
    const double* x_min = mesh.GetVertex(ind_min);
-   printf("min of %9.6f at (%9.6f, %9.6f), ind %d\n", min_val, x_min[0], x_min[1], ind_min);
    const double* x_max = mesh.GetVertex(ind_max);
-   printf("min of %9.6f at (%9.6f, %9.6f), ind %d\n", max_val, x_max[0], x_max[1], ind_max);
+   if (iprint) {
+     cout << "total saddles found: " << count << endl;
+     printf("min of %9.6f at (%9.6f, %9.6f), ind %d\n", min_val, x_min[0], x_min[1], ind_min);
+     printf("max of %9.6f at (%9.6f, %9.6f), ind %d\n", max_val, x_max[0], x_max[1], ind_max);
+   }
    
    // magnetic axis: max
    // x point: either closest saddle point or min
-
    
 }
 
@@ -677,22 +750,20 @@ void SysOperator::Mult(const Vector &psi, Vector &y) const {
   x = psi;
   int ind_min, ind_max;
   double min_val, max_val;
-  compute_plasma_points(x, *mesh, vertex_map, ind_min, ind_max, min_val, max_val);
+  int iprint = 1;
+  compute_plasma_points(x, *mesh, vertex_map, ind_min, ind_max, min_val, max_val, iprint);
   NonlinearGridCoefficient nlgcoeff1(model, 1, &x, min_val, max_val);
   LinearForm plasma_term(fespace);
   plasma_term.AddDomainIntegrator(new DomainLFIntegrator(nlgcoeff1));
   plasma_term.Assemble();
   
-  add(y, *coil_term, y);
+  y = *coil_term;
   add(y, -1.0, plasma_term, y);
-  diff_operator->Mult(psi, y);
+  diff_operator->AddMult(psi, y);
 }
 
 Operator &SysOperator::GetGradient(const Vector &psi) const {
   // diff_operator - sum_{i=1}^3 diff_plasma_term_i(psi)
-  // mask
-
-  // make the matrix mutable!
 
   delete Mat;
   GridFunction x(fespace);
@@ -700,7 +771,8 @@ Operator &SysOperator::GetGradient(const Vector &psi) const {
 
   int ind_min, ind_max;
   double min_val, max_val;
-  compute_plasma_points(x, *mesh, vertex_map, ind_min, ind_max, min_val, max_val);
+  int iprint = 0;
+  compute_plasma_points(x, *mesh, vertex_map, ind_min, ind_max, min_val, max_val, iprint);
  
   NonlinearGridCoefficient nlgcoeff_2(model, 2, &x, max_val, min_val);
   BilinearForm diff_plasma_term_2(fespace);
@@ -728,6 +800,7 @@ Operator &SysOperator::GetGradient(const Vector &psi) const {
     Mat->Add(k, ind_min, diff_plasma_term_4[k]);
   }
 
+  // diff operator
   int height;
   const auto II1 = M1.ReadI();
   const auto JJ1 = M1.ReadJ();
