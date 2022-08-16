@@ -69,6 +69,51 @@ double inflow_function(const Vector &x);
 // Mesh bounding box
 Vector bb_min, bb_max;
 
+class MyCoefficient : public Coefficient
+{
+private:
+   const double timestep;
+   const GridFunction *GridF;
+   const GridFunction *GridF_galerkin;
+
+public:
+   MyCoefficient() : GridF(NULL), GridF_galerkin(NULL), timestep(0.) { }
+   // Construct GridFunctionCoefficient from multiple GridFunctions
+   MyCoefficient(const GridFunction *gf1, const GridFunction *gf2, const int tau)
+      : timestep(tau)
+   {
+      GridF = gf1;
+      GridF_galerkin = gf2;
+   }
+
+   // Evaluate the coeffficient at a ip.
+   virtual double Eval(ElementTransformation &T,
+                       const IntegrationPoint &ip);
+};
+
+double MyCoefficient::Eval (ElementTransformation &T,
+                            const IntegrationPoint &ip)
+{
+   Mesh *gf_mesh = GridF->FESpace()->GetMesh();
+   if (T.mesh == gf_mesh)
+   {
+      Vector grad;
+      GridF->GetGradient(T, grad);
+      double val = (GridF_galerkin->GetValue(T, ip) - GridF->GetValue(T, ip)) / timestep;
+      val += GridF->GetValue(T, ip) * grad[0]; // hardcoded for 1D
+      val *= GridF->GetValue(T, ip);
+      return val;
+   }
+   // else
+   // {
+   //    IntegrationPoint coarse_ip;
+   //    ElementTransformation *coarse_T = RefinedToCoarse(*gf_mesh, T, ip, coarse_ip);
+   //    return GridF->GetValue(*coarse_T, coarse_ip, Component);
+   // }
+   assert (false);
+   return 0;
+}
+
 /** A time-dependent operator for the right-hand side of the ODE. The CG weak
     form of du/dt = -v.grad(u) is M du/dt = (D + K) u, where M and K are the mass
     and advection matrices, and D is the artificial viscosity matrix as
@@ -85,10 +130,11 @@ private:
    HypreParMatrix *M_hpm, *K_hpm, *KT_hpm;
    HypreParVector lumpedM;
    ParBilinearForm &K_pbf, &KT_pbf;
-   SparseMatrix dij_sparse, K_spmat, KT_spmat;
-   Vector dii;
+   SparseMatrix dij_sparse, K_spmat, KT_spmat, entropy_viscosity;
+   Vector dii, entropy_viscosity_dii;
 
    double timestep;
+   bool high_order;
 
 public:
    FE_Evolution(ParBilinearForm &M_, ParBilinearForm &K_, ParBilinearForm &KT_);
@@ -97,14 +143,23 @@ public:
    Builds dij_matrix used in the low order approximation, which is based on
    Guermond/Popov 2016.
    */
+   void set_high_order(bool order);
    void build_dij_matrix(const Vector &U);
    void calculate_timestep();
    double get_timestep();
 
+   Vector compute_entropy_min(const Vector &U);
+   Vector compute_entropy_max(const Vector &U);
+   Vector compute_entropy_res(const Vector &U, const GridFunction *gf1, const GridFunction *gf2);
+
+   void Update(const Vector &x);
    virtual void Mult(const Vector &x, Vector &y) const;
    virtual void ImplicitSolve(const double dt, const Vector &x, Vector &k);
 
    virtual ~FE_Evolution();
+
+private:
+   void build_entropy_viscosity(const Vector R);
 };
 
 
@@ -127,6 +182,7 @@ int main(int argc, char *argv[])
    int ser_ref_levels = 3;
    int par_ref_levels = 0;
    int order = 1;
+   bool high = false;
    bool pa = false;
    bool ea = false;
    bool fa = false;
@@ -176,6 +232,8 @@ int main(int argc, char *argv[])
                   "            12 - SDIRK23 (L-stable), 13 - SDIRK33,\n\t"
                   "            22 - Implicit Midpoint Method,\n\t"
                   "            23 - SDIRK23 (A-stable), 24 - SDIRK34");
+   args.AddOption(&high, "-ho", "--high-order", "-lo", "--low-order",
+                  "Set order of FEM approximation.");
    args.AddOption(&t_final, "-tf", "--t-final",
                   "Final time; start time is 0.");
    args.AddOption(&one_time_step, "-ots", "--one-time-step",
@@ -454,6 +512,7 @@ int main(int argc, char *argv[])
 
    double t = 0.0;
    adv.SetTime(t);
+   adv.set_high_order(high);
    ode_solver->Init(adv);
 
    // dij_matrix has no time dependence
@@ -475,6 +534,7 @@ int main(int argc, char *argv[])
    for (int ti = 0; !done; )
    {
       double dt_real = min(dt, t_final - t);
+      adv.Update(*U);
       ode_solver->Step(*U, t, dt_real);
       ti++;
 
@@ -645,7 +705,8 @@ FE_Evolution::FE_Evolution(ParBilinearForm &M_, ParBilinearForm &K_, ParBilinear
      timestep(0.),
      K_pbf(K_),
      KT_pbf(KT_),
-     dii(pfes.GetTrueVSize())
+     dii(pfes.GetTrueVSize()),
+     entropy_viscosity_dii(pfes.GetTrueVSize())
 {
    if (pfes.GetParMesh()->bdr_attributes.Size())
    {
@@ -661,12 +722,24 @@ FE_Evolution::FE_Evolution(ParBilinearForm &M_, ParBilinearForm &K_, ParBilinear
    K_hpm = K_pbf.ParallelAssemble();
    K_hpm->MergeDiagAndOffd(K_spmat);
    dij_sparse = K_spmat;
+   entropy_viscosity = K_spmat;
 
    KT_hpm = KT_pbf.ParallelAssemble();
    KT_hpm->MergeDiagAndOffd(KT_spmat);
 
+   // Set the method to 1st order by default
+   high_order = false;
+
    cout << "End FEEvolution constructor.\n";
 }
+
+/******************************************************************************
+ * FE_Evolution::set_high_order()
+ * Purpose: 
+ *    Set whether to use the low order artificial viscosity method (2016 paper)
+ *    or to use the high order viscosity method (2017 paper).
+ * ***************************************************************************/
+void FE_Evolution::set_high_order(bool order) { this->high_order = order; }
 
 // TODO: Implement an ImplicitSolve function
 // Solve the equation:
@@ -680,8 +753,9 @@ void FE_Evolution::ImplicitSolve(const double dt, const Vector &x, Vector &k)
 
 /******************************************************************************
  * FE_Evolution::build_dij_matrix(const Vector &U,
-                                    const VectorFunctionCoefficient &velocity)
+ *                                const VectorFunctionCoefficient &velocity)
  * Purpose:
+ *    Build the artificial viscosity as described in (2016 paper).
  * ***************************************************************************/
 void FE_Evolution::build_dij_matrix(const Vector &U)
 {
@@ -718,6 +792,46 @@ void FE_Evolution::build_dij_matrix(const Vector &U)
    }
 
    cout << "Finished dij matrix.\n";
+}
+
+/******************************************************************************
+ * FE_Evolution::build_entropy_viscosity()
+ * Purpose: 
+ *    Build entropy viscosity coefficient as described in (2017 paper).
+ * ***************************************************************************/
+void FE_Evolution::build_entropy_viscosity(const Vector R)
+{
+   // Assert we only run this function when needed.
+   assert(high_order);
+
+   cout << "Build entropy viscosity.\n";
+
+   const int m = entropy_viscosity.Height();
+   const int *I = entropy_viscosity.HostReadI(), *J = entropy_viscosity.HostReadJ();
+
+   double *ev_data = entropy_viscosity.HostReadWriteData();
+   const double *D_data = dij_sparse.HostReadData();
+
+   for (int i = 0, k = 0; i < m; i++)
+   {
+      double rowsum = 0;
+      for (int end = I[i+1]; k < end; k++)
+      {
+         int j = J[k]; // global index
+
+         if (i != j) {
+            double val = min(D_data[k], min(abs(R[i]), abs(R[j])));
+            ev_data[k] = val; // TODO: min of three objects?
+            rowsum += val;
+         }
+         else {
+            ev_data[k] = 0; // Need to consider dii, not dij_sparse
+         }
+      }
+      entropy_viscosity_dii(i) = -1 * rowsum;
+   }
+
+   cout << "Finished entropy viscosity.\n";
 }
 
 /******************************************************************************
@@ -763,29 +877,198 @@ double FE_Evolution::get_timestep()
 }
 
 /******************************************************************************
+ * FE_Evolution::compute_entropy_min()
+ * Purpose: 
+ *    Compute minimum entropy on support of shape function. Currently, this
+ *    function assumes the entropy is u^2/2.
+ * ***************************************************************************/
+Vector FE_Evolution::compute_entropy_min(const Vector &U)
+{
+   // Assert we only run this function when needed.
+   assert(high_order);
+
+   const int m = dij_sparse.Height();
+   const int *I = dij_sparse.HostReadI(), *J = dij_sparse.HostReadJ();
+   Vector entropy_min(m);
+
+   for (int i = 0, k = 0; i < m; i++)
+   {
+      double _min = 0;
+      for (int end = I[i+1]; k < end; k++)
+      {
+         int j = J[k]; // global column index
+
+         double val = pow(U[j],2)/2.;
+         if (k == I[i])
+         {
+            _min = val; // Set the first entry.
+         }
+         else if (val < _min)
+         {
+            _min = val;
+         }
+      }
+      entropy_min[i] = _min;
+   }
+
+   return entropy_min;
+}
+
+/******************************************************************************
+ * FE_Evolution::compute_entropy_max()
+ * Purpose: 
+ *    Compute maximum entropy on support of shape function. Currently, this
+ *    function assumes the entropy is u^2/2.
+ * ***************************************************************************/
+Vector FE_Evolution::compute_entropy_max(const Vector &U)
+{   
+   // Assert we only run this function when needed.
+   assert(high_order);
+
+   const int m = dij_sparse.Height();
+   const int *I = dij_sparse.HostReadI(), *J = dij_sparse.HostReadJ();
+   Vector entropy_max(m);
+
+   for (int i = 0, k = 0; i < m; i++)
+   {
+      double _max = 0;
+      for (int end = I[i+1]; k < end; k++)
+      {
+         int j = J[k]; // global column index
+
+         double val = pow(U[j], 2) / 2.;
+         if (val > _max)
+         {
+            _max = val;
+         }
+      }
+      entropy_max[i] = _max;
+   }
+
+   return entropy_max;
+}
+
+/******************************************************************************
+ * FE_Evolution::compute_entropy_res
+ * Purpose: 
+ *    Calculate the entropy residual as described in equation (43) in (2017 paper).
+ * ***************************************************************************/
+Vector FE_Evolution::compute_entropy_res(const Vector &U, const GridFunction *gf1, const GridFunction *gf2)
+{
+   // Assert we only run this function when needed.
+   assert(high_order);
+
+   Vector entropy_min = compute_entropy_min(U);
+   Vector entropy_max = compute_entropy_max(U);
+
+   ParLinearForm *R = new ParLinearForm(&pfes);
+   MyCoefficient coeff(gf1, gf2, timestep);
+   R->AddDomainIntegrator(new DomainLFIntegrator(coeff));
+   Vector res;
+   R->ParallelAssemble(res);
+
+   for (int i = 0; i < res.Size(); i++)
+   {
+      double denom = entropy_max[i] - entropy_min[i];
+      assert(denom != 0);
+      res[i] = (res[i] * 2) / denom;
+   }
+
+   return res;
+}
+
+/******************************************************************************
+ * FE_Evolution::Update()
+ * Purpose: 
+ *    Prepare the FE_Evolution class before the next mult call.  It is 
+ *    necessary to make a call to the Update() function before calling
+ *    Mult() if the method requires an update to dij_sparse or the 
+ *    entropy viscosity is updated at each time step, as is the case
+ *    in the high order method described in the (2017 paper).
+ * ***************************************************************************/
+void FE_Evolution::Update(const Vector &x)
+{
+   if (!high_order)
+   {
+      // Todo: optionally update dij_matrix if needed
+      return;
+   }
+   else
+   {
+      // Update entropy viscosity
+      const HypreParVector * U = dynamic_cast<const HypreParVector*>(&x);
+      Vector * x_global = U->GlobalVector();
+      int n = x.Size();
+
+      // Preliminary assertions to ensure proper sizes
+      assert(lumpedM.Size() == n);
+      assert(dii.Size() == n);
+
+      // 1. Solve Galerkin problem (equation 42)
+      ParGridFunction * u_g = new ParGridFunction(&pfes);
+      Vector z_g(n), y_g(n);
+      K_hpm->Mult(*U, z_g);
+      
+      for (int i = 0; i < n; i++)
+      {
+         y_g[i] = z_g[i] / lumpedM(i);
+      }
+
+      // 2. Update the corresponding ParGridFunction
+      *u_g = y_g;
+
+      // 3. Compute entropy residual
+      ParGridFunction *u = new ParGridFunction(&pfes);
+      *u = *U;
+      Vector R = compute_entropy_res(*U, u, u_g);
+
+      // 5. Compute etropy viscosity
+      this->build_entropy_viscosity(R);
+   }
+}
+
+/******************************************************************************
  * FE_Evolution::Mult()
- * Purpose:
+ * Purpose: 
+ *    Low-order solution from (2016 paper) or high-order solution from
+ *    (2017 paper).
  * ***************************************************************************/
 void FE_Evolution::Mult(const Vector &x, Vector &y) const
 {
    const HypreParVector * U = dynamic_cast<const HypreParVector*>(&x);
    Vector * x_global = U->GlobalVector();
-
    int n = x.Size();
-   Vector z(n), rhs(n);
-   K_hpm->Mult(*U, z);
 
-   dij_sparse.Mult(*x_global, rhs);
-   z += rhs;
-
+   // Preliminary assertions to ensure proper sizes
    assert(lumpedM.Size() == n);
    assert(dii.Size() == n);
    y.SetSize(n); // TODO: Somehow y is of size local at this point. Resizing is a bandaid.
 
-   for (int i = 0; i < n; i++)
+   // Apply K
+   Vector z(n), rhs(n);
+   K_hpm->Mult(*U, z);
+
+   if (!high_order) // low-order viscosity
    {
-      double diag_comp = dii(i) * x(i); // Leftover piece from rhs due to sparsity issue in dij.
-      y[i] = ( z[i] + diag_comp ) / lumpedM(i);
+      dij_sparse.Mult(*x_global, rhs);
+      z += rhs;
+
+      for (int i = 0; i < n; i++)
+      {
+         double diag_comp = dii(i) * x(i); // Leftover piece from rhs due to sparsity issue in dij.
+         y[i] = ( z[i] + diag_comp ) / lumpedM(i);
+      }
+   }
+   else // high-order viscosity
+   {
+      entropy_viscosity.Mult(*x_global, rhs);
+      z += rhs;
+
+      for (int i = 0; i < n; i++)
+      {
+         double diag_comp = entropy_viscosity_dii(i) * x(i); // Leftover piece from rhs due to sparsity issue in dij.
+         y[i] = ( z[i] + diag_comp ) / lumpedM(i);
+      }
    }
 
    assert (y.Size() == n);
@@ -799,7 +1082,11 @@ FE_Evolution::~FE_Evolution()
 {
 }
 
-// Velocity coefficient
+/******************************************************************************
+ * velocity_function()
+ * Purpose:
+ *    Set the velocity for the various problems we are trying to solve.
+ * ***************************************************************************/
 void velocity_function(const Vector &x, Vector &v)
 {
    int dim = x.Size();
@@ -871,8 +1158,14 @@ void velocity_function(const Vector &x, Vector &v)
    }
 }
 
-// Exact Solution u(x,t)
-// Note that u(x,0) = u_0(x)
+/******************************************************************************
+ * exact_sol()
+ * Purpose:
+ *    Set up the problem we are trying to solve.  At t=0, this function
+ *    provices the initial conditions for the problem. If there exists
+ *    a known exact solution, then that can be called using this function
+ *    as well for the desired time.
+ * ***************************************************************************/
 double exact_sol(const Vector &x, const double t)
 {
    int dim = x.Size();
@@ -957,7 +1250,7 @@ double exact_sol(const Vector &x, const double t)
          {
             case 1:
             {
-               if (pow(X[0] - v[0]*t, 2) < 0.25)
+               if (pow(fmod(x[0] - v[0]*t, 2.), 2) < 0.25)
                { 
                   return 1.;
                }
@@ -1029,7 +1322,6 @@ double exact_sol(const Vector &x, const double t)
                   }
 
                } else {
-                  // cout << "x: " << x[0] << endl;
                   assert(x[0] >= 1./2. + 4.*t/5.);
                   if (x[1] > 1./2. - t/10) {
                      return -1;
@@ -1056,7 +1348,11 @@ double exact_sol(const Vector &x, const double t)
    return 100.;
 }
 
-// Inflow boundary condition (zero for the problems considered in this example)
+/******************************************************************************
+ * inflow_function()
+ * Purpose:
+ *    Currently unused.
+ * ***************************************************************************/
 double inflow_function(const Vector &x)
 {
    switch (problem)
@@ -1070,6 +1366,12 @@ double inflow_function(const Vector &x)
    }
    return 0.0;
 }
+
+/******************************************************************************
+ * Testing functions
+ * The below functions have no functionality for the method itself, but have
+ * provided useful in development.
+ * ***************************************************************************/
 
 // Function to test the matrix generated by the conservative convection integrator is in fact
 // the right matrix we need
@@ -1124,46 +1426,6 @@ void create_global_expansion_matrix(ParFiniteElementSpace &pfes, SparseMatrix & 
    }
    cout << "Num of face neighbor dofs: " << pfes.num_face_nbr_dofs << endl;
 }
-
-// void test_hpm_pgf(HypreParVector U, HypreParMatrix K_hpm)
-// {
-//    if (!Mpi::Root()) // Just output results on one processor.
-//    {
-//       // U = 1; // tdof
-//       cout << "Testing row sums\n";
-//       SparseMatrix K_spm, K_diag;
-//       K_hpm.GetDiag(K_spm); // tdof x tdof
-//       K_hpm.MergeDiagAndOffd(K_diag); // tdof x gdof
-//       cout << "K_hpm size: (" << K_hpm.Height() << "," << K_hpm.Width() << ")" << endl;
-//       cout << "K_spm size: (" << K_spm.Height() << "," << K_spm.Width() << ")" << endl;
-//       cout << "K_diag size: (" << K_diag.Height() << "," << K_diag.Width() << ")" << endl;
-//       cout << "U size: " << U.Size() << endl;
-
-//       // Vector z(U.Size());
-//       // K_hpm.Mult(U, z);
-//       // cout << "Resulting vector z values: \n";
-//       // z.Print(cout);
-//       Vector y(U.Size());
-//       K_spm.Mult(U, y); // Test to see how HypreParVector handles multiplication with mismatched sizes.
-//       cout << "Resulting vector y values: \n";
-//       y.Print(cout);
-//       Vector DiagRowSums(K_diag.Height()), SpmRowSums(K_spm.Height());
-//       K_diag.GetRowSums(DiagRowSums);
-//       K_spm.GetRowSums(SpmRowSums);
-//       cout << "(tdof x gdof) Row Sums: \n";
-//       DiagRowSums.Print(cout);
-//       cout << "K_diag spmat.Print()\n";
-//       K_diag.Print(cout);
-
-//       cout << "(tdof x tdof) Row Sums: \n";
-//       SpmRowSums.Print(cout);
-//       cout << "K_spm spmat.Print()\n";
-//       K_spm.Print(cout);
-
-//       assert(false); // terminate the program early
-//    }
-
-// }
 
 void test_hpm_pgf(HypreParVector U, HypreParMatrix K_hpm)
 {
