@@ -29,14 +29,16 @@ class NonlinearFormIntegrator
 protected:
    const IntegrationRule *IntRule;
    NURBSPatchRule *patchRule = nullptr;
+   bool patchwise;
 
    // CEED extension
    ceed::Operator* ceedOp;
 
    MemoryType pa_mt = MemoryType::DEFAULT;
 
-   NonlinearFormIntegrator(const IntegrationRule *ir = NULL)
-      : IntRule(ir), ceedOp(NULL) { }
+   NonlinearFormIntegrator(const IntegrationRule *ir = NULL,
+                           bool patchIntegrator = false)
+      : IntRule(ir), ceedOp(NULL), patchwise(patchIntegrator) { }
 
 public:
    /** @brief Prescribe a fixed IntegrationRule to use (when @a ir != NULL) or
@@ -44,7 +46,9 @@ public:
    virtual void SetIntRule(const IntegrationRule *ir) { IntRule = ir; }
 
    void SetNURBSPatchIntRule(NURBSPatchRule *pr) { patchRule = pr; }
-   bool HasNURBSPatchRule() { return patchRule != nullptr; }
+   bool HasNURBSPatchRule() const { return patchRule != nullptr; }
+
+   bool Patchwise() const { return patchwise; }
 
    /// Prescribe a fixed IntegrationRule to use.
    void SetIntegrationRule(const IntegrationRule &ir) { SetIntRule(&ir); }

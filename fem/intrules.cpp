@@ -1773,7 +1773,7 @@ IntegrationRule *IntegrationRules::CubeIntegrationRule(int Order)
 NURBSPatchRule::NURBSPatchRule(IntegrationRule *irx,
                                IntegrationRule *iry,
                                IntegrationRule *irz)
-   : dim(irz ? 3 : 2)
+   : dim(irz ? 3 : 2), npatches(0)
 {
    if (irz)
    {
@@ -1875,6 +1875,144 @@ IntegrationRule& NURBSPatchRule::GetElementRule(const int elem,
    {
       return *ir;
    }
+}
+
+void NURBSPatchRule::GetIntegrationPointFrom1D(const int patch, int i, int j,
+                                               int k, IntegrationPoint & ip)
+{
+   MFEM_VERIFY(patchRules1D.NumRows() > 0,
+               "Assuming patchRules1D is set.");
+
+   ip.weight = (*patchRules1D(patch,0))[i].weight;
+   ip.x = (*patchRules1D(patch,0))[i].x;
+
+   if (dim > 1)
+   {
+      ip.weight *= (*patchRules1D(patch,1))[j].weight;
+      ip.y = (*patchRules1D(patch,1))[j].y;
+   }
+
+   if (dim > 2)
+   {
+      ip.weight *= (*patchRules1D(patch,2))[k].weight;
+      ip.z = (*patchRules1D(patch,2))[k].z;
+   }
+}
+
+void NURBSPatchRule::SetPointToElement(Mesh const& mesh)
+{
+   MFEM_VERIFY(elementToRule.empty() && patchRules1D.NumRows() > 0
+               && npatches > 0, "Assuming patchRules1D is set.");
+   MFEM_VERIFY(mesh.NURBSext, "");
+   MFEM_VERIFY(mesh.Dimension() == dim, "");
+
+   pointToElem.resize(npatches);
+   patchRules1D_KnotSpan.resize(npatches);
+
+   // First, find all the elements in each patch.
+   std::vector<std::vector<int>> patchElements(npatches);
+
+   for (int e=0; e<mesh.GetNE(); ++e)
+   {
+      patchElements[mesh.NURBSext->GetElementPatch(e)].push_back(e);
+   }
+
+   Array<int> ijk(3);
+   Array<int> maxijk(3);
+   Array<int> np(3);  // Number of points in each dimension
+   ijk = 0;
+
+   Array<const KnotVector*> pkv;
+
+   for (int p=0; p<npatches; ++p)
+   {
+      patchRules1D_KnotSpan[p].resize(dim);
+
+      // For each patch, get the range of ijk.
+      mesh.NURBSext->GetPatchKnotVectors(p, pkv);
+      MFEM_VERIFY(pkv.Size() == dim, "");
+
+      maxijk = 1;
+      np = 1;
+      for (int d=0; d<dim; ++d)
+      {
+         maxijk[d] = pkv[d]->GetNKS();
+         np[d] = patchRules1D(p,d)->Size();
+      }
+
+      // TODO: remove and replace with patchRules1D_KnotSpan
+      std::vector<Array<int>> ip_ijk(dim);
+      for (int d=0; d<dim; ++d)
+      {
+         ip_ijk[d].SetSize(np[d]);
+      }
+
+      // For each patch, set a map from ijk to element index.
+      Array3D<int> ijk2elem(maxijk[0], maxijk[1], maxijk[2]);
+      // TODO: why doesn't Array3D have operator=(const T &a) like Array2D?
+      for (int i=0; i<maxijk[0]; ++i)
+         for (int j=0; j<maxijk[1]; ++j)
+            for (int k=0; k<maxijk[2]; ++k)
+            {
+               ijk2elem(i, j, k) = -1;
+            }
+
+      for (auto elem : patchElements[p])
+      {
+         mesh.NURBSext->GetElementIJK(elem, ijk);
+         MFEM_VERIFY(ijk2elem(ijk[0], ijk[1], ijk[2]) == -1, "");
+         ijk2elem(ijk[0], ijk[1], ijk[2]) = elem;
+      }
+
+      // For each point, find its ijk and from that its element index.
+      // It is assumed here that the NURBSFiniteElement kv the same as the
+      // patch kv.
+
+      for (int d=0; d<dim; ++d)
+      {
+         patchRules1D_KnotSpan[p][d].SetSize(patchRules1D(p,d)->Size());
+
+         for (int r=0; r<patchRules1D(p,d)->Size(); ++r)
+         {
+            IntegrationPoint& ip = (*patchRules1D(p,d))[r];
+
+            const int order = pkv[d]->GetOrder();
+
+            // Find ijk_d such that ip.x is in the corresponding knot-span.
+            int ijk_d = 0;
+            bool found = false;
+            while (!found)
+            {
+               const double kv0 = (*pkv[d])[order + ijk_d];
+               const double kv1 = (*pkv[d])[order + ijk_d + 1];
+
+               const bool rightEnd = (order + ijk_d + 1) == (pkv[d]->Size() - 1);
+
+               if (kv0 <= ip.x && (ip.x < kv1 || rightEnd))
+               {
+                  found = true;
+               }
+               else
+               {
+                  ijk_d++;
+               }
+            }
+
+            ip_ijk[d][r] = ijk_d;
+            patchRules1D_KnotSpan[p][d][r] = ijk_d;
+         }
+      }
+
+      pointToElem[p].SetSize(np[0], np[1], np[2]);
+      for (int i=0; i<np[0]; ++i)
+         for (int j=0; j<np[1]; ++j)
+            for (int k=0; k<np[2]; ++k)
+            {
+               const int elem = ijk2elem(ip_ijk[0][i], ip_ijk[1][j], ip_ijk[2][k]);
+               MFEM_VERIFY(elem >= 0, "");
+               pointToElem[p](i,j,k) = elem;
+            }
+   } // Loop (p) over patches
 }
 
 void NURBSPatchRule::SetPatchRules1D(const int patch,

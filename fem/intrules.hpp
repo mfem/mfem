@@ -22,6 +22,7 @@ namespace mfem
 {
 
 class KnotVector;
+class Mesh;
 
 /* Classes for IntegrationPoint, IntegrationRule, and container class
    IntegrationRules.  Declares the global variable IntRules */
@@ -276,7 +277,8 @@ class NURBSPatchRule
 public:
    /// Construct a rule for each patch, using SetPatchRule.
    NURBSPatchRule(const int numPatches, const int dim_) :
-      patchRule(numPatches), patchRules1D(numPatches, dim_), dim(dim_)
+      patchRule(numPatches), patchRules1D(numPatches, dim_), dim(dim_),
+      npatches(numPatches)
    {
       patchRule = nullptr;
    }
@@ -312,6 +314,29 @@ public:
 
    void SetPatchRules1D(const int patch, std::vector<IntegrationRule*> & ir1D);
 
+   IntegrationRule* GetPatchRule1D(const int patch, const int dimension) const
+   {
+      return patchRules1D(patch, dimension);
+   }
+
+   void GetIntegrationPointFrom1D(const int patch, int i, int j, int k,
+                                  IntegrationPoint & ip);
+
+   void SetPointToElement(Mesh const& mesh);
+
+   int GetPointElement(int patch, int i, int j, int k) const
+   {
+      return pointToElem[patch](i,j,k);
+   }
+
+   int GetDim() const { return dim; }
+
+   const Array<int>& GetPatchRule1D_KnotSpan(const int patch,
+                                             const int dimension) const
+   {
+      return patchRules1D_KnotSpan[patch][dimension];
+   }
+
    ~NURBSPatchRule();
 
 private:
@@ -323,6 +348,10 @@ private:
 
    std::map<std::size_t, std::size_t> elementToRule;
 
+   std::vector<Array3D<int>> pointToElem;
+   std::vector<std::vector<Array<int>>> patchRules1D_KnotSpan;
+
+   const int npatches;
    const int dim;
 };
 

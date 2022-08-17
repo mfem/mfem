@@ -309,6 +309,12 @@ FiniteElementSpace::GetBdrElementVDofs(int i, Array<int> &vdofs) const
    }
 }
 
+void FiniteElementSpace::GetPatchVDofs(int i, Array<int> &vdofs) const
+{
+   GetPatchDofs(i, vdofs);
+   DofsToVDofs(vdofs);
+}
+
 void FiniteElementSpace::GetFaceVDofs(int i, Array<int> &vdofs) const
 {
    GetFaceDofs(i, vdofs);
@@ -2778,6 +2784,21 @@ FiniteElementSpace::GetElementDofs(int elem, Array<int> &dofs) const
       }
    }
    return DoFTrans[mesh->GetElementBaseGeometry(elem)];
+}
+
+void FiniteElementSpace::GetPatchDofs(int patch, Array<int> &dofs) const
+{
+   const int nx = NURBSext->ndof1D(patch,0);
+   const int ny = NURBSext->ndof1D(patch,1);
+   const int nz = NURBSext->ndof1D(patch,2);
+   dofs.SetSize(nx * ny * nz);
+
+   for (int k=0; k<nz; ++k)
+      for (int j=0; j<ny; ++j)
+         for (int i=0; i<nx; ++i)
+         {
+            dofs[i + (nx * (j + (k * ny)))] = NURBSext->patchDofs[patch](i,j,k);
+         }
 }
 
 const FiniteElement *FiniteElementSpace::GetFE(int i) const

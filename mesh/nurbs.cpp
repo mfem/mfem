@@ -1497,6 +1497,9 @@ NURBSExtension::NURBSExtension(std::istream &input)
    GenerateActiveBdrElems();
    GenerateBdrElementDofTable();
 
+   // TODO: call this to construct the table only if requested?
+   GeneratePatchDofTable();
+
    // periodic
    if (ident == "periodic")
    {
@@ -2770,6 +2773,101 @@ void NURBSExtension::Generate3DElementDofTable()
    el_dof = new Table(NumOfActiveElems, el_dof_list);
 }
 
+void NURBSExtension::GeneratePatchDofTable()
+{
+   if (Dimension() == 3)
+   {
+      Generate3DPatchDofTable();
+   }
+   else
+   {
+      MFEM_ABORT("Only 3D supported currently in GeneratePatchDofTable");
+   }
+}
+
+void NURBSExtension::Generate3DPatchDofTable()
+{
+   int eg = 0;
+   const KnotVector *kv[3];
+   NURBSPatchMap p2g(this);
+
+   Array<Connection> p_dof_list;
+
+   ndof1D.SetSize(GetNP(), 3);
+   patchDofs.resize(GetNP());
+   patch_ijk.resize(GetNP());
+
+   for (int p = 0; p < GetNP(); p++)
+   {
+      p2g.SetPatchDofMap(p, kv);
+
+      std::vector<std::set<int>> dofIndices(3);
+      patch_ijk[p].resize(3);
+
+      // Load dofs
+      const int ord0 = kv[0]->GetOrder();
+      const int ord1 = kv[1]->GetOrder();
+      const int ord2 = kv[2]->GetOrder();
+      for (int k = 0; k < kv[2]->GetNKS(); k++)
+      {
+         if (kv[2]->isElement(k))
+         {
+            for (int j = 0; j < kv[1]->GetNKS(); j++)
+            {
+               if (kv[1]->isElement(j))
+               {
+                  for (int i = 0; i < kv[0]->GetNKS(); i++)
+                  {
+                     if (kv[0]->isElement(i))
+                     {
+                        if (activeElem[eg])
+                        {
+                           Connection conn(p,0);
+                           for (int kk = 0; kk <= ord2; kk++)
+                           {
+                              for (int jj = 0; jj <= ord1; jj++)
+                              {
+                                 for (int ii = 0; ii <= ord0; ii++)
+                                 {
+                                    conn.to = DofMap(p2g(i+ii, j+jj, k+kk));
+                                    cout << "Patch " << p << " to " << conn.to << endl;
+                                    p_dof_list.Append(conn);
+                                    dofIndices[0].insert(i+ii);
+                                    patch_ijk[p][0].insert(i);
+                                 }
+                                 dofIndices[1].insert(j+jj);
+                                 patch_ijk[p][1].insert(j);
+                              }
+                              dofIndices[2].insert(k+kk);
+                              patch_ijk[p][2].insert(k);
+                           }
+                        }
+                        eg++;
+                     }
+                  }
+               }
+            }
+         }
+      }
+
+      for (int d=0; d<3; ++d)
+      {
+         ndof1D(p,d) = dofIndices[d].size();
+      }
+
+      patchDofs[p].SetSize(ndof1D(p,0), ndof1D(p,1), ndof1D(p,2));
+
+      for (auto k : dofIndices[2])
+         for (auto j : dofIndices[1])
+            for (auto i : dofIndices[0])
+            {
+               patchDofs[p](i,j,k) = DofMap(p2g(i, j, k));
+            }
+   }
+   // We must NOT sort p_dof_list in this case.
+   p_dof = new Table(GetNP(), p_dof_list);
+}
+
 void NURBSExtension::GenerateBdrElementDofTable()
 {
    if (Dimension() == 2)
@@ -3302,6 +3400,15 @@ void NURBSExtension::Set3DSolutionVector(Vector &coords, int vdim)
          }
       }
       delete patches[p];
+   }
+}
+
+void NURBSExtension::GetElementIJK(int elem, Array<int> & ijk)
+{
+   MFEM_VERIFY(ijk.Size() == el_to_IJK.NumCols(), "");
+   for (int d=0; d<ijk.Size(); ++d)
+   {
+      ijk[d] = el_to_IJK(elem,d);
    }
 }
 
