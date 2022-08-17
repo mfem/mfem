@@ -143,7 +143,7 @@
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <ClCompile>
-      <AdditionalIncludeDirectories>config;..\..\zlib;..\..\zlib\projects\visualc6;..\..\hypre\src\parcsr_block_mv;..\..\conduit\src\libs\conduit;..\..\conduit\src\libs\blueprint;..\..\conduit\src\libs\relay;..\..\conduit\Win32\conduit;..\..\conduit\Win32\relay;..\..\conduit\Win32\blueprint;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>config;..\..\zlib;..\..\zlib\projects\visualc6;..\..\hypre\src\parcsr_block_mv;..\..\conduit\src\libs\conduit;..\..\conduit\src\libs\blueprint;..\..\conduit\src\libs\relay;..\..\conduit\Win32\conduit;..\..\conduit\Win32\relay;..\..\conduit\Win32\blueprint;..\..\superlu_dist\Win32;..\..\superlu_dist\SRC;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <BasicRuntimeChecks>EnableFastChecks</BasicRuntimeChecks>
       <CompileAs>CompileAsCpp</CompileAs>
       <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
@@ -173,7 +173,7 @@
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='CUDADebug|x64'">
     <ClCompile>
-      <AdditionalIncludeDirectories>config;..\..\zlib;..\..\zlib\projects\visualc6;..\..\hypre\src\parcsr_block_mv;..\..\conduit\src\libs\conduit;..\..\conduit\src\libs\blueprint;..\..\conduit\src\libs\relay;..\..\conduit\Win32\conduit;..\..\conduit\Win32\relay;..\..\conduit\Win32\blueprint;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>config;..\..\zlib;..\..\zlib\projects\visualc6;..\..\hypre\src\parcsr_block_mv;..\..\conduit\src\libs\conduit;..\..\conduit\src\libs\blueprint;..\..\conduit\src\libs\relay;..\..\conduit\Win32\conduit;..\..\conduit\Win32\relay;..\..\conduit\Win32\blueprint;..\..\superlu_dist\Win32;..\..\superlu_dist\SRC;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <BasicRuntimeChecks>EnableFastChecks</BasicRuntimeChecks>
       <CompileAs>CompileAsCpp</CompileAs>
       <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
@@ -203,7 +203,7 @@
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='ParDebug|x64'">
     <ClCompile>
-      <AdditionalIncludeDirectories>config;..\..\zlib;..\..\zlib\projects\visualc6;..\..\hypre\src\parcsr_block_mv;..\..\conduit\src\libs\conduit;..\..\conduit\src\libs\blueprint;..\..\conduit\src\libs\relay;..\..\conduit\Win32\conduit;..\..\conduit\Win32\relay;..\..\conduit\Win32\blueprint;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>config;..\..\zlib;..\..\zlib\projects\visualc6;..\..\hypre\src\parcsr_block_mv;..\..\conduit\src\libs\conduit;..\..\conduit\src\libs\blueprint;..\..\conduit\src\libs\relay;..\..\conduit\Win32\conduit;..\..\conduit\Win32\relay;..\..\conduit\Win32\blueprint;..\..\superlu_dist\Win32;..\..\superlu_dist\SRC;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <BasicRuntimeChecks>EnableFastChecks</BasicRuntimeChecks>
       <CompileAs>CompileAsCpp</CompileAs>
       <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
@@ -233,7 +233,7 @@
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <ClCompile>
-      <AdditionalIncludeDirectories>config;..\..\zlib;..\..\zlib\projects\visualc6;..\..\hypre\src\parcsr_block_mv;..\..\conduit\src\libs\conduit;..\..\conduit\src\libs\blueprint;..\..\conduit\src\libs\relay;..\..\conduit\Win32\conduit;..\..\conduit\Win32\relay;..\..\conduit\Win32\blueprint;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>config;..\..\zlib;..\..\zlib\projects\visualc6;..\..\hypre\src\parcsr_block_mv;..\..\conduit\src\libs\conduit;..\..\conduit\src\libs\blueprint;..\..\conduit\src\libs\relay;..\..\conduit\Win32\conduit;..\..\conduit\Win32\relay;..\..\conduit\Win32\blueprint;..\..\superlu_dist\Win32;..\..\superlu_dist\SRC;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <CompileAs>CompileAsCpp</CompileAs>
       <ExceptionHandling>Sync</ExceptionHandling>
       <InlineFunctionExpansion>AnySuitable</InlineFunctionExpansion>
@@ -263,7 +263,7 @@
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='CUDARelease|x64'">
     <ClCompile>
-      <AdditionalIncludeDirectories>config;..\..\zlib;..\..\zlib\projects\visualc6;..\..\hypre\src\parcsr_block_mv;..\..\conduit\src\libs\conduit;..\..\conduit\src\libs\blueprint;..\..\conduit\src\libs\relay;..\..\conduit\Win32\conduit;..\..\conduit\Win32\relay;..\..\conduit\Win32\blueprint;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>config;..\..\zlib;..\..\zlib\projects\visualc6;..\..\hypre\src\parcsr_block_mv;..\..\conduit\src\libs\conduit;..\..\conduit\src\libs\blueprint;..\..\conduit\src\libs\relay;..\..\conduit\Win32\conduit;..\..\conduit\Win32\relay;..\..\conduit\Win32\blueprint;..\..\superlu_dist\Win32;..\..\superlu_dist\SRC;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <CompileAs>CompileAsCpp</CompileAs>
       <ExceptionHandling>Sync</ExceptionHandling>
       <InlineFunctionExpansion>AnySuitable</InlineFunctionExpansion>
@@ -293,7 +293,7 @@
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='ParRelease|x64'">
     <ClCompile>
-      <AdditionalIncludeDirectories>config;..\..\zlib;..\..\zlib\projects\visualc6;..\..\hypre\src\parcsr_block_mv;..\..\conduit\src\libs\conduit;..\..\conduit\src\libs\blueprint;..\..\conduit\src\libs\relay;..\..\conduit\Win32\conduit;..\..\conduit\Win32\relay;..\..\conduit\Win32\blueprint;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>config;..\..\zlib;..\..\zlib\projects\visualc6;..\..\hypre\src\parcsr_block_mv;..\..\conduit\src\libs\conduit;..\..\conduit\src\libs\blueprint;..\..\conduit\src\libs\relay;..\..\conduit\Win32\conduit;..\..\conduit\Win32\relay;..\..\conduit\Win32\blueprint;..\..\superlu_dist\Win32;..\..\superlu_dist\SRC;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <CompileAs>CompileAsCpp</CompileAs>
       <ExceptionHandling>Sync</ExceptionHandling>
       <InlineFunctionExpansion>AnySuitable</InlineFunctionExpansion>
@@ -323,7 +323,7 @@
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='ParReleaseWithDebugInfo|x64'">
     <ClCompile>
-      <AdditionalIncludeDirectories>config;..\..\zlib;..\..\zlib\projects\visualc6;..\..\hypre\src\parcsr_block_mv;..\..\conduit\src\libs\conduit;..\..\conduit\src\libs\blueprint;..\..\conduit\src\libs\relay;..\..\conduit\Win32\conduit;..\..\conduit\Win32\relay;..\..\conduit\Win32\blueprint;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>config;..\..\zlib;..\..\zlib\projects\visualc6;..\..\hypre\src\parcsr_block_mv;..\..\conduit\src\libs\conduit;..\..\conduit\src\libs\blueprint;..\..\conduit\src\libs\relay;..\..\conduit\Win32\conduit;..\..\conduit\Win32\relay;..\..\conduit\Win32\blueprint;..\..\superlu_dist\Win32;..\..\superlu_dist\SRC;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <CompileAs>CompileAsCpp</CompileAs>
       <ExceptionHandling>Sync</ExceptionHandling>
       <InlineFunctionExpansion>AnySuitable</InlineFunctionExpansion>
@@ -353,7 +353,7 @@
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='ReleaseWithDebugInfo|x64'">
     <ClCompile>
-      <AdditionalIncludeDirectories>config;..\..\zlib;..\..\zlib\projects\visualc6;..\..\hypre\src\parcsr_block_mv;..\..\conduit\src\libs\conduit;..\..\conduit\src\libs\blueprint;..\..\conduit\src\libs\relay;..\..\conduit\Win32\conduit;..\..\conduit\Win32\relay;..\..\conduit\Win32\blueprint;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>config;..\..\zlib;..\..\zlib\projects\visualc6;..\..\hypre\src\parcsr_block_mv;..\..\conduit\src\libs\conduit;..\..\conduit\src\libs\blueprint;..\..\conduit\src\libs\relay;..\..\conduit\Win32\conduit;..\..\conduit\Win32\relay;..\..\conduit\Win32\blueprint;..\..\superlu_dist\Win32;..\..\superlu_dist\SRC;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <CompileAs>CompileAsCpp</CompileAs>
       <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
       <ExceptionHandling>Sync</ExceptionHandling>
