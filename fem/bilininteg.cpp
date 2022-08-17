@@ -153,10 +153,11 @@ void BilinearFormIntegrator::AssembleFaceMatrix(
               " Integrator class.");
 }
 
-void BilinearFormIntegrator::AssembleTraceFaceMatrix(int elem,
-                                                     const FiniteElement &trial_face_fe, const FiniteElement &test_fe1,
-                                                     const FiniteElement &test_fe2, FaceElementTransformations &Trans,
-                                                     DenseMatrix &elmat)
+void BilinearFormIntegrator::AssembleTraceFaceMatrix (int elem,
+                                                      const FiniteElement &trial_face_fe,
+                                                      const FiniteElement &test_fe1,
+                                                      FaceElementTransformations &Trans,
+                                                      DenseMatrix &elmat)
 {
    MFEM_ABORT("AssembleTraceFaceMatrix (DPG form) is not implemented for this"
               " Integrator class.");
