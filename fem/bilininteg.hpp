@@ -159,6 +159,15 @@ public:
                                    FaceElementTransformations &Trans,
                                    DenseMatrix &elmat);
 
+   /** Abstract method used for assembling TraceFaceIntegrators for
+       DPG weak formulations. */
+   virtual void AssembleTraceFaceMatrix(int elem,
+                                        const FiniteElement &trial_face_fe,
+                                        const FiniteElement &test_fe,
+                                        FaceElementTransformations &Trans,
+                                        DenseMatrix &elmat);
+
+
    /// @brief Perform the local action of the BilinearFormIntegrator.
    /// Note that the default implementation in the base class is general but not
    /// efficient.
@@ -3299,6 +3308,87 @@ public:
                                    const FiniteElement &test_fe2,
                                    FaceElementTransformations &Trans,
                                    DenseMatrix &elmat);
+};
+
+/** Integrator for the DPG form: < v, w > over a face (the interface) where
+    the trial variable v is defined on the interface
+    (H^-1/2 i.e., v:=u⋅n normal trace of H(div))
+    and the test variable w is in an H1-conforming space. */
+class TraceIntegrator : public BilinearFormIntegrator
+{
+private:
+   Vector face_shape, shape;
+public:
+   TraceIntegrator() { }
+   void AssembleTraceFaceMatrix(int elem,
+                                const FiniteElement &trial_face_fe,
+                                const FiniteElement &test_fe,
+                                FaceElementTransformations &Trans,
+                                DenseMatrix &elmat);
+};
+
+/** Integrator for the form: < v, w.n > over a face (the interface) where
+    the trial variable v is defined on the interface (H^1/2, i.e., trace of H1)
+    and the test variable w is in an H(div)-conforming space. */
+class NormalTraceIntegrator : public BilinearFormIntegrator
+{
+private:
+   Vector face_shape, normal, shape_n;
+   DenseMatrix shape;
+
+public:
+   NormalTraceIntegrator() { }
+   virtual void AssembleTraceFaceMatrix(int ielem,
+                                        const FiniteElement &trial_face_fe,
+                                        const FiniteElement &test_fe,
+                                        FaceElementTransformations &Trans,
+                                        DenseMatrix &elmat);
+};
+
+
+/** Integrator for the form: < v, w × n > over a face (the interface)
+ *  In 3D the trial variable v is defined on the interface (H^-1/2(curl), trace of H(curl))
+ *  In 2D it's defined on the interface (H^1/2, trace of H1)
+ *  The test variable w is in an H(curl)-conforming space. */
+class TangentTraceIntegrator : public BilinearFormIntegrator
+{
+private:
+   DenseMatrix face_shape, shape, shape_n;
+   Vector normal;
+   Vector temp;
+
+   void cross_product(const Vector & x, const DenseMatrix & Y, DenseMatrix & Z)
+   {
+      int dim = x.Size();
+      MFEM_VERIFY(Y.Width() == dim, "Size missmatch");
+      int dimc = dim == 3 ? dim : 1;
+      int h = Y.Height();
+      Z.SetSize(h,dimc);
+      if (dim == 3)
+      {
+         for (int i = 0; i<h; i++)
+         {
+            Z(i,0) = x(2) * Y(i,1) - x(1) * Y(i,2);
+            Z(i,1) = x(0) * Y(i,2) - x(2) * Y(i,0);
+            Z(i,2) = x(1) * Y(i,0) - x(0) * Y(i,1);
+         }
+      }
+      else
+      {
+         for (int i = 0; i<h; i++)
+         {
+            Z(i,0) = x(1) * Y(i,0) - x(0) * Y(i,1);
+         }
+      }
+   }
+
+public:
+   TangentTraceIntegrator() { }
+   void AssembleTraceFaceMatrix(int elem,
+                                const FiniteElement &trial_face_fe,
+                                const FiniteElement &test_fe,
+                                FaceElementTransformations &Trans,
+                                DenseMatrix &elmat);
 };
 
 /** Abstract class to serve as a base for local interpolators to be used in the
