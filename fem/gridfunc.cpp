@@ -2760,7 +2760,6 @@ void GridFunction::ProjectBdrCoefficientTangent(
 #endif
 }
 
-
 double GridFunction::ComputeL2Error(
    Coefficient *exsol[], const IntegrationRule *irs[],
    const Array<int> *elems) const
