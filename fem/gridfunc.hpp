@@ -485,7 +485,7 @@ public:
                                           const IntegrationRule *irs[] = NULL) const;
 
    /// Returns ||u_ex - u_h||_L2 for H1 or L2 elements
-   /* The elems input variable expects a list of markers:
+   /* The @a elems input variable expects a list of markers:
       an elem marker equal to 1 will compute the L2 error on that element
       an elem marker equal to 0 will not compute the L2 error on that element */
    virtual double ComputeL2Error(Coefficient &exsol,
@@ -577,7 +577,7 @@ public:
                                  const IntegrationRule *irs[] = NULL) const
    { return ComputeLpError(1.0, exsol, NULL, NULL, irs); }
 
-   /* The elems input variable expects a list of markers:
+   /* The @a elems input variable expects a list of markers:
     an elem marker equal to 1 will compute the L2 error on that element
     an elem marker equal to 0 will not compute the L2 error on that element */
    virtual double ComputeLpError(const double p, Coefficient &exsol,
