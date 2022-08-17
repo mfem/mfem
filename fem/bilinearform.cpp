@@ -422,21 +422,22 @@ void BilinearForm::Assemble(int skip_zeros)
          }
       }
 
+      // Element-wise integration
       for (int i = 0; i < fes -> GetNE(); i++)
       {
-         int elem_attr = fes->GetMesh()->GetAttribute(i);
-         doftrans = fes->GetElementVDofs(i, vdofs);
          if (element_matrices)
          {
             elmat_p = &(*element_matrices)(i);
          }
          else
          {
+            const int elem_attr = fes->GetMesh()->GetAttribute(i);
             elmat.SetSize(0);
             for (int k = 0; k < domain_integs.Size(); k++)
             {
-               if ( domain_integs_marker[k] == NULL ||
+               if ((domain_integs_marker[k] == NULL ||
                     (*(domain_integs_marker[k]))[elem_attr-1] == 1)
+                   && !domain_integs[k]->Patchwise())
                {
                   const FiniteElement &fe = *fes->GetFE(i);
                   eltrans = fes->GetElementTransformation(i);
@@ -459,6 +460,7 @@ void BilinearForm::Assemble(int skip_zeros)
             {
                elmat_p = &elmat;
             }
+            doftrans = fes->GetElementVDofs(i, vdofs);
             if (doftrans)
             {
                doftrans->TransformDual(elmat);
@@ -475,6 +477,38 @@ void BilinearForm::Assemble(int skip_zeros)
             if (hybridization)
             {
                hybridization->AssembleMatrix(i, *elmat_p);
+            }
+         }
+      }
+
+      // Patch-wise integration
+      if (mesh->NURBSext)
+      {
+         DenseMatrix pmat;
+         for (int p=0; p<mesh->NURBSext->GetNP(); ++p)
+         {
+            pmat.SetSize(0);
+            for (int k = 0; k < domain_integs.Size(); k++)
+            {
+               if (domain_integs[k]->Patchwise())
+               {
+                  domain_integs[k]->AssemblePatchMatrix(p, mesh, elemmat);
+
+                  if (pmat.Size() == 0)
+                  {
+                     pmat = elemmat;
+                  }
+                  else
+                  {
+                     pmat += elemmat;
+                  }
+               }
+            }
+
+            if (pmat.Size() > 0)
+            {
+               fes->GetPatchVDofs(p, vdofs);
+               mat->AddSubMatrix(vdofs, vdofs, pmat, skip_zeros);
             }
          }
       }

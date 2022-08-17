@@ -78,6 +78,7 @@ int main(int argc, char *argv[])
    const char *device_config = "cpu";
    bool visualization = true;
    bool algebraic_ceed = false;
+   bool patchAssembly = false;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -98,6 +99,8 @@ int main(int argc, char *argv[])
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
+   args.AddOption(&patchAssembly, "-patcha", "--patch-assembly", "-no-patcha",
+                  "--no-patch-assembly", "Enable patch-wise assembly.");
    args.Parse();
    if (!args.Good())
    {
@@ -189,7 +192,7 @@ int main(int argc, char *argv[])
    BilinearForm a(&fespace);
    if (pa) { a.SetAssemblyLevel(AssemblyLevel::PARTIAL); }
 
-   DiffusionIntegrator *di = new DiffusionIntegrator(one);
+   DiffusionIntegrator *di = new DiffusionIntegrator(one, nullptr, patchAssembly);
    NURBSPatchRule *patchRule = nullptr;
    if (order < 0)
    {
@@ -230,7 +233,9 @@ int main(int argc, char *argv[])
             */
 
             patchRule->SetPatchRules1D(p, ir1D);
-         }
+         }  // loop (p) over patches
+
+         patchRule->SetPointToElement(mesh);
       }
 
       di->SetNURBSPatchIntRule(patchRule);

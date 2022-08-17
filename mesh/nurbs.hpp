@@ -21,6 +21,7 @@
 #include "../general/communication.hpp"
 #endif
 #include <iostream>
+#include <set>
 
 namespace mfem
 {
@@ -210,7 +211,7 @@ protected:
    Array<int> f_spaceOffsets;
    Array<int> p_spaceOffsets;
 
-   Table *el_dof, *bel_dof;
+   Table *el_dof, *bel_dof, *p_dof;
 
    Array<int> el_to_patch;
    Array<int> bel_to_patch;
@@ -265,6 +266,9 @@ protected:
    // based on activeElem, count NumOfActiveDofs, generate el_dof,
    // el_to_patch, el_to_IJK, activeDof map (global-to-local)
    void GenerateElementDofTable();
+
+   void GeneratePatchDofTable();
+   void Generate3DPatchDofTable();
 
    // generate elem_to_global-dof table for the active elements
    // define el_to_patch, el_to_IJK, activeDof (as bool)
@@ -404,6 +408,14 @@ public:
    void UniformRefinement();
    void KnotInsert(Array<KnotVector *> &kv);
    void KnotInsert(Array<Vector *> &kv);
+
+   int GetElementPatch(int elem) const { return el_to_patch[elem]; }
+   void GetElementIJK(int elem, Array<int> & ijk);
+
+   // TODO: make this private and add access functions
+   Array2D<int> ndof1D;
+   std::vector<Array3D<int>> patchDofs;
+   std::vector<std::vector<std::set<int>>> patch_ijk;
 };
 
 

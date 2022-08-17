@@ -35,8 +35,9 @@ constexpr int HDIV_MAX_Q1D = 6;
 class BilinearFormIntegrator : public NonlinearFormIntegrator
 {
 protected:
-   BilinearFormIntegrator(const IntegrationRule *ir = NULL)
-      : NonlinearFormIntegrator(ir) { }
+   BilinearFormIntegrator(const IntegrationRule *ir = NULL,
+                          bool patchIntegrator = false)
+      : NonlinearFormIntegrator(ir, patchIntegrator) { }
 
 public:
    // TODO: add support for other assembly levels (in addition to PA) and their
@@ -145,6 +146,13 @@ public:
                                        const FiniteElement &test_fe,
                                        ElementTransformation &Trans,
                                        DenseMatrix &elmat);
+
+   /// Given a particular NURBS patch, computes the patch matrix pmat.
+   /// Sum factorization is preferable to this dense matrix assembly.
+   // TODO: implement sum factorization and comment here how to use it.
+   virtual void AssemblePatchMatrix(const int patch,
+                                    Mesh *mesh,
+                                    DenseMatrix &pmat);
 
    virtual void AssembleFaceMatrix(const FiniteElement &el1,
                                    const FiniteElement &el2,
@@ -2098,6 +2106,18 @@ private:
    Vector pa_data;
    bool symmetric = true; ///< False if using a nonsymmetric matrix coefficient
 
+   void SetupPatchPA(const int patch, Array<int> const& Q1D, Mesh *mesh,
+                     Vector & D);
+
+   void SetupPatch3D(const int Q1Dx,
+                     const int Q1Dy,
+                     const int Q1Dz,
+                     const int coeffDim,
+                     const Array<double> &w,
+                     const Vector &j,
+                     const Vector &c,
+                     Vector &d);
+
 public:
    /// Construct a diffusion integrator with coefficient Q = 1
    DiffusionIntegrator(const IntegrationRule *ir = nullptr)
@@ -2105,8 +2125,9 @@ public:
         Q(NULL), VQ(NULL), MQ(NULL), maps(NULL), geom(NULL) { }
 
    /// Construct a diffusion integrator with a scalar coefficient q
-   DiffusionIntegrator(Coefficient &q, const IntegrationRule *ir = nullptr)
-      : BilinearFormIntegrator(ir),
+   DiffusionIntegrator(Coefficient &q, const IntegrationRule *ir = nullptr,
+                       bool patchIntegrator = false)
+      : BilinearFormIntegrator(ir, patchIntegrator),
         Q(&q), VQ(NULL), MQ(NULL), maps(NULL), geom(NULL) { }
 
    /// Construct a diffusion integrator with a vector coefficient q
@@ -2132,6 +2153,10 @@ public:
                                        const FiniteElement &test_fe,
                                        ElementTransformation &Trans,
                                        DenseMatrix &elmat);
+
+   virtual void AssemblePatchMatrix(const int patch,
+                                    Mesh *mesh,
+                                    DenseMatrix &pmat);
 
    /// Perform the local action of the BilinearFormIntegrator
    virtual void AssembleElementVector(const FiniteElement &el,
