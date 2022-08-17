@@ -72,7 +72,9 @@
 /* #undef MFEM_USE_SUITESPARSE */
 
 // Enable MFEM functionality based on the SuperLU_DIST library.
+#ifdef MFEM_USE_MPI
 #define MFEM_USE_SUPERLU
+#endif
 
 // Enable MFEM functionality based on the STRUMPACK library.
 /* #undef MFEM_USE_STRUMPACK */
