@@ -347,4 +347,4 @@ pkg.gitcommit
 *.obj
 *.tlog
 *.pdb
-Win32/x64/*/*.log
+Win32/x64/*
