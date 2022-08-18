@@ -1889,13 +1889,13 @@ void NURBSPatchRule::GetIntegrationPointFrom1D(const int patch, int i, int j,
    if (dim > 1)
    {
       ip.weight *= (*patchRules1D(patch,1))[j].weight;
-      ip.y = (*patchRules1D(patch,1))[j].y;
+      ip.y = (*patchRules1D(patch,1))[j].x;  // 1D rule only has x
    }
 
    if (dim > 2)
    {
       ip.weight *= (*patchRules1D(patch,2))[k].weight;
-      ip.z = (*patchRules1D(patch,2))[k].z;
+      ip.z = (*patchRules1D(patch,2))[k].x;  // 1D rule only has x
    }
 }
 
