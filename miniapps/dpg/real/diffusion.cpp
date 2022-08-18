@@ -3,7 +3,10 @@
 // Compile with: make uw_dpg
 //
 // sample runs 
-// ./uw_dpg -m ../lshape2.mesh -o 2 -ref 20 -graph-norm -do 1 -prob 0
+//   ./diffusion -m ../../../data/l-shape.mesh -o 2 -ref 10 -graph-norm -do 1 -prob 0 -sc
+//   ./diffusion -m ../../../data/l-shape.mesh -o 2 -ref 10 -no-graph-norm -do 1 -prob 0
+//   ./diffusion -m ../../../data/inline-quad.mesh -o 2 -ref 0 -graph-norm -do 1 -prob 1
+//   ./diffusion -m ../../../data/inline-tri.mesh -o 2 -ref 2 -graph-norm -do 1 -prob 1 -theta 0.0
 
 //     - Δ u = f,   in Ω
 //         u = u_0, on ∂Ω
@@ -96,8 +99,9 @@ int main(int argc, char *argv[])
    const char *mesh_file = "../../../data/inline-quad.mesh";
    int order = 1;
    int delta_order = 1;
-   int ref = 1;
-   bool adjoint_graph_norm = false;
+   int ref = 0;
+   double theta = 0.7;
+   bool adjoint_graph_norm = true;
    bool visualization = true;
    int iprob = 0;
    bool static_cond = false;
@@ -116,6 +120,8 @@ int main(int argc, char *argv[])
                   "Enable or disable Adjoint Graph Norm on the test space"); 
    args.AddOption(&iprob, "-prob", "--problem", "Problem case"
                   " 0: lshape, 1: General");
+   args.AddOption(&theta, "-theta", "--theta",
+                  "AMR fraction.");                  
    args.AddOption(&static_cond, "-sc", "--static-condensation", "-no-sc",
                   "--no-static-condensation", "Enable static condensation.");                  
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
@@ -134,11 +140,26 @@ int main(int argc, char *argv[])
 
    if (prob == prob_type::lshape)
    {
-      mesh_file = "../lshape2.mesh";
+      mesh_file = "../../../data/l-shape.mesh";
+      // mesh_file = "lshape2.mesh";
    }
 
    Mesh mesh(mesh_file, 1, 1);
    int dim = mesh.Dimension();
+
+   if (prob == prob_type::lshape)
+   {
+      mesh.EnsureNodes();
+      GridFunction * nodes = mesh.GetNodes();
+      *nodes -= 0.5;
+      for (int i = 0; i<nodes->Size()/2; i++)
+      {
+         double temp = (*nodes)[2*i];
+         (*nodes)[2*i] = (*nodes)[2*i+1];
+         (*nodes)[2*i+1] = -temp;
+      }
+      *nodes *= 2.0;
+   }
 
    mesh.UniformRefinement();
 
@@ -227,25 +248,28 @@ int main(int argc, char *argv[])
       a->AddDomainLFIntegrator(new DomainLFIntegrator(f),1);
    }
 
+   FunctionCoefficient uex(exact_u);
+
    FunctionCoefficient hatuex(exact_hatu);
    Array<int> elements_to_refine;
    GridFunction hatu_gf;
 
-
    socketstream u_out;
-   // socketstream sigma_out;
+   socketstream sigma_out;
    socketstream mesh_out;
    if (visualization)
    {
       char vishost[] = "localhost";
       int  visport   = 19916;
       u_out.open(vishost, visport);
-      // sigma_out.open(vishost, visport);
+      sigma_out.open(vishost, visport);
       mesh_out.open(vishost, visport);
    }
 
+   ConvergenceStudy rates_u;
+   ConvergenceStudy rates_sigma;
 
-   for (int iref = 0; iref<ref; iref++)
+   for (int iref = 0; iref<=ref; iref++)
    {
       if (static_cond) { a->EnableStaticCondensation(); }
       a->Assemble();
@@ -259,7 +283,7 @@ int main(int argc, char *argv[])
          hatu_fes->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
       }
 
-   // shift the ess_tdofs
+      // shift the ess_tdofs
       for (int i = 0; i < ess_tdof_list.Size(); i++)
       {
          ess_tdof_list[i] += u_fes->GetTrueVSize() + sigma_fes->GetTrueVSize();
@@ -292,7 +316,7 @@ int main(int argc, char *argv[])
 
       CGSolver cg;
       cg.SetRelTol(1e-12);
-      cg.SetMaxIter(2000);
+      cg.SetMaxIter(200000);
       cg.SetPrintLevel(3);
       cg.SetPreconditioner(*M);
       cg.SetOperator(*A);
@@ -300,14 +324,11 @@ int main(int argc, char *argv[])
       delete M;
 
       a->RecoverFEMSolution(X,x);
+
       Vector & residuals = a->ComputeResidual(x);
-
-      double residual = residuals.Norml2();
-      cout << "Residual = " << residual << endl;
-
+      mfem::out << "residual = " << residuals.Norml2() << endl;
       elements_to_refine.SetSize(0);
       double max_resid = residuals.Max();
-      double theta = 0.7;
       for (int iel = 0; iel<mesh.GetNE(); iel++)
       {
          if (residuals[iel] > theta * max_resid)
@@ -318,6 +339,8 @@ int main(int argc, char *argv[])
 
       GridFunction u_gf;
       u_gf.MakeRef(u_fes,x.GetBlock(0));
+
+      rates_u.AddL2GridFunction(&u_gf,&uex);
 
       GridFunction sigma_gf;
       sigma_gf.MakeRef(sigma_fes,x.GetBlock(1));
@@ -330,10 +353,10 @@ int main(int argc, char *argv[])
                << "window_title 'Numerical u' "
                   << flush;
 
-         // sigma_out.precision(8);
-         // sigma_out << "solution\n" << mesh << sigma_gf <<
-         //       "window_title 'Numerical flux' "
-         //       << flush;
+         sigma_out.precision(8);
+         sigma_out << "solution\n" << mesh << sigma_gf <<
+               "window_title 'Numerical flux' "
+               << flush;
 
          mesh_out.precision(8);
          mesh_out << "mesh\n" << mesh 
@@ -343,6 +366,8 @@ int main(int argc, char *argv[])
 
       }
 
+      if (iref == ref) break;
+
       mesh.GeneralRefinement(elements_to_refine);
       for (int i =0; i<trial_fes.Size(); i++)
       {
@@ -350,6 +375,8 @@ int main(int argc, char *argv[])
       }
       a->Update();
    }
+
+   rates_u.Print();
 
    delete a;
    delete tau_fec;
@@ -381,11 +408,15 @@ void solution(const Vector & X, double & u, Vector & du, double & d2u)
    {
       case lshape:
       {
+         // // shift, rotate and scale to match the benchmark problem
+         // x = 2.0*(X[1] - 0.5);
+         // y = -2.0*(X[0] - 0.5);   
+
          double r = sqrt(x*x + y*y);
          double alpha = 2./3.;
-         double theta = atan2(y,x);
-         if (theta < 0) theta += 2*M_PI;
-         u = pow(r,alpha) * sin(alpha * theta);
+         double phi = atan2(y,x);
+         if (phi < 0) phi += 2*M_PI;
+         u = pow(r,alpha) * sin(alpha * phi);
       }
       break;
       default:
