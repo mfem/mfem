@@ -32,8 +32,8 @@ EXAMPLE_SRCS := $(shell find $(SRC) -name '*.cpp')
 EXAMPLE_OBJS := $(EXAMPLE_SRCS:%=%.o)
 EXAMPLE_DEPS := $(EXAMPLE_OBJS:.o=.d)
 
-EXAMPLES = diffusion
-PAR_EXAMPLES = pdiffusion
+EXAMPLES = diffusion convection-diffusion
+PAR_EXAMPLES = pdiffusion pconvection-diffusion
 
 ifeq ($(MFEM_USE_MPI),NO)
    MINIAPPS = $(EXAMPLES)
@@ -52,6 +52,12 @@ diffusion: $(SRC)/diffusion.cpp.o $(DPG_LIB)
 	$(MFEM_CXX) -o $@ $^ $(MFEM_LIBS)
 
 pdiffusion: $(SRC)/pdiffusion.cpp.o $(DPG_LIB)
+	$(MFEM_CXX) -o $@ $^ $(MFEM_LIBS)
+
+convection-diffusion: $(SRC)/convection-diffusion.cpp.o $(DPG_LIB)
+	$(MFEM_CXX) -o $@ $^ $(MFEM_LIBS)
+
+pconvection-diffusion: $(SRC)/pconvection-diffusion.cpp.o $(DPG_LIB)
 	$(MFEM_CXX) -o $@ $^ $(MFEM_LIBS)
 
 %.cpp.o: %.cpp
