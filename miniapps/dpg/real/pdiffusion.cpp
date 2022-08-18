@@ -251,7 +251,7 @@ int main(int argc, char *argv[])
    ConvergenceStudy rates_u;
 
 
-   for (int i = 0; i<ref; i++)
+   for (int iref = 0; iref<ref; iref++)
    {
       if (static_cond) { a->EnableStaticCondensation(); }
       a->Assemble();
@@ -380,7 +380,7 @@ int main(int argc, char *argv[])
       }
 
 
-      if (i == ref-1)
+      if (iref == ref-1)
       {
          break;
       }

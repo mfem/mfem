@@ -163,15 +163,13 @@ public:
    }
 
    /// Adds new Trial Integrator. Assumes ownership of @a bfi.
-   void AddTrialIntegrator(BilinearFormIntegrator *bfi, int trial_fes,
-                           int test_fes);
+   void AddTrialIntegrator(BilinearFormIntegrator *bfi, int n, int m);
 
    /// Adds new Test Integrator. Assumes ownership of @a bfi.
-   void AddTestIntegrator(BilinearFormIntegrator *bfi, int test_fes0,
-                          int test_fes1);
+   void AddTestIntegrator(BilinearFormIntegrator *bfi, int n, int m);
 
    /// Adds new Domain LF Integrator. Assumes ownership of @a bfi.
-   void AddDomainLFIntegrator(LinearFormIntegrator *bfi, int test_fes);
+   void AddDomainLFIntegrator(LinearFormIntegrator *bfi, int n);
 
    /// Assembles the form i.e. sums over all integrators.
    void Assemble(int skip_zeros = 1);

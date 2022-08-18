@@ -686,15 +686,15 @@ void BlockStaticCondensation::ConvertMarkerToReducedTrueDofs(
    for (int i = 0; i<nblocks; i++)
    {
       tdof_marker0.MakeRef(&data[tdof_offsets[i]],tdof_offsets[i+1]-tdof_offsets[i]);
-      const SparseMatrix * R = fes[i]->GetRestrictionMatrix();
-      if (!R)
+      const SparseMatrix * R_ = fes[i]->GetRestrictionMatrix();
+      if (!R_)
       {
          dof_marker0.MakeRef(tdof_marker0);
       }
       else
       {
          dof_marker0.SetSize(fes[i]->GetVSize());
-         R->BooleanMultTranspose(tdof_marker0, dof_marker0);
+         R_->BooleanMultTranspose(tdof_marker0, dof_marker0);
       }
       dof_marker.Append(dof_marker0);
    }
@@ -756,7 +756,7 @@ void BlockStaticCondensation::SetEssentialTrueDofs(const Array<int>
 }
 
 void BlockStaticCondensation::EliminateReducedTrueDofs(const Array<int>
-                                                       &ess_rtdof_list,
+                                                       &ess_rtdof_list_,
                                                        Matrix::DiagonalPolicy dpolicy)
 {
 
@@ -780,7 +780,7 @@ void BlockStaticCondensation::EliminateReducedTrueDofs(const Array<int>
          }
       }
    }
-   S->EliminateRowCols(ess_rtdof_list,S_e,dpolicy);
+   S->EliminateRowCols(ess_rtdof_list_,S_e,dpolicy);
 }
 
 void BlockStaticCondensation::EliminateReducedTrueDofs(Matrix::DiagonalPolicy
