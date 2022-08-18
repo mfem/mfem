@@ -95,6 +95,8 @@ public:
    void SetAbsTol(const double abs_tol_);
    /// Set the maximum number of iterations.
    void SetMaxIter(const double max_iter_);
+   /// Recompute operator and preconditioner (when coefficient or mesh changes).
+   void Update();
 
    ~DGMassInverse();
 

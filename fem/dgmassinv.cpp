@@ -61,22 +61,20 @@ DGMassInverse::DGMassInverse(FiniteElementSpace &fes_orig, Coefficient *coeff,
    if (coeff) { m = new MassIntegrator(*coeff, ir); }
    else { m = new MassIntegrator(ir); }
 
-   M = new BilinearForm(&fes);
-   M->AddDomainIntegrator(m); // M assumes ownership of m
-   M->SetAssemblyLevel(AssemblyLevel::PARTIAL);
-   M->Assemble();
-
    diag_inv.SetSize(height);
-   M->AssembleDiagonal(diag_inv);
-
-   MakeReciprocal(diag_inv.Size(), diag_inv.ReadWrite());
-
    // Workspace vectors used for CG
    r_.SetSize(height);
    d_.SetSize(height);
    z_.SetSize(height);
    // Only need transformed RHS if basis is different
    if (btype_orig != btype) { b2_.SetSize(height); }
+
+   M = new BilinearForm(&fes);
+   M->AddDomainIntegrator(m); // M assumes ownership of m
+   M->SetAssemblyLevel(AssemblyLevel::PARTIAL);
+
+   // Assemble the bilinear form and its diagonal (for preconditioning).
+   Update();
 }
 
 DGMassInverse::DGMassInverse(FiniteElementSpace &fes_, Coefficient &coeff,
@@ -104,6 +102,13 @@ void DGMassInverse::SetRelTol(const double rel_tol_) { rel_tol = rel_tol_; }
 void DGMassInverse::SetAbsTol(const double abs_tol_) { abs_tol = abs_tol_; }
 
 void DGMassInverse::SetMaxIter(const double max_iter_) { max_iter = max_iter_; }
+
+void DGMassInverse::Update()
+{
+   M->Assemble();
+   M->AssembleDiagonal(diag_inv);
+   MakeReciprocal(diag_inv.Size(), diag_inv.ReadWrite());
+}
 
 DGMassInverse::~DGMassInverse()
 {
