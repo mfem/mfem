@@ -970,8 +970,14 @@ Vector FE_Evolution::compute_entropy_res(const Vector &U, const GridFunction *gf
    for (int i = 0; i < res.Size(); i++)
    {
       double denom = entropy_max[i] - entropy_min[i];
-      assert(denom != 0);
-      res[i] = (res[i] * 2) / denom;
+      if (denom != 0)
+      {
+         res[i] = (res[i] * 2) / denom;
+      }
+      else
+      {
+         cout << "Divide by 0 avoided in compute_entropy_res().\n";
+      }      
    }
 
    return res;
