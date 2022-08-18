@@ -883,6 +883,7 @@ void DiffusionIntegrator::AssembleElementMatrix
       Trans.SetIntPoint(&ip);
       w = Trans.Weight();
       w = ip.weight / (square ? w : w*w*w);
+
       // AdjugateJacobian = / adj(J),         if J is square
       //                    \ adj(J^t.J).J^t, otherwise
       Mult(dshape, Trans.AdjugateJacobian(), dshapedxt);
@@ -1137,25 +1138,28 @@ void DiffusionIntegrator::SetupPatchPA(const int patch, Array<int> const& Q1D,
 
    Vector jac(dim * dim * nq);  // Computed as in GeometricFactors::Compute
 
-   for (int qx=0; qx<Q1D[0]; ++qx)
+   for (int qz=0; qz<Q1D[2]; ++qz)
    {
       for (int qy=0; qy<Q1D[1]; ++qy)
       {
-         for (int qz=0; qz<Q1D[2]; ++qz)
+         for (int qx=0; qx<Q1D[0]; ++qx)
          {
             const int p = qx + (qy * Q1D[0]) + (qz * Q1D[0] * Q1D[1]);
             patchRule->GetIntegrationPointFrom1D(patch, qx, qy, qz, ip);
             const int e = patchRule->GetPointElement(patch, qx, qy, qz);
             ElementTransformation *tr = mesh->GetElementTransformation(e);
 
+            //cout << "SetupPatchPA patch " << patch << " using elem " << e << endl;
+
             weights[p] = ip.weight;
 
             tr->SetIntPoint(&ip);
+
             const DenseMatrix& Jp = tr->Jacobian();
             for (int i=0; i<dim; ++i)
                for (int j=0; j<dim; ++j)
                {
-                  jac[p + ((j + (i * dim)) * nq)] = Jp(i,j);
+                  jac[p + ((i + (j * dim)) * nq)] = Jp(i,j);
                }
          }
       }
@@ -1171,11 +1175,11 @@ void DiffusionIntegrator::SetupPatchPA(const int patch, Array<int> const& Q1D,
       sym_mat.SetSize(dim);
 
       auto C = Reshape(coeff.HostWrite(), symmDims, nq);
-      for (int qx=0; qx<Q1D[0]; ++qx)
+      for (int qz=0; qz<Q1D[2]; ++qz)
       {
          for (int qy=0; qy<Q1D[1]; ++qy)
          {
-            for (int qz=0; qz<Q1D[2]; ++qz)
+            for (int qx=0; qx<Q1D[0]; ++qx)
             {
                const int p = qx + (qy * Q1D[0]) + (qz * Q1D[0] * Q1D[1]);
                const int e = patchRule->GetPointElement(patch, qx, qy, qz);
@@ -1206,11 +1210,11 @@ void DiffusionIntegrator::SetupPatchPA(const int patch, Array<int> const& Q1D,
       mat.SetSize(dim);
 
       auto C = Reshape(coeff.HostWrite(), MQfullDim, nq);
-      for (int qx=0; qx<Q1D[0]; ++qx)
+      for (int qz=0; qz<Q1D[2]; ++qz)
       {
          for (int qy=0; qy<Q1D[1]; ++qy)
          {
-            for (int qz=0; qz<Q1D[2]; ++qz)
+            for (int qx=0; qx<Q1D[0]; ++qx)
             {
                const int p = qx + (qy * Q1D[0]) + (qz * Q1D[0] * Q1D[1]);
                const int e = patchRule->GetPointElement(patch, qx, qy, qz);
@@ -1234,11 +1238,11 @@ void DiffusionIntegrator::SetupPatchPA(const int patch, Array<int> const& Q1D,
       coeff.SetSize(coeffDim * nq);
       auto C = Reshape(coeff.HostWrite(), coeffDim, nq);
       Vector DM(coeffDim);
-      for (int qx=0; qx<Q1D[0]; ++qx)
+      for (int qz=0; qz<Q1D[2]; ++qz)
       {
          for (int qy=0; qy<Q1D[1]; ++qy)
          {
-            for (int qz=0; qz<Q1D[2]; ++qz)
+            for (int qx=0; qx<Q1D[0]; ++qx)
             {
                const int p = qx + (qy * Q1D[0]) + (qz * Q1D[0] * Q1D[1]);
                const int e = patchRule->GetPointElement(patch, qx, qy, qz);
@@ -1273,11 +1277,11 @@ void DiffusionIntegrator::SetupPatchPA(const int patch, Array<int> const& Q1D,
    {
       coeff.SetSize(nq);
       auto C = Reshape(coeff.HostWrite(), nq);
-      for (int qx=0; qx<Q1D[0]; ++qx)
+      for (int qz=0; qz<Q1D[2]; ++qz)
       {
          for (int qy=0; qy<Q1D[1]; ++qy)
          {
-            for (int qz=0; qz<Q1D[2]; ++qz)
+            for (int qx=0; qx<Q1D[0]; ++qx)
             {
                const int p = qx + (qy * Q1D[0]) + (qz * Q1D[0] * Q1D[1]);
                const int e = patchRule->GetPointElement(patch, qx, qy, qz);
@@ -1353,6 +1357,9 @@ void DiffusionIntegrator::AssemblePatchMatrix(
       B[d].SetSize(Q1D[d], D1D[d]);
       G[d].SetSize(Q1D[d], D1D[d]);
 
+      B[d] = 0.0;
+      G[d] = 0.0;
+
       const Array<int>& knotSpan1D = patchRule->GetPatchRule1D_KnotSpan(patch, d);
       MFEM_VERIFY(knotSpan1D.Size() == Q1D[d], "");
 
@@ -1379,6 +1386,7 @@ void DiffusionIntegrator::AssemblePatchMatrix(
          MFEM_VERIFY(elem + orders[d]+1 <= D1D[d], "");
 
          // Put shape into array B storing shapes for all points.
+         // TODO: This should be based on NURBS3DFiniteElement::CalcShape and CalcDShape.
          for (int j=0; j<orders[d]+1; ++j)
          {
             B[d](i,elem + j) = shape[d][j];
@@ -1510,7 +1518,7 @@ void DiffusionIntegrator::AssemblePatchMatrix(
          {
             for (int qx = 0; qx < Q1D[0]; ++qx)
             {
-               const int q = qx + (qy + qz * Q1D[1]) * Q1D[0];
+               const int q = qx + ((qy + (qz * Q1D[1])) * Q1D[0]);
                const double O11 = qd(q,0);
                const double O12 = qd(q,1);
                const double O13 = qd(q,2);

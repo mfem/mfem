@@ -2830,7 +2830,7 @@ void NURBSExtension::Generate3DPatchDofTable()
                                  for (int ii = 0; ii <= ord0; ii++)
                                  {
                                     conn.to = DofMap(p2g(i+ii, j+jj, k+kk));
-                                    cout << "Patch " << p << " to " << conn.to << endl;
+                                    //cout << "Patch " << p << " to " << conn.to << endl;
                                     p_dof_list.Append(conn);
                                     dofIndices[0].insert(i+ii);
                                     patch_ijk[p][0].insert(i);
