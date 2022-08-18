@@ -103,23 +103,31 @@ void DPGWeakForm::Finalize(int skip_zeros)
 
 /// Adds new Domain BF Integrator. Assumes ownership of @a bfi.
 void DPGWeakForm::AddTrialIntegrator(
-   BilinearFormIntegrator *bfi, int trial_fes, int test_fes)
+   BilinearFormIntegrator *bfi, int n, int m)
 {
-   trial_integs(trial_fes,test_fes)->Append(bfi);
+   MFEM_VERIFY(n<trial_fes.Size(), 
+   "DPGWeakFrom::AddTrialIntegrator: trial fespace index out of bounds");
+   MFEM_VERIFY(m<test_fecols.Size(), 
+   "DPGWeakFrom::AddTrialIntegrator: test fecol index out of bounds");
+   trial_integs(n,m)->Append(bfi);
 }
 
 /// Adds new Domain BF Integrator. Assumes ownership of @a bfi.
 void DPGWeakForm::AddTestIntegrator
-(BilinearFormIntegrator *bfi, int test_fes0, int test_fes1)
+(BilinearFormIntegrator *bfi, int n, int m)
 {
-   test_integs(test_fes0,test_fes1)->Append(bfi);
+   MFEM_VERIFY(n<test_fecols.Size() && m<test_fecols.Size(), 
+   "DPGWeakFrom::AdTestIntegrator: test fecol index out of bounds");
+   test_integs(n,m)->Append(bfi);
 }
 
 /// Adds new Domain LF Integrator. Assumes ownership of @a bfi.
 void DPGWeakForm::AddDomainLFIntegrator(
-   LinearFormIntegrator *lfi, int test_fes)
+   LinearFormIntegrator *lfi, int n)
 {
-   lfis[test_fes]->Append(lfi);
+   MFEM_VERIFY(n<test_fecols.Size(), 
+   "DPGWeakFrom::AddDomainLFIntegrator: test fecol index out of bounds");   
+   lfis[n]->Append(lfi);
 }
 
 void DPGWeakForm::BuildProlongation()
@@ -311,11 +319,11 @@ void DPGWeakForm::Assemble(int skip_zeros)
 
       for (int j = 0; j < test_fecols.Size(); j++)
       {
-         int order = test_fecols[j]->GetOrder();
+         int order_j = test_fecols[j]->GetOrder();
 
          eltrans = mesh->GetElementTransformation(iel);
          const FiniteElement & test_fe =
-            *test_fecols[j]->GetFE(eltrans->GetGeometryType(), order);
+            *test_fecols[j]->GetFE(eltrans->GetGeometryType(), order_j);
 
          for (int k = 0; k < lfis[j]->Size(); k++)
          {
@@ -325,10 +333,10 @@ void DPGWeakForm::Assemble(int skip_zeros)
 
          for (int i = 0; i < test_fecols.Size(); i++)
          {
-            int order = test_fecols[i]->GetOrder();
+            int order_i = test_fecols[i]->GetOrder();
             eltrans = mesh->GetElementTransformation(iel);
             const FiniteElement & test_fe_i =
-               *test_fecols[i]->GetFE(eltrans->GetGeometryType(), order);
+               *test_fecols[i]->GetFE(eltrans->GetGeometryType(), order_i);
 
             for (int k = 0; k < test_integs(i,j)->Size(); k++)
             {
