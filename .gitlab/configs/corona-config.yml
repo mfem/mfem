@@ -52,8 +52,9 @@ variables:
     # THREADS is used by 'tests/gitlab/build_and_test', run below
     - export THREADS=12
     - echo ${ALLOC_NAME}
-    - export JOBID=$(squeue -h --name=${ALLOC_NAME} --format=%A)
-    - echo ${JOBID}
     - echo ${MFEM_DATA_DIR}
     - echo ${SPEC}
-    - srun $( [[ -n "${JOBID}" ]] && echo "--jobid=${JOBID}" ) -t 15 -N 1 tests/gitlab/build_and_test --spec "${SPEC}" --data-dir "${MFEM_DATA_DIR}" --data
+    - |
+      URI=$(flux jobs -o "{uri} {name}" | grep ${ALLOC_NAME} | awk '{print $1}') || echo "Empty URI"
+      if [[ -n "$URI" ]]; then export FLUX_URI=$URI; fi
+      flux mini run --time-limit=15 --nodes=1 tests/gitlab/build_and_test --spec "${SPEC}" --data-dir "${MFEM_DATA_DIR}" --data
