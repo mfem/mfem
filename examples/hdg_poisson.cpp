@@ -253,11 +253,11 @@ int main(int argc, char *argv[])
       FunctionCoefficient lambda_coeff(uFun_ex);
       if (hdg)
       {
-      	  lambda_variable.ProjectCoefficientSkeletonDG(lambda_coeff);
+         lambda_variable.ProjectCoefficientSkeletonDG(lambda_coeff);
       }
       else
       {
-    	  lambda_variable.ProjectCoefficientSkeleton(lambda_coeff);
+         lambda_variable.ProjectCoefficientSkeleton(lambda_coeff);
       }
 
       Array<int> ess_bdr(mesh->bdr_attributes.Max());

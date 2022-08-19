@@ -188,6 +188,18 @@ public:
                                                      DenseMatrix &elmat2,
                                                      DenseMatrix &elmat3,
                                                      DenseMatrix &elmat4);
+   /* 2 element based 2 face based FES */
+   virtual void AssembleFaceMatrixOneElement2and2FES(const FiniteElement &fe_q,
+                                                     const FiniteElement &fe_u,
+                                                     const FiniteElement &face_fe,
+                                                     const FiniteElement &face_fe2,
+                                                     FaceElementTransformations &Trans,
+                                                     const int elem1or2,
+                                                     const bool onlyB,
+                                                     DenseMatrix &elmat1,
+                                                     DenseMatrix &elmat2,
+                                                     DenseMatrix &elmat3,
+                                                     DenseMatrix &elmat4);
 
    /// Perform the local action of the BilinearFormIntegrator
    /// @brief Perform the local action of the BilinearFormIntegrator.
