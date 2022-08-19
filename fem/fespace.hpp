@@ -84,7 +84,117 @@ class FaceQuadratureInterpolator;
 
 
 /** @brief Class FiniteElementSpace - responsible for providing FEM view of the
-    mesh, mainly managing the set of degrees of freedom. */
+    mesh, mainly managing the set of degrees of freedom.
+
+    @details The term "degrees of freedom", or "dof" for short, can mean
+    different things in different contexts. In MFEM we use "dof" to refer to
+    four closely related types of data; @ref edof "edofs", @ref ldof "ldofs",
+    @ref tdof "tdofs", and @ref vdof "vdofs".
+
+    @anchor edof @par Element DoF:
+    %Element dofs, sometimes referred to as @b edofs, are the expansion
+    coefficients used to build the linear combination of basis functions which
+    approximate a field within one element of the computational mesh. The order
+    of the element dofs is determined by the basis function and element types.
+    @par
+    %Element dofs are usually accessed one element at a time but they can be
+    concatenated together into a global vector when minimizing access time is
+    crucial. The global number of element dofs is not directly available from
+    the FiniteElementSpace. It can be determined by repeatedly calling
+    FiniteElementSpace::GetElementDofs and summing the lengths of the resulting
+    @a dofs arrays.
+
+    @anchor ldof @par Local DoF:
+    Most basis function types share many of their element dofs with neighboring
+    elements. Consequently, the global @ref edof "edof" vector suggested above
+    would contain many redundant entries. One of the primary roles of the
+    FiniteElementSpace is to collapse out these redundancies and
+    define a unique ordering of the remaining degrees of freedom. The
+    collapsed set of dofs are called @b "local dofs" or @b ldofs in
+    the MFEM parlance.
+    @par
+    The term @b local in this context refers to the local rank in a parallel
+    processing environment. MFEM can, of course, be used in sequential
+    computing environments but it is designed with parallel processing in mind
+    and this terminology reflects that design focus.
+    @par
+    When running in parallel the set of local dofs contain all of the degrees
+    of freedom associated with locally owned elements. When running in serial
+    all elements are locally owned so all element dofs are represented in the
+    set of local dofs.
+    @par
+    There is one important caveat regarding local dofs. Some basis function
+    types, Nedelec and Raviart-Thomas are the prime examples, have an
+    orientation associated with each basis function. The relative orientations
+    of such basis functions in neighboring elements can lead to shared degrees
+    of freedom with opposite signs from the point of view of these neighboring
+    elements. MFEM typically chooses the orientation of the first such shared
+    degree of freedom that it encounters as the default orientation for the
+    corresponding local dof. When this local dof is referenced by a neighboring
+    element which happens to  require the opposite orientation the local dof
+    index will be returned (by calls to functions such as
+    FiniteElementSpace::GetElementDofs) as a negative integer. In such cases
+    the actual offset into the vector of local dofs is @b -index-1 and the
+    value expected by this element should have the opposite sign to the value
+    stored in the local dof vector.
+
+    @anchor tdof @par True DoF:
+    As the name suggests "true dofs" or @b tdofs form the minimal set of data
+    values needed (along with mesh and basis function definitions) to uniquely
+    define a finite element discretization of a field. The number of true dofs
+    determines the size of the linear systems which typically need to be solved
+    in FEM simulations.
+    @par
+    Often the true dof and the local dof are identical, however, there are
+    important cases where they differ significantly. The first such case is
+    related to non-conforming meshes. On non-condforming meshes it is common
+    for degrees of freedom associated with "hanging" nodes, edges, or faces to
+    be constrained by degrees of freedom associated with another mesh entity.
+    In such cases the "hanging" degrees of freedom should not be considered
+    "true" degrees of freedom since their values cannot be independently
+    assigned. For this reason the FiniteElementSpace must process these
+    constraints and define a reduced set of "true" degrees of freedom which are
+    distinct from the local degrees of freedom.
+    @par
+    The second important distinction arises in parallel processing. When
+    distributing a linear system in parallel each degree of freedom must be
+    assigned to a particular processor, its owner. From the finite element
+    point of view it is convenient to distribute a computational mesh and
+    define an owning processor for each element. Since degrees of freedom may
+    be shared between neighboring elements they may also be shared between
+    neighboring processors. Another role of the FiniteElementSpace is to
+    identify the ownership of degrees of freedom which must be shared between
+    processors. Therefore the set of "true" degrees of freedom must also remove
+    redundant degrees of freedom which are owned by other processors.
+    @par
+    To summarize the set of true degrees of freedom are those degrees of
+    freedom needed to solve a linear system representing the partial
+    differential equation being modeled. True dofs differ from "local" dofs by
+    eliminating redundancies across processor boundaries and applying
+    the constraints needed to properly define fields on non-conforming meshes.
+
+    @anchor vdof @par Vector DoF:
+    %Vector dofs or @b vdofs are related to fields which are constructed using
+    multiple copies of the same set of basis functions. A typical example would
+    be the use of three instances of the scalar H1 basis functions to
+    approximate the x, y, and z components of a displacement vector field in
+    three dimensional space as often seen in elasticity simulations.
+    @par
+    %Vector dofs do not represent a specific index space the way the three
+    previous types of dofs do. Rather they are related to modifications of
+    these other index spaces to accomodate multiple copies of the underlying
+    function spaces.
+    @par
+    When using @b vdofs, i.e. when @b vdim != 1, the FiniteElementSpace only
+    manages a single set of degrees of freedom and then uses simple rules to
+    determine the appropriate offsets into the full index spaces. Two ordering
+    rules are supported; @b byNODES and @b byVDIM. See Ordering::Type for
+    details.
+    @par
+    Clearly the notion of a @b vdof is relevant in each of the three contexts
+    mentioned above so extra care must be taken whenever @b vdim != 1 to ensure
+    that the @b edof, @b ldof, or @b tdof is being interpretted correctly.
+ */
 class FiniteElementSpace
 {
    friend class InterpolationGridTransfer;
@@ -637,6 +747,7 @@ public:
    int GetBdrAttribute(int i) const { return mesh->GetBdrAttribute(i); }
 
    /// Returns indices of degrees of freedom of element 'elem'.
+   /// The returned indices are offsets into an @ref ldof vector, see @ref ldof.
    virtual DofTransformation *GetElementDofs(int elem, Array<int> &dofs) const;
 
    /// Returns indices of degrees of freedom for boundary element 'bel'.
