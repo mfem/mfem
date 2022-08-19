@@ -5984,9 +5984,9 @@ void NCMesh::Trim()
    // maybe also of 'nodes' and 'faces'.
 }
 
-long NCMesh::NCList::MemoryUsage() const
+std::size_t NCMesh::NCList::MemoryUsage() const
 {
-   int pm_size = 0;
+   std::size_t pm_size = 0;
    for (int i = 0; i < Geometry::NumGeom; i++)
    {
       for (int j = 0; j < point_matrices[i].Size(); i++)
@@ -6002,9 +6002,9 @@ long NCMesh::NCList::MemoryUsage() const
           pm_size;
 }
 
-long CoarseFineTransformations::MemoryUsage() const
+std::size_t CoarseFineTransformations::MemoryUsage() const
 {
-   long mem = embeddings.MemoryUsage();
+   std::size_t mem = embeddings.MemoryUsage();
    for (int i = 0; i < Geometry::NumGeom; i++)
    {
       mem += point_matrices[i].MemoryUsage();
@@ -6012,7 +6012,7 @@ long CoarseFineTransformations::MemoryUsage() const
    return mem;
 }
 
-long NCMesh::MemoryUsage() const
+std::size_t NCMesh::MemoryUsage() const
 {
    return nodes.MemoryUsage() +
           faces.MemoryUsage() +
