@@ -10,6 +10,7 @@ using namespace mfem;
 
 double spherical_obstacle(const Vector &pt);
 double exact_solution(const Vector &pt);
+void spherical_obstacle_gradient(const Vector &pt, Vector &grad);
 
 class LogarithmGridFunctionCoefficient : public Coefficient
 {
@@ -29,12 +30,13 @@ class ExponentialGridFunctionCoefficient : public Coefficient
 {
 protected:
    GridFunction *u; // grid function
+   Coefficient *obstacle;
    double min_val;
    double max_val;
 
 public:
-   ExponentialGridFunctionCoefficient(GridFunction &u_, double min_val_=0.0, double max_val_=1e12)
-      : u(&u_), min_val(min_val_), max_val(max_val_) { }
+   ExponentialGridFunctionCoefficient(GridFunction &u_, Coefficient &obst_, double min_val_=0.0, double max_val_=1e12)
+      : u(&u_), obstacle(&obst_), min_val(min_val_), max_val(max_val_) { }
 
    virtual double Eval(ElementTransformation &T, const IntegrationPoint &ip);
 };
@@ -172,12 +174,10 @@ int main(int argc, char *argv[])
       // return -x.Size()*pow(M_PI,2) * val;
       return x.Size()*pow(M_PI,2) * val;
    };
-   // ConstantCoefficient f(0.0);
-   ConstantCoefficient bdry_coef(0.1);
-   FunctionCoefficient f(func);
    ConstantCoefficient one(1.0);
-   ConstantCoefficient obstacle(0.0);
-   // FunctionCoefficient obstacle(spherical_obstacle);
+   ConstantCoefficient zero(0.0);
+   Vector zero_vec(dim);
+   zero_vec = 0.0;
 
    // 8. Define the solution vector x as a finite element grid function
    //    corresponding to fespace. Initialize x with initial guess of zero,
@@ -186,12 +186,28 @@ int main(int argc, char *argv[])
    GridFunction psi(&fespace);
    GridFunction delta_psi(&fespace);
    GridFunction psi_old(&fespace);
-   u = 0.1;
-   u.ProjectBdrCoefficient(bdry_coef, ess_bdr);
    delta_psi = 0.0;
+
+   /////////// Example 1
+   u = 0.1;
+   FunctionCoefficient f(func);
+   ConstantCoefficient bdry_coef(0.1);
+   ConstantCoefficient obstacle(0.0);
+   VectorConstantCoefficient obstacle_gradient(zero_vec);
+   double alpha0 = 0.1;
+
+   /////////// Example 2
+   // u = 0.5;
+   // ConstantCoefficient f(0.0);
+   // ConstantCoefficient bdry_coef(0.0);
+   // FunctionCoefficient obstacle(spherical_obstacle);
+   // VectorFunctionCoefficient obstacle_gradient(dim, spherical_obstacle_gradient);
+   // double alpha0 = 0.1;
+
+
+   u.ProjectBdrCoefficient(bdry_coef, ess_bdr);
    LogarithmGridFunctionCoefficient ln_u(u, obstacle);
    psi.ProjectCoefficient(ln_u);
-   // psi = -1.0;
    psi_old = psi;
 
 
@@ -204,7 +220,6 @@ int main(int argc, char *argv[])
    sol_sock.precision(8);
 
    // 12. Iterate
-   double alpha0 = 0.1;
    for (int k = 1; k <= max_it; k++)
    {
       double alpha = alpha0 / sqrt(k);
@@ -226,8 +241,8 @@ int main(int argc, char *argv[])
 
          GridFunctionCoefficient psi_cf(&psi);
          GridFunctionCoefficient psi_old_cf(&psi_old);
-         ExponentialGridFunctionCoefficient exp_psi(psi);
-         ExponentialGridFunctionCoefficient exp_psi_old(psi_old);
+         ExponentialGridFunctionCoefficient exp_psi(psi, zero);
+         ExponentialGridFunctionCoefficient exp_psi_old(psi_old, zero);
          GradientGridFunctionCoefficient grad_psi(&psi);
          GradientGridFunctionCoefficient grad_psi_old(&psi_old);
          ProductCoefficient c1_exp_psi(c1, exp_psi);
@@ -243,11 +258,13 @@ int main(int argc, char *argv[])
 
          VectorSumCoefficient gradient_term_RHS(c1_exp_psi_grad_psi, c2_exp_psi_old_grad_psi_old, -1.0, 1.0);
          SumCoefficient mass_term_RHS(psi_cf, psi_old_cf, -1.0, 1.0);
+         ScalarVectorProductCoefficient minus_alpha_obstacle_gradient(-alpha, obstacle_gradient);
          ProductCoefficient alpha_f(alpha, f);
 
          LinearForm b(&fespace);
          b.AddDomainIntegrator(new DomainLFGradIntegrator(gradient_term_RHS));
          b.AddDomainIntegrator(new DomainLFIntegrator(mass_term_RHS));
+         b.AddDomainIntegrator(new DomainLFGradIntegrator(minus_alpha_obstacle_gradient));
          b.AddDomainIntegrator(new DomainLFIntegrator(alpha_f));
          b.Assemble();
 
@@ -260,14 +277,14 @@ int main(int argc, char *argv[])
          // C. Recover state variable
          a.RecoverFEMSolution(X, b, delta_psi);
 
-         double gamma = 0.5;
+         double gamma = 1.0;
          delta_psi *= gamma;
          psi += delta_psi;
       }
       psi_old = psi;
 
       // 14. Send the solution by socket to a GLVis server.
-      ExponentialGridFunctionCoefficient exp_psi(psi);
+      ExponentialGridFunctionCoefficient exp_psi(psi, obstacle);
       u.ProjectCoefficient(exp_psi);
       // sol_sock << "solution\n" << mesh << psi << "window_title 'Discrete solution'" << flush;
       sol_sock << "solution\n" << mesh << u << "window_title 'Discrete solution'" << flush;
@@ -312,7 +329,7 @@ double ExponentialGridFunctionCoefficient::Eval(ElementTransformation &T,
    MFEM_ASSERT(u != NULL, "grid function is not set");
 
    double val = u->GetValue(T, ip);
-   return min(max_val, max(min_val, exp(val)));
+   return min(max_val, max(min_val, exp(val) + obstacle->Eval(T, ip)));
 }
 
 double ReciprocalGridFunctionCoefficient::Eval(ElementTransformation &T,
@@ -339,7 +356,7 @@ double spherical_obstacle(const Vector &pt)
 
    if (r > r0)
    {
-      return -1.0;
+      return 0.0;
    }
    else
    {
@@ -362,5 +379,22 @@ double exact_solution(const Vector &pt)
    else
    {
       return sqrt(r0*r0-r*r);
+   }
+}
+
+void spherical_obstacle_gradient(const Vector &pt, Vector &grad)
+{
+   double x = pt(0), y = pt(1);
+   double r = sqrt(x*x + y*y);
+   double r0 = 0.5;
+
+   if (r >= r0*0.99)
+   {
+      grad = 0.0;
+   }
+   else
+   {
+      grad(0) = - x / sqrt( r0*r0 - r*r );
+      grad(1) = - y / sqrt( r0*r0 - r*r );
    }
 }
