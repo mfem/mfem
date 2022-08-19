@@ -1797,6 +1797,13 @@ VectorFEDivergenceIntegrator::AssemblePA(const FiniteElementSpace &trial_fes,
       }
    }
 
+   if (test_el->GetMapType() == FiniteElement::INTEGRAL)
+   {
+      const GeometricFactors *geom =
+         mesh->GetGeometricFactors(*ir, GeometricFactors::DETERMINANTS);
+      coeff /= geom->detJ;
+   }
+
    if (trial_el->GetDerivType() == mfem::FiniteElement::DIV && dim == 3)
    {
       PADivL2Setup3D(quad1D, ne, ir->GetWeights(), coeff, pa_data);
