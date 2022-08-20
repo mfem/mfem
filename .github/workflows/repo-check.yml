@@ -28,7 +28,7 @@ on:
 
 jobs:
   file-headers-check:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-latest
     if: |
       (github.event_name == 'push' ||
        github.event.pull_request.head.repo.full_name != github.repository)
@@ -78,7 +78,7 @@ jobs:
         exit 1
 
   code-style:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-latest
     if: |
       (github.event_name == 'push' ||
        github.event.pull_request.head.repo.full_name != github.repository)
@@ -95,7 +95,7 @@ jobs:
         ./config/githooks/pre-push --style
 
   documentation:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-latest
     if: |
       (github.event_name == 'push' ||
        github.event.pull_request.head.repo.full_name != github.repository)
@@ -106,8 +106,8 @@ jobs:
     - name: get doxygen and graphviz
       run: |
         sudo apt-get install doxygen graphviz
-	cd doc
-	doxygen -u CodeDocumentation.conf.in 2>/dev/null
+        cd doc
+        doxygen -u CodeDocumentation.conf.in 2>/dev/null
 
     - name: build documentation
       run: |
@@ -120,7 +120,7 @@ jobs:
       github.ref != 'refs/heads/master' &&
       (github.event_name == 'push' ||
        github.event.pull_request.head.repo.full_name != github.repository)
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-latest
     steps:
     - name: checkout mfem
       uses: actions/checkout@v2

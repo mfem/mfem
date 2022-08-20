@@ -31,7 +31,7 @@ env:
 
 jobs:
   gitignore:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-latest
 
     steps:
     - name: Cancel Previous Runs
