@@ -9,7 +9,7 @@
 # terms of the BSD-3 license. We welcome feedback and contributions, see file
 # CONTRIBUTING.md for details.
 
-name: repo-check
+name: "Checks"
 
 permissions:
   actions: write
@@ -28,7 +28,7 @@ on:
 
 jobs:
   file-headers-check:
-    runs-on: ubuntu-18.04
+    runs-on: ubuntu-22.04
     if: |
       (github.event_name == 'push' ||
        github.event.pull_request.head.repo.full_name != github.repository)
@@ -78,7 +78,7 @@ jobs:
         exit 1
 
   code-style:
-    runs-on: ubuntu-18.04
+    runs-on: ubuntu-22.04
     if: |
       (github.event_name == 'push' ||
        github.event.pull_request.head.repo.full_name != github.repository)
@@ -95,7 +95,7 @@ jobs:
         ./config/githooks/pre-push --style
 
   documentation:
-    runs-on: ubuntu-18.04
+    runs-on: ubuntu-22.04
     if: |
       (github.event_name == 'push' ||
        github.event.pull_request.head.repo.full_name != github.repository)
@@ -118,7 +118,7 @@ jobs:
       github.ref != 'refs/heads/master' &&
       (github.event_name == 'push' ||
        github.event.pull_request.head.repo.full_name != github.repository)
-    runs-on: ubuntu-18.04
+    runs-on: ubuntu-22.04
     steps:
     - name: checkout mfem
       uses: actions/checkout@v2
