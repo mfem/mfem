@@ -16,6 +16,30 @@
 
 using namespace mfem;
 
+static double f(const Vector &xvec)
+{
+   const int dim = xvec.Size();
+   double val = 2*xvec[0];
+   if (dim >= 2)
+   {
+      val += 3*xvec[1]*xvec[0];
+   }
+   if (dim >= 3)
+   {
+      val += 0.25*xvec[2]*xvec[1];
+   }
+   return val;
+}
+
+static void fvec_dim(const Vector &xvec, Vector &v)
+{
+   v.SetSize(xvec.Size());
+   for (int d = 0; d < xvec.Size(); ++d)
+   {
+      v[d] = f(xvec) / double(d + 1);
+   }
+}
+
 struct LinearFormExtTest
 {
    enum { DLFEval, QLFEval, DLFGrad, // scalar domain
@@ -32,9 +56,10 @@ struct LinearFormExtTest
    IntegrationRules IntRulesGLL;
    const IntegrationRule *irGLL, *ir;
    Array<int> elem_marker;
-   Vector one_vec, dim_vec, vdim_vec, vdim_dim_vec;
-   ConstantCoefficient cst_coeff;
-   VectorConstantCoefficient dim_cst_coeff, vdim_cst_coeff, vdim_dim_cst_coeff;
+   Vector vdim_vec, vdim_dim_vec;
+   FunctionCoefficient fn_coeff;
+   VectorFunctionCoefficient dim_fn_coeff;
+   VectorConstantCoefficient vdim_cst_coeff, vdim_dim_cst_coeff;
    QuadratureSpace qspace;
    QuadratureFunction q_function, q_vdim_function;
    QuadratureFunctionCoefficient qfc;
@@ -52,8 +77,8 @@ struct LinearFormExtTest
       geom_type(vfes.GetFE(0)->GetGeomType()),
       IntRulesGLL(0, Quadrature1D::GaussLobatto),
       irGLL(&IntRulesGLL.Get(geom_type, q)), ir(&IntRules.Get(geom_type, q)),
-      elem_marker(), one_vec(1), dim_vec(dim), vdim_vec(vdim), vdim_dim_vec(vdim*dim),
-      cst_coeff(M_PI), dim_cst_coeff((dim_vec.Randomize(SEED), dim_vec)),
+      elem_marker(), vdim_vec(vdim), vdim_dim_vec(vdim*dim),
+      fn_coeff(f), dim_fn_coeff(dim, fvec_dim),
       vdim_cst_coeff((vdim_vec.Randomize(SEED), vdim_vec)),
       vdim_dim_cst_coeff((vdim_dim_vec.Randomize(SEED), vdim_dim_vec)),
       qspace(&mesh, q),
@@ -72,8 +97,8 @@ struct LinearFormExtTest
 
       if (problem == DLFEval)
       {
-         lfi_dev = new DomainLFIntegrator(cst_coeff);
-         lfi_std = new DomainLFIntegrator(cst_coeff);
+         lfi_dev = new DomainLFIntegrator(fn_coeff);
+         lfi_std = new DomainLFIntegrator(fn_coeff);
       }
       else if (problem == QLFEval)
       {
@@ -82,8 +107,8 @@ struct LinearFormExtTest
       }
       else if (problem == DLFGrad)
       {
-         lfi_dev = new DomainLFGradIntegrator(dim_cst_coeff);
-         lfi_std = new DomainLFGradIntegrator(dim_cst_coeff);
+         lfi_dev = new DomainLFGradIntegrator(dim_fn_coeff);
+         lfi_std = new DomainLFGradIntegrator(dim_fn_coeff);
       }
       else if (problem == VDLFEval)
       {
@@ -102,13 +127,13 @@ struct LinearFormExtTest
       }
       else if (problem == BLFEval)
       {
-         lfi_dev = new BoundaryLFIntegrator(cst_coeff);
-         lfi_std = new BoundaryLFIntegrator(cst_coeff);
+         lfi_dev = new BoundaryLFIntegrator(fn_coeff);
+         lfi_std = new BoundaryLFIntegrator(fn_coeff);
       }
       else if (problem == BNLFEval)
       {
-         lfi_dev = new BoundaryNormalLFIntegrator(dim_cst_coeff);
-         lfi_std = new BoundaryNormalLFIntegrator(dim_cst_coeff);
+         lfi_dev = new BoundaryNormalLFIntegrator(dim_fn_coeff);
+         lfi_std = new BoundaryNormalLFIntegrator(dim_fn_coeff);
       }
       else { REQUIRE(false); }
 
