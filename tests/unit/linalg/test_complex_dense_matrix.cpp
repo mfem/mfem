@@ -213,7 +213,7 @@ TEST_CASE("ComplexDenseMatrix", "[ComplexDenseMatrix]")
       {
          -1.091544681586941e+00,  1.603416041973783e+00,
             1.828734546571891e+00, -2.601914242111798e+00
-         },
+         }
    });
 
    DenseMatrix invB_r(
@@ -233,7 +233,7 @@ TEST_CASE("ComplexDenseMatrix", "[ComplexDenseMatrix]")
       {
          1.279540669178842e+01, -5.975244397594217e+00,
          -9.791537312098491e+00,  1.520226505276132e+01
-      },
+      }
    });
 
    DenseMatrix invB_i(
@@ -582,7 +582,7 @@ TEST_CASE("ComplexDenseMatrix", "[ComplexDenseMatrix]")
    DenseMatrix diff_r;
    DenseMatrix diff_i;
    ComplexCholeskyFactors chol(B.real().Data(),B.imag().Data());
-   int m = B.real().Height();
+   const int m = 4;
    chol.Factor(m);
 
    SECTION("ComplexCholeskyFactors::Inverse")
