@@ -217,7 +217,10 @@ void BoundaryLFIntegrator::AssembleDevice(const FiniteElementSpace &fes,
    const Geometry::Type gtype = fe.GetGeomType();
    const IntegrationRule &ir = IntRule ? *IntRule : IntRules.Get(gtype, qorder);
    const int nq = ir.GetNPoints();
-   const int nbe = fes.GetMesh()->GetNBE();
+   Mesh &mesh = *fes.GetMesh();
+   const int nbe = mesh.GetNBE();
+   const int dim = mesh.Dimension();
+   const DofToQuad &maps = fe.GetDofToQuad(ir, DofToQuad::TENSOR);
 
    Vector coeff;
    if (ConstantCoefficient *cQ =
@@ -230,15 +233,21 @@ void BoundaryLFIntegrator::AssembleDevice(const FiniteElementSpace &fes,
    {
       coeff.SetSize(nq * nbe);
       auto C = Reshape(coeff.HostWrite(), nq, nbe);
-      for (int e = 0; e < nbe; ++e)
+      int f_ind = 0;
+      for (int f = 0; f < fes.GetNF(); ++f)
       {
-         ElementTransformation& Tr = *fes.GetBdrElementTransformation(e);
+         const Mesh::FaceInformation face = mesh.GetFaceInformation(f);
+         if (!face.IsBoundary()) { continue; }
+         ElementTransformation &Tr = *mesh.GetFaceElementTransformations(f);
          for (int q = 0; q < nq; ++q)
          {
-            const IntegrationPoint &ip = ir.IntPoint(q);
+            int iq = ToLexOrdering(dim, face.element[0].local_face_id,
+                                   maps.nqpt, q);
+            const IntegrationPoint &ip = ir[iq];
             Tr.SetIntPoint(&ip);
-            C(q,e) = Q.Eval(Tr, ip);
+            C(q,f_ind) = Q.Eval(Tr, ip);
          }
+         f_ind++;
       }
    }
    BLFEvalAssemble(fes, ir, markers, coeff, false, b);
@@ -253,8 +262,10 @@ void BoundaryNormalLFIntegrator::AssembleDevice(const FiniteElementSpace &fes,
    const Geometry::Type gtype = fe.GetGeomType();
    const IntegrationRule &ir = IntRule ? *IntRule : IntRules.Get(gtype, qorder);
    const int nq = ir.GetNPoints();
-   const int nbe = fes.GetMesh()->GetNBE();
-   const int dim = fes.GetMesh()->Dimension();
+   Mesh &mesh = *fes.GetMesh();
+   const int nbe = mesh.GetNBE();
+   const int dim = mesh.Dimension();
+   const DofToQuad &maps = fe.GetDofToQuad(ir, DofToQuad::TENSOR);
 
    Vector coeff;
    if (const auto *cQ = dynamic_cast<VectorConstantCoefficient*>(&Q))
@@ -267,16 +278,22 @@ void BoundaryNormalLFIntegrator::AssembleDevice(const FiniteElementSpace &fes,
       Vector coeff_val(dim);
       coeff.SetSize(dim * nq * nbe);
       auto C = Reshape(coeff.HostWrite(), dim, nq, nbe);
-      for (int e = 0; e < nbe; ++e)
+      int f_ind = 0;
+      for (int f = 0; f < fes.GetNF(); ++f)
       {
-         ElementTransformation& Tr = *fes.GetBdrElementTransformation(e);
+         const Mesh::FaceInformation face = mesh.GetFaceInformation(f);
+         if (!face.IsBoundary()) { continue; }
+         ElementTransformation &Tr = *mesh.GetFaceElementTransformations(f);
          for (int q = 0; q < nq; ++q)
          {
-            const IntegrationPoint &ip = ir[q];
+            int iq = ToLexOrdering(dim, face.element[0].local_face_id,
+                                   maps.nqpt, q);
+            const IntegrationPoint &ip = ir[iq];
             Tr.SetIntPoint(&ip);
             Q.Eval(coeff_val, Tr, ip);
-            for (int d=0; d<dim; ++d) { C(d,q,e) = coeff_val[d]; }
+            for (int d=0; d<dim; ++d) { C(d,q,f_ind) = coeff_val[d]; }
          }
+         f_ind++;
       }
    }
    BLFEvalAssemble(fes, ir, markers, coeff, true, b);
