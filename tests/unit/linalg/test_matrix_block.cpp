@@ -341,18 +341,16 @@ TEST_CASE("BlockMatrix", "[BlockMatrix]")
       }
 
       A->EliminateRowCols(rows,&Ae);
-
       SparseMatrix Amono_e(offsets.Last());
       Array<int> colmarker;
       mfem::FiniteElementSpace::ListToMarker(rows,offsets.Last(),colmarker);
       Amono->EliminateCols(colmarker,Amono_e);
       for (int i = 0; i<rows.Size(); i++) { Amono->EliminateRow(rows[i]); }
 
-      x.Randomize();
-      Ae.Mult(x,y1);
-      Amono_e.Mult(x,y2);
-      y1-=y2;
-      REQUIRE(y1.Norml2() == MFEM_Approx(0.0));
+      SparseMatrix * diff = A->CreateMonolithic();
+      diff->Add(-1.0, *Amono);
+      REQUIRE(diff->MaxNorm() == MFEM_Approx(0.0));
+      delete diff;
    }
 
    delete A;
