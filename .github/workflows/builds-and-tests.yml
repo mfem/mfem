@@ -10,7 +10,7 @@
 # CONTRIBUTING.md for details.
 
 # In this CI section, we build different variants of mfem and run test on them.
-name: builds-and-tests
+name: "Tests"
 
 # Github actions can use the default "GITHUB_TOKEN". By default, this token
 # is set to have permissive access. However, this is not a good practice
