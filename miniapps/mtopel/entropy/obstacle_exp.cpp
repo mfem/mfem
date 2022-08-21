@@ -35,7 +35,7 @@ protected:
    double max_val;
 
 public:
-   ExponentialGridFunctionCoefficient(GridFunction &u_, Coefficient &obst_, double min_val_=0.0, double max_val_=1e12)
+   ExponentialGridFunctionCoefficient(GridFunction &u_, Coefficient &obst_, double min_val_=0.0, double max_val_=1e6)
       : u(&u_), obstacle(&obst_), min_val(min_val_), max_val(max_val_) { }
 
    virtual double Eval(ElementTransformation &T, const IntegrationPoint &ip);
@@ -171,8 +171,18 @@ int main(int argc, char *argv[])
          val *= sin(M_PI*x(i));
       }
       // return -1.0;
-      // return -x.Size()*pow(M_PI,2) * val;
-      return x.Size()*pow(M_PI,2) * val;
+      return -x.Size()*pow(M_PI,2) * val;
+      // return x.Size()*pow(M_PI,2) * val;
+   };
+   auto IC_func = [](const Vector &x)
+   {
+      double r0 = 1.0;
+      double rr = 0.0;
+      for (int i=0; i<x.Size(); i++)
+      {
+         rr += x(i)*x(i);
+      }
+      return r0*r0 - rr;
    };
    ConstantCoefficient one(1.0);
    ConstantCoefficient zero(0.0);
@@ -188,24 +198,28 @@ int main(int argc, char *argv[])
    GridFunction psi_old(&fespace);
    delta_psi = 0.0;
 
-   /////////// Example 1
-   u = 0.1;
-   FunctionCoefficient f(func);
-   ConstantCoefficient bdry_coef(0.1);
-   ConstantCoefficient obstacle(0.0);
-   VectorConstantCoefficient obstacle_gradient(zero_vec);
-   double alpha0 = 0.1;
+   /////////// Example 1   
+   // u = 1.0;
+   // ConstantCoefficient f(0.0);
+   // FunctionCoefficient f(func);
+   // FunctionCoefficient IC_coef(IC_func);
+   // ConstantCoefficient bdry_coef(0.1);
+   // ConstantCoefficient obstacle(0.0);
+   // VectorConstantCoefficient obstacle_gradient(zero_vec);
+   // double alpha0 = 0.1;
 
    /////////// Example 2
    // u = 0.5;
-   // ConstantCoefficient f(0.0);
-   // ConstantCoefficient bdry_coef(0.0);
-   // FunctionCoefficient obstacle(spherical_obstacle);
-   // VectorFunctionCoefficient obstacle_gradient(dim, spherical_obstacle_gradient);
-   // double alpha0 = 0.1;
+   FunctionCoefficient IC_coef(IC_func);
+   ConstantCoefficient f(0.0);
+   ConstantCoefficient bdry_coef(0.0);
+   FunctionCoefficient obstacle(spherical_obstacle);
+   VectorFunctionCoefficient obstacle_gradient(dim, spherical_obstacle_gradient);
+   double alpha0 = 1.0;
 
-
-   u.ProjectBdrCoefficient(bdry_coef, ess_bdr);
+   SumCoefficient bdry_funcoef(bdry_coef, IC_coef);
+   u.ProjectCoefficient(bdry_funcoef);
+   // u.ProjectBdrCoefficient(bdry_coef, ess_bdr);
    LogarithmGridFunctionCoefficient ln_u(u, obstacle);
    psi.ProjectCoefficient(ln_u);
    psi_old = psi;
@@ -222,12 +236,12 @@ int main(int argc, char *argv[])
    // 12. Iterate
    for (int k = 1; k <= max_it; k++)
    {
-      double alpha = alpha0 / sqrt(k);
+      // double alpha = alpha0 / sqrt(k);
       // double alpha = alpha0 * sqrt(k);
-      // double alpha = alpha0;
+      double alpha = alpha0;
       // alpha *= 2;
 
-      for (int j = 1; j <= 10; j++)
+      for (int j = 1; j <= 3; j++)
       {
          // A. Assembly
          
@@ -271,7 +285,7 @@ int main(int argc, char *argv[])
          // B. Solve state equation
          a.FormLinearSystem(ess_tdof_list, delta_psi, b, A, X, B);
          GSSmoother S((SparseMatrix&)(*A));
-         GMRES(*A, S, B, X, 0, 20000, 50, 1e-8, 1e-8);
+         GMRES(*A, S, B, X, 0, 20000, 100, 1e-8, 1e-8);
          
 
          // C. Recover state variable
@@ -291,19 +305,19 @@ int main(int argc, char *argv[])
    }
 
    // 14. Exact solution.
-   // if (visualization)
-   // {
-   //    socketstream err_sock(vishost, visport);
-   //    err_sock.precision(8);
-   //    FunctionCoefficient exact_coef(exact_solution);
+   if (visualization)
+   {
+      socketstream err_sock(vishost, visport);
+      err_sock.precision(8);
+      FunctionCoefficient exact_coef(exact_solution);
 
-   //    GridFunction error(&fespace);
-   //    error = 0.0;
-   //    error.ProjectCoefficient(exact_coef);
-   //    error -= u;
+      GridFunction error(&fespace);
+      error = 0.0;
+      error.ProjectCoefficient(exact_coef);
+      error -= u;
 
-   //    err_sock << "solution\n" << mesh << error << "window_title 'Error'"  << flush;
-   // }
+      err_sock << "solution\n" << mesh << error << "window_title 'Error'"  << flush;
+   }
 
    // 15. Free the used memory.
    if (delete_fec)
@@ -353,14 +367,20 @@ double spherical_obstacle(const Vector &pt)
    double x = pt(0), y = pt(1);
    double r = sqrt(x*x + y*y);
    double r0 = 0.5;
+   double beta = 0.9;
 
-   if (r > r0)
+   double b = r0*beta;
+   double tmp = sqrt(r0*r0 - b*b);
+   double B = tmp + b*b/tmp;
+   double C = -b/tmp;
+
+   if (r > b)
    {
-      return 0.0;
+      return B + r * C;
    }
    else
    {
-      return sqrt(r0*r0-r*r);
+      return sqrt(r0*r0 - r*r);
    }
 }
 
@@ -387,10 +407,16 @@ void spherical_obstacle_gradient(const Vector &pt, Vector &grad)
    double x = pt(0), y = pt(1);
    double r = sqrt(x*x + y*y);
    double r0 = 0.5;
+   double beta = 0.9;
 
-   if (r >= r0*0.99)
+   double b = r0*beta;
+   double tmp = sqrt(r0*r0-b*b);
+   double C = -b/tmp;
+
+   if (r > b)
    {
-      grad = 0.0;
+      grad(0) = C * x / r;
+      grad(1) = C * y / r;
    }
    else
    {
