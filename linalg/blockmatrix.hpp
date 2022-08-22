@@ -71,6 +71,9 @@ public:
        treated according to that policy. */
    void EliminateRowCol(int rc, DiagonalPolicy dpolicy = DIAG_ONE);
 
+   /** @brief Eliminate the rows and columns corresponding to the entries
+       in @a vdofs + save the eliminated entries into
+       @a Ae so that (*this) + Ae is equal to the original matrix. */
    void EliminateRowCols(const Array<int> & vdofs, BlockMatrix *Ae,
                          DiagonalPolicy dpolicy = DIAG_ONE);
 
@@ -136,7 +139,12 @@ public:
                                  const double val = 1.) const;
    ///@}
 
+   /** @brief Partial matrix vector multiplication of (*this) with @a x
+       involving only the rows given by @a rows. The result is given in @a y */
    void PartMult(const Array<int> &rows, const Vector &x, Vector &y) const;
+   /** @brief Partial matrix vector multiplication of (*this) with @a x
+       involving only the rows given by @a rows. The result is multiplied by
+       @a a and added to @a y */
    void PartAddMult(const Array<int> &rows, const Vector &x, Vector &y,
                     const double a=1.0) const;
 
