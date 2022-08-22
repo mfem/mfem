@@ -26,6 +26,7 @@
 //
 // Sample runs:
 //   field-interp
+//   field-interp -o 1
 //   field-interp -fts 3 -ft 0
 //   field-interp -m1 triple-pt-1.mesh -s1 triple-pt-1.gf -m2 triple-pt-2.mesh -ft 1
 //   field-interp -m2 ../meshing/amr-quad-q2.mesh -ft 0 -r 1
@@ -155,7 +156,7 @@ int main (int argc, char *argv[])
 
    if (src_fieldtype > -1)
    {
-      src_fes = new FiniteElementSpace(&mesh_1, src_fec, src_ncomp);
+      src_fes = new FiniteElementSpace(&mesh_1, src_fec, src_ncomp, Ordering::byVDIM);
       func_source = new GridFunction(src_fes);
       // Project the grid function using VectorFunctionCoefficient.
       VectorFunctionCoefficient F(src_vdim, vector_func);
@@ -245,7 +246,7 @@ int main (int argc, char *argv[])
       MFEM_ABORT("GridFunction type not supported.");
    }
    std::cout << "Target FE collection: " << tar_fec->Name() << std::endl;
-   tar_fes = new FiniteElementSpace(&mesh_2, tar_fec, tar_vdim);
+   tar_fes = new FiniteElementSpace(&mesh_2, tar_fec, tar_vdim, Ordering::byVDIM);
    GridFunction func_target(tar_fes);
 
    const int NE = mesh_2.GetNE(),
@@ -254,9 +255,11 @@ int main (int argc, char *argv[])
 
    // Generate list of points where the grid function will be evaluated.
    Vector vxyz;
+   int ordering;
    if (fieldtype == 0 && order == mesh_poly_deg)
    {
       vxyz = *mesh_2.GetNodes();
+      ordering = mesh_2.GetNodes()->FESpace()->GetOrdering();
    }
    else
    {
@@ -280,6 +283,7 @@ int main (int argc, char *argv[])
          pos.GetRow(1, rowy);
          if (dim == 3) { pos.GetRow(2, rowz); }
       }
+      ordering = Ordering::byNODES;
    }
    const int nodes_cnt = vxyz.Size() / dim;
 
@@ -287,7 +291,7 @@ int main (int argc, char *argv[])
    Vector interp_vals(nodes_cnt*tar_ncomp);
    FindPointsGSLIB finder;
    finder.Setup(mesh_1);
-   finder.Interpolate(vxyz, *func_source, interp_vals);
+   finder.Interpolate(vxyz, *func_source, interp_vals, ordering);
 
    // Project the interpolated values to the target FiniteElementSpace.
    if (fieldtype <= 1) // H1 or L2

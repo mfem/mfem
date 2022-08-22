@@ -15,5 +15,6 @@
 #include "fem_extras.hpp"
 #include "mesh_extras.hpp"
 #include "pfem_extras.hpp"
+#include "dist_solver.hpp"
 
 #endif

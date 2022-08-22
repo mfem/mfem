@@ -27,7 +27,8 @@ void AdvectorCG::SetInitialField(const Vector &init_nodes,
 }
 
 void AdvectorCG::ComputeAtNewPosition(const Vector &new_nodes,
-                                      Vector &new_field)
+                                      Vector &new_field,
+                                      int new_nodes_ordering)
 {
    // TODO: Implement for AMR meshes.
    const int pnt_cnt = new_field.Size()/ncomp;
@@ -36,8 +37,23 @@ void AdvectorCG::ComputeAtNewPosition(const Vector &new_nodes,
    Vector new_field_temp;
    for (int i = 0; i < ncomp; i++)
    {
-      new_field_temp.MakeRef(new_field, i*pnt_cnt, pnt_cnt);
+      if (ordering == Ordering::byNODES)
+      {
+         new_field_temp.MakeRef(new_field, i*pnt_cnt, pnt_cnt);
+      }
+      else
+      {
+         new_field_temp.SetSize(pnt_cnt);
+         new_field_temp = 0.;
+      }
       ComputeAtNewPositionScalar(new_nodes, new_field_temp);
+      if (ordering != Ordering::byNODES)
+      {
+         for (int j = 0; j < pnt_cnt; j++)
+         {
+            new_field(i + j*ncomp) = new_field(j);
+         }
+      }
    }
 
    field0 = new_field;
@@ -352,9 +368,10 @@ void InterpolatorFP::SetInitialField(const Vector &init_nodes,
 }
 
 void InterpolatorFP::ComputeAtNewPosition(const Vector &new_nodes,
-                                          Vector &new_field)
+                                          Vector &new_field,
+                                          int new_nodes_ordering)
 {
-   finder->Interpolate(new_nodes, field0_gf, new_field);
+   finder->Interpolate(new_nodes, field0_gf, new_field, new_nodes_ordering);
 }
 
 #endif
@@ -399,11 +416,11 @@ double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
 #endif
 
    double scale = 1.0;
+   double avg_surf_fit_err, max_surf_fit_err = 0.0;
    if (surf_fit_max_threshold > 0.0)
    {
-      double avg_err, max_err;
-      GetSurfaceFittingError(avg_err, max_err);
-      if (max_err < surf_fit_max_threshold)
+      GetSurfaceFittingError(avg_surf_fit_err, max_surf_fit_err);
+      if (max_surf_fit_err < surf_fit_max_threshold)
       {
          if (print_options.iterations)
          {
@@ -413,6 +430,17 @@ double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
          scale = 0.0;
          return scale;
       }
+   }
+   if (adapt_inc_count >= max_adapt_inc_count)
+   {
+      if (print_options.iterations)
+      {
+         mfem::out << "TMOPNewtonSolver converged "
+                   "based on max number of times surface fitting weight can"
+                   "be increased. \n";
+      }
+      scale = 0.0;
+      return scale;
    }
 
    // Check if the starting mesh (given by x) is inverted. Note that x hasn't
@@ -459,7 +487,7 @@ double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
 
       // Check the changes in detJ.
       min_detT_out = ComputeMinDet(x_out_loc, *fes);
-      if (untangling == false && min_detT_out < 0.0)
+      if (untangling == false && min_detT_out <= min_detJ_threshold)
       {
          // No untangling, and detJ got negative -- no good.
          if (print_options.iterations)
@@ -485,6 +513,20 @@ double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
 
       // Check the changes in total energy.
       ProcessNewState(x_out);
+
+      double avg_fit_err, max_fit_err = 0.0;
+      if (surf_fit_max_threshold > 0.0)
+      {
+         GetSurfaceFittingError(avg_fit_err, max_fit_err);
+      }
+      if (surf_fit_max_threshold > 0.0 && max_fit_err >= 1.2*max_surf_fit_err)
+      {
+         if (print_options.iterations)
+         {
+            mfem::out << "Scale = " << scale << " Surf fit err increased.\n";
+         }
+         scale *= 0.5; continue;
+      }
 
       if (serial)
       {
@@ -557,7 +599,7 @@ double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
 
    if (x_out_ok == false) { scale = 0.0; }
 
-   if (adaptive_surf_fit) { update_surf_fit_coeff = true; }
+   if (surf_fit_scale_factor > 0.0) { update_surf_fit_coeff = true; }
    compute_metric_quantile_flag = true;
 
    return scale;
@@ -701,13 +743,13 @@ void TMOPNewtonSolver::ProcessNewState(const Vector &x) const
          ti = dynamic_cast<TMOP_Integrator *>(integs[i]);
          if (ti)
          {
-            ti->UpdateAfterMeshPositionChange(x_loc);
+            ti->UpdateAfterMeshPositionChange(x_loc, pfesc->GetOrdering());
             ti->ComputeFDh(x_loc, *pfesc);
             if (compute_metric_quantile_flag)
             {
                ti->ComputeUntangleMetricQuantiles(x_loc, *pfesc);
             }
-            UpdateDiscreteTC(*ti, x_loc);
+            UpdateDiscreteTC(*ti, x_loc, pfesc->GetOrdering());
          }
          co = dynamic_cast<TMOPComboIntegrator *>(integs[i]);
          if (co)
@@ -715,13 +757,13 @@ void TMOPNewtonSolver::ProcessNewState(const Vector &x) const
             Array<TMOP_Integrator *> ati = co->GetTMOPIntegrators();
             for (int j = 0; j < ati.Size(); j++)
             {
-               ati[j]->UpdateAfterMeshPositionChange(x_loc);
+               ati[j]->UpdateAfterMeshPositionChange(x_loc, pfesc->GetOrdering());
                ati[j]->ComputeFDh(x_loc, *pfesc);
                if (compute_metric_quantile_flag)
                {
                   ati[j]->ComputeUntangleMetricQuantiles(x_loc, *pfesc);
                }
-               UpdateDiscreteTC(*ati[j], x_loc);
+               UpdateDiscreteTC(*ati[j], x_loc, pfesc->GetOrdering());
             }
          }
       }
@@ -746,13 +788,13 @@ void TMOPNewtonSolver::ProcessNewState(const Vector &x) const
          ti = dynamic_cast<TMOP_Integrator *>(integs[i]);
          if (ti)
          {
-            ti->UpdateAfterMeshPositionChange(x_loc);
+            ti->UpdateAfterMeshPositionChange(x_loc, fesc->GetOrdering());
             ti->ComputeFDh(x_loc, *fesc);
             if (compute_metric_quantile_flag)
             {
                ti->ComputeUntangleMetricQuantiles(x_loc, *fesc);
             }
-            UpdateDiscreteTC(*ti, x_loc);
+            UpdateDiscreteTC(*ti, x_loc, fesc->GetOrdering());
          }
          co = dynamic_cast<TMOPComboIntegrator *>(integs[i]);
          if (co)
@@ -760,13 +802,13 @@ void TMOPNewtonSolver::ProcessNewState(const Vector &x) const
             Array<TMOP_Integrator *> ati = co->GetTMOPIntegrators();
             for (int j = 0; j < ati.Size(); j++)
             {
-               ati[j]->UpdateAfterMeshPositionChange(x_loc);
+               ati[j]->UpdateAfterMeshPositionChange(x_loc, fesc->GetOrdering());
                ati[j]->ComputeFDh(x_loc, *fesc);
                if (compute_metric_quantile_flag)
                {
                   ati[j]->ComputeUntangleMetricQuantiles(x_loc, *fesc);
                }
-               UpdateDiscreteTC(*ati[j], x_loc);
+               UpdateDiscreteTC(*ati[j], x_loc, fesc->GetOrdering());
             }
          }
       }
@@ -778,8 +820,6 @@ void TMOPNewtonSolver::ProcessNewState(const Vector &x) const
    // decrease between subsequent TMOPNewtonSolver iterations.
    if (update_surf_fit_coeff)
    {
-      double surf_fit_err_max = -10;
-      double surf_fit_err_avg = -10;
       // Get surface fitting errors.
       GetSurfaceFittingError(surf_fit_err_avg, surf_fit_err_max);
       // Get array with surface fitting weights.
@@ -799,9 +839,14 @@ void TMOPNewtonSolver::ProcessNewState(const Vector &x) const
       double rel_change_surf_fit_err = change_surf_fit_err/surf_fit_err_avg_prvs;
       // Increase the surface fitting coefficient if the surface fitting error
       // does not decrease sufficiently.
-      if (rel_change_surf_fit_err < 1.e-2)
+      if (rel_change_surf_fit_err < surf_fit_rel_change_threshold)
       {
-         UpdateSurfaceFittingWeight(10);
+         UpdateSurfaceFittingWeight(surf_fit_scale_factor);
+         adapt_inc_count += 1;
+      }
+      else
+      {
+         adapt_inc_count = 0;
       }
       surf_fit_err_avg_prvs = surf_fit_err_avg;
       update_surf_fit_coeff = false;
@@ -809,18 +854,19 @@ void TMOPNewtonSolver::ProcessNewState(const Vector &x) const
 }
 
 void TMOPNewtonSolver::UpdateDiscreteTC(const TMOP_Integrator &ti,
-                                        const Vector &x_new) const
+                                        const Vector &x_new,
+                                        int ordering) const
 {
    const bool update_flag = true;
    DiscreteAdaptTC *discrtc = ti.GetDiscreteAdaptTC();
    if (discrtc)
    {
-      discrtc->UpdateTargetSpecification(x_new, update_flag);
+      discrtc->UpdateTargetSpecification(x_new, update_flag, ordering);
       if (ti.GetFDFlag())
       {
          double dx = ti.GetFDh();
-         discrtc->UpdateGradientTargetSpecification(x_new, dx, update_flag);
-         discrtc->UpdateHessianTargetSpecification(x_new, dx, update_flag);
+         discrtc->UpdateGradientTargetSpecification(x_new, dx, update_flag, ordering);
+         discrtc->UpdateHessianTargetSpecification(x_new, dx, update_flag, ordering);
       }
    }
 }

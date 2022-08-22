@@ -187,6 +187,23 @@ public:
    virtual WorstCaseType GetWorstCaseType() { return wctype; }
 };
 
+class TMOP_Metric_000 : public TMOP_QualityMetric
+{
+protected:
+   mutable InvariantsEvaluator2D<double> ie;
+
+public:
+   // W = |J|^2.
+   virtual double EvalW(const DenseMatrix &Jpt) const { return 0.0; };
+
+   virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const {P=0.0;};
+
+   virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
+                          const double weight, DenseMatrix &A) const {A=0.0;};
+
+   virtual int Id() const { return 0; }
+};
+
 /// 2D non-barrier metric without a type.
 class TMOP_Metric_001 : public TMOP_QualityMetric
 {
@@ -980,6 +997,7 @@ protected:
    // Owned.
    Mesh *mesh;
    FiniteElementSpace *fes;
+   int ordering;
 
 #ifdef MFEM_USE_MPI
    // Owned.
@@ -1002,12 +1020,14 @@ public:
    /** Specifies the Mesh and FiniteElementCollection of the solution that will
        be evaluated. The given mesh will be copied into the internal object. */
    void SetSerialMetaInfo(const Mesh &m,
-                          const FiniteElementCollection &fec, int num_comp);
+                          const FiniteElementCollection &fec, int num_comp,
+                          int ordering_=Ordering::byNODES);
 
 #ifdef MFEM_USE_MPI
    /// Parallel version of SetSerialMetaInfo.
    void SetParMetaInfo(const ParMesh &m,
-                       const FiniteElementCollection &fec, int num_comp);
+                       const FiniteElementCollection &fec, int num_comp,
+                       int ordering_=Ordering::byNODES);
 #endif
 
    // TODO use GridFunctions to make clear it's on the ldofs?
@@ -1015,7 +1035,8 @@ public:
                                 const Vector &init_field) = 0;
 
    virtual void ComputeAtNewPosition(const Vector &new_nodes,
-                                     Vector &new_field) = 0;
+                                     Vector &new_field,
+                                     int ordering = Ordering::byNODES) = 0;
 
    void ClearGeometricFactors();
 };
@@ -1216,7 +1237,7 @@ protected:
    // Discrete target specification.
    // Data is owned, updated by UpdateTargetSpecification.
    int ncomp, sizeidx, skewidx, aspectratioidx, orientationidx;
-   Vector tspec;             //eta(x)
+   Vector tspec;             //eta(x) - we enforce Ordering::byNODES
    Vector tspec_sav;
    Vector tspec_pert1h;      //eta(x+h)
    Vector tspec_pert2h;      //eta(x+2*h)
@@ -1330,9 +1351,11 @@ public:
    /** Used to update the target specification after the mesh has changed. The
        new mesh positions are given by new_x. If @a use_flags is true, repeated
        calls won't do anything until ResetUpdateFlags() is called. */
-   void UpdateTargetSpecification(const Vector &new_x, bool use_flag = false);
+   void UpdateTargetSpecification(const Vector &new_x, bool use_flag = false,
+                                  int ordering=Ordering::byNODES);
 
-   void UpdateTargetSpecification(Vector &new_x, Vector &IntData);
+   void UpdateTargetSpecification(Vector &new_x, Vector &IntData,
+                                  int ordering=Ordering::byNODES);
 
    void UpdateTargetSpecificationAtNode(const FiniteElement &el,
                                         ElementTransformation &T,
@@ -1346,13 +1369,15 @@ public:
        If @a use_flags is true, repeated calls won't do anything until
        ResetUpdateFlags() is called. */
    void UpdateGradientTargetSpecification(const Vector &x, double dx,
-                                          bool use_flag = false);
+                                          bool use_flag = false,
+                                          int ordering = Ordering::byNODES);
    /** Used for finite-difference based computations. Computes the target
        specifications after two mesh perturbations in x and/or y direction.
        If @a use_flags is true, repeated calls won't do anything until
        ResetUpdateFlags() is called. */
    void UpdateHessianTargetSpecification(const Vector &x, double dx,
-                                         bool use_flag = false);
+                                         bool use_flag = false,
+                                         int ordering = Ordering::byNODES);
 
    void SetAdaptivityEvaluator(AdaptivityEvaluator *ae)
    {
@@ -1470,6 +1495,9 @@ protected:
    Coefficient *surf_fit_coeff;         // Not owned.
    AdaptivityEvaluator *surf_fit_eval;  // Not owned.
    double surf_fit_normal;
+   bool surf_fit_gf_bg;
+   GridFunction *surf_fit_grad, *surf_fit_hess;
+   AdaptivityEvaluator *surf_fit_eval_bg_grad, *surf_fit_eval_bg_hess;
 
    DiscreteAdaptTC *discr_tc;
 
@@ -1587,7 +1615,8 @@ protected:
    void ComputeFDh(const Vector &x, const FiniteElementSpace &fes);
    void ComputeMinJac(const Vector &x, const FiniteElementSpace &fes);
 
-   void UpdateAfterMeshPositionChange(const Vector &new_x);
+   void UpdateAfterMeshPositionChange(const Vector &new_x,
+                                      int ordering = Ordering::byNODES);
 
    void DisableLimiting()
    {
@@ -1666,6 +1695,8 @@ public:
         surf_fit_gf(NULL), surf_fit_marker(NULL),
         surf_fit_coeff(NULL),
         surf_fit_eval(NULL), surf_fit_normal(1.0),
+        surf_fit_gf_bg(false), surf_fit_grad(NULL), surf_fit_hess(NULL),
+        surf_fit_eval_bg_grad(NULL), surf_fit_eval_bg_hess(NULL),
         discr_tc(dynamic_cast<DiscreteAdaptTC *>(tc)),
         fdflag(false), dxscale(1.0e3), fd_call_flag(false), exact_action(false)
    { PA.enabled = false; }
@@ -1751,6 +1782,18 @@ public:
    void EnableSurfaceFitting(const GridFunction &s0,
                              const Array<bool> &smarker, Coefficient &coeff,
                              AdaptivityEvaluator &ae);
+   void EnableSurfaceFittingFromSource(const ParGridFunction &s0_bg,
+                                       ParGridFunction &s0,
+                                       const Array<bool> &smarker,
+                                       Coefficient &coeff,
+                                       AdaptivityEvaluator &ae,
+                                       const ParGridFunction &s0_bg_grad,
+                                       ParGridFunction &s0_grad,
+                                       AdaptivityEvaluator &age,
+                                       const ParGridFunction &s0_bg_hess,
+                                       ParGridFunction &s0_hess,
+                                       AdaptivityEvaluator &ahe);
+
 #ifdef MFEM_USE_MPI
    /// Parallel support for surface fitting.
    void EnableSurfaceFitting(const ParGridFunction &s0,

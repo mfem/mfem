@@ -46,6 +46,7 @@
 //
 //   Adapted discrete size:
 //     mesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 80 -tid 5 -ni 50 -qo 4 -nor
+//     mesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 80 -tid 5 -ni 50 -qo 4 -nor -mno 1
 //   Adapted discrete size 3D with PA:
 //     mesh-optimizer -m cube.mesh -o 2 -rs 2 -mid 321 -tid 5 -ls 3 -nor -pa
 //   Adapted discrete size 3D with PA on device (requires CUDA).
@@ -64,6 +65,7 @@
 //
 //   Adaptive limiting:
 //     mesh-optimizer -m stretched2D.mesh -o 2 -mid 2 -tid 1 -ni 50 -qo 5 -nor -vl 1 -alc 0.5
+//     mesh-optimizer -m stretched2D.mesh -o 2 -mid 2 -tid 1 -ni 50 -qo 5 -nor -vl 1 -alc 0.5 -mno 1
 //   Adaptive limiting through the L-BFGS solver:
 //     mesh-optimizer -m stretched2D.mesh -o 2 -mid 2 -tid 1 -ni 400 -qo 5 -nor -vl 1 -alc 0.5 -st 1
 //   Adaptive limiting through FD (requires GSLIB):
@@ -71,12 +73,14 @@
 //
 //  Adaptive surface fitting:
 //    mesh-optimizer -m square01.mesh -o 3 -rs 1 -mid 58 -tid 1 -ni 200 -vl 1 -sfc 5e4 -rtol 1e-5 -nor
+//    mesh-optimizer -m square01.mesh -o 3 -rs 1 -mid 58 -tid 1 -ni 200 -vl 1 -sfc 5e4 -rtol 1e-5 -nor -mno 1
 //    mesh-optimizer -m square01-tri.mesh -o 3 -rs 0 -mid 58 -tid 1 -ni 200 -vl 1 -sfc 1e4 -rtol 1e-5 -nor
 //  Surface fitting with weight adaptation and termination based on fitting error
 //    mesh-optimizer -m square01.mesh -o 2 -rs 1 -mid 2 -tid 1 -ni 100 -vl 2 -sfc 10 -rtol 1e-20 -st 0 -sfa -sft 1e-5
 //
 //   Blade shape:
 //     mesh-optimizer -m blade.mesh -o 4 -mid 2 -tid 1 -ni 30 -ls 3 -art 1 -bnd -qt 1 -qo 8
+//     mesh-optimizer -m blade.mesh -o 4 -mid 2 -tid 1 -ni 30 -ls 3 -art 1 -bnd -qt 1 -qo 8 -mno 1
 //   Blade shape with FD-based solver:
 //     mesh-optimizer -m blade.mesh -o 4 -mid 2 -tid 1 -ni 30 -ls 4 -bnd -qt 1 -qo 8 -fd
 //   Blade limited shape:
@@ -150,6 +154,7 @@ int main(int argc, char *argv[])
    int n_h_iter          = 1;
    bool surface_fit_adapt = false;
    double surface_fit_threshold = -10;
+   int mesh_node_ordering = 0;
    int barrier_type       = 0;
    int worst_case_type    = 0;
 
@@ -281,6 +286,9 @@ int main(int argc, char *argv[])
    args.AddOption(&surface_fit_threshold, "-sft", "--surf-fit-threshold",
                   "Set threshold for surface fitting. TMOP solver will"
                   "terminate when max surface fitting error is below this limit");
+   args.AddOption(&mesh_node_ordering, "-mno", "--mesh_node_ordering",
+                  "Ordering of mesh nodes."
+                  "0 (default): byNodes, 1: byVDIM");
    args.AddOption(&barrier_type, "-btype", "--barrier-type",
                   "0 - None,"
                   "1 - Shifted Barrier,"
@@ -325,7 +333,8 @@ int main(int argc, char *argv[])
       mesh_poly_deg = 2;
    }
    else { fec = new H1_FECollection(mesh_poly_deg, dim); }
-   FiniteElementSpace *fespace = new FiniteElementSpace(mesh, fec, dim);
+   FiniteElementSpace *fespace = new FiniteElementSpace(mesh, fec, dim,
+                                                        mesh_node_ordering);
 
    // 4. Make the mesh curved based on the above finite element space. This
    //    means that we define the mesh elements through a fespace-based
