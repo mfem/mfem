@@ -19,6 +19,9 @@
 namespace mfem
 {
 
+namespace internal
+{
+
 template <bool ACCUMULATE = true>
 MFEM_HOST_DEVICE inline
 void PAMassApply2D_Element(const int e,
@@ -621,6 +624,8 @@ void SmemPAMassApply3D_Element(const int e,
    }
    MFEM_SYNC_THREAD;
 }
+
+} // namespace internal
 
 } // namespace mfem
 

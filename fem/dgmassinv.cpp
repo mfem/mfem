@@ -107,7 +107,7 @@ void DGMassInverse::Update()
 {
    M->Assemble();
    M->AssembleDiagonal(diag_inv);
-   MakeReciprocal(diag_inv.Size(), diag_inv.ReadWrite());
+   internal::MakeReciprocal(diag_inv.Size(), diag_inv.ReadWrite());
 }
 
 DGMassInverse::~DGMassInverse()
@@ -118,6 +118,8 @@ DGMassInverse::~DGMassInverse()
 template<int DIM, int D1D, int Q1D>
 void DGMassInverse::DGMassCGIteration(const Vector &b_, Vector &u_) const
 {
+   using namespace internal; // host/device kernel functions
+
    const int NE = fes.GetNE();
    const int d1d = m->dofs1D;
    const int q1d = m->quad1D;
