@@ -84,7 +84,7 @@ int main(int argc, char *argv[])
    int order = 3;
    const char *fe = "h";
    const char *device_config = "cpu";
-   bool visualization = true;
+   bool visualization = false;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh", "Mesh file to use.");
