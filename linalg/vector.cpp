@@ -1254,8 +1254,8 @@ vector_min_cpu:
    return minimum;
 }
 
-
-#ifdef MFEM_USE_SUNDIALS
+// TODO: Consider deleting
+/*#ifdef MFEM_USE_SUNDIALS
 
 Vector::Vector(N_Vector nv)
 {
@@ -1314,5 +1314,5 @@ void Vector::ToNVector(N_Vector &nv, long global_length)
 }
 
 #endif // MFEM_USE_SUNDIALS
-
+*/
 }
