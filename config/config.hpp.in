@@ -195,4 +195,7 @@
 // Enable functionality based on the Google Benchmark library.
 // #define MFEM_USE_BENCHMARK
 
+// Enable the Enzyme LLVM plugin
+// #define MFEM_USE_ENZYME
+
 #endif // MFEM_CONFIG_HEADER

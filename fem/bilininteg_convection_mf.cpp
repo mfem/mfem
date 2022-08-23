@@ -30,7 +30,16 @@ void ConvectionIntegrator::AssembleMF(const FiniteElementSpace &fes)
    if (DeviceCanUseCeed())
    {
       delete ceedOp;
-      ceedOp = new ceed::MFConvectionIntegrator(fes, *ir, Q, alpha);
+      const bool mixed = mesh->GetNumGeometries(mesh->Dimension()) > 1 ||
+                         fes.IsVariableOrder();
+      if (mixed)
+      {
+         ceedOp = new ceed::MixedMFConvectionIntegrator(*this, fes, Q, alpha);
+      }
+      else
+      {
+         ceedOp = new ceed::MFConvectionIntegrator(fes, *ir, Q, alpha);
+      }
       return;
    }
    MFEM_ABORT("Error: ConvectionIntegrator::AssembleMF only implemented with"

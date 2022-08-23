@@ -205,7 +205,7 @@ jobs:
       env:
         VCPKG_DEFAULT_BINARY_CACHE: ${{ github.workspace }}/vcpkg_cache
       run: |
-        vcpkg install metis --triplet=x64-windows-static
+        vcpkg install metis-mfem --triplet=x64-windows-static --overlay-ports=${{ env.MFEM_TOP_DIR }}/config/vcpkg/ports
 
     # MFEM build and test
     - name: build

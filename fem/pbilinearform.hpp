@@ -114,6 +114,17 @@ public:
    /** The returned matrix has to be deleted by the caller. */
    HypreParMatrix *ParallelAssemble(SparseMatrix *m);
 
+   /** @brief Compute parallel RAP operator and store it in @a A as a HypreParMatrix.
+
+       @param[in] loc_A The rank-local `SparseMatrix`.
+       @param[out] A The `OperatorHandle` containing the global `HypreParMatrix`.
+       @param[in] steal_loc_A Have the `HypreParMatrix` in @a A take ownership of
+                              the memory objects in @a loc_A.
+       */
+   void ParallelRAP(SparseMatrix &loc_A,
+                    OperatorHandle &A,
+                    bool steal_loc_A = false);
+
    /** @brief Returns the matrix assembled on the true dofs, i.e.
        @a A = P^t A_local P, in the format (type id) specified by @a A. */
    void ParallelAssemble(OperatorHandle &A) { ParallelAssemble(A, mat); }
