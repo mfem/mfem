@@ -18,6 +18,8 @@ CMakeFiles/
 # Backup files
 *~
 
+*.nsys-rep
+
 # Default install location
 /mfem/
 
