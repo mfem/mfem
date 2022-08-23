@@ -15,6 +15,7 @@
 #include "../general/forall.hpp"
 #include "../general/table.hpp"
 #include "../general/sort_pairs.hpp"
+#include "../general/backends.hpp"
 
 #include <iostream>
 #include <iomanip>
@@ -462,28 +463,108 @@ void SparseMatrix::SortColumnIndices()
       return;
    }
 
-   const int * Ip=HostReadI();
-   HostReadWriteJ();
-   HostReadWriteData();
-
-   Array<Pair<int,double> > row;
-   for (int j = 0, i = 0; i < height; i++)
+#ifdef MFEM_USE_CUDA_OR_HIP
+   if ( Device::Allows( Backend::CUDA_MASK ))
    {
-      int end = Ip[i+1];
-      row.SetSize(end - j);
-      for (int k = 0; k < row.Size(); k++)
-      {
-         row[k].one = J[j+k];
-         row[k].two = A[j+k];
-      }
-      row.Sort();
-      for (int k = 0; k < row.Size(); k++, j++)
-      {
-         J[j] = row[k].one;
-         A[j] = row[k].two;
-      }
+#if defined(MFEM_USE_CUDA)
+      size_t pBufferSizeInBytes = 0;
+      void *pBuffer = NULL;
+
+      const int n = Height();
+      const int m = Width();
+      const int nnzA = J.Size();
+      double * d_a_sorted = A.ReadWrite();
+      const int * d_ia = I.Read();
+      int * d_ja_sorted = J.ReadWrite();
+      csru2csrInfo_t sortInfoA;
+
+      cusparseCreateCsru2csrInfo( &sortInfoA );
+
+      cusparseDcsru2csr_bufferSizeExt( handle, n, m, nnzA, d_a_sorted, d_ia,
+                                       d_ja_sorted, sortInfoA,
+                                       &pBufferSizeInBytes);
+
+      Memory< char > buffer( pBufferSizeInBytes );
+      pBuffer = buffer.Write();
+
+      cusparseDcsru2csr( handle, n, m, nnzA, matA_descr, d_a_sorted, d_ia,
+                         d_ja_sorted, sortInfoA, pBuffer);
+
+      buffer.Delete();
+      cusparseDestroyCsru2csrInfo( sortInfoA );
+      isSorted = true;
+#endif
    }
-   isSorted = true;
+   else if ( Device::Allows( Backend::HIP_MASK ))
+   {
+#if defined(MFEM_USE_HIP)
+      size_t pBufferSizeInBytes = 0;
+      void *pBuffer = NULL;
+      int *P = NULL;
+
+      const int n = Height();
+      const int m = Width();
+      const int nnzA = J.Size();
+      double * d_a_sorted = A.ReadWrite();
+      const int * d_ia = I.Read();
+      int * d_ja_sorted = J.ReadWrite();
+
+      // FIXME: There is not in-place version of csr sort in rocSPARSE currently, so we make
+      //        a temporary copy of the data for gthr, sort that, and then copy the sorted values
+      //        back to the array being returned. Where there is an in-place version available,
+      //        we should use it.
+      Memory< double > a_tmp( nnzA );
+      double *d_a_tmp = a_tmp.Write();
+
+      rocsparse_csrsort_buffer_size(handle, n, m, nnzA, d_ia, d_ja_sorted,
+                                    &pBufferSizeInBytes);
+
+      Memory< char > buffer( pBufferSizeInBytes );
+      pBuffer = buffer.Write();
+      Memory< int > P_mem( nnzA );
+      P       = P_mem.Write();
+
+      rocsparse_create_identity_permutation(handle, nnzA, P);
+      rocsparse_csrsort(handle, n, m, nnzA, descrA, d_ia, d_ja_sorted, P, pBuffer);
+
+      rocsparse_dgthr(handle, nnzA, d_a_sorted, d_a_tmp, P,
+                      rocsparse_index_base_zero);
+
+      buffer.Delete();
+      P_mem.Delete();
+
+      a_sorted = std::move( d_a_tmp );
+
+      a_tmp.Delete();
+      isSorted = true;
+#endif
+   }
+   else
+#endif // MFEM_USE_CUDA_OR_HIP
+   {
+      const int * Ip=HostReadI();
+      HostReadWriteJ();
+      HostReadWriteData();
+
+      Array<Pair<int,double> > row;
+      for (int j = 0, i = 0; i < height; i++)
+      {
+         int end = Ip[i+1];
+         row.SetSize(end - j);
+         for (int k = 0; k < row.Size(); k++)
+         {
+            row[k].one = J[j+k];
+            row[k].two = A[j+k];
+         }
+         row.Sort();
+         for (int k = 0; k < row.Size(); k++, j++)
+         {
+            J[j] = row[k].one;
+            A[j] = row[k].two;
+         }
+      }
+      isSorted = true;
+   }
 }
 
 void SparseMatrix::MoveDiagonalFirst()
