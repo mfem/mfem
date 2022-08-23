@@ -327,6 +327,7 @@ tests/benchmarks/bench_ceed
 tests/benchmarks/bench_tmop
 tests/benchmarks/bench_vector
 tests/benchmarks/bench_virtuals
+tests/benchmarks/bench_lor
 
 # Test script output
 tests/scripts/*.err
