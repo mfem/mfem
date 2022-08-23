@@ -180,7 +180,7 @@ int main(int argc, char *argv[])
       break;
    }
 
-   mesh.EnsureNCMesh();
+   mesh.EnsureNCMesh(true);
 
    ParMesh pmesh(MPI_COMM_WORLD, mesh);
    mesh.Clear();
