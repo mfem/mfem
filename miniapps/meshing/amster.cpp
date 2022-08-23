@@ -25,6 +25,7 @@
 #include <iostream>
 #include <fstream>
 #include "mesh-optimizer.hpp"
+#include "amster.hpp"
 
 using namespace mfem;
 using namespace std;
@@ -101,16 +102,83 @@ int main (int argc, char *argv[])
 
    // Detect boundary nodes.
    Array<int> vdofs;
-   ParGridFunction bndry_ind(pfespace);
+   ParFiniteElementSpace sfespace = ParFiniteElementSpace(pmesh, fec);
+   ParGridFunction bndry_ind(&sfespace);
    bndry_ind = 1.0;
-   for (int i = 0; i < pfespace->GetNBE(); i++)
+   for (int i = 0; i < sfespace.GetNBE(); i++)
    {
-      pfespace->GetBdrElementVDofs(i, vdofs);
-      for (int j = 0; j < vdofs.Size(); j++) { bndry_ind(vdofs[j]) = 0.0; }
+      sfespace.GetBdrElementDofs(i, vdofs);
+      for (int j = 0; j < vdofs.Size(); j++) { bndry_ind(vdofs[j]) = 1.0; }
+      //changed this from 0 to 1 because background mesh refinement works better
    }
+
    socketstream vis_b_func;
    common::VisualizeField(vis_b_func, "localhost", 19916, bndry_ind,
                           "Boundary", 300, 0, 300, 300);
+
+   bool background = true;
+   ParMesh *pmesh_bg = NULL;
+   ParGridFunction *pmesh_bg_distance = NULL;
+   if (background)
+   {
+      Mesh *mesh_bg = NULL;
+      if (dim == 2)
+      {
+         mesh_bg = new Mesh(Mesh::MakeCartesian2D(5, 5, Element::QUADRILATERAL, true));
+      }
+      else if (dim == 3)
+      {
+         mesh_bg = new Mesh(Mesh::MakeCartesian3D(4, 4, 4, Element::HEXAHEDRON, true));
+      }
+      mesh_bg->EnsureNCMesh();
+      pmesh_bg = new ParMesh(MPI_COMM_WORLD, *mesh_bg);
+      delete mesh_bg;
+      pmesh_bg->SetCurvature(mesh_poly_deg, false, -1, 0);
+
+
+      // jagged mesh is [-1, 4] in x, [0, 2] in y
+      // square disc mesh is [0, 1]^2
+      if (dim == 2) {
+          if (strcmp(mesh_file, "jagged.mesh") == 0) {
+          GridFunction *nodes = pmesh_bg->GetNodes();
+          for (int i = 0; i < nodes->Size()/2; i++) {
+              (*(nodes))(i) = (*(nodes))(i)*6.0 - 1.43;
+              (*(nodes))(i+nodes->Size()/2) = (*(nodes))(i+nodes->Size()/2)*3-0.43;
+            }
+         }
+          else if (strcmp(mesh_file, "../../data/square-disc.mesh") == 0) {
+              GridFunction *nodes = pmesh_bg->GetNodes();
+              for (int i = 0; i < nodes->Size()/2; i++) {
+                  (*(nodes))(i) = (*(nodes))(i)*2.0 - 0.43;
+                  (*(nodes))(i+nodes->Size()/2) = (*(nodes))(i+nodes->Size()/2)*2-0.43;
+                }
+             }
+          }
+
+#ifndef MFEM_USE_GSLIB
+   MFEM_ABORT("GSLIB needed for this functionality.");
+#endif
+
+   ParFiniteElementSpace h1fespace(pmesh_bg, fec);
+   pmesh_bg_distance = new ParGridFunction(&h1fespace);
+
+    OptimizeMeshWithAMRForAnotherMesh(*pmesh_bg, bndry_ind, 6, *pmesh_bg_distance);
+    {
+        socketstream vis_b_func;
+        common::VisualizeField(vis_b_func, "localhost", 19916, *pmesh_bg_distance,
+                               "Boundary", 300, 0, 300, 300);
+    }
+
+    GridFunctionCoefficient ls_filt_coeff(pmesh_bg_distance);
+    ComputeScalarDistanceFromLevelSet(*pmesh_bg, ls_filt_coeff, *pmesh_bg_distance);
+
+    {
+        socketstream vis_b_func;
+        common::VisualizeField(vis_b_func, "localhost", 19916, *pmesh_bg_distance,
+                               "Distance", 300, 0, 300, 300);
+    }
+
+   }
 
    /*
 
