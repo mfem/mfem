@@ -19,6 +19,9 @@
 namespace mfem
 {
 
+namespace internal
+{
+
 void MakeReciprocal(int n, double *x)
 {
    MFEM_FORALL(i, n, x[i] = 1.0/x[i]; );
@@ -284,6 +287,8 @@ void DGMassBasis(const int e,
       MFEM_ABORT_KERNEL("Dimension not supported.");
    }
 }
+
+} // namespace internal
 
 } // namespace mfem
 

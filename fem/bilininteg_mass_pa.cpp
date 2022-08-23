@@ -593,7 +593,7 @@ static void PAMassApply2D(const int NE,
 
    MFEM_FORALL(e, NE,
    {
-      PAMassApply2D_Element(e, NE, B, Bt, D, X, Y, d1d, q1d);
+      internal::PAMassApply2D_Element(e, NE, B, Bt, D, X, Y, d1d, q1d);
    });
 }
 
@@ -621,7 +621,7 @@ static void SmemPAMassApply2D(const int NE,
    auto Y = y_.ReadWrite();
    MFEM_FORALL_2D(e, NE, Q1D, Q1D, NBZ,
    {
-      SmemPAMassApply2D_Element<T_D1D,T_Q1D,T_NBZ>(e, NE, b, D, x, Y, d1d, q1d);
+      internal::SmemPAMassApply2D_Element<T_D1D,T_Q1D,T_NBZ>(e, NE, b, D, x, Y, d1d, q1d);
    });
 }
 
@@ -646,7 +646,7 @@ static void PAMassApply3D(const int NE,
 
    MFEM_FORALL(e, NE,
    {
-      PAMassApply3D_Element(e, NE, B, Bt, D, X, Y, d1d, q1d);
+      internal::PAMassApply3D_Element(e, NE, B, Bt, D, X, Y, d1d, q1d);
    });
 }
 
@@ -673,7 +673,7 @@ static void SmemPAMassApply3D(const int NE,
    auto y = y_.ReadWrite();
    MFEM_FORALL_3D(e, NE, Q1D, Q1D, 1,
    {
-      SmemPAMassApply3D_Element<T_D1D,T_Q1D>(e, NE, b, d, x, y, d1d, q1d);
+      internal::SmemPAMassApply3D_Element<T_D1D,T_Q1D>(e, NE, b, d, x, y, d1d, q1d);
    });
 }
 
