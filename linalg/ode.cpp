@@ -187,9 +187,7 @@ void ExplicitRKSolver::Step(Vector &x, double &t, double &dt)
 }
 
 ExplicitRKSolver::~ExplicitRKSolver()
-{
-   delete [] k;
-}
+{ }
 
 const double RK6Solver::a[] =
 {

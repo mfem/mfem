@@ -331,7 +331,6 @@ public:
    ~AdamsMoultonSolver()
    {
       if (RKsolver) { delete RKsolver; }
-      delete [] k;
    };
 };
 
