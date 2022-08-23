@@ -189,14 +189,17 @@ int main(int argc, char *argv[])
    if (H1 || L2)
    {
       solv_lor.reset(new LORSolver<HypreBoomerAMG>(a, ess_dofs));
+      ((LORSolver<HypreBoomerAMG>&)*solv_lor).GetSolver().Setup(B, X);
    }
    else if (RT && dim == 3)
    {
       solv_lor.reset(new LORSolver<HypreADS>(a, ess_dofs));
+      ((LORSolver<HypreADS>&)*solv_lor).GetSolver().Setup(B, X);
    }
    else
    {
       solv_lor.reset(new LORSolver<HypreAMS>(a, ess_dofs));
+      ((LORSolver<HypreAMS>&)*solv_lor).GetSolver().Setup(B, X);
    }
 
    CGSolver cg(MPI_COMM_WORLD);
