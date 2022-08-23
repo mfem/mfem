@@ -954,6 +954,7 @@ void FABilinearFormExtension::Assemble()
       }
       a->mat = mat;
    }
+   a->mat->SortColumnIndices();
 }
 
 
@@ -963,7 +964,6 @@ void FABilinearFormExtension::RAP(OperatorHandle &A)
    if ( auto pa = dynamic_cast<ParBilinearForm*>(a) )
    {
       pa->ParallelRAP(*pa->mat, A);
-      A.As<HypreParMatrix>()->SortRows();
    }
    else
 #endif
