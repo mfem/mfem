@@ -13,6 +13,9 @@
 #include "../../general/forall.hpp"
 #include "../../fem/pbilinearform.hpp"
 
+#define MFEM_NVTX_COLOR DeepSkyBlue
+#include "../../general/nvtx.hpp"
+
 namespace mfem
 {
 
@@ -80,6 +83,8 @@ void BatchedLOR_ADS::Form3DFaceToEdge(Array<int> &face2edge)
 
 void BatchedLOR_ADS::FormCurlMatrix()
 {
+   NVTX("Discrete Curl");
+
    // The curl matrix maps from LOR edges to LOR faces. Given a quadrilateral
    // face (defined by its four edges) f_i = (e_j1, e_j2, e_j3, e_j4), the
    // matrix has nonzeros A(i, jk), so there are always exactly four nonzeros

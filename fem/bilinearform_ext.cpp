@@ -18,6 +18,8 @@
 #include "pgridfunc.hpp"
 #include "ceed/interface/util.hpp"
 
+#include "../general/nvtx.hpp"
+
 namespace mfem
 {
 
@@ -289,6 +291,10 @@ void PABilinearFormExtension::SetupRestrictionOperators(const L2FaceValues m)
 
 void PABilinearFormExtension::Assemble()
 {
+#undef MFEM_NVTX_COLOR
+#define MFEM_NVTX_COLOR NavyBlue
+   NVTX("HO Assemble");
+
    SetupRestrictionOperators(L2FaceValues::DoubleValued);
 
    Array<BilinearFormIntegrator*> &integrators = *a->GetDBFI();
@@ -383,6 +389,10 @@ void PABilinearFormExtension::FormLinearSystem(const Array<int> &ess_tdof_list,
 
 void PABilinearFormExtension::Mult(const Vector &x, Vector &y) const
 {
+#undef MFEM_NVTX_COLOR
+#define MFEM_NVTX_COLOR MediumSpringGreen
+   NVTX("HO Apply");
+
    Array<BilinearFormIntegrator*> &integrators = *a->GetDBFI();
 
    const int iSz = integrators.Size();

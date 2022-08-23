@@ -13,6 +13,9 @@
 #include "../../general/forall.hpp"
 #include "../../fem/pbilinearform.hpp"
 
+#define MFEM_NVTX_COLOR DeepSkyBlue
+#include "../../general/nvtx.hpp"
+
 namespace mfem
 {
 
@@ -138,6 +141,7 @@ void BatchedLOR_AMS::Form3DEdgeToVertex(Array<int> &edge2vert)
 
 void BatchedLOR_AMS::FormGradientMatrix()
 {
+   NVTX("Discrete Gradient");
    // The gradient matrix maps from LOR vertices to LOR edges. Given an edge
    // (defined by its two vertices) e_i = (v_j1, v_j2), the matrix has nonzeros
    // A(i, j1) = -1 and A(i, j2) = 1, so there are always exactly two nonzeros

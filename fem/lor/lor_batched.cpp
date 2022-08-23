@@ -15,6 +15,8 @@
 #include <climits>
 #include "../pbilinearform.hpp"
 
+#include "../../general/nvtx.hpp"
+
 // Specializations
 #include "lor_h1.hpp"
 #include "lor_nd.hpp"
@@ -72,6 +74,10 @@ bool BatchedLORAssembly::FormIsSupported(BilinearForm &a)
 void BatchedLORAssembly::FormLORVertexCoordinates(FiniteElementSpace &fes_ho,
                                                   Vector &X_vert)
 {
+#undef MFEM_NVTX_COLOR
+#define MFEM_NVTX_COLOR DeepSkyBlue
+   NVTX("LOR Coordinates");
+
    Mesh &mesh_ho = *fes_ho.GetMesh();
    mesh_ho.EnsureNodes();
 
@@ -473,6 +479,9 @@ void BatchedLORAssembly::ParAssemble(
 void BatchedLORAssembly::Assemble(
    BilinearForm &a, const Array<int> ess_dofs, OperatorHandle &A)
 {
+#undef MFEM_NVTX_COLOR
+#define MFEM_NVTX_COLOR NavyBlue
+   NVTX("LOR Assemble");
 #ifdef MFEM_USE_MPI
    if (dynamic_cast<ParFiniteElementSpace*>(&fes_ho))
    {

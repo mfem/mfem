@@ -26,6 +26,8 @@
 #include <nvector/nvector_parallel.h>
 #endif
 
+#include "../general/nvtx.hpp"
+
 using namespace std;
 
 namespace mfem
@@ -3881,6 +3883,10 @@ bool HypreSolver::WrapVectors(const Vector &b, Vector &x) const
 
 void HypreSolver::Setup(const HypreParVector &b, HypreParVector &x) const
 {
+#undef MFEM_NVTX_COLOR
+#define MFEM_NVTX_COLOR Indigo
+   NVTX("AMG Setup");
+
    if (setup_called) { return; }
 
    MFEM_VERIFY(A != NULL, "HypreParMatrix A is missing");
@@ -3908,6 +3914,10 @@ void HypreSolver::Setup(const Vector &b, Vector &x) const
 
 void HypreSolver::Mult(const HypreParVector &b, HypreParVector &x) const
 {
+#undef MFEM_NVTX_COLOR
+#define MFEM_NVTX_COLOR MediumSpringGreen
+   NVTX("AMG V-cycle");
+
    HYPRE_Int err_flag;
    if (A == NULL)
    {

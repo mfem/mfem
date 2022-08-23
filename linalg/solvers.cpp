@@ -20,6 +20,9 @@
 #include <cmath>
 #include <set>
 
+#define MFEM_NVTX_COLOR DarkGreen
+#include "../general/nvtx.hpp"
+
 namespace mfem
 {
 
@@ -710,6 +713,8 @@ void CGSolver::UpdateVectors()
 
 void CGSolver::Mult(const Vector &b, Vector &x) const
 {
+   NVTX("CG");
+
    int i;
    double r0, den, nom, nom0, betanom, alpha, beta;
 
