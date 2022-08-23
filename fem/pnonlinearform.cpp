@@ -169,7 +169,7 @@ Operator &ParNonlinearForm::GetGradient(const Vector &x) const
 
    pGrad.Clear();
 
-   // Alloc Grad here to ensure space for shared faces (when relevant)
+   // Allocate Grad here to ensure space for shared faces (when relevant)
    if (Grad == NULL)
    {
       int nbr_size = 0;
