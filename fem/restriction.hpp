@@ -601,6 +601,8 @@ struct InterpConfig
    InterpConfig &operator=(const InterpConfig &rhs) = default;
 };
 
+/** This struct stores which side is the master nonconforming side and the
+    index of the interpolator, see InterpolationManager class below. */
 struct NCInterpConfig
 {
    int face_index;
@@ -810,14 +812,16 @@ public:
    /** @brief Gather the degrees of freedom, i.e. goes from face E-Vector to
        L-Vector.
 
-       @param[in]  x The face E-Vector degrees of freedom with the given format:
-                     if L2FacesValues::DoubleValued (face_dofs x vdim x 2 x nf),
-                     if L2FacesValues::SingleValued (face_dofs x vdim x nf),
-                     where nf is the number of interior or boundary faces
-                     requested by @a type in the constructor.
-                     The face_dofs should be ordered according to the given
-                     ElementDofOrdering
-       @param[in,out] y The L-vector degrees of freedom. */
+       @param[in,out]  x The face E-Vector degrees of freedom with the given format:
+                         if L2FacesValues::DoubleValued (face_dofs x vdim x 2 x nf),
+                         if L2FacesValues::SingleValued (face_dofs x vdim x nf),
+                         where nf is the number of interior or boundary faces
+                         requested by @a type in the constructor.
+                         The face_dofs should be ordered according to the given
+                         ElementDofOrdering
+       @param[in,out] y The L-vector degrees of freedom.
+
+       @note @a x is used for computation. */
    void AddMultTranspose(Vector &x, Vector &y) const override;
 
    /** @brief Fill the I array of SparseMatrix corresponding to the sparsity
