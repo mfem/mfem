@@ -213,12 +213,12 @@ int main(int argc, char *argv[])
 
    a.RecoverFEMSolution(X, b, x);
 
-   double er =
-      (H1 || L2) ? x.ComputeL2Error(u_coeff) : x.ComputeL2Error(u_vec_coeff);
-   if (Mpi::Root()) { cout << "L2 error: " << er << endl; }
-
    if (visualization)
    {
+      double er =
+         (H1 || L2) ? x.ComputeL2Error(u_coeff) : x.ComputeL2Error(u_vec_coeff);
+      if (Mpi::Root()) { cout << "L2 error: " << er << endl; }
+
       // Save the solution and mesh to disk. The output can be viewed using
       // GLVis as follows: "glvis -np <np> -m mesh -g sol"
       x.Save("sol");
