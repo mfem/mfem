@@ -466,15 +466,15 @@ public:
    /// Shortcut for mfem::ReadWrite(vec.GetMemory(), vec.Size(), false).
    virtual double *HostReadWrite()
    { return mfem::ReadWrite(data, size, false); }
-
-#ifdef MFEM_USE_SUNDIALS
+// TODO: Consider deleting
+//#ifdef MFEM_USE_SUNDIALS
    /// (DEPRECATED) Construct a wrapper Vector from SUNDIALS N_Vector.
-   MFEM_DEPRECATED explicit Vector(N_Vector nv);
+   //MFEM_DEPRECATED explicit Vector(N_Vector nv);
 
    /// (DEPRECATED) Return a new wrapper SUNDIALS N_Vector of type SUNDIALS_NVEC_SERIAL.
    /** @deprecated The returned N_Vector must be destroyed by the caller. */
-   MFEM_DEPRECATED virtual N_Vector ToNVector()
-   { return N_VMake_Serial(Size(), GetData()); }
+   //MFEM_DEPRECATED virtual N_Vector ToNVector()
+   //{ return N_VMake_Serial(Size(), GetData()); }
 
    /** @deprecated @brief Update an existing wrapper SUNDIALS N_Vector to point to this
        Vector.
@@ -484,8 +484,8 @@ public:
         length. If nv is a parallel vector and global_length == 0 then this
         method will perform a global reduction and calculate the global length
    */
-   MFEM_DEPRECATED virtual void ToNVector(N_Vector &nv, long global_length = 0);
-#endif
+   //MFEM_DEPRECATED virtual void ToNVector(N_Vector &nv, long global_length = 0);
+//#endif
 };
 
 // Inline methods
