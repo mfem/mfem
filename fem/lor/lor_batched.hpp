@@ -116,12 +116,12 @@ public:
 /// If the capacity of @a mem is not large enough, delete it and allocate new
 /// memory with size @a capacity.
 template <typename T>
-void EnsureCapacity(Memory<T> &mem, int capacity)
+void EnsureCapacity(Memory<T> &mem, int capacity, MemoryType mt)
 {
    if (mem.Capacity() < capacity)
    {
       mem.Delete();
-      mem.New(capacity, mem.GetMemoryType());
+      mem.New(capacity, mt);
    }
 }
 

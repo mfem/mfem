@@ -380,11 +380,11 @@ void BatchedLORAssembly::SparseIJToCSR(OperatorHandle &A) const
 
    A_mat->OverrideSize(nvdof, nvdof);
 
-   A_mat->GetMemoryI().New(nvdof+1, Device::GetDeviceMemoryType());
+   EnsureCapacity(A_mat->GetMemoryI(), nvdof+1, Device::GetDeviceMemoryType());
    int nnz = FillI(*A_mat);
 
-   A_mat->GetMemoryJ().New(nnz, Device::GetDeviceMemoryType());
-   A_mat->GetMemoryData().New(nnz, Device::GetDeviceMemoryType());
+   EnsureCapacity(A_mat->GetMemoryJ(), nnz, Device::GetDeviceMemoryType());
+   EnsureCapacity(A_mat->GetMemoryData(), nnz, Device::GetDeviceMemoryType());
    FillJAndData(*A_mat);
 }
 
