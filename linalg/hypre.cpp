@@ -3883,11 +3883,11 @@ bool HypreSolver::WrapVectors(const Vector &b, Vector &x) const
 
 void HypreSolver::Setup(const HypreParVector &b, HypreParVector &x) const
 {
+   if (setup_called) { return; }
+
 #undef MFEM_NVTX_COLOR
 #define MFEM_NVTX_COLOR Indigo
    NVTX("AMG Setup");
-
-   if (setup_called) { return; }
 
    MFEM_VERIFY(A != NULL, "HypreParMatrix A is missing");
 
