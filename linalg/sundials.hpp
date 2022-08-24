@@ -41,11 +41,24 @@
 #include <sunmemory/sunmemory_cuda.h>
 #endif
 
-
 #include <functional>
 
 namespace mfem
 {
+
+#if (SUNDIALS_VERSION_MAJOR < 6)
+
+using ARKODE_ERKTableID = int;
+using ARKODE_DIRKTableID = int;
+constexpr ARKODE_ERKTableID ARKODE_ERK_NONE = -1;
+constexpr ARKODE_DIRKTableID ARKODE_DIRK_NONE = -1;
+constexpr ARKODE_ERKTableID ARKODE_FEHLBERG_13_7_8 = FEHLBERG_13_7_8;
+
+using SUNContext = char;
+int SUNContext_Create(void*, SUNContext*) { return 0; };
+void SUNContext_Free(SUNContext*) {};
+
+#endif // SUNDIALS_VERSION_MAJOR < 6
 
 #ifdef MFEM_USE_CUDA
 
