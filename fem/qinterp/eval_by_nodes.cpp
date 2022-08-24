@@ -128,8 +128,8 @@ void TensorValues<QVectorLayout::byNODES>(const int NE,
 
          default:
          {
-            constexpr int MD = 8;
-            constexpr int MQ = 8;
+            constexpr int MD = 9;
+            constexpr int MQ = 9;
             MFEM_VERIFY(D1D <= MD, "Orders higher than " << MD-1
                         << " are not supported!");
             MFEM_VERIFY(Q1D <= MQ, "Quadrature rules with more than "

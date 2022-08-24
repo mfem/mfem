@@ -110,8 +110,8 @@ void TensorDerivatives<QVectorLayout::byNODES>(const int NE,
          case 0x348: return Derivatives3D<L,P,3,4,8>(NE,B,G,J,X,Y);
          default:
          {
-            constexpr int MD = 8;
-            constexpr int MQ = 8;
+            constexpr int MD = 9;
+            constexpr int MQ = 9;
             MFEM_VERIFY(D1D <= MD, "Orders higher than " << MD-1
                         << " are not supported!");
             MFEM_VERIFY(Q1D <= MQ, "Quadrature rules with more than "
