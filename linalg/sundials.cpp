@@ -1549,21 +1549,22 @@ void ARKStepSolver::SetOrder(int order)
    MFEM_VERIFY(flag == ARK_SUCCESS, "error in ARKStepSetOrder()");
 }
 
-void ARKStepSolver::SetERKTableNum(int table_num)
+void ARKStepSolver::SetERKTableNum(ARKODE_ERKTableID table_id)
 {
-   flag = ARKStepSetTableNum(sundials_mem, -1, table_num);
+   flag = ARKStepSetTableNum(sundials_mem, ARKODE_DIRK_NONE, table_id);
    MFEM_VERIFY(flag == ARK_SUCCESS, "error in ARKStepSetTableNum()");
 }
 
-void ARKStepSolver::SetIRKTableNum(int table_num)
+void ARKStepSolver::SetIRKTableNum(ARKODE_DIRKTableID table_id)
 {
-   flag = ARKStepSetTableNum(sundials_mem, table_num, -1);
+   flag = ARKStepSetTableNum(sundials_mem, table_id, ARKODE_ERK_NONE);
    MFEM_VERIFY(flag == ARK_SUCCESS, "error in ARKStepSetTableNum()");
 }
 
-void ARKStepSolver::SetIMEXTableNum(int etable_num, int itable_num)
+void ARKStepSolver::SetIMEXTableNum(ARKODE_ERKTableID etable_id,
+                                    ARKODE_DIRKTableID itable_id)
 {
-   flag = ARKStepSetTableNum(sundials_mem, itable_num, etable_num);
+   flag = ARKStepSetTableNum(sundials_mem, itable_id, etable_id);
    MFEM_VERIFY(flag == ARK_SUCCESS, "error in ARKStepSetTableNum()");
 }
 

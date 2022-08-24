@@ -676,19 +676,19 @@ public:
 
    /// Choose a specific Butcher table for an explicit RK method.
    /** See ARKODE documentation for all possible options, stability regions, etc.
-       For example, table_num = BOGACKI_SHAMPINE_4_2_3 is 4-stage 3rd order. */
-   void SetERKTableNum(int table_num);
+       For example, table_id = BOGACKI_SHAMPINE_4_2_3 is 4-stage 3rd order. */
+   void SetERKTableNum(ARKODE_ERKTableID table_id);
 
    /// Choose a specific Butcher table for a diagonally implicit RK method.
    /** See ARKODE documentation for all possible options, stability regions, etc.
-       For example, table_num = CASH_5_3_4 is 5-stage 4th order. */
-   void SetIRKTableNum(int table_num);
+       For example, table_id = CASH_5_3_4 is 5-stage 4th order. */
+   void SetIRKTableNum(ARKODE_DIRKTableID table_id);
 
    /// Choose a specific Butcher table for an IMEX RK method.
    /** See ARKODE documentation for all possible options, stability regions, etc.
-       For example, etable_num = ARK548L2SA_DIRK_8_4_5 and
-       itable_num = ARK548L2SA_ERK_8_4_5 is 8-stage 5th order. */
-   void SetIMEXTableNum(int etable_num, int itable_num);
+       For example, etable_id = ARK548L2SA_DIRK_8_4_5 and
+       itable_id = ARK548L2SA_ERK_8_4_5 is 8-stage 5th order. */
+   void SetIMEXTableNum(ARKODE_ERKTableID etable_id, ARKODE_DIRKTableID itable_id);
 
    /// Use a fixed time step size (disable temporal adaptivity).
    /** Use of this function is not recommended, since there is no assurance of
