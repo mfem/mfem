@@ -10,6 +10,7 @@
 // CONTRIBUTING.md for details.
 
 #include "navier_solver.hpp"
+#include "kernels/stress_integrator.hpp"
 #include "../../general/forall.hpp"
 #include <fstream>
 #include <iomanip>
@@ -63,6 +64,7 @@ NavierSolver::NavierSolver(ParMesh *mesh, int order, double kin_vis)
    Nunm1 = 0.0;
    Nunm2.SetSize(vfes_truevsize);
    Nunm2 = 0.0;
+   u_ext.SetSize(vfes_truevsize);
    Fext.SetSize(vfes_truevsize);
    FText.SetSize(vfes_truevsize);
    Lext.SetSize(vfes_truevsize);
@@ -91,6 +93,9 @@ NavierSolver::NavierSolver(ParMesh *mesh, int order, double kin_vis)
    pn_gf.SetSpace(pfes);
    pn_gf = 0.0;
    resp_gf.SetSpace(pfes);
+
+   kin_vis_gf.SetSpace(pfes);
+   grad_nu_sym_grad_uext.SetSize(vfes_truevsize);
 
    cur_step = 0;
 
@@ -197,7 +202,13 @@ void NavierSolver::Setup(double dt)
    H_bdfcoeff.constant = 1.0 / dt;
    H_form = new ParBilinearForm(vfes);
    auto *hmv_blfi = new VectorMassIntegrator(H_bdfcoeff);
-   auto *hdv_blfi = new VectorDiffusionIntegrator(H_lincoeff);
+
+   // auto *hdv_blfi = new VectorDiffusionIntegrator(H_lincoeff);
+
+   // kin_vis_gf = kin_vis;
+   kin_vis_gf_coeff.SetGridFunction(&kin_vis_gf);
+   auto *hdv_blfi = new StressIntegrator(kin_vis_gf_coeff, ir_ni);
+
    if (numerical_integ)
    {
       hmv_blfi->SetIntRule(&ir_ni);
@@ -299,9 +310,9 @@ void NavierSolver::Setup(double dt)
 
    if (partial_assembly)
    {
-      Vector diag_pa(vfes->GetTrueVSize());
-      H_form->AssembleDiagonal(diag_pa);
-      HInvPC = new OperatorJacobiSmoother(diag_pa, vel_ess_tdof);
+      // Vector diag_pa(vfes->GetTrueVSize());
+      // H_form->AssembleDiagonal(diag_pa);
+      // HInvPC = new OperatorJacobiSmoother(diag_pa, vel_ess_tdof);
    }
    else
    {
@@ -311,10 +322,10 @@ void NavierSolver::Setup(double dt)
    HInv = new CGSolver(vfes->GetComm());
    HInv->iterative_mode = true;
    HInv->SetOperator(*H);
-   HInv->SetPreconditioner(*HInvPC);
+   // HInv->SetPreconditioner(*HInvPC);
    HInv->SetPrintLevel(pl_hsolve);
    HInv->SetRelTol(rtol_hsolve);
-   HInv->SetMaxIter(200);
+   HInv->SetMaxIter(10000);
 
    // If the initial condition was set, it has to be aligned with dependent
    // Vectors and GridFunctions
@@ -339,6 +350,9 @@ void NavierSolver::Setup(double dt)
       un_filtered_gf.SetSpace(vfes);
       un_filtered_gf = 0.0;
    }
+
+   stress_eval = new StressEvaluator(*kin_vis_gf.ParFESpace(), *un_gf.ParFESpace(),
+                                     ir_ni);
 
    sw_setup.Stop();
 }
@@ -367,6 +381,12 @@ void NavierSolver::UpdateTimestepHistory(double dt)
 void NavierSolver::Step(double &time, double dt, int current_step,
                         bool provisional)
 {
+   // RANS
+   if (rans_model)
+   {
+      // kv = rans_model->EvaluateTo(time + dt);
+   }
+
    sw_step.Start();
 
    SetTimeIntegrationCoefficients(current_step);
@@ -392,10 +412,10 @@ void NavierSolver::Step(double &time, double dt, int current_step,
    if (partial_assembly)
    {
       delete HInvPC;
-      Vector diag_pa(vfes->GetTrueVSize());
-      H_form->AssembleDiagonal(diag_pa);
-      HInvPC = new OperatorJacobiSmoother(diag_pa, vel_ess_tdof);
-      HInv->SetPreconditioner(*HInvPC);
+      // Vector diag_pa(vfes->GetTrueVSize());
+      // H_form->AssembleDiagonal(diag_pa);
+      // HInvPC = new OperatorJacobiSmoother(diag_pa, vel_ess_tdof);
+      // HInv->SetPreconditioner(*HInvPC);
    }
 
    // Extrapolated f^{n+1}.
@@ -459,17 +479,17 @@ void NavierSolver::Step(double &time, double dt, int current_step,
       const auto d_un = un.Read();
       const auto d_unm1 = unm1.Read();
       const auto d_unm2 = unm2.Read();
-      auto d_Lext = Lext.Write();
+      auto d_u_ext = u_ext.Write();
       const auto ab1_ = ab1;
       const auto ab2_ = ab2;
       const auto ab3_ = ab3;
-      MFEM_FORALL(i, Lext.Size(),
-                  d_Lext[i] = ab1_ * d_un[i] +
-                              ab2_ * d_unm1[i] +
-                              ab3_ * d_unm2[i];);
+      MFEM_FORALL(i, u_ext.Size(),
+                  d_u_ext[i] = ab1_ * d_un[i] +
+                               ab2_ * d_unm1[i] +
+                               ab3_ * d_unm2[i];);
    }
 
-   Lext_gf.SetFromTrueDofs(Lext);
+   Lext_gf.SetFromTrueDofs(u_ext);
    if (pmesh->Dimension() == 2)
    {
       ComputeCurl2D(Lext_gf, curlu_gf);
@@ -481,14 +501,34 @@ void NavierSolver::Step(double &time, double dt, int current_step,
       ComputeCurl3D(curlu_gf, curlcurlu_gf);
    }
 
+   // (curl curl u)_i *= nu
+   for (int d = 0; d < curlcurlu_gf.FESpace()->GetVDim(); d++)
+   {
+      for (int i = 0; i < curlcurlu_gf.FESpace()->GetNDofs(); i++)
+      {
+         int idx = Ordering::Map<Ordering::byNODES>(
+                      curlcurlu_gf.FESpace()->GetNDofs(),
+                      curlcurlu_gf.FESpace()->GetVDim(),
+                      i,
+                      d);
+         curlcurlu_gf(idx) *= kin_vis_gf(i);
+      }
+   }
    curlcurlu_gf.GetTrueDofs(Lext);
-   Lext *= kin_vis;
+   // Lext *= kin_vis;
 
    sw_curlcurl.Stop();
 
    // \tilde{F} = F - \nu CurlCurl(u)
    FText.Set(-1.0, Lext);
    FText.Add(1.0, Fext);
+
+   kin_vis_gf.ParallelAssemble(kv);
+   stress_eval->Apply(kv, u_ext, grad_nu_sym_grad_uext);
+
+   FText.Add(1.0, grad_nu_sym_grad_uext);
+
+   // printf("|grad_nu_sym_grad_uext|=%.5E\n", grad_nu_sym_grad_uext.Norml2());
 
    // p_r = \nabla \cdot FText
    D->Mult(FText, resp);
@@ -1153,6 +1193,13 @@ void NavierSolver::PrintInfo()
                 << "Velocity #DOFs: " << fes_size0 << std::endl
                 << "Pressure #DOFs: " << fes_size1 << std::endl;
    }
+}
+
+void NavierSolver::SetRANSModel(std::shared_ptr<RANSModel> k)
+{
+   rans_model = k;
+
+   // rans_model->Setup(*pfes);
 }
 
 NavierSolver::~NavierSolver()

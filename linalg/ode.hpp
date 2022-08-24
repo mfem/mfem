@@ -37,6 +37,9 @@ public:
        - To change the associated TimeDependentOperator. */
    virtual void Init(TimeDependentOperator &f_);
 
+
+   TimeDependentOperator *GetOperator() { return f; };
+
    /** @brief Perform a time step from time @a t [in] to time @a t [out] based
        on the requested step size @a dt [in]. */
    /** @param[in,out] x   Approximate solution.

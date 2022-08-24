@@ -15,6 +15,8 @@
 #define NAVIER_VERSION 0.1
 
 #include "mfem.hpp"
+#include "rans/rans_model.hpp"
+#include "kernels/stress_evaluator.hpp"
 
 namespace mfem
 {
@@ -283,6 +285,16 @@ public:
     */
    void SetFilterAlpha(double a) { filter_alpha = a; }
 
+   ParGridFunction *GetVariableViscosity()
+   {
+      if (stress_computation) { return &kin_vis_gf; }
+      MFEM_ABORT("Stress computation needs to be enabled. See ");
+      // unreachable
+      return nullptr;
+   }
+
+   void SetRANSModel(std::shared_ptr<RANSModel> k);
+
 protected:
    /// Print information about the Navier version.
    void PrintInfo();
@@ -319,6 +331,8 @@ protected:
    /// Enable/disable numerical integration rules of forms.
    bool numerical_integ = false;
 
+   bool stress_computation = true;
+
    /// The parallel mesh.
    ParMesh *pmesh = nullptr;
 
@@ -328,7 +342,14 @@ protected:
    /// Kinematic viscosity (dimensionless).
    double kin_vis;
 
+   ///
+   ParGridFunction kin_vis_gf;
+
+   GridFunctionCoefficient kin_vis_gf_coeff;
+
+public:
    IntegrationRules gll_rules;
+protected:
 
    /// Velocity \f$H^1\f$ finite element collection.
    FiniteElementCollection *vfec = nullptr;
@@ -364,8 +385,12 @@ protected:
 
    /// Linear form to compute the mass matrix in various subroutines.
    ParLinearForm *mass_lf = nullptr;
+   ParLinearForm *component_mass_lf = nullptr;
    ConstantCoefficient onecoeff;
+
+public:
    double volume = 0.0;
+protected:
 
    ConstantCoefficient nlcoeff;
    ConstantCoefficient Sp_coeff;
@@ -388,7 +413,7 @@ protected:
    Solver *HInvPC = nullptr;
    CGSolver *HInv = nullptr;
 
-   Vector fn, un, un_next, unm1, unm2, Nun, Nunm1, Nunm2, Fext, FText, Lext,
+   Vector fn, un, un_next, unm1, unm2, Nun, Nunm1, Nunm2, u_ext, Fext, FText, Lext,
           resu;
    Vector tmp1;
 
@@ -458,6 +483,12 @@ protected:
    ParFiniteElementSpace *vfes_filter = nullptr;
    ParGridFunction un_NM1_gf;
    ParGridFunction un_filtered_gf;
+
+   // RANS
+   std::shared_ptr<RANSModel> rans_model;
+
+   StressEvaluator *stress_eval = nullptr;
+   Vector grad_nu_sym_grad_uext, kv;
 };
 
 } // namespace navier

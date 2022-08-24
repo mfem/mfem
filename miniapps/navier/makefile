@@ -14,18 +14,30 @@ MFEM_DIR ?= ../..
 MFEM_BUILD_DIR ?= ../..
 SRC = $(if $(MFEM_DIR:../..=),$(MFEM_DIR)/miniapps/navier/,)
 CONFIG_MK = $(MFEM_BUILD_DIR)/config/config.mk
-# Use the MFEM install directory
-# MFEM_INSTALL_DIR = ../../mfem
-# CONFIG_MK = $(MFEM_INSTALL_DIR)/share/mfem/config.mk
 
 MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
-NAVIER_COMMON_SRC = navier_solver.cpp
-NAVIER_COMMON_OBJ = $(NAVIER_COMMON_SRC:.cpp=.o)
+SRC_DIRS := ./lib ./kernels ./rans
+
+INC_DIRS := $(shell find $(SRC_DIRS) ./ -type d)
+INC_FLAGS := $(addprefix -I,$(INC_DIRS))
+
+NAVIER_LIB_SRCS := $(shell find $(SRC_DIRS) -name '*.cpp')
+NAVIER_LIB_OBJS := $(NAVIER_LIB_SRCS:%=%.o)
+NAVIER_LIB_DEPS := $(NAVIER_LIB_OBJS:.o=.d)
+NAVIER_LIB := libnavier.a
+
+EXAMPLE_SRCS := $(shell find ./examples -name '*.cpp')
+EXAMPLE_OBJS := $(EXAMPLE_SRCS:%=%.o)
+EXAMPLE_DEPS := $(EXAMPLE_OBJS:.o=.d)
+
+TEST_SRCS := $(shell find ./tests -name '*.cpp')
+TEST_OBJS := $(TEST_SRCS:%=%.o)
+TEST_DEPS := $(TEST_OBJS:.o=.d)
 
 PAR_MINIAPPS = navier_mms navier_kovasznay navier_kovasznay_vs navier_tgv\
- navier_shear navier_3dfoc navier_turbchan
+ navier_shear navier_3dfoc navier_turbchan navier_tgv2d
 ifeq ($(MFEM_USE_GSLIB),YES)
    PAR_MINIAPPS += navier_cht
 endif
@@ -40,15 +52,18 @@ endif
 .SUFFIXES: .o .cpp .mk
 .PHONY: all clean clean-build clean-exec
 
-# Remove built-in rules
-%: %.cpp
-%.o: %.cpp
+test_%: ./tests/test_%.cpp.o $(NAVIER_LIB)
+	$(MFEM_CXX) -o $@ $^ $(MFEM_LIBS)
 
-%: %.o $(NAVIER_COMMON_OBJ)
-	$(MFEM_CXX) $(MFEM_LINK_FLAGS) $^ -o $@ $(MFEM_LIBS)
+navier_%: ./examples/navier_%.cpp.o $(NAVIER_LIB)
+	$(MFEM_CXX) -o $@ $^ $(MFEM_LIBS)
 
-%.o: $(SRC)%.cpp $(MFEM_LIB_FILE) $(CONFIG_MK)
-	$(MFEM_CXX) $(MFEM_FLAGS) -c $< -o $@
+%.cpp.o: %.cpp
+	$(MFEM_CXX) $(MFEM_FLAGS) $(INC_FLAGS) -MMD -MP -c $< -o $@
+
+$(NAVIER_LIB): $(NAVIER_LIB_OBJS)
+	ar ru $@ $^
+	ranlib $@
 
 all: $(MINIAPPS)
 
@@ -74,8 +89,11 @@ $(MFEM_LIB_FILE):
 clean: clean-build clean-exec
 
 clean-build:
-	rm -f *.o *~ $(PAR_MINIAPPS)
+	rm -f $(NAVIER_LIB) $(NAVIER_LIB_OBJS) $(NAVIER_LIB_DEPS) $(EXAMPLE_OBJS) $(EXAMPLE_DEPS) $(PAR_MINIAPPS)
 	rm -rf *.dSYM *.TVD.*breakpoints
 
 clean-exec:
 	@rm -rf tgv_out*.txt *_output
+
+-include $(NAVIER_LIB_DEPS)
+-include $(EXAMPLE_DEPS)

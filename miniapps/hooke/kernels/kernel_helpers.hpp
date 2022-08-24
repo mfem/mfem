@@ -57,6 +57,57 @@ inline void CheckMemoryRestriction(int d1d, int q1d)
                "general/forall.hpp if device memory allows.");
 }
 
+template <int dim, int d1d, int q1d>
+static inline MFEM_HOST_DEVICE void
+CalcGrad(const tensor<double, q1d, d1d> &B,
+         const tensor<double, q1d, d1d> &G,
+         tensor<double,2,3,q1d,q1d> &smem,
+         const DeviceTensor<2, const double> &U,
+         tensor<double, q1d, q1d, dim> &dUdxi)
+{
+   MFEM_FOREACH_THREAD(dy,y,d1d)
+   {
+      MFEM_FOREACH_THREAD(dx,x,d1d)
+      {
+         smem(0,0,dx,dy) = U(dx,dy);
+      }
+   }
+   MFEM_SYNC_THREAD;
+   MFEM_FOREACH_THREAD(dy,y,d1d)
+   {
+      MFEM_FOREACH_THREAD(qx,x,q1d)
+      {
+         double u = 0.0;
+         double v = 0.0;
+         for (int dx = 0; dx < d1d; ++dx)
+         {
+            const double input = smem(0,0,dx,dy);
+            u += input * B(qx,dx);
+            v += input * G(qx,dx);
+         }
+         smem(0,1,dy,qx) = u;
+         smem(0,2,dy,qx) = v;
+      }
+   }
+   MFEM_SYNC_THREAD;
+   MFEM_FOREACH_THREAD(qy,y,q1d)
+   {
+      MFEM_FOREACH_THREAD(qx,x,q1d)
+      {
+         double u = 0.0;
+         double v = 0.0;
+         for (int dy = 0; dy < d1d; ++dy)
+         {
+            u += smem(0,2,dy,qx) * B(qy,dy);
+            v += smem(0,1,dy,qx) * G(qy,dy);
+         }
+         dUdxi(qy,qx,0) = u;
+         dUdxi(qy,qx,1) = v;
+      }
+   }
+   MFEM_SYNC_THREAD;
+}
+
 /**
  * @brief Multi-component gradient evaluation from DOFs to quadrature points in
  * reference coordinates.
@@ -156,14 +207,111 @@ CalcGrad(const tensor<double, q1d, d1d> &B,
                   v += smem(1,1,dz,qy,qx) * B(qz,dz);
                   w += smem(1,2,dz,qy,qx) * G(qz,dz);
                }
-               dUdxi(qz,qy,qx,c,0) += u;
-               dUdxi(qz,qy,qx,c,1) += v;
-               dUdxi(qz,qy,qx,c,2) += w;
+               dUdxi(qz,qy,qx,c,0) = u;
+               dUdxi(qz,qy,qx,c,1) = v;
+               dUdxi(qz,qy,qx,c,2) = w;
             }
          }
       }
       MFEM_SYNC_THREAD;
    } // vdim
+}
+
+template <int dim, int d1d, int q1d>
+static inline MFEM_HOST_DEVICE void
+CalcGrad(const tensor<double, q1d, d1d> &B,
+         const tensor<double, q1d, d1d> &G,
+         tensor<double,2,3,q1d,q1d> &smem,
+         const DeviceTensor<3, const double> &U,
+         tensor<double, q1d, q1d, dim, dim> &dUdxi)
+{
+   for (int c = 0; c < dim; ++c)
+   {
+      MFEM_FOREACH_THREAD(dy,y,d1d)
+      {
+         MFEM_FOREACH_THREAD(dx,x,d1d)
+         {
+            smem(0,0,dx,dy) = U(dx,dy,c);
+         }
+      }
+      MFEM_SYNC_THREAD;
+      MFEM_FOREACH_THREAD(dy,y,d1d)
+      {
+         MFEM_FOREACH_THREAD(qx,x,q1d)
+         {
+            double u = 0.0;
+            double v = 0.0;
+            for (int dx = 0; dx < d1d; ++dx)
+            {
+               const double input = smem(0,0,dx,dy);
+               u += input * B(qx,dx);
+               v += input * G(qx,dx);
+            }
+            smem(0,1,dy,qx) = u;
+            smem(0,2,dy,qx) = v;
+         }
+      }
+      MFEM_SYNC_THREAD;
+      MFEM_FOREACH_THREAD(qy,y,q1d)
+      {
+         MFEM_FOREACH_THREAD(qx,x,q1d)
+         {
+            double u = 0.0;
+            double v = 0.0;
+            for (int dy = 0; dy < d1d; ++dy)
+            {
+               u += smem(0,2,dy,qx) * B(qy,dy);
+               v += smem(0,1,dy,qx) * G(qy,dy);
+            }
+            dUdxi(qy,qx,c,0) = u;
+            dUdxi(qy,qx,c,1) = v;
+         }
+      }
+      MFEM_SYNC_THREAD;
+   } // vdim
+}
+
+template <int dim, int d1d, int q1d>
+static inline MFEM_HOST_DEVICE void
+CalcGradTSum(const tensor<double, q1d, d1d> &B,
+             const tensor<double, q1d, d1d> &G,
+             tensor<double, 2, 3, q1d, q1d> &smem,
+             const tensor<double, q1d, q1d, dim, dim> &U,
+             DeviceTensor<3, double> &F)
+{
+   for (int c = 0; c < dim; ++c)
+   {
+      MFEM_FOREACH_THREAD(qy, y, q1d)
+      {
+         MFEM_FOREACH_THREAD(dx, x, d1d)
+         {
+            double u = 0.0, v = 0.0;
+            for (int qx = 0; qx < q1d; ++qx)
+            {
+               u += U(qx, qy, 0, c) * G(qx, dx);
+               v += U(qx, qy, 1, c) * B(qx, dx);
+            }
+            smem(0, 0, qy, dx) = u;
+            smem(0, 1, qy, dx) = v;
+         }
+      }
+      MFEM_SYNC_THREAD;
+      MFEM_FOREACH_THREAD(dy, y, d1d)
+      {
+         MFEM_FOREACH_THREAD(dx, x, d1d)
+         {
+            double u = 0.0, v = 0.0;
+            for (int qy = 0; qy < q1d; ++qy)
+            {
+               u += smem(0, 0, qy, dx) * B(qy, dy);
+               v += smem(0, 1, qy, dx) * G(qy, dy);
+            }
+            const double sum = u + v;
+            F(dx, dy, c) += sum;
+         }
+      }
+      MFEM_SYNC_THREAD;
+   }
 }
 
 /**
@@ -256,6 +404,38 @@ CalcGradTSum(const tensor<double, q1d, d1d> &B,
    }
 }
 
+template <int dim, int d1d, int q1d>
+static inline MFEM_HOST_DEVICE tensor<double, d1d, d1d, dim>
+GradAllShapeFunctions(int qx, int qy,
+                      const tensor<double, q1d, d1d> &B,
+                      const tensor<double, q1d, d1d> &G,
+                      const tensor<double, dim, dim> &invJ)
+{
+   tensor<double, d1d, d1d, dim> dphi_dx;
+   // G (x) B
+   // B (x) G
+   for (int dx = 0; dx < d1d; dx++)
+   {
+      for (int dy = 0; dy < d1d; dy++)
+      {
+         dphi_dx(dx,dy) =
+            transpose(invJ) *
+            tensor<double, dim> {G(qx, dx) * B(qy, dy),
+                                 B(qx, dx) * G(qy, dy)
+                                };
+      }
+   }
+   return dphi_dx;
+}
+
+template <int d1d, int q1d>
+static inline MFEM_HOST_DEVICE tensor<double, q1d, q1d>
+EvaluateAtQuadraturePoints(const tensor<double, d1d, d1d> &u,
+                           const tensor<double, q1d, d1d> &B)
+{
+   return dot(B, dot(u, transpose(B)));
+}
+
 /**
  * @brief Compute the gradient of all shape functions.
  *
@@ -280,9 +460,9 @@ CalcGradTSum(const tensor<double, q1d, d1d> &B,
 template <int dim, int d1d, int q1d>
 static inline MFEM_HOST_DEVICE tensor<double, d1d, d1d, d1d, dim>
 GradAllShapeFunctions(int qx, int qy, int qz,
-            const tensor<double, q1d, d1d> &B,
-            const tensor<double, q1d, d1d> &G,
-            const tensor<double, dim, dim> &invJ)
+                      const tensor<double, q1d, d1d> &B,
+                      const tensor<double, q1d, d1d> &G,
+                      const tensor<double, dim, dim> &invJ)
 {
    tensor<double, d1d, d1d, d1d, dim> dphi_dx;
    // G (x) B (x) B

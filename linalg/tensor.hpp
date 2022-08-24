@@ -1051,21 +1051,21 @@ decltype(S {} * T{})
    return AB;
 }
 
-template <typename S, typename T, int m, int... n> MFEM_HOST_DEVICE
-auto dot(const tensor<S, m>& A, const tensor<T, m, n...>& B) ->
-tensor<decltype(S {} * T{}), n...>
-{
-   constexpr int dimensions[] = {n...};
-   tensor<decltype(S{} * T{}), n...> AB{};
-   for (int i = 0; i < dimensions[0]; i++)
-   {
-      for (int j = 0; j < m; j++)
-      {
-         AB[i] = AB[i] + A[j] * B[j][i];
-      }
-   }
-   return AB;
-}
+// template <typename S, typename T, int m, int n, int... l> MFEM_HOST_DEVICE
+// auto dot(const tensor<S, m>& A, const tensor<T, m, n, l...>& B) ->
+// tensor<decltype(S {} * T{}), n, l...>
+// {
+//    constexpr int dimensions[] = {n, l...};
+//    tensor<decltype(S{} * T{}), n, l...> AB{};
+//    for (int i = 0; i < n; i++)
+//    {
+//       for (int j = 0; j < m; j++)
+//       {
+//          AB[i] = AB[i] + A[j] * B[j][i];
+//       }
+//    }
+//    return AB;
+// }
 
 /**
  * @overload

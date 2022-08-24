@@ -9,35 +9,18 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 //
-// Navier Kovasznay example
+// Navier MMS example
 //
-// Solve for the steady Kovasznay flow at Re = 40 defined by
+// A manufactured solution is defined as
 //
-// u = [1 - exp(L * x) * cos(2 * pi * y),
-//      L / (2 * pi) * exp(L * x) * sin(2 * pi * y)],
+// u = [pi * sin(t) * sin(pi * x)^2 * sin(2 * pi * y),
+//      -(pi * sin(t) * sin(2 * pi * x)) * sin(pi * y)^2].
 //
-// p = 1/2 * (1 - exp(2 * L * x)),
+// p = cos(pi * x) * sin(t) * sin(pi * y)
 //
-// with L = Re/2 - sqrt(Re^2/4 + 4 * pi^2).
-//
-// The problem domain is set up like this
-//
-//            +-------------+
-//            |             |
-//            |             |
-//            |             |
-//            |             |
-//  Inflow -> |             | -> Outflow
-//            |             |
-//            |             |
-//            |             |
-//            |             |
-//            |             |
-//            +-------------+
-//
-// and Dirichlet boundary conditions are applied for the velocity on every
-// boundary. The problem, although steady state, is time integrated up to the
-// final time and the solution is compared with the known exact solution.
+// The solution is used to compute the symbolic forcing term (right hand side),
+// of the equation. Then the numerical solution is computed and compared to the
+// exact manufactured solution to determine the error.
 
 #include "navier_solver.hpp"
 #include <fstream>
@@ -49,33 +32,67 @@ struct s_NavierContext
 {
    int ser_ref_levels = 1;
    int order = 6;
-   double kinvis = 1.0 / 40.0;
-   double t_final = 10 * 0.001;
-   double dt = 0.001;
-   double reference_pressure = 0.0;
-   double reynolds = 1.0 / kinvis;
-   double lam = 0.5 * reynolds
-                - sqrt(0.25 * reynolds * reynolds + 4.0 * M_PI * M_PI);
+   double kinvis = 0.025;
+   double t_final = 100 * 0.25e-4;
+   double dt = 0.25e-4;
    bool pa = true;
    bool ni = false;
    bool visualization = false;
    bool checkres = false;
 } ctx;
 
-void vel_kovasznay(const Vector &x, double t, Vector &u)
+double kinvis_mms(const Vector &c)
 {
-   double xi = x(0);
-   double yi = x(1);
+   double x = c(0);
+   double y = c(1);
 
-   u(0) = 1.0 - exp(ctx.lam * xi) * cos(2.0 * M_PI * yi);
-   u(1) = ctx.lam / (2.0 * M_PI) * exp(ctx.lam * xi) * sin(2.0 * M_PI * yi);
+   return 0.025*(2.0+cos(x)*sin(y));
+   // return 0.025;
 }
 
-double pres_kovasznay(const Vector &x, double t)
+Vector dkinvis_mmsdx(const Vector &c)
 {
-   double xi = x(0);
+   double x = c(0);
+   double y = c(1);
+   Vector dkvdx(2);
+   dkvdx(0) = -(sin(x)*sin(y))*0.025;
+   dkvdx(1) = cos(x)*cos(y)*0.025;
+   // dkvdx(0) = 0.0;
+   // dkvdx(1) = 0.0;
+   return dkvdx;
+}
 
-   return 0.5 * (1.0 - exp(2.0 * ctx.lam * xi)) + ctx.reference_pressure;
+void vel(const Vector &c, double t, Vector &u)
+{
+   double x = c(0);
+   double y = c(1);
+
+   u(0) = cos(x)*sin(t)*sin(y);
+   u(1) = -(cos(y)*sin(t)*sin(x));
+}
+
+double p(const Vector &c, double t)
+{
+   double x = c(0);
+   double y = c(1);
+
+   return cos(x)*sin(t)*sin(y);
+}
+
+void accel(const Vector &c, double t, Vector &u)
+{
+   double x = c(0);
+   double y = c(1);
+
+   u(0) = cos(x)*pow(cos(y),2)*pow(sin(t),
+                                   2)*sin(x) + cos(t)*cos(x)*sin(y) - sin(t)*sin(x)*sin(y) - cos(x)*pow(sin(t),
+                                         2)*sin(x)*pow(sin(y),2) + 2*cos(x)*sin(t)*sin(y)*kinvis_mms(c) + 2*sin(t)*sin(
+             x)*sin(y)*dkinvis_mmsdx(c)[0];
+
+   u(1) = cos(x)*cos(y)*sin(t) - cos(t)*cos(y)*sin(x) + pow(cos(x),
+                                                            2)*cos(y)*pow(sin(t),2)*sin(y) - cos(y)*pow(sin(t),2)*pow(sin(x),
+                                                                  2)*sin(y) - 2*cos(y)*sin(t)*sin(x)*kinvis_mms(c) - 2*sin(t)*sin(x)*sin(
+             y)*dkinvis_mmsdx(c)[1];
 }
 
 int main(int argc, char *argv[])
@@ -133,12 +150,9 @@ int main(int argc, char *argv[])
       args.PrintOptions(mfem::out);
    }
 
-   Mesh mesh = Mesh::MakeCartesian2D(2, 4, Element::QUADRILATERAL, false, 1.5,
-                                     2.0);
+   Mesh mesh = Mesh::MakeCartesian2D(2, 2, Element::QUADRILATERAL, false, 2*M_PI,
+                                     2.0*M_PI);
 
-   mesh.EnsureNodes();
-   GridFunction *nodes = mesh.GetNodes();
-   *nodes -= 0.5;
 
    for (int i = 0; i < ctx.ser_ref_levels; ++i)
    {
@@ -150,41 +164,47 @@ int main(int argc, char *argv[])
       std::cout << "Number of elements: " << mesh.GetNE() << std::endl;
    }
 
-   auto *pmesh = new ParMesh(MPI_COMM_WORLD, mesh);
-   mesh.Clear();
+   ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, mesh);
 
    // Create the flow solver.
-   NavierSolver flowsolver(pmesh, ctx.order, ctx.kinvis);
-   flowsolver.EnablePA(ctx.pa);
-   flowsolver.EnableNI(ctx.ni);
+   NavierSolver naviersolver(pmesh, ctx.order, ctx.kinvis);
+   naviersolver.EnablePA(ctx.pa);
+   naviersolver.EnableNI(ctx.ni);
+
+   auto kv_gf = naviersolver.GetVariableViscosity();
+   FunctionCoefficient kv_coeff(kinvis_mms);
+   kv_gf->ProjectCoefficient(kv_coeff);
 
    // Set the initial condition.
-   ParGridFunction *u_ic = flowsolver.GetCurrentVelocity();
-   VectorFunctionCoefficient u_excoeff(pmesh->Dimension(), vel_kovasznay);
+   ParGridFunction *u_ic = naviersolver.GetCurrentVelocity();
+   VectorFunctionCoefficient u_excoeff(pmesh->Dimension(), vel);
    u_ic->ProjectCoefficient(u_excoeff);
 
-   FunctionCoefficient p_excoeff(pres_kovasznay);
+   FunctionCoefficient p_excoeff(p);
 
    // Add Dirichlet boundary conditions to velocity space restricted to
    // selected attributes on the mesh.
    Array<int> attr(pmesh->bdr_attributes.Max());
    attr = 1;
-   flowsolver.AddVelDirichletBC(vel_kovasznay, attr);
+   naviersolver.AddVelDirichletBC(vel, attr);
+
+   Array<int> domain_attr(pmesh->attributes.Max());
+   domain_attr = 1;
+   naviersolver.AddAccelTerm(accel, domain_attr);
 
    double t = 0.0;
    double dt = ctx.dt;
    double t_final = ctx.t_final;
    bool last_step = false;
 
-   flowsolver.Setup(dt);
+   naviersolver.Setup(dt);
 
    double err_u = 0.0;
    double err_p = 0.0;
    ParGridFunction *u_gf = nullptr;
    ParGridFunction *p_gf = nullptr;
-
-   ParGridFunction p_ex_gf(flowsolver.GetCurrentPressure()->ParFESpace());
-   GridFunctionCoefficient p_ex_gf_coeff(&p_ex_gf);
+   u_gf = naviersolver.GetCurrentVelocity();
+   p_gf = naviersolver.GetCurrentPressure();
 
    for (int step = 0; !last_step; ++step)
    {
@@ -193,63 +213,39 @@ int main(int argc, char *argv[])
          last_step = true;
       }
 
-      flowsolver.Step(t, dt, step);
+      naviersolver.Step(t, dt, step);
 
       // Compare against exact solution of velocity and pressure.
-      u_gf = flowsolver.GetCurrentVelocity();
-      p_gf = flowsolver.GetCurrentPressure();
-
       u_excoeff.SetTime(t);
       p_excoeff.SetTime(t);
-
-      // Remove mean value from exact pressure solution.
-      p_ex_gf.ProjectCoefficient(p_excoeff);
-      flowsolver.MeanZero(p_ex_gf);
-
       err_u = u_gf->ComputeL2Error(u_excoeff);
-      err_p = p_gf->ComputeL2Error(p_ex_gf_coeff);
-
-      double cfl = flowsolver.ComputeCFL(*u_gf, dt);
+      err_p = p_gf->ComputeL2Error(p_excoeff);
 
       if (Mpi::Root())
       {
-         printf("%5s %8s %8s %8s %11s %11s\n",
-                "Order",
-                "CFL",
-                "Time",
-                "dt",
-                "err_u",
-                "err_p");
-         printf("%5.2d %8.2E %.2E %.2E %.5E %.5E err\n",
-                ctx.order,
-                cfl,
-                t,
-                dt,
-                err_u,
-                err_p);
+         printf("%11s %11s %11s %11s\n", "Time", "dt", "err_u", "err_p");
+         printf("%.5E %.5E %.5E %.5E err\n", t, dt, err_u, err_p);
          fflush(stdout);
       }
    }
 
    if (ctx.visualization)
    {
-      char vishost[] = "localhost";
+      char vishost[] = "128.15.198.77";
       int visport = 19916;
       socketstream sol_sock(vishost, visport);
-      sol_sock.precision(8);
       sol_sock << "parallel " << Mpi::WorldSize() << " "
                << Mpi::WorldRank() << "\n";
-      sol_sock << "solution\n" << *pmesh << *u_ic << std::flush;
+      sol_sock << "solution\n" << *pmesh << *kv_gf << std::flush;
    }
 
-   flowsolver.PrintTimingData();
+   naviersolver.PrintTimingData();
 
    // Test if the result for the test run is as expected.
    if (ctx.checkres)
    {
-      double tol_u = 1e-6;
-      double tol_p = 1e-5;
-      if (err_u > tol_u || err_p > tol_p)
+      double tol = 1e-3;
+      if (err_u > tol || err_p > tol)
       {
          if (Mpi::Root())
          {
