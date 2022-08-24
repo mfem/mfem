@@ -44,8 +44,6 @@ Mesh MakeCartesianMesh(int p, int requested_ndof, int dim)
 
 struct LORBench
 {
-   const double EPS = 1e-14;
-   const int RANDOM_SEED = 0x100001b3;
    GeometricFactors::FactorFlags DETERMINANTS = GeometricFactors::DETERMINANTS;
    const int p; // polynomial degree
    const int dim; // space dimension
@@ -63,13 +61,17 @@ struct LORBench
 
    OperatorHandle A_ho, A_lor;
 
+   HYPRE_Int row_starts[2];
+   HypreParMatrix *A = nullptr;
+   HypreBoomerAMG amg;
+
    Array<int> ess_dofs;
 
    const int ndofs;
    double mdof;
    Vector x, y;
 
-   LORBench(int p_, int requested_ndof, int dim_) :
+   LORBench(int p_, int requested_ndof, int dim_, const std::string &name) :
       p(p_),
       dim(dim_),
       mesh(MakeCartesianMesh(p, requested_ndof, dim)),
@@ -92,17 +94,32 @@ struct LORBench
       //           << std::setw(10) << ndofs << '\n';
       fes_ho.GetBoundaryTrueDofs(ess_dofs);
 
-      a_ho.AddDomainIntegrator(new DiffusionIntegrator);
-      a_ho.AddDomainIntegrator(new MassIntegrator);
+      a_ho.AddDomainIntegrator(new DiffusionIntegrator(&IntRules.Get(mesh.GetElementGeometry(0), 2*p)));
+      a_ho.AddDomainIntegrator(new MassIntegrator(&IntRules.Get(mesh.GetElementGeometry(0), 2*p)));
       a_ho.SetAssemblyLevel(AssemblyLevel::PARTIAL);
 
       a_lor.AddDomainIntegrator(new DiffusionIntegrator(&ir));
       a_lor.AddDomainIntegrator(new MassIntegrator(&ir));
       a_lor.SetAssemblyLevel(AssemblyLevel::FULL);
 
+      x.Randomize(1);
+      y.Randomize(2);
+
       // warm up
-      // AssembleHO();
-      AssembleBatched();
+      if (name == "AssembleHO" || name == "ApplyHO") { AssembleHO(); }
+      if (name == "AssembleBatched") { AssembleBatched(); }
+      if (name == "AssembleFull") { AssembleFull(); }
+      if (name == "AMGSetup" || name == "Vcycle")
+      {
+         AssembleBatched();
+         SparseMatrix &A_serial = lor.GetAssembledMatrix();
+         row_starts[0] = 0;
+         row_starts[1] = A_serial.Height();
+         A = new HypreParMatrix(MPI_COMM_WORLD, A_serial.Height(), row_starts, &A_serial);
+         amg.SetOperator(*A);
+         amg.SetPrintLevel(0);
+      }
+      if (name == "Vcycle") { amg.Setup(x,y); }
    }
 
    void AssembleHO()
@@ -130,6 +147,31 @@ struct LORBench
       mdof += 1e-6 * ndofs;
       lor.AssembleSystem(a_ho, ess_dofs);
    }
+
+   void ApplyHO()
+   {
+      NVTX("ApplyHO");
+      MFEM_DEVICE_SYNC;
+      mdof += 1e-6 * ndofs;
+      A_ho->Mult(x, y);
+   }
+
+   void AMGSetup()
+   {
+      NVTX("AMG Setup");
+      MFEM_DEVICE_SYNC;
+      amg.SetOperator(*A);
+      amg.Setup(x, y);
+   }
+
+   void Vcycle()
+   {
+      NVTX("Vcycle");
+      MFEM_DEVICE_SYNC;
+      amg.Mult(x, y);
+   }
+
+   ~LORBench() { delete A; }
 
    // void AllLegacy()
    // {
@@ -194,7 +236,7 @@ static void Name(bm::State &state){\
    if (p == 1 && log_ndof >= 21) { state.SkipWithError("Problem size"); return; }\
    if (p == 2 && log_ndof >= 23) { state.SkipWithError("Problem size"); return; }\
    if (p == 3 && log_ndof >= 23) { state.SkipWithError("Problem size"); return; }\
-   LORBench lor(p, requested_ndof, dim);\
+   LORBench lor(p, requested_ndof, dim, #Name);\
    while (state.KeepRunning()) { lor.Name(); }\
    bm::Counter::Flags flags = bm::Counter::kIsIterationInvariantRate;\
    state.counters["MDof/s"] = bm::Counter(1e-6*lor.ndofs, flags);\
@@ -210,12 +252,14 @@ Benchmark(AssembleHO)
 Benchmark(AssembleFull)
 Benchmark(AssembleBatched)
 
-//Benchmark(AllLegacy)
-// Benchmark(AllFull)
-// Benchmark(AllBatched)
+Benchmark(ApplyHO)
+Benchmark(AMGSetup)
+Benchmark(Vcycle)
 
 int main(int argc, char *argv[])
 {
+   Mpi::Init();
+
    bm::ConsoleReporter CR;
    bm::Initialize(&argc, argv);
 
@@ -239,4 +283,3 @@ int main(int argc, char *argv[])
 }
 
 #endif // MFEM_USE_BENCHMARK
-
