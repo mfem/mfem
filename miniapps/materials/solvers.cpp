@@ -1,5 +1,5 @@
 #include "solvers.hpp"
-#include "rational_approximation.hpp"
+#include "../../examples/ex33.hpp"
 
 namespace mfem {
 namespace materials {
