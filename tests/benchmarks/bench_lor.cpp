@@ -55,6 +55,9 @@ struct LORBench
    H1_FECollection fec_ho;
    FiniteElementSpace fes_ho;
 
+   IntegrationRules irs;
+   const IntegrationRule &ir;
+
    LORDiscretization lor;
    BilinearForm a_ho, a_lor;
 
@@ -73,6 +76,8 @@ struct LORBench
       ne(mesh.GetNE()), // might differ from n_requested if not evenly divisible
       fec_ho(p, dim),
       fes_ho(&mesh, &fec_ho),
+      irs(0, Quadrature1D::GaussLobatto),
+      ir(irs.Get(mesh.GetElementGeometry(0), 1)),
       lor(fes_ho),
       a_ho(&fes_ho),
       a_lor(&lor.GetFESpace()),
@@ -91,13 +96,12 @@ struct LORBench
       a_ho.AddDomainIntegrator(new MassIntegrator);
       a_ho.SetAssemblyLevel(AssemblyLevel::PARTIAL);
 
-      a_lor.AddDomainIntegrator(new DiffusionIntegrator);
-      a_lor.AddDomainIntegrator(new MassIntegrator);
+      a_lor.AddDomainIntegrator(new DiffusionIntegrator(&ir));
+      a_lor.AddDomainIntegrator(new MassIntegrator(&ir));
       a_lor.SetAssemblyLevel(AssemblyLevel::FULL);
 
       // warm up
-      AssembleHO();
-      AssembleFull();
+      // AssembleHO();
       AssembleBatched();
    }
 
@@ -175,7 +179,7 @@ struct LORBench
 #define P_ORDERS bm::CreateDenseRange(1,8,1)
 
 // The different sides of the mesh
-#define LOG_NDOFS bm::CreateDenseRange(7,22,1)
+#define LOG_NDOFS bm::CreateDenseRange(7,23,1)
 
 // Dimensions: 2 or 3
 #define DIMS bm::CreateDenseRange(2,3,1)
@@ -184,8 +188,12 @@ struct LORBench
 #define Benchmark(Name)\
 static void Name(bm::State &state){\
    const int p = state.range(0);\
-   const int requested_ndof = pow(2, state.range(1));\
+   const int log_ndof = state.range(1);\
+   const int requested_ndof = pow(2, log_ndof);\
    const int dim = state.range(2);\
+   if (p == 1 && log_ndof >= 21) { state.SkipWithError("Problem size"); return; }\
+   if (p == 2 && log_ndof >= 23) { state.SkipWithError("Problem size"); return; }\
+   if (p == 3 && log_ndof >= 23) { state.SkipWithError("Problem size"); return; }\
    LORBench lor(p, requested_ndof, dim);\
    while (state.KeepRunning()) { lor.Name(); }\
    bm::Counter::Flags flags = bm::Counter::kIsIterationInvariantRate;\
@@ -198,8 +206,6 @@ BENCHMARK(Name)\
             -> Unit(bm::kMillisecond)\
             -> Iterations(10);
 
-// Benchmark(SanityChecks)
-
 Benchmark(AssembleHO)
 Benchmark(AssembleFull)
 Benchmark(AssembleBatched)
@@ -208,12 +214,6 @@ Benchmark(AssembleBatched)
 // Benchmark(AllFull)
 // Benchmark(AllBatched)
 
-/**
- * @brief main entry point
- * --benchmark_filter=SanityChecks/3/16
- * --benchmark_filter=\(Batched\|Deviced\|Full\)/4/16
- * --benchmark_context=device=cuda
- */
 int main(int argc, char *argv[])
 {
    bm::ConsoleReporter CR;
@@ -239,3 +239,4 @@ int main(int argc, char *argv[])
 }
 
 #endif // MFEM_USE_BENCHMARK
+
