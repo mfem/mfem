@@ -484,13 +484,12 @@ void SparseMatrix::SortColumnIndices()
                                        d_ja_sorted, sortInfoA,
                                        &pBufferSizeInBytes);
 
-      Memory< char > buffer( pBufferSizeInBytes );
+      Array< char > buffer( pBufferSizeInBytes );
       pBuffer = buffer.Write();
 
       cusparseDcsru2csr( handle, n, m, nnzA, matA_descr, d_a_sorted, d_ia,
                          d_ja_sorted, sortInfoA, pBuffer);
 
-      buffer.Delete();
       cusparseDestroyCsru2csrInfo( sortInfoA );
       isSorted = true;
 #endif
@@ -513,15 +512,15 @@ void SparseMatrix::SortColumnIndices()
       //        a temporary copy of the data for gthr, sort that, and then copy the sorted values
       //        back to the array being returned. Where there is an in-place version available,
       //        we should use it.
-      Memory< double > a_tmp( nnzA );
+      Array< double > a_tmp( nnzA );
       double *d_a_tmp = a_tmp.Write();
 
       rocsparse_csrsort_buffer_size(handle, n, m, nnzA, d_ia, d_ja_sorted,
                                     &pBufferSizeInBytes);
 
-      Memory< char > buffer( pBufferSizeInBytes );
+      Array< char > buffer( pBufferSizeInBytes );
       pBuffer = buffer.Write();
-      Memory< int > P_mem( nnzA );
+      Array< int > P_mem( nnzA );
       P       = P_mem.Write();
 
       rocsparse_create_identity_permutation(handle, nnzA, P);
@@ -530,12 +529,8 @@ void SparseMatrix::SortColumnIndices()
       rocsparse_dgthr(handle, nnzA, d_a_sorted, d_a_tmp, P,
                       rocsparse_index_base_zero);
 
-      buffer.Delete();
-      P_mem.Delete();
+      a_sorted = d_a_tmp;
 
-      a_sorted = std::move( d_a_tmp );
-
-      a_tmp.Delete();
       isSorted = true;
 #endif
    }
