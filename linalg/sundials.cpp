@@ -41,6 +41,35 @@ using namespace std;
 namespace mfem
 {
 
+void Sundials::Init()
+{
+   GetContext();
+}
+
+SUNContext &Sundials::GetContext()
+{
+   static Sundials sundials;
+   return sundials.context;
+}
+
+Sundials::Sundials()
+{
+#ifdef MFEM_USE_MPI
+   MPI_Comm communicator = MPI_COMM_WORLD;
+   int return_val = SUNContext_Create((void*) &communicator, &context);
+#else
+   int return_val = SUNContext_Create(nullptr, &context);
+#endif
+   MFEM_VERIFY(return_val == 1,
+              "Call to SUNContext_Create failed in Sundials singleton");
+}
+
+Sundials::~Sundials()
+{
+   SUNContext_Free(&context);
+}
+
+
 // ---------------------------------------------------------------------------
 // SUNMemory interface class (private)
 // ---------------------------------------------------------------------------
