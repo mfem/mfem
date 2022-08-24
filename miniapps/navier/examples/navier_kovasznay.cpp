@@ -51,7 +51,7 @@ struct s_NavierContext
    int order = 6;
    double kinvis = 1.0 / 40.0;
    double t_final = 10 * 0.001;
-   double dt = 0.001;
+   double dt = 1.0e-3;
    double reference_pressure = 0.0;
    double reynolds = 1.0 / kinvis;
    double lam = 0.5 * reynolds
@@ -133,7 +133,7 @@ int main(int argc, char *argv[])
       args.PrintOptions(mfem::out);
    }
 
-   Mesh mesh = Mesh::MakeCartesian2D(2, 4, Element::QUADRILATERAL, false, 1.5,
+   Mesh mesh = Mesh::MakeCartesian2D(1, 2, Element::QUADRILATERAL, false, 1.5,
                                      2.0);
 
    mesh.EnsureNodes();
@@ -183,6 +183,7 @@ int main(int argc, char *argv[])
    ParGridFunction *u_gf = nullptr;
    ParGridFunction *p_gf = nullptr;
 
+   ParGridFunction u_ex_gf(flowsolver.GetCurrentVelocity()->ParFESpace());
    ParGridFunction p_ex_gf(flowsolver.GetCurrentPressure()->ParFESpace());
    GridFunctionCoefficient p_ex_gf_coeff(&p_ex_gf);
 
@@ -206,7 +207,15 @@ int main(int argc, char *argv[])
       p_ex_gf.ProjectCoefficient(p_excoeff);
       flowsolver.MeanZero(p_ex_gf);
 
-      err_u = u_gf->ComputeL2Error(u_excoeff);
+      const IntegrationRule *irs[Geometry::NumGeom];
+      for (int i=0; i < Geometry::NumGeom; ++i)
+      {
+         irs[i] = &(flowsolver.gll_rules.Get(i, 2 * ctx.order - 1));
+      }
+
+      err_u = u_gf->ComputeL2Error(u_excoeff, irs);
+      err_u = sqrt((err_u*err_u) / flowsolver.volume);
+
       err_p = p_gf->ComputeL2Error(p_ex_gf_coeff);
 
       double cfl = flowsolver.ComputeCFL(*u_gf, dt);
