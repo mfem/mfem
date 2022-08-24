@@ -18,6 +18,11 @@ CMakeFiles/
 # Backup files
 *~
 
+*.sqlite
+*.nsys-rep
+*.qdstrm
+*.csv
+
 # Default install location
 /mfem/
 
