@@ -109,6 +109,9 @@ double InitialTemperature(const Vector &x);
 
 int main(int argc, char *argv[])
 {
+   // 0. Initialize SUNDIALS.
+   Sundials::Init();
+
    // 1. Parse command-line options.
    const char *mesh_file = "../../data/star.mesh";
    int ref_levels = 2;

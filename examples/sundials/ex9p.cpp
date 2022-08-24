@@ -152,11 +152,12 @@ public:
 
 int main(int argc, char *argv[])
 {
-   // 1. Initialize MPI and HYPRE.
+   // 1. Initialize MPI, HYPRE, and SUNDIALS.
    Mpi::Init(argc, argv);
    int num_procs = Mpi::WorldSize();
    int myid = Mpi::WorldRank();
    Hypre::Init();
+   Sundials::Init();
 
    // 2. Parse command-line options.
    problem = 0;

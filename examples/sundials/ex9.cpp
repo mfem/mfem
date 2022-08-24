@@ -140,6 +140,9 @@ public:
 
 int main(int argc, char *argv[])
 {
+   // 0. Initialize SUNDIALS.
+   Sundials::Init();
+
    // 1. Parse command-line options.
    problem = 0;
    const char *mesh_file = "../../data/periodic-hexagon.mesh";
