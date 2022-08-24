@@ -60,8 +60,7 @@ Sundials::Sundials()
 #else
    int return_val = SUNContext_Create(nullptr, &context);
 #endif
-   MFEM_VERIFY(return_val == 1,
-              "Call to SUNContext_Create failed in Sundials singleton");
+   MFEM_VERIFY(return_val == 0, "Call to SUNContext_Create failed");
 }
 
 Sundials::~Sundials()
