@@ -468,11 +468,6 @@ public:
    { return mfem::ReadWrite(data, size, false); }
 
 //#ifdef MFEM_USE_SUNDIALS
-   /// (DEPRECATED) Return a new wrapper SUNDIALS N_Vector of type SUNDIALS_NVEC_SERIAL.
-   /** @deprecated The returned N_Vector must be destroyed by the caller. */
-   //MFEM_DEPRECATED virtual N_Vector ToNVector()
-   //{ return N_VMake_Serial(Size(), GetData()); }
-
    /** @deprecated @brief Update an existing wrapper SUNDIALS N_Vector to point to this
        Vector.
 
