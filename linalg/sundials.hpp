@@ -37,11 +37,53 @@
 #include <arkode/arkode_arkstep.h>
 #include <cvodes/cvodes.h>
 #include <kinsol/kinsol.h>
+#ifdef MFEM_USE_CUDA
+#include <sunmemory/sunmemory_cuda.h>
+#endif
+
 
 #include <functional>
 
 namespace mfem
 {
+
+#ifdef MFEM_USE_CUDA
+
+// ---------------------------------------------------------------------------
+// SUNMemory interface class (only nontrivial when used with CUDA)
+// ---------------------------------------------------------------------------
+class SundialsMemHelper
+{
+protected:
+   /// The actual SUNDIALS object
+   SUNMemoryHelper h;
+
+public:
+
+   ~SundialsMemHelper() { SUNMemoryHelper_Destroy(h); }
+
+   /// Typecasting to SUNDIALS' SUNMemoryHelper type
+   operator SUNMemoryHelper() const { return h; }
+
+   static int SundialsMemHelper_Alloc(SUNMemoryHelper helper,
+                                      SUNMemory* memptr,
+                                      size_t memsize,
+                                      SUNMemoryType mem_type);
+
+   static int SundialsMemHelper_Dealloc(SUNMemoryHelper helper,
+                                        SUNMemory sunmem);
+
+};
+
+#else // MFEM_USE_CUDA
+
+class SundialsMemHelper
+{
+public:
+  SundialsMemHelper() {}
+};
+
+#endif // MFEM_USE_CUDA
 
 class Sundials
 {
@@ -55,6 +97,8 @@ public:
 
    static SUNContext &GetContext();
 
+   static SundialsMemHelper &GetMemHelper();
+
 private:
 
    Sundials();
@@ -62,6 +106,8 @@ private:
    ~Sundials();
 
    SUNContext context;
+
+   SundialsMemHelper memHelper;
 };
 
 // ---------------------------------------------------------------------------

@@ -22,7 +22,6 @@
 #include <nvector/nvector_serial.h>
 #ifdef MFEM_USE_CUDA
 #include <nvector/nvector_cuda.h>
-#include <sunmemory/sunmemory_cuda.h>
 #endif
 #ifdef MFEM_USE_MPI
 #include <nvector/nvector_mpiplusx.h>
@@ -44,12 +43,19 @@ namespace mfem
 void Sundials::Init()
 {
    GetContext();
+   GetMemHelper();
 }
 
 SUNContext &Sundials::GetContext()
 {
    static Sundials sundials;
    return sundials.context;
+}
+
+SundialsMemHelper &Sundials::GetMemHelper()
+{
+  static Sundials sundials;
+  return sundials.memHelper;
 }
 
 Sundials::Sundials()
@@ -68,109 +74,85 @@ Sundials::~Sundials()
    SUNContext_Free(&context);
 }
 
-
-// ---------------------------------------------------------------------------
-// SUNMemory interface class (private)
-// ---------------------------------------------------------------------------
-
 #ifdef MFEM_USE_CUDA
-class SundialsMemHelper
+
+SundialsMemHelper::SundialsMemHelper()
 {
-protected:
-   /// The actual SUNDIALS object
-   SUNMemoryHelper h;
+   /* Allocate helper */
+   h = SUNMemoryHelper_NewEmpty();
 
-   friend class SundialsNVector;
+   /* Set the ops */
+   h->ops->alloc     = SundialsMemHelper_Alloc;
+   h->ops->dealloc   = SundialsMemHelper_Dealloc;
+   h->ops->copy      = SUNMemoryHelper_Copy_Cuda;
+   h->ops->copyasync = SUNMemoryHelper_CopyAsync_Cuda;
+}
 
-public:
-   SundialsMemHelper()
+int SundialsMemHelerp::SundialsMemHelper_Alloc(SUNMemoryHelper helper,
+                                               SUNMemory* memptr,
+                                               size_t memsize,
+                                              SUNMemoryType mem_type)
+{
+   int length = memsize/sizeof(double);
+   SUNMemory sunmem = SUNMemoryNewEmpty();
+
+   sunmem->ptr = NULL;
+   sunmem->own = SUNTRUE;
+
+   if (mem_type == SUNMEMTYPE_HOST)
    {
-      /* Allocate helper */
-      h = SUNMemoryHelper_NewEmpty();
-
-      /* Set the ops */
-      h->ops->alloc     = SundialsMemHelper_Alloc;
-      h->ops->dealloc   = SundialsMemHelper_Dealloc;
-#ifdef MFEM_USE_CUDA
-      h->ops->copy      = SUNMemoryHelper_Copy_Cuda;
-      h->ops->copyasync = SUNMemoryHelper_CopyAsync_Cuda;
-#endif
+      Memory<double> mem(length, Device::GetHostMemoryType());
+      mem.SetHostPtrOwner(false);
+      sunmem->ptr  = mfem::HostReadWrite(mem, length);
+      sunmem->type = SUNMEMTYPE_HOST;
+      mem.Delete();
+   }
+   else if (mem_type == SUNMEMTYPE_DEVICE || mem_type == SUNMEMTYPE_UVM)
+   {
+      Memory<double> mem(length, Device::GetDeviceMemoryType());
+      mem.SetDevicePtrOwner(false);
+      sunmem->ptr  = mfem::ReadWrite(mem, length);
+      sunmem->type = mem_type;
+      mem.Delete();
+   }
+   else
+   {
+      free(sunmem);
+      return -1;
    }
 
-   ~SundialsMemHelper()
+   *memptr = sunmem;
+   return 0;
+}
+
+int SundialsMemHelper::SundialsMemHelper_Dealloc(SUNMemoryHelper helper,
+                                                 SUNMemory sunmem)
+{
+   if (sunmem->ptr && sunmem->own && !mm.IsKnown(sunmem->ptr))
    {
-      SUNMemoryHelper_Destroy(h);
-   }
-
-   /// Typecasting to SUNDIALS' SUNMemoryHelper type
-   operator SUNMemoryHelper() const { return h; }
-
-   static int SundialsMemHelper_Alloc(SUNMemoryHelper helper,
-                                      SUNMemory* memptr,
-                                      size_t memsize,
-                                      SUNMemoryType mem_type)
-   {
-      int length = memsize/sizeof(double);
-      SUNMemory sunmem = SUNMemoryNewEmpty();
-
-      sunmem->ptr = NULL;
-      sunmem->own = SUNTRUE;
-
-      if (mem_type == SUNMEMTYPE_HOST)
+      if (sunmem->type == SUNMEMTYPE_HOST)
       {
-         Memory<double> mem(length, Device::GetHostMemoryType());
-         mem.SetHostPtrOwner(false);
-         sunmem->ptr  = mfem::HostReadWrite(mem, length);
-         sunmem->type = SUNMEMTYPE_HOST;
+         Memory<double> mem(static_cast<double*>(sunmem->ptr), 1,
+                            Device::GetHostMemoryType(), true);
          mem.Delete();
       }
-      else if (mem_type == SUNMEMTYPE_DEVICE || mem_type == SUNMEMTYPE_UVM)
+      else if (sunmem->type == SUNMEMTYPE_DEVICE || sunmem->type == SUNMEMTYPE_UVM)
       {
-         Memory<double> mem(length, Device::GetDeviceMemoryType());
-         mem.SetDevicePtrOwner(false);
-         sunmem->ptr  = mfem::ReadWrite(mem, length);
-         sunmem->type = mem_type;
+         Memory<double> mem(static_cast<double*>(sunmem->ptr), 1,
+                            Device::GetDeviceMemoryType(), true);
          mem.Delete();
       }
       else
       {
-         free(sunmem);
+         MFEM_ABORT("Invalid SUNMEMTYPE");
          return -1;
       }
-
-      *memptr = sunmem;
-      return 0;
    }
+   free(sunmem);
+   return 0;
+}
 
-   static int SundialsMemHelper_Dealloc(SUNMemoryHelper helper, SUNMemory sunmem)
-   {
-      if (sunmem->ptr && sunmem->own && !mm.IsKnown(sunmem->ptr))
-      {
-         if (sunmem->type == SUNMEMTYPE_HOST)
-         {
-            Memory<double> mem(static_cast<double*>(sunmem->ptr), 1,
-                               Device::GetHostMemoryType(), true);
-            mem.Delete();
-         }
-         else if (sunmem->type == SUNMEMTYPE_DEVICE || sunmem->type == SUNMEMTYPE_UVM)
-         {
-            Memory<double> mem(static_cast<double*>(sunmem->ptr), 1,
-                               Device::GetDeviceMemoryType(), true);
-            mem.Delete();
-         }
-         else
-         {
-            MFEM_ABORT("Invalid SUNMEMTYPE");
-            return -1;
-         }
-      }
-      free(sunmem);
-      return 0;
-   }
-};
-
-SundialsMemHelper sunmemHelper;
-#endif
+#endif // MFEM_USE_CUDA
 
 
 // ---------------------------------------------------------------------------
