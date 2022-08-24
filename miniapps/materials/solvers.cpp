@@ -1,5 +1,5 @@
 #include "solvers.hpp"
-#include "../../examples/ex33.hpp"
+#include "examples/ex33.hpp"
 
 namespace mfem {
 namespace materials {
