@@ -472,7 +472,7 @@ void SparseMatrix::SortColumnIndices()
 
       const int n = Height();
       const int m = Width();
-      const int nnzA = J.Size();
+      const int nnzA = J.Capacity();
       double * d_a_sorted = A.ReadWrite();
       const int * d_ia = I.Read();
       int * d_ja_sorted = J.ReadWrite();
