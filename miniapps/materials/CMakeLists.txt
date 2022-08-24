@@ -13,7 +13,6 @@ if (MFEM_USE_MPI)
   add_mfem_miniapp(synthetic_materials
     MAIN synthetic_materials.cpp
     EXTRA_SOURCES material_metrics.cpp solvers.cpp util.cpp visualizer.cpp
-    EXTRA_HEADERS ../../examples/ex33.hpp
     LIBRARIES mfem)
 
   # Copy files to the build folder.
