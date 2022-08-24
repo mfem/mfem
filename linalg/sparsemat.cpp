@@ -473,9 +473,9 @@ void SparseMatrix::SortColumnIndices()
       const int n = Height();
       const int m = Width();
       const int nnzA = J.Capacity();
-      double * d_a_sorted = A.ReadWrite();
-      const int * d_ia = I.Read();
-      int * d_ja_sorted = J.ReadWrite();
+      double * d_a_sorted = ReadWriteData();
+      const int * d_ia = ReadI();
+      int * d_ja_sorted = ReadWriteJ();
       csru2csrInfo_t sortInfoA;
 
       cusparseCreateCsru2csrInfo( &sortInfoA );
@@ -504,10 +504,10 @@ void SparseMatrix::SortColumnIndices()
 
       const int n = Height();
       const int m = Width();
-      const int nnzA = J.Size();
-      double * d_a_sorted = A.ReadWrite();
-      const int * d_ia = I.Read();
-      int * d_ja_sorted = J.ReadWrite();
+      const int nnzA = J.Capacity();
+      double * d_a_sorted = ReadWriteData();
+      const int * d_ia = ReadI();
+      int * d_ja_sorted = ReadWriteJ();
 
       // FIXME: There is not in-place version of csr sort in rocSPARSE currently, so we make
       //        a temporary copy of the data for gthr, sort that, and then copy the sorted values
