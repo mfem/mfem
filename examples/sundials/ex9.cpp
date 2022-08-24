@@ -408,7 +408,7 @@ int main(int argc, char *argv[])
          arkode->Init(adv);
          arkode->SetSStolerances(reltol, abstol);
          arkode->SetMaxStep(dt);
-         arkode->SetERKTableNum(FEHLBERG_13_7_8);
+         arkode->SetERKTableNum(ARKODE_FEHLBERG_13_7_8);
          ode_solver = arkode; break;
    }
 
