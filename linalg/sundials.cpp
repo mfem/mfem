@@ -367,14 +367,15 @@ N_Vector SundialsNVector::MakeNVector(bool use_device)
 #ifdef MFEM_USE_CUDA
    if (use_device)
    {
-      x = N_VNewWithMemHelp_Cuda(0, UseManagedMemory(), sunmemHelper);
+      x = N_VNewWithMemHelp_Cuda(0, UseManagedMemory(), sunmemHelper,
+                                 Sundials::GetContext());
    }
    else
    {
-      x = N_VNewEmpty_Serial(0);
+      x = N_VNewEmpty_Serial(0, Sundials::GetContext());
    }
 #else
-   x = N_VNewEmpty_Serial(0);
+   x = N_VNewEmpty_Serial(0, Sundials::GetContext());
 #endif
 
    MFEM_VERIFY(x, "Error in SundialsNVector::MakeNVector.");
@@ -397,14 +398,15 @@ N_Vector SundialsNVector::MakeNVector(MPI_Comm comm, bool use_device)
       if (use_device)
       {
          x = N_VMake_MPIPlusX(comm, N_VNewWithMemHelp_Cuda(0, UseManagedMemory(),
-                                                           sunmemHelper));
+                                                           sunmemHelper,
+                                                           Sundials::GetContext()));
       }
       else
       {
-         x = N_VNewEmpty_Parallel(comm, 0, 0);
+         x = N_VNewEmpty_Parallel(comm, 0, 0, Sundials::GetContext());
       }
 #else
-      x = N_VNewEmpty_Parallel(comm, 0, 0);
+      x = N_VNewEmpty_Parallel(comm, 0, 0, Sundials::GetContext());
 #endif // MFEM_USE_CUDA
    }
 
@@ -594,7 +596,7 @@ void CVODESolver::Init(TimeDependentOperator &f_)
 #endif
 
       // Create CVODE
-      sundials_mem = CVodeCreate(lmm_type);
+      sundials_mem = CVodeCreate(lmm_type, Sundials::GetContext());
       MFEM_VERIFY(sundials_mem, "error in CVodeCreate()");
 
       // Initialize CVODE
@@ -651,7 +653,7 @@ void CVODESolver::UseMFEMLinearSolver()
    if (LSA != NULL) { SUNLinSolFree(LSA); LSA = NULL; }
 
    // Wrap linear solver as SUNLinearSolver and SUNMatrix
-   LSA = SUNLinSolNewEmpty();
+   LSA = SUNLinSolNewEmpty(Sundials::GetContext());
    MFEM_VERIFY(LSA, "error in SUNLinSolNewEmpty()");
 
    LSA->content      = this;
@@ -659,7 +661,7 @@ void CVODESolver::UseMFEMLinearSolver()
    LSA->ops->solve   = CVODESolver::LinSysSolve;
    LSA->ops->free    = LSFree;
 
-   A = SUNMatNewEmpty();
+   A = SUNMatNewEmpty(Sundials::GetContext());
    MFEM_VERIFY(A, "error in SUNMatNewEmpty()");
 
    A->content      = this;
@@ -682,7 +684,7 @@ void CVODESolver::UseSundialsLinearSolver()
    if (LSA != NULL) { SUNLinSolFree(LSA); LSA = NULL; }
 
    // Create linear solver
-   LSA = SUNLinSol_SPGMR(*Y, PREC_NONE, 0);
+   LSA = SUNLinSol_SPGMR(*Y, PREC_NONE, 0, Sundials::GetContext());
    MFEM_VERIFY(LSA, "error in SUNLinSol_SPGMR()");
 
    // Attach linear solver
@@ -941,7 +943,7 @@ void CVODESSolver::UseMFEMLinearSolverB()
    if (LSB != NULL) { SUNLinSolFree(LSB); LSB = NULL; }
 
    // Wrap linear solver as SUNLinearSolver and SUNMatrix
-   LSB = SUNLinSolNewEmpty();
+   LSB = SUNLinSolNewEmpty(Sundials::GetContext());
    MFEM_VERIFY(LSB, "error in SUNLinSolNewEmpty()");
 
    LSB->content         = this;
@@ -949,7 +951,7 @@ void CVODESSolver::UseMFEMLinearSolverB()
    LSB->ops->solve      = CVODESSolver::LinSysSolveB; // JW change
    LSB->ops->free       = LSFree;
 
-   AB = SUNMatNewEmpty();
+   AB = SUNMatNewEmpty(Sundials::GetContext());
    MFEM_VERIFY(AB, "error in SUNMatNewEmpty()");
 
    AB->content      = this;
@@ -973,7 +975,7 @@ void CVODESSolver::UseSundialsLinearSolverB()
    if (LSB != NULL) { SUNLinSolFree(LSB); LSB = NULL; }
 
    // Set default linear solver (Newton is the default Nonlinear Solver)
-   LSB = SUNLinSol_SPGMR(*yB, PREC_NONE, 0);
+   LSB = SUNLinSol_SPGMR(*yB, PREC_NONE, 0, Sundials::GetContext());
    MFEM_VERIFY(LSB, "error in SUNLinSol_SPGMR()");
 
    /* Attach the matrix and linear solver */
@@ -1359,16 +1361,18 @@ void ARKStepSolver::Init(TimeDependentOperator &f_)
       // Create ARKStep memory
       if (rk_type == IMPLICIT)
       {
-         sundials_mem = ARKStepCreate(NULL, ARKStepSolver::RHS1, t, *Y);
+         sundials_mem = ARKStepCreate(NULL, ARKStepSolver::RHS1, t, *Y,
+                                      Sundials::GetContext());
       }
       else if (rk_type == EXPLICIT)
       {
-         sundials_mem = ARKStepCreate(ARKStepSolver::RHS1, NULL, t, *Y);
+         sundials_mem = ARKStepCreate(ARKStepSolver::RHS1, NULL, t, *Y,
+                                      Sundials::GetContext());
       }
       else
       {
          sundials_mem = ARKStepCreate(ARKStepSolver::RHS1, ARKStepSolver::RHS2,
-                                      t, *Y);
+                                      t, *Y, Sundials::GetContext());
       }
       MFEM_VERIFY(sundials_mem, "error in ARKStepCreate()");
 
@@ -1435,7 +1439,7 @@ void ARKStepSolver::UseMFEMLinearSolver()
    if (LSA != NULL) { SUNLinSolFree(LSA); LSA = NULL; }
 
    // Wrap linear solver as SUNLinearSolver and SUNMatrix
-   LSA = SUNLinSolNewEmpty();
+   LSA = SUNLinSolNewEmpty(Sundials::GetContext());
    MFEM_VERIFY(LSA, "error in SUNLinSolNewEmpty()");
 
    LSA->content      = this;
@@ -1443,7 +1447,7 @@ void ARKStepSolver::UseMFEMLinearSolver()
    LSA->ops->solve   = ARKStepSolver::LinSysSolve;
    LSA->ops->free    = LSFree;
 
-   A = SUNMatNewEmpty();
+   A = SUNMatNewEmpty(Sundials::GetContext());
    MFEM_VERIFY(A, "error in SUNMatNewEmpty()");
 
    A->content      = this;
@@ -1466,7 +1470,7 @@ void ARKStepSolver::UseSundialsLinearSolver()
    if (LSA != NULL) { SUNLinSolFree(LSA); LSA = NULL; }
 
    // Create linear solver
-   LSA = SUNLinSol_SPGMR(*Y, PREC_NONE, 0);
+   LSA = SUNLinSol_SPGMR(*Y, PREC_NONE, 0, Sundials::GetContext());
    MFEM_VERIFY(LSA, "error in SUNLinSol_SPGMR()");
 
    // Attach linear solver
@@ -1481,7 +1485,7 @@ void ARKStepSolver::UseMFEMMassLinearSolver(int tdep)
    if (LSM != NULL) { SUNLinSolFree(LSM); LSM = NULL; }
 
    // Wrap linear solver as SUNLinearSolver and SUNMatrix
-   LSM = SUNLinSolNewEmpty();
+   LSM = SUNLinSolNewEmpty(Sundials::GetContext());
    MFEM_VERIFY(LSM, "error in SUNLinSolNewEmpty()");
 
    LSM->content      = this;
@@ -1489,7 +1493,7 @@ void ARKStepSolver::UseMFEMMassLinearSolver(int tdep)
    LSM->ops->solve   = ARKStepSolver::MassSysSolve;
    LSA->ops->free    = LSFree;
 
-   M = SUNMatNewEmpty();
+   M = SUNMatNewEmpty(Sundials::GetContext());
    MFEM_VERIFY(M, "error in SUNMatNewEmpty()");
 
    M->content      = this;
@@ -1513,7 +1517,7 @@ void ARKStepSolver::UseSundialsMassLinearSolver(int tdep)
    if (LSM != NULL) { SUNLinSolFree(LSM); LSM = NULL; }
 
    // Create linear solver
-   LSM = SUNLinSol_SPGMR(*Y, PREC_NONE, 0);
+   LSM = SUNLinSol_SPGMR(*Y, PREC_NONE, 0, Sundials::GetContext());
    MFEM_VERIFY(LSM, "error in SUNLinSol_SPGMR()");
 
    // Attach linear solver
@@ -1837,7 +1841,7 @@ void KINSolver::SetOperator(const Operator &op)
 #endif
 
       // Create the solver memory
-      sundials_mem = KINCreate();
+      sundials_mem = KINCreate(Sundials::GetContext());
       MFEM_VERIFY(sundials_mem, "Error in KINCreate().");
 
       // Set number of acceleration vectors
@@ -1866,7 +1870,7 @@ void KINSolver::SetOperator(const Operator &op)
          if (A != NULL) { SUNMatDestroy(A); A = NULL; }
          if (LSA != NULL) { SUNLinSolFree(LSA); LSA = NULL; }
 
-         LSA = SUNLinSol_SPGMR(*Y, PREC_NONE, 0);
+         LSA = SUNLinSol_SPGMR(*Y, PREC_NONE, 0, Sundials::GetContext());
          MFEM_VERIFY(LSA, "error in SUNLinSol_SPGMR()");
 
          flag = KINSetLinearSolver(sundials_mem, LSA, NULL);
@@ -1898,7 +1902,7 @@ void KINSolver::SetSolver(Solver &solver)
       if (LSA != NULL) { SUNLinSolFree(LSA); LSA = NULL; }
 
       // Wrap KINSolver as SUNLinearSolver and SUNMatrix
-      LSA = SUNLinSolNewEmpty();
+      LSA = SUNLinSolNewEmpty(Sundials::GetContext());
       MFEM_VERIFY(LSA, "error in SUNLinSolNewEmpty()");
 
       LSA->content      = this;
@@ -1906,7 +1910,7 @@ void KINSolver::SetSolver(Solver &solver)
       LSA->ops->solve   = KINSolver::LinSysSolve;
       LSA->ops->free    = LSFree;
 
-      A = SUNMatNewEmpty();
+      A = SUNMatNewEmpty(Sundials::GetContext());
       MFEM_VERIFY(A, "error in SUNMatNewEmpty()");
 
       A->content      = this;
@@ -1935,7 +1939,8 @@ void KINSolver::SetJFNKSolver(Solver &solver)
    if (LSA != NULL) { SUNLinSolFree(LSA); LSA = NULL; }
 
    // Setup FGMRES
-   LSA = SUNLinSol_SPFGMR(*Y, prec ? PREC_RIGHT : PREC_NONE, maxli);
+   LSA = SUNLinSol_SPFGMR(*Y, prec ? PREC_RIGHT : PREC_NONE, maxli,
+                          Sundials::GetContext());
    MFEM_VERIFY(LSA, "error in SUNLinSol_SPFGMR()");
 
    flag = SUNLinSol_SPFGMRSetMaxRestarts(LSA, maxlrs);
