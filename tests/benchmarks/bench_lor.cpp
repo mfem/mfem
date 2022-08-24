@@ -24,264 +24,184 @@
 #define MFEM_NVTX_COLOR Lime
 #include "general/nvtx.hpp"
 
+Mesh MakeCartesianMesh(int p, int requested_ndof, int dim)
+{
+   const int ne = std::max(1, (int)std::ceil(requested_ndof / pow(p, dim)));
+   if (dim == 2)
+   {
+      const int nx = sqrt(ne);
+      const int ny = ne / nx;
+      return Mesh::MakeCartesian2D(nx, ny, Element::QUADRILATERAL);
+   }
+   else
+   {
+      const int nx = cbrt(ne);
+      const int ny = sqrt(ne / nx);
+      const int nz = ne / nx / ny;
+      return Mesh::MakeCartesian3D(nx, ny, nz, Element::HEXAHEDRON);
+   }
+}
+
 struct LORBench
 {
-   const Nvtx LORBench_tx = {"LORBench"};
    const double EPS = 1e-14;
    const int RANDOM_SEED = 0x100001b3;
    GeometricFactors::FactorFlags DETERMINANTS = GeometricFactors::DETERMINANTS;
-   const int p, c, q, n, nx, ny, nz, dim = 3;
-   const bool check_x, check_y, check_z, checked;
-   IntegrationRules irs;
-   const IntegrationRule *ir;
-   const Nvtx mesh_tx = {"mesh"};
+   const int p; // polynomial degree
+   const int dim; // space dimension
    Mesh mesh;
-   H1_FECollection fec;
-   const Nvtx fes_mesh_tx = {"fes_mesh"};
-   FiniteElementSpace fes_mesh;
-   const Nvtx mesh_coords_tx = {"mesh_coords"};
-   GridFunction mesh_coords;
-   const bool postfix_mesh_coords;
+   const int ne; // number of elements
+
+   H1_FECollection fec_ho;
    FiniteElementSpace fes_ho;
-   Array<int> ess_tdofs, ess_tdofs_empty;
-   const bool prefix_lor_setup;
-   const Nvtx a_tx = {"a"};
-   BilinearForm a;
-   ConstantCoefficient diff_coeff, mass_coeff;
-   const bool a_ho_setup;
-   const Nvtx lor_tx = {"lor"};
+
    LORDiscretization lor;
-   const Nvtx fes_lor_tx = {"fes_lor"};
-   FiniteElementSpace &fes_lor;
-   const Nvtx GeometricFactors_tx = {"GeometricFactors"};
-   const GeometricFactors *gf_ho, *gf_lor;
-   const Nvtx a_lor_legacy_full_tx = {"a_lor_legacy_full"};
-   BilinearForm a_lor_legacy, a_lor_full;
-   OperatorHandle A_lor_legacy, A_lor_full;
-   const int nvdofs;
+   BilinearForm a_ho, a_lor;
+
+   OperatorHandle A_ho, A_lor;
+
+   Array<int> ess_dofs;
+
+   const int ndofs;
    double mdof;
    Vector x, y;
-   const Nvtx Ready_tx = {"Ready"};
 
-   LORBench(int p, int side):
-      p(p),
-      c(side),
-      q(2*p + 2),
-      n((assert(c>=p),c/p)),
-      nx(n + (p*(n+1)*p*n*p*n < c*c*c ?1:0)),
-      ny(n + (p*(n+1)*p*(n+1)*p*n < c*c*c ?1:0)),
-      nz(n),
-      check_x(p*nx * p*ny * p*nz <= c*c*c),
-      check_y(p*(nx+1) * p*(ny+1) * p*nz > c*c*c),
-      check_z(p*(nx+1) * p*(ny+1) * p*(nz+1) > c*c*c),
-      checked((assert(check_x && check_y && check_z), true)),
-      irs(0, Quadrature1D::GaussLobatto),
-      ir(&irs.Get(Geometry::CUBE, 1)),
-      mesh(Mesh::MakeCartesian3D(nx,ny,nz, Element::HEXAHEDRON)),
-      fec(p, dim),
-      fes_mesh(&mesh, &fec, dim),
-      mesh_coords(&fes_mesh),
-      postfix_mesh_coords((SetupRandomMesh(), true)),
-      fes_ho(&mesh, &fec),
-      prefix_lor_setup((fes_ho.GetBoundaryTrueDofs(ess_tdofs), true)),
-      a(&fes_ho),
-      diff_coeff(M_PI),
-      mass_coeff(1.0/M_PI),
-      a_ho_setup((a.AddDomainIntegrator(new DiffusionIntegrator(diff_coeff)),
-                  a.AddDomainIntegrator(new MassIntegrator(mass_coeff)),
-                  true)),
+   LORBench(int p_, int requested_ndof, int dim_) :
+      p(p_),
+      dim(dim_),
+      mesh(MakeCartesianMesh(p, requested_ndof, dim)),
+      ne(mesh.GetNE()), // might differ from n_requested if not evenly divisible
+      fec_ho(p, dim),
+      fes_ho(&mesh, &fec_ho),
       lor(fes_ho),
-      fes_lor(lor.GetFESpace()),
-      gf_ho(fes_mesh.GetMesh()->GetGeometricFactors(*ir, DETERMINANTS)),
-      gf_lor(fes_lor.GetMesh()->GetGeometricFactors(*ir, DETERMINANTS)),
-      a_lor_legacy(&fes_lor),
-      a_lor_full(&fes_lor),
-      A_lor_legacy(),
-      A_lor_full(),
-      nvdofs(fes_ho.GetVSize()),
+      a_ho(&fes_ho),
+      a_lor(&lor.GetFESpace()),
+      ndofs(fes_ho.GetTrueVSize()),
       mdof(0.0),
-      x(nvdofs),
-      y(nvdofs)
+      x(ndofs),
+      y(ndofs)
    {
-      a_lor_legacy.AddDomainIntegrator(new DiffusionIntegrator(diff_coeff,ir));
-      a_lor_legacy.AddDomainIntegrator(new MassIntegrator(mass_coeff,ir));
-      a_lor_legacy.SetAssemblyLevel(AssemblyLevel::LEGACY);
+      // std::cout << "Requested ndof: "
+      //           << std::setw(10) << requested_ndof
+      //           << " Actual: "
+      //           << std::setw(10) << ndofs << '\n';
+      fes_ho.GetBoundaryTrueDofs(ess_dofs);
 
-      a_lor_full.AddDomainIntegrator(new DiffusionIntegrator(diff_coeff,ir));
-      a_lor_full.AddDomainIntegrator(new MassIntegrator(mass_coeff,ir));
-      a_lor_full.SetAssemblyLevel(AssemblyLevel::FULL);
+      a_ho.AddDomainIntegrator(new DiffusionIntegrator);
+      a_ho.AddDomainIntegrator(new MassIntegrator);
+      a_ho.SetAssemblyLevel(AssemblyLevel::PARTIAL);
 
-      MFEM_VERIFY(gf_ho->detJ.Min() > 0.0, "Invalid HO mesh!");
-      MFEM_VERIFY(gf_lor->detJ.Min() > 0.0, "Invalid LOR mesh!");
-
-      {
-         NVTX("Randomize");
-         x.Randomize(RANDOM_SEED);
-         y.Randomize(RANDOM_SEED);
-      }
+      a_lor.AddDomainIntegrator(new DiffusionIntegrator);
+      a_lor.AddDomainIntegrator(new MassIntegrator);
+      a_lor.SetAssemblyLevel(AssemblyLevel::FULL);
    }
 
-   void SetupRandomMesh() noexcept
+   void AssembleHO()
    {
-      NVTX("SetupRandomMesh");
-      mesh.SetNodalFESpace(&fes_mesh);
-      mesh.SetNodalGridFunction(&mesh_coords);
-      const double jitter = 1e-4/(M_PI*M_PI);
-      const double h0 = mesh.GetElementSize(0);
-      GridFunction rdm(&fes_mesh);
-      rdm.Randomize(RANDOM_SEED);
-      rdm -= 0.5; // Shift to random values in [-0.5,0.5]
-      rdm *= jitter * h0; // Scale the random values to be of same order
-      mesh_coords -= rdm;
-      assert(mesh.GetGeometricFactors(*ir, DETERMINANTS)->detJ.Min() > 0.0);
+      NVTX("AssembleHO");
+      MFEM_DEVICE_SYNC;
+      mdof += 1e-6 * ndofs;
+      a_ho.Assemble();
+      a_ho.FormSystemMatrix(ess_dofs, A_ho);
    }
 
-   // void SanityChecks()
+   void AssembleFull()
+   {
+      NVTX("AssembleFull");
+      MFEM_DEVICE_SYNC;
+      mdof += 1e-6 * ndofs;
+      a_lor.Assemble();
+      a_lor.FormSystemMatrix(ess_dofs, A_ho);
+   }
+
+   void AssembleBatched()
+   {
+      NVTX("AssembleBatched");
+      MFEM_DEVICE_SYNC;
+      mdof += 1e-6 * ndofs;
+      lor.AssembleSystem(a_ho, ess_dofs);
+   }
+
+   // void AllLegacy()
    // {
-   //    NVTX("SanityChecks");
-   //    a_lor_legacy = 0.0;
-   //    a_lor_legacy.Assemble();
-   //    a_lor_legacy.EliminateVDofs(ess_tdofs, Operator::DIAG_KEEP);
-   //    SparseMatrix &A_lor_legacy_sp = a_lor_legacy.SpMat();
-   //    const double dot_legacy = A_lor_legacy_sp.InnerProduct(x,y);
-
-   //    lor.LegacyAssembleSystem(a, ess_tdofs);
-   //    SparseMatrix A_lor_assembled_sp = lor.GetAssembledMatrix();
-   //    const double dot_lor_legacy = A_lor_assembled_sp.InnerProduct(x,y);
-   //    MFEM_VERIFY(almost_equal(dot_legacy, dot_lor_legacy), "dot_lor_legacy error!");
-
-   //    // full does +=, a_lor_full = 0.0;
-   //    a_lor_full.Assemble();
-   //    SparseMatrix &A_lor_full_sp = a_lor_full.SpMat();
-   //    A_lor_full_sp.HostReadI();
-   //    A_lor_full_sp.HostReadJ();
-   //    A_lor_full_sp.HostReadData();
-   //    a_lor_full.EliminateVDofs(ess_tdofs, Operator::DIAG_KEEP);
-   //    const double dot_full = A_lor_full_sp.InnerProduct(x,y);
-   //    MFEM_VERIFY(almost_equal(dot_legacy, dot_full), "dot_full error!");
-   //    A_lor_full_sp.Add(-1.0, A_lor_legacy_sp);
-   //    const double max_norm_full = a_lor_full.SpMat().MaxNorm();
-   //    MFEM_VERIFY(max_norm_full < EPS, "max_norm_full error!");
-
-   //    lor.AssembleSystem(a, ess_tdofs);
-   //    SparseMatrix &A_lor_batched_sp = lor.GetAssembledMatrix();
-   //    A_lor_batched_sp.HostReadI();
-   //    A_lor_batched_sp.HostReadJ();
-   //    A_lor_batched_sp.HostReadData();
-   //    const double dot_batched = A_lor_batched_sp.InnerProduct(x,y);
-   //    MFEM_VERIFY(almost_equal(dot_legacy, dot_batched),
-   //                "dot_batched error: " << dot_legacy << ", " << dot_batched);
-   //    A_lor_batched_sp.Add(-1.0, A_lor_legacy_sp);
-   //    const double max_norm_batched = A_lor_batched_sp.MaxNorm();
-   //    MFEM_VERIFY(max_norm_batched < EPS, "max_norm_batched");
+   //    NVTX("AllLegacy");
+   //    MFEM_DEVICE_SYNC;
+   //    mdof += 1e-6 * ndofs;
+   //    LORDiscretization lor_disc(fes_ho, BasisType::GaussLobatto);
+   //    FiniteElementSpace &fes_lo = lor_disc.GetFESpace();
+   //    BilinearForm bf_legacy(&fes_lo);
+   //    bf_legacy.AddDomainIntegrator(new DiffusionIntegrator(diff_coeff, ir));
+   //    bf_legacy.AddDomainIntegrator(new MassIntegrator(mass_coeff, ir));
+   //    bf_legacy.SetAssemblyLevel(AssemblyLevel::LEGACY);
+   //    bf_legacy.Assemble();
+   //    // no EliminateVDofs
    // }
 
-   void KerLegacy()
-   {
-      NVTX("KerLegacy");
-      MFEM_DEVICE_SYNC;
-      mdof += 1e-6 * nvdofs;
-      a_lor_legacy.Assemble();
-      // ess_tdofs_empty or:
-      // a_lor_legacy.EliminateVDofs(ess_tdofs, Operator::DIAG_KEEP);
-   }
+   // void AllFull()
+   // {
+   //    NVTX("AllFull");
+   //    MFEM_DEVICE_SYNC;
+   //    mdof += 1e-6 * ndofs;
+   //    LORDiscretization lor_disc(fes_ho, BasisType::GaussLobatto);
+   //    FiniteElementSpace &fes_lo = lor_disc.GetFESpace();
+   //    BilinearForm bf_full(&fes_lo);
+   //    bf_full.AddDomainIntegrator(new DiffusionIntegrator(diff_coeff, ir));
+   //    bf_full.AddDomainIntegrator(new MassIntegrator(mass_coeff, ir));
+   //    bf_full.SetAssemblyLevel(AssemblyLevel::FULL);
+   //    bf_full.Assemble();
+   //    // no EliminateVDofs
+   // }
 
-   void KerFull()
-   {
-      NVTX("KerFull");
-      MFEM_DEVICE_SYNC;
-      mdof += 1e-6 * nvdofs;
-      a_lor_full.Assemble();
-      // ess_tdofs_empty or:
-      // a_lor_full.EliminateVDofs(ess_tdofs, Operator::DIAG_KEEP);
-   }
-
-   void KerBatched()
-   {
-      NVTX("KerBatched");
-      MFEM_DEVICE_SYNC;
-      mdof += 1e-6 * nvdofs;
-      lor.AssembleSystem(a, ess_tdofs_empty);
-   }
-
-   void AllLegacy()
-   {
-      NVTX("AllLegacy");
-      MFEM_DEVICE_SYNC;
-      mdof += 1e-6 * nvdofs;
-      LORDiscretization lor_disc(fes_ho, BasisType::GaussLobatto);
-      FiniteElementSpace &fes_lo = lor_disc.GetFESpace();
-      BilinearForm bf_legacy(&fes_lo);
-      bf_legacy.AddDomainIntegrator(new DiffusionIntegrator(diff_coeff, ir));
-      bf_legacy.AddDomainIntegrator(new MassIntegrator(mass_coeff, ir));
-      bf_legacy.SetAssemblyLevel(AssemblyLevel::LEGACY);
-      bf_legacy.Assemble();
-      // no EliminateVDofs
-   }
-
-   void AllFull()
-   {
-      NVTX("AllFull");
-      MFEM_DEVICE_SYNC;
-      mdof += 1e-6 * nvdofs;
-      LORDiscretization lor_disc(fes_ho, BasisType::GaussLobatto);
-      FiniteElementSpace &fes_lo = lor_disc.GetFESpace();
-      BilinearForm bf_full(&fes_lo);
-      bf_full.AddDomainIntegrator(new DiffusionIntegrator(diff_coeff, ir));
-      bf_full.AddDomainIntegrator(new MassIntegrator(mass_coeff, ir));
-      bf_full.SetAssemblyLevel(AssemblyLevel::FULL);
-      bf_full.Assemble();
-      // no EliminateVDofs
-   }
-
-   void AllBatched()
-   {
-      NVTX("AllBatched");
-      MFEM_DEVICE_SYNC;
-      mdof += 1e-6 * nvdofs;
-      LORDiscretization lor_disc(fes_ho, BasisType::GaussLobatto);
-      BilinearForm bf_ho(&fes_ho);
-      bf_ho.AddDomainIntegrator(new DiffusionIntegrator(diff_coeff, ir));
-      bf_ho.AddDomainIntegrator(new MassIntegrator(mass_coeff, ir));
-      lor_disc.AssembleSystem(bf_ho, ess_tdofs_empty);
-      // working with no BC
-   }
+   // void AllBatched()
+   // {
+   //    NVTX("AllBatched");
+   //    MFEM_DEVICE_SYNC;
+   //    mdof += 1e-6 * ndofs;
+   //    LORDiscretization lor_disc(fes_ho, BasisType::GaussLobatto);
+   //    BilinearForm bf_ho(&fes_ho);
+   //    bf_ho.AddDomainIntegrator(new DiffusionIntegrator(diff_coeff, ir));
+   //    bf_ho.AddDomainIntegrator(new MassIntegrator(mass_coeff, ir));
+   //    lor_disc.AssembleSystem(bf_ho, ess_tdofs_empty);
+   //    // working with no BC
+   // }
 };
 
 // The different orders the tests can run
 #define P_ORDERS bm::CreateDenseRange(1,8,1)
 
 // The different sides of the mesh
-#define N_SIDES bm::CreateDenseRange(10,120,10)
-#define MAX_NDOFS 2*1024*1024
+#define LOG_NDOFS bm::CreateDenseRange(2,22,1)
+
+// Dimensions: 2 or 3
+#define DIMS bm::CreateDenseRange(2,3,1)
 
 /// Kernels definitions and registrations
 #define Benchmark(Name)\
 static void Name(bm::State &state){\
    const int p = state.range(0);\
-   const int side = state.range(1);\
-   LORBench lor(p, side);\
-   if (lor.nvdofs > MAX_NDOFS) { state.SkipWithError("MAX_NDOFS"); }\
+   const int requested_ndof = pow(2, state.range(1));\
+   const int dim = state.range(2);\
+   LORBench lor(p, requested_ndof, dim);\
    while (state.KeepRunning()) { lor.Name(); }\
    bm::Counter::Flags flags = bm::Counter::kIsIterationInvariantRate;\
-   state.counters["MDof/s"] = bm::Counter(1e-6*lor.nvdofs, flags);\
-   state.counters["dofs"] = bm::Counter(lor.nvdofs);\
+   state.counters["MDof/s"] = bm::Counter(1e-6*lor.ndofs, flags);\
+   state.counters["dofs"] = bm::Counter(lor.ndofs);\
    state.counters["p"] = bm::Counter(p);\
 }\
 BENCHMARK(Name)\
-            -> ArgsProduct({P_ORDERS, N_SIDES})\
+            -> ArgsProduct({P_ORDERS, LOG_NDOFS, DIMS})\
             -> Unit(bm::kMillisecond)\
             -> Iterations(10);
 
 // Benchmark(SanityChecks)
 
-Benchmark(KerLegacy)
-Benchmark(KerFull)
-Benchmark(KerBatched)
+Benchmark(AssembleHO)
+Benchmark(AssembleFull)
+Benchmark(AssembleBatched)
 
 //Benchmark(AllLegacy)
-Benchmark(AllFull)
-Benchmark(AllBatched)
+// Benchmark(AllFull)
+// Benchmark(AllBatched)
 
 /**
  * @brief main entry point
