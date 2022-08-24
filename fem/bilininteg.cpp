@@ -1377,20 +1377,25 @@ void DiffusionIntegrator::AssemblePatchMatrix(
       {
          const IntegrationPoint &ip = ir1d[d]->IntPoint(i);
          const int ijk = knotSpan1D[i];
-         pkv[d]->CalcShape(shape[d], ijk, ip.x);
-         pkv[d]->CalcDShape(dshape[d], ijk, ip.x);
+         const double kv0 = (*pkv[d])[orders[d] + ijk];
+         pkv[d]->CalcShape(shape[d], ijk, ip.x - kv0);
+         pkv[d]->CalcDShape(dshape[d], ijk, ip.x - kv0);
 
-         auto search = ijkToElem1D.find(ijk);
-         MFEM_VERIFY(search != ijkToElem1D.end(), "");
-         const int elem = search->second;
-         MFEM_VERIFY(elem + orders[d]+1 <= D1D[d], "");
+         /*
+              // TODO: remove ijkToElem1D if not needed?
+              auto search = ijkToElem1D.find(ijk);
+              MFEM_VERIFY(search != ijkToElem1D.end(), "");
+              const int elem = search->second;
+              MFEM_VERIFY(elem + orders[d]+1 <= D1D[d], "");
+         */
 
          // Put shape into array B storing shapes for all points.
          // TODO: This should be based on NURBS3DFiniteElement::CalcShape and CalcDShape.
+         // For now, it works under the assumption that all NURBS weights are 1.
          for (int j=0; j<orders[d]+1; ++j)
          {
-            B[d](i,elem + j) = shape[d][j];
-            G[d](i,elem + j) = dshape[d][j];
+            B[d](i,ijk + j) = shape[d][j];
+            G[d](i,ijk + j) = dshape[d][j];
          }
       }
    }
@@ -1546,7 +1551,7 @@ void DiffusionIntegrator::AssemblePatchMatrix(
          {
             for (int dx = 0; dx < D1D[0]; ++dx)
             {
-               for (int d=0; d<3; ++d)
+               for (int d=0; d<dim; ++d)
                {
                   gradXY(dx,dy,d) = 0.0;
                }
@@ -1559,7 +1564,7 @@ void DiffusionIntegrator::AssemblePatchMatrix(
 
             for (int dx = 0; dx < D1D[0]; ++dx)
             {
-               for (int d=0; d<3; ++d)
+               for (int d=0; d<dim; ++d)
                {
                   gradX(dx,d) = 0.0;
                }
