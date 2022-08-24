@@ -1784,7 +1784,7 @@ static void PADiffusionApply(const int dim,
          case 0x77: return SmemPADiffusionApply2D<7,7,4>(NE,symm,B,G,D,X,Y);
          case 0x88: return SmemPADiffusionApply2D<8,8,2>(NE,symm,B,G,D,X,Y);
          case 0x99: return SmemPADiffusionApply2D<9,9,2>(NE,symm,B,G,D,X,Y);
-         default:   return PADiffusionApply2D(NE,symm,B,G,Bt,Gt,D,X,Y,D1D,Q1D);
+            // default:   return PADiffusionApply2D(NE,symm,B,G,Bt,Gt,D,X,Y,D1D,Q1D);
       }
    }
 
@@ -1802,7 +1802,14 @@ static void PADiffusionApply(const int dim,
          case 0x67: return SmemPADiffusionApply3D<6,7>(NE,symm,B,G,D,X,Y);
          case 0x78: return SmemPADiffusionApply3D<7,8>(NE,symm,B,G,D,X,Y);
          case 0x89: return SmemPADiffusionApply3D<8,9>(NE,symm,B,G,D,X,Y);
-         default:   return PADiffusionApply3D(NE,symm,B,G,Bt,Gt,D,X,Y,D1D,Q1D);
+         case 0x33: return SmemPADiffusionApply3D<3,3>(NE,symm,B,G,D,X,Y);
+         case 0x44: return SmemPADiffusionApply3D<4,4>(NE,symm,B,G,D,X,Y);
+         case 0x55: return SmemPADiffusionApply3D<5,5>(NE,symm,B,G,D,X,Y);
+         case 0x66: return SmemPADiffusionApply3D<6,6>(NE,symm,B,G,D,X,Y);
+         case 0x77: return SmemPADiffusionApply3D<7,7>(NE,symm,B,G,D,X,Y);
+         case 0x88: return SmemPADiffusionApply3D<8,8>(NE,symm,B,G,D,X,Y);
+         case 0x99: return SmemPADiffusionApply3D<9,9>(NE,symm,B,G,D,X,Y);
+            // default:   return PADiffusionApply3D(NE,symm,B,G,Bt,Gt,D,X,Y,D1D,Q1D);
       }
    }
    MFEM_ABORT("Unknown kernel: 0x"<<std::hex << id << std::dec);
