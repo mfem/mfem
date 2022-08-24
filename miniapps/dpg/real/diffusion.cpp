@@ -56,7 +56,6 @@ prob_type prob;
 
 void solution(const Vector & X, double & u, Vector & du, double & d2u);
 
-
 double exact_u(const Vector & X)
 {
    double u, d2u;

@@ -48,6 +48,7 @@ endif
 all: $(MINIAPPS)
 	@echo $(MINIAPPS)
 
+
 diffusion: $(SRC)/diffusion.cpp.o $(DPG_LIB)
 	$(MFEM_CXX) -o $@ $^ $(MFEM_LIBS)
 

@@ -32,8 +32,8 @@ EXAMPLE_SRCS := $(shell find $(SRC) -name '*.cpp')
 EXAMPLE_OBJS := $(EXAMPLE_SRCS:%=%.o)
 EXAMPLE_DEPS := $(EXAMPLE_OBJS:.o=.d)
 
-EXAMPLES = acoustics
-PAR_EXAMPLES = pacoustics
+EXAMPLES = acoustics maxwell
+PAR_EXAMPLES = pacoustics pmaxwell pmaxwell_pml
 
 ifeq ($(MFEM_USE_MPI),NO)
    MINIAPPS = $(EXAMPLES)
@@ -51,8 +51,18 @@ all: $(MINIAPPS)
 acoustics: $(SRC)/acoustics.cpp.o $(DPG_LIB)
 	$(MFEM_CXX) -o $@ $^ $(MFEM_LIBS)
 
+maxwell: $(SRC)/maxwell.cpp.o $(DPG_LIB)
+	$(MFEM_CXX) -o $@ $^ $(MFEM_LIBS)
+
 pacoustics: $(SRC)/pacoustics.cpp.o $(DPG_LIB)
 	$(MFEM_CXX) -o $@ $^ $(MFEM_LIBS)
+
+pmaxwell: $(SRC)/pmaxwell.cpp.o $(DPG_LIB)
+	$(MFEM_CXX) -o $@ $^ $(MFEM_LIBS)
+
+pmaxwell_pml: $(SRC)/pmaxwell_pml.cpp.o $(DPG_LIB)
+	$(MFEM_CXX) -o $@ $^ $(MFEM_LIBS)	
+
 
 %.cpp.o: %.cpp
 	$(MFEM_CXX) $(MFEM_FLAGS) $(INC_FLAGS) -MMD -MP -c $< -o $@
