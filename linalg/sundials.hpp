@@ -47,37 +47,21 @@ class Sundials
 {
 public:
 
-   Sundials() = delete;
-
    Sundials(Sundials &other) = delete;
 
    void operator=(const Sundials &other) = delete;
 
-#ifdef MFEM_USE_MPI
-   static void Init(MPI_Comm communicator=MPI_COMM_WORLD)
-   {
-      int return_val = SUNContext_Create((void*) &communicator, &sunContext);
-      MFEM_VERIFY(return_val == 1,
-                  "Call to SUNContext_Create failed in Sundials::SUNContext");
-   }
-#else
-   static void Init()
-   {
-     int return_val = SUNContext_Create(nullptr, &sunContext);
-     MFEM_VERIFY(return_Val == 1,
-                 "Call to SUNContext_Create failed in Sundials::SUNContext");
-   }
-#endif // MFEM_USE_MPI
+   static void Init();
 
-   static void Finalize();
-
-   static SUNContext &GetContext() { return sunContext; }
+   static SUNContext &GetContext();
 
 private:
 
-   ~Sundials() { SUNContext_Free(&sunContext); }
+   Sundials();
 
-   static SUNContext sunContext;
+   ~Sundials();
+
+   SUNContext context;
 };
 
 // ---------------------------------------------------------------------------
