@@ -123,6 +123,9 @@ int main(int argc, char *argv[])
    for (int l = 0; l < par_ref_levels; l++) { mesh.UniformRefinement(); }
    serial_mesh.Clear();
 
+   HYPRE_Int global_ne = mesh.GetGlobalNE();
+   if (Mpi::Root()) { cout << "Number of elements: " << global_ne << endl; }
+
    if (mesh.ncmesh && (RT || ND))
    { MFEM_ABORT("LOR AMS and ADS solvers are not supported with AMR meshes."); }
 
