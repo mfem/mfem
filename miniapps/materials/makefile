@@ -24,7 +24,7 @@ MFEM_LIB_FILE = mfem_is_not_built
 MATERIALS_COMMON_SRC = material_metrics.cpp solvers.cpp util.cpp visualizer.cpp
 MATERIALS_COMMON_OBJ = $(MATERIALS_COMMON_SRC:.cpp=.o)
 
-PAR_MINIAPPS = synthetic_materials
+PAR_MINIAPPS = main
 
 ifeq ($(MFEM_USE_MPI),NO)
    MINIAPPS =

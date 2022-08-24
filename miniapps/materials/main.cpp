@@ -16,7 +16,7 @@
 //  Details: refer to README
 //
 //  Runs:
-//    mpirun -np 4 ./miniapps/materials/synthetic_materials
+//    mpirun -np 4 ./miniapps/materials/main
 //
 // ===========================================================================
 

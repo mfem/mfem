@@ -10,8 +10,8 @@
 # CONTRIBUTING.md for details.
 
 if (MFEM_USE_MPI)
-  add_mfem_miniapp(synthetic_materials
-    MAIN synthetic_materials.cpp
+  add_mfem_miniapp(main
+    MAIN main.cpp
     EXTRA_SOURCES material_metrics.cpp solvers.cpp util.cpp visualizer.cpp
     LIBRARIES mfem)
 
