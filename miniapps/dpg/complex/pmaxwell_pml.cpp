@@ -3,7 +3,7 @@
 // Compile with: make pcomplex_uw_dpg
 //
 // sample run 
-// mpirun -np 2 ./pcomplex_uw_dpg -o 3 -m ../../../data/inline-quad.mesh -sref 2 -pref 3 -rnum 4.1 -prob 1 -sc -graph-norm
+// mpirun -np 4 ./pmaxwell_pml -o 3 -m ../../../data/inline-quad.mesh -sref 2 -pref 3 -rnum 4.1 -prob 1 -sc -graph-norm
 
 //      ∇×(1/μ α ∇×E) - ω^2 ϵ β E = Ĵ ,   in Ω
 //                E×n = E_0, on ∂Ω
@@ -297,14 +297,6 @@ int main(int argc, char *argv[])
    ParFiniteElementSpace *hatH_fes = new ParFiniteElementSpace(&pmesh,hatH_fec);
 
    FiniteElementCollection * G_fec = new ND_FECollection(test_order, dim);
-
-   Array<int> ess_tdof_list;
-   Array<int> ess_bdr;
-   if (pmesh.bdr_attributes.Size())
-   {
-      ess_bdr.SetSize(pmesh.bdr_attributes.Max());
-      ess_bdr = 1;
-   }
 
    Array<int> attr;
    Array<int> attrPML;
