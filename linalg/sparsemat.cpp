@@ -478,6 +478,11 @@ void SparseMatrix::SortColumnIndices()
       int * d_ja_sorted = ReadWriteJ();
       csru2csrInfo_t sortInfoA;
 
+      cusparseMatDescr_t matA_descr;
+      cusparseCreateMatDescr( &matA_descr );
+      cusparseSetMatIndexBase( matA_descr, CUSPARSE_INDEX_BASE_ZERO );
+      cusparseSetMatType( matA_descr, CUSPARSE_MATRIX_TYPE_GENERAL );
+
       cusparseCreateCsru2csrInfo( &sortInfoA );
 
       cusparseDcsru2csr_bufferSizeExt( handle, n, m, nnzA, d_a_sorted, d_ia,
