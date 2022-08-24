@@ -94,6 +94,11 @@ struct LORBench
       a_lor.AddDomainIntegrator(new DiffusionIntegrator);
       a_lor.AddDomainIntegrator(new MassIntegrator);
       a_lor.SetAssemblyLevel(AssemblyLevel::FULL);
+
+      // warm up
+      AssembleHO();
+      AssembleFull();
+      AssembleBatched();
    }
 
    void AssembleHO()
@@ -170,7 +175,7 @@ struct LORBench
 #define P_ORDERS bm::CreateDenseRange(1,8,1)
 
 // The different sides of the mesh
-#define LOG_NDOFS bm::CreateDenseRange(2,22,1)
+#define LOG_NDOFS bm::CreateDenseRange(7,22,1)
 
 // Dimensions: 2 or 3
 #define DIMS bm::CreateDenseRange(2,3,1)
