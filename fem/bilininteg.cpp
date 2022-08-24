@@ -1378,8 +1378,20 @@ void DiffusionIntegrator::AssemblePatchMatrix(
          const IntegrationPoint &ip = ir1d[d]->IntPoint(i);
          const int ijk = knotSpan1D[i];
          const double kv0 = (*pkv[d])[orders[d] + ijk];
-         pkv[d]->CalcShape(shape[d], ijk, ip.x - kv0);
-         pkv[d]->CalcDShape(dshape[d], ijk, ip.x - kv0);
+         double kv1 = (*pkv[d])[0];
+         for (int j = orders[d] + ijk + 1; j < pkv[d]->Size(); ++j)
+         {
+            if ((*pkv[d])[j] > kv0)
+            {
+               kv1 = (*pkv[d])[j];
+               break;
+            }
+         }
+
+         MFEM_VERIFY(kv1 > kv0, "");
+
+         pkv[d]->CalcShape(shape[d], ijk, (ip.x - kv0) / (kv1 - kv0));
+         pkv[d]->CalcDShape(dshape[d], ijk, (ip.x - kv0) / (kv1 - kv0));
 
          /*
               // TODO: remove ijkToElem1D if not needed?
