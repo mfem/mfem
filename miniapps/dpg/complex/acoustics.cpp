@@ -281,7 +281,7 @@ int main(int argc, char *argv[])
 
 
 
-   for (int i = 0; i<ref; i++)
+   for (int iref = 0; iref<ref; iref++)
    {
       if (static_cond) { a->EnableStaticCondensation(); }
       a->Assemble();
@@ -379,14 +379,14 @@ int main(int argc, char *argv[])
 
       double L2Error = sqrt(p_err_r*p_err_r + p_err_i*p_err_i);
 
-      double rate_err = (i) ? dim*log(err0/L2Error)/log((double)dof0/dofs) : 0.0;
-      double rate_res = (i) ? dim*log(res0/residual)/log((double)dof0/dofs) : 0.0;
+      double rate_err = (iref) ? dim*log(err0/L2Error)/log((double)dof0/dofs) : 0.0;
+      double rate_res = (iref) ? dim*log(res0/residual)/log((double)dof0/dofs) : 0.0;
 
       err0 = L2Error;
       res0 = residual;
       dof0 = dofs;
 
-      mfem::out << std::right << std::setw(11) << i << " | " 
+      mfem::out << std::right << std::setw(11) << iref << " | " 
                 << std::setw(10) <<  dof0 << " | " 
                 << std::setprecision(3) 
                 << std::setw(10) << std::scientific <<  err0 << " | " 
@@ -415,7 +415,7 @@ int main(int argc, char *argv[])
                   << flush;         
       }
 
-      if (i == ref)
+      if (iref == ref)
          break;
 
       mesh.GeneralRefinement(elements_to_refine,1,1);
@@ -640,7 +640,6 @@ void acoustics_solution(const Vector & X, complex<double> & p, vector<complex<do
       double d2rdydy = 2./(y*y*y)/(fact*fact);
 
       // pressure
-      complex<double> zi = complex<double>(0., 1.);
       complex<double> ze = - x*x/(w*w) - zi*rk*y - zi * M_PI * x * x/rl/r + zi*phi0/2.;
 
       complex<double> zdedx = -2.*x/(w*w) - 2.*zi*M_PI*x/rl/r;

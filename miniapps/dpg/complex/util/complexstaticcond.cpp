@@ -368,16 +368,16 @@ ComplexDenseMatrix * ComplexBlockStaticCondensation::GetLocalShurComplement(
    DenseMatrix A_tt_imag, A_ti_imag, A_it_imag, A_ii_imag;
 
 
-   Vector y_t(2*rdofs);
-   Vector y_i(2*idofs);
+   Vector yt(2*rdofs);
+   Vector yi(2*idofs);
 
-   double * y_t_data = y_t.GetData();
-   Vector y_t_real(y_t_data,rdofs);
-   Vector y_t_imag(&y_t_data[rdofs],rdofs);
+   double * yt_data = yt.GetData();
+   Vector yt_real(yt_data,rdofs);
+   Vector yt_imag(&yt_data[rdofs],rdofs);
 
-   double * y_i_data = y_i.GetData();
-   Vector y_i_real(y_i_data,idofs);
-   Vector y_i_imag(&y_i_data[idofs],idofs);
+   double * yi_data = yi.GetData();
+   Vector yi_real(yi_data,idofs);
+   Vector yi_imag(&yi_data[idofs],idofs);
 
    // real part of Matrix and vectors
    elmat.real().GetSubMatrix(tr_idx,A_tt_real);
@@ -385,8 +385,8 @@ ComplexDenseMatrix * ComplexBlockStaticCondensation::GetLocalShurComplement(
    elmat.real().GetSubMatrix(int_idx, tr_idx, A_it_real);
    elmat.real().GetSubMatrix(int_idx, A_ii_real);
 
-   elvect_real.GetSubVector(tr_idx, y_t_real);
-   elvect_real.GetSubVector(int_idx, y_i_real);
+   elvect_real.GetSubVector(tr_idx, yt_real);
+   elvect_real.GetSubVector(int_idx, yi_real);
 
    // imag part of Matrix and vectors
    elmat.imag().GetSubMatrix(tr_idx,A_tt_imag);
@@ -394,8 +394,8 @@ ComplexDenseMatrix * ComplexBlockStaticCondensation::GetLocalShurComplement(
    elmat.imag().GetSubMatrix(int_idx, tr_idx, A_it_imag);
    elmat.imag().GetSubMatrix(int_idx, A_ii_imag);
 
-   elvect_imag.GetSubVector(tr_idx, y_t_imag);
-   elvect_imag.GetSubVector(int_idx, y_i_imag);
+   elvect_imag.GetSubVector(tr_idx, yt_imag);
+   elvect_imag.GetSubVector(int_idx, yi_imag);
 
    // construct complex
    ComplexDenseMatrix A_tt(&A_tt_real,&A_tt_imag,false,false);
@@ -415,7 +415,7 @@ ComplexDenseMatrix * ComplexBlockStaticCondensation::GetLocalShurComplement(
 
    // RHS
    lvec[el] = new Vector(2*idofs);
-   invA_ii->Mult(y_i,*lvec[el]);
+   invA_ii->Mult(yi,*lvec[el]);
    delete invA_ii;
 
    Vector rvect(2*rdofs);
@@ -424,8 +424,8 @@ ComplexDenseMatrix * ComplexBlockStaticCondensation::GetLocalShurComplement(
    rvect_imag.SetSize(rdofs);
    for (int i = 0; i<rdofs; i++)
    {
-      rvect_real(i) = y_t_real(i) - rvect(i);
-      rvect_imag(i) = y_t_imag(i) - rvect(i+rdofs);
+      rvect_real(i) = yt_real(i) - rvect(i);
+      rvect_imag(i) = yt_imag(i) - rvect(i+rdofs);
    }
    return rmat;
 }
@@ -783,15 +783,15 @@ void ComplexBlockStaticCondensation::ConvertMarkerToReducedTrueDofs(
    for (int i = 0; i<nblocks; i++)
    {
       tdof_marker0.MakeRef(&data[tdof_offsets[i]],tdof_offsets[i+1]-tdof_offsets[i]);
-      const SparseMatrix * R = fes[i]->GetRestrictionMatrix();
-      if (!R)
+      const SparseMatrix * R_ = fes[i]->GetRestrictionMatrix();
+      if (!R_)
       {
          dof_marker0.MakeRef(tdof_marker0);
       }
       else
       {
          dof_marker0.SetSize(fes[i]->GetVSize());
-         R->BooleanMultTranspose(tdof_marker0, dof_marker0);
+         R_->BooleanMultTranspose(tdof_marker0, dof_marker0);
       }
       dof_marker.Append(dof_marker0);
    }
@@ -854,7 +854,7 @@ void ComplexBlockStaticCondensation::SetEssentialTrueDofs(const Array<int>
 }
 
 void ComplexBlockStaticCondensation::EliminateReducedTrueDofs(const Array<int>
-                                                              &ess_rtdof_list,
+                                                              &ess_rtdof_list_,
                                                               Matrix::DiagonalPolicy dpolicy)
 {
 
@@ -881,8 +881,8 @@ void ComplexBlockStaticCondensation::EliminateReducedTrueDofs(const Array<int>
          }
       }
    }
-   S_r->EliminateRowCols(ess_rtdof_list,S_e_r,dpolicy);
-   S_i->EliminateRowCols(ess_rtdof_list,S_e_i,Operator::DiagonalPolicy::DIAG_ZERO);
+   S_r->EliminateRowCols(ess_rtdof_list_,S_e_r,dpolicy);
+   S_i->EliminateRowCols(ess_rtdof_list_,S_e_i,Operator::DiagonalPolicy::DIAG_ZERO);
 }
 
 void ComplexBlockStaticCondensation::EliminateReducedTrueDofs(

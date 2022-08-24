@@ -393,7 +393,7 @@ int main(int argc, char *argv[])
 
 
 
-   for (int i = 0; i<ref; i++)
+   for (int iref = 0; iref<ref; iref++)
    {
       if (static_cond) { a->EnableStaticCondensation(); }
       a->Assemble();
@@ -452,6 +452,7 @@ int main(int argc, char *argv[])
 
       ComplexOperator * Ahc = Ah.As<ComplexOperator>();
 
+      SparseMatrix * Ar = dynamic_cast<BlockMatrix *>(&Ahc->real())->CreateMonolithic();
       SparseMatrix * Ai = dynamic_cast<BlockMatrix *>(&Ahc->imag())->CreateMonolithic();
 
       ComplexSparseMatrix Ac(Ar,Ai,true,true);
@@ -521,14 +522,14 @@ int main(int argc, char *argv[])
       double rel_err = L2Error/L2norm;
 
 
-      double rate_err = (i) ? dim*log(err0/rel_err)/log((double)dof0/dofs) : 0.0;
-      double rate_res = (i) ? dim*log(res0/residual)/log((double)dof0/dofs) : 0.0;
+      double rate_err = (iref) ? dim*log(err0/rel_err)/log((double)dof0/dofs) : 0.0;
+      double rate_res = (iref) ? dim*log(res0/residual)/log((double)dof0/dofs) : 0.0;
 
       err0 = rel_err;
       res0 = residual;
       dof0 = dofs;
 
-      mfem::out << std::right << std::setw(11) << i << " | " 
+      mfem::out << std::right << std::setw(11) << iref << " | " 
                 << std::setw(10) <<  dof0 << " | " 
                 << std::setprecision(3) 
                 << std::setw(10) << std::scientific <<  err0 << " | " 
@@ -572,7 +573,7 @@ int main(int argc, char *argv[])
 
       }
 
-      if (i == ref-1)
+      if (iref == ref-1)
          break;
 
       mesh.GeneralRefinement(elements_to_refine,1,1);

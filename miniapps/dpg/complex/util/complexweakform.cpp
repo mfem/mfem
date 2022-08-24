@@ -127,15 +127,19 @@ void ComplexDPGWeakForm::Finalize(int skip_zeros)
 void ComplexDPGWeakForm::AddTrialIntegrator(
    BilinearFormIntegrator *bfi_r,
    BilinearFormIntegrator *bfi_i,
-   int trial_fes, int test_fes)
+   int n, int m)
 {
+   MFEM_VERIFY(n<trial_fes.Size(), 
+   "ComplexDPGWeakFrom::AddTrialIntegrator: trial fespace index out of bounds");
+   MFEM_VERIFY(m<test_fecols.Size(), 
+   "ComplexDPGWeakFrom::AddTrialIntegrator: test fecol index out of bounds");
    if (bfi_r)
    {
-      trial_integs_r(trial_fes,test_fes)->Append(bfi_r);
+      trial_integs_r(n,m)->Append(bfi_r);
    }
    if (bfi_i)
    {
-      trial_integs_i(trial_fes,test_fes)->Append(bfi_i);
+      trial_integs_i(n,m)->Append(bfi_i);
    }
 }
 
@@ -143,30 +147,34 @@ void ComplexDPGWeakForm::AddTrialIntegrator(
 void ComplexDPGWeakForm::AddTestIntegrator(
    BilinearFormIntegrator *bfi_r,
    BilinearFormIntegrator *bfi_i,
-   int test_fes0, int test_fes1)
+   int n, int m)
 {
+   MFEM_VERIFY(n<test_fecols.Size() && m<test_fecols.Size(), 
+   "ComplexDPGWeakFrom::AdTestIntegrator: test fecol index out of bounds");
    if (bfi_r)
    {
-      test_integs_r(test_fes0,test_fes1)->Append(bfi_r);
+      test_integs_r(n,m)->Append(bfi_r);
    }
    if (bfi_i)
    {
-      test_integs_i(test_fes0,test_fes1)->Append(bfi_i);
+      test_integs_i(n,m)->Append(bfi_i);
    }
 }
 
 /// Adds new Domain LF Integrator. Assumes ownership of @a bfi.
 void ComplexDPGWeakForm::AddDomainLFIntegrator(
    LinearFormIntegrator *lfi_r,
-   LinearFormIntegrator *lfi_i, int test_fes)
+   LinearFormIntegrator *lfi_i, int n)
 {
+   MFEM_VERIFY(n<test_fecols.Size(), 
+   "ComplexDPGWeakFrom::AddDomainLFIntegrator: test fecol index out of bounds"); 
    if (lfi_r)
    {
-      lfis_r[test_fes]->Append(lfi_r);
+      lfis_r[n]->Append(lfi_r);
    }
    if (lfi_i)
    {
-      lfis_i[test_fes]->Append(lfi_i);
+      lfis_i[n]->Append(lfi_i);
    }
 }
 
@@ -389,11 +397,11 @@ void ComplexDPGWeakForm::Assemble(int skip_zeros)
 
       for (int j = 0; j < test_fecols.Size(); j++)
       {
-         int order = test_fecols[j]->GetOrder();
+         int order_j = test_fecols[j]->GetOrder();
 
          eltrans = mesh->GetElementTransformation(iel);
          const FiniteElement & test_fe =
-            *test_fecols[j]->GetFE(eltrans->GetGeometryType(), order);
+            *test_fecols[j]->GetFE(eltrans->GetGeometryType(), order_j);
 
          // real integrators
          for (int k = 0; k < lfis_r[j]->Size(); k++)
@@ -410,10 +418,10 @@ void ComplexDPGWeakForm::Assemble(int skip_zeros)
 
          for (int i = 0; i < test_fecols.Size(); i++)
          {
-            int order = test_fecols[i]->GetOrder();
+            int order_i = test_fecols[i]->GetOrder();
             eltrans = mesh->GetElementTransformation(iel);
             const FiniteElement & test_fe_i =
-               *test_fecols[i]->GetFE(eltrans->GetGeometryType(), order);
+               *test_fecols[i]->GetFE(eltrans->GetGeometryType(), order_i);
 
             // real integrators
             for (int k = 0; k < test_integs_r(i,j)->Size(); k++)
