@@ -90,16 +90,18 @@ By default, we export three scalar fields to both software packages.
 * The topological support, e.g. tha basic geometrical structure
 * The random perturbations
 * The topology with random imperfections.
+* Level set 
 
 ### GLVis
 
 To visualize with GLVis, simply have your GLVis server running when you execute
-the miniapp.
+the miniapp. Turn on/off with `-gvis/-no-gvis' command line arguments.
 
 ### ParaView
 
 We export a file `<workdir>/ParaView/SurrogateMaterial/SurrogateMaterial.pvd` 
-that can be opened and edited with ParaView as you wish. To achieve the results 
+that can be opened and edited with ParaView as you wish. 
+Turn on/off with `-pvis/-no-pvis' command line arguments. To achieve the results 
 that you may see in some images of the demo, you'll have to present the 
 `imperfect_topology` as volume (rendering via sampling) and use the color map 
 `Xray` with separate opacity map to isolate the core structures. Note that the 
