@@ -158,8 +158,8 @@ SUNContext &Sundials::GetContext()
 
 SundialsMemHelper &Sundials::GetMemHelper()
 {
-  static Sundials sundials;
-  return sundials.memHelper;
+   static Sundials sundials;
+   return sundials.memHelper;
 }
 
 #if (SUNDIALS_VERSION_MAJOR >= 6)
@@ -184,12 +184,12 @@ Sundials::~Sundials()
 
 Sundials::Sundials()
 {
-  // Do nothing
+   // Do nothing
 }
 
 Sundials::~Sundials()
 {
-  // Do nothing
+   // Do nothing
 }
 
 #endif
