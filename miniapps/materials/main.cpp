@@ -66,6 +66,7 @@ int main(int argc, char *argv[]) {
   double uniform_max = 1.0;
   double offset = 0.0;
   double scale = 1.0;
+  double level_set_threshold = 0.0;
   bool paraview_export = true;
   bool glvis_export = true;
   bool uniform_rf = false;
@@ -102,6 +103,8 @@ int main(int argc, char *argv[]) {
                   "Offset for random field u(x) -> u(x) + a");
   args.AddOption(&scale, "-s", "--scale",
                   "Scale for random field u(x) -> a * u(x)");
+  args.AddOption(&level_set_threshold, "-lst", "--level-set-threshold",
+                  "Level set threshold");
   args.AddOption(&number_of_particles, "-n", "--number-of-particles",
                  "Number of particles");
   args.AddOption(&paraview_export, "-pvis", "--paraview-visualization",
@@ -244,7 +247,7 @@ int main(int argc, char *argv[]) {
   w += v;
   ParGridFunction level_set(w); // Level set field.
   {
-    materials::LevelSetTransformer transformation;
+    materials::LevelSetTransformer transformation(level_set_threshold);
     transformation.Transform(level_set);
   }
 
