@@ -173,6 +173,10 @@ double inv_scalar_abs2_alpha_function(const Vector &x, CartesianPML * pml);
 void beta_function_re(const Vector &x, CartesianPML * pml, DenseMatrix & K);
 void beta_function_im(const Vector &x, CartesianPML * pml, DenseMatrix & K);
 void abs2_beta_function(const Vector &x, CartesianPML * pml, DenseMatrix & K);
+void E_bdr_data_Re(const Vector &x, Vector &hatE_r);
+void E_bdr_data_Im(const Vector &x, Vector &hatE_i);
+void E_exact_Re(const Vector &x, Vector &E_r);
+void E_exact_Im(const Vector &x, Vector &E_i);
 
 Array2D<double> comp_domain_bdr;
 Array2D<double> domain_bdr;
@@ -200,6 +204,7 @@ int main(int argc, char *argv[])
    int iprob = 0;
    int sr = 0;
    int pr = 1;
+   double theta = 0.0;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -221,7 +226,9 @@ int main(int argc, char *argv[])
                   "Order enrichment for DPG test space.");     
    args.AddOption(&adjoint_graph_norm, "-graph-norm", "--adjoint-graph-norm",
                   "-no-graph-norm", "--no-adjoint-graph-norm",
-                  "Enable or disable Adjoint Graph Norm on the test space");                                
+                  "Enable or disable Adjoint Graph Norm on the test space");   
+   args.AddOption(&theta, "-theta", "--theta",
+                  "Theta parameter for AMR");                                                  
    args.AddOption(&sr, "-sref", "--serial_ref",
                   "Number of parallel refinements.");                                              
    args.AddOption(&pr, "-pref", "--parallel_ref",
@@ -247,7 +254,7 @@ int main(int argc, char *argv[])
    Mesh mesh(mesh_file, 1, 1);
    dim = mesh.Dimension();
    dimc = (dim == 3) ? 3 : 1;
-
+   mesh.EnsureNCMesh();
    // Setup PML length
    Array2D<double> length(dim, 2); length = 0.0;
    length = 0.25;
@@ -387,7 +394,7 @@ int main(int argc, char *argv[])
 
 
    ParComplexDPGWeakForm * a = new ParComplexDPGWeakForm(trial_fes,test_fec);
-   // a->StoreMatrices();
+   a->StoreMatrices();
 
 
    // (E,∇ × F)
@@ -676,9 +683,27 @@ int main(int argc, char *argv[])
 
    // RHS
 
-   a->AddDomainLFIntegrator(new VectorFEDomainLFIntegrator(f),nullptr,1);
+   // a->AddDomainLFIntegrator(new VectorFEDomainLFIntegrator(f),nullptr,1);
 
    int dofs;
+   Array<int> elements_to_refine;
+
+   socketstream E_out_r;
+   socketstream inc_Eout_r;
+   socketstream E_out_i;
+   socketstream H_out_r;
+   socketstream H_out_i;
+   if (visualization)
+   {
+      char vishost[] = "localhost";
+      int  visport   = 19916;
+      E_out_r.open(vishost, visport);
+      E_out_i.open(vishost, visport);
+      H_out_r.open(vishost, visport);
+      H_out_i.open(vishost, visport);
+      inc_Eout_r.open(vishost, visport);
+   }
+
 
    for (int it = 0; it<pr; it++)
    {
@@ -719,6 +744,25 @@ int main(int argc, char *argv[])
 
       Vector x(2*offsets.Last());
       x = 0.;
+
+      double * xdata = x.GetData();
+      Vector one_vec(2); one_vec = 1.0;
+      VectorConstantCoefficient vone(one_vec);
+
+      VectorFunctionCoefficient bdr_data_E_r(dim, E_bdr_data_Re);
+      VectorFunctionCoefficient bdr_data_E_i(dim, E_bdr_data_Im);
+
+      ParComplexGridFunction hatE_gf(hatE_fes);
+      hatE_gf.real().MakeRef(hatE_fes,&xdata[offsets[2]]);
+      hatE_gf.imag().MakeRef(hatE_fes,&xdata[offsets.Last()+ offsets[2]]);
+      Array<int> internal_bdr;
+      if (pmesh.bdr_attributes.Size())
+      {
+         internal_bdr.SetSize(pmesh.bdr_attributes.Max());
+         internal_bdr = 0;
+         internal_bdr[4]=1;
+      }
+      hatE_gf.ProjectBdrCoefficientNormal(bdr_data_E_r,bdr_data_E_i,internal_bdr);
 
       OperatorPtr Ah;
       Vector X,B;
@@ -838,10 +882,13 @@ int main(int argc, char *argv[])
 
       a->RecoverFEMSolution(X,x);
 
-
       ParComplexGridFunction E(E_fes);
       E.real().MakeRef(E_fes,x.GetData());
       E.imag().MakeRef(E_fes,&x.GetData()[offsets.Last()]);
+
+      ParComplexGridFunction H(H_fes);
+      H.real().MakeRef(H_fes,&x.GetData()[offsets[1]]);
+      H.imag().MakeRef(H_fes,&x.GetData()[offsets.Last()+offsets[1]]);
 
       if (myid == 0)
       {
@@ -859,21 +906,64 @@ int main(int argc, char *argv[])
 
       if (visualization)
       {
-         char vishost[] = "localhost";
-         int visport = 19916;
-         socketstream E_out_r(vishost, visport);
+
+         VectorFunctionCoefficient E_r(dim, E_exact_Re);
+         VectorFunctionCoefficient E_i(dim, E_exact_Im);
+         ParComplexGridFunction incE(E_fes);
+         incE.ProjectCoefficient(E_r,E_i);
+         incE.real() -=E.real();
+         incE.imag() -=E.imag();
+
+         inc_Eout_r << "parallel " << num_procs << " " << myid << "\n";
+         inc_Eout_r.precision(8);
+         inc_Eout_r << "solution\n" << pmesh << incE.real() <<
+                  "window_title 'Total Electric field' "
+                  << flush;
 
          E_out_r << "parallel " << num_procs << " " << myid << "\n";
          E_out_r.precision(8);
          E_out_r << "solution\n" << pmesh << E.real() <<
                   "window_title 'Real Numerical Electric field' "
                   << flush;
+
+         E_out_i << "parallel " << num_procs << " " << myid << "\n";
+         E_out_i.precision(8);
+         E_out_i << "solution\n" << pmesh << E.imag() <<
+                  "window_title 'Imag Numerical Electric field' "
+                  << flush;     
+
+         H_out_r << "parallel " << num_procs << " " << myid << "\n";
+         H_out_r.precision(8);
+         H_out_r << "solution\n" << pmesh << H.real() <<
+                  "window_title 'Real Numerical Magnetic field' "
+                  << flush;
+
+         H_out_i << "parallel " << num_procs << " " << myid << "\n";
+         H_out_i.precision(8);
+         H_out_i << "solution\n" << pmesh << H.imag() <<
+                  "window_title 'Imag Numerical Magnetic field' "
+                  << flush;                             
       }
 
       if (it == pr-1)
          break;
 
-      pmesh.UniformRefinement();
+
+      Vector & residuals = a->ComputeResidual(x);
+      double maxresidual = residuals.Max(); 
+      MPI_Allreduce(MPI_IN_PLACE,&maxresidual,1,MPI_DOUBLE,MPI_MAX,MPI_COMM_WORLD);
+      elements_to_refine.SetSize(0);
+      for (int iel = 0; iel<pmesh.GetNE(); iel++)
+      {
+         if (residuals[iel] > theta * maxresidual)
+         {
+            elements_to_refine.Append(iel);
+         }
+      }
+      pmesh.GeneralRefinement(elements_to_refine,1,1);
+      pml->SetAttributes(&pmesh);
+
+      // pmesh.UniformRefinement();
       for (int i =0; i<trial_fes.Size(); i++)
       {
          trial_fes[i]->Update(false);
@@ -913,17 +1003,54 @@ void source(const Vector &x, Vector &f)
    f[0] = -coeff * exp(alpha)/omega;
 }
 
-void maxwell_solution(const Vector &x, vector<complex<double>> &E)
+void maxwell_solution(const Vector &X, vector<complex<double>> &E)
 {
    // Initialize
+   E.resize(dim);
    for (int i = 0; i < dim; ++i)
    {
       E[i] = 0.0;
    }
+   complex<double> zi = complex<double>(0., 1.);
+
+   double rk = omega;
+   double alpha = 45 * M_PI/180.;
+   double sina = sin(alpha); 
+   double cosa = cos(alpha);
+   // shift the origin
+   double xprim=X(0) + 0.1; 
+   double yprim=X(1) + 0.1;
+
+   double  x = xprim*sina - yprim*cosa;
+   double  y = xprim*cosa + yprim*sina;
+   //wavelength
+   double rl = 2.*M_PI/rk;
+
+   // beam waist radius
+   double w0 = 0.05;
+
+   // function w
+   double fact = rl/M_PI/(w0*w0);
+   double aux = 1. + (fact*y)*(fact*y);
+
+   double w = w0*sqrt(aux);
+
+   double phi0 = atan(fact*y);
+
+   double r = y + 1./y/(fact*fact);
+
+   // pressure
+   complex<double> ze = - x*x/(w*w) - zi*rk*y - zi * M_PI * x * x/rl/r + zi*phi0/2.;
+   double pf = pow(2.0/M_PI/(w*w),0.25);
+   complex<double> zp = pf*exp(ze);
+
+   E[0] = zp;   
+   E[1] = 0.0;   
 }
 
 void E_exact_Re(const Vector &x, Vector &E)
 {
+   E.SetSize(dim);
    vector<complex<double>> Eval(E.Size());
    maxwell_solution(x, Eval);
    for (int i = 0; i < dim; ++i)
@@ -934,6 +1061,7 @@ void E_exact_Re(const Vector &x, Vector &E)
 
 void E_exact_Im(const Vector &x, Vector &E)
 {
+   E.SetSize(dim);
    vector<complex<double>> Eval(E.Size());
    maxwell_solution(x, Eval);
    for (int i = 0; i < dim; ++i)
@@ -942,15 +1070,24 @@ void E_exact_Im(const Vector &x, Vector &E)
    }
 }
 
-void E_bdr_data_Re(const Vector &x, Vector &E)
+void E_bdr_data_Re(const Vector &x, Vector &hatE_r)
 {
-   E = 0.0;
+   Vector E_r;
+   E_exact_Re(x,E_r);
+   hatE_r.SetSize(hatE_r.Size());
+   hatE_r[0] = E_r[1];
+   hatE_r[1] = -E_r[0];
 }
 
 // Define bdr_data solution
-void E_bdr_data_Im(const Vector &x, Vector &E)
+void E_bdr_data_Im(const Vector &x, Vector &hatE_i)
 {
-   E = 0.0;
+   Vector E_i;
+   E_exact_Im(x,E_i);
+   hatE_i.SetSize(hatE_i.Size());
+   // rotate E_hat
+   hatE_i[0] = E_i[1];
+   hatE_i[1] = -E_i[0];
 }
 
 // α = |J|^-1 J^T J (in 2D it's the scalar |J|^-1)
@@ -1130,10 +1267,10 @@ void CartesianPML::SetBoundaries()
 void CartesianPML::SetAttributes(ParMesh *pmesh)
 {
    // Initialize bdr attributes
-   for (int i = 0; i < pmesh->GetNBE(); ++i)
-   {
-      pmesh->GetBdrElement(i)->SetAttribute(i+1);
-   }
+   // for (int i = 0; i < pmesh->GetNBE(); ++i)
+   // {
+   //    pmesh->GetBdrElement(i)->SetAttribute(i+1);
+   // }
 
    int nrelem = pmesh->GetNE();
 
