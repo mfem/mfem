@@ -18,11 +18,23 @@ namespace mfem
 namespace materials
 {
 
+// ---------------------------------------------------------------------------
+// Functions for TransformedCoefficient interface
+// ---------------------------------------------------------------------------
+
 /// This function effectively implements equation 19 of the paper (see header).
 ///  `\Phi [y(x)]`
 double TransformToUniform(double x) {
   return std::erfc(-x/std::sqrt(2))/2;
 }
+
+double ApplyLevelSetAtZero(double x) {
+  return x >= 0 ? 1 : 0;
+}
+
+// ---------------------------------------------------------------------------
+// Member functions for GFTransformer class
+// ---------------------------------------------------------------------------
 
 void UniformGRFTransformer::Transform(ParGridFunction &x) const {
   GridFunctionCoefficient gf_coeff(&x);
@@ -45,6 +57,16 @@ void OffsetTransformer::Transform(ParGridFunction &x) const {
 
 void ScaleTransformer::Transform(ParGridFunction &x) const {
   x *= scale_;
+}
+
+void LevelSetTransformer::Transform(ParGridFunction &x) const {
+  GridFunctionCoefficient gf_coeff(&x);
+  ConstantCoefficient threshold(-threshold_);
+  SumCoefficient sum_coeff(gf_coeff, threshold);
+  TransformedCoefficient transformation_coeff(&sum_coeff, ApplyLevelSetAtZero);
+  ParGridFunction xx(x);
+  xx.ProjectCoefficient(transformation_coeff);
+  x = xx;
 }
 
 } // namespace materials

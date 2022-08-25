@@ -242,12 +242,17 @@ int main(int argc, char *argv[]) {
   w = 0.0;
   w += u;
   w += v;
+  ParGridFunction level_set(w); // Level set field.
+  {
+    materials::LevelSetTransformer transformation;
+    transformation.Transform(level_set);
+  }
 
   // ========================================================================
   // VI. Export visualization to ParaView and GLVis
   // ========================================================================
 
-  materials::Visualizer vis(pmesh, order, u, v, w);
+  materials::Visualizer vis(pmesh, order, u, v, w, level_set);
   if (paraview_export) {
     vis.ExportToParaView();
   }

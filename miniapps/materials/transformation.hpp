@@ -38,6 +38,7 @@ class GFTransformer
 class UniformGRFTransformer : public GFTransformer
 {
  public:
+  UniformGRFTransformer() = default;
   UniformGRFTransformer(double min, double max) : min_(min), max_(max) {}
   virtual ~UniformGRFTransformer() = default;
   /// Transforms a GridFunction representing a Gaussian random field to a 
@@ -53,6 +54,7 @@ class UniformGRFTransformer : public GFTransformer
 class OffsetTransformer : public GFTransformer
 {
  public:
+  OffsetTransformer() = default;
   OffsetTransformer(double offset) : offset_(offset) {}
   virtual ~OffsetTransformer() = default;
   /// Offsets a grid function by an constant offset.
@@ -66,6 +68,7 @@ class OffsetTransformer : public GFTransformer
 class ScaleTransformer : public GFTransformer
 {
  public:
+  ScaleTransformer() = default;
   ScaleTransformer(double scale) : scale_(scale) {}
   virtual ~ScaleTransformer() = default;
   /// Scales a grid function by an constant factor.
@@ -73,6 +76,20 @@ class ScaleTransformer : public GFTransformer
  
  private:
   double scale_ = 1.0;
+};
+
+/// Level Set Transformer, 1 for u(x) >= threshold, 0 otherwise.
+class LevelSetTransformer : public GFTransformer
+{
+ public:
+  LevelSetTransformer() = default;
+  LevelSetTransformer(double threshold) : threshold_(threshold) {}
+  virtual ~LevelSetTransformer() = default;
+  /// Applies a level set to the GridFunction.
+  virtual void Transform(ParGridFunction &x) const override;
+ 
+ private:
+  double threshold_ = 0.0;
 };
 
 } // namespace materials  
