@@ -412,15 +412,6 @@ HypreParVector::~HypreParVector()
       hypre_ParVectorDestroy(x);
    }
 }
-// TODO: Delete this
-/*#ifdef MFEM_USE_SUNDIALS
-
-N_Vector HypreParVector::ToNVector()
-{
-   return N_VMake_Parallel(GetComm(), Size(), GlobalSize(), GetData());
-}
-
-#endif // MFEM_USE_SUNDIALS*/
 
 
 double InnerProduct(HypreParVector *x, HypreParVector *y)
