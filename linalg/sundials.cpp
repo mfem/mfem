@@ -39,49 +39,73 @@ using namespace std;
 
 #if (SUNDIALS_VERSION_MAJOR < 6)
 
-N_Vector N_VNewEmpty_Serial(sunindextype vec_length, SUNContext)
+/// (DEPRECATED) Wrapper function for backwards compatibility with SUNDIALS
+/// version < 6
+MFEM_DEPRECATED N_Vector N_VNewEmpty_Serial(sunindextype vec_length, SUNContext)
 {
    return N_VNewEmpty_Serial(vec_length);
 }
 
-SUNMatrix SUNMatNewEmpty(SUNContext)
+/// (DEPRECATED) Wrapper function for backwards compatibility with SUNDIALS
+/// version < 6
+MFEM_DEPRECATED SUNMatrix SUNMatNewEmpty(SUNContext)
 {
    return SUNMatNewEmpty();
 }
 
-SUNLinearSolver SUNLinSolNewEmpty(SUNContext)
+/// (DEPRECATED) Wrapper function for backwards compatibility with SUNDIALS
+/// version < 6
+MFEM_DEPRECATED SUNLinearSolver SUNLinSolNewEmpty(SUNContext)
 {
    return SUNLinSolNewEmpty();
 }
 
-SUNLinearSolver SUNLinSol_SPGMR(N_Vector y, int pretype, int maxl, SUNContext)
+/// (DEPRECATED) Wrapper function for backwards compatibility with SUNDIALS
+/// version < 6
+MFEM_DEPRECATED SUNLinearSolver SUNLinSol_SPGMR(N_Vector y, int pretype,
+                                                int maxl, SUNContext)
 {
    return SUNLinSol_SPGMR(y, pretype, maxl);
 }
 
-SUNLinearSolver SUNLinSol_SPFGMR(N_Vector y, int pretype, int maxl, SUNContext)
+/// (DEPRECATED) Wrapper function for backwards compatibility with SUNDIALS
+/// version < 6
+MFEM_DEPRECATED SUNLinearSolver SUNLinSol_SPFGMR(N_Vector y, int pretype,
+                                                 int maxl, SUNContext)
 {
    return SUNLinSol_SPGMR(y, pretype, maxl);
 }
 
-void* CVodeCreate(int lmm, SUNContext)
+/// (DEPRECATED) Wrapper function for backwards compatibility with SUNDIALS
+/// version < 6
+MFEM_DEPRECATED void* CVodeCreate(int lmm, SUNContext)
 {
    return CVodeCreate(lmm);
 }
 
-void* ARKStepCreate(ARKRhsFn fe, ARKRhsFn fi, realtype t0, N_Vector y0, SUNContext)
+/// (DEPRECATED) Wrapper function for backwards compatibility with SUNDIALS
+/// version < 6
+MFEM_DEPRECATED void* ARKStepCreate(ARKRhsFn fe, ARKRhsFn fi, realtype t0,
+                                    N_Vector y0, SUNContext)
 {
    return ARKStepCreate(fe, fi, t0, y0);
 }
 
-void* KINCreate(SUNContext)
+/// (DEPRECATED) Wrapper function for backwards compatibility with SUNDIALS
+/// version < 6
+MFEM_DEPRECATED void* KINCreate(SUNContext)
 {
    return KINCreate();
 }
 
 #ifdef MFEM_USE_MPI
 
-N_Vector N_VNewEmpty_Parallel(MPI_Comm comm, sunindextype local_length, sunindextype global_length, SUNContext)
+/// (DEPRECATED) Wrapper function for backwards compatibility with SUNDIALS
+/// version < 6
+MFEM_DEPRECATED N_Vector N_VNewEmpty_Parallel(MPI_Comm comm,
+                                              sunindextype local_length,
+                                              sunindextype global_length,
+                                              SUNContext)
 {
    return N_VNewEmpty_Parallel(comm, local_length, global_length);
 }
@@ -90,7 +114,12 @@ N_Vector N_VNewEmpty_Parallel(MPI_Comm comm, sunindextype local_length, sunindex
 
 #ifdef MFEM_USE_CUDA
 
-N_Vector N_VNewWithMemHelp_Cuda(sunindextype length, booleantype use_managed_mem, SUNMemoryHelper helper, SUNContext)
+/// (DEPRECATED) Wrapper function for backwards compatibility with SUNDIALS
+/// version < 6
+MFEM_DEPRECATED N_Vector N_VNewWithMemHelp_Cuda(sunindextype length,
+                                                booleantype use_managed_mem,
+                                                SUNMemoryHelper helper,
+                                                SUNContext)
 {
    return N_VNewWithMemHelp_Cuda(length, use_managed_mem, helper);
 }
@@ -99,7 +128,10 @@ N_Vector N_VNewWithMemHelp_Cuda(sunindextype length, booleantype use_managed_mem
 
 #if defined(MFEM_USE_MPI) && defined(MFEM_USE_CUDA)
 
-N_Vector N_VMake_MPIPlusX(MPIComm comm, N_Vector* local_vector, SUNContext)
+/// (DEPRECATED) Wrapper function for backwards compatibility with SUNDIALS
+/// version < 6
+MFEM_DEPRECATED N_Vector N_VMake_MPIPlusX(MPIComm comm, N_Vector* local_vector,
+                                          SUNContext)
 {
    return N_VMake_MPIPlusX(comm, local_vector);
 }
@@ -107,6 +139,7 @@ N_Vector N_VMake_MPIPlusX(MPIComm comm, N_Vector* local_vector, SUNContext)
 #endif // MFEM_USE_MPI && MFEM_USE_CUDA
 
 #endif // SUNDIALS_VERSION_MAJOR < 6
+
 
 namespace mfem
 {

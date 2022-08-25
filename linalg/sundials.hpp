@@ -45,13 +45,17 @@
 
 #if (SUNDIALS_VERSION_MAJOR < 6)
 
+/// (DEPRECATED) Map SUNDIALS version >= 6 datatypes and constants to version < 6
+/// for backwards compatibility
 using ARKODE_ERKTableID = int;
 using ARKODE_DIRKTableID = int;
 constexpr ARKODE_ERKTableID ARKODE_ERK_NONE = -1;
 constexpr ARKODE_DIRKTableID ARKODE_DIRK_NONE = -1;
 constexpr ARKODE_ERKTableID ARKODE_FEHLBERG_13_7_8 = FEHLBERG_13_7_8;
 
-using SUNContext = char;
+/// (DEPRECATED) There is no SUNContext in SUNDIALS version < 6 so set it to
+/// arbitrary type for more compact backwards compatibility
+using SUNContext = void*;
 
 #endif // SUNDIALS_VERSION_MAJOR < 6
 
@@ -61,7 +65,7 @@ namespace mfem
 #ifdef MFEM_USE_CUDA
 
 // ---------------------------------------------------------------------------
-// SUNMemory interface class (only nontrivial when used with CUDA)
+// SUNMemory interface class (used when CUDA is enabled)
 // ---------------------------------------------------------------------------
 class SundialsMemHelper
 {
@@ -88,6 +92,9 @@ public:
 
 #else // MFEM_USE_CUDA
 
+// ---------------------------------------------------------------------------
+// Dummy SUNMemory interface class (used when CUDA is not enabled)
+// ---------------------------------------------------------------------------
 class SundialsMemHelper
 {
 public:
@@ -99,34 +106,40 @@ public:
 
 #endif // MFEM_USE_CUDA
 
+
+/// Singleton class for SUNContext and SundialsMemHelper objects
 class Sundials
 {
 public:
 
+   /// Disable copy construction
    Sundials(Sundials &other) = delete;
 
+   /// Disable copy assignment
    void operator=(const Sundials &other) = delete;
 
+   /// Initializes SUNContext and SundialsMemHelper objects. Should be called at
+   /// the beginning of the calling program (after Mpi::Init if applicable)
    static void Init();
 
+   /// Provides access to the SUNContext object
    static SUNContext &GetContext();
 
+   /// Provides access to the SundialsMemHelper object
    static SundialsMemHelper &GetMemHelper();
 
 private:
 
+   /// Constructor called by Sundials::Init (does nothing for version < 6)
    Sundials();
 
+   /// Destructor called at end of calling porgram (does nothing for version < 6) 
    ~Sundials();
 
    SUNContext context;
-
    SundialsMemHelper memHelper;
 };
 
-// ---------------------------------------------------------------------------
-// Base class for interfacing with SUNDIALS packages
-// ---------------------------------------------------------------------------
 
 /// Vector interface for SUNDIALS N_Vectors.
 class SundialsNVector : public Vector
