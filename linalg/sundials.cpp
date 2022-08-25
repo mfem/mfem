@@ -37,22 +37,7 @@
 
 using namespace std;
 
-namespace mfem
-{
-
 #if (SUNDIALS_VERSION_MAJOR < 6)
-
-extern "C"
-{
-N_Vector N_VNewEmpty_Serial(sunindextype);
-SUNMatrix SUNMatNewEmpty();
-SUNLinearSolver SUNLinSolNewEmpty();
-SUNLinearSolver SUNLinSol_SPGMR(N_Vector, int, int);
-SUNLinearSolver SUNLinSol_SPFGMR(N_Vector, int, int);
-void* CVodeCreate(int);
-void* ARKStepCreate(ARKRhsFn, ARKRhsFn, realtype, N_Vector);
-void* KINCreate();
-}
 
 N_Vector N_VNewEmpty_Serial(sunindextype vec_length, SUNContext)
 {
@@ -61,83 +46,70 @@ N_Vector N_VNewEmpty_Serial(sunindextype vec_length, SUNContext)
 
 SUNMatrix SUNMatNewEmpty(SUNContext)
 {
-  return SUNMatNewEmpty();
+   return SUNMatNewEmpty();
 }
 
 SUNLinearSolver SUNLinSolNewEmpty(SUNContext)
 {
-  return SUNLinSolNewEmpty();
+   return SUNLinSolNewEmpty();
 }
 
 SUNLinearSolver SUNLinSol_SPGMR(N_Vector y, int pretype, int maxl, SUNContext)
 {
-  return SUNLinSol_SPGMR(y, pretype, maxl);
+   return SUNLinSol_SPGMR(y, pretype, maxl);
 }
 
 SUNLinearSolver SUNLinSol_SPFGMR(N_Vector y, int pretype, int maxl, SUNContext)
 {
-  return SUNLinSol_SPGMR(y, pretype, maxl);
+   return SUNLinSol_SPGMR(y, pretype, maxl);
 }
 
 void* CVodeCreate(int lmm, SUNContext)
 {
-  return CVodeCreate(lmm);
+   return CVodeCreate(lmm);
 }
 
 void* ARKStepCreate(ARKRhsFn fe, ARKRhsFn fi, realtype t0, N_Vector y0, SUNContext)
 {
-  return ARKStepCreate(fe, fi, t0, y0);
+   return ARKStepCreate(fe, fi, t0, y0);
 }
 
 void* KINCreate(SUNContext)
 {
-  return KINCreate();
+   return KINCreate();
 }
 
 #ifdef MFEM_USE_MPI
 
-extern "C"
-{
-N_Vector N_VNewEmpty_Parallel(MPI_Comm, sunindextype, sunindextype);
-}
-
 N_Vector N_VNewEmpty_Parallel(MPI_Comm comm, sunindextype local_length, sunindextype global_length, SUNContext)
 {
-  return N_VNewEmpty_Parallel(comm, local_length, global_length);
+   return N_VNewEmpty_Parallel(comm, local_length, global_length);
 }
 
 #endif // MFEM_USE_MPI
 
 #ifdef MFEM_USE_CUDA
 
-extern "C"
-{
-N_Vector N_VNewWithMemHelp_Cuda(sunindextype, booleantype, SUNMemoryHelper);
-}
-
 N_Vector N_VNewWithMemHelp_Cuda(sunindextype length, booleantype use_managed_mem, SUNMemoryHelper helper, SUNContext)
 {
-  return N_VNewWithMemHelp_Cuda(length, use_managed_mem, helper);
+   return N_VNewWithMemHelp_Cuda(length, use_managed_mem, helper);
 }
 
 #endif // MFEM_USE_CUDA
 
 #if defined(MFEM_USE_MPI) && defined(MFEM_USE_CUDA)
 
-extern "C"
-{
-N_Vector N_VMake_MPIPlusX(MPIComm, N_Vector*);
-}
-
 N_Vector N_VMake_MPIPlusX(MPIComm comm, N_Vector* local_vector, SUNContext)
 {
-  return N_VMake_MPIPlusX(comm, local_vector);
+   return N_VMake_MPIPlusX(comm, local_vector);
 }
 
 #endif // MFEM_USE_MPI && MFEM_USE_CUDA
 
 #endif // SUNDIALS_VERSION_MAJOR < 6
 
+namespace mfem
+{
 
 void Sundials::Init()
 {
@@ -157,6 +129,8 @@ SundialsMemHelper &Sundials::GetMemHelper()
   return sundials.memHelper;
 }
 
+#if (SUNDIALS_VERSION_MAJOR >= 6)
+
 Sundials::Sundials()
 {
 #ifdef MFEM_USE_MPI
@@ -172,6 +146,20 @@ Sundials::~Sundials()
 {
    SUNContext_Free(&context);
 }
+
+#else
+
+Sundials::Sundials()
+{
+  // Do nothing
+}
+
+Sundials::~Sundials()
+{
+  // Do nothing
+}
+
+#endif
 
 #ifdef MFEM_USE_CUDA
 
