@@ -33,7 +33,7 @@ EXAMPLE_OBJS := $(EXAMPLE_SRCS:%=%.o)
 EXAMPLE_DEPS := $(EXAMPLE_OBJS:.o=.d)
 
 EXAMPLES = acoustics maxwell
-PAR_EXAMPLES = pacoustics pmaxwell pmaxwell_pml
+PAR_EXAMPLES = pacoustics pmaxwell pmaxwell_pml pacoustics_pml
 
 ifeq ($(MFEM_USE_MPI),NO)
    MINIAPPS = $(EXAMPLES)
@@ -56,6 +56,9 @@ maxwell: $(SRC)/maxwell.cpp.o $(DPG_LIB)
 
 pacoustics: $(SRC)/pacoustics.cpp.o $(DPG_LIB)
 	$(MFEM_CXX) -o $@ $^ $(MFEM_LIBS)
+
+pacoustics_pml: $(SRC)/pacoustics_pml.cpp.o $(DPG_LIB)
+	$(MFEM_CXX) -o $@ $^ $(MFEM_LIBS)	
 
 pmaxwell: $(SRC)/pmaxwell.cpp.o $(DPG_LIB)
 	$(MFEM_CXX) -o $@ $^ $(MFEM_LIBS)
