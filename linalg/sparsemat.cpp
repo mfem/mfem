@@ -496,6 +496,7 @@ void SparseMatrix::SortColumnIndices()
                          d_ja_sorted, sortInfoA, pBuffer);
 
       cusparseDestroyCsru2csrInfo( sortInfoA );
+      cusparseDestroyMatDescr( matA_descr );
       isSorted = true;
 #endif
    }
@@ -513,28 +514,31 @@ void SparseMatrix::SortColumnIndices()
       const int * d_ia = ReadI();
       int * d_ja_sorted = ReadWriteJ();
 
-      // FIXME: There is not in-place version of csr sort in rocSPARSE currently, so we make
+      hipsparseMatDescr_t descrA;
+      hipsparseCreateMatDescr( &descrA );
+      // FIXME: There is not in-place version of csr sort in hipSPARSE currently, so we make
       //        a temporary copy of the data for gthr, sort that, and then copy the sorted values
       //        back to the array being returned. Where there is an in-place version available,
       //        we should use it.
       Array< double > a_tmp( nnzA );
       double *d_a_tmp = a_tmp.Write();
 
-      rocsparse_csrsort_buffer_size(handle, n, m, nnzA, d_ia, d_ja_sorted,
-                                    &pBufferSizeInBytes);
+      hipsparseXcsrsort_bufferSizeExt(handle, n, m, nnzA, d_ia, d_ja_sorted,
+                                      &pBufferSizeInBytes);
 
       Array< char > buffer( pBufferSizeInBytes );
       pBuffer = buffer.Write();
       Array< int > P_mem( nnzA );
       P       = P_mem.Write();
 
-      rocsparse_create_identity_permutation(handle, nnzA, P);
-      rocsparse_csrsort(handle, n, m, nnzA, descrA, d_ia, d_ja_sorted, P, pBuffer);
+      hipsparseCreateIdentityPermutation(handle, nnzA, P);
+      hipsparseXcsrsort(handle, n, m, nnzA, descrA, d_ia, d_ja_sorted, P, pBuffer);
 
-      rocsparse_dgthr(handle, nnzA, d_a_sorted, d_a_tmp, P,
-                      rocsparse_index_base_zero);
+      hipsparseDgthr(handle, nnzA, d_a_sorted, d_a_tmp, P,
+                     HIPSPARSE_INDEX_BASE_ZERO);
 
-      a_sorted = d_a_tmp;
+      A.CopyFrom( a_tmp.GetMemory(), nnzA );
+      hipsparseDestroyMatDescr( descrA );
 
       isSorted = true;
 #endif
