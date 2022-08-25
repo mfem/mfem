@@ -201,7 +201,7 @@ void Operator::PrintMatlab(std::ostream & os, int n, int m) const
       Mult(x, y);
       for (int j = 0; j < m; j++)
       {
-         if (y(j))
+         if (y(j) != 0)
          {
             os << j+1 << " " << i+1 << " " << y(j) << '\n';
          }

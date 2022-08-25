@@ -1560,7 +1560,9 @@ void hypre_ParCSRMatrixAbsMatvecT(hypre_ParCSRMatrix *A,
 
    if (num_cols_offd)
    {
-#if MFEM_HYPRE_VERSION >= 21100
+      // Disable the use of offdT for now, until we implement
+      // hypre_CSRMatrixAbsMatvec on device.
+#if MFEM_HYPRE_VERSION >= 21100 && 0
       if (A->offdT)
       {
          // offdT is optional. Used only if it's present.
@@ -1575,7 +1577,9 @@ void hypre_ParCSRMatrixAbsMatvecT(hypre_ParCSRMatrix *A,
 
    comm_handle = hypre_ParCSRCommHandleCreate(2, comm_pkg, y_tmp, y_buf);
 
-#if MFEM_HYPRE_VERSION >= 21100
+   // Disable the use of diagT for now, until we implement
+   // hypre_CSRMatrixAbsMatvec on device.
+#if MFEM_HYPRE_VERSION >= 21100 && 0
    if (A->diagT)
    {
       // diagT is optional. Used only if it's present.
@@ -1697,7 +1701,9 @@ void hypre_ParCSRMatrixBooleanMatvecT(hypre_ParCSRMatrix *A,
 
    if (num_cols_offd)
    {
-#if MFEM_HYPRE_VERSION >= 21100
+      // Disable the use of offdT for now, until we implement
+      // hypre_CSRMatrixBooleanMatvec on device.
+#if MFEM_HYPRE_VERSION >= 21100 && 0
       if (A->offdT)
       {
          // offdT is optional. Used only if it's present.
@@ -1712,7 +1718,9 @@ void hypre_ParCSRMatrixBooleanMatvecT(hypre_ParCSRMatrix *A,
 
    comm_handle = hypre_ParCSRCommHandleCreate_bool(2, comm_pkg, y_tmp, y_buf);
 
-#if MFEM_HYPRE_VERSION >= 21100
+   // Disable the use of diagT for now, until we implement
+   // hypre_CSRMatrixBooleanMatvec on device.
+#if MFEM_HYPRE_VERSION >= 21100 && 0
    if (A->diagT)
    {
       // diagT is optional. Used only if it's present.

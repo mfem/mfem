@@ -540,10 +540,10 @@ void halbach_array(const Vector &x, Vector &m)
    int ri = (int)ha_params_[7];
    int n  = (int)ha_params_[8];
 
-   int i = (int)n * (x[ai] - ha_params_[ai]) /
-           (ha_params_[ai+3] - ha_params_[ai]);
+   int i = static_cast<int>(n * (x[ai] - ha_params_[ai]) /
+                            (ha_params_[ai+3] - ha_params_[ai]));
 
-   m[(ri + 1 + (i % 2)) % 3] = pow(-1.0,i/2);
+   m[(ri + 1 + (i % 2)) % 3] = static_cast<int>(pow(-1.0,i/2));
 }
 
 // To produce a uniform magnetic flux the vector potential can be set
