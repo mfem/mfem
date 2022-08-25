@@ -180,7 +180,7 @@ Sundials::~Sundials()
    SUNContext_Free(&context);
 }
 
-#else
+#else // SUNDIALS_VERSION_MAJOR >= 6
 
 Sundials::Sundials()
 {
