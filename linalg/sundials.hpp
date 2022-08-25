@@ -98,10 +98,10 @@ public:
 class SundialsMemHelper
 {
 public:
-  SundialsMemHelper()
-  {
-    // Do nothing
-  }
+   SundialsMemHelper()
+   {
+      // Do nothing
+   }
 };
 
 #endif // MFEM_USE_CUDA
@@ -133,7 +133,7 @@ private:
    /// Constructor called by Sundials::Init (does nothing for version < 6)
    Sundials();
 
-   /// Destructor called at end of calling porgram (does nothing for version < 6) 
+   /// Destructor called at end of calling program (does nothing for version < 6)
    ~Sundials();
 
    SUNContext context;
