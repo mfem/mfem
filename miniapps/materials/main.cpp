@@ -30,6 +30,7 @@
 #include "solvers.hpp"
 #include "util.hpp"
 #include "visualizer.hpp"
+#include "transformation.hpp"
 
 using namespace std;
 using namespace mfem;
@@ -52,7 +53,6 @@ int main(int argc, char *argv[]) {
   int topological_support = TopologicalSupport::kParticles;
   double nu = 1.0;
   double tau = 1.0;
-  double zeta = 1.0;
   double l1 = 1;
   double l2 = 1;
   double l3 = 1;
@@ -62,8 +62,13 @@ int main(int argc, char *argv[]) {
   double pl1 = 1.0;
   double pl2 = 1.0;
   double pl3 = 1.0;
+  double uniform_min = 0.0;
+  double uniform_max = 1.0;
+  double offset = 0.0;
+  double scale = 1.0;
   bool paraview_export = true;
   bool glvis_export = true;
+  bool uniform_rf = false;
 
   OptionsParser args(argc, argv);
   args.AddOption(&order, "-o", "--order",
@@ -76,8 +81,6 @@ int main(int argc, char *argv[]) {
                  "Topological support. 0 particles, 1 octet-truss");
   args.AddOption(&nu, "-nu", "--nu", "Fractional exponent nu (smoothness)");
   args.AddOption(&tau, "-t", "--tau", "Parameter for topology generation");
-  args.AddOption(&zeta, "-z", "--zeta",
-                 "Parameter to scale the mixing of topology and randomness");
   args.AddOption(&l1, "-l1", "--l1",
                  "First component of diagonal core of theta");
   args.AddOption(&l2, "-l2", "--l2",
@@ -91,6 +94,14 @@ int main(int argc, char *argv[]) {
   args.AddOption(&pl1, "-pl1", "--pl1", "Length scale 1 of particles");
   args.AddOption(&pl2, "-pl2", "--pl2", "Length scale 2 of particles");
   args.AddOption(&pl3, "-pl3", "--pl3", "Length scale 3 of particles");
+  args.AddOption(&uniform_min, "-umin", "--uniform-min",
+                 "Minimum value of uniform distribution");
+  args.AddOption(&uniform_max, "-umax", "--uniform-max", 
+                  "Maximum value of uniform distribution");
+  args.AddOption(&offset, "-off", "--offset",
+                  "Offset for random field u(x) -> u(x) + a");
+  args.AddOption(&scale, "-s", "--scale",
+                  "Scale for random field u(x) -> a * u(x)");
   args.AddOption(&number_of_particles, "-n", "--number-of-particles",
                  "Number of particles");
   args.AddOption(&paraview_export, "-pvis", "--paraview-visualization",
@@ -99,6 +110,9 @@ int main(int argc, char *argv[]) {
   args.AddOption(&glvis_export, "-gvis", "--glvis-visualization", "-no-gvis",
                  "--no-glvis-visualization",
                  "Enable or disable GLVis visualization.");
+  args.AddOption(&uniform_rf, "-urf", "--uniform-rf", "-no-urf",
+                 "--no-uniform-rf",
+                 "Enable or disable the transformation of GRF to URF.");
   args.Parse();
   if (!args.Good()) {
     args.PrintUsage(cout);
@@ -168,7 +182,7 @@ int main(int argc, char *argv[]) {
   }
 
   // II.2 Define lambda to wrap the call to the distance metric.
-  auto topo = [&mdm, &tau, &zeta](const Vector &x) {
+  auto topo = [&mdm, &tau](const Vector &x) {
     return (tau - mdm->ComputeMetric(x));
   };
 
@@ -209,10 +223,25 @@ int main(int argc, char *argv[]) {
   // III. Combine topological support and random field
   // ========================================================================
 
-  ParGridFunction w(&fespace);
+  if (uniform_rf) {
+    /// Transform the random field to a uniform random field.
+    materials::UniformGRFTransformer transformation (uniform_min,uniform_max);
+    transformation.Transform(u);
+  }
+  if (scale != 1.0) {
+    /// Scale the random field.
+    materials::ScaleTransformer transformation(scale);
+    transformation.Transform(u);
+  }
+  if (offset != 0.0) {
+    /// Add an offset to the random field.
+    materials::OffsetTransformer transformation(offset);
+    transformation.Transform(u);
+  }
+  ParGridFunction w(&fespace); // Noisy material field.
   w = 0.0;
-  w.Add(zeta, u);
-  w.Add(1.0 - zeta, v);
+  w += u;
+  w += v;
 
   // ========================================================================
   // VI. Export visualization to ParaView and GLVis
