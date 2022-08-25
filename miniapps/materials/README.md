@@ -7,8 +7,13 @@ This miniapp implements a surrogate model for imperfect materials.
 The miniapp proceeds in thee distinct steps. First, we generate a random
 field $u$ by solving a fractional PDE [1] with MFEM. Second, we define a 
 topological support density $v$ [2]. In the third step, we combine $u$ and $v$
-to create a topology with random imperfections $w$[2]
-$$ w = (1 - \zeta) v + \zeta u .$$
+to create a topology with random imperfections $w$ similar to [2]
+$$ w = v +  (s \cdot T(u) + a) ,$$
+where the scalar parameter `s` and `a` can be controlled via the command line 
+parameters `--scale` and `--offset`, respectively. Furthermore, you may choose 
+`T` as the identity transformation (`-no-urf`) or a pointwise transformation 
+taking the Gaussian random field to a uniform random field (`-urf`, `-umin`, 
+`-umax`).
 
 ### Fractional PDE
 
@@ -34,6 +39,10 @@ This allows us to solve $N$ *integer-order* PDEs
 $$ (A + b_i) u_i = c_i f.$$ 
 For more details, consider `ex33`/`ex33p` and and references [3,4,5].
 
+The dimension is implicitly defined via the mesh, but you may specify 
+$\nu$ and $\underline{\underline{\Theta}}$ via the command line arguments 
+`-nu` and `-l1,-l2,-l3,-e1,-e2,-e3`.
+
 ### Topological support
 
 For the topological support, we restrict us to functions that represent 
@@ -45,22 +54,32 @@ $$ \rho(x, \mathcal{G})
    = \min_{k < N } 
    \{ || \underline{\underline{S}}(x - x_k) ||_2 \} ,$$
 Where $\underline{\underline{S}}$ is a matrix indicating the shape of the
-particles and $x_k$ is the position of particle $k$.
+particles and $x_k$ is the position of particle $k$. Additionally, we added 
+support for an octet truss. You may choose the topology with the command line 
+arguments `-top` (0 = particles,1 = octet truss)
 
 ## Sample runs
 
 Generate 5 paticles with random imperfections
 ```bash
-mpirun -np 4 main -o 1 -r 3 -rp 2 -nu 2 \
-       -l1 0.015 -l2 0.015 -l3 0.015 -z 0.01 \
+mpirun -np 4 main -o 1 -r 3 -rp 3 -nu 2 \
+       -l1 0.015 -l2 0.015 -l3 0.015 -s 0.01 \
        -t 0.08 -n 5 -pl2 3 -top 0
 ```
 
 Generate an Octet-Truss with random imperfections
 ```bash
-mpirun -np 4 main -o 1 -r 3 -rp 2 -nu 2 \
-       -l1 0.02 -l2 0.02 -l3 0.02 -z 0.01 \
+mpirun -np 4 main -o 1 -r 3 -rp 3 -nu 2 \
+       -l1 0.02 -l2 0.02 -l3 0.02 -s 0.01 \
        -t 0.08 -top 1
+```
+
+Generate an Octet-Truss with random imperfections following a uniform 
+distribution
+```bash
+mpirun -np 4 main -o 1 -r 3 -rp 3 -nu 2 \
+       -l1 0.02 -l2 0.02 -l3 0.02 -umin 0.01 -umax 0.05 \
+       -t 0.08 -top 1 -urf
 ```
 
 ## Visualization

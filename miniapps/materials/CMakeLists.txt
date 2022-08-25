@@ -13,6 +13,7 @@ if (MFEM_USE_MPI)
   add_mfem_miniapp(main
     MAIN main.cpp
     EXTRA_SOURCES material_metrics.cpp solvers.cpp util.cpp visualizer.cpp
+                  transformation.cpp
     LIBRARIES mfem)
 
   # Copy files to the build folder.
