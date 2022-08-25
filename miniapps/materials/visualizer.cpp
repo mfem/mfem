@@ -25,6 +25,7 @@ void Visualizer::ExportToParaView() {
   paraview_dc.RegisterField("random_field", &g1_);
   paraview_dc.RegisterField("topological_support", &g2_);
   paraview_dc.RegisterField("imperfect_topology", &g3_);
+  paraview_dc.RegisterField("level_set", &g4_);
   paraview_dc.Save();
 }
 
@@ -33,8 +34,8 @@ void Visualizer::SendToGLVis() {
   int visport = 19916;
   int num_procs = Mpi::WorldSize();
   int process_rank = Mpi::WorldRank();
-  socketstream uout, vout, wout;
-  std::ostringstream oss_u, oss_v, oss_w;
+  socketstream uout, vout, wout, lout;
+  std::ostringstream oss_u, oss_v, oss_w, oss_l;
   uout.open(vishost, visport);
   uout.precision(8);
   oss_u.str("");
@@ -64,6 +65,16 @@ void Visualizer::SendToGLVis() {
        << "solution\n"
        << *mesh_ << g3_ << "window_title '" << oss_w.str() << "'" << std::flush;
   wout.close();
+
+  lout.open(vishost, visport);
+  lout.precision(8);
+  oss_l.str("");
+  oss_l.clear();
+  oss_l << "Level Set";
+  lout << "parallel " << num_procs << " " << process_rank << "\n"
+       << "solution\n"
+       << *mesh_ << g4_ << "window_title '" << oss_l.str() << "'" << std::flush;
+  lout.close();
 }
 
 } // namespace materials
