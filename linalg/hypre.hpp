@@ -327,13 +327,6 @@ public:
 
    /// Calls hypre's destroy function
    ~HypreParVector();
-// TODO: consider deleting
-//#ifdef MFEM_USE_SUNDIALS
-//   /// (DEPRECATED) Return a new wrapper SUNDIALS N_Vector of type SUNDIALS_NVEC_PARALLEL.
-//   /** @deprecated The returned N_Vector must be destroyed by the caller. */
-//   MFEM_DEPRECATED virtual N_Vector ToNVector();
-//   using Vector::ToNVector;
-//#endif
 };
 
 /// Returns the inner product of x and y

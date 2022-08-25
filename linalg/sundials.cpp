@@ -158,8 +158,8 @@ SUNContext &Sundials::GetContext()
 
 SundialsMemHelper &Sundials::GetMemHelper()
 {
-  static Sundials sundials;
-  return sundials.memHelper;
+   static Sundials sundials;
+   return sundials.memHelper;
 }
 
 #if (SUNDIALS_VERSION_MAJOR >= 6)
@@ -184,12 +184,12 @@ Sundials::~Sundials()
 
 Sundials::Sundials()
 {
-  // Do nothing
+   // Do nothing
 }
 
 Sundials::~Sundials()
 {
-  // Do nothing
+   // Do nothing
 }
 
 #endif
@@ -211,7 +211,7 @@ SundialsMemHelper::SundialsMemHelper()
 int SundialsMemHelerp::SundialsMemHelper_Alloc(SUNMemoryHelper helper,
                                                SUNMemory* memptr,
                                                size_t memsize,
-                                              SUNMemoryType mem_type)
+                                               SUNMemoryType mem_type)
 {
    int length = memsize/sizeof(double);
    SUNMemory sunmem = SUNMemoryNewEmpty();
