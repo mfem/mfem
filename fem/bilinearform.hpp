@@ -79,6 +79,9 @@ protected:
    /** @brief Extension for supporting Full Assembly (FA), Element Assembly (EA),
        Partial Assembly (PA), or Matrix Free assembly (MF). */
    BilinearFormExtension *ext;
+   /** Indicates if the sparse matrix are sorted after assembly when using
+       Full Assembly (FA). */
+   bool sort_device_matrix = true;
 
    /** @brief Indicates the Mesh::sequence corresponding to the current state of
        the BilinearForm. */
@@ -179,6 +182,11 @@ public:
 
        This method must be called before assembly. */
    void SetAssemblyLevel(AssemblyLevel assembly_level);
+
+   void DisableDeviceMatrixSorting()
+   {
+      sort_device_matrix = false;
+   }
 
    /// Returns the assembly level
    AssemblyLevel GetAssemblyLevel() const { return assembly; }
