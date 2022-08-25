@@ -103,7 +103,7 @@ TEST_CASE("Transfer", "[Transfer]")
    int fineOrder = geometric ? order : 2*order;
 
    // Log test case information
-   int total_ne = std::pow(ne, dimension);
+   int total_ne = static_cast<int>(std::pow(ne, dimension));
    CAPTURE(VecSpaceName(vectorspace), dimension, simplex, total_ne, order,
            fineOrder, geometric);
 
@@ -225,7 +225,7 @@ TEST_CASE("Variable Order Transfer", "[Transfer][VariableOrder]")
    int order = 2;
 
    // Log test case information
-   int total_ne = pow(ne, dimension);
+   int total_ne = static_cast<int>(pow(ne, dimension));
    CAPTURE(VecSpaceName(vectorspace), dimension, total_ne, order);
 
    Mesh mesh;
@@ -441,7 +441,7 @@ TEST_CASE("Parallel Transfer", "[Transfer][Parallel]")
    MPI_Comm_rank(MPI_COMM_WORLD, &myid);
 
    // Log test case information
-   int total_ne = std::pow(ne, dimension);
+   int total_ne = static_cast<int>(std::pow(ne, dimension));
    CAPTURE(dimension, simplex, total_ne, order, fineOrder, geometric);
 
    coeff_order = 1;
