@@ -18,25 +18,35 @@ taking the Gaussian random field to a uniform random field (`-urf`, `-umin`,
 ### Fractional PDE
 
 In the first step, we solve the fractional PDE 
-$$A^\alpha u = \eta W = f ,$$
+```math
+A^\alpha u = \eta W = f ,
+```
 where $W$ is Gaussian White noise and $\eta$ a normalization constant
-$$ \left( 
+```math 
+\left( 
 \frac{(2\pi)^{\dim{\Omega}/2} 
       \sqrt{\det{\underline{\underline{\Theta}}}}  
       \Gamma(\nu + \dim{\Omega}/2)}
      {\nu^{\dim{\Omega}/2} 
       \Gamma (\nu) } 
-\right)^{1/2} . $$
+\right)^{1/2} .
+```
 The fractional Operator A is given by
-$$A = \frac{-1}{2\nu} \nabla \circ \underline{\underline{\Theta}} \nabla + 1,$$
+```math
+A = \frac{-1}{2\nu} \nabla \circ \underline{\underline{\Theta}} \nabla + 1,
+```
 the exponent $\alpha$ is defined as 
-$$\alpha = \frac{2\nu + \dim(\Omega)}{2},$$
+```math
+\alpha = \frac{2\nu + \dim(\Omega)}{2},
+```
 and the normalization $\eta$ is given by
 
 We solve the FPDE with the same approach as in `ex33`/`ex33p`. In a nutshell, we
 compute a rational approximation of the operator `A` via the triple-A algorithm.
 This allows us to solve $N$ *integer-order* PDEs
-$$ (A + b_i) u_i = c_i f.$$ 
+```math
+(A + b_i) u_i = c_i f.
+```
 For more details, consider `ex33`/`ex33p` and and references [3,4,5].
 
 The dimension is implicitly defined via the mesh, but you may specify 
@@ -48,11 +58,15 @@ $\nu$ and $\underline{\underline{\Theta}}$ via the command line arguments
 For the topological support, we restrict us to functions that represent 
 particles with imperfections. As defined in [2], a general function for the 
 topological support is 
-$$ v (x) = \tau - \rho(x,\mathcal{G}) .$$
+```math
+v (x) = \tau - \rho(x,\mathcal{G}) .
+```
 We follow [2, Example 2] and consider $M$ particles and define 
-$$ \rho(x, \mathcal{G}) 
+```math
+\rho(x, \mathcal{G}) 
    = \min_{k < N } 
-   \{ || \underline{\underline{S}}(x - x_k) ||_2 \} ,$$
+   \{ || \underline{\underline{S}}(x - x_k) ||_2 \} ,
+```
 Where $\underline{\underline{S}}$ is a matrix indicating the shape of the
 particles and $x_k$ is the position of particle $k$. Additionally, we added 
 support for an octet truss. You may choose the topology with the command line 
