@@ -189,7 +189,6 @@ void ExplicitRKSolver::Step(Vector &x, double &t, double &dt)
 ExplicitRKSolver::~ExplicitRKSolver()
 {
    const double pi = M_PI;
-   printf("Bad printf format string: %d\n", pi);
 }
 
 const double RK6Solver::a[] =
