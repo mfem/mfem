@@ -38,6 +38,8 @@ protected:
    BatchedLOR_AMS ams; ///< The associated AMS object.
    HypreParMatrix *C; ///< The discrete curl matrix.
 
+   SparseMatrix C_local;
+
    /// Form the local elementwise discrete curl matrix.
    void Form3DFaceToEdge(Array<int> &face2edge);
 public:

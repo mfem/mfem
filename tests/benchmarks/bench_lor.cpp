@@ -82,7 +82,8 @@ struct RT_LORBench
       a_ho.AddDomainIntegrator(new VectorFEMassIntegrator);
       a_ho.AddDomainIntegrator(new DivDivIntegrator);
 
-      RTAssembleBatched();
+      if (name == "RTAssembleBatched") { RTAssembleBatched(); }
+      if (name == "DiscreteCurl") { DiscreteCurl(); }
    }
 
    void RTAssembleBatched()
@@ -137,7 +138,9 @@ struct ND_LORBench
       a_ho.AddDomainIntegrator(new VectorFEMassIntegrator);
       a_ho.AddDomainIntegrator(new CurlCurlIntegrator);
 
-      NDAssembleBatched();
+      if (name == "NDAssembleBatched") { NDAssembleBatched(); }
+      if (name == "DiscreteGradient") { DiscreteGradient(); }
+      if (name == "CoordinateVectors") { CoordinateVectors(); }
    }
 
    void NDAssembleBatched()
@@ -181,6 +184,7 @@ struct LORBench
    const IntegrationRule &ir;
 
    LORDiscretization lor;
+   BatchedLORAssembly lor_b;
    BilinearForm a_ho, a_lor;
 
    OperatorHandle A_ho, A_lor;
@@ -202,6 +206,7 @@ struct LORBench
       irs(0, Quadrature1D::GaussLobatto),
       ir(irs.Get(mesh.GetElementGeometry(0), 1)),
       lor(fes_ho),
+      lor_b(fes_ho),
       a_ho(&fes_ho),
       a_lor(&lor.GetFESpace()),
       ndofs(fes_ho.GetTrueVSize()),
@@ -213,8 +218,8 @@ struct LORBench
       //           << std::setw(10) << ndofs << '\n';
       fes_ho.GetBoundaryTrueDofs(ess_dofs);
 
-      a_ho.AddDomainIntegrator(new DiffusionIntegrator(&IntRules.Get(mesh.GetElementGeometry(0), 2*p)));
-      a_ho.AddDomainIntegrator(new MassIntegrator(&IntRules.Get(mesh.GetElementGeometry(0), 2*p)));
+      a_ho.AddDomainIntegrator(new DiffusionIntegrator);
+      a_ho.AddDomainIntegrator(new MassIntegrator);
       a_ho.SetAssemblyLevel(AssemblyLevel::PARTIAL);
 
       a_lor.AddDomainIntegrator(new DiffusionIntegrator(&ir));
@@ -231,6 +236,7 @@ struct LORBench
 
       // warm up
       if (name == "AssembleHO" || name == "ApplyHO") { AssembleHO(); }
+      if (name == "ApplyHO") { ApplyHO(); }
       if (name == "AssembleBatched") { AssembleBatched(); }
       if (name == "AssembleFull") { AssembleFull(); }
       if (name == "AMGSetup" || name == "Vcycle")
@@ -269,7 +275,8 @@ struct LORBench
       NVTX("AssembleBatched");
       MFEM_DEVICE_SYNC;
       mdof += 1e-6 * ndofs;
-      lor.AssembleSystem(a_ho, ess_dofs);
+      // lor.AssembleSystem(a_ho, ess_dofs);
+      lor_b.Assemble(a_ho, ess_dofs, A_lor);
    }
 
    void ApplyHO()
@@ -299,7 +306,7 @@ struct LORBench
 };
 
 // The different orders the tests can run
-#define P_ORDERS bm::CreateDenseRange(1,8,1)
+#define P_ORDERS bm::CreateDenseRange(1,7,1)
 
 // The different sides of the mesh
 #define LOG_NDOFS bm::CreateDenseRange(7,23,1)

@@ -92,10 +92,8 @@ void BatchedLOR_ADS::FormCurlMatrix()
    const int nface_dof = face_fes.GetNDofs();
    const int nedge_dof = edge_fes.GetNDofs();
 
-   SparseMatrix C_local;
    C_local.OverrideSize(nface_dof, nedge_dof);
-
-   C_local.GetMemoryI().New(nedge_dof+1, Device::GetDeviceMemoryType());
+   EnsureCapacity(C_local.GetMemoryI(), nedge_dof+1, Device::GetDeviceMemoryType());
    // Each row always has four nonzeros
    const int nnz = 4*nedge_dof;
    auto I = C_local.WriteI();
@@ -125,8 +123,8 @@ void BatchedLOR_ADS::FormCurlMatrix()
    const auto f2e = Reshape(face2edge.Read(), 4, nface_per_el);
 
    // Fill J and data
-   C_local.GetMemoryJ().New(nnz, Device::GetDeviceMemoryType());
-   C_local.GetMemoryData().New(nnz, Device::GetDeviceMemoryType());
+   EnsureCapacity(C_local.GetMemoryJ(), nnz, Device::GetDeviceMemoryType());
+   EnsureCapacity(C_local.GetMemoryData(), nnz, Device::GetDeviceMemoryType());
 
    auto J = C_local.WriteJ();
    auto V = C_local.WriteData();
@@ -162,28 +160,28 @@ void BatchedLOR_ADS::FormCurlMatrix()
                                    &C_local);
 
    // Assemble the parallel gradient matrix, must be deleted by the caller
-   if (IsIdentityProlongation(edge_fes.GetProlongationMatrix()))
-   {
-      C = C_diag.As<HypreParMatrix>();
-      C_diag.SetOperatorOwner(false);
-      HypreStealOwnership(*C, C_local);
-   }
-   else
-   {
-      OperatorHandle Rt(Transpose(*face_fes.GetRestrictionMatrix()));
-      OperatorHandle Rt_diag(Operator::Hypre_ParCSR);
-      Rt_diag.MakeRectangularBlockDiag(face_fes.GetComm(),
-                                       face_fes.GlobalVSize(),
-                                       face_fes.GlobalTrueVSize(),
-                                       face_fes.GetDofOffsets(),
-                                       face_fes.GetTrueDofOffsets(),
-                                       Rt.As<SparseMatrix>());
-      C = RAP(Rt_diag.As<HypreParMatrix>(),
-              C_diag.As<HypreParMatrix>(),
-              edge_fes.Dof_TrueDof_Matrix());
-   }
-   C->CopyRowStarts();
-   C->CopyColStarts();
+   // if (IsIdentityProlongation(edge_fes.GetProlongationMatrix()))
+   // {
+   //    C = C_diag.As<HypreParMatrix>();
+   //    C_diag.SetOperatorOwner(false);
+   //    HypreStealOwnership(*C, C_local);
+   // }
+   // else
+   // {
+   //    OperatorHandle Rt(Transpose(*face_fes.GetRestrictionMatrix()));
+   //    OperatorHandle Rt_diag(Operator::Hypre_ParCSR);
+   //    Rt_diag.MakeRectangularBlockDiag(face_fes.GetComm(),
+   //                                     face_fes.GlobalVSize(),
+   //                                     face_fes.GlobalTrueVSize(),
+   //                                     face_fes.GetDofOffsets(),
+   //                                     face_fes.GetTrueDofOffsets(),
+   //                                     Rt.As<SparseMatrix>());
+   //    C = RAP(Rt_diag.As<HypreParMatrix>(),
+   //            C_diag.As<HypreParMatrix>(),
+   //            edge_fes.Dof_TrueDof_Matrix());
+   // }
+   // C->CopyRowStarts();
+   // C->CopyColStarts();
 }
 
 HypreParMatrix *BatchedLOR_ADS::StealCurlMatrix()

@@ -149,10 +149,9 @@ void BatchedLOR_AMS::FormGradientMatrix()
    const int nedge_dof = edge_fes.GetNDofs();
    const int nvert_dof = vert_fes.GetNDofs();
 
-   SparseMatrix G_local;
    G_local.OverrideSize(nedge_dof, nvert_dof);
+   EnsureCapacity(G_local.GetMemoryI(), nedge_dof+1, Device::GetDeviceMemoryType());
 
-   G_local.GetMemoryI().New(nedge_dof+1, Device::GetDeviceMemoryType());
    // Each row always has two nonzeros
    const int nnz = 2*nedge_dof;
    auto I = G_local.WriteI();
@@ -184,8 +183,8 @@ void BatchedLOR_AMS::FormGradientMatrix()
    const auto e2v = Reshape(edge2vertex.Read(), 2, nedge_per_el);
 
    // Fill J and data
-   G_local.GetMemoryJ().New(nnz, Device::GetDeviceMemoryType());
-   G_local.GetMemoryData().New(nnz, Device::GetDeviceMemoryType());
+   EnsureCapacity(G_local.GetMemoryJ(), nnz, Device::GetDeviceMemoryType());
+   EnsureCapacity(G_local.GetMemoryData(), nnz, Device::GetDeviceMemoryType());
 
    auto J = G_local.WriteJ();
    auto V = G_local.WriteData();
@@ -210,37 +209,37 @@ void BatchedLOR_AMS::FormGradientMatrix()
    });
 
    // Create a block diagonal parallel matrix
-   OperatorHandle G_diag(Operator::Hypre_ParCSR);
-   G_diag.MakeRectangularBlockDiag(vert_fes.GetComm(),
-                                   edge_fes.GlobalVSize(),
-                                   vert_fes.GlobalVSize(),
-                                   edge_fes.GetDofOffsets(),
-                                   vert_fes.GetDofOffsets(),
-                                   &G_local);
+   // OperatorHandle G_diag(Operator::Hypre_ParCSR);
+   // G_diag.MakeRectangularBlockDiag(vert_fes.GetComm(),
+   //                                 edge_fes.GlobalVSize(),
+   //                                 vert_fes.GlobalVSize(),
+   //                                 edge_fes.GetDofOffsets(),
+   //                                 vert_fes.GetDofOffsets(),
+   //                                 &G_local);
 
-   // Assemble the parallel gradient matrix, must be deleted by the caller
-   if (IsIdentityProlongation(vert_fes.GetProlongationMatrix()))
-   {
-      G = G_diag.As<HypreParMatrix>();
-      G_diag.SetOperatorOwner(false);
-      HypreStealOwnership(*G, G_local);
-   }
-   else
-   {
-      OperatorHandle Rt(Transpose(*edge_fes.GetRestrictionMatrix()));
-      OperatorHandle Rt_diag(Operator::Hypre_ParCSR);
-      Rt_diag.MakeRectangularBlockDiag(edge_fes.GetComm(),
-                                       edge_fes.GlobalVSize(),
-                                       edge_fes.GlobalTrueVSize(),
-                                       edge_fes.GetDofOffsets(),
-                                       edge_fes.GetTrueDofOffsets(),
-                                       Rt.As<SparseMatrix>());
-      G = RAP(Rt_diag.As<HypreParMatrix>(),
-              G_diag.As<HypreParMatrix>(),
-              vert_fes.Dof_TrueDof_Matrix());
-   }
-   G->CopyRowStarts();
-   G->CopyColStarts();
+   // // Assemble the parallel gradient matrix, must be deleted by the caller
+   // if (IsIdentityProlongation(vert_fes.GetProlongationMatrix()))
+   // {
+   //    G = G_diag.As<HypreParMatrix>();
+   //    G_diag.SetOperatorOwner(false);
+   //    HypreStealOwnership(*G, G_local);
+   // }
+   // else
+   // {
+   //    OperatorHandle Rt(Transpose(*edge_fes.GetRestrictionMatrix()));
+   //    OperatorHandle Rt_diag(Operator::Hypre_ParCSR);
+   //    Rt_diag.MakeRectangularBlockDiag(edge_fes.GetComm(),
+   //                                     edge_fes.GlobalVSize(),
+   //                                     edge_fes.GlobalTrueVSize(),
+   //                                     edge_fes.GetDofOffsets(),
+   //                                     edge_fes.GetTrueDofOffsets(),
+   //                                     Rt.As<SparseMatrix>());
+   //    G = RAP(Rt_diag.As<HypreParMatrix>(),
+   //            G_diag.As<HypreParMatrix>(),
+   //            vert_fes.Dof_TrueDof_Matrix());
+   // }
+   // G->CopyRowStarts();
+   // G->CopyColStarts();
 }
 
 template <typename T>

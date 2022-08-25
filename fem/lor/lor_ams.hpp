@@ -36,6 +36,8 @@ protected:
    Vector *xyz_tvec; ///< Mesh vertex coordinates in true-vector format.
    HypreParMatrix *G; ///< Discrete gradient matrix.
 
+   SparseMatrix G_local;
+
    /// @name Mesh coordinate vectors in HypreParVector format
    ///@{
    HypreParVector *x, *y, *z;
