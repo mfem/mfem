@@ -192,7 +192,7 @@ Sundials::~Sundials()
    // Do nothing
 }
 
-#endif
+#endif // SUNDIALS_VERSION_MAJOR >= 6
 
 #ifdef MFEM_USE_CUDA
 
