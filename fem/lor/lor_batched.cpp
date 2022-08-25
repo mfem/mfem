@@ -463,7 +463,6 @@ void BatchedLORAssembly::ParAssemble(
    BilinearForm &a, const Array<int> &ess_dofs, OperatorHandle &A)
 {
    // Assemble the system matrix local to this partition
-   OperatorHandle A_local;
    AssembleWithoutBC(a, A_local);
 
    ParBilinearForm *pa =

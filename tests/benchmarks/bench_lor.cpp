@@ -14,6 +14,9 @@
 
 #include "bench.hpp"
 
+#include "fem/lor/lor_ads.hpp"
+#include "fem/lor/lor_ams.hpp"
+
 #ifdef MFEM_USE_BENCHMARK
 
 #include "fem/lor/lor.hpp"
@@ -42,13 +45,134 @@ Mesh MakeCartesianMesh(int p, int requested_ndof, int dim)
    }
 }
 
+ParMesh MakeParCartesianMesh(int p, int requested_ndof, int dim)
+{
+   Mesh mesh = MakeCartesianMesh(p, requested_ndof, dim);
+   return ParMesh(MPI_COMM_WORLD, mesh);
+}
+
+struct RT_LORBench
+{
+   ParMesh mesh;
+   RT_FECollection fec_ho;
+   ParFiniteElementSpace fes_ho;
+
+   BatchedLORAssembly lor;
+   BatchedLOR_ADS ads;
+   OperatorHandle A_lor;
+
+   ParBilinearForm a_ho;
+   Array<int> ess_dofs;
+
+   const int ndofs;
+   double mdof;
+
+   RT_LORBench(int p, int requested_ndof, int dim, const std::string &name) :
+      mesh(MakeParCartesianMesh(p, requested_ndof, dim)),
+      fec_ho(p - 1, dim, BasisType::GaussLobatto, BasisType::IntegratedGLL),
+      fes_ho(&mesh, &fec_ho),
+      lor(fes_ho),
+      ads(fes_ho, lor.GetLORVertexCoordinates()),
+      a_ho(&fes_ho),
+      ndofs(fes_ho.GetTrueVSize()),
+      mdof(0.0)
+   {
+      fes_ho.GetBoundaryTrueDofs(ess_dofs);
+
+      a_ho.AddDomainIntegrator(new VectorFEMassIntegrator);
+      a_ho.AddDomainIntegrator(new DivDivIntegrator);
+
+      RTAssembleBatched();
+   }
+
+   void RTAssembleBatched()
+   {
+      NVTX("RTAssembleBatched");
+      MFEM_DEVICE_SYNC;
+      mdof += 1e-6 * ndofs;
+
+      lor.AssembleWithoutBC(a_ho, A_lor);
+      A_lor.As<SparseMatrix>()->EliminateBC(ess_dofs,
+                        Operator::DiagonalPolicy::DIAG_KEEP);
+   }
+
+   void DiscreteCurl()
+   {
+      NVTX("DiscreteCurl");
+      MFEM_DEVICE_SYNC;
+      mdof += 1e-6 * ndofs;
+
+      ads.FormCurlMatrix();
+   }
+};
+
+struct ND_LORBench
+{
+   ParMesh mesh;
+   ND_FECollection fec_ho;
+   ParFiniteElementSpace fes_ho;
+
+   BatchedLORAssembly lor;
+   BatchedLOR_AMS ams;
+   OperatorHandle A_lor;
+
+   ParBilinearForm a_ho;
+   Array<int> ess_dofs;
+
+   const int ndofs;
+   double mdof;
+
+   ND_LORBench(int p, int requested_ndof, int dim, const std::string &name) :
+      mesh(MakeParCartesianMesh(p, requested_ndof, dim)),
+      fec_ho(p, dim, BasisType::GaussLobatto, BasisType::IntegratedGLL),
+      fes_ho(&mesh, &fec_ho),
+      lor(fes_ho),
+      ams(fes_ho, lor.GetLORVertexCoordinates()),
+      a_ho(&fes_ho),
+      ndofs(fes_ho.GetTrueVSize()),
+      mdof(0.0)
+   {
+      fes_ho.GetBoundaryTrueDofs(ess_dofs);
+
+      a_ho.AddDomainIntegrator(new VectorFEMassIntegrator);
+      a_ho.AddDomainIntegrator(new CurlCurlIntegrator);
+
+      NDAssembleBatched();
+   }
+
+   void NDAssembleBatched()
+   {
+      NVTX("NDAssembleBatched");
+      MFEM_DEVICE_SYNC;
+      mdof += 1e-6 * ndofs;
+
+      lor.AssembleWithoutBC(a_ho, A_lor);
+      A_lor.As<SparseMatrix>()->EliminateBC(ess_dofs,
+                        Operator::DiagonalPolicy::DIAG_KEEP);
+   }
+
+   void DiscreteGradient()
+   {
+      NVTX("DiscreteGradient");
+      MFEM_DEVICE_SYNC;
+      mdof += 1e-6 * ndofs;
+
+      ams.FormGradientMatrix();
+   }
+
+   void CoordinateVectors()
+   {
+      NVTX("CoordinateVectors");
+      MFEM_DEVICE_SYNC;
+      mdof += 1e-6 * ndofs;
+
+      ams.FormCoordinateVectors(lor.GetLORVertexCoordinates());
+   }
+};
+
 struct LORBench
 {
-   GeometricFactors::FactorFlags DETERMINANTS = GeometricFactors::DETERMINANTS;
-   const int p; // polynomial degree
-   const int dim; // space dimension
    Mesh mesh;
-   const int ne; // number of elements
 
    H1_FECollection fec_ho;
    FiniteElementSpace fes_ho;
@@ -71,11 +195,8 @@ struct LORBench
    double mdof;
    Vector x, y;
 
-   LORBench(int p_, int requested_ndof, int dim_, const std::string &name) :
-      p(p_),
-      dim(dim_),
+   LORBench(int p, int requested_ndof, int dim, const std::string &name) :
       mesh(MakeCartesianMesh(p, requested_ndof, dim)),
-      ne(mesh.GetNE()), // might differ from n_requested if not evenly divisible
       fec_ho(p, dim),
       fes_ho(&mesh, &fec_ho),
       irs(0, Quadrature1D::GaussLobatto),
@@ -84,9 +205,7 @@ struct LORBench
       a_ho(&fes_ho),
       a_lor(&lor.GetFESpace()),
       ndofs(fes_ho.GetTrueVSize()),
-      mdof(0.0),
-      x(ndofs),
-      y(ndofs)
+      mdof(0.0)
    {
       // std::cout << "Requested ndof: "
       //           << std::setw(10) << requested_ndof
@@ -102,8 +221,13 @@ struct LORBench
       a_lor.AddDomainIntegrator(new MassIntegrator(&ir));
       a_lor.SetAssemblyLevel(AssemblyLevel::FULL);
 
-      x.Randomize(1);
-      y.Randomize(2);
+      if (name == "ApplyHO" || name =="Vcycle")
+      {
+         x.SetSize(ndofs);
+         y.SetSize(ndofs);
+         x.Randomize(1);
+         y.Randomize(2);
+      }
 
       // warm up
       if (name == "AssembleHO" || name == "ApplyHO") { AssembleHO(); }
@@ -137,7 +261,7 @@ struct LORBench
       MFEM_DEVICE_SYNC;
       mdof += 1e-6 * ndofs;
       a_lor.Assemble();
-      a_lor.FormSystemMatrix(ess_dofs, A_ho);
+      a_lor.FormSystemMatrix(ess_dofs, A_lor);
    }
 
    void AssembleBatched()
@@ -172,49 +296,6 @@ struct LORBench
    }
 
    ~LORBench() { delete A; }
-
-   // void AllLegacy()
-   // {
-   //    NVTX("AllLegacy");
-   //    MFEM_DEVICE_SYNC;
-   //    mdof += 1e-6 * ndofs;
-   //    LORDiscretization lor_disc(fes_ho, BasisType::GaussLobatto);
-   //    FiniteElementSpace &fes_lo = lor_disc.GetFESpace();
-   //    BilinearForm bf_legacy(&fes_lo);
-   //    bf_legacy.AddDomainIntegrator(new DiffusionIntegrator(diff_coeff, ir));
-   //    bf_legacy.AddDomainIntegrator(new MassIntegrator(mass_coeff, ir));
-   //    bf_legacy.SetAssemblyLevel(AssemblyLevel::LEGACY);
-   //    bf_legacy.Assemble();
-   //    // no EliminateVDofs
-   // }
-
-   // void AllFull()
-   // {
-   //    NVTX("AllFull");
-   //    MFEM_DEVICE_SYNC;
-   //    mdof += 1e-6 * ndofs;
-   //    LORDiscretization lor_disc(fes_ho, BasisType::GaussLobatto);
-   //    FiniteElementSpace &fes_lo = lor_disc.GetFESpace();
-   //    BilinearForm bf_full(&fes_lo);
-   //    bf_full.AddDomainIntegrator(new DiffusionIntegrator(diff_coeff, ir));
-   //    bf_full.AddDomainIntegrator(new MassIntegrator(mass_coeff, ir));
-   //    bf_full.SetAssemblyLevel(AssemblyLevel::FULL);
-   //    bf_full.Assemble();
-   //    // no EliminateVDofs
-   // }
-
-   // void AllBatched()
-   // {
-   //    NVTX("AllBatched");
-   //    MFEM_DEVICE_SYNC;
-   //    mdof += 1e-6 * ndofs;
-   //    LORDiscretization lor_disc(fes_ho, BasisType::GaussLobatto);
-   //    BilinearForm bf_ho(&fes_ho);
-   //    bf_ho.AddDomainIntegrator(new DiffusionIntegrator(diff_coeff, ir));
-   //    bf_ho.AddDomainIntegrator(new MassIntegrator(mass_coeff, ir));
-   //    lor_disc.AssembleSystem(bf_ho, ess_tdofs_empty);
-   //    // working with no BC
-   // }
 };
 
 // The different orders the tests can run
@@ -227,7 +308,7 @@ struct LORBench
 #define DIMS bm::CreateDenseRange(2,3,1)
 
 /// Kernels definitions and registrations
-#define Benchmark(Name)\
+#define Benchmark(Class, Name)\
 static void Name(bm::State &state){\
    const int p = state.range(0);\
    const int log_ndof = state.range(1);\
@@ -236,7 +317,7 @@ static void Name(bm::State &state){\
    if (p == 1 && log_ndof >= 21) { state.SkipWithError("Problem size"); return; }\
    if (p == 2 && log_ndof >= 23) { state.SkipWithError("Problem size"); return; }\
    if (p == 3 && log_ndof >= 23) { state.SkipWithError("Problem size"); return; }\
-   LORBench lor(p, requested_ndof, dim, #Name);\
+   Class lor(p, requested_ndof, dim, #Name);\
    while (state.KeepRunning()) { lor.Name(); }\
    bm::Counter::Flags flags = bm::Counter::kIsIterationInvariantRate;\
    state.counters["MDof/s"] = bm::Counter(1e-6*lor.ndofs, flags);\
@@ -248,13 +329,20 @@ BENCHMARK(Name)\
             -> Unit(bm::kMillisecond)\
             -> Iterations(10);
 
-Benchmark(AssembleHO)
-Benchmark(AssembleFull)
-Benchmark(AssembleBatched)
+Benchmark(LORBench, AssembleHO)
+Benchmark(LORBench, AssembleFull)
+Benchmark(LORBench, AssembleBatched)
 
-Benchmark(ApplyHO)
-Benchmark(AMGSetup)
-Benchmark(Vcycle)
+Benchmark(LORBench, ApplyHO)
+Benchmark(LORBench, AMGSetup)
+Benchmark(LORBench, Vcycle)
+
+Benchmark(RT_LORBench, RTAssembleBatched)
+Benchmark(RT_LORBench, DiscreteCurl)
+
+Benchmark(ND_LORBench, NDAssembleBatched)
+Benchmark(ND_LORBench, DiscreteGradient)
+Benchmark(ND_LORBench, CoordinateVectors)
 
 int main(int argc, char *argv[])
 {

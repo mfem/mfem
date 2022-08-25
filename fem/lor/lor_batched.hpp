@@ -52,6 +52,8 @@ protected:
    /// nonzero).
    Array<int> sparse_mapping;
 
+   OperatorHandle A_local; // Cache this
+
 public:
    /// Construct the batched assembly object corresponding to @a fes_ho_.
    BatchedLORAssembly(FiniteElementSpace &fes_ho_);
@@ -72,7 +74,6 @@ public:
    /// Return the vertices of the LOR mesh in E-vector format
    const Vector &GetLORVertexCoordinates() { return X_vert; }
 
-protected:
    /// After assembling the "sparse IJ" format, convert it to CSR.
    void SparseIJToCSR(OperatorHandle &A) const;
 
