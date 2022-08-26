@@ -1,33 +1,42 @@
-//                       MFEM Ultraweak DPG example
+//                       MFEM Ultraweak DPG example for diffusion
 //
-// Compile with: make uw_dpg
+// Compile with: make diffusion
 //
 // sample runs 
-//   ./diffusion -m ../../../data/l-shape.mesh -o 2 -ref 10 -graph-norm -do 1 -prob 0 -sc
-//   ./diffusion -m ../../../data/l-shape.mesh -o 2 -ref 10 -no-graph-norm -do 1 -prob 0
-//   ./diffusion -m ../../../data/inline-quad.mesh -o 2 -ref 0 -graph-norm -do 1 -prob 1
-//   ./diffusion -m ../../../data/inline-tri.mesh -o 2 -ref 2 -graph-norm -do 1 -prob 1 -theta 0.0
+//   ./diffusion -m ../../../data/star.mesh -o 3 -ref 1 -graph-norm -do 1 -prob 1 -sc
+//   ./diffusion -m ../../../data/inline-tri.mesh -o 2 -ref 3 -graph-norm -do 1 -prob 0
+//   ./diffusion -m ../../../data/inline-quad.mesh -o 4 -ref 2 -no-graph-norm -do 1 -prob 0 -sc
+//   ./diffusion -m ../../../data/inline-quad.mesh -o 4 -ref 2 -graph-norm -do 1 -prob 0 -sc
+//   ./diffusion -m ../../../data/inline-tet.mesh -o 4 -ref 0 -graph-norm -do 1 -prob 1 -sc
 
-//     - Δ u = f,   in Ω
+// Description:  
+// This example code demonstrates the use of MFEM to define and solve
+// the "ultraweak" (UW) DPG formulation for the Poisson problem
+
+//       - Δ u = f,   in Ω
 //         u = u_0, on ∂Ω
 
-// First Order System
+// It solves two kind of problems 
+// a) f = 1 and u_0 = 0
+// b) A manufactured solution problem where u_exact = sin(π * (x + y + z)). 
+//    This example computes and prints out convergence rates for the L2 error.
 
+// The DPG UW deals with the First Order System
 //   ∇ u - σ = 0, in Ω
 // - ∇⋅σ     = f, in Ω
 //        u  = 0, in ∂Ω
 
-// UW-DPG:
+// Ultraweak-DPG is obtain by integration by parts of both equations and the 
+// introduction of trace unknowns on the mesh skeleton
 // 
 // u ∈ L^2(Ω), σ ∈ (L^2(Ω))^dim 
-// û ∈ H^1/2, σ̂ ∈ H^-1/2  
+// û ∈ H^1/2(Γ_h), σ̂ ∈ H^-1/2(Γ_h)  
 // -(u , ∇⋅τ) - (σ , τ) + < û, τ⋅n> = 0,      ∀ τ ∈ H(div,Ω)      
 //  (σ , ∇ v) + < σ̂, v  >           = (f,v)   ∀ v ∈ H^1(Ω)
 //                                û = 0       on ∂Ω 
 
 // Note: 
-// û := u
-// σ̂ := -σ
+// û := u and σ̂ := -σ
 
 // -------------------------------------------------------------
 // |   |     u     |     σ     |    û      |    σ̂    |  RHS    |
@@ -48,49 +57,18 @@ using namespace mfem;
 
 enum prob_type
 {
-   lshape,   
+   manufactured,   
    general  
 };
 
 prob_type prob;
 
 void solution(const Vector & X, double & u, Vector & du, double & d2u);
-
-double exact_u(const Vector & X)
-{
-   double u, d2u;
-   Vector du;
-   solution(X,u,du,d2u);
-   return u;
-}
-
-void exact_sigma(const Vector & X, Vector & sigma)
-{
-   double u, d2u;
-   Vector du;
-   solution(X,u,du,d2u);
-   // σ = ∇ u
-   sigma = du;
-}
-
-double exact_hatu(const Vector & X)
-{
-   return exact_u(X);
-}
-
-void exact_hatsigma(const Vector & X, Vector & hatsigma)
-{
-   exact_sigma(X,hatsigma);
-   hatsigma *= -1.;
-}
-
-double f_exact(const Vector & X)
-{
-   double u, d2u;
-   Vector du;
-   solution(X,u,du,d2u);
-   return -d2u;
-}
+double exact_u(const Vector & X);
+void exact_sigma(const Vector & X, Vector & sigma);
+double exact_hatu(const Vector & X);
+void exact_hatsigma(const Vector & X, Vector & hatsigma);
+double f_exact(const Vector & X);
 
 int main(int argc, char *argv[])
 {
@@ -99,10 +77,9 @@ int main(int argc, char *argv[])
    int order = 1;
    int delta_order = 1;
    int ref = 0;
-   double theta = 0.7;
    bool adjoint_graph_norm = true;
    bool visualization = true;
-   int iprob = 0;
+   int iprob = 1;
    bool static_cond = false;
 
    OptionsParser args(argc, argv);
@@ -119,8 +96,6 @@ int main(int argc, char *argv[])
                   "Enable or disable Adjoint Graph Norm on the test space"); 
    args.AddOption(&iprob, "-prob", "--problem", "Problem case"
                   " 0: lshape, 1: General");
-   args.AddOption(&theta, "-theta", "--theta",
-                  "AMR fraction.");                  
    args.AddOption(&static_cond, "-sc", "--static-condensation", "-no-sc",
                   "--no-static-condensation", "Enable static condensation.");                  
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
@@ -137,30 +112,8 @@ int main(int argc, char *argv[])
    if (iprob > 1) { iprob = 1; }
    prob = (prob_type)iprob;
 
-   if (prob == prob_type::lshape)
-   {
-      mesh_file = "../../../data/l-shape.mesh";
-      // mesh_file = "lshape2.mesh";
-   }
-
    Mesh mesh(mesh_file, 1, 1);
    int dim = mesh.Dimension();
-
-   if (prob == prob_type::lshape)
-   {
-      mesh.EnsureNodes();
-      GridFunction * nodes = mesh.GetNodes();
-      *nodes -= 0.5;
-      for (int i = 0; i<nodes->Size()/2; i++)
-      {
-         double temp = (*nodes)[2*i];
-         (*nodes)[2*i] = (*nodes)[2*i+1];
-         (*nodes)[2*i+1] = -temp;
-      }
-      *nodes *= 2.0;
-   }
-
-   mesh.UniformRefinement();
 
    // Define spaces
    // L2 space for u
@@ -179,17 +132,11 @@ int main(int argc, char *argv[])
    FiniteElementCollection * hatsigma_fec = new RT_Trace_FECollection(order-1,dim);   
    FiniteElementSpace *hatsigma_fes = new FiniteElementSpace(&mesh,hatsigma_fec);
 
-   // testspace fe collections
+   // test space fe collections
    int test_order = order+delta_order;
    FiniteElementCollection * tau_fec = new RT_FECollection(test_order-1, dim);
    FiniteElementCollection * v_fec = new H1_FECollection(test_order, dim);
 
-
-   // Coefficients
-   ConstantCoefficient one(1.0);
-   ConstantCoefficient negone(-1.0);
-
-   // Normal equation weak formulation
    Array<FiniteElementSpace * > trial_fes; 
    Array<FiniteElementCollection * > test_fec; 
 
@@ -197,12 +144,21 @@ int main(int argc, char *argv[])
    trial_fes.Append(sigma_fes);
    trial_fes.Append(hatu_fes);
    trial_fes.Append(hatsigma_fes);
-
    test_fec.Append(tau_fec);
    test_fec.Append(v_fec);
 
+   // Required coefficients for the weak formulation
+   ConstantCoefficient one(1.0);
+   ConstantCoefficient negone(-1.0);
+   FunctionCoefficient f(f_exact); // rhs for the manufactured solution problem
+
+   // Required coefficients for the exact solution case
+   FunctionCoefficient uex(exact_u);
+   VectorFunctionCoefficient sigmaex(dim,exact_sigma);
+   FunctionCoefficient hatuex(exact_hatu);
+
+   // Define the DPG weak formulation
    DPGWeakForm * a = new DPGWeakForm(trial_fes,test_fec);
-   a->StoreMatrices(true);
 
    //  -(u,∇⋅τ)
    a->AddTrialIntegrator(new MixedScalarWeakGradientIntegrator(one),0,0);
@@ -241,32 +197,43 @@ int main(int argc, char *argv[])
    }
 
    // RHS
-   FunctionCoefficient f(f_exact);
-   if (prob == prob_type::general)
+   if (prob == prob_type::manufactured)
    {
       a->AddDomainLFIntegrator(new DomainLFIntegrator(f),1);
    }
+   else
+   {
+      a->AddDomainLFIntegrator(new DomainLFIntegrator(one),1);
+   }
 
-   FunctionCoefficient uex(exact_u);
-
-   FunctionCoefficient hatuex(exact_hatu);
-   Array<int> elements_to_refine;
+   // GridFunction for Dirichlet bdr data
    GridFunction hatu_gf;
 
+   // Visualization streams
    socketstream u_out;
    socketstream sigma_out;
-   socketstream mesh_out;
    if (visualization)
    {
       char vishost[] = "localhost";
       int  visport   = 19916;
       u_out.open(vishost, visport);
       sigma_out.open(vishost, visport);
-      mesh_out.open(vishost, visport);
    }
 
-   ConvergenceStudy rates_u;
-   ConvergenceStudy rates_sigma;
+   double err0 = 0.;
+   int dof0=0.;
+
+   if (prob == prob_type::manufactured)
+   {
+      mfem::out << "\n Refinement |" 
+                << "    Dofs    |" 
+                << "  L2 Error  |" 
+                << "  Rate  |" 
+                << " CG it  |" << endl;
+      mfem::out << " --------------------"      
+                <<  "-------------------"    
+                <<  "-------------------" << endl;   
+   }
 
    for (int iref = 0; iref<=ref; iref++)
    {
@@ -295,10 +262,14 @@ int main(int argc, char *argv[])
       offsets[3] = hatu_fes->GetVSize();
       offsets[4] = hatsigma_fes->GetVSize();
       offsets.PartialSum();
+
       BlockVector x(offsets);
       x = 0.0;
-      hatu_gf.MakeRef(hatu_fes,x.GetBlock(2));
-      hatu_gf.ProjectBdrCoefficient(hatuex,ess_bdr);
+      if (prob == prob_type::manufactured)
+      {
+         hatu_gf.MakeRef(hatu_fes,x.GetBlock(2));
+         hatu_gf.ProjectBdrCoefficient(hatuex,ess_bdr);
+      }
 
       OperatorPtr Ah;
       Vector X,B;
@@ -314,9 +285,9 @@ int main(int argc, char *argv[])
       }
 
       CGSolver cg;
-      cg.SetRelTol(1e-12);
-      cg.SetMaxIter(200000);
-      cg.SetPrintLevel(3);
+      cg.SetRelTol(1e-10);
+      cg.SetMaxIter(2000);
+      cg.SetPrintLevel(prob== prob_type::general ? 3 : 0);
       cg.SetPreconditioner(*M);
       cg.SetOperator(*A);
       cg.Mult(B, X);
@@ -324,25 +295,30 @@ int main(int argc, char *argv[])
 
       a->RecoverFEMSolution(X,x);
 
-      Vector & residuals = a->ComputeResidual(x);
-      mfem::out << "residual = " << residuals.Norml2() << endl;
-      elements_to_refine.SetSize(0);
-      double max_resid = residuals.Max();
-      for (int iel = 0; iel<mesh.GetNE(); iel++)
-      {
-         if (residuals[iel] > theta * max_resid)
-         {
-            elements_to_refine.Append(iel);
-         }
-      }
-
-      GridFunction u_gf;
+      GridFunction u_gf, sigma_gf;
       u_gf.MakeRef(u_fes,x.GetBlock(0));
-
-      rates_u.AddL2GridFunction(&u_gf,&uex);
-
-      GridFunction sigma_gf;
       sigma_gf.MakeRef(sigma_fes,x.GetBlock(1));
+      int l2dofs = u_fes->GetVSize() + sigma_fes->GetVSize();
+
+      if (prob == prob_type::manufactured)
+      {
+         double u_err = u_gf.ComputeL2Error(uex);
+         double sigma_err = sigma_gf.ComputeL2Error(sigmaex);
+         double L2Error = sqrt(u_err*u_err + sigma_err*sigma_err);
+         double rate_err = (iref) ? dim*log(err0/L2Error)/log((double)dof0/l2dofs) : 0.0;
+         err0 = L2Error;
+         dof0 = l2dofs;
+         mfem::out << std::right << std::setw(11) << iref << " | " 
+                   << std::setw(10) <<  dof0 << " | " 
+                   << std::setprecision(3) 
+                   << std::setw(10) << std::scientific <<  err0 << " | " 
+                   << std::setprecision(2) 
+                   << std::setw(6) << std::fixed << rate_err << " | " 
+                   << std::setw(6) << std::fixed << cg.GetNumIterations() << " | " 
+                   << std::setprecision(3) 
+                   << std::resetiosflags(std::ios::showbase)
+                   << std::endl;
+      }
 
       if (visualization)
       {
@@ -356,26 +332,17 @@ int main(int argc, char *argv[])
          sigma_out << "solution\n" << mesh << sigma_gf <<
                "window_title 'Numerical flux' "
                << flush;
-
-         mesh_out.precision(8);
-         mesh_out << "mesh\n" << mesh 
-                  << keys
-                  << "window_title 'Mesh' "
-                  << flush;
-
       }
 
       if (iref == ref) break;
 
-      mesh.GeneralRefinement(elements_to_refine);
+      mesh.UniformRefinement();
       for (int i =0; i<trial_fes.Size(); i++)
       {
          trial_fes[i]->Update(false);
       }
       a->Update();
    }
-
-   rates_u.Print();
 
    delete a;
    delete tau_fec;
@@ -395,40 +362,49 @@ int main(int argc, char *argv[])
 
 void solution(const Vector & X, double & u, Vector & du, double & d2u)
 {
-   double x = X[0];
-   double y = X[1];
-   double z = 0.;
-   if (X.Size() == 3) z = X[2];
    du.SetSize(X.Size());
-   du = 0.;
-   d2u = 0.;
-
-   switch(prob)
+   double alpha = M_PI * (X.Sum());
+   u = sin(alpha);
+   du.SetSize(X.Size());
+   for (int i = 0; i<du.Size(); i++)
    {
-      case lshape:
-      {
-         // // shift, rotate and scale to match the benchmark problem
-         // x = 2.0*(X[1] - 0.5);
-         // y = -2.0*(X[0] - 0.5);   
-
-         double r = sqrt(x*x + y*y);
-         double alpha = 2./3.;
-         double phi = atan2(y,x);
-         if (phi < 0) phi += 2*M_PI;
-         u = pow(r,alpha) * sin(alpha * phi);
-      }
-      break;
-      default:
-      {
-         double alpha = M_PI * (x + y + z);
-         u = sin(alpha);
-         du.SetSize(X.Size());
-         for (int i = 0; i<du.Size(); i++)
-         {
-            du[i] = M_PI * cos(alpha);
-         }
-         d2u = - M_PI*M_PI * u * du.Size();
-      }
-      break;
+      du[i] = M_PI * cos(alpha);
    }
+   d2u = - M_PI*M_PI * u * du.Size();
+}
+
+double exact_u(const Vector & X)
+{
+   double u, d2u;
+   Vector du;
+   solution(X,u,du,d2u);
+   return u;
+}
+
+void exact_sigma(const Vector & X, Vector & sigma)
+{
+   double u, d2u;
+   Vector du;
+   solution(X,u,du,d2u);
+   // σ = ∇ u
+   sigma = du;
+}
+
+double exact_hatu(const Vector & X)
+{
+   return exact_u(X);
+}
+
+void exact_hatsigma(const Vector & X, Vector & hatsigma)
+{
+   exact_sigma(X,hatsigma);
+   hatsigma *= -1.;
+}
+
+double f_exact(const Vector & X)
+{
+   double u, d2u;
+   Vector du;
+   solution(X,u,du,d2u);
+   return -d2u;
 }
