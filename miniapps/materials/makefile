@@ -22,7 +22,7 @@ MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
 MATERIALS_COMMON_SRC = material_metrics.cpp solvers.cpp util.cpp \
-											 visualizer.cpp transformation.cpp
+											 visualizer.cpp transformation.cpp boundary.cpp
 MATERIALS_COMMON_OBJ = $(MATERIALS_COMMON_SRC:.cpp=.o)
 
 PAR_MINIAPPS = main

@@ -13,6 +13,7 @@
 #define MATERIALS_SOLVERS_HPP
 
 #include "mfem.hpp"
+#include "boundary.hpp"
 
 namespace mfem {
 namespace materials {
@@ -40,10 +41,10 @@ public:
   /// Constructor.
   /// @param diff_coefficient The diffusion coefficient \Theta.
   /// @param nu The coefficient nu, smoothness of the solution.
-  /// @param ess_tdof_list Boundary conditions.
+  /// @param bc Boundary conditions.
   /// @param fespace Finite element space.
   SPDESolver(MatrixConstantCoefficient &diff_coefficient, double nu,
-             const Array<int> &ess_tdof_list, ParFiniteElementSpace *fespace);
+             const Boundary& bc, ParFiniteElementSpace *fespace);
 
   /// Solve the SPDE for a given right hand side b. May alter b if
   /// the exponent (alpha) is larger than 1. We avoid copying be default. If you
@@ -56,6 +57,9 @@ private:
   /// (div \Theta grad + \alpha I)^exponent x = \beta b.
   void Solve(const LinearForm &b, GridFunction &x, double alpha, double beta,
              int exponent = 1);
+
+  /// Lift the solution to satisfy the inhomogeneous boundary conditions.
+  void LiftSolution(GridFunction &x);
 
   // Each PDE gives rise to a linear system. This call solves the linear system
   // with PCG and Boomer AMG preconditioner.
@@ -94,8 +98,14 @@ private:
   HypreParMatrix *Op_;
 
   // Information of the finite element space.
-  const Array<int> &ess_tdof_list_;
+  Array<int> ess_tdof_list_;
   ParFiniteElementSpace *fespace_ptr_;
+
+  // Boundary conditions
+  const Boundary &bc_;
+  Array<int> dbc_marker; // Markers for Dirichlet boundary conditions.
+  Array<int> nbc_marker; // Markers for Neumann boundary conditions.
+  Array<int> rbc_marker; // Markers for Robin boundary conditions.
 
   // Coefficients for the rational approximation of the solution.
   Array<double> coeffs_;
