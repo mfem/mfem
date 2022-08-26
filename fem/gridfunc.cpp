@@ -2763,7 +2763,8 @@ void GridFunction::ProjectBdrCoefficientTangent(
 }
 
 double GridFunction::ComputeL2Error(
-   Coefficient *exsol[], const IntegrationRule *irs[]) const
+   Coefficient *exsol[], const IntegrationRule *irs[],
+   const Array<int> *elems) const
 {
    double error = 0.0, a;
    const FiniteElement *fe;
@@ -2774,6 +2775,7 @@ double GridFunction::ComputeL2Error(
 
    for (i = 0; i < fes->GetNE(); i++)
    {
+      if (elems != NULL && (*elems)[i] == 0) { continue; }
       fe = fes->GetFE(i);
       fdof = fe->GetDof();
       transf = fes->GetElementTransformation(i);
@@ -2817,7 +2819,7 @@ double GridFunction::ComputeL2Error(
 
 double GridFunction::ComputeL2Error(
    VectorCoefficient &exsol, const IntegrationRule *irs[],
-   Array<int> *elems) const
+   const Array<int> *elems) const
 {
    double error = 0.0;
    const FiniteElement *fe;
@@ -3236,7 +3238,7 @@ double GridFunction::ComputeMaxError(
 
 double GridFunction::ComputeW11Error(
    Coefficient *exsol, VectorCoefficient *exgrad, int norm_type,
-   Array<int> *elems, const IntegrationRule *irs[]) const
+   const Array<int> *elems, const IntegrationRule *irs[]) const
 {
    // assuming vdim is 1
    int i, fdof, dim, intorder, j, k;
@@ -3342,7 +3344,8 @@ double GridFunction::ComputeW11Error(
 
 double GridFunction::ComputeLpError(const double p, Coefficient &exsol,
                                     Coefficient *weight,
-                                    const IntegrationRule *irs[]) const
+                                    const IntegrationRule *irs[],
+                                    const Array<int> *elems) const
 {
    double error = 0.0;
    const FiniteElement *fe;
@@ -3351,6 +3354,7 @@ double GridFunction::ComputeLpError(const double p, Coefficient &exsol,
 
    for (int i = 0; i < fes->GetNE(); i++)
    {
+      if (elems != NULL && (*elems)[i] == 0) { continue; }
       fe = fes->GetFE(i);
       const IntegrationRule *ir;
       if (irs)
