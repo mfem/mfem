@@ -78,7 +78,6 @@ Miscellaneous
 -------------
 - Various other simplifications, extensions, and bugfixes in the code.
 
-
 - Added boundary elimination with device support for `SparseMatrix` and
   `HypreParMatrix`.
   
@@ -87,6 +86,9 @@ Miscellaneous
   `HypreParMatrix` in parallel (instead of a `ConstrainedOperator`).
 
 - Added TMOP metrics for mesh untangling and worst-case quality improvement.
+
+- The behavior of GridFunction::GetTrueVector() has been changed to not return an
+  empty true vector.
 
 Version 4.4, released on March 21, 2022
 =======================================
