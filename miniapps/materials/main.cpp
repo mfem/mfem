@@ -217,8 +217,19 @@ int main(int argc, char *argv[]) {
   double normalization = ConstructNormalizationCoefficient(nu, l1, l2, l3, dim);
   b *= normalization;
 
-  // III.4 Solve the SPDE problem
-  materials::SPDESolver solver(diffusion_coefficient, nu, ess_tdof_list,
+  // III.4 Define the boundary conditions.
+  materials::Boundary bc;
+  // // Uncomment below for to apply some Dirichlet BC
+  // ConstantCoefficient bc_one(1.0);
+  // bc.AddHomogeneousBoundaryCondition(1, materials::BoundaryType::kDirichlet);
+  // bc.AddInhomogeneousDirichletBoundaryCondition(3, &bc_one);
+  if (Mpi::Root()) {
+    bc.PrintInfo();
+    bc.VerifyDefinedBoundaries(pmesh);
+  }
+
+  // III.5 Solve the SPDE problem
+  materials::SPDESolver solver(diffusion_coefficient, nu, bc,
                                &fespace);
   solver.Solve(b, u);
 
