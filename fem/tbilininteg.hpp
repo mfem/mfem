@@ -361,8 +361,8 @@ struct TDiffusionKernel<2,2,complex_t>
        @param F Jt [M x Dim x SDim x NE] - Jacobian transposed, data member in F
        @param Q CoefficientEval<>::Type
        @param q CoefficientEval<>::Type::result_t
-       @param A [M x Dim*(Dim+1)/2] partially assembled Dim x Dim symm. matrices
-       @param A [M x Dim x Dim]       partially assembled Dim x Dim matrices
+       @param A either [M x Dim*(Dim+1)/2] partially assembled Dim x Dim symm.
+       matrices, or [M x Dim x Dim] partially assembled Dim x Dim matrices.
    */
    template <typename T_result_t, typename Q_t, typename q_t, typename asm_type>
    static inline MFEM_ALWAYS_INLINE
