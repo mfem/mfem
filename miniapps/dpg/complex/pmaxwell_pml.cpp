@@ -689,7 +689,6 @@ int main(int argc, char *argv[])
    Array<int> elements_to_refine;
 
    socketstream E_out_r;
-   socketstream inc_Eout_r;
    socketstream E_out_i;
    socketstream H_out_r;
    socketstream H_out_i;
@@ -701,7 +700,6 @@ int main(int argc, char *argv[])
       E_out_i.open(vishost, visport);
       H_out_r.open(vishost, visport);
       H_out_i.open(vishost, visport);
-      inc_Eout_r.open(vishost, visport);
    }
 
 
@@ -906,20 +904,6 @@ int main(int argc, char *argv[])
 
       if (visualization)
       {
-
-         VectorFunctionCoefficient E_r(dim, E_exact_Re);
-         VectorFunctionCoefficient E_i(dim, E_exact_Im);
-         ParComplexGridFunction incE(E_fes);
-         incE.ProjectCoefficient(E_r,E_i);
-         incE.real() -=E.real();
-         incE.imag() -=E.imag();
-
-         inc_Eout_r << "parallel " << num_procs << " " << myid << "\n";
-         inc_Eout_r.precision(8);
-         inc_Eout_r << "solution\n" << pmesh << incE.real() <<
-                  "window_title 'Total Electric field' "
-                  << flush;
-
          E_out_r << "parallel " << num_procs << " " << myid << "\n";
          E_out_r.precision(8);
          E_out_r << "solution\n" << pmesh << E.real() <<
