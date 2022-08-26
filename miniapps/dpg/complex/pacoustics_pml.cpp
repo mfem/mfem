@@ -77,7 +77,6 @@ int main(int argc, char *argv[])
    double theta = 0.0;
    bool adjoint_graph_norm = false;
    bool static_cond = false;
-   int iprob = 0;
    int sr = 0;
    int pr = 1;
 
@@ -91,8 +90,6 @@ int main(int argc, char *argv[])
                   "Enable or disable GLVis visualization.");
    args.AddOption(&rnum, "-rnum", "--number_of_wavelenths",
                   "Number of wavelengths");     
-   args.AddOption(&iprob, "-prob", "--problem", "Problem case"
-                  " 0: plane wave, 1: Gaussian beam");                    
    args.AddOption(&delta_order, "-do", "--delta_order",
                   "Order enrichment for DPG test space.");     
    args.AddOption(&theta, "-theta", "--theta",
@@ -132,8 +129,12 @@ int main(int argc, char *argv[])
    mesh.EnsureNCMesh();
 
    Array2D<double> length(dim, 2); length = 0.0;
-   length = 0.25;
+   length[0][0] = 0.125;
+   length[0][1] = 0.125;
+   length[1][0] = 0.125;
+   length[1][1] = 0.125;
    CartesianPML * pml = new CartesianPML(&mesh,length);
+   pml->SetOmega(omega);
 
    ParMesh pmesh(MPI_COMM_WORLD, mesh);
    mesh.Clear();
@@ -176,17 +177,6 @@ int main(int argc, char *argv[])
    FunctionCoefficient bdr_data_re(p_bdr_data_r);
    FunctionCoefficient bdr_data_im(p_bdr_data_i);
 
-   // PML coefficients
-   // α 
-   PmlMatrixCoefficient alpha_re(dim,alpha_function_re,pml);
-   PmlMatrixCoefficient alpha_im(dim,alpha_function_im,pml);
-   PmlMatrixCoefficient alpha2(dim,alpha_function_abs2,pml);
-
-   PmlCoefficient beta_re(beta_function_re,pml);
-   PmlCoefficient beta_im(beta_function_im,pml);
-   PmlCoefficient beta_abs2(beta_function_abs2,pml);
-
-
    Array<ParFiniteElementSpace * > trial_fes; 
    Array<FiniteElementCollection * > test_fec; 
 
@@ -212,49 +202,72 @@ int main(int argc, char *argv[])
          attrPML[1] = 1;
       }
    }
+   // Non-PML coefficients
+   RestrictedCoefficient omeg_restr(omeg,attr);
+   RestrictedCoefficient negomeg_restr(negomeg,attr);
+   RestrictedCoefficient omeg2_restr(omeg2,attr);
+
+
+   // PML coefficients
+   // α 
+   PmlMatrixCoefficient alpha_re(dim,alpha_function_re,pml);
+   PmlMatrixCoefficient alpha_im(dim,alpha_function_im,pml);
+   PmlMatrixCoefficient alpha2(dim,alpha_function_abs2,pml);
+   // β 
+   PmlCoefficient beta_re(beta_function_re,pml);
+   PmlCoefficient beta_im(beta_function_im,pml);
+   PmlCoefficient beta_abs2(beta_function_abs2,pml);
+
+   ProductCoefficient omeg_beta_re(omeg,beta_re);
+   ProductCoefficient omeg_beta_im(omeg,beta_im);
+   ProductCoefficient negomeg_beta_re(negomeg,beta_re);
+   ProductCoefficient negomeg_beta_im(negomeg,beta_im);
+   ProductCoefficient omeg2_beta2(omeg2,beta_abs2);
+
+   RestrictedCoefficient omeg_beta_re_restr(omeg_beta_re,attrPML);
+   RestrictedCoefficient omeg_beta_im_restr(omeg_beta_im,attrPML);
+   RestrictedCoefficient negomeg_beta_re_restr(negomeg_beta_re,attrPML);
+   RestrictedCoefficient negomeg_beta_im_restr(negomeg_beta_im,attrPML);
+   RestrictedCoefficient omeg2_beta2_restr(omeg2_beta2,attrPML);
+
+   ScalarMatrixProductCoefficient omeg_alpha_re(omeg,alpha_re); 
+   ScalarMatrixProductCoefficient omeg_alpha_im(omeg,alpha_im);
+   ScalarMatrixProductCoefficient negomeg_alpha_re(negomeg,alpha_re);
+   ScalarMatrixProductCoefficient negomeg_alpha_im(negomeg,alpha_im); 
+   ScalarMatrixProductCoefficient omeg2_alpha2(omeg2,alpha2);
+
+   MatrixRestrictedCoefficient omeg_alpha_re_restr(omeg_alpha_re,attrPML);
+   MatrixRestrictedCoefficient omeg_alpha_im_restr(omeg_alpha_im,attrPML);
+   MatrixRestrictedCoefficient negomeg_alpha_re_restr(negomeg_alpha_re,attrPML);
+   MatrixRestrictedCoefficient negomeg_alpha_im_restr(negomeg_alpha_im,attrPML);
+   MatrixRestrictedCoefficient omeg2_alpha2_restr(omeg2_alpha2,attrPML);
 
    ParComplexDPGWeakForm * a = new ParComplexDPGWeakForm(trial_fes,test_fec);
    a->StoreMatrices();
    // Not in PML
    // i ω (p,q)
-   RestrictedCoefficient omeg_restr(omeg,attr);
    a->AddTrialIntegrator(nullptr,new MixedScalarMassIntegrator(omeg_restr),0,0);
+
    // In PML
    // i ω (p,q) = i ω ( (β_r p,q) + i (β_i p,q) )
    //           = (- ω b_i p ) + i (ω β_r p,q)      
-   // 
-   ProductCoefficient negomeg_beta_im(negomeg,beta_im);
-   ProductCoefficient omeg_beta_re(omeg,beta_re);
-   RestrictedCoefficient negomeg_beta_im_restr(negomeg_beta_im,attrPML);
-   RestrictedCoefficient omeg_beta_re_restr(omeg_beta_re,attrPML);
    a->AddTrialIntegrator(new MixedScalarMassIntegrator(negomeg_beta_im_restr),
                          new MixedScalarMassIntegrator(omeg_beta_re_restr),0,0);
-
-
    // -(u , ∇ q)
    a->AddTrialIntegrator(new TransposeIntegrator(new GradientIntegrator(negone)),nullptr,1,0);
-
    // -(p, ∇⋅v)
    a->AddTrialIntegrator(new MixedScalarWeakGradientIntegrator(one),nullptr,0,1);
 
    //  i ω (α u,v)
    // Not in PML
    a->AddTrialIntegrator(nullptr,new TransposeIntegrator(new VectorFEMassIntegrator(omeg_restr)),1,1);
-
    // In PML
    // i ω (α u,v) =  i ω ( (α_re u,v) + i (α_im u,v) )
    //             = (-ω a_im u,v) + i (ω a_re u, v)
-   ScalarMatrixProductCoefficient negomeg_alpha_im(negomeg,alpha_im); 
-   ScalarMatrixProductCoefficient omeg_alpha_re(omeg,alpha_re); 
-
-   MatrixRestrictedCoefficient negomeg_alpha_re_restr(negomeg_alpha_im,attrPML);
-   MatrixRestrictedCoefficient omeg_alpha_re_restr(omeg_alpha_re,attrPML);
-   a->AddTrialIntegrator(new TransposeIntegrator(new VectorFEMassIntegrator(negomeg_alpha_re_restr)),
+   a->AddTrialIntegrator(new TransposeIntegrator(new VectorFEMassIntegrator(negomeg_alpha_im_restr)),
                          new TransposeIntegrator(new VectorFEMassIntegrator(omeg_alpha_re_restr)),1,1);
-
    // < p̂, v⋅n>
    a->AddTrialIntegrator(new NormalTraceIntegrator,nullptr,2,1);
-
    // < û,q >
    a->AddTrialIntegrator(new TraceIntegrator,nullptr,3,0);
 
@@ -274,49 +287,40 @@ int main(int argc, char *argv[])
    {   
       // Not in PML
       // -i ω (∇q,δv)
-      RestrictedCoefficient negomeg_restr(negomeg,attr);
       a->AddTestIntegrator(nullptr,new MixedVectorGradientIntegrator(negomeg_restr),0,1);
+
       // i ω (v,∇ δq)
       a->AddTestIntegrator(nullptr,new MixedVectorWeakDivergenceIntegrator(negomeg_restr),1,0);
+
       // ω^2 (v,δv)
-      RestrictedCoefficient omeg2_restr(omeg2,attr);
       a->AddTestIntegrator(new VectorFEMassIntegrator(omeg2_restr),nullptr,1,1);
+
       // - i ω (∇⋅v,δq)   
       a->AddTestIntegrator(nullptr,new VectorFEDivergenceIntegrator(negomeg_restr),1,0);
+
       // i ω (q,∇⋅v)   
       a->AddTestIntegrator(nullptr,new MixedScalarWeakGradientIntegrator(negomeg_restr),0,1);
+
       // ω^2 (q,δq)
       a->AddTestIntegrator(new MassIntegrator(omeg2_restr),nullptr,0,0);
 
       // In PML
       // -i ω (α ∇q,δv) = -i ω ( (α_r ∇q,δv) + i (α_i ∇q,δv) )
       //                = (ω α_i ∇q,δv) + i (-ω α_r ∇q,δv) 
-
-      ScalarMatrixProductCoefficient omeg_alpha_im(omeg,alpha_im);
-      ScalarMatrixProductCoefficient negomeg_alpha_re(negomeg,alpha_re);
-      MatrixRestrictedCoefficient omeg_alpha_im_restr(omeg_alpha_im,attrPML);
-      MatrixRestrictedCoefficient negomeg_alpha_re_restr(negomeg_alpha_re,attrPML);
       a->AddTestIntegrator(new MixedVectorGradientIntegrator(omeg_alpha_im_restr),
                            new MixedVectorGradientIntegrator(negomeg_alpha_re_restr),0,1);
 
       // i ω (α^* v,∇ δq)  = i ω (ᾱ v,∇ δq) (since α is diagonal)
       //                   = i ω ( (α_r v,∇ δq) - i (α_i v,∇ δq)  
       //                   = (ω α_i v, ∇ δq) + i (ω α_r v,∇ δq )    
-
       a->AddTestIntegrator(new MixedVectorWeakDivergenceIntegrator(omeg_alpha_im_restr),
                            new MixedVectorWeakDivergenceIntegrator(omeg_alpha_re_restr),1,0);
 
       // ω^2 (|α|^2 v,δv) α α^* = |α|^2 since α is diagonal   
-      ScalarMatrixProductCoefficient omeg2_alpha2(omeg2,alpha2);
-      MatrixRestrictedCoefficient omeg2_alpha2_restr(omeg2_alpha2,attrPML);
       a->AddTestIntegrator(new VectorFEMassIntegrator(omeg2_alpha2_restr),nullptr,1,1);
       
       // - i ω (β ∇⋅v,δq) = - i ω ( (β_re ∇⋅v,δq) + i (β_im ∇⋅v,δq) ) 
       //                  = (ω β_im ∇⋅v,δq) + i (-ω β_re ∇⋅v,δq )
-      ProductCoefficient omeg_beta_im(omeg,beta_im);
-      ProductCoefficient negomeg_beta_re(negomeg,beta_re);
-      RestrictedCoefficient omeg_beta_im_restr(omeg_beta_im,attrPML);
-      RestrictedCoefficient negomeg_beta_re_restr(negomeg_beta_re,attrPML);
       a->AddTestIntegrator(new VectorFEDivergenceIntegrator(omeg_beta_im_restr),
                            new VectorFEDivergenceIntegrator(negomeg_beta_re_restr),1,0);
       
@@ -326,8 +330,6 @@ int main(int argc, char *argv[])
                            new MixedScalarWeakGradientIntegrator(omeg_beta_re_restr),0,1);
       
       // ω^2 (β̄ β q,δq) = (ω^2 |β|^2 )
-      ProductCoefficient omeg2_beta2(omeg2,beta_abs2);
-      RestrictedCoefficient omeg2_beta2_restr(omeg2_beta2,attrPML);
       a->AddTestIntegrator(new MassIntegrator(omeg2_beta2_restr),nullptr,0,0);
    }
 
@@ -336,6 +338,7 @@ int main(int argc, char *argv[])
 
    socketstream p_out_r;
    socketstream p_out_i;
+   ParComplexGridFunction *pt = nullptr;
    if (visualization)
    {
       char vishost[] = "localhost";
@@ -346,7 +349,6 @@ int main(int argc, char *argv[])
 
 
    double res0 = 0.;
-   double err0 = 0.;
    int dof0;
    if (myid == 0)
    {
@@ -361,11 +363,10 @@ int main(int argc, char *argv[])
       mfem::out << " --------------------"      
                 <<  "---------------------"    
                 <<  "---------------------"    
-                <<  "-------------------" << endl;      
+                <<  "--------------------------" << endl;      
    }
 
-
-   for (int it = 0; it<pr; it++)
+   for (int it = 0; it<=pr; it++)
    {
       if (static_cond) { a->EnableStaticCondensation(); }
       a->Assemble();
@@ -406,7 +407,7 @@ int main(int argc, char *argv[])
       {
          int_bdr.SetSize(pmesh.bdr_attributes.Max());
          int_bdr = 0;
-         int_bdr[4] = 1;
+         int_bdr[1] = 1;
       }
 
 
@@ -470,7 +471,7 @@ int main(int argc, char *argv[])
 
 
       HypreBoomerAMG * solver_hatp = new HypreBoomerAMG((HypreParMatrix &)BlockA_r->GetBlock(skip,skip));
-      // amg->SetCycleNumSweeps(5, 5);
+      // solver_hatp->SetCycleNumSweeps(5, 5);
       solver_hatp->SetPrintLevel(0);
 
       HypreSolver * solver_hatu = nullptr;
@@ -494,8 +495,8 @@ int main(int argc, char *argv[])
       StopWatch chrono;
 
       CGSolver cg(MPI_COMM_WORLD);
-      cg.SetRelTol(1e-7);
-      cg.SetAbsTol(1e-7);
+      cg.SetRelTol(1e-6);
+      cg.SetAbsTol(0.0);
       cg.SetMaxIter(10000);
       cg.SetPrintLevel(0);
       cg.SetPreconditioner(*M); 
@@ -597,18 +598,64 @@ int main(int argc, char *argv[])
                   "window_title 'Imag Numerical presure' "
                   << flush;         
       }
-
       if (it == pr)
+      {
+         if (visualization)
+         {
+            pt = new ParComplexGridFunction(p_fes);
+            pt->real() = p.real();
+            pt->imag() = p.imag();
+         }
          break;
+      }
 
       pmesh.GeneralRefinement(elements_to_refine,1,1);
+      pml->SetAttributes(&pmesh);
+
       for (int i =0; i<trial_fes.Size(); i++)
       {
          trial_fes[i]->Update(false);
       }
       a->Update();   
    }
+   if (visualization)
+   {
+      char vishost[] = "localhost";
+      int  visport   = 19916;
 
+      ParGridFunction x_t(p_fes);
+      x_t = pt->real();
+
+      socketstream sol_sock(vishost, visport);
+      sol_sock.precision(8);
+      sol_sock << "parallel " << num_procs << " " << myid << "\n"
+               << "solution\n" << pmesh << x_t << "autoscale off\n"
+               << "window_title 'Harmonic Solution (t = 0.0 T)'"
+               << "pause\n" << flush;
+
+      if (myid == 0)
+      {
+         cout << "GLVis visualization paused."
+               << " Press space (in the GLVis window) to resume it.\n";
+      }
+
+      int num_frames = 32;
+      int i = 0;
+      while (sol_sock)
+      {
+         double t = (double)(i % num_frames) / num_frames;
+         ostringstream oss;
+         oss << "Harmonic Solution (t = " << t << " T)";
+
+         add(cos(2.0*M_PI*t), pt->real(), sin(2.0*M_PI*t), pt->imag(), x_t);
+         sol_sock << "parallel " << num_procs << " " << myid << "\n";
+         sol_sock << "solution\n" << pmesh << x_t
+                  << "window_title '" << oss.str() << "'" << flush;
+         i++;
+      }
+   }
+
+   delete pt;
    delete a;
    delete q_fec;
    delete v_fec;
@@ -637,30 +684,43 @@ double p_bdr_data_i(const Vector &x)
 complex<double> acoustics_solution(const Vector & X)
 {
    complex<double> zi = complex<double>(0., 1.);
-   double rk = omega;
-   double alpha = 45 * M_PI/180.;
-   double sina = sin(alpha); 
-   double cosa = cos(alpha);
-   // shift the origin
-   double xprim=X(0) + 0.1; 
-   double yprim=X(1) + 0.1;
-   double  x = xprim*sina - yprim*cosa;
-   double  y = xprim*cosa + yprim*sina;
-   //wavelength
-   double rl = 2.*M_PI/rk;
-   // beam waist radius
-   double w0 = 0.05;
-   // function w
-   double fact = rl/M_PI/(w0*w0);
-   double aux = 1. + (fact*y)*(fact*y);
-   double w = w0*sqrt(aux);
-   double phi0 = atan(fact*y);
-   double r = y + 1./y/(fact*fact);
-   // pressure
-   complex<double> ze = - x*x/(w*w) - zi*rk*y - zi * M_PI * x * x/rl/r + zi*phi0/2.;
-   double pf = pow(2.0/M_PI/(w*w),0.25);
-   complex<double> zp = pf*exp(ze);
-   return zp;
+   // double rk = omega;
+   // double alpha = 45.0 * M_PI/180.;
+   // double sina = sin(alpha); 
+   // double cosa = cos(alpha);
+   // // shift the origin
+   // // double shift = -0.5;
+   // double shift = 0.1;
+   // double xprim=X(0) + shift; 
+   // double yprim=X(1) + shift;
+   // double  x = xprim*sina - yprim*cosa;
+   // double  y = xprim*cosa + yprim*sina;
+   // //wavelength
+   // double rl = 2.*M_PI/rk;
+   // // beam waist radius
+   // double w0 = 0.05;
+   // // function w
+   // double fact = rl/M_PI/(w0*w0);
+   // double aux = 1. + (fact*y)*(fact*y);
+   // double w = w0*sqrt(aux);
+   // double phi0 = atan(fact*y);
+   // double r = y + 1./y/(fact*fact);
+   // // pressure
+   // complex<double> ze = - x*x/(w*w) - zi*rk*y - zi * M_PI * x * x/rl/r + zi*phi0/2.;
+   // double pf = pow(2.0/M_PI/(w*w),0.25);
+   // complex<double> zp = pf*exp(ze);
+   // return zp;
+
+   // plane wave
+   double beta = omega/std::sqrt((double)X.Size());
+   complex<double> alpha = beta * zi * X.Sum();
+   return -exp(-alpha);
+   // double x = X(0)-0.5;
+   // double y = X(1)-0.5;
+   // double r = sqrt(x*x + y*y);
+   // double beta = omega * r;
+   // complex<double> Ho = jn(0, beta) + zi * yn(0, beta);
+   // return 0.25*zi*Ho;
 }
 
 // α:= J^T J / |J|
