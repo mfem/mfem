@@ -3,11 +3,10 @@
 // Compile with: make diffusion
 //
 // sample runs 
-//   ./diffusion -m ../../../data/star.mesh -o 3 -ref 1 -graph-norm -do 1 -prob 1 -sc
-//   ./diffusion -m ../../../data/inline-tri.mesh -o 2 -ref 3 -graph-norm -do 1 -prob 0
-//   ./diffusion -m ../../../data/inline-quad.mesh -o 4 -ref 2 -no-graph-norm -do 1 -prob 0 -sc
-//   ./diffusion -m ../../../data/inline-quad.mesh -o 4 -ref 2 -graph-norm -do 1 -prob 0 -sc
-//   ./diffusion -m ../../../data/inline-tet.mesh -o 4 -ref 0 -graph-norm -do 1 -prob 1 -sc
+//   ./diffusion -m ../../../data/star.mesh -o 3 -ref 1 -do 1 -prob 1 -sc
+//   ./diffusion -m ../../../data/inline-tri.mesh -o 2 -ref 3 -do 1 -prob 0
+//   ./diffusion -m ../../../data/inline-quad.mesh -o 4 -ref 2 -do 2 -prob 0 -sc
+//   ./diffusion -m ../../../data/inline-tet.mesh -o 4 -ref 0 -do 1 -prob 1 -sc
 
 // Description:  
 // This example code demonstrates the use of MFEM to define and solve
@@ -16,24 +15,24 @@
 //       - Δ u = f,   in Ω
 //         u = u_0, on ∂Ω
 
-// It solves two kind of problems 
-// a) f = 1 and u_0 = 0
+// It solves two kinds of problems 
+// a) f = 1 and u_0 = 0 (like ex1)
 // b) A manufactured solution problem where u_exact = sin(π * (x + y + z)). 
 //    This example computes and prints out convergence rates for the L2 error.
 
 // The DPG UW deals with the First Order System
 //   ∇ u - σ = 0, in Ω
 // - ∇⋅σ     = f, in Ω
-//        u  = 0, in ∂Ω
+//        u  = u_0, in ∂Ω
 
-// Ultraweak-DPG is obtain by integration by parts of both equations and the 
+// Ultraweak-DPG is obtained by integration by parts of both equations and the 
 // introduction of trace unknowns on the mesh skeleton
 // 
 // u ∈ L^2(Ω), σ ∈ (L^2(Ω))^dim 
 // û ∈ H^1/2(Γ_h), σ̂ ∈ H^-1/2(Γ_h)  
 // -(u , ∇⋅τ) - (σ , τ) + < û, τ⋅n> = 0,      ∀ τ ∈ H(div,Ω)      
 //  (σ , ∇ v) + < σ̂, v  >           = (f,v)   ∀ v ∈ H^1(Ω)
-//                                û = 0       on ∂Ω 
+//                                û = u_0       on ∂Ω 
 
 // Note: 
 // û := u and σ̂ := -σ
@@ -77,7 +76,6 @@ int main(int argc, char *argv[])
    int order = 1;
    int delta_order = 1;
    int ref = 0;
-   bool adjoint_graph_norm = true;
    bool visualization = true;
    int iprob = 1;
    bool static_cond = false;
@@ -91,11 +89,8 @@ int main(int argc, char *argv[])
                   "Order enrichment for DPG test space.");
    args.AddOption(&ref, "-ref", "--num_refinements",
                   "Number of uniform refinements");               
-   args.AddOption(&adjoint_graph_norm, "-graph-norm", "--adjoint-graph-norm",
-                  "-no-graph-norm", "--no-adjoint-graph-norm",
-                  "Enable or disable Adjoint Graph Norm on the test space"); 
    args.AddOption(&iprob, "-prob", "--problem", "Problem case"
-                  " 0: lshape, 1: General");
+                  " 0: manufactured, 1: general");
    args.AddOption(&static_cond, "-sc", "--static-condensation", "-no-sc",
                   "--no-static-condensation", "Enable static condensation.");                  
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
@@ -185,17 +180,6 @@ int main(int argc, char *argv[])
    // (v,δv)
    a->AddTestIntegrator(new MassIntegrator(one),1,1);
 
-   // additional terms for adjoint graph norm
-   if (adjoint_graph_norm)
-   {
-      // -(∇v,δτ) 
-      a->AddTestIntegrator(new MixedVectorGradientIntegrator(negone),1,0);
-      // -(τ,∇δv) 
-      a->AddTestIntegrator(new MixedVectorWeakDivergenceIntegrator(one),0,1);
-      // (τ,δτ)
-      a->AddTestIntegrator(new VectorFEMassIntegrator(one),0,0);
-   }
-
    // RHS
    if (prob == prob_type::manufactured)
    {
@@ -220,8 +204,6 @@ int main(int argc, char *argv[])
       sigma_out.open(vishost, visport);
    }
 
-   double err0 = 0.;
-   int dof0=0.;
 
    if (prob == prob_type::manufactured)
    {
@@ -235,6 +217,8 @@ int main(int argc, char *argv[])
                 <<  "-------------------" << endl;   
    }
 
+   double err0 = 0.;
+   int dof0=0.;
    for (int iref = 0; iref<=ref; iref++)
    {
       if (static_cond) { a->EnableStaticCondensation(); }
@@ -298,10 +282,10 @@ int main(int argc, char *argv[])
       GridFunction u_gf, sigma_gf;
       u_gf.MakeRef(u_fes,x.GetBlock(0));
       sigma_gf.MakeRef(sigma_fes,x.GetBlock(1));
-      int l2dofs = u_fes->GetVSize() + sigma_fes->GetVSize();
 
       if (prob == prob_type::manufactured)
       {
+         int l2dofs = u_fes->GetVSize() + sigma_fes->GetVSize();
          double u_err = u_gf.ComputeL2Error(uex);
          double sigma_err = sigma_gf.ComputeL2Error(sigmaex);
          double L2Error = sqrt(u_err*u_err + sigma_err*sigma_err);
