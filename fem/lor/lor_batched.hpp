@@ -69,7 +69,8 @@ public:
 
    /// Compute the vertices of the LOR mesh and place the result in @a X_vert.
    static void FormLORVertexCoordinates(FiniteElementSpace &fes_ho,
-                                        Vector &X_vert);
+                                        Vector &X_vert,
+                                        Vector *evec = nullptr);
 
    /// Return the vertices of the LOR mesh in E-vector format
    const Vector &GetLORVertexCoordinates() { return X_vert; }

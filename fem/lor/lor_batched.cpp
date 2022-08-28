@@ -72,7 +72,8 @@ bool BatchedLORAssembly::FormIsSupported(BilinearForm &a)
 }
 
 void BatchedLORAssembly::FormLORVertexCoordinates(FiniteElementSpace &fes_ho,
-                                                  Vector &X_vert)
+                                                  Vector &X_vert,
+                                                  Vector *evec)
 {
 #undef MFEM_NVTX_COLOR
 #define MFEM_NVTX_COLOR DeepSkyBlue
@@ -93,9 +94,22 @@ void BatchedLORAssembly::FormLORVertexCoordinates(FiniteElementSpace &fes_ho,
    const Operator *nodal_restriction =
       nodal_fes->GetElementRestriction(ElementDofOrdering::LEXICOGRAPHIC);
 
+   Vector *tmp_evec = nullptr;
+   Vector *nodal_evec;
+
+   if (evec)
+   {
+      nodal_evec = evec;
+      nodal_evec->SetSize(nodal_restriction->Height());
+   }
+   else
+   {
+      tmp_evec = new Vector(nodal_restriction->Height());
+      nodal_evec = tmp_evec;
+   }
+
    // Map from nodal L-vector to E-vector
-   Vector nodal_evec(nodal_restriction->Height());
-   nodal_restriction->Mult(*nodal_gf, nodal_evec);
+   nodal_restriction->Mult(*nodal_gf, *nodal_evec);
 
    IntegrationRules irs(0, Quadrature1D::GaussLobatto);
    Geometry::Type geom = mesh_ho.GetElementGeometry(0);
@@ -106,7 +120,9 @@ void BatchedLORAssembly::FormLORVertexCoordinates(FiniteElementSpace &fes_ho,
    const QuadratureInterpolator *quad_interp =
       nodal_fes->GetQuadratureInterpolator(ir);
    quad_interp->SetOutputLayout(QVectorLayout::byVDIM);
-   quad_interp->Values(nodal_evec, X_vert);
+   quad_interp->Values(*nodal_evec, X_vert);
+
+   delete tmp_evec;
 }
 
 // The following two functions (GetMinElt and GetAndIncrementNnzIndex) are
