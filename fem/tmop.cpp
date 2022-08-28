@@ -2530,6 +2530,7 @@ void TMOP_Integrator::EnableSurfaceFitting(const GridFunction &s0,
 {
    delete surf_fit_gf;
    surf_fit_gf = new GridFunction(s0);
+   surf_fit_gf->CountZones(surf_fit_dof_count);
    surf_fit_marker = &smarker;
    surf_fit_coeff = &coeff;
    surf_fit_eval = &ae;
@@ -2549,6 +2550,7 @@ void TMOP_Integrator::EnableSurfaceFitting(const ParGridFunction &s0,
 {
    delete surf_fit_gf;
    surf_fit_gf = new GridFunction(s0);
+   surf_fit_gf->CountZones(surf_fit_dof_count);
    surf_fit_marker = &smarker;
    surf_fit_coeff = &coeff;
    surf_fit_eval = &ae;
@@ -2576,6 +2578,7 @@ void TMOP_Integrator::EnableSurfaceFittingFromSource(const ParGridFunction
 {
    delete surf_fit_gf;
    surf_fit_gf = new GridFunction(s0);
+   surf_fit_gf->CountZones(surf_fit_dof_count);
    surf_fit_marker = &smarker;
    surf_fit_coeff = &coeff;
    surf_fit_eval = &ae;
@@ -3375,6 +3378,9 @@ void TMOP_Integrator::AssembleElemVecSurfFit(const FiniteElement &el_x,
    Vector surf_fit_grad_s(dim);
    surf_fit_grad_s = 0.0;
 
+   DenseMatrix matAdd(mat);
+   matAdd = 0.0;
+
    for (int s = 0; s < dof_s; s++)
    {
       if ((*surf_fit_marker)[dofs[s]] == false) { continue; }
@@ -3388,9 +3394,17 @@ void TMOP_Integrator::AssembleElemVecSurfFit(const FiniteElement &el_x,
       surf_fit_grad_e.MultTranspose(shape_s, surf_fit_grad_s);
       surf_fit_grad_s *= 2.0 * surf_fit_normal *
                          surf_fit_coeff->Eval(Tpr, ip) * sigma_e(s);
-
-      AddMultVWt(shape_x, surf_fit_grad_s, mat);
+      AddMultVWt(shape_x, surf_fit_grad_s, matAdd);
    }
+
+   surf_fit_gf->FESpace()->GetElementDofs(el_id, dofs);
+   for (int i = 0; i < matAdd.Height(); i++) {
+       for (int d = 0; d < matAdd.Width(); d++) {
+        matAdd(i, d) *= 1.0/surf_fit_dof_count[dofs[i]];
+       }
+   }
+
+   mat += matAdd;
 }
 
 void TMOP_Integrator::AssembleElemGradSurfFit(const FiniteElement &el_x,
@@ -3450,6 +3464,8 @@ void TMOP_Integrator::AssembleElemGradSurfFit(const FiniteElement &el_x,
    Vector surf_fit_grad_s(dim);
    DenseMatrix surf_fit_hess_s(dim, dim);
 
+   Array<int> cdofs;
+   surf_fit_gf->FESpace()->GetElementDofs(el_id, cdofs);
 
    for (int s = 0; s < dof_s; s++)
    {
@@ -3473,11 +3489,14 @@ void TMOP_Integrator::AssembleElemGradSurfFit(const FiniteElement &el_x,
          for (int j = 0; j <= i; j++)
          {
             const int jdof = j % dof_x, jdim = j / dof_x;
-            const double entry =
+            double entry =
                w * ( 2.0 * surf_fit_grad_s(idim) * shape_x(idof) *
                      /* */ surf_fit_grad_s(jdim) * shape_x(jdof) +
                      2.0 * sigma_e(s) * surf_fit_hess_s(idim, jdim) *
                      /* */ shape_x(idof) * shape_x(jdof));
+            const int count = std::min(surf_fit_dof_count[cdofs[idof]],
+                                       surf_fit_dof_count[cdofs[jdof]]);
+            entry *= 1.0/count;
             mat(i, j) += entry;
             if (i != j) { mat(j, i) += entry; }
          }

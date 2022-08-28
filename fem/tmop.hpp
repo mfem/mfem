@@ -1498,6 +1498,7 @@ protected:
    bool surf_fit_gf_bg;
    GridFunction *surf_fit_grad, *surf_fit_hess;
    AdaptivityEvaluator *surf_fit_eval_bg_grad, *surf_fit_eval_bg_hess;
+   Array<int> surf_fit_dof_count;
 
    DiscreteAdaptTC *discr_tc;
 

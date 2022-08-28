@@ -441,6 +441,9 @@ protected:
    void ComputeMeans(AvgType type, Array<int> &zones_per_vdof);
 
 public:
+   /** @brief Counts in how many zones each vdof appears. */
+   void CountZones(Array<int> &zones_per_vdof);
+
    /** @brief Project a Coefficient on the GridFunction, modifying only DOFs on
        the boundary associated with the boundary attributes marked in the
        @a attr array. */

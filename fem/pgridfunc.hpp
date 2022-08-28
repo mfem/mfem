@@ -226,6 +226,8 @@ public:
                                const IntegrationPoint &ip,
                                Vector &val, Vector *tr = NULL) const;
 
+   void CountZones(Array<int> &zones_per_vdof);
+
    /// Parallel version of GridFunction::GetDerivative(); see its documentation.
    void GetDerivative(int comp, int der_comp, ParGridFunction &der);
 
