@@ -61,11 +61,15 @@ struct RT_LORBench
    BatchedLOR_ADS ads;
    OperatorHandle A_lor;
 
+   LORSolver<HypreADS> *amg = nullptr;
+
    ParBilinearForm a_ho;
    Array<int> ess_dofs;
 
    const int ndofs;
    double mdof;
+
+   Vector x, y;
 
    RT_LORBench(int p, int requested_ndof, int dim, const std::string &name) :
       mesh(MakeParCartesianMesh(p, requested_ndof, dim)),
@@ -84,13 +88,19 @@ struct RT_LORBench
 
       if (name == "RTAssembleBatched") { RTAssembleBatched(); }
       if (name == "DiscreteCurl") { DiscreteCurl(); }
+      if (name == "ADSApply")
+      {
+         amg = new LORSolver<HypreADS>(a_ho, ess_dofs);
+         x.SetSize(ndofs);
+         y.SetSize(ndofs);
+         ADSApply();
+      }
    }
 
    void RTAssembleBatched()
    {
       NVTX("RTAssembleBatched");
       MFEM_DEVICE_SYNC;
-      mdof += 1e-6 * ndofs;
 
       lor.AssembleWithoutBC(a_ho, A_lor);
       A_lor.As<SparseMatrix>()->EliminateBC(ess_dofs,
@@ -101,10 +111,18 @@ struct RT_LORBench
    {
       NVTX("DiscreteCurl");
       MFEM_DEVICE_SYNC;
-      mdof += 1e-6 * ndofs;
 
       ads.FormCurlMatrix();
    }
+
+   void ADSApply()
+   {
+      NVTX("ADSApply");
+      MFEM_DEVICE_SYNC;
+      amg->Mult(x, y);
+   }
+
+   ~RT_LORBench() { delete amg; }
 };
 
 struct ND_LORBench
@@ -117,11 +135,17 @@ struct ND_LORBench
    BatchedLOR_AMS ams;
    OperatorHandle A_lor;
 
+   LORSolver<HypreAMS> *amg = nullptr;
+
    ParBilinearForm a_ho;
    Array<int> ess_dofs;
 
+   Vector evec, xvert;
+
    const int ndofs;
    double mdof;
+
+   Vector x, y;
 
    ND_LORBench(int p, int requested_ndof, int dim, const std::string &name) :
       mesh(MakeParCartesianMesh(p, requested_ndof, dim)),
@@ -141,13 +165,20 @@ struct ND_LORBench
       if (name == "NDAssembleBatched") { NDAssembleBatched(); }
       if (name == "DiscreteGradient") { DiscreteGradient(); }
       if (name == "CoordinateVectors") { CoordinateVectors(); }
+      if (name == "VertexCoordinates") { VertexCoordinates(); }
+      if (name == "AMSApply")
+      {
+         amg = new LORSolver<HypreAMS>(a_ho, ess_dofs);
+         x.SetSize(ndofs);
+         y.SetSize(ndofs);
+         AMSApply();
+      }
    }
 
    void NDAssembleBatched()
    {
       NVTX("NDAssembleBatched");
       MFEM_DEVICE_SYNC;
-      mdof += 1e-6 * ndofs;
 
       lor.AssembleWithoutBC(a_ho, A_lor);
       A_lor.As<SparseMatrix>()->EliminateBC(ess_dofs,
@@ -158,19 +189,34 @@ struct ND_LORBench
    {
       NVTX("DiscreteGradient");
       MFEM_DEVICE_SYNC;
-      mdof += 1e-6 * ndofs;
 
-      ams.FormGradientMatrix();
+      ams.FormGradientMatrixLocal();
    }
 
    void CoordinateVectors()
    {
       NVTX("CoordinateVectors");
       MFEM_DEVICE_SYNC;
-      mdof += 1e-6 * ndofs;
 
       ams.FormCoordinateVectors(lor.GetLORVertexCoordinates());
    }
+
+   void VertexCoordinates()
+   {
+      NVTX("VertexCoordinates");
+      MFEM_DEVICE_SYNC;
+
+      BatchedLORAssembly::FormLORVertexCoordinates(fes_ho, xvert, &evec);
+   }
+
+   void AMSApply()
+   {
+      NVTX("AMSApply");
+      MFEM_DEVICE_SYNC;
+      amg->Mult(x, y);
+   }
+
+   ~ND_LORBench() { delete amg; }
 };
 
 struct LORBench
@@ -256,7 +302,6 @@ struct LORBench
    {
       NVTX("AssembleHO");
       MFEM_DEVICE_SYNC;
-      mdof += 1e-6 * ndofs;
       a_ho.Assemble();
       a_ho.FormSystemMatrix(ess_dofs, A_ho);
    }
@@ -265,7 +310,6 @@ struct LORBench
    {
       NVTX("AssembleFull");
       MFEM_DEVICE_SYNC;
-      mdof += 1e-6 * ndofs;
       a_lor.Assemble();
       a_lor.FormSystemMatrix(ess_dofs, A_lor);
    }
@@ -274,7 +318,6 @@ struct LORBench
    {
       NVTX("AssembleBatched");
       MFEM_DEVICE_SYNC;
-      mdof += 1e-6 * ndofs;
       // lor.AssembleSystem(a_ho, ess_dofs);
       lor_b.Assemble(a_ho, ess_dofs, A_lor);
    }
@@ -283,7 +326,6 @@ struct LORBench
    {
       NVTX("ApplyHO");
       MFEM_DEVICE_SYNC;
-      mdof += 1e-6 * ndofs;
       A_ho->Mult(x, y);
    }
 
@@ -321,10 +363,13 @@ static void Name(bm::State &state){\
    const int log_ndof = state.range(1);\
    const int requested_ndof = pow(2, log_ndof);\
    const int dim = state.range(2);\
+   const std::string name = #Name;\
    if (p == 1 && log_ndof >= 21) { state.SkipWithError("Problem size"); return; }\
    if (p == 2 && log_ndof >= 23) { state.SkipWithError("Problem size"); return; }\
    if (p == 3 && log_ndof >= 23) { state.SkipWithError("Problem size"); return; }\
-   Class lor(p, requested_ndof, dim, #Name);\
+   if ((name == "ADSApply" || name == "AMSApply") && log_ndof >= 21)\
+   { state.SkipWithError("Problem size"); return; }\
+   Class lor(p, requested_ndof, dim, name);\
    while (state.KeepRunning()) { lor.Name(); }\
    bm::Counter::Flags flags = bm::Counter::kIsIterationInvariantRate;\
    state.counters["MDof/s"] = bm::Counter(1e-6*lor.ndofs, flags);\
@@ -344,12 +389,15 @@ Benchmark(LORBench, ApplyHO)
 Benchmark(LORBench, AMGSetup)
 Benchmark(LORBench, Vcycle)
 
-Benchmark(RT_LORBench, RTAssembleBatched)
-Benchmark(RT_LORBench, DiscreteCurl)
-
 Benchmark(ND_LORBench, NDAssembleBatched)
 Benchmark(ND_LORBench, DiscreteGradient)
 Benchmark(ND_LORBench, CoordinateVectors)
+Benchmark(ND_LORBench, VertexCoordinates)
+Benchmark(ND_LORBench, AMSApply)
+
+Benchmark(RT_LORBench, RTAssembleBatched)
+Benchmark(RT_LORBench, DiscreteCurl)
+Benchmark(RT_LORBench, ADSApply)
 
 int main(int argc, char *argv[])
 {
