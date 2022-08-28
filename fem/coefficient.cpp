@@ -517,6 +517,30 @@ void VectorRestrictedCoefficient::Eval(
    }
 }
 
+void VectorFunctionRestrictedCoefficient::Eval(Vector &V,
+                                               ElementTransformation &T,
+                                               const IntegrationPoint &ip)
+{
+   double x[3];
+   Vector transip(x, 3);
+
+   T.Transform(ip, transip);
+
+   V.SetSize(vdim);
+   if (active_attr[T.Attribute-1])
+   {
+      (*TDFunction)(T.Attribute, V);
+   }
+   else
+   {
+      V = 0.0;
+   }
+   if (Q)
+   {
+      V *= Q->Eval(T, ip, GetTime());
+   }
+}
+
 void PWMatrixCoefficient::InitMap(const Array<int> & attr,
                                   const Array<MatrixCoefficient*> & coefs)
 {

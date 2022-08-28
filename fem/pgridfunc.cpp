@@ -543,6 +543,12 @@ void ParGridFunction::ProjectCoefficient(Coefficient &coeff)
    }
 }
 
+//void ParGridFunction::ProjectBdrCoefficient(VectorFunctionCoefficient &vfcoeff,
+//                                            Array<int> &attr)
+//{
+//   GridFunction::ProjectBdrCoefficient(vfcoeff, attr);
+//}
+
 void ParGridFunction::ProjectDiscCoefficient(VectorCoefficient &coeff)
 {
    // local maximal element attribute for each dof

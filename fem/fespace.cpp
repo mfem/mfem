@@ -494,12 +494,21 @@ static void mark_dofs(const Array<int> &dofs, Array<int> &mark_array)
 
 void FiniteElementSpace::GetEssentialVDofs(const Array<int> &bdr_attr_is_ess,
                                            Array<int> &ess_vdofs,
-                                           int component) const
+                                           int component,
+                                           bool overwrite) const
 {
    Array<int> vdofs, dofs;
 
-   ess_vdofs.SetSize(GetVSize());
-   ess_vdofs = 0;
+   if (overwrite)
+   {
+      ess_vdofs.SetSize(GetVSize());
+      ess_vdofs = 0;
+   }
+   else
+   {
+      MFEM_ASSERT(ess_vdofs.Size() == GetVSize(),
+                  "ess_vdofs size is not equal to FESpaces GetVSize().");
+   }
 
    for (int i = 0; i < GetNBE(); i++)
    {
@@ -567,6 +576,47 @@ void FiniteElementSpace::GetEssentialTrueDofs(const Array<int> &bdr_attr_is_ess,
 {
    Array<int> ess_vdofs, ess_tdofs;
    GetEssentialVDofs(bdr_attr_is_ess, ess_vdofs, component);
+   const SparseMatrix *R = GetConformingRestriction();
+   if (!R)
+   {
+      ess_tdofs.MakeRef(ess_vdofs);
+   }
+   else
+   {
+      R->BooleanMult(ess_vdofs, ess_tdofs);
+   }
+   MarkerToList(ess_tdofs, ess_tdof_list);
+}
+
+void FiniteElementSpace::GetEssentialTrueDofs(const Array<int> &bdr_attr_is_ess,
+                                              Array<int> &ess_tdof_list,
+                                              const Array2D<bool> &component)
+{
+   MFEM_ASSERT(component.NumCols() == vdim,
+               "Number of columns of component was not equal to FESpace vdim");
+   MFEM_ASSERT(component.NumRows() == bdr_attr_is_ess.Size(),
+               "Number of rows of component was not equal to bdr_attr_is_ess.Size()");
+
+   Array<int> ess_vdofs, ess_tdofs, bdr_attr_is_ess_single_comp;
+   bdr_attr_is_ess_single_comp.SetSize(bdr_attr_is_ess.Size());
+
+   for (int i = 0; i < vdim; i++)
+   {
+      // Only overwrite ess_vdofs on first iteration
+      // all other iterations we want to preserve values of
+      // ess_vdofs.
+      const bool overwrite = (i == 0) ? true : false;
+      bdr_attr_is_ess_single_comp = 0;
+      for (int j = 0; j < bdr_attr_is_ess.Size(); j++)
+      {
+         if (bdr_attr_is_ess[j] && component(j, i))
+         {
+            bdr_attr_is_ess_single_comp[j] = bdr_attr_is_ess[j];
+         }
+      }
+      GetEssentialVDofs(bdr_attr_is_ess_single_comp, ess_vdofs, i, overwrite);
+   }
+
    const SparseMatrix *R = GetConformingRestriction();
    if (!R)
    {

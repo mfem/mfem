@@ -57,6 +57,16 @@ public:
                                       ElementTransformation &Tr,
                                       const Vector &elfun, Vector &elvect);
 
+   //This function really only be used whenever UMATs are being used,
+   //since UMATs require a velocity based solution vector,
+   //However, they depend on a lot of variables based on displacements
+   //to evolve their models. So, we need to be able to take
+   //derivatives using the beginning and the end time step mesh nodes.
+   //The other models should be using the one above this
+   virtual void AssembleElementVector(const FiniteElement &el,
+                                      ElementTransformation &Ttr_beg,
+                                      ElementTransformation &Ttr_end,
+                                      const Vector &elfun, Vector &elvect, const Vector &elvel);
    /// @brief Perform the local action of the NonlinearFormIntegrator resulting
    /// from a face integral term.
    virtual void AssembleFaceVector(const FiniteElement &el1,
@@ -112,6 +122,14 @@ public:
        This method can be called only after the method AssemblePA() has been
        called. */
    virtual void AddMultPA(const Vector &x, Vector &y) const;
+   
+   /** @brief Prepare the integrator for partial assembly (PA) gradient
+       evaluations on the given FE space @a fes */
+   /** The result of the partial assembly is stored internally so that it can be
+       used later in the methods AddMultGradPA() and AssembleGradDiagonalPA().
+       The state Vector @a x is an E-vector. */                                                           
+   virtual void AssembleGradPA(const FiniteElementSpace &fes);
+   virtual void AssembleEA(const FiniteElementSpace &fes, Vector &emat);
 
    /// Method for partially assembled gradient action.
    /** All arguments are E-vectors. This method can be called only after the
@@ -188,28 +206,22 @@ public:
    virtual ~BlockNonlinearFormIntegrator() { }
 };
 
-
-/// Abstract class for hyperelastic models
-class HyperelasticModel
+/// Abstract class for nonlinear models
+class NonlinearModel
 {
 protected:
    ElementTransformation *Ttr; /**< Reference-element to target-element
                                     transformation. */
 
 public:
-   HyperelasticModel() : Ttr(NULL) { }
-   virtual ~HyperelasticModel() { }
+   NonlinearModel() : Ttr(NULL) { }
+   virtual ~NonlinearModel() { }
 
    /// A reference-element to target-element transformation that can be used to
    /// evaluate Coefficient%s.
    /** @note It is assumed that Ttr_.SetIntPoint() is already called for the
        point of interest. */
    void SetTransformation(ElementTransformation &Ttr_) { Ttr = &Ttr_; }
-
-   /** @brief Evaluate the strain energy density function, W = W(Jpt).
-       @param[in] Jpt  Represents the target->physical transformation
-                       Jacobian matrix. */
-   virtual double EvalW(const DenseMatrix &Jpt) const = 0;
 
    /** @brief Evaluate the 1st Piola-Kirchhoff stress tensor, P = P(Jpt).
        @param[in] Jpt  Represents the target->physical transformation
@@ -234,6 +246,18 @@ public:
                           const double weight, DenseMatrix &A) const = 0;
 };
 
+
+/// Abstract class for hyperelastic models
+class HyperelasticModel : public NonlinearModel
+{
+public:
+
+   /** @brief Evaluate the strain energy density function, W = W(Jpt).
+       @param[in] Jpt  Represents the target->physical transformation
+                       Jacobian matrix. */
+   virtual double EvalW(const DenseMatrix &Jpt) const = 0;
+
+};
 
 /** Inverse-harmonic hyperelastic model with a strain energy density function
     given by the formula: W(J) = (1/2) det(J) Tr((J J^t)^{-1}) where J is the

@@ -463,6 +463,20 @@ public:
        will not be touched. */
    virtual void ProjectBdrCoefficient(Coefficient *coeff[], Array<int> &attr);
 
+   /** add ProjectBdrCoefficient() taking a VectorFunctionCoefficient and projecting
+       onto the grid function, srw. */
+   void ProjectBdrCoefficient(VectorFunctionCoefficient &vfcoeff,
+                              Array<int> &attr);
+
+   /** add ProjectBdrCoefficient() taking a VectorFunctionRestrictedCoefficient, srw
+       This is the same as the function above taking a VectorFunctionCoefficient, it
+       is just that the function coefficient is now restricted. This function
+       specifically projects values associated with ExaConstits essential BC
+       management and input. This routine does not, at this time, project a
+       VectorFunctionRestrictedCoefficient onto all grid function dofs.
+       This function should be renamed to reflect this. */
+   void ProjectBdrCoefficient(VectorFunctionRestrictedCoefficient &vfcoeff);
+
    /** Project the normal component of the given VectorCoefficient on
        the boundary. Only boundary attributes that are marked in
        'bdr_attr' are projected. Assumes RT-type VectorFE GridFunction. */
@@ -734,7 +748,6 @@ public:
    virtual ~GridFunction() { Destroy(); }
 };
 
-
 /** Overload operator<< for std::ostream and GridFunction; valid also for the
     derived class ParGridFunction */
 std::ostream &operator<<(std::ostream &out, const GridFunction &sol);
@@ -938,7 +951,6 @@ public:
 /// Overload operator<< for std::ostream and QuadratureFunction.
 std::ostream &operator<<(std::ostream &out, const QuadratureFunction &qf);
 
-
 double ZZErrorEstimator(BilinearFormIntegrator &blfi,
                         GridFunction &u,
                         GridFunction &flux,
@@ -1052,6 +1064,7 @@ inline void QuadratureFunction::SetSpace(QuadratureSpace *qspace_,
 
 inline void QuadratureFunction::GetElementValues(int idx, Vector &values)
 {
+   // element offset is the number of quadrature points for that element
    const int s_offset = qspace->element_offsets[idx];
    const int sl_size = qspace->element_offsets[idx+1] - s_offset;
    values.NewDataAndSize(data + vdim*s_offset, vdim*sl_size);

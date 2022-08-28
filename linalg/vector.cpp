@@ -289,6 +289,30 @@ void Vector::SetVector(const Vector &v, int offset)
    }
 }
 
+void Vector::SetVector(const Vector &v, int offset, int sslen, int ssoffset)
+{
+   int vs = v.Size();
+   const double *vp = v.data + ssoffset;
+   double *p = data + offset;
+
+#ifdef MFEM_DEBUG
+   if (offset+sslen > size)
+   {
+      mfem_error("Vector::SetVector(const Vector &, int, int, int)");
+   }
+
+   if (ssoffset+sslen > vs)
+   {
+      mfem_error("Vector::SetVector(const Vector &, int, int, int)");
+   }
+#endif
+
+   for (int i = 0; i < sslen; i++)
+   {
+      p[i] = vp[i];
+   }
+}
+
 void Vector::Neg()
 {
    const bool use_dev = UseDevice();

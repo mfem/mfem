@@ -94,6 +94,195 @@ void ParNonlinearForm::Mult(const Vector &x, Vector &y) const
    MFEM_FORALL(i, N, Y_RW[idx[i]] = 0.0; );
 }
 
+void ParNonlinearForm::Mult(const Vector &x, Vector &y, ParMesh* pmesh,
+                            ParGridFunction* end_crds, ParGridFunction* beg_crds,
+                            const Vector &v) const
+{
+   //We're going to pretty much take everything from in NonlinearForm::Mult(x, y) into here
+   //with a few changes made to it
+
+   Array<int> vdofs;
+   Vector el_x, el_y, el_v;
+   const FiniteElement *fe;
+   IsoparametricTransformation beg_T;
+   IsoparametricTransformation end_T;
+   Mesh *mesh = fes->GetMesh();
+   const Vector &ptemp = Prolongate(x);
+   const Vector px(ptemp);
+   const Vector &ptemp1 = Prolongate(v);
+   const Vector pv(ptemp1);
+   Vector &py = P ? aux2.SetSize(P->Height()), aux2 : y;
+
+   py = 0.0;
+   GridFunction *nodes;
+
+   if (dnfi.Size())
+   {
+      for (int i = 0; i < fes->GetNE(); i++)
+      {
+         //Here we're pretty much forced to do things a little different
+         //from before since we have to explicitly call the pmesh GetElementTransformation
+         //if we don't then we end up with the exact same ElementTransformations
+         //for beg_T and end_T
+         fe = fes->GetFE(i);
+         fes->GetElementVDofs(i, vdofs);
+         pmesh->GetElementTransformation(i, &beg_T);
+         //These lines are updating
+         int own_nodes = 0;
+         nodes = end_crds;
+         pmesh->SwapNodes(nodes, own_nodes);
+         fe = fes->GetFE(i);
+         fes->GetElementVDofs(i, vdofs);
+         pmesh->GetElementTransformation(i, &end_T);
+         px.GetSubVector(vdofs, el_x);
+         pv.GetSubVector(vdofs, el_v);
+         for (int k = 0; k < dnfi.Size(); k++)
+         {
+            //This is the part that we're changing by adding more transformation terms
+            //as well
+            dnfi[k]->AssembleElementVector(*fe, beg_T, end_T, el_x, el_y, el_v);
+            py.AddElementVector(vdofs, el_y);
+         }
+         nodes = beg_crds;
+         pmesh->SwapNodes(nodes, own_nodes);
+      }
+   }
+   nodes = NULL;
+   //fix_me: Do we need to worry about the face transformations down here as well
+   //and what their element transformation is based upon? I'm feeling like the answer
+   //might be yes for certain applications. However, I'm not seeing the need for something
+   //like UMATs for the below at least currently.
+   if (fnfi.Size())
+   {
+      FaceElementTransformations *tr;
+      const FiniteElement *fe1, *fe2;
+      Array<int> vdofs2;
+
+      for (int i = 0; i < mesh->GetNumFaces(); i++)
+      {
+         tr = mesh->GetInteriorFaceTransformations(i);
+         if (tr != NULL)
+         {
+            fes->GetElementVDofs(tr->Elem1No, vdofs);
+            fes->GetElementVDofs(tr->Elem2No, vdofs2);
+            vdofs.Append (vdofs2);
+
+            px.GetSubVector(vdofs, el_x);
+
+            fe1 = fes->GetFE(tr->Elem1No);
+            fe2 = fes->GetFE(tr->Elem2No);
+
+            for (int k = 0; k < fnfi.Size(); k++)
+            {
+               fnfi[k]->AssembleFaceVector(*fe1, *fe2, *tr, el_x, el_y);
+               py.AddElementVector(vdofs, el_y);
+            }
+         }
+      }
+   }
+   //fix_me: Same as the previous fix_me in this function.
+   if (bfnfi.Size())
+   {
+      FaceElementTransformations *tr;
+      const FiniteElement *fe1, *fe2;
+
+      // Which boundary attributes need to be processed?
+      Array<int> bdr_attr_marker(mesh->bdr_attributes.Size() ?
+                                 mesh->bdr_attributes.Max() : 0);
+      bdr_attr_marker = 0;
+      for (int k = 0; k < bfnfi.Size(); k++)
+      {
+         if (bfnfi_marker[k] == NULL)
+         {
+            bdr_attr_marker = 1;
+            break;
+         }
+         Array<int> &bdr_marker = *bfnfi_marker[k];
+         MFEM_ASSERT(bdr_marker.Size() == bdr_attr_marker.Size(),
+                     "invalid boundary marker for boundary face integrator #"
+                     << k << ", counting from zero");
+         for (int i = 0; i < bdr_attr_marker.Size(); i++)
+         {
+            bdr_attr_marker[i] |= bdr_marker[i];
+         }
+      }
+
+      for (int i = 0; i < fes -> GetNBE(); i++)
+      {
+         const int bdr_attr = mesh->GetBdrAttribute(i);
+         if (bdr_attr_marker[bdr_attr-1] == 0) { continue; }
+
+         tr = mesh->GetBdrFaceTransformations (i);
+         if (tr != NULL)
+         {
+            fes->GetElementVDofs(tr->Elem1No, vdofs);
+            px.GetSubVector(vdofs, el_x);
+
+            fe1 = fes->GetFE(tr->Elem1No);
+            // The fe2 object is really a dummy and not used on the boundaries,
+            // but we can't dereference a NULL pointer, and we don't want to
+            // actually make a fake element.
+            fe2 = fe1;
+            for (int k = 0; k < bfnfi.Size(); k++)
+            {
+               if (bfnfi_marker[k] &&
+                   (*bfnfi_marker[k])[bdr_attr-1] == 0) { continue; }
+
+               bfnfi[k]->AssembleFaceVector(*fe1, *fe2, *tr, el_x, el_y);
+               py.AddElementVector(vdofs, el_y);
+            }
+         }
+      }
+   }
+
+   //The below is directly from ParNonlinearForm::Mult(x,y)
+
+   Y.SetData(aux2.GetData()); // aux2 contains A_local.P.x
+   //fix_me: same as the other previous fix_mes in this function
+   if (fnfi.Size())
+   {
+      // Terms over shared interior faces in parallel.
+      ParFiniteElementSpace *pfes = ParFESpace();
+      ParMesh *pmesh = pfes->GetParMesh();
+      FaceElementTransformations *tr;
+      const FiniteElement *fe1, *fe2;
+      Array<int> vdofs1, vdofs2;
+      Vector el_x, el_y;
+
+      X.SetData(aux1.GetData()); // aux1 contains P.x
+      X.ExchangeFaceNbrData();
+      const int n_shared_faces = pmesh->GetNSharedFaces();
+      for (int i = 0; i < n_shared_faces; i++)
+      {
+         tr = pmesh->GetSharedFaceTransformations(i, true);
+
+         fe1 = pfes->GetFE(tr->Elem1No);
+         fe2 = pfes->GetFaceNbrFE(tr->Elem2No);
+
+         pfes->GetElementVDofs(tr->Elem1No, vdofs1);
+         pfes->GetFaceNbrElementVDofs(tr->Elem2No, vdofs2);
+
+         el_x.SetSize(vdofs1.Size() + vdofs2.Size());
+         X.GetSubVector(vdofs1, el_x.GetData());
+         X.FaceNbrData().GetSubVector(vdofs2, el_x.GetData() + vdofs1.Size());
+
+         for (int k = 0; k < fnfi.Size(); k++)
+         {
+            fnfi[k]->AssembleFaceVector(*fe1, *fe2, *tr, el_x, el_y);
+            Y.AddElementVector(vdofs1, el_y.GetData());
+         }
+      }
+   }
+
+   P->MultTranspose(Y, y);
+
+   for (int i = 0; i < ess_tdof_list.Size(); i++)
+   {
+      y(ess_tdof_list[i]) = 0.0;
+   }
+}
+
+
 const SparseMatrix &ParNonlinearForm::GetLocalGradient(const Vector &x) const
 {
    MFEM_VERIFY(NonlinearForm::ext == nullptr,
@@ -102,6 +291,33 @@ const SparseMatrix &ParNonlinearForm::GetLocalGradient(const Vector &x) const
    NonlinearForm::GetGradient(x); // (re)assemble Grad, no b.c.
 
    return *Grad;
+}
+
+Operator &ParNonlinearForm::GetLocalGradient2(const Vector &x) const
+{
+   ParFiniteElementSpace *pfes = ParFESpace();
+
+   pGrad.Clear();
+
+   NonlinearForm::GetGradient(x); // (re)assemble Grad, no b.c.
+
+   OperatorHandle dA(pGrad.Type()), Ph(pGrad.Type());
+
+   if (fnfi.Size() == 0)
+   {
+      dA.MakeSquareBlockDiag(pfes->GetComm(), pfes->GlobalVSize(),
+                             pfes->GetDofOffsets(), Grad);
+   }
+   else
+   {
+      MFEM_ABORT("TODO: assemble contributions from shared face terms");
+   }
+
+   // TODO - construct Dof_TrueDof_Matrix directly in the pGrad format
+   Ph.ConvertFrom(pfes->Dof_TrueDof_Matrix());
+   pGrad.MakePtAP(dA, Ph);
+
+   return *pGrad.Ptr();
 }
 
 Operator &ParNonlinearForm::GetGradient(const Vector &x) const

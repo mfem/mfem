@@ -321,6 +321,11 @@ public:
 
    void SetVector(const Vector &v, int offset);
 
+   /// Set the subset of element in (*this) defined by @a offset
+   /// and the subset length, @a sslen, equal to the subset of
+   /// elements in @a v defined by @a ssoffset and @a sslen.
+   void SetVector (const Vector &v, int offset, int sslen, int ssoffset);
+
    /// (*this) = -(*this)
    void Neg();
 
