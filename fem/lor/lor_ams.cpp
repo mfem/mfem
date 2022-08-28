@@ -139,7 +139,7 @@ void BatchedLOR_AMS::Form3DEdgeToVertex(Array<int> &edge2vert)
    }
 }
 
-void BatchedLOR_AMS::FormGradientMatrix()
+void BatchedLOR_AMS::FormGradientMatrixLocal()
 {
    NVTX("Discrete Gradient");
    // The gradient matrix maps from LOR vertices to LOR edges. Given an edge
@@ -207,39 +207,46 @@ void BatchedLOR_AMS::FormGradientMatrix()
       V[i*2 + 0] = -sgn;
       V[i*2 + 1] = sgn;
    });
+}
+
+void BatchedLOR_AMS::FormGradientMatrix()
+{
+   FormGradientMatrixLocal();
 
    // Create a block diagonal parallel matrix
-   // OperatorHandle G_diag(Operator::Hypre_ParCSR);
-   // G_diag.MakeRectangularBlockDiag(vert_fes.GetComm(),
-   //                                 edge_fes.GlobalVSize(),
-   //                                 vert_fes.GlobalVSize(),
-   //                                 edge_fes.GetDofOffsets(),
-   //                                 vert_fes.GetDofOffsets(),
-   //                                 &G_local);
+   OperatorHandle G_diag(Operator::Hypre_ParCSR);
+   G_diag.MakeRectangularBlockDiag(vert_fes.GetComm(),
+                                   edge_fes.GlobalVSize(),
+                                   vert_fes.GlobalVSize(),
+                                   edge_fes.GetDofOffsets(),
+                                   vert_fes.GetDofOffsets(),
+                                   &G_local);
 
-   // // Assemble the parallel gradient matrix, must be deleted by the caller
-   // if (IsIdentityProlongation(vert_fes.GetProlongationMatrix()))
-   // {
-   //    G = G_diag.As<HypreParMatrix>();
-   //    G_diag.SetOperatorOwner(false);
-   //    HypreStealOwnership(*G, G_local);
-   // }
-   // else
-   // {
-   //    OperatorHandle Rt(Transpose(*edge_fes.GetRestrictionMatrix()));
-   //    OperatorHandle Rt_diag(Operator::Hypre_ParCSR);
-   //    Rt_diag.MakeRectangularBlockDiag(edge_fes.GetComm(),
-   //                                     edge_fes.GlobalVSize(),
-   //                                     edge_fes.GlobalTrueVSize(),
-   //                                     edge_fes.GetDofOffsets(),
-   //                                     edge_fes.GetTrueDofOffsets(),
-   //                                     Rt.As<SparseMatrix>());
-   //    G = RAP(Rt_diag.As<HypreParMatrix>(),
-   //            G_diag.As<HypreParMatrix>(),
-   //            vert_fes.Dof_TrueDof_Matrix());
-   // }
-   // G->CopyRowStarts();
-   // G->CopyColStarts();
+   // Assemble the parallel gradient matrix, must be deleted by the caller
+   if (IsIdentityProlongation(vert_fes.GetProlongationMatrix()))
+   {
+      G = G_diag.As<HypreParMatrix>();
+      G_diag.SetOperatorOwner(false);
+      HypreStealOwnership(*G, G_local);
+   }
+   else
+   {
+      OperatorHandle Rt(Transpose(*edge_fes.GetRestrictionMatrix()));
+      OperatorHandle Rt_diag(Operator::Hypre_ParCSR);
+      Rt_diag.MakeRectangularBlockDiag(edge_fes.GetComm(),
+                                       edge_fes.GlobalVSize(),
+                                       edge_fes.GlobalTrueVSize(),
+                                       edge_fes.GetDofOffsets(),
+                                       edge_fes.GetTrueDofOffsets(),
+                                       Rt.As<SparseMatrix>());
+      G = RAP(Rt_diag.As<HypreParMatrix>(),
+              G_diag.As<HypreParMatrix>(),
+              vert_fes.Dof_TrueDof_Matrix());
+   }
+   G->CopyRowStarts();
+   G->CopyColStarts();
+
+   G_local.Clear();
 }
 
 template <typename T>
@@ -284,7 +291,7 @@ void BatchedLOR_AMS::FormCoordinateVectors(const Vector &X_vert)
    const MemoryClass mc = GetHypreMemoryClass();
    bool dev = (mc == MemoryClass::DEVICE);
 
-   xyz_tvec = new Vector(ntdofs*dim);
+   if (xyz_tvec == nullptr) { xyz_tvec = new Vector(ntdofs*dim); }
 
    auto xyz_tv = Reshape(HypreWrite(xyz_tvec->GetMemory()), ntdofs, dim);
    const auto xyz_e =
@@ -305,21 +312,24 @@ void BatchedLOR_AMS::FormCoordinateVectors(const Vector &X_vert)
    });
 
    // Make x, y, z HypreParVectors point to T-vector data
-   HYPRE_BigInt glob_size = vert_fes.GlobalTrueVSize();
-   HYPRE_BigInt *cols = vert_fes.GetTrueDofOffsets();
+   if (x == nullptr)
+   {
+      HYPRE_BigInt glob_size = vert_fes.GlobalTrueVSize();
+      HYPRE_BigInt *cols = vert_fes.GetTrueDofOffsets();
 
-   double *d_x_ptr = xyz_tv + 0*ntdofs;
-   x = new HypreParVector(vert_fes.GetComm(), glob_size, d_x_ptr, cols, dev);
-   double *d_y_ptr = xyz_tv + 1*ntdofs;
-   y = new HypreParVector(vert_fes.GetComm(), glob_size, d_y_ptr, cols, dev);
-   if (dim == 3)
-   {
-      double *d_z_ptr = xyz_tv + 2*ntdofs;
-      z = new HypreParVector(vert_fes.GetComm(), glob_size, d_z_ptr, cols, dev);
-   }
-   else
-   {
-      z = NULL;
+      double *d_x_ptr = xyz_tv + 0*ntdofs;
+      x = new HypreParVector(vert_fes.GetComm(), glob_size, d_x_ptr, cols, dev);
+      double *d_y_ptr = xyz_tv + 1*ntdofs;
+      y = new HypreParVector(vert_fes.GetComm(), glob_size, d_y_ptr, cols, dev);
+      if (dim == 3)
+      {
+         double *d_z_ptr = xyz_tv + 2*ntdofs;
+         z = new HypreParVector(vert_fes.GetComm(), glob_size, d_z_ptr, cols, dev);
+      }
+      else
+      {
+         z = NULL;
+      }
    }
 }
 

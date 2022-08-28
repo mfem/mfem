@@ -81,7 +81,7 @@ void BatchedLOR_ADS::Form3DFaceToEdge(Array<int> &face2edge)
    }
 }
 
-void BatchedLOR_ADS::FormCurlMatrix()
+void BatchedLOR_ADS::FormCurlMatrixLocal()
 {
    NVTX("Discrete Curl");
 
@@ -149,6 +149,11 @@ void BatchedLOR_ADS::FormCurlMatrix()
          V[i*4 + k] = sgn*sgn_f*sgn_e;
       }
    });
+}
+
+void BatchedLOR_ADS::FormCurlMatrix()
+{
+   FormCurlMatrixLocal();
 
    // Create a block diagonal parallel matrix
    OperatorHandle C_diag(Operator::Hypre_ParCSR);
@@ -160,28 +165,30 @@ void BatchedLOR_ADS::FormCurlMatrix()
                                    &C_local);
 
    // Assemble the parallel gradient matrix, must be deleted by the caller
-   // if (IsIdentityProlongation(edge_fes.GetProlongationMatrix()))
-   // {
-   //    C = C_diag.As<HypreParMatrix>();
-   //    C_diag.SetOperatorOwner(false);
-   //    HypreStealOwnership(*C, C_local);
-   // }
-   // else
-   // {
-   //    OperatorHandle Rt(Transpose(*face_fes.GetRestrictionMatrix()));
-   //    OperatorHandle Rt_diag(Operator::Hypre_ParCSR);
-   //    Rt_diag.MakeRectangularBlockDiag(face_fes.GetComm(),
-   //                                     face_fes.GlobalVSize(),
-   //                                     face_fes.GlobalTrueVSize(),
-   //                                     face_fes.GetDofOffsets(),
-   //                                     face_fes.GetTrueDofOffsets(),
-   //                                     Rt.As<SparseMatrix>());
-   //    C = RAP(Rt_diag.As<HypreParMatrix>(),
-   //            C_diag.As<HypreParMatrix>(),
-   //            edge_fes.Dof_TrueDof_Matrix());
-   // }
-   // C->CopyRowStarts();
-   // C->CopyColStarts();
+   if (IsIdentityProlongation(edge_fes.GetProlongationMatrix()))
+   {
+      C = C_diag.As<HypreParMatrix>();
+      C_diag.SetOperatorOwner(false);
+      HypreStealOwnership(*C, C_local);
+   }
+   else
+   {
+      OperatorHandle Rt(Transpose(*face_fes.GetRestrictionMatrix()));
+      OperatorHandle Rt_diag(Operator::Hypre_ParCSR);
+      Rt_diag.MakeRectangularBlockDiag(face_fes.GetComm(),
+                                       face_fes.GlobalVSize(),
+                                       face_fes.GlobalTrueVSize(),
+                                       face_fes.GetDofOffsets(),
+                                       face_fes.GetTrueDofOffsets(),
+                                       Rt.As<SparseMatrix>());
+      C = RAP(Rt_diag.As<HypreParMatrix>(),
+              C_diag.As<HypreParMatrix>(),
+              edge_fes.Dof_TrueDof_Matrix());
+   }
+   C->CopyRowStarts();
+   C->CopyColStarts();
+
+   C_local.Clear();
 }
 
 HypreParMatrix *BatchedLOR_ADS::StealCurlMatrix()

@@ -33,14 +33,14 @@ protected:
    const int order; ///< Polynomial degree.
    H1_FECollection vert_fec; ///< The corresponding H1 collection.
    ParFiniteElementSpace vert_fes; ///< The corresponding H1 space.
-   Vector *xyz_tvec; ///< Mesh vertex coordinates in true-vector format.
-   HypreParMatrix *G; ///< Discrete gradient matrix.
+   Vector *xyz_tvec = nullptr; ///< Mesh vertex coordinates in true-vector format.
+   HypreParMatrix *G = nullptr; ///< Discrete gradient matrix.
 
    SparseMatrix G_local;
 
    /// @name Mesh coordinate vectors in HypreParVector format
    ///@{
-   HypreParVector *x, *y, *z;
+   HypreParVector *x = nullptr, *y = nullptr, *z = nullptr;
    ///@}
 
    /// @name Construct the local (elementwise) discrete gradient
@@ -91,6 +91,9 @@ public:
 
    /// Construct the discrete gradient matrix (not part of the public API).
    void FormGradientMatrix();
+
+   void FormGradientMatrixLocal();
+
    ~BatchedLOR_AMS();
 };
 
