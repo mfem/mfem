@@ -150,7 +150,8 @@ void BatchedLOR_AMS::FormGradientMatrixLocal()
    const int nvert_dof = vert_fes.GetNDofs();
 
    G_local.OverrideSize(nedge_dof, nvert_dof);
-   EnsureCapacity(G_local.GetMemoryI(), nedge_dof+1, Device::GetDeviceMemoryType());
+   EnsureCapacity(G_local.GetMemoryI(), nedge_dof+1,
+                  Device::GetDeviceMemoryType());
 
    // Each row always has two nonzeros
    const int nnz = 2*nedge_dof;

@@ -93,7 +93,8 @@ void BatchedLOR_ADS::FormCurlMatrixLocal()
    const int nedge_dof = edge_fes.GetNDofs();
 
    C_local.OverrideSize(nface_dof, nedge_dof);
-   EnsureCapacity(C_local.GetMemoryI(), nedge_dof+1, Device::GetDeviceMemoryType());
+   EnsureCapacity(C_local.GetMemoryI(), nedge_dof+1,
+                  Device::GetDeviceMemoryType());
    // Each row always has four nonzeros
    const int nnz = 4*nedge_dof;
    auto I = C_local.WriteI();
