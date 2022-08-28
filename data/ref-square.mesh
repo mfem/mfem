@@ -11,6 +11,11 @@ MFEM mesh v1.0
 # CUBE        = 5
 # PRISM       = 6
 #
+#  3----2
+#  |    |
+#  |    |
+#  0----1
+#
 
 dimension
 2

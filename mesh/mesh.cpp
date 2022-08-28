@@ -1503,7 +1503,8 @@ void Mesh::DestroyPointers()
       FreeElement(faces[i]);
    }
 
-   DestroyTables();
+   delete connect;
+
 }
 
 void Mesh::Destroy()
@@ -2915,6 +2916,9 @@ void Mesh::FinalizeTopology(bool generate_bdr)
    // set the mesh type: 'meshgen', ...
    SetMeshGen();
 
+   if (connect) {delete connect;}
+   connect = new MeshConnections(*this);
+
    // generate the faces
    if (Dim > 2)
    {
@@ -3547,6 +3551,14 @@ void Mesh::Make1D(int n, double sx)
    bdr_attributes.Append(1); bdr_attributes.Append(2);
 }
 
+
+Mesh::Mesh()
+{
+   SetEmpty();
+   connect = new MeshConnections(*this);
+}
+
+
 Mesh::Mesh(const Mesh &mesh, bool copy_nodes)
 {
    Dim = mesh.Dim;
@@ -3668,6 +3680,7 @@ Mesh::Mesh(const Mesh &mesh, bool copy_nodes)
       Nodes = mesh.Nodes;
       own_nodes = 0;
    }
+   connect = new MeshConnections(*this);
 }
 
 Mesh::Mesh(Mesh &&mesh) : Mesh()
@@ -3752,6 +3765,7 @@ Mesh::Mesh(const char *filename, int generate_edges, int refine,
    {
       Load(imesh, generate_edges, refine, fix_orientation);
    }
+   connect = new MeshConnections(*this);
 }
 
 Mesh::Mesh(std::istream &input, int generate_edges, int refine,
@@ -3759,6 +3773,7 @@ Mesh::Mesh(std::istream &input, int generate_edges, int refine,
 {
    SetEmpty();
    Load(input, generate_edges, refine, fix_orientation);
+   connect = new MeshConnections(*this);
 }
 
 void Mesh::ChangeVertexDataOwnership(double *vertex_data, int len_vertex_data,
@@ -3825,6 +3840,7 @@ Mesh::Mesh(double *vertices_, int num_vertices,
    NumOfBdrElements = num_boundary_elements;
 
    FinalizeTopology();
+   connect = new MeshConnections(*this);
 }
 
 Element *Mesh::NewElement(int geom)
@@ -4306,6 +4322,8 @@ Mesh::Mesh(Mesh *mesh_array[], int num_pieces)
       own_nodes = 1;
    }
 
+   connect = new MeshConnections(*this);
+
 #ifdef MFEM_DEBUG
    CheckElementOrientation(false);
    CheckBdrElementOrientation(false);
@@ -4317,6 +4335,7 @@ Mesh::Mesh(Mesh *orig_mesh, int ref_factor, int ref_type)
    Array<int> ref_factors(orig_mesh->GetNE());
    ref_factors = ref_factor;
    MakeRefined_(*orig_mesh, ref_factors, ref_type);
+   connect = new MeshConnections(*this);
 }
 
 void Mesh::MakeRefined_(Mesh &orig_mesh, const Array<int> ref_factors,
@@ -5918,6 +5937,17 @@ void Mesh::GetGeometries(int dim, Array<Geometry::Type> &el_geoms) const
    }
 }
 
+//TABLE_EDIT
+void Mesh::GetElementVertices(int i, Array<int> &v) const
+{ 
+   elements[i]->GetVertices(v);
+}
+
+void Mesh::GetBdrElementVertices(int i, Array<int> &v) const
+{ 
+   boundary[i]->GetVertices(v);
+}
+
 void Mesh::GetElementEdges(int i, Array<int> &edges, Array<int> &cor) const
 {
    if (el_to_edge)
@@ -5999,6 +6029,64 @@ void Mesh::GetFaceEdges(int i, Array<int> &edges, Array<int> &o) const
    {
       const int *e = faces[i]->GetEdgeVertices(j);
       o[j] = (v[e[0]] < v[e[1]]) ? (1) : (-1);
+   }
+}
+
+void Mesh::GetElementFaces(int i, Array<int> &faces, Array<int> &ori) const
+{
+   MFEM_VERIFY(el_to_face != NULL, "el_to_face not generated");
+
+   el_to_face->GetRow(i, faces);
+
+   int n = faces.Size();
+   ori.SetSize(n);
+
+   for (int j = 0; j < n; j++)
+   {
+      if (faces_info[faces[j]].Elem1No == i)
+      {
+         ori[j] = faces_info[faces[j]].Elem1Inf % 64;
+      }
+      else
+      {
+         MFEM_ASSERT(faces_info[faces[j]].Elem2No == i, "internal error");
+         ori[j] = faces_info[faces[j]].Elem2Inf % 64;
+      }
+   }
+}
+
+void Mesh::GetBdrElementFace(int i, int *f, int *o) const
+{
+   const int *bv, *fv;
+
+   *f = be_to_face[i];
+   bv = boundary[i]->GetVertices();
+   fv = faces[be_to_face[i]]->GetVertices();
+
+   // find the orientation of the bdr. elem. w.r.t.
+   // the corresponding face element (that's the base)
+   switch (GetBdrElementType(i))
+   {
+      case Element::TRIANGLE:
+         *o = GetTriOrientation(fv, bv);
+         break;
+      case Element::QUADRILATERAL:
+         *o = GetQuadOrientation(fv, bv);
+         break;
+      default:
+         MFEM_ABORT("invalid geometry");
+   }
+}
+
+void Mesh::GetFaceVertices(int i, Array<int> &vert) const
+{
+   if (Dim == 1)
+   {
+      vert.SetSize(1); vert[0] = i;
+   }
+   else
+   {
+      faces[i]->GetVertices(vert);
    }
 }
 
@@ -6134,52 +6222,6 @@ Table *Mesh::GetFaceToElementTable() const
    return face_elem;
 }
 
-void Mesh::GetElementFaces(int i, Array<int> &el_faces, Array<int> &ori) const
-{
-   MFEM_VERIFY(el_to_face != NULL, "el_to_face not generated");
-
-   el_to_face->GetRow(i, el_faces);
-
-   int n = el_faces.Size();
-   ori.SetSize(n);
-
-   for (int j = 0; j < n; j++)
-   {
-      if (faces_info[el_faces[j]].Elem1No == i)
-      {
-         ori[j] = faces_info[el_faces[j]].Elem1Inf % 64;
-      }
-      else
-      {
-         MFEM_ASSERT(faces_info[el_faces[j]].Elem2No == i, "internal error");
-         ori[j] = faces_info[el_faces[j]].Elem2Inf % 64;
-      }
-   }
-}
-
-void Mesh::GetBdrElementFace(int i, int *f, int *o) const
-{
-   const int *bv, *fv;
-
-   *f = be_to_face[i];
-   bv = boundary[i]->GetVertices();
-   fv = faces[be_to_face[i]]->GetVertices();
-
-   // find the orientation of the bdr. elem. w.r.t.
-   // the corresponding face element (that's the base)
-   switch (GetBdrElementType(i))
-   {
-      case Element::TRIANGLE:
-         *o = GetTriOrientation(fv, bv);
-         break;
-      case Element::QUADRILATERAL:
-         *o = GetQuadOrientation(fv, bv);
-         break;
-      default:
-         MFEM_ABORT("invalid geometry");
-   }
-}
-
 int Mesh::GetBdrElementEdgeIndex(int i) const
 {
    switch (Dim)
@@ -6191,6 +6233,37 @@ int Mesh::GetBdrElementEdgeIndex(int i) const
    }
    return -1;
 }
+
+int GetBdrElementToFaceOrientation(int beid)
+{
+   return 0; 
+}
+
+int GetFaceOrientation(int faceid)
+{
+   return 0;
+}
+
+void GetFaceOrientation(const Array<int> &faceids, Array<int> &ori)
+{
+
+}
+
+void GetEdgeOrientationsInElement(int elemid, Array<int> &edge_ori)
+{
+
+}
+
+void GetEdgeOrientationsInFace(int faceid, Array<int> &edge_ori)
+{
+
+}
+
+void GetEdgeOrientationsInBdrElement(int beid, Array<int> &edge_ori)
+{
+
+}
+
 
 void Mesh::GetBdrElementAdjacentElement(int bdr_el, int &el, int &info) const
 {
@@ -6213,6 +6286,8 @@ void Mesh::GetBdrElementAdjacentElement(int bdr_el, int &el, int &info) const
    el   = fi.Elem1No;
    info = fi.Elem1Inf + ori;
 }
+
+//TABLE_EDIT^
 
 Element::Type Mesh::GetElementType(int i) const
 {
@@ -9221,6 +9296,7 @@ Mesh::Mesh(const NCMesh &ncmesh_)
    InitTables();
    InitFromNCMesh(ncmesh_);
    SetAttributes();
+   connect = new MeshConnections(*this);
 }
 
 void Mesh::Swap(Mesh& other, bool non_geometry)

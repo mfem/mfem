@@ -23,6 +23,7 @@
 #include "../fem/eltrans.hpp"
 #include "../fem/coefficient.hpp"
 #include "../general/zstr.hpp"
+#include "mesh_connections.hpp"
 #ifdef MFEM_USE_ADIOS2
 #include "../general/adios2stream.hpp"
 #endif
@@ -57,10 +58,15 @@ class Mesh
 #endif
    friend class NCMesh;
    friend class NURBSExtension;
+   friend class MeshConnections;
 
 #ifdef MFEM_USE_ADIOS2
    friend class adios2stream;
 #endif
+
+public:
+
+   MeshConnections *connect = nullptr;
 
 protected:
    int Dim;
@@ -217,6 +223,7 @@ protected:
    Array<FaceInfo> faces_info;
    Array<NCFaceInfo> nc_faces_info;
 
+   //TABLE_EDIT
    Table *el_to_edge;
    Table *el_to_face;
    Table *el_to_el;
@@ -560,7 +567,7 @@ protected:
 
 public:
 
-   Mesh() { SetEmpty(); }
+   Mesh(); 
 
    /** Copy constructor. Performs a deep copy of (almost) all data, so that the
        source mesh can be modified (e.g. deleted, refined) without affecting the
@@ -694,10 +701,10 @@ public:
 
    /** @anchor mfem_Mesh_init_ctor
        @brief _Init_ constructor: begin the construction of a Mesh object. */
-   Mesh(int Dim_, int NVert, int NElem, int NBdrElem = 0, int spaceDim_ = -1)
-   {
+   Mesh(int Dim_, int NVert, int NElem, int NBdrElem = 0, int spaceDim_ = -1) {
       if (spaceDim_ == -1) { spaceDim_ = Dim_; }
       InitMesh(Dim_, spaceDim_, NVert, NElem, NBdrElem);
+      connect = new MeshConnections(*this);
    }
 
    /** @name Methods for Mesh construction.
@@ -849,23 +856,26 @@ public:
    {
       Make3D(nx, ny, nz, type, sx, sy, sz, sfc_ordering);
       Finalize(true); // refine = true
+      connect = new MeshConnections(*this);
    }
 
    /// Deprecated: see @a MakeCartesian2D.
    MFEM_DEPRECATED
    Mesh(int nx, int ny, Element::Type type, bool generate_edges = false,
-        double sx = 1.0, double sy = 1.0, bool sfc_ordering = true)
+        double sx = 1.0, double sy = 1.0, bool sfc_ordering = true) 
    {
       Make2D(nx, ny, type, sx, sy, generate_edges, sfc_ordering);
       Finalize(true); // refine = true
+      connect = new MeshConnections(*this);
    }
 
    /// Deprecated: see @a MakeCartesian1D.
    MFEM_DEPRECATED
-   explicit Mesh(int n, double sx = 1.0)
+   explicit Mesh(int n, double sx = 1.0) 
    {
       Make1D(n, sx);
       // Finalize(); // reminder: not needed
+      connect = new MeshConnections(*this);
    }
 
    /** Creates mesh by reading a file in MFEM, Netgen, or VTK format. If
@@ -1099,59 +1109,147 @@ public:
       { mesh.GetGeometries(dim, *this); }
    };
 
-   /// Returns the indices of the vertices of element i.
-   void GetElementVertices(int i, Array<int> &v) const
-   { elements[i]->GetVertices(v); }
+   //TABLE_EDIT
 
-   /// Returns the indices of the vertices of boundary element i.
-   void GetBdrElementVertices(int i, Array<int> &v) const
-   { boundary[i]->GetVertices(v); }
+   /**  @brief Returns the indices of the vertices of element i.
+        Deprecated, please use MeshConnections:
+        mesh->connect.ChildrenOfEntity({MeshDim,AllIdx,i}, {0,AllIdx,{}})*/
+   MFEM_DEPRECATED void GetElementVertices(int i, Array<int> &v) const;
 
-   /// Return the indices and the orientations of all edges of element i.
-   void GetElementEdges(int i, Array<int> &edges, Array<int> &cor) const;
+   /**  @brief Returns the indices of the vertices of bdr element i.
+        Deprecated, please use MeshConnections:
+        mesh->connect.ChildrenOfEntity({MeshDim-1,BdrIdx,i}, {0,AllIdx,{}})*/
+   MFEM_DEPRECATED void GetBdrElementVertices(int i, Array<int> &v) const;
 
-   /// Return the indices and the orientations of all edges of bdr element i.
-   void GetBdrElementEdges(int i, Array<int> &edges, Array<int> &cor) const;
+   /** Return the indices and the orientations of all edges of element i.
+       Works for both 2D (face=edge) and 3D faces. 
+       Deprecated, please use MeshConnections:
+       mesh->connect.ChildrenOfEntity({MeshDim,AllIdx,i}, {1,AllIdx,{}})
+       mesh->GetEdgeOrientationsInElement(elemid)*/
+   MFEM_DEPRECATED void GetElementEdges(int i, Array<int> &edges, Array<int> &cor) const;
+
+   /** Return the indices and the orientations of all edges of element i. 
+       Deprecated, please use MeshConnections:
+       mesh->connect.ChildrenOfEntity({MeshDim-1,BdrIdx,i}, {1,AllIdx,{}})
+       mesh->GetEdgeOrientationsInBdrElement(i)*/
+   MFEM_DEPRECATED void GetBdrElementEdges(int i, Array<int> &edges, Array<int> &cor) const;
 
    /** Return the indices and the orientations of all edges of face i.
-       Works for both 2D (face=edge) and 3D faces. */
-   void GetFaceEdges(int i, Array<int> &edges, Array<int> &o) const;
+       Works for both 2D (face=edge) and 3D faces. 
+       Deprecated, please use MeshConnections:
+       mesh->connect.ChildrenOfEntity({MeshDim-1,AllIdx,i}, {1,AllIdx,{}})
+       mesh->GetEdgeOrientationsInFace(i)*/
+   MFEM_DEPRECATED void GetFaceEdges(int i, Array<int> &edges, Array<int> &o) const;
 
-   /// Returns the indices of the vertices of face i.
-   void GetFaceVertices(int i, Array<int> &vert) const
-   {
-      if (Dim == 1)
-      {
-         vert.SetSize(1); vert[0] = i;
-      }
-      else
-      {
-         faces[i]->GetVertices(vert);
-      }
-   }
+   /** @Brief  Return the indices and the orientations of all faces of element i.
+       Deprecated, please use MeshConnections:
+       mesh->connect.ChildrenOfEntity({MeshDim,AllIdx,i}, {MeshDim-1,AllIdx,{}})
+       mesh->GetFaceOrientation(faces)*/
+   MFEM_DEPRECATED void GetElementFaces(int i, Array<int> &faces, Array<int> &ori) const;
 
-   /// Returns the indices of the vertices of edge i.
-   void GetEdgeVertices(int i, Array<int> &vert) const;
+   /** @brief Return the index and the orientation of the face of bdr element i. (3D) only
+       Deprecated, please use MeshConnections:
+       mesh->connect.ChildrenOfEntity({MeshDim-1,AllIdx,i}, {0,AllIdx,{}})
+       mesh->GetBdrElementToFaceOrientation(i)*/
+   MFEM_DEPRECATED void GetBdrElementFace(int i, int *f, int *o) const;
 
-   /// Returns the face-to-edge Table (3D)
-   Table *GetFaceEdgeTable() const;
+   /** @brief Return the indices of the vertices of face i.
+       Deprecated, please use MeshConnections:
+       mesh->connect.ChildrenOfEntity({MeshDim-1,AllIdx,i}, {0,AllIdx,{}})*/
+   MFEM_DEPRECATED void GetFaceVertices(int i, Array<int> &vert) const;
 
-   /// Returns the edge-to-vertex Table (3D)
-   Table *GetEdgeVertexTable() const;
+   /** @brief Return the indices of the vertices of edge i.
+       Deprecated, please use MeshConnections:
+       mesh->connect.ChildrenOfEntity({1,AllIdx,i}, {0,AllIdx,{}})*/
+   MFEM_DEPRECATED void GetEdgeVertices(int i, Array<int> &vert) const;
 
-   /// Return the indices and the orientations of all faces of element i.
-   void GetElementFaces(int i, Array<int> &faces, Array<int> &ori) const;
+   /** @brief Get the face to edge Table (3D)
+       Deprecated, please use MeshConnections:
+       mesh->connect.GetTable(2,AllIdx,1,AllIdx)*/
+   MFEM_DEPRECATED Table *GetFaceEdgeTable() const;
 
-   /// Return the index and the orientation of the face of bdr element i. (3D)
-   void GetBdrElementFace(int i, int *f, int *o) const;
+   /** @brief Get the edge to vertex Table (3D)
+       Deprecated, please use MeshConnections:
+       mesh->connect.GetTable(1,AllIdx,0,AllIdx)*/
+   MFEM_DEPRECATED Table *GetEdgeVertexTable() const;
 
-   /** Return the vertex index of boundary element i. (1D)
+   /** @brief  Get the element to element neightbot table
+       Deprecated, please use MeshConnections:
+       mesh->connect.GetNeighborTable(MeshDim,AllIdx,MeshDim-1)*/
+   MFEM_DEPRECATED const Table &ElementToElementTable();
+
+   /** @brief  Get the element to face table
+       which only exists in 3D
+       Deprecated, please use MeshConnections:
+       mesh->connect.GetTable(0,AllIdx,MeshDim,AllIdx)*/
+   MFEM_DEPRECATED const Table &ElementToFaceTable() const;
+
+   /** @brief  Get the element to edge table
+       Deprecated, please use MeshConnections:
+       mesh->connect.GetTable(0,AllIdx,MeshDim,AllIdx)*/
+   MFEM_DEPRECATED const Table &ElementToEdgeTable() const;
+
+   /** @brief  The returned Table must be destroyed by the caller
+       Deprecated, please use MeshConnections:
+       mesh->connect.GetTable(0,AllIdx,MeshDim,AllIdx)*/
+   MFEM_DEPRECATED Table *GetVertexToElementTable();
+
+   /** @brief Return the "face"-element Table. Here "face" refers to face (3D),
+       edge (2D), or vertex (1D).
+       The returned Table must be destroyed by the caller. 
+       Deprecated, please use MeshConnections:
+       mesh->connect.GetTable(MeshDim-1,AllIdx,MeshDim,AllIdx)*/
+   MFEM_DEPRECATED Table *GetFaceToElementTable() const;
+
+   /** @brief Return the vertex index of boundary element i. (1D)
        Return the edge index of boundary element i. (2D)
-       Return the face index of boundary element i. (3D) */
-   int GetBdrElementEdgeIndex(int i) const;
+       Return the face index of boundary element i. (3D) 
+       Deprecated, please use MeshConnections:
+       mesh->connect.GetAllIdxFromBdrIdx(i)*/
+   MFEM_DEPRECATED int GetBdrElementEdgeIndex(int i) const;
+
+   /** @brief Return the orientation # of the boundary element 
+       w.r.t. it's corresponding face.*/ 
+   int GetBdrElementToFaceOrientation(int beid);
+
+   /** @brief Return the orientation # of the face element w.r.t. to the  
+       2 elements shared by the face.  The face in the first 
+       element in the face_info has an orientation of 0
+       and the second face will have the orientation # representing the 
+       the permutation between  the face in the first element and the face
+       in the second element.*/
+   int GetFaceOrientation(int faceid);
+
+   /** @brief Return the orientation #s of the face elements w.r.t. to the  
+       2 elements shared by each face.  The face in the first 
+       element in the face_info has an orientation of 0
+       and the second face will have the orientation # representing the 
+       the permutation between  the face in the first element and the face
+       in the second element.*/
+   void GetFaceOrientation(const Array<int> &faceids, Array<int> &ori);
+
+   /** @brief Return the orientations of the edges in the given element
+       w.r.t. the default ordering (the lower vertex number is first 
+       followed by the higher vertex number).  If the edge vertices 
+       are in this order then we return 1 otherwise we return -1*/
+   void GetEdgeOrientationsInElement(int elemid, Array<int> &edge_ori);   
+
+   /** @brief Return the orientations of the edges in the given face
+       w.r.t. the default ordering (the lower vertex number is first 
+       followed by the higher vertex number).  If the edge vertices 
+       are in this order then we return 1 otherwise we return -1*/
+   void GetEdgeOrientationsInFace(int faceid, Array<int> &edge_ori);
+
+   /** @brief Return the orientations of the edges in the given boundary
+       element w.r.t. the default ordering (the lower vertex number is first 
+       followed by the higher vertex number).  If the edge vertices 
+       are in this order then we return 1 otherwise we return -1*/
+   void GetEdgeOrientationsInBdrElement(int beid, Array<int> &edge_ori);
+
+   //TABLE_EDIT
 
    /** @brief For the given boundary element, bdr_el, return its adjacent
-       element and its info, i.e. 64*local_bdr_index+bdr_orientation. */
+       element and its info, i.e. 64*local_bdr_index+bdr_orientation.*/
    void GetBdrElementAdjacentElement(int bdr_el, int &el, int &info) const;
 
    /// Returns the type of element i.
@@ -1463,20 +1561,6 @@ public:
 
    /// Set the attribute of boundary element i.
    void SetBdrAttribute(int i, int attr) { boundary[i]->SetAttribute(attr); }
-
-   const Table &ElementToElementTable();
-
-   const Table &ElementToFaceTable() const;
-
-   const Table &ElementToEdgeTable() const;
-
-   ///  The returned Table must be destroyed by the caller
-   Table *GetVertexToElementTable();
-
-   /** Return the "face"-element Table. Here "face" refers to face (3D),
-       edge (2D), or vertex (1D).
-       The returned Table must be destroyed by the caller. */
-   Table *GetFaceToElementTable() const;
 
    /** This method modifies a tetrahedral mesh so that Nedelec spaces of order
        greater than 1 can be defined on the mesh. Specifically, we
