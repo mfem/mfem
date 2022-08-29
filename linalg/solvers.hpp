@@ -705,8 +705,8 @@ protected:
    {
       for (int i = 0; i < skArray.Size(); i++)
       {
-         skArray[i]->Destroy();
-         ykArray[i]->Destroy();
+         delete skArray[i];
+         delete ykArray[i];
       }
    }
 
