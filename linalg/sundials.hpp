@@ -69,24 +69,24 @@ namespace mfem
 // ---------------------------------------------------------------------------
 class SundialsMemHelper
 {
-protected:
    /// The actual SUNDIALS object
    SUNMemoryHelper h;
 
 public:
+
+   SundialsMemHelper();
 
    ~SundialsMemHelper() { SUNMemoryHelper_Destroy(h); }
 
    /// Typecasting to SUNDIALS' SUNMemoryHelper type
    operator SUNMemoryHelper() const { return h; }
 
-   static int SundialsMemHelper_Alloc(SUNMemoryHelper helper,
-                                      SUNMemory* memptr,
-                                      size_t memsize,
-                                      SUNMemoryType mem_type);
+   static int SundialsMemHelper_Alloc(SUNMemoryHelper helper, SUNMemory* memptr,
+                                      size_t memsize, SUNMemoryType mem_type,
+                                      void* queue);
 
-   static int SundialsMemHelper_Dealloc(SUNMemoryHelper helper,
-                                        SUNMemory sunmem);
+   static int SundialsMemHelper_Dealloc(SUNMemoryHelper helper, SUNMemory sunmem,
+                                        void* queue);
 
 };
 
