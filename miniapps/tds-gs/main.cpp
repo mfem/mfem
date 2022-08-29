@@ -70,6 +70,8 @@ void compute_plasma_points(const GridFunction & z, const Mesh & mesh,
 map<int, vector<int>> compute_vertex_map(Mesh & mesh, int with_attrib = -1);
 double one_over_r_mu(const Vector & x, double & mu);
 double GetMaxError(LinearForm &res);
+class InitialCoefficient;
+InitialCoefficient read_data_file(const char *data_file);
 /*
   Contains functions associated with the plasma model. 
   They appear on the RHS of the equation.
@@ -152,6 +154,28 @@ public:
   virtual ~TestCoefficient() { }
 };
 
+class InitialCoefficient : public Coefficient
+{
+private:
+  double **psizr;
+  double r0;
+  double r1;
+  double z0;
+  double z1;
+  double dr;
+  double dz;
+  int nz;
+  int nr;
+public:
+  InitialCoefficient(double **psizr_, double r0_, double r1_, double z0_, double z1_, int nz_, int nr_) : psizr(psizr_), r0(r0_), r1(r1_), z0(z0_), z1(z1_), nz(nz_), nr(nr_) {
+    dr = (r1 - r0) / ((nr - 1) * 1.0);
+    dz = (z1 - z0) / ((nz - 1) * 1.0);
+  }
+  virtual double Eval(ElementTransformation &T, const IntegrationPoint &ip);
+  virtual ~InitialCoefficient() { }
+};
+
+
 /*
   Coefficient for the nonlinear term
   option:
@@ -214,6 +238,7 @@ int main(int argc, char *argv[])
 {
    // Parse command line options.
    const char *mesh_file = "meshes/gs_mesh.msh";
+   const char *data_file = "separated_file.data";
    int order = 1;
 
    // constants associated with plasma model
@@ -240,6 +265,7 @@ int main(int argc, char *argv[])
    args.AddOption(&mesh_file, "-m", "--mesh", "Mesh file to use.");
    args.AddOption(&order, "-o", "--order", "Finite element polynomial degree");
    args.AddOption(&mu, "-mu", "--magnetic_permeability", "Magnetic permeability of a vaccuum");
+   args.AddOption(&data_file, "-d", "--data_file", "Plasma data file");
    args.ParseCheck();
 
    // save options in model
@@ -247,7 +273,7 @@ int main(int argc, char *argv[])
    
    // unit tests
    test();
-
+   
    // Read the mesh from the given mesh file, and refine once uniformly.
    Mesh mesh(mesh_file);
    mesh.UniformRefinement();
@@ -258,6 +284,15 @@ int main(int argc, char *argv[])
    FiniteElementSpace fespace(&mesh, &fec);
    cout << "Number of unknowns: " << fespace.GetTrueVSize() << endl;
 
+   // Read the data file
+   InitialCoefficient init_coeff = read_data_file(data_file);
+   GridFunction psi_init(&fespace);
+   psi_init.ProjectCoefficient(init_coeff);
+   psi_init.Save("psi_init.gf");
+   if (true) {
+     return 1;
+   }
+   
    // Extract the list of all the boundary DOFs.
    // The r=0 boundary will be marked as dirichlet (psi=0)
    // and the far-field will not be marked as dirichlet
@@ -627,6 +662,73 @@ double TestCoefficient::Eval(ElementTransformation & T,
    // return pow(x1 - 1.0, 2.0) - pow(x2, 2.0);
 }
 
+double InitialCoefficient::Eval(ElementTransformation & T,
+                                const IntegrationPoint & ip)
+{
+   double x_[3];
+   Vector x(x_, 3);
+   T.Transform(ip, x);
+   double r(x(0));
+   double z(x(1));
+
+   double mf = (r - r0) / dr;
+   double nf = (z - z0) / dz;
+   int m = int(mf);
+   int n = int(nf);
+   double rlc = r0 + m * dr;
+   double zlc = z0 + n * dz;
+
+   if ((mf < 0) || (mf > nr-2) || (nf < 0) || (nf > nz-2)) {
+     return 0.0;
+   }
+   double ra, rb, rc;
+   double za, zb, zc;
+   double va, vb, vc;
+   if (fmod(mf, 1.0) > 0.5) {
+     // choose two points to the right
+     ra = rlc+dr; za = zlc; va = psizr[n][m+1];
+     rb = rlc+dr; zb = zlc+dz; vb = psizr[n+1][m+1];
+     if (fmod(nf, 1.0) > 0.5) {
+       // top left
+       rc = rlc; zc = zlc+dz; vc = psizr[n+1][m];
+     } else {
+       // bot left
+       rc = rlc; zc = zlc; vc = psizr[n][m];
+     }
+   } else {
+     // choose two points to the left
+     ra = rlc; za = zlc; va = psizr[n][m];
+     rb = rlc; zb = zlc+dz; vb = psizr[n+1][m];
+     if (fmod(nf, 1.0) > 0.5) {
+       // top right
+       rc = rlc+dr; zc = zlc+dz; vc = psizr[n+1][m+1];
+     } else {
+       // bot right
+       rc = rlc+dr; zc = zlc; vc = psizr[n][m+1];
+     }
+   }
+
+   double wa = ((zb-zc)*(r-rc)+(rc-rb)*(z-zc))
+     /((zb-zc)*(ra-rc)+(rc-rb)*(za-zc));
+   double wb = ((zc-za)*(r-rc)+(ra-rc)*(z-zc))
+     /((zb-zc)*(ra-rc)+(rc-rb)*(za-zc));
+   double wc = 1 - wb - wa;
+
+   // if ((wa < 0) || (wb < 0) || (wc < 0)) {
+   //   cout << "weights are out of bounds, check me!" << endl;
+   //   printf("(r, z) = (%f, %f)\n", r, z);
+   //   printf("(ra, za) = (%f, %f)\n", ra, za);
+   //   printf("(rb, zb) = (%f, %f)\n", rb, zb);
+   //   printf("(rc, zc) = (%f, %f)\n", rc, zc);
+   //   printf("(mf, nf) = (%f, %f)\n", mf, nf);
+   //   printf("(m, n) = (%d, %d)\n", m, n);
+   //   printf("(wa, wb, wc) = (%f, %f, %f)\n", wa, wb, wc);
+   //   return 0.0;
+   // }
+   return wa*va+wb*vb+wc*vc;
+
+}
+
 
 map<int, vector<int>> compute_vertex_map(Mesh & mesh, int with_attrib) {
   // get map between vertices and neighboring vertices
@@ -832,4 +934,71 @@ Operator &SysOperator::GetGradient(const Vector &psi) const {
   Mat->Finalize();
   
   return *Mat;
+}
+
+
+InitialCoefficient read_data_file(const char *data_file) {
+  ifstream inFile;
+  inFile.open(data_file);
+
+  if (!inFile) {
+    cerr << "Unable to open file datafile.txt";
+    exit(1);   // call system to stop
+  }
+
+  string line;
+  istringstream *iss;
+  
+  while (getline(inFile, line)) {
+    if (line.find("nw") != std::string::npos) {
+      getline(inFile, line);
+      break;
+    }
+  }
+  iss = new istringstream(line);
+  int idum, nw, nh;
+  *iss >> idum >> nw >> nh;
+  // cout << nw << " " << nh << endl;
+
+  while (getline(inFile, line)) {
+    if (line.find("rdim") != std::string::npos) {
+      getline(inFile, line);
+      break;
+    }
+  }
+  iss = new istringstream(line);
+  double rdim, zdim, rcentr, rleft, zmid;
+  *iss >> rdim >> zdim >> rcentr >> rleft >> zmid;
+  // cout << rdim << endl;
+
+  double r0, r1, z0, z1;
+  r0 = rleft;
+  r1 = rleft+rdim;
+  z0 = zmid-zdim/2.0;
+  z1 = zmid+zdim/2.0;
+  r0 = .5; r1 = 1.5;
+  z0 = -1.25; z1 = 1.25;
+  
+  while (getline(inFile, line)) {
+    if (line.find("psizr") != std::string::npos) {
+      getline(inFile, line);
+      break;
+    }
+  }
+  iss = new istringstream(line);
+  double **psizr;
+  // [nh][nw];
+  psizr = new double *[nh];
+  int i, j;
+  for (i = 0; i < nh; ++i) {
+    psizr[i] = new double[nw];
+    for (j = 0; j < nw; ++j) {
+      *iss >> psizr[i][j];
+    }
+  }
+
+  // nz=nh, nr=nw
+  InitialCoefficient init_coeff(psizr, r0, r1, z0, z1, nh, nw);
+
+  return init_coeff;
 }
