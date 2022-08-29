@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -425,6 +425,9 @@ public:
                       const FiniteElementCollection *fec,
                       int vdim = 1, int ordering = Ordering::byNODES)
    { Constructor(mesh, ext, fec, vdim, ordering); }
+
+   /// Copy assignment not supported
+   FiniteElementSpace& operator=(const FiniteElementSpace&) = delete;
 
    /// Returns the mesh
    inline Mesh *GetMesh() const { return mesh; }
@@ -977,14 +980,14 @@ public:
    void Save(std::ostream &out) const;
 };
 
+/// @brief Return true if the mesh contains only one topology and the elements are tensor elements.
 inline bool UsesTensorBasis(const FiniteElementSpace& fes)
 {
-   // TODO: mixed meshes: return true if there is at least one tensor-product
-   // Geometry in the global mesh and the FE collection returns a
-   // TensorBasisElement for that Geometry?
-
+   Mesh & mesh = *fes.GetMesh();
+   const bool mixed = mesh.GetNumGeometries(mesh.Dimension()) > 1;
    // Potential issue: empty local mesh --> no element 0.
-   return dynamic_cast<const mfem::TensorBasisElement *>(fes.GetFE(0))!=nullptr;
+   return !mixed &&
+          dynamic_cast<const mfem::TensorBasisElement *>(fes.GetFE(0))!=nullptr;
 }
 
 }

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -28,7 +28,7 @@
 //
 // Sample runs:  mpirun -np 4 schwarz_ex1p -nm 3 -np1 2 -np2 1 -np3 1
 //               mpirun -np 4 schwarz_ex1p -nm 2 -np1 2 -np2 2
-//               mpirun -np 4 schwarz_ex1p -np1 2 -np2 2 -m1 ../../data/star.mesh -m2 ../../data/beam-quad.mesh
+//               mpirun -np 4 schwarz_ex1p -nm 2 -np1 2 -np2 2 -m1 ../../data/star.mesh -m2 ../../data/beam-quad.mesh
 
 #include "mfem.hpp"
 #include <fstream>
@@ -73,11 +73,11 @@ void GetInterdomainBoundaryPoints(OversetFindPointsGSLIB &finder,
 
 int main(int argc, char *argv[])
 {
-   // Initialize MPI.
-   int num_procs, myid;
-   MPI_Init(&argc, &argv);
-   MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
-   MPI_Comm_rank(MPI_COMM_WORLD, &myid);
+   // Initialize MPI and HYPRE.
+   Mpi::Init(argc, argv);
+   int num_procs = Mpi::WorldSize();
+   int myid = Mpi::WorldRank();
+   Hypre::Init();
 
    // Parse command-line options.
    int lim_meshes = 3; // should be greater than nmeshes
@@ -93,7 +93,7 @@ int main(int argc, char *argv[])
    rp_levels                 = 0;
    np_list                   = 0;
    double rel_tol            = 1.e-8;
-   int nmeshes               = 2;
+   int nmeshes               = 3;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file_list[0], "-m1", "--mesh",
@@ -142,6 +142,21 @@ int main(int argc, char *argv[])
       args.PrintOptions(cout);
    }
 
+   // Check number of mpi ranks specified for each mesh. If individual mpi ranks
+   // are not specified for all the meshes, set some default values.
+   MFEM_VERIFY(num_procs >= nmeshes, "Not enough MPI ranks.");
+   if (np_list.Sum() == 0)
+   {
+      int np_per_mesh = num_procs/nmeshes;
+      for (int i = 0; i < nmeshes; i++)
+      {
+         np_list[i] = np_per_mesh;
+      }
+      np_list[nmeshes-1] += num_procs - nmeshes*np_per_mesh;
+   }
+   MFEM_VERIFY(np_list.Sum() == num_procs, " The individual mpi ranks for each"
+               " of the meshes do not add up to the total ranks specified.");
+
    // Setup MPI communicator for each mesh by splitting MPI_COMM_WORLD.
    MPI_Comm *comml = new MPI_Comm;
    int color = 0;
@@ -156,11 +171,6 @@ int main(int argc, char *argv[])
    int myidlocal, numproclocal;
    MPI_Comm_rank(*comml, &myidlocal);
    MPI_Comm_size(*comml, &numproclocal);
-
-   // Check number of mpi ranks specified for each mesh.
-   MFEM_VERIFY(np_list.Sum() == num_procs, " The individual mpi ranks for each"
-               " of the meshes do not add up to"
-               " the total ranks specified.");
 
    // Read the mesh from the given mesh file. We can handle triangular,
    // quadrilateral, tetrahedral, hexahedral, surface and volume meshes with
@@ -428,8 +438,6 @@ int main(int argc, char *argv[])
    delete pmesh;
    delete comml;
 
-
-   MPI_Finalize();
 
    return 0;
 }

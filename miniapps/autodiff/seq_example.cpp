@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -461,11 +461,11 @@ int main(int argc, char *argv[])
       dacol->SetTime(pp);
       if (pp < 2.0)
       {
-         dacol->SetCycle(std::floor(pp));
+         dacol->SetCycle(static_cast<int>(std::floor(pp)));
       }
       else
       {
-         dacol->SetCycle(std::ceil(pp));
+         dacol->SetCycle(static_cast<int>(std::ceil(pp)));
       }
       dacol->Save();
    }

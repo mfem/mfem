@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -298,12 +298,12 @@ void ParNCMesh::BuildVertexList()
    // NOTE: entity_index_rank[0] is not deleted until CalculatePMatrixGroups
 }
 
-void ParNCMesh::InitOwners(int num, Array<GroupId> &entity_owner)
+void ParNCMesh::InitOwners(int num, Array<GroupId> &entity_owner_)
 {
-   entity_owner.SetSize(num);
+   entity_owner_.SetSize(num);
    for (int i = 0; i < num; i++)
    {
-      entity_owner[i] =
+      entity_owner_[i] =
          (tmp_owner[i] != INT_MAX) ? GetSingletonGroup(tmp_owner[i]) : 0;
    }
 }
@@ -1330,8 +1330,8 @@ void ParNCMesh::LimitNCLevel(int max_nc_level)
       Array<Refinement> refinements;
       GetLimitRefinements(refinements, max_nc_level);
 
-      long size = refinements.Size(), glob_size;
-      MPI_Allreduce(&size, &glob_size, 1, MPI_LONG, MPI_SUM, MyComm);
+      long long size = refinements.Size(), glob_size;
+      MPI_Allreduce(&size, &glob_size, 1, MPI_LONG_LONG, MPI_SUM, MyComm);
 
       if (!glob_size) { break; }
 
@@ -1988,9 +1988,9 @@ void ParNCMesh::RedistributeElements(Array<int> &new_ranks, int target_elements,
          {
             if (RebalanceMessage::TestAllSent(send_elems))
             {
-               int err = MPI_Ibarrier(MyComm, &barrier);
+               int mpi_err = MPI_Ibarrier(MyComm, &barrier);
 
-               MFEM_VERIFY(err == MPI_SUCCESS, "");
+               MFEM_VERIFY(mpi_err == MPI_SUCCESS, "");
                MFEM_VERIFY(barrier != MPI_REQUEST_NULL, "");
             }
          }
@@ -2374,8 +2374,8 @@ void ParNCMesh::ChangeVertexMeshIdElement(NCMesh::MeshId &id, int elem)
 void ParNCMesh::ChangeEdgeMeshIdElement(NCMesh::MeshId &id, int elem)
 {
    Element &old = elements[id.element];
-   const int *ev = GI[old.Geom()].edges[(int) id.local];
-   Node* node = nodes.Find(old.node[ev[0]], old.node[ev[1]]);
+   const int *old_ev = GI[old.Geom()].edges[(int) id.local];
+   Node* node = nodes.Find(old.node[old_ev[0]], old.node[old_ev[1]]);
    MFEM_ASSERT(node != NULL, "Edge not found.");
 
    Element &el = elements[elem];
@@ -2554,7 +2554,7 @@ void ParNCMesh::EncodeGroups(std::ostream &os, const Array<GroupId> &ids)
 void ParNCMesh::DecodeGroups(std::istream &is, Array<GroupId> &ids)
 {
    int ngroups = read<short>(is);
-   Array<GroupId> groups(ngroups);
+   Array<GroupId> sgroups(ngroups);
 
    // read stream groups, convert to our groups
    CommGroup ranks;
@@ -2566,15 +2566,15 @@ void ParNCMesh::DecodeGroups(std::istream &is, Array<GroupId> &ids)
       if (size >= 0)
       {
          ranks.resize(size);
-         for (int i = 0; i < size; i++)
+         for (int ii = 0; ii < size; ii++)
          {
-            ranks[i] = read<int>(is);
+            ranks[ii] = read<int>(is);
          }
-         groups[id] = GetGroupId(ranks);
+         sgroups[id] = GetGroupId(ranks);
       }
       else
       {
-         groups[id] = -1; // forwarded
+         sgroups[id] = -1; // forwarded
       }
    }
 
@@ -2582,7 +2582,7 @@ void ParNCMesh::DecodeGroups(std::istream &is, Array<GroupId> &ids)
    ids.SetSize(read<int>(is));
    for (int i = 0; i < ids.Size(); i++)
    {
-      ids[i] = groups[read<GroupId>(is)];
+      ids[i] = sgroups[read<GroupId>(is)];
    }
 }
 
@@ -2755,15 +2755,15 @@ void ParNCMesh::Trim()
    ClearAuxPM();
 }
 
-long ParNCMesh::RebalanceDofMessage::MemoryUsage() const
+std::size_t ParNCMesh::RebalanceDofMessage::MemoryUsage() const
 {
    return (elem_ids.capacity() + dofs.capacity()) * sizeof(int);
 }
 
 template<typename K, typename V>
-static long map_memory_usage(const std::map<K, V> &map)
+static std::size_t map_memory_usage(const std::map<K, V> &map)
 {
-   long result = 0;
+   std::size_t result = 0;
    for (typename std::map<K, V>::const_iterator
         it = map.begin(); it != map.end(); ++it)
    {
@@ -2773,9 +2773,9 @@ static long map_memory_usage(const std::map<K, V> &map)
    return result;
 }
 
-long ParNCMesh::GroupsMemoryUsage() const
+std::size_t ParNCMesh::GroupsMemoryUsage() const
 {
-   long groups_size = groups.capacity() * sizeof(CommGroup);
+   std::size_t groups_size = groups.capacity() * sizeof(CommGroup);
    for (unsigned i = 0; i < groups.size(); i++)
    {
       groups_size += groups[i].capacity() * sizeof(int);
@@ -2786,9 +2786,9 @@ long ParNCMesh::GroupsMemoryUsage() const
 }
 
 template<typename Type, int Size>
-static long arrays_memory_usage(const Array<Type> (&arrays)[Size])
+static std::size_t arrays_memory_usage(const Array<Type> (&arrays)[Size])
 {
-   long total = 0;
+   std::size_t total = 0;
    for (int i = 0; i < Size; i++)
    {
       total += arrays[i].MemoryUsage();
@@ -2796,9 +2796,9 @@ static long arrays_memory_usage(const Array<Type> (&arrays)[Size])
    return total;
 }
 
-long ParNCMesh::MemoryUsage(bool with_base) const
+std::size_t ParNCMesh::MemoryUsage(bool with_base) const
 {
-   long total_groups_owners = 0;
+   std::size_t total_groups_owners = 0;
    for (int i = 0; i < 3; i++)
    {
       total_groups_owners += entity_owner[i].MemoryUsage() +

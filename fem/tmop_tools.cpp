@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -398,6 +398,23 @@ double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
    }
 #endif
 
+   double scale = 1.0;
+   if (surf_fit_max_threshold > 0.0)
+   {
+      double avg_err, max_err;
+      GetSurfaceFittingError(avg_err, max_err);
+      if (max_err < surf_fit_max_threshold)
+      {
+         if (print_options.iterations)
+         {
+            mfem::out << "TMOPNewtonSolver converged "
+                      "based on the surface fitting error.\n";
+         }
+         scale = 0.0;
+         return scale;
+      }
+   }
+
    // Check if the starting mesh (given by x) is inverted. Note that x hasn't
    // been modified by the Newton update yet.
    const double min_detT_in = ComputeMinDet(x_out_loc, *fes);
@@ -416,10 +433,14 @@ double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
 
    Vector x_out(x.Size());
    bool x_out_ok = false;
-   double scale = 1.0, energy_out = 0.0, min_detT_out;
+   double energy_out = 0.0, min_detT_out;
    const double norm_in = Norm(r);
 
    const double detJ_factor = (solver_type == 1) ? 0.25 : 0.5;
+   compute_metric_quantile_flag = false;
+   // TODO:
+   // - Customized line search for worst-quality optimization.
+   // - What is the Newton exit criterion for worst-quality optimization?
 
    // Perform the line search.
    for (int i = 0; i < 12; i++)
@@ -433,10 +454,7 @@ double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
          else     { cP->Mult(x_out, x_out_loc); }
       }
 #ifdef MFEM_USE_MPI
-      else
-      {
-         fes->GetProlongationMatrix()->Mult(x_out, x_out_loc);
-      }
+      else { fes->GetProlongationMatrix()->Mult(x_out, x_out_loc); }
 #endif
 
       // Check the changes in detJ.
@@ -538,7 +556,106 @@ double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
    }
 
    if (x_out_ok == false) { scale = 0.0; }
+
+   if (adaptive_surf_fit) { update_surf_fit_coeff = true; }
+   compute_metric_quantile_flag = true;
+
    return scale;
+}
+
+void TMOPNewtonSolver::UpdateSurfaceFittingWeight(double factor) const
+{
+   const NonlinearForm *nlf = dynamic_cast<const NonlinearForm *>(oper);
+   const Array<NonlinearFormIntegrator*> &integs = *nlf->GetDNFI();
+   TMOP_Integrator *ti  = NULL;
+   TMOPComboIntegrator *co = NULL;
+   for (int i = 0; i < integs.Size(); i++)
+   {
+      ti = dynamic_cast<TMOP_Integrator *>(integs[i]);
+      if (ti)
+      {
+         ti->UpdateSurfaceFittingWeight(factor);
+      }
+      co = dynamic_cast<TMOPComboIntegrator *>(integs[i]);
+      if (co)
+      {
+         Array<TMOP_Integrator *> ati = co->GetTMOPIntegrators();
+         for (int j = 0; j < ati.Size(); j++)
+         {
+            ati[j]->UpdateSurfaceFittingWeight(factor);
+         }
+      }
+   }
+}
+
+void TMOPNewtonSolver::GetSurfaceFittingWeight(Array<double> &weights) const
+{
+   const NonlinearForm *nlf = dynamic_cast<const NonlinearForm *>(oper);
+   const Array<NonlinearFormIntegrator*> &integs = *nlf->GetDNFI();
+   TMOP_Integrator *ti  = NULL;
+   TMOPComboIntegrator *co = NULL;
+   weights.SetSize(0);
+   double weight;
+
+   for (int i = 0; i < integs.Size(); i++)
+   {
+      ti = dynamic_cast<TMOP_Integrator *>(integs[i]);
+      if (ti)
+      {
+         weight = ti->GetSurfaceFittingWeight();
+         weights.Append(weight);
+      }
+      co = dynamic_cast<TMOPComboIntegrator *>(integs[i]);
+      if (co)
+      {
+         Array<TMOP_Integrator *> ati = co->GetTMOPIntegrators();
+         for (int j = 0; j < ati.Size(); j++)
+         {
+            weight = ati[j]->GetSurfaceFittingWeight();
+            weights.Append(weight);
+         }
+      }
+   }
+}
+
+void TMOPNewtonSolver::GetSurfaceFittingError(double &err_avg,
+                                              double &err_max) const
+{
+   const NonlinearForm *nlf = dynamic_cast<const NonlinearForm *>(oper);
+   const Array<NonlinearFormIntegrator*> &integs = *nlf->GetDNFI();
+   TMOP_Integrator *ti  = NULL;
+   TMOPComboIntegrator *co = NULL;
+
+   err_avg = 0.0;
+   err_max = 0.0;
+   double err_avg_loc, err_max_loc;
+   for (int i = 0; i < integs.Size(); i++)
+   {
+      ti = dynamic_cast<TMOP_Integrator *>(integs[i]);
+      if (ti)
+      {
+         if (ti->IsSurfaceFittingEnabled())
+         {
+            ti->GetSurfaceFittingErrors(err_avg_loc, err_max_loc);
+            err_avg = std::fmax(err_avg_loc, err_avg);
+            err_max = std::fmax(err_max_loc, err_max);
+         }
+      }
+      co = dynamic_cast<TMOPComboIntegrator *>(integs[i]);
+      if (co)
+      {
+         Array<TMOP_Integrator *> ati = co->GetTMOPIntegrators();
+         for (int j = 0; j < ati.Size(); j++)
+         {
+            if (ati[j]->IsSurfaceFittingEnabled())
+            {
+               ati[j]->GetSurfaceFittingErrors(err_avg_loc, err_max_loc);
+               err_avg = std::fmax(err_avg_loc, err_avg);
+               err_max = std::fmax(err_max_loc, err_max);
+            }
+         }
+      }
+   }
 }
 
 void TMOPNewtonSolver::ProcessNewState(const Vector &x) const
@@ -586,6 +703,10 @@ void TMOPNewtonSolver::ProcessNewState(const Vector &x) const
          {
             ti->UpdateAfterMeshPositionChange(x_loc);
             ti->ComputeFDh(x_loc, *pfesc);
+            if (compute_metric_quantile_flag)
+            {
+               ti->ComputeUntangleMetricQuantiles(x_loc, *pfesc);
+            }
             UpdateDiscreteTC(*ti, x_loc);
          }
          co = dynamic_cast<TMOPComboIntegrator *>(integs[i]);
@@ -596,6 +717,10 @@ void TMOPNewtonSolver::ProcessNewState(const Vector &x) const
             {
                ati[j]->UpdateAfterMeshPositionChange(x_loc);
                ati[j]->ComputeFDh(x_loc, *pfesc);
+               if (compute_metric_quantile_flag)
+               {
+                  ati[j]->ComputeUntangleMetricQuantiles(x_loc, *pfesc);
+               }
                UpdateDiscreteTC(*ati[j], x_loc);
             }
          }
@@ -623,6 +748,10 @@ void TMOPNewtonSolver::ProcessNewState(const Vector &x) const
          {
             ti->UpdateAfterMeshPositionChange(x_loc);
             ti->ComputeFDh(x_loc, *fesc);
+            if (compute_metric_quantile_flag)
+            {
+               ti->ComputeUntangleMetricQuantiles(x_loc, *fesc);
+            }
             UpdateDiscreteTC(*ti, x_loc);
          }
          co = dynamic_cast<TMOPComboIntegrator *>(integs[i]);
@@ -633,10 +762,49 @@ void TMOPNewtonSolver::ProcessNewState(const Vector &x) const
             {
                ati[j]->UpdateAfterMeshPositionChange(x_loc);
                ati[j]->ComputeFDh(x_loc, *fesc);
+               if (compute_metric_quantile_flag)
+               {
+                  ati[j]->ComputeUntangleMetricQuantiles(x_loc, *fesc);
+               }
                UpdateDiscreteTC(*ati[j], x_loc);
             }
          }
       }
+   }
+
+   // Constant coefficient associated with the surface fitting terms if
+   // adaptive surface fitting is enabled. The idea is to increase the
+   // coefficient if the surface fitting error does not sufficiently
+   // decrease between subsequent TMOPNewtonSolver iterations.
+   if (update_surf_fit_coeff)
+   {
+      double surf_fit_err_max = -10;
+      double surf_fit_err_avg = -10;
+      // Get surface fitting errors.
+      GetSurfaceFittingError(surf_fit_err_avg, surf_fit_err_max);
+      // Get array with surface fitting weights.
+      Array<double> weights;
+      GetSurfaceFittingWeight(weights);
+
+      if (print_options.iterations)
+      {
+         mfem::out << "Avg/Max surface fitting error: " <<
+                   surf_fit_err_avg << " " <<
+                   surf_fit_err_max << "\n";
+         mfem::out << "Min/Max surface fitting weight: " <<
+                   weights.Min() << " " << weights.Max() << "\n";
+      }
+
+      double change_surf_fit_err = surf_fit_err_avg_prvs-surf_fit_err_avg;
+      double rel_change_surf_fit_err = change_surf_fit_err/surf_fit_err_avg_prvs;
+      // Increase the surface fitting coefficient if the surface fitting error
+      // does not decrease sufficiently.
+      if (rel_change_surf_fit_err < 1.e-2)
+      {
+         UpdateSurfaceFittingWeight(10);
+      }
+      surf_fit_err_avg_prvs = surf_fit_err_avg;
+      update_surf_fit_coeff = false;
    }
 }
 

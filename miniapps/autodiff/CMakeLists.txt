@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -12,7 +12,6 @@
 list(APPEND SEQADIFF_COMMON_SOURCES)
 
 list(APPEND SEQADIFF_COMMON_HEADERS
-        fdual.hpp
 	tadvector.hpp
 	taddensemat.hpp
 	admfem.hpp)
@@ -46,8 +45,8 @@ set(PARADIFF_COMMON_FILES
 	EXTRA_SOURCES ${PARADIFF_COMMON_SOURCES} ${SEQADIFF_COMMON_SOURCES}
 	EXTRA_HEADERS ${PARADIFF_COMMON_HEADERS} ${SEQADIFF_COMMON_HEADERS})
 
-message(STATUS "PARADIFF_COMMON_FILES: ${PARADIFF_COMMON_FILES}")
-message(STATUS "SEQADIFF_COMMON_FILES: ${SEQADIFF_COMMON_FILES}")
+# message(STATUS "PARADIFF_COMMON_FILES: ${PARADIFF_COMMON_FILES}")
+# message(STATUS "SEQADIFF_COMMON_FILES: ${SEQADIFF_COMMON_FILES}")
 
 add_mfem_miniapp(paradiff
      MAIN par_example.cpp

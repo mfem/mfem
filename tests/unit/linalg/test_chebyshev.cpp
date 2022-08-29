@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -57,7 +57,7 @@ TEST_CASE("OperatorChebyshevSmoother", "[Chebyshev symmetry]")
       double transpose_val = right * smooth;
 
       double error = fabs(forward_val - transpose_val) / fabs(forward_val);
-      std::cout << "Order " << order << " symmetry error: " << error << std::endl;
+      CAPTURE(order, error);
       REQUIRE(error < 1.e-13);
 
       delete smoother;

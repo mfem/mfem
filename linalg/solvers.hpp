@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -699,6 +699,30 @@ class LBFGSSolver : public NewtonSolver
 {
 protected:
    int m = 10;
+   mutable Array<Vector *> skArray, ykArray;
+
+   void DeleteStorageVectors()
+   {
+      for (int i = 0; i < skArray.Size(); i++)
+      {
+         delete skArray[i];
+         delete ykArray[i];
+      }
+   }
+
+   void InitializeStorageVectors()
+   {
+      DeleteStorageVectors();
+      skArray.SetSize(m);
+      ykArray.SetSize(m);
+      for (int i = 0; i < m; i++)
+      {
+         skArray[i] = new Vector(width);
+         ykArray[i] = new Vector(width);
+         skArray[i]->UseDevice(true);
+         ykArray[i]->UseDevice(true);
+      }
+   }
 
 public:
    LBFGSSolver() : NewtonSolver() { }
@@ -707,7 +731,17 @@ public:
    LBFGSSolver(MPI_Comm comm_) : NewtonSolver(comm_) { }
 #endif
 
-   void SetHistorySize(int dim) { m = dim; }
+   virtual void SetOperator(const Operator &op)
+   {
+      NewtonSolver::SetOperator(op);
+      InitializeStorageVectors();
+   }
+
+   void SetHistorySize(int dim)
+   {
+      m = dim;
+      InitializeStorageVectors();
+   }
 
    /// Solve the nonlinear system with right-hand side @a b.
    /** If `b.Size() != Height()`, then @a b is assumed to be zero. */
@@ -717,7 +751,10 @@ public:
    { MFEM_WARNING("L-BFGS won't use the given preconditioner."); }
    virtual void SetSolver(Solver &solver)
    { MFEM_WARNING("L-BFGS won't use the given solver."); }
+
+   virtual ~LBFGSSolver() { DeleteStorageVectors(); }
 };
+
 
 /** Adaptive restarted GMRES.
     m_max and m_min(=1) are the maximal and minimal restart parameters.
@@ -1086,6 +1123,57 @@ public:
    virtual void Mult(const Vector &x, Vector &y) const;
    virtual void MultTranspose(const Vector &x, Vector &y) const;
    virtual void SetOperator(const Operator &op) { }
+};
+
+/// Solver wrapper which orthogonalizes the input and output vector
+/**
+ * OrthoSolver wraps an existing Solver and orthogonalizes the input vector
+ * before passing it to the Mult() method of the Solver. This is a convenience
+ * implementation to handle e.g. a Poisson problem with pure Neumann boundary
+ * conditions, where this procedure removes the Nullspace.
+ */
+class OrthoSolver : public Solver
+{
+private:
+#ifdef MFEM_USE_MPI
+   MPI_Comm mycomm;
+   mutable HYPRE_BigInt global_size;
+   const bool parallel;
+#else
+   mutable int global_size;
+#endif
+
+public:
+   OrthoSolver();
+#ifdef MFEM_USE_MPI
+   OrthoSolver(MPI_Comm mycomm_);
+#endif
+
+   /// Set the solver used by the OrthoSolver.
+   /** The action of the OrthoSolver is given by P * s * P where P is the
+       projection to the subspace of vectors with zero sum. Calling this method
+       is required before calling SetOperator() or Mult(). */
+   void SetSolver(Solver &s);
+
+   /// Set the Operator that is the OrthoSolver is to invert (approximately).
+   /** The Operator @a op is simply forwarded to the solver object given by
+       SetSolver() which needs to be called before this method. Calling this
+       method is optional when the solver already has an associated Operator. */
+   virtual void SetOperator(const Operator &op);
+
+   /** @brief Perform the action of the OrthoSolver: P * solver * P where P is
+       the projection to the subspace of vectors with zero sum. */
+   /** @note The projection P can be written as P = I - 1 1^T / (1^T 1) where
+       I is the identity matrix and 1 is the column-vector with all components
+       equal to 1. */
+   void Mult(const Vector &b, Vector &x) const;
+
+private:
+   Solver *solver = nullptr;
+
+   mutable Vector b_ortho;
+
+   void Orthogonalize(const Vector &v, Vector &v_ortho) const;
 };
 
 #ifdef MFEM_USE_MPI

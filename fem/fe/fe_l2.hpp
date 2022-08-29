@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -55,6 +55,12 @@ public:
                             ElementTransformation &Trans,
                             DenseMatrix &curl) const
    { ProjectCurl_2D(fe, Trans, curl); }
+   using FiniteElement::Project;
+   virtual void ProjectDiv(const FiniteElement &fe,
+                           ElementTransformation &Trans,
+                           DenseMatrix &div) const;
+   virtual void Project(Coefficient &coeff,
+                        ElementTransformation &Trans, Vector &dofs) const;
 };
 
 
@@ -74,6 +80,12 @@ public:
    virtual void CalcDShape(const IntegrationPoint &ip,
                            DenseMatrix &dshape) const;
    virtual void ProjectDelta(int vertex, Vector &dofs) const;
+   using FiniteElement::Project;
+   virtual void ProjectDiv(const FiniteElement &fe,
+                           ElementTransformation &Trans,
+                           DenseMatrix &div) const;
+   virtual void Project(Coefficient &coeff,
+                        ElementTransformation &Trans, Vector &dofs) const;
 };
 
 

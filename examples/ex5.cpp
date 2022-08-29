@@ -197,7 +197,7 @@ int main(int argc, char *argv[])
       SparseMatrix &M(mVarf->SpMat());
       SparseMatrix &B(bVarf->SpMat());
       B *= -1.;
-      if (Device::IsEnabled()) { B.BuildTranspose(); }
+      B.EnsureMultTranspose();
       Bt = new TransposeOperator(&B);
 
       darcyOp.SetBlock(0,0, &M);

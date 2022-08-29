@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -113,8 +113,7 @@ TEST_CASE("InverseElementTransformation",
             max_err = std::max(max_err, std::abs(ipRev.y - ip.y));
          }
       }
-      std::cout << "Points found: " << pts_found << '/' << npts << '\n'
-                << "Maximum error: " << max_err << '\n';
+      CAPTURE(pts_found, npts, max_err);
       REQUIRE( pts_found == npts );
       REQUIRE( max_err <= tol );
    }
@@ -163,8 +162,7 @@ TEST_CASE("InverseElementTransformation",
             max_err = std::max(max_err, std::abs(ipRev.y - ip.y));
          }
       }
-      std::cout << "Points found: " << pts_found << '/' << npts << '\n'
-                << "Maximum error: " << max_err << '\n';
+      CAPTURE(pts_found, npts, max_err);
       REQUIRE( pts_found >= min_found_pts );
       REQUIRE( max_err <= tol );
    }

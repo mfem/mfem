@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -12,7 +12,7 @@
 #include "../general/forall.hpp"
 #include "bilininteg.hpp"
 #include "gridfunc.hpp"
-#include "ceed/convection.hpp"
+#include "ceed/integrators/convection/convection.hpp"
 
 using namespace std;
 
@@ -29,9 +29,17 @@ void ConvectionIntegrator::AssembleMF(const FiniteElementSpace &fes)
    const IntegrationRule *ir = IntRule ? IntRule : &GetRule(el, Trans);
    if (DeviceCanUseCeed())
    {
-      MFEM_VERIFY(alpha==-1, "Only alpha=-1 currently supported with libCEED.");
       delete ceedOp;
-      ceedOp = new ceed::MFConvectionIntegrator(fes, *ir, Q, alpha);
+      const bool mixed = mesh->GetNumGeometries(mesh->Dimension()) > 1 ||
+                         fes.IsVariableOrder();
+      if (mixed)
+      {
+         ceedOp = new ceed::MixedMFConvectionIntegrator(*this, fes, Q, alpha);
+      }
+      else
+      {
+         ceedOp = new ceed::MFConvectionIntegrator(fes, *ir, Q, alpha);
+      }
       return;
    }
    MFEM_ABORT("Error: ConvectionIntegrator::AssembleMF only implemented with"
