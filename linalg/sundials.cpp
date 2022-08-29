@@ -199,7 +199,7 @@ Sundials::~Sundials()
 SundialsMemHelper::SundialsMemHelper()
 {
    /* Allocate helper */
-   h = SUNMemoryHelper_NewEmpty();
+   h = SUNMemoryHelper_NewEmpty(Sundials::GetContext());
 
    /* Set the ops */
    h->ops->alloc     = SundialsMemHelper_Alloc;
@@ -209,9 +209,8 @@ SundialsMemHelper::SundialsMemHelper()
 }
 
 int SundialsMemHelper::SundialsMemHelper_Alloc(SUNMemoryHelper helper,
-                                               SUNMemory* memptr,
-                                               size_t memsize,
-                                               SUNMemoryType mem_type)
+                                               SUNMemory* memptr, size_t memsize,
+                                               SUNMemoryType mem_type, void*)
 {
    int length = memsize/sizeof(double);
    SUNMemory sunmem = SUNMemoryNewEmpty();
@@ -246,7 +245,7 @@ int SundialsMemHelper::SundialsMemHelper_Alloc(SUNMemoryHelper helper,
 }
 
 int SundialsMemHelper::SundialsMemHelper_Dealloc(SUNMemoryHelper helper,
-                                                 SUNMemory sunmem)
+                                                 SUNMemory sunmem, void*)
 {
    if (sunmem->ptr && sunmem->own && !mm.IsKnown(sunmem->ptr))
    {
@@ -497,7 +496,7 @@ N_Vector SundialsNVector::MakeNVector(bool use_device)
 #ifdef MFEM_USE_CUDA
    if (use_device)
    {
-      x = N_VNewWithMemHelp_Cuda(0, UseManagedMemory(), sunmemHelper,
+      x = N_VNewWithMemHelp_Cuda(0, UseManagedMemory(), Sundials::GetMemHelper(),
                                  Sundials::GetContext());
    }
    else
@@ -528,8 +527,9 @@ N_Vector SundialsNVector::MakeNVector(MPI_Comm comm, bool use_device)
       if (use_device)
       {
          x = N_VMake_MPIPlusX(comm, N_VNewWithMemHelp_Cuda(0, UseManagedMemory(),
-                                                           sunmemHelper,
-                                                           Sundials::GetContext()));
+                                                           Sundials::GetMemHelper(),
+                                                           Sundials::GetContext()),
+                              Sundials::GetContext());
       }
       else
       {
