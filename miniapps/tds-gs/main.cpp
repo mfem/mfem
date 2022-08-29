@@ -1,5 +1,5 @@
 /* 
-   Compile with: make dan
+   Compile with: make
 
    Sample runs:  
    ./main.o
@@ -46,13 +46,16 @@
 */
 
 #include "mfem.hpp"
+
 #include <limits>
 #include <fstream>
 #include <iostream>
 #include <set>
-// #include <cmath>
 #include <math.h>
+
 #include "elliptic_integral.hpp"
+#include "test.hpp"
+#include "initial_coefficient.hpp"
 
 using namespace std;
 using namespace mfem;
@@ -62,7 +65,7 @@ const int attr_ff_bdr = 900;
 const int attr_lim = 1000;
 const int attr_ext = 2000;
 
-int test();
+
 void compute_plasma_points(const GridFunction & z, const Mesh & mesh,
                            const map<int, vector<int>> & vertex_map,
                            int &ind_min, int &ind_max, double &min_val, double & max_val,
@@ -70,8 +73,7 @@ void compute_plasma_points(const GridFunction & z, const Mesh & mesh,
 map<int, vector<int>> compute_vertex_map(Mesh & mesh, int with_attrib = -1);
 double one_over_r_mu(const Vector & x, double & mu);
 double GetMaxError(LinearForm &res);
-class InitialCoefficient;
-InitialCoefficient read_data_file(const char *data_file);
+
 /*
   Contains functions associated with the plasma model. 
   They appear on the RHS of the equation.
@@ -141,40 +143,6 @@ public:
   virtual double Eval(ElementTransformation &T, const IntegrationPoint &ip);
   virtual ~DoubleIntegralCoefficient() { }
 };
-
-
-/*
-  Used to test saddle point calculator
- */
-class TestCoefficient : public Coefficient
-{
-public:
-  TestCoefficient() { }
-  virtual double Eval(ElementTransformation &T, const IntegrationPoint &ip);
-  virtual ~TestCoefficient() { }
-};
-
-class InitialCoefficient : public Coefficient
-{
-private:
-  double **psizr;
-  double r0;
-  double r1;
-  double z0;
-  double z1;
-  double dr;
-  double dz;
-  int nz;
-  int nr;
-public:
-  InitialCoefficient(double **psizr_, double r0_, double r1_, double z0_, double z1_, int nz_, int nr_) : psizr(psizr_), r0(r0_), r1(r1_), z0(z0_), z1(z1_), nz(nz_), nr(nr_) {
-    dr = (r1 - r0) / ((nr - 1) * 1.0);
-    dz = (z1 - z0) / ((nz - 1) * 1.0);
-  }
-  virtual double Eval(ElementTransformation &T, const IntegrationPoint &ip);
-  virtual ~InitialCoefficient() { }
-};
-
 
 /*
   Coefficient for the nonlinear term
@@ -289,9 +257,9 @@ int main(int argc, char *argv[])
    GridFunction psi_init(&fespace);
    psi_init.ProjectCoefficient(init_coeff);
    psi_init.Save("psi_init.gf");
-   if (true) {
-     return 1;
-   }
+   // if (true) {
+   //   return 1;
+   // }
    
    // Extract the list of all the boundary DOFs.
    // The r=0 boundary will be marked as dirichlet (psi=0)
@@ -365,7 +333,7 @@ int main(int argc, char *argv[])
    LinearForm out_vec(&fespace);
    SysOperator op(&diff_operator, &coil_term, &model, &fespace, &mesh);
    dx = 0.0;
-   for (int i = 0; i < 20; ++i) {
+   for (int i = 0; i < 3; ++i) {
 
      op.Mult(x, out_vec);
      double error = GetMaxError(out_vec);
@@ -509,14 +477,6 @@ double normalized_psi(double & psi, double & psi_max, double & psi_bdp)
 }
 
 
-int test()
-{
-  double a = 1.0;
-  // double b = S_p_prime(a);
-  // cout << "a" << a << "b" << b << endl;
-  return 1;
-}
-
 double NonlinearGridCoefficient::Eval(ElementTransformation & T,
                                       const IntegrationPoint & ip)
 {
@@ -644,89 +604,6 @@ double DoubleIntegralCoefficient::Eval(ElementTransformation & T,
   //  lf.Assemble()
   //  bf.
   // }
-}
-
-double TestCoefficient::Eval(ElementTransformation & T,
-                             const IntegrationPoint & ip)
-{
-   double x_[3];
-   Vector x(x_, 3);
-   T.Transform(ip, x);
-   double x1(x(0));
-   double x2(x(1));
-   double k = 4.0;
-   
-   // return pow(x1, 2.0) * pow(x2, 3.0);
-   return cos(k * x1) * cos(k * x2) * exp(- pow(x1, 2.0) - pow(x2, 2.0));
-   // return pow(x1 - 1.0, 2.0) + pow(x2, 2.0);
-   // return pow(x1 - 1.0, 2.0) - pow(x2, 2.0);
-}
-
-double InitialCoefficient::Eval(ElementTransformation & T,
-                                const IntegrationPoint & ip)
-{
-   double x_[3];
-   Vector x(x_, 3);
-   T.Transform(ip, x);
-   double r(x(0));
-   double z(x(1));
-
-   double mf = (r - r0) / dr;
-   double nf = (z - z0) / dz;
-   int m = int(mf);
-   int n = int(nf);
-   double rlc = r0 + m * dr;
-   double zlc = z0 + n * dz;
-
-   if ((mf < 0) || (mf > nr-2) || (nf < 0) || (nf > nz-2)) {
-     return 0.0;
-   }
-   double ra, rb, rc;
-   double za, zb, zc;
-   double va, vb, vc;
-   if (fmod(mf, 1.0) > 0.5) {
-     // choose two points to the right
-     ra = rlc+dr; za = zlc; va = psizr[n][m+1];
-     rb = rlc+dr; zb = zlc+dz; vb = psizr[n+1][m+1];
-     if (fmod(nf, 1.0) > 0.5) {
-       // top left
-       rc = rlc; zc = zlc+dz; vc = psizr[n+1][m];
-     } else {
-       // bot left
-       rc = rlc; zc = zlc; vc = psizr[n][m];
-     }
-   } else {
-     // choose two points to the left
-     ra = rlc; za = zlc; va = psizr[n][m];
-     rb = rlc; zb = zlc+dz; vb = psizr[n+1][m];
-     if (fmod(nf, 1.0) > 0.5) {
-       // top right
-       rc = rlc+dr; zc = zlc+dz; vc = psizr[n+1][m+1];
-     } else {
-       // bot right
-       rc = rlc+dr; zc = zlc; vc = psizr[n][m+1];
-     }
-   }
-
-   double wa = ((zb-zc)*(r-rc)+(rc-rb)*(z-zc))
-     /((zb-zc)*(ra-rc)+(rc-rb)*(za-zc));
-   double wb = ((zc-za)*(r-rc)+(ra-rc)*(z-zc))
-     /((zb-zc)*(ra-rc)+(rc-rb)*(za-zc));
-   double wc = 1 - wb - wa;
-
-   // if ((wa < 0) || (wb < 0) || (wc < 0)) {
-   //   cout << "weights are out of bounds, check me!" << endl;
-   //   printf("(r, z) = (%f, %f)\n", r, z);
-   //   printf("(ra, za) = (%f, %f)\n", ra, za);
-   //   printf("(rb, zb) = (%f, %f)\n", rb, zb);
-   //   printf("(rc, zc) = (%f, %f)\n", rc, zc);
-   //   printf("(mf, nf) = (%f, %f)\n", mf, nf);
-   //   printf("(m, n) = (%d, %d)\n", m, n);
-   //   printf("(wa, wb, wc) = (%f, %f, %f)\n", wa, wb, wc);
-   //   return 0.0;
-   // }
-   return wa*va+wb*vb+wc*vc;
-
 }
 
 
@@ -937,68 +814,3 @@ Operator &SysOperator::GetGradient(const Vector &psi) const {
 }
 
 
-InitialCoefficient read_data_file(const char *data_file) {
-  ifstream inFile;
-  inFile.open(data_file);
-
-  if (!inFile) {
-    cerr << "Unable to open file datafile.txt";
-    exit(1);   // call system to stop
-  }
-
-  string line;
-  istringstream *iss;
-  
-  while (getline(inFile, line)) {
-    if (line.find("nw") != std::string::npos) {
-      getline(inFile, line);
-      break;
-    }
-  }
-  iss = new istringstream(line);
-  int idum, nw, nh;
-  *iss >> idum >> nw >> nh;
-  // cout << nw << " " << nh << endl;
-
-  while (getline(inFile, line)) {
-    if (line.find("rdim") != std::string::npos) {
-      getline(inFile, line);
-      break;
-    }
-  }
-  iss = new istringstream(line);
-  double rdim, zdim, rcentr, rleft, zmid;
-  *iss >> rdim >> zdim >> rcentr >> rleft >> zmid;
-  // cout << rdim << endl;
-
-  double r0, r1, z0, z1;
-  r0 = rleft;
-  r1 = rleft+rdim;
-  z0 = zmid-zdim/2.0;
-  z1 = zmid+zdim/2.0;
-  r0 = .5; r1 = 1.5;
-  z0 = -1.25; z1 = 1.25;
-  
-  while (getline(inFile, line)) {
-    if (line.find("psizr") != std::string::npos) {
-      getline(inFile, line);
-      break;
-    }
-  }
-  iss = new istringstream(line);
-  double **psizr;
-  // [nh][nw];
-  psizr = new double *[nh];
-  int i, j;
-  for (i = 0; i < nh; ++i) {
-    psizr[i] = new double[nw];
-    for (j = 0; j < nw; ++j) {
-      *iss >> psizr[i][j];
-    }
-  }
-
-  // nz=nh, nr=nw
-  InitialCoefficient init_coeff(psizr, r0, r1, z0, z1, nh, nw);
-
-  return init_coeff;
-}
