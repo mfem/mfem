@@ -3917,7 +3917,6 @@ double TMOP_Integrator::ComputeMinDetT(const Vector &x,
 
       DenseTensor Jtr(dim, dim, ir.GetNPoints());
       targetC->ComputeElementTargets(i, *fe, ir, posV, Jtr);
-
       for (int q = 0; q < nsp; q++)
       {
          const IntegrationPoint &ip = ir.IntPoint(q);

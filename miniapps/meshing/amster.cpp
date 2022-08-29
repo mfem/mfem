@@ -69,9 +69,6 @@ int main (int argc, char *argv[])
    ParFiniteElementSpace *pfespace = new ParFiniteElementSpace(pmesh, fec, dim);
    pmesh->SetNodalFESpace(pfespace);
 
-   // Set up an empty right-hand side vector b, which is equivalent to b=0.
-   Vector b(0);
-
    // Get the mesh nodes as a finite element grid function in fespace.
    ParGridFunction x(pfespace);
    pmesh->SetNodalGridFunction(&x);
@@ -99,6 +96,51 @@ int main (int argc, char *argv[])
    // Visualize the starting mesh and metric values.
    char title[] = "Initial metric values";
    vis_tmop_metric_p(mesh_poly_deg, *metric, *target_c, *pmesh, title, 0);
+
+   for (int f = 0; f < pfespace->GetNBE(); f++)
+   {
+      FaceElementTransformations *trans_f = pmesh->GetBdrFaceTransformations(f);
+      const IntegrationRule &ir_f = pfespace->GetBE(f)->GetNodes();
+      Vector n(dim);
+      Array<int> vdofs_e;
+      pfespace->GetElementVDofs(trans_f->Elem1No, vdofs_e);
+      for (int i = 0; i < ir_f.GetNPoints(); i++)
+      {
+         const IntegrationPoint &ip = ir_f.IntPoint(i);
+         trans_f->SetIntPoint(&ip);
+         CalcOrtho(trans_f->Jacobian(), n);
+
+         Vector coord_face_node;
+         x.GetVectorValue(*trans_f, ip, coord_face_node);
+         int ndof = vdofs_e.Size() / dim;
+
+         for (int j = 0; j < ndof; j++)
+         {
+            Vector vec(dim);
+            for (int d = 0; d < dim; d++)
+            {
+               vec(d) = coord_face_node(d) - x(vdofs_e[ndof*d + j]);
+            }
+
+            if (vec * n < -1e-8)
+            {
+               // The node is on the wrong side.
+               cout << "wrong side "
+                    << f << " " << trans_f->Elem1No << " " << j << endl;
+               // Pull it inside;
+               for (int d = 0; d < dim; d++)
+               {
+                  x(vdofs_e[ndof*d + j]) =
+                        x(vdofs_e[ndof*d + j]) + 1.05 * vec(d);
+               }
+            }
+         }
+      }
+   }
+
+   // Visualize the starting mesh and metric values.
+   char t[] = "Updated";
+   vis_tmop_metric_p(mesh_poly_deg, *metric, *target_c, *pmesh, t, 0);
 
    // Detect boundary nodes.
    Array<int> vdofs;
