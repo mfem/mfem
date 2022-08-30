@@ -159,9 +159,9 @@ struct Parser
    { return apply(s, [](unsigned char c) { return tolower(c); }); }
    string to_upper(string s)
    { return apply(s, [](unsigned char c) { return toupper(c); }); }
-   string most(string &s) { return s = s.substr(0, s.size()-1); };
-   string head(string &s) { return s.substr(0, s.find_last_of('.'));};
-   string last(string &s) { return s.substr(s.find_last_of('.')+1);};
+   string most(string &s) { return s = s.substr(0, s.size()-1); }
+   string head(string &s) { return s.substr(0, s.find_last_of('.'));}
+   string last(string &s) { return s.substr(s.find_last_of('.')+1);}
 
    bool is_space() { return good() && isspace(in.peek()); }
 
