@@ -2608,10 +2608,14 @@ public:
                                    const Vector &elfun);
 };
 
-/** Class for integrating the bilinear form a(u,v) := (Q curl u, v) where Q is a
-    scalar coefficient, and v is a vector with components v_i in the L2 or H1 space.
-    u can be in H(curl) (2D or 3D) or it can be a scalar H1.
-    Note: If u is scalar H1 then curl u = [0 1; -1 0] grad u */
+/** Class for integrating the bilinear form a(u,v) := (Q curl u, v) where Q is
+    an optional scalar coefficient, and v is a vector with components v_i in 
+    the L2 or H1 space. This integrator handles 3 cases:
+    (a) u ∈ H(curl) in 3D, v is a 3D vector with components v_i in L^2 or H^1
+    (b) u ∈ H(curl) in 2D, v is a scalar field in L^2 or H^1
+    (c) u is a scalar field in H^1, i.e, curl u := [0 1;-1 0]grad u and v is a
+        2D vector field with components v_i in L^2 or H^1 space.
+    Note: Case (b) can also be handled by MixedScalarCurlIntegrator  */
 class MixedCurlIntegrator : public BilinearFormIntegrator
 {
 protected:
