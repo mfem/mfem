@@ -2319,17 +2319,17 @@ double VectorCurlCurlIntegrator::GetElementEnergy(
 
 void MixedCurlIntegrator::AssembleElementMatrix2(
    const FiniteElement &trial_fe, const FiniteElement &test_fe,
-   ElementTransformation &Trans,  DenseMatrix &elmat)
+   ElementTransformation &Trans, DenseMatrix &elmat)
 {
    int dim = trial_fe.GetDim();
    int trial_dof = trial_fe.GetDof();
    int test_dof = test_fe.GetDof();
    int dimc = (dim == 3) ? 3 : 1;
 
-   MFEM_ASSERT(trial_fe.GetMapType() == mfem::FiniteElement::H_CURL ||
+   MFEM_VERIFY(trial_fe.GetMapType() == mfem::FiniteElement::H_CURL ||
                (dim == 2 && trial_fe.GetMapType() == mfem::FiniteElement::VALUE),
                "Trial finite element must be either 2D/3D H(Curl) or 2D H1");
-   MFEM_ASSERT(test_fe.GetMapType() == mfem::FiniteElement::VALUE ||
+   MFEM_VERIFY(test_fe.GetMapType() == mfem::FiniteElement::VALUE ||
                test_fe.GetMapType() == mfem::FiniteElement::INTEGRAL,
                "Test finite element must be in H1/L2");
 
@@ -2759,7 +2759,6 @@ void DivDivIntegrator::AssembleElementMatrix2(
    te_divshape.SetSize(te_nd);
 #endif
    elmat.SetSize(te_nd,tr_nd);
-
 
    const IntegrationRule *ir = IntRule;
    if (ir == NULL)
