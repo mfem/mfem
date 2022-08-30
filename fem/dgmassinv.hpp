@@ -46,7 +46,7 @@ protected:
 
    /// @brief Protected constructor, used internally.
    ///
-   /// Custom coefficient and integration rule are used in @a coeff and @a ir
+   /// Custom coefficient and integration rule are used if @a coeff and @a ir
    /// are non-NULL.
    DGMassInverse(FiniteElementSpace &fes_, Coefficient *coeff,
                  const IntegrationRule *ir, int btype);
