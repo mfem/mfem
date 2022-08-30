@@ -1083,7 +1083,7 @@ TEST_CASE("2D Bilinear Vector Mass Integrators",
 }
 
 TEST_CASE("2D Bilinear Gradient Integrator",
-          "[MixedVectorGradientIntegrator]" 
+          "[MixedVectorGradientIntegrator]"
           "[MixedCurlIntegrator]"
           "[MixedVectorIntegrator]"
           "[BilinearFormIntegrator]"
