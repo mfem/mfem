@@ -683,8 +683,14 @@ void DPGWeakForm::Update()
       delete R; R = nullptr;
    }
 
-   delete static_cond;
-   static_cond = NULL;
+   if (static_cond)
+   {
+      EnableStaticCondensation();
+   }
+   else
+   {
+      delete static_cond; static_cond = nullptr;
+   }
 
    ComputeOffsets();
 
@@ -714,6 +720,7 @@ void DPGWeakForm::Update()
 
 void DPGWeakForm::EnableStaticCondensation()
 {
+   delete static_cond;
    static_cond = new BlockStaticCondensation(trial_fes);
 }
 
