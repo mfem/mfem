@@ -2045,6 +2045,7 @@ TEST_CASE("3D Bilinear Gradient Integrator",
 
 TEST_CASE("3D Bilinear Curl Integrator",
           "[MixedVectorCurlIntegrator]"
+          "[MixedCurlIntegrator]"
           "[MixedVectorIntegrator]"
           "[BilinearFormIntegrator]"
           "[NonlinearFormIntegrator]")
