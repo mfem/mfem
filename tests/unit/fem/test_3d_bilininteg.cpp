@@ -5460,7 +5460,7 @@ TEST_CASE("3D Bilinear Curl Curl Integrators",
                lf.AddDomainIntegrator(new VectorFEDomainLFCurlIntegrator(dF3_coef));
                lf.Assemble();
 
-               blf.Mult(f_nd, tmp_nd); 
+               blf.Mult(f_nd, tmp_nd);
                tmp_nd-=lf;
                REQUIRE( tmp_nd.Norml2() < tol );
             }
@@ -5475,7 +5475,7 @@ TEST_CASE("3D Bilinear Curl Curl Integrators",
                lf.AddDomainIntegrator(new VectorFEDomainLFCurlIntegrator(qdF3_coef));
                lf.Assemble();
 
-               blf.Mult(f_nd, tmp_nd); 
+               blf.Mult(f_nd, tmp_nd);
                tmp_nd-=lf;
                REQUIRE( tmp_nd.Norml2() < tol );
             }
@@ -5921,7 +5921,7 @@ TEST_CASE("3D Bilinear Div Div Integrators",
                   new VectorFEDomainLFDivIntegrator(dF3_coef));
                lf.Assemble();
 
-               blf.Mult(f_rt, tmp_rt); tmp_rt -= lf; 
+               blf.Mult(f_rt, tmp_rt); tmp_rt -= lf;
 
                REQUIRE( tmp_rt.Norml2() < tol );
             }
@@ -5937,7 +5937,7 @@ TEST_CASE("3D Bilinear Div Div Integrators",
                   new VectorFEDomainLFDivIntegrator(qdF3_coef));
                lf.Assemble();
 
-               blf.Mult(f_rt, tmp_rt); tmp_rt -= lf; 
+               blf.Mult(f_rt, tmp_rt); tmp_rt -= lf;
 
                REQUIRE( tmp_rt.Norml2() < tol );
             }
