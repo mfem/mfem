@@ -2609,7 +2609,7 @@ public:
 };
 
 /** Class for integrating the bilinear form a(u,v) := (Q curl u, v) where Q is
-    an optional scalar coefficient, and v is a vector with components v_i in 
+    an optional scalar coefficient, and v is a vector with components v_i in
     the L2 or H1 space. This integrator handles 3 cases:
     (a) u ∈ H(curl) in 3D, v is a 3D vector with components v_i in L^2 or H^1
     (b) u ∈ H(curl) in 2D, v is a scalar field in L^2 or H^1
