@@ -5907,7 +5907,7 @@ TEST_CASE("3D Bilinear Div Div Integrators",
          }
          SECTION("Mapping RT to enriched RT")
          {
-            Vector tmp_rt(fespace_rt.GetNDofs());
+            Vector tmp_rt(enriched_fespace_rt.GetNDofs());
 
             SECTION("Without Coefficient")
             {
@@ -5927,7 +5927,7 @@ TEST_CASE("3D Bilinear Div Div Integrators",
             }
             SECTION("With Scalar Coefficient")
             {
-               BilinearForm blf(&fespace_rt);
+               MixedBilinearForm blf(&fespace_rt, &enriched_fespace_rt);
                blf.AddDomainIntegrator(new DivDivIntegrator(q3_coef));
                blf.Assemble();
                blf.Finalize();
