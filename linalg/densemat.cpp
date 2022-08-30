@@ -1450,10 +1450,10 @@ void DenseMatrix::GradToCurl(DenseMatrix &curl)
          int j = i+n;
 
          // curl of (Ui,0)
-         curl(i,0) = y;
+         curl(i,0) = -y;
 
          // curl of (0,Ui)
-         curl(j,0) = -x;
+         curl(j,0) = x;
       }
    }
    else
