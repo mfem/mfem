@@ -259,9 +259,9 @@ int main(int argc, char *argv[])
    double err0 = 0.;
    int dof0=0.;
    double res0=0.0;
+   if (static_cond) { a->EnableStaticCondensation(); }
    for (int iref = 0; iref<=pref; iref++)
    {
-      if (static_cond) { a->EnableStaticCondensation(); }
       a->Assemble();
 
       Array<int> ess_tdof_list;
