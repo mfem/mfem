@@ -97,12 +97,12 @@ int main(int argc, char *argv[])
    double Lz = M_PI;
 
    int N = ctx.order + 1;
-   int NL = std::round(64.0 / N); // Coarse
+   int NL = static_cast<int>(std::round(64.0 / N)); // Coarse
    // int NL = std::round(96.0 / N); // Baseline
    // int NL = std::round(128.0 / N); // Fine
    double LC = M_PI / NL;
    int NX = 2 * NL;
-   int NY = 2 * std::round(48.0 / N);
+   int NY = 2 * static_cast<int>(std::round(48.0 / N));
    int NZ = NL;
 
    Mesh mesh = Mesh::MakeCartesian3D(NX, NY, NZ, Element::HEXAHEDRON, Lx, Ly, Lz);
