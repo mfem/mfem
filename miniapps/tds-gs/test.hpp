@@ -2,6 +2,8 @@
 #define TEST
 
 #include "mfem.hpp"
+#include "initial_coefficient.hpp"
+#include "plasma_model.hpp"
 using namespace mfem;
 
 /*

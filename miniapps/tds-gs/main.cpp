@@ -106,6 +106,9 @@ int main(int argc, char *argv[])
    
    // unit tests
    test();
+   if (true) {
+     return 1;
+   }
    
    // Read the mesh from the given mesh file, and refine once uniformly.
    Mesh mesh(mesh_file);
@@ -219,85 +222,8 @@ int main(int argc, char *argv[])
    printf("\n\n********************************\n");
    printf("final max error: %.3e\n", error);
    printf("********************************\n\n");
-   // diff_operator.RecoverFEMSolution(X, coil_term, x);
-   // double rel_tol = 1e-12;
-   // // HypreSmoother *J_hypreSmoother = new HypreSmoother;
-   // // J_hypreSmoother->SetType(HypreSmoother::l1Jacobi);
-   // // J_hypreSmoother->SetPositiveDiagonal(true);
-   // // J_prec = J_hypreSmoother;
-
-   // MINRESSolver *J_minres = new MINRESSolver();
-   // J_minres->SetRelTol(rel_tol);
-   // J_minres->SetAbsTol(0.0);
-   // J_minres->SetMaxIter(300);
-   // J_minres->SetPrintLevel(-1);
-   // // J_minres->SetPreconditioner(*J_prec);
-
-   // NewtonSolver newton_solver;
-   // newton_solver.iterative_mode = false;
-   // newton_solver.SetSolver(*J_minres);
-   // newton_solver.SetOperator(op);
-   // newton_solver.SetPrintLevel(1); // print Newton iterations
-   // newton_solver.SetRelTol(rel_tol);
-   // newton_solver.SetAbsTol(0.0);
-   // newton_solver.SetMaxIter(10);
-
-   // Vector zero;
-   // zero = 0.0;
-   // Vector xx;
-   // xx = x.GetData();
-   // newton_solver.Mult(zero, xx);
-   // MFEM_VERIFY(newton_solver.GetConverged(),
-   //             "Newton solver did not converge.");
-   
-
-   
-   
-   // // now that we have solution, we can define nonlinear RHS terms
-   // // plasma term
-   // NonlinearGridCoefficient nlgcoeff1(&model, 1);
-   // nlgcoeff1.set_grid_function(x);
-   // LinearForm plasma_term(&fespace);
-   // plasma_term.AddDomainIntegrator(new DomainLFIntegrator(nlgcoeff1));
-   // plasma_term.Assemble();
-
-   // // derivative of plasma term
-   // NonlinearGridCoefficient nlgcoeff2(&model, 2);
-   // nlgcoeff2.set_grid_function(x);
-   // BilinearForm diff_plasma_term(&fespace);
-   // diff_plasma_term.AddDomainIntegrator(new MassIntegrator(nlgcoeff2));
-   // diff_plasma_term.Assemble();
-
-   // // boundary term
-   // if (false) {
-   //   BoundaryCoefficient boundary_coeff(rho_gamma, &model, 2);
-   //   DoubleIntegralCoefficient double_integral_coeff(&boundary_coeff, &fespace);
-   //   double_integral_coeff.set_grid_function(&x);
-   //   LinearForm boundary_term(&fespace);
-   //   boundary_term.AddBoundaryIntegrator(new BoundaryLFIntegrator(double_integral_coeff));
-   //   boundary_term.Assemble();
-   // }
-     
-
-   //
-   // GridFunction y(&fespace);
-   // y= 0.0;
-   // diff_operator.Mult(x, y);
-   // y.Save("y.gf");
-
-   // //
-   // TestCoefficient tcoeff;
-   // GridFunction z(&fespace);
-   // z.ProjectCoefficient(tcoeff);
-   // z.Save("z.gf");
-
-   /*
-     Test vertex to vertex mapping...
-    */
-
 
    return 0;
-
 }
 
 

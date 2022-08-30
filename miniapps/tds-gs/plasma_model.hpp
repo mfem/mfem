@@ -47,18 +47,21 @@ private:
   int option;
   double psi_max;
   double psi_bdp;
+  set<int> plasma_inds;
   int attr_lim;
 public:
   NonlinearGridCoefficient(PlasmaModel *pm, int option_, const GridFunction *psi_,
-                           double & psi_max_, double & psi_bdp_, int attr_lim_) :
+                           double & psi_max_, double & psi_bdp_, set<int> plasma_inds_,
+                           int attr_lim_) :
     model(pm), option(option_), psi(psi_),
-    psi_max(psi_max_), psi_bdp(psi_bdp_), attr_lim(attr_lim_) { }
+    psi_max(psi_max_), psi_bdp(psi_bdp_), plasma_inds(plasma_inds_), attr_lim(attr_lim_) { }
   virtual double Eval(ElementTransformation &T, const IntegrationPoint &ip);
   virtual ~NonlinearGridCoefficient() { }
 };
 
 void compute_plasma_points(const GridFunction & z, const Mesh & mesh,
                            const map<int, vector<int>> & vertex_map,
+                           set<int> & plasma_inds,
                            int &ind_min, int &ind_max, double &min_val, double & max_val,
                            int iprint);
 map<int, vector<int>> compute_vertex_map(Mesh & mesh, int with_attrib = -1);

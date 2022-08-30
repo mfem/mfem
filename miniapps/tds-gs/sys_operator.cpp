@@ -25,8 +25,9 @@ void SysOperator::Mult(const Vector &psi, Vector &y) const {
   int ind_min, ind_max;
   double min_val, max_val;
   int iprint = 1;
-  compute_plasma_points(x, *mesh, vertex_map, ind_min, ind_max, min_val, max_val, iprint);
-  NonlinearGridCoefficient nlgcoeff1(model, 1, &x, min_val, max_val, attr_lim);
+  set<int> plasma_inds;
+  compute_plasma_points(x, *mesh, vertex_map, plasma_inds, ind_min, ind_max, min_val, max_val, iprint);
+  NonlinearGridCoefficient nlgcoeff1(model, 1, &x, min_val, max_val, plasma_inds, attr_lim);
   LinearForm plasma_term(fespace);
   plasma_term.AddDomainIntegrator(new DomainLFIntegrator(nlgcoeff1));
   plasma_term.Assemble();
@@ -46,19 +47,20 @@ Operator &SysOperator::GetGradient(const Vector &psi) const {
   int ind_min, ind_max;
   double min_val, max_val;
   int iprint = 0;
-  compute_plasma_points(x, *mesh, vertex_map, ind_min, ind_max, min_val, max_val, iprint);
+  set<int> plasma_inds;
+  compute_plasma_points(x, *mesh, vertex_map, plasma_inds, ind_min, ind_max, min_val, max_val, iprint);
  
-  NonlinearGridCoefficient nlgcoeff_2(model, 2, &x, max_val, min_val, attr_lim);
+  NonlinearGridCoefficient nlgcoeff_2(model, 2, &x, min_val, max_val, plasma_inds, attr_lim);
   BilinearForm diff_plasma_term_2(fespace);
   diff_plasma_term_2.AddDomainIntegrator(new MassIntegrator(nlgcoeff_2));
   diff_plasma_term_2.Assemble();
 
-  NonlinearGridCoefficient nlgcoeff_3(model, 3, &x, max_val, min_val, attr_lim);
+  NonlinearGridCoefficient nlgcoeff_3(model, 3, &x, min_val, max_val, plasma_inds, attr_lim);
   LinearForm diff_plasma_term_3(fespace);
   diff_plasma_term_3.AddDomainIntegrator(new DomainLFIntegrator(nlgcoeff_3));
   diff_plasma_term_3.Assemble();
 
-  NonlinearGridCoefficient nlgcoeff_4(model, 4, &x, max_val, min_val, attr_lim);
+  NonlinearGridCoefficient nlgcoeff_4(model, 4, &x, min_val, max_val, plasma_inds, attr_lim);
   LinearForm diff_plasma_term_4(fespace);
   diff_plasma_term_4.AddDomainIntegrator(new DomainLFIntegrator(nlgcoeff_4));
   diff_plasma_term_4.Assemble();

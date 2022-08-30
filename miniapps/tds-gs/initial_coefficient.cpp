@@ -11,6 +11,17 @@ using namespace mfem;
 double InitialCoefficient::Eval(ElementTransformation & T,
                                 const IntegrationPoint & ip)
 {
+  if (mask_plasma) {
+    const int *v = T.mesh->GetElement(T.ElementNo)->GetVertices();
+    set<int>::iterator plasma_inds_it;
+    for (int i = 0; i < 3; ++i) {
+      plasma_inds_it = plasma_inds.find(v[i]);
+      if (plasma_inds_it == plasma_inds.end()) {
+        return 0.0;
+      }
+    }
+  }
+  
    double x_[3];
    Vector x(x_, 3);
    T.Transform(ip, x);
@@ -115,8 +126,9 @@ InitialCoefficient read_data_file(const char *data_file) {
   r1 = rleft+rdim;
   z0 = zmid-zdim/2.0;
   z1 = zmid+zdim/2.0;
-  r0 = .5; r1 = 1.5;
-  z0 = -1.25; z1 = 1.25;
+  // DAS - this is overrided since mesh isn't based on ITER geometry yet
+  r0 = .67; r1 = 1.321;
+  z0 = -0.556; z1 = 0.5556;
   
   while (getline(inFile, line)) {
     if (line.find("psizr") != std::string::npos) {

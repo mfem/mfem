@@ -3,6 +3,7 @@
 
 #include <iostream>
 #include <set>
+#include <list>
 using namespace mfem;
 using namespace std;
 
@@ -110,9 +111,15 @@ map<int, vector<int>> compute_vertex_map(Mesh & mesh, int with_attrib) {
 
 void compute_plasma_points(const GridFunction & z, const Mesh & mesh,
                            const map<int, vector<int>> & vertex_map,
+                           set<int> & plasma_inds,
                            int &ind_min, int &ind_max, double &min_val, double & max_val,
                            int iprint) {
 
+  // mag ax point: global minimum in z
+  // saddle point: closest saddle point to mag ax point, otherwise maximum on limiter boundary
+
+  // keep track of elements inside of plasma region
+  
    Vector nval;
    z.GetNodalValues(nval);
 
@@ -121,6 +128,8 @@ void compute_plasma_points(const GridFunction & z, const Mesh & mesh,
    ind_min = 0;
    ind_max = 0;
 
+   vector<int> candidate_x_points;
+     
    int count = 0;
    // loop through vertices and check neighboring vertices to see if we found a saddle point
    for(int iv = 0; iv < mesh.GetNV(); ++iv) {
@@ -183,23 +192,67 @@ void compute_plasma_points(const GridFunction & z, const Mesh & mesh,
 
      if (sign_changes >= 4) {
        if (iprint) {
-         printf("Found saddle at (%9.6f, %9.6f)\n", x0[0], x0[1]);
+         printf("Found saddle at (%9.6f, %9.6f), val=%9.6f\n", x0[0], x0[1], nval[iv]);
        }
+       candidate_x_points.push_back(iv);
        ++count;
      } 
- 
    }
 
+   int ind_x = ind_max;
+   double x_val = max_val;
+   for (int i = 0; i < candidate_x_points.size(); ++i) {
+     int iv = candidate_x_points[i];
+     if (nval[iv] < x_val) {
+       x_val = nval[iv];
+       ind_x = iv;
+     }
+   }
 
    const double* x_min = mesh.GetVertex(ind_min);
    const double* x_max = mesh.GetVertex(ind_max);
+   const double* x_x = mesh.GetVertex(ind_x);
    if (iprint) {
      cout << "total saddles found: " << count << endl;
-     printf("min of %9.6f at (%9.6f, %9.6f), ind %d\n", min_val, x_min[0], x_min[1], ind_min);
-     printf("max of %9.6f at (%9.6f, %9.6f), ind %d\n", max_val, x_max[0], x_max[1], ind_max);
+     printf("  min of %9.6f at (%9.6f, %9.6f), ind %d\n", min_val, x_min[0], x_min[1], ind_min);
+     printf("  max of %9.6f at (%9.6f, %9.6f), ind %d\n", max_val, x_max[0], x_max[1], ind_max);
+     printf("x_val of %9.6f at (%9.6f, %9.6f), ind %d\n", x_val, x_x[0], x_x[1], ind_x);
+   }
+
+
+   // start at x_min and mark vertices that are in the plasma
+   list<int> queue;
+   set<int>::iterator plasma_inds_it;
+   queue.push_back(ind_min);
+   plasma_inds.insert(ind_min);
+   plasma_inds.insert(ind_x);
+   while (!queue.empty()) {
+     // get a point that is already in the plasma region
+     int iv = queue.front();
+     queue.pop_front();
+
+     // cout << "index: " << iv << endl;
+     // check for neighboring points
+     vector<int> adjacent;
+     try {
+       adjacent = vertex_map.at(iv);
+     } catch (...) {
+       continue;
+     }
+
+     // check if neighboring points are in the plasma
+     for (int i = 0; i < adjacent.size(); ++i) {
+       // cout << "  adjacent: " << adjacent[i] << endl;
+       double val = nval[adjacent[i]];
+       plasma_inds_it = plasma_inds.find(adjacent[i]);
+       // cout << *plasma_inds_it << endl;
+       if ((plasma_inds_it == plasma_inds.end()) && (val >= min_val) && (val <= x_val)) {
+         queue.push_back(adjacent[i]);
+         plasma_inds.insert(adjacent[i]);
+         // cout << "adding " << adjacent[i] << endl;
+       }
+     }
    }
    
-   // magnetic axis: max
-   // x point: either closest saddle point or min
    
 }
