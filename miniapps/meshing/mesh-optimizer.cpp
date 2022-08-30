@@ -762,6 +762,11 @@ int main(int argc, char *argv[])
                                        : metric;
    TMOP_Integrator *tmop_integ = new TMOP_Integrator(metric_to_use, target_c,
                                                      h_metric);
+   if (barrier_type > 0 || worst_case_type > 0)
+   {
+      tmop_integ->ComputeUntangleMetricQuantiles(x, *fespace);
+   }
+
 
    // Finite differences for computations of derivatives.
    if (fdscheme)
