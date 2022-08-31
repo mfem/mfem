@@ -1,27 +1,36 @@
-//                                MFEM Ultraweak DPG example
+//             MFEM Ultraweak DPG parallel example for convection-diffusion
 //
-// Compile with: make  uw_dpgp
+// Compile with: make  pconvection-diffusion
 //
 // sample runs 
-// mpirun -np 6 ./pconvection-diffusion  -o 3 -ref 0 -prob 0 -eps 1e-2 -beta '2 3'
 // mpirun -np 6 ./pconvection-diffusion  -o 2 -ref 3 -prob 0 -eps 1e-1 -beta '4 2' -theta 0.0
-// mpirun -np 6 ./pconvection-diffusion  -o 3 -ref 3 -prob 1 -eps 1e-3 -beta '1 0' -theta 0.0 -test-norm 2
+// mpirun -np 6 ./pconvection-diffusion  -o 3 -ref 3 -prob 0 -eps 1e-2 -beta '2 3' -theta 0.0
 
 // AMR runs
-// mpirun -np 6 ./pconvection-diffusion  -o 3 -ref 15 -prob 2 -eps 1e-3 -beta '1 0' -theta 0.7 -test-norm 2 -sc
-// mpirun -np 6 ./pconvection-diffusion  -o 3 -ref 20 -prob 3 -eps 5e-3 -theta 0.7 -test-norm 2 -sc
-// mpirun -np 6 ./pconvection-diffusion  -o 2 -ref 20 -prob 4 -eps 1e-2 -beta '1 2' -theta 0.7 -test-norm 2 -sc
+// mpirun -np 6 ./pconvection-diffusion  -o 3 -ref 15 -prob 1 -eps 1e-3 -beta '1 0' -theta 0.7 -sc
+// mpirun -np 6 ./pconvection-diffusion  -o 3 -ref 20 -prob 2 -eps 5e-3 -theta 0.7 -sc
+// mpirun -np 6 ./pconvection-diffusion  -o 2 -ref 20 -prob 3 -eps 1e-2 -beta '1 2' -theta 0.7 -sc
+
+// Description:  
+// This example code demonstrates the use of MFEM to define and solve a parallel
+// "ultraweak" (UW) DPG formulation for the convection-diffusion problem
 
 //     - εΔu + ∇⋅(βu) = f,   in Ω
 //                  u = u_0, on ∂Ω
 
-// First Order System
+// It solves the following kinds of problems 
+// (a) A manufactured solution where u_exact = sin(π * (x + y + z)). 
+// (b) The 2D Erickson-Johnson problem
+// (c) Internal layer problem
+// (d) Boundary layer problem
 
+// The DPG UW deals with the First Order System
 //     - ∇⋅σ + ∇⋅(βu) = f,   in Ω
 //        1/ε σ - ∇u  = 0,   in Ω
 //                  u = u_0, on ∂Ω
 
-// UW-DPG:
+// Ultraweak-DPG is obtained by integration by parts of both equations and the 
+// introduction of trace unknowns on the mesh skeleton
 // 
 // u ∈ L^2(Ω), σ ∈ (L^2(Ω))^dim 
 // û ∈ H^1/2, f̂ ∈ H^-1/2  
@@ -44,6 +53,7 @@
 
 #include "mfem.hpp"
 #include "util/pweakform.hpp"
+#include "../../common/mfem-common.hpp"
 #include <fstream>
 #include <iostream>
 
@@ -52,22 +62,13 @@ using namespace mfem;
 
 enum prob_type
 {
-   polynomial,
    sinusoidal, 
    EJ, // from https://www.sciencedirect.com/science/article/pii/S0898122113003751
    curved_streamlines, // form https://par.nsf.gov/servlets/purl/10160205
    bdr_layer // from https://web.pdx.edu/~gjay/pub/dpg2.pdf
 };
 
-enum test_norm_type
-{
-   standard,   
-   adjoint_graph,
-   robust  
-};
-
 prob_type prob;
-test_norm_type test_norm;
 Vector beta;
 double epsilon;
 // Function returns the solution u, and gradient du and the Laplacian d2u
@@ -79,11 +80,11 @@ void exact_hatf(const Vector & X, Vector & hatf);
 double f_exact(const Vector & X);
 double bdr_data(const Vector &X);
 void beta_function(const Vector & X, Vector & beta_val);
+void setup_test_norm_coeffs(ParGridFunction & c1_gf, ParGridFunction & c2_gf);
 
 int main(int argc, char *argv[])
 {
    Mpi::Init();
-   int num_procs = Mpi::WorldSize();
    int myid = Mpi::WorldRank();
    Hypre::Init();
 
@@ -94,7 +95,6 @@ int main(int argc, char *argv[])
    int ref = 1;
    bool visualization = true;
    int iprob = 0;
-   int itest_norm = 0;
    double theta = 0.7;
    bool static_cond = false;
    epsilon = 1e0;
@@ -114,8 +114,6 @@ int main(int argc, char *argv[])
                   "Theta parameter for AMR");                           
    args.AddOption(&iprob, "-prob", "--problem", "Problem case"
                   " 0: lshape, 1: General");                         
-   args.AddOption(&itest_norm, "-test-norm", "--test-norm", "Choice of test norm"
-                  " 0: Standard, 1: Adjoint Graph, 2: Robust");     
    args.AddOption(&beta, "-beta", "--beta",
                   "Vector Coefficient beta");          
    args.AddOption(&static_cond, "-sc", "--static-condensation", "-no-sc",
@@ -137,10 +135,8 @@ int main(int argc, char *argv[])
       args.PrintOptions(cout);
    }
 
-   if (iprob > 4) { iprob = 4; }
+   if (iprob > 3) { iprob = 3; }
    prob = (prob_type)iprob;
-
-   test_norm = (test_norm_type)itest_norm;
 
    if (prob == prob_type::EJ || prob == prob_type::curved_streamlines || 
        prob == prob_type::bdr_layer)
@@ -155,7 +151,6 @@ int main(int argc, char *argv[])
 
    switch (prob)
    {
-   case polynomial:
    case sinusoidal:
    case EJ:
    {
@@ -260,88 +255,23 @@ int main(int argc, char *argv[])
    GridFunctionCoefficient c1_coeff(&c1_gf);
    GridFunctionCoefficient c2_coeff(&c2_gf);
 
-   switch (test_norm)
-   {
-      case standard:
-      {   
-         if (myid == 0)
-         {
-            mfem::out << "\n Test norm: Standard" << endl;
-         }
-         // (∇v,∇δv)
-         a->AddTestIntegrator(new DiffusionIntegrator(one),0,0);
-         // (v,δv)
-         a->AddTestIntegrator(new MassIntegrator(one),0,0);
-         // (∇⋅τ,∇⋅δτ)
-         a->AddTestIntegrator(new DivDivIntegrator(one),1,1);
-         // (τ,δτ)
-         a->AddTestIntegrator(new VectorFEMassIntegrator(one),1,1);
-      }
-      break;
-      case adjoint_graph:
-      {
-         if (myid == 0)
-         {
-            mfem::out << "\n Test norm: Adjoint Graph" << endl;
-         }
-         // (∇v,∇δv)
-         a->AddTestIntegrator(new DiffusionIntegrator(one),0,0);
-         // (β⋅∇v, β⋅∇δv)   
-         a->AddTestIntegrator(new DiffusionIntegrator(bbtcoeff), 0,0);
-         // (v,δv)
-         a->AddTestIntegrator(new MassIntegrator(one),0,0);
-         // (∇⋅τ,∇⋅δτ)
-         a->AddTestIntegrator(new DivDivIntegrator(one),1,1);
-         // (τ,δτ)
-         a->AddTestIntegrator(new VectorFEMassIntegrator(one),1,1);
-         // 1/ε^2 (τ,δτ)
-         a->AddTestIntegrator(new VectorFEMassIntegrator(eps2),1,1);
-         // 1/ε (∇v, δτ)
-         a->AddTestIntegrator(new MixedVectorGradientIntegrator(eps1),0,1);
-         // - (β ⋅ ∇v,∇⋅δτ)  
-         a->AddTestIntegrator(new MixedGradDivIntegrator(betacoeff),0,1);
-         // 1/ε (τ,∇δv) 
-         a->AddTestIntegrator(new MixedVectorWeakDivergenceIntegrator(negeps1),1,0);
-         // -(β ∇⋅τ ,∇⋅δv)  
-         a->AddTestIntegrator(new MixedDivGradIntegrator(betacoeff),1,0);
-      }
-      break;
-      default:
-      {
-         if (myid == 0)
-         {
-            mfem::out << "\n Test norm: Robust" << endl;
-         }
-         c1_gf.SetSpace(coeff_fes);
-         c2_gf.SetSpace(coeff_fes);
-         Array<int> dofs;
-         for (int i = 0; i < pmesh.GetNE(); i++)
-         {
-            double volume = pmesh.GetElementVolume(i);
-            double c1 = min(epsilon/volume, 1.);
-            double c2 = min(1./epsilon, 1./volume);
-            coeff_fes->GetElementDofs(i,dofs);
-            c1_gf.SetSubVector(dofs,c1);
-            c2_gf.SetSubVector(dofs,c2);
-         }
-         // c1 (v,δv)
-         a->AddTestIntegrator(new MassIntegrator(c1_coeff),0,0);
-         // ε (∇v,∇δv)
-         a->AddTestIntegrator(new DiffusionIntegrator(eps),0,0);
-         // (β⋅∇v, β⋅∇δv)   
-         a->AddTestIntegrator(new DiffusionIntegrator(bbtcoeff), 0,0);
-         // c2 (τ,δτ)
-         a->AddTestIntegrator(new VectorFEMassIntegrator(c2_coeff),1,1);
-         // (∇⋅τ,∇⋅δτ)
-         a->AddTestIntegrator(new DivDivIntegrator(one),1,1);
-      }
-      break;
-   }
+   c1_gf.SetSpace(coeff_fes);
+   c2_gf.SetSpace(coeff_fes);
+   setup_test_norm_coeffs(c1_gf,c2_gf);
 
+   // c1 (v,δv)
+   a->AddTestIntegrator(new MassIntegrator(c1_coeff),0,0);
+   // ε (∇v,∇δv)
+   a->AddTestIntegrator(new DiffusionIntegrator(eps),0,0);
+   // (β⋅∇v, β⋅∇δv)   
+   a->AddTestIntegrator(new DiffusionIntegrator(bbtcoeff), 0,0);
+   // c2 (τ,δτ)
+   a->AddTestIntegrator(new VectorFEMassIntegrator(c2_coeff),1,1);
+   // (∇⋅τ,∇⋅δτ)
+   a->AddTestIntegrator(new DivDivIntegrator(one),1,1);
 
    FunctionCoefficient f(f_exact);
    if (prob == prob_type::sinusoidal || 
-       prob == prob_type::polynomial || 
        prob == prob_type::curved_streamlines)
    {
       a->AddDomainLFIntegrator(new DomainLFIntegrator(f),0);
@@ -356,20 +286,8 @@ int main(int argc, char *argv[])
    ParGridFunction hatu_gf;
    ParGridFunction hatf_gf;
 
-   socketstream uex_out;
    socketstream u_out;
    socketstream sigma_out;
-   if (visualization)
-   {
-      char vishost[] = "localhost";
-      int  visport   = 19916;
-      u_out.open(vishost, visport);
-      if (exact_known) 
-      {
-         uex_out.open(vishost, visport);
-      }   
-      sigma_out.open(vishost, visport);
-   }
 
    double res0 = 0.;
    double err0 = 0.;
@@ -395,10 +313,9 @@ int main(int argc, char *argv[])
         mfem::out << "------------------" << endl;   
    }
 
-
+   if (static_cond) { a->EnableStaticCondensation(); }
    for (int iref = 0; iref<=ref; iref++)
    {
-      if (static_cond) { a->EnableStaticCondensation(); }
       a->Assemble();
 
       Array<int> ess_tdof_list_uhat;
@@ -592,30 +509,14 @@ int main(int argc, char *argv[])
 
       if (visualization)
       {
-         if (exact_known)
-         {
-            ParGridFunction uex_gf(u_fes);
-            uex_gf.ProjectCoefficient(uex);
-            uex_out << "parallel " << num_procs << " " << myid << "\n";
-            uex_out.precision(8);
-            uex_out << "solution\n" << pmesh << uex_gf;
-            if (iref == 0) uex_out  << "keys cgRjmlk \n";
-            uex_out << "window_title 'Exact u' "
-                    << flush;
-         }
-         u_out << "parallel " << num_procs << " " << myid << "\n";
-         u_out.precision(8);
-         u_out << "solution\n" << pmesh << u_gf;
-         if (iref == 0) u_out  << "keys cgRjmlk \n";
-         u_out << "window_title 'Numerical u' "
-               << flush;
-
-         sigma_out << "parallel " << num_procs << " " << myid << "\n";
-         sigma_out.precision(8);
-         sigma_out << "solution\n" << pmesh << sigma_gf;
-         if (iref == 0) sigma_out  << "keys cgRjmlk \n";
-         sigma_out << "window_title 'Numerical flux' "
-                   << flush;
+         // const char * keys = (iref == 0) ? "jRcm\n" : "";
+         const char * keys = (iref == 0) ? "cgRjmlk\n" : "";
+         char vishost[] = "localhost";
+         int  visport   = 19916;
+         common::VisualizeField(u_out,vishost, visport, u_gf, 
+                                "Numerical u", 0,0, 500, 500, keys);
+         common::VisualizeField(sigma_out,vishost, visport, sigma_gf,
+                                "Numerical flux", 501,0,500, 500, keys); 
       }
 
       if (iref == ref)
@@ -628,22 +529,10 @@ int main(int argc, char *argv[])
       }
       a->Update();
 
-      if (test_norm == test_norm_type::robust)
-      {
-         coeff_fes->Update();
-         c1_gf.Update();
-         c2_gf.Update();
-         Array<int> edofs;
-         for (int i = 0; i < pmesh.GetNE(); i++)
-         {
-            double volume = pmesh.GetElementVolume(i);
-            double c1 = min(epsilon/volume, 1.);
-            double c2 = min(1./epsilon, 1./volume);
-            coeff_fes->GetElementDofs(i,edofs);
-            c1_gf.SetSubVector(edofs,c1);
-            c2_gf.SetSubVector(edofs,c2);
-         }
-      }
+      coeff_fes->Update();
+      c1_gf.Update();
+      c2_gf.Update();
+      setup_test_norm_coeffs(c1_gf,c2_gf);
    }
 
    delete coeff_fes;
@@ -675,17 +564,6 @@ void solution(const Vector & X, double & u, Vector & du, double & d2u)
 
    switch(prob)
    {
-      case polynomial:
-      {
-         int n=2;
-         int m=2;
-         u = pow(x,n)*pow(y,m);
-         du[0] = n * pow(x,n-1) * pow(y,m);
-         du[1] = m * pow(x,n) * pow(y,m-1);
-         d2u = n * (n-1) * pow(x,n-2) * pow(y,m)
-             + m * (m-1) * pow(x,n) * pow(y,m-2);
-      }
-      break;
       case sinusoidal:
       {
          double alpha = M_PI * (x + y + z);
@@ -739,7 +617,7 @@ void solution(const Vector & X, double & u, Vector & du, double & d2u)
       }
       break;
       default:
-      MFEM_ABORT("Wrong code path");
+         MFEM_ABORT("Wrong code path");
       break;
    }
 }
@@ -842,4 +720,20 @@ double bdr_data(const Vector &X)
    {
       return exact_hatu(X);
    }   
+}
+
+void setup_test_norm_coeffs(ParGridFunction & c1_gf, ParGridFunction & c2_gf)
+{
+   Array<int> vdofs;
+   ParFiniteElementSpace * fes = c1_gf.ParFESpace();
+   ParMesh * pmesh = fes->GetParMesh();
+   for (int i = 0; i < pmesh->GetNE(); i++)
+   {
+      double volume = pmesh->GetElementVolume(i);
+      double c1 = min(epsilon/volume, 1.);
+      double c2 = min(1./epsilon, 1./volume);
+      fes->GetElementDofs(i,vdofs);
+      c1_gf.SetSubVector(vdofs,c1);
+      c2_gf.SetSubVector(vdofs,c2);
+   }
 }
