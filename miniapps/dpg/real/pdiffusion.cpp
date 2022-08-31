@@ -57,6 +57,7 @@
 
 #include "mfem.hpp"
 #include "util/pweakform.hpp"
+#include "../../common/mfem-common.hpp"
 #include <fstream>
 #include <iostream>
 
@@ -81,7 +82,6 @@ double f_exact(const Vector & X);
 int main(int argc, char *argv[])
 {
    MPI_Session mpi;
-   int num_procs = mpi.WorldSize();
    int myid = mpi.WorldRank();
 
    // 1. Parse command-line options.
@@ -232,13 +232,6 @@ int main(int argc, char *argv[])
    // Visualization streams
    socketstream u_out;
    socketstream sigma_out;
-   if (visualization)
-   {
-      char vishost[] = "localhost";
-      int  visport   = 19916;
-      u_out.open(vishost, visport);
-      sigma_out.open(vishost, visport);
-   }
 
    if (myid == 0)
    {
@@ -384,17 +377,14 @@ int main(int argc, char *argv[])
 
       if (visualization)
       {
-         u_out << "parallel " << num_procs << " " << myid << "\n";
-         u_out.precision(8);
-         u_out << "solution\n" << pmesh << u_gf <<
-                  "window_title 'Numerical u' "
-                  << flush;
+         const char * keys = (iref == 0) ? "jRcm\n" : "";
+         char vishost[] = "localhost";
+         int  visport   = 19916;
 
-         sigma_out << "parallel " << num_procs << " " << myid << "\n";
-         sigma_out.precision(8);
-         sigma_out << "solution\n" << pmesh << sigma_gf <<
-                  "window_title 'Numerical flux' "
-                  << flush;
+         common::VisualizeField(u_out,vishost,visport,u_gf,
+                               "Numerical u", 0,0,500,500,keys);
+         common::VisualizeField(sigma_out,vishost,visport,sigma_gf,
+                               "Numerical flux", 500,0,500,500,keys);
       }
 
 

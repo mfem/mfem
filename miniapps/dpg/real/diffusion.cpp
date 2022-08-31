@@ -48,6 +48,7 @@
 
 #include "mfem.hpp"
 #include "util/weakform.hpp"
+#include "../../common/mfem-common.hpp"
 #include <fstream>
 #include <iostream>
 
@@ -196,14 +197,6 @@ int main(int argc, char *argv[])
    // Visualization streams
    socketstream u_out;
    socketstream sigma_out;
-   if (visualization)
-   {
-      char vishost[] = "localhost";
-      int  visport   = 19916;
-      u_out.open(vishost, visport);
-      sigma_out.open(vishost, visport);
-   }
-
 
    if (prob == prob_type::manufactured)
    {
@@ -292,7 +285,10 @@ int main(int argc, char *argv[])
          double rate_err = (iref) ? dim*log(err0/L2Error)/log((double)dof0/l2dofs) : 0.0;
          err0 = L2Error;
          dof0 = l2dofs;
-         mfem::out << std::right << std::setw(11) << iref << " | " 
+
+         std::ios oldState(nullptr);
+         oldState.copyfmt(std::cout);
+         std::cout << std::right << std::setw(11) << iref << " | " 
                    << std::setw(10) <<  dof0 << " | " 
                    << std::setprecision(3) 
                    << std::setw(10) << std::scientific <<  err0 << " | " 
@@ -302,20 +298,18 @@ int main(int argc, char *argv[])
                    << std::setprecision(3) 
                    << std::resetiosflags(std::ios::showbase)
                    << std::endl;
+         std::cout.copyfmt(oldState);
       }
 
       if (visualization)
       {
-         u_out.precision(8);
-         string keys = (iref == 0) ? "keys em\n" : "keys";
-         u_out << "solution\n" << mesh << u_gf 
-               << "window_title 'Numerical u' "
-                  << flush;
-
-         sigma_out.precision(8);
-         sigma_out << "solution\n" << mesh << sigma_gf <<
-               "window_title 'Numerical flux' "
-               << flush;
+         const char * keys = (iref == 0) ? "jRcm\n" : "";
+         char vishost[] = "localhost";
+         int  visport   = 19916;
+         common::VisualizeField(u_out,vishost, visport, u_gf, 
+                                "Numerical u", 0,0, 500, 500, keys);
+         common::VisualizeField(sigma_out,vishost, visport, sigma_gf,
+                                "Numerical flux", 500,0,500, 500, keys);
       }
 
       if (iref == ref) break;
@@ -342,7 +336,6 @@ int main(int argc, char *argv[])
 
    return 0;
 }
-
 
 void solution(const Vector & X, double & u, Vector & du, double & d2u)
 {
