@@ -173,7 +173,7 @@ void LinearForm::Assemble(bool use_device)
          int elem_attr = fes->GetMesh()->GetAttribute(i);
          for (int k = 0; k < domain_integs.Size(); k++)
          {
-            const Array<int> * const markers = domain_integs_marker[k]; 
+            const Array<int> * const markers = domain_integs_marker[k];
             if ( markers == NULL || (*markers)[elem_attr-1] == 1 )
             {
                doftrans = fes -> GetElementVDofs (i, vdofs);
