@@ -326,7 +326,7 @@ int main(int argc, char *argv[])
       M->owns_blocks = 1;
       for (int i = 0 ; i < A->NumRowBlocks(); i++)
       {
-         M->SetDiagonalBlock(i,new GSSmoother(A->GetBlock(i,i)));
+         M->SetDiagonalBlock(i,new DSmoother(A->GetBlock(i,i)));
       }
 
       CGSolver cg;
