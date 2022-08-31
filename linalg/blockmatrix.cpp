@@ -324,12 +324,15 @@ void BlockMatrix::EliminateRowCol(Array<int> & ess_bc_dofs, Vector & sol,
 void BlockMatrix::EliminateRowCols(const Array<int> & vdofs, BlockMatrix *Ae,
                                    DiagonalPolicy dpolicy)
 {
+   MFEM_VERIFY(Ae,
+               "BlockMatrix::EliminateRowCols: Elimination matrix pointer is null");
    MFEM_VERIFY(nRowBlocks == nColBlocks,
                "BlockMatrix::EliminateRowCols supported only for"
                "nRowBlocks = nColBlocks");
 
    std::vector<Array<int>> cols(nRowBlocks);
    std::vector<Array<int>> rows(nRowBlocks);
+   SparseMatrix * tmp = nullptr;
 
    for (int k = 0; k < vdofs.Size(); k++)
    {
@@ -338,24 +341,29 @@ void BlockMatrix::EliminateRowCols(const Array<int> & vdofs, BlockMatrix *Ae,
       int iblock, dof;
       findGlobalCol(vdof,iblock,dof);
       cols[iblock].Append(dof);
+      tmp = &GetBlock(iblock,iblock);
+      if (tmp)
+      {
+         tmp->EliminateRowCol(dof,Ae->GetBlock(iblock,iblock), dpolicy);
+      }
    }
 
+   // Eliminate col from off-diagonal blocks
    for (int j = 0; j<nColBlocks; j++)
    {
       if (!cols[j].Size()) { continue; }
       int blocksize = col_offsets[j+1] - col_offsets[j];
-      // Define and fill in a column marker
       Array<int> colmarker(blocksize); colmarker = 0;
       for (int i = 0; i < cols[j].Size(); i++) { colmarker[cols[j][i]] = 1; }
-
       for (int i = 0; i<nRowBlocks; i++)
       {
-         if (IsZeroBlock(i,j)) { continue; }
-         GetBlock(i,j).EliminateCols(colmarker,Ae->GetBlock(i,j));
+         if (i == j) { continue; }
+         tmp = &GetBlock(i,j);
+         if (tmp) { tmp->EliminateCols(colmarker,Ae->GetBlock(i,j)); }
          for (int k = 0; k < cols[j].Size(); k++)
          {
-            if (IsZeroBlock(j,i)) { continue; }
-            GetBlock(j,i).EliminateRow(cols[j][k]);
+            tmp = &GetBlock(j,i);
+            if (tmp) { tmp->EliminateRow(cols[j][k]); }
          }
       }
    }

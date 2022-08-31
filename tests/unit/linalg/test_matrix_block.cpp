@@ -330,6 +330,11 @@ TEST_CASE("BlockMatrix", "[BlockMatrix]")
       Array<int> rows{{18,72,1342,951,423,877,1234}};
       BlockMatrix Ae(offsets); Ae.owns_blocks = 1;
 
+      // Make sure the matrix is symmetric
+      BlockMatrix * At = Transpose(*A);
+      BlockMatrix * AtA = Mult(*At,*A);
+      delete At;
+
       for (int i = 0; i<Ae.NumRowBlocks(); i++)
       {
          int h = offsets[i+1] - offsets[i];
@@ -339,17 +344,23 @@ TEST_CASE("BlockMatrix", "[BlockMatrix]")
             Ae.SetBlock(i,j,new SparseMatrix(h, w));
          }
       }
+      AtA->EliminateRowCols(rows,&Ae,mfem::Operator::DIAG_ONE);
 
-      A->EliminateRowCols(rows,&Ae);
-      SparseMatrix Amono_e(offsets.Last());
-      Array<int> colmarker;
-      mfem::FiniteElementSpace::ListToMarker(rows,offsets.Last(),colmarker);
-      Amono->EliminateCols(colmarker,Amono_e);
-      for (int i = 0; i<rows.Size(); i++) { Amono->EliminateRow(rows[i]); }
+      SparseMatrix *At_mono = Transpose(*Amono);
+      SparseMatrix *AtA_mono = Mult(*At_mono, *Amono);
+      delete At_mono;
+      SparseMatrix AtAmono_e(offsets.Last());
 
-      SparseMatrix * diff = A->CreateMonolithic();
-      diff->Add(-1.0, *Amono);
+      for (int i = 0; i<rows.Size(); i++)
+      {
+         AtA_mono->EliminateRowCol(rows[i],AtAmono_e,mfem::Operator::DIAG_ONE);
+      }
+
+      SparseMatrix * diff = AtA->CreateMonolithic();
+      diff->Add(-1.0, *AtA_mono);
       REQUIRE(diff->MaxNorm() == MFEM_Approx(0.0));
+      delete AtA_mono;
+      delete AtA;
       delete diff;
    }
 
