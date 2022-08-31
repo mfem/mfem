@@ -239,16 +239,24 @@ public:
    /// Set constant values
    PetscParVector& operator= (PetscScalar d);
 
+   /** @brief Set block size of a vector.
+
+       @note This will error if the local size of the vector is not a multiple
+       of the block size @a bs.
+       @note This is a logically collective operation, so all processes need
+       to call it. */
+   void SetBlockSize(PetscInt bs);
+
    /** @brief Set values in a vector.
 
-       @note any process can insert in any location
-       @note This is a collective operation, so all process needs to call it  */
+       @note Any process can insert in any location.
+       @note This is a collective operation, so all processes need to call it.  */
    PetscParVector& SetValues(const Array<PetscInt>&, const Array<PetscScalar>&);
 
    /** @brief Add values in a vector.
 
-       @note any process can add to any location
-       @note This is a collective operation, so all process needs to call it  */
+       @note Any process can add to any location.
+       @note This is a collective operation, so all processes need to call it.  */
    PetscParVector& AddValues(const Array<PetscInt>&, const Array<PetscScalar>&);
 
    /// Define operators for PETSc vectors.
@@ -525,6 +533,14 @@ public:
 
    /** @brief Eliminate only the rows from the matrix */
    void EliminateRows(const Array<int> &rows);
+
+   /** @brief Set row and column block sizes of a matrix.
+
+       @note This will error if the local sizes of the matrix are not a
+       multiple of the block sizes.
+       @note This is a logically collective operation, so all processes need
+       to call it.  */
+   void SetBlockSize(PetscInt rbs,PetscInt cbs=-1);
 
    /// Makes this object a reference to another PetscParMatrix
    void MakeRef(const PetscParMatrix &master);
