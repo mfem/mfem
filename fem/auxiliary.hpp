@@ -72,6 +72,25 @@ public:
                                    const Vector &elfun, Vector &elvect);
 };
 
+// Boundary face term: <F.n(u),[w]> (Neumann BCs)
+class NeumannBCFaceIntegrator : public NonlinearFormIntegrator
+{
+public:
+   RiemannSolver rsolver;
+   int num_equation;
+   Vector shape;
+   Vector funval;
+   Vector nor;
+   Vector fluxN;
+
+   NeumannBCFaceIntegrator(RiemannSolver &rsolver_, const int dim, double num_equation_);
+
+   virtual void AssembleFaceVector(const FiniteElement &el1,
+                                   const FiniteElement &el2,
+                                   FaceElementTransformations &Tr,
+                                   const Vector &elfun, Vector &elvect);
+};
+
 // Implementation of class FE_Evolution
 EulerSystem::EulerSystem(FiniteElementSpace &vfes_,
                          Operator &A_, SparseMatrix &Aflux_,
@@ -379,6 +398,59 @@ void FaceIntegrator::AssembleFaceVector(const FiniteElement &el1,
          }
          for (int s = 0; s < dof2; s++) {
             elvect2_mat(s, k) += fluxN(k) * shape2(s);
+         }
+      }
+   }
+}
+
+// Implementation of class NeumannBCFaceIntegrator
+NeumannBCFaceIntegrator::NeumannBCFaceIntegrator(RiemannSolver &rsolver_, const int dim, double num_equation_) :
+   rsolver(rsolver_),
+   num_equation(num_equation_),
+   funval(num_equation),
+   nor(dim),
+   fluxN(num_equation) { }
+
+void NeumannBCFaceIntegrator::AssembleFaceVector(const FiniteElement &el1,
+                                                 const FiniteElement &el2,
+                                                 FaceElementTransformations &Tr,
+                                                 const Vector &elfun, Vector &elvect)
+{
+   // Compute the term <F.n(u),[w]> on the interior faces.
+   const int dof = el1.GetDof();
+
+   shape.SetSize(dof);
+
+   elvect.SetSize(dof * num_equation);
+   elvect = 0.0;
+
+   DenseMatrix elfun_mat(elfun.GetData(), dof, num_equation);
+   DenseMatrix elvect_mat(elvect.GetData(), dof, num_equation);
+
+   // Integration order calculation from DGTraceIntegrator
+   int intorder = Tr.Elem1->OrderW() + 2*el1.GetOrder();
+   
+
+   const IntegrationRule *ir = &IntRules.Get(Tr.GetGeometryType(), intorder);
+   for (int i = 0; i < ir->GetNPoints(); i++) {
+      const IntegrationPoint &ip = ir->IntPoint(i);
+
+      Tr.SetAllIntPoints(&ip); // set face and element int. points
+
+      // Calculate basis functions on both elements at the face
+      el1.CalcShape(Tr.GetElement1IntPoint(), shape);
+
+      // Interpolate elfun at the point
+      elfun_mat.MultTranspose(shape, funval);
+
+      // Get the normal vector and the flux on the face
+      CalcOrtho(Tr.Jacobian(), nor);
+      const double mcs = rsolver.Eval(funval, funval, nor, fluxN);
+
+      fluxN *= ip.weight;
+      for (int k = 0; k < num_equation; k++) {
+         for (int s = 0; s < dof; s++) {
+            elvect_mat(s, k) -= fluxN(k) * shape(s);
          }
       }
    }
