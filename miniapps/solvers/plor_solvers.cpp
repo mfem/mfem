@@ -191,7 +191,11 @@ int main(int argc, char *argv[])
    unique_ptr<Solver> solv_lor;
    if (H1 || L2)
    {
-      solv_lor.reset(new LORSolver<HypreBoomerAMG>(a, ess_dofs));
+      auto *lor_solver = new LORSolver<HypreBoomerAMG>(a, ess_dofs);
+      HYPRE_BigInt nnz = lor_solver->GetLOR().GetAssembledSystem().As<HypreParMatrix>()->NNZ();
+      if (Mpi::Root()) { cout << "Number of NNZ:  " << nnz << endl; }
+
+      solv_lor.reset(lor_solver);
       ((LORSolver<HypreBoomerAMG>&)*solv_lor).GetSolver().Setup(B, X);
    }
    else if (RT && dim == 3)
@@ -213,6 +217,8 @@ int main(int argc, char *argv[])
    cg.SetOperator(*A);
    cg.SetPreconditioner(*solv_lor);
    cg.Mult(B, X);
+
+   return 0;
 
    a.RecoverFEMSolution(X, b, x);
 

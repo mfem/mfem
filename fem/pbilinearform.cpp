@@ -16,6 +16,9 @@
 #include "fem.hpp"
 #include "../general/sort_pairs.hpp"
 
+#define MFEM_NVTX_COLOR Crimson
+#include "../general/nvtx.hpp"
+
 namespace mfem
 {
 
@@ -124,6 +127,7 @@ void ParBilinearForm::pAllocMat()
 void ParBilinearForm::ParallelRAP(SparseMatrix &loc_A, OperatorHandle &A,
                                   bool steal_loc_A)
 {
+   NVTX("RAP");
    ParFiniteElementSpace &pfespace = *ParFESpace();
 
    // Create a block diagonal parallel matrix

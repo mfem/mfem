@@ -1726,6 +1726,10 @@ void HypreParMatrix::EnsureMultTranspose() const
 HYPRE_Int HypreParMatrix::Mult(HypreParVector &x, HypreParVector &y,
                                double a, double b) const
 {
+#undef MFEM_NVTX_COLOR
+#define MFEM_NVTX_COLOR Crimson
+   NVTX("SpMV");
+
    x.HypreRead();
    (b == 0.0) ? y.HypreWrite() : y.HypreReadWrite();
    return hypre_ParCSRMatrixMatvec(a, A, x, b, y);
@@ -1733,6 +1737,10 @@ HYPRE_Int HypreParMatrix::Mult(HypreParVector &x, HypreParVector &y,
 
 void HypreParMatrix::Mult(double a, const Vector &x, double b, Vector &y) const
 {
+#undef MFEM_NVTX_COLOR
+#define MFEM_NVTX_COLOR Crimson
+   NVTX("SpMV");
+
    MFEM_ASSERT(x.Size() == Width(), "invalid x.Size() = " << x.Size()
                << ", expected size = " << Width());
    MFEM_ASSERT(y.Size() == Height(), "invalid y.Size() = " << y.Size()
@@ -1791,6 +1799,10 @@ void HypreParMatrix::Mult(double a, const Vector &x, double b, Vector &y) const
 void HypreParMatrix::MultTranspose(double a, const Vector &x,
                                    double b, Vector &y) const
 {
+#undef MFEM_NVTX_COLOR
+#define MFEM_NVTX_COLOR Crimson
+   NVTX("SpMV_T");
+
    MFEM_ASSERT(x.Size() == Height(), "invalid x.Size() = " << x.Size()
                << ", expected size = " << Height());
    MFEM_ASSERT(y.Size() == Width(), "invalid y.Size() = " << y.Size()
