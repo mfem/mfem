@@ -955,7 +955,7 @@ void FABilinearFormExtension::Assemble()
       }
       a->mat = mat;
    }
-   if ( a->sort_device_matrix && Device::Allows( Backend::DEVICE_MASK ) )
+   if ( a->sort_device_matrix && Device::Allows(~Backend::CPU_MASK) )
    {
       a->mat->SortColumnIndices();
    }
