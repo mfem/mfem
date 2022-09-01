@@ -489,14 +489,15 @@ void SparseMatrix::SortColumnIndices()
                                        d_ja_sorted, sortInfoA,
                                        &pBufferSizeInBytes);
 
-      Array< char > buffer( pBufferSizeInBytes );
-      pBuffer = buffer.Write();
+      CuMemAlloc( &pBuffer, pBufferSizeInBytes );
 
       cusparseDcsru2csr( handle, n, m, nnzA, matA_descr, d_a_sorted, d_ia,
                          d_ja_sorted, sortInfoA, pBuffer);
 
       cusparseDestroyCsru2csrInfo( sortInfoA );
       cusparseDestroyMatDescr( matA_descr );
+
+      CuMemFree( pBuffer );
 #endif
    }
    else if ( Device::Allows( Backend::HIP_MASK ))
@@ -525,10 +526,8 @@ void SparseMatrix::SortColumnIndices()
       hipsparseXcsrsort_bufferSizeExt(handle, n, m, nnzA, d_ia, d_ja_sorted,
                                       &pBufferSizeInBytes);
 
-      Array< char > buffer( pBufferSizeInBytes );
-      pBuffer = buffer.Write();
-      Array< int > P_mem( nnzA );
-      P       = P_mem.Write();
+      HipMemAlloc( &pBuffer, pBufferSizeInBytes );
+      HipMemAlloc( &P, nnzA * sizeof(int) );
 
       hipsparseCreateIdentityPermutation(handle, nnzA, P);
       hipsparseXcsrsort(handle, n, m, nnzA, descrA, d_ia, d_ja_sorted, P, pBuffer);
@@ -538,6 +537,9 @@ void SparseMatrix::SortColumnIndices()
 
       A.CopyFrom( a_tmp.GetMemory(), nnzA );
       hipsparseDestroyMatDescr( descrA );
+
+      HipMemFree( pBuffer );
+      HipMemFree( P );
 #endif
    }
    else
