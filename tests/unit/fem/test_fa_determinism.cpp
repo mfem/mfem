@@ -28,7 +28,7 @@ TEST_CASE("FA Determinism", "[PartialAssembly][CUDA]")
 
    Vector x, b_reference;
 
-   const int ntrials = 100 + 1;
+   const int ntrials = 1;
    for (int i = 0; i < ntrials; ++i)
    {
       BilinearForm a(&fes);
