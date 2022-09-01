@@ -658,6 +658,12 @@ public:
 
    virtual MemoryClass GetMemoryClass() const { return GetHypreMemoryClass(); }
 
+   /// Ensure the action of the transpose is performed fast.
+   /** When HYPRE is built for GPUs, this method will construct and store the
+       transposes of the 'diag' and 'offd' CSR matrices. When HYPRE is not built
+       for GPUs, this method is a no-op. */
+   void EnsureMultTranspose() const;
+
    /// Computes y = alpha * A * x + beta * y
    HYPRE_Int Mult(HypreParVector &x, HypreParVector &y,
                   double alpha = 1.0, double beta = 0.0) const;
@@ -847,14 +853,6 @@ public:
    void Read(MPI_Comm comm, const char *fname);
    /// Read a matrix saved as a HYPRE_IJMatrix
    void Read_IJMatrix(MPI_Comm comm, const char *fname);
-
-   void SortRows()
-   {
-#if defined(HYPRE_USING_CUSPARSE) || defined(HYPRE_USING_ROCSPARSE)
-      hypre_CSRMatrixSortRow( hypre_ParCSRMatrixDiag(A) );
-      hypre_CSRMatrixSortRow( hypre_ParCSRMatrixOffd(A) );
-#endif
-   }
 
    /// Print information about the hypre_ParCSRCommPkg of the HypreParMatrix.
    void PrintCommPkg(std::ostream &out = mfem::out) const;
