@@ -633,7 +633,7 @@ AlgebraicSpaceHierarchy::AlgebraicSpaceHierarchy(FiniteElementSpace &fes)
    current_order = order;
 
    Ceed ceed = internal::ceed;
-   InitTensorRestriction(fes, ceed, &fine_er);
+   InitRestriction(fes, ceed, &fine_er);
    CeedElemRestriction er = fine_er;
 
    int dim = fes.GetMesh()->Dimension();

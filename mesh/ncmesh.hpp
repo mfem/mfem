@@ -84,7 +84,7 @@ struct CoarseFineTransformations
 
    void Clear();
    bool IsInitialized() const;
-   long MemoryUsage() const;
+   std::size_t MemoryUsage() const;
 
    MFEM_DEPRECATED
    void GetCoarseToFineMap(const Mesh &fine_mesh, Table &coarse_to_fine) const
@@ -240,7 +240,7 @@ public:
       void Clear();
       bool Empty() const { return !conforming.Size() && !masters.Size(); }
       long TotalSize() const;
-      long MemoryUsage() const;
+      std::size_t MemoryUsage() const;
 
       const MeshId& LookUp(int index, int *type = NULL) const;
 
@@ -390,7 +390,7 @@ public:
    virtual void Trim();
 
    /// Return total number of bytes allocated.
-   long MemoryUsage() const;
+   std::size_t MemoryUsage() const;
 
    int PrintMemoryDetail() const;
 
