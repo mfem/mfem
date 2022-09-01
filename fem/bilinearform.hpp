@@ -79,7 +79,7 @@ protected:
    /** @brief Extension for supporting Full Assembly (FA), Element Assembly (EA),
        Partial Assembly (PA), or Matrix Free assembly (MF). */
    BilinearFormExtension *ext;
-   /** Indicates if the sparse matrix are sorted after assembly when using
+   /** Indicates if the sparse matrix is sorted after assembly when using
        Full Assembly (FA). */
    bool sort_device_matrix = true;
 
