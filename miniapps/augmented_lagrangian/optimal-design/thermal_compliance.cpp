@@ -2,33 +2,31 @@
 // Compile with: make optimal_design
 //
 // Sample runs:
-//    ./ouu_heat_sink_H1 -gamma 0.1 -epsilon 0.05 -alpha 0.01 -beta 5.0
+//    ./thermal_compliance -gamma 0.001 -epsilon 0.0005 -alpha 0.005 -beta 5.0 -r 3 -o 2 -tl 0.000001 -bs 1
 //
 //         min J(K) = <g,u>
 //                            
-//                                 Γ_2    
-//               _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _   
-//              |         |         |         |         |  
-//              |         |         |         |         |  
-//              |---------|---------|---------|---------|  
-//              |         |         |         |         |  
-//              |         |         |         |         |  
-//              |---------|---------|---------|---------|  
-//              |         |         |         |         |  
-//              |         |         |         |         |  
-//              |---------|---------|---------|---------|  
-//              |         |         |         |         |  
-//              |         |         |         |         |  
-//               ---------------------------------------  
-//                  |̂                              |̂  
-//                 Γ_1                            Γ_1  
+//                        Γ_1           Γ_2            Γ_1
+//               _ _ _ _ _ _ _ _ _ _ _________ _ _ _ _ _ _ _ _ _ _   
+//              |         |         |         |         |         |  
+//              |         |         |         |         |         |  
+//              |---------|---------|---------|---------|---------|  
+//              |         |         |         |         |         |  
+//              |         |         |         |         |         |  
+//      Γ_1-->  |---------|---------|---------|---------|---------|  <-- Γ_1
+//              |         |         |         |         |         |  
+//              |         |         |         |         |         |  
+//              |---------|---------|---------|---------|---------|  
+//              |         |         |         |         |         |  
+//              |         |         |         |         |         |  
+//               -------------------------------------------------|
+//                       |̂                              |̂  
+//                      Γ_1                            Γ_1                    
 //
 //
-//
-//         subject to   - div( K\nabla u ) = 0    in \Omega
-//                                       u = 0    on Γ_1
-//                               (K ∇ u)⋅n = g    on Γ_2
-//                                   ∇ u⋅n = 0    on ∂Ω\(Γ_1 ∪ Γ_2) 
+//         subject to   - div( K\nabla u ) = f    in \Omega
+//                                       u = 0    on Γ_2
+//                               (K ∇ u)⋅n = 0    on Γ_1
 //         and                   ∫_Ω K dx <= V ⋅ vol(\Omega)
 //         and                  a <= K(x) <= b
 
@@ -93,45 +91,50 @@ using namespace mfem;
 class RandomFunctionCoefficient : public Coefficient
 {
 private:
-   double a = .49;
-   double b = 0.51;
-   double m;
+   double a = 0.2;
+   double b = 0.2;
+   double x,y;
    std::default_random_engine generator;
    std::uniform_real_distribution<double> * distribution;
-   double (*Function)(const Vector &, double);
+   double (*Function)(const Vector &, double, double);
 public:
-   RandomFunctionCoefficient(double (*F)(const Vector &, double)) 
+   RandomFunctionCoefficient(double (*F)(const Vector &, double, double)) 
    : Function(F) 
    {
       distribution = new std::uniform_real_distribution<double> (a,b);
-      m = (*distribution)(generator);
+      x = (*distribution)(generator);
+      y = (*distribution)(generator);
    }
    virtual double Eval(ElementTransformation &T,
                        const IntegrationPoint &ip)
    {
       Vector transip(3);
       T.Transform(ip, transip);
-      return ((*Function)(transip, m));
+      return ((*Function)(transip, x,y));
    }
    void resample()
    {
-      m = (*distribution)(generator);
+      x = (*distribution)(generator);
+      y = (*distribution)(generator);
    }
 };
 
-double randomload(const Vector & X, double m)
+double randomload(const Vector & X, double x0, double y0)
 {
+   double x = X(0);
+   double y = X(1);
    double sigma = 0.1;
-   double alpha = 1.0/(sigma * sqrt(2.0*M_PI));
-//    double beta = -0.5*pow( (X(0)-0.5)/sigma,2);
-   double beta = -0.5*pow( (X(0)-m)/sigma,2);
-   return alpha * exp(beta);
+   double sigma2 = sigma*sigma;
+   double alpha = 1.0/(2.0*M_PI*sigma2);
+   double r2 = (x-x0)*(x-x0) + (y-y0)*(y-y0);
+   double beta = -0.5/sigma2 * r2;
+   // return alpha * exp(beta);
+   return 1.0;
 }
 
 int main(int argc, char *argv[])
 {
    // 1. Parse command-line options.
-   const char *mesh_file = "../../../data/inline-quad.mesh";
    int ref_levels = 2;
    int order = 2;
    bool visualization = true;
@@ -151,8 +154,6 @@ int main(int argc, char *argv[])
    int batch_size_min = 2;
 
    OptionsParser args(argc, argv);
-   args.AddOption(&mesh_file, "-m", "--mesh",
-                  "Mesh file to use.");
    args.AddOption(&ref_levels, "-r", "--refine",
                   "Number of times to refine the mesh uniformly.");
    args.AddOption(&order, "-o", "--order",
@@ -167,7 +168,7 @@ int main(int argc, char *argv[])
                   "epsilon phase field thickness");
    args.AddOption(&theta, "-theta", "--theta-sampling-ratio",
                   "Sampling ratio theta");                  
-   args.AddOption(&max_it, "-./ouu_heat_sink_H1 -gamma 0.1 -epsilon 0.05 -alpha 0.01 -beta 5.0mi", "--max-it",
+   args.AddOption(&max_it, "-mi", "--max-it",
                   "Maximum number of gradient descent iterations.");
    args.AddOption(&tol_K, "-tk", "--tol_K",
                   "Exit tolerance for K");     
@@ -203,10 +204,9 @@ int main(int argc, char *argv[])
    ofstream conv(file_name.str().c_str());
    conv << "Step,    Sample Size,    Compliance,    Mass Fraction" << endl;
 
-   Mesh mesh(mesh_file, 1, 1);
-   int dim = mesh.Dimension();
+   Mesh mesh = Mesh::MakeCartesian2D(7,7,mfem::Element::Type::QUADRILATERAL,true,1.0,1.0);
 
-   mesh.UniformRefinement();
+   int dim = mesh.Dimension();
 
    for (int i = 0; i<mesh.GetNBE(); i++)
    {
@@ -222,19 +222,15 @@ int main(int argc, char *argv[])
       center(1) = 0.5*(coords1[1] + coords2[1]);
 
 
-      if (abs(center(1) - 1.0) < 1e-10)
+      if (abs(center(1) - 1.0) < 1e-10 && abs(center(0)-0.5) < 1e-10)
       {
          // the top edge
-         be->SetAttribute(1);
-      }
-      else if(abs(center(1)) < 1e-10 && (center(0) < 0.125 || center(0) > 0.875))
-      {
-         // bottom edge (left and right "corners")
          be->SetAttribute(2);
       }
       else
       {
-         be->SetAttribute(3);
+         // all other boundaries
+         be->SetAttribute(1);
       }
    }
    mesh.SetAttributes();
@@ -267,13 +263,8 @@ int main(int argc, char *argv[])
    // 8. Set up the linear form b(.) for the state and adjoint equations.
    
    Array<int> ess_bdr(mesh.bdr_attributes.Max());
-   Array<int> inhomogenous_neuman_bdr(mesh.bdr_attributes.Max());
    ess_bdr = 0;
    ess_bdr[1] = 1;
-   inhomogenous_neuman_bdr = 0;
-   inhomogenous_neuman_bdr[0] = 1;
-
-
    FPDESolver * PoissonSolver = new FPDESolver();
    PoissonSolver->SetMesh(&mesh);
    PoissonSolver->SetOrder(order);
@@ -281,11 +272,11 @@ int main(int argc, char *argv[])
    PoissonSolver->SetBeta(0.0);
    PoissonSolver->SetupFEM();
    RandomFunctionCoefficient load_coeff(randomload);
+   // ConstantCoefficient two(2.0);
+   // PoissonSolver->SetEssBdrData(&two);
+   PoissonSolver->SetRHSCoefficient(&load_coeff);
    PoissonSolver->SetEssentialBoundary(ess_bdr);
-   PoissonSolver->SetNeumannBoundary(inhomogenous_neuman_bdr);
-   PoissonSolver->SetNeumannData(&load_coeff);
    PoissonSolver->Init();
-
 
    ConstantCoefficient eps2_cf(epsilon*epsilon);
    FPDESolver * H1Projection = new FPDESolver();
@@ -329,7 +320,7 @@ int main(int argc, char *argv[])
       sout_K.precision(8);
    }
 
-   mfem::ParaViewDataCollection paraview_dc("Heat_sink", &mesh);
+   mfem::ParaViewDataCollection paraview_dc("Thermal_compliance", &mesh);
    paraview_dc.SetPrefixPath("ParaView");
    paraview_dc.SetLevelsOfDetail(order);
    paraview_dc.SetCycle(0);
@@ -413,7 +404,8 @@ int main(int argc, char *argv[])
          avg_compliance /= (double)batch_size;  
 
          double norm_avg_grad = pow(avg_grad.ComputeL2Error(zero),2);
-         double variance = (avg_grad_norm - norm_avg_grad)/(batch_size - 1);  
+         double denom = batch_size == 1 ? batch_size : batch_size-1;
+         double variance = (avg_grad_norm - norm_avg_grad)/denom;  
 
          avg_grad *= alpha;
          K -= avg_grad;

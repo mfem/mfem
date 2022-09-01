@@ -18,6 +18,7 @@ private:
     int order = 1;
     Coefficient * diffcf = nullptr;
     Coefficient * cf = nullptr;
+    Coefficient * essbdr_cf = nullptr;
     Coefficient * neumann_cf = nullptr;
     VectorCoefficient * gradient_cf = nullptr;
     double alpha = 1.0; 
@@ -58,6 +59,7 @@ public:
     void SetEssentialBoundary(const Array<int> & ess_bdr_){ ess_bdr = ess_bdr_;};
     void SetNeumannBoundary(const Array<int> & neumann_bdr_){ neumann_bdr = neumann_bdr_;};
     void SetNeumannData(Coefficient * neumann_cf_) {neumann_cf = neumann_cf_;}
+    void SetEssBdrData(Coefficient * essbdr_cf_) {essbdr_cf = essbdr_cf_;}
     void SetGradientData(VectorCoefficient * gradient_cf_) {gradient_cf = gradient_cf_;}
 
     void SetAlpha(double alpha_) { alpha = alpha_; }

@@ -140,6 +140,11 @@ void FPDESolver::Solve()
       ConstantCoefficient c2(-poles[i]);
       a->AddDomainIntegrator(new MassIntegrator(c2));
       a->Assemble();
+      if (essbdr_cf)
+      {
+         MFEM_VERIFY(n==1, "Inhomogeneous Dirichlet data not supported for fractional powers yet!");
+         x->ProjectBdrCoefficient(*essbdr_cf,ess_bdr);
+      }
       a->FormLinearSystem(ess_tdof_list, *x, *b, A, X, B);
 
 
@@ -161,8 +166,8 @@ void FPDESolver::Solve()
       M = new GSSmoother((SparseMatrix&)(*A));
       cg = new CGSolver;
 #endif
-      cg->SetRelTol(1e-6);
-      cg->SetMaxIter(1000);
+      cg->SetRelTol(1e-10);
+      cg->SetMaxIter(10000);
       cg->SetPrintLevel(0);
       cg->SetPreconditioner(*M);
       cg->SetOperator(*A);
