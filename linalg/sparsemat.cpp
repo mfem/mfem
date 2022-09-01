@@ -497,7 +497,6 @@ void SparseMatrix::SortColumnIndices()
 
       cusparseDestroyCsru2csrInfo( sortInfoA );
       cusparseDestroyMatDescr( matA_descr );
-      isSorted = true;
 #endif
    }
    else if ( Device::Allows( Backend::HIP_MASK ))
@@ -539,8 +538,6 @@ void SparseMatrix::SortColumnIndices()
 
       A.CopyFrom( a_tmp.GetMemory(), nnzA );
       hipsparseDestroyMatDescr( descrA );
-
-      isSorted = true;
 #endif
    }
    else
@@ -567,8 +564,8 @@ void SparseMatrix::SortColumnIndices()
             A[j] = row[k].two;
          }
       }
-      isSorted = true;
    }
+   isSorted = true;
 }
 
 void SparseMatrix::MoveDiagonalFirst()
