@@ -970,9 +970,6 @@ void BilinearForm::EliminateVDofs(const Array<int> &vdofs_,
                                   DiagonalPolicy dpolicy)
 {
    vdofs_.HostRead();
-   mat->HostReadWriteI();
-   mat->HostReadWriteJ();
-   mat->HostReadWriteData();
    for (int i = 0; i < vdofs_.Size(); i++)
    {
       int vdof = vdofs_[i];
@@ -996,9 +993,6 @@ void BilinearForm::EliminateVDofs(const Array<int> &vdofs_,
    }
 
    vdofs_.HostRead();
-   mat->HostReadWriteI();
-   mat->HostReadWriteJ();
-   mat->HostReadWriteData();
    for (int i = 0; i < vdofs_.Size(); i++)
    {
       int vdof = vdofs_[i];
