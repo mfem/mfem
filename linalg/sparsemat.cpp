@@ -1772,6 +1772,9 @@ void SparseMatrix::EliminateRowCol(int rc, const double sol, Vector &rhs,
 {
    MFEM_ASSERT(rc < height && rc >= 0,
                "Row " << rc << " not in matrix of height " << height);
+   HostReadWriteI();
+   HostReadWriteJ();
+   HostReadWriteData();
 
    if (Rows == NULL)
    {
