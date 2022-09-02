@@ -1846,66 +1846,59 @@ void DiffusionIntegrator::AssemblePatchMatrix(
             }
          }
 
+      for (int qy = minD[1][jdy]; qy <= maxD[1][jdy]; ++qy)
       {
-         int dz = jdz;
-
-         for (int qy = 0; qy < Q1D[1]; ++qy)
+         for (int qx = minD[0][jdx]; qx <= maxD[0][jdx]; ++qx)
          {
-            for (int qx = 0; qx < Q1D[0]; ++qx)
+            for (int d=0; d<dim; ++d)
             {
-               for (int d=0; d<dim; ++d)
-               {
-                  gradQXY(qx,qy,d) = 0.0;
-               }
+               gradQXY(qx,qy,d) = 0.0;
             }
          }
+      }
 
+      for (int qx = minD[0][jdx]; qx <= maxD[0][jdx]; ++qx)
+      {
+         gradQX(qx,0) = 0.0;
+         gradQX(qx,1) = 0.0;
+      }
+
+      const double s = ej[jdx + (D1D[0] * (jdy + (D1D[1] * jdz)))];
+
+      for (int qx = minD[0][jdx]; qx <= maxD[0][jdx]; ++qx)
+      {
+         gradQX(qx,0) += s * B[0](qx,jdx);
+         gradQX(qx,1) += s * G[0](qx,jdx);
+      }
+
+      for (int qy = minD[1][jdy]; qy <= maxD[1][jdy]; ++qy)
+      {
+         const double wy  = B[1](qy,jdy);
+         const double wDy = G[1](qy,jdy);
+         for (int qx = minD[0][jdx]; qx <= maxD[0][jdx]; ++qx)
          {
-            int dy = jdy;
+            const double wx  = gradQX(qx,0);
+            const double wDx = gradQX(qx,1);
+            gradQXY(qx,qy,0) += wDx * wy;
+            gradQXY(qx,qy,1) += wx  * wDy;
+            gradQXY(qx,qy,2) += wx  * wy;
+         }
+      }
+
+      for (int qz = minD[2][jdz]; qz <= maxD[2][jdz]; ++qz)
+      {
+         const double wz  = B[2](qz,jdz);
+         const double wDz = G[2](qz,jdz);
+         for (int qy = minD[1][jdy]; qy <= maxD[1][jdy]; ++qy)
+         {
             for (int qx = minD[0][jdx]; qx <= maxD[0][jdx]; ++qx)
             {
-               gradQX(qx,0) = 0.0;
-               gradQX(qx,1) = 0.0;
+               grad[0](qx,qy,qz) += gradQXY(qx,qy,0) * wz;
+               grad[1](qx,qy,qz) += gradQXY(qx,qy,1) * wz;
+               grad[2](qx,qy,qz) += gradQXY(qx,qy,2) * wDz;
             }
-            {
-               int dx = jdx;
-               const double s = ej[dx + (D1D[0] * (dy + (D1D[1] * dz)))];
-
-               for (int qx = minD[0][dx]; qx <= maxD[0][dx]; ++qx)
-               {
-                  gradQX(qx,0) += s * B[0](qx,dx);
-                  gradQX(qx,1) += s * G[0](qx,dx);
-               }
-            }
-            for (int qy = minD[1][dy]; qy <= maxD[1][dy]; ++qy)
-            {
-               const double wy  = B[1](qy,dy);
-               const double wDy = G[1](qy,dy);
-               for (int qx = minD[0][jdx]; qx <= maxD[0][jdx]; ++qx)
-               {
-                  const double wx  = gradQX(qx,0);
-                  const double wDx = gradQX(qx,1);
-                  gradQXY(qx,qy,0) += wDx * wy;
-                  gradQXY(qx,qy,1) += wx  * wDy;
-                  gradQXY(qx,qy,2) += wx  * wy;
-               }
-            }
-         } // dy
-         for (int qz = minD[2][dz]; qz <= maxD[2][dz]; ++qz)
-         {
-            const double wz  = B[2](qz,dz);
-            const double wDz = G[2](qz,dz);
-            for (int qy = minD[1][jdy]; qy <= maxD[1][jdy]; ++qy)
-            {
-               for (int qx = minD[0][jdx]; qx <= maxD[0][jdx]; ++qx)
-               {
-                  grad[0](qx,qy,qz) += gradQXY(qx,qy,0) * wz;
-                  grad[1](qx,qy,qz) += gradQXY(qx,qy,1) * wz;
-                  grad[2](qx,qy,qz) += gradQXY(qx,qy,2) * wDz;
-               }
-            }
-         } // qz
-      } // dz
+         }
+      } // qz
 
       for (int qz = minD[2][jdz]; qz <= maxD[2][jdz]; ++qz)
       {
