@@ -192,7 +192,8 @@ int main(int argc, char *argv[])
    if (H1 || L2)
    {
       auto *lor_solver = new LORSolver<HypreBoomerAMG>(a, ess_dofs);
-      HYPRE_BigInt nnz = lor_solver->GetLOR().GetAssembledSystem().As<HypreParMatrix>()->NNZ();
+      HYPRE_BigInt nnz =
+         lor_solver->GetLOR().GetAssembledSystem().As<HypreParMatrix>()->NNZ();
       if (Mpi::Root()) { cout << "Number of NNZ:  " << nnz << endl; }
 
       solv_lor.reset(lor_solver);
