@@ -745,7 +745,7 @@ ParAlgebraicCoarseSpace::ParAlgebraicCoarseSpace(
    ldof_group.SetSize(lsize);
    ldof_group = 0;
 
-   GroupTopology &group_topo = gc_fine->GetGroupTopology();
+   const GroupTopology &group_topo = gc_fine->GetGroupTopology();
    gc = new GroupCommunicator(group_topo);
    Table &group_ldof = gc->GroupLDofTable();
    group_ldof.MakeI(group_ldof_fine.Size());
