@@ -426,7 +426,9 @@ endif
 # Sidre and required libraries configuration
 # Be sure to check the HDF5_DIR (set above) is correct
 SIDRE_DIR = @MFEM_DIR@/../axom
-SIDRE_OPT = -I$(SIDRE_DIR)/include -I$(CONDUIT_DIR)/include\
+# Sidre requires the compiler include paths to include the inner 'include/conduit'
+# sub-directory.
+SIDRE_OPT = -I$(SIDRE_DIR)/include -I$(CONDUIT_DIR)/include -I$(CONDUIT_DIR)/include/conduit
  -I$(HDF5_DIR)/include
 SIDRE_LIB = \
    $(XLINKER)-rpath,$(SIDRE_DIR)/lib -L$(SIDRE_DIR)/lib \
