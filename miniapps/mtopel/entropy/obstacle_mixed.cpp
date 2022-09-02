@@ -57,7 +57,7 @@ int main(int argc, char *argv[])
                   "Mesh file to use.");
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree) or -1 for"
-                  " isoparametric space.");
+                  "isoparametric space.");
    args.AddOption(&ref_levels, "-r", "--refs",
                   "Number of h-refinements.");
    args.AddOption(&max_it, "-mi", "--max-it",
@@ -97,7 +97,6 @@ int main(int argc, char *argv[])
    offsets[2] = L2fes.GetVSize();
    offsets.PartialSum();
 
-
    Array<int> ess_tdof_list;
    Array<int> ess_bdr(mesh.bdr_attributes.Max());
    if (mesh.bdr_attributes.Size())
@@ -130,70 +129,70 @@ int main(int argc, char *argv[])
    BlockVector x(offsets), rhs(offsets);
    x = 0.0; rhs = 0.0;
 
-   GridFunction u_gf, lambda_gf;
+   GridFunction u_gf, delta_psi_gf;
    FunctionCoefficient sol0_cf(sol_func);
    u_gf.MakeRef(&H1fes,x.GetBlock(0));
-   u_gf.ProjectCoefficient(sol0_cf);
-   lambda_gf.MakeRef(&L2fes,x.GetBlock(1));
+   // u_gf.ProjectBdrCoefficient(sol0_cf, ess_bdr);
+   delta_psi_gf.MakeRef(&L2fes,x.GetBlock(1));
 
-   LinearForm b0,b1;
-   FunctionCoefficient rhs0_cf(rhs_func);
-   b0.Update(&H1fes,rhs.GetBlock(0),0);
-   b1.Update(&L2fes,rhs.GetBlock(1),0);
+   // LinearForm b0,b1;
+   // // FunctionCoefficient rhs0_cf(rhs_func);
+   // b0.Update(&H1fes,rhs.GetBlock(0),0);
+   // b1.Update(&L2fes,rhs.GetBlock(1),0);
 
-   b0.AddDomainIntegrator(new DomainLFIntegrator(rhs0_cf));
-   b0.Assemble();
-   b1.Assemble();
+   // b0.AddDomainIntegrator(new DomainLFIntegrator(rhs0_cf));
+   // b0.Assemble();
+   // b1.Assemble();
 
    //-----------------------------
 
-   BilinearForm a00(&H1fes);
-   a00.AddDomainIntegrator(new DiffusionIntegrator());
-   a00.Assemble();
-   a00.EliminateEssentialBC(ess_bdr,x.GetBlock(0),rhs.GetBlock(0),mfem::Operator::DIAG_ONE);
-   a00.Finalize();
-   SparseMatrix &A00 = a00.SpMat();
+   // BilinearForm a00(&H1fes);
+   // a00.AddDomainIntegrator(new DiffusionIntegrator());
+   // a00.Assemble();
+   // a00.EliminateEssentialBC(ess_bdr,x.GetBlock(0),rhs.GetBlock(0),mfem::Operator::DIAG_ONE);
+   // a00.Finalize();
+   // SparseMatrix &A00 = a00.SpMat();
 
-   MixedBilinearForm a10(&H1fes,&L2fes);
-   a10.AddDomainIntegrator(new MixedScalarMassIntegrator());
-   a10.Assemble();
-   a10.EliminateTrialDofs(ess_bdr, x.GetBlock(0), rhs.GetBlock(1));
-   a10.Finalize();
-   SparseMatrix &A10 = a10.SpMat();
+   // MixedBilinearForm a10(&H1fes,&L2fes);
+   // a10.AddDomainIntegrator(new MixedScalarMassIntegrator());
+   // a10.Assemble();
+   // a10.EliminateTrialDofs(ess_bdr, x.GetBlock(0), rhs.GetBlock(1));
+   // a10.Finalize();
+   // SparseMatrix &A10 = a10.SpMat();
 
-   // MixedBilinearForm a01(&L2fes,&H1fes);
-   // a01.AddDomainIntegrator(new MixedScalarMassIntegrator());
-   // a01.Assemble();
-   // a01.EliminateTestDofs(ess_bdr);
-   // a01.Finalize();
-   // SparseMatrix &A01 = a01.SpMat();
-   SparseMatrix &A01 = *Transpose(A10);
+   // // MixedBilinearForm a01(&L2fes,&H1fes);
+   // // a01.AddDomainIntegrator(new MixedScalarMassIntegrator());
+   // // a01.Assemble();
+   // // a01.EliminateTestDofs(ess_bdr);
+   // // a01.Finalize();
+   // // SparseMatrix &A01 = a01.SpMat();
+   // SparseMatrix &A01 = *Transpose(A10);
 
-   // initial guess for lambda;
-   lambda_gf = 0.0;
-   ConstantCoefficient zero(0.0);
-   ExponentialGridFunctionCoefficient exp_l(lambda_gf,zero);
-   BilinearForm a11(&L2fes);
-   ProductCoefficient neg_exp_l(-1.0,exp_l);
-   a11.AddDomainIntegrator(new MassIntegrator(neg_exp_l));
-   // a11.AddDomainIntegrator(new MassIntegrator(exp_l));
-   a11.Assemble();
-   a11.Finalize();
-   SparseMatrix &A11 = a11.SpMat(); 
+   // // initial guess for psi;
+   // // psi_gf = 0.0;
+   // // ConstantCoefficient zero(0.0);
+   // // ExponentialGridFunctionCoefficient exp_l(psi_gf,zero);
+   // // BilinearForm a11(&L2fes);
+   // // ProductCoefficient neg_exp_l(-1.0,exp_l);
+   // // a11.AddDomainIntegrator(new MassIntegrator(neg_exp_l));
+   // // // a11.AddDomainIntegrator(new MassIntegrator(exp_l));
+   // // a11.Assemble();
+   // // a11.Finalize();
+   // // SparseMatrix &A11 = a11.SpMat(); 
 
 
-   BlockMatrix A(offsets);
-   A.SetBlock(0,0,&A00);
-   A.SetBlock(1,0,&A10);
-   A.SetBlock(0,1,&A01);
-   A.SetBlock(1,1,&A11);
+   // BlockMatrix A(offsets);
+   // A.SetBlock(0,0,&A00);
+   // A.SetBlock(1,0,&A10);
+   // A.SetBlock(0,1,&A01);
+   // A.SetBlock(1,1,&A11);
 
-   // iterative solver
-   BlockDiagonalPreconditioner prec(offsets);
-   prec.SetDiagonalBlock(0,new GSSmoother(A00));
-   prec.SetDiagonalBlock(1,new GSSmoother(A11));
-   // PCG(A,prec,rhs,x,1,200,1e-12,0.0);
-   GMRES(A,prec,rhs,x,1,200, 50, 1e-12,0.0);
+   // // iterative solver
+   // BlockDiagonalPreconditioner prec(offsets);
+   // prec.SetDiagonalBlock(0,new GSSmoother(A00));
+   // prec.SetDiagonalBlock(1,new GSSmoother(A11));
+   // // PCG(A,prec,rhs,x,1,200,1e-12,0.0);
+   // GMRES(A,prec,rhs,x,1,200, 50, 1e-12,0.0);
    
    // // or direct solver
    // SparseMatrix * A_mono = A.CreateMonolithic();
@@ -202,228 +201,246 @@ int main(int argc, char *argv[])
 
 
    u_gf.MakeRef(&H1fes, x.GetBlock(0), 0);
-   lambda_gf.MakeRef(&L2fes, x.GetBlock(1), 0);
+   delta_psi_gf.MakeRef(&L2fes, x.GetBlock(1), 0);
 
-   if (visualization)
-   {
-      char vishost[] = "localhost";
-      int  visport   = 19916;
-
-      GridFunction uex_gf(&H1fes);
-      uex_gf.ProjectCoefficient(sol0_cf);
-      socketstream uex_sock(vishost, visport);
-      uex_sock.precision(8);
-      uex_sock << "solution\n" << mesh << uex_gf << "window_title 'Exact Solution u'"  << flush;
-
-      socketstream u_sock(vishost, visport);
-      u_sock.precision(8);
-      u_sock << "solution\n" << mesh << u_gf << "window_title 'Solution u'"  << flush;
-
-      socketstream lambda_sock(vishost, visport);
-      lambda_sock.precision(8);
-      lambda_sock << "solution\n" << mesh << lambda_gf << "window_title 'Solution λ'"  << flush;
-   }
-
-
-   return 0;
-
-   // // 7. Set up the linear form b(.) which corresponds to the right-hand side of
-   // //    the FEM linear system, which in this case is (1,phi_i) where phi_i are
-   // //    the basis functions in the finite element fespace.
-
-   // auto IC_func = [](const Vector &x)
+   // if (visualization)
    // {
-   //    double r0 = 1.0;
-   //    double rr = 0.0;
-   //    for (int i=0; i<x.Size(); i++)
-   //    {
-   //       rr += x(i)*x(i);
-   //    }
-   //    return r0*r0 - rr;
-   // };
-   // ConstantCoefficient one(1.0);
-   // ConstantCoefficient zero(0.0);
-   // Vector zero_vec(dim);
-   // zero_vec = 0.0;
+   //    char vishost[] = "localhost";
+   //    int  visport   = 19916;
 
-   // // 8. Define the solution vector x as a finite element grid function
-   // //    corresponding to fespace. Initialize x with initial guess of zero,
-   // //    which satisfies the boundary conditions.
-   // GridFunction u(&fespace);
-   // GridFunction u_old(&fespace);
-   // GridFunction psi(&fespace);
-   // GridFunction delta_psi(&fespace);
-   // GridFunction psi_old(&fespace);
-   // delta_psi = 0.0;
-   // u_old = 0.0;
+   //    GridFunction uex_gf(&H1fes);
+   //    uex_gf.ProjectCoefficient(sol0_cf);
+   //    socketstream uex_sock(vishost, visport);
+   //    uex_sock.precision(8);
+   //    uex_sock << "solution\n" << mesh << uex_gf << "window_title 'Exact Solution u'"  << flush;
 
-   // /////////// Example 1   
-   // // u = 1.0;
-   // // ConstantCoefficient f(0.0);
-   // // FunctionCoefficient f(func);
-   // // FunctionCoefficient IC_coef(IC_func);
-   // // ConstantCoefficient bdry_coef(0.1);
-   // // ConstantCoefficient obstacle(0.0);
-   // // VectorConstantCoefficient obstacle_gradient(zero_vec);
-   // // SumCoefficient bdry_funcoef(bdry_coef, IC_coef);
-   // // u.ProjectCoefficient(bdry_funcoef);
-   // // double alpha0 = 0.1;
+   //    socketstream u_sock(vishost, visport);
+   //    u_sock.precision(8);
+   //    u_sock << "solution\n" << mesh << u_gf << "window_title 'Solution u'"  << flush;
 
-   // /////////// Example 2
-   // u = 0.5;
+   //    socketstream psi_sock(vishost, visport);
+   //    psi_sock.precision(8);
+   //    psi_sock << "solution\n" << mesh << psi_gf << "window_title 'Solution λ'"  << flush;
+   // }
+
+   // 7. Set up the linear form b(.) which corresponds to the right-hand side of
+   //    the FEM linear system, which in this case is (1,phi_i) where phi_i are
+   //    the basis functions in the finite element fespace.
+
+   auto IC_func = [](const Vector &x)
+   {
+      double r0 = 1.0;
+      double rr = 0.0;
+      for (int i=0; i<x.Size(); i++)
+      {
+         rr += x(i)*x(i);
+      }
+      return r0*r0 - rr;
+   };
+   ConstantCoefficient one(1.0);
+   ConstantCoefficient zero(0.0);
+
+   // 8. Define the solution vector x as a finite element grid function
+   //    corresponding to fespace. Initialize x with initial guess of zero,
+   //    which satisfies the boundary conditions.
+   GridFunction u_old_gf(&H1fes);
+   GridFunction psi_old_gf(&L2fes);
+   GridFunction psi_gf(&L2fes);
+   u_old_gf = 0.0;
+   psi_old_gf = 0.0;
+
+   /////////// Example 1   
+   // u = 1.0;
+   // FunctionCoefficient f(rhs_func);
    // FunctionCoefficient IC_coef(IC_func);
-   // ConstantCoefficient f(0.0);
-   // FunctionCoefficient obstacle(spherical_obstacle);
-   // VectorFunctionCoefficient obstacle_gradient(dim, spherical_obstacle_gradient);
-   // u.ProjectCoefficient(IC_coef);
+   // ConstantCoefficient bdry_coef(0.1);
+   // ConstantCoefficient obstacle(0.0);
+   // SumCoefficient bdry_funcoef(bdry_coef, IC_coef);
+   // u_gf.ProjectCoefficient(bdry_funcoef);
+   // double alpha0 = 0.1;
+
+   /////////// Example 2
+   FunctionCoefficient IC_coef(IC_func);
+   ConstantCoefficient f(0.0);
+   FunctionCoefficient obstacle(spherical_obstacle);
+   u_gf.ProjectCoefficient(IC_coef);
+   u_old_gf = u_gf;
+   double alpha0 = 1.0;
+
+   /////////// Example 2
+   // u = 0.5;
+   // FunctionCoefficient f(load_biactivity);
+   // FunctionCoefficient bdry_coef(exact_solution_biactivity);
+   // ConstantCoefficient obstacle(0.0);
+   // u_gf.ProjectBdrCoefficient(bdry_coef, ess_bdr);
    // double alpha0 = 1.0;
 
-   // /////////// Example 2
-   // // u = 0.5;
-   // // FunctionCoefficient f(load_biactivity);
-   // // FunctionCoefficient bdry_coef(exact_solution_biactivity);
-   // // ConstantCoefficient obstacle(0.0);
-   // // VectorConstantCoefficient obstacle_gradient(zero_vec);
-   // // u.ProjectBdrCoefficient(bdry_coef, ess_bdr);
-   // // double alpha0 = 1.0;
-
-   // LogarithmGridFunctionCoefficient ln_u(u, obstacle);
-   // psi.ProjectCoefficient(ln_u);
-   // psi_old = psi;
-
+   LogarithmGridFunctionCoefficient ln_u(u_gf, obstacle);
+   psi_gf.ProjectCoefficient(ln_u);
+   psi_old_gf = psi_gf;
 
    // OperatorPtr A;
    // Vector B, X;
 
-   // char vishost[] = "localhost";
-   // int  visport   = 19916;
-   // socketstream sol_sock(vishost, visport);
-   // sol_sock.precision(8);
+   char vishost[] = "localhost";
+   int  visport   = 19916;
+   socketstream sol_sock(vishost, visport);
+   sol_sock.precision(8);
 
-   // // 12. Iterate
-   // int k;
-   // double increment = 1e-4;
-   // for (k = 0; k < max_it; k++)
-   // {
-   //    double alpha = alpha0 / sqrt(k+1);
-   //    // double alpha = alpha0 * sqrt(k+1);
-   //    // double alpha = alpha0;
-   //    // alpha *= 2;
+   socketstream psi_sock(vishost, visport);
+   psi_sock.precision(8);
 
-   //    int j;
-   //    for ( j = 0; j < 15; j++)
-   //    {
-   //       // A. Assembly
+   // 12. Iterate
+   int k;
+   double increment_u = 1e-4;
+   double increment_psi = 1e-4;
+   for (k = 0; k < max_it; k++)
+   {
+      double alpha = alpha0 / sqrt(k+1);
+      // double alpha = alpha0 * sqrt(k+1);
+      // double alpha = alpha0;
+      // alpha *= 2;
+
+      int j;
+      for ( j = 0; j < 15; j++)
+      {
+         // A. Assembly
          
-   //       // MD
-   //       // double c1 = 1.0;
-   //       // double c2 = 1.0 - alpha;
+         // // MD
+         double c1 = 1.0;
+         double c2 = 1.0 - alpha;
 
-   //       // IMD
-   //       double c1 = 1.0 + alpha;
-   //       double c2 = 1.0;
+         // // IMD
+         // double c1 = 1.0 + alpha;
+         // double c2 = 1.0;
 
-   //       GridFunctionCoefficient psi_cf(&psi);
-   //       GridFunctionCoefficient psi_old_cf(&psi_old);
-   //       ExponentialGridFunctionCoefficient exp_psi(psi, zero);
-   //       ExponentialGridFunctionCoefficient exp_psi_old(psi_old, zero);
-   //       GradientGridFunctionCoefficient grad_psi(&psi);
-   //       GradientGridFunctionCoefficient grad_psi_old(&psi_old);
-   //       ProductCoefficient c1_exp_psi(c1, exp_psi);
-   //       ProductCoefficient c2_exp_psi_old(c2, exp_psi_old);
-   //       ScalarVectorProductCoefficient c1_exp_psi_grad_psi(c1_exp_psi, grad_psi);
-   //       ScalarVectorProductCoefficient c2_exp_psi_old_grad_psi_old(c2_exp_psi_old, grad_psi_old);
+         BilinearForm a00(&H1fes);
+         a00.AddDomainIntegrator(new DiffusionIntegrator());
+         a00.Assemble();
+         a00.EliminateEssentialBC(ess_bdr,x.GetBlock(0),rhs.GetBlock(0),mfem::Operator::DIAG_ONE);
+         a00.Finalize();
+         SparseMatrix &A00 = a00.SpMat();
 
-   //       BilinearForm a(&fespace);
-   //       a.AddDomainIntegrator(new DiffusionIntegrator(c1_exp_psi));
-   //       a.AddDomainIntegrator(new TransposeIntegrator(new ConvectionIntegrator(c1_exp_psi_grad_psi)));
-   //       a.AddDomainIntegrator(new MassIntegrator(one));
-   //       a.Assemble();
+         MixedBilinearForm a10(&H1fes,&L2fes);
+         a10.AddDomainIntegrator(new MixedScalarMassIntegrator());
+         a10.Assemble();
+         a10.EliminateTrialDofs(ess_bdr, x.GetBlock(0), rhs.GetBlock(1));
+         a10.Finalize();
+         SparseMatrix &A10 = a10.SpMat();
 
-   //       VectorSumCoefficient gradient_term_RHS(c1_exp_psi_grad_psi, c2_exp_psi_old_grad_psi_old, -1.0, 1.0);
-   //       SumCoefficient mass_term_RHS(psi_cf, psi_old_cf, -1.0, 1.0);
-   //       ScalarVectorProductCoefficient minus_alpha_obstacle_gradient(-alpha, obstacle_gradient);
-   //       ProductCoefficient alpha_f(alpha, f);
+         SparseMatrix &A01 = *Transpose(A10);
 
-   //       LinearForm b(&fespace);
-   //       b.AddDomainIntegrator(new DomainLFGradIntegrator(gradient_term_RHS));
-   //       b.AddDomainIntegrator(new DomainLFIntegrator(mass_term_RHS));
-   //       b.AddDomainIntegrator(new DomainLFGradIntegrator(minus_alpha_obstacle_gradient));
-   //       b.AddDomainIntegrator(new DomainLFIntegrator(alpha_f));
-   //       b.Assemble();
+         BlockMatrix A(offsets);
+         A.SetBlock(0,0,&A00);
+         A.SetBlock(1,0,&A10);
+         A.SetBlock(0,1,&A01);
 
-   //       // B. Solve state equation
-   //       a.FormLinearSystem(ess_tdof_list, delta_psi, b, A, X, B);
-   //       // GSSmoother S((SparseMatrix&)(*A));
-   //       // GMRES(*A, S, B, X, 0, 20000, 100, 1e-8, 1e-8);
-   //       umf_solver.Control[UMFPACK_ORDERING] = UMFPACK_ORDERING_METIS;
-   //       umf_solver.SetOperator(*A);
-   //       umf_solver.Mult(B, X);
+         ExponentialGridFunctionCoefficient exp_psi(psi_gf, zero);
+         ProductCoefficient neg_exp_psi(-1.0,exp_psi);
+
+         BilinearForm a11(&L2fes);
+         a11.AddDomainIntegrator(new MassIntegrator(neg_exp_psi));
+         a11.Assemble();
+         a11.Finalize();
+         SparseMatrix &A11 = a11.SpMat(); 
+
+         A.SetBlock(1,1,&A11);
+
+         GradientGridFunctionCoefficient grad_u_old(&u_old_gf);
+         ScalarVectorProductCoefficient c2_grad_u_old(c2, grad_u_old);
+         ProductCoefficient alpha_f(alpha, f);
+         GridFunctionCoefficient psi_cf(&psi_gf);
+         GridFunctionCoefficient psi_old_cf(&psi_old_gf);
+         SumCoefficient psi_old_minus_psi(psi_old_cf, psi_cf, 1.0, -1.0);
          
+         LinearForm b0,b1;
+         b0.Update(&H1fes,rhs.GetBlock(0),0);
+         b1.Update(&L2fes,rhs.GetBlock(1),0);
 
-   //       // C. Recover state variable
-   //       a.RecoverFEMSolution(X, b, delta_psi);
+         b0.AddDomainIntegrator(new DomainLFIntegrator(alpha_f));
+         b0.AddDomainIntegrator(new DomainLFGradIntegrator(c2_grad_u_old));
+         b0.AddDomainIntegrator(new DomainLFIntegrator(psi_old_minus_psi));
+         b0.Assemble();
 
-   //       double Newton_update_size = delta_psi.ComputeL2Error(zero);
+         b1.AddDomainIntegrator(new DomainLFIntegrator(exp_psi));
+         b1.AddDomainIntegrator(new DomainLFIntegrator(obstacle));
+         b1.Assemble();
 
-   //       double gamma = 1.0;
-   //       delta_psi *= gamma;
-   //       psi += delta_psi;
+         // iterative solver
+         BlockDiagonalPreconditioner prec(offsets);
+         prec.SetDiagonalBlock(0,new GSSmoother(A00));
+         prec.SetDiagonalBlock(1,new GSSmoother(A11));
+
+         GMRES(A,prec,rhs,x,1,200, 50, 1e-12,0.0);
          
-   //       // double update_tol = 1e-10;
-   //       if (Newton_update_size < increment/10.0)
-   //       {
-   //          break;
-   //       }
-   //    }
-   //    mfem::out << "Number of Newton iterations = " << j << endl;
+         // // or direct solver
+         // SparseMatrix * A_mono = A.CreateMonolithic();
+         // UMFPackSolver umf(*A_mono);
+         // umf.Mult(rhs,x);
+
+         double Newton_update_size = delta_psi_gf.ComputeL2Error(zero);
+
+         psi_sock << "solution\n" << mesh << delta_psi_gf << "window_title 'delta psi'" << flush;
+
+         double gamma = 0.1;
+         delta_psi_gf *= gamma;
+         psi_gf += delta_psi_gf;
+
+         cin.get();
+         
+         // double update_tol = 1e-10;
+         if (Newton_update_size < increment_u/10.0)
+         {
+            break;
+         }
+      }
+      mfem::out << "Number of Newton iterations = " << j << endl;
       
-   //    psi_old = psi;
+      // delta_u_gf = u_gf;
+      // delta_u_gf -= u_old_gf;
+      // increment_u = delta_u_gf.ComputeL2Error(zero);
 
-   //    // 14. Send the solution by socket to a GLVis server.
-   //    u_old = u;
-   //    ExponentialGridFunctionCoefficient exp_psi(psi, obstacle);
-   //    u.ProjectCoefficient(exp_psi);
-   //    // sol_sock << "solution\n" << mesh << psi << "window_title 'Discrete solution'" << flush;
-   //    sol_sock << "solution\n" << mesh << u << "window_title 'Discrete solution'" << flush;
+      // delta_psi_gf = psi_gf;
+      // delta_psi_gf -= psi_old_gf;
+      // increment_psi = delta_psi_gf.ComputeL2Error(zero);
+
+      u_old_gf = u_gf;
+      psi_old_gf = psi_gf;
+
+      // 14. Send the solution by socket to a GLVis server.
+      // u_old = u;
+      // ExponentialGridFunctionCoefficient exp_psi(psi, obstacle);
+      // u.ProjectCoefficient(exp_psi);
+      // sol_sock << "solution\n" << mesh << exp_psi << "window_title 'Discrete solution'" << flush;
+      sol_sock << "solution\n" << mesh << u_gf << "window_title 'Discrete solution'" << flush;
       
-   //    GridFunction delta_u(&fespace);
-   //    delta_u = u;
-   //    delta_u -= u_old;
-   //    increment = delta_u.ComputeL2Error(zero);
-   //    if (increment < 1e-5)
-   //    {
-   //       break;
-   //    }
-   // }
+      // if (increment_u < 1e-5 && increment_psi < 1e-5)
+      // {
+      //    break;
+      // }
+   }
 
-   // mfem::out << "\n Outer iterations: " << k << "\n || u - u_prvs || = " << increment << endl;
+   mfem::out << "\n Outer iterations: " << k << "\n || u - u_prvs || = " << increment_u << endl;
 
-   // // 14. Exact solution.
-   // if (visualization)
-   // {
-   //    socketstream err_sock(vishost, visport);
-   //    err_sock.precision(8);
-   //    // FunctionCoefficient exact_coef(exact_solution_biactivity);
-   //    FunctionCoefficient exact_coef(exact_solution_obstacle);
+   // 14. Exact solution.
+   if (visualization)
+   {
+      socketstream err_sock(vishost, visport);
+      err_sock.precision(8);
+      // FunctionCoefficient exact_coef(exact_solution_biactivity);
+      FunctionCoefficient exact_coef(exact_solution_obstacle);
 
-   //    GridFunction error(&fespace);
-   //    error = 0.0;
-   //    error.ProjectCoefficient(exact_coef);
-   //    error -= u;
+      GridFunction error(&H1fes);
+      error = 0.0;
+      error.ProjectCoefficient(exact_coef);
+      error -= u_gf;
 
-   //    mfem::out << "\n error = " << error.ComputeL2Error(zero) << endl;
+      mfem::out << "\n error = " << error.ComputeL2Error(zero) << endl;
 
-   //    err_sock << "solution\n" << mesh << error << "window_title 'Error'"  << flush;
-   // }
-
-   // // 15. Free the used memory.
-   // if (delete_fec)
-   // {
-   //    delete fec;
-   // }
-
-   // return 0;
+      err_sock << "solution\n" << mesh << error << "window_title 'Error'"  << flush;
+   }
+   
+   return 0;
 }
 
 double LogarithmGridFunctionCoefficient::Eval(ElementTransformation &T,

@@ -207,25 +207,25 @@ int main(int argc, char *argv[])
    u_old = 0.0;
 
    /////////// Example 1   
-   // u = 1.0;
+   u = 1.0;
    // ConstantCoefficient f(0.0);
-   // FunctionCoefficient f(func);
-   // FunctionCoefficient IC_coef(IC_func);
-   // ConstantCoefficient bdry_coef(0.1);
-   // ConstantCoefficient obstacle(0.0);
-   // VectorConstantCoefficient obstacle_gradient(zero_vec);
-   // SumCoefficient bdry_funcoef(bdry_coef, IC_coef);
-   // u.ProjectCoefficient(bdry_funcoef);
-   // double alpha0 = 0.1;
+   FunctionCoefficient f(func);
+   FunctionCoefficient IC_coef(IC_func);
+   ConstantCoefficient bdry_coef(0.5);
+   ConstantCoefficient obstacle(0.0);
+   VectorConstantCoefficient obstacle_gradient(zero_vec);
+   SumCoefficient bdry_funcoef(bdry_coef, IC_coef);
+   u.ProjectCoefficient(bdry_funcoef);
+   double alpha0 = 0.1;
 
    /////////// Example 2
-   u = 0.5;
-   FunctionCoefficient IC_coef(IC_func);
-   ConstantCoefficient f(0.0);
-   FunctionCoefficient obstacle(spherical_obstacle);
-   VectorFunctionCoefficient obstacle_gradient(dim, spherical_obstacle_gradient);
-   u.ProjectCoefficient(IC_coef);
-   double alpha0 = 1.0;
+   // u = 0.5;
+   // FunctionCoefficient IC_coef(IC_func);
+   // ConstantCoefficient f(0.0);
+   // FunctionCoefficient obstacle(spherical_obstacle);
+   // VectorFunctionCoefficient obstacle_gradient(dim, spherical_obstacle_gradient);
+   // u.ProjectCoefficient(IC_coef);
+   // double alpha0 = 1.0;
 
    /////////// Example 2
    // u = 0.5;
