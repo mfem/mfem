@@ -26,6 +26,7 @@
 #include <fstream>
 #include "mesh-optimizer.hpp"
 #include "amster.hpp"
+#include "extrapolator.hpp"
 
 using namespace mfem;
 using namespace std;
@@ -139,87 +140,107 @@ int main (int argc, char *argv[])
    }
 
    // Visualize the starting mesh and metric values.
-   char t[] = "Updated";
+   char t[] = "Fixed outside nodes";
    vis_tmop_metric_p(mesh_poly_deg, *metric, *target_c, *pmesh, t, 0);
 
    // Detect boundary nodes.
    Array<int> vdofs;
    ParFiniteElementSpace sfespace = ParFiniteElementSpace(pmesh, fec);
-   ParGridFunction bndry_ind(&sfespace);
-   bndry_ind = 1.0;
+   ParGridFunction domain(&sfespace);
+   domain = 1.0;
    for (int i = 0; i < sfespace.GetNBE(); i++)
    {
       sfespace.GetBdrElementDofs(i, vdofs);
-      for (int j = 0; j < vdofs.Size(); j++) { bndry_ind(vdofs[j]) = 1.0; }
-      //changed this from 0 to 1 because background mesh refinement works better
+      for (int j = 0; j < vdofs.Size(); j++) { domain(vdofs[j]) = 0.0; }
    }
 
-   socketstream vis_b_func;
-   common::VisualizeField(vis_b_func, "localhost", 19916, bndry_ind,
-                          "Boundary", 300, 0, 300, 300);
+   socketstream vis_b;
+   common::VisualizeField(vis_b, "localhost", 19916, domain,
+                          "Boundary Orig Mesh", 0, 700, 300, 300);
 
-   bool background = true;
+   // Create the background mesh.
    ParMesh *pmesh_bg = NULL;
-   ParGridFunction *pmesh_bg_distance = NULL;
-   if (background)
+   Mesh *mesh_bg = NULL;
+   if (dim == 2)
    {
-      Mesh *mesh_bg = NULL;
-      if (dim == 2)
-      {
-         mesh_bg = new Mesh(Mesh::MakeCartesian2D(5, 5, Element::QUADRILATERAL, true));
-      }
-      else if (dim == 3)
-      {
-         mesh_bg = new Mesh(Mesh::MakeCartesian3D(4, 4, 4, Element::HEXAHEDRON, true));
-      }
-      mesh_bg->EnsureNCMesh();
-      pmesh_bg = new ParMesh(MPI_COMM_WORLD, *mesh_bg);
-      delete mesh_bg;
-      pmesh_bg->SetCurvature(mesh_poly_deg, false, -1, 0);
+      mesh_bg = new Mesh(Mesh::MakeCartesian2D(5, 5, Element::QUADRILATERAL, true));
+   }
+   else if (dim == 3)
+   {
+      mesh_bg = new Mesh(Mesh::MakeCartesian3D(4, 4, 4, Element::HEXAHEDRON, true));
+   }
+   mesh_bg->EnsureNCMesh();
+   pmesh_bg = new ParMesh(MPI_COMM_WORLD, *mesh_bg);
+   delete mesh_bg;
+   pmesh_bg->SetCurvature(mesh_poly_deg, false, -1, 0);
 
-
-      // jagged mesh is [-1, 4] in x, [0, 2] in y
-      // square disc mesh is [0, 1]^2
-      if (dim == 2) {
-          if (strcmp(mesh_file, "jagged.mesh") == 0) {
-          GridFunction *nodes = pmesh_bg->GetNodes();
-          for (int i = 0; i < nodes->Size()/2; i++) {
-              (*(nodes))(i) = (*(nodes))(i)*6.0 - 1.43;
-              (*(nodes))(i+nodes->Size()/2) = (*(nodes))(i+nodes->Size()/2)*3-0.43;
-            }
-         }
-          else if (strcmp(mesh_file, "../../data/square-disc.mesh") == 0) {
-              GridFunction *nodes = pmesh_bg->GetNodes();
-              for (int i = 0; i < nodes->Size()/2; i++) {
-                  (*(nodes))(i) = (*(nodes))(i)*2.0 - 0.43;
-                  (*(nodes))(i+nodes->Size()/2) = (*(nodes))(i+nodes->Size()/2)*2-0.43;
-                }
-             }
-          }
+   // Make the background mesh big enough to cover the original domain.
+   Vector p_min(dim), p_max(dim);
+   pmesh->GetBoundingBox(p_min, p_max);
+   GridFunction &x_bg = *pmesh_bg->GetNodes();
+   const int num_nodes = x_bg.Size() / dim;
+   for (int i = 0; i < num_nodes; i++)
+   {
+      for (int d = 0; d < dim; d++)
+      {
+         double length_d = p_max(d) - p_min(d),
+                extra_d = 0.2 * length_d;
+         x_bg(i + d*num_nodes) = p_min(d) - extra_d +
+                                 x_bg(i + d*num_nodes) * (length_d + 2*extra_d);
+      }
+   }
 
 #ifndef MFEM_USE_GSLIB
    MFEM_ABORT("GSLIB needed for this functionality.");
 #endif
 
    ParFiniteElementSpace h1fespace(pmesh_bg, fec);
-   pmesh_bg_distance = new ParGridFunction(&h1fespace);
+   ParGridFunction bg_domain(&h1fespace);
 
-    OptimizeMeshWithAMRForAnotherMesh(*pmesh_bg, bndry_ind, 6, *pmesh_bg_distance);
-    {
-        socketstream vis_b_func;
-        common::VisualizeField(vis_b_func, "localhost", 19916, *pmesh_bg_distance,
-                               "Boundary", 300, 0, 300, 300);
-    }
+   // Refine the background mesh around the boundary.
+   OptimizeMeshWithAMRForAnotherMesh(*pmesh_bg, domain, 5, bg_domain);
+   {
+      socketstream vis_b_func;
+      common::VisualizeField(vis_b_func, "localhost", 19916, bg_domain,
+                             "Background", 300, 700, 300, 300);
+   }
 
-    GridFunctionCoefficient ls_filt_coeff(pmesh_bg_distance);
-    ComputeScalarDistanceFromLevelSet(*pmesh_bg, ls_filt_coeff, *pmesh_bg_distance);
+   // Active extrapolation zones (fully outside).
+   Array<int> dofs;
+   Array<bool> active_zones(h1fespace.GetNE());
+   for (int e = 0; e < h1fespace.GetNE(); e++)
+   {
+      h1fespace.GetElementDofs(e, dofs);
+      Vector elem(dofs.Size());
+      bg_domain.GetSubVector(dofs, elem);
+      active_zones[e] = (elem.Min() < 0.0) ? true : false;
+   }
 
-    {
-        socketstream vis_b_func;
-        common::VisualizeField(vis_b_func, "localhost", 19916, *pmesh_bg_distance,
-                               "Distance", 300, 0, 300, 300);
-    }
+   // Extrapolate.
+   ParGridFunction bg_domain_xtrap(&h1fespace);
+   Extrapolator e;
+   e.xtrap_type     = Extrapolator::ASLAM;
+   e.xtrap_degree   = 1;
+   e.visualization = true;
+   ParGridFunction lset_1(bg_domain);
+   //DiffuseField(lset_1, 3);
+   DiffuseH1(lset_1, 10.0);
+   GridFunctionCoefficient level_set(&lset_1);
 
+   e.Extrapolate(level_set, active_zones, bg_domain,
+                 2.0, bg_domain_xtrap);
+
+   socketstream vis_b_func;
+   common::VisualizeField(vis_b_func, "localhost", 19916, bg_domain_xtrap,
+                          "Extrapolated", 0, 1000, 300, 300);
+
+   // Compute a distance function on the background.
+   GridFunctionCoefficient ls_filt_coeff(&bg_domain_xtrap);
+   ComputeScalarDistanceFromLevelSet(*pmesh_bg, ls_filt_coeff, bg_domain);
+   {
+      socketstream vis_b_func;
+      common::VisualizeField(vis_b_func, "localhost", 19916, bg_domain,
+                             "Distance", 600, 700, 300, 300);
    }
 
    /*
