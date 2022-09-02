@@ -11,13 +11,14 @@ class EulerSystem : public TimeDependentOperator
 {
 private:
    const int dim;
-   int num_equation;
-   double specific_heat_ratio;
 
    FiniteElementSpace * vfes;
    Operator &A;
    SparseMatrix &Aflux;
    std::vector<DenseMatrix> Me_inv;
+
+   double specific_heat_ratio;
+   int num_equation;
 
    mutable Vector state;
    mutable DenseMatrix f;
@@ -99,10 +100,10 @@ EulerSystem::EulerSystem(FiniteElementSpace &vfes_,
    : TimeDependentOperator(A_.Height()),
      dim(vfes_.GetFE(0)->GetDim()),
      vfes(&vfes_),
-     specific_heat_ratio(specific_heat_ratio_),
-     num_equation(num_equation_),
      A(A_),
      Aflux(Aflux_),
+     specific_heat_ratio(specific_heat_ratio_),
+     num_equation(num_equation_),
      state(num_equation),
      f(num_equation, dim),
      flux(vfes->GetNDofs(), dim, num_equation),
@@ -231,7 +232,7 @@ void ComputeFlux(const Vector &state, int dim, DenseMatrix &flux,
 void ComputeFluxDotN(const Vector &state, const Vector &nor, Vector &fluxN, 
                      double specific_heat_ratio, int num_equation)
 {
-   const int udim = num_equation - 2;
+   // const int udim = num_equation - 2; // unused
    // NOTE: nor in general is not a unit normal
    const int dim = nor.Size();
    MFEM_ASSERT(StateIsPhysical(state, dim), "");
@@ -291,10 +292,11 @@ void EulerSystem::GetFlux(const DenseMatrix &x_, DenseTensor &flux_) const
 
 // Implementation of class RiemannSolver
 RiemannSolver::RiemannSolver(double specific_heat_ratio_, int num_equation_) :
-   specific_heat_ratio(specific_heat_ratio_),
-   num_equation(num_equation_),
    flux1(num_equation_),
-   flux2(num_equation_) { }
+   flux2(num_equation_),
+   num_equation(num_equation_),
+   specific_heat_ratio(specific_heat_ratio_)
+    { }
 
 double RiemannSolver::Eval(const Vector &state1, const Vector &state2,
                            const Vector &nor, Vector &flux)
@@ -389,7 +391,7 @@ void FaceIntegrator::AssembleFaceVector(const FiniteElement &el1,
 
       // Get the normal vector and the flux on the face
       CalcOrtho(Tr.Jacobian(), nor);
-      const double mcs = rsolver.Eval(funval1, funval2, nor, fluxN);
+      // const double mcs = rsolver.Eval(funval1, funval2, nor, fluxN); // unused
 
       fluxN *= ip.weight;
       for (int k = 0; k < num_equation; k++) {

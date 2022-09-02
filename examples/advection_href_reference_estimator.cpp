@@ -114,7 +114,7 @@ int main(int argc, char *argv[])
 
    ref_mode = (ref_kind)refmode;
 
-   Mesh mesh0 = Mesh::MakeCartesian2D(32,32,mfem::Element::QUADRILATERAL,false,sx,
+   Mesh mesh0 = Mesh::MakeCartesian2D(16,16,mfem::Element::QUADRILATERAL,false,sx,
                                       sy);
    std::vector<Vector> translations = {Vector({sx,0.0}), Vector({0.0,sy})};
    Mesh mesh = Mesh::MakePeriodic(mesh0,
