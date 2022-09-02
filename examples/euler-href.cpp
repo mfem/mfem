@@ -23,22 +23,22 @@
 void Prefine(FiniteElementSpace & den_fes_old,
              FiniteElementSpace & mom_fes_old,
              FiniteElementSpace & sol_fes_old,
-             GridFunction & den, 
+             GridFunction & den,
              GridFunction & mom,
-             GridFunction & sol,   
+             GridFunction & sol,
              GridFunction & pref_sol, GridFunction &orders_gf,
              double min_thresh, double max_thresh);
 
-Table * Hrefine(GridFunction & den, 
+Table * Hrefine(GridFunction & den,
                 GridFunction & mom,
-                GridFunction &sol,   
+                GridFunction &sol,
                 GridFunction &ref_sol, Table * refT,
                 double min_thresh, double max_thresh);
 
-Table * Refine(Array<int> ref_actions, 
-               GridFunction & den, 
+Table * Refine(Array<int> ref_actions,
+               GridFunction & den,
                GridFunction & mom,
-               GridFunction &sol, 
+               GridFunction &sol,
                int depth_limit);
 
 // Choice for the problem setup. See InitialCondition in ex18.hpp.
@@ -163,7 +163,7 @@ int main(int argc, char *argv[])
    args.AddOption(&vis_steps, "-vs", "--visualization-steps",
                   "Visualize every n-th timestep.");
    args.AddOption(&refmode, "-rm", "--refinement-mode",
-                  "0: 'p', 1: 'h' ");                  
+                  "0: 'p', 1: 'h' ");
 
    args.Parse();
    if (!args.Good())
@@ -195,30 +195,30 @@ int main(int argc, char *argv[])
    ODESolver *pref_ode_solver = NULL;
    switch (ode_solver_type)
    {
-      case 1: 
-         ode_solver = new ForwardEulerSolver; 
-         ref_ode_solver = new ForwardEulerSolver; 
-         pref_ode_solver = new ForwardEulerSolver; 
+      case 1:
+         ode_solver = new ForwardEulerSolver;
+         ref_ode_solver = new ForwardEulerSolver;
+         pref_ode_solver = new ForwardEulerSolver;
          break;
-      case 2: 
-         ode_solver = new RK2Solver(1.0); 
-         ref_ode_solver = new RK2Solver(1.0); 
-         pref_ode_solver = new RK2Solver(1.0); 
+      case 2:
+         ode_solver = new RK2Solver(1.0);
+         ref_ode_solver = new RK2Solver(1.0);
+         pref_ode_solver = new RK2Solver(1.0);
          break;
-      case 3: 
-         ode_solver = new RK3SSPSolver; 
-         ref_ode_solver = new RK3SSPSolver; 
-         pref_ode_solver = new RK3SSPSolver; 
+      case 3:
+         ode_solver = new RK3SSPSolver;
+         ref_ode_solver = new RK3SSPSolver;
+         pref_ode_solver = new RK3SSPSolver;
          break;
-      case 4: 
-         ode_solver = new RK4Solver; 
-         ref_ode_solver = new RK4Solver; 
-         pref_ode_solver = new RK4Solver; 
+      case 4:
+         ode_solver = new RK4Solver;
+         ref_ode_solver = new RK4Solver;
+         pref_ode_solver = new RK4Solver;
          break;
-      case 6: 
-         ode_solver = new RK6Solver; 
-         ref_ode_solver = new RK6Solver; 
-         pref_ode_solver = new RK6Solver; 
+      case 6:
+         ode_solver = new RK6Solver;
+         ref_ode_solver = new RK6Solver;
+         pref_ode_solver = new RK6Solver;
          break;
       default:
          cout << "Unknown ODE solver type: " << ode_solver_type << '\n';
@@ -249,7 +249,8 @@ int main(int argc, char *argv[])
    FiniteElementSpace ref_mom_fes(&ref_mesh, &fec, dim, Ordering::byNODES);
    // Finite element space for all variables together (total thermodynamic state)
    FiniteElementSpace sol_fes(&mesh, &fec, num_equation, Ordering::byNODES);
-   FiniteElementSpace ref_sol_fes(&ref_mesh, &fec, num_equation, Ordering::byNODES);
+   FiniteElementSpace ref_sol_fes(&ref_mesh, &fec, num_equation,
+                                  Ordering::byNODES);
    FiniteElementSpace sol_fes_old(&mesh, &fec, num_equation, Ordering::byNODES);
    FiniteElementSpace pref_sol_fes(&mesh, &fec, num_equation, Ordering::byNODES);
 
@@ -301,15 +302,16 @@ int main(int argc, char *argv[])
    // 8. Define the time-dependent evolution operator describing the ODE
    //    right-hand side, and perform time-integration (looping over the time
    //    iterations, ti, with a time-step dt).
-   EulerSystem * euler = new EulerSystem(sol_fes, A, Aflux.SpMat(), specific_heat_ratio, num_equation);
+   EulerSystem * euler = new EulerSystem(sol_fes, A, Aflux.SpMat(),
+                                         specific_heat_ratio, num_equation);
 
-//-------------------------------------------
+   //-------------------------------------------
    Array<int> ref_offsets(num_equation + 1);
    Array<int> pref_offsets(num_equation + 1);
-   for (int k = 0; k <= num_equation; k++) 
-   {  
-      ref_offsets[k] = k * ref_sol_fes.GetNDofs(); 
-      pref_offsets[k] = k * pref_sol_fes.GetNDofs(); 
+   for (int k = 0; k <= num_equation; k++)
+   {
+      ref_offsets[k] = k * ref_sol_fes.GetNDofs();
+      pref_offsets[k] = k * pref_sol_fes.GetNDofs();
    }
    BlockVector ref_u_block(ref_offsets);
    BlockVector pref_u_block(pref_offsets);
@@ -325,13 +327,16 @@ int main(int argc, char *argv[])
    pref_sol.ProjectCoefficient(u0);
 
    MixedBilinearForm pref_Aflux(&pref_mom_fes, &pref_den_fes);
-   pref_Aflux.AddDomainIntegrator(new TransposeIntegrator(new GradientIntegrator()));
+   pref_Aflux.AddDomainIntegrator(new TransposeIntegrator(new
+                                                          GradientIntegrator()));
    pref_Aflux.Assemble();
 
    NonlinearForm pref_A(&pref_sol_fes);
    RiemannSolver pref_rsolver(specific_heat_ratio, num_equation);
-   pref_A.AddInteriorFaceIntegrator(new FaceIntegrator(pref_rsolver, dim, num_equation));
-   EulerSystem pref_euler(pref_sol_fes, pref_A, pref_Aflux.SpMat(), specific_heat_ratio, num_equation);
+   pref_A.AddInteriorFaceIntegrator(new FaceIntegrator(pref_rsolver, dim,
+                                                       num_equation));
+   EulerSystem pref_euler(pref_sol_fes, pref_A, pref_Aflux.SpMat(),
+                          specific_heat_ratio, num_equation);
 
    ref_sol.ProjectCoefficient(u0);
    Array<int> refinements(ref_mesh.GetNE());
@@ -344,27 +349,30 @@ int main(int argc, char *argv[])
 
    ref_sol.ProjectCoefficient(u0);
 
-   for (int k = 0; k <= num_equation; k++) 
-   {  
-      offsets[k] = k * sol_fes.GetNDofs(); 
+   for (int k = 0; k <= num_equation; k++)
+   {
+      offsets[k] = k * sol_fes.GetNDofs();
    }
    ref_den.MakeRef(&ref_den_fes,ref_sol.GetData());
    ref_mom.MakeRef(&ref_mom_fes,ref_sol.GetData()+offsets[1]);
 
    MixedBilinearForm ref_Aflux(&ref_mom_fes, &ref_den_fes);
-   ref_Aflux.AddDomainIntegrator(new TransposeIntegrator(new GradientIntegrator()));
+   ref_Aflux.AddDomainIntegrator(new TransposeIntegrator(new
+                                                         GradientIntegrator()));
    ref_Aflux.Assemble();
    NonlinearForm ref_A(&ref_sol_fes);
    RiemannSolver ref_rsolver(specific_heat_ratio, num_equation);
-   ref_A.AddInteriorFaceIntegrator(new FaceIntegrator(ref_rsolver, dim, num_equation));
-   EulerSystem ref_euler(ref_sol_fes, ref_A, ref_Aflux.SpMat(), specific_heat_ratio, num_equation);
+   ref_A.AddInteriorFaceIntegrator(new FaceIntegrator(ref_rsolver, dim,
+                                                      num_equation));
+   EulerSystem ref_euler(ref_sol_fes, ref_A, ref_Aflux.SpMat(),
+                         specific_heat_ratio, num_equation);
 
    L2_FECollection orders_fec(0,dim);
    FiniteElementSpace orders_fes(&mesh,&orders_fec);
    GridFunction orders_gf(&orders_fes);
    for (int i = 0; i<mesh.GetNE(); i++) { orders_gf(i) = order; }
 
-//-------------------------------------------
+   //-------------------------------------------
 
    // Visualize the density
    socketstream sout;
@@ -445,9 +453,9 @@ int main(int argc, char *argv[])
          }
 
          // update offsets
-         for (int k = 0; k <= num_equation; k++) 
-         {  
-            offsets[k] = k * sol_fes.GetNDofs(); 
+         for (int k = 0; k <= num_equation; k++)
+         {
+            offsets[k] = k * sol_fes.GetNDofs();
          }
 
          den.MakeRef(&den_fes, sol.GetData());
@@ -458,7 +466,8 @@ int main(int argc, char *argv[])
          A.Update();
 
          delete euler;
-         euler = new EulerSystem(sol_fes, A, Aflux.SpMat(), specific_heat_ratio, num_equation);
+         euler = new EulerSystem(sol_fes, A, Aflux.SpMat(), specific_heat_ratio,
+                                 num_equation);
          ode_solver->Init(*euler);
 
          if (visualization)
@@ -484,10 +493,10 @@ int main(int argc, char *argv[])
    return 0;
 }
 
-Table * Hrefine(GridFunction & den, 
+Table * Hrefine(GridFunction & den,
                 GridFunction & mom,
-                GridFunction & sol,   
-                GridFunction &sol_ref, 
+                GridFunction & sol,
+                GridFunction &sol_ref,
                 Table * refT,
                 double min_thresh, double max_thresh)
 {
@@ -590,9 +599,9 @@ Table * Hrefine(GridFunction & den,
 void Prefine(FiniteElementSpace & den_fes_old,
              FiniteElementSpace & mom_fes_old,
              FiniteElementSpace & sol_fes_old,
-             GridFunction &den, 
-             GridFunction &mom, 
-             GridFunction &sol, 
+             GridFunction &den,
+             GridFunction &mom,
+             GridFunction &sol,
              GridFunction &pref_sol, GridFunction &orders_gf,
              double min_thresh, double max_thresh)
 {
@@ -604,7 +613,7 @@ void Prefine(FiniteElementSpace & den_fes_old,
    Vector errors(ne);
 
    GridFunction prsol(pref_sol.FESpace());
-   PRefinementTransferOperator * P = 
+   PRefinementTransferOperator * P =
       new PRefinementTransferOperator(*sol_fes, *pref_sol.FESpace());
    P->Mult(sol,prsol);
    delete P;
@@ -636,12 +645,12 @@ void Prefine(FiniteElementSpace & den_fes_old,
    mom_fes->Update(false);
    sol_fes->Update(false);
 
-   PRefinementTransferOperator * T_den = 
-               new PRefinementTransferOperator(den_fes_old,*den_fes);
-   PRefinementTransferOperator * T_mom = 
-               new PRefinementTransferOperator(mom_fes_old,*mom_fes);
-   PRefinementTransferOperator * T_sol = 
-               new PRefinementTransferOperator(sol_fes_old,*sol_fes);                              
+   PRefinementTransferOperator * T_den =
+      new PRefinementTransferOperator(den_fes_old,*den_fes);
+   PRefinementTransferOperator * T_mom =
+      new PRefinementTransferOperator(mom_fes_old,*mom_fes);
+   PRefinementTransferOperator * T_sol =
+      new PRefinementTransferOperator(sol_fes_old,*sol_fes);
 
    GridFunction den_fine(den_fes);
    GridFunction mom_fine(mom_fes);
@@ -673,10 +682,10 @@ void Prefine(FiniteElementSpace & den_fes_old,
    sol = sol_fine;
 }
 
-Table * Refine(Array<int> ref_actions, 
-               GridFunction & den, 
+Table * Refine(Array<int> ref_actions,
+               GridFunction & den,
                GridFunction & mom,
-               GridFunction &sol, 
+               GridFunction &sol,
                int depth_limit)
 {
    FiniteElementSpace * den_fes = den.FESpace();
