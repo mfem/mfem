@@ -152,7 +152,7 @@ public:
    // TODO: implement sum factorization and comment here how to use it.
    virtual void AssemblePatchMatrix(const int patch,
                                     Mesh *mesh,
-                                    DenseMatrix &pmat);
+                                    DenseMatrix &pmat, SparseMatrix*& smat);
 
    virtual void AssembleFaceMatrix(const FiniteElement &el1,
                                    const FiniteElement &el2,
@@ -2156,7 +2156,11 @@ public:
 
    virtual void AssemblePatchMatrix(const int patch,
                                     Mesh *mesh,
-                                    DenseMatrix &pmat);
+                                    DenseMatrix &pmat, SparseMatrix*& smat);
+
+   void AssemblePatchMatrix_simpleButInefficient(const int patch,
+                                                 Mesh *mesh,
+                                                 DenseMatrix &pmat);
 
    /// Perform the local action of the BilinearFormIntegrator
    virtual void AssembleElementVector(const FiniteElement &el,

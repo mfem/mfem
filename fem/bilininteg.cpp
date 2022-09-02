@@ -142,7 +142,7 @@ void BilinearFormIntegrator::AssembleElementMatrix2(
 void BilinearFormIntegrator::AssemblePatchMatrix(
    const int patch,
    Mesh *mesh,
-   DenseMatrix &pmat)
+   DenseMatrix &pmat, SparseMatrix*& smat)
 {
    mfem_error ("BilinearFormIntegrator::AssemblePatchMatrix(...)\n"
                "   is not implemented for this class.");
@@ -1297,7 +1297,7 @@ void DiffusionIntegrator::SetupPatchPA(const int patch, Array<int> const& Q1D,
    SetupPatch3D(Q1D[0], Q1D[1], Q1D[2], coeffDim, weights, jac, coeff, D);
 }
 
-void DiffusionIntegrator::AssemblePatchMatrix(
+void DiffusionIntegrator::AssemblePatchMatrix_simpleButInefficient(
    const int patch,
    Mesh *mesh,
    DenseMatrix &pmat)
@@ -1340,7 +1340,7 @@ void DiffusionIntegrator::AssemblePatchMatrix(
    std::vector<Vector> dshape(dim);
    std::vector<Array2D<double>> B(dim);
    std::vector<Array2D<double>> G(dim);
-   Array<IntegrationRule*> ir1d(dim);
+   Array<const IntegrationRule*> ir1d(dim);
 
    for (int d=0; d<dim; ++d)
    {
@@ -1622,6 +1622,384 @@ void DiffusionIntegrator::AssemblePatchMatrix(
             }
          }
       }
+   }
+}
+
+void DiffusionIntegrator::AssemblePatchMatrix(
+   const int patch,
+   Mesh *mesh,
+   DenseMatrix &pmat, SparseMatrix*& smat)
+{
+   MFEM_VERIFY(patchRule, "patchRule must be defined");
+   dim = patchRule->GetDim();
+   const int spaceDim = dim;  // TODO: how to generalize?
+
+   Array<const KnotVector*> pkv;
+   mesh->NURBSext->GetPatchKnotVectors(patch, pkv);
+   MFEM_VERIFY(pkv.Size() == dim, "");
+
+   if (VQ)
+   {
+      MFEM_VERIFY(VQ->GetVDim() == spaceDim,
+                  "Unexpected dimension for VectorCoefficient");
+   }
+   if (MQ)
+   {
+      MFEM_VERIFY(MQ->GetWidth() == spaceDim,
+                  "Unexpected width for MatrixCoefficient");
+      MFEM_VERIFY(MQ->GetHeight() == spaceDim,
+                  "Unexpected height for MatrixCoefficient");
+   }
+
+#ifdef MFEM_THREAD_SAFE
+   DenseMatrix M(MQ ? spaceDim : 0);
+   Vector D(VQ ? VQ->GetVDim() : 0);
+#else
+   M.SetSize(MQ ? spaceDim : 0);
+   D.SetSize(VQ ? VQ->GetVDim() : 0);
+#endif
+
+   MFEM_VERIFY(pkv.Size() == dim, "Sanity check");
+
+   Array<int> Q1D(dim);
+   Array<int> orders(dim);
+   Array<int> D1D(dim);
+   std::vector<Vector> shape(dim);
+   std::vector<Vector> dshape(dim);
+   std::vector<Array2D<double>> B(dim);
+   std::vector<Array2D<double>> G(dim);
+   Array<const IntegrationRule*> ir1d(dim);
+
+   std::vector<std::vector<int>> minD(dim);
+   std::vector<std::vector<int>> maxD(dim);
+   std::vector<std::vector<int>> minQ(dim);
+   std::vector<std::vector<int>> maxQ(dim);
+
+   std::vector<std::vector<int>> minDD(dim);
+   std::vector<std::vector<int>> maxDD(dim);
+
+   for (int d=0; d<dim; ++d)
+   {
+      ir1d[d] = patchRule->GetPatchRule1D(patch, d);
+
+      Q1D[d] = ir1d[d]->GetNPoints();
+
+      orders[d] = pkv[d]->GetOrder();
+      //D1D[d] = orders[d]+1;
+      D1D[d] = mesh->NURBSext->ndof1D(patch,d);
+      shape[d].SetSize(orders[d]+1);
+      dshape[d].SetSize(orders[d]+1);
+
+      B[d].SetSize(Q1D[d], D1D[d]);
+      G[d].SetSize(Q1D[d], D1D[d]);
+
+      minD[d].assign(D1D[d], Q1D[d]);
+      maxD[d].assign(D1D[d], 0);
+
+      minQ[d].assign(Q1D[d], D1D[d]);
+      maxQ[d].assign(Q1D[d], 0);
+
+      B[d] = 0.0;
+      G[d] = 0.0;
+
+      const Array<int>& knotSpan1D = patchRule->GetPatchRule1D_KnotSpan(patch, d);
+      MFEM_VERIFY(knotSpan1D.Size() == Q1D[d], "");
+
+      //std::vector<std::vector<std::set<int>>> patch_ijk;
+      //mesh->NURBSext->patch_ijk[patch][d];
+      std::map<int,int> ijkToElem1D;
+      int cnt = 0;
+      for (auto ijk : mesh->NURBSext->patch_ijk[patch][d])
+      {
+         ijkToElem1D[ijk] = cnt;
+         cnt++;
+      }
+
+      for (int i = 0; i < Q1D[d]; i++)
+      {
+         const IntegrationPoint &ip = ir1d[d]->IntPoint(i);
+         const int ijk = knotSpan1D[i];
+         const double kv0 = (*pkv[d])[orders[d] + ijk];
+         double kv1 = (*pkv[d])[0];
+         for (int j = orders[d] + ijk + 1; j < pkv[d]->Size(); ++j)
+         {
+            if ((*pkv[d])[j] > kv0)
+            {
+               kv1 = (*pkv[d])[j];
+               break;
+            }
+         }
+
+         MFEM_VERIFY(kv1 > kv0, "");
+
+         pkv[d]->CalcShape(shape[d], ijk, (ip.x - kv0) / (kv1 - kv0));
+         pkv[d]->CalcDShape(dshape[d], ijk, (ip.x - kv0) / (kv1 - kv0));
+
+         /*
+              // TODO: remove ijkToElem1D if not needed?
+              auto search = ijkToElem1D.find(ijk);
+              MFEM_VERIFY(search != ijkToElem1D.end(), "");
+              const int elem = search->second;
+              MFEM_VERIFY(elem + orders[d]+1 <= D1D[d], "");
+         */
+
+         // Put shape into array B storing shapes for all points.
+         // TODO: This should be based on NURBS3DFiniteElement::CalcShape and CalcDShape.
+         // For now, it works under the assumption that all NURBS weights are 1.
+         for (int j=0; j<orders[d]+1; ++j)
+         {
+            B[d](i,ijk + j) = shape[d][j];
+            G[d](i,ijk + j) = dshape[d][j];
+
+            minD[d][ijk + j] = std::min(minD[d][ijk + j], i);
+            maxD[d][ijk + j] = std::max(maxD[d][ijk + j], i);
+         }
+
+         minQ[d][i] = std::min(minQ[d][i], ijk);
+         maxQ[d][i] = std::max(maxQ[d][i], ijk + orders[d]);
+      }
+
+      // Determine which DOFs each DOF interacts with, in 1D.
+      minDD[d].resize(D1D[d]);
+      maxDD[d].resize(D1D[d]);
+      for (int i=0; i<D1D[d]; ++i)
+      {
+         const int qmin = minD[d][i];
+         minDD[d][i] = minQ[d][qmin];
+
+         const int qmax = maxD[d][i];
+         maxDD[d][i] = maxQ[d][qmax];
+      }
+   }
+
+   int ndof = D1D[0];
+   for (int d=1; d<dim; ++d)
+   {
+      ndof *= D1D[d];
+   }
+
+   const bool spmat = false;
+   int *smati = nullptr;
+
+   if (spmat)
+   {
+      //smati =
+   }
+   else
+   {
+      pmat.SetSize(ndof, ndof);
+      pmat = 0.0;
+   }
+
+   MFEM_VERIFY(3 == dim, "Only 3D so far");
+
+   // Setup quadrature point data.
+   // NOTE: in an operator setting, this point data should be stored for subsequent Mult() calls.
+   //Array2D<double> qdata(Q1D[0]*Q1D[1]*Q1D[2], symmetric ? 6 : 9);
+   // TODO: for GPUs, this needs to be allocated with mt, as in AssemblePA.
+   Vector qdata(Q1D[0]*Q1D[1]*Q1D[2] * (symmetric ? 6 : 9));
+
+   // For each point in patchRule, get the corresponding element and element
+   // reference point, in order to use element transformations. This requires
+   // data set up in NURBSPatchRule::SetPointToElement.
+   SetupPatchPA(patch, Q1D, mesh, qdata);
+
+   const auto qd = Reshape(qdata.Read(), Q1D[0]*Q1D[1]*Q1D[2],
+                           (symmetric ? 6 : 9));
+
+   // NOTE: the following is adapted from PADiffusionApply3D.
+   std::vector<Array3D<double>> grad(dim);
+
+   for (int d=0; d<dim; ++d)
+   {
+      grad[d].SetSize(Q1D[0], Q1D[1], Q1D[2]);
+   }
+
+   Array3D<double> gradQXY(Q1D[0], Q1D[1], dim);
+   Array2D<double> gradQX(Q1D[0],2);
+
+   Array3D<double> gradDXY(D1D[0], D1D[1], dim);
+   Array2D<double> gradDX(D1D[0],dim);
+
+   Vector ej(ndof);
+
+   for (int dof_j=0; dof_j<ndof; ++dof_j)
+   {
+      ej = 0.0;
+      ej[dof_j] = 1.0;
+
+      const int jdz = dof_j / (D1D[0] * D1D[1]);
+      const int jdy = (dof_j - (jdz * D1D[0] * D1D[1])) / D1D[0];
+      const int jdx = dof_j - (jdz * D1D[0] * D1D[1]) - (jdy * D1D[0]);
+
+      MFEM_VERIFY(jdx + (D1D[0] * (jdy + (D1D[1] * jdz))) == dof_j, "");
+
+      for (int d=0; d<dim; ++d)
+         for (int qz = minD[2][jdz]; qz <= maxD[2][jdz]; ++qz)
+         {
+            for (int qy = minD[1][jdy]; qy <= maxD[1][jdy]; ++qy)
+            {
+               for (int qx = minD[0][jdx]; qx <= maxD[0][jdx]; ++qx)
+               {
+                  grad[d](qx,qy,qz) = 0.0;
+               }
+            }
+         }
+
+      {
+         int dz = jdz;
+
+         for (int qy = 0; qy < Q1D[1]; ++qy)
+         {
+            for (int qx = 0; qx < Q1D[0]; ++qx)
+            {
+               for (int d=0; d<dim; ++d)
+               {
+                  gradQXY(qx,qy,d) = 0.0;
+               }
+            }
+         }
+
+         {
+            int dy = jdy;
+            for (int qx = minD[0][jdx]; qx <= maxD[0][jdx]; ++qx)
+            {
+               gradQX(qx,0) = 0.0;
+               gradQX(qx,1) = 0.0;
+            }
+            {
+               int dx = jdx;
+               const double s = ej[dx + (D1D[0] * (dy + (D1D[1] * dz)))];
+
+               for (int qx = minD[0][dx]; qx <= maxD[0][dx]; ++qx)
+               {
+                  gradQX(qx,0) += s * B[0](qx,dx);
+                  gradQX(qx,1) += s * G[0](qx,dx);
+               }
+            }
+            for (int qy = minD[1][dy]; qy <= maxD[1][dy]; ++qy)
+            {
+               const double wy  = B[1](qy,dy);
+               const double wDy = G[1](qy,dy);
+               for (int qx = minD[0][jdx]; qx <= maxD[0][jdx]; ++qx)
+               {
+                  const double wx  = gradQX(qx,0);
+                  const double wDx = gradQX(qx,1);
+                  gradQXY(qx,qy,0) += wDx * wy;
+                  gradQXY(qx,qy,1) += wx  * wDy;
+                  gradQXY(qx,qy,2) += wx  * wy;
+               }
+            }
+         } // dy
+         for (int qz = minD[2][dz]; qz <= maxD[2][dz]; ++qz)
+         {
+            const double wz  = B[2](qz,dz);
+            const double wDz = G[2](qz,dz);
+            for (int qy = minD[1][jdy]; qy <= maxD[1][jdy]; ++qy)
+            {
+               for (int qx = minD[0][jdx]; qx <= maxD[0][jdx]; ++qx)
+               {
+                  grad[0](qx,qy,qz) += gradQXY(qx,qy,0) * wz;
+                  grad[1](qx,qy,qz) += gradQXY(qx,qy,1) * wz;
+                  grad[2](qx,qy,qz) += gradQXY(qx,qy,2) * wDz;
+               }
+            }
+         } // qz
+      } // dz
+
+      for (int qz = minD[2][jdz]; qz <= maxD[2][jdz]; ++qz)
+      {
+         for (int qy = minD[1][jdy]; qy <= maxD[1][jdy]; ++qy)
+         {
+            for (int qx = minD[0][jdx]; qx <= maxD[0][jdx]; ++qx)
+            {
+               const int q = qx + ((qy + (qz * Q1D[1])) * Q1D[0]);
+               const double O11 = qd(q,0);
+               const double O12 = qd(q,1);
+               const double O13 = qd(q,2);
+               const double O21 = symmetric ? O12 : qd(q,3);
+               const double O22 = symmetric ? qd(q,3) : qd(q,4);
+               const double O23 = symmetric ? qd(q,4) : qd(q,5);
+               const double O31 = symmetric ? O13 : qd(q,6);
+               const double O32 = symmetric ? O23 : qd(q,7);
+               const double O33 = symmetric ? qd(q,5) : qd(q,8);
+               const double gradX = grad[0](qx,qy,qz);
+               const double gradY = grad[1](qx,qy,qz);
+               const double gradZ = grad[2](qx,qy,qz);
+               grad[0](qx,qy,qz) = (O11*gradX)+(O12*gradY)+(O13*gradZ);
+               grad[1](qx,qy,qz) = (O21*gradX)+(O22*gradY)+(O23*gradZ);
+               grad[2](qx,qy,qz) = (O31*gradX)+(O32*gradY)+(O33*gradZ);
+            }
+         }
+      }
+
+      for (int qz = minD[2][jdz]; qz <= maxD[2][jdz]; ++qz)
+      {
+         for (int dy = minDD[1][jdy]; dy <= maxDD[1][jdy]; ++dy)
+         {
+            for (int dx = minDD[0][jdx]; dx <= maxDD[0][jdx]; ++dx)
+            {
+               for (int d=0; d<dim; ++d)
+               {
+                  gradDXY(dx,dy,d) = 0.0;
+               }
+            }
+         }
+         for (int qy = minD[1][jdy]; qy <= maxD[1][jdy]; ++qy)
+         {
+            for (int dx = minDD[0][jdx]; dx <= maxDD[0][jdx]; ++dx)
+            {
+               for (int d=0; d<dim; ++d)
+               {
+                  gradDX(dx,d) = 0.0;
+               }
+            }
+            for (int qx = minD[0][jdx]; qx <= maxD[0][jdx]; ++qx)
+            {
+               const double gX = grad[0](qx,qy,qz);
+               const double gY = grad[1](qx,qy,qz);
+               const double gZ = grad[2](qx,qy,qz);
+               for (int dx = minQ[0][qx]; dx <= maxQ[0][qx]; ++dx)
+               {
+                  const double wx  = B[0](qx,dx);
+                  const double wDx = G[0](qx,dx);
+                  gradDX(dx,0) += gX * wDx;
+                  gradDX(dx,1) += gY * wx;
+                  gradDX(dx,2) += gZ * wx;
+               }
+            }
+            for (int dy = minQ[1][qy]; dy <= maxQ[1][qy]; ++dy)
+            {
+               const double wy  = B[1](qy,dy);
+               const double wDy = G[1](qy,dy);
+               for (int dx = minDD[0][jdx]; dx <= maxDD[0][jdx]; ++dx)
+               {
+                  gradDXY(dx,dy,0) += gradDX(dx,0) * wy;
+                  gradDXY(dx,dy,1) += gradDX(dx,1) * wDy;
+                  gradDXY(dx,dy,2) += gradDX(dx,2) * wy;
+               }
+            }
+         }
+         for (int dz = minQ[2][qz]; dz <= maxQ[2][qz]; ++dz)
+         {
+            const double wz  = B[2](qz,dz);
+            const double wDz = G[2](qz,dz);
+            for (int dy = minDD[1][jdy]; dy <= maxDD[1][jdy]; ++dy)
+            {
+               for (int dx = minDD[0][jdx]; dx <= maxDD[0][jdx]; ++dx)
+               {
+                  pmat(dx + (D1D[0] * (dy + (D1D[1] * dz))), dof_j) += ((gradDXY(dx,dy,0) * wz) +
+                                                                        (gradDXY(dx,dy,1) * wz) +
+                                                                        (gradDXY(dx,dy,2) * wDz));
+               }
+            }
+         }
+      }
+   }
+
+   if (spmat)
+   {
+      //smat = new SparseMatrix();
    }
 }
 

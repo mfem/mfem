@@ -312,9 +312,11 @@ public:
       elementToRule[element] = elementRuleIndex;
    }
 
-   void SetPatchRules1D(const int patch, std::vector<IntegrationRule*> & ir1D);
+   void SetPatchRules1D(const int patch,
+                        std::vector<const IntegrationRule*> & ir1D);
 
-   IntegrationRule* GetPatchRule1D(const int patch, const int dimension) const
+   const IntegrationRule* GetPatchRule1D(const int patch,
+                                         const int dimension) const
    {
       return patchRules1D(patch, dimension);
    }
@@ -343,7 +345,7 @@ private:
    IntegrationRule *ir = nullptr;
    mutable IntegrationRule *irp = nullptr;
    Array<IntegrationRule*> patchRule;
-   Array2D<IntegrationRule*> patchRules1D;
+   Array2D<const IntegrationRule*> patchRules1D;
    std::vector<IntegrationRule*> elementRule;
 
    std::map<std::size_t, std::size_t> elementToRule;

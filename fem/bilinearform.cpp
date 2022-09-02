@@ -492,7 +492,8 @@ void BilinearForm::Assemble(int skip_zeros)
             {
                if (domain_integs[k]->Patchwise())
                {
-                  domain_integs[k]->AssemblePatchMatrix(p, mesh, elemmat);
+                  SparseMatrix* spmat = nullptr;
+                  domain_integs[k]->AssemblePatchMatrix(p, mesh, elemmat, spmat);
 
                   if (pmat.Size() == 0)
                   {
