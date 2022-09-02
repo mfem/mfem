@@ -94,7 +94,7 @@ public:
     * Indicates whether the SubMesh has been created from a domain or
     * surface.
     */
-   const From GetFrom() const
+   From GetFrom() const
    {
       return from_;
    }
