@@ -710,10 +710,11 @@ void Mesh::GetLocalTriToTetTransformation(
    locpm.SetSize(3, 3);
    for (int j = 0; j < 3; j++)
    {
-      const IntegrationPoint &vert = TetVert->IntPoint(tv[to[j]]);
-      locpm(0, j) = vert.x;
-      locpm(1, j) = vert.y;
-      locpm(2, j) = vert.z;
+      int k = to[j];
+      const IntegrationPoint &vert = TetVert->IntPoint(tv[j]);
+      locpm(0, k) = vert.x;
+      locpm(1, k) = vert.y;
+      locpm(2, k) = vert.z;
    }
 }
 
@@ -783,10 +784,11 @@ void Mesh::GetLocalQuadToHexTransformation(
    locpm.SetSize(3, 4);
    for (int j = 0; j < 4; j++)
    {
-      const IntegrationPoint &vert = HexVert->IntPoint(hv[qo[j]]);
-      locpm(0, j) = vert.x;
-      locpm(1, j) = vert.y;
-      locpm(2, j) = vert.z;
+      int k = qo[j];
+      const IntegrationPoint &vert = HexVert->IntPoint(hv[j]);
+      locpm(0, k) = vert.x;
+      locpm(1, k) = vert.y;
+      locpm(2, k) = vert.z;
    }
 }
 
@@ -1432,6 +1434,17 @@ Geometry::Type Mesh::GetFaceGeometryType(int Face) const
 Element::Type Mesh::GetFaceElementType(int Face) const
 {
    return (Dim == 1) ? Element::POINT : faces[Face]->GetType();
+}
+
+Array<int> Mesh::GetFaceToBdrElMap() const
+{
+   Array<int> face_to_be(NumOfFaces);
+   face_to_be = -1;
+   for (int i = 0; i < NumOfBdrElements; i++)
+   {
+      face_to_be[GetBdrElementEdgeIndex(i)] = i;
+   }
+   return face_to_be;
 }
 
 void Mesh::Init()

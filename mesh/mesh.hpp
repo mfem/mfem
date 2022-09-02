@@ -469,11 +469,6 @@ protected:
                                         const DSTable &v_to_v,
                                         Table &el_to_edge);
 
-   /** Return vertex to vertex table. The connections stored in the table
-       are from smaller to bigger vertex index, i.e. if i<j and (i, j) is
-       in the table, then (j, i) is not stored. */
-   void GetVertexToVertexTable(DSTable &) const;
-
    /** Return element to edge table and the indices for the boundary edges.
        The entries in the table are ordered according to the order of the
        nodes in the elements. For example, if T is the element to edge table
@@ -959,6 +954,11 @@ public:
    /// Return the total (global) number of elements.
    long long GetGlobalNE() const { return ReduceInt(NumOfElements); }
 
+   /** Return vertex to vertex table. The connections stored in the table
+    are from smaller to bigger vertex index, i.e. if i<j and (i, j) is
+    in the table, then (j, i) is not stored. */
+   void GetVertexToVertexTable(DSTable &) const;
+
    /** @brief Return the mesh geometric factors corresponding to the given
        integration rule.
 
@@ -1431,6 +1431,8 @@ public:
 
    Geometry::Type GetFaceGeometryType(int Face) const;
    Element::Type  GetFaceElementType(int Face) const;
+
+   Array<int> GetFaceToBdrElMap() const;
 
    /// Check (and optionally attempt to fix) the orientation of the elements
    /** @param[in] fix_it  If `true`, attempt to fix the orientations of some

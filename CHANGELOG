@@ -15,6 +15,10 @@ Meshing improvements
 --------------------
 - Added support for mixed meshes and pyramids in GSLIB-FindPoints.
 
+- New classes, SubMesh and ParSubMesh, that allow to define a subset of a parent
+  Mesh. Both classes allow for the same functionality as Mesh and ParMesh and
+  work with all existing interfaces like finite element spaces etc.
+
 Discretization improvements
 ---------------------------
 - Added support for assembling low-order-refined matrices using a GPU-enabled
@@ -77,7 +81,6 @@ Integrations, testing and documentation
 Miscellaneous
 -------------
 - Various other simplifications, extensions, and bugfixes in the code.
-
 
 - Added boundary elimination with device support for `SparseMatrix` and
   `HypreParMatrix`.

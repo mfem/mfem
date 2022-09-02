@@ -414,7 +414,7 @@ ifneq (,$(filter install,$(MAKECMDGOALS)))
 endif
 
 # Source dirs in logical order
-DIRS = general linalg linalg/simd mesh fem fem/ceed/interface \
+DIRS = general linalg linalg/simd mesh mesh/submesh fem fem/ceed/interface \
        fem/ceed/integrators/mass fem/ceed/integrators/convection \
        fem/ceed/integrators/diffusion fem/ceed/integrators/nlconvection \
        fem/ceed/solvers fem/fe fem/lor fem/qinterp fem/tmop
