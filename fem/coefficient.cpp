@@ -235,7 +235,7 @@ void VectorCoefficient::Eval(DenseMatrix &M, ElementTransformation &T,
 
 void VectorCoefficient::Project(QuadratureFunction &qf)
 {
-   MFEM_ASSERT(vdim == qf.GetVDim(), "Wrong sizes.");
+   MFEM_VERIFY(vdim == qf.GetVDim(), "Wrong sizes.");
    QuadratureSpaceBase &qspace = *qf.GetSpace();
    const int ne = qspace.GetNE();
    DenseMatrix values;
@@ -577,7 +577,7 @@ void VectorRestrictedCoefficient::Eval(
 
 void MatrixCoefficient::Project(QuadratureFunction &qf, bool transpose)
 {
-   MFEM_ASSERT(qf.GetVDim() == height*width, "Wrong sizes.");
+   MFEM_VERIFY(qf.GetVDim() == height*width, "Wrong sizes.");
    QuadratureSpaceBase &qspace = *qf.GetSpace();
    const int ne = qspace.GetNE();
    DenseMatrix values, matrix;
@@ -753,7 +753,7 @@ void MatrixFunctionCoefficient::EvalSymmetric(Vector &K,
 void SymmetricMatrixCoefficient::ProjectSymmetric(QuadratureFunction &qf)
 {
    const int vdim = qf.GetVDim();
-   MFEM_ASSERT(vdim == height*(height+1)/2, "Wrong sizes.");
+   MFEM_VERIFY(vdim == height*(height+1)/2, "Wrong sizes.");
 
    QuadratureSpaceBase &qspace = *qf.GetSpace();
    const int ne = qspace.GetNE();
@@ -1709,9 +1709,9 @@ void CoefficientVector::MakeRef(const QuadratureFunction &qf_)
    vdim = qf_.GetVDim();
    const QuadratureSpaceBase *qs2 = qf_.GetSpace();
    MFEM_CONTRACT_VAR(qs2); // qs2 used only for asserts
-   MFEM_ASSERT(qs2 != NULL, "Invalid QuadratureSpace.")
-   MFEM_ASSERT(qs2->GetMesh() == qs.GetMesh(), "Meshes differ.");
-   MFEM_ASSERT(qs2->GetOrder() == qs.GetOrder(), "Orders differ.");
+   MFEM_VERIFY(qs2 != NULL, "Invalid QuadratureSpace.")
+   MFEM_VERIFY(qs2->GetMesh() == qs.GetMesh(), "Meshes differ.");
+   MFEM_VERIFY(qs2->GetOrder() == qs.GetOrder(), "Orders differ.");
    Vector::MakeRef(const_cast<QuadratureFunction&>(qf_), 0, qf_.Size());
 }
 
