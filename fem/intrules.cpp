@@ -1817,7 +1817,7 @@ IntegrationRule& NURBSPatchRule::GetElementRule(const int elem,
 
          for (int i=0; i<patchRules1D(patch,d)->Size(); ++i)
          {
-            IntegrationPoint& ip = (*patchRules1D(patch,d))[i];
+            const IntegrationPoint& ip = (*patchRules1D(patch,d))[i];
             if (kv0 <= ip.x && (ip.x < kv1 || rightEnd))
             {
                const double x = (ip.x - kv0) / (kv1 - kv0);
@@ -1974,7 +1974,7 @@ void NURBSPatchRule::SetPointToElement(Mesh const& mesh)
 
          for (int r=0; r<patchRules1D(p,d)->Size(); ++r)
          {
-            IntegrationPoint& ip = (*patchRules1D(p,d))[r];
+            const IntegrationPoint& ip = (*patchRules1D(p,d))[r];
 
             const int order = pkv[d]->GetOrder();
 
@@ -2016,7 +2016,7 @@ void NURBSPatchRule::SetPointToElement(Mesh const& mesh)
 }
 
 void NURBSPatchRule::SetPatchRules1D(const int patch,
-                                     std::vector<IntegrationRule*> & ir1D)
+                                     std::vector<const IntegrationRule*> & ir1D)
 {
    MFEM_VERIFY(ir1D.size() == dim, "Wrong dimension");
 
