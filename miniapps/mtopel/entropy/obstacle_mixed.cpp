@@ -43,21 +43,6 @@ public:
    virtual double Eval(ElementTransformation &T, const IntegrationPoint &ip);
 };
 
-class ReciprocalGridFunctionCoefficient : public Coefficient
-{
-protected:
-   GridFunction *u;
-   FunctionCoefficient *obstacle;
-   double min_val;
-   double max_val;
-
-public:
-   ReciprocalGridFunctionCoefficient(GridFunction &u_, FunctionCoefficient &obst_, double min_val_=1e-12, double max_val_=1e12)
-      : u(&u_), obstacle(&obst_), min_val(min_val_), max_val(max_val_) { }
-
-   virtual double Eval(ElementTransformation &T, const IntegrationPoint &ip);
-};
-
 int main(int argc, char *argv[])
 {
    // 1. Parse command-line options.
@@ -391,22 +376,6 @@ double ExponentialGridFunctionCoefficient::Eval(ElementTransformation &T,
 
    double val = u->GetValue(T, ip);
    return min(max_val, max(min_val, exp(val) + obstacle->Eval(T, ip)));
-}
-
-double ReciprocalGridFunctionCoefficient::Eval(ElementTransformation &T,
-                               const IntegrationPoint &ip)
-{
-   MFEM_ASSERT(u != NULL, "grid function is not set");
-
-   double val = u->GetValue(T, ip) - obstacle->Eval(T, ip);
-   if (val < 0)
-   {
-      return max_val;
-   }
-   else
-   {
-      return min(max_val, max(min_val, 1.0/val) );
-   }
 }
 
 double spherical_obstacle(const Vector &pt)
