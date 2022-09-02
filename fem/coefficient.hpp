@@ -1305,7 +1305,7 @@ public:
    /// @brief Fill the QuadratureFunction @a qf by evaluating the coefficient at
    /// the quadrature points.
    ///
-   /// @note As opposed to MatrixCoefficient::Eval, this function stores only
+   /// @note As opposed to MatrixCoefficient::Project, this function stores only
    /// the @a symmetric part of the matrix at each quadrature point.
    ///
    /// The @a vdim of the coefficient should be equal to height*(height+1)/2.
