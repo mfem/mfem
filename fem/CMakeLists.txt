@@ -88,6 +88,7 @@ set(SRCS
   fespacehierarchy.cpp
   nonlininteg_vectorconvection.cpp
   nonlininteg_vectorconvection_mf.cpp
+  qfunction.cpp
   qinterp/det.cpp
   qinterp/eval_by_nodes.cpp
   qinterp/eval_by_vdim.cpp
@@ -95,6 +96,7 @@ set(SRCS
   qinterp/grad_by_vdim.cpp
   qinterp/grad_phys_by_nodes.cpp
   qinterp/grad_phys_by_vdim.cpp
+  qspace.cpp
   quadinterpolator.cpp
   quadinterpolator_face.cpp
   restriction.cpp
@@ -189,9 +191,11 @@ set(HDRS
   nonlinearform.hpp
   nonlinearform_ext.hpp
   nonlininteg.hpp
+  qfunction.hpp
   qinterp/dispatch.hpp
   qinterp/eval.hpp
   qinterp/grad.hpp
+  qspace.hpp
   quadinterpolator.hpp
   quadinterpolator_face.hpp
   restriction.hpp
