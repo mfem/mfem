@@ -116,8 +116,9 @@ void BuildVdofToVdofMap(const FiniteElementSpace& subfes,
             auto pm = parentfes.GetMesh();
 
             int face_info, parent_volel_id;
-            pm->GetBdrElementAdjacentElement(parent_element_ids[i], parent_volel_id,
-                                             face_info);
+            pm->GetBdrElementAdjacentElement2(parent_element_ids[i],
+                                              parent_volel_id,
+                                              face_info);
             pm->GetLocalFaceTransformation(
                pm->GetBdrElementType(parent_element_ids[i]),
                pm->GetElementType(parent_volel_id),
