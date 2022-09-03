@@ -419,7 +419,7 @@ void FaceIntegrator::AssembleFaceVector(const FiniteElement &el1,
 
       // Get the normal vector and the flux on the face
       CalcOrtho(Tr.Jacobian(), nor);
-      // const double mcs = rsolver.Eval(funval1, funval2, nor, fluxN); // unused
+      const double mcs = rsolver.Eval(funval1, funval2, nor, fluxN);
 
       fluxN *= ip.weight;
       for (int k = 0; k < num_equation; k++)
