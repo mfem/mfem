@@ -192,33 +192,33 @@ int main(int argc, char *argv[])
    //    Runge-Kutta methods are available.
    ODESolver *ode_solver = NULL;
    ODESolver *ref_ode_solver = NULL;
-   ODESolver *pref_ode_solver = NULL;
+   // ODESolver *pref_ode_solver = NULL;
    switch (ode_solver_type)
    {
       case 1:
          ode_solver = new ForwardEulerSolver;
          ref_ode_solver = new ForwardEulerSolver;
-         pref_ode_solver = new ForwardEulerSolver;
+         // pref_ode_solver = new ForwardEulerSolver;
          break;
       case 2:
          ode_solver = new RK2Solver(1.0);
          ref_ode_solver = new RK2Solver(1.0);
-         pref_ode_solver = new RK2Solver(1.0);
+         // pref_ode_solver = new RK2Solver(1.0);
          break;
       case 3:
          ode_solver = new RK3SSPSolver;
          ref_ode_solver = new RK3SSPSolver;
-         pref_ode_solver = new RK3SSPSolver;
+         // pref_ode_solver = new RK3SSPSolver;
          break;
       case 4:
          ode_solver = new RK4Solver;
          ref_ode_solver = new RK4Solver;
-         pref_ode_solver = new RK4Solver;
+         // pref_ode_solver = new RK4Solver;
          break;
       case 6:
          ode_solver = new RK6Solver;
          ref_ode_solver = new RK6Solver;
-         pref_ode_solver = new RK6Solver;
+         // pref_ode_solver = new RK6Solver;
          break;
       default:
          cout << "Unknown ODE solver type: " << ode_solver_type << '\n';
@@ -239,31 +239,31 @@ int main(int argc, char *argv[])
    DG_FECollection fec(order, dim);
    // Finite element space for a scalar (thermodynamic quantity)
    FiniteElementSpace den_fes(&mesh, &fec);
-   FiniteElementSpace den_fes_old(&mesh, &fec);
-   FiniteElementSpace pref_den_fes(&mesh, &fec);
+   // FiniteElementSpace den_fes_old(&mesh, &fec);
+   // FiniteElementSpace pref_den_fes(&mesh, &fec);
    FiniteElementSpace ref_den_fes(&ref_mesh, &fec);
    // Finite element space for a mesh-dim vector quantity (momentum)
    FiniteElementSpace mom_fes(&mesh, &fec, dim, Ordering::byNODES);
-   FiniteElementSpace mom_fes_old(&mesh, &fec, dim, Ordering::byNODES);
-   FiniteElementSpace pref_mom_fes(&mesh, &fec, dim, Ordering::byNODES);
+   // FiniteElementSpace mom_fes_old(&mesh, &fec, dim, Ordering::byNODES);
+   // FiniteElementSpace pref_mom_fes(&mesh, &fec, dim, Ordering::byNODES);
    FiniteElementSpace ref_mom_fes(&ref_mesh, &fec, dim, Ordering::byNODES);
    // Finite element space for all variables together (total thermodynamic state)
    FiniteElementSpace sol_fes(&mesh, &fec, num_equation, Ordering::byNODES);
    FiniteElementSpace ref_sol_fes(&ref_mesh, &fec, num_equation,
                                   Ordering::byNODES);
-   FiniteElementSpace sol_fes_old(&mesh, &fec, num_equation, Ordering::byNODES);
-   FiniteElementSpace pref_sol_fes(&mesh, &fec, num_equation, Ordering::byNODES);
+   // FiniteElementSpace sol_fes_old(&mesh, &fec, num_equation, Ordering::byNODES);
+   // FiniteElementSpace pref_sol_fes(&mesh, &fec, num_equation, Ordering::byNODES);
 
-   for (int i = 0; i<mesh.GetNE(); i++)
-   {
-      int el_order = pref_den_fes.GetElementOrder(i);
-      pref_den_fes.SetElementOrder(i,el_order+2);
-      pref_mom_fes.SetElementOrder(i,el_order+2);
-      pref_sol_fes.SetElementOrder(i,el_order+2);
-   }
-   pref_den_fes.Update(false);
-   pref_mom_fes.Update(false);
-   pref_sol_fes.Update(false);
+   // for (int i = 0; i<mesh.GetNE(); i++)
+   // {
+      // int el_order = pref_den_fes.GetElementOrder(i);
+      // pref_den_fes.SetElementOrder(i,el_order+2);
+      // pref_mom_fes.SetElementOrder(i,el_order+2);
+      // pref_sol_fes.SetElementOrder(i,el_order+2);
+   // }
+   // pref_den_fes.Update(false);
+   // pref_mom_fes.Update(false);
+   // pref_sol_fes.Update(false);
 
 
    // This example depends on this ordering of the space.
@@ -307,36 +307,39 @@ int main(int argc, char *argv[])
 
    //-------------------------------------------
    Array<int> ref_offsets(num_equation + 1);
-   Array<int> pref_offsets(num_equation + 1);
+   // Array<int> pref_offsets(num_equation + 1);
    for (int k = 0; k <= num_equation; k++)
    {
       ref_offsets[k] = k * ref_sol_fes.GetNDofs();
-      pref_offsets[k] = k * pref_sol_fes.GetNDofs();
+      // pref_offsets[k] = k * pref_sol_fes.GetNDofs();
    }
    BlockVector ref_u_block(ref_offsets);
-   BlockVector pref_u_block(pref_offsets);
+   // BlockVector pref_u_block(pref_offsets);
 
-   // Momentum grid function on dfes for visualization.
+   // // Momentum grid function on dfes for visualization.
    GridFunction ref_den(&ref_den_fes, ref_u_block.GetData());
-   GridFunction pref_den(&pref_den_fes, pref_u_block.GetData());
    GridFunction ref_mom(&ref_mom_fes, ref_u_block.GetData() + ref_offsets[1]);
-   GridFunction pref_mom(&pref_mom_fes, pref_u_block.GetData() + pref_offsets[1]);
-
    GridFunction ref_sol(&ref_sol_fes, ref_u_block.GetData());
-   GridFunction pref_sol(&pref_sol_fes, pref_u_block.GetData());
-   pref_sol.ProjectCoefficient(u0);
 
-   MixedBilinearForm pref_Aflux(&pref_mom_fes, &pref_den_fes);
-   pref_Aflux.AddDomainIntegrator(new TransposeIntegrator(new
-                                                          GradientIntegrator()));
-   pref_Aflux.Assemble();
+   // GridFunction pref_sol(&pref_sol_fes);
+   // pref_sol.ProjectCoefficient(u0);
 
-   NonlinearForm pref_A(&pref_sol_fes);
-   RiemannSolver pref_rsolver(specific_heat_ratio, num_equation);
-   pref_A.AddInteriorFaceIntegrator(new FaceIntegrator(pref_rsolver, dim,
-                                                       num_equation));
-   EulerSystem pref_euler(pref_sol_fes, pref_A, pref_Aflux.SpMat(),
-                          specific_heat_ratio, num_equation);
+   // GridFunction pref_den(&pref_den_fes, pref_sol.GetData());
+   // GridFunction pref_mom(&pref_mom_fes, pref_sol.GetData() + pref_offsets[1]);
+
+
+   // MixedBilinearForm pref_Aflux(&pref_mom_fes, &pref_den_fes);
+   // pref_Aflux.AddDomainIntegrator(new TransposeIntegrator(new
+   //                                                        GradientIntegrator()));
+   // pref_Aflux.Assemble();
+
+   // NonlinearForm pref_A(&pref_sol_fes);
+   // RiemannSolver pref_rsolver(specific_heat_ratio, num_equation);
+   // pref_A.AddInteriorFaceIntegrator(new FaceIntegrator(pref_rsolver, dim,
+   //                                                     num_equation));
+   // EulerSystem pref_euler(pref_sol_fes, pref_A, pref_Aflux.SpMat(),
+   //                        specific_heat_ratio, num_equation);
+
 
    ref_sol.ProjectCoefficient(u0);
    Array<int> refinements(ref_mesh.GetNE());
@@ -351,10 +354,10 @@ int main(int argc, char *argv[])
 
    for (int k = 0; k <= num_equation; k++)
    {
-      offsets[k] = k * sol_fes.GetNDofs();
+      ref_offsets[k] = k * ref_sol_fes.GetNDofs();
    }
    ref_den.MakeRef(&ref_den_fes,ref_sol.GetData());
-   ref_mom.MakeRef(&ref_mom_fes,ref_sol.GetData()+offsets[1]);
+   ref_mom.MakeRef(&ref_mom_fes,ref_sol.GetData()+ref_offsets[1]);
 
    MixedBilinearForm ref_Aflux(&ref_mom_fes, &ref_den_fes);
    ref_Aflux.AddDomainIntegrator(new TransposeIntegrator(new
@@ -367,21 +370,26 @@ int main(int argc, char *argv[])
    EulerSystem ref_euler(ref_sol_fes, ref_A, ref_Aflux.SpMat(),
                          specific_heat_ratio, num_equation);
 
-   L2_FECollection orders_fec(0,dim);
-   FiniteElementSpace orders_fes(&mesh,&orders_fec);
-   GridFunction orders_gf(&orders_fes);
-   for (int i = 0; i<mesh.GetNE(); i++) { orders_gf(i) = order; }
+   // L2_FECollection orders_fec(0,dim);
+   // FiniteElementSpace orders_fes(&mesh,&orders_fec);
+   // GridFunction orders_gf(&orders_fes);
+   // for (int i = 0; i<mesh.GetNE(); i++) { orders_gf(i) = order; }
+
 
    //-------------------------------------------
 
    // Visualize the density
    socketstream sout;
+   socketstream ref_sout;
+   // socketstream pref_sout;
    if (visualization)
    {
       char vishost[] = "localhost";
       int  visport   = 19916;
 
       sout.open(vishost, visport);
+      ref_sout.open(vishost, visport);
+      // pref_sout.open(vishost, visport);
       if (!sout)
       {
          cout << "Unable to connect to GLVis server at "
@@ -392,22 +400,17 @@ int main(int argc, char *argv[])
       else
       {
          sout.precision(precision);
-         sout << "solution\n" << mesh << mom;
-         sout << "pause\n";
-         sout << flush;
-         cout << "GLVis visualization paused."
-              << " Press space (in the GLVis window) to resume it.\n";
-      }
-   }
+         sout << "solution\n" << mesh << mom 
+              << "window_title 'Moment'" << flush;
 
-   // Determine the minimum element size.
-   double hmin = 0.0;
-   if (cfl > 0)
-   {
-      hmin = mesh.GetElementSize(0, 1);
-      for (int i = 1; i < mesh.GetNE(); i++)
-      {
-         hmin = min(mesh.GetElementSize(i, 1), hmin);
+         ref_sout.precision(precision);
+         ref_sout << "solution\n" << ref_mesh << ref_mom
+              << "window_title 'Reference Moment'" << flush;
+
+         // pref_sout.precision(precision);
+         // pref_sout << "solution\n" << mesh << pref_mom
+         //      << "window_title 'PReference Moment'" << flush;
+
       }
    }
 
@@ -418,13 +421,13 @@ int main(int argc, char *argv[])
    double t = 0.0;
    euler->SetTime(t);
    double ref_t = 0.0;
-   ref_euler.SetTime(t);
-   double pref_t = 0.0;
-   pref_euler.SetTime(t);
+   ref_euler.SetTime(ref_t);
+   // double pref_t = 0.0;
+   // pref_euler.SetTime(pref_t);
 
    ode_solver->Init(*euler);
    ref_ode_solver->Init(ref_euler);
-   pref_ode_solver->Init(pref_euler);
+   // pref_ode_solver->Init(pref_euler);
    // Integrate in time.
    bool done = false;
    for (int ti = 0; !done; )
@@ -434,23 +437,24 @@ int main(int argc, char *argv[])
 
       ode_solver->Step(sol, t, dt_real);
       ref_ode_solver->Step(ref_sol, ref_t, dt_real);
-      pref_ode_solver->Step(pref_sol, pref_t, dt_real);
+      // pref_ode_solver->Step(pref_sol, pref_t, dt_real);
       ti++;
 
       done = (t >= t_final - 1e-8*dt);
-      if (done || ti % vis_steps == 0)
+      // if (done || ti % vis_steps == 0)
       {
          cout << "time step: " << ti << ", time: " << t << endl;
+         cout << "time step: " << ti << ", time: " << ref_t << endl;
 
-         if (ref_mode == ref_kind::geometric)
-         {
-            refT = Hrefine(sol,ref_den, ref_mom, ref_sol, refT, 5e-5, 5e-4);
-         }
-         else
-         {
-            Prefine(den_fes_old, mom_fes_old, sol_fes_old,
-                    den, mom, sol, pref_sol, orders_gf, 5e-5, 5e-4);
-         }
+         // if (ref_mode == ref_kind::geometric)
+         // {
+            refT = Hrefine(den,mom, sol, ref_sol, refT, 5e-5, 5e-4);
+         // }
+         // else
+         // {
+         //    Prefine(den_fes_old, mom_fes_old, sol_fes_old,
+         //            den, mom, sol, pref_sol, orders_gf, 5e-5, 5e-4);
+         // }
 
          // update offsets
          for (int k = 0; k <= num_equation; k++)
@@ -473,6 +477,8 @@ int main(int argc, char *argv[])
          if (visualization)
          {
             sout << "solution\n" << mesh << mom << flush;
+            ref_sout << "solution\n" << ref_mesh << ref_mom << flush;
+            // pref_sout << "solution\n" << mesh << pref_mom << flush;
          }
       }
    }
@@ -508,14 +514,23 @@ Table * Hrefine(GridFunction & den,
    Vector errors(ne);
    Mesh fine_mesh(*mesh);
 
-   FiniteElementSpace den_fes_copy(&fine_mesh,den_fes->FEColl());
-   FiniteElementSpace mom_fes_copy(&fine_mesh,mom_fes->FEColl());
-   FiniteElementSpace sol_fes_copy(&fine_mesh,sol_fes->FEColl());
+   FiniteElementSpace den_fes_copy(&fine_mesh,den_fes->FEColl(), den_fes->GetVDim());
+   FiniteElementSpace mom_fes_copy(&fine_mesh,mom_fes->FEColl(), mom_fes->GetVDim());
+   FiniteElementSpace sol_fes_copy(&fine_mesh,sol_fes->FEColl(), sol_fes->GetVDim());
    GridFunction den_fine(&den_fes_copy);
    GridFunction mom_fine(&mom_fes_copy);
    GridFunction sol_fine(&sol_fes_copy);
+
    // copy data;
+   mfem::out << den_fes->GetVDim() << endl;
+   mfem::out << mom_fes->GetVDim() << endl;
+   mfem::out << sol_fes->GetVDim() << endl;
+
+   mfem::out << den.Size() <<endl;
+   mfem::out << den_fine.Size() <<endl;
    den_fine = den;
+   mfem::out << mom.Size() <<endl;
+   mfem::out << mom_fine.Size() <<endl;
    mom_fine = mom;
    sol_fine = sol;
    Array<int>refinements(fine_mesh.GetNE());
