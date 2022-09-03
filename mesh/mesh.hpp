@@ -1151,8 +1151,24 @@ public:
    int GetBdrElementEdgeIndex(int i) const;
 
    /** @brief For the given boundary element, bdr_el, return its adjacent
-       element and its info, i.e. 64*local_bdr_index+bdr_orientation. */
+       element and its info, i.e. 64*local_bdr_index+bdr_orientation.
+
+       The returned bdr_orientation is that of the boundary element relative to
+       the respective face element.
+
+       @sa GetBdrElementAdjacentElement2() */
    void GetBdrElementAdjacentElement(int bdr_el, int &el, int &info) const;
+
+   /** @brief For the given boundary element, bdr_el, return its adjacent
+       element and its info, i.e. 64*local_bdr_index+inverse_bdr_orientation.
+
+       The returned inverse_bdr_orientation is the inverse of the orientation of
+       the boundary element relative to the respective face element. In other
+       words this is the orientation of the face element relative to the
+       boundary element.
+
+       @sa GetBdrElementAdjacentElement() */
+   void GetBdrElementAdjacentElement2(int bdr_el, int &el, int &info) const;
 
    /// Returns the type of element i.
    Element::Type GetElementType(int i) const;
