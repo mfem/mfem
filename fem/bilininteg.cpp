@@ -1778,19 +1778,6 @@ void DiffusionIntegrator::AssemblePatchMatrix(
       ndof *= D1D[d];
    }
 
-   const bool spmat = false;
-   int *smati = nullptr;
-
-   if (spmat)
-   {
-      //smati =
-   }
-   else
-   {
-      pmat.SetSize(ndof, ndof);
-      pmat = 0.0;
-   }
-
    MFEM_VERIFY(3 == dim, "Only 3D so far");
 
    // Setup quadrature point data.
@@ -1819,9 +1806,72 @@ void DiffusionIntegrator::AssemblePatchMatrix(
    Array2D<double> gradQX(Q1D[0],2);
 
    Array3D<double> gradDXY(D1D[0], D1D[1], dim);
-   Array2D<double> gradDX(D1D[0],dim);
+   Array2D<double> gradDX(D1D[0], dim);
 
    Vector ej(ndof);
+
+   int nd[3];
+   Array3D<int> cdofs;
+
+   const bool spmat = true;
+   int *smati = nullptr;
+   int *smatj = nullptr;
+   double *smata = nullptr;
+   if (spmat)
+   {
+      Array<int> maxw(dim);
+      maxw = 0;
+
+      for (int d=0; d<dim; ++d)
+      {
+         for (int i=0; i<D1D[d]; ++i)
+         {
+            maxw[d] = std::max(maxw[d], maxDD[d][i] - minDD[d][i] + 1);
+         }
+      }
+
+      cdofs.SetSize(maxw[0], maxw[1], maxw[2]);
+
+      // Compute sparsity of the sparse matrix
+      smati = new int[ndof+1];  // TODO: delete
+      smati[0] = 0;
+
+      int nnz = 0;
+
+      for (int dof_j=0; dof_j<ndof; ++dof_j)
+      {
+         const int jdz = dof_j / (D1D[0] * D1D[1]);
+         const int jdy = (dof_j - (jdz * D1D[0] * D1D[1])) / D1D[0];
+         const int jdx = dof_j - (jdz * D1D[0] * D1D[1]) - (jdy * D1D[0]);
+
+         MFEM_VERIFY(jdx + (D1D[0] * (jdy + (D1D[1] * jdz))) == dof_j, "");
+
+         const int jd[3] = {jdx, jdy, jdz};
+         int ndd = 1;
+         for (int i=0; i<dim; ++i)
+         {
+            nd[i] = maxDD[i][jd[i]] - minDD[i][jd[i]] + 1;
+            ndd *= nd[i];
+         }
+
+         smati[dof_j + 1] = smati[dof_j] + ndd;
+         nnz += ndd;
+      }
+
+      smatj = new int[nnz];  // TODO: delete
+      smata = new double[nnz];  // TODO: delete
+
+      for (int i=0; i<nnz; ++i)
+      {
+         smatj[i] = -1;
+         smata[i] = 0.0;
+      }
+   }  // if (spmat)
+   else  // Using DenseMatrix pmat
+   {
+      pmat.SetSize(ndof, ndof);
+      pmat = 0.0;
+   }
 
    for (int dof_j=0; dof_j<ndof; ++dof_j)
    {
@@ -1832,7 +1882,22 @@ void DiffusionIntegrator::AssemblePatchMatrix(
       const int jdy = (dof_j - (jdz * D1D[0] * D1D[1])) / D1D[0];
       const int jdx = dof_j - (jdz * D1D[0] * D1D[1]) - (jdy * D1D[0]);
 
-      MFEM_VERIFY(jdx + (D1D[0] * (jdy + (D1D[1] * jdz))) == dof_j, "");
+      const int jd[3] = {jdx, jdy, jdz};
+      for (int i=0; i<dim; ++i)
+      {
+         nd[i] = maxDD[i][jd[i]] - minDD[i][jd[i]] + 1;
+      }
+
+      if (spmat)
+      {
+         for (int i=0; i<nd[0]; ++i)
+            for (int j=0; j<nd[1]; ++j)
+               for (int k=0; k<nd[2]; ++k)
+               {
+                  cdofs(i,j,k) = minDD[0][jdx] + i + (D1D[0] *
+                                                      (minDD[1][jdy] + j + (D1D[1] * (minDD[2][jdz] + k))));
+               }
+      }
 
       for (int d=0; d<dim; ++d)
          for (int qz = minD[2][jdz]; qz <= maxD[2][jdz]; ++qz)
@@ -1981,9 +2046,30 @@ void DiffusionIntegrator::AssemblePatchMatrix(
             {
                for (int dx = minDD[0][jdx]; dx <= maxDD[0][jdx]; ++dx)
                {
-                  pmat(dx + (D1D[0] * (dy + (D1D[1] * dz))), dof_j) += ((gradDXY(dx,dy,0) * wz) +
-                                                                        (gradDXY(dx,dy,1) * wz) +
-                                                                        (gradDXY(dx,dy,2) * wDz));
+                  const int row = dx + (D1D[0] * (dy + (D1D[1] * dz)));
+                  const double v = (gradDXY(dx,dy,0) * wz) +
+                                   (gradDXY(dx,dy,1) * wz) +
+                                   (gradDXY(dx,dy,2) * wDz);
+
+                  const int loc = dx - minDD[0][jd[0]] + (nd[0] * (dy - minDD[1][jd[1]] +
+                                                                   (nd[1] * (dz - minDD[2][jd[2]]))));
+
+                  const int odof = cdofs(dx - minDD[0][jd[0]],
+                                         dy - minDD[1][jd[1]],
+                                         dz - minDD[2][jd[2]]);
+
+                  if (spmat)
+                  {
+                     // TODO: Make this MFEM_ASSERT or just remove it.
+                     const int m = smati[dof_j] + loc;
+                     MFEM_VERIFY(smatj[m] == odof || smatj[m] == -1, "");
+                     smatj[m] = odof;
+                     smata[m] += v;
+                  }
+                  else
+                  {
+                     pmat(row, dof_j) += v;
+                  }
                }
             }
          }
@@ -1992,7 +2078,7 @@ void DiffusionIntegrator::AssemblePatchMatrix(
 
    if (spmat)
    {
-      //smat = new SparseMatrix();
+      smat = new SparseMatrix(smati, smatj, smata, ndof, ndof);
    }
 }
 
