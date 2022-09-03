@@ -413,7 +413,6 @@
     <ClCompile Include="..\fem\ceed\full-assembly.cpp" />
     <ClCompile Include="..\fem\ceed\mass.cpp" />
     <ClCompile Include="..\fem\ceed\nlconvection.cpp" />
-    <ClCompile Include="..\fem\ceed\operator.cpp" />
     <ClCompile Include="..\fem\doftrans.cpp" />
     <ClCompile Include="..\fem\fe\fe_base.cpp" />
     <ClCompile Include="..\fem\fe\fe_fixed_order.cpp" />

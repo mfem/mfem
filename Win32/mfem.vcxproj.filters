@@ -571,9 +571,6 @@
     <ClCompile Include="..\fem\fe\fe_ser.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\fem\ceed\operator.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="..\general\hash.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
