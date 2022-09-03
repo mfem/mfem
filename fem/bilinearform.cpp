@@ -495,6 +495,9 @@ void BilinearForm::Assemble(int skip_zeros)
                   SparseMatrix* spmat = nullptr;
                   domain_integs[k]->AssemblePatchMatrix(p, mesh, elemmat, spmat);
 
+                  // TMP: just to verify correctness of spmat
+                  spmat->ToDenseMatrix(elemmat);
+
                   if (pmat.Size() == 0)
                   {
                      pmat = elemmat;
