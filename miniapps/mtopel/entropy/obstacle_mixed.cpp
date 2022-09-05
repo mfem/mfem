@@ -81,11 +81,6 @@ int main(int argc, char *argv[])
       mesh.UniformRefinement();
    }
 
-   // Need help for Socratis to use AMR
-   mesh.SetCurvature(2);
-   mesh.RandomRefinement(0.1);
-
-
    H1_FECollection H1fec(order, dim);
    FiniteElementSpace H1fes(&mesh, &H1fec);
 
@@ -102,12 +97,6 @@ int main(int argc, char *argv[])
    offsets[1] = H1fes.GetVSize();
    offsets[2] = L2fes.GetVSize();
    offsets.PartialSum();
-
-   Array<int> toffsets(3);
-   toffsets[0] = 0;
-   toffsets[1] = H1fes.GetTrueVSize();
-   toffsets[2] = L2fes.GetTrueVSize();
-   toffsets.PartialSum();
 
    Array<int> ess_tdof_list;
    Array<int> ess_bdr(mesh.bdr_attributes.Max());
@@ -140,10 +129,6 @@ int main(int argc, char *argv[])
 
    BlockVector x(offsets), rhs(offsets);
    x = 0.0; rhs = 0.0;
-
-   Vector trhs(toffsets.Last());
-   BlockVector tx(toffsets);
-   tx = 0.0; trhs = 0.0;
 
    GridFunction u_gf, delta_psi_gf;
    u_gf.MakeRef(&H1fes,x.GetBlock(0));
@@ -280,34 +265,18 @@ int main(int argc, char *argv[])
          b1.Assemble();
 
          BilinearForm a00(&H1fes);
-         a00.SetDiagonalPolicy(mfem::Operator::DIAG_ONE);
          a00.AddDomainIntegrator(new DiffusionIntegrator(c1_cf));
          a00.Assemble();
-         // a00.EliminateEssentialBC(ess_bdr,x.GetBlock(0),rhs.GetBlock(0),mfem::Operator::DIAG_ONE);
-         // a00.Finalize();
-         // SparseMatrix &A00 = a00.SpMat();
-         SparseMatrix A00;
-         Vector vec_tmp, vec_tmp_2;
-         vec_tmp.SetDataAndSize(trhs.GetData(),toffsets[1]);
-         vec_tmp_2.SetDataAndSize(trhs.GetData(),toffsets[2] - toffsets[1]);
-
-         mfem::out << rhs.Norml2() << endl;
-         a00.FormLinearSystem(ess_tdof_list, x.GetBlock(0), rhs.GetBlock(0), A00, tx.GetBlock(0), vec_tmp);
-         // mfem::out << trhs.GetBlock(0).Norml2() << endl;
-         // trhs.SyncFromBlocks();
-         mfem::out << trhs.Norml2() << endl;
-         mfem::out << vec_tmp.Norml2() << endl;
-
+         a00.EliminateEssentialBC(ess_bdr,x.GetBlock(0),rhs.GetBlock(0),mfem::Operator::DIAG_ONE);
+         a00.Finalize();
+         SparseMatrix &A00 = a00.SpMat();
 
          MixedBilinearForm a10(&H1fes,&L2fes);
          a10.AddDomainIntegrator(new MixedScalarMassIntegrator());
          a10.Assemble();
-         // a10.EliminateTrialDofs(ess_bdr, x.GetBlock(0), rhs.GetBlock(1));
-         // a10.Finalize();
-         // SparseMatrix &A10 = a10.SpMat();
-         SparseMatrix A10;
-         Array<int> empty;
-         a10.FormRectangularLinearSystem(ess_tdof_list, empty, x.GetBlock(0), rhs.GetBlock(1), A10, tx.GetBlock(0), vec_tmp_2);
+         a10.EliminateTrialDofs(ess_bdr, x.GetBlock(0), rhs.GetBlock(1));
+         a10.Finalize();
+         SparseMatrix &A10 = a10.SpMat();
 
          SparseMatrix &A01 = *Transpose(A10);
 
@@ -317,38 +286,26 @@ int main(int argc, char *argv[])
          a11.Finalize();
          SparseMatrix &A11 = a11.SpMat(); 
 
-         BlockMatrix A(toffsets);
+         BlockMatrix A(offsets);
          A.SetBlock(0,0,&A00);
          A.SetBlock(1,0,&A10);
          A.SetBlock(0,1,&A01);
          A.SetBlock(1,1,&A11);
 
          // iterative solver
-         BlockDiagonalPreconditioner prec(toffsets);
+         BlockDiagonalPreconditioner prec(offsets);
          prec.SetDiagonalBlock(0,new GSSmoother(A00));
          prec.SetDiagonalBlock(1,new GSSmoother(A11));
 
          // GMRES(A,prec,rhs,x,0,200, 50, 1e-12,0.0);
 
+         u_gf.MakeRef(&H1fes, x.GetBlock(0), 0);
+         delta_psi_gf.MakeRef(&L2fes, x.GetBlock(1), 0);
+         
          // or direct solver
          SparseMatrix * A_mono = A.CreateMonolithic();
          UMFPackSolver umf(*A_mono);
-         umf.Mult(trhs,tx);
-
-         const Operator *P = H1fes.GetProlongationMatrix();
-         if (P)
-         {
-            P->Mult(tx.GetBlock(0), x.GetBlock(0));
-            u_gf.MakeRef(&H1fes, x.GetBlock(0), 0);
-         }
-         else
-         {
-            u_gf.MakeRef(&H1fes, tx.GetBlock(0), 0);
-         }
-         delta_psi_gf.MakeRef(&L2fes, tx.GetBlock(1), 0);
-
-         // trhs.Print();
-         // u_gf.Print();
+         umf.Mult(rhs,x);
 
          u_tmp -= u_gf;
          double Newton_update_size = u_tmp.ComputeL2Error(zero);
@@ -414,14 +371,19 @@ int main(int argc, char *argv[])
          // Compute entropy: (u - phi ,1-ln(u - phi)) - || \nabla u ||^2
          // TODO: Talk to Socratis about a better way to do this
 
-         // LogarithmGridFunctionCoefficient ln_u(u_gf, obstacle);
-         // GridFunction ln_u_gf(&H1fes);
-         // ln_u_gf.ProjectCoefficient(ln_u);
-         // ln_u_gf -= 1.0;
+         BilinearForm m(&H1fes);
+         m.AddDomainIntegrator(new MassIntegrator());
+         m.Assemble();
+         m.Finalize();
 
-         // entropy = -( a.InnerProduct(u_gf, u_gf) );
-         // entropy = -( m.InnerProduct(u_gf, ln_u_gf) );
-         // mfem::out << "entropy = " << entropy << endl;
+         LogarithmGridFunctionCoefficient ln_u(u_gf, obstacle);
+         GridFunction ln_u_gf(&H1fes);
+         ln_u_gf.ProjectCoefficient(ln_u);
+         ln_u_gf -= 1.0;
+
+         entropy = -( a.InnerProduct(u_gf, u_gf) );
+         entropy = -( m.InnerProduct(u_gf, ln_u_gf) );
+         mfem::out << "entropy = " << entropy << endl;
 
          // Compute entropy: D(u_h, u_h_prvs) = (u_h ln(u_h) - u_h ln(u_h_prvs), 1) + (u_)
           
