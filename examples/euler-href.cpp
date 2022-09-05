@@ -441,7 +441,7 @@ int main(int argc, char *argv[])
       ti++;
 
       done = (t >= t_final - 1e-8*dt);
-      // if (done || ti % vis_steps == 0)
+      if (done || ti % vis_steps == 0)
       {
          cout << "time step: " << ti << ", time: " << t << endl;
          cout << "time step: " << ti << ", time: " << ref_t << endl;
@@ -522,15 +522,7 @@ Table * Hrefine(GridFunction & den,
    GridFunction sol_fine(&sol_fes_copy);
 
    // copy data;
-   mfem::out << den_fes->GetVDim() << endl;
-   mfem::out << mom_fes->GetVDim() << endl;
-   mfem::out << sol_fes->GetVDim() << endl;
-
-   mfem::out << den.Size() <<endl;
-   mfem::out << den_fine.Size() <<endl;
    den_fine = den;
-   mfem::out << mom.Size() <<endl;
-   mfem::out << mom_fine.Size() <<endl;
    mom_fine = mom;
    sol_fine = sol;
    Array<int>refinements(fine_mesh.GetNE());
