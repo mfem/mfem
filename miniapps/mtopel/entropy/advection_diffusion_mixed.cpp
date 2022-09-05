@@ -164,6 +164,7 @@ int main(int argc, char *argv[])
       {
          val *= sin(N*2.0*M_PI*x(i));
       }
+      // val *= 4.0;
       return eps * x.Size() * pow(N*2.0*M_PI,2) * val
              + gamma * (val + 0.5);
    };
@@ -307,9 +308,9 @@ int main(int argc, char *argv[])
    double increment_psi = 1e-4;
    for (k = 0; k < max_it; k++)
    {
-      double alpha = alpha0 / sqrt(k+1);
+      // double alpha = alpha0 / sqrt(k+1);
       // double alpha = alpha0 * sqrt(k+1);
-      // double alpha = alpha0;
+      double alpha = alpha0;
       // alpha *= 2;
 
       GridFunction u_tmp(&H1fes);
