@@ -9,8 +9,8 @@ using namespace std;
 using namespace mfem;
 
 
-double eps = 1.0;
-double gamma = 0.0;
+double eps = 1e-4;
+double gamma = 1.0;
 double L2_weight = 0.0;
 double Ramp_BC(const Vector &pt);
 double EJ_exact_solution(const Vector &pt);
@@ -164,7 +164,8 @@ int main(int argc, char *argv[])
       {
          val *= sin(N*2.0*M_PI*x(i));
       }
-      return (eps * x.Size() * pow(N*2.0*M_PI,2) + gamma) * val ;
+      return eps * x.Size() * pow(N*2.0*M_PI,2) * val
+             + gamma * (val + 0.5);
    };
 
    auto sol_func = [](const Vector &x)
@@ -306,9 +307,9 @@ int main(int argc, char *argv[])
    double increment_psi = 1e-4;
    for (k = 0; k < max_it; k++)
    {
-      // double alpha = alpha0 / sqrt(k+1);
+      double alpha = alpha0 / sqrt(k+1);
       // double alpha = alpha0 * sqrt(k+1);
-      double alpha = alpha0;
+      // double alpha = alpha0;
       // alpha *= 2;
 
       GridFunction u_tmp(&H1fes);
@@ -338,7 +339,8 @@ int main(int argc, char *argv[])
          GridFunctionCoefficient psi_cf(&psi_gf);
          GridFunctionCoefficient psi_old_cf(&psi_old_gf);
          SumCoefficient psi_old_minus_psi(psi_old_cf, psi_cf, 1.0, -1.0);
-         ProductCoefficient gamma_u_old(gamma*(1.0-alpha), u_old_cf);
+         ProductCoefficient gamma_u_old(-alpha*gamma, u_old_cf);
+         // ProductCoefficient gamma_u_old(gamma*(1.0-alpha), u_old_cf);
          ProductCoefficient alpha_f(alpha, f);
 
          b0.AddDomainIntegrator(new DomainLFGradIntegrator(alpha_eps_grad_u_old));
@@ -355,7 +357,7 @@ int main(int argc, char *argv[])
          BilinearForm a00(&H1fes);
          a00.AddDomainIntegrator(new DiffusionIntegrator(eps_coeff));
          a00.AddDomainIntegrator(new DiffusionIntegrator(beta_beta));
-         a00.AddDomainIntegrator(new MassIntegrator(gamma_coeff));
+         // a00.AddDomainIntegrator(new MassIntegrator(gamma_coeff));
          a00.AddDomainIntegrator(new MassIntegrator(L2_weight_coeff));
          a00.Assemble();
          a00.EliminateEssentialBC(ess_bdr,x.GetBlock(0),rhs.GetBlock(0),mfem::Operator::DIAG_ONE);
@@ -412,8 +414,8 @@ int main(int argc, char *argv[])
 
          // psi_sock << "solution\n" << mesh << delta_psi_gf << "window_title 'delta psi'" << flush;
 
-         double gamma = 1.0;
-         delta_psi_gf *= gamma;
+         double factor = 1.0;
+         delta_psi_gf *= factor;
          psi_gf += delta_psi_gf;
          // psi_gf = delta_psi_gf;
 
@@ -451,7 +453,7 @@ int main(int argc, char *argv[])
       // sol_sock << "solution\n" << mesh << u_alt_gf << "window_title 'Discrete solution'" << flush;
       // sol_sock << "solution\n" << mesh << u_gf << "window_title 'Discrete solution'" << flush;
    
-      if (increment_u < 1e-6)
+      if (increment_u < 1e-4)
       {
          break;
       }
