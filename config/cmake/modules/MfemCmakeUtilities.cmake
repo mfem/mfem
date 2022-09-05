@@ -43,22 +43,14 @@ function(convert_filenames_to_full_paths NAMES)
   set(${NAMES} ${tmp_names} PARENT_SCOPE)
 endfunction()
 
-# Wrapper for add_executable that calls the HIP wrapper if applicable
+# Wrapper for add_executable
 macro(mfem_add_executable NAME)
-  if (MFEM_USE_HIP)
-    add_executable(${NAME} ${ARGN})
-  else()
-    add_executable(${NAME} ${ARGN})
-  endif()
+  add_executable(${NAME} ${ARGN})
 endmacro()
 
-# Wrapper for add_library that calls the HIP wrapper if applicable
+# Wrapper for add_library
 macro(mfem_add_library NAME)
-  if (MFEM_USE_HIP)
-    add_library(${NAME} ${ARGN})
-  else()
-    add_library(${NAME} ${ARGN})
-  endif()
+  add_library(${NAME} ${ARGN})
 endmacro()
 
 # Simple shortcut to add_custom_target() with option to add the target to the
