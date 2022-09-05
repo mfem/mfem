@@ -48,9 +48,6 @@ endif
 .SUFFIXES: .o .cpp .mk
 .PHONY: all clean clean-build clean-exec
 
-print:
-	@echo $(DPG_LIB_SRCS)
-
 all: $(MINIAPPS)
 	@echo $(MINIAPPS)
 

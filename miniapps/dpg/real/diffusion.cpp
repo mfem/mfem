@@ -6,7 +6,7 @@
 //   ./diffusion -m ../../../data/star.mesh -o 3 -ref 1 -do 1 -prob 1 -sc
 //   ./diffusion -m ../../../data/inline-tri.mesh -o 2 -ref 3 -do 1 -prob 0
 //   ./diffusion -m ../../../data/inline-quad.mesh -o 4 -ref 2 -do 2 -prob 0 -sc
-//   ./diffusion -m ../../../data/inline-tet.mesh -o 4 -ref 0 -do 1 -prob 1 -sc
+//   ./diffusion -m ../../../data/inline-tet.mesh -o 3 -ref 0 -do 1 -prob 1 -sc
 
 // Description:  
 // This example code demonstrates the use of MFEM to define and solve
@@ -258,7 +258,7 @@ int main(int argc, char *argv[])
       M->owns_blocks = 1;
       for (int i=0; i<A->NumRowBlocks(); i++)
       {
-         M->SetDiagonalBlock(i,new DSmoother(A->GetBlock(i,i)));
+         M->SetDiagonalBlock(i,new GSSmoother(A->GetBlock(i,i)));
       }
 
       CGSolver cg;
@@ -303,7 +303,7 @@ int main(int argc, char *argv[])
 
       if (visualization)
       {
-         const char * keys = (iref == 0) ? "jRcm\n" : "";
+         const char * keys = (iref == 0 && dim == 2) ? "jRcm\n" : "";
          char vishost[] = "localhost";
          int  visport   = 19916;
          common::VisualizeField(u_out,vishost, visport, u_gf, 
