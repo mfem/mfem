@@ -8,14 +8,16 @@ using namespace mfem;
 int test_plasma_point_calculator() {
 
   // load mesh and project initial solution
-  const char *mesh_file = "meshes/gs_mesh.msh";
+  // const char *mesh_file = "meshes/gs_mesh.msh";
+  const char *mesh_file = "meshes/test.msh";
   const char *data_file = "separated_file.data";
   int order = 1;
   Mesh mesh(mesh_file);
   mesh.UniformRefinement();
   H1_FECollection fec(order, mesh.Dimension());
   FiniteElementSpace fespace(&mesh, &fec);
-  InitialCoefficient init_coeff = read_data_file(data_file);
+  // InitialCoefficient init_coeff = read_data_file(data_file);
+  InitialCoefficient init_coeff = from_manufactured_solution();
   GridFunction psi_init(&fespace);
   psi_init.ProjectCoefficient(init_coeff);
   psi_init.Save("psi_init.gf");

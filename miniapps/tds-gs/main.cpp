@@ -52,6 +52,7 @@
 #include <math.h>
 
 #include "test.hpp"
+#include "exact.hpp"
 #include "initial_coefficient.hpp"
 #include "plasma_model.hpp"
 #include "sys_operator.hpp"
@@ -70,14 +71,15 @@ const int attr_ext = 2000;
 int main(int argc, char *argv[])
 {
    // Parse command line options.
-   const char *mesh_file = "meshes/gs_mesh.msh";
+   // const char *mesh_file = "meshes/gs_mesh.msh";
+   const char *mesh_file = "meshes/test.msh";
    const char *data_file = "separated_file.data";
    int order = 1;
 
    // constants associated with plasma model
    double alpha = 2.0;
    double beta = 1.0;
-   double lambda = 1.0;
+   double lambda = 0.0;
    double gamma = 2.0;
    double mu = 1.0;
    double r0 = 1.0;
@@ -106,9 +108,9 @@ int main(int argc, char *argv[])
    
    // unit tests
    test();
-   if (true) {
-     return 1;
-   }
+   // if (true) {
+   //   return 1;
+   // }
    
    // Read the mesh from the given mesh file, and refine once uniformly.
    Mesh mesh(mesh_file);
@@ -121,7 +123,8 @@ int main(int argc, char *argv[])
    cout << "Number of unknowns: " << fespace.GetTrueVSize() << endl;
 
    // Read the data file
-   InitialCoefficient init_coeff = read_data_file(data_file);
+   // InitialCoefficient init_coeff = read_data_file(data_file);
+   InitialCoefficient init_coeff = from_manufactured_solution();
    GridFunction psi_init(&fespace);
    psi_init.ProjectCoefficient(init_coeff);
    psi_init.Save("psi_init.gf");
@@ -136,14 +139,21 @@ int main(int argc, char *argv[])
    Array<int> bdr_attribs(mesh.bdr_attributes);
    Array<int> ess_bdr(bdr_attribs.Max());
    ess_bdr = 1;
-   ess_bdr[attr_ff_bdr-1] = 0;
+   // ess_bdr[attr_ff_bdr-1] = 0;
+   // ess_bdr[attr_ff_bdr-1] = 1;
    fespace.GetEssentialTrueDofs(ess_bdr, boundary_dofs, 1);
    
-   // Define the solution x as a finite element grid function in fespace. Set
-   // the initial guess to zero, which also sets the boundary conditions.
-   GridFunction x(&fespace);
-   x = 0.0;
+   ConstantCoefficient one(1.0);
 
+   /* 
+      -------------------------------------------------------------------------------------------
+      -------------------------------------------------------------------------------------------
+      -------------------------------------------------------------------------------------------
+      Define RHS
+      -------------------------------------------------------------------------------------------
+      -------------------------------------------------------------------------------------------
+      -------------------------------------------------------------------------------------------
+    */
    // Set up the contribution from the coils
    LinearForm coil_term(&fespace);
    // these are the unique element attributes used by the mesh
@@ -165,24 +175,76 @@ int main(int argc, char *argv[])
      }
    }
    PWConstCoefficient coil_current_pw(coil_current);
-   coil_term.AddDomainIntegrator(new DomainLFIntegrator(coil_current_pw));
+   if (true) {
+     coil_term.AddDomainIntegrator(new DomainLFIntegrator(coil_current_pw));
+   }
+
+   // manufactured solution forcing
+   double r0_ = 0.625+0.75/2;
+   double z0_ = 0.0;
+   double L_ = 0.35;
+   double k_ = M_PI/(2.0*L_);
+   ExactForcingCoefficient exact_forcing_coeff(r0_, z0_, k_);
+   if (true) {
+     coil_term.AddDomainIntegrator(new DomainLFIntegrator(exact_forcing_coeff));
+   }
+
+   // boundary condition
+   ExactCoefficient exact_coefficient(r0_, z0_, k_);
+   if (false) {
+     coil_term.AddBoundaryIntegrator(new DomainLFIntegrator(exact_coefficient));
+   }
+
+   // for debugging: solve I u = g
+   if (false) {
+     coil_term.AddDomainIntegrator(new DomainLFIntegrator(exact_coefficient));
+   }
+   
    coil_term.Assemble();
 
+   /* 
+      -------------------------------------------------------------------------------------------
+      -------------------------------------------------------------------------------------------
+      -------------------------------------------------------------------------------------------
+      Define LHS
+      -------------------------------------------------------------------------------------------
+      -------------------------------------------------------------------------------------------
+      -------------------------------------------------------------------------------------------
+    */
    // Set up the bilinear form diff_operator corresponding to the diffusion integrator
    DiffusionIntegratorCoefficient diff_op_coeff(&model);
    BilinearForm diff_operator(&fespace);
-   diff_operator.AddDomainIntegrator(new DiffusionIntegrator(diff_op_coeff));
+   if (true) {
+     diff_operator.AddDomainIntegrator(new DiffusionIntegrator(diff_op_coeff));
+   }
+   
+   // Dirichlet boundary
+   if (false) {
+     diff_operator.AddBoundaryIntegrator(new MassIntegrator(one));
+   }
+   // for debugging: solve I u = g
+   if (false) {
+     diff_operator.AddDomainIntegrator(new MassIntegrator(one));
+   }
 
    // boundary integral
-   BoundaryCoefficient first_boundary_coeff(rho_gamma, &model, 1);
-   diff_operator.AddBoundaryIntegrator(new MassIntegrator(first_boundary_coeff));
-   // https://en.cppreference.com/w/cpp/experimental/special_functions
+   if (false) {
+     BoundaryCoefficient first_boundary_coeff(rho_gamma, &model, 1);
+     diff_operator.AddBoundaryIntegrator(new MassIntegrator(first_boundary_coeff));
+     // https://en.cppreference.com/w/cpp/experimental/special_functions
+   }
 
    // assemble diff_operator
    diff_operator.Assemble();
 
-   // Form the linear system A X = B. This includes eliminating boundary
-   // conditions, applying AMR constraints, and other transformations.
+
+   // Define the solution x as a finite element grid function in fespace. Set
+   // the initial guess to zero, which also sets the boundary conditions.
+   GridFunction x(&fespace);
+   x.ProjectCoefficient(exact_coefficient);
+   
+   // // Form the linear system A X = B. This includes eliminating boundary
+   // // conditions, applying AMR constraints, and other transformations.
    SparseMatrix A;
    Vector B, X;
    diff_operator.FormLinearSystem(boundary_dofs, x, coil_term, A, X, B);
@@ -196,12 +258,17 @@ int main(int argc, char *argv[])
    // now we have an initial guess: x
    x.Save("sol.gf");
    mesh.Save("mesh.mesh");
-   
+
+   GridFunction u(&fespace);
+   u.ProjectCoefficient(exact_coefficient);
+   u.Save("exact.gf");
+
    GridFunction dx(&fespace);
    LinearForm out_vec(&fespace);
    SysOperator op(&diff_operator, &coil_term, &model, &fespace, &mesh, attr_lim);
    dx = 0.0;
-   for (int i = 0; i < 3; ++i) {
+   // x = psi_init;
+   for (int i = 0; i < 5; ++i) {
 
      op.Mult(x, out_vec);
      double error = GetMaxError(out_vec);
@@ -209,11 +276,20 @@ int main(int argc, char *argv[])
      printf("i: %d, max error: %.3e\n", i, error);
      printf("********************************\n\n");
 
+     if (error < 1e-12) {
+       break;
+     }
      int kdim = 10000;
      int max_iter = 400;
      double tol = 1e-12;
-     // PCG(op.GetGradient(x), M, out_vec, dx, 0, 400, 1e-12, 0.0);
+
+     dx = 0.0;
      GMRES(op.GetGradient(x), dx, out_vec, M, max_iter, kdim, tol, 0.0, 0);
+
+     // dx = 0.0;
+     // op.GetGradient(x).FormLinearSystem(boundary_dofs, dx, out_vec, A, X, B);
+     // GMRES(A, X, B, M, max_iter, kdim, tol, 0.0, 0);
+ 
      x -= dx;
 
    }
@@ -223,6 +299,7 @@ int main(int argc, char *argv[])
    printf("final max error: %.3e\n", error);
    printf("********************************\n\n");
 
+   x.Save("final.gf");
    return 0;
 }
 

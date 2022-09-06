@@ -11,6 +11,9 @@ double DiffusionIntegratorCoefficient::Eval(ElementTransformation & T,
    Vector x(x_, 3);
    T.Transform(ip, x);
    double ri(x(0));
+   // if (true) {
+   //   return 1.0;
+   // }
 
    return 1.0 / (ri * model->get_mu());
 }

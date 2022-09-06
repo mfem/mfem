@@ -32,7 +32,8 @@ void SysOperator::Mult(const Vector &psi, Vector &y) const {
   plasma_term.AddDomainIntegrator(new DomainLFIntegrator(nlgcoeff1));
   plasma_term.Assemble();
   
-  y = *coil_term;
+  y = 0.0;
+  add(y, -1.0, *coil_term, y);
   add(y, -1.0, plasma_term, y);
   diff_operator->AddMult(psi, y);
 }
@@ -49,26 +50,31 @@ Operator &SysOperator::GetGradient(const Vector &psi) const {
   int iprint = 0;
   set<int> plasma_inds;
   compute_plasma_points(x, *mesh, vertex_map, plasma_inds, ind_min, ind_max, min_val, max_val, iprint);
- 
+
+  // first nonlinear contribution: bilinear operator
   NonlinearGridCoefficient nlgcoeff_2(model, 2, &x, min_val, max_val, plasma_inds, attr_lim);
   BilinearForm diff_plasma_term_2(fespace);
   diff_plasma_term_2.AddDomainIntegrator(new MassIntegrator(nlgcoeff_2));
   diff_plasma_term_2.Assemble();
 
+  // second nonlinear contribution: corresponds to a column in jacobian
   NonlinearGridCoefficient nlgcoeff_3(model, 3, &x, min_val, max_val, plasma_inds, attr_lim);
   LinearForm diff_plasma_term_3(fespace);
   diff_plasma_term_3.AddDomainIntegrator(new DomainLFIntegrator(nlgcoeff_3));
   diff_plasma_term_3.Assemble();
 
+  // third nonlinear contribution: corresponds to a column in jacobian
   NonlinearGridCoefficient nlgcoeff_4(model, 4, &x, min_val, max_val, plasma_inds, attr_lim);
   LinearForm diff_plasma_term_4(fespace);
   diff_plasma_term_4.AddDomainIntegrator(new DomainLFIntegrator(nlgcoeff_4));
   diff_plasma_term_4.Assemble();
 
+  // turn diff_operator and diff_plasma_term_2 into sparse matrices
   const SparseMatrix M1 = diff_operator->SpMat();
   SparseMatrix M2 = diff_plasma_term_2.SpMat();
   M2.Finalize();
-  
+
+  // create a new sparse matrix, Mat, that will combine all terms
   int m = fespace->GetTrueVSize();
   Mat = new SparseMatrix(m, m);
   for (int k = 0; k < m; ++k) {
@@ -91,10 +97,11 @@ Operator &SysOperator::GetGradient(const Vector &psi) const {
       Mat->Add(i, JJ1[j], AA1[j]);
     }
   }
+
+  // diff_plasma_term_2
   const auto II2 = M2.ReadI();
   const auto JJ2 = M2.ReadJ();
   const auto AA2 = M2.ReadData();
-  
   height = M2.Height();
   for (int i = 0; i < height; ++i) {
     const int begin2 = II2[i];

@@ -11,6 +11,7 @@ using namespace mfem;
 double InitialCoefficient::Eval(ElementTransformation & T,
                                 const IntegrationPoint & ip)
 {
+
   if (mask_plasma) {
     const int *v = T.mesh->GetElement(T.ElementNo)->GetVertices();
     set<int>::iterator plasma_inds_it;
@@ -21,69 +22,92 @@ double InitialCoefficient::Eval(ElementTransformation & T,
       }
     }
   }
+  if (use_manufactured) {
+    // double L = 0.35;
+    // if (abs(r - 0.625-0.75/2)+abs(z) <= L)
+    return exact_coeff.Eval(T, ip);
+    // else {
+    //   return 0.0;
+    // }
+  }
+
   
-   double x_[3];
-   Vector x(x_, 3);
-   T.Transform(ip, x);
-   double r(x(0));
-   double z(x(1));
+  double x_[3];
+  Vector x(x_, 3);
+  T.Transform(ip, x);
+  double r(x(0));
+  double z(x(1));
 
-   double mf = (r - r0) / dr;
-   double nf = (z - z0) / dz;
-   int m = int(mf);
-   int n = int(nf);
-   double rlc = r0 + m * dr;
-   double zlc = z0 + n * dz;
+  
+  double mf = (r - r0) / dr;
+  double nf = (z - z0) / dz;
+  int m = int(mf);
+  int n = int(nf);
+  double rlc = r0 + m * dr;
+  double zlc = z0 + n * dz;
 
-   if ((mf < 0) || (mf > nr-2) || (nf < 0) || (nf > nz-2)) {
-     return 0.0;
-   }
-   double ra, rb, rc;
-   double za, zb, zc;
-   double va, vb, vc;
-   if (fmod(mf, 1.0) > 0.5) {
-     // choose two points to the right
-     ra = rlc+dr; za = zlc; va = psizr[n][m+1];
-     rb = rlc+dr; zb = zlc+dz; vb = psizr[n+1][m+1];
-     if (fmod(nf, 1.0) > 0.5) {
-       // top left
-       rc = rlc; zc = zlc+dz; vc = psizr[n+1][m];
-     } else {
-       // bot left
-       rc = rlc; zc = zlc; vc = psizr[n][m];
-     }
-   } else {
-     // choose two points to the left
-     ra = rlc; za = zlc; va = psizr[n][m];
-     rb = rlc; zb = zlc+dz; vb = psizr[n+1][m];
-     if (fmod(nf, 1.0) > 0.5) {
-       // top right
-       rc = rlc+dr; zc = zlc+dz; vc = psizr[n+1][m+1];
-     } else {
-       // bot right
-       rc = rlc+dr; zc = zlc; vc = psizr[n][m+1];
-     }
-   }
+  if ((mf < 0) || (mf > nr-2) || (nf < 0) || (nf > nz-2)) {
+    return 0.0;
+  }
+  double ra, rb, rc;
+  double za, zb, zc;
+  double va, vb, vc;
+  if (fmod(mf, 1.0) > 0.5) {
+    // choose two points to the right
+    ra = rlc+dr; za = zlc; va = psizr[n][m+1];
+    rb = rlc+dr; zb = zlc+dz; vb = psizr[n+1][m+1];
+    if (fmod(nf, 1.0) > 0.5) {
+      // top left
+      rc = rlc; zc = zlc+dz; vc = psizr[n+1][m];
+    } else {
+      // bot left
+      rc = rlc; zc = zlc; vc = psizr[n][m];
+    }
+  } else {
+    // choose two points to the left
+    ra = rlc; za = zlc; va = psizr[n][m];
+    rb = rlc; zb = zlc+dz; vb = psizr[n+1][m];
+    if (fmod(nf, 1.0) > 0.5) {
+      // top right
+      rc = rlc+dr; zc = zlc+dz; vc = psizr[n+1][m+1];
+    } else {
+      // bot right
+      rc = rlc+dr; zc = zlc; vc = psizr[n][m+1];
+    }
+  }
 
-   double wa = ((zb-zc)*(r-rc)+(rc-rb)*(z-zc))
-     /((zb-zc)*(ra-rc)+(rc-rb)*(za-zc));
-   double wb = ((zc-za)*(r-rc)+(ra-rc)*(z-zc))
-     /((zb-zc)*(ra-rc)+(rc-rb)*(za-zc));
-   double wc = 1 - wb - wa;
+  double wa = ((zb-zc)*(r-rc)+(rc-rb)*(z-zc))
+    /((zb-zc)*(ra-rc)+(rc-rb)*(za-zc));
+  double wb = ((zc-za)*(r-rc)+(ra-rc)*(z-zc))
+    /((zb-zc)*(ra-rc)+(rc-rb)*(za-zc));
+  double wc = 1 - wb - wa;
 
-   // if ((wa < 0) || (wb < 0) || (wc < 0)) {
-   //   cout << "weights are out of bounds, check me!" << endl;
-   //   printf("(r, z) = (%f, %f)\n", r, z);
-   //   printf("(ra, za) = (%f, %f)\n", ra, za);
-   //   printf("(rb, zb) = (%f, %f)\n", rb, zb);
-   //   printf("(rc, zc) = (%f, %f)\n", rc, zc);
-   //   printf("(mf, nf) = (%f, %f)\n", mf, nf);
-   //   printf("(m, n) = (%d, %d)\n", m, n);
-   //   printf("(wa, wb, wc) = (%f, %f, %f)\n", wa, wb, wc);
-   //   return 0.0;
-   // }
-   return wa*va+wb*vb+wc*vc;
+  // if ((wa < 0) || (wb < 0) || (wc < 0)) {
+  //   cout << "weights are out of bounds, check me!" << endl;
+  //   printf("(r, z) = (%f, %f)\n", r, z);
+  //   printf("(ra, za) = (%f, %f)\n", ra, za);
+  //   printf("(rb, zb) = (%f, %f)\n", rb, zb);
+  //   printf("(rc, zc) = (%f, %f)\n", rc, zc);
+  //   printf("(mf, nf) = (%f, %f)\n", mf, nf);
+  //   printf("(m, n) = (%d, %d)\n", m, n);
+  //   printf("(wa, wb, wc) = (%f, %f, %f)\n", wa, wb, wc);
+  //   return 0.0;
+  // }
+  return wa*va+wb*vb+wc*vc;
 
+}
+
+InitialCoefficient from_manufactured_solution() {
+
+  // center of limiter
+  double r0 = 0.625+0.75/2;
+  double z0 = 0.0;
+  double L = 0.35;
+  double k = M_PI/(2.0*L);
+
+  ExactCoefficient exact_coeff(r0, z0, k);
+  InitialCoefficient initial_coeff(exact_coeff);
+  return initial_coeff;
 }
 
 
