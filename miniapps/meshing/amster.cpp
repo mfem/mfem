@@ -17,6 +17,7 @@
 // Compile with: make amster
 //
 // Sample runs:
+//    mpirun -np 1 amster -m ../../data/star.mesh
 //    mpirun -np 4 amster -m bone.mesh
 //
 
@@ -26,7 +27,6 @@
 #include <fstream>
 #include "mesh-optimizer.hpp"
 #include "amster.hpp"
-#include "extrapolator.hpp"
 
 using namespace mfem;
 using namespace std;
@@ -40,7 +40,7 @@ int main (int argc, char *argv[])
 
    // Set the method's default parameters.
    const char *mesh_file = "jagged.mesh";
-   int mesh_poly_deg     = 1;
+   int mesh_poly_deg     = 2;
    bool fdscheme         = false;
 
    // Parse command-line input file.
@@ -98,50 +98,50 @@ int main (int argc, char *argv[])
    char title[] = "Initial metric values";
    vis_tmop_metric_p(mesh_poly_deg, *metric, *target_c, *pmesh, title, 0);
 
-   for (int f = 0; f < pfespace->GetNBE(); f++)
-   {
-      FaceElementTransformations *trans_f = pmesh->GetBdrFaceTransformations(f);
-      const IntegrationRule &ir_f = pfespace->GetBE(f)->GetNodes();
-      Vector n(dim);
-      Array<int> vdofs_e;
-      pfespace->GetElementVDofs(trans_f->Elem1No, vdofs_e);
-      for (int i = 0; i < ir_f.GetNPoints(); i++)
-      {
-         const IntegrationPoint &ip = ir_f.IntPoint(i);
-         trans_f->SetIntPoint(&ip);
-         CalcOrtho(trans_f->Jacobian(), n);
+   // Try to to pull back nodes from inverted elements next to the boundary.
+//   for (int f = 0; f < pfespace->GetNBE(); f++)
+//   {
+//      FaceElementTransformations *trans_f = pmesh->GetBdrFaceTransformations(f);
+//      const IntegrationRule &ir_f = pfespace->GetBE(f)->GetNodes();
+//      Vector n(dim);
+//      Array<int> vdofs_e;
+//      pfespace->GetElementVDofs(trans_f->Elem1No, vdofs_e);
+//      for (int i = 0; i < ir_f.GetNPoints(); i++)
+//      {
+//         const IntegrationPoint &ip = ir_f.IntPoint(i);
+//         trans_f->SetIntPoint(&ip);
+//         CalcOrtho(trans_f->Jacobian(), n);
 
-         Vector coord_face_node;
-         x.GetVectorValue(*trans_f, ip, coord_face_node);
-         int ndof = vdofs_e.Size() / dim;
+//         Vector coord_face_node;
+//         x.GetVectorValue(*trans_f, ip, coord_face_node);
+//         int ndof = vdofs_e.Size() / dim;
 
-         for (int j = 0; j < ndof; j++)
-         {
-            Vector vec(dim);
-            for (int d = 0; d < dim; d++)
-            {
-               vec(d) = coord_face_node(d) - x(vdofs_e[ndof*d + j]);
-            }
+//         for (int j = 0; j < ndof; j++)
+//         {
+//            Vector vec(dim);
+//            for (int d = 0; d < dim; d++)
+//            {
+//               vec(d) = coord_face_node(d) - x(vdofs_e[ndof*d + j]);
+//            }
 
-            if (vec * n < -1e-8)
-            {
-               // The node is on the wrong side.
-               cout << "wrong side "
-                    << f << " " << trans_f->Elem1No << " " << j << endl;
-               // Pull it inside;
-               for (int d = 0; d < dim; d++)
-               {
-                  x(vdofs_e[ndof*d + j]) =
-                        x(vdofs_e[ndof*d + j]) + 1.05 * vec(d);
-               }
-            }
-         }
-      }
-   }
-
-   // Visualize the starting mesh and metric values.
-   char t[] = "Fixed outside nodes";
-   vis_tmop_metric_p(mesh_poly_deg, *metric, *target_c, *pmesh, t, 0);
+//            if (vec * n < -1e-8)
+//            {
+//               // The node is on the wrong side.
+//               cout << "wrong side "
+//                    << f << " " << trans_f->Elem1No << " " << j << endl;
+//               // Pull it inside;
+//               for (int d = 0; d < dim; d++)
+//               {
+//                  x(vdofs_e[ndof*d + j]) =
+//                        x(vdofs_e[ndof*d + j]) + 1.05 * vec(d);
+//               }
+//            }
+//         }
+//      }
+//   }
+//   // Visualize the starting mesh and metric values.
+//   char t[] = "Fixed outside nodes";
+//   vis_tmop_metric_p(mesh_poly_deg, *metric, *target_c, *pmesh, t, 0);
 
    // Detect boundary nodes.
    Array<int> vdofs;
@@ -154,9 +154,16 @@ int main (int argc, char *argv[])
       for (int j = 0; j < vdofs.Size(); j++) { domain(vdofs[j]) = 0.0; }
    }
 
-   socketstream vis_b;
-   common::VisualizeField(vis_b, "localhost", 19916, domain,
-                          "Boundary Orig Mesh", 0, 700, 300, 300);
+   // Distance to the boundary, on the original mesh.
+   GridFunctionCoefficient coeff(&domain);
+   ParGridFunction dist(&sfespace);
+   ComputeScalarDistanceFromLevelSet(*pmesh, coeff, dist, false);
+   dist *= -1.0;
+   {
+      socketstream vis_b_func;
+      common::VisualizeField(vis_b_func, "localhost", 19916, dist,
+                             "Dist to Boundary", 0, 700, 300, 300, "Rj");
+   }
 
    // Create the background mesh.
    ParMesh *pmesh_bg = NULL;
@@ -194,53 +201,41 @@ int main (int argc, char *argv[])
    MFEM_ABORT("GSLIB needed for this functionality.");
 #endif
 
-   ParFiniteElementSpace h1fespace(pmesh_bg, fec);
-   ParGridFunction bg_domain(&h1fespace);
+   // The background level set function is always linear to avoid oscillations.
+   H1_FECollection bg_fec(1, dim);
+   ParFiniteElementSpace bg_pfes(pmesh_bg, &bg_fec);
+   ParGridFunction bg_domain(&bg_pfes);
 
    // Refine the background mesh around the boundary.
-   OptimizeMeshWithAMRForAnotherMesh(*pmesh_bg, domain, 5, bg_domain);
+   OptimizeMeshWithAMRForAnotherMesh(*pmesh_bg, dist, 6, bg_domain);
    {
       socketstream vis_b_func;
       common::VisualizeField(vis_b_func, "localhost", 19916, bg_domain,
-                             "Background", 300, 700, 300, 300);
+                             "Dist on Background", 300, 700, 300, 300, "Rj");
    }
 
-   // Active extrapolation zones (fully outside).
-   Array<int> dofs;
-   Array<bool> active_zones(h1fespace.GetNE());
-   for (int e = 0; e < h1fespace.GetNE(); e++)
+   // Compute min element size.
+   double min_dx = std::numeric_limits<double>::infinity();
+   for (int e = 0; e < pmesh_bg->GetNE(); e++)
    {
-      h1fespace.GetElementDofs(e, dofs);
-      Vector elem(dofs.Size());
-      bg_domain.GetSubVector(dofs, elem);
-      active_zones[e] = (elem.Min() < 0.0) ? true : false;
+      min_dx = fmin(min_dx, pmesh_bg->GetElementSize(e));
    }
+   MPI_Allreduce(MPI_IN_PLACE, &min_dx, 1, MPI_DOUBLE, MPI_MIN, MPI_COMM_WORLD);
 
-   // Extrapolate.
-   ParGridFunction bg_domain_xtrap(&h1fespace);
-   Extrapolator e;
-   e.xtrap_type     = Extrapolator::ASLAM;
-   e.xtrap_degree   = 1;
-   e.visualization = true;
-   ParGridFunction lset_1(bg_domain);
-   //DiffuseField(lset_1, 3);
-   DiffuseH1(lset_1, 10.0);
-   GridFunctionCoefficient level_set(&lset_1);
-
-   e.Extrapolate(level_set, active_zones, bg_domain,
-                 2.0, bg_domain_xtrap);
-
-   socketstream vis_b_func;
-   common::VisualizeField(vis_b_func, "localhost", 19916, bg_domain_xtrap,
-                          "Extrapolated", 0, 1000, 300, 300);
+   // Shift the zero level set by ~ one element inside.
+   const double alpha = min_dx;
+   bg_domain -= alpha;
 
    // Compute a distance function on the background.
-   GridFunctionCoefficient ls_filt_coeff(&bg_domain_xtrap);
-   ComputeScalarDistanceFromLevelSet(*pmesh_bg, ls_filt_coeff, bg_domain);
+   GridFunctionCoefficient ls_filt_coeff(&bg_domain);
+   ComputeScalarDistanceFromLevelSet(*pmesh_bg, ls_filt_coeff, bg_domain, true);
+
+   // Offset back to the original position of the boundary.
+   bg_domain += alpha;
    {
       socketstream vis_b_func;
       common::VisualizeField(vis_b_func, "localhost", 19916, bg_domain,
-                             "Distance", 600, 700, 300, 300);
+                             "Final LS", 600, 700, 300, 300, "Rjmm");
    }
 
    /*

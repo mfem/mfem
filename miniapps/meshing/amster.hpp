@@ -127,7 +127,8 @@ void OptimizeMeshWithAMRForAnotherMesh(ParMesh &pmesh,
 
 void ComputeScalarDistanceFromLevelSet(ParMesh &pmesh,
                                        GridFunctionCoefficient &ls_coeff,
-                                       ParGridFunction &distance_s)
+                                       ParGridFunction &distance_s,
+                                       bool filter_input)
 {
    H1_FECollection h1fec(distance_s.ParFESpace()->FEColl()->GetOrder(),
                                pmesh.Dimension());
@@ -148,9 +149,13 @@ void ComputeScalarDistanceFromLevelSet(ParMesh &pmesh,
    // Smooth-out Gibbs oscillations from the input level set. The smoothing
    // parameter here is specified to be mesh dependent with length scale dx.
    ParGridFunction filt_gf(&pfes_s);
-   const double dx = AvgElementSize(pmesh);
-   PDEFilter filter(pmesh, 1.0 * dx);
-   filter.Filter(ls_coeff, filt_gf);
+   if (filter_input)
+   {
+      const double dx = AvgElementSize(pmesh);
+      PDEFilter filter(pmesh, 1.0 * dx);
+      filter.Filter(ls_coeff, filt_gf);
+   }
+   else { filt_gf.ProjectCoefficient(ls_coeff); }
    GridFunctionCoefficient ls_filt_coeff(&filt_gf);
 
    dist_solver.ComputeScalarDistance(ls_filt_coeff, distance_s);
@@ -225,16 +230,13 @@ void DiffuseH1(ParGridFunction &g, double c)
    Vector B, X;
 
    // Solve with Neumann BC.
-   ParGridFunction u_neumann(&pfes);
    Array<int> ess_tdof_list;
-   a_n.FormLinearSystem(ess_tdof_list, u_neumann, b, A, X, B);
+   a_n.FormLinearSystem(ess_tdof_list, g, b, A, X, B);
    auto *prec = new HypreBoomerAMG;
    prec->SetPrintLevel(-1);
    cg.SetPreconditioner(*prec);
    cg.SetOperator(*A);
    cg.Mult(B, X);
-   a_n.RecoverFEMSolution(X, b, u_neumann);
+   a_n.RecoverFEMSolution(X, b, g);
    delete prec;
-
-   g = u_neumann;
 }

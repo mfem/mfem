@@ -41,33 +41,18 @@ COMMON_LIB += $(if $(MFEM_SHARED:YES=),,\
    $(if $(MFEM_USE_CUDA:YES=),$(CXX_XLINKER),$(CUDA_XLINKER))-rpath,$(abspath\
    $(MFEM_BUILD_DIR)/miniapps/common))
 
-AMSTER_SRC = amster.cpp extrapolator.cpp
-AMSTER_OBJ = $(AMSTER_SRC:.cpp=.o)
-
 .SUFFIXES:
 .SUFFIXES: .o .cpp .mk
 .PHONY: all lib-common clean clean-build clean-exec
 
 # Remove built-in rule
 %: %.cpp
-%.o: %.cpp
 
 # Replace the default implicit rule for *.cpp files
 %: $(SRC)%.cpp $(MFEM_LIB_FILE) $(CONFIG_MK) | lib-common
 	$(MFEM_CXX) $(MFEM_FLAGS) $< -o $@ $(COMMON_LIB) $(MFEM_LIBS)
 
-amster.o: amster.cpp $(wildcard $(SRC)%.hpp) $(MFEM_LIB_FILE)\
-	$(CONFIG_MK) | lib-common
-	$(MFEM_CXX) $(MFEM_FLAGS) -c $< -o $@
-
-extrapolator.o: extrapolator.cpp $(wildcard $(SRC)%.hpp) $(MFEM_LIB_FILE)\
-		$(CONFIG_MK) | lib-common
-		$(MFEM_CXX) $(MFEM_FLAGS) -c $< -o $@
-
 all: $(MINIAPPS)
-
-amster: $(AMSTER_OBJ)
-	$(MFEM_CXX) $(MFEM_LINK_FLAGS) -o $@ $(AMSTER_OBJ) $(COMMON_LIB) $(MFEM_LIBS)
 
 # Rule for building lib-common
 lib-common:
