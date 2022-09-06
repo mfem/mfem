@@ -3167,8 +3167,7 @@ int ParMesh::GetSharedFace(int sface) const
 
 int ParMesh::GetNFbyType(FaceType type) const
 {
-   MFEM_VERIFY(have_face_nbr_data,
-               "ExchangeFaceNbrData() should be called before using GetNFbyType");
+   const_cast<ParMesh*>(this)->ExchangeFaceNbrData();
    return Mesh::GetNFbyType(type);
 }
 

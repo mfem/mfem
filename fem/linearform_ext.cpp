@@ -61,28 +61,86 @@ void LinearFormExtension::Assemble()
       domain_integs[k]->AssembleDevice(fes, markers, b);
       elem_restrict_lex->MultTranspose(b, *lf);
    }
+
+   const Array<Array<int>*> &boundary_integs_marker = lf->boundary_integs_marker;
+   const int bdr_attributes_size = fes.GetMesh()->bdr_attributes.Size();
+   const Array<LinearFormIntegrator*> &boundary_integs = lf->boundary_integs;
+
+   for (int k = 0; k < boundary_integs.Size(); ++k)
+   {
+      // Get the markers for this integrator
+      const Array<int> *boundary_integs_marker_k = boundary_integs_marker[k];
+
+      // check if there are markers for this integrator
+      const bool has_markers_k = boundary_integs_marker_k != nullptr;
+
+      if (has_markers_k)
+      {
+         // Element attribute marker should be of length mesh->attributes
+         MFEM_VERIFY(bdr_attributes_size == boundary_integs_marker_k->Size(),
+                     "invalid boundary marker for boundary linear form "
+                     "integrator #" << k << ", counting from zero");
+      }
+
+      // if there are no markers, just use the whole linear form (1)
+      if (!has_markers_k) { bdr_markers.HostReadWrite(); bdr_markers = 1; }
+      else
+      {
+         // scan the attributes to set the markers to 0 or 1
+         const int NBE = fes.GetNBE();
+         const auto attr = bdr_attributes.Read();
+         const auto attr_markers = boundary_integs_marker_k->Read();
+         auto markers_w = bdr_markers.Write();
+         MFEM_FORALL(e, NBE, markers_w[e] = attr_markers[attr[e]-1] == 1;);
+      }
+
+      // Assemble the linear form
+      bdr_b = 0.0;
+      boundary_integs[k]->AssembleDevice(fes, bdr_markers, bdr_b);
+      bdr_restrict_lex->MultTranspose(bdr_b, *lf);
+   }
 }
 
 void LinearFormExtension::Update()
 {
    const FiniteElementSpace &fes = *lf->FESpace();
    const Mesh &mesh = *fes.GetMesh();
-   const int NE = fes.GetNE();
+   constexpr ElementDofOrdering ordering = ElementDofOrdering::LEXICOGRAPHIC;
 
    MFEM_VERIFY(lf->Size() == fes.GetVSize(), "");
 
-   markers.SetSize(NE);
-   //markers.UseDevice(true);
+   if (lf->domain_integs.Size() > 0)
+   {
+      const int NE = fes.GetNE();
+      markers.SetSize(NE);
+      //markers.UseDevice(true);
 
-   // Gather the attributes on the host from all the elements
-   attributes.SetSize(NE);
-   for (int i = 0; i < NE; ++i) { attributes[i] = mesh.GetAttribute(i); }
+      // Gather the attributes on the host from all the elements
+      attributes.SetSize(NE);
+      for (int i = 0; i < NE; ++i) { attributes[i] = mesh.GetAttribute(i); }
 
-   constexpr ElementDofOrdering ordering = ElementDofOrdering::LEXICOGRAPHIC;
-   elem_restrict_lex = fes.GetElementRestriction(ordering);
-   MFEM_VERIFY(elem_restrict_lex, "Element restriction not available");
-   b.SetSize(elem_restrict_lex->Height(), Device::GetMemoryType());
-   b.UseDevice(true);
+      elem_restrict_lex = fes.GetElementRestriction(ordering);
+      MFEM_VERIFY(elem_restrict_lex, "Element restriction not available");
+      b.SetSize(elem_restrict_lex->Height(), Device::GetMemoryType());
+      b.UseDevice(true);
+   }
+
+   if (lf->boundary_integs.Size() > 0)
+   {
+      const int NBE = fes.GetNBE();
+
+      bdr_markers.SetSize(NBE);
+      // bdr_markers.UseDevice(true);
+
+      bdr_attributes.SetSize(NBE);
+      for (int i = 0; i < NBE; ++i) { bdr_attributes[i] = mesh.GetBdrAttribute(i); }
+
+      bdr_restrict_lex = fes.GetFaceRestriction(
+                            ordering, FaceType::Boundary, L2FaceValues::SingleValued);
+      MFEM_VERIFY(bdr_restrict_lex, "Face restriction not available");
+      bdr_b.SetSize(bdr_restrict_lex->Height(), Device::GetMemoryType());
+      bdr_b.UseDevice(true);
+   }
 }
 
 } // namespace mfem
