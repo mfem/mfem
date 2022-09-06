@@ -488,32 +488,58 @@ void BilinearForm::Assemble(int skip_zeros)
          for (int p=0; p<mesh->NURBSext->GetNP(); ++p)
          {
             pmat.SetSize(0);
+
+            fes->GetPatchVDofs(p, vdofs);
+
             for (int k = 0; k < domain_integs.Size(); k++)
             {
                if (domain_integs[k]->Patchwise())
                {
                   SparseMatrix* spmat = nullptr;
+                  StopWatch sw;
+                  sw.Start();
                   domain_integs[k]->AssemblePatchMatrix(p, mesh, elemmat, spmat);
+                  sw.Stop();
+                  std::cout << "Patch " << p << " sparse assembly time " << sw.RealTime() <<
+                            std::endl;
 
-                  // TMP: just to verify correctness of spmat
-                  spmat->ToDenseMatrix(elemmat);
+                  //mat->AddSubMatrix(vdofs, vdofs, pmat, skip_zeros);
+                  Array<int> cols;
+                  Vector srow;
 
-                  if (pmat.Size() == 0)
+                  for (int r=0; r<spmat->Height(); ++r)
                   {
-                     pmat = elemmat;
+                     spmat->GetRow(r, cols, srow);
+                     for (int i=0; i<cols.Size(); ++i)
+                     {
+                        cols[i] = vdofs[cols[i]];
+                     }
+                     mat->AddRow(vdofs[r], cols, srow);
                   }
-                  else
-                  {
-                     pmat += elemmat;
-                  }
+
+                  /*
+                            // TMP: just to verify correctness of spmat
+                            spmat->ToDenseMatrix(elemmat);
+
+                            if (pmat.Size() == 0)
+                            {
+                               pmat = elemmat;
+                            }
+                            else
+                            {
+                               pmat += elemmat;
+                            }
+                  */
                }
             }
 
-            if (pmat.Size() > 0)
-            {
-               fes->GetPatchVDofs(p, vdofs);
-               mat->AddSubMatrix(vdofs, vdofs, pmat, skip_zeros);
-            }
+            /*
+                 if (pmat.Size() > 0)
+                 {
+                    fes->GetPatchVDofs(p, vdofs);
+                    mat->AddSubMatrix(vdofs, vdofs, pmat, skip_zeros);
+                 }
+            */
          }
       }
    }
