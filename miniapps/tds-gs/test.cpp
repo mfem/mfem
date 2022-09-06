@@ -42,9 +42,12 @@ int test_plasma_point_calculator() {
 
 int test()
 {
+  cout << "performing tests..." << endl;
   test_plasma_point_calculator();
 
   double a = 1.0;
+
+  cout << "tests finished..." << endl << endl << endl;
   // double b = S_p_prime(a);
   // cout << "a" << a << "b" << b << endl;
   return 1;

@@ -37,6 +37,18 @@ double normalized_psi(double & psi, double & psi_max, double & psi_bdp)
 double NonlinearGridCoefficient::Eval(ElementTransformation & T,
                                       const IntegrationPoint & ip)
 {
+
+  if (true) {
+    const int *v = T.mesh->GetElement(T.ElementNo)->GetVertices();
+    set<int>::iterator plasma_inds_it;
+    for (int i = 0; i < 3; ++i) {
+      plasma_inds_it = plasma_inds.find(v[i]);
+      if (plasma_inds_it == plasma_inds.end()) {
+        return 0.0;
+      }
+    }
+  }
+  
   double psi_val;
   Mesh *gf_mesh = psi->FESpace()->GetMesh();
   int Component = 1;
@@ -66,7 +78,6 @@ double NonlinearGridCoefficient::Eval(ElementTransformation & T,
    // if ((v[0] == 201) || (v[1] == 201) || (v[2] == 201)) {
    //   printf("element %d, int point %d, x %.6f, y %.6f\n", T.ElementNo, ip.index, x(0), x(1));
    // }
-
    // TODO:
    // plasma model in only one region
    // get phi(x_max) and phi(x_sp) here

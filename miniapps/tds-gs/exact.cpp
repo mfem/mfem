@@ -26,7 +26,7 @@ double ExactCoefficient::Eval(ElementTransformation & T,
 }
 
 double ExactForcingCoefficient::Eval(ElementTransformation & T,
-                              const IntegrationPoint & ip)
+                                     const IntegrationPoint & ip)
 {
    double x_[3];
    Vector x(x_, 3);
@@ -40,19 +40,21 @@ double ExactForcingCoefficient::Eval(ElementTransformation & T,
    //   return ans;
    // }
 
-   // todo: add in mu!
-   ans = - 4.0 * pow(k, 2.0) / r * cos(k * (z - r - z0 + r0)) * cos(k * (z + r - z0 - r0)) \
-     - k / pow(r, 2.0) * sin(k * (z - r - z0 + r0)) * cos(k * (z + r - z0 - r0)) \
-     + k / pow(r, 2.0) * cos(k * (z - r - z0 + r0)) * sin(k * (z + r - z0 - r0));
+   double mu = model.get_mu();
+   ans = - 4.0 * pow(k, 2.0) / r / mu * cos(k * (z - r - z0 + r0)) * cos(k * (z + r - z0 - r0)) \
+     - k / pow(r, 2.0) / mu * sin(k * (z - r - z0 + r0)) * cos(k * (z + r - z0 - r0)) \
+     + k / pow(r, 2.0) / mu * cos(k * (z - r - z0 + r0)) * sin(k * (z + r - z0 - r0));
 
    double L = M_PI/(2.0*k);
-   if (abs(r - r0)+abs(z - z0) <= L) {
+   if (abs(r - r0) + abs(z - z0) <= L) {
      // inside plasma region
+     double psi_N = psi_exact(r, z, r0, z0, k) + 1;
+     ans -= r * model.S_p_prime(psi_N);
+     ans -= model.S_ff_prime(psi_N) / (r * mu);
    }
 
-   // idea, test without plasma terms first...
-   if ((T.Attribute >= 832) && (T.Attribute <= 838)){
-     // coil
+   if ((T.Attribute > 832) && (T.Attribute <= 838)){
+     // coil region
      ans -= 1.0;
    }
    

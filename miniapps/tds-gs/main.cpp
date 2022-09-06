@@ -75,11 +75,12 @@ int main(int argc, char *argv[])
    const char *mesh_file = "meshes/test.msh";
    const char *data_file = "separated_file.data";
    int order = 1;
+   int d_refine = 1;
 
    // constants associated with plasma model
    double alpha = 2.0;
    double beta = 1.0;
-   double lambda = 0.0;
+   double lambda = 0.5;
    double gamma = 2.0;
    double mu = 1.0;
    double r0 = 1.0;
@@ -101,6 +102,7 @@ int main(int argc, char *argv[])
    args.AddOption(&order, "-o", "--order", "Finite element polynomial degree");
    args.AddOption(&mu, "-mu", "--magnetic_permeability", "Magnetic permeability of a vaccuum");
    args.AddOption(&data_file, "-d", "--data_file", "Plasma data file");
+   args.AddOption(&d_refine, "-g", "--refinement_factor", "Number of grid refinements");
    args.ParseCheck();
 
    // save options in model
@@ -114,7 +116,10 @@ int main(int argc, char *argv[])
    
    // Read the mesh from the given mesh file, and refine once uniformly.
    Mesh mesh(mesh_file);
-   mesh.UniformRefinement();
+   for (int i = 0; i < d_refine; ++i) {
+     mesh.UniformRefinement();
+   }
+
 
    // Define a finite element space on the mesh. Here we use H1 continuous
    // high-order Lagrange finite elements of the given order.
@@ -184,7 +189,7 @@ int main(int argc, char *argv[])
    double z0_ = 0.0;
    double L_ = 0.35;
    double k_ = M_PI/(2.0*L_);
-   ExactForcingCoefficient exact_forcing_coeff(r0_, z0_, k_);
+   ExactForcingCoefficient exact_forcing_coeff(r0_, z0_, k_, model);
    if (true) {
      coil_term.AddDomainIntegrator(new DomainLFIntegrator(exact_forcing_coeff));
    }
@@ -299,6 +304,14 @@ int main(int argc, char *argv[])
    printf("final max error: %.3e\n", error);
    printf("********************************\n\n");
 
+   GridFunction diff(&fespace);
+   add(x, -1.0, u, diff);
+   double num_error = GetMaxError(diff);
+   diff.Save("error.gf");
+   printf("\n\n********************************\n");
+   printf("numerical error: %.3e\n", num_error);
+   printf("********************************\n\n");
+     
    x.Save("final.gf");
    return 0;
 }

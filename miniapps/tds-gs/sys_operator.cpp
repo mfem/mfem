@@ -17,6 +17,19 @@ double GetMaxError(LinearForm &res) {
   return max_val;
 }
 
+double GetMaxError(GridFunction &res) {
+  double *resv = res.GetData();
+  int size = res.FESpace()->GetTrueVSize();
+
+  double max_val = - numeric_limits<double>::infinity();
+  for (int i = 0; i < size; ++i) {
+    if (abs(resv[i]) > max_val) {
+      max_val = abs(resv[i]);
+    }
+  }
+  return max_val;
+}
+
 void SysOperator::Mult(const Vector &psi, Vector &y) const {
   // diff_operator * psi - plasma_term(psi) * psi - coil_term
 

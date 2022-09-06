@@ -2,6 +2,7 @@
 #define EXACT
 
 #include "mfem.hpp"
+#include "plasma_model.hpp"
 using namespace mfem;
 using namespace std;
 
@@ -24,8 +25,9 @@ private:
   double r0;
   double z0;
   double k;
+  PlasmaModel model;
 public:
-  ExactForcingCoefficient(double r0_, double z0_, double k_) : r0(r0_), z0(z0_), k(k_) { }
+  ExactForcingCoefficient(double r0_, double z0_, double k_, PlasmaModel model_) : r0(r0_), z0(z0_), k(k_), model(model_) { }
   virtual double Eval(ElementTransformation &T, const IntegrationPoint &ip);
   virtual ~ExactForcingCoefficient() { }
 };

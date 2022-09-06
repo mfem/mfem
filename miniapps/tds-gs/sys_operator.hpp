@@ -7,6 +7,7 @@ using namespace mfem;
 using namespace std;
 
 double GetMaxError(LinearForm &res);
+double GetMaxError(GridFunction &res);
 
 /*
   Mult:
@@ -20,7 +21,7 @@ class SysOperator : public Operator
 private:
   BilinearForm *diff_operator;
   LinearForm *coil_term;
-  PlasmaModel *model;
+  mutable PlasmaModel *model;
   FiniteElementSpace *fespace;
   Mesh *mesh;
   map<int, vector<int>> vertex_map;
