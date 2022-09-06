@@ -195,11 +195,11 @@ int main(int argc, char *argv[])
          {
             for (int j = 0; j < num_procs; j++)
             {
-               mesh.AddVertex(x0);
+               mesh.AddVertex(x0.GetData());
                x1[0] = q(0);
                x1[1] = p(0);
                x1[2] = 0.0;
-               mesh.AddVertex(x1);
+               mesh.AddVertex(x1.GetData());
             }
          }
       }
@@ -221,11 +221,11 @@ int main(int argc, char *argv[])
          x0[2] = t;
          for (int j = 0; j < num_procs; j++)
          {
-            mesh.AddVertex(x0);
+            mesh.AddVertex(x0.GetData());
             x1[0] = q(0);
             x1[1] = p(0);
             x1[2] = t;
-            mesh.AddVertex(x1);
+            mesh.AddVertex(x1.GetData());
             v[0] = 2 * num_procs * i + 2 * j;
             v[1] = 2 * num_procs * (i + 1) + 2 * j;
             v[2] = 2 * num_procs * (i + 1) + 2 * j + 1;
