@@ -796,6 +796,11 @@ int main (int argc, char *argv[])
                                        : metric;
    TMOP_Integrator *tmop_integ = new TMOP_Integrator(metric_to_use, target_c,
                                                      h_metric);
+   if (barrier_type > 0 || worst_case_type > 0)
+   {
+      tmop_integ->ComputeUntangleMetricQuantiles(x, *pfespace);
+   }
+
 
    // Finite differences for computations of derivatives.
    if (fdscheme)
@@ -900,7 +905,7 @@ int main (int argc, char *argv[])
       for (int i = 0; i < pmesh->GetNE(); i++)
       {
          mat(i) = material_id(i, surf_fit_gf0);
-         pmesh->SetAttribute(i, mat(i) + 1);
+         pmesh->SetAttribute(i, static_cast<int>(mat(i) + 1));
       }
 
       GridFunctionCoefficient coeff_mat(&mat);

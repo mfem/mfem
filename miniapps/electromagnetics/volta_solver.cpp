@@ -514,7 +514,7 @@ VoltaSolver::GetErrorEstimates(Vector & errors)
    ParFiniteElementSpace flux_fes(pmesh_, &flux_fec, pmesh_->SpaceDimension());
 
    // Space for the smoothed (conforming) flux
-   double norm_p = 1;
+   int norm_p = 1;
    RT_FECollection smooth_flux_fec(order_-1, pmesh_->Dimension());
    ParFiniteElementSpace smooth_flux_fes(pmesh_, &smooth_flux_fec);
 
