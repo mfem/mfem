@@ -4395,7 +4395,7 @@ void Nedelec1HexFiniteElement::ProjectGrad(const FiniteElement &fe,
    for (int k = 0; k < dof; k++)
    {
       fe.CalcDShape(Nodes.IntPoint(k), dshape);
-      dshape.Mult(tk[k], grad_k);
+      dshape.Mult(tk[k], grad_k.HostWrite());
       for (int j = 0; j < grad_k.Size(); j++)
       {
          grad(k,j) = (fabs(grad_k(j)) < 1e-12) ? 0.0 : grad_k(j);
@@ -4580,7 +4580,7 @@ void Nedelec1TetFiniteElement::ProjectGrad(const FiniteElement &fe,
    for (int k = 0; k < dof; k++)
    {
       fe.CalcDShape(Nodes.IntPoint(k), dshape);
-      dshape.Mult(tk[k], grad_k);
+      dshape.Mult(tk[k], grad_k.HostWrite());
       for (int j = 0; j < grad_k.Size(); j++)
       {
          grad(k,j) = (fabs(grad_k(j)) < 1e-12) ? 0.0 : grad_k(j);
@@ -4806,7 +4806,7 @@ void Nedelec1WdgFiniteElement::ProjectGrad(const FiniteElement &fe,
    for (int k = 0; k < dof; k++)
    {
       fe.CalcDShape(Nodes.IntPoint(k), dshape);
-      dshape.Mult(tk[k], grad_k);
+      dshape.Mult(tk[k], grad_k.HostWrite());
       for (int j = 0; j < grad_k.Size(); j++)
       {
          grad(k,j) = (fabs(grad_k(j)) < 1e-12) ? 0.0 : grad_k(j);
@@ -5108,7 +5108,7 @@ void Nedelec1PyrFiniteElement::ProjectGrad(const FiniteElement &fe,
    for (int k = 0; k < dof; k++)
    {
       fe.CalcDShape(Nodes.IntPoint(k), dshape);
-      dshape.Mult(tk[k], grad_k);
+      dshape.Mult(tk[k], grad_k.HostWrite());
       for (int j = 0; j < grad_k.Size(); j++)
       {
          grad(k,j) = (fabs(grad_k(j)) < 1e-12) ? 0.0 : grad_k(j);
@@ -5939,7 +5939,7 @@ void RT0WdgFiniteElement::ProjectCurl(const FiniteElement &fe,
    for (int k = 0; k < dof; k++)
    {
       fe.CalcCurlShape(Nodes.IntPoint(k), curl_shape);
-      curl_shape.Mult(nk[k], curl_k);
+      curl_shape.Mult(nk[k], curl_k.HostWrite());
       for (int j = 0; j < curl_k.Size(); j++)
       {
          curl(k,j) = (fabs(curl_k(j)) < 1e-12) ? 0.0 : curl_k(j);
@@ -6162,7 +6162,7 @@ void RT0PyrFiniteElement::ProjectCurl(const FiniteElement &fe,
    for (int k = 0; k < dof; k++)
    {
       fe.CalcCurlShape(Nodes.IntPoint(k), curl_shape);
-      curl_shape.Mult(nk[k], curl_k);
+      curl_shape.Mult(nk[k], curl_k.HostWrite());
       if (!rt0 && k > 0) { curl_k *= 2.0; }
       for (int j = 0; j < curl_k.Size(); j++)
       {

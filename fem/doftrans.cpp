@@ -285,7 +285,7 @@ void ND_TriDofTransformation::TransformPrimal(double *v) const
       for (int i=0; i<nfdofs/2; i++)
       {
          v2 = &v[3*nedofs + f*nfdofs + 2*i];
-         T(Fo[f]).Mult(v2, &v[3*nedofs + f*nfdofs + 2*i]);
+         T(Fo[f]).Mult(v2.HostRead(), &v[3*nedofs + f*nfdofs + 2*i]);
       }
    }
 }
@@ -308,7 +308,7 @@ ND_TriDofTransformation::InvTransformPrimal(double *v) const
       for (int i=0; i<nfdofs/2; i++)
       {
          v2 = &v[3*nedofs + f*nfdofs + 2*i];
-         TInv(Fo[f]).Mult(v2, &v[3*nedofs + f*nfdofs + 2*i]);
+         TInv(Fo[f]).Mult(v2.HostRead(), &v[3*nedofs + f*nfdofs + 2*i]);
       }
    }
 }
@@ -331,7 +331,7 @@ ND_TriDofTransformation::TransformDual(double *v) const
       for (int i=0; i<nfdofs/2; i++)
       {
          v2 = &v[3*nedofs + f*nfdofs + 2*i];
-         TInv(Fo[f]).MultTranspose(v2, &v[3*nedofs + f*nfdofs + 2*i]);
+         TInv(Fo[f]).MultTranspose(v2.HostRead(), &v[3*nedofs + f*nfdofs + 2*i]);
       }
    }
 }
@@ -351,7 +351,7 @@ ND_TriDofTransformation::InvTransformDual(double *v) const
       for (int i=0; i<nfdofs/2; i++)
       {
          v2 = &v[3*nedofs + f*nfdofs + 2*i];
-         T(Fo[f]).MultTranspose(v2, &v[3*nedofs + f*nfdofs + 2*i]);
+         T(Fo[f]).MultTranspose(v2.HostRead(), &v[3*nedofs + f*nfdofs + 2*i]);
       }
    }
 }
@@ -378,7 +378,7 @@ void ND_TetDofTransformation::TransformPrimal(double *v) const
       for (int i=0; i<nfdofs/2; i++)
       {
          v2 = &v[6*nedofs + f*nfdofs + 2*i];
-         T(Fo[f]).Mult(v2, &v[6*nedofs + f*nfdofs + 2*i]);
+         T(Fo[f]).Mult(v2.HostRead(), &v[6*nedofs + f*nfdofs + 2*i]);
       }
    }
 }
@@ -401,7 +401,7 @@ ND_TetDofTransformation::InvTransformPrimal(double *v) const
       for (int i=0; i<nfdofs/2; i++)
       {
          v2 = &v[6*nedofs + f*nfdofs + 2*i];
-         TInv(Fo[f]).Mult(v2, &v[6*nedofs + f*nfdofs + 2*i]);
+         TInv(Fo[f]).Mult(v2.HostRead(), &v[6*nedofs + f*nfdofs + 2*i]);
       }
    }
 }
@@ -424,7 +424,7 @@ ND_TetDofTransformation::TransformDual(double *v) const
       for (int i=0; i<nfdofs/2; i++)
       {
          v2 = &v[6*nedofs + f*nfdofs + 2*i];
-         TInv(Fo[f]).MultTranspose(v2, &v[6*nedofs + f*nfdofs + 2*i]);
+         TInv(Fo[f]).MultTranspose(v2.HostRead(), &v[6*nedofs + f*nfdofs + 2*i]);
       }
    }
 }
@@ -444,7 +444,7 @@ ND_TetDofTransformation::InvTransformDual(double *v) const
       for (int i=0; i<nfdofs/2; i++)
       {
          v2 = &v[6*nedofs + f*nfdofs + 2*i];
-         T(Fo[f]).MultTranspose(v2, &v[6*nedofs + f*nfdofs + 2*i]);
+         T(Fo[f]).MultTranspose(v2.HostRead(), &v[6*nedofs + f*nfdofs + 2*i]);
       }
    }
 }
@@ -471,7 +471,7 @@ void ND_WedgeDofTransformation::TransformPrimal(double *v) const
       for (int i=0; i<nfdofs/2; i++)
       {
          v2 = &v[9*nedofs + f*nfdofs + 2*i];
-         T(Fo[f]).Mult(v2, &v[9*nedofs + f*nfdofs + 2*i]);
+         T(Fo[f]).Mult(v2.HostRead(), &v[9*nedofs + f*nfdofs + 2*i]);
       }
    }
 }
@@ -494,7 +494,7 @@ ND_WedgeDofTransformation::InvTransformPrimal(double *v) const
       for (int i=0; i<nfdofs/2; i++)
       {
          v2 = &v[9*nedofs + f*nfdofs + 2*i];
-         TInv(Fo[f]).Mult(v2, &v[9*nedofs + f*nfdofs + 2*i]);
+         TInv(Fo[f]).Mult(v2.HostRead(), &v[9*nedofs + f*nfdofs + 2*i]);
       }
    }
 }
@@ -517,7 +517,7 @@ ND_WedgeDofTransformation::TransformDual(double *v) const
       for (int i=0; i<nfdofs/2; i++)
       {
          v2 = &v[9*nedofs + f*nfdofs + 2*i];
-         TInv(Fo[f]).MultTranspose(v2, &v[9*nedofs + f*nfdofs + 2*i]);
+         TInv(Fo[f]).MultTranspose(v2.HostRead(), &v[9*nedofs + f*nfdofs + 2*i]);
       }
    }
 }
@@ -540,7 +540,7 @@ ND_WedgeDofTransformation::InvTransformDual(double *v) const
       for (int i=0; i<nfdofs/2; i++)
       {
          v2 = &v[9*nedofs + f*nfdofs + 2*i];
-         T(Fo[f]).MultTranspose(v2, &v[9*nedofs + f*nfdofs + 2*i]);
+         T(Fo[f]).MultTranspose(v2.HostRead(), &v[9*nedofs + f*nfdofs + 2*i]);
       }
    }
 }
