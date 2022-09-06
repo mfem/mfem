@@ -477,7 +477,6 @@ if (NOT DEFINED MFEM_TIMER_TYPE)
   endif()
 endif()
 
-# ALE3D begin edit
 # Without this, CMake 3.21.1 (and 3.20.2) run into CMake Errors like the following:
 # CMake Error at config/cmake/modules/MfemCmakeUtilities.cmake:60 (add_library):
 #   Target "mfem" links to target "Threads::Threads" but the target was not
@@ -486,7 +485,6 @@ endif()
 # Call Stack (most recent call first):
 #   CMakeLists.txt:474 (mfem_add_library)
 find_package(Threads REQUIRED)
-# ALE3D end edit
 
 # List all possible libraries in order of dependencies.
 # [METIS < SuiteSparse]:

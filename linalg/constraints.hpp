@@ -339,6 +339,10 @@ public:
    { prec = &precond; }
 
 protected:
+   /// Initialize the matrix A + B*D*B^T for the constrained linear system
+   /// A - original matrix (N x N square matrix)
+   /// B - constraint matrix (M x N rectangular matrix)
+   /// D - diagonal matrix of penalty values (M x M square matrix)
    void Initialize(HypreParMatrix& A, HypreParMatrix& B, HypreParMatrix& D);
 
    /// Build preconditioner for penalized system
