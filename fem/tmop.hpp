@@ -980,7 +980,6 @@ protected:
    // Owned.
    Mesh *mesh;
    FiniteElementSpace *fes;
-   int fes_ordering;
 
 #ifdef MFEM_USE_MPI
    // Owned.
@@ -1004,13 +1003,13 @@ public:
        be evaluated. The given mesh will be copied into the internal object. */
    void SetSerialMetaInfo(const Mesh &m,
                           const FiniteElementCollection &fec, int num_comp,
-                          int fes_ordering_=Ordering::byNODES);
+                          int fes_ordering=Ordering::byNODES);
 
 #ifdef MFEM_USE_MPI
    /// Parallel version of SetSerialMetaInfo.
    void SetParMetaInfo(const ParMesh &m,
                        const FiniteElementCollection &fec, int num_comp,
-                       int fes_ordering_=Ordering::byNODES);
+                       int fes_ordering=Ordering::byNODES);
 #endif
 
    // TODO use GridFunctions to make clear it's on the ldofs?
