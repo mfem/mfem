@@ -74,9 +74,26 @@ class SundialsMemHelper
 
 public:
 
-   SundialsMemHelper();
+   /// Default constructor -- object must be moved to
+   SundialsMemHelper() = default;
 
-   ~SundialsMemHelper() { SUNMemoryHelper_Destroy(h); }
+   /// Require a SUNContext as an argument (rather than calling Sundials::GetContext)
+   /// to avoid undefined behavior during the construction of the Sundials singleton.
+   SundialsMemHelper(SUNContext context);
+
+   /// Implement move assignment
+   SundialsMemHelper(SundialsMemHelper&& that_helper);
+
+   /// Disable copy construction
+   SundialsMemHelper(const SundialsMemHelper& that_helper) = delete;
+
+   ~SundialsMemHelper() { if (h) { SUNMemoryHelper_Destroy(h); } }
+
+   /// Disable copy assignment
+   SundialsMemHelper& operator=(const SundialsMemHelper&) = delete;
+
+   /// Implement move assignment
+   SundialsMemHelper& operator=(SundialsMemHelper&& rhs);
 
    /// Typecasting to SUNDIALS' SUNMemoryHelper type
    operator SUNMemoryHelper() const { return h; }
@@ -98,7 +115,7 @@ public:
 class SundialsMemHelper
 {
 public:
-   SundialsMemHelper()
+   SundialsMemHelper(SUNContext context)
    {
       // Do nothing
    }
@@ -129,8 +146,10 @@ public:
    static SundialsMemHelper &GetMemHelper();
 
 private:
+   /// Returns a reference to the singleton instance of the class.
+   static Sundials &Instance();
 
-   /// Constructor called by Sundials::Init (does nothing for version < 6)
+   /// Constructor called by Sundials::Instance (does nothing for version < 6)
    Sundials();
 
    /// Destructor called at end of calling program (does nothing for version < 6)
