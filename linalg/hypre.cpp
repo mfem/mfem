@@ -5050,6 +5050,7 @@ void HypreAMS::MakeSolver(int sdim, int cycle_type)
 #endif
 
    space_dim = sdim;
+   ams_cycle_type = cycle_type;
    HYPRE_AMSCreate(&ams);
 
    HYPRE_AMSSetDimension(ams, sdim); // 2D H(div) and 3D H(curl) problems
@@ -5246,128 +5247,14 @@ void HypreAMS::Init(ParFiniteElementSpace *edge_fespace)
 
 void HypreAMS::ResetAMSPrecond()
 {
-   /// This would be closer to an ideal implementation, but the `hypre_AMSData`
-   /// type and associated macros are defined in Hypre's private header ams.h,
-   /// so we can't use their definitions here. I opened an issue:
-   /// https://github.com/hypre-space/hypre/issues/667 to address that.
-   /// This approach is closer to HypreBoomerAMG::ResetAMGPrecond, and "better"
-   /// since it would read the values previously set and use those in the newly
-   /// built AMS solver, indead of having to resort to the defaults.
-
-   // /* Read options from ams */
-   // auto *ams_data = static_cast<hypre_AMSData *>(ams);
-
-   // /* Space dimension */
-   // HYPRE_Int dim = hypre_AMSDataDimension(ams_data);
-
-   // /* Vertex space data */
-   // hypre_ParCSRMatrix *hy_G = hypre_AMSDataDiscreteGradient(ams_data);
-
-   // HYPRE_Int beta_is_zero = hypre_AMSDataBetaIsZero(ams_data);
-
-   // /* Vector vertex space data */
-   // hypre_ParCSRMatrix *hy_Pi hypre_AMSDataPiInterpolation(ams_data);
-   // hypre_ParCSRMatrix *hy_Pix = ams_data->Pix;
-   // hypre_ParCSRMatrix *hy_Piy = ams_data->Piy;
-   // hypre_ParCSRMatrix *hy_Piz = ams_data->Piz;
-   // HYPRE_Int owns_Pi = hypre_AMSDataOwnsPiInterpolation(ams_data);
-
-   // /* Coordinates of the vertices */
-   // hypre_ParVector *hy_x = hypre_AMSDataVertexCoordinateX(ams_data);
-   // hypre_ParVector *hy_y = hypre_AMSDataVertexCoordinateY(ams_data);
-   // hypre_ParVector *hy_z = hypre_AMSDataVertexCoordinateZ(ams_data);
-
-   // /* Solver options */
-   // HYPRE_Int maxit = hypre_AMSDataMaxIter(ams_data);
-   // HYPRE_Real tol = hypre_AMSDataTol(ams_data);
-   // HYPRE_Int cycle_type = hypre_AMSDataCycleType(ams_data);
-   // HYPRE_Int print_level = hypre_AMSDataPrintLevel(ams_data);
-
-   // /* Smoothing and AMG options */
-   // HYPRE_Int A_relax_type = hypre_AMSDataARelaxType(ams_data);
-   // HYPRE_Int A_relax_times = hypre_AMSDataARelaxTimes(ams_data);
-   // HYPRE_Real A_relax_weight = hypre_AMSDataARelaxWeight(ams_data);
-   // HYPRE_Real A_omega = hypre_AMSDataAOmega(ams_data);
-   // HYPRE_Int A_cheby_order = hypre_AMSDataAChebyOrder(ams_data);
-   // HYPRE_Real A_cheby_fraction = hypre_AMSDataAChebyFraction(ams_data);
-
-   // HYPRE_Int B_Pi_coarsen_type = hypre_AMSDataPoissonAlphaAMGCoarsenType(ams_data);
-   // HYPRE_Int B_Pi_agg_levels = hypre_AMSDataPoissonAlphaAMGAggLevels(ams_data);
-   // HYPRE_Int B_Pi_relax_type = hypre_AMSDataPoissonAlphaAMGRelaxType(ams_data);
-   // HYPRE_Int B_Pi_coarse_relax_type = ams_data->B_Pi_coarse_relax_type;
-   // HYPRE_Real B_Pi_theta = hypre_AMSDataPoissonAlphaAMGStrengthThreshold(ams_data);
-   // HYPRE_Int B_Pi_interp_type = ams_data->B_Pi_interp_type;
-   // HYPRE_Int B_Pi_Pmax = ams_data->B_Pi_Pmax;
-
-   // HYPRE_Int B_G_coarsen_type = hypre_AMSDataPoissonBetaAMGCoarsenType(ams_data);
-   // HYPRE_Int B_G_agg_levels = hypre_AMSDataPoissonBetaAMGAggLevels(ams_data);
-   // HYPRE_Int B_G_relax_type = hypre_AMSDataPoissonBetaAMGRelaxType(ams_data);
-   // HYPRE_Int B_G_coarse_relax_type = ams_data->B_G_coarse_relax_type;
-   // HYPRE_Real B_G_theta = hypre_AMSDataPoissonBetaAMGStrengthThreshold(ams_data);
-   // HYPRE_Int B_G_interp_type = ams_data->B_G_interp_type;
-   // HYPRE_Int B_G_Pmax = ams_data->B_G_Pmax;
-
-   // HYPRE_AMSDestroy(ams);
-   // HYPRE_AMSCreate(&ams);
-
-   // HYPRE_AMSSetDimension(ams, dim); // 2D H(div) and 3D H(curl) problems
-   // HYPRE_AMSSetTol(ams, tol);
-   // HYPRE_AMSSetMaxIter(ams, maxit); // use as a preconditioner
-   // HYPRE_AMSSetCycleType(ams, cycle_type);
-   // HYPRE_AMSSetPrintLevel(ams, print_level);
-
-   // HYPRE_AMSSetCoordinateVectors(ams, hy_x, hy_y, hy_z);
-
-   // HYPRE_AMSSetDiscreteGradient(ams, hy_G);
-   // HYPRE_AMSSetInterpolations(ams, hy_Pi, hy_Pix, hy_Piy, hy_Piz);
-
-   // // set additional AMS options
-   // HYPRE_AMSSetSmoothingOptions(ams, A_relax_type, A_relax_times, A_relax_weight, A_omega);
-
-   // HYPRE_AMSSetAlphaAMGOptions(ams, B_Pi_coarsen_type, B_Pi_agg_levels, B_Pi_relax_type,
-   //                             B_Pi_theta, B_Pi_interp_type, B_Pi_Pmax);
-   // HYPRE_AMSSetBetaAMGOptions(ams, B_G_coarsen_type, B_G_agg_levels, B_G_relax_type,
-   //                            B_G_theta, B_G_interp_type, B_G_Pmax);
-
-   // HYPRE_AMSSetAlphaAMGCoarseRelaxType(ams, B_Pi_coarse_relax_type);
-   // HYPRE_AMSSetBetaAMGCoarseRelaxType(ams, B_G_coarse_relax_type);
-
-   // ams_data->beta_is_zero = beta_is_zero;
-
-   /// Current implementation fixes the memory leak, but forces the solver to
-   /// use these default parameters:
-   int cycle_type       = 13;
-   int rlx_sweeps       = 1;
-   double rlx_weight    = 1.0;
-   double rlx_omega     = 1.0;
-#if !defined(HYPRE_USING_GPU)
-   int amg_coarsen_type = 10;
-   int amg_agg_levels   = 1;
-   int amg_rlx_type     = 8;
-   int rlx_type         = 2;
-   double theta         = 0.25;
-   int amg_interp_type  = 6;
-   int amg_Pmax         = 4;
-#else
-   int amg_coarsen_type = 8;
-   int amg_agg_levels   = 0;
-   int amg_rlx_type     = 18;
-   int rlx_type         = 1;
-   double theta         = 0.25;
-   int amg_interp_type  = 6;
-   int amg_Pmax         = 4;
-#endif
    HYPRE_AMSDestroy(ams);
-   HYPRE_AMSCreate(&ams);
 
-   HYPRE_AMSSetDimension(ams, space_dim); // 2D H(div) and 3D H(curl) problems
-   HYPRE_AMSSetTol(ams, 0.0);
-   HYPRE_AMSSetMaxIter(ams, 1); // use as a preconditioner
-   HYPRE_AMSSetCycleType(ams, cycle_type);
-   HYPRE_AMSSetPrintLevel(ams, 1);
+   MakeSolver(space_dim, ams_cycle_type);
+
+   HYPRE_AMSSetPrintLevel(ams, print_level);
+   if (singular) { HYPRE_AMSSetBetaPoissonMatrix(ams, NULL); }
 
    HYPRE_AMSSetDiscreteGradient(ams, *G);
-
    if (x != nullptr)
    {
       HYPRE_AMSSetCoordinateVectors(ams,
@@ -5383,43 +5270,6 @@ void HypreAMS::ResetAMSPrecond()
                                  Piy ? (HYPRE_ParCSRMatrix) *Piy : nullptr,
                                  Piz ? (HYPRE_ParCSRMatrix) *Piz : nullptr);
    }
-
-   // set additional AMS options
-   HYPRE_AMSSetSmoothingOptions(ams, rlx_type, rlx_sweeps, rlx_weight, rlx_omega);
-   HYPRE_AMSSetAlphaAMGOptions(ams, amg_coarsen_type, amg_agg_levels, amg_rlx_type,
-                               theta, amg_interp_type, amg_Pmax);
-   HYPRE_AMSSetBetaAMGOptions(ams, amg_coarsen_type, amg_agg_levels, amg_rlx_type,
-                              theta, amg_interp_type, amg_Pmax);
-
-   HYPRE_AMSSetAlphaAMGCoarseRelaxType(ams, amg_rlx_type);
-   HYPRE_AMSSetBetaAMGCoarseRelaxType(ams, amg_rlx_type);
-
-
-   if (singular)
-   {
-      HYPRE_AMSSetBetaPoissonMatrix(ams, NULL);
-   }
-
-   /// Alternative implementation below, but is much more expensive since it
-   /// does not reuse G or Pi matrices
-
-   // HYPRE_AMSDestroy(ams);
-   // delete x;
-   // delete y;
-   // delete z;
-
-   // delete G;
-   // delete Pi;
-   // delete Pix;
-   // delete Piy;
-   // delete Piz;
-
-   // Init(edge_fes);
-
-   // if (singular)
-   // {
-   //    HYPRE_AMSSetBetaPoissonMatrix(ams, NULL);
-   // }
 }
 
 void HypreAMS::SetOperator(const Operator &op)
@@ -5460,6 +5310,7 @@ HypreAMS::~HypreAMS()
 void HypreAMS::SetPrintLevel(int print_lvl)
 {
    HYPRE_AMSSetPrintLevel(ams, print_lvl);
+   print_level = print_lvl;
 }
 
 HypreADS::HypreADS(ParFiniteElementSpace *face_fespace)
