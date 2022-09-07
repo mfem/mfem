@@ -196,7 +196,7 @@ inline void QuadratureFunction::GetValues(
 {
    const int s_offset = qspace->offsets[idx];
    const int sl_size = qspace->offsets[idx+1] - s_offset;
-   values.NewDataAndSize(data + vdim*s_offset, vdim*sl_size);
+   values.MakeRef(*this, vdim*s_offset, vdim*sl_size);
 }
 
 inline void QuadratureFunction::GetValues(
@@ -205,7 +205,8 @@ inline void QuadratureFunction::GetValues(
    const int s_offset = qspace->offsets[idx];
    const int sl_size = qspace->offsets[idx+1] - s_offset;
    values.SetSize(vdim*sl_size);
-   const double *q = data + vdim*s_offset;
+   values.HostWrite();
+   const double *q = HostRead() + vdim*s_offset;
    for (int i = 0; i<values.Size(); i++)
    {
       values(i) = *(q++);
@@ -216,7 +217,7 @@ inline void QuadratureFunction::GetValues(
    int idx, const int ip_num, Vector &values)
 {
    const int s_offset = qspace->offsets[idx] * vdim + ip_num * vdim;
-   values.NewDataAndSize(data + s_offset, vdim);
+   values.MakeRef(*this, s_offset, vdim);
 }
 
 inline void QuadratureFunction::GetValues(
@@ -224,7 +225,8 @@ inline void QuadratureFunction::GetValues(
 {
    const int s_offset = qspace->offsets[idx] * vdim + ip_num * vdim;
    values.SetSize(vdim);
-   const double *q = data + s_offset;
+   values.HostWrite();
+   const double *q = HostRead() + s_offset;
    for (int i = 0; i < values.Size(); i++)
    {
       values(i) = *(q++);
@@ -236,7 +238,11 @@ inline void QuadratureFunction::GetValues(
 {
    const int s_offset = qspace->offsets[idx];
    const int sl_size = qspace->offsets[idx+1] - s_offset;
-   values.Reset(data + vdim*s_offset, vdim, sl_size);
+   // Make the values matrix memory an alias of the quadrature function memory
+   Memory<double> &values_mem = values.GetMemory();
+   values_mem.Delete();
+   values_mem.MakeAlias(GetMemory(), vdim*s_offset, vdim*sl_size);
+   values.SetSize(vdim, sl_size);
 }
 
 inline void QuadratureFunction::GetValues(
@@ -245,7 +251,8 @@ inline void QuadratureFunction::GetValues(
    const int s_offset = qspace->offsets[idx];
    const int sl_size = qspace->offsets[idx+1] - s_offset;
    values.SetSize(vdim, sl_size);
-   const double *q = data + vdim*s_offset;
+   values.HostWrite();
+   const double *q = HostRead() + vdim*s_offset;
    for (int j = 0; j<sl_size; j++)
    {
       for (int i = 0; i<vdim; i++)
