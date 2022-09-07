@@ -87,7 +87,7 @@ void LinearFormExtension::Assemble()
       else
       {
          // scan the attributes to set the markers to 0 or 1
-         const int NBE = fes.GetNBE();
+         const int NBE = bdr_attributes.Size();
          const auto attr = bdr_attributes.Read();
          const auto attr_markers = boundary_integs_marker_k->Read();
          auto markers_w = bdr_markers.Write();
@@ -127,9 +127,8 @@ void LinearFormExtension::Update()
 
    if (lf->boundary_integs.Size() > 0)
    {
-      const int NBE = fes.GetNBE();
-
-      bdr_markers.SetSize(NBE);
+      const int nf_bdr = fes.GetNFbyType(FaceType::Boundary);
+      bdr_markers.SetSize(nf_bdr);
       // bdr_markers.UseDevice(true);
 
       // The face restriction will give us "face E-vectors" on the boundary that
@@ -143,8 +142,8 @@ void LinearFormExtension::Update()
          const int f = mesh.GetBdrElementEdgeIndex(i);
          f_to_be[f] = i;
       }
-
-      bdr_attributes.SetSize(NBE);
+      MFEM_ASSERT(nf_bdr == f_to_be.size(), "Incompatible sizes");
+      bdr_attributes.SetSize(nf_bdr);
       int f_ind = 0;
       for (int f = 0; f < mesh.GetNumFaces(); ++f)
       {

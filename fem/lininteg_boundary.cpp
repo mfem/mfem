@@ -198,7 +198,7 @@ static void BLFEvalAssemble(const FiniteElementSpace &fes,
    MFEM_VERIFY(ker, "No kernel ndof " << d << " nqpt " << q);
 
    const int vdim = fes.GetVDim();
-   const int nbe = fes.GetMesh()->GetNBE();
+   const int nbe = fes.GetMesh()->GetNFbyType(FaceType::Boundary);
    const int *M = markers.Read();
    const double *B = maps.B.Read();
    const double *detJ = geom->detJ.Read();
@@ -218,7 +218,7 @@ void BoundaryLFIntegrator::AssembleDevice(const FiniteElementSpace &fes,
    const IntegrationRule &ir = IntRule ? *IntRule : IntRules.Get(gtype, qorder);
    const int nq = ir.GetNPoints();
    Mesh &mesh = *fes.GetMesh();
-   const int nbe = mesh.GetNBE();
+   const int nbe = mesh.GetNFbyType(FaceType::Boundary);
    const int dim = mesh.Dimension();
    const DofToQuad &maps = fe.GetDofToQuad(ir, DofToQuad::TENSOR);
 
@@ -263,7 +263,7 @@ void BoundaryNormalLFIntegrator::AssembleDevice(const FiniteElementSpace &fes,
    const IntegrationRule &ir = IntRule ? *IntRule : IntRules.Get(gtype, qorder);
    const int nq = ir.GetNPoints();
    Mesh &mesh = *fes.GetMesh();
-   const int nbe = mesh.GetNBE();
+   const int nbe = mesh.GetNFbyType(FaceType::Boundary);
    const int dim = mesh.Dimension();
    const DofToQuad &maps = fe.GetDofToQuad(ir, DofToQuad::TENSOR);
 
