@@ -142,7 +142,7 @@ void LinearFormExtension::Update()
          const int f = mesh.GetBdrElementEdgeIndex(i);
          f_to_be[f] = i;
       }
-      MFEM_ASSERT(nf_bdr == f_to_be.size(), "Incompatible sizes");
+      MFEM_VERIFY(size_t(nf_bdr) == f_to_be.size(), "Incompatible sizes");
       bdr_attributes.SetSize(nf_bdr);
       int f_ind = 0;
       for (int f = 0; f < mesh.GetNumFaces(); ++f)
