@@ -97,7 +97,7 @@ void LinearFormExtension::Assemble()
       // Assemble the linear form
       bdr_b = 0.0;
       boundary_integs[k]->AssembleDevice(fes, bdr_markers, bdr_b);
-      bdr_restrict_lex->MultTranspose(bdr_b, *lf);
+      bdr_restrict_lex->AddMultTranspose(bdr_b, *lf);
    }
 }
 
@@ -135,8 +135,10 @@ void LinearFormExtension::Update()
       bdr_attributes.SetSize(NBE);
       for (int i = 0; i < NBE; ++i) { bdr_attributes[i] = mesh.GetBdrAttribute(i); }
 
-      bdr_restrict_lex = fes.GetFaceRestriction(
-                            ordering, FaceType::Boundary, L2FaceValues::SingleValued);
+      bdr_restrict_lex =
+         dynamic_cast<const FaceRestriction*>(
+            fes.GetFaceRestriction(ordering, FaceType::Boundary,
+                                   L2FaceValues::SingleValued));
       MFEM_VERIFY(bdr_restrict_lex, "Face restriction not available");
       bdr_b.SetSize(bdr_restrict_lex->Height(), Device::GetMemoryType());
       bdr_b.UseDevice(true);
