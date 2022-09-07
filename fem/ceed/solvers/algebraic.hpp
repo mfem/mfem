@@ -134,7 +134,6 @@ public:
    }
    ~AlgebraicSpaceHierarchy()
    {
-      CeedElemRestrictionDestroy(&fine_er);
       for (int i=0; i<R_tr.Size(); ++i)
       {
          delete R_tr[i];

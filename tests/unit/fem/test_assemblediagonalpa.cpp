@@ -326,8 +326,6 @@ TEST_CASE("Hcurl/Hdiv diagonal PA",
    {
       for (int coeffType = 0; coeffType < 5; ++coeffType)
       {
-         const int numSpaces = (coeffType == 0) ? 2 : 1;
-
          Coefficient* coeff = nullptr;
          DiagonalMatrixCoefficient* dcoeff = nullptr;
          MatrixCoefficient* mcoeff = nullptr;
@@ -356,9 +354,13 @@ TEST_CASE("Hcurl/Hdiv diagonal PA",
 
          enum Spaces {Hcurl, Hdiv};
 
-         for (int spaceType = 0; spaceType < numSpaces; ++spaceType)
+         for (int spaceType : {Hcurl, Hdiv})
          {
-            const int numIntegrators = (dimension == 3 || coeffType < 2) ? 2 : 1;
+            // For div-div or 2D curl-curl, coefficient must be scalar.
+            const bool testCurlCurl = dimension == 3 || coeffType < 2;
+            const int numIntegrators = (spaceType == Hcurl && testCurlCurl) ||
+                                       (spaceType == Hdiv && coeffType < 2) ? 2 : 1;
+
             for (int integrator = 0; integrator < numIntegrators; ++integrator)
             {
                for (int ne = 1; ne < 3; ++ne)
@@ -410,12 +412,12 @@ TEST_CASE("Hcurl/Hdiv diagonal PA",
                      }
                      else
                      {
+                        const FiniteElement *fel = fespace.GetFE(0);
+                        const IntegrationRule *intRule = &MassIntegrator::GetRule(*fel, *fel,
+                                                                                  *mesh.GetElementTransformation(0));
+
                         if (spaceType == Hcurl)
                         {
-                           const FiniteElement *fel = fespace.GetFE(0);
-                           const IntegrationRule *intRule = &MassIntegrator::GetRule(*fel, *fel,
-                                                                                     *mesh.GetElementTransformation(0));
-
                            if (coeffType >= 3)
                            {
                               paform.AddDomainIntegrator(new CurlCurlIntegrator(*mcoeff, intRule));
@@ -434,8 +436,8 @@ TEST_CASE("Hcurl/Hdiv diagonal PA",
                         }
                         else
                         {
-                           paform.AddDomainIntegrator(new DivDivIntegrator(*coeff));
-                           faform.AddDomainIntegrator(new DivDivIntegrator(*coeff));
+                           paform.AddDomainIntegrator(new DivDivIntegrator(*coeff, intRule));
+                           faform.AddDomainIntegrator(new DivDivIntegrator(*coeff, intRule));
                         }
                      }
                      paform.Assemble();

@@ -58,6 +58,39 @@ void TMOP_Combo_QualityMetric::AssembleH(const DenseMatrix &Jpt,
    }
 }
 
+double TMOP_WorstCaseUntangleOptimizer_Metric::EvalW(const DenseMatrix &Jpt)
+const
+{
+   double metric_tilde = EvalWBarrier(Jpt);
+   double metric = metric_tilde;
+   if (wctype == WorstCaseType::PMean)
+   {
+      metric = std::pow(metric_tilde, exponent);
+   }
+   else if (wctype == WorstCaseType::Beta)
+   {
+      double beta = max_muT+muT_ep;
+      metric = metric_tilde/(beta-metric_tilde);
+   }
+   return metric;
+}
+
+double TMOP_WorstCaseUntangleOptimizer_Metric::EvalWBarrier(
+   const DenseMatrix &Jpt) const
+{
+   double denominator = 1.0;
+   if (btype == BarrierType::Shifted)
+   {
+      denominator = 2.0*(Jpt.Det()-std::min(alpha*min_detT-detT_ep, 0.0));
+   }
+   else if (btype == BarrierType::Pseudo)
+   {
+      double detT = Jpt.Det();
+      denominator = detT + std::sqrt(detT*detT + detT_ep*detT_ep);
+   }
+   return tmop_metric.EvalW(Jpt)/denominator;
+}
+
 double TMOP_Metric_001::EvalW(const DenseMatrix &Jpt) const
 {
    ie.SetJacobian(Jpt.GetData());
@@ -219,6 +252,30 @@ void TMOP_Metric_002::AssembleH(const DenseMatrix &Jpt,
    ie.SetJacobian(Jpt.GetData());
    ie.SetDerivativeMatrix(DS.Height(), DS.GetData());
    ie.Assemble_ddI1b(0.5*weight, A.GetData());
+}
+
+double TMOP_Metric_004::EvalW(const DenseMatrix &Jpt) const
+{
+   ie.SetJacobian(Jpt.GetData());
+   return ie.Get_I1() - 2.0*ie.Get_I2b();
+}
+
+void TMOP_Metric_004::EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const
+{
+   ie.SetJacobian(Jpt.GetData());
+   Add(1.0, ie.Get_dI1(), -2.0, ie.Get_dI2b(), P);
+}
+
+void TMOP_Metric_004::AssembleH(const DenseMatrix &Jpt,
+                                const DenseMatrix &DS,
+                                const double weight,
+                                DenseMatrix &A) const
+{
+   ie.SetJacobian(Jpt.GetData());
+   ie.SetDerivativeMatrix(DS.Height(), DS.GetData());
+
+   ie.Assemble_ddI1(weight, A.GetData());
+   ie.Assemble_ddI2b(-2.0*weight, A.GetData());
 }
 
 double TMOP_Metric_007::EvalW(const DenseMatrix &Jpt) const
@@ -3625,19 +3682,17 @@ void TMOP_Integrator::ComputeFDh(const Vector &x, const FiniteElementSpace &fes)
 {
    if (!fdflag) { return; }
    ComputeMinJac(x, fes);
-}
-
 #ifdef MFEM_USE_MPI
-void TMOP_Integrator::ComputeFDh(const Vector &x,
-                                 const ParFiniteElementSpace &pfes)
-{
-   if (!fdflag) { return; }
-   ComputeMinJac(x, pfes);
-   double min_jac_all;
-   MPI_Allreduce(&dx, &min_jac_all, 1, MPI_DOUBLE, MPI_MIN, pfes.GetComm());
-   dx = min_jac_all;
-}
+   const ParFiniteElementSpace *pfes =
+      dynamic_cast<const ParFiniteElementSpace *>(&fes);
+   if (pfes)
+   {
+      double min_jac_all;
+      MPI_Allreduce(&dx, &min_jac_all, 1, MPI_DOUBLE, MPI_MIN, pfes->GetComm());
+      dx = min_jac_all;
+   }
 #endif
+}
 
 void TMOP_Integrator::EnableFiniteDifferences(const GridFunction &x)
 {
@@ -3666,6 +3721,150 @@ void TMOP_Integrator::EnableFiniteDifferences(const ParGridFunction &x)
    }
 }
 #endif
+
+double TMOP_Integrator::ComputeMinDetT(const Vector &x,
+                                       const FiniteElementSpace &fes)
+{
+   double min_detT = std::numeric_limits<double>::infinity();
+   const int NE = fes.GetMesh()->GetNE();
+   const int dim = fes.GetMesh()->Dimension();
+   Array<int> xdofs;
+   Jpr.SetSize(dim);
+   Jpt.SetSize(dim);
+   Jrt.SetSize(dim);
+
+   for (int i = 0; i < NE; i++)
+   {
+      const FiniteElement *fe = fes.GetFE(i);
+      const IntegrationRule &ir = EnergyIntegrationRule(*fe);
+      const int dof = fe->GetDof(), nsp = ir.GetNPoints();
+
+      DSh.SetSize(dof, dim);
+      Vector posV(dof * dim);
+      PMatI.UseExternalData(posV.GetData(), dof, dim);
+
+      fes.GetElementVDofs(i, xdofs);
+      x.GetSubVector(xdofs, posV);
+
+      DenseTensor Jtr(dim, dim, ir.GetNPoints());
+      targetC->ComputeElementTargets(i, *fe, ir, posV, Jtr);
+
+      for (int q = 0; q < nsp; q++)
+      {
+         const IntegrationPoint &ip = ir.IntPoint(q);
+         const DenseMatrix &Jtr_q = Jtr(q);
+         CalcInverse(Jtr_q, Jrt);
+         fe->CalcDShape(ip, DSh);
+         MultAtB(PMatI, DSh, Jpr);
+         Mult(Jpr, Jrt, Jpt);
+         double detT = Jpt.Det();
+         min_detT = std::min(min_detT, detT);
+      }
+   }
+   return min_detT;
+}
+
+double TMOP_Integrator::ComputeUntanglerMaxMuBarrier(const Vector &x,
+                                                     const FiniteElementSpace &fes)
+{
+   double max_muT = -std::numeric_limits<double>::infinity();
+   const int NE = fes.GetMesh()->GetNE();
+   const int dim = fes.GetMesh()->Dimension();
+   Array<int> xdofs;
+   Jpr.SetSize(dim);
+   Jpt.SetSize(dim);
+   Jrt.SetSize(dim);
+
+   TMOP_WorstCaseUntangleOptimizer_Metric *wcuo =
+      dynamic_cast<TMOP_WorstCaseUntangleOptimizer_Metric *>(metric);
+
+   if (!wcuo || wcuo->GetWorstCaseType() !=
+       TMOP_WorstCaseUntangleOptimizer_Metric::WorstCaseType::Beta)
+   {
+      return 0.0;
+   }
+
+   for (int i = 0; i < NE; i++)
+   {
+      const FiniteElement *fe = fes.GetFE(i);
+      const IntegrationRule &ir = EnergyIntegrationRule(*fe);
+      const int dof = fe->GetDof(), nsp = ir.GetNPoints();
+      Jpr.SetSize(dim);
+      Jrt.SetSize(dim);
+      Jpt.SetSize(dim);
+
+      DSh.SetSize(dof, dim);
+      Vector posV(dof * dim);
+      PMatI.UseExternalData(posV.GetData(), dof, dim);
+
+      fes.GetElementVDofs(i, xdofs);
+      x.GetSubVector(xdofs, posV);
+
+      DenseTensor Jtr(dim, dim, ir.GetNPoints());
+      targetC->ComputeElementTargets(i, *fe, ir, posV, Jtr);
+
+      for (int q = 0; q < nsp; q++)
+      {
+         const IntegrationPoint &ip = ir.IntPoint(q);
+         const DenseMatrix &Jtr_q = Jtr(q);
+         CalcInverse(Jtr_q, Jrt);
+
+         fe->CalcDShape(ip, DSh);
+         MultAtB(PMatI, DSh, Jpr);
+         Mult(Jpr, Jrt, Jpt);
+
+         double metric_val = 0.0;
+         if (wcuo)
+         {
+            wcuo->SetTargetJacobian(Jtr_q);
+            metric_val = wcuo->EvalWBarrier(Jpt);
+         }
+
+         max_muT = std::max(max_muT, metric_val);
+      }
+   }
+   return max_muT;
+}
+
+void TMOP_Integrator::ComputeUntangleMetricQuantiles(const Vector &x,
+                                                     const FiniteElementSpace &fes)
+{
+   TMOP_WorstCaseUntangleOptimizer_Metric *wcuo =
+      dynamic_cast<TMOP_WorstCaseUntangleOptimizer_Metric *>(metric);
+
+   if (!wcuo) { return; }
+
+#ifdef MFEM_USE_MPI
+   const ParFiniteElementSpace *pfes =
+      dynamic_cast<const ParFiniteElementSpace *>(&fes);
+#endif
+
+   if (wcuo && wcuo->GetBarrierType() ==
+       TMOP_WorstCaseUntangleOptimizer_Metric::BarrierType::Shifted)
+   {
+      double min_detT = ComputeMinDetT(x, fes);
+      double min_detT_all = min_detT;
+#ifdef MFEM_USE_MPI
+      if (pfes)
+      {
+         MPI_Allreduce(&min_detT, &min_detT_all, 1, MPI_DOUBLE, MPI_MIN,
+                       pfes->GetComm());
+      }
+#endif
+      if (wcuo) { wcuo->SetMinDetT(min_detT_all); }
+   }
+
+   double max_muT = ComputeUntanglerMaxMuBarrier(x, fes);
+   double max_muT_all = max_muT;
+#ifdef MFEM_USE_MPI
+   if (pfes)
+   {
+      MPI_Allreduce(&max_muT, &max_muT_all, 1, MPI_DOUBLE, MPI_MAX,
+                    pfes->GetComm());
+   }
+#endif
+   wcuo->SetMaxMuT(max_muT_all);
+}
 
 void TMOPComboIntegrator::EnableLimiting(const GridFunction &n0,
                                          const GridFunction &dist,
