@@ -19,9 +19,9 @@
 // 
 // p ∈ L^2(Ω), u ∈ (L^2(Ω))^dim 
 // p̂ ∈ H^1/2(Ω), û ∈ H^-1/2(Ω)  
-// -(p,  ∇⋅v) + i ω (u , v) + < p̂, v⋅n> = 0,      ∀ v ∈ H(div,Ω)      
-// -(u , ∇ q) + i ω (p , q) + < û, q >  = (f,q)   ∀ q ∈ H^1(Ω)
-//                                  p̂  = p_0     on ∂Ω 
+// -(p,∇⋅v) + i ω (u,v) + <p̂,v⋅n> = 0,      ∀ v ∈ H(div,Ω)      
+// -(u,∇ q) + i ω (p,q) + <û,q >  = (f,q)   ∀ q ∈ H^1(Ω)
+//                                   p̂  = p_0     on ∂Ω 
 
 // Note: 
 // p̂ := p on Γ_h (skeleton)
@@ -292,17 +292,16 @@ int main(int argc, char *argv[])
                 << "    Dofs    |" 
                 << "   ω   |" 
                 << "  L2 Error  |" 
-                << " Relative % |" 
                 << "  Rate  |" 
                 << "  Residual  |" 
                 << "  Rate  |" 
                 << " PCG it |"
                 << " PCG time |"  << endl;
-      mfem::out << " --------------------"      
-                <<  "---------------------"    
-                <<  "---------------------"    
-                <<  "---------------------"    
-                <<  "---------------------"    
+      mfem::out << " ------------------"      
+                <<  "-------------------"    
+                <<  "-------------------"    
+                <<  "-------------------"    
+                <<  "-------------------"    
                 <<  "-------------------" << endl;      
    }
 
@@ -385,11 +384,9 @@ int main(int argc, char *argv[])
          }
       }
 
-
       X = 0.;
-
-      BlockDiagonalPreconditioner * M = new BlockDiagonalPreconditioner(tdof_offsets);
-
+      BlockDiagonalPreconditioner M(tdof_offsets);
+      M.owns_blocks=0;
 
       if (!static_cond)
       {
@@ -399,15 +396,13 @@ int main(int argc, char *argv[])
          HypreBoomerAMG * solver_u = new HypreBoomerAMG((HypreParMatrix &)BlockA_r->GetBlock(1,1));
          solver_u->SetPrintLevel(0);
          solver_u->SetSystemsOptions(dim);
-         M->SetDiagonalBlock(0,solver_p);
-         M->SetDiagonalBlock(1,solver_u);
-         M->SetDiagonalBlock(num_blocks,solver_p);
-         M->SetDiagonalBlock(num_blocks+1,solver_u);
+         M.SetDiagonalBlock(0,solver_p);
+         M.SetDiagonalBlock(1,solver_u);
+         M.SetDiagonalBlock(num_blocks,solver_p);
+         M.SetDiagonalBlock(num_blocks+1,solver_u);
       }
 
-
       HypreBoomerAMG * solver_hatp = new HypreBoomerAMG((HypreParMatrix &)BlockA_r->GetBlock(skip,skip));
-      // amg->SetCycleNumSweeps(5, 5);
       solver_hatp->SetPrintLevel(0);
 
       HypreSolver * solver_hatu = nullptr;
@@ -422,26 +417,30 @@ int main(int argc, char *argv[])
          dynamic_cast<HypreAMS*>(solver_hatu)->SetPrintLevel(0);
       }
 
-
-      M->SetDiagonalBlock(skip,solver_hatp);
-      M->SetDiagonalBlock(skip+1,solver_hatu);
-      M->SetDiagonalBlock(skip+num_blocks,solver_hatp);
-      M->SetDiagonalBlock(skip+num_blocks+1,solver_hatu);
+      M.SetDiagonalBlock(skip,solver_hatp);
+      M.SetDiagonalBlock(skip+1,solver_hatu);
+      M.SetDiagonalBlock(skip+num_blocks,solver_hatp);
+      M.SetDiagonalBlock(skip+num_blocks+1,solver_hatu);
 
       StopWatch chrono;
 
       CGSolver cg(MPI_COMM_WORLD);
       cg.SetRelTol(1e-7);
-      cg.SetAbsTol(1e-7);
       cg.SetMaxIter(10000);
       cg.SetPrintLevel(0);
-      cg.SetPreconditioner(*M); 
+      cg.SetPreconditioner(M); 
       cg.SetOperator(blockA);
       chrono.Clear();
       chrono.Start();
       cg.Mult(B, X);
       chrono.Stop();
-      delete M;
+
+
+      for (int i = 0; i<num_blocks; i++)
+      {
+         delete &M.GetDiagonalBlock(i);
+      }
+
 
       int ne = pmesh.GetNE();
       MPI_Allreduce(MPI_IN_PLACE,&ne,1,MPI_INT,MPI_SUM,MPI_COMM_WORLD);
@@ -500,10 +499,6 @@ int main(int argc, char *argv[])
 
       double p_err_r = p.real().ComputeL2Error(p_ex_r);
       double p_err_i = p.imag().ComputeL2Error(p_ex_i);
-      double p_error = sqrt(p_err_r*p_err_r + p_err_i*p_err_i);
-      double p_norm_r = pgf_ex.real().ComputeL2Error(zero);
-      double p_norm_i = pgf_ex.imag().ComputeL2Error(zero);
-      double p_norm = sqrt(p_norm_r*p_norm_r + p_norm_i*p_norm_i);
 
       // Error in velocity
       ParComplexGridFunction ugf_ex(u_fes);
@@ -512,16 +507,9 @@ int main(int argc, char *argv[])
 
       double u_err_r = u.real().ComputeL2Error(u_ex_r);
       double u_err_i = u.imag().ComputeL2Error(u_ex_i);
-      double u_error = sqrt(u_err_r*u_err_r + u_err_i*u_err_i);
-      double u_norm_r = pgf_ex.real().ComputeL2Error(vzero);
-      double u_norm_i = pgf_ex.imag().ComputeL2Error(vzero);
-      double u_norm = sqrt(u_norm_r*u_norm_r + u_norm_i*u_norm_i);
 
-
-      double L2Error = sqrt(p_error*p_error + u_error*u_error);
-      double L2norm = sqrt(p_norm*p_norm + u_norm*u_norm);
-
-      double rel_err = L2Error/L2norm;
+      double L2Error = sqrt(p_err_r*p_err_r + p_err_i*p_err_i
+                           +u_err_r*u_err_r + u_err_i*u_err_i);
 
       int dofs = p_fes->GlobalTrueVSize()
                + u_fes->GlobalTrueVSize()
@@ -529,10 +517,10 @@ int main(int argc, char *argv[])
                + hatu_fes->GlobalTrueVSize();
 
 
-      double rate_err = (it) ? dim*log(err0/rel_err)/log((double)dof0/dofs) : 0.0;
+      double rate_err = (it) ? dim*log(err0/L2Error)/log((double)dof0/dofs) : 0.0;
       double rate_res = (it) ? dim*log(res0/globalresidual)/log((double)dof0/dofs) : 0.0;
 
-      err0 = rel_err;
+      err0 = L2Error;
       res0 = globalresidual;
       dof0 = dofs;
 
@@ -545,8 +533,6 @@ int main(int argc, char *argv[])
                   << std::setw(2) <<  2*rnum << " π  | " 
                   << std::setprecision(3) 
                   << std::setw(10) << std::scientific <<  err0 << " | " 
-                  << std::setprecision(3) 
-                  << std::setw(10) << std::fixed <<  rel_err * 100. << " | " 
                   << std::setprecision(2) 
                   << std::setw(6) << std::fixed << rate_err << " | " 
                   << std::setprecision(3) 
