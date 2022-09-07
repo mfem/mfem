@@ -97,7 +97,7 @@ void LinearFormExtension::Assemble()
       // Assemble the linear form
       bdr_b = 0.0;
       boundary_integs[k]->AssembleDevice(fes, bdr_markers, bdr_b);
-      bdr_restrict_lex->MultTranspose(bdr_b, *lf);
+      bdr_restrict_lex->AddMultTranspose(bdr_b, *lf);
    }
 }
 
@@ -132,11 +132,34 @@ void LinearFormExtension::Update()
       bdr_markers.SetSize(NBE);
       // bdr_markers.UseDevice(true);
 
-      bdr_attributes.SetSize(NBE);
-      for (int i = 0; i < NBE; ++i) { bdr_attributes[i] = mesh.GetBdrAttribute(i); }
+      // The face restriction will give us "face E-vectors" on the boundary that
+      // are numbered in the order of the faces of mesh. This numbering will be
+      // different than the numbering of the boundary elements. We compute
+      // mappings so that the array `bdr_attributes[i]` gives the boundary
+      // attribute of the `i`th boundary face in the mesh face order.
+      std::unordered_map<int,int> f_to_be;
+      for (int i = 0; i < mesh.GetNBE(); ++i)
+      {
+         const int f = mesh.GetBdrElementEdgeIndex(i);
+         f_to_be[f] = i;
+      }
 
-      bdr_restrict_lex = fes.GetFaceRestriction(
-                            ordering, FaceType::Boundary, L2FaceValues::SingleValued);
+      bdr_attributes.SetSize(NBE);
+      int f_ind = 0;
+      for (int f = 0; f < mesh.GetNumFaces(); ++f)
+      {
+         if (f_to_be.find(f) != f_to_be.end())
+         {
+            const int be = f_to_be[f];
+            bdr_attributes[f_ind] = mesh.GetBdrAttribute(be);
+            ++f_ind;
+         }
+      }
+
+      bdr_restrict_lex =
+         dynamic_cast<const FaceRestriction*>(
+            fes.GetFaceRestriction(ordering, FaceType::Boundary,
+                                   L2FaceValues::SingleValued));
       MFEM_VERIFY(bdr_restrict_lex, "Face restriction not available");
       bdr_b.SetSize(bdr_restrict_lex->Height(), Device::GetMemoryType());
       bdr_b.UseDevice(true);
