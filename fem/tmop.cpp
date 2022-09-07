@@ -2370,7 +2370,7 @@ DiscreteAdaptTC::~DiscreteAdaptTC()
 
 void AdaptivityEvaluator::SetSerialMetaInfo(const Mesh &m,
                                             const FiniteElementCollection &fec,
-                                            int num_comp, int fes_ordering_)
+                                            int num_comp, int fes_ordering)
 {
    delete fes;
    delete mesh;
@@ -2378,13 +2378,12 @@ void AdaptivityEvaluator::SetSerialMetaInfo(const Mesh &m,
    fes = new FiniteElementSpace(mesh, &fec, num_comp, fes_ordering);
    dim = fes->GetFE(0)->GetDim();
    ncomp = num_comp;
-   fes_ordering = fes_ordering_;
 }
 
 #ifdef MFEM_USE_MPI
 void AdaptivityEvaluator::SetParMetaInfo(const ParMesh &m,
                                          const FiniteElementCollection &fec,
-                                         int num_comp, int fes_ordering_)
+                                         int num_comp, int fes_ordering)
 {
    delete pfes;
    delete pmesh;
@@ -2392,7 +2391,6 @@ void AdaptivityEvaluator::SetParMetaInfo(const ParMesh &m,
    pfes  = new ParFiniteElementSpace(pmesh, &fec, num_comp, fes_ordering);
    dim = pfes->GetFE(0)->GetDim();
    ncomp = num_comp;
-   fes_ordering = fes_ordering_;
 }
 #endif
 

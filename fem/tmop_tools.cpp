@@ -35,6 +35,17 @@ void AdvectorCG::ComputeAtNewPosition(const Vector &new_nodes,
 
    new_field = field0;
    Vector new_field_temp;
+   int fes_ordering;
+   if (fes)
+   {
+      fes_ordering = fes->GetOrdering();
+   }
+#ifdef MFEM_USE_MPI
+   else if (pfes)
+   {
+      fes_ordering = pfes->GetOrdering();
+   }
+#endif
    for (int i = 0; i < ncomp; i++)
    {
       if (fes_ordering == Ordering::byNODES)
@@ -44,14 +55,17 @@ void AdvectorCG::ComputeAtNewPosition(const Vector &new_nodes,
       else
       {
          new_field_temp.SetSize(pnt_cnt);
-         new_field_temp = 0.;
+         for (int j = 0; j < pnt_cnt; j++)
+         {
+            new_field_temp(j) = new_field(i + j*ncomp);
+         }
       }
       ComputeAtNewPositionScalar(new_nodes, new_field_temp);
       if (fes_ordering == Ordering::byVDIM)
       {
          for (int j = 0; j < pnt_cnt; j++)
          {
-            new_field(i + j*ncomp) = new_field(j);
+            new_field(i + j*ncomp) = new_field_temp(j);
          }
       }
    }
