@@ -1,19 +1,36 @@
-//                   MFEM Ultraweak DPG acoustics example
+//                   MFEM Ultraweak DPG example for acoustics (Helmholtz)
 //
-// Compile with: make uw_dpg
+// Compile with: make acoustics
 //
+// Sample runs
+// 
+// acoustics -ref 5 -o 1 -rnum 1.0 
+// acoustics -m ../../../data/inline-tri.mesh -ref 4 -o 2 -sc -rnum 3.0
+// acoustics -m ../../../data/amr-quad.mesh -ref 3 -o 3 -sc -rnum 4.5 -prob 1
+// acoustics -m ../../../data/inline-quad.mesh -ref 2 -o 4 -sc -rnum 11.5 -prob 1
+// acoustics -m ../../../data/inline-hex.mesh -ref 2 -o 2 -sc -rnum 1.0
+// acoustics -m ../../../data/inline-tet.mesh -ref 1 -o 2 -sc -rnum 2.0 -prob 1
+
+// Description:  
+// This example code demonstrates the use of MFEM to define and solve
+// the "ultraweak" (UW) DPG formulation for the Helmholtz problem
 
 //     - Δ p - ω^2 p = f̃ ,   in Ω
 //                 p = p_0, on ∂Ω
 
-// First Order System
+// It solves two kinds of problems 
+// a) f̃ = 0 and p_0 is a plane wave
+// b) A manufactured solution problem where p_exact is a gaussian beam
+// This example computes and prints out convergence rates for the L2 error.
 
+// The DPG UW deals with the First Order System
 //  ∇ p + i ω u = 0, in Ω
-//  ∇⋅u + i ω p = f, in Ω
+//  ∇⋅u + i ω p = f, in Ω              (1)
 //           p = p_0, in ∂Ω
 // where f:=f̃/(i ω) 
 
-// UW-DPG:
+// Ultraweak-DPG is obtained by integration by parts of both equations and the 
+// introduction of trace unknowns on the mesh skeleton
 // 
 // p ∈ L^2(Ω), u ∈ (L^2(Ω))^dim 
 // p̂ ∈ H^1/2(Ω), û ∈ H^-1/2(Ω)  
@@ -34,8 +51,13 @@
 
 // where (q,v) ∈  H^1(Ω) × H(div,Ω) 
 
+// Here we use the "Adjoint Graph" norm on the test space i.e.,
+// ||(q,v)||^2_V = ||A^*(q,v)||^2 + ||(q,v)||^2 where A is the
+// acoustics operator defined by (1)
+
 #include "mfem.hpp"
 #include "util/complexweakform.hpp"
+#include "../../common/mfem-common.hpp"
 #include <fstream>
 #include <iostream>
 
@@ -87,9 +109,7 @@ int main(int argc, char *argv[])
    int delta_order = 1;
    bool visualization = true;
    double rnum=1.0;
-   int ref = 1;
-   double theta = 0.0;
-   bool adjoint_graph_norm = false;
+   int ref = 0;
    bool static_cond = false;
    int iprob = 0;
 
@@ -107,12 +127,7 @@ int main(int argc, char *argv[])
                   " 0: plane wave, 1: Gaussian beam");                     
    args.AddOption(&delta_order, "-do", "--delta_order",
                   "Order enrichment for DPG test space.");     
-   args.AddOption(&theta, "-theta", "--theta",
-                  "Theta parameter for AMR");                    
-   args.AddOption(&adjoint_graph_norm, "-graph-norm", "--adjoint-graph-norm",
-                  "-no-graph-norm", "--no-adjoint-graph-norm",
-                  "Enable or disable Adjoint Graph Norm on the test space");                                
-   args.AddOption(&ref, "-ref", "--serial_ref",
+   args.AddOption(&ref, "-ref", "--refinements",
                   "Number of serial refinements.");       
    args.AddOption(&static_cond, "-sc", "--static-condensation", "-no-sc",
                   "--no-static-condensation", "Enable static condensation.");                                            
@@ -129,10 +144,8 @@ int main(int argc, char *argv[])
 
    omega = 2.*M_PI*rnum;
 
-
    Mesh mesh(mesh_file, 1, 1);
    dim = mesh.Dimension();
-
 
    // Define spaces
    // L2 space for p
@@ -156,13 +169,6 @@ int main(int argc, char *argv[])
    FiniteElementCollection * q_fec = new H1_FECollection(test_order, dim);
    FiniteElementCollection * v_fec = new RT_FECollection(test_order-1, dim);
 
-
-   mfem::out << "p_fes space true dofs = " << p_fes->GetTrueVSize() << endl;
-   mfem::out << "u_fes space true dofs = " << u_fes->GetTrueVSize() << endl;
-   mfem::out << "hatp_fes space true dofs = " << hatp_fes->GetTrueVSize() << endl;
-   mfem::out << "hatu_fes space true dofs = " << hatu_fes->GetTrueVSize() << endl;
-
-
    // Coefficients
    ConstantCoefficient one(1.0);
    ConstantCoefficient zero(0.0);
@@ -173,7 +179,6 @@ int main(int argc, char *argv[])
    ConstantCoefficient omeg2(omega*omega);
    ConstantCoefficient negomeg(-omega);
 
-   // Normal equation weak formulation
    Array<FiniteElementSpace * > trial_fes; 
    Array<FiniteElementCollection * > test_fec; 
 
@@ -186,34 +191,21 @@ int main(int argc, char *argv[])
    test_fec.Append(v_fec);
 
    ComplexDPGWeakForm * a = new ComplexDPGWeakForm(trial_fes,test_fec);
-   a->StoreMatrices();
 
    // i ω (p,q)
    a->AddTrialIntegrator(nullptr,new MixedScalarMassIntegrator(omeg),0,0);
-
-// -(u , ∇ q)
+   // -(u , ∇ q)
    a->AddTrialIntegrator(new TransposeIntegrator(new GradientIntegrator(negone)),nullptr,1,0);
-
-// -(p, ∇⋅v)
+   // -(p, ∇⋅v)
    a->AddTrialIntegrator(new MixedScalarWeakGradientIntegrator(one),nullptr,0,1);
-
-//  i ω (u,v)
+   //  i ω (u,v)
    a->AddTrialIntegrator(nullptr,new TransposeIntegrator(new VectorFEMassIntegrator(omeg)),1,1);
-
-// < p̂, v⋅n>
+   // < p̂, v⋅n>
    a->AddTrialIntegrator(new NormalTraceIntegrator,nullptr,2,1);
-
-// < û,q >
+   // < û,q >
    a->AddTrialIntegrator(new TraceIntegrator,nullptr,3,0);
 
-   // for impedence condition (only on the boundary)
-   // TODO
-   // a->AddTrialIntegrator(new TraceIntegrator,nullptr,2,0);
-
-
-// test integrators 
-
-   //space-induced norm for H(div) × H1
+   // test space integrators (Adjoint graph norm)
    // (∇q,∇δq)
    a->AddTestIntegrator(new DiffusionIntegrator(one),nullptr,0,0);
    // (q,δq)
@@ -222,66 +214,49 @@ int main(int argc, char *argv[])
    a->AddTestIntegrator(new DivDivIntegrator(one),nullptr,1,1);
    // (v,δv)
    a->AddTestIntegrator(new VectorFEMassIntegrator(one),nullptr,1,1);
-
-   // additional integrators for the adjoint graph norm
-   if (adjoint_graph_norm)
-   {   
-      // -i ω (∇q,δv)
-      a->AddTestIntegrator(nullptr,new MixedVectorGradientIntegrator(negomeg),0,1);
-      // i ω (v,∇ δq)
-      a->AddTestIntegrator(nullptr,new MixedVectorWeakDivergenceIntegrator(negomeg),1,0);
-      // ω^2 (v,δv)
-      a->AddTestIntegrator(new VectorFEMassIntegrator(omeg2),nullptr,1,1);
-
-      // - i ω (∇⋅v,δq)   
-      a->AddTestIntegrator(nullptr,new VectorFEDivergenceIntegrator(negomeg),1,0);
-      // i ω (q,∇⋅v)   
-      a->AddTestIntegrator(nullptr,new MixedScalarWeakGradientIntegrator(negomeg),0,1);
-      // ω^2 (q,δq)
-      a->AddTestIntegrator(new MassIntegrator(omeg2),nullptr,0,0);
-   }
+   // -i ω (∇q,δv)
+   a->AddTestIntegrator(nullptr,new MixedVectorGradientIntegrator(negomeg),0,1);
+   // i ω (v,∇ δq)
+   a->AddTestIntegrator(nullptr,new MixedVectorWeakDivergenceIntegrator(negomeg),1,0);
+   // ω^2 (v,δv)
+   a->AddTestIntegrator(new VectorFEMassIntegrator(omeg2),nullptr,1,1);
+   // - i ω (∇⋅v,δq)   
+   a->AddTestIntegrator(nullptr,new VectorFEDivergenceIntegrator(negomeg),1,0);
+   // i ω (q,∇⋅v)   
+   a->AddTestIntegrator(nullptr,new MixedScalarWeakGradientIntegrator(negomeg),0,1);
+   // ω^2 (q,δq)
+   a->AddTestIntegrator(new MassIntegrator(omeg2),nullptr,0,0);
 
    // RHS
    FunctionCoefficient f_rhs_r(rhs_func_r);
    FunctionCoefficient f_rhs_i(rhs_func_i);
-   a->AddDomainLFIntegrator(new DomainLFIntegrator(f_rhs_r),new DomainLFIntegrator(f_rhs_i),0);
-
+   if (prob == prob_type::gaussian_beam)
+   {
+      a->AddDomainLFIntegrator(new DomainLFIntegrator(f_rhs_r),
+                               new DomainLFIntegrator(f_rhs_i),0);
+   }
 
    FunctionCoefficient hatpex_r(hatp_exact_r);
    FunctionCoefficient hatpex_i(hatp_exact_i);
    VectorFunctionCoefficient hatuex_r(dim,hatu_exact_r);
    VectorFunctionCoefficient hatuex_i(dim,hatu_exact_i);
-   Array<int> elements_to_refine;
 
    socketstream p_out_r;
    socketstream p_out_i;
-   if (visualization)
-   {
-      char vishost[] = "localhost";
-      int  visport   = 19916;
-      p_out_r.open(vishost, visport);
-      p_out_i.open(vishost, visport);
-   }
 
-   double res0 = 0.;
    double err0 = 0.;
    int dof0;
-   mfem::out << " Refinement |" 
-             << "    Dofs    |" 
-             << "  L2 Error  |" 
-             << " Relative % |" 
-             << "  Rate  |" 
-             << "  Residual  |" 
-             << "  Rate  |" << endl;
+
+   mfem::out << "\n Refinement |" 
+               << "    Dofs    |" 
+               << "  L2 Error  |" 
+               << "  Rate  |" 
+               << " CG it  |" << endl;
    mfem::out << " --------------------"      
-             <<  "-------------------"    
-             <<  "-------------------"    
-             <<  "-------------------" << endl;   
+               <<  "------------------"    
+               <<  "------------------" << endl;   
 
-
-
-
-   for (int iref = 0; iref<ref; iref++)
+   for (int iref = 0; iref<=ref; iref++)
    {
       if (static_cond) { a->EnableStaticCondensation(); }
       a->Assemble();
@@ -292,17 +267,13 @@ int main(int argc, char *argv[])
       {
          ess_bdr.SetSize(mesh.bdr_attributes.Max());
          ess_bdr = 1;
-         // ess_bdr[1] = 0;
-         // ess_bdr[2] = 1;
          hatp_fes->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
-         // hatu_fes->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
       }
 
       // shift the ess_tdofs
       for (int j = 0; j < ess_tdof_list.Size(); j++)
       {
          ess_tdof_list[j] += p_fes->GetTrueVSize() + u_fes->GetTrueVSize();
-                        //   + hatp_fes->GetTrueVSize(); 
       }
 
       Array<int> offsets(5);
@@ -322,103 +293,119 @@ int main(int argc, char *argv[])
       hatp_gf.imag().MakeRef(hatp_fes,&xdata[offsets.Last()+ offsets[2]]);
       hatp_gf.ProjectBdrCoefficient(hatpex_r,hatpex_i, ess_bdr);
 
-      // ComplexGridFunction hatu_gf(hatu_fes);
-      // hatu_gf.real().MakeRef(hatu_fes,&xdata[offsets[3]]);
-      // hatu_gf.imag().MakeRef(hatu_fes,&xdata[offsets.Last()+ offsets[3]]);
-      // hatu_gf.ProjectBdrCoefficientNormal(hatuex_r,hatuex_i, ess_bdr);
-
       OperatorPtr Ah;
       Vector X,B;
       a->FormLinearSystem(ess_tdof_list,x,Ah, X,B);
 
+      // Setup operator and preconditioner
       ComplexOperator * Ahc = Ah.As<ComplexOperator>();
 
-      SparseMatrix * Ar = dynamic_cast<BlockMatrix *>(&Ahc->real())->CreateMonolithic();
-      SparseMatrix * Ai = dynamic_cast<BlockMatrix *>(&Ahc->imag())->CreateMonolithic();
+      BlockMatrix * A_r = dynamic_cast<BlockMatrix *>(&Ahc->real());
+      BlockMatrix * A_i = dynamic_cast<BlockMatrix *>(&Ahc->imag());
 
-      ComplexSparseMatrix Ac(Ar,Ai,true,true);
-      SparseMatrix * A = Ac.GetSystemMatrix();
-
-      mfem::out << "Size of the linear system: " << A->Height() << std::endl;
-
-
-      UMFPackSolver umf(*A);
-      umf.Mult(B,X);
-
-      delete A;
-      a->RecoverFEMSolution(X,x);
-
-      Vector & residuals = a->ComputeResidual(x);
-      double residual = residuals.Norml2();
-
-
-      elements_to_refine.SetSize(0);
-      double max_resid = residuals.Max();
-      for (int iel = 0; iel<mesh.GetNE(); iel++)
+      int num_blocks = A_r->NumRowBlocks();
+      Array<int> tdof_offsets(2*num_blocks+1);
+      tdof_offsets[0] = 0;
+      int k = (static_cond) ? 2 : 0;
+      for (int i=0; i<num_blocks;i++)
       {
-         if (residuals[iel] > theta * max_resid)
+         tdof_offsets[i+1] = trial_fes[i+k]->GetTrueVSize(); 
+         tdof_offsets[num_blocks+i+1] = trial_fes[i+k]->GetTrueVSize(); 
+      }
+      tdof_offsets.PartialSum();
+
+      BlockOperator A(tdof_offsets);
+      for (int i = 0; i<num_blocks; i++)
+      {
+         for (int j = 0; j<num_blocks; j++)
          {
-            elements_to_refine.Append(iel);
+            A.SetBlock(i,j,&A_r->GetBlock(i,j));
+            A.SetBlock(i,j+num_blocks,&A_i->GetBlock(i,j), -1.0);
+            A.SetBlock(i+num_blocks,j+num_blocks,&A_r->GetBlock(i,j));
+            A.SetBlock(i+num_blocks,j,&A_i->GetBlock(i,j));
          }
       }
 
+      BlockDiagonalPreconditioner M(tdof_offsets);
+      M.owns_blocks = 1;
+      for (int i = 0; i<num_blocks; i++)
+      {
+         M.SetDiagonalBlock(i, new GSSmoother((SparseMatrix&)A_r->GetBlock(i,i)));
+         M.SetDiagonalBlock(num_blocks+i, new GSSmoother((SparseMatrix&)A_r->GetBlock(i,i)));
+      }
+
+      CGSolver cg;
+      cg.SetRelTol(1e-10);
+      cg.SetMaxIter(2000);
+      cg.SetPrintLevel(0);
+      cg.SetPreconditioner(M);
+      cg.SetOperator(A);
+      cg.Mult(B, X);
+
+      a->RecoverFEMSolution(X,x);
 
       ComplexGridFunction p(p_fes);
       p.real().MakeRef(p_fes,x.GetData());
       p.imag().MakeRef(p_fes,&x.GetData()[offsets.Last()]);
 
-      ComplexGridFunction pgf_ex(p_fes);
+      ComplexGridFunction u(u_fes);
+      u.real().MakeRef(u_fes,x.GetData()+offsets[1]);
+      u.imag().MakeRef(u_fes,&x.GetData()[offsets.Last()+offsets[1]]);
+
       FunctionCoefficient p_ex_r(p_exact_r);
       FunctionCoefficient p_ex_i(p_exact_i);
-      pgf_ex.ProjectCoefficient(p_ex_r, p_ex_i);
 
-      int dofs = X.Size()/2;
+      VectorFunctionCoefficient u_ex_r(dim,u_exact_r);
+      VectorFunctionCoefficient u_ex_i(dim,u_exact_i);
+
+      int dofs = 0;
+      for (int i = 0; i<trial_fes.Size(); i++)
+      {
+         dofs += trial_fes[i]->GetTrueVSize();
+      }
 
       double p_err_r = p.real().ComputeL2Error(p_ex_r);
       double p_err_i = p.imag().ComputeL2Error(p_ex_i);
+      double u_err_r = u.real().ComputeL2Error(u_ex_r);
+      double u_err_i = u.imag().ComputeL2Error(u_ex_i);
 
-      double L2Error = sqrt(p_err_r*p_err_r + p_err_i*p_err_i);
+      double L2Error = sqrt(p_err_r*p_err_r + p_err_i*p_err_i
+                           +u_err_r*u_err_r + u_err_i*u_err_i);
 
       double rate_err = (iref) ? dim*log(err0/L2Error)/log((double)dof0/dofs) : 0.0;
-      double rate_res = (iref) ? dim*log(res0/residual)/log((double)dof0/dofs) : 0.0;
 
       err0 = L2Error;
-      res0 = residual;
       dof0 = dofs;
 
-      mfem::out << std::right << std::setw(11) << iref << " | " 
-                << std::setw(10) <<  dof0 << " | " 
-                << std::setprecision(3) 
-                << std::setw(10) << std::scientific <<  err0 << " | " 
-                << std::setprecision(3) 
-                << std::setw(10) << std::fixed <<  0.0 << " | " 
-                << std::setprecision(2) 
-                << std::setw(6) << std::fixed << rate_err << " | " 
-                << std::setprecision(3) 
-                << std::setw(10) << std::scientific <<  res0 << " | " 
-                << std::setprecision(2) 
-                << std::setw(6) << std::fixed << rate_res << " | " 
-                << std::resetiosflags(std::ios::showbase)
-                << std::setw(10) << std::scientific 
-                << std::endl;
+      std::ios oldState(nullptr);
+      oldState.copyfmt(std::cout);
+      std::cout << std::right << std::setw(11) << iref << " | " 
+                  << std::setw(10) <<  dof0 << " | " 
+                  << std::setprecision(3) 
+                  << std::setw(10) << std::scientific << err0 << " | " 
+                  << std::setprecision(2) 
+                  << std::setw(6) << std::fixed << rate_err << " | " 
+                  << std::setw(6) << std::fixed << cg.GetNumIterations() << " | " 
+                  << std::setprecision(3) 
+                  << std::resetiosflags(std::ios::showbase)
+                  << std::endl;
+      std::cout.copyfmt(oldState);
 
       if (visualization)
       {
-         p_out_r.precision(8);
-         p_out_r << "solution\n" << mesh << p.real() <<
-                  "window_title 'Real Numerical presure' "
-                  << flush;
-
-         p_out_i.precision(8);
-         p_out_i << "solution\n" << mesh << p.imag() <<
-                  "window_title 'Imag Numerical presure' "
-                  << flush;         
+         const char * keys = (iref == 0 && dim == 2) ? "jRcml\n" : nullptr;
+         char vishost[] = "localhost";
+         int  visport   = 19916;
+         common::VisualizeField(p_out_r,vishost, visport, p.real(), 
+                               "Numerical presure (real part)", 0, 0, 500, 500, keys);
+         common::VisualizeField(p_out_i,vishost, visport, p.imag(), 
+                        "Numerical presure (imaginary part)", 501, 0, 500, 500, keys);                               
       }
 
       if (iref == ref)
          break;
 
-      mesh.GeneralRefinement(elements_to_refine,1,1);
+      mesh.UniformRefinement();
       for (int i =0; i<trial_fes.Size(); i++)
       {
          trial_fes[i]->Update(false);
@@ -524,7 +511,6 @@ void hatu_exact_i(const Vector & X, Vector & hatu)
 //  ∇⋅u = i Δ p / ω
 //      = i (Δ p_r + i * Δ p_i)  / ω 
 //      = - Δ p_i / ω + i Δ p_r / ω 
-
 double divu_exact_r(const Vector &x)
 {
    return -d2_exact_i(x)/omega;
@@ -551,7 +537,6 @@ double rhs_func_i(const Vector &x)
    double divu = divu_exact_i(x);
    return divu + omega * p;
 }
-
 
 void acoustics_solution_r(const Vector & X, double & p, 
                           Vector &dp, double & d2p)
@@ -583,11 +568,11 @@ void acoustics_solution_i(const Vector & X, double & p,
    }
 }
 
-
-void acoustics_solution(const Vector & X, complex<double> & p, vector<complex<double>> & dp, 
-         complex<double> & d2p)
+void acoustics_solution(const Vector & X, complex<double> & p, 
+                                          vector<complex<double>> & dp, 
+                                          complex<double> & d2p)
 {
-   dp.resize(X.Size());
+   dp.resize(X.Size()); 
    complex<double> zi = complex<double>(0., 1.);
    switch (prob)
    {
@@ -655,7 +640,6 @@ void acoustics_solution(const Vector & X, complex<double> & p, vector<complex<do
       double d2pfdydy = -1./M_PI*pow(2./M_PI,-0.75)*(-1.5*pow(w,-2.5)
                         *dwdy*dwdy + pow(w,-1.5)*d2wdydy);
 
-
       complex<double> zp = pf*exp(ze);
       complex<double> zdpdx = zp*zdedx;
       complex<double> zdpdy = dpfdy*exp(ze)+zp*zdedy;
@@ -667,11 +651,11 @@ void acoustics_solution(const Vector & X, complex<double> & p, vector<complex<do
       p = zp;
       dp[0] = (zdpdx*dxdxprim + zdpdy*dydxprim);
       dp[1] = (zdpdx*dxdyprim + zdpdy*dydyprim);
+      if (dim == 3)  dp[2] = 0.0;
 
       d2p = (zd2pdxdx*dxdxprim + zd2pdydx*dydxprim)*dxdxprim + (zd2pdxdy*dxdxprim + zd2pdydy*dydxprim)*dydxprim
           + (zd2pdxdx*dxdyprim + zd2pdydx*dydyprim)*dxdyprim + (zd2pdxdy*dxdyprim + zd2pdydy*dydyprim)*dydyprim;
    }
    break;
    }
-
 }
