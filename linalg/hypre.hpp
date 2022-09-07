@@ -1660,14 +1660,17 @@ private:
    /// Nedelec interpolation matrix and its components
    HypreParMatrix *Pi, *Pix, *Piy, *Piz;
 
-   /// TODO: dont need either of these two fields if Hypre iterface is updated
+   /// AMS cycle type
+   int ams_cycle_type = 0;
    /// Spatial dimension of the underlying mesh
    int space_dim = 0;
-   /// flag set if `SetSingularProblem` is called, needed in `ResetAMSPrecond`
+   /// Flag set if `SetSingularProblem` is called, needed in `ResetAMSPrecond`
    bool singular = false;
+   /// Flag set if `SetPrintLevel` is called, needed in `ResetAMSPrecond`
+   int print_level = 1;
 
-   // Saves the options from ams, destroys it, allocates a new
-   // one, and sets its options to the saved values.
+   // Recreates another AMS solver with the same options when SetOperator is
+   // called multiple times.
    void ResetAMSPrecond();
 
 public:
@@ -1692,7 +1695,11 @@ public:
    void SetPrintLevel(int print_lvl);
 
    /// Set this option when solving a curl-curl problem with zero mass term
-   void SetSingularProblem() { HYPRE_AMSSetBetaPoissonMatrix(ams, NULL); singular = true; }
+   void SetSingularProblem()
+   {
+      HYPRE_AMSSetBetaPoissonMatrix(ams, NULL);
+      singular = true;
+   }
 
    /// The typecast to HYPRE_Solver returns the internal ams object
    virtual operator HYPRE_Solver() const { return ams; }
