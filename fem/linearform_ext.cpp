@@ -132,8 +132,29 @@ void LinearFormExtension::Update()
       bdr_markers.SetSize(NBE);
       // bdr_markers.UseDevice(true);
 
+      // The face restriction will give us "face E-vectors" on the boundary that
+      // are numbered in the order of the faces of mesh. This numbering will be
+      // different than the numbering of the boundary elements. We compute
+      // mappings so that the array `bdr_attributes[i]` gives the boundary
+      // attribute of the `i`th boundary face in the mesh face order.
+      std::unordered_map<int,int> f_to_be;
+      for (int i = 0; i < mesh.GetNBE(); ++i)
+      {
+         const int f = mesh.GetBdrElementEdgeIndex(i);
+         f_to_be[f] = i;
+      }
+
       bdr_attributes.SetSize(NBE);
-      for (int i = 0; i < NBE; ++i) { bdr_attributes[i] = mesh.GetBdrAttribute(i); }
+      int f_ind = 0;
+      for (int f = 0; f < mesh.GetNumFaces(); ++f)
+      {
+         if (f_to_be.find(f) != f_to_be.end())
+         {
+            const int be = f_to_be[f];
+            bdr_attributes[f_ind] = mesh.GetBdrAttribute(be);
+            ++f_ind;
+         }
+      }
 
       bdr_restrict_lex =
          dynamic_cast<const FaceRestriction*>(
