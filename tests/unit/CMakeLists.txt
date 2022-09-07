@@ -63,6 +63,7 @@ set(UNIT_TESTS_SRCS
   fem/test_coefficient.cpp
   fem/test_datacollection.cpp
   fem/test_derefine.cpp
+  fem/test_dgmassinv.cpp
   fem/test_estimator.cpp
   fem/test_face_elem_trans.cpp
   fem/test_face_permutation.cpp
