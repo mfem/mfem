@@ -36,7 +36,7 @@
 
 // Note: 
 // û := u and σ̂ := -σ
-
+//
 // -------------------------------------------------------------
 // |   |     u     |     σ     |    û      |    σ̂    |  RHS    |
 // -------------------------------------------------------------
@@ -45,6 +45,10 @@
 // | v |           |  (σ,∇ v)  |           |  <σ̂,v>  |  (f,v)  |  
 
 // where (τ,v) ∈  H(div,Ω) × H^1(Ω) 
+
+// Here we use the "space-induced" test norm i.e.,
+//
+// ||(t,v)||^2_H(div)×H^1 := ||t||^2 + ||∇⋅t||^2 + ||v||^2 + ||∇v||^2 
 
 #include "mfem.hpp"
 #include "util/weakform.hpp"
@@ -254,21 +258,20 @@ int main(int argc, char *argv[])
 
       BlockMatrix * A = Ah.As<BlockMatrix>();
 
-      BlockDiagonalPreconditioner * M = new BlockDiagonalPreconditioner(A->RowOffsets());
-      M->owns_blocks = 1;
+      BlockDiagonalPreconditioner M(A->RowOffsets());
+      M.owns_blocks = 1;
       for (int i=0; i<A->NumRowBlocks(); i++)
       {
-         M->SetDiagonalBlock(i,new GSSmoother(A->GetBlock(i,i)));
+         M.SetDiagonalBlock(i,new GSSmoother(A->GetBlock(i,i)));
       }
 
       CGSolver cg;
       cg.SetRelTol(1e-10);
       cg.SetMaxIter(2000);
       cg.SetPrintLevel(prob== prob_type::general ? 3 : 0);
-      cg.SetPreconditioner(*M);
+      cg.SetPreconditioner(M);
       cg.SetOperator(*A);
       cg.Mult(B, X);
-      delete M;
 
       a->RecoverFEMSolution(X,x);
 
