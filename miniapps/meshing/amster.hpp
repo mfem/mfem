@@ -21,10 +21,10 @@ void OptimizeMeshWithAMRForAnotherMesh(ParMesh &pmesh,
                                        int amr_iter,
                                        ParGridFunction &x)
 {
-//   H1_FECollection h1fec(source.ParFESpace()->FEColl()->GetOrder(),
-//                               pmesh.Dimension());
-//   ParFiniteElementSpace h1fespace(&pmesh, &h1fec);
-//   ParGridFunction x(&h1fespace);
+   //   H1_FECollection h1fec(source.ParFESpace()->FEColl()->GetOrder(),
+   //                               pmesh.Dimension());
+   //   ParFiniteElementSpace h1fespace(&pmesh, &h1fec);
+   //   ParGridFunction x(&h1fespace);
    const int dim = pmesh.Dimension();
 
    MFEM_VERIFY(pmesh.GetNodes() != NULL, "Nodes node set for mesh.");
@@ -131,7 +131,7 @@ void ComputeScalarDistanceFromLevelSet(ParMesh &pmesh,
                                        bool filter_input)
 {
    H1_FECollection h1fec(distance_s.ParFESpace()->FEColl()->GetOrder(),
-                               pmesh.Dimension());
+                         pmesh.Dimension());
    ParFiniteElementSpace h1fespace(&pmesh, &h1fec);
    ParGridFunction x(&h1fespace);
 
