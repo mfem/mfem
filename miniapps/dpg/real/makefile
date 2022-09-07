@@ -20,16 +20,14 @@ MFEM_LIB_FILE = mfem_is_not_built
 
 SRC_DIRS := $(SRC)/util
 COMMON_SRC_DIR = $(MFEM_DIR)/miniapps/common
+
 INC_DIRS := $(shell find $(SRC_DIRS) $(COMMON_SRC_DIR) ./ -type d)
-
-
 INC_FLAGS := $(addprefix -I,$(INC_DIRS))
 
 DPG_LIB_SRCS := $(shell find $(SRC_DIRS) $(COMMON_SRC_DIR) -name '*.cpp')
 DPG_LIB_OBJS := $(DPG_LIB_SRCS:%=%.o)
 DPG_LIB_DEPS := $(DPG_LIB_OBJS:.o=.d)
 DPG_LIB := libdpg_real.a
-
 
 EXAMPLE_SRCS := $(shell find $(SRC) -name '*.cpp')
 EXAMPLE_OBJS := $(EXAMPLE_SRCS:%=%.o)

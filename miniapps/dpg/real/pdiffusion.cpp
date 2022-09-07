@@ -2,6 +2,7 @@
 //
 // Compile with: make pdiffusion
 //
+// Sample runs
 // mpirun -np 4 pdiffusion -m ../../../data/inline-quad.mesh -o 3 -sref 1 -pref 3 -theta 0.0 -prob 0
 // mpirun -np 4 pdiffusion -m ../../../data/inline-hex.mesh -o 2 -sref 0 -pref 2 -theta 0.0 -prob 0 -sc
 // mpirun -np 4 pdiffusion -m ../../../data/beam-tet.mesh -o 3 -sref 0 -pref 2 -theta 0.0 -prob 0 -sc
@@ -290,8 +291,8 @@ int main(int argc, char *argv[])
 
       BlockOperator * A = Ah.As<BlockOperator>();
 
-      BlockDiagonalPreconditioner * M = new BlockDiagonalPreconditioner(A->RowOffsets());
-      M->owns_blocks = 1;
+      BlockDiagonalPreconditioner M(A->RowOffsets());
+      M.owns_blocks = 1;
       int skip = 0;
       if (!static_cond)
       {
@@ -299,13 +300,13 @@ int main(int argc, char *argv[])
          HypreBoomerAMG * amg1 = new HypreBoomerAMG((HypreParMatrix &)A->GetBlock(1,1));
          amg0->SetPrintLevel(0);
          amg1->SetPrintLevel(0);
-         M->SetDiagonalBlock(0,amg0);
-         M->SetDiagonalBlock(1,amg1);
+         M.SetDiagonalBlock(0,amg0);
+         M.SetDiagonalBlock(1,amg1);
          skip=2;
       }
       HypreBoomerAMG * amg2 = new HypreBoomerAMG((HypreParMatrix &)A->GetBlock(skip,skip));
       amg2->SetPrintLevel(0);
-      M->SetDiagonalBlock(skip,amg2);
+      M.SetDiagonalBlock(skip,amg2);
       HypreSolver * prec;
       if (dim == 2)
       {
@@ -315,7 +316,7 @@ int main(int argc, char *argv[])
       {
          prec = new HypreADS((HypreParMatrix &)A->GetBlock(skip+1,skip+1), hatsigma_fes);
       }
-      M->SetDiagonalBlock(skip+1,prec);
+      M.SetDiagonalBlock(skip+1,prec);
 
       CGSolver cg(MPI_COMM_WORLD);
       cg.SetRelTol(1e-12);
@@ -324,7 +325,6 @@ int main(int argc, char *argv[])
       cg.SetPreconditioner(*M);
       cg.SetOperator(*A);
       cg.Mult(B, X);
-      delete M;
 
       a->RecoverFEMSolution(X,x);
 
