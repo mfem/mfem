@@ -479,7 +479,7 @@ void dipole_pulse(const Vector &x, double t, Vector &j)
       j = v;
    }
 
-   j *= a * (t - b) * exp(-0.5 * pow((t-b)/c, 2)) / (c * c);
+   j *= a * (t - b) * exp(-0.5 * pow((t-b)/c, 2.0)) / (c * c);
 }
 
 void
@@ -508,7 +508,7 @@ SnapTimeStep(double tmax, double dtmax, double & dt)
 {
    double dsteps = tmax/dtmax;
 
-   int nsteps = pow(10,(int)ceil(log10(dsteps)));
+   int nsteps = static_cast<int>(pow(10,(int)ceil(log10(dsteps))));
 
    for (int i=1; i<=5; i++)
    {
