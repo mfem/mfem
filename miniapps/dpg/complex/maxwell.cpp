@@ -1,26 +1,49 @@
-//                   MFEM Ultraweak DPG Maxwell example
+//                   MFEM Ultraweak DPG example for Maxwell
 //
 // Compile with: make maxwell
 //
+// Sample runs
+// maxwell -m ../../../data/inline-tri.mesh -ref 4 -o 1 -rnum 1.0 
+// maxwell -m ../../../data/amr-quad.mesh -ref 3 -o 2 -rnum 1.6 -sc
+// maxwell -m ../../../data/inline-quad.mesh -ref 2 -o 3 -rnum 4.2 -sc
+// maxwell -m ../../../data/inline-hex.mesh -ref 1 -o 2 -sc -rnum 1.0
+
+// Description:  
+// This example code demonstrates the use of MFEM to define and solve
+// the "ultraweak" (UW) DPG formulation for the (indefinite) Maxwell problem
 
 //      ∇×(1/μ ∇×E) - ω^2 ϵ E = Ĵ ,   in Ω
 //                E×n = E_0, on ∂Ω
 
-// First Order System
+// It solves a problem with a manufactured solution E_exact being a plane wave 
+// in the x-component and zero in y (and z) component.
+// This example computes and prints out convergence rates for the L^2 error.
 
+// The DPG UW deals with the First Order System
 //  i ω μ H + ∇ × E = 0,   in Ω
-// -i ω ϵ E + ∇ × H = J,   in Ω
+// -i ω ϵ E + ∇ × H = J,   in Ω        (1)
 //            E × n = E_0, on ∂Ω
 
-// note: Ĵ = -iωJ
+// Note: Ĵ = -iωJ
 // in 2D 
 // E is vector valued and H is scalar. 
 //    (∇ × E, F) = (E, ∇ × F) + < n × E , F>
 // or (∇ ⋅ AE , F) = (AE, ∇ F) + < AE ⋅ n, F>
 // where A = A = [0 1; -1 0];
 
-// UW-DPG:
-// 
+// E ∈ L^2(Ω)^2, H ∈ L^2(Ω)
+// Ê ∈ H^-1/2(Ω)(Γ_h), Ĥ ∈ H^1/2(Γ_h)  
+//  i ω μ (H,F) + (E, ∇ × F) + < AÊ, F > = 0,      ∀ F ∈ H^1      
+// -i ω ϵ (E,G) + (H,∇ × G)  + < Ĥ, G × n > = (J,G)   ∀ G ∈ H(curl,Ω)      
+//                                    Ê = E_0     on ∂Ω 
+// -------------------------------------------------------------------------
+// |   |       E      |      H      |      Ê       |       Ĥ      |  RHS    |
+// -------------------------------------------------------------------------
+// | F |  (E,∇ × F)   | i ω μ (H,F) |   < Ê, F >   |              |         |
+// |   |              |             |              |              |         |
+// | G | -i ω ϵ (E,G) |  (H,∇ × G)  |              | < Ĥ, G × n > |  (J,G)  |  
+// where (F,G) ∈  H^1 × H(curl,Ω)
+
 // in 3D 
 // E,H ∈ (L^2(Ω))^3 
 // Ê ∈ H_0^1/2(Ω)(curl, Γ_h), Ĥ ∈ H^-1/2(curl, Γ_h)  
@@ -35,39 +58,37 @@
 // | G | -i ω ϵ (E,G) |  (H,∇ × G)  |              | < n × Ĥ, G > |  (J,G)  |  
 // where (F,G) ∈  H(curl,Ω) × H(curl,Ω)
 
-// in 2D 
-// E ∈ L^2(Ω)^2, H ∈ L^2(Ω)
-// Ê ∈ H^-1/2(Ω)(Γ_h), Ĥ ∈ H^1/2(Γ_h)  
-//  i ω μ (H,F) + (E, ∇ × F) + < AÊ, F > = 0,      ∀ F ∈ H^1      
-// -i ω ϵ (E,G) + (H,∇ × G)  + < Ĥ, G × n > = (J,G)   ∀ G ∈ H(curl,Ω)      
-//                                    Ê = E_0     on ∂Ω 
-// -------------------------------------------------------------------------
-// |   |       E      |      H      |      Ê       |       Ĥ      |  RHS    |
-// -------------------------------------------------------------------------
-// | F |  (E,∇ × F)   | i ω μ (H,F) |   < Ê, F >   |              |         |
-// |   |              |             |              |              |         |
-// | G | -i ω ϵ (E,G) |  (H,∇ × G)  |              | < Ĥ, G × n > |  (J,G)  |  
-
-// where (F,G) ∈  H^1 × H(curl,Ω)
-
+// Here we use the "Adjoint Graph" norm on the test space i.e.,
+// ||(F,G)||^2_V = ||A^*(F,G)||^2 + ||(F,G)||^2 where A is the
+// Maxwell operator defined by (1)
 
 #include "mfem.hpp"
 #include "util/complexweakform.hpp"
+#include "../../common/mfem-common.hpp"
 #include <fstream>
 #include <iostream>
 
 using namespace std;
 using namespace mfem;
 
+void maxwell_solution(const Vector & X, 
+                      std::vector<complex<double>> &E, 
+                      std::vector<complex<double>> &curlE, 
+                      std::vector<complex<double>> &curlcurlE);
+
+void maxwell_solution_r(const Vector & X, Vector &E_r, 
+                      Vector &curlE_r, 
+                      Vector &curlcurlE_r);
+
+void maxwell_solution_i(const Vector & X, Vector &E_i, 
+                      Vector &curlE_i, 
+                      Vector &curlcurlE_i);    
+
 void E_exact_r(const Vector &x, Vector & E_r);
 void E_exact_i(const Vector &x, Vector & E_i);
 
 void H_exact_r(const Vector &x, Vector & H_r);
 void H_exact_i(const Vector &x, Vector & H_i);
-
-
-void  rhs_func_r(const Vector &x, Vector & J_r);
-void  rhs_func_i(const Vector &x, Vector & J_i);
 
 void curlE_exact_r(const Vector &x, Vector &curlE_r);
 void curlE_exact_i(const Vector &x, Vector &curlE_i);
@@ -86,18 +107,8 @@ void hatH_exact_i(const Vector & X, Vector & hatH_i);
 double hatH_exact_scalar_r(const Vector & X);
 double hatH_exact_scalar_i(const Vector & X);
 
-void maxwell_solution(const Vector & X, 
-                      std::vector<complex<double>> &E, 
-                      std::vector<complex<double>> &curlE, 
-                      std::vector<complex<double>> &curlcurlE);
-
-void maxwell_solution_r(const Vector & X, Vector &E_r, 
-                      Vector &curlE_r, 
-                      Vector &curlcurlE_r);
-
-void maxwell_solution_i(const Vector & X, Vector &E_i, 
-                      Vector &curlE_i, 
-                      Vector &curlcurlE_i);     
+void  rhs_func_r(const Vector &x, Vector & J_r);
+void  rhs_func_i(const Vector &x, Vector & J_i);
 
 int dim;
 int dimc;
@@ -105,27 +116,15 @@ double omega;
 double mu = 1.0;
 double epsilon = 1.0;
 
-enum prob_type
-{
-   polynomial,
-   plane_wave,
-   fichera_oven  
-};
-
-prob_type prob;
-
 int main(int argc, char *argv[])
 {
-   const char *mesh_file = "../../../data/inline-hex.mesh";
+   const char *mesh_file = "../../../data/inline-quad.mesh";
    int order = 1;
    int delta_order = 1;
    bool visualization = true;
    double rnum=1.0;
-   int ref = 1;
-   double theta = 0.0;
-   bool adjoint_graph_norm = false;
+   int ref = 0;
    bool static_cond = false;
-   int iprob = 0;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -141,15 +140,8 @@ int main(int argc, char *argv[])
                   "Permeability of free space (or 1/(spring constant)).");
    args.AddOption(&epsilon, "-eps", "--permittivity",
                   "Permittivity of free space (or mass constant).");                  
-   args.AddOption(&iprob, "-prob", "--problem", "Problem case"
-                  " 0: polynomial, 1: plane wave, 2: Gaussian beam");                     
    args.AddOption(&delta_order, "-do", "--delta_order",
                   "Order enrichment for DPG test space.");     
-   args.AddOption(&theta, "-theta", "--theta",
-                  "Theta parameter for AMR");                    
-   args.AddOption(&adjoint_graph_norm, "-graph-norm", "--adjoint-graph-norm",
-                  "-no-graph-norm", "--no-adjoint-graph-norm",
-                  "Enable or disable Adjoint Graph Norm on the test space");                                
    args.AddOption(&ref, "-ref", "--serial_ref",
                   "Number of serial refinements.");       
    args.AddOption(&static_cond, "-sc", "--static-condensation", "-no-sc",
@@ -161,9 +153,6 @@ int main(int argc, char *argv[])
       return 1;
    }
    args.PrintOptions(cout);
-
-   if (iprob > 2) { iprob = 0; }
-   prob = (prob_type)iprob;
 
    omega = 2.*M_PI*rnum;
 
@@ -199,23 +188,9 @@ int main(int argc, char *argv[])
    } 
    FiniteElementSpace *hatE_fes = new FiniteElementSpace(&mesh,hatE_fec);
    FiniteElementSpace *hatH_fes = new FiniteElementSpace(&mesh,hatH_fec);
-
    FiniteElementCollection * G_fec = new ND_FECollection(test_order, dim);
 
-
-   mfem::out << "E_fes space true dofs = " << E_fes->GetTrueVSize() << endl;
-   mfem::out << "H_fes space true dofs = " << H_fes->GetTrueVSize() << endl;
-   mfem::out << "hatE_fes space true dofs = " << hatE_fes->GetTrueVSize() << endl;
-   mfem::out << "hatH_fes space true dofs = " << hatH_fes->GetTrueVSize() << endl;
-
-
-//    // Coefficients
-   Vector dim_zero(dim); dim_zero = 0.0;
-   Vector dimc_zero(dimc); dimc_zero = 0.0;
-   VectorConstantCoefficient E_zero(dim_zero);
-   VectorConstantCoefficient H_zero(dimc_zero);
-
-
+   // Coefficients
    ConstantCoefficient one(1.0);
    ConstantCoefficient eps2omeg2(epsilon*epsilon*omega*omega);
    ConstantCoefficient mu2omeg2(mu*mu*omega*omega);
@@ -247,102 +222,69 @@ int main(int argc, char *argv[])
 
    // (E,∇ × F)
    a->AddTrialIntegrator(new TransposeIntegrator(new MixedCurlIntegrator(one)),nullptr,0,0);
-
    // -i ω ϵ (E , G)
    a->AddTrialIntegrator(nullptr,new TransposeIntegrator(new VectorFEMassIntegrator(negepsomeg)),0,1);
-
-   // i ω μ (H, F)
-   if (dim == 3)
-   {
-      a->AddTrialIntegrator(nullptr,new TransposeIntegrator(new VectorFEMassIntegrator(muomeg)),1,0);
-   }
-   else
-   {
-      a->AddTrialIntegrator(nullptr,new MixedScalarMassIntegrator(muomeg),1,0);
-   }
    //  (H,∇ × G) 
    a->AddTrialIntegrator(new TransposeIntegrator(new MixedCurlIntegrator(one)),nullptr,1,1);
 
-   // < n×Ê,F>
    if (dim == 3)
-   {
+   {  // i ω μ (H, F)
+      a->AddTrialIntegrator(nullptr,new TransposeIntegrator(new VectorFEMassIntegrator(muomeg)),1,0);
+      // < n×Ê,F>
       a->AddTrialIntegrator(new TangentTraceIntegrator,nullptr,2,0);
    }
    else
-   {
+   {  // i ω μ (H, F)
+      a->AddTrialIntegrator(nullptr,new MixedScalarMassIntegrator(muomeg),1,0);
+      // <Ê,F>
       a->AddTrialIntegrator(new TraceIntegrator,nullptr,2,0);
    }
-
    // < n×Ĥ ,G>
    a->AddTrialIntegrator(new TangentTraceIntegrator,nullptr,3,1);
 
-
-   // test integrators 
-
-   //space-induced norm for H(curl) × H(curl)
-   if (dim == 3)
-   {
-      // (∇×F,∇×δF)
-      a->AddTestIntegrator(new CurlCurlIntegrator(one),nullptr,0,0);
-      // (F,δF)
-      a->AddTestIntegrator(new VectorFEMassIntegrator(one),nullptr,0,0);
-   }
-   else
-   {
-      // (∇F,∇δF)
-      a->AddTestIntegrator(new DiffusionIntegrator(one),nullptr,0,0);
-      // (F,δF)
-      a->AddTestIntegrator(new MassIntegrator(one),nullptr,0,0);
-   }
-
+   // test integrators for the adjoint graph norm on the test space
    // (∇×G ,∇× δG)
    a->AddTestIntegrator(new CurlCurlIntegrator(one),nullptr,1,1);
    // (G,δG)
    a->AddTestIntegrator(new VectorFEMassIntegrator(one),nullptr,1,1);
 
-   // additional integrators for the adjoint graph norm
-   if (adjoint_graph_norm)
-   {   
-      if(dim == 3)
-      {
-         // μ^2 ω^2 (F,δF)
-         a->AddTestIntegrator(new VectorFEMassIntegrator(mu2omeg2),nullptr,0,0);
-         // -i ω μ (F,∇ × δG) = (F, ω μ ∇ × δ G)
-         a->AddTestIntegrator(nullptr,new MixedVectorWeakCurlIntegrator(negmuomeg),0,1);
-         // -i ω ϵ (∇ × F, δG)
-         a->AddTestIntegrator(nullptr,new MixedVectorCurlIntegrator(negepsomeg),0,1);
-         // i ω μ (∇ × G,δF)
-         a->AddTestIntegrator(nullptr,new MixedVectorCurlIntegrator(epsomeg),1,0);
-         // i ω ϵ (G, ∇ × δF )
-         a->AddTestIntegrator(nullptr,new MixedVectorWeakCurlIntegrator(muomeg),1,0);
-         // ϵ^2 ω^2 (G,δG)
-         a->AddTestIntegrator(new VectorFEMassIntegrator(eps2omeg2),nullptr,1,1);
-      }
-      else
-      {
-         // μ^2 ω^2 (F,δF)
-         a->AddTestIntegrator(new MassIntegrator(mu2omeg2),nullptr,0,0);
-
-         // -i ω μ (F,∇ × δG) = i (F, -ω μ ∇ × δ G)
-         a->AddTestIntegrator(nullptr,
-            new TransposeIntegrator(new MixedCurlIntegrator(negmuomeg)),0,1);
-
-         // -i ω ϵ (∇ × F, δG) = i (- ω ϵ A ∇ F,δG), A = [0 1; -1; 0]
-         a->AddTestIntegrator(nullptr,new MixedVectorGradientIntegrator(negepsrot),0,1);   
-
-         // i ω μ (∇ × G,δF) = i (ω μ ∇ × G, δF )
-         a->AddTestIntegrator(nullptr,new MixedCurlIntegrator(muomeg),1,0);
-
-         // i ω ϵ (G, ∇ × δF ) =  i (ω ϵ G, A ∇ δF) = i ( G , ω ϵ A ∇ δF) 
-         a->AddTestIntegrator(nullptr,
-                   new TransposeIntegrator(new MixedVectorGradientIntegrator(epsrot)),1,0);
-
-         // or    i ( ω ϵ A^t G, ∇ δF) = i (- ω ϵ A G, ∇ δF)
-         // a->AddTestIntegrator(nullptr,
-                  //  new MixedVectorWeakDivergenceIntegrator(epsrot),1,0);
-         // ϵ^2 ω^2 (G,δG)
-         a->AddTestIntegrator(new VectorFEMassIntegrator(eps2omeg2),nullptr,1,1);            
-      }
+   if(dim == 3)
+   {  // (∇×F,∇×δF)
+      a->AddTestIntegrator(new CurlCurlIntegrator(one),nullptr,0,0);
+      // (F,δF)
+      a->AddTestIntegrator(new VectorFEMassIntegrator(one),nullptr,0,0);
+      // μ^2 ω^2 (F,δF)
+      a->AddTestIntegrator(new VectorFEMassIntegrator(mu2omeg2),nullptr,0,0);
+      // -i ω μ (F,∇ × δG) = (F, ω μ ∇ × δ G)
+      a->AddTestIntegrator(nullptr,new MixedVectorWeakCurlIntegrator(negmuomeg),0,1);
+      // -i ω ϵ (∇ × F, δG)
+      a->AddTestIntegrator(nullptr,new MixedVectorCurlIntegrator(negepsomeg),0,1);
+      // i ω μ (∇ × G,δF)
+      a->AddTestIntegrator(nullptr,new MixedVectorCurlIntegrator(epsomeg),1,0);
+      // i ω ϵ (G, ∇ × δF )
+      a->AddTestIntegrator(nullptr,new MixedVectorWeakCurlIntegrator(muomeg),1,0);
+      // ϵ^2 ω^2 (G,δG)
+      a->AddTestIntegrator(new VectorFEMassIntegrator(eps2omeg2),nullptr,1,1);
+   }
+   else
+   {  // (∇F,∇δF)
+      a->AddTestIntegrator(new DiffusionIntegrator(one),nullptr,0,0);
+      // (F,δF)
+      a->AddTestIntegrator(new MassIntegrator(one),nullptr,0,0);
+      // μ^2 ω^2 (F,δF)
+      a->AddTestIntegrator(new MassIntegrator(mu2omeg2),nullptr,0,0);
+      // -i ω μ (F,∇ × δG) = i (F, -ω μ ∇ × δ G)
+      a->AddTestIntegrator(nullptr,
+         new TransposeIntegrator(new MixedCurlIntegrator(negmuomeg)),0,1);
+      // -i ω ϵ (∇ × F, δG) = i (- ω ϵ A ∇ F,δG), A = [0 1; -1; 0]
+      a->AddTestIntegrator(nullptr,new MixedVectorGradientIntegrator(negepsrot),0,1);   
+      // i ω μ (∇ × G,δF) = i (ω μ ∇ × G, δF )
+      a->AddTestIntegrator(nullptr,new MixedCurlIntegrator(muomeg),1,0);
+      // i ω ϵ (G, ∇ × δF ) =  i (ω ϵ G, A ∇ δF) = i ( G , ω ϵ A ∇ δF) 
+      a->AddTestIntegrator(nullptr,
+                  new TransposeIntegrator(new MixedVectorGradientIntegrator(epsrot)),1,0);
+      // ϵ^2 ω^2 (G,δG)
+      a->AddTestIntegrator(new VectorFEMassIntegrator(eps2omeg2),nullptr,1,1);            
    }
 
    // RHS
@@ -351,49 +293,25 @@ int main(int argc, char *argv[])
    a->AddDomainLFIntegrator(new VectorFEDomainLFIntegrator(f_rhs_r),
                             new VectorFEDomainLFIntegrator(f_rhs_i),1);
 
-
    VectorFunctionCoefficient hatEex_r(dim,hatE_exact_r);
    VectorFunctionCoefficient hatEex_i(dim,hatE_exact_i);
 
-   VectorFunctionCoefficient hatHex_r(dimc,hatH_exact_r);
-   VectorFunctionCoefficient hatHex_i(dimc,hatH_exact_i);
-
-   FunctionCoefficient hatH_2D_ex_r(hatH_exact_scalar_r);
-   FunctionCoefficient hatH_2D_ex_i(hatH_exact_scalar_i);
-
-
-   Array<int> elements_to_refine;
-
    socketstream E_out_r;
-   socketstream Eex_out_r;
-   // socketstream E_out_i;
-   if (visualization)
-   {
-      char vishost[] = "localhost";
-      int  visport   = 19916;
-      E_out_r.open(vishost, visport);
-      Eex_out_r.open(vishost, visport);
-      // E_out_i.open(vishost, visport);
-   }
+   socketstream E_out_i;
 
-   double res0 = 0.;
    double err0 = 0.;
    int dof0;
-   mfem::out << " Refinement |" 
+
+   mfem::out << "\n Refinement |" 
              << "    Dofs    |" 
              << "  L2 Error  |" 
-             << " Relative % |" 
              << "  Rate  |" 
-             << "  Residual  |" 
-             << "  Rate  |" << endl;
+             << " CG it  |" << endl;
    mfem::out << " --------------------"      
-             <<  "-------------------"    
-             <<  "-------------------"    
-             <<  "-------------------" << endl;   
+             <<  "------------------"    
+             <<  "------------------" << endl;   
 
-
-
-   for (int iref = 0; iref<ref; iref++)
+   for (int iref = 0; iref<=ref; iref++)
    {
       if (static_cond) { a->EnableStaticCondensation(); }
       a->Assemble();
@@ -405,14 +323,12 @@ int main(int argc, char *argv[])
          ess_bdr.SetSize(mesh.bdr_attributes.Max());
          ess_bdr = 1;
          hatE_fes->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
-         // hatH_fes->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
       }
 
       // shift the ess_tdofs
       for (int j = 0; j < ess_tdof_list.Size(); j++)
       {
          ess_tdof_list[j] += E_fes->GetTrueVSize() + H_fes->GetTrueVSize();
-                           // + hatE_fes->GetTrueVSize();
       }
 
       Array<int> offsets(5);
@@ -438,13 +354,10 @@ int main(int argc, char *argv[])
       if (dim == 3)
       {
          hatE_gf.ProjectBdrCoefficientTangent(hatEex_r,hatEex_i, ess_bdr);
-         // hatH_gf.ProjectBdrCoefficientTangent(hatHex_r,hatHex_i, ess_bdr);
       }
       else
       {
          hatE_gf.ProjectBdrCoefficientNormal(hatEex_r,hatEex_i, ess_bdr);
-         // hatH_gf.ProjectBdrCoefficient(hatH_2D_ex_r,hatH_2D_ex_i, ess_bdr);
-
       }
       OperatorPtr Ah;
       Vector X,B;
@@ -452,32 +365,49 @@ int main(int argc, char *argv[])
 
       ComplexOperator * Ahc = Ah.As<ComplexOperator>();
 
-      SparseMatrix * Ar = dynamic_cast<BlockMatrix *>(&Ahc->real())->CreateMonolithic();
-      SparseMatrix * Ai = dynamic_cast<BlockMatrix *>(&Ahc->imag())->CreateMonolithic();
+      BlockMatrix * A_r = dynamic_cast<BlockMatrix *>(&Ahc->real());
+      BlockMatrix * A_i = dynamic_cast<BlockMatrix *>(&Ahc->imag());
 
-      ComplexSparseMatrix Ac(Ar,Ai,true,true);
-      SparseMatrix * A = Ac.GetSystemMatrix();
-
-      UMFPackSolver umf(*A);
-      umf.Mult(B,X);
-
-      delete A;
-      a->RecoverFEMSolution(X,x);
-
-      Vector & residuals = a->ComputeResidual(x);
-      double residual = residuals.Norml2();
-
-
-      elements_to_refine.SetSize(0);
-      double max_resid = residuals.Max();
-      for (int iel = 0; iel<mesh.GetNE(); iel++)
+      int num_blocks = A_r->NumRowBlocks();
+      Array<int> tdof_offsets(2*num_blocks+1);
+      tdof_offsets[0] = 0;
+      int k = (static_cond) ? 2 : 0;
+      for (int i=0; i<num_blocks;i++)
       {
-         if (residuals[iel] > theta * max_resid)
+         tdof_offsets[i+1] = trial_fes[i+k]->GetTrueVSize(); 
+         tdof_offsets[num_blocks+i+1] = trial_fes[i+k]->GetTrueVSize(); 
+      }
+      tdof_offsets.PartialSum();
+
+      BlockOperator A(tdof_offsets);
+      for (int i = 0; i<num_blocks; i++)
+      {
+         for (int j = 0; j<num_blocks; j++)
          {
-            elements_to_refine.Append(iel);
+            A.SetBlock(i,j,&A_r->GetBlock(i,j));
+            A.SetBlock(i,j+num_blocks,&A_i->GetBlock(i,j), -1.0);
+            A.SetBlock(i+num_blocks,j+num_blocks,&A_r->GetBlock(i,j));
+            A.SetBlock(i+num_blocks,j,&A_i->GetBlock(i,j));
          }
       }
 
+      BlockDiagonalPreconditioner M(tdof_offsets);
+      M.owns_blocks = 1;
+      for (int i = 0; i<num_blocks; i++)
+      {
+         M.SetDiagonalBlock(i, new GSSmoother((SparseMatrix&)A_r->GetBlock(i,i)));
+         M.SetDiagonalBlock(num_blocks+i, new GSSmoother((SparseMatrix&)A_r->GetBlock(i,i)));
+      }
+
+      CGSolver cg;
+      cg.SetRelTol(1e-10);
+      cg.SetMaxIter(2000);
+      cg.SetPrintLevel(0);
+      cg.SetPreconditioner(M);
+      cg.SetOperator(A);
+      cg.Mult(B, X);
+
+      a->RecoverFEMSolution(X,x);
 
       ComplexGridFunction E(E_fes);
       E.real().MakeRef(E_fes,x.GetData());
@@ -493,90 +423,54 @@ int main(int argc, char *argv[])
       VectorFunctionCoefficient H_ex_r(dimc,H_exact_r);
       VectorFunctionCoefficient H_ex_i(dimc,H_exact_i);
 
-
-      int dofs = X.Size()/2;
+      int dofs = 0;
+      for (int i = 0; i<trial_fes.Size(); i++)
+      {
+         dofs += trial_fes[i]->GetTrueVSize();
+      } 
 
       double E_err_r = E.real().ComputeL2Error(E_ex_r);
       double E_err_i = E.imag().ComputeL2Error(E_ex_i);
       double H_err_r = H.real().ComputeL2Error(H_ex_r);
       double H_err_i = H.imag().ComputeL2Error(H_ex_i);
 
-      double L2Error = sqrt(  E_err_r*E_err_r + E_err_i*E_err_i 
-                            + H_err_r*H_err_r + H_err_i*H_err_i );
+      double L2Error = sqrt(E_err_r*E_err_r + E_err_i*E_err_i 
+                          + H_err_r*H_err_r + H_err_i*H_err_i);
 
-      ComplexGridFunction Egf_ex(E_fes);
-      ComplexGridFunction Hgf_ex(H_fes);
-      Egf_ex.ProjectCoefficient(E_ex_r, E_ex_i);
-      Hgf_ex.ProjectCoefficient(H_ex_r, H_ex_i);
+      double rate_err = (iref) ? dim*log(err0/L2Error)/log((double)dof0/dofs) : 0.0;
 
-
-
-      double E_norm_r = Egf_ex.real().ComputeL2Error(E_zero);
-      double E_norm_i = Egf_ex.imag().ComputeL2Error(E_zero);
-      double H_norm_r = Hgf_ex.real().ComputeL2Error(H_zero);
-      double H_norm_i = Hgf_ex.imag().ComputeL2Error(H_zero);
-
-      double L2norm = sqrt(  E_norm_r*E_norm_r + E_norm_i*E_norm_i 
-                           + H_norm_r*H_norm_r + H_norm_i*H_norm_i );
-
-      double rel_err = L2Error/L2norm;
-
-
-      double rate_err = (iref) ? dim*log(err0/rel_err)/log((double)dof0/dofs) : 0.0;
-      double rate_res = (iref) ? dim*log(res0/residual)/log((double)dof0/dofs) : 0.0;
-
-      err0 = rel_err;
-      res0 = residual;
+      err0 = L2Error;
       dof0 = dofs;
 
-      mfem::out << std::right << std::setw(11) << iref << " | " 
-                << std::setw(10) <<  dof0 << " | " 
-                << std::setprecision(3) 
-                << std::setw(10) << std::scientific <<  err0 << " | " 
-                << std::setprecision(3) 
-                << std::setw(10) << std::fixed <<  rel_err*100 << " | " 
-                << std::setprecision(2) 
-                << std::setw(6) << std::fixed << rate_err << " | " 
-                << std::setprecision(3) 
-                << std::setw(10) << std::scientific <<  res0 << " | " 
-                << std::setprecision(2) 
-                << std::setw(6) << std::fixed << rate_res << " | " 
-                << std::resetiosflags(std::ios::showbase)
-                << std::setw(10) << std::scientific 
-                << std::endl;
+      std::ios oldState(nullptr);
+      oldState.copyfmt(std::cout);
+      std::cout << std::right << std::setw(11) << iref << " | " 
+                  << std::setw(10) <<  dof0 << " | " 
+                  << std::setprecision(3) 
+                  << std::setw(10) << std::scientific << err0 << " | " 
+                  << std::setprecision(2) 
+                  << std::setw(6) << std::fixed << rate_err << " | " 
+                  << std::setw(6) << std::fixed << cg.GetNumIterations() << " | " 
+                  << std::setprecision(3) 
+                  << std::resetiosflags(std::ios::showbase)
+                  << std::endl;
+      std::cout.copyfmt(oldState);
 
       if (visualization)
       {
-         E_out_r.precision(8);
-         E_out_r << "solution\n" << mesh << E.real() <<
-                  "window_title 'Real Numerical Electric field' "
-                  << flush;
-
-         // E_out_i.precision(8);
-         // E_out_i << "solution\n" << mesh << E.imag() <<
-         //          "window_title 'Imag Numerical Electric field' "
-         //          << flush;         
-
-
-
-
-         Eex_out_r.precision(8);
-         Eex_out_r << "solution\n" << mesh << Egf_ex.real()  
-                  << "window_title 'Real Exact Electric field' " 
-                  << flush;
-         // socketstream E_i_sock(vishost, visport);
-         // E_i_sock.precision(8);
-         // E_i_sock << "solution\n" << mesh << Egf_ex.imag()  
-         //          << "window_title 'Imag Exact Electric field' " 
-         //          << flush;
-
-
+         const char * keys = (iref == 0 && dim == 2) ? "jRcml\n" : nullptr;
+         char vishost[] = "localhost";
+         int  visport   = 19916;
+         common::VisualizeField(E_out_r,vishost, visport, E.real(), 
+                               "Numerical Electric field (real part)", 0, 0, 500, 500, keys);
+         common::VisualizeField(E_out_i,vishost, visport, E.imag(), 
+                        "Numerical Electric field (imaginary part)", 501, 0, 500, 500, keys);   
       }
 
-      if (iref == ref-1)
+      if (iref == ref)
          break;
 
-      mesh.GeneralRefinement(elements_to_refine,1,1);
+      mesh.UniformRefinement();
       for (int i =0; i<trial_fes.Size(); i++)
       {
          trial_fes[i]->Update(false);
@@ -645,7 +539,6 @@ void curlcurlE_exact_i(const Vector &x, Vector & curlcurlE_i)
    maxwell_solution_i(x,E_i,curlE_i,curlcurlE_i);
 }
 
-
 void H_exact_r(const Vector &x, Vector & H_r)
 {
    // H = i ∇ × E / ω μ  
@@ -696,7 +589,6 @@ void curlH_exact_i(const Vector &x,Vector &curlH_i)
    }
 }
 
-
 void hatE_exact_r(const Vector & x, Vector & hatE_r)
 {
    if (dim == 3)
@@ -730,7 +622,6 @@ void hatE_exact_i(const Vector & x, Vector & hatE_i)
       hatE_i[1] = -E_i[0];
    }
 }
-
 
 void hatH_exact_r(const Vector & x, Vector & hatH_r)
 {
@@ -784,79 +675,35 @@ void  rhs_func_i(const Vector &x, Vector & J_i)
    }
 }
 
-
 void maxwell_solution(const Vector & X, std::vector<complex<double>> &E, 
                       std::vector<complex<double>> &curlE, 
                       std::vector<complex<double>> &curlcurlE)
 {
-   double x = X(0);
-   double y = X(1);
-   double z;
-   if (dim == 3) z = X(2);
-
    E.resize(dim);
    curlE.resize(dimc);
    curlcurlE.resize(dim);
-   switch (prob)
+   std::complex<double> zi(0,1);
+   std::complex<double> pw = exp(-zi * omega * (X.Sum()));
+   E[0] = pw;
+   E[1] = 0.0;
+   if (dim == 3)
    {
-   case prob_type::polynomial:
+      E[2] = 0.0;
+      curlE[0] = 0.0;
+      curlE[1] = -zi * omega * pw;
+      curlE[2] =  zi * omega * pw;
+
+      curlcurlE[0] = 2.0 * omega * omega * pw;
+      curlcurlE[1] = - omega * omega * pw;
+      curlcurlE[2] = - omega * omega * pw;
+   }
+   else
    {
-      if (dim == 3)
-      {
-         E[0] = y * z * (1.0 - y) * (1.0 - z);
-         E[1] = x * y * z * (1.0 - x) * (1.0 - z);
-         E[2] = x * y * (1.0 - x) * (1.0 - y);
-         curlE[0] = (1.0 - x) * x * (y*(2.0*z-3.0)+1.0);
-         curlE[1] = 2.0*(1.0 - y)*y*(x-z);
-         curlE[2] = (z-1)*z*(1.0+y*(2.0*x-3.0));
-         curlcurlE[0] = 2.0 * y * (1.0 - y) - (2.0 * x - 3.0) * z * (1 - z);
-         curlcurlE[1] = 2.0 * y * (x * (1.0 - x) + (1.0 - z) * z);
-         curlcurlE[2] = 2.0 * y * (1.0 - y) + x * (3.0 - 2.0 * z) * (1.0 - x);
-      }
-      else
-      {
-         E[0] = y * (1.0 - y);
-         E[1] = x * y * (1.0 - x);
-         curlE[0] = y*(3.0 - 2*x) - 1.0;
-         curlcurlE[0] = 3.0 - 2*x;
-         curlcurlE[1] = 2.0*y;
-      }
+      curlE[0] = zi * omega * pw;
+      curlcurlE[0] =   omega * omega * pw;
+      curlcurlE[1] = - omega * omega * pw ;
    }
-      break;
-
-   case prob_type::plane_wave:
-   {
-      std::complex<double> zi(0,1);
-      std::complex<double> pw = exp(-zi * omega * (X.Sum()));
-      E[0] = pw;
-      E[1] = 0.0;
-      if (dim == 3)
-      {
-         E[2] = 0.0;
-         curlE[0] = 0.0;
-         curlE[1] = -zi * omega * pw;
-         curlE[2] =  zi * omega * pw;
-
-         curlcurlE[0] = 2.0 * omega * omega * pw;
-         curlcurlE[1] = - omega * omega * pw;
-         curlcurlE[2] = - omega * omega * pw;
-      }
-      else
-      {
-         curlE[0] = zi * omega * pw;
-         curlcurlE[0] =   omega * omega * pw;
-         curlcurlE[1] = - omega * omega * pw ;
-      }
-   }
-      break;
-
-   default:
-      MFEM_ABORT("Fichera 'oven' problem not implemented yet");
-      break;
-   }
-
 }
-
 
 void maxwell_solution_r(const Vector & X, Vector &E_r, 
                         Vector &curlE_r, 
@@ -881,7 +728,6 @@ void maxwell_solution_r(const Vector & X, Vector &E_r,
       curlE_r(i) = curlE[i].real();
    }
 }
-
 
 void maxwell_solution_i(const Vector & X, Vector &E_i, 
                       Vector &curlE_i, 
