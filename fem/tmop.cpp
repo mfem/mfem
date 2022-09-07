@@ -3795,7 +3795,6 @@ double TMOP_Integrator::ComputeMinDetT(const Vector &x,
       const int dof = fe->GetDof(), nsp = ir.GetNPoints();
 
       DSh.SetSize(dof, dim);
-      PMatI.SetSize(dof, dim);
       Vector posV(dof * dim);
       PMatI.UseExternalData(posV.GetData(), dof, dim);
 
@@ -3850,7 +3849,6 @@ double TMOP_Integrator::ComputeUntanglerMaxMuBarrier(const Vector &x,
       Jpt.SetSize(dim);
 
       DSh.SetSize(dof, dim);
-      PMatI.SetSize(dof, dim);
       Vector posV(dof * dim);
       PMatI.UseExternalData(posV.GetData(), dof, dim);
 
