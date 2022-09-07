@@ -190,4 +190,7 @@
 // Enable MFEM functionality based on the Google Benchmark library.
 #cmakedefine MFEM_USE_BENCHMARK
 
+// Enable Enzyme for AD
+#cmakedefine MFEM_USE_ENZYME
+
 #endif // MFEM_CONFIG_HEADER
