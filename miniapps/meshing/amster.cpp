@@ -17,8 +17,9 @@
 // Compile with: make amster
 //
 // Sample runs:
-//    mpirun -np 1 amster -m ../../data/star.mesh
-//    mpirun -np 4 amster -m bone.mesh
+//    mpirun -np 4 amster -m ../../data/star.mesh
+//    mpirun -np 4 amster -m blade.mesh
+//    mpirun -np 4 amster -m bone3D.mesh
 //
 
 #include "mfem.hpp"
@@ -42,14 +43,20 @@ int main (int argc, char *argv[])
    const char *mesh_file = "jagged.mesh";
    int mesh_poly_deg     = 2;
    bool fdscheme         = false;
+   int quad_order        = 8;
+   int bg_amr_steps      = 6;
 
    // Parse command-line input file.
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh", "Mesh file to use.");
-   args.AddOption(&mesh_poly_deg, "-o", "--order",
+   args.AddOption(&mesh_poly_deg, "-o", "--mesh-order",
                   "Polynomial degree of mesh finite element space.");
    args.AddOption(&fdscheme, "-fd", "--fd_approx", "-no-fd", "--no-fd-approx",
                   "Enable finite difference based derivative computations.");
+   args.AddOption(&quad_order, "-qo", "--quad_order",
+                  "Order of the quadrature rule.");
+   args.AddOption(&bg_amr_steps, "-amr", "--amr-bg-steps",
+                  "Number of AMR steps on the background mesh.");
    args.Parse();
    if (!args.Good())
    {
@@ -207,7 +214,7 @@ int main (int argc, char *argv[])
    ParGridFunction bg_domain(&bg_pfes);
 
    // Refine the background mesh around the boundary.
-   OptimizeMeshWithAMRForAnotherMesh(*pmesh_bg, dist, 6, bg_domain);
+   OptimizeMeshWithAMRForAnotherMesh(*pmesh_bg, dist, bg_amr_steps, bg_domain);
    {
       socketstream vis_b_func;
       common::VisualizeField(vis_b_func, "localhost", 19916, bg_domain,
@@ -238,20 +245,17 @@ int main (int argc, char *argv[])
                              "Final LS", 600, 700, 300, 300, "Rjmm");
    }
 
-   /*
-
-   auto btype = TMOP_WorstCaseUntangleOptimizer_Metric::BarrierType::Shifted;
-   auto wctype = TMOP_WorstCaseUntangleOptimizer_Metric::WorstCaseType::Beta;
-
-   TMOP_QualityMetric *untangler_metric =
-      new TMOP_WorstCaseUntangleOptimizer_Metric(*metric, 2, 1.5, 0.001,//0.01 for pseudo barrier
-                                                 0.001, btype, wctype);
 
 
+//   auto btype = TMOP_WorstCaseUntangleOptimizer_Metric::BarrierType::Shifted;
+//   auto wctype = TMOP_WorstCaseUntangleOptimizer_Metric::WorstCaseType::Beta;
 
+//   TMOP_QualityMetric *untangler_metric =
+//      new TMOP_WorstCaseUntangleOptimizer_Metric(*metric, 2, 1.5, 0.001,//0.01 for pseudo barrier
+//                                                 0.001, btype, wctype);
 
-   TMOP_QualityMetric *metric_to_use = untangler_metric;
-   TMOP_Integrator *tmop_integ = new TMOP_Integrator(metric_to_use, target_c,
+//   TMOP_QualityMetric *metric_to_use = untangler_metric;
+   TMOP_Integrator *tmop_integ = new TMOP_Integrator(metric, target_c,
                                                      nullptr);
 
    // Finite differences for computations of derivatives.
@@ -278,75 +282,80 @@ int main (int argc, char *argv[])
    }
 
    // Surface fitting.
-   L2_FECollection mat_coll(0, dim);
-   H1_FECollection surf_fit_fec(mesh_poly_deg, dim);
-   ParFiniteElementSpace surf_fit_fes(pmesh, &surf_fit_fec);
-   ParFiniteElementSpace mat_fes(pmesh, &mat_coll);
-   ParGridFunction mat(&mat_fes);
-   ParGridFunction surf_fit_mat_gf(&surf_fit_fes);
-   ParGridFunction surf_fit_gf0(&surf_fit_fes);
-   Array<bool> surf_fit_marker(surf_fit_gf0.Size());
-   ConstantCoefficient surf_fit_coeff(surface_fit_const);
-   AdaptivityEvaluator *adapt_surface = NULL;
-   if (surface_fit_const > 0.0)
-   {
-      FunctionCoefficient ls_coeff(surface_level_set);
-      surf_fit_gf0.ProjectCoefficient(ls_coeff);
+//   L2_FECollection mat_coll(0, dim);
+//   H1_FECollection surf_fit_fec(mesh_poly_deg, dim);
+//   ParFiniteElementSpace surf_fit_fes(pmesh, &surf_fit_fec);
+//   ParFiniteElementSpace mat_fes(pmesh, &mat_coll);
+//   ParGridFunction mat(&mat_fes);
+//   ParGridFunction surf_fit_mat_gf(&surf_fit_fes);
+//   ParGridFunction surf_fit_gf0(&surf_fit_fes);
+//   Array<bool> surf_fit_marker(surf_fit_gf0.Size());
+//   ConstantCoefficient surf_fit_coeff(surface_fit_const);
+//   AdaptivityEvaluator *adapt_surface = NULL;
+//   if (surface_fit_const > 0.0)
+//   {
+//      FunctionCoefficient ls_coeff(surface_level_set);
+//      surf_fit_gf0.ProjectCoefficient(ls_coeff);
 
-      for (int i = 0; i < pmesh->GetNE(); i++)
-      {
-         mat(i) = material_id(i, surf_fit_gf0);
-         pmesh->SetAttribute(i, static_cast<int>(mat(i) + 1));
-      }
+//      for (int i = 0; i < pmesh->GetNE(); i++)
+//      {
+//         mat(i) = material_id(i, surf_fit_gf0);
+//         pmesh->SetAttribute(i, static_cast<int>(mat(i) + 1));
+//      }
 
-      GridFunctionCoefficient coeff_mat(&mat);
-      surf_fit_mat_gf.ProjectDiscCoefficient(coeff_mat, GridFunction::ARITHMETIC);
-      for (int j = 0; j < surf_fit_marker.Size(); j++)
-      {
-         if (surf_fit_mat_gf(j) > 0.1 && surf_fit_mat_gf(j) < 0.9)
-         {
-            surf_fit_marker[j] = true;
-            surf_fit_mat_gf(j) = 1.0;
-         }
-         else
-         {
-            surf_fit_marker[j] = false;
-            surf_fit_mat_gf(j) = 0.0;
-         }
-      }
+//      GridFunctionCoefficient coeff_mat(&mat);
+//      surf_fit_mat_gf.ProjectDiscCoefficient(coeff_mat, GridFunction::ARITHMETIC);
+//      for (int j = 0; j < surf_fit_marker.Size(); j++)
+//      {
+//         if (surf_fit_mat_gf(j) > 0.1 && surf_fit_mat_gf(j) < 0.9)
+//         {
+//            surf_fit_marker[j] = true;
+//            surf_fit_mat_gf(j) = 1.0;
+//         }
+//         else
+//         {
+//            surf_fit_marker[j] = false;
+//            surf_fit_mat_gf(j) = 0.0;
+//         }
+//      }
 
-      if (adapt_eval == 0) { adapt_surface = new AdvectorCG; }
-      else if (adapt_eval == 1)
-      {
-#ifdef MFEM_USE_GSLIB
-         adapt_surface = new InterpolatorFP;
-#else
-         MFEM_ABORT("MFEM is not built with GSLIB support!");
-#endif
-      }
-      else { MFEM_ABORT("Bad interpolation option."); }
+//      if (adapt_eval == 0) { adapt_surface = new AdvectorCG; }
+//      else if (adapt_eval == 1)
+//      {
+//#ifdef MFEM_USE_GSLIB
+//         adapt_surface = new InterpolatorFP;
+//#else
+//         MFEM_ABORT("MFEM is not built with GSLIB support!");
+//#endif
+//      }
+//      else { MFEM_ABORT("Bad interpolation option."); }
 
-      tmop_integ->EnableSurfaceFitting(surf_fit_gf0, surf_fit_marker, surf_fit_coeff,
-                                       *adapt_surface);
-      if (visualization)
-      {
-         socketstream vis1, vis2, vis3;
-         common::VisualizeField(vis1, "localhost", 19916, surf_fit_gf0, "Level Set 0",
-                                300, 600, 300, 300);
-         common::VisualizeField(vis2, "localhost", 19916, mat, "Materials",
-                                600, 600, 300, 300);
-         common::VisualizeField(vis3, "localhost", 19916, surf_fit_mat_gf,
-                                "Dofs to Move",
-                                900, 600, 300, 300);
-      }
-   }
+//      tmop_integ->EnableSurfaceFitting(surf_fit_gf0, surf_fit_marker, surf_fit_coeff,
+//                                       *adapt_surface);
+//      if (visualization)
+//      {
+//         socketstream vis1, vis2, vis3;
+//         common::VisualizeField(vis1, "localhost", 19916, surf_fit_gf0, "Level Set 0",
+//                                300, 600, 300, 300);
+//         common::VisualizeField(vis2, "localhost", 19916, mat, "Materials",
+//                                600, 600, 300, 300);
+//         common::VisualizeField(vis3, "localhost", 19916, surf_fit_mat_gf,
+//                                "Dofs to Move",
+//                                900, 600, 300, 300);
+//      }
+//   }
 
    // Setup the final NonlinearForm.
    ParNonlinearForm a(pfespace);
    a.AddDomainIntegrator(tmop_integ);
 
+   // TODO remove this.
+   Array<int> ess_bdr(pmesh->bdr_attributes.Max());
+   ess_bdr = 1;
+   a.SetEssentialBC(ess_bdr);
+
    // Compute the minimum det(J) of the starting mesh.
-   min_detJ = infinity();
+   double min_detJ = infinity();
    const int NE = pmesh->GetNE();
    for (int i = 0; i < NE; i++)
    {
@@ -359,9 +368,8 @@ int main (int argc, char *argv[])
          min_detJ = min(min_detJ, transf->Jacobian().Det());
       }
    }
-   double minJ0;
-   MPI_Allreduce(&min_detJ, &minJ0, 1, MPI_DOUBLE, MPI_MIN, MPI_COMM_WORLD);
-   min_detJ = minJ0;
+   MPI_Allreduce(MPI_IN_PLACE, &min_detJ, 1, MPI_DOUBLE,
+                 MPI_MIN, MPI_COMM_WORLD);
    if (myid == 0)
    { cout << "Minimum det(J) of the original mesh is " << min_detJ << endl; }
 
@@ -374,170 +382,90 @@ int main (int argc, char *argv[])
          Geometries.GetGeomToPerfGeomJac(pfespace->GetFE(0)->GetGeomType());
       min_detJ /= Wideal.Det();
 
-      double h0min = h0.Min(), h0min_all;
-      MPI_Allreduce(&h0min, &h0min_all, 1, MPI_DOUBLE, MPI_MIN, MPI_COMM_WORLD);
       // Slightly below minJ0 to avoid div by 0.
-      min_detJ -= 0.01 * h0min_all;
+      min_detJ -= 0.01 * min_dx;
    }
 
    // For HR tests, the energy is normalized by the number of elements.
    const double init_energy = a.GetParGridFunctionEnergy(x);
-   double init_metric_energy = init_energy;
-   surf_fit_coeff.constant   = 0.0;
-   init_metric_energy = a.GetParGridFunctionEnergy(x) /
-                        (hradaptivity ? pmesh->GetGlobalNE() : 1);
-   surf_fit_coeff.constant  = surface_fit_const;
+//   surf_fit_coeff.constant   = 0.0;
+   double init_metric_energy = a.GetParGridFunctionEnergy(x);
+//   surf_fit_coeff.constant  = surface_fit_const;
 
    // 15. As we use the Newton method to solve the resulting nonlinear system,
    //     here we setup the linear solver for the system's Jacobian.
-   Solver *S = NULL, *S_prec = NULL;
-   const double linsol_rtol = 1e-12;
+   Solver *S = NULL;
    MINRESSolver *minres = new MINRESSolver(MPI_COMM_WORLD);
-   minres->SetMaxIter(max_lin_iter);
-   minres->SetRelTol(linsol_rtol);
+   minres->SetMaxIter(100);
+   minres->SetRelTol(1e-12);
    minres->SetAbsTol(0.0);
-   if (verbosity_level > 2) { minres->SetPrintLevel(1); }
-   else { minres->SetPrintLevel(verbosity_level == 2 ? 3 : -1); }
-   if (lin_solver == 3 || lin_solver == 4)
-   {
-      if (pa)
-      {
-         MFEM_VERIFY(lin_solver != 4, "PA l1-Jacobi is not implemented");
-         auto js = new OperatorJacobiSmoother;
-         js->SetPositiveDiagonal(true);
-         S_prec = js;
-      }
-      else
-      {
-         auto hs = new HypreSmoother;
-         hs->SetType((lin_solver == 3) ? HypreSmoother::Jacobi
-                                       : HypreSmoother::l1Jacobi, 1);
-         hs->SetPositiveDiagonal(true);
-         S_prec = hs;
-      }
-      minres->SetPreconditioner(*S_prec);
-   }
+   IterativeSolver::PrintLevel minres_pl;
+   minres_pl.FirstAndLast().Summary();
+   minres->SetPrintLevel(minres_pl);
    S = minres;
 
    // Perform the nonlinear optimization.
    const IntegrationRule &ir =
       irules->Get(pfespace->GetFE(0)->GetGeomType(), quad_order);
-   TMOPNewtonSolver solver(pfespace->GetComm(), ir, solver_type);
-   if (surface_fit_adapt) { solver.EnableAdaptiveSurfaceFitting(); }
-   if (surface_fit_threshold > 0)
-   {
-      solver.SetTerminationWithMaxSurfaceFittingError(surface_fit_threshold);
-   }
-   // Provide all integration rules in case of a mixed mesh.
+   TMOPNewtonSolver solver(pfespace->GetComm(), ir);
+//   if (surface_fit_threshold > 0)
+//   {
+//      solver.SetTerminationWithMaxSurfaceFittingError(surface_fit_threshold);
+//   }
    solver.SetIntegrationRules(*irules, quad_order);
-   if (solver_type == 0)
-   {
-      // Specify linear solver when we use a Newton-based solver.
-      solver.SetPreconditioner(*S);
-   }
+   solver.SetPreconditioner(*S);
+
    // For untangling, the solver will update the min det(T) values.
    solver.SetMinDetPtr(&min_detJ);
-   solver.SetMaxIter(solver_iter);
-   solver.SetRelTol(solver_rtol);
+   solver.SetMaxIter(50);
+   solver.SetRelTol(1e-8);
    solver.SetAbsTol(0.0);
-   if (solver_art_type > 0)
-   {
-      solver.SetAdaptiveLinRtol(solver_art_type, 0.5, 0.9);
-   }
-   solver.SetPrintLevel(verbosity_level >= 1 ? 1 : -1);
+   IterativeSolver::PrintLevel newton_pl;
+   newton_pl.Iterations().Summary();
+   solver.SetPrintLevel(newton_pl);
 
-   // hr-adaptivity solver.
-   // If hr-adaptivity is disabled, r-adaptivity is done once using the
-   // TMOPNewtonSolver.
-   // Otherwise, "hr_iter" iterations of r-adaptivity are done followed by
-   // "h_per_r_iter" iterations of h-adaptivity after each r-adaptivity.
-   // The solver terminates if an h-adaptivity iteration does not modify
-   // any element in the mesh.
-   TMOPHRSolver hr_solver(*pmesh, a, solver,
-                          x, move_bnd, hradaptivity,
-                          mesh_poly_deg, h_metric_id,
-                          n_hr_iter, n_h_iter);
-   hr_solver.AddGridFunctionForUpdate(&x0);
-   if (adapt_lim_const > 0.)
-   {
-      hr_solver.AddGridFunctionForUpdate(&adapt_lim_gf0);
-      hr_solver.AddFESpaceForUpdate(&ind_fes);
-   }
-   hr_solver.Mult();
+   solver.SetOperator(a);
+   Vector b(0);
+   x.SetTrueVector();
+   solver.Mult(b, x.GetTrueVector());
+   x.SetFromTrueVector();
 
    // 16. Save the optimized mesh to a file. This output can be viewed later
    //     using GLVis: "glvis -m optimized -np num_mpi_tasks".
    {
       ostringstream mesh_name;
-      mesh_name << "optimized.mesh";
+      mesh_name << "amster-out.mesh";
       ofstream mesh_ofs(mesh_name.str().c_str());
       mesh_ofs.precision(8);
       pmesh->PrintAsOne(mesh_ofs);
    }
 
-   // Compute the final energy of the functional.
-   const double fin_energy = a.GetParGridFunctionEnergy(x) /
-                             (hradaptivity ? pmesh->GetGlobalNE() : 1);
-   double fin_metric_energy = fin_energy;
-   if (lim_const > 0.0 || adapt_lim_const > 0.0 || surface_fit_const > 0.0)
-   {
-      lim_coeff.constant = 0.0;
-      adapt_lim_coeff.constant = 0.0;
-      surf_fit_coeff.constant  = 0.0;
-      fin_metric_energy  = a.GetParGridFunctionEnergy(x) /
-                           (hradaptivity ? pmesh->GetGlobalNE() : 1);
-      lim_coeff.constant = lim_const;
-      adapt_lim_coeff.constant = adapt_lim_const;
-      surf_fit_coeff.constant  = surface_fit_const;
-   }
-   if (myid == 0)
-   {
-      std::cout << std::scientific << std::setprecision(4);
-      cout << "Initial strain energy: " << init_energy
-           << " = metrics: " << init_metric_energy
-           << " + extra terms: " << init_energy - init_metric_energy << endl;
-      cout << "  Final strain energy: " << fin_energy
-           << " = metrics: " << fin_metric_energy
-           << " + extra terms: " << fin_energy - fin_metric_energy << endl;
-      cout << "The strain energy decreased by: "
-           << (init_energy - fin_energy) * 100.0 / init_energy << " %." << endl;
-   }
-
-   // 18. Visualize the final mesh and metric values.
-   if (visualization)
+   // Visualize the final mesh and metric values.
    {
       char title[] = "Final metric values";
       vis_tmop_metric_p(mesh_poly_deg, *metric, *target_c, *pmesh, title, 600);
    }
 
-   if (adapt_lim_const > 0.0 && visualization)
-   {
-      socketstream vis0;
-      common::VisualizeField(vis0, "localhost", 19916, adapt_lim_gf0, "Xi 0",
-                             600, 600, 300, 300);
-   }
-
-   if (surface_fit_const > 0.0)
-   {
-      if (visualization)
-      {
-         socketstream vis2, vis3;
-         common::VisualizeField(vis2, "localhost", 19916, mat,
-                                "Materials", 600, 900, 300, 300);
-         common::VisualizeField(vis3, "localhost", 19916, surf_fit_mat_gf,
-                                "Surface dof", 900, 900, 300, 300);
-      }
-      double err_avg, err_max;
-      tmop_integ->GetSurfaceFittingErrors(err_avg, err_max);
-      if (myid == 0)
-      {
-         std::cout << "Avg fitting error: " << err_avg << std::endl
-                   << "Max fitting error: " << err_max << std::endl;
-      }
-   }
+//   if (surface_fit_const > 0.0)
+//   {
+//      if (visualization)
+//      {
+//         socketstream vis2, vis3;
+//         common::VisualizeField(vis2, "localhost", 19916, mat,
+//                                "Materials", 600, 900, 300, 300);
+//         common::VisualizeField(vis3, "localhost", 19916, surf_fit_mat_gf,
+//                                "Surface dof", 900, 900, 300, 300);
+//      }
+//      double err_avg, err_max;
+//      tmop_integ->GetSurfaceFittingErrors(err_avg, err_max);
+//      if (myid == 0)
+//      {
+//         std::cout << "Avg fitting error: " << err_avg << std::endl
+//                   << "Max fitting error: " << err_max << std::endl;
+//      }
+//   }
 
    // 19. Visualize the mesh displacement.
-   if (visualization)
    {
       x0 -= x;
       socketstream sock;
@@ -557,18 +485,12 @@ int main (int argc, char *argv[])
       }
    }
 
-   */
-
    // 20. Free the used memory.
-//   delete S;
-//   delete S_prec;
-//   delete target_c2;
-//   delete metric2;
+   delete S;
 //   delete metric_coeff1;
 //   delete adapt_lim_eval;
 //   delete adapt_surface;
    delete target_c;
-//   delete hr_adapt_coeff;
 //   delete adapt_coeff;
    delete metric;
 //   delete untangler_metric;

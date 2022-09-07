@@ -34,7 +34,7 @@ void OptimizeMeshWithAMRForAnotherMesh(ParMesh &pmesh,
    Vector interp_vals(nodes_cnt);
 
    FindPointsGSLIB finder(pmesh.GetComm());
-   finder.SetDefaultInterpolationValue(-1.0);
+   finder.SetDefaultInterpolationValue(-0.1);
    finder.Setup(*(source.FESpace()->GetMesh()));
 
    vxyz = *(pmesh.GetNodes());
