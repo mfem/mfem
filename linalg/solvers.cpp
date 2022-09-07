@@ -528,7 +528,7 @@ void SLISolver::Mult(const Vector &b, Vector &x) const
 
    // Optimized preconditioned SLI with fixed number of iterations and given
    // initial guess
-   if (!rel_tol && iterative_mode && prec)
+   if (rel_tol == 0.0 && iterative_mode && prec)
    {
       for (i = 0; i < max_iter; i++)
       {
@@ -544,7 +544,7 @@ void SLISolver::Mult(const Vector &b, Vector &x) const
 
    // Optimized preconditioned SLI with fixed number of iterations and zero
    // initial guess
-   if (!rel_tol && !iterative_mode && prec)
+   if (rel_tol == 0.0 && !iterative_mode && prec)
    {
       prec->Mult(b, x);     // x = B b (initial guess 0)
       for (i = 1; i < max_iter; i++)
@@ -817,7 +817,7 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
       if (print_options.iterations)
       {
          mfem::out << "   Iteration : " << setw(3) << i << "  (B r, r) = "
-                   << betanom << '\n';
+                   << betanom << std::endl;
       }
 
       Monitor(i, betanom, r, x);
@@ -861,7 +861,7 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
       }
       nom = betanom;
    }
-   if (print_options.first_and_last)
+   if (print_options.first_and_last && !print_options.iterations)
    {
       mfem::out << "   Iteration : " << setw(3) << final_iter << "  (B r, r) = "
                 << betanom << '\n';
@@ -1597,6 +1597,13 @@ void MINRESSolver::SetOperator(const Operator &op)
    {
       u1.SetSize(width);
    }
+
+   v0.UseDevice(true);
+   v1.UseDevice(true);
+   w0.UseDevice(true);
+   w1.UseDevice(true);
+   q.UseDevice(true);
+   u1.UseDevice(true);
 }
 
 void MINRESSolver::Mult(const Vector &b, Vector &x) const
@@ -1605,6 +1612,9 @@ void MINRESSolver::Mult(const Vector &b, Vector &x) const
    // "Iterative Krylov Methods for Large Linear Systems",
    // by Henk A. van der Vorst, 2003.
    // Extended to support an SPD preconditioner.
+
+   b.UseDevice(true);
+   x.UseDevice(true);
 
    int it;
    double beta, eta, gamma0, gamma1, sigma0, sigma1;
@@ -3397,6 +3407,93 @@ void ProductSolver::MultTranspose(const Vector & x, Vector & y) const
    S0Tz = 0.0;
    S0->MultTranspose(z, S0Tz);
    y += S0Tz;
+}
+
+OrthoSolver::OrthoSolver()
+   : Solver(0, false), global_size(-1)
+#ifdef MFEM_USE_MPI
+   , parallel(false)
+#endif
+{ }
+
+#ifdef MFEM_USE_MPI
+OrthoSolver::OrthoSolver(MPI_Comm mycomm_)
+   : Solver(0, false), mycomm(mycomm_), global_size(-1), parallel(true) { }
+#endif
+
+void OrthoSolver::SetSolver(Solver &s)
+{
+   solver = &s;
+   height = s.Height();
+   width = s.Width();
+   MFEM_VERIFY(height == width, "Solver must be a square Operator!");
+   global_size = -1; // lazy evaluated
+}
+
+void OrthoSolver::SetOperator(const Operator &op)
+{
+   MFEM_VERIFY(solver, "Solver hasn't been set, call SetSolver() first.");
+   solver->SetOperator(op);
+   height = solver->Height();
+   width = solver->Width();
+   MFEM_VERIFY(height == width, "Solver must be a square Operator!");
+   global_size = -1; // lazy evaluated
+}
+
+void OrthoSolver::Mult(const Vector &b, Vector &x) const
+{
+   MFEM_VERIFY(solver, "Solver hasn't been set, call SetSolver() first.");
+   MFEM_VERIFY(height == solver->Height(),
+               "solver was modified externally! call SetSolver() again!");
+   MFEM_VERIFY(height == b.Size(), "incompatible input Vector size!");
+   MFEM_VERIFY(height == x.Size(), "incompatible output Vector size!");
+
+   // Orthogonalize input
+   Orthogonalize(b, b_ortho);
+
+   // Propagate iterative_mode to the solver:
+   solver->iterative_mode = iterative_mode;
+
+   // Apply the Solver
+   solver->Mult(b_ortho, x);
+
+   // Orthogonalize output
+   Orthogonalize(x, x);
+}
+
+void OrthoSolver::Orthogonalize(const Vector &v, Vector &v_ortho) const
+{
+   if (global_size == -1)
+   {
+      global_size = height;
+#ifdef MFEM_USE_MPI
+      if (parallel)
+      {
+         MPI_Allreduce(MPI_IN_PLACE, &global_size, 1, HYPRE_MPI_BIG_INT,
+                       MPI_SUM, mycomm);
+      }
+#endif
+   }
+
+   // TODO: GPU/device implementation
+
+   double global_sum = v.Sum();
+
+#ifdef MFEM_USE_MPI
+   if (parallel)
+   {
+      MPI_Allreduce(MPI_IN_PLACE, &global_sum, 1, MPI_DOUBLE, MPI_SUM, mycomm);
+   }
+#endif
+
+   double ratio = global_sum / static_cast<double>(global_size);
+   v_ortho.SetSize(v.Size());
+   v.HostRead();
+   v_ortho.HostWrite();
+   for (int i = 0; i < v_ortho.Size(); ++i)
+   {
+      v_ortho(i) = v(i) - ratio;
+   }
 }
 
 #ifdef MFEM_USE_MPI
