@@ -728,7 +728,7 @@ void alpha_function_re(const Vector & x, CartesianPML * pml, DenseMatrix & K)
 {
    vector<complex<double>> dxs(dim);
    complex<double> det(1.0, 0.0);
-   pml->StretchFunction(x, dxs,omega);
+   pml->StretchFunction(x, dxs);
 
    for (int i = 0; i < dim; ++i)
    {
@@ -745,7 +745,7 @@ void alpha_function_im(const Vector & x, CartesianPML * pml, DenseMatrix & K)
 {
    vector<complex<double>> dxs(dim);
    complex<double> det(1.0, 0.0);
-   pml->StretchFunction(x, dxs,omega);
+   pml->StretchFunction(x, dxs);
 
    for (int i = 0; i < dim; ++i)
    {
@@ -762,7 +762,7 @@ void alpha_function_abs2(const Vector & x, CartesianPML * pml, DenseMatrix & K)
 {
    vector<complex<double>> dxs(dim);
    complex<double> det(1.0, 0.0);
-   pml->StretchFunction(x, dxs,omega);
+   pml->StretchFunction(x, dxs);
 
    for (int i = 0; i < dim; ++i)
    {
@@ -780,7 +780,7 @@ double beta_function_re(const Vector & x, CartesianPML * pml)
 {
    vector<complex<double>> dxs(dim);
    complex<double> det(1.0, 0.0);
-   pml->StretchFunction(x, dxs,omega);
+   pml->StretchFunction(x, dxs);
 
    for (int i = 0; i < dim; ++i)
    {
@@ -792,7 +792,7 @@ double beta_function_im(const Vector & x, CartesianPML * pml)
 {
    vector<complex<double>> dxs(dim);
    complex<double> det(1.0, 0.0);
-   pml->StretchFunction(x, dxs,omega);
+   pml->StretchFunction(x, dxs);
 
    for (int i = 0; i < dim; ++i)
    {
@@ -804,7 +804,7 @@ double beta_function_abs2(const Vector & x, CartesianPML * pml)
 {
    vector<complex<double>> dxs(dim);
    complex<double> det(1.0, 0.0);
-   pml->StretchFunction(x, dxs,omega);
+   pml->StretchFunction(x, dxs);
 
    for (int i = 0; i < dim; ++i)
    {
