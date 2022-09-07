@@ -91,13 +91,12 @@ void CartesianPML::SetAttributes(Mesh *mesh_)
 }
 
 void CartesianPML::StretchFunction(const Vector &x,
-                                   vector<complex<double>> &dxs, double omega)
+                                   vector<complex<double>> &dxs)
 {
    complex<double> zi = complex<double>(0., 1.);
 
    double n = 2.0;
    double c = 5.0;
-   // double c = log(omega);
    double coeff;
    // Stretch in each direction independently
    for (int i = 0; i < dim; ++i)
@@ -119,10 +118,9 @@ void CartesianPML::StretchFunction(const Vector &x,
 double pml_detJ_Re(const Vector & x, CartesianPML * pml)
 {
    int dim = pml->dim;
-   double omega = pml->omega;
    std::vector<std::complex<double>> dxs(dim);
    complex<double> det(1.0,0.0);
-   pml->StretchFunction(x, dxs, omega);
+   pml->StretchFunction(x, dxs);
    for (int i=0; i<dim; ++i) det *= dxs[i];
    return det.real();
 }
@@ -130,10 +128,9 @@ double pml_detJ_Re(const Vector & x, CartesianPML * pml)
 double pml_detJ_Im(const Vector & x, CartesianPML * pml)
 {
    int dim = pml->dim;
-   double omega = pml->omega;
    std::vector<std::complex<double>> dxs(dim);
    complex<double> det(1.0,0.0);
-   pml->StretchFunction(x, dxs, omega);
+   pml->StretchFunction(x, dxs);
    for (int i=0; i<dim; ++i) det *= dxs[i];
    return det.imag();
 }
@@ -141,10 +138,9 @@ double pml_detJ_Im(const Vector & x, CartesianPML * pml)
 void pml_detJ_JT_J_inv_Re(const Vector & x, CartesianPML * pml , DenseMatrix & M)
 {
    int dim = pml->dim;
-   double omega = pml->omega;
    std::vector<std::complex<double>> dxs(dim);
    complex<double> det(1.0,0.0);
-   pml->StretchFunction(x, dxs, omega);
+   pml->StretchFunction(x, dxs);
 
    for (int i = 0; i<dim; ++i)
    {
@@ -161,11 +157,9 @@ void pml_detJ_JT_J_inv_Re(const Vector & x, CartesianPML * pml , DenseMatrix & M
 void pml_detJ_JT_J_inv_Im(const Vector & x, CartesianPML * pml , DenseMatrix & M)
 {
    int dim = pml->dim;
-   double omega = pml->omega;
-
    std::vector<std::complex<double>> dxs(dim);
    complex<double> det = 1.0;
-   pml->StretchFunction(x, dxs, omega);
+   pml->StretchFunction(x, dxs);
 
    for (int i = 0; i<dim; ++i)
    {
@@ -183,10 +177,9 @@ void pml_detJ_JT_J_inv_Im(const Vector & x, CartesianPML * pml , DenseMatrix & M
 void detJ_JT_J_inv_Re(const Vector &x, CartesianPML * pml, DenseMatrix &M)
 {
    int dim = pml->dim;
-   double omega = pml->omega;
    vector<complex<double>> dxs(dim);
    complex<double> det(1.0, 0.0);
-   pml->StretchFunction(x, dxs, omega);
+   pml->StretchFunction(x, dxs);
 
    for (int i = 0; i < dim; ++i)
    {
@@ -203,10 +196,9 @@ void detJ_JT_J_inv_Re(const Vector &x, CartesianPML * pml, DenseMatrix &M)
 void detJ_JT_J_inv_Im(const Vector &x, CartesianPML * pml, DenseMatrix &M)
 {
    int dim = pml->dim;
-   double omega = pml->omega;
    vector<complex<double>> dxs(dim);
    complex<double> det = 1.0;
-   pml->StretchFunction(x, dxs, omega);
+   pml->StretchFunction(x, dxs);
 
    for (int i = 0; i < dim; ++i)
    {
@@ -223,10 +215,9 @@ void detJ_JT_J_inv_Im(const Vector &x, CartesianPML * pml, DenseMatrix &M)
 void detJ_JT_J_inv_abs(const Vector &x, CartesianPML * pml, DenseMatrix &M)
 {
    int dim = pml->dim;
-   double omega = pml->omega;
    vector<complex<double>> dxs(dim);
    complex<double> det = 1.0;
-   pml->StretchFunction(x, dxs, omega);
+   pml->StretchFunction(x, dxs);
 
    for (int i = 0; i < dim; ++i)
    {
@@ -243,10 +234,9 @@ void detJ_JT_J_inv_abs(const Vector &x, CartesianPML * pml, DenseMatrix &M)
 void detJ_inv_JT_J_Re(const Vector &x, CartesianPML * pml, DenseMatrix &M)
 {
    int dim = pml->dim;
-   double omega = pml->omega;
    vector<complex<double>> dxs(dim);
    complex<double> det(1.0, 0.0);
-   pml->StretchFunction(x, dxs, omega);
+   pml->StretchFunction(x, dxs);
 
    for (int i = 0; i < dim; ++i)
    {
@@ -271,10 +261,9 @@ void detJ_inv_JT_J_Re(const Vector &x, CartesianPML * pml, DenseMatrix &M)
 void detJ_inv_JT_J_Im(const Vector &x, CartesianPML * pml, DenseMatrix &M)
 {
    int dim = pml->dim;
-   double omega = pml->omega;
    vector<complex<double>> dxs(dim);
    complex<double> det = 1.0;
-   pml->StretchFunction(x, dxs, omega);
+   pml->StretchFunction(x, dxs);
 
    for (int i = 0; i < dim; ++i)
    {

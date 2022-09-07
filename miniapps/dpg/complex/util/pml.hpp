@@ -48,7 +48,7 @@ public:
    void SetOmega(double omega_) {omega = omega_;}
 
    // PML complex stretching function
-   void StretchFunction(const Vector &x, vector<complex<double>> &dxs, double omega);
+   void StretchFunction(const Vector &x, vector<complex<double>> &dxs);
 };
 
 
