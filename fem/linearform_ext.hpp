@@ -37,7 +37,7 @@ class LinearFormExtension
    const Operator *elem_restrict_lex; // Not owned
 
    /// Operator that converts L-vectors to boundary E-vectors.
-   const Operator *bdr_restrict_lex; // Not owned
+   const FaceRestriction *bdr_restrict_lex; // Not owned
 
    /// Internal E-vectors.
    mutable Vector b, bdr_b;
