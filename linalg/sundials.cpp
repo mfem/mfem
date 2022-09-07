@@ -146,20 +146,23 @@ namespace mfem
 
 void Sundials::Init()
 {
-   GetContext();
-   GetMemHelper();
+   Sundials::Instance();
+}
+
+Sundials &Sundials::Instance()
+{
+   static Sundials sundials;
+   return sundials;
 }
 
 SUNContext &Sundials::GetContext()
 {
-   static Sundials sundials;
-   return sundials.context;
+   return Sundials::Instance().context;
 }
 
 SundialsMemHelper &Sundials::GetMemHelper()
 {
-   static Sundials sundials;
-   return sundials.memHelper;
+   return Sundials::Instance().memHelper;
 }
 
 #if (SUNDIALS_VERSION_MAJOR >= 6)
@@ -173,6 +176,8 @@ Sundials::Sundials()
    int return_val = SUNContext_Create(nullptr, &context);
 #endif
    MFEM_VERIFY(return_val == 0, "Call to SUNContext_Create failed");
+   SundialsMemHelper actual_helper(context);
+   memHelper = std::move(actual_helper);
 }
 
 Sundials::~Sundials()
@@ -195,17 +200,29 @@ Sundials::~Sundials()
 #endif // SUNDIALS_VERSION_MAJOR >= 6
 
 #ifdef MFEM_USE_CUDA
-
-SundialsMemHelper::SundialsMemHelper()
+SundialsMemHelper::SundialsMemHelper(SUNContext context)
 {
    /* Allocate helper */
-   h = SUNMemoryHelper_NewEmpty(Sundials::GetContext());
+   h = SUNMemoryHelper_NewEmpty(context);
 
    /* Set the ops */
    h->ops->alloc     = SundialsMemHelper_Alloc;
    h->ops->dealloc   = SundialsMemHelper_Dealloc;
    h->ops->copy      = SUNMemoryHelper_Copy_Cuda;
    h->ops->copyasync = SUNMemoryHelper_CopyAsync_Cuda;
+}
+
+SundialsMemHelper::SundialsMemHelper(SundialsMemHelper&& that_helper)
+{
+   this->h = that_helper.h;
+   that_helper.h = nullptr;
+}
+
+SundialsMemHelper& SundialsMemHelper::operator=(SundialsMemHelper&& rhs)
+{
+   this->h = rhs.h;
+   rhs.h = nullptr;
+   return *this;
 }
 
 int SundialsMemHelper::SundialsMemHelper_Alloc(SUNMemoryHelper helper,
