@@ -940,6 +940,8 @@ void ComplexDPGWeakForm::EnableStaticCondensation()
 
 Vector & ComplexDPGWeakForm::ComputeResidual(const Vector & x)
 {
+   MFEM_VERIFY(store_matrices, 
+   "Matrices needed for the residual are not store. Call ComplexDPGWeakForm::StoreMatrices()")
    // wrap vector in a blockvector
    double * xdata = x.GetData();
    int n = x.Size()/2;
