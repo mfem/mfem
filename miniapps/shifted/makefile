@@ -31,8 +31,10 @@ DISTANCE_SRC = distance.cpp dist_solver.cpp
 DISTANCE_OBJ = $(DISTANCE_SRC:.cpp=.o)
 EXTRAPOLATE_SRC = extrapolate.cpp extrapolator.cpp marking.cpp
 EXTRAPOLATE_OBJ = $(EXTRAPOLATE_SRC:.cpp=.o)
+EX_STOKES_WEAKBC_PAR_SRC = ex_Stokes_weakBC_par.cpp nitsche_solver.cpp p_divW.cpp
+EX_STOKES_WEAKBC_PAR_OBJ = $(EX_STOKES_WEAKBC_PAR_SRC:.cpp=.o)
 
-PAR_MINIAPPS = distance diffusion extrapolate
+PAR_MINIAPPS = distance diffusion extrapolate ex_Stokes_weakBC_par
 
 ifeq ($(MFEM_USE_MPI),NO)
    MINIAPPS =
@@ -70,6 +72,9 @@ diffusion: $(DIFFUSION_OBJ)
 extrapolate: $(EXTRAPOLATE_OBJ)
 	$(MFEM_CXX) $(MFEM_LINK_FLAGS) -o $@ $(EXTRAPOLATE_OBJ) $(COMMON_LIB) $(MFEM_LIBS)
 
+ex_Stokes_weakBC_par: $(EX_STOKES_WEAKBC_PAR_OBJ)
+	$(MFEM_CXX) $(MFEM_LINK_FLAGS) -o $@ $(EX_STOKES_WEAKBC_PAR_OBJ) $(COMMON_LIB) $(MFEM_LIBS)
+
 # Rule for building lib-common
 lib-common:
 	$(MAKE) -C $(MFEM_BUILD_DIR)/miniapps/common
@@ -94,7 +99,7 @@ $(MFEM_LIB_FILE):
 clean: clean-build clean-exec
 
 clean-build:
-	rm -f *.o *~ distance diffusion extrapolate
+	rm -f *.o *~ distance diffusion extrapolate ex_Stokes_weakBC_par
 	rm -rf *.dSYM *.TVD.*breakpoints
 
 clean-exec:
