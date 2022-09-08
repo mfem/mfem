@@ -5436,6 +5436,95 @@ void HypreAMS::Init(ParFiniteElementSpace *edge_fespace)
 
 void HypreAMS::ResetAMSPrecond()
 {
+#if MFEM_HYPRE_VERSION >= 22600
+   /* Read options from ams */
+   auto *ams_data = (hypre_AMSData *)ams;
+
+   /* Space dimension */
+   HYPRE_Int dim = hypre_AMSDataDimension(ams_data);
+
+   /* Vertex space data */
+   hypre_ParCSRMatrix *hy_G = hypre_AMSDataDiscreteGradient(ams_data);
+
+   HYPRE_Int beta_is_zero = hypre_AMSDataBetaIsZero(ams_data);
+
+   /* Vector vertex space data */
+   hypre_ParCSRMatrix *hy_Pi hypre_AMSDataPiInterpolation(ams_data);
+   hypre_ParCSRMatrix *hy_Pix = ams_data->Pix;
+   hypre_ParCSRMatrix *hy_Piy = ams_data->Piy;
+   hypre_ParCSRMatrix *hy_Piz = ams_data->Piz;
+   HYPRE_Int owns_Pi = hypre_AMSDataOwnsPiInterpolation(ams_data);
+   if (owns_Pi)
+   {
+      ams_data->owns_Pi = 0; // we're stealing Pi
+   }
+
+   /* Coordinates of the vertices */
+   hypre_ParVector *hy_x = hypre_AMSDataVertexCoordinateX(ams_data);
+   hypre_ParVector *hy_y = hypre_AMSDataVertexCoordinateY(ams_data);
+   hypre_ParVector *hy_z = hypre_AMSDataVertexCoordinateZ(ams_data);
+
+   /* Solver options */
+   HYPRE_Int maxit = hypre_AMSDataMaxIter(ams_data);
+   HYPRE_Real tol = hypre_AMSDataTol(ams_data);
+   HYPRE_Int cycle_type = hypre_AMSDataCycleType(ams_data);
+   HYPRE_Int print_level = hypre_AMSDataPrintLevel(ams_data);
+
+   /* Smoothing and AMG options */
+   HYPRE_Int A_relax_type = hypre_AMSDataARelaxType(ams_data);
+   HYPRE_Int A_relax_times = hypre_AMSDataARelaxTimes(ams_data);
+   HYPRE_Real A_relax_weight = hypre_AMSDataARelaxWeight(ams_data);
+   HYPRE_Real A_omega = hypre_AMSDataAOmega(ams_data);
+   HYPRE_Int A_cheby_order = hypre_AMSDataAChebyOrder(ams_data);
+   HYPRE_Real A_cheby_fraction = hypre_AMSDataAChebyFraction(ams_data);
+
+   HYPRE_Int B_Pi_coarsen_type = hypre_AMSDataPoissonAlphaAMGCoarsenType(ams_data);
+   HYPRE_Int B_Pi_agg_levels = hypre_AMSDataPoissonAlphaAMGAggLevels(ams_data);
+   HYPRE_Int B_Pi_relax_type = hypre_AMSDataPoissonAlphaAMGRelaxType(ams_data);
+   HYPRE_Int B_Pi_coarse_relax_type = ams_data->B_Pi_coarse_relax_type;
+   HYPRE_Real B_Pi_theta = hypre_AMSDataPoissonAlphaAMGStrengthThreshold(ams_data);
+   HYPRE_Int B_Pi_interp_type = ams_data->B_Pi_interp_type;
+   HYPRE_Int B_Pi_Pmax = ams_data->B_Pi_Pmax;
+
+   HYPRE_Int B_G_coarsen_type = hypre_AMSDataPoissonBetaAMGCoarsenType(ams_data);
+   HYPRE_Int B_G_agg_levels = hypre_AMSDataPoissonBetaAMGAggLevels(ams_data);
+   HYPRE_Int B_G_relax_type = hypre_AMSDataPoissonBetaAMGRelaxType(ams_data);
+   HYPRE_Int B_G_coarse_relax_type = ams_data->B_G_coarse_relax_type;
+   HYPRE_Real B_G_theta = hypre_AMSDataPoissonBetaAMGStrengthThreshold(ams_data);
+   HYPRE_Int B_G_interp_type = ams_data->B_G_interp_type;
+   HYPRE_Int B_G_Pmax = ams_data->B_G_Pmax;
+
+   HYPRE_AMSDestroy(ams);
+   HYPRE_AMSCreate(&ams);
+   ams_data = (hypre_AMSData *)ams;
+
+   HYPRE_AMSSetDimension(ams, dim); // 2D H(div) and 3D H(curl) problems
+   HYPRE_AMSSetTol(ams, tol);
+   HYPRE_AMSSetMaxIter(ams, maxit); // use as a preconditioner
+   HYPRE_AMSSetCycleType(ams, cycle_type);
+   HYPRE_AMSSetPrintLevel(ams, print_level);
+
+   HYPRE_AMSSetCoordinateVectors(ams, hy_x, hy_y, hy_z);
+
+   HYPRE_AMSSetDiscreteGradient(ams, hy_G);
+   HYPRE_AMSSetCoordinateVectors(ams, hy_x, hy_y, hy_z);
+   HYPRE_AMSSetInterpolations(ams, hy_Pi, hy_Pix, hy_Piy, hy_Piz);
+   ams_data->owns_Pi = owns_Pi;
+
+   // set additional AMS options
+   HYPRE_AMSSetSmoothingOptions(ams, A_relax_type, A_relax_times, A_relax_weight, A_omega);
+
+   HYPRE_AMSSetAlphaAMGOptions(ams, B_Pi_coarsen_type, B_Pi_agg_levels, B_Pi_relax_type,
+                               B_Pi_theta, B_Pi_interp_type, B_Pi_Pmax);
+   HYPRE_AMSSetBetaAMGOptions(ams, B_G_coarsen_type, B_G_agg_levels, B_G_relax_type,
+                              B_G_theta, B_G_interp_type, B_G_Pmax);
+
+   HYPRE_AMSSetAlphaAMGCoarseRelaxType(ams, B_Pi_coarse_relax_type);
+   HYPRE_AMSSetBetaAMGCoarseRelaxType(ams, B_G_coarse_relax_type);
+
+   ams_data->beta_is_zero = beta_is_zero;
+
+#else
    HYPRE_AMSDestroy(ams);
 
    MakeSolver(space_dim, ams_cycle_type);
@@ -5459,6 +5548,7 @@ void HypreAMS::ResetAMSPrecond()
                                  Piy ? (HYPRE_ParCSRMatrix) *Piy : nullptr,
                                  Piz ? (HYPRE_ParCSRMatrix) *Piz : nullptr);
    }
+#endif
 }
 
 void HypreAMS::SetOperator(const Operator &op)
