@@ -666,13 +666,14 @@ public:
    /// Returns vector dimension.
    inline int GetVDim() const { return vdim; }
 
-   /// Returns number of degrees of freedom.
+   /// @brief Returns number of degrees of freedom.
+   /// This is the number of @ref ldof "Local Degrees of Freedom"
    inline int GetNDofs() const { return ndofs; }
 
-   /// Return the number of vector dofs, i.e. GetNDofs() x GetVDim().
+   /// @brief Return the number of vector dofs, i.e. GetNDofs() x GetVDim().
    inline int GetVSize() const { return vdim * ndofs; }
 
-   /// Return the number of vector true (conforming) dofs.
+   /// @brief Return the number of vector true (conforming) dofs.
    virtual int GetTrueVSize() const { return GetConformingVSize(); }
 
    /// Returns the number of conforming ("true") degrees of freedom
@@ -746,11 +747,21 @@ public:
 
    int GetBdrAttribute(int i) const { return mesh->GetBdrAttribute(i); }
 
-   /// Returns indices of degrees of freedom of element 'elem'.
-   /// The returned indices are offsets into an @ref ldof vector, see @ref ldof.
+   /// @anchor getdof @name Local DoF Access Members
+   /// These member functions produce arrays of local degree of freedom
+   /// indices, see @ref ldof. If @b vdim == 1 these indices can be used to
+   /// access entries in GridFunction, LinearForm, and BilinearForm objects.
+   /// If @b vdim != 1 the corresponding @ref getvdof "Get*VDofs" methods
+   /// should be used instead or one of the @ref dof2vdof "DofToVDof" methods
+   /// could be used to produce the appropriate offsets from these local dofs.
+   ///@{
+  
+   /// @brief Returns indices of degrees of freedom of element 'elem'.
+   /// The returned indices are offsets into an @ref ldof vector.
    virtual DofTransformation *GetElementDofs(int elem, Array<int> &dofs) const;
 
-   /// Returns indices of degrees of freedom for boundary element 'bel'.
+   /// @brief Returns indices of degrees of freedom for boundary element 'bel'.
+   /// The returned indices are offsets into an @ref ldof vector.
    virtual DofTransformation *GetBdrElementDofs(int bel,
                                                 Array<int> &dofs) const;
 
@@ -759,7 +770,10 @@ public:
    /** In variable order spaces, multiple variants of DOFs can be returned.
        See @a GetEdgeDofs for more details.
        @return Order of the selected variant, or -1 if there are no more
-       variants.*/
+       variants.
+
+       The returned indices are offsets into an @ref ldof vector.
+   */
    virtual int GetFaceDofs(int face, Array<int> &dofs, int variant = 0) const;
 
    /** @brief Returns the indices of the degrees of freedom for the specified
@@ -769,7 +783,10 @@ public:
        The 'variant' parameter is the zero-based index of the desired DOF set.
        The variants are ordered from lowest polynomial degree to the highest.
        @return Order of the selected variant, or -1 if there are no more
-       variants. */
+       variants.
+
+       The returned indices are offsets into an @ref ldof vector.
+   */
    int GetEdgeDofs(int edge, Array<int> &dofs, int variant = 0) const;
 
    void GetVertexDofs(int i, Array<int> &dofs) const;
@@ -781,25 +798,90 @@ public:
    int GetNumElementInteriorDofs(int i) const;
 
    void GetEdgeInteriorDofs(int i, Array<int> &dofs) const;
+   ///@}
 
+   /// @anchor dof2vdof @name DoF To VDoF Conversion methods
+   /// These methods convert between local dof and local vector dof using the
+   /// appropriate relationship based on the Ordering::Type defined in this
+   /// FiniteElementSpace object.
+   ///
+   /// These methods assume the index set has a range [0, GetNDofs()) which
+   /// will be mapped to the range [0, GetVSize()). This assumption can be
+   /// changed in the forward mappings by passing a value for @a ndofs which
+   /// differs from that returned by GetNDofs().
+   ///
+   /// @note Thse methods, with the exception of VDofToDof(), are designed to
+   /// produce the correctly encoded values when dof entries are negative,
+   /// see @ref ldof for more on negative dof indices.
+   ///
+   /// @warning When MFEM_DEBUG is enabled at build time the forward mappings
+   /// will verify that each @a dof lies in the proper range. If MFEM_DEBUG is
+   /// disabled no range checking is performed.
+   ///@{
+  
    /** @brief Returns the indices of all of the VDofs for the specified
        dimension 'vd'. */
    /** The 'ndofs' parameter defines the number of Dofs in the
        FiniteElementSpace. If 'ndofs' is -1 (the default value), then the
-       number of Dofs is determined by the FiniteElementSpace. */
+       number of Dofs is determined by the FiniteElementSpace.
+
+   @note This method does not resize the @a dofs array. It takes the range of
+   dofs [0, dofs.Size()) and converts these to @ref vdof "vdofs" and stores the
+   results in the @a dofs array.
+   */
    void GetVDofs(int vd, Array<int> &dofs, int ndofs = -1) const;
 
+   /// @brief Compute the full set of @ref vdof "vdofs" corresponding to each
+   /// entry in @a dofs.
+   ///
+   /// @details Produces a set of @ref vdof "vdofs" of
+   /// length @b vdim * dofs.Size() corresponding to the entries contained in
+   /// the @a dofs array.
+   ///
+   /// @note The @a dofs array is overwritten and resized to accomodate the
+   /// new values.
    void DofsToVDofs(Array<int> &dofs, int ndofs = -1) const;
 
+   /// @brief Compute the set of @ref vdof "vdofs" corresponding to each entry
+   /// in @a dofs for the given vector index @a vd.
+   ///
+   /// @note The @a dofs array is overwritten with the new values but its size
+   /// will not be altered.
    void DofsToVDofs(int vd, Array<int> &dofs, int ndofs = -1) const;
 
+   /// @brief Compute a single @ref vdof corresponding to the index @a dof and
+   /// the vector index @a vd.
    int DofToVDof(int dof, int vd, int ndofs = -1) const;
 
+   /// @brief Compute the inverse of the Dof to VDof mapping for a single
+   /// index @a vdof.
+   ///
+   /// @warning This method is only intended for use with positive indices.
+   /// Passing a negative value for @a vdof will produce an invalid result.
    int VDofToDof(int vdof) const
    { return (ordering == Ordering::byNODES) ? (vdof%ndofs) : (vdof/vdim); }
 
+   ///@}
+
+   /// @brief Remove the orientation information encoded into an array of dofs
+   /// Some basis function types have a relative orientation associated with
+   /// degrees of freedom shared between neighboring elements, see @ref ldof
+   /// for more information. An orientation mismatch is indicated in the dof
+   /// indices by a negative index value. This method replaces such negative
+   /// indices with the corresponding positive offsets.
+   ///
+   /// @note The name of this method reflects the fact that it is most often
+   /// applied to sets of @ref vdof "Vector Dofs" but it would work equally
+   /// well on sets of @ref ldof "Local Dofs".
    static void AdjustVDofs(Array<int> &vdofs);
 
+   /// @anchor getvdof @name Local Vector DoF Access Members
+   /// These member functions produce arrays of local vector degree of freedom
+   /// indices, see @ref ldof and @ref vdof. These indices can be used to
+   /// access entries in GridFunction, LinearForm, and BilinearForm objects
+   /// regardless of the value of @b vdim.
+   /// @{
+  
    /// Returns indexes of degrees of freedom in array dofs for i'th element.
    DofTransformation *GetElementVDofs(int i, Array<int> &vdofs) const;
 
@@ -817,7 +899,8 @@ public:
    void GetElementInteriorVDofs(int i, Array<int> &vdofs) const;
 
    void GetEdgeInteriorVDofs(int i, Array<int> &vdofs) const;
-
+   /// @}
+  
    /// (@deprecated) Use the Update() method if the space or mesh changed.
    MFEM_DEPRECATED void RebuildElementToDofTable();
 
