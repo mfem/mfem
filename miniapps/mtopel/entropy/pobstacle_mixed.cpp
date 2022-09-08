@@ -53,6 +53,7 @@ int main(int argc, char *argv[])
    const char *mesh_file = "./disk.mesh";
    int order = 1;
    bool visualization = true;
+   bool adaptive = false;
    int max_it = 1;
    int ref_levels = 3;
 
@@ -69,6 +70,9 @@ int main(int argc, char *argv[])
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
+   args.AddOption(&adaptive, "-amr", "--amr", "-n-amr",
+                  "--no-amr",
+                  "Enable or disable AMR.");
    args.Parse();
    if (!args.Good())
    {
@@ -93,7 +97,6 @@ int main(int argc, char *argv[])
 
    mesh.SetCurvature(2);
    mesh.EnsureNCMesh();
-   mesh.RandomRefinement(0.5);
 
    ParMesh pmesh(MPI_COMM_WORLD, mesh);
    mesh.Clear();
@@ -199,20 +202,23 @@ int main(int argc, char *argv[])
    // double alpha0 = 0.1;
 
    /////////// Example 2
-   // FunctionCoefficient IC_coef(IC_func);
-   // ConstantCoefficient f(0.0);
-   // FunctionCoefficient obstacle(spherical_obstacle);
-   // u_gf.ProjectCoefficient(IC_coef);
-   // u_old_gf = u_gf;
+   FunctionCoefficient exact_coef(exact_solution_obstacle);
+   FunctionCoefficient IC_coef(IC_func);
+   ConstantCoefficient f(0.0);
+   FunctionCoefficient obstacle(spherical_obstacle);
+   u_gf.ProjectCoefficient(IC_coef);
+   u_old_gf = u_gf;
+   double alpha0 = 0.1;
    // double alpha0 = 1.0;
 
    /////////// Example 3
-   u_gf = 0.5;
-   FunctionCoefficient f(load_biactivity);
-   FunctionCoefficient bdry_coef(exact_solution_biactivity);
-   ConstantCoefficient obstacle(0.0);
-   u_gf.ProjectBdrCoefficient(bdry_coef, ess_bdr);
-   double alpha0 = 1.0;
+   // u_gf = 0.5;
+   // FunctionCoefficient exact_coef(exact_solution_biactivity);
+   // FunctionCoefficient f(load_biactivity);
+   // FunctionCoefficient bdry_coef(exact_solution_biactivity);
+   // ConstantCoefficient obstacle(0.0);
+   // u_gf.ProjectBdrCoefficient(bdry_coef, ess_bdr);
+   // double alpha0 = 1.0;
 
    /////////// Newton TEST
    // FunctionCoefficient f(rhs_func);
@@ -235,10 +241,14 @@ int main(int argc, char *argv[])
    // socketstream psi_sock(vishost, visport);
    // psi_sock.precision(8);
 
+   LpErrorEstimator estimator(2, exact_coef, u_gf);
+   ThresholdRefiner refiner(estimator);
+   refiner.SetTotalErrorFraction(0.9);
+
    // 12. Iterate
    int k;
    int total_iterations = 0;
-   double tol = 1e-3;
+   double tol = 1e-8;
    double increment_u = 0.1;
    double comp;
    double entropy;
@@ -246,8 +256,8 @@ int main(int argc, char *argv[])
    for (k = 0; k < max_it; k++)
    {
       // double alpha = alpha0 / sqrt(k+1);
-      double alpha = alpha0 * sqrt(k+1);
-      // double alpha = alpha0;
+      // double alpha = alpha0 * sqrt(k+1);
+      double alpha = alpha0;
       // alpha *= 2;
 
       ParGridFunction u_tmp(&H1fes);
@@ -266,8 +276,12 @@ int main(int argc, char *argv[])
          // double c2 = 1.0 - alpha;
 
          // // IMD
-         double c1 = 1.0 + alpha;
-         double c2 = 1.0;
+         // double c1 = 1.0 + alpha;
+         // double c2 = 1.0;
+
+         // // Other
+         double c1 = alpha;
+         double c2 = 0.0;
 
          ConstantCoefficient c1_cf(c1);
 
@@ -325,6 +339,7 @@ int main(int argc, char *argv[])
          A.SetBlock(1,1,&A11);
 
 
+         // DIRECT solver
          Array2D<HypreParMatrix *> BlockA(2,2);
          BlockA(0,0) = &A00;
          BlockA(0,1) = &A01;
@@ -339,15 +354,15 @@ int main(int argc, char *argv[])
          mumps.Mult(trhs,tx);
          delete Ah;
 
-         // iterative solver
+         // ITERATIVE solver
          // BlockDiagonalPreconditioner prec(toffsets);
          // prec.SetDiagonalBlock(0,new HypreBoomerAMG(A00));
          // prec.SetDiagonalBlock(1,new HypreSmoother(A11));
 
          // GMRESSolver gmres(MPI_COMM_WORLD);
+         // gmres.SetPrintLevel(-1);
          // gmres.SetRelTol(1e-12);
-         // gmres.SetPrintLevel(1);
-         // gmres.SetMaxIter(2000);
+         // gmres.SetMaxIter(20000);
          // gmres.SetKDim(50);
          // gmres.SetOperator(A);
          // // gmres.SetPreconditioner(prec);
@@ -380,6 +395,10 @@ int main(int argc, char *argv[])
             break;
          }
       }
+      if (j > 5)
+      {
+         alpha0 /= 2.0;
+      }
       mfem::out << "Number of Newton iterations = " << j+1 << endl;
       
       u_tmp = u_gf;
@@ -388,9 +407,9 @@ int main(int argc, char *argv[])
 
       mfem::out << "|| u_h - u_h_prvs || = " << increment_u << endl;
 
-      delta_psi_gf = psi_gf;
-      delta_psi_gf -= psi_old_gf;
-      delta_psi_gf = 0.0;
+      // delta_psi_gf = psi_gf;
+      // delta_psi_gf -= psi_old_gf;
+      // delta_psi_gf = 0.0;
 
       u_old_gf = u_gf;
       psi_old_gf = psi_gf;
@@ -419,20 +438,64 @@ int main(int argc, char *argv[])
          mfem::out << "|< phi - u_h, A u_h - f >| = " << comp << endl;
 
 
-         // Compute entropy: (u - phi ,1-ln(u - phi)) - || \nabla u ||^2
-         // TODO: Talk to Socratis about a better way to do this
+         ParLinearForm e(&H1fes);
 
-         // LogarithmGridFunctionCoefficient ln_u(u_gf, obstacle);
-         // GridFunction ln_u_gf(&H1fes);
-         // ln_u_gf.ProjectCoefficient(ln_u);
-         // ln_u_gf -= 1.0;
+         LogarithmGridFunctionCoefficient ln_u(u_gf, obstacle);
+         ConstantCoefficient neg_one(-1.0);
+
+         e.AddDomainIntegrator(new DomainLFIntegrator(ln_u));
+         e.AddDomainIntegrator(new DomainLFIntegrator(neg_one));
+         e.Assemble();
 
          // entropy = -( a.InnerProduct(u_gf, u_gf) );
-         // entropy = -( m.InnerProduct(u_gf, ln_u_gf) );
-         // mfem::out << "entropy = " << entropy << endl;
+         entropy = e(obstacle_gf);
+         mfem::out << "entropy = " << entropy << endl;
 
-         // Compute entropy: D(u_h, u_h_prvs) = (u_h ln(u_h) - u_h ln(u_h_prvs), 1) + (u_)
-          
+      }
+
+      if (increment_u < tol || k == max_it-1)
+      // if (comp < tol)
+      {
+         break;
+      }
+
+      // estimator.GetLocalErrors();
+      // double total_error = estimator.GetTotalError();
+      double total_error = u_gf.ComputeL2Error(exact_coef);
+
+      // mfem::out << "total_error = " << total_error << endl;
+      // mfem::out << "increment_u = " << increment_u << endl;
+
+      if (total_error > increment_u && adaptive)
+      {
+         refiner.Apply(pmesh);
+         H1fes.Update();
+         L2fes.Update();
+
+         H1fes.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
+
+         offsets[1] = H1fes.GetVSize();
+         offsets[2] = L2fes.GetVSize();
+         offsets.PartialSum();
+         toffsets[1] = H1fes.GetTrueVSize();
+         toffsets[2] = L2fes.GetTrueVSize();
+         toffsets.PartialSum();
+
+         x.Update(offsets);
+         rhs.Update(offsets);
+         tx.Update(toffsets);
+         trhs.Update(toffsets);
+         x = 0.0; rhs = 0.0;
+         tx = 0.0; trhs = 0.0;
+
+         u_gf.MakeRef(&H1fes,x.GetBlock(0));
+         delta_psi_gf.MakeRef(&L2fes,x.GetBlock(1));
+
+         u_gf.ProjectCoefficient(IC_coef);
+
+         u_old_gf.Update();
+         psi_gf.Update();
+         psi_old_gf.Update();
       }
 
       // sol_sock << "solution\n" << mesh << u_gf << "window_title 'Discrete solution'" << flush;
@@ -445,14 +508,11 @@ int main(int argc, char *argv[])
       // sol_sock << "solution\n" << mesh << exp_psi << "window_title 'Discrete solution'" << flush;
       // sol_sock << "solution\n" << mesh << u_gf << "window_title 'Discrete solution'" << flush;
       
-      if (comp < tol)
-      {
-         break;
-      }
    }
 
    mfem::out << "\n Outer iterations: " << k+1
              << "\n Total iterations: " << total_iterations
+             << "\n dofs:             " << H1fes.GetTrueVSize() + L2fes.GetTrueVSize()
              << endl;
 
    // 14. Exact solution.
@@ -460,15 +520,13 @@ int main(int argc, char *argv[])
    {
       socketstream err_sock(vishost, visport);
       err_sock.precision(8);
-      FunctionCoefficient exact_coef(exact_solution_biactivity);
-      // FunctionCoefficient exact_coef(exact_solution_obstacle);
 
       ParGridFunction error(&H1fes);
       error = 0.0;
       error.ProjectCoefficient(exact_coef);
       error -= u_gf;
 
-      mfem::out << "\n Final L2-error (|| u - u_h||) = " << error.ComputeL2Error(zero) << endl;
+      mfem::out << "\n Final L2-error (|| u - u_h||) = " << u_gf.ComputeL2Error(exact_coef) << endl;
 
       err_sock << "parallel " << num_procs << " " << myid << "\n";
       err_sock << "solution\n" << pmesh << error << "window_title 'Error'"  << flush;

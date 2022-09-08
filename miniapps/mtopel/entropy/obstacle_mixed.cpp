@@ -84,6 +84,7 @@ int main(int argc, char *argv[])
    H1_FECollection H1fec(order, dim);
    FiniteElementSpace H1fes(&mesh, &H1fec);
 
+   // H1_FECollection L2fec(order-1, dim);
    L2_FECollection L2fec(order-1, dim);
    FiniteElementSpace L2fes(&mesh, &L2fec);
 
@@ -171,6 +172,7 @@ int main(int argc, char *argv[])
    // double alpha0 = 0.1;
 
    /////////// Example 2
+   // FunctionCoefficient exact_coef(exact_solution_obstacle);
    // FunctionCoefficient IC_coef(IC_func);
    // ConstantCoefficient f(0.0);
    // FunctionCoefficient obstacle(spherical_obstacle);
@@ -179,6 +181,7 @@ int main(int argc, char *argv[])
    // double alpha0 = 1.0;
 
    /////////// Example 3
+   FunctionCoefficient exact_coef(exact_solution_biactivity);
    u_gf = 0.5;
    FunctionCoefficient f(load_biactivity);
    FunctionCoefficient bdry_coef(exact_solution_biactivity);
@@ -237,8 +240,12 @@ int main(int argc, char *argv[])
          // double c2 = 1.0 - alpha;
 
          // // IMD
-         double c1 = 1.0 + alpha;
-         double c2 = 1.0;
+         // double c1 = 1.0 + alpha;
+         // double c2 = 1.0;
+
+         // // Other
+         double c1 = alpha;
+         double c2 = 0.0;
 
          ConstantCoefficient c1_cf(c1);
 
@@ -371,22 +378,19 @@ int main(int argc, char *argv[])
          // Compute entropy: (u - phi ,1-ln(u - phi)) - || \nabla u ||^2
          // TODO: Talk to Socratis about a better way to do this
 
-         BilinearForm m(&H1fes);
-         m.AddDomainIntegrator(new MassIntegrator());
-         m.Assemble();
-         m.Finalize();
+         LinearForm e(&H1fes);
 
          LogarithmGridFunctionCoefficient ln_u(u_gf, obstacle);
-         GridFunction ln_u_gf(&H1fes);
-         ln_u_gf.ProjectCoefficient(ln_u);
-         ln_u_gf -= 1.0;
+         ConstantCoefficient neg_one(-1.0);
 
-         entropy = -( a.InnerProduct(u_gf, u_gf) );
-         entropy = -( m.InnerProduct(u_gf, ln_u_gf) );
+         e.AddDomainIntegrator(new DomainLFIntegrator(ln_u));
+         e.AddDomainIntegrator(new DomainLFIntegrator(neg_one));
+         e.Assemble();
+
+         // entropy = -( a.InnerProduct(u_gf, u_gf) );
+         entropy = e(obstacle_gf);
          mfem::out << "entropy = " << entropy << endl;
 
-         // Compute entropy: D(u_h, u_h_prvs) = (u_h ln(u_h) - u_h ln(u_h_prvs), 1) + (u_)
-          
       }
 
       // sol_sock << "solution\n" << mesh << u_gf << "window_title 'Discrete solution'" << flush;
@@ -415,7 +419,7 @@ int main(int argc, char *argv[])
       socketstream err_sock(vishost, visport);
       err_sock.precision(8);
       // FunctionCoefficient exact_coef(exact_solution_biactivity);
-      FunctionCoefficient exact_coef(exact_solution_obstacle);
+      // FunctionCoefficient exact_coef(exact_solution_obstacle);
 
       GridFunction error(&H1fes);
       error = 0.0;
