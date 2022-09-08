@@ -16,6 +16,7 @@
 #include "nitsche_solver.hpp"
 #include <fstream>
 #include <iostream>
+#include "../common/mfem-common.hpp"
 #include <algorithm>
 #include "p_divW.hpp"
 
@@ -150,7 +151,6 @@ int main(int argc, char *argv[])
    //    linear forms fform and gform for the right hand side.  The data
    //    allocated by x and rhs are passed as a reference to the grid functions
    //    (u,p) and the linear forms (fform, gform).
-   MemoryType mt = device.GetMemoryType();
    BlockVector x(block_offsets), rhs(block_offsets);
    BlockVector trueX(block_trueOffsets), trueRhs(block_trueOffsets);
 
@@ -195,7 +195,6 @@ int main(int argc, char *argv[])
    bVarf->Assemble();
    bVarf->Finalize();
 
-   
    ParMixedBilinearForm *btVarf(new ParMixedBilinearForm(&P_H1FESpace, &V_H1FESpace));
    btVarf->AddDomainIntegrator(new PDivWForceIntegrator());
    // IP
@@ -227,7 +226,7 @@ int main(int argc, char *argv[])
 
    chrono.Clear();
    chrono.Start();
-   GMRESSolver solver;
+   GMRESSolver solver(MPI_COMM_WORLD);
    solver.SetAbsTol(atol);
    solver.SetRelTol(rtol);
    solver.SetMaxIter(maxIter);
@@ -237,7 +236,6 @@ int main(int argc, char *argv[])
    solver.Mult(trueRhs, trueX);
    chrono.Stop();
 
-      
    // 8. Create the grid functions u and p and enforce BC on u 
    ParGridFunction *u(new ParGridFunction);
    ParGridFunction *p(new ParGridFunction);
@@ -257,10 +255,21 @@ int main(int argc, char *argv[])
    double err_u  = u->ComputeL2Error(ucoeff, irs);
    double err_p  = p->ComputeL2Error(pcoeff, irs);
 
-   std::cout << "|| u_h - u_ex || = " << err_u << "\n";
-   std::cout << "|| p_h - p_ex || = " << err_p << "\n";
+   if (myid == 0)
+   {
+      std::cout << "|| u_h - u_ex || = " << err_u << "\n";
+      std::cout << "|| p_h - p_ex || = " << err_p << "\n";
+   }
 
-
+   int size = 500;
+   char vishost[] = "localhost";
+   int  visport   = 19916;
+   socketstream sol_sock_u;
+   common::VisualizeField(sol_sock_u, vishost, visport, *u,
+                          "Velocity", 0, 0, size, size);
+   socketstream sol_sock_p;
+   common::VisualizeField(sol_sock_p, vishost, visport, *p,
+                          "Pressure", size, 0, size, size);
 
    // 15. Free the used memory.
    delete fform;
