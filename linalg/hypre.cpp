@@ -5512,11 +5512,14 @@ void HypreAMS::ResetAMSPrecond()
    ams_data->owns_Pi = owns_Pi;
 
    // set additional AMS options
-   HYPRE_AMSSetSmoothingOptions(ams, A_relax_type, A_relax_times, A_relax_weight, A_omega);
+   HYPRE_AMSSetSmoothingOptions(ams, A_relax_type, A_relax_times, A_relax_weight,
+                                A_omega);
 
-   HYPRE_AMSSetAlphaAMGOptions(ams, B_Pi_coarsen_type, B_Pi_agg_levels, B_Pi_relax_type,
+   HYPRE_AMSSetAlphaAMGOptions(ams, B_Pi_coarsen_type, B_Pi_agg_levels,
+                               B_Pi_relax_type,
                                B_Pi_theta, B_Pi_interp_type, B_Pi_Pmax);
-   HYPRE_AMSSetBetaAMGOptions(ams, B_G_coarsen_type, B_G_agg_levels, B_G_relax_type,
+   HYPRE_AMSSetBetaAMGOptions(ams, B_G_coarsen_type, B_G_agg_levels,
+                              B_G_relax_type,
                               B_G_theta, B_G_interp_type, B_G_Pmax);
 
    HYPRE_AMSSetAlphaAMGCoarseRelaxType(ams, B_Pi_coarse_relax_type);
