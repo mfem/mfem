@@ -386,8 +386,6 @@ int main(int argc, char *argv[])
                   << std::setprecision(2) 
                   << std::setw(6) << std::fixed << rate_err << " | " 
                   << std::setw(6) << std::fixed << cg.GetNumIterations() << " | " 
-                  << std::setprecision(3) 
-                  << std::resetiosflags(std::ios::showbase)
                   << std::endl;
       std::cout.copyfmt(oldState);
 
