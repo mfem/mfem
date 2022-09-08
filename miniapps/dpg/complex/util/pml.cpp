@@ -115,7 +115,11 @@ void CartesianPML::StretchFunction(const Vector &x,
    }
 }
 
-double pml_detJ_Re(const Vector & x, CartesianPML * pml)
+
+
+// acoustics UW PML coefficients functions
+// |J|
+double detJ_r_function(const Vector & x, CartesianPML * pml)
 {
    int dim = pml->dim;
    std::vector<std::complex<double>> dxs(dim);
@@ -125,7 +129,7 @@ double pml_detJ_Re(const Vector & x, CartesianPML * pml)
    return det.real();
 }
 
-double pml_detJ_Im(const Vector & x, CartesianPML * pml)
+double detJ_i_function(const Vector & x, CartesianPML * pml)
 {
    int dim = pml->dim;
    std::vector<std::complex<double>> dxs(dim);
@@ -135,45 +139,65 @@ double pml_detJ_Im(const Vector & x, CartesianPML * pml)
    return det.imag();
 }
 
-void pml_detJ_JT_J_inv_Re(const Vector & x, CartesianPML * pml , DenseMatrix & M)
+double abs_detJ_2_function(const Vector & x, CartesianPML * pml)
 {
    int dim = pml->dim;
    std::vector<std::complex<double>> dxs(dim);
    complex<double> det(1.0,0.0);
    pml->StretchFunction(x, dxs);
+   for (int i=0; i<dim; ++i) det *= dxs[i];
+   return det.imag()*det.imag() + det.real()*det.real();
+}
 
-   for (int i = 0; i<dim; ++i)
-   {
-      det *= dxs[i];
-   }
+// J^T J / |J| 
+void Jt_J_detJinv_r_function(const Vector & x, CartesianPML * pml , DenseMatrix & M)
+{
+   int dim = pml->dim;
+   std::vector<std::complex<double>> dxs(dim);
+   complex<double> det(1.0,0.0);
+   pml->StretchFunction(x, dxs);
+   for (int i = 0; i<dim; ++i) det *= dxs[i];
 
    M=0.0;
    for (int i = 0; i<dim; ++i)
    {
-      M(i,i) = (det / pow(dxs[i],2)).real();
+      M(i,i) = (pow(dxs[i], 2)/det).real();
    }
 }
 
-void pml_detJ_JT_J_inv_Im(const Vector & x, CartesianPML * pml , DenseMatrix & M)
+void Jt_J_detJinv_i_function(const Vector & x, CartesianPML * pml , DenseMatrix & M)
 {
    int dim = pml->dim;
    std::vector<std::complex<double>> dxs(dim);
    complex<double> det = 1.0;
    pml->StretchFunction(x, dxs);
-
-   for (int i = 0; i<dim; ++i)
-   {
-      det *= dxs[i];
-   }
+   for (int i = 0; i<dim; ++i) det *= dxs[i];
 
    M=0.0;
    for (int i = 0; i<dim; ++i)
    {
-      M(i,i) = (det / pow(dxs[i],2)).imag();
+      M(i,i) = (pow(dxs[i], 2)/det).imag();
+   }
+}
+
+void abs_Jt_J_detJinv_2_function(const Vector & x, CartesianPML * pml , DenseMatrix & M)
+{
+   int dim = pml->dim;
+   std::vector<std::complex<double>> dxs(dim);
+   complex<double> det = 1.0;
+   pml->StretchFunction(x, dxs);
+   for (int i = 0; i<dim; ++i) det *= dxs[i];
+
+   M=0.0;
+   for (int i = 0; i<dim; ++i)
+   {
+      complex<double> a = pow(dxs[i], 2)/det;
+      M(i,i) = a.imag() * a.imag() + a.real() * a.real();
    }
 }
 
 
+// Maxwell PML coeffiecients
 void detJ_JT_J_inv_Re(const Vector &x, CartesianPML * pml, DenseMatrix &M)
 {
    int dim = pml->dim;

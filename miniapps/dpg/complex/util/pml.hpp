@@ -95,10 +95,13 @@ public:
 };
 
 // Helmholtz pml Functions
-double pml_detJ_Re(const Vector & x, CartesianPML * pml);
-double pml_detJ_Im(const Vector & x, CartesianPML * pml);
-void pml_detJ_JT_J_inv_Re(const Vector & x, CartesianPML * pml , DenseMatrix & M);
-void pml_detJ_JT_J_inv_Im(const Vector & x, CartesianPML * pml , DenseMatrix & M);
+double detJ_r_function(const Vector & x, CartesianPML * pml);
+double detJ_i_function(const Vector & x, CartesianPML * pml);
+double abs_detJ_2_function(const Vector & x, CartesianPML * pml);
+
+void Jt_J_detJinv_r_function(const Vector & x, CartesianPML * pml , DenseMatrix & M);
+void Jt_J_detJinv_i_function(const Vector & x, CartesianPML * pml , DenseMatrix & M);
+void abs_Jt_J_detJinv_2_function(const Vector & x, CartesianPML * pml , DenseMatrix & M);
 
 // Maxwell Pml functions
 void detJ_JT_J_inv_Re(const Vector &x, CartesianPML * pml, DenseMatrix &M);
