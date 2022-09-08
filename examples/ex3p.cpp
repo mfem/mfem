@@ -247,7 +247,7 @@ int main(int argc, char *argv[])
       pcg.SetOperator(*A.As<HypreParMatrix>());
       pcg.Mult(B, X);
 
-      pcg.SetOperator(*A.As<HypreParMatrix>());      
+      pcg.SetOperator(*A.As<HypreParMatrix>());
       pcg.Mult(B, X);
    }
 
