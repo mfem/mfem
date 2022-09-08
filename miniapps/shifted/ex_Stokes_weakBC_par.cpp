@@ -16,9 +16,9 @@
 #include "nitsche_solver.hpp"
 #include <fstream>
 #include <iostream>
-#include "../common/mfem-common.hpp"
 #include <algorithm>
 #include "p_divW.hpp"
+#include "../common/mfem-common.hpp"
 
 using namespace std;
 using namespace mfem;
@@ -50,15 +50,17 @@ int main(int argc, char *argv[])
    int velocityOrder = 2;
    int pressureOrder = 1;
    int ser_ref_levels = 0;
-  
+   double penaltyParameter = 1.0;
    const char *device_config = "cpu";
   
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh", "Mesh file to use.");
    args.AddOption(&velocityOrder, "-vo", "--velocityOrder", "Finite element velocity polynomial degree");
    args.AddOption(&pressureOrder, "-po", "--pressureOrder", "Finite element pressure polynomial degree");
-  args.AddOption(&ser_ref_levels, "-rs", "--refine-serial",
+   args.AddOption(&ser_ref_levels, "-rs", "--refine-serial",
                   "Number of times to refine the mesh uniformly in serial.");
+   args.AddOption(&penaltyParameter, "-penPar", "--penaltyParameter",
+                  "Value of penalty parameter.");
   
    args.ParseCheck();
    Device device(device_config);
@@ -164,7 +166,7 @@ int main(int argc, char *argv[])
    // Nitsche
    fform->AddBdrFaceIntegrator(new StrainNitscheBCForceIntegrator(mu_func,ucoeff),dbc_bdr_dir);
    // Penalty
-   fform->AddBdrFaceIntegrator(new VelocityBCPenaltyIntegrator(10,mu_func,ucoeff),dbc_bdr_dir);
+   fform->AddBdrFaceIntegrator(new VelocityBCPenaltyIntegrator(penaltyParameter,mu_func,ucoeff),dbc_bdr_dir);
    fform->Assemble();
    fform->ParallelAssemble(trueRhs.GetBlock(0));
 
@@ -183,7 +185,7 @@ int main(int argc, char *argv[])
    // IP
    mVarf->AddBdrFaceIntegrator(new StrainBoundaryForceTransposeIntegrator(mu_func),dbc_bdr_dir);
    // Penalty
-   mVarf->AddBdrFaceIntegrator(new VelocityPenaltyIntegrator(10,mu_func),dbc_bdr_dir);
+   mVarf->AddBdrFaceIntegrator(new VelocityPenaltyIntegrator(penaltyParameter,mu_func),dbc_bdr_dir);
   
    mVarf->Assemble();
    mVarf->Finalize();
