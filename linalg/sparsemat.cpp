@@ -1772,6 +1772,9 @@ void SparseMatrix::EliminateRowCol(int rc, const double sol, Vector &rhs,
 {
    MFEM_ASSERT(rc < height && rc >= 0,
                "Row " << rc << " not in matrix of height " << height);
+   HostReadWriteI();
+   HostReadWriteJ();
+   HostReadWriteData();
 
    if (Rows == NULL)
    {
@@ -3056,7 +3059,7 @@ SparseMatrix &SparseMatrix::operator+=(const SparseMatrix &B)
    MFEM_ASSERT(height == B.height && width == B.width,
                "Mismatch of this matrix size and rhs.  This height = "
                << height << ", width = " << width << ", B.height = "
-               << B.height << ", B.width = " << width);
+               << B.height << ", B.width = " << B.width);
 
    for (int i = 0; i < height; i++)
    {
