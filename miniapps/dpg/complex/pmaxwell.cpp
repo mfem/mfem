@@ -4,7 +4,7 @@
 //
 // sample run 
 // mpirun -np 4 ./pmaxwell -o 3 -m ../../../data/inline-quad.mesh -sref 2 -pref 3 -rnum 4.1 -prob 0 -sc 
-// mpirun -np 6 ./pmaxwell -o 3 -sref 0 -pref 15 -prob 2 -theta 0.5 
+// mpirun -np 4 ./pmaxwell -o 3 -sref 0 -pref 15 -prob 1 -theta 0.5 
 
 
 // Description:  
@@ -275,12 +275,12 @@ int main(int argc, char *argv[])
    mesh.EnsureNCMesh(false);
 
    CartesianPML * pml = nullptr;
-   if (with_pml)
-   {
-      Array2D<double> length(dim, 2); length = 0.125;
+   // if (with_pml)
+   // {
+      Array2D<double> length(dim, 2); length = 0.25;
       pml = new CartesianPML(&mesh,length);
       pml->SetOmega(omega);
-   }
+   // }
 
    ParMesh pmesh(MPI_COMM_WORLD, mesh);
    mesh.Clear();
@@ -383,42 +383,52 @@ int main(int argc, char *argv[])
    PmlCoefficient detJ_r(detJ_r_function,pml);
    PmlCoefficient detJ_i(detJ_i_function,pml);
    PmlCoefficient abs_detJ_2(abs_detJ_2_function,pml);
-   PmlMatrixCoefficient Jt_J_detJinv_r(dim,Jt_J_detJinv_r_function,pml);
-   PmlMatrixCoefficient Jt_J_detJinv_i(dim,Jt_J_detJinv_i_function,pml);
-   PmlMatrixCoefficient abs_Jt_J_detJinv_2(dim,abs_Jt_J_detJinv_2_function,pml);
+   PmlMatrixCoefficient detJ_Jt_J_inv_r(dim,detJ_Jt_J_inv_r_function,pml);
+   PmlMatrixCoefficient detJ_Jt_J_inv_i(dim,detJ_Jt_J_inv_i_function,pml);
+   PmlMatrixCoefficient abs_detJ_Jt_J_inv_2(dim,abs_detJ_Jt_J_inv_2_function,pml);
 
    ProductCoefficient negmuomeg_detJ_r(negmuomeg,detJ_r);
    ProductCoefficient negmuomeg_detJ_i(negmuomeg,detJ_i);
    ProductCoefficient muomeg_detJ_r(muomeg,detJ_r);
    ProductCoefficient mu2omeg2_detJ_2(mu2omeg2,abs_detJ_2);
-   ScalarMatrixProductCoefficient epsomeg_Jt_J_detJinv_i(epsomeg, Jt_J_detJinv_i);
-   ScalarMatrixProductCoefficient epsomeg_Jt_J_detJinv_r(epsomeg, Jt_J_detJinv_r);
-   ScalarMatrixProductCoefficient negepsomeg_Jt_J_detJinv_r(negepsomeg, Jt_J_detJinv_r);
-   ScalarMatrixProductCoefficient muomeg_Jt_J_detJinv_r(muomeg,Jt_J_detJinv_r);
-   ScalarMatrixProductCoefficient negmuomeg_Jt_J_detJinv_i(negmuomeg,Jt_J_detJinv_i);
-   ScalarMatrixProductCoefficient negmuomeg_Jt_J_detJinv_r(negmuomeg,Jt_J_detJinv_r);
-   ScalarMatrixProductCoefficient mu2omeg2_Jt_J_detJ_inv_2(mu2omeg2,abs_Jt_J_detJinv_2);
-   ScalarMatrixProductCoefficient eps2omeg2_Jt_J_detJ_inv_2(eps2omeg2,abs_Jt_J_detJinv_2);
-   MatrixProductCoefficient epsomeg_Jt_J_detJinv_i_rot(epsomeg_Jt_J_detJinv_i, rot); 
-   MatrixProductCoefficient epsomeg_Jt_J_detJinv_r_rot(epsomeg_Jt_J_detJinv_r, rot); 
-   MatrixProductCoefficient negepsomeg_Jt_J_detJinv_r_rot(negepsomeg_Jt_J_detJinv_r, rot); 
-
+   ScalarMatrixProductCoefficient epsomeg_detJ_Jt_J_inv_i(epsomeg, detJ_Jt_J_inv_i);
+   ScalarMatrixProductCoefficient epsomeg_detJ_Jt_J_inv_r(epsomeg, detJ_Jt_J_inv_r);
+   ScalarMatrixProductCoefficient negepsomeg_detJ_Jt_J_inv_r(negepsomeg, detJ_Jt_J_inv_r);
+   ScalarMatrixProductCoefficient muomeg_detJ_Jt_J_inv_r(muomeg,detJ_Jt_J_inv_r);
+   ScalarMatrixProductCoefficient negmuomeg_detJ_Jt_J_inv_i(negmuomeg,detJ_Jt_J_inv_i);
+   ScalarMatrixProductCoefficient negmuomeg_detJ_Jt_J_inv_r(negmuomeg,detJ_Jt_J_inv_r);
+   ScalarMatrixProductCoefficient mu2omeg2_detJ_Jt_J_inv_2(mu2omeg2,abs_detJ_Jt_J_inv_2);
+   ScalarMatrixProductCoefficient eps2omeg2_detJ_Jt_J_inv_2(eps2omeg2,abs_detJ_Jt_J_inv_2);
+   
    RestrictedCoefficient negmuomeg_detJ_r_restr(negmuomeg_detJ_r,attrPML);
    RestrictedCoefficient negmuomeg_detJ_i_restr(negmuomeg_detJ_i,attrPML);
    RestrictedCoefficient muomeg_detJ_r_restr(muomeg_detJ_r,attrPML);
    RestrictedCoefficient mu2omeg2_detJ_2_restr(mu2omeg2_detJ_2,attrPML);
-   MatrixRestrictedCoefficient epsomeg_Jt_J_detJinv_i_restr(epsomeg_Jt_J_detJinv_i,attrPML);
-   MatrixRestrictedCoefficient epsomeg_Jt_J_detJinv_r_restr(epsomeg_Jt_J_detJinv_r,attrPML);
-   MatrixRestrictedCoefficient negepsomeg_Jt_J_detJinv_r_restr(negepsomeg_Jt_J_detJinv_r,attrPML);
-   MatrixRestrictedCoefficient muomeg_Jt_J_detJinv_r_restr(muomeg_Jt_J_detJinv_r,attrPML);
-   MatrixRestrictedCoefficient negmuomeg_Jt_J_detJinv_i_restr(negmuomeg_Jt_J_detJinv_i,attrPML);
-   MatrixRestrictedCoefficient negmuomeg_Jt_J_detJinv_r_restr(negmuomeg_Jt_J_detJinv_r,attrPML);
-   MatrixRestrictedCoefficient mu2omeg2_Jt_J_detJ_inv_2_restr(mu2omeg2_Jt_J_detJ_inv_2,attrPML);
-   MatrixRestrictedCoefficient eps2omeg2_Jt_J_detJ_inv_2_restr(eps2omeg2_Jt_J_detJ_inv_2,attrPML);
-   MatrixRestrictedCoefficient epsomeg_Jt_J_detJinv_i_rot_restr(epsomeg_Jt_J_detJinv_i_rot, attrPML); 
-   MatrixRestrictedCoefficient epsomeg_Jt_J_detJinv_r_rot_restr(epsomeg_Jt_J_detJinv_r_rot, attrPML); 
-   MatrixRestrictedCoefficient negepsomeg_Jt_J_detJinv_r_rot_restr(negepsomeg_Jt_J_detJinv_r_rot, attrPML); 
+   MatrixRestrictedCoefficient epsomeg_detJ_Jt_J_inv_i_restr(epsomeg_detJ_Jt_J_inv_i,attrPML);
+   MatrixRestrictedCoefficient epsomeg_detJ_Jt_J_inv_r_restr(epsomeg_detJ_Jt_J_inv_r,attrPML);
+   MatrixRestrictedCoefficient negepsomeg_detJ_Jt_J_inv_r_restr(negepsomeg_detJ_Jt_J_inv_r,attrPML);
+   MatrixRestrictedCoefficient muomeg_detJ_Jt_J_inv_r_restr(muomeg_detJ_Jt_J_inv_r,attrPML);
+   MatrixRestrictedCoefficient negmuomeg_detJ_Jt_J_inv_i_restr(negmuomeg_detJ_Jt_J_inv_i,attrPML);
+   MatrixRestrictedCoefficient negmuomeg_detJ_Jt_J_inv_r_restr(negmuomeg_detJ_Jt_J_inv_r,attrPML);
+   MatrixRestrictedCoefficient mu2omeg2_detJ_Jt_J_inv_2_restr(mu2omeg2_detJ_Jt_J_inv_2,attrPML);
+   MatrixRestrictedCoefficient eps2omeg2_detJ_Jt_J_inv_2_restr(eps2omeg2_detJ_Jt_J_inv_2,attrPML);
 
+   MatrixProductCoefficient * epsomeg_detJ_Jt_J_inv_i_rot = nullptr;
+   MatrixProductCoefficient * epsomeg_detJ_Jt_J_inv_r_rot = nullptr;
+   MatrixProductCoefficient * negepsomeg_detJ_Jt_J_inv_r_rot = nullptr;
+   MatrixRestrictedCoefficient * epsomeg_detJ_Jt_J_inv_i_rot_restr = nullptr; 
+   MatrixRestrictedCoefficient * epsomeg_detJ_Jt_J_inv_r_rot_restr = nullptr; 
+   MatrixRestrictedCoefficient * negepsomeg_detJ_Jt_J_inv_r_rot_restr = nullptr; 
+
+   if (pml && dim == 2)
+   {
+      epsomeg_detJ_Jt_J_inv_i_rot = new MatrixProductCoefficient(epsomeg_detJ_Jt_J_inv_i, rot); 
+      epsomeg_detJ_Jt_J_inv_r_rot = new MatrixProductCoefficient(epsomeg_detJ_Jt_J_inv_r, rot); 
+      negepsomeg_detJ_Jt_J_inv_r_rot = new MatrixProductCoefficient(negepsomeg_detJ_Jt_J_inv_r, rot); 
+      epsomeg_detJ_Jt_J_inv_i_rot_restr = new MatrixRestrictedCoefficient(*epsomeg_detJ_Jt_J_inv_i_rot, attrPML); 
+      epsomeg_detJ_Jt_J_inv_r_rot_restr = new MatrixRestrictedCoefficient(*epsomeg_detJ_Jt_J_inv_r_rot, attrPML); 
+      negepsomeg_detJ_Jt_J_inv_r_rot_restr = new MatrixRestrictedCoefficient(*negepsomeg_detJ_Jt_J_inv_r_rot, attrPML); 
+   }   
 
    ParComplexDPGWeakForm * a = new ParComplexDPGWeakForm(trial_fes,test_fec);
    a->StoreMatrices();
@@ -452,7 +462,7 @@ int main(int argc, char *argv[])
       a->AddTestIntegrator(new VectorFEMassIntegrator(one),nullptr,0,0);
       // μ^2 ω^2 (F,δF)
       a->AddTestIntegrator(new VectorFEMassIntegrator(*mu2omeg2_cf),nullptr,0,0);
-      // -i ω μ (F,∇ × δG) = i (F, ω μ ∇ × δ G)
+      // -i ω μ (F,∇ × δG) = i (F, -ω μ ∇ × δ G)
       a->AddTestIntegrator(nullptr,new MixedVectorWeakCurlIntegrator(*negmuomeg_cf),0,1);
       // -i ω ϵ (∇ × F, δG)
       a->AddTestIntegrator(nullptr,new MixedVectorCurlIntegrator(*negepsomeg_cf),0,1);
@@ -479,17 +489,13 @@ int main(int argc, char *argv[])
       // -i ω μ (F,∇ × δG) = i (F, -ω μ ∇ × δ G)
       a->AddTestIntegrator(nullptr,
          new TransposeIntegrator(new MixedCurlIntegrator(*negmuomeg_cf)),0,1);
-
       // -i ω ϵ (∇ × F, δG) = i (- ω ϵ A ∇ F,δG), A = [0 1; -1; 0]
       a->AddTestIntegrator(nullptr,new MixedVectorGradientIntegrator(*negepsrot_cf),0,1);   
-
       // i ω μ (∇ × G,δF) = i (ω μ ∇ × G, δF )
-         a->AddTestIntegrator(nullptr,new MixedCurlIntegrator(*muomeg_cf),1,0);
-
+      a->AddTestIntegrator(nullptr,new MixedCurlIntegrator(*muomeg_cf),1,0);
          // i ω ϵ (G, ∇ × δF ) =  i (ω ϵ G, A ∇ δF) = i ( G , ω ϵ A ∇ δF) 
       a->AddTestIntegrator(nullptr,
          new TransposeIntegrator(new MixedVectorGradientIntegrator(*epsrot_cf)),1,0);
-
       a->AddTestIntegrator(new VectorFEMassIntegrator(*eps2omeg2_cf),nullptr,1,1);    
    }
    if (pml)
@@ -498,40 +504,40 @@ int main(int argc, char *argv[])
       // -i ω ϵ (β E , G) = -i ω ϵ ((β_re + i β_im) E, G) 
       //                  = (ω ϵ β_im E, G) + i (- ω ϵ β_re E, G)     
       a->AddTrialIntegrator(
-         new TransposeIntegrator(new VectorFEMassIntegrator(epsomeg_Jt_J_detJinv_i_restr)),
-         new TransposeIntegrator(new VectorFEMassIntegrator(negepsomeg_Jt_J_detJinv_r_restr)),0,1);
+         new TransposeIntegrator(new VectorFEMassIntegrator(epsomeg_detJ_Jt_J_inv_i_restr)),
+         new TransposeIntegrator(new VectorFEMassIntegrator(negepsomeg_detJ_Jt_J_inv_r_restr)),0,1);
       if (dim == 3)
       {
          //trial integrators
          // i ω μ (α^-1 H, F) = i ω μ ( (α^-1_re + i α^-1_im) H, F) 
          //                   = (- ω μ α^-1_im, H,F) + i *(ω μ α^-1_re H, F)
          a->AddTrialIntegrator(
-            new TransposeIntegrator(new VectorFEMassIntegrator(negmuomeg_Jt_J_detJinv_i_restr)),
-            new TransposeIntegrator(new VectorFEMassIntegrator(muomeg_Jt_J_detJinv_r_restr)),1,0);
+            new TransposeIntegrator(new VectorFEMassIntegrator(negmuomeg_detJ_Jt_J_inv_i_restr)),
+            new TransposeIntegrator(new VectorFEMassIntegrator(muomeg_detJ_Jt_J_inv_r_restr)),1,0);
          // test integrators
 
          // μ^2 ω^2 (|α|^-2 F,δF)
-         a->AddTestIntegrator(new VectorFEMassIntegrator
-         (mu2omeg2_Jt_J_detJ_inv_2_restr),nullptr,0,0);
+         a->AddTestIntegrator(
+            new VectorFEMassIntegrator(mu2omeg2_detJ_Jt_J_inv_2_restr),nullptr,0,0);
          // -i ω μ (α^-* F,∇ × δG) = i (F, - ω μ α^-1 ∇ × δ G)
          //                        = i (F, - ω μ (α^-1_re + i α^-1_im) ∇ × δ G)
          //                        = (F, - ω μ α^-1_im ∇ × δ G) + i (F, - ω μ α^-1_re ∇×δG)
-         a->AddTestIntegrator(new MixedVectorWeakCurlIntegrator(negmuomeg_Jt_J_detJinv_i_restr),
-                              new MixedVectorWeakCurlIntegrator(negmuomeg_Jt_J_detJinv_r_restr),0,1);
+         a->AddTestIntegrator(new MixedVectorWeakCurlIntegrator(negmuomeg_detJ_Jt_J_inv_i_restr),
+                              new MixedVectorWeakCurlIntegrator(negmuomeg_detJ_Jt_J_inv_r_restr),0,1);
          // -i ω ϵ (β ∇ × F, δG) = -i ω ϵ ((β_re + i β_im) ∇ × F, δG) 
          //                      = (ω ϵ β_im  ∇ × F, δG) + i (- ω ϵ β_re ∇ × F, δG)
-         a->AddTestIntegrator(new MixedVectorCurlIntegrator(epsomeg_Jt_J_detJinv_i_restr),
-                              new MixedVectorCurlIntegrator(negepsomeg_Jt_J_detJinv_r_restr),0,1);
+         a->AddTestIntegrator(new MixedVectorCurlIntegrator(epsomeg_detJ_Jt_J_inv_i_restr),
+                              new MixedVectorCurlIntegrator(negepsomeg_detJ_Jt_J_inv_r_restr),0,1);
          // i ω μ (α^-1 ∇ × G,δF) = i ω μ ((α^-1_re + i α^-1_im) ∇ × G,δF) 
          //                       = (- ω μ α^-1_im ∇ × G,δF) + i (ω μ α^-1_re ∇ × G,δF)
-         a->AddTestIntegrator(new MixedVectorCurlIntegrator(negmuomeg_Jt_J_detJinv_i_restr),
-                              new MixedVectorCurlIntegrator(muomeg_Jt_J_detJinv_r_restr),1,0);
+         a->AddTestIntegrator(new MixedVectorCurlIntegrator(negmuomeg_detJ_Jt_J_inv_i_restr),
+                              new MixedVectorCurlIntegrator(muomeg_detJ_Jt_J_inv_r_restr),1,0);
          // i ω ϵ (β^* G, ∇×δF) = i ω ϵ ( (β_re - i β_im) G, ∇×δF)
          //                     = (ω ϵ β_im G, ∇×δF) + i ( ω ϵ β_re G, ∇×δF)
-         a->AddTestIntegrator(new MixedVectorWeakCurlIntegrator(epsomeg_Jt_J_detJinv_i_restr),
-                              new MixedVectorWeakCurlIntegrator(epsomeg_Jt_J_detJinv_r_restr),1,0);
+         a->AddTestIntegrator(new MixedVectorWeakCurlIntegrator(epsomeg_detJ_Jt_J_inv_i_restr),
+                              new MixedVectorWeakCurlIntegrator(epsomeg_detJ_Jt_J_inv_r_restr),1,0);
          // ϵ^2 ω^2 (|β|^2 G,δG)
-         a->AddTestIntegrator(new VectorFEMassIntegrator(eps2omeg2_Jt_J_detJ_inv_2_restr),nullptr,1,1);
+         a->AddTestIntegrator(new VectorFEMassIntegrator(eps2omeg2_detJ_Jt_J_inv_2_restr),nullptr,1,1);
       }
       else
       {
@@ -551,8 +557,8 @@ int main(int argc, char *argv[])
             new TransposeIntegrator(new MixedCurlIntegrator(negmuomeg_detJ_r_restr)),0,1);
          // -i ω ϵ (β ∇ × F, δG) = i (- ω ϵ β A ∇ F,δG), A = [0 1; -1; 0] 
          //                      = (ω ϵ β_im A ∇ F, δG) + i (- ω ϵ β_re A ∇ F, δG)
-         a->AddTestIntegrator(new MixedVectorGradientIntegrator(epsomeg_Jt_J_detJinv_i_rot_restr),
-                              new MixedVectorGradientIntegrator(negepsomeg_Jt_J_detJinv_r_rot_restr),0,1);            
+         a->AddTestIntegrator(new MixedVectorGradientIntegrator(*epsomeg_detJ_Jt_J_inv_i_rot_restr),
+                              new MixedVectorGradientIntegrator(*negepsomeg_detJ_Jt_J_inv_r_rot_restr),0,1);            
          // i ω μ (α^-1 ∇ × G,δF) = i (ω μ α^-1 ∇ × G, δF )
          //                       = (- ω μ α^-1_im ∇ × G,δF) + i (ω μ α^-1_re ∇ × G,δF)
          a->AddTestIntegrator(new MixedCurlIntegrator(negmuomeg_detJ_i_restr),
@@ -560,14 +566,13 @@ int main(int argc, char *argv[])
          // i ω ϵ (β^* G, ∇ × δF ) = i ( G , ω ϵ β A ∇ δF) 
          //                        =  ( G , ω ϵ β_im A ∇ δF) + i ( G , ω ϵ β_re A ∇ δF)
          a->AddTestIntegrator(
-            new TransposeIntegrator(new MixedVectorGradientIntegrator(epsomeg_Jt_J_detJinv_i_rot_restr)),
-            new TransposeIntegrator(new MixedVectorGradientIntegrator(epsomeg_Jt_J_detJinv_r_rot_restr)),1,0);
+            new TransposeIntegrator(new MixedVectorGradientIntegrator(*epsomeg_detJ_Jt_J_inv_i_rot_restr)),
+            new TransposeIntegrator(new MixedVectorGradientIntegrator(*epsomeg_detJ_Jt_J_inv_r_rot_restr)),1,0);
          // ϵ^2 ω^2 (|β|^2 G,δG)
-         a->AddTestIntegrator(new VectorFEMassIntegrator(eps2omeg2_Jt_J_detJ_inv_2_restr),nullptr,1,1);            
+         a->AddTestIntegrator(new VectorFEMassIntegrator(eps2omeg2_detJ_Jt_J_inv_2_restr),nullptr,1,1);            
       }
    }
    // RHS
-
    VectorFunctionCoefficient f_rhs_r(dim,rhs_func_r);
    VectorFunctionCoefficient f_rhs_i(dim,rhs_func_i);
    if (prob < 2)
@@ -691,7 +696,6 @@ int main(int argc, char *argv[])
 
       X = 0.;
       BlockDiagonalPreconditioner M(tdof_offsets);
-      M.owns_blocks=0;
 
       if (!static_cond)
       {
@@ -730,8 +734,8 @@ int main(int argc, char *argv[])
       CGSolver cg(MPI_COMM_WORLD);
       cg.SetRelTol(1e-6);
       cg.SetAbsTol(1e-6);
-      cg.SetMaxIter(100000);
-      cg.SetPrintLevel(1);
+      cg.SetMaxIter(10000);
+      cg.SetPrintLevel(0);
       cg.SetPreconditioner(M); 
       cg.SetOperator(blockA);
       cg.Mult(B, X);
@@ -823,9 +827,9 @@ int main(int argc, char *argv[])
          char vishost[] = "localhost";
          int  visport   = 19916;
          common::VisualizeField(E_out_r,vishost, visport, E.real(), 
-                               "Numerical presure (real part)", 0, 0, 500, 500, keys);
+                               "Numerical Electric field (real part)", 0, 0, 500, 500, keys);
          common::VisualizeField(E_out_i,vishost, visport, E.imag(), 
-                        "Numerical presure (imaginary part)", 501, 0, 500, 500, keys);   
+                        "Numerical Electric field (imaginary part)", 501, 0, 500, 500, keys);   
       }
 
       if (it == pr-1)
@@ -847,12 +851,23 @@ int main(int argc, char *argv[])
       {
          pmesh.UniformRefinement();
       }
+      if (pml) pml->SetAttributes(&pmesh);
       for (int i =0; i<trial_fes.Size(); i++)
       {
          trial_fes[i]->Update(false);
       }
       a->Update();
    }
+
+   if (pml && dim == 2)
+   {
+      delete epsomeg_detJ_Jt_J_inv_i_rot;
+      delete epsomeg_detJ_Jt_J_inv_r_rot;
+      delete negepsomeg_detJ_Jt_J_inv_r_rot;
+      delete epsomeg_detJ_Jt_J_inv_i_rot_restr;
+      delete epsomeg_detJ_Jt_J_inv_r_rot_restr;
+      delete negepsomeg_detJ_Jt_J_inv_r_rot_restr;
+   }   
 
    delete a;
    delete F_fec;
@@ -1112,8 +1127,8 @@ void maxwell_solution(const Vector & X, std::vector<complex<double>> &E,
       double sina = sin(alpha); 
       double cosa = cos(alpha);
       // shift the origin
-      double xprim=X(0) - 0.5;
-      double yprim=X(1) - 0.5;
+      double xprim=X(0) + 0.1;
+      double yprim=X(1) + 0.1;
 
       double  x = xprim*sina - yprim*cosa;
       double  y = xprim*cosa + yprim*sina;
