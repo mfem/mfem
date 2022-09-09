@@ -75,6 +75,7 @@ set(SRCS
   linearform.cpp
   linearform_ext.cpp
   lininteg.cpp
+  lininteg_boundary.cpp
   lininteg_domain.cpp
   lininteg_domain_grad.cpp
   lor/lor.cpp
