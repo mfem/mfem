@@ -51,7 +51,7 @@ void CartesianPML::SetBoundaries()
    }
 }
 
-void CartesianPML::SetAttributes(Mesh *mesh_)
+void CartesianPML::SetAttributes(Mesh *mesh_, Array<int> * attrNonPML, Array<int> * attrPML)
 {
    int nrelem = mesh_->GetNE();
    elems.SetSize(nrelem);
@@ -88,6 +88,26 @@ void CartesianPML::SetAttributes(Mesh *mesh_)
       }
    }
    mesh_->SetAttributes();
+
+   if (mesh_->attributes.Size())
+   {
+      if (attrNonPML)
+      {
+         attrNonPML->SetSize(mesh_->attributes.Max());
+         *attrNonPML = 0; (*attrNonPML)[0] = 1;
+
+      } 
+      if (attrPML)
+      {
+         attrPML->SetSize(mesh_->attributes.Max());
+         *attrPML = 0;
+         if (mesh_->attributes.Max()>1)
+         {
+            (*attrPML)[1]=1;
+         }
+      }
+   }
+
 }
 
 void CartesianPML::StretchFunction(const Vector &x,
@@ -198,17 +218,14 @@ void abs_Jt_J_detJinv_2_function(const Vector & x, CartesianPML * pml , DenseMat
 
 
 // Maxwell PML coeffiecients
-void detJ_JT_J_inv_Re(const Vector &x, CartesianPML * pml, DenseMatrix &M)
+void detJ_Jt_J_inv_r(const Vector &x, CartesianPML * pml, DenseMatrix &M)
 {
    int dim = pml->dim;
    vector<complex<double>> dxs(dim);
    complex<double> det(1.0, 0.0);
    pml->StretchFunction(x, dxs);
 
-   for (int i = 0; i < dim; ++i)
-   {
-      det *= dxs[i];
-   }
+   for (int i = 0; i < dim; ++i) det *= dxs[i];
 
    M = 0.0;
    for (int i = 0; i < dim; ++i)
@@ -217,17 +234,14 @@ void detJ_JT_J_inv_Re(const Vector &x, CartesianPML * pml, DenseMatrix &M)
    }
 }
 
-void detJ_JT_J_inv_Im(const Vector &x, CartesianPML * pml, DenseMatrix &M)
+void detJ_Jt_J_inv_i(const Vector &x, CartesianPML * pml, DenseMatrix &M)
 {
    int dim = pml->dim;
    vector<complex<double>> dxs(dim);
    complex<double> det = 1.0;
    pml->StretchFunction(x, dxs);
 
-   for (int i = 0; i < dim; ++i)
-   {
-      det *= dxs[i];
-   }
+   for (int i = 0; i < dim; ++i) det *= dxs[i];
 
    M = 0.0;
    for (int i = 0; i < dim; ++i)
@@ -236,74 +250,72 @@ void detJ_JT_J_inv_Im(const Vector &x, CartesianPML * pml, DenseMatrix &M)
    }
 }
 
-void detJ_JT_J_inv_abs(const Vector &x, CartesianPML * pml, DenseMatrix &M)
+void detJ_Jt_J_inv_abs_2(const Vector &x, CartesianPML * pml, DenseMatrix &M)
 {
    int dim = pml->dim;
    vector<complex<double>> dxs(dim);
    complex<double> det = 1.0;
    pml->StretchFunction(x, dxs);
 
-   for (int i = 0; i < dim; ++i)
-   {
-      det *= dxs[i];
-   }
+   for (int i = 0; i < dim; ++i)  det *= dxs[i];
 
    M = 0.0;
    for (int i = 0; i < dim; ++i)
    {
-      M(i, i) = abs(det / pow(dxs[i], 2));
+      complex<double> a = det / pow(dxs[i], 2);
+      M(i, i) = a.real()*a.real() + a.imag()*a.imag();
    }
 }
 
-void detJ_inv_JT_J_Re(const Vector &x, CartesianPML * pml, DenseMatrix &M)
-{
-   int dim = pml->dim;
-   vector<complex<double>> dxs(dim);
-   complex<double> det(1.0, 0.0);
-   pml->StretchFunction(x, dxs);
+// void detJ_inv_JT_J_Re(const Vector &x, CartesianPML * pml, DenseMatrix &M)
+// {
+//    int dim = pml->dim;
+//    vector<complex<double>> dxs(dim);
+//    complex<double> det(1.0, 0.0);
+//    pml->StretchFunction(x, dxs);
 
-   for (int i = 0; i < dim; ++i)
-   {
-      det *= dxs[i];
-   }
+//    for (int i = 0; i < dim; ++i)
+//    {
+//       det *= dxs[i];
+//    }
 
-   // in the 2D case the coefficient is scalar 1/det(J)
-   if (dim == 2)
-   {
-      M = (1.0 / det).real();
-   }
-   else
-   {
-      M = 0.0;
-      for (int i = 0; i < dim; ++i)
-      {
-         M(i, i) = (pow(dxs[i], 2) / det).real();
-      }
-   }
-}
+//    // in the 2D case the coefficient is scalar 1/det(J)
+//    if (dim == 2)
+//    {
+//       M = (1.0 / det).real();
+//    }
+//    else
+//    {
+//       M = 0.0;
+//       for (int i = 0; i < dim; ++i)
+//       {
+//          M(i, i) = (pow(dxs[i], 2) / det).real();
+//       }
+//    }
+// }
 
-void detJ_inv_JT_J_Im(const Vector &x, CartesianPML * pml, DenseMatrix &M)
-{
-   int dim = pml->dim;
-   vector<complex<double>> dxs(dim);
-   complex<double> det = 1.0;
-   pml->StretchFunction(x, dxs);
+// void detJ_inv_JT_J_Im(const Vector &x, CartesianPML * pml, DenseMatrix &M)
+// {
+//    int dim = pml->dim;
+//    vector<complex<double>> dxs(dim);
+//    complex<double> det = 1.0;
+//    pml->StretchFunction(x, dxs);
 
-   for (int i = 0; i < dim; ++i)
-   {
-      det *= dxs[i];
-   }
+//    for (int i = 0; i < dim; ++i)
+//    {
+//       det *= dxs[i];
+//    }
 
-   if (dim == 2)
-   {
-      M = (1.0 / det).imag();
-   }
-   else
-   {
-      M = 0.0;
-      for (int i = 0; i < dim; ++i)
-      {
-         M(i, i) = (pow(dxs[i], 2) / det).imag();
-      }
-   }
-}
+//    if (dim == 2)
+//    {
+//       M = (1.0 / det).imag();
+//    }
+//    else
+//    {
+//       M = 0.0;
+//       for (int i = 0; i < dim; ++i)
+//       {
+//          M(i, i) = (pow(dxs[i], 2) / det).imag();
+//       }
+//    }
+// }
