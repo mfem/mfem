@@ -218,7 +218,7 @@ void abs_Jt_J_detJinv_2_function(const Vector & x, CartesianPML * pml , DenseMat
 
 
 // Maxwell PML coeffiecients
-void detJ_Jt_J_inv_r(const Vector &x, CartesianPML * pml, DenseMatrix &M)
+void detJ_Jt_J_inv_r_function(const Vector &x, CartesianPML * pml, DenseMatrix &M)
 {
    int dim = pml->dim;
    vector<complex<double>> dxs(dim);
@@ -234,7 +234,7 @@ void detJ_Jt_J_inv_r(const Vector &x, CartesianPML * pml, DenseMatrix &M)
    }
 }
 
-void detJ_Jt_J_inv_i(const Vector &x, CartesianPML * pml, DenseMatrix &M)
+void detJ_Jt_J_inv_i_function(const Vector &x, CartesianPML * pml, DenseMatrix &M)
 {
    int dim = pml->dim;
    vector<complex<double>> dxs(dim);
@@ -250,7 +250,7 @@ void detJ_Jt_J_inv_i(const Vector &x, CartesianPML * pml, DenseMatrix &M)
    }
 }
 
-void detJ_Jt_J_inv_abs_2(const Vector &x, CartesianPML * pml, DenseMatrix &M)
+void abs_detJ_Jt_J_inv_2_function(const Vector &x, CartesianPML * pml, DenseMatrix &M)
 {
    int dim = pml->dim;
    vector<complex<double>> dxs(dim);
