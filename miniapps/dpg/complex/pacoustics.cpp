@@ -13,6 +13,7 @@
 // mpirun -np 4 ./pacoustics -o 4 -m scatter.mesh -sref 1 -pref 0  -rnum 12.1 -sc -prob 4
 
 // AMR runs
+// mpirun -np 4 ./pacoustics -o 3 -m scatter.mesh -sref 0 -pref 20 -theta 0.75 -rnum 10.1 -sc -prob 2
 // mpirun -np 4 ./pacoustics -o 3 -m scatter.mesh -sref 0 -pref 12 -theta 0.75 -rnum 20.1 -sc -prob 2
 // mpirun -np 4 ./pacoustics -o 3 -m scatter.mesh -sref 0 -pref 20 -theta 0.75 -rnum 30.1 -sc -prob 2
 
@@ -185,7 +186,8 @@ int main(int argc, char *argv[])
    args.AddOption(&rnum, "-rnum", "--number_of_wavelenths",
                   "Number of wavelengths");     
    args.AddOption(&iprob, "-prob", "--problem", "Problem case"
-                  " 0: plane wave, 1: Gaussian beam, 2: Gaussian with PML, 3: Scattering with PML");                    
+                  " 0: plane wave, 1: Gaussian beam, 2: Scattering of a Gaussian beam"
+                  "3: Scattering of a plane wave, 4: Point source");                    
    args.AddOption(&delta_order, "-do", "--delta_order",
                   "Order enrichment for DPG test space.");     
    args.AddOption(&theta, "-theta", "--theta",
@@ -244,7 +246,10 @@ int main(int argc, char *argv[])
    ParMesh pmesh(MPI_COMM_WORLD, mesh);
    mesh.Clear();
 
-   if (pml) pml->SetAttributes(&pmesh);
+   Array<int> attr;
+   Array<int> attrPML;
+   // PML element attribute marker
+   if (pml) pml->SetAttributes(&pmesh, &attr, &attrPML);
 
    // Define spaces
    // L2 space for p
@@ -270,31 +275,12 @@ int main(int argc, char *argv[])
 
    Array<ParFiniteElementSpace * > trial_fes; 
    Array<FiniteElementCollection * > test_fec; 
-
    trial_fes.Append(p_fes);
    trial_fes.Append(u_fes);
    trial_fes.Append(hatp_fes);
    trial_fes.Append(hatu_fes);
    test_fec.Append(q_fec);
    test_fec.Append(v_fec);
-
-   // PML element attribute marker
-   Array<int> attr;
-   Array<int> attrPML;
-   if (pml)
-   {
-      if (pmesh.attributes.Size())
-      {
-         attr.SetSize(pmesh.attributes.Max());
-         attrPML.SetSize(pmesh.attributes.Max());
-         attr = 0;   attr[0] = 1;
-         attrPML = 0;
-         if (pmesh.attributes.Max() > 1)
-         {
-            attrPML[1] = 1;
-         }
-      }
-   }
 
    // Bilinear form Coefficients
    Coefficient * omeg_cf = nullptr;
@@ -407,22 +393,22 @@ int main(int argc, char *argv[])
       //                = (ω α_i ∇q,δv) + i (-ω α_r ∇q,δv) 
       a->AddTestIntegrator(new MixedVectorGradientIntegrator(omeg_Jt_J_detJinv_i_restr),
                            new MixedVectorGradientIntegrator(negomeg_Jt_J_detJinv_r_restr),0,1);
-      // i ω (α^* v,∇ δq)  = i ω (ᾱ v,∇ δq) (since α is diagonal)
-      //                   = i ω ( (α_r v,∇ δq) - i (α_i v,∇ δq)  
-      //                   = (ω α_i v, ∇ δq) + i (ω α_r v,∇ δq )    
-      a->AddTestIntegrator(new MixedVectorWeakDivergenceIntegrator(omeg_Jt_J_detJinv_i_restr),
-                           new MixedVectorWeakDivergenceIntegrator(omeg_Jt_J_detJinv_r_restr),1,0);
-      // ω^2 (|α|^2 v,δv) α α^* = |α|^2 since α is diagonal   
+      // // i ω (α^* v,∇ δq)  = i ω (ᾱ v,∇ δq) (since α is diagonal)
+      // //                   = i ω ( (α_r v,∇ δq) - i (α_i v,∇ δq)  
+      // //                   = (ω α_i v, ∇ δq) + i (ω α_r v,∇ δq )    
+      a->AddTestIntegrator(new MixedVectorWeakDivergenceIntegrator(negomeg_Jt_J_detJinv_i_restr),
+                           new MixedVectorWeakDivergenceIntegrator(negomeg_Jt_J_detJinv_r_restr),1,0);
+      // // ω^2 (|α|^2 v,δv) α α^* = |α|^2 since α is diagonal   
       a->AddTestIntegrator(new VectorFEMassIntegrator(omeg2_abs_Jt_J_detJinv_2_restr),nullptr,1,1);
-      // - i ω (β ∇⋅v,δq) = - i ω ( (β_re ∇⋅v,δq) + i (β_im ∇⋅v,δq) ) 
-      //                  = (ω β_im ∇⋅v,δq) + i (-ω β_re ∇⋅v,δq )
+      // // - i ω (β ∇⋅v,δq) = - i ω ( (β_re ∇⋅v,δq) + i (β_im ∇⋅v,δq) ) 
+      // //                  = (ω β_im ∇⋅v,δq) + i (-ω β_re ∇⋅v,δq )
       a->AddTestIntegrator(new VectorFEDivergenceIntegrator(omeg_detJ_i_restr),
                            new VectorFEDivergenceIntegrator(negomeg_detJ_r_restr),1,0);
-      // i ω (β̄ q,∇⋅v) =  i ω ( (β_re ∇⋅v,δq) - i (β_im ∇⋅v,δq) ) 
-      //               =  (ω β_im ∇⋅v,δq) + i (ω β_re ∇⋅v,δq )
-      a->AddTestIntegrator(new MixedScalarWeakGradientIntegrator(omeg_detJ_i_restr),
-                           new MixedScalarWeakGradientIntegrator(omeg_detJ_r_restr),0,1);
-      // ω^2 (β̄ β q,δq) = (ω^2 |β|^2 )
+      // // i ω (β̄ q,∇⋅v) =  i ω ( (β_re ∇⋅v,δq) - i (β_im ∇⋅v,δq) ) 
+      // //               =  (ω β_im ∇⋅v,δq) + i (ω β_re ∇⋅v,δq )
+      a->AddTestIntegrator(new MixedScalarWeakGradientIntegrator(negomeg_detJ_i_restr),
+                           new MixedScalarWeakGradientIntegrator(negomeg_detJ_r_restr),0,1);
+      // // ω^2 (β̄ β q,δq) = (ω^2 |β|^2 )
       a->AddTestIntegrator(new MassIntegrator(omeg2_abs_detJ_2_restr),nullptr,0,0);
    }
 
@@ -438,9 +424,6 @@ int main(int argc, char *argv[])
 
    FunctionCoefficient hatpex_r(hatp_exact_r);
    FunctionCoefficient hatpex_i(hatp_exact_i);
-
-   VectorFunctionCoefficient hatuex_r(dim,hatu_exact_r);
-   VectorFunctionCoefficient hatuex_i(dim,hatu_exact_i);
 
    Array<int> elements_to_refine;
 
@@ -593,8 +576,6 @@ int main(int argc, char *argv[])
          delete &M.GetDiagonalBlock(i);
       }
 
-      int ne = pmesh.GetNE();
-      MPI_Allreduce(MPI_IN_PLACE,&ne,1,MPI_INT,MPI_SUM,MPI_COMM_WORLD);
       int num_iter = cg.GetNumIterations();
 
       a->RecoverFEMSolution(X,x);
@@ -719,6 +700,7 @@ int main(int argc, char *argv[])
       delete omeg_cf;
       delete omeg2_cf;
       delete negomeg_cf;
+      delete pml;
    }
    delete a;
    delete q_fec;
