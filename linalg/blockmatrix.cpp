@@ -15,6 +15,7 @@
 #include "sparsemat.hpp"
 #include "blockvector.hpp"
 #include "blockmatrix.hpp"
+#include <vector>
 
 namespace mfem
 {
@@ -320,6 +321,54 @@ void BlockMatrix::EliminateRowCol(Array<int> & ess_bc_dofs, Vector & sol,
    }
 }
 
+void BlockMatrix::EliminateRowCols(const Array<int> & vdofs, BlockMatrix *Ae,
+                                   DiagonalPolicy dpolicy)
+{
+   MFEM_VERIFY(Ae,
+               "BlockMatrix::EliminateRowCols: Elimination matrix pointer is null");
+   MFEM_VERIFY(nRowBlocks == nColBlocks,
+               "BlockMatrix::EliminateRowCols supported only for"
+               "nRowBlocks = nColBlocks");
+
+   std::vector<Array<int>> cols(nRowBlocks);
+   std::vector<Array<int>> rows(nRowBlocks);
+   SparseMatrix * tmp = nullptr;
+
+   for (int k = 0; k < vdofs.Size(); k++)
+   {
+      int vdof = (vdofs[k]) >=0 ? vdofs[k] : -1 - vdofs[k];
+      // find block
+      int iblock, dof;
+      findGlobalCol(vdof,iblock,dof);
+      cols[iblock].Append(dof);
+      tmp = &GetBlock(iblock,iblock);
+      if (tmp)
+      {
+         tmp->EliminateRowCol(dof,Ae->GetBlock(iblock,iblock), dpolicy);
+      }
+   }
+
+   // Eliminate col from off-diagonal blocks
+   for (int j = 0; j<nColBlocks; j++)
+   {
+      if (!cols[j].Size()) { continue; }
+      int blocksize = col_offsets[j+1] - col_offsets[j];
+      Array<int> colmarker(blocksize); colmarker = 0;
+      for (int i = 0; i < cols[j].Size(); i++) { colmarker[cols[j][i]] = 1; }
+      for (int i = 0; i<nRowBlocks; i++)
+      {
+         if (i == j) { continue; }
+         tmp = &GetBlock(i,j);
+         if (tmp) { tmp->EliminateCols(colmarker,Ae->GetBlock(i,j)); }
+         for (int k = 0; k < cols[j].Size(); k++)
+         {
+            tmp = &GetBlock(j,i);
+            if (tmp) { tmp->EliminateRow(cols[j][k]); }
+         }
+      }
+   }
+}
+
 void BlockMatrix::EliminateZeroRows(const double threshold)
 {
    MFEM_VERIFY(nRowBlocks == nColBlocks, "not a square matrix");
@@ -470,6 +519,45 @@ void BlockMatrix::AddMultTranspose(const Vector & x, Vector & y,
       }
    }
 }
+
+void BlockMatrix::PartMult(const Array<int> &rows, const Vector &x,
+                           Vector &y) const
+{
+   Array<int> cols;
+   Vector srow;
+   for (int i = 0; i<rows.Size(); i++)
+   {
+      int dof = (rows[i]>=0) ? rows[i] : -1-rows[i];
+      GetRow(dof,cols,srow);
+
+      double s=0.0;
+      for (int k = 0; k <cols.Size(); k++)
+      {
+         s += srow[k] * x[cols[k]];
+      }
+      y[dof] = s;
+   }
+}
+void BlockMatrix::PartAddMult(const Array<int> &rows, const Vector &x,
+                              Vector &y,
+                              const double a) const
+{
+   Array<int> cols;
+   Vector srow;
+   for (int i = 0; i<rows.Size(); i++)
+   {
+      int dof = (rows[i]>=0) ? rows[i] : -1-rows[i];
+      GetRow(dof,cols,srow);
+
+      double s=0.0;
+      for (int k = 0; k <cols.Size(); k++)
+      {
+         s += srow[k] * x[cols[k]];
+      }
+      y[dof] += a * s;
+   }
+}
+
 
 SparseMatrix * BlockMatrix::CreateMonolithic() const
 {
