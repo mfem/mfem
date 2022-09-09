@@ -123,8 +123,8 @@ class FaceQuadratureInterpolator;
     all elements are locally owned so all element dofs are represented in the
     set of local dofs.
     @par
-    There is one important caveat regarding local dofs. Some basis function
-    types, Nedelec and Raviart-Thomas are the prime examples, have an
+    There are two important caveats regarding local dofs. First, some basis
+    function types, Nedelec and Raviart-Thomas are the prime examples, have an
     orientation associated with each basis function. The relative orientations
     of such basis functions in neighboring elements can lead to shared degrees
     of freedom with opposite signs from the point of view of these neighboring
@@ -137,6 +137,16 @@ class FaceQuadratureInterpolator;
     the actual offset into the vector of local dofs is @b -index-1 and the
     value expected by this element should have the opposite sign to the value
     stored in the local dof vector.
+    @par
+    The second important caveat only pertains to high order Nedelec basis
+    functions when shared triangular faces are present in the mesh. In this
+    very particular case the relative orientation of the face with respect to
+    its two nieghboring elements can lead to different definitions of the
+    degrees of freedom associated with the interior of the face which cannot
+    be handled by simply flipping the signs of the corresponding values. The
+    DofTransformation class is designed to manage the necessary @b edof to
+    @b ldof transformations in this case. See DofTransformation for more
+    information.
 
     @anchor tdof @par True DoF:
     As the name suggests "true dofs" or @b tdofs form the minimal set of data
