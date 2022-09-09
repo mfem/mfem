@@ -129,7 +129,7 @@ void ParFiniteElementSpace::ParInit(ParMesh *pm)
       ApplyLDofSigns(*elem_dof);
    }
 
-   // Check for shared trianglular faces with interior Nedelec DoFs
+   // Check for shared triangular faces with interior Nedelec DoFs
    CheckNDSTriaDofs();
 }
 

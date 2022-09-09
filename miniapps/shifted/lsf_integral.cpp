@@ -200,7 +200,7 @@ int main(int argc, char *argv[])
       doftrans = fespace.GetElementVDofs(i,vdofs);
       x.GetSubVector(vdofs, lsfun);
 
-      //contruct Algoim integration object
+      //construct Algoim integration object
       AlgoimIntegrationRule air(aorder, *el, *trans, lsfun);
 
       //compute the volume contribution from the element
