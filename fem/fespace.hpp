@@ -769,11 +769,25 @@ public:
    /// @brief Returns indices of degrees of freedom of element 'elem'.
    /// The returned indices are offsets into an @ref ldof vector. See also
    /// GetElementVDofs().
+   ///
+   /// @note In many case the returned DofTransformation object will be NULL.
+   /// In other cases see the documentation of the DofTransformation class for
+   /// guidance on its role in performing @ref edof to @ref ldof transformations
+   /// on local vectors and matrices.
+   ///
+   /// @note The returned object should NOT be deleted by the caller.
    virtual DofTransformation *GetElementDofs(int elem, Array<int> &dofs) const;
 
    /// @brief Returns indices of degrees of freedom for boundary element 'bel'.
    /// The returned indices are offsets into an @ref ldof vector. See also
    /// GetBdrElementVDofs().
+   ///
+   /// @note In many case the returned DofTransformation object will be NULL.
+   /// In other cases see the documentation of the DofTransformation class for
+   /// guidance on its role in performing @ref edof to @ref ldof transformations
+   /// on local vectors and matrices.
+   ///
+   /// @note The returned object should NOT be deleted by the caller.
    virtual DofTransformation *GetBdrElementDofs(int bel,
                                                 Array<int> &dofs) const;
 
@@ -950,12 +964,16 @@ public:
    /// @brief Returns indices of degrees of freedom for the @a i'th element.
    /// The returned indices are offsets into an @ref ldof vector with @b vdim
    /// not necessarily equal to 1. See also GetElementDofs().
+   ///
+   /// @note The returned object should NOT be deleted by the caller.
    DofTransformation *GetElementVDofs(int i, Array<int> &vdofs) const;
 
    /// @brief Returns indices of degrees of freedom for @a i'th boundary
    /// element.
    /// The returned indices are offsets into an @ref ldof vector with @b vdim
    /// not necessarily equal to 1. See also GetBdrElementDofs().
+   ///
+   /// @note The returned object should NOT be deleted by the caller.
    DofTransformation *GetBdrElementVDofs(int i, Array<int> &vdofs) const;
 
    /// @brief Returns the indices of the degrees of freedom for the specified
