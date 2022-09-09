@@ -3635,6 +3635,8 @@ void QuadratureSpace::Construct()
       offset += int_rule[geom]->GetNPoints();
    }
    element_offsets[num_elem] = size = offset;
+
+   snprintf(qs_name, 32, "QF_Default_%d", order);
 }
 
 QuadratureSpace::QuadratureSpace(Mesh *mesh_, std::istream &in)
@@ -3665,6 +3667,22 @@ void QuadratureSpace::Save(std::ostream &os) const
    os << "QuadratureSpace\n"
       << "Type: default_quadrature\n"
       << "Order: " << order << '\n';
+}
+
+QuadratureSpace *QuadratureSpace::New(const char* name, Mesh* mesh)
+{
+   QuadratureSpace* qspace = nullptr;
+   if (!strncmp(name, "QF_Default_", 11))
+   {
+      // Note that the VDIM is not used here because it is part of the QuadratureFunction
+      qspace = new QuadratureSpace(mesh, atoi(name + 11));
+   }
+   else
+   {
+      MFEM_ABORT("Unknown QuadratureSpace basis: " << name);
+   }
+
+   return qspace;
 }
 
 } // namespace mfem
