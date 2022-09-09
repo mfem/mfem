@@ -41,6 +41,8 @@ void SysOperator::Mult(const Vector &psi, Vector &y) const {
   set<int> plasma_inds;
   compute_plasma_points(x, *mesh, vertex_map, plasma_inds, ind_min, ind_max, min_val, max_val, iprint);
   NonlinearGridCoefficient nlgcoeff1(model, 1, &x, min_val, max_val, plasma_inds, attr_lim);
+  printf(" min_val: %f, x_val: %f \n", min_val, max_val);
+  printf(" ind_min: %d, ind_x: %d \n", ind_min, ind_max);
   LinearForm plasma_term(fespace);
   plasma_term.AddDomainIntegrator(new DomainLFIntegrator(nlgcoeff1));
   plasma_term.Assemble();

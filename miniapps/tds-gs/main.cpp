@@ -185,7 +185,7 @@ int main(int argc, char *argv[])
    }
 
    // manufactured solution forcing
-   double r0_ = 0.625+0.75/2;
+   double r0_ = 1.0;
    double z0_ = 0.0;
    double L_ = 0.35;
    double k_ = M_PI/(2.0*L_);
@@ -259,6 +259,7 @@ int main(int argc, char *argv[])
    PCG(A, M, B, X, 0, 400, 1e-12, 0.0);
    diff_operator.RecoverFEMSolution(X, coil_term, x);
    // x is the recovered solution
+   // x.ProjectCoefficient(exact_coefficient);
 
    // now we have an initial guess: x
    x.Save("sol.gf");
@@ -272,6 +273,7 @@ int main(int argc, char *argv[])
    LinearForm out_vec(&fespace);
    SysOperator op(&diff_operator, &coil_term, &model, &fespace, &mesh, attr_lim);
    dx = 0.0;
+
    // x = psi_init;
    for (int i = 0; i < 5; ++i) {
 
@@ -308,10 +310,29 @@ int main(int argc, char *argv[])
    add(x, -1.0, u, diff);
    double num_error = GetMaxError(diff);
    diff.Save("error.gf");
+   double L2_error = x.ComputeL2Error(exact_coefficient);
    printf("\n\n********************************\n");
    printf("numerical error: %.3e\n", num_error);
+   printf("L2 error: %.3e\n", L2_error);
    printf("********************************\n\n");
-     
+
+   Vector x_sub;
+   x.GetSubVector(boundary_dofs, x_sub);
+   ofstream myfile ("dof.dat");
+   x_sub.Print(myfile, 1000);   
+
+   Vector x_exact_sub;
+   u.GetSubVector(boundary_dofs, x_exact_sub);
+   ofstream myfile_exact ("dof_exact.dat");
+   x_exact_sub.Print(myfile_exact, 1000);   
+
+   // Array<int> ess_vdof;
+   // fespace.GetEssentialVDofs(ess_bdr, ess_vdof);
+   // ofstream myfile0 ("vdof.dat"), myfile3("tdof.dat");
+   // // ess_tdof_list.Print(myfile3, 1000);
+   // ess_vdof.Print(myfile0, 1000);   
+   
+   
    x.Save("final.gf");
    return 0;
 }

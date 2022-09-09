@@ -230,6 +230,11 @@ void compute_plasma_points(const GridFunction & z, const Mesh & mesh,
      printf("x_val of %9.6f at (%9.6f, %9.6f), ind %d\n", x_val, x_x[0], x_x[1], ind_x);
    }
 
+   // DAS: we need to return the x_val, not the max_val.
+   // TODO, refactor to make less confusing...
+   max_val = x_val;
+   ind_max = ind_x;
+
 
    // start at x_min and mark vertices that are in the plasma
    list<int> queue;

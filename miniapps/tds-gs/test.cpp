@@ -9,7 +9,8 @@ int test_plasma_point_calculator() {
 
   // load mesh and project initial solution
   // const char *mesh_file = "meshes/gs_mesh.msh";
-  const char *mesh_file = "meshes/test.msh";
+  // const char *mesh_file = "meshes/test.msh";
+  const char *mesh_file = "meshes/test_off_center.msh";
   const char *data_file = "separated_file.data";
   int order = 1;
   Mesh mesh(mesh_file);
