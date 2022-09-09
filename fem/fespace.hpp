@@ -755,48 +755,87 @@ public:
    /// should be used instead or one of the @ref dof2vdof "DofToVDof" methods
    /// could be used to produce the appropriate offsets from these local dofs.
    ///@{
-  
+
    /// @brief Returns indices of degrees of freedom of element 'elem'.
-   /// The returned indices are offsets into an @ref ldof vector.
+   /// The returned indices are offsets into an @ref ldof vector. See also
+   /// GetElementVDofs().
    virtual DofTransformation *GetElementDofs(int elem, Array<int> &dofs) const;
 
    /// @brief Returns indices of degrees of freedom for boundary element 'bel'.
-   /// The returned indices are offsets into an @ref ldof vector.
+   /// The returned indices are offsets into an @ref ldof vector. See also
+   /// GetBdrElementVDofs().
    virtual DofTransformation *GetBdrElementDofs(int bel,
                                                 Array<int> &dofs) const;
 
-   /** @brief Returns the indices of the degrees of freedom for the specified
-       face, including the DOFs for the edges and the vertices of the face. */
-   /** In variable order spaces, multiple variants of DOFs can be returned.
-       See @a GetEdgeDofs for more details.
-       @return Order of the selected variant, or -1 if there are no more
-       variants.
-
-       The returned indices are offsets into an @ref ldof vector.
-   */
+   /// @brief Returns the indices of the degrees of freedom for the specified
+   /// face, including the DOFs for the edges and the vertices of the face.
+   ///
+   /// In variable order spaces, multiple variants of DOFs can be returned.
+   /// See GetEdgeDofs() for more details.
+   /// @return Order of the selected variant, or -1 if there are no more
+   /// variants.
+   ///
+   /// The returned indices are offsets into an @ref ldof vector. See also
+   /// GetFaceVDofs().
    virtual int GetFaceDofs(int face, Array<int> &dofs, int variant = 0) const;
 
-   /** @brief Returns the indices of the degrees of freedom for the specified
-       edge, including the DOFs for the vertices of the edge. */
-   /** In variable order spaces, multiple sets of DOFs may exist on an edge,
-       corresponding to the different polynomial orders of incident elements.
-       The 'variant' parameter is the zero-based index of the desired DOF set.
-       The variants are ordered from lowest polynomial degree to the highest.
-       @return Order of the selected variant, or -1 if there are no more
-       variants.
-
-       The returned indices are offsets into an @ref ldof vector.
-   */
+   /// @brief Returns the indices of the degrees of freedom for the specified
+   /// edge, including the DOFs for the vertices of the edge.
+   ///
+   /// In variable order spaces, multiple sets of DOFs may exist on an edge,
+   /// corresponding to the different polynomial orders of incident elements.
+   /// The 'variant' parameter is the zero-based index of the desired DOF set.
+   /// The variants are ordered from lowest polynomial degree to the highest.
+   /// @return Order of the selected variant, or -1 if there are no more
+   /// variants.
+   ///
+   /// The returned indices are offsets into an @ref ldof vector. See also
+   /// GetEdgeVDofs().
    int GetEdgeDofs(int edge, Array<int> &dofs, int variant = 0) const;
 
+   /// @brief Returns the indices of the degrees of freedom for the specified
+   /// vertices.
+   ///
+   /// The returned indices are offsets into an @ref ldof vector. See also
+   /// GetVertexVDofs().
    void GetVertexDofs(int i, Array<int> &dofs) const;
 
+   /// @brief Returns the indices of the degrees of freedom for the interior
+   /// of the specified element.
+   ///
+   /// Specifically this refers to degrees of freedom which are not associated
+   /// with the vertices, edges, or faces of the mesh. This method may be
+   /// useful in conjunction with schemes which process shared and non-shared
+   /// degrees of freedom differently such as static condensation.
+   ///
+   /// The returned indices are offsets into an @ref ldof vector. See also
+   /// GetElementInteriorVDofs().
    void GetElementInteriorDofs(int i, Array<int> &dofs) const;
 
+   /// @brief Returns the indices of the degrees of freedom for the interior
+   /// of the specified face.
+   ///
+   /// Specifically this refers to degrees of freedom which are not associated
+   /// with the vertices, edges, or cell interiors of the mesh. This method may
+   /// be useful in conjunction with schemes which process shared and non-shared
+   /// degrees of freedom differently such as static condensation.
+   ///
+   /// The returned indices are offsets into an @ref ldof vector. See also
+   /// GetFaceInteriorVDofs().
    void GetFaceInteriorDofs(int i, Array<int> &dofs) const;
 
+   /// @brief Returns the number of degrees of freedom associated with the
+   /// interior of the specified element.
+   ///
+   /// See GetElementInteriorDofs() for more information or to obtain the
+   /// relevant indices.
    int GetNumElementInteriorDofs(int i) const;
 
+   /// @brief Returns the indices of the degrees of freedom for the interior
+   /// of the specified edge.
+   ///
+   /// The returned indices are offsets into an @ref ldof vector. See also
+   /// GetEdgeInteriorVDofs().
    void GetEdgeInteriorDofs(int i, Array<int> &dofs) const;
    ///@}
 
@@ -818,17 +857,18 @@ public:
    /// will verify that each @a dof lies in the proper range. If MFEM_DEBUG is
    /// disabled no range checking is performed.
    ///@{
-  
-   /** @brief Returns the indices of all of the VDofs for the specified
-       dimension 'vd'. */
-   /** The 'ndofs' parameter defines the number of Dofs in the
-       FiniteElementSpace. If 'ndofs' is -1 (the default value), then the
-       number of Dofs is determined by the FiniteElementSpace.
 
-   @note This method does not resize the @a dofs array. It takes the range of
-   dofs [0, dofs.Size()) and converts these to @ref vdof "vdofs" and stores the
-   results in the @a dofs array.
-   */
+   /// @brief Returns the indices of all of the VDofs for the specified
+   /// dimension 'vd'.
+   ///
+   /// The @a ndofs parameter can be used to indicate the total number of Dofs
+   /// associated with each component of @b vdim. If @a ndofs is -1 (the
+   /// default value), then the number of Dofs is <determined by the
+   /// FiniteElementSpace::GetNDofs().
+   ///
+   /// @note This method does not resize the @a dofs array. It takes the range
+   /// of dofs [0, dofs.Size()) and converts these to @ref vdof "vdofs" and
+   /// stores the results in the @a dofs array.
    void GetVDofs(int vd, Array<int> &dofs, int ndofs = -1) const;
 
    /// @brief Compute the full set of @ref vdof "vdofs" corresponding to each
@@ -838,6 +878,11 @@ public:
    /// length @b vdim * dofs.Size() corresponding to the entries contained in
    /// the @a dofs array.
    ///
+   /// The @a ndofs parameter can be used to indicate the total number of Dofs
+   /// associated with each component of @b vdim. If @a ndofs is -1 (the
+   /// default value), then the number of Dofs is <determined by the
+   /// FiniteElementSpace::GetNDofs().
+   ///
    /// @note The @a dofs array is overwritten and resized to accomodate the
    /// new values.
    void DofsToVDofs(Array<int> &dofs, int ndofs = -1) const;
@@ -845,12 +890,22 @@ public:
    /// @brief Compute the set of @ref vdof "vdofs" corresponding to each entry
    /// in @a dofs for the given vector index @a vd.
    ///
+   /// The @a ndofs parameter can be used to indicate the total number of Dofs
+   /// associated with each component of @b vdim. If @a ndofs is -1 (the
+   /// default value), then the number of Dofs is <determined by the
+   /// FiniteElementSpace::GetNDofs().
+   ///
    /// @note The @a dofs array is overwritten with the new values but its size
    /// will not be altered.
    void DofsToVDofs(int vd, Array<int> &dofs, int ndofs = -1) const;
 
    /// @brief Compute a single @ref vdof corresponding to the index @a dof and
    /// the vector index @a vd.
+   ///
+   /// The @a ndofs parameter can be used to indicate the total number of Dofs
+   /// associated with each component of @b vdim. If @a ndofs is -1 (the
+   /// default value), then the number of Dofs is <determined by the
+   /// FiniteElementSpace::GetNDofs().
    int DofToVDof(int dof, int vd, int ndofs = -1) const;
 
    /// @brief Compute the inverse of the Dof to VDof mapping for a single
@@ -881,26 +936,55 @@ public:
    /// access entries in GridFunction, LinearForm, and BilinearForm objects
    /// regardless of the value of @b vdim.
    /// @{
-  
-   /// Returns indexes of degrees of freedom in array dofs for i'th element.
+
+   /// @brief Returns indices of degrees of freedom for the @a i'th element.
+   /// The returned indices are offsets into an @ref ldof vector with @b vdim
+   /// not necessarily equal to 1. See also GetElementDofs().
    DofTransformation *GetElementVDofs(int i, Array<int> &vdofs) const;
 
-   /// Returns indexes of degrees of freedom for i'th boundary element.
+   /// @brief Returns indices of degrees of freedom for @a i'th boundary
+   /// element.
+   /// The returned indices are offsets into an @ref ldof vector with @b vdim
+   /// not necessarily equal to 1. See also GetBdrElementDofs().
    DofTransformation *GetBdrElementVDofs(int i, Array<int> &vdofs) const;
 
-   /// Returns indexes of degrees of freedom for i'th face element (2D and 3D).
+   /// @brief Returns the indices of the degrees of freedom for the specified
+   /// face, including the DOFs for the edges and the vertices of the face.
+   ///
+   /// The returned indices are offsets into an @ref ldof vector with @b vdim
+   /// not necessarily equal to 1. See GetFaceDofs() for more information.
    void GetFaceVDofs(int i, Array<int> &vdofs) const;
 
-   /// Returns indexes of degrees of freedom for i'th edge.
+   /// @brief Returns the indices of the degrees of freedom for the specified
+   /// edge, including the DOFs for the vertices of the edge.
+   ///
+   /// The returned indices are offsets into an @ref ldof vector with @b vdim
+   /// not necessarily equal to 1. See GetEdgeDofs() for more information.
    void GetEdgeVDofs(int i, Array<int> &vdofs) const;
 
+   /// @brief Returns the indices of the degrees of freedom for the specified
+   /// vertices.
+   ///
+   /// The returned indices are offsets into an @ref ldof vector with @b vdim
+   /// not necessarily equal to 1. See also GetVertexDofs().
    void GetVertexVDofs(int i, Array<int> &vdofs) const;
 
+   /// @brief Returns the indices of the degrees of freedom for the interior
+   /// of the specified element.
+   ///
+   /// The returned indices are offsets into an @ref ldof vector with @b vdim
+   /// not necessarily equal to 1. See GetElementInteriorDofs() for more
+   /// information.
    void GetElementInteriorVDofs(int i, Array<int> &vdofs) const;
 
+   /// @brief Returns the indices of the degrees of freedom for the interior
+   /// of the specified edge.
+   ///
+   /// The returned indices are offsets into an @ref ldof vector with @b vdim
+   /// not necessarily equal to 1. See also GetEdgeInteriorDofs().
    void GetEdgeInteriorVDofs(int i, Array<int> &vdofs) const;
    /// @}
-  
+
    /// (@deprecated) Use the Update() method if the space or mesh changed.
    MFEM_DEPRECATED void RebuildElementToDofTable();
 
