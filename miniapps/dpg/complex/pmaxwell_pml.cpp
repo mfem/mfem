@@ -271,7 +271,9 @@ int main(int argc, char *argv[])
    mesh.Clear();
 
    // 8. Set element attributes in order to distinguish elements in the PML
-   pml->SetAttributes(&pmesh);
+   Array<int> attr;
+   Array<int> attrPML;
+   pml->SetAttributes(&pmesh, &attr,&attrPML);
 
    int test_order = order+delta_order;
 
@@ -305,19 +307,6 @@ int main(int argc, char *argv[])
 
    FiniteElementCollection * G_fec = new ND_FECollection(test_order, dim);
 
-   Array<int> attr;
-   Array<int> attrPML;
-   if (pmesh.attributes.Size())
-   {
-      attr.SetSize(pmesh.attributes.Max());
-      attrPML.SetSize(pmesh.attributes.Max());
-      attr = 0;   attr[0] = 1;
-      attrPML = 0;
-      if (pmesh.attributes.Max() > 1)
-      {
-         attrPML[1] = 1;
-      }
-   }
 
    // PML coefficients
    // α^-1 = |J| J^-1 J-T (in case of d=2  α the scalar |J|)
@@ -414,7 +403,6 @@ int main(int argc, char *argv[])
    MatrixRestrictedCoefficient restr_c1_im(c1_im,attrPML);
 
    a->AddTrialIntegrator(new TransposeIntegrator(new VectorFEMassIntegrator(restr_c1_re)),new TransposeIntegrator(new VectorFEMassIntegrator(restr_c1_im)),0,1);
-
 
    // Not in PML
    // i ω μ (H, F)
@@ -677,8 +665,6 @@ int main(int argc, char *argv[])
          restr_eps2omeg2_abs2beta = new MatrixRestrictedCoefficient(*eps2omeg2_abs2beta, attrPML);
          a->AddTestIntegrator(new VectorFEMassIntegrator(*restr_eps2omeg2_abs2beta),nullptr,1,1);            
       }
-
-
    }
 
    // RHS
@@ -758,7 +744,7 @@ int main(int argc, char *argv[])
       {
          internal_bdr.SetSize(pmesh.bdr_attributes.Max());
          internal_bdr = 0;
-         internal_bdr[4]=1;
+         internal_bdr[1]=1;
       }
       hatE_gf.ProjectBdrCoefficientNormal(bdr_data_E_r,bdr_data_E_i,internal_bdr);
 
@@ -839,8 +825,8 @@ int main(int argc, char *argv[])
 
 
       CGSolver cg(MPI_COMM_WORLD);
-      cg.SetRelTol(1e-5);
-      cg.SetAbsTol(1e-5);
+      cg.SetRelTol(1e-6);
+      cg.SetAbsTol(1e-6);
       cg.SetMaxIter(10000);
       cg.SetPrintLevel(0);
       cg.SetPreconditioner(*M); 
@@ -1002,8 +988,8 @@ void maxwell_solution(const Vector &X, vector<complex<double>> &E)
    double sina = sin(alpha); 
    double cosa = cos(alpha);
    // shift the origin
-   double xprim=X(0) + 0.1; 
-   double yprim=X(1) + 0.1;
+   double xprim=X(0) - 0.5;
+   double yprim=X(1) - 0.5;
 
    double  x = xprim*sina - yprim*cosa;
    double  y = xprim*cosa + yprim*sina;
@@ -1030,6 +1016,44 @@ void maxwell_solution(const Vector &X, vector<complex<double>> &E)
 
    E[0] = zp;   
    E[1] = 0.0;   
+
+   // std::complex<double> pw = exp(-zi * omega * (X.Sum()));
+   // E[1] = pw;
+   // E[0] = pw;
+
+   // // point source
+
+   //       Vector shift(dim);
+   //       shift = 0.0;
+   // double k = omega * sqrt(epsilon * mu);
+   //       shift = -0.5;
+   //          double x0 = X(0) + shift(0);
+   //          double x1 = X(1) + shift(1);
+   //          double r = sqrt(x0 * x0 + x1 * x1);
+   //          double beta = k * r;
+
+   //          // Bessel functions
+   //          complex<double> Ho, Ho_r, Ho_rr;
+   //          Ho = jn(0, beta) + zi * yn(0, beta);
+   //          Ho_r = -k * (jn(1, beta) + zi * yn(1, beta));
+   //          Ho_rr = -k * k * (1.0 / beta *
+   //                            (jn(1, beta) + zi * yn(1, beta)) -
+   //                            (jn(2, beta) + zi * yn(2, beta)));
+
+   //          // First derivatives
+   //          double r_x = x0 / r;
+   //          double r_y = x1 / r;
+   //          double r_xy = -(r_x / r) * r_y;
+   //          double r_xx = (1.0 / r) * (1.0 - r_x * r_x);
+
+   //          complex<double> val, val_xx, val_xy;
+   //          val = 0.25 * zi * Ho;
+   //          val_xx = 0.25 * zi * (r_xx * Ho_r + r_x * r_x * Ho_rr);
+   //          val_xy = 0.25 * zi * (r_xy * Ho_r + r_x * r_y * Ho_rr);
+   //          E[0] = zi / k * (k * k * val + val_xx);
+   //          E[1] = zi / k * val_xy;
+
+
 }
 
 void E_exact_Re(const Vector &x, Vector &E)
