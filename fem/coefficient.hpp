@@ -491,7 +491,7 @@ public:
                      const IntegrationPoint &ip) { V = vec; }
 
    /// Return a reference to the constant vector in this class.
-   const Vector& GetVec() { return vec; }
+   const Vector& GetVec() const { return vec; }
 };
 
 /** @brief A piecewise vector-valued coefficient with the pieces keyed off the
