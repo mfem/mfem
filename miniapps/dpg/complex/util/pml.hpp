@@ -33,6 +33,9 @@ public:
 
    int dim;
    double omega;
+   //for Maxwell
+   double epsilon = 1.0;
+   double mu = 1.0;
    // Return Computational Domain Boundary
    Array2D<double> GetCompDomainBdr() {return comp_dom_bdr;}
 
@@ -47,7 +50,11 @@ public:
                                    Array<int> * attrPML = nullptr);
 
    void SetOmega(double omega_) {omega = omega_;}
-
+   void SetEpsilonAndMu(double epsilon_, double mu_) 
+   {
+      epsilon = epsilon_;
+      mu = mu_;
+   }
    // PML complex stretching function
    void StretchFunction(const Vector &x, vector<complex<double>> &dxs);
 };
@@ -109,5 +116,3 @@ void abs_Jt_J_detJinv_2_function(const Vector & x, CartesianPML * pml , DenseMat
 void detJ_Jt_J_inv_r_function(const Vector &x, CartesianPML * pml, DenseMatrix &M);
 void detJ_Jt_J_inv_i_function(const Vector &x, CartesianPML * pml, DenseMatrix &M);
 void abs_detJ_Jt_J_inv_2_function(const Vector &x, CartesianPML * pml, DenseMatrix &M);
-// void detJ_inv_JT_J_Re(const Vector &x, CartesianPML * pml, DenseMatrix &M);
-// void detJ_inv_JT_J_Im(const Vector &x, CartesianPML * pml, DenseMatrix &M);
