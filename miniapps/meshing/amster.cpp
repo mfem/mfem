@@ -191,7 +191,7 @@ int main (int argc, char *argv[])
    Mesh *mesh_bg = NULL;
    if (dim == 2)
    {
-      mesh_bg = new Mesh(Mesh::MakeCartesian2D(5, 5, Element::QUADRILATERAL, true));
+      mesh_bg = new Mesh(Mesh::MakeCartesian2D(4, 4, Element::QUADRILATERAL, true));
    }
    else if (dim == 3)
    {
@@ -253,6 +253,7 @@ int main (int argc, char *argv[])
    // Compute a distance function on the background.
    GridFunctionCoefficient ls_filt_coeff(&bg_domain);
    ComputeScalarDistanceFromLevelSet(*pmesh_bg, ls_filt_coeff, bg_domain, true);
+   bg_domain *= -1.0;
 
    // Offset back to the original position of the boundary.
    bg_domain += alpha;
