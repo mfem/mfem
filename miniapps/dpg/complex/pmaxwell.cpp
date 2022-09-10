@@ -3,8 +3,15 @@
 // Compile with: make pmaxwell
 //
 // sample run 
-// mpirun -np 4 ./pmaxwell -o 3 -m ../../../data/inline-quad.mesh -sref 2 -pref 3 -rnum 4.1 -prob 0 -sc 
-// mpirun -np 4 ./pmaxwell -o 3 -sref 0 -pref 15 -prob 1 -theta 0.5 
+// mpirun -np 4 pmaxwell -m ../../../data/star.mesh -o 2 -sref 0 -pref 3 -rnum 0.5 -prob 0
+// mpirun -np 4 pmaxwell -m ../../../data/inline-quad.mesh -o 3 -sref 0 -pref 3 -rnum 4.8 -sc -prob 0
+// mpirun -np 4 pmaxwell -m ../../../data/inline-hex.mesh -o 2 -sref 0 -pref 1 -rnum 0.8 -sc -prob 0
+// mpirun -np 4 pmaxwell -m ../../../data/inline-quad.mesh -o 3 -sref 1 -pref 3 -rnum 4.8 -sc -prob 2
+// mpirun -np 4 pmaxwell -o 3 -sref 1 -pref 2 -rnum 11.8 -sc -prob 3
+// mpirun -np 4 pmaxwell -o 3 -sref 1 -pref 2 -rnum 9.8 -sc -prob 4
+
+// AMR run
+// mpirun -np 4 ./pmaxwell -o 3 -sref 0 -pref 15 -prob 1 -theta 0.5 -sc
 
 
 // Description:  
@@ -19,9 +26,9 @@
 //    a) A manufactured solution problem where E is a plane beam
 // 2) Fichera "microwave" problem
 // 3) PML problems
-//    a) Gausian beam scattering from a square
+//    a) Generic PML problem with point source given by the load
 //    b) Plane wave scattering from a square
-//    c) Point Source
+//    c) PML problem with a point source prescribed on the boundary
 
 // The DPG UW deals with the First Order System
 //  i ω μ H + ∇ × E = 0,   in Ω
@@ -165,6 +172,7 @@ void maxwell_solution_r(const Vector & X, Vector &E_r,
 void maxwell_solution_i(const Vector & X, Vector &E_i, 
                       Vector &curlE_i, 
                       Vector &curlcurlE_i);     
+void source_function(const Vector &x, Vector & f);
 
 int dim;
 int dimc;
@@ -176,7 +184,7 @@ enum prob_type
 {
    plane_wave,
    fichera_oven,
-   pml_beam_scatter,
+   pml_general,
    pml_plane_wave_scatter,
    pml_pointsource     
 };
@@ -219,8 +227,9 @@ int main(int argc, char *argv[])
                   "Permittivity of free space (or mass constant).");                  
    args.AddOption(&iprob, "-prob", "--problem", "Problem case"
                   " 0: plane wave, 1: Fichera 'oven', "
-                  " 2: Scattering of a Gaussian beam, 3: Scattering of a plane wave, " 
-                  " 4: Point source");                       
+                  " 2: Generic PML problem with point source given as a load " 
+                  " 3: Scattering of a plane wave, " 
+                  " 4: Point sourceg given on the boundary");                       
    args.AddOption(&delta_order, "-do", "--delta_order",
                   "Order enrichment for DPG test space.");     
    args.AddOption(&theta, "-theta", "--theta",
@@ -257,6 +266,11 @@ int main(int argc, char *argv[])
    {
       mesh_file = "fichera-waveguide.mesh";
       omega = 5.0;
+      rnum = omega/(2.*M_PI);
+   }
+   else if (prob == 2)
+   {
+      with_pml = true;
    }
    else
    {
@@ -275,12 +289,13 @@ int main(int argc, char *argv[])
    mesh.EnsureNCMesh(false);
 
    CartesianPML * pml = nullptr;
-   // if (with_pml)
-   // {
+   if (with_pml)
+   {
       Array2D<double> length(dim, 2); length = 0.25;
       pml = new CartesianPML(&mesh,length);
       pml->SetOmega(omega);
-   // }
+      pml->SetEpsilonAndMu(epsilon,mu);
+   }
 
    ParMesh pmesh(MPI_COMM_WORLD, mesh);
    mesh.Clear();
@@ -330,7 +345,6 @@ int main(int argc, char *argv[])
    test_fec.Append(G_fec);
 
    // Bilinear form coefficients
-
    ConstantCoefficient one(1.0);
    ConstantCoefficient eps2omeg2(epsilon*epsilon*omega*omega);
    ConstantCoefficient mu2omeg2(mu*mu*omega*omega);
@@ -345,7 +359,6 @@ int main(int argc, char *argv[])
    MatrixConstantCoefficient rot(rot_mat);
    ScalarMatrixProductCoefficient epsrot(epsomeg,rot);
    ScalarMatrixProductCoefficient negepsrot(negepsomeg,rot);
-
 
    Coefficient * epsomeg_cf = nullptr;
    Coefficient * negepsomeg_cf = nullptr;
@@ -431,7 +444,7 @@ int main(int argc, char *argv[])
    }   
 
    ParComplexDPGWeakForm * a = new ParComplexDPGWeakForm(trial_fes,test_fec);
-   a->StoreMatrices();
+   a->StoreMatrices(); // needed for AMR
 
    // (E,∇ × F)
    a->AddTrialIntegrator(new TransposeIntegrator(new MixedCurlIntegrator(one)),nullptr,0,0);
@@ -446,7 +459,6 @@ int main(int argc, char *argv[])
    a->AddTestIntegrator(new CurlCurlIntegrator(one),nullptr,1,1);
    // (G,δG)
    a->AddTestIntegrator(new VectorFEMassIntegrator(one),nullptr,1,1);
-   //
    
    if (dim == 3)
    {
@@ -575,25 +587,27 @@ int main(int argc, char *argv[])
    // RHS
    VectorFunctionCoefficient f_rhs_r(dim,rhs_func_r);
    VectorFunctionCoefficient f_rhs_i(dim,rhs_func_i);
-   if (prob < 2)
+   VectorFunctionCoefficient f_source(dim,source_function);
+   if (prob == 0)
    {
       a->AddDomainLFIntegrator(new VectorFEDomainLFIntegrator(f_rhs_r),
                                new VectorFEDomainLFIntegrator(f_rhs_i),1);
+   }
+   else if (prob == 2)
+   {
+      a->AddDomainLFIntegrator(new VectorFEDomainLFIntegrator(f_source),nullptr,1);
    }
 
    VectorFunctionCoefficient hatEex_r(dim,hatE_exact_r);
    VectorFunctionCoefficient hatEex_i(dim,hatE_exact_i);
 
-   Array<int> elements_to_refine;
-
    socketstream E_out_r;
-   socketstream E_out_i;
-
+   socketstream H_out_r;
    if (myid == 0)
    {
       std::cout << "\n  Ref |" 
                 << "    Dofs    |" 
-                << "   ω   |" ;
+                << "    ω    |" ;
       if (exact_known)
       {
          std::cout  << "  L2 Error  |" 
@@ -602,7 +616,7 @@ int main(int argc, char *argv[])
       std::cout << "  Residual  |" 
                 << "  Rate  |" 
                 << " PCG it |" << endl;
-      std::cout << std::string((exact_known) ? 80 : 58,'-')      
+      std::cout << std::string((exact_known) ? 82 : 60,'-')      
                 << endl;      
    }
 
@@ -610,7 +624,8 @@ int main(int argc, char *argv[])
    double err0 = 0.;
    int dof0;
 
-   for (int it = 0; it<pr; it++)
+   Array<int> elements_to_refine;
+   for (int it = 0; it<=pr; it++)
    {
       if (static_cond) { a->EnableStaticCondensation(); }
       a->Assemble();
@@ -650,14 +665,16 @@ int main(int argc, char *argv[])
       ParComplexGridFunction hatE_gf(hatE_fes);
       hatE_gf.real().MakeRef(hatE_fes,&xdata[offsets[2]]);
       hatE_gf.imag().MakeRef(hatE_fes,&xdata[offsets.Last()+ offsets[2]]);
-
-      if (dim == 3)
+      if (prob != 2)
       {
-         hatE_gf.ProjectBdrCoefficientTangent(hatEex_r,hatEex_i, ess_bdr);
-      }
-      else
-      {
-         hatE_gf.ProjectBdrCoefficientNormal(hatEex_r,hatEex_i, ess_bdr);
+         if (dim == 3)
+         {
+            hatE_gf.ProjectBdrCoefficientTangent(hatEex_r,hatEex_i, ess_bdr);
+         }
+         else
+         {
+            hatE_gf.ProjectBdrCoefficientNormal(hatEex_r,hatEex_i, ess_bdr);
+         }
       }
 
       OperatorPtr Ah;
@@ -733,7 +750,6 @@ int main(int argc, char *argv[])
 
       CGSolver cg(MPI_COMM_WORLD);
       cg.SetRelTol(1e-6);
-      cg.SetAbsTol(1e-6);
       cg.SetMaxIter(10000);
       cg.SetPrintLevel(0);
       cg.SetPreconditioner(M); 
@@ -803,8 +819,8 @@ int main(int argc, char *argv[])
          oldState.copyfmt(std::cout);
          std::cout << std::right << std::setw(5) << it << " | " 
                   << std::setw(10) <<  dof0 << " | " 
-                  << std::setprecision(0) << std::fixed
-                  << std::setw(2) <<  2*rnum << " π  | " 
+                  << std::setprecision(1) << std::fixed
+                  << std::setw(4) <<  2.0*rnum << " π  | " 
                   << std::setprecision(3);
          if (exact_known)
          {
@@ -828,11 +844,11 @@ int main(int argc, char *argv[])
          int  visport   = 19916;
          common::VisualizeField(E_out_r,vishost, visport, E.real(), 
                                "Numerical Electric field (real part)", 0, 0, 500, 500, keys);
-         common::VisualizeField(E_out_i,vishost, visport, E.imag(), 
-                        "Numerical Electric field (imaginary part)", 501, 0, 500, 500, keys);   
+         common::VisualizeField(H_out_r,vishost, visport, H.imag(), 
+                               "Numerical Magnetic field (real part)", 501, 0, 500, 500, keys);   
       }
 
-      if (it == pr-1)
+      if (it == pr)
          break;
 
       if (theta > 0.0)
@@ -1120,42 +1136,6 @@ void maxwell_solution(const Vector & X, std::vector<complex<double>> &E,
       }
    }
    break;
-   case pml_beam_scatter:
-   {
-      double rk = omega;
-      double alpha = 45 * M_PI/180.;
-      double sina = sin(alpha); 
-      double cosa = cos(alpha);
-      // shift the origin
-      double xprim=X(0) + 0.1;
-      double yprim=X(1) + 0.1;
-
-      double  x = xprim*sina - yprim*cosa;
-      double  y = xprim*cosa + yprim*sina;
-      //wavelength
-      double rl = 2.*M_PI/rk;
-
-      // beam waist radius
-      double w0 = 0.05;
-
-      // function w
-      double fact = rl/M_PI/(w0*w0);
-      double aux = 1. + (fact*y)*(fact*y);
-
-      double w = w0*sqrt(aux);
-
-      double phi0 = atan(fact*y);
-
-      double r = y + 1./y/(fact*fact);
-
-      complex<double> ze = - x*x/(w*w) - zi*rk*y - zi * M_PI * x * x/rl/r + zi*phi0/2.;
-      double pf = pow(2.0/M_PI/(w*w),0.25);
-      complex<double> zp = pf*exp(ze);
-
-      E[0] = zp;   
-      E[1] = 0.0;
-   }   
-   break;
    case pml_pointsource:
    {
       Vector shift(dim);
@@ -1276,3 +1256,19 @@ void maxwell_solution_i(const Vector & X, Vector &E_i,
       curlE_i(i) = curlE[i].imag();
    }
 }  
+
+void source_function(const Vector &x, Vector &f)
+{
+   Vector center(dim);
+   center = 0.5;
+   double r = 0.0;
+   for (int i = 0; i < dim; ++i)
+   {
+      r += pow(x[i] - center[i], 2.);
+   }
+   double n = 5.0 * omega * sqrt(epsilon * mu) / M_PI;
+   double coeff = pow(n, 2) / M_PI;
+   double alpha = -pow(n, 2) * r;
+   f = 0.0;
+   f[0] = -omega * coeff * exp(alpha)/omega;
+}

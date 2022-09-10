@@ -4,18 +4,20 @@
 //
 // sample runs
 
-// mpirun -np 4 ./pacoustics -o 3 -m ../../../data/star.mesh -sref 1 -pref 2 -rnum 3.9 -sc -prob 0
+// mpirun -np 4 ./pacoustics -o 3 -m ../../../data/star.mesh -sref 1 -pref 2 -rnum 1.9 -sc -prob 0
 // mpirun -np 4 ./pacoustics -o 3 -m ../../../data/inline-quad.mesh -sref 1 -pref 2  -rnum 5.2 -sc -prob 1
 // mpirun -np 4 ./pacoustics -o 4 -m ../../../data/inline-tri.mesh -sref 1 -pref 2  -rnum 7.1 -sc -prob 1
 // mpirun -np 4 ./pacoustics -o 4 -m ../../../data/inline-hex.mesh -sref 0 -pref 0 -rnum 3.9 -sc -prob 0
-// mpirun -np 4 ./pacoustics -o 3 -m scatter.mesh -sref 1 -pref 0  -rnum 7.1 -sc -prob 2
-// mpirun -np 4 ./pacoustics -o 4 -m scatter.mesh -sref 1 -pref 0  -rnum 10.1 -sc -prob 3
-// mpirun -np 4 ./pacoustics -o 4 -m scatter.mesh -sref 1 -pref 0  -rnum 12.1 -sc -prob 4
+// mpirun -np 4 ./pacoustics -o 3 -m ../../../data/inline-quad.mesh -sref 1 -pref 0  -rnum 7.1 -sc -prob 2
+// mpirun -np 4 ./pacoustics -o 2 -m ../../../data/inline-hex.mesh -sref 0 -pref 1  -rnum 4.1 -sc -prob 2
+// mpirun -np 4 ./pacoustics -o 3 -m scatter.mesh -sref 1 -pref 0  -rnum 7.1 -sc -prob 3
+// mpirun -np 4 ./pacoustics -o 4 -m scatter.mesh -sref 1 -pref 0  -rnum 10.1 -sc -prob 4
+// mpirun -np 4 ./pacoustics -o 4 -m scatter.mesh -sref 1 -pref 0  -rnum 12.1 -sc -prob 5
 
 // AMR runs
-// mpirun -np 4 ./pacoustics -o 3 -m scatter.mesh -sref 0 -pref 20 -theta 0.75 -rnum 10.1 -sc -prob 2
-// mpirun -np 4 ./pacoustics -o 3 -m scatter.mesh -sref 0 -pref 12 -theta 0.75 -rnum 20.1 -sc -prob 2
-// mpirun -np 4 ./pacoustics -o 3 -m scatter.mesh -sref 0 -pref 20 -theta 0.75 -rnum 30.1 -sc -prob 2
+// mpirun -np 4 ./pacoustics -o 3 -m scatter.mesh -sref 0 -pref 10 -theta 0.75 -rnum 10.1 -sc -prob 3
+// mpirun -np 4 ./pacoustics -o 3 -m scatter.mesh -sref 0 -pref 12 -theta 0.75 -rnum 20.1 -sc -prob 3
+// mpirun -np 4 ./pacoustics -o 3 -m scatter.mesh -sref 0 -pref 20 -theta 0.75 -rnum 30.1 -sc -prob 3
 
 // Description:  
 // This example code demonstrates the use of MFEM to define and solve
@@ -141,6 +143,7 @@ double hatp_exact_i(const Vector & X);
 void hatu_exact(const Vector & X, Vector & hatu);
 void hatu_exact_r(const Vector & X, Vector & hatu);
 void hatu_exact_i(const Vector & X, Vector & hatu);
+double source_function(const Vector &x);
 
 int dim;
 double omega;
@@ -149,6 +152,7 @@ enum prob_type
 {
    plane_wave,
    gaussian_beam,
+   pml_general,
    pml_beam_scatter,
    pml_plane_wave_scatter,
    pml_pointsource
@@ -186,8 +190,9 @@ int main(int argc, char *argv[])
    args.AddOption(&rnum, "-rnum", "--number_of_wavelenths",
                   "Number of wavelengths");     
    args.AddOption(&iprob, "-prob", "--problem", "Problem case"
-                  " 0: plane wave, 1: Gaussian beam, 2: Scattering of a Gaussian beam"
-                  "3: Scattering of a plane wave, 4: Point source");                    
+                  " 0: plane wave, 1: Gaussian beam, 2: Generic PML," 
+                  " 3: Scattering of a Gaussian beam"
+                  " 4: Scattering of a plane wave, 5: Point source");                    
    args.AddOption(&delta_order, "-do", "--delta_order",
                   "Order enrichment for DPG test space.");     
    args.AddOption(&theta, "-theta", "--theta",
@@ -212,14 +217,14 @@ int main(int argc, char *argv[])
       args.PrintOptions(cout);
    }
 
-   if (iprob > 4) { iprob = 0; }
+   if (iprob > 5) { iprob = 0; }
    prob = (prob_type)iprob;
    omega = 2.*M_PI*rnum;
 
    if (prob > 1)
    {
       with_pml = true;
-      mesh_file = "scatter.mesh";
+      if (prob > 2) mesh_file = "scatter.mesh";
    }
    else
    {
@@ -334,7 +339,6 @@ int main(int argc, char *argv[])
    MatrixRestrictedCoefficient negomeg_Jt_J_detJinv_i_restr(negomeg_Jt_J_detJinv_i,attrPML);
    MatrixRestrictedCoefficient omeg2_abs_Jt_J_detJinv_2_restr(omeg2_abs_Jt_J_detJinv_2,attrPML);
 
-
    ParComplexDPGWeakForm * a = new ParComplexDPGWeakForm(trial_fes,test_fec);
    a->StoreMatrices(); // needed for AMR
 
@@ -412,14 +416,18 @@ int main(int argc, char *argv[])
       a->AddTestIntegrator(new MassIntegrator(omeg2_abs_detJ_2_restr),nullptr,0,0);
    }
 
-
    // RHS
    FunctionCoefficient f_rhs_r(rhs_func_r);
    FunctionCoefficient f_rhs_i(rhs_func_i);
+   FunctionCoefficient f_source(source_function);
    if (prob == prob_type::gaussian_beam)
    {
       a->AddDomainLFIntegrator(new DomainLFIntegrator(f_rhs_r),
                                new DomainLFIntegrator(f_rhs_i),0);
+   }
+   if (prob == prob_type::pml_general)
+   {
+      a->AddDomainLFIntegrator(new DomainLFIntegrator(f_source),nullptr,0);
    }
 
    FunctionCoefficient hatpex_r(hatp_exact_r);
@@ -433,7 +441,7 @@ int main(int argc, char *argv[])
    {
       std::cout << "\n  Ref |" 
                 << "    Dofs    |" 
-                << "   ω   |" ;
+                << "    ω    |" ;
       if (exact_known)
       {
          std::cout  << "  L2 Error  |" 
@@ -442,7 +450,7 @@ int main(int argc, char *argv[])
       std::cout << "  Residual  |" 
                 << "  Rate  |" 
                 << " PCG it |" << endl;
-      std::cout << std::string((exact_known) ? 80 : 58,'-')      
+      std::cout << std::string((exact_known) ? 82 : 60,'-')      
                 << endl;      
    }
 
@@ -462,7 +470,7 @@ int main(int argc, char *argv[])
          ess_bdr.SetSize(pmesh.bdr_attributes.Max());
          ess_bdr = 1;
          hatp_fes->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
-         if (pml)
+         if (pml && prob>2)
          {
             ess_bdr = 0;
             ess_bdr[1] = 1;
@@ -490,7 +498,10 @@ int main(int argc, char *argv[])
       ParComplexGridFunction hatp_gf(hatp_fes);
       hatp_gf.real().MakeRef(hatp_fes,&xdata[offsets[2]]);
       hatp_gf.imag().MakeRef(hatp_fes,&xdata[offsets.Last()+ offsets[2]]);
-      hatp_gf.ProjectBdrCoefficient(hatpex_r,hatpex_i, ess_bdr);
+      if (prob!=2)
+      {
+         hatp_gf.ProjectBdrCoefficient(hatpex_r,hatpex_i, ess_bdr);
+      }
 
       OperatorPtr Ah;
       Vector X,B;
@@ -638,12 +649,12 @@ int main(int argc, char *argv[])
          oldState.copyfmt(std::cout);
          std::cout << std::right << std::setw(5) << it << " | " 
                   << std::setw(10) <<  dof0 << " | " 
-                  << std::setprecision(0) << std::fixed
-                  << std::setw(2) <<  2*rnum << " π  | " 
-                  << std::setprecision(3);
+                  << std::setprecision(1) << std::fixed
+                  << std::setw(4) <<  2*rnum << " π  | ";
          if (exact_known)
          {
-            std::cout << std::setw(10) << std::scientific <<  err0 << " | " 
+            std::cout << std::setprecision(3) << std::setw(10) 
+                      << std::scientific <<  err0 << " | " 
                       << std::setprecision(2) 
                       << std::setw(6) << std::fixed << rate_err << " | " ;
          }         
@@ -666,7 +677,6 @@ int main(int argc, char *argv[])
          common::VisualizeField(p_out_i,vishost, visport, p.imag(), 
                         "Numerical presure (imaginary part)", 501, 0, 500, 500, keys);   
       }
-
 
       if (it == pr)
          break;
@@ -828,7 +838,6 @@ double rhs_func_i(const Vector &x)
    return divu + omega * p;
 }
 
-
 void acoustics_solution_r(const Vector & X, double & p, 
                           Vector &dp, double & d2p)
 {
@@ -858,7 +867,6 @@ void acoustics_solution_i(const Vector & X, double & p,
       dp[i] = dzp[i].imag();
    }
 }
-
 
 void acoustics_solution(const Vector & X, complex<double> & p, vector<complex<double>> & dp, 
          complex<double> & d2p)
@@ -969,4 +977,20 @@ void acoustics_solution(const Vector & X, complex<double> & p, vector<complex<do
       MFEM_ABORT("Should be unreachable");
       break;
    }
+}
+
+
+double source_function(const Vector &x)
+{
+   Vector center(dim);
+   center = 0.5;
+   double r = 0.0;
+   for (int i = 0; i < dim; ++i)
+   {
+      r += pow(x[i] - center[i], 2.);
+   }
+   double n = 5.0 * omega / M_PI;
+   double coeff = pow(n, 2) / M_PI;
+   double alpha = -pow(n, 2) * r;
+   return -omega * coeff * exp(alpha)/omega;
 }
