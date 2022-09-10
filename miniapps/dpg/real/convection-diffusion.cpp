@@ -3,14 +3,14 @@
 // Compile with: make convection-diffusion
 //
 // sample runs 
-// ./convection-diffusion -m ../../../data/star.mesh -o 2 -ref 3 -theta 0.0 -eps 1e-1 -beta '2 3'
-// ./convection-diffusion -m ../../../data/beam-hex.mesh -o 2 -ref 2 -theta 0.0 -eps 1e0 -beta '1 0 2'
-// ./convection-diffusion -m ../../../data/inline-tri.mesh -o 3 -ref 2 -theta 0.0 -eps 1e-2 -beta '4 2' -sc
+// convection-diffusion -m ../../../data/star.mesh -o 2 -ref 3 -theta 0.0 -eps 1e-1 -beta '2 3'
+// convection-diffusion -m ../../../data/beam-hex.mesh -o 2 -ref 2 -theta 0.0 -eps 1e0 -beta '1 0 2'
+// convection-diffusion -m ../../../data/inline-tri.mesh -o 3 -ref 2 -theta 0.0 -eps 1e-2 -beta '4 2' -sc
 
 // AMR runs
-// ./convection-diffusion  -o 3 -ref 5 -prob 1 -eps 1e-1 -theta 0.75
-// ./convection-diffusion  -o 2 -ref 9 -prob 1 -eps 1e-2 -theta 0.75
-// ./convection-diffusion  -o 3 -ref 9 -prob 1 -eps 1e-3 -theta 0.75 -sc
+// convection-diffusion  -o 3 -ref 5 -prob 1 -eps 1e-1 -theta 0.75
+// convection-diffusion  -o 2 -ref 9 -prob 1 -eps 1e-2 -theta 0.75
+// convection-diffusion  -o 3 -ref 9 -prob 1 -eps 1e-3 -theta 0.75 -sc
 
 // Description:  
 // This example code demonstrates the use of MFEM to define and solve
@@ -246,19 +246,16 @@ int main(int argc, char *argv[])
    double res0 = 0.;
    double err0 = 0.;
    int dof0;
-   mfem::out << " Refinement |" 
+   std::cout << "\n  Ref |" 
              << "    Dofs    |" 
              << "  L2 Error  |" 
              << "  Rate  |" 
              << "  Residual  |" 
              << "  Rate  |" << endl;
-   mfem::out << " -----------------"      
-             << "------------------"    
-             <<  "-----------------"    
-             <<  "-----------------" << endl;   
+   std::cout << std::string(64,'-') << endl;      
 
    if (static_cond) { a->EnableStaticCondensation(); }
-   for (int iref = 0; iref<=ref; iref++)
+   for (int it = 0; it<=ref; it++)
    {
       a->Assemble();
 
@@ -322,21 +319,20 @@ int main(int argc, char *argv[])
 
       BlockMatrix * A = Ah.As<BlockMatrix>();
 
-      BlockDiagonalPreconditioner * M = new BlockDiagonalPreconditioner(A->RowOffsets());
-      M->owns_blocks = 1;
+      BlockDiagonalPreconditioner M(A->RowOffsets());
+      M.owns_blocks = 1;
       for (int i = 0 ; i < A->NumRowBlocks(); i++)
       {
-         M->SetDiagonalBlock(i,new DSmoother(A->GetBlock(i,i)));
+         M.SetDiagonalBlock(i,new DSmoother(A->GetBlock(i,i)));
       }
 
       CGSolver cg;
       cg.SetRelTol(1e-8);
       cg.SetMaxIter(20000);
       cg.SetPrintLevel(0);
-      cg.SetPreconditioner(*M);
+      cg.SetPreconditioner(M);
       cg.SetOperator(*A);
       cg.Mult(B, X);
-      delete M;
 
       a->RecoverFEMSolution(X,x);
 
@@ -351,8 +347,8 @@ int main(int argc, char *argv[])
       Vector & residuals = a->ComputeResidual(x);
       double residual = residuals.Norml2();
 
-      double rate_err = (iref) ? dim*log(err0/L2Error)/log((double)dof0/dofs) : 0.0;
-      double rate_res = (iref) ? dim*log(res0/residual)/log((double)dof0/dofs) : 0.0;
+      double rate_err = (it) ? dim*log(err0/L2Error)/log((double)dof0/dofs) : 0.0;
+      double rate_res = (it) ? dim*log(res0/residual)/log((double)dof0/dofs) : 0.0;
 
       err0 = L2Error;
       res0 = residual;
@@ -360,7 +356,7 @@ int main(int argc, char *argv[])
 
       std::ios oldState(nullptr);
       oldState.copyfmt(std::cout);
-      std::cout << std::right << std::setw(11) << iref << " | " 
+      std::cout << std::right << std::setw(5) << it << " | " 
                 << std::setw(10) <<  dof0 << " | " 
                 << std::setprecision(3) 
                 << std::setw(10) << std::scientific <<  err0 << " | " 
@@ -375,7 +371,7 @@ int main(int argc, char *argv[])
 
       if (visualization)
       {
-         const char * keys = (iref == 0) ? "jRcm\n" : "";
+         const char * keys = (it == 0) ? "jRcm\n" : "";
          char vishost[] = "localhost";
          int  visport   = 19916;
          common::VisualizeField(u_out,vishost, visport, u_gf, 
@@ -384,7 +380,7 @@ int main(int argc, char *argv[])
                                 "Numerical flux", 501,0,500, 500, keys);            
       }
 
-      if (iref == ref)
+      if (it == ref)
          break;
 
       elements_to_refine.SetSize(0);
