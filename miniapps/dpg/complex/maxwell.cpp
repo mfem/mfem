@@ -302,16 +302,16 @@ int main(int argc, char *argv[])
    double err0 = 0.;
    int dof0;
 
-   mfem::out << "\n Refinement |" 
+   std::cout << "\n  Ref |" 
              << "    Dofs    |" 
+             << "    ω    |" 
              << "  L2 Error  |" 
-             << "  Rate  |" 
-             << " CG it  |" << endl;
-   mfem::out << " --------------------"      
-             <<  "------------------"    
-             <<  "------------------" << endl;   
+             << "  Rate  |"
+             << " PCG it |" << endl;
+   std::cout << std::string(60,'-')      
+             << endl;  
 
-   for (int iref = 0; iref<=ref; iref++)
+   for (int it = 0; it<=ref; it++)
    {
       if (static_cond) { a->EnableStaticCondensation(); }
       a->Assemble();
@@ -437,28 +437,28 @@ int main(int argc, char *argv[])
       double L2Error = sqrt(E_err_r*E_err_r + E_err_i*E_err_i 
                           + H_err_r*H_err_r + H_err_i*H_err_i);
 
-      double rate_err = (iref) ? dim*log(err0/L2Error)/log((double)dof0/dofs) : 0.0;
+      double rate_err = (it) ? dim*log(err0/L2Error)/log((double)dof0/dofs) : 0.0;
 
       err0 = L2Error;
       dof0 = dofs;
 
       std::ios oldState(nullptr);
       oldState.copyfmt(std::cout);
-      std::cout << std::right << std::setw(11) << iref << " | " 
-                  << std::setw(10) <<  dof0 << " | " 
-                  << std::setprecision(3) 
-                  << std::setw(10) << std::scientific << err0 << " | " 
-                  << std::setprecision(2) 
-                  << std::setw(6) << std::fixed << rate_err << " | " 
-                  << std::setw(6) << std::fixed << cg.GetNumIterations() << " | " 
-                  << std::setprecision(3) 
-                  << std::resetiosflags(std::ios::showbase)
-                  << std::endl;
+      std::cout << std::right << std::setw(5) << it << " | " 
+                << std::setw(10) <<  dof0 << " | " 
+                << std::setprecision(1) << std::fixed
+                << std::setw(4) <<  2*rnum << " π  | " 
+                << std::setprecision(3)
+                << std::setw(10) << std::scientific << err0 << " | " 
+                << std::setprecision(2) 
+                << std::setw(6) << std::fixed << rate_err << " | " 
+                << std::setw(6) << std::fixed << cg.GetNumIterations() << " | " 
+                << std::endl;
       std::cout.copyfmt(oldState);
 
       if (visualization)
       {
-         const char * keys = (iref == 0 && dim == 2) ? "jRcml\n" : nullptr;
+         const char * keys = (it == 0 && dim == 2) ? "jRcml\n" : nullptr;
          char vishost[] = "localhost";
          int  visport   = 19916;
          common::VisualizeField(E_out_r,vishost, visport, E.real(), 
@@ -467,7 +467,7 @@ int main(int argc, char *argv[])
                         "Numerical Electric field (imaginary part)", 501, 0, 500, 500, keys);   
       }
 
-      if (iref == ref)
+      if (it == ref)
          break;
 
       mesh.UniformRefinement();
