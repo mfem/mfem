@@ -135,3 +135,10 @@ jobs:
         git remote add origin https://github.com/mfem/mfem.git
         git checkout -b gh-actions-branch-history
         ./config/githooks/pre-push --history
+
+  codespell:
+    - name: Codespell with annotations
+      uses: codespell-project/actions-codespell@master
+      with:
+        check_filenames: true
+	check_hidden: true
