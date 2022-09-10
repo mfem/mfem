@@ -39,6 +39,7 @@ set(SRCS
   complex_fem.cpp
   convergence.cpp
   datacollection.cpp
+  dgmassinv.cpp
   doftrans.cpp
   eltrans.cpp
   estimators.cpp
@@ -137,10 +138,13 @@ set(HDRS
   bilinearform.hpp
   bilinearform_ext.hpp
   bilininteg.hpp
+  bilininteg_mass_pa.hpp
   coefficient.hpp
   complex_fem.hpp
   convergence.hpp
   datacollection.hpp
+  dgmassinv.hpp
+  dgmassinv_kernels.hpp
   doftrans.hpp
   eltrans.hpp
   estimators.hpp
