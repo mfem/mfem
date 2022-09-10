@@ -118,24 +118,23 @@ void CartesianPML::StretchFunction(const Vector &x,
    double n = 2.0;
    double c = 5.0;
    double coeff;
+   double k = omega * sqrt(epsilon * mu);
    // Stretch in each direction independently
    for (int i = 0; i < dim; ++i)
    {
       dxs[i] = 1.0;
       if (x(i) >= comp_dom_bdr(i, 1))
       {
-         coeff = n * c / omega / pow(length(i, 1), n);
+         coeff = n * c / k / pow(length(i, 1), n);
          dxs[i] = 1.0 + zi * coeff * abs(pow(x(i) - comp_dom_bdr(i, 1), n - 1.0));
       }
       if (x(i) <= comp_dom_bdr(i, 0))
       {
-         coeff = n * c / omega / pow(length(i, 0), n);
+         coeff = n * c / k / pow(length(i, 0), n);
          dxs[i] = 1.0 + zi * coeff * abs(pow(x(i) - comp_dom_bdr(i, 0), n - 1.0));
       }
    }
 }
-
-
 
 // acoustics UW PML coefficients functions
 // |J|
@@ -266,56 +265,3 @@ void abs_detJ_Jt_J_inv_2_function(const Vector &x, CartesianPML * pml, DenseMatr
       M(i, i) = a.real()*a.real() + a.imag()*a.imag();
    }
 }
-
-// void detJ_inv_JT_J_Re(const Vector &x, CartesianPML * pml, DenseMatrix &M)
-// {
-//    int dim = pml->dim;
-//    vector<complex<double>> dxs(dim);
-//    complex<double> det(1.0, 0.0);
-//    pml->StretchFunction(x, dxs);
-
-//    for (int i = 0; i < dim; ++i)
-//    {
-//       det *= dxs[i];
-//    }
-
-//    // in the 2D case the coefficient is scalar 1/det(J)
-//    if (dim == 2)
-//    {
-//       M = (1.0 / det).real();
-//    }
-//    else
-//    {
-//       M = 0.0;
-//       for (int i = 0; i < dim; ++i)
-//       {
-//          M(i, i) = (pow(dxs[i], 2) / det).real();
-//       }
-//    }
-// }
-
-// void detJ_inv_JT_J_Im(const Vector &x, CartesianPML * pml, DenseMatrix &M)
-// {
-//    int dim = pml->dim;
-//    vector<complex<double>> dxs(dim);
-//    complex<double> det = 1.0;
-//    pml->StretchFunction(x, dxs);
-
-//    for (int i = 0; i < dim; ++i)
-//    {
-//       det *= dxs[i];
-//    }
-
-//    if (dim == 2)
-//    {
-//       M = (1.0 / det).imag();
-//    }
-//    else
-//    {
-//       M = 0.0;
-//       for (int i = 0; i < dim; ++i)
-//       {
-//          M(i, i) = (pow(dxs[i], 2) / det).imag();
-//       }
-//    }
-// }
