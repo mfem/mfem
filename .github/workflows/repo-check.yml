@@ -137,6 +137,8 @@ jobs:
         ./config/githooks/pre-push --history
 
   codespell:
+    runs-on: ubuntu-latest
+    steps:
     - name: Codespell with annotations
       uses: codespell-project/actions-codespell@master
       with:
