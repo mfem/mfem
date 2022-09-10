@@ -236,17 +236,14 @@ int main(int argc, char *argv[])
 
    if (myid == 0)
    {
-      mfem::out << "\n Refinement |" 
-                << "    Dofs    |" 
-                << "  L2 Error  |" 
-                << "  Rate  |" 
-                << "  Residual  |" 
-                << "  Rate  |" 
-                << " CG it  |" << endl;
-      mfem::out << " --------------------"      
-                <<  "-------------------"    
-                <<  "-------------------"    
-                <<  "-------------------" << endl;   
+      std::cout << "\n  Ref |" 
+               << "    Dofs    |" 
+               << "  L2 Error  |" 
+               << "  Rate  |" 
+               << "  Residual  |" 
+               << "  Rate  |" 
+               << " PCG it |" << endl;
+      std::cout << std::string(72,'-') << endl;   
    }
 
    Array<int> elements_to_refine; // for AMR
@@ -254,7 +251,7 @@ int main(int argc, char *argv[])
    int dof0=0.;
    double res0=0.0;
    if (static_cond) { a->EnableStaticCondensation(); }
-   for (int iref = 0; iref<=pref; iref++)
+   for (int it = 0; it<=pref; it++)
    {
       a->Assemble();
 
@@ -322,7 +319,7 @@ int main(int argc, char *argv[])
       cg.SetRelTol(1e-12);
       cg.SetMaxIter(2000);
       cg.SetPrintLevel(0);
-      cg.SetPreconditioner(*M);
+      cg.SetPreconditioner(M);
       cg.SetOperator(*A);
       cg.Mult(B, X);
 
@@ -352,32 +349,34 @@ int main(int argc, char *argv[])
       double u_err = u_gf.ComputeL2Error(uex);
       double sigma_err = sigma_gf.ComputeL2Error(sigmaex);
       double L2Error = sqrt(u_err*u_err + sigma_err*sigma_err);
-      double rate_err = (iref) ? dim*log(err0/L2Error)/log((double)dof0/dofs) : 0.0;
-      double rate_res = (iref) ? dim*log(res0/globalresidual)/log((double)dof0/dofs) : 0.0;
+      double rate_err = (it) ? dim*log(err0/L2Error)/log((double)dof0/dofs) : 0.0;
+      double rate_res = (it) ? dim*log(res0/globalresidual)/log((double)dof0/dofs) : 0.0;
       err0 = L2Error;
       res0 = globalresidual;
       dof0 = dofs;
 
       if (myid == 0)
       {
-         mfem::out << std::right << std::setw(11) << iref << " | " 
-               << std::setw(10) <<  dof0 << " | " 
-               << std::setprecision(3) 
-               << std::setw(10) << std::scientific <<  err0 << " | " 
-               << std::setprecision(2) 
-               << std::setw(6) << std::fixed << rate_err << " | " 
-               << std::setw(10) << std::scientific <<  res0 << " | " 
-               << std::setprecision(2) 
-               << std::setw(6) << std::fixed << rate_res << " | " 
-               << std::setw(6) << std::fixed << cg.GetNumIterations() << " | " 
-               << std::setprecision(3) 
-               << std::resetiosflags(std::ios::showbase)
-               << std::endl;
+         std::ios oldState(nullptr);
+         oldState.copyfmt(std::cout);
+         std::cout << std::right << std::setw(5) << it << " | " 
+                  << std::setw(10) <<  dof0 << " | " 
+                  << std::setprecision(3) 
+                  << std::setw(10) << std::scientific <<  err0 << " | " 
+                  << std::setprecision(2) 
+                  << std::setw(6) << std::fixed << rate_err << " | " 
+                  << std::setprecision(3) 
+                  << std::setw(10) << std::scientific <<  res0 << " | " 
+                  << std::setprecision(2) 
+                  << std::setw(6) << std::fixed << rate_res << " | " 
+                  << std::setw(6) << std::fixed << cg.GetNumIterations() << " | " 
+                  << std::endl;
+         std::cout.copyfmt(oldState);
       }
 
       if (visualization)
       {
-         const char * keys = (iref == 0) ? "jRcm\n" : "";
+         const char * keys = (it == 0) ? "jRcm\n" : "";
          char vishost[] = "localhost";
          int  visport   = 19916;
 
@@ -388,7 +387,7 @@ int main(int argc, char *argv[])
       }
 
 
-      if (iref == pref) { break; }
+      if (it == pref) { break; }
 
       elements_to_refine.SetSize(0);
       for (int iel = 0; iel<pmesh.GetNE(); iel++)

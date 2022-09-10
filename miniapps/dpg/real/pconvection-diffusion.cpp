@@ -3,13 +3,13 @@
 // Compile with: make  pconvection-diffusion
 //
 // sample runs 
-// mpirun -np 6 ./pconvection-diffusion  -o 2 -ref 3 -prob 0 -eps 1e-1 -beta '4 2' -theta 0.0
-// mpirun -np 6 ./pconvection-diffusion  -o 3 -ref 3 -prob 0 -eps 1e-2 -beta '2 3' -theta 0.0
+// mpirun -np 4 pconvection-diffusion  -o 2 -ref 3 -prob 0 -eps 1e-1 -beta '4 2' -theta 0.0
+// mpirun -np 4 pconvection-diffusion  -o 3 -ref 3 -prob 0 -eps 1e-2 -beta '2 3' -theta 0.0
 
 // AMR runs
-// mpirun -np 6 ./pconvection-diffusion  -o 3 -ref 15 -prob 1 -eps 1e-3 -beta '1 0' -theta 0.7 -sc
-// mpirun -np 6 ./pconvection-diffusion  -o 3 -ref 20 -prob 2 -eps 5e-3 -theta 0.7 -sc
-// mpirun -np 6 ./pconvection-diffusion  -o 2 -ref 20 -prob 3 -eps 1e-2 -beta '1 2' -theta 0.7 -sc
+// mpirun -np 4 pconvection-diffusion  -o 3 -ref 15 -prob 1 -eps 1e-3 -beta '1 0' -theta 0.7 -sc
+// mpirun -np 4 pconvection-diffusion  -o 3 -ref 20 -prob 2 -eps 5e-3 -theta 0.7 -sc
+// mpirun -np 4 pconvection-diffusion  -o 2 -ref 20 -prob 3 -eps 1e-2 -beta '1 2' -theta 0.7 -sc
 
 // Description:  
 // This example code demonstrates the use of MFEM to define and solve a parallel
@@ -294,27 +294,22 @@ int main(int argc, char *argv[])
    int dof0;
    if (myid == 0)
    {
-      mfem::out << " Refinement |" 
+      std::cout << "  Ref |" 
                << "    Dofs    |" ;
       if (exact_known)
       {
          mfem::out << "  L2 Error  |" 
                   << "  Rate  |"; 
       }         
-      mfem::out << "  Residual  |" 
+      std::cout << "  Residual  |" 
                 << "  Rate  |" 
                 << " CG it  |" << endl;
-      mfem::out << " -------------------"      
-                <<  "-------------------" ;
-      if (exact_known)
-      {
-         mfem::out << "----------------------";
-      }
-        mfem::out << "------------------" << endl;   
+      std::cout << std::string((exact_known) ? 72 : 50,'-')      
+                << endl; 
    }
 
    if (static_cond) { a->EnableStaticCondensation(); }
-   for (int iref = 0; iref<=ref; iref++)
+   for (int it = 0; it<=ref; it++)
    {
       a->Assemble();
 
@@ -385,8 +380,8 @@ int main(int argc, char *argv[])
       BlockOperator * A = Ah.As<BlockOperator>();
 
 
-      BlockDiagonalPreconditioner * M = new BlockDiagonalPreconditioner(A->RowOffsets());
-      M->owns_blocks = 1;
+      BlockDiagonalPreconditioner M(A->RowOffsets());
+      M.owns_blocks = 1;
       int skip = 0;
       if (!static_cond)
       {
@@ -394,13 +389,13 @@ int main(int argc, char *argv[])
          HypreBoomerAMG * amg1 = new HypreBoomerAMG((HypreParMatrix &)A->GetBlock(1,1));
          amg0->SetPrintLevel(0);
          amg1->SetPrintLevel(0);
-         M->SetDiagonalBlock(0,amg0);
-         M->SetDiagonalBlock(1,amg1);
+         M.SetDiagonalBlock(0,amg0);
+         M.SetDiagonalBlock(1,amg1);
          skip = 2;
       }
       HypreBoomerAMG * amg2 = new HypreBoomerAMG((HypreParMatrix &)A->GetBlock(skip,skip));
       amg2->SetPrintLevel(0);
-      M->SetDiagonalBlock(skip,amg2);
+      M.SetDiagonalBlock(skip,amg2);
 
       HypreSolver * prec;
       if (dim == 2)
@@ -411,17 +406,16 @@ int main(int argc, char *argv[])
       {
          prec = new HypreADS((HypreParMatrix &)A->GetBlock(skip+1,skip+1), hatf_fes);
       }
-      M->SetDiagonalBlock(skip+1,prec);
+      M.SetDiagonalBlock(skip+1,prec);
 
       CGSolver cg(MPI_COMM_WORLD);
       cg.SetRelTol(1e-12);
       cg.SetMaxIter(200000);
-      cg.SetPrintLevel(-1);
-      cg.SetPreconditioner(*M);
+      cg.SetPrintLevel(0);
+      cg.SetPreconditioner(M);
       cg.SetOperator(*A);
       cg.Mult(B, X);
       int num_iter = cg.GetNumIterations();
-      delete M;
 
       a->RecoverFEMSolution(X,x);
       Vector & residuals = a->ComputeResidual(x);
@@ -456,61 +450,46 @@ int main(int argc, char *argv[])
                + hatu_fes->GlobalTrueVSize()
                + hatf_fes->GlobalTrueVSize();
 
-
-      double rate_res = (iref) ? dim*log(res0/gresidual)/log((double)dof0/dofs) : 0.0;
-      res0 = gresidual;
-
+      double L2Error = 0.0;
+      double rate_err = 0.0;
       if (exact_known)
       {
          double u_err = u_gf.ComputeL2Error(uex);
          double sigma_err = sigma_gf.ComputeL2Error(sigmaex);
-         double L2Error = sqrt(u_err*u_err + sigma_err*sigma_err);
-
-         double rate_err = (iref) ? dim*log(err0/L2Error)/log((double)dof0/dofs) : 0.0;
-         dof0 = dofs;
-
+         L2Error = sqrt(u_err*u_err + sigma_err*sigma_err);
+         rate_err = (it) ? dim*log(err0/L2Error)/log((double)dof0/dofs) : 0.0;
          err0 = L2Error;
-
-         if (myid == 0)
-         {
-            mfem::out << std::right << std::setw(11) << iref << " | " 
-                     << std::setw(10) <<  dof0 << " | " 
-                     << std::setprecision(3) 
-                     << std::setw(10) << std::scientific <<  err0 << " | " 
-                     << std::setprecision(2) 
-                     << std::setw(6) << std::fixed << rate_err << " | " 
-                     << std::setprecision(3) 
-                     << std::setw(10) << std::scientific <<  res0 << " | " 
-                     << std::setprecision(2) 
-                     << std::setw(6) << std::fixed << rate_res << " | " 
-                     << std::setw(6) << std::fixed << num_iter << " | " 
-                     << std::resetiosflags(std::ios::showbase)
-                     << std::endl;
-         }
-      }
-      else
-      {
-         dof0 = dofs;
-         if (myid == 0)
-         {
-            mfem::out << std::right << std::setw(11) << iref << " | " 
-                     << std::setw(10) <<  dof0 << " | " 
-                     << std::setprecision(3) 
-                     << std::setw(10) << std::scientific <<  res0 << " | " 
-                     << std::setprecision(2) 
-                     << std::setw(6) << std::fixed << rate_res << " | " 
-                     << std::setw(6) << std::fixed << num_iter << " | " 
-                     << std::resetiosflags(std::ios::showbase)
-                     << std::endl;
-         }
       }   
+      double rate_res = (it) ? dim*log(res0/gresidual)/log((double)dof0/dofs) : 0.0;
 
+      res0 = gresidual;
+      dof0 = dofs;
 
+      if (myid == 0)
+      {
+         std::ios oldState(nullptr);
+         oldState.copyfmt(std::cout);
+         std::cout << std::right << std::setw(5) << it << " | " 
+                  << std::setw(10) <<  dof0 << " | ";
+         if (exact_known)
+         {
+            std::cout << std::setprecision(3) << std::setw(10) 
+                      << std::scientific <<  err0 << " | " 
+                      << std::setprecision(2) 
+                      << std::setw(6) << std::fixed << rate_err << " | " ;
+         }         
+         std::cout << std::setprecision(3) 
+                  << std::setw(10) << std::scientific <<  res0 << " | " 
+                  << std::setprecision(2) 
+                  << std::setw(6) << std::fixed << rate_res << " | " 
+                  << std::setw(6) << std::fixed << num_iter << " | " 
+                  << std::endl;
+         std::cout.copyfmt(oldState);
+      }   
 
       if (visualization)
       {
-         // const char * keys = (iref == 0) ? "jRcm\n" : "";
-         const char * keys = (iref == 0) ? "cgRjmlk\n" : "";
+         const char * keys = (it == 0) ? "cgRjmlk\n" : "";
          char vishost[] = "localhost";
          int  visport   = 19916;
          common::VisualizeField(u_out,vishost, visport, u_gf, 
@@ -519,7 +498,7 @@ int main(int argc, char *argv[])
                                 "Numerical flux", 501,0,500, 500, keys); 
       }
 
-      if (iref == ref)
+      if (it == ref)
          break;
 
       pmesh.GeneralRefinement(elements_to_refine,1,1);

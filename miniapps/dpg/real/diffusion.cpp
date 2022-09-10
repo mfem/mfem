@@ -3,10 +3,10 @@
 // Compile with: make diffusion
 //
 // sample runs 
-//   ./diffusion -m ../../../data/star.mesh -o 3 -ref 1 -do 1 -prob 1 -sc
-//   ./diffusion -m ../../../data/inline-tri.mesh -o 2 -ref 3 -do 1 -prob 0
-//   ./diffusion -m ../../../data/inline-quad.mesh -o 4 -ref 2 -do 2 -prob 0 -sc
-//   ./diffusion -m ../../../data/inline-tet.mesh -o 3 -ref 0 -do 1 -prob 1 -sc
+//   diffusion -m ../../../data/star.mesh -o 3 -ref 1 -do 1 -prob 1 -sc
+//   diffusion -m ../../../data/inline-tri.mesh -o 2 -ref 3 -do 1 -prob 0
+//   diffusion -m ../../../data/inline-quad.mesh -o 4 -ref 2 -do 2 -prob 0 -sc
+//   diffusion -m ../../../data/inline-tet.mesh -o 3 -ref 0 -do 1 -prob 1 -sc
 
 // Description:  
 // This example code demonstrates the use of MFEM to define and solve
@@ -204,20 +204,19 @@ int main(int argc, char *argv[])
 
    if (prob == prob_type::manufactured)
    {
-      mfem::out << "\n Refinement |" 
-                << "    Dofs    |" 
-                << "  L2 Error  |" 
-                << "  Rate  |" 
-                << " CG it  |" << endl;
-      mfem::out << " --------------------"      
-                <<  "-------------------"    
-                <<  "-------------------" << endl;   
+      std::cout << "\n  Ref |" 
+               << "    Dofs    |" 
+               << "  L2 Error  |" 
+               << "  Rate  |"
+               << " PCG it |" << endl;
+      std::cout << std::string(50,'-')      
+               << endl;  
    }
 
    double err0 = 0.;
    int dof0=0.;
    if (static_cond) { a->EnableStaticCondensation(); }
-   for (int iref = 0; iref<=ref; iref++)
+   for (int it = 0; it<=ref; it++)
    {
       a->Assemble();
 
@@ -285,28 +284,26 @@ int main(int argc, char *argv[])
          double u_err = u_gf.ComputeL2Error(uex);
          double sigma_err = sigma_gf.ComputeL2Error(sigmaex);
          double L2Error = sqrt(u_err*u_err + sigma_err*sigma_err);
-         double rate_err = (iref) ? dim*log(err0/L2Error)/log((double)dof0/l2dofs) : 0.0;
+         double rate_err = (it) ? dim*log(err0/L2Error)/log((double)dof0/l2dofs) : 0.0;
          err0 = L2Error;
          dof0 = l2dofs;
 
          std::ios oldState(nullptr);
          oldState.copyfmt(std::cout);
-         std::cout << std::right << std::setw(11) << iref << " | " 
+         std::cout << std::right << std::setw(5) << it << " | " 
                    << std::setw(10) <<  dof0 << " | " 
                    << std::setprecision(3) 
                    << std::setw(10) << std::scientific <<  err0 << " | " 
                    << std::setprecision(2) 
                    << std::setw(6) << std::fixed << rate_err << " | " 
                    << std::setw(6) << std::fixed << cg.GetNumIterations() << " | " 
-                   << std::setprecision(3) 
-                   << std::resetiosflags(std::ios::showbase)
                    << std::endl;
          std::cout.copyfmt(oldState);
       }
 
       if (visualization)
       {
-         const char * keys = (iref == 0 && dim == 2) ? "jRcm\n" : "";
+         const char * keys = (it == 0 && dim == 2) ? "jRcm\n" : "";
          char vishost[] = "localhost";
          int  visport   = 19916;
          common::VisualizeField(u_out,vishost, visport, u_gf, 
@@ -315,7 +312,7 @@ int main(int argc, char *argv[])
                                 "Numerical flux", 500,0,500, 500, keys);
       }
 
-      if (iref == ref) break;
+      if (it == ref) break;
 
       mesh.UniformRefinement();
       for (int i =0; i<trial_fes.Size(); i++)
