@@ -18,6 +18,7 @@
 
 namespace mfem
 {
+
 /**
  * @brief Subdomain representation of a topological parent in another Mesh.
  *
@@ -194,6 +195,7 @@ private:
 
    Array<int> face_to_be;
 };
-}
+
+} // namespace mfem
 
 #endif

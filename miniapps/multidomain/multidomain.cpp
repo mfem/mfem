@@ -8,7 +8,7 @@
 // MFEM is free software; you can redistribute it and/or modify it under the
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
-//
+
 // This miniapp aims to demonstrate how to solve two PDEs, that represent
 // different physics, on the same domain. MFEM's SubMesh interface is used to
 // compute on and transfer between the spaces of predefined parts of the domain.
@@ -28,7 +28,7 @@
 //
 // A convection-diffusion equation is described inside the cylinder domain
 //
-//             dT/dt = κΔT - α∇•(b T)    in inner cylinder
+//             dT/dt = κΔT - α∇•(b T)   in inner cylinder
 //                 T = T_wall           on cylinder wall (obtained from heat equation)
 //              ∇T•n = 0                else
 //
@@ -47,7 +47,7 @@
 using namespace mfem;
 
 // Prescribed velocity profile for the convection-diffusion equation inside the
-// cylinder. The profile is constrcuted s.t. it approximates a no-slip (v=0)
+// cylinder. The profile is constructed s.t. it approximates a no-slip (v=0)
 // directly at the cylinder wall boundary.
 void velocity_profile(const Vector &c, Vector &q)
 {
@@ -209,7 +209,7 @@ int main(int argc, char *argv[])
    int num_procs = Mpi::WorldSize();
    int myid = Mpi::WorldRank();
 
-   Mesh *serial_mesh = new Mesh("../../data/multidomain-hex.mesh");
+   Mesh *serial_mesh = new Mesh("multidomain-hex.mesh");
    ParMesh parent_mesh = ParMesh(MPI_COMM_WORLD, *serial_mesh);
    delete serial_mesh;
 

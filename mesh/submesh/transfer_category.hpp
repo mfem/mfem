@@ -14,6 +14,7 @@
 
 namespace mfem
 {
+
 /**
  * @brief TransferCategory describes the type of transfer.
  *
@@ -25,6 +26,7 @@ enum TransferCategory
    SubMeshToParent,
    SubMeshToSubMesh
 };
+
 } // namespace mfem
 
 #endif // MFEM_TRANSFER_CATEGORY

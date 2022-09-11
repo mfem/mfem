@@ -371,7 +371,8 @@ private:
    /// ParSubMesh face ids. Inverse map of parent_face_ids_.
    Array<int> parent_to_submesh_face_ids_;
 };
-}
+
+} // namespace mfem
 
 #endif // MFEM_USE_MPI
 
