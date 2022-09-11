@@ -11,7 +11,7 @@
 // mpirun -np 4 pmaxwell -o 3 -sref 1 -pref 2 -rnum 9.8 -sc -prob 4
 
 // AMR run
-// mpirun -np 4 ./pmaxwell -o 3 -sref 0 -pref 15 -prob 1 -theta 0.5 -sc
+// mpirun -np 4 ./pmaxwell -o 3 -sref 0 -pref 15 -prob 1 -theta 0.7 -sc
 
 
 // Description:  
@@ -625,6 +625,28 @@ int main(int argc, char *argv[])
    int dof0;
 
    Array<int> elements_to_refine;
+
+   ParComplexGridFunction E(E_fes);
+   ParComplexGridFunction H(H_fes);
+   E.real() = 0.0;
+   E.imag() = 0.0;
+   H.real() = 0.0;
+   H.imag() = 0.0;
+
+   mfem::ParaViewDataCollection paraview_dc("Fichera-oven", &pmesh);
+   paraview_dc.SetPrefixPath("ParaView");
+   paraview_dc.SetLevelsOfDetail(order);
+   paraview_dc.SetCycle(0);
+   paraview_dc.SetDataFormat(VTKFormat::BINARY);
+   paraview_dc.SetHighOrderOutput(true);
+   paraview_dc.SetTime(0.0); // set the time
+   paraview_dc.RegisterField("E_r",&E.real());
+   paraview_dc.RegisterField("E_i",&E.imag());
+   paraview_dc.RegisterField("H_r",&H.real());
+   paraview_dc.RegisterField("H_i",&H.imag());
+   paraview_dc.Save();
+
+
    for (int it = 0; it<=pr; it++)
    {
       if (static_cond) { a->EnableStaticCondensation(); }
@@ -775,11 +797,9 @@ int main(int argc, char *argv[])
 
       globalresidual = sqrt(globalresidual);
 
-      ParComplexGridFunction E(E_fes);
       E.real().MakeRef(E_fes,x.GetData());
       E.imag().MakeRef(E_fes,&x.GetData()[offsets.Last()]);
 
-      ParComplexGridFunction H(H_fes);
       H.real().MakeRef(H_fes,&x.GetData()[offsets[1]]);
       H.imag().MakeRef(H_fes,&x.GetData()[offsets.Last()+offsets[1]]);
 
@@ -844,9 +864,13 @@ int main(int argc, char *argv[])
          int  visport   = 19916;
          common::VisualizeField(E_out_r,vishost, visport, E.real(), 
                                "Numerical Electric field (real part)", 0, 0, 500, 500, keys);
-         common::VisualizeField(H_out_r,vishost, visport, H.imag(), 
+         common::VisualizeField(H_out_r,vishost, visport, H.real(), 
                                "Numerical Magnetic field (real part)", 501, 0, 500, 500, keys);   
       }
+
+      paraview_dc.SetCycle(it);
+      paraview_dc.SetTime((double)it);
+      paraview_dc.Save();
 
       if (it == pr)
          break;
