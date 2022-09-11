@@ -144,3 +144,4 @@ jobs:
       with:
         check_filenames: true
         check_hidden: true
+        ignore_words_list: allright,ba,equil,esy,fo,hda,lod,nd,ned,numer,ot,pres,ro,seh,shat,solfes,strat,tbe,te,warmup
