@@ -186,7 +186,7 @@ ifeq ($(MFEM_USE_MPI)$(MFEM_USE_HIP),YESYES)
 endif
 
 # ROCM/HIP directory such that ROCM/HIP libraries like rocsparse and rocrand are
-# found in $(HIP_DIR)/lib, usually as links. Typically, this directoory is of
+# found in $(HIP_DIR)/lib, usually as links. Typically, this directory is of
 # the form /opt/rocm-X.Y.Z which is called ROCM_PATH by hipconfig.
 ifeq ($(MFEM_USE_HIP),YES)
    HIP_DIR := $(patsubst %/,%,$(dir $(shell which $(HIP_CXX))))
@@ -316,7 +316,7 @@ SCALAPACK_LIB = -L$(SCALAPACK_DIR)/lib -lscalapack $(LAPACK_LIB)
 MPI_FORTRAN_LIB = -lmpifort
 # OpenMPI:
 # MPI_FORTRAN_LIB = -lmpi_mpifh
-# Additional Fortan library:
+# Additional Fortran library:
 # MPI_FORTRAN_LIB += -lgfortran
 
 # MUMPS library configuration

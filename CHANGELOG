@@ -43,6 +43,10 @@ Discretization improvements
 Linear and nonlinear solvers
 ----------------------------
 
+- Added a new class DGMassInverse that performs a local elementwise CG
+  iteration to solve systems involving the discontinuous Galerkin mass matrix,
+  including support for device/GPU acceleration.
+
 New and updated examples and miniapps
 -------------------------------------
 - Added a new elasticity miniapp, Hooke, that showcases a low-level approach of
@@ -81,7 +85,7 @@ Miscellaneous
 
 - Added boundary elimination with device support for `SparseMatrix` and
   `HypreParMatrix`.
-  
+
 - When using `AssemblyLevel::FULL`, `FABilinearFormExtension::FormSystemMatrix`
   outputs an `OperatorHandle` containing a `SparseMatrix` in serial, and an
   `HypreParMatrix` in parallel (instead of a `ConstrainedOperator`).
