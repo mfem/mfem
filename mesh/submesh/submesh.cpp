@@ -115,5 +115,4 @@ TransferMap SubMesh::CreateTransferMap(const GridFunction &src,
    return TransferMap(src, dst);
 }
 
-
 } // namespace mfem
