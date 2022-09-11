@@ -604,12 +604,8 @@ static void PAMassApply2D(const int NE,
                           int d1d = 0,
                           int q1d = 0)
 {
-   const int D1D = T_D1D ? T_D1D : d1d;
-   const int Q1D = T_Q1D ? T_Q1D : q1d;
-   MFEM_VERIFY(D1D <= MAX_D1D, "");
-   MFEM_VERIFY(Q1D <= MAX_Q1D, "");
-   //MFEM_VERIFY(T_D1D ? T_D1D : d1d <= MAX_D1D, "");
-   //MFEM_VERIFY(T_Q1D ? T_Q1D : q1d <= MAX_Q1D, "");
+   MFEM_VERIFY((T_D1D ? T_D1D : d1d) <= MAX_D1D, "");
+   MFEM_VERIFY((T_Q1D ? T_Q1D : q1d) <= MAX_Q1D, "");
 
    MFEM_FORALL(e, NE,
    {
@@ -619,9 +615,9 @@ static void PAMassApply2D(const int NE,
 
 MFEM_JIT template<int T_D1D = 0, int T_Q1D = 0, int T_NBZ = 0>
 static void SmemPAMassApply2D(const int NE,
-                              ConstDeviceMatrix &b,
+                              ConstDeviceMatrix &B,
                               ConstDeviceCube &D,
-                              ConstDeviceCube &x,
+                              ConstDeviceCube &X,
                               DeviceCube &Y,
                               int d1d = 0,
                               int q1d = 0,
@@ -638,7 +634,7 @@ static void SmemPAMassApply2D(const int NE,
 
    MFEM_FORALL_2D(e, NE, Q1D, Q1D, NBZ,
    {
-      internal::SmemPAMassApply2D_Element<T_D1D,T_Q1D,T_NBZ>(e, NE, b, D, x, Y, d1d, q1d);
+      internal::SmemPAMassApply2D_Element<T_D1D,T_Q1D,T_NBZ>(e,NE,B,D,X,Y,d1d,q1d);
    });
 }
 
@@ -652,12 +648,8 @@ static void PAMassApply3D(const int NE,
                           const int d1d = 0,
                           const int q1d = 0)
 {
-   const int D1D = T_D1D ? T_D1D : d1d;
-   const int Q1D = T_Q1D ? T_Q1D : q1d;
-   MFEM_VERIFY(D1D <= MAX_D1D, "");
-   MFEM_VERIFY(Q1D <= MAX_Q1D, "");
-   //MFEM_VERIFY(T_D1D ? T_D1D : d1d <= MAX_D1D, "");
-   //MFEM_VERIFY(T_Q1D ? T_Q1D : q1d <= MAX_Q1D, "");
+   MFEM_VERIFY((T_D1D ? T_D1D : d1d) <= MAX_D1D, "");
+   MFEM_VERIFY((T_Q1D ? T_Q1D : q1d) <= MAX_Q1D, "");
 
    MFEM_FORALL(e, NE,
    {

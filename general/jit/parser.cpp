@@ -384,7 +384,8 @@ struct Parser
       //   - HYPRE_config.h in mem_manager.hpp
       ker.src << "\n#define MFEM_JIT_COMPILATION"
               << "\n#include \"general/forall.hpp\""
-              << "\n#include \"linalg/kernels.hpp\"";
+              << "\n#include \"linalg/kernels.hpp\""
+              << "\n#include \"fem/bilininteg_mass_pa.hpp\"";
       // MFEM_FORALL_2D_JIT
       ker.src << "\n#define MFEM_FORALL_2D_JIT(i,N,X,Y,B,...)"
               << "ForallWrap<2>(backends, true, N,"
