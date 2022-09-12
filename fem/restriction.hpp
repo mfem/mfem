@@ -924,7 +924,7 @@ public:
        @param[in,out] x The dofs vector that needs coarse dofs to be express in
                         term of the fine basis.
    */
-   void DoubleValuedNonconformingInterpolationInPlace(Vector& x) const;
+   void DoubleValuedNonconformingInterpolation(Vector& x) const;
 
    /** @brief Apply a change of basis from fine element basis to coarse element
        basis for the coarse face dofs. Should only be used when:
