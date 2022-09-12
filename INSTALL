@@ -550,7 +550,7 @@ MFEM_USE_FMS = YES/NO
    Enables support for the FMS library which consists of the DataCollection
    sub-class mfem::FMSDataCollection for I/O in FMS formats, see the header file
    fem/fmsdatacollection.hpp. In addition, this option enables in-memory
-   convetion routines between FMS's FmsDataCollection structure and MFEM's
+   conversion routines between FMS's FmsDataCollection structure and MFEM's
    DataCollection class, see the header file fem/fmsconvert.hpp.
 
 MFEM_USE_PARELAG = YES/NO
