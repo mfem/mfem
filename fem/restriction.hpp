@@ -163,15 +163,19 @@ public:
    virtual void AddMultTranspose(const Vector &x, Vector &y) const = 0;
 
    /** @brief Add the face degrees of freedom @a x to the element degrees of
-       freedom @a y.
+       freedom @a y. Perform the same computation as AddMultTranspose, but
+       @a x is invalid after calling this method.
 
-       @param[in]     x The face degrees of freedom on the face.
+       @param[in,out]     x The face degrees of freedom on the face.
        @param[in,out] y The L-vector of degrees of freedom to which we add the
                         face degrees of freedom.
+
+      @note This method is an optimization of AddMultTranspose where the @a x
+      Vector is used and modified to avoid memory allocation and memcpy.
    */
-   virtual void AddMultTranspose(Vector &x, Vector &y) const
+   virtual void AddMultTransposeInPlace(Vector &x, Vector &y) const
    {
-      AddMultTranspose((const Vector &)x, y);
+      AddMultTranspose(x, y);
    }
 
    /** @brief Set the face degrees of freedom in the element degrees of freedom
@@ -241,7 +245,7 @@ public:
                      ElementDofOrdering. */
    void Mult(const Vector &x, Vector &y) const override;
 
-   using FaceRestriction::AddMultTranspose;
+   using FaceRestriction::AddMultTransposeInPlace;
 
    /** @brief Gather the degrees of freedom, i.e. goes from face E-Vector to
        L-Vector.
@@ -821,8 +825,9 @@ public:
                          ElementDofOrdering
        @param[in,out] y The L-vector degrees of freedom.
 
-       @note @a x is used for computation. */
-   void AddMultTranspose(Vector &x, Vector &y) const override;
+      @note This method is an optimization of AddMultTranspose where the @a x
+      Vector is used and modified to avoid memory allocation and memcpy. */
+   void AddMultTransposeInPlace(Vector &x, Vector &y) const override;
 
    /** @brief Fill the I array of SparseMatrix corresponding to the sparsity
        pattern given by this NCL2FaceRestriction.
@@ -919,7 +924,7 @@ public:
        @param[in,out] x The dofs vector that needs coarse dofs to be express in
                         term of the fine basis.
    */
-   void DoubleValuedNonconformingInterpolation(Vector& x) const;
+   void DoubleValuedNonconformingInterpolationInPlace(Vector& x) const;
 
    /** @brief Apply a change of basis from fine element basis to coarse element
        basis for the coarse face dofs. Should only be used when:
@@ -937,7 +942,7 @@ public:
        @param[in,out] x The dofs vector that needs coarse dofs to be express in
                         term of the coarse basis, the result is stored in x.
    */
-   void SingleValuedNonconformingTransposeInterpolation(Vector& x) const;
+   void SingleValuedNonconformingTransposeInterpolationInPlace(Vector& x) const;
 
    /** @brief Apply a change of basis from fine element basis to coarse element
        basis for the coarse face dofs. Should only be used when:
@@ -956,7 +961,7 @@ public:
                         term of the coarse basis, the result is stored in
                         x.
    */
-   void DoubleValuedNonconformingTransposeInterpolation(Vector& x) const;
+   void DoubleValuedNonconformingTransposeInterpolationInPlace(Vector& x) const;
 };
 
 /** @brief Return the face map that extracts the degrees of freedom for the
