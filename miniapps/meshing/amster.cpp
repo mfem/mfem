@@ -17,8 +17,8 @@
 // Compile with: make amster
 //
 // Sample runs:
-//    mpirun -np 4 amster -m ../../data/star.mesh
-//    mpirun -np 4 amster -m blade.mesh -o 4 -battr 3
+//    mpirun -np 4 amster -m ../../data/star.mesh -o 2 -sfa 10 -ni 200
+//    mpirun -np 4 amster -m blade.mesh -o 4
 //    mpirun -np 4 amster -m bone3D.mesh
 //
 
@@ -43,18 +43,20 @@ int main (int argc, char *argv[])
    const char *mesh_file = "jagged.mesh";
    int mesh_poly_deg     = 2;
    bool fdscheme         = false;
+   int solver_iter       = 50;
    int quad_order        = 8;
    int bg_amr_steps      = 6;
    double surface_fit_const = 10.0;
    double surface_fit_adapt = 1.0;
    double surface_fit_threshold = 1e-7;
-   int bdr_attr_to_fit      = 1;
 
    // Parse command-line input file.
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh", "Mesh file to use.");
    args.AddOption(&mesh_poly_deg, "-o", "--mesh-order",
                   "Polynomial degree of mesh finite element space.");
+   args.AddOption(&solver_iter, "-ni", "--newton-iters",
+                  "Maximum number of Newton iterations.");
    args.AddOption(&fdscheme, "-fd", "--fd_approx", "-no-fd", "--no-fd-approx",
                   "Enable finite difference based derivative computations.");
    args.AddOption(&quad_order, "-qo", "--quad_order",
@@ -68,8 +70,6 @@ int main (int argc, char *argv[])
    args.AddOption(&surface_fit_threshold, "-sft", "--surf-fit-threshold",
                   "Set threshold for surface fitting. TMOP solver will"
                   "terminate when max surface fitting error is below this limit");
-   args.AddOption(&bdr_attr_to_fit, "-battr", "--battr",
-                  "Boundary attribute to fit.");
    args.Parse();
    if (!args.Good())
    {
@@ -200,9 +200,8 @@ int main (int argc, char *argv[])
    mesh_bg->EnsureNCMesh();
    pmesh_bg = new ParMesh(MPI_COMM_WORLD, *mesh_bg);
    delete mesh_bg;
-   //   pmesh_bg->SetCurvature(mesh_poly_deg, false, -1, 0);
-   // Set curvature to linear because we use it with FindPoints for interpolating a
-   // linear function later
+   // Set curvature to linear because we use it with FindPoints for
+   // interpolating a linear function later.
    pmesh_bg->SetCurvature(1, false, -1, 0);
 
    // Make the background mesh big enough to cover the original domain.
@@ -299,7 +298,6 @@ int main (int argc, char *argv[])
    }
 
    // Surface fitting.
-   L2_FECollection mat_coll(0, dim);
    Array<bool> surf_fit_marker(domain.Size());
    ParGridFunction surf_fit_mat_gf(&sfespace);
    ConstantCoefficient surf_fit_coeff(surface_fit_const);
@@ -322,11 +320,10 @@ int main (int argc, char *argv[])
 
    if (surface_fit_const > 0.0)
    {
-      bg_grad_fes = new ParFiniteElementSpace(pmesh_bg, &bg_fec,
-                                              pmesh_bg->Dimension());
+      bg_grad_fes = new ParFiniteElementSpace(pmesh_bg, &bg_fec, dim);
       bg_grad = new ParGridFunction(bg_grad_fes);
 
-      int n_hessian_bg = pow(pmesh_bg->Dimension(), 2);
+      int n_hessian_bg = dim * dim;
       bg_hess_fes = new ParFiniteElementSpace(pmesh_bg, &bg_fec, n_hessian_bg);
       bg_hess = new ParGridFunction(bg_hess_fes);
 
@@ -353,15 +350,12 @@ int main (int argc, char *argv[])
          }
       }
 
-
       //Setup functions on the mesh being optimized
-      grad_fes = new ParFiniteElementSpace(pmesh, fec, pmesh->Dimension());
+      grad_fes = new ParFiniteElementSpace(pmesh, fec, dim);
       surf_fit_grad = new ParGridFunction(grad_fes);
 
-      surf_fit_hess_fes = new ParFiniteElementSpace(pmesh, fec,
-                                                    pmesh->Dimension()*pmesh->Dimension());
+      surf_fit_hess_fes = new ParFiniteElementSpace(pmesh, fec, dim * dim);
       surf_fit_hess = new ParGridFunction(surf_fit_hess_fes);
-
 
       for (int i = 0; i < surf_fit_marker.Size(); i++)
       {
@@ -371,15 +365,11 @@ int main (int argc, char *argv[])
 
       for (int i = 0; i < pmesh->GetNBE(); i++)
       {
-         const int attr = pmesh->GetBdrElement(i)->GetAttribute();
-         if (attr == bdr_attr_to_fit)
+         sfespace.GetBdrElementVDofs(i, vdofs);
+         for (int j = 0; j < vdofs.Size(); j++)
          {
-            sfespace.GetBdrElementVDofs(i, vdofs);
-            for (int j = 0; j < vdofs.Size(); j++)
-            {
-               surf_fit_marker[vdofs[j]] = true;
-               surf_fit_mat_gf(vdofs[j]) = 1.0;
-            }
+            surf_fit_marker[vdofs[j]] = true;
+            surf_fit_mat_gf(vdofs[j]) = 1.0;
          }
       }
 
@@ -387,8 +377,7 @@ int main (int argc, char *argv[])
       adapt_grad_surface = new InterpolatorFP;
       adapt_hess_surface = new InterpolatorFP;
 
-      tmop_integ->EnableSurfaceFittingFromSource(bg_domain,
-                                                 domain,
+      tmop_integ->EnableSurfaceFittingFromSource(bg_domain, domain,
                                                  surf_fit_marker, surf_fit_coeff,
                                                  *adapt_surface,
                                                  *bg_grad, *surf_fit_grad, *adapt_grad_surface,
@@ -397,7 +386,7 @@ int main (int argc, char *argv[])
       {
          socketstream vis1;
          common::VisualizeField(vis1, "localhost", 19916, surf_fit_mat_gf,
-                                "Dofs to Move",
+                                "Boundary DOFs to Fit",
                                 900, 600, 300, 300);
       }
    }
@@ -405,12 +394,6 @@ int main (int argc, char *argv[])
    // Setup the final NonlinearForm.
    ParNonlinearForm a(pfespace);
    a.AddDomainIntegrator(tmop_integ);
-
-   // TODO remove this.
-   Array<int> ess_bdr(pmesh->bdr_attributes.Max());
-   ess_bdr = 1;
-   ess_bdr[bdr_attr_to_fit-1] = 0;
-   a.SetEssentialBC(ess_bdr);
 
    // Compute the minimum det(J) of the starting mesh.
    double min_detJ = infinity();
@@ -450,8 +433,7 @@ int main (int argc, char *argv[])
    double init_metric_energy = a.GetParGridFunctionEnergy(x);
    //   surf_fit_coeff.constant  = surface_fit_const;
 
-   // 15. As we use the Newton method to solve the resulting nonlinear system,
-   //     here we setup the linear solver for the system's Jacobian.
+   // Setup Newton's Jacobian solver.
    Solver *S = NULL;
    MINRESSolver *minres = new MINRESSolver(MPI_COMM_WORLD);
    minres->SetMaxIter(100);
@@ -479,7 +461,7 @@ int main (int argc, char *argv[])
 
    // For untangling, the solver will update the min det(T) values.
    solver.SetMinDetPtr(&min_detJ);
-   solver.SetMaxIter(50);
+   solver.SetMaxIter(solver_iter);
    solver.SetRelTol(1e-8);
    solver.SetAbsTol(0.0);
    IterativeSolver::PrintLevel newton_pl;
@@ -492,8 +474,7 @@ int main (int argc, char *argv[])
    solver.Mult(b, x.GetTrueVector());
    x.SetFromTrueVector();
 
-   // 16. Save the optimized mesh to a file. This output can be viewed later
-   //     using GLVis: "glvis -m optimized -np num_mpi_tasks".
+   // Save the optimized mesh to a file.
    {
       ostringstream mesh_name;
       mesh_name << "amster-out.mesh";
@@ -510,14 +491,6 @@ int main (int argc, char *argv[])
 
    //   if (surface_fit_const > 0.0)
    //   {
-   //      if (visualization)
-   //      {
-   //         socketstream vis2, vis3;
-   //         common::VisualizeField(vis2, "localhost", 19916, mat,
-   //                                "Materials", 600, 900, 300, 300);
-   //         common::VisualizeField(vis3, "localhost", 19916, surf_fit_mat_gf,
-   //                                "Surface dof", 900, 900, 300, 300);
-   //      }
    //      double err_avg, err_max;
    //      tmop_integ->GetSurfaceFittingErrors(err_avg, err_max);
    //      if (myid == 0)
@@ -527,7 +500,7 @@ int main (int argc, char *argv[])
    //      }
    //   }
 
-   // 19. Visualize the mesh displacement.
+   // Visualize the mesh displacement.
    {
       x0 -= x;
       socketstream sock;

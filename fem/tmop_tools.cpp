@@ -842,7 +842,7 @@ void TMOPNewtonSolver::ProcessNewState(const Vector &x) const
       if (rel_change_surf_fit_err < surf_fit_rel_change_threshold)
       {
          UpdateSurfaceFittingWeight(surf_fit_scale_factor);
-         adapt_inc_count += 1;
+         adapt_inc_count++;
       }
       else
       {
