@@ -98,10 +98,10 @@ void ParNCH1FaceRestriction::AddMultTranspose(const Vector &x, Vector &y) const
    H1FaceRestriction::AddMultTranspose(x_interp, y);
 }
 
-void ParNCH1FaceRestriction::AddMultTranspose(Vector &x, Vector &y) const
+void ParNCH1FaceRestriction::AddMultTransposeInPlace(Vector &x, Vector &y) const
 {
    if (nf==0) { return; }
-   NonconformingTransposeInterpolation(x);
+   NonconformingTransposeInterpolationInPlace(x);
    H1FaceRestriction::AddMultTranspose(x, y);
 }
 
@@ -113,10 +113,10 @@ void ParNCH1FaceRestriction::NonconformingTransposeInterpolation(
       x_interp.SetSize(x.Size());
    }
    x_interp = x;
-   NonconformingTransposeInterpolation(x_interp);
+   NonconformingTransposeInterpolationInPlace(x_interp);
 }
 
-void ParNCH1FaceRestriction::NonconformingTransposeInterpolation(
+void ParNCH1FaceRestriction::NonconformingTransposeInterpolationInPlace(
    Vector& x) const
 {
    // Assumes all elements have the same number of dofs
@@ -803,19 +803,19 @@ void ParNCL2FaceRestriction::AddMultTranspose(const Vector &x, Vector &y) const
    }
 }
 
-void ParNCL2FaceRestriction::AddMultTranspose(Vector& x, Vector& y) const
+void ParNCL2FaceRestriction::AddMultTransposeInPlace(Vector& x, Vector& y) const
 {
    if (nf==0) { return; }
    if (type==FaceType::Interior)
    {
       if ( m==L2FaceValues::DoubleValued )
       {
-         DoubleValuedNonconformingTransposeInterpolation(x);
+         DoubleValuedNonconformingTransposeInterpolationInPlace(x);
          DoubleValuedConformingAddMultTranspose(x, y);
       }
       else if ( m==L2FaceValues::SingleValued )
       {
-         SingleValuedNonconformingTransposeInterpolation(x);
+         SingleValuedNonconformingTransposeInterpolationInPlace(x);
          SingleValuedConformingAddMultTranspose(x, y);
       }
    }

@@ -1906,11 +1906,11 @@ void NCL2FaceRestriction::SingleValuedNonconformingTransposeInterpolation(
       x_interp.SetSize(x.Size());
    }
    x_interp = x;
-   SingleValuedNonconformingTransposeInterpolation(x_interp);
+   SingleValuedNonconformingTransposeInterpolationInPlace(x_interp);
 }
 
 
-void NCL2FaceRestriction::SingleValuedNonconformingTransposeInterpolation(
+void NCL2FaceRestriction::SingleValuedNonconformingTransposeInterpolationInPlace(
    Vector& x) const
 {
    // Assumes all elements have the same number of dofs
@@ -1970,10 +1970,10 @@ void NCL2FaceRestriction::DoubleValuedNonconformingTransposeInterpolation(
       x_interp.SetSize(x.Size());
    }
    x_interp = x;
-   DoubleValuedNonconformingTransposeInterpolation(x_interp);
+   DoubleValuedNonconformingTransposeInterpolationInPlace(x_interp);
 }
 
-void NCL2FaceRestriction::DoubleValuedNonconformingTransposeInterpolation(
+void NCL2FaceRestriction::DoubleValuedNonconformingTransposeInterpolationInPlace(
    Vector& x) const
 {
    // Assumes all elements have the same number of dofs
@@ -2051,19 +2051,19 @@ void NCL2FaceRestriction::AddMultTranspose(const Vector& x, Vector& y) const
    }
 }
 
-void NCL2FaceRestriction::AddMultTranspose(Vector& x, Vector& y) const
+void NCL2FaceRestriction::AddMultTransposeInPlace(Vector& x, Vector& y) const
 {
    if (nf==0) { return; }
    if (type==FaceType::Interior)
    {
       if ( m==L2FaceValues::DoubleValued )
       {
-         DoubleValuedNonconformingTransposeInterpolation(x);
+         DoubleValuedNonconformingTransposeInterpolationInPlace(x);
          DoubleValuedConformingAddMultTranspose(x, y);
       }
       else if ( m==L2FaceValues::SingleValued )
       {
-         SingleValuedNonconformingTransposeInterpolation(x);
+         SingleValuedNonconformingTransposeInterpolationInPlace(x);
          SingleValuedConformingAddMultTranspose(x, y);
       }
    }

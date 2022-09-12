@@ -79,8 +79,9 @@ public:
                          ElementDofOrdering.
        @param[in,out] y The L-vector degrees of freedom.
 
-       @note @a x is used for computation. */
-   void AddMultTranspose(Vector &x, Vector &y) const override;
+      @note This method is an optimization of AddMultTranspose where the @a x
+      Vector is used and modified to avoid memory allocation and memcpy. */
+   void AddMultTransposeInPlace(Vector &x, Vector &y) const override;
 
 private:
    /** @brief Compute the scatter indices: L-vector to E-vector, the offsets
@@ -126,7 +127,7 @@ public: // For nvcc
        @param[in] x The dofs vector that needs coarse dofs to be express in term
                     of the coarse basis, the result is stored in x_interp.
    */
-   void NonconformingTransposeInterpolation(Vector& x) const;
+   void NonconformingTransposeInterpolationInPlace(Vector& x) const;
 };
 
 /// Operator that extracts Face degrees of freedom in parallel.
@@ -317,7 +318,7 @@ public:
        @param[in,out] y The L-vector degrees of freedom.
 
        @note @a x is used for computation. */
-   void AddMultTranspose(Vector &x, Vector &y) const override;
+   void AddMultTransposeInPlace(Vector &x, Vector &y) const override;
 
    /** @brief Fill the I array of SparseMatrix corresponding to the sparsity
        pattern given by this ParNCL2FaceRestriction.
