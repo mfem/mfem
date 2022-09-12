@@ -199,6 +199,9 @@ add_serial_miniapp_test(tmop_pa OFF)  # UVM OFF
 # TMOP tests need meshes in ../../miniapps/meshing
 add_dependencies(tmop_pa_tests_cpu copy_miniapps_meshing_data)
 
+# ParSubMesh tests need meshes in ../../miniapps/multidomain
+add_dependencies(unit_tests copy_miniapps_multidomain_data)
+
 #-----------------------------------------------------------
 # SERIAL CEED TESTS:
 #   ceed_tests, ceed_tests_cuda_{ref,shared,gen}

@@ -206,7 +206,7 @@ void multidomain_test_3d(FECType fec_type)
    // Circle: sideset 1
    // Domain boundary: sideset 2
    Mesh *serial_parent_mesh = new
-   Mesh("../../../miniapps/multidomain/multidomain-hex.mesh");
+   Mesh("../../miniapps/multidomain/multidomain-hex.mesh");
    ParMesh parent_mesh(MPI_COMM_WORLD, *serial_parent_mesh);
    delete serial_parent_mesh;
 
