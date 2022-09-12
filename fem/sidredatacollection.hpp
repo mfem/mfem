@@ -1,13 +1,13 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
 #ifndef MFEM_SIDREDATACOLLECTION
 #define MFEM_SIDREDATACOLLECTION
@@ -17,7 +17,20 @@
 #ifdef MFEM_USE_SIDRE
 
 #include "datacollection.hpp"
-#include <sidre/sidre.hpp>
+
+// Ignore warnings from the axom/sidre header (GCC + Clang versions)
+#ifdef MFEM_HAVE_GCC_PRAGMA_DIAGNOSTIC
+# pragma GCC diagnostic push
+# if defined(__clang__)
+#  pragma GCC diagnostic ignored "-Wextra-semi"
+# else // real GCC?
+#  pragma GCC diagnostic ignored "-Wpedantic"
+# endif
+#endif
+#include <axom/sidre.hpp>
+#ifdef MFEM_HAVE_GCC_PRAGMA_DIAGNOSTIC
+# pragma GCC diagnostic pop
+#endif
 
 namespace mfem
 {
@@ -159,6 +172,10 @@ namespace mfem
 class SidreDataCollection : public DataCollection
 {
 public:
+   typedef NamedFieldsMap< Array<int> > AttributeFieldMap;
+   AttributeFieldMap attr_map;
+
+public:
 
    /// Constructor that allocates and initializes a Sidre DataStore.
    /**
@@ -180,20 +197,20 @@ public:
 
        @param[in] collection_name  Name of the collection used as a file name
                                    when saving
-       @param[in] global_grp       Pointer to the global group in the datastore,
-                                   see the above schematic
+       @param[in] bp_index_grp     Pointer to the blueprint index group in the
+                                   datastore, see the above schematic
        @param[in] domain_grp       Pointer to the domain group in the datastore,
                                    see the above schematic
        @param[in] owns_mesh_data   Does the SidreDC own the mesh vertices?
 
        With this constructor, the SidreDataCollection does not own the Sidre
        DataStore.
-       @note No mesh or fields are read from the given DataGroups. The mesh has
+       @note No mesh or fields are read from the given Groups. The mesh has
        to be set with SetMesh() and fields registered with RegisterField().
     */
    SidreDataCollection(const std::string& collection_name,
-                       axom::sidre::DataGroup * global_grp,
-                       axom::sidre::DataGroup * domain_grp,
+                       axom::sidre::Group * bp_index_grp,
+                       axom::sidre::Group * domain_grp,
                        bool owns_mesh_data = false);
 
 #ifdef MFEM_USE_MPI
@@ -231,7 +248,28 @@ public:
     */
    void RegisterField(const std::string &field_name, GridFunction *gf,
                       const std::string &buffer_name,
-                      axom::sidre::SidreLength offset);
+                      axom::sidre::IndexType offset);
+
+   /// Registers an attribute field in the Sidre DataStore
+   /** The registration process is similar to that of RegisterField()
+       The attribute field is associated with the elements of the mesh
+       when @a is_bdry is false, and with the boundary elements, when
+       @a is_bdry is true.
+       @sa RegisterField()  */
+   void RegisterAttributeField(const std::string& name, bool is_bdry);
+   void DeregisterAttributeField(const std::string& name);
+
+   /** Returns a pointer to the attribute field associated with
+       @a field_name, or NULL when there is no associated field */
+   Array<int>* GetAttributeField(const std::string& field_name) const
+   { return attr_map.Get(field_name); }
+
+   /** Checks if there is an attribute field associated with @a field_name */
+   bool HasAttributeField(const std::string& field_name) const
+   { return attr_map.Has(field_name); }
+
+   /** Checks if any rank in the mesh has boundary elements */
+   bool HasBoundaryMesh() const;
 
    /// Set the name of the mesh nodes field.
    /** This name will be used by SetMesh() to register the mesh nodes, if not
@@ -256,6 +294,13 @@ public:
        to register the mesh nodes GridFunction, if the mesh uses nodes. */
    virtual void SetMesh(Mesh *new_mesh);
 
+#ifdef MFEM_USE_MPI
+   /// Set/change the mesh associated with the collection
+   /** Uses the field name "mesh_nodes" or the value set by SetMeshNodesName()
+       to register the mesh nodes GridFunction, if the mesh uses nodes. */
+   virtual void SetMesh(MPI_Comm comm, Mesh *new_mesh);
+#endif
+
    /// Reset the domain and global datastore group pointers.
    /** These are set in the constructor, but if a host code changes the
        datastore contents ( such as wiping out the datastore and loading in new
@@ -263,11 +308,11 @@ public:
        reset to valid groups in the datastore.
        @sa Load(const std::string &path, const std::string &protocol).
     */
-   void SetGroupPointers(axom::sidre::DataGroup * global_grp,
-                         axom::sidre::DataGroup * domain_grp);
+   void SetGroupPointers(axom::sidre::Group * global_grp,
+                         axom::sidre::Group * domain_grp);
 
-   axom::sidre::DataGroup * GetBPGroup() { return bp_grp; }
-   axom::sidre::DataGroup * GetBPIndexGroup() { return bp_index_grp; }
+   axom::sidre::Group * GetBPGroup() { return m_bp_grp; }
+   axom::sidre::Group * GetBPIndexGroup() { return m_bp_index_grp; }
 
    /// Prepare the DataStore for writing
    virtual void PrepareToSave();
@@ -320,25 +365,29 @@ public:
    /** @name Methods for named buffer access and manipulation. */
    ///@{
 
-   /** @brief Get a pointer to the sidre::DataView holding the named buffer for
+   /** @brief Get a pointer to the sidre::View holding the named buffer for
        @a buffer_name. */
    /** If such named buffer is not allocated, the method returns NULL.
-       @note To access the underlying pointer, use DataView::getData().
-       @note To query the size of the buffer, use DataView::getNumElements().
+       @note To access the underlying pointer, use View::getData().
+       @note To query the size of the buffer, use View::getNumElements().
     */
-   axom::sidre::DataView *
+   axom::sidre::View *
    GetNamedBuffer(const std::string& buffer_name) const
-   { return named_buffers_grp()->getView(buffer_name); }
+   {
+      return named_buffers_grp()->hasView(buffer_name)
+             ? named_buffers_grp()->getView(buffer_name)
+             : NULL;
+   }
 
    /// Return newly allocated or existing named buffer for @a buffer_name.
    /** The buffer is stored in the named_buffers group. If the currently
        allocated buffer size is smaller than @a sz, then the buffer is
        reallocated with size @a sz, destroying its contents.
-       @note To access the underlying pointer, use DataView::getData().
+       @note To access the underlying pointer, use View::getData().
     */
-   axom::sidre::DataView *
+   axom::sidre::View *
    AllocNamedBuffer(const std::string& buffer_name,
-                    axom::sidre::SidreLength sz,
+                    axom::sidre::IndexType sz,
                     axom::sidre::TypeID type =
                        axom::sidre::DOUBLE_ID);
 
@@ -369,24 +418,20 @@ private:
    // Otherwise, this pointer is NULL.
    axom::sidre::DataStore * m_datastore_ptr;
 
-#ifdef MFEM_USE_MPI
-   MPI_Comm m_comm;
-#endif
-
 protected:
-   axom::sidre::DataGroup *named_buffers_grp() const;
+   axom::sidre::Group *named_buffers_grp() const;
 
-   axom::sidre::DataView *
-   alloc_view(axom::sidre::DataGroup *grp,
+   axom::sidre::View *
+   alloc_view(axom::sidre::Group *grp,
               const std::string &view_name);
 
-   axom::sidre::DataView *
-   alloc_view(axom::sidre::DataGroup *grp,
+   axom::sidre::View *
+   alloc_view(axom::sidre::Group *grp,
               const std::string &view_name,
               const axom::sidre::DataType &dtype);
 
-   axom::sidre::DataGroup *
-   alloc_group(axom::sidre::DataGroup *grp,
+   axom::sidre::Group *
+   alloc_group(axom::sidre::Group *grp,
                const std::string &group_name);
 
    // return the filename based on prefix_path, collection name and cycle.
@@ -395,17 +440,20 @@ protected:
 private:
    // If the data collection does not own the datastore, it will need pointers
    // to the blueprint and blueprint index group to use.
-   axom::sidre::DataGroup * bp_grp;
-   axom::sidre::DataGroup * bp_index_grp;
+   axom::sidre::Group * m_bp_grp;
+   axom::sidre::Group * m_bp_index_grp;
 
    // This is stored for convenience.
-   axom::sidre::DataGroup * named_bufs_grp;
+   axom::sidre::Group * m_named_bufs_grp;
 
    // Private helper functions
 
    void RegisterFieldInBPIndex(const std::string& field_name,
                                GridFunction *gf);
    void DeregisterFieldInBPIndex(const std::string & field_name);
+
+   void RegisterAttributeFieldInBPIndex(const std::string& attr_name);
+   void DeregisterAttributeFieldInBPIndex(const std::string& attr_name);
 
    /** @brief Return a string with the conduit blueprint name for the given
        Element::Type. */
@@ -423,7 +471,7 @@ private:
    void addScalarBasedGridFunction(const std::string& field_name,
                                    GridFunction* gf,
                                    const std::string &buffer_name,
-                                   axom::sidre::SidreLength offset);
+                                   axom::sidre::IndexType offset);
 
    /**
     * \brief A private helper function to set up the views associated with the
@@ -437,7 +485,11 @@ private:
    void addVectorBasedGridFunction(const std::string& field_name,
                                    GridFunction* gf,
                                    const std::string &buffer_name,
-                                   axom::sidre::SidreLength offset);
+                                   axom::sidre::IndexType offset);
+
+   /** @brief A private helper function to set up the Views associated with
+       attribute field named @a field_name */
+   void addIntegerAttributeField(const std::string& field_name, bool is_bdry);
 
    /// Sets up the four main mesh blueprint groups.
    /**
@@ -466,6 +518,15 @@ private:
             former has to be created with this method before the latter.
     */
    void createMeshBlueprintTopologies(bool hasBP, const std::string& mesh_name);
+
+#ifdef MFEM_USE_MPI
+   /// Sets up the mesh blueprint 'adjacencies' group.
+   /**
+    * \param hasBP Indicates whether the blueprint has already been set up.
+    * \note Only valid when using parallel meshes
+    */
+   void createMeshBlueprintAdjacencies(bool hasBP);
+#endif
 
    /// Verifies that the contents of the mesh blueprint data is valid.
    void verifyMeshBlueprint();

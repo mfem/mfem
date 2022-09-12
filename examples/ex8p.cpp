@@ -4,8 +4,10 @@
 //
 // Sample runs:  mpirun -np 4 ex8p -m ../data/square-disc.mesh
 //               mpirun -np 4 ex8p -m ../data/star.mesh
+//               mpirun -np 4 ex8p -m ../data/star-mixed.mesh
 //               mpirun -np 4 ex8p -m ../data/escher.mesh
 //               mpirun -np 4 ex8p -m ../data/fichera.mesh
+//               mpirun -np 4 ex8p -m ../data/fichera-mixed.mesh
 //               mpirun -np 4 ex8p -m ../data/square-disc-p2.vtk
 //               mpirun -np 4 ex8p -m ../data/square-disc-p3.mesh
 //               mpirun -np 4 ex8p -m ../data/star-surf.mesh -o 2
@@ -39,11 +41,11 @@ using namespace mfem;
 
 int main(int argc, char *argv[])
 {
-   // 1. Initialize MPI.
-   int num_procs, myid;
-   MPI_Init(&argc, &argv);
-   MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
-   MPI_Comm_rank(MPI_COMM_WORLD, &myid);
+   // 1. Initialize MPI and HYPRE.
+   Mpi::Init(argc, argv);
+   int num_procs = Mpi::WorldSize();
+   int myid = Mpi::WorldRank();
+   Hypre::Init();
 
    // 2. Parse command-line options.
    const char *mesh_file = "../data/star.mesh";
@@ -65,7 +67,6 @@ int main(int argc, char *argv[])
       {
          args.PrintUsage(cout);
       }
-      MPI_Finalize();
       return 1;
    }
    if (myid == 0)
@@ -104,7 +105,6 @@ int main(int argc, char *argv[])
          pmesh->UniformRefinement();
       }
    }
-   pmesh->ReorientTetMesh();
 
    // 6. Define the trial, interfacial (trace) and test DPG spaces:
    //    - The trial space, x0_space, contains the non-interfacial unknowns and
@@ -123,9 +123,13 @@ int main(int argc, char *argv[])
       test_order++;
    }
    if (test_order < trial_order)
+   {
       if (myid == 0)
+      {
          cerr << "Warning, test space not enriched enough to handle primal"
               << " trial space\n";
+      }
+   }
 
    FiniteElementCollection *x0_fec, *xhat_fec, *test_fec;
 
@@ -139,9 +143,9 @@ int main(int argc, char *argv[])
    xhat_space = new ParFiniteElementSpace(pmesh, xhat_fec);
    test_space = new ParFiniteElementSpace(pmesh, test_fec);
 
-   HYPRE_Int glob_true_s0     =   x0_space->GlobalTrueVSize();
-   HYPRE_Int glob_true_s1     = xhat_space->GlobalTrueVSize();
-   HYPRE_Int glob_true_s_test = test_space->GlobalTrueVSize();
+   HYPRE_BigInt glob_true_s0     =   x0_space->GlobalTrueVSize();
+   HYPRE_BigInt glob_true_s1     = xhat_space->GlobalTrueVSize();
+   HYPRE_BigInt glob_true_s_test = test_space->GlobalTrueVSize();
    if (myid == 0)
    {
       cout << "\nNumber of Unknowns:\n"
@@ -333,8 +337,6 @@ int main(int argc, char *argv[])
    delete xhat_fec;
    delete x0_fec;
    delete pmesh;
-
-   MPI_Finalize();
 
    return 0;
 }

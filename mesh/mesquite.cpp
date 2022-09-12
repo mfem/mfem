@@ -1,13 +1,13 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
 #include "mesquite.hpp"
 
@@ -715,7 +715,7 @@ void MesquiteMesh::elements_get_topologies(const ElementHandle
 
 MesquiteMesh::~MesquiteMesh()
 {
-   MsqPrintError err(cerr);
+   MsqPrintError err(mfem::err);
    delete myTags;
 
    delete dof_elem;
@@ -744,7 +744,7 @@ MesquiteMesh::tag_attributes()
    tag_set_element_data( attributeTagHandle, nelems, arrptr(elements),
                          (const void*)(materialValues), err );
 
-   delete materialValues;
+   delete[] materialValues;
 }
 
 TagHandle MesquiteMesh::tag_create( const std::string& name,
@@ -847,7 +847,7 @@ static void BoundaryPreservingOptimization(mfem::MesquiteMesh &mesh)
 {
 
    MsqDebug::enable(1);
-   MsqPrintError err(cerr);
+   MsqPrintError err(mfem::err);
 
    int pOrder = 2;
    int mNumInterfaceSmoothIters = 5;
@@ -858,14 +858,14 @@ static void BoundaryPreservingOptimization(mfem::MesquiteMesh &mesh)
    // get all vertices
    std::vector<Mesquite::Mesh::VertexHandle> vertices;
    mesh.get_all_vertices(vertices, err);
-   if (MSQ_CHKERR(err)) {std::cout << err << std::endl; exit(EXIT_FAILURE);}
+   if (MSQ_CHKERR(err)) {mfem::out << err << std::endl; exit(EXIT_FAILURE);}
    int num_vertices = vertices.size();
 
    // get application fixed vertices
    std::vector<bool> app_fixed(num_vertices);
 
    mesh.vertices_get_fixed_flag(&(vertices[0]), app_fixed, num_vertices, err);
-   if (MSQ_CHKERR(err)) {std::cout << err << std::endl; exit(EXIT_FAILURE);}
+   if (MSQ_CHKERR(err)) {mfem::out << err << std::endl; exit(EXIT_FAILURE);}
    int num_app_fixed = 0;
 
    for (int i = 0; i < num_vertices; i++)
@@ -873,7 +873,7 @@ static void BoundaryPreservingOptimization(mfem::MesquiteMesh &mesh)
       if (app_fixed[i]) { num_app_fixed++; }
    }
 
-   std::cout << "mesh has " << num_vertices << " vertices and " << num_app_fixed <<
+   mfem::out << "mesh has " << num_vertices << " vertices and " << num_app_fixed <<
              " are app fixed. ";
 
    // create planar domain for interior and assessor queues
@@ -910,7 +910,7 @@ static void BoundaryPreservingOptimization(mfem::MesquiteMesh &mesh)
       if (app_fixed_boundary[i]) { num_app_fixed_boundary++; }
    }
 
-   std::cout << "mesh has " << num_boundary_vertices << " boundary vertices and "
+   mfem::out << "mesh has " << num_boundary_vertices << " boundary vertices and "
              << num_app_fixed_boundary << " are app fixed" << std::endl;
 
 
@@ -948,7 +948,7 @@ static void BoundaryPreservingOptimization(mfem::MesquiteMesh &mesh)
           num_fixed_boundary_flags, num_boundary_vertices);
 
 
-   // creates three intruction queues
+   // creates three instruction queues
    Mesquite::InstructionQueue boundary_queue;
    Mesquite::InstructionQueue interior_queue;
 
@@ -964,7 +964,7 @@ static void BoundaryPreservingOptimization(mfem::MesquiteMesh &mesh)
 
    Mesquite::LPtoPTemplate* obj_func = new Mesquite::LPtoPTemplate(&metric, pOrder,
                                                                    err);
-   if (MSQ_CHKERR(err)) {std::cout << err << std::endl; exit(EXIT_FAILURE);}
+   if (MSQ_CHKERR(err)) {mfem::out << err << std::endl; exit(EXIT_FAILURE);}
 
    Mesquite::QuasiNewton* boundary_alg = new Mesquite::QuasiNewton( obj_func);
    boundary_alg->use_element_on_vertex_patch();
@@ -1026,13 +1026,13 @@ static void BoundaryPreservingOptimization(mfem::MesquiteMesh &mesh)
    // boundary_queue.add_quality_assessor( &boundary_assessor, err );
    boundary_queue.set_master_quality_improver(boundary_alg, err);
    // boundary_queue.add_quality_assessor( &boundary_assessor, err );
-   if (MSQ_CHKERR(err)) {std::cout << err << std::endl; exit(EXIT_FAILURE);}
+   if (MSQ_CHKERR(err)) {mfem::out << err << std::endl; exit(EXIT_FAILURE);}
 
    // set the interior instruction queue
    // interior_queue.add_quality_assessor( &interior_assessor, err );
    interior_queue.set_master_quality_improver(interior_alg, err);
    // interior_queue.add_quality_assessor( &interior_assessor, err );
-   if (MSQ_CHKERR(err)) {std::cout << err << std::endl; exit(EXIT_FAILURE);}
+   if (MSQ_CHKERR(err)) {mfem::out << err << std::endl; exit(EXIT_FAILURE);}
 
    err.clear();
 
@@ -1041,29 +1041,29 @@ static void BoundaryPreservingOptimization(mfem::MesquiteMesh &mesh)
    for (int j=0; j<mNumInterfaceSmoothIters; j++)
    {
 
-      cout<<" Boundary + Interior smoothing pass "<< j<<"....."<<endl;
+      mfem::out<<" Boundary + Interior smoothing pass "<< j<<"....."<<endl;
 
       // smooth boundary only
       for (int i = 0; i < num_vertices; i++) { fixed_flags[i] = true; }
       mesh.vertices_set_fixed_flag(&(vertices[0]),fixed_flags,num_vertices, err);
-      if (MSQ_CHKERR(err)) {std::cout << err << std::endl; exit(EXIT_FAILURE);}
+      if (MSQ_CHKERR(err)) {mfem::out << err << std::endl; exit(EXIT_FAILURE);}
 
       mesh.vertices_set_fixed_flag(&(theBoundaryVertices[0]),fixed_flags_boundary,
                                    num_boundary_vertices, err);
-      if (MSQ_CHKERR(err)) {std::cout << err << std::endl; exit(EXIT_FAILURE);}
+      if (MSQ_CHKERR(err)) {mfem::out << err << std::endl; exit(EXIT_FAILURE);}
 
       // -----------------------------------------------------
       // debug
       //
       mesh.vertices_get_fixed_flag(&(vertices[0]),fixed_flags,num_vertices, err);
-      if (MSQ_CHKERR(err)) {std::cout << err << std::endl; exit(EXIT_FAILURE);}
+      if (MSQ_CHKERR(err)) {mfem::out << err << std::endl; exit(EXIT_FAILURE);}
       int num_fixed = 0;
       for (int i = 0; i < num_vertices; i++)
       {
          if (fixed_flags[i]) { num_fixed++; }
       }
 
-      std::cout << "   For Boundary smooth, mesh has " << num_vertices <<
+      mfem::out << "   For Boundary smooth, mesh has " << num_vertices <<
                 " vertices and " << num_fixed << " are fixed. "<<endl;
       //
       // debug
@@ -1071,10 +1071,10 @@ static void BoundaryPreservingOptimization(mfem::MesquiteMesh &mesh)
 
 
       boundary_queue.run_instructions(&mesh, mesh_domain, err);
-      if (MSQ_CHKERR(err)) {std::cout << err << std::endl; exit(EXIT_FAILURE);}
-      cout<<" boundary smooth completed in "<<boundaryTermOuter->get_iteration_count()
-          <<" outer and "<<boundaryTermInner->get_iteration_count()
-          <<" inner iterations."<<endl;
+      if (MSQ_CHKERR(err)) {mfem::out << err << std::endl; exit(EXIT_FAILURE);}
+      mfem::out<<" boundary smooth completed in "<<boundaryTermOuter->get_iteration_count()
+               <<" outer and "<<boundaryTermInner->get_iteration_count()
+               <<" inner iterations."<<endl;
 
 
       // smooth interior only
@@ -1094,35 +1094,35 @@ static void BoundaryPreservingOptimization(mfem::MesquiteMesh &mesh)
          //
          mesh.vertices_set_fixed_flag(&(vertices[0]),app_fixed,num_vertices, err);
       }
-      if (MSQ_CHKERR(err)) {std::cout << err << std::endl; exit(EXIT_FAILURE);}
+      if (MSQ_CHKERR(err)) {mfem::out << err << std::endl; exit(EXIT_FAILURE);}
       for (int i = 0; i < num_boundary_vertices; i++) { fixed_flags[i] = true; }
 
       mesh.vertices_set_fixed_flag(&(theBoundaryVertices[0]),fixed_flags,
                                    num_boundary_vertices, err);
-      if (MSQ_CHKERR(err)) {std::cout << err << std::endl; exit(EXIT_FAILURE);}
+      if (MSQ_CHKERR(err)) {mfem::out << err << std::endl; exit(EXIT_FAILURE);}
 
       // -----------------------------------------------------
       // debug
       //
       mesh.vertices_get_fixed_flag(&(vertices[0]),fixed_flags,num_vertices, err);
-      if (MSQ_CHKERR(err)) {std::cout << err << std::endl; exit(EXIT_FAILURE);}
+      if (MSQ_CHKERR(err)) {mfem::out << err << std::endl; exit(EXIT_FAILURE);}
       num_fixed = 0;
       for (int i = 0; i < num_vertices; i++)
       {
          if (fixed_flags[i]) { num_fixed++; }
       }
 
-      std::cout << "    For Interior smooth, mesh has " << num_vertices <<
+      mfem::out << "    For Interior smooth, mesh has " << num_vertices <<
                 " vertices and " << num_fixed << " are fixed. "<<endl;
       //
       // debug
       // -----------------------------------------------------
 
       interior_queue.run_instructions(&mesh, &geom, err);
-      if (MSQ_CHKERR(err)) {std::cout << err << std::endl; exit(EXIT_FAILURE);}
-      cout<<" interior smooth completed in "<<interiorTermOuter->get_iteration_count()
-          <<" outer and "<<interiorTermInner->get_iteration_count()
-          <<" inner iterations."<<endl;
+      if (MSQ_CHKERR(err)) {mfem::out << err << std::endl; exit(EXIT_FAILURE);}
+      mfem::out<<" interior smooth completed in "<<interiorTermOuter->get_iteration_count()
+               <<" outer and "<<interiorTermInner->get_iteration_count()
+               <<" inner iterations."<<endl;
 
    }
 
@@ -1145,7 +1145,7 @@ void mfem::Mesh::MesquiteSmooth(const int mesquite_option)
 {
    mfem::MesquiteMesh msq_mesh(this);
    MsqDebug::enable(1);
-   MsqPrintError err(cerr);
+   MsqPrintError err(mfem::err);
 
    Wrapper *method;
 
@@ -1179,7 +1179,7 @@ void mfem::Mesh::MesquiteSmooth(const int mesquite_option)
    }
    else
    {
-      // boundary perserving smoothing doesn't have a wrapper yet.
+      // boundary preserving smoothing doesn't have a wrapper yet.
       BoundaryPreservingOptimization( msq_mesh );
    }
 }

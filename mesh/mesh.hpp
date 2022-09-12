@@ -1,45 +1,53 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
 #ifndef MFEM_MESH
 #define MFEM_MESH
 
 #include "../config/config.hpp"
 #include "../general/stable3d.hpp"
+#include "../general/globals.hpp"
 #include "triangle.hpp"
 #include "tetrahedron.hpp"
 #include "vertex.hpp"
+#include "vtk.hpp"
 #include "ncmesh.hpp"
 #include "../fem/eltrans.hpp"
 #include "../fem/coefficient.hpp"
-#include "../general/gzstream.hpp"
+#include "../general/zstr.hpp"
+#ifdef MFEM_USE_ADIOS2
+#include "../general/adios2stream.hpp"
+#endif
 #include <iostream>
-#include <fstream>
 
 namespace mfem
 {
 
 // Data type mesh
 
+class GeometricFactors;
+class FaceGeometricFactors;
 class KnotVector;
 class NURBSExtension;
 class FiniteElementSpace;
 class GridFunction;
 struct Refinement;
 
+/** An enum type to specify if interior or boundary faces are desired. */
+enum class FaceType : bool {Interior, Boundary};
+
 #ifdef MFEM_USE_MPI
 class ParMesh;
 class ParNCMesh;
 #endif
-
 
 class Mesh
 {
@@ -47,7 +55,12 @@ class Mesh
    friend class ParMesh;
    friend class ParNCMesh;
 #endif
+   friend class NCMesh;
    friend class NURBSExtension;
+
+#ifdef MFEM_USE_ADIOS2
+   friend class adios2stream;
+#endif
 
 protected:
    int Dim;
@@ -55,10 +68,14 @@ protected:
 
    int NumOfVertices, NumOfElements, NumOfBdrElements;
    int NumOfEdges, NumOfFaces;
-
-   int BaseGeom, BaseBdrGeom; // element base geometries, -1 if not all the same
+   /** These variables store the number of Interior and Boundary faces. Calling
+       fes->GetMesh()->GetNBE() doesn't return the expected value in 3D because
+       periodic meshes in 3D have some of their faces marked as boundary for
+       visualization purpose in GLVis. */
+   mutable int nbInteriorFaces, nbBoundaryFaces;
 
    int meshgen; // see MeshGenerator()
+   int mesh_geoms; // sum of (1 << geom) for all geom of all dimensions
 
    // Counter for Mesh transformations: refinement, derefinement, rebalancing.
    // Used for checking during Update operations on objects depending on the
@@ -67,11 +84,72 @@ protected:
 
    Array<Element *> elements;
    // Vertices are only at the corners of elements, where you would expect them
-   // in the lowest-order mesh.
+   // in the lowest-order mesh. In some cases, e.g. in a Mesh that defines the
+   // patch topology for a NURBS mesh (see LoadPatchTopo()) the vertices may be
+   // empty while NumOfVertices is positive.
    Array<Vertex> vertices;
    Array<Element *> boundary;
    Array<Element *> faces;
 
+   /** @brief This structure stores the low level information necessary to
+       interpret the configuration of elements on a specific face. This
+       information can be accessed using methods like GetFaceElements(),
+       GetFaceInfos(), FaceIsInterior(), etc.
+
+       For accessing higher level deciphered information look at
+       Mesh::FaceInformation, and its accessor Mesh::GetFaceInformation().
+
+       Each face contains information on the indices, local reference faces,
+       orientations, and potential nonconformity for the two neighboring
+       elements on a face.
+       Each face can either be an interior, boundary, or shared interior face.
+       Each interior face is shared by two elements referred as Elem1 and Elem2.
+       For boundary faces only the information on Elem1 is relevant.
+       Shared interior faces correspond to faces where Elem1 and Elem2 are
+       distributed on different MPI ranks.
+       Regarding conformity, three cases are distinguished, conforming faces,
+       nonconforming slave faces, and nonconforming master faces. Master and
+       slave referring to the coarse and fine elements respectively on a
+       nonconforming face.
+       Nonconforming slave faces always have the slave element as Elem1 and
+       the master element as Elem2. On the other side, nonconforming master
+       faces always have the master element as Elem1, and one of the slave
+       element as Elem2. Except for ghost nonconforming slave faces, where
+       Elem1 is the master side and Elem2 is the slave side.
+
+       The indices of Elem1 and Elem2 can be indirectly extracted from
+       FaceInfo::Elem1No and FaceInfo::Elem2No, read the note below for special
+       cases on the index of Elem2.
+
+       The local face identifiers are deciphered from FaceInfo::Elem1Inf and
+       FaceInfo::Elem2Inf through the formula: LocalFaceIndex = ElemInf/64,
+       the semantic of the computed local face identifier can be found in
+       fem/geom.cpp. The local face identifier corresponds to an index
+       in the Constants<Geometry>::Edges arrays for 2D element geometries, and
+       to an index in the Constants<Geometry>::FaceVert arrays for 3D element
+       geometries.
+
+       The orientation of each element relative to a face is obtained through
+       the formula: Orientation = ElemInf%64, the semantic of the orientation
+       can also be found in fem/geom.cpp. The orientation corresponds to
+       an index in the Constants<Geometry>::Orient arrays, providing the
+       sequence of vertices identifying the orientation of an edge/face. By
+       convention the orientation of Elem1 is always set to 0, serving as the
+       reference orientation. The orientation of Elem2 relatively to Elem1 is
+       therefore determined just by using the orientation of Elem2. An important
+       special case is the one of nonconforming faces, the orientation should
+       be composed with the PointMatrix, which also contains orientation
+       information. A special treatment should be done for 2D, the orientation
+       in the PointMatrix is not included, therefore when applying the
+       PointMatrix transformation, the PointMatrix should be flipped, except for
+       shared nonconforming slave faces where the transformation can be applied
+       as is.
+
+       Another special case is the case of shared nonconforming faces. Ghost
+       faces use a different design based on so called "ghost" faces.
+       Ghost faces, as their name suggest are very well hidden, and they
+       usually have a separate interface from "standard" faces.
+   */
    struct FaceInfo
    {
       // Inf = 64 * LocalFaceIndex + FaceOrientation
@@ -82,13 +160,55 @@ protected:
    // NOTE: in NC meshes, master faces have Elem2No == -1. Slave faces on the
    // other hand have Elem2No and Elem2Inf set to the master face's element and
    // its local face number.
+   //
+   // A local face is one generated from a local element and has index i in
+   // faces_info such that i < GetNumFaces(). Also, Elem1No always refers to the
+   // element (slave or master, in the nonconforming case) that generated the
+   // face.
+   // Classification of a local (non-ghost) face based on its FaceInfo:
+   // - Elem2No >= 0 --> local interior face; can be either:
+   //    - NCFace == -1 --> conforming face, or
+   //    - NCFace >= 0 --> nonconforming slave face; Elem2No is the index of
+   //      the master volume element; Elem2Inf%64 is 0, see the note in
+   //      Mesh::GenerateNCFaceInfo().
+   // - Elem2No < 0 --> local "boundary" face; can be one of:
+   //    - NCFace == -1 --> conforming face; can be either:
+   //       - Elem2Inf < 0 --> true boundary face (no element on side 2)
+   //       - Elem2Inf >= 0 --> shared face where element 2 is a face-neighbor
+   //         element with index -1-Elem2No. This state is initialized by
+   //         ParMesh::ExchangeFaceNbrData().
+   //    - NCFace >= 0 --> nonconforming face; can be one of:
+   //       - Elem2Inf < 0 --> master nonconforming face, interior or shared;
+   //         In this case, Elem2No is -1; see GenerateNCFaceInfo().
+   //       - Elem2Inf >= 0 --> shared slave nonconforming face where element 2
+   //         is the master face-neighbor element with index -1-Elem2No; see
+   //         ParNCMesh::GetFaceNeighbors().
+   //
+   // A ghost face is a nonconforming face that is generated by a non-local,
+   // i.e. ghost, element. A ghost face has index i in faces_info such that
+   // i >= GetNumFaces().
+   // Classification of a ghost (non-local) face based on its FaceInfo:
+   // - Elem1No == -1 --> master ghost face? These ghost faces also have:
+   //   Elem2No == -1, Elem1Inf == Elem2Inf == -1, and NCFace == -1.
+   // - Elem1No >= 0 --> slave ghost face; Elem1No is the index of the local
+   //   master side element, i.e. side 1 IS NOT the side that generated the
+   //   face. Elem2No is < 0 and -1-Elem2No is the index of the ghost
+   //   face-neighbor element that generated this slave ghost face. In this
+   //   case, Elem2Inf >= 0 and NCFace >= 0.
+   // Relevant methods: GenerateFaces(), GenerateNCFaceInfo(),
+   //                   ParNCMesh::GetFaceNeighbors(),
+   //                   ParMesh::ExchangeFaceNbrData()
 
    struct NCFaceInfo
    {
       bool Slave; // true if this is a slave face, false if master face
       int MasterFace; // if Slave, this is the index of the master face
+      // If not Slave, 'MasterFace' is the local face index of this master face
+      // as a face in the unique adjacent element.
       const DenseMatrix* PointMatrix; // if Slave, position within master face
       // (NOTE: PointMatrix points to a matrix owned by NCMesh.)
+
+      NCFaceInfo() = default;
 
       NCFaceInfo(bool slave, int master, const DenseMatrix* pm)
          : Slave(slave), MasterFace(master), PointMatrix(pm) {}
@@ -107,6 +227,7 @@ protected:
    mutable Table *edge_vertex;
 
    IsoparametricTransformation Transformation, Transformation2;
+   IsoparametricTransformation BdrTransformation;
    IsoparametricTransformation FaceTransformation, EdgeTransformation;
    FaceElementTransformations FaceElemTr;
 
@@ -120,6 +241,8 @@ protected:
    int own_nodes;
 
    static const int vtk_quadratic_tet[10];
+   static const int vtk_quadratic_pyramid[13];
+   static const int vtk_quadratic_wedge[18];
    static const int vtk_quadratic_hex[27];
 
 #ifdef MFEM_USE_MEMALLOC
@@ -127,12 +250,17 @@ protected:
    MemAlloc <Tetrahedron, 1024> TetMemory;
 #endif
 
+   // used during NC mesh initialization only
+   Array<Triple<int, int, int> > tmp_vertex_parents;
+
 public:
    typedef Geometry::Constants<Geometry::SEGMENT>     seg_t;
    typedef Geometry::Constants<Geometry::TRIANGLE>    tri_t;
    typedef Geometry::Constants<Geometry::SQUARE>      quad_t;
    typedef Geometry::Constants<Geometry::TETRAHEDRON> tet_t;
    typedef Geometry::Constants<Geometry::CUBE>        hex_t;
+   typedef Geometry::Constants<Geometry::PRISM>       pri_t;
+   typedef Geometry::Constants<Geometry::PYRAMID>     pyr_t;
 
    enum Operation { NONE, REFINE, DEREFINE, REBALANCE };
 
@@ -142,7 +270,15 @@ public:
    Array<int> bdr_attributes;
 
    NURBSExtension *NURBSext; ///< Optional NURBS mesh extension.
-   NCMesh *ncmesh;           ///< Optional non-conforming mesh extension.
+   NCMesh *ncmesh;           ///< Optional nonconforming mesh extension.
+   Array<GeometricFactors*> geom_factors; ///< Optional geometric factors.
+   Array<FaceGeometricFactors*>
+   face_geom_factors; ///< Optional face geometric factors.
+
+   // Global parameter that can be used to control the removal of unused
+   // vertices performed when reading a mesh in MFEM format. The default value
+   // (true) is set in mesh_readers.cpp.
+   static bool remove_unused_vertices;
 
 protected:
    Operation last_operation;
@@ -154,6 +290,7 @@ protected:
    void DeleteTables() { DestroyTables(); InitTables(); }
    void DestroyPointers(); // Delete data specifically allocated by class Mesh.
    void Destroy();         // Delete all owned data.
+   void ResetLazyData();
 
    Element *ReadElementWithoutAttr(std::istream &);
    static void PrintElementWithoutAttr(const Element *, std::ostream &);
@@ -163,21 +300,30 @@ protected:
 
    // Readers for different mesh formats, used in the Load() method.
    // The implementations of these methods are in mesh_readers.cpp.
-   void ReadMFEMMesh(std::istream &input, bool mfem_v11, int &curved);
+   void ReadMFEMMesh(std::istream &input, int version, int &curved);
    void ReadLineMesh(std::istream &input);
    void ReadNetgen2DMesh(std::istream &input, int &curved);
    void ReadNetgen3DMesh(std::istream &input);
    void ReadTrueGridMesh(std::istream &input);
-   void ReadVTKMesh(std::istream &input, int &curved, int &read_gf);
+   void CreateVTKMesh(const Vector &points, const Array<int> &cell_data,
+                      const Array<int> &cell_offsets,
+                      const Array<int> &cell_types,
+                      const Array<int> &cell_attributes,
+                      int &curved, int &read_gf, bool &finalize_topo);
+   void ReadVTKMesh(std::istream &input, int &curved, int &read_gf,
+                    bool &finalize_topo);
+   void ReadXML_VTKMesh(std::istream &input, int &curved, int &read_gf,
+                        bool &finalize_topo, const std::string &xml_prefix="");
    void ReadNURBSMesh(std::istream &input, int &curved, int &read_gf);
-   void ReadInlineMesh(std::istream &input, int generate_edges = 0);
-   void ReadGmshMesh(std::istream &input);
+   void ReadInlineMesh(std::istream &input, bool generate_edges = false);
+   void ReadGmshMesh(std::istream &input, int &curved, int &read_gf);
    /* Note NetCDF (optional library) is used for reading cubit files */
 #ifdef MFEM_USE_NETCDF
    void ReadCubit(const char *filename, int &curved, int &read_gf);
 #endif
 
    /// Determine the mesh generator bitmask #meshgen, see MeshGenerator().
+   /** Also, initializes #mesh_geoms. */
    void SetMeshGen();
 
    /// Return the length of the segment from node i to node j.
@@ -192,6 +338,11 @@ protected:
    void GetEdgeOrdering(DSTable &v_to_v, Array<int> &order);
    virtual void MarkTetMeshForRefinement(DSTable &v_to_v);
 
+   // Methods used to prepare and apply permutation of the mesh nodes assuming
+   // that the mesh elements may be rotated (e.g. to mark triangle or tet edges
+   // for refinement) between the two calls - PrepareNodeReorder() and
+   // DoNodeReorder(). The latter method assumes that the 'faces' have not been
+   // updated after the element rotations.
    void PrepareNodeReorder(DSTable **old_v_to_v, Table **old_elem_vert);
    void DoNodeReorder(DSTable *old_v_to_v, Table *old_elem_vert);
 
@@ -210,18 +361,21 @@ protected:
                         int *edge1, int *edge2, int *middle)
    { Bisection(i, v_to_v, edge1, edge2, middle); }
 
-   /** Bisection. Element with index i is bisected. */
+   /// Bisect a triangle: element with index @a i is bisected.
    void Bisection(int i, const DSTable &, int *, int *, int *);
 
-   /** Bisection. Boundary element with index i is bisected. */
-   void Bisection(int i, const DSTable &, int *);
+   /// Bisect a tetrahedron: element with index @a i is bisected.
+   void Bisection(int i, HashTable<Hashed2> &);
+
+   /// Bisect a boundary triangle: boundary element with index @a i is bisected.
+   void BdrBisection(int i, const HashTable<Hashed2> &);
 
    /** Uniform Refinement. Element with index i is refined uniformly. */
    void UniformRefinement(int i, const DSTable &, int *, int *, int *);
 
-   /** Averages the vertices with given indexes and saves the result in
-       vertices[result]. */
-   void AverageVertices (int * indexes, int n, int result);
+   /** @brief Averages the vertices with given @a indexes and saves the result
+       in #vertices[result]. */
+   void AverageVertices(const int *indexes, int n, int result);
 
    void InitRefinementTransforms();
    int FindCoarseElement(int i);
@@ -229,11 +383,23 @@ protected:
    /// Update the nodes of a curved mesh after refinement
    void UpdateNodes();
 
-   /// Refine quadrilateral mesh.
-   virtual void QuadUniformRefinement();
+   /// Helper to set vertex coordinates given a high-order curvature function.
+   void SetVerticesFromNodes(const GridFunction *nodes);
 
-   /// Refine hexahedral mesh.
-   virtual void HexUniformRefinement();
+   void UniformRefinement2D_base(bool update_nodes = true);
+
+   /// Refine a mixed 2D mesh uniformly.
+   virtual void UniformRefinement2D() { UniformRefinement2D_base(); }
+
+   /* If @a f2qf is not NULL, adds all quadrilateral faces to @a f2qf which
+      represents a "face-to-quad-face" index map. When all faces are quads, the
+      array @a f2qf is kept empty since it is not needed. */
+   void UniformRefinement3D_base(Array<int> *f2qf = NULL,
+                                 DSTable *v_to_v_p = NULL,
+                                 bool update_nodes = true);
+
+   /// Refine a mixed 3D mesh uniformly.
+   virtual void UniformRefinement3D() { UniformRefinement3D_base(); }
 
    /// Refine NURBS mesh.
    virtual void NURBSUniformRefinement();
@@ -249,9 +415,9 @@ protected:
    virtual bool NonconformingDerefinement(Array<double> &elem_error,
                                           double threshold, int nc_limit = 0,
                                           int op = 1);
-
-   /// Derefine elements once a list of derefinements is known.
-   void DerefineMesh(const Array<int> &derefinements);
+   /// Derefinement helper.
+   double AggregateError(const Array<double> &elem_error,
+                         const int *fine, int nfine, int op);
 
    /// Read NURBS patch/macro-element mesh
    void LoadPatchTopo(std::istream &input, Array<int> &edge_to_knot);
@@ -270,22 +436,34 @@ protected:
    void GetLocalTriToTetTransformation (IsoparametricTransformation &loc,
                                         int i);
    /// Used in GetFaceElementTransformations (...)
+   void GetLocalTriToWdgTransformation (IsoparametricTransformation &loc,
+                                        int i);
+   /// Used in GetFaceElementTransformations (...)
+   void GetLocalTriToPyrTransformation (IsoparametricTransformation &loc,
+                                        int i);
+   /// Used in GetFaceElementTransformations (...)
    void GetLocalQuadToHexTransformation (IsoparametricTransformation &loc,
                                          int i);
    /// Used in GetFaceElementTransformations (...)
-   void GetLocalFaceTransformation(int face_type, int elem_type,
-                                   IsoparametricTransformation &Transf,
-                                   int inf);
+   void GetLocalQuadToWdgTransformation (IsoparametricTransformation &loc,
+                                         int i);
+   /// Used in GetFaceElementTransformations (...)
+   void GetLocalQuadToPyrTransformation (IsoparametricTransformation &loc,
+                                         int i);
+
    /** Used in GetFaceElementTransformations to account for the fact that a
        slave face occupies only a portion of its master face. */
-   void ApplyLocalSlaveTransformation(IsoparametricTransformation &transf,
-                                      const FaceInfo &fi);
+   void ApplyLocalSlaveTransformation(FaceElementTransformations &FT,
+                                      const FaceInfo &fi, bool is_ghost);
+
    bool IsSlaveFace(const FaceInfo &fi) const;
 
    /// Returns the orientation of "test" relative to "base"
    static int GetTriOrientation (const int * base, const int * test);
    /// Returns the orientation of "test" relative to "base"
    static int GetQuadOrientation (const int * base, const int * test);
+   /// Returns the orientation of "test" relative to "base"
+   static int GetTetOrientation (const int * base, const int * test);
 
    static void GetElementArrayEdgeTable(const Array<Element*> &elem_array,
                                         const DSTable &v_to_v,
@@ -321,20 +499,13 @@ protected:
       return FaceIsInterior(FaceNo) || (faces_info[FaceNo].Elem2Inf >= 0);
    }
 
-   // shift cyclically 3 integers left-to-right
-   inline static void ShiftL2R(int &, int &, int &);
-   // shift cyclically 3 integers so that the smallest is first
-   inline static void Rotate3(int &, int &, int &);
-
    void FreeElement(Element *E);
 
    void GenerateFaces();
    void GenerateNCFaceInfo();
 
    /// Begin construction of a mesh
-   void InitMesh(int _Dim, int _spaceDim, int NVert, int NElem, int NBdrElem);
-
-   void InitBaseGeom();
+   void InitMesh(int Dim_, int spaceDim_, int NVert, int NElem, int NBdrElem);
 
    // Used in the methods FinalizeXXXMesh() and FinalizeTopology()
    void FinalizeCheck();
@@ -345,39 +516,47 @@ protected:
    // If NURBS mesh, write NURBS format. If NCMesh, write mfem v1.1 format.
    // If section_delimiter is empty, write mfem v1.0 format. Otherwise, write
    // mfem v1.2 format with the given section_delimiter at the end.
-   void Printer(std::ostream &out = std::cout,
+   void Printer(std::ostream &out = mfem::out,
                 std::string section_delimiter = "") const;
 
    /** Creates mesh for the parallelepiped [0,sx]x[0,sy]x[0,sz], divided into
-       nx*ny*nz hexahedrals if type=HEXAHEDRON or into 6*nx*ny*nz tetrahedrons
-       if type=TETRAHEDRON. If generate_edges = 0 (default) edges are not
-       generated, if 1 edges are generated. */
-   void Make3D(int nx, int ny, int nz, Element::Type type, int generate_edges,
-               double sx, double sy, double sz);
+       nx*ny*nz hexahedra if type=HEXAHEDRON or into 6*nx*ny*nz tetrahedrons if
+       type=TETRAHEDRON. The parameter @a sfc_ordering controls how the elements
+       (when type=HEXAHEDRON) are ordered: true - use space-filling curve
+       ordering, or false - use lexicographic ordering. */
+   void Make3D(int nx, int ny, int nz, Element::Type type,
+               double sx, double sy, double sz, bool sfc_ordering);
 
    /** Creates mesh for the rectangle [0,sx]x[0,sy], divided into nx*ny
        quadrilaterals if type = QUADRILATERAL or into 2*nx*ny triangles if
        type = TRIANGLE. If generate_edges = 0 (default) edges are not generated,
-       if 1 edges are generated. */
-   void Make2D(int nx, int ny, Element::Type type, int generate_edges,
-               double sx, double sy);
+       if 1 edges are generated. The parameter @a sfc_ordering controls how the
+       elements (when type=QUADRILATERAL) are ordered: true - use space-filling
+       curve ordering, or false - use lexicographic ordering. */
+   void Make2D(int nx, int ny, Element::Type type, double sx, double sy,
+               bool generate_edges, bool sfc_ordering);
 
    /// Creates a 1D mesh for the interval [0,sx] divided into n equal intervals.
    void Make1D(int n, double sx = 1.0);
+
+   /// Internal function used in Mesh::MakeRefined
+   void MakeRefined_(Mesh &orig_mesh, const Array<int> ref_factors,
+                     int ref_type);
 
    /// Initialize vertices/elements/boundary/tables from a nonconforming mesh.
    void InitFromNCMesh(const NCMesh &ncmesh);
 
    /// Create from a nonconforming mesh.
-   Mesh(const NCMesh &ncmesh);
-
-   /// Swaps internal data with another mesh. By default, non-geometry members
-   /// like 'ncmesh' and 'NURBSExt' are only swapped when 'non_geometry' is set.
-   void Swap(Mesh& other, bool non_geometry = false);
+   explicit Mesh(const NCMesh &ncmesh);
 
    // used in GetElementData() and GetBdrElementData()
    void GetElementData(const Array<Element*> &elem_array, int geom,
                        Array<int> &elem_vtx, Array<int> &attr) const;
+
+   double GetElementSize(ElementTransformation *T, int type = 0);
+
+   // Internal helper used in MakeSimplicial (and ParMesh::MakeSimplicial).
+   void MakeSimplicial_(const Mesh &orig_mesh, int *vglobal);
 
 public:
 
@@ -388,6 +567,113 @@ public:
        new mesh. If 'copy_nodes' is false, use a shallow (pointer) copy for the
        nodes, if present. */
    explicit Mesh(const Mesh &mesh, bool copy_nodes = true);
+
+   /// Move constructor, useful for using a Mesh as a function return value.
+   Mesh(Mesh &&mesh);
+
+   /// Move assignment operstor.
+   Mesh& operator=(Mesh &&mesh);
+
+   /// Explicitly delete the copy assignment operator.
+   Mesh& operator=(const Mesh &mesh) = delete;
+
+   /** @name Named mesh constructors.
+
+       Each of these constructors uses the move constructor, and can be used as
+       the right-hand side of an assignment when creating new meshes. */
+   ///@{
+
+   /** Creates mesh by reading a file in MFEM, Netgen, or VTK format. If
+       generate_edges = 0 (default) edges are not generated, if 1 edges are
+       generated. */
+   static Mesh LoadFromFile(const char *filename,
+                            int generate_edges = 0, int refine = 1,
+                            bool fix_orientation = true);
+
+   /** Creates 1D mesh , divided into n equal intervals. */
+   static Mesh MakeCartesian1D(int n, double sx = 1.0);
+
+   /** Creates mesh for the rectangle [0,sx]x[0,sy], divided into nx*ny
+       quadrilaterals if type = QUADRILATERAL or into 2*nx*ny triangles if
+       type = TRIANGLE. If generate_edges = 0 (default) edges are not generated,
+       if 1 edges are generated. If scf_ordering = true (default), elements are
+       ordered along a space-filling curve, instead of row by row. */
+   static Mesh MakeCartesian2D(
+      int nx, int ny, Element::Type type, bool generate_edges = false,
+      double sx = 1.0, double sy = 1.0, bool sfc_ordering = true);
+
+   /** Creates mesh for the parallelepiped [0,sx]x[0,sy]x[0,sz], divided into
+       nx*ny*nz hexahedra if type=HEXAHEDRON or into 6*nx*ny*nz tetrahedrons if
+       type=TETRAHEDRON. If sfc_ordering = true (default), elements are ordered
+       along a space-filling curve, instead of row by row and layer by layer. */
+   static Mesh MakeCartesian3D(
+      int nx, int ny, int nz, Element::Type type,
+      double sx = 1.0, double sy = 1.0, double sz = 1.0,
+      bool sfc_ordering = true);
+
+   /// Create a refined (by any factor) version of @a orig_mesh.
+   /** @param[in] orig_mesh  The starting coarse mesh.
+       @param[in] ref_factor The refinement factor, an integer > 1.
+       @param[in] ref_type   Specify the positions of the new vertices. The
+                             options are BasisType::ClosedUniform or
+                             BasisType::GaussLobatto.
+
+       The refinement data which can be accessed with GetRefinementTransforms()
+       is set to reflect the performed refinements.
+
+       @note The constructed Mesh is straight-sided. */
+   static Mesh MakeRefined(Mesh &orig_mesh, int ref_factor, int ref_type);
+
+   /// Create a refined mesh, where each element of the original mesh may be
+   /// refined by a different factor.
+   /** @param[in] orig_mesh   The starting coarse mesh.
+       @param[in] ref_factors An array of integers whose size is the number of
+                              elements of @a orig_mesh. The @a ith element of
+                              @a orig_mesh is refined by refinement factor
+                              @a ref_factors[i].
+       @param[in] ref_type    Specify the positions of the new vertices. The
+                              options are BasisType::ClosedUniform or
+                              BasisType::GaussLobatto.
+
+       The refinement data which can be accessed with GetRefinementTransforms()
+       is set to reflect the performed refinements.
+
+       @note The constructed Mesh is straight-sided. */
+   /// refined @a ref_factors[i] times in each dimension.
+   static Mesh MakeRefined(Mesh &orig_mesh, const Array<int> &ref_factors,
+                           int ref_type);
+
+   /** Create a mesh by splitting each element of @a orig_mesh into simplices.
+       Quadrilaterals are split into two triangles, prisms are split into
+       3 tetrahedra, and hexahedra are split into either 5 or 6 tetrahedra
+       depending on the configuration.
+       @warning The curvature of the original mesh is not carried over to the
+       new mesh. Periodic meshes are not supported. */
+   static Mesh MakeSimplicial(const Mesh &orig_mesh);
+
+   /// Create a periodic mesh by identifying vertices of @a orig_mesh.
+   /** Each vertex @a i will be mapped to vertex @a v2v[i], such that all
+       vertices that are coincident under the periodic mapping get mapped to
+       the same index. The mapping @a v2v can be generated from translation
+       vectors using Mesh::CreatePeriodicVertexMapping.
+       @note MFEM requires that each edge of the resulting mesh be uniquely
+       identifiable by a pair of distinct vertices. As a consequence, periodic
+       boundaries must be connected by at least three edges. */
+   static Mesh MakePeriodic(const Mesh &orig_mesh, const std::vector<int> &v2v);
+
+   ///@}
+
+   /// @brief Creates a mapping @a v2v from the vertex indices of the mesh such
+   /// that coincident vertices under the given @a translations are identified.
+   /** Each Vector in @a translations should be of size @a sdim (the spatial
+       dimension of the mesh). Two vertices are considered coincident if the
+       translated coordinates of one vertex are within the given tolerance (@a
+       tol, relative to the mesh diameter) of the coordinates of the other
+       vertex.
+       @warning This algorithm does not scale well with the number of boundary
+       vertices in the mesh, and may run slowly on very large meshes. */
+   std::vector<int> CreatePeriodicVertexMapping(
+      const std::vector<Vector> &translations, double tol = 1e-8) const;
 
    /// Construct a Mesh from the given primary data.
    /** The array @a vertices is used as external data, i.e. the Mesh does not
@@ -404,17 +690,14 @@ public:
         int *element_attributes, int num_elements,
         int *boundary_indices, Geometry::Type boundary_type,
         int *boundary_attributes, int num_boundary_elements,
-        int dimension, int space_dimension= -1);
+        int dimension, int space_dimension = -1);
 
    /** @anchor mfem_Mesh_init_ctor
        @brief _Init_ constructor: begin the construction of a Mesh object. */
-   Mesh(int _Dim, int NVert, int NElem, int NBdrElem = 0, int _spaceDim = -1)
+   Mesh(int Dim_, int NVert, int NElem, int NBdrElem = 0, int spaceDim_ = -1)
    {
-      if (_spaceDim == -1)
-      {
-         _spaceDim = _Dim;
-      }
-      InitMesh(_Dim, _spaceDim, NVert, NElem, NBdrElem);
+      if (spaceDim_ == -1) { spaceDim_ = Dim_; }
+      InitMesh(Dim_, spaceDim_, NVert, NElem, NBdrElem);
    }
 
    /** @name Methods for Mesh construction.
@@ -425,20 +708,52 @@ public:
 
    Element *NewElement(int geom);
 
-   void AddVertex(const double *);
-   void AddTri(const int *vi, int attr = 1);
-   void AddTriangle(const int *vi, int attr = 1);
-   void AddQuad(const int *vi, int attr = 1);
-   void AddTet(const int *vi, int attr = 1);
-   void AddHex(const int *vi, int attr = 1);
+   int AddVertex(double x, double y = 0.0, double z = 0.0);
+   int AddVertex(const double *coords);
+   /// Mark vertex @a i as nonconforming, with parent vertices @a p1 and @a p2.
+   void AddVertexParents(int i, int p1, int p2);
+
+   int AddSegment(int v1, int v2, int attr = 1);
+   int AddSegment(const int *vi, int attr = 1);
+
+   int AddTriangle(int v1, int v2, int v3, int attr = 1);
+   int AddTriangle(const int *vi, int attr = 1);
+   int AddTri(const int *vi, int attr = 1) { return AddTriangle(vi, attr); }
+
+   int AddQuad(int v1, int v2, int v3, int v4, int attr = 1);
+   int AddQuad(const int *vi, int attr = 1);
+
+   int AddTet(int v1, int v2, int v3, int v4, int attr = 1);
+   int AddTet(const int *vi, int attr = 1);
+
+   int AddWedge(int v1, int v2, int v3, int v4, int v5, int v6, int attr = 1);
+   int AddWedge(const int *vi, int attr = 1);
+
+   int AddPyramid(int v1, int v2, int v3, int v4, int v5, int attr = 1);
+   int AddPyramid(const int *vi, int attr = 1);
+
+   int AddHex(int v1, int v2, int v3, int v4, int v5, int v6, int v7, int v8,
+              int attr = 1);
+   int AddHex(const int *vi, int attr = 1);
    void AddHexAsTets(const int *vi, int attr = 1);
-   // 'elem' should be allocated using the NewElement method
-   void AddElement(Element *elem)     { elements[NumOfElements++] = elem; }
-   void AddBdrElement(Element *elem)  { boundary[NumOfBdrElements++] = elem; }
-   void AddBdrSegment(const int *vi, int attr = 1);
-   void AddBdrTriangle(const int *vi, int attr = 1);
-   void AddBdrQuad(const int *vi, int attr = 1);
+   void AddHexAsWedges(const int *vi, int attr = 1);
+   void AddHexAsPyramids(const int *vi, int attr = 1);
+
+   /// The parameter @a elem should be allocated using the NewElement() method
+   int AddElement(Element *elem);
+   int AddBdrElement(Element *elem);
+
+   int AddBdrSegment(int v1, int v2, int attr = 1);
+   int AddBdrSegment(const int *vi, int attr = 1);
+
+   int AddBdrTriangle(int v1, int v2, int v3, int attr = 1);
+   int AddBdrTriangle(const int *vi, int attr = 1);
+
+   int AddBdrQuad(int v1, int v2, int v3, int v4, int attr = 1);
+   int AddBdrQuad(const int *vi, int attr = 1);
    void AddBdrQuadAsTriangles(const int *vi, int attr = 1);
+
+   int AddBdrPoint(int v, int attr = 1);
 
    void GenerateBoundaryElements();
    /// Finalize the construction of a triangular Mesh.
@@ -450,9 +765,15 @@ public:
    /// Finalize the construction of a tetrahedral Mesh.
    void FinalizeTetMesh(int generate_edges = 0, int refine = 0,
                         bool fix_orientation = true);
+   /// Finalize the construction of a wedge Mesh.
+   void FinalizeWedgeMesh(int generate_edges = 0, int refine = 0,
+                          bool fix_orientation = true);
    /// Finalize the construction of a hexahedral Mesh.
    void FinalizeHexMesh(int generate_edges = 0, int refine = 0,
                         bool fix_orientation = true);
+   /// Finalize the construction of any type of Mesh.
+   /** This method calls FinalizeTopology() and Finalize(). */
+   void FinalizeMesh(int refine = 0, bool fix_orientation = true);
 
    ///@}
 
@@ -465,7 +786,7 @@ public:
 
        After calling this method, setting the Mesh vertices or nodes, it may be
        appropriate to call the method Finalize(). */
-   void FinalizeTopology();
+   void FinalizeTopology(bool generate_bdr = true);
 
    /// Finalize the construction of a general Mesh.
    /** This method will:
@@ -481,82 +802,96 @@ public:
 
        Before calling this method, call FinalizeTopology() and ensure that the
        Mesh vertices or nodes are set. */
-   void Finalize(bool refine = false, bool fix_orientation = false);
+   virtual void Finalize(bool refine = false, bool fix_orientation = false);
 
-   void SetAttributes();
+   virtual void SetAttributes();
 
-#ifdef MFEM_USE_GECKO
-   /** This is our integration with the Gecko library.  This will call the
-       Gecko library to find an element ordering that will increase memory
-       coherency by putting elements that are in physical proximity closer in
-       memory. */
-   void GetGeckoElementReordering(Array<int> &ordering);
-#endif
+   /** This is our integration with the Gecko library. The method finds an
+       element ordering that will increase memory coherency by putting elements
+       that are in physical proximity closer in memory. It can also be used to
+       obtain a space-filling curve ordering for ParNCMesh partitioning.
+       @param[out] ordering Output element ordering.
+       @param iterations Total number of V cycles. The ordering may improve with
+       more iterations. The best iteration is returned at the end.
+       @param window Initial window size. This determines the number of
+       permutations tested at each multigrid level and strongly influences the
+       quality of the result, but the cost of increasing 'window' is exponential.
+       @param period The window size is incremented every 'period' iterations.
+       @param seed Seed for initial random ordering (0 = skip random reorder).
+       @param verbose Print the progress of the optimization to mfem::out.
+       @param time_limit Optional time limit for the optimization, in seconds.
+       When reached, ordering from the best iteration so far is returned
+       (0 = no limit).
+       @return The final edge product cost of the ordering. The function may be
+       called in an external loop with different seeds, and the best ordering can
+       then be retained. */
+   double GetGeckoElementOrdering(Array<int> &ordering,
+                                  int iterations = 4, int window = 4,
+                                  int period = 2, int seed = 0,
+                                  bool verbose = false, double time_limit = 0);
 
-   /** Rebuilds the mesh with a different order of elements.  The ordering
-       vector maps the old element number to the new element number.  This also
-       reorders the vertices and nodes edges and faces along with the elements.  */
+   /** Return an ordering of the elements that approximately follows the Hilbert
+       curve. The method performs a spatial (Hilbert) sort on the centers of all
+       elements and returns the resulting sequence, which can then be passed to
+       ReorderElements. This is a cheap alternative to GetGeckoElementOrdering.*/
+   void GetHilbertElementOrdering(Array<int> &ordering);
+
+   /** Rebuilds the mesh with a different order of elements. For each element i,
+       the array ordering[i] contains its desired new index. Note that the method
+       reorders vertices, edges and faces along with the elements. */
    void ReorderElements(const Array<int> &ordering, bool reorder_vertices = true);
 
-   /** Creates mesh for the parallelepiped [0,sx]x[0,sy]x[0,sz], divided into
-       nx*ny*nz hexahedrals if type=HEXAHEDRON or into 6*nx*ny*nz tetrahedrons
-       if type=TETRAHEDRON. If generate_edges = 0 (default) edges are not
-       generated, if 1 edges are generated. */
-   Mesh(int nx, int ny, int nz, Element::Type type, int generate_edges = 0,
-        double sx = 1.0, double sy = 1.0, double sz = 1.0)
+   /// Deprecated: see @a MakeCartesian3D.
+   MFEM_DEPRECATED
+   Mesh(int nx, int ny, int nz, Element::Type type, bool generate_edges = false,
+        double sx = 1.0, double sy = 1.0, double sz = 1.0,
+        bool sfc_ordering = true)
    {
-      Make3D(nx, ny, nz, type, generate_edges, sx, sy, sz);
+      Make3D(nx, ny, nz, type, sx, sy, sz, sfc_ordering);
+      Finalize(true); // refine = true
    }
 
-   /** Creates mesh for the rectangle [0,sx]x[0,sy], divided into nx*ny
-       quadrilaterals if type = QUADRILATERAL or into 2*nx*ny triangles if
-       type = TRIANGLE. If generate_edges = 0 (default) edges are not generated,
-       if 1 edges are generated. */
-   Mesh(int nx, int ny, Element::Type type, int generate_edges = 0,
-        double sx = 1.0, double sy = 1.0)
+   /// Deprecated: see @a MakeCartesian2D.
+   MFEM_DEPRECATED
+   Mesh(int nx, int ny, Element::Type type, bool generate_edges = false,
+        double sx = 1.0, double sy = 1.0, bool sfc_ordering = true)
    {
-      Make2D(nx, ny, type, generate_edges, sx, sy);
+      Make2D(nx, ny, type, sx, sy, generate_edges, sfc_ordering);
+      Finalize(true); // refine = true
    }
 
-   /** Creates 1D mesh , divided into n equal intervals. */
+   /// Deprecated: see @a MakeCartesian1D.
+   MFEM_DEPRECATED
    explicit Mesh(int n, double sx = 1.0)
    {
       Make1D(n, sx);
+      // Finalize(); // reminder: not needed
    }
 
-   /** Creates mesh by reading a file in MFEM, netgen, or VTK format. If
+   /** Creates mesh by reading a file in MFEM, Netgen, or VTK format. If
        generate_edges = 0 (default) edges are not generated, if 1 edges are
-       generated. */
-   Mesh(const char *filename, int generate_edges = 0, int refine = 1,
-        bool fix_orientation = true);
+       generated. See also @a Mesh::LoadFromFile. */
+   explicit Mesh(const char *filename, int generate_edges = 0, int refine = 1,
+                 bool fix_orientation = true);
 
-   /** Creates mesh by reading data stream in MFEM, netgen, or VTK format. If
+   /** Creates mesh by reading data stream in MFEM, Netgen, or VTK format. If
        generate_edges = 0 (default) edges are not generated, if 1 edges are
        generated. */
-   Mesh(std::istream &input, int generate_edges = 0, int refine = 1,
-        bool fix_orientation = true);
+   explicit Mesh(std::istream &input, int generate_edges = 0, int refine = 1,
+                 bool fix_orientation = true);
 
    /// Create a disjoint mesh from the given mesh array
    Mesh(Mesh *mesh_array[], int num_pieces);
 
-   /// Create a uniformly refined (by any factor) version of @a orig_mesh.
-   /** @param[in] orig_mesh  The starting coarse mesh.
-       @param[in] ref_factor The refinement factor, an integer > 1.
-       @param[in] ref_type   Specify the positions of the new vertices. The
-                             options are BasisType::ClosedUniform or
-                             BasisType::GaussLobatto.
-
-       The refinement data which can be accessed with GetRefinementTransforms()
-       is set to reflect the performed refinements.
-
-       @note The constructed Mesh is linear, i.e. it does not have nodes. */
+   /// Deprecated: see @a MakeRefined.
+   MFEM_DEPRECATED
    Mesh(Mesh *orig_mesh, int ref_factor, int ref_type);
 
    /** This is similar to the mesh constructor with the same arguments, but here
        the current mesh is destroyed and another one created based on the data
-       stream again given in MFEM, netgen, or VTK format. If generate_edges = 0
+       stream again given in MFEM, Netgen, or VTK format. If generate_edges = 0
        (default) edges are not generated, if 1 edges are generated. */
-   /// \see mfem::igzstream() for on-the-fly decompression of compressed ascii
+   /// \see mfem::ifgzstream() for on-the-fly decompression of compressed ascii
    /// inputs.
    virtual void Load(std::istream &input, int generate_edges = 0,
                      int refine = 1, bool fix_orientation = true)
@@ -570,9 +905,18 @@ public:
 
    /** @brief Get the mesh generator/type.
 
+       The purpose of this is to be able to quickly tell what type of elements
+       one has in the mesh. Examination of this bitmask along with knowledge
+       of the mesh dimension can be used to identify which element types are
+       present.
+
        @return A bitmask:
        - bit 0 - simplices are present in the mesh (triangles, tets),
-       - bit 1 - tensor product elements are present in the mesh (quads, hexes).
+       - bit 1 - tensor product elements are present in the mesh (quads, hexes),
+       - bit 2 - the mesh has wedge elements.
+       - bit 3 - the mesh has pyramid elements.
+
+       In parallel, the result takes into account elements on all processors.
    */
    inline int MeshGenerator() { return meshgen; }
 
@@ -595,11 +939,56 @@ public:
    /// Return the number of faces (3D), edges (2D) or vertices (1D).
    int GetNumFaces() const;
 
+   /** @brief Return the number of faces (3D), edges (2D) or vertices (1D)
+       including ghost faces. */
+   int GetNumFacesWithGhost() const;
+
+   /** @brief Returns the number of faces according to the requested type, does
+       not count master nonconforming faces.
+
+       If type==Boundary returns only the number of true boundary faces
+       contrary to GetNBE() that returns all "boundary" elements which may
+       include actual interior faces.
+       Similarly, if type==Interior, only the true interior faces are counted
+       excluding all master nonconforming faces. */
+   virtual int GetNFbyType(FaceType type) const;
+
    /// Utility function: sum integers from all processors (Allreduce).
-   virtual long ReduceInt(int value) const { return value; }
+   virtual long long ReduceInt(int value) const { return value; }
 
    /// Return the total (global) number of elements.
-   long GetGlobalNE() const { return ReduceInt(NumOfElements); }
+   long long GetGlobalNE() const { return ReduceInt(NumOfElements); }
+
+   /** @brief Return the mesh geometric factors corresponding to the given
+       integration rule.
+
+       The IntegrationRule used with GetGeometricFactors needs to remain valid
+       until the internally stored GeometricFactors objects are destroyed (by
+       either calling Mesh::DeleteGeometricFactors or the Mesh destructor). If
+       the device MemoryType parameter @a d_mt is specified, then the returned
+       object will use that type unless it was previously allocated with a
+       different type. */
+   const GeometricFactors* GetGeometricFactors(
+      const IntegrationRule& ir,
+      const int flags,
+      MemoryType d_mt = MemoryType::DEFAULT);
+
+   /** @brief Return the mesh geometric factors for the faces corresponding
+       to the given integration rule.
+
+       The IntegrationRule used with GetFaceGeometricFactors needs to remain
+       valid until the internally stored FaceGeometricFactors objects are
+       destroyed (by either calling Mesh::DeleteGeometricFactors or the Mesh
+       destructor). */
+   const FaceGeometricFactors* GetFaceGeometricFactors(const IntegrationRule& ir,
+                                                       const int flags,
+                                                       FaceType type,
+                                                       MemoryType d_mt = MemoryType::DEFAULT);
+
+   /// Destroy all GeometricFactors stored by the Mesh.
+   /** This method can be used to force recomputation of the GeometricFactors,
+       for example, after the mesh nodes are modified externally. */
+   void DeleteGeometricFactors();
 
    /// Equals 1 + num_holes - num_loops
    inline int EulerNumber() const
@@ -623,6 +1012,9 @@ public:
 
    void GetElementData(int geom, Array<int> &elem_vtx, Array<int> &attr) const
    { GetElementData(elements, geom, elem_vtx, attr); }
+
+   /// Checks if the mesh has boundary elements
+   virtual bool HasBoundaryElements() const { return (NumOfBdrElements > 0); }
 
    void GetBdrElementData(int geom, Array<int> &bdr_elem_vtx,
                           Array<int> &bdr_attr) const
@@ -649,21 +1041,71 @@ public:
 
    const Element *GetFace(int i) const { return faces[i]; }
 
-   int GetFaceBaseGeometry(int i) const;
+   Geometry::Type GetFaceGeometry(int i) const
+   {
+      return faces[i]->GetGeometryType();
+   }
 
-   int GetElementBaseGeometry(int i = 0) const
-   { return i < GetNE() ? elements[i]->GetGeometryType() : BaseGeom; }
+   Geometry::Type GetElementGeometry(int i) const
+   {
+      return elements[i]->GetGeometryType();
+   }
 
-   int GetBdrElementBaseGeometry(int i = 0) const
-   { return i < GetNBE() ? boundary[i]->GetGeometryType() : BaseBdrGeom; }
+   Geometry::Type GetBdrElementGeometry(int i) const
+   {
+      return boundary[i]->GetGeometryType();
+   }
 
-   /// Returns the indices of the dofs of element i.
-   void GetElementVertices(int i, Array<int> &dofs) const
-   { elements[i]->GetVertices(dofs); }
+   // deprecated: "base geometry" no longer means anything
+   Geometry::Type GetFaceBaseGeometry(int i) const
+   { return GetFaceGeometry(i); }
 
-   /// Returns the indices of the dofs of boundary element i.
-   void GetBdrElementVertices(int i, Array<int> &dofs) const
-   { boundary[i]->GetVertices(dofs); }
+   Geometry::Type GetElementBaseGeometry(int i) const
+   { return GetElementGeometry(i); }
+
+   Geometry::Type GetBdrElementBaseGeometry(int i) const
+   { return GetBdrElementGeometry(i); }
+
+   /** @brief Return true iff the given @a geom is encountered in the mesh.
+       Geometries of dimensions lower than Dimension() are counted as well. */
+   bool HasGeometry(Geometry::Type geom) const
+   { return mesh_geoms & (1 << geom); }
+
+   /** @brief Return the number of geometries of the given dimension present in
+       the mesh. */
+   /** For a parallel mesh only the local geometries are counted. */
+   int GetNumGeometries(int dim) const;
+
+   /// Return all element geometries of the given dimension present in the mesh.
+   /** For a parallel mesh only the local geometries are returned.
+
+       The returned geometries are sorted. */
+   void GetGeometries(int dim, Array<Geometry::Type> &el_geoms) const;
+
+   /// List of mesh geometries stored as Array<Geometry::Type>.
+   class GeometryList : public Array<Geometry::Type>
+   {
+   protected:
+      Geometry::Type geom_buf[Geometry::NumGeom];
+   public:
+      /// Construct a GeometryList of all element geometries in @a mesh.
+      GeometryList(Mesh &mesh)
+         : Array<Geometry::Type>(geom_buf, Geometry::NumGeom)
+      { mesh.GetGeometries(mesh.Dimension(), *this); }
+      /** @brief Construct a GeometryList of all geometries of dimension @a dim
+          in @a mesh. */
+      GeometryList(Mesh &mesh, int dim)
+         : Array<Geometry::Type>(geom_buf, Geometry::NumGeom)
+      { mesh.GetGeometries(dim, *this); }
+   };
+
+   /// Returns the indices of the vertices of element i.
+   void GetElementVertices(int i, Array<int> &v) const
+   { elements[i]->GetVertices(v); }
+
+   /// Returns the indices of the vertices of boundary element i.
+   void GetBdrElementVertices(int i, Array<int> &v) const
+   { boundary[i]->GetVertices(v); }
 
    /// Return the indices and the orientations of all edges of element i.
    void GetElementEdges(int i, Array<int> &edges, Array<int> &cor) const;
@@ -673,7 +1115,7 @@ public:
 
    /** Return the indices and the orientations of all edges of face i.
        Works for both 2D (face=edge) and 3D faces. */
-   void GetFaceEdges(int i, Array<int> &, Array<int> &) const;
+   void GetFaceEdges(int i, Array<int> &edges, Array<int> &o) const;
 
    /// Returns the indices of the vertices of face i.
    void GetFaceVertices(int i, Array<int> &vert) const
@@ -698,10 +1140,10 @@ public:
    Table *GetEdgeVertexTable() const;
 
    /// Return the indices and the orientations of all faces of element i.
-   void GetElementFaces(int i, Array<int> &, Array<int> &) const;
+   void GetElementFaces(int i, Array<int> &faces, Array<int> &ori) const;
 
    /// Return the index and the orientation of the face of bdr element i. (3D)
-   void GetBdrElementFace(int i, int *, int *) const;
+   void GetBdrElementFace(int i, int *f, int *o) const;
 
    /** Return the vertex index of boundary element i. (1D)
        Return the edge index of boundary element i. (2D)
@@ -713,22 +1155,20 @@ public:
    void GetBdrElementAdjacentElement(int bdr_el, int &el, int &info) const;
 
    /// Returns the type of element i.
-   int GetElementType(int i) const;
+   Element::Type GetElementType(int i) const;
 
    /// Returns the type of boundary element i.
-   int GetBdrElementType(int i) const;
+   Element::Type GetBdrElementType(int i) const;
 
-   /* Return point matrix of element i of dimension Dim X #dofs, where for
-      every degree of freedom we give its coordinates in space of dimension
-      Dim. */
+   /* Return point matrix of element i of dimension Dim X #v, where for every
+      vertex we give its coordinates in space of dimension Dim. */
    void GetPointMatrix(int i, DenseMatrix &pointmat) const;
 
-   /* Return point matrix of boundary element i of dimension Dim X #dofs,
-      where for every degree of freedom we give its coordinates in space
-      of dimension Dim. */
+   /* Return point matrix of boundary element i of dimension Dim X #v, where for
+      every vertex we give its coordinates in space of dimension Dim. */
    void GetBdrPointMatrix(int i, DenseMatrix &pointmat) const;
 
-   static FiniteElement *GetTransformationFEforElementType(int);
+   static FiniteElement *GetTransformationFEforElementType(Element::Type);
 
    /** Builds the transformation defining the i-th element in the user-defined
        variable. */
@@ -746,9 +1186,18 @@ public:
    ElementTransformation * GetBdrElementTransformation(int i);
    void GetBdrElementTransformation(int i, IsoparametricTransformation *ElTr);
 
-   /** Returns the transformation defining the given face element.
-       The transformation is stored in a user-defined variable. */
+   /** @brief Returns the transformation defining the given face element in a
+       user-defined variable. */
    void GetFaceTransformation(int i, IsoparametricTransformation *FTr);
+
+   /** @brief A helper method that constructs a transformation from the
+       reference space of a face to the reference space of an element. */
+   /** The local index of the face as a face in the element and its orientation
+       are given by the input parameter @a info, as @a info = 64*loc_face_idx +
+       loc_face_orientation. */
+   void GetLocalFaceTransformation(int face_type, int elem_type,
+                                   IsoparametricTransformation &Transf,
+                                   int info);
 
    /// Returns the transformation defining the given face element
    ElementTransformation *GetFaceTransformation(int FaceNo);
@@ -760,7 +1209,7 @@ public:
    /// Returns the transformation defining the given face element
    ElementTransformation *GetEdgeTransformation(int EdgeNo);
 
-   /// Returns (a pointer to a structure containing) the following data:
+   /// Returns (a pointer to an object containing) the following data:
    ///
    /// 1) Elem1No - the index of the first element that contains this face this
    ///    is the element that has the same outward unit normal vector as the
@@ -788,8 +1237,11 @@ public:
    /// The mask specifies which fields in the structure to return:
    ///    mask & 1 - Elem1, mask & 2 - Elem2
    ///    mask & 4 - Loc1, mask & 8 - Loc2, mask & 16 - Face.
-   FaceElementTransformations *GetFaceElementTransformations(int FaceNo,
-                                                             int mask = 31);
+   /// These mask values are defined in the ConfigMasks enum type as part of the
+   /// FaceElementTransformations class in fem/eltrans.hpp.
+   virtual FaceElementTransformations *GetFaceElementTransformations(
+      int FaceNo,
+      int mask = 31);
 
    FaceElementTransformations *GetInteriorFaceTransformations (int FaceNo)
    {
@@ -799,20 +1251,203 @@ public:
 
    FaceElementTransformations *GetBdrFaceTransformations (int BdrElemNo);
 
-   /// Return true if the given face is interior
+   /// Return the local face index for the given boundary face.
+   int GetBdrFace(int BdrElemNo) const;
+
+   /// Return true if the given face is interior. @sa FaceIsTrueInterior().
    bool FaceIsInterior(int FaceNo) const
    {
       return (faces_info[FaceNo].Elem2No >= 0);
    }
-   void GetFaceElements (int Face, int *Elem1, int *Elem2);
-   void GetFaceInfos (int Face, int *Inf1, int *Inf2);
 
-   int GetFaceGeometryType(int Face) const;
-   int GetFaceElementType(int Face) const;
+   /** This enumerated type describes the three main face topologies:
+       - Boundary, for faces on the boundary of the computational domain,
+       - Conforming, for conforming faces interior to the computational domain,
+       - Nonconforming, for nonconforming faces interior to the computational
+         domain. */
+   enum class FaceTopology { Boundary,
+                             Conforming,
+                             Nonconforming,
+                             NA
+                           };
 
-   /// Check the orientation of the elements
-   /** @return The number of elements with wrong orientation. */
+   /** This enumerated type describes the location of the two elements sharing a
+       face, Local meaning that the element is local to the MPI rank, FaceNbr
+       meaning that the element is distributed on a different MPI rank, this
+       typically means that methods with FaceNbr should be used to access the
+       relevant information, e.g., ParFiniteElementSpace::GetFaceNbrElementVDofs.
+    */
+   enum class ElementLocation { Local, FaceNbr, NA };
+
+   /** This enumerated type describes the topological relation of an element to
+       a face:
+       - Coincident meaning that the element's face is topologically equal to
+         the mesh face.
+       - Superset meaning that the element's face is topologically coarser than
+         the mesh face, i.e., the element's face contains the mesh face.
+       - Subset meaning that the element's face is topologically finer than the
+         mesh face, i.e., the element's face is contained in the mesh face.
+       Superset and Subset are only relevant for nonconforming faces.
+       Master nonconforming faces have a conforming element on one side, and a
+       fine element on the other side. Slave nonconforming faces have a
+       conforming element on one side, and a coarse element on the other side.
+    */
+   enum class ElementConformity { Coincident, Superset, Subset, NA };
+
+   /** This enumerated type describes the corresponding FaceInfo internal
+       representation (encoded cases), c.f. FaceInfo's documentation:
+       Classification of a local (non-ghost) face based on its FaceInfo:
+         - Elem2No >= 0 --> local interior face; can be either:
+            - NCFace == -1 --> LocalConforming,
+            - NCFace >= 0 --> LocalSlaveNonconforming,
+         - Elem2No < 0 --> local "boundary" face; can be one of:
+            - NCFace == -1 --> conforming face; can be either:
+               - Elem2Inf < 0 --> Boundary,
+               - Elem2Inf >= 0 --> SharedConforming,
+            - NCFace >= 0 --> nonconforming face; can be one of:
+               - Elem2Inf < 0 --> MasterNonconforming (shared or not shared),
+               - Elem2Inf >= 0 --> SharedSlaveNonconforming.
+       Classification of a ghost (non-local) face based on its FaceInfo:
+         - Elem1No == -1 --> GhostMaster (includes other unused ghost faces),
+         - Elem1No >= 0 --> GhostSlave.
+    */
+   enum class FaceInfoTag { Boundary,
+                            LocalConforming,
+                            LocalSlaveNonconforming,
+                            SharedConforming,
+                            SharedSlaveNonconforming,
+                            MasterNonconforming,
+                            GhostSlave,
+                            GhostMaster
+                          };
+
+   /** @brief This structure is used as a human readable output format that
+       decipheres the information contained in Mesh::FaceInfo when using the
+       Mesh::GetFaceInformation() method.
+
+       The element indices in this structure don't need further processing,
+       contrary to the ones obtained through Mesh::GetFacesElements and can
+       directly be used, e.g., Elem1 and Elem2 indices.
+       Likewise the orientations for Elem1 and Elem2 already take into account
+       special cases and can be used as is.
+   */
+   struct FaceInformation
+   {
+      FaceTopology topology;
+
+      struct
+      {
+         ElementLocation location;
+         ElementConformity conformity;
+         int index;
+         int local_face_id;
+         int orientation;
+      } element[2];
+
+      FaceInfoTag tag;
+      int ncface;
+      const DenseMatrix* point_matrix;
+
+      /** @brief Return true if the face is a local interior face which is NOT
+          a master nonconforming face. */
+      bool IsLocal() const
+      {
+         return element[1].location == Mesh::ElementLocation::Local;
+      }
+
+      /** @brief Return true if the face is a shared interior face which is NOT
+          a master nonconforming face. */
+      bool IsShared() const
+      {
+         return element[1].location == Mesh::ElementLocation::FaceNbr;
+      }
+
+      /** @brief return true if the face is an interior face to the computation
+          domain, either a local or shared interior face (not a boundary face)
+          which is NOT a master nonconforming face.
+       */
+      bool IsInterior() const
+      {
+         return topology == FaceTopology::Conforming ||
+                topology == FaceTopology::Nonconforming;
+      }
+
+      /** @brief Return true if the face is a boundary face. */
+      bool IsBoundary() const
+      {
+         return topology == FaceTopology::Boundary;
+      }
+
+      /// @brief Return true if the face is of the same type as @a type.
+      bool IsOfFaceType(FaceType type) const
+      {
+         switch (type)
+         {
+            case FaceType::Interior:
+               return IsInterior();
+            case FaceType::Boundary:
+               return IsBoundary();
+            default:
+               return false;
+         }
+      }
+
+      /// @brief Return true if the face is a conforming face.
+      bool IsConforming() const
+      {
+         return topology == FaceTopology::Conforming;
+      }
+
+      /// @brief Return true if the face is a nonconforming fine face.
+      bool IsNonconformingFine() const
+      {
+         return topology == FaceTopology::Nonconforming &&
+                (element[0].conformity == ElementConformity::Superset ||
+                 element[1].conformity == ElementConformity::Superset);
+      }
+
+      /// @brief Return true if the face is a nonconforming coarse face.
+      /** Note that ghost nonconforming master faces cannot be clearly
+          identified as such with the currently available information, so this
+          method will return false for such faces. */
+      bool IsNonconformingCoarse() const
+      {
+         return topology == FaceTopology::Nonconforming &&
+                element[1].conformity == ElementConformity::Subset;
+      }
+
+      /// @brief cast operator from FaceInformation to FaceInfo.
+      operator Mesh::FaceInfo() const;
+   };
+
+   /** This method aims to provide face information in a deciphered format, i.e.
+       Mesh::FaceInformation, compared to the raw encoded information returned
+       by Mesh::GetFaceElements() and Mesh::GetFaceInfos(). */
+   FaceInformation GetFaceInformation(int f) const;
+
+   void GetFaceElements (int Face, int *Elem1, int *Elem2) const;
+   void GetFaceInfos (int Face, int *Inf1, int *Inf2) const;
+   void GetFaceInfos (int Face, int *Inf1, int *Inf2, int *NCFace) const;
+
+   Geometry::Type GetFaceGeometryType(int Face) const;
+   Element::Type  GetFaceElementType(int Face) const;
+
+   /// Check (and optionally attempt to fix) the orientation of the elements
+   /** @param[in] fix_it  If `true`, attempt to fix the orientations of some
+                          elements: triangles, quads, and tets.
+       @return The number of elements with wrong orientation.
+
+       @note For meshes with nodes (e.g. high-order or periodic meshes), fixing
+       the element orientations may require additional permutation of the nodal
+       GridFunction of the mesh which is not performed by this method. Instead,
+       the method Finalize() should be used with the parameter
+       @a fix_orientation set to `true`.
+
+       @note This method performs a simple check if an element is inverted, e.g.
+       for most elements types, it checks if the Jacobian of the mapping from
+       the reference element is non-negative at the center of the element. */
    int CheckElementOrientation(bool fix_it = true);
+
    /// Check the orientation of the boundary elements
    /** @return The number of boundary elements with wrong orientation. */
    int CheckBdrElementOrientation(bool fix_it = true);
@@ -825,6 +1460,9 @@ public:
 
    /// Return the attribute of boundary element i.
    int GetBdrAttribute(int i) const { return boundary[i]->GetAttribute(); }
+
+   /// Set the attribute of boundary element i.
+   void SetBdrAttribute(int i, int attr) { boundary[i]->SetAttribute(attr); }
 
    const Table &ElementToElementTable();
 
@@ -848,11 +1486,11 @@ public:
        satisfy: v0 < min(v1, v2).
 
        @note Refinement does not work after a call to this method! */
-   virtual void ReorientTetMesh();
+   MFEM_DEPRECATED virtual void ReorientTetMesh();
 
    int *CartesianPartitioning(int nxyz[]);
    int *GeneratePartitioning(int nparts, int part_method = 1);
-   void CheckPartitioning(int *partitioning);
+   void CheckPartitioning(int *partitioning_);
 
    void CheckDisplacements(const Vector &displacements, double &tmax);
 
@@ -865,7 +1503,7 @@ public:
    // Nodes are only active for higher order meshes, and share locations with
    // the vertices, plus all the higher- order control points within the element
    // and along the edges and on the faces.
-   void GetNode(int i, double *coord);
+   void GetNode(int i, double *coord) const;
    void SetNode(int i, const double *coord);
 
    // Node operations for curved mesh.
@@ -893,7 +1531,7 @@ public:
    /** Replace the internal node GridFunction with a new GridFunction defined
        on the given FiniteElementSpace. The new node coordinates are projected
        (derived) from the current nodes/vertices. */
-   void SetNodalFESpace(FiniteElementSpace *nfes);
+   virtual void SetNodalFESpace(FiniteElementSpace *nfes);
    /** Replace the internal node GridFunction with the given GridFunction. The
        given GridFunction is updated with node coordinates projected (derived)
        from the current nodes/vertices. */
@@ -901,20 +1539,35 @@ public:
    /** Return the FiniteElementSpace on which the current mesh nodes are
        defined or NULL if the mesh does not have nodes. */
    const FiniteElementSpace *GetNodalFESpace() const;
+   /** Make sure that the mesh has valid nodes, i.e. its geometry is described
+       by a vector finite element grid function (even if it is a low-order mesh
+       with straight edges). */
+   void EnsureNodes();
 
    /** Set the curvature of the mesh nodes using the given polynomial degree,
        'order', and optionally: discontinuous or continuous FE space, 'discont',
-       new space dimension, 'space_dim' (if != -1), and 'ordering'. */
-   void SetCurvature(int order, bool discont = false, int space_dim = -1,
-                     int ordering = 1);
+       new space dimension, 'space_dim' (if != -1), and 'ordering' (byVDim by
+       default). */
+   virtual void SetCurvature(int order, bool discont = false, int space_dim = -1,
+                             int ordering = 1);
 
-   /** Refine all mesh elements. */
-   void UniformRefinement();
+   /// Refine all mesh elements.
+   /** @param[in] ref_algo %Refinement algorithm. Currently used only for pure
+       tetrahedral meshes. If set to zero (default), a tet mesh will be refined
+       using algorithm A, that produces elements with better quality compared to
+       algorithm B used when the parameter is non-zero.
+
+       For tetrahedral meshes, after using algorithm A, the mesh cannot be
+       refined locally using methods like GeneralRefinement() unless it is
+       re-finalized using Finalize() with the parameter @a refine set to true.
+       Note that calling Finalize() in this way will generally invalidate any
+       FiniteElementSpace%s and GridFunction%s defined on the mesh. */
+   void UniformRefinement(int ref_algo = 0);
 
    /** Refine selected mesh elements. Refinement type can be specified for each
        element. The function can do conforming refinement of triangles and
-       tetrahedra and non-conforming refinement (i.e., with hanging-nodes) of
-       triangles, quadrilaterals and hexahedrons. If 'nonconforming' = -1,
+       tetrahedra and nonconforming refinement (i.e., with hanging-nodes) of
+       triangles, quadrilaterals and hexahedra. If 'nonconforming' = -1,
        suitable refinement method is selected automatically (namely, conforming
        refinement for triangles). Use nonconforming = 0/1 to force the method.
        For nonconforming refinements, nc_limit optionally specifies the maximum
@@ -959,13 +1612,16 @@ public:
 
    ///@{ @name NURBS mesh refinement methods
    void KnotInsert(Array<KnotVector *> &kv);
-   void DegreeElevate(int t);
+   void KnotInsert(Array<Vector *> &kv);
+   /* For each knot vector:
+         new_degree = max(old_degree, min(old_degree + rel_degree, degree)). */
+   void DegreeElevate(int rel_degree, int degree = 16);
    ///@}
 
-   /** Make sure that a quad/hex mesh is considered to be non-conforming (i.e.,
-       has an associated NCMesh object). Triangles meshes can be both conforming
-       (default) or non-conforming. */
-   void EnsureNCMesh(bool triangles_nonconforming = false);
+   /** Make sure that a quad/hex mesh is considered to be nonconforming (i.e.,
+       has an associated NCMesh object). Simplex meshes can be both conforming
+       (default) or nonconforming. */
+   void EnsureNCMesh(bool simplices_nonconforming = false);
 
    bool Conforming() const { return ncmesh == NULL; }
    bool Nonconforming() const { return ncmesh != NULL; }
@@ -984,31 +1640,60 @@ public:
    long GetSequence() const { return sequence; }
 
    /// Print the mesh to the given stream using Netgen/Truegrid format.
-   virtual void PrintXG(std::ostream &out = std::cout) const;
+   virtual void PrintXG(std::ostream &os = mfem::out) const;
 
    /// Print the mesh to the given stream using the default MFEM mesh format.
-   /// \see mfem::ogzstream() for on-the-fly compression of ascii outputs
-   virtual void Print(std::ostream &out = std::cout) const { Printer(out); }
+   /// \see mfem::ofgzstream() for on-the-fly compression of ascii outputs
+   virtual void Print(std::ostream &os = mfem::out) const { Printer(os); }
 
+   /// Save the mesh to a file using Mesh::Print. The given @a precision will be
+   /// used for ASCII output.
+   virtual void Save(const char *fname, int precision=16) const;
+
+   /// Print the mesh to the given stream using the adios2 bp format
+#ifdef MFEM_USE_ADIOS2
+   virtual void Print(adios2stream &os) const;
+#endif
    /// Print the mesh in VTK format (linear and quadratic meshes only).
-   /// \see mfem::ogzstream() for on-the-fly compression of ascii outputs
-   void PrintVTK(std::ostream &out);
-
+   /// \see mfem::ofgzstream() for on-the-fly compression of ascii outputs
+   void PrintVTK(std::ostream &os);
    /** Print the mesh in VTK format. The parameter ref > 0 specifies an element
        subdivision number (useful for high order fields and curved meshes).
        If the optional field_data is set, we also add a FIELD section in the
        beginning of the file with additional dataset information. */
-   /// \see mfem::ogzstream() for on-the-fly compression of ascii outputs
-   void PrintVTK(std::ostream &out, int ref, int field_data=0);
+   /// \see mfem::ofgzstream() for on-the-fly compression of ascii outputs
+   void PrintVTK(std::ostream &os, int ref, int field_data=0);
+   /** Print the mesh in VTU format. The parameter ref > 0 specifies an element
+       subdivision number (useful for high order fields and curved meshes).
+       If @a bdr_elements is true, then output (only) the boundary elements,
+       otherwise output only the non-boundary elements. */
+   void PrintVTU(std::ostream &os,
+                 int ref=1,
+                 VTKFormat format=VTKFormat::ASCII,
+                 bool high_order_output=false,
+                 int compression_level=0,
+                 bool bdr_elements=false);
+   /** Print the mesh in VTU format with file name fname. */
+   virtual void PrintVTU(std::string fname,
+                         VTKFormat format=VTKFormat::ASCII,
+                         bool high_order_output=false,
+                         int compression_level=0,
+                         bool bdr=false);
+   /** Print the boundary elements of the mesh in VTU format, and output the
+       boundary attributes as a data array (useful for boundary conditions). */
+   void PrintBdrVTU(std::string fname,
+                    VTKFormat format=VTKFormat::ASCII,
+                    bool high_order_output=false,
+                    int compression_level=0);
 
    void GetElementColoring(Array<int> &colors, int el0 = 0);
 
-   /** Prints the mesh with bdr elements given by the boundary of
-       the subdomains, so that the boundary of subdomain i has bdr
+   /** @brief Prints the mesh with boundary elements given by the boundary of
+       the subdomains, so that the boundary of subdomain i has boundary
        attribute i+1. */
-   /// \see mfem::ogzstream() for on-the-fly compression of ascii outputs
+   /// \see mfem::ofgzstream() for on-the-fly compression of ascii outputs
    void PrintWithPartitioning (int *partitioning,
-                               std::ostream &out, int elem_attr = 0) const;
+                               std::ostream &os, int elem_attr = 0) const;
 
    void PrintElementsWithPartitioning (int *partitioning,
                                        std::ostream &out,
@@ -1034,7 +1719,7 @@ public:
        have two adjacent faces in 3D, or edges in 2D. */
    void RemoveInternalBoundaries();
 
-   /** Get the size of the i-th element relative to the perfect
+   /** @brief Get the size of the i-th element relative to the perfect
        reference element. */
    double GetElementSize(int i, int type = 0);
 
@@ -1042,32 +1727,194 @@ public:
 
    double GetElementVolume(int i);
 
-   /// Returns the minimum and maximum corners of the mesh bounding box. For
-   /// high-order meshes, the geometry is refined first "ref" times.
+   void GetElementCenter(int i, Vector &center);
+
+   /// Returns the minimum and maximum corners of the mesh bounding box.
+   /** For high-order meshes, the geometry is first refined @a ref times. */
    void GetBoundingBox(Vector &min, Vector &max, int ref = 2);
 
    void GetCharacteristics(double &h_min, double &h_max,
                            double &kappa_min, double &kappa_max,
                            Vector *Vh = NULL, Vector *Vk = NULL);
 
-   void PrintCharacteristics(Vector *Vh = NULL, Vector *Vk = NULL,
-                             std::ostream &out = std::cout);
+   /// Auxiliary method used by PrintCharacteristics().
+   /** It is also used in the `mesh-explorer` miniapp. */
+   static void PrintElementsByGeometry(int dim,
+                                       const Array<int> &num_elems_by_geom,
+                                       std::ostream &out);
 
-   virtual void PrintInfo(std::ostream &out = std::cout)
+   /** @brief Compute and print mesh characteristics such as number of vertices,
+       number of elements, number of boundary elements, minimal and maximal
+       element sizes, minimal and maximal element aspect ratios, etc. */
+   /** If @a Vh or @a Vk are not NULL, return the element sizes and aspect
+       ratios for all elements in the given Vector%s. */
+   void PrintCharacteristics(Vector *Vh = NULL, Vector *Vk = NULL,
+                             std::ostream &os = mfem::out);
+
+   /** @brief In serial, this method calls PrintCharacteristics(). In parallel,
+       additional information about the parallel decomposition is also printed.
+   */
+   virtual void PrintInfo(std::ostream &os = mfem::out)
    {
-      PrintCharacteristics(NULL, NULL, out);
+      PrintCharacteristics(NULL, NULL, os);
    }
 
    void MesquiteSmooth(const int mesquite_option = 0);
 
+   /** @brief Find the ids of the elements that contain the given points, and
+       their corresponding reference coordinates.
+
+       The DenseMatrix @a point_mat describes the given points - one point for
+       each column; it should have SpaceDimension() rows.
+
+       The InverseElementTransformation object, @a inv_trans, is used to attempt
+       the element transformation inversion. If NULL pointer is given, the
+       method will use a default constructed InverseElementTransformation. Note
+       that the algorithms in the base class InverseElementTransformation can be
+       completely overwritten by deriving custom classes that override the
+       Transform() method.
+
+       If no element is found for the i-th point, elem_ids[i] is set to -1.
+
+       In the ParMesh implementation, the @a point_mat is expected to be the
+       same on all ranks. If the i-th point is found by multiple ranks, only one
+       of them will mark that point as found, i.e. set its elem_ids[i] to a
+       non-negative number; the other ranks will set their elem_ids[i] to -2 to
+       indicate that the point was found but assigned to another rank.
+
+       @returns The total number of points that were found.
+
+       @note This method is not 100 percent reliable, i.e. it is not guaranteed
+       to find a point, even if it lies inside a mesh element. */
+   virtual int FindPoints(DenseMatrix& point_mat, Array<int>& elem_ids,
+                          Array<IntegrationPoint>& ips, bool warn = true,
+                          InverseElementTransformation *inv_trans = NULL);
+
+   /// Swaps internal data with another mesh. By default, non-geometry members
+   /// like 'ncmesh' and 'NURBSExt' are only swapped when 'non_geometry' is set.
+   void Swap(Mesh& other, bool non_geometry);
+
    /// Destroys Mesh.
    virtual ~Mesh() { DestroyPointers(); }
+
+#ifdef MFEM_DEBUG
+   /// Output an NCMesh-compatible debug dump.
+   void DebugDump(std::ostream &out) const;
+#endif
 };
 
 /** Overload operator<< for std::ostream and Mesh; valid also for the derived
     class ParMesh */
 std::ostream &operator<<(std::ostream &out, const Mesh &mesh);
 
+
+/** @brief Structure for storing mesh geometric factors: coordinates, Jacobians,
+    and determinants of the Jacobians. */
+/** Typically objects of this type are constructed and owned by objects of class
+    Mesh. See Mesh::GetGeometricFactors(). */
+class GeometricFactors
+{
+
+private:
+   void Compute(const GridFunction &nodes,
+                MemoryType d_mt = MemoryType::DEFAULT);
+
+public:
+   const Mesh *mesh;
+   const IntegrationRule *IntRule;
+   int computed_factors;
+
+   enum FactorFlags
+   {
+      COORDINATES  = 1 << 0,
+      JACOBIANS    = 1 << 1,
+      DETERMINANTS = 1 << 2,
+   };
+
+   GeometricFactors(const Mesh *mesh, const IntegrationRule &ir, int flags,
+                    MemoryType d_mt = MemoryType::DEFAULT);
+
+   GeometricFactors(const GridFunction &nodes, const IntegrationRule &ir,
+                    int flags,
+                    MemoryType d_mt = MemoryType::DEFAULT);
+
+   /// Mapped (physical) coordinates of all quadrature points.
+   /** This array uses a column-major layout with dimensions (NQ x SDIM x NE)
+       where
+       - NQ = number of quadrature points per element,
+       - SDIM = space dimension of the mesh = mesh.SpaceDimension(), and
+       - NE = number of elements in the mesh. */
+   Vector X;
+
+   /// Jacobians of the element transformations at all quadrature points.
+   /** This array uses a column-major layout with dimensions (NQ x SDIM x DIM x
+       NE) where
+       - NQ = number of quadrature points per element,
+       - SDIM = space dimension of the mesh = mesh.SpaceDimension(),
+       - DIM = dimension of the mesh = mesh.Dimension(), and
+       - NE = number of elements in the mesh. */
+   Vector J;
+
+   /// Determinants of the Jacobians at all quadrature points.
+   /** This array uses a column-major layout with dimensions (NQ x NE) where
+       - NQ = number of quadrature points per element, and
+       - NE = number of elements in the mesh. */
+   Vector detJ;
+};
+
+/** @brief Structure for storing face geometric factors: coordinates, Jacobians,
+    determinants of the Jacobians, and normal vectors. */
+/** Typically objects of this type are constructed and owned by objects of class
+    Mesh. See Mesh::GetFaceGeometricFactors(). */
+class FaceGeometricFactors
+{
+public:
+   const Mesh *mesh;
+   const IntegrationRule *IntRule;
+   int computed_factors;
+   FaceType type;
+
+   enum FactorFlags
+   {
+      COORDINATES  = 1 << 0,
+      JACOBIANS    = 1 << 1,
+      DETERMINANTS = 1 << 2,
+      NORMALS      = 1 << 3,
+   };
+
+   FaceGeometricFactors(const Mesh *mesh, const IntegrationRule &ir, int flags,
+                        FaceType type, MemoryType d_mt = MemoryType::DEFAULT);
+
+   /// Mapped (physical) coordinates of all quadrature points.
+   /** This array uses a column-major layout with dimensions (NQ x SDIM x NF)
+       where
+       - NQ = number of quadrature points per face,
+       - SDIM = space dimension of the mesh = mesh.SpaceDimension(), and
+       - NF = number of faces in the mesh. */
+   Vector X;
+
+   /// Jacobians of the element transformations at all quadrature points.
+   /** This array uses a column-major layout with dimensions (NQ x SDIM x DIM x
+       NF) where
+       - NQ = number of quadrature points per face,
+       - SDIM = space dimension of the mesh = mesh.SpaceDimension(),
+       - DIM = dimension of the mesh = mesh.Dimension(), and
+       - NF = number of faces in the mesh. */
+   Vector J;
+
+   /// Determinants of the Jacobians at all quadrature points.
+   /** This array uses a column-major layout with dimensions (NQ x NF) where
+       - NQ = number of quadrature points per face, and
+       - NF = number of faces in the mesh. */
+   Vector detJ;
+
+   /// Normals at all quadrature points.
+   /** This array uses a column-major layout with dimensions (NQ x DIM x NF) where
+       - NQ = number of quadrature points per face,
+       - SDIM = space dimension of the mesh = mesh.SpaceDimension(), and
+       - NF = number of faces in the mesh. */
+   Vector normal;
+};
 
 /// Class used to extrude the nodes of a mesh
 class NodeExtrudeCoefficient : public VectorCoefficient
@@ -1077,7 +1924,7 @@ private:
    double p[2], s;
    Vector tip;
 public:
-   NodeExtrudeCoefficient(const int dim, const int _n, const double _s);
+   NodeExtrudeCoefficient(const int dim, const int n_, const double s_);
    void SetLayer(const int l) { layer = l; }
    using VectorCoefficient::Eval;
    virtual void Eval(Vector &V, ElementTransformation &T,
@@ -1090,46 +1937,18 @@ public:
 Mesh *Extrude1D(Mesh *mesh, const int ny, const double sy,
                 const bool closed = false);
 
+/// Extrude a 2D mesh
+Mesh *Extrude2D(Mesh *mesh, const int nz, const double sz);
 
-/// Input file stream that remembers the input file name (useful for example
-/// when reading NetCDF meshes) and supports optional gzstream decompression.
-class named_ifgzstream : public mfem::ifgzstream
-{
-public:
-   const char *filename;
-   named_ifgzstream(const char *mesh_name) :
-      mfem::ifgzstream(mesh_name), filename(mesh_name) {}
-};
-
-
-// inline functions
-inline void Mesh::ShiftL2R(int &a, int &b, int &c)
+// shift cyclically 3 integers left-to-right
+inline void ShiftRight(int &a, int &b, int &c)
 {
    int t = a;
    a = c;  c = b;  b = t;
 }
 
-inline void Mesh::Rotate3(int &a, int &b, int &c)
-{
-   if (a < b)
-   {
-      if (a > c)
-      {
-         ShiftL2R(a, b, c);
-      }
-   }
-   else
-   {
-      if (b < c)
-      {
-         ShiftL2R(c, b, a);
-      }
-      else
-      {
-         ShiftL2R(a, b, c);
-      }
-   }
-}
+/// @brief Print function for Mesh::FaceInformation.
+std::ostream& operator<<(std::ostream& os, const Mesh::FaceInformation& info);
 
 }
 

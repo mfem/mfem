@@ -40,11 +40,11 @@ double freq = 1.0, kappa;
 
 int main(int argc, char *argv[])
 {
-   // 1. Initialize MPI.
-   int num_procs, myid;
-   MPI_Init(&argc, &argv);
-   MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
-   MPI_Comm_rank(MPI_COMM_WORLD, &myid);
+   // 1. Initialize MPI and HYPRE.
+   Mpi::Init(argc, argv);
+   int num_procs = Mpi::WorldSize();
+   int myid = Mpi::WorldRank();
+   Hypre::Init();
 
    // 2. Parse command-line options.
    const char *mesh_file = "../../data/star.mesh";
@@ -89,7 +89,6 @@ int main(int argc, char *argv[])
       {
          args.PrintUsage(cout);
       }
-      MPI_Finalize();
       return 1;
    }
    if (myid == 0)
@@ -97,7 +96,7 @@ int main(int argc, char *argv[])
       args.PrintOptions(cout);
    }
    // 2b. We initialize PETSc
-   if (use_petsc) { PetscInitialize(NULL,NULL,petscrc_file,NULL); }
+   if (use_petsc) { MFEMInitializePetsc(NULL,NULL,petscrc_file,NULL); }
    kappa = freq * M_PI;
 
    // 3. Read the (serial) mesh from the given mesh file on all processors.  We
@@ -122,9 +121,7 @@ int main(int argc, char *argv[])
 
    // 5. Define a parallel mesh by a partitioning of the serial mesh. Refine
    //    this mesh further in parallel to increase the resolution. Once the
-   //    parallel mesh is defined, the serial mesh can be deleted. Tetrahedral
-   //    meshes need to be reoriented before we can define high-order Nedelec
-   //    spaces on them (this is needed in the ADS solver below).
+   //    parallel mesh is defined, the serial mesh can be deleted.
    ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
    delete mesh;
    {
@@ -134,13 +131,12 @@ int main(int argc, char *argv[])
          pmesh->UniformRefinement();
       }
    }
-   pmesh->ReorientTetMesh();
 
    // 6. Define a parallel finite element space on the parallel mesh. Here we
    //    use the Raviart-Thomas finite elements of the specified order.
    FiniteElementCollection *fec = new RT_FECollection(order-1, dim);
    ParFiniteElementSpace *fespace = new ParFiniteElementSpace(pmesh, fec);
-   HYPRE_Int size = fespace->GlobalTrueVSize();
+   HYPRE_BigInt size = fespace->GlobalTrueVSize();
    if (myid == 0)
    {
       cout << "Number of finite element unknowns: " << size << endl;
@@ -216,7 +212,7 @@ int main(int argc, char *argv[])
       HypreParMatrix A;
       a->FormLinearSystem(ess_tdof_list, x, *b, A, X, B);
 
-      HYPRE_Int glob_size = A.GetGlobalNumRows();
+      HYPRE_BigInt glob_size = A.GetGlobalNumRows();
       if (myid == 0)
       {
          cout << "Size of linear system: " << glob_size << endl;
@@ -330,9 +326,7 @@ int main(int argc, char *argv[])
    delete pmesh;
 
    // We finalize PETSc
-   if (use_petsc) { PetscFinalize(); }
-
-   MPI_Finalize();
+   if (use_petsc) { MFEMFinalizePetsc(); }
 
    return 0;
 }

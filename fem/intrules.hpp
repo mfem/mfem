@@ -1,13 +1,13 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
 #ifndef MFEM_INTRULES
 #define MFEM_INTRULES
@@ -26,11 +26,17 @@ class IntegrationPoint
 {
 public:
    double x, y, z, weight;
+   int index;
 
-   void Init() { x = y = z = weight = 0.0; }
+   void Init(int const i)
+   {
+      x = y = z = weight = 0.0;
+      index = i;
+   }
 
    void Set(const double *p, const int dim)
    {
+      MFEM_ASSERT(1 <= dim && dim <= 3, "invalid dim: " << dim);
       x = p[0];
       if (dim > 1)
       {
@@ -44,6 +50,7 @@ public:
 
    void Get(double *p, const int dim) const
    {
+      MFEM_ASSERT(1 <= dim && dim <= 3, "invalid dim: " << dim);
       p[0] = x;
       if (dim > 1)
       {
@@ -84,6 +91,10 @@ class IntegrationRule : public Array<IntegrationPoint>
 {
 private:
    friend class IntegrationRules;
+   int Order;
+   /** @brief The quadrature weights gathered as a contiguous array. Created
+       by request with the method GetWeights(). */
+   mutable Array<double> weights;
 
    /// Define n-simplex rule (triangle/tetrahedron for n=2/3) of order (2s+1)
    void GrundmannMollerSimplexRule(int s, int n = 3);
@@ -200,16 +211,23 @@ private:
    }
 
 public:
-   IntegrationRule() : Array<IntegrationPoint>() { }
+   IntegrationRule() :
+      Array<IntegrationPoint>(), Order(0) { }
 
    /// Construct an integration rule with given number of points
-   explicit IntegrationRule(int NP) : Array<IntegrationPoint>(NP)
+   explicit IntegrationRule(int NP) :
+      Array<IntegrationPoint>(NP), Order(0)
    {
       for (int i = 0; i < this->Size(); i++)
       {
-         (*this)[i].Init();
+         (*this)[i].Init(i);
       }
    }
+
+   /// Sets the indices of each quadrature point on initialization.
+   /** Note that most calls to IntegrationRule::SetSize should be paired with a
+       call to SetPointIndices in order for the indices to be set correctly. */
+   void SetPointIndices();
 
    /// Tensor product of two 1D integration rules
    IntegrationRule(IntegrationRule &irx, IntegrationRule &iry);
@@ -217,6 +235,13 @@ public:
    /// Tensor product of three 1D integration rules
    IntegrationRule(IntegrationRule &irx, IntegrationRule &iry,
                    IntegrationRule &irz);
+
+   /// Returns the order of the integration rule
+   int GetOrder() const { return Order; }
+
+   /** @brief Sets the order of the integration rule. This is only for keeping
+       order information, it does not alter any data in the IntegrationRule. */
+   void SetOrder(const int order) { Order = order; }
 
    /// Returns the number of the points in the integration rule
    int GetNPoints() const { return Size(); }
@@ -226,6 +251,11 @@ public:
 
    /// Returns a const reference to the i-th integration point
    const IntegrationPoint &IntPoint(int i) const { return (*this)[i]; }
+
+   /// Return the quadrature weights in a contiguous array.
+   /** If a contiguous array is not required, the weights can be accessed with
+       a call like this: `IntPoint(i).weight`. */
+   const Array<double> &GetWeights() const;
 
    /// Destroys an IntegrationRule object
    ~IntegrationRule() { }
@@ -239,19 +269,20 @@ public:
        These methods calculate the actual points and weights for the different
        types of quadrature rules. */
    ///@{
-   void GaussLegendre(const int np, IntegrationRule* ir);
-   void GaussLobatto(const int np, IntegrationRule *ir);
-   void OpenUniform(const int np, IntegrationRule *ir);
-   void ClosedUniform(const int np, IntegrationRule *ir);
-   void OpenHalfUniform(const int np, IntegrationRule *ir);
+   static void GaussLegendre(const int np, IntegrationRule* ir);
+   static void GaussLobatto(const int np, IntegrationRule *ir);
+   static void OpenUniform(const int np, IntegrationRule *ir);
+   static void ClosedUniform(const int np, IntegrationRule *ir);
+   static void OpenHalfUniform(const int np, IntegrationRule *ir);
+   static void ClosedGL(const int np, IntegrationRule *ir);
    ///@}
 
    /// A helper function that will play nice with Poly_1D::OpenPoints and
    /// Poly_1D::ClosedPoints
-   void GivePolyPoints(const int np, double *pts, const int type);
+   static void GivePolyPoints(const int np, double *pts, const int type);
 
 private:
-   void CalculateUniformWeights(IntegrationRule *ir, const int type);
+   static void CalculateUniformWeights(IntegrationRule *ir, const int type);
 };
 
 /// A class container for 1D quadrature type constants.
@@ -265,7 +296,8 @@ public:
       GaussLobatto    = 1,
       OpenUniform     = 2,  ///< aka open Newton-Cotes
       ClosedUniform   = 3,  ///< aka closed Newton-Cotes
-      OpenHalfUniform = 4   ///< aka "open half" Newton-Cotes
+      OpenHalfUniform = 4,  ///< aka "open half" Newton-Cotes
+      ClosedGL        = 5   ///< aka closed Gauss Legendre
    };
    /** @brief If the Quadrature1D type is not closed return Invalid; otherwise
        return type. */
@@ -286,14 +318,13 @@ private:
 
    int own_rules, refined;
 
-   /// Function that generates quadrature points and weights on [0,1]
-   QuadratureFunctions1D quad_func;
-
    Array<IntegrationRule *> PointIntRules;
    Array<IntegrationRule *> SegmentIntRules;
    Array<IntegrationRule *> TriangleIntRules;
    Array<IntegrationRule *> SquareIntRules;
    Array<IntegrationRule *> TetrahedronIntRules;
+   Array<IntegrationRule *> PyramidIntRules;
+   Array<IntegrationRule *> PrismIntRules;
    Array<IntegrationRule *> CubeIntRules;
 
    void AllocIntRule(Array<IntegrationRule *> &ir_array, int Order)
@@ -312,12 +343,17 @@ private:
       return Order | 1; // valid for all quad_type's
    }
 
+   /// The following methods allocate new IntegrationRule objects without
+   /// checking if they already exist.  To avoid memory leaks use
+   /// IntegrationRules::Get(int GeomType, int Order) instead.
    IntegrationRule *GenerateIntegrationRule(int GeomType, int Order);
    IntegrationRule *PointIntegrationRule(int Order);
    IntegrationRule *SegmentIntegrationRule(int Order);
    IntegrationRule *TriangleIntegrationRule(int Order);
    IntegrationRule *SquareIntegrationRule(int Order);
    IntegrationRule *TetrahedronIntegrationRule(int Order);
+   IntegrationRule *PyramidIntegrationRule(int Order);
+   IntegrationRule *PrismIntegrationRule(int Order);
    IntegrationRule *CubeIntegrationRule(int Order);
 
    void DeleteIntRuleArray(Array<IntegrationRule *> &ir_array);

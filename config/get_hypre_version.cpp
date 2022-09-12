@@ -1,13 +1,13 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
 #include "HYPRE_config.h"
 #include <cstdio>
@@ -18,12 +18,17 @@
 #define HYPRE_VERSION_STRING HYPRE_PACKAGE_VERSION
 #endif
 
+// Macros to expand a macro as a string
+#define STR_EXPAND(s) #s
+#define STR(s) STR_EXPAND(s)
+
 // Convert the HYPRE_RELEASE_VERSION macro (string) to integer.
 // Examples: "2.10.0b" --> 21000, "2.11.2"  --> 21102
 int main()
 {
 #ifdef HYPRE_VERSION_STRING
-   const char *ptr = HYPRE_VERSION_STRING;
+   const char *ptr = STR(HYPRE_VERSION_STRING);
+   if (*ptr == '"') { ptr++; }
    int version = 0;
    for (int i = 0; i < 3; i++, ptr++)
    {
@@ -36,6 +41,7 @@ int main()
       version = 100*version + pv;
    }
    printf("%i\n", version);
+   return 0;
 #else
    return 2;
 #endif

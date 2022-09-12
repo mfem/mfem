@@ -1,13 +1,13 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
 #include "staticcond.hpp"
 
@@ -35,13 +35,11 @@ StaticCondensation::StaticCondensation(FiniteElementSpace *fespace)
                                           ordering);
       tr_fes = tr_pfes;
    }
-   pS.SetType(Operator::HYPRE_PARCSR);
-   pS_e.SetType(Operator::HYPRE_PARCSR);
+   pS.SetType(Operator::Hypre_ParCSR);
+   pS_e.SetType(Operator::Hypre_ParCSR);
 #endif
    S = S_e = NULL;
    symm = false;
-   A_data = NULL;
-   A_ipiv = NULL;
 
    Array<int> vdofs;
    const int NE = fes->GetNE();
@@ -109,8 +107,8 @@ StaticCondensation::~StaticCondensation()
 #endif
    delete S_e;
    delete S;
-   delete [] A_data;
-   delete [] A_ipiv;
+   A_data.Delete();
+   A_ipiv.Delete();
    delete tr_fes;
    delete tr_fec;
 }
@@ -147,8 +145,8 @@ void StaticCondensation::Init(bool symmetric, bool block_diagonal)
       A_offsets[i+1] = A_offsets[i] + npd*(npd + (symm ? 1 : 2)*ned);
       A_ipiv_offsets[i+1] = A_ipiv_offsets[i] + npd;
    }
-   A_data = new double[A_offsets[NE]];
-   A_ipiv = new int[A_ipiv_offsets[NE]];
+   A_data = Memory<double>(A_offsets[NE]);
+   A_ipiv = Memory<int>(A_ipiv_offsets[NE]);
    const int nedofs = tr_fes->GetVSize();
    if (fes->GetVDim() == 1)
    {
@@ -174,7 +172,7 @@ void StaticCondensation::Init(bool symmetric, bool block_diagonal)
          mfem::Mult(rdof_elem, elem_rdof, rdof_rdof);
       }
       S = new SparseMatrix(rdof_rdof.GetI(), rdof_rdof.GetJ(), NULL,
-                           nedofs, nedofs, true, true, false);
+                           nedofs, nedofs, true, false, false);
       rdof_rdof.LoseData();
    }
    else
@@ -286,7 +284,7 @@ void StaticCondensation::Finalize()
 }
 
 void StaticCondensation::EliminateReducedTrueDofs(
-   const Array<int> &ess_rtdof_list, int keep_diagonal)
+   const Array<int> &ess_rtdof_list_, Matrix::DiagonalPolicy dpolicy)
 {
    if (!Parallel() || S) // not parallel or not finalized
    {
@@ -294,16 +292,16 @@ void StaticCondensation::EliminateReducedTrueDofs(
       {
          S_e = new SparseMatrix(S->Height());
       }
-      for (int i = 0; i < ess_rtdof_list.Size(); i++)
+      for (int i = 0; i < ess_rtdof_list_.Size(); i++)
       {
-         S->EliminateRowCol(ess_rtdof_list[i], *S_e, keep_diagonal);
+         S->EliminateRowCol(ess_rtdof_list_[i], *S_e, dpolicy);
       }
    }
    else // parallel and finalized
    {
 #ifdef MFEM_USE_MPI
       MFEM_ASSERT(pS_e.Ptr() == NULL, "essential b.c. already eliminated");
-      pS_e.EliminateRowsCols(pS, ess_rtdof_list);
+      pS_e.EliminateRowsCols(pS, ess_rtdof_list_);
 #endif
    }
 }
@@ -349,7 +347,8 @@ void StaticCondensation::ReduceRHS(const Vector &b, Vector &sc_b) const
          b_p(j) = b(pd[j]);
       }
 
-      LUFactors lu(A_data + A_offsets[i], A_ipiv + A_ipiv_offsets[i]);
+      LUFactors lu(const_cast<double*>((const double*)A_data) + A_offsets[i],
+                   const_cast<int*>((const int*)A_ipiv) + A_ipiv_offsets[i]);
       lu.LSolve(npd, 1, b_p);
 
       if (symm)
@@ -380,7 +379,7 @@ void StaticCondensation::ReduceRHS(const Vector &b, Vector &sc_b) const
    else
    {
 #ifdef MFEM_USE_MPI
-      HypreParMatrix *tr_P = tr_pfes->Dof_TrueDof_Matrix();
+      const Operator *tr_P = tr_pfes->GetProlongationMatrix();
       sc_b.SetSize(tr_P->Width());
       tr_P->MultTranspose(b_r, sc_b);
 #endif
@@ -501,7 +500,7 @@ void StaticCondensation::ComputeSolution(
    {
 #ifdef MFEM_USE_MPI
       sol_r.SetSize(nedofs);
-      tr_pfes->Dof_TrueDof_Matrix()->Mult(sc_sol, sol_r);
+      tr_pfes->GetProlongationMatrix()->Mult(sc_sol, sol_r);
 #endif
    }
    sol.SetSize(nedofs+npdofs);
@@ -526,7 +525,8 @@ void StaticCondensation::ComputeSolution(
       }
       sol_r.GetSubVector(rvdofs, s_e);
 
-      LUFactors lu(A_data + A_offsets[i], A_ipiv + A_ipiv_offsets[i]);
+      LUFactors lu(const_cast<double*>((const double*)A_data) + A_offsets[i],
+                   const_cast<int*>((const int*)A_ipiv) + A_ipiv_offsets[i]);
       lu.LSolve(npd, 1, b_p);
       lu.BlockBackSolve(npd, ned, 1, lu.data + npd*npd, s_e, b_p);
 

@@ -12,7 +12,7 @@
 //               equation -Delta u = 1 with homogeneous Dirichlet boundary
 //               conditions. The problem is solved on a sequence of meshes which
 //               are locally refined in a conforming (triangles, tetrahedrons)
-//               or non-conforming (quadrilateral, hexahedrons) manner according
+//               or non-conforming (quadrilaterals, hexahedra) manner according
 //               to a simple ZZ error estimator.
 //
 //               The example demonstrates MFEM's capability to work with both
@@ -39,11 +39,11 @@ using namespace mfem;
 
 int main(int argc, char *argv[])
 {
-   // 1. Initialize MPI.
-   int num_procs, myid;
-   MPI_Init(&argc, &argv);
-   MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
-   MPI_Comm_rank(MPI_COMM_WORLD, &myid);
+   // 1. Initialize MPI and HYPRE.
+   Mpi::Init(argc, argv);
+   int num_procs = Mpi::WorldSize();
+   int myid = Mpi::WorldRank();
+   Hypre::Init();
 
    // 2. Parse command-line options.
    const char *mesh_file = "../../data/star.mesh";
@@ -80,7 +80,6 @@ int main(int argc, char *argv[])
       {
          args.PrintUsage(cout);
       }
-      MPI_Finalize();
       return 1;
    }
    if (myid == 0)
@@ -88,7 +87,7 @@ int main(int argc, char *argv[])
       args.PrintOptions(cout);
    }
    // 2b. We initialize PETSc
-   if (use_petsc) { PetscInitialize(NULL,NULL,petscrc_file,NULL); }
+   if (use_petsc) { MFEMInitializePetsc(NULL,NULL,petscrc_file,NULL); }
 
    // 3. Read the (serial) mesh from the given mesh file on all processors.  We
    //    can handle triangular, quadrilateral, tetrahedral, hexahedral, surface
@@ -186,7 +185,7 @@ int main(int argc, char *argv[])
    //     current mesh, visualize the solution, and refine the mesh.
    for (int it = 0; ; it++)
    {
-      HYPRE_Int global_dofs = fespace.GlobalTrueVSize();
+      HYPRE_BigInt global_dofs = fespace.GlobalTrueVSize();
       if (myid == 0)
       {
          cout << "\nAMR iteration " << it << endl;
@@ -224,7 +223,7 @@ int main(int argc, char *argv[])
 
       a.Assemble();
       b.Assemble();
-      a.SetOperatorType(Operator::HYPRE_PARCSR);
+      a.SetOperatorType(Operator::Hypre_ParCSR);
       HypreParMatrix A;
       Vector B, X;
       MPI_Barrier(MPI_COMM_WORLD);
@@ -315,8 +314,7 @@ int main(int argc, char *argv[])
    }
 
    // We finalize PETSc
-   if (use_petsc) { PetscFinalize(); }
+   if (use_petsc) { MFEMFinalizePetsc(); }
 
-   MPI_Finalize();
    return 0;
 }

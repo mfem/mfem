@@ -1,13 +1,13 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
 #include "tic_toc.hpp"
 
@@ -26,6 +26,13 @@
 #define NOMINMAX
 #include <windows.h>
 #undef NOMINMAX
+#elif (MFEM_TIMER_TYPE == 4)
+#include <ctime>
+#include <mach/mach_time.h>
+#elif (MFEM_TIMER_TYPE == 5)
+#include <sys/time.h> // gettimeofday
+#elif (MFEM_TIMER_TYPE == 6)
+#include <mpi.h>  // MPI_Wtime()
 #else
 #error "Unknown MFEM_TIMER_TYPE"
 #endif
@@ -53,6 +60,14 @@ private:
    inline void GetUserTime(struct timespec &tp);
 #elif (MFEM_TIMER_TYPE == 3)
    LARGE_INTEGER frequency, real_time, start_rtime;
+#elif (MFEM_TIMER_TYPE == 4)
+   std::clock_t user_time, start_utime;
+   mach_timebase_info_data_t ratio;
+   uint64_t real_time, start_rtime;
+#elif (MFEM_TIMER_TYPE == 5)
+   struct timeval real_time, start_rtime;
+#elif (MFEM_TIMER_TYPE == 6)
+   double real_time, start_rtime;
 #endif
    short Running;
 
@@ -80,6 +95,15 @@ StopWatch::StopWatch()
 #elif (MFEM_TIMER_TYPE == 3)
    QueryPerformanceFrequency(&frequency);
    real_time.QuadPart = 0;
+#elif (MFEM_TIMER_TYPE == 4)
+   user_time = 0;
+   real_time = 0;
+   mach_timebase_info(&ratio);
+#elif (MFEM_TIMER_TYPE == 5)
+   real_time.tv_sec  = 0;
+   real_time.tv_usec = 0;
+#elif (MFEM_TIMER_TYPE == 6)
+   real_time = 0.0;
 #endif
    Running = 0;
 }
@@ -133,6 +157,27 @@ inline void StopWatch::Clear()
    {
       QueryPerformanceCounter(&start_rtime);
    }
+#elif (MFEM_TIMER_TYPE == 4)
+   user_time = 0;
+   real_time = 0;
+   if (Running)
+   {
+      start_utime = std::clock();
+      start_rtime = mach_absolute_time();
+   }
+#elif (MFEM_TIMER_TYPE == 5)
+   real_time.tv_sec  = 0;
+   real_time.tv_usec = 0;
+   if (Running)
+   {
+      gettimeofday(&start_rtime, NULL);
+   }
+#elif (MFEM_TIMER_TYPE == 6)
+   real_time = 0.0;
+   if (Running)
+   {
+      start_rtime = MPI_Wtime();
+   }
 #endif
 }
 
@@ -148,6 +193,13 @@ inline void StopWatch::Start()
    GetUserTime(start_utime);
 #elif (MFEM_TIMER_TYPE == 3)
    QueryPerformanceCounter(&start_rtime);
+#elif (MFEM_TIMER_TYPE == 4)
+   start_utime = std::clock();
+   start_rtime = mach_absolute_time();
+#elif (MFEM_TIMER_TYPE == 5)
+   gettimeofday(&start_rtime, NULL);
+#elif (MFEM_TIMER_TYPE == 6)
+   start_rtime = MPI_Wtime();
 #endif
    Running = 1;
 }
@@ -175,6 +227,16 @@ inline void StopWatch::Stop()
    LARGE_INTEGER curr_rtime;
    QueryPerformanceCounter(&curr_rtime);
    real_time.QuadPart += (curr_rtime.QuadPart - start_rtime.QuadPart);
+#elif (MFEM_TIMER_TYPE == 4)
+   user_time += ( std::clock() - start_utime );
+   real_time += (mach_absolute_time() - start_rtime);
+#elif (MFEM_TIMER_TYPE == 5)
+   struct timeval curr_rtime;
+   gettimeofday(&curr_rtime, NULL);
+   real_time.tv_sec  += ( curr_rtime.tv_sec  - start_rtime.tv_sec  );
+   real_time.tv_usec += ( curr_rtime.tv_usec - start_rtime.tv_usec );
+#elif (MFEM_TIMER_TYPE == 6)
+   real_time += (MPI_Wtime() - start_rtime);
 #endif
    Running = 0;
 }
@@ -194,6 +256,13 @@ inline double StopWatch::Resolution()
    return res.tv_sec + 1e-9*res.tv_nsec;
 #elif (MFEM_TIMER_TYPE == 3)
    return 1.0 / frequency.QuadPart;
+#elif (MFEM_TIMER_TYPE == 4)
+   return 1.0 / CLOCKS_PER_SEC; // potential resolution
+   // return 1e-9; // not real resolution
+#elif (MFEM_TIMER_TYPE == 5)
+   return 1e-6; // not real resolution
+#elif (MFEM_TIMER_TYPE == 6)
+   return MPI_Wtick();
 #endif
 }
 
@@ -231,6 +300,35 @@ inline double StopWatch::RealTime()
       rtime.QuadPart += (curr_rtime.QuadPart - start_rtime.QuadPart);
    }
    return (double)(rtime.QuadPart) / frequency.QuadPart;
+#elif (MFEM_TIMER_TYPE == 4)
+   uint64_t rtime = real_time;
+   if (Running)
+   {
+      rtime += (mach_absolute_time() - start_rtime);
+   }
+   return 1e-9*rtime*ratio.numer/ratio.denom;
+#elif (MFEM_TIMER_TYPE == 5)
+   if (Running)
+   {
+      struct timeval curr_rtime;
+      gettimeofday(&curr_rtime, NULL);
+      real_time.tv_sec  += ( curr_rtime.tv_sec  - start_rtime.tv_sec  );
+      real_time.tv_usec += ( curr_rtime.tv_usec - start_rtime.tv_usec );
+      return ((real_time.tv_sec + (curr_rtime.tv_sec - start_rtime.tv_sec)) +
+              1e-6*(real_time.tv_usec +
+                    (curr_rtime.tv_usec - start_rtime.tv_usec)));
+   }
+   else
+   {
+      return real_time.tv_sec + 1e-6*real_time.tv_usec;
+   }
+#elif (MFEM_TIMER_TYPE == 6)
+   double rtime = real_time;
+   if (Running)
+   {
+      rtime += (MPI_Wtime() - start_rtime);
+   }
+   return rtime;
 #endif
 }
 
@@ -266,6 +364,17 @@ inline double StopWatch::UserTime()
       return user_time.tv_sec + 1e-9*user_time.tv_nsec;
    }
 #elif (MFEM_TIMER_TYPE == 3)
+   return RealTime();
+#elif (MFEM_TIMER_TYPE == 4)
+   std::clock_t utime = user_time;
+   if (Running)
+   {
+      utime += (std::clock() - start_utime);
+   }
+   return (double)(utime) / CLOCKS_PER_SEC;
+#elif (MFEM_TIMER_TYPE == 5)
+   return RealTime();
+#elif (MFEM_TIMER_TYPE == 6)
    return RealTime();
 #endif
 }

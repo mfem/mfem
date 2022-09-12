@@ -1,29 +1,31 @@
-# Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at the
-# Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights reserved.
-# See file COPYRIGHT for details.
+# Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+# at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+# LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
 # This file is part of the MFEM library. For more information and source code
-# availability see http://mfem.org.
+# availability visit https://mfem.org.
 #
 # MFEM is free software; you can redistribute it and/or modify it under the
-# terms of the GNU Lesser General Public License (as published by the Free
-# Software Foundation) version 2.1 dated February 1999.
+# terms of the BSD-3 license. We welcome feedback and contributions, see file
+# CONTRIBUTING.md for details.
 
 # Use the MFEM build directory
 MFEM_DIR ?= ../..
 MFEM_BUILD_DIR ?= ../..
 SRC = $(if $(MFEM_DIR:../..=),$(MFEM_DIR)/miniapps/tools/,)
 CONFIG_MK = $(MFEM_BUILD_DIR)/config/config.mk
-TEST_MK = $(MFEM_DIR)/config/test.mk
 # Use the MFEM install directory
-# MFEM_DIR = ../../mfem
-# CONFIG_MK = $(MFEM_DIR)/config.mk
-# TEST_MK = $(MFEM_DIR)/test.mk
+# MFEM_INSTALL_DIR = ../../mfem
+# CONFIG_MK = $(MFEM_INSTALL_DIR)/share/mfem/config.mk
+
+# Include defaults.mk to get XLINKER
+DEFAULTS_MK = $(MFEM_DIR)/config/defaults.mk
+include $(DEFAULTS_MK)
 
 MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
-SEQ_MINIAPPS = display-basis
+SEQ_MINIAPPS = display-basis load-dc convert-dc get-values lor-transfer
 PAR_MINIAPPS =
 ifeq ($(MFEM_USE_MPI),NO)
    MINIAPPS = $(SEQ_MINIAPPS)
@@ -33,38 +35,49 @@ endif
 
 .SUFFIXES:
 .SUFFIXES: .o .cpp .mk
-.PHONY: all clean clean-build clean-exec
+.PHONY: all lib-common clean clean-build clean-exec
 .PRECIOUS: %.o
 
-COMMON_O=../common/fem_extras.o ../common/mesh_extras.o
+COMMON_LIB = -L$(MFEM_BUILD_DIR)/miniapps/common -lmfem-common
+
+# If MFEM_SHARED is set, add the ../common rpath
+COMMON_LIB += $(if $(MFEM_SHARED:YES=),,\
+   $(if $(MFEM_USE_CUDA:YES=),$(CXX_XLINKER),$(CUDA_XLINKER))-rpath,$(abspath\
+   $(MFEM_BUILD_DIR)/miniapps/common))
+
+all: $(MINIAPPS)
 
 # Remove built-in rules
 %: %.cpp
 %.o: %.cpp
 
 # Replace the default implicit rule for *.cpp files
-%: $(SRC)%.cpp $(COMMON_O) $(MFEM_LIB_FILE) $(CONFIG_MK)
-	$(MFEM_CXX) $(MFEM_FLAGS) $< -o $@ $(COMMON_O) $(MFEM_LIBS)
+%: $(SRC)%.cpp $(MFEM_LIB_FILE) $(CONFIG_MK)
+	$(MFEM_CXX) $(MFEM_FLAGS) $< -o $@ $(MFEM_LIBS)
 
-all: $(MINIAPPS)
+# Tools that depend on lib-common
+display-basis: %: $(SRC)%.cpp $(MFEM_LIB_FILE) $(CONFIG_MK) | lib-common
+	$(MFEM_CXX) $(MFEM_FLAGS) -c $(<)
+	$(MFEM_CXX) $(MFEM_LINK_FLAGS) -o $@ $@.o $(COMMON_LIB) $(MFEM_LIBS)
 
-# Rules for compiling dependencies
-$(COMMON_O): %.o: $(SRC)%.cpp $(SRC)%.hpp $(CONFIG_MK)
-	$(MFEM_CXX) $(MFEM_FLAGS) -c $< -o $@
+# Rule for building lib-common
+lib-common:
+	$(MAKE) -C $(MFEM_BUILD_DIR)/miniapps/common
 
 MFEM_TESTS = MINIAPPS
-include $(TEST_MK)
+include $(MFEM_TEST_MK)
 
 # Testing: Parallel vs. serial runs
-RUN_MPI = $(MFEM_MPIEXEC) $(MFEM_MPIEXEC_NP) 4
+RUN_MPI = $(MFEM_MPIEXEC) $(MFEM_MPIEXEC_NP) $(MFEM_MPI_NP)
 %-test-par: %
 	@$(call mfem-test,$<, $(RUN_MPI), Tools miniapp)
 %-test-seq: %
 	@$(call mfem-test,$<,, Tools miniapp)
 
 # Testing: Specific execution options
-# Do not test display-basis:
-display-basis-test-seq:
+# Do not test: display-basis, load-dc, convert-dc, get-values, lor-transfer
+NO_TEST_APPS = display-basis load-dc convert-dc get-values lor-transfer
+$(foreach app,$(NO_TEST_APPS),$(app)-test-seq $(app)-test-par):
 	@true
 
 # Testing: "test" target and mfem-test* variables are defined in config/test.mk

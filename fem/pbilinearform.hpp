@@ -1,13 +1,13 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
 #ifndef MFEM_PBILINEARFORM
 #define MFEM_PBILINEARFORM
@@ -27,9 +27,13 @@ namespace mfem
 /// Class for parallel bilinear form
 class ParBilinearForm : public BilinearForm
 {
+   friend FABilinearFormExtension;
 protected:
-   ParFiniteElementSpace *pfes;
-   mutable ParGridFunction X, Y; // used in TrueAddMult
+   ParFiniteElementSpace *pfes; ///< Points to the same object as #fes
+
+   /// Auxiliary objects used in TrueAddMult().
+   mutable ParGridFunction Xaux, Yaux;
+   mutable Vector Ytmp;
 
    OperatorHandle p_mat, p_mat_e;
 
@@ -40,15 +44,31 @@ protected:
 
    void AssembleSharedFaces(int skip_zeros = 1);
 
+private:
+   /// Copy construction is not supported; body is undefined.
+   ParBilinearForm(const ParBilinearForm &);
+
+   /// Copy assignment is not supported; body is undefined.
+   ParBilinearForm &operator=(const ParBilinearForm &);
+
 public:
+   /// Creates parallel bilinear form associated with the FE space @a *pf.
+   /** The pointer @a pf is not owned by the newly constructed object. */
    ParBilinearForm(ParFiniteElementSpace *pf)
       : BilinearForm(pf), pfes(pf),
-        p_mat(Operator::HYPRE_PARCSR), p_mat_e(Operator::HYPRE_PARCSR)
+        p_mat(Operator::Hypre_ParCSR), p_mat_e(Operator::Hypre_ParCSR)
    { keep_nbr_block = false; }
 
+   /** @brief Create a ParBilinearForm on the ParFiniteElementSpace @a *pf,
+       using the same integrators as the ParBilinearForm @a *bf.
+
+       The pointer @a pf is not owned by the newly constructed object.
+
+       The integrators in @a bf are copied as pointers and they are not owned by
+       the newly constructed ParBilinearForm. */
    ParBilinearForm(ParFiniteElementSpace *pf, ParBilinearForm *bf)
       : BilinearForm(pf, bf), pfes(pf),
-        p_mat(Operator::HYPRE_PARCSR), p_mat_e(Operator::HYPRE_PARCSR)
+        p_mat(Operator::Hypre_ParCSR), p_mat_e(Operator::Hypre_ParCSR)
    { keep_nbr_block = false; }
 
    /** When set to true and the ParBilinearForm has interior face integrators,
@@ -57,7 +77,8 @@ public:
        those rows. Must be called before the first Assemble call. */
    void KeepNbrBlock(bool knb = true) { keep_nbr_block = knb; }
 
-   /// Set the operator type id for the parallel matrix/operator.
+   /** @brief Set the operator type id for the parallel matrix/operator when
+       using AssemblyLevel::LEGACY. */
    /** If using static condensation or hybridization, call this method *after*
        enabling it. */
    void SetOperatorType(Operator::Type tid)
@@ -70,6 +91,17 @@ public:
    /// Assemble the local matrix
    void Assemble(int skip_zeros = 1);
 
+   /** @brief Assemble the diagonal of the bilinear form into @a diag. Note that
+       @a diag is a true-dof Vector.
+
+       When the AssemblyLevel is not LEGACY, and the mesh is nonconforming,
+       this method returns |P^T| d_l, where d_l is the local diagonal of the
+       form before applying parallel/conforming assembly, P^T is the transpose
+       of the parallel/conforming prolongation, and |.| denotes the entry-wise
+       absolute value. In general, this is just an approximation of the exact
+       diagonal for this case. */
+   virtual void AssembleDiagonal(Vector &diag) const;
+
    /// Returns the matrix assembled on the true dofs, i.e. P^t A P.
    /** The returned matrix has to be deleted by the caller. */
    HypreParMatrix *ParallelAssemble() { return ParallelAssemble(mat); }
@@ -81,6 +113,17 @@ public:
    /// Return the matrix @a m assembled on the true dofs, i.e. P^t A P.
    /** The returned matrix has to be deleted by the caller. */
    HypreParMatrix *ParallelAssemble(SparseMatrix *m);
+
+   /** @brief Compute parallel RAP operator and store it in @a A as a HypreParMatrix.
+
+       @param[in] loc_A The rank-local `SparseMatrix`.
+       @param[out] A The `OperatorHandle` containing the global `HypreParMatrix`.
+       @param[in] steal_loc_A Have the `HypreParMatrix` in @a A take ownership of
+                              the memory objects in @a loc_A.
+       */
+   void ParallelRAP(SparseMatrix &loc_A,
+                    OperatorHandle &A,
+                    bool steal_loc_A = false);
 
    /** @brief Returns the matrix assembled on the true dofs, i.e.
        @a A = P^t A_local P, in the format (type id) specified by @a A. */
@@ -140,70 +183,23 @@ public:
 
    /// Get the parallel finite element space prolongation matrix
    virtual const Operator *GetProlongation() const
-   { return pfes->Dof_TrueDof_Matrix(); }
+   { return pfes->GetProlongationMatrix(); }
+   /// Get the transpose of GetRestriction, useful for matrix-free RAP
+   virtual const Operator *GetRestrictionTranspose() const
+   { return pfes->GetRestrictionTransposeOperator(); }
    /// Get the parallel finite element space restriction matrix
    virtual const Operator *GetRestriction() const
    { return pfes->GetRestrictionMatrix(); }
 
-   /** Form the linear system A X = B, corresponding to the current bilinear
-       form and b(.), by applying any necessary transformations such as:
-       eliminating boundary conditions; applying conforming constraints for
-       non-conforming AMR; parallel assembly; static condensation;
-       hybridization.
+   using BilinearForm::FormLinearSystem;
+   using BilinearForm::FormSystemMatrix;
 
-       The ParGridFunction-size vector x must contain the essential b.c. The
-       ParBilinearForm and the ParLinearForm-size vector b must be assembled.
+   virtual void FormLinearSystem(const Array<int> &ess_tdof_list, Vector &x,
+                                 Vector &b, OperatorHandle &A, Vector &X,
+                                 Vector &B, int copy_interior = 0);
 
-       The vector X is initialized with a suitable initial guess: when using
-       hybridization, the vector X is set to zero; otherwise, the essential
-       entries of X are set to the corresponding b.c. and all other entries are
-       set to zero (copy_interior == 0) or copied from x (copy_interior != 0).
-
-       This method can be called multiple times (with the same ess_tdof_list
-       array) to initialize different right-hand sides and boundary condition
-       values.
-
-       After solving the linear system, the finite element solution x can be
-       recovered by calling RecoverFEMSolution (with the same vectors X, b, and
-       x). */
-   void FormLinearSystem(const Array<int> &ess_tdof_list, Vector &x, Vector &b,
-                         OperatorHandle &A, Vector &X, Vector &B,
-                         int copy_interior = 0);
-
-   /** Version of the method FormLinearSystem() where the system matrix is
-       returned in the variable @a A, of type OpType, holding a *reference* to
-       the system matrix (created with the method OpType::MakeRef()). The
-       reference will be invalidated when SetOperatorType(), Update(), or the
-       destructor is called. */
-   template <typename OpType>
-   void FormLinearSystem(const Array<int> &ess_tdof_list, Vector &x, Vector &b,
-                         OpType &A, Vector &X, Vector &B,
-                         int copy_interior = 0)
-   {
-      OperatorHandle Ah;
-      FormLinearSystem(ess_tdof_list, x, b, Ah, X, B, copy_interior);
-      OpType *A_ptr = Ah.Is<OpType>();
-      MFEM_VERIFY(A_ptr, "invalid OpType used");
-      A.MakeRef(*A_ptr);
-   }
-
-   /// Form the linear system matrix @a A, see FormLinearSystem() for details.
-   void FormSystemMatrix(const Array<int> &ess_tdof_list, OperatorHandle &A);
-
-   /** Version of the method FormSystemMatrix() where the system matrix is
-       returned in the variable @a A, of type OpType, holding a *reference* to
-       the system matrix (created with the method OpType::MakeRef()). The
-       reference will be invalidated when SetOperatorType(), Update(), or the
-       destructor is called. */
-   template <typename OpType>
-   void FormSystemMatrix(const Array<int> &ess_tdof_list, OpType &A)
-   {
-      OperatorHandle Ah;
-      FormSystemMatrix(ess_tdof_list, Ah);
-      OpType *A_ptr = Ah.Is<OpType>();
-      MFEM_VERIFY(A_ptr, "invalid OpType used");
-      A.MakeRef(*A_ptr);
-   }
+   virtual void FormSystemMatrix(const Array<int> &ess_tdof_list,
+                                 OperatorHandle &A);
 
    /** Call this method after solving a linear system constructed using the
        FormLinearSystem method to recover the solution as a ParGridFunction-size
@@ -212,6 +208,8 @@ public:
 
    virtual void Update(FiniteElementSpace *nfes = NULL);
 
+   void EliminateVDofsInRHS(const Array<int> &vdofs, const Vector &x, Vector &b);
+
    virtual ~ParBilinearForm() { }
 };
 
@@ -219,14 +217,51 @@ public:
 class ParMixedBilinearForm : public MixedBilinearForm
 {
 protected:
+   /// Points to the same object as #trial_fes
    ParFiniteElementSpace *trial_pfes;
+   /// Points to the same object as #test_fes
    ParFiniteElementSpace *test_pfes;
-   mutable ParGridFunction X, Y; // used in TrueAddMult
+   /// Auxiliary objects used in TrueAddMult().
+   mutable ParGridFunction Xaux, Yaux;
+
+   /// Matrix and eliminated matrix
+   OperatorHandle p_mat, p_mat_e;
+
+private:
+   /// Copy construction is not supported; body is undefined.
+   ParMixedBilinearForm(const ParMixedBilinearForm &);
+
+   /// Copy assignment is not supported; body is undefined.
+   ParMixedBilinearForm &operator=(const ParMixedBilinearForm &);
 
 public:
+   /** @brief Construct a ParMixedBilinearForm on the given FiniteElementSpace%s
+       @a trial_fes and @a test_fes. */
+   /** The pointers @a trial_fes and @a test_fes are not owned by the newly
+       constructed object. */
    ParMixedBilinearForm(ParFiniteElementSpace *trial_fes,
                         ParFiniteElementSpace *test_fes)
-      : MixedBilinearForm(trial_fes, test_fes)
+      : MixedBilinearForm(trial_fes, test_fes),
+        p_mat(Operator::Hypre_ParCSR), p_mat_e(Operator::Hypre_ParCSR)
+   {
+      trial_pfes = trial_fes;
+      test_pfes  = test_fes;
+   }
+
+   /** @brief Create a ParMixedBilinearForm on the given FiniteElementSpace%s
+       @a trial_fes and @a test_fes, using the same integrators as the
+       ParMixedBilinearForm @a mbf.
+
+       The pointers @a trial_fes and @a test_fes are not owned by the newly
+       constructed object.
+
+       The integrators in @a mbf are copied as pointers and they are not owned
+       by the newly constructed ParMixedBilinearForm. */
+   ParMixedBilinearForm(ParFiniteElementSpace *trial_fes,
+                        ParFiniteElementSpace *test_fes,
+                        ParMixedBilinearForm * mbf)
+      : MixedBilinearForm(trial_fes, test_fes, mbf),
+        p_mat(Operator::Hypre_ParCSR), p_mat_e(Operator::Hypre_ParCSR)
    {
       trial_pfes = trial_fes;
       test_pfes  = test_fes;
@@ -240,6 +275,28 @@ public:
        @a A. */
    void ParallelAssemble(OperatorHandle &A);
 
+   using MixedBilinearForm::FormRectangularSystemMatrix;
+   using MixedBilinearForm::FormRectangularLinearSystem;
+
+   /** @brief Return in @a A a parallel (on truedofs) version of this operator.
+
+       This returns the same operator as FormRectangularLinearSystem(), but does
+       without the transformations of the right-hand side. */
+   virtual void FormRectangularSystemMatrix(const Array<int> &trial_tdof_list,
+                                            const Array<int> &test_tdof_list,
+                                            OperatorHandle &A);
+
+   /** @brief Form the parallel linear system A X = B, corresponding to this mixed
+       bilinear form and the linear form @a b(.).
+
+       Return in @a A a *reference* to the system matrix that is column-constrained.
+       The reference will be invalidated when SetOperatorType(), Update(), or the
+       destructor is called. */
+   virtual void FormRectangularLinearSystem(const Array<int> &trial_tdof_list,
+                                            const Array<int> &test_tdof_list, Vector &x,
+                                            Vector &b, OperatorHandle &A, Vector &X,
+                                            Vector &B);
+
    /// Compute y += a (P^t A P) x, where x and y are vectors on the true dofs
    void TrueAddMult(const Vector &x, Vector &y, const double a = 1.0) const;
 
@@ -251,10 +308,24 @@ public:
 class ParDiscreteLinearOperator : public DiscreteLinearOperator
 {
 protected:
+   /// Points to the same object as #trial_fes
    ParFiniteElementSpace *domain_fes;
+   /// Points to the same object as #test_fes
    ParFiniteElementSpace *range_fes;
 
+private:
+   /// Copy construction is not supported; body is undefined.
+   ParDiscreteLinearOperator(const ParDiscreteLinearOperator &);
+
+   /// Copy assignment is not supported; body is undefined.
+   ParDiscreteLinearOperator &operator=(const ParDiscreteLinearOperator &);
+
 public:
+   /** @brief Construct a ParDiscreteLinearOperator on the given
+       FiniteElementSpace%s @a dfes (domain FE space) and @a rfes (range FE
+       space). */
+   /** The pointers @a dfes and @a rfes are not owned by the newly constructed
+       object. */
    ParDiscreteLinearOperator(ParFiniteElementSpace *dfes,
                              ParFiniteElementSpace *rfes)
       : DiscreteLinearOperator(dfes, rfes) { domain_fes=dfes; range_fes=rfes; }
@@ -262,9 +333,19 @@ public:
    /// Returns the matrix "assembled" on the true dofs
    HypreParMatrix *ParallelAssemble() const;
 
+   /** @brief Returns the matrix assembled on the true dofs, i.e.
+       @a A = R_test A_local P_trial, in the format (type id) specified by
+       @a A. */
+   void ParallelAssemble(OperatorHandle &A);
+
    /** Extract the parallel blocks corresponding to the vector dimensions of the
        domain and range parallel finite element spaces */
    void GetParBlocks(Array2D<HypreParMatrix *> &blocks) const;
+
+   using MixedBilinearForm::FormRectangularSystemMatrix;
+
+   /** @brief Return in @a A a parallel (on truedofs) version of this operator. */
+   virtual void FormRectangularSystemMatrix(OperatorHandle &A);
 
    virtual ~ParDiscreteLinearOperator() { }
 };

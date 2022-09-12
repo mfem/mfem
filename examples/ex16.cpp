@@ -10,6 +10,7 @@
 //               ex16 -s 3 -a 0.5 -k 0.5 -o 4
 //               ex16 -s 14 -dt 1.0e-4 -tf 4.0e-2 -vs 40
 //               ex16 -m ../data/fichera-q2.mesh
+//               ex16 -m ../data/fichera-mixed.mesh
 //               ex16 -m ../data/escher.mesh
 //               ex16 -m ../data/beam-tet.mesh -tf 10 -dt 0.1
 //               ex16 -m ../data/amr-quad.mesh -o 4 -r 0
@@ -23,7 +24,10 @@
 //               class ConductionOperator defining C(u)), as well as their
 //               implicit time integration. Note that implementing the method
 //               ConductionOperator::ImplicitSolve is the only requirement for
-//               high-order implicit (SDIRK) time integration.
+//               high-order implicit (SDIRK) time integration. In this example,
+//               the diffusion operator is linearized by evaluating with the
+//               lagged solution from the previous timestep, so there is only
+//               a linear solve.
 //
 //               We recommend viewing examples 2, 9 and 10 before viewing this
 //               example.
@@ -157,12 +161,14 @@ int main(int argc, char *argv[])
       case 12: ode_solver = new RK2Solver(0.5); break; // midpoint method
       case 13: ode_solver = new RK3SSPSolver; break;
       case 14: ode_solver = new RK4Solver; break;
+      case 15: ode_solver = new GeneralizedAlphaSolver(0.5); break;
       // Implicit A-stable methods (not L-stable)
       case 22: ode_solver = new ImplicitMidpointSolver; break;
       case 23: ode_solver = new SDIRK23Solver; break;
       case 24: ode_solver = new SDIRK34Solver; break;
       default:
          cout << "Unknown ODE solver type: " << ode_solver_type << '\n';
+         delete mesh;
          return 3;
    }
 
@@ -323,8 +329,8 @@ ConductionOperator::ConductionOperator(FiniteElementSpace &f, double al,
 void ConductionOperator::Mult(const Vector &u, Vector &du_dt) const
 {
    // Compute:
-   //    du_dt = M^{-1}*-K(u)
-   // for du_dt
+   //    du_dt = M^{-1}*-Ku
+   // for du_dt, where K is linearized by using u from the previous timestep
    Kmat.Mult(u, z);
    z.Neg(); // z = -z
    M_solver.Mult(z, du_dt);
@@ -335,7 +341,7 @@ void ConductionOperator::ImplicitSolve(const double dt,
 {
    // Solve the equation:
    //    du_dt = M^{-1}*[-K(u + dt*du_dt)]
-   // for du_dt
+   // for du_dt, where K is linearized by using u from the previous timestep
    if (!T)
    {
       T = Add(1.0, Mmat, dt, Kmat);

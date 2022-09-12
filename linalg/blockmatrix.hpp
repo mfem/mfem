@@ -1,19 +1,20 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
 #ifndef MFEM_BLOCKMATRIX
 #define MFEM_BLOCKMATRIX
 
 #include "../config/config.hpp"
 #include "../general/array.hpp"
+#include "../general/globals.hpp"
 #include "vector.hpp"
 #include "sparsemat.hpp"
 
@@ -25,15 +26,18 @@ class BlockMatrix : public AbstractSparseMatrix
 public:
    //! Constructor for square block matrices
    /**
-    *  offsets: offsets that mark the start of each row/column block (size nRowBlocks+1).
-    *  Note: BlockMatrix will not own/copy the data contained in offsets.
+     @param offsets  offsets that mark the start of each row/column block (size
+                     nRowBlocks+1).
+     @note BlockMatrix will not own/copy the data contained in offsets.
     */
    BlockMatrix(const Array<int> & offsets);
    //! Constructor for rectangular block matrices
    /**
-    *  row_offsets: offsets that mark the start of each row block (size nRowBlocks+1).
-    *  col_offsets: offsets that mark the start of each column block (size nColBlocks+1).
-    *  Note: BlockMatrix will not own/copy the data contained in offsets.
+     @param row_offsets  offsets that mark the start of each row block (size
+                         nRowBlocks+1).
+     @param col_offsets  offsets that mark the start of each column block (size
+                         nColBlocks+1).
+     @note BlockMatrix will not own/copy the data contained in offsets.
     */
    BlockMatrix(const Array<int> & row_offsets, const Array<int> & col_offsets);
    //! Set A(i,j) = mat
@@ -59,22 +63,43 @@ public:
    const Array<int> & ColOffsets() const { return col_offsets; }
    //! Return the number of non zeros in row i
    int RowSize(const int i) const;
+
+   /// Eliminate the row and column @a rc from the matrix.
+   /** Eliminates the column and row @a rc, replacing the element (rc,rc) with
+       1.0. Assumes that element (i,rc) is assembled if and only if the element
+       (rc,i) is assembled. If @a dpolicy is specified, the element (rc,rc) is
+       treated according to that policy. */
+   void EliminateRowCol(int rc, DiagonalPolicy dpolicy = DIAG_ONE);
+
+   /** @brief Eliminate the rows and columns corresponding to the entries
+       in @a vdofs + save the eliminated entries into
+       @a Ae so that (*this) + Ae is equal to the original matrix. */
+   void EliminateRowCols(const Array<int> & vdofs, BlockMatrix *Ae,
+                         DiagonalPolicy dpolicy = DIAG_ONE);
+
    //! Symmetric elimination of the marked degree of freedom.
    /**
-    * ess_bc_dofs: marker of the degree of freedom to be eliminated
-    *              dof i is eliminated if ess_bc_dofs[i] = 1.
-    * sol: vector that stores the values of the degree of freedom that need to
-    *       be eliminated
-    * rhs: vector that stores the rhs of the system.
-    */
+     @param ess_bc_dofs  marker of the degree of freedom to be eliminated
+                         dof i is eliminated if @a ess_bc_dofs[i] = 1.
+     @param sol          vector that stores the values of the degree of freedom
+                         that need to be eliminated
+     @param rhs          vector that stores the rhs of the system.
+   */
    void EliminateRowCol(Array<int> & ess_bc_dofs, Vector & sol, Vector & rhs);
+
+   ///  Finalize all the submatrices
+   virtual void Finalize(int skip_zeros = 1) { Finalize(skip_zeros, false); }
+   /// A slightly more general version of the Finalize(int) method.
+   void Finalize(int skip_zeros, bool fix_empty_rows);
+
    //! Returns a monolithic CSR matrix that represents this operator.
    SparseMatrix * CreateMonolithic() const;
    //! Export the monolithic matrix to file.
-   void PrintMatlab(std::ostream & os = std::cout) const;
+   virtual void PrintMatlab(std::ostream & os = mfem::out) const;
 
-   //@name Matrix interface
-   //@{
+   /// @name Matrix interface
+   ///@{
+
    /// Returns reference to a_{ij}.
    virtual double& Elem (int i, int j);
    /// Returns constant reference to a_{ij}.
@@ -85,21 +110,23 @@ public:
       mfem_error("BlockMatrix::Inverse not implemented \n");
       return static_cast<MatrixInverse*>(NULL);
    }
-   //@}
+   ///@}
 
-   //@name AbstractSparseMatrix interface
-   //@{
+   ///@name AbstractSparseMatrix interface
+   ///@{
+
    //! Returns the total number of non zeros in the matrix.
    virtual int NumNonZeroElems() const;
    /// Gets the columns indexes and values for row *row*.
-   /// The return value is always 0 since cols and srow are copies of the values in the matrix.
+   /** The return value is always 0 since @a cols and @a srow are copies of the
+       values in the matrix. */
    virtual int GetRow(const int row, Array<int> &cols, Vector &srow) const;
-   //! If the matrix is square, it will place 1 on the diagonal (i,i) if row i
-   //! has "almost" zero l1-norm.
-   /**
-    * If entry (i,i) does not belong to the sparsity pattern of A, then a error will occur.
-    */
-   virtual void EliminateZeroRows();
+   /** @brief If the matrix is square, this method will place 1 on the diagonal
+       (i,i) if row i has "almost" zero l1-norm.
+
+       If entry (i,i) does not belong to the sparsity pattern of A, then a error
+       will occur. */
+   virtual void EliminateZeroRows(const double threshold = 1e-12);
 
    /// Matrix-Vector Multiplication y = A*x
    virtual void Mult(const Vector & x, Vector & y) const;
@@ -110,12 +137,23 @@ public:
    /// MatrixTranspose-Vector Multiplication y = y + val*A'*x
    virtual void AddMultTranspose(const Vector & x, Vector & y,
                                  const double val = 1.) const;
-   //@}
+   ///@}
+
+   /** @brief Partial matrix vector multiplication of (*this) with @a x
+       involving only the rows given by @a rows. The result is given in @a y */
+   void PartMult(const Array<int> &rows, const Vector &x, Vector &y) const;
+   /** @brief Partial matrix vector multiplication of (*this) with @a x
+       involving only the rows given by @a rows. The result is multiplied by
+       @a a and added to @a y */
+   void PartAddMult(const Array<int> &rows, const Vector &x, Vector &y,
+                    const double a=1.0) const;
 
    //! Destructor
    virtual ~BlockMatrix();
-   //! if owns_blocks the SparseMatrix objects Aij will be deallocated.
+   //! If owns_blocks the SparseMatrix objects Aij will be deallocated.
    int owns_blocks;
+
+   virtual Type GetType() const { return MFEM_Block_Matrix; }
 
 private:
    //! Given a global row iglobal finds to which row iloc in block iblock belongs to.
@@ -150,10 +188,9 @@ inline void BlockMatrix::findGlobalRow(int iglobal, int & iblock,
    }
 
    for (iblock = 0; iblock < nRowBlocks; ++iblock)
-      if (row_offsets[iblock+1] > iglobal)
-      {
-         break;
-      }
+   {
+      if (row_offsets[iblock+1] > iglobal) { break; }
+   }
 
    iloc = iglobal - row_offsets[iblock];
 }
@@ -167,10 +204,9 @@ inline void BlockMatrix::findGlobalCol(int jglobal, int & jblock,
    }
 
    for (jblock = 0; jblock < nColBlocks; ++jblock)
-      if (col_offsets[jblock+1] > jglobal)
-      {
-         break;
-      }
+   {
+      if (col_offsets[jblock+1] > jglobal) { break; }
+   }
 
    jloc = jglobal - col_offsets[jblock];
 }

@@ -1,13 +1,13 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
 #ifndef MFEM_PNCMESH
 #define MFEM_PNCMESH
@@ -21,13 +21,12 @@
 
 #include "ncmesh.hpp"
 #include "../general/communication.hpp"
+#include "../general/sort_pairs.hpp"
 
 namespace mfem
 {
 
-class ParMesh;
-class FiniteElementCollection; // for edge orientation handling
-class FiniteElementSpace; // for Dof -> VDof conversion
+class FiniteElementSpace;
 
 
 /** \brief A parallel extension of the NCMesh class.
@@ -65,7 +64,18 @@ class FiniteElementSpace; // for Dof -> VDof conversion
 class ParNCMesh : public NCMesh
 {
 public:
-   ParNCMesh(MPI_Comm comm, const NCMesh& ncmesh);
+   /// Construct by partitioning a serial NCMesh.
+   /** SFC partitioning is used by default. A user-specified partition can be
+       passed in 'part', where part[i] is the desired MPI rank for element i. */
+   ParNCMesh(MPI_Comm comm, const NCMesh& ncmesh, int* part = NULL);
+
+   /** Load from a stream, parallel version. See the serial NCMesh::NCMesh
+       counterpart for a description of the parameters. */
+   ParNCMesh(MPI_Comm comm, std::istream &input,
+             int version, int &curved, int &is_nc);
+
+   /// Deep copy of another instance.
+   ParNCMesh(const ParNCMesh &other);
 
    virtual ~ParNCMesh();
 
@@ -85,42 +95,39 @@ public:
        in sync. The interface is identical. */
    virtual void Derefine(const Array<int> &derefs);
 
+   /** Gets partitioning for the coarse mesh if the current fine mesh were to
+       be derefined. */
+   virtual void GetFineToCoarsePartitioning(const Array<int> &derefs,
+                                            Array<int> &new_ranks) const;
+
    /** Migrate leaf elements of the global refinement hierarchy (including ghost
-       elements) so that each processor owns the same number of leaves (+-1). */
-   void Rebalance();
+       elements) so that each processor owns the same number of leaves (+-1).
+       The default partitioning strategy is based on equal splitting of the
+       space-filling sequence of leaf elements (custom_partition == NULL).
+       Alternatively, a used-defined element-rank assignment array can be
+       passed. */
+   void Rebalance(const Array<int> *custom_partition = NULL);
 
 
    // interface for ParFiniteElementSpace
 
-   /** Return a list of vertices shared by this processor and at least one other
-       processor. (NOTE: only NCList::conforming will be set.) */
-   const NCList& GetSharedVertices()
-   {
-      if (shared_vertices.Empty()) { BuildSharedVertices(); }
-      return shared_vertices;
-   }
+   int GetNElements() const { return NElements; }
 
-   /** Return a list of edges shared by this processor and at least one other
-       processor. (NOTE: this is a subset of the NCMesh::edge_list; slaves are
-       empty.) */
-   const NCList& GetSharedEdges()
-   {
-      if (edge_list.Empty()) { BuildEdgeList(); }
-      return shared_edges;
-   }
+   int GetNGhostVertices() const { return NGhostVertices; }
+   int GetNGhostEdges() const { return NGhostEdges; }
+   int GetNGhostFaces() const { return NGhostFaces; }
+   int GetNGhostElements() const { return NGhostElements; }
 
-   /** Return a list of faces shared by this processor and another processor.
-       (NOTE: this is a subset of NCMesh::face_list; slaves are empty.) */
-   const NCList& GetSharedFaces()
-   {
-      if (face_list.Empty()) { BuildFaceList(); }
-      return shared_faces;
-   }
+   // Return a list of vertices/edges/faces shared by this processor and at
+   // least one other processor. These are subsets of NCMesh::<entity>_list. */
+   const NCList& GetSharedVertices() { GetVertexList(); return shared_vertices; }
+   const NCList& GetSharedEdges() { GetEdgeList(); return shared_edges; }
+   const NCList& GetSharedFaces() { GetFaceList(); return shared_faces; }
 
-   /// Helper to get shared vertices/edges/faces ('type' == 0/1/2 resp.).
-   const NCList& GetSharedList(int type)
+   /// Helper to get shared vertices/edges/faces ('entity' == 0/1/2 resp.).
+   const NCList& GetSharedList(int entity)
    {
-      switch (type)
+      switch (entity)
       {
          case 0: return GetSharedVertices();
          case 1: return GetSharedEdges();
@@ -128,55 +135,61 @@ public:
       }
    }
 
-   /// Return (shared) face orientation relative to the owner element.
+   /// Return (shared) face orientation relative to its owner element.
    int GetFaceOrientation(int index) const
    {
-      return face_orient[index];
+      return (index < NFaces) ? face_orient[index] : 0;
    }
 
-   /// Return vertex/edge/face ('type' == 0/1/2, resp.) owner.
-   int GetOwner(int type, int index) const
+   typedef short GroupId;
+   typedef std::vector<int> CommGroup;
+
+   /// Return vertex/edge/face ('entity' == 0/1/2, resp.) owner.
+   GroupId GetEntityOwnerId(int entity, int index)
    {
-      switch (type)
+      MFEM_ASSERT(entity >= 0 && entity < 3, "");
+      MFEM_ASSERT(index >= 0, "");
+      if (!entity_owner[entity].Size())
       {
-         case 0: return vertex_owner[index];
-         case 1: return edge_owner[index];
-         default: return face_owner[index];
+         GetSharedList(entity);
       }
+      return entity_owner[entity][index];
    }
 
-   /** Return a list of processors sharing a vertex/edge/face
-       ('type' == 0/1/2, resp.) and the size of the list. */
-   const int* GetGroup(int type, int index, int &size) const
+   /** Return the P matrix communication group ID for a vertex/edge/face.
+       The groups are calculated specifically to match the P matrix
+       construction algorithm and its communication pattern. */
+   GroupId GetEntityGroupId(int entity, int index)
    {
-      const Table* table;
-      switch (type)
+      MFEM_ASSERT(entity >= 0 && entity < 3, "");
+      MFEM_ASSERT(index >= 0, "");
+      if (!entity_pmat_group[entity].Size())
       {
-         case 0: table = &vertex_group; break;
-         case 1: table = &edge_group; break;
-         default: table = &face_group;
+         CalculatePMatrixGroups();
       }
-      size = table->RowSize(index);
-      return table->GetRow(index);
+      return entity_pmat_group[entity][index];
    }
 
-   /** Returns true if 'rank' is in the processor group of a vertex/edge/face
-       ('type' == 0/1/2, resp.). */
-   bool RankInGroup(int type, int index, int rank) const
+   /// Return a list of ranks contained in the group of the given ID.
+   const CommGroup& GetGroup(GroupId id) const
    {
-      int size;
-      const int* group = GetGroup(type, index, size);
-      for (int i = 0; i < size; i++)
+      MFEM_ASSERT(id >= 0, "");
+      return groups[id];
+   }
+
+   /// Return true if group 'id' contains the given rank.
+   bool GroupContains(GroupId id, int rank) const;
+
+   /// Return true if the specified vertex/edge/face is a ghost.
+   bool IsGhost(int entity, int index) const
+   {
+      if (index < 0) // special case prism edge-face constraint
       {
-         if (group[i] == rank) { return true; }
+         MFEM_ASSERT(entity == 2, "");
+         entity = 1;
+         index = -1 - index;
       }
-      return false;
-   }
-
-   /// Returns true if the specified vertex/edge/face is a ghost.
-   bool IsGhost(int type, int index) const
-   {
-      switch (type)
+      switch (entity)
       {
          case 0: return index >= NVertices;
          case 1: return index >= NEdges;
@@ -187,17 +200,14 @@ public:
    /** Returns owner processor for element 'index'. This is normally MyRank but
        for index >= NElements (i.e., for ghosts) it may be something else. */
    int ElementRank(int index) const
-   { return elements[leaf_elements[index]].rank; }
-
-
-   // interface for ParMesh
-
-   /** Populate face neighbor members of ParMesh from the ghost layer, without
-       communication. */
-   void GetFaceNeighbors(ParMesh &pmesh);
+   {
+      return elements[leaf_elements[index]].rank;
+   }
 
 
    // utility
+
+   int GetMyRank() const { return MyRank; }
 
    /// Use the communication pattern from last Rebalance() to send element DOFs.
    void SendRebalanceDofs(int old_ndofs, const Table &old_element_dofs,
@@ -226,34 +236,55 @@ public:
                                    Array<int> &bdr_vertices,
                                    Array<int> &bdr_edges);
 
+   /// Save memory by releasing all non-essential and cached data.
+   virtual void Trim();
+
+   /// Return total number of bytes allocated.
+   std::size_t MemoryUsage(bool with_base = true) const;
+
+   int PrintMemoryDetail(bool with_base = true) const;
+
    /** Extract a debugging Mesh containing all leaf elements, including ghosts.
        The debug mesh will have element attributes set to element rank + 1. */
    void GetDebugMesh(Mesh &debug_mesh) const;
 
+protected: // interface for ParMesh
 
-protected:
+   friend class ParMesh;
+
+   /** For compatibility with conforming code in ParMesh and ParFESpace.
+       Initializes shared structures in ParMesh: gtopo, shared_*, group_s*, s*_l*.
+       The ParMesh then acts as a parallel mesh cut along the NC interfaces. */
+   void GetConformingSharedStructures(class ParMesh &pmesh);
+
+   /** Populate face neighbor members of ParMesh from the ghost layer, without
+       communication. */
+   void GetFaceNeighbors(class ParMesh &pmesh);
+
+
+protected: // implementation
+
    MPI_Comm MyComm;
-   int NRanks, MyRank;
+   int NRanks;
 
-   int NVertices, NGhostVertices;
-   int NEdges, NGhostEdges;
-   int NFaces, NGhostFaces;
-   int NElements, NGhostElements;
+   typedef std::vector<CommGroup> GroupList;
+   typedef std::map<CommGroup, GroupId> GroupMap;
+
+   GroupList groups;  // comm group list; NOTE: groups[0] = { MyRank }
+   GroupMap group_id; // search index over groups
+
+   // owner rank for each vertex, edge and face (encoded as singleton group)
+   Array<GroupId> entity_owner[3];
+   // P matrix comm pattern groups for each vertex/edge/face (0/1/2)
+   Array<GroupId> entity_pmat_group[3];
+
+   // ParMesh-compatible (conforming) groups for each vertex/edge/face (0/1/2)
+   Array<GroupId> entity_conf_group[3];
+   // ParMesh compatibility helper arrays to order groups, also temporary
+   Array<int> entity_elem_local[3];
 
    // lists of vertices/edges/faces shared by us and at least one more processor
-   NCList shared_vertices;
-   NCList shared_edges;
-   NCList shared_faces;
-
-   // owner processor for each vertex/edge/face
-   Array<int> vertex_owner;
-   Array<int> edge_owner;
-   Array<int> face_owner;
-
-   // list of processors sharing each vertex/edge/face
-   Table vertex_group;
-   Table edge_group;
-   Table face_group;
+   NCList shared_vertices, shared_edges, shared_faces;
 
    Array<char> face_orient; // see CalcFaceOrientations
 
@@ -282,23 +313,28 @@ protected:
    long PartitionFirstIndex(int rank, long total_elements) const
    { return (rank * total_elements + NRanks-1) / NRanks; }
 
-   virtual void UpdateVertices();
-   virtual void AssignLeafIndices();
-
-   virtual bool IsGhost(const Element& el) const
-   { return el.rank != MyRank; }
-
-   virtual int GetNumGhosts() const { return NGhostElements; }
-
-   virtual void OnMeshUpdated(Mesh *mesh);
-
-   virtual void BuildEdgeList();
    virtual void BuildFaceList();
+   virtual void BuildEdgeList();
+   virtual void BuildVertexList();
 
-   virtual void ElementSharesEdge(int elem, int enode);
-   virtual void ElementSharesFace(int elem, int face);
+   virtual void ElementSharesFace(int elem, int local, int face);
+   virtual void ElementSharesEdge(int elem, int local, int enode);
+   virtual void ElementSharesVertex(int elem, int local, int vnode);
 
-   void BuildSharedVertices();
+   GroupId GetGroupId(const CommGroup &group);
+   GroupId GetSingletonGroup(int rank);
+
+   Array<int> tmp_owner; // temporary
+   Array<char> tmp_shared_flag; // temporary
+   Array<Connection> entity_index_rank[3]; // temporary
+
+   void InitOwners(int num, Array<GroupId> &entity_owner);
+   void MakeSharedList(const NCList &list, NCList &shared);
+
+   void AddConnections(int entity, int index, const Array<int> &ranks);
+   void CalculatePMatrixGroups();
+   void CreateGroups(int nentities, Array<Connection> &index_rank,
+                     Array<GroupId> &entity_group);
 
    static int get_face_orientation(Face &face, Element &e1, Element &e2,
                                    int local[2] = NULL /* optional output */);
@@ -306,10 +342,9 @@ protected:
 
    void UpdateLayers();
 
-   Array<Connection> index_rank; // temporary
-
-   void AddMasterSlaveRanks(int nitems, const NCList& list);
-   void MakeShared(const Table &groups, const NCList &list, NCList &shared);
+   void MakeSharedTable(int ngroups, int ent, Array<int> &shared_local,
+                        Table &group_shared, Array<char> *entity_geom = NULL,
+                        char geom = 0);
 
    /** Uniquely encodes a set of leaf elements in the refinement hierarchy of
        an NCMesh. Can be dumped to a stream, sent to another processor, loaded,
@@ -330,7 +365,7 @@ protected:
       void Load(std::istream &is);
       void Decode(Array<int> &elements) const;
 
-      void SetNCMesh(NCMesh *ncmesh) { this->ncmesh = ncmesh; }
+      void SetNCMesh(NCMesh *ncmesh_) { this->ncmesh = ncmesh_; }
       const NCMesh* GetNCMesh() const { return ncmesh; }
 
    protected:
@@ -344,13 +379,29 @@ protected:
       void WriteInt(int value);
       int  GetInt(int pos) const;
       void FlagElements(const Array<int> &elements, char flag);
+
+#ifdef MFEM_DEBUG
+      mutable Array<int> ref_path;
+      std::string RefPath() const;
+#endif
    };
 
-   /// Write to 'os' a processor-independent encoding of vertex/edge/face IDs.
-   void EncodeMeshIds(std::ostream &os, Array<MeshId> ids[]);
+   /** Adjust some of the MeshIds before encoding for recipient 'rank', so that
+       they only reference elements that exist in the recipient's ref. tree. */
+   void AdjustMeshIds(Array<MeshId> ids[], int rank);
 
-   /// Read from 'is' a processor-independent encoding of vertex/edge/face IDs.
+   void ChangeVertexMeshIdElement(NCMesh::MeshId &id, int elem);
+   void ChangeEdgeMeshIdElement(NCMesh::MeshId &id, int elem);
+   void ChangeRemainingMeshIds(Array<MeshId> &ids, int pos,
+                               const Array<Pair<int, int> > &find);
+
+   // Write/read a processor-independent encoding of vertex/edge/face IDs.
+   void EncodeMeshIds(std::ostream &os, Array<MeshId> ids[]);
    void DecodeMeshIds(std::istream &is, Array<MeshId> ids[]);
+
+   // Write/read comm groups and a list of their IDs.
+   void EncodeGroups(std::ostream &os, const Array<GroupId> &ids);
+   void DecodeGroups(std::istream &is, Array<GroupId> &ids);
 
    bool CheckElementType(int elem, int type);
 
@@ -393,15 +444,15 @@ protected:
       { elements.push_back(elem); values.push_back(val); }
 
       /// Set pointer to ParNCMesh (needed to encode the message).
-      void SetNCMesh(ParNCMesh* pncmesh) { this->pncmesh = pncmesh; }
+      void SetNCMesh(ParNCMesh* pncmesh_) { this->pncmesh = pncmesh_; }
 
       ElementValueMessage() : pncmesh(NULL) {}
 
    protected:
       ParNCMesh* pncmesh;
 
-      virtual void Encode();
-      virtual void Decode();
+      virtual void Encode(int);
+      virtual void Decode(int);
    };
 
    /** Used by ParNCMesh::Refine() to inform neighbors about refinements at
@@ -455,19 +506,23 @@ protected:
 
       void SetElements(const Array<int> &elems, NCMesh *ncmesh);
       void SetNCMesh(NCMesh* ncmesh) { eset.SetNCMesh(ncmesh); }
+      std::size_t MemoryUsage() const;
 
       typedef std::map<int, RebalanceDofMessage> Map;
 
    protected:
       ElementSet eset;
 
-      virtual void Encode();
-      virtual void Decode();
+      virtual void Encode(int);
+      virtual void Decode(int);
    };
 
    /** Assign new Element::rank to leaf elements and send them to their new
        owners, keeping the ghost layer up to date. Used by Rebalance() and
-       Derefine(). */
+       Derefine(). 'target_elements' is the number of elements this rank
+       is supposed to own after the exchange. If this number is not known
+       a priori, the parameter can be set to -1, but more expensive communication
+       (synchronous sends and a barrier) will be used in that case. */
    void RedistributeElements(Array<int> &new_ranks, int target_elements,
                              bool record_comm);
 
@@ -485,98 +540,23 @@ protected:
    Array<DenseMatrix*> aux_pm_store;
    void ClearAuxPM();
 
-   static bool compare_ranks_indices(const Element* a, const Element* b);
+   std::size_t GroupsMemoryUsage() const;
 
-   friend class ParMesh;
-   friend class NeighborDofMessage;
+   friend class NeighborRowMessage;
 };
 
-
-/** Represents a message about DOF assignment of vertex, edge and face DOFs on
- *  the boundary with another processor. This and other messages below
- *  are only exchanged between immediate neighbors. Used by
- *  ParFiniteElementSpace::GetParallelConformingInterpolation().
- */
-class NeighborDofMessage : public VarMessage<135>
-{
-public:
-   /// Add vertex/edge/face DOFs to an outgoing message.
-   void AddDofs(int type, const NCMesh::MeshId &id, const Array<int> &dofs);
-
-   /** Set pointers to ParNCMesh & FECollection (needed to encode the message),
-       set the space size to be sent. */
-   void Init(ParNCMesh* pncmesh, const FiniteElementCollection* fec, int ndofs)
-   { this->pncmesh = pncmesh; this->fec = fec; this->ndofs = ndofs; }
-
-   /** Get vertex/edge/face DOFs from a received message. 'ndofs' receives
-       the remote space size. */
-   void GetDofs(int type, const NCMesh::MeshId& id,
-                Array<int>& dofs, int &ndofs);
-
-   typedef std::map<int, NeighborDofMessage> Map;
-
-protected:
-   typedef std::map<NCMesh::MeshId, std::vector<int> > IdToDofs;
-   IdToDofs id_dofs[3];
-
-   ParNCMesh* pncmesh;
-   const FiniteElementCollection* fec;
-   int ndofs;
-
-   virtual void Encode();
-   virtual void Decode();
-
-   void ReorderEdgeDofs(const NCMesh::MeshId &id, std::vector<int> &dofs);
-};
-
-/** Used by ParFiniteElementSpace::GetConformingInterpolation() to request
- *  finished non-local rows of the P matrix. This message is only sent once
- *  to each neighbor.
- */
-class NeighborRowRequest: public VarMessage<312>
-{
-public:
-   std::set<int> rows;
-
-   void RequestRow(int row) { rows.insert(row); }
-   void RemoveRequest(int row) { rows.erase(row); }
-
-   typedef std::map<int, NeighborRowRequest> Map;
-
-protected:
-   virtual void Encode();
-   virtual void Decode();
-};
-
-/** Represents a reply to NeighborRowRequest. The reply contains a batch of
- *  P matrix rows that have been finished by the sending processor. Multiple
- *  batches may be sent depending on the number of iterations of the final part
- *  of the function ParFiniteElementSpace::GetConformingInterpolation(). All
- *  rows that are sent accumulate in the same NeighborRowReply instance.
- */
-class NeighborRowReply: public VarMessage<313>
-{
-public:
-   void AddRow(int row, const Array<int> &cols, const Vector &srow);
-
-   bool HaveRow(int row) const { return rows.find(row) != rows.end(); }
-   void GetRow(int row, Array<int> &cols, Vector &srow);
-
-   typedef std::map<int, NeighborRowReply> Map;
-
-protected:
-   struct Row { std::vector<int> cols; Vector srow; };
-   std::map<int, Row> rows;
-
-   virtual void Encode();
-   virtual void Decode();
-};
 
 
 // comparison operator so that MeshId can be used as key in std::map
 inline bool operator< (const NCMesh::MeshId &a, const NCMesh::MeshId &b)
 {
    return a.index < b.index;
+}
+
+// equality of MeshId is based on 'index' (element/local are not unique)
+inline bool operator== (const NCMesh::MeshId &a, const NCMesh::MeshId &b)
+{
+   return a.index == b.index;
 }
 
 } // namespace mfem

@@ -50,19 +50,21 @@ int main(int argc, char *argv[])
 {
    StopWatch chrono;
 
-   // 1. Initialize MPI.
-   int num_procs, myid;
-   MPI_Init(&argc, &argv);
-   MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
-   MPI_Comm_rank(MPI_COMM_WORLD, &myid);
+   // 1. Initialize MPI and HYPRE.
+   Mpi::Init(argc, argv);
+   int num_procs = Mpi::WorldSize();
+   int myid = Mpi::WorldRank();
+   Hypre::Init();
    bool verbose = (myid == 0);
 
    // 2. Parse command-line options.
    const char *mesh_file = "../../data/star.mesh";
    int order = 1;
+   bool par_format = false;
    bool visualization = 1;
    bool use_petsc = true;
    bool use_nonoverlapping = false;
+   bool local_bdr_spec = false;
    const char *petscrc_file = "";
 
    OptionsParser args(argc, argv);
@@ -70,6 +72,9 @@ int main(int argc, char *argv[])
                   "Mesh file to use.");
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree).");
+   args.AddOption(&par_format, "-pf", "--parallel-format", "-sf",
+                  "--serial-format",
+                  "Format to use when saving the results for VisIt.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -82,6 +87,9 @@ int main(int argc, char *argv[])
                   "-no-nonoverlapping", "--no-nonoverlapping",
                   "Use or not the block diagonal PETSc's matrix format "
                   "for non-overlapping domain decomposition.");
+   args.AddOption(&local_bdr_spec, "-local-bdr", "--local-bdr", "-no-local-bdr",
+                  "--no-local-bdr",
+                  "Specify boundary dofs in local (Vdofs) ordering.");
    args.Parse();
    if (!args.Good())
    {
@@ -89,7 +97,6 @@ int main(int argc, char *argv[])
       {
          args.PrintUsage(cout);
       }
-      MPI_Finalize();
       return 1;
    }
    if (verbose)
@@ -97,7 +104,7 @@ int main(int argc, char *argv[])
       args.PrintOptions(cout);
    }
    // 2b. We initialize PETSc
-   if (use_petsc) { PetscInitialize(NULL,NULL,petscrc_file,NULL); }
+   if (use_petsc) { MFEMInitializePetsc(NULL,NULL,petscrc_file,NULL); }
 
    // 3. Read the (serial) mesh from the given mesh file on all processors.  We
    //    can handle triangular, quadrilateral, tetrahedral, hexahedral, surface
@@ -139,8 +146,8 @@ int main(int argc, char *argv[])
    ParFiniteElementSpace *R_space = new ParFiniteElementSpace(pmesh, hdiv_coll);
    ParFiniteElementSpace *W_space = new ParFiniteElementSpace(pmesh, l2_coll);
 
-   HYPRE_Int dimR = R_space->GlobalTrueVSize();
-   HYPRE_Int dimW = W_space->GlobalTrueVSize();
+   HYPRE_BigInt dimR = R_space->GlobalTrueVSize();
+   HYPRE_BigInt dimW = W_space->GlobalTrueVSize();
 
    if (verbose)
    {
@@ -210,7 +217,7 @@ int main(int argc, char *argv[])
    PetscParMatrix *pM = NULL, *pB = NULL, *pBT = NULL;
    HypreParMatrix *M = NULL, *B = NULL, *BT = NULL;
    Operator::Type tid =
-      !use_petsc ? Operator::HYPRE_PARCSR :
+      !use_petsc ? Operator::Hypre_ParCSR :
       (use_nonoverlapping ? Operator::PETSC_MATIS : Operator::PETSC_MATAIJ);
    OperatorHandle Mh(tid), Bh(tid);
 
@@ -302,33 +309,38 @@ int main(int argc, char *argv[])
    {
       if (use_nonoverlapping)
       {
+         PetscBDDCSolverParams opts;
+
          // For saddle point problems, we need to provide BDDC the list of
          // boundary dofs either essential or natural.
          // Since R_space is the only space that may have boundary dofs and it
          // is ordered first then W_space, we don't need any local offset when
          // specifying the dofs.
          Array<int> bdr_tdof_list;
-         bool local = false;
          if (pmesh->bdr_attributes.Size())
          {
             Array<int> bdr(pmesh->bdr_attributes.Max());
             bdr = 1;
 
-            R_space->GetEssentialTrueDofs(bdr, bdr_tdof_list);
-            local = false;
-            // Alternatively, you can also provide the list of dofs in local
-            // ordering:
-            // R_space->GetEssentialVDofs(bdr, bdr_tdof_list);
-            // bdr_tdof_list.SetSize(R_space->GetVSize()+W_space->GetVSize(),0);
-            // local = true;
+            if (!local_bdr_spec)
+            {
+               // Essential dofs in global ordering
+               R_space->GetEssentialTrueDofs(bdr, bdr_tdof_list);
+            }
+            else
+            {
+               // Alternatively, you can also provide the list of dofs in local
+               // ordering
+               R_space->GetEssentialVDofs(bdr, bdr_tdof_list);
+               bdr_tdof_list.SetSize(R_space->GetVSize()+W_space->GetVSize(),0);
+            }
+            opts.SetNatBdrDofs(&bdr_tdof_list,local_bdr_spec);
          }
          else
          {
-            MFEM_ABORT("Need to know the boundary dofs");
+            MFEM_WARNING("Missing boundary dofs. This may cause solver failures.");
          }
 
-         PetscBDDCSolverParams opts;
-         opts.SetNatBdrDofs(&bdr_tdof_list,local);
          // See also command line options rc_ex5p_bddc
          pdarcyPr = new PetscBDDCSolver(MPI_COMM_WORLD,*darcyOp,opts,"prec_");
       }
@@ -478,6 +490,9 @@ int main(int argc, char *argv[])
    VisItDataCollection visit_dc("Example5-Parallel", pmesh);
    visit_dc.RegisterField("velocity", u);
    visit_dc.RegisterField("pressure", p);
+   visit_dc.SetFormat(!par_format ?
+                      DataCollection::SERIAL_FORMAT :
+                      DataCollection::PARALLEL_FORMAT);
    visit_dc.Save();
 
    // 16. Send the solution by socket to a GLVis server.
@@ -528,9 +543,7 @@ int main(int argc, char *argv[])
    delete pmesh;
 
    // We finalize PETSc
-   if (use_petsc) { PetscFinalize(); }
-
-   MPI_Finalize();
+   if (use_petsc) { MFEMFinalizePetsc(); }
 
    return 0;
 }

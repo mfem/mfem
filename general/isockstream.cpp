@@ -1,15 +1,16 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
 #include "isockstream.hpp"
+#include "globals.hpp"
 #include <iostream>
 #include <cstring>
 #include <cstdlib>
@@ -22,7 +23,9 @@
 #include <unistd.h>
 #else
 #include <winsock.h>
+#ifdef _MSC_VER
 typedef int ssize_t;
+#endif
 typedef int socklen_t;
 #define close closesocket
 // Link with ws2_32.lib
@@ -39,8 +42,8 @@ isockstream::isockstream(int port)
    portnum = port;
 
    if ( (portID = establish()) < 0)
-      cout << "Server couldn't be established on port "
-           << portnum << endl;
+      mfem::out << "Server couldn't be established on port "
+                << portnum << endl;
    Buf = NULL;
 }
 
@@ -58,9 +61,9 @@ int isockstream::establish()
 
    if (hp == NULL)
    {
-      cerr << "isockstream::establish(): gethostbyname() failed!\n"
-           << "isockstream::establish(): gethostname() returned: '"
-           << myname << "'" << endl;
+      mfem::err << "isockstream::establish(): gethostbyname() failed!\n"
+                << "isockstream::establish(): gethostname() returned: '"
+                << myname << "'" << endl;
       error = 1;
       return (-1);
    }
@@ -70,7 +73,7 @@ int isockstream::establish()
 
    if ((port = socket(AF_INET, SOCK_STREAM, 0)) < 0)
    {
-      cerr << "isockstream::establish(): socket() failed!" << endl;
+      mfem::err << "isockstream::establish(): socket() failed!" << endl;
       error = 2;
       return (-1);
    }
@@ -80,7 +83,7 @@ int isockstream::establish()
 
    if (bind(port,(const sockaddr*)&sa,(socklen_t)sizeof(struct sockaddr_in)) < 0)
    {
-      cerr << "isockstream::establish(): bind() failed!" << endl;
+      mfem::err << "isockstream::establish(): bind() failed!" << endl;
       close(port);
       error = 3;
       return (-1);
@@ -97,7 +100,6 @@ int isockstream::read_data(int s, char *buf, int n)
    int br;                          // bytes read this pass
 
    bcount= 0;
-   br= 0;
    while (bcount < n)               // loop until full buffer
    {
       if ((br = recv(s, buf, n - bcount, 0)) > 0)
@@ -131,7 +133,7 @@ void isockstream::receive(std::istringstream **in)
 
    if ((socketID = accept(portID, NULL, NULL)) < 0)
    {
-      cout << "Server failed to accept connection." << endl;
+      mfem::out << "Server failed to accept connection." << endl;
       error = 5;
       return;
    }
@@ -150,12 +152,12 @@ void isockstream::receive(std::istringstream **in)
    Buf = new char[size+1];
    if (size != read_data(socketID, Buf, size))
    {
-      cout << "Not all the data has been read" << endl;
+      mfem::out << "Not all the data has been read" << endl;
    }
 #ifdef DEBUG
    else
    {
-      cout << "Reading " << size << " bytes is successful" << endl;
+      mfem::out << "Reading " << size << " bytes is successful" << endl;
    }
 #endif
    Buf[size] = '\0';

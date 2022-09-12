@@ -1,13 +1,13 @@
-# Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at the
-# Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights reserved.
-# See file COPYRIGHT for details.
+# Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+# at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+# LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
 # This file is part of the MFEM library. For more information and source code
-# availability see http://mfem.org.
+# availability visit https://mfem.org.
 #
 # MFEM is free software; you can redistribute it and/or modify it under the
-# terms of the GNU Lesser General Public License (as published by the Free
-# Software Foundation) version 2.1 dated February 1999.
+# terms of the BSD-3 license. We welcome feedback and contributions, see file
+# CONTRIBUTING.md for details.
 
 # Function that converts a version string of the form 'major[.minor[.patch]]' to
 # the integer ((major * 100) + minor) * 100 + patch.
@@ -43,6 +43,16 @@ function(convert_filenames_to_full_paths NAMES)
   set(${NAMES} ${tmp_names} PARENT_SCOPE)
 endfunction()
 
+# Wrapper for add_executable
+macro(mfem_add_executable NAME)
+  add_executable(${NAME} ${ARGN})
+endmacro()
+
+# Wrapper for add_library
+macro(mfem_add_library NAME)
+  add_library(${NAME} ${ARGN})
+endmacro()
+
 # Simple shortcut to add_custom_target() with option to add the target to the
 # main target.
 function(add_mfem_target TARGET_NAME ADD_TO_ALL)
@@ -56,7 +66,7 @@ function(add_mfem_target TARGET_NAME ADD_TO_ALL)
 endfunction()
 
 # Add mfem examples
-function(add_mfem_examples EXE_SRCS)
+macro(add_mfem_examples EXE_SRCS)
   set(EXE_PREFIX "")
   set(EXE_PREREQUISITE "")
   set(EXE_NEEDED_BY "")
@@ -70,14 +80,19 @@ function(add_mfem_examples EXE_SRCS)
     endif()
   endif()
   foreach(SRC_FILE IN LISTS ${EXE_SRCS})
+    # If CUDA is enabled, tag source files to be compiled with nvcc.
+    if (MFEM_USE_CUDA)
+      set_source_files_properties(${SRC_FILE} PROPERTIES LANGUAGE CUDA)
+    endif()
+
     get_filename_component(SRC_FILENAME ${SRC_FILE} NAME)
 
     string(REPLACE ".cpp" "" EXE_NAME "${EXE_PREFIX}${SRC_FILENAME}")
-    add_executable(${EXE_NAME} ${SRC_FILE})
-    # If given a prefix, don't add the example to the list of examples to build.
-    if (NOT EXE_PREFIX)
-      add_dependencies(${MFEM_ALL_EXAMPLES_TARGET_NAME} ${EXE_NAME})
-    elseif (EXE_NEEDED_BY)
+    mfem_add_executable(${EXE_NAME} ${SRC_FILE})
+    install(TARGETS ${EXE_NAME}
+            RUNTIME DESTINATION examples)
+    add_dependencies(${MFEM_ALL_EXAMPLES_TARGET_NAME} ${EXE_NAME})
+    if (EXE_NEEDED_BY)
       add_dependencies(${EXE_NEEDED_BY} ${EXE_NAME})
     endif()
     add_dependencies(${EXE_NAME}
@@ -85,7 +100,8 @@ function(add_mfem_examples EXE_SRCS)
 
     target_link_libraries(${EXE_NAME} mfem)
     if (MFEM_USE_MPI)
-      target_link_libraries(${EXE_NAME} ${MPI_CXX_LIBRARIES})
+      # Not needed: (mfem already links with MPI_CXX_LIBRARIES)
+      # target_link_libraries(${EXE_NAME} ${MPI_CXX_LIBRARIES})
 
       # Language-specific include directories:
       if (MPI_CXX_INCLUDE_PATH)
@@ -103,10 +119,10 @@ function(add_mfem_examples EXE_SRCS)
       endif()
     endif()
   endforeach(SRC_FILE)
-endfunction()
+endmacro()
 
 # A slightly more versatile function for adding miniapps to MFEM
-function(add_mfem_miniapp MFEM_EXE_NAME)
+macro(add_mfem_miniapp MFEM_EXE_NAME)
   # Parse the input arguments looking for the things we need
   set(POSSIBLE_ARGS "MAIN" "EXTRA_SOURCES" "EXTRA_HEADERS" "EXTRA_OPTIONS" "EXTRA_DEFINES" "LIBRARIES")
   set(CURRENT_ARG)
@@ -120,9 +136,23 @@ function(add_mfem_miniapp MFEM_EXE_NAME)
     endif()
   endforeach()
 
+  # If CUDA is enabled, tag source files to be compiled with nvcc.
+  if (MFEM_USE_CUDA)
+    set_source_files_properties(${MAIN_LIST} ${EXTRA_SOURCES_LIST} PROPERTIES LANGUAGE CUDA)
+    if (CMAKE_VERSION VERSION_GREATER_EQUAL 3.12.0)
+      list(TRANSFORM EXTRA_OPTIONS_LIST PREPEND "-Xcompiler=")
+    else()
+      set(LIST_)
+      foreach(item IN LISTS EXTRA_OPTIONS_LIST)
+        list(APPEND LIST_ "-Xcompiler=${item}")
+      endforeach()
+      set(EXTRA_OPTIONS_LIST ${LIST_})
+    endif()
+  endif()
+
   # Actually add the executable
-  add_executable(${MFEM_EXE_NAME} ${MAIN_LIST}
-    ${EXTRA_SOURCES_LIST} ${EXTRA_HEADERS_LIST})
+  mfem_add_executable(${MFEM_EXE_NAME} ${MAIN_LIST}
+      ${EXTRA_SOURCES_LIST} ${EXTRA_HEADERS_LIST})
   add_dependencies(${MFEM_ALL_MINIAPPS_TARGET_NAME} ${MFEM_EXE_NAME})
   add_dependencies(${MFEM_EXE_NAME} ${MFEM_EXEC_PREREQUISITES_TARGET_NAME})
 
@@ -156,6 +186,7 @@ function(add_mfem_miniapp MFEM_EXE_NAME)
 
   # Handle the MPI separately
   if (MFEM_USE_MPI)
+    # Add MPI_CXX_LIBRARIES, in case this target does not link with mfem.
     if(CMAKE_VERSION VERSION_GREATER 2.8.11)
       target_link_libraries(${MFEM_EXE_NAME} PRIVATE ${MPI_CXX_LIBRARIES})
     else()
@@ -174,7 +205,7 @@ function(add_mfem_miniapp MFEM_EXE_NAME)
         LINK_FLAGS "${MPI_CXX_LINK_FLAGS}")
     endif()
   endif()
-endfunction()
+endmacro()
 
 
 # Auxiliary function, used in mfem_find_package().
@@ -183,26 +214,26 @@ function(mfem_find_component Prefix DirVar IncSuffixes Header LibSuffixes Lib
 
   if (Lib)
     if (${DirVar} OR EnvDirVar)
-      find_library(${Prefix}_LIBRARIES ${Lib}
+      find_library(${Prefix}_LIBRARY ${Lib}
         HINTS ${${DirVar}} ENV ${DirVar}
         PATH_SUFFIXES ${LibSuffixes}
         NO_DEFAULT_PATH
         DOC "${LibDoc}")
     endif()
-    find_library(${Prefix}_LIBRARIES ${Lib}
+    find_library(${Prefix}_LIBRARY ${Lib}
       PATH_SUFFIXES ${LibSuffixes}
       DOC "${LibDoc}")
   endif()
 
   if (Header)
     if (${DirVar} OR EnvDirVar)
-      find_path(${Prefix}_INCLUDE_DIRS ${Header}
+      find_path(${Prefix}_INCLUDE_DIR ${Header}
         HINTS ${${DirVar}} ENV ${DirVar}
         PATH_SUFFIXES ${IncSuffixes}
         NO_DEFAULT_PATH
         DOC "${IncDoc}")
     endif()
-    find_path(${Prefix}_INCLUDE_DIRS ${Header}
+    find_path(${Prefix}_INCLUDE_DIR ${Header}
       PATH_SUFFIXES ${IncSuffixes}
       DOC "${IncDoc}")
   endif()
@@ -214,8 +245,9 @@ endfunction(mfem_find_component)
 #   successful, optionally checks building (compile + link) one or more given
 #   code snippets. Additionally, a list of required/optional/alternative
 #   packages (given by ${Name}_REQUIRED_PACKAGES) are searched for and added to
-#   the ${Prefix}_INCLUDE_DIRS and ${Prefix}_LIBRARIES lists. The function
-#   defines the following CACHE variables:
+#   the ${Prefix}_INCLUDE_DIRS and ${Prefix}_LIBRARIES lists. The variable
+#   ${Name}_REQUIRED_LIBRARIES can be set to specify any additional libraries
+#   that are needed. This function defines the following CACHE variables:
 #
 #      ${Prefix}_FOUND
 #      ${Prefix}_INCLUDE_DIRS
@@ -227,6 +259,17 @@ endfunction(mfem_find_component)
 #
 function(mfem_find_package Name Prefix DirVar IncSuffixes Header LibSuffixes
          Lib IncDoc LibDoc)
+
+  # If we have the TPL_ versions of _INCLUDE_DIRS and _LIBRARIES then set the
+  # standard ${Prefix} versions
+  if (TPL_${Prefix}_INCLUDE_DIRS)
+    set(${Prefix}_INCLUDE_DIRS ${TPL_${Prefix}_INCLUDE_DIRS} CACHE STRING
+      "TPL_${Prefix}_INCLUDE_DIRS was found." FORCE)
+  endif()
+  if (TPL_${Prefix}_LIBRARIES)
+    set(${Prefix}_LIBRARIES ${TPL_${Prefix}_LIBRARIES} CACHE STRING
+      "TPL_${Prefix}_LIBRARIES was found." FORCE)
+  endif()
 
   # Quick return
   if (${Prefix}_FOUND)
@@ -254,12 +297,14 @@ function(mfem_find_package Name Prefix DirVar IncSuffixes Header LibSuffixes
   mfem_find_component("${Prefix}" "${DirVar}" "${IncSuffixes}" "${Header}"
     "${LibSuffixes}" "${Lib}" "${IncDoc}" "${LibDoc}")
 
-  if (((NOT Lib) OR ${Prefix}_LIBRARIES) AND
-      ((NOT Header) OR ${Prefix}_INCLUDE_DIRS))
+  if (((NOT Lib) OR ${Prefix}_LIBRARY) AND
+      ((NOT Header) OR ${Prefix}_INCLUDE_DIR))
     set(Found TRUE)
   else()
     set(Found FALSE)
   endif()
+  set(${Prefix}_LIBRARIES ${${Prefix}_LIBRARY})
+  set(${Prefix}_INCLUDE_DIRS ${${Prefix}_INCLUDE_DIR})
 
   set(ReqVars "")
 
@@ -298,25 +343,22 @@ function(mfem_find_package Name Prefix DirVar IncSuffixes Header LibSuffixes
           "${CompLibSuffixes}" "${CompLib}" "" "")
         if (CompRequired)
           if (CompLib)
-            list(APPEND ReqVars ${FullPrefix}_LIBRARIES)
+            list(APPEND ReqVars ${FullPrefix}_LIBRARY)
           endif()
           if (CompHeader)
-            list(APPEND ReqVars ${FullPrefix}_INCLUDE_DIRS)
+            list(APPEND ReqVars ${FullPrefix}_INCLUDE_DIR)
           endif()
         endif(CompRequired)
-        if (((NOT CompLib) OR ${FullPrefix}_LIBRARIES) AND
-            ((NOT CompHeader) OR ${FullPrefix}_INCLUDE_DIRS))
+        if (((NOT CompLib) OR ${FullPrefix}_LIBRARY) AND
+            ((NOT CompHeader) OR ${FullPrefix}_INCLUDE_DIR))
           # Component found
-          set(${FullPrefix}_FOUND TRUE CACHE BOOL
-              "${Name}/${CompPrefix} was found." FORCE)
-          list(APPEND ${Prefix}_LIBRARIES ${${FullPrefix}_LIBRARIES})
-          list(APPEND ${Prefix}_INCLUDE_DIRS ${${FullPrefix}_INCLUDE_DIRS})
+          list(APPEND ${Prefix}_LIBRARIES ${${FullPrefix}_LIBRARY})
+          list(APPEND ${Prefix}_INCLUDE_DIRS ${${FullPrefix}_INCLUDE_DIR})
           if (NOT ${Name}_FIND_QUIETLY)
-            # message(STATUS "${Name}: ${CompPrefix}: found")
             message(STATUS
-              "${Name}: ${CompPrefix}: ${${FullPrefix}_LIBRARIES}")
+              "${Name}: ${CompPrefix}: ${${FullPrefix}_LIBRARY}")
             # message(STATUS
-            #   "${Name}: ${CompPrefix}: ${${FullPrefix}_INCLUDE_DIRS}")
+            #   "${Name}: ${CompPrefix}: ${${FullPrefix}_INCLUDE_DIR}")
           endif()
         else()
           # Let FindPackageHandleStandardArgs() handle errors
@@ -369,6 +411,8 @@ function(mfem_find_package Name Prefix DirVar IncSuffixes Header LibSuffixes
       if (NOT ${Name}_FIND_QUIETLY)
         message(STATUS "${Name}: trying alternative package: ${ReqPackM}")
       endif()
+      # Do not add ${Required} here, since that will prevent other potential
+      # alternative packages from being found.
       find_package(${ReqPack} ${Quiet} COMPONENTS ${PackComps})
       string(TOUPPER ${ReqPack} ReqPACK)
       if (${ReqPack}_FOUND)
@@ -382,7 +426,7 @@ function(mfem_find_package Name Prefix DirVar IncSuffixes Header LibSuffixes
       endif()
     elseif (Alternative)
       set(Alternative FALSE)
-    else()
+    elseif (Found)
       if (NOT ${Name}_FIND_QUIETLY)
         if (Required)
           message(STATUS "${Name}: looking for required package: ${ReqPackM}")
@@ -392,22 +436,141 @@ function(mfem_find_package Name Prefix DirVar IncSuffixes Header LibSuffixes
       endif()
       string(TOUPPER ${ReqPack} ReqPACK)
       if (NOT (${ReqPack}_FOUND OR ${ReqPACK}_FOUND))
-        find_package(${ReqPack} ${Required} ${Quiet} COMPONENTS ${PackComps})
+        if (NOT ${ReqPack}_TARGET_NAMES)
+          find_package(${ReqPack} ${Required} ${Quiet} COMPONENTS ${PackComps})
+        else()
+          foreach(_target ${ReqPack} ${${ReqPack}_TARGET_NAMES})
+            # Do not use ${Required} here:
+            find_package(${_target} NAMES ${_target} ${ReqPack} ${Quiet}
+              COMPONENTS ${PackComps})
+            string(TOUPPER ${_target} _TARGET)
+            if (${_target}_FOUND OR ${_TARGET}_FOUND)
+              set(${ReqPack}_FOUND TRUE)
+              break()
+            endif()
+          endforeach()
+          if (${Required} AND NOT ${ReqPack}_FOUND)
+            message(FATAL_ERROR " *** Required package ${ReqPack} not found."
+              "Checked target names: ${ReqPack} ${${ReqPack}_TARGET_NAMES}")
+          endif()
+        endif()
       endif()
-      if ("${ReqPack}" STREQUAL "MPI")
+      if (Required AND NOT (${ReqPack}_FOUND OR ${ReqPACK}_FOUND))
+        message(FATAL_ERROR " --------- INTERNAL ERROR")
+      endif()
+      if ("${ReqPack}" STREQUAL "MPI" AND MPI_CXX_FOUND)
         list(APPEND ${Prefix}_LIBRARIES ${MPI_CXX_LIBRARIES})
         list(APPEND ${Prefix}_INCLUDE_DIRS ${MPI_CXX_INCLUDE_PATH})
-      else()
+      elseif (${ReqPack}_FOUND OR ${ReqPACK}_FOUND)
         if (${ReqPack}_FOUND)
-          list(APPEND ${Prefix}_LIBRARIES ${${ReqPack}_LIBRARIES})
-          list(APPEND ${Prefix}_INCLUDE_DIRS ${${ReqPack}_INCLUDE_DIRS})
-        elseif (${ReqPACK}_FOUND)
-          list(APPEND ${Prefix}_LIBRARIES ${${ReqPACK}_LIBRARIES})
-          list(APPEND ${Prefix}_INCLUDE_DIRS ${${ReqPACK}_INCLUDE_DIRS})
+          set(_Pack ${ReqPack})
+        else()
+          set(_Pack ${ReqPACK})
         endif()
+        set(_Pack_LIBS)
+        set(_Pack_INCS)
+        # - ${_Pack}_CONFIG is defined by find_package() when a config file was
+        #   loaded
+        # - If ${ReqPack}_TARGET_NAMES is defined, use target mode
+        if (NOT ((DEFINED ${_Pack}_CONFIG) OR
+                 (DEFINED ${ReqPack}_TARGET_NAMES)))
+          # Defined variables expected:
+          # - ${ReqPack}_LIB_VARS, optional, default: ${_Pack}_LIBRARIES
+          # - ${ReqPack}_INCLUDE_VARS, optional, default: ${_Pack}_INCLUDE_DIRS
+          set(_lib_vars ${${ReqPack}_LIB_VARS})
+          if (NOT _lib_vars)
+            set(_lib_vars ${_Pack}_LIBRARIES)
+          endif()
+          foreach (_var ${_lib_vars})
+            if (${_var})
+              list(APPEND _Pack_LIBS ${${_var}})
+            endif()
+          endforeach()
+          # Includes
+          set(_inc_vars ${${ReqPack}_INCLUDE_VARS})
+          if (NOT _inc_vars)
+            set(_inc_vars ${_Pack}_INCLUDE_DIRS)
+          endif()
+          foreach (_include ${_inc_vars})
+            # message(STATUS "${Name}: ${ReqPack}: ${_include}")
+            if (${_include})
+              list(APPEND _Pack_INCS ${${_include}})
+            endif()
+          endforeach()
+        else()
+          # Target mode: check for a valid target:
+          # - an entry in the variable ${ReqPack}_TARGET_NAMES (optional)
+          # - ${_Pack}
+          # Other optional variables:
+          # - ${ReqPack}_IMPORT_CONFIG, default value: "RELEASE"
+          # - ${ReqPack}_TARGET_FORCE, default value: "FALSE"
+          set(TargetName)
+          foreach (_target ${${ReqPack}_TARGET_NAMES} ${_Pack})
+            if (TARGET ${_target})
+              set(TargetName ${_target})
+              break()
+            endif()
+          endforeach()
+          if ("${TargetName}" STREQUAL "")
+            message(FATAL_ERROR " *** ${ReqPack}: unknown target. "
+              "Please set ${ReqPack}_TARGET_NAMES.")
+          endif()
+          get_target_property(IsImported ${TargetName} IMPORTED)
+          if (IsImported)
+            set(ImportConfig ${${ReqPack}_IMPORT_CONFIG})
+            if (NOT ImportConfig)
+              set(ImportConfig RELEASE)
+            endif()
+            set(ImportConfigSuffix "_${ImportConfig}")
+            get_target_property(ImpConfigs ${TargetName} IMPORTED_CONFIGURATIONS)
+            list(FIND ImpConfigs ${ImportConfig} _Index)
+            if ((_Index EQUAL -1) OR ("${ImportConfig}" STREQUAL "NO_CONFIG"))
+              set(ImportConfig "NO_CONFIG")
+              set(ImportConfigSuffix "")
+              # message(FATAL_ERROR " *** ${ReqPack}: configuration "
+              #   "${ImportConfig} not found. Set ${ReqPack}_IMPORT_CONFIG "
+              #   "from the list: ${ImpConfigs}.")
+            endif()
+          endif()
+          # Set _Pack_LIBS
+          if (NOT IsImported OR ${ReqPack}_TARGET_FORCE)
+            # Set _Pack_LIBS to be the target itself
+            set(_Pack_LIBS ${TargetName})
+            if (NOT ${Name}_FIND_QUIETLY)
+              message(STATUS "Found ${ReqPack}: ${_Pack_LIBS} (target)")
+            endif()
+          else()
+            # Set _Pack_LIBS from the target properties for ImportConfig
+            foreach (_prop IMPORTED_LOCATION${ImportConfigSuffix}
+                IMPORTED_LINK_INTERFACE_LIBRARIES${ImportConfigSuffix})
+              get_target_property(_value ${TargetName} ${_prop})
+              if (_value)
+                list(APPEND _Pack_LIBS ${_value})
+              endif()
+            endforeach()
+            if (NOT ${Name}_FIND_QUIETLY)
+              message(STATUS
+                "Imported ${ReqPack}[${ImportConfig}]: ${_Pack_LIBS}")
+            endif()
+          endif()
+          # Set _Pack_INCS
+          foreach (_prop INCLUDE_DIRECTORIES INTERFACE_INCLUDE_DIRECTORIES)
+            get_target_property(_value ${TargetName} ${_prop})
+            if (_value)
+              list(APPEND _Pack_INCS ${_value})
+            endif()
+          endforeach()
+        endif()
+        # _Pack_LIBS and _Pack_INCS should be fully defined here
+        list(APPEND ${Prefix}_LIBRARIES ${_Pack_LIBS})
+        list(APPEND ${Prefix}_INCLUDE_DIRS ${_Pack_INCS})
       endif()
     endif()
   endforeach()
+
+  if (Found AND ${Name}_REQUIRED_LIBRARIES)
+    list(APPEND ${Prefix}_LIBRARIES ${${Name}_REQUIRED_LIBRARIES})
+  endif()
 
   if (NOT ("${${Prefix}_INCLUDE_DIRS}" STREQUAL ""))
     list(INSERT ReqVars 0 ${Prefix}_INCLUDE_DIRS)
@@ -425,12 +588,6 @@ function(mfem_find_package Name Prefix DirVar IncSuffixes Header LibSuffixes
     if (ReqHeaders)
       list(REMOVE_DUPLICATES ${Prefix}_INCLUDE_DIRS)
     endif()
-    # Write the updated values to the cache.
-    set(${Prefix}_LIBRARIES ${${Prefix}_LIBRARIES} CACHE STRING
-        "${LibDoc}" FORCE)
-    set(${Prefix}_INCLUDE_DIRS ${${Prefix}_INCLUDE_DIRS} CACHE STRING
-        "${IncDoc}" FORCE)
-    set(${Prefix}_FOUND TRUE CACHE BOOL "${Name} was found." FORCE)
 
     # Check for optional "CHECK_BUILD" arguments.
     set(I 9) # 9 is the number of required arguments
@@ -448,6 +605,10 @@ function(mfem_find_package Name Prefix DirVar IncSuffixes Header LibSuffixes
         set(CMAKE_REQUIRED_QUIET ${${Name}_FIND_QUIETLY})
         check_cxx_source_compiles("${TestSrc}" ${TestVar})
         if (TestReq)
+          if (NOT ${TestVar})
+            set(Found FALSE)
+            unset(${TestVar} CACHE)
+          endif()
           list(APPEND ReqVars ${TestVar})
         endif()
       elseif("${ARGV${I}}" STREQUAL "ADD_COMPONENT")
@@ -458,22 +619,35 @@ function(mfem_find_package Name Prefix DirVar IncSuffixes Header LibSuffixes
       endif()
       math(EXPR I "${I}+1")
     endwhile()
-  else()
-    set(${Prefix}_FOUND FALSE CACHE BOOL "${Name} was not found." FORCE)
   endif()
   if ("_x_${ReqVars}" STREQUAL "_x_")
+    set(${Prefix}_FOUND ${Found})
     set(ReqVars ${Prefix}_FOUND)
   endif()
   # foreach(ReqVar ${ReqVars})
-  #   message(STATUS "${ReqVar}=${${ReqVar}}")
+  #   message(STATUS " *** ${ReqVar}=${${ReqVar}}")
+  #   get_property(IsCached CACHE ${ReqVar} PROPERTY "VALUE" SET)
+  #   if (IsCached)
+  #     get_property(CachedVal CACHE ${ReqVar} PROPERTY "VALUE")
+  #     message(STATUS " *** ${ReqVar}[cached]=${CachedVal}")
+  #   endif()
   # endforeach()
 
   include(FindPackageHandleStandardArgs)
   find_package_handle_standard_args(${Name}
     " *** ${Name} not found. Please set ${DirVar}." ${ReqVars})
 
-  if (Found AND ReqLibs AND ReqHeaders AND (NOT ${Name}_FIND_QUIETLY))
-    message(STATUS "${Prefix}_INCLUDE_DIRS=${${Prefix}_INCLUDE_DIRS}")
+  string(TOUPPER ${Name} UName)
+  if (${UName}_FOUND)
+    # Write the ${Prefix}_* variables to the cache.
+    set(${Prefix}_LIBRARIES ${${Prefix}_LIBRARIES} CACHE STRING
+        "${LibDoc}" FORCE)
+    set(${Prefix}_INCLUDE_DIRS ${${Prefix}_INCLUDE_DIRS} CACHE STRING
+        "${IncDoc}" FORCE)
+    set(${Prefix}_FOUND TRUE CACHE BOOL "${Name} was found." FORCE)
+    if (ReqHeaders AND (NOT ${Name}_FIND_QUIETLY))
+      message(STATUS "${Prefix}_INCLUDE_DIRS=${${Prefix}_INCLUDE_DIRS}")
+    endif()
   endif()
 
 endfunction(mfem_find_package)
@@ -556,3 +730,314 @@ function(mfem_find_library Name Prefix Lib LibDoc CheckVar CheckSrc)
   endif()
 
 endfunction(mfem_find_library)
+
+
+#
+# Extract compile and link options needed by the given target.
+#
+function(mfem_get_target_options Target CompileOptsVar LinkOptsVar)
+
+  if (NOT TARGET ${Target})
+    return()
+  endif()
+
+  # CMAKE_SHARED_LIBRARY_RUNTIME_C_FLAG -> '-Wl,-rpath,'
+  set(shared_link_flag ${CMAKE_SHARED_LIBRARY_RUNTIME_C_FLAG})
+  if (NOT shared_link_flag)
+    set(shared_link_flag "-Wl,-rpath,")
+  endif()
+
+  set(tgt "${Target}")
+  unset(CompileOpts)
+  unset(LinkOpts)
+  get_target_property(IsImported ${tgt} IMPORTED)
+  # message(STATUS "${tgt}[IMPORTED]: ${IsImported}")
+  # Generally, the possible target types are: STATIC_LIBRARY, MODULE_LIBRARY,
+  # SHARED_LIBRARY, INTERFACE_LIBRARY, EXECUTABLE.
+  get_target_property(type ${tgt} TYPE)
+  # message(STATUS "${tgt}[TYPE]: ${type}")
+  unset(ImportConfig)
+  get_target_property(ImportConfigs ${tgt} IMPORTED_CONFIGURATIONS)
+  if (ImportConfigs)
+    list(GET ImportConfigs 0 ImportConfig)
+  endif()
+  if (NOT ImportConfig)
+    set(ImportConfig RELEASE)
+  endif()
+  # message(STATUS "${tgt}[ImportConfig]: ${ImportConfig}")
+  # List all properties with: cmake --help-property-list
+  get_target_property(Defs ${tgt} INTERFACE_COMPILE_DEFINITIONS)
+  if (Defs)
+    list(REMOVE_DUPLICATES Defs)
+    foreach(Def ${Defs})
+      list(APPEND CompileOpts "-D${Def}")
+    endforeach()
+  endif()
+  get_target_property(Opts ${tgt} INTERFACE_COMPILE_OPTIONS)
+  if (Opts)
+    foreach(Opt ${Opts})
+      list(APPEND CompileOpts "${Opt}")
+    endforeach()
+  endif()
+  get_target_property(Dirs ${tgt} INTERFACE_INCLUDE_DIRECTORIES)
+  if (Dirs)
+    list(REMOVE_DUPLICATES Dirs)
+    foreach(Dir ${Dirs})
+      list(APPEND CompileOpts "-I\"${Dir}\"")
+    endforeach()
+  endif()
+  get_target_property(SysDirs ${tgt} INTERFACE_SYSTEM_INCLUDE_DIRECTORIES)
+  if (SysDirs)
+    list(REMOVE_DUPLICATES SysDirs)
+    foreach(SysDir ${SysDirs})
+      list(APPEND CompileOpts "-isystem \"${SysDir}\"")
+    endforeach()
+  endif()
+  if ("${type}" STREQUAL "STATIC_LIBRARY")
+    get_target_property(Location ${tgt} LOCATION)
+    if (Location)
+      list(APPEND LinkOpts "\"${Location}\"")
+    else()
+      message(STATUS " *** Warning: [${tgt}] LOCATION not defined!")
+    endif()
+  elseif ("${type}" STREQUAL "SHARED_LIBRARY")
+    get_target_property(Location ${tgt} LOCATION)
+    if (Location)
+      get_filename_component(Dir ${Location} DIRECTORY)
+      get_filename_component(NameWE ${Location} NAME_WE)
+      string(REGEX REPLACE "^lib" "" LibName ${NameWE})
+      list(APPEND LinkOpts
+        "-L\"${Dir}\""
+        "${shared_link_flag}\"${Dir}\""
+        "-l${LibName}")
+    else()
+      message(STATUS " *** Warning: [${tgt}] LOCATION not defined!")
+    endif()
+  elseif ("${type}" STREQUAL "INTERFACE_LIBRARY")
+    get_target_property(Libs ${tgt} INTERFACE_LINK_LIBRARIES)
+    if (Libs)
+      foreach(Lib ${Libs})
+        if (NOT (TARGET ${Lib}))
+          list(APPEND LinkOpts "${Lib}")
+        else()
+          mfem_get_target_options(${Lib} COpts LOpts)
+          list(APPEND CompileOpts ${COpts})
+          list(APPEND LinkOpts ${LOpts})
+        endif()
+      endforeach()
+    endif()
+    # Other properties we may need to handle:
+    # INTERFACE_LINK_DEPENDS
+    # INTERFACE_LINK_DIRECTORIES
+    # INTERFACE_LINK_OPTIONS
+  else()
+    message(STATUS " *** Warning: [${tgt}] uses target type '${type}'"
+      " which is not supported!")
+  endif()
+
+  # Other potentially relevant properties:
+  # - For all target types:
+  # IMPORTED_LIBNAME
+  # IMPORTED_LIBNAME_${ImportConfig}
+  # INTERFACE_AUTOUIC_OPTIONS
+  # INTERFACE_COMPILE_FEATURES
+  # INTERFACE_POSITION_INDEPENDENT_CODE
+  # INTERFACE_SOURCES
+  # INTERFACE_SYSTEM_INCLUDE_DIRECTORIES)
+  # - For non-"INTERFACE_LIBRARY" target types only:
+  # IMPORTED_LOCATION
+  # IMPORTED_LOCATION_${ImportConfig}
+  # IMPORTED_LINK_INTERFACE_LIBRARIES
+  # IMPORTED_LINK_INTERFACE_LIBRARIES_${ImportConfig}
+  # LINK_FLAGS
+  # LINK_FLAGS_${ImportConfig}
+  # LOCATION_${ImportConfig})
+
+  set(${CompileOptsVar} "${CompileOpts}" PARENT_SCOPE)
+  set(${LinkOptsVar} "${LinkOpts}" PARENT_SCOPE)
+
+endfunction(mfem_get_target_options)
+
+
+#
+#   Function that creates 'config.mk' from 'config.mk.in' for the both the
+#   build- and the install-locations and define install rules for 'config.mk'
+#   and 'test.mk'.
+#
+function(mfem_export_mk_files)
+
+  # Define a few auxiliary variables (not written to 'config.mk')
+  string(TOUPPER "${CMAKE_BUILD_TYPE}" BUILD_TYPE)
+  # CMAKE_SHARED_LIBRARY_RUNTIME_C_FLAG -> '-Wl,-rpath,'
+  set(shared_link_flag ${CMAKE_SHARED_LIBRARY_RUNTIME_C_FLAG})
+  if (NOT shared_link_flag)
+    set(shared_link_flag "-Wl,-rpath,")
+  endif()
+
+  # Convert Boolean vars to YES/NO without writing the values to cache
+  set(CONFIG_MK_BOOL_VARS MFEM_USE_MPI MFEM_USE_METIS MFEM_USE_METIS_5
+      MFEM_DEBUG MFEM_USE_EXCEPTIONS MFEM_USE_ZLIB MFEM_USE_LIBUNWIND
+      MFEM_USE_LAPACK MFEM_THREAD_SAFE MFEM_USE_LEGACY_OPENMP MFEM_USE_OPENMP
+      MFEM_USE_MEMALLOC MFEM_USE_SUNDIALS MFEM_USE_MESQUITE MFEM_USE_SUITESPARSE
+      MFEM_USE_SUPERLU MFEM_USE_SUPERLU5 MFEM_USE_MUMPS MFEM_USE_STRUMPACK
+      MFEM_USE_GINKGO MFEM_USE_AMGX MFEM_USE_GNUTLS MFEM_USE_NETCDF
+      MFEM_USE_PETSC MFEM_USE_SLEPC MFEM_USE_MPFR MFEM_USE_SIDRE MFEM_USE_FMS
+      MFEM_USE_CONDUIT MFEM_USE_PUMI MFEM_USE_HIOP MFEM_USE_GSLIB MFEM_USE_CUDA
+      MFEM_USE_HIP MFEM_USE_RAJA MFEM_USE_OCCA MFEM_USE_CEED MFEM_USE_CALIPER
+      MFEM_USE_UMPIRE MFEM_USE_SIMD MFEM_USE_ADIOS2 MFEM_USE_MKL_CPARDISO
+      MFEM_USE_ADFORWARD MFEM_USE_CODIPACK MFEM_USE_BENCHMARK MFEM_USE_PARELAG
+      MFEM_USE_MOONOLITH MFEM_USE_ALGOIM MFEM_USE_ENZYME)
+  foreach(var ${CONFIG_MK_BOOL_VARS})
+    if (${var})
+      set(${var} YES)
+    else()
+      set(${var} NO)
+    endif()
+  endforeach()
+  # TODO: Add support for MFEM_USE_CUDA=YES
+  set(MFEM_CXX ${CMAKE_CXX_COMPILER})
+  set(MFEM_HOST_CXX ${MFEM_CXX})
+  set(MFEM_CPPFLAGS "")
+  get_target_property(cxx_std mfem CXX_STANDARD)
+  # For now, we ignore the setting of the CXX_EXTENSIONS property. If this
+  # property is set, then we need to use a variable like:
+  #    CMAKE_CXX11_EXTENSION_COMPILE_OPTION
+  set(cxx_std_flag ${CMAKE_CXX${cxx_std}_STANDARD_COMPILE_OPTION})
+  string(STRIP
+         "${cxx_std_flag} ${CMAKE_CXX_FLAGS_${BUILD_TYPE}} ${CMAKE_CXX_FLAGS}"
+         MFEM_CXXFLAGS)
+  set(MFEM_TPLFLAGS "")
+  foreach(dir ${MFEM_TPL_INCLUDE_DIRS})
+    set(MFEM_TPLFLAGS "${MFEM_TPLFLAGS} -I${dir}")
+  endforeach()
+  # TODO: MFEM_TPLFLAGS: add other TPL flags, in addition to the -I flags.
+  set(MFEM_INCFLAGS "-I\$(MFEM_INC_DIR) \$(MFEM_TPLFLAGS)")
+  set(MFEM_PICFLAG "")
+  if (BUILD_SHARED_LIBS)
+    set(MFEM_PICFLAG "${CMAKE_SHARED_LIBRARY_CXX_FLAGS}")
+  endif()
+  set(MFEM_FLAGS "\$(MFEM_CPPFLAGS) \$(MFEM_CXXFLAGS) \$(MFEM_INCFLAGS)")
+  # TPL link flags: set below
+  set(MFEM_EXT_LIBS "")
+  if (BUILD_SHARED_LIBS)
+    set(MFEM_LIBS "${shared_link_flag}\$(MFEM_LIB_DIR) -L\$(MFEM_LIB_DIR)")
+    set(MFEM_LIBS "${MFEM_LIBS} -lmfem \$(MFEM_EXT_LIBS)")
+    if (APPLE)
+      set(SO_VER ".${mfem_VERSION}${CMAKE_SHARED_LIBRARY_SUFFIX}")
+    else()
+      set(SO_VER "${CMAKE_SHARED_LIBRARY_SUFFIX}.${mfem_VERSION}")
+    endif()
+    set(MFEM_LIB_FILE "\$(MFEM_LIB_DIR)/libmfem${SO_VER}")
+    set(MFEM_SHARED YES)
+    set(MFEM_STATIC NO)
+  else()
+    set(MFEM_LIBS "-L\$(MFEM_LIB_DIR) -lmfem \$(MFEM_EXT_LIBS)")
+    set(MFEM_LIB_FILE "\$(MFEM_LIB_DIR)/libmfem.a")
+    set(MFEM_SHARED NO)
+    set(MFEM_STATIC YES)
+  endif()
+  set(MFEM_BUILD_TAG "${CMAKE_SYSTEM}")
+  set(MFEM_PREFIX "${CMAKE_INSTALL_PREFIX}")
+  # For the next 4 variable, these are the values for the build-tree version of
+  # 'config.mk'
+  set(MFEM_INC_DIR "${PROJECT_BINARY_DIR}")
+  set(MFEM_LIB_DIR "${PROJECT_BINARY_DIR}")
+  set(MFEM_TEST_MK "${PROJECT_SOURCE_DIR}/config/test.mk")
+  set(MFEM_CONFIG_EXTRA "MFEM_BUILD_DIR ?= ${PROJECT_BINARY_DIR}")
+  set(MFEM_MPIEXEC ${MPIEXEC})
+  if (NOT MFEM_MPIEXEC)
+    set(MFEM_MPIEXEC "mpirun")
+  endif()
+  set(MFEM_MPIEXEC_NP ${MPIEXEC_NUMPROC_FLAG})
+  if (NOT MFEM_MPIEXEC_NP)
+    set(MFEM_MPIEXEC_NP "-np")
+  endif()
+  # MFEM_MPI_NP is already set
+  # Define the variable 'MFEM_EXT_LIBS': handle PUMI libs
+  if ("${MFEM_USE_PUMI}" STREQUAL "YES")
+    message(STATUS "simmodsuite_dir = '${SIMMODSUITE_DIR}'")
+    get_target_property(liblist ${PUMI_LIBRARIES} INTERFACE_LINK_LIBRARIES)
+    set(pumi_dep_libs "${liblist}")
+    foreach(pumilib ${liblist})
+      get_target_property(libdeps ${pumilib} INTERFACE_LINK_LIBRARIES)
+      if (NOT "${libdeps}" MATCHES "libdeps-NOTFOUND")
+        list(APPEND pumi_dep_libs ${libdeps})
+      endif()
+    endforeach()
+    list(REMOVE_DUPLICATES pumi_dep_libs)
+    foreach(pumilib ${pumi_dep_libs})
+      unset(lib CACHE)
+      string(REGEX REPLACE "^SCOREC::" "" libname ${pumilib})
+      string(FIND "${pumilib}" ".a" staticlib)
+      string(FIND "${pumilib}" ".so" sharedlib)
+      string(FIND "${pumilib}" ".dylib" dynamiclib)
+      find_library(lib ${libname} PATHS ${PUMI_DIR}/lib NO_DEFAULT_PATH)
+      if (NOT "${sharedlib}" MATCHES "-1" OR
+          NOT "${staticlib}" MATCHES "-1" OR
+          NOT "${dynamiclib}" MATCHES "-1"  )
+        set(MFEM_EXT_LIBS "${pumilib} ${MFEM_EXT_LIBS}")
+      elseif (NOT "${lib}" MATCHES "lib-NOTFOUND")
+        set(MFEM_EXT_LIBS "${lib} ${MFEM_EXT_LIBS}")
+      elseif ("${lib}" MATCHES "lib-NOTFOUND" AND
+              NOT "${libname}" MATCHES "can" AND
+              NOT "${libname}" MATCHES "pthread")
+        message(FATAL_ERROR "SCOREC lib ${libname} not found")
+      endif()
+    endforeach()
+  endif()
+  # Define the variable 'MFEM_EXT_LIBS': handle other (not PUMI) libs
+  foreach(lib ${TPL_LIBRARIES})
+    get_filename_component(suffix ${lib} EXT)
+    # handle interfaces (e.g., SCOREC::apf)
+    if ("${lib}" MATCHES "SCOREC::.*" OR "${lib}" MATCHES "Ginkgo::.*" OR "${lib}" MATCHES "ParMoonolith::.*")
+    elseif (TARGET "${lib}")
+      mfem_get_target_options(${lib} CompileOpts LinkOpts)
+      # Removing duplicates may lead to issues:
+      # list(REMOVE_DUPLICATES CompileOpts)
+      # list(REMOVE_DUPLICATES LinkOpts)
+      string(REPLACE ";" " " COpts "${CompileOpts}")
+      string(REPLACE ";" " " LOpts "${LinkOpts}")
+      # message(STATUS "${lib}[COpts]: '${COpts}'")
+      # message(STATUS "${lib}[LOpts]: '${LOpts}'")
+      set(MFEM_TPLFLAGS "${MFEM_TPLFLAGS} ${COpts}")
+      set(MFEM_EXT_LIBS "${MFEM_EXT_LIBS} ${LOpts}")
+      # message(FATAL_ERROR "***** interface lib found ... exiting *****")
+      # handle static and shared libs
+    elseif ("${suffix}" STREQUAL "${CMAKE_SHARED_LIBRARY_SUFFIX}")
+      get_filename_component(dir ${lib} DIRECTORY)
+      get_filename_component(fullLibName ${lib} NAME_WE)
+      string(REGEX REPLACE "^lib" "" libname ${fullLibName})
+      set(MFEM_EXT_LIBS
+          "${MFEM_EXT_LIBS} ${shared_link_flag}${dir} -L${dir} -l${libname}")
+    else()
+      set(MFEM_EXT_LIBS "${MFEM_EXT_LIBS} ${lib}")
+    endif()
+  endforeach()
+
+  # Create the build-tree version of 'config.mk'
+  configure_file(
+    "${PROJECT_SOURCE_DIR}/config/config.mk.in"
+    "${PROJECT_BINARY_DIR}/config/config.mk")
+  # Copy 'test.mk' from the source-tree to the build-tree
+  configure_file(
+    "${PROJECT_SOURCE_DIR}/config/test.mk"
+    "${PROJECT_BINARY_DIR}/config/test.mk" COPYONLY)
+
+  # Update variables for the install-tree version of 'config.mk'
+  set(MFEM_INC_DIR "${CMAKE_INSTALL_PREFIX}/include")
+  set(MFEM_LIB_DIR "${CMAKE_INSTALL_PREFIX}/lib")
+  set(MFEM_TEST_MK "${CMAKE_INSTALL_PREFIX}/share/mfem/test.mk")
+  set(MFEM_CONFIG_EXTRA "")
+
+  # Create the install-tree version of 'config.mk'
+  configure_file(
+    "${PROJECT_SOURCE_DIR}/config/config.mk.in"
+    "${PROJECT_BINARY_DIR}/config/config-install.mk")
+
+  # Install rules for 'config.mk' and 'test.mk'
+  install(FILES ${PROJECT_SOURCE_DIR}/config/test.mk
+    DESTINATION ${CMAKE_INSTALL_PREFIX}/share/mfem/)
+  install(FILES ${PROJECT_BINARY_DIR}/config/config-install.mk
+    DESTINATION ${CMAKE_INSTALL_PREFIX}/share/mfem/ RENAME config.mk)
+
+endfunction()

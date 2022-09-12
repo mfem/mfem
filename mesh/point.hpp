@@ -1,13 +1,13 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
 #ifndef MFEM_POINT
 #define MFEM_POINT
@@ -29,11 +29,11 @@ public:
 
    Point() : Element(Geometry::POINT) {}
 
-   /// Constructs triangle by specifying the indices and the attribute.
+   /// Constructs point by specifying the indices and the attribute.
    Point( const int *ind, int attr = -1 );
 
    /// Return element's type.
-   virtual int GetType() const { return Element::POINT; }
+   virtual Type GetType() const { return Element::POINT; }
 
    /// Returns the indices of the element's  vertices.
    virtual void GetVertices( Array<int> &v ) const;
@@ -46,8 +46,13 @@ public:
 
    virtual const int *GetEdgeVertices(int ei) const { return NULL; }
 
-   virtual int GetNFaces(int &nFaceVertices) const
+   /// @deprecated Use GetNFaces(void) and GetNFaceVertices(int) instead.
+   MFEM_DEPRECATED virtual int GetNFaces(int &nFaceVertices) const
    { nFaceVertices = 0; return 0; }
+
+   virtual int GetNFaces() const { return 0; }
+
+   virtual int GetNFaceVertices(int) const { return 0; }
 
    virtual const int *GetFaceVertices(int fi) const { return NULL; }
 

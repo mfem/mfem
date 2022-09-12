@@ -5,7 +5,7 @@
                       | | | | | ||  _||  __/| | | | | |
                       |_| |_| |_||_|   \___||_| |_| |_|
 
-                               http://mfem.org
+                               https://mfem.org
 
 This directory contains modifications of the example codes that illustrate the
 use of MFEM features based on the PETSc suite.
@@ -13,6 +13,10 @@ use of MFEM features based on the PETSc suite.
 To build these examples, make sure that MFEM is configured with the option
 "MFEM_USE_PETSC = YES", see the top-level INSTALL file for details (version
 3.8 or higher of the PETSc dev branch is required).
+
+The version of Example 11 in this directory demonstrates also the use of the
+PETSc-bases SLEPc eigensolver. That example additionally requires that MFEM is
+configured with the option "MFEM_USE_SLEPC = YES".
 
 We recommend comparing the original example codes with the corresponding files
 in the current directory.
