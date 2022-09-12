@@ -24,11 +24,12 @@ MFEM_LIB_FILE = mfem_is_not_built
 MULTIDOMAIN_SRC = multidomain.cpp
 MULTIDOMAIN_OBJ = $(MULTIDOMAIN_SRC:.cpp=.o)
 
-
+SEQ_MINIAPPS =
+PAR_MINIAPPS = multidomain
 ifeq ($(MFEM_USE_MPI),NO)
-   MINIAPPS =
+   MINIAPPS = $(SEQ_MINIAPPS)
 else
-   MINIAPPS = multidomain
+   MINIAPPS = $(PAR_MINIAPPS) $(SEQ_MINIAPPS)
 endif
 
 .SUFFIXES:
@@ -47,10 +48,12 @@ endif
 
 all: $(MINIAPPS)
 
-MFEM_TESTS = TEST_EXECS
+MFEM_TESTS = MINIAPPS
 include $(MFEM_TEST_MK)
 
 RUN_MPI = $(MFEM_MPIEXEC) $(MFEM_MPIEXEC_NP) $(MFEM_MPI_NP)
+multidomain-test-par: multidomain
+	@$(call mfem-test,$<, $(RUN_MPI), Multidomain miniapp,-tf 0.001)
 
 # Generate an error message if the MFEM library is not built and exit
 $(MFEM_LIB_FILE):

@@ -8,7 +8,7 @@
 // MFEM is free software; you can redistribute it and/or modify it under the
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
-//
+
 // This miniapp aims to demonstrate how to solve two PDEs, that represent
 // different physics, on the same domain. MFEM's SubMesh interface is used to
 // compute on and transfer between the spaces of predefined parts of the domain.
@@ -28,7 +28,7 @@
 //
 // A convection-diffusion equation is described inside the cylinder domain
 //
-//             dT/dt = κΔT - α∇•(b T)    in inner cylinder
+//             dT/dt = κΔT - α∇•(b T)   in inner cylinder
 //                 T = T_wall           on cylinder wall (obtained from heat equation)
 //              ∇T•n = 0                else
 //
@@ -47,7 +47,7 @@
 using namespace mfem;
 
 // Prescribed velocity profile for the convection-diffusion equation inside the
-// cylinder. The profile is constrcuted s.t. it approximates a no-slip (v=0)
+// cylinder. The profile is constructed s.t. it approximates a no-slip (v=0)
 // directly at the cylinder wall boundary.
 void velocity_profile(const Vector &c, Vector &q)
 {
@@ -205,18 +205,36 @@ int main(int argc, char *argv[])
 {
    Mpi::Init();
    Hypre::Init();
-
    int num_procs = Mpi::WorldSize();
    int myid = Mpi::WorldRank();
 
-   Mesh *serial_mesh = new Mesh("../../data/multidomain-hex.mesh");
+   int order = 2;
+   double t_final = 5.0;
+   double dt = 1.0e-5;
+   bool visualization = true;
+   int vis_steps = 10;
+
+   OptionsParser args(argc, argv);
+   args.AddOption(&order, "-o", "--order",
+                  "Finite element order (polynomial degree).");
+   args.AddOption(&t_final, "-tf", "--t-final",
+                  "Final time; start time is 0.");
+   args.AddOption(&dt, "-dt", "--time-step",
+                  "Time step.");
+   args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
+                  "--no-visualization",
+                  "Enable or disable GLVis visualization.");
+   args.AddOption(&vis_steps, "-vs", "--visualization-steps",
+                  "Visualize every n-th timestep.");
+   args.ParseCheck();
+
+   Mesh *serial_mesh = new Mesh("multidomain-hex.mesh");
    ParMesh parent_mesh = ParMesh(MPI_COMM_WORLD, *serial_mesh);
    delete serial_mesh;
 
    parent_mesh.UniformRefinement();
 
-   int p = 2;
-   H1_FECollection fec(p, parent_mesh.Dimension());
+   H1_FECollection fec(order, parent_mesh.Dimension());
 
    // Create the sub-domains and accompanying Finite Element spaces from
    // corresponding attributes. This specific mesh has two domain attributes and
@@ -302,32 +320,32 @@ int main(int argc, char *argv[])
    auto cylinder_surface_submesh = ParSubMesh::CreateFromBoundary(parent_mesh,
                                                                   cylinder_surface_attributes);
 
-   double dt = 1.0e-5;
-   double t_final = 5.0;
-   double t = 0.0;
-   bool last_step = false;
-   int vis_steps = 10;
-
    char vishost[] = "localhost";
    int  visport   = 19916;
-
    socketstream cyl_sol_sock(vishost, visport);
-   cyl_sol_sock << "parallel " << num_procs << " " << myid << "\n";
-   cyl_sol_sock.precision(8);
-   cyl_sol_sock << "solution\n" << cylinder_submesh << temperature_cylinder_gf <<
-                "pause\n" << std::flush;
-
+   if (visualization)
+   {
+      cyl_sol_sock << "parallel " << num_procs << " " << myid << "\n";
+      cyl_sol_sock.precision(8);
+      cyl_sol_sock << "solution\n" << cylinder_submesh << temperature_cylinder_gf <<
+                   "pause\n" << std::flush;
+   }
    socketstream block_sol_sock(vishost, visport);
-   block_sol_sock << "parallel " << num_procs << " " << myid << "\n";
-   block_sol_sock.precision(8);
-   block_sol_sock << "solution\n" << block_submesh << temperature_block_gf <<
-                  "pause\n" << std::flush;
+   if (visualization)
+   {
+      block_sol_sock << "parallel " << num_procs << " " << myid << "\n";
+      block_sol_sock.precision(8);
+      block_sol_sock << "solution\n" << block_submesh << temperature_block_gf <<
+                     "pause\n" << std::flush;
+   }
 
    // Create the transfer map needed in the time integration loop
    auto temperature_block_to_cylinder_map = ParSubMesh::CreateTransferMap(
-                                                temperature_block_gf,
-                                                temperature_cylinder_gf);
+                                               temperature_block_gf,
+                                               temperature_cylinder_gf);
 
+   double t = 0.0;
+   bool last_step = false;
    for (int ti = 1; !last_step; ti++)
    {
       if (t + dt >= t_final - dt/2)
@@ -361,12 +379,15 @@ int main(int argc, char *argv[])
          temperature_cylinder_gf.SetFromTrueDofs(temperature_cylinder);
          temperature_block_gf.SetFromTrueDofs(temperature_block);
 
-         cyl_sol_sock << "parallel " << num_procs << " " << myid << "\n";
-         cyl_sol_sock << "solution\n" << cylinder_submesh << temperature_cylinder_gf <<
-                      std::flush;
-         block_sol_sock << "parallel " << num_procs << " " << myid << "\n";
-         block_sol_sock << "solution\n" << block_submesh << temperature_block_gf <<
-                        std::flush;
+         if (visualization)
+         {
+            cyl_sol_sock << "parallel " << num_procs << " " << myid << "\n";
+            cyl_sol_sock << "solution\n" << cylinder_submesh << temperature_cylinder_gf <<
+                         std::flush;
+            block_sol_sock << "parallel " << num_procs << " " << myid << "\n";
+            block_sol_sock << "solution\n" << block_submesh << temperature_block_gf <<
+                           std::flush;
+         }
       }
    }
 
