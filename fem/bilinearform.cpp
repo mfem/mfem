@@ -1154,6 +1154,7 @@ MixedBilinearForm::MixedBilinearForm (FiniteElementSpace *tr_fes,
 {
    trial_fes = tr_fes;
    test_fes = te_fes;
+   mat = NULL;
    mat_e = NULL;
    extern_bfs = 0;
    assembly = AssemblyLevel::LEGACY;
@@ -1344,8 +1345,6 @@ void MixedBilinearForm::Assemble (int skip_zeros)
    }
 
    ElementTransformation *eltrans;
-
-   DenseMatrix elemmat;
    DofTransformation * dom_dof_trans;
    DofTransformation * ran_dof_trans;
    DenseMatrix elmat;

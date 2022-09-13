@@ -84,10 +84,13 @@ class DarcyProblem
    OperatorPtr M_;
    OperatorPtr B_;
    Vector rhs_;
+   Vector rhs_e_;
    Vector ess_data_;
    ParGridFunction u_;
    ParGridFunction p_;
    ParMesh mesh_;
+   shared_ptr<ParBilinearForm> Mform_;
+   shared_ptr<ParMixedBilinearForm> Bform_;
    VectorFunctionCoefficient ucoeff_;
    FunctionCoefficient pcoeff_;
    DFSSpaces dfs_spaces_;
@@ -98,8 +101,12 @@ public:
 
    HypreParMatrix& GetM() { return *M_.As<HypreParMatrix>(); }
    HypreParMatrix& GetB() { return *B_.As<HypreParMatrix>(); }
+
+   const Vector& GetRHSPostEliminaton() { return rhs_e_; }
    const Vector& GetRHS() { return rhs_; }
    const Vector& GetEssentialBC() { return ess_data_; }
+   shared_ptr<ParBilinearForm> GetMform() { return Mform_; }
+   shared_ptr<ParMixedBilinearForm> GetBform() { return Bform_; }
    const DFSData& GetDFSData() const { return dfs_spaces_.GetDFSData(); }
    void ShowError(const Vector &sol, bool verbose);
    void VisualizeSolution(const Vector &sol, string tag);
@@ -129,42 +136,51 @@ DarcyProblem::DarcyProblem(Mesh &mesh, int num_refs, int order,
    FunctionCoefficient natcoeff(natural_bc);
    FunctionCoefficient gcoeff(g_exact);
 
-   u_.SetSpace(dfs_spaces_.GetHdivFES());
-   p_.SetSpace(dfs_spaces_.GetL2FES());
+   ParFiniteElementSpace* u_space = dfs_spaces_.GetHdivFES();
+   ParFiniteElementSpace* p_space = dfs_spaces_.GetL2FES();
+   u_.SetSpace(u_space);
+   p_.SetSpace(p_space);
    p_ = 0.0;
    u_ = 0.0;
    u_.ProjectBdrCoefficientNormal(ucoeff_, ess_bdr);
 
-   ParLinearForm fform(dfs_spaces_.GetHdivFES());
+   ParLinearForm fform(u_space);
    fform.AddDomainIntegrator(new VectorFEDomainLFIntegrator(fcoeff));
    fform.AddBoundaryIntegrator(new VectorFEBoundaryFluxLFIntegrator(natcoeff));
    fform.Assemble();
 
-   ParLinearForm gform(dfs_spaces_.GetL2FES());
+   ParLinearForm gform(p_space);
    gform.AddDomainIntegrator(new DomainLFIntegrator(gcoeff));
    gform.Assemble();
 
-   ParBilinearForm mVarf(dfs_spaces_.GetHdivFES());
-   ParMixedBilinearForm bVarf(dfs_spaces_.GetHdivFES(), dfs_spaces_.GetL2FES());
-
-   mVarf.AddDomainIntegrator(new VectorFEMassIntegrator(mass_coeff));
-   mVarf.Assemble();
-   mVarf.EliminateEssentialBC(ess_bdr, u_, fform);
-   mVarf.Finalize();
-   M_.Reset(mVarf.ParallelAssemble());
-
-   bVarf.AddDomainIntegrator(new VectorFEDivergenceIntegrator);
-   bVarf.Assemble();
-   bVarf.SpMat() *= -1.0;
-   bVarf.EliminateTrialDofs(ess_bdr, u_, gform);
-   bVarf.Finalize();
-   B_.Reset(bVarf.ParallelAssemble());
-
-   rhs_.SetSize(M_->NumRows() + B_->NumRows());
-   Vector rhs_block0(rhs_.GetData(), M_->NumRows());
-   Vector rhs_block1(rhs_.GetData()+M_->NumRows(), B_->NumRows());
+   rhs_.SetSize(u_space->GetTrueVSize() + p_space->GetTrueVSize());
+   Vector rhs_block0(rhs_.GetData(), u_space->GetTrueVSize());
+   Vector rhs_block1(rhs_.GetData()+rhs_block0.Size(), p_space->GetTrueVSize());
    fform.ParallelAssemble(rhs_block0);
    gform.ParallelAssemble(rhs_block1);
+
+   Mform_ = make_shared<ParBilinearForm>(u_space);
+   Mform_->AddDomainIntegrator(new VectorFEMassIntegrator(mass_coeff));
+   Mform_->Assemble();
+   Mform_->EliminateEssentialBC(ess_bdr, u_, fform);
+   Mform_->Finalize();
+   M_.Reset(Mform_->ParallelAssemble());
+
+   Bform_ = make_shared<ParMixedBilinearForm>(u_space, p_space);
+   Bform_->AddDomainIntegrator(new VectorFEDivergenceIntegrator);
+   Bform_->Assemble();
+   Bform_->SpMat() *= -1.0;
+   Bform_->EliminateTrialDofs(ess_bdr, u_, gform);
+   Bform_->Finalize();
+   B_.Reset(Bform_->ParallelAssemble());
+
+   rhs_e_.SetSize(M_->NumRows() + B_->NumRows());
+   rhs_block0.SetData(rhs_e_.GetData());
+   rhs_block1.SetData(rhs_e_.GetData()+M_->NumRows());
+   fform.ParallelAssemble(rhs_block0);
+   gform.ParallelAssemble(rhs_block1);
+
+   assert(u_space->GetTrueVSize()==M_->NumRows());
 
    ess_data_.SetSize(M_->NumRows() + B_->NumRows());
    ess_data_ = 0.0;
@@ -359,7 +375,7 @@ int main(int argc, char *argv[])
       Vector sol = darcy.GetEssentialBC();
 
       ResetTimer();
-      solver->Mult(darcy.GetRHS(), sol);
+      solver->Mult(darcy.GetRHSPostEliminaton(), sol);
       chrono.Stop();
 
       if (Mpi::Root())
