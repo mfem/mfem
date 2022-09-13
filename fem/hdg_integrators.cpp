@@ -138,6 +138,8 @@ void HDGFaceIntegratorAdvection::AssembleFaceMatrixOneElement1and1FES(
    elmat3 = 0.0;
    elmat4 = 0.0;
 
+   bool is_bdr = Trans.mesh->GetFaceInformation(Trans.ElementNo).IsBoundary();
+
    const IntegrationRule *ir = IntRule;
    if (ir == NULL)
    {
@@ -227,7 +229,7 @@ void HDGFaceIntegratorAdvection::AssembleFaceMatrixOneElement1and1FES(
             for (int j = 0; j < ndof_face; j++)
             {
                // - < 1, [zeta a.n ubar vbar] > + < 1, [(1-zeta) a.n ubar vbar >_{\Gamma_N}
-               if (Trans.Elem2No >= 0)
+               if (!is_bdr)
                {
                   if (elem1or2 == 1)
                   {
@@ -549,7 +551,7 @@ void HDGFaceIntegratorDiffusion::AssembleFaceMatrixOneElement2and1FES(
 
 
       // set the coefficients for the different terms
-      // if the normal is involved Trans.Face->Weight() is not required
+      // if the normal is involved, Trans.Face->Weight() is not required
       double w1 = ip.weight*(-1.0);
 
       if (elem1or2 == 2)

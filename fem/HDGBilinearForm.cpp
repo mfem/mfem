@@ -260,7 +260,7 @@ void HDGBilinearForm::compute_domain_integrals(const int elem,
  * The bool onlyB should be false when creating the Schur complement, true when reconstructing u from ubar.
 */
 void HDGBilinearForm::compute_face_integrals(const int elem, const int edge,
-                                             const int isshared,
+                                             //                                             const int isshared,
                                              const bool onlyB,
                                              DenseMatrix *A_local,
                                              DenseMatrix *B_local,
@@ -269,29 +269,14 @@ void HDGBilinearForm::compute_face_integrals(const int elem, const int edge,
 {
    FaceElementTransformations *tr;
 
-   if (isshared == -1)
-   {
-      Mesh *mesh = volume_fes[0] -> GetMesh();
-      tr = mesh->GetFaceElementTransformations(edge);
-   }
-   else
-   {
-#ifdef MFEM_USE_MPI
-      ParFiniteElementSpace* pfes1 = dynamic_cast<ParFiniteElementSpace*>
-                                     (volume_fes[0]);
-
-      // do we need the next line?
-      pfes1->ExchangeFaceNbrData();
-      ParMesh *pmesh = pfes1 -> GetParMesh();
-      // in the case of a shared mesh the 3rd input is isshared, not isboundary
-      tr = pmesh->GetSharedFaceTransformations(isshared);
-#endif
-   }
+   Mesh *mesh = volume_fes[0] -> GetMesh();
+   tr = mesh->GetFaceElementTransformations(edge);
 
    const FiniteElement &trace_fe = *skeletal_fes[0]->GetFaceElement(edge);
    const FiniteElement &volume_fe = *volume_fes[0]->GetFE(elem);
 
-   // Compute the integrals depending on which element do we need to use
+   // If elem is tr->Elem2No then normal is the outward normal,
+   // otherwise it is the inward normal
    int elem_1or2 = 1 + (tr->Elem2No == elem);
    switch (NVolumeFES)
    {
@@ -333,11 +318,7 @@ void HDGBilinearForm::compute_face_integrals(const int elem, const int edge,
 
 }
 
-/* To allocate the sparse matrix and the right hand side vector and to create the Edge_to_be and el_to_face tables.
- * This is also called for the parallel, since these information are important on every processor
- * Edge_to_be is an Array with size of the number of edges.
- * The entry Edge_to_be[i] is -1 if the i-th face is interior or shared. It is greater then -1 if the i-th face lies on the boundary
- * Moreover, Edge_to_be[i] = n means that the n-th boundary face is the i-th face.
+/* To allocate the sparse matrix and the right hand side vector and to create the el_to_face tables.
  * el_to_faces has number of element rows and the i-th row contains the faces of the i-th element
  */
 void HDGBilinearForm::Allocate(const Array<int> &bdr_attr_is_ess,
@@ -356,29 +337,13 @@ void HDGBilinearForm::Allocate(const Array<int> &bdr_attr_is_ess,
    }
 
 
-   int n_skeleton_elements = mesh->Dimension() == 2 ? mesh->GetNEdges() :
-                             mesh->GetNFaces();
-
-   Edge_to_SharedEdge.SetSize(n_skeleton_elements);
-   Edge_to_SharedEdge = -1;
-
 #ifdef MFEM_USE_MPI
-   // ExchangeFaceNbrData to be able to use shared faces
    ParFiniteElementSpace* pfes1 = dynamic_cast<ParFiniteElementSpace*>
                                   (volume_fes[0]);
 
    if (parallel)
    {
       pfes1->ExchangeFaceNbrData();
-      int nsharedfaces = pfes1 -> GetParMesh()->GetNSharedFaces();
-
-      // Create an array to identify the shared faces. The entry is one of the face is not shared,
-      // otherwise, is gives the number of the face in the shared face list, so that GetSharedFaceTransformation
-      // can be used.
-      for (int i = 0; i < nsharedfaces; i++)
-      {
-         Edge_to_SharedEdge[pfes1 -> GetParMesh()->GetSharedFace(i)] = i;
-      }
    }
 #endif
 
@@ -543,8 +508,7 @@ void HDGBilinearForm::AssembleSC(Array<GridFunction*> &rhs_F,
          B_local[edge] = 0.0;
          C_local[edge] = 0.0;
          D_local[edge] = 0.0;
-         compute_face_integrals(i, fcs[edge], Edge_to_SharedEdge[fcs[edge]],
-                                false,
+         compute_face_integrals(i, fcs[edge], false,
                                 &A_local, &B_local[edge], &C_local[edge], &D_local[edge]);
       }
 
@@ -649,7 +613,7 @@ void HDGBilinearForm::Eliminate_BC(const Array<int> &vdofs_e1,
    {
       if (ess_dofs[vdofs_e1[j]] < 0)
       {
-         (*rhs_G)(j) += sol(vdofs_e1[j]);
+         (*rhs_G)(j) = sol(vdofs_e1[j]);
          for (int i = 0; i < ndof_e1; i++)
          {
             (*D_local)(j,i) = (i == j);
@@ -771,8 +735,7 @@ void HDGBilinearForm::Reconstruct(Array<GridFunction*> &F,
          // otherwise load the matrices
          if (i>=elements_B)
          {
-            compute_face_integrals(i, fcs[edge], Edge_to_SharedEdge[fcs[edge]],
-                                   true,
+            compute_face_integrals(i, fcs[edge], true,
                                    &A_local, &B_local[edge], &dummy_DM, &dummy_DM);
          }
          else

@@ -52,8 +52,7 @@ protected:
    Table *el_to_face;
 
    /// List that separates the interior edges from the shared edges
-   Array<int> ess_dofs, Edge_to_SharedEdge;
-   Array<int> vdofs1, vdofs2, vdofs3;
+   Array<int> ess_dofs, vdofs1, vdofs2, vdofs3;
 
    /// Vectors to store A and B, the corresponding offsets and the number
    /// of elements on which A and B will be stored
@@ -190,7 +189,7 @@ public:
    /// Computes face based integrators
    void compute_face_integrals(const int elem,
                                const int edge,
-                               const int ishared,
+                               //                               const int ishared,
                                const bool is_reconstruction,
                                DenseMatrix *A_local,
                                DenseMatrix *B_local,

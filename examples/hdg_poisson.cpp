@@ -251,14 +251,7 @@ int main(int argc, char *argv[])
       // 8. To eliminate the boundary conditions we project the BC to a grid function
       // defined for the facet unknowns.
       FunctionCoefficient lambda_coeff(uFun_ex);
-      if (hdg)
-      {
-         lambda_variable.ProjectCoefficientSkeletonDG(lambda_coeff);
-      }
-      else
-      {
-         lambda_variable.ProjectCoefficientSkeleton(lambda_coeff);
-      }
+      lambda_variable.ProjectCoefficientSkeleton(lambda_coeff);
 
       Array<int> ess_bdr(mesh->bdr_attributes.Max());
       ess_bdr = 1;

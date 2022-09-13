@@ -288,14 +288,7 @@ int main(int argc, char *argv[])
 
       // 9. To eliminate the boundary conditions we project the BC to a grid function
       // defined for the facet unknowns.
-      if (hdg)
-      {
-         lambda.ProjectCoefficientSkeletonDG(ucoeff);
-      }
-      else
-      {
-         lambda.ProjectCoefficientSkeleton(ucoeff);
-      }
+      lambda.ProjectCoefficientSkeleton(ucoeff);
 
       HypreParVector *Lambda =  new HypreParVector(M_space);
 

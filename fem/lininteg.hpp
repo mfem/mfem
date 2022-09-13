@@ -46,57 +46,6 @@ public:
    virtual ~LinearFormIntegrator() { }
 };
 
-/* HDG */
-/** Class for local mass RHS vector assembling l(lamda,u) := <lambda, u>
-    It is used for the boundary elimination */
-class SkeletonMassIntegratorRHS: public LinearFormIntegrator
-{
-private:
-   Vector shape;
-   Coefficient &Q;
-   int oa, ob;
-
-public:
-   SkeletonMassIntegratorRHS(Coefficient &QF, int a = 2, int b = 0,
-                             const IntegrationRule *ir = NULL)
-      : LinearFormIntegrator(ir), Q(QF), oa(a), ob(b) { }
-
-   using LinearFormIntegrator::AssembleRHSElementVect;
-   virtual void AssembleRHSElementVect(const FiniteElement &el,
-                                       FaceElementTransformations &Tr,
-                                       Vector &elvect);
-
-
-   virtual void AssembleRHSElementVect(const FiniteElement &el,
-                                       ElementTransformation &Tr,
-                                       Vector &elvect);
-};
-/** Class for local mass RHS vector assembling l(\lamda,u) := <\lambda, u>
-    It is used for the boundary elimination (it is used for vector valued functions) */
-class VectorSkeletonMassIntegratorRHS: public LinearFormIntegrator
-{
-private:
-   Vector shape;
-   Vector partelvect;
-   VectorCoefficient &Q;
-   int oa, ob;
-
-public:
-   VectorSkeletonMassIntegratorRHS(VectorCoefficient &QF, int a = 2, int b = 3,
-                                   const IntegrationRule *ir = NULL)
-      : LinearFormIntegrator(ir), Q(QF), oa(a), ob(b) { }
-
-   using LinearFormIntegrator::AssembleRHSElementVect;
-   virtual void AssembleRHSElementVect(const FiniteElement &el,
-                                       FaceElementTransformations &Tr,
-                                       Vector &elvect);
-
-
-   virtual void AssembleRHSElementVect(const FiniteElement &el,
-                                       ElementTransformation &Tr,
-                                       Vector &elvect);
-};
-
 /// Abstract class for integrators that support delta coefficients
 class DeltaLFIntegrator : public LinearFormIntegrator
 {

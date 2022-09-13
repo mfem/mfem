@@ -2210,40 +2210,6 @@ public:
    bool SupportsCeed() const { return DeviceCanUseCeed(); }
 };
 
-/* HDG */
-/** Class for local mass matrix assembling a(lamda,mu) := <lambda, mu>
-    It is used for the boundary elimination for skeleton variables */
-class SkeletonMassIntegrator : public BilinearFormIntegrator
-{
-private:
-   Vector shape;
-
-public:
-   SkeletonMassIntegrator(const IntegrationRule *ir = NULL)
-      : BilinearFormIntegrator(ir) { }
-
-   using BilinearFormIntegrator::AssembleFaceMatrix;
-   virtual void AssembleFaceMatrix(const FiniteElement &face_fe,
-                                   FaceElementTransformations &Trans,
-                                   DenseMatrix &elmat);
-};
-/** Class for local mass matrix assembling a(\lamda,\mu) := <\lambda, \mu>
-    It is used for the boundary elimination for vector valued skeleton variables */
-class VectorSkeletonMassIntegrator : public BilinearFormIntegrator
-{
-private:
-   Vector shape;
-   DenseMatrix partelmat;
-
-public:
-   VectorSkeletonMassIntegrator (const IntegrationRule *ir = NULL)
-      : BilinearFormIntegrator(ir) { }
-
-   virtual void AssembleFaceMatrix(const FiniteElement &face_fe,
-                                   FaceElementTransformations &Trans,
-                                   DenseMatrix &elmat);
-};
-
 /** Class for local mass matrix assembling a(u,v) := (Q u, v) */
 class MassIntegrator: public BilinearFormIntegrator
 {

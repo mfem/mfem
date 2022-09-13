@@ -370,10 +370,8 @@ public:
    void ProjectGridFunction(const GridFunction &src);
 
    /* HDG */
-   void ProjectCoefficientSkeletonDG(Coefficient &coeff);
-   void ProjectCoefficientSkeletonDGVector(VectorCoefficient &vcoeff);
    void ProjectCoefficientSkeleton(Coefficient &coeff);
-   void ProjectCoefficientSkeletonVector(VectorCoefficient &vcoeff);
+   void ProjectCoefficientSkeleton(VectorCoefficient &vcoeff);
 
    /** @brief Project @a coeff Coefficient to @a this GridFunction. The
        projection computation depends on the choice of the FiniteElementSpace

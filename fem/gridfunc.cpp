@@ -2393,59 +2393,6 @@ void GridFunction::ProjectDeltaCoefficient(DeltaCoefficient &delta_coeff,
 }
 
 /* HDG */
-/* For the boundary elimination */
-void GridFunction::ProjectCoefficientSkeletonDG(Coefficient &coeff)
-{
-   Array<int> vdofs;
-   Vector vals, local_rhs, shape;
-   DenseMatrix local_mtx;
-   Mesh *mesh = fes->GetMesh();
-   int nfaces = mesh->GetNumFaces();
-   FaceElementTransformations *ftr;
-   SkeletonMassIntegrator Mi;
-   SkeletonMassIntegratorRHS MiRHS(coeff);
-
-   for (int i = 0; i < nfaces; i++)
-   {
-      ftr = mesh->GetFaceElementTransformations(i);
-      Mi.AssembleFaceMatrix(*fes->GetFaceElement(i),
-                            *ftr, local_mtx);
-      MiRHS.AssembleRHSElementVect(*fes->GetFaceElement(i),
-                                   *ftr, local_rhs);
-      fes->GetFaceVDofs(i, vdofs);
-      vals.SetSize(vdofs.Size());
-
-      local_mtx.Invert();
-      local_mtx.Mult(local_rhs, vals);
-      SetSubVector(vdofs, vals);
-   }
-}
-void GridFunction::ProjectCoefficientSkeletonDGVector(VectorCoefficient &vcoeff)
-{
-   Array<int> vdofs;
-   Vector vals, local_rhs, shape;
-   DenseMatrix local_mtx;
-   Mesh *mesh = fes->GetMesh();
-   int nfaces = mesh->GetNumFaces();
-   FaceElementTransformations *ftr;
-   VectorSkeletonMassIntegrator Mi;
-   VectorSkeletonMassIntegratorRHS MiRHS(vcoeff);
-
-   for (int i = 0; i < nfaces; i++)
-   {
-      ftr = mesh->GetFaceElementTransformations(i);
-      Mi.AssembleFaceMatrix(*fes->GetFaceElement(i),
-                            *ftr, local_mtx);
-      MiRHS.AssembleRHSElementVect(*fes->GetFaceElement(i),
-                                   *ftr, local_rhs);
-      fes->GetFaceVDofs(i, vdofs);
-      vals.SetSize(vdofs.Size());
-
-      local_mtx.Invert();
-      local_mtx.Mult(local_rhs, vals);
-      SetSubVector(vdofs, vals);
-   }
-}
 void GridFunction::ProjectCoefficientSkeleton(Coefficient &coeff)
 {
    DeltaCoefficient *delta_c = dynamic_cast<DeltaCoefficient *>(&coeff);
@@ -2475,7 +2422,7 @@ void GridFunction::ProjectCoefficientSkeleton(Coefficient &coeff)
       (*this) *= (delta_c->Scale() / integral);
    }
 }
-void GridFunction::ProjectCoefficientSkeletonVector(VectorCoefficient &vcoeff)
+void GridFunction::ProjectCoefficientSkeleton(VectorCoefficient &vcoeff)
 {
    Mesh *mesh = fes->GetMesh();
    int nfaces = mesh->GetNumFaces();
