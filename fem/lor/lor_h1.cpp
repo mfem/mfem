@@ -239,7 +239,7 @@ void BatchedLOR_H1::Assemble3D()
 
    dbg("ORDER:%d", ORDER);
 
-   if (ORDER >= 1)
+   if (ORDER > 1) //////////////////////////////////////////////////////////////
    {
       dbg("MFEM_FORALL_3D with ORDER > 1");
       // Last thread dimension is lowered to avoid "too many resources" error
@@ -479,9 +479,191 @@ void BatchedLOR_H1::Assemble3D()
          }
       });
    }
-   else
+   else if (ORDER == 1) ////////////////////////////////////////////////////////
    {
-      dbg("MFEM_FORALL_3D with ORDER==1");
+      dbg("NEW MFEM_FORALL_3D with ORDER==1");
+      assert(ORDER == 1);
+      assert(nd1d == ORDER + 1);
+
+      MFEM_FORALL_3D(iel_ho, nel_ho, 2, 2, 2,
+      {
+         const int e[8] = {0,1,3,2,4,5,7,6};
+         MFEM_SHARED double vx[8], vy[8], vz[8];
+
+         MFEM_SHARED double local_mat_[sz_local_mat];
+         DeviceTensor<4> local_mat(local_mat_, 2,2,2, nv);
+
+         // V(j,i) stores the jth nonzero in the ith row of the sparse matrix.
+         // local_mat is the local (dense) stiffness matrix
+         MFEM_FOREACH_THREAD(z,z,2)
+         {
+            MFEM_FOREACH_THREAD(y,y,2)
+            {
+               MFEM_FOREACH_THREAD(x,x,2)
+               {
+                  MFEM_UNROLL(nv)
+                  for (int i=0; i<nv; ++i) { local_mat(z,y,x,i) = 0.0; }
+                  MFEM_UNROLL(nnz_per_row)
+                  for (int j=0; j<nnz_per_row; ++j) { V(j,x,y,z,iel_ho) = 0.0; }
+
+                  const int i = x + 2*y + 4*z;
+                  const int ei = 3*(e[i] + 8*iel_ho);
+                  vx[i] = X[ei + 0];
+                  vy[i] = X[ei + 1];
+                  vz[i] = X[ei + 2];
+               }
+            }
+         }
+         MFEM_SYNC_THREAD;
+
+         MFEM_FOREACH_THREAD(qz,z,2)
+         {
+            MFEM_FOREACH_THREAD(qy,y,2)
+            {
+               MFEM_FOREACH_THREAD(qx,x,2)
+               {
+                  const double w = 1.0/8.0;
+
+                  double J_[3*3];
+                  DeviceTensor<2> J(J_, 3,3);
+
+                  Jacobian3D(qx,qy,qz, vx,vy,vz, J);
+
+                  const double detJ = Det3D(J);
+                  const double w_detJ = w/detJ;
+
+                  // adj(J)
+                  double A_[3*3];
+                  DeviceTensor<2> A(A_, 3, 3);
+                  Adjugate3D(J, A);
+
+                  const double J11 = w_detJ*(A(0,0)*A(0,0)+A(0,1)*A(0,1)+A(0,2)*A(0,2)); // 1,1
+                  const double J21 = w_detJ*(A(0,0)*A(1,0)+A(0,1)*A(1,1)+A(0,2)*A(1,2)); // 2,1
+                  const double J31 = w_detJ*(A(0,0)*A(2,0)+A(0,1)*A(2,1)+A(0,2)*A(2,2)); // 3,1
+                  const double J12 = J21;
+                  const double J22 = w_detJ*(A(1,0)*A(1,0)+A(1,1)*A(1,1)+A(1,2)*A(1,2)); // 2,2
+                  const double J32 = w_detJ*(A(1,0)*A(2,0)+A(1,1)*A(2,1)+A(1,2)*A(2,2)); // 3,2
+                  const double J13 = J31;
+                  const double J23 = J32;
+                  const double J33 = w_detJ*(A(2,0)*A(2,0)+A(2,1)*A(2,1)+A(2,2)*A(2,2)); // 3,3
+                  const double wdetJ =  w*detJ;
+
+                  const double mq = const_mq ? MQ(0,0,0,0) : MQ(qx,qy,qz, iel_ho);
+                  const double dq = const_dq ? DQ(0,0,0,0) : DQ(qx,qy,qz, iel_ho);
+
+                  //MFEM_UNROLL(2)
+                  for (int jz=0; jz<2; ++jz)
+                  {
+                     const double bjz = (jz == qz) ? 1.0 : 0.0;
+                     const double gjz = (jz == 0) ? -1.0 : 1.0;
+                     //MFEM_UNROLL(2)
+                     for (int jy=0; jy<2; ++jy)
+                     {
+                        const double bjy = (jy == qy) ? 1.0 : 0.0;
+                        const double gjy = (jy == 0) ? -1.0 : 1.0;
+                        //MFEM_UNROLL(2)
+                        for (int jx=0; jx<2; ++jx)
+                        {
+                           const double bjx = (jx == qx) ? 1.0 : 0.0;
+                           const double gjx = (jx == 0) ? -1.0 : 1.0;
+
+                           const double djx = gjx*bjy*bjz;
+                           const double djy = bjx*gjy*bjz;
+                           const double djz = bjx*bjy*gjz;
+
+                           const int jj_loc = jx + 2*jy + 4*jz;
+                           //MFEM_UNROLL(2)
+                           for (int iz=0; iz<2; ++iz)
+                           {
+                              const double biz = (iz == qz) ? 1.0 : 0.0;
+                              const double giz = (iz == 0) ? -1.0 : 1.0;
+                              //MFEM_UNROLL(2)
+                              for (int iy=0; iy<2; ++iy)
+                              {
+                                 const double biy = (iy == qy) ? 1.0 : 0.0;
+                                 const double giy = (iy == 0) ? -1.0 : 1.0;
+
+                                 //MFEM_UNROLL(2)
+                                 for (int ix=0; ix<2; ++ix)
+                                 {
+                                    const double bix = (ix ==qx) ? 1.0 : 0.0;
+                                    const double gix = (ix == 0) ? -1.0 : 1.0;
+
+                                    const double dix = gix*biy*biz;
+                                    const double diy = bix*giy*biz;
+                                    const double diz = bix*biy*giz;
+
+                                    const int ii_loc = ix + 2*iy + 4*iz;
+
+                                    // Only store the lower-triangular part of
+                                    // the matrix (by symmetry).
+                                    if (jj_loc > ii_loc) { continue; }
+
+                                    double grad_grad = 0.0;
+                                    grad_grad += dix*djx*J11;
+                                    grad_grad += diy*djx*J12;
+                                    grad_grad += diz*djx*J13;
+
+                                    grad_grad += dix*djy*J21;
+                                    grad_grad += diy*djy*J22;
+                                    grad_grad += diz*djy*J23;
+
+                                    grad_grad += dix*djz*J31;
+                                    grad_grad += diy*djz*J32;
+                                    grad_grad += diz*djz*J33;
+
+                                    const double basis_basis = wdetJ*bix*biy*biz*bjx*bjy*bjz;
+                                    const double value = dq*grad_grad + mq*basis_basis;
+
+                                    AtomicAdd(local_mat(iz,iy,ix, jj_loc), value);
+                                 } // ix
+                              } // iy
+                           } // iz
+
+                        } // jx
+                     } // jy
+                  } // jz
+
+               } // thread qx
+            } // thread qy
+         } // thread qz
+         MFEM_SYNC_THREAD;
+
+         // Assemble the local matrix into the macro-element sparse matrix
+         // in a format similar to coordinate format. The (I,J) arrays
+         // are implicit (not stored explicitly).
+         MFEM_FOREACH_THREAD(iz,z,2)
+         {
+            MFEM_FOREACH_THREAD(iy,y,2)
+            {
+               MFEM_FOREACH_THREAD(ix,x,2)
+               {
+                  const int ii_loc = ix + 2*iy + 4*iz;
+                  for (int jj_loc=0; jj_loc<nv; ++jj_loc)
+                  {
+                     const int jx = jj_loc%2;
+                     const int jy = (jj_loc/2)%2;
+                     const int jz = jj_loc/2/2;
+                     const int jj_off = (jx-ix+1) + 3*(jy-iy+1) + 9*(jz-iz+1);
+
+                     if (jj_loc <= ii_loc)
+                     {
+                        AtomicAdd(V(jj_off, ix,iy,iz, iel_ho), local_mat(iz,iy,ix, jj_loc));
+                     }
+                     else
+                     {
+                        AtomicAdd(V(jj_off, ix,iy,iz, iel_ho), local_mat(jz,jy,jx, ii_loc));
+                     }
+                  }
+               }
+            }
+         }
+         MFEM_SYNC_THREAD;
+      });
+   }
+   else ////////////////////////////////////////////////////////////////////////
+   {
+      dbg("OLD MFEM_FORALL_3D with ORDER==1");
       assert(ORDER == 1);
       assert(nd1d == ORDER + 1);
       MFEM_FORALL_3D(iel_ho, nel_ho, 2, 2, 2,
