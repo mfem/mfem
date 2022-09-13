@@ -18,7 +18,7 @@
 //
 // Sample runs:
 //    mpirun -np 4 amster -m ../../data/star.mesh -o 2 -sfa 10 -ni 200
-//    mpirun -np 4 amster -m blade.mesh -o 4
+//    mpirun -np 4 amster -m blade.mesh -o 4 -sfc 10 -amr 8
 //    mpirun -np 4 amster -m bone3D.mesh
 //
 
@@ -41,6 +41,7 @@ int main (int argc, char *argv[])
 
    // Set the method's default parameters.
    const char *mesh_file = "jagged.mesh";
+   int rs_levels         = 0;
    int mesh_poly_deg     = 2;
    bool fdscheme         = false;
    int solver_iter       = 50;
@@ -55,6 +56,8 @@ int main (int argc, char *argv[])
    args.AddOption(&mesh_file, "-m", "--mesh", "Mesh file to use.");
    args.AddOption(&mesh_poly_deg, "-o", "--mesh-order",
                   "Polynomial degree of mesh finite element space.");
+   args.AddOption(&rs_levels, "-rs", "--refine-serial",
+                  "Number of times to refine the mesh uniformly in serial.");
    args.AddOption(&solver_iter, "-ni", "--newton-iters",
                   "Maximum number of Newton iterations.");
    args.AddOption(&fdscheme, "-fd", "--fd_approx", "-no-fd", "--no-fd-approx",
@@ -81,17 +84,18 @@ int main (int argc, char *argv[])
 
    // Initialize and refine the starting mesh.
    Mesh *mesh = new Mesh(mesh_file, 1, 1, false);
+   for (int lev = 0; lev < rs_levels; lev++) { mesh->UniformRefinement(); }
    ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
    const int dim = pmesh->Dimension();
    delete mesh;
 
    // Define a finite element space on the mesh.
-   FiniteElementCollection *fec = new H1_FECollection(mesh_poly_deg, dim);
-   ParFiniteElementSpace *pfespace = new ParFiniteElementSpace(pmesh, fec, dim);
-   pmesh->SetNodalFESpace(pfespace);
+   H1_FECollection fec(mesh_poly_deg, dim);
+   ParFiniteElementSpace pfes(pmesh, &fec, dim);
+   pmesh->SetNodalFESpace(&pfes);
 
    // Get the mesh nodes as a finite element grid function in fespace.
-   ParGridFunction x(pfespace);
+   ParGridFunction x(&pfes);
    pmesh->SetNodalGridFunction(&x);
 
    // Save the starting (prior to the optimization) mesh to a file.
@@ -102,12 +106,12 @@ int main (int argc, char *argv[])
    pmesh->PrintAsOne(mesh_ofs);
 
    // Store the starting (prior to the optimization) positions.
-   ParGridFunction x0(pfespace);
+   ParGridFunction x0(&pfes);
    x0 = x;
 
    // Metric.
    TMOP_QualityMetric *metric = NULL;
-   if (dim == 2) { metric = new TMOP_Metric_004; }
+   if (dim == 2) { metric = new TMOP_Metric_002; }
    else          { metric = new TMOP_Metric_302; }
 
    TargetConstructor::TargetType target_t =
@@ -166,7 +170,7 @@ int main (int argc, char *argv[])
 
    // Detect boundary nodes.
    Array<int> vdofs;
-   ParFiniteElementSpace sfespace = ParFiniteElementSpace(pmesh, fec);
+   ParFiniteElementSpace sfespace = ParFiniteElementSpace(pmesh, &fec);
    ParGridFunction domain(&sfespace);
    domain = 1.0;
    for (int i = 0; i < sfespace.GetNBE(); i++)
@@ -351,10 +355,10 @@ int main (int argc, char *argv[])
       }
 
       //Setup functions on the mesh being optimized
-      grad_fes = new ParFiniteElementSpace(pmesh, fec, dim);
+      grad_fes = new ParFiniteElementSpace(pmesh, &fec, dim);
       surf_fit_grad = new ParGridFunction(grad_fes);
 
-      surf_fit_hess_fes = new ParFiniteElementSpace(pmesh, fec, dim * dim);
+      surf_fit_hess_fes = new ParFiniteElementSpace(pmesh, &fec, dim * dim);
       surf_fit_hess = new ParGridFunction(surf_fit_hess_fes);
 
       for (int i = 0; i < surf_fit_marker.Size(); i++)
@@ -392,7 +396,7 @@ int main (int argc, char *argv[])
    }
 
    // Setup the final NonlinearForm.
-   ParNonlinearForm a(pfespace);
+   ParNonlinearForm a(&pfes);
    a.AddDomainIntegrator(tmop_integ);
 
    // Compute the minimum det(J) of the starting mesh.
@@ -401,7 +405,7 @@ int main (int argc, char *argv[])
    for (int i = 0; i < NE; i++)
    {
       const IntegrationRule &ir =
-         irules->Get(pfespace->GetFE(i)->GetGeomType(), quad_order);
+         irules->Get(pfes.GetFE(i)->GetGeomType(), quad_order);
       ElementTransformation *transf = pmesh->GetElementTransformation(i);
       for (int j = 0; j < ir.GetNPoints(); j++)
       {
@@ -420,7 +424,7 @@ int main (int argc, char *argv[])
                   "Untangling is supported only for ideal targets.");
 
       const DenseMatrix &Wideal =
-         Geometries.GetGeomToPerfGeomJac(pfespace->GetFE(0)->GetGeomType());
+         Geometries.GetGeomToPerfGeomJac(pfes.GetFE(0)->GetGeomType());
       min_detJ /= Wideal.Det();
 
       // Slightly below minJ0 to avoid div by 0.
@@ -446,8 +450,8 @@ int main (int argc, char *argv[])
 
    // Perform the nonlinear optimization.
    const IntegrationRule &ir =
-      irules->Get(pfespace->GetFE(0)->GetGeomType(), quad_order);
-   TMOPNewtonSolver solver(pfespace->GetComm(), ir);
+      irules->Get(pfes.GetFE(0)->GetGeomType(), quad_order);
+   TMOPNewtonSolver solver(pfes.GetComm(), ir);
    if (surface_fit_adapt > 0.0)
    {
       solver.SetAdaptiveSurfaceFittingScalingFactor(surface_fit_adapt);
@@ -541,8 +545,6 @@ int main (int argc, char *argv[])
    delete bg_grad;
    delete bg_grad_fes;
    delete pmesh_bg;
-   delete pfespace;
-   delete fec;
    delete pmesh;
 
    return 0;
