@@ -48,6 +48,15 @@ endif
 
 all: $(MINIAPPS)
 
+# Rules to copy the *.mesh files - needed for running the sample runs when
+# building out-of-source:
+ifneq ($(SRC),)
+MESH_FILES = $(notdir $(wildcard $(SRC)*.mesh))
+$(MESH_FILES): %: $(SRC)%
+	ln -sf $(<) .
+multidomain: | $(MESH_FILES)
+endif
+
 MFEM_TESTS = MINIAPPS
 include $(MFEM_TEST_MK)
 
