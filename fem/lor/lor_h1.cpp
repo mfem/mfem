@@ -239,7 +239,7 @@ void BatchedLOR_H1::Assemble3D()
 
    dbg("ORDER:%d", ORDER);
 
-   if (ORDER > 1)
+   if (ORDER >= 1)
    {
       dbg("MFEM_FORALL_3D with ORDER > 1");
       // Last thread dimension is lowered to avoid "too many resources" error
@@ -530,8 +530,8 @@ void BatchedLOR_H1::Assemble3D()
          // Intermediate quantities
          // (see e.g. Mora and Demkowicz for notation).
          MFEM_SHARED double grad_A_[sz_grad_A];
-         MFEM_SHARED double grad_B_[sz_grad_B];
          MFEM_SHARED double mass_A_[sz_mass_A];
+         MFEM_SHARED double grad_B_[sz_grad_B];
          MFEM_SHARED double mass_B_[sz_mass_B];
 
          DeviceTensor<6> grad_A(grad_A_, 3, 3, 2, 2, 2, 2);
@@ -592,7 +592,8 @@ void BatchedLOR_H1::Assemble3D()
          {
             for (int iz=jz; iz<2; ++iz) // symmetries => iz=jz
             {
-               for (int iqx=0; iqx<2; ++iqx)
+               MFEM_FOREACH_THREAD(iqx,x,2)
+               //for (int iqx=0; iqx<2; ++iqx)
                {
                   /// Filling mass_A, mass_B
                   //MFEM_FOREACH_THREAD(iqy,y,2)
@@ -658,15 +659,21 @@ void BatchedLOR_H1::Assemble3D()
                            mass_B(iy,jy,iz,jz,iqx) += biy*bjy*mass_A(iqy,iz,jz,iqx);
                         }
                      }
-                  } /// mass_A, mass_B
-                  MFEM_SYNC_THREAD;
+                  }
+               }
+               MFEM_SYNC_THREAD;
 
+               for (int iqx=0; iqx<2; ++iqx)
+               {
                   /// local_mat
                   MFEM_FOREACH_THREAD(jy,y,2)
+                  //for (int jy=0; jy<2; ++jy)
                   {
                      MFEM_FOREACH_THREAD(jx,x,2)
+                     //for (int jx=0; jx<2; ++jx)
                      {
                         MFEM_FOREACH_THREAD(iy,z,2)
+                        //for (int iy=0; iy<2; ++iy)
                         {
                            for (int ix=0; ix<2; ++ix)
                            {
@@ -702,9 +709,9 @@ void BatchedLOR_H1::Assemble3D()
                      }
                   } /// local_mat
                   MFEM_SYNC_THREAD;
-               }
-            }
-         }
+               } // iqx
+            } // iz
+         } // jz
 
          // Assemble the local matrix into the macro-element sparse matrix
          // in a format similar to coordinate format.
