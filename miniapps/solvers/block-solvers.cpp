@@ -360,7 +360,7 @@ int main(int argc, char *argv[])
    // Setup various solvers for the discrete problem
    std::map<const DarcySolver*, double> setup_time;
    ResetTimer();
-   BDPMinresSolver bdp(*M, *B, param);
+   BDPMinres bdp(*M, *B, param);
    bdp.SetEliminatedSystems(M_e, B_e, ess_tdof);
    setup_time[&bdp] = chrono.RealTime();
 

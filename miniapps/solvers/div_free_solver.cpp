@@ -323,8 +323,7 @@ void SaddleSchwarzSmoother::Mult(const Vector & x, Vector & y) const
    blk_y.GetBlock(1) -= coarse_l2_projection;
 }
 
-BDPMinresSolver::BDPMinresSolver(HypreParMatrix& M, HypreParMatrix& B,
-                                 IterSolveParameters param)
+BDPMinres::BDPMinres(HypreParMatrix& M, HypreParMatrix& B, IterSolveParameters param)
    : DarcySolver(M.NumRows(), B.NumRows()), op_(offsets_), prec_(offsets_),
      BT_(B.Transpose()), solver_(M.GetComm())
 {
@@ -348,7 +347,7 @@ BDPMinresSolver::BDPMinresSolver(HypreParMatrix& M, HypreParMatrix& B,
    solver_.SetPreconditioner(prec_);
 }
 
-void BDPMinresSolver::Mult(const Vector & x, Vector & y) const
+void BDPMinres::Mult(const Vector & x, Vector & y) const
 {
    Vector x_e(x);
    if (rhs_needs_elimination_) { EliminateEssentialBC(y, x_e);}
@@ -386,7 +385,7 @@ DivFreeSolver::DivFreeSolver(const HypreParMatrix &M, const HypreParMatrix& B,
          }
 
          const IterSolveParameters& param = param_.coarse_solve_param;
-         auto coarse_solver = new BDPMinresSolver(M_f, B_f, param);
+         auto coarse_solver = new BDPMinres(M_f, B_f, param);
          if (ops_.Size() > 1)
          {
             coarse_solver->SetEssZeroDofs(data.coarsest_ess_hdivdofs);
@@ -616,7 +615,7 @@ int DivFreeSolver::GetNumIterations() const
 {
    if (ops_.Size() == 1)
    {
-      return static_cast<BDPMinresSolver*>(smoothers_[0])->GetNumIterations();
+      return static_cast<BDPMinres*>(smoothers_[0])->GetNumIterations();
    }
    return solver_.As<IterativeSolver>()->GetNumIterations();
 }

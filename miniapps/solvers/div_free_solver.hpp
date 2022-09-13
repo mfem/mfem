@@ -196,7 +196,7 @@ public:
 };
 
 /// Wrapper for the block-diagonal-preconditioned MINRES defined in ex5p.cpp
-class BDPMinresSolver : public DarcySolver
+class BDPMinres : public DarcySolver
 {
    BlockOperator op_;
    BlockDiagonalPreconditioner prec_;
@@ -205,8 +205,7 @@ class BDPMinresSolver : public DarcySolver
    MINRESSolver solver_;
    Array<int> ess_zero_dofs_;
 public:
-   BDPMinresSolver(HypreParMatrix& M, HypreParMatrix& B,
-                   IterSolveParameters param);
+   BDPMinres(HypreParMatrix& M, HypreParMatrix& B, IterSolveParameters param);
    virtual void Mult(const Vector & x, Vector & y) const;
    virtual void SetOperator(const Operator &op) { }
    void SetEssZeroDofs(const Array<int>& dofs) { dofs.Copy(ess_zero_dofs_); }
