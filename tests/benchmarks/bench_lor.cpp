@@ -104,7 +104,7 @@ struct RT_LORBench
 
       lor.AssembleWithoutBC(a_ho, A_lor);
       A_lor.As<SparseMatrix>()->EliminateBC(ess_dofs,
-                        Operator::DiagonalPolicy::DIAG_KEEP);
+                                            Operator::DiagonalPolicy::DIAG_KEEP);
    }
 
    void DiscreteCurl()
@@ -182,7 +182,7 @@ struct ND_LORBench
 
       lor.AssembleWithoutBC(a_ho, A_lor);
       A_lor.As<SparseMatrix>()->EliminateBC(ess_dofs,
-                        Operator::DiagonalPolicy::DIAG_KEEP);
+                                            Operator::DiagonalPolicy::DIAG_KEEP);
    }
 
    void DiscreteGradient()
@@ -219,7 +219,7 @@ struct ND_LORBench
    ~ND_LORBench() { delete amg; }
 };
 
-struct LORBench
+struct H1_LORBench
 {
    Mesh mesh;
 
@@ -245,7 +245,7 @@ struct LORBench
    double mdof;
    Vector x, y;
 
-   LORBench(int p, int requested_ndof, int dim, const std::string &name) :
+   H1_LORBench(int p, int requested_ndof, int dim, const std::string &name) :
       mesh(MakeCartesianMesh(p, requested_ndof, dim)),
       fec_ho(p, dim),
       fes_ho(&mesh, &fec_ho),
@@ -283,15 +283,16 @@ struct LORBench
       // warm up
       if (name == "AssembleHO" || name == "ApplyHO") { AssembleHO(); }
       if (name == "ApplyHO") { ApplyHO(); }
-      if (name == "AssembleBatched") { AssembleBatched(); }
+      if (name == "H1AssembleBatched") { H1AssembleBatched(); }
       if (name == "AssembleFull") { AssembleFull(); }
       if (name == "AMGSetup" || name == "Vcycle")
       {
-         AssembleBatched();
+         H1AssembleBatched();
          SparseMatrix &A_serial = lor.GetAssembledMatrix();
          row_starts[0] = 0;
          row_starts[1] = A_serial.Height();
-         A = new HypreParMatrix(MPI_COMM_WORLD, A_serial.Height(), row_starts, &A_serial);
+         A = new HypreParMatrix(MPI_COMM_WORLD, A_serial.Height(), row_starts,
+                                &A_serial);
          amg.SetOperator(*A);
          amg.SetPrintLevel(0);
       }
@@ -314,11 +315,12 @@ struct LORBench
       a_lor.FormSystemMatrix(ess_dofs, A_lor);
    }
 
-   void AssembleBatched()
+   void H1AssembleBatched()
    {
+      dbg();
       NVTX("AssembleBatched");
       MFEM_DEVICE_SYNC;
-      // lor.AssembleSystem(a_ho, ess_dofs);
+      //lor.AssembleSystem(a_ho, ess_dofs);
       lor_b.Assemble(a_ho, ess_dofs, A_lor);
    }
 
@@ -344,7 +346,7 @@ struct LORBench
       amg.Mult(x, y);
    }
 
-   ~LORBench() { delete A; }
+   ~H1_LORBench() { delete A; }
 };
 
 // The different orders the tests can run
@@ -381,20 +383,23 @@ BENCHMARK(Name)\
             -> Unit(bm::kMillisecond)\
             -> Iterations(10);
 
-Benchmark(LORBench, AssembleHO)
-Benchmark(LORBench, AssembleFull)
-Benchmark(LORBench, AssembleBatched)
+// H1
+Benchmark(H1_LORBench, AssembleHO)
+Benchmark(H1_LORBench, AssembleFull)
+Benchmark(H1_LORBench, H1AssembleBatched)
 
-Benchmark(LORBench, ApplyHO)
-Benchmark(LORBench, AMGSetup)
-Benchmark(LORBench, Vcycle)
+Benchmark(H1_LORBench, ApplyHO)
+Benchmark(H1_LORBench, AMGSetup)
+Benchmark(H1_LORBench, Vcycle)
 
+// ND
 Benchmark(ND_LORBench, NDAssembleBatched)
 Benchmark(ND_LORBench, DiscreteGradient)
 Benchmark(ND_LORBench, CoordinateVectors)
 Benchmark(ND_LORBench, VertexCoordinates)
 Benchmark(ND_LORBench, AMSApply)
 
+// RT
 Benchmark(RT_LORBench, RTAssembleBatched)
 Benchmark(RT_LORBench, DiscreteCurl)
 Benchmark(RT_LORBench, ADSApply)

@@ -458,7 +458,7 @@ GSLIB_LIB = -L$(GSLIB_DIR)/lib -lgs
 
 # CUDA library configuration
 CUDA_OPT =
-CUDA_LIB = -lcusparse
+CUDA_LIB = -lcusparse -lnvToolsExt
 
 # HIP library configuration
 HIP_OPT =

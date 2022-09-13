@@ -34,8 +34,14 @@ void BatchedLOR_H1::Assemble2D()
    static constexpr int nnz_per_row = 9;
    static constexpr int sz_local_mat = nv*nv;
 
-   const double DQ = diffusion_coeff;
-   const double MQ = mass_coeff;
+   const bool const_mq = c1.Size() == 1;
+   const auto MQ = const_mq
+                   ? Reshape(c1.Read(), 1, 1, 1)
+                   : Reshape(c1.Read(), nd1d, nd1d, nel_ho);
+   const bool const_dq = c2.Size() == 1;
+   const auto DQ = const_dq
+                   ? Reshape(c2.Read(), 1, 1, 1)
+                   : Reshape(c2.Read(), nd1d, nd1d, nel_ho);
 
    sparse_ij.SetSize(nnz_per_row*ndof_per_el*nel_ho);
    auto V = Reshape(sparse_ij.Write(), nnz_per_row, nd1d, nd1d, nel_ho);
@@ -101,6 +107,8 @@ void BatchedLOR_H1::Assemble2D()
             {
                for (int iqy=0; iqy<2; ++iqy)
                {
+                  const double mq = const_mq ? MQ(0,0,0) : MQ(kx+iqx, ky+iqy, iel_ho);
+                  const double dq = const_dq ? DQ(0,0,0) : DQ(kx+iqx, ky+iqy, iel_ho);
                   for (int jy=0; jy<2; ++jy)
                   {
                      const double bjy = (jy == iqy) ? 1.0 : 0.0;
@@ -137,9 +145,9 @@ void BatchedLOR_H1::Assemble2D()
                               val += dix*djx*Q(0,iqy,iqx);
                               val += (dix*djy + diy*djx)*Q(1,iqy,iqx);
                               val += diy*djy*Q(2,iqy,iqx);
-                              val *= DQ;
+                              val *= dq;
 
-                              val += MQ*bix*biy*bjx*bjy*Q(3,iqy,iqx);
+                              val += mq*bix*biy*bjx*bjy*Q(3,iqy,iqx);
 
                               local_mat(ii_loc, jj_loc) += val;
                            }
@@ -206,10 +214,6 @@ void BatchedLOR_H1::Assemble3D()
 {
    dbg();
    const int nel_ho = fes_ho.GetNE();
-
-   const double DQ = diffusion_coeff;
-   const double MQ = mass_coeff;
-
    static constexpr int nv = 8;
    static constexpr int dim = 3;
    static constexpr int ddm2 = (dim*(dim+1))/2;
@@ -217,6 +221,15 @@ void BatchedLOR_H1::Assemble3D()
    static constexpr int ndof_per_el = nd1d*nd1d*nd1d;
    static constexpr int nnz_per_row = 27;
    static constexpr int sz_local_mat = nv*nv;
+
+   const bool const_mq = c1.Size() == 1;
+   const auto MQ = const_mq
+                   ? Reshape(c1.Read(), 1, 1, 1, 1)
+                   : Reshape(c1.Read(), nd1d, nd1d, nd1d, nel_ho);
+   const bool const_dq = c2.Size() == 1;
+   const auto DQ = const_dq
+                   ? Reshape(c2.Read(), 1, 1, 1, 1)
+                   : Reshape(c2.Read(), nd1d, nd1d, nd1d, nel_ho);
 
    sparse_ij.SetSize(nel_ho*ndof_per_el*nnz_per_row);
    auto V = Reshape(sparse_ij.Write(), nnz_per_row, nd1d, nd1d, nd1d, nel_ho);
@@ -385,8 +398,13 @@ void BatchedLOR_H1::Assemble3D()
                                           grad_grad += diz*djz*J33;
 
                                           const double basis_basis = wdetJ*bix*biy*biz*bjx*bjy*bjz;
+#warning mq/dq indexing
+                                          // const double mq = const_mq ? MQ(0,0,0,0) : MQ(kx+iqx, ky+iqy, kz+iqz, iel_ho);
+                                          // const double dq = const_dq ? DQ(0,0,0,0) : DQ(kx+iqx, ky+iqy, kz+iqz, iel_ho);
+                                          const double mq = MQ(0,0,0,0);
+                                          const double dq = DQ(0,0,0,0);
 
-                                          local_mat(ii_loc, jj_loc) += DQ*grad_grad + MQ*basis_basis;
+                                          local_mat(ii_loc, jj_loc) += dq*grad_grad + mq*basis_basis;
                                        }
                                     }
                                  }
@@ -490,29 +508,32 @@ BatchedLOR_H1::BatchedLOR_H1(BilinearForm &a,
    : BatchedLORKernel(fes_ho_, X_vert_, sparse_ij_, sparse_mapping_)
 {
    dbg();
-   MassIntegrator *mass = GetIntegrator<MassIntegrator>(a);
-   DiffusionIntegrator *diffusion = GetIntegrator<DiffusionIntegrator>(a);
+   ProjectLORCoefficient<MassIntegrator>(a, c1);
+   ProjectLORCoefficient<DiffusionIntegrator>(a, c2);
 
-   if (mass != nullptr)
-   {
-      auto *coeff = dynamic_cast<const ConstantCoefficient*>(mass->GetCoefficient());
-      mass_coeff = coeff ? coeff->constant : 1.0;
-   }
-   else
-   {
-      mass_coeff = 0.0;
-   }
+   //   MassIntegrator *mass = GetIntegrator<MassIntegrator>(a);
+   //   DiffusionIntegrator *diffusion = GetIntegrator<DiffusionIntegrator>(a);
 
-   if (diffusion != nullptr)
-   {
-      auto *coeff = dynamic_cast<const ConstantCoefficient*>
-                    (diffusion->GetCoefficient());
-      diffusion_coeff = coeff ? coeff->constant : 1.0;
-   }
-   else
-   {
-      diffusion_coeff = 0.0;
-   }
+   //   if (mass != nullptr)
+   //   {
+   //      auto *coeff = dynamic_cast<const ConstantCoefficient*>(mass->GetCoefficient());
+   //      mass_coeff = coeff ? coeff->constant : 1.0;
+   //   }
+   //   else
+   //   {
+   //      mass_coeff = 0.0;
+   //   }
+
+   //   if (diffusion != nullptr)
+   //   {
+   //      auto *coeff = dynamic_cast<const ConstantCoefficient*>
+   //                    (diffusion->GetCoefficient());
+   //      diffusion_coeff = coeff ? coeff->constant : 1.0;
+   //   }
+   //   else
+   //   {
+   //      diffusion_coeff = 0.0;
+   //   }
 }
 
 } // namespace mfem

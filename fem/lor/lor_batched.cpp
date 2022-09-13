@@ -17,6 +17,9 @@
 
 #include "../../general/nvtx.hpp"
 
+#define MFEM_DEBUG_COLOR 122
+#include "../../general/debug.hpp"
+
 // Specializations
 #include "lor_h1.hpp"
 #include "lor_nd.hpp"
@@ -385,7 +388,9 @@ void BatchedLORAssembly::SparseIJToCSR(OperatorHandle &A) const
 
    // If A contains an existing SparseMatrix, reuse it (and try to reuse its
    // I, J, A arrays if they are big enough)
-   SparseMatrix *A_mat = A.Is<SparseMatrix>();
+#warning A.Is<SparseMatrix> error
+   SparseMatrix *A_mat = nullptr; // A.Is<SparseMatrix>();
+   //SparseMatrix *A_mat = A.Is<SparseMatrix>();
    if (!A_mat)
    {
       A_mat = new SparseMatrix;
@@ -405,23 +410,25 @@ void BatchedLORAssembly::SparseIJToCSR(OperatorHandle &A) const
 template <typename LOR_KERNEL>
 void BatchedLORAssembly::AssemblyKernel(BilinearForm &a)
 {
+   dbg();
    LOR_KERNEL kernel(a, fes_ho, X_vert, sparse_ij, sparse_mapping);
 
    const int dim = fes_ho.GetMesh()->Dimension();
    const int order = fes_ho.GetMaxElementOrder();
 
+#warning kernels instantiations
    if (dim == 2)
    {
       switch (order)
       {
-         case 1: kernel.template Assemble2D<1>(); break;
+         /*case 1: kernel.template Assemble2D<1>(); break;
          case 2: kernel.template Assemble2D<2>(); break;
          case 3: kernel.template Assemble2D<3>(); break;
          case 4: kernel.template Assemble2D<4>(); break;
          case 5: kernel.template Assemble2D<5>(); break;
          case 6: kernel.template Assemble2D<6>(); break;
          case 7: kernel.template Assemble2D<7>(); break;
-         case 8: kernel.template Assemble2D<8>(); break;
+         case 8: kernel.template Assemble2D<8>(); break;*/
          default: MFEM_ABORT("No kernel order " << order << "!");
       }
    }
@@ -431,12 +438,12 @@ void BatchedLORAssembly::AssemblyKernel(BilinearForm &a)
       {
          case 1: kernel.template Assemble3D<1>(); break;
          case 2: kernel.template Assemble3D<2>(); break;
-         case 3: kernel.template Assemble3D<3>(); break;
+         /*case 3: kernel.template Assemble3D<3>(); break;
          case 4: kernel.template Assemble3D<4>(); break;
          case 5: kernel.template Assemble3D<5>(); break;
          case 6: kernel.template Assemble3D<6>(); break;
          case 7: kernel.template Assemble3D<7>(); break;
-         case 8: kernel.template Assemble3D<8>(); break;
+         case 8: kernel.template Assemble3D<8>(); break;*/
          default: MFEM_ABORT("No kernel order " << order << "!");
       }
    }
@@ -444,6 +451,7 @@ void BatchedLORAssembly::AssemblyKernel(BilinearForm &a)
 
 void BatchedLORAssembly::AssembleWithoutBC(BilinearForm &a, OperatorHandle &A)
 {
+   dbg();
    // Assemble the matrix, depending on what the form is.
    // This fills in the arrays sparse_ij and sparse_mapping.
    const FiniteElementCollection *fec = fes_ho.FEColl();
