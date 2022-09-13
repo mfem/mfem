@@ -110,17 +110,17 @@ protected:
    std::shared_ptr<HypreParMatrix> B_e_;
 public:
    DarcySolver(int size0, int size1)
-       : Solver(size0 + size1), offsets_(3), rhs_needs_elimination_(false)
+      : Solver(size0 + size1), offsets_(3), rhs_needs_elimination_(false)
    { offsets_[0] = 0; offsets_[1] = size0; offsets_[2] = height; }
    virtual int GetNumIterations() const = 0;
    void SetEliminatedSystems(std::shared_ptr<HypreParMatrix> M_e,
                              std::shared_ptr<HypreParMatrix> B_e,
                              const Array<int>& ess_true_dofs)
    {
-       M_e_ = M_e;
-       B_e_ = B_e;
-       rhs_needs_elimination_ = true;
-       ess_true_dofs.Copy(ess_true_dofs_);
+      M_e_ = M_e;
+      B_e_ = B_e;
+      rhs_needs_elimination_ = true;
+      ess_true_dofs.Copy(ess_true_dofs_);
    }
    void EliminateEssentialBC(const Vector &ess_data, Vector &rhs) const;
 };

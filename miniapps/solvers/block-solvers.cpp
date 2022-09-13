@@ -201,11 +201,11 @@ void DarcyProblem::GetParallelSystems(shared_ptr<HypreParMatrix> &M,
                                       shared_ptr<HypreParMatrix> &B_e,
                                       mfem::Array<int> &ess_tdof) const
 {
-    dfs_spaces_.GetHdivFES()->GetEssentialTrueDofs(ess_bdr_, ess_tdof);
-    M.reset(Mform_->ParallelAssemble());
-    M_e.reset(M->EliminateRowsCols(ess_tdof));
-    B.reset(Bform_->ParallelAssemble());
-    B_e.reset(B->EliminateCols(ess_tdof));
+   dfs_spaces_.GetHdivFES()->GetEssentialTrueDofs(ess_bdr_, ess_tdof);
+   M.reset(Mform_->ParallelAssemble());
+   M_e.reset(M->EliminateRowsCols(ess_tdof));
+   B.reset(Bform_->ParallelAssemble());
+   B_e.reset(B->EliminateCols(ess_tdof));
 }
 
 void DarcyProblem::ShowError(const Vector& sol, bool verbose)
@@ -340,7 +340,8 @@ int main(int argc, char *argv[])
    // Generate components of the saddle point problem
    mfem::Array<int> ess_tdof;
    shared_ptr<HypreParMatrix> M, B, M_e, B_e;
-   DarcyProblem darcy(MPI_COMM_WORLD, *mesh, par_ref, order, coef_file, ess_bdr, param);
+   DarcyProblem darcy(MPI_COMM_WORLD, *mesh, par_ref, order, coef_file, ess_bdr,
+                      param);
    darcy.GetParallelSystems(M, B, M_e, B_e, ess_tdof);
    const DFSData& DFS_data = darcy.GetDFSData();
    delete mesh;

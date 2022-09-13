@@ -203,7 +203,8 @@ void DFSSpaces::DataFinalize()
    l2_0_fes_.reset();
 }
 
-void DarcySolver::EliminateEssentialBC(const Vector &ess_data, Vector &rhs) const
+void DarcySolver::EliminateEssentialBC(const Vector &ess_data,
+                                       Vector &rhs) const
 {
    BlockVector blk_ess_data(ess_data.GetData(), offsets_);
    BlockVector blk_rhs(rhs, offsets_);
@@ -323,7 +324,8 @@ void SaddleSchwarzSmoother::Mult(const Vector & x, Vector & y) const
    blk_y.GetBlock(1) -= coarse_l2_projection;
 }
 
-BDPMinres::BDPMinres(HypreParMatrix& M, HypreParMatrix& B, IterSolveParameters param)
+BDPMinres::BDPMinres(HypreParMatrix& M, HypreParMatrix& B,
+                     IterSolveParameters param)
    : DarcySolver(M.NumRows(), B.NumRows()), op_(offsets_), prec_(offsets_),
      BT_(B.Transpose()), solver_(M.GetComm())
 {
