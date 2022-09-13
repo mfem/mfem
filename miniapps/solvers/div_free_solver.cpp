@@ -203,6 +203,15 @@ void DFSSpaces::DataFinalize()
    l2_0_fes_.reset();
 }
 
+void DarcySolver::EliminateEssentialBC(const Vector &ess_data, Vector &rhs) const
+{
+   BlockVector blk_ess_data(ess_data.GetData(), offsets_);
+   BlockVector blk_rhs(rhs, offsets_);
+   M_e_->Mult(-1.0, blk_ess_data.GetBlock(0), 1.0, blk_rhs.GetBlock(0));
+   B_e_->Mult(-1.0, blk_ess_data.GetBlock(0), 1.0, blk_rhs.GetBlock(1));
+   for (int dof : ess_true_dofs_) { rhs[dof] = ess_data[dof]; }
+}
+
 BBTSolver::BBTSolver(const HypreParMatrix& B, IterSolveParameters param)
    : Solver(B.NumRows()), BBT_solver_(B.GetComm())
 {
@@ -341,7 +350,9 @@ BDPMinresSolver::BDPMinresSolver(HypreParMatrix& M, HypreParMatrix& B,
 
 void BDPMinresSolver::Mult(const Vector & x, Vector & y) const
 {
-   solver_.Mult(x, y);
+   Vector x_e(x);
+   if (rhs_needs_elimination_) { EliminateEssentialBC(y, x_e);}
+   solver_.Mult(x_e, y);
    for (int dof : ess_zero_dofs_) { y[dof] = 0.0; }
 }
 
@@ -540,13 +551,16 @@ void DivFreeSolver::Mult(const Vector & x, Vector & y) const
    MFEM_VERIFY(x.Size() == offsets_[2], "MLDivFreeSolver: x size is invalid");
    MFEM_VERIFY(y.Size() == offsets_[2], "MLDivFreeSolver: y size is invalid");
 
-   if (ops_.Size() == 1) { smoothers_[0]->Mult(x, y); return; }
+   Vector x_e(x);
+   if (rhs_needs_elimination_) { EliminateEssentialBC(y, x_e);}
+
+   if (ops_.Size() == 1) { smoothers_[0]->Mult(x_e, y); return; }
 
    BlockVector blk_y(y, offsets_);
 
    BlockVector resid(offsets_);
    ops_.Last()->Mult(y, resid);
-   add(1.0, x, -1.0, resid, resid);
+   add(1.0, x_e, -1.0, resid, resid);
 
    BlockVector correction(offsets_);
    correction = 0.0;
@@ -573,7 +587,7 @@ void DivFreeSolver::Mult(const Vector & x, Vector & y) const
       ch.Start();
 
       ops_.Last()->Mult(y, resid);
-      add(1.0, x, -1.0, resid, resid);
+      add(1.0, x_e, -1.0, resid, resid);
 
       SolveDivFree(resid.GetBlock(0), correction.GetBlock(0));
       blk_y.GetBlock(0) += correction.GetBlock(0);
