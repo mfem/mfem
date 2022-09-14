@@ -133,12 +133,13 @@ void FunctionCoefficient::EvalRevDiff(const double Q_bar,
                                       const IntegrationPoint &ip,
                                       DenseMatrix &PointMat_bar)
 {
-   double x[3];
-   Vector transip(x, 3);
-   double x_bar[3];
-   Vector transip_bar(x_bar, 3);
+   int space_dim = T.GetSpaceDim();
+   double x[3] = {};
+   Vector transip(x, space_dim);
    T.Transform(ip, transip);
-   transip_bar = 0.0;
+
+   double x_bar[3] = {};
+   Vector transip_bar(x_bar, space_dim);
    if (Function)
    {
       MFEM_ASSERT(FunctionRevDiff, "EvalRevDiff: reverse-mode differentiated "
