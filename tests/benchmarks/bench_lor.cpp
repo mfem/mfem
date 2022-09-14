@@ -375,10 +375,10 @@ struct H1_LORBench
 /// Kernels definitions and registrations
 #define Benchmark(Class, Name)\
 static void Name(bm::State &state){\
-   const int p = state.range(0);\
+   const int p = state.range(2);\
    const int log_ndof = state.range(1);\
    const int requested_ndof = pow(2, log_ndof);\
-   const int dim = state.range(2);\
+   const int dim = state.range(0);\
    const std::string name = #Name;\
    if (p == 1 && log_ndof >= 21) { state.SkipWithError("Problem size"); return; }\
    if (p == 2 && log_ndof >= 22) { state.SkipWithError("Problem size"); return; }\
@@ -393,7 +393,7 @@ static void Name(bm::State &state){\
    state.counters["p"] = bm::Counter(p);\
 }\
 BENCHMARK(Name)\
-            -> ArgsProduct({P_ORDERS, LOG_NDOFS, DIMS})\
+            -> ArgsProduct({DIMS, LOG_NDOFS, P_ORDERS})\
 -> Unit(bm::kMillisecond);
 //  -> Iterations(10);
 
