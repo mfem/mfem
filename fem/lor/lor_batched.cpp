@@ -412,17 +412,16 @@ void BatchedLORAssembly::AssemblyKernel(BilinearForm &a)
 
    if (dim == 2)
    {
-#warning BatchedLORAssembly kernels
       switch (order)
       {
-         /*case 1: kernel.template Assemble2D<1>(); break;
+         case 1: kernel.template Assemble2D<1>(); break;
          case 2: kernel.template Assemble2D<2>(); break;
          case 3: kernel.template Assemble2D<3>(); break;
          case 4: kernel.template Assemble2D<4>(); break;
          case 5: kernel.template Assemble2D<5>(); break;
          case 6: kernel.template Assemble2D<6>(); break;
          case 7: kernel.template Assemble2D<7>(); break;
-         case 8: kernel.template Assemble2D<8>(); break;*/
+         case 8: kernel.template Assemble2D<8>(); break;
          default: MFEM_ABORT("No kernel order " << order << "!");
       }
    }
@@ -432,12 +431,12 @@ void BatchedLORAssembly::AssemblyKernel(BilinearForm &a)
       {
          case 1: kernel.template Assemble3D<1>(); break;
          case 2: kernel.template Assemble3D<2>(); break;
-         /*case 3: kernel.template Assemble3D<3>(); break;
+         case 3: kernel.template Assemble3D<3>(); break;
          case 4: kernel.template Assemble3D<4>(); break;
          case 5: kernel.template Assemble3D<5>(); break;
          case 6: kernel.template Assemble3D<6>(); break;
          case 7: kernel.template Assemble3D<7>(); break;
-         case 8: kernel.template Assemble3D<8>(); break;*/
+         case 8: kernel.template Assemble3D<8>(); break;
          default: MFEM_ABORT("No kernel order " << order << "!");
       }
    }

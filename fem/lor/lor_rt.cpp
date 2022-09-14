@@ -562,10 +562,10 @@ template <>
 void BatchedLOR_RT::Assemble3D<1>()
 {
 
-   static constexpr int nf = 6; // number of faces in hexahedron
-   static constexpr int dim = 3;
    static constexpr int o = 1;
    static constexpr int op1 = 2;
+   static constexpr int nf = 6; // number of faces in hexahedron
+   static constexpr int dim = 3;
    static constexpr int ndof_per_el = dim*o*o*op1;
    static constexpr int nnz_per_row = 11;
    static constexpr int sz_local_mat = nf*nf;
@@ -585,40 +585,31 @@ void BatchedLOR_RT::Assemble3D<1>()
 
    const auto X = X_vert.Read();
 
-   MFEM_FORALL_3D(iel_ho, nel_ho, 8, 1, 2,
+   MFEM_FORALL_3D(iel_ho, nel_ho, 8, 1, 1,
    {
-      MFEM_FOREACH_THREAD(iz,z,o) // 1
+      MFEM_FOREACH_THREAD(j,x,nnz_per_row)
       {
-         MFEM_FOREACH_THREAD(iy,y,o) // 1
+         for (int ix = 0; ix < op1; ++ix)
          {
-            MFEM_FOREACH_THREAD(ix,x,op1) // 2
+            for (int c = 0; c < dim; ++c)
             {
-               for (int c=0; c<dim; ++c)
-               {
-                  for (int j=0; j<nnz_per_row; ++j)
-                  {
-                     V(j,ix+iy*op1+iz*o*op1,c,iel_ho) = 0.0;
-                  }
-               }
+               V(j,ix,c,iel_ho) = 0.0;
             }
          }
       }
-      MFEM_SYNC_THREAD;
-
-      MFEM_SHARED double local_mat_[sz_local_mat];
-      DeviceTensor<4> local_mat(local_mat_, 3,2, 3,2);
-      /// should be optimized
-      for (int i=0; i<sz_local_mat; ++i) { local_mat[i] = 0.0; }
-
-      MFEM_SHARED double vx[8], vy[8], vz[8];
-      /// should be optimized
-      LORVertexCoordinates3D<1>(X, iel_ho, 0,0,0, vx, vy, vz);
       MFEM_SYNC_THREAD;
 
       MFEM_FOREACH_THREAD(xyz,x,8)
       {
          const int qz = xyz%2, qy = (xyz/2)%2, qx = xyz/2/2;
          static constexpr double w = 1.0/8.0;
+
+         double local_mat_[sz_local_mat];
+         DeviceTensor<4> local_mat(local_mat_, 3,2, 3,2);
+         for (int i=0; i<sz_local_mat; ++i) { local_mat[i] = 0.0; }
+
+         double vx[8], vy[8], vz[8];
+         LORVertexCoordinates3D<1>(X, iel_ho, 0,0,0, vx, vy, vz);
 
          double J_[3*3];
          DeviceTensor<2> J(J_, 3,3);
@@ -638,12 +629,12 @@ void BatchedLOR_RT::Assemble3D<1>()
          const double dq = const_dq ? DQ(0,0,0,0) : DQ(qx,qy,qz, iel_ho);
 
          // Loop over x,y,z components. 0 => x, 1 => y, 2 => z
-         MFEM_FOREACH_THREAD(cj,y,dim)
+         for (int cj=0; cj<dim; ++cj)//MFEM_FOREACH_THREAD(cj,y,dim)
          {
             const int jq0 = (cj == 0) ? qx : (cj == 1) ? qy : qz;
             const int jd0 = cj, jd1 = (cj + 1)%3, jd2 = (cj + 2)%3;
 
-            MFEM_FOREACH_THREAD(bj,z,2)  // 2 faces in each dim
+            for (int bj=0; bj<2; ++bj)//MFEM_FOREACH_THREAD(bj,z,2)  // 2 faces in each dim
             {
                const double div_j = (bj == 0) ? -1.0 : 1.0;
 
@@ -684,28 +675,24 @@ void BatchedLOR_RT::Assemble3D<1>()
                      basis_basis += Q5*basis_i[2]*basis_j[2];
 
                      const double val = dq*div_div + mq*basis_basis;
-                     AtomicAdd(local_mat(ci,bi, cj,bj), val);
+                     local_mat(ci,bi, cj,bj) += val;
                   } // bi
                } // ci
             } // bj
          } // cj
-      } // q
-      MFEM_SYNC_THREAD;
 
-      // Assemble the local matrix into the macro-element sparse matrix
-      // The nonzeros of the macro-element sparse matrix are ordered as
-      // follows:
-      //
-      // The axes are ordered relative to the direction of the basis
-      // vector, e.g. for x-vectors, the axes are (x,y,z), for
-      // y-vectors the axes are (y,z,x), and for z-vectors the axes are
-      // (z,x,y).
-      //
-      // The nonzeros are then given in "rotated lexicographic"
-      // ordering, according to these axes.
-      if (MFEM_THREAD_ID(x) == 0 && MFEM_THREAD_ID(y) == 0)
-      {
-         MFEM_FOREACH_THREAD(ii_loc,z,nf)
+         // Assemble the local matrix into the macro-element sparse matrix
+         // The nonzeros of the macro-element sparse matrix are ordered as
+         // follows:
+         //
+         // The axes are ordered relative to the direction of the basis
+         // vector, e.g. for x-vectors, the axes are (x,y,z), for
+         // y-vectors the axes are (y,z,x), and for z-vectors the axes are
+         // (z,x,y).
+         //
+         // The nonzeros are then given in "rotated lexicographic"
+         // ordering, according to these axes.
+         for (int ii_loc=0; ii_loc<nf; ++ii_loc)
          {
             const int ci = ii_loc/2, bi = ii_loc%2;
             const int id0 = ci, id1 = (ci+1)%3, id2 = (ci+2)%3;
@@ -742,16 +729,14 @@ void BatchedLOR_RT::Assemble3D<1>()
                                   ? local_mat(ci,bi, cj,bj)
                                   : local_mat(cj,bj, ci,bi);
                AtomicAdd(V(jj_off, ii, ci, iel_ho), val);
-            }
-         }
-      }
+            } // jj_loc
+         } // ii_loc
+      } // q
    });
    SparseMapping3D<1>(sparse_mapping);
 }
 
-#warning BatchedLORAssembly instantiations
 // Explicit template instantiations
-/*
 template void BatchedLOR_RT::Assemble2D<1>();
 template void BatchedLOR_RT::Assemble2D<2>();
 template void BatchedLOR_RT::Assemble2D<3>();
@@ -760,15 +745,15 @@ template void BatchedLOR_RT::Assemble2D<5>();
 template void BatchedLOR_RT::Assemble2D<6>();
 template void BatchedLOR_RT::Assemble2D<7>();
 template void BatchedLOR_RT::Assemble2D<8>();
-*/
+
 template void BatchedLOR_RT::Assemble3D<1>();
-template void BatchedLOR_RT::Assemble3D<2>();/*
+template void BatchedLOR_RT::Assemble3D<2>();
 template void BatchedLOR_RT::Assemble3D<3>();
 template void BatchedLOR_RT::Assemble3D<4>();
 template void BatchedLOR_RT::Assemble3D<5>();
 template void BatchedLOR_RT::Assemble3D<6>();
 template void BatchedLOR_RT::Assemble3D<7>();
-template void BatchedLOR_RT::Assemble3D<8>();*/
+template void BatchedLOR_RT::Assemble3D<8>();
 
 BatchedLOR_RT::BatchedLOR_RT(BilinearForm &a,
                              FiniteElementSpace &fes_ho_,

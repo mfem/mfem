@@ -799,9 +799,7 @@ void BatchedLOR_ND::Assemble3D<1>()
    SparseMapping3D<1>(sparse_mapping);
 }
 
-#warning BatchedLORAssembly instantiations
 // Explicit template instantiations
-/*
 template void BatchedLOR_ND::Assemble2D<1>();
 template void BatchedLOR_ND::Assemble2D<2>();
 template void BatchedLOR_ND::Assemble2D<3>();
@@ -810,15 +808,15 @@ template void BatchedLOR_ND::Assemble2D<5>();
 template void BatchedLOR_ND::Assemble2D<6>();
 template void BatchedLOR_ND::Assemble2D<7>();
 template void BatchedLOR_ND::Assemble2D<8>();
-*/
+
 template void BatchedLOR_ND::Assemble3D<1>();
-template void BatchedLOR_ND::Assemble3D<2>();/*
+template void BatchedLOR_ND::Assemble3D<2>();
 template void BatchedLOR_ND::Assemble3D<3>();
 template void BatchedLOR_ND::Assemble3D<4>();
 template void BatchedLOR_ND::Assemble3D<5>();
 template void BatchedLOR_ND::Assemble3D<6>();
 template void BatchedLOR_ND::Assemble3D<7>();
-template void BatchedLOR_ND::Assemble3D<8>();*/
+template void BatchedLOR_ND::Assemble3D<8>();
 
 BatchedLOR_ND::BatchedLOR_ND(BilinearForm &a,
                              FiniteElementSpace &fes_ho_,
