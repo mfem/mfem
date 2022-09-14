@@ -17,9 +17,6 @@
 
 #include "../../general/nvtx.hpp"
 
-#define MFEM_DEBUG_COLOR 122
-#include "../../general/debug.hpp"
-
 // Specializations
 #include "lor_h1.hpp"
 #include "lor_nd.hpp"
@@ -388,9 +385,7 @@ void BatchedLORAssembly::SparseIJToCSR(OperatorHandle &A) const
 
    // If A contains an existing SparseMatrix, reuse it (and try to reuse its
    // I, J, A arrays if they are big enough)
-#warning A.Is<SparseMatrix> error
-   SparseMatrix *A_mat = nullptr; // A.Is<SparseMatrix>();
-   //SparseMatrix *A_mat = A.Is<SparseMatrix>();
+   SparseMatrix *A_mat = A.Is<SparseMatrix>();
    if (!A_mat)
    {
       A_mat = new SparseMatrix;
@@ -410,15 +405,14 @@ void BatchedLORAssembly::SparseIJToCSR(OperatorHandle &A) const
 template <typename LOR_KERNEL>
 void BatchedLORAssembly::AssemblyKernel(BilinearForm &a)
 {
-   dbg();
    LOR_KERNEL kernel(a, fes_ho, X_vert, sparse_ij, sparse_mapping);
 
    const int dim = fes_ho.GetMesh()->Dimension();
    const int order = fes_ho.GetMaxElementOrder();
 
-#warning kernels instantiations
    if (dim == 2)
    {
+#warning BatchedLORAssembly kernels
       switch (order)
       {
          /*case 1: kernel.template Assemble2D<1>(); break;
@@ -451,7 +445,6 @@ void BatchedLORAssembly::AssemblyKernel(BilinearForm &a)
 
 void BatchedLORAssembly::AssembleWithoutBC(BilinearForm &a, OperatorHandle &A)
 {
-   dbg();
    // Assemble the matrix, depending on what the form is.
    // This fills in the arrays sparse_ij and sparse_mapping.
    const FiniteElementCollection *fec = fes_ho.FEColl();
