@@ -353,7 +353,7 @@ struct H1_LORBench
 #define P_ORDERS bm::CreateDenseRange(1,7,1)
 
 // The different sides of the mesh
-#define LOG_NDOFS bm::CreateDenseRange(7,20,1) // 23
+#define LOG_NDOFS bm::CreateDenseRange(7,23,1)
 
 // Dimensions: 2 or 3
 #define DIMS bm::CreateDenseRange(2,3,1)
