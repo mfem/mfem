@@ -375,14 +375,14 @@ struct H1_LORBench
 /// Kernels definitions and registrations
 #define Benchmark(Class, Name)\
 static void Name(bm::State &state){\
-   const int p = state.range(1);\
-   const int log_ndof = state.range(2);\
+   const int p = state.range(0);\
+   const int log_ndof = state.range(1);\
    const int requested_ndof = pow(2, log_ndof);\
-   const int dim = state.range(0);\
+   const int dim = state.range(2);\
    const std::string name = #Name;\
-   if (p == 1 && log_ndof >= 23) { state.SkipWithError("Problem size"); return; }\
-   if (p == 2 && log_ndof >= 23) { state.SkipWithError("Problem size"); return; }\
-   if (p == 3 && log_ndof >= 23) { state.SkipWithError("Problem size"); return; }\
+   if (p == 1 && log_ndof >= 21) { state.SkipWithError("Problem size"); return; }\
+   if (p == 2 && log_ndof >= 22) { state.SkipWithError("Problem size"); return; }\
+   if (p == 3 && log_ndof >= 22) { state.SkipWithError("Problem size"); return; }\
    if ((name == "ADSApply" || name == "AMSApply") && log_ndof >= 21)\
    { state.SkipWithError("Problem size"); return; }\
    Class lor(p, requested_ndof, dim, name);\
@@ -393,7 +393,7 @@ static void Name(bm::State &state){\
    state.counters["p"] = bm::Counter(p);\
 }\
 BENCHMARK(Name)\
-            -> ArgsProduct({DIMS, P_ORDERS, LOG_NDOFS})\
+            -> ArgsProduct({P_ORDERS, LOG_NDOFS, DIMS})\
 -> Unit(bm::kMillisecond);
 //  -> Iterations(10);
 
