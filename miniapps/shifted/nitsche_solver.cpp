@@ -345,7 +345,7 @@ namespace mfem
     if (ir == NULL)
       {
 	// a simple choice for the integration order; is this OK?
-	const int order = 3 * max(el.GetOrder(), 1);
+	const int order = 4 * max(el.GetOrder(), 1);
 	ir = &IntRules.Get(Tr.GetGeometryType(), order);
       }
 
@@ -411,7 +411,7 @@ namespace mfem
     if (ir == NULL)
       {
 	// a simple choice for the integration order; is this OK?
-	const int order = 3 * max(el.GetOrder(), 1);
+	const int order = 4 * max(el.GetOrder(), 1);
 	ir = &IntRules.Get(Tr.GetGeometryType(), order);
       }
 
@@ -464,7 +464,7 @@ namespace mfem
     if (ir == NULL)
       {
 	// a simple choice for the integration order; is this OK?
-	const int order = 3 * max(el.GetOrder(), 1);
+	const int order = 4 * max(el.GetOrder(), 1);
 	ir = &IntRules.Get(Tr.GetGeometryType(), order);
       }
 

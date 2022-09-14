@@ -32,28 +32,28 @@ namespace mfem
 {
 
   class StrainBoundaryForceIntegrator : public BilinearFormIntegrator
-{
-private:
-  Coefficient *mu;
-public:
-  StrainBoundaryForceIntegrator(Coefficient &mu_)  : mu(&mu_) {}
-  virtual void AssembleFaceMatrix(const FiniteElement &fe,
-				  const FiniteElement &fe2,
-				  FaceElementTransformations &Tr,
-				  DenseMatrix &elmat);
-};
+  {
+  private:
+    Coefficient *mu;
+  public:
+    StrainBoundaryForceIntegrator(Coefficient &mu_)  : mu(&mu_) {}
+    virtual void AssembleFaceMatrix(const FiniteElement &fe,
+				    const FiniteElement &fe2,
+				    FaceElementTransformations &Tr,
+				    DenseMatrix &elmat);
+  };
 
   class StrainBoundaryForceTransposeIntegrator : public BilinearFormIntegrator
-{
-private:
-  Coefficient *mu;
-public:
-  StrainBoundaryForceTransposeIntegrator(Coefficient &mu_)  : mu(&mu_) {}
-  virtual void AssembleFaceMatrix(const FiniteElement &fe,
-				  const FiniteElement &fe2,
-				  FaceElementTransformations &Tr,
-				  DenseMatrix &elmat);
-};
+  {
+  private:
+    Coefficient *mu;
+  public:
+    StrainBoundaryForceTransposeIntegrator(Coefficient &mu_)  : mu(&mu_) {}
+    virtual void AssembleFaceMatrix(const FiniteElement &fe,
+				    const FiniteElement &fe2,
+				    FaceElementTransformations &Tr,
+				    DenseMatrix &elmat);
+  };
 
   class PressureBoundaryForceIntegrator : public BilinearFormIntegrator
   {
@@ -88,24 +88,24 @@ public:
 				    FaceElementTransformations &Tr,
 				    DenseMatrix &elmat);
   };
- class StrainNitscheBCForceIntegrator : public LinearFormIntegrator
-{
-private:
-  Coefficient *mu;
-  VectorCoefficient *uD;
-public:
-  StrainNitscheBCForceIntegrator(Coefficient &mu_,VectorCoefficient &uD_)  : mu(&mu_), uD(&uD_) {}
-  virtual void AssembleRHSElementVect(const FiniteElement &el,
-				      FaceElementTransformations &Tr,
-				      Vector &elvect);
-  virtual void AssembleRHSElementVect(const FiniteElement &el,
-                                       ElementTransformation &Tr,
-                                       Vector &elvect);
-};
+  class StrainNitscheBCForceIntegrator : public LinearFormIntegrator
+  {
+  private:
+    Coefficient *mu;
+    VectorCoefficient *uD;
+  public:
+    StrainNitscheBCForceIntegrator(Coefficient &mu_,VectorCoefficient &uD_)  : mu(&mu_), uD(&uD_) {}
+    virtual void AssembleRHSElementVect(const FiniteElement &el,
+					FaceElementTransformations &Tr,
+					Vector &elvect);
+    virtual void AssembleRHSElementVect(const FiniteElement &el,
+					ElementTransformation &Tr,
+					Vector &elvect);
+  };
 
   class PressureNitscheBCForceIntegrator : public LinearFormIntegrator
   {
-    private:
+  private:
     VectorCoefficient *uD;
   public:
     PressureNitscheBCForceIntegrator(VectorCoefficient &uD_) : uD(&uD_) { }
@@ -113,8 +113,8 @@ public:
 					FaceElementTransformations &Tr,
 					Vector &elvect);
     virtual void AssembleRHSElementVect(const FiniteElement &el,
-                                       ElementTransformation &Tr,
-                                       Vector &elvect);
+					ElementTransformation &Tr,
+					Vector &elvect);
   };
   
   // Performs full assembly for the normal velocity mass matrix operator.
@@ -130,9 +130,9 @@ public:
 					FaceElementTransformations &Tr,
 					Vector &elvect);
     virtual void AssembleRHSElementVect(const FiniteElement &el,
-                                       ElementTransformation &Tr,
-                                       Vector &elvect);
-};
+					ElementTransformation &Tr,
+					Vector &elvect);
+  };
 
 }
 
