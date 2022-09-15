@@ -1,1156 +1,1156 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
-    <ClCompile Include="..\fem\adios2datacollection.cpp">
+    <ClCompile Include="..\..\fem\adios2datacollection.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\fem\bilinearform.cpp">
+    <ClCompile Include="..\..\fem\bilinearform.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\fem\bilinearform_ext.cpp">
+    <ClCompile Include="..\..\fem\bilinearform_ext.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\fem\bilininteg.cpp">
+    <ClCompile Include="..\..\fem\bilininteg.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\fem\bilininteg_br2.cpp">
+    <ClCompile Include="..\..\fem\bilininteg_br2.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\fem\bilininteg_convection_ea.cpp">
+    <ClCompile Include="..\..\fem\bilininteg_convection_ea.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\fem\bilininteg_convection_mf.cpp">
+    <ClCompile Include="..\..\fem\bilininteg_convection_mf.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\fem\bilininteg_convection_pa.cpp">
+    <ClCompile Include="..\..\fem\bilininteg_convection_pa.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\fem\bilininteg_dgtrace_ea.cpp">
+    <ClCompile Include="..\..\fem\bilininteg_dgtrace_ea.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\fem\bilininteg_dgtrace_pa.cpp">
+    <ClCompile Include="..\..\fem\bilininteg_dgtrace_pa.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\fem\bilininteg_diffusion_ea.cpp">
+    <ClCompile Include="..\..\fem\bilininteg_diffusion_ea.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\fem\bilininteg_diffusion_mf.cpp">
+    <ClCompile Include="..\..\fem\bilininteg_diffusion_mf.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\fem\bilininteg_diffusion_pa.cpp">
+    <ClCompile Include="..\..\fem\bilininteg_diffusion_pa.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\fem\bilininteg_divergence.cpp">
+    <ClCompile Include="..\..\fem\bilininteg_divergence.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\fem\bilininteg_gradient.cpp">
+    <ClCompile Include="..\..\fem\bilininteg_gradient.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\fem\bilininteg_hcurl.cpp">
+    <ClCompile Include="..\..\fem\bilininteg_hcurl.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\fem\bilininteg_hdiv.cpp">
+    <ClCompile Include="..\..\fem\bilininteg_hdiv.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\fem\bilininteg_mass_ea.cpp">
+    <ClCompile Include="..\..\fem\bilininteg_mass_ea.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\fem\bilininteg_mass_mf.cpp">
+    <ClCompile Include="..\..\fem\bilininteg_mass_mf.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\fem\bilininteg_mass_pa.cpp">
+    <ClCompile Include="..\..\fem\bilininteg_mass_pa.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\fem\bilininteg_transpose_ea.cpp">
+    <ClCompile Include="..\..\fem\bilininteg_transpose_ea.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\fem\bilininteg_vecdiffusion.cpp">
+    <ClCompile Include="..\..\fem\bilininteg_vecdiffusion.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\fem\bilininteg_vecdiffusion_mf.cpp">
+    <ClCompile Include="..\..\fem\bilininteg_vecdiffusion_mf.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\fem\bilininteg_vecmass.cpp">
+    <ClCompile Include="..\..\fem\bilininteg_vecmass.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\fem\bilininteg_vecmass_mf.cpp">
+    <ClCompile Include="..\..\fem\bilininteg_vecmass_mf.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\fem\bilininteg_vectorfe.cpp">
+    <ClCompile Include="..\..\fem\bilininteg_vectorfe.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\fem\ceed\algebraic.cpp">
+    <ClCompile Include="..\..\fem\ceed\algebraic.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\fem\ceed\convection.cpp">
+    <ClCompile Include="..\..\fem\ceed\convection.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\fem\ceed\diffusion.cpp">
+    <ClCompile Include="..\..\fem\ceed\diffusion.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\fem\ceed\full-assembly.cpp">
+    <ClCompile Include="..\..\fem\ceed\full-assembly.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\fem\ceed\mass.cpp">
+    <ClCompile Include="..\..\fem\ceed\mass.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\fem\ceed\nlconvection.cpp">
+    <ClCompile Include="..\..\fem\ceed\nlconvection.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include=".\fem_ceed_operator.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\fem\ceed\solvers-atpmg.cpp">
+    <ClCompile Include="..\..\fem\ceed\solvers-atpmg.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\fem\ceed\util.cpp">
+    <ClCompile Include="..\..\fem\ceed\util.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\fem\coefficient.cpp">
+    <ClCompile Include="..\..\fem\coefficient.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\fem\complex_fem.cpp">
+    <ClCompile Include="..\..\fem\complex_fem.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\fem\conduitdatacollection.cpp">
+    <ClCompile Include="..\..\fem\conduitdatacollection.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\fem\convergence.cpp">
+    <ClCompile Include="..\..\fem\convergence.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\fem\datacollection.cpp">
+    <ClCompile Include="..\..\fem\datacollection.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\fem\eltrans.cpp">
+    <ClCompile Include="..\..\fem\eltrans.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\fem\estimators.cpp">
+    <ClCompile Include="..\..\fem\estimators.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\fem\fe.cpp">
+    <ClCompile Include="..\..\fem\fe.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\fem\fe_coll.cpp">
+    <ClCompile Include="..\..\fem\fe_coll.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\fem\fespace.cpp">
+    <ClCompile Include="..\..\fem\fespace.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\fem\fespacehierarchy.cpp">
+    <ClCompile Include="..\..\fem\fespacehierarchy.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\fem\geom.cpp">
+    <ClCompile Include="..\..\fem\geom.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\fem\gridfunc.cpp">
+    <ClCompile Include="..\..\fem\gridfunc.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\fem\gslib.cpp">
+    <ClCompile Include="..\..\fem\gslib.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\fem\hybridization.cpp">
+    <ClCompile Include="..\..\fem\hybridization.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\fem\intrules.cpp">
+    <ClCompile Include="..\..\fem\intrules.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\fem\linearform.cpp">
+    <ClCompile Include="..\..\fem\linearform.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\fem\lininteg.cpp">
+    <ClCompile Include="..\..\fem\lininteg.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\fem\multigrid.cpp">
+    <ClCompile Include="..\..\fem\multigrid.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\fem\nonlinearform.cpp">
+    <ClCompile Include="..\..\fem\nonlinearform.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\fem\nonlinearform_ext.cpp">
+    <ClCompile Include="..\..\fem\nonlinearform_ext.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\fem\nonlininteg.cpp">
+    <ClCompile Include="..\..\fem\nonlininteg.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\fem\nonlininteg_vectorconvection.cpp">
+    <ClCompile Include="..\..\fem\nonlininteg_vectorconvection.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\fem\nonlininteg_vectorconvection_mf.cpp">
+    <ClCompile Include="..\..\fem\nonlininteg_vectorconvection_mf.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\fem\pbilinearform.cpp">
+    <ClCompile Include="..\..\fem\pbilinearform.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\fem\pfespace.cpp">
+    <ClCompile Include="..\..\fem\pfespace.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\fem\pgridfunc.cpp">
+    <ClCompile Include="..\..\fem\pgridfunc.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\fem\plinearform.cpp">
+    <ClCompile Include="..\..\fem\plinearform.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\fem\pnonlinearform.cpp">
+    <ClCompile Include="..\..\fem\pnonlinearform.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\fem\prestriction.cpp">
+    <ClCompile Include="..\..\fem\prestriction.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\fem\quadinterpolator.cpp">
+    <ClCompile Include="..\..\fem\quadinterpolator.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\fem\quadinterpolator_face.cpp">
+    <ClCompile Include="..\..\fem\quadinterpolator_face.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\fem\restriction.cpp">
+    <ClCompile Include="..\..\fem\restriction.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\fem\sidredatacollection.cpp">
+    <ClCompile Include="..\..\fem\sidredatacollection.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\fem\staticcond.cpp">
+    <ClCompile Include="..\..\fem\staticcond.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\fem\tmop.cpp">
+    <ClCompile Include="..\..\fem\tmop.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\fem\tmop_tools.cpp">
+    <ClCompile Include="..\..\fem\tmop_tools.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\fem\transfer.cpp">
+    <ClCompile Include="..\..\fem\transfer.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\general\adios2stream.cpp">
+    <ClCompile Include="..\..\general\adios2stream.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\general\array.cpp">
+    <ClCompile Include="..\..\general\array.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\general\binaryio.cpp">
+    <ClCompile Include="..\..\general\binaryio.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\general\communication.cpp">
+    <ClCompile Include="..\..\general\communication.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\general\cuda.cpp">
+    <ClCompile Include="..\..\general\cuda.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\general\device.cpp">
+    <ClCompile Include="..\..\general\device.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\general\error.cpp">
+    <ClCompile Include="..\..\general\error.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\general\gecko.cpp">
+    <ClCompile Include="..\..\general\gecko.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\general\globals.cpp">
+    <ClCompile Include="..\..\general\globals.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\general\hip.cpp">
+    <ClCompile Include="..\..\general\hip.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\general\isockstream.cpp">
+    <ClCompile Include="..\..\general\isockstream.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\general\mem_manager.cpp">
+    <ClCompile Include="..\..\general\mem_manager.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\general\occa.cpp">
+    <ClCompile Include="..\..\general\occa.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\general\optparser.cpp">
+    <ClCompile Include="..\..\general\optparser.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\general\osockstream.cpp">
+    <ClCompile Include="..\..\general\osockstream.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\general\sets.cpp">
+    <ClCompile Include="..\..\general\sets.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\general\socketstream.cpp">
+    <ClCompile Include="..\..\general\socketstream.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\general\stable3d.cpp">
+    <ClCompile Include="..\..\general\stable3d.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\general\table.cpp">
+    <ClCompile Include="..\..\general\table.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\general\tic_toc.cpp">
+    <ClCompile Include="..\..\general\tic_toc.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\general\tinyxml2.cpp">
+    <ClCompile Include="..\..\general\tinyxml2.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\general\version.cpp">
+    <ClCompile Include="..\..\general\version.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\linalg\amgxsolver.cpp">
+    <ClCompile Include="..\..\linalg\amgxsolver.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\linalg\auxiliary.cpp">
+    <ClCompile Include="..\..\linalg\auxiliary.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\linalg\blockmatrix.cpp">
+    <ClCompile Include="..\..\linalg\blockmatrix.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\linalg\blockoperator.cpp">
+    <ClCompile Include="..\..\linalg\blockoperator.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\linalg\blockvector.cpp">
+    <ClCompile Include="..\..\linalg\blockvector.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\linalg\complex_operator.cpp">
+    <ClCompile Include="..\..\linalg\complex_operator.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\linalg\constraints.cpp">
+    <ClCompile Include="..\..\linalg\constraints.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\linalg\cpardiso.cpp">
+    <ClCompile Include="..\..\linalg\cpardiso.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\linalg\densemat.cpp">
+    <ClCompile Include="..\..\linalg\densemat.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\linalg\ginkgo.cpp">
+    <ClCompile Include="..\..\linalg\ginkgo.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\linalg\handle.cpp">
+    <ClCompile Include="..\..\linalg\handle.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\linalg\hiop.cpp">
+    <ClCompile Include="..\..\linalg\hiop.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\linalg\hypre.cpp">
+    <ClCompile Include="..\..\linalg\hypre.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\linalg\hypre_parcsr.cpp">
+    <ClCompile Include="..\..\linalg\hypre_parcsr.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\linalg\matrix.cpp">
+    <ClCompile Include="..\..\linalg\matrix.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\linalg\mumps.cpp">
+    <ClCompile Include="..\..\linalg\mumps.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\linalg\ode.cpp">
+    <ClCompile Include="..\..\linalg\ode.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\linalg\operator.cpp">
+    <ClCompile Include="..\..\linalg\operator.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\linalg\petsc.cpp">
+    <ClCompile Include="..\..\linalg\petsc.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\linalg\slepc.cpp">
+    <ClCompile Include="..\..\linalg\slepc.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\linalg\solvers.cpp">
+    <ClCompile Include="..\..\linalg\solvers.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\linalg\sparsemat.cpp">
+    <ClCompile Include="..\..\linalg\sparsemat.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\linalg\sparsesmoothers.cpp">
+    <ClCompile Include="..\..\linalg\sparsesmoothers.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\linalg\strumpack.cpp">
+    <ClCompile Include="..\..\linalg\strumpack.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\linalg\sundials.cpp">
+    <ClCompile Include="..\..\linalg\sundials.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\linalg\superlu.cpp">
+    <ClCompile Include="..\..\linalg\superlu.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\linalg\symmat.cpp">
+    <ClCompile Include="..\..\linalg\symmat.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\linalg\vector.cpp">
+    <ClCompile Include="..\..\linalg\vector.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\mesh\element.cpp">
+    <ClCompile Include="..\..\mesh\element.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\mesh\gmsh.cpp">
+    <ClCompile Include="..\..\mesh\gmsh.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\mesh\hexahedron.cpp">
+    <ClCompile Include="..\..\mesh\hexahedron.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\mesh\mesh.cpp">
+    <ClCompile Include="..\..\mesh\mesh.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\mesh\mesh_operators.cpp">
+    <ClCompile Include="..\..\mesh\mesh_operators.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\mesh\mesh_readers.cpp">
+    <ClCompile Include="..\..\mesh\mesh_readers.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\mesh\mesquite.cpp">
+    <ClCompile Include="..\..\mesh\mesquite.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\mesh\ncmesh.cpp">
+    <ClCompile Include="..\..\mesh\ncmesh.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\mesh\nurbs.cpp">
+    <ClCompile Include="..\..\mesh\nurbs.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\mesh\pmesh.cpp">
+    <ClCompile Include="..\..\mesh\pmesh.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\mesh\pncmesh.cpp">
+    <ClCompile Include="..\..\mesh\pncmesh.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\mesh\point.cpp">
+    <ClCompile Include="..\..\mesh\point.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\mesh\pumi.cpp">
+    <ClCompile Include="..\..\mesh\pumi.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\mesh\quadrilateral.cpp">
+    <ClCompile Include="..\..\mesh\quadrilateral.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\mesh\segment.cpp">
+    <ClCompile Include="..\..\mesh\segment.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\mesh\tetrahedron.cpp">
+    <ClCompile Include="..\..\mesh\tetrahedron.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\mesh\triangle.cpp">
+    <ClCompile Include="..\..\mesh\triangle.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\mesh\vertex.cpp">
+    <ClCompile Include="..\..\mesh\vertex.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\mesh\vtk.cpp">
+    <ClCompile Include="..\..\mesh\vtk.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\mesh\wedge.cpp">
+    <ClCompile Include="..\..\mesh\wedge.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\fem\doftrans.cpp">
+    <ClCompile Include="..\..\fem\doftrans.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\fem\fmsconvert.cpp">
+    <ClCompile Include="..\..\fem\fmsconvert.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\fem\fmsdatacollection.cpp">
+    <ClCompile Include="..\..\fem\fmsdatacollection.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\fem\lor.cpp">
+    <ClCompile Include="..\..\fem\lor.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\fem\tmop_amr.cpp">
+    <ClCompile Include="..\..\fem\tmop_amr.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\fem\tmop\tmop_pa.cpp">
+    <ClCompile Include="..\..\fem\tmop\tmop_pa.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\fem\tmop\tmop_pa_da3.cpp">
+    <ClCompile Include="..\..\fem\tmop\tmop_pa_da3.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\fem\tmop\tmop_pa_h2d.cpp">
+    <ClCompile Include="..\..\fem\tmop\tmop_pa_h2d.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\fem\tmop\tmop_pa_h2d_c0.cpp">
+    <ClCompile Include="..\..\fem\tmop\tmop_pa_h2d_c0.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\fem\tmop\tmop_pa_h2m.cpp">
+    <ClCompile Include="..\..\fem\tmop\tmop_pa_h2m.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\fem\tmop\tmop_pa_h2m_c0.cpp">
+    <ClCompile Include="..\..\fem\tmop\tmop_pa_h2m_c0.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\fem\tmop\tmop_pa_h2s.cpp">
+    <ClCompile Include="..\..\fem\tmop\tmop_pa_h2s.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\fem\tmop\tmop_pa_h2s_c0.cpp">
+    <ClCompile Include="..\..\fem\tmop\tmop_pa_h2s_c0.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\fem\tmop\tmop_pa_h3d.cpp">
+    <ClCompile Include="..\..\fem\tmop\tmop_pa_h3d.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\fem\tmop\tmop_pa_h3d_c0.cpp">
+    <ClCompile Include="..\..\fem\tmop\tmop_pa_h3d_c0.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\fem\tmop\tmop_pa_h3m.cpp">
+    <ClCompile Include="..\..\fem\tmop\tmop_pa_h3m.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\fem\tmop\tmop_pa_h3m_c0.cpp">
+    <ClCompile Include="..\..\fem\tmop\tmop_pa_h3m_c0.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\fem\tmop\tmop_pa_h3s.cpp">
+    <ClCompile Include="..\..\fem\tmop\tmop_pa_h3s.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\fem\tmop\tmop_pa_h3s_c0.cpp">
+    <ClCompile Include="..\..\fem\tmop\tmop_pa_h3s_c0.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\fem\tmop\tmop_pa_jp2.cpp">
+    <ClCompile Include="..\..\fem\tmop\tmop_pa_jp2.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\fem\tmop\tmop_pa_jp3.cpp">
+    <ClCompile Include="..\..\fem\tmop\tmop_pa_jp3.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\fem\tmop\tmop_pa_p2.cpp">
+    <ClCompile Include="..\..\fem\tmop\tmop_pa_p2.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\fem\tmop\tmop_pa_p2_c0.cpp">
+    <ClCompile Include="..\..\fem\tmop\tmop_pa_p2_c0.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\fem\tmop\tmop_pa_p3.cpp">
+    <ClCompile Include="..\..\fem\tmop\tmop_pa_p3.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\fem\tmop\tmop_pa_p3_c0.cpp">
+    <ClCompile Include="..\..\fem\tmop\tmop_pa_p3_c0.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\fem\tmop\tmop_pa_tc2.cpp">
+    <ClCompile Include="..\..\fem\tmop\tmop_pa_tc2.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\fem\tmop\tmop_pa_tc3.cpp">
+    <ClCompile Include="..\..\fem\tmop\tmop_pa_tc3.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\fem\tmop\tmop_pa_w2.cpp">
+    <ClCompile Include="..\..\fem\tmop\tmop_pa_w2.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\fem\tmop\tmop_pa_w2_c0.cpp">
+    <ClCompile Include="..\..\fem\tmop\tmop_pa_w2_c0.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\fem\tmop\tmop_pa_w3.cpp">
+    <ClCompile Include="..\..\fem\tmop\tmop_pa_w3.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\fem\tmop\tmop_pa_w3_c0.cpp">
+    <ClCompile Include="..\..\fem\tmop\tmop_pa_w3_c0.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\fem\qinterp\det.cpp">
+    <ClCompile Include="..\..\fem\qinterp\det.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\fem\qinterp\eval_by_nodes.cpp">
+    <ClCompile Include="..\..\fem\qinterp\eval_by_nodes.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\fem\qinterp\eval_by_vdim.cpp">
+    <ClCompile Include="..\..\fem\qinterp\eval_by_vdim.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\fem\qinterp\grad_by_nodes.cpp">
+    <ClCompile Include="..\..\fem\qinterp\grad_by_nodes.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\fem\qinterp\grad_by_vdim.cpp">
+    <ClCompile Include="..\..\fem\qinterp\grad_by_vdim.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\fem\qinterp\grad_phys_by_nodes.cpp">
+    <ClCompile Include="..\..\fem\qinterp\grad_phys_by_nodes.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\fem\qinterp\grad_phys_by_vdim.cpp">
+    <ClCompile Include="..\..\fem\qinterp\grad_phys_by_vdim.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\fem\fe\fe_base.cpp">
+    <ClCompile Include="..\..\fem\fe\fe_base.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\fem\fe\fe_fixed_order.cpp">
+    <ClCompile Include="..\..\fem\fe\fe_fixed_order.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\fem\fe\fe_h1.cpp">
+    <ClCompile Include="..\..\fem\fe\fe_h1.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\fem\fe\fe_l2.cpp">
+    <ClCompile Include="..\..\fem\fe\fe_l2.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\fem\fe\fe_nd.cpp">
+    <ClCompile Include="..\..\fem\fe\fe_nd.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\fem\fe\fe_nurbs.cpp">
+    <ClCompile Include="..\..\fem\fe\fe_nurbs.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\fem\fe\fe_pos.cpp">
+    <ClCompile Include="..\..\fem\fe\fe_pos.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\fem\fe\fe_rt.cpp">
+    <ClCompile Include="..\..\fem\fe\fe_rt.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\fem\fe\fe_ser.cpp">
+    <ClCompile Include="..\..\fem\fe\fe_ser.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\fem\ceed\operator.cpp">
+    <ClCompile Include="..\..\fem\ceed\operator.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\general\hash.cpp">
+    <ClCompile Include="..\..\general\hash.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\mesh\pyramid.cpp">
+    <ClCompile Include="..\..\mesh\pyramid.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\fem\adios2datacollection.hpp">
+    <ClInclude Include="..\..\fem\adios2datacollection.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\fem\bilinearform.hpp">
+    <ClInclude Include="..\..\fem\bilinearform.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\fem\bilinearform_ext.hpp">
+    <ClInclude Include="..\..\fem\bilinearform_ext.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\fem\bilininteg.hpp">
+    <ClInclude Include="..\..\fem\bilininteg.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\fem\ceed\algebraic.hpp">
+    <ClInclude Include="..\..\fem\ceed\algebraic.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\fem\ceed\coefficient.hpp">
+    <ClInclude Include="..\..\fem\ceed\coefficient.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\fem\ceed\convection.hpp">
+    <ClInclude Include="..\..\fem\ceed\convection.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\fem\ceed\convection_qf.h">
+    <ClInclude Include="..\..\fem\ceed\convection_qf.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\fem\ceed\diffusion.hpp">
+    <ClInclude Include="..\..\fem\ceed\diffusion.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\fem\ceed\diffusion_qf.h">
+    <ClInclude Include="..\..\fem\ceed\diffusion_qf.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\fem\ceed\full-assembly.hpp">
+    <ClInclude Include="..\..\fem\ceed\full-assembly.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\fem\ceed\integrator.hpp">
+    <ClInclude Include="..\..\fem\ceed\integrator.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\fem\ceed\mass.hpp">
+    <ClInclude Include="..\..\fem\ceed\mass.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\fem\ceed\mass_qf.h">
+    <ClInclude Include="..\..\fem\ceed\mass_qf.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\fem\ceed\nlconvection.hpp">
+    <ClInclude Include="..\..\fem\ceed\nlconvection.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\fem\ceed\nlconvection_qf.h">
+    <ClInclude Include="..\..\fem\ceed\nlconvection_qf.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\fem\ceed\operator.hpp">
+    <ClInclude Include="..\..\fem\ceed\operator.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\fem\ceed\solvers-atpmg.hpp">
+    <ClInclude Include="..\..\fem\ceed\solvers-atpmg.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\fem\ceed\util.hpp">
+    <ClInclude Include="..\..\fem\ceed\util.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\fem\coefficient.hpp">
+    <ClInclude Include="..\..\fem\coefficient.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\fem\complex_fem.hpp">
+    <ClInclude Include="..\..\fem\complex_fem.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\fem\conduitdatacollection.hpp">
+    <ClInclude Include="..\..\fem\conduitdatacollection.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\fem\convergence.hpp">
+    <ClInclude Include="..\..\fem\convergence.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\fem\datacollection.hpp">
+    <ClInclude Include="..\..\fem\datacollection.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\fem\eltrans.hpp">
+    <ClInclude Include="..\..\fem\eltrans.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\fem\estimators.hpp">
+    <ClInclude Include="..\..\fem\estimators.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\fem\fe.hpp">
+    <ClInclude Include="..\..\fem\fe.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\fem\fe_coll.hpp">
+    <ClInclude Include="..\..\fem\fe_coll.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\fem\fem.hpp">
+    <ClInclude Include="..\..\fem\fem.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\fem\fespace.hpp">
+    <ClInclude Include="..\..\fem\fespace.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\fem\fespacehierarchy.hpp">
+    <ClInclude Include="..\..\fem\fespacehierarchy.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\fem\geom.hpp">
+    <ClInclude Include="..\..\fem\geom.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\fem\gridfunc.hpp">
+    <ClInclude Include="..\..\fem\gridfunc.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\fem\gslib.hpp">
+    <ClInclude Include="..\..\fem\gslib.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\fem\hybridization.hpp">
+    <ClInclude Include="..\..\fem\hybridization.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\fem\intrules.hpp">
+    <ClInclude Include="..\..\fem\intrules.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\fem\linearform.hpp">
+    <ClInclude Include="..\..\fem\linearform.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\fem\lininteg.hpp">
+    <ClInclude Include="..\..\fem\lininteg.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\fem\multigrid.hpp">
+    <ClInclude Include="..\..\fem\multigrid.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\fem\nonlinearform.hpp">
+    <ClInclude Include="..\..\fem\nonlinearform.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\fem\nonlinearform_ext.hpp">
+    <ClInclude Include="..\..\fem\nonlinearform_ext.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\fem\nonlininteg.hpp">
+    <ClInclude Include="..\..\fem\nonlininteg.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\fem\pbilinearform.hpp">
+    <ClInclude Include="..\..\fem\pbilinearform.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\fem\pfespace.hpp">
+    <ClInclude Include="..\..\fem\pfespace.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\fem\pgridfunc.hpp">
+    <ClInclude Include="..\..\fem\pgridfunc.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\fem\picojson.h">
+    <ClInclude Include="..\..\fem\picojson.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\fem\plinearform.hpp">
+    <ClInclude Include="..\..\fem\plinearform.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\fem\pnonlinearform.hpp">
+    <ClInclude Include="..\..\fem\pnonlinearform.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\fem\prestriction.hpp">
+    <ClInclude Include="..\..\fem\prestriction.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\fem\quadinterpolator.hpp">
+    <ClInclude Include="..\..\fem\quadinterpolator.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\fem\quadinterpolator_face.hpp">
+    <ClInclude Include="..\..\fem\quadinterpolator_face.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\fem\restriction.hpp">
+    <ClInclude Include="..\..\fem\restriction.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\fem\sidredatacollection.hpp">
+    <ClInclude Include="..\..\fem\sidredatacollection.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\fem\staticcond.hpp">
+    <ClInclude Include="..\..\fem\staticcond.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\fem\tbilinearform.hpp">
+    <ClInclude Include="..\..\fem\tbilinearform.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\fem\tbilininteg.hpp">
+    <ClInclude Include="..\..\fem\tbilininteg.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\fem\tcoefficient.hpp">
+    <ClInclude Include="..\..\fem\tcoefficient.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\fem\teltrans.hpp">
+    <ClInclude Include="..\..\fem\teltrans.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\fem\tevaluator.hpp">
+    <ClInclude Include="..\..\fem\tevaluator.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\fem\tfe.hpp">
+    <ClInclude Include="..\..\fem\tfe.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\fem\tfespace.hpp">
+    <ClInclude Include="..\..\fem\tfespace.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\fem\tintrules.hpp">
+    <ClInclude Include="..\..\fem\tintrules.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\fem\tmop.hpp">
+    <ClInclude Include="..\..\fem\tmop.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\fem\tmop_tools.hpp">
+    <ClInclude Include="..\..\fem\tmop_tools.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\fem\transfer.hpp">
+    <ClInclude Include="..\..\fem\transfer.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\general\adios2stream.hpp">
+    <ClInclude Include="..\..\general\adios2stream.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\general\array.hpp">
+    <ClInclude Include="..\..\general\array.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\general\backends.hpp">
+    <ClInclude Include="..\..\general\backends.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\general\binaryio.hpp">
+    <ClInclude Include="..\..\general\binaryio.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\general\communication.hpp">
+    <ClInclude Include="..\..\general\communication.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\general\cuda.hpp">
+    <ClInclude Include="..\..\general\cuda.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\general\device.hpp">
+    <ClInclude Include="..\..\general\device.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\general\error.hpp">
+    <ClInclude Include="..\..\general\error.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\general\forall.hpp">
+    <ClInclude Include="..\..\general\forall.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\general\gecko.hpp">
+    <ClInclude Include="..\..\general\gecko.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\general\globals.hpp">
+    <ClInclude Include="..\..\general\globals.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\general\hash.hpp">
+    <ClInclude Include="..\..\general\hash.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\general\hip.hpp">
+    <ClInclude Include="..\..\general\hip.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\general\isockstream.hpp">
+    <ClInclude Include="..\..\general\isockstream.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\general\mem_alloc.hpp">
+    <ClInclude Include="..\..\general\mem_alloc.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\general\mem_manager.hpp">
+    <ClInclude Include="..\..\general\mem_manager.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\general\occa.hpp">
+    <ClInclude Include="..\..\general\occa.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\general\optparser.hpp">
+    <ClInclude Include="..\..\general\optparser.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\general\osockstream.hpp">
+    <ClInclude Include="..\..\general\osockstream.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\general\sets.hpp">
+    <ClInclude Include="..\..\general\sets.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\general\socketstream.hpp">
+    <ClInclude Include="..\..\general\socketstream.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\general\sort_pairs.hpp">
+    <ClInclude Include="..\..\general\sort_pairs.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\general\stable3d.hpp">
+    <ClInclude Include="..\..\general\stable3d.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\general\table.hpp">
+    <ClInclude Include="..\..\general\table.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\general\tassign.hpp">
+    <ClInclude Include="..\..\general\tassign.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\general\text.hpp">
+    <ClInclude Include="..\..\general\text.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\general\tic_toc.hpp">
+    <ClInclude Include="..\..\general\tic_toc.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\general\tinyxml2.h">
+    <ClInclude Include="..\..\general\tinyxml2.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\general\version.hpp">
+    <ClInclude Include="..\..\general\version.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\general\zstr.hpp">
+    <ClInclude Include="..\..\general\zstr.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\linalg\simd\auto.hpp">
+    <ClInclude Include="..\..\linalg\simd\auto.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\linalg\simd\m128.hpp">
+    <ClInclude Include="..\..\linalg\simd\m128.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\linalg\simd\m256.hpp">
+    <ClInclude Include="..\..\linalg\simd\m256.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\linalg\simd\m512.hpp">
+    <ClInclude Include="..\..\linalg\simd\m512.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\linalg\simd\qpx.hpp">
+    <ClInclude Include="..\..\linalg\simd\qpx.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\linalg\simd\qpx256.hpp">
+    <ClInclude Include="..\..\linalg\simd\qpx256.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\linalg\simd\sve.hpp">
+    <ClInclude Include="..\..\linalg\simd\sve.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\linalg\simd\vsx.hpp">
+    <ClInclude Include="..\..\linalg\simd\vsx.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\linalg\simd\vsx128.hpp">
+    <ClInclude Include="..\..\linalg\simd\vsx128.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\linalg\simd\x86.hpp">
+    <ClInclude Include="..\..\linalg\simd\x86.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\linalg\amgxsolver.hpp">
+    <ClInclude Include="..\..\linalg\amgxsolver.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\linalg\auxiliary.hpp">
+    <ClInclude Include="..\..\linalg\auxiliary.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\linalg\blockmatrix.hpp">
+    <ClInclude Include="..\..\linalg\blockmatrix.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\linalg\blockoperator.hpp">
+    <ClInclude Include="..\..\linalg\blockoperator.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\linalg\blockvector.hpp">
+    <ClInclude Include="..\..\linalg\blockvector.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\linalg\complex_operator.hpp">
+    <ClInclude Include="..\..\linalg\complex_operator.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\linalg\constraints.hpp">
+    <ClInclude Include="..\..\linalg\constraints.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\linalg\cpardiso.hpp">
+    <ClInclude Include="..\..\linalg\cpardiso.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\linalg\densemat.hpp">
+    <ClInclude Include="..\..\linalg\densemat.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\linalg\dtensor.hpp">
+    <ClInclude Include="..\..\linalg\dtensor.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\linalg\ginkgo.hpp">
+    <ClInclude Include="..\..\linalg\ginkgo.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\linalg\handle.hpp">
+    <ClInclude Include="..\..\linalg\handle.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\linalg\hiop.hpp">
+    <ClInclude Include="..\..\linalg\hiop.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\linalg\hypre.hpp">
+    <ClInclude Include="..\..\linalg\hypre.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\linalg\hypre_parcsr.hpp">
+    <ClInclude Include="..\..\linalg\hypre_parcsr.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\linalg\invariants.hpp">
+    <ClInclude Include="..\..\linalg\invariants.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\linalg\kernels.hpp">
+    <ClInclude Include="..\..\linalg\kernels.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\linalg\linalg.hpp">
+    <ClInclude Include="..\..\linalg\linalg.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\linalg\matrix.hpp">
+    <ClInclude Include="..\..\linalg\matrix.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\linalg\mumps.hpp">
+    <ClInclude Include="..\..\linalg\mumps.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\linalg\ode.hpp">
+    <ClInclude Include="..\..\linalg\ode.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\linalg\operator.hpp">
+    <ClInclude Include="..\..\linalg\operator.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\linalg\petsc.hpp">
+    <ClInclude Include="..\..\linalg\petsc.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\linalg\petscinternals.hpp">
+    <ClInclude Include="..\..\linalg\petscinternals.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\linalg\simd.hpp">
+    <ClInclude Include="..\..\linalg\simd.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\linalg\slepc.hpp">
+    <ClInclude Include="..\..\linalg\slepc.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\linalg\solvers.hpp">
+    <ClInclude Include="..\..\linalg\solvers.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\linalg\sparsemat.hpp">
+    <ClInclude Include="..\..\linalg\sparsemat.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\linalg\sparsesmoothers.hpp">
+    <ClInclude Include="..\..\linalg\sparsesmoothers.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\linalg\strumpack.hpp">
+    <ClInclude Include="..\..\linalg\strumpack.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\linalg\sundials.hpp">
+    <ClInclude Include="..\..\linalg\sundials.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\linalg\superlu.hpp">
+    <ClInclude Include="..\..\linalg\superlu.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\linalg\symmat.hpp">
+    <ClInclude Include="..\..\linalg\symmat.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\linalg\tlayout.hpp">
+    <ClInclude Include="..\..\linalg\tlayout.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\linalg\tmatrix.hpp">
+    <ClInclude Include="..\..\linalg\tmatrix.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\linalg\ttensor.hpp">
+    <ClInclude Include="..\..\linalg\ttensor.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\linalg\vector.hpp">
+    <ClInclude Include="..\..\linalg\vector.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\mesh\element.hpp">
+    <ClInclude Include="..\..\mesh\element.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\mesh\gmsh.hpp">
+    <ClInclude Include="..\..\mesh\gmsh.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\mesh\hexahedron.hpp">
+    <ClInclude Include="..\..\mesh\hexahedron.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\mesh\mesh.hpp">
+    <ClInclude Include="..\..\mesh\mesh.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\mesh\mesh_headers.hpp">
+    <ClInclude Include="..\..\mesh\mesh_headers.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\mesh\mesh_operators.hpp">
+    <ClInclude Include="..\..\mesh\mesh_operators.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\mesh\mesquite.hpp">
+    <ClInclude Include="..\..\mesh\mesquite.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\mesh\ncmesh.hpp">
+    <ClInclude Include="..\..\mesh\ncmesh.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\mesh\ncmesh_tables.hpp">
+    <ClInclude Include="..\..\mesh\ncmesh_tables.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\mesh\nurbs.hpp">
+    <ClInclude Include="..\..\mesh\nurbs.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\mesh\pmesh.hpp">
+    <ClInclude Include="..\..\mesh\pmesh.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\mesh\pncmesh.hpp">
+    <ClInclude Include="..\..\mesh\pncmesh.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\mesh\point.hpp">
+    <ClInclude Include="..\..\mesh\point.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\mesh\pumi.hpp">
+    <ClInclude Include="..\..\mesh\pumi.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\mesh\quadrilateral.hpp">
+    <ClInclude Include="..\..\mesh\quadrilateral.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\mesh\segment.hpp">
+    <ClInclude Include="..\..\mesh\segment.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\mesh\tetrahedron.hpp">
+    <ClInclude Include="..\..\mesh\tetrahedron.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\mesh\tmesh.hpp">
+    <ClInclude Include="..\..\mesh\tmesh.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\mesh\triangle.hpp">
+    <ClInclude Include="..\..\mesh\triangle.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\mesh\vertex.hpp">
+    <ClInclude Include="..\..\mesh\vertex.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\mesh\vtk.hpp">
+    <ClInclude Include="..\..\mesh\vtk.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\mesh\wedge.hpp">
+    <ClInclude Include="..\..\mesh\wedge.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\config\config.hpp">
+    <ClInclude Include="..\..\config\config.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\config\tconfig.hpp">
+    <ClInclude Include="..\..\config\tconfig.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\mfem.hpp">
+    <ClInclude Include="..\..\mfem.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\mfem-performance.hpp">
+    <ClInclude Include="..\..\mfem-performance.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="config\_config.hpp" />
-    <ClInclude Include="..\fem\fe\fe_base.hpp">
+    <ClInclude Include="..\..\fem\fe\fe_base.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\fem\fe\fe_fixed_order.hpp">
+    <ClInclude Include="..\..\fem\fe\fe_fixed_order.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\fem\fe\fe_h1.hpp">
+    <ClInclude Include="..\..\fem\fe\fe_h1.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\fem\fe\fe_l2.hpp">
+    <ClInclude Include="..\..\fem\fe\fe_l2.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\fem\fe\fe_nd.hpp">
+    <ClInclude Include="..\..\fem\fe\fe_nd.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\fem\fe\fe_nurbs.hpp">
+    <ClInclude Include="..\..\fem\fe\fe_nurbs.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\fem\fe\fe_pos.hpp">
+    <ClInclude Include="..\..\fem\fe\fe_pos.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\fem\fe\fe_rt.hpp">
+    <ClInclude Include="..\..\fem\fe\fe_rt.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\fem\fe\fe_ser.hpp">
+    <ClInclude Include="..\..\fem\fe\fe_ser.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\fem\qinterp\dispatch.hpp">
+    <ClInclude Include="..\..\fem\qinterp\dispatch.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\fem\qinterp\eval.hpp">
+    <ClInclude Include="..\..\fem\qinterp\eval.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\fem\qinterp\grad.hpp">
+    <ClInclude Include="..\..\fem\qinterp\grad.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\fem\tmop\tmop_pa.hpp">
+    <ClInclude Include="..\..\fem\tmop\tmop_pa.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\fem\doftrans.hpp">
+    <ClInclude Include="..\..\fem\doftrans.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\fem\fmsconvert.hpp">
+    <ClInclude Include="..\..\fem\fmsconvert.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\fem\fmsdatacollection.hpp">
+    <ClInclude Include="..\..\fem\fmsdatacollection.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\fem\kernels.hpp">
+    <ClInclude Include="..\..\fem\kernels.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\fem\lor.hpp">
+    <ClInclude Include="..\..\fem\lor.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\fem\tmop_amr.hpp">
+    <ClInclude Include="..\..\fem\tmop_amr.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\general\annotation.hpp">
+    <ClInclude Include="..\..\general\annotation.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\linalg\dinvariants.hpp">
+    <ClInclude Include="..\..\linalg\dinvariants.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\mesh\pyramid.hpp">
+    <ClInclude Include="..\..\mesh\pyramid.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

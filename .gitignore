@@ -15,6 +15,13 @@
 CMakeCache.txt
 CMakeFiles/
 
+# Windows generated files
+*.user
+*.obj
+*.tlog
+*.pdb
+config/Win32/x64/*/*.log
+
 # Backup files
 *~
 
@@ -347,9 +354,3 @@ pkg.gitcommit
 
 # Jupyter Notebook Checkpoints
 .ipynb_checkpoints
-
-*.user
-*.obj
-*.tlog
-*.pdb
-Win32/x64/*/*.log
