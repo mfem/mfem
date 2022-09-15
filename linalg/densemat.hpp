@@ -962,13 +962,14 @@ public:
    DenseMatrix &operator()(int k)
    {
       MFEM_ASSERT_INDEX_IN_RANGE(k, 0, SizeK());
-      Mk.data = Memory<double>(tdata, SizeI()*SizeJ()*k, SizeI()*SizeJ());
+      Mk.data = Memory<double>(GetData(k), SizeI()*SizeJ(), false);
       return Mk;
    }
    const DenseMatrix &operator()(int k) const
    {
       MFEM_ASSERT_INDEX_IN_RANGE(k, 0, SizeK());
-      Mk.data = Memory<double>(tdata, SizeI()*SizeJ()*k, SizeI()*SizeJ());
+      Mk.data = Memory<double>(const_cast<double*>(GetData(k)), SizeI()*SizeJ(),
+                               false);
       return Mk;
    }
 
@@ -989,6 +990,12 @@ public:
    }
 
    double *GetData(int k)
+   {
+      MFEM_ASSERT_INDEX_IN_RANGE(k, 0, SizeK());
+      return tdata+k*Mk.Height()*Mk.Width();
+   }
+
+   const double *GetData(int k) const
    {
       MFEM_ASSERT_INDEX_IN_RANGE(k, 0, SizeK());
       return tdata+k*Mk.Height()*Mk.Width();
