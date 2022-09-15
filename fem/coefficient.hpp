@@ -1486,6 +1486,11 @@ public:
    virtual double Eval(ElementTransformation &T,
                        const IntegrationPoint &ip)
    { return ((a == NULL ) ? aConst : a->Eval(T, ip) ) * b->Eval(T, ip); }
+
+   void EvalRevDiff(const double Q_bar,
+                    ElementTransformation &T,
+                    const IntegrationPoint &ip,
+                    DenseMatrix &PointMat_bar);
 };
 
 /** @brief Scalar coefficient defined as the ratio of two scalars where one or
