@@ -89,7 +89,8 @@ RT_FECollection *NewLOR_FE_Collection<RT_FECollection>(int order, int dim)
 template <typename FE_COLL, typename INTEG_1, typename INTEG_2>
 void TestBatchedLOR()
 {
-   const int order = 5;
+   const bool all_tests = launch_all_non_regression_tests;
+   const int order = !all_tests ? 5 : GENERATE(1,2,3,5);
    const auto mesh_fname = GENERATE(
                               "../../data/star-q3.mesh",
                               "../../data/fichera-q3.mesh"
