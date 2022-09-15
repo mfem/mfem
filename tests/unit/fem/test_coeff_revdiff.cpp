@@ -59,7 +59,8 @@ double scalar_func(const Vector &x)
    return q;
 }
 
-void scalar_funcRevDiff(const mfem::Vector &x, const double q_bar, mfem::Vector &x_bar)
+void scalar_funcRevDiff(const mfem::Vector &x, const double q_bar,
+                        mfem::Vector &x_bar)
 {
    for (int i = 0; i < x.Size(); ++i)
    {
@@ -77,7 +78,8 @@ double scalar_func2(const Vector &x)
    return q;
 }
 
-void scalar_func2RevDiff(const mfem::Vector &x, const double q_bar, mfem::Vector &x_bar)
+void scalar_func2RevDiff(const mfem::Vector &x, const double q_bar,
+                         mfem::Vector &x_bar)
 {
    for (int i = 0; i < x.Size(); ++i)
    {

@@ -874,9 +874,9 @@ void ProductCoefficient::SetTime(double t)
 }
 
 void ProductCoefficient::EvalRevDiff(const double Q_bar,
-                            ElementTransformation &T,
-                            const IntegrationPoint &ip,
-                            DenseMatrix &PointMat_bar)
+                                     ElementTransformation &T,
+                                     const IntegrationPoint &ip,
+                                     DenseMatrix &PointMat_bar)
 {
    if (a == nullptr)
    {
