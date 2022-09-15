@@ -519,7 +519,7 @@ double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
       {
          GetSurfaceFittingError(avg_fit_err, max_fit_err);
       }
-      if (surf_fit_max_threshold > 0.0 && max_fit_err >= 1.2*max_surf_fit_err)
+      if (surf_fit_max_threshold > 0.0 && max_fit_err >= 1.01*max_surf_fit_err)
       {
          if (print_options.iterations)
          {

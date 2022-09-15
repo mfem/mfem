@@ -30,12 +30,12 @@ void OptimizeMeshWithAMRForAnotherMesh(ParMesh &pmesh,
    MFEM_VERIFY(pmesh.GetNodes() != NULL, "Nodes node set for mesh.");
    Vector vxyz = *(pmesh.GetNodes());
    int ordering = pmesh.GetNodes()->FESpace()->GetOrdering();
-   const int nodes_cnt = vxyz.Size() / dim;
+   int nodes_cnt = vxyz.Size() / dim;
    Vector interp_vals(nodes_cnt);
 
-   FindPointsGSLIB finder(pmesh.GetComm());
-   finder.SetDefaultInterpolationValue(-0.1);
-   finder.Setup(*(source.FESpace()->GetMesh()));
+   FindPointsGSLIB finder(source.ParFESpace()->GetComm());
+   finder.SetDefaultInterpolationValue(-1.0);
+   finder.Setup(*(source.FESpace()->GetMesh()),0.0);
 
    vxyz = *(pmesh.GetNodes());
    finder.Interpolate(vxyz, source, interp_vals, ordering);
@@ -87,7 +87,7 @@ void OptimizeMeshWithAMRForAnotherMesh(ParMesh &pmesh,
             lhfespace.GetElementDofs(e, dofs);
             //         lhx.GetSubVector(dofs, x_vals);
             const IntegrationRule &ir =
-               IntRules.Get(lhx.ParFESpace()->GetFE(e)->GetGeomType(), 5);
+               IntRules.Get(lhx.ParFESpace()->GetFE(e)->GetGeomType(), 7);
             lhx.GetValues(e, ir, x_vals);
 
             double max_val = x_vals.Max();
@@ -122,6 +122,11 @@ void OptimizeMeshWithAMRForAnotherMesh(ParMesh &pmesh,
 
       lhfespace.Update();
       lhx.Update();
+   }
+   {
+       vxyz = *(pmesh.GetNodes());
+       finder.Interpolate(vxyz, source, interp_vals, ordering);
+       x = interp_vals;
    }
 }
 
@@ -162,7 +167,7 @@ void ComputeScalarDistanceFromLevelSet(ParMesh &pmesh,
    distance_s.SetTrueVector();
    distance_s.SetFromTrueVector();
 
-   //DiffuseField(distance_s, 10);
+   DiffuseField(distance_s, 3);
    distance_s.SetTrueVector();
    distance_s.SetFromTrueVector();
    for (int i = 0; i < distance_s.Size(); i++)

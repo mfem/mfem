@@ -20,7 +20,7 @@
 //    mpirun -np 4 amster -m ../../data/star.mesh -o 2 -sfa 10 -ni 200
 //    mpirun -np 4 amster -m blade.mesh -o 4
 //    mpirun -np 4 amster -m bone3D.mesh
-//
+//    Blade working run: make amster -j;mpirun -np 6 amster -m blade.mesh -o 2 -battr 4 -rs 0 -sfc 100000 -sfa 10 -sft 1e-7 -ni 200 -amr 4 -srs 1 -so 3
 
 #include "mfem.hpp"
 #include "../common/mfem-common.hpp"
@@ -47,8 +47,13 @@ int main (int argc, char *argv[])
    int quad_order        = 8;
    int bg_amr_steps      = 6;
    double surface_fit_const = 10.0;
-   double surface_fit_adapt = 1.0;
+   double surface_fit_adapt = 10.0;
    double surface_fit_threshold = 1e-7;
+   int bdr_attr_to_fit      = 0;
+   int rs_levels         = 0;
+   int srs_levels         = -1;
+   int s_mesh_poly_deg    = -1;
+
 
    // Parse command-line input file.
    OptionsParser args(argc, argv);
@@ -70,6 +75,15 @@ int main (int argc, char *argv[])
    args.AddOption(&surface_fit_threshold, "-sft", "--surf-fit-threshold",
                   "Set threshold for surface fitting. TMOP solver will"
                   "terminate when max surface fitting error is below this limit");
+   args.AddOption(&bdr_attr_to_fit, "-battr", "--battr",
+                  "Boundary attribute to fit.");
+   args.AddOption(&rs_levels, "-rs", "--refine-serial",
+                  "Number of times to refine the mesh uniformly in serial.");
+   args.AddOption(&s_mesh_poly_deg, "-so", "--source-mesh-order",
+                  "Polynomial degree of mesh finite element space.");
+   args.AddOption(&srs_levels, "-srs", "--source-refine-serial",
+                  "Number of times to refine the mesh uniformly in serial.");
+
    args.Parse();
    if (!args.Good())
    {
@@ -78,11 +92,27 @@ int main (int argc, char *argv[])
    }
    if (myid == 0) { args.PrintOptions(cout); }
 
+   s_mesh_poly_deg = s_mesh_poly_deg < 0 ? mesh_poly_deg : s_mesh_poly_deg;
+   srs_levels = srs_levels < 0 ? rs_levels : srs_levels;
 
    // Initialize and refine the starting mesh.
    Mesh *mesh = new Mesh(mesh_file, 1, 1, false);
+   for (int lev = 0; lev < rs_levels; lev++)
+   {
+      mesh->UniformRefinement();
+   }
    ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
    const int dim = pmesh->Dimension();
+
+   // Set source mesh
+   Mesh smesh = Mesh(*mesh);
+   for (int lev = 0; lev < srs_levels; lev++)
+   {
+      smesh.UniformRefinement();
+   }
+   ParMesh spmesh = ParMesh(MPI_COMM_WORLD, smesh);
+   spmesh.SetCurvature(s_mesh_poly_deg, false, -1, 0);
+
    delete mesh;
 
    // Define a finite element space on the mesh.
@@ -107,7 +137,7 @@ int main (int argc, char *argv[])
 
    // Metric.
    TMOP_QualityMetric *metric = NULL;
-   if (dim == 2) { metric = new TMOP_Metric_004; }
+   if (dim == 2) { metric = new TMOP_Metric_002; }
    else          { metric = new TMOP_Metric_302; }
 
    TargetConstructor::TargetType target_t =
@@ -184,6 +214,36 @@ int main (int argc, char *argv[])
       socketstream vis_b_func;
       common::VisualizeField(vis_b_func, "localhost", 19916, dist,
                              "Dist to Boundary", 0, 700, 300, 300, "Rj");
+
+      VisItDataCollection visit_dc("amster_predist", pmesh);
+      visit_dc.RegisterField("distance", &dist);
+      visit_dc.SetFormat(DataCollection::SERIAL_FORMAT);
+      visit_dc.Save();
+   }
+
+
+   ParFiniteElementSpace ssfespace = ParFiniteElementSpace(&spmesh, fec);
+   ParGridFunction sdomain(&ssfespace);
+   sdomain = 1.0;
+   for (int i = 0; i < ssfespace.GetNBE(); i++)
+   {
+      ssfespace.GetBdrElementDofs(i, vdofs);
+      for (int j = 0; j < vdofs.Size(); j++) { sdomain(vdofs[j]) = 0.0; }
+   }
+
+   GridFunctionCoefficient scoeff(&sdomain);
+   ParGridFunction sdist(&ssfespace);
+   ComputeScalarDistanceFromLevelSet(spmesh, scoeff, sdist, false);
+   sdist *= -1.0;
+   {
+      socketstream vis_b_func;
+      common::VisualizeField(vis_b_func, "localhost", 19916, sdist,
+                             "Dist to Boundary on source mesh", 0, 700, 300, 300, "Rj");
+
+      VisItDataCollection visit_dc("amster_predist_source", &spmesh);
+      visit_dc.RegisterField("distance", &sdist);
+      visit_dc.SetFormat(DataCollection::SERIAL_FORMAT);
+      visit_dc.Save();
    }
 
    // Create the background mesh.
@@ -191,7 +251,7 @@ int main (int argc, char *argv[])
    Mesh *mesh_bg = NULL;
    if (dim == 2)
    {
-      mesh_bg = new Mesh(Mesh::MakeCartesian2D(4, 4, Element::QUADRILATERAL, true));
+      mesh_bg = new Mesh(Mesh::MakeCartesian2D(60, 60, Element::QUADRILATERAL, true));
    }
    else if (dim == 3)
    {
@@ -202,7 +262,8 @@ int main (int argc, char *argv[])
    delete mesh_bg;
    // Set curvature to linear because we use it with FindPoints for
    // interpolating a linear function later.
-   pmesh_bg->SetCurvature(1, false, -1, 0);
+   int mesh_bg_curv = mesh_poly_deg;
+   pmesh_bg->SetCurvature(mesh_bg_curv, false, -1, 0);
 
    // Make the background mesh big enough to cover the original domain.
    Vector p_min(dim), p_max(dim);
@@ -225,16 +286,27 @@ int main (int argc, char *argv[])
 #endif
 
    // The background level set function is always linear to avoid oscillations.
-   H1_FECollection bg_fec(1, dim);
+   H1_FECollection bg_fec(mesh_bg_curv, dim);
    ParFiniteElementSpace bg_pfes(pmesh_bg, &bg_fec);
    ParGridFunction bg_domain(&bg_pfes);
 
    // Refine the background mesh around the boundary.
-   OptimizeMeshWithAMRForAnotherMesh(*pmesh_bg, dist, bg_amr_steps, bg_domain);
+   OptimizeMeshWithAMRForAnotherMesh(*pmesh_bg, sdist, bg_amr_steps, bg_domain);
    {
       socketstream vis_b_func;
       common::VisualizeField(vis_b_func, "localhost", 19916, bg_domain,
                              "Dist on Background", 300, 700, 300, 300, "Rj");
+   }
+   // Rebalance par mesh because of AMR
+   pmesh_bg->Rebalance();
+   bg_pfes.Update();
+   bg_domain.Update();
+
+   {
+       VisItDataCollection visit_dc("amster_bg", pmesh_bg);
+       visit_dc.RegisterField("distance", &bg_domain);
+       visit_dc.SetFormat(DataCollection::SERIAL_FORMAT);
+       visit_dc.Save();
    }
 
    // Compute min element size.
@@ -246,7 +318,7 @@ int main (int argc, char *argv[])
    MPI_Allreduce(MPI_IN_PLACE, &min_dx, 1, MPI_DOUBLE, MPI_MIN, MPI_COMM_WORLD);
 
    // Shift the zero level set by ~ one element inside.
-   const double alpha = min_dx;
+   const double alpha = -0.1*min_dx;
    bg_domain -= alpha;
 
    // Compute a distance function on the background.
@@ -260,6 +332,36 @@ int main (int argc, char *argv[])
       socketstream vis_b_func;
       common::VisualizeField(vis_b_func, "localhost", 19916, bg_domain,
                              "Final LS", 600, 700, 300, 300, "Rjmm");
+
+      VisItDataCollection visit_dc("amster_bg", pmesh_bg);
+      visit_dc.RegisterField("distance", &bg_domain);
+      visit_dc.SetFormat(DataCollection::SERIAL_FORMAT);
+      visit_dc.Save();
+   }
+
+   // Map the distance to current grid
+   {
+       FindPointsGSLIB finder(pmesh->GetComm());
+       finder.SetDefaultInterpolationValue(-0.1);
+       finder.Setup(*pmesh_bg);
+
+       Vector vxyz;
+       vxyz = *(pmesh->GetNodes());
+       const int nodes_cnt = vxyz.Size() / dim;
+       Vector interp_vals(nodes_cnt);
+       finder.Interpolate(vxyz, bg_domain, interp_vals, pmesh->GetNodes()->FESpace()->GetOrdering());
+       domain = interp_vals;
+
+       VisItDataCollection visit_dc("amster", pmesh);
+       visit_dc.RegisterField("distance", &domain);
+       visit_dc.SetFormat(DataCollection::SERIAL_FORMAT);
+       visit_dc.Save();
+   }
+
+   {
+      socketstream vis_b_func;
+      common::VisualizeField(vis_b_func, "localhost", 19916, domain,
+                             "Final LS on current", 900, 700, 300, 300, "Rjmm");
    }
 
 
@@ -365,13 +467,27 @@ int main (int argc, char *argv[])
 
       for (int i = 0; i < pmesh->GetNBE(); i++)
       {
-         sfespace.GetBdrElementVDofs(i, vdofs);
-         for (int j = 0; j < vdofs.Size(); j++)
+         const int attr = pmesh->GetBdrElement(i)->GetAttribute();
+         if (attr == bdr_attr_to_fit || bdr_attr_to_fit == 0)
          {
-            surf_fit_marker[vdofs[j]] = true;
-            surf_fit_mat_gf(vdofs[j]) = 1.0;
+            sfespace.GetBdrElementVDofs(i, vdofs);
+            for (int j = 0; j < vdofs.Size(); j++)
+            {
+               surf_fit_marker[vdofs[j]] = true;
+               surf_fit_mat_gf(vdofs[j]) = 1.0;
+            }
          }
       }
+
+//      for (int i = 0; i < pmesh->GetNBE(); i++)
+//      {
+//         sfespace.GetBdrElementVDofs(i, vdofs);
+//         for (int j = 0; j < vdofs.Size(); j++)
+//         {
+//            surf_fit_marker[vdofs[j]] = true;
+//            surf_fit_mat_gf(vdofs[j]) = 1.0;
+//         }
+//      }
 
       adapt_surface = new InterpolatorFP;
       adapt_grad_surface = new InterpolatorFP;
@@ -394,6 +510,13 @@ int main (int argc, char *argv[])
    // Setup the final NonlinearForm.
    ParNonlinearForm a(pfespace);
    a.AddDomainIntegrator(tmop_integ);
+
+   if (bdr_attr_to_fit > 0) {
+       Array<int> ess_bdr(pmesh->bdr_attributes.Max());
+       ess_bdr = 1;
+       ess_bdr[bdr_attr_to_fit-1] = 0;
+       a.SetEssentialBC(ess_bdr);
+   }
 
    // Compute the minimum det(J) of the starting mesh.
    double min_detJ = infinity();
@@ -459,6 +582,17 @@ int main (int argc, char *argv[])
    solver.SetIntegrationRules(*irules, quad_order);
    solver.SetPreconditioner(*S);
 
+      if (surface_fit_const > 0.0)
+      {
+         double err_avg, err_max;
+         tmop_integ->GetSurfaceFittingErrors(err_avg, err_max);
+         if (myid == 0)
+         {
+            std::cout << "Initial Avg fitting error: " << err_avg << std::endl
+                      << "Initial Max fitting error: " << err_max << std::endl;
+         }
+      }
+
    // For untangling, the solver will update the min det(T) values.
    solver.SetMinDetPtr(&min_detJ);
    solver.SetMaxIter(solver_iter);
@@ -481,6 +615,12 @@ int main (int argc, char *argv[])
       ofstream mesh_ofs(mesh_name.str().c_str());
       mesh_ofs.precision(8);
       pmesh->PrintAsOne(mesh_ofs);
+   }
+
+   {
+       VisItDataCollection visit_dc("amster_opt", pmesh);
+       visit_dc.SetFormat(DataCollection::SERIAL_FORMAT);
+       visit_dc.Save();
    }
 
    // Visualize the final mesh and metric values.
