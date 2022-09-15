@@ -49,6 +49,44 @@ std::string mesh_str =
    "-8 4"                                "\n"
    "-7 4"                                "\n";
 
+double scalar_func(const Vector &x)
+{
+   double q = 0;
+   for (int i = 0; i < x.Size(); ++i)
+   {
+      q += pow(x(i), 2);
+   }
+   return q;
+}
+
+void scalar_funcRevDiff(const mfem::Vector &x, const double q_bar,
+                        mfem::Vector &x_bar)
+{
+   for (int i = 0; i < x.Size(); ++i)
+   {
+      x_bar(i) += q_bar * 2 * x(i);
+   }
+}
+
+double scalar_func2(const Vector &x)
+{
+   double q = 0;
+   for (int i = 0; i < x.Size(); ++i)
+   {
+      q += x(i);
+   }
+   return q;
+}
+
+void scalar_func2RevDiff(const mfem::Vector &x, const double q_bar,
+                         mfem::Vector &x_bar)
+{
+   for (int i = 0; i < x.Size(); ++i)
+   {
+      x_bar(i) += q_bar;
+   }
+}
+
 void func2D(const Vector &x, Vector &y)
 {
    y.SetSize(2);
@@ -75,6 +113,58 @@ void func3DRevDiff(const Vector &x, const Vector &v_bar, Vector &x_bar)
    x_bar(0) = v_bar(0) * 2*x(0) + v_bar(1) * exp(x(1)) + v_bar(2)*x(2);
    x_bar(1) = -v_bar(0) + v_bar(1) * x(0) * exp(x(1)) - v_bar(2);
    x_bar(2) = v_bar(2) * x(0);
+}
+
+void runScalarTest(Mesh &mesh, Coefficient &q)
+{
+   constexpr double eps_fd = 1e-5;
+   std::default_random_engine generator;
+   std::uniform_real_distribution<double> distribution(-1.0,1.0);
+
+   for (int p = 1; p <= 4; ++p)
+   {
+      const int dim = mesh.Dimension();
+      H1_FECollection fec(p, dim);
+      FiniteElementSpace fes(&mesh, &fec);
+
+      const FiniteElement &el = *fes.GetFE(0);
+      IsoparametricTransformation trans;
+      mesh.GetElementTransformation(0, &trans);
+
+      DenseMatrix &coords = trans.GetPointMat();
+      DenseMatrix coords_bar(coords.Height(), coords.Width());
+
+      double Q_bar = distribution(generator);
+
+      int order = trans.OrderW() + 2 * el.GetOrder();
+      const IntegrationRule *ir = &IntRules.Get(el.GetGeomType(), order);
+      for (int i = 0; i < ir->GetNPoints(); i++)
+      {
+         const IntegrationPoint &ip = ir->IntPoint(i);
+         trans.SetIntPoint (&ip);
+
+         // reverse-mode differentiation of Eval
+         coords_bar = 0.0;
+         q.EvalRevDiff(Q_bar, trans, ip, coords_bar);
+
+         // get the weighted derivatives using finite difference method
+         for (int n = 0; n < coords.Width(); ++n)
+         {
+            for (int di = 0; di < coords.Height(); ++di)
+            {
+               coords(di, n) += eps_fd;
+               double Q_fd = q.Eval(trans, ip);
+               coords(di, n) -= 2.0*eps_fd;
+               Q_fd -= q.Eval(trans, ip);
+               Q_fd /= (2.0 * eps_fd);
+               coords(di, n) += eps_fd;
+               double x_bar_fd = Q_bar * Q_fd;
+
+               REQUIRE(coords_bar(di, n) == Approx(x_bar_fd));
+            }
+         }
+      }
+   }
 }
 
 void runVectorTest(Mesh &mesh, VectorCoefficient &vc)
@@ -138,6 +228,58 @@ void runVectorTest(Mesh &mesh, VectorCoefficient &vc)
 
 namespace coeff_revdiff
 {
+
+TEST_CASE("CoeffRevDiff::FunctionCoefficient::EvalRevDiff_2D")
+{
+   // Create quadratic mesh with single C-shaped quadrilateral
+   std::stringstream meshStr;
+   meshStr << mesh_str;
+   Mesh mesh2D(meshStr);
+
+   REQUIRE( mesh2D.GetNE() == 1 );
+   REQUIRE( mesh2D.GetNodes() != NULL );
+
+   FunctionCoefficient c1(scalar_func, scalar_funcRevDiff);
+   runScalarTest(mesh2D, c1);
+
+   FunctionCoefficient c2(scalar_func2, scalar_func2RevDiff);
+   runScalarTest(mesh2D, c2);
+}
+
+TEST_CASE("CoeffRevDiff::ProductCoefficient::EvalRevDiff_2D 1 Coeff")
+{
+   // Create quadratic mesh with single C-shaped quadrilateral
+   std::stringstream meshStr;
+   meshStr << mesh_str;
+   Mesh mesh2D(meshStr);
+
+   REQUIRE( mesh2D.GetNE() == 1 );
+   REQUIRE( mesh2D.GetNodes() != NULL );
+
+   FunctionCoefficient c1(scalar_func, scalar_funcRevDiff);
+   ProductCoefficient prod(2.0, c1);
+
+   runScalarTest(mesh2D, prod);
+}
+
+TEST_CASE("CoeffRevDiff::ProductCoefficient::EvalRevDiff_2D 2 Coeffs")
+{
+   // Create quadratic mesh with single C-shaped quadrilateral
+   std::stringstream meshStr;
+   meshStr << mesh_str;
+   Mesh mesh2D(meshStr);
+
+   REQUIRE( mesh2D.GetNE() == 1 );
+   REQUIRE( mesh2D.GetNodes() != NULL );
+
+   FunctionCoefficient c1(scalar_func, scalar_funcRevDiff);
+   FunctionCoefficient c2(scalar_func2, scalar_func2RevDiff);
+
+   ProductCoefficient prod(c1, c2);
+
+   runScalarTest(mesh2D, prod);
+}
+
 
 TEST_CASE("CoeffRevDiff::VectorFunctionCoefficient::EvalRevDiff_2D")
 {

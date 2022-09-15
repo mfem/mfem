@@ -14,6 +14,7 @@
 #include "fem.hpp"
 
 #include <cmath>
+#include <cstddef>
 #include <limits>
 
 namespace mfem
@@ -876,6 +877,25 @@ void ProductCoefficient::SetTime(double t)
    if (a) { a->SetTime(t); }
    if (b) { b->SetTime(t); }
    this->Coefficient::SetTime(t);
+}
+
+void ProductCoefficient::EvalRevDiff(const double Q_bar,
+                                     ElementTransformation &T,
+                                     const IntegrationPoint &ip,
+                                     DenseMatrix &PointMat_bar)
+{
+   if (a == nullptr)
+   {
+      b->EvalRevDiff(Q_bar * aConst, T, ip, PointMat_bar);
+   }
+   else
+   {
+      double a_val = a->Eval(T, ip);
+      double b_val = b->Eval(T, ip);
+
+      a->EvalRevDiff(Q_bar * b_val, T, ip, PointMat_bar);
+      b->EvalRevDiff(Q_bar * a_val, T, ip, PointMat_bar);
+   }
 }
 
 void RatioCoefficient::SetTime(double t)
