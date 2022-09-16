@@ -47,39 +47,6 @@ static bool config_save = false;
 static int config_cg_max_iter = 32;
 
 ////////////////////////////////////////////////////////////////////////////////
-namespace analytics
-{
-static constexpr double pi = M_PI, pi2 = M_PI*M_PI;
-
-// Exact solution for definite Helmholtz problem with RHS corresponding to f
-// defined below.
-static double u(const Vector &xvec)
-{
-   int dim = xvec.Size();
-   double x = pi*xvec[0], y = pi*xvec[1];
-   if (dim == 2) { return sin(x)*sin(y); }
-   else { double z = pi*xvec[2]; return sin(x)*sin(y)*sin(z); }
-}
-
-static double f(const Vector &xvec)
-{
-   int dim = xvec.Size();
-   double x = pi*xvec[0], y = pi*xvec[1];
-
-   if (dim == 2)
-   {
-      return sin(x)*sin(y) + 2*pi2*sin(x)*sin(y);
-   }
-   else // dim == 3
-   {
-      double z = pi*xvec[2];
-      return sin(x)*sin(y)*sin(z) + 3*pi2*sin(x)*sin(y)*sin(z);
-   }
-}
-
-} // namespace analytics
-
-////////////////////////////////////////////////////////////////////////////////
 namespace kershaw
 {
 
@@ -192,7 +159,37 @@ struct Transformation : VectorCoefficient
 } // namespace kershaw
 
 ////////////////////////////////////////////////////////////////////////////////
-enum FE {H1 = 0, ND, RT, L2};
+namespace analytics
+{
+static constexpr double pi = M_PI, pi2 = M_PI*M_PI;
+
+// Exact solution for definite Helmholtz problem with RHS corresponding to f
+// defined below.
+double u(const Vector &xvec)
+{
+   int dim = xvec.Size();
+   double x = pi*xvec[0], y = pi*xvec[1];
+   if (dim == 2) { return sin(x)*sin(y); }
+   else { double z = pi*xvec[2]; return sin(x)*sin(y)*sin(z); }
+}
+
+double f(const Vector &xvec)
+{
+   int dim = xvec.Size();
+   double x = pi*xvec[0], y = pi*xvec[1];
+
+   if (dim == 2)
+   {
+      return sin(x)*sin(y) + 2*pi2*sin(x)*sin(y);
+   }
+   else // dim == 3
+   {
+      double z = pi*xvec[2];
+      return sin(x)*sin(y)*sin(z) + 3*pi2*sin(x)*sin(y)*sin(z);
+   }
+}
+
+} // namespace analytics
 
 ////////////////////////////////////////////////////////////////////////////////
 struct PLOR_Solvers_Bench
@@ -202,7 +199,7 @@ struct PLOR_Solvers_Bench
    const int p, c;
    const int n, nx,ny,nz;
    const bool check_x, check_y, check_z, checked;
-   const double epsilon, kappa;
+   const double epsilon;
 
    // Init cuSparse before timings, used in Dof_TrueDof_Matrix
    Nvtx nvtx_cusph = {"cusparseHandle"};
@@ -231,23 +228,14 @@ struct PLOR_Solvers_Bench
 
    std::function<ParMesh()> GetCoarseKershawMesh = [&]()
    {
-      dbg("nx:%d ny:%d nz:%d", nx, ny, nz);
+      dbg("nx:%d ny:%d nz:%d epsilon:%f", nx, ny, nz, epsilon);
       Mesh smesh =
          Mesh::MakeCartesian3D((config_nxyz?num_procs:1)*nx, ny, nz,
                                Element::HEXAHEDRON);
-
-      // Set the curvature of the initial mesh
-      /*if (smoothness > 0)
-      {
-         dbg("smoothness");
-         smesh.SetCurvature(2*smoothness+1);
-      }*/
-
       // Kershaw transformation
       dbg("Kershaw");
       kershaw::Transformation kt(dim, epsilon, epsilon);
       smesh.Transform(kt);
-
       int *partitioning = nullptr;
       auto GetPartitioning = [&]()
       {
@@ -258,61 +246,31 @@ struct PLOR_Solvers_Bench
       ParMesh mesh(MPI_COMM_WORLD, smesh, partitioning=GetPartitioning());
       smesh.Clear();
       delete partitioning;
-
       dbg("GetCoarseKershawMesh done");
       return mesh;
    };
    ParMesh pmesh;
-
-   const bool H1, ND, RT, L2;
-   const HYPRE_Int global_ne;
-
-   FunctionCoefficient f_coeff, u_coeff;
-
-   const int b1 = BasisType::GaussLobatto, b2 = BasisType::IntegratedGLL;
-   std::function<FiniteElementCollection*()> SetFECollection = [&]()
-   {
-      if (H1) { fec = new H1_FECollection(p, dim, b1); }
-      if (ND) { fec = new ND_FECollection(p, dim, b1, b2); }
-      if (RT) { fec = new RT_FECollection(p-1, dim, b1, b2); }
-      if (L2) { fec = new L2_FECollection(p, dim, b1); }
-      MFEM_VERIFY(fec, "Bad FE type");
-      return fec;
-   };
-   FiniteElementCollection *fec;
+   H1_FECollection fec;
    ParFiniteElementSpace fes;
+   ConstantCoefficient one;
+   FunctionCoefficient f_coeff, u_coeff;
+   Array<int> ess_dofs;
+   ParGridFunction x;
    ParBilinearForm a;
    ParLinearForm b;
-   ParGridFunction x;
-
-   const int ndofs;
-   Array<int> ess_dofs;
-   double mdof;
-
+   const HYPRE_Int ndofs, global_ne;
    Vector X, B;
    OperatorHandle A;
-
    std::unique_ptr<Solver> solv_lor;
-   HypreBoomerAMG *amg = nullptr;
-
+   HypreBoomerAMG *amg;
    CGSolver cg;
    int cg_niter;
 
-   // "HO Assemble", in bilinearform_ext.cpp
-   // "HO Apply", in bilinearform_ext.cpp
-   // "AMG Setup" in hypre.cpp
-   // "AMG V-cycle", in hypre.cpp
-   // "LOR Assemble" lor_batched.cpp:494
-   // "RAP", in pbilinearform.cpp:130
-
    //        sw_setup = sw_setup_PA + sw_setup_LOR + sw_setup_AMG;
    StopWatch sw_setup,  sw_setup_PA,  sw_setup_LOR,  sw_setup_AMG;
+   StopWatch sw_solve;
 
-   StopWatch sw_apply;
-
-   ~PLOR_Solvers_Bench() {delete fec;}
-
-   PLOR_Solvers_Bench(int fe, int order, int side, double epsilon) :
+   PLOR_Solvers_Bench(int order, int side, double eps) :
       num_procs(Mpi::WorldSize()),
       myid(Mpi::WorldRank()),
       p(order),
@@ -325,37 +283,31 @@ struct PLOR_Solvers_Bench
       check_y(p*(nx+1) * p*(ny+1) * p*nz > c*c*c),
       check_z(p*(nx+1) * p*(ny+1) * p*(nz+1) > c*c*c),
       checked((assert(check_x && check_y && check_z), true)),
-      epsilon(epsilon),
-
+      epsilon(eps),
       cusph(InitCuSparse()),
       curng(InitCuRandNumberGenerator()),
-
-      kappa((p+1)*(p+1)), // Penalty used for DG discretizations
       pmesh(GetCoarseKershawMesh()),
-      H1(fe == FE::H1),
-      ND(fe == FE::ND),
-      RT(fe == FE::RT),
-      L2(fe == FE::L2),
-      global_ne(pmesh.GetGlobalNE()),
+      fec(p, dim),
+      fes(&pmesh, &fec),
+      one(1.0),
       f_coeff(analytics::f), u_coeff(analytics::u),
-      fec(SetFECollection()),
-      fes(&pmesh, fec),
+      x(&fes),
       a(&fes),
       b(&fes),
-      x(&fes),
       ndofs(fes.GlobalTrueVSize()),
-      mdof(0.0),
+      global_ne(pmesh.GetGlobalNE()),
       cg_niter(-2)
 
    {
-      assert(H1);
+      x = 0.0;
       fes.GetBoundaryTrueDofs(ess_dofs);
 
-      b.AddDomainIntegrator(new DomainLFIntegrator(f_coeff));
+      //b.AddDomainIntegrator(new DomainLFIntegrator(rhs));
+      b.AddDomainIntegrator(new DomainLFIntegrator(one));
       b.Assemble();
 
       a.AddDomainIntegrator(new MassIntegrator);
-      a.AddDomainIntegrator(new DiffusionIntegrator);
+      a.AddDomainIntegrator(new DiffusionIntegrator(one));
       a.SetAssemblyLevel(AssemblyLevel::PARTIAL);
 
       /// Overall SETUP
@@ -376,60 +328,34 @@ struct PLOR_Solvers_Bench
 
       /// LOR SETUP
       sw_setup_LOR.Start();
-      if (H1 || L2)
-      {
-         auto *lor_solver = new LORSolver<HypreBoomerAMG>(a, ess_dofs);
-         solv_lor.reset(lor_solver);
-         MFEM_DEVICE_SYNC;
-         sw_setup_LOR.Stop();
-
-         /// AMG SETUP
-         sw_setup_AMG.Start();
-         amg = &((LORSolver<HypreBoomerAMG>&)*solv_lor).GetSolver();
-         amg->SetPrintLevel(0);
-         amg->Setup(B, X);
-      }
-      else if (RT && dim == 3)
-      {
-         solv_lor.reset(new LORSolver<HypreADS>(a, ess_dofs));
-         MFEM_DEVICE_SYNC;
-         sw_setup_LOR.Stop();
-
-         /// AMG SETUP
-         sw_setup_AMG.Start();
-         ((LORSolver<HypreADS>&)*solv_lor).GetSolver().Setup(B, X);
-      }
-      else
-      {
-         solv_lor.reset(new LORSolver<HypreAMS>(a, ess_dofs));
-         MFEM_DEVICE_SYNC;
-         sw_setup_LOR.Stop();
-
-         /// AMG SETUP
-         sw_setup_AMG.Start();
-         ((LORSolver<HypreAMS>&)*solv_lor).GetSolver().Setup(B, X);
-      }
+      auto *lor_solver = new LORSolver<HypreBoomerAMG>(a, ess_dofs);
+      solv_lor.reset(lor_solver);
+      MFEM_DEVICE_SYNC;
+      sw_setup_LOR.Stop();
+      /// AMG SETUP
+      sw_setup_AMG.Start();
+      amg = &((LORSolver<HypreBoomerAMG>&)*solv_lor).GetSolver();
+      amg->SetPrintLevel(0);
+      amg->Setup(B, X);
       MFEM_DEVICE_SYNC;
       sw_setup_AMG.Stop();
       sw_setup.Stop();
 
-      x.ProjectCoefficient(u_coeff);
 
       cg.SetRelTol(0.0);
       cg.SetOperator(*A);
       cg.iterative_mode = false;
-      cg.SetAbsTol(sqrt(1e-16));
+      cg.SetAbsTol(0.0);//sqrt(1e-16));
       cg.SetPreconditioner(*solv_lor);
       cg.SetMaxIter(config_cg_max_iter);
       cg.SetPrintLevel(config_debug ? 3: -1);
 
       cg.Mult(B, X);
       MFEM_DEVICE_SYNC;
-
-      cg_niter = cg.GetConverged() ? cg.GetNumIterations() : -1;
+      cg_niter = cg.GetNumIterations();
 
       // Clear all previous calls to Mult (FormLinearSystem, Mult)
-      sw_apply.Clear();
+      sw_solve.Clear();
       cg.SwAxpy().Clear();
       cg.SwOper().Clear();
       cg.SwPrec().Clear();
@@ -440,18 +366,17 @@ struct PLOR_Solvers_Bench
 
    void Run()
    {
-      sw_apply.Start();
-      cg.Mult(B, X);
+      MFEM_NVTX;
       MFEM_DEVICE_SYNC;
-      sw_apply.Stop();
-      // make sure we have the same number of iterations
-      if (!cg.GetConverged()) { sw_apply.Clear(); }
-      else { assert(std::abs(cg.GetNumIterations() - cg_niter) < 4); }
+      sw_solve.Start();
+      cg.Mult(B,X);
+      MFEM_DEVICE_SYNC;
+      sw_solve.Stop();
+      assert(cg.GetNumIterations() == cg_niter);
    }
 
    const LORBase &GetLOR() const
    {
-      assert(H1);
       return ((LORSolver<HypreBoomerAMG>&)*solv_lor).GetLOR();
    }
 
@@ -470,7 +395,7 @@ struct PLOR_Solvers_Bench
    double T_INNER_AMG_Setup() { return amg->sw_setup.RealTime(); }
 
    /// Apply
-   double T_OUTER_ALL_Apply() { return sw_apply.RealTime(); }
+   double T_OUTER_ALL_Solve() { return sw_solve.RealTime(); }
 
    double T_INNER_CG_Axpy() { return cg.SwAxpy().RealTime(); }
    double T_INNER_CG_Oper() { return cg.SwOper().RealTime(); }
@@ -482,13 +407,12 @@ struct PLOR_Solvers_Bench
 
 };
 
-
 // [0] The different side sizes
 // When generating tex data, at order 6:
 //    - 144 max for one rank with LORBatch, 3.04862M dofs
 //    - 264 max for one rank with MG*, 18.6096M dofs
 //    - 540 max for 160M dofs, 128 ranks
-#define P_SIDES bm::CreateDenseRange(12,144,2)
+#define P_SIDES bm::CreateDenseRange(12,240,6)
 
 // Maximum number of dofs
 #define MAX_NDOFS 1024*1024*1024
@@ -505,8 +429,9 @@ void pLOR(bm::State &state)
    const int side = state.range(0);
    const int order = state.range(1);
    const int epsilon = state.range(2);
+   const double eps = std::floor((1.0/epsilon)*10.0)/10.0;
 
-   PLOR_Solvers_Bench plor(FE::H1, order, side, epsilon);
+   PLOR_Solvers_Bench plor(order, side, eps);
 
    const int ndofs = plor.ndofs;
    const int nranks = Mpi::WorldSize();
@@ -551,9 +476,9 @@ void pLOR(bm::State &state)
    state.counters["T0_I_2_RAP"] = bm::Counter(plor.T_INNER_RAP_Setup());
    state.counters["T0_I_3_BC"] = bm::Counter(plor.T_INNER_BC_Setup());
 
-   /// OUTER APPLY = INNER( AXPY + PA(Oper) + AMG(Prec) + pDot)
+   /// OUTER SOLVE = INNER( AXPY + PA(Oper) + AMG(Prec) + pDot)
    /// R*PA*P == Oper, AMG == Prec
-   const double a_all = plor.T_OUTER_ALL_Apply();
+   const double a_all = plor.T_OUTER_ALL_Solve();
 
    const double a_cg_axpy = plor.cg.SwAxpy().RealTime();
    const double a_cg_oper = plor.cg.SwOper().RealTime();
@@ -580,7 +505,7 @@ void pLOR(bm::State &state)
        a_amg_prec_delta < 1e-1 ? 32:31, a_amg_prec_delta);
 
    bm::Counter::Flags kAvg = bm::Counter::kAvgIterations;
-   state.counters["A_ALL"] = bm::Counter(plor.T_OUTER_ALL_Apply(), kAvg);
+   state.counters["A_ALL"] = bm::Counter(plor.T_OUTER_ALL_Solve(), kAvg);
    state.counters["A_AMG"] = bm::Counter(plor.T_INNER_AMG_Apply(), kAvg);
    state.counters["A_PA"] = bm::Counter(plor.T_INNER_PA_Apply(), kAvg);
 }
