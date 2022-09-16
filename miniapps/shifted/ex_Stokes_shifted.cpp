@@ -103,16 +103,12 @@ int main(int argc, char *argv[])
      analyticalSurface = new AnalyticalSurface(geometricShape, V_H1FESpace);
      analyticalSurface->ResetData();
      analyticalSurface->SetupElementStatus();
-     analyticalSurface->SetupFaceTags();
-     analyticalSurface->ComputeDistanceAndNormalAtQuadraturePoints();
  
      Array<int> ess_inactive_dofs = analyticalSurface->GetEss_Vdofs();
-     //  V_H1FESpace.Synchronize(ess_inactive_dofs);
      V_H1FESpace.GetRestrictionMatrix()->BooleanMult(ess_inactive_dofs, ess_tdofs);
      V_H1FESpace.MarkerToList(ess_tdofs, ess_vdofs);
-     //V_H1FESpace.Synchronize(ess_vdofs);
-     ess_vdofs.Print(std::cout,1);
-     std::cout << " ess size " << ess_vdofs.Size() << std::endl;
+     //  ess_vdofs.Print(std::cout,1);
+     //     std::cout << " ess size " << ess_vdofs.Size() << std::endl;
    }
  
    const int max_elem_attr = pmesh->attributes.Max();

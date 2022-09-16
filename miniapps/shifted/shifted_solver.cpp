@@ -40,7 +40,6 @@ namespace mfem
 								DenseMatrix &elmat)
   {
     Array<int> &elemStatus = analyticalSurface->GetElement_Status();
-    Array<int> &faceTags = analyticalSurface->GetFace_Tags();
     MPI_Comm comm = pmesh->GetComm();
     int myid;
     MPI_Comm_rank(comm, &myid);
@@ -70,7 +69,7 @@ namespace mfem
       
       Vector nor(dim), ni(dim);
       DenseMatrix dshape(dofs_cnt,dim), dshape_ps(dofs_cnt,dim), adjJ(dim);
-      Vector shape(dofs_cnt), gradURes(dofs_cnt), gradUResD(dofs_cnt);
+      Vector shape(dofs_cnt), gradURes(dofs_cnt), gradUResD(dofs_cnt), q_hess_dot_d(dofs_cnt);
       double w = 0.0;
       
       shape = 0.0;
@@ -81,7 +80,8 @@ namespace mfem
       adjJ = 0.0;
       nor = 0.0;
       ni = 0.0;
-      
+      q_hess_dot_d = 0.0;
+
       const IntegrationRule *ir = IntRule;
       if (ir == NULL)
 	{
@@ -102,6 +102,7 @@ namespace mfem
 	  adjJ = 0.0;
 	  nor = 0.0;
 	  ni = 0.0;
+	  q_hess_dot_d = 0.0;
 	  
 	  const IntegrationPoint &ip_f = ir->IntPoint(q);
 	  // Set the integration point in the face and the neighboring elements
@@ -127,9 +128,35 @@ namespace mfem
 	  analyticalSurface->ComputeDistanceAndNormalAtCoordinates(x_eip,D,tN);
 	  dshape_ps.Mult(D,gradUResD);
 	  gradUResD /= Tr.Elem1->Weight();
+	  // FIRST ORDER TAYLOR
 	  shape += gradUResD;
-	  ////
-	  
+	  //
+	  int size = (dim*(dim+1))/2;
+          DenseMatrix physical_hess(dofs_cnt,size);
+          physical_hess = 0.0;
+          fe.CalcPhysHessian2(Trans_el1,physical_hess);
+          DenseMatrix adjusted_physical_hess(dofs_cnt,dim*dim);
+          adjusted_physical_hess = 0.0;
+          for (int s = 0; s < dofs_cnt; s++){
+            for (int l = 0; l < dim; l++){
+              for (int g = 0; g <= l; g++){
+                adjusted_physical_hess(s,g + l * dim) = physical_hess(s, l + g + (dim - 2) * std::min({l,g,1}));
+                adjusted_physical_hess(s,l + g * dim) = physical_hess(s, l + g + (dim - 2) * std::min({l,g,1}));
+              }
+            }
+          }
+	  for (int s = 0; s < dofs_cnt; s++){
+            for (int l = 0; l < dim; l++){
+              for (int g = 0; g < dim; g++){
+                q_hess_dot_d(s) += adjusted_physical_hess(s, g + l*dim) * D(g) * D(l);
+              }
+            }
+          }
+          q_hess_dot_d *= 1.0/2.0;
+	  // SECOND ORDER TAYLOR
+	  shape += q_hess_dot_d;
+	  ///
+
 	  double Mu = mu->Eval(*Tr.Elem1, eip);
 	  ni.Set(w, nor);
 	    
@@ -160,7 +187,7 @@ namespace mfem
       
       Vector nor(dim), ni(dim);
       DenseMatrix dshape(dofs_cnt,dim), dshape_ps(dofs_cnt,dim), adjJ(dim);
-      Vector shape(dofs_cnt), gradURes(dofs_cnt), gradUResD(dofs_cnt);
+      Vector shape(dofs_cnt), gradURes(dofs_cnt), gradUResD(dofs_cnt), q_hess_dot_d(dofs_cnt);
       double w = 0.0;
       
       shape = 0.0;
@@ -171,6 +198,7 @@ namespace mfem
       nor = 0.0;
       ni = 0.0;
       gradUResD = 0.0;
+      q_hess_dot_d = 0.0;
       
       const IntegrationRule *ir = IntRule;
       if (ir == NULL)
@@ -192,6 +220,7 @@ namespace mfem
 	  nor = 0.0;
 	  ni = 0.0;
 	  gradUResD = 0.0;
+	  q_hess_dot_d = 0.0;
 	  
 	  const IntegrationPoint &ip_f = ir->IntPoint(q);
 	  // Set the integration point in the face and the neighboring elements
@@ -218,8 +247,34 @@ namespace mfem
 	  analyticalSurface->ComputeDistanceAndNormalAtCoordinates(x_eip,D,tN);
 	  dshape_ps.Mult(D,gradUResD);
 	  gradUResD /= Tr.Elem2->Weight();
+	  // FIRST ORDER TAYLOR
 	  shape += gradUResD;
-	  ////
+	  //
+	  int size = (dim*(dim+1))/2;
+          DenseMatrix physical_hess(dofs_cnt,size);
+          physical_hess = 0.0;
+          fe2.CalcPhysHessian2(Trans_el1,physical_hess);
+          DenseMatrix adjusted_physical_hess(dofs_cnt,dim*dim);
+          adjusted_physical_hess = 0.0;
+          for (int s = 0; s < dofs_cnt; s++){
+            for (int l = 0; l < dim; l++){
+              for (int g = 0; g <= l; g++){
+                adjusted_physical_hess(s,g + l * dim) = physical_hess(s, l + g + (dim - 2) * std::min({l,g,1}));
+                adjusted_physical_hess(s,l + g * dim) = physical_hess(s, l + g + (dim - 2) * std::min({l,g,1}));
+              }
+            }
+          }
+	  for (int s = 0; s < dofs_cnt; s++){
+            for (int l = 0; l < dim; l++){
+              for (int g = 0; g < dim; g++){
+                q_hess_dot_d(s) += adjusted_physical_hess(s, g + l*dim) * D(g) * D(l);
+              }
+            }
+          }
+          q_hess_dot_d *= 1.0/2.0;
+	  // SECOND ORDER TAYLOR
+	  shape += q_hess_dot_d;
+	  ///
 	  
 	  double Mu = mu->Eval(*Tr.Elem2, eip);
 	  ni.Set(w, nor);
@@ -254,7 +309,6 @@ namespace mfem
 									 DenseMatrix &elmat)
   {
     Array<int> &elemStatus = analyticalSurface->GetElement_Status();
-    Array<int> &faceTags = analyticalSurface->GetFace_Tags();
 
     MPI_Comm comm = pmesh->GetComm();
     int myid;
@@ -416,7 +470,6 @@ namespace mfem
   {
 
     Array<int> &elemStatus = analyticalSurface->GetElement_Status();
-    Array<int> &faceTags = analyticalSurface->GetFace_Tags();
 
     MPI_Comm comm = pmesh->GetComm();
     int myid;
@@ -450,7 +503,7 @@ namespace mfem
       elmat = 0.0;
       
       Vector nor(dim);
-      Vector te_shape(testdofs_cnt),tr_shape(trialdofs_cnt), gradUResD(trialdofs_cnt);
+      Vector te_shape(testdofs_cnt),tr_shape(trialdofs_cnt), gradUResD(trialdofs_cnt), q_hess_dot_d(trialdofs_cnt);
       DenseMatrix dshape(trialdofs_cnt,dim), dshape_ps(trialdofs_cnt,dim), adjJ(dim);
       
       te_shape = 0.0;
@@ -459,7 +512,8 @@ namespace mfem
       dshape = 0.0;
       dshape_ps = 0.0;
       adjJ = 0.0;
-      
+      q_hess_dot_d = 0.0;
+
       const IntegrationRule *ir = IntRule;
       if (ir == NULL)
 	{
@@ -480,6 +534,7 @@ namespace mfem
 	  dshape = 0.0;
 	  dshape_ps = 0.0;
 	  adjJ = 0.0;
+	  q_hess_dot_d = 0.0;
 	  
 	  const IntegrationPoint &ip_f = ir->IntPoint(q);
 	  // Set the integration point in the face and the neighboring elements
@@ -504,8 +559,34 @@ namespace mfem
 	  Mult(dshape, adjJ, dshape_ps);
 	  dshape_ps.Mult(D,gradUResD);
 	  gradUResD /= Tr.Elem1->Weight();
+	  // FIRST ORDER TAYLOR
 	  tr_shape += gradUResD;
-	  ////
+	  //
+	  int size = (dim*(dim+1))/2;
+          DenseMatrix physical_hess(trialdofs_cnt,size);
+          physical_hess = 0.0;
+          trial_fe1.CalcPhysHessian2(Trans_el1,physical_hess);
+          DenseMatrix adjusted_physical_hess(trialdofs_cnt,dim*dim);
+          adjusted_physical_hess = 0.0;
+          for (int s = 0; s < trialdofs_cnt; s++){
+            for (int l = 0; l < dim; l++){
+              for (int g = 0; g <= l; g++){
+                adjusted_physical_hess(s,g + l * dim) = physical_hess(s, l + g + (dim - 2) * std::min({l,g,1}));
+                adjusted_physical_hess(s,l + g * dim) = physical_hess(s, l + g + (dim - 2) * std::min({l,g,1}));
+              }
+            }
+          }
+	  for (int s = 0; s < trialdofs_cnt; s++){
+            for (int l = 0; l < dim; l++){
+              for (int g = 0; g < dim; g++){
+                q_hess_dot_d(s) += adjusted_physical_hess(s, g + l*dim) * D(g) * D(l);
+              }
+            }
+          }
+          q_hess_dot_d *= 1.0/2.0;
+	  // SECOND ORDER TAYLOR
+	  tr_shape += q_hess_dot_d;
+	  ///
 	  
 	  for (int i = 0; i < testdofs_cnt; i++)
 	    {
@@ -532,7 +613,7 @@ namespace mfem
       elmat = 0.0;
       
       Vector nor(dim);
-      Vector te_shape(testdofs_cnt),tr_shape(trialdofs_cnt), gradUResD(trialdofs_cnt);
+      Vector te_shape(testdofs_cnt),tr_shape(trialdofs_cnt), gradUResD(trialdofs_cnt), q_hess_dot_d(trialdofs_cnt);
       DenseMatrix dshape(trialdofs_cnt,dim), dshape_ps(trialdofs_cnt,dim), adjJ(dim);
       
       te_shape = 0.0;
@@ -541,7 +622,8 @@ namespace mfem
       dshape = 0.0;
       dshape_ps = 0.0;
       adjJ = 0.0;
-      
+      q_hess_dot_d = 0.0;
+
       const IntegrationRule *ir = IntRule;
       if (ir == NULL)
 	{
@@ -561,6 +643,8 @@ namespace mfem
 	  dshape = 0.0;
 	  dshape_ps = 0.0;
 	  adjJ = 0.0;
+	  q_hess_dot_d = 0.0;
+
 	  const IntegrationPoint &ip_f = ir->IntPoint(q);
 	  // Set the integration point in the face and the neighboring elements
 	  Tr.SetAllIntPoints(&ip_f);
@@ -585,9 +669,35 @@ namespace mfem
 	  Mult(dshape, adjJ, dshape_ps);	    
 	  dshape_ps.Mult(D,gradUResD);
 	  gradUResD /= Tr.Elem2->Weight();
+	  // FIRST ORDER TAYLOR
 	  tr_shape += gradUResD;
-	  ////
-	  
+	  //
+	  int size = (dim*(dim+1))/2;
+          DenseMatrix physical_hess(trialdofs_cnt,size);
+          physical_hess = 0.0;
+          trial_fe2.CalcPhysHessian2(Trans_el1,physical_hess);
+          DenseMatrix adjusted_physical_hess(trialdofs_cnt,dim*dim);
+          adjusted_physical_hess = 0.0;
+          for (int s = 0; s < trialdofs_cnt; s++){
+            for (int l = 0; l < dim; l++){
+              for (int g = 0; g <= l; g++){
+                adjusted_physical_hess(s,g + l * dim) = physical_hess(s, l + g + (dim - 2) * std::min({l,g,1}));
+                adjusted_physical_hess(s,l + g * dim) = physical_hess(s, l + g + (dim - 2) * std::min({l,g,1}));
+              }
+            }
+          }
+	  for (int s = 0; s < trialdofs_cnt; s++){
+            for (int l = 0; l < dim; l++){
+              for (int g = 0; g < dim; g++){
+                q_hess_dot_d(s) += adjusted_physical_hess(s, g + l*dim) * D(g) * D(l);
+              }
+            }
+          }
+          q_hess_dot_d *= 1.0/2.0;
+	  // SECOND ORDER TAYLOR
+	  tr_shape += q_hess_dot_d;
+	  ///
+
 	  for (int i = 0; i < testdofs_cnt; i++)
 	    {
 	      for (int j = 0; j < trialdofs_cnt; j++)
@@ -621,7 +731,6 @@ namespace mfem
 									   DenseMatrix &elmat)
   {
     Array<int> &elemStatus = analyticalSurface->GetElement_Status();
-    Array<int> &faceTags = analyticalSurface->GetFace_Tags();
 
     MPI_Comm comm = pmesh->GetComm();
     int myid;
@@ -766,7 +875,6 @@ namespace mfem
 							    DenseMatrix &elmat)
   {
     Array<int> &elemStatus = analyticalSurface->GetElement_Status();
-    Array<int> &faceTags = analyticalSurface->GetFace_Tags();
     const DenseMatrix& quadDist = analyticalSurface->GetQuadratureDistance();
     const DenseMatrix& quadTrueNorm = analyticalSurface->GetQuadratureTrueNormal();
 
@@ -795,7 +903,7 @@ namespace mfem
       const int h1dofs_cnt = fe.GetDof();
       elmat.SetSize(2*h1dofs_cnt*dim);
       elmat = 0.0;
-      Vector shape(h1dofs_cnt), nor(dim), gradURes(h1dofs_cnt);
+      Vector shape(h1dofs_cnt), nor(dim), gradURes(h1dofs_cnt), q_hess_dot_d(h1dofs_cnt);
       DenseMatrix dshape(h1dofs_cnt,dim), dshape_ps(h1dofs_cnt,dim), adjJ(dim);
       shape = 0.0;
       nor = 0.0;
@@ -803,7 +911,7 @@ namespace mfem
       dshape_ps = 0.0;
       adjJ = 0.0;
       gradURes = 0.0;
-      
+      q_hess_dot_d = 0.0;
       const IntegrationRule *ir = IntRule;
       if (ir == NULL)
 	{
@@ -819,7 +927,7 @@ namespace mfem
 	{
 	  shape = 0.0;
 	  gradURes = 0.0;
-	  
+	  q_hess_dot_d = 0.0;
 	  Vector D(dim);
 	  Vector tN(dim);
 	  D = 0.0;
@@ -847,7 +955,33 @@ namespace mfem
 	  Mult(dshape, adjJ, dshape_ps);
 	  dshape_ps.Mult(D,gradURes);
 	  gradURes /= Tr.Elem1->Weight();
+	  // FIRST ORDER TAYLOR
 	  shape += gradURes;
+	  //
+	  int size = (dim*(dim+1))/2;
+          DenseMatrix physical_hess(h1dofs_cnt,size);
+          physical_hess = 0.0;
+          fe.CalcPhysHessian2(Trans_el1,physical_hess);
+          DenseMatrix adjusted_physical_hess(h1dofs_cnt,dim*dim);
+          adjusted_physical_hess = 0.0;
+          for (int s = 0; s < h1dofs_cnt; s++){
+            for (int l = 0; l < dim; l++){
+              for (int g = 0; g <= l; g++){
+                adjusted_physical_hess(s,g + l * dim) = physical_hess(s, l + g + (dim - 2) * std::min({l,g,1}));
+                adjusted_physical_hess(s,l + g * dim) = physical_hess(s, l + g + (dim - 2) * std::min({l,g,1}));
+              }
+            }
+          }
+	  for (int s = 0; s < h1dofs_cnt; s++){
+            for (int l = 0; l < dim; l++){
+              for (int g = 0; g < dim; g++){
+                q_hess_dot_d(s) += adjusted_physical_hess(s, g + l*dim) * D(g) * D(l);
+              }
+            }
+          }
+          q_hess_dot_d *= 1.0/2.0;
+	  // SECOND ORDER TAYLOR
+	  shape += q_hess_dot_d;
 	  ///
 	  
 	  double nor_norm = 0.0;
@@ -877,7 +1011,7 @@ namespace mfem
       const int h1dofs_cnt = fe2.GetDof();
       elmat.SetSize(2*h1dofs_cnt*dim);
       elmat = 0.0;
-      Vector shape(h1dofs_cnt), nor(dim), gradURes(h1dofs_cnt);
+      Vector shape(h1dofs_cnt), nor(dim), gradURes(h1dofs_cnt), q_hess_dot_d(h1dofs_cnt);
       DenseMatrix dshape(h1dofs_cnt,dim), dshape_ps(h1dofs_cnt,dim), adjJ(dim);
       shape = 0.0;
       nor = 0.0;
@@ -885,7 +1019,7 @@ namespace mfem
       dshape_ps = 0.0;
       adjJ = 0.0;
       gradURes = 0.0;
-	
+      q_hess_dot_d = 0.0;
       const IntegrationRule *ir = IntRule;
       if (ir == NULL)
 	{
@@ -901,7 +1035,7 @@ namespace mfem
 	{
 	  shape = 0.0;
 	  gradURes = 0.0;
-	
+	  q_hess_dot_d = 0.0;
 	  Vector D(dim);
 	  Vector tN(dim);
 	  D = 0.0;
@@ -929,9 +1063,35 @@ namespace mfem
 	  Mult(dshape, adjJ, dshape_ps);
 	  dshape_ps.Mult(D,gradURes);
 	  gradURes /= Tr.Elem2->Weight();
-	  shape += gradURes; 
+	  // FIRST ORDER TAYLOR
+	  shape += gradURes;
+	  //
+	  int size = (dim*(dim+1))/2;
+          DenseMatrix physical_hess(h1dofs_cnt,size);
+          physical_hess = 0.0;
+          fe2.CalcPhysHessian2(Trans_el1,physical_hess);
+          DenseMatrix adjusted_physical_hess(h1dofs_cnt,dim*dim);
+          adjusted_physical_hess = 0.0;
+          for (int s = 0; s < h1dofs_cnt; s++){
+            for (int l = 0; l < dim; l++){
+              for (int g = 0; g <= l; g++){
+                adjusted_physical_hess(s,g + l * dim) = physical_hess(s, l + g + (dim - 2) * std::min({l,g,1}));
+                adjusted_physical_hess(s,l + g * dim) = physical_hess(s, l + g + (dim - 2) * std::min({l,g,1}));
+              }
+            }
+          }
+	  for (int s = 0; s < h1dofs_cnt; s++){
+            for (int l = 0; l < dim; l++){
+              for (int g = 0; g < dim; g++){
+                q_hess_dot_d(s) += adjusted_physical_hess(s, g + l*dim) * D(g) * D(l);
+              }
+            }
+          }
+          q_hess_dot_d *= 1.0/2.0;
+	  // SECOND ORDER TAYLOR
+	  shape += q_hess_dot_d;
 	  ///
-	    
+	      
 	  double nor_norm = 0.0;
 	  for (int s = 0; s < dim; s++){
 	    nor_norm += nor(s) * nor(s);
@@ -965,7 +1125,6 @@ namespace mfem
 								     Vector &elvect)
   {
     Array<int> &elemStatus = analyticalSurface->GetElement_Status();
-    Array<int> &faceTags = analyticalSurface->GetFace_Tags();
 
     MPI_Comm comm = pmesh->GetComm();
     int myid;
@@ -1146,7 +1305,6 @@ namespace mfem
 								       Vector &elvect)
   {
     Array<int> &elemStatus = analyticalSurface->GetElement_Status();
-    Array<int> &faceTags = analyticalSurface->GetFace_Tags();
 
     MPI_Comm comm = pmesh->GetComm();
     int myid;
@@ -1297,7 +1455,6 @@ namespace mfem
   {
 
     Array<int> &elemStatus = analyticalSurface->GetElement_Status();
-    Array<int> &faceTags = analyticalSurface->GetFace_Tags();
     const DenseMatrix& quadDist = analyticalSurface->GetQuadratureDistance();
     const DenseMatrix& quadTrueNorm = analyticalSurface->GetQuadratureTrueNormal();
 
@@ -1327,7 +1484,7 @@ namespace mfem
       const int h1dofs_cnt = el.GetDof();
       elvect.SetSize(2*h1dofs_cnt*dim);
       elvect = 0.0;
-      Vector shape(h1dofs_cnt), nor(dim), gradURes(h1dofs_cnt), bcEval(dim);
+      Vector shape(h1dofs_cnt), nor(dim), gradURes(h1dofs_cnt), bcEval(dim), q_hess_dot_d(h1dofs_cnt);
       DenseMatrix dshape(h1dofs_cnt,dim), dshape_ps(h1dofs_cnt,dim), adjJ(dim);
       shape = 0.0;
       nor = 0.0;
@@ -1335,7 +1492,7 @@ namespace mfem
       dshape_ps = 0.0;
       adjJ = 0.0;
       gradURes = 0.0;
-	
+      q_hess_dot_d = 0.0;	
       const IntegrationRule *ir = IntRule;
       if (ir == NULL)
 	{
@@ -1350,7 +1507,7 @@ namespace mfem
 	{
 	  shape = 0.0;
 	  gradURes = 0.0;
-	
+	  q_hess_dot_d = 0.0;
 	  const IntegrationPoint &ip_f = ir->IntPoint(q);
 	    
 	  // Set the integration point in the face and the neighboring elements
@@ -1386,8 +1543,34 @@ namespace mfem
 	  Mult(dshape, adjJ, dshape_ps);
 	  dshape_ps.Mult(D,gradURes);
 	  gradURes /= Tr.Elem1->Weight();
-	  shape += gradURes;
 	  uD->Eval(bcEval, Trans_el1, eip, D);
+	  // FIRST ORDER TAYLOR
+	  shape += gradURes;
+	  //
+	  int size = (dim*(dim+1))/2;
+          DenseMatrix physical_hess(h1dofs_cnt,size);
+          physical_hess = 0.0;
+          el.CalcPhysHessian2(Trans_el1,physical_hess);
+          DenseMatrix adjusted_physical_hess(h1dofs_cnt,dim*dim);
+          adjusted_physical_hess = 0.0;
+          for (int s = 0; s < h1dofs_cnt; s++){
+            for (int l = 0; l < dim; l++){
+              for (int g = 0; g <= l; g++){
+                adjusted_physical_hess(s,g + l * dim) = physical_hess(s, l + g + (dim - 2) * std::min({l,g,1}));
+                adjusted_physical_hess(s,l + g * dim) = physical_hess(s, l + g + (dim - 2) * std::min({l,g,1}));
+              }
+            }
+          }
+	  for (int s = 0; s < h1dofs_cnt; s++){
+            for (int l = 0; l < dim; l++){
+              for (int g = 0; g < dim; g++){
+                q_hess_dot_d(s) += adjusted_physical_hess(s, g + l*dim) * D(g) * D(l);
+              }
+            }
+          }
+          q_hess_dot_d *= 1.0/2.0;
+	  // SECOND ORDER TAYLOR
+	  shape += q_hess_dot_d;
 	  ///
 	    
 	  double nor_norm = 0.0;
@@ -1414,7 +1597,7 @@ namespace mfem
 	
       elvect.SetSize(2*h1dofs_cnt*dim);
       elvect = 0.0;
-      Vector shape(h1dofs_cnt), nor(dim), gradURes(h1dofs_cnt), bcEval(dim);
+      Vector shape(h1dofs_cnt), nor(dim), gradURes(h1dofs_cnt), bcEval(dim), q_hess_dot_d(h1dofs_cnt);
       DenseMatrix dshape(h1dofs_cnt,dim), dshape_ps(h1dofs_cnt,dim), adjJ(dim);
       shape = 0.0;
       nor = 0.0;
@@ -1422,7 +1605,7 @@ namespace mfem
       dshape_ps = 0.0;
       adjJ = 0.0;
       gradURes = 0.0;
-	
+      q_hess_dot_d = 0.0;
       const IntegrationRule *ir = IntRule;
       if (ir == NULL)
 	{
@@ -1437,7 +1620,7 @@ namespace mfem
 	{
 	  shape = 0.0;
 	  gradURes = 0.0;
-	
+	  q_hess_dot_d = 0.0;
 	  const IntegrationPoint &ip_f = ir->IntPoint(q);
 	    
 	  // Set the integration point in the face and the neighboring elements
@@ -1467,8 +1650,35 @@ namespace mfem
 	  Mult(dshape, adjJ, dshape_ps);
 	  dshape_ps.Mult(D,gradURes);
 	  gradURes /= Tr.Elem2->Weight();
-	  shape += gradURes;
 	  uD->Eval(bcEval, Trans_el1, eip, D);
+	  ///
+	  // FIRST ORDER TAYLOR
+	  shape += gradURes;
+	  //
+	  int size = (dim*(dim+1))/2;
+          DenseMatrix physical_hess(h1dofs_cnt,size);
+          physical_hess = 0.0;
+          el2.CalcPhysHessian2(Trans_el1,physical_hess);
+          DenseMatrix adjusted_physical_hess(h1dofs_cnt,dim*dim);
+          adjusted_physical_hess = 0.0;
+          for (int s = 0; s < h1dofs_cnt; s++){
+            for (int l = 0; l < dim; l++){
+              for (int g = 0; g <= l; g++){
+                adjusted_physical_hess(s,g + l * dim) = physical_hess(s, l + g + (dim - 2) * std::min({l,g,1}));
+                adjusted_physical_hess(s,l + g * dim) = physical_hess(s, l + g + (dim - 2) * std::min({l,g,1}));
+              }
+            }
+          }
+	  for (int s = 0; s < h1dofs_cnt; s++){
+            for (int l = 0; l < dim; l++){
+              for (int g = 0; g < dim; g++){
+                q_hess_dot_d(s) += adjusted_physical_hess(s, g + l*dim) * D(g) * D(l);
+              }
+            }
+          }
+          q_hess_dot_d *= 1.0/2.0;
+	  // SECOND ORDER TAYLOR
+	  shape += q_hess_dot_d;
 	  ///
 	    
 	  double nor_norm = 0.0;

@@ -37,7 +37,6 @@ namespace mfem
   
   //    Array<int> nodalStatus;
     Array<int> elementalStatus;
-    Array<int> faceTags;
     Array<int> initialBoundaryFaceTags;
     Array<int> initialElementTags;
     Array<int> ess_edofs;
@@ -58,12 +57,9 @@ namespace mfem
   AnalyticalSurface(int geometryType, ParFiniteElementSpace &h1_fes);
   void SetupNodeStatus();
   void SetupElementStatus();
-  void SetupFaceTags();
-  void ComputeDistanceAndNormalAtQuadraturePoints();
   void ComputeDistanceAndNormalAtCoordinates(const Vector &x, Vector &D, Vector &tN);
   void ResetData();
   Array<int>& GetEss_Vdofs();
-  Array<int>& GetFace_Tags();
   Array<int>& GetElement_Status();
   const DenseMatrix& GetQuadratureDistance();
   const DenseMatrix& GetQuadratureTrueNormal();

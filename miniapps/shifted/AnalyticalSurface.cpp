@@ -25,7 +25,6 @@ namespace mfem
     pmesh(h1_fes.GetParMesh()),
     b_ir(IntRules.Get((pmesh->GetBdrFaceTransformations(0))->GetGeometryType(), 4*H1.GetOrder(0) + 4*(pmesh->GetBdrFaceTransformations(0))->OrderW() )),
     elementalStatus(h1_fes.GetNE()+pmesh->GetNSharedFaces()),
-    faceTags(h1_fes.GetNF()+pmesh->GetNSharedFaces()),
     initialBoundaryFaceTags(h1_fes.GetNBE()),
     initialElementTags(h1_fes.GetNE()),
     quadratureDistance((h1_fes.GetNF()+pmesh->GetNSharedFaces()) * b_ir.GetNPoints(),pmesh->Dimension()),
@@ -51,7 +50,6 @@ namespace mfem
       }
 
     MPI_Allreduce(&localMaxBoundaryTag, &maxBoundaryTag, 1, MPI_INT, MPI_MAX, pmesh->GetComm());
-    faceTags = maxBoundaryTag;
     for (int i = 0; i < H1.GetNE(); i++)
       {    
 	ElementTransformation *eltrans = pmesh->GetElementTransformation(i);
@@ -74,14 +72,6 @@ namespace mfem
   void AnalyticalSurface::SetupElementStatus(){
     geometry->SetupElementStatus(elementalStatus,ess_edofs);
   }
-
-  void AnalyticalSurface::SetupFaceTags(){
-    geometry->SetupFaceTags(elementalStatus, faceTags, ess_edofs, initialBoundaryFaceTags, maxBoundaryTag);
-  }
-
-  void AnalyticalSurface::ComputeDistanceAndNormalAtQuadraturePoints(){
-    geometry->ComputeDistanceAndNormalAtQuadraturePoints(b_ir, elementalStatus, faceTags, quadratureDistance, quadratureTrueNormal);
-  }
   void AnalyticalSurface::ComputeDistanceAndNormalAtCoordinates(const Vector &x, Vector &D, Vector &tN){
     geometry->ComputeDistanceAndNormalAtCoordinates(x, D, tN);
   }
@@ -91,7 +81,6 @@ namespace mfem
     quadratureTrueNormal = 0.0;
     ess_edofs = -1;
     elementalStatus = AnalyticalGeometricShape::SBElementType::INSIDE;
-    faceTags = maxBoundaryTag;
     for (int i = 0; i < H1.GetNE(); i++)
       {    
 	ElementTransformation *eltrans = H1.GetElementTransformation(i);
@@ -103,9 +92,6 @@ namespace mfem
 
   Array<int>& AnalyticalSurface::GetEss_Vdofs(){
     return ess_edofs;
-  }
-  Array<int>& AnalyticalSurface::GetFace_Tags(){
-    return faceTags;
   }
   Array<int>& AnalyticalSurface::GetElement_Status(){
     return elementalStatus;
