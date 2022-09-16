@@ -80,8 +80,7 @@ void LinearFormExtension::Update()
    for (int i = 0; i < NE; ++i) { attributes[i] = mesh.GetAttribute(i); }
 
    constexpr ElementDofOrdering ordering = ElementDofOrdering::LEXICOGRAPHIC;
-   elem_restrict_lex = dynamic_cast<const ElementRestrictionOperator*>(
-                          fes.GetElementRestriction(ordering));
+   elem_restrict_lex = fes.GetElementRestriction(ordering);
    MFEM_VERIFY(elem_restrict_lex, "Element restriction not available");
    b.SetSize(elem_restrict_lex->Height(), Device::GetMemoryType());
    b.UseDevice(true);

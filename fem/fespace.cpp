@@ -1258,7 +1258,7 @@ int FiniteElementSpace::GetNConformingDofs() const
    return P ? (P->Width() / vdim) : ndofs;
 }
 
-const Operator *FiniteElementSpace::GetElementRestriction(
+const ElementRestrictionOperator *FiniteElementSpace::GetElementRestriction(
    ElementDofOrdering e_ordering) const
 {
    // Check if we have a discontinuous space using the FE collection:
@@ -1273,7 +1273,7 @@ const Operator *FiniteElementSpace::GetElementRestriction(
          // The output E-vector layout is: ND x VDIM x NE.
          L2E_nat.Reset(new L2ElementRestriction(*this));
       }
-      return L2E_nat.Ptr();
+      return L2E_nat.Is<ElementRestrictionOperator>();
    }
    if (e_ordering == ElementDofOrdering::LEXICOGRAPHIC)
    {
@@ -1281,14 +1281,14 @@ const Operator *FiniteElementSpace::GetElementRestriction(
       {
          L2E_lex.Reset(new ElementRestriction(*this, e_ordering));
       }
-      return L2E_lex.Ptr();
+      return L2E_lex.Is<ElementRestrictionOperator>();
    }
    // e_ordering == ElementDofOrdering::NATIVE
    if (L2E_nat.Ptr() == NULL)
    {
       L2E_nat.Reset(new ElementRestriction(*this, e_ordering));
    }
-   return L2E_nat.Ptr();
+   return L2E_nat.Is<ElementRestrictionOperator>();
 }
 
 const FaceRestriction *FiniteElementSpace::GetFaceRestriction(
