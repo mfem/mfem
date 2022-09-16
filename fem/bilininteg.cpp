@@ -2017,7 +2017,7 @@ void CurlCurlIntegrator::AssembleElementMatrix2(const FiniteElement &trial_fe,
 #ifdef MFEM_THREAD_SAFE
    Vector D;
    DenseMatrix curlshape(tr_nd,dimc), curlshape_dFt(tr_nd,dimc), M;
-   DenseMatrix te_curlshape(te_nd,dimc), te_curlshape_dFt(te_nd,dimc), M;
+   DenseMatrix te_curlshape(te_nd,dimc), te_curlshape_dFt(te_nd,dimc);
 #else
    curlshape.SetSize(tr_nd,dimc);
    curlshape_dFt.SetSize(tr_nd,dimc);
