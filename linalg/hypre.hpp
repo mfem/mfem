@@ -27,6 +27,7 @@
 #include "_hypre_parcsr_ls.h"
 #include "temp_multivector.h"
 #include "../general/globals.hpp"
+#include "../general/tic_toc.hpp"
 
 #ifdef HYPRE_COMPLEX
 #error "MFEM does not work with HYPRE's complex numbers support"
@@ -1123,6 +1124,7 @@ public:
    /// @brief Set up the solver (if not set up already, also called
    /// automatically by HypreSolver::Mult).
    virtual void Setup(const Vector &b, Vector &x) const;
+   mutable StopWatch sw_setup, sw_apply;
 
    ///@}
 

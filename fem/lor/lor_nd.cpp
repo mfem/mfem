@@ -809,7 +809,7 @@ template void BatchedLOR_ND::Assemble2D<6>();
 template void BatchedLOR_ND::Assemble2D<7>();
 template void BatchedLOR_ND::Assemble2D<8>();
 
-template void BatchedLOR_ND::Assemble3D<1>();
+//template void BatchedLOR_ND::Assemble3D<1>();
 template void BatchedLOR_ND::Assemble3D<2>();
 template void BatchedLOR_ND::Assemble3D<3>();
 template void BatchedLOR_ND::Assemble3D<4>();

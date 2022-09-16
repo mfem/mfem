@@ -19,6 +19,9 @@
 #define MFEM_NVTX_COLOR Crimson
 #include "../general/nvtx.hpp"
 
+#define MFEM_DEBUG_COLOR 226
+#include "../general/debug.hpp"
+
 namespace mfem
 {
 
@@ -127,6 +130,7 @@ void ParBilinearForm::pAllocMat()
 void ParBilinearForm::ParallelRAP(SparseMatrix &loc_A, OperatorHandle &A,
                                   bool steal_loc_A)
 {
+   dbg("RAP");
    NVTX("RAP");
    ParFiniteElementSpace &pfespace = *ParFESpace();
 

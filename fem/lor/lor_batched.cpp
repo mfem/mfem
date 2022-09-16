@@ -17,6 +17,8 @@
 
 #include "../../general/nvtx.hpp"
 
+#include "../../general/debug.hpp"
+
 // Specializations
 #include "lor_h1.hpp"
 #include "lor_nd.hpp"
@@ -476,22 +478,32 @@ void BatchedLORAssembly::AssembleWithoutBC(BilinearForm &a, OperatorHandle &A)
 void BatchedLORAssembly::ParAssemble(
    BilinearForm &a, const Array<int> &ess_dofs, OperatorHandle &A)
 {
+   dbg("AssembleWithoutBC");
    // Assemble the system matrix local to this partition
+   sw_LOR.Start();
    AssembleWithoutBC(a, A_local);
+   sw_LOR.Stop();
 
    ParBilinearForm *pa =
       dynamic_cast<ParBilinearForm*>(&a);
 
+   dbg("ParallelRAP");
+   sw_RAP.Start();
    pa->ParallelRAP(*A_local.As<SparseMatrix>(), A, true);
+   sw_RAP.Stop();
 
+   dbg("EliminateBC");
+   sw_BC.Start();
    A.As<HypreParMatrix>()->EliminateBC(ess_dofs,
                                        Operator::DiagonalPolicy::DIAG_ONE);
+   sw_BC.Stop();
 }
 #endif
 
 void BatchedLORAssembly::Assemble(
    BilinearForm &a, const Array<int> ess_dofs, OperatorHandle &A)
 {
+   dbg();
 #undef MFEM_NVTX_COLOR
 #define MFEM_NVTX_COLOR NavyBlue
    NVTX("LOR Assemble");
@@ -502,16 +514,24 @@ void BatchedLORAssembly::Assemble(
    }
 #endif
 
+   sw_LOR.Start();
    AssembleWithoutBC(a, A);
+   sw_LOR.Stop();
+
    SparseMatrix *A_mat = A.As<SparseMatrix>();
 
+   sw_BC.Start();
    A_mat->EliminateBC(ess_dofs,
                       Operator::DiagonalPolicy::DIAG_KEEP);
+   sw_BC.Stop();
 }
 
 BatchedLORAssembly::BatchedLORAssembly(FiniteElementSpace &fes_ho_)
    : fes_ho(fes_ho_)
 {
+   sw_LOR.Clear();
+   sw_RAP.Clear();
+   sw_BC.Clear();
    FormLORVertexCoordinates(fes_ho, X_vert);
 }
 

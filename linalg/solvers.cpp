@@ -23,6 +23,9 @@
 #define MFEM_NVTX_COLOR DarkGreen
 #include "../general/nvtx.hpp"
 
+#define MFEM_DEBUG_COLOR 46
+#include "../general/debug.hpp"
+
 namespace mfem
 {
 
@@ -709,11 +712,22 @@ void CGSolver::UpdateVectors()
    r.SetSize(width, mt); r.UseDevice(true);
    d.SetSize(width, mt); d.UseDevice(true);
    z.SetSize(width, mt); z.UseDevice(true);
+   sw_axpy.Clear();
+   sw_oper.Clear();
+   sw_prec.Clear();
+   sw_pdot.Clear();
 }
 
 void CGSolver::Mult(const Vector &b, Vector &x) const
 {
    NVTX("CG");
+#warning [CGSolver::Mult] MFEM_DEVICE_SYNC
+   static const bool EKS = getenv("EKS") != nullptr;
+   static bool init = true;
+   if (init) { if (EKS) {dbg("EKS");} init = false;}
+
+   if (EKS) { MFEM_DEVICE_SYNC; }
+   sw_axpy.Start();
 
    int i;
    double r0, den, nom, nom0, betanom, alpha, beta;
@@ -721,7 +735,12 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
    x.UseDevice(true);
    if (iterative_mode)
    {
+      sw_axpy.Stop();
+      sw_oper.Start();
       oper->Mult(x, r);
+      if (EKS) { MFEM_DEVICE_SYNC; }
+      sw_oper.Stop();
+      sw_axpy.Start();
       subtract(b, r, r); // r = b - A x
    }
    else
@@ -732,14 +751,25 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
 
    if (prec)
    {
+      if (EKS) { MFEM_DEVICE_SYNC; }
+      sw_axpy.Stop();
+      sw_prec.Start();
       prec->Mult(r, z); // z = B r
+      if (EKS) { MFEM_DEVICE_SYNC; }
+      sw_prec.Stop();
+      sw_axpy.Start();
       d = z;
    }
    else
    {
       d = r;
    }
+   if (EKS) { MFEM_DEVICE_SYNC; }
+   sw_axpy.Stop();
+   sw_pdot.Start();
    nom0 = nom = Dot(d, r);
+   sw_pdot.Stop();
+   sw_axpy.Start();
    MFEM_ASSERT(IsFinite(nom), "nom = " << nom);
    if (print_options.iterations || print_options.first_and_last)
    {
@@ -750,6 +780,7 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
 
    if (nom < 0.0)
    {
+      assert(false);
       if (print_options.warnings)
       {
          mfem::out << "PCG: The preconditioner is not positive definite. (Br, r) = "
@@ -763,17 +794,32 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
    r0 = std::max(nom*rel_tol*rel_tol, abs_tol*abs_tol);
    if (nom <= r0)
    {
+      assert(false);
+      sw_axpy.Stop();
       converged = true;
       final_iter = 0;
       final_norm = sqrt(nom);
       return;
    }
 
+   if (EKS) { MFEM_DEVICE_SYNC; }
+   sw_axpy.Stop();
+
+   sw_oper.Start();
    oper->Mult(d, z);  // z = A d
+   if (EKS) { MFEM_DEVICE_SYNC; }
+   sw_oper.Stop();
+
+   sw_pdot.Start();
    den = Dot(z, d);
+   sw_pdot.Stop();
+
+   sw_axpy.Start();
+
    MFEM_ASSERT(IsFinite(den), "den = " << den);
    if (den <= 0.0)
    {
+      assert(false);
       if (Dot(d, d) > 0.0 && print_options.warnings)
       {
          mfem::out << "PCG: The operator is not positive definite. (Ad, d) = "
@@ -781,6 +827,7 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
       }
       if (den == 0.0)
       {
+         sw_axpy.Stop();
          converged = false;
          final_iter = 0;
          final_norm = sqrt(nom);
@@ -797,23 +844,38 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
       add(x,  alpha, d, x);     //  x = x + alpha d
       add(r, -alpha, z, r);     //  r = r - alpha A d
 
+      if (EKS) { MFEM_DEVICE_SYNC; }
+      sw_axpy.Stop();
       if (prec)
       {
+         sw_prec.Start();
          prec->Mult(r, z);      //  z = B r
+         if (EKS) { MFEM_DEVICE_SYNC; }
+         sw_prec.Stop();
+
+         sw_pdot.Start();
          betanom = Dot(r, z);
+         sw_pdot.Stop();
       }
       else
       {
+         if (EKS) { MFEM_DEVICE_SYNC; }
+         sw_pdot.Start();
          betanom = Dot(r, r);
+         sw_pdot.Stop();
       }
+      sw_axpy.Start();
+
       MFEM_ASSERT(IsFinite(betanom), "betanom = " << betanom);
       if (betanom < 0.0)
       {
+         assert(false);
          if (print_options.warnings)
          {
             mfem::out << "PCG: The preconditioner is not positive definite. (Br, r) = "
                       << betanom << '\n';
          }
+         sw_axpy.Stop();
          converged = false;
          final_iter = i;
          break;
@@ -848,11 +910,25 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
       {
          add(r, beta, d, d);
       }
+
+      if (EKS) { MFEM_DEVICE_SYNC; }
+      sw_axpy.Stop();
+
+      sw_oper.Start();
       oper->Mult(d, z);       //  z = A d
+      if (EKS) { MFEM_DEVICE_SYNC; }
+      sw_oper.Stop();
+
+      sw_pdot.Start();
       den = Dot(d, z);
+      sw_pdot.Stop();
+
+      sw_axpy.Start();
+
       MFEM_ASSERT(IsFinite(den), "den = " << den);
       if (den <= 0.0)
       {
+         assert(false);
          if (Dot(d, d) > 0.0 && print_options.warnings)
          {
             mfem::out << "PCG: The operator is not positive definite. (Ad, d) = "
@@ -889,6 +965,7 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
    final_norm = sqrt(betanom);
 
    Monitor(final_iter, final_norm, r, x, true);
+   sw_axpy.Stop();
 }
 
 void CG(const Operator &A, const Vector &b, Vector &x,

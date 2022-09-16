@@ -19,6 +19,7 @@
 #include "ceed/interface/util.hpp"
 
 #include "../general/nvtx.hpp"
+#include "../general/debug.hpp"
 
 namespace mfem
 {
@@ -291,6 +292,11 @@ void PABilinearFormExtension::SetupRestrictionOperators(const L2FaceValues m)
 
 void PABilinearFormExtension::Assemble()
 {
+   a->SwSetupPA().Clear();
+   a->SwApplyPA().Clear();
+
+   a->SwSetupPA().Start();
+
 #undef MFEM_NVTX_COLOR
 #define MFEM_NVTX_COLOR NavyBlue
    NVTX("HO Assemble");
@@ -320,6 +326,7 @@ void PABilinearFormExtension::Assemble()
    {
       bdrFaceIntegrators[i]->AssemblePABoundaryFaces(*a->FESpace());
    }
+   a->SwSetupPA().Stop();
 }
 
 void PABilinearFormExtension::AssembleDiagonal(Vector &y) const
@@ -389,6 +396,15 @@ void PABilinearFormExtension::FormLinearSystem(const Array<int> &ess_tdof_list,
 
 void PABilinearFormExtension::Mult(const Vector &x, Vector &y) const
 {
+#warning [CGSolver::Mult] MFEM_DEVICE_SYNC
+   static const bool EKS = getenv("EKS") != nullptr;
+   static bool init = true;
+   if (init) { if (EKS) {dbg("EKS");} init = false;}
+
+   if (EKS) { MFEM_DEVICE_SYNC; }
+
+   a->SwApplyPA().Start();
+
 #undef MFEM_NVTX_COLOR
 #define MFEM_NVTX_COLOR MediumSpringGreen
    NVTX("HO Apply");
@@ -447,10 +463,13 @@ void PABilinearFormExtension::Mult(const Vector &x, Vector &y) const
          bdr_face_restrict_lex->AddMultTranspose(bdr_face_Y, y);
       }
    }
+   if (EKS) { MFEM_DEVICE_SYNC; }
+   a->SwApplyPA().Stop();
 }
 
 void PABilinearFormExtension::MultTranspose(const Vector &x, Vector &y) const
 {
+   assert(false);
    Array<BilinearFormIntegrator*> &integrators = *a->GetDBFI();
    const int iSz = integrators.Size();
    if (elem_restrict)

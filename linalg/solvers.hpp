@@ -466,11 +466,16 @@ class CGSolver : public IterativeSolver
 {
 protected:
    mutable Vector r, d, z;
+   mutable StopWatch sw_axpy, sw_oper, sw_prec, sw_pdot;
 
    void UpdateVectors();
 
 public:
    CGSolver() { }
+   StopWatch &SwAxpy() { return sw_axpy; }
+   StopWatch &SwOper() { return sw_oper; }
+   StopWatch &SwPrec() { return sw_prec; }
+   StopWatch &SwPdot() { return sw_pdot; }
 
 #ifdef MFEM_USE_MPI
    CGSolver(MPI_Comm comm_) : IterativeSolver(comm_) { }

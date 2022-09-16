@@ -45,7 +45,6 @@ Mesh MakeCartesianMesh(int p, int requested_ndof, int dim)
    }
 }
 
-#ifdef MFEM_USE_MPI
 ParMesh MakeParCartesianMesh(int p, int requested_ndof, int dim)
 {
    Mesh mesh = MakeCartesianMesh(p, requested_ndof, dim);
@@ -219,7 +218,6 @@ struct ND_LORBench
 
    ~ND_LORBench() { delete amg; }
 };
-#endif // MFEM_USE_MPI
 
 struct H1_LORBench
 {
@@ -237,11 +235,9 @@ struct H1_LORBench
 
    OperatorHandle A_ho, A_lor;
 
-#ifdef MFEM_USE_MPI
    HYPRE_Int row_starts[2];
    HypreParMatrix *A = nullptr;
    HypreBoomerAMG amg;
-#endif
 
    Array<int> ess_dofs;
 
@@ -290,7 +286,6 @@ struct H1_LORBench
       if (name == "H1AssembleBatched") { H1AssembleBatched(); }
       if (name == "AssembleFull") { AssembleFull(); }
 
-#ifdef MFEM_USE_MPI
       if (name == "AMGSetup" || name == "Vcycle")
       {
          H1AssembleBatched();
@@ -303,7 +298,6 @@ struct H1_LORBench
          amg.SetPrintLevel(0);
       }
       if (name == "Vcycle") { amg.Setup(x,y); }
-#endif // MFEM_USE_MPI
    }
 
    void AssembleHO()
@@ -337,7 +331,6 @@ struct H1_LORBench
       A_ho->Mult(x, y);
    }
 
-#ifdef MFEM_USE_MPI
    void AMGSetup()
    {
       NVTX("AMG Setup");
@@ -352,13 +345,10 @@ struct H1_LORBench
       MFEM_DEVICE_SYNC;
       amg.Mult(x, y);
    }
-#endif // MFEM_USE_MPI
 
    ~H1_LORBench()
    {
-#ifdef MFEM_USE_MPI
       delete A;
-#endif // MFEM_USE_MPI
    }
 };
 
@@ -369,8 +359,7 @@ struct H1_LORBench
 #define LOG_NDOFS bm::CreateDenseRange(7,23,1)
 
 // Dimensions: 2 or 3
-//#define DIMS bm::CreateDenseRange(2,3,1)
-#define DIMS bm::CreateDenseRange(3,3,1)
+#define DIMS bm::CreateDenseRange(2,3,1)
 
 /// Kernels definitions and registrations
 #define Benchmark(Class, Name)\
@@ -422,9 +411,7 @@ Benchmark(RT_LORBench, ADSApply)
 
 int main(int argc, char *argv[])
 {
-#ifdef MFEM_USE_MPI
    Mpi::Init();
-#endif // MFEM_USE_MPI
 
    bm::ConsoleReporter CR;
    bm::Initialize(&argc, argv);

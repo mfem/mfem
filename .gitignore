@@ -333,6 +333,7 @@ tests/benchmarks/bench_tmop
 tests/benchmarks/bench_vector
 tests/benchmarks/bench_virtuals
 tests/benchmarks/bench_lor
+tests/benchmarks/bench_plor_solvers
 
 # Test script output
 tests/scripts/*.err

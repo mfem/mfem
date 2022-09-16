@@ -686,7 +686,6 @@ void BatchedLOR_H1::Assemble3D<1>()
    SparseMapping3D<1>(sparse_mapping);
 }
 
-
 // Explicit template instantiations
 template void BatchedLOR_H1::Assemble2D<1>();
 template void BatchedLOR_H1::Assemble2D<2>();
@@ -697,7 +696,7 @@ template void BatchedLOR_H1::Assemble2D<6>();
 template void BatchedLOR_H1::Assemble2D<7>();
 template void BatchedLOR_H1::Assemble2D<8>();
 
-template void BatchedLOR_H1::Assemble3D<1>();
+//template void BatchedLOR_H1::Assemble3D<1>();
 template void BatchedLOR_H1::Assemble3D<2>();
 template void BatchedLOR_H1::Assemble3D<3>();
 template void BatchedLOR_H1::Assemble3D<4>();

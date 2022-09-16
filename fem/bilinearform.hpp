@@ -122,6 +122,8 @@ protected:
        the constrained DoFs. */
    DiagonalPolicy diag_policy;
 
+   StopWatch sw_setup_PA, sw_apply_PA;
+
    int precompute_sparsity;
    // Allocate appropriate SparseMatrix and assign it to mat
    void AllocMat();
@@ -149,6 +151,9 @@ private:
    BilinearForm &operator=(const BilinearForm &);
 
 public:
+   StopWatch &SwSetupPA() { return sw_setup_PA; }
+   StopWatch &SwApplyPA() { return sw_apply_PA; }
+
    /// Creates bilinear form associated with FE space @a *f.
    /** The pointer @a f is not owned by the newly constructed object. */
    BilinearForm(FiniteElementSpace *f);

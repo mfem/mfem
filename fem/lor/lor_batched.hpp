@@ -56,6 +56,9 @@ protected:
    OperatorHandle A_local; // Cache this
 
 public:
+   StopWatch sw_LOR, sw_RAP, sw_BC;
+
+public:
    /// Construct the batched assembly object corresponding to @a fes_ho_.
    BatchedLORAssembly(FiniteElementSpace &fes_ho_);
 

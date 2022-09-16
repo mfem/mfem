@@ -27,6 +27,7 @@
 #endif
 
 #include "../general/nvtx.hpp"
+#include "../general/debug.hpp"
 
 using namespace std;
 
@@ -3896,7 +3897,10 @@ bool HypreSolver::WrapVectors(const Vector &b, Vector &x) const
 void HypreSolver::Setup(const HypreParVector &b, HypreParVector &x) const
 {
    if (setup_called) { return; }
-
+   dbg();
+   sw_setup.Clear();
+   sw_apply.Clear();
+   sw_setup.Start();
 #undef MFEM_NVTX_COLOR
 #define MFEM_NVTX_COLOR Indigo
    NVTX("AMG Setup");
@@ -3915,6 +3919,7 @@ void HypreSolver::Setup(const HypreParVector &b, HypreParVector &x) const
    }
    hypre_error_flag = 0;
    setup_called = 1;
+   sw_setup.Stop();
 }
 
 void HypreSolver::Setup(const Vector &b, Vector &x) const
@@ -3963,9 +3968,19 @@ void HypreSolver::Mult(const HypreParVector &b, HypreParVector &x) const
 
 void HypreSolver::Mult(const Vector &b, Vector &x) const
 {
+#warning [CGSolver::Mult] MFEM_DEVICE_SYNC
+   static const bool EKS = getenv("EKS") != nullptr;
+   static bool init = true;
+   if (init) { if (EKS) {dbg("EKS");} init = false;}
+
+   if (EKS) { MFEM_DEVICE_SYNC; }
+
+   sw_apply.Start();
    const bool x_shallow = WrapVectors(b, x);
    Mult(*B, *X);
    if (!x_shallow) { x = *X; }  // Deep copy if shallow copy is impossible
+   if (EKS) { MFEM_DEVICE_SYNC; }
+   sw_apply.Stop();
 }
 
 HypreSolver::~HypreSolver()
