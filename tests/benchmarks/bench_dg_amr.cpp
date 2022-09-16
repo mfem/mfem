@@ -18,7 +18,7 @@
   performance of the action of the partial assembly (PA) of DG Convection on
   nonconforming meshes.
 
-   * --benchmark_filter=BK_DG/[1-max_order]/[prob]
+   * --benchmark_filter=BK_DG/[1024-max_dofs]/[1-max_order]/[prob]
    * --benchmark_context=device=[cpu/cuda/hip]
 */
 
@@ -158,10 +158,6 @@ BENCHMARK(BK_DG)->ArgsProduct({
       {-1, 0, 1, 10, 30}
     })->Unit(bm::kMillisecond);
 
-/**
- * @brief main entry point
- * --benchmark_context=device=cpu
- */
 int main(int argc, char *argv[])
 {
    bm::ConsoleReporter CR;
