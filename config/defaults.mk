@@ -486,8 +486,8 @@ ALGOIM_LIB = $(BLITZ_LIB)
 
 # BENCHMARK library configuration
 BENCHMARK_DIR = @MFEM_DIR@/../google-benchmark
-BENCHMARK_OPT = -I$(BENCHMARK_DIR)/include -I$(BENCHMARK_DIR)/build/include
-BENCHMARK_LIB = -L$(BENCHMARK_DIR)/build/src -lbenchmark -lbenchmark_main -lpthread
+BENCHMARK_OPT = -I$(BENCHMARK_DIR)/include
+BENCHMARK_LIB = -L$(BENCHMARK_DIR)/lib -lbenchmark -lpthread
 
 # libCEED library configuration
 CEED_DIR ?= @MFEM_DIR@/../libCEED
