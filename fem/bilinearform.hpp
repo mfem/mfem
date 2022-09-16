@@ -81,7 +81,7 @@ protected:
    BilinearFormExtension *ext;
    /** Indicates if the sparse matrix is sorted after assembly when using
        Full Assembly (FA). */
-   bool sort_device_matrix = false;
+   bool sort_sparse_matrix = false;
 
    /** @brief Indicates the Mesh::sequence corresponding to the current state of
        the BilinearForm. */
@@ -191,9 +191,9 @@ public:
        method forces a sorting algorithm to be called at the end of
        the assembly procedure.
    */
-   void SortSparseMatrix()
+   void EnableSparseMatrixSorting(bool enable_it)
    {
-      sort_device_matrix = true;
+      sort_sparse_matrix = enable_it;
    }
 
    /// Returns the assembly level
