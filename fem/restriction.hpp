@@ -47,6 +47,7 @@ protected:
    friend class BatchedLOR_ADS;
    friend class BatchedLOR_AMS;
 
+public:
    /// @name Low-level access to the underlying element-dof mappings
    ///@{
    const Array<int> &GatherMap() const { return gather_map; }
@@ -54,7 +55,6 @@ protected:
    const Array<int> &Offsets() const { return offsets; }
    ///@}
 
-public:
    ElementRestriction(const FiniteElementSpace&, ElementDofOrdering);
    void Mult(const Vector &x, Vector &y) const;
    void MultTranspose(const Vector &x, Vector &y) const;

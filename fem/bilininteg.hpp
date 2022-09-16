@@ -2174,7 +2174,7 @@ public:
 /** Class for local mass matrix assembling a(u,v) := (Q u, v) */
 class MassIntegrator: public BilinearFormIntegrator
 {
-protected:
+public:
 #ifndef MFEM_THREAD_SAFE
    Vector shape, te_shape;
 #endif
