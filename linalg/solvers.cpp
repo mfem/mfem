@@ -794,7 +794,7 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
    r0 = std::max(nom*rel_tol*rel_tol, abs_tol*abs_tol);
    if (nom <= r0)
    {
-      assert(false);
+      if (EKS) { MFEM_DEVICE_SYNC; }
       sw_axpy.Stop();
       converged = true;
       final_iter = 0;
@@ -869,12 +869,12 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
       MFEM_ASSERT(IsFinite(betanom), "betanom = " << betanom);
       if (betanom < 0.0)
       {
-         assert(false);
          if (print_options.warnings)
          {
             mfem::out << "PCG: The preconditioner is not positive definite. (Br, r) = "
                       << betanom << '\n';
          }
+         if (EKS) { MFEM_DEVICE_SYNC; }
          sw_axpy.Stop();
          converged = false;
          final_iter = i;
