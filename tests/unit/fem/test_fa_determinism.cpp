@@ -34,7 +34,7 @@ TEST_CASE("FA Determinism", "[PartialAssembly][CUDA]")
       BilinearForm a(&fes);
       a.AddDomainIntegrator(new DiffusionIntegrator);
       a.SetAssemblyLevel(AssemblyLevel::FULL);
-      a.SortSparseMatrix();
+      a.EnableSparseMatrixSorting(Device::Allows(~Backend::CPU_MASK));
       a.Assemble();
       a.Finalize();
 
