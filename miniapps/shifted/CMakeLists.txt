@@ -20,14 +20,50 @@ if (MFEM_USE_MPI)
         sbm_solver.hpp
         sbm_aux.hpp
         marking.hpp
-        extrapolator.hpp)
+        extrapolator.hpp)	
+  list(APPEND STOKES_COMMON_SOURCES
+        nitsche_solver.cpp
+	shifter_solver.cpp
+	p_divW.cpp)
+  list(APPEND STOKES_COMMON_HEADERS
+	nitsche_solver.hpp
+	shifter_solver.hpp
+	p_divW.hpp)
+  list(APPEND STOKES_SHIFTED_COMMON_SOURCES
+        nitsche_solver.cpp
+	shifter_solver.cpp
+	p_divW.cpp
+	AnalyticalSurface.cpp
+	AnalyticalGeometricShape.cpp
+	Circle.cpp
+	shifted_solver.cpp)
+  list(APPEND STOKES_SHIFTED_COMMON_HEADERS
+	nitsche_solver.hpp
+	shifter_solver.hpp
+	p_divW.hpp
+	AnalyticalSurface.hpp
+	AnalyticalGeometricShape.hpp
+	Circle.hpp
+	shifted_solver.hpp)
 
   convert_filenames_to_full_paths(DIST_COMMON_SOURCES)
   convert_filenames_to_full_paths(DIST_COMMON_HEADERS)
+  convert_filenames_to_full_paths(STOKES_COMMON_SOURCES)
+  convert_filenames_to_full_paths(STOKES_COMMON_HEADERS)
+  convert_filenames_to_full_paths(STOKES_SHIFTED_COMMON_SOURCES)
+  convert_filenames_to_full_paths(STOKES_SHIFTED_COMMON_HEADERS)
 
   set(DIST_COMMON_FILES
       EXTRA_SOURCES ${DIST_COMMON_SOURCES}
       EXTRA_HEADERS ${DIST_COMMON_HEADERS})
+
+  set(STOKES_COMMON_FILES
+      EXTRA_SOURCES ${STOKES_COMMON_SOURCES}
+      EXTRA_HEADERS ${STOKES_COMMON_HEADERS})
+
+  set(STOKES_SHIFTED_COMMON_FILES
+      EXTRA_SOURCES ${STOKES_SHIFTED_COMMON_SOURCES}
+      EXTRA_HEADERS ${STOKES_SHIFTED_COMMON_HEADERS})
 
   add_mfem_miniapp(distance
     MAIN distance.cpp
@@ -44,6 +80,16 @@ if (MFEM_USE_MPI)
     ${DIST_COMMON_FILES}
     LIBRARIES mfem mfem-common)
 
+  add_mfem_miniapp(ex_Stokes_weakBC_par
+    MAIN ex_Stokes_weakBC_par.cpp
+    ${STOKES_COMMON_FILES}
+    LIBRARIES mfem mfem-common)
+
+  add_mfem_miniapp(ex_Stokes_shifted
+    MAIN ex_Stokes_shifted.cpp
+    ${STOKES_SHIFTED_COMMON_FILES}
+    LIBRARIES mfem mfem-common)
+
   if (MFEM_ENABLE_TESTING)
     add_test(NAME shifted_distance_np${MFEM_MPI_NP}
       COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${MFEM_MPI_NP}
@@ -56,5 +102,18 @@ if (MFEM_USE_MPI)
       ${MPIEXEC_PREFLAGS}
       $<TARGET_FILE:diffusion> -no-vis
       ${MPIEXEC_POSTFLAGS})
+
+    add_test(NAME ex_Stokes_weakBC_np${MFEM_MPI_NP}
+      COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${MFEM_MPI_NP}
+      ${MPIEXEC_PREFLAGS}
+      $<TARGET_FILE:ex_Stokes_weakBC> -no-vis
+      ${MPIEXEC_POSTFLAGS})
+
+    add_test(NAME ex_Stokes_shifted_np${MFEM_MPI_NP}
+      COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${MFEM_MPI_NP}
+      ${MPIEXEC_PREFLAGS}
+      $<TARGET_FILE:ex_Stokes_shifted> -no-vis
+      ${MPIEXEC_POSTFLAGS})
+      
   endif()
 endif ()

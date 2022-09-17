@@ -42,16 +42,14 @@ int main(int argc, char *argv[])
   bool verbose = (myid == 0);
    
    // 1. Parse command line options
-  //  const char *mesh_file = "./mesh_1.exo";
-  const char *mesh_file = "./square01_tri.mesh";
-  // const char *mesh_file = "./square01_quad.mesh";
-  //  const char *mesh_file = "./OneElement_tri.mesh";
+  const char *mesh_file = "../../data/square01_tri.mesh";
  
    int velocityOrder = 2;
    int pressureOrder = 1;
-   int ser_ref_levels = 0;
-   double penaltyParameter = 1.0;
+   int ser_ref_levels = 1;
+   double penaltyParameter = 10.0;
    const char *device_config = "cpu";
+   bool visualization = true;
   
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh", "Mesh file to use.");
@@ -61,9 +59,23 @@ int main(int argc, char *argv[])
                   "Number of times to refine the mesh uniformly in serial.");
    args.AddOption(&penaltyParameter, "-penPar", "--penaltyParameter",
                   "Value of penalty parameter.");
-  
-   args.ParseCheck();
+   args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
+                  "--no-visualization",
+                  "Enable or disable GLVis visualization.");
+
+   args.Parse();
+   if (!args.Good())
+   {
+      if (myid == 0)
+      {
+         args.PrintUsage(cout);
+      }
+      return 1;
+   }
+   if (myid == 0) { args.PrintOptions(cout); }
+
    Device device(device_config);
+   if (myid == 0) { device.Print(); }
 
    // 2. Read the mesh from the given mesh file, and refine once uniformly.
    Mesh *mesh;
@@ -73,9 +85,7 @@ int main(int argc, char *argv[])
    int dim = mesh->Dimension();
 
    ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
-
-   delete mesh;
-
+   mesh->Clear();
   
    // 3. Define a finite element space on the mesh. Here we use H1 continuous
    //    high-order Lagrange finite elements of the given order.
@@ -84,10 +94,6 @@ int main(int argc, char *argv[])
 
    ParFiniteElementSpace V_H1FESpace(pmesh, &V_fec, pmesh->Dimension());
    ParFiniteElementSpace P_H1FESpace(pmesh, &P_fec);
-   Array<int> vdofs;
-   std::cout << V_H1FESpace.GetElementVDofs (0, vdofs) << std::endl;
-   vdofs.Print();
-   cout << "Number of unknowns: " << V_H1FESpace.GetTrueVSize() << endl;
 
    // 4. Create "marker arrays" to define the portions of boundary associated
    //    with each type of boundary condition. These arrays have an entry
@@ -135,12 +141,14 @@ int main(int argc, char *argv[])
    block_trueOffsets[2] = P_H1FESpace.GetTrueVSize();
    block_trueOffsets.PartialSum();
 
-   std::cout << "***********************************************************\n";
-   std::cout << "dim(V) = " << block_offsets[1] - block_offsets[0] << "\n";
-   std::cout << "dim(P) = " << block_offsets[2] - block_offsets[1] << "\n";
-   std::cout << "dim(V+P) = " << block_offsets.Last() << "\n";
-   std::cout << "***********************************************************\n";
-
+   if (myid == 0){
+     std::cout << "***********************************************************\n";
+     std::cout << "dim(V) = " << block_offsets[1] - block_offsets[0] << "\n";
+     std::cout << "dim(P) = " << block_offsets[2] - block_offsets[1] << "\n";
+     std::cout << "dim(V+P) = " << block_offsets.Last() << "\n";
+     std::cout << "***********************************************************\n";
+   }
+   
    Vector lambda(pmesh->attributes.Max());
    lambda = 0.0;
    PWConstCoefficient lambda_func(lambda);
@@ -237,7 +245,6 @@ int main(int argc, char *argv[])
    trueX = 0.0;
    solver.Mult(trueRhs, trueX);
    chrono.Stop();
-
    // 8. Create the grid functions u and p and enforce BC on u 
    ParGridFunction *u(new ParGridFunction);
    ParGridFunction *p(new ParGridFunction);
@@ -263,16 +270,19 @@ int main(int argc, char *argv[])
       std::cout << "|| p_h - p_ex || = " << err_p << "\n";
    }
 
-   int size = 500;
-   char vishost[] = "localhost";
-   int  visport   = 19916;
-   socketstream sol_sock_u;
-   common::VisualizeField(sol_sock_u, vishost, visport, *u,
-                          "Velocity", 0, 0, size, size);
-   socketstream sol_sock_p;
-   common::VisualizeField(sol_sock_p, vishost, visport, *p,
-                          "Pressure", size, 0, size, size);
-
+   if (visualization)
+     {
+       int size = 500;
+       char vishost[] = "localhost";
+       int  visport   = 19916;
+       socketstream sol_sock_u;
+       common::VisualizeField(sol_sock_u, vishost, visport, *u,
+			      "Velocity", 0, 0, size, size);
+       socketstream sol_sock_p;
+       common::VisualizeField(sol_sock_p, vishost, visport, *p,
+			      "Pressure", size, 0, size, size);
+     }
+   
    // 15. Free the used memory.
    delete fform;
    delete mVarf;
