@@ -84,7 +84,7 @@ struct CoarseFineTransformations
 
    void Clear();
    bool IsInitialized() const;
-   long MemoryUsage() const;
+   std::size_t MemoryUsage() const;
 
    MFEM_DEPRECATED
    void GetCoarseToFineMap(const Mesh &fine_mesh, Table &coarse_to_fine) const
@@ -152,6 +152,11 @@ public:
    /// Return the number of (2D) faces in the NCMesh.
    int GetNFaces() const { return NFaces; }
    virtual int GetNGhostElements() const { return 0; }
+
+   /** NCMesh can change the vertex ordering after refinement, coarsening, or on creation
+    *  of the NCMesh object.  After update operation the Vertex ID Map contains the remapping
+    *  information. */
+   const Array<int> &GetVertexIDMap() {return vertex_nodeId;}
 
    /** Perform the given batch of refinements. Please note that in the presence
        of anisotropic splits additional refinements may be necessary to keep
@@ -240,7 +245,7 @@ public:
       void Clear();
       bool Empty() const { return !conforming.Size() && !masters.Size(); }
       long TotalSize() const;
-      long MemoryUsage() const;
+      std::size_t MemoryUsage() const;
 
       const MeshId& LookUp(int index, int *type = NULL) const;
 
@@ -281,7 +286,6 @@ public:
          default: return GetFaceList();
       }
    }
-
 
    // coarse/fine transforms
 
@@ -390,7 +394,7 @@ public:
    virtual void Trim();
 
    /// Return total number of bytes allocated.
-   long MemoryUsage() const;
+   std::size_t MemoryUsage() const;
 
    int PrintMemoryDetail() const;
 
