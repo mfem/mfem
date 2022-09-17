@@ -18,8 +18,8 @@ requires an MPI C++ compiler, as well as the following external libraries:
 - METIS (a family of multilevel partitioning algorithms)
   https://github.com/mfem/tpls
 
-  Note: We recommend our mirror of metis-4.0.3/5.1.0 above because the former
-  METIS webpage, https://glaros.dtc.umn.edu/gkhome/metis/metis/overview, is down
+  Note: We recommend our mirror of metis-4.0.3/5.1.0 above because the METIS
+  webpage, https://glaros.dtc.umn.edu/gkhome/metis/metis/overview, is often down
   and we don't support yet the new repo https://github.com/KarypisLab/METIS.
 
 The hypre dependency can be downloaded as a tarball from GitHub or from the
