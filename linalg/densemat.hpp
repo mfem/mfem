@@ -572,10 +572,12 @@ void AddMult_a_VWt(const double a, const Vector &v, const Vector &w,
 /// VVt += a * v v^t
 void AddMult_a_VVt(const double a, const Vector &v, DenseMatrix &VVt);
 
-/// Computes matrix P^t * A * P
+/** Computes matrix P^t * A * P. Note: The @a RAP matrix will be resized
+    to accomodate the data */
 void RAP(const DenseMatrix &A, const DenseMatrix &P, DenseMatrix & RAP);
 
-/// Computes the matrix Rt^t * A * P
+/** Computes the matrix Rt^t * A * P. Note: The @a RAP matrix will be resized
+    to accomodate the data */
 void RAP(const DenseMatrix &Rt, const DenseMatrix &A,
          const DenseMatrix &P, DenseMatrix & RAP);
 
