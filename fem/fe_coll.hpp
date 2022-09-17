@@ -53,8 +53,12 @@ public:
 
    virtual int DofForGeometry(Geometry::Type GeomType) const = 0;
 
-   /** @brief Returns an array, say p, that maps a local permuted index i to
-       a local base index: base_i = p[i]. */
+   /** @brief Returns an array, say p, that maps a local permuted index i to a
+       local base index: base_i = p[i].
+
+       @note Only provides information about interior dofs. See
+       FiniteElementCollection::SubDofOrder if interior \a and boundary dof
+       order is needed. */
    virtual const int *DofOrderForOrientation(Geometry::Type GeomType,
                                              int Or) const = 0;
 
