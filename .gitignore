@@ -220,6 +220,7 @@ miniapps/meshing/trimmer.mesh
 miniapps/meshing/optimized*
 miniapps/meshing/perturbed*
 miniapps/meshing/polar-nc.mesh
+miniapps/meshing/ext-mesh-mapping
 
 miniapps/mtop/parheat
 miniapps/mtop/ParHeat*
