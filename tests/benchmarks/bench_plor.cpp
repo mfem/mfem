@@ -38,6 +38,7 @@ using curandGenerator_t = void*;
 #endif // MFEM_USE_CUDA
 
 ////////////////////////////////////////////////////////////////////////////////
+static std::string config_device = "cuda";
 static int config_ndev = 4; // default 4 GPU per node
 static bool config_nxyz = false; // cartesian partitioning in x
 
@@ -161,6 +162,7 @@ struct Transformation : VectorCoefficient
 ////////////////////////////////////////////////////////////////////////////////
 namespace analytics
 {
+
 static constexpr double pi = M_PI, pi2 = M_PI*M_PI;
 
 // Exact solution for definite Helmholtz problem with RHS corresponding to f
@@ -228,12 +230,11 @@ struct PLOR_Solvers_Bench
 
    std::function<ParMesh()> GetCoarseKershawMesh = [&]()
    {
-      dbg("nx:%d ny:%d nz:%d epsilon:%f", nx, ny, nz, epsilon);
+      //dbg("nx:%d ny:%d nz:%d epsilon:%f", nx, ny, nz, epsilon);
       Mesh smesh =
          Mesh::MakeCartesian3D((config_nxyz?num_procs:1)*nx, ny, nz,
                                Element::HEXAHEDRON);
-      // Kershaw transformation
-      dbg("Kershaw");
+      //#warning NO Kershaw transformation
       kershaw::Transformation kt(dim, epsilon, epsilon);
       smesh.Transform(kt);
       int *partitioning = nullptr;
@@ -242,12 +243,10 @@ struct PLOR_Solvers_Bench
          int nxyz[3] = {num_procs,1,1};
          return config_nxyz ? smesh.CartesianPartitioning(nxyz) : nullptr;
       };
-      dbg("ParMesh");
-      ParMesh mesh(MPI_COMM_WORLD, smesh, partitioning=GetPartitioning());
+      ParMesh pmesh(MPI_COMM_WORLD, smesh, partitioning=GetPartitioning());
       smesh.Clear();
       delete partitioning;
-      dbg("GetCoarseKershawMesh done");
-      return mesh;
+      return pmesh;
    };
    ParMesh pmesh;
    H1_FECollection fec;
@@ -261,14 +260,15 @@ struct PLOR_Solvers_Bench
    const HYPRE_Int ndofs, global_ne;
    Vector X, B;
    OperatorHandle A;
-   std::unique_ptr<Solver> solv_lor;
-   HypreBoomerAMG *amg;
+   LORSolver<HypreBoomerAMG> *solv_lor = nullptr;
    CGSolver cg;
    int cg_niter;
 
    //        sw_setup = sw_setup_PA + sw_setup_LOR + sw_setup_AMG;
    StopWatch sw_setup,  sw_setup_PA,  sw_setup_LOR,  sw_setup_AMG;
    StopWatch sw_solve;
+
+   ~PLOR_Solvers_Bench() { delete solv_lor; }
 
    PLOR_Solvers_Bench(int order, int side, double eps) :
       num_procs(Mpi::WorldSize()),
@@ -294,24 +294,25 @@ struct PLOR_Solvers_Bench
       x(&fes),
       a(&fes),
       b(&fes),
-      ndofs(fes.GlobalTrueVSize()),
+      ndofs(fes.GlobalTrueVSize()), // builds Dof_TrueDof_Matrix
       global_ne(pmesh.GetGlobalNE()),
+      cg(MPI_COMM_WORLD),
       cg_niter(-2)
 
    {
       x = 0.0;
+      //x.ProjectCoefficient(u_coeff);
       fes.GetBoundaryTrueDofs(ess_dofs);
 
-      //b.AddDomainIntegrator(new DomainLFIntegrator(rhs));
+      //b.AddDomainIntegrator(new DomainLFIntegrator(f_coeff));
       b.AddDomainIntegrator(new DomainLFIntegrator(one));
       b.Assemble();
 
-      a.AddDomainIntegrator(new MassIntegrator);
+      //a.AddDomainIntegrator(new MassIntegrator);
       a.AddDomainIntegrator(new DiffusionIntegrator(one));
       a.SetAssemblyLevel(AssemblyLevel::PARTIAL);
 
       /// Overall SETUP
-      MFEM_DEVICE_SYNC;
       sw_setup.Clear();
       sw_setup_PA.Clear();
       sw_setup_LOR.Clear();
@@ -320,6 +321,7 @@ struct PLOR_Solvers_Bench
       sw_setup.Start();
 
       /// PA SETUP
+      MFEM_DEVICE_SYNC;
       sw_setup_PA.Start();
       a.Assemble();
       a.FormLinearSystem(ess_dofs, x, b, A, X, B);
@@ -327,25 +329,26 @@ struct PLOR_Solvers_Bench
       sw_setup_PA.Stop();
 
       /// LOR SETUP
+      MFEM_DEVICE_SYNC;
       sw_setup_LOR.Start();
-      auto *lor_solver = new LORSolver<HypreBoomerAMG>(a, ess_dofs);
-      solv_lor.reset(lor_solver);
+      solv_lor = new LORSolver<HypreBoomerAMG>(a, ess_dofs);
       MFEM_DEVICE_SYNC;
       sw_setup_LOR.Stop();
+
       /// AMG SETUP
+      solv_lor->GetSolver().SetPrintLevel(0);
+      MFEM_DEVICE_SYNC;
       sw_setup_AMG.Start();
-      amg = &((LORSolver<HypreBoomerAMG>&)*solv_lor).GetSolver();
-      amg->SetPrintLevel(0);
-      amg->Setup(B, X);
+      solv_lor->GetSolver().Setup(B, X);
       MFEM_DEVICE_SYNC;
       sw_setup_AMG.Stop();
+
       sw_setup.Stop();
 
-
       cg.SetRelTol(0.0);
+      cg.SetAbsTol(0.0);
       cg.SetOperator(*A);
       cg.iterative_mode = false;
-      cg.SetAbsTol(0.0);//sqrt(1e-16));
       cg.SetPreconditioner(*solv_lor);
       cg.SetMaxIter(config_cg_max_iter);
       cg.SetPrintLevel(config_debug ? 3: -1);
@@ -360,13 +363,13 @@ struct PLOR_Solvers_Bench
       cg.SwOper().Clear();
       cg.SwPrec().Clear();
       cg.SwPdot().Clear();
-      amg->sw_apply.Clear();
+      solv_lor->GetSolver().sw_apply.Clear();
       a.SwApplyPA().Clear();
    }
 
    void Run()
    {
-      MFEM_NVTX;
+      //MFEM_NVTX;
       MFEM_DEVICE_SYNC;
       sw_solve.Start();
       cg.Mult(B,X);
@@ -375,12 +378,10 @@ struct PLOR_Solvers_Bench
       assert(cg.GetNumIterations() == cg_niter);
    }
 
-   const LORBase &GetLOR() const
+   BatchedLORAssembly *GetBatchedLOR() const
    {
-      return ((LORSolver<HypreBoomerAMG>&)*solv_lor).GetLOR();
+      return solv_lor->GetLOR().GetBatchedLOR();
    }
-
-   BatchedLORAssembly *GetBatchedLOR() const { return GetLOR().GetBatchedLOR(); }
 
    /// Setup
    double T_OUTER_ALL_Setup() { return sw_setup.RealTime(); }
@@ -392,9 +393,9 @@ struct PLOR_Solvers_Bench
    double T_INNER_RAP_Setup() { return GetBatchedLOR()->sw_RAP.RealTime(); }
    double T_INNER_BC_Setup() { return GetBatchedLOR()->sw_BC.RealTime(); }
 
-   double T_INNER_AMG_Setup() { return amg->sw_setup.RealTime(); }
+   double T_INNER_AMG_Setup() { return solv_lor->GetSolver().sw_setup.RealTime(); }
 
-   /// Apply
+   /// Solve/Apply
    double T_OUTER_ALL_Solve() { return sw_solve.RealTime(); }
 
    double T_INNER_CG_Axpy() { return cg.SwAxpy().RealTime(); }
@@ -402,7 +403,7 @@ struct PLOR_Solvers_Bench
    double T_INNER_CG_Prec() { return cg.SwPrec().RealTime(); }
    double T_INNER_CG_pDot() { return cg.SwPdot().RealTime(); }
 
-   double T_INNER_AMG_Apply() { return amg->sw_apply.RealTime(); }
+   double T_INNER_AMG_Apply() { return solv_lor->GetSolver().sw_apply.RealTime(); }
    double T_INNER_PA_Apply() { return a.SwApplyPA().RealTime(); }
 
 };
@@ -415,7 +416,7 @@ struct PLOR_Solvers_Bench
 #define P_SIDES bm::CreateDenseRange(12,240,6)
 
 // Maximum number of dofs
-#define MAX_NDOFS 1024*1024*1024
+#define MAX_NDOFS 8*1024*1024
 //if (plor.dofs > (nranks*MAX_NDOFS)) {state.SkipWithError("MAX_NDOFS");}
 
 // [1] The different orders the tests can run
@@ -424,7 +425,7 @@ struct PLOR_Solvers_Bench
 // [2] The different epsilons dividers
 #define P_EPSILONS {1,2,3}
 
-void pLOR(bm::State &state)
+static void pLOR(bm::State &state)
 {
    const int side = state.range(0);
    const int order = state.range(1);
@@ -435,95 +436,86 @@ void pLOR(bm::State &state)
 
    const int ndofs = plor.ndofs;
    const int nranks = Mpi::WorldSize();
-   if (ndofs > (nranks*MAX_NDOFS)) { state.SkipWithError("MAX_NDOFS"); }
+   //if (ndofs > (nranks*MAX_NDOFS)) { state.SkipWithError("MAX_NDOFS"); }
 
    while (state.KeepRunning()) { plor.Run(); }
 
-   state.counters["NRanks"] = bm::Counter(nranks);
+   state.counters["MPI"] = bm::Counter(nranks);
    state.counters["NELMs"] = bm::Counter(plor.global_ne);
    state.counters["NDOFs"] = bm::Counter(ndofs);
    state.counters["P"] = bm::Counter(order);
-   state.counters["CGiters"] = bm::Counter(plor.cg_niter);
-   state.counters["Epsilon"] = bm::Counter(epsilon);
+   state.counters["CG"] = bm::Counter(plor.cg_niter);
+   state.counters["Eps"] = bm::Counter(epsilon);
 
    /// OUTER SETUP = OUTER(PA + LOR + AMG)
-   const double s_all = plor.T_OUTER_ALL_Setup();
-   const double s_pa = plor.T_OUTER_0_PA_Setup();
-   const double s_lor = plor.T_OUTER_1_LOR_Setup();
-   const double s_amg = plor.T_OUTER_2_AMG_Setup();
-   const double s_pa_lor_amg = s_pa + s_lor + s_amg;
-   const double s_delta = fabs(s_all - s_pa_lor_amg);
+   const double setup = plor.T_OUTER_ALL_Setup();
+   const double setup_pa = plor.T_OUTER_0_PA_Setup();
+   const double setup_lor = plor.T_OUTER_1_LOR_Setup();
+   const double setup_amg = plor.T_OUTER_2_AMG_Setup();
+   const double setup_pa_lor_amg = setup_pa + setup_lor + setup_amg;
+   const double setup_delta = fabs(setup - setup_pa_lor_amg);
    dbg("[setup:outer] %f = pa:%f + lor:%f + amg:%f = %f",
-       s_all, s_pa, s_lor, s_amg, s_pa_lor_amg);
-   dbg("\033[%dm[setup:outer] delta %f", s_delta < 1e-3 ? 32:31, s_delta);
-
-   state.counters["T0_0_ALL"] = bm::Counter(plor.T_OUTER_ALL_Setup());
-   state.counters["T0_1_PA"] = bm::Counter(plor.T_OUTER_0_PA_Setup());
-   state.counters["T0_2_LOR"] = bm::Counter(plor.T_OUTER_1_LOR_Setup());
-   state.counters["T0_3_AMG"] = bm::Counter(plor.T_OUTER_2_AMG_Setup());
+       setup, setup_pa, setup_lor, setup_amg, setup_pa_lor_amg);
+   dbg("\033[%dm[setup:outer] delta %f", setup_delta < 1e-3 ? 32:31, setup_delta);
+   state.counters["Setup"] = bm::Counter(setup);
+   state.counters["Setup_AMG"] = bm::Counter(setup_amg);
+   //state.counters["Setup_LOR"] = bm::Counter(setup_lor);
+   state.counters["Setup_HO"] = bm::Counter(setup_pa);
 
    /// OUTER LOR = INNER(LOR + RAP + BC) + eps
    const double s_i_rap = plor.T_INNER_RAP_Setup();
    const double s_i_lor = plor.T_INNER_LOR_Setup();
    const double s_i_bc = plor.T_INNER_BC_Setup();
    const double s_i_lor_rap_bc = s_i_lor + s_i_rap +  s_i_bc;
-   const double s_i_delta = fabs(s_lor - s_i_lor_rap_bc);
+   const double s_i_delta = fabs(setup_lor - s_i_lor_rap_bc);
    dbg("[setup:inner] %f = lor:%f + rap:%f + bc:%f = %f + eps",
-       s_lor, s_i_lor, s_i_rap, s_i_bc, s_i_lor_rap_bc);
+       setup_lor, s_i_lor, s_i_rap, s_i_bc, s_i_lor_rap_bc);
    dbg("\033[%dm[setup:inner] s_i_delta %f",
        s_i_delta < 1e-2 ? 32:31, s_i_delta);
-   state.counters["T0_I_1_LOR"] = bm::Counter(plor.T_INNER_LOR_Setup());
-   state.counters["T0_I_2_RAP"] = bm::Counter(plor.T_INNER_RAP_Setup());
-   state.counters["T0_I_3_BC"] = bm::Counter(plor.T_INNER_BC_Setup());
+   state.counters["Setup_LOR"] = bm::Counter(s_i_lor);
+   state.counters["Setup_RAP"] = bm::Counter(s_i_rap);
+   state.counters["Setup_BC"] = bm::Counter(s_i_bc);
 
    /// OUTER SOLVE = INNER( AXPY + PA(Oper) + AMG(Prec) + pDot)
    /// R*PA*P == Oper, AMG == Prec
-   const double a_all = plor.T_OUTER_ALL_Solve();
+   const double solve = plor.T_OUTER_ALL_Solve();
 
-   const double a_cg_axpy = plor.cg.SwAxpy().RealTime();
-   const double a_cg_oper = plor.cg.SwOper().RealTime();
-   const double a_cg_prec = plor.cg.SwPrec().RealTime();
-   const double a_cg_pdot = plor.cg.SwPdot().RealTime();
-   const double a_cg_all = a_cg_axpy + a_cg_oper + a_cg_prec + a_cg_pdot;
-   const double a_cg_delta = fabs(a_all - a_cg_all);
+   const double solve_axpy = plor.cg.SwAxpy().RealTime();
+   const double solve_oper = plor.cg.SwOper().RealTime();
+   const double solve_prec = plor.cg.SwPrec().RealTime();
+   const double solve_pdot = plor.cg.SwPdot().RealTime();
+   const double solve_sum = solve_axpy + solve_oper + solve_prec + solve_pdot;
+   const double solve_delta = fabs(solve - solve_sum);
    dbg("\033[33m[apply] %f = axpy:%f + oper:%f + prec:%f + dot:%f = %f + eps",
-       a_all, a_cg_axpy, a_cg_oper, a_cg_prec, a_cg_pdot, a_cg_all);
+       solve, solve_axpy, solve_oper, solve_prec, solve_pdot, solve_sum);
    dbg("\033[%dm[apply] a_cg_delta %f",
-       a_cg_delta < 1e-2 ? 32:31, a_cg_delta);
+       solve_delta < 1e-2 ? 32:31, solve_delta);
 
-   // we don't measure thee R.PA.P, just PA
-   /*const double a_i_pa = plor.T_INNER_PA_Apply();
-   dbg("[apply] PA == Oper: %f = %f", a_i_pa, a_cg_oper);
-   const double a_pa_oper_delta = fabs(a_i_pa - a_cg_oper);
-   dbg("\033[%dm[apply] a_pa_oper_delta %f",
-       a_pa_oper_delta < 1e-1 ? 32:31, a_pa_oper_delta);*/
+   // we don't measure the R.PA.P, just PA
 
    const double a_i_amg = plor.T_INNER_AMG_Apply();
-   dbg("[apply] AMG == Prec: %f = %f", a_i_amg, a_cg_prec);
-   const double a_amg_prec_delta = fabs(a_i_amg - a_cg_prec);
+   dbg("[apply] AMG == Prec: %f = %f", a_i_amg, solve_prec);
+   const double a_amg_prec_delta = fabs(a_i_amg - solve_prec);
    dbg("\033[%dm[apply] a_amg_prec_delta %f",
        a_amg_prec_delta < 1e-1 ? 32:31, a_amg_prec_delta);
 
    bm::Counter::Flags kAvg = bm::Counter::kAvgIterations;
-   state.counters["A_ALL"] = bm::Counter(plor.T_OUTER_ALL_Solve(), kAvg);
-   state.counters["A_AMG"] = bm::Counter(plor.T_INNER_AMG_Apply(), kAvg);
-   state.counters["A_PA"] = bm::Counter(plor.T_INNER_PA_Apply(), kAvg);
+   const double tm_solve_amg = plor.T_INNER_AMG_Apply();
+   const double tm_solve_ho = solve - tm_solve_amg;
+   state.counters["Solve"] = bm::Counter(solve, kAvg);
+   state.counters["Solve_AMG"] = bm::Counter(tm_solve_amg, kAvg);
+   state.counters["Solve_HO"] = bm::Counter(tm_solve_ho, kAvg);
+   dbg("done");
 }
 
 BENCHMARK(pLOR)->Unit(bm::kMillisecond)\
-->ArgsProduct( {P_SIDES, P_ORDERS, P_EPSILONS})->Iterations(10);
+->ArgsProduct( {P_SIDES, P_ORDERS, P_EPSILONS})->Iterations(2);
 
 int main(int argc, char *argv[])
 {
    Mpi::Init();
-   Hypre::Init();
 
-   bm::ConsoleReporter CR;
    bm::Initialize(&argc, argv);
-
-   // Device setup, cpu by default
-   std::string config_device = "cpu";
-
    if (bmi::global_context != nullptr)
    {
       bmi::FindInContext("device", config_device); // device=cuda
@@ -533,26 +525,37 @@ int main(int argc, char *argv[])
       bmi::FindInContext("ndev", config_ndev); // ndev=4
       bmi::FindInContext("cgmi", config_cg_max_iter);
    }
+   if (bm::ReportUnrecognizedArguments(argc, argv)) { return 1; }
 
    const int mpi_rank = Mpi::WorldRank();
    const int mpi_size = Mpi::WorldSize();
-   const int dev = config_ndev > 0 ? mpi_rank % config_ndev : 0;
-   dbg("[MPI] rank: %d/%d, using device #%d", 1+mpi_rank, mpi_size, dev);
+   const int dev = mpi_rank % config_ndev;
+   dbg("[MPI] %d/%d @ device #%d", 1+mpi_rank, mpi_size, dev);
 
    Device device(config_device.c_str(), dev);
    if (Mpi::Root()) { device.Print(); }
 
-   if (bm::ReportUnrecognizedArguments(argc, argv)) { return 1; }
+   Hypre::Init(); // after device selection
 
+   static hypre_Handle *hypre_h = hypre_HandleCreate();
+   (void) hypre_h;
+
+   bm::ConsoleReporter CR;
    if (Mpi::Root()) { bm::RunSpecifiedBenchmarks(&CR); }
    else
    {
       // No display_reporter and file_reporter
-      // bm::RunSpecifiedBenchmarks(NoReporter());
-      bm::BenchmarkReporter *file_reporter = new NoReporter();
-      bm::BenchmarkReporter *display_reporter = new NoReporter();
-      bm::RunSpecifiedBenchmarks(display_reporter, file_reporter);
+      std::unique_ptr<bm::BenchmarkReporter> file_reporter, display_reporter;
+      file_reporter.reset(new NoReporter());
+      display_reporter.reset(new NoReporter());
+      bm::RunSpecifiedBenchmarks(display_reporter.get(), file_reporter.get());
    }
+
+   // dbg("MPI_Barrier...");
+   // MPI_Barrier(MPI_COMM_WORLD);
+   // HYPRE Shutdown
+   // MFEM Device Shutdown => CUDA error: (cudaFree(dptr)) failed with error
+   // bm::Shutdown();
    return 0;
 }
 
