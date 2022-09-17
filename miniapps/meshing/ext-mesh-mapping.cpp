@@ -13,8 +13,8 @@
 //                       External Mesh Mapping Miniapp
 //             ---------------------------------------------------
 //
-// This miniapp starts with a non-conforming mesh in a dummy format and demonstrates 
-// how to build up a corresponding non-conforming MFEM Mesh, and then decompose it 
+// This miniapp starts with a serial non-conforming mesh in a dummy format and demonstrates 
+// how to build up a corresponding non-conforming MFEM Mesh and then decompose it 
 // into a parallel ParMesh.  As part of this process we will demonstrate how to obtain 
 // and compose the vertex ID mappings from the various steps that can shuffle the 
 // vertices.  In the end this will let us map between the vertex ID numbers in the 
