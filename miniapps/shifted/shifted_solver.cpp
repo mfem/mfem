@@ -134,7 +134,7 @@ namespace mfem
 	  int size = (dim*(dim+1))/2;
           DenseMatrix physical_hess(dofs_cnt,size);
           physical_hess = 0.0;
-          fe.CalcPhysHessian2(Trans_el1,physical_hess);
+          fe.CalcPhysHessian(Trans_el1,physical_hess);
           DenseMatrix adjusted_physical_hess(dofs_cnt,dim*dim);
           adjusted_physical_hess = 0.0;
           for (int s = 0; s < dofs_cnt; s++){
@@ -253,7 +253,7 @@ namespace mfem
 	  int size = (dim*(dim+1))/2;
           DenseMatrix physical_hess(dofs_cnt,size);
           physical_hess = 0.0;
-          fe2.CalcPhysHessian2(Trans_el1,physical_hess);
+          fe2.CalcPhysHessian(Trans_el1,physical_hess);
           DenseMatrix adjusted_physical_hess(dofs_cnt,dim*dim);
           adjusted_physical_hess = 0.0;
           for (int s = 0; s < dofs_cnt; s++){
@@ -565,7 +565,7 @@ namespace mfem
 	  int size = (dim*(dim+1))/2;
           DenseMatrix physical_hess(trialdofs_cnt,size);
           physical_hess = 0.0;
-          trial_fe1.CalcPhysHessian2(Trans_el1,physical_hess);
+          trial_fe1.CalcPhysHessian(Trans_el1,physical_hess);
           DenseMatrix adjusted_physical_hess(trialdofs_cnt,dim*dim);
           adjusted_physical_hess = 0.0;
           for (int s = 0; s < trialdofs_cnt; s++){
@@ -675,7 +675,7 @@ namespace mfem
 	  int size = (dim*(dim+1))/2;
           DenseMatrix physical_hess(trialdofs_cnt,size);
           physical_hess = 0.0;
-          trial_fe2.CalcPhysHessian2(Trans_el1,physical_hess);
+          trial_fe2.CalcPhysHessian(Trans_el1,physical_hess);
           DenseMatrix adjusted_physical_hess(trialdofs_cnt,dim*dim);
           adjusted_physical_hess = 0.0;
           for (int s = 0; s < trialdofs_cnt; s++){
@@ -961,7 +961,7 @@ namespace mfem
 	  int size = (dim*(dim+1))/2;
           DenseMatrix physical_hess(h1dofs_cnt,size);
           physical_hess = 0.0;
-          fe.CalcPhysHessian2(Trans_el1,physical_hess);
+          fe.CalcPhysHessian(Trans_el1,physical_hess);
           DenseMatrix adjusted_physical_hess(h1dofs_cnt,dim*dim);
           adjusted_physical_hess = 0.0;
           for (int s = 0; s < h1dofs_cnt; s++){
@@ -1069,7 +1069,7 @@ namespace mfem
 	  int size = (dim*(dim+1))/2;
           DenseMatrix physical_hess(h1dofs_cnt,size);
           physical_hess = 0.0;
-          fe2.CalcPhysHessian2(Trans_el1,physical_hess);
+          fe2.CalcPhysHessian(Trans_el1,physical_hess);
           DenseMatrix adjusted_physical_hess(h1dofs_cnt,dim*dim);
           adjusted_physical_hess = 0.0;
           for (int s = 0; s < h1dofs_cnt; s++){
@@ -1550,7 +1550,7 @@ namespace mfem
 	  int size = (dim*(dim+1))/2;
           DenseMatrix physical_hess(h1dofs_cnt,size);
           physical_hess = 0.0;
-          el.CalcPhysHessian2(Trans_el1,physical_hess);
+          el.CalcPhysHessian(Trans_el1,physical_hess);
           DenseMatrix adjusted_physical_hess(h1dofs_cnt,dim*dim);
           adjusted_physical_hess = 0.0;
           for (int s = 0; s < h1dofs_cnt; s++){
@@ -1658,7 +1658,7 @@ namespace mfem
 	  int size = (dim*(dim+1))/2;
           DenseMatrix physical_hess(h1dofs_cnt,size);
           physical_hess = 0.0;
-          el2.CalcPhysHessian2(Trans_el1,physical_hess);
+          el2.CalcPhysHessian(Trans_el1,physical_hess);
           DenseMatrix adjusted_physical_hess(h1dofs_cnt,dim*dim);
           adjusted_physical_hess = 0.0;
           for (int s = 0; s < h1dofs_cnt; s++){
