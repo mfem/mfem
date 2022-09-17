@@ -326,14 +326,15 @@ void  FiniteElement::CalcPhysHessian(ElementTransformation &Trans,
    CalcHessian(Trans.GetIntPoint(), hess);
 
    // Gradient in physical coords
-   if (Trans.Hessian().FNorm2() > 1e-10)
+   // Something wrong with the commented code when using triangles
+   /* if (Trans.Hessian().FNorm2() > 1e-10)
    {
       DenseMatrix grad(dof, dim);
       CalcPhysDShape(Trans, grad);
       DenseMatrix gmap(dof, size);
       Mult(grad,Trans.Hessian(),gmap);
       hess -= gmap;
-   }
+      }*/
 
    // LHM
    DenseMatrix lhm(size,size);
