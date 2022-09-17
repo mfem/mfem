@@ -8,7 +8,7 @@
 // mpirun -np 4 ./pacoustics -o 3 -m ../../../data/inline-quad.mesh -sref 1 -pref 2  -rnum 5.2 -sc -prob 1
 // mpirun -np 4 ./pacoustics -o 4 -m ../../../data/inline-tri.mesh -sref 1 -pref 2  -rnum 7.1 -sc -prob 1
 // mpirun -np 4 ./pacoustics -o 4 -m ../../../data/inline-hex.mesh -sref 0 -pref 0 -rnum 3.9 -sc -prob 0
-// mpirun -np 4 ./pacoustics -o 3 -m ../../../data/inline-quad.mesh -sref 1 -pref 0  -rnum 7.1 -sc -prob 2
+// mpirun -np 4 ./pacoustics -o 3 -m ../../../data/inline-quad.mesh -sref 2 -pref 0  -rnum 7.1 -sc -prob 2
 // mpirun -np 4 ./pacoustics -o 2 -m ../../../data/inline-hex.mesh -sref 0 -pref 1  -rnum 4.1 -sc -prob 2
 // mpirun -np 4 ./pacoustics -o 3 -m scatter.mesh -sref 1 -pref 0  -rnum 7.1 -sc -prob 3
 // mpirun -np 4 ./pacoustics -o 4 -m scatter.mesh -sref 1 -pref 0  -rnum 10.1 -sc -prob 4
@@ -158,6 +158,14 @@ enum prob_type
    pml_pointsource
 };
 
+static const char *enum_str[] =
+{ "plane_wave", 
+   "gaussian_beam", 
+   "pml_general", 
+   "pml_beam_scatter",
+   "pml_plane_wave_scatter", 
+   "pml_pointsource"};
+
 prob_type prob;
 
 int main(int argc, char *argv[])
@@ -178,15 +186,13 @@ int main(int argc, char *argv[])
    int pr = 0;
    bool exact_known = false;
    bool with_pml = false;
+   bool paraview = false;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
                   "Mesh file to use.");
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree)");
-   args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
-                  "--no-visualization",
-                  "Enable or disable GLVis visualization.");
    args.AddOption(&rnum, "-rnum", "--number_of_wavelenths",
                   "Number of wavelengths");     
    args.AddOption(&iprob, "-prob", "--problem", "Problem case"
@@ -203,6 +209,12 @@ int main(int argc, char *argv[])
                   "Number of parallel refinements.");  
    args.AddOption(&static_cond, "-sc", "--static-condensation", "-no-sc",
                   "--no-static-condensation", "Enable static condensation.");                                            
+   args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
+               "--no-visualization",
+               "Enable or disable GLVis visualization.");
+   args.AddOption(&paraview, "-paraview", "--paraview", "-no-paraview",
+            "--no-paraview",
+            "Enable or disable ParaView visualization.");   
    args.Parse();
    if (!args.Good())
    {
@@ -458,6 +470,27 @@ int main(int argc, char *argv[])
    double err0 = 0.;
    int dof0 = 0;
 
+   ParComplexGridFunction p(p_fes);
+   ParComplexGridFunction u(u_fes);
+
+   ParaViewDataCollection * paraview_dc = nullptr;
+
+   if (paraview)
+   {
+      paraview_dc = new ParaViewDataCollection(enum_str[prob], &pmesh);
+      paraview_dc->SetPrefixPath("ParaView");
+      paraview_dc->SetLevelsOfDetail(order);
+      paraview_dc->SetCycle(0);
+      paraview_dc->SetDataFormat(VTKFormat::BINARY);
+      paraview_dc->SetHighOrderOutput(true);
+      paraview_dc->SetTime(0.0); // set the time
+      paraview_dc->RegisterField("p_r",&p.real());
+      paraview_dc->RegisterField("p_i",&p.imag());
+      paraview_dc->RegisterField("u_r",&u.real());
+      paraview_dc->RegisterField("u_i",&u.imag());
+      paraview_dc->Save();
+   }
+
    for (int it = 0; it<=pr; it++)
    {
       if (static_cond) { a->EnableStaticCondensation(); }
@@ -601,11 +634,9 @@ int main(int argc, char *argv[])
 
       globalresidual = sqrt(globalresidual);
 
-      ParComplexGridFunction p(p_fes);
       p.real().MakeRef(p_fes,x.GetData());
       p.imag().MakeRef(p_fes,&x.GetData()[offsets.Last()]);
 
-      ParComplexGridFunction u(u_fes);
       u.real().MakeRef(u_fes,&x.GetData()[offsets[1]]);
       u.imag().MakeRef(u_fes,&x.GetData()[offsets.Last()+offsets[1]]);
 
@@ -678,6 +709,13 @@ int main(int argc, char *argv[])
                         "Numerical presure (imaginary part)", 501, 0, 500, 500, keys);   
       }
 
+      if (paraview)
+      {
+         paraview_dc->SetCycle(it);
+         paraview_dc->SetTime((double)it);
+         paraview_dc->Save();
+      }
+
       if (it == pr)
          break;
 
@@ -703,6 +741,11 @@ int main(int argc, char *argv[])
          trial_fes[i]->Update(false);
       }
       a->Update();   
+   }
+
+   if (paraview)
+   {
+      delete paraview_dc;
    }
 
    if (pml)
