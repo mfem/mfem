@@ -2031,7 +2031,7 @@ void DenseMatrix::AddSubMatrix(int ibeg, int jbeg, const DenseMatrix & A)
                "DenseMatrix::AddSubmatrix: Negative col index");
    MFEM_VERIFY(ibeg + k <= this->height,
                "DenseMatrix::AddSubmatrix: Index bigger than row upper bound");
-   MFEM_VERIFY(ibeg + l <= this->width,
+   MFEM_VERIFY(jbeg + l <= this->width,
                "DenseMatrix::AddSubmatrix: Index bigger than col upper bound");
 
    double * adata = A.Data();
