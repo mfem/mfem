@@ -355,20 +355,24 @@ public:
    /// Perform (ro+i,co+j)+=a*A(i,j) for 0<=i<A.Height, 0<=j<A.Width
    void AddMatrix(double a, const DenseMatrix &A, int ro, int co);
 
-   /// Get the square submatrix which corresponds to the given indices @a idx
+   /** Get the square submatrix which corresponds to the given indices @a idx.
+       Note: the @a A matrix will be resized to accommodate the data */
    void GetSubMatrix(const Array<int> & idx, DenseMatrix & A) const;
 
    /** Get the rectangular submatrix which corresponds to the given indices
-      @a idx_i and @a idx_j */
+      @a idx_i and @a idx_j. Note: the @a A matrix will be resized to
+      accommodate the data */
    void GetSubMatrix(const Array<int> & idx_i, const Array<int> & idx_j,
                      DenseMatrix & A) const;
 
    /** Get the square submatrix which corresponds to the range
-       [ @a ibeg, @a iend ) */
+       [ @a ibeg, @a iend ). Note: the @a A matrix will be resized
+        to accommodate the data */
    void GetSubMatrix(int ibeg, int iend, DenseMatrix & A);
 
    /** Get the square submatrix which corresponds to the range
-      i ∈ [ @a ibeg, @a iend ) and j ∈ [ @a jbeg, @a jend ) */
+      i ∈ [ @a ibeg, @a iend ) and j ∈ [ @a jbeg, @a jend )
+      Note: the @a A matrix will be resized to accommodate the data */
    void GetSubMatrix(int ibeg, int iend, int jbeg, int jend, DenseMatrix & A);
 
    /// Set (*this)(idx[i],idx[j]) = A(i,j)
