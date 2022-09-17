@@ -30,8 +30,8 @@ class ComplexDenseMatrix : public ComplexOperator
 
 public:
    ComplexDenseMatrix(DenseMatrix * A_Real, DenseMatrix * A_Imag,
-                      bool ownReal, bool ownImag)
-      : ComplexOperator(A_Real, A_Imag, ownReal, ownImag)
+                      bool ownReal, bool ownImag, Convention convention = HERMITIAN)
+      : ComplexOperator(A_Real, A_Imag, ownReal, ownImag, convention)
    { }
 
    virtual DenseMatrix & real();

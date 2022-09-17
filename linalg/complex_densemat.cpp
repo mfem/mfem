@@ -74,7 +74,7 @@ DenseMatrix * ComplexDenseMatrix::GetSystemMatrix() const
    double * data_r = nullptr;
    double * data_i = nullptr;
 
-   // assuming Hermitian convension
+   const double factor = (convention_ == HERMITIAN) ? 1.0 : -1.0;
    *A = 0.;
    if (hasRealPart())
    {
@@ -84,7 +84,7 @@ DenseMatrix * ComplexDenseMatrix::GetSystemMatrix() const
          for (int i = 0; i<h; i++)
          {
             data[i+j*height] = data_r[i+j*h];
-            data[i+h+(j+h)*height] = data_r[i+j*h];
+            data[i+h+(j+h)*height] = factor*data_r[i+j*h];
          }
       }
    }
@@ -95,7 +95,7 @@ DenseMatrix * ComplexDenseMatrix::GetSystemMatrix() const
       {
          for (int i = 0; i<h; i++)
          {
-            data[i+h+j*height] = data_i[i+j*h];
+            data[i+h+j*height] = factor*data_i[i+j*h];
             data[i+(j+h)*height] = -data_i[i+j*h];
          }
       }
