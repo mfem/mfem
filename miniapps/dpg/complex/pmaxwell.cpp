@@ -189,6 +189,13 @@ enum prob_type
    pml_pointsource     
 };
 
+static const char *enum_str[] =
+{ "plane_wave", 
+   "fichera_oven", 
+   "pml_general", 
+   "pml_plane_wave_scatter", 
+   "pml_pointsource"};
+
 prob_type prob;
 
 int main(int argc, char *argv[])
@@ -209,6 +216,7 @@ int main(int argc, char *argv[])
    int pr = 1;
    bool exact_known = false;
    bool with_pml = false;
+   bool paraview = false;
 
 
    OptionsParser args(argc, argv);
@@ -216,9 +224,6 @@ int main(int argc, char *argv[])
                   "Mesh file to use.");
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree)");
-   args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
-                  "--no-visualization",
-                  "Enable or disable GLVis visualization.");
    args.AddOption(&rnum, "-rnum", "--number_of_wavelenths",
                   "Number of wavelengths");    
    args.AddOption(&mu, "-mu", "--permeability",
@@ -240,6 +245,12 @@ int main(int argc, char *argv[])
                   "Number of parallel refinements.");        
    args.AddOption(&static_cond, "-sc", "--static-condensation", "-no-sc",
                   "--no-static-condensation", "Enable static condensation.");                                            
+   args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
+                  "--no-visualization",
+                  "Enable or disable GLVis visualization.");
+   args.AddOption(&paraview, "-paraview", "--paraview", "-no-paraview",
+               "--no-paraview",
+               "Enable or disable ParaView visualization.");   
    args.Parse();
    if (!args.Good())
    {
@@ -633,18 +644,23 @@ int main(int argc, char *argv[])
    H.real() = 0.0;
    H.imag() = 0.0;
 
-   mfem::ParaViewDataCollection paraview_dc("Fichera-oven", &pmesh);
-   paraview_dc.SetPrefixPath("ParaView");
-   paraview_dc.SetLevelsOfDetail(order);
-   paraview_dc.SetCycle(0);
-   paraview_dc.SetDataFormat(VTKFormat::BINARY);
-   paraview_dc.SetHighOrderOutput(true);
-   paraview_dc.SetTime(0.0); // set the time
-   paraview_dc.RegisterField("E_r",&E.real());
-   paraview_dc.RegisterField("E_i",&E.imag());
-   paraview_dc.RegisterField("H_r",&H.real());
-   paraview_dc.RegisterField("H_i",&H.imag());
-   paraview_dc.Save();
+   ParaViewDataCollection * paraview_dc = nullptr;
+
+   if (paraview)
+   {
+      paraview_dc = new ParaViewDataCollection(enum_str[prob], &pmesh);
+      paraview_dc->SetPrefixPath("ParaView");
+      paraview_dc->SetLevelsOfDetail(order);
+      paraview_dc->SetCycle(0);
+      paraview_dc->SetDataFormat(VTKFormat::BINARY);
+      paraview_dc->SetHighOrderOutput(true);
+      paraview_dc->SetTime(0.0); // set the time
+      paraview_dc->RegisterField("E_r",&E.real());
+      paraview_dc->RegisterField("E_i",&E.imag());
+      paraview_dc->RegisterField("H_r",&H.real());
+      paraview_dc->RegisterField("H_i",&H.imag());
+      paraview_dc->Save();
+   }
 
 
    for (int it = 0; it<=pr; it++)
@@ -868,9 +884,12 @@ int main(int argc, char *argv[])
                                "Numerical Magnetic field (real part)", 501, 0, 500, 500, keys);   
       }
 
-      paraview_dc.SetCycle(it);
-      paraview_dc.SetTime((double)it);
-      paraview_dc.Save();
+      if (paraview)
+      {
+         paraview_dc->SetCycle(it);
+         paraview_dc->SetTime((double)it);
+         paraview_dc->Save();
+      }
 
       if (it == pr)
          break;
@@ -908,6 +927,11 @@ int main(int argc, char *argv[])
       delete epsomeg_detJ_Jt_J_inv_r_rot_restr;
       delete negepsomeg_detJ_Jt_J_inv_r_rot_restr;
    }   
+
+   if (paraview)
+   {
+      delete paraview_dc;
+   }
 
    delete a;
    delete F_fec;
