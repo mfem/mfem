@@ -34,7 +34,8 @@
 using namespace mfem;
 
 Mesh *build_mfem_mesh(DummyMesh *dmesh);
-void create_pmesh_to_mesh_vmaps(ParMesh *pmesh, Mesh *mesh, Array<int> &vmap);
+void create_pmesh_to_mesh_emaps(Array<int> &partition, ParMesh *pmesh, Array<int> &emap);
+void create_pmesh_to_mesh_vmaps(ParMesh *pmesh, Mesh *mesh, Array<int> &emap, Array<int> &vmap);
 
 void print_dmesh_verts(DummyMesh *dmesh);
 void print_mesh_verts(Mesh *mesh, const Array<int> &vmap = Array<int>());
@@ -59,13 +60,20 @@ int main(int argc, char *argv[])
 
    //Now enable parallel, given the following partition of the elements.
    //Note that we only have local vertex ids in the pmesh object.
-   int partition[5] = {0,0,1,2,3};
-   ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh, partition);
+   //The partition is the MPI Rank that each element lives on.
+   Array<int> partition({3,3,1,2,0});
+   ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh, partition.GetData());
+
+   //Compute the mappings between the local element ids on each processor in pmesh
+   //and the original global IDs in the mesh.  This can be computed from the element
+   //partition array.
+   Array<int> pmesh_to_mesh_emap;
+   create_pmesh_to_mesh_emaps(partition, pmesh, pmesh_to_mesh_emap);
 
    //Now compute the mappings between the local vertex ids on each processor in pmesh
    //and the global ids in mesh.
    Array<int> pmesh_to_mesh_vmap;
-   create_pmesh_to_mesh_vmaps(pmesh, mesh, pmesh_to_mesh_vmap);
+   create_pmesh_to_mesh_vmaps(pmesh, mesh, pmesh_to_mesh_emap, pmesh_to_mesh_vmap);
 
    //Now compose the maps to create a final map between the local vertex numbering in the
    //pmesh object on this processor and the original dmesh vertex numbering
@@ -76,7 +84,6 @@ int main(int argc, char *argv[])
    }
    print_pmesh_verts(pmesh, final_vmap);           //Print the vertices with global IDs from the final_vmap
 }
-
 
 // Build up an MFEM Mesh from the data in the Dummy Mesh.  Since we are 
 // building the vertex and element lists in the same order as we found them
@@ -135,15 +142,36 @@ Mesh *build_mfem_mesh(DummyMesh *dmesh)
    return mesh;
 }
 
+
+// We can use the partition array to compute the mapping between the local
+// element ids on each processor in pmesh and the global element ids in mesh.
+void create_pmesh_to_mesh_emaps(Array<int> &partition, ParMesh *pmesh, Array<int> &emap)
+{
+   int my_rank = Mpi::WorldRank();
+   emap.SetSize(pmesh->GetNE());
+
+   int local_eid = 0;
+   std::vector<int> indices;
+   auto it = std::find(partition.begin(), partition.end(), my_rank);
+   while (it != partition.end())
+   {
+      emap[local_eid] = std::distance(partition.begin(), it);
+      local_eid++;
+      it++;
+      it = std::find(it, partition.end(), my_rank);
+   }   
+}
+
+
 // We can use the local elements with local vertex ids defined in pmesh and the global
 // elements defined with global vertex ids in mesh to define a mapping from the 
 // local vertex ids on each processor to their global vertex id numbers. 
-void create_pmesh_to_mesh_vmaps(ParMesh *pmesh, Mesh *mesh, Array<int> &vmap)
+void create_pmesh_to_mesh_vmaps(ParMesh *pmesh, Mesh *mesh, Array<int> &emap, Array<int> &vmap)
 {
    vmap.SetSize(pmesh->GetNV());
    for (int local_eid = 0; local_eid < pmesh->GetNE(); ++local_eid)
    {
-      int global_eid = int(pmesh->GetGlobalElementNum(local_eid));   //This comes back as a long long
+      int global_eid = emap[local_eid];
       Array<int> local_elem_verts, global_elem_verts;
       pmesh->GetElement(local_eid)->GetVertices(local_elem_verts);
       mesh->GetElement(global_eid)->GetVertices(global_elem_verts);
@@ -153,6 +181,7 @@ void create_pmesh_to_mesh_vmaps(ParMesh *pmesh, Mesh *mesh, Array<int> &vmap)
       }
    }
 }
+
 
 void print_dmesh_verts(DummyMesh *dmesh)
 {
