@@ -621,3 +621,299 @@ int DivFreeSolver::GetNumIterations() const
    }
    return solver_.As<IterativeSolver>()->GetNumIterations();
 }
+
+BlockHybridizationSolver::BlockHybridizationSolver()
+{
+    Array<int> hat_offsets;
+    hat_offsets.SetSize(pmesh.GetNE() + 1);
+    hat_offsets[0] = 0;
+
+    Array<int> dofs;
+    int num_hat_dofs = 0;
+    for (int i = 0; i < pmesh.GetNE(); ++i)
+    {
+        trial_space.GetElementDofs(i, dofs);
+        num_hat_dofs += dofs.Size();
+        hat_offsets[i + 1] = num_hat_dofs;
+    }
+
+    DG_Interface_FECollection fec(order, mesh.Dimension());
+    ParFiniteElementSpace c_space(&pmesh, &fec);
+
+    SparseMatrix Ct(num_hat_dofs, c_space.GetNDofs()); 
+    Array<int> c_dofs;
+
+    const int skip_zeros = 1;
+    DenseMatrix elmat;
+    FaceElementTransformations * FTr;
+    NormalTraceJumpIntegrator c_int;
+
+    for (int i = 0; i < pmesh.GetNumFaces(); ++i)
+    {
+        FTr = pmesh.GetInteriorFaceTransformations(i);
+        if (!FTr) 
+        {
+            continue;
+        }
+
+        int o1 = hat_offsets[FTr->Elem1No];
+        int s1 = hat_offsets[FTr->Elem1No + 1] - o1;
+        int o2 = hat_offsets[FTr->Elem2No];
+        int s2 = hat_offsets[FTr->Elem2No + 1] - o2;
+
+        dofs.SetSize(s1 + s2);
+        for (int j = 0; j < s1; ++j)
+        {
+            dofs[j] = o1 + j;
+        }
+        for (int j = 0; j < s2; ++j)
+        {
+            dofs[s1 + j] = o2 + j;
+        }
+        c_space.GetFaceDofs(i, c_dofs);
+        c_int.AssembleFaceMatrix(*c_space.GetFaceElement(i),
+                                 *trial_space.GetFE(FTr->Elem1No),
+                                 *trial_space.GetFE(FTr->Elem2No),
+                                 *FTr,
+                                 elmat);
+        elmat.Threshold(eps * elmat.MaxMaxNorm());
+        Ct.AddSubMatrix(dofs, c_dofs, elmat, skip_zeros);
+    }
+
+    for (int i = 0; i < pmesh.GetNSharedFaces(); ++i)
+    {
+        const int face_no = pmesh.GetSharedFace(i);
+
+        FTr = pmesh.GetFaceElementTransformations(face_no);
+
+        int o1 = hat_offsets[FTr->Elem1No];
+        int s1 = hat_offsets[FTr->Elem1No + 1] - o1;
+
+        dofs.SetSize(s1);
+        for (int j = 0; j < s1; ++j)
+        {
+            dofs[j] = o1 + j;
+        }
+        c_space.GetFaceDofs(face_no, c_dofs);
+        const FiniteElement * fe(trial_space.GetFE(FTr->Elem1No));
+        c_int.AssembleFaceMatrix(*c_space.GetFaceElement(face_no),
+                                 *fe,
+                                 *fe,
+                                 *FTr,
+                                 elmat);
+        elmat.Threshold(eps * elmat.MaxMaxNorm());
+        Ct.AddSubMatrix(dofs, c_dofs, elmat, skip_zeros);
+    }
+    Ct.Finalize(skip_zeros);
+
+    Array<int> data_offsets(pmesh.GetNE() + 1);
+    data_offsets[0] = 0;
+
+    Array<int> ipiv_offsets(pmesh.GetNE() + 1);
+    ipiv_offsets[0] = 0;
+    
+    for (int i = 0; i < pmesh.GetNE(); ++i)
+    {
+        const int trial_size = trial_space.GetFE(i)->GetDof();
+        const int test_size = test_space.GetFE(i)->GetDof();
+        const int matrix_size = trial_size + test_size;
+
+        data_offsets[i + 1] = data_offsets[i] + matrix_size*matrix_size;
+        ipiv_offsets[i + 1] = ipiv_offsets[i] + matrix_size;
+    }
+
+    double * data = new double[data_offsets[pmesh.GetNE()]]();
+    int * ipiv = new int[ipiv_offsets[pmesh.GetNE()]];
+
+    SparseMatrix H(Ct.Width());
+
+    Array<int> c_dof_marker(Ct.Width());
+    c_dof_marker = -1;
+    int c_mark_start = 0;
+
+    for (int i = 0; i < pmesh.GetNE(); ++i)
+    {
+        trial_space.GetElementDofs(i, dofs);
+        const int trial_size = dofs.Size();
+        Vector g_i;
+        g_i.MakeRef(rhs, hat_offsets[i], trial_size);
+        g.GetSubVector(dofs, g_i);  // reverses the sign in assemble if dof < 0
+
+        DenseMatrix A(trial_size);
+        a.ComputeElementMatrix(i, A);
+        A.Threshold(eps * A.MaxMaxNorm());
+
+        const int test_size = test_space.GetFE(i)->GetDof();
+        DenseMatrix B(test_size, trial_size);
+        b.ComputeElementMatrix(i, B);
+        B.Neg();
+        B.Threshold(eps * B.MaxMaxNorm());
+
+        const int matrix_size = trial_size + test_size;
+        DenseMatrix M(data + data_offsets[i], matrix_size, matrix_size);
+
+        M.CopyMN(A, 0, 0);
+        M.CopyMN(B, trial_size, 0);
+        M.CopyMNt(B, 0, trial_size);
+
+        c_dofs.SetSize(0);
+        dofs.SetSize(0);
+
+        for (int j = hat_offsets[i]; j < hat_offsets[i + 1]; ++j)
+        {
+            dofs.Append(j);
+            const int ncols = Ct.RowSize(j);
+            const int * cols = Ct.GetRowColumns(j);
+            for (int l = 0; l < ncols; ++l)
+            {
+                const int c_dof = cols[l];
+                if (c_dof_marker[c_dof] < c_mark_start)
+                {
+                    c_dof_marker[c_dof] = c_mark_start + c_dofs.Size();
+                    c_dofs.Append(c_dof);
+                }
+            }
+        }
+        
+        DenseMatrix Ct_local;
+        Ct_local.SetSize(M.Height(), c_dofs.Size()); // Ct_local = [C 0]^T
+        Ct_local = 0.0;
+        for (int j = 0; j < trial_size; ++j)
+        {
+            const int hat_dof = dofs[j];
+            const int ncols = Ct.RowSize(hat_dof);
+            const int * cols = Ct.GetRowColumns(hat_dof);
+            const double * vals = Ct.GetRowEntries(hat_dof);
+            for (int l = 0; l < ncols; ++l)
+            {
+                const int loc = c_dof_marker[cols[l]] - c_mark_start;
+                Ct_local(j, loc) = vals[l];
+            }
+        }
+
+        LUFactors Minv(data + data_offsets[i], ipiv + ipiv_offsets[i]);
+        Minv.Factor(matrix_size);
+        DenseMatrix Minv_Ct_local(Ct_local);
+        Minv.Solve(Ct_local.Height(), Ct_local.Width(), Minv_Ct_local.Data());
+
+        Array<int> test_dofs(test_size);
+        test_space.GetElementDofs(i, test_dofs);
+        for (int j = 0; j < test_dofs.Size(); ++j)
+        {
+            dofs.Append(num_hat_dofs + test_dofs[j]);
+        }
+        Vector Minv_sub_vec;
+        rhs.GetSubVector(dofs, Minv_sub_vec);
+        Minv.Solve(Minv_sub_vec.Size(), 1, Minv_sub_vec.GetData());
+        rhs.SetSubVector(dofs, Minv_sub_vec); // Set is okay because each dof
+                                              // belongs to only one element.
+        DenseMatrix H_local;
+        H_local.SetSize(Ct_local.Width());
+
+        MultAtB(Ct_local, Minv_Ct_local, H_local);
+        H.AddSubMatrix(c_dofs, c_dofs, H_local, skip_zeros);
+
+        c_mark_start += c_dofs.Size();
+        MFEM_VERIFY(c_mark_start >= 0, "overflow");
+    }
+
+    const bool fix_empty_rows = true;
+    H.Finalize(skip_zeros, fix_empty_rows);
+
+    OperatorHandle pH(Operator::Hypre_ParCSR);
+    OperatorHandle pP(pH.Type()), dH(pH.Type());
+    pP.ConvertFrom(c_space.Dof_TrueDof_Matrix());
+    dH.MakeSquareBlockDiag(c_space.GetComm(), c_space.GlobalVSize(),
+                           c_space.GetDofOffsets(), &H);
+    pH.MakePtAP(dH, pP);
+
+    HypreBoomerAMG M(*pH.As<HypreParMatrix>());
+    M.SetPrintLevel(0);
+}
+
+BlockHybridizationSolver::Mult(const Vector &x, Vector &y)
+{
+    Array<int> block_offsets(3);
+    block_offsets[0] = 0;
+    block_offsets[1] = num_hat_dofs;
+    block_offsets[2] = test_space.GetNDofs();
+    block_offsets.PartialSum();
+
+    BlockVector rhs(block_offsets);
+    rhs = 0.0;
+
+    Vector rhs_r(Ct.Width());
+    rhs_r = 0.0;
+    Ct.MultTranspose(rhs.GetBlock(0), rhs_r);
+
+    Vector rhs_true(pH.Ptr()->Height());
+    const Operator & P(*c_space.GetProlongationMatrix());
+    P.MultTranspose(rhs_r, rhs_true);
+
+    Vector x_true(rhs_true.Size());
+    x_true = 0.0;
+
+    CGSolver cg(MPI_COMM_WORLD);
+    cg.SetOperator(*pH);
+    cg.SetPreconditioner(M);
+    cg.SetRelTol(1e-14);
+    cg.SetAbsTol(1e-16);
+    cg.SetMaxIter(100);
+    cg.SetPrintLevel(0);
+    cg.Mult(rhs_true, x_true);
+
+    Vector x(Ct.Width());
+    P.Mult(x_true, x);
+    BlockVector Ct_x(block_offsets);
+    Ct_x = 0.0;  // This is necessary.
+    Ct.Mult(x, Ct_x.GetBlock(0));
+
+    for (int i = 0; i < pmesh.GetNE(); ++i)
+    {
+        dofs.SetSize(0);
+        for (int j = hat_offsets[i]; j < hat_offsets[i + 1]; ++j)
+        {
+            dofs.Append(j);
+        }
+
+        Array<int> test_dofs;
+        test_space.GetElementDofs(i, test_dofs);
+        for (int j = 0; j < test_dofs.Size(); ++j)
+        {
+            dofs.Append(num_hat_dofs + test_dofs[j]);
+        }
+
+        Vector Minv_Ct_x(dofs.Size());
+        LUFactors Minv(data + data_offsets[i], ipiv + ipiv_offsets[i]);
+        Ct_x.GetSubVector(dofs, Minv_Ct_x);
+        Minv.Solve(Minv_Ct_x.Size(), 1, Minv_Ct_x.GetData());
+        Minv_Ct_x.Neg();
+        rhs.AddElementVector(dofs, Minv_Ct_x);
+    }
+
+    VectorFunctionCoefficient ucoeff(mesh.Dimension(), uFun_ex);
+    ParGridFunction u(&trial_space);
+
+    dofs.SetSize(0);
+    Vector sub_vec;
+    for (int i = 0; i < pmesh.GetNE(); ++i)
+    {
+        trial_space.GetElementDofs(i, dofs);
+        sub_vec.MakeRef(rhs.GetBlock(0), hat_offsets[i], dofs.Size());
+        for (int j = 0; j < dofs.Size(); ++j)
+        {
+            if (dofs[j] >= 0)
+            {
+                u(dofs[j]) = sub_vec[j];
+            }
+            else
+            {
+                u(-1-dofs[j]) = -sub_vec[j];
+            }
+        }
+    }
+
+    FunctionCoefficient pcoeff(pFun_ex);
+    ParGridFunction p;
+    p.MakeRef(&test_space, rhs.GetBlock(1), 0);
+}
