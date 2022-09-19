@@ -42,16 +42,18 @@ Discretization improvements
 
 Linear and nonlinear solvers
 ----------------------------
-
 - Added a new class DGMassInverse that performs a local elementwise CG
   iteration to solve systems involving the discontinuous Galerkin mass matrix,
   including support for device/GPU acceleration.
 
-- Added more flexibility to constraint solver classes to support ALE3D implicit hydro
-  - PenaltyConstrainedSolver allows for a vector of penalty parameters (necessary for penalty contact)
-  - PenaltyConstrainedSolver and EliminationSolver can use GMRES or PCG
-  - All constraint solver classes can take a user-defined preconditioner
-  - Added functions to toggle options for SuperLU_Dist and Hypre preconditioners (ParaSails, Euclid, ILU)
+- Added more flexibility to the constraint solver classes:
+  * PenaltyConstrainedSolver now allows for a vector of penalty parameters
+    (necessary for penalty contact)
+  * PenaltyConstrainedSolver and EliminationSolver can use GMRES or PCG
+  * All constraint solver classes can take a user-defined preconditioner
+
+ - Added functions to toggle additional options for the SuperLU_Dist and Hypre
+   preconditioners (ParaSails, Euclid, ILU).
 
 New and updated examples and miniapps
 -------------------------------------

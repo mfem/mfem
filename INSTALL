@@ -472,10 +472,10 @@ MFEM_USE_CODIPACK = YES/NO
   www.scicomp.uni-kl.de/codi/
 
 MFEM_USE_ALGOIM = YES/NO
-  Enable the usage of Algoim - a collection of high-order accurate numerical 
-  methods and C++ algorithms for working with implicitly-defined geometry and 
-  level set methods. The Algoim library requires the Blitz++ library. The MFEM 
-  provides interface to Algoim v1. Thus, to check out the specific state use: 
+  Enable the usage of Algoim - a collection of high-order accurate numerical
+  methods and C++ algorithms for working with implicitly-defined geometry and
+  level set methods. The Algoim library requires the Blitz++ library. The MFEM
+  provides interface to Algoim v1. Thus, to check out the specific state use:
   git checkout 9c9ca0ef094d8ab0390ed36367a1151b459bbe0a
   https://algoim.github.io
 
@@ -1107,4 +1107,4 @@ Windows Visual Studio build
 There are two project files in config/Win32 which can be used for building
 MFEM in Visual Studio. The project files require conduit, hypre, superlu_dist,
 and zlib to be in the same directory as the top-level MFEM repo. These files
-are maintained for the ALE3D build on Windows.
+are maintained for the Windows builds of internal LLNL applications.
