@@ -18,12 +18,10 @@
 namespace mfem
 {
 
-/** @brief Specialization of the ComplexOperator built from a pair of Dense
-    Matrices.
-    The purpose of this specialization is to support the inverse of a
-    ComplexDenseMatrix and various MatMat operations
+/** @brief Specialization of the ComplexOperator built from a pair of
+    Dense Matrices.  The purpose of this specialization is to support
+    the inverse of a ComplexDenseMatrix and various MatMat operations
     See ComplexOperator documentation for more information.
-    Note: Only the Hermitian convention is supported
  */
 class ComplexDenseMatrix : public ComplexOperator
 {
