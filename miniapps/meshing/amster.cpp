@@ -51,7 +51,6 @@ int main (int argc, char *argv[])
    double surface_fit_adapt = 10.0;
    double surface_fit_threshold = 1e-7;
    int bdr_attr_to_fit      = 0;
-   int rs_levels         = 0;
    int srs_levels         = -1;
    int s_mesh_poly_deg    = -1;
 
@@ -80,8 +79,6 @@ int main (int argc, char *argv[])
                   "terminate when max surface fitting error is below this limit");
    args.AddOption(&bdr_attr_to_fit, "-battr", "--battr",
                   "Boundary attribute to fit.");
-   args.AddOption(&rs_levels, "-rs", "--refine-serial",
-                  "Number of times to refine the mesh uniformly in serial.");
    args.AddOption(&s_mesh_poly_deg, "-so", "--source-mesh-order",
                   "Polynomial degree of mesh finite element space.");
    args.AddOption(&srs_levels, "-srs", "--source-refine-serial",
@@ -103,6 +100,7 @@ int main (int argc, char *argv[])
    for (int lev = 0; lev < rs_levels; lev++) { mesh->UniformRefinement(); }
    ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
    const int dim = pmesh->Dimension();
+   const int NE = pmesh->GetNE();
 
    // Set source mesh
    Mesh smesh = Mesh(*mesh);
@@ -202,6 +200,38 @@ int main (int argc, char *argv[])
       for (int j = 0; j < vdofs.Size(); j++) { domain(vdofs[j]) = 0.0; }
    }
 
+   // Compute size field.
+   ParGridFunction size_gf(&sfespace);
+   for (int e = 0; e < NE; e++)
+   {
+      const FiniteElement &fe = *pfes.GetFE(e);
+      const IntegrationRule &ir_nodes = fe.GetNodes();
+      const int nqp = ir_nodes.GetNPoints();
+      ElementTransformation &Tr = *pmesh->GetElementTransformation(e);
+      auto n_fe = dynamic_cast<const NodalFiniteElement *>(&fe);
+      const Array<int> &lex_order = n_fe->GetLexicographicOrdering();
+      Vector loc_size(nqp);
+      Array<int> dofs;
+      pfes.GetElementDofs(e, dofs);
+      for (int q = 0; q < nqp; q++)
+      {
+         Tr.SetIntPoint(&ir_nodes.IntPoint(q));
+         loc_size(lex_order[q]) = Tr.Weight();
+      }
+      size_gf.SetSubVector(dofs, loc_size);
+   }
+   {
+      socketstream vis;
+      common::VisualizeField(vis, "localhost", 19916, size_gf,
+                             "Size", 0, 0, 300, 300, "Rj");
+   }
+   DiffuseH1(size_gf, 2.0);
+   {
+      socketstream vis;
+      common::VisualizeField(vis, "localhost", 19916, size_gf,
+                             "Size", 300, 0, 300, 300, "Rj");
+   }
+
    // Distance to the boundary, on the original mesh.
    GridFunctionCoefficient coeff(&domain);
    ParGridFunction dist(&sfespace);
@@ -219,7 +249,7 @@ int main (int argc, char *argv[])
    }
 
 
-   ParFiniteElementSpace ssfespace = ParFiniteElementSpace(&spmesh, fec);
+   ParFiniteElementSpace ssfespace = ParFiniteElementSpace(&spmesh, &fec);
    ParGridFunction sdomain(&ssfespace);
    sdomain = 1.0;
    for (int i = 0; i < ssfespace.GetNBE(); i++)
@@ -517,7 +547,6 @@ int main (int argc, char *argv[])
 
    // Compute the minimum det(J) of the starting mesh.
    double min_detJ = infinity();
-   const int NE = pmesh->GetNE();
    for (int i = 0; i < NE; i++)
    {
       const IntegrationRule &ir =
