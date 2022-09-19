@@ -35,7 +35,7 @@
 
 // Build the parallel MFEM library.
 // Requires an MPI compiler, and the libraries HYPRE and METIS.
-// #define MFEM_USE_MPI
+/* #define MFEM_USE_MPI */
 
 // Enable debug checks in MFEM.
 /* #undef MFEM_DEBUG */
@@ -72,7 +72,9 @@
 /* #undef MFEM_USE_SUITESPARSE */
 
 // Enable MFEM functionality based on the SuperLU_DIST library.
-/* #undef MFEM_USE_SUPERLU */
+#ifdef MFEM_USE_MPI
+#define MFEM_USE_SUPERLU
+#endif
 
 // Enable MFEM functionality based on the STRUMPACK library.
 /* #undef MFEM_USE_STRUMPACK */
