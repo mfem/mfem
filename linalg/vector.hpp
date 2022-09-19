@@ -347,6 +347,10 @@ public:
    friend void subtract(const double a, const Vector &x,
                         const Vector &y, Vector &z);
 
+   /// Computes cross product of this vector with another 3D vector.
+   /// vout = this x vin.
+   void cross3D(const Vector &vin, Vector &vout);
+
    /// v = median(v,lo,hi) entrywise.  Implementation assumes lo <= hi.
    void median(const Vector &lo, const Vector &hi);
 
