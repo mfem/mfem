@@ -1751,7 +1751,7 @@ MFEM_HOST_DEVICE zero chain_rule(const zero /* df_dx */,
 
 /**
  * @overload
- * @note this overload implements a no-op for the case where the small change is indentically zero
+ * @note this overload implements a no-op for the case where the small change is identically zero
  */
 template <typename T>
 MFEM_HOST_DEVICE zero chain_rule(const T /* df_dx */,
