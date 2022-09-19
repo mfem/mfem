@@ -164,6 +164,13 @@ void FiniteElement::ProjectGrad(
    MFEM_ABORT("method is not implemented for this element");
 }
 
+void FiniteElement::ProjectGrad2(
+   const FiniteElement &fe, ElementTransformation &Trans,
+   DenseMatrix &grad) const
+{
+   MFEM_ABORT("method is not implemented for this element");
+}
+
 void FiniteElement::ProjectCurl(
    const FiniteElement &fe, ElementTransformation &Trans,
    DenseMatrix &curl) const
@@ -326,15 +333,16 @@ void  FiniteElement::CalcPhysHessian(ElementTransformation &Trans,
    CalcHessian(Trans.GetIntPoint(), hess);
 
    // Gradient in physical coords
-   // Something wrong with the commented code when using triangles
-   /* if (Trans.Hessian().FNorm2() > 1e-10)
+   // Something wrong with the Trans.Hessian() function when using triangles.
+   // Somehow the FElem in eltrans.cpp doesn't recognize the element type.
+   if (Trans.Hessian().FNorm2() > 1e-10)
    {
       DenseMatrix grad(dof, dim);
       CalcPhysDShape(Trans, grad);
       DenseMatrix gmap(dof, size);
       Mult(grad,Trans.Hessian(),gmap);
       hess -= gmap;
-      }*/
+   }
 
    // LHM
    DenseMatrix lhm(size,size);
@@ -799,6 +807,35 @@ void NodalFiniteElement::ProjectGrad(
          for (int d = 0; d < dim; d++)
          {
             grad(k+d*dof,j) = grad_k(j,d);
+         }
+   }
+}
+
+void NodalFiniteElement::ProjectGrad2(
+   const FiniteElement &fe, ElementTransformation &Trans,
+   DenseMatrix &grad) const
+{
+   MFEM_ASSERT(fe.GetMapType() == VALUE, "");
+   MFEM_ASSERT(Trans.GetSpaceDim() == dim, "")
+
+   DenseMatrix dshape(fe.GetDof(), dim), grad_k(fe.GetDof(), dim), Jinv(dim);
+
+   grad.SetSize(dim*dof, fe.GetDof());
+   for (int k = 0; k < dof; k++)
+   {
+      const IntegrationPoint &ip = Nodes.IntPoint(k);
+      fe.CalcDShape(ip, dshape);
+      Trans.SetIntPoint(&ip);
+      CalcInverse(Trans.Jacobian(), Jinv);
+      Mult(dshape, Jinv, grad_k);
+      if (map_type == INTEGRAL)
+      {
+         grad_k *= Trans.Weight();
+      }
+      for (int j = 0; j < grad_k.Height(); j++)
+         for (int d = 0; d < dim; d++)
+         {
+            grad(j+d*dof,k) = grad_k(j,d);
          }
    }
 }

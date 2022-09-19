@@ -46,7 +46,8 @@ namespace mfem
     int NEproc = pmesh->GetNE();
     int elem1 = Tr.Elem1No;
     int elem2 = Tr.Elem2No;
-
+    int nTerms = 2;
+     
     int elemStatus1 = elemStatus[elem1];
     int elemStatus2;
     if (Tr.Elem2No >= NEproc)
@@ -60,6 +61,10 @@ namespace mfem
       }
 
     const int e = Tr.ElementNo;
+    double factorial = 1.0;
+    for (int s = 1; s <= nTerms; s++){
+      factorial *= factorial*s;
+    }
 
     if ( (elemStatus1 == AnalyticalGeometricShape::SBElementType::INSIDE) &&  (elemStatus2 == AnalyticalGeometricShape::SBElementType::CUT) ){
       const int dim = fe.GetDim();
@@ -68,19 +73,19 @@ namespace mfem
       elmat = 0.0;
       
       Vector nor(dim), ni(dim);
-      DenseMatrix dshape(dofs_cnt,dim), dshape_ps(dofs_cnt,dim), adjJ(dim);
-      Vector shape(dofs_cnt), gradURes(dofs_cnt), gradUResD(dofs_cnt), q_hess_dot_d(dofs_cnt);
+      DenseMatrix dshape(dofs_cnt,dim), dshape_ps(dofs_cnt,dim), adjJ(dim), gradUResDirD(dofs_cnt), taylorExp(dofs_cnt);
+      Vector shape(dofs_cnt), gradURes(dofs_cnt), gradUResD(dofs_cnt);
       double w = 0.0;
-      
       shape = 0.0;
       gradURes = 0.0;
-      gradUResD = 0.0;
+      gradUResDirD = 0.0;
       dshape = 0.0;
       dshape_ps = 0.0;
       adjJ = 0.0;
       nor = 0.0;
       ni = 0.0;
-      q_hess_dot_d = 0.0;
+      gradUResD = 0.0;
+      taylorExp = 0.0;
 
       const IntegrationRule *ir = IntRule;
       if (ir == NULL)
@@ -91,33 +96,30 @@ namespace mfem
 	}
       
       const int nqp_face = ir->GetNPoints();
-      ElementTransformation &Trans_el1 = Tr.GetElement1Transformation();	
+      ElementTransformation &Trans_el1 = Tr.GetElement1Transformation();
+      DenseMatrix nodalGrad;
+      fe.ProjectGrad2(fe,Trans_el1,nodalGrad);
+      
       for (int q = 0; q < nqp_face; q++)
 	{
 	  shape = 0.0;
 	  gradURes = 0.0;
 	  gradUResD = 0.0;
+	  gradUResDirD = 0.0;
 	  dshape = 0.0;
 	  dshape_ps = 0.0;
 	  adjJ = 0.0;
 	  nor = 0.0;
 	  ni = 0.0;
-	  q_hess_dot_d = 0.0;
+	  taylorExp = 0.0;
 	  
 	  const IntegrationPoint &ip_f = ir->IntPoint(q);
 	  // Set the integration point in the face and the neighboring elements
 	  Tr.SetAllIntPoints(&ip_f);
 	  const IntegrationPoint &eip = Tr.GetElement1IntPoint();
 	  CalcOrtho(Tr.Jacobian(), nor);
-	  
-	  fe.CalcShape(eip, shape);
-	  fe.CalcDShape(eip, dshape);
-	  CalcAdjugate(Tr.Elem1->Jacobian(), adjJ);
-	  Mult(dshape, adjJ, dshape_ps);
-	  w = ip_f.weight/Tr.Elem1->Weight();
-	  dshape_ps.Mult(nor,gradURes);
-	  
-	  ////
+
+	  /////
 	  Vector D(dim);
 	  Vector tN(dim);
 	  D = 0.0;
@@ -126,37 +128,48 @@ namespace mfem
 	  x_eip = 0.0;
 	  Trans_el1.Transform(eip,x_eip);
 	  analyticalSurface->ComputeDistanceAndNormalAtCoordinates(x_eip,D,tN);
-	  dshape_ps.Mult(D,gradUResD);
-	  gradUResD /= Tr.Elem1->Weight();
+	  /////
+	  
+	  fe.CalcShape(eip, shape);
+	  fe.CalcDShape(eip, dshape);
+	  CalcAdjugate(Tr.Elem1->Jacobian(), adjJ);
+	  Mult(dshape, adjJ, dshape_ps);
+	  w = ip_f.weight/Tr.Elem1->Weight();
+	  dshape_ps.Mult(nor,gradURes);
+	    
+	  for (int k = 0; k < dofs_cnt; k++){
+	    for (int s = 0; s < dofs_cnt; s++){
+	      for (int j = 0; j < dim; j++){
+		gradUResDirD(k,s) += nodalGrad(k + j * dofs_cnt, s) * D(j);
+	      }
+	    }
+	  }
+
+	  DenseMatrix tmp(dofs_cnt);
+	  tmp = gradUResDirD;
+	  taylorExp = gradUResDirD;
+	  for ( int p = 1; p < nTerms; p++){
+	    for (int k = 0; k < dofs_cnt; k++){
+	      for (int s = 0; s < dofs_cnt; s++){
+		for (int r = 0; r < dofs_cnt; r++){
+		  taylorExp(k,s) += tmp(k,r)*gradUResDirD(r,s) * (1.0/factorial);
+		}
+	      }
+	    }
+	    tmp = taylorExp;
+	  }
+	  
+	  for (int k = 0; k < dofs_cnt; k++){
+	    for (int s = 0; s < dofs_cnt; s++){
+	      gradUResD(k) += taylorExp(k,s) * shape(s);  
+	    }
+	  }
+
+	  ////
 	  // FIRST ORDER TAYLOR
 	  shape += gradUResD;
 	  //
-	  int size = (dim*(dim+1))/2;
-          DenseMatrix physical_hess(dofs_cnt,size);
-          physical_hess = 0.0;
-          fe.CalcPhysHessian(Trans_el1,physical_hess);
-          DenseMatrix adjusted_physical_hess(dofs_cnt,dim*dim);
-          adjusted_physical_hess = 0.0;
-          for (int s = 0; s < dofs_cnt; s++){
-            for (int l = 0; l < dim; l++){
-              for (int g = 0; g <= l; g++){
-                adjusted_physical_hess(s,g + l * dim) = physical_hess(s, l + g + (dim - 2) * std::min({l,g,1}));
-                adjusted_physical_hess(s,l + g * dim) = physical_hess(s, l + g + (dim - 2) * std::min({l,g,1}));
-              }
-            }
-          }
-	  for (int s = 0; s < dofs_cnt; s++){
-            for (int l = 0; l < dim; l++){
-              for (int g = 0; g < dim; g++){
-                q_hess_dot_d(s) += adjusted_physical_hess(s, g + l*dim) * D(g) * D(l);
-              }
-            }
-          }
-          q_hess_dot_d *= 1.0/2.0;
-	  // SECOND ORDER TAYLOR
-	  shape += q_hess_dot_d;
-	  ///
-
+		  
 	  double Mu = mu->Eval(*Tr.Elem1, eip);
 	  ni.Set(w, nor);
 	    
@@ -186,20 +199,21 @@ namespace mfem
       elmat = 0.0;
       
       Vector nor(dim), ni(dim);
-      DenseMatrix dshape(dofs_cnt,dim), dshape_ps(dofs_cnt,dim), adjJ(dim);
-      Vector shape(dofs_cnt), gradURes(dofs_cnt), gradUResD(dofs_cnt), q_hess_dot_d(dofs_cnt);
+      DenseMatrix dshape(dofs_cnt,dim), dshape_ps(dofs_cnt,dim), adjJ(dim), gradUResDirD(dofs_cnt), taylorExp(dofs_cnt);
+      Vector shape(dofs_cnt), gradURes(dofs_cnt), gradUResD(dofs_cnt);
       double w = 0.0;
       
       shape = 0.0;
       gradURes = 0.0;
+      gradUResDirD = 0.0;
       dshape = 0.0;
       dshape_ps = 0.0;
       adjJ = 0.0;
       nor = 0.0;
       ni = 0.0;
       gradUResD = 0.0;
-      q_hess_dot_d = 0.0;
-      
+      taylorExp = 0.0;
+
       const IntegrationRule *ir = IntRule;
       if (ir == NULL)
 	{
@@ -209,18 +223,21 @@ namespace mfem
 	}
       
       const int nqp_face = ir->GetNPoints();
-      ElementTransformation &Trans_el1 = Tr.GetElement2Transformation();		
+      ElementTransformation &Trans_el1 = Tr.GetElement2Transformation();
+      DenseMatrix nodalGrad;
+      fe2.ProjectGrad2(fe2,Trans_el1,nodalGrad);
       for (int q = 0; q < nqp_face; q++)
 	{
 	  shape = 0.0;
 	  gradURes = 0.0;
+	  gradUResDirD = 0.0;
 	  dshape = 0.0;
 	  dshape_ps = 0.0;
 	  adjJ = 0.0;
 	  nor = 0.0;
 	  ni = 0.0;
 	  gradUResD = 0.0;
-	  q_hess_dot_d = 0.0;
+	  taylorExp = 0.0;
 	  
 	  const IntegrationPoint &ip_f = ir->IntPoint(q);
 	  // Set the integration point in the face and the neighboring elements
@@ -228,15 +245,8 @@ namespace mfem
 	  const IntegrationPoint &eip = Tr.GetElement2IntPoint();
 	  CalcOrtho(Tr.Jacobian(), nor);
 	  nor *= -1.0;
-	  
-	  fe2.CalcShape(eip, shape);
-	  fe2.CalcDShape(eip, dshape);
-	  CalcAdjugate(Tr.Elem2->Jacobian(), adjJ);
-	  Mult(dshape, adjJ, dshape_ps);
-	  w = ip_f.weight/Tr.Elem2->Weight();
-	  dshape_ps.Mult(nor,gradURes);
-	  
-	  ////
+
+	  /////
 	  Vector D(dim);
 	  Vector tN(dim);
 	  D = 0.0;
@@ -245,36 +255,47 @@ namespace mfem
 	  x_eip = 0.0;
 	  Trans_el1.Transform(eip,x_eip);
 	  analyticalSurface->ComputeDistanceAndNormalAtCoordinates(x_eip,D,tN);
-	  dshape_ps.Mult(D,gradUResD);
-	  gradUResD /= Tr.Elem2->Weight();
+	  /////
+	  
+	  fe2.CalcShape(eip, shape);
+	  fe2.CalcDShape(eip, dshape);
+	  CalcAdjugate(Tr.Elem2->Jacobian(), adjJ);
+	  Mult(dshape, adjJ, dshape_ps);
+	  w = ip_f.weight/Tr.Elem2->Weight();
+	  dshape_ps.Mult(nor,gradURes);
+
+	  for (int k = 0; k < dofs_cnt; k++){
+	    for (int s = 0; s < dofs_cnt; s++){
+	      for (int j = 0; j < dim; j++){
+		gradUResDirD(k,s) += nodalGrad(k + j * dofs_cnt, s) * D(j);
+	      }
+	    }
+	  }
+
+	  DenseMatrix tmp(dofs_cnt);
+	  tmp = gradUResDirD;
+	  taylorExp = gradUResDirD;
+	  for ( int p = 1; p < nTerms; p++){
+	    for (int k = 0; k < dofs_cnt; k++){
+	      for (int s = 0; s < dofs_cnt; s++){
+		for (int r = 0; r < dofs_cnt; r++){
+		  taylorExp(k,s) += tmp(k,r)*gradUResDirD(r,s) * (1.0/factorial);
+		}
+	      }
+	    }
+	    tmp = taylorExp;
+	  }
+	  
+	  for (int k = 0; k < dofs_cnt; k++){
+	    for (int s = 0; s < dofs_cnt; s++){
+	      gradUResD(k) += taylorExp(k,s) * shape(s);  
+	    }
+	  }
+
+	  ////
 	  // FIRST ORDER TAYLOR
 	  shape += gradUResD;
 	  //
-	  int size = (dim*(dim+1))/2;
-          DenseMatrix physical_hess(dofs_cnt,size);
-          physical_hess = 0.0;
-          fe2.CalcPhysHessian(Trans_el1,physical_hess);
-          DenseMatrix adjusted_physical_hess(dofs_cnt,dim*dim);
-          adjusted_physical_hess = 0.0;
-          for (int s = 0; s < dofs_cnt; s++){
-            for (int l = 0; l < dim; l++){
-              for (int g = 0; g <= l; g++){
-                adjusted_physical_hess(s,g + l * dim) = physical_hess(s, l + g + (dim - 2) * std::min({l,g,1}));
-                adjusted_physical_hess(s,l + g * dim) = physical_hess(s, l + g + (dim - 2) * std::min({l,g,1}));
-              }
-            }
-          }
-	  for (int s = 0; s < dofs_cnt; s++){
-            for (int l = 0; l < dim; l++){
-              for (int g = 0; g < dim; g++){
-                q_hess_dot_d(s) += adjusted_physical_hess(s, g + l*dim) * D(g) * D(l);
-              }
-            }
-          }
-          q_hess_dot_d *= 1.0/2.0;
-	  // SECOND ORDER TAYLOR
-	  shape += q_hess_dot_d;
-	  ///
 	  
 	  double Mu = mu->Eval(*Tr.Elem2, eip);
 	  ni.Set(w, nor);
@@ -477,7 +498,8 @@ namespace mfem
     int NEproc = pmesh->GetNE();
     int elem1 = Tr.Elem1No;
     int elem2 = Tr.Elem2No;
-
+    int nTerms = 2;
+     
     int elemStatus1 = elemStatus[elem1];
     int elemStatus2;
     if (Tr.Elem2No >= NEproc)
@@ -491,7 +513,11 @@ namespace mfem
       }
 
     const int e = Tr.ElementNo;
-
+    double factorial = 1.0;
+    for (int s = 1; s <= nTerms; s++){
+      factorial *= factorial*s;
+    }
+    
     if ( (elemStatus1 == AnalyticalGeometricShape::SBElementType::INSIDE) &&  (elemStatus2 == AnalyticalGeometricShape::SBElementType::CUT) ){
       const int dim = test_fe1.GetDim();
       const int testdofs_cnt = test_fe1.GetDof();
@@ -504,15 +530,17 @@ namespace mfem
       
       Vector nor(dim);
       Vector te_shape(testdofs_cnt),tr_shape(trialdofs_cnt), gradUResD(trialdofs_cnt), q_hess_dot_d(trialdofs_cnt);
-      DenseMatrix dshape(trialdofs_cnt,dim), dshape_ps(trialdofs_cnt,dim), adjJ(dim);
+      DenseMatrix dshape(trialdofs_cnt,dim), dshape_ps(trialdofs_cnt,dim), adjJ(dim), gradUResDirD(trialdofs_cnt), taylorExp(trialdofs_cnt);
       
       te_shape = 0.0;
       tr_shape = 0.0;
       gradUResD = 0.0;
+      gradUResDirD = 0.0;
       dshape = 0.0;
       dshape_ps = 0.0;
       adjJ = 0.0;
       q_hess_dot_d = 0.0;
+      taylorExp = 0.0;
 
       const IntegrationRule *ir = IntRule;
       if (ir == NULL)
@@ -524,17 +552,19 @@ namespace mfem
       
       const int nqp_face = ir->GetNPoints();
       ElementTransformation &Trans_el1 = Tr.GetElement1Transformation();	
-      
+      DenseMatrix nodalGrad;
+      trial_fe1.ProjectGrad2(trial_fe1,Trans_el1,nodalGrad);
       for (int q = 0; q < nqp_face; q++)
 	{
 	  gradUResD = 0.0;
 	  tr_shape = 0.0;  
 	  te_shape = 0.0;
-	  gradUResD = 0.0;
+	  gradUResDirD = 0.0;
 	  dshape = 0.0;
 	  dshape_ps = 0.0;
 	  adjJ = 0.0;
 	  q_hess_dot_d = 0.0;
+	  taylorExp = 0.0;
 	  
 	  const IntegrationPoint &ip_f = ir->IntPoint(q);
 	  // Set the integration point in the face and the neighboring elements
@@ -544,8 +574,8 @@ namespace mfem
 	  
 	  test_fe1.CalcShape(eip, te_shape);
 	  trial_fe1.CalcShape(eip, tr_shape);
-	  
-	  ////
+
+	  /////
 	  Vector D(dim);
 	  Vector tN(dim);
 	  D = 0.0;
@@ -554,39 +584,39 @@ namespace mfem
 	  x_eip = 0.0;
 	  Trans_el1.Transform(eip,x_eip);
 	  analyticalSurface->ComputeDistanceAndNormalAtCoordinates(x_eip,D,tN);
-	  trial_fe1.CalcDShape(eip, dshape);
-	  CalcAdjugate(Tr.Elem1->Jacobian(), adjJ);
-	  Mult(dshape, adjJ, dshape_ps);
-	  dshape_ps.Mult(D,gradUResD);
-	  gradUResD /= Tr.Elem1->Weight();
+	  /////
+
+	  for (int k = 0; k < trialdofs_cnt; k++){
+	    for (int s = 0; s < trialdofs_cnt; s++){
+	      for (int j = 0; j < dim; j++){
+		gradUResDirD(k,s) += nodalGrad(k + j * trialdofs_cnt, s) * D(j);
+	      }
+	    }
+	  }
+
+	  DenseMatrix tmp(trialdofs_cnt);
+	  tmp = gradUResDirD;
+	  taylorExp = gradUResDirD;
+	  for ( int p = 1; p < nTerms; p++){
+	    for (int k = 0; k < trialdofs_cnt; k++){
+	      for (int s = 0; s < trialdofs_cnt; s++){
+		for (int r = 0; r < trialdofs_cnt; r++){
+		  taylorExp(k,s) += tmp(k,r)*gradUResDirD(r,s) * (1.0/factorial);
+		}
+	      }
+	    }
+	    tmp = taylorExp;
+	  }
+	  
+	  for (int k = 0; k < trialdofs_cnt; k++){
+	    for (int s = 0; s < trialdofs_cnt; s++){
+	      gradUResD(k) += taylorExp(k,s) * tr_shape(s);  
+	    }
+	  }
+
 	  // FIRST ORDER TAYLOR
 	  tr_shape += gradUResD;
-	  //
-	  int size = (dim*(dim+1))/2;
-          DenseMatrix physical_hess(trialdofs_cnt,size);
-          physical_hess = 0.0;
-          trial_fe1.CalcPhysHessian(Trans_el1,physical_hess);
-          DenseMatrix adjusted_physical_hess(trialdofs_cnt,dim*dim);
-          adjusted_physical_hess = 0.0;
-          for (int s = 0; s < trialdofs_cnt; s++){
-            for (int l = 0; l < dim; l++){
-              for (int g = 0; g <= l; g++){
-                adjusted_physical_hess(s,g + l * dim) = physical_hess(s, l + g + (dim - 2) * std::min({l,g,1}));
-                adjusted_physical_hess(s,l + g * dim) = physical_hess(s, l + g + (dim - 2) * std::min({l,g,1}));
-              }
-            }
-          }
-	  for (int s = 0; s < trialdofs_cnt; s++){
-            for (int l = 0; l < dim; l++){
-              for (int g = 0; g < dim; g++){
-                q_hess_dot_d(s) += adjusted_physical_hess(s, g + l*dim) * D(g) * D(l);
-              }
-            }
-          }
-          q_hess_dot_d *= 1.0/2.0;
-	  // SECOND ORDER TAYLOR
-	  tr_shape += q_hess_dot_d;
-	  ///
+
 	  
 	  for (int i = 0; i < testdofs_cnt; i++)
 	    {
@@ -614,7 +644,7 @@ namespace mfem
       
       Vector nor(dim);
       Vector te_shape(testdofs_cnt),tr_shape(trialdofs_cnt), gradUResD(trialdofs_cnt), q_hess_dot_d(trialdofs_cnt);
-      DenseMatrix dshape(trialdofs_cnt,dim), dshape_ps(trialdofs_cnt,dim), adjJ(dim);
+      DenseMatrix dshape(trialdofs_cnt,dim), dshape_ps(trialdofs_cnt,dim), adjJ(dim),  gradUResDirD(trialdofs_cnt), taylorExp(trialdofs_cnt);
       
       te_shape = 0.0;
       tr_shape = 0.0;
@@ -633,17 +663,20 @@ namespace mfem
 	}
       
       const int nqp_face = ir->GetNPoints();
-      ElementTransformation &Trans_el1 = Tr.GetElement2Transformation();	
+      ElementTransformation &Trans_el1 = Tr.GetElement2Transformation();
+      DenseMatrix nodalGrad;
+      trial_fe2.ProjectGrad2(trial_fe2,Trans_el1,nodalGrad);
       for (int q = 0; q < nqp_face; q++)
 	{
 	  gradUResD = 0.0;
 	  tr_shape = 0.0;  
 	  te_shape = 0.0;
-	  gradUResD = 0.0;
+	  gradUResDirD = 0.0;
 	  dshape = 0.0;
 	  dshape_ps = 0.0;
 	  adjJ = 0.0;
 	  q_hess_dot_d = 0.0;
+	  taylorExp = 0.0;
 
 	  const IntegrationPoint &ip_f = ir->IntPoint(q);
 	  // Set the integration point in the face and the neighboring elements
@@ -654,8 +687,8 @@ namespace mfem
 	  
 	  test_fe2.CalcShape(eip, te_shape);
 	  trial_fe2.CalcShape(eip, tr_shape);
-	  
-	  ////
+
+	  /////
 	  Vector D(dim);
 	  Vector tN(dim);
 	  D = 0.0;
@@ -664,40 +697,39 @@ namespace mfem
 	  x_eip = 0.0;
 	  Trans_el1.Transform(eip,x_eip);
 	  analyticalSurface->ComputeDistanceAndNormalAtCoordinates(x_eip,D,tN);
-	  trial_fe2.CalcDShape(eip, dshape);
-	  CalcAdjugate(Tr.Elem2->Jacobian(), adjJ);
-	  Mult(dshape, adjJ, dshape_ps);	    
-	  dshape_ps.Mult(D,gradUResD);
-	  gradUResD /= Tr.Elem2->Weight();
+	  /////
+
+	  for (int k = 0; k < trialdofs_cnt; k++){
+	    for (int s = 0; s < trialdofs_cnt; s++){
+	      for (int j = 0; j < dim; j++){
+		gradUResDirD(k,s) += nodalGrad(k + j * trialdofs_cnt, s) * D(j);
+	      }
+	    }
+	  }
+
+	  DenseMatrix tmp(trialdofs_cnt);
+	  tmp = gradUResDirD;
+	  taylorExp = gradUResDirD;
+	  for ( int p = 1; p < nTerms; p++){
+	    for (int k = 0; k < trialdofs_cnt; k++){
+	      for (int s = 0; s < trialdofs_cnt; s++){
+		for (int r = 0; r < trialdofs_cnt; r++){
+		  taylorExp(k,s) += tmp(k,r)*gradUResDirD(r,s) * (1.0/factorial);
+		}
+	      }
+	    }
+	    tmp = taylorExp;
+	  }
+	  
+	  for (int k = 0; k < trialdofs_cnt; k++){
+	    for (int s = 0; s < trialdofs_cnt; s++){
+	      gradUResD(k) += taylorExp(k,s) * tr_shape(s);  
+	    }
+	  }
+
 	  // FIRST ORDER TAYLOR
 	  tr_shape += gradUResD;
-	  //
-	  int size = (dim*(dim+1))/2;
-          DenseMatrix physical_hess(trialdofs_cnt,size);
-          physical_hess = 0.0;
-          trial_fe2.CalcPhysHessian(Trans_el1,physical_hess);
-          DenseMatrix adjusted_physical_hess(trialdofs_cnt,dim*dim);
-          adjusted_physical_hess = 0.0;
-          for (int s = 0; s < trialdofs_cnt; s++){
-            for (int l = 0; l < dim; l++){
-              for (int g = 0; g <= l; g++){
-                adjusted_physical_hess(s,g + l * dim) = physical_hess(s, l + g + (dim - 2) * std::min({l,g,1}));
-                adjusted_physical_hess(s,l + g * dim) = physical_hess(s, l + g + (dim - 2) * std::min({l,g,1}));
-              }
-            }
-          }
-	  for (int s = 0; s < trialdofs_cnt; s++){
-            for (int l = 0; l < dim; l++){
-              for (int g = 0; g < dim; g++){
-                q_hess_dot_d(s) += adjusted_physical_hess(s, g + l*dim) * D(g) * D(l);
-              }
-            }
-          }
-          q_hess_dot_d *= 1.0/2.0;
-	  // SECOND ORDER TAYLOR
-	  tr_shape += q_hess_dot_d;
-	  ///
-
+	  
 	  for (int i = 0; i < testdofs_cnt; i++)
 	    {
 	      for (int j = 0; j < trialdofs_cnt; j++)
@@ -884,6 +916,7 @@ namespace mfem
     int NEproc = pmesh->GetNE();
     int elem1 = Tr.Elem1No;
     int elem2 = Tr.Elem2No;
+    int nTerms = 2;
 
     int elemStatus1 = elemStatus[elem1];
     int elemStatus2;
@@ -896,6 +929,12 @@ namespace mfem
       {
         elemStatus2 = elemStatus[elem2];
       }
+
+    double factorial = 1.0;
+    for (int s = 1; s <= nTerms; s++){
+      factorial *= factorial*s;
+    }
+
     const int e = Tr.ElementNo;
 
     if ( (elemStatus1 == AnalyticalGeometricShape::SBElementType::INSIDE) &&  (elemStatus2 == AnalyticalGeometricShape::SBElementType::CUT) ){      
@@ -903,15 +942,19 @@ namespace mfem
       const int h1dofs_cnt = fe.GetDof();
       elmat.SetSize(2*h1dofs_cnt*dim);
       elmat = 0.0;
-      Vector shape(h1dofs_cnt), nor(dim), gradURes(h1dofs_cnt), q_hess_dot_d(h1dofs_cnt);
-      DenseMatrix dshape(h1dofs_cnt,dim), dshape_ps(h1dofs_cnt,dim), adjJ(dim);
+      DenseMatrix dshape(h1dofs_cnt,dim), dshape_ps(h1dofs_cnt,dim), adjJ(dim), gradUResDirD(h1dofs_cnt), taylorExp(h1dofs_cnt);
+      Vector shape(h1dofs_cnt), nor(dim), gradURes(h1dofs_cnt), q_hess_dot_d(h1dofs_cnt), gradUResD(h1dofs_cnt);
       shape = 0.0;
       nor = 0.0;
       dshape = 0.0;
       dshape_ps = 0.0;
       adjJ = 0.0;
       gradURes = 0.0;
+      gradUResDirD = 0.0; 
       q_hess_dot_d = 0.0;
+      gradUResD = 0.0;
+      taylorExp = 0.0;
+
       const IntegrationRule *ir = IntRule;
       if (ir == NULL)
 	{
@@ -922,17 +965,17 @@ namespace mfem
       
       const int nqp_face = ir->GetNPoints();
       ElementTransformation &Trans_el1 = Tr.GetElement1Transformation();
-      
+      DenseMatrix nodalGrad;
+      fe.ProjectGrad2(fe,Trans_el1,nodalGrad);
       for (int q = 0; q < nqp_face; q++)
 	{
 	  shape = 0.0;
 	  gradURes = 0.0;
 	  q_hess_dot_d = 0.0;
-	  Vector D(dim);
-	  Vector tN(dim);
-	  D = 0.0;
-	  tN = 0.0;
-	  
+	  gradUResD = 0.0;
+	  taylorExp = 0.0;
+	  gradUResDirD = 0.0;
+
 	  const IntegrationPoint &ip_f = ir->IntPoint(q);
 	  // Set the integration point in the face and the neighboring elements
 	  Tr.SetAllIntPoints(&ip_f);
@@ -944,46 +987,51 @@ namespace mfem
 	  CalcOrtho(Tr.Jacobian(), nor);
 	  
 	  fe.CalcShape(eip, shape);
-	  
-	  ///
+
+	  /////
+	  Vector D(dim);
+	  Vector tN(dim);
+	  D = 0.0;
+	  tN = 0.0;
 	  Vector x_eip(3);
 	  x_eip = 0.0;
 	  Trans_el1.Transform(eip,x_eip);
 	  analyticalSurface->ComputeDistanceAndNormalAtCoordinates(x_eip,D,tN);
-	  fe.CalcDShape(eip, dshape);	    
-	  CalcAdjugate(Tr.Elem1->Jacobian(), adjJ);
-	  Mult(dshape, adjJ, dshape_ps);
-	  dshape_ps.Mult(D,gradURes);
-	  gradURes /= Tr.Elem1->Weight();
-	  // FIRST ORDER TAYLOR
-	  shape += gradURes;
-	  //
-	  int size = (dim*(dim+1))/2;
-          DenseMatrix physical_hess(h1dofs_cnt,size);
-          physical_hess = 0.0;
-          fe.CalcPhysHessian(Trans_el1,physical_hess);
-          DenseMatrix adjusted_physical_hess(h1dofs_cnt,dim*dim);
-          adjusted_physical_hess = 0.0;
-          for (int s = 0; s < h1dofs_cnt; s++){
-            for (int l = 0; l < dim; l++){
-              for (int g = 0; g <= l; g++){
-                adjusted_physical_hess(s,g + l * dim) = physical_hess(s, l + g + (dim - 2) * std::min({l,g,1}));
-                adjusted_physical_hess(s,l + g * dim) = physical_hess(s, l + g + (dim - 2) * std::min({l,g,1}));
-              }
-            }
-          }
-	  for (int s = 0; s < h1dofs_cnt; s++){
-            for (int l = 0; l < dim; l++){
-              for (int g = 0; g < dim; g++){
-                q_hess_dot_d(s) += adjusted_physical_hess(s, g + l*dim) * D(g) * D(l);
-              }
-            }
-          }
-          q_hess_dot_d *= 1.0/2.0;
-	  // SECOND ORDER TAYLOR
-	  shape += q_hess_dot_d;
-	  ///
+	  /////
+
+	  for (int k = 0; k < h1dofs_cnt; k++){
+	    for (int s = 0; s < h1dofs_cnt; s++){
+	      for (int j = 0; j < dim; j++){
+		gradUResDirD(k,s) += nodalGrad(k + j * h1dofs_cnt, s) * D(j);
+	      }
+	    }
+	  }
+
+	  DenseMatrix tmp(h1dofs_cnt);
+	  tmp = gradUResDirD;
+	  taylorExp = gradUResDirD;
+	  for ( int p = 1; p < nTerms; p++){
+	    for (int k = 0; k < h1dofs_cnt; k++){
+	      for (int s = 0; s < h1dofs_cnt; s++){
+		for (int r = 0; r < h1dofs_cnt; r++){
+		  taylorExp(k,s) += tmp(k,r)*gradUResDirD(r,s) * (1.0/factorial);
+		}
+	      }
+	    }
+	    tmp = taylorExp;
+	  }
 	  
+	  for (int k = 0; k < h1dofs_cnt; k++){
+	    for (int s = 0; s < h1dofs_cnt; s++){
+	      gradUResD(k) += taylorExp(k,s) * shape(s);  
+	    }
+	  }
+
+	  ////
+	  // FIRST ORDER TAYLOR
+	  shape += gradUResD;
+	  //
+
 	  double nor_norm = 0.0;
 	  for (int s = 0; s < dim; s++){
 	    nor_norm += nor(s) * nor(s);
@@ -1011,8 +1059,9 @@ namespace mfem
       const int h1dofs_cnt = fe2.GetDof();
       elmat.SetSize(2*h1dofs_cnt*dim);
       elmat = 0.0;
-      Vector shape(h1dofs_cnt), nor(dim), gradURes(h1dofs_cnt), q_hess_dot_d(h1dofs_cnt);
-      DenseMatrix dshape(h1dofs_cnt,dim), dshape_ps(h1dofs_cnt,dim), adjJ(dim);
+      DenseMatrix dshape(h1dofs_cnt,dim), dshape_ps(h1dofs_cnt,dim), adjJ(dim),  gradUResDirD(h1dofs_cnt), taylorExp(h1dofs_cnt);
+      Vector shape(h1dofs_cnt), nor(dim), gradURes(h1dofs_cnt), q_hess_dot_d(h1dofs_cnt), gradUResD(h1dofs_cnt);
+  
       shape = 0.0;
       nor = 0.0;
       dshape = 0.0;
@@ -1020,6 +1069,10 @@ namespace mfem
       adjJ = 0.0;
       gradURes = 0.0;
       q_hess_dot_d = 0.0;
+      gradUResDirD = 0.0;
+      taylorExp = 0.0;
+      gradUResD = 0.0;
+      
       const IntegrationRule *ir = IntRule;
       if (ir == NULL)
 	{
@@ -1030,16 +1083,16 @@ namespace mfem
 	
       const int nqp_face = ir->GetNPoints();
       ElementTransformation &Trans_el1 = Tr.GetElement2Transformation();
-
+      DenseMatrix nodalGrad;
+      fe2.ProjectGrad2(fe2,Trans_el1,nodalGrad);
       for (int q = 0; q < nqp_face; q++)
 	{
 	  shape = 0.0;
 	  gradURes = 0.0;
 	  q_hess_dot_d = 0.0;
-	  Vector D(dim);
-	  Vector tN(dim);
-	  D = 0.0;
-	  tN = 0.0;
+	  gradUResDirD = 0.0;
+	  taylorExp = 0.0;
+	  gradUResD = 0.0;
 
 	  const IntegrationPoint &ip_f = ir->IntPoint(q);
 	  // Set the integration point in the face and the neighboring elements
@@ -1053,44 +1106,50 @@ namespace mfem
 	  nor *= -1.0;
 	  fe2.CalcShape(eip, shape);
 
-	  ///
+
+	  /////
+	  Vector D(dim);
+	  Vector tN(dim);
+	  D = 0.0;
+	  tN = 0.0;
 	  Vector x_eip(3);
-	  x_eip = 0.0;	    
+	  x_eip = 0.0;
 	  Trans_el1.Transform(eip,x_eip);
 	  analyticalSurface->ComputeDistanceAndNormalAtCoordinates(x_eip,D,tN);
-	  fe2.CalcDShape(eip, dshape);
-	  CalcAdjugate(Tr.Elem2->Jacobian(), adjJ);
-	  Mult(dshape, adjJ, dshape_ps);
-	  dshape_ps.Mult(D,gradURes);
-	  gradURes /= Tr.Elem2->Weight();
+	  /////
+
+	  for (int k = 0; k < h1dofs_cnt; k++){
+	    for (int s = 0; s < h1dofs_cnt; s++){
+	      for (int j = 0; j < dim; j++){
+		gradUResDirD(k,s) += nodalGrad(k + j * h1dofs_cnt, s) * D(j);
+	      }
+	    }
+	  }
+
+	  DenseMatrix tmp(h1dofs_cnt);
+	  tmp = gradUResDirD;
+	  taylorExp = gradUResDirD;
+	  for ( int p = 1; p < nTerms; p++){
+	    for (int k = 0; k < h1dofs_cnt; k++){
+	      for (int s = 0; s < h1dofs_cnt; s++){
+		for (int r = 0; r < h1dofs_cnt; r++){
+		  taylorExp(k,s) += tmp(k,r)*gradUResDirD(r,s) * (1.0/factorial);
+		}
+	      }
+	    }
+	    tmp = taylorExp;
+	  }
+	  
+	  for (int k = 0; k < h1dofs_cnt; k++){
+	    for (int s = 0; s < h1dofs_cnt; s++){
+	      gradUResD(k) += taylorExp(k,s) * shape(s);  
+	    }
+	  }
+
+	  ////
 	  // FIRST ORDER TAYLOR
-	  shape += gradURes;
+	  shape += gradUResD;
 	  //
-	  int size = (dim*(dim+1))/2;
-          DenseMatrix physical_hess(h1dofs_cnt,size);
-          physical_hess = 0.0;
-          fe2.CalcPhysHessian(Trans_el1,physical_hess);
-          DenseMatrix adjusted_physical_hess(h1dofs_cnt,dim*dim);
-          adjusted_physical_hess = 0.0;
-          for (int s = 0; s < h1dofs_cnt; s++){
-            for (int l = 0; l < dim; l++){
-              for (int g = 0; g <= l; g++){
-                adjusted_physical_hess(s,g + l * dim) = physical_hess(s, l + g + (dim - 2) * std::min({l,g,1}));
-                adjusted_physical_hess(s,l + g * dim) = physical_hess(s, l + g + (dim - 2) * std::min({l,g,1}));
-              }
-            }
-          }
-	  for (int s = 0; s < h1dofs_cnt; s++){
-            for (int l = 0; l < dim; l++){
-              for (int g = 0; g < dim; g++){
-                q_hess_dot_d(s) += adjusted_physical_hess(s, g + l*dim) * D(g) * D(l);
-              }
-            }
-          }
-          q_hess_dot_d *= 1.0/2.0;
-	  // SECOND ORDER TAYLOR
-	  shape += q_hess_dot_d;
-	  ///
 	      
 	  double nor_norm = 0.0;
 	  for (int s = 0; s < dim; s++){
@@ -1464,6 +1523,7 @@ namespace mfem
     int NEproc = pmesh->GetNE();
     int elem1 = Tr.Elem1No;
     int elem2 = Tr.Elem2No;
+    int nTerms = 2;
     
     int elemStatus1 = elemStatus[elem1];
     int elemStatus2;
@@ -1478,21 +1538,29 @@ namespace mfem
       }
 
     const int e = Tr.ElementNo;
-
+    double factorial = 1.0;
+    for (int s = 1; s <= nTerms; s++){
+      factorial *= factorial*s;
+    }
+    
     if ( (elemStatus1 == AnalyticalGeometricShape::SBElementType::INSIDE) &&  (elemStatus2 == AnalyticalGeometricShape::SBElementType::CUT) ){
       const int dim = el.GetDim();
       const int h1dofs_cnt = el.GetDof();
       elvect.SetSize(2*h1dofs_cnt*dim);
       elvect = 0.0;
-      Vector shape(h1dofs_cnt), nor(dim), gradURes(h1dofs_cnt), bcEval(dim), q_hess_dot_d(h1dofs_cnt);
-      DenseMatrix dshape(h1dofs_cnt,dim), dshape_ps(h1dofs_cnt,dim), adjJ(dim);
+      Vector shape(h1dofs_cnt), nor(dim), gradURes(h1dofs_cnt), bcEval(dim), q_hess_dot_d(h1dofs_cnt), gradUResD(h1dofs_cnt);
+      DenseMatrix dshape(h1dofs_cnt,dim), dshape_ps(h1dofs_cnt,dim), adjJ(dim), gradUResDirD(h1dofs_cnt), taylorExp(h1dofs_cnt);
       shape = 0.0;
       nor = 0.0;
       dshape = 0.0;
       dshape_ps = 0.0;
       adjJ = 0.0;
       gradURes = 0.0;
-      q_hess_dot_d = 0.0;	
+      q_hess_dot_d = 0.0;
+      gradUResD = 0.0;
+      taylorExp = 0.0;
+      gradUResDirD = 0.0; 
+
       const IntegrationRule *ir = IntRule;
       if (ir == NULL)
 	{
@@ -1500,14 +1568,20 @@ namespace mfem
 	  const int order = 4 * max(el.GetOrder(), 1);
 	  ir = &IntRules.Get(Tr.GetGeometryType(), order);
 	}
-	
+
       const int nqp_face = ir->GetNPoints();
       ElementTransformation &Trans_el1 = Tr.GetElement1Transformation();
+      DenseMatrix nodalGrad;
+      el.ProjectGrad2(el,Trans_el1,nodalGrad);
       for (int q = 0; q < nqp_face; q++)
 	{
 	  shape = 0.0;
 	  gradURes = 0.0;
 	  q_hess_dot_d = 0.0;
+	  gradUResD = 0.0;
+	  taylorExp = 0.0;
+	  gradUResDirD = 0.0;
+
 	  const IntegrationPoint &ip_f = ir->IntPoint(q);
 	    
 	  // Set the integration point in the face and the neighboring elements
@@ -1529,50 +1603,52 @@ namespace mfem
 	    }
 
 	  el.CalcShape(eip, shape);
-
-	  ///
+	  /////
 	  Vector D(dim);
 	  Vector tN(dim);
 	  D = 0.0;
 	  tN = 0.0;
 	  Vector x_eip(3);
+	  x_eip = 0.0;
 	  Trans_el1.Transform(eip,x_eip);
 	  analyticalSurface->ComputeDistanceAndNormalAtCoordinates(x_eip,D,tN);
-	  el.CalcDShape(eip, dshape); 
-	  CalcAdjugate(Tr.Elem1->Jacobian(), adjJ);
-	  Mult(dshape, adjJ, dshape_ps);
-	  dshape_ps.Mult(D,gradURes);
-	  gradURes /= Tr.Elem1->Weight();
+	  /////
 	  uD->Eval(bcEval, Trans_el1, eip, D);
+
+	  
+	  for (int k = 0; k < h1dofs_cnt; k++){
+	    for (int s = 0; s < h1dofs_cnt; s++){
+	      for (int j = 0; j < dim; j++){
+		gradUResDirD(k,s) += nodalGrad(k + j * h1dofs_cnt, s) * D(j);
+	      }
+	    }
+	  }
+
+	  DenseMatrix tmp(h1dofs_cnt);
+	  tmp = gradUResDirD;
+	  taylorExp = gradUResDirD;
+	  for ( int p = 1; p < nTerms; p++){
+	    for (int k = 0; k < h1dofs_cnt; k++){
+	      for (int s = 0; s < h1dofs_cnt; s++){
+		for (int r = 0; r < h1dofs_cnt; r++){
+		  taylorExp(k,s) += tmp(k,r)*gradUResDirD(r,s) * (1.0/factorial);
+		}
+	      }
+	    }
+	    tmp = taylorExp;
+	  }
+	  
+	  for (int k = 0; k < h1dofs_cnt; k++){
+	    for (int s = 0; s < h1dofs_cnt; s++){
+	      gradUResD(k) += taylorExp(k,s) * shape(s);  
+	    }
+	  }
+
+	  ////
 	  // FIRST ORDER TAYLOR
-	  shape += gradURes;
+	  shape += gradUResD;
 	  //
-	  int size = (dim*(dim+1))/2;
-          DenseMatrix physical_hess(h1dofs_cnt,size);
-          physical_hess = 0.0;
-          el.CalcPhysHessian(Trans_el1,physical_hess);
-          DenseMatrix adjusted_physical_hess(h1dofs_cnt,dim*dim);
-          adjusted_physical_hess = 0.0;
-          for (int s = 0; s < h1dofs_cnt; s++){
-            for (int l = 0; l < dim; l++){
-              for (int g = 0; g <= l; g++){
-                adjusted_physical_hess(s,g + l * dim) = physical_hess(s, l + g + (dim - 2) * std::min({l,g,1}));
-                adjusted_physical_hess(s,l + g * dim) = physical_hess(s, l + g + (dim - 2) * std::min({l,g,1}));
-              }
-            }
-          }
-	  for (int s = 0; s < h1dofs_cnt; s++){
-            for (int l = 0; l < dim; l++){
-              for (int g = 0; g < dim; g++){
-                q_hess_dot_d(s) += adjusted_physical_hess(s, g + l*dim) * D(g) * D(l);
-              }
-            }
-          }
-          q_hess_dot_d *= 1.0/2.0;
-	  // SECOND ORDER TAYLOR
-	  shape += q_hess_dot_d;
-	  ///
-	    
+
 	  double nor_norm = 0.0;
 	  for (int s = 0; s < dim; s++){
 	    nor_norm += nor(s) * nor(s);
@@ -1597,8 +1673,8 @@ namespace mfem
 	
       elvect.SetSize(2*h1dofs_cnt*dim);
       elvect = 0.0;
-      Vector shape(h1dofs_cnt), nor(dim), gradURes(h1dofs_cnt), bcEval(dim), q_hess_dot_d(h1dofs_cnt);
-      DenseMatrix dshape(h1dofs_cnt,dim), dshape_ps(h1dofs_cnt,dim), adjJ(dim);
+      Vector shape(h1dofs_cnt), nor(dim), gradURes(h1dofs_cnt), bcEval(dim), q_hess_dot_d(h1dofs_cnt), gradUResD(h1dofs_cnt);
+      DenseMatrix dshape(h1dofs_cnt,dim), dshape_ps(h1dofs_cnt,dim), adjJ(dim), gradUResDirD(h1dofs_cnt), taylorExp(h1dofs_cnt);
       shape = 0.0;
       nor = 0.0;
       dshape = 0.0;
@@ -1606,6 +1682,10 @@ namespace mfem
       adjJ = 0.0;
       gradURes = 0.0;
       q_hess_dot_d = 0.0;
+      gradUResD = 0.0;
+      taylorExp = 0.0;
+      gradUResDirD = 0.0; 
+
       const IntegrationRule *ir = IntRule;
       if (ir == NULL)
 	{
@@ -1616,11 +1696,17 @@ namespace mfem
 	
       const int nqp_face = ir->GetNPoints();
       ElementTransformation &Trans_el1 = Tr.GetElement2Transformation();
+      DenseMatrix nodalGrad;
+      el2.ProjectGrad2(el2,Trans_el1,nodalGrad);      
       for (int q = 0; q < nqp_face; q++)
 	{
 	  shape = 0.0;
 	  gradURes = 0.0;
 	  q_hess_dot_d = 0.0;
+	  gradUResD = 0.0;
+	  taylorExp = 0.0;
+	  gradUResDirD = 0.0; 
+
 	  const IntegrationPoint &ip_f = ir->IntPoint(q);
 	    
 	  // Set the integration point in the face and the neighboring elements
@@ -1637,49 +1723,53 @@ namespace mfem
  
 	  el2.CalcShape(eip, shape);
 
-	  ///
+	  /////
 	  Vector D(dim);
 	  Vector tN(dim);
 	  D = 0.0;
 	  tN = 0.0;
 	  Vector x_eip(3);
+	  x_eip = 0.0;
 	  Trans_el1.Transform(eip,x_eip);
 	  analyticalSurface->ComputeDistanceAndNormalAtCoordinates(x_eip,D,tN);
-	  el2.CalcDShape(eip, dshape);
-	  CalcAdjugate(Tr.Elem2->Jacobian(), adjJ);
-	  Mult(dshape, adjJ, dshape_ps);
-	  dshape_ps.Mult(D,gradURes);
-	  gradURes /= Tr.Elem2->Weight();
+	  /////
+
+	  ///
 	  uD->Eval(bcEval, Trans_el1, eip, D);
 	  ///
+
+	  for (int k = 0; k < h1dofs_cnt; k++){
+	    for (int s = 0; s < h1dofs_cnt; s++){
+	      for (int j = 0; j < dim; j++){
+		gradUResDirD(k,s) += nodalGrad(k + j * h1dofs_cnt, s) * D(j);
+	      }
+	    }
+	  }
+
+	  DenseMatrix tmp(h1dofs_cnt);
+	  tmp = gradUResDirD;
+	  taylorExp = gradUResDirD;
+	  for ( int p = 1; p < nTerms; p++){
+	    for (int k = 0; k < h1dofs_cnt; k++){
+	      for (int s = 0; s < h1dofs_cnt; s++){
+		for (int r = 0; r < h1dofs_cnt; r++){
+		  taylorExp(k,s) += tmp(k,r)*gradUResDirD(r,s) * (1.0/factorial);
+		}
+	      }
+	    }
+	    tmp = taylorExp;
+	  }
+	  
+	  for (int k = 0; k < h1dofs_cnt; k++){
+	    for (int s = 0; s < h1dofs_cnt; s++){
+	      gradUResD(k) += taylorExp(k,s) * shape(s);  
+	    }
+	  }
+
+	  ////
 	  // FIRST ORDER TAYLOR
-	  shape += gradURes;
+	  shape += gradUResD;
 	  //
-	  int size = (dim*(dim+1))/2;
-          DenseMatrix physical_hess(h1dofs_cnt,size);
-          physical_hess = 0.0;
-          el2.CalcPhysHessian(Trans_el1,physical_hess);
-          DenseMatrix adjusted_physical_hess(h1dofs_cnt,dim*dim);
-          adjusted_physical_hess = 0.0;
-          for (int s = 0; s < h1dofs_cnt; s++){
-            for (int l = 0; l < dim; l++){
-              for (int g = 0; g <= l; g++){
-                adjusted_physical_hess(s,g + l * dim) = physical_hess(s, l + g + (dim - 2) * std::min({l,g,1}));
-                adjusted_physical_hess(s,l + g * dim) = physical_hess(s, l + g + (dim - 2) * std::min({l,g,1}));
-              }
-            }
-          }
-	  for (int s = 0; s < h1dofs_cnt; s++){
-            for (int l = 0; l < dim; l++){
-              for (int g = 0; g < dim; g++){
-                q_hess_dot_d(s) += adjusted_physical_hess(s, g + l*dim) * D(g) * D(l);
-              }
-            }
-          }
-          q_hess_dot_d *= 1.0/2.0;
-	  // SECOND ORDER TAYLOR
-	  shape += q_hess_dot_d;
-	  ///
 	    
 	  double nor_norm = 0.0;
 	  for (int s = 0; s < dim; s++){
