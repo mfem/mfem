@@ -144,6 +144,53 @@ int main (int argc, char *argv[])
    char title[] = "Initial metric values";
    vis_tmop_metric_p(mesh_poly_deg, *metric, *target_c, *pmesh, title, 0);
 
+   // Average quality and worst-quality for the mesh.
+   double integral_mu = 0.0, volume = 0.0, max_mu = -1.0;
+   for (int i = 0; i < NE; i++)
+   {
+      const FiniteElement &fe_pos = *x.FESpace()->GetFE(i);
+      const IntegrationRule &ir = IntRulesLo.Get(fe_pos.GetGeomType(), 10);
+      const int nsp = ir.GetNPoints(), dof = fe_pos.GetDof();
+
+      DenseMatrix dshape(dof, dim);
+      DenseMatrix pos(dof, dim);
+      pos.SetSize(dof, dim);
+      Vector posV(pos.Data(), dof * dim);
+
+      Array<int> pos_dofs;
+      x.FESpace()->GetElementVDofs(i, pos_dofs);
+      x.GetSubVector(pos_dofs, posV);
+
+      DenseTensor W(dim, dim, nsp);
+      DenseMatrix Winv(dim), T(dim), A(dim);
+      target_c->ComputeElementTargets(i, fe_pos, ir, posV, W);
+
+      for (int j = 0; j < nsp; j++)
+      {
+         const DenseMatrix &Wj = W(j);
+         metric->SetTargetJacobian(Wj);
+         CalcInverse(Wj, Winv);
+
+         const IntegrationPoint &ip = ir.IntPoint(j);
+         fe_pos.CalcDShape(ip, dshape);
+         MultAtB(pos, dshape, A);
+         Mult(A, Winv, T);
+
+         const double mu = metric->EvalW(T);
+         max_mu = fmax(mu, max_mu);
+         integral_mu += mu * ip.weight * A.Det();
+         volume += ip.weight * A.Det();
+      }
+   }
+   MPI_Allreduce(MPI_IN_PLACE, &max_mu, 1, MPI_DOUBLE, MPI_MAX, pfes.GetComm());
+   MPI_Allreduce(MPI_IN_PLACE, &integral_mu, 1, MPI_DOUBLE, MPI_SUM, pfes.GetComm());
+   MPI_Allreduce(MPI_IN_PLACE, &volume, 1, MPI_DOUBLE, MPI_SUM, pfes.GetComm());
+   if (myid == 0)
+   {
+      cout << "Max mu: " << max_mu << endl
+           << "Avg mu: " << integral_mu / volume << endl;
+   }
+
    // Try to to pull back nodes from inverted elements next to the boundary.
    //   for (int f = 0; f < pfespace->GetNBE(); f++)
    //   {
