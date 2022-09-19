@@ -1172,7 +1172,7 @@ void DenseMatrix::SingularValues(Vector &sv) const
    int         n            = Width();
    double      *a           = copy_of_this.data;
    sv.SetSize(min(m, n));
-   double      *s           = sv;
+   double      *s           = sv.HostReadWrite();
    double      *u           = NULL;
    double      *vt          = NULL;
    double      *work        = NULL;
