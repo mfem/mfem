@@ -329,10 +329,6 @@ protected:
    /// Return the length of the segment from node i to node j.
    double GetLength(int i, int j) const;
 
-   /** Compute the Jacobian of the transformation from the perfect
-       reference element at the center of the element. */
-   void GetElementJacobian(int i, DenseMatrix &J);
-
    void MarkForRefinement();
    void MarkTriMeshForRefinement();
    void GetEdgeOrdering(DSTable &v_to_v, Array<int> &order);
@@ -958,6 +954,13 @@ public:
 
    /// Return the total (global) number of elements.
    long long GetGlobalNE() const { return ReduceInt(NumOfElements); }
+
+
+   /** Compute the Jacobian of the transformation from the perfect
+       reference element at the given integration point (defaults to the
+       center of the element if no integration point is specified) */
+   void GetElementJacobian(int i, DenseMatrix &J,
+                           const IntegrationPoint *ip = NULL);
 
    /** @brief Return the mesh geometric factors corresponding to the given
        integration rule.
@@ -1789,6 +1792,17 @@ public:
    virtual int FindPoints(DenseMatrix& point_mat, Array<int>& elem_ids,
                           Array<IntegrationPoint>& ips, bool warn = true,
                           InverseElementTransformation *inv_trans = NULL);
+
+   /** @brief Computes geometric parameters associated with a Jacobian matrix
+       in 2D/3D. These parameters are
+       (i) Area/Volume,
+       (ii) Aspect-ratio (1 in 2D, and 2 dimensional and 2 non-dimensional
+                          parameters in 3D. Dimensional parameters are used
+                          for target construction in TMOP),
+       (iii) skewness (1 in 2D and 3 in 3D), and finally
+       (iv) orientation (1 in 2D and 3 in 3D).
+    */
+   void GetGeometricParametersFromJacobian(const DenseMatrix &J, Vector &par);
 
    /// Swaps internal data with another mesh. By default, non-geometry members
    /// like 'ncmesh' and 'NURBSExt' are only swapped when 'non_geometry' is set.
