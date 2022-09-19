@@ -1570,7 +1570,7 @@ void DenseMatrix::CopyMN(const DenseMatrix &A, int m, int n, int Aro, int Aco,
                          int row_offset, int col_offset)
 {
    MFEM_VERIFY(row_offset+m <= this->Height() && col_offset+n <= this->Width(),
-               "this DenseMatrix is too small to accomodate the submatrix.  "
+               "this DenseMatrix is too small to accommodate the submatrix.  "
                << "row_offset = " << row_offset
                << ", m = " << m
                << ", this->Height() = " << this->Height()
@@ -1579,7 +1579,7 @@ void DenseMatrix::CopyMN(const DenseMatrix &A, int m, int n, int Aro, int Aco,
                << ", this->Width() = " << this->Width()
               );
    MFEM_VERIFY(Aro+m <= A.Height() && Aco+n <= A.Width(),
-               "The A DenseMatrix is too small to accomodate the submatrix.  "
+               "The A DenseMatrix is too small to accommodate the submatrix.  "
                << "Aro = " << Aro
                << ", m = " << m
                << ", A.Height() = " << A.Height()
