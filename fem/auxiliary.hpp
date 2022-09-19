@@ -4,7 +4,6 @@
 using namespace std;
 using namespace mfem;
 
-
 // Time-dependent operator for the right-hand side of the ODE representing the
 // DG weak form.
 class EulerSystem : public TimeDependentOperator
@@ -31,10 +30,11 @@ public:
                Operator &A_, SparseMatrix &Aflux_,
                double specific_heat_ratio_, int num_equation_);
 
+   float GetMaxWavespeed(const Vector &x);
+
    virtual void Mult(const Vector &x, Vector &y) const;
 
-   virtual ~EulerSystem() {}
-
+   virtual ~EulerSystem() {};
 };
 
 // Implements a simple Rusanov flux
@@ -288,6 +288,26 @@ void EulerSystem::GetFlux(const DenseMatrix &x_, DenseTensor &flux_) const
       }
    }
 }
+
+float EulerSystem::GetMaxWavespeed(const Vector &u)
+{
+   const int flux_dof = flux.SizeI();
+   double lambda = 0.0;
+
+   DenseMatrix umat(u.GetData(), vfes->GetNDofs(), num_equation);
+
+   for (int i = 0; i < flux_dof; i++) {
+      for (int k = 0; k < num_equation; k++) {
+         state(k) = umat(i, k);
+      }
+
+      // Update maximum wavespeed
+      lambda = max(lambda, ComputeMaxCharSpeed(state, dim, specific_heat_ratio, num_equation));
+   }
+
+   return lambda;
+}
+
 
 // Implementation of class RiemannSolver
 RiemannSolver::RiemannSolver(double specific_heat_ratio_, int num_equation_) :
