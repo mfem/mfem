@@ -249,6 +249,27 @@ public:
    virtual int GetNumIterations() const;
 };
 
+class BlockHybridizationSolver : public DarcySolver
+{
+   ParFiniteElementSpace trial_space, test_space;
+   Array<int> hat_offsets, data_offsets, ipiv_offsets;
+   double *data;
+   int *ipiv;
+   SparseMatrix *Ct;
+   OperatorPtr pH;
+   const Operator *P;
+   CGSolver solver_;
+public:
+   BlockHybridizationSolver(const std::shared_ptr<ParBilinearForm> &a,
+                            const std::shared_ptr<ParMixedBilinearForm> &b,
+                            const IterSolveParameters &param,
+                            const int order = 0);
+   ~BlockHybridizationSolver();
+   virtual void Mult(const Vector &x, Vector &y) const;
+   virtual void SetOperator(const Operator &op) { }
+   virtual int GetNumIterations() const { return solver_.GetNumIterations(); }
+};
+
 } // namespace blocksolvers
 
 } // namespace mfem
