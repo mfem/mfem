@@ -7,6 +7,10 @@
 
                                https://mfem.org
 
+This file provides a detailed description of how to build and install the MFEM
+library. For a simple build, see the step-by-step instructions on the website
+at https://mfem.org/building.
+
 The MFEM library has a serial and an MPI-based parallel version, which largely
 share the same code base. The only prerequisite for building the serial version
 of MFEM is a (modern) C++ compiler, such as g++. The parallel version of MFEM
@@ -472,10 +476,10 @@ MFEM_USE_CODIPACK = YES/NO
   www.scicomp.uni-kl.de/codi/
 
 MFEM_USE_ALGOIM = YES/NO
-  Enable the usage of Algoim - a collection of high-order accurate numerical 
-  methods and C++ algorithms for working with implicitly-defined geometry and 
-  level set methods. The Algoim library requires the Blitz++ library. The MFEM 
-  provides interface to Algoim v1. Thus, to check out the specific state use: 
+  Enable the usage of Algoim - a collection of high-order accurate numerical
+  methods and C++ algorithms for working with implicitly-defined geometry and
+  level set methods. The Algoim library requires the Blitz++ library. The MFEM
+  provides interface to Algoim v1. Thus, to check out the specific state use:
   git checkout 9c9ca0ef094d8ab0390ed36367a1151b459bbe0a
   https://algoim.github.io
 
