@@ -376,10 +376,15 @@ int main(int argc, char *argv[])
    dfs_cm.SetEliminatedSystems(M_e, B_e, ess_tdof);
    setup_time[&dfs_cm] = chrono.RealTime();
 
+   ResetTimer();
+   BlockHybridizationSolver bh(darcy.GetMform(), darcy.GetBform(), param);
+   setup_time[&bh] = chrono.RealTime();
+
    std::map<const DarcySolver*, std::string> solver_to_name;
    solver_to_name[&bdp] = "Block-diagonal-preconditioned MINRES";
    solver_to_name[&dfs_dm] = "Divergence free (decoupled mode)";
    solver_to_name[&dfs_cm] = "Divergence free (coupled mode)";
+   solver_to_name[&bh] = "Block hybridization";
 
    // Solve the problem using all solvers
    for (const auto& solver_pair : solver_to_name)
