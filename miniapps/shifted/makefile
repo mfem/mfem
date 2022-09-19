@@ -31,12 +31,10 @@ DISTANCE_SRC = distance.cpp dist_solver.cpp
 DISTANCE_OBJ = $(DISTANCE_SRC:.cpp=.o)
 EXTRAPOLATE_SRC = extrapolate.cpp extrapolator.cpp marking.cpp
 EXTRAPOLATE_OBJ = $(EXTRAPOLATE_SRC:.cpp=.o)
-EX_STOKES_WEAKBC_PAR_SRC = ex_Stokes_weakBC_par.cpp nitsche_solver.cpp p_divW.cpp
-EX_STOKES_WEAKBC_PAR_OBJ = $(EX_STOKES_WEAKBC_PAR_SRC:.cpp=.o)
 EX_STOKES_SHIFTED_SRC = ex_Stokes_shifted.cpp nitsche_solver.cpp shifted_solver.cpp p_divW.cpp AnalyticalSurface.cpp AnalyticalGeometricShape.cpp Circle.cpp
 EX_STOKES_SHIFTED_OBJ = $(EX_STOKES_SHIFTED_SRC:.cpp=.o)
 
-PAR_MINIAPPS = distance diffusion extrapolate ex_Stokes_weakBC_par ex_Stokes_shifted
+PAR_MINIAPPS = distance diffusion extrapolate ex_Stokes_shifted
 
 ifeq ($(MFEM_USE_MPI),NO)
    MINIAPPS =
@@ -74,9 +72,6 @@ diffusion: $(DIFFUSION_OBJ)
 extrapolate: $(EXTRAPOLATE_OBJ)
 	$(MFEM_CXX) $(MFEM_LINK_FLAGS) -o $@ $(EXTRAPOLATE_OBJ) $(COMMON_LIB) $(MFEM_LIBS)
 
-ex_Stokes_weakBC_par: $(EX_STOKES_WEAKBC_PAR_OBJ)
-	$(MFEM_CXX) $(MFEM_LINK_FLAGS) -o $@ $(EX_STOKES_WEAKBC_PAR_OBJ) $(COMMON_LIB) $(MFEM_LIBS)
-
 ex_Stokes_shifted: $(EX_STOKES_SHIFTED_OBJ)
 	$(MFEM_CXX) $(MFEM_LINK_FLAGS) -o $@ $(EX_STOKES_SHIFTED_OBJ) $(COMMON_LIB) $(MFEM_LIBS)
 
@@ -104,9 +99,9 @@ $(MFEM_LIB_FILE):
 clean: clean-build clean-exec
 
 clean-build:
-	rm -f *.o *~ distance diffusion extrapolate ex_Stokes_weakBC_par ex_Stokes_shifted
+	rm -f *.o *~ distance diffusion extrapolate ex_Stokes_shifted
 	rm -rf *.dSYM *.TVD.*breakpoints
 
 clean-exec:
-	@rm -f diffusion.mesh diffusion.gf ex_Stokes_weakBC_par.mesh ex_Stokes_weakBC_par.gf ex_Stokes_shifted.mesh ex_Stokes_shifted.gf
+	@rm -f diffusion.mesh diffusion.gf ex_Stokes_shifted.mesh ex_Stokes_shifted.gf
 	@rm -rf ParaViewDistance ParaViewDiffusion ParaViewExtrapolate
