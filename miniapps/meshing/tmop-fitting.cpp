@@ -490,6 +490,10 @@ int main (int argc, char *argv[])
       {
          OptimizeMeshWithAMRAroundZeroLevelSet(*pmesh_surf_fit_bg, *ls_coeff, amr_iters,
                                                *surf_fit_bg_gf0);
+         pmesh_surf_fit_bg->Rebalance();
+         surf_fit_bg_fes->Update();
+         surf_fit_bg_gf0->Update();
+
          if (comp_dist)
          {
             ComputeScalarDistanceFromLevelSet(*pmesh_surf_fit_bg, *ls_coeff,

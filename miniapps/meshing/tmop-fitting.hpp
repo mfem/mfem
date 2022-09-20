@@ -664,7 +664,8 @@ void ModifyAttributeForMarkingDOFS(ParMesh *pmesh, ParGridFunction &mat,
 void OptimizeMeshWithAMRAroundZeroLevelSet(ParMesh &pmesh,
                                            FunctionCoefficient &ls_coeff,
                                            int amr_iter,
-                                           ParGridFunction &distance_s)
+                                           ParGridFunction &distance_s,
+                                           const int quad_order = 5)
 {
    mfem::H1_FECollection h1fec(distance_s.ParFESpace()->FEColl()->GetOrder(),
                                pmesh.Dimension());
@@ -682,6 +683,7 @@ void OptimizeMeshWithAMRAroundZeroLevelSet(ParMesh &pmesh,
    x.ProjectCoefficient(ls_coeff);
    x.ExchangeFaceNbrData();
 
+   IntegrationRules irRules = IntegrationRules(0, Quadrature1D::GaussLobatto);
    for (int iter = 0; iter < amr_iter; iter++)
    {
       el_to_refine = 0.0;
@@ -691,8 +693,8 @@ void OptimizeMeshWithAMRAroundZeroLevelSet(ParMesh &pmesh,
          Vector x_vals;
          DenseMatrix x_grad;
          h1fespace.GetElementDofs(e, dofs);
-         const IntegrationRule &ir =
-            IntRules.Get(x.ParFESpace()->GetFE(e)->GetGeomType(), 6);
+         const IntegrationRule &ir = irRules.Get(pmesh.GetElementGeometry(e),
+                                                 quad_order);
          x.GetValues(e, ir, x_vals);
          double min_val = x_vals.Min();
          double max_val = x_vals.Max();
@@ -701,16 +703,6 @@ void OptimizeMeshWithAMRAroundZeroLevelSet(ParMesh &pmesh,
          {
             el_to_refine(e) = 1.0;
          }
-         // Check gradient magnitude
-         //         x.GetGradients(*(x.FESpace()->GetElementTransformation(e)), ir, x_grad);
-         //         Vector gradl2(x_vals.Size());
-         //         x_grad.Norm2(gradl2);
-         //         double min_grad_val = gradl2.Min();
-         //         if (min_grad_val < 0.9)
-         //         {
-         //            el_to_refine(e) = 1.0;
-         //         }
-         //         std::cout << e << " " << gradl2.Min() << " k10gradl2min\n";
       }
 
       // Refine an element if its neighbor will be refined
@@ -724,11 +716,9 @@ void OptimizeMeshWithAMRAroundZeroLevelSet(ParMesh &pmesh,
             Array<int> dofs;
             Vector x_vals;
             lhfespace.GetElementDofs(e, dofs);
-            //         lhx.GetSubVector(dofs, x_vals);
             const IntegrationRule &ir =
-               IntRules.Get(lhx.ParFESpace()->GetFE(e)->GetGeomType(), 5);
+               irRules.Get(pmesh.GetElementGeometry(e), quad_order);
             lhx.GetValues(e, ir, x_vals);
-
             double max_val = x_vals.Max();
             if (max_val > 0)
             {
@@ -773,7 +763,10 @@ void OptimizeMeshWithAMRAroundZeroLevelSet(ParMesh &pmesh,
 
 void ComputeScalarDistanceFromLevelSet(ParMesh &pmesh,
                                        FunctionCoefficient &ls_coeff,
-                                       ParGridFunction &distance_s)
+                                       ParGridFunction &distance_s,
+                                       const int nDiffuse = 2,
+                                       const int pLapOrder = 5,
+                                       const int pLapNewton = 50)
 {
    mfem::H1_FECollection h1fec(distance_s.ParFESpace()->FEColl()->GetOrder(),
                                pmesh.Dimension());
@@ -786,24 +779,11 @@ void ComputeScalarDistanceFromLevelSet(ParMesh &pmesh,
    //Now determine distance
    const double dx = AvgElementSize(pmesh);
    DistanceSolver *dist_solver = NULL;
-   int solver_type = 1;
-   double t_param = 1.0;
 
-   if (solver_type == 0)
-   {
-      auto ds = new HeatDistanceSolver(t_param * dx * dx);
-      ds->smooth_steps = 0;
-      ds->vis_glvis = false;
-      dist_solver = ds;
-   }
-   else if (solver_type == 1)
-   {
-      const int p = 5;
-      const int newton_iter = 50;
-      auto ds = new PLapDistanceSolver(p, newton_iter);
-      dist_solver = ds;
-   }
-   else { MFEM_ABORT("Wrong solver option."); }
+   const int p = pLapOrder;
+   const int newton_iter = pLapNewton;
+   auto ds = new PLapDistanceSolver(p, newton_iter);
+   dist_solver = ds;
    dist_solver->print_level = 1;
 
    ParFiniteElementSpace pfes_s(*distance_s.ParFESpace());
@@ -819,7 +799,7 @@ void ComputeScalarDistanceFromLevelSet(ParMesh &pmesh,
    distance_s.SetTrueVector();
    distance_s.SetFromTrueVector();
 
-   DiffuseField(distance_s, 10);
+   DiffuseField(distance_s, nDiffuse);
    distance_s.SetTrueVector();
    distance_s.SetFromTrueVector();
    for (int i = 0; i < distance_s.Size(); i++)
