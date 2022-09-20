@@ -46,8 +46,7 @@ namespace mfem
     int NEproc = pmesh->GetNE();
     int elem1 = Tr.Elem1No;
     int elem2 = Tr.Elem2No;
-    int nTerms = 2;
-     
+   
     int elemStatus1 = elemStatus[elem1];
     int elemStatus2;
     if (Tr.Elem2No >= NEproc)
@@ -498,8 +497,7 @@ namespace mfem
     int NEproc = pmesh->GetNE();
     int elem1 = Tr.Elem1No;
     int elem2 = Tr.Elem2No;
-    int nTerms = 2;
-     
+    
     int elemStatus1 = elemStatus[elem1];
     int elemStatus2;
     if (Tr.Elem2No >= NEproc)
@@ -916,7 +914,6 @@ namespace mfem
     int NEproc = pmesh->GetNE();
     int elem1 = Tr.Elem1No;
     int elem2 = Tr.Elem2No;
-    int nTerms = 2;
 
     int elemStatus1 = elemStatus[elem1];
     int elemStatus2;
@@ -1523,7 +1520,6 @@ namespace mfem
     int NEproc = pmesh->GetNE();
     int elem1 = Tr.Elem1No;
     int elem2 = Tr.Elem2No;
-    int nTerms = 2;
     
     int elemStatus1 = elemStatus[elem1];
     int elemStatus2;

@@ -29,8 +29,10 @@ using namespace mfem;
 ///           -<(p*I) n, w>
 ///           -<u, sigma(w,q) n> // transpose of the above two terms
 ///           +<alpha h^{-1} u , w >
+
 namespace mfem
 {
+
 class ShiftedVectorFunctionCoefficient : public VectorCoefficient
 {
 protected:
@@ -64,9 +66,10 @@ public:
     Coefficient *mu;
     AnalyticalSurface *analyticalSurface;
     int par_shared_face_count;
+    int nTerms;
     
   public:
-    ShiftedStrainBoundaryForceIntegrator(const ParMesh *pmesh, Coefficient &mu_, AnalyticalSurface *analyticalSurface)  : pmesh(pmesh), mu(&mu_), analyticalSurface(analyticalSurface), par_shared_face_count(0) {}
+    ShiftedStrainBoundaryForceIntegrator(const ParMesh *pmesh, Coefficient &mu_, AnalyticalSurface *analyticalSurface, int nTerms)  : pmesh(pmesh), mu(&mu_), analyticalSurface(analyticalSurface), par_shared_face_count(0), nTerms(nTerms) {}
     virtual void AssembleFaceMatrix(const FiniteElement &fe,
 				    const FiniteElement &fe2,
 				    FaceElementTransformations &Tr,
@@ -95,9 +98,10 @@ public:
     const ParMesh *pmesh;
     AnalyticalSurface *analyticalSurface;
     int par_shared_face_count;
-    
+    int nTerms;
+  
   public:
-    ShiftedPressureBoundaryForceIntegrator(const ParMesh *pmesh, AnalyticalSurface *analyticalSurface) : pmesh(pmesh), analyticalSurface(analyticalSurface), par_shared_face_count(0) { }
+    ShiftedPressureBoundaryForceIntegrator(const ParMesh *pmesh, AnalyticalSurface *analyticalSurface, int nTerms) : pmesh(pmesh), analyticalSurface(analyticalSurface), par_shared_face_count(0), nTerms(nTerms) { }
     virtual void AssembleFaceMatrix(const FiniteElement &trial_fe1,
 				    const FiniteElement &trial_fe2,
 				    const FiniteElement &test_fe1,
@@ -132,9 +136,10 @@ public:
     Coefficient *mu;
     AnalyticalSurface *analyticalSurface;
     int par_shared_face_count;
+    int nTerms;
     
   public:
-    ShiftedVelocityPenaltyIntegrator(const ParMesh *pmesh, double penParameter, Coefficient &mu_, AnalyticalSurface *analyticalSurface) : pmesh(pmesh), alpha(penParameter), mu(&mu_), analyticalSurface(analyticalSurface), par_shared_face_count(0) { }
+    ShiftedVelocityPenaltyIntegrator(const ParMesh *pmesh, double penParameter, Coefficient &mu_, AnalyticalSurface *analyticalSurface, int nTerms) : pmesh(pmesh), alpha(penParameter), mu(&mu_), analyticalSurface(analyticalSurface), par_shared_face_count(0), nTerms(nTerms) { }
     virtual void AssembleFaceMatrix(const FiniteElement &fe,
 				    const FiniteElement &fe2,
 				    FaceElementTransformations &Tr,
@@ -191,9 +196,9 @@ public:
     ShiftedVectorFunctionCoefficient *uD;
     AnalyticalSurface *analyticalSurface;
     int par_shared_face_count;
-    
+    int nTerms;
   public:
-    ShiftedVelocityBCPenaltyIntegrator(const ParMesh *pmesh, double penParameter, Coefficient &mu_, ShiftedVectorFunctionCoefficient &uD_, AnalyticalSurface *analyticalSurface) : pmesh(pmesh), alpha(penParameter), mu(&mu_), uD(&uD_), analyticalSurface(analyticalSurface), par_shared_face_count(0) { }
+    ShiftedVelocityBCPenaltyIntegrator(const ParMesh *pmesh, double penParameter, Coefficient &mu_, ShiftedVectorFunctionCoefficient &uD_, AnalyticalSurface *analyticalSurface, int nTerms) : pmesh(pmesh), alpha(penParameter), mu(&mu_), uD(&uD_), analyticalSurface(analyticalSurface), par_shared_face_count(0), nTerms(nTerms) { }
     virtual void AssembleRHSElementVect(const FiniteElement &el,
 					const FiniteElement &el2,
 					FaceElementTransformations &Tr,
