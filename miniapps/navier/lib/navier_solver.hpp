@@ -272,6 +272,9 @@ public:
    /// Compute CFL
    double ComputeCFL(ParGridFunction &u, double dt);
 
+   int PredictTimestep(const double dt_min, const double dt_max,
+                       const double cfl_target, double &dt);
+
    /// Set the number of modes to cut off in the interpolation filter
    void SetCutoffModes(int c) { filter_cutoff_modes = c; }
 
@@ -319,6 +322,9 @@ protected:
                      Vector &B,
                      int copy_interior = 0);
 
+   // Evaluate Legendre Polynomials of order N at point x
+   void EvaluateLegendrePolynomial(const int N, const double x, Vector &L);
+
    /// Enable/disable debug output.
    bool debug = false;
 
@@ -332,6 +338,9 @@ protected:
    bool numerical_integ = false;
 
    bool stress_computation = true;
+
+   // High-Pass-Filter Relaxation Term
+   bool hpfrt = false;
 
    /// The parallel mesh.
    ParMesh *pmesh = nullptr;
@@ -349,6 +358,8 @@ protected:
 
 public:
    IntegrationRules gll_rules;
+   IntegrationRule gll_ir;
+   IntegrationRule gll_ir_nl;
 protected:
 
    /// Velocity \f$H^1\f$ finite element collection.
@@ -374,6 +385,7 @@ protected:
    ParMixedBilinearForm *G_form = nullptr;
 
    ParBilinearForm *H_form = nullptr;
+   ParBilinearForm *HMv_form = nullptr;
 
    VectorGridFunctionCoefficient *FText_gfcoeff = nullptr;
 
@@ -415,7 +427,7 @@ protected:
 
    Vector fn, un, un_next, unm1, unm2, Nun, Nunm1, Nunm2, u_ext, Fext, FText, Lext,
           resu;
-   Vector tmp1;
+   Vector tmp1, hpfrt_tdofs;
 
    Vector pn, resp, FText_bdr, g_bdr;
 
@@ -454,6 +466,8 @@ protected:
    double ab2 = 0.0;
    double ab3 = 0.0;
 
+   double vel_cfl = 0.0, cfl_old = 0.0;
+
    // Timers.
    StopWatch sw_setup, sw_step, sw_extrap, sw_curlcurl, sw_spsolve, sw_hsolve;
 
@@ -464,8 +478,8 @@ protected:
    int pl_amg = 0;
 
    // Relative tolerances.
-   double rtol_spsolve = 1e-6;
-   double rtol_hsolve = 1e-8;
+   double rtol_spsolve = 1e-4;
+   double rtol_hsolve = 1e-6;
 
    // Iteration counts.
    int iter_mvsolve = 0, iter_spsolve = 0, iter_hsolve = 0;
@@ -477,12 +491,11 @@ protected:
    ParLORDiscretization *lor = nullptr;
 
    // Filter-based stabilization
-   int filter_cutoff_modes = 1;
+   int filter_cutoff_modes = 0;
    double filter_alpha = 0.0;
    FiniteElementCollection *vfec_filter = nullptr;
    ParFiniteElementSpace *vfes_filter = nullptr;
-   ParGridFunction un_NM1_gf;
-   ParGridFunction un_filtered_gf;
+   ParGridFunction u_filter_basis_gf, u_low_modes_gf, hpfrt_gf;
 
    // RANS
    std::shared_ptr<RANSModel> rans_model;

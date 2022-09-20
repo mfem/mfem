@@ -63,6 +63,20 @@ public:
       const int id = (d1d << 4) | q1d;
       switch (id)
       {
+         case 0x33:
+         {
+            return StressIntegratorApply2D<3, 3>(ne, maps->B, maps->G, ir.GetWeights(),
+                                                 geom->J,
+                                                 geom->detJ, x, y, nu_wrap);
+            break;
+         }
+         case 0x55:
+         {
+            return StressIntegratorApply2D<5, 5>(ne, maps->B, maps->G, ir.GetWeights(),
+                                                 geom->J,
+                                                 geom->detJ, x, y, nu_wrap);
+            break;
+         }
          case 0x77:
          {
             return StressIntegratorApply2D<7, 7>(ne, maps->B, maps->G, ir.GetWeights(),
@@ -102,8 +116,8 @@ public:
       auto force = Reshape(Y_.ReadWrite(), d1d, d1d, dim, ne);
       auto nu = Reshape(nu_.Read(), q1d, q1d, ne);
 
-      //   MFEM_FORALL_2D(e, ne, q1d, q1d, 1,
-      for (int e = 0; e < ne; e++)
+      MFEM_FORALL_2D(e, ne, q1d, q1d, 1,
+                     // for (int e = 0; e < ne; e++)
       {
          //  shared memory placeholders for temporary contraction results
          MFEM_SHARED tensor<double, 2, 3, q1d, q1d> smem;
@@ -113,9 +127,13 @@ public:
          const auto U_el = Reshape(&U(0, 0, 0, e), d1d, d1d, dim);
          KernelHelpers::CalcGrad(B, G, smem, U_el, dudxi);
 
-         for (int qx = 0; qx < q1d; qx++)
+         MFEM_FOREACH_THREAD(qx, x, q1d)
          {
-            for (int qy = 0; qy < q1d; qy++)
+            // for (int qx = 0; qx < q1d; qx++)
+            // {
+            // for (int qy = 0; qy < q1d; qy++)
+            // {
+            MFEM_FOREACH_THREAD(qy, y, q1d)
             {
                auto invJqp = inv(make_tensor<dim, dim>(
                [&](int i, int j) { return J(qx, qy, i, j, e); }));
@@ -130,8 +148,8 @@ public:
          MFEM_SYNC_THREAD;
          auto F = Reshape(&force(0, 0, 0, e), d1d, d1d, dim);
          KernelHelpers::CalcGradTSum(B, G, smem, invJ_nuS_detJw, F);
-         //  });
-      }
+      });
+      // }
    }
 
 protected:

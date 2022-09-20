@@ -142,24 +142,20 @@ PrandtlKolmogorov::PrandtlKolmogorov(ParFiniteElementSpace &kfes,
    Mform->Assemble();
    Mform->FormSystemMatrix(empty, M);
 
-   Kform = new ParBilinearForm(&kfes);
-   // auto integ = new DiffusionIntegrator();
-   auto integ = new ConservativeConvectionIntegrator(vel_coeff);
-   integ->SetIntegrationRule(*ir);
-   Kform->AddDomainIntegrator(integ);
-   Kform->SetAssemblyLevel(AssemblyLevel::PARTIAL);
-   Kform->Assemble();
-   Kform->FormSystemMatrix(empty, K);
-
-   bform = new ParLinearForm(&kfes);
-   auto dlf_integrator = new DomainLFIntegrator(f_coeff);
-   dlf_integrator->SetIntRule(ir);
-   bform->AddDomainIntegrator(dlf_integrator);
-   bform->Assemble();
-
    M_inv = new CGSolver(MPI_COMM_WORLD);
    M_inv->iterative_mode = false;
    M_inv->SetOperator(*M);
+
+   A_amg = new HypreBoomerAMG;
+   A_amg->SetPrintLevel(0);
+
+   A_inv = new GMRESSolver(MPI_COMM_WORLD);
+   A_inv->iterative_mode = true;
+   A_inv->SetMaxIter(500);
+   A_inv->SetKDim(500);
+   A_inv->SetRelTol(1e-8);
+   A_inv->SetPrintLevel(0);
+   A_inv->SetPreconditioner(*A_amg);
 }
 
 void PrandtlKolmogorov::SetTime(double t)
@@ -177,8 +173,6 @@ void PrandtlKolmogorov::SetTime(double t)
       k_gf.ProjectBdrCoefficient(k_bdrcoeff, ess_attr);
       Pk->MultTranspose(k_gf, k_bdr_values);
    }
-
-   bform->ParallelAssemble(b);
 
    if (auto *c = dynamic_cast<VectorGridFunctionCoefficient *>(&vel_coeff))
    {
@@ -271,6 +265,8 @@ void PrandtlKolmogorov::SetTime(double t)
 
 void PrandtlKolmogorov::Mult(const Vector &x, Vector &y) const
 {
+   // y = M^-1 f(x)
+
    Apply(x, z1);
    M_inv->Mult(z1, y);
 
@@ -284,7 +280,7 @@ void PrandtlKolmogorov::Apply(const Vector &x, Vector &y) const
 {
    const int d1d = maps->ndof, q1d = maps->nqpt;
 
-   MFEM_ASSERT(y.Size() == Pk->Height(), "y wrong size");
+   MFEM_ASSERT(x.Size() == Pk->Width(), "y wrong size");
 
    // T -> L
    Pk->Mult(x, k_l);
@@ -299,6 +295,14 @@ void PrandtlKolmogorov::Apply(const Vector &x, Vector &y) const
       const int id = (d1d << 4) | q1d;
       switch (id)
       {
+         case 0x22:
+         {
+            PrandtlKolmogorovApply2D<2, 2>(eval_mode, ne, maps->B, maps->G,
+                                           ir->GetWeights(),
+                                           geom->J,
+                                           geom->detJ, k_e, y_e, u_q, kv_q, f_q, tls_q, mu_calibration_const);
+            break;
+         }
          case 0x33:
          {
             PrandtlKolmogorovApply2D<3, 3>(eval_mode, ne, maps->B, maps->G,
@@ -347,11 +351,122 @@ void PrandtlKolmogorov::Apply(const Vector &x, Vector &y) const
    Pk->MultTranspose(y_l, y);
 }
 
+int PrandtlKolmogorov::SUNImplicitSetup(const Vector &x, const Vector &fx,
+                                        int jok, int *jcur, double gamma)
+{
+   const int d1d = maps->ndof, q1d = maps->nqpt;
+
+   mat = new SparseMatrix(kfes.GetVSize());
+
+   // T -> L
+   Pk->Mult(x, k_l);
+   // L -> E
+   Rk->Mult(k_l, k_e);
+
+   // Allocate
+   dRdk.SetSize(d1d*d1d * d1d*d1d * ne);
+
+   // Reset output vector.
+   dRdk = 0.0;
+
+   if (dim == 2)
+   {
+      const int id = (d1d << 4) | q1d;
+      switch (id)
+      {
+         case 0x22:
+         {
+            PrandtlKolmogorovAssembleJacobian2D<2, 2>(ne, maps->B, maps->G,
+                                                      ir->GetWeights(),
+                                                      geom->J,
+                                                      geom->detJ, k_e, dRdk, kv_q, tls_q, mu_calibration_const, gamma);
+            break;
+         }
+         case 0x33:
+         {
+            PrandtlKolmogorovAssembleJacobian2D<3, 3>(ne, maps->B, maps->G,
+                                                      ir->GetWeights(),
+                                                      geom->J,
+                                                      geom->detJ, k_e, dRdk, kv_q, tls_q, mu_calibration_const, gamma);
+            break;
+         }
+         default:
+            printf("id=%x\n", id);
+            MFEM_ABORT("unknown kernel");
+      }
+
+      // Assemble processor local SparseMatrix
+      for (int e = 0; e < ne; e++)
+      {
+         DenseMatrix dRdk_e(dRdk.GetData() + d1d*d1d * d1d*d1d * e, d1d*d1d, d1d*d1d);
+
+         Array<int> vdofs;
+         kfes.GetElementDofs(e, vdofs);
+
+         const Array<int> &dmap =
+            dynamic_cast<const TensorBasisElement&>(*kfes.GetFE(e)).GetDofMap();
+
+         Array<int> vdofs_mapped(vdofs.Size());
+
+         for (int i = 0; i < vdofs_mapped.Size(); i++)
+         {
+            vdofs_mapped[i] = vdofs[dmap[i]];
+         }
+
+         mat->AddSubMatrix(vdofs_mapped, vdofs_mapped, dRdk_e, 1);
+      }
+   }
+   else
+   {
+      MFEM_ABORT("unknown kernel");
+   }
+
+   dRdk.Destroy();
+   mat->Finalize();
+
+   if (Pk_mat == nullptr)
+   {
+      Pk_mat = kfes.Dof_TrueDof_Matrix();
+   }
+
+   auto tmp = new HypreParMatrix(kfes.GetComm(),
+                                 kfes.GlobalVSize(),
+                                 kfes.GetDofOffsets(),
+                                 mat);
+   Amat = RAP(tmp, Pk_mat);
+   delete tmp;
+   delete mat;
+
+   Amat->EliminateBC(ess_tdof_list, DiagonalPolicy::DIAG_ONE);
+
+   A_inv->SetOperator(*Amat);
+
+   *jcur = 1;
+
+   return 0;
+}
+
+int PrandtlKolmogorov::SUNImplicitSolve(const Vector &b, Vector &x, double tol)
+{
+   Vector b_mod(b.Size());
+   // The RHS has to modified to have zeros at the essential boundary
+   // conditions. This way the correction to those values will be zero.
+   M->Mult(b, b_mod);
+   b_mod.SetSubVector(ess_tdof_list, 0.0);
+
+   A_inv->SetAbsTol(tol);
+   A_inv->Mult(b_mod, x);
+
+   return 0;
+}
+
 void PrandtlKolmogorov::ApplyEssentialBC(const double t, Vector& y)
 {
    k_bdrcoeff.SetTime(t);
+   k_gf = 0.0;
    k_gf.ProjectBdrCoefficient(k_bdrcoeff, ess_attr);
-   Pk->MultTranspose(k_gf, k_bdr_values);
+   // Pk->MultTranspose(k_gf, k_bdr_values);
+   kfes.GetRestrictionMatrix()->Mult(k_gf, k_bdr_values);
 
    for (int i = 0; i < ess_tdof_list.Size(); i++)
    {

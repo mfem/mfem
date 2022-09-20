@@ -37,6 +37,11 @@ public:
 
    void Apply(const Vector &k, Vector &y) const;
 
+   int SUNImplicitSetup(const Vector &x, const Vector &fx,
+                        int jok, int *jcur, double gamma) override;
+
+   int SUNImplicitSolve(const Vector &b, Vector &x, double tol) override;
+
    void ApplyEssentialBC(const double t, Vector& y);
 
    static int PostProcessCallback(realtype t, N_Vector zpred, void *user_data);
@@ -56,7 +61,7 @@ public:
    const int dim, ne = 0;
    const double mu_calibration_const;
    Vector kv_q, u_q, kv_e, u_e, f_q, tls_e, tls_q, b, k_bdr_values;
-   mutable Vector k_l, k_e, y_l, y_e, z, z1, z2, x_ess;
+   mutable Vector k_l, k_e, y_l, y_e, dRdk, z, z1, z2, x_ess;
    ParGridFunction k_gf;
    VectorCoefficient &vel_coeff;
    Coefficient &kv_coeff;
@@ -69,6 +74,13 @@ public:
    ParLinearForm *bform = nullptr;
    CGSolver *M_inv = nullptr;
    OperatorHandle M, K;
+
+   SparseMatrix *mat = nullptr;
+   HypreParMatrix *Amat = nullptr;
+   HypreParMatrix *Pk_mat = nullptr;
+
+   GMRESSolver *A_inv = nullptr;
+   HypreBoomerAMG *A_amg = nullptr;
 };
 
 } // namespace navier

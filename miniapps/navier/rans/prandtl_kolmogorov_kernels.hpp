@@ -66,8 +66,6 @@ void PrandtlKolmogorovApply2D(
          const tensor<double, q1d, q1d> &f_q =
          make_tensor<q1d, q1d>([&](int i, int j) { return f_q__(i, j, e); });
 
-         // out << f_q << std::endl;
-
          for (int qx = 0; qx < q1d; qx++)
          {
             for (int qy = 0; qy < q1d; qy++)
@@ -144,12 +142,12 @@ void PrandtlKolmogorovApply2D(
 
                const double JxW = detJ(qx, qy, e) * qweights(qx, qy);
                const auto dphidx = KernelHelpers::GradAllShapeFunctions(qx, qy, B, G, invJqp);
+               const auto phi = KernelHelpers::AllShapeFunctions(qx, qy, B);
                auto dkdx = dkdxi(qy, qx) * invJqp;
 
                const double sqrt_k = sqrt(k_q(qx, qy));
                const double kv_star =
                   kv_q(qx, qy, e) + mu_calibration_const * tls_q(qx,qy,e) * sqrt_k;
-               // const double kv_star = kv_q(qx, qy, e);
                // const double kv_star = 1.0;
 
                for (int dx = 0; dx < d1d; dx++)
@@ -166,6 +164,105 @@ void PrandtlKolmogorovApply2D(
          }
          MFEM_SYNC_THREAD;
       }
+   }
+}
+
+template <int d1d, int q1d> static inline
+void PrandtlKolmogorovAssembleJacobian2D(
+   const int ne,
+   const Array<double> &B_,
+   const Array<double> &G_,
+   const Array<double> &W_,
+   const Vector &Jacobian_,
+   const Vector &detJ_,
+   const Vector &X_,
+   Vector &Y_,
+   const Vector &kv_q_,
+   const Vector &tls_q_,
+   const double mu_calibration_const,
+   const double gamma)
+{
+   constexpr int dim = 2;
+   KernelHelpers::CheckMemoryRestriction(d1d, q1d);
+
+   const tensor<double, q1d, d1d> &B =
+   make_tensor<q1d, d1d>([&](int i, int j) { return B_[i + q1d*j]; });
+
+   const tensor<double, q1d, d1d> &G =
+   make_tensor<q1d, d1d>([&](int i, int j) { return G_[i + q1d*j]; });
+
+   const auto qweights = Reshape(W_.Read(), q1d, q1d);
+   const auto J = Reshape(Jacobian_.Read(), q1d, q1d, dim, dim, ne);
+   const auto detJ = Reshape(detJ_.Read(), q1d, q1d, ne);
+   const auto k = Reshape(X_.Read(), d1d, d1d, ne);
+   auto dRdk = Reshape(Y_.ReadWrite(), d1d * d1d, d1d * d1d, ne);
+   const auto kv_q = Reshape(kv_q_.Read(), q1d, q1d, ne);
+   const auto tls_q = Reshape(tls_q_.Read(), q1d, q1d, ne);
+
+   for (int e = 0; e < ne; e++)
+   {
+      // d1d^2 x d1d^2
+      auto dRdk_e = Reshape(&dRdk(0, 0, e), d1d * d1d, d1d * d1d);
+
+      MFEM_SHARED tensor<double, 2, 3, q1d, q1d> smem;
+      MFEM_SHARED tensor<double, q1d, q1d, dim> dkdxi;
+
+      const auto k_el1 = Reshape(&k(0, 0, e), d1d, d1d);
+      KernelHelpers::CalcGrad(B, G, smem, k_el1, dkdxi);
+
+      auto k_el = make_tensor<d1d, d1d>([&](int i, int j)
+      { return k(i, j, e); });
+      const auto k_q = KernelHelpers::EvaluateAtQuadraturePoints(k_el, B);
+
+      for (int qx = 0; qx < q1d; qx++)
+      {
+         for (int qy = 0; qy < q1d; qy++)
+         {
+            auto invJqp = inv(make_tensor<dim, dim>(
+            [&](int i, int j) { return J(qx, qy, i, j, e); }));
+
+            const double JxW = detJ(qx, qy, e) * qweights(qx, qy);
+            const auto phi = KernelHelpers::AllShapeFunctions(qx, qy, B);
+            const auto dphidx = KernelHelpers::GradAllShapeFunctions(qx, qy, B, G, invJqp);
+            auto dkdx = dkdxi(qy, qx) * invJqp;
+
+            const double sqrt_k = sqrt(k_q(qx, qy));
+            const double kv_star =
+               kv_q(qx, qy, e) + mu_calibration_const * tls_q(qx,qy,e) * sqrt_k;
+
+            const auto term1 = ((mu_calibration_const * tls_q(qx,qy,e)) / (2.0 * sqrt_k));
+
+            for (int dx_i = 0; dx_i < d1d; dx_i++)
+            {
+               for (int dy_i = 0; dy_i < d1d; dy_i++)
+               {
+                  for (int dx_j = 0; dx_j < d1d; dx_j++)
+                  {
+                     for (int dy_j = 0; dy_j < d1d; dy_j++)
+                     {
+                        // PLEASE BE CORRECT -> THUMBSUP
+                        const int row = dx_i + dy_i * d1d;
+                        const int col = dx_j + dy_j * d1d;
+
+                        dRdk_e(row, col) +=
+                           + phi(dx_i, dy_i) * phi(dx_j, dy_j) * JxW;
+
+                        // b := dot product sum index
+                        for (int b = 0; b < dim; b++)
+                        {
+                           dRdk_e(row, col) +=
+                              + dphidx(dx_i, dy_i, b) * (
+                                 + term1 * dkdx(b) * phi(dx_j, dy_j)
+                                 + kv_star * dphidx(dx_j, dy_j, b)
+                              ) * JxW * gamma;
+                        }
+                     }
+                  }
+               }
+            }
+         }
+      }
+      MFEM_SYNC_THREAD;
    }
 }
 

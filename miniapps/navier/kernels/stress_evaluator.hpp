@@ -27,7 +27,7 @@ public:
 
    void Apply(const Vector &kv, const Vector &u, Vector &y);
 
-   ~StressEvaluator();
+   ~StressEvaluator() {};
 
 private:
    const ParFiniteElementSpace &kvfes;

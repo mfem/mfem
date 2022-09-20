@@ -37,7 +37,7 @@ StressEvaluator::StressEvaluator(const ParFiniteElementSpace &kvfes,
    dkv_qp.SetSize(ir.GetNPoints() * ne * dim);
 
    u_l.SetSize(Pu->Height());
-   u_e.SetSize(Pu->Height());
+   u_e.SetSize(Ru->Height());
 
    y_l.SetSize(Pu->Height());
    y_e.SetSize(Ru->Height());
@@ -51,25 +51,33 @@ void StressEvaluator::Apply(const Vector &kv, const Vector &u,
 {
    const int d1d = maps->ndof, q1d = maps->nqpt;
 
-   MFEM_ASSERT(y.Size() == Pu->Height(), "y wrong size");
-
    // T -> L
    Pkv->Mult(kv, kv_l);
    Pu->Mult(u, u_l);
+
    // L -> E
    Rkv->Mult(kv_l, kv_e);
    Ru->Mult(u_l, u_e);
 
    qi->Derivatives(kv_e, dkv_qp);
 
+   y_l = 0.0;
+
    if (dim == 2)
    {
       const int id = (d1d << 4) | q1d;
       switch (id)
       {
-         case 0x3:
+         case 0x33:
          {
             StressEvaluatorApply2D<3, 3>(ne, maps->B, maps->G, ir.GetWeights(),
+                                         geom->J,
+                                         geom->detJ, u_e, y_e, dkv_qp);
+            break;
+         }
+         case 0x55:
+         {
+            StressEvaluatorApply2D<5, 5>(ne, maps->B, maps->G, ir.GetWeights(),
                                          geom->J,
                                          geom->detJ, u_e, y_e, dkv_qp);
             break;
@@ -91,7 +99,7 @@ void StressEvaluator::Apply(const Vector &kv, const Vector &u,
    }
 
    // E -> L
-   Rkv->MultTranspose(y_e, y_l);
+   Ru->MultTranspose(y_e, y_l);
    // L -> T
-   Pkv->MultTranspose(y_l, y);
+   Pu->MultTranspose(y_l, y);
 }

@@ -95,7 +95,13 @@ NavierSolver::NavierSolver(ParMesh *mesh, int order, double kin_vis)
    resp_gf.SetSpace(pfes);
 
    kin_vis_gf.SetSpace(pfes);
+   ConstantCoefficient kvcoeff_tmp(kin_vis);
+   kin_vis_gf.ProjectCoefficient(kvcoeff_tmp);
+   kv.SetSize(pfes_truevsize);
    grad_nu_sym_grad_uext.SetSize(vfes_truevsize);
+
+   hpfrt_tdofs.SetSize(vfes_truevsize);
+   hpfrt_tdofs = 0.0;
 
    cur_step = 0;
 
@@ -124,16 +130,16 @@ void NavierSolver::Setup(double dt)
 
    Array<int> empty;
 
-   // GLL integration rule (Numerical Integration)
-   const IntegrationRule &ir_ni = gll_rules.Get(vfes->GetFE(0)->GetGeomType(),
-                                                2 * order - 1);
+   gll_ir = gll_rules.Get(vfes->GetFE(0)->GetGeomType(), 2 * order - 1);
+   gll_ir_nl = gll_rules.Get(vfes->GetFE(0)->GetGeomType(), 2 * 11 - 1);
 
    nlcoeff.constant = -1.0;
    N = new ParNonlinearForm(vfes);
    auto *nlc_nlfi = new VectorConvectionNLFIntegrator(nlcoeff);
+   // TODO
    if (numerical_integ)
    {
-      nlc_nlfi->SetIntRule(&ir_ni);
+      nlc_nlfi->SetIntRule(&gll_ir_nl);
    }
    N->AddDomainIntegrator(nlc_nlfi);
    if (partial_assembly)
@@ -146,7 +152,7 @@ void NavierSolver::Setup(double dt)
    auto *mv_blfi = new VectorMassIntegrator;
    if (numerical_integ)
    {
-      mv_blfi->SetIntRule(&ir_ni);
+      mv_blfi->SetIntRule(&gll_ir);
    }
    Mv_form->AddDomainIntegrator(mv_blfi);
    if (partial_assembly)
@@ -160,7 +166,7 @@ void NavierSolver::Setup(double dt)
    auto *sp_blfi = new DiffusionIntegrator;
    if (numerical_integ)
    {
-      sp_blfi->SetIntRule(&ir_ni);
+      sp_blfi->SetIntRule(&gll_ir);
    }
    Sp_form->AddDomainIntegrator(sp_blfi);
    if (partial_assembly)
@@ -174,7 +180,7 @@ void NavierSolver::Setup(double dt)
    auto *vd_mblfi = new VectorDivergenceIntegrator();
    if (numerical_integ)
    {
-      vd_mblfi->SetIntRule(&ir_ni);
+      vd_mblfi->SetIntRule(&gll_ir);
    }
    D_form->AddDomainIntegrator(vd_mblfi);
    if (partial_assembly)
@@ -188,7 +194,7 @@ void NavierSolver::Setup(double dt)
    auto *g_mblfi = new GradientIntegrator();
    if (numerical_integ)
    {
-      g_mblfi->SetIntRule(&ir_ni);
+      g_mblfi->SetIntRule(&gll_ir);
    }
    G_form->AddDomainIntegrator(g_mblfi);
    if (partial_assembly)
@@ -207,12 +213,12 @@ void NavierSolver::Setup(double dt)
 
    // kin_vis_gf = kin_vis;
    kin_vis_gf_coeff.SetGridFunction(&kin_vis_gf);
-   auto *hdv_blfi = new StressIntegrator(kin_vis_gf_coeff, ir_ni);
+   auto *hdv_blfi = new StressIntegrator(kin_vis_gf_coeff, gll_ir);
 
    if (numerical_integ)
    {
-      hmv_blfi->SetIntRule(&ir_ni);
-      hdv_blfi->SetIntRule(&ir_ni);
+      hmv_blfi->SetIntRule(&gll_ir);
+      hdv_blfi->SetIntRule(&gll_ir);
    }
    H_form->AddDomainIntegrator(hmv_blfi);
    H_form->AddDomainIntegrator(hdv_blfi);
@@ -223,12 +229,22 @@ void NavierSolver::Setup(double dt)
    H_form->Assemble();
    H_form->FormSystemMatrix(vel_ess_tdof, H);
 
+   HMv_form = new ParBilinearForm(vfes);
+   auto *hmv_blfi2 = new VectorMassIntegrator(H_bdfcoeff);
+   hmv_blfi2->SetIntRule(&gll_ir);
+   HMv_form->AddDomainIntegrator(hmv_blfi2);
+   if (partial_assembly)
+   {
+      HMv_form->SetAssemblyLevel(AssemblyLevel::PARTIAL);
+   }
+   HMv_form->Assemble();
+
    FText_gfcoeff = new VectorGridFunctionCoefficient(&FText_gf);
    FText_bdr_form = new ParLinearForm(pfes);
    auto *ftext_bnlfi = new BoundaryNormalLFIntegrator(*FText_gfcoeff);
    if (numerical_integ)
    {
-      ftext_bnlfi->SetIntRule(&ir_ni);
+      ftext_bnlfi->SetIntRule(&gll_ir);
    }
    FText_bdr_form->AddBoundaryIntegrator(ftext_bnlfi, vel_ess_attr);
 
@@ -238,7 +254,7 @@ void NavierSolver::Setup(double dt)
       auto *gbdr_bnlfi = new BoundaryNormalLFIntegrator(*vel_dbc.coeff);
       if (numerical_integ)
       {
-         gbdr_bnlfi->SetIntRule(&ir_ni);
+         gbdr_bnlfi->SetIntRule(&gll_ir);
       }
       g_bdr_form->AddBoundaryIntegrator(gbdr_bnlfi, vel_dbc.attr);
    }
@@ -253,7 +269,7 @@ void NavierSolver::Setup(double dt)
       // vdlfi->SetIntRule(&ir);
       if (numerical_integ)
       {
-         vdlfi->SetIntRule(&ir_ni);
+         vdlfi->SetIntRule(&gll_ir);
       }
       f_form->AddDomainIntegrator(vdlfi);
    }
@@ -325,7 +341,7 @@ void NavierSolver::Setup(double dt)
    // HInv->SetPreconditioner(*HInvPC);
    HInv->SetPrintLevel(pl_hsolve);
    HInv->SetRelTol(rtol_hsolve);
-   HInv->SetMaxIter(10000);
+   HInv->SetMaxIter(300);
 
    // If the initial condition was set, it has to be aligned with dependent
    // Vectors and GridFunctions
@@ -344,15 +360,18 @@ void NavierSolver::Setup(double dt)
                                               vfec_filter,
                                               pmesh->Dimension());
 
-      un_NM1_gf.SetSpace(vfes_filter);
-      un_NM1_gf = 0.0;
+      u_filter_basis_gf.SetSpace(vfes_filter);
+      u_filter_basis_gf = 0.0;
 
-      un_filtered_gf.SetSpace(vfes);
-      un_filtered_gf = 0.0;
+      u_low_modes_gf.SetSpace(vfes);
+      u_low_modes_gf = 0.0;
+
+      hpfrt_gf.SetSpace(vfes);
+      hpfrt_gf = 0.0;
    }
 
    stress_eval = new StressEvaluator(*kin_vis_gf.ParFESpace(), *un_gf.ParFESpace(),
-                                     ir_ni);
+                                     gll_ir);
 
    sw_setup.Stop();
 }
@@ -412,10 +431,10 @@ void NavierSolver::Step(double &time, double dt, int current_step,
    if (partial_assembly)
    {
       delete HInvPC;
-      // Vector diag_pa(vfes->GetTrueVSize());
-      // H_form->AssembleDiagonal(diag_pa);
-      // HInvPC = new OperatorJacobiSmoother(diag_pa, vel_ess_tdof);
-      // HInv->SetPreconditioner(*HInvPC);
+      Vector diag_pa(vfes->GetTrueVSize());
+      HMv_form->AssembleDiagonal(diag_pa);
+      HInvPC = new OperatorJacobiSmoother(diag_pa, vel_ess_tdof);
+      HInv->SetPreconditioner(*HInvPC);
    }
 
    // Extrapolated f^{n+1}.
@@ -450,8 +469,105 @@ void NavierSolver::Step(double &time, double dt, int current_step,
 
    Fext.Add(1.0, fn);
 
+   if (hpfrt)
+   {
+      {
+         u_filter_basis_gf.ProjectGridFunction(un_gf);
+         u_low_modes_gf.ProjectGridFunction(u_filter_basis_gf);
+         const auto filter_alpha_ = filter_alpha;
+         const auto d_un_gf = un_gf.Read();
+         const auto d_u_low_modes_gf = u_low_modes_gf.Read();
+         auto d_hpfrt_gf = hpfrt_gf.ReadWrite();
+         MFEM_FORALL(i,
+                     un_gf.Size(),
+                     d_hpfrt_gf[i] = -10.0 * (d_un_gf[i] - d_u_low_modes_gf[i]););
+
+         hpfrt_gf.ParallelAssemble(hpfrt_tdofs);
+      }
+
+      if (0)
+      {
+         const int hpf_kco = 1;
+         const double hpf_weight = 10.0;
+         const double hpf_chi = -1.0 * hpf_weight;
+         const int N = order + 1;
+
+         DenseMatrix D_filter;
+         D_filter.Diag(1.0, N);
+
+         const int k0 = N - hpf_kco;
+         // Amplitude
+         double a;
+
+         printf("N=%d, k0=%d\n", N, k0);
+         for (int k = k0; k < N; k++)
+         {
+            printf("k = %d\n", k);
+            a = (pow((double)(k+1 - k0), 2.0))/pow((double)(hpf_kco), 2.0);
+            printf("k = %d, a = %f\n", k, a);
+            D_filter(k, k) = 1.0 - a;
+            printf("diag(k)=%f\n", D_filter(k, k));
+         }
+
+         // Legendre Basis interpolation matrix (Vandermonde)
+         DenseMatrix V(N), Vinv(N);
+         Vector Vi(N);
+
+         // fake integration points to compare with Nek
+         Vector fake_ips(N);
+         fake_ips(0)= -1.0000000000000000;
+         fake_ips(1)= -0.65465367070797720;
+         fake_ips(2)= 0.0000000000000000;
+         fake_ips(3)= 0.65465367070797709;
+         fake_ips(4)= 1.0000000000000000;
+
+         for (int i = 0; i < N; i++)
+         {
+            // printf("z=%f\n", gll_ir.IntPoint(i).x);
+            // EvaluateLegendrePolynomial(N, gll_ir.IntPoint(i).x, Vi);
+            printf("z=%f\n", fake_ips(i));
+            EvaluateLegendrePolynomial(N, fake_ips(i), Vi);
+            V.SetRow(i, Vi);
+         }
+
+         // printf("V\n");
+         // V.Print(out, N);
+
+         DenseMatrix DfVinv(N), VDfVinv(N);
+         Vinv = V;
+         Vinv.Invert();
+
+         // printf("Vinv\n");
+         // Vinv.Print(out, N);
+
+         // printf("Df\n");
+         // D_filter.Print(out, N);
+
+         Mult(D_filter, Vinv, DfVinv);
+         // printf("DVinv\n");
+         // DfVinv.Print(out, N);
+
+         Mult(V, DfVinv, VDfVinv);
+
+         printf("VDfVinv\n");
+         VDfVinv.Print(out, N);
+
+         // compute u - F u F'
+      }
+   }
+
+   // exit(0);
+   // return;
+
+   // Mv->Mult(hpfrt_tdofs, tmp1);
+   // Fext.Add(1.0, tmp1);
+
    // Fext = M^{-1} (F(u^{n}) + f^{n+1})
    MvInv->Mult(Fext, tmp1);
+   if (hpfrt)
+   {
+      tmp1.Add(1.0, hpfrt_tdofs);
+   }
    iter_mvsolve = MvInv->GetNumIterations();
    res_mvsolve = MvInv->GetFinalNorm();
    Fext.Set(1.0, tmp1);
@@ -618,25 +734,26 @@ void NavierSolver::Step(double &time, double dt, int current_step,
 
    un_next_gf.GetTrueDofs(un_next);
 
+
+   // if (filter_alpha != 0.0)
+   // {
+   //    un_NM1_gf.ProjectGridFunction(un_next_gf);
+   //    un_next_filtered_gf.ProjectGridFunction(un_NM1_gf);
+   //    const auto d_un_next_filtered_gf = un_next_filtered_gf.Read();
+   //    auto d_un_next_gf = un_next_gf.ReadWrite();
+   //    const auto filter_alpha_ = filter_alpha;
+   //    MFEM_FORALL(i,
+   //                un_next_gf.Size(),
+   //                d_un_next_gf[i] = (1.0 - filter_alpha_) * d_un_next_gf[i]
+   //                                  + filter_alpha_ * d_un_next_filtered_gf[i];);
+   // }
+
    // If the current time step is not provisional, accept the computed solution
    // and update the time step history by default.
    if (!provisional)
    {
       UpdateTimestepHistory(dt);
       time += dt;
-   }
-
-   if (filter_alpha != 0.0)
-   {
-      un_NM1_gf.ProjectGridFunction(un_gf);
-      un_filtered_gf.ProjectGridFunction(un_NM1_gf);
-      const auto d_un_filtered_gf = un_filtered_gf.Read();
-      auto d_un_gf = un_gf.ReadWrite();
-      const auto filter_alpha_ = filter_alpha;
-      MFEM_FORALL(i,
-                  un_gf.Size(),
-                  d_un_gf[i] = (1.0 - filter_alpha_) * d_un_gf[i]
-                               + filter_alpha_ * d_un_filtered_gf[i];);
    }
 
    sw_step.Stop();
@@ -668,6 +785,87 @@ void NavierSolver::Step(double &time, double dt, int current_step,
    }
 }
 
+int NavierSolver::PredictTimestep(double dt_min, double dt_max,
+                                  double cfl_target, double &dt)
+{
+   int flag = 0;
+   double previous_dt = dt;
+   double cflmax = 1.2 * cfl_target;
+   double cflmin = 0.8 * cfl_target;
+
+   double vel_max = ComputeCFL(un_next_gf, 1.0);
+   double cfl = dt * vel_max;
+   double vel_cfl_old = vel_cfl;
+   vel_cfl = vel_max;
+
+   // first timestep, initialize values
+   if (dthist[1] == 0.0)
+   {
+      cfl_old = cfl;
+   }
+
+   double cflpred = 2.0*cfl-cfl_old;
+
+   if (cfl > cflmax || cflpred > cflmax || cfl < cflmin)
+   {
+      double A = (vel_cfl - vel_cfl_old) / dt;
+      double B = vel_cfl;
+      double C = -cfl_target;
+      double discr = (B*B) - 4.0 * A * C;
+
+      if (discr <= 0.0)
+      {
+         dt = dt * (cfl_target/cfl);
+      }
+      else if (std::fabs(vel_cfl - vel_cfl_old)/vel_cfl < 0.001)
+      {
+         dt = dt * (cfl_target/cfl);
+      }
+      else
+      {
+         double dtlow = (-B+sqrt(discr) )/(2.0*A);
+         double dthi = (-B-sqrt(discr) )/(2.0*A);
+         if (dthi > 0.0 && dtlow > 0.0)
+         {
+            dt = std::min(dthi, dtlow);
+         }
+         else if (dthi <= 0.0 && dtlow <= 0.0)
+         {
+            dt = dt * (cfl_target/cfl);
+         }
+         else
+         {
+            dt = std::max(dthi, dtlow);
+         }
+      }
+
+      if (previous_dt/dt < 0.2)
+      {
+         dt = previous_dt * 5.0;
+      }
+   }
+
+   if (Mpi::Root())
+   {
+      if (dt < dt_min)
+      {
+         MFEM_ABORT("Minimum timestep reached, likely unstable.");
+      }
+   }
+
+   if (cfl > cflmax || cflpred > cflmax)
+   {
+      flag = -1;
+   }
+
+   dt = std::min(1.2*previous_dt, dt);
+   dt = std::max(0.8*previous_dt, dt);
+   dt = std::min(dt_max, dt);
+   cfl_old = cfl;
+
+   return flag;
+}
+
 void NavierSolver::MeanZero(ParGridFunction &v)
 {
    // Make sure not to recompute the inner product linear form every
@@ -679,9 +877,7 @@ void NavierSolver::MeanZero(ParGridFunction &v)
       auto *dlfi = new DomainLFIntegrator(onecoeff);
       if (numerical_integ)
       {
-         const IntegrationRule &ir_ni = gll_rules.Get(vfes->GetFE(0)->GetGeomType(),
-                                                      2 * order - 1);
-         dlfi->SetIntRule(&ir_ni);
+         dlfi->SetIntRule(&gll_ir);
       }
       mass_lf->AddDomainIntegrator(dlfi);
       mass_lf->Assemble();
@@ -936,11 +1132,43 @@ double NavierSolver::ComputeCFL(ParGridFunction &u, double dt)
    double cflm = 0.0;
    double cflmax = 0.0;
 
+   // The integration rule here has to conform with the nonlinear term.
+   auto ir = gll_ir;
+
+   // // Determine spacing between quadrature points
+   // int nqp1d = vfes->GetFE(0)->GetDofToQuad(ir, DofToQuad::TENSOR).nqpt;
+   // int nqp = ir.GetNPoints();
+   // Vector delta_r(nqp),
+   //        delta_s(nqp),
+   //        delta_t(nqp);
+
+   // for (int i = 0; i < nqp; i++)
+   // {
+   //    int idx1d = i % nqp1d;
+   //    if (idx1d == 0)
+   //    {
+   //       delta_r(i) = ir.IntPoint(i+1).x - ir.IntPoint(i).x;
+   //    }
+   //    else if (idx1d == nqp1d - 1)
+   //    {
+   //       delta_r(i) = ir.IntPoint(i).x - ir.IntPoint(i-1).x;
+   //    }
+   //    else
+   //    {
+   //       delta_r(i) = 0.5 * (ir.IntPoint(i+1).x - ir.IntPoint(i-1).x);
+   //    }
+   // }
+   // delta_s = delta_r;
+   // DenseMatrix tmp(delta_s.GetData(), nqp1d, nqp1d);
+   // tmp.Transpose();
+
+   // delta_r.Print(out, nqp1d);
+   // printf("\n");
+   // delta_s.Print(out, nqp1d);
+
    for (int e = 0; e < fes->GetNE(); ++e)
    {
       const FiniteElement *fe = fes->GetFE(e);
-      const IntegrationRule &ir = IntRules.Get(fe->GetGeomType(),
-                                               fe->GetOrder());
       ElementTransformation *tr = fes->GetElementTransformation(e);
 
       u.GetValues(e, ir, ux, 1);
@@ -958,34 +1186,40 @@ double NavierSolver::ComputeCFL(ParGridFunction &u, double dt)
 
       for (int i = 0; i < ir.GetNPoints(); ++i)
       {
-         const IntegrationPoint &ip = ir.IntPoint(i);
-         tr->SetIntPoint(&ip);
-         const DenseMatrix &invJ = tr->InverseJacobian();
-         const double detJinv = 1.0 / tr->Jacobian().Det();
+         //    const IntegrationPoint &ip = ir.IntPoint(i);
+         //    tr->SetIntPoint(&ip);
+         //    const DenseMatrix &invJ = tr->InverseJacobian();
+         //    const double detJinv = 1.0 / tr->Jacobian().Det();
 
-         if (vdim == 2)
-         {
-            ur(i) = (ux(i) * invJ(0, 0) + uy(i) * invJ(1, 0)) * detJinv;
-            us(i) = (ux(i) * invJ(0, 1) + uy(i) * invJ(1, 1)) * detJinv;
-         }
-         else if (vdim == 3)
-         {
-            ur(i) = (ux(i) * invJ(0, 0) + uy(i) * invJ(1, 0)
-                     + uz(i) * invJ(2, 0))
-                    * detJinv;
-            us(i) = (ux(i) * invJ(0, 1) + uy(i) * invJ(1, 1)
-                     + uz(i) * invJ(2, 1))
-                    * detJinv;
-            ut(i) = (ux(i) * invJ(0, 2) + uy(i) * invJ(1, 2)
-                     + uz(i) * invJ(2, 2))
-                    * detJinv;
-         }
+         //    if (vdim == 2)
+         //    {
+         //       ur(i) = (ux(i) * invJ(0, 0) + uy(i) * invJ(1, 0)) * detJinv;
+         //       us(i) = (ux(i) * invJ(0, 1) + uy(i) * invJ(1, 1)) * detJinv;
+         //    }
+         //    else if (vdim == 3)
+         //    {
+         //       ur(i) = (ux(i) * invJ(0, 0) + uy(i) * invJ(1, 0)
+         //                + uz(i) * invJ(2, 0))
+         //               * detJinv;
+         //       us(i) = (ux(i) * invJ(0, 1) + uy(i) * invJ(1, 1)
+         //                + uz(i) * invJ(2, 1))
+         //               * detJinv;
+         //       ut(i) = (ux(i) * invJ(0, 2) + uy(i) * invJ(1, 2)
+         //                + uz(i) * invJ(2, 2))
+         //               * detJinv;
+         //    }
 
+         // printf("ur = %f, us = %f, delta_r = %f, delta_s = %f\n",
+         //        ur(i), us(i), delta_r(i), delta_s(i));
+
+         // cflx = fabs(dt * ur(i) / delta_s(i));
+         // cfly = fabs(dt * us(i) / delta_r(i));
          cflx = fabs(dt * ux(i) / hmin);
          cfly = fabs(dt * uy(i) / hmin);
+
          if (vdim == 3)
          {
-            cflz = fabs(dt * uz(i) / hmin);
+            cflz = fabs(dt * ut(i) / hmin);
          }
          cflm = cflx + cfly + cflz;
          cflmax = fmax(cflmax, cflm);
@@ -1182,18 +1416,33 @@ void NavierSolver::PrintTimingData()
 
 void NavierSolver::PrintInfo()
 {
-   int fes_size0 = vfes->GlobalVSize();
-   int fes_size1 = pfes->GlobalVSize();
+   int mesh_ne = vfes->GetParMesh()->GetGlobalNE();
+   int fes_size0 = vfes->GlobalTrueVSize();
+   int fes_size1 = pfes->GlobalTrueVSize();
 
    if (pmesh->GetMyRank() == 0)
    {
       mfem::out << "NAVIER version: " << NAVIER_VERSION << std::endl
                 << "MFEM version: " << MFEM_VERSION << std::endl
                 << "MFEM GIT: " << MFEM_GIT_STRING << std::endl
+                << "Mesh #EL: " << mesh_ne << std::endl
                 << "Velocity #DOFs: " << fes_size0 << std::endl
                 << "Pressure #DOFs: " << fes_size1 << std::endl;
    }
 }
+
+void NavierSolver::EvaluateLegendrePolynomial(const int N, const double x,
+                                              Vector &L)
+{
+   L(0) = 1.0;
+   L(1) = x;
+
+   for (int i = 2; i < N; i++)
+   {
+      L(i) = ((2*i-1) * x * L(i-1) - (i-1) * L(i-2)) / (double)i;
+   }
+}
+
 
 void NavierSolver::SetRANSModel(std::shared_ptr<RANSModel> k)
 {
@@ -1229,4 +1478,6 @@ NavierSolver::~NavierSolver()
    delete pfes;
    delete vfec_filter;
    delete vfes_filter;
+   delete HMv_form;
+   delete stress_eval;
 }

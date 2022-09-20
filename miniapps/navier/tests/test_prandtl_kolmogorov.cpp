@@ -57,9 +57,23 @@ int main(int argc, char *argv[])
 
    int polynomial_order = 2;
 
-   Mesh mesh = Mesh::MakeCartesian2D(8, 8, Element::QUADRILATERAL, false,
+   Mesh mesh = Mesh::MakeCartesian2D(64, 64, Element::QUADRILATERAL, false,
                                      2.0*M_PI,
                                      2.0*M_PI);
+
+   // mesh.EnsureNodes();
+   // mesh.Transform([](const Vector &c, Vector &u)
+   // {
+   //    u(0) = c(0);
+   //    u(1) = c(1);
+
+   //    if (c(0) == M_PI && c(1) == M_PI)
+   //    {
+   //       u(0) = c(0) + 0.25;
+   //       u(1) = c(1) + 0.125;
+   //    }
+   // });
+
 
    ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, mesh);
 
@@ -126,13 +140,61 @@ int main(int argc, char *argv[])
    PrandtlKolmogorov pk(k_fes, vel_coeff, kv_coeff, f_coeff, tls_coeff,
                         k_ex_coeff, ctx.mu_calibration_const, ess_bdr);
 
+   // FD check
+   if (0)
+   {
+      pk.SetTime(0.0);
+      pk.SetEvalMode(TimeDependentOperator::EvalMode::ADDITIVE_TERM_2);
+      Vector x(k_tdof), fx(pk.Height()), dfdx(pk.Height()), fxme(pk.Height()),
+             fxpe(pk.Height());
+
+      fx = 0.0;
+      fxpe = 0.0;
+      fxme = 0.0;
+
+      pk.Mult(x, fx);
+      out << "sum(fx) - 4*pi^2 = " << fx.Sum() - 4*M_PI*M_PI << std::endl;
+
+      const double eps = 1e-8;
+
+      std::ofstream Afdmat_out("afdmat.dat");
+      Afdmat_out << std::setprecision(12);
+
+      for (int col = 0; col < pk.Height(); col++)
+      {
+         x(col) += eps;
+         pk.Mult(x, fxpe);
+         x(col) -= 2*eps;
+         pk.Mult(x, fxme);
+         x(col) += eps;
+
+         for (int i = 0; i < pk.Height(); i++)
+         {
+            dfdx(i) = (fxpe(i) - fxme(i)) / (2*eps);
+         }
+
+         dfdx.Print(Afdmat_out, pk.Height());
+      }
+
+      int jcur = 0;
+      pk.SUNImplicitSetup(x, fx, 1, &jcur, 0.0);
+      std::ofstream Amat_out("amat.dat");
+      Amat_out << std::setprecision(12);
+      pk.Amat->PrintMatlab(Amat_out);
+
+      Afdmat_out.flush();
+      Amat_out.flush();
+
+      exit(0);
+   }
+
    double t_final = 0.5;
    double t = 0.0;
-   double dt = 1.0;
+   double dt = t_final;
 
    ARKStepSolver pk_ode(MPI_COMM_WORLD, ARKStepSolver::IMEX);
    pk_ode.Init(pk);
-   pk_ode.SetSStolerances(1e-5, 1e-5);
+   pk_ode.SetSStolerances(1e-8, 1e-8);
    pk_ode.SetMaxStep(dt);
 
    FILE* fout = fopen("arkode.log", "w");
@@ -145,7 +207,14 @@ int main(int argc, char *argv[])
                                        PrandtlKolmogorov::PostProcessCallback);
    MFEM_VERIFY(flag >= 0, "error in ARKStepSetPostprocessStageFn()");
 
-   pk_ode.UseSundialsLinearSolver();
+   flag = ARKStepSetStagePredictFn(pk_ode.GetMem(),
+                                   PrandtlKolmogorov::PostProcessCallback);
+   MFEM_VERIFY(flag >= 0, "error in ARKStepSetStagePredictFn()");
+
+   // flag = ARKStepSetLSetupFrequency(pk_ode.GetMem(), 1);
+   // MFEM_VERIFY(flag >= 0, "error in ARKStepSetLSetupFrequency()");
+
+   // pk_ode.UseSundialsLinearSolver();
    pk_ode.SetIMEXTableNum(ARK324L2SA_ERK_4_2_3, ARK324L2SA_DIRK_4_2_3);
 
    bool done = false;
@@ -176,7 +245,10 @@ int main(int argc, char *argv[])
          k_gf.SetFromTrueDofs(k_tdof);
          double l2error = k_gf.ComputeL2Error(k_ex_coeff);
          kex_gf.ProjectCoefficient(k_ex_coeff);
-         kex_gf -= k_gf;
+         for (int i = 0; i < kex_gf.Size(); i++)
+         {
+            kex_gf(i) = abs(kex_gf(i) - k_gf(i));
+         }
          if (Mpi::Root())
          {
             printf("time step: %d, time: %.3E, l2error = %.8E\n", ti, t, l2error);
@@ -185,7 +257,7 @@ int main(int argc, char *argv[])
 
          sol_sock << "parallel " << num_procs << " " << myid << "\n";
          sol_sock.precision(8);
-         sol_sock << "solution\n" << *pmesh << kex_gf << std::flush;
+         sol_sock << "solution\n" << *pmesh << k_gf << std::flush;
       }
    }
 

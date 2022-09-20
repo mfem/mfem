@@ -31,7 +31,7 @@ using namespace navier;
 struct s_NavierContext
 {
    int ser_ref_levels = 1;
-   int order = 5;
+   int order = 4;
    double kinvis = 1.0;
    double t_final = 10 * 0.25e-4;
    double dt = 0.25e-4;
@@ -88,6 +88,8 @@ int main(int argc, char *argv[])
    Mpi::Init(argc, argv);
    Hypre::Init();
 
+   const char *device_config = "cpu";
+
    OptionsParser args(argc, argv);
    args.AddOption(&ctx.ser_ref_levels,
                   "-rs",
@@ -117,6 +119,8 @@ int main(int argc, char *argv[])
                   "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
+   args.AddOption(&device_config, "-d", "--device",
+                  "Device configuration string, see Device::Configure().");
    args.AddOption(
       &ctx.checkres,
       "-cr",
@@ -137,6 +141,8 @@ int main(int argc, char *argv[])
    {
       args.PrintOptions(mfem::out);
    }
+   Device device(device_config);
+   if (Mpi::Root()) { device.Print(); }
 
    Mesh *mesh = new Mesh("../../data/inline-quad.mesh");
    mesh->EnsureNodes();

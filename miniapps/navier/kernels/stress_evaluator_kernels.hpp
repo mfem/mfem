@@ -34,7 +34,8 @@ void StressEvaluatorApply2D(
    auto fq = Reshape(Y_.ReadWrite(), q1d, q1d, dim, ne);
    auto dkv = Reshape(dkv_.Read(), q1d, q1d, dim, ne);
 
-   for (int e = 0; e < ne; e++)
+   MFEM_FORALL_2D(e, ne, q1d, q1d, 1,
+                  // for (int e = 0; e < ne; e++)
    {
       MFEM_SHARED tensor<double, 2, 3, q1d, q1d> smem;
       MFEM_SHARED tensor<double, q1d, q1d, dim> gradkvS;
@@ -43,9 +44,9 @@ void StressEvaluatorApply2D(
       const auto U_el = Reshape(&U(0, 0, 0, e), d1d, d1d, dim);
       KernelHelpers::CalcGrad(B, G, smem, U_el, dudxi);
 
-      for (int qx = 0; qx < q1d; qx++)
+      MFEM_FOREACH_THREAD(qx, x, q1d)
       {
-         for (int qy = 0; qy < q1d; qy++)
+         MFEM_FOREACH_THREAD(qy, y, q1d)
          {
             auto invJqp = inv(make_tensor<dim, dim>(
             [&](int i, int j) { return J(qx, qy, i, j, e); }));
@@ -63,7 +64,7 @@ void StressEvaluatorApply2D(
          }
       }
       MFEM_SYNC_THREAD;
-   }
+   });
 }
 
 } // namespace navier

@@ -436,6 +436,15 @@ EvaluateAtQuadraturePoints(const tensor<double, d1d, d1d> &u,
    return dot(B, dot(u, transpose(B)));
 }
 
+template <int d1d, int q1d>
+static inline MFEM_HOST_DEVICE tensor<double, d1d, d1d>
+AllShapeFunctions(int qx, int qy,
+                  const tensor<double, q1d, d1d> &B)
+{
+   // Bx (x) By
+   return outer(B(qx), B(qy));
+}
+
 /**
  * @brief Compute the gradient of all shape functions.
  *
