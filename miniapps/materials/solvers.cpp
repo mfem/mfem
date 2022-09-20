@@ -118,7 +118,6 @@ void SPDESolver::Solve(ParLinearForm &b, ParGridFunction &x) {
 
   ParGridFunction helper_gf(fespace_ptr_);
   helper_gf = 0.0;
-  k_.EliminateVDofsInRHS(ess_tdof_list_,helper_gf,b);
 
 
   if (integer_order_of_exponent_ > 0) {
@@ -179,8 +178,14 @@ void SPDESolver::Solve(const ParLinearForm &b, ParGridFunction &x, double alpha,
     B_ = b;
   }
   B_ *= beta;
-  // Initialize X_ to zero. Important! Might contain nan/inf -> crash.
-  X_ = 0.0;
+
+  if (!apply_lift_){
+    // Initialize X_ to zero. Important! Might contain nan/inf -> crash.
+    X_ = 0.0;
+  } else {
+    restriction_matrix_->Mult(x, X_);
+  }
+
   delete Op_;
   Op_ = Add(1.0, stiffness_, alpha, mass_bc_); //  construct Operator
   HypreParMatrix *Ae = Op_->EliminateRowsCols(ess_tdof_list_);
@@ -206,6 +211,9 @@ void SPDESolver::Solve(const ParLinearForm &b, ParGridFunction &x, double alpha,
 }
 
 void SPDESolver::LiftSolution(ParGridFunction& x){
+  // Set lifting flag
+  apply_lift_ = true;
+
   // Lifting of the solution takes care of inhomogeneous boundary conditions.
   // See doi:10.1016/j.jcp.2019.109009; section 2.6
   if (Mpi::Root()) {
@@ -229,13 +237,14 @@ void SPDESolver::LiftSolution(ParGridFunction& x){
   b.AddDomainIntegrator(new DomainLFIntegrator(zero));
   b.Assemble();
 
-  k_.EliminateVDofsInRHS(ess_tdof_list_,helper_gf,b);
-
   // Solve the PDE for the lifting.
   Solve(b, helper_gf, 1.0, 1.0);
 
   // Add the lifting to the solution.
   x += helper_gf;
+
+  // Reset the lifting flag.
+  apply_lift_ = false;
 }
 
 void SPDESolver::UpdateRHS(ParLinearForm &b) {
