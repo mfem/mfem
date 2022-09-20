@@ -85,7 +85,6 @@ private:
   ParBilinearForm m_;
   HypreParMatrix stiffness_;
   HypreParMatrix mass_bc_;
-  HypreParMatrix mass_0_;
 
   // Transformation matrices (needed to construct the linear systems and
   // solutions)
