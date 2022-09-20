@@ -424,7 +424,7 @@ protected: // implementation
    static const int MaxElemNodes =
       8;       ///< Size of the buffers for nodes of an element
    static const int MaxElemEdges =
-      12;      ///< Size of the buffers for faces of an element
+      12;      ///< Size of the buffers for edges of an element
    static const int MaxElemFaces =
       6;       ///< Size of the buffers for faces of an element
    static const int MaxElemChildren =
