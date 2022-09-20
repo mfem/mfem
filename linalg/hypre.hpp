@@ -1578,6 +1578,10 @@ public:
    { HYPRE_BoomerAMGSetTol(amg_precond, tol); }
 
    /// Expert option - consult hypre documentation/team
+   void SetSmoothType(double smooth_type)
+   { HYPRE_BoomerAMGSetSmoothType(amg_precond, smooth_type); }
+
+   /// Expert option - consult hypre documentation/team
    void SetStrengthThresh(double strength)
    { HYPRE_BoomerAMGSetStrongThreshold(amg_precond, strength); }
 
