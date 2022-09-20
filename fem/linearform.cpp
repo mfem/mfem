@@ -106,15 +106,39 @@ bool LinearForm::SupportsDevice()
    // through Assemble, AssembleDevice, GetGeometricFactors and EnsureNodes
    if (fes->GetMesh()->NURBSext != nullptr) { return false; }
 
-   // scan domain integrator to verify that all can use device assembly
-   for (int k = 0; k < domain_integs.Size(); k++)
+   // scan integrators to verify that all can use device assembly
+   auto IntegratorsSupportDevice = [](const Array<LinearFormIntegrator*> &integ)
    {
-      if (!domain_integs[k]->SupportsDevice()) { return false; }
-   }
+      for (int k = 0; k < integ.Size(); k++)
+      {
+         if (!integ[k]->SupportsDevice()) { return false; }
+      }
+      return true;
+   };
 
-   // boundary, delta and face integrators are not supported yet
-   if (GetBLFI()->Size() > 0 || GetFLFI()->Size() > 0 ||
-       GetDLFI_Delta()->Size() > 0 || GetIFLFI()->Size() > 0) { return false; }
+   if (!IntegratorsSupportDevice(domain_integs)) { return false; }
+   if (!IntegratorsSupportDevice(boundary_integs)) { return false; }
+   if (boundary_face_integs.Size() > 0 || interior_face_integs.Size() > 0 ||
+       domain_delta_integs.Size() > 0) { return false; }
+
+   if (boundary_integs.Size() > 0)
+   {
+      // Make sure every boundary element corresponds to a boundary face
+      for (int be = 0; be < fes->GetNBE(); ++be)
+      {
+         const int f = fes->GetMesh()->GetBdrElementEdgeIndex(be);
+         const auto face_info = fes->GetMesh()->GetFaceInformation(f);
+         if (!face_info.IsBoundary())
+         {
+            return false;
+         }
+      }
+      // Make sure there are no boundary faces that are not boundary elements
+      if (fes->GetNFbyType(FaceType::Boundary) != fes->GetNBE())
+      {
+         return false;
+      }
+   }
 
    const Mesh &mesh = *fes->GetMesh();
 
@@ -170,8 +194,8 @@ void LinearForm::Assemble(bool use_device)
          int elem_attr = fes->GetMesh()->GetAttribute(i);
          for (int k = 0; k < domain_integs.Size(); k++)
          {
-            if ( domain_integs_marker[k] == NULL ||
-                 (*(domain_integs_marker[k]))[elem_attr-1] == 1 )
+            const Array<int> * const markers = domain_integs_marker[k];
+            if ( markers == NULL || (*markers)[elem_attr-1] == 1 )
             {
                doftrans = fes -> GetElementVDofs (i, vdofs);
                eltrans = fes -> GetElementTransformation (i);
