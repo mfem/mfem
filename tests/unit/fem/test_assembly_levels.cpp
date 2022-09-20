@@ -413,6 +413,7 @@ TEST_CASE("Serial H1 Full Assembly", "[AssemblyLevel], [CUDA]")
    a_fa.AddDomainIntegrator(new DiffusionIntegrator);
    a_legacy.AddDomainIntegrator(new DiffusionIntegrator);
 
+   a_fa.SetDiagonalPolicy(Operator::DIAG_ONE);
    a_fa.Assemble();
 
    a_legacy.SetDiagonalPolicy(Operator::DIAG_ONE);
@@ -473,7 +474,9 @@ TEST_CASE("Parallel H1 Full Assembly", "[AssemblyLevel], [Parallel], [CUDA]")
    ParBilinearForm a_legacy(&fespace);
 
    a_fa.SetAssemblyLevel(AssemblyLevel::FULL);
+   a_fa.SetDiagonalPolicy(Operator::DIAG_ONE);
    a_legacy.SetAssemblyLevel(AssemblyLevel::LEGACY);
+   a_legacy.SetDiagonalPolicy(Operator::DIAG_ONE);
 
    a_fa.AddDomainIntegrator(new DiffusionIntegrator);
    a_legacy.AddDomainIntegrator(new DiffusionIntegrator);

@@ -1036,7 +1036,7 @@ void NewmarkSolver::Step(Vector &x, Vector &dxdt, double &t, double &dt)
    double fac3 = beta;
    double fac4 = gamma;
 
-   // In the first pass compute d2xdt2 directy from operator.
+   // In the first pass compute d2xdt2 directly from operator.
    if (first)
    {
       f->Mult(x, dxdt, d2xdt2);
@@ -1132,7 +1132,7 @@ void GeneralizedAlpha2Solver::Step(Vector &x, Vector &dxdt,
    double fac4 = gamma*alpha_f/alpha_m;
    double fac5 = alpha_m;
 
-   // In the first pass compute d2xdt2 directy from operator.
+   // In the first pass compute d2xdt2 directly from operator.
    if (nstate == 0)
    {
       f->Mult(x, dxdt, d2xdt2);

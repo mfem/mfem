@@ -80,7 +80,7 @@ void MFEMInitializePetsc(int*,char***);
 void MFEMInitializePetsc(int*,char***,const char[],const char[]);
 void MFEMFinalizePetsc();
 
-/// Wrapper for synching PETSc's vector memory
+/// Wrapper for syncing PETSc's vector memory
 class PetscMemory : public Memory<double>
 {
 private:
