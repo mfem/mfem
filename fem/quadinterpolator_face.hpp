@@ -33,6 +33,7 @@ protected:
 
    const FiniteElementSpace *fespace;  ///< Not owned
    const IntegrationRule *IntRule;     ///< Not owned
+   mutable QVectorLayout q_layout;     ///< Output Q-vector layout
 
    mutable bool use_tensor_products;
 
@@ -70,6 +71,16 @@ public:
    void DisableTensorProducts(bool disable = true) const
    { use_tensor_products = !disable; }
 
+   /** @brief Query the current output Q-vector layout. The default value is
+       QVectorLayout::byNODES. */
+   /** @sa SetOutputLayout(). */
+   QVectorLayout GetOutputLayout() const { return q_layout; }
+
+   /** @brief Set the desired output Q-vector layout. The default value is
+       QVectorLayout::byNODES. */
+   /** @sa GetOutputLayout(). */
+   void SetOutputLayout(QVectorLayout layout) const { q_layout = layout; }
+
    /// Interpolate the E-vector @a e_vec to quadrature points.
    /** The @a eval_flags are a bitwise mask of constants from the FaceEvalFlags
        enumeration. When the VALUES flag is set, the values at quadrature points
@@ -91,6 +102,7 @@ public:
    template<const int T_VDIM = 0, const int T_ND = 0, const int T_NQ = 0>
    static void Eval2D(const int NF,
                       const int vdim,
+                      const QVectorLayout q_layout,
                       const DofToQuad &maps,
                       const Array<bool> &signs,
                       const Vector &e_vec,
@@ -104,6 +116,7 @@ public:
    template<const int T_VDIM = 0, const int T_ND = 0, const int T_NQ = 0>
    static void Eval3D(const int NF,
                       const int vdim,
+                      const QVectorLayout q_layout,
                       const DofToQuad &maps,
                       const Array<bool> &signs,
                       const Vector &e_vec,
@@ -116,6 +129,7 @@ public:
    template<const int T_VDIM = 0, const int T_ND = 0, const int T_NQ = 0>
    static void SmemEval3D(const int NF,
                           const int vdim,
+                          const QVectorLayout q_layout,
                           const DofToQuad &maps,
                           const Array<bool> &signs,
                           const Vector &e_vec,

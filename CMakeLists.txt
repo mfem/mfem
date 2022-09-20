@@ -482,7 +482,7 @@ endif()
 #    With newer versions of SuiteSparse which include METIS header using 64-bit
 #    integers, the METIS header (with 32-bit indices, as used by mfem) needs to
 #    be before SuiteSparse.
-set(MFEM_TPLS OPENMP HYPRE BLAS LAPACK SuperLUDist METIS SuiteSparse SUNDIALS
+set(MFEM_TPLS OPENMP HYPRE LAPACK BLAS SuperLUDist METIS SuiteSparse SUNDIALS
     PETSC SLEPC MESQUITE MUMPS STRUMPACK AXOM FMS CONDUIT Ginkgo GNUTLS GSLIB
     NETCDF MPFR PUMI HIOP POSIXCLOCKS MFEMBacktrace ZLIB OCCA CEED RAJA UMPIRE
     ADIOS2 CUBLAS CUSPARSE MKL_CPARDISO AMGX CALIPER CODIPACK BENCHMARK PARELAG
