@@ -975,6 +975,9 @@ void FABilinearFormExtension::RAP(OperatorHandle &A)
 void FABilinearFormExtension::EliminateBC(const Array<int> &ess_dofs,
                                           OperatorHandle &A)
 {
+   MFEM_VERIFY(a->diag_policy == DiagonalPolicy::DIAG_ONE,
+               "Only DiagonalPolicy::DIAG_ONE supported with"
+               " FABilinearFormExtension.");
 #ifdef MFEM_USE_MPI
    if ( dynamic_cast<ParBilinearForm*>(a) )
    {
