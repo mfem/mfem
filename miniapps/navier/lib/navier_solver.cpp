@@ -10,31 +10,27 @@
 // CONTRIBUTING.md for details.
 
 #include "navier_solver.hpp"
-#include "kernels/stress_integrator.hpp"
-#include "../../general/forall.hpp"
+#include "kernels/shear_stress_integrator.hpp"
+#include "general/forall.hpp"
 #include <fstream>
 #include <iomanip>
 
 using namespace mfem;
 using namespace navier;
 
-void CopyDBFIntegrators(ParBilinearForm *src, ParBilinearForm *dst)
-{
-   Array<BilinearFormIntegrator *> *bffis = src->GetDBFI();
-   for (int i = 0; i < bffis->Size(); ++i)
-   {
-      dst->AddDomainIntegrator((*bffis)[i]);
-   }
-}
-
-NavierSolver::NavierSolver(ParMesh *mesh, int order, double kin_vis)
-   : pmesh(mesh), order(order), kin_vis(kin_vis),
+NavierSolver::NavierSolver(ParMesh *mesh, int order, double kin_vis, const double density)
+   : pmesh(mesh), order(order), kin_vis(kin_vis), density(density),
      gll_rules(0, Quadrature1D::GaussLobatto)
 {
    vfec = new H1_FECollection(order, pmesh->Dimension());
    pfec = new H1_FECollection(order);
    vfes = new ParFiniteElementSpace(pmesh, vfec, pmesh->Dimension());
    pfes = new ParFiniteElementSpace(pmesh, pfec);
+
+   gll_ir = gll_rules.Get(vfes->GetFE(0)->GetGeomType(), 2 * order - 1);
+   gll_ir_face = gll_rules.Get(vfes->GetMesh()->GetFaceGeometry(0), 2 * order - 1);
+   gll_ir_nl = gll_rules.Get(vfes->GetFE(0)->GetGeomType(),
+                             (int)(ceil(1.5 * (2 * order - 1))));
 
    // Check if fully periodic mesh
    if (!(pmesh->bdr_attributes.Size() == 0))
@@ -95,7 +91,18 @@ NavierSolver::NavierSolver(ParMesh *mesh, int order, double kin_vis)
    resp_gf.SetSpace(pfes);
 
    kin_vis_gf.SetSpace(pfes);
+   ConstantCoefficient kvcoeff_tmp(kin_vis);
+   kin_vis_gf.ProjectCoefficient(kvcoeff_tmp);
+   kv.SetSize(pfes_truevsize);
    grad_nu_sym_grad_uext.SetSize(vfes_truevsize);
+
+   // What does wgn_gf mean? Who should wg_coef?
+   wgn_gf.SetSpace(pmesh->GetNodes()->FESpace());
+   wgn_gf = 0.0;
+   wg_coef = VectorGridFunctionCoefficient(&wgn_gf);
+
+   hpfrt_tdofs.SetSize(vfes_truevsize);
+   hpfrt_tdofs = 0.0;
 
    cur_step = 0;
 
@@ -107,14 +114,6 @@ void NavierSolver::Setup(double dt)
    if (verbose && pmesh->GetMyRank() == 0)
    {
       mfem::out << "Setup" << std::endl;
-      if (partial_assembly)
-      {
-         mfem::out << "Using Partial Assembly" << std::endl;
-      }
-      else
-      {
-         mfem::out << "Using Full Assembly" << std::endl;
-      }
    }
 
    sw_setup.Start();
@@ -124,124 +123,80 @@ void NavierSolver::Setup(double dt)
 
    Array<int> empty;
 
-   // GLL integration rule (Numerical Integration)
-   const IntegrationRule &ir_ni = gll_rules.Get(vfes->GetFE(0)->GetGeomType(),
-                                                2 * order - 1);
-
    nlcoeff.constant = -1.0;
    N = new ParNonlinearForm(vfes);
-   auto *nlc_nlfi = new VectorConvectionNLFIntegrator(nlcoeff);
-   if (numerical_integ)
-   {
-      nlc_nlfi->SetIntRule(&ir_ni);
-   }
+   auto *nlc_nlfi = new VectorConvectionNLFIntegrator(nlcoeff, &wg_coef);
+   nlc_nlfi->SetIntRule(&gll_ir_nl);
    N->AddDomainIntegrator(nlc_nlfi);
-   if (partial_assembly)
-   {
-      N->SetAssemblyLevel(AssemblyLevel::PARTIAL);
-      N->Setup();
-   }
+   // N->SetAssemblyLevel(AssemblyLevel::PARTIAL);
+   N->Setup();
 
    Mv_form = new ParBilinearForm(vfes);
    auto *mv_blfi = new VectorMassIntegrator;
-   if (numerical_integ)
-   {
-      mv_blfi->SetIntRule(&ir_ni);
-   }
+   mv_blfi->SetIntRule(&gll_ir);
    Mv_form->AddDomainIntegrator(mv_blfi);
-   if (partial_assembly)
-   {
-      Mv_form->SetAssemblyLevel(AssemblyLevel::PARTIAL);
-   }
-   Mv_form->Assemble();
-   Mv_form->FormSystemMatrix(empty, Mv);
+   Mv_form->SetAssemblyLevel(AssemblyLevel::PARTIAL);
 
    Sp_form = new ParBilinearForm(pfes);
    auto *sp_blfi = new DiffusionIntegrator;
-   if (numerical_integ)
-   {
-      sp_blfi->SetIntRule(&ir_ni);
-   }
+   sp_blfi->SetIntRule(&gll_ir);
    Sp_form->AddDomainIntegrator(sp_blfi);
-   if (partial_assembly)
-   {
-      Sp_form->SetAssemblyLevel(AssemblyLevel::PARTIAL);
-   }
-   Sp_form->Assemble();
-   Sp_form->FormSystemMatrix(pres_ess_tdof, Sp);
+   Sp_form->SetAssemblyLevel(AssemblyLevel::PARTIAL);
 
    D_form = new ParMixedBilinearForm(vfes, pfes);
    auto *vd_mblfi = new VectorDivergenceIntegrator();
-   if (numerical_integ)
-   {
-      vd_mblfi->SetIntRule(&ir_ni);
-   }
+   vd_mblfi->SetIntRule(&gll_ir);
    D_form->AddDomainIntegrator(vd_mblfi);
-   if (partial_assembly)
-   {
-      D_form->SetAssemblyLevel(AssemblyLevel::PARTIAL);
-   }
-   D_form->Assemble();
-   D_form->FormRectangularSystemMatrix(empty, empty, D);
+   D_form->SetAssemblyLevel(AssemblyLevel::PARTIAL);
 
    G_form = new ParMixedBilinearForm(pfes, vfes);
    auto *g_mblfi = new GradientIntegrator();
-   if (numerical_integ)
-   {
-      g_mblfi->SetIntRule(&ir_ni);
-   }
+   g_mblfi->SetIntRule(&gll_ir);
    G_form->AddDomainIntegrator(g_mblfi);
-   if (partial_assembly)
-   {
-      G_form->SetAssemblyLevel(AssemblyLevel::PARTIAL);
-   }
-   G_form->Assemble();
-   G_form->FormRectangularSystemMatrix(empty, empty, G);
+   G_form->SetAssemblyLevel(AssemblyLevel::PARTIAL);
 
-   H_lincoeff.constant = kin_vis;
    H_bdfcoeff.constant = 1.0 / dt;
    H_form = new ParBilinearForm(vfes);
+
    auto *hmv_blfi = new VectorMassIntegrator(H_bdfcoeff);
+   hmv_blfi->SetIntRule(&gll_ir);
 
-   // auto *hdv_blfi = new VectorDiffusionIntegrator(H_lincoeff);
-
-   // kin_vis_gf = kin_vis;
+   BilinearFormIntegrator *hdv_blfi = nullptr;
    kin_vis_gf_coeff.SetGridFunction(&kin_vis_gf);
-   auto *hdv_blfi = new StressIntegrator(kin_vis_gf_coeff, ir_ni);
-
-   if (numerical_integ)
+   if (variable_viscosity)
    {
-      hmv_blfi->SetIntRule(&ir_ni);
-      hdv_blfi->SetIntRule(&ir_ni);
+      hdv_blfi = new ShearStressIntegrator(kin_vis_gf_coeff, gll_ir);
    }
+   else
+   {
+      hdv_blfi = new VectorDiffusionIntegrator(kin_vis_gf_coeff);
+   }
+   hdv_blfi->SetIntRule(&gll_ir);
    H_form->AddDomainIntegrator(hmv_blfi);
    H_form->AddDomainIntegrator(hdv_blfi);
-   if (partial_assembly)
-   {
-      H_form->SetAssemblyLevel(AssemblyLevel::PARTIAL);
-   }
-   H_form->Assemble();
-   H_form->FormSystemMatrix(vel_ess_tdof, H);
+   H_form->SetAssemblyLevel(AssemblyLevel::PARTIAL);
+
+   HMv_form = new ParBilinearForm(vfes);
+   auto *hmv_blfi2 = new VectorMassIntegrator(H_bdfcoeff);
+   hmv_blfi2->SetIntRule(&gll_ir);
+   HMv_form->AddDomainIntegrator(hmv_blfi2);
+   HMv_form->SetAssemblyLevel(AssemblyLevel::PARTIAL);
 
    FText_gfcoeff = new VectorGridFunctionCoefficient(&FText_gf);
    FText_bdr_form = new ParLinearForm(pfes);
    auto *ftext_bnlfi = new BoundaryNormalLFIntegrator(*FText_gfcoeff);
-   if (numerical_integ)
-   {
-      ftext_bnlfi->SetIntRule(&ir_ni);
-   }
+   ftext_bnlfi->SetIntRule(&gll_ir_face);
    FText_bdr_form->AddBoundaryIntegrator(ftext_bnlfi, vel_ess_attr);
+   FText_bdr_form->UseFastAssembly(true);
 
    g_bdr_form = new ParLinearForm(pfes);
    for (auto &vel_dbc : vel_dbcs)
    {
       auto *gbdr_bnlfi = new BoundaryNormalLFIntegrator(*vel_dbc.coeff);
-      if (numerical_integ)
-      {
-         gbdr_bnlfi->SetIntRule(&ir_ni);
-      }
+      gbdr_bnlfi->SetIntRule(&gll_ir_face);
       g_bdr_form->AddBoundaryIntegrator(gbdr_bnlfi, vel_dbc.attr);
    }
+   g_bdr_form->UseFastAssembly(true);
 
    f_form = new ParLinearForm(vfes);
    for (auto &accel_term : accel_terms)
@@ -251,25 +206,176 @@ void NavierSolver::Setup(double dt)
       // const IntegrationRule &ir = IntRules.Get(vfes->GetFE(0)->GetGeomType(),
       //                                          4 * order);
       // vdlfi->SetIntRule(&ir);
-      if (numerical_integ)
-      {
-         vdlfi->SetIntRule(&ir_ni);
-      }
+      vdlfi->SetIntRule(&gll_ir);
       f_form->AddDomainIntegrator(vdlfi);
    }
+   f_form->UseFastAssembly(true);
 
-   if (partial_assembly)
+   UpdateForms();
+
+   UpdateSolvers();
+
+   // If the initial condition was set, it has to be aligned with dependent
+   // Vectors and GridFunctions
+   un_gf.GetTrueDofs(un);
+   un_next = un;
+   un_next_gf.SetFromTrueDofs(un_next);
+
+   // Set initial time step in the history array
+   dthist[0] = dt;
+
+   if (filter_method != FilterMethod::NONE)
    {
-      Vector diag_pa(vfes->GetTrueVSize());
-      Mv_form->AssembleDiagonal(diag_pa);
-      MvInvPC = new OperatorJacobiSmoother(diag_pa, empty);
+      vfec_filter = new H1_FECollection(order - filter_cutoff_modes,
+                                        pmesh->Dimension());
+      vfes_filter = new ParFiniteElementSpace(pmesh,
+                                              vfec_filter,
+                                              pmesh->Dimension());
+
+      u_filter_basis_gf.SetSpace(vfes_filter);
+      u_filter_basis_gf = 0.0;
+
+      u_low_modes_gf.SetSpace(vfes);
+      u_low_modes_gf = 0.0;
+
+      hpfrt_gf.SetSpace(vfes);
+      hpfrt_gf = 0.0;
    }
-   else
+
+   sw_setup.Stop();
+}
+
+void NavierSolver::UpdateSpaces()
+{
+   constexpr int num_vfes_tvecs = 16;
+   // ARRRRGGGHHHH
+   std::array<Vector *, num_vfes_tvecs> vfes_tvecs;
+   vfes_tvecs[0] = &un;
+   vfes_tvecs[1] = &un_next;
+   vfes_tvecs[2] = &unm1;
+   vfes_tvecs[3] = &unm2;
+   vfes_tvecs[4] = &fn;
+   vfes_tvecs[5] = &Nun;
+   vfes_tvecs[6] = &Nunm1;
+   vfes_tvecs[7] = &Nunm2;
+   vfes_tvecs[8] = &u_ext;
+   vfes_tvecs[9] = &Fext;
+   vfes_tvecs[10] = &FText;
+   vfes_tvecs[11] = &Lext;
+   vfes_tvecs[12] = &resu;
+   vfes_tvecs[13] = &tmp1;
+   vfes_tvecs[14] = &grad_nu_sym_grad_uext;
+   vfes_tvecs[15] = &hpfrt_tdofs;
+
+   std::array<ParGridFunction, num_vfes_tvecs> vfes_gfs;
+   for (size_t i = 0; i < vfes_gfs.size(); i++)
    {
-      MvInvPC = new HypreSmoother(*Mv.As<HypreParMatrix>());
-      dynamic_cast<HypreSmoother *>(MvInvPC)->SetType(HypreSmoother::Jacobi, 1);
+      vfes_gfs[i].SetSpace(vfes);
+      vfes_gfs[i].SetFromTrueDofs(*vfes_tvecs[i]);
    }
-   MvInv = new CGSolver(vfes->GetComm());
+
+   vfes->Update();
+
+   for (size_t i = 0; i < vfes_gfs.size(); i++)
+   {
+      vfes_gfs[i].Update();
+      vfes_gfs[i].GetTrueDofs(*vfes_tvecs[i]);
+   }
+
+   constexpr int num_pfes_tvecs = 5;
+   std::array<Vector *, num_pfes_tvecs> pfes_tvecs;
+   pfes_tvecs[0] = &pn;
+   pfes_tvecs[1] = &resp;
+   pfes_tvecs[2] = &FText_bdr;
+   pfes_tvecs[3] = &g_bdr;
+   pfes_tvecs[4] = &kv;
+
+   std::array<ParGridFunction, num_pfes_tvecs> pfes_gfs;
+   for (size_t i = 0; i < pfes_gfs.size(); i++)
+   {
+      pfes_gfs[i].SetSpace(pfes);
+      pfes_gfs[i].SetFromTrueDofs(*pfes_tvecs[i]);
+   }
+
+   pfes->Update();
+
+   for (size_t i = 0; i < pfes_gfs.size(); i++)
+   {
+      pfes_gfs[i].Update();
+      pfes_gfs[i].GetTrueDofs(*pfes_tvecs[i]);
+   }
+
+   un_gf.Update();
+   un_next_gf.Update();
+   Lext_gf.Update();
+   curlu_gf.Update();
+   curlcurlu_gf.Update();
+   FText_gf.Update();
+   resu_gf.Update();
+   pn_gf.Update();
+   resp_gf.Update();
+   kin_vis_gf.Update();
+   wgn_gf.Update();
+}
+
+void NavierSolver::UpdateForms()
+{
+   Array<int> empty;
+
+   N->Update();
+   N->Setup();
+
+   Mv_form->Update();
+   Mv_form->Assemble();
+   Mv_form->FormSystemMatrix(empty, Mv);
+
+   Sp_form->Update();
+   Sp_form->Assemble();
+   Sp_form->FormSystemMatrix(pres_ess_tdof, Sp);
+
+   D_form->Update();
+   D_form->Assemble();
+   D_form->FormRectangularSystemMatrix(empty, empty, D);
+
+   G_form->Update();
+   G_form->Assemble();
+   G_form->FormRectangularSystemMatrix(empty, empty, G);
+
+   H_form->Update();
+   H_form->Assemble();
+   H_form->FormSystemMatrix(vel_ess_tdof, H);
+
+   HMv_form->Update();
+   HMv_form->Assemble();
+
+   f_form->Update();
+   FText_bdr_form->Update();
+   g_bdr_form->Update();
+
+   mean_evaluator.reset(new MeanEvaluator(*pfes, gll_ir));
+
+   curl_evaluator.reset(new CurlEvaluator(*vfes));
+
+   delete stress_evaluator;
+   stress_evaluator = new ShearStressEvaluator(*kin_vis_gf.ParFESpace(),
+                                               *un_gf.ParFESpace(),
+                                               gll_ir);
+
+   Vector ones(pfes->GetTrueVSize());
+   ones = 1.0;
+   volume = mean_evaluator->ComputeIntegral(ones);
+}
+
+void NavierSolver::UpdateSolvers()
+{
+   Array<int> empty;
+
+   Vector diag_pa(vfes->GetTrueVSize());
+   Mv_form->AssembleDiagonal(diag_pa);
+
+   MvInvPC.reset(new OperatorJacobiSmoother(diag_pa, empty));
+
+   MvInv.reset(new CGSolver(vfes->GetComm()));
    MvInv->iterative_mode = false;
    MvInv->SetOperator(*Mv);
    MvInv->SetPreconditioner(*MvInvPC);
@@ -277,22 +383,16 @@ void NavierSolver::Setup(double dt)
    MvInv->SetRelTol(1e-12);
    MvInv->SetMaxIter(200);
 
-   if (partial_assembly)
-   {
-      lor = new ParLORDiscretization(*Sp_form, pres_ess_tdof);
-      SpInvPC = new HypreBoomerAMG(lor->GetAssembledMatrix());
-      SpInvPC->SetPrintLevel(pl_amg);
-      SpInvPC->Mult(resp, pn);
-      SpInvOrthoPC = new OrthoSolver(vfes->GetComm());
-      SpInvOrthoPC->SetSolver(*SpInvPC);
-   }
-   else
-   {
-      SpInvPC = new HypreBoomerAMG(*Sp.As<HypreParMatrix>());
-      SpInvPC->SetPrintLevel(0);
-      SpInvOrthoPC = new OrthoSolver(vfes->GetComm());
-      SpInvOrthoPC->SetSolver(*SpInvPC);
-   }
+   delete lor;
+   lor = new ParLORDiscretization(*Sp_form, pres_ess_tdof);
+   delete SpInvPC;
+   SpInvPC = new HypreBoomerAMG(lor->GetAssembledMatrix());
+   SpInvPC->SetPrintLevel(pl_amg);
+   SpInvPC->Mult(resp, pn);
+   delete SpInvOrthoPC;
+   SpInvOrthoPC = new OrthoSolver(vfes->GetComm());
+   SpInvOrthoPC->SetSolver(*SpInvPC);
+   delete SpInv;
    SpInv = new CGSolver(vfes->GetComm());
    SpInv->iterative_mode = true;
    SpInv->SetOperator(*Sp);
@@ -308,53 +408,14 @@ void NavierSolver::Setup(double dt)
    SpInv->SetRelTol(rtol_spsolve);
    SpInv->SetMaxIter(200);
 
-   if (partial_assembly)
-   {
-      // Vector diag_pa(vfes->GetTrueVSize());
-      // H_form->AssembleDiagonal(diag_pa);
-      // HInvPC = new OperatorJacobiSmoother(diag_pa, vel_ess_tdof);
-   }
-   else
-   {
-      HInvPC = new HypreSmoother(*H.As<HypreParMatrix>());
-      dynamic_cast<HypreSmoother *>(HInvPC)->SetType(HypreSmoother::Jacobi, 1);
-   }
+   delete HInv;
    HInv = new CGSolver(vfes->GetComm());
    HInv->iterative_mode = true;
    HInv->SetOperator(*H);
    // HInv->SetPreconditioner(*HInvPC);
    HInv->SetPrintLevel(pl_hsolve);
    HInv->SetRelTol(rtol_hsolve);
-   HInv->SetMaxIter(10000);
-
-   // If the initial condition was set, it has to be aligned with dependent
-   // Vectors and GridFunctions
-   un_gf.GetTrueDofs(un);
-   un_next = un;
-   un_next_gf.SetFromTrueDofs(un_next);
-
-   // Set initial time step in the history array
-   dthist[0] = dt;
-
-   if (filter_alpha != 0.0)
-   {
-      vfec_filter = new H1_FECollection(order - filter_cutoff_modes,
-                                        pmesh->Dimension());
-      vfes_filter = new ParFiniteElementSpace(pmesh,
-                                              vfec_filter,
-                                              pmesh->Dimension());
-
-      un_NM1_gf.SetSpace(vfes_filter);
-      un_NM1_gf = 0.0;
-
-      un_filtered_gf.SetSpace(vfes);
-      un_filtered_gf = 0.0;
-   }
-
-   stress_eval = new StressEvaluator(*kin_vis_gf.ParFESpace(), *un_gf.ParFESpace(),
-                                     ir_ni);
-
-   sw_setup.Stop();
+   HInv->SetMaxIter(300);
 }
 
 void NavierSolver::UpdateTimestepHistory(double dt)
@@ -381,12 +442,6 @@ void NavierSolver::UpdateTimestepHistory(double dt)
 void NavierSolver::Step(double &time, double dt, int current_step,
                         bool provisional)
 {
-   // RANS
-   if (rans_model)
-   {
-      // kv = rans_model->EvaluateTo(time + dt);
-   }
-
    sw_step.Start();
 
    SetTimeIntegrationCoefficients(current_step);
@@ -409,14 +464,11 @@ void NavierSolver::Step(double &time, double dt, int current_step,
    H_form->FormSystemMatrix(vel_ess_tdof, H);
 
    HInv->SetOperator(*H);
-   if (partial_assembly)
-   {
-      delete HInvPC;
-      // Vector diag_pa(vfes->GetTrueVSize());
-      // H_form->AssembleDiagonal(diag_pa);
-      // HInvPC = new OperatorJacobiSmoother(diag_pa, vel_ess_tdof);
-      // HInv->SetPreconditioner(*HInvPC);
-   }
+   delete HInvPC;
+   Vector diag_pa(vfes->GetTrueVSize());
+   HMv_form->AssembleDiagonal(diag_pa);
+   HInvPC = new OperatorJacobiSmoother(diag_pa, vel_ess_tdof);
+   HInv->SetPreconditioner(*HInvPC);
 
    // Extrapolated f^{n+1}.
    for (auto &accel_term : accel_terms)
@@ -452,10 +504,30 @@ void NavierSolver::Step(double &time, double dt, int current_step,
 
    Fext.Add(1.0, fn);
 
-   // Fext = M^{-1} (F(u^{n}) + f^{n+1})
+   if (filter_method == FilterMethod::HPFRT_LOS)
+   {
+      u_filter_basis_gf.ProjectGridFunction(un_gf);
+      u_low_modes_gf.ProjectGridFunction(u_filter_basis_gf);
+      const auto d_un_gf = un_gf.Read();
+      const auto d_u_low_modes_gf = u_low_modes_gf.Read();
+      auto d_hpfrt_gf = hpfrt_gf.ReadWrite();
+      MFEM_FORALL(i,
+                  un_gf.Size(),
+                  d_hpfrt_gf[i] = -10.0 * (d_un_gf[i] - d_u_low_modes_gf[i]););
+
+      hpfrt_gf.ParallelProject(hpfrt_tdofs);
+   }
+   else if (filter_method == FilterMethod::HPFRT_LPOLY)
+   {
+      BuildHPFForcing(un_gf);
+   }
+
+   // Fext = M^{-1} (F(u^{n}) + f^{n+1} + RT^{n+1})
+   if (filter_method != FilterMethod::NONE)
+   {
+      Fext.Add(1.0, hpfrt_tdofs);
+   }
    MvInv->Mult(Fext, tmp1);
-   iter_mvsolve = MvInv->GetNumIterations();
-   res_mvsolve = MvInv->GetFinalNorm();
    Fext.Set(1.0, tmp1);
 
    // Compute BDF terms.
@@ -495,16 +567,22 @@ void NavierSolver::Step(double &time, double dt, int current_step,
       });
    }
 
-   Lext_gf.SetFromTrueDofs(u_ext);
-   if (pmesh->Dimension() == 2)
+   // TODO: Debug setup
+   // We keep this until the CurlCurlEvaluator works with AMR in PA mode.
    {
-      ComputeCurl2D(Lext_gf, curlu_gf);
-      ComputeCurl2D(curlu_gf, curlcurlu_gf, true);
-   }
-   else
-   {
-      ComputeCurl3D(Lext_gf, curlu_gf);
-      ComputeCurl3D(curlu_gf, curlcurlu_gf);
+      curl_evaluator->EnablePA(true);
+      curl_evaluator->ComputeCurlCurl(u_ext, tmp1);
+      curlcurlu_gf.SetFromTrueDofs(tmp1);
+      ParGridFunction curlcurlu_gf_legacy(curlcurlu_gf);
+
+      curl_evaluator->EnablePA(false);
+      curl_evaluator->ComputeCurlCurl(u_ext, tmp1);
+      curlcurlu_gf.SetFromTrueDofs(tmp1);
+      ParGridFunction curlcurlu_gf_pa(curlcurlu_gf);
+
+      // curlcurlu_gf_legacy -= curlcurlu_gf_pa;
+      // std::cout << "|cc(u)_LEGACY - cc(u)_PA| = "
+      //           << curlcurlu_gf_legacy.Norml2() << "\n";
    }
 
    // (curl curl u)_i *= nu
@@ -521,7 +599,6 @@ void NavierSolver::Step(double &time, double dt, int current_step,
       }
    }
    curlcurlu_gf.GetTrueDofs(Lext);
-   // Lext *= kin_vis;
 
    sw_curlcurl.Stop();
 
@@ -529,12 +606,12 @@ void NavierSolver::Step(double &time, double dt, int current_step,
    FText.Set(-1.0, Lext);
    FText.Add(1.0, Fext);
 
-   kin_vis_gf.ParallelAssemble(kv);
-   stress_eval->Apply(kv, u_ext, grad_nu_sym_grad_uext);
-
-   FText.Add(1.0, grad_nu_sym_grad_uext);
-
-   // printf("|grad_nu_sym_grad_uext|=%.5E\n", grad_nu_sym_grad_uext.Norml2());
+   if (variable_viscosity)
+   {
+      kin_vis_gf.GetTrueDofs(kv);
+      stress_evaluator->Apply(kv, u_ext, grad_nu_sym_grad_uext);
+      FText.Add(1.0, grad_nu_sym_grad_uext);
+   }
 
    // p_r = \nabla \cdot FText
    D->Mult(FText, resp);
@@ -549,6 +626,7 @@ void NavierSolver::Step(double &time, double dt, int current_step,
    g_bdr_form->ParallelAssemble(g_bdr);
    resp.Add(1.0, FText_bdr);
    resp.Add(-bd0 / dt, g_bdr);
+   resp*=density;
 
    if (pres_dbcs.empty())
    {
@@ -563,15 +641,8 @@ void NavierSolver::Step(double &time, double dt, int current_step,
    pfes->GetRestrictionMatrix()->MultTranspose(resp, resp_gf);
 
    Vector X1, B1;
-   if (partial_assembly)
-   {
-      auto *SpC = Sp.As<ConstrainedOperator>();
-      EliminateRHS(*Sp_form, *SpC, pres_ess_tdof, pn_gf, resp_gf, X1, B1, 1);
-   }
-   else
-   {
-      Sp_form->FormLinearSystem(pres_ess_tdof, pn_gf, resp_gf, Sp, X1, B1, 1);
-   }
+   auto *SpC = Sp.As<ConstrainedOperator>();
+   EliminateRHS(*Sp_form, *SpC, pres_ess_tdof, pn_gf, resp_gf, X1, B1, 1);
    sw_spsolve.Start();
    SpInv->Mult(B1, X1);
    sw_spsolve.Stop();
@@ -592,6 +663,7 @@ void NavierSolver::Step(double &time, double dt, int current_step,
 
    // Project velocity.
    G->Mult(pn, resu);
+   resu *= (1.0/density);
    resu.Neg();
    Mv->Mult(Fext, tmp1);
    resu.Add(1.0, tmp1);
@@ -606,15 +678,8 @@ void NavierSolver::Step(double &time, double dt, int current_step,
    vfes->GetRestrictionMatrix()->MultTranspose(resu, resu_gf);
 
    Vector X2, B2;
-   if (partial_assembly)
-   {
-      auto *HC = H.As<ConstrainedOperator>();
-      EliminateRHS(*H_form, *HC, vel_ess_tdof, un_next_gf, resu_gf, X2, B2, 1);
-   }
-   else
-   {
-      H_form->FormLinearSystem(vel_ess_tdof, un_next_gf, resu_gf, H, X2, B2, 1);
-   }
+   auto *HC = H.As<ConstrainedOperator>();
+   EliminateRHS(*H_form, *HC, vel_ess_tdof, un_next_gf, resu_gf, X2, B2, 1);
    sw_hsolve.Start();
    HInv->Mult(B2, X2);
    sw_hsolve.Stop();
@@ -653,15 +718,6 @@ void NavierSolver::Step(double &time, double dt, int current_step,
       mfem::out << std::setw(7) << "" << std::setw(3) << "It" << std::setw(8)
                 << "Resid" << std::setw(12) << "Reltol"
                 << "\n";
-      // If numerical integration is active, there is no solve (thus no
-      // iterations), on the inverse velocity mass application.
-      if (!numerical_integ)
-      {
-         mfem::out << std::setw(5) << "MVIN " << std::setw(5) << std::fixed
-                   << iter_mvsolve << "   " << std::setw(3)
-                   << std::setprecision(2) << std::scientific << res_mvsolve
-                   << "   " << 1e-12 << "\n";
-      }
       mfem::out << std::setw(5) << "PRES " << std::setw(5) << std::fixed
                 << iter_spsolve << "   " << std::setw(3) << std::setprecision(2)
                 << std::scientific << res_spsolve << "   " << rtol_spsolve
@@ -675,33 +731,93 @@ void NavierSolver::Step(double &time, double dt, int current_step,
    }
 }
 
-void NavierSolver::MeanZero(ParGridFunction &v)
+int NavierSolver::PredictTimestep(double dt_min, double dt_max,
+                                  double cfl_target, double &dt)
 {
-   // Make sure not to recompute the inner product linear form every
-   // application.
-   if (mass_lf == nullptr)
+   int flag = 0;
+   double previous_dt = dt;
+   double cflmax = 1.2 * cfl_target;
+   double cflmin = 0.8 * cfl_target;
+
+   double vel_max = ComputeCFL(un_next_gf, 1.0);
+   double cfl = dt * vel_max;
+   double vel_cfl_old = vel_cfl;
+   vel_cfl = vel_max;
+
+   // first timestep, initialize values
+   if (dthist[1] == 0.0)
    {
-      onecoeff.constant = 1.0;
-      mass_lf = new ParLinearForm(v.ParFESpace());
-      auto *dlfi = new DomainLFIntegrator(onecoeff);
-      if (numerical_integ)
-      {
-         const IntegrationRule &ir_ni = gll_rules.Get(vfes->GetFE(0)->GetGeomType(),
-                                                      2 * order - 1);
-         dlfi->SetIntRule(&ir_ni);
-      }
-      mass_lf->AddDomainIntegrator(dlfi);
-      mass_lf->Assemble();
-
-      ParGridFunction one_gf(v.ParFESpace());
-      one_gf.ProjectCoefficient(onecoeff);
-
-      volume = mass_lf->operator()(one_gf);
+      cfl_old = cfl;
    }
 
-   double integ = mass_lf->operator()(v);
+   double cflpred = 2.0*cfl-cfl_old;
 
-   v -= integ / volume;
+   if (cfl > cflmax || cflpred > cflmax || cfl < cflmin)
+   {
+      double A = (vel_cfl - vel_cfl_old) / dt;
+      double B = vel_cfl;
+      double C = -cfl_target;
+      double discr = (B*B) - 4.0 * A * C;
+
+      if (discr <= 0.0)
+      {
+         dt = dt * (cfl_target/cfl);
+      }
+      else if (std::fabs(vel_cfl - vel_cfl_old)/vel_cfl < 0.001)
+      {
+         dt = dt * (cfl_target/cfl);
+      }
+      else
+      {
+         double dtlow = (-B+sqrt(discr) )/(2.0*A);
+         double dthi = (-B-sqrt(discr) )/(2.0*A);
+         if (dthi > 0.0 && dtlow > 0.0)
+         {
+            dt = std::min(dthi, dtlow);
+         }
+         else if (dthi <= 0.0 && dtlow <= 0.0)
+         {
+            dt = dt * (cfl_target/cfl);
+         }
+         else
+         {
+            dt = std::max(dthi, dtlow);
+         }
+      }
+
+      if (previous_dt/dt < 0.2)
+      {
+         dt = previous_dt * 5.0;
+      }
+   }
+
+   if (Mpi::Root())
+   {
+      if (dt < dt_min)
+      {
+         MFEM_ABORT("Minimum timestep reached, likely unstable.");
+      }
+   }
+
+   if (cfl > cflmax || cflpred > cflmax)
+   {
+      flag = -1;
+   }
+
+   dt = std::min(1.2*previous_dt, dt);
+   dt = std::max(0.8*previous_dt, dt);
+   dt = std::min(dt_max, dt);
+   cfl_old = cfl;
+
+   return flag;
+}
+
+void NavierSolver::MeanZero(ParGridFunction &v)
+{
+   Vector tvec;
+   v.GetTrueDofs(tvec);
+   mean_evaluator->MakeMeanZero(tvec);
+   v.Distribute(tvec);
 }
 
 void NavierSolver::EliminateRHS(Operator &A,
@@ -737,198 +853,6 @@ void NavierSolver::Orthogonalize(Vector &v)
    v -= global_sum / static_cast<double>(global_size);
 }
 
-void NavierSolver::ComputeCurl3D(ParGridFunction &u, ParGridFunction &cu)
-{
-   FiniteElementSpace *fes = u.FESpace();
-
-   // AccumulateAndCountZones.
-   Array<int> zones_per_vdof;
-   zones_per_vdof.SetSize(fes->GetVSize());
-   zones_per_vdof = 0;
-
-   cu = 0.0;
-
-   // Local interpolation.
-   int elndofs;
-   Array<int> vdofs;
-   Vector vals;
-   Vector loc_data;
-   int vdim = fes->GetVDim();
-   DenseMatrix grad_hat;
-   DenseMatrix dshape;
-   DenseMatrix grad;
-   Vector curl;
-
-   for (int e = 0; e < fes->GetNE(); ++e)
-   {
-      fes->GetElementVDofs(e, vdofs);
-      u.GetSubVector(vdofs, loc_data);
-      vals.SetSize(vdofs.Size());
-      ElementTransformation *tr = fes->GetElementTransformation(e);
-      const FiniteElement *el = fes->GetFE(e);
-      elndofs = el->GetDof();
-      int dim = el->GetDim();
-      dshape.SetSize(elndofs, dim);
-
-      for (int dof = 0; dof < elndofs; ++dof)
-      {
-         // Project.
-         const IntegrationPoint &ip = el->GetNodes().IntPoint(dof);
-         tr->SetIntPoint(&ip);
-
-         // Eval and GetVectorGradientHat.
-         el->CalcDShape(tr->GetIntPoint(), dshape);
-         grad_hat.SetSize(vdim, dim);
-         DenseMatrix loc_data_mat(loc_data.GetData(), elndofs, vdim);
-         MultAtB(loc_data_mat, dshape, grad_hat);
-
-         const DenseMatrix &Jinv = tr->InverseJacobian();
-         grad.SetSize(grad_hat.Height(), Jinv.Width());
-         Mult(grad_hat, Jinv, grad);
-
-         curl.SetSize(3);
-         curl(0) = grad(2, 1) - grad(1, 2);
-         curl(1) = grad(0, 2) - grad(2, 0);
-         curl(2) = grad(1, 0) - grad(0, 1);
-
-         for (int j = 0; j < curl.Size(); ++j)
-         {
-            vals(elndofs * j + dof) = curl(j);
-         }
-      }
-
-      // Accumulate values in all dofs, count the zones.
-      for (int j = 0; j < vdofs.Size(); j++)
-      {
-         int ldof = vdofs[j];
-         cu(ldof) += vals[j];
-         zones_per_vdof[ldof]++;
-      }
-   }
-
-   // Communication
-
-   // Count the zones globally.
-   GroupCommunicator &gcomm = u.ParFESpace()->GroupComm();
-   gcomm.Reduce<int>(zones_per_vdof, GroupCommunicator::Sum);
-   gcomm.Bcast(zones_per_vdof);
-
-   // Accumulate for all vdofs.
-   gcomm.Reduce<double>(cu.GetData(), GroupCommunicator::Sum);
-   gcomm.Bcast<double>(cu.GetData());
-
-   // Compute means.
-   for (int i = 0; i < cu.Size(); i++)
-   {
-      const int nz = zones_per_vdof[i];
-      if (nz)
-      {
-         cu(i) /= nz;
-      }
-   }
-}
-
-void NavierSolver::ComputeCurl2D(ParGridFunction &u,
-                                 ParGridFunction &cu,
-                                 bool assume_scalar)
-{
-   FiniteElementSpace *fes = u.FESpace();
-
-   // AccumulateAndCountZones.
-   Array<int> zones_per_vdof;
-   zones_per_vdof.SetSize(fes->GetVSize());
-   zones_per_vdof = 0;
-
-   cu = 0.0;
-
-   // Local interpolation.
-   int elndofs;
-   Array<int> vdofs;
-   Vector vals;
-   Vector loc_data;
-   int vdim = fes->GetVDim();
-   DenseMatrix grad_hat;
-   DenseMatrix dshape;
-   DenseMatrix grad;
-   Vector curl;
-
-   for (int e = 0; e < fes->GetNE(); ++e)
-   {
-      fes->GetElementVDofs(e, vdofs);
-      u.GetSubVector(vdofs, loc_data);
-      vals.SetSize(vdofs.Size());
-      ElementTransformation *tr = fes->GetElementTransformation(e);
-      const FiniteElement *el = fes->GetFE(e);
-      elndofs = el->GetDof();
-      int dim = el->GetDim();
-      dshape.SetSize(elndofs, dim);
-
-      for (int dof = 0; dof < elndofs; ++dof)
-      {
-         // Project.
-         const IntegrationPoint &ip = el->GetNodes().IntPoint(dof);
-         tr->SetIntPoint(&ip);
-
-         // Eval and GetVectorGradientHat.
-         el->CalcDShape(tr->GetIntPoint(), dshape);
-         grad_hat.SetSize(vdim, dim);
-         DenseMatrix loc_data_mat(loc_data.GetData(), elndofs, vdim);
-         MultAtB(loc_data_mat, dshape, grad_hat);
-
-         const DenseMatrix &Jinv = tr->InverseJacobian();
-         grad.SetSize(grad_hat.Height(), Jinv.Width());
-         Mult(grad_hat, Jinv, grad);
-
-         if (assume_scalar)
-         {
-            curl.SetSize(2);
-            curl(0) = grad(0, 1);
-            curl(1) = -grad(0, 0);
-         }
-         else
-         {
-            curl.SetSize(2);
-            curl(0) = grad(1, 0) - grad(0, 1);
-            curl(1) = 0.0;
-         }
-
-         for (int j = 0; j < curl.Size(); ++j)
-         {
-            vals(elndofs * j + dof) = curl(j);
-         }
-      }
-
-      // Accumulate values in all dofs, count the zones.
-      for (int j = 0; j < vdofs.Size(); j++)
-      {
-         int ldof = vdofs[j];
-         cu(ldof) += vals[j];
-         zones_per_vdof[ldof]++;
-      }
-   }
-
-   // Communication.
-
-   // Count the zones globally.
-   GroupCommunicator &gcomm = u.ParFESpace()->GroupComm();
-   gcomm.Reduce<int>(zones_per_vdof, GroupCommunicator::Sum);
-   gcomm.Bcast(zones_per_vdof);
-
-   // Accumulate for all vdofs.
-   gcomm.Reduce<double>(cu.GetData(), GroupCommunicator::Sum);
-   gcomm.Bcast<double>(cu.GetData());
-
-   // Compute means.
-   for (int i = 0; i < cu.Size(); i++)
-   {
-      const int nz = zones_per_vdof[i];
-      if (nz)
-      {
-         cu(i) /= nz;
-      }
-   }
-}
-
 double NavierSolver::ComputeCFL(ParGridFunction &u, double dt)
 {
    ParMesh *pmesh_u = u.ParFESpace()->GetParMesh();
@@ -943,13 +867,11 @@ double NavierSolver::ComputeCFL(ParGridFunction &u, double dt)
    double cflm = 0.0;
    double cflmax = 0.0;
 
+   // The integration rule here has to conform with the nonlinear term.
+   auto ir = gll_ir;
+
    for (int e = 0; e < fes->GetNE(); ++e)
    {
-      const FiniteElement *fe = fes->GetFE(e);
-      const IntegrationRule &ir = IntRules.Get(fe->GetGeomType(),
-                                               fe->GetOrder());
-      ElementTransformation *tr = fes->GetElementTransformation(e);
-
       u.GetValues(e, ir, ux, 1);
       ur.SetSize(ux.Size());
       u.GetValues(e, ir, uy, 2);
@@ -965,34 +887,12 @@ double NavierSolver::ComputeCFL(ParGridFunction &u, double dt)
 
       for (int i = 0; i < ir.GetNPoints(); ++i)
       {
-         const IntegrationPoint &ip = ir.IntPoint(i);
-         tr->SetIntPoint(&ip);
-         const DenseMatrix &invJ = tr->InverseJacobian();
-         const double detJinv = 1.0 / tr->Jacobian().Det();
-
-         if (vdim == 2)
-         {
-            ur(i) = (ux(i) * invJ(0, 0) + uy(i) * invJ(1, 0)) * detJinv;
-            us(i) = (ux(i) * invJ(0, 1) + uy(i) * invJ(1, 1)) * detJinv;
-         }
-         else if (vdim == 3)
-         {
-            ur(i) = (ux(i) * invJ(0, 0) + uy(i) * invJ(1, 0)
-                     + uz(i) * invJ(2, 0))
-                    * detJinv;
-            us(i) = (ux(i) * invJ(0, 1) + uy(i) * invJ(1, 1)
-                     + uz(i) * invJ(2, 1))
-                    * detJinv;
-            ut(i) = (ux(i) * invJ(0, 2) + uy(i) * invJ(1, 2)
-                     + uz(i) * invJ(2, 2))
-                    * detJinv;
-         }
-
          cflx = fabs(dt * ux(i) / hmin);
          cfly = fabs(dt * uy(i) / hmin);
+
          if (vdim == 3)
          {
-            cflz = fabs(dt * uz(i) / hmin);
+            cflz = fabs(dt * ut(i) / hmin);
          }
          cflm = cflx + cfly + cflz;
          cflmax = fmax(cflmax, cflm);
@@ -1189,24 +1089,167 @@ void NavierSolver::PrintTimingData()
 
 void NavierSolver::PrintInfo()
 {
-   int fes_size0 = vfes->GlobalVSize();
-   int fes_size1 = pfes->GlobalVSize();
+   int mesh_ne = vfes->GetParMesh()->GetGlobalNE();
+   int fes_size0 = vfes->GlobalTrueVSize();
+   int fes_size1 = pfes->GlobalTrueVSize();
 
    if (pmesh->GetMyRank() == 0)
    {
       mfem::out << "NAVIER version: " << NAVIER_VERSION << std::endl
                 << "MFEM version: " << MFEM_VERSION << std::endl
                 << "MFEM GIT: " << MFEM_GIT_STRING << std::endl
+                << "Mesh #EL: " << mesh_ne << std::endl
                 << "Velocity #DOFs: " << fes_size0 << std::endl
                 << "Pressure #DOFs: " << fes_size1 << std::endl;
    }
 }
 
-void NavierSolver::SetRANSModel(std::shared_ptr<RANSModel> k)
+void NavierSolver::EvaluateLegendrePolynomial(const int poly_order,
+                                              const double x,
+                                              Vector &L)
 {
-   rans_model = k;
+   L(0) = 1.0;
+   L(1) = x;
 
-   // rans_model->Setup(*pfes);
+   for (int i = 2; i < poly_order; i++)
+   {
+      L(i) = ((2*i-1) * x * L(i-1) - (i-1) * L(i-2)) / (double)i;
+   }
+}
+
+void NavierSolver::EvaluateLegendrePolynomialShifted(const int poly_order,
+                                                     const double x,
+                                                     Vector &L)
+{
+   EvaluateLegendrePolynomial(poly_order, 2.0 * x - 1.0, L);
+}
+
+void NavierSolver::EvaluateMonomialBasis(const int poly_order, const double x,
+                                         Vector &L)
+{
+   for (int i = 0; i < poly_order; i++)
+   {
+      L(i) = std::pow(x, i);
+   }
+}
+
+void NavierSolver::EnableFilter(FilterMethod f)
+{
+   filter_method = f;
+}
+
+void NavierSolver::BuildHPFForcing(ParGridFunction &vel_gf)
+{
+   const int hpf_kco = filter_cutoff_modes;
+   const double hpf_weight = filter_alpha;
+   const double hpf_chi = -1.0 * hpf_weight;
+   const int NN = order + 1;
+
+   DenseMatrix D_filter;
+   D_filter.Diag(1.0, NN);
+
+   const int k0 = NN - hpf_kco;
+   // Amplitude
+   double a;
+
+   for (int k = k0; k < NN; k++)
+   {
+      a = (pow((double)(k+1 - k0), 2.0))/pow((double)(hpf_kco), 2.0);
+      D_filter(k, k) = 1.0 - a;
+   }
+
+   // Legendre Basis interpolation matrix
+   DenseMatrix V(NN), Vinv(NN);
+   Vector Vi(NN);
+
+   for (int i = 0; i < NN; i++)
+   {
+      EvaluateLegendrePolynomialShifted(NN, gll_ir.IntPoint(i).x, Vi);
+      V.SetRow(i, Vi);
+   }
+
+   DenseMatrix DfVinv(NN), F(NN), Ft(NN);
+   Vinv = V;
+   Vinv.Invert();
+
+   // Construct F = V * D * V^-1
+   Mult(D_filter, Vinv, DfVinv);
+   Mult(V, DfVinv, F);
+
+   Ft.Transpose(F);
+
+   // compute u - F u F'
+   Array<int> vdofs, dofs;
+   Vector u_e, w1;
+   auto nodal_fe = dynamic_cast<const NodalFiniteElement*>(vfes->GetFE(0));
+   if (!nodal_fe)
+   {
+      MFEM_ABORT("internal error");
+   }
+   auto dofs_lex_ordering = nodal_fe->GetLexicographicOrdering();
+   int ndofs = nodal_fe->GetDof();
+   dofs.SetSize(ndofs);
+   int dim = nodal_fe->GetDim();
+   DenseMatrix W1, W2(NN);
+
+   // hpfrt E-vector
+   auto h1v_element_restriction = vfes->GetElementRestriction(
+                                     ElementDofOrdering::LEXICOGRAPHIC);
+   Vector hpfrt_e(h1v_element_restriction->Height());
+   Vector hpfrt_edual(h1v_element_restriction->Height());
+
+   for (int e = 0; e < vfes->GetNE(); ++e)
+   {
+      vfes->GetElementVDofs(e, vdofs);
+      for (int d = 0; d < dim; d++)
+      {
+         // Retrieve input field in single dimension d
+         for (int lex_idx = 0; lex_idx < ndofs; lex_idx++)
+         {
+            int scalar_h1_idx = dofs_lex_ordering[lex_idx];
+            int vector_h1_idx = scalar_h1_idx + ndofs * d;
+            dofs[lex_idx] = vdofs[vector_h1_idx];
+         }
+
+         vel_gf.GetSubVector(dofs, u_e);
+
+         // Copy 1D input field
+         w1 = u_e;
+         // Make 1D input field available as a matrix. Assumes that the 1D
+         // field is ordered the same as the quadrature rule.
+         W1.UseExternalData(w1.GetData(), NN, NN);
+         // W2 = F * W1
+         Mult(F, W1, W2);
+         // W1 = W2 * F'
+         Mult(W2, Ft, W1);
+         // In vector form, perform u_e = u_e - w1
+         subtract(u_e, w1, u_e);
+         // Set the dofs of the high-pass filtered GridFunction in the E-vector
+         hpfrt_e.SetVector(u_e, ndofs * (e * dim + d));
+      }
+   }
+   auto mv_integ = (*Mv_form->GetDBFI())[0];
+   hpfrt_edual = 0.0;
+   mv_integ->AddMultPA(hpfrt_e, hpfrt_edual);
+   h1v_element_restriction->MultTranspose(hpfrt_edual, hpfrt_gf);
+
+   hpfrt_gf.ParallelAssemble(hpfrt_tdofs);
+   hpfrt_tdofs *= hpf_chi;
+}
+
+void NavierSolver::TransformMesh(VectorCoefficient &dx)
+{
+   // MFEM_ASSERT(ale_formulation, "Only supported in ALE formulations."
+   //             "Use Navier::EnableALE() to enable ALE.");
+
+   GridFunction xnew(pmesh->GetNodes()->FESpace());
+   xnew = *pmesh->GetNodes();
+   xnew.ProjectCoefficient(dx);
+   *pmesh->GetNodes() = xnew;
+   pmesh->DeleteGeometricFactors();
+
+   UpdateForms();
+   UpdateSolvers();
 }
 
 NavierSolver::~NavierSolver()
@@ -1224,16 +1267,61 @@ NavierSolver::~NavierSolver()
    delete HInv;
    delete H_form;
    delete SpInv;
-   delete MvInvPC;
    delete SpInvOrthoPC;
    delete SpInvPC;
    delete lor;
    delete f_form;
-   delete MvInv;
    delete vfec;
    delete pfec;
    delete vfes;
    delete pfes;
    delete vfec_filter;
    delete vfes_filter;
+   delete HMv_form;
+   delete stress_evaluator;
+}
+
+double NavierSolver::NekNorm(ParGridFunction &u, int type, bool is_vector)
+{
+   double m = 0.0;
+   if (component_mass_lf == nullptr)
+   {
+      onecoeff.constant = 1.0;
+      component_mass_lf = new ParLinearForm(pfes);
+      component_mass_lf->AddDomainIntegrator(new DomainLFIntegrator(onecoeff));
+      component_mass_lf->Assemble();
+   }
+
+   if (is_vector)
+   {
+      ParGridFunction ux(pfes), uy(pfes), umag(pfes);
+
+      for (int i = 0; i < ux.Size(); ++i)
+      {
+         ux(i) = u(vfes->DofToVDof(i, 0));
+         uy(i) = u(vfes->DofToVDof(i, 1));
+         umag(i) = pow(ux(i), 2.0) + pow(uy(i), 2.0);
+      }
+      if (type == 1)
+      {
+         for (int i = 0; i < umag.Size(); ++i)
+         {
+            m = std::max(m, std::abs(sqrt(umag(i))));
+         }
+         return m;
+      }
+      return sqrt(component_mass_lf->operator()(umag) / volume);
+   }
+
+   ParGridFunction w(pfes);
+   for (int i = 0; i < w.Size(); ++i)
+   {
+      w(i) = pow(u(i), 2.0);
+      m = std::max(m, std::abs(u(i)));
+   }
+   if (type == 1)
+   {
+      return m;
+   }
+   return sqrt(component_mass_lf->operator()(w) / volume);
 }

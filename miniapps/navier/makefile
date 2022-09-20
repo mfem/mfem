@@ -20,10 +20,12 @@ MFEM_LIB_FILE = mfem_is_not_built
 
 SRC_DIRS := ./lib ./kernels ./rans
 
-INC_DIRS := $(shell find $(SRC_DIRS) ./ -type d)
+INC_DIRS := $(shell find $(SRC_DIRS) ./ -type d -not -path "./*output/*")
+INC_DIRS := $(INC_DIRS) $(MFEM_DIR)/miniapps/common/ $(MFEM_DIR)/miniapps/hooke/kernels/
 INC_FLAGS := $(addprefix -I,$(INC_DIRS))
 
 NAVIER_LIB_SRCS := $(shell find $(SRC_DIRS) -name '*.cpp')
+NAVIER_LIB_SRCS := $(NAVIER_LIB_SRCS) $(MFEM_DIR)/miniapps/common/dist_solver.cpp
 NAVIER_LIB_OBJS := $(NAVIER_LIB_SRCS:%=%.o)
 NAVIER_LIB_DEPS := $(NAVIER_LIB_OBJS:.o=.d)
 NAVIER_LIB := libnavier.a
@@ -36,10 +38,10 @@ TEST_SRCS := $(shell find ./tests -name '*.cpp')
 TEST_OBJS := $(TEST_SRCS:%=%.o)
 TEST_DEPS := $(TEST_OBJS:.o=.d)
 
-PAR_MINIAPPS = navier_mms navier_kovasznay navier_kovasznay_vs navier_tgv\
+PAR_MINIAPPS = navier_mms navier_mms2 navier_kovasznay navier_kovasznay_vs navier_tgv\
  navier_shear navier_3dfoc navier_turbchan navier_tgv2d
 ifeq ($(MFEM_USE_GSLIB),YES)
-   PAR_MINIAPPS += navier_cht
+   PAR_MINIAPPS += navier_cht navier_fsi
 endif
 
 ifeq ($(MFEM_USE_MPI),NO)
@@ -52,11 +54,13 @@ endif
 .SUFFIXES: .o .cpp .mk
 .PHONY: all clean clean-build clean-exec
 
+all: $(MINIAPPS)
+
 test_%: ./tests/test_%.cpp.o $(NAVIER_LIB)
-	$(MFEM_CXX) -o $@ $^ $(MFEM_LIBS)
+	$(MFEM_CXX) $(MFEM_LINK_FLAGS) -o $@ $^ $(MFEM_LIBS)
 
 navier_%: ./examples/navier_%.cpp.o $(NAVIER_LIB)
-	$(MFEM_CXX) -o $@ $^ $(MFEM_LIBS)
+	$(MFEM_CXX) $(MFEM_LINK_FLAGS) -o $@ $^ $(MFEM_LIBS)
 
 %.cpp.o: %.cpp
 	$(MFEM_CXX) $(MFEM_FLAGS) $(INC_FLAGS) -MMD -MP -c $< -o $@
@@ -64,8 +68,6 @@ navier_%: ./examples/navier_%.cpp.o $(NAVIER_LIB)
 $(NAVIER_LIB): $(NAVIER_LIB_OBJS)
 	ar ru $@ $^
 	ranlib $@
-
-all: $(MINIAPPS)
 
 PAR_TEST_EXECS = navier_mms navier_kovasznay navier_tgv
 MFEM_TESTS = TEST_EXECS

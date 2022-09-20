@@ -22,7 +22,7 @@
 // of the equation. Then the numerical solution is computed and compared to the
 // exact manufactured solution to determine the error.
 
-#include "navier_solver.hpp"
+#include "lib/navier_solver.hpp"
 #include <fstream>
 
 using namespace mfem;
@@ -30,13 +30,12 @@ using namespace navier;
 
 struct s_NavierContext
 {
+   bool amr = false;
    int ser_ref_levels = 1;
    int order = 5;
    double kinvis = 1.0;
    double t_final = 10 * 0.25e-4;
    double dt = 0.25e-4;
-   bool pa = true;
-   bool ni = false;
    bool visualization = false;
    bool checkres = false;
 } ctx;
@@ -88,7 +87,15 @@ int main(int argc, char *argv[])
    Mpi::Init(argc, argv);
    Hypre::Init();
 
+   const char *device_config = "cpu";
+
    OptionsParser args(argc, argv);
+   args.AddOption(&ctx.amr,
+                  "-amr",
+                  "--amr",
+                  "-no-amr",
+                  "--no-amr",
+                  "Test hanging nodes");
    args.AddOption(&ctx.ser_ref_levels,
                   "-rs",
                   "--refine-serial",
@@ -99,24 +106,14 @@ int main(int argc, char *argv[])
                   "Order (degree) of the finite elements.");
    args.AddOption(&ctx.dt, "-dt", "--time-step", "Time step.");
    args.AddOption(&ctx.t_final, "-tf", "--final-time", "Final time.");
-   args.AddOption(&ctx.pa,
-                  "-pa",
-                  "--enable-pa",
-                  "-no-pa",
-                  "--disable-pa",
-                  "Enable partial assembly.");
-   args.AddOption(&ctx.ni,
-                  "-ni",
-                  "--enable-ni",
-                  "-no-ni",
-                  "--disable-ni",
-                  "Enable numerical integration rules.");
    args.AddOption(&ctx.visualization,
                   "-vis",
                   "--visualization",
                   "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
+   args.AddOption(&device_config, "-d", "--device",
+                  "Device configuration string, see Device::Configure().");
    args.AddOption(
       &ctx.checkres,
       "-cr",
@@ -137,12 +134,24 @@ int main(int argc, char *argv[])
    {
       args.PrintOptions(mfem::out);
    }
+   Device device(device_config);
+   if (Mpi::Root()) { device.Print(); }
 
    Mesh *mesh = new Mesh("../../data/inline-quad.mesh");
    mesh->EnsureNodes();
    GridFunction *nodes = mesh->GetNodes();
    *nodes *= 2.0;
    *nodes -= 1.0;
+
+   if (ctx.amr)
+   {
+      Vertex target(0.0, 0.0, 0.0);
+      for (int l = 0; l < 1; l++)
+      {
+         mesh->RefineAtVertex(target);
+         // mesh->RandomRefinement(0.5, false, 1, 1);
+      }
+   }
 
    for (int i = 0; i < ctx.ser_ref_levels; ++i)
    {
@@ -159,8 +168,6 @@ int main(int argc, char *argv[])
 
    // Create the flow solver.
    NavierSolver naviersolver(pmesh, ctx.order, ctx.kinvis);
-   naviersolver.EnablePA(ctx.pa);
-   naviersolver.EnableNI(ctx.ni);
 
    // Set the initial condition.
    ParGridFunction *u_ic = naviersolver.GetCurrentVelocity();
@@ -218,7 +225,7 @@ int main(int argc, char *argv[])
 
    if (ctx.visualization)
    {
-      char vishost[] = "localhost";
+      char vishost[] = "128.15.198.77";
       int visport = 19916;
       socketstream sol_sock(vishost, visport);
       sol_sock << "parallel " << Mpi::WorldSize() << " "

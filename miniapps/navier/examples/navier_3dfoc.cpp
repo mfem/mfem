@@ -11,7 +11,7 @@
 
 // 3D flow over a cylinder benchmark example
 
-#include "navier_solver.hpp"
+#include "lib/navier_solver.hpp"
 #include <fstream>
 
 using namespace mfem;
@@ -70,7 +70,6 @@ int main(int argc, char *argv[])
 
    // Create the flow solver.
    NavierSolver flowsolver(pmesh, ctx.order, ctx.kin_vis);
-   flowsolver.EnablePA(true);
 
    // Set the initial condition.
    ParGridFunction *u_ic = flowsolver.GetCurrentVelocity();

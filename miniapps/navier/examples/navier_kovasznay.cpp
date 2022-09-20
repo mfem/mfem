@@ -39,7 +39,7 @@
 // boundary. The problem, although steady state, is time integrated up to the
 // final time and the solution is compared with the known exact solution.
 
-#include "navier_solver.hpp"
+#include "lib/navier_solver.hpp"
 #include <fstream>
 
 using namespace mfem;
@@ -50,14 +50,12 @@ struct s_NavierContext
    int ser_ref_levels = 1;
    int order = 6;
    double kinvis = 1.0 / 40.0;
-   double t_final = 10 * 0.001;
-   double dt = 1.0e-3;
+   double dt = 1e-3;
+   double t_final = 10 * dt;
    double reference_pressure = 0.0;
    double reynolds = 1.0 / kinvis;
    double lam = 0.5 * reynolds
                 - sqrt(0.25 * reynolds * reynolds + 4.0 * M_PI * M_PI);
-   bool pa = true;
-   bool ni = false;
    bool visualization = false;
    bool checkres = false;
 } ctx;
@@ -94,18 +92,6 @@ int main(int argc, char *argv[])
                   "Order (degree) of the finite elements.");
    args.AddOption(&ctx.dt, "-dt", "--time-step", "Time step.");
    args.AddOption(&ctx.t_final, "-tf", "--final-time", "Final time.");
-   args.AddOption(&ctx.pa,
-                  "-pa",
-                  "--enable-pa",
-                  "-no-pa",
-                  "--disable-pa",
-                  "Enable partial assembly.");
-   args.AddOption(&ctx.ni,
-                  "-ni",
-                  "--enable-ni",
-                  "-no-ni",
-                  "--disable-ni",
-                  "Enable numerical integration rules.");
    args.AddOption(&ctx.visualization,
                   "-vis",
                   "--visualization",
@@ -133,7 +119,7 @@ int main(int argc, char *argv[])
       args.PrintOptions(mfem::out);
    }
 
-   Mesh mesh = Mesh::MakeCartesian2D(1, 2, Element::QUADRILATERAL, false, 1.5,
+   Mesh mesh = Mesh::MakeCartesian2D(3, 4, Element::QUADRILATERAL, false, 1.5,
                                      2.0);
 
    mesh.EnsureNodes();
@@ -155,8 +141,6 @@ int main(int argc, char *argv[])
 
    // Create the flow solver.
    NavierSolver flowsolver(pmesh, ctx.order, ctx.kinvis);
-   flowsolver.EnablePA(ctx.pa);
-   flowsolver.EnableNI(ctx.ni);
 
    // Set the initial condition.
    ParGridFunction *u_ic = flowsolver.GetCurrentVelocity();

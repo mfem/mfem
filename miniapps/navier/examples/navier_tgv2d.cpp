@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -9,7 +9,7 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-#include "navier_solver.hpp"
+#include "lib/navier_solver.hpp"
 #include <fstream>
 
 using namespace mfem;
@@ -23,8 +23,6 @@ struct s_NavierContext
    double t_final = 10 * 0.001;
    double dt = 1.0e-3;
    double reference_pressure = 0.0;
-   bool pa = true;
-   bool ni = true;
    bool visualization = false;
    bool checkres = false;
 } ctx;
@@ -74,18 +72,6 @@ int main(int argc, char *argv[])
                   "Order (degree) of the finite elements.");
    args.AddOption(&ctx.dt, "-dt", "--time-step", "Time step.");
    args.AddOption(&ctx.t_final, "-tf", "--final-time", "Final time.");
-   args.AddOption(&ctx.pa,
-                  "-pa",
-                  "--enable-pa",
-                  "-no-pa",
-                  "--disable-pa",
-                  "Enable partial assembly.");
-   args.AddOption(&ctx.ni,
-                  "-ni",
-                  "--enable-ni",
-                  "-no-ni",
-                  "--disable-ni",
-                  "Enable numerical integration rules.");
    args.AddOption(&ctx.visualization,
                   "-vis",
                   "--visualization",
@@ -131,8 +117,6 @@ int main(int argc, char *argv[])
 
    // Create the flow solver.
    NavierSolver flowsolver(pmesh, ctx.order, ctx.kinvis);
-   flowsolver.EnablePA(ctx.pa);
-   flowsolver.EnableNI(ctx.ni);
 
    auto kv_gf = flowsolver.GetVariableViscosity();
    FunctionCoefficient kv_coeff(nu_tg);

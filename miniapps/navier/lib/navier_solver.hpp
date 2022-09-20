@@ -12,11 +12,12 @@
 #ifndef MFEM_NAVIER_SOLVER_HPP
 #define MFEM_NAVIER_SOLVER_HPP
 
-#define NAVIER_VERSION 0.1
+#define NAVIER_VERSION 0.2
 
 #include "mfem.hpp"
-#include "rans/rans_model.hpp"
-#include "kernels/stress_evaluator.hpp"
+#include "kernels/curl_evaluator.hpp"
+#include "kernels/mean_evaluator.hpp"
+#include "kernels/shear_stress_evaluator.hpp"
 
 namespace mfem
 {
@@ -143,6 +144,18 @@ public:
 class NavierSolver
 {
 public:
+   // Filter-based stabilization
+   enum FilterMethod
+   {
+      NONE,
+      // High-pass filter relaxation term using a lower order space to damp high
+      // frequency modes.
+      HPFRT_LOS,
+      // High-pass filter relaxation term using a projection to a Legendre
+      // polynomial space to damp high frequency modes.
+      HPFRT_LPOLY
+   };
+
    /// Initialize data structures, set FE space order and kinematic viscosity.
    /**
     * The ParMesh @a mesh can be a linear or curved parallel mesh. The @a order
@@ -155,10 +168,16 @@ public:
     * automatically converted to the Reynolds number. If you want to set the
     * Reynolds number directly, you can provide the inverse.
     */
-   NavierSolver(ParMesh *mesh, int order, double kin_vis);
+   NavierSolver(ParMesh *mesh, int order, double kin_vis, const double density = 1.0);
 
    /// Initialize forms, solvers and preconditioners.
    void Setup(double dt);
+
+   void UpdateSpaces();
+
+   void UpdateForms();
+
+   void UpdateSolvers();
 
    /// Compute solution at the next time step t+dt.
    /**
@@ -193,6 +212,8 @@ public:
    /// Return a pointer to the current pressure ParGridFunction.
    ParGridFunction *GetCurrentPressure() { return &pn_gf; }
 
+   BilinearFormIntegrator *GetPressureEquationBLFI() { return *(Sp_form->GetDBFI()[0]); }
+
    /// Add a Dirichlet boundary condition to the velocity field.
    void AddVelDirichletBC(VectorCoefficient *coeff, Array<int> &attr);
 
@@ -211,13 +232,6 @@ public:
    void AddAccelTerm(VectorCoefficient *coeff, Array<int> &attr);
 
    void AddAccelTerm(VecFuncT *f, Array<int> &attr);
-
-   /// Enable partial assembly for every operator.
-   void EnablePA(bool pa) { partial_assembly = pa; }
-
-   /// Enable numerical integration rules. This means collocated quadrature at
-   /// the nodal points.
-   void EnableNI(bool ni) { numerical_integ = ni; }
 
    /// Print timing summary of the solving routine.
    /**
@@ -272,6 +286,11 @@ public:
    /// Compute CFL
    double ComputeCFL(ParGridFunction &u, double dt);
 
+   int PredictTimestep(const double dt_min, const double dt_max,
+                       const double cfl_target, double &dt);
+
+   void EnableFilter(FilterMethod f);
+
    /// Set the number of modes to cut off in the interpolation filter
    void SetCutoffModes(int c) { filter_cutoff_modes = c; }
 
@@ -287,13 +306,14 @@ public:
 
    ParGridFunction *GetVariableViscosity()
    {
-      if (stress_computation) { return &kin_vis_gf; }
-      MFEM_ABORT("Stress computation needs to be enabled. See ");
-      // unreachable
-      return nullptr;
+      return &kin_vis_gf;
    }
 
-   void SetRANSModel(std::shared_ptr<RANSModel> k);
+   ParGridFunction *GetCurrentMeshVelocity() { return &wgn_gf; }
+
+   void TransformMesh(VectorCoefficient &dx);
+
+   double NekNorm(ParGridFunction &u, int type, bool is_vector);
 
 protected:
    /// Print information about the Navier version.
@@ -319,19 +339,27 @@ protected:
                      Vector &B,
                      int copy_interior = 0);
 
+   void BuildHPFForcing(ParGridFunction &vel_gf);
+
+   // Evaluate Legendre Polynomials of order N at point x
+   void EvaluateLegendrePolynomial(const int poly_order, const double x,
+                                   Vector &L);
+
+   // Evaluate Legendre Polynomials of order N at point x
+   void EvaluateLegendrePolynomialShifted(const int poly_order, const double x,
+                                          Vector &L);
+
+   // Evaluate Monomial Basis of order N at point x
+   void EvaluateMonomialBasis(const int poly_order, const double x, Vector &L);
+
    /// Enable/disable debug output.
    bool debug = false;
 
    /// Enable/disable verbose output.
    bool verbose = true;
 
-   /// Enable/disable partial assembly of forms.
-   bool partial_assembly = false;
-
-   /// Enable/disable numerical integration rules of forms.
-   bool numerical_integ = false;
-
-   bool stress_computation = true;
+   /// Enable/disable variable viscosity (stress formulation)
+   bool variable_viscosity = true;
 
    /// The parallel mesh.
    ParMesh *pmesh = nullptr;
@@ -342,6 +370,9 @@ protected:
    /// Kinematic viscosity (dimensionless).
    double kin_vis;
 
+   /// Fluid density
+   double density;
+
    ///
    ParGridFunction kin_vis_gf;
 
@@ -349,18 +380,27 @@ protected:
 
 public:
    IntegrationRules gll_rules;
+   IntegrationRule gll_ir;
+   IntegrationRule gll_ir_face;
+   IntegrationRule gll_ir_nl;
 protected:
 
    /// Velocity $H^1$ finite element collection.
    FiniteElementCollection *vfec = nullptr;
 
    /// Pressure $H^1$ finite element collection.
+   FiniteElementCollection *vfecL2 = nullptr;
+
+   /// Pressure \f$H^1\f$ finite element collection.
    FiniteElementCollection *pfec = nullptr;
 
    /// Velocity $(H^1)^d$ finite element space.
    ParFiniteElementSpace *vfes = nullptr;
 
    /// Pressure $H^1$ finite element space.
+   ParFiniteElementSpace *vfesL2 = nullptr;
+
+   /// Pressure \f$H^1\f$ finite element space.
    ParFiniteElementSpace *pfes = nullptr;
 
    ParNonlinearForm *N = nullptr;
@@ -374,6 +414,7 @@ protected:
    ParMixedBilinearForm *G_form = nullptr;
 
    ParBilinearForm *H_form = nullptr;
+   ParBilinearForm *HMv_form = nullptr;
 
    VectorGridFunctionCoefficient *FText_gfcoeff = nullptr;
 
@@ -397,14 +438,11 @@ protected:
    ConstantCoefficient H_lincoeff;
    ConstantCoefficient H_bdfcoeff;
 
-   OperatorHandle Mv;
    OperatorHandle Sp;
    OperatorHandle D;
    OperatorHandle G;
    OperatorHandle H;
-
-   Solver *MvInvPC = nullptr;
-   CGSolver *MvInv = nullptr;
+   OperatorHandle Mv;
 
    HypreBoomerAMG *SpInvPC = nullptr;
    OrthoSolver *SpInvOrthoPC = nullptr;
@@ -413,9 +451,12 @@ protected:
    Solver *HInvPC = nullptr;
    CGSolver *HInv = nullptr;
 
+   std::unique_ptr<Solver>MvInvPC;
+   std::unique_ptr<CGSolver> MvInv;
+
    Vector fn, un, un_next, unm1, unm2, Nun, Nunm1, Nunm2, u_ext, Fext, FText, Lext,
           resu;
-   Vector tmp1;
+   Vector tmp1, tmp2, hpfrt_tdofs;
 
    Vector pn, resp, FText_bdr, g_bdr;
 
@@ -454,6 +495,8 @@ protected:
    double ab2 = 0.0;
    double ab3 = 0.0;
 
+   double vel_cfl = 0.0, cfl_old = 0.0;
+
    // Timers.
    StopWatch sw_setup, sw_step, sw_extrap, sw_curlcurl, sw_spsolve, sw_hsolve;
 
@@ -464,8 +507,8 @@ protected:
    int pl_amg = 0;
 
    // Relative tolerances.
-   double rtol_spsolve = 1e-6;
-   double rtol_hsolve = 1e-8;
+   double rtol_spsolve = 1e-4;
+   double rtol_hsolve = 1e-6;
 
    // Iteration counts.
    int iter_mvsolve = 0, iter_spsolve = 0, iter_hsolve = 0;
@@ -476,19 +519,22 @@ protected:
    // LOR related.
    ParLORDiscretization *lor = nullptr;
 
-   // Filter-based stabilization
+   FilterMethod filter_method = FilterMethod::NONE;
    int filter_cutoff_modes = 1;
-   double filter_alpha = 0.0;
+   double filter_alpha = 10.0;
+   DenseMatrix FHPF, FHPFt;
    FiniteElementCollection *vfec_filter = nullptr;
    ParFiniteElementSpace *vfes_filter = nullptr;
-   ParGridFunction un_NM1_gf;
-   ParGridFunction un_filtered_gf;
+   ParGridFunction u_filter_basis_gf, u_low_modes_gf, hpfrt_gf;
 
-   // RANS
-   std::shared_ptr<RANSModel> rans_model;
+   ShearStressEvaluator *stress_evaluator = nullptr;
+   std::unique_ptr<CurlEvaluator> curl_evaluator;
+   std::unique_ptr<MeanEvaluator> mean_evaluator;
 
-   StressEvaluator *stress_eval = nullptr;
    Vector grad_nu_sym_grad_uext, kv;
+
+   ParGridFunction wgn_gf;
+   VectorGridFunctionCoefficient wg_coef;
 };
 
 } // namespace navier

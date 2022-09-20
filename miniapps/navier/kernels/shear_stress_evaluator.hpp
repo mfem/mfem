@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -19,19 +19,17 @@ namespace mfem
 namespace navier
 {
 
-class StressEvaluator
+class ShearStressEvaluator
 {
 public:
-   StressEvaluator(const ParFiniteElementSpace &kvfes,
-                   const ParFiniteElementSpace &ufes, const IntegrationRule &i);
+   ShearStressEvaluator(const ParFiniteElementSpace &kvfes,
+                        ParFiniteElementSpace &ufes, const IntegrationRule &i);
 
    void Apply(const Vector &kv, const Vector &u, Vector &y);
 
-   ~StressEvaluator();
+   ~ShearStressEvaluator() {};
 
 private:
-   const ParFiniteElementSpace &kvfes;
-   const ParFiniteElementSpace &ufes;
    const IntegrationRule &ir;
    const Operator *Pkv = nullptr;
    const Operator *Pu = nullptr;
@@ -41,6 +39,7 @@ private:
    const DofToQuad *maps = nullptr;
    const GeometricFactors *geom = nullptr;
    const int dim, ne = 0;
+   ParFiniteElementSpace *ufes;
    Vector kv_l, kv_e, dkv_qp, u_l, u_e, y_l, y_e;
 };
 

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -22,7 +22,7 @@
 // of the equation. Then the numerical solution is computed and compared to the
 // exact manufactured solution to determine the error.
 
-#include "navier_solver.hpp"
+#include "lib/navier_solver.hpp"
 #include <fstream>
 
 using namespace mfem;
@@ -35,8 +35,6 @@ struct s_NavierContext
    double kinvis = 0.025;
    double t_final = 100 * 0.25e-4;
    double dt = 0.25e-4;
-   bool pa = true;
-   bool ni = false;
    bool visualization = false;
    bool checkres = false;
 } ctx;
@@ -111,18 +109,6 @@ int main(int argc, char *argv[])
                   "Order (degree) of the finite elements.");
    args.AddOption(&ctx.dt, "-dt", "--time-step", "Time step.");
    args.AddOption(&ctx.t_final, "-tf", "--final-time", "Final time.");
-   args.AddOption(&ctx.pa,
-                  "-pa",
-                  "--enable-pa",
-                  "-no-pa",
-                  "--disable-pa",
-                  "Enable partial assembly.");
-   args.AddOption(&ctx.ni,
-                  "-ni",
-                  "--enable-ni",
-                  "-no-ni",
-                  "--disable-ni",
-                  "Enable numerical integration rules.");
    args.AddOption(&ctx.visualization,
                   "-vis",
                   "--visualization",
@@ -152,7 +138,7 @@ int main(int argc, char *argv[])
 
    Mesh mesh = Mesh::MakeCartesian2D(2, 2, Element::QUADRILATERAL, false, 2*M_PI,
                                      2.0*M_PI);
-
+   mesh.EnsureNodes();
 
    for (int i = 0; i < ctx.ser_ref_levels; ++i)
    {
@@ -168,8 +154,6 @@ int main(int argc, char *argv[])
 
    // Create the flow solver.
    NavierSolver naviersolver(pmesh, ctx.order, ctx.kinvis);
-   naviersolver.EnablePA(ctx.pa);
-   naviersolver.EnableNI(ctx.ni);
 
    auto kv_gf = naviersolver.GetVariableViscosity();
    FunctionCoefficient kv_coeff(kinvis_mms);
