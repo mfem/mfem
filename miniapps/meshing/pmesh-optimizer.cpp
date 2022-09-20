@@ -105,6 +105,8 @@
 //     mpirun -np 4 pmesh-optimizer -m jagged.mesh -o 2 -mid 4 -tid 1 -ni 50 -qo 4 -fd -vl 1 -btype 1
 //   3D untangling (the mesh is in the mfem/data GitHub repository):
 //   * mpirun -np 4 pmesh-optimizer -m ../../../mfem_data/cube-holes-inv.mesh -o 3 -mid 313 -tid 1 -rtol 1e-5 -li 50 -qo 4 -fd -vl 1
+//   Kershaw transformed mesh:
+//   * mpirun - np 6 pmesh-optimizer -m cube.mesh -mid 303 -tid 1 -bnd -ni 100 -art 1 -ls 3 -qo 8 -li 40 -o 2 -qo 8 -ker -pa
 
 #include "mfem.hpp"
 #include "../common/mfem-common.hpp"
@@ -159,6 +161,7 @@ int main (int argc, char *argv[])
    double surface_fit_threshold = -10;
    int barrier_type       = 0;
    int worst_case_type    = 0;
+   bool kershaw           = false;
 
    // 2. Parse command-line options.
    OptionsParser args(argc, argv);
@@ -298,6 +301,9 @@ int main (int argc, char *argv[])
                   "0 - None,"
                   "1 - Beta,"
                   "2 - PMean.");
+   args.AddOption(&kershaw, "-ker", "--kershaw", "-no-ker",
+                  "--no-kershaw",
+                  "Apply kershaw transformation to the mesh");
 
    args.Parse();
    if (!args.Good())
@@ -317,7 +323,16 @@ int main (int argc, char *argv[])
    if (myid == 0) { device.Print();}
 
    // 3. Initialize and refine the starting mesh.
-   Mesh *mesh = new Mesh(mesh_file, 1, 1, false);
+   Mesh *mesh;
+   if (kershaw)
+   {
+      mesh = new Mesh(Mesh::MakeCartesian3D(24, 24, 24, Element::HEXAHEDRON,
+                                            1.0, 1.0, 1.0, true));
+   }
+   else
+   {
+      mesh = new Mesh(mesh_file, 1, 1, false);
+   }
    for (int lev = 0; lev < rs_levels; lev++)
    {
       mesh->UniformRefinement();
@@ -415,6 +430,12 @@ int main (int argc, char *argv[])
    // Set the perturbation of all nodes from the true nodes.
    x.SetTrueVector();
    x.SetFromTrueVector();
+
+   common::KershawTransformation kershawT(pmesh->Dimension(), 0.3, 0.3);
+   if (kershaw)
+   {
+      pmesh->Transform(kershawT);
+   }
 
    // 10. Save the starting (prior to the optimization) mesh to a file. This
    //     output can be viewed later using GLVis: "glvis -m perturbed -np
