@@ -45,7 +45,7 @@ int main(int argc, char *argv[])
    
    // 1. Parse command line options
   //  const char *mesh_file = "./mesh_1.exo";
-  const char *mesh_file = "./square01_tri.mesh";
+  const char *mesh_file = "../../data/square01_tri.mesh";
   //  const char *mesh_file = "./square01_quad.mesh";
   //  const char *mesh_file = "./OneElement_tri.mesh";
  
