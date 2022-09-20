@@ -118,6 +118,7 @@ private:
   // Member to switch to repeated solve capabilities.
   bool repeated_solve_ = false;
   bool integer_order_ = false;
+  bool apply_lift_ = false;
 };
 
 } // namespace materials
