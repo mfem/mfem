@@ -83,7 +83,6 @@ SPDESolver::SPDESolver(MatrixConstantCoefficient &diff_coefficient, double nu,
   // Form matrices for the linear system
   Array<int> empty;
   k_.FormSystemMatrix(ess_tdof_list_, stiffness_);
-  m_.FormSystemMatrix(empty, mass_0_);
   m_.FormSystemMatrix(ess_tdof_list_, mass_bc_);
 
   // Get the restriction and prolongation matrix for transformations
@@ -184,17 +183,16 @@ void SPDESolver::Solve(const ParLinearForm &b, ParGridFunction &x, double alpha,
   for (int i = 0; i < exponent; i++) {
     // Solve the linear system Op_ X_ = B_
     SolveLinearSystem();
-
-    if (i == exponent - 1) {
-      // Update x to contain the solution of the problem in the last step.
-      k_.RecoverFEMSolution(X_, b, x);
-    }
+    k_.RecoverFEMSolution(X_, b, x);
     if (repeated_solve_) {
       // Prepare for next iteration. X is a primal and B is a dual vector. B_
       // must be updated to represent X_ in the next step. Instead of copying
-      // it, we must transform it appropriately with the mass matrix.
-      mass_0_.Mult(X_, B_);
-      X_.SetSubVectorComplement(ess_tdof_list_, 0.0);
+      // it, we must transform it appropriately.
+      GridFunctionCoefficient gfc(&x);
+      ParLinearForm previous_solution(fespace_ptr_);
+      previous_solution.AddDomainIntegrator(new DomainLFIntegrator(gfc));
+      previous_solution.Assemble();
+      prolongation_matrix_->MultTranspose(previous_solution, B_);
     }
   }
 }
