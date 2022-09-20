@@ -12,6 +12,7 @@
 // Implementation of GridFunction
 
 #include "gridfunc.hpp"
+#include "quadinterpolator.hpp"
 #include "../mesh/nurbs.hpp"
 #include "../general/text.hpp"
 
@@ -2780,7 +2781,8 @@ void GridFunction::ProjectBdrCoefficientTangent(
 }
 
 double GridFunction::ComputeL2Error(
-   Coefficient *exsol[], const IntegrationRule *irs[]) const
+   Coefficient *exsol[], const IntegrationRule *irs[],
+   const Array<int> *elems) const
 {
    double error = 0.0, a;
    const FiniteElement *fe;
@@ -2791,6 +2793,7 @@ double GridFunction::ComputeL2Error(
 
    for (i = 0; i < fes->GetNE(); i++)
    {
+      if (elems != NULL && (*elems)[i] == 0) { continue; }
       fe = fes->GetFE(i);
       fdof = fe->GetDof();
       transf = fes->GetElementTransformation(i);
@@ -2834,7 +2837,7 @@ double GridFunction::ComputeL2Error(
 
 double GridFunction::ComputeL2Error(
    VectorCoefficient &exsol, const IntegrationRule *irs[],
-   Array<int> *elems) const
+   const Array<int> *elems) const
 {
    double error = 0.0;
    const FiniteElement *fe;
@@ -3253,7 +3256,7 @@ double GridFunction::ComputeMaxError(
 
 double GridFunction::ComputeW11Error(
    Coefficient *exsol, VectorCoefficient *exgrad, int norm_type,
-   Array<int> *elems, const IntegrationRule *irs[]) const
+   const Array<int> *elems, const IntegrationRule *irs[]) const
 {
    // assuming vdim is 1
    int i, fdof, dim, intorder, j, k;
@@ -3359,7 +3362,8 @@ double GridFunction::ComputeW11Error(
 
 double GridFunction::ComputeLpError(const double p, Coefficient &exsol,
                                     Coefficient *weight,
-                                    const IntegrationRule *irs[]) const
+                                    const IntegrationRule *irs[],
+                                    const Array<int> *elems) const
 {
    double error = 0.0;
    const FiniteElement *fe;
@@ -3368,6 +3372,7 @@ double GridFunction::ComputeLpError(const double p, Coefficient &exsol,
 
    for (int i = 0; i < fes->GetNE(); i++)
    {
+      if (elems != NULL && (*elems)[i] == 0) { continue; }
       fe = fes->GetFE(i);
       const IntegrationRule *ir;
       if (irs)
@@ -3987,178 +3992,6 @@ void GridFunction::LegacyNCReorder()
    Vector::Swap(tmp);
 }
 
-
-QuadratureFunction::QuadratureFunction(Mesh *mesh, std::istream &in)
-{
-   const char *msg = "invalid input stream";
-   string ident;
-
-   qspace = new QuadratureSpace(mesh, in);
-   own_qspace = true;
-
-   in >> ident; MFEM_VERIFY(ident == "VDim:", msg);
-   in >> vdim;
-
-   Load(in, vdim*qspace->GetSize());
-}
-
-QuadratureFunction & QuadratureFunction::operator=(double value)
-{
-   Vector::operator=(value);
-   return *this;
-}
-
-QuadratureFunction & QuadratureFunction::operator=(const Vector &v)
-{
-   MFEM_ASSERT(qspace && v.Size() == this->Size(), "");
-   Vector::operator=(v);
-   return *this;
-}
-
-QuadratureFunction & QuadratureFunction::operator=(const QuadratureFunction &v)
-{
-   return this->operator=((const Vector &)v);
-}
-
-void QuadratureFunction::Save(std::ostream &os) const
-{
-   qspace->Save(os);
-   os << "VDim: " << vdim << '\n'
-      << '\n';
-   Vector::Print(os, vdim);
-   os.flush();
-}
-
-std::ostream &operator<<(std::ostream &os, const QuadratureFunction &qf)
-{
-   qf.Save(os);
-   return os;
-}
-
-void QuadratureFunction::SaveVTU(std::ostream &os, VTKFormat format,
-                                 int compression_level) const
-{
-   os << R"(<VTKFile type="UnstructuredGrid" version="0.1")";
-   if (compression_level != 0)
-   {
-      os << R"( compressor="vtkZLibDataCompressor")";
-   }
-   os << " byte_order=\"" << VTKByteOrder() << "\">\n";
-   os << "<UnstructuredGrid>\n";
-
-   const char *fmt_str = (format == VTKFormat::ASCII) ? "ascii" : "binary";
-   const char *type_str = (format != VTKFormat::BINARY32) ? "Float64" : "Float32";
-   std::vector<char> buf;
-
-   int np = qspace->GetSize();
-   int ne = qspace->GetNE();
-   int sdim = qspace->GetMesh()->SpaceDimension();
-
-   // For quadrature functions, each point is a vertex cell, so number of cells
-   // is equal to number of points
-   os << "<Piece NumberOfPoints=\"" << np
-      << "\" NumberOfCells=\"" << np << "\">\n";
-
-   // print out the points
-   os << "<Points>\n";
-   os << "<DataArray type=\"" << type_str
-      << "\" NumberOfComponents=\"3\" format=\"" << fmt_str << "\">\n";
-
-   Vector pt(sdim);
-   for (int i = 0; i < ne; i++)
-   {
-      ElementTransformation &T = *qspace->GetMesh()->GetElementTransformation(i);
-      const IntegrationRule &ir = GetElementIntRule(i);
-      for (int j = 0; j < ir.Size(); j++)
-      {
-         T.Transform(ir[j], pt);
-         WriteBinaryOrASCII(os, buf, pt[0], " ", format);
-         if (sdim > 1) { WriteBinaryOrASCII(os, buf, pt[1], " ", format); }
-         else { WriteBinaryOrASCII(os, buf, 0.0, " ", format); }
-         if (sdim > 2) { WriteBinaryOrASCII(os, buf, pt[2], "", format); }
-         else { WriteBinaryOrASCII(os, buf, 0.0, "", format); }
-         if (format == VTKFormat::ASCII) { os << '\n'; }
-      }
-   }
-   if (format != VTKFormat::ASCII)
-   {
-      WriteBase64WithSizeAndClear(os, buf, compression_level);
-   }
-   os << "</DataArray>\n";
-   os << "</Points>\n";
-
-   // Write cells (each cell is just a vertex)
-   os << "<Cells>\n";
-   // Connectivity
-   os << R"(<DataArray type="Int32" Name="connectivity" format=")"
-      << fmt_str << "\">\n";
-
-   for (int i=0; i<np; ++i) { WriteBinaryOrASCII(os, buf, i, "\n", format); }
-   if (format != VTKFormat::ASCII)
-   {
-      WriteBase64WithSizeAndClear(os, buf, compression_level);
-   }
-   os << "</DataArray>\n";
-   // Offsets
-   os << R"(<DataArray type="Int32" Name="offsets" format=")"
-      << fmt_str << "\">\n";
-   for (int i=0; i<np; ++i) { WriteBinaryOrASCII(os, buf, i, "\n", format); }
-   if (format != VTKFormat::ASCII)
-   {
-      WriteBase64WithSizeAndClear(os, buf, compression_level);
-   }
-   os << "</DataArray>\n";
-   // Types
-   os << R"(<DataArray type="UInt8" Name="types" format=")"
-      << fmt_str << "\">\n";
-   for (int i = 0; i < np; i++)
-   {
-      uint8_t vtk_cell_type = VTKGeometry::POINT;
-      WriteBinaryOrASCII(os, buf, vtk_cell_type, "\n", format);
-   }
-   if (format != VTKFormat::ASCII)
-   {
-      WriteBase64WithSizeAndClear(os, buf, compression_level);
-   }
-   os << "</DataArray>\n";
-   os << "</Cells>\n";
-
-   os << "<PointData>\n";
-   os << "<DataArray type=\"" << type_str << "\" Name=\"u\" format=\""
-      << fmt_str << "\" NumberOfComponents=\"" << vdim << "\">\n";
-   for (int i = 0; i < ne; i++)
-   {
-      DenseMatrix vals;
-      GetElementValues(i, vals);
-      for (int j = 0; j < vals.Size(); ++j)
-      {
-         for (int vd = 0; vd < vdim; ++vd)
-         {
-            WriteBinaryOrASCII(os, buf, vals(vd, j), " ", format);
-         }
-         if (format == VTKFormat::ASCII) { os << '\n'; }
-      }
-   }
-   if (format != VTKFormat::ASCII)
-   {
-      WriteBase64WithSizeAndClear(os, buf, compression_level);
-   }
-   os << "</DataArray>\n";
-   os << "</PointData>\n";
-
-   os << "</Piece>\n";
-   os << "</UnstructuredGrid>\n";
-   os << "</VTKFile>" << std::endl;
-}
-
-void QuadratureFunction::SaveVTU(const std::string &filename, VTKFormat format,
-                                 int compression_level) const
-{
-   std::ofstream f(filename + ".vtu");
-   SaveVTU(f, format, compression_level);
-}
-
-
 double ZZErrorEstimator(BilinearFormIntegrator &blfi,
                         GridFunction &u,
                         GridFunction &flux, Vector &error_estimates,
@@ -4300,44 +4133,44 @@ void TensorProductLegendre(int dim,                // input
    switch (dim)
    {
       case 1:
+      {
+         for (int i = 0; i <= order; i++)
+         {
+            poly(i) = poly_x(i);
+         }
+      }
+      break;
+      case 2:
+      {
+         for (int j = 0; j <= order; j++)
          {
             for (int i = 0; i <= order; i++)
             {
-               poly(i) = poly_x(i);
+               int cnt = i + (order+1) * j;
+               poly(cnt) = poly_x(i) * poly_y(j);
             }
          }
-         break;
-      case 2:
+      }
+      break;
+      case 3:
+      {
+         for (int k = 0; k <= order; k++)
          {
             for (int j = 0; j <= order; j++)
             {
                for (int i = 0; i <= order; i++)
                {
-                  int cnt = i + (order+1) * j;
-                  poly(cnt) = poly_x(i) * poly_y(j);
+                  int cnt = i + (order+1) * j + (order+1) * (order+1) * k;
+                  poly(cnt) = poly_x(i) * poly_y(j) * poly_z(k);
                }
             }
          }
-         break;
-      case 3:
-         {
-            for (int k = 0; k <= order; k++)
-            {
-               for (int j = 0; j <= order; j++)
-               {
-                  for (int i = 0; i <= order; i++)
-                  {
-                     int cnt = i + (order+1) * j + (order+1) * (order+1) * k;
-                     poly(cnt) = poly_x(i) * poly_y(j) * poly_z(k);
-                  }
-               }
-            }
-         }
-         break;
+      }
+      break;
       default:
-         {
-            MFEM_ABORT("TensorProductLegendre: invalid value of dim");
-         }
+      {
+         MFEM_ABORT("TensorProductLegendre: invalid value of dim");
+      }
    }
 }
 

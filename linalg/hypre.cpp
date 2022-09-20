@@ -1989,7 +1989,7 @@ HypreParMatrix* HypreParMatrix::LeftDiagMult(const SparseMatrix &D,
    HYPRE_BigInt *new_col_map_offd =
       DuplicateAs<HYPRE_BigInt>(col_map_offd, A_offd.Width());
 
-   // Ownership of DA_diag and DA_offd is transfered to the HypreParMatrix
+   // Ownership of DA_diag and DA_offd is transferred to the HypreParMatrix
    // constructor.
    const bool own_diag_offd = true;
 
