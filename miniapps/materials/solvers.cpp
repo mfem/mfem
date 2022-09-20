@@ -82,8 +82,8 @@ SPDESolver::SPDESolver(MatrixConstantCoefficient &diff_coefficient, double nu,
 
   // Form matrices for the linear system
   Array<int> empty;
-  k_.FormSystemMatrix(ess_tdof_list_, stiffness_);
-  m_.FormSystemMatrix(ess_tdof_list_, mass_bc_);
+  k_.FormSystemMatrix(empty, stiffness_);
+  m_.FormSystemMatrix(empty, mass_bc_);
 
   // Get the restriction and prolongation matrix for transformations
   restriction_matrix_ = fespace->GetRestrictionMatrix();
@@ -179,6 +179,8 @@ void SPDESolver::Solve(const ParLinearForm &b, ParGridFunction &x, double alpha,
   X_ = 0.0;
   delete Op_;
   Op_ = Add(1.0, stiffness_, alpha, mass_bc_); //  construct Operator
+  HypreParMatrix *Ae = Op_->EliminateRowsCols(ess_tdof_list_);
+  Op_->EliminateBC(*Ae, ess_tdof_list_, X_, B_); // only for homogeneous BC
 
   for (int i = 0; i < exponent; i++) {
     // Solve the linear system Op_ X_ = B_
@@ -193,8 +195,10 @@ void SPDESolver::Solve(const ParLinearForm &b, ParGridFunction &x, double alpha,
       previous_solution.AddDomainIntegrator(new DomainLFIntegrator(gfc));
       previous_solution.Assemble();
       prolongation_matrix_->MultTranspose(previous_solution, B_);
+      Op_->EliminateBC(*Ae, ess_tdof_list_, X_, B_);
     }
   }
+  delete Ae;
 }
 
 void SPDESolver::LiftSolution(ParGridFunction& x){
