@@ -333,7 +333,7 @@ public:
 
 
    /**  @brief Nullifies the internal matrix \f$ M \f$ and returns a pointer
-        to it.  Used for transfering ownership. */
+        to it.  Used for transferring ownership. */
    SparseMatrix *LoseMat() { SparseMatrix *tmp = mat; mat = NULL; return tmp; }
 
    /** @brief Returns a const reference to the sparse matrix of eliminated b.c.:
@@ -774,7 +774,7 @@ public:
    SparseMatrix &SpMat() { return *mat; }
 
    /**  @brief Nullifies the internal matrix \f$ M \f$ and returns a pointer
-        to it.  Used for transfering ownership. */
+        to it.  Used for transferring ownership. */
    SparseMatrix *LoseMat() { SparseMatrix *tmp = mat; mat = NULL; return tmp; }
 
    /// Adds a domain integrator. Assumes ownership of @a bfi.

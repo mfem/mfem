@@ -15,6 +15,10 @@ Meshing improvements
 --------------------
 - Added support for mixed meshes and pyramids in GSLIB-FindPoints.
 
+- Added new SubMesh and ParSubMesh classes that can be used to extract a subset
+  of a given Mesh. These classes have the same functionality as Mesh and ParMesh
+  and work with all existing MFEM interfaces like finite element spaces etc.
+
 Discretization improvements
 ---------------------------
 - Added support for assembling low-order-refined matrices using a GPU-enabled
@@ -42,6 +46,10 @@ Discretization improvements
 
 Linear and nonlinear solvers
 ----------------------------
+
+- Added a new class DGMassInverse that performs a local elementwise CG
+  iteration to solve systems involving the discontinuous Galerkin mass matrix,
+  including support for device/GPU acceleration.
 
 New and updated examples and miniapps
 -------------------------------------
@@ -78,15 +86,15 @@ Miscellaneous
 -------------
 - Various other simplifications, extensions, and bugfixes in the code.
 
-
 - Added boundary elimination with device support for `SparseMatrix` and
   `HypreParMatrix`.
-  
+
 - When using `AssemblyLevel::FULL`, `FABilinearFormExtension::FormSystemMatrix`
   outputs an `OperatorHandle` containing a `SparseMatrix` in serial, and an
   `HypreParMatrix` in parallel (instead of a `ConstrainedOperator`).
 
 - Added TMOP metrics for mesh untangling and worst-case quality improvement.
+
 
 Version 4.4, released on March 21, 2022
 =======================================
