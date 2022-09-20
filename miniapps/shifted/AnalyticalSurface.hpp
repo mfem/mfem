@@ -18,7 +18,6 @@
 #define MFEM_ANALYTICAL_SURFACE
 
 #include "mfem.hpp"
-#include "../Source/mfem/general/forall.hpp"
 #include "Circle.hpp"
 
 namespace mfem
