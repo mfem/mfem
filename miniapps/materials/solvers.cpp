@@ -117,6 +117,7 @@ void SPDESolver::Solve(ParLinearForm &b, ParGridFunction &x) {
   sw.Start();
 
   ParGridFunction helper_gf(fespace_ptr_);
+  helper_gf = 0.0;
   k_.EliminateVDofsInRHS(ess_tdof_list_,helper_gf,b);
 
 
@@ -128,7 +129,10 @@ void SPDESolver::Solve(ParLinearForm &b, ParGridFunction &x) {
     ActivateRepeatedSolve();
     Solve(b, helper_gf, 1.0, 1.0, integer_order_of_exponent_);
     if (integer_order_) {
+      // If the exponent is an integer, we can directly add the solution to the
+      // final solution and return.
       x += helper_gf;
+      return;
     }
     UpdateRHS(b);
     DeactivateRepeatedSolve();
