@@ -13,6 +13,7 @@ double PlasmaModel::S_p_prime(double & psi_N) const
 }
 double PlasmaModel::S_prime_p_prime(double & psi_N) const
 {
+  // maybe clip so that we're taking the power of positive number?
   return - alpha * gamma * lambda * beta
     * pow(1.0 - pow(psi_N, alpha), gamma - 1.0)
     * pow(psi_N, alpha - 1.0) / r0;
@@ -29,6 +30,9 @@ double PlasmaModel::S_prime_ff_prime(double & psi_N) const
 }
 double normalized_psi(double & psi, double & psi_max, double & psi_bdp)
 {
+  if (true) {
+    return psi;
+  }
   return max(0.0,
              min(1.0,
                  (psi - psi_max) / (psi_bdp - psi_max)));
@@ -38,7 +42,14 @@ double NonlinearGridCoefficient::Eval(ElementTransformation & T,
                                       const IntegrationPoint & ip)
 {
 
-  if (true) {
+  if (false) {
+    // check that we are in the limiter region
+    if (T.Attribute != attr_lim) {
+      return 0.0;
+    }
+
+    // check to see if integration point is inside an element that is
+    // part of the plasma region
     const int *v = T.mesh->GetElement(T.ElementNo)->GetVertices();
     set<int>::iterator plasma_inds_it;
     for (int i = 0; i < 3; ++i) {
@@ -49,57 +60,61 @@ double NonlinearGridCoefficient::Eval(ElementTransformation & T,
     }
   }
   
+  double x_[3];
+  Vector x(x_, 3);
+  T.Transform(ip, x);
+  double ri(x(0));
+  if (false) {
+    // check to see if we're inside the exact plasma region
+    double r0_ = 1.0;
+    double z0_ = 0.0;
+    double L_ = 0.35;
+    double zi(x(1));
+    if (abs(ri - r0_) + abs(zi - z0_) > L_) {
+      return 0.0;
+    }
+  }
+ 
   double psi_val;
   Mesh *gf_mesh = psi->FESpace()->GetMesh();
-  int Component = 1;
+  int Component = 0;
 
-  // check that we are in the limiter region
-  if (T.Attribute != attr_lim) {
-    return 0.0;
-  }
-
-  if (T.mesh == gf_mesh)
-    {
+  if (T.mesh == gf_mesh) {
       psi_val = psi->GetValue(T, ip, Component);
-    }
-  else
-    {
+  }
+  else {
       cout << "problem!!!" << endl;
       psi_val = 1.0;
+  }
+  double psi_N = normalized_psi(psi_val, psi_max, psi_bdp);
+
+  if (option == 1) {
+    if (true) {
+
+      return pow(psi_val, 2.0);
     }
-
-   double x_[3];
-   Vector x(x_, 3);
-   T.Transform(ip, x);
-   double ri(x(0));
-   double psi_N = normalized_psi(psi_val, psi_max, psi_bdp);
-
-   // const int *v = gf_mesh->GetElement(T.ElementNo)->GetVertices();
-   // if ((v[0] == 201) || (v[1] == 201) || (v[2] == 201)) {
-   //   printf("element %d, int point %d, x %.6f, y %.6f\n", T.ElementNo, ip.index, x(0), x(1));
-   // }
-   // TODO:
-   // plasma model in only one region
-   // get phi(x_max) and phi(x_sp) here
-   
-   if (option == 1) {
-     return ri * (model->S_p_prime(psi_N)) + (model->S_ff_prime(psi_N)) / (model->get_mu() * ri);
-   } else {
-     double coeff = 1.0;
-     if (option == 2) {
-       // coefficient for phi
-       coeff = 1.0 / (psi_bdp - psi_max);
-     } else if (option == 3) {
-       // coefficient for phi_max
-       coeff = - (1 - psi_N) / (psi_bdp - psi_max);
-     } else if (option == 4) {
-       // coefficient for phi_min
-       coeff = - psi_N / (psi_bdp - psi_max);
-     }
+    return ri * (model->S_p_prime(psi_N)) + (model->S_ff_prime(psi_N)) / (model->get_mu() * ri);
+  } else {
+    double coeff = 1.0;
+    if (option == 2) {
+      // coefficient for phi
+      coeff = 1.0 / (psi_bdp - psi_max);
+    } else if (option == 3) {
+      // coefficient for phi_max
+      coeff = - (1 - psi_N) / (psi_bdp - psi_max);
+    } else if (option == 4) {
+      // coefficient for phi_min
+      coeff = - psi_N / (psi_bdp - psi_max);
+    }
      
-     return coeff * (ri * (model->S_prime_p_prime(psi_N))
-                     + (model->S_prime_ff_prime(psi_N)) / (model->get_mu() * ri));
-   }
+    if (true) {
+      return coeff * (ri * (model->S_prime_p_prime(psi_N))
+                      + (model->S_prime_ff_prime(psi_N)) / (model->get_mu() * ri))
+        + 2.0 * psi_val;
+    }
+    return coeff * (ri * (model->S_prime_p_prime(psi_N))
+                    + (model->S_prime_ff_prime(psi_N)) / (model->get_mu() * ri));
+  }
 }
 
 map<int, vector<int>> compute_vertex_map(Mesh & mesh, int with_attrib) {
@@ -262,9 +277,15 @@ void compute_plasma_points(const GridFunction & z, const Mesh & mesh,
        double val = nval[adjacent[i]];
        plasma_inds_it = plasma_inds.find(adjacent[i]);
        // cout << *plasma_inds_it << endl;
-       if ((plasma_inds_it == plasma_inds.end()) && (val >= min_val) && (val <= x_val)) {
-         queue.push_back(adjacent[i]);
-         plasma_inds.insert(adjacent[i]);
+       // check that found vertex is not already accounted for
+       if (plasma_inds_it == plasma_inds.end()) {
+         if ((val >= min_val) && (val <= x_val)) {
+           queue.push_back(adjacent[i]);
+           plasma_inds.insert(adjacent[i]);
+         } else {
+           // add points that are adjacent to the plasma inds as well
+           plasma_inds.insert(adjacent[i]);
+         }
          // cout << "adding " << adjacent[i] << endl;
        }
      }

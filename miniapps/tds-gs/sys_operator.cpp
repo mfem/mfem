@@ -37,9 +37,11 @@ void SysOperator::Mult(const Vector &psi, Vector &y) const {
   x = psi;
   int ind_min, ind_max;
   double min_val, max_val;
-  int iprint = 1;
+  int iprint = 0;
   set<int> plasma_inds;
   compute_plasma_points(x, *mesh, vertex_map, plasma_inds, ind_min, ind_max, min_val, max_val, iprint);
+  max_val = 1.0;
+  min_val = 0.0;
   NonlinearGridCoefficient nlgcoeff1(model, 1, &x, min_val, max_val, plasma_inds, attr_lim);
   printf(" min_val: %f, x_val: %f \n", min_val, max_val);
   printf(" ind_min: %d, ind_x: %d \n", ind_min, ind_max);
@@ -65,6 +67,8 @@ Operator &SysOperator::GetGradient(const Vector &psi) const {
   int iprint = 0;
   set<int> plasma_inds;
   compute_plasma_points(x, *mesh, vertex_map, plasma_inds, ind_min, ind_max, min_val, max_val, iprint);
+  max_val = 1.0;
+  min_val = 0.0;
 
   // first nonlinear contribution: bilinear operator
   NonlinearGridCoefficient nlgcoeff_2(model, 2, &x, min_val, max_val, plasma_inds, attr_lim);
@@ -93,8 +97,8 @@ Operator &SysOperator::GetGradient(const Vector &psi) const {
   int m = fespace->GetTrueVSize();
   Mat = new SparseMatrix(m, m);
   for (int k = 0; k < m; ++k) {
-    Mat->Add(k, ind_max, diff_plasma_term_3[k]);
-    Mat->Add(k, ind_min, diff_plasma_term_4[k]);
+    // Mat->Add(k, ind_max, 0.0*diff_plasma_term_3[k]);
+    // Mat->Add(k, ind_min, 0.0*diff_plasma_term_4[k]);
   }
 
   // diff operator
@@ -124,7 +128,7 @@ Operator &SysOperator::GetGradient(const Vector &psi) const {
 
     int j;
     for (j = begin2; j < end2; j++) {
-      Mat->Add(i, JJ2[j], AA2[j]);
+      Mat->Add(i, JJ2[j], -AA2[j]);
     }
   }  
   Mat->Finalize();

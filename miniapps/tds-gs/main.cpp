@@ -41,8 +41,12 @@
    everything else: coils
 
    TODO: double boundary integral
-   TODO: initial condition
-   TODO: masking
+
+   need boundary of plasma term?
+   derivative of plasma functions?
+   exact mask?
+   
+
 */
 
 #include "mfem.hpp"
@@ -72,15 +76,16 @@ int main(int argc, char *argv[])
 {
    // Parse command line options.
    // const char *mesh_file = "meshes/gs_mesh.msh";
-   const char *mesh_file = "meshes/test.msh";
+   // const char *mesh_file = "meshes/test.msh";
+   const char *mesh_file = "meshes/test_off_center.msh";
    const char *data_file = "separated_file.data";
    int order = 1;
    int d_refine = 1;
 
    // constants associated with plasma model
    double alpha = 2.0;
-   double beta = 1.0;
-   double lambda = 0.5;
+   double beta = 1.5;
+   double lambda = 0.0;
    double gamma = 2.0;
    double mu = 1.0;
    double r0 = 1.0;
@@ -120,7 +125,6 @@ int main(int argc, char *argv[])
      mesh.UniformRefinement();
    }
 
-
    // Define a finite element space on the mesh. Here we use H1 continuous
    // high-order Lagrange finite elements of the given order.
    H1_FECollection fec(order, mesh.Dimension());
@@ -143,7 +147,7 @@ int main(int argc, char *argv[])
    Array<int> boundary_dofs;
    Array<int> bdr_attribs(mesh.bdr_attributes);
    Array<int> ess_bdr(bdr_attribs.Max());
-   ess_bdr = 1;
+   ess_bdr = 0;
    // ess_bdr[attr_ff_bdr-1] = 0;
    // ess_bdr[attr_ff_bdr-1] = 1;
    fespace.GetEssentialTrueDofs(ess_bdr, boundary_dofs, 1);
@@ -180,7 +184,7 @@ int main(int argc, char *argv[])
      }
    }
    PWConstCoefficient coil_current_pw(coil_current);
-   if (true) {
+   if (false) {
      coil_term.AddDomainIntegrator(new DomainLFIntegrator(coil_current_pw));
    }
 
@@ -196,7 +200,7 @@ int main(int argc, char *argv[])
 
    // boundary condition
    ExactCoefficient exact_coefficient(r0_, z0_, k_);
-   if (false) {
+   if (true) {
      coil_term.AddBoundaryIntegrator(new DomainLFIntegrator(exact_coefficient));
    }
 
@@ -219,19 +223,18 @@ int main(int argc, char *argv[])
    // Set up the bilinear form diff_operator corresponding to the diffusion integrator
    DiffusionIntegratorCoefficient diff_op_coeff(&model);
    BilinearForm diff_operator(&fespace);
-   if (true) {
+   if (false) {
      diff_operator.AddDomainIntegrator(new DiffusionIntegrator(diff_op_coeff));
    }
-   
-   // Dirichlet boundary
-   if (false) {
-     diff_operator.AddBoundaryIntegrator(new MassIntegrator(one));
-   }
+
    // for debugging: solve I u = g
-   if (false) {
+   if (true) {
      diff_operator.AddDomainIntegrator(new MassIntegrator(one));
    }
-
+   if (true) {
+     diff_operator.AddBoundaryIntegrator(new MassIntegrator(one));
+   }
+   
    // boundary integral
    if (false) {
      BoundaryCoefficient first_boundary_coeff(rho_gamma, &model, 1);
@@ -241,7 +244,6 @@ int main(int argc, char *argv[])
 
    // assemble diff_operator
    diff_operator.Assemble();
-
 
    // Define the solution x as a finite element grid function in fespace. Set
    // the initial guess to zero, which also sets the boundary conditions.
@@ -258,6 +260,7 @@ int main(int argc, char *argv[])
    GSSmoother M(A);
    PCG(A, M, B, X, 0, 400, 1e-12, 0.0);
    diff_operator.RecoverFEMSolution(X, coil_term, x);
+   x = 1.0;
    // x is the recovered solution
    // x.ProjectCoefficient(exact_coefficient);
 
@@ -274,8 +277,8 @@ int main(int argc, char *argv[])
    SysOperator op(&diff_operator, &coil_term, &model, &fespace, &mesh, attr_lim);
    dx = 0.0;
 
-   // x = psi_init;
-   for (int i = 0; i < 5; ++i) {
+   x = 2.0;
+   for (int i = 0; i < 8; ++i) {
 
      op.Mult(x, out_vec);
      double error = GetMaxError(out_vec);
@@ -283,20 +286,41 @@ int main(int argc, char *argv[])
      printf("i: %d, max error: %.3e\n", i, error);
      printf("********************************\n\n");
 
-     if (error < 1e-12) {
+     if (error < 1e-16) {
        break;
      }
      int kdim = 10000;
      int max_iter = 400;
-     double tol = 1e-12;
+     double tol = 1e-16;
 
+     printf("debug\n");
+     set<int> plasma_inds;
+     map<int, vector<int>> vertex_map;
+     vertex_map = compute_vertex_map(mesh, attr_lim);
+     int ind_min, ind_max;
+     double min_val, max_val;
+     int iprint = 0;
+     compute_plasma_points(x, mesh, vertex_map, plasma_inds, ind_min, ind_max, min_val, max_val, iprint);
+     max_val = 1.0;
+     min_val = 0.0;
+     NonlinearGridCoefficient nlgcoeff1(&model, 1, &x, min_val, max_val, plasma_inds, attr_lim);
+     GridFunction nlgc_gf(&fespace);
+     nlgc_gf.ProjectCoefficient(nlgcoeff1);
+     nlgc_gf.Save("nlgc_.gf");
+     NonlinearGridCoefficient nlgcoeff2(&model, 2, &x, min_val, max_val, plasma_inds, attr_lim);
+     GridFunction nlgc2_gf(&fespace);
+     nlgc2_gf.ProjectCoefficient(nlgcoeff2);
+     nlgc2_gf.Save("nlgc2_.gf");
+     printf("end debug\n");
+     
      dx = 0.0;
      GMRES(op.GetGradient(x), dx, out_vec, M, max_iter, kdim, tol, 0.0, 0);
 
      // dx = 0.0;
      // op.GetGradient(x).FormLinearSystem(boundary_dofs, dx, out_vec, A, X, B);
      // GMRES(A, X, B, M, max_iter, kdim, tol, 0.0, 0);
- 
+
+     cout << "*************** dx = " << dx[0] << endl;
      x -= dx;
 
    }
