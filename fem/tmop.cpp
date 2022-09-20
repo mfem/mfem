@@ -3398,10 +3398,12 @@ void TMOP_Integrator::AssembleElemVecSurfFit(const FiniteElement &el_x,
    }
 
    surf_fit_gf->FESpace()->GetElementDofs(el_id, dofs);
-   for (int i = 0; i < matAdd.Height(); i++) {
-       for (int d = 0; d < matAdd.Width(); d++) {
-        matAdd(i, d) *= 1.0/surf_fit_dof_count[dofs[i]];
-       }
+   for (int i = 0; i < matAdd.Height(); i++)
+   {
+      for (int d = 0; d < matAdd.Width(); d++)
+      {
+         matAdd(i, d) *= 1.0/surf_fit_dof_count[dofs[i]];
+      }
    }
 
    mat += matAdd;

@@ -2018,19 +2018,19 @@ void GridFunction::GetNodalValues(Vector &nval, int vdim) const
 
 void GridFunction::CountZones(Array<int> &zones_per_vdof)
 {
-    zones_per_vdof.SetSize(fes->GetVSize());
-    zones_per_vdof = 0;
-    Array<int> vdofs;
+   zones_per_vdof.SetSize(fes->GetVSize());
+   zones_per_vdof = 0;
+   Array<int> vdofs;
 
-    for (int i = 0; i < fes->GetNE(); i++)
-    {
-       fes->GetElementVDofs(i, vdofs);
-       // Accumulate values in all dofs, count the zones.
-       for (int j = 0; j < vdofs.Size(); j++)
-       {
-          zones_per_vdof[vdofs[j]]++;
-       }
-    }
+   for (int i = 0; i < fes->GetNE(); i++)
+   {
+      fes->GetElementVDofs(i, vdofs);
+      // Accumulate values in all dofs, count the zones.
+      for (int j = 0; j < vdofs.Size(); j++)
+      {
+         zones_per_vdof[vdofs[j]]++;
+      }
+   }
 
 }
 
