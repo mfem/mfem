@@ -49,17 +49,17 @@ public:
   /// Solve the SPDE for a given right hand side b. May alter b if
   /// the exponent (alpha) is larger than 1. We avoid copying be default. If you
   /// need b later on, make a copy of it before calling this function.
-  void Solve(LinearForm &b, GridFunction &x);
+  void Solve(ParLinearForm &b, ParGridFunction &x);
 
 private:
   /// The rational approximation of the SPDE results in multiple
   /// reactio-diffusion PDEs that need to be solved. This call solves the PDE
   /// (div \Theta grad + \alpha I)^exponent x = \beta b.
-  void Solve(const LinearForm &b, GridFunction &x, double alpha, double beta,
+  void Solve(const ParLinearForm &b, ParGridFunction &x, double alpha, double beta,
              int exponent = 1);
 
   /// Lift the solution to satisfy the inhomogeneous boundary conditions.
-  void LiftSolution(GridFunction &x);
+  void LiftSolution(ParGridFunction &x);
 
   // Each PDE gives rise to a linear system. This call solves the linear system
   // with PCG and Boomer AMG preconditioner.
@@ -75,7 +75,7 @@ private:
 
   /// Writes the solution of the PDE from the previous call to Solve() to the
   /// linear from b (with appropriate transformations).
-  void UpdateRHS(LinearForm &b);
+  void UpdateRHS(ParLinearForm &b);
 
   // Compute the coefficients for the rational approximation of the solution.
   void ComputeRationalCoefficients(double exponent);

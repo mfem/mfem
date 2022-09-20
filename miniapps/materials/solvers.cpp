@@ -109,7 +109,7 @@ SPDESolver::SPDESolver(MatrixConstantCoefficient &diff_coefficient, double nu,
   }
 }
 
-void SPDESolver::Solve(LinearForm &b, GridFunction &x) {
+void SPDESolver::Solve(ParLinearForm &b, ParGridFunction &x) {
   // ------------------------------------------------------------------------
   // Solve the PDE (A)^N g = f, i.e. compute g = (A)^{-1}^N f iteratively.
   // ------------------------------------------------------------------------
@@ -165,7 +165,7 @@ void SPDESolver::Solve(LinearForm &b, GridFunction &x) {
   }
 }
 
-void SPDESolver::Solve(const LinearForm &b, GridFunction &x, double alpha,
+void SPDESolver::Solve(const ParLinearForm &b, ParGridFunction &x, double alpha,
                        double beta, int exponent) {
   // Form system of equations. This is less general than
   // BilinearForm::FormLinearSystem and kind of resembles the necessary subset
@@ -199,7 +199,7 @@ void SPDESolver::Solve(const LinearForm &b, GridFunction &x, double alpha,
   }
 }
 
-void SPDESolver::LiftSolution(GridFunction& x){
+void SPDESolver::LiftSolution(ParGridFunction& x){
   // Lifting of the solution takes care of inhomogeneous boundary conditions.
   // See doi:10.1016/j.jcp.2019.109009; section 2.6
   if (Mpi::Root()) {
@@ -232,7 +232,7 @@ void SPDESolver::LiftSolution(GridFunction& x){
   x += helper_gf;
 }
 
-void SPDESolver::UpdateRHS(LinearForm &b) {
+void SPDESolver::UpdateRHS(ParLinearForm &b) {
   if (!repeated_solve_) {
     // This function is only relevant for repeated solves.
     return;
