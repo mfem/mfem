@@ -15,13 +15,6 @@
 CMakeCache.txt
 CMakeFiles/
 
-# Windows generated files
-config/*.user
-config/*.obj
-config/*.tlog
-config/*.pdb
-config/Win32/x64/*
-
 # Backup files
 *~
 
