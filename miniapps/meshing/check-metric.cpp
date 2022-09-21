@@ -20,7 +20,7 @@ using namespace std;
 
 int main(int argc, char *argv[])
 {
-   int metric_id = 1;
+   int metric_id = 2;
    int convergence_iter = 10;
    bool verbose = false;
 
