@@ -207,8 +207,12 @@ public:
       Set(alpha, A.GetData());
    }
 
-   /// Adds the matrix A multiplied by the number c to the matrix
+   /// Adds the matrix A multiplied by the number c to the matrix.
    void Add(const double c, const DenseMatrix &A);
+
+   /// Adds the matrix A multiplied by the number c to the matrix,
+   /// assuming A has the same dimensions and uses column-major layout.
+   void Add(const double c, const double *A);
 
    /// Sets the matrix elements equal to constant c
    DenseMatrix &operator=(double c);
