@@ -73,7 +73,7 @@ MFEM_DEPRECATED SUNLinearSolver SUNLinSol_SPGMR(N_Vector y, int pretype,
 MFEM_DEPRECATED SUNLinearSolver SUNLinSol_SPFGMR(N_Vector y, int pretype,
                                                  int maxl, SUNContext)
 {
-   return SUNLinSol_SPGMR(y, pretype, maxl);
+   return SUNLinSol_SPFGMR(y, pretype, maxl);
 }
 
 /// (DEPRECATED) Wrapper function for backwards compatibility with SUNDIALS
