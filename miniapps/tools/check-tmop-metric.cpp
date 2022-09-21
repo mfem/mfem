@@ -9,7 +9,8 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 //
-// Checks evaluation / 1st derivative / 2nd derivative for TMOP metrics.
+// Checks evaluation / 1st derivative / 2nd derivative for TMOP metrics. Serial.
+//   ./check-tmop-metric -mid 360
 //
 
 #include "mfem.hpp"
