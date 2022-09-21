@@ -144,10 +144,11 @@ public:
    inline       double &operator()(int i, int j, int k, int l);
    inline const double &operator()(int i, int j, int k, int l) const;
 
-   static void Get3DRotationMatrix(double n[], double angle, double r,
-                                   DenseMatrix &T);
+   static void Get2DRotationMatrix(double angle, DenseMatrix &T);  // --> could be moved to protected?
+   static void Get3DRotationMatrix(double n[], double angle, double r, DenseMatrix &T);  // --> could be moved to protected?
    void FlipDirection(int dir);
    void SwapDirections(int dir1, int dir2);
+   void Rotate2D(double angle); // --> could be streamlined with 3d option???
    void Rotate3D(double normal[], double angle);
    int MakeUniformDegree(int degree = -1);
    friend NURBSPatch *Interpolate(NURBSPatch &p1, NURBSPatch &p2);
