@@ -1100,11 +1100,3 @@ larger problems, there are two options:
 2. Building hypre with '--enable-mixedint' defines the local indiced to be
    32-bit, while using a 64-bit storage for global indices. This option is
    currently tested only in ex1p, and may not work in more general settings.
-
-
-Windows Visual Studio build
-===========================
-There are two project files in config/Win32 which can be used for building
-MFEM in Visual Studio. The project files require conduit, hypre, superlu_dist,
-and zlib to be in the same directory as the top-level MFEM repo. These files
-are maintained for the Windows builds of internal LLNL applications.
