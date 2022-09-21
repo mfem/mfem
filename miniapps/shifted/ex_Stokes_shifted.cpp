@@ -19,8 +19,9 @@
 #include <iostream>
 #include <algorithm>
 #include "p_divW.hpp"
-#include "/Users/nma727/Desktop/MFEM/Source/mfem/miniapps/common/mfem-common.hpp"
+#include "../common/mfem-common.hpp"
 #include "AnalyticalSurface.hpp"
+
 
 using namespace std;
 using namespace mfem;
@@ -287,8 +288,8 @@ int main(int argc, char *argv[])
    // 11. Solve the linear system with MINRES.
    //     Check the norm of the unpreconditioned residual.
    int maxIter(100000000);
-   double rtol(1.e-14);
-   double atol(1.e-14);
+   double rtol(1.e-8);
+   double atol(0.0);
 
    chrono.Clear();
    chrono.Start();
