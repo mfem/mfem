@@ -79,11 +79,11 @@ void UpdateAndRebalance(ParMesh &pmesh, ParFiniteElementSpace &fespace,
 
 int main(int argc, char *argv[])
 {
-   // 1. Initialize MPI.
-   int num_procs, myid;
-   MPI_Init(&argc, &argv);
-   MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
-   MPI_Comm_rank(MPI_COMM_WORLD, &myid);
+   // 1. Initialize MPI and HYPRE.
+   Mpi::Init(argc, argv);
+   int num_procs = Mpi::WorldSize();
+   int myid = Mpi::WorldRank();
+   Hypre::Init();
 
    // 2. Parse command-line options.
    problem = 0;
@@ -134,7 +134,6 @@ int main(int argc, char *argv[])
       {
          args.PrintUsage(cout);
       }
-      MPI_Finalize();
       return 1;
    }
    if (myid == 0)
@@ -223,13 +222,14 @@ int main(int argc, char *argv[])
    visit_dc.RegisterField("solution", &x);
    int vis_cycle = 0;
 
-   // 10. As in Example 6p, we set up a Zienkiewicz-Zhu estimator that will be
-   //     used to obtain element error indicators. The integrator needs to
-   //     provide the method ComputeElementFlux. We supply an L2 space for the
-   //     discontinuous flux and an H(div) space for the smoothed flux.
+   // 10. As in Example 6p, we set up an estimator that will be used to obtain
+   //     element error indicators. The integrator needs to provide the method
+   //     ComputeElementFlux. We supply an L2 space for the discontinuous flux
+   //     and an H(div) space for the smoothed flux.
    L2_FECollection flux_fec(order, dim);
    RT_FECollection smooth_flux_fec(order-1, dim);
-   ErrorEstimator* estimator;
+   ErrorEstimator* estimator{nullptr};
+
    switch (which_estimator)
    {
       case 1:
@@ -248,7 +248,7 @@ int main(int argc, char *argv[])
       default:
          if (myid == 0)
          {
-            std::cout << "Unkown estimator. Falling back to L2ZZ." << std::endl;
+            std::cout << "Unknown estimator. Falling back to L2ZZ." << std::endl;
          }
       case 0:
       {
@@ -300,7 +300,7 @@ int main(int argc, char *argv[])
       //     time step resolved to the prescribed tolerance in each element.
       for (int ref_it = 1; ; ref_it++)
       {
-         HYPRE_Int global_dofs = fespace.GlobalTrueVSize();
+         HYPRE_BigInt global_dofs = fespace.GlobalTrueVSize();
          if (myid == 0)
          {
             cout << "Iteration: " << ref_it << ", number of unknowns: "
@@ -389,7 +389,6 @@ int main(int argc, char *argv[])
    delete estimator;
 
    // 25. Exit
-   MPI_Finalize();
    return 0;
 }
 

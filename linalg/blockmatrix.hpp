@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -71,6 +71,12 @@ public:
        treated according to that policy. */
    void EliminateRowCol(int rc, DiagonalPolicy dpolicy = DIAG_ONE);
 
+   /** @brief Eliminate the rows and columns corresponding to the entries
+       in @a vdofs + save the eliminated entries into
+       @a Ae so that (*this) + Ae is equal to the original matrix. */
+   void EliminateRowCols(const Array<int> & vdofs, BlockMatrix *Ae,
+                         DiagonalPolicy dpolicy = DIAG_ONE);
+
    //! Symmetric elimination of the marked degree of freedom.
    /**
      @param ess_bc_dofs  marker of the degree of freedom to be eliminated
@@ -89,7 +95,7 @@ public:
    //! Returns a monolithic CSR matrix that represents this operator.
    SparseMatrix * CreateMonolithic() const;
    //! Export the monolithic matrix to file.
-   void PrintMatlab(std::ostream & os = mfem::out) const;
+   virtual void PrintMatlab(std::ostream & os = mfem::out) const;
 
    /// @name Matrix interface
    ///@{
@@ -133,10 +139,21 @@ public:
                                  const double val = 1.) const;
    ///@}
 
+   /** @brief Partial matrix vector multiplication of (*this) with @a x
+       involving only the rows given by @a rows. The result is given in @a y */
+   void PartMult(const Array<int> &rows, const Vector &x, Vector &y) const;
+   /** @brief Partial matrix vector multiplication of (*this) with @a x
+       involving only the rows given by @a rows. The result is multiplied by
+       @a a and added to @a y */
+   void PartAddMult(const Array<int> &rows, const Vector &x, Vector &y,
+                    const double a=1.0) const;
+
    //! Destructor
    virtual ~BlockMatrix();
    //! If owns_blocks the SparseMatrix objects Aij will be deallocated.
    int owns_blocks;
+
+   virtual Type GetType() const { return MFEM_Block_Matrix; }
 
 private:
    //! Given a global row iglobal finds to which row iloc in block iblock belongs to.

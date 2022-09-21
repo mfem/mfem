@@ -533,6 +533,7 @@ enum XMLError {
     XML_ERROR_PARSING_COMMENT,
     XML_ERROR_PARSING_DECLARATION,
     XML_ERROR_PARSING_UNKNOWN,
+    XML_ERROR_PARSING_APPENDED_DATA,
     XML_ERROR_EMPTY_DOCUMENT,
     XML_ERROR_MISMATCHED_ELEMENT,
     XML_ERROR_PARSING,
@@ -1665,6 +1666,9 @@ public:
     /// See InsertNewChildElement()
     XMLUnknown* InsertNewUnknown(const char* text);
 
+    char* GetAppendedData() const { return _appendedData; }
+
+    size_t GetAppendedDataSize() const { return _appendedDataSize; }
 
     // internal:
     enum ElementClosingType {
@@ -1698,6 +1702,9 @@ private:
     // because the list needs to be scanned for dupes before adding
     // a new attribute.
     XMLAttribute* _rootAttribute;
+
+    char*  _appendedData;
+    size_t _appendedDataSize;
 };
 
 
@@ -1938,6 +1945,7 @@ private:
     mutable StrPair	_errorStr;
     int             _errorLineNum;
     char*			_charBuffer;
+    size_t          _len;
     int				_parseCurLineNum;
 	int				_parsingDepth;
 	// Memory tracking does add some overhead.

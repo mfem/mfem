@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -28,18 +28,26 @@ private:
    Vector nodes0;
    Vector field0;
    const double dt_scale;
+   const AssemblyLevel al;
+   MemoryType opt_mt = MemoryType::DEFAULT;
 
    void ComputeAtNewPositionScalar(const Vector &new_nodes, Vector &new_field);
 public:
-   AdvectorCG(double timestep_scale = 0.5)
+   AdvectorCG(AssemblyLevel al = AssemblyLevel::LEGACY,
+              double timestep_scale = 0.5)
       : AdaptivityEvaluator(),
-        ode_solver(), nodes0(), field0(), dt_scale(timestep_scale) { }
+        ode_solver(), nodes0(), field0(), dt_scale(timestep_scale), al(al) { }
 
    virtual void SetInitialField(const Vector &init_nodes,
                                 const Vector &init_field);
 
    virtual void ComputeAtNewPosition(const Vector &new_nodes,
                                      Vector &new_field);
+
+   /// Set the memory type used for large memory allocations. This memory type
+   /// is used when constructing the AdvectorCGOper but currently only for the
+   /// parallel variant.
+   void SetMemoryType(MemoryType mt) { opt_mt = mt; }
 };
 
 #ifdef MFEM_USE_GSLIB
@@ -76,12 +84,14 @@ protected:
    GridFunction &u;
    VectorGridFunctionCoefficient u_coeff;
    mutable BilinearForm M, K;
+   const AssemblyLevel al;
 
 public:
    /** Here @a fes is the FESpace of the function that will be moved. Note
        that Mult() moves the nodes of the mesh corresponding to @a fes. */
    SerialAdvectorCGOper(const Vector &x_start, GridFunction &vel,
-                        FiniteElementSpace &fes);
+                        FiniteElementSpace &fes,
+                        AssemblyLevel al = AssemblyLevel::LEGACY);
 
    virtual void Mult(const Vector &ind, Vector &di_dt) const;
 };
@@ -96,12 +106,16 @@ protected:
    GridFunction &u;
    VectorGridFunctionCoefficient u_coeff;
    mutable ParBilinearForm M, K;
+   const AssemblyLevel al;
 
 public:
    /** Here @a pfes is the ParFESpace of the function that will be moved. Note
-       that Mult() moves the nodes of the mesh corresponding to @a pfes. */
+       that Mult() moves the nodes of the mesh corresponding to @a pfes.
+       @a mt is used to set the memory type of the integrators. */
    ParAdvectorCGOper(const Vector &x_start, GridFunction &vel,
-                     ParFiniteElementSpace &pfes);
+                     ParFiniteElementSpace &pfes,
+                     AssemblyLevel al = AssemblyLevel::LEGACY,
+                     MemoryType mt = MemoryType::DEFAULT);
 
    virtual void Mult(const Vector &ind, Vector &di_dt) const;
 };
@@ -114,14 +128,25 @@ protected:
    int solver_type;
    bool parallel;
 
+   // Surface fitting variables.
+   bool adaptive_surf_fit = false;
+   mutable double surf_fit_err_avg_prvs = 10000.0;
+   mutable bool update_surf_fit_coeff = false;
+   double surf_fit_max_threshold = -1.0;
+
    // Minimum determinant over the whole mesh. Used for mesh untangling.
    double *min_det_ptr = nullptr;
+   // Flag to compute minimum determinant and maximum metric in ProcessNewState,
+   // which is required for TMOP_WorstCaseUntangleOptimizer_Metric.
+   mutable bool compute_metric_quantile_flag = true;
 
    // Quadrature points that are checked for negative Jacobians etc.
    const IntegrationRule &ir;
    // These fields are relevant for mixed meshes.
    IntegrationRules *IntegRules;
    int integ_order;
+
+   MemoryType temp_mt = MemoryType::DEFAULT;
 
    const IntegrationRule &GetIntegrationRule(const FiniteElement &el) const
    {
@@ -136,6 +161,23 @@ protected:
 
    double ComputeMinDet(const Vector &x_loc,
                         const FiniteElementSpace &fes) const;
+
+   double MinDetJpr_2D(const FiniteElementSpace*, const Vector&) const;
+   double MinDetJpr_3D(const FiniteElementSpace*, const Vector&) const;
+
+   /** @name Methods for adaptive surface fitting weight. */
+   ///@{
+   /// Get the average and maximum surface fitting error at the marked nodes.
+   /// If there is more than 1 TMOP integrator, we get the maximum of the
+   /// average and maximum error over all integrators.
+   virtual void GetSurfaceFittingError(double &err_avg, double &err_max) const;
+
+   /// Update surface fitting weight as surf_fit_weight *= factor.
+   void UpdateSurfaceFittingWeight(double factor) const;
+
+   /// Get the surface fitting weight for all the TMOP integrators.
+   void GetSurfaceFittingWeight(Array<double> &weights) const;
+   ///@}
 
 public:
 #ifdef MFEM_USE_MPI
@@ -158,9 +200,29 @@ public:
 
    void SetMinDetPtr(double *md_ptr) { min_det_ptr = md_ptr; }
 
+   /// Set the memory type for temporary memory allocations.
+   void SetTempMemoryType(MemoryType mt) { temp_mt = mt; }
+
+   /// Compute scaling factor for the node movement direction using line-search.
+   /// We impose constraints on TMOP energy, gradient, minimum Jacobian of
+   /// the mesh, and (optionally) on the surface fitting error.
    virtual double ComputeScalingFactor(const Vector &x, const Vector &b) const;
 
+   /// Update (i) discrete functions at new nodal positions, and
+   /// (ii) surface fitting weight.
    virtual void ProcessNewState(const Vector &x) const;
+
+   /** @name Methods for adaptive surface fitting weight. (Experimental) */
+   /// Enable adaptive surface fitting weight.
+   /// The weight is modified after each TMOPNewtonSolver iteration.
+   void EnableAdaptiveSurfaceFitting() { adaptive_surf_fit = true; }
+
+   /// Set the termination criterion for mesh optimization based on
+   /// the maximum surface fitting error.
+   void SetTerminationWithMaxSurfaceFittingError(double max_error)
+   {
+      surf_fit_max_threshold = max_error;
+   }
 
    virtual void Mult(const Vector &b, Vector &x) const
    {

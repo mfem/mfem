@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -22,6 +22,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <algorithm>
+#include <type_traits>
 
 namespace mfem
 {
@@ -36,9 +37,9 @@ void Swap(Array<T> &, Array<T> &);
    Abstract data type Array.
 
    Array<T> is an automatically increasing array containing elements of the
-   generic type T, which must be a POD (plain old data) type. The allocated size
-   may be larger then the logical size of the array. The elements can be
-   accessed by the [] operator, the range is 0 to size-1.
+   generic type T, which must be a trivial type, see `std::is_trivial`. The
+   allocated size may be larger then the logical size of the array. The elements
+   can be accessed by the [] operator, the range is 0 to size-1.
 */
 template <class T>
 class Array
@@ -50,6 +51,11 @@ protected:
    int size;
 
    inline void GrowSize(int minsize);
+
+   static inline void TypeAssert()
+   {
+      static_assert(std::is_trivial<T>::value, "type T must be trivial");
+   }
 
 public:
    friend void Swap<T>(Array<T> &, Array<T> &);
@@ -64,11 +70,15 @@ public:
    explicit inline Array(int asize)
       : size(asize) { asize > 0 ? data.New(asize) : data.Reset(); }
 
+   /// Creates array of @a asize elements with a given MemoryType
+   inline Array(int asize, MemoryType mt)
+      : size(asize) { asize > 0 ? data.New(asize, mt) : data.Reset(mt); }
+
    /** @brief Creates array using an existing c-array of asize elements;
        allocsize is set to -asize to indicate that the data will not
        be deleted. */
-   inline Array(T *_data, int asize)
-   { data.Wrap(_data, asize, false); size = asize; }
+   inline Array(T *data_, int asize)
+   { data.Wrap(data_, asize, false); size = asize; }
 
    /// Copy constructor: deep copy from @a src
    /** This method supports source arrays using any MemoryType. */
@@ -83,7 +93,7 @@ public:
    explicit inline Array(const CT (&values)[N]);
 
    /// Destructor
-   inline ~Array() { data.Delete(); }
+   inline ~Array() { TypeAssert(); data.Delete(); }
 
    /// Assignment operator: deep copy from 'src'.
    Array<T> &operator=(const Array<T> &src) { src.Copy(*this); return *this; }
@@ -288,7 +298,7 @@ public:
    inline const T* end() const { return data + size; }
 
    /// Returns the number of bytes allocated for the array including any reserve.
-   long MemoryUsage() const { return Capacity() * sizeof(T); }
+   std::size_t MemoryUsage() const { return Capacity() * sizeof(T); }
 
    /// Shortcut for mfem::Read(a.GetMemory(), a.Size(), on_dev).
    const T *Read(bool on_dev = true) const
@@ -331,6 +341,10 @@ inline bool operator!=(const Array<T> &LHS, const Array<T> &RHS)
 {
    return !( LHS == RHS );
 }
+
+
+/// Utility function similar to std::as_const in c++17.
+template <typename T> const T &AsConst(T &a) { return a; }
 
 
 template <class T>
@@ -383,10 +397,10 @@ public:
           0 - write the number of rows and columns, followed by all entries
           1 - write only the entries, using row-major layout
    */
-   void Save(std::ostream &out, int fmt = 0) const
+   void Save(std::ostream &os, int fmt = 0) const
    {
-      if (fmt == 0) { out << NumRows() << ' ' << NumCols() << '\n'; }
-      array1d.Save(out, 1);
+      if (fmt == 0) { os << NumRows() << ' ' << NumCols() << '\n'; }
+      array1d.Save(os, 1);
    }
 
    /** @brief Read an Array2D from the stream @a in using format @a fmt.
@@ -459,6 +473,7 @@ class BlockArray
 public:
    BlockArray(int block_size = 16*1024);
    BlockArray(const BlockArray<T> &other); // deep copy
+   BlockArray& operator=(const BlockArray&) = delete; // not supported
    ~BlockArray() { Destroy(); }
 
    /// Allocate and construct a new item in the array, return its index.
@@ -494,7 +509,7 @@ public:
 
    void Swap(BlockArray<T> &other);
 
-   long MemoryUsage() const;
+   std::size_t MemoryUsage() const;
 
 protected:
    template <typename cA, typename cT>
@@ -1028,10 +1043,9 @@ void BlockArray<T>::Swap(BlockArray<T> &other)
 }
 
 template<typename T>
-long BlockArray<T>::MemoryUsage() const
+std::size_t BlockArray<T>::MemoryUsage() const
 {
-   return blocks.Size()*(mask+1)*sizeof(T) +
-          blocks.MemoryUsage();
+   return (mask+1)*sizeof(T)*blocks.Size() + blocks.MemoryUsage();
 }
 
 template<typename T>

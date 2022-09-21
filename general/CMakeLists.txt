@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -17,6 +17,7 @@ list(APPEND SRCS
   error.cpp
   gecko.cpp
   globals.cpp
+  hash.cpp
   isockstream.cpp
   mem_manager.cpp
   occa.cpp
@@ -33,6 +34,7 @@ list(APPEND SRCS
   )
 
 list(APPEND HDRS
+  annotation.hpp
   array.hpp
   backends.hpp
   binaryio.hpp

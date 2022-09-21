@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -19,6 +19,7 @@
 #define MFEM_HIP_BLOCKS 256
 
 #ifdef MFEM_USE_HIP
+#define MFEM_USE_CUDA_OR_HIP
 #define MFEM_DEVICE __device__
 #define MFEM_LAMBDA __host__ __device__
 #define MFEM_HOST_DEVICE __host__ __device__
@@ -43,6 +44,7 @@
 #if defined(MFEM_USE_HIP) && defined(__HIP_DEVICE_COMPILE__)
 #define MFEM_SHARED __shared__
 #define MFEM_SYNC_THREAD __syncthreads()
+#define MFEM_BLOCK_ID(k) hipBlockIdx_ ##k
 #define MFEM_THREAD_ID(k) hipThreadIdx_ ##k
 #define MFEM_THREAD_SIZE(k) hipBlockDim_ ##k
 #define MFEM_FOREACH_THREAD(i,k,N) \

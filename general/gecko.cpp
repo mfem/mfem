@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -19,7 +19,7 @@
 
 // BSD 3-Clause License
 //
-// Copyright (c) 2019-2021, Lawrence Livermore National Security, LLC
+// Copyright (c) 2019-2022, Lawrence Livermore National Security, LLC
 // All rights reserved.
 //
 // Redistribution and use in source and binary forms, with or without
@@ -49,7 +49,7 @@
 
 // ------------------------------------------------------------------------------
 
-// Copyright (c) 2019-2021, Lawrence Livermore National Security, LLC and other
+// Copyright (c) 2019-2022, Lawrence Livermore National Security, LLC and other
 // gecko project contributors. See the above license for details.
 // SPDX-License-Identifier: BSD-3-Clause
 // LLNL-CODE-800597
@@ -546,7 +546,8 @@ Subgraph::optimize(uint p)
    // Initialize subgraph.
    const Float q = g->node[g->perm[p]].pos - g->node[g->perm[p]].hlen;
    min = WeightedSum(GECKO_FLOAT_MAX, 1);
-   for (Subnode::Index k = 0; k < n; k++)
+   // Subnode::Index's "k" is unsigned char, "n" is unsigned int
+   for (Subnode::Index k = 0; (uint) k < n; k++)
    {
       best[k] = perm[k] = k;
       Node::Index i = g->perm[p + k];
@@ -563,7 +564,7 @@ Subgraph::optimize(uint p)
       {
          Node::Index j = g->adj[a];
          Subnode::Index l;
-         for (l = 0; l < n && g->perm[p + l] != j; l++);
+         for (l = 0; (uint) l < n && g->perm[p + l] != j; l++);
          if (l == n)
          {
             external.push_back(a);
@@ -603,7 +604,7 @@ Subgraph::optimize(uint p)
          {
             Subnode* s = cache + (k << n) + m;
             s->pos = q + g->node[i].hlen;
-            for (Subnode::Index l = 0; l < n; l++)
+            for (Subnode::Index l = 0; (uint) l < n; l++)
                if (l != k && !(m & (1u << l)))
                {
                   s->pos += 2 * g->node[g->perm[p + l]].hlen;
@@ -1228,12 +1229,12 @@ Graph::reweight(uint k)
 
 // Linearly order graph.
 void
-Graph::order(Functional* functional, uint iterations, uint window, uint period,
-             uint seed, Progress* progress)
+Graph::order(Functional* functional_, uint iterations, uint window, uint period,
+             uint seed, Progress* progress_)
 {
    // Initialize graph.
-   this->functional = functional;
-   progress = this->progress = progress ? progress : new Progress;
+   this->functional = functional_;
+   progress_ = this->progress = progress_ ? progress_ : new Progress;
    for (level = 0; (1u << level) < nodes(); level++);
    place();
    Float mincost = cost();

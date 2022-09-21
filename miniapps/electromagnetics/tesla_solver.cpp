@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -213,7 +213,7 @@ TeslaSolver::~TeslaSolver()
    }
 }
 
-HYPRE_Int
+HYPRE_BigInt
 TeslaSolver::GetProblemSize()
 {
    return HCurlFESpace_->GlobalTrueVSize();
@@ -222,9 +222,9 @@ TeslaSolver::GetProblemSize()
 void
 TeslaSolver::PrintSizes()
 {
-   HYPRE_Int size_h1 = H1FESpace_->GlobalTrueVSize();
-   HYPRE_Int size_nd = HCurlFESpace_->GlobalTrueVSize();
-   HYPRE_Int size_rt = HDivFESpace_->GlobalTrueVSize();
+   HYPRE_BigInt size_h1 = H1FESpace_->GlobalTrueVSize();
+   HYPRE_BigInt size_nd = HCurlFESpace_->GlobalTrueVSize();
+   HYPRE_BigInt size_rt = HDivFESpace_->GlobalTrueVSize();
    if (myid_ == 0)
    {
       cout << "Number of H1      unknowns: " << size_h1 << endl;
@@ -414,7 +414,7 @@ TeslaSolver::GetErrorEstimates(Vector & errors)
    ParFiniteElementSpace flux_fes(pmesh_, &flux_fec);
 
    // Space for the smoothed (conforming) flux
-   double norm_p = 1;
+   int norm_p = 1;
    ND_FECollection smooth_flux_fec(order_, pmesh_->Dimension());
    ParFiniteElementSpace smooth_flux_fes(pmesh_, &smooth_flux_fec);
 
@@ -445,7 +445,7 @@ TeslaSolver::WriteVisItFields(int it)
    {
       if (myid_ == 0) { cout << "Writing VisIt files ..." << flush; }
 
-      HYPRE_Int prob_size = this->GetProblemSize();
+      HYPRE_BigInt prob_size = this->GetProblemSize();
       visit_dc_->SetCycle(it);
       visit_dc_->SetTime(prob_size);
       visit_dc_->Save();

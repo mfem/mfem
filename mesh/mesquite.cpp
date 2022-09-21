@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -948,7 +948,7 @@ static void BoundaryPreservingOptimization(mfem::MesquiteMesh &mesh)
           num_fixed_boundary_flags, num_boundary_vertices);
 
 
-   // creates three intruction queues
+   // creates three instruction queues
    Mesquite::InstructionQueue boundary_queue;
    Mesquite::InstructionQueue interior_queue;
 
@@ -1179,7 +1179,7 @@ void mfem::Mesh::MesquiteSmooth(const int mesquite_option)
    }
    else
    {
-      // boundary perserving smoothing doesn't have a wrapper yet.
+      // boundary preserving smoothing doesn't have a wrapper yet.
       BoundaryPreservingOptimization( msq_mesh );
    }
 }

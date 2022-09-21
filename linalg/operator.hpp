@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -28,6 +28,7 @@ protected:
    int width;  ///< Dimension of the input / number of columns in the matrix.
 
    /// see FormSystemOperator()
+   /** @note Uses DiagonalPolicy::DIAG_ONE. */
    void FormConstrainedSystemOperator(
       const Array<int> &ess_tdof_list, ConstrainedOperator* &Aout);
 
@@ -242,7 +243,10 @@ public:
    void FormDiscreteOperator(Operator* &A);
 
    /// Prints operator with input size n and output size m in Matlab format.
-   void PrintMatlab(std::ostream & out, int n = 0, int m = 0) const;
+   void PrintMatlab(std::ostream & out, int n, int m = 0) const;
+
+   /// Prints operator in Matlab format.
+   virtual void PrintMatlab(std::ostream & out) const;
 
    /// Virtual destructor.
    virtual ~Operator() { }
@@ -262,7 +266,9 @@ public:
       PETSC_MATGENERIC, ///< ID for class PetscParMatrix, unspecified format.
       Complex_Operator, ///< ID for class ComplexOperator.
       MFEM_ComplexSparseMat, ///< ID for class ComplexSparseMatrix.
-      Complex_Hypre_ParCSR   ///< ID for class ComplexHypreParMatrix.
+      Complex_Hypre_ParCSR,   ///< ID for class ComplexHypreParMatrix.
+      MFEM_Block_Matrix,     ///< ID for class BlockMatrix.
+      MFEM_Block_Operator   ///< ID for the base class BlockOperator.
    };
 
    /// Return the type ID of the Operator class.
@@ -323,7 +329,7 @@ public:
    virtual double GetTime() const { return t; }
 
    /// Set the current time.
-   virtual void SetTime(const double _t) { t = _t; }
+   virtual void SetTime(const double t_) { t = t_; }
 
    /// True if #type is #EXPLICIT.
    bool isExplicit() const { return (type == EXPLICIT); }
@@ -698,11 +704,15 @@ private:
 public:
    /// Create an operator which is a scalar multiple of A.
    explicit ScaledOperator(const Operator *A, double a)
-      : Operator(A->Width(), A->Height()), A_(*A), a_(a) { }
+      : Operator(A->Height(), A->Width()), A_(*A), a_(a) { }
 
    /// Operator application
    virtual void Mult(const Vector &x, Vector &y) const
    { A_.Mult(x, y); y *= a_; }
+
+   /// Application of the transpose.
+   virtual void MultTranspose(const Vector &x, Vector &y) const
+   { A_.MultTranspose(x, y); y *= a_; }
 };
 
 
@@ -857,8 +867,8 @@ public:
    virtual MemoryClass GetMemoryClass() const { return mem_class; }
 
    /// Set the diagonal policy for the constrained operator.
-   void SetDiagonalPolicy(const DiagonalPolicy _diag_policy)
-   { diag_policy = _diag_policy; }
+   void SetDiagonalPolicy(const DiagonalPolicy diag_policy_)
+   { diag_policy = diag_policy_; }
 
    /// Diagonal of A, modified according to the used DiagonalPolicy.
    virtual void AssembleDiagonal(Vector &diag) const;
@@ -871,7 +881,9 @@ public:
            z = A((0,x_b));  b_i -= z_i;  b_b = x_b;
 
        where the "_b" subscripts denote the essential (boundary) indices/dofs of
-       the vectors, and "_i" -- the rest of the entries. */
+       the vectors, and "_i" -- the rest of the entries.
+
+       @note This method is consistent with `DiagonalPolicy::DIAG_ONE`. */
    void EliminateRHS(const Vector &x, Vector &b) const;
 
    /** @brief Constrained operator action.
@@ -959,7 +971,7 @@ public:
 #endif
 
 #ifdef MFEM_USE_MPI
-   PowerMethod(MPI_Comm _comm) : comm(_comm) {}
+   PowerMethod(MPI_Comm comm_) : comm(comm_) {}
 #endif
 
    /// @brief Returns an estimate of the largest eigenvalue of the operator \p opr
@@ -968,7 +980,7 @@ public:
        the eigenvector corresponding to the largest eigenvalue after convergence.
        The maximum number of iterations may set with \p numSteps, the relative
        tolerance with \p tolerance and the seed of the random initialization of
-       \p v0 with \p seed. */
+       \p v0 with \p seed. If \p seed is 0 \p v0 will not be random-initialized. */
    double EstimateLargestEigenvalue(Operator& opr, Vector& v0,
                                     int numSteps = 10, double tolerance = 1e-8,
                                     int seed = 12345);

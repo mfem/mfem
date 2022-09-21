@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -92,7 +92,7 @@ public:
 
    /**
       Once the solver configuration has been established through either the
-      ReadParameters method or the constructor, InitSerial will initalize the
+      ReadParameters method or the constructor, InitSerial will initialize the
       library. If configuring with constructor, the constructor will make this
       call.
    */
@@ -117,7 +117,7 @@ public:
 
    /**
       Once the solver configuration has been established, either through the
-      constructor or the ReadParameters method, InitSerial will initalize the
+      constructor or the ReadParameters method, InitSerial will initialize the
       library. If configuring with constructor, the constructor will make this
       call.
    */

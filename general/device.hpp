@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -150,7 +150,7 @@ private:
    static Device& Get() { return device_singleton; }
 
    /// Setup switcher based on configuration settings
-   void Setup(const int dev = 0);
+   void Setup(const int device_id = 0);
 
    void MarkBackend(Backend::Id b) { backends |= b; }
 
@@ -247,6 +247,9 @@ public:
 
    /// The opposite of IsEnabled().
    static inline bool IsDisabled() { return !IsEnabled(); }
+
+   /// Get the device id of the configured device.
+   static inline int GetId() { return Get().dev; }
 
    /** @brief Return true if any of the backends in the backend mask, @a b_mask,
        are allowed. */

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -94,6 +94,11 @@ public:
    /** Parallel reimplementation of NCMesh::Derefine, keeps ghost layers
        in sync. The interface is identical. */
    virtual void Derefine(const Array<int> &derefs);
+
+   /** Gets partitioning for the coarse mesh if the current fine mesh were to
+       be derefined. */
+   virtual void GetFineToCoarsePartitioning(const Array<int> &derefs,
+                                            Array<int> &new_ranks) const;
 
    /** Migrate leaf elements of the global refinement hierarchy (including ghost
        elements) so that each processor owns the same number of leaves (+-1).
@@ -235,14 +240,13 @@ public:
    virtual void Trim();
 
    /// Return total number of bytes allocated.
-   long MemoryUsage(bool with_base = true) const;
+   std::size_t MemoryUsage(bool with_base = true) const;
 
    int PrintMemoryDetail(bool with_base = true) const;
 
    /** Extract a debugging Mesh containing all leaf elements, including ghosts.
        The debug mesh will have element attributes set to element rank + 1. */
    void GetDebugMesh(Mesh &debug_mesh) const;
-
 
 protected: // interface for ParMesh
 
@@ -296,9 +300,6 @@ protected: // implementation
    Array<int> boundary_layer; ///< list of type 3 elements
 
    virtual void Update();
-
-   virtual int GetNumGhostElements() const { return NGhostElements; }
-   virtual int GetNumGhostVertices() const { return NGhostVertices; }
 
    /// Return the processor number for a global element number.
    int Partition(long index, long total_elements) const
@@ -364,7 +365,7 @@ protected: // implementation
       void Load(std::istream &is);
       void Decode(Array<int> &elements) const;
 
-      void SetNCMesh(NCMesh *ncmesh) { this->ncmesh = ncmesh; }
+      void SetNCMesh(NCMesh *ncmesh_) { this->ncmesh = ncmesh_; }
       const NCMesh* GetNCMesh() const { return ncmesh; }
 
    protected:
@@ -443,7 +444,7 @@ protected: // implementation
       { elements.push_back(elem); values.push_back(val); }
 
       /// Set pointer to ParNCMesh (needed to encode the message).
-      void SetNCMesh(ParNCMesh* pncmesh) { this->pncmesh = pncmesh; }
+      void SetNCMesh(ParNCMesh* pncmesh_) { this->pncmesh = pncmesh_; }
 
       ElementValueMessage() : pncmesh(NULL) {}
 
@@ -505,7 +506,7 @@ protected: // implementation
 
       void SetElements(const Array<int> &elems, NCMesh *ncmesh);
       void SetNCMesh(NCMesh* ncmesh) { eset.SetNCMesh(ncmesh); }
-      long MemoryUsage() const;
+      std::size_t MemoryUsage() const;
 
       typedef std::map<int, RebalanceDofMessage> Map;
 
@@ -539,7 +540,7 @@ protected: // implementation
    Array<DenseMatrix*> aux_pm_store;
    void ClearAuxPM();
 
-   long GroupsMemoryUsage() const;
+   std::size_t GroupsMemoryUsage() const;
 
    friend class NeighborRowMessage;
 };

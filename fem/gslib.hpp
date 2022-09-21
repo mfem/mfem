@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -17,11 +17,13 @@
 
 #ifdef MFEM_USE_GSLIB
 
+namespace gslib
+{
 struct comm;
 struct findpts_data_2;
 struct findpts_data_3;
-struct array;
 struct crystal;
+}
 
 namespace mfem
 {
@@ -48,27 +50,26 @@ public:
    enum AvgType {NONE, ARITHMETIC, HARMONIC}; // Average type for L2 functions
 
 protected:
-   Mesh *mesh, *meshsplit;
-   IntegrationRule *ir_simplex;    // IntegrationRule to split quads/hex -> simplex
-   struct findpts_data_2 *fdata2D; // gslib's internal data
-   struct findpts_data_3 *fdata3D; // gslib's internal data
-   struct crystal *cr;             // gslib's internal data
-   struct comm *gsl_comm;          // gslib's internal data
+   Mesh *mesh;
+   Array<Mesh *> mesh_split;  // Meshes used to split simplices.
+   Array<IntegrationRule *> ir_split; // IntegrationRules for simplex->Quad/Hex
+   Array<FiniteElementSpace *>
+   fes_rst_map; // FESpaces to map info Quad/Hex->Simplex
+   Array<GridFunction *> gf_rst_map; // GridFunctions to map info Quad/Hex->Simplex
+   FiniteElementCollection *fec_map_lin;
+   struct gslib::findpts_data_2 *fdata2D; // gslib's internal data
+   struct gslib::findpts_data_3 *fdata3D; // gslib's internal data
+   struct gslib::crystal *cr;             // gslib's internal data
+   struct gslib::comm *gsl_comm;          // gslib's internal data
    int dim, points_cnt;
    Array<unsigned int> gsl_code, gsl_proc, gsl_elem, gsl_mfem_elem;
    Vector gsl_mesh, gsl_ref, gsl_dist, gsl_mfem_ref;
    bool setupflag;              // flag to indicate whether gslib data has been setup
    double default_interp_value; // used for points that are not found in the mesh
    AvgType avgtype;             // average type used for L2 functions
-
-   /// Get GridFunction from MFEM format to GSLIB format
-   virtual void GetNodeValues(const GridFunction &gf_in, Vector &node_vals);
-   /// Get nodal coordinates from mesh to the format expected by GSLIB for quads
-   /// and hexes
-   virtual void GetQuadHexNodalCoordinates();
-   /// Convert simplices to quad/hexes and then get nodal coordinates for each
-   /// split element into format expected by GSLIB
-   virtual void GetSimplexNodalCoordinates();
+   Array<int> split_element_map;
+   Array<int> split_element_index;
+   int        NE_split_total;
 
    /// Use GSLIB for communication and interpolation
    virtual void InterpolateH1(const GridFunction &field_in, Vector &field_out);
@@ -76,16 +77,30 @@ protected:
    /// interpolation functions
    virtual void InterpolateGeneral(const GridFunction &field_in,
                                    Vector &field_out);
-   /// Map {r,s,t} coordinates from [-1,1] to [0,1] for MFEM. For simplices mesh
-   /// find the original element number (that was split into micro quads/hexes
-   /// by GetSimplexNodalCoordinates())
+
+   /// Since GSLIB is designed to work with quads/hexes, we split every
+   /// triangle/tet/prism/pyramid element into quads/hexes.
+   virtual void SetupSplitMeshes();
+
+   /// Setup integration points that will be used to interpolate the nodal
+   /// location at points expected by GSLIB.
+   virtual void SetupIntegrationRuleForSplitMesh(Mesh *mesh,
+                                                 IntegrationRule *irule,
+                                                 int order);
+
+   /// Get GridFunction value at the points expected by GSLIB.
+   virtual void GetNodalValues(const GridFunction *gf_in, Vector &node_vals);
+
+   /// Map {r,s,t} coordinates from [-1,1] to [0,1] for MFEM. For simplices,
+   /// find the original element number (that was split into micro quads/hexes)
+   /// during the setup phase.
    virtual void MapRefPosAndElemIndices();
 
 public:
    FindPointsGSLIB();
 
 #ifdef MFEM_USE_MPI
-   FindPointsGSLIB(MPI_Comm _comm);
+   FindPointsGSLIB(MPI_Comm comm_);
 #endif
 
    virtual ~FindPointsGSLIB();
@@ -199,7 +214,7 @@ public:
       overset(true) { }
 
 #ifdef MFEM_USE_MPI
-   OversetFindPointsGSLIB(MPI_Comm _comm) : FindPointsGSLIB(_comm),
+   OversetFindPointsGSLIB(MPI_Comm comm_) : FindPointsGSLIB(comm_),
       overset(true) { }
 #endif
 

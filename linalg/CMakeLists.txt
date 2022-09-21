@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -36,6 +36,7 @@ list(APPEND HDRS
   complex_operator.hpp
   constraints.hpp
   densemat.hpp
+  dinvariants.hpp
   symmat.hpp
   dtensor.hpp
   handle.hpp
@@ -51,6 +52,8 @@ list(APPEND HDRS
   tlayout.hpp
   tmatrix.hpp
   ttensor.hpp
+  tensor.hpp
+  dual.hpp
   vector.hpp
   )
 
