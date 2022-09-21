@@ -115,6 +115,9 @@ public:
 class SundialsMemHelper
 {
 public:
+
+   SundialsMemHelper() = default;
+
    SundialsMemHelper(SUNContext context)
    {
       // Do nothing
