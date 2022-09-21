@@ -20,6 +20,7 @@
 #include "../../../linalg/dtensor.hpp"
 #include "../../../mesh/mesh.hpp"
 #include "../../gridfunc.hpp"
+#include "../../qfunction.hpp"
 #include "util.hpp"
 #include "ceed.hpp"
 
@@ -121,7 +122,7 @@ void InitCoefficient(mfem::Coefficient *Q, mfem::Mesh &mesh,
       MFEM_VERIFY(qFun.Size() == nq * ne,
                   "Incompatible QuadratureFunction dimension \n");
 
-      MFEM_VERIFY(&ir == &qFun.GetSpace()->GetElementIntRule(0),
+      MFEM_VERIFY(&ir == &qFun.GetSpace()->GetIntRule(0),
                   "IntegrationRule used within integrator and in"
                   " QuadratureFunction appear to be different");
       qFun.Read();
@@ -195,7 +196,7 @@ void InitCoefficient(mfem::VectorCoefficient *VQ, mfem::Mesh &mesh,
       MFEM_VERIFY(qFun.Size() == dim * nq * ne,
                   "Incompatible QuadratureFunction dimension \n");
 
-      MFEM_VERIFY(&ir == &qFun.GetSpace()->GetElementIntRule(0),
+      MFEM_VERIFY(&ir == &qFun.GetSpace()->GetIntRule(0),
                   "IntegrationRule used within integrator and in"
                   " QuadratureFunction appear to be different");
       qFun.Read();
@@ -279,7 +280,7 @@ void InitCoefficientWithIndices(mfem::Coefficient *Q, mfem::Mesh &mesh,
       MFEM_VERIFY(qFun.Size() == nq * ne,
                   "Incompatible QuadratureFunction dimension \n");
 
-      MFEM_VERIFY(&ir == &qFun.GetSpace()->GetElementIntRule(0),
+      MFEM_VERIFY(&ir == &qFun.GetSpace()->GetIntRule(0),
                   "IntegrationRule used within integrator and in"
                   " QuadratureFunction appear to be different");
       ceedCoeff->coeff.SetSize(nq * nelem);
@@ -369,7 +370,7 @@ void InitCoefficientWithIndices(mfem::VectorCoefficient *VQ, mfem::Mesh &mesh,
       MFEM_VERIFY(qFun.Size() == dim * nq * ne,
                   "Incompatible QuadratureFunction dimension \n");
 
-      MFEM_VERIFY(&ir == &qFun.GetSpace()->GetElementIntRule(0),
+      MFEM_VERIFY(&ir == &qFun.GetSpace()->GetIntRule(0),
                   "IntegrationRule used within integrator and in"
                   " QuadratureFunction appear to be different");
       ceedCoeff->coeff.SetSize(dim * nq * nelem);
