@@ -933,6 +933,27 @@ public:
                           const double weight, DenseMatrix &A) const;
 };
 
+/// 3D non-barrier Shape (S) metric.
+class TMOP_Metric_360 : public TMOP_QualityMetric
+{
+protected:
+   mutable InvariantsEvaluator3D<double> ie;
+
+public:
+   // W = |J|^3 / 3^(3/2) - det(J).
+   virtual double EvalWMatrixForm(const DenseMatrix &Jpt) const;
+
+   // W = (I1b/3)^3/2 - 1.
+   virtual double EvalW(const DenseMatrix &Jpt) const;
+
+   virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const;
+
+   virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
+                          const double weight, DenseMatrix &A) const;
+
+   virtual int Id() const { return 360; }
+};
+
 /// A-metrics
 /// 2D barrier Shape (S) metric (polyconvex).
 class TMOP_AMetric_011 : public TMOP_QualityMetric
