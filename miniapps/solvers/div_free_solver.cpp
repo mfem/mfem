@@ -827,8 +827,8 @@ BlockHybridizationSolver::BlockHybridizationSolver(const shared_ptr<ParBilinearF
     M.SetPrintLevel(0);
 
     SetOptions(solver_, param);
-    solver_.SetOperator(*pH);
     solver_.SetPreconditioner(M);
+    solver_.SetOperator(*pH);
 }
 
 BlockHybridizationSolver::~BlockHybridizationSolver()
