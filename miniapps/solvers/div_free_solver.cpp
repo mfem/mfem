@@ -816,8 +816,8 @@ BlockHybridizationSolver::BlockHybridizationSolver(const shared_ptr<ParBilinearF
     const bool fix_empty_rows = true;
     H.Finalize(skip_zeros, fix_empty_rows);
 
-    OperatorHandle pP(pH.Type()), dH(pH.Type());
     pH.SetType(Operator::Hypre_ParCSR);
+    OperatorPtr pP(pH.Type()), dH(pH.Type());
     pP.ConvertFrom(c_space.Dof_TrueDof_Matrix());
     dH.MakeSquareBlockDiag(c_space.GetComm(), c_space.GlobalVSize(),
                            c_space.GetDofOffsets(), &H);
@@ -862,6 +862,11 @@ void BlockHybridizationSolver::Mult(const Vector &x, Vector &y) const
         g_i.MakeRef(rhs, hat_offsets[i], trial_size);
         x.GetSubVector(dofs, g_i);  // reverses the sign in assemble if dof < 0
 
+        dofs.SetSize(0);
+        for (int j = hat_offsets[i]; j < hat_offsets[i + 1]; ++j)
+        {
+            dofs.Append(j);
+        }
         const int test_size = test_space.GetFE(i)->GetDof();
         test_dofs.SetSize(test_size);
         test_space.GetElementDofs(i, test_dofs);
