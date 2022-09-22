@@ -15,5 +15,5 @@
 #   - GSLIB_INCLUDE_DIRS
 
 include(MfemCmakeUtilities)
-mfem_find_package(gslib GSLIB GSLIB_DIR "include" gslib.h "lib" gs
+mfem_find_package(GSLIB GSLIB GSLIB_DIR "include" gslib.h "lib" gs
   "Paths to headers required by GSLIB." "Libraries required by GSLIB.")

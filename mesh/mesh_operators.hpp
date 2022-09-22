@@ -182,10 +182,10 @@ protected:
    double total_err_goal;
    double total_fraction;
    double local_err_goal;
-   long   max_elements;
+   long long max_elements;
 
    double threshold;
-   long num_marked_elements;
+   long long num_marked_elements;
 
    Array<Refinement> marked_elements;
    long current_sequence;
@@ -230,7 +230,7 @@ public:
    /** @brief Set the maximum number of elements stopping criterion: stop when
        the input mesh has num_elements >= max_elem. The default value is
        LONG_MAX. */
-   void SetMaxElements(long max_elem) { max_elements = max_elem; }
+   void SetMaxElements(long long max_elem) { max_elements = max_elem; }
 
    /// Use nonconforming refinement, if possible (triangles, quads, hexes).
    void PreferNonconformingRefinement() { non_conforming = 1; }
@@ -248,7 +248,7 @@ public:
    }
 
    /// Get the number of marked elements in the last Apply() call.
-   long GetNumMarkedElements() const { return num_marked_elements; }
+   long long GetNumMarkedElements() const { return num_marked_elements; }
 
    /// Get the threshold used in the last Apply() call.
    double GetThreshold() const { return threshold; }
@@ -335,7 +335,7 @@ protected:
    int nc_limit = 1;
    int nonconforming = -1;
    int order;
-   long max_elements = std::numeric_limits<long>::max();
+   long long max_elements = std::numeric_limits<long long>::max();
    double threshold = 1.0e-2;
    double global_osc = NAN;
    Array<int> mesh_refinements;
@@ -378,7 +378,7 @@ public:
    /** @brief Set the maximum number of elements stopping criterion: stop when
        the input mesh has num_elements >= max_elem. The default value is
        LONG_MAX. */
-   void SetMaxElements(long max_elements_) { max_elements = max_elements_; }
+   void SetMaxElements(long long max_elements_) { max_elements = max_elements_; }
 
    /// Reset the function f
    void ResetCoefficient(Coefficient &coeff_)
@@ -389,7 +389,7 @@ public:
    }
 
    /// Reset the oscillation order
-   void SetOrder(double order_) { order = order_; }
+   void SetOrder(int order_) { order = order_; }
 
    /** @brief Set the maximum ratio of refinement levels of adjacent elements
        (0 = unlimited). The default value is 1, which helps ensure appropriate

@@ -992,6 +992,7 @@ void BilinearForm::EliminateVDofs(const Array<int> &vdofs_,
       mat_e = new SparseMatrix(height);
    }
 
+   vdofs_.HostRead();
    for (int i = 0; i < vdofs_.Size(); i++)
    {
       int vdof = vdofs_[i];
@@ -1763,9 +1764,21 @@ void MixedBilinearForm::FormRectangularSystemMatrix(
 
    mat->Finalize();
 
-   if (test_P) // TODO: Must actually check for trial_P too
+   if (test_P && trial_P)
    {
       SparseMatrix *m = RAP(*test_P, *mat, *trial_P);
+      delete mat;
+      mat = m;
+   }
+   else if (test_P)
+   {
+      SparseMatrix *m = TransposeMult(*test_P, *mat);
+      delete mat;
+      mat = m;
+   }
+   else if (trial_P)
+   {
+      SparseMatrix *m = mfem::Mult(*mat, *trial_P);
       delete mat;
       mat = m;
    }
