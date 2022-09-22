@@ -715,10 +715,10 @@ BlockHybridizationSolver::BlockHybridizationSolver(const shared_ptr<ParBilinearF
     }
     Ct->Finalize(skip_zeros);
 
-    Array<int> data_offsets(pmesh.GetNE() + 1);
+    data_offsets.SetSize(pmesh.GetNE() + 1);
     data_offsets[0] = 0;
 
-    Array<int> ipiv_offsets(pmesh.GetNE() + 1);
+    ipiv_offsets.SetSize(pmesh.GetNE() + 1);
     ipiv_offsets[0] = 0;
     
     for (int i = 0; i < pmesh.GetNE(); ++i)
@@ -816,8 +816,8 @@ BlockHybridizationSolver::BlockHybridizationSolver(const shared_ptr<ParBilinearF
     const bool fix_empty_rows = true;
     H.Finalize(skip_zeros, fix_empty_rows);
 
-    OperatorHandle pH(Operator::Hypre_ParCSR);
     OperatorHandle pP(pH.Type()), dH(pH.Type());
+    pH.SetType(Operator::Hypre_ParCSR);
     pP.ConvertFrom(c_space.Dof_TrueDof_Matrix());
     dH.MakeSquareBlockDiag(c_space.GetComm(), c_space.GlobalVSize(),
                            c_space.GetDofOffsets(), &H);
