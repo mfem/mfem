@@ -23,7 +23,7 @@ Discretization improvements
 ---------------------------
 - Added support for assembling low-order-refined matrices using a GPU-enabled
   "batched" algorithm. The lor_solvers and plor_solvers now fully support GPU
-  acceleration.
+  acceleration with arbitrary user-supplied coefficients.
 
 - Added support for partial assembly and fully matrix-free operators on mixed
   meshes (different element types and p-adaptivity) through libCEED, including
@@ -43,6 +43,12 @@ Discretization improvements
 
 - Added a new Zienkiewicz-Zhu patch recovery-based a posteriori error estimator.
   See fem/estimators.hpp.
+
+- Added a new class FaceQuadratureSpace that allows for the construction of
+  QuadratureFunctions on the interior or boundary faces of a mesh.
+
+- Added a class CoefficientVector for efficient access of variable coefficient
+  values at quadrature points (in particular for GPU/device kernels).
 
 Linear and nonlinear solvers
 ----------------------------
