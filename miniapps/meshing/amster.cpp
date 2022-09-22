@@ -562,12 +562,10 @@ int main (int argc, char *argv[])
    ParNonlinearForm a(&pfes);
    a.AddDomainIntegrator(tmop_integ);
 
-   if (bdr_attr_to_fit > 0) {
-       Array<int> ess_bdr(pmesh->bdr_attributes.Max());
-       ess_bdr = 1;
-       ess_bdr[bdr_attr_to_fit-1] = 0;
-       a.SetEssentialBC(ess_bdr);
-   }
+   Array<int> ess_bdr(pmesh->bdr_attributes.Max());
+   ess_bdr = 1;
+   if (bdr_attr_to_fit > 0) { ess_bdr[bdr_attr_to_fit-1] = 0; }
+   a.SetEssentialBC(ess_bdr);
 
    // Compute the minimum det(J) of the starting mesh.
    double min_detJ = infinity();
