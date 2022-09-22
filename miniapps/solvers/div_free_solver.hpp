@@ -257,6 +257,7 @@ class BlockHybridizationSolver : public DarcySolver
    double *data;
    int *ipiv;
    SparseMatrix *Ct;
+   HypreBoomerAMG *M;
    OperatorPtr pH;
    CGSolver solver_;
 public:

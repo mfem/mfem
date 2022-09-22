@@ -822,16 +822,17 @@ BlockHybridizationSolver::BlockHybridizationSolver(const shared_ptr<ParBilinearF
                            c_space.GetDofOffsets(), &H);
     pH.MakePtAP(dH, pP);
 
-    HypreBoomerAMG M(*pH.As<HypreParMatrix>());
-    M.SetPrintLevel(0);
+    M = new HypreBoomerAMG(*pH.As<HypreParMatrix>());
+    M->SetPrintLevel(0);
 
     SetOptions(solver_, param);
-    solver_.SetPreconditioner(M);
+    solver_.SetPreconditioner(*M);
     solver_.SetOperator(*pH);
 }
 
 BlockHybridizationSolver::~BlockHybridizationSolver()
 {
+    delete M;
     delete ipiv;
     delete data;
     delete Ct;
