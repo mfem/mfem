@@ -43,12 +43,12 @@ void AttrToMarker(int max_attr, const Array<int> &attrs, Array<int> &marker);
 /// JCP, 39:375–395, 1981.
 /** The input mesh should be Cartesian nx x ny x nz with nx divisible by 6 and
     ny, nz divisible by 2.
-    The eps parameters are in (0, 1].
+    The @a eps parameters are in (0, 1].
     Uniform mesh is recovered for epsy=epsz=1.
-    The smooth parameter controls the transition between different layers. */
-// Usage example:
+    The @a smooth parameter controls the transition between different layers. */
+// Usage:
 // common::KershawTransformation kershawT(pmesh->Dimension(), 0.3, 0.3, 2);
-// pmesh->Transform(kershawT); */
+// pmesh->Transform(kershawT);
 class KershawTransformation : public VectorCoefficient
 {
 private:
@@ -57,8 +57,8 @@ private:
    int smooth;
 
 public:
-   KershawTransformation(const int dim_, double epsy_,
-                         double epsz_, int smooth_ = 1)
+   KershawTransformation(const int dim_, double epsy_ = 0.3,
+                         double epsz_ = 0.3, int smooth_ = 1)
       : VectorCoefficient(dim_), dim(dim_), epsy(epsy_),
         epsz(epsz_), smooth(smooth_)
    {
@@ -67,6 +67,10 @@ public:
       MFEM_VERIFY(smooth >= 1 && smooth <= 3,
                   "KershawTransformation smooth parameter must be"
                   "between 1 and 3.");
+      MFEM_VERIFY(epsy > 0 && epsy <=1, "Kershaw transformation parameter epsy"
+                  "must be in (0, 1].");
+      MFEM_VERIFY(epsz > 0 && epsz <=1, "Kershaw transformation parameter epsz"
+                  "must be in (0, 1].");
    }
 
    // 1D transformation at the right boundary.
@@ -81,8 +85,8 @@ public:
       return 1-right(eps,1-x);
    }
 
-   // Transition from a value of "a" for x=0, to a value of "b" for x=1.  Optionally
-   // smooth -- see the commented versions at the end.
+   // Transition from a value of "a" for x=0, to a value of "b" for x=1.
+   // Controlled through "smooth" parameter.
    double step(const double a, const double b, double x)
    {
       if (x <= 0) { return a; }
