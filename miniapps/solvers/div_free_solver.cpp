@@ -652,7 +652,7 @@ BlockHybridizationSolver::BlockHybridizationSolver(const shared_ptr<ParBilinearF
     Array<int> c_dofs;
 
     const int skip_zeros = 1;
-    const double eps = 1e-12;
+    const double eps = 1e-16;
     DenseMatrix elmat;
     FaceElementTransformations * FTr;
     NormalTraceJumpIntegrator c_int;
@@ -746,7 +746,6 @@ BlockHybridizationSolver::BlockHybridizationSolver(const shared_ptr<ParBilinearF
         const int trial_size = dofs.Size();
 
         DenseMatrix A(trial_size);
-        cout << "This is the line right before Mform->ComputeElementMatrix\n\n";
         a->ComputeElementMatrix(i, A);
         A.Threshold(eps * A.MaxMaxNorm());
 
