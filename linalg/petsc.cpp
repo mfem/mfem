@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -3399,6 +3399,7 @@ void PetscBDDCSolver::BDDCSolverConstructor(const PetscBDDCSolverParams &opts)
                                                              hvec_coords->Size(),false);
 
          // likely elasticity -> we attach rigid-body modes as near-null space information to the local matrices
+         // and to the global matrix
          if (vdim == sdim)
          {
             MatNullSpace nnsp;
@@ -3413,7 +3414,15 @@ void PetscBDDCSolver::BDDCSolverConstructor(const PetscBDDCSolverParams &opts)
             ierr = VecCreateMPIWithArray(comm,sdim,hvec_coords->Size(),
                                          hvec_coords->GlobalSize(),data_coords,&pvec_coords);
             CCHKERRQ(comm,ierr);
-            ierr = MatISGetLocalMat(pA,&lA); CCHKERRQ(PETSC_COMM_SELF,ierr);
+            ierr = MatGetNearNullSpace(pA,&nnsp); CCHKERRQ(comm,ierr);
+            if (!nnsp)
+            {
+               ierr = MatNullSpaceCreateRigidBody(pvec_coords,&nnsp);
+               CCHKERRQ(comm,ierr);
+               ierr = MatSetNearNullSpace(pA,nnsp); CCHKERRQ(comm,ierr);
+               ierr = MatNullSpaceDestroy(&nnsp); CCHKERRQ(comm,ierr);
+            }
+            ierr = MatISGetLocalMat(pA,&lA); CCHKERRQ(comm,ierr);
             ierr = MatCreateVecs(lA,&lvec_coords,NULL); CCHKERRQ(PETSC_COMM_SELF,ierr);
             ierr = VecSetBlockSize(lvec_coords,sdim); CCHKERRQ(PETSC_COMM_SELF,ierr);
             ierr = MatGetLocalToGlobalMapping(pA,&l2g,NULL); CCHKERRQ(comm,ierr);

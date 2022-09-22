@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -13,7 +13,7 @@
 // PABilinearFormExtension and MFBilinearFormExtension.
 
 #include "nonlinearform.hpp"
-#include "ceed/util.hpp"
+#include "ceed/interface/util.hpp"
 
 namespace mfem
 {
@@ -25,12 +25,16 @@ PANonlinearFormExtension::PANonlinearFormExtension(const NonlinearForm *nlf):
    NonlinearFormExtension(nlf),
    fes(*nlf->FESpace()),
    dnfi(*nlf->GetDNFI()),
-   elemR(fes.GetElementRestriction(ElementDofOrdering::LEXICOGRAPHIC)),
+   elemR(nullptr),
    Grad(*this)
 {
-   // TODO: optimize for the case when 'elemR' is identity
-   xe.SetSize(elemR->Height(), Device::GetMemoryType());
-   ye.SetSize(elemR->Height(), Device::GetMemoryType());
+   if (!DeviceCanUseCeed())
+   {
+      elemR = fes.GetElementRestriction(ElementDofOrdering::LEXICOGRAPHIC);
+      // TODO: optimize for the case when 'elemR' is identity
+      xe.SetSize(elemR->Height(), Device::GetMemoryType());
+      ye.SetSize(elemR->Height(), Device::GetMemoryType());
+   }
    ye.UseDevice(true);
 }
 
@@ -147,13 +151,16 @@ void PANonlinearFormExtension::Gradient::Update()
 MFNonlinearFormExtension::MFNonlinearFormExtension(const NonlinearForm *form):
    NonlinearFormExtension(form), fes(*form->FESpace())
 {
-   const ElementDofOrdering ordering = ElementDofOrdering::LEXICOGRAPHIC;
-   elem_restrict_lex = fes.GetElementRestriction(ordering);
-   if (elem_restrict_lex) // replace with a check for not identity
+   if (!DeviceCanUseCeed())
    {
-      localX.SetSize(elem_restrict_lex->Height(), Device::GetMemoryType());
-      localY.SetSize(elem_restrict_lex->Height(), Device::GetMemoryType());
-      localY.UseDevice(true); // ensure 'localY = 0.0' is done on device
+      const ElementDofOrdering ordering = ElementDofOrdering::LEXICOGRAPHIC;
+      elem_restrict_lex = fes.GetElementRestriction(ordering);
+      if (elem_restrict_lex) // replace with a check for not identity
+      {
+         localX.SetSize(elem_restrict_lex->Height(), Device::GetMemoryType());
+         localY.SetSize(elem_restrict_lex->Height(), Device::GetMemoryType());
+         localY.UseDevice(true); // ensure 'localY = 0.0' is done on device
+      }
    }
 }
 

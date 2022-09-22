@@ -109,11 +109,11 @@ public:
             w *= Q->Eval(Trans, ip);
          }
 
-         for (int j = 0; j < nd; j++)
+         for (int jj = 0; jj < nd; jj++)
          {
-            for (int i = 0; i < nd; i++)
+            for (int ii = 0; ii < nd; ii++)
             {
-               elmat(i, j) += w*shape(i)*laplace(j);
+               elmat(ii, jj) += w*shape(ii)*laplace(jj);
             }
          }
       }

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -55,6 +55,12 @@
 //    mpirun -np 4 plor_solvers -m ../../data/fichera.mesh -fe l
 //    mpirun -np 4 plor_solvers -m ../../data/amr-hex.mesh -fe h -rs 0 -o 2
 //    mpirun -np 4 plor_solvers -m ../../data/amr-hex.mesh -fe l -rs 0 -o 2
+//
+// Device sample runs:
+//    mpirun -np 4 plor_solvers -m ../../data/fichera.mesh -fe h -d cuda
+//    mpirun -np 4 plor_solvers -m ../../data/fichera.mesh -fe n -d cuda
+//    mpirun -np 4 plor_solvers -m ../../data/fichera.mesh -fe r -d cuda
+//    mpirun -np 4 plor_solvers -m ../../data/fichera.mesh -fe l -d cuda
 
 #include "mfem.hpp"
 #include <fstream>
@@ -70,7 +76,8 @@ bool grad_div_problem = false;
 
 int main(int argc, char *argv[])
 {
-   MPI_Session mpi;
+   Mpi::Init();
+   Hypre::Init();
 
    const char *mesh_file = "../../data/star.mesh";
    int ser_ref_levels = 1, par_ref_levels = 1;
@@ -96,7 +103,7 @@ int main(int argc, char *argv[])
    args.ParseCheck();
 
    Device device(device_config);
-   device.Print();
+   if (Mpi::Root()) { device.Print(); }
 
    bool H1 = false, ND = false, RT = false, L2 = false;
    if (string(fe) == "h") { H1 = true; }
@@ -131,7 +138,7 @@ int main(int argc, char *argv[])
 
    ParFiniteElementSpace fes(&mesh, fec.get());
    HYPRE_Int ndofs = fes.GlobalTrueVSize();
-   if (mpi.Root()) { cout << "Number of DOFs: " << ndofs << endl; }
+   if (Mpi::Root()) { cout << "Number of DOFs: " << ndofs << endl; }
 
    Array<int> ess_dofs;
    // In DG, boundary conditions are enforced weakly, so no essential DOFs.
@@ -177,21 +184,19 @@ int main(int argc, char *argv[])
    OperatorHandle A;
    a.FormLinearSystem(ess_dofs, x, b, A, X, B);
 
-   ParLORDiscretization lor(a, ess_dofs);
-   ParFiniteElementSpace &fes_lor = lor.GetParFESpace();
 
    unique_ptr<Solver> solv_lor;
    if (H1 || L2)
    {
-      solv_lor.reset(new LORSolver<HypreBoomerAMG>(lor));
+      solv_lor.reset(new LORSolver<HypreBoomerAMG>(a, ess_dofs));
    }
    else if (RT && dim == 3)
    {
-      solv_lor.reset(new LORSolver<HypreADS>(lor, &fes_lor));
+      solv_lor.reset(new LORSolver<HypreADS>(a, ess_dofs));
    }
    else
    {
-      solv_lor.reset(new LORSolver<HypreAMS>(lor, &fes_lor));
+      solv_lor.reset(new LORSolver<HypreAMS>(a, ess_dofs));
    }
 
    CGSolver cg(MPI_COMM_WORLD);
@@ -207,7 +212,7 @@ int main(int argc, char *argv[])
 
    double er =
       (H1 || L2) ? x.ComputeL2Error(u_coeff) : x.ComputeL2Error(u_vec_coeff);
-   if (mpi.Root()) { cout << "L2 error: " << er << endl; }
+   if (Mpi::Root()) { cout << "L2 error: " << er << endl; }
 
    if (visualization)
    {

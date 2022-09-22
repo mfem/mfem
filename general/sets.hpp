@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -46,6 +46,9 @@ public:
 
    /// Return the value of a random element of the set.
    int PickRandomElement();
+
+   /// Create a copy of set 's'.
+   IntegerSet& operator=(const IntegerSet &s);
 
    /// Return 1 if the sets are equal and 0 otherwise.
    int operator==(IntegerSet &s);

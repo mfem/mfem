@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -126,6 +126,7 @@ public:
    FiniteElementCollection *OwnFEC() { return fec; }
 
    int VectorDim() const;
+   int CurlDim() const;
 
    /// Read only access to the (optional) internal true-dof Vector.
    /** Note that the returned Vector may be empty, if not previously allocated
@@ -475,16 +476,26 @@ public:
                                              Array<int> &bdr_attr);
 
 
-   virtual double ComputeL2Error(Coefficient &exsol,
-                                 const IntegrationRule *irs[] = NULL) const
-   { return ComputeLpError(2.0, exsol, NULL, irs); }
-
    virtual double ComputeL2Error(Coefficient *exsol[],
-                                 const IntegrationRule *irs[] = NULL) const;
+                                 const IntegrationRule *irs[] = NULL,
+                                 const Array<int> *elems = NULL) const;
+
+   /// Returns ||grad u_ex - grad u_h||_L2 in element ielem for H1 or L2 elements
+   virtual double ComputeElementGradError(int ielem, VectorCoefficient *exgrad,
+                                          const IntegrationRule *irs[] = NULL) const;
+
+   /// Returns ||u_ex - u_h||_L2 for H1 or L2 elements
+   /* The @a elems input variable expects a list of markers:
+      an elem marker equal to 1 will compute the L2 error on that element
+      an elem marker equal to 0 will not compute the L2 error on that element */
+   virtual double ComputeL2Error(Coefficient &exsol,
+                                 const IntegrationRule *irs[] = NULL,
+                                 const Array<int> *elems = NULL) const
+   { return GridFunction::ComputeLpError(2.0, exsol, NULL, irs, elems); }
 
    virtual double ComputeL2Error(VectorCoefficient &exsol,
                                  const IntegrationRule *irs[] = NULL,
-                                 Array<int> *elems = NULL) const;
+                                 const Array<int> *elems = NULL) const;
 
    /// Returns ||grad u_ex - grad u_h||_L2 for H1 or L2 elements
    virtual double ComputeGradError(VectorCoefficient *exgrad,
@@ -559,16 +570,20 @@ public:
    { return ComputeLpError(1.0, exsol, NULL, irs); }
 
    virtual double ComputeW11Error(Coefficient *exsol, VectorCoefficient *exgrad,
-                                  int norm_type, Array<int> *elems = NULL,
+                                  int norm_type, const Array<int> *elems = NULL,
                                   const IntegrationRule *irs[] = NULL) const;
 
    virtual double ComputeL1Error(VectorCoefficient &exsol,
                                  const IntegrationRule *irs[] = NULL) const
    { return ComputeLpError(1.0, exsol, NULL, NULL, irs); }
 
+   /* The @a elems input variable expects a list of markers:
+    an elem marker equal to 1 will compute the L2 error on that element
+    an elem marker equal to 0 will not compute the L2 error on that element */
    virtual double ComputeLpError(const double p, Coefficient &exsol,
                                  Coefficient *weight = NULL,
-                                 const IntegrationRule *irs[] = NULL) const;
+                                 const IntegrationRule *irs[] = NULL,
+                                 const Array<int> *elems = NULL) const;
 
    /** Compute the Lp error in each element of the mesh and store the results in
        the Vector @a error. The result should be of length number of elements,
@@ -750,160 +765,6 @@ public:
    }
 };
 
-
-/** @brief Class representing a function through its values (scalar or vector)
-    at quadrature points. */
-class QuadratureFunction : public Vector
-{
-protected:
-   QuadratureSpace *qspace; ///< Associated QuadratureSpace
-   int vdim;                ///< Vector dimension
-   bool own_qspace;         ///< QuadratureSpace ownership flag
-
-public:
-   /// Create an empty QuadratureFunction.
-   /** The object can be initialized later using the SetSpace() methods. */
-   QuadratureFunction()
-      : qspace(NULL), vdim(0), own_qspace(false) { }
-
-   /** @brief Copy constructor. The QuadratureSpace ownership flag, #own_qspace,
-       in the new object is set to false. */
-   QuadratureFunction(const QuadratureFunction &orig)
-      : Vector(orig),
-        qspace(orig.qspace), vdim(orig.vdim), own_qspace(false) { }
-
-   /// Create a QuadratureFunction based on the given QuadratureSpace.
-   /** The QuadratureFunction does not assume ownership of the QuadratureSpace.
-       @note The Vector data is not initialized. */
-   QuadratureFunction(QuadratureSpace *qspace_, int vdim_ = 1)
-      : Vector(vdim_*qspace_->GetSize()),
-        qspace(qspace_), vdim(vdim_), own_qspace(false) { }
-
-   /** @brief Create a QuadratureFunction based on the given QuadratureSpace,
-       using the external data, @a qf_data. */
-   /** The QuadratureFunction does not assume ownership of neither the
-       QuadratureSpace nor the external data. */
-   QuadratureFunction(QuadratureSpace *qspace_, double *qf_data, int vdim_ = 1)
-      : Vector(qf_data, vdim_*qspace_->GetSize()),
-        qspace(qspace_), vdim(vdim_), own_qspace(false) { }
-
-   /// Read a QuadratureFunction from the stream @a in.
-   /** The QuadratureFunction assumes ownership of the read QuadratureSpace. */
-   QuadratureFunction(Mesh *mesh, std::istream &in);
-
-   virtual ~QuadratureFunction() { if (own_qspace) { delete qspace; } }
-
-   /// Get the associated QuadratureSpace.
-   QuadratureSpace *GetSpace() const { return qspace; }
-
-   /// Change the QuadratureSpace and optionally the vector dimension.
-   /** If the new QuadratureSpace is different from the current one, the
-       QuadratureFunction will not assume ownership of the new space; otherwise,
-       the ownership flag remains the same.
-
-       If the new vector dimension @a vdim_ < 0, the vector dimension remains
-       the same.
-
-       The data size is updated by calling Vector::SetSize(). */
-   inline void SetSpace(QuadratureSpace *qspace_, int vdim_ = -1);
-
-   /** @brief Change the QuadratureSpace, the data array, and optionally the
-       vector dimension. */
-   /** If the new QuadratureSpace is different from the current one, the
-       QuadratureFunction will not assume ownership of the new space; otherwise,
-       the ownership flag remains the same.
-
-       If the new vector dimension @a vdim_ < 0, the vector dimension remains
-       the same.
-
-       The data array is replaced by calling Vector::NewDataAndSize(). */
-   inline void SetSpace(QuadratureSpace *qspace_, double *qf_data,
-                        int vdim_ = -1);
-
-   /// Get the vector dimension.
-   int GetVDim() const { return vdim; }
-
-   /// Set the vector dimension, updating the size by calling Vector::SetSize().
-   void SetVDim(int vdim_)
-   { vdim = vdim_; SetSize(vdim*qspace->GetSize()); }
-
-   /// Get the QuadratureSpace ownership flag.
-   bool OwnsSpace() { return own_qspace; }
-
-   /// Set the QuadratureSpace ownership flag.
-   void SetOwnsSpace(bool own) { own_qspace = own; }
-
-   /// Redefine '=' for QuadratureFunction = constant.
-   QuadratureFunction &operator=(double value);
-
-   /// Copy the data from @a v.
-   /** The size of @a v must be equal to the size of the associated
-       QuadratureSpace #qspace times the QuadratureFunction dimension
-       i.e. QuadratureFunction::Size(). */
-   QuadratureFunction &operator=(const Vector &v);
-
-   /// Copy assignment. Only the data of the base class Vector is copied.
-   /** The QuadratureFunctions @a v and @a *this must have QuadratureSpaces with
-       the same size.
-
-       @note Defining this method overwrites the implicitly defined copy
-       assignment operator. */
-   QuadratureFunction &operator=(const QuadratureFunction &v);
-
-   /// Get the IntegrationRule associated with mesh element @a idx.
-   const IntegrationRule &GetElementIntRule(int idx) const
-   { return qspace->GetElementIntRule(idx); }
-
-   /// Return all values associated with mesh element @a idx in a Vector.
-   /** The result is stored in the Vector @a values as a reference to the
-       global values.
-
-       Inside the Vector @a values, the index `i+vdim*j` corresponds to the
-       `i`-th vector component at the `j`-th quadrature point.
-    */
-   inline void GetElementValues(int idx, Vector &values);
-
-   /// Return all values associated with mesh element @a idx in a Vector.
-   /** The result is stored in the Vector @a values as a copy of the
-       global values.
-
-       Inside the Vector @a values, the index `i+vdim*j` corresponds to the
-       `i`-th vector component at the `j`-th quadrature point.
-    */
-   inline void GetElementValues(int idx, Vector &values) const;
-
-   /// Return the quadrature function values at an integration point.
-   /** The result is stored in the Vector @a values as a reference to the
-       global values. */
-   inline void GetElementValues(int idx, const int ip_num, Vector &values);
-
-   /// Return the quadrature function values at an integration point.
-   /** The result is stored in the Vector @a values as a copy to the
-       global values. */
-   inline void GetElementValues(int idx, const int ip_num, Vector &values) const;
-
-   /// Return all values associated with mesh element @a idx in a DenseMatrix.
-   /** The result is stored in the DenseMatrix @a values as a reference to the
-       global values.
-
-       Inside the DenseMatrix @a values, the `(i,j)` entry corresponds to the
-       `i`-th vector component at the `j`-th quadrature point.
-    */
-   inline void GetElementValues(int idx, DenseMatrix &values);
-
-   /// Return all values associated with mesh element @a idx in a const DenseMatrix.
-   /** The result is stored in the DenseMatrix @a values as a copy of the
-       global values.
-
-       Inside the DenseMatrix @a values, the `(i,j)` entry corresponds to the
-       `i`-th vector component at the `j`-th quadrature point.
-    */
-   inline void GetElementValues(int idx, DenseMatrix &values) const;
-
-   /// Write the QuadratureFunction to the stream @a out.
-   void Save(std::ostream &out) const;
-};
-
 /// Overload operator<< for std::ostream and QuadratureFunction.
 std::ostream &operator<<(std::ostream &out, const QuadratureFunction &qf);
 
@@ -915,6 +776,58 @@ double ZZErrorEstimator(BilinearFormIntegrator &blfi,
                         Array<int> *aniso_flags = NULL,
                         int with_subdomains = 1,
                         bool with_coeff = false);
+
+/// Defines the global tensor product polynomial space used by NewZZErorrEstimator
+/**
+ *  See BoundingBox(...) for a description of @a angle and @a midpoint
+ */
+void TensorProductLegendre(int dim,                      // input
+                           int order,                    // input
+                           const Vector &x_in,           // input
+                           const Vector &xmax,           // input
+                           const Vector &xmin,           // input
+                           Vector &poly,                 // output
+                           double angle=0.0,             // input (optional)
+                           const Vector *midpoint=NULL); // input (optional)
+
+/// Defines the bounding box for the face patches used by NewZZErorrEstimator
+/**
+ *  By default, BoundingBox(...) computes the parameters of a minimal bounding box
+ *  for the given @a face_patch that is aligned with the physical (i.e. global)
+ *  Cartesian axes. This means that the size of the bounding box will depend on the
+ *  orientation of the patch. It is better to construct an orientation-independent box.
+ *  This is implemented for 2D patches. The parameters @a angle and @a midpoint encode
+ *  the necessary additional geometric information.
+ *
+ *      @a iface     : Index of the face that the patch corresponds to.
+ *                     This is used to compute @a angle and @a midpoint.
+ *
+ *      @a angle     : The angle the patch face makes with the x-axis.
+ *      @a midpoint  : The midpoint of the face.
+ */
+void BoundingBox(const Array<int> &face_patch, // input
+                 FiniteElementSpace *ufes,     // input
+                 int order,                    // input
+                 Vector &xmin,                 // output
+                 Vector &xmax,                 // output
+                 double &angle,                // output
+                 Vector &midpoint,             // output
+                 int iface=-1);                // input (optional)
+
+/// A ``true'' ZZ error estimator that uses face-based patches for flux reconstruction.
+/**
+ *  Only two-element face patches are ever used:
+ *   - For conforming faces, the face patch consists of its two neighboring elements.
+ *   - In the non-conforming setting, only the face patches associated to fine-scale
+ *     element faces are used. These face patches always consist of two elements
+ *     delivered by mesh::GetFaceElements(Face, *Elem1, *Elem2).
+ */
+double LSZZErrorEstimator(BilinearFormIntegrator &blfi,         // input
+                          GridFunction &u,                      // input
+                          Vector &error_estimates,              // output
+                          bool subdomain_reconstruction = true, // input (optional)
+                          bool with_coeff = false,              // input (optional)
+                          double tichonov_coeff = 0.0);         // input (optional)
 
 /// Compute the Lp distance between two grid functions on the given element.
 double ComputeElementLpDistance(double p, int i,
@@ -938,95 +851,6 @@ public:
 /// Extrude a scalar 1D GridFunction, after extruding the mesh with Extrude1D.
 GridFunction *Extrude1DGridFunction(Mesh *mesh, Mesh *mesh2d,
                                     GridFunction *sol, const int ny);
-
-
-// Inline methods
-
-inline void QuadratureFunction::SetSpace(QuadratureSpace *qspace_, int vdim_)
-{
-   if (qspace_ != qspace)
-   {
-      if (own_qspace) { delete qspace; }
-      qspace = qspace_;
-      own_qspace = false;
-   }
-   vdim = (vdim_ < 0) ? vdim : vdim_;
-   SetSize(vdim*qspace->GetSize());
-}
-
-inline void QuadratureFunction::SetSpace(QuadratureSpace *qspace_,
-                                         double *qf_data, int vdim_)
-{
-   if (qspace_ != qspace)
-   {
-      if (own_qspace) { delete qspace; }
-      qspace = qspace_;
-      own_qspace = false;
-   }
-   vdim = (vdim_ < 0) ? vdim : vdim_;
-   NewDataAndSize(qf_data, vdim*qspace->GetSize());
-}
-
-inline void QuadratureFunction::GetElementValues(int idx, Vector &values)
-{
-   const int s_offset = qspace->element_offsets[idx];
-   const int sl_size = qspace->element_offsets[idx+1] - s_offset;
-   values.NewDataAndSize(data + vdim*s_offset, vdim*sl_size);
-}
-
-inline void QuadratureFunction::GetElementValues(int idx, Vector &values) const
-{
-   const int s_offset = qspace->element_offsets[idx];
-   const int sl_size = qspace->element_offsets[idx+1] - s_offset;
-   values.SetSize(vdim*sl_size);
-   const double *q = data + vdim*s_offset;
-   for (int i = 0; i<values.Size(); i++)
-   {
-      values(i) = *(q++);
-   }
-}
-
-inline void QuadratureFunction::GetElementValues(int idx, const int ip_num,
-                                                 Vector &values)
-{
-   const int s_offset = qspace->element_offsets[idx] * vdim + ip_num * vdim;
-   values.NewDataAndSize(data + s_offset, vdim);
-}
-
-inline void QuadratureFunction::GetElementValues(int idx, const int ip_num,
-                                                 Vector &values) const
-{
-   const int s_offset = qspace->element_offsets[idx] * vdim + ip_num * vdim;
-   values.SetSize(vdim);
-   const double *q = data + s_offset;
-   for (int i = 0; i < values.Size(); i++)
-   {
-      values(i) = *(q++);
-   }
-}
-
-inline void QuadratureFunction::GetElementValues(int idx, DenseMatrix &values)
-{
-   const int s_offset = qspace->element_offsets[idx];
-   const int sl_size = qspace->element_offsets[idx+1] - s_offset;
-   values.Reset(data + vdim*s_offset, vdim, sl_size);
-}
-
-inline void QuadratureFunction::GetElementValues(int idx,
-                                                 DenseMatrix &values) const
-{
-   const int s_offset = qspace->element_offsets[idx];
-   const int sl_size = qspace->element_offsets[idx+1] - s_offset;
-   values.SetSize(vdim, sl_size);
-   const double *q = data + vdim*s_offset;
-   for (int j = 0; j<sl_size; j++)
-   {
-      for (int i = 0; i<vdim; i++)
-      {
-         values(i,j) = *(q++);
-      }
-   }
-}
 
 } // namespace mfem
 

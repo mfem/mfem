@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -28,8 +28,8 @@ public:
 #if !(defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP))
       MFEM_ASSERT(first<sizes[N-1],"Trying to access out of boundary.");
 #endif
-      return first + sizes[N - 1] * TensorInd < N + 1, Dim, Args... >
-             ::result(sizes, args...);
+      return static_cast<int>(first + sizes[N - 1] * TensorInd < N + 1, Dim, Args... >
+                              ::result(sizes, args...));
    }
 };
 
@@ -44,7 +44,7 @@ public:
 #if !(defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP))
       MFEM_ASSERT(first<sizes[Dim-1],"Trying to access out of boundary.");
 #endif
-      return first;
+      return static_cast<int>(first);
    }
 };
 
@@ -100,16 +100,11 @@ public:
       data = (capacity > 0) ? data_ : NULL;
    }
 
-   /// Copy constructor
-   MFEM_HOST_DEVICE DeviceTensor(const DeviceTensor& t)
-   {
-      capacity = t.capacity;
-      for (int i = 0; i < Dim; ++i)
-      {
-         sizes[i] = t.sizes[i];
-      }
-      data = t.data;
-   }
+   /// Copy constructor (default)
+   DeviceTensor(const DeviceTensor&) = default;
+
+   /// Copy assignment (default)
+   DeviceTensor& operator=(const DeviceTensor&) = default;
 
    /// Conversion to `Scalar *`.
    MFEM_HOST_DEVICE inline operator Scalar *() const { return data; }
@@ -132,7 +127,7 @@ public:
 
 /** @brief Wrap a pointer as a DeviceTensor with automatically deduced template
     parameters */
-template <typename T, typename... Dims>
+template <typename T, typename... Dims> MFEM_HOST_DEVICE
 inline DeviceTensor<sizeof...(Dims),T> Reshape(T *ptr, Dims... dims)
 {
    return DeviceTensor<sizeof...(Dims),T>(ptr, dims...);

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -21,6 +21,10 @@ extern bool launch_all_non_regression_tests;
 /** If no --data path is provided, then mfem_data_dir will be the empty string,
     and tests tagged with [MFEMData] will be skipped. */
 extern std::string mfem_data_dir;
+
+/// Command line '--verbose' argument, false by default.
+/** Enables extra log messages and the mfem::out stream. */
+extern bool verbose_tests;
 
 /** @brief MFEM_Approx can be used to compare floating point values within an
     absolute tolerance of @a abs_tol (default value 1e-12) and relative

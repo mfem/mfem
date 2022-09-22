@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -132,6 +132,9 @@ protected:
    /// Do not allow copy construction, due to assumed ownership.
    MeshOperatorSequence(const MeshOperatorSequence &) { }
 
+   /// Do not allow copy assignment, due to assumed ownership.
+   MeshOperatorSequence& operator=(const MeshOperatorSequence &s) = delete;
+
    /** @brief Apply the MeshOperatorSequence.
        @return ActionInfo value corresponding to the last applied operator from
        the sequence. */
@@ -179,10 +182,10 @@ protected:
    double total_err_goal;
    double total_fraction;
    double local_err_goal;
-   long   max_elements;
+   long long max_elements;
 
    double threshold;
-   long num_marked_elements;
+   long long num_marked_elements;
 
    Array<Refinement> marked_elements;
    long current_sequence;
@@ -227,7 +230,7 @@ public:
    /** @brief Set the maximum number of elements stopping criterion: stop when
        the input mesh has num_elements >= max_elem. The default value is
        LONG_MAX. */
-   void SetMaxElements(long max_elem) { max_elements = max_elem; }
+   void SetMaxElements(long long max_elem) { max_elements = max_elem; }
 
    /// Use nonconforming refinement, if possible (triangles, quads, hexes).
    void PreferNonconformingRefinement() { non_conforming = 1; }
@@ -238,14 +241,14 @@ public:
 
    /** @brief Set the maximum ratio of refinement levels of adjacent elements
        (0 = unlimited). */
-   void SetNCLimit(int nc_limit)
+   void SetNCLimit(int nc_limit_)
    {
-      MFEM_ASSERT(nc_limit >= 0, "Invalid NC limit");
-      this->nc_limit = nc_limit;
+      MFEM_ASSERT(nc_limit_ >= 0, "Invalid NC limit");
+      nc_limit = nc_limit_;
    }
 
    /// Get the number of marked elements in the last Apply() call.
-   long GetNumMarkedElements() const { return num_marked_elements; }
+   long long GetNumMarkedElements() const { return num_marked_elements; }
 
    /// Get the threshold used in the last Apply() call.
    double GetThreshold() const { return threshold; }
@@ -293,14 +296,14 @@ public:
    /// Set the de-refinement threshold. The default value is zero.
    void SetThreshold(double thresh) { threshold = thresh; }
 
-   void SetOp(int op) { this->op = op; }
+   void SetOp(int oper) { op = oper; }
 
    /** @brief Set the maximum ratio of refinement levels of adjacent elements
        (0 = unlimited). */
-   void SetNCLimit(int nc_limit)
+   void SetNCLimit(int nc_limit_)
    {
-      MFEM_ASSERT(nc_limit >= 0, "Invalid NC limit");
-      this->nc_limit = nc_limit;
+      MFEM_ASSERT(nc_limit_ >= 0, "Invalid NC limit");
+      nc_limit = nc_limit_;
    }
 
    /// Reset the associated estimator.
@@ -332,7 +335,7 @@ protected:
    int nc_limit = 1;
    int nonconforming = -1;
    int order;
-   long max_elements = std::numeric_limits<long>::max();
+   long long max_elements = std::numeric_limits<long long>::max();
    double threshold = 1.0e-2;
    double global_osc = NAN;
    Array<int> mesh_refinements;
@@ -375,7 +378,7 @@ public:
    /** @brief Set the maximum number of elements stopping criterion: stop when
        the input mesh has num_elements >= max_elem. The default value is
        LONG_MAX. */
-   void SetMaxElements(long max_elements_) { max_elements = max_elements_; }
+   void SetMaxElements(long long max_elements_) { max_elements = max_elements_; }
 
    /// Reset the function f
    void ResetCoefficient(Coefficient &coeff_)
@@ -386,7 +389,7 @@ public:
    }
 
    /// Reset the oscillation order
-   void SetOrder(double order_) { order = order_; }
+   void SetOrder(int order_) { order = order_; }
 
    /** @brief Set the maximum ratio of refinement levels of adjacent elements
        (0 = unlimited). The default value is 1, which helps ensure appropriate
