@@ -31,15 +31,13 @@ void PAMassApply2D_Element(const int e,
                            const double *d_,
                            const double *x_,
                            double *y_,
-                           const int d1d = 0,
-                           const int q1d = 0)
+                           const int D1D = 0,
+                           const int Q1D = 0)
 {
-   const int D1D = d1d;
-   const int Q1D = q1d;
-   auto B = ConstDeviceMatrix(b_, Q1D, D1D);
-   auto Bt = ConstDeviceMatrix(bt_, D1D, Q1D);
-   auto D = ConstDeviceCube(d_, Q1D, Q1D, NE);
-   auto X = ConstDeviceCube(x_, D1D, D1D, NE);
+   const auto B = ConstDeviceMatrix(b_, Q1D, D1D);
+   const auto Bt = ConstDeviceMatrix(bt_, D1D, Q1D);
+   const auto D = ConstDeviceCube(d_, Q1D, Q1D, NE);
+   const auto X = ConstDeviceCube(x_, D1D, D1D, NE);
    auto Y = DeviceCube(y_, D1D, D1D, NE);
 
    if (!ACCUMULATE)
@@ -139,9 +137,9 @@ void SmemPAMassApply2D_Element(const int e,
    constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
    constexpr int MDQ = (MQ1 > MD1) ? MQ1 : MD1;
 
-   auto b = ConstDeviceMatrix(b_, Q1D, D1D);
-   auto D = ConstDeviceCube(d_, Q1D, Q1D, NE);
-   auto x = ConstDeviceCube(x_, D1D, D1D, NE);
+   const auto b = ConstDeviceMatrix(b_, Q1D, D1D);
+   const auto D = ConstDeviceCube(d_, Q1D, Q1D, NE);
+   const auto x = ConstDeviceCube(x_, D1D, D1D, NE);
    auto Y = DeviceCube(y_, D1D, D1D, NE);
 
    const int tidz = MFEM_THREAD_ID(z);
@@ -255,15 +253,13 @@ void PAMassApply3D_Element(const int e,
                            const double *d_,
                            const double *x_,
                            double *y_,
-                           const int d1d,
-                           const int q1d)
+                           const int D1D,
+                           const int Q1D)
 {
-   const int D1D = d1d;
-   const int Q1D = q1d;
-   auto B = ConstDeviceMatrix(b_, Q1D, D1D);
-   auto Bt = ConstDeviceMatrix(bt_, D1D, Q1D);
-   auto D = DeviceTensor<4,const double>(d_, Q1D, Q1D, Q1D, NE);
-   auto X = DeviceTensor<4,const double>(x_, D1D, D1D, D1D, NE);
+   const auto B = ConstDeviceMatrix(b_, Q1D, D1D);
+   const auto Bt = ConstDeviceMatrix(bt_, D1D, Q1D);
+   const auto D = DeviceTensor<4,const double>(d_, Q1D, Q1D, Q1D, NE);
+   const auto X = DeviceTensor<4,const double>(x_, D1D, D1D, D1D, NE);
    auto Y = DeviceTensor<4,double>(y_, D1D, D1D, D1D, NE);
 
    if (!ACCUMULATE)
@@ -408,15 +404,15 @@ void SmemPAMassApply3D_Element(const int e,
                                const int d1d = 0,
                                const int q1d = 0)
 {
-   constexpr int D1D = T_D1D ? T_D1D : d1d;
-   constexpr int Q1D = T_Q1D ? T_Q1D : q1d;
+   const int D1D = T_D1D ? T_D1D : d1d;
+   const int Q1D = T_Q1D ? T_Q1D : q1d;
    constexpr int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;
    constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
    constexpr int MDQ = (MQ1 > MD1) ? MQ1 : MD1;
 
-   auto b = ConstDeviceMatrix(b_, Q1D, D1D);
-   auto d = DeviceTensor<4,const double>(d_, Q1D, Q1D, Q1D, NE);
-   auto x = DeviceTensor<4,const double>(x_, D1D, D1D, D1D, NE);
+   const auto b = ConstDeviceMatrix(b_, Q1D, D1D);
+   const auto d = DeviceTensor<4,const double>(d_, Q1D, Q1D, Q1D, NE);
+   const auto x = DeviceTensor<4,const double>(x_, D1D, D1D, D1D, NE);
    auto y = DeviceTensor<4,double>(y_, D1D, D1D, D1D, NE);
 
    MFEM_SHARED double sDQ[MQ1*MD1];
