@@ -498,7 +498,9 @@ int main (int argc, char *argv[])
       if (mk == 't')
       {
          int type;
-         cout << "Standard transform (0) or Kershaw transform (1) ---> " << flush;
+         cout << "Choose a transformation:\n"
+              "0: User-defined transform through mesh-explorer::transformation()\n"
+              "1: Kershaw transform ---> " << flush;
          cin >> type;
          if (type == 0)
          {
