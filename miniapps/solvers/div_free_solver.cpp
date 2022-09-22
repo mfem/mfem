@@ -629,7 +629,7 @@ BlockHybridizationSolver::BlockHybridizationSolver(const shared_ptr<ParBilinearF
    : DarcySolver(a->NumRows(), b->NumRows()), trial_space(*a->ParFESpace()),
      test_space(*b->TestParFESpace()), solver_(MPI_COMM_WORLD)
 {
-    ParMesh pmesh(MPI_COMM_WORLD, *trial_space.GetParMesh());
+    ParMesh &pmesh(*trial_space.GetParMesh());
 
     // Array<int> hat_offsets;
     hat_offsets.SetSize(pmesh.GetNE() + 1);
@@ -841,7 +841,7 @@ BlockHybridizationSolver::~BlockHybridizationSolver()
 
 void BlockHybridizationSolver::Mult(const Vector &x, Vector &y) const
 {
-    ParMesh pmesh(MPI_COMM_WORLD, *trial_space.GetParMesh());
+    ParMesh &pmesh(*trial_space.GetParMesh());
     const int num_hat_dofs = hat_offsets[pmesh.GetNE()];
 
     Array<int> block_offsets(3);
