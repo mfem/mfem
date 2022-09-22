@@ -19,7 +19,7 @@ double GetMaxError(GridFunction &res);
 class SysOperator : public Operator
 {
 private:
-  BilinearForm *diff_operator;
+  mutable BilinearForm *diff_operator;
   LinearForm *coil_term;
   mutable PlasmaModel *model;
   FiniteElementSpace *fespace;
@@ -27,13 +27,17 @@ private:
   map<int, vector<int>> vertex_map;
   mutable SparseMatrix *Mat;
   int attr_lim;
+  Array<int> *boundary_dofs;
+  GridFunction *u_boundary;
 public:
   SysOperator(BilinearForm *diff_operator_, LinearForm *coil_term_,
               PlasmaModel *model_, FiniteElementSpace *fespace_,
-              Mesh *mesh_, int attr_lim_) :
+              Mesh *mesh_, int attr_lim_, Array<int> *boundary_dofs_,
+              GridFunction *u_boundary_) :
     diff_operator(diff_operator_), coil_term(coil_term_),
     model(model_), fespace(fespace_),
-    mesh(mesh_), Mat(NULL), attr_lim(attr_lim_) {
+    mesh(mesh_), Mat(NULL), attr_lim(attr_lim_), boundary_dofs(boundary_dofs_),
+    u_boundary(u_boundary_) {
     vertex_map = compute_vertex_map(*mesh, attr_lim);
   }
   virtual void Mult(const Vector &psi, Vector &y) const;

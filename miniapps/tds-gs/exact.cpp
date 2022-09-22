@@ -7,7 +7,10 @@ using namespace mfem;
 
 
 double psi_exact(double r, double z, double r0, double z0, double k) {
-  return - cos(k * (z - r - z0 + r0)) * cos(k * (z + r - z0 - r0)) + 1.0;
+   if (false) {
+     return 1.0;
+   }
+   return - cos(k * (z - r - z0 + r0)) * cos(k * (z + r - z0 - r0)) + 1.0;
 }
 
 
@@ -22,9 +25,6 @@ double ExactCoefficient::Eval(ElementTransformation & T,
    double r(x(0));
    double z(x(1));
 
-   if (true) {
-     return 1.0;
-   }
    return psi_exact(r, z, r0, z0, k);
 }
 
@@ -40,20 +40,22 @@ double ExactForcingCoefficient::Eval(ElementTransformation & T,
    double mu = model.get_mu();
    double ans;
 
-   if (true) {
+   if (false) {
      return 0.0;
    }
    if (true) {
      // I u = ...
+     double alpha_ = 0.25;
      double psi_N = psi_exact(r, z, r0, z0, k);
      ans = psi_N;
      // ans -= r * model.S_p_prime(psi_N);
      // ans -= model.S_ff_prime(psi_N) / (r * mu);
-     ans -= pow(psi_N, 2.0);
+     ans -= alpha_ * pow(psi_N, 2.0);
      if ((T.Attribute > 832) && (T.Attribute <= 838)){
        // coil region
-       ans -= 1.0;
+       // ans -= 1.0;
      }
+     // cout << ans << endl;
      return ans;
    }
 

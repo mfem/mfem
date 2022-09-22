@@ -72,15 +72,51 @@ const int attr_lim = 1000;
 const int attr_ext = 2000;
 
 
+void Print_(const Vector &y) {
+  for (int i = 0; i < y.Size(); ++i) {
+    printf("%d %.14e\n", i+1, y[i]);
+  }
+}
+SparseMatrix* test_grad(SysOperator *op, Vector & x, FiniteElementSpace *fespace) {
+
+  LinearForm y1(fespace);
+  LinearForm y2(fespace);
+
+  int size = x.Size();
+
+  double eps = 1e-4;
+  SparseMatrix *Mat = new SparseMatrix(size, size);
+  for (int i = 0; i < size; ++i) {
+    x[i] += eps;
+    op->Mult(x, y1);
+    x[i] -= eps;
+    op->Mult(x, y2);
+    add(1.0/eps, y1, -1.0/eps, y2, y2);
+    
+    // Print_(y2);
+    for (int j = 0; j < size; ++j) {
+      Mat->Add(j, i, y2[j]);
+    }
+  }
+  Mat->Finalize();
+  // Mat->PrintMatlab();
+
+  return Mat;
+  
+}
+
+
+
 int main(int argc, char *argv[])
 {
    // Parse command line options.
    // const char *mesh_file = "meshes/gs_mesh.msh";
    // const char *mesh_file = "meshes/test.msh";
-   const char *mesh_file = "meshes/test_off_center.msh";
+   // const char *mesh_file = "meshes/test_off_center.msh";
+   const char *mesh_file = "meshes/square.msh";
    const char *data_file = "separated_file.data";
    int order = 1;
-   int d_refine = 1;
+   int d_refine = 0;
 
    // constants associated with plasma model
    double alpha = 2.0;
@@ -147,7 +183,7 @@ int main(int argc, char *argv[])
    Array<int> boundary_dofs;
    Array<int> bdr_attribs(mesh.bdr_attributes);
    Array<int> ess_bdr(bdr_attribs.Max());
-   ess_bdr = 0;
+   ess_bdr = 1;
    // ess_bdr[attr_ff_bdr-1] = 0;
    // ess_bdr[attr_ff_bdr-1] = 1;
    fespace.GetEssentialTrueDofs(ess_bdr, boundary_dofs, 1);
@@ -200,7 +236,7 @@ int main(int argc, char *argv[])
 
    // boundary condition
    ExactCoefficient exact_coefficient(r0_, z0_, k_);
-   if (true) {
+   if (false) {
      coil_term.AddBoundaryIntegrator(new DomainLFIntegrator(exact_coefficient));
    }
 
@@ -231,7 +267,7 @@ int main(int argc, char *argv[])
    if (true) {
      diff_operator.AddDomainIntegrator(new MassIntegrator(one));
    }
-   if (true) {
+   if (false) {
      diff_operator.AddBoundaryIntegrator(new MassIntegrator(one));
    }
    
@@ -242,6 +278,8 @@ int main(int argc, char *argv[])
      // https://en.cppreference.com/w/cpp/experimental/special_functions
    }
 
+   // diff_operator.EliminateEssentialBC(boundary_dofs, Operator::DIAG_ONE);
+
    // assemble diff_operator
    diff_operator.Assemble();
 
@@ -250,16 +288,17 @@ int main(int argc, char *argv[])
    GridFunction x(&fespace);
    x.ProjectCoefficient(exact_coefficient);
    
-   // // Form the linear system A X = B. This includes eliminating boundary
-   // // conditions, applying AMR constraints, and other transformations.
-   SparseMatrix A;
-   Vector B, X;
-   diff_operator.FormLinearSystem(boundary_dofs, x, coil_term, A, X, B);
+   // // // Form the linear system A X = B. This includes eliminating boundary
+   // // // conditions, applying AMR constraints, and other transformations.
+   // SparseMatrix A;
+   // Vector B, X;
+   // diff_operator.FormLinearSystem(boundary_dofs, x, coil_term, A, X, B);
 
-   // Solve the system using PCG with symmetric Gauss-Seidel preconditioner.
-   GSSmoother M(A);
-   PCG(A, M, B, X, 0, 400, 1e-12, 0.0);
-   diff_operator.RecoverFEMSolution(X, coil_term, x);
+   // // Solve the system using PCG with symmetric Gauss-Seidel preconditioner.
+   // GSSmoother M(A);
+   // PCG(A, M, B, X, 0, 400, 1e-12, 0.0);
+   // diff_operator.RecoverFEMSolution(X, coil_term, x);
+
    x = 1.0;
    // x is the recovered solution
    // x.ProjectCoefficient(exact_coefficient);
@@ -274,26 +313,35 @@ int main(int argc, char *argv[])
 
    GridFunction dx(&fespace);
    LinearForm out_vec(&fespace);
-   SysOperator op(&diff_operator, &coil_term, &model, &fespace, &mesh, attr_lim);
+   SysOperator op(&diff_operator, &coil_term, &model, &fespace, &mesh, attr_lim, &boundary_dofs, &u);
    dx = 0.0;
-
-   x = 2.0;
-   for (int i = 0; i < 8; ++i) {
+   
+   // x = u;
+   double error_old;
+   double error;
+   LinearForm solver_error(&fespace);
+   for (int i = 0; i < 20; ++i) {
 
      op.Mult(x, out_vec);
-     double error = GetMaxError(out_vec);
-     printf("\n\n********************************\n");
-     printf("i: %d, max error: %.3e\n", i, error);
-     printf("********************************\n\n");
+     error = GetMaxError(out_vec);
+     if (i == 0) {
+       // printf("\n\n********************************\n");
+       printf("i: %3d, max error: %.3e\n", i, error);
+       // printf("********************************\n\n");
+     } else {
+       // printf("\n\n********************************\n");
+       printf("i: %3d, max error: %.3e, ratio %.3e\n", i, error, error_old / error);
+       // printf("********************************\n\n");
+     }
+     error_old = error;
 
      if (error < 1e-16) {
        break;
      }
      int kdim = 10000;
-     int max_iter = 400;
+     int max_iter = 300;
      double tol = 1e-16;
 
-     printf("debug\n");
      set<int> plasma_inds;
      map<int, vector<int>> vertex_map;
      vertex_map = compute_vertex_map(mesh, attr_lim);
@@ -311,23 +359,37 @@ int main(int argc, char *argv[])
      GridFunction nlgc2_gf(&fespace);
      nlgc2_gf.ProjectCoefficient(nlgcoeff2);
      nlgc2_gf.Save("nlgc2_.gf");
-     printf("end debug\n");
-     
+
      dx = 0.0;
-     GMRES(op.GetGradient(x), dx, out_vec, M, max_iter, kdim, tol, 0.0, 0);
+     // Operator Mat;
+     // Mat = op.GetGradient(x);
+     SparseMatrix *Mat = dynamic_cast<SparseMatrix *>(&op.GetGradient(x));
 
-     // dx = 0.0;
-     // op.GetGradient(x).FormLinearSystem(boundary_dofs, dx, out_vec, A, X, B);
-     // GMRES(A, X, B, M, max_iter, kdim, tol, 0.0, 0);
+     // if (i == i) {
+     //   SparseMatrix *Compare = test_grad(&op, x, &fespace);
+     //   // Mat->PrintMatlab();
 
-     cout << "*************** dx = " << dx[0] << endl;
+     //   SparseMatrix *Result;
+     //   Result = Add(1.0, *Mat, -1.0, *Compare);
+     //   // Result->PrintMatlab();
+     // }
+
+     
+     GSSmoother M(*Mat);
+     GMRES(*Mat, dx, out_vec, M, max_iter, kdim, tol, 0.0, 0);
+
+     // Mat->Mult(dx, solver_error);
+     // add(solver_error, -1.0, out_vec, solver_error);
+     // double max_solver_error = GetMaxError(solver_error);
+     // printf("max_solver_error: %.3e\n", max_solver_error);
+       
      x -= dx;
 
    }
    op.Mult(x, out_vec);
-   double error = GetMaxError(out_vec);
+   error = GetMaxError(out_vec);
    printf("\n\n********************************\n");
-   printf("final max error: %.3e\n", error);
+   printf("final max error: %.3e, ratio %.3e\n", error, error_old / error);
    printf("********************************\n\n");
 
    GridFunction diff(&fespace);
@@ -360,6 +422,7 @@ int main(int argc, char *argv[])
    x.Save("final.gf");
    return 0;
 }
+
 
 
 
