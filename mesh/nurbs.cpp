@@ -941,6 +941,7 @@ void NURBSPatch::DegreeElevate(int dir, int t)
 
    NURBSPatch &oldp  = *this;
    KnotVector &oldkv = *kv[dir];
+   oldkv.GetElements();
 
    NURBSPatch *newpatch = new NURBSPatch(this, dir, oldkv.GetOrder() + t,
                                          oldkv.GetNCP() + oldkv.GetNE()*t);
