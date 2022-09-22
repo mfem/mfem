@@ -841,6 +841,18 @@ BlockHybridizationSolver::~BlockHybridizationSolver()
 
 void BlockHybridizationSolver::Mult(const Vector &x, Vector &y) const
 {
+    const SparseMatrix &R = *trial_space.GetRestrictionMatrix();
+    Array<int> true_offsets;
+    true_offsets.SetSize(3);
+    true_offsets[0] = 0;
+    true_offsets[1] = trial_space.GetTrueVSize();
+    true_offsets[2] = test_space.GetTrueVSize();
+    true_offsets.PartialSum();
+
+    BlockVector block_x(x.GetData(), true_offsets);
+    Vector x0(offsets_[1]);
+    R.MultTranspose(block_x.GetBlock(0), x0);
+
     ParMesh &pmesh(*trial_space.GetParMesh());
     const int num_hat_dofs = hat_offsets[pmesh.GetNE()];
 
@@ -853,6 +865,10 @@ void BlockHybridizationSolver::Mult(const Vector &x, Vector &y) const
     BlockVector rhs(block_offsets);
     rhs = 0.0;
 
+    Vector x1;
+    x1.MakeRef(block_x.GetBlock(1), 0, test_space.GetNDofs());
+    rhs.SetVector(x1, num_hat_dofs);
+
     Array<int> dofs, test_dofs;
     for (int i = 0; i < pmesh.GetNE(); ++i)
     {
@@ -860,7 +876,7 @@ void BlockHybridizationSolver::Mult(const Vector &x, Vector &y) const
         const int trial_size = dofs.Size();
         Vector g_i;
         g_i.MakeRef(rhs, hat_offsets[i], trial_size);
-        x.GetSubVector(dofs, g_i);  // reverses the sign in assemble if dof < 0
+        x0.GetSubVector(dofs, g_i);  // reverses the sign in assemble if dof < 0
 
         dofs.SetSize(0);
         for (int j = hat_offsets[i]; j < hat_offsets[i + 1]; ++j)
@@ -934,12 +950,15 @@ void BlockHybridizationSolver::Mult(const Vector &x, Vector &y) const
         {
             if (dofs[j] >= 0)
             {
-                y(dofs[j]) = sub_vec[j];
+                x0(dofs[j]) = sub_vec[j];
             }
             else
             {
-                y(-1-dofs[j]) = -sub_vec[j];
+                x0(-1-dofs[j]) = -sub_vec[j];
             }
         }
     }
+    BlockVector block_y(y, true_offsets);
+    R.Mult(x0, block_y.GetBlock(0));
+    y.SetVector(rhs.GetBlock(1), true_offsets[1]);
 }
