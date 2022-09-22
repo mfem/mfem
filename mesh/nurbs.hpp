@@ -67,6 +67,9 @@ public:
    void CalcD2Shape(Vector &grad2, int i, double xi) const
    { CalcDnShape(grad2, 2, i, xi); }
 
+   void FindMaxima(Array<int> &ks,Vector &xi,Vector &u);
+   void FindInterpolant(Array<Vector*> &x);
+
    void Difference(const KnotVector &kv, Vector &diff) const;
    void UniformRefinement(Vector &newknots) const;
    /** Return a new KnotVector with elevated degree by repeating the endpoints
