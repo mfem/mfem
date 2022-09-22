@@ -65,12 +65,14 @@ public:
       MFEM_VERIFY(dim > 1,"Kershaw transformation only works for 2D and 3D"
                   "meshes.");
       MFEM_VERIFY(smooth >= 1 && smooth <= 3,
-                  "KershawTransformation smooth parameter must be"
-                  "between 1 and 3.");
-      MFEM_VERIFY(epsy > 0 && epsy <=1, "Kershaw transformation parameter epsy"
-                  "must be in (0, 1].");
-      MFEM_VERIFY(epsz > 0 && epsz <=1, "Kershaw transformation parameter epsz"
-                  "must be in (0, 1].");
+                  "Kershaw parameter smooth must be in [1, 3]");
+      MFEM_VERIFY(epsy > 0 && epsy <=1,
+                  "Kershaw parameter epsy must be in (0, 1].");
+      if (dim == 3)
+      {
+         MFEM_VERIFY(epsz > 0 && epsz <=1,
+                     "Kershaw parameter epsz must be in (0, 1].");
+      }
    }
 
    // 1D transformation at the right boundary.
