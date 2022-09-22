@@ -32,6 +32,8 @@
 using namespace mfem;
 using namespace std;
 
+void Untangle(ParGridFunction &x, double min_detA, int quad_order);
+
 int main (int argc, char *argv[])
 {
    // Initialize MPI and HYPRE.
@@ -130,6 +132,27 @@ int main (int argc, char *argv[])
    ParGridFunction x0(&pfes);
    x0 = x;
 
+   // Compute the minimum det(A) of the starting mesh.
+   double min_detA = infinity();
+   for (int e = 0; e < NE; e++)
+   {
+      const IntegrationRule &ir =
+         IntRulesLo.Get(pfes.GetFE(e)->GetGeomType(), quad_order);
+      ElementTransformation *transf = pmesh->GetElementTransformation(e);
+      for (int q = 0; q < ir.GetNPoints(); q++)
+      {
+         transf->SetIntPoint(&ir.IntPoint(q));
+         min_detA = fmin(min_detA, transf->Jacobian().Det());
+      }
+   }
+   MPI_Allreduce(MPI_IN_PLACE, &min_detA, 1, MPI_DOUBLE,
+                 MPI_MIN, pfes.GetComm());
+   if (myid == 0)
+   { cout << "Minimum det(J) of the original mesh is " << min_detA << endl; }
+
+   // If needed, untangle with fixed boundary.
+   if (min_detA < 0.0) { Untangle(x, min_detA, quad_order); }
+
    // Metric.
    TMOP_QualityMetric *metric = NULL;
    if (dim == 2) { metric = new TMOP_Metric_002; }
@@ -191,51 +214,6 @@ int main (int argc, char *argv[])
            << "Avg mu: " << integral_mu / volume << endl;
    }
 
-   // Try to to pull back nodes from inverted elements next to the boundary.
-   //   for (int f = 0; f < pfespace->GetNBE(); f++)
-   //   {
-   //      FaceElementTransformations *trans_f = pmesh->GetBdrFaceTransformations(f);
-   //      const IntegrationRule &ir_f = pfespace->GetBE(f)->GetNodes();
-   //      Vector n(dim);
-   //      Array<int> vdofs_e;
-   //      pfespace->GetElementVDofs(trans_f->Elem1No, vdofs_e);
-   //      for (int i = 0; i < ir_f.GetNPoints(); i++)
-   //      {
-   //         const IntegrationPoint &ip = ir_f.IntPoint(i);
-   //         trans_f->SetIntPoint(&ip);
-   //         CalcOrtho(trans_f->Jacobian(), n);
-
-   //         Vector coord_face_node;
-   //         x.GetVectorValue(*trans_f, ip, coord_face_node);
-   //         int ndof = vdofs_e.Size() / dim;
-
-   //         for (int j = 0; j < ndof; j++)
-   //         {
-   //            Vector vec(dim);
-   //            for (int d = 0; d < dim; d++)
-   //            {
-   //               vec(d) = coord_face_node(d) - x(vdofs_e[ndof*d + j]);
-   //            }
-
-   //            if (vec * n < -1e-8)
-   //            {
-   //               // The node is on the wrong side.
-   //               cout << "wrong side "
-   //                    << f << " " << trans_f->Elem1No << " " << j << endl;
-   //               // Pull it inside;
-   //               for (int d = 0; d < dim; d++)
-   //               {
-   //                  x(vdofs_e[ndof*d + j]) =
-   //                        x(vdofs_e[ndof*d + j]) + 1.05 * vec(d);
-   //               }
-   //            }
-   //         }
-   //      }
-   //   }
-   //   // Visualize the starting mesh and metric values.
-   //   char t[] = "Fixed outside nodes";
-   //   vis_tmop_metric_p(mesh_poly_deg, *metric, *target_c, *pmesh, t, 0);
-
    // Detect boundary nodes.
    Array<int> vdofs;
    ParFiniteElementSpace sfespace = ParFiniteElementSpace(pmesh, &fec);
@@ -294,7 +272,6 @@ int main (int argc, char *argv[])
       visit_dc.SetFormat(DataCollection::SERIAL_FORMAT);
       visit_dc.Save();
    }
-
 
    ParFiniteElementSpace ssfespace = ParFiniteElementSpace(&spmesh, &fec);
    ParGridFunction sdomain(&ssfespace);
@@ -757,4 +734,72 @@ int main (int argc, char *argv[])
    delete pmesh;
 
    return 0;
+}
+
+void Untangle(ParGridFunction &x, double min_detA, int quad_order)
+{
+   ParFiniteElementSpace &pfes = *x.ParFESpace();
+   const int dim = pfes.GetParMesh()->Dimension();
+
+   // The metrics work in terms of det(T).
+   const DenseMatrix &Wideal =
+      Geometries.GetGeomToPerfGeomJac(pfes.GetFE(0)->GetGeomType());
+   // Slightly below the minimum to avoid division by 0.
+   double min_detT = min_detA / Wideal.Det();
+
+   // Metric / target / integrator.
+   auto btype = TMOP_WorstCaseUntangleOptimizer_Metric::BarrierType::Shifted;
+   auto wctype = TMOP_WorstCaseUntangleOptimizer_Metric::WorstCaseType::None;
+   TMOP_QualityMetric *metric = NULL;
+   if (dim == 2) { metric = new TMOP_Metric_004; }
+   else          { metric = new TMOP_Metric_360; }
+   TMOP_WorstCaseUntangleOptimizer_Metric u_metric(*metric, 1.0, 1.0, 2, 1.5,
+                                                    0.001, 0.001,
+                                                    btype, wctype);
+   TargetConstructor::TargetType target =
+         TargetConstructor::IDEAL_SHAPE_UNIT_SIZE;
+   TargetConstructor target_c(target, pfes.GetComm());
+   auto tmop_integ = new TMOP_Integrator(&u_metric, &target_c, nullptr);
+   tmop_integ->EnableFiniteDifferences(x);
+   tmop_integ->SetIntegrationRules(IntRulesLo, quad_order);
+
+
+   // Nonlinear form.
+   ParNonlinearForm nlf(&pfes);
+   nlf.AddDomainIntegrator(tmop_integ);
+
+   Array<int> ess_bdr(pfes.GetParMesh()->bdr_attributes.Max());
+   ess_bdr = 1;
+   nlf.SetEssentialBC(ess_bdr);
+
+   // Linear solver.
+   MINRESSolver minres(pfes.GetComm());
+   minres.SetMaxIter(100);
+   minres.SetRelTol(1e-12);
+   minres.SetAbsTol(0.0);
+   IterativeSolver::PrintLevel minres_pl;
+   minres.SetPrintLevel(minres_pl.FirstAndLast().Summary());
+
+   // Nonlinear solver.
+   const IntegrationRule &ir =
+      IntRulesLo.Get(pfes.GetFE(0)->GetGeomType(), quad_order);
+   TMOPNewtonSolver solver(pfes.GetComm(), ir);
+   solver.SetOperator(nlf);
+   solver.SetPreconditioner(minres);
+   solver.SetMinDetPtr(&min_detT);
+   solver.SetMaxIter(200);
+   solver.SetRelTol(1e-8);
+   solver.SetAbsTol(0.0);
+   IterativeSolver::PrintLevel newton_pl;
+   solver.SetPrintLevel(newton_pl.Iterations().Summary());
+
+   // Optimize.
+   x.SetTrueVector();
+   Vector b;
+   solver.Mult(b, x.GetTrueVector());
+   x.SetFromTrueVector();
+
+   delete metric;
+
+   return;
 }
