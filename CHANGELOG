@@ -15,11 +15,15 @@ Meshing improvements
 --------------------
 - Added support for mixed meshes and pyramids in GSLIB-FindPoints.
 
+- Added new SubMesh and ParSubMesh classes that can be used to extract a subset
+  of a given Mesh. These classes have the same functionality as Mesh and ParMesh
+  and work with all existing MFEM interfaces like finite element spaces etc.
+
 Discretization improvements
 ---------------------------
 - Added support for assembling low-order-refined matrices using a GPU-enabled
   "batched" algorithm. The lor_solvers and plor_solvers now fully support GPU
-  acceleration.
+  acceleration with arbitrary user-supplied coefficients.
 
 - Added support for partial assembly and fully matrix-free operators on mixed
   meshes (different element types and p-adaptivity) through libCEED, including
@@ -39,6 +43,12 @@ Discretization improvements
 
 - Added a new Zienkiewicz-Zhu patch recovery-based a posteriori error estimator.
   See fem/estimators.hpp.
+
+- Added a new class FaceQuadratureSpace that allows for the construction of
+  QuadratureFunctions on the interior or boundary faces of a mesh.
+
+- Added a class CoefficientVector for efficient access of variable coefficient
+  values at quadrature points (in particular for GPU/device kernels).
 
 Linear and nonlinear solvers
 ----------------------------
@@ -82,7 +92,6 @@ Miscellaneous
 -------------
 - Various other simplifications, extensions, and bugfixes in the code.
 
-
 - Added boundary elimination with device support for `SparseMatrix` and
   `HypreParMatrix`.
 
@@ -91,6 +100,7 @@ Miscellaneous
   `HypreParMatrix` in parallel (instead of a `ConstrainedOperator`).
 
 - Added TMOP metrics for mesh untangling and worst-case quality improvement.
+
 
 Version 4.4, released on March 21, 2022
 =======================================

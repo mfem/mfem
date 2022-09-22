@@ -438,7 +438,7 @@ public:
 
    /** @brief Count the number of entries in the Vector for which isfinite
        is false, i.e. the entry is a NaN or +/-Inf. */
-   int CheckFinite() const { return mfem::CheckFinite(data, size); }
+   int CheckFinite() const { return mfem::CheckFinite(HostRead(), size); }
 
    /// Destroys vector.
    virtual inline ~Vector();
