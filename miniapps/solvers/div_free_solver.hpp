@@ -252,12 +252,12 @@ public:
 class BlockHybridizationSolver : public DarcySolver
 {
    ParFiniteElementSpace trial_space, test_space;
+   ParFiniteElementSpace *c_fes;
    Array<int> hat_offsets, data_offsets, ipiv_offsets;
    double *data;
    int *ipiv;
    SparseMatrix *Ct;
    OperatorPtr pH;
-   const Operator *P;
    CGSolver solver_;
 public:
    BlockHybridizationSolver(const std::shared_ptr<ParBilinearForm> &a,

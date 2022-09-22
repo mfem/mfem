@@ -645,8 +645,8 @@ BlockHybridizationSolver::BlockHybridizationSolver(const shared_ptr<ParBilinearF
     }
 
     DG_Interface_FECollection fec(order, pmesh.Dimension());
-    ParFiniteElementSpace c_space(&pmesh, &fec);
-    P = c_space.GetProlongationMatrix();
+    c_fes = new ParFiniteElementSpace(&pmesh, &fec);
+    ParFiniteElementSpace &c_space(*c_fes);
 
     Ct = new SparseMatrix(num_hat_dofs, c_space.GetNDofs());
     Array<int> c_dofs;
@@ -836,6 +836,7 @@ BlockHybridizationSolver::~BlockHybridizationSolver()
     delete ipiv;
     delete data;
     delete Ct;
+    delete c_fes;
 }
 
 void BlockHybridizationSolver::Mult(const Vector &x, Vector &y) const
@@ -881,8 +882,8 @@ void BlockHybridizationSolver::Mult(const Vector &x, Vector &y) const
     Ct->MultTranspose(rhs.GetBlock(0), rhs_r);
 
     Vector rhs_true(pH.Ptr()->Height());
-    // const Operator & P(*c_space.GetProlongationMatrix());
-    P->MultTranspose(rhs_r, rhs_true);
+    const Operator &P(*c_fes->GetProlongationMatrix());
+    P.MultTranspose(rhs_r, rhs_true);
 
     Vector lambda_true(rhs_true.Size());
     lambda_true = 0.0;
@@ -890,7 +891,7 @@ void BlockHybridizationSolver::Mult(const Vector &x, Vector &y) const
     solver_.Mult(rhs_true, lambda_true);
 
     Vector lambda(Ct->Width());
-    P->Mult(lambda_true, lambda);
+    P.Mult(lambda_true, lambda);
     BlockVector Ct_lambda(block_offsets);
     Ct_lambda = 0.0;  // This is necessary.
     Ct->Mult(lambda, Ct_lambda.GetBlock(0));
