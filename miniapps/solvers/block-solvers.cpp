@@ -167,7 +167,8 @@ DarcyProblem::DarcyProblem(MPI_Comm comm, Mesh &mesh, int num_refs, int order,
    gform.ParallelAssemble(blk_rhs.GetBlock(1));
 
    Mform_ = make_shared<ParBilinearForm>(u_fes);
-   Mform_->AddDomainIntegrator(new VectorFEMassIntegrator(mass_coeff));
+   // Mform_->AddDomainIntegrator(new VectorFEMassIntegrator(mass_coeff));
+   Mform_->AddDomainIntegrator(new VectorFEMassIntegrator());
    Mform_->Assemble();
    Mform_->Finalize();
 
