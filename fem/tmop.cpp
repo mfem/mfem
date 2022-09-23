@@ -1216,9 +1216,6 @@ void TMOP_Metric_352::AssembleH(const DenseMatrix &Jpt,
    ie.Assemble_ddI3b(weight*(c - 0.5*c*c), A.GetData());
 }
 
-
-
-
 double TMOP_Metric_360::EvalWMatrixForm(const DenseMatrix &Jpt) const
 {
    // mu_360 = |J|^3 / 3^(3/2) - det(J)

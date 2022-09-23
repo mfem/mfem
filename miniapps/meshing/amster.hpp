@@ -133,7 +133,9 @@ void OptimizeMeshWithAMRForAnotherMesh(ParMesh &pmesh,
 void ComputeScalarDistanceFromLevelSet(ParMesh &pmesh,
                                        GridFunctionCoefficient &ls_coeff,
                                        ParGridFunction &distance_s,
-                                       bool filter_input)
+                                       bool filter_input,
+                                       const int pLap = 5,
+                                       const int nDiffuse = 3)
 {
    H1_FECollection h1fec(distance_s.ParFESpace()->FEColl()->GetOrder(),
                          pmesh.Dimension());
@@ -144,7 +146,7 @@ void ComputeScalarDistanceFromLevelSet(ParMesh &pmesh,
    x.ExchangeFaceNbrData();
 
    //Now determine distance
-   const int p = 5;
+   const int p = pLap;
    const int newton_iter = 50;
    PLapDistanceSolver dist_solver(p, newton_iter);
    dist_solver.print_level = 1;
@@ -167,7 +169,7 @@ void ComputeScalarDistanceFromLevelSet(ParMesh &pmesh,
    distance_s.SetTrueVector();
    distance_s.SetFromTrueVector();
 
-   DiffuseField(distance_s, 3);
+   DiffuseField(distance_s, nDiffuse);
    distance_s.SetTrueVector();
    distance_s.SetFromTrueVector();
    for (int i = 0; i < distance_s.Size(); i++)

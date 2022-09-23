@@ -555,6 +555,7 @@ int main (int argc, char *argv[])
                      "Metric not supported for shifted/pseudo barriers.");
       }
       untangler_metric = new TMOP_WorstCaseUntangleOptimizer_Metric(*metric,
+                                                                    1.0, 1.0,
                                                                     2,
                                                                     1.5,
                                                                     0.001,//0.01 for pseudo barrier

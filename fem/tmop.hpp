@@ -153,12 +153,14 @@ protected:
 
 public:
    TMOP_WorstCaseUntangleOptimizer_Metric(TMOP_QualityMetric &tmop_metric_,
+                                          double min_det, double max_mu,
                                           int exponent_ = 1,
                                           double alpha_ = 1.5,
                                           double detT_ep_ = 0.0001,
                                           double muT_ep_ = 0.0001,
                                           BarrierType btype_ = BarrierType::None,
                                           WorstCaseType wctype_ = WorstCaseType::None) :
+      min_detT(min_det), max_muT(max_mu),
       tmop_metric(tmop_metric_), exponent(exponent_), alpha(alpha_),
       detT_ep(detT_ep_), muT_ep(muT_ep_), btype(btype_), wctype(wctype_)
    {
