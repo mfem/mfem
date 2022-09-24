@@ -19,8 +19,9 @@
 #include <iostream>
 #include <algorithm>
 #include "p_divW.hpp"
-#include "/Users/nma727/Desktop/MFEM/Source/mfem/miniapps/common/mfem-common.hpp"
+#include "../common/mfem-common.hpp"
 #include "AnalyticalSurface.hpp"
+
 
 using namespace std;
 using namespace mfem;
