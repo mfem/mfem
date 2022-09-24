@@ -45,7 +45,7 @@ int main(int argc, char *argv[])
    
    // 1. Parse command line options
   //  const char *mesh_file = "./mesh_1.exo";
-  const char *mesh_file = "../../data/square01_tri.mesh";
+  const char *mesh_file = "../../data/square01_tri.mesh"
   //  const char *mesh_file = "./square01_quad.mesh";
   //  const char *mesh_file = "./OneElement_tri.mesh";
  
@@ -57,7 +57,8 @@ int main(int argc, char *argv[])
    bool useEmbedded = false;
    int geometricShape = 0;
    int nTerms = 1;
-  
+   bool visualization = true;
+
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh", "Mesh file to use.");
    args.AddOption(&velocityOrder, "-vo", "--velocityOrder", "Finite element velocity polynomial degree");
@@ -73,7 +74,9 @@ int main(int argc, char *argv[])
                   "Shape of the embedded geometry that will be embedded");
    args.AddOption(&nTerms, "-tO", "--taylorOrder",
                   "Number of terms in the Taylor expansion");
-  
+   args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
+		  "--no-visualization",
+                  "Enable or disable GLVis visualization.");  
    args.ParseCheck();
    Device device(device_config);
 
@@ -93,7 +96,7 @@ int main(int argc, char *argv[])
    H1_FECollection V_fec(velocityOrder, pmesh->Dimension());
    H1_FECollection P_fec(pressureOrder, pmesh->Dimension());
 
-   ParFiniteElementSpace V_H1FESpace(pmesh, &V_fec, pmesh->Dimension());
+   ParFiniteElementSpace V_H1FESpace(pmesh, &V_fec, pmesh->Dimension(),Ordering::byVDIM);
    ParFiniteElementSpace P_H1FESpace(pmesh, &P_fec);
    V_H1FESpace.ExchangeFaceNbrData();
    P_H1FESpace.ExchangeFaceNbrData();
@@ -110,6 +113,7 @@ int main(int argc, char *argv[])
      Array<int> ess_inactive_dofs = analyticalSurface->GetEss_Vdofs();
      V_H1FESpace.GetRestrictionMatrix()->BooleanMult(ess_inactive_dofs, ess_tdofs);
      V_H1FESpace.MarkerToList(ess_tdofs, ess_vdofs);
+
      //  ess_vdofs.Print(std::cout,1);
      //     std::cout << " ess size " << ess_vdofs.Size() << std::endl;
    }
@@ -207,7 +211,6 @@ int main(int argc, char *argv[])
      // Nitsche
      fform->AddInteriorFaceIntegrator(new ShiftedStrainNitscheBCForceIntegrator(pmesh, mu_func, ucoeff_shifted, analyticalSurface));
    }
-
    fform->Assemble();
    fform->ParallelAssemble(trueRhs.GetBlock(0));
 
@@ -219,10 +222,11 @@ int main(int argc, char *argv[])
      // Nitsche
      gform->AddInteriorFaceIntegrator(new ShiftedPressureNitscheBCForceIntegrator(pmesh, ucoeff_shifted, analyticalSurface));    
    }
+  
    gform->Assemble();
    gform->ParallelAssemble(trueRhs.GetBlock(1));
    trueRhs.GetBlock(1).SyncAliasMemory(trueRhs);
-   
+  
    ParBilinearForm *mVarf(new ParBilinearForm(&V_H1FESpace));
    mVarf->AddDomainIntegrator(new ElasticityIntegrator(lambda_func,mu_func),ess_elem);
    // Nitsche
@@ -241,6 +245,7 @@ int main(int argc, char *argv[])
      mVarf->AddInteriorFaceIntegrator(new ShiftedVelocityPenaltyIntegrator(pmesh, penaltyParameter, mu_func, analyticalSurface, nTerms));
    }
 
+  
    mVarf->Assemble();
    mVarf->Finalize();
    
@@ -255,7 +260,7 @@ int main(int argc, char *argv[])
    
    bVarf->Assemble();
    bVarf->Finalize();
-
+   
    ParMixedBilinearForm *btVarf(new ParMixedBilinearForm(&P_H1FESpace, &V_H1FESpace));
    btVarf->AddDomainIntegrator(new PDivWForceIntegrator(),ess_elem);
    // IP
@@ -277,18 +282,52 @@ int main(int argc, char *argv[])
    M = mVarf->ParallelAssemble();
    B = bVarf->ParallelAssemble();
    Bt = btVarf->ParallelAssemble();
-   
+  
    stokesOp.SetBlock(0,0, M);
    stokesOp.SetBlock(0,1, Bt);
    stokesOp.SetBlock(1,0, B);
-   
+
    ConstrainedOperator A(&stokesOp,ess_vdofs);
    A.EliminateRHS(trueX,trueRhs);
+
+    // PRECONDITIONER
+   ConstantCoefficient one(1.0);
+   ParBilinearForm *pMass = new ParBilinearForm(&P_H1FESpace);
+   pMass->AddDomainIntegrator(new MassIntegrator(one));
+   pMass->Assemble();
+   pMass->Finalize();
+
+   ParBilinearForm *vMass(new ParBilinearForm(&V_H1FESpace));
+   vMass->AddDomainIntegrator(new ElasticityIntegrator(lambda_func,mu_func),ess_elem);
+   if (useEmbedded){
+     vMass->AddInteriorFaceIntegrator(new ShiftedVelocityPenaltyIntegrator(pmesh, penaltyParameter, mu_func, analyticalSurface, nTerms));
+   }
+   vMass->AddBdrFaceIntegrator(new VelocityPenaltyIntegrator(penaltyParameter,mu_func),dbc_bdr_dir);
+   vMass->Assemble();
+   vMass->Finalize();
+
+   HypreParMatrix *velocity_Mass = NULL;
+   HypreParMatrix *pressure_Mass = NULL;
+   velocity_Mass = vMass->ParallelAssemble();
+   pressure_Mass = pMass->ParallelAssemble();
+
+   HypreParMatrix *VMe = NULL;
+   HypreParMatrix *PMe = NULL;
+   VMe = velocity_Mass->EliminateRowsCols(ess_vdofs);
+   mfem::HypreBoomerAMG* Vamg = new HypreBoomerAMG(*velocity_Mass);
+   Vamg->SetSystemsOptions(dim);
+   Vamg->SetElasticityOptions(&V_H1FESpace);
+   mfem::HypreBoomerAMG* Pamg = new HypreBoomerAMG(*pressure_Mass);
+   BlockDiagonalPreconditioner *stokesPr = new BlockDiagonalPreconditioner(block_trueOffsets);
+   stokesPr->SetDiagonalBlock(0,Vamg);
+   stokesPr->SetDiagonalBlock(1,Pamg);
+   ///
+   
    // 11. Solve the linear system with MINRES.
    //     Check the norm of the unpreconditioned residual.
    int maxIter(100000000);
-   double rtol(1.e-14);
-   double atol(1.e-14);
+   double rtol(1.e-10);
+   double atol(0.0);
 
    chrono.Clear();
    chrono.Start();
@@ -296,8 +335,8 @@ int main(int argc, char *argv[])
    solver.SetAbsTol(atol);
    solver.SetRelTol(rtol);
    solver.SetMaxIter(maxIter);
-   //  solver.SetOperator(stokesOp);
    solver.SetOperator(A);
+   solver.SetPreconditioner(*stokesPr);
    solver.SetPrintLevel(1);
    trueX = 0.0;
    solver.Mult(trueRhs, trueX);
@@ -347,34 +386,40 @@ int main(int argc, char *argv[])
       std::cout << "|| p_h - p_ex || = " << err_p << "\n";
    }
 
-   int size = 500;
-   char vishost[] = "localhost";
-   int  visport   = 19916;
-   socketstream sol_sock_u;
-   common::VisualizeField(sol_sock_u, vishost, visport, *u,
-                          "Velocity", 0, 0, size, size);
-   socketstream sol_sock_p;
-   common::VisualizeField(sol_sock_p, vishost, visport, *p,
-                          "Pressure", size, 0, size, size);
-
+   if (visualization){
+     int size = 500;
+     char vishost[] = "localhost";
+     int  visport   = 19916;
+     socketstream sol_sock_u;
+     common::VisualizeField(sol_sock_u, vishost, visport, *u,
+			    "Velocity", 0, 0, size, size);
+     socketstream sol_sock_p;
+     common::VisualizeField(sol_sock_p, vishost, visport, *p,
+			    "Pressure", size, 0, size, size);
+     
      // 14. Save data in the ParaView format
-   ParaViewDataCollection paraview_dc("Example5_mesh3", pmesh);
-   paraview_dc.SetPrefixPath("ParaView");
-   paraview_dc.SetLevelsOfDetail(velocityOrder);
-   paraview_dc.SetCycle(0);
-   paraview_dc.SetDataFormat(VTKFormat::BINARY);
-   paraview_dc.SetHighOrderOutput(true);
-   paraview_dc.SetTime(0.0); // set the time
-   paraview_dc.RegisterField("velocity",u);
-   paraview_dc.RegisterField("pressure",p);
-   paraview_dc.Save();
+     ParaViewDataCollection paraview_dc("Example5_mesh3", pmesh);
+     paraview_dc.SetPrefixPath("ParaView");
+     paraview_dc.SetLevelsOfDetail(velocityOrder);
+     paraview_dc.SetCycle(0);
+     paraview_dc.SetDataFormat(VTKFormat::BINARY);
+     paraview_dc.SetHighOrderOutput(true);
+     paraview_dc.SetTime(0.0); // set the time
+     paraview_dc.RegisterField("velocity",u);
+     paraview_dc.RegisterField("pressure",p);
+     paraview_dc.Save();
+   }
 
    // 15. Free the used memory.
    delete fform;
+   delete gform;
    delete mVarf;
    delete bVarf;
+   delete btVarf;
    delete pmesh;
-   
+   if (useEmbedded){
+     delete analyticalSurface;
+   }
    return 0;
 }
 

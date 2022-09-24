@@ -33,6 +33,8 @@ using namespace mfem;
 namespace mfem
 {
 
+  double factorial(int nTerms);
+  
 class ShiftedVectorFunctionCoefficient : public VectorCoefficient
 {
 protected:

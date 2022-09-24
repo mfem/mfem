@@ -19,6 +19,14 @@
 
 namespace mfem
 {
+  double factorial(int nTerms){
+    double factorial = 1.0;	
+    for (int s = 1; s <= nTerms; s++){
+      factorial = factorial*s;
+    }
+    return factorial;
+  }
+
   void ShiftedVectorFunctionCoefficient::Eval(Vector &V,
 					      ElementTransformation & T,
 					      const IntegrationPoint & ip,
@@ -60,11 +68,11 @@ namespace mfem
       }
 
     const int e = Tr.ElementNo;
-    double factorial = 1.0;
+    /*   double factorial = 1.0;
     for (int s = 1; s <= nTerms; s++){
       factorial *= factorial*s;
     }
-
+*/
     if ( (elemStatus1 == AnalyticalGeometricShape::SBElementType::INSIDE) &&  (elemStatus2 == AnalyticalGeometricShape::SBElementType::CUT) ){
       const int dim = fe.GetDim();
       const int dofs_cnt = fe.GetDof();
@@ -145,27 +153,35 @@ namespace mfem
 	  }
 
 	  DenseMatrix tmp(dofs_cnt);
+	  DenseMatrix dummy_tmp(dofs_cnt);
 	  tmp = gradUResDirD;
 	  taylorExp = gradUResDirD;
-	  for ( int p = 1; p < nTerms; p++){
-	    for (int k = 0; k < dofs_cnt; k++){
-	      for (int s = 0; s < dofs_cnt; s++){
-		for (int r = 0; r < dofs_cnt; r++){
-		  taylorExp(k,s) += tmp(k,r)*gradUResDirD(r,s) * (1.0/factorial);
-		}
-	      }
-	    }
-	    tmp = taylorExp;
-	  }
-	  
+	  dummy_tmp = 0.0;
 	  for (int k = 0; k < dofs_cnt; k++){
 	    for (int s = 0; s < dofs_cnt; s++){
 	      gradUResD(k) += taylorExp(k,s) * shape(s);  
 	    }
 	  }
-
+	  for ( int p = 1; p < nTerms; p++){
+	    dummy_tmp = 0.0;
+	    taylorExp = 0.0;
+	    for (int k = 0; k < dofs_cnt; k++){
+	      for (int s = 0; s < dofs_cnt; s++){
+		for (int r = 0; r < dofs_cnt; r++){
+		  taylorExp(k,s) += tmp(k,r) * gradUResDirD(r,s) * (1.0/factorial(p+1));
+		  dummy_tmp(k,s) += tmp(k,r) * gradUResDirD(r,s);
+		}
+	      }
+	    }
+	    tmp = dummy_tmp;
+	    for (int k = 0; k < dofs_cnt; k++){
+	      for (int s = 0; s < dofs_cnt; s++){
+		gradUResD(k) += taylorExp(k,s) * shape(s);  
+	      }
+	    }
+	  }
+	  
 	  ////
-	  // FIRST ORDER TAYLOR
 	  shape += gradUResD;
 	  //
 		  
@@ -272,27 +288,35 @@ namespace mfem
 	  }
 
 	  DenseMatrix tmp(dofs_cnt);
+	  DenseMatrix dummy_tmp(dofs_cnt);
 	  tmp = gradUResDirD;
 	  taylorExp = gradUResDirD;
-	  for ( int p = 1; p < nTerms; p++){
-	    for (int k = 0; k < dofs_cnt; k++){
-	      for (int s = 0; s < dofs_cnt; s++){
-		for (int r = 0; r < dofs_cnt; r++){
-		  taylorExp(k,s) += tmp(k,r)*gradUResDirD(r,s) * (1.0/factorial);
-		}
-	      }
-	    }
-	    tmp = taylorExp;
-	  }
-	  
+	  dummy_tmp = 0.0;
 	  for (int k = 0; k < dofs_cnt; k++){
 	    for (int s = 0; s < dofs_cnt; s++){
 	      gradUResD(k) += taylorExp(k,s) * shape(s);  
 	    }
 	  }
+	  for ( int p = 1; p < nTerms; p++){
+	    dummy_tmp = 0.0;
+	    taylorExp = 0.0;
+	    for (int k = 0; k < dofs_cnt; k++){
+	      for (int s = 0; s < dofs_cnt; s++){
+		for (int r = 0; r < dofs_cnt; r++){
+		  taylorExp(k,s) += tmp(k,r) * gradUResDirD(r,s) * (1.0/factorial(p+1));
+		  dummy_tmp(k,s) += tmp(k,r) * gradUResDirD(r,s);
+		}
+	      }
+	    }
+	    tmp = dummy_tmp;
+	    for (int k = 0; k < dofs_cnt; k++){
+	      for (int s = 0; s < dofs_cnt; s++){
+		gradUResD(k) += taylorExp(k,s) * shape(s);  
+	      }
+	    }
+	  }
 
 	  ////
-	  // FIRST ORDER TAYLOR
 	  shape += gradUResD;
 	  //
 	  
@@ -511,10 +535,10 @@ namespace mfem
       }
 
     const int e = Tr.ElementNo;
-    double factorial = 1.0;
+    /* double factorial = 1.0;
     for (int s = 1; s <= nTerms; s++){
       factorial *= factorial*s;
-    }
+    }*/
     
     if ( (elemStatus1 == AnalyticalGeometricShape::SBElementType::INSIDE) &&  (elemStatus2 == AnalyticalGeometricShape::SBElementType::CUT) ){
       const int dim = test_fe1.GetDim();
@@ -593,26 +617,35 @@ namespace mfem
 	  }
 
 	  DenseMatrix tmp(trialdofs_cnt);
+	  DenseMatrix dummy_tmp(trialdofs_cnt);
 	  tmp = gradUResDirD;
 	  taylorExp = gradUResDirD;
-	  for ( int p = 1; p < nTerms; p++){
-	    for (int k = 0; k < trialdofs_cnt; k++){
-	      for (int s = 0; s < trialdofs_cnt; s++){
-		for (int r = 0; r < trialdofs_cnt; r++){
-		  taylorExp(k,s) += tmp(k,r)*gradUResDirD(r,s) * (1.0/factorial);
-		}
-	      }
-	    }
-	    tmp = taylorExp;
-	  }
-	  
+	  dummy_tmp = 0.0;
 	  for (int k = 0; k < trialdofs_cnt; k++){
 	    for (int s = 0; s < trialdofs_cnt; s++){
 	      gradUResD(k) += taylorExp(k,s) * tr_shape(s);  
 	    }
 	  }
-
-	  // FIRST ORDER TAYLOR
+	  for ( int p = 1; p < nTerms; p++){
+	    dummy_tmp = 0.0;
+	    taylorExp = 0.0;
+	    for (int k = 0; k < trialdofs_cnt; k++){
+	      for (int s = 0; s < trialdofs_cnt; s++){
+		for (int r = 0; r < trialdofs_cnt; r++){
+		  taylorExp(k,s) += tmp(k,r) * gradUResDirD(r,s) * (1.0/factorial(p+1));
+		  dummy_tmp(k,s) += tmp(k,r) * gradUResDirD(r,s);
+		}
+	      }
+	    }
+	    tmp = dummy_tmp;
+	    for (int k = 0; k < trialdofs_cnt; k++){
+	      for (int s = 0; s < trialdofs_cnt; s++){
+		gradUResD(k) += taylorExp(k,s) * tr_shape(s);  
+	      }
+	    }
+	  }
+	  
+	  
 	  tr_shape += gradUResD;
 
 	  
@@ -706,26 +739,34 @@ namespace mfem
 	  }
 
 	  DenseMatrix tmp(trialdofs_cnt);
+	  DenseMatrix dummy_tmp(trialdofs_cnt);
 	  tmp = gradUResDirD;
 	  taylorExp = gradUResDirD;
-	  for ( int p = 1; p < nTerms; p++){
-	    for (int k = 0; k < trialdofs_cnt; k++){
-	      for (int s = 0; s < trialdofs_cnt; s++){
-		for (int r = 0; r < trialdofs_cnt; r++){
-		  taylorExp(k,s) += tmp(k,r)*gradUResDirD(r,s) * (1.0/factorial);
-		}
-	      }
-	    }
-	    tmp = taylorExp;
-	  }
-	  
+	  dummy_tmp = 0.0;
 	  for (int k = 0; k < trialdofs_cnt; k++){
 	    for (int s = 0; s < trialdofs_cnt; s++){
 	      gradUResD(k) += taylorExp(k,s) * tr_shape(s);  
 	    }
 	  }
-
-	  // FIRST ORDER TAYLOR
+	  for ( int p = 1; p < nTerms; p++){
+	    dummy_tmp = 0.0;
+	    taylorExp = 0.0;
+	    for (int k = 0; k < trialdofs_cnt; k++){
+	      for (int s = 0; s < trialdofs_cnt; s++){
+		for (int r = 0; r < trialdofs_cnt; r++){
+		  taylorExp(k,s) += tmp(k,r) * gradUResDirD(r,s) * (1.0/factorial(p+1));
+		  dummy_tmp(k,s) += tmp(k,r) * gradUResDirD(r,s);
+		}
+	      }
+	    }
+	    tmp = dummy_tmp;
+	    for (int k = 0; k < trialdofs_cnt; k++){
+	      for (int s = 0; s < trialdofs_cnt; s++){
+		gradUResD(k) += taylorExp(k,s) * tr_shape(s);  
+	      }
+	    }
+	  }
+	  
 	  tr_shape += gradUResD;
 	  
 	  for (int i = 0; i < testdofs_cnt; i++)
@@ -927,10 +968,10 @@ namespace mfem
         elemStatus2 = elemStatus[elem2];
       }
 
-    double factorial = 1.0;
+    /* double factorial = 1.0;
     for (int s = 1; s <= nTerms; s++){
       factorial *= factorial*s;
-    }
+    }*/
 
     const int e = Tr.ElementNo;
 
@@ -1005,27 +1046,35 @@ namespace mfem
 	  }
 
 	  DenseMatrix tmp(h1dofs_cnt);
+	  DenseMatrix dummy_tmp(h1dofs_cnt);
 	  tmp = gradUResDirD;
 	  taylorExp = gradUResDirD;
-	  for ( int p = 1; p < nTerms; p++){
-	    for (int k = 0; k < h1dofs_cnt; k++){
-	      for (int s = 0; s < h1dofs_cnt; s++){
-		for (int r = 0; r < h1dofs_cnt; r++){
-		  taylorExp(k,s) += tmp(k,r)*gradUResDirD(r,s) * (1.0/factorial);
-		}
-	      }
-	    }
-	    tmp = taylorExp;
-	  }
-	  
+	  dummy_tmp = 0.0;
 	  for (int k = 0; k < h1dofs_cnt; k++){
 	    for (int s = 0; s < h1dofs_cnt; s++){
 	      gradUResD(k) += taylorExp(k,s) * shape(s);  
 	    }
 	  }
-
+	  for ( int p = 1; p < nTerms; p++){
+	    dummy_tmp = 0.0;
+	    taylorExp = 0.0;
+	    for (int k = 0; k < h1dofs_cnt; k++){
+	      for (int s = 0; s < h1dofs_cnt; s++){
+		for (int r = 0; r < h1dofs_cnt; r++){
+		  taylorExp(k,s) += tmp(k,r) * gradUResDirD(r,s) * (1.0/factorial(p+1));
+		  dummy_tmp(k,s) += tmp(k,r) * gradUResDirD(r,s);
+		}
+	      }
+	    }
+	    tmp = dummy_tmp;
+	    for (int k = 0; k < h1dofs_cnt; k++){
+	      for (int s = 0; s < h1dofs_cnt; s++){
+		gradUResD(k) += taylorExp(k,s) * shape(s);  
+	      }
+	    }
+	  }
+	  
 	  ////
-	  // FIRST ORDER TAYLOR
 	  shape += gradUResD;
 	  //
 
@@ -1124,27 +1173,34 @@ namespace mfem
 	  }
 
 	  DenseMatrix tmp(h1dofs_cnt);
+	  DenseMatrix dummy_tmp(h1dofs_cnt);
 	  tmp = gradUResDirD;
 	  taylorExp = gradUResDirD;
-	  for ( int p = 1; p < nTerms; p++){
-	    for (int k = 0; k < h1dofs_cnt; k++){
-	      for (int s = 0; s < h1dofs_cnt; s++){
-		for (int r = 0; r < h1dofs_cnt; r++){
-		  taylorExp(k,s) += tmp(k,r)*gradUResDirD(r,s) * (1.0/factorial);
-		}
-	      }
-	    }
-	    tmp = taylorExp;
-	  }
-	  
+	  dummy_tmp = 0.0;
 	  for (int k = 0; k < h1dofs_cnt; k++){
 	    for (int s = 0; s < h1dofs_cnt; s++){
 	      gradUResD(k) += taylorExp(k,s) * shape(s);  
 	    }
 	  }
-
+	  for ( int p = 1; p < nTerms; p++){
+	    dummy_tmp = 0.0;
+	    taylorExp = 0.0;
+	    for (int k = 0; k < h1dofs_cnt; k++){
+	      for (int s = 0; s < h1dofs_cnt; s++){
+		for (int r = 0; r < h1dofs_cnt; r++){
+		  taylorExp(k,s) += tmp(k,r) * gradUResDirD(r,s) * (1.0/factorial(p+1));
+		  dummy_tmp(k,s) += tmp(k,r) * gradUResDirD(r,s);
+		}
+	      }
+	    }
+	    tmp = dummy_tmp;
+	    for (int k = 0; k < h1dofs_cnt; k++){
+	      for (int s = 0; s < h1dofs_cnt; s++){
+		gradUResD(k) += taylorExp(k,s) * shape(s);  
+	      }
+	    }
+	  }
 	  ////
-	  // FIRST ORDER TAYLOR
 	  shape += gradUResD;
 	  //
 	      
@@ -1534,11 +1590,11 @@ namespace mfem
       }
 
     const int e = Tr.ElementNo;
-    double factorial = 1.0;
+    /*   double factorial = 1.0;
     for (int s = 1; s <= nTerms; s++){
       factorial *= factorial*s;
     }
-    
+*/    
     if ( (elemStatus1 == AnalyticalGeometricShape::SBElementType::INSIDE) &&  (elemStatus2 == AnalyticalGeometricShape::SBElementType::CUT) ){
       const int dim = el.GetDim();
       const int h1dofs_cnt = el.GetDof();
@@ -1611,7 +1667,7 @@ namespace mfem
 	  /////
 	  uD->Eval(bcEval, Trans_el1, eip, D);
 
-	  
+
 	  for (int k = 0; k < h1dofs_cnt; k++){
 	    for (int s = 0; s < h1dofs_cnt; s++){
 	      for (int j = 0; j < dim; j++){
@@ -1621,27 +1677,35 @@ namespace mfem
 	  }
 
 	  DenseMatrix tmp(h1dofs_cnt);
+	  DenseMatrix dummy_tmp(h1dofs_cnt);
 	  tmp = gradUResDirD;
 	  taylorExp = gradUResDirD;
-	  for ( int p = 1; p < nTerms; p++){
-	    for (int k = 0; k < h1dofs_cnt; k++){
-	      for (int s = 0; s < h1dofs_cnt; s++){
-		for (int r = 0; r < h1dofs_cnt; r++){
-		  taylorExp(k,s) += tmp(k,r)*gradUResDirD(r,s) * (1.0/factorial);
-		}
-	      }
-	    }
-	    tmp = taylorExp;
-	  }
-	  
+	  dummy_tmp = 0.0;
 	  for (int k = 0; k < h1dofs_cnt; k++){
 	    for (int s = 0; s < h1dofs_cnt; s++){
 	      gradUResD(k) += taylorExp(k,s) * shape(s);  
 	    }
 	  }
-
+	  for ( int p = 1; p < nTerms; p++){
+	    dummy_tmp = 0.0;
+	    taylorExp = 0.0;
+	    for (int k = 0; k < h1dofs_cnt; k++){
+	      for (int s = 0; s < h1dofs_cnt; s++){
+		for (int r = 0; r < h1dofs_cnt; r++){
+		  taylorExp(k,s) += tmp(k,r) * gradUResDirD(r,s) * (1.0/factorial(p+1));
+		  dummy_tmp(k,s) += tmp(k,r) * gradUResDirD(r,s);
+		}
+	      }
+	    }
+	    tmp = dummy_tmp;
+	    for (int k = 0; k < h1dofs_cnt; k++){
+	      for (int s = 0; s < h1dofs_cnt; s++){
+		gradUResD(k) += taylorExp(k,s) * shape(s);  
+	      }
+	    }
+	  }
+	  
 	  ////
-	  // FIRST ORDER TAYLOR
 	  shape += gradUResD;
 	  //
 
@@ -1743,27 +1807,35 @@ namespace mfem
 	  }
 
 	  DenseMatrix tmp(h1dofs_cnt);
+	  DenseMatrix dummy_tmp(h1dofs_cnt);
 	  tmp = gradUResDirD;
 	  taylorExp = gradUResDirD;
-	  for ( int p = 1; p < nTerms; p++){
-	    for (int k = 0; k < h1dofs_cnt; k++){
-	      for (int s = 0; s < h1dofs_cnt; s++){
-		for (int r = 0; r < h1dofs_cnt; r++){
-		  taylorExp(k,s) += tmp(k,r)*gradUResDirD(r,s) * (1.0/factorial);
-		}
-	      }
-	    }
-	    tmp = taylorExp;
-	  }
-	  
+	  dummy_tmp = 0.0;
 	  for (int k = 0; k < h1dofs_cnt; k++){
 	    for (int s = 0; s < h1dofs_cnt; s++){
 	      gradUResD(k) += taylorExp(k,s) * shape(s);  
 	    }
 	  }
-
+	  for ( int p = 1; p < nTerms; p++){
+	    dummy_tmp = 0.0;
+	    taylorExp = 0.0;
+	    for (int k = 0; k < h1dofs_cnt; k++){
+	      for (int s = 0; s < h1dofs_cnt; s++){
+		for (int r = 0; r < h1dofs_cnt; r++){
+		  taylorExp(k,s) += tmp(k,r) * gradUResDirD(r,s) * (1.0/factorial(p+1));
+		  dummy_tmp(k,s) += tmp(k,r) * gradUResDirD(r,s);
+		}
+	      }
+	    }
+	    tmp = dummy_tmp;
+	    for (int k = 0; k < h1dofs_cnt; k++){
+	      for (int s = 0; s < h1dofs_cnt; s++){
+		gradUResD(k) += taylorExp(k,s) * shape(s);  
+	      }
+	    }
+	  }
+	  
 	  ////
-	  // FIRST ORDER TAYLOR
 	  shape += gradUResD;
 	  //
 	    
