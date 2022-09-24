@@ -291,10 +291,14 @@ int main(int argc, char *argv[])
    ConstrainedOperator A(&stokesOp,ess_vdofs);
    A.EliminateRHS(trueX,trueRhs);
 
-    // PRECONDITIONER
-   ConstantCoefficient one(1.0);
+   PowerMethod powerMethod(MPI_COMM_WORLD);
+   Vector ev(A.Width());
+   double max_eig_estimate = 1.0;
+   max_eig_estimate = powerMethod.EstimateLargestEigenvalue(A, ev, 1000, 1e-10);
+   // PRECONDITIONER
+   ConstantCoefficient scale(std::sqrt(std::abs(max_eig_estimate)));
    ParBilinearForm *pMass = new ParBilinearForm(&P_H1FESpace);
-   pMass->AddDomainIntegrator(new MassIntegrator(one));
+   pMass->AddDomainIntegrator(new MassIntegrator(scale));
    pMass->Assemble();
    pMass->Finalize();
 
