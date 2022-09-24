@@ -57,9 +57,11 @@ int main (int argc, char *argv[])
    double surface_fit_const = 10.0;
    double surface_fit_adapt = 10.0;
    double surface_fit_threshold = 1e-7;
-   int bdr_attr_to_fit      = 0;
-   int srs_levels         = -1;
-   int s_mesh_poly_deg    = -1;
+   int bdr_attr_to_fit   = 0;
+   int srs_levels        = -1;
+   int s_mesh_poly_deg   = -1;
+   int metric_id         = 2;
+   int target_id         = 1;
 
 
    // Parse command-line input file.
@@ -96,7 +98,10 @@ int main (int argc, char *argv[])
                   "Polynomial degree of mesh finite element space.");
    args.AddOption(&srs_levels, "-srs", "--source-refine-serial",
                   "Number of times to refine the mesh uniformly in serial.");
-
+   args.AddOption(&metric_id, "-mid", "--metric-id",
+                  "Mesh optimization metric 1/2/50/58 in 2D:\n\t");
+   args.AddOption(&target_id, "-tid", "--target-id",
+                  "Mesh optimization metric 1/2/3 in 2D:\n\t");
    args.Parse();
    if (!args.Good())
    {
@@ -169,11 +174,28 @@ int main (int argc, char *argv[])
 
    // Metric.
    TMOP_QualityMetric *metric = NULL;
-   if (dim == 2) { metric = new TMOP_Metric_002; }
-   else          { metric = new TMOP_Metric_302; }
+   if (dim == 2) {
+        switch (metric_id)
+        {
+            // T-metrics
+            case 1: metric = new TMOP_Metric_001; break;
+            case 2: metric = new TMOP_Metric_002; break;
+            case 50: metric = new TMOP_Metric_050; break;
+            case 58: metric = new TMOP_Metric_058; break;
+            case 80: metric = new TMOP_Metric_080(0.1); break;
+        }
+    }
+   else {
+    metric = new TMOP_Metric_302;
+    }
 
-   TargetConstructor::TargetType target_t =
-      TargetConstructor::IDEAL_SHAPE_UNIT_SIZE;
+    TargetConstructor::TargetType target_t;
+    switch (target_id)
+   {
+      case 1: target_t = TargetConstructor::IDEAL_SHAPE_UNIT_SIZE; break;
+      case 2: target_t = TargetConstructor::IDEAL_SHAPE_EQUAL_SIZE; break;
+      case 3: target_t = TargetConstructor::IDEAL_SHAPE_GIVEN_SIZE; break;
+   }
    auto target_c = new TargetConstructor(target_t, MPI_COMM_WORLD);
    target_c->SetNodes(x0);
 
@@ -322,7 +344,7 @@ int main (int argc, char *argv[])
    }
    else if (dim == 3)
    {
-      mesh_bg = new Mesh(Mesh::MakeCartesian3D(4, 4, 4, Element::HEXAHEDRON, true));
+      mesh_bg = new Mesh(Mesh::MakeCartesian3D(10, 10, 10, Element::HEXAHEDRON, true));
    }
    mesh_bg->EnsureNCMesh();
    pmesh_bg = new ParMesh(MPI_COMM_WORLD, *mesh_bg);
@@ -535,7 +557,7 @@ int main (int argc, char *argv[])
       for (int i = 0; i < pmesh->GetNBE(); i++)
       {
          const int attr = pmesh->GetBdrElement(i)->GetAttribute();
-         if (attr == bdr_attr_to_fit || bdr_attr_to_fit == 0)
+         if (attr == bdr_attr_to_fit || bdr_attr_to_fit < 0)
          {
             sfespace.GetBdrElementVDofs(i, vdofs);
             for (int j = 0; j < vdofs.Size(); j++)
@@ -578,10 +600,11 @@ int main (int argc, char *argv[])
    ParNonlinearForm a(&pfes);
    a.AddDomainIntegrator(tmop_integ);
 
-   Array<int> ess_bdr(pmesh->bdr_attributes.Max());
-   ess_bdr = 1;
-   if (bdr_attr_to_fit > 0) { ess_bdr[bdr_attr_to_fit-1] = 0; }
-   a.SetEssentialBC(ess_bdr);
+    Array<int> ess_bdr(pmesh->bdr_attributes.Max());
+    ess_bdr = 1;
+    if (bdr_attr_to_fit > 0) {ess_bdr[bdr_attr_to_fit-1] = 0; }
+    if (bdr_attr_to_fit < 0) { ess_bdr = 0; }
+    a.SetEssentialBC(ess_bdr);
 
    // Compute the minimum det(J) of the starting mesh.
    double min_detJ = infinity();
