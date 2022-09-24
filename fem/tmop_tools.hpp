@@ -149,6 +149,7 @@ protected:
    // Flag to compute minimum determinant and maximum metric in ProcessNewState,
    // which is required for TMOP_WorstCaseUntangleOptimizer_Metric.
    mutable bool compute_metric_quantile_flag = true;
+   bool worst_case_optimize = false;
 
    // Quadrature points that are checked for negative Jacobians etc.
    const IntegrationRule &ir;
@@ -194,11 +195,11 @@ public:
 #ifdef MFEM_USE_MPI
    TMOPNewtonSolver(MPI_Comm comm, const IntegrationRule &irule, int type = 0)
       : LBFGSSolver(comm), solver_type(type), parallel(true),
-        ir(irule), IntegRules(NULL), integ_order(-1) { }
+        ir(irule), IntegRules(NULL), integ_order(ir.GetOrder()) { }
 #endif
    TMOPNewtonSolver(const IntegrationRule &irule, int type = 0)
       : LBFGSSolver(), solver_type(type), parallel(false),
-        ir(irule), IntegRules(NULL), integ_order(-1) { }
+        ir(irule), IntegRules(NULL), integ_order(ir.GetOrder()) { }
 
    /// Prescribe a set of integration rules; relevant for mixed meshes.
    /** If called, this function has priority over the IntegrationRule given to
@@ -257,6 +258,8 @@ public:
       min_detJ_threshold = threshold;
    }
 
+   void EnableWorstCaseOptimization() { worst_case_optimize = true; }
+
    virtual void Mult(const Vector &b, Vector &x) const
    {
       if (solver_type == 0)
@@ -284,6 +287,11 @@ public:
    }
    virtual void SetPreconditioner(Solver &pr) { SetSolver(pr); }
 };
+
+/// Call with a ParFiniteElementSpace for correct behavior in parallel.
+double ComputeMetricMax(const Vector &x, const FiniteElementSpace &fes,
+                        TMOP_QualityMetric &mu, const TargetConstructor &target,
+                        IntegrationRules &irules, int irule_order);
 
 void vis_tmop_metric_s(int order, TMOP_QualityMetric &qm,
                        const TargetConstructor &tc, Mesh &pmesh,

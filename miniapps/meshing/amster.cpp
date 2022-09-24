@@ -17,10 +17,12 @@
 // Compile with: make amster
 //
 // Sample runs:
-//    mpirun -np 4 amster -m ../../data/star.mesh -o 2 -sfa 10 -ni 200
-//    mpirun -np 4 amster -m blade.mesh -o 4 -sfc 10 -amr 8
-//    mpirun -np 4 amster -m bone3D.mesh
-//    Blade working run: make amster -j;mpirun -np 6 amster -m blade.mesh -o 2 -battr 4 -rs 0 -sfc 100000 -sfa 10 -sft 1e-7 -ni 200 -amr 4 -srs 1 -so 3
+//    2D Untangle:
+//      mpirun -np 4 amster -m jagged.mesh -o 2 -qo 4 -no-wc -no-fit
+//    2D Untangle + Worst-Case:
+//      mpirun -np 4 amster -m amster_q4warp.mesh -o 2 -qo 6 -no-fit
+//    2D Fitting:
+//      mpirun -np 6 amster -m blade.mesh -o 2 -battr 4 -rs 0 -sfc 100000 -sfa 10 -sft 1e-7 -ni 200 -amr 4 -srs 1 -so 3 -no-wc
 
 #include "mfem.hpp"
 #include "../common/mfem-common.hpp"
@@ -33,6 +35,7 @@ using namespace mfem;
 using namespace std;
 
 void Untangle(ParGridFunction &x, double min_detA, int quad_order);
+void WorstCaseOptimize(ParGridFunction &x, int quad_order);
 
 int main (int argc, char *argv[])
 {
@@ -46,6 +49,8 @@ int main (int argc, char *argv[])
    int rs_levels         = 0;
    int mesh_poly_deg     = 2;
    bool fdscheme         = false;
+   bool worst_case       = true;
+   bool fit_optimize     = true;
    int solver_iter       = 50;
    int quad_order        = 8;
    int bg_amr_steps      = 6;
@@ -68,6 +73,12 @@ int main (int argc, char *argv[])
                   "Maximum number of Newton iterations.");
    args.AddOption(&fdscheme, "-fd", "--fd_approx", "-no-fd", "--no-fd-approx",
                   "Enable finite difference based derivative computations.");
+   args.AddOption(&worst_case, "-wc", "--worst-case",
+                               "-no-wc", "--no-worst-case",
+                  "Enable worst case optimization step.");
+   args.AddOption(&fit_optimize, "-fit", "--fit_optimize",
+                                 "-no-fit", "--no-fit-optimize",
+                  "Enable optimization with tangential relaxation.");
    args.AddOption(&quad_order, "-qo", "--quad_order",
                   "Order of the quadrature rule.");
    args.AddOption(&bg_amr_steps, "-amr", "--amr-bg-steps",
@@ -153,6 +164,9 @@ int main (int argc, char *argv[])
    // If needed, untangle with fixed boundary.
    if (min_detA < 0.0) { Untangle(x, min_detA, quad_order); }
 
+   // If needed, perform worst-case optimization with fixed boundary.
+   if (worst_case) { WorstCaseOptimize(x, quad_order); }
+
    // Metric.
    TMOP_QualityMetric *metric = NULL;
    if (dim == 2) { metric = new TMOP_Metric_002; }
@@ -166,6 +180,8 @@ int main (int argc, char *argv[])
    // Visualize the starting mesh and metric values.
    char title[] = "Initial metric values";
    vis_tmop_metric_p(mesh_poly_deg, *metric, *target_c, *pmesh, title, 0);
+
+   if (fit_optimize == false) { return 0; }
 
    // Average quality and worst-quality for the mesh.
    double integral_mu = 0.0, volume = 0.0, max_mu = -1.0;
@@ -782,10 +798,73 @@ void Untangle(ParGridFunction &x, double min_detA, int quad_order)
    const IntegrationRule &ir =
       IntRulesLo.Get(pfes.GetFE(0)->GetGeomType(), quad_order);
    TMOPNewtonSolver solver(pfes.GetComm(), ir);
+   solver.SetIntegrationRules(IntRulesLo, quad_order);
    solver.SetOperator(nlf);
    solver.SetPreconditioner(minres);
    solver.SetMinDetPtr(&min_detT);
    solver.SetMaxIter(200);
+   solver.SetRelTol(1e-8);
+   solver.SetAbsTol(0.0);
+   IterativeSolver::PrintLevel newton_pl;
+   solver.SetPrintLevel(newton_pl.Iterations().Summary());
+
+   // Optimize.
+   x.SetTrueVector();
+   Vector b;
+   solver.Mult(b, x.GetTrueVector());
+   x.SetFromTrueVector();
+
+   delete metric;
+
+   return;
+}
+
+void WorstCaseOptimize(ParGridFunction &x, int quad_order)
+{
+   ParFiniteElementSpace &pfes = *x.ParFESpace();
+   const int dim = pfes.GetParMesh()->Dimension();
+
+   // Metric / target / integrator.
+   auto btype = TMOP_WorstCaseUntangleOptimizer_Metric::BarrierType::None;
+   auto wctype = TMOP_WorstCaseUntangleOptimizer_Metric::WorstCaseType::Beta;
+   TMOP_QualityMetric *metric = NULL;
+   if (dim == 2) { metric = new TMOP_Metric_002; }
+   else          { metric = new TMOP_Metric_304; }
+   TMOP_WorstCaseUntangleOptimizer_Metric u_metric(*metric, 1.0, 1.0, 2, 1.5,
+                                                    0.001, 0.001,
+                                                    btype, wctype);
+   TargetConstructor::TargetType target =
+         TargetConstructor::IDEAL_SHAPE_UNIT_SIZE;
+   TargetConstructor target_c(target, pfes.GetComm());
+   auto tmop_integ = new TMOP_Integrator(&u_metric, &target_c, nullptr);
+   tmop_integ->EnableFiniteDifferences(x);
+   tmop_integ->SetIntegrationRules(IntRulesLo, quad_order);
+
+   // Nonlinear form.
+   ParNonlinearForm nlf(&pfes);
+   nlf.AddDomainIntegrator(tmop_integ);
+
+   Array<int> ess_bdr(pfes.GetParMesh()->bdr_attributes.Max());
+   ess_bdr = 1;
+   nlf.SetEssentialBC(ess_bdr);
+
+   // Linear solver.
+   MINRESSolver minres(pfes.GetComm());
+   minres.SetMaxIter(100);
+   minres.SetRelTol(1e-12);
+   minres.SetAbsTol(0.0);
+   IterativeSolver::PrintLevel minres_pl;
+   minres.SetPrintLevel(minres_pl.FirstAndLast().Summary());
+
+   // Nonlinear solver.
+   const IntegrationRule &ir =
+      IntRulesLo.Get(pfes.GetFE(0)->GetGeomType(), quad_order);
+   TMOPNewtonSolver solver(pfes.GetComm(), ir);
+   solver.SetIntegrationRules(IntRulesLo, quad_order);
+   solver.SetOperator(nlf);
+   solver.EnableWorstCaseOptimization();
+   solver.SetPreconditioner(minres);
+   solver.SetMaxIter(1000);
    solver.SetRelTol(1e-8);
    solver.SetAbsTol(0.0);
    IterativeSolver::PrintLevel newton_pl;

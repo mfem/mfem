@@ -386,7 +386,7 @@ double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
    MFEM_VERIFY(!(parallel && p_nlf == NULL), "Invalid Operator subclass.");
    if (parallel)
    {
-      fes = p_nlf->FESpace();
+      fes = p_nlf->ParFESpace();
       energy_in = p_nlf->GetEnergy(x);
    }
 #endif
@@ -457,18 +457,31 @@ double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
       *min_det_ptr = untangle_factor * min_detT_in;
    }
 
+   // Initial worst-quality. Note that x hasn't been modified by the Newton
+   // update yet.
+   double max_muT_in = -1.0;
+   TMOP_Integrator *tmop_integ = nullptr;
+   if (worst_case_optimize)
+   {
+      MFEM_VERIFY(nlf->GetDNFI()->Size() == 1, "Works with exactly 1 metric.");
+      tmop_integ = dynamic_cast<TMOP_Integrator *>(*nlf->GetDNFI()[0]);
+      MFEM_VERIFY(tmop_integ, "Works only for TMOP_Integrator.");
+      max_muT_in = ComputeMetricMax(x_out_loc, *fes,
+                                    *tmop_integ->metric, *tmop_integ->targetC,
+                                    *IntegRules, integ_order);
+      // TODO:
+      // - What is the Newton exit criterion for worst-quality optimization?
+   }
+
    const bool have_b = (b.Size() == Height());
 
    Vector x_out(x.Size());
    bool x_out_ok = false;
-   double energy_out = 0.0, min_detT_out;
+   double energy_out = 0.0, min_detT_out, max_muT_out;
    const double norm_in = Norm(r);
 
    const double detJ_factor = (solver_type == 1) ? 0.25 : 0.5;
    compute_metric_quantile_flag = false;
-   // TODO:
-   // - Customized line search for worst-quality optimization.
-   // - What is the Newton exit criterion for worst-quality optimization?
 
    // Perform the line search.
    for (int i = 0; i < 12; i++)
@@ -506,10 +519,29 @@ double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
          scale *= detJ_factor; continue;
       }
 
+      // Check the worst quality.
+      if (worst_case_optimize)
+      {
+         max_muT_out = ComputeMetricMax(x_out_loc, *fes,
+                                        *tmop_integ->metric, *tmop_integ->targetC,
+                                        *IntegRules, integ_order);
+         if (max_muT_out > 1.2 * max_muT_in)
+         {
+            // Worst-quality got even worse -- no good.
+            if (print_options.iterations)
+            {
+               mfem::out << "Scale = " << scale << " Worst-quality decreased.\n";
+            }
+            scale *= 0.5; continue;
+         }
+      }
+
       // Skip the energy and residual checks when we're untangling. The
       // untangling metrics change their denominators, which can affect the
       // energy and residual, so their increase/decrease is not relevant.
       if (untangling) { x_out_ok = true; break; }
+      // Skip for worst-case optimization -- same considerations as above.
+      if (worst_case_optimize) { x_out_ok = true; break; }
 
       // Check the changes in total energy.
       ProcessNewState(x_out);
@@ -588,9 +620,16 @@ double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
                    << min_detT_in << " -> " << min_detT_out
                    << " with " << scale << " scaling.\n";
       }
-      else
+      if (worst_case_optimize)
       {
-         mfem::out << "Energy decrease: "
+         mfem::out << "Max mu(T) change:  "
+                   << max_muT_in << " -> " << max_muT_out
+                   << " with " << scale << " scaling.\n";
+      }
+
+      if (!untangling && !worst_case_optimize)
+      {
+         mfem::out << "Energy decrease:   "
                    << energy_in << " --> " << energy_out << " or "
                    << (energy_in - energy_out) / energy_in * 100.0
                    << "% with " << scale << " scaling.\n";
@@ -919,6 +958,66 @@ double TMOPNewtonSolver::ComputeMinDet(const Vector &x_loc,
    min_detT_all /= Wideal.Det();
 
    return min_detT_all;
+}
+
+double ComputeMetricMax(const Vector &x, const FiniteElementSpace &fes,
+                        TMOP_QualityMetric &metric,
+                        const TargetConstructor &target,
+                        IntegrationRules &irules, int irule_order)
+{
+   const int NE = fes.GetMesh()->GetNE();
+   const int dim = fes.GetMesh()->Dimension();
+   Array<int> xdofs;
+   DenseMatrix Jpr(dim), Jpt(dim), Jrt(dim);
+
+   TMOP_WorstCaseUntangleOptimizer_Metric *wc_metric =
+      dynamic_cast<TMOP_WorstCaseUntangleOptimizer_Metric *>(&metric);
+
+   double max_mu_T = -std::numeric_limits<double>::infinity();
+   for (int e = 0; e < NE; e++)
+   {
+      const FiniteElement *fe = fes.GetFE(e);
+      const IntegrationRule &irule = irules.Get(fe->GetGeomType(), irule_order);
+      const int dof = fe->GetDof(), nsp = irule.GetNPoints();
+
+      DenseMatrix DSh(dof, dim);
+      Vector posV(dof * dim);
+      DenseMatrix PMatI(posV.GetData(), dof, dim);
+
+      fes.GetElementVDofs(e, xdofs);
+      x.GetSubVector(xdofs, posV);
+
+      DenseTensor Jtr(dim, dim, irule.GetNPoints());
+      target.ComputeElementTargets(e, *fe, irule, posV, Jtr);
+
+      for (int q = 0; q < nsp; q++)
+      {
+         const IntegrationPoint &ip = irule.IntPoint(q);
+         const DenseMatrix &Jtr_q = Jtr(q);
+         CalcInverse(Jtr_q, Jrt);
+
+         fe->CalcDShape(ip, DSh);
+         MultAtB(PMatI, DSh, Jpr);
+         Mult(Jpr, Jrt, Jpt);
+
+         metric.SetTargetJacobian(Jtr_q);
+         double metric_val =
+            (wc_metric) ? wc_metric->EvalWBarrier(Jpt) : metric.EvalW(Jpt);
+
+         max_mu_T = fmax(max_mu_T, metric_val);
+      }
+   }
+
+#ifdef MFEM_USE_MPI
+   auto pfes = dynamic_cast<const ParFiniteElementSpace *>(&fes);
+   if (pfes)
+   {
+      MPI_Allreduce(MPI_IN_PLACE, &max_mu_T, 1, MPI_DOUBLE, MPI_MAX,
+                    pfes->GetComm());
+   }
+#endif
+
+   return max_mu_T;
 }
 
 #ifdef MFEM_USE_MPI

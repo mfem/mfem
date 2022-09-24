@@ -4201,9 +4201,6 @@ double TMOP_Integrator::ComputeUntanglerMaxMuBarrier(const Vector &x,
       const FiniteElement *fe = fes.GetFE(i);
       const IntegrationRule &ir = EnergyIntegrationRule(*fe);
       const int dof = fe->GetDof(), nsp = ir.GetNPoints();
-      Jpr.SetSize(dim);
-      Jrt.SetSize(dim);
-      Jpt.SetSize(dim);
 
       DSh.SetSize(dof, dim);
       PMatI.SetSize(dof, dim);
@@ -4242,41 +4239,39 @@ double TMOP_Integrator::ComputeUntanglerMaxMuBarrier(const Vector &x,
 void TMOP_Integrator::ComputeUntangleMetricQuantiles(const Vector &x,
                                                      const FiniteElementSpace &fes)
 {
-   TMOP_WorstCaseUntangleOptimizer_Metric *wcuo =
+   TMOP_WorstCaseUntangleOptimizer_Metric *wcu_metric =
       dynamic_cast<TMOP_WorstCaseUntangleOptimizer_Metric *>(metric);
 
-   if (!wcuo) { return; }
+   if (!wcu_metric) { return; }
 
 #ifdef MFEM_USE_MPI
    const ParFiniteElementSpace *pfes =
       dynamic_cast<const ParFiniteElementSpace *>(&fes);
 #endif
 
-   if (wcuo && wcuo->GetBarrierType() ==
+   if (wcu_metric->GetBarrierType() ==
        TMOP_WorstCaseUntangleOptimizer_Metric::BarrierType::Shifted)
    {
-      double min_detT = ComputeMinDetT(x, fes);
-      double min_detT_all = min_detT;
+      double min_det_T = ComputeMinDetT(x, fes);
 #ifdef MFEM_USE_MPI
       if (pfes)
       {
-         MPI_Allreduce(&min_detT, &min_detT_all, 1, MPI_DOUBLE, MPI_MIN,
+         MPI_Allreduce(MPI_IN_PLACE, &min_det_T, 1, MPI_DOUBLE, MPI_MIN,
                        pfes->GetComm());
       }
 #endif
-      if (wcuo) { wcuo->SetMinDetT(min_detT_all); }
+      wcu_metric->SetMinDetT(min_det_T);
    }
 
-   double max_muT = ComputeUntanglerMaxMuBarrier(x, fes);
-   double max_muT_all = max_muT;
+   double max_mu_T = ComputeUntanglerMaxMuBarrier(x, fes);
 #ifdef MFEM_USE_MPI
    if (pfes)
    {
-      MPI_Allreduce(&max_muT, &max_muT_all, 1, MPI_DOUBLE, MPI_MAX,
+      MPI_Allreduce(MPI_IN_PLACE, &max_mu_T, 1, MPI_DOUBLE, MPI_MAX,
                     pfes->GetComm());
    }
 #endif
-   wcuo->SetMaxMuT(max_muT_all);
+   wcu_metric->SetMaxMuT(max_mu_T);
 }
 
 void TMOPComboIntegrator::EnableLimiting(const GridFunction &n0,

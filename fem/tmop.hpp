@@ -164,8 +164,6 @@ public:
       tmop_metric(tmop_metric_), exponent(exponent_), alpha(alpha_),
       detT_ep(detT_ep_), muT_ep(muT_ep_), btype(btype_), wctype(wctype_)
    {
-      MFEM_VERIFY(wctype == WorstCaseType::None,
-                  "Worst-case optimization has not been fully developed!");
       if (btype != BarrierType::None)
       {
          const int m_id = tmop_metric.Id();
