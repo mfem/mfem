@@ -167,8 +167,8 @@ public:
       if (btype != BarrierType::None)
       {
          const int m_id = tmop_metric.Id();
-         MFEM_VERIFY(m_id == 4 || m_id == 14 || m_id == 66,
-                     "Incorrect input barrier metric --  must be 4 / 14 / 66");
+         MFEM_VERIFY(m_id == 4 || m_id == 14 || m_id == 66 || m_id == 360,
+                     "Incorrect input barrier metric.");
       }
    }
 

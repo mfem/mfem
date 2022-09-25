@@ -17,12 +17,16 @@
 // Compile with: make amster
 //
 // Sample runs:
-//    2D Untangle:
+//
+//    2D untangling:
 //      mpirun -np 4 amster -m jagged.mesh -o 2 -qo 4 -no-wc -no-fit
-//    2D Untangle + Worst-Case:
+//    2D untangling + worst-case:
 //      mpirun -np 4 amster -m amster_q4warp.mesh -o 2 -qo 6 -no-fit
-//    2D Fitting:
-//      mpirun -np 6 amster -m blade.mesh -o 2 -battr 4 -rs 0 -sfc 100000 -sfa 10 -sft 1e-7 -ni 200 -amr 4 -srs 1 -so 3 -no-wc
+//    2D fitting:
+//      mpirun -np 6 amster -m amster_q4warp.mesh -rs 1 -o 3 -no-wc -amr 7
+//
+//    3D untangling:
+//      mpirun -np 6 amster -m ../../../mfem_data/cube-holes-inv.mesh -o 3 -qo 4 -no-wc -no-fit
 
 #include "mfem.hpp"
 #include "../common/mfem-common.hpp"
@@ -57,12 +61,8 @@ int main (int argc, char *argv[])
    double surface_fit_const = 10.0;
    double surface_fit_adapt = 10.0;
    double surface_fit_threshold = 1e-7;
-   int bdr_attr_to_fit   = 0;
-   int srs_levels        = -1;
-   int s_mesh_poly_deg   = -1;
    int metric_id         = 2;
    int target_id         = 1;
-
 
    // Parse command-line input file.
    OptionsParser args(argc, argv);
@@ -92,12 +92,6 @@ int main (int argc, char *argv[])
    args.AddOption(&surface_fit_threshold, "-sft", "--surf-fit-threshold",
                   "Set threshold for surface fitting. TMOP solver will"
                   "terminate when max surface fitting error is below this limit");
-   args.AddOption(&bdr_attr_to_fit, "-battr", "--battr",
-                  "Boundary attribute to fit.");
-   args.AddOption(&s_mesh_poly_deg, "-so", "--source-mesh-order",
-                  "Polynomial degree of mesh finite element space.");
-   args.AddOption(&srs_levels, "-srs", "--source-refine-serial",
-                  "Number of times to refine the mesh uniformly in serial.");
    args.AddOption(&metric_id, "-mid", "--metric-id",
                   "Mesh optimization metric 1/2/50/58 in 2D:\n\t");
    args.AddOption(&target_id, "-tid", "--target-id",
@@ -110,21 +104,12 @@ int main (int argc, char *argv[])
    }
    if (myid == 0) { args.PrintOptions(cout); }
 
-   s_mesh_poly_deg = s_mesh_poly_deg < 0 ? mesh_poly_deg : s_mesh_poly_deg;
-   srs_levels = srs_levels < 0 ? rs_levels : srs_levels;
-
    // Initialize and refine the starting mesh.
    Mesh *mesh = new Mesh(mesh_file, 1, 1, false);
    for (int lev = 0; lev < rs_levels; lev++) { mesh->UniformRefinement(); }
    ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
    const int dim = pmesh->Dimension();
    const int NE = pmesh->GetNE();
-
-   // Set source mesh
-   Mesh smesh = Mesh(*mesh);
-   for (int lev = 0; lev < srs_levels; lev++) { smesh.UniformRefinement(); }
-   ParMesh spmesh = ParMesh(MPI_COMM_WORLD, smesh);
-   spmesh.SetCurvature(s_mesh_poly_deg, false, -1, 0);
 
    delete mesh;
 
@@ -166,42 +151,48 @@ int main (int argc, char *argv[])
    if (myid == 0)
    { cout << "Minimum det(J) of the original mesh is " << min_detA << endl; }
 
+   // Metric.
+   TMOP_QualityMetric *metric = NULL;
+   if (dim == 2)
+   {
+      switch (metric_id)
+      {
+      case 1: metric = new TMOP_Metric_001; break;
+      case 2: metric = new TMOP_Metric_002; break;
+      case 50: metric = new TMOP_Metric_050; break;
+      case 58: metric = new TMOP_Metric_058; break;
+      case 80: metric = new TMOP_Metric_080(0.1); break;
+      }
+   }
+   else { metric = new TMOP_Metric_302; }
+
+   TargetConstructor::TargetType target_t;
+   switch (target_id)
+   {
+   case 1: target_t = TargetConstructor::IDEAL_SHAPE_UNIT_SIZE; break;
+   case 2: target_t = TargetConstructor::IDEAL_SHAPE_EQUAL_SIZE; break;
+   case 3: target_t = TargetConstructor::IDEAL_SHAPE_GIVEN_SIZE; break;
+   }
+   auto target_c = new TargetConstructor(target_t, MPI_COMM_WORLD);
+   target_c->SetNodes(x0);
+
+   // Visualize the starting mesh and metric values.
+   {
+      char title[] = "Initial metric values";
+      vis_tmop_metric_p(mesh_poly_deg, *metric, *target_c, *pmesh, title, 0);
+   }
+
    // If needed, untangle with fixed boundary.
    if (min_detA < 0.0) { Untangle(x, min_detA, quad_order); }
 
    // If needed, perform worst-case optimization with fixed boundary.
    if (worst_case) { WorstCaseOptimize(x, quad_order); }
 
-   // Metric.
-   TMOP_QualityMetric *metric = NULL;
-   if (dim == 2) {
-        switch (metric_id)
-        {
-            // T-metrics
-            case 1: metric = new TMOP_Metric_001; break;
-            case 2: metric = new TMOP_Metric_002; break;
-            case 50: metric = new TMOP_Metric_050; break;
-            case 58: metric = new TMOP_Metric_058; break;
-            case 80: metric = new TMOP_Metric_080(0.1); break;
-        }
-    }
-   else {
-    metric = new TMOP_Metric_302;
-    }
-
-    TargetConstructor::TargetType target_t;
-    switch (target_id)
-   {
-      case 1: target_t = TargetConstructor::IDEAL_SHAPE_UNIT_SIZE; break;
-      case 2: target_t = TargetConstructor::IDEAL_SHAPE_EQUAL_SIZE; break;
-      case 3: target_t = TargetConstructor::IDEAL_SHAPE_GIVEN_SIZE; break;
-   }
-   auto target_c = new TargetConstructor(target_t, MPI_COMM_WORLD);
-   target_c->SetNodes(x0);
-
    // Visualize the starting mesh and metric values.
-   char title[] = "Initial metric values";
-   vis_tmop_metric_p(mesh_poly_deg, *metric, *target_c, *pmesh, title, 0);
+   {
+      char title[] = "After Untangl / WC";
+      vis_tmop_metric_p(mesh_poly_deg, *metric, *target_c, *pmesh, title, 0);
+   }
 
    if (fit_optimize == false) { return 0; }
 
@@ -254,17 +245,17 @@ int main (int argc, char *argv[])
 
    // Detect boundary nodes.
    Array<int> vdofs;
-   ParFiniteElementSpace sfespace = ParFiniteElementSpace(pmesh, &fec);
-   ParGridFunction domain(&sfespace);
+   ParFiniteElementSpace pfes_s(pmesh, &fec);
+   ParGridFunction domain(&pfes_s);
    domain = 1.0;
-   for (int i = 0; i < sfespace.GetNBE(); i++)
+   for (int i = 0; i < pfes_s.GetNBE(); i++)
    {
-      sfespace.GetBdrElementDofs(i, vdofs);
+      pfes_s.GetBdrElementDofs(i, vdofs);
       for (int j = 0; j < vdofs.Size(); j++) { domain(vdofs[j]) = 0.0; }
    }
 
    // Compute size field.
-   ParGridFunction size_gf(&sfespace);
+   ParGridFunction size_gf(&pfes_s);
    for (int e = 0; e < NE; e++)
    {
       const FiniteElement &fe = *pfes.GetFE(e);
@@ -297,7 +288,7 @@ int main (int argc, char *argv[])
 
    // Distance to the boundary, on the original mesh.
    GridFunctionCoefficient coeff(&domain);
-   ParGridFunction dist(&sfespace);
+   ParGridFunction dist(&pfes_s);
    ComputeScalarDistanceFromLevelSet(*pmesh, coeff, dist, false);
    dist *= -1.0;
    {
@@ -305,32 +296,8 @@ int main (int argc, char *argv[])
       common::VisualizeField(vis_b_func, "localhost", 19916, dist,
                              "Dist to Boundary", 0, 700, 300, 300, "Rj");
 
-      VisItDataCollection visit_dc("amster_predist", pmesh);
+      VisItDataCollection visit_dc("amster_in", pmesh);
       visit_dc.RegisterField("distance", &dist);
-      visit_dc.SetFormat(DataCollection::SERIAL_FORMAT);
-      visit_dc.Save();
-   }
-
-   ParFiniteElementSpace ssfespace = ParFiniteElementSpace(&spmesh, &fec);
-   ParGridFunction sdomain(&ssfespace);
-   sdomain = 1.0;
-   for (int i = 0; i < ssfespace.GetNBE(); i++)
-   {
-      ssfespace.GetBdrElementDofs(i, vdofs);
-      for (int j = 0; j < vdofs.Size(); j++) { sdomain(vdofs[j]) = 0.0; }
-   }
-
-   GridFunctionCoefficient scoeff(&sdomain);
-   ParGridFunction sdist(&ssfespace);
-   ComputeScalarDistanceFromLevelSet(spmesh, scoeff, sdist, false);
-   sdist *= -1.0;
-   {
-      socketstream vis_b_func;
-      common::VisualizeField(vis_b_func, "localhost", 19916, sdist,
-                             "Dist to Boundary on source mesh", 0, 700, 300, 300, "Rj");
-
-      VisItDataCollection visit_dc("amster_predist_source", &spmesh);
-      visit_dc.RegisterField("distance", &sdist);
       visit_dc.SetFormat(DataCollection::SERIAL_FORMAT);
       visit_dc.Save();
    }
@@ -340,11 +307,11 @@ int main (int argc, char *argv[])
    Mesh *mesh_bg = NULL;
    if (dim == 2)
    {
-      mesh_bg = new Mesh(Mesh::MakeCartesian2D(60, 60, Element::QUADRILATERAL, true));
+      mesh_bg = new Mesh(Mesh::MakeCartesian2D(4, 4, Element::QUADRILATERAL, true));
    }
    else if (dim == 3)
    {
-      mesh_bg = new Mesh(Mesh::MakeCartesian3D(10, 10, 10, Element::HEXAHEDRON, true));
+      mesh_bg = new Mesh(Mesh::MakeCartesian3D(4, 4, 4, Element::HEXAHEDRON, true));
    }
    mesh_bg->EnsureNCMesh();
    pmesh_bg = new ParMesh(MPI_COMM_WORLD, *mesh_bg);
@@ -380,7 +347,7 @@ int main (int argc, char *argv[])
    ParGridFunction bg_domain(&bg_pfes);
 
    // Refine the background mesh around the boundary.
-   OptimizeMeshWithAMRForAnotherMesh(*pmesh_bg, sdist, bg_amr_steps, bg_domain);
+   OptimizeMeshWithAMRForAnotherMesh(*pmesh_bg, dist, bg_amr_steps, bg_domain);
    {
       socketstream vis_b_func;
       common::VisualizeField(vis_b_func, "localhost", 19916, bg_domain,
@@ -407,7 +374,7 @@ int main (int argc, char *argv[])
    MPI_Allreduce(MPI_IN_PLACE, &min_dx, 1, MPI_DOUBLE, MPI_MIN, MPI_COMM_WORLD);
 
    // Shift the zero level set by ~ one element inside.
-   const double alpha = -0.1*min_dx;
+   const double alpha = 0.75*min_dx;
    bg_domain -= alpha;
 
    // Compute a distance function on the background.
@@ -428,42 +395,7 @@ int main (int argc, char *argv[])
       visit_dc.Save();
    }
 
-   // Map the distance to current grid
-   {
-       FindPointsGSLIB finder(pmesh->GetComm());
-       finder.SetDefaultInterpolationValue(-0.1);
-       finder.Setup(*pmesh_bg);
-
-       Vector vxyz;
-       vxyz = *(pmesh->GetNodes());
-       const int nodes_cnt = vxyz.Size() / dim;
-       Vector interp_vals(nodes_cnt);
-       finder.Interpolate(vxyz, bg_domain, interp_vals, pmesh->GetNodes()->FESpace()->GetOrdering());
-       domain = interp_vals;
-
-       VisItDataCollection visit_dc("amster", pmesh);
-       visit_dc.RegisterField("distance", &domain);
-       visit_dc.SetFormat(DataCollection::SERIAL_FORMAT);
-       visit_dc.Save();
-   }
-
-   {
-      socketstream vis_b_func;
-      common::VisualizeField(vis_b_func, "localhost", 19916, domain,
-                             "Final LS on current", 900, 700, 300, 300, "Rjmm");
-   }
-
-
-   //   auto btype = TMOP_WorstCaseUntangleOptimizer_Metric::BarrierType::Shifted;
-   //   auto wctype = TMOP_WorstCaseUntangleOptimizer_Metric::WorstCaseType::Beta;
-
-   //   TMOP_QualityMetric *untangler_metric =
-   //      new TMOP_WorstCaseUntangleOptimizer_Metric(*metric, 2, 1.5, 0.001,//0.01 for pseudo barrier
-   //                                                 0.001, btype, wctype);
-
-   //   TMOP_QualityMetric *metric_to_use = untangler_metric;
-   TMOP_Integrator *tmop_integ = new TMOP_Integrator(metric, target_c,
-                                                     nullptr);
+   TMOP_Integrator *tmop_integ = new TMOP_Integrator(metric, target_c, nullptr);
 
    // Finite differences for computations of derivatives.
    if (fdscheme) { tmop_integ->EnableFiniteDifferences(x); }
@@ -490,7 +422,7 @@ int main (int argc, char *argv[])
 
    // Surface fitting.
    Array<bool> surf_fit_marker(domain.Size());
-   ParGridFunction surf_fit_mat_gf(&sfespace);
+   ParGridFunction surf_fit_mat_gf(&pfes_s);
    ConstantCoefficient surf_fit_coeff(surface_fit_const);
    AdaptivityEvaluator *adapt_surface = NULL;
    AdaptivityEvaluator *adapt_grad_surface = NULL;
@@ -556,27 +488,13 @@ int main (int argc, char *argv[])
 
       for (int i = 0; i < pmesh->GetNBE(); i++)
       {
-         const int attr = pmesh->GetBdrElement(i)->GetAttribute();
-         if (attr == bdr_attr_to_fit || bdr_attr_to_fit < 0)
+         pfes_s.GetBdrElementVDofs(i, vdofs);
+         for (int j = 0; j < vdofs.Size(); j++)
          {
-            sfespace.GetBdrElementVDofs(i, vdofs);
-            for (int j = 0; j < vdofs.Size(); j++)
-            {
-               surf_fit_marker[vdofs[j]] = true;
-               surf_fit_mat_gf(vdofs[j]) = 1.0;
-            }
+            surf_fit_marker[vdofs[j]] = true;
+            surf_fit_mat_gf(vdofs[j]) = 1.0;
          }
       }
-
-//      for (int i = 0; i < pmesh->GetNBE(); i++)
-//      {
-//         sfespace.GetBdrElementVDofs(i, vdofs);
-//         for (int j = 0; j < vdofs.Size(); j++)
-//         {
-//            surf_fit_marker[vdofs[j]] = true;
-//            surf_fit_mat_gf(vdofs[j]) = 1.0;
-//         }
-//      }
 
       adapt_surface = new InterpolatorFP;
       adapt_grad_surface = new InterpolatorFP;
@@ -599,12 +517,6 @@ int main (int argc, char *argv[])
    // Setup the final NonlinearForm.
    ParNonlinearForm a(&pfes);
    a.AddDomainIntegrator(tmop_integ);
-
-    Array<int> ess_bdr(pmesh->bdr_attributes.Max());
-    ess_bdr = 1;
-    if (bdr_attr_to_fit > 0) {ess_bdr[bdr_attr_to_fit-1] = 0; }
-    if (bdr_attr_to_fit < 0) { ess_bdr = 0; }
-    a.SetEssentialBC(ess_bdr);
 
    // Compute the minimum det(J) of the starting mesh.
    double min_detJ = infinity();
@@ -778,6 +690,8 @@ void Untangle(ParGridFunction &x, double min_detA, int quad_order)
    ParFiniteElementSpace &pfes = *x.ParFESpace();
    const int dim = pfes.GetParMesh()->Dimension();
 
+   if (pfes.GetMyRank() == 0) { cout << "*** \nUntangle Phase\n***\n"; }
+
    // The metrics work in terms of det(T).
    const DenseMatrix &Wideal =
       Geometries.GetGeomToPerfGeomJac(pfes.GetFE(0)->GetGeomType());
@@ -846,6 +760,8 @@ void WorstCaseOptimize(ParGridFunction &x, int quad_order)
 {
    ParFiniteElementSpace &pfes = *x.ParFESpace();
    const int dim = pfes.GetParMesh()->Dimension();
+
+   if (pfes.GetMyRank() == 0) { cout << "*** \nWorst Quality Phase\n***\n"; }
 
    // Metric / target / integrator.
    auto btype = TMOP_WorstCaseUntangleOptimizer_Metric::BarrierType::None;
