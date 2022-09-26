@@ -21,7 +21,7 @@ MFEM_LIB_FILE = mfem_is_not_built
 SRC_DIRS := $(SRC)/util
 COMMON_SRC_DIR = $(MFEM_DIR)/miniapps/common
 
-INC_DIRS := $(shell find $(SRC_DIRS) $(COMMON_SRC_DIR) ./ -type d)
+INC_DIRS := $(shell find $(SRC_DIRS) $(COMMON_SRC_DIR) -type d)
 INC_FLAGS := $(addprefix -I,$(INC_DIRS))
 
 DPG_LIB_SRCS := $(shell find $(SRC_DIRS) $(COMMON_SRC_DIR) -name '*.cpp')
@@ -34,7 +34,7 @@ EXAMPLE_OBJS := $(EXAMPLE_SRCS:%=%.o)
 EXAMPLE_DEPS := $(EXAMPLE_OBJS:.o=.d)
 
 EXAMPLES = acoustics maxwell
-PAR_EXAMPLES = pacoustics pmaxwell pmaxwell_pml pacoustics_pml
+PAR_EXAMPLES = pacoustics pmaxwell pmaxwell_pml pacoustics_pml pmaxwell-tokamak
 
 ifeq ($(MFEM_USE_MPI),NO)
    MINIAPPS = $(EXAMPLES)
@@ -65,6 +65,9 @@ pmaxwell: $(SRC)/pmaxwell.cpp.o $(DPG_LIB)
 	$(MFEM_CXX) -o $@ $^ $(MFEM_LIBS)
 
 pmaxwell_pml: $(SRC)/pmaxwell_pml.cpp.o $(DPG_LIB)
+	$(MFEM_CXX) -o $@ $^ $(MFEM_LIBS)	
+
+pmaxwell-tokamak: $(SRC)/pmaxwell-tokamak.cpp.o $(DPG_LIB)
 	$(MFEM_CXX) -o $@ $^ $(MFEM_LIBS)	
 
 
