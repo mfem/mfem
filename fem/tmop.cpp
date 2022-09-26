@@ -1378,9 +1378,7 @@ void DiscreteAdaptTC::FinalizeParDiscreteTargetSpec(const ParGridFunction &t)
 
    ParFiniteElementSpace *ptspec_fes = t.ParFESpace();
 
-   adapt_eval->SetParMetaInfo(*ptspec_fes->GetParMesh(),
-                              *ptspec_fes->FEColl(), ncomp,
-                              Ordering::byNODES);
+   adapt_eval->SetParMetaInfo(*ptspec_fes->GetParMesh(), *ptspec_fes);
    adapt_eval->SetInitialField(*ptspec_fes->GetMesh()->GetNodes(), tspec);
 
    tspec_sav = tspec;
@@ -1412,9 +1410,7 @@ void DiscreteAdaptTC::ParUpdateAfterMeshTopologyChange()
    tspec.SetDataAndSize(tspec_pgf->GetData(), tspec_pgf->Size());
    tspec_sav = tspec;
 
-   adapt_eval->SetParMetaInfo(*ptspec_fesv->GetParMesh(),
-                              *ptspec_fesv->FEColl(), ncomp,
-                              ptspec_fesv->GetOrdering());
+   adapt_eval->SetParMetaInfo(*ptspec_fesv->GetParMesh(), *ptspec_fesv);
    adapt_eval->SetInitialField(*ptspec_fesv->GetMesh()->GetNodes(), tspec);
 }
 
@@ -1560,9 +1556,7 @@ void DiscreteAdaptTC::FinalizeSerialDiscreteTargetSpec(const GridFunction &t)
    MFEM_VERIFY(ncomp > 0, "No target specifications have been set!");
 
    const FiniteElementSpace *tspec_fes = t.FESpace();
-   adapt_eval->SetSerialMetaInfo(*tspec_fes->GetMesh(),
-                                 *tspec_fes->FEColl(), ncomp,
-                                 Ordering::byNODES);
+   adapt_eval->SetSerialMetaInfo(*tspec_fes->GetMesh(), *tspec_fes);
    adapt_eval->SetInitialField(*tspec_fes->GetMesh()->GetNodes(), tspec);
 
    tspec_sav = tspec;
@@ -1597,9 +1591,7 @@ void DiscreteAdaptTC::UpdateAfterMeshTopologyChange()
    tspec.SetDataAndSize(tspec_gf->GetData(), tspec_gf->Size());
    tspec_sav = tspec;
 
-   adapt_eval->SetSerialMetaInfo(*tspec_fesv->GetMesh(),
-                                 *tspec_fesv->FEColl(), ncomp,
-                                 tspec_fesv->GetOrdering());
+   adapt_eval->SetSerialMetaInfo(*tspec_fesv->GetMesh(), *tspec_fesv);
    adapt_eval->SetInitialField(*tspec_fesv->GetMesh()->GetNodes(), tspec);
 }
 
@@ -2369,28 +2361,24 @@ DiscreteAdaptTC::~DiscreteAdaptTC()
 }
 
 void AdaptivityEvaluator::SetSerialMetaInfo(const Mesh &m,
-                                            const FiniteElementCollection &fec,
-                                            int num_comp, int fes_ordering)
+                                            const FiniteElementSpace &f)
 {
    delete fes;
    delete mesh;
    mesh = new Mesh(m, true);
-   fes = new FiniteElementSpace(mesh, &fec, num_comp, fes_ordering);
-   dim = fes->GetFE(0)->GetDim();
-   ncomp = num_comp;
+   fes = new FiniteElementSpace(mesh, f.FEColl(),
+                                f.GetVDim(), f.GetOrdering());
 }
 
 #ifdef MFEM_USE_MPI
 void AdaptivityEvaluator::SetParMetaInfo(const ParMesh &m,
-                                         const FiniteElementCollection &fec,
-                                         int num_comp, int fes_ordering)
+                                         const ParFiniteElementSpace &f)
 {
    delete pfes;
    delete pmesh;
    pmesh = new ParMesh(m, true);
-   pfes  = new ParFiniteElementSpace(pmesh, &fec, num_comp, fes_ordering);
-   dim = pfes->GetFE(0)->GetDim();
-   ncomp = num_comp;
+   pfes  = new ParFiniteElementSpace(pmesh, f.FEColl(),
+                                     f.GetVDim(), f.GetOrdering());
 }
 #endif
 
@@ -2474,9 +2462,8 @@ void TMOP_Integrator::EnableAdaptiveLimiting(const GridFunction &z0,
    adapt_lim_coeff = &coeff;
    adapt_lim_eval = &ae;
 
-   adapt_lim_eval->SetSerialMetaInfo(*adapt_lim_gf->FESpace()->GetMesh(),
-                                     *adapt_lim_gf->FESpace()->FEColl(), 1,
-                                     adapt_lim_gf->FESpace()->GetOrdering());
+   adapt_lim_eval->SetSerialMetaInfo(*z0.FESpace()->GetMesh(),
+                                     *z0.FESpace());
    adapt_lim_eval->SetInitialField
    (*adapt_lim_gf->FESpace()->GetMesh()->GetNodes(), *adapt_lim_gf);
 }
@@ -2494,8 +2481,7 @@ void TMOP_Integrator::EnableAdaptiveLimiting(const ParGridFunction &z0,
    adapt_lim_eval = &ae;
 
    adapt_lim_eval->SetParMetaInfo(*z0.ParFESpace()->GetParMesh(),
-                                  *z0.ParFESpace()->FEColl(), 1,
-                                  adapt_lim_gf->FESpace()->GetOrdering());
+                                  *z0.ParFESpace());
    adapt_lim_eval->SetInitialField
    (*adapt_lim_gf->FESpace()->GetMesh()->GetNodes(), *adapt_lim_gf);
 }
@@ -2513,8 +2499,7 @@ void TMOP_Integrator::EnableSurfaceFitting(const GridFunction &s0,
    surf_fit_eval = &ae;
 
    surf_fit_eval->SetSerialMetaInfo(*s0.FESpace()->GetMesh(),
-                                    *s0.FESpace()->FEColl(), 1,
-                                    surf_fit_gf->FESpace()->GetOrdering());
+                                    *s0.FESpace());
    surf_fit_eval->SetInitialField
    (*surf_fit_gf->FESpace()->GetMesh()->GetNodes(), *surf_fit_gf);
 }
@@ -2532,8 +2517,7 @@ void TMOP_Integrator::EnableSurfaceFitting(const ParGridFunction &s0,
    surf_fit_eval = &ae;
 
    surf_fit_eval->SetParMetaInfo(*s0.ParFESpace()->GetParMesh(),
-                                 *s0.ParFESpace()->FEColl(), 1,
-                                 surf_fit_gf->FESpace()->GetOrdering());
+                                 *s0.ParFESpace());
    surf_fit_eval->SetInitialField
    (*surf_fit_gf->FESpace()->GetMesh()->GetNodes(), *surf_fit_gf);
 }
@@ -2574,8 +2558,7 @@ void TMOP_Integrator::UpdateAfterMeshTopologyChange()
    {
       adapt_lim_gf->Update();
       adapt_lim_eval->SetSerialMetaInfo(*adapt_lim_gf->FESpace()->GetMesh(),
-                                        *adapt_lim_gf->FESpace()->FEColl(), 1,
-                                        adapt_lim_gf->FESpace()->GetOrdering());
+                                        *adapt_lim_gf->FESpace());
       adapt_lim_eval->SetInitialField
       (*adapt_lim_gf->FESpace()->GetMesh()->GetNodes(), *adapt_lim_gf);
    }
@@ -2588,8 +2571,7 @@ void TMOP_Integrator::ParUpdateAfterMeshTopologyChange()
    {
       adapt_lim_gf->Update();
       adapt_lim_eval->SetParMetaInfo(*adapt_lim_pgf0->ParFESpace()->GetParMesh(),
-                                     *adapt_lim_pgf0->ParFESpace()->FEColl(), 1,
-                                     adapt_lim_pgf0->FESpace()->GetOrdering());
+                                     *adapt_lim_pgf0->ParFESpace());
       adapt_lim_eval->SetInitialField
       (*adapt_lim_gf->FESpace()->GetMesh()->GetNodes(), *adapt_lim_gf);
    }

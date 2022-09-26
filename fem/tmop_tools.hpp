@@ -58,7 +58,6 @@ private:
    Vector nodes0;
    GridFunction field0_gf;
    FindPointsGSLIB *finder;
-   int dim;
 public:
    InterpolatorFP() : finder(NULL) { }
 
