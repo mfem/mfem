@@ -30,22 +30,18 @@ void AdvectorCG::ComputeAtNewPosition(const Vector &new_nodes,
                                       Vector &new_field,
                                       int new_nodes_ordering)
 {
+   FiniteElementSpace *space = fes;
+#ifdef MFEM_USE_MPI
+   if (pfes) { space = pfes; }
+#endif
+   int fes_ordering = space->GetOrdering(),
+       ncomp = space->GetVDim();
+
    // TODO: Implement for AMR meshes.
-   const int pnt_cnt = new_field.Size()/ncomp;
+   const int pnt_cnt = field0.Size() / ncomp;
 
    new_field = field0;
    Vector new_field_temp;
-   int fes_ordering;
-   if (fes)
-   {
-      fes_ordering = fes->GetOrdering();
-   }
-#ifdef MFEM_USE_MPI
-   else if (pfes)
-   {
-      fes_ordering = pfes->GetOrdering();
-   }
-#endif
    for (int i = 0; i < ncomp; i++)
    {
       if (fes_ordering == Ordering::byNODES)
@@ -128,7 +124,7 @@ void AdvectorCG::ComputeAtNewPositionScalar(const Vector &new_nodes,
    for (int i = 0; i < s; i++)
    {
       double vel = 0.;
-      for (int j = 0; j < dim; j++)
+      for (int j = 0; j < m->Dimension(); j++)
       {
          vel += u(i+j*s)*u(i+j*s);
       }
@@ -377,8 +373,6 @@ void InterpolatorFP::SetInitialField(const Vector &init_nodes,
 
    field0_gf.SetSpace(f);
    field0_gf = init_field;
-
-   dim = f->GetFE(0)->GetDim();
 }
 
 void InterpolatorFP::ComputeAtNewPosition(const Vector &new_nodes,

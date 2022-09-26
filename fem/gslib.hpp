@@ -157,11 +157,15 @@ public:
        @param[out] field_out  Interpolated values. For points that are not found
                               the value is set to #default_interp_value. */
    virtual void Interpolate(const GridFunction &field_in, Vector &field_out);
-   /** Search positions and interpolate */
+   /** Search positions and interpolate. The ordering (byNODES or byVDIM) of
+       the output values in @a field_out corresponds to the ordering used
+       in the input GridFunction @a field_in. */
    void Interpolate(const Vector &point_pos, const GridFunction &field_in,
                     Vector &field_out,
                     int point_pos_ordering = Ordering::byNODES);
-   /** Setup FindPoints, search positions and interpolate */
+   /** Setup FindPoints, search positions and interpolate. The ordering (byNODES
+       or byVDIM) of the output values in @a field_out corresponds to the
+       ordering used in the input GridFunction @a field_in. */
    void Interpolate(Mesh &m, const Vector &point_pos,
                     const GridFunction &field_in, Vector &field_out,
                     int point_pos_ordering = Ordering::byNODES);

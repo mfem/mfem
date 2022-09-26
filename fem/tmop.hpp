@@ -987,8 +987,6 @@ protected:
    ParFiniteElementSpace *pfes;
 #endif
 
-   int dim, ncomp;
-
 public:
    AdaptivityEvaluator() : mesh(NULL), fes(NULL)
    {
@@ -999,17 +997,15 @@ public:
    }
    virtual ~AdaptivityEvaluator();
 
-   /** Specifies the Mesh and FiniteElementCollection of the solution that will
+   /** Specifies the Mesh and FiniteElementSpace of the solution that will
        be evaluated. The given mesh will be copied into the internal object. */
    void SetSerialMetaInfo(const Mesh &m,
-                          const FiniteElementCollection &fec, int num_comp,
-                          int fes_ordering=Ordering::byNODES);
+                          const FiniteElementSpace &f);
 
 #ifdef MFEM_USE_MPI
    /// Parallel version of SetSerialMetaInfo.
    void SetParMetaInfo(const ParMesh &m,
-                       const FiniteElementCollection &fec, int num_comp,
-                       int fes_ordering=Ordering::byNODES);
+                       const ParFiniteElementSpace &f);
 #endif
 
    // TODO use GridFunctions to make clear it's on the ldofs?
