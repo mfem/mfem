@@ -119,8 +119,8 @@ public:
 DarcyProblem::DarcyProblem(MPI_Comm comm, Mesh &mesh, int num_refs, int order,
                            const char *coef_file, Array<int> &ess_bdr,
                            DFSParameters dfs_param)
-   : mesh_(comm, mesh), ucoeff_(mesh.Dimension(), u_exact), ess_bdr_(ess_bdr),
-     pcoeff_(p_exact), dfs_spaces_(order, num_refs, &mesh_, ess_bdr, dfs_param)
+   : mesh_(comm, mesh), ucoeff_(mesh.Dimension(), u_exact), pcoeff_(p_exact),
+     ess_bdr_(ess_bdr), dfs_spaces_(order, num_refs, &mesh_, ess_bdr, dfs_param)
 {
    for (int l = 0; l < num_refs; l++)
    {
