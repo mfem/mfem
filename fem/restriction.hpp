@@ -97,8 +97,8 @@ public:
    void FillJAndData(const Vector &ea_data, SparseMatrix &mat) const;
    /// @private Not part of the public interface (device kernel limitation).
    ///
-   /// Performs either MultTranpose or AddMultTranposes depending on the boolean
-   /// template parameter @a ADD.
+   /// Performs either MultTranspose or AddMultTranspose depending on the
+   /// boolean template parameter @a ADD.
    template <bool ADD> void AddMultTranspose(const Vector &x, Vector &y) const;
 };
 
@@ -127,8 +127,8 @@ public:
    void FillJAndData(const Vector &ea_data, SparseMatrix &mat) const;
    /// @private Not part of the public interface (device kernel limitation).
    ///
-   /// Performs either MultTranpose or AddMultTranposes depending on the boolean
-   /// template parameter @a ADD.
+   /// Performs either MultTranspose or AddMultTranspose depending on the
+   /// boolean template parameter @a ADD.
    template <bool ADD> void AddMultTranspose(const Vector &x, Vector &y) const;
 };
 
