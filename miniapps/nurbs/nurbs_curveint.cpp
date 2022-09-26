@@ -4,9 +4,9 @@
 //               ./nurbs_curveint -nw -n 9
 
 //
-// Description:  This example code demonstrates the use of MFEM to interpolate 
-//               a curve in a NURBS patch. We first define a square shaped 
-//               NURBS patch. We then interpolate a sine function on the bottom 
+// Description:  This example code demonstrates the use of MFEM to interpolate
+//               a curve in a NURBS patch. We first define a square shaped
+//               NURBS patch. We then interpolate a sine function on the bottom
 //               edge. The results can be viewed in VisIt.//
 
 
@@ -65,7 +65,7 @@ int main(int argc, char *argv[])
    args.AddOption(&order, "-o", "--order",
                   "Order of the NURBSPatch");
    args.AddOption(&unit_weight, "-uw", "--unit-weight", "-nw",
-                  "--non-unit-weight", 
+                  "--non-unit-weight",
                   "Use a unity weigth (default) for the NURBS-patches or not.");
 
    // Parse and print commandline options
@@ -126,18 +126,18 @@ int main(int argc, char *argv[])
 
    // Refine direction which has fitting
    patch.DegreeElevate(0, order-kv_o1->GetOrder());
-   if(unit_weight == false)
+   if (unit_weight == false)
    {
       patch(1,0,2) = sqrt(2)/2;
    }
    patch.KnotInsert(0, *kv);
 
 
-   if(unit_weight)
+   if (unit_weight)
    {
       // We locate the controlpoints at the location of the
       // maxima of the knotvectors. This works very well
-      // for patches with the weight being one. 
+      // for patches with the weight being one.
       kv->FindMaxima(i_args,xi_args, u_args);
 
       for (int i = 0; i < ncp; i++)
@@ -160,13 +160,13 @@ int main(int argc, char *argv[])
    {
       // We use a uniform spacing of the controlpoints. This
       // works better for patches with not all weights being one
-      // than using the locations of the maxima. 
+      // than using the locations of the maxima.
       for (int i = 0; i < ncp; i++)
       {
          (*xy[0])[i] = -0.5+(double) i * l/(ncp-1);
          (*xy[1])[i] = -a * sin((*xy[0])[i]/l*2*3.1415)-0.5*l;
       }
-   
+
       kv->FindInterpolant(xy);
 
       // Apply interpolation to patch
@@ -180,7 +180,7 @@ int main(int argc, char *argv[])
    // Refinement in curve interpolation direction
    patch.DegreeElevate(1, order-kv_o1->GetOrder());
    patch.KnotInsert(1, *kv);
-   
+
    // 3. Open and write mesh output file
    string mesh_file;
    mesh_file.append("sin-fit");
@@ -188,7 +188,8 @@ int main(int argc, char *argv[])
    ofstream output(mesh_file.c_str());
 
    output<<"MFEM NURBS mesh v1.0"<<endl;
-   output<< endl << "# Square nurbs mesh with a sine fitted at its bottom edge" << endl << endl;
+   output<< endl << "# Square nurbs mesh with a sine fitted at its bottom edge" <<
+         endl << endl;
    output<< "dimension"<<endl;
    output<< 2 <<endl;
    output<< endl;
@@ -216,8 +217,8 @@ int main(int argc, char *argv[])
    output<<"patches"<<endl;
    output<<endl;
 
-   output << "# Patch 1 " << endl; 
-   patch.Print(output); 
+   output << "# Patch 1 " << endl;
+   patch.Print(output);
    output.close();
 
    // Print mesh info to screen
@@ -237,5 +238,5 @@ int main(int argc, char *argv[])
    delete kv_o1, kv;
    delete mesh;
 
-	return 0;
+   return 0;
 }
