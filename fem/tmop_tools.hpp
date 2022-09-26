@@ -159,7 +159,7 @@ protected:
    }
 
    void UpdateDiscreteTC(const TMOP_Integrator &ti, const Vector &x_new,
-                         int ordering=Ordering::byNODES) const;
+                         int x_ordering = Ordering::byNODES) const;
 
    double ComputeMinDet(const Vector &x_loc,
                         const FiniteElementSpace &fes) const;

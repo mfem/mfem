@@ -835,18 +835,18 @@ void TMOPNewtonSolver::ProcessNewState(const Vector &x) const
 
 void TMOPNewtonSolver::UpdateDiscreteTC(const TMOP_Integrator &ti,
                                         const Vector &x_new,
-                                        int ordering) const
+                                        int x_ordering) const
 {
    const bool update_flag = true;
    DiscreteAdaptTC *discrtc = ti.GetDiscreteAdaptTC();
    if (discrtc)
    {
-      discrtc->UpdateTargetSpecification(x_new, update_flag, ordering);
+      discrtc->UpdateTargetSpecification(x_new, update_flag, x_ordering);
       if (ti.GetFDFlag())
       {
          double dx = ti.GetFDh();
-         discrtc->UpdateGradientTargetSpecification(x_new, dx, update_flag, ordering);
-         discrtc->UpdateHessianTargetSpecification(x_new, dx, update_flag, ordering);
+         discrtc->UpdateGradientTargetSpecification(x_new, dx, update_flag, x_ordering);
+         discrtc->UpdateHessianTargetSpecification(x_new, dx, update_flag, x_ordering);
       }
    }
 }
