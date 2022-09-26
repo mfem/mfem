@@ -79,7 +79,7 @@ int main(int argc, char *argv[])
 
    if (order < 2 && unit_weight == false);
    {
-      mfem_error("For a non unity weight, the order should be at least 2.")
+      mfem_error("For a non unity weight, the order should be at least 2.");
    }
 
    KnotVector *kv_o1 = UniformKnotVector(1, 2);
