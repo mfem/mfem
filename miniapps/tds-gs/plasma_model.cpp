@@ -88,11 +88,12 @@ double NonlinearGridCoefficient::Eval(ElementTransformation & T,
   }
   double psi_N = normalized_psi(psi_val, psi_max, psi_bdp);
 
-  double alpha_ = 0.25;
+  double alpha_ = 0.0;
+  double beta_ = 0.25;
   if (option == 1) {
     if (true) {
 
-      return alpha_ * pow(psi_val, 2.0);
+      return alpha_ * pow(psi_val, 2.0) + beta_ * exp(psi_val);
     }
     return ri * (model->S_p_prime(psi_N)) + (model->S_ff_prime(psi_N)) / (model->get_mu() * ri);
   } else {
@@ -109,7 +110,7 @@ double NonlinearGridCoefficient::Eval(ElementTransformation & T,
     }
 
     if (true) {
-      return alpha_ * 2.0 * psi_val;
+      return alpha_ * 2.0 * psi_val + beta_ * exp(psi_val);
     }
     if (true) {
       return coeff * (ri * (model->S_prime_p_prime(psi_N))

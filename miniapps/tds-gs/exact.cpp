@@ -45,12 +45,14 @@ double ExactForcingCoefficient::Eval(ElementTransformation & T,
    }
    if (true) {
      // I u = ...
-     double alpha_ = 0.25;
+     double alpha_ = 0.0;
+     double beta_ = 0.25;
      double psi_N = psi_exact(r, z, r0, z0, k);
      ans = psi_N;
      // ans -= r * model.S_p_prime(psi_N);
      // ans -= model.S_ff_prime(psi_N) / (r * mu);
      ans -= alpha_ * pow(psi_N, 2.0);
+     ans -= beta_ * exp(psi_N);
      if ((T.Attribute > 832) && (T.Attribute <= 838)){
        // coil region
        // ans -= 1.0;

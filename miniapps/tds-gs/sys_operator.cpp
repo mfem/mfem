@@ -65,11 +65,10 @@ void SysOperator::Mult(const Vector &psi, Vector &y) const {
   LinearForm plasma_term(fespace);
   plasma_term.AddDomainIntegrator(new DomainLFIntegrator(nlgcoeff1));
   plasma_term.Assemble();
-  
-  y = 0.0;
+
+  diff_operator->Mult(psi, y);
   add(y, -1.0, *coil_term, y);
   add(y, -1.0, plasma_term, y);
-  diff_operator->AddMult(psi, y);
 
 
   // deal with boundary conditions

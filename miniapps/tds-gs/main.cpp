@@ -315,7 +315,31 @@ int main(int argc, char *argv[])
    LinearForm out_vec(&fespace);
    SysOperator op(&diff_operator, &coil_term, &model, &fespace, &mesh, attr_lim, &boundary_dofs, &u);
    dx = 0.0;
+
+   int kdim = 10000;
+   int max_iter = 300;
+   double tol = 1e-16;
+
+   // SparseSmoother smoother;
+   Solver* preconditioner = new DSmoother(1);
+   GMRESSolver linear_solver;
+   linear_solver.SetKDim(kdim);
+   linear_solver.SetMaxIter(max_iter);
+   linear_solver.SetRelTol(tol);
+   linear_solver.SetAbsTol(0.0);
+   linear_solver.SetPreconditioner(*preconditioner);
+   // linear_solver.SetPreconditioner(smoother);
+   NewtonSolver newton_solver;
+   newton_solver.SetSolver(linear_solver);
+   newton_solver.SetOperator(op);
+   newton_solver.SetRelTol(tol);
+   newton_solver.SetAbsTol(0.0);
+   newton_solver.SetMaxIter(20);
+   newton_solver.SetPrintLevel(1); // print Newton iterations
    
+   Vector zero;
+   // newton_solver.Mult(zero, x);
+     
    // x = u;
    double error_old;
    double error;
@@ -338,9 +362,6 @@ int main(int argc, char *argv[])
      if (error < 1e-16) {
        break;
      }
-     int kdim = 10000;
-     int max_iter = 300;
-     double tol = 1e-16;
 
      set<int> plasma_inds;
      map<int, vector<int>> vertex_map;

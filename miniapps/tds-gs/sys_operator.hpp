@@ -34,7 +34,7 @@ public:
               PlasmaModel *model_, FiniteElementSpace *fespace_,
               Mesh *mesh_, int attr_lim_, Array<int> *boundary_dofs_,
               GridFunction *u_boundary_) :
-    diff_operator(diff_operator_), coil_term(coil_term_),
+    Operator(fespace_->GetTrueVSize()), diff_operator(diff_operator_), coil_term(coil_term_),
     model(model_), fespace(fespace_),
     mesh(mesh_), Mat(NULL), attr_lim(attr_lim_), boundary_dofs(boundary_dofs_),
     u_boundary(u_boundary_) {
