@@ -263,8 +263,7 @@ class BlockHybridizationSolver : public DarcySolver
 public:
    BlockHybridizationSolver(const std::shared_ptr<ParBilinearForm> &a,
                             const std::shared_ptr<ParMixedBilinearForm> &b,
-                            const IterSolveParameters &param,
-                            const int order = 0);
+                            const IterSolveParameters &param);
    ~BlockHybridizationSolver();
    virtual void Mult(const Vector &x, Vector &y) const;
    virtual void SetOperator(const Operator &op) { }

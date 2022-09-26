@@ -624,8 +624,7 @@ int DivFreeSolver::GetNumIterations() const
 
 BlockHybridizationSolver::BlockHybridizationSolver(const shared_ptr<ParBilinearForm> &a,
                                                    const shared_ptr<ParMixedBilinearForm> &b,
-                                                   const IterSolveParameters &param,
-                                                   const int order)
+                                                   const IterSolveParameters &param)
    : DarcySolver(a->NumRows(), b->NumRows()), trial_space(*a->ParFESpace()),
      test_space(*b->TestParFESpace()), solver_(MPI_COMM_WORLD)
 {
@@ -644,7 +643,7 @@ BlockHybridizationSolver::BlockHybridizationSolver(const shared_ptr<ParBilinearF
         hat_offsets[i + 1] = num_hat_dofs;
     }
 
-    DG_Interface_FECollection fec(order, pmesh.Dimension());
+    DG_Interface_FECollection fec(trial_space.FEColl()->GetOrder(), pmesh.Dimension());
     c_fes = new ParFiniteElementSpace(&pmesh, &fec);
     ParFiniteElementSpace &c_space(*c_fes);
 
