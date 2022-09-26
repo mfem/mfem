@@ -46,6 +46,7 @@
 //
 //   Adapted discrete size:
 //     mpirun -np 4 pmesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 80 -tid 5 -ni 50 -qo 4 -nor
+//   * mpirun -np 4 pmesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 80 -tid 5 -ni 50 -qo 4 -nor -mno 1 -ae 1
 //   Adapted discrete size 3D with PA:
 //     mpirun -np 4 pmesh-optimizer -m cube.mesh -o 2 -rs 2 -mid 321 -tid 5 -ls 3 -nor -pa
 //   Adapted discrete size 3D with PA on device (requires CUDA).
