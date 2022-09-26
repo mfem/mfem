@@ -104,7 +104,7 @@ public:
                            shared_ptr<HypreParMatrix> &B,
                            shared_ptr<HypreParMatrix> &M_e,
                            shared_ptr<HypreParMatrix> &B_e,
-                           mfem::Array<int> &ess_tdof) const;
+                           mfem::Array<int> &ess_tdof_list) const;
 
    void ShowError(const Vector &sol, bool verbose);
    void VisualizeSolution(const Vector &sol, string tag);
@@ -200,13 +200,13 @@ void DarcyProblem::GetParallelSystems(shared_ptr<HypreParMatrix> &M,
                                       shared_ptr<HypreParMatrix> &B,
                                       shared_ptr<HypreParMatrix> &M_e,
                                       shared_ptr<HypreParMatrix> &B_e,
-                                      mfem::Array<int> &ess_tdof) const
+                                      mfem::Array<int> &ess_tdof_list) const
 {
-   dfs_spaces_.GetHdivFES()->GetEssentialTrueDofs(ess_bdr_, ess_tdof);
+   dfs_spaces_.GetHdivFES()->GetEssentialTrueDofs(ess_bdr_, ess_tdof_list);
    M.reset(Mform_->ParallelAssemble());
-   M_e.reset(M->EliminateRowsCols(ess_tdof));
+   M_e.reset(M->EliminateRowsCols(ess_tdof_list));
    B.reset(Bform_->ParallelAssemble());
-   B_e.reset(B->EliminateCols(ess_tdof));
+   B_e.reset(B->EliminateCols(ess_tdof_list));
 }
 
 void DarcyProblem::ShowError(const Vector& sol, bool verbose)
@@ -339,11 +339,11 @@ int main(int argc, char *argv[])
    ResetTimer();
 
    // Generate components of the saddle point problem
-   mfem::Array<int> ess_tdof;
+   mfem::Array<int> ess_tdof_list;
    shared_ptr<HypreParMatrix> M, B, M_e, B_e;
    DarcyProblem darcy(MPI_COMM_WORLD, *mesh, par_ref, order, coef_file, ess_bdr,
                       param);
-   darcy.GetParallelSystems(M, B, M_e, B_e, ess_tdof);
+   darcy.GetParallelSystems(M, B, M_e, B_e, ess_tdof_list);
    const DFSData& DFS_data = darcy.GetDFSData();
    delete mesh;
 
@@ -363,22 +363,23 @@ int main(int argc, char *argv[])
    std::map<const DarcySolver*, double> setup_time;
    ResetTimer();
    BDPMinres bdp(*M, *B, param);
-   bdp.SetEliminatedSystems(M_e, B_e, ess_tdof);
+   bdp.SetEliminatedSystems(M_e, B_e, ess_tdof_list);
    setup_time[&bdp] = chrono.RealTime();
 
    ResetTimer();
    DivFreeSolver dfs_dm(*M, *B, DFS_data);
-   dfs_dm.SetEliminatedSystems(M_e, B_e, ess_tdof);
+   dfs_dm.SetEliminatedSystems(M_e, B_e, ess_tdof_list);
    setup_time[&dfs_dm] = chrono.RealTime();
 
    ResetTimer();
    const_cast<bool&>(DFS_data.param.coupled_solve) = true;
    DivFreeSolver dfs_cm(*M, *B, DFS_data);
-   dfs_cm.SetEliminatedSystems(M_e, B_e, ess_tdof);
+   dfs_cm.SetEliminatedSystems(M_e, B_e, ess_tdof_list);
    setup_time[&dfs_cm] = chrono.RealTime();
 
    ResetTimer();
    BlockHybridizationSolver bh(darcy.GetMform(), darcy.GetBform(), param);
+   bh.SetEliminatedSystems(M_e, B_e, ess_tdof_list);
    setup_time[&bh] = chrono.RealTime();
 
    std::map<const DarcySolver*, std::string> solver_to_name;

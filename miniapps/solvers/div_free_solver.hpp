@@ -105,7 +105,7 @@ class DarcySolver : public Solver
 protected:
    Array<int> offsets_;
    bool rhs_needs_elimination_;
-   Array<int> ess_true_dofs_;
+   Array<int> ess_tdof_list_;
    std::shared_ptr<HypreParMatrix> M_e_;
    std::shared_ptr<HypreParMatrix> B_e_;
 public:
@@ -115,12 +115,12 @@ public:
    virtual int GetNumIterations() const = 0;
    void SetEliminatedSystems(std::shared_ptr<HypreParMatrix> M_e,
                              std::shared_ptr<HypreParMatrix> B_e,
-                             const Array<int>& ess_true_dofs)
+                             const Array<int>& ess_tdof_list)
    {
       M_e_ = M_e;
       B_e_ = B_e;
       rhs_needs_elimination_ = true;
-      ess_true_dofs.Copy(ess_true_dofs_);
+      ess_tdof_list.Copy(ess_tdof_list_);
    }
    void EliminateEssentialBC(const Vector &ess_data, Vector &rhs) const;
 };

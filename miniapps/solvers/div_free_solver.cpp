@@ -210,7 +210,7 @@ void DarcySolver::EliminateEssentialBC(const Vector &ess_data,
    BlockVector blk_rhs(rhs, offsets_);
    M_e_->Mult(-1.0, blk_ess_data.GetBlock(0), 1.0, blk_rhs.GetBlock(0));
    B_e_->Mult(-1.0, blk_ess_data.GetBlock(0), 1.0, blk_rhs.GetBlock(1));
-   for (int dof : ess_true_dofs_) { rhs[dof] = ess_data[dof]; }
+   for (int dof : ess_tdof_list_) { rhs[dof] = ess_data[dof]; }
 }
 
 BBTSolver::BBTSolver(const HypreParMatrix& B, IterSolveParameters param)
