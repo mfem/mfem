@@ -229,10 +229,10 @@ static void DLFEvalAssemble(const FiniteElementSpace &fes,
    const int ne = fes.GetMesh()->GetNE();
    const int *M = markers.Read();
    const double *B = maps.B.Read();
-   const double *J = geom->detJ.Read();
+   const double *detJ = geom->detJ.Read();
    const double *W = ir->GetWeights().Read();
    double *Y = y.ReadWrite();
-   ker(vdim, ne, d, q, map_type, M, B, J, W, coeff, Y);
+   ker(vdim, ne, d, q, map_type, M, B, detJ, W, coeff, Y);
 }
 
 void DomainLFIntegrator::AssembleDevice(const FiniteElementSpace &fes,
