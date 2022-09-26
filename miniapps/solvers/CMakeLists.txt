@@ -35,7 +35,7 @@ if (MFEM_USE_MPI)
       $<TARGET_FILE:block-solvers> -r 2
       -m ${CMAKE_CURRENT_SOURCE_DIR}/anisotropic.mesh
       -c ${CMAKE_CURRENT_SOURCE_DIR}/anisotropic.coeff
-      -eb ${CMAKE_CURRENT_SOURCE_DIR}/anisotropic.brd
+      -eb ${CMAKE_CURRENT_SOURCE_DIR}/anisotropic.bdr
       -no-vis
       ${MPIEXEC_POSTFLAGS})
 
