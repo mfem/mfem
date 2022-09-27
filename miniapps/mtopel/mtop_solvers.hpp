@@ -755,7 +755,8 @@ public:
     }
 
     void SetFilter(FilterSolver* fsolv_){
-        dfes=fsolv_->GetDesignFES();
+        //dfes=fsolv_->GetDesignFES();
+        dfes=fsolv_->GetFilterFES();
     }
 
     void SetDesignFES(ParFiniteElementSpace* fes)
