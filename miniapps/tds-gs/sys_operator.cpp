@@ -58,7 +58,7 @@ void SysOperator::Mult(const Vector &psi, Vector &y) const {
   max_val = 1.0;
   min_val = 0.0;
   NonlinearGridCoefficient nlgcoeff1(model, 1, &x, min_val, max_val, plasma_inds, attr_lim);
-  if (iprint) {
+  if ((iprint) || (false)) {
     printf(" min_val: %f, x_val: %f \n", min_val, max_val);
     printf(" ind_min: %d, ind_x: %d \n", ind_min, ind_max);
   }
@@ -69,7 +69,6 @@ void SysOperator::Mult(const Vector &psi, Vector &y) const {
   diff_operator->Mult(psi, y);
   add(y, -1.0, *coil_term, y);
   add(y, -1.0, plasma_term, y);
-
 
   // deal with boundary conditions
   Vector u_b_exact, u_tmp, u_b;
@@ -107,7 +106,10 @@ Operator &SysOperator::GetGradient(const Vector &psi) const {
   compute_plasma_points(x, *mesh, vertex_map, plasma_inds, ind_min, ind_max, min_val, max_val, iprint);
   max_val = 1.0;
   min_val = 0.0;
-
+  if ((iprint) || (false)) {
+    printf(" min_val: %f, x_val: %f \n", min_val, max_val);
+    printf(" ind_min: %d, ind_x: %d \n", ind_min, ind_max);
+  }
   // first nonlinear contribution: bilinear operator
   NonlinearGridCoefficient nlgcoeff_2(model, 2, &x, min_val, max_val, plasma_inds, attr_lim);
   BilinearForm diff_plasma_term_2(fespace);
@@ -136,11 +138,12 @@ Operator &SysOperator::GetGradient(const Vector &psi) const {
 
   // create a new sparse matrix, Mat, that will combine all terms
   int m = fespace->GetTrueVSize();
-  // Mat = new SparseMatrix(m, m);
-  // for (int k = 0; k < m; ++k) {
-  //   // Mat->Add(k, ind_max, 0.0*diff_plasma_term_3[k]);
-  //   // Mat->Add(k, ind_min, 0.0*diff_plasma_term_4[k]);
-  // }
+  Mat = new SparseMatrix(m, m);
+  for (int k = 0; k < m; ++k) {
+    Mat->Add(k, ind_max, 0.0*diff_plasma_term_3[k]);
+    Mat->Add(k, ind_min, 0.0*diff_plasma_term_4[k]);
+  }
+  Mat->Finalize();
 
   SparseMatrix *Mat_;
   Mat_ = Add(1.0, M1, -1.0, M2);
@@ -148,10 +151,13 @@ Operator &SysOperator::GetGradient(const Vector &psi) const {
     Mat_->EliminateRow((*boundary_dofs)[k], DIAG_ONE);
   }
 
+  SparseMatrix *Final;
+  Final = Add(*Mat_, *Mat);
   // M1.PrintMatlab();
   // M2.PrintMatlab();
   // Mat_->PrintMatlab();
-  return *Mat_;
+  
+  return *Final;
     
   // // print_matlab
 

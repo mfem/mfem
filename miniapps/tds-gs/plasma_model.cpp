@@ -76,7 +76,7 @@ double NonlinearGridCoefficient::Eval(ElementTransformation & T,
                                       const IntegrationPoint & ip)
 {
 
-  if (false) {
+  if (true) {
     // check that we are in the limiter region
     if (T.Attribute != attr_lim) {
       return 0.0;
@@ -137,10 +137,10 @@ double NonlinearGridCoefficient::Eval(ElementTransformation & T,
       coeff = 1.0 / (psi_bdp - psi_max);
     } else if (option == 3) {
       // coefficient for phi_max
-      coeff = - 0.0 * (1 - psi_N) / (psi_bdp - psi_max);
+      coeff = - 1.0 * (1 - psi_N) / (psi_bdp - psi_max);
     } else if (option == 4) {
       // coefficient for phi_min
-      coeff = - 0.0 * psi_N / (psi_bdp - psi_max);
+      coeff = - 1.0 * psi_N / (psi_bdp - psi_max);
     }
 
     return
@@ -282,7 +282,6 @@ void compute_plasma_points(const GridFunction & z, const Mesh & mesh,
    // TODO, refactor to make less confusing...
    max_val = x_val;
    ind_max = ind_x;
-
 
    // start at x_min and mark vertices that are in the plasma
    list<int> queue;

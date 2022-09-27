@@ -112,8 +112,8 @@ int main(int argc, char *argv[])
    // Parse command line options.
    // const char *mesh_file = "meshes/gs_mesh.msh";
    // const char *mesh_file = "meshes/test.msh";
-   // const char *mesh_file = "meshes/test_off_center.msh";
-   const char *mesh_file = "meshes/square.msh";
+   const char *mesh_file = "meshes/test_off_center.msh";
+   // const char *mesh_file = "meshes/square.msh";
    const char *data_file = "separated_file.data";
    int order = 1;
    int d_refine = 0;
@@ -287,21 +287,7 @@ int main(int argc, char *argv[])
    // the initial guess to zero, which also sets the boundary conditions.
    GridFunction x(&fespace);
    x.ProjectCoefficient(exact_coefficient);
-   
-   // // // Form the linear system A X = B. This includes eliminating boundary
-   // // // conditions, applying AMR constraints, and other transformations.
-   // SparseMatrix A;
-   // Vector B, X;
-   // diff_operator.FormLinearSystem(boundary_dofs, x, coil_term, A, X, B);
-
-   // // Solve the system using PCG with symmetric Gauss-Seidel preconditioner.
-   // GSSmoother M(A);
-   // PCG(A, M, B, X, 0, 400, 1e-12, 0.0);
-   // diff_operator.RecoverFEMSolution(X, coil_term, x);
-
    x = 1.0;
-   // x is the recovered solution
-   // x.ProjectCoefficient(exact_coefficient);
 
    // now we have an initial guess: x
    x.Save("sol.gf");
@@ -341,11 +327,11 @@ int main(int argc, char *argv[])
    Vector zero;
    // newton_solver.Mult(zero, x);
      
-   // x = u;
+   x = u;
    double error_old;
    double error;
    LinearForm solver_error(&fespace);
-   for (int i = 0; i < 6; ++i) {
+   for (int i = 0; i < 20; ++i) {
 
      op.Mult(x, out_vec);
      error = GetMaxError(out_vec);
@@ -367,12 +353,10 @@ int main(int argc, char *argv[])
      }
      error_old = error;
 
-     if (error < 1e-16) {
+     if (error < 1e-12) {
        break;
      }
 
-
-     
      set<int> plasma_inds;
      map<int, vector<int>> vertex_map;
      vertex_map = compute_vertex_map(mesh, attr_lim);
@@ -396,14 +380,15 @@ int main(int argc, char *argv[])
      // Mat = op.GetGradient(x);
      SparseMatrix *Mat = dynamic_cast<SparseMatrix *>(&op.GetGradient(x));
 
-     // if (i == i) {
-     //   SparseMatrix *Compare = test_grad(&op, x, &fespace);
-     //   // Mat->PrintMatlab();
-
-     //   SparseMatrix *Result;
-     //   Result = Add(1.0, *Mat, -1.0, *Compare);
-     //   // Result->PrintMatlab();
-     // }
+     if (i == -1) {
+       SparseMatrix *Compare = test_grad(&op, x, &fespace);
+       Mat->PrintMatlab();
+       Compare->PrintMatlab();
+       
+       SparseMatrix *Result;
+       Result = Add(1.0, *Mat, -1.0, *Compare);
+       Result->PrintMatlab();
+     }
 
      
      double tol = 1e-12;
