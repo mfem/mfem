@@ -719,9 +719,11 @@ public:
                              const Vector &elfun);
 
     //Assemble the vector on the inner surrogate
+    /*
     virtual
     void AssembleElementVectorI(const FiniteElement &el, ElementTransformation &Tr,
                                 const Vector &elfun, Vector &elvect);
+     */
 
     virtual
     void AssembleElementVector(const FiniteElement &el, ElementTransformation &Tr,

@@ -532,14 +532,14 @@ int main(int argc, char *argv[])
    mfem::Array<int> ess_tdof_list;
 
    {
-       //mfem::ElementMarker smarker(pmesh,false);
-       mfem::ElementMarker smarker(pmesh,true);
+       mfem::ElementMarker smarker(pmesh,false);
+       //mfem::ElementMarker smarker(pmesh,true);
        smarker.SetLevelSetFunction(dist);
        smarker.MarkElements(elm_markers);
        smarker.MarkFaces(fct_markers);
        smarker.ListEssentialTDofs(elm_markers,fes,ess_tdof_list);
 
-       std::cout<<pmesh.GetNE()<<" "<<elm_markers.Size()<<std::endl;
+       //std::cout<<pmesh.GetNE()<<" "<<elm_markers.Size()<<std::endl;
        for(int i=0;i<pmesh.GetNE();i++){
            pmesh.SetAttribute(i,elm_markers[i]+1);
        }
@@ -553,11 +553,11 @@ int main(int argc, char *argv[])
        tin->SetDistance(distco,gradco);
        //tin->SetShiftOrder(order+1);
        tin->SetShiftOrder(order);
-       //tin->SetShiftOrder(0);
+       //tin->SetShiftOrder(1);
        tin->SetElasticityCoefficient(ecoef);
        tin->SetBdrCoefficient(&shdispc);
 
-       std::cout<<"order="<<order<<std::endl;
+       //std::cout<<"order="<<order<<std::endl;
        double Ci=order*order;
        double eta=1.0/2;
        double EE=1.0;
@@ -567,7 +567,7 @@ int main(int argc, char *argv[])
        double lam_max=2*mmu;
        if(lam_max<3.0*kappa){lam_max=3.0*kappa;}
 
-       tin->SetPenalization(4000.0*Ci*eta*lam_max);
+       tin->SetPenalization(2.0*Ci*eta*lam_max);
        //tin->SetPenalization(100.0);
        nf->AddDomainIntegrator(tin);
        //mfem::NLElasticityIntegrator* ein=new mfem::NLElasticityIntegrator(ecoef);
@@ -602,12 +602,36 @@ int main(int argc, char *argv[])
    nf->Mult(sol,rhs);
    rhs*=-1.0;
 
+   //check markers
+   int mbla=0;
+   for(int i=0;i<elm_markers.Size();i++){
+       if(elm_markers[i]==mfem::ElementMarker::SBElementType::INSIDE)
+       {
+           mbla++;
+       }
+   }
+   int rbla=0;
+   MPI_Allreduce(&mbla,&rbla,1,MPI_INT,MPI_SUM,MPI_COMM_WORLD);
+   if(myrank==0){
+       std::cout<<"rlar="<<rbla<<std::endl;
+   }
+
+
+   //check dofs
+   int bla=ess_tdof_list.Size();
+   int blar=0;
+   MPI_Allreduce(&bla,&blar,1,MPI_INT,MPI_SUM,MPI_COMM_WORLD);
+   if(myrank==0){
+       std::cout<<"blar="<<blar<<std::endl;
+   }
+
+
    //ess_tdof_list.Print(std::cout);
 
    mfem::HypreParMatrix* M=static_cast<mfem::HypreParMatrix*>(&A);
    mfem::HypreParMatrix* Ae=M->EliminateRowsCols(ess_tdof_list);
-   M->EliminateZeroRows();
    //M->EliminateBC(*Ae,ess_tdof_list, sol, rhs);
+   M->EliminateZeroRows();
    delete Ae;
 
 
@@ -679,13 +703,22 @@ int main(int argc, char *argv[])
        mfem::ConstantCoefficient ProcCoeff((double)(myrank));
        proc.ProjectCoefficient(ProcCoeff);
 
+       mfem::Array<int> activel;activel.SetSize(elm_markers.Size()); activel=0;
+       for(int i=0;i<elm_markers.Size();i++){
+           if(elm_markers[i]==mfem::ElementMarker::SBElementType::INSIDE){activel[i]=1;}
+       }
+
+       double l2err=dispsol.ComputeL2Error(dispc,nullptr,&activel);
+       if(myrank==0){
+        std::cout<<"L2err="<<l2err<<std::endl;
+       }
 
 
        //std::cout<<"L1:"<<dispsol.ComputeL1Error(dispc)<<std::endl;
 
        mfem::ParaViewDataCollection paraview_dc("Elast", &pmesh);
        paraview_dc.SetPrefixPath("ParaView");
-       paraview_dc.SetLevelsOfDetail(order+2);
+       paraview_dc.SetLevelsOfDetail(order+4);
        paraview_dc.SetDataFormat(mfem::VTKFormat::BINARY);
        paraview_dc.SetHighOrderOutput(true);
        paraview_dc.SetCycle(0);

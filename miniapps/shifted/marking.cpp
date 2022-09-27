@@ -255,15 +255,16 @@ void ElementMarker::ListEssentialTDofs(const Array<int> &elem_marker,
                                        ParFiniteElementSpace &lfes,
                                        Array<int> &ess_tdof_list) const
 {
-    Array<int> vdof_mark; vdof_mark.SetSize(lfes.GetVSize()); vdof_mark=1;
     Array<int> dofs;
+
+    mfem::Vector vvdof; vvdof.SetSize(lfes.GetVSize()); vvdof=0.0;
 
     for(int i=0;i<lfes.GetNE();i++)
     {
         if(elem_marker[i]==SBElementType::INSIDE){
             lfes.GetElementVDofs(i,dofs);
             for(int j=0;j<dofs.Size();j++){
-                vdof_mark[dofs[j]]=0;
+                vvdof[dofs[j]]=1.0;
             }
         }
 
@@ -271,14 +272,20 @@ void ElementMarker::ListEssentialTDofs(const Array<int> &elem_marker,
             if(elem_marker[i]==SBElementType::CUT){
                 lfes.GetElementVDofs(i,dofs);
                 for(int j=0;j<dofs.Size();j++){
-                    vdof_mark[dofs[j]]=0;
+                    vvdof[dofs[j]]=1.0;
                 }
             }
         }
     }
 
-    Array<int> tdof_mark;
-    lfes.GetRestrictionMatrix()->BooleanMult(vdof_mark,tdof_mark);
+    Array<int> tdof_mark; tdof_mark.SetSize(lfes.GetTrueVSize());
+    Vector vtdof; vtdof.SetSize(lfes.GetTrueVSize()); vtdof=0.0;
+    lfes.GetProlongationMatrix()->MultTranspose(vvdof,vtdof);
+    for(int i=0;i<vtdof.Size();i++){
+        if(vtdof[i]<1.0){tdof_mark[i]=1;}
+        else{tdof_mark[i]=0;}
+    }
+
     lfes.MarkerToList(tdof_mark, ess_tdof_list);
 }
 

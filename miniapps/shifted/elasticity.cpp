@@ -704,7 +704,7 @@ void NLElasticityIntegrator::AssembleElementVector(const FiniteElement &el, Elem
     Vector sh;
 
     const IntegrationRule *ir = nullptr;
-    int order= 2 * el.GetOrder() + Tr.OrderGrad(&el);
+    int order= 4 * el.GetOrder() + Tr.OrderGrad(&el);
     ir=&IntRules.Get(Tr.GetGeometryType(),order);
 
     double w;
@@ -952,7 +952,7 @@ void SBM2ELIntegrator::AssembleElementVector(const FiniteElement &el,
            }
 
            //calculate the distance
-           double d=dist_coeff->Eval(*fctr,ip);
+           double d=dist_coeff->Eval(*fctr,ip); d=0.0;
            //calculate the gradient of the SDF
            dist_grad->Eval(nvec,*fctr,ip);
            //normalize nvec - the true normal
@@ -969,7 +969,7 @@ void SBM2ELIntegrator::AssembleElementVector(const FiniteElement &el,
                    bdr_disp->Eval(bdisp,*fctr,ip,ddist);
                }
            }
-           std::cout<<"bdisp :"; bdisp.Print(std::cout);
+           //std::cout<<"bdisp :"; bdisp.Print(std::cout);
            /*
            std::cout<<"d="<<d<<" tnor="; nvec.Print(std::cout);
            std::cout<<"nnor :"; nnor.Print(std::cout);
@@ -993,7 +993,7 @@ void SBM2ELIntegrator::AssembleElementVector(const FiniteElement &el,
                bdisp(2)=-bdisp(2)+shape_sh*dispz;
            }
 
-           std::cout<<"bdisp :"; bdisp.Print(std::cout);
+           //std::cout<<"bdisp :"; bdisp.Print(std::cout);
 
            //compute the boundary stress operator bdrstress_op
            elco->EvalStiffness(D, strain_v, *fctr,ip);
@@ -1001,9 +1001,10 @@ void SBM2ELIntegrator::AssembleElementVector(const FiniteElement &el,
            //compute the traction to the surogate bdr
            bdrstress_op.Mult(elfun,tract);
 
+
            for(int dd=0;dd<dim;dd++){
            for(int ii=0;ii<dof;ii++){
-               elvect(dd*dof+ii)=elvect(dd*dof+ii)-shape(ii)*tract(dd)*ip.weight*nnor.Norml2();
+               elvect(dd*dof+ii)=elvect(dd*dof+ii)+shape(ii)*tract(dd)*ip.weight*nnor.Norml2();
            }}
 
 
@@ -1011,6 +1012,8 @@ void SBM2ELIntegrator::AssembleElementVector(const FiniteElement &el,
            for(int ii=0;ii<dim*dof;ii++){
                elvect(ii)=elvect(ii)-rvec(ii)*ip.weight*nnor.Norml2();
            }
+
+
 
            for(int dd=0;dd<dim;dd++){
            for(int ii=0;ii<dof;ii++){
@@ -1030,7 +1033,7 @@ void SBM2ELIntegrator::AssembleElementVector(const FiniteElement &el,
 
 }
 
-
+/*
 void SBM2ELIntegrator::AssembleElementVectorI(const FiniteElement &el,
                                                    ElementTransformation &Tr,
                                                    const Vector &elfun, Vector &elvect)
@@ -1085,23 +1088,6 @@ void SBM2ELIntegrator::AssembleElementVectorI(const FiniteElement &el,
     //computes the gradient at the nodal points of the element
     DenseMatrix grad_phys;
     el.ProjectGrad(el,Tr,grad_phys);
-    /*
-    {
-        DenseMatrix B; B.SetSize(dof,dim);
-        grad_phys.SetSize(dim*dof,dof);
-        const IntegrationRule& ir=el.GetNodes();
-
-        for(int ii=0;ii<dof;ii++){
-            const IntegrationPoint &ip = ir.IntPoint(ii);
-            Tr.SetIntPoint(&ip);
-            el.CalcPhysDShape(Tr, B);
-            for(int jj=0;jj<dof;jj++){
-            for(int di=0;di<dim;di++){
-                grad_phys(ii+dof*di,jj)=B(jj,di);
-            }}
-        }
-
-    }*/
 
     DenseMatrix shift_op; shift_op.SetSize(dof);
     DenseMatrix shift_ts; shift_ts.SetSize(dof);
@@ -1196,22 +1182,6 @@ void SBM2ELIntegrator::AssembleElementVectorI(const FiniteElement &el,
                }
            }
 
-           /*
-           {
-               std::cout<<"d="<<d<<" "; nvec.Print(std::cout);
-               Vector bbla(dim);
-               fctr->Transform(ip,bbla);
-               bbla(0)=bbla(0)+d*nvec(0);
-               bbla(1)=bbla(1)+d*nvec(1);
-               Vector uul(dim);
-               DispFunctionLL(bbla,uul);
-               std::cout<<"r="<<bbla.Norml2()<<" "; uul.Print(std::cout);
-
-               Vector uuc(dim);
-               uuc(0)=shape_sh*dispx;
-               uuc(1)=shape_sh*dispy;
-               uuc.Print(std::cout);
-           }*/
 
 
            //evaluate the shift operators
@@ -1222,12 +1192,6 @@ void SBM2ELIntegrator::AssembleElementVectorI(const FiniteElement &el,
            shift_op.MultTranspose(shape,shape_sh); //now we have the shifted shape functions
            shift_ts.MultTranspose(shape,shape_ts); //now we have the shifted test functions
 
-           /*
-           Vector shift_shape;
-           EvalShiftShapes(shape,B,d,nvec,shift_shape);
-           std::cout<<"True shift: ";shift_shape.Print(std::cout);
-           std::cout<<"Appr shift: ";shape_sh.Print(std::cout);
-           */
            //const DenseMatrix& J= ltr->Jacobian();
            //J.Print(std::cout);
 
@@ -1273,6 +1237,7 @@ void SBM2ELIntegrator::AssembleElementVectorI(const FiniteElement &el,
     }
 
 }
+*/
 
 void SBM2ELIntegrator::AssembleElementGrad(const FiniteElement &el,
                                            ElementTransformation &Tr,
@@ -1389,7 +1354,7 @@ void SBM2ELIntegrator::AssembleElementGrad(const FiniteElement &el,
                else{nnor_n=0.0;}
            }
            //calculate the distance
-           double d=dist_coeff->Eval(*fctr,ip);
+           double d=dist_coeff->Eval(*fctr,ip); d=0.0;
            //calculate the gradient of the SDF
            dist_grad->Eval(nvec,*fctr,ip);
            //normalize nvec - the true normal
@@ -1436,6 +1401,7 @@ void SBM2ELIntegrator::AssembleElementGrad(const FiniteElement &el,
            for(int jj=0;jj<dim*dof;jj++){
                elmat(ii,jj)=elmat(ii,jj)-btmp(ii,jj)*ip.weight*nnor.Norml2();
            }}
+
 
         }
     }
