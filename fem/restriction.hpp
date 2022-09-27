@@ -162,6 +162,22 @@ public:
    */
    virtual void AddMultTranspose(const Vector &x, Vector &y) const = 0;
 
+   /** @brief Add the face degrees of freedom @a x to the element degrees of
+       freedom @a y. Perform the same computation as AddMultTranspose, but
+       @a x is invalid after calling this method.
+
+       @param[in,out]     x The face degrees of freedom on the face.
+       @param[in,out] y The L-vector of degrees of freedom to which we add the
+                        face degrees of freedom.
+
+      @note This method is an optimization of AddMultTranspose where the @a x
+      Vector is used and modified to avoid memory allocation and memcpy.
+   */
+   virtual void AddMultTransposeInPlace(Vector &x, Vector &y) const
+   {
+      AddMultTranspose(x, y);
+   }
+
    /** @brief Set the face degrees of freedom in the element degrees of freedom
        @a y to the values given in @a x.
 
@@ -228,6 +244,8 @@ public:
                      The face_dofs are ordered according to the given
                      ElementDofOrdering. */
    void Mult(const Vector &x, Vector &y) const override;
+
+   using FaceRestriction::AddMultTransposeInPlace;
 
    /** @brief Gather the degrees of freedom, i.e. goes from face E-Vector to
        L-Vector.
@@ -357,6 +375,8 @@ public:
                      The face_dofs are ordered according to the given
                      ElementDofOrdering. */
    void Mult(const Vector &x, Vector &y) const override;
+
+   using FaceRestriction::AddMultTranspose;
 
    /** @brief Gather the degrees of freedom, i.e. goes from face E-Vector to
        L-Vector.
@@ -585,6 +605,39 @@ struct InterpConfig
    InterpConfig &operator=(const InterpConfig &rhs) = default;
 };
 
+/** This struct stores which side is the master nonconforming side and the
+    index of the interpolator, see InterpolationManager class below. */
+struct NCInterpConfig
+{
+   int face_index;
+   uint32_t is_non_conforming : 1;
+   uint32_t master_side : 1;
+   uint32_t index : 30;
+
+   // default constructor.
+   NCInterpConfig() = default;
+
+   // Non-conforming face
+   NCInterpConfig(int face_index, int master_side, int nc_index)
+      : face_index(face_index),
+        is_non_conforming(1),
+        master_side(master_side),
+        index(nc_index)
+   { }
+
+   // Non-conforming face
+   NCInterpConfig(int face_index, InterpConfig & config)
+      : face_index(face_index),
+        is_non_conforming(config.is_non_conforming),
+        master_side(config.master_side),
+        index(config.index)
+   { }
+
+   NCInterpConfig(const NCInterpConfig&) = default;
+
+   NCInterpConfig &operator=(const NCInterpConfig &rhs) = default;
+};
+
 /** @brief This class manages the storage and computation of the interpolations
     from master (coarse) face to slave (fine) face.
 */
@@ -594,6 +647,7 @@ protected:
    const FiniteElementSpace &fes;
    const ElementDofOrdering ordering;
    Array<InterpConfig> interp_config; // interpolator index for each face
+   Array<NCInterpConfig> nc_interp_config; // interpolator index for each ncface
    Vector interpolators; // face_dofs x face_dofs x num_interpolators
    int nc_cpt; // Counter for interpolators, and used as index.
 
@@ -639,6 +693,8 @@ public:
        structure. */
    void LinearizeInterpolatorMapIntoVector();
 
+   void InitializeNCInterpConfig();
+
    /// @brief Return the total number of interpolators.
    int GetNumInterpolators() const
    {
@@ -658,6 +714,14 @@ public:
    const Array<InterpConfig>& GetFaceInterpConfig() const
    {
       return interp_config;
+   }
+
+   /** @brief Return an array containing the interpolation configuration for
+       each face registered with RegisterFaceConformingInterpolation and
+       RegisterFaceCoarseToFineInterpolation. */
+   const Array<NCInterpConfig>& GetNCFaceInterpConfig() const
+   {
+      return nc_interp_config;
    }
 
 private:
@@ -749,6 +813,22 @@ public:
        @param[in,out] y The L-vector degrees of freedom. */
    void AddMultTranspose(const Vector &x, Vector &y) const override;
 
+   /** @brief Gather the degrees of freedom, i.e. goes from face E-Vector to
+       L-Vector.
+
+       @param[in,out]  x The face E-Vector degrees of freedom with the given format:
+                         if L2FacesValues::DoubleValued (face_dofs x vdim x 2 x nf),
+                         if L2FacesValues::SingleValued (face_dofs x vdim x nf),
+                         where nf is the number of interior or boundary faces
+                         requested by @a type in the constructor.
+                         The face_dofs should be ordered according to the given
+                         ElementDofOrdering
+       @param[in,out] y The L-vector degrees of freedom.
+
+      @note This method is an optimization of AddMultTranspose where the @a x
+      Vector is used and modified to avoid memory allocation and memcpy. */
+   void AddMultTransposeInPlace(Vector &x, Vector &y) const override;
+
    /** @brief Fill the I array of SparseMatrix corresponding to the sparsity
        pattern given by this NCL2FaceRestriction.
 
@@ -838,6 +918,14 @@ public:
                      ElementDofOrdering. */
    virtual void DoubleValuedNonconformingMult(const Vector& x, Vector& y) const;
 
+   /** @brief Apply a change of basis from coarse element basis to fine element
+       basis for the coarse face dofs.
+
+       @param[in,out] x The dofs vector that needs coarse dofs to be express in
+                        term of the fine basis.
+   */
+   void DoubleValuedNonconformingInterpolation(Vector& x) const;
+
    /** @brief Apply a change of basis from fine element basis to coarse element
        basis for the coarse face dofs. Should only be used when:
        L2FaceValues m == L2FaceValues::SingleValued
@@ -849,12 +937,31 @@ public:
 
    /** @brief Apply a change of basis from fine element basis to coarse element
        basis for the coarse face dofs. Should only be used when:
+       L2FaceValues m == L2FaceValues::SingleValued
+
+       @param[in,out] x The dofs vector that needs coarse dofs to be express in
+                        term of the coarse basis, the result is stored in x.
+   */
+   void SingleValuedNonconformingTransposeInterpolationInPlace(Vector& x) const;
+
+   /** @brief Apply a change of basis from fine element basis to coarse element
+       basis for the coarse face dofs. Should only be used when:
        L2FaceValues m == L2FaceValues::DoubleValued
 
        @param[in] x The dofs vector that needs coarse dofs to be express in term
                     of the coarse basis, the result is stored in x_interp.
    */
    void DoubleValuedNonconformingTransposeInterpolation(const Vector& x) const;
+
+   /** @brief Apply a change of basis from fine element basis to coarse element
+       basis for the coarse face dofs. Should only be used when:
+       L2FaceValues m == L2FaceValues::DoubleValued
+
+       @param[in,out] x The dofs vector that needs coarse dofs to be express in
+                        term of the coarse basis, the result is stored in
+                        x.
+   */
+   void DoubleValuedNonconformingTransposeInterpolationInPlace(Vector& x) const;
 };
 
 /** @brief Return the face map that extracts the degrees of freedom for the
