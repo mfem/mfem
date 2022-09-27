@@ -109,25 +109,13 @@ void PANonlinearFormExtension::Gradient::AssembleGrad(const Vector &g)
 
 void PANonlinearFormExtension::Gradient::Mult(const Vector &x, Vector &y) const
 {
-   const bool fast = Device::FastKernelsEnabled();
-   if (!fast)
+   ext.ye = 0.0;
+   ext.elemR->Mult(x, ext.xe);
+   for (int i = 0; i < ext.dnfi.Size(); ++i)
    {
-      ext.ye = 0.0;
-      ext.elemR->Mult(x, ext.xe);
-      for (int i = 0; i < ext.dnfi.Size(); ++i)
-      {
-         ext.dnfi[i]->AddMultGradPA(ext.xe, ext.ye);
-      }
-      ext.elemR->MultTranspose(ext.ye, y);
+      ext.dnfi[i]->AddMultGradPA(ext.xe, ext.ye);
    }
-   else
-   {
-      y = 0.0;
-      for (int i = 0; i < ext.dnfi.Size(); ++i)
-      {
-         ext.dnfi[i]->AddMultGradPA(x, y);
-      }
-   }
+   ext.elemR->MultTranspose(ext.ye, y);
 }
 
 void PANonlinearFormExtension::Gradient::AssembleDiagonal(Vector &diag) const

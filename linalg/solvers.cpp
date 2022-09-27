@@ -2156,6 +2156,7 @@ void LBFGSSolver::Mult(const Vector &b, Vector &x) const
 
       norm = Norm(r);
    }
+
    final_iter = it;
    final_norm = norm;
 

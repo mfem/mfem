@@ -754,16 +754,10 @@ protected:
    }
 
 public:
-   LBFGSSolver() : NewtonSolver()
-   {
-      InitializeStorageVectors();
-   }
+   LBFGSSolver() : NewtonSolver() { }
 
 #ifdef MFEM_USE_MPI
-   LBFGSSolver(MPI_Comm comm_) : NewtonSolver(comm_)
-   {
-      InitializeStorageVectors();
-   }
+   LBFGSSolver(MPI_Comm comm_) : NewtonSolver(comm_) { }
 #endif
 
    virtual void SetOperator(const Operator &op)

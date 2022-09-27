@@ -145,10 +145,6 @@ protected:
    // These fields are relevant for mixed meshes.
    IntegrationRules *IntegRules;
    int integ_order;
-   bool adaptive_line_search = false;
-   mutable Vector scale_history;
-   mutable int iteration_count = 0;
-   mutable double init_scale = 1.0;
 
    MemoryType temp_mt = MemoryType::DEFAULT;
 
@@ -163,9 +159,9 @@ protected:
 
    void UpdateDiscreteTC(const TMOP_Integrator &ti, const Vector &x_new) const;
 
-public:
    double ComputeMinDet(const Vector &x_loc,
                         const FiniteElementSpace &fes) const;
+
    double MinDetJpr_2D(const FiniteElementSpace*, const Vector&) const;
    double MinDetJpr_3D(const FiniteElementSpace*, const Vector&) const;
 
@@ -187,19 +183,11 @@ public:
 #ifdef MFEM_USE_MPI
    TMOPNewtonSolver(MPI_Comm comm, const IntegrationRule &irule, int type = 0)
       : LBFGSSolver(comm), solver_type(type), parallel(true),
-        ir(irule), IntegRules(NULL), integ_order(-1)
-   {
-      scale_history.SetSize(5);
-      scale_history = 1;
-   }
+        ir(irule), IntegRules(NULL), integ_order(-1) { }
 #endif
    TMOPNewtonSolver(const IntegrationRule &irule, int type = 0)
       : LBFGSSolver(), solver_type(type), parallel(false),
-        ir(irule), IntegRules(NULL), integ_order(-1)
-   {
-      scale_history.SetSize(5);
-      scale_history = 1;
-   }
+        ir(irule), IntegRules(NULL), integ_order(-1) { }
 
    /// Prescribe a set of integration rules; relevant for mixed meshes.
    /** If called, this function has priority over the IntegrationRule given to
@@ -246,11 +234,7 @@ public:
       {
          LBFGSSolver::Mult(b, x);
       }
-      else
-      {
-         out << "Solver type " << solver_type << " is invalid type." << std::endl;
-         MFEM_ABORT("");
-      }
+      else { MFEM_ABORT("Invalid type"); }
    }
 
    virtual void SetSolver(Solver &solver)
@@ -263,17 +247,9 @@ public:
       {
          LBFGSSolver::SetSolver(solver);
       }
-      else
-      {
-         out << "Solver type " << solver_type << " is invalid type." << std::endl;
-         MFEM_ABORT("");
-      }
+      else { MFEM_ABORT("Invalid type"); }
    }
    virtual void SetPreconditioner(Solver &pr) { SetSolver(pr); }
-
-   virtual void SetInitialScale(double scale_) { init_scale = scale_; }
-
-   virtual void EnableAdaptiveLineSearch() { adaptive_line_search = true; }
 };
 
 void vis_tmop_metric_s(int order, TMOP_QualityMetric &qm,

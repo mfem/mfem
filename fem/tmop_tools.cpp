@@ -433,11 +433,6 @@ double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
 
    Vector x_out(x.Size());
    bool x_out_ok = false;
-   double scale = init_scale;
-   if (adaptive_line_search)
-   {
-      scale = std::min(init_scale, scale_history.Sum()*2.0/5);
-   }
    double energy_out = 0.0, min_detT_out;
    const double norm_in = Norm(r);
 
@@ -513,7 +508,7 @@ double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
       }
 
       // Check the changes in the Newton residual.
-      //oper->Mult(x_out, r);
+      oper->Mult(x_out, r);
       if (have_b) { r -= b; }
       double norm_out = Norm(r);
 
@@ -561,24 +556,6 @@ double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
    }
 
    if (x_out_ok == false) { scale = 0.0; }
-
-   if (adaptive_line_search)
-   {
-      if (iteration_count < 5)
-      {
-         scale_history(iteration_count) = scale;
-         iteration_count += 1;
-      }
-      else
-      {
-         for (int i = 0; i < 4; i++)
-         {
-            scale_history(i) = scale_history(i+1);
-         }
-         scale_history(4) = scale;
-      }
-   }
-
 
    if (adaptive_surf_fit) { update_surf_fit_coeff = true; }
    compute_metric_quantile_flag = true;

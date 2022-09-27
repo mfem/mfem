@@ -22,9 +22,7 @@
 #define MFEM_USE_CUDA_OR_HIP
 #define MFEM_DEVICE __device__
 #define MFEM_LAMBDA __host__
-#define MFEM_GLOBAL __global__
 #define MFEM_HOST_DEVICE __host__ __device__
-#define MFEM_LAUNCH_BOUNDS(NTH,NBK) __launch_bounds__(NTH,NBK)
 #define MFEM_DEVICE_SYNC MFEM_GPU_CHECK(cudaDeviceSynchronize())
 #define MFEM_STREAM_SYNC MFEM_GPU_CHECK(cudaStreamSynchronize(0))
 // Define a CUDA error check macro, MFEM_GPU_CHECK(x), where x returns/is of
@@ -40,8 +38,6 @@
       } \
    } \
    while (0)
-#define MFEM_LAUNCH_KERNEL(Kernel,Grid,Block,Smem) \
-    Kernel<<<Grid,Block,sizeof(double)*(Smem),0>>>
 #endif // MFEM_USE_CUDA
 
 // Define the MFEM inner threading macros
@@ -52,8 +48,6 @@
 #define MFEM_THREAD_ID(k) threadIdx.k
 #define MFEM_THREAD_SIZE(k) blockDim.k
 #define MFEM_FOREACH_THREAD(i,k,N) for(int i=threadIdx.k; i<N; i+=blockDim.k)
-#define MFEM_FORALL_GRID_3D(e,NE) \
-    for (int e = blockIdx.x; e < NE; e += gridDim.x)
 #endif
 
 namespace mfem

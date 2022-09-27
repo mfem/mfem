@@ -361,7 +361,6 @@ int main(int argc, char *argv[])
    GridFunction x(fespace);
    mesh->SetNodalGridFunction(&x);
 
-
    // 7. Define a vector representing the minimal local mesh size in the mesh
    //    nodes. We index the nodes using the scalar version of the degrees of
    //    freedom in fespace. Note: this is partition-dependent.
@@ -695,14 +694,13 @@ int main(int argc, char *argv[])
          }
          if (dim == 2)
          {
-            //FunctionCoefficient ind_coeff(discrete_size_2d);
-            DiscreteSize2D ind_coeff(rs_levels);
-            size.ProjectCoefficient(ind_coeff);
+            FunctionCoefficient size_coeff(discrete_size_2d);
+            size.ProjectCoefficient(size_coeff);
          }
          else if (dim == 3)
          {
-            DiscreteSize3D ind_coeff(rs_levels);
-            size.ProjectCoefficient(ind_coeff);
+            FunctionCoefficient size_coeff(discrete_size_3d);
+            size.ProjectCoefficient(size_coeff);
          }
          tc->SetSerialDiscreteTargetSize(size);
          target_c = tc;

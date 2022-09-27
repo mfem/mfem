@@ -123,14 +123,11 @@ class Device
 private:
    friend class MemoryManager;
    enum MODES {SEQUENTIAL, ACCELERATED};
-   enum DETERMINISTIC_KERNELS {ON, OFF};
 
    static bool device_env, mem_host_env, mem_device_env, mem_types_set;
    static Device device_singleton;
 
    MODES mode = Device::SEQUENTIAL;
-   /// Device kernels are set to be deterministic by default.
-   DETERMINISTIC_KERNELS deterministic_kernels = DETERMINISTIC_KERNELS::ON;
    int dev = 0;   ///< Device ID of the configured device.
    int ngpu = -1; ///< Number of detected devices; -1: not initialized.
    /// Bitwise-OR of all configured backends.
@@ -148,8 +145,6 @@ private:
    MemoryClass device_mem_class = MemoryClass::HOST;
 
    char *device_option = NULL;
-   /// Kernels version number set from the device shortcut
-   int kernels_version = 0;
    Device(Device const&);
    void operator=(Device const&);
    static Device& Get() { return device_singleton; }
@@ -252,18 +247,6 @@ public:
 
    /// The opposite of IsEnabled().
    static inline bool IsDisabled() { return !IsEnabled(); }
-
-   /// Return true if the fast kernels are allowed.
-   static inline bool FastKernelsEnabled()
-   {
-      return Get().deterministic_kernels == OFF;
-   }
-
-   /// Return the kernel version to use, set from the device shortcut.
-   static inline int KernelsVersion()
-   {
-      return Get().kernels_version;
-   }
 
    /// Get the device id of the configured device.
    static inline int GetId() { return Get().dev; }

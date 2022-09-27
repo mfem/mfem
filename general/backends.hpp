@@ -46,14 +46,11 @@
 #if !(defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP))
 #define MFEM_DEVICE
 #define MFEM_LAMBDA
-#define MFEM_GLOBAL
 #define MFEM_HOST_DEVICE
 // MFEM_DEVICE_SYNC is made available for debugging purposes
 #define MFEM_DEVICE_SYNC
 // MFEM_STREAM_SYNC is used for UVM and MPI GPU-Aware kernels
 #define MFEM_STREAM_SYNC
-#define MFEM_LAUNCH_BOUNDS(...)
-#define MFEM_LAUNCH_KERNEL(Kernel, Grid, Block, Smem) Kernel
 #endif
 
 #if !((defined(MFEM_USE_CUDA) && defined(__CUDA_ARCH__)) || \
@@ -64,7 +61,6 @@
 #define MFEM_THREAD_ID(k) 0
 #define MFEM_THREAD_SIZE(k) 1
 #define MFEM_FOREACH_THREAD(i,k,N) for(int i=0; i<N; i++)
-#define MFEM_FORALL_GRID_3D(e,NE) for(int e=0; e<NE; ++e)
 #endif
 
 // 'double' atomicAdd implementation for previous versions of CUDA

@@ -135,7 +135,8 @@ int main (int argc, char *argv[])
 {
    // 0. Initialize MPI and HYPRE.
    Mpi::Init(argc, argv);
-   int myid = Mpi::WorldRank();
+   const int myid = Mpi::WorldRank();
+   const int num_procs = Mpi::WorldSize();
    Hypre::Init();
 
    // 1. Set the method's default parameters.
@@ -423,7 +424,6 @@ int main (int argc, char *argv[])
    }
    delete [] nxyz;
    delete mesh;
-
    for (int lev = 0; lev < rp_levels; lev++)
    {
       pmesh->UniformRefinement();
@@ -894,14 +894,12 @@ int main (int argc, char *argv[])
          }
          if (dim == 2)
          {
-            //FunctionCoefficient size_coeff(discrete_size_2d);
-            DiscreteSize2D ind_coeff(rs_levels);
+            FunctionCoefficient size_coeff(discrete_size_2d);
             size.ProjectCoefficient(size_coeff);
          }
          else if (dim == 3)
          {
-            //FunctionCoefficient size_coeff(discrete_size_3d);
-            DiscreteSize3D ind_coeff(rs_levels);
+            FunctionCoefficient size_coeff(discrete_size_3d);
             size.ProjectCoefficient(size_coeff);
          }
          tc->SetParDiscreteTargetSize(size);
@@ -1307,37 +1305,20 @@ int main (int argc, char *argv[])
 
    if (pa) { a.Setup(); }
 
-   // Perform the nonlinear optimization.
-   const IntegrationRule &ir =
-      irules->Get(pfespace->GetFE(0)->GetGeomType(), quad_order);
-   TMOPNewtonSolver solver(pfespace->GetComm(), ir, solver_type);
-   solver.SetInitialScale(ls_scale);
-
    // Compute the minimum det(J) of the starting mesh.
-   tauval = infinity();
-#if 0
+   min_detJ = infinity();
+   const int NE = pmesh->GetNE();
+   for (int i = 0; i < NE; i++)
    {
-      const int NE = pmesh->GetNE();
-      for (int i = 0; i < NE; i++)
+      const IntegrationRule &ir =
+         irules->Get(pfespace->GetFE(i)->GetGeomType(), quad_order);
+      ElementTransformation *transf = pmesh->GetElementTransformation(i);
+      for (int j = 0; j < ir.GetNPoints(); j++)
       {
-         const IntegrationRule &ir =
-            irules->Get(pfespace->GetFE(i)->GetGeomType(), quad_order);
-         ElementTransformation *transf = pmesh->GetElementTransformation(i);
-         for (int j = 0; j < ir.GetNPoints(); j++)
-         {
-            transf->SetIntPoint(&ir.IntPoint(j));
-            tauval = min(tauval, transf->Jacobian().Det());
-         }
+         transf->SetIntPoint(&ir.IntPoint(j));
+         min_detJ = min(min_detJ, transf->Jacobian().Det());
       }
    }
-#else
-   static Vector x_out_loc(pfespace->GetVSize());
-   pfespace->GetProlongationMatrix()->Mult(x.GetTrueVector(), x_out_loc);
-   tauval = dim == 2 ? solver.MinDetJpr_2D(pfespace,x_out_loc):
-            dim == 3 ? solver.MinDetJpr_3D(pfespace,x_out_loc): -1.0;
-   //dbg("tauval: %.15e, det: %.15e",tauval, det);
-#endif
-
    double minJ0;
    MPI_Allreduce(&min_detJ, &minJ0, 1, MPI_DOUBLE, MPI_MIN, MPI_COMM_WORLD);
    min_detJ = minJ0;
@@ -1538,6 +1519,7 @@ int main (int argc, char *argv[])
    hr_solver.Mult();*/
 
    solver.SetOperator(a);
+   StopWatch TimeSolver;
    TimeSolver.Start();
    solver.Mult(b, x.GetTrueVector());
    TimeSolver.Stop();
@@ -1630,7 +1612,6 @@ int main (int argc, char *argv[])
       adapt_lim_coeff.constant = adapt_lim_const;
       surf_fit_coeff.constant  = surface_fit_const;
    }
-
    if (myid == 0)
    {
       std::cout << std::scientific << std::setprecision(4);
