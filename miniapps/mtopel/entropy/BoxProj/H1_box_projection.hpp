@@ -14,7 +14,6 @@ using namespace mfem;
     (α + β) (u,v)_H1 + (ψ,v) = (α g + β u_k,v)_H1 + (ψ_k,v)
         (u,w) - (expit(ψ),w) = 0 */
 
-
 class BoxProjection
 {
 private:
@@ -25,6 +24,7 @@ private:
    VectorCoefficient * grad_g_cf = nullptr;
    double alpha = 1.0;
    double beta = 1.0;
+   double theta = 1.0;
 
    FiniteElementCollection * H1fec = nullptr;
    FiniteElementCollection * L2fec = nullptr;
@@ -46,10 +46,12 @@ private:
    HypreParMatrix *A_L2H1 = nullptr;
 
    Array<int> offsets, toffsets;
-   BlockVector x, tx, rhs, trhs;
+   // BlockVector x, tx, rhs, trhs;
+   int max_bregman_it = 200;
+   double bregman_tol = 1e-8;
 
    int max_newton_it = 10;
-   double newton_tol = 1e-5;
+   double newton_tol = 1e-8;
    double NewtonStep(const ParLinearForm & b_H1_, ParGridFunction & psi_kl_gf, ParGridFunction & u_kl);
 
    double BregmanStep(ParGridFunction & u_gf_, ParGridFunction & psi_gf_);
@@ -59,35 +61,27 @@ public:
    
    void Solve();
 
+   ParGridFunction & GetH1Solution()
+   {
+      return u_gf;
+   }
+   ParGridFunction & GetL2Solution()
+   {
+      return psi_gf;
+   }
+
+   void SetNewtonStepSize(double theta_) {theta = theta_;}
+   void SetBregmanStepSize(double alpha_) {alpha = alpha_;}
+   void SetNormWeight(double beta_) {beta = beta_;}
+
    ~BoxProjection();
 };
 
-double lnit(double x)
-{
-   double tol = 1e-12;
-   x = min(max(tol,x),1.0-tol);
-   // MFEM_ASSERT(x>0.0, "Argument must be > 0");
-   // MFEM_ASSERT(x<1.0, "Argument must be < 1");
-   return log(x/(1.0-x));
-}
+double lnit(double x);
 
-double expit(double x)
-{
-   if (x >= 0)
-   {
-      return 1.0/(1.0+exp(-x));
-   }
-   else
-   {
-      return exp(x)/(1.0+exp(x));
-   }
-}
+double expit(double x);
 
-double dexpitdx(double x)
-{
-   double tmp = expit(-x);
-   return tmp - pow(tmp,2);
-}
+double dexpitdx(double x);
 
 class LnitGridFunctionCoefficient : public Coefficient
 {
@@ -129,4 +123,20 @@ public:
       : u(&u_), min_val(min_val_), max_val(max_val_) { }
 
    virtual double Eval(ElementTransformation &T, const IntegrationPoint &ip);
+};
+
+class BoxFunctionCoefficient : public Coefficient
+{
+protected:
+   Coefficient &u_cf;
+   double min_val;
+   double max_val;
+public:
+   BoxFunctionCoefficient(Coefficient &u_cf_, double min_val_=0.0, double max_val_=1.0)
+      : u_cf(u_cf_), min_val(min_val_), max_val(max_val_) { }
+
+   virtual double Eval(ElementTransformation &T, const IntegrationPoint &ip)
+   {
+      return min(max_val, max(min_val, u_cf.Eval(T,ip)));
+   }
 };

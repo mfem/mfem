@@ -1,4 +1,3 @@
-
 #include "H1_box_projection.hpp"
 
 BoxProjection::BoxProjection(ParMesh* pmesh_, int order_, Coefficient * g_cf_, VectorCoefficient * grad_g_cf_)
@@ -22,11 +21,13 @@ BoxProjection::BoxProjection(ParMesh* pmesh_, int order_, Coefficient * g_cf_, V
    a_H1H1->AddDomainIntegrator(new DiffusionIntegrator());
    a_H1H1->AddDomainIntegrator(new MassIntegrator());
    a_H1H1->Assemble();
+   a_H1H1->Finalize();
    A_H1H1 = a_H1H1->ParallelAssemble();
 
    // H1L2 block
    a_H1L2->AddDomainIntegrator(new MixedScalarMassIntegrator());
    a_H1L2->Assemble();
+   a_H1L2->Finalize();
    A_H1L2 = a_H1L2->ParallelAssemble();
    A_L2H1 = A_H1L2->Transpose();
 
@@ -37,13 +38,13 @@ BoxProjection::BoxProjection(ParMesh* pmesh_, int order_, Coefficient * g_cf_, V
    offsets.PartialSum();
    toffsets.PartialSum();
 
-   x.Update(offsets); x = 0.0;
-   rhs.Update(offsets); rhs = 0.0;
-   tx.Update(toffsets); tx = 0.0;
-   trhs.Update(toffsets); trhs = 0.0;
+   // x.Update(offsets); x = 0.0;
+   // rhs.Update(offsets); rhs = 0.0;
+   // tx.Update(toffsets); tx = 0.0;
+   // trhs.Update(toffsets); trhs = 0.0;
 
-   u_gf.MakeRef(H1pfes,x.GetBlock(0));
-   psi_gf.MakeRef(L2pfes,x.GetBlock(1));
+   // u_gf.MakeRef(H1pfes,x.GetBlock(0));
+   // psi_gf.MakeRef(L2pfes,x.GetBlock(1));
 }
 
 double BoxProjection::NewtonStep(const ParLinearForm & b_H1_, ParGridFunction & psi_kl_gf, ParGridFunction & u_kl_gf)
@@ -61,13 +62,15 @@ double BoxProjection::NewtonStep(const ParLinearForm & b_H1_, ParGridFunction & 
    l_L2.Assemble();
 
    BlockVector B(toffsets);
+   
    P_H1->MultTranspose(l_H1,B.GetBlock(0));
-   B.GetBlock(1).MakeRef(l_L2,0);
+   B.GetBlock(1) = l_L2;
 
    ParBilinearForm a_L2L2(L2pfes);
    dExpitdxGridFunctionCoefficient dexpit_psi_cf(psi_kl_gf);
    a_L2L2.AddDomainIntegrator(new MassIntegrator(dexpit_psi_cf));
    a_L2L2.Assemble();
+   a_L2L2.Finalize();
    HypreParMatrix *A_L2L2 = a_L2L2.ParallelAssemble();
 
    BlockVector X(toffsets);
@@ -79,8 +82,8 @@ double BoxProjection::NewtonStep(const ParLinearForm & b_H1_, ParGridFunction & 
    scale(1,0) = 1.0;
    scale(1,1) = -1.0;
    BlockA(0,0) = A_H1H1;
-   BlockA(0,1) = A_H1L2;
-   BlockA(1,0) = A_L2H1;
+   BlockA(0,1) = A_L2H1;
+   BlockA(1,0) = A_H1L2;
    BlockA(1,1) = A_L2L2;
    HypreParMatrix * Ah = HypreParMatrixFromBlocks(BlockA, &scale);
          
@@ -95,7 +98,8 @@ double BoxProjection::NewtonStep(const ParLinearForm & b_H1_, ParGridFunction & 
    ParGridFunction u_kl_gf_previous(u_kl_gf);
    GridFunctionCoefficient u_kl_cf(&u_kl_gf_previous);
    u_kl_gf.SetFromTrueDofs(X.GetBlock(0));
-   psi_kl_gf += X.GetBlock(1);
+   
+   psi_kl_gf.Add(theta,X.GetBlock(1));
    
    return u_kl_gf.ComputeL2Error(u_kl_cf);
 }
@@ -103,10 +107,10 @@ double BoxProjection::NewtonStep(const ParLinearForm & b_H1_, ParGridFunction & 
 
 double BoxProjection::BregmanStep(ParGridFunction & u_gf_, ParGridFunction & psi_gf_)
 {
-
+   ParGridFunction u_gf_old(u_gf_);
    GridFunctionCoefficient psi_cf(&psi_gf_);
-   GridFunctionCoefficient u_cf(&u_gf);
-   GradientGridFunctionCoefficient gradu_cf(&u_gf);
+   GridFunctionCoefficient u_cf(&u_gf_old);
+   GradientGridFunctionCoefficient gradu_cf(&u_gf_old);
    SumCoefficient sum_cf(*g_cf,u_cf,alpha,beta);
    VectorSumCoefficient vsum_cf(*grad_g_cf,gradu_cf,alpha,beta);
 
@@ -116,12 +120,44 @@ double BoxProjection::BregmanStep(ParGridFunction & u_gf_, ParGridFunction & psi
    b_H1_.AddDomainIntegrator(new DomainLFIntegrator(psi_cf));
    b_H1_.Assemble();
 
-   ParGridFunction u_kl(H1pfes);
-
    for (int l = 0; l < max_newton_it; l++)
    {
-      double update_norm = NewtonStep(b_H1_,psi_gf_,u_kl);
-      if (update_norm < newton_tol) break; 
+      // both u and psi are updated inside NewtonStep
+      double update_norm = NewtonStep(b_H1_,psi_gf_,u_gf_);
+      mfem::out << "Newton step update norm = " << update_norm << endl;
+      if (update_norm < newton_tol) 
+      {
+         break;
+      } 
+   }
+   return u_gf_.ComputeL2Error(u_cf);
+}
+
+void BoxProjection::Solve()
+{
+   BoxFunctionCoefficient u0_cf(*g_cf);
+   u_gf.SetSpace(H1pfes);
+   u_gf.ProjectCoefficient(u0_cf);
+   LnitGridFunctionCoefficient psi0_cf(u_gf);
+   psi_gf.SetSpace(L2pfes);
+   psi_gf.ProjectCoefficient(psi0_cf);
+
+   char vishost[] = "localhost";
+   int visport = 19916;
+   socketstream g_sock(vishost, visport);
+   g_sock.precision(8);
+   g_sock << "solution\n" << *pmesh << u_gf
+               << "window_title 'Function g'" << flush;
+   socketstream psi0_sock(vishost, visport);
+   psi0_sock.precision(8);
+   psi0_sock << "solution\n" << *pmesh << psi_gf
+               << "window_title 'Function psi_0'" << flush;               
+
+   for (int i = 0; i<max_bregman_it; i++)
+   {
+      double update_norm = BregmanStep(u_gf, psi_gf);
+      mfem::out << "Bregman step update norm = " << update_norm << endl;
+      if (update_norm < bregman_tol) break;
    }
 }
 
@@ -136,18 +172,6 @@ BoxProjection::~BoxProjection()
    delete H1pfes;
    delete L2pfes;
 }
-
-
-
-int main(int argc, char *argv[])
-{
-   MPI_Session mpi;
-   int num_procs = mpi.WorldSize();
-   int myid = mpi.WorldRank();
-
-
-}
-
 
 double LnitGridFunctionCoefficient::Eval(ElementTransformation &T,
                                const IntegrationPoint &ip)
@@ -174,4 +198,31 @@ double dExpitdxGridFunctionCoefficient::Eval(ElementTransformation &T,
 
    double val = u->GetValue(T, ip);
    return min(max_val, max(min_val, dexpitdx(val)));
+}
+
+double lnit(double x)
+{
+   double tol = 1e-12;
+   x = min(max(tol,x),1.0-tol);
+   // MFEM_ASSERT(x>0.0, "Argument must be > 0");
+   // MFEM_ASSERT(x<1.0, "Argument must be < 1");
+   return log(x/(1.0-x));
+}
+
+double expit(double x)
+{
+   if (x >= 0)
+   {
+      return 1.0/(1.0+exp(-x));
+   }
+   else
+   {
+      return exp(x)/(1.0+exp(x));
+   }
+}
+
+double dexpitdx(double x)
+{
+   double tmp = expit(-x);
+   return tmp - pow(tmp,2);
 }
