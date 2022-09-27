@@ -20,6 +20,7 @@ private:
   double gamma;
   double mu0;
   double r0;
+  double coeff_u2 = 0.0; // coefficient of u^2, for debugging
 public:
   PlasmaModel(double & alpha_, double & beta_, double & lambda_, double & gamma_, double & mu0_, double & r0_) :
     alpha(alpha_), beta(beta_), lambda(lambda_), gamma(gamma_), mu0(mu0_), r0(r0_) { }
@@ -28,6 +29,7 @@ public:
   double S_prime_p_prime(double & psi_N) const;
   double S_prime_ff_prime(double & psi_N) const;
   double get_mu() const {return mu0;}
+  double get_coeff_u2() const {return coeff_u2;}
   ~PlasmaModel() { }
 };
 

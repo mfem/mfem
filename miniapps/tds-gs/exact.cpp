@@ -7,12 +7,20 @@ using namespace mfem;
 
 
 double psi_exact(double r, double z, double r0, double z0, double k) {
-   if (false) {
-     return 1.0;
-   }
-   return - cos(k * (z - r - z0 + r0)) * cos(k * (z + r - z0 - r0)) + 1.0;
+  return - cos(k * (z - r - z0 + r0)) * cos(k * (z + r - z0 - r0)) + 1.0;
 }
-
+double psi_r_exact(double r, double z, double r0, double z0, double k) {
+  return k * cos(k * (z - r - z0 + r0)) * sin(k * (z + r - z0 - r0))
+    - k * sin(k * (z - r - z0 + r0)) * cos(k * (z + r - z0 - r0));
+}
+double psi_rr_exact(double r, double z, double r0, double z0, double k) {
+  return 2 * k * k * sin(k * (z - r - z0 + r0)) * sin(k * (z + r - z0 - r0))
+    + 2 * k * k * cos(k * (z - r - z0 + r0)) * cos(k * (z + r - z0 - r0));
+}
+double psi_zz_exact(double r, double z, double r0, double z0, double k) {
+  return - 2 * k * k * sin(k * (z - r - z0 + r0)) * sin(k * (z + r - z0 - r0))
+    + 2 * k * k * cos(k * (z - r - z0 + r0)) * cos(k * (z + r - z0 - r0));
+}
 
 
 
@@ -38,21 +46,20 @@ double ExactForcingCoefficient::Eval(ElementTransformation & T,
    double z(x(1));
 
    double mu = model.get_mu();
+   double coeff_u2 = model.get_coeff_u2();
    double ans;
 
    if (false) {
      return 0.0;
    }
-   if (true) {
+
+   if (false) {
      // I u = ...
-     double alpha_ = 0.0;
-     double beta_ = 0.25;
      double psi_N = psi_exact(r, z, r0, z0, k);
      ans = psi_N;
      // ans -= r * model.S_p_prime(psi_N);
      // ans -= model.S_ff_prime(psi_N) / (r * mu);
-     ans -= alpha_ * pow(psi_N, 2.0);
-     ans -= beta_ * exp(psi_N);
+     ans -= coeff_u2 * pow(psi_N, 2.0);
      if ((T.Attribute > 832) && (T.Attribute <= 838)){
        // coil region
        // ans -= 1.0;
@@ -60,12 +67,17 @@ double ExactForcingCoefficient::Eval(ElementTransformation & T,
      // cout << ans << endl;
      return ans;
    }
+   if (true) {
+     // - 1 / (r mu) Delta* u = - 1 / (r mu) u_rr + 1 / (r^2 mu) u_r  - 1 / (r mu) u_zz = ...
+     double psi_N = psi_exact(r, z, r0, z0, k);
+     ans =
+       - 1 / (r * mu) * psi_rr_exact(r, z, r0, z0, k)
+       + 1 / (r * r * mu) * psi_r_exact(r, z, r0, z0, k)
+       - 1 / (r * mu) * psi_zz_exact(r, z, r0, z0, k);
+     ans -= coeff_u2 * pow(psi_N, 2.0);
 
-   
-   // if (true) {
-   //   ans = - 4 * k * k * cos(k * (z - r - z0 + r0)) * cos(k * (z + r - z0 - r0));
-   //   return ans;
-   // }
+     return ans;
+   }
 
    ans = - 4.0 * pow(k, 2.0) / r / mu * cos(k * (z - r - z0 + r0)) * cos(k * (z + r - z0 - r0)) \
      - k / pow(r, 2.0) / mu * sin(k * (z - r - z0 + r0)) * cos(k * (z + r - z0 - r0)) \

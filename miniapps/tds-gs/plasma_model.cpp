@@ -9,33 +9,67 @@ using namespace std;
 
 double PlasmaModel::S_p_prime(double & psi_N) const
 {
+  if ((gamma < 1.0) && (psi_N == 1.0)) {
+    return 0.0;
+  }
+  if ((alpha < 1.0) && (psi_N == 0.0)) {
+    return 0.0;
+  }
+  if ((psi_N > 1.0) || (psi_N < 0.0)) {
+    return 0.0;
+  }
   return lambda * beta * pow(1.0 - pow(psi_N, alpha), gamma) / r0;
 }
 double PlasmaModel::S_prime_p_prime(double & psi_N) const
 {
-  // maybe clip so that we're taking the power of positive number?
+  if ((gamma < 1.0) && (psi_N == 1.0)) {
+    return 0.0;
+  }
+  if ((alpha < 1.0) && (psi_N == 0.0)) {
+    return 0.0;
+  }
+  if ((psi_N > 1.0) || (psi_N < 0.0)) {
+    return 0.0;
+  }
   return - alpha * gamma * lambda * beta
     * pow(1.0 - pow(psi_N, alpha), gamma - 1.0)
     * pow(psi_N, alpha - 1.0) / r0;
 }
 double PlasmaModel::S_ff_prime(double & psi_N) const
 {
+  if ((gamma < 1.0) && (psi_N == 1.0)) {
+    return 0.0;
+  }
+  if ((alpha < 1.0) && (psi_N == 0.0)) {
+    return 0.0;
+  }
+  if ((psi_N > 1.0) || (psi_N < 0.0)) {
+    return 0.0;
+  }
   return lambda * (1.0 - beta) * mu0 * r0 * pow(1.0 - pow(psi_N, alpha), gamma);
 }
 double PlasmaModel::S_prime_ff_prime(double & psi_N) const
 {
+  if ((gamma < 1.0) && (psi_N == 1.0)) {
+    return 0.0;
+  }
+  if ((alpha < 1.0) && (psi_N == 0.0)) {
+    return 0.0;
+  }
+  if ((psi_N > 1.0) || (psi_N < 0.0)) {
+    return 0.0;
+  }
+
   return - alpha * gamma * lambda * (1.0 - beta) * mu0 * r0
     * pow(1.0 - pow(psi_N, alpha), gamma - 1.0)
     * pow(psi_N, alpha - 1.0);
 }
 double normalized_psi(double & psi, double & psi_max, double & psi_bdp)
 {
-  if (true) {
+  if (false) {
     return psi;
   }
-  return max(0.0,
-             min(1.0,
-                 (psi - psi_max) / (psi_bdp - psi_max)));
+  return (psi - psi_max) / (psi_bdp - psi_max);
 }
 
 double NonlinearGridCoefficient::Eval(ElementTransformation & T,
@@ -87,38 +121,32 @@ double NonlinearGridCoefficient::Eval(ElementTransformation & T,
       psi_val = 1.0;
   }
   double psi_N = normalized_psi(psi_val, psi_max, psi_bdp);
+  double mu = model->get_mu();
+  double coeff_u2 = model->get_coeff_u2();
 
-  double alpha_ = 0.0;
-  double beta_ = 0.25;
   if (option == 1) {
-    if (true) {
-
-      return alpha_ * pow(psi_val, 2.0) + beta_ * exp(psi_val);
-    }
-    return ri * (model->S_p_prime(psi_N)) + (model->S_ff_prime(psi_N)) / (model->get_mu() * ri);
+    // integrand
+    return
+      + ri * (model->S_p_prime(psi_N)) + (model->S_ff_prime(psi_N)) / (mu * ri)
+      + coeff_u2 * pow(psi_val, 2.0);
   } else {
+    // derivative of integrand
     double coeff = 1.0;
     if (option == 2) {
       // coefficient for phi
       coeff = 1.0 / (psi_bdp - psi_max);
     } else if (option == 3) {
       // coefficient for phi_max
-      coeff = - (1 - psi_N) / (psi_bdp - psi_max);
+      coeff = - 0.0 * (1 - psi_N) / (psi_bdp - psi_max);
     } else if (option == 4) {
       // coefficient for phi_min
-      coeff = - psi_N / (psi_bdp - psi_max);
+      coeff = - 0.0 * psi_N / (psi_bdp - psi_max);
     }
 
-    if (true) {
-      return alpha_ * 2.0 * psi_val + beta_ * exp(psi_val);
-    }
-    if (true) {
-      return coeff * (ri * (model->S_prime_p_prime(psi_N))
-                      + (model->S_prime_ff_prime(psi_N)) / (model->get_mu() * ri))
-        + 2.0 * psi_val;
-    }
-    return coeff * (ri * (model->S_prime_p_prime(psi_N))
-                    + (model->S_prime_ff_prime(psi_N)) / (model->get_mu() * ri));
+    return
+      coeff * (ri * (model->S_prime_p_prime(psi_N))
+               + (model->S_prime_ff_prime(psi_N)) / (mu * ri))
+      + coeff_u2 * 2.0 * psi_val;
   }
 }
 

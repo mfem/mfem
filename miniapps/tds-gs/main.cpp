@@ -119,12 +119,20 @@ int main(int argc, char *argv[])
    int d_refine = 0;
 
    // constants associated with plasma model
-   double alpha = 2.0;
+   double alpha = 0.9;
    double beta = 1.5;
-   double lambda = 0.0;
-   double gamma = 2.0;
+   double lambda = 1.0;
+   double gamma = 0.9;
    double mu = 1.0;
    double r0 = 1.0;
+   // double alpha = 5.0;
+   // double beta = 1.5;
+   // double lambda = 1.0;
+   // double gamma = 5.0;
+   // double mu = 1.0;
+   // double r0 = 1.0;
+   
+
    // boundary of far-field
    double rho_gamma = 2.5;
 
@@ -239,11 +247,6 @@ int main(int argc, char *argv[])
    if (false) {
      coil_term.AddBoundaryIntegrator(new DomainLFIntegrator(exact_coefficient));
    }
-
-   // for debugging: solve I u = g
-   if (false) {
-     coil_term.AddDomainIntegrator(new DomainLFIntegrator(exact_coefficient));
-   }
    
    coil_term.Assemble();
 
@@ -259,16 +262,13 @@ int main(int argc, char *argv[])
    // Set up the bilinear form diff_operator corresponding to the diffusion integrator
    DiffusionIntegratorCoefficient diff_op_coeff(&model);
    BilinearForm diff_operator(&fespace);
-   if (false) {
+   if (true) {
      diff_operator.AddDomainIntegrator(new DiffusionIntegrator(diff_op_coeff));
    }
 
    // for debugging: solve I u = g
-   if (true) {
-     diff_operator.AddDomainIntegrator(new MassIntegrator(one));
-   }
    if (false) {
-     diff_operator.AddBoundaryIntegrator(new MassIntegrator(one));
+     diff_operator.AddDomainIntegrator(new MassIntegrator(one));
    }
    
    // boundary integral
@@ -329,6 +329,7 @@ int main(int argc, char *argv[])
    linear_solver.SetAbsTol(0.0);
    linear_solver.SetPreconditioner(*preconditioner);
    // linear_solver.SetPreconditioner(smoother);
+
    NewtonSolver newton_solver;
    newton_solver.SetSolver(linear_solver);
    newton_solver.SetOperator(op);
@@ -344,10 +345,17 @@ int main(int argc, char *argv[])
    double error_old;
    double error;
    LinearForm solver_error(&fespace);
-   for (int i = 0; i < 20; ++i) {
+   for (int i = 0; i < 6; ++i) {
 
      op.Mult(x, out_vec);
      error = GetMaxError(out_vec);
+
+     GridFunction res(&fespace);
+     op.Mult(x, res);
+     res.Save("res.gf");
+     // ConstantCoefficient zero_(0.0);
+     // error = res.ComputeL2Error(zero_);
+
      if (i == 0) {
        // printf("\n\n********************************\n");
        printf("i: %3d, max error: %.3e\n", i, error);
@@ -363,6 +371,8 @@ int main(int argc, char *argv[])
        break;
      }
 
+
+     
      set<int> plasma_inds;
      map<int, vector<int>> vertex_map;
      vertex_map = compute_vertex_map(mesh, attr_lim);
@@ -396,6 +406,8 @@ int main(int argc, char *argv[])
      // }
 
      
+     double tol = 1e-12;
+     max_iter = 1000;
      GSSmoother M(*Mat);
      GMRES(*Mat, dx, out_vec, M, max_iter, kdim, tol, 0.0, 0);
 
