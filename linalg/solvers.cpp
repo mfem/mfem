@@ -2023,14 +2023,6 @@ void LBFGSSolver::Mult(const Vector &b, Vector &x) const
 
    // Quadrature points that are checked for negative Jacobians etc.
    Vector sk, rk, yk, rho, alpha;
-<<<<<<< HEAD
-   for (int i = 0; i < m; i++)
-   {
-      skMV[i]->SetSize(width);
-      ykMV[i]->SetSize(width);
-   }
-=======
->>>>>>> master
 
    // r - r_{k+1}, c - descent direction
    sk.SetSize(width);    // x_{k+1}-x_k
