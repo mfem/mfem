@@ -269,10 +269,7 @@ SuperLUSolver::~SuperLUSolver()
       LUstructFree(LUstruct);
    }
 
-   if ( options->SolveInitialized )
-   {
-      dSolveFinalize(options, SOLVEstruct);
-   }
+   dSolveFinalize(options, SOLVEstruct);
 
    if (     options != NULL ) { delete options; }
    if (        stat != NULL ) { delete stat; }
@@ -427,6 +424,15 @@ void SuperLUSolver::SetSymmetricPattern( bool sym )
    yes_no_t opt = sym?YES:NO;
 
    options->SymPattern = opt;
+}
+
+void SuperLUSolver::SetParSymbFact( bool par )
+{
+   superlu_dist_options_t * options = (superlu_dist_options_t*)optionsPtr_;
+
+   yes_no_t opt = par?YES:NO;
+
+   options->ParSymbFact = opt;
 }
 
 void SuperLUSolver::SetupGrid()
