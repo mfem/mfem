@@ -11,7 +11,7 @@ double sin_func(const Vector & X)
    Vector c(X.Size()); 
    c = 1.0;
    double alpha = c*X;
-   return 0.5+0.5*sin(M_PI*alpha);
+   return 0.5+2.0*sin(M_PI*alpha);
 }
 
 void grad_sin_func(const Vector & X, Vector &grad)
@@ -19,7 +19,7 @@ void grad_sin_func(const Vector & X, Vector &grad)
    Vector c(X.Size()); 
    c = 1.0;
    double alpha = c*X;
-   grad = 0.5*M_PI*cos(M_PI*alpha);
+   grad = 2.0*M_PI*cos(M_PI*alpha);
 }
 
 int main(int argc, char *argv[])
@@ -27,7 +27,7 @@ int main(int argc, char *argv[])
    MPI_Session mpi;
    int num_procs = mpi.WorldSize();
    int myid = mpi.WorldRank();
-   const char *mesh_file = "../data/star.mesh";
+   const char *mesh_file = "../disk.mesh";
    int order = 1;
    int ref = 1;
    bool visualization = true;
@@ -73,19 +73,21 @@ int main(int argc, char *argv[])
    FunctionCoefficient sin_cf(sin_func);
    VectorFunctionCoefficient grad_sin_cf(dim,grad_sin_func);
 
-   BoxProjection Pu(&pmesh,order,&sin_cf,&grad_sin_cf);
+   BoxProjection Pu(&pmesh,order,&sin_cf,&grad_sin_cf,false);
    Pu.SetNewtonStepSize(0.25);
    Pu.SetBregmanStepSize(0.25);
    Pu.SetNormWeight(0.0);
+   Pu.SetPrintLevel(1);
    Pu.Solve();
-   ParGridFunction u = Pu.GetH1Solution();
-   ParGridFunction psi = Pu.GetL2Solution();
+   ParGridFunction u = Pu.Getu();
+   ParGridFunction p = Pu.Getp();
 
+   ParGridFunction sigmoid_p(p.ParFESpace());
+   ExpitGridFunctionCoefficient expit_p(p);
+   sigmoid_p.ProjectCoefficient(expit_p);
 
-
-   ParGridFunction sigmoid_psi(psi.ParFESpace());
-   ExpitGridFunctionCoefficient expit_psi(psi);
-   sigmoid_psi.ProjectCoefficient(expit_psi);
+   // ParGridFunction H1_sigmoid_p(u.ParFESpace());
+   // H1_sigmoid_p.ProjectGridFunction(sigmoid_p);
 
    if (visualization)
    {
@@ -97,17 +99,17 @@ int main(int argc, char *argv[])
                   << "solution\n" << pmesh << u  
                   << "window_title 'Solution u'" << flush;
 
-      socketstream psi_sock(vishost, visport);
-      psi_sock.precision(8);
-      psi_sock << "parallel " << num_procs << " " << myid << "\n"
-                  << "solution\n" << pmesh << psi  
-                  << "window_title 'Solution psi'" << flush;   
+      socketstream p_sock(vishost, visport);
+      p_sock.precision(8);
+      p_sock << "parallel " << num_procs << " " << myid << "\n"
+                  << "solution\n" << pmesh << p  
+                  << "window_title 'Solution p'" << flush;   
 
-      socketstream psi2_sock(vishost, visport);
-      psi2_sock.precision(8);
-      psi2_sock << "parallel " << num_procs << " " << myid << "\n"
-                  << "solution\n" << pmesh << sigmoid_psi  
-                  << "window_title 'Solution sigmoid_psi'" << flush;                                       
+      socketstream p2_sock(vishost, visport);
+      p2_sock.precision(8);
+      p2_sock << "parallel " << num_procs << " " << myid << "\n"
+                  << "solution\n" << pmesh << sigmoid_p  
+                  << "window_title 'Solution sigmoid_p'" << flush;                                       
    }
 
 }

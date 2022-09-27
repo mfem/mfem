@@ -25,54 +25,57 @@ private:
    double alpha = 1.0;
    double beta = 1.0;
    double theta = 1.0;
+   double print_level = 1;
 
-   FiniteElementCollection * H1fec = nullptr;
-   FiniteElementCollection * L2fec = nullptr;
+   FiniteElementCollection * u_fec = nullptr;
+   FiniteElementCollection * p_fec = nullptr;
 
-   ParFiniteElementSpace * H1pfes = nullptr;
-   ParFiniteElementSpace * L2pfes = nullptr;
+   ParFiniteElementSpace * u_fes = nullptr;
+   ParFiniteElementSpace * p_fes = nullptr;
 
-   ParGridFunction u_gf, psi_gf;
+   ParGridFunction u_gf, p_gf;
 
    // Bilinear and linear forms
-   ParBilinearForm * a_H1H1 = nullptr;
-   ParMixedBilinearForm * a_H1L2 = nullptr;
-   const Operator * P_H1 = nullptr;
-   const Operator * R_H1 = nullptr;
+   ParBilinearForm * a_uu = nullptr;
+   ParMixedBilinearForm * a_up = nullptr;
+   const Operator * P_u = nullptr;
+   const Operator * P_p = nullptr;
 
-   ParLinearForm * b_H1 = nullptr;
-   HypreParMatrix *A_H1H1 = nullptr;
-   HypreParMatrix *A_H1L2 = nullptr;
-   HypreParMatrix *A_L2H1 = nullptr;
+   ParLinearForm * b_u = nullptr;
+   HypreParMatrix *A_uu = nullptr;
+   HypreParMatrix *A_up = nullptr;
+   HypreParMatrix *A_pu = nullptr;
 
    Array<int> offsets, toffsets;
    // BlockVector x, tx, rhs, trhs;
    int max_bregman_it = 200;
-   double bregman_tol = 1e-8;
+   double bregman_tol = 1e-5;
 
-   int max_newton_it = 10;
+   int max_newton_it = 5;
    double newton_tol = 1e-8;
-   double NewtonStep(const ParLinearForm & b_H1_, ParGridFunction & psi_kl_gf, ParGridFunction & u_kl);
+   double NewtonStep(const ParLinearForm & b_u_, ParGridFunction & p_kl_gf, ParGridFunction & u_kl);
 
-   double BregmanStep(ParGridFunction & u_gf_, ParGridFunction & psi_gf_);
+   double BregmanStep(ParGridFunction & u_gf_, ParGridFunction & p_gf_);
 
 public:
-   BoxProjection(ParMesh* pmesh_, int order_, Coefficient * g_cf_, VectorCoefficient * grad_g_cf_);
+   BoxProjection(ParMesh* pmesh_, int order_, Coefficient * g_cf_, VectorCoefficient * grad_g_cf_, bool H1H1 = false);
    
    void Solve();
 
-   ParGridFunction & GetH1Solution()
+   ParGridFunction & Getu()
    {
       return u_gf;
    }
-   ParGridFunction & GetL2Solution()
+   ParGridFunction & Getp()
    {
-      return psi_gf;
+      return p_gf;
    }
 
    void SetNewtonStepSize(double theta_) {theta = theta_;}
    void SetBregmanStepSize(double alpha_) {alpha = alpha_;}
    void SetNormWeight(double beta_) {beta = beta_;}
+
+   void SetPrintLevel(int print_level_) {print_level = print_level_;}
 
    ~BoxProjection();
 };
