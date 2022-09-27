@@ -131,7 +131,8 @@ int main(int argc, char *argv[])
    MPI_Comm_rank(MPI_COMM_WORLD, &myrank);
 
    // Parse command-line options.
-   const char *mesh_file = "../../data/star.mesh";
+   //const char *mesh_file = "../../data/star.mesh";
+   const char *mesh_file = "bar2d.msh";
    int order = 1;
    bool static_cond = false;
    int ser_ref_levels = 1;
@@ -275,8 +276,8 @@ int main(int argc, char *argv[])
 
    mfem::VolForce* volforce;
    if(dim==2){//2D force
-//       volforce=new mfem::VolForce(0.05,2.90,0.5,0.0,-1.0);} //contilever
-       volforce=new mfem::VolForce(0.05,2.50,2.10,0.0,-1.0);} //portal frame
+       volforce=new mfem::VolForce(0.05,2.90,0.5,0.0,-1.0);} //contilever
+       //volforce=new mfem::VolForce(0.05,2.50,2.10,0.0,-1.0);} //portal frame
    else{//3D force - the resolution should be good enough to resolve the radius
        volforce=new mfem::VolForce(0.10,0.5,0.5,2.90,0.0,1.0,0.0);
    }
@@ -287,6 +288,8 @@ int main(int argc, char *argv[])
    E->SetProjParam(0.5,8.0);//threshold 0.7
    E->SetEMaxMin(1e-6,1.0);
    E->SetPenal(1.0);
+
+   std::cout<<"Step 1"<<std::endl;
 
    mfem::ElasticitySolver* esolv=new mfem::ElasticitySolver(&pmesh,1);
    esolv->AddDispBC(2,4,0.0);
@@ -319,6 +322,8 @@ int main(int argc, char *argv[])
    mfem::VolumeQoI* ivobj=new mfem::VolumeQoI(fsolv->GetFilterFES());
    ivobj->SetProjection(0.5,32);
 
+   std::cout<<"Step 3"<<std::endl;
+
    //gradients with respect to the filtered field
    mfem::Vector ograd(fsolv->GetFilterFES()->GetTrueVSize()); ograd=0.0; //of the objective
    mfem::Vector vgrad(fsolv->GetFilterFES()->GetTrueVSize()); vgrad=0.0; //of the volume contr.
@@ -338,8 +343,9 @@ int main(int argc, char *argv[])
        mma=new mfem::NativeMMA(MPI_COMM_WORLD,1, ogrado,&a,&c,&d);
    }
 
+   std::cout<<"Step 3"<<std::endl;
+
    double max_ch=0.1; //max design change
-   double lam, lam_max, lam_min; //Lagrange multiplier
 
    double cpl; //compliance
    double vol; //volume
@@ -393,7 +399,7 @@ int main(int argc, char *argv[])
        paraview_dc.RegisterField("fdesign",&pgdens);
        paraview_dc.RegisterField("pdesign",&pdesign);
 
-       double pp=1.0;
+       double pp=3.0;
        double dp=6.0*10.0/max_it;
 
        for(int i=1;i<max_it;i++){
@@ -414,12 +420,17 @@ int main(int argc, char *argv[])
            }
 
 
+           std::cout<<"Step 4"<<std::endl;
 
            esolv->FSolve();
 
+           std::cout<<"Step 5"<<std::endl;
+
            //compute the objective and the vol constraint
            cpl=cobj->Eval();
+           std::cout<<"Step 6"<<std::endl;
            vol=vobj->Eval(vdens);
+           std::cout<<"Step 7"<<std::endl;
            ivol=ivobj->Eval(vdens);
            if(myrank==0){
                std::cout<<"it: "<<i<<" obj="<<cpl<<" vol="<<vol<<" ivol="<<ivol<<" pp="<<pp<<std::endl;

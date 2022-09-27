@@ -1014,7 +1014,14 @@ double ComplianceObjective::Eval()
     intgr->SetPoissonRatio(nu);
     intgr->SetDisp(&(esolv->GetDisplacements()));
     intgr->SetVolForce(volforce);
-    return nf->GetEnergy(*dens);
+
+    std::cout<<"bla bla"<<std::endl;
+
+    double rt=nf->GetEnergy(*dens);
+
+    std::cout<<"dla dla"<<std::endl;
+
+    return rt;
 }
 
 void ComplianceObjective::Grad(Vector& grad)
