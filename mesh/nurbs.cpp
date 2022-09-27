@@ -403,6 +403,7 @@ void KnotVector::FindMaxima(Array<int> &ks,
    }
 }
 
+// Routine from "The NURBS book" - 2nd ed - Piegl and Tiller
 void KnotVector::FindInterpolant(Array<Vector*> &x)
 {
    int order = GetOrder();
