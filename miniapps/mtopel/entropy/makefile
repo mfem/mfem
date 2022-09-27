@@ -25,12 +25,12 @@ include $(DEFAULTS_MK)
 MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
-PDEOPT_COMMON_SRC = 
+PDEOPT_COMMON_SRC = H1_box_projection
 
 PDEOPT_COMMON_OBJ = $(PDEOPT_COMMON_SRC:.cpp=.o)
 
 SEQ_MINIAPPS = optimal_design
-PAR_MINIAPPS = 
+PAR_MINIAPPS = H1_box_projection pobstacle_mixed
 ifeq ($(MFEM_USE_MPI),NO)
    MINIAPPS = $(SEQ_MINIAPPS)
 else
