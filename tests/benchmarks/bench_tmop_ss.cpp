@@ -19,9 +19,6 @@
 //#include "../../miniapps/common/mfem-common.hpp"
 #include "../../miniapps/meshing/mesh-optimizer.hpp"
 
-#define MFEM_DEBUG_COLOR 206
-#include "../../general/debug.hpp"
-
 using namespace mfem;
 using namespace std;
 
@@ -189,7 +186,6 @@ struct TMOP_PMESH_OPTIMIZER
             assert(false);
             return;
       }
-      dbg("unit:%d nxyz:%d%d%d",unit,nxyz[0],nxyz[1],nxyz[2]);
       int product = 1;
       for (int d = 0; d < dim; d++) { product *= nxyz[d]; }
       if (product == num_procs)
@@ -203,7 +199,6 @@ struct TMOP_PMESH_OPTIMIZER
          assert(false);
          if (myid == 0)
          {
-            dbg("Non-Cartesian partitioning through METIS will be used.");
 #ifndef MFEM_USE_METIS
             cout << "MFEM was built without METIS. "
                  << "Adjust the number of tasks to use a Cartesian split." << endl;
@@ -924,7 +919,6 @@ struct TMOP_PMESH_OPTIMIZER
       pfespace->GetProlongationMatrix()->Mult(x->GetTrueVector(), x_out_loc);
       tauval = dim == 2 ? solver->MinDetJpr_2D(pfespace,x_out_loc):
                dim == 3 ? solver->MinDetJpr_3D(pfespace,x_out_loc): -1.0;
-      //dbg("tauval: %.15e, det: %.15e",tauval, det);
 #endif
 
       double minJ0;
@@ -1280,7 +1274,6 @@ static void TMOP_SS(bm::State &state)
 {
    const int order = state.range(0);
    const int serial_refine = state.range(1);
-   //dbg("order:%d serial_refine:%d",order,serial_refine);
    TMOP_PMESH_OPTIMIZER tmop_pmesh_optimizer(order,serial_refine);
    const int ndofs = tmop_pmesh_optimizer.dofs;
    if (ndofs/mpi->WorldSize() > MAX_NDOFS) { state.SkipWithError("MAX_NDOFS"); }
@@ -1321,7 +1314,6 @@ int main(int argc, char *argv[])
    const int mpi_rank = mpi->WorldRank();
    const int mpi_size = mpi->WorldSize();
    const int dev = config_dev_size > 0 ? mpi_rank % config_dev_size : 0;
-   dbg("[MPI] rank: %d/%d, using device #%d", 1+mpi_rank, mpi_size, dev);
 
    Device device(config_device.c_str(), dev);
    if (mpi->Root()) { device.Print(); }

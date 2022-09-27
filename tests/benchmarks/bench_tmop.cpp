@@ -19,9 +19,6 @@
 #include <string>
 #include <cmath>
 
-#define MFEM_DEBUG_COLOR 226
-#include "general/debug.hpp"
-
 ////////////////////////////////////////////////////////////////////////////////
 static MPI_Session *mpi = nullptr;
 static int config_dev_size = 4; // default 4 GPU per node
@@ -190,7 +187,6 @@ int main(int argc, char *argv[])
    const int mpi_rank = mpi->WorldRank();
    const int mpi_size = mpi->WorldSize();
    const int dev = config_dev_size > 0 ? mpi_rank % config_dev_size : 0;
-   dbg("[MPI] rank: %d/%d, using device #%d", 1+mpi_rank, mpi_size, dev);
 
    Device device(config_device.c_str(), dev);
    if (mpi->Root()) { device.Print(); }

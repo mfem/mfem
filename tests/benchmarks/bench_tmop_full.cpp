@@ -18,9 +18,6 @@
 #include <fstream>
 #include "../../miniapps/meshing/mesh-optimizer.hpp"
 
-#define MFEM_DEBUG_COLOR 206
-#include "../../general/debug.hpp"
-
 using namespace mfem;
 using namespace std;
 
@@ -830,7 +827,6 @@ struct TMOP_PMESH_OPTIMIZER
       pfespace->GetProlongationMatrix()->Mult(x->GetTrueVector(), x_out_loc);
       tauval = dim == 2 ? solver->MinDetJpr_2D(pfespace,x_out_loc):
                dim == 3 ? solver->MinDetJpr_3D(pfespace,x_out_loc): -1.0;
-      //dbg("tauval: %.15e, det: %.15e",tauval, det);
 #endif
 
       double minJ0;
@@ -1245,7 +1241,6 @@ int main(int argc, char *argv[])
    const int mpi_rank = mpi->WorldRank();
    const int mpi_size = mpi->WorldSize();
    const int dev = config_dev_size > 0 ? mpi_rank % config_dev_size : 0;
-   dbg("[MPI] rank: %d/%d, using device #%d", 1+mpi_rank, mpi_size, dev);
 
    Device device(config_device.c_str(), dev);
    if (mpi->Root()) { device.Print(); }

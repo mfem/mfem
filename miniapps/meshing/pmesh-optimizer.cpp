@@ -125,9 +125,6 @@
 #include <fstream>
 #include "mesh-optimizer.hpp"
 
-#define MFEM_DEBUG_COLOR 206
-#include "../../general/debug.hpp"
-
 using namespace mfem;
 using namespace std;
 
