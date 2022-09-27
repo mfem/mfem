@@ -11,6 +11,8 @@
 
 if (${CMAKE_SYSTEM_PROCESSOR} MATCHES "ppc64")
    set(MFEM_PERF_CXX_ARCH_FLAGS "-mcpu=native" "-mtune=native")
+elseif (APPLE AND ${CMAKE_SYSTEM_PROCESSOR} MATCHES "arm64")
+   set(MFEM_PERF_CXX_ARCH_FLAGS "-mcpu=apple-m1")
 else()
    set(MFEM_PERF_CXX_ARCH_FLAGS "-march=native")
 endif()
@@ -18,14 +20,13 @@ endif()
 set(PERFORMANCE_CXX_OPTIONS)
 if (${CMAKE_CXX_COMPILER_ID} MATCHES "Clang")
   list(APPEND PERFORMANCE_CXX_OPTIONS
-    "-march=native"
+    ${MFEM_PERF_CXX_ARCH_FLAGS}
     "-fcolor-diagnostics"
     "-fvectorize"
     "-fslp-vectorize"
     "-ffp-contract=fast")
 elseif (${CMAKE_CXX_COMPILER_ID} MATCHES "GNU")
   list(APPEND PERFORMANCE_CXX_OPTIONS
-    ${MFEM_PERF_CXX_ARCH_FLAGS}
     "-Wall")
   if (NOT MFEM_USE_CUDA)
      list(APPEND PERFORMANCE_CXX_OPTIONS "-pedantic")
