@@ -390,18 +390,44 @@ void KnotVector::Difference(const KnotVector &kv, Vector &diff) const
 
    s = 0;
    int i = 0;
+   double epsilon = 1e-9;
+   // From https://floating-point-gui.de/errors/comparison/
    for (int j = 0; j < kv.Size(); j++)
    {
+      bool nequal = true;
       if (knot(i) == kv[j])
       {
          i++;
+         nequal = false;
       }
+      else if (knot(i) == 0 || kv[j] == 0 || (abs(knot(i)) + abs(kv[j]) < DBL_MIN))
+      {
+         // a or b is zero or both are extremely close to it
+         // relative error is less meaningful here
+         if((knot(i) - kv[j]) < (epsilon * DBL_MIN))
+         {
+            i++;
+            nequal = false;
+         }
+      }
+
       else
+      {
+         // use relative error, handles infinity
+         if ((knot(i) - kv[j]) / min((abs(knot(i)) + abs(kv[j])), DBL_MAX) < epsilon)
+         {
+            i++;
+            nequal = false;
+         }
+      }
+
+      if(nequal)
       {
          diff(s) = kv[j];
          s++;
       }
    }
+
 }
 
 void NURBSPatch::init(int dim_)
