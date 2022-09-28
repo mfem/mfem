@@ -339,6 +339,9 @@ tests/convergence/rates
 tests/convergence/prates
 tests/par-mesh-format/ex1p
 
+# Ignore pseudo-submodule
+tests/uberenv
+
 # VPATH builds
 build-*/*
 
