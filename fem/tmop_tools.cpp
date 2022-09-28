@@ -193,7 +193,7 @@ void SerialAdvectorCGOper::Mult(const Vector &ind, Vector &di_dt) const
 
    if (al == AssemblyLevel::PARTIAL)
    {
-      K.FESpace()->GetMesh()->DeleteGeometricFactors();
+      K.FESpace()->GetMesh()->Update();
    }
 
    // Assemble on the new mesh.
@@ -266,7 +266,7 @@ void ParAdvectorCGOper::Mult(const Vector &ind, Vector &di_dt) const
 
    if (al == AssemblyLevel::PARTIAL)
    {
-      K.ParFESpace()->GetParMesh()->DeleteGeometricFactors();
+      K.ParFESpace()->GetParMesh()->Update();
    }
 
    // Assemble on the new mesh.

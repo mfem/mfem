@@ -35,6 +35,8 @@ LinearForm::LinearForm(FiniteElementSpace *f, LinearForm *lf)
 
    boundary_face_integs = lf->boundary_face_integs;
    boundary_face_integs_marker = lf->boundary_face_integs_marker;
+
+   assembly = AssemblyLevel::LEGACY;
 }
 
 void LinearForm::AddDomainIntegrator(LinearFormIntegrator *lfi)
@@ -155,17 +157,31 @@ bool LinearForm::SupportsDevice()
    return true;
 }
 
-void LinearForm::Assemble(bool use_device)
+void LinearForm::SetAssemblyLevel(AssemblyLevel assembly_level)
+{
+   if (ext)
+   {
+      MFEM_ABORT("the assembly level has already been set!");
+   }
+   assembly = assembly_level;
+   switch (assembly)
+   {
+      case AssemblyLevel::LEGACY:
+         break;
+      case AssemblyLevel::FULL:
+         if (SupportsDevice()) { ext = new LinearFormExtension(this); }
+         break;
+      default:
+         mfem_error("Linearform does not support the given assembly level");
+   }
+}
+
+void LinearForm::Assemble()
 {
    Array<int> vdofs;
    ElementTransformation *eltrans;
    DofTransformation *doftrans;
    Vector elemvect;
-
-   if (!ext && use_device && SupportsDevice())
-   {
-      ext = new LinearFormExtension(this);
-   }
 
    Vector::operator=(0.0);
 

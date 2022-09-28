@@ -990,6 +990,11 @@ public:
        for example, after the mesh nodes are modified externally. */
    void DeleteGeometricFactors();
 
+   /// This function should be called after the mesh node coordinates have
+   /// changed, e.g. after the mesh has moved. It updates internal quantities
+   /// derived from the node coordinates, suchs as the GeometricFactors.
+   void Update() { DeleteGeometricFactors(); }
+
    /// Equals 1 + num_holes - num_loops
    inline int EulerNumber() const
    { return NumOfVertices - NumOfEdges + NumOfFaces - NumOfElements; }

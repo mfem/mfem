@@ -168,11 +168,11 @@ struct LinearFormExtTest
 
       CAPTURE(mesh_filename, dim, p, q, ordering, vdim, scalar, grad);
 
-      const bool use_device = true;
-      lf_dev.Assemble(use_device);
+      lf_dev.SetAssemblyLevel(AssemblyLevel::FULL);
+      lf_dev.Assemble();
 
-      const bool dont_use_device = false;
-      lf_std.Assemble(dont_use_device);
+      lf_std.SetAssemblyLevel(AssemblyLevel::LEGACY);
+      lf_std.Assemble();
 
       lf_std -= lf_dev;
       REQUIRE(0.0 == MFEM_Approx(lf_std*lf_std, abs_tol, rel_tol));
@@ -233,11 +233,13 @@ TEST_CASE("Linear Form Extension", "[LinearFormExtension], [CUDA]")
 
       LinearForm d1(&L2fes);
       d1.AddDomainIntegrator(new DomainLFIntegrator(norm2_grad_x));
+      d1.SetAssemblyLevel(AssemblyLevel::FULL);
       d1.Assemble();
 
       LinearForm d2(&L2fes);
       d2.AddDomainIntegrator(new DomainLFIntegrator(norm2_grad_x));
-      d2.Assemble(false);
+      d2.SetAssemblyLevel(AssemblyLevel::LEGACY);
+      d2.Assemble();
 
       d1 -= d2;
 
@@ -259,11 +261,13 @@ TEST_CASE("Linear Form Extension", "[LinearFormExtension], [CUDA]")
 
       LinearForm d1(&fes);
       d1.AddDomainIntegrator(new DomainLFIntegrator(coeff));
+      d1.SetAssemblyLevel(AssemblyLevel::FULL);
       d1.Assemble();
 
       LinearForm d2(&fes);
       d2.AddDomainIntegrator(new DomainLFIntegrator(coeff));
-      d2.Assemble(false);
+      d2.SetAssemblyLevel(AssemblyLevel::LEGACY);
+      d2.Assemble();
 
       CAPTURE(d1.Norml2(), d2.Norml2());
 

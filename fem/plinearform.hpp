@@ -114,9 +114,9 @@ public:
    void MakeRef(ParFiniteElementSpace *pf, Vector &v, int v_offset);
 
    /// Assembles the ParLinearForm i.e. sums over all domain/bdr integrators.
-   /// When @a use_device is set to true and all the ParLinearForm assembly is
+   /// When AssemblyLevel::FULL is set and the linearform assembly is
    /// compatible with device execution, it will be executed on the device.
-   void Assemble(bool use_device = true);
+   void Assemble();
 
    void AssembleSharedFaces();
 

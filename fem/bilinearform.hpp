@@ -21,36 +21,10 @@
 #include "bilinearform_ext.hpp"
 #include "staticcond.hpp"
 #include "hybridization.hpp"
+#include "assembly.hpp"
 
 namespace mfem
 {
-
-/** @brief Enumeration defining the assembly level for bilinear and nonlinear
-    form classes derived from Operator. */
-enum class AssemblyLevel
-{
-   /// In the case of a BilinearForm LEGACY corresponds to a fully assembled
-   /// form, i.e. a global sparse matrix in MFEM, Hypre or PETSC format.
-   /// In the case of a NonlinearForm LEGACY corresponds to an operator that
-   /// is fully evaluated on the fly.
-   /// This assembly level is ALWAYS performed on the host.
-   LEGACY = 0,
-   /// @deprecated Use LEGACY instead.
-   LEGACYFULL = 0,
-   /// Fully assembled form, i.e. a global sparse matrix in MFEM format. This
-   /// assembly is compatible with device execution.
-   FULL,
-   /// Form assembled at element level, which computes and stores dense element
-   /// matrices.
-   ELEMENT,
-   /// Partially-assembled form, which computes and stores data only at
-   /// quadrature points.
-   PARTIAL,
-   /// "Matrix-free" form that computes all of its action on-the-fly without any
-   /// substantial storage.
-   NONE,
-};
-
 
 /** @brief A "square matrix" operator for the associated FE space and
     BLFIntegrators The sum of all the BLFIntegrators can be used form the matrix
