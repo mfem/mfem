@@ -19,12 +19,13 @@ namespace mfem
 LinearForm::LinearForm(FiniteElementSpace *f, LinearForm *lf)
    : Vector(f->GetVSize())
 {
-   // Linear forms are stored on the device
-   UseDevice(true);
-
-   fes = f;
    ext = nullptr;
    extern_lfs = 1;
+   assembly = AssemblyLevel::LEGACY;
+   fes = f;
+
+   // Linear forms are stored on the device
+   UseDevice(true);
 
    // Copy the pointers to the integrators
    domain_integs = lf->domain_integs;
@@ -35,8 +36,6 @@ LinearForm::LinearForm(FiniteElementSpace *f, LinearForm *lf)
 
    boundary_face_integs = lf->boundary_face_integs;
    boundary_face_integs_marker = lf->boundary_face_integs_marker;
-
-   assembly = AssemblyLevel::LEGACY;
 }
 
 void LinearForm::AddDomainIntegrator(LinearFormIntegrator *lfi)
@@ -172,7 +171,7 @@ void LinearForm::SetAssemblyLevel(AssemblyLevel assembly_level)
          if (SupportsDevice()) { ext = new LinearFormExtension(this); }
          break;
       default:
-         mfem_error("Linearform does not support the given assembly level");
+         MFEM_ABORT("Linearform does not support the given assembly level");
    }
 }
 

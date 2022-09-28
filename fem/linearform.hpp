@@ -82,13 +82,22 @@ private:
    /// Copy construction is not supported; body is undefined.
    LinearForm(const LinearForm &);
 
+   /// Defaults values to be used in constructors
+   void Init()
+   {
+      ext = nullptr;
+      extern_lfs = 0;
+      assembly = AssemblyLevel::LEGACY;
+   }
+
 public:
    /// Creates linear form associated with FE space @a *f.
    /** The pointer @a f is not owned by the newly constructed object. */
    LinearForm(FiniteElementSpace *f) : Vector(f->GetVSize())
    {
-      fes = f; ext = nullptr; extern_lfs = 0; UseDevice(true);
-      assembly = AssemblyLevel::LEGACY;
+      Init();
+      fes = f;
+      UseDevice(true);
    }
 
    /** @brief Create a LinearForm on the FiniteElementSpace @a f, using the
@@ -106,8 +115,9 @@ public:
        Update(FiniteElementSpace *, Vector &, int). */
    LinearForm()
    {
-      fes = NULL; ext = nullptr; extern_lfs = 0; UseDevice(true);
-      assembly = AssemblyLevel::LEGACY;
+      Init();
+      fes = NULL;
+      UseDevice(true);
    }
 
    /// Construct a LinearForm using previously allocated array @a data.
@@ -117,8 +127,8 @@ public:
        array can be replaced later using the method SetData(). */
    LinearForm(FiniteElementSpace *f, double *data) : Vector(data, f->GetVSize())
    {
-      fes = f; ext = nullptr; extern_lfs = 0;
-      assembly = AssemblyLevel::LEGACY;
+      Init();
+      fes = f;
    }
 
    /// Copy assignment. Only the data of the base class Vector is copied.
@@ -205,7 +215,7 @@ public:
        - AssemblyLevel::LEGACY (default)
        - AssemblyLevel::FULL
 
-       This method must be called before assembly. */
+       If used, this method must be called before assembly. */
    void SetAssemblyLevel(AssemblyLevel assembly_level);
 
    /// Returns the assembly level
