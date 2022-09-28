@@ -89,8 +89,6 @@ int main(int argc, char *argv[])
    KnotVector *kv_o1 = UniformKnotVector(1, 2);
    KnotVector *kv    = UniformKnotVector(order, ncp);
 
-   NURBSPatch *patch2;
-
    // 1. Create a box shaped NURBS patch
    NURBSPatch patch(kv_o1, kv_o1, 3);
 
