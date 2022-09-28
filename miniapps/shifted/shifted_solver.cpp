@@ -61,7 +61,7 @@ namespace mfem
       {
         elemStatus2 = elemStatus[NEproc+par_shared_face_count];
 	par_shared_face_count++;
-   }
+      }
     else
       {
         elemStatus2 = elemStatus[elem2];
@@ -69,10 +69,10 @@ namespace mfem
 
     const int e = Tr.ElementNo;
     /*   double factorial = 1.0;
-    for (int s = 1; s <= nTerms; s++){
-      factorial *= factorial*s;
-    }
-*/
+	 for (int s = 1; s <= nTerms; s++){
+	 factorial *= factorial*s;
+	 }
+    */
     if ( (elemStatus1 == AnalyticalGeometricShape::SBElementType::INSIDE) &&  (elemStatus2 == AnalyticalGeometricShape::SBElementType::CUT) ){
       const int dim = fe.GetDim();
       const int dofs_cnt = fe.GetDof();
@@ -536,9 +536,9 @@ namespace mfem
 
     const int e = Tr.ElementNo;
     /* double factorial = 1.0;
-    for (int s = 1; s <= nTerms; s++){
-      factorial *= factorial*s;
-    }*/
+       for (int s = 1; s <= nTerms; s++){
+       factorial *= factorial*s;
+       }*/
     
     if ( (elemStatus1 == AnalyticalGeometricShape::SBElementType::INSIDE) &&  (elemStatus2 == AnalyticalGeometricShape::SBElementType::CUT) ){
       const int dim = test_fe1.GetDim();
@@ -969,9 +969,9 @@ namespace mfem
       }
 
     /* double factorial = 1.0;
-    for (int s = 1; s <= nTerms; s++){
-      factorial *= factorial*s;
-    }*/
+       for (int s = 1; s <= nTerms; s++){
+       factorial *= factorial*s;
+       }*/
 
     const int e = Tr.ElementNo;
 
@@ -1591,10 +1591,10 @@ namespace mfem
 
     const int e = Tr.ElementNo;
     /*   double factorial = 1.0;
-    for (int s = 1; s <= nTerms; s++){
-      factorial *= factorial*s;
-    }
-*/    
+	 for (int s = 1; s <= nTerms; s++){
+	 factorial *= factorial*s;
+	 }
+    */    
     if ( (elemStatus1 == AnalyticalGeometricShape::SBElementType::INSIDE) &&  (elemStatus2 == AnalyticalGeometricShape::SBElementType::CUT) ){
       const int dim = el.GetDim();
       const int h1dofs_cnt = el.GetDof();

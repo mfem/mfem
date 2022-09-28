@@ -41,36 +41,36 @@ namespace mfem
     divshape = 0.0;
     
     const IntegrationRule *ir = IntRule ? IntRule : &GetRule(trial_fe, test_fe,
-                                                            Trans);
+							     Trans);
   
     for (int q = 0; q < ir->GetNPoints(); q++)
-    {
-      const IntegrationPoint &ip = ir->IntPoint(q);
-      // Set the integration point in the face and the neighboring elements
-      Trans.SetIntPoint(&ip);
+      {
+	const IntegrationPoint &ip = ir->IntPoint(q);
+	// Set the integration point in the face and the neighboring elements
+	Trans.SetIntPoint(&ip);
     
-      test_fe.CalcDShape (ip, dshape);
-      trial_fe.CalcShape (ip, shape);
+	test_fe.CalcDShape (ip, dshape);
+	trial_fe.CalcShape (ip, shape);
 
-      CalcAdjugate(Trans.Jacobian(), adjJ);
+	CalcAdjugate(Trans.Jacobian(), adjJ);
 
-      Mult(dshape, adjJ, dshape_ps);
+	Mult(dshape, adjJ, dshape_ps);
 
-      dshape_ps.GradToDiv(divshape);
+	dshape_ps.GradToDiv(divshape);
 
-      shape *= -ip.weight;
+	shape *= -ip.weight;
 
-      AddMultVWt (divshape, shape, elmat);
-    }
+	AddMultVWt (divshape, shape, elmat);
+      }
   }
 
   const IntegrationRule &PDivWForceIntegrator::GetRule(
 						       const FiniteElement &trial_fe,
 						       const FiniteElement &test_fe,
 						       ElementTransformation &Trans)
-{
-   int order = Trans.OrderGrad(&trial_fe) + test_fe.GetOrder() + Trans.OrderJ();
-   return IntRules.Get(trial_fe.GetGeomType(), 2*order);
-}
+  {
+    int order = Trans.OrderGrad(&trial_fe) + test_fe.GetOrder() + Trans.OrderJ();
+    return IntRules.Get(trial_fe.GetGeomType(), 2*order);
+  }
 
 }
