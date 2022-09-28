@@ -105,7 +105,7 @@ namespace mfem
       const int nqp_face = ir->GetNPoints();
       ElementTransformation &Trans_el1 = Tr.GetElement1Transformation();
       DenseMatrix nodalGrad;
-      fe.ProjectGrad2(fe,Trans_el1,nodalGrad);
+      fe.ProjectGrad(fe,Trans_el1,nodalGrad);
       
       for (int q = 0; q < nqp_face; q++)
 	{
@@ -147,7 +147,7 @@ namespace mfem
 	  for (int k = 0; k < dofs_cnt; k++){
 	    for (int s = 0; s < dofs_cnt; s++){
 	      for (int j = 0; j < dim; j++){
-		gradUResDirD(k,s) += nodalGrad(k + j * dofs_cnt, s) * D(j);
+		gradUResDirD(s,k) += nodalGrad(k + j * dofs_cnt, s) * D(j);
 	      }
 	    }
 	  }
@@ -240,7 +240,7 @@ namespace mfem
       const int nqp_face = ir->GetNPoints();
       ElementTransformation &Trans_el1 = Tr.GetElement2Transformation();
       DenseMatrix nodalGrad;
-      fe2.ProjectGrad2(fe2,Trans_el1,nodalGrad);
+      fe2.ProjectGrad(fe2,Trans_el1,nodalGrad);
       for (int q = 0; q < nqp_face; q++)
 	{
 	  shape = 0.0;
@@ -282,7 +282,7 @@ namespace mfem
 	  for (int k = 0; k < dofs_cnt; k++){
 	    for (int s = 0; s < dofs_cnt; s++){
 	      for (int j = 0; j < dim; j++){
-		gradUResDirD(k,s) += nodalGrad(k + j * dofs_cnt, s) * D(j);
+		gradUResDirD(s,k) += nodalGrad(k + j * dofs_cnt, s) * D(j);
 	      }
 	    }
 	  }
@@ -575,7 +575,7 @@ namespace mfem
       const int nqp_face = ir->GetNPoints();
       ElementTransformation &Trans_el1 = Tr.GetElement1Transformation();	
       DenseMatrix nodalGrad;
-      trial_fe1.ProjectGrad2(trial_fe1,Trans_el1,nodalGrad);
+      trial_fe1.ProjectGrad(trial_fe1,Trans_el1,nodalGrad);
       for (int q = 0; q < nqp_face; q++)
 	{
 	  gradUResD = 0.0;
@@ -611,7 +611,7 @@ namespace mfem
 	  for (int k = 0; k < trialdofs_cnt; k++){
 	    for (int s = 0; s < trialdofs_cnt; s++){
 	      for (int j = 0; j < dim; j++){
-		gradUResDirD(k,s) += nodalGrad(k + j * trialdofs_cnt, s) * D(j);
+		gradUResDirD(s,k) += nodalGrad(k + j * trialdofs_cnt, s) * D(j);
 	      }
 	    }
 	  }
@@ -696,7 +696,7 @@ namespace mfem
       const int nqp_face = ir->GetNPoints();
       ElementTransformation &Trans_el1 = Tr.GetElement2Transformation();
       DenseMatrix nodalGrad;
-      trial_fe2.ProjectGrad2(trial_fe2,Trans_el1,nodalGrad);
+      trial_fe2.ProjectGrad(trial_fe2,Trans_el1,nodalGrad);
       for (int q = 0; q < nqp_face; q++)
 	{
 	  gradUResD = 0.0;
@@ -733,7 +733,7 @@ namespace mfem
 	  for (int k = 0; k < trialdofs_cnt; k++){
 	    for (int s = 0; s < trialdofs_cnt; s++){
 	      for (int j = 0; j < dim; j++){
-		gradUResDirD(k,s) += nodalGrad(k + j * trialdofs_cnt, s) * D(j);
+		gradUResDirD(s,k) += nodalGrad(k + j * trialdofs_cnt, s) * D(j);
 	      }
 	    }
 	  }
@@ -1004,7 +1004,7 @@ namespace mfem
       const int nqp_face = ir->GetNPoints();
       ElementTransformation &Trans_el1 = Tr.GetElement1Transformation();
       DenseMatrix nodalGrad;
-      fe.ProjectGrad2(fe,Trans_el1,nodalGrad);
+      fe.ProjectGrad(fe,Trans_el1,nodalGrad);
       for (int q = 0; q < nqp_face; q++)
 	{
 	  shape = 0.0;
@@ -1040,7 +1040,7 @@ namespace mfem
 	  for (int k = 0; k < h1dofs_cnt; k++){
 	    for (int s = 0; s < h1dofs_cnt; s++){
 	      for (int j = 0; j < dim; j++){
-		gradUResDirD(k,s) += nodalGrad(k + j * h1dofs_cnt, s) * D(j);
+		gradUResDirD(s,k) += nodalGrad(k + j * h1dofs_cnt, s) * D(j);
 	      }
 	    }
 	  }
@@ -1130,7 +1130,7 @@ namespace mfem
       const int nqp_face = ir->GetNPoints();
       ElementTransformation &Trans_el1 = Tr.GetElement2Transformation();
       DenseMatrix nodalGrad;
-      fe2.ProjectGrad2(fe2,Trans_el1,nodalGrad);
+      fe2.ProjectGrad(fe2,Trans_el1,nodalGrad);
       for (int q = 0; q < nqp_face; q++)
 	{
 	  shape = 0.0;
@@ -1167,7 +1167,7 @@ namespace mfem
 	  for (int k = 0; k < h1dofs_cnt; k++){
 	    for (int s = 0; s < h1dofs_cnt; s++){
 	      for (int j = 0; j < dim; j++){
-		gradUResDirD(k,s) += nodalGrad(k + j * h1dofs_cnt, s) * D(j);
+		gradUResDirD(s,k) += nodalGrad(k + j * h1dofs_cnt, s) * D(j);
 	      }
 	    }
 	  }
@@ -1624,7 +1624,7 @@ namespace mfem
       const int nqp_face = ir->GetNPoints();
       ElementTransformation &Trans_el1 = Tr.GetElement1Transformation();
       DenseMatrix nodalGrad;
-      el.ProjectGrad2(el,Trans_el1,nodalGrad);
+      el.ProjectGrad(el,Trans_el1,nodalGrad);
       for (int q = 0; q < nqp_face; q++)
 	{
 	  shape = 0.0;
@@ -1671,7 +1671,7 @@ namespace mfem
 	  for (int k = 0; k < h1dofs_cnt; k++){
 	    for (int s = 0; s < h1dofs_cnt; s++){
 	      for (int j = 0; j < dim; j++){
-		gradUResDirD(k,s) += nodalGrad(k + j * h1dofs_cnt, s) * D(j);
+		gradUResDirD(s,k) += nodalGrad(k + j * h1dofs_cnt, s) * D(j);
 	      }
 	    }
 	  }
@@ -1757,7 +1757,7 @@ namespace mfem
       const int nqp_face = ir->GetNPoints();
       ElementTransformation &Trans_el1 = Tr.GetElement2Transformation();
       DenseMatrix nodalGrad;
-      el2.ProjectGrad2(el2,Trans_el1,nodalGrad);      
+      el2.ProjectGrad(el2,Trans_el1,nodalGrad);      
       for (int q = 0; q < nqp_face; q++)
 	{
 	  shape = 0.0;
@@ -1801,7 +1801,7 @@ namespace mfem
 	  for (int k = 0; k < h1dofs_cnt; k++){
 	    for (int s = 0; s < h1dofs_cnt; s++){
 	      for (int j = 0; j < dim; j++){
-		gradUResDirD(k,s) += nodalGrad(k + j * h1dofs_cnt, s) * D(j);
+		gradUResDirD(s,k) += nodalGrad(k + j * h1dofs_cnt, s) * D(j);
 	      }
 	    }
 	  }

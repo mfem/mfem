@@ -164,13 +164,6 @@ void FiniteElement::ProjectGrad(
    MFEM_ABORT("method is not implemented for this element");
 }
 
-void FiniteElement::ProjectGrad2(
-   const FiniteElement &fe, ElementTransformation &Trans,
-   DenseMatrix &grad) const
-{
-   MFEM_ABORT("method is not implemented for this element");
-}
-
 void FiniteElement::ProjectCurl(
    const FiniteElement &fe, ElementTransformation &Trans,
    DenseMatrix &curl) const
@@ -811,34 +804,6 @@ void NodalFiniteElement::ProjectGrad(
    }
 }
 
-void NodalFiniteElement::ProjectGrad2(
-   const FiniteElement &fe, ElementTransformation &Trans,
-   DenseMatrix &grad) const
-{
-   MFEM_ASSERT(fe.GetMapType() == VALUE, "");
-   MFEM_ASSERT(Trans.GetSpaceDim() == dim, "")
-
-   DenseMatrix dshape(fe.GetDof(), dim), grad_k(fe.GetDof(), dim), Jinv(dim);
-
-   grad.SetSize(dim*dof, fe.GetDof());
-   for (int k = 0; k < dof; k++)
-   {
-      const IntegrationPoint &ip = Nodes.IntPoint(k);
-      fe.CalcDShape(ip, dshape);
-      Trans.SetIntPoint(&ip);
-      CalcInverse(Trans.Jacobian(), Jinv);
-      Mult(dshape, Jinv, grad_k);
-      if (map_type == INTEGRAL)
-      {
-         grad_k *= Trans.Weight();
-      }
-      for (int j = 0; j < grad_k.Height(); j++)
-         for (int d = 0; d < dim; d++)
-         {
-            grad(j+d*dof,k) = grad_k(j,d);
-         }
-   }
-}
 
 void NodalFiniteElement::ProjectDiv(
    const FiniteElement &fe, ElementTransformation &Trans,

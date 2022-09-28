@@ -558,11 +558,6 @@ public:
                             ElementTransformation &Trans,
                             DenseMatrix &grad) const;
 
-
-  virtual void ProjectGrad2(const FiniteElement &fe,
-                            ElementTransformation &Trans,
-                            DenseMatrix &grad) const;
-
    /** @brief Compute the discrete curl matrix from the given FiniteElement onto
        'this' FiniteElement. The ElementTransformation is included to support
        cases when the matrix depends on it. */
@@ -754,10 +749,6 @@ public:
                         DenseMatrix &I) const;
 
    virtual void ProjectGrad(const FiniteElement &fe,
-                            ElementTransformation &Trans,
-                            DenseMatrix &grad) const;
-
-  virtual void ProjectGrad2(const FiniteElement &fe,
                             ElementTransformation &Trans,
                             DenseMatrix &grad) const;
 
