@@ -131,10 +131,6 @@ int main(int argc, char *argv[])
    {
       pmesh.UniformRefinement();
    }
-   if (dim > 2)
-   {
-      pmesh.ReorientTetMesh();
-   }
 
    VectorFunctionCoefficient uCoef(dim, u_func);
 

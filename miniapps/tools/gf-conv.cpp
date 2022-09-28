@@ -5,10 +5,7 @@
 using namespace std;
 using namespace mfem;
 
-static double freq = 0.5, kappa;
 static int dim;
-
-double u_func(const Vector &);
 
 enum SCA_TYPE {INVALID_SCA_TYPE = -1,
                H1_TYPE = 0,
@@ -27,7 +24,11 @@ enum CONV_TYPE {INVALID_CONV_TYPE = -1,
 FiniteElementCollection * GetFECollection(SCA_TYPE type, int p);
 ParFiniteElementSpace * GetFESpace(SCA_TYPE type, ParMesh &pmesh,
                                    FiniteElementCollection &fec);
+void parseFieldNames(const char * field_name_c_str,
+                     vector<string> &field_names);
+
 string GetTypeName(SCA_TYPE type);
+string GetTypeShortName(SCA_TYPE type);
 string GetConvTypeName(CONV_TYPE type);
 string GetConvTypeShortName(CONV_TYPE type);
 
@@ -41,48 +42,42 @@ void LeastSquaresBC(SCA_TYPE t0, const ParGridFunction &v0,
 
 int main(int argc, char *argv[])
 {
-   // 1. Initialize MPI.
-   MPI_Session mpi(argc, argv);
+#ifdef MFEM_USE_MPI
+   Mpi::Init();
+   if (!Mpi::Root()) { mfem::out.Disable(); mfem::err.Disable(); }
+   Hypre::Init();
+#endif
 
-   // 2. Parse command-line options.
-   const char *mesh_file = "../data/star.mesh";
-   int ser_ref_levels = 0;
-   int par_ref_levels = 0;
-   int order0 = 1;
-   int order1 = 1;
-   int type0 = 0;
-   int type1 = 1;
-   int conv_type = -1;
+   // Parse command-line options.
+   const char *coll_name = NULL;
+   int cycle = 0;
+
+   const char *field_name_c_str = "ALL";
+
+   Array<int> orders;
+   Array<int> types;
+   Array<int> conv_types;
    bool static_cond = false;
    bool pa = false;
    const char *device_config = "cpu";
    bool visualization = 1;
 
    OptionsParser args(argc, argv);
-   args.AddOption(&mesh_file, "-m", "--mesh",
-                  "Mesh file to use.");
-   args.AddOption(&ser_ref_levels, "-rs", "--refine-serial",
-                  "Number of times to refine the mesh uniformly in serial.");
-   args.AddOption(&par_ref_levels, "-rp", "--refine-parallel",
-                  "Number of times to refine the mesh uniformly in parallel.");
-   args.AddOption(&order0, "-o0", "--initial-order",
-                  "Finite element order (polynomial degree) "
-                  "for initial field.");
-   args.AddOption(&order1, "-o1", "--final-order",
-                  "Finite element order (polynomial degree) "
-                  "for final field.");
-   args.AddOption(&type0, "-t0", "--initial-type",
-                  "Set the basis type for the initial field: "
+   args.AddOption(&coll_name, "-r", "--root-file",
+                  "Set the VisIt data collection root file prefix.", true);
+   args.AddOption(&cycle, "-c", "--cycle", "Set the cycle index to read.");
+   args.AddOption(&field_name_c_str, "-fn", "--field-names",
+                  "List of field names to get values from.");
+   args.AddOption(&orders, "-o", "--final-order",
+                  "Finite element orders for each final field "
+                  "(an array of integers for multiple fields).");
+   args.AddOption(&types, "-t", "--final-type",
+                  "Set the basis type for the final fields: "
                   "0-H1, 1-L2, 2-L2I, -1 loop over all.");
-   args.AddOption(&type1, "-t1", "--final-type",
-                  "Set the basis type for the final field: "
-                  "0-H1, 1-L2, 2-L2I, -1 loop over all.");
-   args.AddOption(&conv_type, "-c", "--conversion-type",
-                  "Set the conversion scheme: "
+   args.AddOption(&conv_types, "-ct", "--conversion-type",
+                  "Set the conversion schemes: "
                   "0-Projection, 1-Interpolation Op, 2-Least Squares, "
                   "3-Least Squares with BC, -1 loop over all.");
-   args.AddOption(&freq, "-f", "--frequency", "Set the frequency for the exact"
-                  " solution.");
    args.AddOption(&static_cond, "-sc", "--static-condensation", "-no-sc",
                   "--no-static-condensation", "Enable static condensation.");
    args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
@@ -96,199 +91,226 @@ int main(int argc, char *argv[])
    args.Parse();
    if (!args.Good())
    {
-      if (mpi.Root()) { args.PrintUsage(cout); }
+      args.PrintUsage(mfem::out);
       return 1;
    }
-   if (mpi.Root()) { args.PrintOptions(cout); }
-   kappa = freq * M_PI;
+   args.PrintOptions(mfem::out);
 
-   // 3. Enable hardware devices such as GPUs, and programming models such as
-   //    CUDA, OCCA, RAJA and OpenMP based on command line options.
-   Device device(device_config);
-   if (mpi.Root()) { device.Print(); }
+#ifdef MFEM_USE_MPI
+   VisItDataCollection dc(MPI_COMM_WORLD, coll_name);
+#else
+   VisItDataCollection dc(coll_name);
+#endif
 
-   // 4. Read the (serial) mesh from the given mesh file on all processors.  We
-   //    can handle triangular, quadrilateral, tetrahedral, hexahedral, surface
-   //    and volume meshes with the same code.
-   Mesh *mesh = new Mesh(mesh_file, 1, 1);
-   dim = mesh->Dimension();
+   dc.Load(cycle);
 
-   // 5. Refine the serial mesh on all processors to increase the resolution. In
-   //    this example we do 'ref_levels' of uniform refinement (2 by default, or
-   //    specified on the command line with -rs).
-   for (int lev = 0; lev < ser_ref_levels; lev++)
+   if (dc.Error() != DataCollection::NO_ERROR)
    {
-      mesh->UniformRefinement();
+      mfem::out << "Error loading VisIt data collection: " << coll_name << endl;
+      return 1;
    }
 
-   // 6. Define a parallel mesh by a partitioning of the serial mesh. Refine
-   //    this mesh further in parallel to increase the resolution (1 time by
-   //    default, or specified on the command line with -rp). Once the parallel
-   //    mesh is defined, the serial mesh can be deleted.
-   ParMesh pmesh(MPI_COMM_WORLD, *mesh);
-   delete mesh;
-   for (int lev = 0; lev < par_ref_levels; lev++)
+   dim = dc.GetMesh()->Dimension();
+   int spaceDim = dc.GetMesh()->SpaceDimension();
+
+   mfem::out << endl;
+   mfem::out << "Collection Name:    " << dc.GetCollectionName() << endl;
+   mfem::out << "Manifold Dimension: " << dim << endl;
+   mfem::out << "Space Dimension:    " << spaceDim << endl;
+   mfem::out << "Cycle:              " << dc.GetCycle() << endl;
+   mfem::out << "Time:               " << dc.GetTime() << endl;
+   mfem::out << "Time Step:          " << dc.GetTimeStep() << endl;
+   mfem::out << endl;
+
+   typedef DataCollection::FieldMapType fields_t;
+   const fields_t &fields = dc.GetFieldMap();
+   // Print the names of all fields.
+   mfem::out << "fields: [ ";
+   for (fields_t::const_iterator it = fields.begin(); it != fields.end(); ++it)
    {
-      pmesh.UniformRefinement();
+      if (it != fields.begin()) { mfem::out << ", "; }
+      mfem::out << it->first;
+   }
+   mfem::out << " ]" << endl;
+
+   // Parsing desired field names
+   vector<string> field_names;
+   parseFieldNames(field_name_c_str, field_names);
+
+   if (field_names.size() == 1)
+   {
+      if (field_names[0] == "ALL")
+      {
+         fields_t::const_iterator it = fields.begin();
+         field_names[0] = it->first; it++;
+         for ( ; it != fields.end(); ++it)
+         {
+            field_names.push_back(it->first);
+         }
+      }
    }
 
-   FunctionCoefficient uCoef(u_func);
+   if (orders.Size() < field_names.size())
+   {
+      int size = orders.Size();
+      int order = (size > 0) ? orders[0] : 1;
+
+      orders.SetSize(field_names.size());
+      for (int i=size; i < field_names.size(); i++)
+      {
+         orders[i] = order;
+      }
+   }
+
+   if (types.Size() < field_names.size())
+   {
+      int size = types.Size();
+      int type = (size > 0) ? types[0] : 0;
+
+      types.SetSize(field_names.size());
+      for (int i=size; i < field_names.size(); i++)
+      {
+         types[i] = type;
+      }
+   }
+
+   if (conv_types.Size() < field_names.size())
+   {
+      int size = conv_types.Size();
+      int type = (size > 0) ? conv_types[0] : 0;
+
+      conv_types.SetSize(field_names.size());
+      for (int i=size; i < field_names.size(); i++)
+      {
+         conv_types[i] = type;
+      }
+   }
+
+   // Print field names to be extracted
+   mfem::out << "Extracting fields: ";
+   for (int i=0; i < field_names.size(); i++)
+   {
+      mfem::out << " \"" << field_names[i] << "\"";
+   }
+   mfem::out << endl;
+
+#ifdef MFEM_USE_MPI
+   ParMesh *mesh = dynamic_cast<ParMesh*>(dc.GetMesh());
+#else
+   Mesh *mesh = dc.GetMesh();
+#endif
+   if (mesh == NULL)
+   {
+      mfem::out << "Problem with mesh\n";
+      return 1;
+   }
 
    int Ww = 300, Wh = 220, Fw = 3, Fh = 23, Ws = 15;
 
-   if (mpi.Root())
+   // Loop over all requested fields.
+   for (int i=0; i < field_names.size(); i++)
    {
-      cout << "L2 Errors:" << endl;
-   }
-   int t0a = (type0 == -1) ? 0 : type0;
-   int t0b = (type0 == -1) ? NUM_SCA_TYPES : (type0+1);
-   for (int t0 = t0a; t0 < t0b; t0++)
-   {
-      FiniteElementCollection *fec0 = GetFECollection((SCA_TYPE)t0, order0);
-      ParFiniteElementSpace   *fes0 = GetFESpace((SCA_TYPE)t0, pmesh, *fec0);
-
-      ParGridFunction x0(fes0);
-      x0.ProjectCoefficient(uCoef);
-
-      double err0 = x0.ComputeL2Error(uCoef);
-      if (mpi.Root())
+#ifdef MFEM_USE_MPI
+      ParGridFunction *x0 = dc.GetParField(field_names[i]);
+#else
+      GridFunction *x0 = dc.GetField(field_names[i]);
+#endif
+      if (x0 == NULL)
       {
-         cout << "Initial " << GetTypeName((SCA_TYPE)t0)
-              << ": \t\t" << err0 << endl;
+         mfem::out << "Problem with x0 for field \"" << field_names[i] << "\"\n";
+         continue;
       }
+
+      int t0 = 0;
 
       // nn. Send the solution by socket to a GLVis server.
       if (visualization)
       {
          ostringstream oss;
-         oss << GetTypeName((SCA_TYPE)t0) << "(" << order0 << ")";
+         oss << field_names[i];
          char vishost[] = "localhost";
          int  visport   = 19916;
          socketstream sol_sock0(vishost, visport);
-         sol_sock0 << "parallel " << pmesh.GetNRanks() << ' '
-                   << pmesh.GetMyRank() << '\n';
+#ifdef MFEM_USE_MPI
+         sol_sock0 << "parallel " << mesh->GetNRanks() << ' '
+                   << mesh->GetMyRank() << '\n';
+#endif
          sol_sock0.precision(8);
-         sol_sock0 << "solution\n" << pmesh << x0
+         sol_sock0 << "solution\n" << *mesh << *x0
                    << "window_title '" << oss.str() << "'"
                    << "window_geometry "
-                   << Ws * (t0 - t0a) << " " << Ws * (t0 - t0a) << " "
+                   << Ws * (t0) << " " << Ws * (t0) << " "
                    << (int)(1.5 * Ww) << " " << (int)(1.5 * Wh)
                    << flush;
       }
 
-      int t1a = (type1 == -1) ? 0 : type1;
-      int t1b = (type1 == -1) ? NUM_SCA_TYPES : (type1+1);
-      for (int t1 = t1a; t1 < t1b; t1++)
+      int t1 = types[i];
+      FiniteElementCollection *fec1 = GetFECollection((SCA_TYPE)t1, orders[i]);
+      ParFiniteElementSpace   *fes1 = GetFESpace((SCA_TYPE)t1, *mesh, *fec1);
+
+      ParGridFunction *y1 = new ParGridFunction(fes1);
+
+      mfem::out << GetTypeName((SCA_TYPE)t1) << "(" << orders[i] << ")"
+                << ":" << endl;
+
+      int c01 = conv_types[i];
+      string cmnt = "";
+
+      switch ((CONV_TYPE)c01)
       {
-         FiniteElementCollection *fec1 = GetFECollection((SCA_TYPE)t1, order1);
-         ParFiniteElementSpace   *fes1 = GetFESpace((SCA_TYPE)t1, pmesh, *fec1);
-
-         ParGridFunction y1(fes1);
-
-         if (mpi.Root())
-         {
-            cout << GetTypeName((SCA_TYPE)t0) << "(" << order0 << ")"
-                 << " -> "
-                 << GetTypeName((SCA_TYPE)t1) << "(" << order1 << ")"
-                 << ":" << endl;
-         }
-
-         int c01a = (conv_type == -1) ? 0 : conv_type;
-         int c01b = (conv_type == -1) ? NUM_CONV_TYPES : (conv_type+1);
-         for (int c01 = c01a; c01 < c01b; c01++)
-         {
-            string cmnt = "";
-
-            switch ((CONV_TYPE)c01)
-            {
-               case PROJECTION:
-                  Projection(x0, y1);
-                  break;
-               case INTERPOLATION_OP:
-                  cmnt = (t0 == (int)H1_TYPE) || (t0 == t1) ?
-                         "(should match projection)" : "(not expected to succeed)";
-                  InterpolationOp(x0, y1);
-                  break;
-               case SOLVE:
-                  LeastSquares((SCA_TYPE)t0, x0, (SCA_TYPE)t1, y1);
-                  break;
-               case SOLVE_W_DBC:
-                  LeastSquaresBC((SCA_TYPE)t0, x0, (SCA_TYPE)t1, y1, uCoef);
-                  break;
-               default:
-                  y1 = 0.0;
-            }
-
-            double err1 = y1.ComputeL2Error(uCoef);
-            cout << GetConvTypeName((CONV_TYPE)c01)
-                 << "\t\t" << err1 << "\t" << cmnt << endl;
-
-            if (visualization)
-            {
-               ostringstream oss;
-               oss << GetTypeName((SCA_TYPE)t0) << "(" << order0 << ")" << " --"
-                   << GetConvTypeShortName((CONV_TYPE)c01) << "--> "
-                   << GetTypeName((SCA_TYPE)t1)<< "(" << order1 << ")";
-               char vishost[] = "localhost";
-               int  visport   = 19916;
-               socketstream sol_sock1(vishost, visport);
-               sol_sock1 << "parallel " << pmesh.GetNRanks() << ' '
-                         << pmesh.GetMyRank() << '\n';
-               sol_sock1.precision(8);
-               sol_sock1 << "solution\n" << pmesh << y1
-                         << "window_title '" << oss.str() << "'"
-                         << "window_geometry "
-                         << (int)((Ww + Fw) * (1.5 + c01 - c01a) +
-                                  Ws * (t0 - t0a))
-                         << " " << (Wh + Fh) * (t1 - t1a) + Ws * (t0 - t0a)
-                         << " " << Ww << " " << Wh
-                         << flush;
-            }
-         }
-         if (mpi.Root())
-         {
-            cout << endl;
-         }
-
-         delete fes1;
-         delete fec1;
-      }
-
-      delete fes0;
-      delete fec0;
-
-      if (t0 < t0b - 1)
-      {
-         char c;
-         if (mpi.Root())
-         {
-            cout << "press (q)uit or (c)ontinue --> " << flush;
-            cin >> c;
-         }
-         MPI_Bcast(&c, 1, MPI_CHAR, 0, MPI_COMM_WORLD);
-
-         if (c != 'c')
-         {
+         case PROJECTION:
+            Projection(*x0, *y1);
             break;
-         }
+         case INTERPOLATION_OP:
+            cmnt = (t0 == (int)H1_TYPE) || (t0 == t1) ?
+                   "(should match projection)" : "(not expected to succeed)";
+            InterpolationOp(*x0, *y1);
+            break;
+         case SOLVE:
+            LeastSquares((SCA_TYPE)t0, *x0, (SCA_TYPE)t1, *y1);
+            break;
+         default:
+            *y1 = 0.0;
       }
-      if (mpi.Root())
+
       {
-         cout << endl;
+         ostringstream oss;
+         oss << field_names[i] << "_" << GetConvTypeShortName((CONV_TYPE)c01)
+             << "_" << GetTypeShortName((SCA_TYPE)t1) << "_o" << orders[i];
+
+         dc.RegisterField(oss.str(), y1);
       }
+
+      if (visualization)
+      {
+         ostringstream oss;
+         oss << GetConvTypeShortName((CONV_TYPE)c01) << "--> "
+             << GetTypeName((SCA_TYPE)t1)<< "(" << orders[i] << ")";
+         char vishost[] = "localhost";
+         int  visport   = 19916;
+         socketstream sol_sock1(vishost, visport);
+#ifdef MFEM_USE_MPI
+         sol_sock1 << "parallel " << mesh->GetNRanks() << ' '
+                   << mesh->GetMyRank() << '\n';
+#endif
+         sol_sock1.precision(8);
+         sol_sock1 << "solution\n" << *mesh << y1
+                   << "window_title '" << oss.str() << "'"
+                   << "window_geometry "
+                   << (int)((Ww + Fw) * (1.5 + c01) +
+                            Ws * (t0))
+                   << " " << (Wh + Fh) * (t1) + Ws * (t0)
+                   << " " << Ww << " " << Wh
+                   << flush;
+      }
+      mfem::out << endl;
+
+      // delete fes1;
+      // delete fec1;
    }
+   dc.Save();
 
    return 0;
-}
-
-double u_func(const Vector &x)
-{
-   double kx = kappa * x[0];
-   double ky = kappa * x[1];
-   double kz = (dim == 3) ? (kappa * x[2]) : 0.0;
-
-   // Add the gradient of a scalar function
-   return cos(kx) * cos(ky) * cos(kz);
 }
 
 FiniteElementCollection * GetFECollection(SCA_TYPE type, int p)
@@ -329,6 +351,21 @@ string GetTypeName(SCA_TYPE type)
    }
 }
 
+string GetTypeShortName(SCA_TYPE type)
+{
+   switch (type)
+   {
+      case H1_TYPE:
+         return "H1";
+      case L2_TYPE:
+         return "L2";
+      case L2I_TYPE:
+         return "L2I";
+      default:
+         return "--";
+   }
+}
+
 string GetConvTypeName(CONV_TYPE type)
 {
    switch (type)
@@ -360,6 +397,43 @@ string GetConvTypeShortName(CONV_TYPE type)
          return "LSwBC";
       default:
          return "--";
+   }
+}
+
+void parseFieldNames(const char * field_name_c_str, vector<string> &field_names)
+{
+   string field_name_str(field_name_c_str);
+   string field_name;
+
+   for (string::iterator it=field_name_str.begin();
+        it!=field_name_str.end(); it++)
+   {
+      if (*it == '\\')
+      {
+         it++;
+         field_name.push_back(*it);
+      }
+      else if (*it == ' ')
+      {
+         if (!field_name.empty())
+         {
+            field_names.push_back(field_name);
+         }
+         field_name.clear();
+      }
+      else if (it == field_name_str.end() - 1)
+      {
+         field_name.push_back(*it);
+         field_names.push_back(field_name);
+      }
+      else
+      {
+         field_name.push_back(*it);
+      }
+   }
+   if (field_names.size() == 0)
+   {
+      field_names.push_back("ALL");
    }
 }
 
