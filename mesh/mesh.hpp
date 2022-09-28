@@ -992,7 +992,7 @@ public:
 
    /// @brief This function should be called after the mesh node coordinates
    /// have changed, e.g. after the mesh has moved.
-   /** It updates internal quantities derived from the node coordinates, such as
+   /** It updates internal quantities derived from the node coordinates, such
        as the GeometricFactors. */
    void Update() { DeleteGeometricFactors(); }
 
