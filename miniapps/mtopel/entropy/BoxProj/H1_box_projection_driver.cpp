@@ -6,20 +6,26 @@
 using namespace std;
 using namespace mfem;
 
+double mag = 1.0;
+
 double sin_func(const Vector & X)
 {
-   Vector c(X.Size()); 
+   Vector c(X.Size());
    c = 1.0;
+   // c(0) = 0.0;
    double alpha = c*X;
-   return 0.5+2.0*sin(M_PI*alpha);
+   return mag*sin(2.0*M_PI*alpha);
+   // return 0.5 + mag*sin(2.0*M_PI*alpha);
 }
 
 void grad_sin_func(const Vector & X, Vector &grad)
 {
-   Vector c(X.Size()); 
+   Vector c(X.Size());
    c = 1.0;
+   // c(0) = 0.0;
    double alpha = c*X;
-   grad = 2.0*M_PI*cos(M_PI*alpha);
+   grad(0) = c(0)*mag*2.0*M_PI*cos(2.0*M_PI*alpha);
+   grad(1) = c(1)*mag*2.0*M_PI*cos(2.0*M_PI*alpha);
 }
 
 int main(int argc, char *argv[])
@@ -74,10 +80,22 @@ int main(int argc, char *argv[])
    VectorFunctionCoefficient grad_sin_cf(dim,grad_sin_func);
 
    BoxProjection Pu(&pmesh,order,&sin_cf,&grad_sin_cf,false);
-   Pu.SetNewtonStepSize(0.25);
-   Pu.SetBregmanStepSize(0.25);
+   Pu.SetNewtonStepSize(0.1);
+   // Pu.SetBregmanStepSize(0.1);
+   Pu.SetBregmanStepSize(0.01);
    Pu.SetNormWeight(0.0);
-   Pu.SetPrintLevel(1);
+   Pu.SetDiffusionConstant(1.0);
+   // Pu.SetDiffusionConstant(1.0);
+   // Pu.SetDiffusionConstant(10.0);
+   // Pu.SetPenaltyConstant(1e5);
+   Pu.SetPrintLevel(2);
+
+   // Pu.SetOuterIterationTol(1e-8);
+   // Pu.SetInnerIterationTol(1e-10);
+
+   Pu.SetMaxOuterIterations(20);
+   Pu.SetMaxInnerIterations(5);
+
    Pu.Solve();
    ParGridFunction u = Pu.Getu();
    ParGridFunction p = Pu.Getp();

@@ -25,6 +25,8 @@ private:
    double alpha = 1.0;
    double beta = 1.0;
    double theta = 1.0;
+   double epsilon;
+   double gamma = 0.0;
    double print_level = 1;
 
    FiniteElementCollection * u_fec = nullptr;
@@ -51,14 +53,20 @@ private:
    int max_bregman_it = 200;
    double bregman_tol = 1e-5;
 
-   int max_newton_it = 5;
+   int bregman_cntr = 0;
+   int newton_cntr = 0;
+
+   int max_newton_it = 10;
    double newton_tol = 1e-8;
    double NewtonStep(const ParLinearForm & b_u_, ParGridFunction & p_kl_gf, ParGridFunction & u_kl);
 
    double BregmanStep(ParGridFunction & u_gf_, ParGridFunction & p_gf_);
 
+   void Update_A_uu(ParGridFunction & u_gf_);
+
 public:
-   BoxProjection(ParMesh* pmesh_, int order_, Coefficient * g_cf_, VectorCoefficient * grad_g_cf_, bool H1H1 = false);
+   BoxProjection(ParMesh* pmesh_, int order_, Coefficient * g_cf_,
+                 VectorCoefficient * grad_g_cf_, bool H1H1 = false);
    
    void Solve();
 
@@ -74,6 +82,14 @@ public:
    void SetNewtonStepSize(double theta_) {theta = theta_;}
    void SetBregmanStepSize(double alpha_) {alpha = alpha_;}
    void SetNormWeight(double beta_) {beta = beta_;}
+
+   void SetDiffusionConstant(double epsilon_) {epsilon = epsilon_;}
+   void SetPenaltyConstant(double gamma_) {gamma = max(0.0,gamma_);}
+
+   void SetOuterIterationTol(double bregman_tol_) {bregman_tol = bregman_tol_;}
+   void SetInnerIterationTol(double newton_tol_) {newton_tol = newton_tol_;}
+   void SetMaxOuterIterations(double max_bregman_it_) {max_bregman_it = max_bregman_it_;}
+   void SetMaxInnerIterations(double max_newton_it_) {max_newton_it = max_newton_it_;}
 
    void SetPrintLevel(int print_level_) {print_level = print_level_;}
 
@@ -94,7 +110,7 @@ protected:
    double max_val;
 
 public:
-   LnitGridFunctionCoefficient(GridFunction &u_, double min_val_=-1e10, double max_val_=1e10)
+   LnitGridFunctionCoefficient(GridFunction &u_, double min_val_=-1e1, double max_val_=1e1)
       : u(&u_), min_val(min_val_), max_val(max_val_) { }
 
    virtual double Eval(ElementTransformation &T, const IntegrationPoint &ip);
@@ -119,11 +135,10 @@ class dExpitdxGridFunctionCoefficient : public Coefficient
 protected:
    GridFunction *u; // grid function
    double min_val;
-   double max_val;
 
 public:
-   dExpitdxGridFunctionCoefficient(GridFunction &u_, double min_val_=0.0, double max_val_=1.0)
-      : u(&u_), min_val(min_val_), max_val(max_val_) { }
+   dExpitdxGridFunctionCoefficient(GridFunction &u_, double min_val_=1e-8)
+      : u(&u_), min_val(min_val_) { }
 
    virtual double Eval(ElementTransformation &T, const IntegrationPoint &ip);
 };
@@ -143,3 +158,41 @@ public:
       return min(max_val, max(min_val, u_cf.Eval(T,ip)));
    }
 };
+
+class ActiveSetCoefficient : public Coefficient
+{
+protected:
+   ParGridFunction &u_gf;
+public:
+   ActiveSetCoefficient(ParGridFunction &u_gf_)
+      : u_gf(u_gf_) { }
+
+   virtual double Eval(ElementTransformation &T, const IntegrationPoint &ip)
+   {
+      bool active_point = (u_gf.GetValue(T,ip) < 0);
+      // bool active_point = (u_gf.GetValue(T,ip) < 0) || (u_gf.GetValue(T,ip) - 1 > 0);
+      if (u_gf.GetValue(T,ip) < 0)
+      {
+         return 0.0;
+      }
+      else
+      {
+         return 0.0;
+      }
+   }
+};
+
+// // (α + β) (u,v)_H1 + (ψ,v) + (u,w) - (expit(ψ),w)
+// class LHS : public Operator
+// {
+//    double alpha;
+//    double beta;
+//    ParMesh* pmesh;
+//    int order;
+
+//    protected:
+
+//    public:
+//    LHS(ParMesh* pmesh_, int order_, double alpha_, double beta_);
+   
+// }

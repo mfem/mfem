@@ -1,6 +1,7 @@
 #include "H1_box_projection.hpp"
 
-BoxProjection::BoxProjection(ParMesh* pmesh_, int order_, Coefficient * g_cf_, VectorCoefficient * grad_g_cf_, bool H1H1)
+BoxProjection::BoxProjection(ParMesh* pmesh_, int order_, Coefficient * g_cf_,
+                             VectorCoefficient * grad_g_cf_, bool H1H1)
 :pmesh(pmesh_), order(order_), g_cf(g_cf_), grad_g_cf(grad_g_cf_)
 {
    dim = pmesh->Dimension();
@@ -20,18 +21,10 @@ BoxProjection::BoxProjection(ParMesh* pmesh_, int order_, Coefficient * g_cf_, V
    P_u = u_fes->GetProlongationMatrix();
    P_p = p_fes->GetProlongationMatrix();
 
-   a_uu = new ParBilinearForm(u_fes);
-   a_up = new ParMixedBilinearForm(u_fes,p_fes);
    b_u = new ParLinearForm(u_fes);
 
-   // u-u block
-   a_uu->AddDomainIntegrator(new DiffusionIntegrator());
-   a_uu->AddDomainIntegrator(new MassIntegrator());
-   a_uu->Assemble();
-   a_uu->Finalize();
-   A_uu = a_uu->ParallelAssemble();
-
-   // u-p block
+   // Assemble u-p block
+   a_up = new ParMixedBilinearForm(u_fes,p_fes);
    a_up->AddDomainIntegrator(new MixedScalarMassIntegrator());
    a_up->Assemble();
    a_up->Finalize();
@@ -44,11 +37,51 @@ BoxProjection::BoxProjection(ParMesh* pmesh_, int order_, Coefficient * g_cf_, V
    toffsets[0] = 0; toffsets[1] = u_fes->GetTrueVSize(); toffsets[2] = p_fes->GetTrueVSize();
    offsets.PartialSum();
    toffsets.PartialSum();
+}
 
+void BoxProjection::Update_A_uu(ParGridFunction & u_gf_)
+{
+   delete a_uu;
+   a_uu = new ParBilinearForm(u_fes);
+
+   ActiveSetCoefficient as_cf(u_gf_);
+   SumCoefficient mass_cf(1.0, as_cf, 1.0, gamma);
+
+   // Assemble u-u block
+   ConstantCoefficient epsilon_cf(epsilon);
+   a_uu->AddDomainIntegrator(new DiffusionIntegrator(epsilon_cf));
+   a_uu->AddDomainIntegrator(new MassIntegrator(mass_cf));
+   a_uu->Assemble();
+   a_uu->Finalize();
+   A_uu = a_uu->ParallelAssemble();
 }
 
 double BoxProjection::NewtonStep(const ParLinearForm & b_u_, ParGridFunction & p_kl_gf, ParGridFunction & u_kl_gf)
 {
+   newton_cntr++;
+
+   // ND_FECollection fec(order,dim);
+   // ParFiniteElementSpace fes(pmesh,&fec);
+   // ParGridFunction grad_u_gf(&fes);
+   // GradientGridFunctionCoefficient grad_u_cf(&u_kl_gf);
+   // grad_u_gf.ProjectCoefficient(grad_u_cf);
+
+   // char vishost[] = "localhost";
+   // int visport = 19916;
+   // socketstream u_sock(vishost, visport);
+   // u_sock.precision(8);
+   // u_sock << "solution\n" << *pmesh << u_kl_gf  
+   //        << "window_title 'Newton u'" << flush;
+
+   // socketstream socksock(vishost, visport);
+   // socksock.precision(8);
+   // socksock << "solution\n" << *pmesh << grad_u_gf 
+   //        << "window_title 'Newton Grad u'" << flush;
+   
+   // cin.get();
+
+   Update_A_uu(u_kl_gf);
+   
    GridFunctionCoefficient p_kl_cf(&p_kl_gf);
    ParLinearForm l_u(u_fes);
    l_u.AddDomainIntegrator(new DomainLFIntegrator(p_kl_cf));
@@ -96,7 +129,7 @@ double BoxProjection::NewtonStep(const ParLinearForm & b_u_, ParGridFunction & p
          
    MUMPSSolver mumps;
    mumps.SetPrintLevel(0);
-   mumps.SetMatrixSymType(MUMPSSolver::MatType::UNSYMMETRIC);
+   mumps.SetMatrixSymType(MUMPSSolver::MatType::SYMMETRIC_INDEFINITE);
    mumps.SetOperator(*Ah);
    mumps.Mult(B,X);
    delete Ah;
@@ -124,17 +157,21 @@ double BoxProjection::NewtonStep(const ParLinearForm & b_u_, ParGridFunction & p
 
 double BoxProjection::BregmanStep(ParGridFunction & u_gf_, ParGridFunction & p_gf_)
 {
+   bregman_cntr++;
+
    ParGridFunction u_gf_old(u_gf_);
    GridFunctionCoefficient p_cf(&p_gf_);
    GridFunctionCoefficient u_cf(&u_gf_old);
    GradientGridFunctionCoefficient gradu_cf(&u_gf_old);
    SumCoefficient sum_cf(*g_cf,u_cf,alpha,beta);
-   VectorSumCoefficient vsum_cf(*grad_g_cf,gradu_cf,alpha,beta);
+   VectorSumCoefficient vsum_cf(*grad_g_cf,gradu_cf,epsilon*alpha,epsilon*beta);
+   ScalarVectorProductCoefficient eps_grad_g_cf(-epsilon*alpha, *grad_g_cf);
 
    ParLinearForm b_u_(u_fes);
    b_u_.AddDomainIntegrator(new DomainLFGradIntegrator(vsum_cf));
    b_u_.AddDomainIntegrator(new DomainLFIntegrator(sum_cf));
    b_u_.AddDomainIntegrator(new DomainLFIntegrator(p_cf));
+   // b_u_.AddBoundaryIntegrator(new BoundaryNormalLFIntegrator(eps_grad_g_cf));
    b_u_.Assemble();
 
    for (int l = 0; l < max_newton_it; l++)
@@ -158,10 +195,16 @@ void BoxProjection::Solve()
    BoxFunctionCoefficient u0_cf(*g_cf);
    u_gf.SetSpace(u_fes);
    u_gf.ProjectCoefficient(u0_cf);
-   // u_gf = 0.5;
-   LnitGridFunctionCoefficient p0_cf(u_gf);
-   p_gf.SetSpace(p_fes);
-   p_gf.ProjectCoefficient(p0_cf);
+
+   if (print_level >= 0)
+   {
+      double grad_error = u_gf.ComputeGradError(grad_g_cf);
+      double L2_error = u_gf.ComputeL2Error(&g_cf);
+      double H1_error = sqrt(epsilon*grad_error*grad_error + L2_error*L2_error);
+      mfem::out << " | u - g |_H1      = " << grad_error << endl;
+      mfem::out << "|| u - g ||_L2     = " << L2_error << endl;
+      mfem::out << "|| u - g ||_H1_eps = " << H1_error << endl;
+   }
 
    char vishost[] = "localhost";
    int visport = 19916;
@@ -169,14 +212,20 @@ void BoxProjection::Solve()
    g_sock.precision(8);
    g_sock << "solution\n" << *pmesh << u_gf
                << "window_title 'Function g'" << flush;
-   socketstream p0_sock(vishost, visport);
-   p0_sock.precision(8);
-   p0_sock << "solution\n" << *pmesh << p_gf
-               << "window_title 'Function p_0'" << flush;               
 
-   mfem::out << "|| u - g ||_H1 = " << u_gf.ComputeH1Error(g_cf, grad_g_cf) << endl;
+   u_gf = 0.5;
+   LnitGridFunctionCoefficient p0_cf(u_gf);
+   p_gf.SetSpace(p_fes);
+   p_gf.ProjectCoefficient(p0_cf);
+
+   // socketstream p0_sock(vishost, visport);
+   // p0_sock.precision(8);
+   // p0_sock << "solution\n" << *pmesh << p_gf
+   //             << "window_title 'Function p_0'" << flush;       
+
    for (int i = 0; i<max_bregman_it; i++)
    {
+      if (i > 1) { theta = 1.0; }
       double update_norm = BregmanStep(u_gf, p_gf);
       if (print_level > 0)
       {
@@ -184,9 +233,28 @@ void BoxProjection::Solve()
       }
       if (print_level >= 0)
       {
-         mfem::out << "|| u - g ||_H1 = " << u_gf.ComputeH1Error(g_cf, grad_g_cf) << endl;
+         double grad_error = u_gf.ComputeGradError(grad_g_cf);
+         double L2_error = u_gf.ComputeL2Error(&g_cf);
+         double H1_error = sqrt(epsilon*grad_error*grad_error + L2_error*L2_error);
+         mfem::out << " | u - g |_H1      = " << grad_error << endl;
+         mfem::out << "|| u - g ||_L2     = " << L2_error << endl;
+         mfem::out << "|| u - g ||_H1_eps = " << H1_error << endl;
       }
-      if (update_norm < bregman_tol) break;
+      if (update_norm/alpha < bregman_tol) break;
+      // if (update_norm < bregman_tol/sqrt(bregman_cntr)) break;
+      // if (bregman_cntr > 1)
+      // {
+      //    double tmp = (double) bregman_cntr;
+      //    // alpha *= sqrt( (tmp-1.0)/tmp );
+      //    alpha *= sqrt( tmp/(tmp-1.0) );
+      //    // mfem::out << "alpha = " << alpha << endl;
+      // }
+   }
+
+   if (print_level >= 0)
+   {
+      mfem::out << "\n # of outer iterations = " << bregman_cntr << endl;
+      mfem::out << " # of inner iterations = " << newton_cntr << endl;
    }
 }
 
@@ -226,7 +294,7 @@ double dExpitdxGridFunctionCoefficient::Eval(ElementTransformation &T,
    MFEM_ASSERT(u != NULL, "grid function is not set");
 
    double val = u->GetValue(T, ip);
-   return min(max_val, max(min_val, dexpitdx(val)));
+   return max(min_val, dexpitdx(val));
 }
 
 double lnit(double x)
@@ -252,6 +320,20 @@ double expit(double x)
 
 double dexpitdx(double x)
 {
-   double tmp = expit(-x);
-   return tmp - pow(tmp,2);
+   if (x >= 0)
+   {
+      return exp(-x)/pow(1.0+exp(-x),2);
+   }
+   else
+   {
+      return exp(x)/pow(1.0+exp(x),2);
+   }
+   // double tmp = expit(-x);
+   // return tmp - pow(tmp,2);
 }
+
+// LHS:LHS(ParMesh* pmesh_, int order_, double alpha_, double beta_)
+//       : pmesh(pmesh_), order(order_), alpha(alpha_), beta(beta_)
+// {
+//    ParLinearForm rhs_u()
+// }
