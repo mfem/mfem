@@ -202,8 +202,6 @@ jobs:
     # It is convenient to hash that file for changes in the cache key.
     - name: install metis (Windows)
       if: matrix.mpi == 'par' && matrix.os == 'windows-latest' && steps.vcpkg-cache.outputs.cache-hit != 'true'
-      env:
-        VCPKG_DEFAULT_BINARY_CACHE: ${{ github.workspace }}/vcpkg_cache
       run: |
         vcpkg install metis-mfem --triplet=x64-windows-static --overlay-ports=${{ env.MFEM_TOP_DIR }}\config\vcpkg\ports
 
