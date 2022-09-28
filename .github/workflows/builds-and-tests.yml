@@ -196,7 +196,7 @@ jobs:
       uses: actions/cache@v3
       with:
         path: vcpkg_cache
-        key: ${{ runner.os }}-vcpkg-${{ matrix.mpi }}-${{ hashFiles('**/vcpkg.json') }}
+        key: ${{ runner.os }}-vcpkg-cache-${{ matrix.mpi }}-${{ hashFiles('**/vcpkg.json') }}
 
     - name: prepare binary cache location
       if: matrix.os == 'windows-latest' && steps.vcpkg-cache.outputs.cache-hit != 'true'
