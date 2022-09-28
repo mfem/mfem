@@ -497,16 +497,16 @@ int main (int argc, char *argv[])
 
       if (mk == 't')
       {
-         int type;
+         char type;
          cout << "Choose a transformation:\n"
-              "0: User-defined transform through mesh-explorer::transformation()\n"
-              "1: Kershaw transform ---> " << flush;
+              "u) User-defined transform through mesh-explorer::transformation()\n"
+              "k) Kershaw transform\n"<< "---> " << flush;
          cin >> type;
-         if (type == 0)
+         if (type == 'u')
          {
             mesh->Transform(transformation);
          }
-         else if (type == 1)
+         else if (type == 'k')
          {
             cout << "Note: For Kershaw transformation, the input must be "
                  "Cartesian aligned with nx multiple of 6 and "
@@ -526,7 +526,7 @@ int main (int argc, char *argv[])
          }
          else
          {
-            MFEM_ABORT("Please input 0 or 1 for transform type.");
+            MFEM_ABORT("Transformation type not supported.");
          }
          print_char = 1;
       }

@@ -38,12 +38,12 @@ void MergeMeshNodes(Mesh * mesh, int logging);
 void AttrToMarker(int max_attr, const Array<int> &attrs, Array<int> &marker);
 
 
-///  3D version of a generalized Kershaw mesh transformation, see D. Kershaw,
+/// Generalized Kershaw mesh transformation in 2D and 3D, see D. Kershaw,
 /// "Differencing of the diffusion equation in Lagrangian hydrodynamic codes",
 /// JCP, 39:375–395, 1981.
 /** The input mesh should be Cartesian nx x ny x nz with nx divisible by 6 and
     ny, nz divisible by 2.
-    The @a eps parameters are in (0, 1].
+    The parameters @a epsy and @a epsz must be in (0, 1].
     Uniform mesh is recovered for epsy=epsz=1.
     The @a smooth parameter controls the transition between different layers. */
 // Usage:
