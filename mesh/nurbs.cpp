@@ -1122,6 +1122,24 @@ void NURBSPatch::SwapDirections(int dir1, int dir2)
    swap(newpatch);
 }
 
+
+void NURBSPatch::Rotate(double angle, double n[])
+{
+   if (Dim == 3)
+   {
+      Rotate2D(angle);
+   }
+   else
+   {
+      if (n == NULL)
+      {
+         mfem_error("NURBSPatch::Rotate : Specify an angle for a 3D rotation.");
+      }
+
+      Rotate3D(n, angle);
+   }
+}
+
 void NURBSPatch::Get2DRotationMatrix(double angle, DenseMatrix &T)
 {
    double s = sin(angle);

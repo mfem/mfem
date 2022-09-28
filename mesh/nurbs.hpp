@@ -150,8 +150,14 @@ public:
                                    DenseMatrix &T);
    void FlipDirection(int dir);
    void SwapDirections(int dir1, int dir2);
+
+   /// Rotate the NURBSPatch.
+   /** A rotation of a 2D NURBS-patch requires an angle only. Rotating
+       a 3D NURBS-patch requires a normal as well.*/
+   void Rotate(double angle, double normal[]= NULL);
    void Rotate2D(double angle);
    void Rotate3D(double normal[], double angle);
+
    int MakeUniformDegree(int degree = -1);
    friend NURBSPatch *Interpolate(NURBSPatch &p1, NURBSPatch &p2);
    friend NURBSPatch *Revolve3D(NURBSPatch &patch, double n[], double ang,
