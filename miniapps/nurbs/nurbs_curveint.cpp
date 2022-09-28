@@ -48,11 +48,11 @@ int main(int argc, char *argv[])
    // Parse command-line options.
    OptionsParser args(argc, argv);
 
-   double l  = 1.0;
-   double a  = 0.1;
-   int ncp   = 9;
-   int order = 1;
-   bool unit_weight = true;
+   double l       = 1.0;
+   double a       = 0.1;
+   int ncp        = 9;
+   int order      = 2;
+   bool ifbspline = true;
 
    args.AddOption(&l, "-l", "--box-side-length",
                   "Height and width of the box");
@@ -64,9 +64,9 @@ int main(int argc, char *argv[])
                   "Number of control points used over four box sides.");
    args.AddOption(&order, "-o", "--order",
                   "Order of the NURBSPatch");
-   args.AddOption(&unit_weight, "-uw", "--unit-weight", "-nw",
+   args.AddOption(&ifbspline, "-uw", "--unit-weight", "-nw",
                   "--non-unit-weight",
-                  "Use a unity weigth (default) for the NURBS-patches or not.");
+                  "Use a unity weigth (default) for the NURBS-patches or not: B-splines");
 
    // Parse and print commandline options
    args.Parse();
@@ -77,7 +77,7 @@ int main(int argc, char *argv[])
    }
    args.PrintOptions(cout);
 
-   if (order < 2 && unit_weight == false);
+   if (order < 2 && ifbspline == false)
    {
       mfem_error("For a non unity weight, the order should be at least 2.");
    }
@@ -111,11 +111,6 @@ int main(int argc, char *argv[])
    patch(1,1,0) = 0.5*l;
    patch(1,1,1) = 0.5*l;
 
-
-
-
-
-
    // 2. Interpolation process
    Array<Vector*> xy(2);
    xy[0] = new Vector();
@@ -126,14 +121,13 @@ int main(int argc, char *argv[])
 
    // Refine direction which has fitting
    patch.DegreeElevate(0, order-kv_o1->GetOrder());
-   if (unit_weight == false)
+   if (ifbspline == false)
    {
       patch(1,0,2) = sqrt(2)/2;
    }
    patch.KnotInsert(0, *kv);
 
-
-   if (unit_weight)
+   if (ifbspline)
    {
       // We locate the controlpoints at the location of the
       // maxima of the knotvectors. This works very well
