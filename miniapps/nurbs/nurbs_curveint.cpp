@@ -7,7 +7,11 @@
 // Description:  This example code demonstrates the use of MFEM to interpolate
 //               a curve in a NURBS patch. We first define a square shaped
 //               NURBS patch. We then interpolate a sine function on the bottom
-//               edge. The results can be viewed in VisIt.//
+//               edge. The results can be viewed in VisIt.
+//               
+//               Us use curve interpolation for curves with all weights being 1,
+//               B-splines, and curves with not all weights being 1, NURBS. The 
+//               spacing in both cases is chosen differently.
 
 
 
@@ -66,7 +70,7 @@ int main(int argc, char *argv[])
                   "Order of the NURBSPatch");
    args.AddOption(&ifbspline, "-uw", "--unit-weight", "-nw",
                   "--non-unit-weight",
-                  "Use a unity weigth (default) for the NURBS-patches or not: B-splines");
+                  "Use a weight of one only for the NURBS-patches (default) or not: B-splines");
 
    // Parse and print commandline options
    args.Parse();
@@ -121,7 +125,7 @@ int main(int argc, char *argv[])
 
    // Refine direction which has fitting
    patch.DegreeElevate(0, order-kv_o1->GetOrder());
-   if (ifbspline == false)
+   if (!ifbspline)
    {
       patch(1,0,2) = sqrt(2)/2;
    }
@@ -190,7 +194,7 @@ int main(int argc, char *argv[])
 
    output<<"elements"<<endl;
    output<<"1"<<endl;
-   output<<"1 3 0 1 2 3"<<endl;    // Lower wake part
+   output<<"1 3 0 1 2 3"<<endl;
    output<<endl;
 
    output<<"boundary"<<endl;
