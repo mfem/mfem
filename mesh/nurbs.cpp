@@ -345,7 +345,6 @@ void KnotVector::FindMaxima(Array<int> &ks,
                             Vector &xi,
                             Vector &u)
 {
-   int Order = GetOrder();
    Vector shape(Order+1);
    Vector maxima(GetNCP());
    double arg1,arg2,arg,max1,max2,max;
