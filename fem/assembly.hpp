@@ -30,7 +30,7 @@ enum class AssemblyLevel
    LEGACY = 0,
    /// @deprecated Use LEGACY instead.
    LEGACYFULL = 0,
-   /// Fully assembled form, i.e. a global sparse matrix or a gloable vector in
+   /// Fully assembled form, i.e. a global sparse matrix or a global vector in
    /// MFEM format. This assembly is compatible with device execution.
    FULL,
    /// Form assembled at element level, which computes and stores dense element
