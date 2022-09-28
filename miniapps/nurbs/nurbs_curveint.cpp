@@ -8,9 +8,9 @@
 //               a curve in a NURBS patch. We first define a square shaped
 //               NURBS patch. We then interpolate a sine function on the bottom
 //               edge. The results can be viewed in VisIt.
-//               
+//
 //               Us use curve interpolation for curves with all weights being 1,
-//               B-splines, and curves with not all weights being 1, NURBS. The 
+//               B-splines, and curves with not all weights being 1, NURBS. The
 //               spacing in both cases is chosen differently.
 
 
