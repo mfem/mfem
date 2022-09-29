@@ -40,11 +40,9 @@ using curandGenerator_t = void*;
 ////////////////////////////////////////////////////////////////////////////////
 static std::string config_device = "cuda";
 static int config_ndev = 4; // default 4 GPU per node
-static std::string config_nxyz = "111";
 
 static bool config_debug = false;
 static bool config_save = false;
-static bool config_weak = false;
 
 static int config_cg_max_iter = 32;
 
@@ -83,13 +81,29 @@ double f(const Vector &xvec)
 } // namespace analytics
 
 ////////////////////////////////////////////////////////////////////////////////
+
+Mesh MakeCartesianMesh(int p, int requested_ndof, int dim)
+{
+   const int ne = std::max(1, (int)std::ceil(requested_ndof / pow(p, dim)));
+   const int nx = cbrt(ne);
+   const int ny = sqrt(ne / nx);
+   const int nz = ne / nx / ny;
+   if (Mpi::Root()) { dbg("\033[33mnx:%d ny:%d nz:%d", nx, ny, nz); }
+   return Mesh::MakeCartesian3D(nx, ny, nz, Element::HEXAHEDRON);
+}
+
+ParMesh MakeParCartesianMesh(int p, int requested_ndof, int dim)
+{
+   Mesh mesh = MakeCartesianMesh(p, requested_ndof, dim);
+   return ParMesh(MPI_COMM_WORLD, mesh);
+}
+
+////////////////////////////////////////////////////////////////////////////////
 struct PLOR_Solvers_Bench
 {
    static constexpr int dim = 3;
    const int num_procs, myid;
-   const int p, c;
-   const int n, nx,ny,nz;
-   const bool check_x, check_y, check_z, checked;
+   const int p;
 
    // Init cuSparse before timings, used in Dof_TrueDof_Matrix
    Nvtx nvtx_cusph = {"cusparseHandle"};
@@ -116,26 +130,6 @@ struct PLOR_Solvers_Bench
    };
    curandGenerator_t curng;
 
-   int nxyz[3] = {1,1,1};
-   std::function<ParMesh()> InitMeshCartesian3D = [&]()
-   {
-      int product = 1;
-      assert(nxyz[2]==1 && nxyz[2]==1 && nxyz[0]==1);
-      const int xyz = std::stoi(config_nxyz);
-      if (Mpi::Root()) { dbg("\033[33mnx:%d ny:%d nz:%d", nx, ny, nz); }
-      nxyz[2] = xyz/100, nxyz[1] = (xyz%100)/10, nxyz[0] = xyz%10;
-      if (Mpi::Root()) { dbg("\033[33mnxyz:%s:%d%d%d", config_nxyz, nxyz[2], nxyz[1], nxyz[0]); }
-      for (int d = 0; d < dim; d++) { product *= nxyz[d]; }
-      // config_nxyz should only be used when config_weak is set
-      assert(product == (config_weak ? num_procs : 1));
-      Mesh smesh = Mesh::MakeCartesian3D(nx*(config_weak?nxyz[2]:1),
-                                         ny*(config_weak?nxyz[1]:1),
-                                         nz*(config_weak?nxyz[0]:1),
-                                         Element::HEXAHEDRON);
-      return ParMesh(MPI_COMM_WORLD, smesh,
-                     product == 1 ? nullptr :
-                     smesh.CartesianPartitioning(nxyz));
-   };
    ParMesh pmesh;
    H1_FECollection fec;
    ParFiniteElementSpace fes;
@@ -158,22 +152,13 @@ struct PLOR_Solvers_Bench
 
    ~PLOR_Solvers_Bench() { delete solv_lor; }
 
-   PLOR_Solvers_Bench(int order, int side) :
+   PLOR_Solvers_Bench(int order, int requested_ndof) :
       num_procs(Mpi::WorldSize()),
       myid(Mpi::WorldRank()),
       p(order),
-      c(side),
-      n((assert(c>=p), c/p)),
-      nx(n + (p*(n+1)*p*n*p*n < c*c*c ?1:0)),
-      ny(n + (p*(n+1)*p*(n+1)*p*n < c*c*c ?1:0)),
-      nz(n),
-      check_x(p*nx * p*ny * p*nz <= c*c*c),
-      check_y(p*(nx+1) * p*(ny+1) * p*nz > c*c*c),
-      check_z(p*(nx+1) * p*(ny+1) * p*(nz+1) > c*c*c),
-      checked((assert(check_x && check_y && check_z), true)),
       cusph(InitCuSparse()),
       curng(InitCuRandNumberGenerator()),
-      pmesh(InitMeshCartesian3D()),
+      pmesh(MakeParCartesianMesh(p, requested_ndof, dim)),
       fec(p, dim),
       fes(&pmesh, &fec),
       one(1.0),
@@ -189,16 +174,14 @@ struct PLOR_Solvers_Bench
    void Setup()
    {
       dbg();
-      x = 0.0;
-      //x.ProjectCoefficient(u_coeff);
+      x.ProjectCoefficient(u_coeff);
       fes.GetBoundaryTrueDofs(ess_dofs);
 
-      //b.AddDomainIntegrator(new DomainLFIntegrator(f_coeff));
-      b.AddDomainIntegrator(new DomainLFIntegrator(one));
+      b.AddDomainIntegrator(new DomainLFIntegrator(f_coeff));
       b.Assemble();
 
-      //a.AddDomainIntegrator(new MassIntegrator);
-      a.AddDomainIntegrator(new DiffusionIntegrator(one));
+      a.AddDomainIntegrator(new MassIntegrator);
+      a.AddDomainIntegrator(new DiffusionIntegrator);
       a.SetAssemblyLevel(AssemblyLevel::PARTIAL);
 
       /// Overall SETUP
@@ -296,28 +279,27 @@ struct PLOR_Solvers_Bench
 
 };
 
-// [0] The different side sizes
-// When generating tex data, at order 6:
-//    - 200 max for one rank, 8.1182M dofs
-#define P_SIDES bm::CreateDenseRange(8,512,8) // order 6
+// [0] Requested log_ndof
+#define LOG_NDOFS bm::CreateDenseRange(21,30,1)
 
 // Maximum number of dofs per rank
-#define MAX_NDOFS 8*1024*1024
+#define MAX_NDOFS 7*1024*1024
 
 // [1] The different orders the tests can run
 #define P_ORDERS {6} // bm::CreateDenseRange(1,6,1)
 
 static void pLOR(bm::State &state)
 {
-   const int side = state.range(0);
    const int order = state.range(1);
+   const int log_ndof = state.range(0);
+   const int requested_ndof = pow(2, log_ndof);
 
-   PLOR_Solvers_Bench plor(order, side);
+   PLOR_Solvers_Bench plor(order, requested_ndof);
 
    const int ndofs = plor.ndofs;
    const int nranks = Mpi::WorldSize();
 
-   dbg("side:%d order:%d ndofs:%d nranks:%d", side, order, ndofs, nranks);
+   dbg("log_ndof:%d order:%d ndofs:%d nranks:%d", log_ndof, order, ndofs, nranks);
    dbg("%d >? %d", ndofs, nranks*MAX_NDOFS);
    const bool skip = ndofs > (nranks*MAX_NDOFS);
    if (skip) { state.SkipWithError("MAX_NDOFS"); return;}
@@ -326,13 +308,11 @@ static void pLOR(bm::State &state)
 
    while (state.KeepRunning()) { plor.Run(); }
 
-   state.counters["CG"] = bm::Counter(plor.cg_niter);
+   //state.counters["CG"] = bm::Counter(plor.cg_niter);
+   state.counters["MPI"] = bm::Counter(nranks);
    state.counters["NDOFs"] = bm::Counter(ndofs);
-   state.counters["NELMs"] = bm::Counter(plor.global_ne);
-   state.counters["NMPI"] = bm::Counter(nranks);
-   state.counters["NXYZ"] = bm::Counter(std::stoi(config_nxyz));
+   //state.counters["NELMs"] = bm::Counter(plor.global_ne);
    state.counters["ORDER"] = bm::Counter(order);
-   state.counters["SIDE"] = bm::Counter(side);
 
    /// OUTER SETUP = OUTER(PA + LOR + AMG)
    const double setup = plor.T_OUTER_ALL_Setup();
@@ -396,7 +376,7 @@ static void pLOR(bm::State &state)
 }
 
 BENCHMARK(pLOR)->Unit(bm::kMillisecond)\
-->ArgsProduct( {P_SIDES, P_ORDERS})->Iterations(10);
+->ArgsProduct( {LOG_NDOFS, P_ORDERS})->Iterations(10);
 
 int main(int argc, char *argv[])
 {
@@ -408,8 +388,6 @@ int main(int argc, char *argv[])
       bmi::FindInContext("device", config_device); // device=cuda
       bmi::FindInContext("debug", config_debug); // debug=true
       bmi::FindInContext("save", config_save);
-      bmi::FindInContext("weak", config_weak); // weak=true
-      bmi::FindInContext("nxyz", config_nxyz); // only used when weak is set
       bmi::FindInContext("ndev", config_ndev); // has to be set to 1 for bsub
       bmi::FindInContext("cgmi", config_cg_max_iter);
    }
@@ -425,8 +403,8 @@ int main(int argc, char *argv[])
 
    Hypre::Init(); // after device selection
 
-   static hypre_Handle *hypre_h = hypre_HandleCreate();
-   (void) hypre_h;
+   //static hypre_Handle *hypre_h = hypre_HandleCreate();
+   //(void) hypre_h;
 
    bm::ConsoleReporter CR;
    if (Mpi::Root()) { bm::RunSpecifiedBenchmarks(&CR); }
