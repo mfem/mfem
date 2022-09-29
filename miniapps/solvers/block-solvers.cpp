@@ -161,7 +161,7 @@ DarcyProblem::DarcyProblem(MPI_Comm comm, Mesh &mesh, int num_refs, int order,
    gform.AddDomainIntegrator(new DomainLFIntegrator(gcoeff));
    gform.Assemble();
 
-   rhs_.SetSize(u_fes->GetTrueVSize()+p_fes->GetTrueVSize());
+   rhs_.SetSize(offsets_[2]);
    BlockVector blk_rhs(rhs_, offsets_);
    fform.ParallelAssemble(blk_rhs.GetBlock(0));
    gform.ParallelAssemble(blk_rhs.GetBlock(1));
@@ -178,8 +178,8 @@ DarcyProblem::DarcyProblem(MPI_Comm comm, Mesh &mesh, int num_refs, int order,
    Bform_->SpMat() *= -1.0;
    Bform_->Finalize();
 
-   ess_data_.SetSize(u_fes->GetTrueVSize()+p_fes->GetTrueVSize());
-   Vector ess_data_block0(ess_data_.GetData(), u_fes->GetTrueVSize());
+   ess_data_.SetSize(rhs_.Size());
+   Vector ess_data_block0(ess_data_.GetData(), offsets_[1]);
    u_.ParallelProject(ess_data_block0);
 
    int order_quad = max(2, 2*order+1);
