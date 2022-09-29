@@ -442,7 +442,7 @@ void VisItDataCollection::RegisterQField(const std::string& name,
    {
       int locLOD = GlobGeometryRefiner.GetRefinementLevelFromElems(
                       mesh->GetElementBaseGeometry(e),
-                      qf->GetElementIntRule(e).GetNPoints());
+                      qf->GetIntRule(e).GetNPoints());
 
       LOD = std::max(LOD,locLOD);
    }
@@ -1078,7 +1078,7 @@ void ParaViewDataCollection::SaveGFieldVTU(std::ostream &os, int ref_,
          it->second->GetValues(i, RefG->RefPts, val, pmat);
          for (int j = 0; j < val.Size(); j++)
          {
-            WriteBinaryOrASCII(out, buf, val(j), "\n", pv_data_format);
+            WriteBinaryOrASCII(os, buf, val(j), "\n", pv_data_format);
          }
       }
    }
@@ -1094,7 +1094,7 @@ void ParaViewDataCollection::SaveGFieldVTU(std::ostream &os, int ref_,
          {
             for (int ii = 0; ii < vval.Height(); ii++)
             {
-               WriteBinaryOrASCII(out, buf, vval(ii,jj), " ", pv_data_format);
+               WriteBinaryOrASCII(os, buf, vval(ii,jj), " ", pv_data_format);
             }
             if (pv_data_format == VTKFormat::ASCII) { os << '\n'; }
          }

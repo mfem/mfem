@@ -1234,6 +1234,12 @@ public:
       num_iterations = internal::to_int(num_it);
    }
 
+   void GetFinalResidualNorm(double &final_res_norm) const
+   {
+      HYPRE_ParCSRPCGGetFinalRelativeResidualNorm(pcg_solver,
+                                                  &final_res_norm);
+   }
+
    /// The typecast to HYPRE_Solver returns the internal pcg_solver
    virtual operator HYPRE_Solver() const { return pcg_solver; }
 
@@ -1285,6 +1291,19 @@ public:
    /// non-hypre setting
    void SetZeroInitialIterate() { iterative_mode = false; }
 
+   void GetNumIterations(int &num_iterations) const
+   {
+      HYPRE_Int num_it;
+      HYPRE_ParCSRGMRESGetNumIterations(gmres_solver, &num_it);
+      num_iterations = internal::to_int(num_it);
+   }
+
+   void GetFinalResidualNorm(double &final_res_norm) const
+   {
+      HYPRE_ParCSRGMRESGetFinalRelativeResidualNorm(gmres_solver,
+                                                    &final_res_norm);
+   }
+
    /// The typecast to HYPRE_Solver returns the internal gmres_solver
    virtual operator HYPRE_Solver() const  { return gmres_solver; }
 
@@ -1334,6 +1353,19 @@ public:
 
    /// non-hypre setting
    void SetZeroInitialIterate() { iterative_mode = false; }
+
+   void GetNumIterations(int &num_iterations) const
+   {
+      HYPRE_Int num_it;
+      HYPRE_ParCSRFlexGMRESGetNumIterations(fgmres_solver, &num_it);
+      num_iterations = internal::to_int(num_it);
+   }
+
+   void GetFinalResidualNorm(double &final_res_norm) const
+   {
+      HYPRE_ParCSRFlexGMRESGetFinalRelativeResidualNorm(fgmres_solver,
+                                                        &final_res_norm);
+   }
 
    /// The typecast to HYPRE_Solver returns the internal fgmres_solver
    virtual operator HYPRE_Solver() const  { return fgmres_solver; }
@@ -1411,6 +1443,11 @@ public:
 
    virtual void SetOperator(const Operator &op);
 
+   void SetParams(double threshold, int max_levels);
+   void SetFilter(double filter);
+   void SetLoadBal(double loadbal);
+   void SetReuse(int reuse);
+   void SetLogging(int logging);
    void SetSymmetry(int sym);
 
    /// The typecast to HYPRE_Solver returns the internal sai_precond
@@ -1449,6 +1486,12 @@ public:
    HypreEuclid(MPI_Comm comm);
 
    HypreEuclid(const HypreParMatrix &A);
+
+   void SetLevel(int level);
+   void SetStats(int stats);
+   void SetMemory(int mem);
+   void SetBJ(int bj);
+   void SetRowScale(int row_scale);
 
    virtual void SetOperator(const Operator &op);
 
@@ -1500,6 +1543,11 @@ public:
 
    /// Set the fill level for ILU(k); the default is k=1.
    void SetLevelOfFill(HYPRE_Int lev_fill);
+
+   void SetType(HYPRE_Int ilu_type);
+   void SetMaxIter(HYPRE_Int max_iter);
+   void SetTol(HYPRE_Real tol);
+   void SetLocalReordering(HYPRE_Int reorder_type);
 
    /// Set the print level: 0 = none, 1 = setup, 2 = solve, 3 = setup+solve
    void SetPrintLevel(HYPRE_Int print_level);
@@ -1676,7 +1724,7 @@ HypreParMatrix* DiscreteCurl(ParFiniteElementSpace *face_fespace,
 class HypreAMS : public HypreSolver
 {
 private:
-   /// Constuct AMS solver from finite element space
+   /// Construct AMS solver from finite element space
    void Init(ParFiniteElementSpace *edge_space);
 
    /// Create the hypre solver object and set the default options, given the
@@ -1736,7 +1784,7 @@ public:
 class HypreADS : public HypreSolver
 {
 private:
-   /// Constuct ADS solver from finite element space
+   /// Construct ADS solver from finite element space
    void Init(ParFiniteElementSpace *face_fespace);
 
    /// Create the hypre solver object and set the default options, given the
