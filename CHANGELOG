@@ -44,6 +44,8 @@ Discretization improvements
 - Added a new Zienkiewicz-Zhu patch recovery-based a posteriori error estimator.
   See fem/estimators.hpp.
 
+- Fixes and improvements in LinearFormExtension.
+
 Linear and nonlinear solvers
 ----------------------------
 
