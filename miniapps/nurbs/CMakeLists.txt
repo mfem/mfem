@@ -98,3 +98,7 @@ if (MFEM_USE_MPI)
       ${MPIEXEC_POSTFLAGS})
   endif()
 endif()
+
+add_mfem_miniapp(twosquares
+  MAIN twosquares.cpp
+  LIBRARIES mfem)
