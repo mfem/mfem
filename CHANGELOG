@@ -96,6 +96,8 @@ Integrations, testing and documentation
 
 - Added Windows 2022 CI testing with GitHub actions.
 
+- Improved vcpkg caching in GitHub Actions.
+
 Miscellaneous
 -------------
 - Various other simplifications, extensions, and bugfixes in the code.
