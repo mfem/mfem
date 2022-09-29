@@ -16,6 +16,77 @@
 
 namespace mfem
 {
+// Marking operations for elements, faces, dofs, etc, related to shifted
+// boundary and interface methods.
+class ElementMarker{
+public:
+    enum SBElementType {INSIDE = 0, OUTSIDE = 1, CUT = 2};
+
+    enum SBFaceType {UNDEFINED = 0, SURROGATE = 1};
+
+    ///Defines element marker class with options to include the cut elements
+    /// (include_cut=true) or to mark the cut elements as SBElementType::CUT.
+    /// If use_cut=false the marking will use only INSIDE/OUTSIDE marks.
+    /// The last integer argument determines the order of the surrogate H1 field
+    /// for checking if an element is cut by a zero level set of an implicit
+    /// material distribution.
+    ElementMarker(ParMesh& mesh, bool include_cut=false,
+                  bool use_cut=false, int h1_order_=2)
+    {
+        pmesh=&mesh;
+        const int dim=pmesh->SpaceDimension();
+        elfec=new L2_FECollection(0,dim);
+        elfes=new ParFiniteElementSpace(pmesh,elfec,1);
+        elgf.SetSpace(elfes);
+        include_cut_elements=include_cut;
+        use_cut_marks=use_cut;
+
+        h1_order=h1_order_;
+    }
+
+    /// Destructor of the ElementMarker class
+    ~ElementMarker()
+    {
+        delete elfes;
+        delete elfec;
+    }
+
+    /// Mark elements according to the specified level-set
+    /// function.
+    void SetLevelSetFunction(const ParGridFunction& ls_fun);
+
+    /// Mark the elements according to the specified coefficient.
+    void SetLevelSetFunction(Coefficient& ls_fun);
+
+    /// Returns the marking of all the elements
+    /// in the mesh using the @a SBElementType
+    void MarkElements(Array<int> &elem_marker);
+
+    /// Returns the marking of all faces in the
+    /// mesh using  the @a SBFaceType
+    void MarkFaces(Array<int> &face_marker);
+
+    /// Lists all inactive dofs, i.e.,
+    ///  all dofs in the outside region.
+    void ListEssentialTDofs(const Array<int> &elem_marker,
+                            ParFiniteElementSpace &lfes,
+                            Array<int> &ess_tdof_list) const;
+
+
+
+private:
+    ParMesh* pmesh;
+    FiniteElementCollection* elfec;
+    ParFiniteElementSpace* elfes;
+    ParGridFunction elgf;
+
+    bool include_cut_elements;
+    bool use_cut_marks;
+
+    int h1_order; //order of the H1 FE space for level set functions defined by coefficient
+};
+
+
 
 // Marking operations for elements, faces, dofs, etc, related to shifted
 // boundary and interface methods.

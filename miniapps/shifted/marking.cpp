@@ -14,6 +14,286 @@
 namespace mfem
 {
 
+void ElementMarker::SetLevelSetFunction(Coefficient &ls_fun)
+{
+    FiniteElementCollection* fec=new H1_FECollection(h1_order,pmesh->Dimension());
+    ParFiniteElementSpace* pfes_sltn=new ParFiniteElementSpace(pmesh,fec);
+
+    Vector vals;
+    Array<int> vdofs;
+
+    if(use_cut_marks==false){
+    if(include_cut_elements){
+        elgf=(double)(SBElementType::INSIDE);
+        for(int e=0;e<pmesh->GetNE();e++){
+            const IntegrationRule &ir = pfes_sltn->GetFE(e)->GetNodes();
+            {
+                int n = ir.GetNPoints();
+                vals.SetSize(n);
+                ElementTransformation *Tr = pfes_sltn->GetElementTransformation(e);
+                for(int k=0;k<n;k++){
+                    Tr->SetIntPoint(&ir.IntPoint(k));
+                    vals[k]=ls_fun.Eval(*Tr,ir.IntPoint(k));
+                }
+            }
+
+
+            int countp = 0;
+            int countn = 0;
+            for (int j = 0; j < ir.GetNPoints(); j++){
+                if (vals(j)>0.0) { countp++; }
+                else{countn++;}
+            }
+            if (countn == ir.GetNPoints()) // completely outside
+            {
+                elfes->GetElementVDofs(e,vdofs);
+                elgf[vdofs[0]] = SBElementType::OUTSIDE;
+            }
+        }
+    }else{//DEFAULT - do not include cuts
+        elgf=(double)(SBElementType::OUTSIDE);
+        for(int e=0;e<pmesh->GetNE();e++){
+            const IntegrationRule &ir = pfes_sltn->GetFE(e)->GetNodes();
+            {
+                int n = ir.GetNPoints();
+                vals.SetSize(n);
+                ElementTransformation *Tr = pfes_sltn->GetElementTransformation(e);
+                for(int k=0;k<n;k++){
+                    Tr->SetIntPoint(&ir.IntPoint(k));
+                    vals[k]=ls_fun.Eval(*Tr,ir.IntPoint(k));
+                }
+            }
+
+            int countp = 0;
+            int countn = 0;
+            for (int j = 0; j < ir.GetNPoints(); j++){
+                if (vals(j)>0.0) { countp++; }
+                else{countn++;}
+            }
+            if (countp == ir.GetNPoints()) // completely inside
+            {
+                elfes->GetElementVDofs(e,vdofs);
+                elgf[vdofs[0]] = SBElementType::INSIDE;
+            }
+        }
+    }}else{// use CUT mark
+        elgf=(double)(SBElementType::INSIDE);
+        for(int e=0;e<pmesh->GetNE();e++){
+            const IntegrationRule &ir = pfes_sltn->GetFE(e)->GetNodes();
+            {
+                int n = ir.GetNPoints();
+                vals.SetSize(n);
+                ElementTransformation *Tr = pfes_sltn->GetElementTransformation(e);
+                for(int k=0;k<n;k++){
+                    Tr->SetIntPoint(&ir.IntPoint(k));
+                    vals[k]=ls_fun.Eval(*Tr,ir.IntPoint(k));
+                }
+            }
+
+            int countp = 0;
+            int countn = 0;
+            for (int j = 0; j < ir.GetNPoints(); j++){
+                if (vals(j)>0) {countp++;}
+                else {countn++;}
+            }
+            if (countn == ir.GetNPoints()) // completely outside
+            {
+                elfes->GetElementVDofs(e,vdofs);
+                elgf[vdofs[0]] = SBElementType::OUTSIDE;
+            }else
+            if ((countp>0)&&(countn>0))
+            {
+                elfes->GetElementVDofs(e,vdofs);
+                elgf[vdofs[0]] = SBElementType::CUT;
+            }
+        }
+    }
+    elgf.ExchangeFaceNbrData();
+
+    delete pfes_sltn;
+    delete fec;
+
+}
+
+void ElementMarker::SetLevelSetFunction(const ParGridFunction &ls_fun)
+{
+    ParFiniteElementSpace* pfes_sltn=ls_fun.ParFESpace();
+    Vector vals;
+    Array<int> vdofs;
+
+    if(use_cut_marks==false){
+    if(include_cut_elements){
+        elgf=(double)(SBElementType::INSIDE);
+        for(int e=0;e<pmesh->GetNE();e++){
+            const IntegrationRule &ir = pfes_sltn->GetFE(e)->GetNodes();
+            ls_fun.GetValues(e, ir, vals);
+            int countn = 0;
+            for (int j = 0; j < ir.GetNPoints(); j++){
+                if (vals(j)>0.0) {}
+                else{ countn++; }
+            }
+            if (countn == ir.GetNPoints()) // completely outside
+            {
+                elfes->GetElementVDofs(e,vdofs);
+                elgf[vdofs[0]] = SBElementType::OUTSIDE;
+            }
+        }
+    }else{//DEFAULT - do not include cuts
+        elgf=(double)(SBElementType::OUTSIDE);
+        for(int e=0;e<pmesh->GetNE();e++){
+            const IntegrationRule &ir = pfes_sltn->GetFE(e)->GetNodes();
+            ls_fun.GetValues(e, ir, vals);
+            int countp = 0;
+            for (int j = 0; j < ir.GetNPoints(); j++){
+                if (vals(j)>0.0) { countp++; }
+            }
+            if (countp == ir.GetNPoints()) // completely inside
+            {
+                elfes->GetElementVDofs(e,vdofs);
+                elgf[vdofs[0]] = SBElementType::INSIDE;
+            }
+        }
+    }}else{//use CUT marks
+        elgf=(double)(SBElementType::INSIDE);
+        for(int e=0;e<pmesh->GetNE();e++){
+            const IntegrationRule &ir = pfes_sltn->GetFE(e)->GetNodes();
+            ls_fun.GetValues(e, ir, vals);
+            int countp = 0;
+            int countn = 0;
+            for (int j = 0; j < ir.GetNPoints(); j++){
+                if (vals(j)>0) {countp++;}
+                else {countn++;}
+            }
+            if (countn == ir.GetNPoints()) // completely outside
+            {
+                elfes->GetElementVDofs(e,vdofs);
+                elgf[vdofs[0]] = SBElementType::OUTSIDE;
+            }else
+            if ((countp>0)&&(countn>0))
+            {
+                elfes->GetElementVDofs(e,vdofs);
+                elgf[vdofs[0]] = SBElementType::CUT;
+            }
+        }
+    }
+    elgf.ExchangeFaceNbrData();
+}
+
+void ElementMarker::MarkElements(Array<int> &elem_marker)
+{
+    elem_marker.SetSize(pmesh->GetNE());
+    for(int e=0;e<pmesh->GetNE();e++)
+    {
+        ElementTransformation* tr=elfes->GetElementTransformation(e);
+        IntegrationPoint ip; ip.Init(0);
+        elem_marker[e] = elgf.GetValue(*tr, ip);
+    }
+}
+
+void ElementMarker::MarkFaces(Array<int> &face_marker)
+{
+    face_marker.SetSize(pmesh->GetNumFaces());
+    face_marker=SBFaceType::UNDEFINED;
+    IntegrationPoint ip; ip.Init(0);
+
+    if(include_cut_elements==true){
+        for(int f=0;f<pmesh->GetNumFaces();f++){
+            auto *ft = pmesh->GetFaceElementTransformations(f, 3);
+            if (ft->Elem2No < 0) { continue; } //do not mark boundary faces
+            const int attr1 = elgf.GetValue(*ft->Elem1,ip);
+            const int attr2 = elgf.GetValue(*ft->Elem2,ip);
+            if((attr1==SBElementType::OUTSIDE)||(attr2==SBElementType::OUTSIDE)){
+                if(attr1!=attr2){
+                    face_marker[f]=SBFaceType::SURROGATE;
+                }
+            }
+        }
+    }else{
+        for(int f=0;f<pmesh->GetNumFaces();f++){
+            auto *ft = pmesh->GetFaceElementTransformations(f, 3);
+            if (ft->Elem2No < 0) { continue; } //do not mark boundary faces
+            const int attr1 = elgf.GetValue(*ft->Elem1,ip);
+            const int attr2 = elgf.GetValue(*ft->Elem2,ip);
+            if((attr1==SBElementType::INSIDE)||(attr2==SBElementType::INSIDE)){
+                if(attr1!=attr2){
+                    face_marker[f]=SBFaceType::SURROGATE;
+                }
+            }
+        }
+    }
+
+    elgf.ExchangeFaceNbrData();
+    if(include_cut_elements==true){
+        for (int f = 0; f < pmesh->GetNSharedFaces(); f++)
+        {
+            auto *ftr = pmesh->GetSharedFaceTransformations(f, true);
+            const int attr1 = elgf.GetValue(*ftr->Elem1, ip);
+            const int attr2 = elgf.GetValue(*ftr->Elem2, ip);
+            int faceno = pmesh->GetSharedFace(f);
+            if((attr1==SBElementType::OUTSIDE)||(attr2==SBElementType::OUTSIDE)){
+                if(attr1!=attr2){
+                    face_marker[faceno]=SBFaceType::SURROGATE;
+                }
+            }
+        }
+    }else{
+        for (int f = 0; f < pmesh->GetNSharedFaces(); f++)
+        {
+            auto *ftr = pmesh->GetSharedFaceTransformations(f, true);
+            const int attr1 = elgf.GetValue(*ftr->Elem1, ip);
+            const int attr2 = elgf.GetValue(*ftr->Elem2, ip);
+            int faceno = pmesh->GetSharedFace(f);
+            if((attr1==SBElementType::INSIDE)||(attr2==SBElementType::INSIDE)){
+                if(attr1!=attr2){
+                    face_marker[faceno]=SBFaceType::SURROGATE;
+                }
+            }
+        }
+
+    }
+}
+
+void ElementMarker::ListEssentialTDofs(const Array<int> &elem_marker,
+                                       ParFiniteElementSpace &lfes,
+                                       Array<int> &ess_tdof_list) const
+{
+    Array<int> dofs;
+
+    mfem::Vector vvdof; vvdof.SetSize(lfes.GetVSize()); vvdof=0.0;
+
+    for(int i=0;i<lfes.GetNE();i++)
+    {
+        if(elem_marker[i]==SBElementType::INSIDE){
+            lfes.GetElementVDofs(i,dofs);
+            for(int j=0;j<dofs.Size();j++){
+                vvdof[dofs[j]]=1.0;
+            }
+        }
+
+        if(include_cut_elements==true){
+            if(elem_marker[i]==SBElementType::CUT){
+                lfes.GetElementVDofs(i,dofs);
+                for(int j=0;j<dofs.Size();j++){
+                    vvdof[dofs[j]]=1.0;
+                }
+            }
+        }
+    }
+
+    Array<int> tdof_mark; tdof_mark.SetSize(lfes.GetTrueVSize());
+    Vector vtdof; vtdof.SetSize(lfes.GetTrueVSize()); vtdof=0.0;
+    lfes.GetProlongationMatrix()->MultTranspose(vvdof,vtdof);
+    for(int i=0;i<vtdof.Size();i++){
+        if(vtdof[i]<1.0){tdof_mark[i]=1;}
+        else{tdof_mark[i]=0;}
+    }
+
+    lfes.MarkerToList(tdof_mark, ess_tdof_list);
+}
+
+
+
+
 void ShiftedFaceMarker::MarkElements(const ParGridFunction &ls_func,
                                      Array<int> &elem_marker)
 {
