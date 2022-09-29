@@ -201,7 +201,8 @@ jobs:
     - name: prepare binary cache location
       if: matrix.os == 'windows-latest' && steps.vcpkg-cache.outputs.cache-hit != 'true'
       run: |
-        if not exist vcpkg_cache mkdir vcpkg_cache
+        $FolderName = "${{ github.workspace }}\vcpkg_cache"
+        if (!(Test-Path $FolderName -PathType Container)) { New-Item $FolderName -ItemType Directory }
 
     # For Windows package manager, we use a manifest file.
     # It is convenient to hash that file for changes in the cache key.
