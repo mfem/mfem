@@ -256,6 +256,7 @@ class BlockHybridizationSolver : public DarcySolver
    Array<int> hat_offsets, data_offsets, ipiv_offsets;
    double *data;
    int *ipiv;
+   bool elimination_;
    SparseMatrix *Ct;
    HypreBoomerAMG *M;
    OperatorPtr pH;
@@ -263,7 +264,8 @@ class BlockHybridizationSolver : public DarcySolver
 public:
    BlockHybridizationSolver(const std::shared_ptr<ParBilinearForm> &a,
                             const std::shared_ptr<ParMixedBilinearForm> &b,
-                            const IterSolveParameters &param);
+                            const IterSolveParameters &param,
+                            const Array<int> &ess_bdr_attr);
    ~BlockHybridizationSolver();
    virtual void Mult(const Vector &x, Vector &y) const;
    virtual void SetOperator(const Operator &op) { }

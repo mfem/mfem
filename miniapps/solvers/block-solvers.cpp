@@ -317,6 +317,7 @@ int main(int argc, char *argv[])
 
    Array<int> ess_bdr(mesh->bdr_attributes.Max());
    ess_bdr = 0;
+   ess_bdr[1] = 1;
    if (std::strcmp(ess_bdr_attr_file, ""))
    {
       ifstream ess_bdr_attr_str(ess_bdr_attr_file);
@@ -378,7 +379,7 @@ int main(int argc, char *argv[])
    setup_time[&dfs_cm] = chrono.RealTime();
 
    ResetTimer();
-   BlockHybridizationSolver bh(darcy.GetMform(), darcy.GetBform(), param);
+   BlockHybridizationSolver bh(darcy.GetMform(), darcy.GetBform(), param, ess_bdr);
    bh.SetEliminatedSystems(M_e, B_e, ess_tdof_list);
    setup_time[&bh] = chrono.RealTime();
 

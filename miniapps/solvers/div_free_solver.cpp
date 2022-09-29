@@ -624,9 +624,10 @@ int DivFreeSolver::GetNumIterations() const
 
 BlockHybridizationSolver::BlockHybridizationSolver(const shared_ptr<ParBilinearForm> &a,
                                                    const shared_ptr<ParMixedBilinearForm> &b,
-                                                   const IterSolveParameters &param)
+                                                   const IterSolveParameters &param,
+                                                   const Array<int> &ess_bdr_attr)
    : DarcySolver(a->NumRows(), b->NumRows()), trial_space(*a->ParFESpace()),
-     test_space(*b->TestParFESpace()), solver_(MPI_COMM_WORLD)
+     test_space(*b->TestParFESpace()), elimination_(false), solver_(MPI_COMM_WORLD)
 {
     ParMesh &pmesh(*trial_space.GetParMesh());
 
@@ -641,6 +642,38 @@ BlockHybridizationSolver::BlockHybridizationSolver(const shared_ptr<ParBilinearF
         trial_space.GetElementDofs(i, dofs);
         num_hat_dofs += dofs.Size();
         hat_offsets[i + 1] = num_hat_dofs;
+    }
+
+    for (int attr : ess_bdr_attr)
+    {
+        if (attr)
+        {
+            elimination_ = true;
+            break;
+        }
+    }
+
+    Array<int> hat_dof_marker;
+    if (elimination_)
+    {
+        hat_dof_marker.SetSize(num_hat_dofs);
+        Array<int> ess_dof_marker;
+        trial_space.GetEssentialVDofs(ess_bdr_attr, ess_dof_marker);
+        for (int i = 0; i < pmesh.GetNE(); ++i)
+        {
+            trial_space.GetElementDofs(i, dofs);
+            for (int j = 0; j < dofs.Size(); ++j)
+            {
+                if (dofs[j] < 0)
+                {
+                    hat_dof_marker[hat_offsets[i]+j] = ess_dof_marker[-1-dofs[j]];
+                }
+                else
+                {
+                    hat_dof_marker[hat_offsets[i]+j] = ess_dof_marker[dofs[j]];
+                }
+            }
+        }
     }
 
     DG_Interface_FECollection fec(trial_space.FEColl()->GetOrder(), pmesh.Dimension());
@@ -796,6 +829,28 @@ BlockHybridizationSolver::BlockHybridizationSolver(const shared_ptr<ParBilinearF
             }
         }
 
+        if (elimination_)
+        {
+            for (int j = 0; j < trial_size; ++j)
+            {
+                if (hat_dof_marker[hat_offsets[i] + j])
+                {
+                    for (int k = 0; k < matrix_size; ++k)
+                    {
+                        if (k == j)
+                        {
+                            M(k, k) = 1.0;
+                        }
+                        else
+                        {
+                            M(k, j) = 0.0;
+                            M(j, k) = 0.0;
+                        }
+                    }
+                }
+            }
+        }
+
         LUFactors Minv(data + data_offsets[i], ipiv + ipiv_offsets[i]);
         Minv.Factor(matrix_size);
         DenseMatrix Minv_Ct_local(Ct_local);
@@ -848,7 +903,20 @@ void BlockHybridizationSolver::Mult(const Vector &x, Vector &y) const
     true_offsets[2] = test_space.GetTrueVSize();
     true_offsets.PartialSum();
 
-    BlockVector block_x(x.GetData(), true_offsets);
+    Vector x_e(x);
+    if (elimination_)
+    {
+        BlockVector block_y(y, true_offsets);
+        BlockVector block_x_e(x_e, true_offsets);
+        M_e_->Mult(-1.0, block_y.GetBlock(0), 1.0, block_x_e.GetBlock(0));
+        B_e_->Mult(-1.0, block_y.GetBlock(0), 1.0, block_x_e.GetBlock(1));
+        for (int dof : ess_tdof_list_)
+        {
+            x_e[dof] = y[dof];
+        }
+    }
+
+    BlockVector block_x(x_e.GetData(), true_offsets);
     Vector x0(offsets_[1]);
     R.MultTranspose(block_x.GetBlock(0), x0);
 
