@@ -403,7 +403,7 @@ void KnotVector::Difference(const KnotVector &kv, Vector &diff) const
          s++;
       }
    }
-   
+
 
 }
 
