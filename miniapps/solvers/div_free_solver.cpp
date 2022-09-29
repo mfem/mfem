@@ -686,7 +686,7 @@ BlockHybridizationSolver::BlockHybridizationSolver(const shared_ptr<ParBilinearF
     const int skip_zeros = 1;
     const double eps = 1e-16;
     DenseMatrix elmat;
-    FaceElementTransformations * FTr;
+    FaceElementTransformations *FTr;
     NormalTraceJumpIntegrator c_int;
 
     for (int i = 0; i < pmesh.GetNumFaces(); ++i)

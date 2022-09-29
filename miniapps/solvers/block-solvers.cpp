@@ -91,11 +91,11 @@ class DarcyProblem
    shared_ptr<ParMixedBilinearForm> Bform_;
    VectorFunctionCoefficient ucoeff_;
    FunctionCoefficient pcoeff_;
-   const Array<int>& ess_bdr_;
+   const Array<int> &ess_bdr_;
    DFSSpaces dfs_spaces_;
    const IntegrationRule *irs_[Geometry::NumGeom];
 
-   void Distribute(const Vector& x);
+   void Distribute(const Vector &x);
 public:
    DarcyProblem(MPI_Comm comm, Mesh &mesh, int num_refines, int order,
                 const char *coef_file, Array<int> &ess_bdr, DFSParameters param);
@@ -109,11 +109,11 @@ public:
    void ShowError(const Vector &sol, bool verbose);
    void VisualizeSolution(const Vector &sol, string tag);
 
-   const Vector& GetRHS() const { return rhs_; }
-   const Vector& GetEssentialBC() const { return ess_data_; }
+   const Vector &GetRHS() const { return rhs_; }
+   const Vector &GetEssentialBC() const { return ess_data_; }
    shared_ptr<ParBilinearForm> GetMform() const { return Mform_; }
    shared_ptr<ParMixedBilinearForm> GetBform() const { return Bform_; }
-   const DFSData& GetDFSData() const { return dfs_spaces_.GetDFSData(); }
+   const DFSData &GetDFSData() const { return dfs_spaces_.GetDFSData(); }
 };
 
 DarcyProblem::DarcyProblem(MPI_Comm comm, Mesh &mesh, int num_refs, int order,
@@ -173,7 +173,7 @@ DarcyProblem::DarcyProblem(MPI_Comm comm, Mesh &mesh, int num_refs, int order,
    Mform_->Finalize();
 
    Bform_ = make_shared<ParMixedBilinearForm>(u_fes, p_fes);
-   Bform_->AddDomainIntegrator(new VectorFEDivergenceIntegrator);
+   Bform_->AddDomainIntegrator(new VectorFEDivergenceIntegrator());
    Bform_->Assemble();
    Bform_->SpMat() *= -1.0;
    Bform_->Finalize();
@@ -426,7 +426,7 @@ int main(int argc, char *argv[])
    return 0;
 }
 
-void u_exact(const Vector & x, Vector & u)
+void u_exact(const Vector &x, Vector &u)
 {
    double xi(x(0));
    double yi(x(1));
@@ -440,7 +440,7 @@ void u_exact(const Vector & x, Vector & u)
    }
 }
 
-double p_exact(const Vector & x)
+double p_exact(const Vector &x)
 {
    double xi(x(0));
    double yi(x(1));
@@ -448,12 +448,12 @@ double p_exact(const Vector & x)
    return exp(xi)*sin(yi)*cos(zi);
 }
 
-void f_exact(const Vector & x, Vector & f)
+void f_exact(const Vector &x, Vector &f)
 {
    f = 0.0;
 }
 
-double g_exact(const Vector & x)
+double g_exact(const Vector &x)
 {
    if (x.Size() == 3) { return -p_exact(x); }
    return 0;
@@ -461,5 +461,5 @@ double g_exact(const Vector & x)
 
 double natural_bc(const Vector & x)
 {
-   return (-p_exact(x));
+   return -p_exact(x);
 }
