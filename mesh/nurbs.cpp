@@ -403,8 +403,6 @@ void KnotVector::Difference(const KnotVector &kv, Vector &diff) const
          s++;
       }
    }
-
-
 }
 
 void NURBSPatch::init(int dim_)
