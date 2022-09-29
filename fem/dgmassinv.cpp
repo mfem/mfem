@@ -331,6 +331,7 @@ void DGMassInverse::Mult(const Vector &Mu, Vector &u) const
       {
          case 0x11: return DGMassCGIteration<2,1,1>(Mu, u);
          case 0x22: return DGMassCGIteration<2,2,2>(Mu, u);
+         case 0x23: return DGMassCGIteration<2,2,3>(Mu, u);
          case 0x33: return DGMassCGIteration<2,3,3>(Mu, u);
          case 0x35: return DGMassCGIteration<2,3,5>(Mu, u);
          case 0x44: return DGMassCGIteration<2,4,4>(Mu, u);
