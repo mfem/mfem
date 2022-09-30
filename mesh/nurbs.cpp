@@ -1523,6 +1523,7 @@ NURBSExtension::NURBSExtension(std::istream &input)
 
    // periodic
    ConnectBoundaries();
+   KVRed2Ext();
 }
 
 NURBSExtension::NURBSExtension(NURBSExtension *parent, int newOrder)
@@ -2255,13 +2256,13 @@ void NURBSExtension::CheckKVDirection(int p, Array <int> &kvdir)
       }
    }
 
+   // Third direction: only for 3D
    if (Dimension() == 3)
    {
       for (int i = 0; i < edges.Size(); i++)
       {
          patchTopo->GetEdgeVertices(edges[i], edgevert);
-
-         // Third side: only valid for 3D
+         
          if (edgevert[0] == patchvert[0]  && edgevert[1] == patchvert[4])
          {
             kvdir[2] = 1;
@@ -2276,7 +2277,38 @@ void NURBSExtension::CheckKVDirection(int p, Array <int> &kvdir)
 
    // Verify that all knotvectors have been given a direction.
    MFEM_ASSERT(kvdir.Find(0) == -1, "Could not find direction of knotvector.")
+}
 
+void NURBSExtension::KV2KVExt()
+{
+   Array<int> e(Dimension());
+   Array<int> edges, orient, kvdir;
+
+   if (Dimension() == 2)
+   {
+      e[0] = 0;
+      e[1] = 1;
+   }
+   else if (Dimension() == 3)
+   {
+      e[0] = 0;
+      e[1] = 3;
+      e[2] = 8;
+   }
+
+   // Create extended set of knotvectors based on direction of the knotvector.
+   knotVectorsExt.SetSize(GetNP()*Dimension());
+   for (int p = 0; p < GetNP(); p++)
+   {
+      CheckKVDirection(p, kvdir);
+      patchTopo->GetElementEdges(p, edges, orient);
+
+      for (int i = 0; i < Dimension(); i++)
+      {
+         knotVectorsExt[Dimension()*p+i] = new KnotVector(*(KnotVec(edges[e[i]])));
+         if (kvdir[i] == -1) {knotVectorsExt[Dimension()*p+i]->Flip();}
+      }
+   }
 }
 
 void NURBSExtension::GetPatchKnotVectors(int p, Array<KnotVector *> &kv)
