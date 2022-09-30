@@ -2310,6 +2310,8 @@ void NURBSExtension::KV2KVExt()
          if (kvdir[i] == -1) {knotVectorsExt[Dimension()*p+i]->Flip();}
       }
    }
+
+   MFEM_ASSERT(EqualKVKVExt(), "Mismatch in KnotVectors")
 }
 
 void NURBSExtension::KVExt2KV()
@@ -2375,6 +2377,8 @@ void NURBSExtension::KVExt2KV()
          }
       }
    }
+
+   MFEM_ASSERT(EqualKVKVExt(), "Mismatch in KnotVectors")
 }
 
 
