@@ -55,8 +55,8 @@ void SysOperator::Mult(const Vector &psi, Vector &y) const {
   int iprint = 0;
   set<int> plasma_inds;
   compute_plasma_points(x, *mesh, vertex_map, plasma_inds, ind_min, ind_max, min_val, max_val, iprint);
-  max_val = 1.0;
-  min_val = 0.0;
+  // max_val = 1.0;
+  // min_val = 0.0;
   NonlinearGridCoefficient nlgcoeff1(model, 1, &x, min_val, max_val, plasma_inds, attr_lim);
   if ((iprint) || (false)) {
     printf(" min_val: %f, x_val: %f \n", min_val, max_val);
@@ -104,8 +104,8 @@ Operator &SysOperator::GetGradient(const Vector &psi) const {
   int iprint = 0;
   set<int> plasma_inds;
   compute_plasma_points(x, *mesh, vertex_map, plasma_inds, ind_min, ind_max, min_val, max_val, iprint);
-  max_val = 1.0;
-  min_val = 0.0;
+  // max_val = 1.0;
+  // min_val = 0.0;
   if ((iprint) || (false)) {
     printf(" min_val: %f, x_val: %f \n", min_val, max_val);
     printf(" ind_min: %d, ind_x: %d \n", ind_min, ind_max);
@@ -138,10 +138,36 @@ Operator &SysOperator::GetGradient(const Vector &psi) const {
 
   // create a new sparse matrix, Mat, that will combine all terms
   int m = fespace->GetTrueVSize();
+
+  
+
+  // const FiniteElement *FElem = fespace->GetFE(ind_max);
+  // const IntegrationRule *ElemVert =
+  //   Geometries.GetVertices(FElem->GetGeomType());
+  // int dof = FElem->GetDof();
+  // int n = ElemVert->GetNPoints();
+  // Vector shape(dof);
+  // for (int k = 0; k < n; ++k) {
+  //   FElem->CalcShape(ElemVert->IntPoint(k), shape);
+  //   // shape.Print();
+  // }
+  
+
+  // figure out coefficient of ind_max
+  // vector<int> vec = vertex_map.at(ind_max);
+  // for (int k = 0; k < vec.size(); ++k) {
+  //   printf("%d \n", vec[k]);
+  // }
+
+  // 
   Mat = new SparseMatrix(m, m);
   for (int k = 0; k < m; ++k) {
-    Mat->Add(k, ind_max, 0.0*diff_plasma_term_3[k]);
-    Mat->Add(k, ind_min, 0.0*diff_plasma_term_4[k]);
+    // if (diff_plasma_term_3[k] != 0.0) {
+    //   printf("%d, %.3e, %.3e\n", k, diff_plasma_term_3[k], diff_plasma_term_4[k]);
+    // }
+    Mat->Add(k, ind_min, -diff_plasma_term_3[k]);
+    Mat->Add(k, ind_max, -diff_plasma_term_4[k]);
+    // note, when no saddles are found, derivative is different?
   }
   Mat->Finalize();
 

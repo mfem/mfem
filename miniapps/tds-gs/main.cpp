@@ -105,6 +105,41 @@ SparseMatrix* test_grad(SysOperator *op, Vector & x, FiniteElementSpace *fespace
   
 }
 
+void PrintMatlab(SparseMatrix *Mat, SparseMatrix *M1, SparseMatrix *M2) {
+
+  int *I = Mat->GetI();
+  int *J = Mat->GetJ();
+  double *A = Mat->GetData();
+  int height = Mat->Height();
+
+  double tol = 1e-5;
+  
+  int i, j;
+  for (i = 0; i < height; ++i) {
+    for (j = I[i]; j < I[i+1]; ++j) {
+      if (A[j] > tol) {
+        double m1 = 0.0;
+        double m2 = 0.0;
+        for (int k = M1->GetI()[i]; k < M1->GetI()[i+1]; ++k) {
+          // printf("%d, %d, %d \n", k, M1->GetJ()[k], J[j]);
+          if (M1->GetJ()[k] == J[j]) {
+            m1 = M1->GetData()[k];
+            break;
+          }
+        }
+        for (int k = M2->GetI()[i]; k < M2->GetI()[i+1]; ++k) {
+          if (M2->GetJ()[k] == J[j]) {
+            m2 = M2->GetData()[k];
+            break;
+          }
+        }
+        
+        
+        printf("i=%d, j=%d, J=%10.3e, FD=%10.3e, diff=%10.3e \n", i, J[j], m1, m2, A[j]);
+      }
+    }
+  }
+}
 
 
 int main(int argc, char *argv[])
@@ -344,11 +379,11 @@ int main(int argc, char *argv[])
 
      if (i == 0) {
        // printf("\n\n********************************\n");
-       printf("i: %3d, max error: %.3e\n", i, error);
+       printf("i: %3d, max residual: %.3e\n", i, error);
        // printf("********************************\n\n");
      } else {
        // printf("\n\n********************************\n");
-       printf("i: %3d, max error: %.3e, ratio %.3e\n", i, error, error_old / error);
+       printf("i: %3d, max residual: %.3e, ratio %.3e\n", i, error, error_old / error);
        // printf("********************************\n\n");
      }
      error_old = error;
@@ -382,16 +417,17 @@ int main(int argc, char *argv[])
 
      if (i == -1) {
        SparseMatrix *Compare = test_grad(&op, x, &fespace);
-       Mat->PrintMatlab();
-       Compare->PrintMatlab();
+       // Mat->PrintMatlab();
+       // Compare->PrintMatlab();
        
        SparseMatrix *Result;
        Result = Add(1.0, *Mat, -1.0, *Compare);
-       Result->PrintMatlab();
+       PrintMatlab(Result, Mat, Compare);
+       // Result->PrintMatlab();
      }
 
      
-     double tol = 1e-12;
+     double tol = 1e-14;
      max_iter = 1000;
      GSSmoother M(*Mat);
      GMRES(*Mat, dx, out_vec, M, max_iter, kdim, tol, 0.0, 0);
@@ -407,7 +443,7 @@ int main(int argc, char *argv[])
    op.Mult(x, out_vec);
    error = GetMaxError(out_vec);
    printf("\n\n********************************\n");
-   printf("final max error: %.3e, ratio %.3e\n", error, error_old / error);
+   printf("final max residual: %.3e, ratio %.3e\n", error, error_old / error);
    printf("********************************\n\n");
 
    GridFunction diff(&fespace);
