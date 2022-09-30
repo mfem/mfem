@@ -3438,7 +3438,7 @@ void NURBSExtension::KnotInsert(Array<Vector *> &kv)
       }
       patches[p]->KnotInsert(pkvc);
 
-      for (int i = 0; i < Dimension(); i++){ delete pkvc[i]; }
+      for (int i = 0; i < Dimension(); i++) { delete pkvc[i]; }
    }
 }
 
