@@ -26,8 +26,9 @@ private:
   double z0;
   double k;
   PlasmaModel model;
+  Vector *coil_current;
 public:
-  ExactForcingCoefficient(double r0_, double z0_, double k_, PlasmaModel model_) : r0(r0_), z0(z0_), k(k_), model(model_) { }
+  ExactForcingCoefficient(double r0_, double z0_, double k_, PlasmaModel model_, Vector *coil_current_) : r0(r0_), z0(z0_), k(k_), model(model_), coil_current(coil_current_) { }
   virtual double Eval(ElementTransformation &T, const IntegrationPoint &ip);
   virtual ~ExactForcingCoefficient() { }
 };

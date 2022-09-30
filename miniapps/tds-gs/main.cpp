@@ -167,7 +167,7 @@ int main(int argc, char *argv[])
    map<int, double> coil_current_values;
    // 832 is the long current
    coil_current_values[832] = 0.0;
-   coil_current_values[833] = 1.0;
+   coil_current_values[833] = 3.0;
    coil_current_values[834] = 1.0;
    coil_current_values[835] = 1.0;
    coil_current_values[836] = 1.0;
@@ -250,7 +250,7 @@ int main(int argc, char *argv[])
      }
    }
    PWConstCoefficient coil_current_pw(coil_current);
-   if (false) {
+   if (true) {
      coil_term.AddDomainIntegrator(new DomainLFIntegrator(coil_current_pw));
    }
 
@@ -259,7 +259,7 @@ int main(int argc, char *argv[])
    double z0_ = 0.0;
    double L_ = 0.35;
    double k_ = M_PI/(2.0*L_);
-   ExactForcingCoefficient exact_forcing_coeff(r0_, z0_, k_, model);
+   ExactForcingCoefficient exact_forcing_coeff(r0_, z0_, k_, model, &coil_current);
    if (true) {
      coil_term.AddDomainIntegrator(new DomainLFIntegrator(exact_forcing_coeff));
    }

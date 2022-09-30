@@ -85,6 +85,7 @@ double ExactForcingCoefficient::Eval(ElementTransformation & T,
      ans -= model.S_ff_prime(psi_N) / (r * mu);
    }
 
+   ans -= (*coil_current)(T.Attribute - 1);
    if ((T.Attribute > 832) && (T.Attribute <= 838)){
      // coil region
      // TODO, handle this better...
