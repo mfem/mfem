@@ -36,6 +36,7 @@
 #include <fstream>
 #include <random>
 #include "common/fpde.hpp"
+#include "../entropy/H1_box_projection.hpp"
 
 using namespace std;
 using namespace mfem;
@@ -155,6 +156,7 @@ int main(int argc, char *argv[])
    double K_min = 1e-3;
    int prob = 0;
    int batch_size_min = 2;
+   bool BoxH1proj = false;
 
    OptionsParser args(argc, argv);
    args.AddOption(&ref_levels, "-r", "--refine",
@@ -185,6 +187,9 @@ int main(int argc, char *argv[])
                   "Maximum of diffusion diffusion coefficient.");
    args.AddOption(&K_min, "-Kmin", "--K-min",
                   "Minimum of diffusion diffusion coefficient.");
+   args.AddOption(&BoxH1proj, "-boxH1projection", "--boxH1projection", "-no-boxH1projection",
+                  "--no-boxH1projection",
+                  "Enable or disable Box H1 Projection.");                  
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -273,7 +278,7 @@ int main(int argc, char *argv[])
    ParGridFunction K(&control_fes);
    ParGridFunction K_old(&control_fes);
    u = 0.0;
-   K = 0.5;
+   K = (K_min + K_max)*0.5;
    K_old = 0.0;
 
    // 8. Set up the linear form b(.) for the state and adjoint equations.
@@ -349,18 +354,38 @@ int main(int argc, char *argv[])
    paraview_dc.Save();
 
    // Project initial K onto constraint set.
-   for (int i = 0; i < K.Size(); i++)
+   GridFunctionCoefficient kgf(&K);
+   GradientGridFunctionCoefficient grad_kgf(&K);
+   BoxProjection * proj = nullptr;
+   if (BoxH1proj)
    {
-      if (K[i] > K_max) 
+      proj = new BoxProjection(&pmesh,order,&kgf, &grad_kgf,true);
+      proj->SetBoxBounds(K_min, K_max);
+      mfem::out << K.ParFESpace()->FEColl()->GetOrder() << endl;
+      proj->Solve();
+      proj->SetPrintLevel(0);
+      mfem::out << proj->Getp().ParFESpace()->FEColl()->GetOrder() << endl;
+      ExpitGridFunctionCoefficient expit_p(proj->Getp());
+      expit_p.SetBounds(K_min,K_max);
+      K.ProjectCoefficient(expit_p);
+      
+      delete proj;
+   }
+   else
+   {
+      for (int i = 0; i < K.Size(); i++)
       {
-          K[i] = K_max;
-      }
-      else if (K[i] < K_min)
-      {
-          K[i] = K_min;
-      }
-      else
-      { // do nothing
+         if (K[i] > K_max) 
+         {
+             K[i] = K_max;
+         }
+         else if (K[i] < K_min)
+         {
+             K[i] = K_min;
+         }
+         else
+         { // do nothing
+         }
       }
    }
 
@@ -432,18 +457,43 @@ int main(int argc, char *argv[])
          K -= avg_grad;
 
          // K. Project onto constraint set.
-         for (int i = 0; i < K.Size(); i++)
+         GridFunctionCoefficient kgf1(&K);
+         GradientGridFunctionCoefficient grad_kgf1(&K);
+         BoxProjection * proj1 = nullptr;
+         if (BoxH1proj)
          {
-            if (K[i] > K_max) 
+            proj1 = new BoxProjection(&pmesh,order,&kgf, &grad_kgf,true);
+            proj1->SetNewtonStepSize(0.1);
+            proj1->SetBregmanStepSize(0.02);
+            proj1->SetMaxInnerIterations(5);
+            proj1->SetMaxOuterIterations(5);
+            proj1->SetNormWeight(0.0);
+            proj1->SetDiffusionConstant(1.0);
+            proj1->SetPrintLevel(0);
+            proj1->SetBoxBounds(K_min, K_max);
+            mfem::out << K.ParFESpace()->FEColl()->GetOrder() << endl;
+            proj1->Solve();
+            mfem::out << proj1->Getp().ParFESpace()->FEColl()->GetOrder() << endl;
+            ExpitGridFunctionCoefficient expit_p(proj1->Getp());
+            expit_p.SetBounds(K_min,K_max);
+            K.ProjectCoefficient(expit_p);
+            delete proj1;
+         }
+         else
+         {
+            for (int i = 0; i < K.Size(); i++)
             {
-               K[i] = K_max;
-            }
-            else if (K[i] < K_min)
-            {
-               K[i] = K_min;
-            }
-            else
-            { // do nothing
+               if (K[i] > K_max) 
+               {
+                  K[i] = K_max;
+               }
+               else if (K[i] < K_min)
+               {
+                  K[i] = K_min;
+               }
+               else
+               { // do nothing
+               }
             }
          }
 
