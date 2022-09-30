@@ -1457,8 +1457,7 @@ NURBSExtension::NURBSExtension(std::istream &input)
       MFEM_ABORT("invalid section: " << ident);
    }
 
-   knotVectorsExt.SetSize(GetNP()*Dimension());
-   KVExt2KV();
+   KV2KVExt();
 
    SetOrdersFromKnotVectors();
 
@@ -2360,8 +2359,27 @@ void NURBSExtension::KVExt2KV()
          int iun = edges[e[d]];
          int iext = Dimension()*p+d;
 
-         // Check if difference in order
+         // Check if difference in order: we have to check this first, otherwise
+         // KnotVector::Difference might fail as we cannot compare KnotVectors of
+         // different order.
          int diffo = KnotVec(iun)->GetOrder() - knotVectorsExt[iext]->GetOrder();
+
+         if (diffo)
+         {
+            // Check if knotvector is allready updated.
+            MFEM_ASSERT(ifupd[KnotInd(iun)] == 0,
+                        "KnotVector[i] is updated twice. Knotvectors problably not equal.")
+
+            // Update reduced set of knotvectors
+            knotVectors.Size();
+            cout << iext << endl;
+            knotVectorsExt[iext]->Print(cout);
+            *(KnotVec(iun)) = *(knotVectorsExt[iext]);
+            ifupd[KnotInd(iun)] = 1;
+
+            // Give correct direction to unique knotvector. Reduced knotvectors are not flipped.
+            if (kvdir[d] == -1) {KnotVec(iun)->Flip();}
+         }
 
          // Check if difference between knots
          if (kvdir[d])
@@ -2375,7 +2393,7 @@ void NURBSExtension::KVExt2KV()
             knotVectorsExt[iext]->Flip();
          }
 
-         if (diffo || diffknot.Size() > 0)
+         if (diffknot.Size() > 0)
          {
             // Check if knotvector is allready updated.
             MFEM_ASSERT(ifupd[KnotInd(iun)] == 0,
