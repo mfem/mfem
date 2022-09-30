@@ -349,5 +349,5 @@ int main(int argc, char *argv[])
 
    // Actual mesher
    mesher(o1, o2);
-   
+
 }

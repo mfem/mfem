@@ -235,6 +235,8 @@ protected:
    void CheckKVDirection(int p, Array <int> &kvdir);
    // Creates the extended array of KnotVectors
    void KV2KVExt();
+   // Updates the unique set of KnotVectors
+   void KVExt2KV();
    // Checks if the extended array of KnotVectors agrees with
    // the reduced set of KnotVectors. Returns false if it finds
    // a difference.
