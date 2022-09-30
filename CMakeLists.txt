@@ -136,6 +136,8 @@ if (MFEM_USE_CUDA)
        "CUDA flags set for MFEM" FORCE)
    set(CUSPARSE_FOUND TRUE)
    set(CUSPARSE_LIBRARIES "cusparse")
+   set(CUBLAS_FOUND TRUE)
+   set(CUSBLAS_LIBRARIES "cublas")
 endif()
 
 if (XSDK_ENABLE_C)
@@ -475,15 +477,24 @@ if (NOT DEFINED MFEM_TIMER_TYPE)
   endif()
 endif()
 
+# Without this, CMake 3.21.1 (and 3.20.2) run into CMake Errors like the following:
+# CMake Error at config/cmake/modules/MfemCmakeUtilities.cmake:60 (add_library):
+#   Target "mfem" links to target "Threads::Threads" but the target was not
+#   found.  Perhaps a find_package() call is missing for an IMPORTED target, or
+#   an ALIAS target is missing?
+# Call Stack (most recent call first):
+#   CMakeLists.txt:474 (mfem_add_library)
+find_package(Threads REQUIRED)
+
 # List all possible libraries in order of dependencies.
 # [METIS < SuiteSparse]:
 #    With newer versions of SuiteSparse which include METIS header using 64-bit
 #    integers, the METIS header (with 32-bit indices, as used by mfem) needs to
 #    be before SuiteSparse.
-set(MFEM_TPLS OPENMP HYPRE BLAS LAPACK SuperLUDist METIS SuiteSparse SUNDIALS
+set(MFEM_TPLS OPENMP HYPRE LAPACK BLAS SuperLUDist METIS SuiteSparse SUNDIALS
     PETSC SLEPC MESQUITE MUMPS STRUMPACK AXOM FMS CONDUIT Ginkgo GNUTLS GSLIB
     NETCDF MPFR PUMI HIOP POSIXCLOCKS MFEMBacktrace ZLIB OCCA CEED RAJA UMPIRE
-    ADIOS2 CUSPARSE MKL_CPARDISO AMGX CALIPER CODIPACK BENCHMARK PARELAG
+    ADIOS2 CUBLAS CUSPARSE MKL_CPARDISO AMGX CALIPER CODIPACK BENCHMARK PARELAG
     MPI_CXX HIP HIPSPARSE MOONOLITH BLITZ ALGOIM ENZYME)
 
 # Add all *_FOUND libraries in the variable TPL_LIBRARIES.

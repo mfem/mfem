@@ -633,7 +633,7 @@ AlgebraicSpaceHierarchy::AlgebraicSpaceHierarchy(FiniteElementSpace &fes)
    current_order = order;
 
    Ceed ceed = internal::ceed;
-   InitTensorRestriction(fes, ceed, &fine_er);
+   InitRestriction(fes, ceed, &fine_er);
    CeedElemRestriction er = fine_er;
 
    int dim = fes.GetMesh()->Dimension();
@@ -745,7 +745,7 @@ ParAlgebraicCoarseSpace::ParAlgebraicCoarseSpace(
    ldof_group.SetSize(lsize);
    ldof_group = 0;
 
-   GroupTopology &group_topo = gc_fine->GetGroupTopology();
+   const GroupTopology &group_topo = gc_fine->GetGroupTopology();
    gc = new GroupCommunicator(group_topo);
    Table &group_ldof = gc->GroupLDofTable();
    group_ldof.MakeI(group_ldof_fine.Size());
@@ -822,11 +822,11 @@ HypreParMatrix *ParAlgebraicCoarseSpace::GetProlongationHypreParMatrix()
 
    ParMesh *pmesh = dynamic_cast<ParMesh*>(mesh);
    MFEM_VERIFY(pmesh != NULL, "");
-   Array<HYPRE_Int> dof_offsets, tdof_offsets, tdof_nb_offsets;
-   Array<HYPRE_Int> *offsets[2] = {&dof_offsets, &tdof_offsets};
+   Array<HYPRE_BigInt> dof_offsets, tdof_offsets, tdof_nb_offsets;
+   Array<HYPRE_BigInt> *offsets[2] = {&dof_offsets, &tdof_offsets};
    int lsize = P->Height();
    int ltsize = P->Width();
-   HYPRE_Int loc_sizes[2] = {lsize, ltsize};
+   HYPRE_BigInt loc_sizes[2] = {lsize, ltsize};
    pmesh->GenerateOffsets(2, loc_sizes, offsets);
 
    MPI_Comm comm = pmesh->GetComm();
@@ -870,12 +870,12 @@ HypreParMatrix *ParAlgebraicCoarseSpace::GetProlongationHypreParMatrix()
    HYPRE_Int *j_offd = Memory<HYPRE_Int>(lsize-ltsize);
    int offd_counter;
 
-   HYPRE_Int *cmap   = Memory<HYPRE_Int>(lsize-ltsize);
+   HYPRE_BigInt *cmap   = Memory<HYPRE_BigInt>(lsize-ltsize);
 
-   HYPRE_Int *col_starts = tdof_offsets;
-   HYPRE_Int *row_starts = dof_offsets;
+   HYPRE_BigInt *col_starts = tdof_offsets;
+   HYPRE_BigInt *row_starts = dof_offsets;
 
-   Array<Pair<HYPRE_Int, int> > cmap_j_offd(lsize-ltsize);
+   Array<Pair<HYPRE_BigInt, int> > cmap_j_offd(lsize-ltsize);
 
    i_diag[0] = i_offd[0] = 0;
    diag_counter = offd_counter = 0;
@@ -909,7 +909,7 @@ HypreParMatrix *ParAlgebraicCoarseSpace::GetProlongationHypreParMatrix()
       i_offd[i_ldof+1] = offd_counter;
    }
 
-   SortPairs<HYPRE_Int, int>(cmap_j_offd, offd_counter);
+   SortPairs<HYPRE_BigInt, int>(cmap_j_offd, offd_counter);
 
    for (int i = 0; i < offd_counter; i++)
    {
