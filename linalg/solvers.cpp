@@ -722,7 +722,7 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
 {
    NVTX("CG");
 #warning [CGSolver::Mult] MFEM_DEVICE_SYNC
-   static const bool EKS = getenv("EKS") != nullptr;
+   static const bool EKS = true;//getenv("EKS") != nullptr;
    static bool init = true;
    if (init) { if (EKS) {dbg("EKS");} init = false;}
 
@@ -928,12 +928,12 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
       MFEM_ASSERT(IsFinite(den), "den = " << den);
       if (den <= 0.0)
       {
-         assert(false);
          if (Dot(d, d) > 0.0 && print_options.warnings)
          {
             mfem::out << "PCG: The operator is not positive definite. (Ad, d) = "
                       << den << '\n';
          }
+         assert(false);
          if (den == 0.0)
          {
             final_iter = i;

@@ -3969,7 +3969,7 @@ void HypreSolver::Mult(const HypreParVector &b, HypreParVector &x) const
 void HypreSolver::Mult(const Vector &b, Vector &x) const
 {
 #warning [CGSolver::Mult] MFEM_DEVICE_SYNC
-   static const bool EKS = getenv("EKS") != nullptr;
+  static const bool EKS = true;//getenv("EKS") != nullptr;
    static bool init = true;
    if (init) { if (EKS) {dbg("EKS");} init = false;}
 

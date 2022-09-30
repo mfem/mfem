@@ -40,124 +40,11 @@ using curandGenerator_t = void*;
 ////////////////////////////////////////////////////////////////////////////////
 static std::string config_device = "cuda";
 static int config_ndev = 4; // default 4 GPU per node
-static bool config_nxyz = false; // cartesian partitioning in x
 
 static bool config_debug = false;
 static bool config_save = false;
 
 static int config_cg_max_iter = 32;
-
-////////////////////////////////////////////////////////////////////////////////
-namespace kershaw
-{
-
-// 1D transformation at the right boundary.
-double right(const double eps, const double x)
-{
-   return (x <= 0.5) ? (2.-eps) * x : 1. + eps*(x-1.);
-}
-
-// 1D transformation at the left boundary
-double left(const double eps, const double x) { return 1.-right(eps,1.-x); }
-
-// Transition from a value of "a" for x=0, to a value of "b" for x=1.
-// Smoothness is controlled by the parameter "s", taking values 0, 1, or 2.
-double step(const double a, const double b, const double x, const int s)
-{
-   if (x <= 0.) { return a; }
-   if (x >= 1.) { return b; }
-   switch (s)
-   {
-      case 0: return a + (b-a) * (x);
-      case 1: return a + (b-a) * (x*x*(3.-2.*x));
-      case 2: return a + (b-a) * (x*x*x*(x*(6.*x-15.)+10.));
-      default: MFEM_ABORT("Smoothness values: 0, 1, or 2.");
-   }
-   return 0.0;
-}
-
-// 3D version of a generalized Kershaw mesh transformation, see D. Kershaw,
-// "Differencing of the diffusion equation in Lagrangian hydrodynamic codes",
-// JCP, 39:375–395, 1981.
-//
-// The input mesh should be Cartesian nx x ny x nz with nx divisible by 6 and
-// ny, nz divisible by 2.
-//
-// The eps parameters are in (0, 1]. Uniform mesh is recovered for epsy=epsz=1.
-void kershaw(const double epsy, const double epsz, const int smoothness,
-             const double x, const double y, const double z,
-             double &X, double &Y, double &Z)
-{
-   X = x;
-
-   const int layer = 6.0*x;
-   const double lambda = (x-layer/6.0)*6;
-
-   // The x-range is split in 6 layers going from left-to-left, left-to-right,
-   // right-to-left (2 layers), left-to-right and right-to-right yz-faces.
-   switch (layer)
-   {
-      case 0:
-         Y = left(epsy, y);
-         Z = left(epsz, z);
-         break;
-      case 1:
-      case 4:
-         Y = step(left(epsy, y), right(epsy, y), lambda, smoothness);
-         Z = step(left(epsz, z), right(epsz, z), lambda, smoothness);
-         break;
-      case 2:
-         Y = step(right(epsy, y), left(epsy, y), lambda/2.0, smoothness);
-         Z = step(right(epsz, z), left(epsz, z), lambda/2.0, smoothness);
-         break;
-      case 3:
-         Y = step(right(epsy, y), left(epsy, y), (1.0+lambda)/2.0, smoothness);
-         Z = step(right(epsz, z), left(epsz, z), (1.0+lambda)/2.0, smoothness);
-         break;
-      default:
-         Y = right(epsy, y);
-         Z = right(epsz, z);
-         break;
-   }
-}
-
-struct Transformation : VectorCoefficient
-{
-   double epsy, epsz;
-   int dim, s;
-   Transformation(int dim, double epsy, double epsz, int s = 0):
-      VectorCoefficient(dim),
-      epsy(epsy),
-      epsz(epsz),
-      dim(dim),
-      s(s) { }
-
-   using VectorCoefficient::Eval;
-
-   void Eval(Vector &V,
-             ElementTransformation &T,
-             const IntegrationPoint &ip) override
-   {
-      double xyz[3];
-      Vector transip(xyz, 3);
-      T.Transform(ip, transip);
-      if (dim == 1)
-      {
-         V[0] = xyz[0]; // no transformation in 1D
-      }
-      else if (dim == 2)
-      {
-         double z = 0, zt;
-         kershaw(epsy, epsz, s, xyz[0], xyz[1], z, V[0], V[1], zt);
-      }
-      else // dim == 3
-      {
-         kershaw(epsy, epsz, s, xyz[0], xyz[1], xyz[2], V[0], V[1], V[2]);
-      }
-   }
-};
-
-} // namespace kershaw
 
 ////////////////////////////////////////////////////////////////////////////////
 namespace analytics
@@ -194,14 +81,29 @@ double f(const Vector &xvec)
 } // namespace analytics
 
 ////////////////////////////////////////////////////////////////////////////////
+
+Mesh MakeCartesianMesh(int p, int requested_ndof, int dim)
+{
+   const int ne = std::max(1, (int)std::ceil(requested_ndof / pow(p, dim)));
+   const int nx = cbrt(ne);
+   const int ny = sqrt(ne / nx);
+   const int nz = ne / nx / ny;
+   if (Mpi::Root()) { dbg("\033[33mnx:%d ny:%d nz:%d", nx, ny, nz); }
+   return Mesh::MakeCartesian3D(nx, ny, nz, Element::HEXAHEDRON);
+}
+
+ParMesh MakeParCartesianMesh(int p, int requested_ndof, int dim)
+{
+   Mesh mesh = MakeCartesianMesh(p, requested_ndof, dim);
+   return ParMesh(MPI_COMM_WORLD, mesh);
+}
+
+////////////////////////////////////////////////////////////////////////////////
 struct PLOR_Solvers_Bench
 {
    static constexpr int dim = 3;
    const int num_procs, myid;
-   const int p, c;
-   const int n, nx,ny,nz;
-   const bool check_x, check_y, check_z, checked;
-   const double epsilon;
+   const int p;
 
    // Init cuSparse before timings, used in Dof_TrueDof_Matrix
    Nvtx nvtx_cusph = {"cusparseHandle"};
@@ -228,26 +130,6 @@ struct PLOR_Solvers_Bench
    };
    curandGenerator_t curng;
 
-   std::function<ParMesh()> GetCoarseKershawMesh = [&]()
-   {
-      //dbg("nx:%d ny:%d nz:%d epsilon:%f", nx, ny, nz, epsilon);
-      Mesh smesh =
-         Mesh::MakeCartesian3D((config_nxyz?num_procs:1)*nx, ny, nz,
-                               Element::HEXAHEDRON);
-      //#warning NO Kershaw transformation
-      kershaw::Transformation kt(dim, epsilon, epsilon);
-      smesh.Transform(kt);
-      int *partitioning = nullptr;
-      auto GetPartitioning = [&]()
-      {
-         int nxyz[3] = {num_procs,1,1};
-         return config_nxyz ? smesh.CartesianPartitioning(nxyz) : nullptr;
-      };
-      ParMesh pmesh(MPI_COMM_WORLD, smesh, partitioning=GetPartitioning());
-      smesh.Clear();
-      delete partitioning;
-      return pmesh;
-   };
    ParMesh pmesh;
    H1_FECollection fec;
    ParFiniteElementSpace fes;
@@ -270,23 +152,13 @@ struct PLOR_Solvers_Bench
 
    ~PLOR_Solvers_Bench() { delete solv_lor; }
 
-   PLOR_Solvers_Bench(int order, int side, double eps) :
+   PLOR_Solvers_Bench(int order, int requested_ndof) :
       num_procs(Mpi::WorldSize()),
       myid(Mpi::WorldRank()),
       p(order),
-      c(side),
-      n((assert(c>=p), c/p)),
-      nx(n + (p*(n+1)*p*n*p*n < c*c*c ?1:0)),
-      ny(n + (p*(n+1)*p*(n+1)*p*n < c*c*c ?1:0)),
-      nz(n),
-      check_x(p*nx * p*ny * p*nz <= c*c*c),
-      check_y(p*(nx+1) * p*(ny+1) * p*nz > c*c*c),
-      check_z(p*(nx+1) * p*(ny+1) * p*(nz+1) > c*c*c),
-      checked((assert(check_x && check_y && check_z), true)),
-      epsilon(eps),
       cusph(InitCuSparse()),
       curng(InitCuRandNumberGenerator()),
-      pmesh(GetCoarseKershawMesh()),
+      pmesh(MakeParCartesianMesh(p, requested_ndof, dim)),
       fec(p, dim),
       fes(&pmesh, &fec),
       one(1.0),
@@ -297,19 +169,19 @@ struct PLOR_Solvers_Bench
       ndofs(fes.GlobalTrueVSize()), // builds Dof_TrueDof_Matrix
       global_ne(pmesh.GetGlobalNE()),
       cg(MPI_COMM_WORLD),
-      cg_niter(-2)
+      cg_niter(-2) { dbg(); }
 
+   void Setup()
    {
-      x = 0.0;
-      //x.ProjectCoefficient(u_coeff);
+      dbg();
+      x.ProjectCoefficient(u_coeff);
       fes.GetBoundaryTrueDofs(ess_dofs);
 
-      //b.AddDomainIntegrator(new DomainLFIntegrator(f_coeff));
-      b.AddDomainIntegrator(new DomainLFIntegrator(one));
+      b.AddDomainIntegrator(new DomainLFIntegrator(f_coeff));
       b.Assemble();
 
-      //a.AddDomainIntegrator(new MassIntegrator);
-      a.AddDomainIntegrator(new DiffusionIntegrator(one));
+      a.AddDomainIntegrator(new MassIntegrator);
+      a.AddDomainIntegrator(new DiffusionIntegrator);
       a.SetAssemblyLevel(AssemblyLevel::PARTIAL);
 
       /// Overall SETUP
@@ -369,7 +241,6 @@ struct PLOR_Solvers_Bench
 
    void Run()
    {
-      //MFEM_NVTX;
       MFEM_DEVICE_SYNC;
       sw_solve.Start();
       cg.Mult(B,X);
@@ -408,44 +279,40 @@ struct PLOR_Solvers_Bench
 
 };
 
-// [0] The different side sizes
-// When generating tex data, at order 6:
-//    - 144 max for one rank with LORBatch, 3.04862M dofs
-//    - 264 max for one rank with MG*, 18.6096M dofs
-//    - 540 max for 160M dofs, 128 ranks
-#define P_SIDES bm::CreateDenseRange(12,240,6)
+// [0] Requested log_ndof
+#define LOG_NDOFS bm::CreateDenseRange(21,31,1)
 
-// Maximum number of dofs
-#define MAX_NDOFS 8*1024*1024
-//if (plor.dofs > (nranks*MAX_NDOFS)) {state.SkipWithError("MAX_NDOFS");}
+// Maximum number of dofs per rank
+#define MAX_NDOFS 7*1024*1024
 
 // [1] The different orders the tests can run
-#define P_ORDERS bm::CreateDenseRange(1,8,1)
-
-// [2] The different epsilons dividers
-#define P_EPSILONS {1,2,3}
+#define P_ORDERS {6} // bm::CreateDenseRange(1,6,1)
 
 static void pLOR(bm::State &state)
 {
-   const int side = state.range(0);
    const int order = state.range(1);
-   const int epsilon = state.range(2);
-   const double eps = std::floor((1.0/epsilon)*10.0)/10.0;
+   const int log_ndof = state.range(0);
+   const int requested_ndof = pow(2, log_ndof);
 
-   PLOR_Solvers_Bench plor(order, side, eps);
+   PLOR_Solvers_Bench plor(order, requested_ndof);
 
    const int ndofs = plor.ndofs;
    const int nranks = Mpi::WorldSize();
-   //if (ndofs > (nranks*MAX_NDOFS)) { state.SkipWithError("MAX_NDOFS"); }
+
+   dbg("log_ndof:%d order:%d ndofs:%d nranks:%d", log_ndof, order, ndofs, nranks);
+   dbg("%d >? %d", ndofs, nranks*MAX_NDOFS);
+   const bool skip = ndofs > (nranks*MAX_NDOFS);
+   //if (skip) { state.SkipWithError("MAX_NDOFS"); return;}
+
+   plor.Setup();
 
    while (state.KeepRunning()) { plor.Run(); }
 
+   //state.counters["CG"] = bm::Counter(plor.cg_niter);
    state.counters["MPI"] = bm::Counter(nranks);
-   state.counters["NELMs"] = bm::Counter(plor.global_ne);
    state.counters["NDOFs"] = bm::Counter(ndofs);
-   state.counters["P"] = bm::Counter(order);
-   state.counters["CG"] = bm::Counter(plor.cg_niter);
-   state.counters["Eps"] = bm::Counter(epsilon);
+   //state.counters["NELMs"] = bm::Counter(plor.global_ne);
+   state.counters["ORDER"] = bm::Counter(order);
 
    /// OUTER SETUP = OUTER(PA + LOR + AMG)
    const double setup = plor.T_OUTER_ALL_Setup();
@@ -459,7 +326,7 @@ static void pLOR(bm::State &state)
    dbg("\033[%dm[setup:outer] delta %f", setup_delta < 1e-3 ? 32:31, setup_delta);
    state.counters["Setup"] = bm::Counter(setup);
    state.counters["Setup_AMG"] = bm::Counter(setup_amg);
-   //state.counters["Setup_LOR"] = bm::Counter(setup_lor);
+   //state.counters["Setup_LOR"] = bm::Counter(setup_lor); // use the other one below
    state.counters["Setup_HO"] = bm::Counter(setup_pa);
 
    /// OUTER LOR = INNER(LOR + RAP + BC) + eps
@@ -509,7 +376,7 @@ static void pLOR(bm::State &state)
 }
 
 BENCHMARK(pLOR)->Unit(bm::kMillisecond)\
-->ArgsProduct( {P_SIDES, P_ORDERS, P_EPSILONS})->Iterations(2);
+->ArgsProduct( {LOG_NDOFS, P_ORDERS})->Iterations(10);
 
 int main(int argc, char *argv[])
 {
@@ -521,8 +388,7 @@ int main(int argc, char *argv[])
       bmi::FindInContext("device", config_device); // device=cuda
       bmi::FindInContext("debug", config_debug); // debug=true
       bmi::FindInContext("save", config_save);
-      bmi::FindInContext("nxyz", config_nxyz); // nxyz=true
-      bmi::FindInContext("ndev", config_ndev); // ndev=4
+      bmi::FindInContext("ndev", config_ndev); // has to be set to 1 for bsub
       bmi::FindInContext("cgmi", config_cg_max_iter);
    }
    if (bm::ReportUnrecognizedArguments(argc, argv)) { return 1; }
@@ -537,8 +403,8 @@ int main(int argc, char *argv[])
 
    Hypre::Init(); // after device selection
 
-   static hypre_Handle *hypre_h = hypre_HandleCreate();
-   (void) hypre_h;
+   //static hypre_Handle *hypre_h = hypre_HandleCreate();
+   //(void) hypre_h;
 
    bm::ConsoleReporter CR;
    if (Mpi::Root()) { bm::RunSpecifiedBenchmarks(&CR); }
@@ -551,11 +417,7 @@ int main(int argc, char *argv[])
       bm::RunSpecifiedBenchmarks(display_reporter.get(), file_reporter.get());
    }
 
-   // dbg("MPI_Barrier...");
    // MPI_Barrier(MPI_COMM_WORLD);
-   // HYPRE Shutdown
-   // MFEM Device Shutdown => CUDA error: (cudaFree(dptr)) failed with error
-   // bm::Shutdown();
    return 0;
 }
 
