@@ -160,13 +160,6 @@ int main(int argc, char *argv[])
    double gamma = 0.9;
    double mu = 1.0;
    double r0 = 1.0;
-   // double alpha = 5.0;
-   // double beta = 1.5;
-   // double lambda = 1.0;
-   // double gamma = 5.0;
-   // double mu = 1.0;
-   // double r0 = 1.0;
-   
 
    // boundary of far-field
    double rho_gamma = 2.5;
@@ -194,9 +187,6 @@ int main(int argc, char *argv[])
    
    // unit tests
    test();
-   // if (true) {
-   //   return 1;
-   // }
    
    // Read the mesh from the given mesh file, and refine once uniformly.
    Mesh mesh(mesh_file);
@@ -216,9 +206,6 @@ int main(int argc, char *argv[])
    GridFunction psi_init(&fespace);
    psi_init.ProjectCoefficient(init_coeff);
    psi_init.Save("psi_init.gf");
-   // if (true) {
-   //   return 1;
-   // }
    
    // Extract the list of all the boundary DOFs.
    // The r=0 boundary will be marked as dirichlet (psi=0)
@@ -341,25 +328,25 @@ int main(int argc, char *argv[])
    int max_iter = 300;
    double tol = 1e-16;
 
-   // SparseSmoother smoother;
-   Solver* preconditioner = new DSmoother(1);
-   GMRESSolver linear_solver;
-   linear_solver.SetKDim(kdim);
-   linear_solver.SetMaxIter(max_iter);
-   linear_solver.SetRelTol(tol);
-   linear_solver.SetAbsTol(0.0);
-   linear_solver.SetPreconditioner(*preconditioner);
-   // linear_solver.SetPreconditioner(smoother);
+   // // SparseSmoother smoother;
+   // Solver* preconditioner = new DSmoother(1);
+   // GMRESSolver linear_solver;
+   // linear_solver.SetKDim(kdim);
+   // linear_solver.SetMaxIter(max_iter);
+   // linear_solver.SetRelTol(tol);
+   // linear_solver.SetAbsTol(0.0);
+   // linear_solver.SetPreconditioner(*preconditioner);
+   // // linear_solver.SetPreconditioner(smoother);
 
-   NewtonSolver newton_solver;
-   newton_solver.SetSolver(linear_solver);
-   newton_solver.SetOperator(op);
-   newton_solver.SetRelTol(tol);
-   newton_solver.SetAbsTol(0.0);
-   newton_solver.SetMaxIter(20);
-   newton_solver.SetPrintLevel(1); // print Newton iterations
+   // NewtonSolver newton_solver;
+   // newton_solver.SetSolver(linear_solver);
+   // newton_solver.SetOperator(op);
+   // newton_solver.SetRelTol(tol);
+   // newton_solver.SetAbsTol(0.0);
+   // newton_solver.SetMaxIter(20);
+   // newton_solver.SetPrintLevel(1); // print Newton iterations
    
-   Vector zero;
+   // Vector zero;
    // newton_solver.Mult(zero, x);
      
    x = u;
@@ -374,17 +361,11 @@ int main(int argc, char *argv[])
      GridFunction res(&fespace);
      op.Mult(x, res);
      res.Save("res.gf");
-     // ConstantCoefficient zero_(0.0);
-     // error = res.ComputeL2Error(zero_);
 
      if (i == 0) {
-       // printf("\n\n********************************\n");
        printf("i: %3d, max residual: %.3e\n", i, error);
-       // printf("********************************\n\n");
      } else {
-       // printf("\n\n********************************\n");
        printf("i: %3d, max residual: %.3e, ratio %.3e\n", i, error, error_old / error);
-       // printf("********************************\n\n");
      }
      error_old = error;
 
@@ -411,15 +392,13 @@ int main(int argc, char *argv[])
      nlgc2_gf.Save("nlgc2_.gf");
 
      dx = 0.0;
-     // Operator Mat;
-     // Mat = op.GetGradient(x);
      SparseMatrix *Mat = dynamic_cast<SparseMatrix *>(&op.GetGradient(x));
 
      if (i == -1) {
+       // used for debugging jacobian matrix
        SparseMatrix *Compare = test_grad(&op, x, &fespace);
        // Mat->PrintMatlab();
        // Compare->PrintMatlab();
-       
        SparseMatrix *Result;
        Result = Add(1.0, *Mat, -1.0, *Compare);
        PrintMatlab(Result, Mat, Compare);
@@ -432,6 +411,7 @@ int main(int argc, char *argv[])
      GSSmoother M(*Mat);
      GMRES(*Mat, dx, out_vec, M, max_iter, kdim, tol, 0.0, 0);
 
+     // print solver error
      // Mat->Mult(dx, solver_error);
      // add(solver_error, -1.0, out_vec, solver_error);
      // double max_solver_error = GetMaxError(solver_error);
@@ -465,13 +445,6 @@ int main(int argc, char *argv[])
    u.GetSubVector(boundary_dofs, x_exact_sub);
    ofstream myfile_exact ("dof_exact.dat");
    x_exact_sub.Print(myfile_exact, 1000);   
-
-   // Array<int> ess_vdof;
-   // fespace.GetEssentialVDofs(ess_bdr, ess_vdof);
-   // ofstream myfile0 ("vdof.dat"), myfile3("tdof.dat");
-   // // ess_tdof_list.Print(myfile3, 1000);
-   // ess_vdof.Print(myfile0, 1000);   
-   
    
    x.Save("final.gf");
    return 0;
