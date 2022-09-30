@@ -227,6 +227,11 @@ protected:
    void CheckPatches();
    void CheckBdrPatches();
 
+   // Checks the direction of the knotvectors in the patch based on
+   // the patch orientation.
+   void CheckKVDirection(int p, Array <int> &kvdir);
+
+
    void GetPatchKnotVectors   (int p, Array<KnotVector *> &kv);
    void GetPatchKnotVectors   (int p, Array<const KnotVector *> &kv) const;
    void GetBdrPatchKnotVectors(int p, Array<KnotVector *> &kv);

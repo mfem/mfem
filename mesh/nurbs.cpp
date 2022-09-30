@@ -2211,6 +2211,74 @@ void NURBSExtension::CheckBdrPatches()
    }
 }
 
+void NURBSExtension::CheckKVDirection(int p, Array <int> &kvdir)
+{
+   Array<int> patchvert, edges, orient, edgevert;
+
+   // Get Element Vertices
+   patchTopo->GetElementVertices(p, patchvert);
+
+   // Get Element Edges
+   patchTopo->GetElementEdges(p, edges, orient);
+
+   // Match Element vertices to edges (knot direction)
+   kvdir.SetSize(Dimension());
+   kvdir = 0;
+
+   // Compare the vertices of the patches with the vertices of the knotvectors of knot2dge
+   // Based on the match the orientation will be a 1 or a -1
+   // -1: direction is flipped
+   //  1: direction is not  flipped
+   for (int i = 0; i < edges.Size(); i++)
+   {
+      patchTopo->GetEdgeVertices(edges[i], edgevert);
+      // First side
+      if (edgevert[0] == patchvert[0]  && edgevert[1] == patchvert[1])
+      {
+         kvdir[0] = 1;
+      }
+
+      if (edgevert[0] == patchvert[1]  && edgevert[1] == patchvert[0])
+      {
+         kvdir[0] = -1;
+      }
+
+      // Second side
+      if (edgevert[0] == patchvert[1]  && edgevert[1] == patchvert[2])
+      {
+         kvdir[1] = 1;
+      }
+
+      if (edgevert[0] == patchvert[2]  && edgevert[1] == patchvert[1])
+      {
+         kvdir[1] = -1;
+      }
+   }
+
+   if (Dimension() == 3)
+   {
+      for (int i = 0; i < edges.Size(); i++)
+      {
+         patchTopo->GetEdgeVertices(edges[i], edgevert);
+
+         // Third side: only valid for 3D
+         if (edgevert[0] == patchvert[0]  && edgevert[1] == patchvert[4])
+         {
+            kvdir[2] = 1;
+         }
+
+         if (edgevert[0] == patchvert[4]  && edgevert[1] == patchvert[0])
+         {
+            kvdir[2] = -1;
+         }
+      }
+   }
+
+   // Verify that all knotvectors have been given a direction.
+   MFEM_ASSERT(kvdir.Find(0) == -1, "Could not find direction of knotvector.")
+
+}
+
 void NURBSExtension::GetPatchKnotVectors(int p, Array<KnotVector *> &kv)
 {
    Array<int> edges, orient;
