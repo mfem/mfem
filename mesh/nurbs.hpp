@@ -188,7 +188,10 @@ protected:
    Mesh *patchTopo;
    int own_topo;
    Array<int> edge_to_knot;
+   // Set of knotvectors only containing unique knotvectors
    Array<KnotVector *> knotVectors;
+   // Extended set of knotvectors
+   Array<KnotVector *> knotVectorsExt;
    Vector weights;
 
    // periodic BC info:
@@ -230,7 +233,8 @@ protected:
    // Checks the direction of the knotvectors in the patch based on
    // the patch orientation.
    void CheckKVDirection(int p, Array <int> &kvdir);
-
+   // Creates the extended array of KnotVectors
+   void KV2Ext();
 
    void GetPatchKnotVectors   (int p, Array<KnotVector *> &kv);
    void GetPatchKnotVectors   (int p, Array<const KnotVector *> &kv) const;
