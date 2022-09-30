@@ -1523,7 +1523,8 @@ NURBSExtension::NURBSExtension(std::istream &input)
 
    // periodic
    ConnectBoundaries();
-   KVRed2Ext();
+   KV2KVExt();
+   MFEM_ASSERT(EqualKVKVExt(), "Mismatch in KnotVectors")
 }
 
 NURBSExtension::NURBSExtension(NURBSExtension *parent, int newOrder)
@@ -2309,6 +2310,59 @@ void NURBSExtension::KV2KVExt()
          if (kvdir[i] == -1) {knotVectorsExt[Dimension()*p+i]->Flip();}
       }
    }
+}
+
+bool NURBSExtension::EqualKVKVExt()
+{
+   Array<int> edges, orient, kvdir;
+   Vector diff;
+
+   Array<int>e(Dimension());
+
+   if (Dimension() == 2)
+   {
+      e[0] = 0;
+      e[1] = 1;
+   }
+
+   else if (Dimension() == 3)
+   {
+      e[0] = 0;
+      e[1] = 3;
+      e[2] = 8;
+   }
+
+   for (int p = 0; p < GetNP(); p++)
+   {
+      patchTopo->GetElementEdges(p, edges, orient);
+      CheckKVDirection(p, kvdir);
+      for ( int i = 0; i < Dimension(); i++)
+      {
+         // Check if KnotVectors are of equal order
+         int d = KnotVec(edges[e[i]])->GetOrder() - knotVectorsExt[Dimension()*p+i]->GetOrder();
+         if (d)
+         {
+            mfem::out << "\nOrder of knotVectorsExt " << i << " of patch " << p;
+            mfem::out << " does not agree with order of knotVectors " <<
+                      KnotInd(edges[e[i]]) << "\n";
+            return false;
+         }
+
+         // Check if Knotvectors have the same knots
+         if (kvdir[i] == -1) {knotVectorsExt[Dimension()*p+i]->Flip();}
+         KnotVec(edges[e[i]])->Difference(*(knotVectorsExt[Dimension()*p+i]), diff);
+         if (kvdir[i] == -1) {knotVectorsExt[Dimension()*p+i]->Flip();}
+
+         if (diff.Size() > 0)
+         {
+            mfem::out << "\nKnots of knotVectorsExt " << i << " of patch " << p;
+            mfem::out << " do not agree with knots of knotVectors " <<
+                      KnotInd(edges[e[i]]) << "\n";
+            return false;
+         }
+      }
+   }
+   return true;
 }
 
 void NURBSExtension::GetPatchKnotVectors(int p, Array<KnotVector *> &kv)
