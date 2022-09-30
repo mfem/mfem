@@ -373,23 +373,23 @@ int main(int argc, char *argv[])
        break;
      }
 
-     set<int> plasma_inds;
-     map<int, vector<int>> vertex_map;
-     vertex_map = compute_vertex_map(mesh, attr_lim);
-     int ind_min, ind_max;
-     double min_val, max_val;
-     int iprint = 0;
-     compute_plasma_points(x, mesh, vertex_map, plasma_inds, ind_min, ind_max, min_val, max_val, iprint);
-     max_val = 1.0;
-     min_val = 0.0;
-     NonlinearGridCoefficient nlgcoeff1(&model, 1, &x, min_val, max_val, plasma_inds, attr_lim);
-     GridFunction nlgc_gf(&fespace);
-     nlgc_gf.ProjectCoefficient(nlgcoeff1);
-     nlgc_gf.Save("nlgc_.gf");
-     NonlinearGridCoefficient nlgcoeff2(&model, 2, &x, min_val, max_val, plasma_inds, attr_lim);
-     GridFunction nlgc2_gf(&fespace);
-     nlgc2_gf.ProjectCoefficient(nlgcoeff2);
-     nlgc2_gf.Save("nlgc2_.gf");
+     // set<int> plasma_inds;
+     // map<int, vector<int>> vertex_map;
+     // vertex_map = compute_vertex_map(mesh, attr_lim);
+     // int ind_min, ind_max;
+     // double min_val, max_val;
+     // int iprint = 0;
+     // compute_plasma_points(x, mesh, vertex_map, plasma_inds, ind_min, ind_max, min_val, max_val, iprint);
+     // max_val = 1.0;
+     // min_val = 0.0;
+     // NonlinearGridCoefficient nlgcoeff1(&model, 1, &x, min_val, max_val, plasma_inds, attr_lim);
+     // GridFunction nlgc_gf(&fespace);
+     // nlgc_gf.ProjectCoefficient(nlgcoeff1);
+     // nlgc_gf.Save("nlgc_.gf");
+     // NonlinearGridCoefficient nlgcoeff2(&model, 2, &x, min_val, max_val, plasma_inds, attr_lim);
+     // GridFunction nlgc2_gf(&fespace);
+     // nlgc2_gf.ProjectCoefficient(nlgcoeff2);
+     // nlgc2_gf.Save("nlgc2_.gf");
 
      dx = 0.0;
      SparseMatrix *Mat = dynamic_cast<SparseMatrix *>(&op.GetGradient(x));
