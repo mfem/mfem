@@ -2371,9 +2371,6 @@ void NURBSExtension::KVExt2KV()
                         "KnotVector[i] is updated twice. Knotvectors problably not equal.")
 
             // Update reduced set of knotvectors
-            knotVectors.Size();
-            cout << iext << endl;
-            knotVectorsExt[iext]->Print(cout);
             *(KnotVec(iun)) = *(knotVectorsExt[iext]);
             ifupd[KnotInd(iun)] = 1;
 
