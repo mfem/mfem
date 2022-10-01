@@ -12,7 +12,7 @@
 // mpirun -np 4 pdiffusion -o 2 -sref 1 -pref 5 -theta 0.0 -prob 1 
 
 // L-shape AMR runs
-// mpirun -np 4 pdiffusion -o 1 -sref 1 -pref 20 -theta 0.75 -prob 1
+// mpirun -np 4 pdiffusion -o 1 -sref 1 -pref 20 -theta 0.8 -prob 1
 // mpirun -np 4 pdiffusion -o 2 -sref 1 -pref 20 -theta 0.75 -prob 1 -sc
 // mpirun -np 4 pdiffusion -o 3 -sref 1 -pref 20 -theta 0.75 -prob 1 -sc -do 2
 
@@ -135,11 +135,25 @@ int main(int argc, char *argv[])
 
    if (prob == prob_type::lshape)
    {
-      mesh_file = "lshape2.mesh"; // this might change 
+      mesh_file = "../../../data/l-shape.mesh"; // this might change 
    }
 
    Mesh mesh(mesh_file, 1, 1);
    int dim = mesh.Dimension();
+
+   if (prob == prob_type::lshape)
+   {
+      mesh.EnsureNodes();
+      GridFunction *nodes = mesh.GetNodes();
+      int size = nodes->Size()/2;
+      for (int i = 0; i<size; i++)
+      {
+         double x = (*nodes)[2*i];
+         (*nodes)[2*i] =  2*(*nodes)[2*i+1]-1;
+         (*nodes)[2*i+1] = -2*x+1;
+      }
+   }
+
 
    for (int i = 0; i<sref; i++)
    {
