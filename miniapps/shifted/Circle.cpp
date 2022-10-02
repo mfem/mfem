@@ -19,7 +19,7 @@
 
 namespace mfem{
 
-  Circle::Circle(ParFiniteElementSpace &h1_fes): AnalyticalGeometricShape(h1_fes), radius(0.2), center(2)
+  Circle::Circle(ParFiniteElementSpace &h1_fes, ParFiniteElementSpace &Ph1_fes, bool includeCut): AnalyticalGeometricShape(h1_fes,Ph1_fes, includeCut), radius(0.2), center(2)
  {
    center(0) = 0.5;
    center(1) = 0.5;
@@ -27,13 +27,15 @@ namespace mfem{
 
   Circle::~Circle(){}
   
-  void Circle::SetupElementStatus(Array<int> &elemStatus, Array<int> &ess_inactive){
+  void Circle::SetupElementStatus(Array<int> &elemStatus, Array<int> &ess_inactive, Array<int> &ess_inactive_p){
  
     const int max_elem_attr = (pmesh->attributes).Max();
     int activeCount = 0;
     int inactiveCount = 0;
     int cutCount = 0;
     ess_inactive = -1;
+    ess_inactive_p = -1;
+
   // Check elements on the current MPI rank
   for (int i = 0; i < H1.GetNE(); i++)
     {
@@ -61,11 +63,33 @@ namespace mfem{
 	  {
 	    ess_inactive[dofs[k]] = 0;	       
 	  }
+	Array<int> dofs_p;
+	PH1.GetElementVDofs(i, dofs_p);
+	for (int k = 0; k < dofs_p.Size(); k++)
+	  {
+	    ess_inactive_p[dofs_p[k]] = 0;	       
+	  }
       }
       else if ( (count > 0) && (count < ir.GetNPoints())){
 	elemStatus[i] = SBElementType::CUT;
 	cutCount++;
-	pmesh->SetAttribute(i, max_elem_attr+1);
+	if (include_cut){
+	  Array<int> dofs;
+	  H1.GetElementVDofs(i, dofs);
+	  for (int k = 0; k < dofs.Size(); k++)
+	    {
+	      ess_inactive[dofs[k]] = 0;
+	    }
+	  Array<int> dofs_p;
+	  PH1.GetElementVDofs(i, dofs_p);
+	  for (int k = 0; k < dofs_p.Size(); k++)
+	    {
+	      ess_inactive_p[dofs_p[k]] = 0;	       
+	    }
+	}
+	else{
+	  pmesh->SetAttribute(i, max_elem_attr+1);
+	}
       }
       else if (count == 0){
 	elemStatus[i] = SBElementType::OUTSIDE;
@@ -73,7 +97,8 @@ namespace mfem{
 	pmesh->SetAttribute(i, max_elem_attr+1);
       }
     }
-  
+
+ 
   pmesh->ExchangeFaceNbrNodes();
   for (int i = H1.GetNE(); i < (H1.GetNE() + pmesh->GetNSharedFaces()) ; i++){
     FaceElementTransformations *eltrans = pmesh->GetSharedFaceTransformations(i-H1.GetNE());
@@ -113,6 +138,9 @@ namespace mfem{
   for (int i = 0; i < ess_inactive.Size() ; i++) { ess_inactive[i] += 1; }
   H1.Synchronize(ess_inactive);
   for (int i = 0; i < ess_inactive.Size() ; i++) { ess_inactive[i] -= 1; }
+  for (int i = 0; i < ess_inactive_p.Size() ; i++) { ess_inactive_p[i] += 1; }
+  PH1.Synchronize(ess_inactive_p);
+  for (int i = 0; i < ess_inactive_p.Size() ; i++) { ess_inactive_p[i] -= 1; }
   pmesh->SetAttributes();
   
   // ess_inactive.Print(std::cout,1);

@@ -25,16 +25,18 @@ namespace mfem{
 
   protected:
     ParFiniteElementSpace &H1;
+    ParFiniteElementSpace &PH1;
+
     ParMesh *pmesh;
-    
+    bool include_cut;
 public:
     /// Element type related to shifted boundaries (not interfaces).
    /// For more than 1 level-set, we set the marker to CUT+level_set_index
    /// to discern between different level-sets.
     enum SBElementType {OUTSIDE = 0, INSIDE = 1, CUT = 2};
 
-    AnalyticalGeometricShape(ParFiniteElementSpace &h1_fes);
-    virtual void SetupElementStatus(Array<int> &elemStatus, Array<int> &ess_inactive) = 0;
+    AnalyticalGeometricShape(ParFiniteElementSpace &h1_fes, ParFiniteElementSpace &Ph1_fes, bool includeCut = 0);
+    virtual void SetupElementStatus(Array<int> &elemStatus, Array<int> &ess_inactive,  Array<int> &ess_inactive_p) = 0;
    virtual void ComputeDistanceAndNormalAtCoordinates(const Vector &x, Vector &D, Vector &tN) = 0;
 
   virtual  ~AnalyticalGeometricShape();

@@ -19,9 +19,10 @@
 namespace mfem
 {
 
-  AnalyticalSurface::AnalyticalSurface(int geometryType, ParFiniteElementSpace &h1_fes):
+  AnalyticalSurface::AnalyticalSurface(int geometryType, ParFiniteElementSpace &h1_fes,  ParFiniteElementSpace &Ph1_fes, bool includeCut):
     geometryType(geometryType),
     H1(h1_fes),
+    PH1(Ph1_fes),
     pmesh(h1_fes.GetParMesh()),
     b_ir(IntRules.Get((pmesh->GetBdrFaceTransformations(0))->GetGeometryType(), 4*H1.GetOrder(0) + 4*(pmesh->GetBdrFaceTransformations(0))->OrderW() )),
     elementalStatus(h1_fes.GetNE()+pmesh->GetNSharedFaces()),
@@ -31,9 +32,12 @@ namespace mfem
     quadratureTrueNormal((h1_fes.GetNF()+pmesh->GetNSharedFaces()) * b_ir.GetNPoints(),pmesh->Dimension()),
     maxBoundaryTag(0),
     ess_edofs(h1_fes.GetVSize()),
-    geometry(NULL)
+    ess_edofs_p(Ph1_fes.GetVSize()),
+    geometry(NULL),
+    include_cut(includeCut)
   {
     ess_edofs = -1;
+    ess_edofs_p = -1;
     elementalStatus = AnalyticalGeometricShape::SBElementType::INSIDE;
     quadratureDistance = 0.0;
     quadratureTrueNormal = 0.0;
@@ -58,7 +62,7 @@ namespace mfem
       }
     switch (geometryType)
       {
-      case 1: geometry = new Circle(H1); break;
+      case 1: geometry = new Circle(H1, PH1, includeCut); break;
       default:
 	out << "Unknown geometry type: " << geometryType << '\n';
 	break;
@@ -70,7 +74,7 @@ namespace mfem
   }
   
   void AnalyticalSurface::SetupElementStatus(){
-    geometry->SetupElementStatus(elementalStatus,ess_edofs);
+    geometry->SetupElementStatus(elementalStatus, ess_edofs, ess_edofs_p);
   }
   void AnalyticalSurface::ComputeDistanceAndNormalAtCoordinates(const Vector &x, Vector &D, Vector &tN){
     geometry->ComputeDistanceAndNormalAtCoordinates(x, D, tN);
@@ -80,6 +84,7 @@ namespace mfem
     quadratureDistance = 0.0;
     quadratureTrueNormal = 0.0;
     ess_edofs = -1;
+    ess_edofs_p = -1;
     elementalStatus = AnalyticalGeometricShape::SBElementType::INSIDE;
     for (int i = 0; i < H1.GetNE(); i++)
       {    
@@ -92,6 +97,9 @@ namespace mfem
 
   Array<int>& AnalyticalSurface::GetEss_Vdofs(){
     return ess_edofs;
+  }
+  Array<int>& AnalyticalSurface::GetEss_Vdofs_P(){
+    return ess_edofs_p;
   }
   Array<int>& AnalyticalSurface::GetElement_Status(){
     return elementalStatus;

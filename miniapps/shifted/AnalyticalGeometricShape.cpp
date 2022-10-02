@@ -19,7 +19,7 @@
 namespace mfem
 {
 
-  AnalyticalGeometricShape::AnalyticalGeometricShape(ParFiniteElementSpace &h1_fes): H1(h1_fes), pmesh(H1.GetParMesh()){
+  AnalyticalGeometricShape::AnalyticalGeometricShape(ParFiniteElementSpace &h1_fes,  ParFiniteElementSpace &Ph1_fes, bool includeCut): H1(h1_fes), PH1(Ph1_fes), pmesh(H1.GetParMesh()), include_cut(includeCut){
 
 }
   AnalyticalGeometricShape::~AnalyticalGeometricShape(){

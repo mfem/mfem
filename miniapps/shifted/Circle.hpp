@@ -28,10 +28,10 @@ namespace mfem
     
   public: 
  
-    Circle(ParFiniteElementSpace &h1_fes);
+    Circle(ParFiniteElementSpace &h1_fes, ParFiniteElementSpace &Ph1_fes, bool includeCut = 0);
     ~Circle();
 
-    void SetupElementStatus(Array<int> &elemStatus, Array<int> &ess_inactive);
+    void SetupElementStatus(Array<int> &elemStatus, Array<int> &ess_inactive,  Array<int> &ess_inactive_p);
     void ComputeDistanceAndNormalAtCoordinates(const Vector &x, Vector &D, Vector &tN);
   };
 

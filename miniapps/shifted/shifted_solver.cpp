@@ -61,19 +61,22 @@ namespace mfem
       {
         elemStatus2 = elemStatus[NEproc+par_shared_face_count];
 	par_shared_face_count++;
-      }
+   }
     else
       {
         elemStatus2 = elemStatus[elem2];
       }
 
     const int e = Tr.ElementNo;
-    /*   double factorial = 1.0;
-	 for (int s = 1; s <= nTerms; s++){
-	 factorial *= factorial*s;
-	 }
-    */
-    if ( (elemStatus1 == AnalyticalGeometricShape::SBElementType::INSIDE) &&  (elemStatus2 == AnalyticalGeometricShape::SBElementType::CUT) ){
+
+    int elemSideActive = AnalyticalGeometricShape::SBElementType::INSIDE;
+    int elemSideInActive = AnalyticalGeometricShape::SBElementType::CUT;
+    if (include_cut){
+      elemSideActive = AnalyticalGeometricShape::SBElementType::CUT;
+      elemSideInActive = AnalyticalGeometricShape::SBElementType::OUTSIDE;
+    }
+    
+    if ( (elemStatus1 == elemSideActive) &&  (elemStatus2 == elemSideInActive) ){
       const int dim = fe.GetDim();
       const int dofs_cnt = fe.GetDof();
       elmat.SetSize(2*dofs_cnt*dim);
@@ -204,7 +207,7 @@ namespace mfem
 	    }
 	}
     }
-    else if ( (elemStatus1 == AnalyticalGeometricShape::SBElementType::CUT) &&  (elemStatus2 == AnalyticalGeometricShape::SBElementType::INSIDE) ) {
+    else if ( (elemStatus1 == elemSideInActive) &&  (elemStatus2 == elemSideActive) ) {
       const int dim = fe2.GetDim();
       const int dofs_cnt = fe2.GetDof();
       
@@ -374,8 +377,14 @@ namespace mfem
         elemStatus2 = elemStatus[elem2];
       }
     const int e = Tr.ElementNo;
-    
-    if ( (elemStatus1 == AnalyticalGeometricShape::SBElementType::INSIDE) &&  (elemStatus2 == AnalyticalGeometricShape::SBElementType::CUT) ){
+    int elemSideActive = AnalyticalGeometricShape::SBElementType::INSIDE;
+    int elemSideInActive = AnalyticalGeometricShape::SBElementType::CUT;
+    if (include_cut){
+      elemSideActive = AnalyticalGeometricShape::SBElementType::CUT;
+      elemSideInActive = AnalyticalGeometricShape::SBElementType::OUTSIDE;
+    }
+  
+    if ( (elemStatus1 == elemSideActive) &&  (elemStatus2 == elemSideInActive) ){
       const int dim = fe.GetDim();
       const int dofs_cnt = fe.GetDof();
       elmat.SetSize(2*dofs_cnt*dim);
@@ -434,7 +443,7 @@ namespace mfem
 	    }
 	}
     }
-    else if ( (elemStatus1 == AnalyticalGeometricShape::SBElementType::CUT) &&  (elemStatus2 == AnalyticalGeometricShape::SBElementType::INSIDE) ) {
+    else if ( (elemStatus1 == elemSideInActive) &&  (elemStatus2 == elemSideActive) ) {
       const int dim = fe2.GetDim();
       const int dofs_cnt = fe2.GetDof();
 	
@@ -536,11 +545,17 @@ namespace mfem
 
     const int e = Tr.ElementNo;
     /* double factorial = 1.0;
-       for (int s = 1; s <= nTerms; s++){
-       factorial *= factorial*s;
-       }*/
-    
-    if ( (elemStatus1 == AnalyticalGeometricShape::SBElementType::INSIDE) &&  (elemStatus2 == AnalyticalGeometricShape::SBElementType::CUT) ){
+    for (int s = 1; s <= nTerms; s++){
+      factorial *= factorial*s;
+    }*/
+    int elemSideActive = AnalyticalGeometricShape::SBElementType::INSIDE;
+    int elemSideInActive = AnalyticalGeometricShape::SBElementType::CUT;
+    if (include_cut){
+      elemSideActive = AnalyticalGeometricShape::SBElementType::CUT;
+      elemSideInActive = AnalyticalGeometricShape::SBElementType::OUTSIDE;
+    }
+  
+    if ( (elemStatus1 == elemSideActive) &&  (elemStatus2 == elemSideInActive) ){
       const int dim = test_fe1.GetDim();
       const int testdofs_cnt = test_fe1.GetDof();
       const int trialdofs_cnt = trial_fe1.GetDof();
@@ -661,7 +676,7 @@ namespace mfem
 	    }
 	}
     }
-    else if ( (elemStatus1 == AnalyticalGeometricShape::SBElementType::CUT) &&  (elemStatus2 == AnalyticalGeometricShape::SBElementType::INSIDE) ) {
+    else if ( (elemStatus1 == elemSideInActive) &&  (elemStatus2 == elemSideActive) ) {
       const int dim = test_fe2.GetDim();
       
       int testdofs_offset = test_fe1.GetDof();
@@ -824,7 +839,14 @@ namespace mfem
 
     const int e = Tr.ElementNo;
 
-    if ( (elemStatus1 == AnalyticalGeometricShape::SBElementType::INSIDE) &&  (elemStatus2 == AnalyticalGeometricShape::SBElementType::CUT) ){	
+    int elemSideActive = AnalyticalGeometricShape::SBElementType::INSIDE;
+    int elemSideInActive = AnalyticalGeometricShape::SBElementType::CUT;
+    if (include_cut){
+      elemSideActive = AnalyticalGeometricShape::SBElementType::CUT;
+      elemSideInActive = AnalyticalGeometricShape::SBElementType::OUTSIDE;
+    }
+  
+    if ( (elemStatus1 == elemSideActive) &&  (elemStatus2 == elemSideInActive) ){	
       const int dim = test_fe1.GetDim();
       const int testdofs_cnt = test_fe1.GetDof();
       const int trialdofs_cnt = trial_fe1.GetDof();
@@ -874,7 +896,7 @@ namespace mfem
 	    }
 	}
     }
-    else if ( (elemStatus1 == AnalyticalGeometricShape::SBElementType::CUT) &&  (elemStatus2 == AnalyticalGeometricShape::SBElementType::INSIDE) ) {
+    else if ( (elemStatus1 == elemSideInActive) &&  (elemStatus2 == elemSideActive) ) {
       const int dim = test_fe2.GetDim();
       
       int testdofs_offset = test_fe1.GetDof()*dim;
@@ -969,13 +991,20 @@ namespace mfem
       }
 
     /* double factorial = 1.0;
-       for (int s = 1; s <= nTerms; s++){
-       factorial *= factorial*s;
-       }*/
+    for (int s = 1; s <= nTerms; s++){
+      factorial *= factorial*s;
+    }*/
 
     const int e = Tr.ElementNo;
 
-    if ( (elemStatus1 == AnalyticalGeometricShape::SBElementType::INSIDE) &&  (elemStatus2 == AnalyticalGeometricShape::SBElementType::CUT) ){      
+    int elemSideActive = AnalyticalGeometricShape::SBElementType::INSIDE;
+    int elemSideInActive = AnalyticalGeometricShape::SBElementType::CUT;
+    if (include_cut){
+      elemSideActive = AnalyticalGeometricShape::SBElementType::CUT;
+      elemSideInActive = AnalyticalGeometricShape::SBElementType::OUTSIDE;
+    }
+  
+    if ( (elemStatus1 == elemSideActive) &&  (elemStatus2 == elemSideInActive) ){      
       const int dim = fe.GetDim();
       const int h1dofs_cnt = fe.GetDof();
       elmat.SetSize(2*h1dofs_cnt*dim);
@@ -1096,7 +1125,7 @@ namespace mfem
 	    }
 	}
     }
-    else if ( (elemStatus1 == AnalyticalGeometricShape::SBElementType::CUT) &&  (elemStatus2 == AnalyticalGeometricShape::SBElementType::INSIDE) ) {
+    else if ( (elemStatus1 == elemSideInActive) &&  (elemStatus2 == elemSideActive) ) {
       const int dim = fe2.GetDim();
       const int dofs_cnt = fe.GetDof();
 	
@@ -1257,8 +1286,14 @@ namespace mfem
         elemStatus2 = elemStatus[elem2];
       }
     const int e = Tr.ElementNo;
-
-    if ( (elemStatus1 == AnalyticalGeometricShape::SBElementType::INSIDE) &&  (elemStatus2 == AnalyticalGeometricShape::SBElementType::CUT) ){	      
+    int elemSideActive = AnalyticalGeometricShape::SBElementType::INSIDE;
+    int elemSideInActive = AnalyticalGeometricShape::SBElementType::CUT;
+    if (include_cut){
+      elemSideActive = AnalyticalGeometricShape::SBElementType::CUT;
+      elemSideInActive = AnalyticalGeometricShape::SBElementType::OUTSIDE;
+    }
+  
+    if ( (elemStatus1 == elemSideActive) &&  (elemStatus2 == elemSideInActive) ){	      
       const int dim = el.GetDim();
       const int dofs_cnt = el.GetDof();
       elvect.SetSize(2*dofs_cnt*dim);
@@ -1304,6 +1339,7 @@ namespace mfem
 	  Trans_el1.Transform(eip,x_eip);
 	  analyticalSurface->ComputeDistanceAndNormalAtCoordinates(x_eip,D,tN);
 	  uD->Eval(bcEval, Trans_el1, eip, D);
+	  //  uD->Eval(bcEval, Trans_el1, eip);
 	  ///
 	    
 	  el.CalcShape(eip, shape);
@@ -1329,7 +1365,7 @@ namespace mfem
 	    }
 	}
     }
-    else if ( (elemStatus1 == AnalyticalGeometricShape::SBElementType::CUT) &&  (elemStatus2 == AnalyticalGeometricShape::SBElementType::INSIDE) ) {
+    else if ( (elemStatus1 == elemSideInActive) &&  (elemStatus2 == elemSideActive) ) {
 
       const int dim = el2.GetDim();
       const int dofs_cnt = el2.GetDof();
@@ -1378,6 +1414,7 @@ namespace mfem
 	  Trans_el1.Transform(eip,x_eip);
 	  analyticalSurface->ComputeDistanceAndNormalAtCoordinates(x_eip,D,tN);
 	  uD->Eval(bcEval, Trans_el1, eip, D);
+	  //  uD->Eval(bcEval, Trans_el1, eip);
 	  ///
 	  
 	  el2.CalcShape(eip, shape);
@@ -1439,8 +1476,14 @@ namespace mfem
       }
 
     const int e = Tr.ElementNo;
-
-    if ( (elemStatus1 == AnalyticalGeometricShape::SBElementType::INSIDE) &&  (elemStatus2 == AnalyticalGeometricShape::SBElementType::CUT) ){
+    int elemSideActive = AnalyticalGeometricShape::SBElementType::INSIDE;
+    int elemSideInActive = AnalyticalGeometricShape::SBElementType::CUT;
+    if (include_cut){
+      elemSideActive = AnalyticalGeometricShape::SBElementType::CUT;
+      elemSideInActive = AnalyticalGeometricShape::SBElementType::OUTSIDE;
+    }
+  
+    if ( (elemStatus1 == elemSideActive) &&  (elemStatus2 == elemSideInActive) ){
       const int dim = el.GetDim();
       const int testdofs_cnt = el.GetDof();
 	
@@ -1481,6 +1524,7 @@ namespace mfem
 	  Trans_el1.Transform(eip,x_eip);
 	  analyticalSurface->ComputeDistanceAndNormalAtCoordinates(x_eip,D,tN);
 	  uD->Eval(bcEval, Trans_el1, eip, D);
+	  //  uD->Eval(bcEval, Trans_el1, eip);
 	  ///
 	    
 	  el.CalcShape(eip, te_shape);
@@ -1494,7 +1538,7 @@ namespace mfem
 	    }
 	}
     }
-    else if ( (elemStatus1 == AnalyticalGeometricShape::SBElementType::CUT) &&  (elemStatus2 == AnalyticalGeometricShape::SBElementType::INSIDE) ) {
+    else if ( (elemStatus1 == elemSideInActive) &&  (elemStatus2 == elemSideActive) ) {
       const int dim = el2.GetDim();
       const int testdofs_cnt = el2.GetDof();
 	
@@ -1538,6 +1582,7 @@ namespace mfem
 	  Trans_el1.Transform(eip,x_eip);
 	  analyticalSurface->ComputeDistanceAndNormalAtCoordinates(x_eip,D,tN);
 	  uD->Eval(bcEval, Trans_el1, eip, D);
+	  //  uD->Eval(bcEval, Trans_el1, eip);
 	  ///
 	    
 	  el2.CalcShape(eip, te_shape);
@@ -1590,12 +1635,15 @@ namespace mfem
       }
 
     const int e = Tr.ElementNo;
-    /*   double factorial = 1.0;
-	 for (int s = 1; s <= nTerms; s++){
-	 factorial *= factorial*s;
-	 }
-    */    
-    if ( (elemStatus1 == AnalyticalGeometricShape::SBElementType::INSIDE) &&  (elemStatus2 == AnalyticalGeometricShape::SBElementType::CUT) ){
+
+    int elemSideActive = AnalyticalGeometricShape::SBElementType::INSIDE;
+    int elemSideInActive = AnalyticalGeometricShape::SBElementType::CUT;
+    if (include_cut){
+      elemSideActive = AnalyticalGeometricShape::SBElementType::CUT;
+      elemSideInActive = AnalyticalGeometricShape::SBElementType::OUTSIDE;
+    }
+  
+    if ( (elemStatus1 == elemSideActive) &&  (elemStatus2 == elemSideInActive) ){
       const int dim = el.GetDim();
       const int h1dofs_cnt = el.GetDof();
       elvect.SetSize(2*h1dofs_cnt*dim);
@@ -1666,7 +1714,8 @@ namespace mfem
 	  analyticalSurface->ComputeDistanceAndNormalAtCoordinates(x_eip,D,tN);
 	  /////
 	  uD->Eval(bcEval, Trans_el1, eip, D);
-
+	  //	  uD->Eval(bcEval, Trans_el1, eip);
+	  
 
 	  for (int k = 0; k < h1dofs_cnt; k++){
 	    for (int s = 0; s < h1dofs_cnt; s++){
@@ -1726,7 +1775,7 @@ namespace mfem
 	    }
 	}
     }
-    else if ( (elemStatus1 == AnalyticalGeometricShape::SBElementType::CUT) &&  (elemStatus2 == AnalyticalGeometricShape::SBElementType::INSIDE) ) {
+    else if ( (elemStatus1 == elemSideInActive) &&  (elemStatus2 == elemSideActive) ) {
       const int dim = el2.GetDim();
       const int h1dofs_cnt = el2.GetDof();
       int h1dofs_offset = el.GetDof()*dim;
@@ -1796,6 +1845,7 @@ namespace mfem
 
 	  ///
 	  uD->Eval(bcEval, Trans_el1, eip, D);
+	  //  uD->Eval(bcEval, Trans_el1, eip);
 	  ///
 
 	  for (int k = 0; k < h1dofs_cnt; k++){

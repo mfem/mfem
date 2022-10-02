@@ -29,7 +29,9 @@ namespace mfem
   protected:
     int geometryType;
     ParFiniteElementSpace &H1;
-   
+    ParFiniteElementSpace &PH1;
+
+    bool include_cut;
     ParMesh *pmesh;
     // Integration rule for all assemblies.
     const IntegrationRule &b_ir;
@@ -39,6 +41,8 @@ namespace mfem
     Array<int> initialBoundaryFaceTags;
     Array<int> initialElementTags;
     Array<int> ess_edofs;
+    Array<int> ess_edofs_p;
+ 
     int maxBoundaryTag;
 
   //    Array<int> isFaceIntersectedStatus;
@@ -53,12 +57,13 @@ namespace mfem
 
   
   public:
-  AnalyticalSurface(int geometryType, ParFiniteElementSpace &h1_fes);
+    AnalyticalSurface(int geometryType, ParFiniteElementSpace &h1_fes, ParFiniteElementSpace &Ph1_fes, bool includeCut = 0);
   void SetupNodeStatus();
   void SetupElementStatus();
   void ComputeDistanceAndNormalAtCoordinates(const Vector &x, Vector &D, Vector &tN);
   void ResetData();
   Array<int>& GetEss_Vdofs();
+  Array<int>& GetEss_Vdofs_P();  
   Array<int>& GetElement_Status();
   const DenseMatrix& GetQuadratureDistance();
   const DenseMatrix& GetQuadratureTrueNormal();

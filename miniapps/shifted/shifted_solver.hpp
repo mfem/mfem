@@ -69,9 +69,10 @@ public:
     AnalyticalSurface *analyticalSurface;
     int par_shared_face_count;
     int nTerms;
+    bool include_cut;
     
   public:
-    ShiftedStrainBoundaryForceIntegrator(const ParMesh *pmesh, Coefficient &mu_, AnalyticalSurface *analyticalSurface, int nTerms)  : pmesh(pmesh), mu(&mu_), analyticalSurface(analyticalSurface), par_shared_face_count(0), nTerms(nTerms) {}
+    ShiftedStrainBoundaryForceIntegrator(const ParMesh *pmesh, Coefficient &mu_, AnalyticalSurface *analyticalSurface, int nTerms, bool includeCut = 0)  : pmesh(pmesh), mu(&mu_), analyticalSurface(analyticalSurface), par_shared_face_count(0), nTerms(nTerms), include_cut(includeCut) {}
     virtual void AssembleFaceMatrix(const FiniteElement &fe,
 				    const FiniteElement &fe2,
 				    FaceElementTransformations &Tr,
@@ -85,9 +86,9 @@ public:
     Coefficient *mu;
     AnalyticalSurface *analyticalSurface;
     int par_shared_face_count;
-    
+    bool include_cut;
   public:
-    ShiftedStrainBoundaryForceTransposeIntegrator(const ParMesh *pmesh, Coefficient &mu_, AnalyticalSurface *analyticalSurface) : pmesh(pmesh), mu(&mu_), analyticalSurface(analyticalSurface), par_shared_face_count(0) {}
+    ShiftedStrainBoundaryForceTransposeIntegrator(const ParMesh *pmesh, Coefficient &mu_, AnalyticalSurface *analyticalSurface, bool includeCut = 0) : pmesh(pmesh), mu(&mu_), analyticalSurface(analyticalSurface), par_shared_face_count(0), include_cut(includeCut) {}
     virtual void AssembleFaceMatrix(const FiniteElement &fe,
 				    const FiniteElement &fe2,
 				    FaceElementTransformations &Tr,
@@ -101,9 +102,9 @@ public:
     AnalyticalSurface *analyticalSurface;
     int par_shared_face_count;
     int nTerms;
-  
+    bool include_cut;
   public:
-    ShiftedPressureBoundaryForceIntegrator(const ParMesh *pmesh, AnalyticalSurface *analyticalSurface, int nTerms) : pmesh(pmesh), analyticalSurface(analyticalSurface), par_shared_face_count(0), nTerms(nTerms) { }
+    ShiftedPressureBoundaryForceIntegrator(const ParMesh *pmesh, AnalyticalSurface *analyticalSurface, int nTerms, bool includeCut = 0) : pmesh(pmesh), analyticalSurface(analyticalSurface), par_shared_face_count(0), nTerms(nTerms), include_cut(includeCut) { }
     virtual void AssembleFaceMatrix(const FiniteElement &trial_fe1,
 				    const FiniteElement &trial_fe2,
 				    const FiniteElement &test_fe1,
@@ -118,9 +119,9 @@ public:
     const ParMesh *pmesh;
     AnalyticalSurface *analyticalSurface;
     int par_shared_face_count;
-    
+    bool include_cut;
   public:
-    ShiftedPressureBoundaryForceTransposeIntegrator(const ParMesh *pmesh, AnalyticalSurface *analyticalSurface) : pmesh(pmesh), analyticalSurface(analyticalSurface), par_shared_face_count(0) { }
+    ShiftedPressureBoundaryForceTransposeIntegrator(const ParMesh *pmesh, AnalyticalSurface *analyticalSurface, bool includeCut = 0) : pmesh(pmesh), analyticalSurface(analyticalSurface), par_shared_face_count(0), include_cut(includeCut) { }
     virtual void AssembleFaceMatrix(const FiniteElement &trial_fe1,
 				    const FiniteElement &trial_fe2,
 				    const FiniteElement &test_fe1,
@@ -139,9 +140,9 @@ public:
     AnalyticalSurface *analyticalSurface;
     int par_shared_face_count;
     int nTerms;
-    
+    bool include_cut;
   public:
-    ShiftedVelocityPenaltyIntegrator(const ParMesh *pmesh, double penParameter, Coefficient &mu_, AnalyticalSurface *analyticalSurface, int nTerms) : pmesh(pmesh), alpha(penParameter), mu(&mu_), analyticalSurface(analyticalSurface), par_shared_face_count(0), nTerms(nTerms) { }
+    ShiftedVelocityPenaltyIntegrator(const ParMesh *pmesh, double penParameter, Coefficient &mu_, AnalyticalSurface *analyticalSurface, int nTerms, bool includeCut = 0) : pmesh(pmesh), alpha(penParameter), mu(&mu_), analyticalSurface(analyticalSurface), par_shared_face_count(0), nTerms(nTerms), include_cut(includeCut) { }
     virtual void AssembleFaceMatrix(const FiniteElement &fe,
 				    const FiniteElement &fe2,
 				    FaceElementTransformations &Tr,
@@ -155,9 +156,9 @@ public:
     ShiftedVectorFunctionCoefficient *uD;
     AnalyticalSurface *analyticalSurface;
     int par_shared_face_count;
-    
+    bool include_cut;
   public:
-    ShiftedStrainNitscheBCForceIntegrator(const ParMesh *pmesh, Coefficient &mu_, ShiftedVectorFunctionCoefficient &uD_, AnalyticalSurface *analyticalSurface) : pmesh(pmesh), mu(&mu_), uD(&uD_), analyticalSurface(analyticalSurface), par_shared_face_count(0) {}
+    ShiftedStrainNitscheBCForceIntegrator(const ParMesh *pmesh, Coefficient &mu_, ShiftedVectorFunctionCoefficient &uD_, AnalyticalSurface *analyticalSurface, bool includeCut = 0) : pmesh(pmesh), mu(&mu_), uD(&uD_), analyticalSurface(analyticalSurface), par_shared_face_count(0), include_cut(includeCut) {}
     virtual void AssembleRHSElementVect(const FiniteElement &el,
 					const FiniteElement &el2,
 					FaceElementTransformations &Tr,
@@ -175,9 +176,10 @@ public:
     ShiftedVectorFunctionCoefficient *uD;
     AnalyticalSurface *analyticalSurface;
     int par_shared_face_count;
+    bool include_cut;
     
   public:
-    ShiftedPressureNitscheBCForceIntegrator(const ParMesh *pmesh, ShiftedVectorFunctionCoefficient &uD_, AnalyticalSurface *analyticalSurface) : pmesh(pmesh), uD(&uD_), analyticalSurface(analyticalSurface), par_shared_face_count(0) { }
+    ShiftedPressureNitscheBCForceIntegrator(const ParMesh *pmesh, ShiftedVectorFunctionCoefficient &uD_, AnalyticalSurface *analyticalSurface, bool includeCut = 0) : pmesh(pmesh), uD(&uD_), analyticalSurface(analyticalSurface), par_shared_face_count(0), include_cut(includeCut) { }
     virtual void AssembleRHSElementVect(const FiniteElement &el,
 					const FiniteElement &el2,
 					FaceElementTransformations &Tr,
@@ -199,8 +201,9 @@ public:
     AnalyticalSurface *analyticalSurface;
     int par_shared_face_count;
     int nTerms;
+    bool include_cut;
   public:
-    ShiftedVelocityBCPenaltyIntegrator(const ParMesh *pmesh, double penParameter, Coefficient &mu_, ShiftedVectorFunctionCoefficient &uD_, AnalyticalSurface *analyticalSurface, int nTerms) : pmesh(pmesh), alpha(penParameter), mu(&mu_), uD(&uD_), analyticalSurface(analyticalSurface), par_shared_face_count(0), nTerms(nTerms) { }
+    ShiftedVelocityBCPenaltyIntegrator(const ParMesh *pmesh, double penParameter, Coefficient &mu_, ShiftedVectorFunctionCoefficient &uD_, AnalyticalSurface *analyticalSurface, int nTerms, bool includeCut = 0) : pmesh(pmesh), alpha(penParameter), mu(&mu_), uD(&uD_), analyticalSurface(analyticalSurface), par_shared_face_count(0), nTerms(nTerms), include_cut(includeCut) { }
     virtual void AssembleRHSElementVect(const FiniteElement &el,
 					const FiniteElement &el2,
 					FaceElementTransformations &Tr,
