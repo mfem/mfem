@@ -531,12 +531,23 @@ void TMOP_Metric_056::AssembleH(const DenseMatrix &Jpt,
    ie.Assemble_ddI2b(weight*(0.5 - 0.5/ie.Get_I2()), A.GetData());
 }
 
+double TMOP_Metric_058::EvalWMatrixForm(const DenseMatrix &Jpt) const
+{
+   // mu_58 = |J^t J|^2 / det(J)^2 - 2|J|^2 / det(J) + 2
+   DenseMatrix JtJ(2);
+   MultAAt(Jpt, JtJ);
+   JtJ.Transpose();
+   double det = Jpt.Det();
+
+   return JtJ.FNorm2()/(det*det) - 2*Jpt.FNorm2()/det + 2.0;
+}
+
 double TMOP_Metric_058::EvalW(const DenseMatrix &Jpt) const
 {
    // mu_58 = I1b*(I1b - 2)
    ie.SetJacobian(Jpt.GetData());
    const double I1b = ie.Get_I1b();
-   return I1b*(I1b - 1.0);
+   return I1b*(I1b - 2.0);
 }
 
 void TMOP_Metric_058::EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const
