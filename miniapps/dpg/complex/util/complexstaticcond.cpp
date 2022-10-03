@@ -579,9 +579,9 @@ void ComplexBlockStaticCondensation::BuildProlongation()
 void ComplexBlockStaticCondensation::BuildParallelProlongation()
 {
    MFEM_VERIFY(parallel, "BuildParallelProlongation: wrong code path");
-   pP = new BlockOperator(rdof_offsets, rtdof_offsets);
+   P = new BlockOperator(rdof_offsets, rtdof_offsets);
    R = new BlockMatrix(rtdof_offsets, rdof_offsets);
-   pP->owns_blocks = 0;
+   P->owns_blocks = 0;
    R->owns_blocks = 0;
    int skip = 0;
    for (int i = 0; i<nblocks; i++)
@@ -592,7 +592,7 @@ void ComplexBlockStaticCondensation::BuildParallelProlongation()
       if (P_)
       {
          const SparseMatrix *R_ = tr_fes[i]->GetRestrictionMatrix();
-         pP->SetBlock(skip,skip,const_cast<HypreParMatrix*>(P_));
+         P->SetBlock(skip,skip,const_cast<HypreParMatrix*>(P_));
          R->SetBlock(skip,skip,const_cast<SparseMatrix*>(R_));
       }
       skip++;
@@ -603,7 +603,7 @@ void ComplexBlockStaticCondensation::ParallelAssemble(BlockMatrix *m_r,
                                                       BlockMatrix *m_i)
 {
 
-   if (!pP) { BuildParallelProlongation(); }
+   if (!P) { BuildParallelProlongation(); }
 
    pS_r = new BlockOperator(rtdof_offsets);
    pS_e_r = new BlockOperator(rtdof_offsets);
@@ -624,7 +624,7 @@ void ComplexBlockStaticCondensation::ParallelAssemble(BlockMatrix *m_r,
    {
       if (!tr_fes[i]) { continue; }
       pfes_i = dynamic_cast<ParFiniteElementSpace*>(fes[i]);
-      HypreParMatrix * Pi = (HypreParMatrix*)(&pP->GetBlock(skip_i,skip_i));
+      HypreParMatrix * Pi = (HypreParMatrix*)(&P->GetBlock(skip_i,skip_i));
       int skip_j=0;
       for (int j = 0; j<nblocks; j++)
       {
@@ -650,7 +650,7 @@ void ComplexBlockStaticCondensation::ParallelAssemble(BlockMatrix *m_r,
          else
          {
             pfes_j = dynamic_cast<ParFiniteElementSpace*>(fes[j]);
-            HypreParMatrix * Pj = (HypreParMatrix*)(&pP->GetBlock(skip_j,skip_j));
+            HypreParMatrix * Pj = (HypreParMatrix*)(&P->GetBlock(skip_j,skip_j));
             A_r = new HypreParMatrix(pfes_i->GetComm(), pfes_i->GlobalVSize(),
                                      pfes_j->GlobalVSize(), pfes_i->GetDofOffsets(),
                                      pfes_j->GetDofOffsets(), &m_r->GetBlock(skip_i,skip_j));
@@ -732,21 +732,8 @@ void ComplexBlockStaticCondensation::Finalize(int skip_zeros)
 void ComplexBlockStaticCondensation::FormSystemMatrix(Operator::DiagonalPolicy
                                                       diag_policy)
 {
-   if (parallel)
-   {
-      FillEssTdofLists(ess_rtdof_list);
-      if (S_r)
-      {
-         const int remove_zeros = 0;
-         Finalize(remove_zeros);
-         ParallelAssemble(S_r, S_i);
-         delete S_r;  S_r=nullptr;
-         delete S_i;  S_i=nullptr;
-         delete S_e_r; S_e_r = nullptr;
-         delete S_e_i; S_e_i = nullptr;
-      }
-   }
-   else
+
+   if (!parallel)
    {
       if (!S_e_r)
       {
@@ -766,6 +753,22 @@ void ComplexBlockStaticCondensation::FormSystemMatrix(Operator::DiagonalPolicy
          EliminateReducedTrueDofs(ess_rtdof_list, diag_policy);
          Finalize(remove_zeros);
       }
+   }
+   else
+   {
+#ifdef MFEM_USE_MPI
+   FillEssTdofLists(ess_rtdof_list);
+      if (S_r)
+      {
+         const int remove_zeros = 0;
+         Finalize(remove_zeros);
+         ParallelAssemble(S_r, S_i);
+         delete S_r;  S_r=nullptr;
+         delete S_i;  S_i=nullptr;
+         delete S_e_r; S_e_r = nullptr;
+         delete S_e_i; S_e_i = nullptr;
+      }
+#endif
    }
 }
 
@@ -941,37 +944,8 @@ void ComplexBlockStaticCondensation::ReduceSystem(Vector &x, Vector &X,
    ReduceSolution(x, X);
    Vector X_r(X.GetData(),X.Size()/2);
    Vector X_i(&X.GetData()[X.Size()/2],X.Size()/2);
-   if (parallel)
-   {
-      int n = pP->Width();
-      B.SetSize(2*n);
-      double * Bdata = B.GetData();
-      Vector B_r(Bdata,n);
-      Vector B_i(&Bdata[n],n);
 
-      pP->MultTranspose(*y_r,B_r);
-      pP->MultTranspose(*y_i,B_i);
-
-      Vector tmp(B_r.Size());
-      pS_e_r->Mult(X_r,tmp); B_r-=tmp;
-      pS_e_i->Mult(X_i,tmp); B_r+=tmp;
-
-      pS_e_i->Mult(X_r,tmp); B_i-=tmp;
-      pS_e_r->Mult(X_i,tmp); B_i-=tmp;
-
-      for (int j = 0; j<rblocks; j++)
-      {
-         if (!ess_tdofs[j]->Size()) { continue; }
-         for (int i = 0; i < ess_tdofs[j]->Size(); i++)
-         {
-            int tdof = (*ess_tdofs[j])[i];
-            int gdof = tdof + rtdof_offsets[j];
-            B_r(gdof) = X_r(gdof);
-            B_i(gdof) = X_i(gdof);
-         }
-      }
-   }
-   else
+   if (!parallel)
    {
       if (!P)
       {
@@ -1004,6 +978,38 @@ void ComplexBlockStaticCondensation::ReduceSystem(Vector &x, Vector &X,
 
       }
    }
+   else
+   {
+#ifdef MFEM_USE_MPI
+      int n = P->Width();
+      B.SetSize(2*n);
+      double * Bdata = B.GetData();
+      Vector B_r(Bdata,n);
+      Vector B_i(&Bdata[n],n);
+
+      P->MultTranspose(*y_r,B_r);
+      P->MultTranspose(*y_i,B_i);
+
+      Vector tmp(B_r.Size());
+      pS_e_r->Mult(X_r,tmp); B_r-=tmp;
+      pS_e_i->Mult(X_i,tmp); B_r+=tmp;
+
+      pS_e_i->Mult(X_r,tmp); B_i-=tmp;
+      pS_e_r->Mult(X_i,tmp); B_i-=tmp;
+
+      for (int j = 0; j<rblocks; j++)
+      {
+         if (!ess_tdofs[j]->Size()) { continue; }
+         for (int i = 0; i < ess_tdofs[j]->Size(); i++)
+         {
+            int tdof = (*ess_tdofs[j])[i];
+            int gdof = tdof + rtdof_offsets[j];
+            B_r(gdof) = X_r(gdof);
+            B_i(gdof) = X_i(gdof);
+         }
+      }
+#endif
+   }
    if (!copy_interior)
    {
       X_r.SetSubVectorComplement(ess_rtdof_list, 0.0);
@@ -1028,8 +1034,8 @@ void ComplexBlockStaticCondensation::ComputeSolution(const Vector &sc_sol,
       Vector sc_imag(&sc_sol.GetData()[nrtdofs], nrtdofs);
       sol_r_real.SetSize(nrdofs);
       sol_r_imag.SetSize(nrdofs);
-      pP->Mult(sc_real, sol_r_real);
-      pP->Mult(sc_imag, sol_r_imag);
+      P->Mult(sc_real, sol_r_real);
+      P->Mult(sc_imag, sol_r_imag);
    }
    else
    {
@@ -1135,10 +1141,10 @@ ComplexBlockStaticCondensation::~ComplexBlockStaticCondensation()
    if (P) { delete P; } P=nullptr;
    if (R) { delete R; } R=nullptr;
 
+#ifdef MFEM_USE_MPI
    if (parallel)
    {
       // The Complex Operator (S) is deleted above
-
       delete pS_e_r; pS_e_r=nullptr;
       delete pS_e_i; pS_e_i=nullptr;
       delete pS_r; pS_r=nullptr;
@@ -1147,8 +1153,8 @@ ComplexBlockStaticCondensation::~ComplexBlockStaticCondensation()
       {
          delete ess_tdofs[i];
       }
-      delete pP; pP=nullptr;
    }
+#endif
 
    for (int i=0; i<lmat.Size(); i++)
    {
