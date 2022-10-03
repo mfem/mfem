@@ -261,7 +261,8 @@ int main(int argc, char *argv[])
    // 5. Define the vector finite element spaces representing the state variable u,
    //    adjoint variable p, and the control variable f.
    H1_FECollection state_fec(order, dim);
-   H1_FECollection control_fec(order-1, dim, BasisType::Positive);
+   H1_FECollection control_fec(order-1, dim);
+   // H1_FECollection control_fec(order-1, dim, BasisType::Positive);
    ParFiniteElementSpace state_fes(&pmesh, &state_fec);
    ParFiniteElementSpace control_fes(&pmesh, &control_fec);
    
@@ -354,17 +355,16 @@ int main(int argc, char *argv[])
    paraview_dc.Save();
 
    // Project initial K onto constraint set.
-   GridFunctionCoefficient kgf(&K);
-   GradientGridFunctionCoefficient grad_kgf(&K);
+   // GridFunctionCoefficient kgf(&K);
+   // GradientGridFunctionCoefficient grad_kgf(&K);
    BoxProjection * proj = nullptr;
    if (BoxH1proj)
    {
-      proj = new BoxProjection(&pmesh,order,&kgf, &grad_kgf,true);
+      proj = new BoxProjection(&K,true);
+      // proj = new BoxProjection(&pmesh,order,&kgf, &grad_kgf,true);
       proj->SetBoxBounds(K_min, K_max);
-      mfem::out << K.ParFESpace()->FEColl()->GetOrder() << endl;
       proj->Solve();
-      proj->SetPrintLevel(0);
-      mfem::out << proj->Getp().ParFESpace()->FEColl()->GetOrder() << endl;
+      proj->SetPrintLevel(-1);
       ExpitGridFunctionCoefficient expit_p(proj->Getp());
       expit_p.SetBounds(K_min,K_max);
       K.ProjectCoefficient(expit_p);
@@ -457,23 +457,25 @@ int main(int argc, char *argv[])
          K -= avg_grad;
 
          // K. Project onto constraint set.
-         GridFunctionCoefficient kgf1(&K);
-         GradientGridFunctionCoefficient grad_kgf1(&K);
+         // GridFunctionCoefficient kgf1(&K);
+         // GradientGridFunctionCoefficient grad_kgf1(&K);
          BoxProjection * proj1 = nullptr;
          if (BoxH1proj)
          {
-            proj1 = new BoxProjection(&pmesh,order,&kgf, &grad_kgf,true);
+            proj1 = new BoxProjection(&K,true);
+            // proj1 = new BoxProjection(&pmesh,order,&kgf, &grad_kgf,true);
             proj1->SetNewtonStepSize(0.1);
-            proj1->SetBregmanStepSize(0.02);
-            proj1->SetMaxInnerIterations(5);
-            proj1->SetMaxOuterIterations(5);
+            proj1->SetBregmanStepSize(0.1/epsilon);
+            // proj1->SetBregmanStepSize(0.001/epsilon);
+            proj1->SetMaxInnerIterations(4);
+            proj1->SetMaxOuterIterations(10);
+            proj1->SetInnerIterationTol(1e-6);
+            proj1->SetOuterIterationTol(1e-4);
             proj1->SetNormWeight(0.0);
-            proj1->SetDiffusionConstant(1.0);
-            proj1->SetPrintLevel(0);
+            proj1->SetDiffusionConstant(epsilon*epsilon);
+            proj1->SetPrintLevel(-1);
             proj1->SetBoxBounds(K_min, K_max);
-            mfem::out << K.ParFESpace()->FEColl()->GetOrder() << endl;
             proj1->Solve();
-            mfem::out << proj1->Getp().ParFESpace()->FEColl()->GetOrder() << endl;
             ExpitGridFunctionCoefficient expit_p(proj1->Getp());
             expit_p.SetBounds(K_min,K_max);
             K.ProjectCoefficient(expit_p);
@@ -527,6 +529,22 @@ int main(int argc, char *argv[])
         //  {
         //     batch_size = max(batch_size/2,batch_size_min);
         //  }
+
+         if (visualization)
+         {
+
+            sout_u << "parallel " << num_procs << " " << myid << "\n";
+            sout_u << "solution\n" << pmesh << u
+                  << "window_title 'State u'" << flush;
+
+            sout_K << "parallel " << num_procs << " " << myid << "\n";
+            sout_K << "solution\n" << pmesh << K
+                  << "window_title 'Control K'" << flush;
+
+            paraview_dc.SetCycle(step);
+            paraview_dc.SetTime((double)k);
+            paraview_dc.Save();
+         }
 
       }
       // λ <- λ - β (∫_Ω K dx - V⋅ vol(\Omega))

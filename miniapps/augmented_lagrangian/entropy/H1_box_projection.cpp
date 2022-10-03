@@ -39,6 +39,46 @@ BoxProjection::BoxProjection(ParMesh* pmesh_, int order_, Coefficient * g_cf_,
    toffsets.PartialSum();
 }
 
+BoxProjection::BoxProjection(ParGridFunction * g_gf, bool H1H1)
+{
+   g_cf = new GridFunctionCoefficient(g_gf);
+   grad_g_cf = new GradientGridFunctionCoefficient(g_gf);
+
+   u_fes = g_gf->ParFESpace();
+   pmesh = u_fes->GetParMesh();
+   order = u_fes->GetOrder(0);
+   dim = pmesh->Dimension();
+   if (H1H1)
+   {
+      p_fec = new H1_FECollection(order, dim);
+   }
+   else
+   {
+      p_fec = new L2_FECollection(order-1, dim);
+   }
+   p_fes = new ParFiniteElementSpace(pmesh,p_fec);
+
+   P_u = u_fes->GetProlongationMatrix();
+   P_p = p_fes->GetProlongationMatrix();
+
+   b_u = new ParLinearForm(u_fes);
+
+   // Assemble u-p block
+   a_up = new ParMixedBilinearForm(u_fes,p_fes);
+   a_up->AddDomainIntegrator(new MixedScalarMassIntegrator());
+   a_up->Assemble();
+   a_up->Finalize();
+   A_up = a_up->ParallelAssemble();
+   A_pu = A_up->Transpose();
+
+   offsets.SetSize(3); 
+   toffsets.SetSize(3);
+   offsets[0] = 0; offsets[1] = u_fes->GetVSize(); offsets[2] = p_fes->GetVSize();
+   toffsets[0] = 0; toffsets[1] = u_fes->GetTrueVSize(); toffsets[2] = p_fes->GetTrueVSize();
+   offsets.PartialSum();
+   toffsets.PartialSum();
+}
+
 void BoxProjection::Update_A_uu(ParGridFunction & u_gf_)
 {
    delete a_uu;
@@ -60,23 +100,23 @@ double BoxProjection::NewtonStep(const ParLinearForm & b_u_, ParGridFunction & p
 {
    newton_cntr++;
 
-   // ND_FECollection fec(order,dim);
-   // ParFiniteElementSpace fes(pmesh,&fec);
-   // ParGridFunction grad_u_gf(&fes);
-   // GradientGridFunctionCoefficient grad_u_cf(&u_kl_gf);
-   // grad_u_gf.ProjectCoefficient(grad_u_cf);
+   // // ND_FECollection fec(order,dim);
+   // // ParFiniteElementSpace fes(pmesh,&fec);
+   // // ParGridFunction grad_u_gf(&fes);
+   // // GradientGridFunctionCoefficient grad_u_cf(&u_kl_gf);
+   // // grad_u_gf.ProjectCoefficient(grad_u_cf);
 
    // char vishost[] = "localhost";
    // int visport = 19916;
    // socketstream u_sock(vishost, visport);
    // u_sock.precision(8);
-   // u_sock << "solution\n" << *pmesh << u_kl_gf  
+   // u_sock << "solution\n" << *pmesh << u_kl_gf
    //        << "window_title 'Newton u'" << flush;
 
-   // socketstream socksock(vishost, visport);
-   // socksock.precision(8);
-   // socksock << "solution\n" << *pmesh << grad_u_gf 
-   //        << "window_title 'Newton Grad u'" << flush;
+   // // socketstream socksock(vishost, visport);
+   // // socksock.precision(8);
+   // // socksock << "solution\n" << *pmesh << grad_u_gf 
+   // //        << "window_title 'Newton Grad u'" << flush;
    
    // cin.get();
 
@@ -284,10 +324,13 @@ BoxProjection::~BoxProjection()
    delete b_u;
    delete a_uu;
    delete a_up;
-   delete u_fec;
    delete p_fec;
-   delete u_fes;
    delete p_fes;
+   if (u_fec)
+   {
+      delete u_fec;
+      delete u_fes;
+   }
 }
 
 double LnitGridFunctionCoefficient::Eval(ElementTransformation &T,

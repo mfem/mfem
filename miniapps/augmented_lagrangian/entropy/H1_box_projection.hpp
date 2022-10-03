@@ -69,6 +69,8 @@ private:
 public:
    BoxProjection(ParMesh* pmesh_, int order_, Coefficient * g_cf_,
                  VectorCoefficient * grad_g_cf_, bool H1H1 = false);
+
+   BoxProjection(ParGridFunction * g_gf, bool H1H1 = false);
    
    void SetBoxBounds(double min_val_, double max_val_)
    {

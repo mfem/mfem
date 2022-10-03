@@ -33,7 +33,7 @@ int main(int argc, char *argv[])
    MPI_Session mpi;
    int num_procs = mpi.WorldSize();
    int myid = mpi.WorldRank();
-   const char *mesh_file = "../disk.mesh";
+   const char *mesh_file = "disk.mesh";
    int order = 1;
    int ref = 1;
    bool visualization = true;
@@ -82,12 +82,18 @@ int main(int argc, char *argv[])
    Vector bounds(2);
    bounds(0) =  -0.5;
    bounds(1) =  0.5;
+   
+   H1_FECollection u_fec(order, dim);
+   ParFiniteElementSpace u_fes(&pmesh,&u_fec);
+   ParGridFunction g_gf(&u_fes);
+   g_gf.ProjectCoefficient(sin_cf);
+   // BoxProjection Pu(&g_gf,false);
 
    BoxProjection Pu(&pmesh,order,&sin_cf,&grad_sin_cf,false);
    Pu.SetBoxBounds(bounds(0), bounds(1));
    Pu.SetNewtonStepSize(0.1);
    // Pu.SetBregmanStepSize(0.1);
-   Pu.SetBregmanStepSize(0.02);
+   Pu.SetBregmanStepSize(0.1);
    Pu.SetNormWeight(0.0);
    Pu.SetDiffusionConstant(1.0);
    // Pu.SetDiffusionConstant(1.0);
