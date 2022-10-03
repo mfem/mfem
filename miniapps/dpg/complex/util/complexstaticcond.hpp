@@ -72,7 +72,7 @@ class ComplexBlockStaticCondensation
    BlockOperator * pS_i = nullptr;
    BlockOperator * pS_e_i = nullptr;
    // Block HypreParMatrix for Prolongation
-   BlockOperator * pP = nullptr;
+   // BlockOperator * pP = nullptr;
 #endif
 
    bool Parallel() const { return parallel; }
@@ -161,6 +161,9 @@ public:
    {
       if (!S)
       {
+#ifndef MFEM_USE_MPI
+         S = new ComplexOperator(S_r,S_i,false,false);
+#else
          if (parallel)
          {
             S = new ComplexOperator(pS_r,pS_i,false,false);
@@ -169,6 +172,7 @@ public:
          {
             S = new ComplexOperator(S_r,S_i,false,false);
          }
+#endif
       }
       return *S;
    }
