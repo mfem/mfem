@@ -1015,11 +1015,7 @@ double ComplianceObjective::Eval()
     intgr->SetDisp(&(esolv->GetDisplacements()));
     intgr->SetVolForce(volforce);
 
-    std::cout<<"bla bla"<<std::endl;
-
     double rt=nf->GetEnergy(*dens);
-
-    std::cout<<"dla dla"<<std::endl;
 
     return rt;
 }
