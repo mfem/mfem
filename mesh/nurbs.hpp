@@ -240,7 +240,7 @@ protected:
    // Checks if the extended array of KnotVectors agrees with
    // the reduced set of KnotVectors. Returns false if it finds
    // a difference.
-   bool EqualUniqueKVExtendedKV();
+   bool InconsistentUniqueKVExtendedKV();
 
    void GetPatchKnotVectors   (int p, Array<KnotVector *> &kv);
    void GetPatchKnotVectors   (int p, Array<const KnotVector *> &kv) const;
