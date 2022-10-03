@@ -525,9 +525,9 @@ void BlockStaticCondensation::BuildProlongation()
 void BlockStaticCondensation::BuildParallelProlongation()
 {
    MFEM_VERIFY(parallel, "BuildParallelProlongation: wrong code path");
-   pP = new BlockOperator(rdof_offsets, rtdof_offsets);
+   P = new BlockOperator(rdof_offsets, rtdof_offsets);
    R = new BlockMatrix(rtdof_offsets, rdof_offsets);
-   pP->owns_blocks = 0;
+   P->owns_blocks = 0;
    R->owns_blocks = 0;
    int skip = 0;
    for (int i = 0; i<nblocks; i++)
@@ -538,7 +538,7 @@ void BlockStaticCondensation::BuildParallelProlongation()
       if (P_)
       {
          const SparseMatrix *R_ = tr_fes[i]->GetRestrictionMatrix();
-         pP->SetBlock(skip,skip,const_cast<HypreParMatrix*>(P_));
+         P->SetBlock(skip,skip,const_cast<HypreParMatrix*>(P_));
          R->SetBlock(skip,skip,const_cast<SparseMatrix*>(R_));
       }
       skip++;
@@ -547,7 +547,7 @@ void BlockStaticCondensation::BuildParallelProlongation()
 
 void BlockStaticCondensation::ParallelAssemble(BlockMatrix *m)
 {
-   if (!pP) { BuildParallelProlongation(); }
+   if (!P) { BuildParallelProlongation(); }
 
    pS = new BlockOperator(rtdof_offsets);
    pS_e = new BlockOperator(rtdof_offsets);
@@ -562,7 +562,7 @@ void BlockStaticCondensation::ParallelAssemble(BlockMatrix *m)
    {
       if (!tr_fes[i]) { continue; }
       pfes_i = dynamic_cast<ParFiniteElementSpace*>(fes[i]);
-      HypreParMatrix * Pi = (HypreParMatrix*)(&pP->GetBlock(skip_i,skip_i));
+      HypreParMatrix * Pi = (HypreParMatrix*)(&P->GetBlock(skip_i,skip_i));
       int skip_j=0;
       for (int j = 0; j<nblocks; j++)
       {
@@ -580,7 +580,7 @@ void BlockStaticCondensation::ParallelAssemble(BlockMatrix *m)
          else
          {
             pfes_j = dynamic_cast<ParFiniteElementSpace*>(fes[j]);
-            HypreParMatrix * Pj = (HypreParMatrix*)(&pP->GetBlock(skip_j,skip_j));
+            HypreParMatrix * Pj = (HypreParMatrix*)(&P->GetBlock(skip_j,skip_j));
             A = new HypreParMatrix(pfes_i->GetComm(), pfes_i->GlobalVSize(),
                                    pfes_j->GlobalVSize(), pfes_i->GetDofOffsets(),
                                    pfes_j->GetDofOffsets(), &m->GetBlock(skip_i,skip_j));
@@ -635,21 +635,8 @@ void BlockStaticCondensation::Finalize(int skip_zeros)
 void BlockStaticCondensation::FormSystemMatrix(Operator::DiagonalPolicy
                                                diag_policy)
 {
-   if (parallel)
-   {
-      FillEssTdofLists(ess_rtdof_list);
-      if (S)
-      {
-         const int remove_zeros = 0;
-         Finalize(remove_zeros);
-         ParallelAssemble(S);
-         delete S;
-         S=nullptr;
-         delete S_e;
-         S_e = nullptr;
-      }
-   }
-   else
+
+   if (!parallel)
    {
       if (!S_e)
       {
@@ -669,6 +656,20 @@ void BlockStaticCondensation::FormSystemMatrix(Operator::DiagonalPolicy
          EliminateReducedTrueDofs(ess_rtdof_list, diag_policy);
          Finalize(remove_zeros);
       }
+   }
+   else
+   {
+#ifdef MFEM_USE_MPI
+      FillEssTdofLists(ess_rtdof_list);
+      if (S)
+      {
+         const int remove_zeros = 0;
+         Finalize(remove_zeros);
+         ParallelAssemble(S);
+         delete S;   S=nullptr;
+         delete S_e; S_e = nullptr;
+      }
+#endif
    }
 }
 
@@ -822,10 +823,27 @@ void BlockStaticCondensation::ReduceSystem(Vector &x, Vector &X,
                                            int copy_interior) const
 {
    ReduceSolution(x, X);
-   if (parallel)
+   if (!parallel)
    {
-      B.SetSize(pP->Width());
-      pP->MultTranspose(*y,B);
+      if (!P)
+      {
+         S_e->AddMult(X,*y,-1.);
+         S->PartMult(ess_rtdof_list,X,*y);
+         B.MakeRef(*y, 0, y->Size());
+      }
+      else
+      {
+         B.SetSize(P->Width());
+         P->MultTranspose(*y, B);
+         S_e->AddMult(X,B,-1.);
+         S->PartMult(ess_rtdof_list,X,B);
+      }
+   }
+   else
+   {
+#ifdef MFEM_USE_MPI
+      B.SetSize(P->Width());
+      P->MultTranspose(*y,B);
 
       Vector tmp(B.Size());
       pS_e->Mult(X,tmp);
@@ -843,22 +861,7 @@ void BlockStaticCondensation::ReduceSystem(Vector &x, Vector &X,
             B(gdof) = diag(tdof)*X(gdof);
          }
       }
-   }
-   else
-   {
-      if (!P)
-      {
-         S_e->AddMult(X,*y,-1.);
-         S->PartMult(ess_rtdof_list,X,*y);
-         B.MakeRef(*y, 0, y->Size());
-      }
-      else
-      {
-         B.SetSize(P->Width());
-         P->MultTranspose(*y, B);
-         S_e->AddMult(X,B,-1.);
-         S->PartMult(ess_rtdof_list,X,B);
-      }
+#endif
    }
    if (!copy_interior) { X.SetSubVectorComplement(ess_rtdof_list, 0.0); }
 }
@@ -876,7 +879,7 @@ void BlockStaticCondensation::ComputeSolution(const Vector &sc_sol,
    if (parallel)
    {
       sol_r.SetSize(nrdofs);
-      pP->Mult(sc_sol, sol_r);
+      P->Mult(sc_sol, sol_r);
    }
    else
    {
@@ -947,6 +950,7 @@ BlockStaticCondensation::~BlockStaticCondensation()
    if (P) { delete P; } P=nullptr;
    if (R) { delete R; } R=nullptr;
 
+#ifdef MFEM_USE_MPI
    if (parallel)
    {
       delete pS; pS=nullptr;
@@ -955,8 +959,8 @@ BlockStaticCondensation::~BlockStaticCondensation()
       {
          delete ess_tdofs[i];
       }
-      delete pP; pP=nullptr;
    }
+#endif
 
    for (int i=0; i<lmat.Size(); i++)
    {
@@ -965,4 +969,4 @@ BlockStaticCondensation::~BlockStaticCondensation()
    }
 }
 
-}
+} // namespace mfem
