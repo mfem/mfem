@@ -757,7 +757,7 @@ void ComplexBlockStaticCondensation::FormSystemMatrix(Operator::DiagonalPolicy
    else
    {
 #ifdef MFEM_USE_MPI
-   FillEssTdofLists(ess_rtdof_list);
+      FillEssTdofLists(ess_rtdof_list);
       if (S_r)
       {
          const int remove_zeros = 0;
@@ -975,7 +975,6 @@ void ComplexBlockStaticCondensation::ReduceSystem(Vector &x, Vector &X,
          S_e_i->AddMult(X_r,B_i,-1.);
          S_r->PartMult(ess_rtdof_list,X_r,B_r);
          S_r->PartMult(ess_rtdof_list,X_i,B_i);
-
       }
    }
    else

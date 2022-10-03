@@ -63,8 +63,6 @@ class BlockStaticCondensation
 #ifdef MFEM_USE_MPI
    BlockOperator * pS = nullptr;
    BlockOperator * pS_e = nullptr;
-   // Block HypreParMatrix for Prolongation
-   BlockOperator * pP = nullptr;
 #endif
 
    bool Parallel() const { return parallel; }
