@@ -2323,7 +2323,7 @@ void NURBSExtension::CreateExtendedKV()
       }
    }
 
-   MFEM_ASSERT(EqualUniqueKVExtendedKV(), "Mismatch in KnotVectors");
+   MFEM_ASSERT(InconsistentUniqueKVExtendedKV(), "Mismatch in KnotVectors");
 }
 
 void NURBSExtension::UpdateUniqueKV()
@@ -2406,11 +2406,11 @@ void NURBSExtension::UpdateUniqueKV()
       }
    }
 
-   MFEM_ASSERT(EqualUniqueKVExtendedKV(), "Mismatch in KnotVectors");
+   MFEM_ASSERT(InconsistentUniqueKVExtendedKV(), "Mismatch in KnotVectors");
 }
 
 
-bool NURBSExtension::EqualUniqueKVExtendedKV()
+bool NURBSExtension::InconsistentUniqueKVExtendedKV()
 {
    Array<int> edges, orient, kvdir;
    Vector diff;
