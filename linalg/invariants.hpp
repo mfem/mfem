@@ -497,7 +497,10 @@ protected:
    // Transformation Jacobian
    const scalar_t *J;
 
-   // Invariants:
+   // Invatiants: I1b = det(J)^{-2/3} * ||J||_F^2
+   //             I2b = det(J)^{ 2/3} * ||J^{-1}||_F^2
+   //             I3b = det(J)
+   // Computed as:
    //    I_1 = ||J||_F^2, \bar{I}_1 = det(J)^{-2/3}*I_1,
    //    I_2 = (1/2)*(||J||_F^4-||J J^t||_F^2) = (1/2)*(I_1^2-||J J^t||_F^2),
    //    \bar{I}_2 = det(J)^{-4/3}*I_2,
