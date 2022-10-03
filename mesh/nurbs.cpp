@@ -2289,7 +2289,7 @@ void NURBSExtension::CheckKVDirection(int p, Array <int> &kvdir)
    }
 
    // Verify that all knotvectors have been given a direction.
-   MFEM_ASSERT(kvdir.Find(0) == -1, "Could not find direction of knotvector.")
+   MFEM_ASSERT(kvdir.Find(0) == -1, "Could not find direction of knotvector.");
 }
 
 void NURBSExtension::KV2KVExt()
@@ -2323,7 +2323,7 @@ void NURBSExtension::KV2KVExt()
       }
    }
 
-   MFEM_ASSERT(EqualKVKVExt(), "Mismatch in KnotVectors")
+   MFEM_ASSERT(EqualKVKVExt(), "Mismatch in KnotVectors");
 }
 
 void NURBSExtension::KVExt2KV()
@@ -2368,7 +2368,7 @@ void NURBSExtension::KVExt2KV()
          {
             // Check if knotvector is allready updated.
             MFEM_ASSERT(ifupd[KnotInd(iun)] == 0,
-                        "KnotVector[i] is updated twice. Knotvectors problably not equal.")
+                        "KnotVector[i] is updated twice. Knotvectors problably not equal.");
 
             // Update reduced set of knotvectors
             *(KnotVec(iun)) = *(knotVectorsExt[iext]);
@@ -2379,7 +2379,7 @@ void NURBSExtension::KVExt2KV()
          }
 
          // Check if difference between knots
-         if (kvdir[d])
+         if (kvdir[d] == 1)
          {
             KnotVec(iun)->Difference(*(knotVectorsExt[iext]), diffknot);
          }
@@ -2394,7 +2394,7 @@ void NURBSExtension::KVExt2KV()
          {
             // Check if knotvector is allready updated.
             MFEM_ASSERT(ifupd[KnotInd(iun)] == 0,
-                        "KnotVector[i] is updated twice. Knotvectors problably not equal.")
+                        "KnotVector[i] is updated twice. Knotvectors problably not equal.");
 
             // Update reduced set of knotvectors
             *(KnotVec(iun)) = *(knotVectorsExt[iext]);
@@ -2406,7 +2406,7 @@ void NURBSExtension::KVExt2KV()
       }
    }
 
-   MFEM_ASSERT(EqualKVKVExt(), "Mismatch in KnotVectors")
+   MFEM_ASSERT(EqualKVKVExt(), "Mismatch in KnotVectors");
 }
 
 
@@ -2439,7 +2439,7 @@ bool NURBSExtension::EqualKVKVExt()
          // Check if KnotVectors are of equal order
          int d = KnotVec(edges[e[i]])->GetOrder() - knotVectorsExt[Dimension()*p
                                                                    +i]->GetOrder();
-         if (d)
+         if (d > 0)
          {
             mfem::out << "\nOrder of knotVectorsExt " << i << " of patch " << p;
             mfem::out << " does not agree with order of knotVectors " <<
@@ -3368,6 +3368,7 @@ void NURBSExtension::KnotInsert(Array<KnotVector *> &kv)
 {
    Array<int> edges;
    Array<int> orient;
+   Array<int> kvdir;
 
    Array<KnotVector *> pkv(Dimension());
 
@@ -3387,7 +3388,31 @@ void NURBSExtension::KnotInsert(Array<KnotVector *> &kv)
          pkv[2] = kv[KnotInd(edges[8])];
       }
 
-      patches[p]->KnotInsert(pkv);
+
+      // Check whether inserted knots should be flipped before inserting.
+      // Knotvectors are stored in a different array pkvc such that the original
+      // knots which are inserted are not changed.
+      // We need those knots for multiple patches so they have to remain original
+      CheckKVDirection(p, kvdir);
+      Array<KnotVector *> pkvc(Dimension());
+
+      for (int i = 0; i < Dimension(); i++)
+      {
+         pkvc[i] = new KnotVector(*(pkv[i]));
+
+         if (kvdir[i] == -1)
+         {
+            KnotVector copy = *(pkvc[i]);
+            for (int j = 0; j < (pkvc[i])->Size(); j++)
+            {
+               (*(pkvc[i]))[j] = 1 - copy[copy.Size()-1-j];
+            }
+         }
+      }
+
+
+      patches[p]->KnotInsert(pkvc);
+      for (int i = 0; i < Dimension(); i++) { delete pkvc[i]; }
    }
 }
 
@@ -3436,9 +3461,12 @@ void NURBSExtension::KnotInsert(Array<Vector *> &kv)
             }
          }
       }
+
       patches[p]->KnotInsert(pkvc);
 
       for (int i = 0; i < Dimension(); i++) { delete pkvc[i]; }
+
+      MFEM_ASSERT(EqualKVKVExt(), "Mismatch in KnotVectors");
    }
 }
 
