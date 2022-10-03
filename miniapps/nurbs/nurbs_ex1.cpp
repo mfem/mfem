@@ -121,11 +121,50 @@ public:
 
 };
 
+void RefineNURBSFromFile(std::string ref_file, Mesh *mesh)
+{
+   if (!mesh->NURBSext) { return; }
+
+   int nkv;
+   ifstream input(ref_file);
+   input >> nkv;
+
+
+   // Check if number of knotvectors in refinement file and mesh match
+   if ( nkv != mesh->NURBSext->GetNKV())
+   {
+
+      cout <<nkv<<endl;
+      cout <<mesh->NURBSext->GetNKV()<<endl;
+      MFEM_ABORT("Refine file does not have the correct number of knot vectors");
+   }
+
+   // Read knotvectors from file
+   Array<Vector *> knotVec(nkv);
+   for (int kv = 0; kv < nkv; kv++)
+   {
+      knotVec[kv] = new Vector ();
+      knotVec[kv]-> Load(input);
+   }
+   input.close();
+
+   // Insert knots
+   mesh->KnotInsert(knotVec);
+
+
+   // Delete knots
+   for (int kv = 0; kv < nkv; kv++)
+   {
+      delete knotVec[kv];
+   }
+}
+
 int main(int argc, char *argv[])
 {
    // 1. Parse command-line options.
    const char *mesh_file = "../../data/star.mesh";
    const char *per_file  = "none";
+   const char *ref_file  = "";
    int ref_levels = -1;
    Array<int> master(0);
    Array<int> slave(0);
@@ -144,6 +183,8 @@ int main(int argc, char *argv[])
                   "Number of times to refine the mesh uniformly, -1 for auto.");
    args.AddOption(&per_file, "-p", "--per",
                   "Periodic BCS file.");
+   args.AddOption(&ref_file, "-rf", "--ref-file",
+                  "File with refinement data");
    args.AddOption(&master, "-pm", "--master",
                   "Master boundaries for periodic BCs");
    args.AddOption(&slave, "-ps", "--slave",
@@ -188,6 +229,13 @@ int main(int argc, char *argv[])
    //    largest number that gives a final mesh with no more than 50,000
    //    elements.
    {
+      // Mesh refinement as defined in refinement file
+      if (mesh->NURBSext && (strlen(ref_file) != 0))
+      {
+         cout << "Refining nurbs from file" << endl;
+         RefineNURBSFromFile(ref_file, mesh);
+      }
+
       if (ref_levels < 0)
       {
          ref_levels =
