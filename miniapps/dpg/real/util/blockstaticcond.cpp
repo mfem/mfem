@@ -525,9 +525,9 @@ void BlockStaticCondensation::BuildProlongation()
 void BlockStaticCondensation::BuildParallelProlongation()
 {
    MFEM_VERIFY(parallel, "BuildParallelProlongation: wrong code path");
-   P = new BlockOperator(rdof_offsets, rtdof_offsets);
+   pP = new BlockOperator(rdof_offsets, rtdof_offsets);
    R = new BlockMatrix(rtdof_offsets, rdof_offsets);
-   P->owns_blocks = 0;
+   pP->owns_blocks = 0;
    R->owns_blocks = 0;
    int skip = 0;
    for (int i = 0; i<nblocks; i++)
@@ -538,7 +538,7 @@ void BlockStaticCondensation::BuildParallelProlongation()
       if (P_)
       {
          const SparseMatrix *R_ = tr_fes[i]->GetRestrictionMatrix();
-         P->SetBlock(skip,skip,const_cast<HypreParMatrix*>(P_));
+         pP->SetBlock(skip,skip,const_cast<HypreParMatrix*>(P_));
          R->SetBlock(skip,skip,const_cast<SparseMatrix*>(R_));
       }
       skip++;
@@ -547,7 +547,7 @@ void BlockStaticCondensation::BuildParallelProlongation()
 
 void BlockStaticCondensation::ParallelAssemble(BlockMatrix *m)
 {
-   if (!P) { BuildParallelProlongation(); }
+   if (!pP) { BuildParallelProlongation(); }
 
    pS = new BlockOperator(rtdof_offsets);
    pS_e = new BlockOperator(rtdof_offsets);
@@ -580,7 +580,7 @@ void BlockStaticCondensation::ParallelAssemble(BlockMatrix *m)
          else
          {
             pfes_j = dynamic_cast<ParFiniteElementSpace*>(fes[j]);
-            HypreParMatrix * Pj = (HypreParMatrix*)(&P->GetBlock(skip_j,skip_j));
+            HypreParMatrix * Pj = (HypreParMatrix*)(&pP->GetBlock(skip_j,skip_j));
             A = new HypreParMatrix(pfes_i->GetComm(), pfes_i->GlobalVSize(),
                                    pfes_j->GlobalVSize(), pfes_i->GetDofOffsets(),
                                    pfes_j->GetDofOffsets(), &m->GetBlock(skip_i,skip_j));
@@ -842,8 +842,8 @@ void BlockStaticCondensation::ReduceSystem(Vector &x, Vector &X,
    else
    {
 #ifdef MFEM_USE_MPI
-      B.SetSize(P->Width());
-      P->MultTranspose(*y,B);
+      B.SetSize(pP->Width());
+      pP->MultTranspose(*y,B);
 
       Vector tmp(B.Size());
       pS_e->Mult(X,tmp);
@@ -879,7 +879,7 @@ void BlockStaticCondensation::ComputeSolution(const Vector &sc_sol,
    if (parallel)
    {
       sol_r.SetSize(nrdofs);
-      P->Mult(sc_sol, sol_r);
+      pP->Mult(sc_sol, sol_r);
    }
    else
    {
@@ -959,6 +959,7 @@ BlockStaticCondensation::~BlockStaticCondensation()
       {
          delete ess_tdofs[i];
       }
+      delete pP; pP=nullptr;
    }
 #endif
 

@@ -579,9 +579,9 @@ void ComplexBlockStaticCondensation::BuildProlongation()
 void ComplexBlockStaticCondensation::BuildParallelProlongation()
 {
    MFEM_VERIFY(parallel, "BuildParallelProlongation: wrong code path");
-   P = new BlockOperator(rdof_offsets, rtdof_offsets);
+   pP = new BlockOperator(rdof_offsets, rtdof_offsets);
    R = new BlockMatrix(rtdof_offsets, rdof_offsets);
-   P->owns_blocks = 0;
+   pP->owns_blocks = 0;
    R->owns_blocks = 0;
    int skip = 0;
    for (int i = 0; i<nblocks; i++)
@@ -592,7 +592,7 @@ void ComplexBlockStaticCondensation::BuildParallelProlongation()
       if (P_)
       {
          const SparseMatrix *R_ = tr_fes[i]->GetRestrictionMatrix();
-         P->SetBlock(skip,skip,const_cast<HypreParMatrix*>(P_));
+         pP->SetBlock(skip,skip,const_cast<HypreParMatrix*>(P_));
          R->SetBlock(skip,skip,const_cast<SparseMatrix*>(R_));
       }
       skip++;
@@ -603,7 +603,7 @@ void ComplexBlockStaticCondensation::ParallelAssemble(BlockMatrix *m_r,
                                                       BlockMatrix *m_i)
 {
 
-   if (!P) { BuildParallelProlongation(); }
+   if (!pP) { BuildParallelProlongation(); }
 
    pS_r = new BlockOperator(rtdof_offsets);
    pS_e_r = new BlockOperator(rtdof_offsets);
@@ -624,7 +624,7 @@ void ComplexBlockStaticCondensation::ParallelAssemble(BlockMatrix *m_r,
    {
       if (!tr_fes[i]) { continue; }
       pfes_i = dynamic_cast<ParFiniteElementSpace*>(fes[i]);
-      HypreParMatrix * Pi = (HypreParMatrix*)(&P->GetBlock(skip_i,skip_i));
+      HypreParMatrix * Pi = (HypreParMatrix*)(&pP->GetBlock(skip_i,skip_i));
       int skip_j=0;
       for (int j = 0; j<nblocks; j++)
       {
@@ -650,7 +650,7 @@ void ComplexBlockStaticCondensation::ParallelAssemble(BlockMatrix *m_r,
          else
          {
             pfes_j = dynamic_cast<ParFiniteElementSpace*>(fes[j]);
-            HypreParMatrix * Pj = (HypreParMatrix*)(&P->GetBlock(skip_j,skip_j));
+            HypreParMatrix * Pj = (HypreParMatrix*)(&pP->GetBlock(skip_j,skip_j));
             A_r = new HypreParMatrix(pfes_i->GetComm(), pfes_i->GlobalVSize(),
                                      pfes_j->GlobalVSize(), pfes_i->GetDofOffsets(),
                                      pfes_j->GetDofOffsets(), &m_r->GetBlock(skip_i,skip_j));
@@ -980,14 +980,14 @@ void ComplexBlockStaticCondensation::ReduceSystem(Vector &x, Vector &X,
    else
    {
 #ifdef MFEM_USE_MPI
-      int n = P->Width();
+      int n = pP->Width();
       B.SetSize(2*n);
       double * Bdata = B.GetData();
       Vector B_r(Bdata,n);
       Vector B_i(&Bdata[n],n);
 
-      P->MultTranspose(*y_r,B_r);
-      P->MultTranspose(*y_i,B_i);
+      pP->MultTranspose(*y_r,B_r);
+      pP->MultTranspose(*y_i,B_i);
 
       Vector tmp(B_r.Size());
       pS_e_r->Mult(X_r,tmp); B_r-=tmp;
@@ -1033,8 +1033,8 @@ void ComplexBlockStaticCondensation::ComputeSolution(const Vector &sc_sol,
       Vector sc_imag(&sc_sol.GetData()[nrtdofs], nrtdofs);
       sol_r_real.SetSize(nrdofs);
       sol_r_imag.SetSize(nrdofs);
-      P->Mult(sc_real, sol_r_real);
-      P->Mult(sc_imag, sol_r_imag);
+      pP->Mult(sc_real, sol_r_real);
+      pP->Mult(sc_imag, sol_r_imag);
    }
    else
    {
@@ -1152,6 +1152,7 @@ ComplexBlockStaticCondensation::~ComplexBlockStaticCondensation()
       {
          delete ess_tdofs[i];
       }
+      delete pP; pP = nullptr;
    }
 #endif
 
