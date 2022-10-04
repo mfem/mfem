@@ -32,7 +32,8 @@ MFEM_REGISTER_TMOP_KERNELS(double, EnergyPA_C0_2D,
                            const Vector &ones,
                            Vector &energy,
                            const int d1d,
-                           const int q1d)
+                           const int q1d,
+                           const bool quad_lim)
 {
    const bool const_c0 = c0_.Size() == 1;
 
@@ -107,16 +108,27 @@ MFEM_REGISTER_TMOP_KERNELS(double, EnergyPA_C0_2D,
             kernels::internal::PullEval<MQ1,NBZ>(Q1D,qx,qy,QQ0,p0);
             kernels::internal::PullEval<MQ1,NBZ>(Q1D,qx,qy,QQ1,p1);
             const double dist = ld; // GetValues, default comp set to 0
-            const double id2 = 0.5 / (dist*dist);
-            const double dsq = kernels::DistanceSquared<2>(p1,p0) * id2;
-            E(qx,qy,e) = weight * lim_normal * dsq * coeff0;
+            double id2 = 0.0;
+            double dsq = 0.0;
+            if (quad_lim)
+            {
+                id2 = 0.5 / (dist*dist);
+                dsq = kernels::DistanceSquared<2>(p1,p0) * id2;
+                E(qx,qy,e) = weight * lim_normal * dsq * coeff0;
+            }
+            else
+            {
+                id2 = 1.0 / (dist*dist);
+                dsq = kernels::DistanceSquared<2>(p1,p0) * id2;
+                E(qx,qy,e) = weight * lim_normal * exp(10.0*dsq-1.0) * coeff0;
+            }
          }
       }
    });
    return energy * ones;
 }
 
-double TMOP_Integrator::GetLocalStateEnergyPA_C0_2D(const Vector &X) const
+double TMOP_Integrator::GetLocalStateEnergyPA_C0_2D(const Vector &X, const bool &quad_lim) const
 {
    const int N = PA.ne;
    const int D1D = PA.maps->ndof;
@@ -135,7 +147,7 @@ double TMOP_Integrator::GetLocalStateEnergyPA_C0_2D(const Vector &X) const
    const Vector &O = PA.O;
    Vector &E = PA.E;
 
-   MFEM_LAUNCH_TMOP_KERNEL(EnergyPA_C0_2D,id,ln,LD,C0,N,J,W,B,BLD,X0,X,O,E);
+   MFEM_LAUNCH_TMOP_KERNEL(EnergyPA_C0_2D,id,ln,LD,C0,N,J,W,B,BLD,X0,X,O,E,quad_lim);
 }
 
 } // namespace mfem

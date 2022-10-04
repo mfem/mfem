@@ -118,10 +118,20 @@ MFEM_REGISTER_TMOP_KERNELS(double, EnergyPA_C0_3D,
                kernels::internal::PullEval<MQ1>(Q1D,qx,qy,qz,QQQ1,p1);
 
                const double dist = D; // GetValues, default comp set to 0
-               const double id2 = 0.5 / (dist*dist);
-
-               const double dsq = kernels::DistanceSquared<3>(p1,p0) * id2;
-               E(qx,qy,qz,e) = weight * lim_normal * dsq * coeff0;
+               double id2 = 0.0;
+               double dsq = 0.0;
+               if (quad_lim)
+               {
+                 id2 = 0.5 / (dist*dist);
+                 dsq = kernels::DistanceSquared<2>(p1,p0) * id2;
+                 E(qx,qy,e) = weight * lim_normal * dsq * coeff0;
+               }
+               else
+               {
+                id2 = 1.0 / (dist*dist);
+                dsq = kernels::DistanceSquared<2>(p1,p0) * id2;
+                E(qx,qy,e) = weight * lim_normal * exp(10.0*dsq-1.0) * coeff0;
+               }
             }
          }
       }
@@ -129,7 +139,7 @@ MFEM_REGISTER_TMOP_KERNELS(double, EnergyPA_C0_3D,
    return energy * ones;
 }
 
-double TMOP_Integrator::GetLocalStateEnergyPA_C0_3D(const Vector &X) const
+double TMOP_Integrator::GetLocalStateEnergyPA_C0_3D(const Vector &X, const bool &quad_lim) const
 {
    const int N = PA.ne;
    const int D1D = PA.maps->ndof;
@@ -148,7 +158,7 @@ double TMOP_Integrator::GetLocalStateEnergyPA_C0_3D(const Vector &X) const
    const Vector &O = PA.O;
    Vector &E = PA.E;
 
-   MFEM_LAUNCH_TMOP_KERNEL(EnergyPA_C0_3D,id,ln,LD,C0,N,J,W,B,BLD,X0,X,O,E);
+   MFEM_LAUNCH_TMOP_KERNEL(EnergyPA_C0_3D,id,ln,LD,C0,N,J,W,B,BLD,X0,X,O,E,quad_lim);
 }
 
 } // namespace mfem
