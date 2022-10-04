@@ -23,6 +23,7 @@ set(UNIT_TESTS_SRCS
   linalg/test_cg_indefinite.cpp
   linalg/test_chebyshev.cpp
   linalg/test_complex_operator.cpp
+  linalg/test_complex_dense_matrix.cpp
   linalg/test_constrainedsolver.cpp
   linalg/test_direct_solvers.cpp
   linalg/test_hypre_ilu.cpp
@@ -42,6 +43,8 @@ set(UNIT_TESTS_SRCS
   mesh/test_mesh.cpp
   mesh/test_ncmesh.cpp
   mesh/test_pmesh.cpp
+  mesh/test_submesh.cpp
+  mesh/test_psubmesh.cpp
   mesh/test_periodic_mesh.cpp
   mesh/test_vtu.cpp
   fem/test_1d_bilininteg.cpp
@@ -61,6 +64,7 @@ set(UNIT_TESTS_SRCS
   fem/test_coefficient.cpp
   fem/test_datacollection.cpp
   fem/test_derefine.cpp
+  fem/test_dgmassinv.cpp
   fem/test_estimator.cpp
   fem/test_face_elem_trans.cpp
   fem/test_face_permutation.cpp
@@ -196,6 +200,9 @@ add_serial_miniapp_test(sedov ON)  # UVM ON
 add_serial_miniapp_test(tmop_pa OFF)  # UVM OFF
 # TMOP tests need meshes in ../../miniapps/meshing
 add_dependencies(tmop_pa_tests_cpu copy_miniapps_meshing_data)
+
+# ParSubMesh tests need meshes in ../../miniapps/multidomain
+add_dependencies(unit_tests copy_miniapps_multidomain_data)
 
 #-----------------------------------------------------------
 # SERIAL CEED TESTS:
