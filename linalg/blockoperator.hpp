@@ -113,6 +113,8 @@ public:
    //! delete all blocks that are set (non-NULL); the default value is zero.
    int owns_blocks;
 
+   virtual Type GetType() const { return MFEM_Block_Operator; }
+
 private:
    //! Number of block rows
    int nRowBlocks;
