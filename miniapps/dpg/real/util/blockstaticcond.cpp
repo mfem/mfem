@@ -876,12 +876,7 @@ void BlockStaticCondensation::ComputeSolution(const Vector &sc_sol,
    MFEM_VERIFY(sc_sol.Size() == nrtdofs, "'sc_sol' has incorrect size");
 
    Vector sol_r;
-   if (parallel)
-   {
-      sol_r.SetSize(nrdofs);
-      pP->Mult(sc_sol, sol_r);
-   }
-   else
+   if (!parallel)
    {
       if (!P)
       {
@@ -893,7 +888,13 @@ void BlockStaticCondensation::ComputeSolution(const Vector &sc_sol,
          P->Mult(sc_sol, sol_r);
       }
    }
-
+   else
+   {
+#ifdef MFEM_USE_MPI      
+      sol_r.SetSize(nrdofs);
+      pP->Mult(sc_sol, sol_r);
+#endif      
+   }
 
    if (rdof_offsets.Last() == dof_offsets.Last())
    {
