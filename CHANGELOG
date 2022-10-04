@@ -44,13 +44,13 @@ Discretization improvements
 - Added a new Zienkiewicz-Zhu patch recovery-based a posteriori error estimator.
   See fem/estimators.hpp.
 
+- Fixes and improvements in LinearFormExtension.
+
 - Added a new class FaceQuadratureSpace that allows for the construction of
   QuadratureFunctions on the interior or boundary faces of a mesh.
 
 - Added a class CoefficientVector for efficient access of variable coefficient
   values at quadrature points (in particular for GPU/device kernels).
-
-- Fixes and improvements in LinearFormExtension.
 
 Linear and nonlinear solvers
 ----------------------------
