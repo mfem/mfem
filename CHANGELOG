@@ -112,6 +112,8 @@ Miscellaneous
 - Added more 3D TMOP metrics, as well as specialized metrics for mesh
   untangling and worst-case quality improvement;
 
+- The behavior of GridFunction::GetTrueVector() has been changed to not return
+  an empty true vector.
 
 Version 4.4, released on March 21, 2022
 =======================================
