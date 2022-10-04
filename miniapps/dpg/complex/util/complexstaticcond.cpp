@@ -1027,16 +1027,7 @@ void ComplexBlockStaticCondensation::ComputeSolution(const Vector &sc_sol,
 
    Vector sol_r_real;
    Vector sol_r_imag;
-   if (parallel)
-   {
-      Vector sc_real(sc_sol.GetData(), nrtdofs);
-      Vector sc_imag(&sc_sol.GetData()[nrtdofs], nrtdofs);
-      sol_r_real.SetSize(nrdofs);
-      sol_r_imag.SetSize(nrdofs);
-      pP->Mult(sc_real, sol_r_real);
-      pP->Mult(sc_imag, sol_r_imag);
-   }
-   else
+   if (!parallel)
    {
       if (!P)
       {
@@ -1053,7 +1044,18 @@ void ComplexBlockStaticCondensation::ComputeSolution(const Vector &sc_sol,
          P->Mult(sc_imag, sol_r_imag);
       }
    }
-
+   else
+   {
+#ifdef MFEM_USE_MPI
+      Vector sc_real(sc_sol.GetData(), nrtdofs);
+      Vector sc_imag(&sc_sol.GetData()[nrtdofs], nrtdofs);
+      sol_r_real.SetSize(nrdofs);
+      sol_r_imag.SetSize(nrdofs);
+      pP->Mult(sc_real, sol_r_real);
+      pP->Mult(sc_imag, sol_r_imag);
+#endif
+   }
+   
    sol.SetSize(2*dof_offsets.Last());
    double *data = sol.GetData();
    Vector sol_real(data,dof_offsets.Last());
