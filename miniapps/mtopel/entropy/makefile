@@ -12,68 +12,47 @@
 # Use the MFEM build directory
 MFEM_DIR ?= ../../..
 MFEM_BUILD_DIR ?= ../../..
-SRC = $(if $(MFEM_DIR:../../..=),$(MFEM_DIR)/miniapps/mtopel/entropy/,)
+SRC = $(if $(MFEM_DIR:../../..=),$(MFEM_DIR)/miniapps/mtopel/entropy/BoxProj/,)
 CONFIG_MK = $(MFEM_BUILD_DIR)/config/config.mk
-# Use the MFEM install directory
-# MFEM_INSTALL_DIR = ../../mfem
-# CONFIG_MK = $(MFEM_INSTALL_DIR)/share/mfem/config.mk
-
-# Include defaults.mk to get XLINKER
-DEFAULTS_MK = $(MFEM_DIR)/config/defaults.mk
-include $(DEFAULTS_MK)
 
 MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
-PDEOPT_COMMON_SRC = H1_box_projection
-
-PDEOPT_COMMON_OBJ = $(PDEOPT_COMMON_SRC:.cpp=.o)
-
-SEQ_MINIAPPS = optimal_design
-PAR_MINIAPPS = H1_box_projection pobstacle_mixed
+SEQ_EXAMPLES = 
+PAR_EXAMPLES = H1_box_projection_driver
 ifeq ($(MFEM_USE_MPI),NO)
-   MINIAPPS = $(SEQ_MINIAPPS)
+   EXAMPLES = $(SEQ_EXAMPLES)
 else
-   MINIAPPS = $(PAR_MINIAPPS) $(SEQ_MINIAPPS)
+   EXAMPLES = $(PAR_EXAMPLES) $(SEQ_EXAMPLES)
 endif
 
 .SUFFIXES:
 .SUFFIXES: .o .cpp .mk
-.PHONY: all clean clean-build clean-exec
+.PHONY: all clean
+.PRECIOUS: %.o
+
+COMMON_O= H1_box_projection.o
 
 # Remove built-in rules
 %: %.cpp
 %.o: %.cpp
 
-%: %.o $(PDEOPT_COMMON_OBJ)
-	$(MFEM_CXX) $(MFEM_LINK_FLAGS) $^ -o $@ $(MFEM_LIBS)
+all: $(EXAMPLES)
 
-%.o: $(SRC)%.cpp $(MFEM_LIB_FILE) $(CONFIG_MK)
-	$(MFEM_CXX) $(MFEM_FLAGS) -c $< -o $@
+# Rules for building the EXAMPLES
 
-all: $(MINIAPPS)
+%: $(SRC)%.cpp $(COMMON_O) $(MFEM_LIB_FILE) $(CONFIG_MK)
+	$(MFEM_CXX) $(MFEM_FLAGS) $< -o $@ $(COMMON_O) $(MFEM_LIBS)
 
-MFEM_TESTS = MINIAPPS
-include $(MFEM_TEST_MK)
-
-# Testing: Parallel vs. serial runs
-RUN_MPI = $(MFEM_MPIEXEC) $(MFEM_MPIEXEC_NP) $(MFEM_MPI_NP)
-TEST_NAME := PDEOPT miniapp
-%-test-par: %
-	@$(call mfem-test,$<, $(RUN_MPI), $(TEST_NAME))
-%-test-seq: %
-	@$(call mfem-test,$<,, $(TEST_NAME))
-
-# Testing: "test" target and mfem-test* variables are defined in config/test.mk
+# Rules for compiling miniapp dependencies
+$(COMMON_O) $($(EXAMPLES)): \
+%.o: $(SRC)%.cpp $(SRC)%.hpp $(CONFIG_MK)
+	$(MFEM_CXX) $(MFEM_FLAGS) -c $(<) -o $(@)
 
 # Generate an error message if the MFEM library is not built and exit
 $(MFEM_LIB_FILE):
 	$(error The MFEM library is not built)
 
-clean: clean-build clean-exec
-
-clean-build:
-	rm -f *.o *~ $(SEQ_MINIAPPS) $(PAR_MINIAPPS)
-	rm -rf *.dSYM *.TVD.*breakpoints *.gf *.mesh
-
-clean-exec:
+clean:
+	rm -f *.o *~ $(SEQ_EXAMPLES) $(PAR_EXAMPLES)
+	rm -rf *.dSYM *.TVD.*breakpoints

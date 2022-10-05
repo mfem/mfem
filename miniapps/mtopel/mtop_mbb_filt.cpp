@@ -105,7 +105,7 @@ int main(int argc, char *argv[])
    MPI_Comm_rank(MPI_COMM_WORLD, &myrank);
 
    // Parse command-line options.
-   const char *mesh_file = "../../data/star.mesh";
+   const char *mesh_file = "bar2d.msh";
    int order = 1;
    bool static_cond = false;
    int ser_ref_levels = 1;
