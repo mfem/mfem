@@ -1,6 +1,6 @@
-#include "../../../../config/config.hpp"
-#include "../../../../linalg/linalg.hpp"
-#include "../../../../fem/fem.hpp"
+#include "../../../config/config.hpp"
+#include "../../../linalg/linalg.hpp"
+#include "../../../fem/fem.hpp"
 
 using namespace std;
 using namespace mfem;
@@ -46,11 +46,11 @@ public:
    Array<int> * GetMarkedPMLElements() {return &elems;}
 
    // Mark element in the PML region
-   void SetAttributes(Mesh *mesh_, Array<int> * attrNonPML = nullptr, 
-                                   Array<int> * attrPML = nullptr);
+   void SetAttributes(Mesh *mesh_, Array<int> * attrNonPML = nullptr,
+                      Array<int> * attrPML = nullptr);
 
    void SetOmega(double omega_) {omega = omega_;}
-   void SetEpsilonAndMu(double epsilon_, double mu_) 
+   void SetEpsilonAndMu(double epsilon_, double mu_)
    {
       epsilon = epsilon_;
       mu = mu_;
@@ -84,7 +84,7 @@ class PmlMatrixCoefficient : public MatrixCoefficient
 {
 private:
    CartesianPML * pml = nullptr;
-   void (*Function)(const Vector &, CartesianPML * , DenseMatrix &);
+   void (*Function)(const Vector &, CartesianPML *, DenseMatrix &);
 public:
    PmlMatrixCoefficient(int dim, void(*F)(const Vector &, CartesianPML *,
                                           DenseMatrix &),
@@ -107,12 +107,18 @@ double detJ_r_function(const Vector & x, CartesianPML * pml);
 double detJ_i_function(const Vector & x, CartesianPML * pml);
 double abs_detJ_2_function(const Vector & x, CartesianPML * pml);
 
-void Jt_J_detJinv_r_function(const Vector & x, CartesianPML * pml , DenseMatrix & M);
-void Jt_J_detJinv_i_function(const Vector & x, CartesianPML * pml , DenseMatrix & M);
-void abs_Jt_J_detJinv_2_function(const Vector & x, CartesianPML * pml , DenseMatrix & M);
+void Jt_J_detJinv_r_function(const Vector & x, CartesianPML * pml,
+                             DenseMatrix & M);
+void Jt_J_detJinv_i_function(const Vector & x, CartesianPML * pml,
+                             DenseMatrix & M);
+void abs_Jt_J_detJinv_2_function(const Vector & x, CartesianPML * pml,
+                                 DenseMatrix & M);
 
 // Maxwell Pml functions
 // |J| J^-1 J^-T
-void detJ_Jt_J_inv_r_function(const Vector &x, CartesianPML * pml, DenseMatrix &M);
-void detJ_Jt_J_inv_i_function(const Vector &x, CartesianPML * pml, DenseMatrix &M);
-void abs_detJ_Jt_J_inv_2_function(const Vector &x, CartesianPML * pml, DenseMatrix &M);
+void detJ_Jt_J_inv_r_function(const Vector &x, CartesianPML * pml,
+                              DenseMatrix &M);
+void detJ_Jt_J_inv_i_function(const Vector &x, CartesianPML * pml,
+                              DenseMatrix &M);
+void abs_detJ_Jt_J_inv_2_function(const Vector &x, CartesianPML * pml,
+                                  DenseMatrix &M);

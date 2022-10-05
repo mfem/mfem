@@ -12,9 +12,9 @@
 #ifndef MFEM_COMPLEX_DPGWEAKFORM
 #define MFEM_COMPLEX_DPGWEAKFORM
 
-#include "../../../../config/config.hpp"
-#include "../../../../linalg/linalg.hpp"
-#include "../../../../fem/fem.hpp"
+#include "../../../config/config.hpp"
+#include "../../../linalg/linalg.hpp"
+#include "../../../fem/fem.hpp"
 #include "complexstaticcond.hpp"
 
 namespace mfem
@@ -111,7 +111,7 @@ public:
    }
 
    ComplexDPGWeakForm(Array<FiniteElementSpace* > & fes_,
-                          Array<FiniteElementCollection *> & fecol_)
+                      Array<FiniteElementCollection *> & fecol_)
    {
       SetSpaces(fes_,fecol_);
    }

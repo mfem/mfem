@@ -105,10 +105,10 @@ void DPGWeakForm::Finalize(int skip_zeros)
 void DPGWeakForm::AddTrialIntegrator(
    BilinearFormIntegrator *bfi, int n, int m)
 {
-   MFEM_VERIFY(n<trial_fes.Size(), 
-   "DPGWeakFrom::AddTrialIntegrator: trial fespace index out of bounds");
-   MFEM_VERIFY(m<test_fecols.Size(), 
-   "DPGWeakFrom::AddTrialIntegrator: test fecol index out of bounds");
+   MFEM_VERIFY(n<trial_fes.Size(),
+               "DPGWeakFrom::AddTrialIntegrator: trial fespace index out of bounds");
+   MFEM_VERIFY(m<test_fecols.Size(),
+               "DPGWeakFrom::AddTrialIntegrator: test fecol index out of bounds");
    trial_integs(n,m)->Append(bfi);
 }
 
@@ -116,8 +116,8 @@ void DPGWeakForm::AddTrialIntegrator(
 void DPGWeakForm::AddTestIntegrator
 (BilinearFormIntegrator *bfi, int n, int m)
 {
-   MFEM_VERIFY(n<test_fecols.Size() && m<test_fecols.Size(), 
-   "DPGWeakFrom::AdTestIntegrator: test fecol index out of bounds");
+   MFEM_VERIFY(n<test_fecols.Size() && m<test_fecols.Size(),
+               "DPGWeakFrom::AdTestIntegrator: test fecol index out of bounds");
    test_integs(n,m)->Append(bfi);
 }
 
@@ -125,8 +125,8 @@ void DPGWeakForm::AddTestIntegrator
 void DPGWeakForm::AddDomainLFIntegrator(
    LinearFormIntegrator *lfi, int n)
 {
-   MFEM_VERIFY(n<test_fecols.Size(), 
-   "DPGWeakFrom::AddDomainLFIntegrator: test fecol index out of bounds");   
+   MFEM_VERIFY(n<test_fecols.Size(),
+               "DPGWeakFrom::AddDomainLFIntegrator: test fecol index out of bounds");
    lfis[n]->Append(lfi);
 }
 
@@ -474,10 +474,10 @@ void DPGWeakForm::Assemble(int skip_zeros)
 }
 
 void DPGWeakForm::FormLinearSystem(const Array<int>
-                                       &ess_tdof_list,
-                                       Vector &x,
-                                       OperatorHandle &A, Vector &X,
-                                       Vector &B, int copy_interior)
+                                   &ess_tdof_list,
+                                   Vector &x,
+                                   OperatorHandle &A, Vector &X,
+                                   Vector &B, int copy_interior)
 {
    FormSystemMatrix(ess_tdof_list, A);
    if (static_cond)
@@ -529,8 +529,8 @@ void DPGWeakForm::FormLinearSystem(const Array<int>
 }
 
 void DPGWeakForm::FormSystemMatrix(const Array<int>
-                                       &ess_tdof_list,
-                                       OperatorHandle &A)
+                                   &ess_tdof_list,
+                                   OperatorHandle &A)
 {
    if (static_cond)
    {
@@ -572,7 +572,7 @@ void DPGWeakForm::EliminateVDofsInRHS(
 }
 
 void DPGWeakForm::EliminateVDofs(const Array<int> &vdofs,
-                                     Operator::DiagonalPolicy dpolicy)
+                                 Operator::DiagonalPolicy dpolicy)
 {
    if (mat_e == NULL)
    {
@@ -596,7 +596,7 @@ void DPGWeakForm::EliminateVDofs(const Array<int> &vdofs,
 }
 
 void DPGWeakForm::RecoverFEMSolution(const Vector &X,
-                                         Vector &x)
+                                     Vector &x)
 {
 
    if (static_cond)

@@ -3,22 +3,22 @@
 // Compile with: make acoustics
 //
 // Sample runs
-// 
-// acoustics -ref 5 -o 1 -rnum 1.0 
-// acoustics -m ../../../data/inline-tri.mesh -ref 4 -o 2 -sc -rnum 3.0
-// acoustics -m ../../../data/amr-quad.mesh -ref 3 -o 3 -sc -rnum 4.5 -prob 1
-// acoustics -m ../../../data/inline-quad.mesh -ref 2 -o 4 -sc -rnum 11.5 -prob 1
-// acoustics -m ../../../data/inline-hex.mesh -ref 2 -o 2 -sc -rnum 1.0
-// acoustics -m ../../../data/inline-tet.mesh -ref 1 -o 2 -sc -rnum 2.0 -prob 1
+//
+// acoustics -ref 5 -o 1 -rnum 1.0
+// acoustics -m ../../data/inline-tri.mesh -ref 4 -o 2 -sc -rnum 3.0
+// acoustics -m ../../data/amr-quad.mesh -ref 3 -o 3 -sc -rnum 4.5 -prob 1
+// acoustics -m ../../data/inline-quad.mesh -ref 2 -o 4 -sc -rnum 11.5 -prob 1
+// acoustics -m ../../data/inline-hex.mesh -ref 2 -o 2 -sc -rnum 1.0
+// acoustics -m ../../data/inline-tet.mesh -ref 1 -o 2 -sc -rnum 2.0 -prob 1
 
-// Description:  
+// Description:
 // This example code demonstrates the use of MFEM to define and solve
 // the "ultraweak" (UW) DPG formulation for the Helmholtz problem
 
 //     - Δ p - ω^2 p = f̃ ,   in Ω
 //                 p = p_0, on ∂Ω
 
-// It solves two kinds of problems 
+// It solves two kinds of problems
 // a) f̃ = 0 and p_0 is a plane wave
 // b) A manufactured solution problem where p_exact is a gaussian beam
 // This example computes and prints out convergence rates for the L2 error.
@@ -27,29 +27,29 @@
 //  ∇ p + i ω u = 0, in Ω
 //  ∇⋅u + i ω p = f, in Ω              (1)
 //           p = p_0, in ∂Ω
-// where f:=f̃/(i ω) 
+// where f:=f̃/(i ω)
 
-// Ultraweak-DPG is obtained by integration by parts of both equations and the 
+// Ultraweak-DPG is obtained by integration by parts of both equations and the
 // introduction of trace unknowns on the mesh skeleton
-// 
-// p ∈ L^2(Ω), u ∈ (L^2(Ω))^dim 
-// p̂ ∈ H^1/2(Ω), û ∈ H^-1/2(Ω)  
-// -(p,  ∇⋅v) + i ω (u , v) + < p̂, v⋅n> = 0,      ∀ v ∈ H(div,Ω)      
+//
+// p ∈ L^2(Ω), u ∈ (L^2(Ω))^dim
+// p̂ ∈ H^1/2(Ω), û ∈ H^-1/2(Ω)
+// -(p,  ∇⋅v) + i ω (u , v) + < p̂, v⋅n> = 0,      ∀ v ∈ H(div,Ω)
 // -(u , ∇ q) + i ω (p , q) + < û, q >  = (f,q)   ∀ q ∈ H^1(Ω)
-//                                  p̂  = p_0     on ∂Ω 
+//                                  p̂  = p_0     on ∂Ω
 
-// Note: 
+// Note:
 // p̂ := p on Γ_h (skeleton)
-// û := u on Γ_h  
+// û := u on Γ_h
 
 // -------------------------------------------------------------
 // |   |     p     |     u     |    p̂      |    û    |  RHS    |
 // -------------------------------------------------------------
 // | v | -(p, ∇⋅v) | i ω (u,v) | < p̂, v⋅n> |         |         |
 // |   |           |           |           |         |         |
-// | q | i ω (p,q) |-(u , ∇ q) |           | < û,q > |  (f,q)  |  
+// | q | i ω (p,q) |-(u , ∇ q) |           | < û,q > |  (f,q)  |
 
-// where (q,v) ∈  H^1(Ω) × H(div,Ω) 
+// where (q,v) ∈  H^1(Ω) × H(div,Ω)
 
 // Here we use the "Adjoint Graph" norm on the test space i.e.,
 // ||(q,v)||^2_V = ||A^*(q,v)||^2 + ||(q,v)||^2 where A is the
@@ -57,21 +57,21 @@
 
 #include "mfem.hpp"
 #include "util/complexweakform.hpp"
-#include "../../common/mfem-common.hpp"
+#include "../common/mfem-common.hpp"
 #include <fstream>
 #include <iostream>
 
 using namespace std;
 using namespace mfem;
 
-void acoustics_solution(const Vector & X, complex<double> & p, 
+void acoustics_solution(const Vector & X, complex<double> & p,
                         vector<complex<double>> &dp, complex<double> & d2p);
 
-void acoustics_solution_r(const Vector & X, double & p, 
-                          Vector &dp, double & d2p);      
+void acoustics_solution_r(const Vector & X, double & p,
+                          Vector &dp, double & d2p);
 
-void acoustics_solution_i(const Vector & X, double & p, 
-                          Vector &dp, double & d2p);                                                
+void acoustics_solution_i(const Vector & X, double & p,
+                          Vector &dp, double & d2p);
 
 double p_exact_r(const Vector &x);
 double p_exact_i(const Vector &x);
@@ -97,14 +97,14 @@ double omega;
 enum prob_type
 {
    plane_wave,
-   gaussian_beam  
+   gaussian_beam
 };
 
 prob_type prob;
 
 int main(int argc, char *argv[])
 {
-   const char *mesh_file = "../../../data/inline-quad.mesh";
+   const char *mesh_file = "../../data/inline-quad.mesh";
    int order = 1;
    int delta_order = 1;
    bool visualization = true;
@@ -122,15 +122,15 @@ int main(int argc, char *argv[])
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
    args.AddOption(&rnum, "-rnum", "--number_of_wavelenths",
-                  "Number of wavelengths");    
+                  "Number of wavelengths");
    args.AddOption(&iprob, "-prob", "--problem", "Problem case"
-                  " 0: plane wave, 1: Gaussian beam");                     
+                  " 0: plane wave, 1: Gaussian beam");
    args.AddOption(&delta_order, "-do", "--delta_order",
-                  "Order enrichment for DPG test space.");     
+                  "Order enrichment for DPG test space.");
    args.AddOption(&ref, "-ref", "--refinements",
-                  "Number of serial refinements.");       
+                  "Number of serial refinements.");
    args.AddOption(&static_cond, "-sc", "--static-condensation", "-no-sc",
-                  "--no-static-condensation", "Enable static condensation.");                                            
+                  "--no-static-condensation", "Enable static condensation.");
    args.Parse();
    if (!args.Good())
    {
@@ -152,16 +152,16 @@ int main(int argc, char *argv[])
    FiniteElementCollection *p_fec = new L2_FECollection(order-1,dim);
    FiniteElementSpace *p_fes = new FiniteElementSpace(&mesh,p_fec);
 
-   // Vector L2 space for u 
+   // Vector L2 space for u
    FiniteElementCollection *u_fec = new L2_FECollection(order-1,dim);
-   FiniteElementSpace *u_fes = new FiniteElementSpace(&mesh,u_fec, dim); 
+   FiniteElementSpace *u_fes = new FiniteElementSpace(&mesh,u_fec, dim);
 
-   // H^1/2 space for p̂  
+   // H^1/2 space for p̂
    FiniteElementCollection * hatp_fec = new H1_Trace_FECollection(order,dim);
    FiniteElementSpace *hatp_fes = new FiniteElementSpace(&mesh,hatp_fec);
 
-   // H^-1/2 space for û  
-   FiniteElementCollection * hatu_fec = new RT_Trace_FECollection(order-1,dim);   
+   // H^-1/2 space for û
+   FiniteElementCollection * hatu_fec = new RT_Trace_FECollection(order-1,dim);
    FiniteElementSpace *hatu_fes = new FiniteElementSpace(&mesh,hatu_fec);
 
    // testspace fe collections
@@ -179,8 +179,8 @@ int main(int argc, char *argv[])
    ConstantCoefficient omeg2(omega*omega);
    ConstantCoefficient negomeg(-omega);
 
-   Array<FiniteElementSpace * > trial_fes; 
-   Array<FiniteElementCollection * > test_fec; 
+   Array<FiniteElementSpace * > trial_fes;
+   Array<FiniteElementCollection * > test_fec;
 
    trial_fes.Append(p_fes);
    trial_fes.Append(u_fes);
@@ -195,11 +195,13 @@ int main(int argc, char *argv[])
    // i ω (p,q)
    a->AddTrialIntegrator(nullptr,new MixedScalarMassIntegrator(omeg),0,0);
    // -(u , ∇ q)
-   a->AddTrialIntegrator(new TransposeIntegrator(new GradientIntegrator(negone)),nullptr,1,0);
+   a->AddTrialIntegrator(new TransposeIntegrator(new GradientIntegrator(negone)),
+                         nullptr,1,0);
    // -(p, ∇⋅v)
    a->AddTrialIntegrator(new MixedScalarWeakGradientIntegrator(one),nullptr,0,1);
    //  i ω (u,v)
-   a->AddTrialIntegrator(nullptr,new TransposeIntegrator(new VectorFEMassIntegrator(omeg)),1,1);
+   a->AddTrialIntegrator(nullptr,
+                         new TransposeIntegrator(new VectorFEMassIntegrator(omeg)),1,1);
    // < p̂, v⋅n>
    a->AddTrialIntegrator(new NormalTraceIntegrator,nullptr,2,1);
    // < û,q >
@@ -217,13 +219,15 @@ int main(int argc, char *argv[])
    // -i ω (∇q,δv)
    a->AddTestIntegrator(nullptr,new MixedVectorGradientIntegrator(negomeg),0,1);
    // i ω (v,∇ δq)
-   a->AddTestIntegrator(nullptr,new MixedVectorWeakDivergenceIntegrator(negomeg),1,0);
+   a->AddTestIntegrator(nullptr,new MixedVectorWeakDivergenceIntegrator(negomeg),1,
+                        0);
    // ω^2 (v,δv)
    a->AddTestIntegrator(new VectorFEMassIntegrator(omeg2),nullptr,1,1);
-   // - i ω (∇⋅v,δq)   
+   // - i ω (∇⋅v,δq)
    a->AddTestIntegrator(nullptr,new VectorFEDivergenceIntegrator(negomeg),1,0);
-   // i ω (q,∇⋅v)   
-   a->AddTestIntegrator(nullptr,new MixedScalarWeakGradientIntegrator(negomeg),0,1);
+   // i ω (q,∇⋅v)
+   a->AddTestIntegrator(nullptr,new MixedScalarWeakGradientIntegrator(negomeg),0,
+                        1);
    // ω^2 (q,δq)
    a->AddTestIntegrator(new MassIntegrator(omeg2),nullptr,0,0);
 
@@ -247,14 +251,14 @@ int main(int argc, char *argv[])
    double err0 = 0.;
    int dof0;
 
-   std::cout << "\n  Ref |" 
-             << "    Dofs    |" 
-             << "    ω    |" 
-             << "  L2 Error  |" 
+   std::cout << "\n  Ref |"
+             << "    Dofs    |"
+             << "    ω    |"
+             << "  L2 Error  |"
              << "  Rate  |"
              << " PCG it |" << endl;
-   std::cout << std::string(60,'-')      
-             << endl;  
+   std::cout << std::string(60,'-')
+             << endl;
 
    for (int it = 0; it<=ref; it++)
    {
@@ -307,10 +311,10 @@ int main(int argc, char *argv[])
       Array<int> tdof_offsets(2*num_blocks+1);
       tdof_offsets[0] = 0;
       int k = (static_cond) ? 2 : 0;
-      for (int i=0; i<num_blocks;i++)
+      for (int i=0; i<num_blocks; i++)
       {
-         tdof_offsets[i+1] = trial_fes[i+k]->GetTrueVSize(); 
-         tdof_offsets[num_blocks+i+1] = trial_fes[i+k]->GetTrueVSize(); 
+         tdof_offsets[i+1] = trial_fes[i+k]->GetTrueVSize();
+         tdof_offsets[num_blocks+i+1] = trial_fes[i+k]->GetTrueVSize();
       }
       tdof_offsets.PartialSum();
 
@@ -331,7 +335,8 @@ int main(int argc, char *argv[])
       for (int i = 0; i<num_blocks; i++)
       {
          M.SetDiagonalBlock(i, new GSSmoother((SparseMatrix&)A_r->GetBlock(i,i)));
-         M.SetDiagonalBlock(num_blocks+i, new GSSmoother((SparseMatrix&)A_r->GetBlock(i,i)));
+         M.SetDiagonalBlock(num_blocks+i, new GSSmoother((SparseMatrix&)A_r->GetBlock(i,
+                                                                                      i)));
       }
 
       CGSolver cg;
@@ -370,7 +375,7 @@ int main(int argc, char *argv[])
       double u_err_i = u.imag().ComputeL2Error(u_ex_i);
 
       double L2Error = sqrt(p_err_r*p_err_r + p_err_i*p_err_i
-                           +u_err_r*u_err_r + u_err_i*u_err_i);
+                            +u_err_r*u_err_r + u_err_i*u_err_i);
 
       double rate_err = (it) ? dim*log(err0/L2Error)/log((double)dof0/dofs) : 0.0;
 
@@ -379,15 +384,15 @@ int main(int argc, char *argv[])
 
       std::ios oldState(nullptr);
       oldState.copyfmt(std::cout);
-      std::cout << std::right << std::setw(5) << it << " | " 
-                << std::setw(10) <<  dof0 << " | " 
+      std::cout << std::right << std::setw(5) << it << " | "
+                << std::setw(10) <<  dof0 << " | "
                 << std::setprecision(1) << std::fixed
-                << std::setw(4) <<  2*rnum << " π  | " 
+                << std::setw(4) <<  2*rnum << " π  | "
                 << std::setprecision(3)
-                << std::setw(10) << std::scientific << err0 << " | " 
-                << std::setprecision(2) 
-                << std::setw(6) << std::fixed << rate_err << " | " 
-                << std::setw(6) << std::fixed << cg.GetNumIterations() << " | " 
+                << std::setw(10) << std::scientific << err0 << " | "
+                << std::setprecision(2)
+                << std::setw(6) << std::fixed << rate_err << " | "
+                << std::setw(6) << std::fixed << cg.GetNumIterations() << " | "
                 << std::endl;
       std::cout.copyfmt(oldState);
 
@@ -396,14 +401,16 @@ int main(int argc, char *argv[])
          const char * keys = (it == 0 && dim == 2) ? "jRcml\n" : nullptr;
          char vishost[] = "localhost";
          int  visport   = 19916;
-         common::VisualizeField(p_out_r,vishost, visport, p.real(), 
-                               "Numerical presure (real part)", 0, 0, 500, 500, keys);
-         common::VisualizeField(p_out_i,vishost, visport, p.imag(), 
-                        "Numerical presure (imaginary part)", 501, 0, 500, 500, keys);                               
+         common::VisualizeField(p_out_r,vishost, visport, p.real(),
+                                "Numerical presure (real part)", 0, 0, 500, 500, keys);
+         common::VisualizeField(p_out_i,vishost, visport, p.imag(),
+                                "Numerical presure (imaginary part)", 501, 0, 500, 500, keys);
       }
 
       if (it == ref)
+      {
          break;
+      }
 
       mesh.UniformRefinement();
       for (int i =0; i<trial_fes.Size(); i++)
@@ -485,8 +492,8 @@ double d2_exact_i(const Vector &x)
 }
 
 //  u = - ∇ p / (i ω )
-//    = i (∇ p_r + i * ∇ p_i)  / ω 
-//    = - ∇ p_i / ω + i ∇ p_r / ω 
+//    = i (∇ p_r + i * ∇ p_i)  / ω
+//    = - ∇ p_i / ω + i ∇ p_r / ω
 void u_exact_r(const Vector &x, Vector & u)
 {
    gradp_exact_i(x,u);
@@ -509,8 +516,8 @@ void hatu_exact_i(const Vector & X, Vector & hatu)
 }
 
 //  ∇⋅u = i Δ p / ω
-//      = i (Δ p_r + i * Δ p_i)  / ω 
-//      = - Δ p_i / ω + i Δ p_r / ω 
+//      = i (Δ p_r + i * Δ p_i)  / ω
+//      = - Δ p_i / ω + i Δ p_r / ω
 double divu_exact_r(const Vector &x)
 {
    return -d2_exact_i(x)/omega;
@@ -521,8 +528,8 @@ double divu_exact_i(const Vector &x)
    return d2_exact_r(x)/omega;
 }
 
-// f = ∇⋅u + i ω p 
-// f_r = ∇⋅u_r - ω p_i  
+// f = ∇⋅u + i ω p
+// f_r = ∇⋅u_r - ω p_i
 double rhs_func_r(const Vector &x)
 {
    double p = p_exact_i(x);
@@ -538,7 +545,7 @@ double rhs_func_i(const Vector &x)
    return divu + omega * p;
 }
 
-void acoustics_solution_r(const Vector & X, double & p, 
+void acoustics_solution_r(const Vector & X, double & p,
                           Vector &dp, double & d2p)
 {
    complex<double> zp, d2zp;
@@ -551,9 +558,9 @@ void acoustics_solution_r(const Vector & X, double & p,
    {
       dp[i] = dzp[i].real();
    }
-}                           
+}
 
-void acoustics_solution_i(const Vector & X, double & p, 
+void acoustics_solution_i(const Vector & X, double & p,
                           Vector &dp, double & d2p)
 {
    complex<double> zp, d2zp;
@@ -568,94 +575,100 @@ void acoustics_solution_i(const Vector & X, double & p,
    }
 }
 
-void acoustics_solution(const Vector & X, complex<double> & p, 
-                                          vector<complex<double>> & dp, 
-                                          complex<double> & d2p)
+void acoustics_solution(const Vector & X, complex<double> & p,
+                        vector<complex<double>> & dp,
+                        complex<double> & d2p)
 {
-   dp.resize(X.Size()); 
+   dp.resize(X.Size());
    complex<double> zi = complex<double>(0., 1.);
    switch (prob)
    {
-   case plane_wave:
-   {
-      double beta = omega/std::sqrt((double)X.Size());
-      complex<double> alpha = beta * zi * X.Sum();
-      p = exp(-alpha);
-      d2p = - dim * beta * beta * p;
-      for (int i = 0; i<X.Size(); i++)
+      case plane_wave:
       {
-         dp[i] = - zi * beta * p;
+         double beta = omega/std::sqrt((double)X.Size());
+         complex<double> alpha = beta * zi * X.Sum();
+         p = exp(-alpha);
+         d2p = - dim * beta * beta * p;
+         for (int i = 0; i<X.Size(); i++)
+         {
+            dp[i] = - zi * beta * p;
+         }
       }
-   }
       break;
-   default:
-   {
-      double rk = omega;
-      double alpha = 45 * M_PI/180.;
-      double sina = sin(alpha); 
-      double cosa = cos(alpha);
-      // shift the origin
-      double xprim=X(0) + 0.1; 
-      double yprim=X(1) + 0.1;
+      default:
+      {
+         double rk = omega;
+         double alpha = 45 * M_PI/180.;
+         double sina = sin(alpha);
+         double cosa = cos(alpha);
+         // shift the origin
+         double xprim=X(0) + 0.1;
+         double yprim=X(1) + 0.1;
 
-      double  x = xprim*sina - yprim*cosa;
-      double  y = xprim*cosa + yprim*sina;
-      double  dxdxprim = sina, dxdyprim = -cosa;
-      double  dydxprim = cosa, dydyprim =  sina;
-      //wavelength
-      double rl = 2.*M_PI/rk;
+         double  x = xprim*sina - yprim*cosa;
+         double  y = xprim*cosa + yprim*sina;
+         double  dxdxprim = sina, dxdyprim = -cosa;
+         double  dydxprim = cosa, dydyprim =  sina;
+         //wavelength
+         double rl = 2.*M_PI/rk;
 
-      // beam waist radius
-      double w0 = 0.05;
+         // beam waist radius
+         double w0 = 0.05;
 
-      // function w
-      double fact = rl/M_PI/(w0*w0);
-      double aux = 1. + (fact*y)*(fact*y);
+         // function w
+         double fact = rl/M_PI/(w0*w0);
+         double aux = 1. + (fact*y)*(fact*y);
 
-      double w = w0*sqrt(aux);
-      double dwdy = w0*fact*fact*y/sqrt(aux);
-      double d2wdydy = w0*fact*fact*(1. - (fact*y)*(fact*y)/aux)/sqrt(aux);
+         double w = w0*sqrt(aux);
+         double dwdy = w0*fact*fact*y/sqrt(aux);
+         double d2wdydy = w0*fact*fact*(1. - (fact*y)*(fact*y)/aux)/sqrt(aux);
 
-      double phi0 = atan(fact*y);
-      double dphi0dy = cos(phi0)*cos(phi0)*fact;
-      double d2phi0dydy = -2.*cos(phi0)*sin(phi0)*fact*dphi0dy;
+         double phi0 = atan(fact*y);
+         double dphi0dy = cos(phi0)*cos(phi0)*fact;
+         double d2phi0dydy = -2.*cos(phi0)*sin(phi0)*fact*dphi0dy;
 
-      double r = y + 1./y/(fact*fact);
-      double drdy = 1. - 1./(y*y)/(fact*fact);
-      double d2rdydy = 2./(y*y*y)/(fact*fact);
+         double r = y + 1./y/(fact*fact);
+         double drdy = 1. - 1./(y*y)/(fact*fact);
+         double d2rdydy = 2./(y*y*y)/(fact*fact);
 
-      // pressure
-      complex<double> ze = - x*x/(w*w) - zi*rk*y - zi * M_PI * x * x/rl/r + zi*phi0/2.;
+         // pressure
+         complex<double> ze = - x*x/(w*w) - zi*rk*y - zi * M_PI * x * x/rl/r +
+                              zi*phi0/2.;
 
-      complex<double> zdedx = -2.*x/(w*w) - 2.*zi*M_PI*x/rl/r;
-      complex<double> zdedy = 2.*x*x/(w*w*w)*dwdy - zi*rk + zi*M_PI*x*x/rl/(r*r)*drdy + zi*dphi0dy/2.;
-      complex<double> zd2edxdx = -2./(w*w) - 2.*zi*M_PI/rl/r;
-      complex<double> zd2edxdy = 4.*x/(w*w*w)*dwdy + 2.*zi*M_PI*x/rl/(r*r)*drdy;
-      complex<double> zd2edydx = zd2edxdy;
-      complex<double> zd2edydy = -6.*x*x/(w*w*w*w)*dwdy*dwdy + 2.*x*x/(w*w*w)*d2wdydy - 2.*zi*M_PI*x*x/rl/(r*r*r)*drdy*drdy
-                              + zi*M_PI*x*x/rl/(r*r)*d2rdydy + zi/2.*d2phi0dydy;
+         complex<double> zdedx = -2.*x/(w*w) - 2.*zi*M_PI*x/rl/r;
+         complex<double> zdedy = 2.*x*x/(w*w*w)*dwdy - zi*rk + zi*M_PI*x*x/rl/
+                                 (r*r)*drdy + zi*dphi0dy/2.;
+         complex<double> zd2edxdx = -2./(w*w) - 2.*zi*M_PI/rl/r;
+         complex<double> zd2edxdy = 4.*x/(w*w*w)*dwdy + 2.*zi*M_PI*x/rl/(r*r)*drdy;
+         complex<double> zd2edydx = zd2edxdy;
+         complex<double> zd2edydy = -6.*x*x/(w*w*w*w)*dwdy*dwdy + 2.*x*x/
+                                    (w*w*w)*d2wdydy - 2.*zi*M_PI*x*x/rl/(r*r*r)*drdy*drdy
+                                    + zi*M_PI*x*x/rl/(r*r)*d2rdydy + zi/2.*d2phi0dydy;
 
-      double pf = pow(2.0/M_PI/(w*w),0.25);
-      double dpfdy = -pow(2./M_PI/(w*w),-0.75)/M_PI/(w*w*w)*dwdy;
-      double d2pfdydy = -1./M_PI*pow(2./M_PI,-0.75)*(-1.5*pow(w,-2.5)
-                        *dwdy*dwdy + pow(w,-1.5)*d2wdydy);
+         double pf = pow(2.0/M_PI/(w*w),0.25);
+         double dpfdy = -pow(2./M_PI/(w*w),-0.75)/M_PI/(w*w*w)*dwdy;
+         double d2pfdydy = -1./M_PI*pow(2./M_PI,-0.75)*(-1.5*pow(w,-2.5)
+                                                        *dwdy*dwdy + pow(w,-1.5)*d2wdydy);
 
-      complex<double> zp = pf*exp(ze);
-      complex<double> zdpdx = zp*zdedx;
-      complex<double> zdpdy = dpfdy*exp(ze)+zp*zdedy;
-      complex<double> zd2pdxdx = zdpdx*zdedx + zp*zd2edxdx;
-      complex<double> zd2pdxdy = zdpdy*zdedx + zp*zd2edxdy;
-      complex<double> zd2pdydx = dpfdy*exp(ze)*zdedx + zdpdx*zdedy + zp*zd2edydx;
-      complex<double> zd2pdydy = d2pfdydy*exp(ze) + dpfdy*exp(ze)*zdedy + zdpdy*zdedy + zp*zd2edydy;
+         complex<double> zp = pf*exp(ze);
+         complex<double> zdpdx = zp*zdedx;
+         complex<double> zdpdy = dpfdy*exp(ze)+zp*zdedy;
+         complex<double> zd2pdxdx = zdpdx*zdedx + zp*zd2edxdx;
+         complex<double> zd2pdxdy = zdpdy*zdedx + zp*zd2edxdy;
+         complex<double> zd2pdydx = dpfdy*exp(ze)*zdedx + zdpdx*zdedy + zp*zd2edydx;
+         complex<double> zd2pdydy = d2pfdydy*exp(ze) + dpfdy*exp(
+                                       ze)*zdedy + zdpdy*zdedy + zp*zd2edydy;
 
-      p = zp;
-      dp[0] = (zdpdx*dxdxprim + zdpdy*dydxprim);
-      dp[1] = (zdpdx*dxdyprim + zdpdy*dydyprim);
-      if (dim == 3)  dp[2] = 0.0;
+         p = zp;
+         dp[0] = (zdpdx*dxdxprim + zdpdy*dydxprim);
+         dp[1] = (zdpdx*dxdyprim + zdpdy*dydyprim);
+         if (dim == 3) { dp[2] = 0.0; }
 
-      d2p = (zd2pdxdx*dxdxprim + zd2pdydx*dydxprim)*dxdxprim + (zd2pdxdy*dxdxprim + zd2pdydy*dydxprim)*dydxprim
-          + (zd2pdxdx*dxdyprim + zd2pdydx*dydyprim)*dxdyprim + (zd2pdxdy*dxdyprim + zd2pdydy*dydyprim)*dydyprim;
-   }
-   break;
+         d2p = (zd2pdxdx*dxdxprim + zd2pdydx*dydxprim)*dxdxprim +
+               (zd2pdxdy*dxdxprim + zd2pdydy*dydxprim)*dydxprim
+               + (zd2pdxdx*dxdyprim + zd2pdydx*dydyprim)*dxdyprim + (zd2pdxdy*dxdyprim +
+                                                                     zd2pdydy*dydyprim)*dydyprim;
+      }
+      break;
    }
 }

@@ -129,10 +129,10 @@ void ComplexDPGWeakForm::AddTrialIntegrator(
    BilinearFormIntegrator *bfi_i,
    int n, int m)
 {
-   MFEM_VERIFY(n<trial_fes.Size(), 
-   "ComplexDPGWeakFrom::AddTrialIntegrator: trial fespace index out of bounds");
-   MFEM_VERIFY(m<test_fecols.Size(), 
-   "ComplexDPGWeakFrom::AddTrialIntegrator: test fecol index out of bounds");
+   MFEM_VERIFY(n<trial_fes.Size(),
+               "ComplexDPGWeakFrom::AddTrialIntegrator: trial fespace index out of bounds");
+   MFEM_VERIFY(m<test_fecols.Size(),
+               "ComplexDPGWeakFrom::AddTrialIntegrator: test fecol index out of bounds");
    if (bfi_r)
    {
       trial_integs_r(n,m)->Append(bfi_r);
@@ -149,8 +149,8 @@ void ComplexDPGWeakForm::AddTestIntegrator(
    BilinearFormIntegrator *bfi_i,
    int n, int m)
 {
-   MFEM_VERIFY(n<test_fecols.Size() && m<test_fecols.Size(), 
-   "ComplexDPGWeakFrom::AdTestIntegrator: test fecol index out of bounds");
+   MFEM_VERIFY(n<test_fecols.Size() && m<test_fecols.Size(),
+               "ComplexDPGWeakFrom::AdTestIntegrator: test fecol index out of bounds");
    if (bfi_r)
    {
       test_integs_r(n,m)->Append(bfi_r);
@@ -166,8 +166,8 @@ void ComplexDPGWeakForm::AddDomainLFIntegrator(
    LinearFormIntegrator *lfi_r,
    LinearFormIntegrator *lfi_i, int n)
 {
-   MFEM_VERIFY(n<test_fecols.Size(), 
-   "ComplexDPGWeakFrom::AddDomainLFIntegrator: test fecol index out of bounds"); 
+   MFEM_VERIFY(n<test_fecols.Size(),
+               "ComplexDPGWeakFrom::AddDomainLFIntegrator: test fecol index out of bounds");
    if (lfi_r)
    {
       lfis_r[n]->Append(lfi_r);
@@ -622,12 +622,12 @@ void ComplexDPGWeakForm::Assemble(int skip_zeros)
 }
 
 void ComplexDPGWeakForm::FormLinearSystem(const Array<int>
-                                              &ess_tdof_list,
-                                              Vector &x,
-                                              OperatorHandle &A,
-                                              Vector &X,
-                                              Vector &B,
-                                              int copy_interior)
+                                          &ess_tdof_list,
+                                          Vector &x,
+                                          OperatorHandle &A,
+                                          Vector &X,
+                                          Vector &B,
+                                          int copy_interior)
 {
    FormSystemMatrix(ess_tdof_list, A);
    if (static_cond)
@@ -704,8 +704,8 @@ void ComplexDPGWeakForm::FormLinearSystem(const Array<int>
 }
 
 void ComplexDPGWeakForm::FormSystemMatrix(const Array<int>
-                                              &ess_tdof_list,
-                                              OperatorHandle &A)
+                                          &ess_tdof_list,
+                                          OperatorHandle &A)
 {
    if (static_cond)
    {
@@ -754,7 +754,7 @@ void ComplexDPGWeakForm::EliminateVDofsInRHS(
 }
 
 void ComplexDPGWeakForm::EliminateVDofs(const Array<int> &vdofs,
-                                            Operator::DiagonalPolicy dpolicy)
+                                        Operator::DiagonalPolicy dpolicy)
 {
    if (mat_e_r == NULL)
    {
@@ -782,7 +782,7 @@ void ComplexDPGWeakForm::EliminateVDofs(const Array<int> &vdofs,
 }
 
 void ComplexDPGWeakForm::RecoverFEMSolution(const Vector &X,
-                                                Vector &x)
+                                            Vector &x)
 {
 
    if (static_cond)
@@ -940,8 +940,8 @@ void ComplexDPGWeakForm::EnableStaticCondensation()
 
 Vector & ComplexDPGWeakForm::ComputeResidual(const Vector & x)
 {
-   MFEM_VERIFY(store_matrices, 
-   "Matrices needed for the residual are not store. Call ComplexDPGWeakForm::StoreMatrices()")
+   MFEM_VERIFY(store_matrices,
+               "Matrices needed for the residual are not store. Call ComplexDPGWeakForm::StoreMatrices()")
    // wrap vector in a blockvector
    double * xdata = x.GetData();
    int n = x.Size()/2;

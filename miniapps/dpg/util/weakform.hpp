@@ -12,15 +12,15 @@
 #ifndef MFEM_DPGWEAKFORM
 #define MFEM_DPGWEAKFORM
 
-#include "../../../../config/config.hpp"
-#include "../../../../linalg/linalg.hpp"
-#include "../../../../fem/fem.hpp"
+#include "../../../config/config.hpp"
+#include "../../../linalg/linalg.hpp"
+#include "../../../fem/fem.hpp"
 #include "blockstaticcond.hpp"
 
 namespace mfem
 {
 
-/// @brief Class representing the DPG weak formulation. 
+/// @brief Class representing the DPG weak formulation.
 class DPGWeakForm
 {
 
@@ -104,7 +104,7 @@ public:
    }
 
    DPGWeakForm(Array<FiniteElementSpace* > & fes_,
-                   Array<FiniteElementCollection *> & fecol_)
+               Array<FiniteElementCollection *> & fecol_)
    {
       SetSpaces(fes_,fecol_);
    }

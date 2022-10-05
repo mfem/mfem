@@ -885,7 +885,8 @@ void ComplexBlockStaticCondensation::EliminateReducedTrueDofs(const Array<int>
       }
    }
    S_r->EliminateRowCols(ess_rtdof_list_,S_e_r,dpolicy);
-   S_i->EliminateRowCols(ess_rtdof_list_,S_e_i,Operator::DiagonalPolicy::DIAG_ZERO);
+   S_i->EliminateRowCols(ess_rtdof_list_,S_e_i,
+                         Operator::DiagonalPolicy::DIAG_ZERO);
 }
 
 void ComplexBlockStaticCondensation::EliminateReducedTrueDofs(
@@ -1055,7 +1056,7 @@ void ComplexBlockStaticCondensation::ComputeSolution(const Vector &sc_sol,
       pP->Mult(sc_imag, sol_r_imag);
 #endif
    }
-   
+
    sol.SetSize(2*dof_offsets.Last());
    double *data = sol.GetData();
    Vector sol_real(data,dof_offsets.Last());

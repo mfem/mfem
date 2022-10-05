@@ -9,20 +9,21 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-#ifndef MFEM_BLOCK_STATIC_CONDENSATION
-#define MFEM_BLOCK_STATIC_CONDENSATION
+#ifndef MFEM_COMPLEX_BLOCK_STATIC_CONDENSATION
+#define MFEM_COMPLEX_BLOCK_STATIC_CONDENSATION
 
-#include "../../../../config/config.hpp"
-#include "../../../../fem/fespace.hpp"
+#include "../../../config/config.hpp"
+#include "../../../fem/fespace.hpp"
 
 #ifdef MFEM_USE_MPI
-#include "../../../../fem/pfespace.hpp"
+#include "../../../fem/pfespace.hpp"
 #endif
 
 namespace mfem
 {
 
-class BlockStaticCondensation
+
+class ComplexBlockStaticCondensation
 {
    int height, width;
    int nblocks; // original number of blocks
@@ -46,12 +47,17 @@ class BlockStaticCondensation
 
    // Schur complement matrix
    // S = A_ii - A_ib (A_bb)^{-1} A_bi.
-   BlockMatrix * S = nullptr;
-   BlockMatrix * S_e = nullptr;
+   BlockMatrix * S_r = nullptr;
+   BlockMatrix * S_i = nullptr;
+   BlockMatrix * S_e_r = nullptr;
+   BlockMatrix * S_e_i = nullptr;
+   ComplexOperator * S = nullptr;
 
-   BlockVector * y = nullptr;
+   BlockVector * y_r = nullptr;
+   BlockVector * y_i = nullptr;
+   Vector * y = nullptr;
 
-   Array<DenseMatrix * > lmat;
+   Array<ComplexDenseMatrix * > lmat;
    Array<Vector * > lvec;
 
    Array<int> rdof_edof;      // Map from reduced dofs to exposed dofs
@@ -61,8 +67,11 @@ class BlockStaticCondensation
    BlockMatrix * R = nullptr; // Block Restriction
 
 #ifdef MFEM_USE_MPI
-   BlockOperator * pS = nullptr;
-   BlockOperator * pS_e = nullptr;
+   BlockOperator * pS_r = nullptr;
+   BlockOperator * pS_e_r = nullptr;
+   BlockOperator * pS_i = nullptr;
+   BlockOperator * pS_e_i = nullptr;
+   // Block HypreParMatrix for Prolongation
    BlockOperator * pP = nullptr;
 #endif
 
@@ -81,10 +90,13 @@ class BlockStaticCondensation
 
    //  S = A_ii - A_ib (A_bb)^{-1} A_bi.
    //  y = y_i - A_ib (A_bb)^{-1} y_b
-   void GetLocalShurComplement(int el, const Array<int> & tr_idx,
-                               const Array<int> & int_idx,
-                               const DenseMatrix & elmat, const Vector & elvect,
-                               DenseMatrix & rmat, Vector & rvect);
+   ComplexDenseMatrix * GetLocalShurComplement(int el, const Array<int> & tr_idx,
+                                               const Array<int> & int_idx,
+                                               const ComplexDenseMatrix & elmat,
+                                               const Vector & elvect_r,
+                                               const Vector & elvect_i,
+                                               Vector & rvect_r,
+                                               Vector & rvect_i);
 
    void ComputeOffsets();
 
@@ -105,9 +117,9 @@ class BlockStaticCondensation
                                        Array<int> & rtdof_marker);
 public:
 
-   BlockStaticCondensation(Array<FiniteElementSpace *> & fes_);
+   ComplexBlockStaticCondensation(Array<FiniteElementSpace *> & fes_);
 
-   ~BlockStaticCondensation();
+   ~ComplexBlockStaticCondensation();
 
    void SetSpaces(Array<FiniteElementSpace*> & fes_);
 
@@ -117,8 +129,8 @@ public:
        element matrix 'elmat'; save the other blocks internally: A_bb_inv, A_bi,
        and A_bi. */
 
-   void AssembleReducedSystem(int el, DenseMatrix &elmat,
-                              Vector & elvect);
+   void AssembleReducedSystem(int el, ComplexDenseMatrix &elmat,
+                              Vector & elvect_r, Vector & elvect_i);
 
    /// Finalize the construction of the Schur complement matrix.
    void Finalize(int skip_zeros = 0);
@@ -135,27 +147,50 @@ public:
    bool HasEliminatedBC() const
    {
 #ifndef MFEM_USE_MPI
-      return S_e;
+      return S_e_r;
 #else
-      return S_e || pS_e;
+      return S_e_r || pS_e_r;
 #endif
 
    }
 
    /// Return the serial Schur complement matrix.
-   BlockMatrix &GetMatrix() { return *S; }
+   BlockMatrix &GetMatrix_r() { return *S_r; }
+   BlockMatrix &GetMatrix_i() { return *S_i; }
+   ComplexOperator &GetComplexOperator()
+   {
+      if (!S)
+      {
+#ifndef MFEM_USE_MPI
+         S = new ComplexOperator(S_r,S_i,false,false);
+#else
+         if (parallel)
+         {
+            S = new ComplexOperator(pS_r,pS_i,false,false);
+         }
+         else
+         {
+            S = new ComplexOperator(S_r,S_i,false,false);
+         }
+#endif
+      }
+      return *S;
+   }
 
    /// Return the eliminated part of the serial Schur complement matrix.
-   BlockMatrix &GetMatrixElim() { return *S_e; }
+   BlockMatrix &GetMatrixElim_r() { return *S_e_r; }
+   BlockMatrix &GetMatrixElim_i() { return *S_e_i; }
 
 #ifdef MFEM_USE_MPI
    /// Return the parallel Schur complement matrix.
-   BlockOperator &GetParallelMatrix() { return *pS; }
+   BlockOperator &GetParallelMatrix_r() { return *pS_r; }
+   BlockOperator &GetParallelMatrix_i() { return *pS_i; }
 
    /// Return the eliminated part of the parallel Schur complement matrix.
-   BlockOperator &GetParallelMatrixElim() { return *pS_e; }
+   BlockOperator &GetParallelMatrixElim_r() { return *pS_e_r; }
+   BlockOperator &GetParallelMatrixElim_i() { return *pS_e_i; }
 
-   void ParallelAssemble(BlockMatrix *m);
+   void ParallelAssemble(BlockMatrix *m_r, BlockMatrix*m_i);
 #endif
 
    void FormSystemMatrix(Operator::DiagonalPolicy diag_policy);
