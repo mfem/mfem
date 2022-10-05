@@ -1,9 +1,18 @@
-#include "../../../config/config.hpp"
-#include "../../../linalg/linalg.hpp"
-#include "../../../fem/fem.hpp"
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
+//
+// This file is part of the MFEM library. For more information and source code
+// availability visit https://mfem.org.
+//
+// MFEM is free software; you can redistribute it and/or modify it under the
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
-using namespace std;
-using namespace mfem;
+#include "mfem.hpp"
+
+namespace mfem
+{
 
 // Class for setting up a simple Cartesian PML region
 class CartesianPML
@@ -56,7 +65,7 @@ public:
       mu = mu_;
    }
    // PML complex stretching function
-   void StretchFunction(const Vector &x, vector<complex<double>> &dxs);
+   void StretchFunction(const Vector &x, std::vector<std::complex<double>> &dxs);
 };
 
 
@@ -122,3 +131,5 @@ void detJ_Jt_J_inv_i_function(const Vector &x, CartesianPML * pml,
                               DenseMatrix &M);
 void abs_detJ_Jt_J_inv_2_function(const Vector &x, CartesianPML * pml,
                                   DenseMatrix &M);
+
+} // namespace mfem

@@ -63,6 +63,7 @@
 
 using namespace std;
 using namespace mfem;
+using namespace mfem::common;
 
 void acoustics_solution(const Vector & X, complex<double> & p,
                         vector<complex<double>> &dp, complex<double> & d2p);
@@ -401,10 +402,10 @@ int main(int argc, char *argv[])
          const char * keys = (it == 0 && dim == 2) ? "jRcml\n" : nullptr;
          char vishost[] = "localhost";
          int  visport   = 19916;
-         common::VisualizeField(p_out_r,vishost, visport, p.real(),
-                                "Numerical presure (real part)", 0, 0, 500, 500, keys);
-         common::VisualizeField(p_out_i,vishost, visport, p.imag(),
-                                "Numerical presure (imaginary part)", 501, 0, 500, 500, keys);
+         VisualizeField(p_out_r,vishost, visport, p.real(),
+                        "Numerical presure (real part)", 0, 0, 500, 500, keys);
+         VisualizeField(p_out_i,vishost, visport, p.imag(),
+                        "Numerical presure (imaginary part)", 501, 0, 500, 500, keys);
       }
 
       if (it == ref)

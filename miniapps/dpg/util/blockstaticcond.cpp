@@ -14,7 +14,6 @@
 namespace mfem
 {
 
-
 BlockStaticCondensation::BlockStaticCondensation(Array<FiniteElementSpace *> &
                                                  fes_)
 {

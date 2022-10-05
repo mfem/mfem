@@ -13,7 +13,6 @@
 // AMR run
 // mpirun -np 4 ./pmaxwell -o 3 -sref 0 -pref 15 -prob 1 -theta 0.7 -sc
 
-
 // Description:
 // This example code demonstrates the use of MFEM to define and solve
 // the "ultraweak" (UW) DPG formulation for the Maxwell problem
@@ -132,6 +131,7 @@
 
 using namespace std;
 using namespace mfem;
+using namespace mfem::common;
 
 void E_exact_r(const Vector &x, Vector & E_r);
 void E_exact_i(const Vector &x, Vector & E_i);
@@ -927,10 +927,10 @@ int main(int argc, char *argv[])
          const char * keys = (it == 0 && dim == 2) ? "jRcml\n" : nullptr;
          char vishost[] = "localhost";
          int  visport   = 19916;
-         common::VisualizeField(E_out_r,vishost, visport, E.real(),
-                                "Numerical Electric field (real part)", 0, 0, 500, 500, keys);
-         common::VisualizeField(H_out_r,vishost, visport, H.real(),
-                                "Numerical Magnetic field (real part)", 501, 0, 500, 500, keys);
+         VisualizeField(E_out_r,vishost, visport, E.real(),
+                        "Numerical Electric field (real part)", 0, 0, 500, 500, keys);
+         VisualizeField(H_out_r,vishost, visport, H.real(),
+                        "Numerical Magnetic field (real part)", 501, 0, 500, 500, keys);
       }
 
       if (paraview)

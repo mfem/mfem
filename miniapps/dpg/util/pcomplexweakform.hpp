@@ -12,13 +12,10 @@
 #ifndef MFEM_PCOMPLEX_DPGWEAKFORM
 #define MFEM_PCOMPLEX_DPGWEAKFORM
 
-#include "../../../config/config.hpp"
+#include "mfem.hpp"
+#include "complexweakform.hpp"
 
 #ifdef MFEM_USE_MPI
-
-#include <mpi.h>
-#include "../../../fem/pfespace.hpp"
-#include "complexweakform.hpp"
 
 namespace mfem
 {
@@ -115,6 +112,5 @@ public:
 
 
 #endif // MFEM_USE_MPI
-
 
 #endif

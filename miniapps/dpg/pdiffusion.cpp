@@ -64,6 +64,7 @@
 
 using namespace std;
 using namespace mfem;
+using namespace mfem::common;
 
 enum prob_type
 {
@@ -399,10 +400,10 @@ int main(int argc, char *argv[])
          char vishost[] = "localhost";
          int  visport   = 19916;
 
-         common::VisualizeField(u_out,vishost,visport,u_gf,
-                                "Numerical u", 0,0,500,500,keys);
-         common::VisualizeField(sigma_out,vishost,visport,sigma_gf,
-                                "Numerical flux", 500,0,500,500,keys);
+         VisualizeField(u_out,vishost,visport,u_gf,
+                        "Numerical u", 0,0,500,500,keys);
+         VisualizeField(sigma_out,vishost,visport,sigma_gf,
+                        "Numerical flux", 500,0,500,500,keys);
       }
 
 
