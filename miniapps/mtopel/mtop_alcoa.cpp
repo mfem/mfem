@@ -371,7 +371,7 @@ int main(int argc, char *argv[])
    }
 
    //allocate the filter
-   mfem::FilterSolver* fsolv=new mfem::FilterSolver(0.2,&pmesh);
+   mfem::FilterSolver* fsolv=new mfem::FilterSolver(0.5,&pmesh);
    fsolv->SetSolver(1e-8,1e-12,100,0);
    fsolv->AddBC(1,1.0);
    fsolv->AddBC(2,1.0);
@@ -446,6 +446,7 @@ int main(int argc, char *argv[])
        tot_vol=vobj->Eval(vdens);
    }
    double max_vol=0.5*tot_vol;
+   if(myrank==0){ std::cout<<"tot vol="<<tot_vol<<std::endl;}
 
    //intermediate volume
    mfem::VolumeQoI* ivobj=new mfem::VolumeQoI(fsolv->GetFilterFES());
