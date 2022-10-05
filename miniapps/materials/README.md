@@ -123,16 +123,6 @@ values in this miniapp and the work [2] have been chosen such that the larger
 values correspond to the topology (i.e. you want low opacity at low values and 
 high opacity at high values).
 
-We automated the process for you, e.g. you can call the script `visualize.py` 
-with `pvpython` (part of you ParaView installation). 
-```bash
-pvpython visualize.py
-```
-This generates a file `my-surrogate.png` that shows a level set 
-( $[ u > 0 ]$ ) or the simulation result. (Note that pvpython may not be in your
-path, in this case, you'll have to locate it on your system and call it with the
-full path. 
-E.g. `/Applications/ParaView-5.10.1.app/Contents/bin/pvpython visualize.py`).
 ## Implementation details
 
 * The implementation is MPI parallel, if you have built MFEM without MPI, this 
