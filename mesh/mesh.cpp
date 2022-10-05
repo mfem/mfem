@@ -5223,16 +5223,23 @@ void Mesh::LoadPatchTopo(std::istream &input, Array<int> &edge_to_knot)
 
    input >> ident; // 'edges'
    input >> NumOfEdges;
-   edge_vertex = new Table(NumOfEdges, 2);
-   edge_to_knot.SetSize(NumOfEdges);
-   for (int j = 0; j < NumOfEdges; j++)
+   if (NumOfEdges > 0)
    {
-      int *v = edge_vertex->GetRow(j);
-      input >> edge_to_knot[j] >> v[0] >> v[1];
-      if (v[0] > v[1])
+      edge_vertex = new Table(NumOfEdges, 2);
+      edge_to_knot.SetSize(NumOfEdges);
+      for (int j = 0; j < NumOfEdges; j++)
       {
-         edge_to_knot[j] = -1 - edge_to_knot[j];
+         int *v = edge_vertex->GetRow(j);
+         input >> edge_to_knot[j] >> v[0] >> v[1];
+         if (v[0] > v[1])
+         {
+            edge_to_knot[j] = -1 - edge_to_knot[j];
+         }
       }
+   }
+   else
+   {
+      edge_to_knot.SetSize(0);
    }
 
    skip_comment_lines(input, '#');
@@ -5319,8 +5326,8 @@ void Mesh::LoadPatchTopo(std::istream &input, Array<int> &edge_to_knot)
 
             if ((v0 == notset) && (v1 == notset))
             {
-               edge_to_knot[e0] = (     oedge[edge0[j]] >= 0 ? knot : -knot-1);
-               edge_to_knot[e1] = (flip*oedge[edge1[j]] >= 0 ? -knot-1 : knot);
+               edge_to_knot[e0] = knot;
+               edge_to_knot[e1] = knot;
                knot++;
             }
             else if ((v0 != notset) && (v1 == notset))
