@@ -39,25 +39,25 @@ set(DPG_COMMON_FILES
     EXTRA_SOURCES ${DPG_SOURCES}
     EXTRA_HEADERS ${DPG_HEADERS})
 
-add_mfem_miniapp(diffusion
+add_mfem_miniapp(diffusion-dpg
   MAIN diffusion.cpp
   ${DPG_COMMON_FILES}
-  LIBRARIES mfem)
+  LIBRARIES mfem mfem-common)
 
-add_mfem_miniapp(convection-diffusion
+add_mfem_miniapp(convection-diffusion-dpg
 MAIN convection-diffusion.cpp
 ${DPG_COMMON_FILES}
-LIBRARIES mfem)
+LIBRARIES mfem mfem-common )
 
-add_mfem_miniapp(acoustics
+add_mfem_miniapp(acoustics-dpg
 MAIN acoustics.cpp
 ${DPG_COMMON_FILES}
-LIBRARIES mfem)
+LIBRARIES mfem mfem-common)
 
-add_mfem_miniapp(maxwell
+add_mfem_miniapp(maxwell-dpg
 MAIN maxwell.cpp
 ${DPG_COMMON_FILES}
-LIBRARIES mfem)
+LIBRARIES mfem mfem-common)
 
 if (MFEM_USE_MPI)
   add_mfem_miniapp(pdiffusion
@@ -65,19 +65,19 @@ if (MFEM_USE_MPI)
     ${DPG_COMMON_FILES}
     LIBRARIES mfem)
 
-  add_mfem_miniapp(pconvection-diffusion
+  add_mfem_miniapp(pconvection-diffusion-dpg
   MAIN pconvection-diffusion.cpp
   ${DPG_COMMON_FILES}
-  LIBRARIES mfem)
+  LIBRARIES mfem mfem-common)
 
-  add_mfem_miniapp(pacoustics
+  add_mfem_miniapp(pacoustics-dpg
   MAIN pacoustics.cpp
   ${DPG_COMMON_FILES}
-  LIBRARIES mfem)
+  LIBRARIES mfem mfem-common)
 
   add_mfem_miniapp(pmaxwell
   MAIN pmaxwell.cpp
   ${DPG_COMMON_FILES}
-  LIBRARIES mfem)
+  LIBRARIES mfem mfem-common)
 endif ()
 
