@@ -216,7 +216,6 @@ int main(int argc, char *argv[])
    cobj->SetE(E);
    cobj->SetPoissonRatio(0.2);
    cobj->SetDens(vdens);
-   cobj->SetVolForce(*volforce);
 
 
    double vobj=cobj->Eval();

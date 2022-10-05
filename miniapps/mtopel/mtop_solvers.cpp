@@ -294,7 +294,7 @@ void NLSurfLoadIntegrator::AssembleFaceVector(const FiniteElement &el1, const Fi
         vc->Eval(force,Tr,ip);
         for(int j=0;j<dof;j++){
             for(int d=0;d<dim;d++){
-                elvect[j+d*dof]=elvect[j+d*dof]-w*shape[j];
+                elvect[j+d*dof]=elvect[j+d*dof]-w*shape[j]*force[d];
             }
         }
     }
@@ -661,6 +661,19 @@ void ElasticitySolver::AddDispBC(int id, int dir, double val)
     }
 }
 
+void ElasticitySolver::DelDispBC()
+{
+    bccx.clear();
+    bccy.clear();
+    bccz.clear();
+
+    bcx.clear();
+    bcy.clear();
+    bcz.clear();
+
+    ess_tdofv.DeleteAll();
+}
+
 void ElasticitySolver::AddDispBC(int id, int dir, Coefficient &val)
 {
     if(dir==0){ bccx[id]=&val; }
@@ -693,6 +706,7 @@ void ElasticitySolver::FSolve()
 {
     // Set the BC
     ess_tdofv.DeleteAll();
+    if(nf!=nullptr){delete nf; nf=nullptr;}
     Array<int> ess_tdofx;
     Array<int> ess_tdofy;
     Array<int> ess_tdofz;
@@ -787,7 +801,7 @@ void ElasticitySolver::FSolve()
             nf->AddDomainIntegrator(new NLVolForceIntegrator(volforce));
         }
 
-        mfem::Array<int> bdre(pmesh->bdr_attributes.Max());
+        //mfem::Array<int> bdre(pmesh->bdr_attributes.Max());
 
         for(auto it=surf_loads.begin();it!=surf_loads.end();it++){
             nf->AddBdrFaceIntegrator(new NLSurfLoadIntegrator(it->first,it->second));
@@ -797,6 +811,7 @@ void ElasticitySolver::FSolve()
             nf->AddBdrFaceIntegrator(new NLSurfLoadIntegrator(it->first,it->second));
         }
     }
+
 
     nf->SetEssentialTrueDofs(ess_tdofv);
 
@@ -835,13 +850,12 @@ void ElasticitySolver::FSolve()
 double ComplianceNLIntegrator::GetElementEnergy(const FiniteElement &el, ElementTransformation &Tr, const Vector &elfun)
 {
 
-    if(volforce==nullptr){return 0.0;}
     if(disp==nullptr){return 0.0;}
 
 
     //integrate the dot product disp*volforce
 
-    const int dof=el.GetDof();
+    //const int dof=el.GetDof();
     const int dim=el.GetDim();
     {
         const int spaceDim=Tr.GetDimension();
@@ -852,7 +866,7 @@ double ComplianceNLIntegrator::GetElementEnergy(const FiniteElement &el, Element
     }
 
     Vector uu; uu.SetSize(dim);
-    Vector ff; ff.SetSize(dim);
+    //Vector ff; ff.SetSize(dim);
 
     DenseMatrix grads; grads.SetSize(dim);
     DenseMatrix strains; strains.SetSize(dim);
@@ -880,7 +894,7 @@ double ComplianceNLIntegrator::GetElementEnergy(const FiniteElement &el, Element
         w = ip.weight * w;
 
         disp->GetVectorValue(Tr,ip,uu);
-        volforce->Eval(ff,Tr,ip);
+        //volforce->Eval(ff,Tr,ip);
 
         //energy=energy+w*(ff*uu);
 
@@ -985,15 +999,36 @@ void ComplianceNLIntegrator::AssembleElementGrad(const FiniteElement &el, Elemen
         }
 }
 
-
-double ComplianceObjective::Eval()
+double ComplianceObjective::Eval(mfem::ParGridFunction& sol)
 {
     if(Ecoef==nullptr){
         MFEM_ABORT("Ecoef in ComplianceObjective should be set before calling the Eval method!");
     }
 
-    if(volforce==nullptr){
-        MFEM_ABORT("volforce in ComplianceObjective should be set before calling the Eval method!");
+    if(dfes==nullptr){
+        MFEM_ABORT("fsolv of dfes in ComplianceObjective should be set before calling the Eval method!");
+    }
+
+    if(nf==nullptr){
+        nf=new ParNonlinearForm(dfes);
+        intgr=new ComplianceNLIntegrator();
+        nf->AddDomainIntegrator(intgr);
+    }
+
+    intgr->SetE(Ecoef);
+    intgr->SetPoissonRatio(nu);
+    intgr->SetDisp(&sol);
+
+    double rt=nf->GetEnergy(*dens);
+
+    return rt;
+
+}
+
+double ComplianceObjective::Eval()
+{
+    if(Ecoef==nullptr){
+        MFEM_ABORT("Ecoef in ComplianceObjective should be set before calling the Eval method!");
     }
 
     if(esolv==nullptr){
@@ -1013,25 +1048,35 @@ double ComplianceObjective::Eval()
     intgr->SetE(Ecoef);
     intgr->SetPoissonRatio(nu);
     intgr->SetDisp(&(esolv->GetDisplacements()));
-    intgr->SetVolForce(volforce);
-
-    std::cout<<"bla bla"<<std::endl;
 
     double rt=nf->GetEnergy(*dens);
 
-    std::cout<<"dla dla"<<std::endl;
-
     return rt;
+}
+
+void ComplianceObjective::Grad(mfem::ParGridFunction& sol, Vector& grad)
+{
+    if(Ecoef==nullptr){
+        MFEM_ABORT("Ecoef in ComplianceObjective should be set before calling the Grad method!");
+    }
+    if(dfes==nullptr){
+        MFEM_ABORT("fsolv or dfes in ComplianceObjective should be set before calling the Grad method!");
+    }
+    if(nf==nullptr){
+        nf=new ParNonlinearForm(dfes);
+        intgr=new ComplianceNLIntegrator();
+        nf->AddDomainIntegrator(intgr);
+    }
+    intgr->SetE(Ecoef);
+    intgr->SetPoissonRatio(nu);
+    intgr->SetDisp(&sol);
+    nf->Mult(*dens,grad);
 }
 
 void ComplianceObjective::Grad(Vector& grad)
 {
     if(Ecoef==nullptr){
         MFEM_ABORT("Ecoef in ComplianceObjective should be set before calling the Grad method!");
-    }
-
-    if(volforce==nullptr){
-        MFEM_ABORT("volforce in ComplianceObjective should be set before calling the Grad method!");
     }
 
     if(esolv==nullptr){
@@ -1050,7 +1095,6 @@ void ComplianceObjective::Grad(Vector& grad)
     intgr->SetE(Ecoef);
     intgr->SetPoissonRatio(nu);
     intgr->SetDisp(&(esolv->GetDisplacements()));
-    intgr->SetVolForce(volforce);
 
     nf->Mult(*dens,grad);
 }

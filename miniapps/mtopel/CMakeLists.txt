@@ -115,4 +115,9 @@ add_mfem_miniapp(shoot_test
      ${PARADIFF_COMMON_FILES}
      LIBRARIES mfem)
 
+add_mfem_miniapp(mtop_alco
+     MAIN mtop_alcoa.cpp
+     ${PARADIFF_COMMON_FILES}
+     LIBRARIES mfem)
+
 endif ()

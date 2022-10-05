@@ -271,7 +271,6 @@ int main(int argc, char *argv[])
    cobj->SetE(E);
    cobj->SetPoissonRatio(0.2);
    cobj->SetDens(vdens);
-   cobj->SetVolForce(*volforce);
 
    //mfem::PVolumeQoI* vobj=new mfem::PVolumeQoI(fsolv->GetFilterFES());
    mfem::VolumeQoI* vobj=new mfem::VolumeQoI(fsolv->GetFilterFES());

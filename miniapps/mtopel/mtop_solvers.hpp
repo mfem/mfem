@@ -417,6 +417,9 @@ public:
     /// Adds displacement BC in direction 0(x),1(y),2(z), or 4(all).
     void AddDispBC(int id, int dir, mfem::Coefficient& val);
 
+    /// Clear all displacement BC
+    void DelDispBC();
+
     /// Set the values of the volumetric force.
     void SetVolForce(double fx,double fy, double fz);
 
@@ -560,6 +563,11 @@ public:
         dens=dens_;
     }
 
+    void SetDens(Coefficient* coef_)
+    {
+        coef=coef_;
+    }
+
     void SetProjParam(double eta_, double beta_)
     {
         eta=eta_;
@@ -581,7 +589,10 @@ public:
     double 	Eval(ElementTransformation &T, const IntegrationPoint &ip)
     {
         //evaluate density
-        double dd=dens->GetValue(T,ip);
+        double dd=1.0;
+        if(dens!=nullptr){dd=dens->GetValue(T,ip);}
+        else if(coef!=nullptr){dd=coef->Eval(T,ip);}
+
         if(dd>1.0){dd=1.0;}
         if(dd<0.0){dd=0.0;}
         //do the projection
@@ -595,7 +606,10 @@ public:
     double Grad(ElementTransformation &T, const IntegrationPoint &ip)
     {
         //evaluate density
-        double dd=dens->GetValue(T,ip);
+        double dd=1.0;
+        if(dens!=nullptr){dd=dens->GetValue(T,ip);}
+        else if(coef!=nullptr){dd=coef->Eval(T,ip);}
+
         if(dd>1.0){dd=1.0;}
         if(dd<0.0){dd=0.0;}
         //do the projection
@@ -610,6 +624,7 @@ public:
 
 private:
     ParGridFunction* dens;
+    Coefficient* coef;
     double Emax;
     double Emin;
     double eta;
@@ -778,14 +793,13 @@ public:
         dens=&dens_;
     }
 
-    void SetVolForce(VectorCoefficient& vf)
-    {
-        volforce=&vf;
-    }
-
     double Eval();
 
+    double Eval(mfem::ParGridFunction& sol);
+
     void Grad(Vector& grad);
+
+    void Grad(mfem::ParGridFunction& sol, Vector& grad);
 
 private:
     ElasticitySolver* esolv;
@@ -794,7 +808,6 @@ private:
     ComplianceNLIntegrator* intgr;
     YoungModulus* Ecoef;
     double nu;
-    VectorCoefficient* volforce;
     Vector* dens;
 
 

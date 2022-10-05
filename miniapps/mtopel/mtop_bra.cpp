@@ -13,7 +13,8 @@ double InitialDens(const mfem::Vector &x)
         rez=rez*std::sin(2*M_PI*x[2]);
     }
 
-    return rez=0.5+0.3*(0.5+0.5*rez);
+    rez=0.5+0.3*(0.5+0.5*rez);
+    return rez;
 }
 
 namespace mfem{
@@ -301,7 +302,6 @@ int main(int argc, char *argv[])
    cobj->SetE(E);
    cobj->SetPoissonRatio(0.2);
    cobj->SetDens(vdens);
-   cobj->SetVolForce(*volforce);
 
    mfem::PVolumeQoI* vobj=new mfem::PVolumeQoI(fsolv->GetFilterFES());
    //mfem::VolumeQoI* vobj=new mfem::VolumeQoI(fsolv->GetFilterFES());
