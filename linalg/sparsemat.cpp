@@ -1772,6 +1772,9 @@ void SparseMatrix::EliminateRowCol(int rc, const double sol, Vector &rhs,
 {
    MFEM_ASSERT(rc < height && rc >= 0,
                "Row " << rc << " not in matrix of height " << height);
+   HostReadWriteI();
+   HostReadWriteJ();
+   HostReadWriteData();
 
    if (Rows == NULL)
    {
@@ -2223,6 +2226,49 @@ void SparseMatrix::EliminateRowCol(int rc, SparseMatrix &Ae,
          }
       }
    }
+}
+
+void SparseMatrix::EliminateBC(const Array<int> &ess_dofs,
+                               DiagonalPolicy diag_policy)
+{
+   const int n_ess_dofs = ess_dofs.Size();
+   const auto ess_dofs_d = ess_dofs.Read();
+   const auto dI = ReadI();
+   const auto dJ = ReadJ();
+   auto dA = ReadWriteData();
+
+   MFEM_FORALL(i, n_ess_dofs,
+   {
+      const int idof = ess_dofs_d[i];
+      for (int j=dI[idof]; j<dI[idof+1]; ++j)
+      {
+         const int jdof = dJ[j];
+         if (jdof != idof)
+         {
+            dA[j] = 0.0;
+            for (int k=dI[jdof]; k<dI[jdof+1]; ++k)
+            {
+               if (dJ[k] == idof)
+               {
+                  dA[k] = 0.0;
+                  break;
+               }
+            }
+         }
+         else
+         {
+            if (diag_policy == DiagonalPolicy::DIAG_ONE)
+            {
+               dA[j] = 1.0;
+            }
+            else if (diag_policy == DiagonalPolicy::DIAG_ZERO)
+            {
+               dA[j] = 0.0;
+            }
+            // else (diag_policy == DiagonalPolicy::DIAG_KEEP)
+         }
+      }
+   });
 }
 
 void SparseMatrix::SetDiagIdentity()
@@ -3013,7 +3059,7 @@ SparseMatrix &SparseMatrix::operator+=(const SparseMatrix &B)
    MFEM_ASSERT(height == B.height && width == B.width,
                "Mismatch of this matrix size and rhs.  This height = "
                << height << ", width = " << width << ", B.height = "
-               << B.height << ", B.width = " << width);
+               << B.height << ", B.width = " << B.width);
 
    for (int i = 0; i < height; i++)
    {
