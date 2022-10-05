@@ -24,6 +24,7 @@
 #include <fstream>
 #include <iostream>
 #include <math.h>
+#include <ctime>
 #include <string>
 
 #include "material_metrics.hpp"
@@ -70,6 +71,8 @@ int main(int argc, char *argv[]) {
   bool paraview_export = true;
   bool glvis_export = true;
   bool uniform_rf = false;
+  bool random_seed = true;
+  bool compute_boundary_integrals = false;
 
   OptionsParser args(argc, argv);
   args.AddOption(&order, "-o", "--order",
@@ -116,6 +119,12 @@ int main(int argc, char *argv[]) {
   args.AddOption(&uniform_rf, "-urf", "--uniform-rf", "-no-urf",
                  "--no-uniform-rf",
                  "Enable or disable the transformation of GRF to URF.");
+  args.AddOption(&random_seed, "-rs", "--random-seed", "-no-rs",
+                 "--no-random-seed", "Enable or disable random seed.");
+  args.AddOption(&compute_boundary_integrals, "-cbi", 
+                 "--compute-boundary-integrals", "-no-cbi",
+                 "--no-compute-boundary-integrals", 
+                 "Enable or disable computation of boundary integrals.");
   args.Parse();
   if (!args.Good()) {
     args.PrintUsage(cout);
@@ -144,11 +153,11 @@ int main(int argc, char *argv[]) {
   ParFiniteElementSpace fespace(&pmesh, &fec);
   HYPRE_BigInt size = fespace.GlobalTrueVSize();
   if (Mpi::Root()) {
-    cout << "Number of finite element unknowns: " << size << endl;
+    const Array<int> boundary (pmesh.bdr_attributes);
+    cout << "Number of finite element unknowns: " << size << "\n";
+    cout << "Boundary attributes: ";
+    boundary.Print(cout, 6);
   }
-
-  // 6. Boundary conditions
-  const Array<int> ess_tdof_list;
 
   // ========================================================================
   // II. Generate topological support
@@ -211,7 +220,11 @@ int main(int argc, char *argv[]) {
 
   // III.3 Define the right hand side, for us this is a normalized white noise.
   ParLinearForm b(&fespace);
-  auto *WhiteNoise = new WhiteGaussianNoiseDomainLFIntegrator(4000);
+  int seed = 0;
+  if (random_seed) {
+    seed = std::time(nullptr);
+  }
+  auto *WhiteNoise = new WhiteGaussianNoiseDomainLFIntegrator(seed);
   b.AddDomainIntegrator(WhiteNoise);
   b.Assemble();
   double normalization = ConstructNormalizationCoefficient(nu, l1, l2, l3, dim);
@@ -219,10 +232,12 @@ int main(int argc, char *argv[]) {
 
   // III.4 Define the boundary conditions.
   materials::Boundary bc;
-  // // Uncomment below for to apply some Dirichlet BC
-  // ConstantCoefficient bc_one(1.0);
-  // bc.AddHomogeneousBoundaryCondition(1, materials::BoundaryType::kDirichlet);
-  // bc.AddInhomogeneousDirichletBoundaryCondition(3, &bc_one);
+  bc.AddHomogeneousBoundaryCondition(1, materials::BoundaryType::kNeumann);
+  bc.AddHomogeneousBoundaryCondition(2, materials::BoundaryType::kNeumann);
+  bc.AddHomogeneousBoundaryCondition(3, materials::BoundaryType::kNeumann);
+  bc.AddHomogeneousBoundaryCondition(4, materials::BoundaryType::kNeumann);
+  bc.AddHomogeneousBoundaryCondition(5, materials::BoundaryType::kNeumann);
+  bc.AddHomogeneousBoundaryCondition(6, materials::BoundaryType::kNeumann);
   if (Mpi::Root()) {
     bc.PrintInfo();
     bc.VerifyDefinedBoundaries(pmesh);
@@ -232,6 +247,11 @@ int main(int argc, char *argv[]) {
   materials::SPDESolver solver(diffusion_coefficient, nu, bc,
                                &fespace);
   solver.Solve(b, u);
+
+  /// III.6 Verify boundary conditions
+  if (compute_boundary_integrals){
+    bc.ComputeBoundaryError(u);
+  }
 
   // ========================================================================
   // III. Combine topological support and random field
