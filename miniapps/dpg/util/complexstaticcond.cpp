@@ -14,7 +14,6 @@
 namespace mfem
 {
 
-
 ComplexBlockStaticCondensation::ComplexBlockStaticCondensation(
    Array<FiniteElementSpace *> &
    fes_)

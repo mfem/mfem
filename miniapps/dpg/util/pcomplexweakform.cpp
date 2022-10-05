@@ -13,7 +13,6 @@
 
 #ifdef MFEM_USE_MPI
 
-
 namespace mfem
 {
 

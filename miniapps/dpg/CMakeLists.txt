@@ -37,7 +37,7 @@ convert_filenames_to_full_paths(DPG_HEADERS)
 
 set(DPG_COMMON_FILES
     EXTRA_SOURCES ${DPG_SOURCES}
-    EXTRA_HEADERS ${DPG_HEADERS})
+    EXTRA_HEADERS ${DPG_HEADERS} ${MFEM_MINIAPPS_COMMON_HEADERS})
 
 add_mfem_miniapp(diffusion-dpg
   MAIN diffusion.cpp
@@ -60,10 +60,10 @@ ${DPG_COMMON_FILES}
 LIBRARIES mfem mfem-common)
 
 if (MFEM_USE_MPI)
-  add_mfem_miniapp(pdiffusion
+  add_mfem_miniapp(pdiffusion-dpg
     MAIN pdiffusion.cpp
     ${DPG_COMMON_FILES}
-    LIBRARIES mfem)
+    LIBRARIES mfem mfem-common)
 
   add_mfem_miniapp(pconvection-diffusion-dpg
   MAIN pconvection-diffusion.cpp
@@ -75,7 +75,7 @@ if (MFEM_USE_MPI)
   ${DPG_COMMON_FILES}
   LIBRARIES mfem mfem-common)
 
-  add_mfem_miniapp(pmaxwell
+  add_mfem_miniapp(pmaxwell-dpg
   MAIN pmaxwell.cpp
   ${DPG_COMMON_FILES}
   LIBRARIES mfem mfem-common)

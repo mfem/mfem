@@ -12,12 +12,7 @@
 #ifndef MFEM_BLOCK_STATIC_CONDENSATION
 #define MFEM_BLOCK_STATIC_CONDENSATION
 
-#include "../../../config/config.hpp"
-#include "../../../fem/fespace.hpp"
-
-#ifdef MFEM_USE_MPI
-#include "../../../fem/pfespace.hpp"
-#endif
+#include "mfem.hpp"
 
 namespace mfem
 {

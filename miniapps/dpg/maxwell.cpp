@@ -70,6 +70,7 @@
 
 using namespace std;
 using namespace mfem;
+using namespace mfem::common;
 
 void maxwell_solution(const Vector & X,
                       std::vector<complex<double>> &E,
@@ -470,10 +471,10 @@ int main(int argc, char *argv[])
          const char * keys = (it == 0 && dim == 2) ? "jRcml\n" : nullptr;
          char vishost[] = "localhost";
          int  visport   = 19916;
-         common::VisualizeField(E_out_r,vishost, visport, E.real(),
-                                "Numerical Electric field (real part)", 0, 0, 500, 500, keys);
-         common::VisualizeField(E_out_i,vishost, visport, E.imag(),
-                                "Numerical Electric field (imaginary part)", 501, 0, 500, 500, keys);
+         VisualizeField(E_out_r,vishost, visport, E.real(),
+                        "Numerical Electric field (real part)", 0, 0, 500, 500, keys);
+         VisualizeField(E_out_i,vishost, visport, E.imag(),
+                        "Numerical Electric field (imaginary part)", 501, 0, 500, 500, keys);
       }
 
       if (it == ref)

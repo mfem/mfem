@@ -12,9 +12,7 @@
 #ifndef MFEM_COMPLEX_DPGWEAKFORM
 #define MFEM_COMPLEX_DPGWEAKFORM
 
-#include "../../../config/config.hpp"
-#include "../../../linalg/linalg.hpp"
-#include "../../../fem/fem.hpp"
+#include "mfem.hpp"
 #include "complexstaticcond.hpp"
 
 namespace mfem

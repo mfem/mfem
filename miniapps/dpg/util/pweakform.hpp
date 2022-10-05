@@ -12,13 +12,10 @@
 #ifndef MFEM_PDPGWEAKFORM
 #define MFEM_PDPGWEAKFORM
 
-#include "../../../config/config.hpp"
+#include "mfem.hpp"
+#include "weakform.hpp"
 
 #ifdef MFEM_USE_MPI
-
-#include <mpi.h>
-#include "../../../fem/pfespace.hpp"
-#include "weakform.hpp"
 
 namespace mfem
 {
