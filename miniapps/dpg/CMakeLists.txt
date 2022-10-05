@@ -36,8 +36,8 @@ convert_filenames_to_full_paths(DPG_SOURCES)
 convert_filenames_to_full_paths(DPG_HEADERS)
 
 set(DPG_COMMON_FILES
-    EXTRA_SOURCES ${HOOKE_SOURCES}
-    EXTRA_HEADERS ${HOOKE_HEADERS})
+    EXTRA_SOURCES ${DPG_SOURCES}
+    EXTRA_HEADERS ${DPG_HEADERS})
 
 add_mfem_miniapp(diffusion
   MAIN diffusion.cpp
