@@ -2183,18 +2183,6 @@ void NURBSExtension::CheckPatches()
                    << ")\n  Inconsistent edge-to-knot mapping!\n";
          mfem_error();
       }
-
-      /*
-      if ((Dimension() == 2 &&
-           (edges[0] < 0 || edges[1] < 0)) ||
-
-          (Dimension() == 3 &&
-           (edges[0] < 0 || edges[3] < 0 || edges[8] < 0)))
-      {
-         mfem::err << "NURBSExtension::CheckPatch (patch = " << p
-                   << ") : Bad orientation!\n";
-         mfem_error();
-      }*/
    }
 }
 
