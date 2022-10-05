@@ -123,13 +123,13 @@ include $(MFEM_TEST_MK)
 RUN_MPI = $(MFEM_MPIEXEC) $(MFEM_MPIEXEC_NP) $(MFEM_MPI_NP)
 diffusion-test-seq: diffusion
 	@$(call mfem-test,$<,, DPG diffusion miniapp,\
-	-m ../../../data/star.mesh -o 3 -ref 1 -do 1 -prob 1 -sc)
+	-m ../../data/star.mesh -o 3 -ref 1 -do 1 -prob 1 -sc)
 convection-diffusion-test-seq: convection-diffusion
 	@$(call mfem-test,$<,, DPG convection diffusion miniapp,\
-	-m ../../../data/star.mesh -o 2 -ref 1 -theta 0.0 -eps 1e-1 -beta '2 3')	
+	-m ../../data/star.mesh -o 2 -ref 1 -theta 0.0 -eps 1e-1 -beta '2 3')	
 pdiffusion-test-par: pdiffusion
 	@$(call mfem-test,$<, $(RUN_MPI), DPG pdiffusion miniapp,\
-	-m ../../../data/inline-quad.mesh -o 3 -sref 1 -pref 1 -theta 0.0 -prob 0)
+	-m ../../data/inline-quad.mesh -o 3 -sref 1 -pref 1 -theta 0.0 -prob 0)
 pconvection-diffusion-test-par: pconvection-diffusion
 	@$(call mfem-test,$<, $(RUN_MPI), DPG pconvection-diffusion miniapp,\
 	-o 2 -ref 1 -prob 0 -eps 1e-1 -beta '4 2' -theta 0.0)	
