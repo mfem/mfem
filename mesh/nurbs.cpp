@@ -2169,7 +2169,7 @@ void NURBSExtension::CheckPatches()
          }
       }
 
-      /*if ((Dimension() == 2 &&
+      if ((Dimension() == 2 &&
            (edges[0] != -1 - edges[2] || edges[1] != -1 - edges[3])) ||
 
           (Dimension() == 3 &&
@@ -2184,6 +2184,7 @@ void NURBSExtension::CheckPatches()
          mfem_error();
       }
 
+      /*
       if ((Dimension() == 2 &&
            (edges[0] < 0 || edges[1] < 0)) ||
 
