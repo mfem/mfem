@@ -102,9 +102,8 @@ private:
 
   // Boundary conditions
   const Boundary &bc_;
-  Array<int> dbc_marker; // Markers for Dirichlet boundary conditions.
-  Array<int> nbc_marker; // Markers for Neumann boundary conditions.
-  Array<int> rbc_marker; // Markers for Robin boundary conditions.
+  Array<int> dbc_marker_; // Markers for Dirichlet boundary conditions.
+  Array<int> rbc_marker_; // Markers for Robin boundary conditions.
 
   // Coefficients for the rational approximation of the solution.
   Array<double> coeffs_;
