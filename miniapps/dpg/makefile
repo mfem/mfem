@@ -135,8 +135,8 @@ pconvection-diffusion-test-par: pconvection-diffusion
 	-o 2 -ref 1 -prob 0 -eps 1e-1 -beta '4 2' -theta 0.0)	
 acoustics-test-seq: acoustics
 	@$(call mfem-test,$<,, DPG acoustics miniapp,\
-	-ref 5 -o 1 -rnum 1.0)
-maxwell-test-seq: convection-diffusion
+	-ref 3 -o 1 -rnum 1.0)
+maxwell-test-seq: maxwell
 	@$(call mfem-test,$<,, DPG maxwell miniapp,\
 	-m ../../data/inline-tri.mesh -ref 2 -o 1 -rnum 1.0)	
 pacoustics-test-par: pacoustics
