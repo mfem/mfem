@@ -2,7 +2,7 @@
 //
 // Compile with: make  pconvection-diffusion
 //
-// sample runs 
+// sample runs
 // mpirun -np 4 pconvection-diffusion  -o 2 -ref 3 -prob 0 -eps 1e-1 -beta '4 2' -theta 0.0
 // mpirun -np 4 pconvection-diffusion  -o 3 -ref 3 -prob 0 -eps 1e-2 -beta '2 3' -theta 0.0
 
@@ -11,15 +11,15 @@
 // mpirun -np 4 pconvection-diffusion  -o 3 -ref 20 -prob 2 -eps 5e-3 -theta 0.7 -sc
 // mpirun -np 4 pconvection-diffusion  -o 2 -ref 20 -prob 3 -eps 1e-2 -beta '1 2' -theta 0.7 -sc
 
-// Description:  
+// Description:
 // This example code demonstrates the use of MFEM to define and solve a parallel
 // "ultraweak" (UW) DPG formulation for the convection-diffusion problem
 
 //     - εΔu + ∇⋅(βu) = f,   in Ω
 //                  u = u_0, on ∂Ω
 
-// It solves the following kinds of problems 
-// (a) A manufactured solution where u_exact = sin(π * (x + y + z)). 
+// It solves the following kinds of problems
+// (a) A manufactured solution where u_exact = sin(π * (x + y + z)).
 // (b) The 2D Erickson-Johnson problem
 // (c) Internal layer problem
 // (d) Boundary layer problem
@@ -29,16 +29,16 @@
 //        1/ε σ - ∇u  = 0,   in Ω
 //                  u = u_0, on ∂Ω
 
-// Ultraweak-DPG is obtained by integration by parts of both equations and the 
+// Ultraweak-DPG is obtained by integration by parts of both equations and the
 // introduction of trace unknowns on the mesh skeleton
-// 
-// u ∈ L^2(Ω), σ ∈ (L^2(Ω))^dim 
-// û ∈ H^1/2, f̂ ∈ H^-1/2  
-// -(βu , ∇v)  + (σ , ∇v)     + < f̂ ,  v  > = (f,v),   ∀ v ∈ H^1(Ω)      
+//
+// u ∈ L^2(Ω), σ ∈ (L^2(Ω))^dim
+// û ∈ H^1/2, f̂ ∈ H^-1/2
+// -(βu , ∇v)  + (σ , ∇v)     + < f̂ ,  v  > = (f,v),   ∀ v ∈ H^1(Ω)
 //   (u , ∇⋅τ) + 1/ε (σ , τ)  + < û , τ⋅n > = 0,       ∀ τ ∈ H(div,Ω)
-//                                        û = u_0  on ∂Ω 
+//                                        û = u_0  on ∂Ω
 
-// Note: 
+// Note:
 // f̂ := βu - σ
 // û := -u
 
@@ -47,13 +47,13 @@
 // -------------------------------------------------------------
 // | v |-(βu , ∇v) | (σ , ∇v)  |           | < f̂ ,v > |  (f,v)  |
 // |   |           |           |           |          |         |
-// | τ | (u ,∇⋅τ)  | 1/ε(σ , τ)|  <û,τ⋅n>  |          |    0    |  
+// | τ | (u ,∇⋅τ)  | 1/ε(σ , τ)|  <û,τ⋅n>  |          |    0    |
 
-// where (v,τ) ∈  H^1(Ω_h) × H(div,Ω_h)  
+// where (v,τ) ∈  H^1(Ω_h) × H(div,Ω_h)
 
 #include "mfem.hpp"
 #include "util/pweakform.hpp"
-#include "../../common/mfem-common.hpp"
+#include "../common/mfem-common.hpp"
 #include <fstream>
 #include <iostream>
 
@@ -62,7 +62,7 @@ using namespace mfem;
 
 enum prob_type
 {
-   sinusoidal, 
+   sinusoidal,
    EJ, // from https://www.sciencedirect.com/science/article/pii/S0898122113003751
    curved_streamlines, // form https://par.nsf.gov/servlets/purl/10160205
    bdr_layer // from https://web.pdx.edu/~gjay/pub/dpg2.pdf
@@ -89,7 +89,7 @@ int main(int argc, char *argv[])
    Hypre::Init();
 
    // 1. Parse command-line options.
-   const char *mesh_file = "../../../data/inline-quad.mesh";
+   const char *mesh_file = "../../data/inline-quad.mesh";
    int order = 1;
    int delta_order = 1;
    int ref = 1;
@@ -107,17 +107,17 @@ int main(int argc, char *argv[])
    args.AddOption(&delta_order, "-do", "--delta_order",
                   "Order enrichment for DPG test space.");
    args.AddOption(&epsilon, "-eps", "--epsilon",
-                  "Epsilon coefficient");               
+                  "Epsilon coefficient");
    args.AddOption(&ref, "-ref", "--num_refinements",
-                  "Number of uniform refinements");     
+                  "Number of uniform refinements");
    args.AddOption(&theta, "-theta", "--theta",
-                  "Theta parameter for AMR");                           
+                  "Theta parameter for AMR");
    args.AddOption(&iprob, "-prob", "--problem", "Problem case"
-                  " 0: lshape, 1: General");                         
+                  " 0: lshape, 1: General");
    args.AddOption(&beta, "-beta", "--beta",
-                  "Vector Coefficient beta");          
+                  "Vector Coefficient beta");
    args.AddOption(&static_cond, "-sc", "--static-condensation", "-no-sc",
-                  "--no-static-condensation", "Enable static condensation.");                            
+                  "--no-static-condensation", "Enable static condensation.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -138,10 +138,10 @@ int main(int argc, char *argv[])
    if (iprob > 3) { iprob = 3; }
    prob = (prob_type)iprob;
 
-   if (prob == prob_type::EJ || prob == prob_type::curved_streamlines || 
+   if (prob == prob_type::EJ || prob == prob_type::curved_streamlines ||
        prob == prob_type::bdr_layer)
    {
-      mesh_file = "../../../data/inline-quad.mesh";
+      mesh_file = "../../data/inline-quad.mesh";
    }
 
    Mesh mesh(mesh_file, 1, 1);
@@ -151,28 +151,28 @@ int main(int argc, char *argv[])
 
    switch (prob)
    {
-   case sinusoidal:
-   case EJ:
-   {
-      if (beta.Size() == 0)
+      case sinusoidal:
+      case EJ:
+      {
+         if (beta.Size() == 0)
+         {
+            beta.SetSize(dim);
+            beta[0] = 1.;
+            beta[1] = 0.;
+         }
+         break;
+      }
+      case bdr_layer:
       {
          beta.SetSize(dim);
          beta[0] = 1.;
-         beta[1] = 0.;
+         beta[1] = 2.;
+         exact_known = false;
       }
       break;
-   }
-   case bdr_layer:
-   {
-      beta.SetSize(dim);
-      beta[0] = 1.;
-      beta[1] = 2.;
-      exact_known = false;
-   }
-   break;
-   default:
-      // do nothing; beta is defined as a FunctionCoefficient
-      break;
+      default:
+         // do nothing; beta is defined as a FunctionCoefficient
+         break;
    }
 
    mesh.EnsureNCMesh(true);
@@ -185,16 +185,17 @@ int main(int argc, char *argv[])
    FiniteElementCollection *u_fec = new L2_FECollection(order-1,dim);
    ParFiniteElementSpace *u_fes = new ParFiniteElementSpace(&pmesh,u_fec);
 
-   // Vector L2 space for σ 
+   // Vector L2 space for σ
    FiniteElementCollection *sigma_fec = new L2_FECollection(order-1,dim);
-   ParFiniteElementSpace *sigma_fes = new ParFiniteElementSpace(&pmesh,sigma_fec, dim); 
+   ParFiniteElementSpace *sigma_fes = new ParFiniteElementSpace(&pmesh,sigma_fec,
+                                                                dim);
 
-   // H^1/2 space for û 
+   // H^1/2 space for û
    FiniteElementCollection * hatu_fec = new H1_Trace_FECollection(order,dim);
    ParFiniteElementSpace *hatu_fes = new ParFiniteElementSpace(&pmesh,hatu_fec);
 
-   // H^-1/2 space for σ̂ 
-   FiniteElementCollection * hatf_fec = new RT_Trace_FECollection(order-1,dim);   
+   // H^-1/2 space for σ̂
+   FiniteElementCollection * hatf_fec = new RT_Trace_FECollection(order-1,dim);
    ParFiniteElementSpace *hatf_fes = new ParFiniteElementSpace(&pmesh,hatf_fec);
 
    // testspace fe collections
@@ -217,8 +218,8 @@ int main(int argc, char *argv[])
    OuterProductCoefficient bbtcoeff(betacoeff,betacoeff);
 
    // Normal equation weak formulation
-   Array<ParFiniteElementSpace * > trial_fes; 
-   Array<FiniteElementCollection * > test_fec; 
+   Array<ParFiniteElementSpace * > trial_fes;
+   Array<FiniteElementCollection * > test_fec;
 
    trial_fes.Append(u_fes);
    trial_fes.Append(sigma_fes);
@@ -240,12 +241,13 @@ int main(int argc, char *argv[])
    a->AddTrialIntegrator(new MixedScalarWeakGradientIntegrator(negone),0,1);
 
    // 1/ε (σ,τ)
-   a->AddTrialIntegrator(new TransposeIntegrator(new VectorFEMassIntegrator(eps1)),1,1);
+   a->AddTrialIntegrator(new TransposeIntegrator(new VectorFEMassIntegrator(eps1)),
+                         1,1);
 
    //  <û,τ⋅n>
    a->AddTrialIntegrator(new NormalTraceIntegrator,2,1);
 
-   // <f̂ ,v> 
+   // <f̂ ,v>
    a->AddTrialIntegrator(new TraceIntegrator,3,0);
 
 
@@ -263,7 +265,7 @@ int main(int argc, char *argv[])
    a->AddTestIntegrator(new MassIntegrator(c1_coeff),0,0);
    // ε (∇v,∇δv)
    a->AddTestIntegrator(new DiffusionIntegrator(eps),0,0);
-   // (β⋅∇v, β⋅∇δv)   
+   // (β⋅∇v, β⋅∇δv)
    a->AddTestIntegrator(new DiffusionIntegrator(bbtcoeff), 0,0);
    // c2 (τ,δτ)
    a->AddTestIntegrator(new VectorFEMassIntegrator(c2_coeff),1,1);
@@ -271,7 +273,7 @@ int main(int argc, char *argv[])
    a->AddTestIntegrator(new DivDivIntegrator(one),1,1);
 
    FunctionCoefficient f(f_exact);
-   if (prob == prob_type::sinusoidal || 
+   if (prob == prob_type::sinusoidal ||
        prob == prob_type::curved_streamlines)
    {
       a->AddDomainLFIntegrator(new DomainLFIntegrator(f),0);
@@ -294,18 +296,18 @@ int main(int argc, char *argv[])
    int dof0;
    if (myid == 0)
    {
-      std::cout << "  Ref |" 
-               << "    Dofs    |" ;
+      std::cout << "  Ref |"
+                << "    Dofs    |" ;
       if (exact_known)
       {
-         mfem::out << "  L2 Error  |" 
-                  << "  Rate  |"; 
-      }         
-      std::cout << "  Residual  |" 
-                << "  Rate  |" 
+         mfem::out << "  L2 Error  |"
+                   << "  Rate  |";
+      }
+      std::cout << "  Residual  |"
+                << "  Rate  |"
                 << " CG it  |" << endl;
-      std::cout << std::string((exact_known) ? 72 : 50,'-')      
-                << endl; 
+      std::cout << std::string((exact_known) ? 72 : 50,'-')
+                << endl;
    }
 
    if (static_cond) { a->EnableStaticCondensation(); }
@@ -345,16 +347,16 @@ int main(int argc, char *argv[])
       Array<int> ess_tdof_list(n+m);
       for (int j = 0; j < n; j++)
       {
-         ess_tdof_list[j] = ess_tdof_list_uhat[j] 
-                          + u_fes->GetTrueVSize() 
-                          + sigma_fes->GetTrueVSize();
+         ess_tdof_list[j] = ess_tdof_list_uhat[j]
+                            + u_fes->GetTrueVSize()
+                            + sigma_fes->GetTrueVSize();
       }
       for (int j = 0; j < m; j++)
       {
-         ess_tdof_list[j+n] = ess_tdof_list_fhat[j] 
-                            + u_fes->GetTrueVSize() 
-                            + sigma_fes->GetTrueVSize()
-                            + hatu_fes->GetTrueVSize();
+         ess_tdof_list[j+n] = ess_tdof_list_fhat[j]
+                              + u_fes->GetTrueVSize()
+                              + sigma_fes->GetTrueVSize()
+                              + hatu_fes->GetTrueVSize();
       }
 
       Array<int> offsets(5);
@@ -393,7 +395,8 @@ int main(int argc, char *argv[])
          M.SetDiagonalBlock(1,amg1);
          skip = 2;
       }
-      HypreBoomerAMG * amg2 = new HypreBoomerAMG((HypreParMatrix &)A->GetBlock(skip,skip));
+      HypreBoomerAMG * amg2 = new HypreBoomerAMG((HypreParMatrix &)A->GetBlock(skip,
+                                                                               skip));
       amg2->SetPrintLevel(0);
       M.SetDiagonalBlock(skip,amg2);
 
@@ -421,9 +424,9 @@ int main(int argc, char *argv[])
       Vector & residuals = a->ComputeResidual(x);
 
       double residual = residuals.Norml2();
-      double maxresidual = residuals.Max(); 
+      double maxresidual = residuals.Max();
 
-      double gresidual = residual * residual; 
+      double gresidual = residual * residual;
 
       MPI_Allreduce(MPI_IN_PLACE,&maxresidual,1,MPI_DOUBLE,MPI_MAX,MPI_COMM_WORLD);
       MPI_Allreduce(MPI_IN_PLACE,&gresidual,1,MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD);
@@ -446,9 +449,9 @@ int main(int argc, char *argv[])
       sigma_gf.MakeRef(sigma_fes,x.GetBlock(1));
 
       int dofs = u_fes->GlobalTrueVSize()
-               + sigma_fes->GlobalTrueVSize()
-               + hatu_fes->GlobalTrueVSize()
-               + hatf_fes->GlobalTrueVSize();
+                 + sigma_fes->GlobalTrueVSize()
+                 + hatu_fes->GlobalTrueVSize()
+                 + hatf_fes->GlobalTrueVSize();
 
       double L2Error = 0.0;
       double rate_err = 0.0;
@@ -459,7 +462,7 @@ int main(int argc, char *argv[])
          L2Error = sqrt(u_err*u_err + sigma_err*sigma_err);
          rate_err = (it) ? dim*log(err0/L2Error)/log((double)dof0/dofs) : 0.0;
          err0 = L2Error;
-      }   
+      }
       double rate_res = (it) ? dim*log(res0/gresidual)/log((double)dof0/dofs) : 0.0;
 
       res0 = gresidual;
@@ -469,37 +472,39 @@ int main(int argc, char *argv[])
       {
          std::ios oldState(nullptr);
          oldState.copyfmt(std::cout);
-         std::cout << std::right << std::setw(5) << it << " | " 
-                  << std::setw(10) <<  dof0 << " | ";
+         std::cout << std::right << std::setw(5) << it << " | "
+                   << std::setw(10) <<  dof0 << " | ";
          if (exact_known)
          {
-            std::cout << std::setprecision(3) << std::setw(10) 
-                      << std::scientific <<  err0 << " | " 
-                      << std::setprecision(2) 
+            std::cout << std::setprecision(3) << std::setw(10)
+                      << std::scientific <<  err0 << " | "
+                      << std::setprecision(2)
                       << std::setw(6) << std::fixed << rate_err << " | " ;
-         }         
-         std::cout << std::setprecision(3) 
-                  << std::setw(10) << std::scientific <<  res0 << " | " 
-                  << std::setprecision(2) 
-                  << std::setw(6) << std::fixed << rate_res << " | " 
-                  << std::setw(6) << std::fixed << num_iter << " | " 
-                  << std::endl;
+         }
+         std::cout << std::setprecision(3)
+                   << std::setw(10) << std::scientific <<  res0 << " | "
+                   << std::setprecision(2)
+                   << std::setw(6) << std::fixed << rate_res << " | "
+                   << std::setw(6) << std::fixed << num_iter << " | "
+                   << std::endl;
          std::cout.copyfmt(oldState);
-      }   
+      }
 
       if (visualization)
       {
          const char * keys = (it == 0) ? "cgRjmlk\n" : "";
          char vishost[] = "localhost";
          int  visport   = 19916;
-         common::VisualizeField(u_out,vishost, visport, u_gf, 
+         common::VisualizeField(u_out,vishost, visport, u_gf,
                                 "Numerical u", 0,0, 500, 500, keys);
          common::VisualizeField(sigma_out,vishost, visport, sigma_gf,
-                                "Numerical flux", 501,0,500, 500, keys); 
+                                "Numerical flux", 501,0,500, 500, keys);
       }
 
       if (it == ref)
+      {
          break;
+      }
 
       pmesh.GeneralRefinement(elements_to_refine,1,1);
       for (int i =0; i<trial_fes.Size(); i++)
@@ -536,12 +541,12 @@ void solution(const Vector & X, double & u, Vector & du, double & d2u)
    double x = X[0];
    double y = X[1];
    double z = 0.;
-   if (X.Size() == 3) z = X[2];
+   if (X.Size() == 3) { z = X[2]; }
    du.SetSize(X.Size());
    du = 0.;
    d2u = 0.;
 
-   switch(prob)
+   switch (prob)
    {
       case sinusoidal:
       {
@@ -597,7 +602,7 @@ void solution(const Vector & X, double & u, Vector & du, double & d2u)
       break;
       default:
          MFEM_ABORT("Wrong code path");
-      break;
+         break;
    }
 }
 
@@ -678,7 +683,7 @@ double f_exact(const Vector & X)
 double bdr_data(const Vector &X)
 {
    if (prob == prob_type::bdr_layer)
-   {  
+   {
       double x = X(0);
       double y = X(1);
 
@@ -698,7 +703,7 @@ double bdr_data(const Vector &X)
    else
    {
       return exact_hatu(X);
-   }   
+   }
 }
 
 void setup_test_norm_coeffs(ParGridFunction & c1_gf, ParGridFunction & c2_gf)

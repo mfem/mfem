@@ -3,47 +3,47 @@
 // Compile with: make pdiffusion
 //
 // Sample runs
-// mpirun -np 4 pdiffusion -m ../../../data/inline-quad.mesh -o 3 -sref 1 -pref 3 -theta 0.0 -prob 0
-// mpirun -np 4 pdiffusion -m ../../../data/inline-hex.mesh -o 2 -sref 0 -pref 2 -theta 0.0 -prob 0 -sc
-// mpirun -np 4 pdiffusion -m ../../../data/beam-tet.mesh -o 3 -sref 0 -pref 2 -theta 0.0 -prob 0 -sc
+// mpirun -np 4 pdiffusion -m ../../data/inline-quad.mesh -o 3 -sref 1 -pref 2 -theta 0.0 -prob 0
+// mpirun -np 4 pdiffusion -m ../../data/inline-hex.mesh -o 2 -sref 0 -pref 1 -theta 0.0 -prob 0 -sc
+// mpirun -np 4 pdiffusion -m ../../data/beam-tet.mesh -o 3 -sref 0 -pref 2 -theta 0.0 -prob 0 -sc
 
 // lshape runs
 // Note: uniform ref are expected to give sub-optimal rate for the l-shape problem (rate = 2/3)
-// mpirun -np 4 pdiffusion -o 2 -sref 1 -pref 5 -theta 0.0 -prob 1 
+// mpirun -np 4 pdiffusion -o 2 -sref 1 -pref 5 -theta 0.0 -prob 1
 
 // L-shape AMR runs
 // mpirun -np 4 pdiffusion -o 1 -sref 1 -pref 20 -theta 0.8 -prob 1
 // mpirun -np 4 pdiffusion -o 2 -sref 1 -pref 20 -theta 0.75 -prob 1 -sc
 // mpirun -np 4 pdiffusion -o 3 -sref 1 -pref 20 -theta 0.75 -prob 1 -sc -do 2
 
-// Description:  
+// Description:
 // This example code demonstrates the use of MFEM to define and solve
 // the "ultraweak" (UW) DPG formulation for the Poisson problem in parallel
 
 //       - Δ u = f,   in Ω
 //         u = u_0, on ∂Ω
 //
-// It solves two kinds of problems 
-// a) A manufactured solution problem where u_exact = sin(π * (x + y + z)). 
+// It solves two kinds of problems
+// a) A manufactured solution problem where u_exact = sin(π * (x + y + z)).
 //    This example computes and prints out convergence rates for the L2 error.
-// b) The l-shape benchmark problem with AMR. The AMR process is driven by the 
-//    DPG built-in residual indicator. 
+// b) The l-shape benchmark problem with AMR. The AMR process is driven by the
+//    DPG built-in residual indicator.
 
 // The DPG UW deals with the First Order System
 //   ∇ u - σ = 0, in Ω
 // - ∇⋅σ     = f, in Ω
 //        u  = u_0, in ∂Ω
 
-// Ultraweak-DPG is obtained by integration by parts of both equations and the 
+// Ultraweak-DPG is obtained by integration by parts of both equations and the
 // introduction of trace unknowns on the mesh skeleton
 
-// u ∈ L^2(Ω), σ ∈ (L^2(Ω))^dim 
-// û ∈ H^1/2, σ̂ ∈ H^-1/2  
-// -(u , ∇⋅τ) + < û, τ⋅n> - (σ , τ) = 0,      ∀ τ ∈ H(div,Ω)      
+// u ∈ L^2(Ω), σ ∈ (L^2(Ω))^dim
+// û ∈ H^1/2, σ̂ ∈ H^-1/2
+// -(u , ∇⋅τ) + < û, τ⋅n> - (σ , τ) = 0,      ∀ τ ∈ H(div,Ω)
 //  (σ , ∇ v) - < σ̂, v  >           = (f,v)   ∀ v ∈ H^1(Ω)
-//                                û = u_0        on ∂Ω 
+//                                û = u_0        on ∂Ω
 
-// Note: 
+// Note:
 // û := u and σ̂ := -σ
 
 // -------------------------------------------------------------
@@ -51,14 +51,14 @@
 // -------------------------------------------------------------
 // | τ | -(u,∇⋅τ)  |  -(σ,τ)   | < û, τ⋅n> |         |    0    |
 // |   |           |           |           |         |         |
-// | v |           |  (σ,∇ v)  |           | -<σ̂,v>  |  (f,v)  |  
+// | v |           |  (σ,∇ v)  |           | -<σ̂,v>  |  (f,v)  |
 
 
-// where (τ,v) ∈  H(div,Ω) × H^1(Ω) 
+// where (τ,v) ∈  H(div,Ω) × H^1(Ω)
 
 #include "mfem.hpp"
 #include "util/pweakform.hpp"
-#include "../../common/mfem-common.hpp"
+#include "../common/mfem-common.hpp"
 #include <fstream>
 #include <iostream>
 
@@ -86,15 +86,15 @@ int main(int argc, char *argv[])
    int myid = mpi.WorldRank();
 
    // 1. Parse command-line options.
-   const char *mesh_file = "../../../data/inline-quad.mesh";
+   const char *mesh_file = "../../data/inline-quad.mesh";
    int order = 1;
    int delta_order = 1;
    int sref = 0; // initial uniform mesh refinements
-   int pref = 0; // parallel mesh refinements for AMR 
+   int pref = 0; // parallel mesh refinements for AMR
    bool visualization = true;
    int iprob = 0;
    bool static_cond = false;
-   double theta = 0.7; 
+   double theta = 0.7;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -104,15 +104,15 @@ int main(int argc, char *argv[])
    args.AddOption(&delta_order, "-do", "--delta_order",
                   "Order enrichment for DPG test space.");
    args.AddOption(&sref, "-sref", "--num_serial_refinements",
-                  "Number of initial serial uniform refinements");    
+                  "Number of initial serial uniform refinements");
    args.AddOption(&pref, "-pref", "--num_parallel_refinements",
-                  "Number of AMR refinements");                     
+                  "Number of AMR refinements");
    args.AddOption(&theta, "-theta", "--theta_factor",
-                  "Refinement factor (0 indicates uniform refinements) ");                              
+                  "Refinement factor (0 indicates uniform refinements) ");
    args.AddOption(&iprob, "-prob", "--problem", "Problem case"
-                  " 0: manufactured, 1: l-shape");       
+                  " 0: manufactured, 1: l-shape");
    args.AddOption(&static_cond, "-sc", "--static-condensation", "-no-sc",
-                  "--no-static-condensation", "Enable static condensation.");                                            
+                  "--no-static-condensation", "Enable static condensation.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -135,7 +135,7 @@ int main(int argc, char *argv[])
 
    if (prob == prob_type::lshape)
    {
-      mesh_file = "../../../data/l-shape.mesh"; // this might change 
+      mesh_file = "../../data/l-shape.mesh";
    }
 
    Mesh mesh(mesh_file, 1, 1);
@@ -170,25 +170,27 @@ int main(int argc, char *argv[])
    FiniteElementCollection *u_fec = new L2_FECollection(order-1,dim);
    ParFiniteElementSpace *u_fes = new ParFiniteElementSpace(&pmesh,u_fec);
 
-   // Vector L2 space for σ 
+   // Vector L2 space for σ
    FiniteElementCollection *sigma_fec = new L2_FECollection(order-1,dim);
-   ParFiniteElementSpace *sigma_fes = new ParFiniteElementSpace(&pmesh,sigma_fec, dim); 
+   ParFiniteElementSpace *sigma_fes = new ParFiniteElementSpace(&pmesh,sigma_fec,
+                                                                dim);
 
-   // H^1/2 space for û 
+   // H^1/2 space for û
    FiniteElementCollection * hatu_fec = new H1_Trace_FECollection(order,dim);
    ParFiniteElementSpace *hatu_fes = new ParFiniteElementSpace(&pmesh,hatu_fec);
 
-   // H^-1/2 space for σ̂ 
-   FiniteElementCollection * hatsigma_fec = new RT_Trace_FECollection(order-1,dim);   
-   ParFiniteElementSpace *hatsigma_fes = new ParFiniteElementSpace(&pmesh,hatsigma_fec);
+   // H^-1/2 space for σ̂
+   FiniteElementCollection * hatsigma_fec = new RT_Trace_FECollection(order-1,dim);
+   ParFiniteElementSpace *hatsigma_fes = new ParFiniteElementSpace(&pmesh,
+                                                                   hatsigma_fec);
 
    // testspace fe collections
    int test_order = order+delta_order;
    FiniteElementCollection * tau_fec = new RT_FECollection(test_order-1, dim);
    FiniteElementCollection * v_fec = new H1_FECollection(test_order, dim);
 
-   Array<ParFiniteElementSpace * > trial_fes; 
-   Array<FiniteElementCollection * > test_fec; 
+   Array<ParFiniteElementSpace * > trial_fes;
+   Array<FiniteElementCollection * > test_fec;
 
    trial_fes.Append(u_fes);
    trial_fes.Append(sigma_fes);
@@ -213,8 +215,9 @@ int main(int argc, char *argv[])
    //  -(u,∇⋅τ)
    a->AddTrialIntegrator(new MixedScalarWeakGradientIntegrator(one),0,0);
 
-   // -(σ,τ) 
-   a->AddTrialIntegrator(new TransposeIntegrator(new VectorFEMassIntegrator(negone)),1,0);
+   // -(σ,τ)
+   a->AddTrialIntegrator(new TransposeIntegrator(new VectorFEMassIntegrator(
+                                                    negone)),1,0);
 
    // (σ,∇ v)
    a->AddTrialIntegrator(new TransposeIntegrator(new GradientIntegrator(one)),1,1);
@@ -250,14 +253,14 @@ int main(int argc, char *argv[])
 
    if (myid == 0)
    {
-      std::cout << "\n  Ref |" 
-               << "    Dofs    |" 
-               << "  L2 Error  |" 
-               << "  Rate  |" 
-               << "  Residual  |" 
-               << "  Rate  |" 
-               << " PCG it |" << endl;
-      std::cout << std::string(72,'-') << endl;   
+      std::cout << "\n  Ref |"
+                << "    Dofs    |"
+                << "  L2 Error  |"
+                << "  Rate  |"
+                << "  Residual  |"
+                << "  Rate  |"
+                << " PCG it |" << endl;
+      std::cout << std::string(72,'-') << endl;
    }
 
    Array<int> elements_to_refine; // for AMR
@@ -315,7 +318,8 @@ int main(int argc, char *argv[])
          M.SetDiagonalBlock(1,amg1);
          skip=2;
       }
-      HypreBoomerAMG * amg2 = new HypreBoomerAMG((HypreParMatrix &)A->GetBlock(skip,skip));
+      HypreBoomerAMG * amg2 = new HypreBoomerAMG((HypreParMatrix &)A->GetBlock(skip,
+                                                                               skip));
       amg2->SetPrintLevel(0);
       M.SetDiagonalBlock(skip,amg2);
       HypreSolver * prec;
@@ -343,8 +347,8 @@ int main(int argc, char *argv[])
 
       double residual = residuals.Norml2();
 
-      double maxresidual = residuals.Max(); 
-      double globalresidual = residual * residual; 
+      double maxresidual = residuals.Max();
+      double globalresidual = residual * residual;
 
       MPI_Allreduce(MPI_IN_PLACE,&maxresidual,1,MPI_DOUBLE,MPI_MAX,MPI_COMM_WORLD);
       MPI_Allreduce(MPI_IN_PLACE,&globalresidual,1,MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD);
@@ -364,7 +368,8 @@ int main(int argc, char *argv[])
       double sigma_err = sigma_gf.ComputeL2Error(sigmaex);
       double L2Error = sqrt(u_err*u_err + sigma_err*sigma_err);
       double rate_err = (it) ? dim*log(err0/L2Error)/log((double)dof0/dofs) : 0.0;
-      double rate_res = (it) ? dim*log(res0/globalresidual)/log((double)dof0/dofs) : 0.0;
+      double rate_res = (it) ? dim*log(res0/globalresidual)/log((
+                                                                   double)dof0/dofs) : 0.0;
       err0 = L2Error;
       res0 = globalresidual;
       dof0 = dofs;
@@ -373,18 +378,18 @@ int main(int argc, char *argv[])
       {
          std::ios oldState(nullptr);
          oldState.copyfmt(std::cout);
-         std::cout << std::right << std::setw(5) << it << " | " 
-                  << std::setw(10) <<  dof0 << " | " 
-                  << std::setprecision(3) 
-                  << std::setw(10) << std::scientific <<  err0 << " | " 
-                  << std::setprecision(2) 
-                  << std::setw(6) << std::fixed << rate_err << " | " 
-                  << std::setprecision(3) 
-                  << std::setw(10) << std::scientific <<  res0 << " | " 
-                  << std::setprecision(2) 
-                  << std::setw(6) << std::fixed << rate_res << " | " 
-                  << std::setw(6) << std::fixed << cg.GetNumIterations() << " | " 
-                  << std::endl;
+         std::cout << std::right << std::setw(5) << it << " | "
+                   << std::setw(10) <<  dof0 << " | "
+                   << std::setprecision(3)
+                   << std::setw(10) << std::scientific <<  err0 << " | "
+                   << std::setprecision(2)
+                   << std::setw(6) << std::fixed << rate_err << " | "
+                   << std::setprecision(3)
+                   << std::setw(10) << std::scientific <<  res0 << " | "
+                   << std::setprecision(2)
+                   << std::setw(6) << std::fixed << rate_res << " | "
+                   << std::setw(6) << std::fixed << cg.GetNumIterations() << " | "
+                   << std::endl;
          std::cout.copyfmt(oldState);
       }
 
@@ -395,9 +400,9 @@ int main(int argc, char *argv[])
          int  visport   = 19916;
 
          common::VisualizeField(u_out,vishost,visport,u_gf,
-                               "Numerical u", 0,0,500,500,keys);
+                                "Numerical u", 0,0,500,500,keys);
          common::VisualizeField(sigma_out,vishost,visport,sigma_gf,
-                               "Numerical flux", 500,0,500,500,keys);
+                                "Numerical flux", 500,0,500,500,keys);
       }
 
 
@@ -448,7 +453,7 @@ void solution(const Vector & X, double & u, Vector & du, double & d2u)
          double r = sqrt(x*x + y*y);
          double alpha = 2./3.;
          double phi = atan2(y,x);
-         if (phi < 0) phi += 2*M_PI;
+         if (phi < 0) { phi += 2*M_PI; }
 
          u = pow(r,alpha) * sin(alpha * phi);
 
@@ -461,9 +466,9 @@ void solution(const Vector & X, double & u, Vector & du, double & d2u)
          du[1] = beta*(r_y * sin(alpha*phi) + r * phi_y * cos(alpha*phi));
 
          d2u = 0.0; // Not computed since it's not needed for rhs (f = 0)
-      }   
+      }
       break;
-   
+
       default:
       {
          double alpha = M_PI * (X.Sum());
@@ -509,8 +514,8 @@ void exact_hatsigma(const Vector & X, Vector & hatsigma)
 
 double f_exact(const Vector & X)
 {
-   MFEM_VERIFY(prob!=prob_type::lshape, 
-         "f_exact should not be called for l-shape benchmark problem, i.e., f = 0")
+   MFEM_VERIFY(prob!=prob_type::lshape,
+               "f_exact should not be called for l-shape benchmark problem, i.e., f = 0")
    double u, d2u;
    Vector du;
    solution(X,u,du,d2u);

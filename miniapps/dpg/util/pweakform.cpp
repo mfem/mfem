@@ -98,10 +98,10 @@ void ParDPGWeakForm::BuildProlongation()
 }
 
 void ParDPGWeakForm::FormLinearSystem(const Array<int>
-                                          &ess_tdof_list,
-                                          Vector &x,
-                                          OperatorHandle &A, Vector &X,
-                                          Vector &B, int copy_interior)
+                                      &ess_tdof_list,
+                                      Vector &x,
+                                      OperatorHandle &A, Vector &X,
+                                      Vector &B, int copy_interior)
 {
    FormSystemMatrix(ess_tdof_list, A);
 
@@ -138,8 +138,8 @@ void ParDPGWeakForm::FormLinearSystem(const Array<int>
 }
 
 void ParDPGWeakForm::FormSystemMatrix(const Array<int>
-                                          &ess_tdof_list,
-                                          OperatorHandle &A)
+                                      &ess_tdof_list,
+                                      OperatorHandle &A)
 {
    if (static_cond)
    {
@@ -171,7 +171,7 @@ void ParDPGWeakForm::FormSystemMatrix(const Array<int>
 
 
 void ParDPGWeakForm::RecoverFEMSolution(const Vector &X,
-                                            Vector &x)
+                                        Vector &x)
 {
 
    if (static_cond)

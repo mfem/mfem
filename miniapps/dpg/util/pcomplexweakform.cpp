@@ -18,7 +18,7 @@ namespace mfem
 {
 
 void ParComplexDPGWeakForm::FillEssTdofLists(const Array<int> &
-                                                 ess_tdof_list)
+                                             ess_tdof_list)
 {
    int j;
    for (int i = 0; i<ess_tdof_list.Size(); i++)
@@ -38,7 +38,7 @@ void ParComplexDPGWeakForm::Assemble(int skip_zeros)
 }
 
 void ParComplexDPGWeakForm::ParallelAssemble(BlockMatrix *m_r,
-                                                 BlockMatrix *m_i)
+                                             BlockMatrix *m_i)
 {
    if (!P) { BuildProlongation(); }
 
@@ -120,11 +120,11 @@ void ParComplexDPGWeakForm::BuildProlongation()
 }
 
 void ParComplexDPGWeakForm::FormLinearSystem(const Array<int>
-                                                 &ess_tdof_list,
-                                                 Vector &x,
-                                                 OperatorHandle &A,
-                                                 Vector &X, Vector &B,
-                                                 int copy_interior)
+                                             &ess_tdof_list,
+                                             Vector &x,
+                                             OperatorHandle &A,
+                                             Vector &X, Vector &B,
+                                             int copy_interior)
 {
    FormSystemMatrix(ess_tdof_list, A);
    if (static_cond)
@@ -185,8 +185,8 @@ void ParComplexDPGWeakForm::FormLinearSystem(const Array<int>
 }
 
 void ParComplexDPGWeakForm::FormSystemMatrix(const Array<int>
-                                                 &ess_tdof_list,
-                                                 OperatorHandle &A)
+                                             &ess_tdof_list,
+                                             OperatorHandle &A)
 {
    if (static_cond)
    {
@@ -222,7 +222,7 @@ void ParComplexDPGWeakForm::FormSystemMatrix(const Array<int>
 
 
 void ParComplexDPGWeakForm::RecoverFEMSolution(const Vector &X,
-                                                   Vector &x)
+                                               Vector &x)
 {
 
    if (static_cond)

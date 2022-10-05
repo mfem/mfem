@@ -890,10 +890,10 @@ void BlockStaticCondensation::ComputeSolution(const Vector &sc_sol,
    }
    else
    {
-#ifdef MFEM_USE_MPI      
+#ifdef MFEM_USE_MPI
       sol_r.SetSize(nrdofs);
       pP->Mult(sc_sol, sol_r);
-#endif      
+#endif
    }
 
    if (rdof_offsets.Last() == dof_offsets.Last())

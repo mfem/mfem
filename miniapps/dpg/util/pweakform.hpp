@@ -9,23 +9,23 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-#ifndef MFEM_PCOMPLEX_DPGWEAKFORM
-#define MFEM_PCOMPLEX_DPGWEAKFORM
+#ifndef MFEM_PDPGWEAKFORM
+#define MFEM_PDPGWEAKFORM
 
-#include "../../../../config/config.hpp"
+#include "../../../config/config.hpp"
 
 #ifdef MFEM_USE_MPI
 
 #include <mpi.h>
-#include "../../../../fem/pfespace.hpp"
-#include "complexweakform.hpp"
+#include "../../../fem/pfespace.hpp"
+#include "weakform.hpp"
 
 namespace mfem
 {
 
 /** @brief Class representing the whole weak formulation. (Convenient for DPG or
     Normal Equations) */
-class ParComplexDPGWeakForm : public ComplexDPGWeakForm
+class ParDPGWeakForm : public DPGWeakForm
 {
 
 protected:
@@ -35,21 +35,18 @@ protected:
    // ess_tdof list for each space
    Array<Array<int> *> ess_tdofs;
 
-   // // split ess_tdof_list give in global tdof (for all spaces)
-   // // to individual lists for each space
-   // // (this can be changed i.e., the lists to be given by the user)
+   // split ess_tdof_list give in global tdof (for all spaces)
+   // to individual lists for each space
+   // (this can be changed i.e., the lists to be given by the user)
    void FillEssTdofLists(const Array<int> & ess_tdof_list);
 
    // Block operator of HypreParMatrix
    BlockOperator * P = nullptr; // Block Prolongation
    BlockMatrix * R = nullptr; // Block Restriction
 
-   // // Block operator of HypreParMatrix
-   ComplexOperator * p_mat = nullptr;
-   BlockOperator * p_mat_r = nullptr;
-   BlockOperator * p_mat_i = nullptr;
-   BlockOperator * p_mat_e_r = nullptr;
-   BlockOperator * p_mat_e_i = nullptr;
+   // Block operator of HypreParMatrix
+   BlockOperator * p_mat = nullptr;
+   BlockOperator * p_mat_e = nullptr;
 
    void BuildProlongation();
 
@@ -57,12 +54,12 @@ private:
 
 public:
 
-   ParComplexDPGWeakForm() {}
+   ParDPGWeakForm() {}
 
    /// Creates bilinear form associated with FE spaces @a *fespaces.
-   ParComplexDPGWeakForm(Array<ParFiniteElementSpace* > & trial_pfes_,
-                             Array<FiniteElementCollection* > & fecol_)
-      : ComplexDPGWeakForm()
+   ParDPGWeakForm(Array<ParFiniteElementSpace* > & trial_pfes_,
+                  Array<FiniteElementCollection* > & fecol_)
+      : DPGWeakForm()
    {
       SetParSpaces(trial_pfes_,fecol_);
    }
@@ -79,6 +76,7 @@ public:
          trial_sfes[i] = (FiniteElementSpace *)trial_pfes[i];
          ess_tdofs[i] = new Array<int>();
       }
+
       SetSpaces(trial_sfes,fecol_);
    }
 
@@ -89,14 +87,14 @@ public:
    /// Returns the matrix assembled on the true dofs, i.e. P^t A P.
    /** The returned matrix has to be deleted by the caller. */
 
-   void ParallelAssemble(BlockMatrix *mat_r, BlockMatrix *mat_i);
+   void ParallelAssemble(BlockMatrix *mat);
 
    void FormLinearSystem(const Array<int> &ess_tdof_list, Vector &x,
-                         OperatorHandle &A,
-                         Vector &X, Vector &B,
-                         int copy_interior = 0);
+                         OperatorHandle &A, Vector &X,
+                         Vector &B, int copy_interior = 0);
 
-   void FormSystemMatrix(const Array<int> &ess_tdof_list, OperatorHandle &A);
+   void FormSystemMatrix(const Array<int> &ess_tdof_list,
+                         OperatorHandle &A);
 
    /** Call this method after solving a linear system constructed using the
        FormLinearSystem method to recover the solution as a ParGridFunction-size
@@ -106,8 +104,7 @@ public:
    virtual void Update();
 
    /// Destroys bilinear form.
-   virtual ~ParComplexDPGWeakForm();
-
+   virtual ~ParDPGWeakForm();
 
 };
 
