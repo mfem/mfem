@@ -27,25 +27,23 @@ SPDESolver::SPDESolver(MatrixConstantCoefficient &diff_coefficient, double nu,
   StopWatch sw;
   sw.Start();
 
+  // ToDo: "_" missing; nbc not filled nor used.
   // Resize the marker arrays for the boundary conditions
-  dbc_marker.SetSize(fespace_ptr_->GetParMesh()->bdr_attributes.Max());
-  nbc_marker.SetSize(fespace_ptr_->GetParMesh()->bdr_attributes.Max());
-  rbc_marker.SetSize(fespace_ptr_->GetParMesh()->bdr_attributes.Max());
-  dbc_marker = 0;
-  nbc_marker = 0;
-  rbc_marker = 0;
+  dbc_marker_.SetSize(fespace_ptr_->GetParMesh()->bdr_attributes.Max());
+  rbc_marker_.SetSize(fespace_ptr_->GetParMesh()->bdr_attributes.Max());
+  dbc_marker_ = 0;
+  rbc_marker_ = 0;
 
-  // Fill the marker arrays for the boundary conditions
+  // Fill the marker arrays for the boundary conditions. We decrement the number
+  // it.first by one because the boundary attributes in the mesh start at 1 and
+  // the marker arrays start at 0.
   for (const auto &it : bc_.boundary_attributes) {
     switch (it.second) {
       case BoundaryType::kDirichlet:
-        dbc_marker[it.first] = 1;
-        break;
-      case BoundaryType::kNeumann:
-        nbc_marker[it.first] = 1;
+        dbc_marker_[it.first -1] = 1;
         break;
       case BoundaryType::kRobin:
-        rbc_marker[it.first] = 1;
+        rbc_marker_[it.first - 1] = 1;
         break;
       default:
         break;
@@ -56,7 +54,7 @@ SPDESolver::SPDESolver(MatrixConstantCoefficient &diff_coefficient, double nu,
   // Note: for non zero DBC we usually need to project the boundary onto the 
   // solution. This is not necessary in this case since the boundary is 
   // homogeneous. For inhomogeneous Dirichlet we consider a lifting scheme.
-  fespace_ptr_->GetEssentialTrueDofs(dbc_marker, ess_tdof_list_);
+  fespace_ptr_->GetEssentialTrueDofs(dbc_marker_, ess_tdof_list_);
 
   // Compute the rational approximation coefficients.
   int dim = fespace_ptr_->GetParMesh()->Dimension();
@@ -72,7 +70,7 @@ SPDESolver::SPDESolver(MatrixConstantCoefficient &diff_coefficient, double nu,
   // Assemble stiffness matrix
   k_.AddDomainIntegrator(new DiffusionIntegrator(diff_coefficient));
   ConstantCoefficient robin_coefficient(bc_.robin_coefficient);
-  k_.AddBoundaryIntegrator(new MassIntegrator(robin_coefficient), rbc_marker);
+  k_.AddBoundaryIntegrator(new MassIntegrator(robin_coefficient), rbc_marker_);
   k_.Assemble();
 
   // Assemble mass matrix
@@ -227,8 +225,9 @@ void SPDESolver::LiftSolution(ParGridFunction& x){
   // Project the boundary conditions onto the solution space.
   for (const auto &bc : bc_.dirichlet_coefficients) {
     Array<int> marker(fespace_ptr_->GetParMesh()->bdr_attributes.Max());
-    marker = 0; marker[bc.first] = 1;
-    helper_gf.ProjectBdrCoefficient(*bc.second, marker);
+    marker = 0; marker[bc.first - 1] = 1;
+    ConstantCoefficient cc(bc.second);
+    helper_gf.ProjectBdrCoefficient(cc, marker);
   }
 
   // Create linear form for the right hand side.
