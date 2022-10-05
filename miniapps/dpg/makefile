@@ -121,18 +121,30 @@ include $(MFEM_TEST_MK)
 
 # Testing: Specific execution options
 RUN_MPI = $(MFEM_MPIEXEC) $(MFEM_MPIEXEC_NP) $(MFEM_MPI_NP)
-dpg-diffusion-test-seq: diffusion
+diffusion-test-seq: diffusion
 	@$(call mfem-test,$<,, DPG diffusion miniapp,\
 	-m ../../../data/star.mesh -o 3 -ref 1 -do 1 -prob 1 -sc)
-dpg-convection-diffusion-test-seq: convection-diffusion
+convection-diffusion-test-seq: convection-diffusion
 	@$(call mfem-test,$<,, DPG convection diffusion miniapp,\
 	-m ../../../data/star.mesh -o 2 -ref 1 -theta 0.0 -eps 1e-1 -beta '2 3')	
-dpg-pdiffusion-test-par: pdiffusion
-	@$(call mfem-test,$<,, DPG pdiffusion miniapp,\
+pdiffusion-test-par: pdiffusion
+	@$(call mfem-test,$<, $(RUN_MPI), DPG pdiffusion miniapp,\
 	-m ../../../data/inline-quad.mesh -o 3 -sref 1 -pref 1 -theta 0.0 -prob 0)
-dpg-pconvection-diffusion-test-par: pconvection-diffusion
-	@$(call mfem-test,$<,, DPG pconvection-diffusion miniapp,\
+pconvection-diffusion-test-par: pconvection-diffusion
+	@$(call mfem-test,$<, $(RUN_MPI), DPG pconvection-diffusion miniapp,\
 	-o 2 -ref 1 -prob 0 -eps 1e-1 -beta '4 2' -theta 0.0)	
+acoustics-test-seq: acoustics
+	@$(call mfem-test,$<,, DPG acoustics miniapp,\
+	-ref 5 -o 1 -rnum 1.0)
+maxwell-test-seq: convection-diffusion
+	@$(call mfem-test,$<,, DPG maxwell miniapp,\
+	-m ../../data/inline-tri.mesh -ref 2 -o 1 -rnum 1.0)	
+pacoustics-test-par: pacoustics
+	@$(call mfem-test,$<, $(RUN_MPI), DPG pacoustics miniapp,\
+	-o 3 -m ../../data/star.mesh -sref 1 -pref 0 -rnum 1.9 -sc -prob 0)
+pmaxwell-test-par: pmaxwell
+	@$(call mfem-test,$<, $(RUN_MPI), DPG pmaxwell miniapp,\
+	-m ../../data/star.mesh -o 2 -sref 0 -pref 2 -rnum 0.5 -prob 0)	
 
 # Generate an error message if the MFEM library is not built and exit
 $(MFEM_LIB_FILE):
