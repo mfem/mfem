@@ -4603,6 +4603,26 @@ public:
    { V_->Eval(v3_, T, ip); return v3_[2]; }
 };
 
+class UnitVectorXYCoefficient : public VectorCoefficient
+{
+private:
+   VectorCoefficient * V_;
+   Vector v3_;
+
+public:
+   UnitVectorXYCoefficient(VectorCoefficient &V)
+      : VectorCoefficient(2), V_(&V), v3_(3) {}
+
+   void Eval(Vector &v,
+             ElementTransformation &T,
+             const IntegrationPoint &ip)
+   {
+      v.SetSize(2); V_->Eval(v3_, T, ip);
+      double vmag = sqrt(v3_ * v3_);
+      v[0] = v3_[0] / vmag; v[1] = v3_[1] / vmag;
+   }
+};
+
 class Aniso2DDiffusionCoef : public StateVariableMatCoef
 {
 private:
@@ -4921,6 +4941,279 @@ public:
       double Bmag = sqrt(B_ * B_);
 
       return -J_per_eV_ * dt_ * zi_ * (B_[0] * gni1_[0] + B_[1] * gni1_[1]) / Bmag;
+   }
+};
+
+class NegBPressureCoefficient : public StateVariableVecCoef
+{
+private:
+   double zi_; // Stored as a double to avoid type casting in Eval methods
+   double dt_;
+
+   GridFunctionCoefficient ni0_;
+   GridFunctionCoefficient Ti0_;
+   GridFunctionCoefficient Te0_;
+
+   GridFunctionCoefficient dni0_;
+   GridFunctionCoefficient dTi0_;
+   GridFunctionCoefficient dTe0_;
+
+   VectorCoefficient * B3_;
+   /*
+    mutable Vector gni0_;
+    mutable Vector gTi0_;
+    mutable Vector gTe0_;
+
+    mutable Vector gdni0_;
+    mutable Vector gdTi0_;
+    mutable Vector gdTe0_;
+
+    mutable Vector gni1_;
+    mutable Vector gTi1_;
+    mutable Vector gTe1_;
+   */
+
+   mutable Vector B_;
+
+public:
+   NegBPressureCoefficient(ParGridFunctionArray &yGF,
+                           ParGridFunctionArray &kGF,
+                           int zi, VectorCoefficient & B3Coef)
+      : StateVariableVecCoef(2),
+        zi_((double)zi), dt_(0.0),
+        ni0_(yGF[ION_DENSITY]),
+        Ti0_(yGF[ION_TEMPERATURE]),
+        Te0_(yGF[ELECTRON_TEMPERATURE]),
+        dni0_(kGF[ION_DENSITY]),
+        dTi0_(kGF[ION_TEMPERATURE]),
+        dTe0_(kGF[ELECTRON_TEMPERATURE]),
+        B3_(&B3Coef), B_(3) {}
+
+   NegBPressureCoefficient(const NegBPressureCoefficient & other)
+      : StateVariableVecCoef(2),
+        ni0_(other.ni0_),
+        Ti0_(other.Ti0_),
+        Te0_(other.Te0_),
+        dni0_(other.dni0_),
+        dTi0_(other.dTi0_),
+        dTe0_(other.dTe0_),
+        B_(3)
+   {
+      derivType_ = other.derivType_;
+      zi_ = other.zi_;
+      dt_ = other.dt_;
+      B3_ = other.B3_;
+   }
+
+   virtual NegBPressureCoefficient * Clone() const
+   {
+      return new NegBPressureCoefficient(*this);
+   }
+
+   void SetTimeStep(double dt) { dt_ = dt; }
+
+   virtual bool NonTrivialValue(FieldType deriv) const
+   {
+      return (deriv == INVALID_FIELD_TYPE ||
+              deriv == ION_DENSITY || deriv == ION_TEMPERATURE ||
+              deriv == ELECTRON_TEMPERATURE);
+   }
+
+   void Eval_Func(Vector &V, ElementTransformation &T,
+                  const IntegrationPoint &ip)
+   {
+      double ni0 = ni0_.Eval(T, ip);
+      double Ti0 = Ti0_.Eval(T, ip);
+      double Te0 = Te0_.Eval(T, ip);
+
+      double dni0 = dni0_.Eval(T, ip);
+      double dTi0 = dTi0_.Eval(T, ip);
+      double dTe0 = dTe0_.Eval(T, ip);
+
+      double ni1 = ni0 + dt_ * dni0;
+      double Ti1 = Ti0 + dt_ * dTi0;
+      double Te1 = Te0 + dt_ * dTe0;
+
+      B3_->Eval(B_, T, ip);
+
+      double Bmag = sqrt(B_ * B_);
+
+      V[0] = B_[0];
+      V[1] = B_[1];
+
+      V *= -J_per_eV_ * ni1 * (zi_ * Te1 + Ti1) / Bmag;
+   }
+
+   void Eval_dNi(Vector &V, ElementTransformation &T,
+                 const IntegrationPoint &ip)
+   {
+      double Ti0 = Ti0_.Eval(T, ip);
+      double Te0 = Te0_.Eval(T, ip);
+
+      double dTi0 = dTi0_.Eval(T, ip);
+      double dTe0 = dTe0_.Eval(T, ip);
+
+      double Ti1 = Ti0 + dt_ * dTi0;
+      double Te1 = Te0 + dt_ * dTe0;
+
+      B3_->Eval(B_, T, ip);
+
+      double Bmag = sqrt(B_ * B_);
+
+      V[0] = B_[0];
+      V[1] = B_[1];
+
+      V *= -J_per_eV_ * (zi_ * Te1 + Ti1) / Bmag;
+   }
+
+   void Eval_dTi(Vector &V, ElementTransformation &T,
+                 const IntegrationPoint &ip)
+   {
+      double ni0 = ni0_.Eval(T, ip);
+
+      double dni0 = dni0_.Eval(T, ip);
+
+      double ni1 = ni0 + dt_ * dni0;
+
+      B3_->Eval(B_, T, ip);
+
+      double Bmag = sqrt(B_ * B_);
+
+      V[0] = B_[0];
+      V[1] = B_[1];
+
+      V *= -J_per_eV_ * ni1 / Bmag;
+   }
+
+   void Eval_dTe(Vector &V, ElementTransformation &T,
+                 const IntegrationPoint &ip)
+   {
+      double ni0 = ni0_.Eval(T, ip);
+
+      double dni0 = dni0_.Eval(T, ip);
+
+      double ni1 = ni0 + dt_ * dni0;
+
+      B3_->Eval(B_, T, ip);
+
+      double Bmag = sqrt(B_ * B_);
+
+      V[0] = B_[0];
+      V[1] = B_[1];
+
+      V *= -J_per_eV_ * ni1 * zi_ / Bmag;
+   }
+};
+
+class NegPressureCoefficient : public StateVariableCoef
+{
+private:
+   double zi_; // Stored as a double to avoid type casting in Eval methods
+   double dt_;
+
+   GridFunctionCoefficient ni0_;
+   GridFunctionCoefficient Ti0_;
+   GridFunctionCoefficient Te0_;
+
+   GridFunctionCoefficient dni0_;
+   GridFunctionCoefficient dTi0_;
+   GridFunctionCoefficient dTe0_;
+
+public:
+   NegPressureCoefficient(ParGridFunctionArray &yGF,
+                          ParGridFunctionArray &kGF,
+                          int zi)
+      : zi_((double)zi), dt_(0.0),
+        ni0_(yGF[ION_DENSITY]),
+        Ti0_(yGF[ION_TEMPERATURE]),
+        Te0_(yGF[ELECTRON_TEMPERATURE]),
+        dni0_(kGF[ION_DENSITY]),
+        dTi0_(kGF[ION_TEMPERATURE]),
+        dTe0_(kGF[ELECTRON_TEMPERATURE])
+   {}
+
+   NegPressureCoefficient(const NegPressureCoefficient & other)
+      : ni0_(other.ni0_),
+        Ti0_(other.Ti0_),
+        Te0_(other.Te0_),
+        dni0_(other.dni0_),
+        dTi0_(other.dTi0_),
+        dTe0_(other.dTe0_)
+   {
+      derivType_ = other.derivType_;
+      zi_ = other.zi_;
+      dt_ = other.dt_;
+   }
+
+   virtual NegPressureCoefficient * Clone() const
+   {
+      return new NegPressureCoefficient(*this);
+   }
+
+   void SetTimeStep(double dt) { dt_ = dt; }
+
+   virtual bool NonTrivialValue(FieldType deriv) const
+   {
+      return (deriv == INVALID_FIELD_TYPE ||
+              deriv == ION_DENSITY || deriv == ION_TEMPERATURE ||
+              deriv == ELECTRON_TEMPERATURE);
+   }
+
+   double Eval_Func(ElementTransformation &T,
+                    const IntegrationPoint &ip)
+   {
+      double ni0 = ni0_.Eval(T, ip);
+      double Ti0 = Ti0_.Eval(T, ip);
+      double Te0 = Te0_.Eval(T, ip);
+
+      double dni0 = dni0_.Eval(T, ip);
+      double dTi0 = dTi0_.Eval(T, ip);
+      double dTe0 = dTe0_.Eval(T, ip);
+
+      double ni1 = ni0 + dt_ * dni0;
+      double Ti1 = Ti0 + dt_ * dTi0;
+      double Te1 = Te0 + dt_ * dTe0;
+
+      return -J_per_eV_ * ni1 * (zi_ * Te1 + Ti1);
+   }
+
+   double Eval_dNi(ElementTransformation &T,
+                   const IntegrationPoint &ip)
+   {
+      double Ti0 = Ti0_.Eval(T, ip);
+      double Te0 = Te0_.Eval(T, ip);
+
+      double dTi0 = dTi0_.Eval(T, ip);
+      double dTe0 = dTe0_.Eval(T, ip);
+
+      double Ti1 = Ti0 + dt_ * dTi0;
+      double Te1 = Te0 + dt_ * dTe0;
+
+      return -J_per_eV_ * (zi_ * Te1 + Ti1);
+   }
+
+   double Eval_dTi(ElementTransformation &T,
+                   const IntegrationPoint &ip)
+   {
+      double ni0 = ni0_.Eval(T, ip);
+
+      double dni0 = dni0_.Eval(T, ip);
+
+      double ni1 = ni0 + dt_ * dni0;
+
+      return -J_per_eV_ * ni1;
+   }
+
+   double Eval_dTe(ElementTransformation &T,
+                   const IntegrationPoint &ip)
+   {
+      double ni0 = ni0_.Eval(T, ip);
+
+      double dni0 = dni0_.Eval(T, ip);
+
+      double ni1 = ni0 + dt_ * dni0;
+
+      return -J_per_eV_ * ni1 * zi_;
    }
 };
 /*
@@ -5416,6 +5709,7 @@ private:
 
       VectorCoefficient & B3Coef_;
       VectorXYCoefficient BxyCoef_;
+      UnitVectorXYCoefficient UnitBxyCoef_;
 
       Coefficient       * massCoef_;
       Coefficient       * diffusionCoef_;
@@ -5833,6 +6127,7 @@ private:
    private:
       enum TermFlag {DIFFUSION_TERM = 0,
                      ADVECTION_TERM, GRADP_SOURCE_TERM,
+                     DIVBP_SOURCE_TERM,
                      IONIZATION_SOURCE_TERM,
                      RECOMBINATION_SINK_TERM, CHARGE_EXCHANGE_SOURCE_TERM,
                      SOURCE_TERM
@@ -5880,6 +6175,8 @@ private:
       IonMomentumAdvectionCoef miniViCoef_;
 
       NegGradPressureCoefficient negGradPCoef_;
+      NegBPressureCoefficient negBPCoef_;
+      NegPressureCoefficient negPCoef_;
 
       IonMomentumIonizationCoef     SIZCoef_;
       IonMomentumRecombinationCoef  SRCCoef_;
@@ -5894,6 +6191,15 @@ private:
       ParGridFunction * SRCGF_;
       ParGridFunction * SCXGF_;
       ParGridFunction * SGF_;
+
+      /** Sets a divergence term on the right hand side of the
+      equation to be:
+             Div(VCoef)
+
+       */
+      void SetDivergenceTerm(StateVariableVecCoef &VCoef);
+      void SetDivergenceTerm(StateVariableCoef &Coef,
+                             VectorCoefficient &VCoef);
 
    public:
       IonMomentumOp(const MPI_Session & mpi, const DGParams & dg,

@@ -3711,6 +3711,7 @@ Operator *DGTransportTDO::NLOperator::GetGradientBlock(int i)
             {
                delete D_lor_;
                D_lor_ = new ParLORDiscretization(*cgblf_[i], cg_ess_tdof_list);
+               pmesh_.ExchangeFaceNbrNodes();
                if (use_air_cg)
                {
                   MFEM_VERIFY(cgblf_[i], "");
@@ -3836,6 +3837,7 @@ DGTransportTDO::TransportOp::TransportOp(const MPI_Session & mpi,
      hCoef_(&hGF),
      B3Coef_(B3Coef),
      BxyCoef_(B3Coef),
+     UnitBxyCoef_(B3Coef),
      massCoef_(NULL),
      diffusionCoef_(NULL),
      diffusionMatrixCoef_(NULL),
@@ -6271,6 +6273,8 @@ DGTransportTDO::IonMomentumOp::IonMomentumOp(const MPI_Session & mpi,
               EtaPerpCoefPtr_, B3Coef_),
      miniViCoef_(niCoef_, viCoef_, m_i_kg_, DPerpCoef_, B3Coef_),
      negGradPCoef_(yGF, kGF, z_i_, B3Coef_),
+     negBPCoef_(yGF, kGF, z_i_, B3Coef_),
+     negPCoef_(yGF, kGF, z_i_),
      SIZCoef_(z_i_, m_i_kg_, nnCoef_, niCoef_, vnAvgCoef_, izCoef_),
      SRCCoef_(z_i_, m_i_kg_, niCoef_, viCoef_, rcCoef_),
      SCXCoef_(m_i_kg_, nnCoef_, niCoef_, vnAvgCoef_, viCoef_, cxCoef_),
@@ -6364,6 +6368,58 @@ DGTransportTDO::IonMomentumOp::IonMomentumOp(const MPI_Session & mpi,
       // dlfi_.Append(new DomainLFIntegrator(negGradPCoef_));
       SetSourceTerm(negGradPCoef_, 1.0);
    }
+   if (this->CheckTermFlag(DIVBP_SOURCE_TERM))
+   {
+      // Source term: - Div(b (p_i + p_e))
+      // SetDivergenceTerm(negBPCoef_);
+      SetDivergenceTerm(negPCoef_, UnitBxyCoef_);
+   }
+   if (this->CheckTermFlag(DIVBP_SOURCE_TERM) &&
+       bcs_.GetOutflowBCs().Size() > 0)
+   {
+      // SetOutflowBdrTerm(negBPCoef_, bcs_.GetOutflowBCs());
+      const Array<CoefficientByAttr*> & obc = bcs_.GetOutflowBCs();
+      for (int j=0; j<obc.Size(); j++)
+      {
+         for (int i=0; i<5; i++)
+         {
+            if (negBPCoef_.NonTrivialValue((FieldType)i))
+            {
+               if ( mpi_.Root() && logging_ > 0)
+               {
+                  cout << eqn_name_
+                       << ": Adding outflow BC for divergence term proportional to "
+                       << FieldSymbol((FieldType)i) << endl;
+               }
+
+               StateVariableVecCoef * coef = negBPCoef_.Clone();
+               coef->SetDerivType((FieldType)i);
+               svvcoefs_.Append(coef);
+
+               ScalarVectorProductCoefficient * rVCoef =
+                  new ScalarVectorProductCoefficient(*obc[j]->coef, *coef);
+               vCoefs_.Append(rVCoef);
+
+               ScalarVectorProductCoefficient * dtrVCoef =
+                  new ScalarVectorProductCoefficient(dt_, *rVCoef);
+               dtVCoefs_.Append(dtrVCoef);
+
+               bfbfi_[i].Append(new DGTraceIntegrator(*rVCoef, 2.0, 0.0));
+               bfbfi_marker_[i].Append(new Array<int>);
+               AttrToMarker(pmesh_.bdr_attributes.Max(), obc[j]->attr,
+                            *bfbfi_marker_[i].Last());
+
+               if (blf_[i] == NULL)
+               {
+                  blf_[i] = new ParBilinearForm(&fes_);
+               }
+               blf_[i]->AddBdrFaceIntegrator(new DGTraceIntegrator(*dtrVCoef,
+                                                                   2.0, 0.0),
+                                             *bfbfi_marker_[i].Last());
+            }
+         }
+      }
+   }
    if (this->CheckTermFlag(IONIZATION_SOURCE_TERM))
    {
       SetSourceTerm(SIZCoef_, 1.0);
@@ -6445,6 +6501,123 @@ DGTransportTDO::IonMomentumOp::~IonMomentumOp()
    // delete hContGF_;
    // delete l2_fes_0_;
    // delete h1_fes_1_;
+}
+
+void DGTransportTDO::IonMomentumOp::SetDivergenceTerm(StateVariableVecCoef
+                                                      &VCoef)
+{
+   for (int i=0; i<5; i++)
+   {
+      if (VCoef.NonTrivialValue((FieldType)i))
+      {
+         if ( mpi_.Root() && logging_ > 0)
+         {
+            cout << eqn_name_
+                 << ": Adding divergence term proportional to "
+                 << FieldSymbol((FieldType)i) << endl;
+         }
+
+         StateVariableVecCoef * coef = VCoef.Clone();
+         coef->SetDerivType((FieldType)i);
+         svvcoefs_.Append(coef);
+
+         ScalarVectorProductCoefficient * dtVCoef =
+            new ScalarVectorProductCoefficient(dt_, *coef);
+         dtVCoefs_.Append(dtVCoef);
+
+         dbfi_[i].Append(new ConservativeConvectionIntegrator(*coef, 1.0));
+         // fbfi_[i].Append(new DGTraceIntegrator(*coef, 1.0, -0.5));
+         // fbfi_[i].Append(new DGTraceIntegrator(*coef, 2.0, 0.0));
+         fbfi_[i].Append(new DGTraceIntegrator(*coef, 1.0, 0.5));
+
+         if (blf_[i] == NULL)
+         {
+            blf_[i] = new ParBilinearForm(&fes_);
+         }
+
+         blf_[i]->AddDomainIntegrator(
+            new ConservativeConvectionIntegrator(*dtVCoef, 1.0));
+         // blf_[i]->AddInteriorFaceIntegrator(new DGTraceIntegrator(*dtVCoef,
+         //                       1.0, -0.5));
+         // blf_[i]->AddInteriorFaceIntegrator(new DGTraceIntegrator(*dtVCoef,
+         //                       2.0, 0.0));
+         blf_[i]->AddInteriorFaceIntegrator(new DGTraceIntegrator(*dtVCoef,
+                                                                  1.0, 0.5));
+         if (h1_fes_ != NULL)
+         {
+            if (cgblf_[i] == NULL)
+            {
+               cgblf_[i] = new ParBilinearForm(h1_fes_);
+            }
+            cgblf_[i]->AddDomainIntegrator(
+               new ConservativeConvectionIntegrator(*dtVCoef, 1.0));
+         }
+      }
+   }
+}
+
+void DGTransportTDO::IonMomentumOp::SetDivergenceTerm(StateVariableCoef &Coef,
+                                                      VectorCoefficient &VCoef)
+{
+   for (int i=0; i<5; i++)
+   {
+      if (Coef.NonTrivialValue((FieldType)i))
+      {
+         if ( mpi_.Root() && logging_ > 0)
+         {
+            cout << eqn_name_
+                 << ": Adding divergence term proportional to "
+                 << FieldSymbol((FieldType)i) << endl;
+         }
+
+         StateVariableCoef * coef = Coef.Clone();
+         coef->SetDerivType((FieldType)i);
+         svscoefs_.Append(coef);
+
+         VectorCoefficient *vcoef =
+            new ScalarVectorProductCoefficient(*coef, VCoef);
+         vCoefs_.Append(vcoef);
+
+         ProductCoefficient * dtCoef =
+            new ProductCoefficient(dt_, *coef);
+         dtSCoefs_.Append(dtCoef);
+
+         ScalarVectorProductCoefficient * dtVCoef =
+            new ScalarVectorProductCoefficient(dt_, *vcoef);
+         dtVCoefs_.Append(dtVCoef);
+
+         dbfi_[i].Append(new ConservativeConvectionIntegrator(*vcoef, 1.0));
+         // fbfi_[i].Append(new DGTraceIntegrator(*coef, VCoef, 1.0, -0.5));
+         fbfi_[i].Append(new DGTraceIntegrator(*coef, VCoef, 1.0, 0.0));
+         // fbfi_[i].Append(new DGTraceIntegrator(*coef, VCoef, 1.0, 0.5));
+
+         if (blf_[i] == NULL)
+         {
+            blf_[i] = new ParBilinearForm(&fes_);
+         }
+
+         blf_[i]->AddDomainIntegrator(
+            new ConservativeConvectionIntegrator(*dtVCoef, 1.0));
+         // blf_[i]->AddInteriorFaceIntegrator(new DGTraceIntegrator(*dtCoef,
+         //                       VCoef,
+         //                       1.0, -0.5));
+         blf_[i]->AddInteriorFaceIntegrator(new DGTraceIntegrator(*dtCoef,
+                                                                  VCoef,
+                                                                  1.0, 0.0));
+         // blf_[i]->AddInteriorFaceIntegrator(new DGTraceIntegrator(*dtCoef,
+         //                       VCoef,
+         //                       1.0, 0.5));
+         if (h1_fes_ != NULL)
+         {
+            if (cgblf_[i] == NULL)
+            {
+               cgblf_[i] = new ParBilinearForm(h1_fes_);
+            }
+            cgblf_[i]->AddDomainIntegrator(
+               new ConservativeConvectionIntegrator(*dtVCoef, 1.0));
+         }
+      }
+   }
 }
 
 void DGTransportTDO::IonMomentumOp::SetTime(double t)
