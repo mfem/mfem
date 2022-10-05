@@ -30,15 +30,15 @@ $$
      {\nu^{\dim{\Omega}/2} 
       \Gamma (\nu) } 
 \right)^{1/2} .
-$$$
+$$
 The fractional Operator A is given by
 $$
 A = \frac{-1}{2\nu} \nabla \circ \underline{\underline{\Theta}} \nabla + 1,
-$$$
+$$
 the exponent $\alpha$ is defined as 
 $$
 \alpha = \frac{2\nu + \dim(\Omega)}{2},
-$$$
+$$
 and the normalization $\eta$ is given by
 
 We solve the FPDE with the same approach as in `ex33`/`ex33p`. In a nutshell, we
@@ -46,7 +46,7 @@ compute a rational approximation of the operator `A` via the triple-A algorithm.
 This allows us to solve $N$ *integer-order* PDEs
 $$
 (A + b_i) u_i = c_i f.
-$$$
+$$
 For more details, consider `ex33`/`ex33p` and and references [3,4,5].
 
 The dimension is implicitly defined via the mesh, but you may specify 
