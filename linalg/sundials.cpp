@@ -124,13 +124,20 @@ MFEM_DEPRECATED N_Vector N_VNewWithMemHelp_Cuda(sunindextype length,
    return N_VNewWithMemHelp_Cuda(length, use_managed_mem, helper);
 }
 
+/// (DEPRECATED) Wrapper function for backwards compatibility with SUNDIALS
+/// version < 6
+MFEM_DEPRECATED SUNMemoryHelper SUNMemoryHelper_NewEmpty(SUNContext)
+{
+   return SUNMemoryHelper_NewEmpty();
+}
+
 #endif // MFEM_USE_CUDA
 
 #if defined(MFEM_USE_MPI) && defined(MFEM_USE_CUDA)
 
 /// (DEPRECATED) Wrapper function for backwards compatibility with SUNDIALS
 /// version < 6
-MFEM_DEPRECATED N_Vector N_VMake_MPIPlusX(MPIComm comm, N_Vector* local_vector,
+MFEM_DEPRECATED N_Vector N_VMake_MPIPlusX(MPI_Comm comm, N_Vector local_vector,
                                           SUNContext)
 {
    return N_VMake_MPIPlusX(comm, local_vector);
@@ -227,7 +234,11 @@ SundialsMemHelper& SundialsMemHelper::operator=(SundialsMemHelper&& rhs)
 
 int SundialsMemHelper::SundialsMemHelper_Alloc(SUNMemoryHelper helper,
                                                SUNMemory* memptr, size_t memsize,
-                                               SUNMemoryType mem_type, void*)
+                                               SUNMemoryType mem_type
+#if (SUNDIALS_VERSION_MAJOR >= 6)
+                                               , void*
+#endif
+                                              )
 {
    int length = memsize/sizeof(double);
    SUNMemory sunmem = SUNMemoryNewEmpty();
@@ -262,7 +273,11 @@ int SundialsMemHelper::SundialsMemHelper_Alloc(SUNMemoryHelper helper,
 }
 
 int SundialsMemHelper::SundialsMemHelper_Dealloc(SUNMemoryHelper helper,
-                                                 SUNMemory sunmem, void*)
+                                                 SUNMemory sunmem
+#if (SUNDIALS_VERSION_MAJOR >= 6)
+                                                 , void*
+#endif
+                                                )
 {
    if (sunmem->ptr && sunmem->own && !mm.IsKnown(sunmem->ptr))
    {

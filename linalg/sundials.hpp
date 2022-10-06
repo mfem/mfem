@@ -45,8 +45,8 @@
 
 #if (SUNDIALS_VERSION_MAJOR < 6)
 
-/// (DEPRECATED) Map SUNDIALS version >= 6 datatypes and constants to version < 6
-/// for backwards compatibility
+/// (DEPRECATED) Map SUNDIALS version >= 6 datatypes and constants to
+/// version < 6 for backwards compatibility
 using ARKODE_ERKTableID = int;
 using ARKODE_DIRKTableID = int;
 constexpr ARKODE_ERKTableID ARKODE_ERK_NONE = -1;
@@ -99,11 +99,17 @@ public:
    operator SUNMemoryHelper() const { return h; }
 
    static int SundialsMemHelper_Alloc(SUNMemoryHelper helper, SUNMemory* memptr,
-                                      size_t memsize, SUNMemoryType mem_type,
-                                      void* queue);
+                                      size_t memsize, SUNMemoryType mem_type
+#if (SUNDIALS_VERSION_MAJOR >= 6)
+                                      , void* queue
+#endif
+                                     );
 
-   static int SundialsMemHelper_Dealloc(SUNMemoryHelper helper, SUNMemory sunmem,
-                                        void* queue);
+   static int SundialsMemHelper_Dealloc(SUNMemoryHelper helper, SUNMemory sunmem
+#if (SUNDIALS_VERSION_MAJOR >= 6)
+                                        , void* queue
+#endif
+                                       );
 
 };
 
