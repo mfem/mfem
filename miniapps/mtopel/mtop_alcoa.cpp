@@ -7,6 +7,29 @@
 #include "mtop_solvers.hpp"
 
 
+class MyCoefficient:public mfem::Coefficient
+{
+public:
+    MyCoefficient(mfem::GridFunction* gridf)
+    {
+        gf=gridf;
+    }
+
+    void SetGridFunction(mfem::GridFunction* gridf){
+        gf=gridf;
+    }
+
+    virtual
+    double Eval(mfem::ElementTransformation &T, const mfem::IntegrationPoint &ip)
+    {
+        double gf_val=gf->GetValue(T,ip);
+        return gf_val*(1.0-gf_val);
+    }
+
+private:
+    mfem::GridFunction* gf;
+};
+
 class AlcoaBracket
 {
 public:
@@ -44,6 +67,7 @@ public:
         bsoly.resize(5);
         bsolz.resize(5);
 
+        /*
         for(int i=0;i<4;i++){
             esolv->DelDispBC();
             //set BC
@@ -58,6 +82,7 @@ public:
             esolv->FSolve();
             esolv->GetSol(bsolz[i]);
         }
+        */
 
         //set all bc
         esolv->DelDispBC();
@@ -111,25 +136,30 @@ public:
         int myrank=dfes->GetMyRank();
         int num_samples=10;
         int scase[num_samples];
-        int fx[num_samples];
-        int fy[num_samples];
+        double fx[num_samples];
+        double fy[num_samples];
+        double an[num_samples];
+
         //integer random generator
         if(myrank==0){
             std::default_random_engine generator;
-            std::uniform_int_distribution<int> idist(0,4);
-            std::normal_distribution<double> ndistx(0.0,1.0);
-            std::normal_distribution<double> ndisty(0.0,1.0);
+            std::uniform_int_distribution<int> idist(4,4);
+            //std::normal_distribution<double> ndistx(0.0,1.0);
+            //std::normal_distribution<double> ndisty(0.0,1.0);
+            std::uniform_real_distribution<double> adist(-M_PI,M_PI);
 
             for(int i=0;i<num_samples;i++){
                 scase[i]=idist(generator);
-                fx[i]=ndistx(generator);
-                fy[i]=ndisty(generator);
+                //fx[i]=ndistx(generator);
+                //fy[i]=ndisty(generator);
+                an[i]=adist(generator);
             }
         }
 
         MPI_Bcast(scase,num_samples,MPI_INT,0,dfes->GetComm());
-        MPI_Bcast(fx,num_samples,MPI_DOUBLE,0,dfes->GetComm());
-        MPI_Bcast(fy,num_samples,MPI_DOUBLE,0,dfes->GetComm());
+        //MPI_Bcast(fx,num_samples,MPI_DOUBLE,0,dfes->GetComm());
+        //MPI_Bcast(fy,num_samples,MPI_DOUBLE,0,dfes->GetComm());
+        MPI_Bcast(an,num_samples,MPI_DOUBLE,0,dfes->GetComm());
 
 
 
@@ -138,7 +168,7 @@ public:
 
         double cobj;
         for(int i=0;i<num_samples;i++){
-
+            fx[i]=sin(an[i]); fy[i]=cos(an[i]);
             //eval the objective
             cobj=Compliance(scase[i],fx[i],fy[i],0.0);
             mean=mean+cobj;
@@ -158,31 +188,35 @@ public:
         int myrank=dfes->GetMyRank();
         int num_samples=10;
         int scase[num_samples];
-        int fx[num_samples];
-        int fy[num_samples];
+        double fx[num_samples];
+        double fy[num_samples];
+        double an[num_samples];
         //integer random generator
         if(myrank==0){
             std::default_random_engine generator;
-            std::uniform_int_distribution<int> idist(0,4);
+            std::uniform_int_distribution<int> idist(4,4);
             std::normal_distribution<double> ndistx(0.0,1.0);
             std::normal_distribution<double> ndisty(0.0,1.0);
+            std::uniform_real_distribution<double> adist(-M_PI,M_PI);
 
             for(int i=0;i<num_samples;i++){
                 scase[i]=idist(generator);
-                fx[i]=ndistx(generator);
-                fy[i]=ndisty(generator);
+                //fx[i]=ndistx(generator);
+                //fy[i]=ndisty(generator);
+                an[i]=adist(generator);
             }
         }
 
         MPI_Bcast(scase,num_samples,MPI_INT,0,dfes->GetComm());
-        MPI_Bcast(fx,num_samples,MPI_DOUBLE,0,dfes->GetComm());
-        MPI_Bcast(fy,num_samples,MPI_DOUBLE,0,dfes->GetComm());
+        //MPI_Bcast(fx,num_samples,MPI_DOUBLE,0,dfes->GetComm());
+        //MPI_Bcast(fy,num_samples,MPI_DOUBLE,0,dfes->GetComm());
+        MPI_Bcast(an,num_samples,MPI_DOUBLE,0,dfes->GetComm());
 
 
         grad=0.0;
         mfem::Vector cgrad(grad.Size()); cgrad=0.0;
         for(int i=0;i<num_samples;i++){
-
+            fx[i]=sin(an[i]); fy[i]=cos(an[i]);
             //eval the objective
             GetComplianceGrad(scase[i],fx[i],fy[i],0.0,cgrad);
             grad.Add(1.0,cgrad);
@@ -371,7 +405,7 @@ int main(int argc, char *argv[])
    }
 
    //allocate the filter
-   mfem::FilterSolver* fsolv=new mfem::FilterSolver(0.2,&pmesh);
+   mfem::FilterSolver* fsolv=new mfem::FilterSolver(1.0,&pmesh);
    fsolv->SetSolver(1e-8,1e-12,100,0);
    fsolv->AddBC(1,1.0);
    fsolv->AddBC(2,1.0);
