@@ -9,7 +9,6 @@
 // acoustics -m ../../data/amr-quad.mesh -ref 3 -o 3 -sc -rnum 4.5 -prob 1
 // acoustics -m ../../data/inline-quad.mesh -ref 2 -o 4 -sc -rnum 11.5 -prob 1
 // acoustics -m ../../data/inline-hex.mesh -ref 2 -o 2 -sc -rnum 1.0
-// acoustics -m ../../data/inline-tet.mesh -ref 1 -o 2 -sc -rnum 2.0 -prob 1
 
 // Description:
 // This example code demonstrates the use of MFEM to define and solve
@@ -149,6 +148,19 @@ int main(int argc, char *argv[])
    dim = mesh.Dimension();
 
    // Define spaces
+   enum TrialSpace
+   {
+      p_space,
+      u_space,
+      hatp_space,
+      hatu_space
+   };
+   enum TestSpace
+   {
+      q_space,
+      v_space
+   };
+
    // L2 space for p
    FiniteElementCollection *p_fec = new L2_FECollection(order-1,dim);
    FiniteElementSpace *p_fes = new FiniteElementSpace(&mesh,p_fec);
@@ -194,43 +206,56 @@ int main(int argc, char *argv[])
    ComplexDPGWeakForm * a = new ComplexDPGWeakForm(trial_fes,test_fec);
 
    // i ω (p,q)
-   a->AddTrialIntegrator(nullptr,new MixedScalarMassIntegrator(omeg),0,0);
+   a->AddTrialIntegrator(nullptr,new MixedScalarMassIntegrator(omeg),
+                         TrialSpace::p_space,TestSpace::q_space);
    // -(u , ∇ q)
    a->AddTrialIntegrator(new TransposeIntegrator(new GradientIntegrator(negone)),
-                         nullptr,1,0);
+                         nullptr,TrialSpace::u_space,TestSpace::q_space);
    // -(p, ∇⋅v)
-   a->AddTrialIntegrator(new MixedScalarWeakGradientIntegrator(one),nullptr,0,1);
+   a->AddTrialIntegrator(new MixedScalarWeakGradientIntegrator(one),nullptr,
+                         TrialSpace::p_space,TestSpace::v_space);
    //  i ω (u,v)
    a->AddTrialIntegrator(nullptr,
-                         new TransposeIntegrator(new VectorFEMassIntegrator(omeg)),1,1);
+                         new TransposeIntegrator(new VectorFEMassIntegrator(omeg)),
+                         TrialSpace::u_space,TestSpace::v_space);
    // < p̂, v⋅n>
-   a->AddTrialIntegrator(new NormalTraceIntegrator,nullptr,2,1);
+   a->AddTrialIntegrator(new NormalTraceIntegrator,nullptr,
+                         TrialSpace::hatp_space,TestSpace::v_space);
    // < û,q >
-   a->AddTrialIntegrator(new TraceIntegrator,nullptr,3,0);
+   a->AddTrialIntegrator(new TraceIntegrator,nullptr,
+                         TrialSpace::hatu_space,TestSpace::q_space);
 
    // test space integrators (Adjoint graph norm)
    // (∇q,∇δq)
-   a->AddTestIntegrator(new DiffusionIntegrator(one),nullptr,0,0);
+   a->AddTestIntegrator(new DiffusionIntegrator(one),nullptr,
+                        TestSpace::q_space, TestSpace::q_space);
    // (q,δq)
-   a->AddTestIntegrator(new MassIntegrator(one),nullptr,0,0);
+   a->AddTestIntegrator(new MassIntegrator(one),nullptr,
+                        TestSpace::q_space, TestSpace::q_space);
    // (∇⋅v,∇⋅δv)
-   a->AddTestIntegrator(new DivDivIntegrator(one),nullptr,1,1);
+   a->AddTestIntegrator(new DivDivIntegrator(one),nullptr,
+                        TestSpace::v_space, TestSpace::v_space);
    // (v,δv)
-   a->AddTestIntegrator(new VectorFEMassIntegrator(one),nullptr,1,1);
+   a->AddTestIntegrator(new VectorFEMassIntegrator(one),nullptr,
+                        TestSpace::v_space, TestSpace::v_space);
    // -i ω (∇q,δv)
-   a->AddTestIntegrator(nullptr,new MixedVectorGradientIntegrator(negomeg),0,1);
+   a->AddTestIntegrator(nullptr,new MixedVectorGradientIntegrator(negomeg),
+                        TestSpace::q_space, TestSpace::v_space);
    // i ω (v,∇ δq)
-   a->AddTestIntegrator(nullptr,new MixedVectorWeakDivergenceIntegrator(negomeg),1,
-                        0);
+   a->AddTestIntegrator(nullptr,new MixedVectorWeakDivergenceIntegrator(negomeg),
+                        TestSpace::v_space, TestSpace::q_space);
    // ω^2 (v,δv)
-   a->AddTestIntegrator(new VectorFEMassIntegrator(omeg2),nullptr,1,1);
+   a->AddTestIntegrator(new VectorFEMassIntegrator(omeg2),nullptr,
+                        TestSpace::v_space, TestSpace::v_space);
    // - i ω (∇⋅v,δq)
-   a->AddTestIntegrator(nullptr,new VectorFEDivergenceIntegrator(negomeg),1,0);
+   a->AddTestIntegrator(nullptr,new VectorFEDivergenceIntegrator(negomeg),
+                        TestSpace::v_space, TestSpace::q_space);
    // i ω (q,∇⋅v)
-   a->AddTestIntegrator(nullptr,new MixedScalarWeakGradientIntegrator(negomeg),0,
-                        1);
+   a->AddTestIntegrator(nullptr,new MixedScalarWeakGradientIntegrator(negomeg),
+                        TestSpace::q_space, TestSpace::v_space);
    // ω^2 (q,δq)
-   a->AddTestIntegrator(new MassIntegrator(omeg2),nullptr,0,0);
+   a->AddTestIntegrator(new MassIntegrator(omeg2),nullptr,
+                        TestSpace::q_space, TestSpace::q_space);
 
    // RHS
    FunctionCoefficient f_rhs_r(rhs_func_r);
@@ -238,7 +263,7 @@ int main(int argc, char *argv[])
    if (prob == prob_type::gaussian_beam)
    {
       a->AddDomainLFIntegrator(new DomainLFIntegrator(f_rhs_r),
-                               new DomainLFIntegrator(f_rhs_i),0);
+                               new DomainLFIntegrator(f_rhs_i), TestSpace::q_space);
    }
 
    FunctionCoefficient hatpex_r(hatp_exact_r);
@@ -588,18 +613,19 @@ void acoustics_solution(const Vector & X, complex<double> & p,
       {
          double beta = omega/std::sqrt((double)X.Size());
          complex<double> alpha = beta * zi * X.Sum();
-         p = exp(-alpha);
-         d2p = - dim * beta * beta * p;
+         p = exp(alpha);
+         d2p = dim * beta * beta * p;
          for (int i = 0; i<X.Size(); i++)
          {
-            dp[i] = - zi * beta * p;
+            dp[i] = zi * beta * p;
          }
       }
       break;
       default:
       {
          double rk = omega;
-         double alpha = 45 * M_PI/180.;
+         double degrees = 45;
+         double alpha = (180+degrees) * M_PI/180.;
          double sina = sin(alpha);
          double cosa = cos(alpha);
          // shift the origin

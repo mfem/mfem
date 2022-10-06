@@ -72,6 +72,12 @@ enum prob_type
    lshape
 };
 
+static const char *enum_str[] =
+{
+   "manufactured",
+   "lshape"
+};
+
 prob_type prob;
 
 void solution(const Vector & X, double & u, Vector & du, double & d2u);
@@ -92,10 +98,11 @@ int main(int argc, char *argv[])
    int delta_order = 1;
    int sref = 0; // initial uniform mesh refinements
    int pref = 0; // parallel mesh refinements for AMR
-   bool visualization = true;
    int iprob = 0;
    bool static_cond = false;
    double theta = 0.7;
+   bool visualization = true;
+   bool paraview = false;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -117,6 +124,9 @@ int main(int argc, char *argv[])
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
+   args.AddOption(&paraview, "-paraview", "--paraview", "-no-paraview",
+                  "--no-paraview",
+                  "Enable or disable ParaView visualization.");
    args.Parse();
    if (!args.Good())
    {
@@ -167,6 +177,18 @@ int main(int argc, char *argv[])
    mesh.Clear();
 
    // Define spaces
+   enum TrialSpace
+   {
+      u_space,
+      sigma_space,
+      hatu_space,
+      hatsigma_space
+   };
+   enum TestSpace
+   {
+      tau_space,
+      v_space
+   };
    // L2 space for u
    FiniteElementCollection *u_fec = new L2_FECollection(order-1,dim);
    ParFiniteElementSpace *u_fes = new ParFiniteElementSpace(&pmesh,u_fec);
@@ -214,35 +236,43 @@ int main(int argc, char *argv[])
    a->StoreMatrices(true); // this is needed for estimation of residual
 
    //  -(u,∇⋅τ)
-   a->AddTrialIntegrator(new MixedScalarWeakGradientIntegrator(one),0,0);
+   a->AddTrialIntegrator(new MixedScalarWeakGradientIntegrator(one),
+                         TrialSpace::u_space,TestSpace::tau_space);
 
    // -(σ,τ)
    a->AddTrialIntegrator(new TransposeIntegrator(new VectorFEMassIntegrator(
-                                                    negone)),1,0);
+                                                    negone)), TrialSpace::sigma_space, TestSpace::tau_space);
 
    // (σ,∇ v)
-   a->AddTrialIntegrator(new TransposeIntegrator(new GradientIntegrator(one)),1,1);
+   a->AddTrialIntegrator(new TransposeIntegrator(new GradientIntegrator(one)),
+                         TrialSpace::sigma_space,TestSpace::v_space);
 
    //  <û,τ⋅n>
-   a->AddTrialIntegrator(new NormalTraceIntegrator,2,0);
+   a->AddTrialIntegrator(new NormalTraceIntegrator,
+                         TrialSpace::hatu_space,TestSpace::tau_space);
 
    // -<σ̂,v> (sign is included in σ̂)
-   a->AddTrialIntegrator(new TraceIntegrator,3,1);
+   a->AddTrialIntegrator(new TraceIntegrator,
+                         TrialSpace::hatsigma_space, TestSpace::v_space);
 
    // test integrators (space-induced norm for H(div) × H1)
    // (∇⋅τ,∇⋅δτ)
-   a->AddTestIntegrator(new DivDivIntegrator(one),0,0);
+   a->AddTestIntegrator(new DivDivIntegrator(one),
+                        TestSpace::tau_space, TestSpace::tau_space);
    // (τ,δτ)
-   a->AddTestIntegrator(new VectorFEMassIntegrator(one),0,0);
+   a->AddTestIntegrator(new VectorFEMassIntegrator(one),
+                        TestSpace::tau_space, TestSpace::tau_space);
    // (∇v,∇δv)
-   a->AddTestIntegrator(new DiffusionIntegrator(one),1,1);
+   a->AddTestIntegrator(new DiffusionIntegrator(one),
+                        TestSpace::v_space, TestSpace::v_space);
    // (v,δv)
-   a->AddTestIntegrator(new MassIntegrator(one),1,1);
+   a->AddTestIntegrator(new MassIntegrator(one),
+                        TestSpace::v_space, TestSpace::v_space);
 
    // RHS
    if (prob == prob_type::manufactured)
    {
-      a->AddDomainLFIntegrator(new DomainLFIntegrator(f),1);
+      a->AddDomainLFIntegrator(new DomainLFIntegrator(f),TestSpace::v_space);
    }
 
    // GridFunction for Dirichlet bdr data
@@ -268,6 +298,27 @@ int main(int argc, char *argv[])
    double err0 = 0.;
    int dof0=0.;
    double res0=0.0;
+
+   ParGridFunction u_gf(u_fes);
+   ParGridFunction sigma_gf(sigma_fes);
+   u_gf = 0.0;
+   sigma_gf = 0.0;
+
+   ParaViewDataCollection * paraview_dc = nullptr;
+
+   if (paraview)
+   {
+      paraview_dc = new ParaViewDataCollection(enum_str[prob], &pmesh);
+      paraview_dc->SetPrefixPath("ParaView/Diffusion");
+      paraview_dc->SetLevelsOfDetail(order);
+      paraview_dc->SetCycle(0);
+      paraview_dc->SetDataFormat(VTKFormat::BINARY);
+      paraview_dc->SetHighOrderOutput(true);
+      paraview_dc->SetTime(0.0); // set the time
+      paraview_dc->RegisterField("u",&u_gf);
+      paraview_dc->RegisterField("sigma",&sigma_gf);
+   }
+
    if (static_cond) { a->EnableStaticCondensation(); }
    for (int it = 0; it<=pref; it++)
    {
@@ -356,10 +407,7 @@ int main(int argc, char *argv[])
 
       globalresidual = sqrt(globalresidual);
 
-      ParGridFunction u_gf;
       u_gf.MakeRef(u_fes,x.GetBlock(0));
-
-      ParGridFunction sigma_gf;
       sigma_gf.MakeRef(sigma_fes,x.GetBlock(1));
 
       int dofs = u_fes->GlobalTrueVSize() + sigma_fes->GlobalTrueVSize()
@@ -396,7 +444,7 @@ int main(int argc, char *argv[])
 
       if (visualization)
       {
-         const char * keys = (it == 0) ? "jRcm\n" : "";
+         const char * keys = (it == 0 && dim == 2) ? "jRcm\n" : nullptr;
          char vishost[] = "localhost";
          int  visport   = 19916;
 
@@ -406,6 +454,12 @@ int main(int argc, char *argv[])
                         "Numerical flux", 500,0,500,500,keys);
       }
 
+      if (paraview)
+      {
+         paraview_dc->SetCycle(it);
+         paraview_dc->SetTime((double)it);
+         paraview_dc->Save();
+      }
 
       if (it == pref) { break; }
 
@@ -425,6 +479,11 @@ int main(int argc, char *argv[])
          trial_fes[i]->Update(false);
       }
       a->Update();
+   }
+
+   if (paraview)
+   {
+      delete paraview_dc;
    }
 
    delete a;

@@ -135,11 +135,23 @@ int main(int argc, char *argv[])
    if (beta.Size() == 0)
    {
       beta.SetSize(dim);
+      beta = 0.0;
       beta[0] = 1.;
-      beta[1] = 0.;
    }
 
    // Define spaces
+   enum TrialSpace
+   {
+      u_space,
+      sigma_space,
+      hatu_space,
+      hatf_space
+   };
+   enum TestSpace
+   {
+      v_space,
+      tau_space
+   };
    // L2 space for u
    FiniteElementCollection *u_fec = new L2_FECollection(order-1,dim);
    FiniteElementSpace *u_fes = new FiniteElementSpace(&mesh,u_fec);
@@ -197,23 +209,28 @@ int main(int argc, char *argv[])
    a->StoreMatrices(true); // needed for residual calculation
 
    //-(βu , ∇v)
-   a->AddTrialIntegrator(new MixedScalarWeakDivergenceIntegrator(betacoeff),0,0);
+   a->AddTrialIntegrator(new MixedScalarWeakDivergenceIntegrator(betacoeff),
+                         TrialSpace::u_space, TestSpace::v_space);
 
    // (σ,∇ v)
-   a->AddTrialIntegrator(new TransposeIntegrator(new GradientIntegrator(one)),1,0);
+   a->AddTrialIntegrator(new TransposeIntegrator(new GradientIntegrator(one)),
+                         TrialSpace::sigma_space, TestSpace::v_space);
 
    // (u ,∇⋅τ)
-   a->AddTrialIntegrator(new MixedScalarWeakGradientIntegrator(negone),0,1);
+   a->AddTrialIntegrator(new MixedScalarWeakGradientIntegrator(negone),
+                         TrialSpace::u_space, TestSpace::tau_space);
 
    // 1/ε (σ,τ)
    a->AddTrialIntegrator(new TransposeIntegrator(new VectorFEMassIntegrator(eps1)),
-                         1,1);
+                         TrialSpace::sigma_space, TestSpace::tau_space);
 
    //  <û,τ⋅n>
-   a->AddTrialIntegrator(new NormalTraceIntegrator,2,1);
+   a->AddTrialIntegrator(new NormalTraceIntegrator,
+                         TrialSpace::hatu_space, TestSpace::tau_space);
 
    // <f̂ ,v>
-   a->AddTrialIntegrator(new TraceIntegrator,3,0);
+   a->AddTrialIntegrator(new TraceIntegrator,
+                         TrialSpace::hatf_space, TestSpace::v_space);
 
    // mesh dependent test norm
    c1_gf.SetSpace(coeff_fes);
@@ -221,18 +238,23 @@ int main(int argc, char *argv[])
    setup_test_norm_coeffs(c1_gf,c2_gf);
 
    // c1 (v,δv)
-   a->AddTestIntegrator(new MassIntegrator(c1_coeff),0,0);
+   a->AddTestIntegrator(new MassIntegrator(c1_coeff),
+                        TestSpace::v_space, TestSpace::v_space);
    // ε (∇v,∇δv)
-   a->AddTestIntegrator(new DiffusionIntegrator(eps),0,0);
+   a->AddTestIntegrator(new DiffusionIntegrator(eps),
+                        TestSpace::v_space, TestSpace::v_space);
    // (β⋅∇v, β⋅∇δv)
-   a->AddTestIntegrator(new DiffusionIntegrator(bbtcoeff), 0,0);
+   a->AddTestIntegrator(new DiffusionIntegrator(bbtcoeff),
+                        TestSpace::v_space, TestSpace::v_space);
    // c2 (τ,δτ)
-   a->AddTestIntegrator(new VectorFEMassIntegrator(c2_coeff),1,1);
+   a->AddTestIntegrator(new VectorFEMassIntegrator(c2_coeff),
+                        TestSpace::tau_space, TestSpace::tau_space);
    // (∇⋅τ,∇⋅δτ)
-   a->AddTestIntegrator(new DivDivIntegrator(one),1,1);
+   a->AddTestIntegrator(new DivDivIntegrator(one),
+                        TestSpace::tau_space, TestSpace::tau_space);
 
    FunctionCoefficient f(f_exact);
-   a->AddDomainLFIntegrator(new DomainLFIntegrator(f),0);
+   a->AddDomainLFIntegrator(new DomainLFIntegrator(f),TestSpace::v_space);
 
    FunctionCoefficient hatuex(exact_hatu);
    VectorFunctionCoefficient hatfex(dim,exact_hatf);
@@ -373,7 +395,7 @@ int main(int argc, char *argv[])
 
       if (visualization)
       {
-         const char * keys = (it == 0) ? "jRcm\n" : "";
+         const char * keys = (it == 0 && dim == 2) ? "jRcm\n" : nullptr;
          char vishost[] = "localhost";
          int  visport   = 19916;
          VisualizeField(u_out,vishost, visport, u_gf,
