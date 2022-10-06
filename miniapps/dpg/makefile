@@ -158,6 +158,5 @@ clean-build:
 	rm -f *.o *~ $(DPG_REAL_OBJ) $(DPG_COMPLEX_OBJ)
 	rm -rf *.dSYM *.TVD.*breakpoints
 
-# clean-exec:
-# 	@rm -f diffusion.mesh diffusion.gf
-# 	@rm -rf ParaViewDistance ParaViewDiffusion ParaViewExtrapolate ParaViewLSF
+clean-exec:
+	@rm -rf ParaView 
