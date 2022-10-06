@@ -117,6 +117,18 @@ int main(int argc, char *argv[])
    int dim = mesh.Dimension();
 
    // Define spaces
+   enum TrialSpace
+   {
+      u_space,
+      sigma_space,
+      hatu_space,
+      hatsigma_space
+   };
+   enum TestSpace
+   {
+      tau_space,
+      v_space
+   };
    // L2 space for u
    FiniteElementCollection *u_fec = new L2_FECollection(order-1,dim);
    FiniteElementSpace *u_fes = new FiniteElementSpace(&mesh,u_fec);
@@ -162,39 +174,47 @@ int main(int argc, char *argv[])
    DPGWeakForm * a = new DPGWeakForm(trial_fes,test_fec);
 
    //  -(u,∇⋅τ)
-   a->AddTrialIntegrator(new MixedScalarWeakGradientIntegrator(one),0,0);
+   a->AddTrialIntegrator(new MixedScalarWeakGradientIntegrator(one),
+                         TrialSpace::u_space,TestSpace::tau_space);
 
    // -(σ,τ)
    a->AddTrialIntegrator(new TransposeIntegrator(new VectorFEMassIntegrator(
-                                                    negone)),1,0);
+                                                    negone)), TrialSpace::sigma_space, TestSpace::tau_space);
 
    // (σ,∇ v)
-   a->AddTrialIntegrator(new TransposeIntegrator(new GradientIntegrator(one)),1,1);
+   a->AddTrialIntegrator(new TransposeIntegrator(new GradientIntegrator(one)),
+                         TrialSpace::sigma_space,TestSpace::v_space);
 
    //  <û,τ⋅n>
-   a->AddTrialIntegrator(new NormalTraceIntegrator,2,0);
+   a->AddTrialIntegrator(new NormalTraceIntegrator,
+                         TrialSpace::hatu_space,TestSpace::tau_space);
 
-   //  <σ̂,v>
-   a->AddTrialIntegrator(new TraceIntegrator,3,1);
+   // -<σ̂,v> (sign is included in σ̂)
+   a->AddTrialIntegrator(new TraceIntegrator,
+                         TrialSpace::hatsigma_space, TestSpace::v_space);
 
    // test integrators (space-induced norm for H(div) × H1)
    // (∇⋅τ,∇⋅δτ)
-   a->AddTestIntegrator(new DivDivIntegrator(one),0,0);
+   a->AddTestIntegrator(new DivDivIntegrator(one),
+                        TestSpace::tau_space, TestSpace::tau_space);
    // (τ,δτ)
-   a->AddTestIntegrator(new VectorFEMassIntegrator(one),0,0);
+   a->AddTestIntegrator(new VectorFEMassIntegrator(one),
+                        TestSpace::tau_space, TestSpace::tau_space);
    // (∇v,∇δv)
-   a->AddTestIntegrator(new DiffusionIntegrator(one),1,1);
+   a->AddTestIntegrator(new DiffusionIntegrator(one),
+                        TestSpace::v_space, TestSpace::v_space);
    // (v,δv)
-   a->AddTestIntegrator(new MassIntegrator(one),1,1);
+   a->AddTestIntegrator(new MassIntegrator(one),
+                        TestSpace::v_space, TestSpace::v_space);
 
    // RHS
    if (prob == prob_type::manufactured)
    {
-      a->AddDomainLFIntegrator(new DomainLFIntegrator(f),1);
+      a->AddDomainLFIntegrator(new DomainLFIntegrator(f),TestSpace::v_space);
    }
    else
    {
-      a->AddDomainLFIntegrator(new DomainLFIntegrator(one),1);
+      a->AddDomainLFIntegrator(new DomainLFIntegrator(one),TestSpace::v_space);
    }
 
    // GridFunction for Dirichlet bdr data
@@ -305,7 +325,7 @@ int main(int argc, char *argv[])
 
       if (visualization)
       {
-         const char * keys = (it == 0 && dim == 2) ? "jRcm\n" : "";
+         const char * keys = (it == 0 && dim == 2) ? "jRcm\n" : nullptr;
          char vishost[] = "localhost";
          int  visport   = 19916;
          VisualizeField(u_out,vishost, visport, u_gf,

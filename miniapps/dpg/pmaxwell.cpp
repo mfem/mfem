@@ -209,7 +209,6 @@ int main(int argc, char *argv[])
    const char *mesh_file = "../../data/inline-quad.mesh";
    int order = 1;
    int delta_order = 1;
-   bool visualization = true;
    double rnum=1.0;
    double theta = 0.0;
    bool static_cond = false;
@@ -218,8 +217,8 @@ int main(int argc, char *argv[])
    int pr = 1;
    bool exact_known = false;
    bool with_pml = false;
+   bool visualization = true;
    bool paraview = false;
-
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -319,6 +318,19 @@ int main(int argc, char *argv[])
    if (pml) { pml->SetAttributes(&pmesh, &attr, &attrPML); }
 
    // Define spaces
+   // Define spaces
+   enum TrialSpace 
+   { 
+      E_space, 
+      H_space, 
+      hatE_space, 
+      hatH_space
+   };
+   enum TestSpace 
+   { 
+      F_space, 
+      G_space
+   };
    // L2 space for E
    FiniteElementCollection *E_fec = new L2_FECollection(order-1,dim);
    ParFiniteElementSpace *E_fes = new ParFiniteElementSpace(&pmesh,E_fec,dim);
@@ -482,74 +494,97 @@ int main(int argc, char *argv[])
 
    // (E,∇ × F)
    a->AddTrialIntegrator(new TransposeIntegrator(new MixedCurlIntegrator(one)),
-                         nullptr,0,0);
+                         nullptr,TrialSpace::E_space, TestSpace::F_space);
    // -i ω ϵ (E , G) = i (- ω ϵ E, G)
    a->AddTrialIntegrator(nullptr,
-                         new TransposeIntegrator(new VectorFEMassIntegrator(*negepsomeg_cf)),0,1);
+                         new TransposeIntegrator(new VectorFEMassIntegrator(*negepsomeg_cf)),
+                         TrialSpace::E_space,TestSpace::G_space);
    //  (H,∇ × G)
    a->AddTrialIntegrator(new TransposeIntegrator(new MixedCurlIntegrator(one)),
-                         nullptr,1,1);
+                         nullptr,TrialSpace::H_space, TestSpace::G_space);
    // < n×Ĥ ,G>
-   a->AddTrialIntegrator(new TangentTraceIntegrator,nullptr,3,1);
+   a->AddTrialIntegrator(new TangentTraceIntegrator,nullptr,
+                        TrialSpace::hatH_space, TestSpace::G_space);
    // test integrators
    // (∇×G ,∇× δG)
-   a->AddTestIntegrator(new CurlCurlIntegrator(one),nullptr,1,1);
+   a->AddTestIntegrator(new CurlCurlIntegrator(one),nullptr,
+                        TestSpace::G_space,TestSpace::G_space);
    // (G,δG)
-   a->AddTestIntegrator(new VectorFEMassIntegrator(one),nullptr,1,1);
+   a->AddTestIntegrator(new VectorFEMassIntegrator(one),nullptr,
+                        TestSpace::G_space,TestSpace::G_space);
 
    if (dim == 3)
    {
       // i ω μ (H, F)
-      a->AddTrialIntegrator(nullptr,
-                            new TransposeIntegrator(new VectorFEMassIntegrator(*muomeg_cf)),1,0);
+      a->AddTrialIntegrator(nullptr, new TransposeIntegrator(
+                           new VectorFEMassIntegrator(*muomeg_cf)),
+                           TrialSpace::H_space,TestSpace::F_space);
       // < n×Ê,F>
-      a->AddTrialIntegrator(new TangentTraceIntegrator,nullptr,2,0);
+      a->AddTrialIntegrator(new TangentTraceIntegrator,nullptr,
+                            TrialSpace::hatE_space, TestSpace::F_space);
 
       // test integrators
       // (∇×F,∇×δF)
-      a->AddTestIntegrator(new CurlCurlIntegrator(one),nullptr,0,0);
+      a->AddTestIntegrator(new CurlCurlIntegrator(one),nullptr,
+                           TestSpace::F_space, TestSpace::F_space);
       // (F,δF)
-      a->AddTestIntegrator(new VectorFEMassIntegrator(one),nullptr,0,0);
+      a->AddTestIntegrator(new VectorFEMassIntegrator(one),nullptr,
+                           TestSpace::F_space,TestSpace::F_space);
       // μ^2 ω^2 (F,δF)
-      a->AddTestIntegrator(new VectorFEMassIntegrator(*mu2omeg2_cf),nullptr,0,0);
+      a->AddTestIntegrator(new VectorFEMassIntegrator(*mu2omeg2_cf),nullptr,
+                           TestSpace::F_space, TestSpace::F_space);
       // -i ω μ (F,∇ × δG) = i (F, -ω μ ∇ × δ G)
-      a->AddTestIntegrator(nullptr,new MixedVectorWeakCurlIntegrator(*negmuomeg_cf),0,
-                           1);
+      a->AddTestIntegrator(nullptr,new MixedVectorWeakCurlIntegrator(*negmuomeg_cf),
+                           TestSpace::F_space, TestSpace::G_space);
       // -i ω ϵ (∇ × F, δG)
-      a->AddTestIntegrator(nullptr,new MixedVectorCurlIntegrator(*negepsomeg_cf),0,1);
+      a->AddTestIntegrator(nullptr,new MixedVectorCurlIntegrator(*negepsomeg_cf),
+                           TestSpace::F_space, TestSpace::G_space);
       // i ω μ (∇ × G,δF)
-      a->AddTestIntegrator(nullptr,new MixedVectorCurlIntegrator(*muomeg_cf),1,0);
+      a->AddTestIntegrator(nullptr,new MixedVectorCurlIntegrator(*muomeg_cf),
+                           TestSpace::G_space, TestSpace::F_space);
       // i ω ϵ (G, ∇ × δF )
-      a->AddTestIntegrator(nullptr,new MixedVectorWeakCurlIntegrator(*epsomeg_cf),1,
-                           0);
+      a->AddTestIntegrator(nullptr,new MixedVectorWeakCurlIntegrator(*epsomeg_cf),
+                           TestSpace::G_space, TestSpace::F_space);
       // ϵ^2 ω^2 (G,δG)
-      a->AddTestIntegrator(new VectorFEMassIntegrator(*eps2omeg2_cf),nullptr,1,1);
+      a->AddTestIntegrator(new VectorFEMassIntegrator(*eps2omeg2_cf),nullptr,
+                           TestSpace::G_space, TestSpace::G_space);
    }
    else
    {
       // i ω μ (H, F)
-      a->AddTrialIntegrator(nullptr,new MixedScalarMassIntegrator(*muomeg_cf),1,0);
+      a->AddTrialIntegrator(nullptr,new MixedScalarMassIntegrator(*muomeg_cf),
+                           TrialSpace::H_space, TestSpace::F_space);
       // < n×Ê,F>
-      a->AddTrialIntegrator(new TraceIntegrator,nullptr,2,0);
+      a->AddTrialIntegrator(new TraceIntegrator,nullptr,
+                            TrialSpace::hatE_space, TestSpace::F_space);
       // test integrators
       // (∇F,∇δF)
-      a->AddTestIntegrator(new DiffusionIntegrator(one),nullptr,0,0);
+      a->AddTestIntegrator(new DiffusionIntegrator(one),nullptr,
+                           TestSpace::F_space, TestSpace::F_space);
       // (F,δF)
-      a->AddTestIntegrator(new MassIntegrator(one),nullptr,0,0);
+      a->AddTestIntegrator(new MassIntegrator(one),nullptr,
+                           TestSpace::F_space, TestSpace::F_space);
       // μ^2 ω^2 (F,δF)
-      a->AddTestIntegrator(new MassIntegrator(*mu2omeg2_cf),nullptr,0,0);
+      a->AddTestIntegrator(new MassIntegrator(*mu2omeg2_cf),nullptr,
+                           TestSpace::F_space, TestSpace::F_space);
       // -i ω μ (F,∇ × δG) = i (F, -ω μ ∇ × δ G)
       a->AddTestIntegrator(nullptr,
-                           new TransposeIntegrator(new MixedCurlIntegrator(*negmuomeg_cf)),0,1);
+                           new TransposeIntegrator(new MixedCurlIntegrator(*negmuomeg_cf)),
+                           TestSpace::F_space, TestSpace::G_space);
       // -i ω ϵ (∇ × F, δG) = i (- ω ϵ A ∇ F,δG), A = [0 1; -1; 0]
-      a->AddTestIntegrator(nullptr,new MixedVectorGradientIntegrator(*negepsrot_cf),0,
-                           1);
+      a->AddTestIntegrator(nullptr,new MixedVectorGradientIntegrator(*negepsrot_cf),
+                           TestSpace::F_space, TestSpace::G_space);
       // i ω μ (∇ × G,δF) = i (ω μ ∇ × G, δF )
-      a->AddTestIntegrator(nullptr,new MixedCurlIntegrator(*muomeg_cf),1,0);
+      a->AddTestIntegrator(nullptr,new MixedCurlIntegrator(*muomeg_cf),
+                           TestSpace::G_space, TestSpace::F_space);
       // i ω ϵ (G, ∇ × δF ) =  i (ω ϵ G, A ∇ δF) = i ( G , ω ϵ A ∇ δF)
       a->AddTestIntegrator(nullptr,
-                           new TransposeIntegrator(new MixedVectorGradientIntegrator(*epsrot_cf)),1,0);
-      a->AddTestIntegrator(new VectorFEMassIntegrator(*eps2omeg2_cf),nullptr,1,1);
+                           new TransposeIntegrator(
+                              new MixedVectorGradientIntegrator(*epsrot_cf)),
+                              TestSpace::G_space, TestSpace::F_space);
+      // ϵ^2 ω^2 (G, δG)                        
+      a->AddTestIntegrator(new VectorFEMassIntegrator(*eps2omeg2_cf),nullptr,
+                           TestSpace::G_space, TestSpace::G_space);
    }
    if (pml)
    {
@@ -560,7 +595,8 @@ int main(int argc, char *argv[])
          new TransposeIntegrator(new VectorFEMassIntegrator(
                                     epsomeg_detJ_Jt_J_inv_i_restr)),
          new TransposeIntegrator(new VectorFEMassIntegrator(
-                                    negepsomeg_detJ_Jt_J_inv_r_restr)),0,1);
+                                    negepsomeg_detJ_Jt_J_inv_r_restr)),
+                                    TrialSpace::E_space,TestSpace::G_space);
       if (dim == 3)
       {
          //trial integrators
@@ -570,36 +606,42 @@ int main(int argc, char *argv[])
             new TransposeIntegrator(new VectorFEMassIntegrator(
                                        negmuomeg_detJ_Jt_J_inv_i_restr)),
             new TransposeIntegrator(new VectorFEMassIntegrator(
-                                       muomeg_detJ_Jt_J_inv_r_restr)),1,0);
+                                       muomeg_detJ_Jt_J_inv_r_restr)),
+                                       TrialSpace::H_space, TestSpace::F_space);
          // test integrators
-
          // μ^2 ω^2 (|α|^-2 F,δF)
          a->AddTestIntegrator(
-            new VectorFEMassIntegrator(mu2omeg2_detJ_Jt_J_inv_2_restr),nullptr,0,0);
+            new VectorFEMassIntegrator(mu2omeg2_detJ_Jt_J_inv_2_restr),nullptr,
+                                       TestSpace::F_space, TestSpace::F_space);
          // -i ω μ (α^-* F,∇ × δG) = i (F, - ω μ α^-1 ∇ × δ G)
          //                        = i (F, - ω μ (α^-1_re + i α^-1_im) ∇ × δ G)
          //                        = (F, - ω μ α^-1_im ∇ × δ G) + i (F, - ω μ α^-1_re ∇×δG)
          a->AddTestIntegrator(new MixedVectorWeakCurlIntegrator(
                                  negmuomeg_detJ_Jt_J_inv_i_restr),
-                              new MixedVectorWeakCurlIntegrator(negmuomeg_detJ_Jt_J_inv_r_restr),0,1);
+                              new MixedVectorWeakCurlIntegrator(negmuomeg_detJ_Jt_J_inv_r_restr),
+                              TestSpace::F_space,TestSpace::G_space);
          // -i ω ϵ (β ∇ × F, δG) = -i ω ϵ ((β_re + i β_im) ∇ × F, δG)
          //                      = (ω ϵ β_im  ∇ × F, δG) + i (- ω ϵ β_re ∇ × F, δG)
          a->AddTestIntegrator(new MixedVectorCurlIntegrator(
                                  epsomeg_detJ_Jt_J_inv_i_restr),
-                              new MixedVectorCurlIntegrator(negepsomeg_detJ_Jt_J_inv_r_restr),0,1);
+                              new MixedVectorCurlIntegrator(negepsomeg_detJ_Jt_J_inv_r_restr),
+                              TestSpace::F_space,TestSpace::G_space);
          // i ω μ (α^-1 ∇ × G,δF) = i ω μ ((α^-1_re + i α^-1_im) ∇ × G,δF)
          //                       = (- ω μ α^-1_im ∇ × G,δF) + i (ω μ α^-1_re ∇ × G,δF)
          a->AddTestIntegrator(new MixedVectorCurlIntegrator(
                                  negmuomeg_detJ_Jt_J_inv_i_restr),
-                              new MixedVectorCurlIntegrator(muomeg_detJ_Jt_J_inv_r_restr),1,0);
+                              new MixedVectorCurlIntegrator(muomeg_detJ_Jt_J_inv_r_restr),
+                              TestSpace::G_space, TestSpace::F_space);
          // i ω ϵ (β^* G, ∇×δF) = i ω ϵ ( (β_re - i β_im) G, ∇×δF)
          //                     = (ω ϵ β_im G, ∇×δF) + i ( ω ϵ β_re G, ∇×δF)
          a->AddTestIntegrator(new MixedVectorWeakCurlIntegrator(
                                  epsomeg_detJ_Jt_J_inv_i_restr),
-                              new MixedVectorWeakCurlIntegrator(epsomeg_detJ_Jt_J_inv_r_restr),1,0);
+                              new MixedVectorWeakCurlIntegrator(epsomeg_detJ_Jt_J_inv_r_restr),
+                              TestSpace::G_space, TestSpace::F_space);
          // ϵ^2 ω^2 (|β|^2 G,δG)
          a->AddTestIntegrator(new VectorFEMassIntegrator(
-                                 eps2omeg2_detJ_Jt_J_inv_2_restr),nullptr,1,1);
+                                 eps2omeg2_detJ_Jt_J_inv_2_restr),nullptr,
+                                 TestSpace::G_space, TestSpace::G_space);
       }
       else
       {
@@ -608,34 +650,41 @@ int main(int argc, char *argv[])
          //                   = (- ω μ α^-1_im, H,F) + i *(ω μ α^-1_re H, F)
          a->AddTrialIntegrator(
             new MixedScalarMassIntegrator(negmuomeg_detJ_i_restr),
-            new MixedScalarMassIntegrator(muomeg_detJ_r_restr),1,0);
+            new MixedScalarMassIntegrator(muomeg_detJ_r_restr),
+            TrialSpace::H_space, TestSpace::F_space);
          // test integrators
          // μ^2 ω^2 (|α|^-2 F,δF)
-         a->AddTestIntegrator(new MassIntegrator(mu2omeg2_detJ_2_restr),nullptr,0,0);
+         a->AddTestIntegrator(new MassIntegrator(mu2omeg2_detJ_2_restr),nullptr,
+         TestSpace::F_space, TestSpace::F_space);
          // -i ω μ (α^-* F,∇ × δG) = (F, ω μ α^-1 ∇ × δ G)
          //                        =(F, - ω μ α^-1_im ∇ × δ G) + i (F, - ω μ α^-1_re ∇×δG)
          a->AddTestIntegrator(
             new TransposeIntegrator(new MixedCurlIntegrator(negmuomeg_detJ_i_restr)),
-            new TransposeIntegrator(new MixedCurlIntegrator(negmuomeg_detJ_r_restr)),0,1);
+            new TransposeIntegrator(new MixedCurlIntegrator(negmuomeg_detJ_r_restr)),
+            TestSpace::F_space, TestSpace::G_space);
          // -i ω ϵ (β ∇ × F, δG) = i (- ω ϵ β A ∇ F,δG), A = [0 1; -1; 0]
          //                      = (ω ϵ β_im A ∇ F, δG) + i (- ω ϵ β_re A ∇ F, δG)
          a->AddTestIntegrator(new MixedVectorGradientIntegrator(
                                  *epsomeg_detJ_Jt_J_inv_i_rot_restr),
-                              new MixedVectorGradientIntegrator(*negepsomeg_detJ_Jt_J_inv_r_rot_restr),0,1);
+                              new MixedVectorGradientIntegrator(*negepsomeg_detJ_Jt_J_inv_r_rot_restr),
+                              TestSpace::F_space, TestSpace::G_space);
          // i ω μ (α^-1 ∇ × G,δF) = i (ω μ α^-1 ∇ × G, δF )
          //                       = (- ω μ α^-1_im ∇ × G,δF) + i (ω μ α^-1_re ∇ × G,δF)
          a->AddTestIntegrator(new MixedCurlIntegrator(negmuomeg_detJ_i_restr),
-                              new MixedCurlIntegrator(muomeg_detJ_r_restr),1,0);
+                              new MixedCurlIntegrator(muomeg_detJ_r_restr),
+                              TestSpace::G_space, TestSpace::F_space);
          // i ω ϵ (β^* G, ∇ × δF ) = i ( G , ω ϵ β A ∇ δF)
          //                        =  ( G , ω ϵ β_im A ∇ δF) + i ( G , ω ϵ β_re A ∇ δF)
          a->AddTestIntegrator(
             new TransposeIntegrator(new MixedVectorGradientIntegrator(
                                        *epsomeg_detJ_Jt_J_inv_i_rot_restr)),
             new TransposeIntegrator(new MixedVectorGradientIntegrator(
-                                       *epsomeg_detJ_Jt_J_inv_r_rot_restr)),1,0);
+                                       *epsomeg_detJ_Jt_J_inv_r_rot_restr)),
+                                       TestSpace::G_space, TestSpace::F_space);
          // ϵ^2 ω^2 (|β|^2 G,δG)
          a->AddTestIntegrator(new VectorFEMassIntegrator(
-                                 eps2omeg2_detJ_Jt_J_inv_2_restr),nullptr,1,1);
+                                 eps2omeg2_detJ_Jt_J_inv_2_restr),nullptr,
+                                 TestSpace::G_space, TestSpace::G_space);
       }
    }
    // RHS
@@ -645,11 +694,13 @@ int main(int argc, char *argv[])
    if (prob == 0)
    {
       a->AddDomainLFIntegrator(new VectorFEDomainLFIntegrator(f_rhs_r),
-                               new VectorFEDomainLFIntegrator(f_rhs_i),1);
+                               new VectorFEDomainLFIntegrator(f_rhs_i),
+                               TestSpace::G_space);
    }
    else if (prob == 2)
    {
-      a->AddDomainLFIntegrator(new VectorFEDomainLFIntegrator(f_source),nullptr,1);
+      a->AddDomainLFIntegrator(new VectorFEDomainLFIntegrator(f_source),nullptr,
+                              TestSpace::G_space);
    }
 
    VectorFunctionCoefficient hatEex_r(dim,hatE_exact_r);
@@ -692,7 +743,7 @@ int main(int argc, char *argv[])
    if (paraview)
    {
       paraview_dc = new ParaViewDataCollection(enum_str[prob], &pmesh);
-      paraview_dc->SetPrefixPath("ParaView");
+      paraview_dc->SetPrefixPath("ParaView/Maxwell");
       paraview_dc->SetLevelsOfDetail(order);
       paraview_dc->SetCycle(0);
       paraview_dc->SetDataFormat(VTKFormat::BINARY);
@@ -702,13 +753,11 @@ int main(int argc, char *argv[])
       paraview_dc->RegisterField("E_i",&E.imag());
       paraview_dc->RegisterField("H_r",&H.real());
       paraview_dc->RegisterField("H_i",&H.imag());
-      paraview_dc->Save();
    }
 
-
+   if (static_cond) { a->EnableStaticCondensation(); }
    for (int it = 0; it<=pr; it++)
    {
-      if (static_cond) { a->EnableStaticCondensation(); }
       a->Assemble();
 
       Array<int> ess_tdof_list;
@@ -1203,17 +1252,17 @@ void maxwell_solution(const Vector & X, std::vector<complex<double>> &E,
    switch (prob)
    {
       case plane_wave:
-      case pml_plane_wave_scatter:
       {
-         std::complex<double> pw = exp(-zi * omega * (X.Sum()));
+         std::complex<double> pw = exp(zi * omega * (X.Sum()));
          E[0] = pw;
          E[1] = 0.0;
          if (dim == 3)
          {
+            E[1] = 0.0;
             E[2] = 0.0;
             curlE[0] = 0.0;
-            curlE[1] = -zi * omega * pw;
-            curlE[2] =  zi * omega * pw;
+            curlE[1] = zi * omega * pw;
+            curlE[2] = -zi * omega * pw;
 
             curlcurlE[0] = 2.0 * omega * omega * pw;
             curlcurlE[1] = - omega * omega * pw;
@@ -1221,10 +1270,20 @@ void maxwell_solution(const Vector & X, std::vector<complex<double>> &E,
          }
          else
          {
-            curlE[0] = zi * omega * pw;
-            curlcurlE[0] =   omega * omega * pw;
-            curlcurlE[1] = - omega * omega * pw ;
+            curlE[0] = -zi * omega * pw;
+            curlcurlE[0] = omega * omega * pw;
+            curlcurlE[1] = -omega * omega * pw;
          }
+      }
+      break;
+      case pml_plane_wave_scatter:
+      {
+         std::complex<double> pw = exp(zi * omega * (X(0)));
+         E[0] = 0.0;
+         E[1] = pw;
+         curlE[0] = zi * omega * pw;
+         curlcurlE[0] = 0.0;
+         curlcurlE[1] = omega * omega * pw;
       }
       break;
       case fichera_oven:

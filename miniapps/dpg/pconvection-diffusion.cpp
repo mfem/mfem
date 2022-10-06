@@ -5,6 +5,7 @@
 // sample runs
 // mpirun -np 4 pconvection-diffusion  -o 2 -ref 3 -prob 0 -eps 1e-1 -beta '4 2' -theta 0.0
 // mpirun -np 4 pconvection-diffusion  -o 3 -ref 3 -prob 0 -eps 1e-2 -beta '2 3' -theta 0.0
+// mpirun -np 4 pconvection-diffusion -m ../../data/inline-hex.mesh -o 2 -ref 1 -prob 0 -sc -eps 1e-1 -theta 0.0
 
 // AMR runs
 // mpirun -np 4 pconvection-diffusion  -o 3 -ref 15 -prob 1 -eps 1e-3 -beta '1 0' -theta 0.7 -sc
@@ -69,6 +70,14 @@ enum prob_type
    bdr_layer // from https://web.pdx.edu/~gjay/pub/dpg2.pdf
 };
 
+static const char *enum_str[] =
+{
+   "sinusoidal",
+   "EJ",
+   "curved_streamlines",
+   "bdr_layer"
+};
+
 prob_type prob;
 Vector beta;
 double epsilon;
@@ -94,11 +103,13 @@ int main(int argc, char *argv[])
    int order = 1;
    int delta_order = 1;
    int ref = 1;
-   bool visualization = true;
    int iprob = 0;
    double theta = 0.7;
    bool static_cond = false;
    epsilon = 1e0;
+
+   bool visualization = true;
+   bool paraview = false;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -122,6 +133,9 @@ int main(int argc, char *argv[])
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
+   args.AddOption(&paraview, "-paraview", "--paraview", "-no-paraview",
+                  "--no-paraview",
+                  "Enable or disable ParaView visualization.");
    args.Parse();
    if (!args.Good())
    {
@@ -158,8 +172,8 @@ int main(int argc, char *argv[])
          if (beta.Size() == 0)
          {
             beta.SetSize(dim);
+            beta = 0.0;
             beta[0] = 1.;
-            beta[1] = 0.;
          }
          break;
       }
@@ -182,6 +196,18 @@ int main(int argc, char *argv[])
    mesh.Clear();
 
    // Define spaces
+   enum TrialSpace
+   {
+      u_space,
+      sigma_space,
+      hatu_space,
+      hatf_space
+   };
+   enum TestSpace
+   {
+      v_space,
+      tau_space
+   };
    // L2 space for u
    FiniteElementCollection *u_fec = new L2_FECollection(order-1,dim);
    ParFiniteElementSpace *u_fes = new ParFiniteElementSpace(&pmesh,u_fec);
@@ -213,7 +239,6 @@ int main(int argc, char *argv[])
    ConstantCoefficient eps2(1/(epsilon*epsilon));
    ConstantCoefficient negeps(-epsilon);
 
-
    VectorFunctionCoefficient betacoeff(dim,beta_function);
    ScalarVectorProductCoefficient negbetacoeff(-1.0,betacoeff);
    OuterProductCoefficient bbtcoeff(betacoeff,betacoeff);
@@ -233,23 +258,28 @@ int main(int argc, char *argv[])
    a->StoreMatrices(true);
 
    //-(βu , ∇v)
-   a->AddTrialIntegrator(new MixedScalarWeakDivergenceIntegrator(betacoeff),0,0);
+   a->AddTrialIntegrator(new MixedScalarWeakDivergenceIntegrator(betacoeff),
+                         TrialSpace::u_space, TestSpace::v_space);
 
    // (σ,∇ v)
-   a->AddTrialIntegrator(new TransposeIntegrator(new GradientIntegrator(one)),1,0);
+   a->AddTrialIntegrator(new TransposeIntegrator(new GradientIntegrator(one)),
+                         TrialSpace::sigma_space, TestSpace::v_space);
 
    // (u ,∇⋅τ)
-   a->AddTrialIntegrator(new MixedScalarWeakGradientIntegrator(negone),0,1);
+   a->AddTrialIntegrator(new MixedScalarWeakGradientIntegrator(negone),
+                         TrialSpace::u_space, TestSpace::tau_space);
 
    // 1/ε (σ,τ)
    a->AddTrialIntegrator(new TransposeIntegrator(new VectorFEMassIntegrator(eps1)),
-                         1,1);
+                         TrialSpace::sigma_space, TestSpace::tau_space);
 
    //  <û,τ⋅n>
-   a->AddTrialIntegrator(new NormalTraceIntegrator,2,1);
+   a->AddTrialIntegrator(new NormalTraceIntegrator,
+                         TrialSpace::hatu_space, TestSpace::tau_space);
 
    // <f̂ ,v>
-   a->AddTrialIntegrator(new TraceIntegrator,3,0);
+   a->AddTrialIntegrator(new TraceIntegrator,
+                         TrialSpace::hatf_space, TestSpace::v_space);
 
 
    FiniteElementCollection *coeff_fec = new L2_FECollection(0,dim);
@@ -263,21 +293,26 @@ int main(int argc, char *argv[])
    setup_test_norm_coeffs(c1_gf,c2_gf);
 
    // c1 (v,δv)
-   a->AddTestIntegrator(new MassIntegrator(c1_coeff),0,0);
+   a->AddTestIntegrator(new MassIntegrator(c1_coeff),
+                        TestSpace::v_space, TestSpace::v_space);
    // ε (∇v,∇δv)
-   a->AddTestIntegrator(new DiffusionIntegrator(eps),0,0);
+   a->AddTestIntegrator(new DiffusionIntegrator(eps),
+                        TestSpace::v_space, TestSpace::v_space);
    // (β⋅∇v, β⋅∇δv)
-   a->AddTestIntegrator(new DiffusionIntegrator(bbtcoeff), 0,0);
+   a->AddTestIntegrator(new DiffusionIntegrator(bbtcoeff),
+                        TestSpace::v_space, TestSpace::v_space);
    // c2 (τ,δτ)
-   a->AddTestIntegrator(new VectorFEMassIntegrator(c2_coeff),1,1);
+   a->AddTestIntegrator(new VectorFEMassIntegrator(c2_coeff),
+                        TestSpace::tau_space, TestSpace::tau_space);
    // (∇⋅τ,∇⋅δτ)
-   a->AddTestIntegrator(new DivDivIntegrator(one),1,1);
+   a->AddTestIntegrator(new DivDivIntegrator(one),
+                        TestSpace::tau_space, TestSpace::tau_space);
 
    FunctionCoefficient f(f_exact);
    if (prob == prob_type::sinusoidal ||
        prob == prob_type::curved_streamlines)
    {
-      a->AddDomainLFIntegrator(new DomainLFIntegrator(f),0);
+      a->AddDomainLFIntegrator(new DomainLFIntegrator(f),TestSpace::v_space);
    }
 
    FunctionCoefficient hatuex(exact_hatu);
@@ -312,6 +347,25 @@ int main(int argc, char *argv[])
    }
 
    if (static_cond) { a->EnableStaticCondensation(); }
+
+   ParGridFunction u_gf(u_fes); u_gf = 0.0;
+   ParGridFunction sigma_gf(sigma_fes); sigma_gf = 0.0;
+
+   ParaViewDataCollection * paraview_dc = nullptr;
+
+   if (paraview)
+   {
+      paraview_dc = new ParaViewDataCollection(enum_str[prob], &pmesh);
+      paraview_dc->SetPrefixPath("ParaView/Convection-Diffusion");
+      paraview_dc->SetLevelsOfDetail(order);
+      paraview_dc->SetCycle(0);
+      paraview_dc->SetDataFormat(VTKFormat::BINARY);
+      paraview_dc->SetHighOrderOutput(true);
+      paraview_dc->SetTime(0.0); // set the time
+      paraview_dc->RegisterField("u",&u_gf);
+      paraview_dc->RegisterField("sigma",&sigma_gf);
+   }
+
    for (int it = 0; it<=ref; it++)
    {
       a->Assemble();
@@ -443,10 +497,7 @@ int main(int argc, char *argv[])
          }
       }
 
-      ParGridFunction u_gf;
       u_gf.MakeRef(u_fes,x.GetBlock(0));
-
-      ParGridFunction sigma_gf;
       sigma_gf.MakeRef(sigma_fes,x.GetBlock(1));
 
       int dofs = u_fes->GlobalTrueVSize()
@@ -493,13 +544,20 @@ int main(int argc, char *argv[])
 
       if (visualization)
       {
-         const char * keys = (it == 0) ? "cgRjmlk\n" : "";
+         const char * keys = (it == 0 && dim == 2) ? "cgRjmlk\n" : nullptr;
          char vishost[] = "localhost";
          int  visport   = 19916;
          VisualizeField(u_out,vishost, visport, u_gf,
                         "Numerical u", 0,0, 500, 500, keys);
          VisualizeField(sigma_out,vishost, visport, sigma_gf,
                         "Numerical flux", 501,0,500, 500, keys);
+      }
+
+      if (paraview)
+      {
+         paraview_dc->SetCycle(it);
+         paraview_dc->SetTime((double)it);
+         paraview_dc->Save();
       }
 
       if (it == ref)
@@ -518,6 +576,11 @@ int main(int argc, char *argv[])
       c1_gf.Update();
       c2_gf.Update();
       setup_test_norm_coeffs(c1_gf,c2_gf);
+   }
+
+   if (paraview)
+   {
+      delete paraview_dc;
    }
 
    delete coeff_fes;
