@@ -27,6 +27,7 @@ if (${CMAKE_CXX_COMPILER_ID} MATCHES "Clang")
     "-ffp-contract=fast")
 elseif (${CMAKE_CXX_COMPILER_ID} MATCHES "GNU")
   list(APPEND PERFORMANCE_CXX_OPTIONS
+    ${MFEM_PERF_CXX_ARCH_FLAGS}
     "-Wall")
   if (NOT MFEM_USE_CUDA)
      list(APPEND PERFORMANCE_CXX_OPTIONS "-pedantic")
