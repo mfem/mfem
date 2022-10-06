@@ -480,6 +480,7 @@ int main(int argc, char *argv[])
        tot_vol=vobj->Eval(vdens);
    }
    double max_vol=0.5*tot_vol;
+   if(myrank==0){ std::cout<<"tot vol="<<tot_vol<<std::endl;}
 
    //intermediate volume
    mfem::VolumeQoI* ivobj=new mfem::VolumeQoI(fsolv->GetFilterFES());
