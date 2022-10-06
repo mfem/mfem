@@ -141,12 +141,12 @@ void CartesianPML::StretchFunction(const Vector &x,
       if (x(i) >= comp_dom_bdr(i, 1))
       {
          coeff = n * c / k / pow(length(i, 1), n);
-         dxs[i] = 1.0 + zi * coeff * abs(pow(x(i) - comp_dom_bdr(i, 1), n - 1.0));
+         dxs[i] = 1.0 + zi * coeff * std::abs(pow(x(i) - comp_dom_bdr(i, 1), n - 1.0));
       }
       if (x(i) <= comp_dom_bdr(i, 0))
       {
          coeff = n * c / k / pow(length(i, 0), n);
-         dxs[i] = 1.0 + zi * coeff * abs(pow(x(i) - comp_dom_bdr(i, 0), n - 1.0));
+         dxs[i] = 1.0 + zi * coeff * std::abs(pow(x(i) - comp_dom_bdr(i, 0), n - 1.0));
       }
    }
 }
