@@ -319,16 +319,16 @@ int main(int argc, char *argv[])
 
    // Define spaces
    // Define spaces
-   enum TrialSpace 
-   { 
-      E_space, 
-      H_space, 
-      hatE_space, 
+   enum TrialSpace
+   {
+      E_space,
+      H_space,
+      hatE_space,
       hatH_space
    };
-   enum TestSpace 
-   { 
-      F_space, 
+   enum TestSpace
+   {
+      F_space,
       G_space
    };
    // L2 space for E
@@ -504,7 +504,7 @@ int main(int argc, char *argv[])
                          nullptr,TrialSpace::H_space, TestSpace::G_space);
    // < n×Ĥ ,G>
    a->AddTrialIntegrator(new TangentTraceIntegrator,nullptr,
-                        TrialSpace::hatH_space, TestSpace::G_space);
+                         TrialSpace::hatH_space, TestSpace::G_space);
    // test integrators
    // (∇×G ,∇× δG)
    a->AddTestIntegrator(new CurlCurlIntegrator(one),nullptr,
@@ -517,8 +517,8 @@ int main(int argc, char *argv[])
    {
       // i ω μ (H, F)
       a->AddTrialIntegrator(nullptr, new TransposeIntegrator(
-                           new VectorFEMassIntegrator(*muomeg_cf)),
-                           TrialSpace::H_space,TestSpace::F_space);
+                               new VectorFEMassIntegrator(*muomeg_cf)),
+                            TrialSpace::H_space,TestSpace::F_space);
       // < n×Ê,F>
       a->AddTrialIntegrator(new TangentTraceIntegrator,nullptr,
                             TrialSpace::hatE_space, TestSpace::F_space);
@@ -553,7 +553,7 @@ int main(int argc, char *argv[])
    {
       // i ω μ (H, F)
       a->AddTrialIntegrator(nullptr,new MixedScalarMassIntegrator(*muomeg_cf),
-                           TrialSpace::H_space, TestSpace::F_space);
+                            TrialSpace::H_space, TestSpace::F_space);
       // < n×Ê,F>
       a->AddTrialIntegrator(new TraceIntegrator,nullptr,
                             TrialSpace::hatE_space, TestSpace::F_space);
@@ -581,8 +581,8 @@ int main(int argc, char *argv[])
       a->AddTestIntegrator(nullptr,
                            new TransposeIntegrator(
                               new MixedVectorGradientIntegrator(*epsrot_cf)),
-                              TestSpace::G_space, TestSpace::F_space);
-      // ϵ^2 ω^2 (G, δG)                        
+                           TestSpace::G_space, TestSpace::F_space);
+      // ϵ^2 ω^2 (G, δG)
       a->AddTestIntegrator(new VectorFEMassIntegrator(*eps2omeg2_cf),nullptr,
                            TestSpace::G_space, TestSpace::G_space);
    }
@@ -596,7 +596,7 @@ int main(int argc, char *argv[])
                                     epsomeg_detJ_Jt_J_inv_i_restr)),
          new TransposeIntegrator(new VectorFEMassIntegrator(
                                     negepsomeg_detJ_Jt_J_inv_r_restr)),
-                                    TrialSpace::E_space,TestSpace::G_space);
+         TrialSpace::E_space,TestSpace::G_space);
       if (dim == 3)
       {
          //trial integrators
@@ -607,12 +607,12 @@ int main(int argc, char *argv[])
                                        negmuomeg_detJ_Jt_J_inv_i_restr)),
             new TransposeIntegrator(new VectorFEMassIntegrator(
                                        muomeg_detJ_Jt_J_inv_r_restr)),
-                                       TrialSpace::H_space, TestSpace::F_space);
+            TrialSpace::H_space, TestSpace::F_space);
          // test integrators
          // μ^2 ω^2 (|α|^-2 F,δF)
          a->AddTestIntegrator(
             new VectorFEMassIntegrator(mu2omeg2_detJ_Jt_J_inv_2_restr),nullptr,
-                                       TestSpace::F_space, TestSpace::F_space);
+            TestSpace::F_space, TestSpace::F_space);
          // -i ω μ (α^-* F,∇ × δG) = i (F, - ω μ α^-1 ∇ × δ G)
          //                        = i (F, - ω μ (α^-1_re + i α^-1_im) ∇ × δ G)
          //                        = (F, - ω μ α^-1_im ∇ × δ G) + i (F, - ω μ α^-1_re ∇×δG)
@@ -641,7 +641,7 @@ int main(int argc, char *argv[])
          // ϵ^2 ω^2 (|β|^2 G,δG)
          a->AddTestIntegrator(new VectorFEMassIntegrator(
                                  eps2omeg2_detJ_Jt_J_inv_2_restr),nullptr,
-                                 TestSpace::G_space, TestSpace::G_space);
+                              TestSpace::G_space, TestSpace::G_space);
       }
       else
       {
@@ -655,7 +655,7 @@ int main(int argc, char *argv[])
          // test integrators
          // μ^2 ω^2 (|α|^-2 F,δF)
          a->AddTestIntegrator(new MassIntegrator(mu2omeg2_detJ_2_restr),nullptr,
-         TestSpace::F_space, TestSpace::F_space);
+                              TestSpace::F_space, TestSpace::F_space);
          // -i ω μ (α^-* F,∇ × δG) = (F, ω μ α^-1 ∇ × δ G)
          //                        =(F, - ω μ α^-1_im ∇ × δ G) + i (F, - ω μ α^-1_re ∇×δG)
          a->AddTestIntegrator(
@@ -680,11 +680,11 @@ int main(int argc, char *argv[])
                                        *epsomeg_detJ_Jt_J_inv_i_rot_restr)),
             new TransposeIntegrator(new MixedVectorGradientIntegrator(
                                        *epsomeg_detJ_Jt_J_inv_r_rot_restr)),
-                                       TestSpace::G_space, TestSpace::F_space);
+            TestSpace::G_space, TestSpace::F_space);
          // ϵ^2 ω^2 (|β|^2 G,δG)
          a->AddTestIntegrator(new VectorFEMassIntegrator(
                                  eps2omeg2_detJ_Jt_J_inv_2_restr),nullptr,
-                                 TestSpace::G_space, TestSpace::G_space);
+                              TestSpace::G_space, TestSpace::G_space);
       }
    }
    // RHS
@@ -700,7 +700,7 @@ int main(int argc, char *argv[])
    else if (prob == 2)
    {
       a->AddDomainLFIntegrator(new VectorFEDomainLFIntegrator(f_source),nullptr,
-                              TestSpace::G_space);
+                               TestSpace::G_space);
    }
 
    VectorFunctionCoefficient hatEex_r(dim,hatE_exact_r);
