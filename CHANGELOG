@@ -115,6 +115,10 @@ Miscellaneous
 - The behavior of GridFunction::GetTrueVector() has been changed to not return
   an empty true vector.
 
+- Fully encapsulated SUNDIALS `N_Vector` object within the `SundialsNVector`
+  class by removing deprecated (e.g. `HypreParVector::ToNVector`) and
+  non-deprecated (e.g. `Vector::ToNVector`) functions in other classes.
+
 Version 4.4, released on March 21, 2022
 =======================================
 
