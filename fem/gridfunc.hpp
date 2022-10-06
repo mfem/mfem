@@ -485,7 +485,8 @@ public:
 
    virtual double ComputeL2Error(VectorCoefficient &exsol,
                                  const IntegrationRule *irs[] = NULL,
-                                 Array<int> *elems = NULL) const;
+                                 Array<int> *elems = NULL,
+                                 int component = -1) const;
 
    /// Returns ||grad u_ex - grad u_h||_L2 in element ielem for H1 or L2 elements
    virtual double ComputeElementGradError(int ielem, VectorCoefficient *exgrad,
@@ -617,26 +618,30 @@ public:
                                        Vector &error,
                                        Coefficient *weight = NULL,
                                        VectorCoefficient *v_weight = NULL,
-                                       const IntegrationRule *irs[] = NULL
+                                       const IntegrationRule *irs[] = NULL,
+                                       int dir = -1
                                       ) const;
 
    virtual void ComputeElementL1Errors(VectorCoefficient &exsol,
                                        Vector &error,
-                                       const IntegrationRule *irs[] = NULL
+                                       const IntegrationRule *irs[] = NULL,
+                                       int dir = -1
                                       ) const
-   { ComputeElementLpErrors(1.0, exsol, error, NULL, NULL, irs); }
+   { ComputeElementLpErrors(1.0, exsol, error, NULL, NULL, irs, dir); }
 
    virtual void ComputeElementL2Errors(VectorCoefficient &exsol,
                                        Vector &error,
-                                       const IntegrationRule *irs[] = NULL
+                                       const IntegrationRule *irs[] = NULL,
+                                       int dir = -1
                                       ) const
-   { ComputeElementLpErrors(2.0, exsol, error, NULL, NULL, irs); }
+   { ComputeElementLpErrors(2.0, exsol, error, NULL, NULL, irs, dir); }
 
    virtual void ComputeElementMaxErrors(VectorCoefficient &exsol,
                                         Vector &error,
-                                        const IntegrationRule *irs[] = NULL
+                                        const IntegrationRule *irs[] = NULL,
+                                        int dir = -1
                                        ) const
-   { ComputeElementLpErrors(infinity(), exsol, error, NULL, NULL, irs); }
+   { ComputeElementLpErrors(infinity(), exsol, error, NULL, NULL, irs, dir); }
 
    virtual void ComputeFlux(BilinearFormIntegrator &blfi,
                             GridFunction &flux,

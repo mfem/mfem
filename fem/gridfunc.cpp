@@ -2815,13 +2815,15 @@ double GridFunction::ComputeL2Error(
 
 double GridFunction::ComputeL2Error(
    VectorCoefficient &exsol, const IntegrationRule *irs[],
-   Array<int> *elems) const
+   Array<int> *elems, int dir) const
 {
    double error = 0.0;
    const FiniteElement *fe;
    ElementTransformation *T;
    DenseMatrix vals, exact_vals;
    Vector loc_errs;
+   MFEM_VERIFY(dir < exsol.GetVDim(), "Invalid component specified in"
+               " ComputeL2Error.");
 
    for (int i = 0; i < fes->GetNE(); i++)
    {
@@ -2842,15 +2844,26 @@ double GridFunction::ComputeL2Error(
       exsol.Eval(exact_vals, *T, *ir);
       vals -= exact_vals;
       loc_errs.SetSize(vals.Width());
-      vals.Norm2(loc_errs);
-      for (int j = 0; j < ir->GetNPoints(); j++)
+      if (dir < 0)
       {
-         const IntegrationPoint &ip = ir->IntPoint(j);
-         T->SetIntPoint(&ip);
-         error += ip.weight * T->Weight() * (loc_errs(j) * loc_errs(j));
+         vals.Norm2(loc_errs);
+         for (int j = 0; j < ir->GetNPoints(); j++)
+         {
+            const IntegrationPoint &ip = ir->IntPoint(j);
+            T->SetIntPoint(&ip);
+            error += ip.weight * T->Weight() * (loc_errs(j) * loc_errs(j));
+         }
+      }
+      else
+      {
+         for (int j = 0; j < ir->GetNPoints(); j++)
+         {
+            const IntegrationPoint &ip = ir->IntPoint(j);
+            T->SetIntPoint(&ip);
+            error += ip.weight * T->Weight() * (vals(dir, j)*vals(dir, j));
+         }
       }
    }
-
    return (error < 0.0) ? -sqrt(-error) : sqrt(error);
 }
 
@@ -3565,7 +3578,8 @@ void GridFunction::ComputeElementLpErrors(const double p,
                                           Vector &error,
                                           Coefficient *weight,
                                           VectorCoefficient *v_weight,
-                                          const IntegrationRule *irs[]) const
+                                          const IntegrationRule *irs[],
+                                          int dir) const
 {
    MFEM_ASSERT(error.Size() == fes->GetNE(),
                "Incorrect size for result vector");
@@ -3575,6 +3589,9 @@ void GridFunction::ComputeElementLpErrors(const double p,
    ElementTransformation *T;
    DenseMatrix vals, exact_vals;
    Vector loc_errs;
+
+   MFEM_VERIFY(dir < exsol.GetVDim(), "Invalid component specified in"
+               " ComputeElementLpErrors.");
 
    for (int i = 0; i < fes->GetNE(); i++)
    {
@@ -3598,21 +3615,41 @@ void GridFunction::ComputeElementLpErrors(const double p,
       {
          // compute the lengths of the errors at the integration points thus the
          // vector norm is rotationally invariant
-         vals.Norm2(loc_errs);
+         if (dir < 0)
+         {
+            vals.Norm2(loc_errs);
+         }
+         else
+         {
+            for (int j = 0; j < ir->GetNPoints(); j++)
+            {
+               loc_errs(j) = vals(dir, j)*vals(dir,j);
+            }
+         }
       }
       else
       {
          v_weight->Eval(exact_vals, *T, *ir);
          // column-wise dot product of the vector error (in vals) and the vector
          // weight (in exact_vals)
-         for (int j = 0; j < vals.Width(); j++)
+         if (dir < 0)
          {
-            double errj = 0.0;
-            for (int d = 0; d < vals.Height(); d++)
+            for (int j = 0; j < vals.Width(); j++)
             {
-               errj += vals(d,j)*exact_vals(d,j);
+               double errj = 0.0;
+               for (int d = 0; d < vals.Height(); d++)
+               {
+                  errj += vals(d,j)*exact_vals(d,j);
+               }
+               loc_errs(j) = fabs(errj);
             }
-            loc_errs(j) = fabs(errj);
+         }
+         else
+         {
+            for (int j = 0; j < vals.Width(); j++)
+            {
+               loc_errs(j) = fabs(vals(dir,j)*exact_vals(dir,j));
+            }
          }
       }
       for (int j = 0; j < ir->GetNPoints(); j++)

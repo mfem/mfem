@@ -291,9 +291,11 @@ public:
 
    virtual double ComputeL2Error(VectorCoefficient &exsol,
                                  const IntegrationRule *irs[] = NULL,
-                                 Array<int> *elems = NULL) const
+                                 Array<int> *elems = NULL,
+                                 int dir = -1) const
    {
-      return GlobalLpNorm(2.0, GridFunction::ComputeL2Error(exsol, irs, elems),
+      return GlobalLpNorm(2.0,
+                          GridFunction::ComputeL2Error(exsol, irs, elems, dir),
                           pfes->GetComm());
    }
 
