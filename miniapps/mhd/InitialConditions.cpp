@@ -197,7 +197,7 @@ double E0rhs7(const Vector &x)
 
 double InitialPsi7(const Vector &x)
 {
-    double lx = 5.0*L0, ly = L0, llong = 50.0*L0;
+    double lx = x_factor*L0, ly = 1.0*L0, llong = 50.0*L0;
     return -L0*log(cosh(x(1)/L0)) + beta*exp( - (x(0)/lx)*(x(0)/lx) - (x(1)/ly)*(x(1)/ly) );
     //return -L0*log(cosh(x(1)/L0)) + beta*sin(M_PI/llong*x(1))*cos(M_PI/lx*x(0));
     //return -L0*log(cosh(x(1)/L0)) + beta*exp(-(x(1)/ly)*(x(1)/ly))*cos(M_PI/lx*x(0));
@@ -210,7 +210,7 @@ double BackPsi7(const Vector &x)
 
 double InitialJ7(const Vector &x)
 {
-    double lx = 5.0*L0, ly = L0, llong = 50.0*L0;
+    double lx = x_factor*L0, ly = 1.0*L0, llong = 50.0*L0;
     double exp_xy =exp( - (x(0)/lx)*(x(0)/lx) - (x(1)/ly)*(x(1)/ly) );
     return ( tanh(x(1)/L0)*tanh(x(1)/L0) - 1.0 )/L0  - beta*exp_xy*( 2.0/lx/lx + 2.0/ly/ly - 4.0*(x(0)/lx)*(x(0)/lx)/lx/lx - 4.0*(x(1)/ly)*(x(1)/ly)/ly/ly );
     //return ( tanh(x(1)/L0)*tanh(x(1)/L0) - 1.0 )/L0  - beta*sin(M_PI/llong*x(1))*cos(M_PI/lx*x(0))*M_PI*M_PI*(1.0/llong/llong+1.0/lx/lx);
@@ -219,19 +219,19 @@ double InitialJ7(const Vector &x)
 
 double InitialPsi8(const Vector &x)
 {
-    double lx = 5.0*L0, ly = L0;
+    double lx = x_factor*L0, ly = 1.0*L0;
     //return -L0*( log(cosh(x(1)/L0)) + x(1) ) + beta*exp( - (x(0)/lx)*(x(0)/lx) - (x(1)/ly)*(x(1)/ly) );
-    return -L0*( log(cosh(x(1)/L0)) + x(1) ) + beta*exp(-(x(1)/ly)*(x(1)/ly))*cos(M_PI/lx*x(0));
+    return -L0*log(cosh(x(1)/L0)) + beta*exp(-(x(1)/ly)*(x(1)/ly))*cos(M_PI/lx*x(0));
 }
 
 double BackPsi8(const Vector &x)
 {
-    return -L0*( log(cosh(x(1)/L0)) + x(1) );
+    return -L0*log(cosh(x(1)/L0));
 }
 
 double InitialJ8(const Vector &x)
 {
-    double lx = 5.0*L0, ly = L0, llong = 50.0*L0;
+    double lx = x_factor*L0, ly = 1.0*L0;
     double exp_xy =exp( - (x(0)/lx)*(x(0)/lx) - (x(1)/ly)*(x(1)/ly) );
     //return ( tanh(x(1)/L0)*tanh(x(1)/L0) - 1.0 )/L0  - beta*exp_xy*( 2.0/lx/lx + 2.0/ly/ly - 4.0*(x(0)/lx)*(x(0)/lx)/lx/lx - 4.0*(x(1)/ly)*(x(1)/ly)/ly/ly );
     return ( tanh(x(1)/L0)*tanh(x(1)/L0) - 1.0 )/L0 + beta*exp(-(x(1)/ly)*(x(1)/ly))*cos(M_PI/lx*x(0))*(-M_PI*M_PI/lx/lx - 2/ly/ly + 4*x(1)*x(1)/ly/ly/ly/ly);
@@ -249,13 +249,13 @@ double InitialJ9(const Vector &x)
 
 double InitialPhi9(const Vector &x)
 {
-    double lx = 5.0*L0, ly = L0/2.0;
+    double lx = x_factor*L0, ly = L0/2.0;
     return beta*exp( - (x(0)/lx)*(x(0)/lx) - (x(1)/ly)*(x(1)/ly) );
 }
 
 double InitialW9(const Vector &x)
 {
-    double lx = 5.0*L0, ly = L0/2.0;
+    double lx = x_factor*L0, ly = L0/2.0;
     double exp_xy =exp( - (x(0)/lx)*(x(0)/lx) - (x(1)/ly)*(x(1)/ly) );
     return - beta*exp_xy*( 2.0/lx/lx + 2.0/ly/ly - 4.0*(x(0)/lx)*(x(0)/lx)/lx/lx - 4.0*(x(1)/ly)*(x(1)/ly)/ly/ly );
 }

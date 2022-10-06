@@ -29,6 +29,7 @@ double beta;
 double Lx;  
 double lambda;
 double resiG;
+double x_factor=5.0;
 double ep=.2;
 int icase = 1;
 ParMesh *pmesh;
@@ -61,6 +62,7 @@ int main(int argc, char *argv[])
    bool useStab = false; //use a stabilized formulation (explicit case only)
    bool initial_refine = false;
    bool compute_pressure = false;
+   bool view_mpi = false;
    const char *petscrc_file = "";
 
    //----amr coefficients----
@@ -130,10 +132,9 @@ int main(int argc, char *argv[])
                   "supg options in explicit formulation");
    args.AddOption(&itau_, "-itau", "--itau",
                   "tau options in supg.");
-   args.AddOption(&visc, "-visc", "--viscosity",
-                  "Viscosity coefficient.");
-   args.AddOption(&resi, "-resi", "--resistivity",
-                  "Resistivity coefficient.");
+   args.AddOption(&visc, "-visc", "--viscosity", "Viscosity coefficient.");
+   args.AddOption(&resi, "-resi", "--resistivity", "Resistivity coefficient.");
+   args.AddOption(&x_factor,"-x-factor","--x-factor", "spatial perturbation factor in x.");
    args.AddOption(&ALPHA, "-alpha", "--hyperdiff",
                   "Numerical hyprediffusion coefficient.");
    args.AddOption(&beta, "-beta", "--perturb", "Pertubation coefficient in initial conditions.");
@@ -175,6 +176,8 @@ int main(int argc, char *argv[])
                   "--no-visit-datafiles", "Save data files for VisIt (visit.llnl.gov) visualization.");
    args.AddOption(&paraview, "-paraview", "--paraview-datafiles", "-no-paraivew",
                   "--no-paraview-datafiles", "Save data files for paraview visualization.");
+   args.AddOption(&view_mpi, "-view-mpi", "--view-mpi", "-no-view-mpi",
+                  "--no-view-mpi", "Save MPI rank in MPI.");
    args.AddOption(&derefine, "-derefine", "--derefine-mesh", "-no-derefine",
                   "--no-derefine-mesh",
                   "Derefine the mesh in AMR.");
@@ -183,11 +186,9 @@ int main(int argc, char *argv[])
    args.AddOption(&yRange, "-yrange", "--y-refine-range", "-no-yrange",
                   "--no-y-refine-range", "Refine only in the y range of [-ytop, ytop] in AMR.");
    args.AddOption(&ytop, "-ytop", "--y-top", "The top of yrange for AMR refinement.");
-   args.AddOption(&use_petsc, "-usepetsc", "--usepetsc", "-no-petsc",
-                  "--no-petsc",
+   args.AddOption(&use_petsc, "-usepetsc", "--usepetsc", "-no-petsc", "--no-petsc",
                   "Use or not PETSc to solve the nonlinear system.");
-   args.AddOption(&use_factory, "-shell", "--shell", "-no-shell",
-                  "--no-shell",
+   args.AddOption(&use_factory, "-shell", "--shell", "-no-shell", "--no-shell",
                   "Use user-defined preconditioner factory (PCSHELL).");
    args.AddOption(&petscrc_file, "-petscopts", "--petscopts",
                   "PetscOptions file to use.");
@@ -915,7 +916,7 @@ int main(int argc, char *argv[])
       pd->RegisterField("phi", &phi);
       pd->RegisterField("omega", &w);
       pd->RegisterField("current", &j);
-      pd->RegisterField("MPI rank", &mpi_rank_gf);
+      if (view_mpi) pd->RegisterField("MPI rank", &mpi_rank_gf);
       if (compute_pressure){
           pd->RegisterField("V", vel);
           pd->RegisterField("B", mag);
@@ -937,6 +938,15 @@ int main(int argc, char *argv[])
    MPI_Barrier(MPI_COMM_WORLD); 
    double start = MPI_Wtime();
    cout.precision(16);
+
+   // Compute l2 norm of the perturbed psi
+   ConstantCoefficient zero(0.0); 
+   double l2norm  = 0.0;
+   if(icase==7 || icase==8 || icase==9) 
+   {
+      l2norm = psi_sub->ComputeL2Error(zero);
+      if (myid==0) cout << "t="<<t<<" ln(|psi_sub|_2) ="<<log(l2norm)<<endl;
+   }
 
    if (myid == 0) cout<<"Start time stepping..."<<endl;
 
@@ -1041,7 +1051,7 @@ int main(int argc, char *argv[])
                gfv->Update();
                vfes->UpdatesFinished();
            }
-           if (paraview) 
+           if (paraview && view_mpi) 
            {
                pw_const_fes.Update();
                mpi_rank_gf.Update();
@@ -1049,7 +1059,7 @@ int main(int argc, char *argv[])
 
            pmesh->Rebalance();
 
-           if (paraview) 
+           if (paraview && view_mpi) 
            {
                pw_const_fes.Update();
                mpi_rank_gf.Update();
@@ -1131,7 +1141,7 @@ int main(int argc, char *argv[])
                 vfes->UpdatesFinished();
              }
 
-             if (paraview) 
+             if (paraview && view_mpi) 
              {
                  pw_const_fes.Update();
                  mpi_rank_gf.Update();
@@ -1139,7 +1149,7 @@ int main(int argc, char *argv[])
 
              pmesh->Rebalance();
 
-             if (paraview) 
+             if (paraview && view_mpi) 
              {
                  pw_const_fes.Update();
                  mpi_rank_gf.Update();
@@ -1228,6 +1238,12 @@ int main(int argc, char *argv[])
                 ParGridFunction psiBack(&fespace);
                 psiBack.ProjectCoefficient(psi8);
                 subtract(psi,psiBack,*psi_sub);
+              }
+              // Compute l2 norm of perturbed psi
+              if (icase==7 || icase==8 || icase==9)
+              {
+                l2norm  = psi_sub->ComputeL2Error(zero);
+                if (myid==0) cout << "t="<<t<<" ln(|psi_sub|_2) ="<<log(l2norm)<<endl;
               }
 
               if (!vfes_match){
@@ -1426,7 +1442,7 @@ int main(int argc, char *argv[])
 
         if (paraview)
         {
-           mpi_rank_gf = myid_rand;
+           if (view_mpi) mpi_rank_gf = myid_rand;
            pd->SetCycle(ti);
            pd->SetTime(t);
            pd->Save();

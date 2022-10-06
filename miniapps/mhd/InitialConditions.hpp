@@ -1,3 +1,6 @@
+#ifndef MHD_INITIAL_CONDITIONS_HPP
+#define MHD_INITIAL_CONDITIONS_HPP
+
 #include "mfem.hpp"
 
 using namespace std;
@@ -8,6 +11,7 @@ extern double Lx;  //size of x domain
 extern double lambda;
 extern double resiG;
 extern double ep;
+extern double x_factor; //pertuerbation factor in x
 
 //initial condition
 double InitialPhi(const Vector &x);
@@ -62,8 +66,6 @@ double InitialJ9(const Vector &x);
 double InitialPhi9(const Vector &x);
 double InitialW9(const Vector &x);
 
-
-
 double resiVari(const Vector &x);
 
-
+#endif
