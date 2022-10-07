@@ -2107,7 +2107,7 @@ private:
    bool symmetric = true; ///< False if using a nonsymmetric matrix coefficient
 
    void SetupPatchPA(const int patch, Array<int> const& Q1D, Mesh *mesh,
-                     Vector & D);
+                     Vector & D, bool unitWeights=false);
 
    void SetupPatch3D(const int Q1Dx,
                      const int Q1Dy,
@@ -2157,6 +2157,10 @@ public:
    virtual void AssemblePatchMatrix(const int patch,
                                     Mesh *mesh,
                                     DenseMatrix &pmat, SparseMatrix*& smat);
+
+   void AssemblePatchMatrix_fullQuadrature(const int patch,
+                                           Mesh *mesh,
+                                           DenseMatrix &pmat, SparseMatrix*& smat);
 
    void AssemblePatchMatrix_simpleButInefficient(const int patch,
                                                  Mesh *mesh,

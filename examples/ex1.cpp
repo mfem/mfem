@@ -79,6 +79,7 @@ int main(int argc, char *argv[])
    bool visualization = true;
    bool algebraic_ceed = false;
    bool patchAssembly = false;
+   int ref_levels = 0;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -101,6 +102,8 @@ int main(int argc, char *argv[])
                   "Enable or disable GLVis visualization.");
    args.AddOption(&patchAssembly, "-patcha", "--patch-assembly", "-no-patcha",
                   "--no-patch-assembly", "Enable patch-wise assembly.");
+   args.AddOption(&ref_levels, "-ref", "--refine",
+                  "Number of uniform mesh refinements.");
    args.Parse();
    if (!args.Good())
    {
@@ -119,6 +122,8 @@ int main(int argc, char *argv[])
    //    the same code.
    Mesh mesh(mesh_file, 1, 1);
    int dim = mesh.Dimension();
+   //mesh.DegreeElevate(1);
+   //mesh.Save("beam4.mesh");
 
    // 4. Refine the mesh to increase the resolution. In this example we do
    //    'ref_levels' of uniform refinement. We choose 'ref_levels' to be the
@@ -134,6 +139,14 @@ int main(int argc, char *argv[])
       }
    }
    */
+
+   for (int l = 0; l < ref_levels; l++)
+   {
+      mesh.UniformRefinement();
+   }
+
+   //mesh.Save("beam4ref.mesh");
+   //return 0;
 
    // 5. Define a finite element space on the mesh. Here we use continuous
    //    Lagrange finite elements of the specified order. If order < 1, we
@@ -197,6 +210,7 @@ int main(int argc, char *argv[])
    if (order < 0)
    {
       const int ir_order = 2*fec->GetOrder();
+      cout << "Using ir_order " << ir_order << endl;
 
       bool uniformRule = false;
       if (uniformRule)
@@ -214,12 +228,42 @@ int main(int argc, char *argv[])
             Array<const KnotVector*> kv(dim);
             mesh.NURBSext->GetPatchKnotVectors(p, kv);
 
-            std::vector<IntegrationRule*> ir1D(dim);
+            std::vector<const IntegrationRule*> ir1D(dim);
             const IntegrationRule *ir = &IntRules.Get(Geometry::SEGMENT, ir_order);
+
+            // NOTE: I tried using a fine rule for the entire patch, but it results
+            // in garbage. The only thing that works so far is an ordinary rule applied
+            // to each knot span.
+            //const IntegrationRule *irFine = &IntRules.Get(Geometry::SEGMENT, 10);
+
             for (int i=0; i<dim; ++i)
             {
                ir1D[i] = ir->ApplyToKnotIntervals(*kv[i]);
+
+               /*
+               for (int j=0; j<kv[i]->Size(); ++j)
+               cout << "kv[" << i << "][" << j << "] " << (*kv[i])[j] << endl;
+                    */
             }
+
+            /*
+            // TODO: scale ir knots by kv physical length
+            IntegrationRule *irFineScaled = new IntegrationRule(irFine->Size());
+            const double scale = 4.0;
+
+            for (int i=0; i<irFine->Size(); ++i)
+              {
+            (*irFineScaled)[i].Set(scale * (*irFine)[i].x, 0.0, 0.0, (*irFine)[i].weight);
+            //(*irFineScaled)[i].Set1w(scale * (*irFine)[i].x, (*irFine)[i].weight);
+            cout << i << ": irFine " << (*irFine)[i].x << " -> " << (*irFineScaled)[i].x << endl;
+                 }
+
+                    for (int i=0; i<dim; ++i)
+                    {
+                       ir1D[i] = ir;
+                    }
+               ir1D[0] = irFineScaled;
+               */
 
             /*
                  if (dim == 3)
@@ -243,6 +287,9 @@ int main(int argc, char *argv[])
 
    a.AddDomainIntegrator(di);
 
+   StopWatch ta, ts, tfls;
+   ta.Start();
+
    // 10. Assemble the bilinear form and the corresponding linear system,
    //     applying any necessary transformations such as: eliminating boundary
    //     conditions, applying conforming constraints for non-conforming AMR,
@@ -251,11 +298,26 @@ int main(int argc, char *argv[])
    a.Assemble();
    delete patchRule;
 
+   tfls.Start();
    OperatorPtr A;
    Vector B, X;
    a.FormLinearSystem(ess_tdof_list, x, b, A, X, B);
 
+   tfls.Stop();
+   cout << "Timing for FormLinearSystem " << tfls.RealTime() << endl;
+
+   ta.Stop();
+   cout << "Timing for assembly " << ta.RealTime() << endl;
+
    cout << "Size of linear system: " << A->Height() << endl;
+
+   /* Debugging
+   SparseMatrix *Asp = (SparseMatrix*) A.Ptr();
+   ofstream outs("Apatch.mat");
+   Asp->PrintMatlab(outs);
+   */
+
+   ts.Start();
 
    // 11. Solve the linear system A X = B.
    if (!pa)
@@ -292,6 +354,9 @@ int main(int argc, char *argv[])
          CG(*A, B, X, 1, 400, 1e-12, 0.0);
       }
    }
+
+   ts.Stop();
+   cout << "Timing for patch solve " << ts.RealTime() << endl;
 
    // 12. Recover the solution as a finite element grid function.
    a.RecoverFEMSolution(X, b, x);
@@ -380,6 +445,9 @@ void ComputeStandardSolution(GridFunction & x, bool pa)
    di->SetIntRule(new IntegrationRule(*ir, *ir, *ir));
    a.AddDomainIntegrator(di);
 
+   StopWatch ta, ts;
+   ta.Start();
+
    // 10. Assemble the bilinear form and the corresponding linear system,
    //     applying any necessary transformations such as: eliminating boundary
    //     conditions, applying conforming constraints for non-conforming AMR,
@@ -391,8 +459,18 @@ void ComputeStandardSolution(GridFunction & x, bool pa)
    Vector B, X;
    a.FormLinearSystem(ess_tdof_list, x, b, A, X, B);
 
+   ta.Stop();
+   cout << "Timing for element assembly " << ta.RealTime() << endl;
+
    cout << "Size of linear system: " << A->Height() << endl;
 
+   /* Debugging
+   SparseMatrix *Asp = (SparseMatrix*) A.Ptr();
+   ofstream outs("Ast.mat");
+   Asp->PrintMatlab(outs);
+   */
+
+   ts.Start();
    // 11. Solve the linear system A X = B.
    if (!pa)
    {
@@ -429,7 +507,9 @@ void ComputeStandardSolution(GridFunction & x, bool pa)
       }
    }
 
+   ts.Stop();
+   cout << "Timing for element solve " << ts.RealTime() << endl;
+
    // 12. Recover the solution as a finite element grid function.
    a.RecoverFEMSolution(X, b, x);
 }
-
