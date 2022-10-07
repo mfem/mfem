@@ -79,6 +79,18 @@ dtrtrs_(char *, char*, char *, int *, int *, double *, int *, double *, int *,
         int *);
 extern "C" void
 dpotri_(char *, int *, double *, int*, int *);
+
+// For NNLS
+extern "C" void
+dormqr_(char *, char *, int *, int *, int *, double *, int*, double *,
+        double *, int *, double *, int*, int*);
+
+extern "C" void
+dgeqrf_(int *, int *, double *, int *, double *, double *, int *, int *);
+
+extern "C" void
+dgemv_(char *, int *, int *, double *, double *, int *, double *, int *,
+       double *, double *, int *);
 #endif
 
 
@@ -3970,6 +3982,794 @@ void BatchLUSolve(const DenseTensor &Mlu, const Array<int> &P, Vector &X)
       kernels::LUSolve(&data_all(0, 0,e), m, &piv_all(0, e), &x_all(0,e));
    });
 
+}
+
+NNLSserial::NNLSserial(double const_tol, int min_nnz, int max_nnz,
+                       int verbosity,
+                       double res_change_termination_tol,
+                       double zero_tol, int n_outer, int n_inner)
+   : const_tol_(const_tol), min_nnz_(min_nnz), max_nnz_(max_nnz),
+     verbosity_(verbosity),
+     res_change_termination_tol_(res_change_termination_tol),
+     zero_tol_(zero_tol), n_outer_(n_outer), n_inner_(n_inner),
+     NNLS_qrres_on_(false),
+     qr_residual_mode_(QRresidualMode::hybrid)
+{
+}
+
+NNLSserial::~NNLSserial()
+{}
+
+void NNLSserial::set_verbosity(const int verbosity_in)
+{
+   verbosity_ = verbosity_in;
+}
+
+void NNLSserial::set_qrresidual_mode(const QRresidualMode qr_residual_mode)
+{
+   qr_residual_mode_ = qr_residual_mode;
+   if (qr_residual_mode_ == QRresidualMode::on)
+   {
+      NNLS_qrres_on_ = true;
+   }
+}
+
+void NNLSserial::normalize_constraints(DenseMatrix& matTrans, Vector& rhs_lb,
+                                       Vector& rhs_ub)
+{
+   // We scale everything so that rescaled half gap is the same for all constraints
+   const unsigned int n = matTrans.NumRows();
+   const unsigned int m = matTrans.NumCols();
+
+   MFEM_VERIFY(rhs_lb.Size() == m && rhs_ub.Size() == m, "");
+
+   Vector rhs_avg = rhs_ub;
+   rhs_avg += rhs_lb;
+   rhs_avg *= 0.5;
+
+   Vector rhs_halfgap = rhs_ub;
+   rhs_halfgap -= rhs_lb;
+   rhs_halfgap *= 0.5;
+
+   Vector rhs_avg_glob = rhs_avg;
+   Vector rhs_halfgap_glob = rhs_halfgap;
+   Vector halfgap_target(m);
+   halfgap_target = 1.0e3 * const_tol_;
+
+   for (int i=0; i<m; ++i)
+   {
+      const double s = halfgap_target(i) / rhs_halfgap_glob(i);
+      for (int j=0; j<n; ++j)
+      {
+         matTrans(j,i) *= s;
+      }
+
+      rhs_lb(i) = (rhs_avg(i) * s) - halfgap_target(i);
+      rhs_ub(i) = (rhs_avg(i) * s) + halfgap_target(i);
+   }
+}
+
+void NNLSserial::solve_serial(const DenseMatrix& matTrans,
+                              const Vector& rhs_lb, const Vector& rhs_ub, Vector& soln)
+{
+#ifndef MFEM_USE_LAPACK
+   MFEM_ABORT("MFEM must be built with LAPACK in order to use NNLSserial::solve_serial");
+#else
+   int n = matTrans.NumRows();
+   int m = matTrans.NumCols();
+
+   MFEM_VERIFY(rhs_lb.Size() == m && rhs_lb.Size() == m && soln.Size() == n, "");
+   if (max_nnz_ == 0)
+   {
+      max_nnz_ = matTrans.NumRows();
+   }
+
+   // prepare right hand side
+   Vector rhs_avg(rhs_ub);
+   rhs_avg += rhs_lb;
+   rhs_avg *= 0.5;
+
+   Vector rhs_halfgap(rhs_ub);
+   rhs_halfgap -= rhs_lb;
+   rhs_halfgap *= 0.5;
+
+   Vector rhs_avg_glob(rhs_avg);
+   Vector rhs_halfgap_glob(rhs_halfgap);
+
+   int ione = 1;
+   double fone = 1.0;
+
+   char lside = 'L';
+   char trans = 'T';
+   char notrans = 'N';
+
+   std::vector<unsigned int> nz_ind(m);
+   Vector res_glob(m);
+   Vector mu(n);
+   Vector mu2(n);
+   int n_nz_ind = 0;
+   int n_glob = 0;
+   int m_update;
+   int min_nnz_cap = std::min(static_cast<int>(min_nnz_), std::min(m,n));
+   int info;
+   Vector l2_res_hist(n_outer_);
+   std::vector<unsigned int> stalled_indices;
+   int stalledFlag = 0;
+   int num_stalled = 0;
+   int nz_ind_zero = 0;
+
+   Vector soln_nz_glob(m);
+   Vector soln_nz_glob_up(m);
+
+   // The following matrices are stored in column-major format as Vectors
+   Vector mat_0_data(m * n);
+   Vector mat_qr_data(m * n);
+   Vector submat_data(m * n);
+
+   Vector tau(n);
+   Vector sub_tau = tau;
+   Vector vec1(m);
+
+   // temporary work arrays
+   int lwork;
+   std::vector<double> work;
+   int n_outer_iter = 0;
+   int n_total_inner_iter = 0;
+   int i_qr_start;
+   int n_update;
+   unsigned int iiter;
+   // 0 = converged; 1 = maximum iterations reached;
+   // 2 = NNLS stalled (no change in residual for many iterations)
+   int exit_flag = 1;
+
+   res_glob = rhs_avg_glob;
+   Vector qt_rhs_glob = rhs_avg_glob;
+   Vector qqt_rhs_glob = qt_rhs_glob;
+   Vector sub_qt = rhs_avg_glob;
+
+   // compute threshold tolerance for the Lagrange multiplier mu
+   double mu_tol = 0.0;
+
+   {
+      Vector tmp(n);
+      matTrans.Mult(rhs_halfgap_glob, tmp);
+      double maxv = tmp(0);
+      for (int i=1; i<n; ++i)
+      {
+         maxv = std::max(maxv, tmp(i));
+      }
+
+      mu_tol = 1.0e-15 * maxv;
+   }
+
+   double rmax = 0.0;
+   double mumax = 0.0;
+
+   for (unsigned int oiter = 0; oiter < n_outer_; ++oiter)
+   {
+      stalledFlag = 0;
+
+      rmax = fabs(res_glob(0)) - rhs_halfgap_glob(0);
+      for (int i=1; i<m; ++i)
+      {
+         rmax = std::max(rmax, fabs(res_glob(i)) - rhs_halfgap_glob(i));
+      }
+
+      l2_res_hist(oiter) = res_glob.Norml2();
+
+      if (verbosity_ > 1)
+      {
+         printf("%d %d %d %d %d %.15e %.15e\n", oiter, n_total_inner_iter,
+                m, n, n_glob, rmax, l2_res_hist(oiter));
+         fflush(stdout);
+      }
+      if (rmax <= const_tol_ && n_glob >= min_nnz_cap)
+      {
+         if (verbosity_ > 1)
+         {
+            printf("target tolerance met\n");
+            fflush(stdout);
+         }
+         exit_flag = 0;
+         break;
+      }
+
+      if (n_glob >= max_nnz_)
+      {
+         if (verbosity_ > 1)
+         {
+            printf("target nnz met\n");
+            fflush(stdout);
+         }
+         exit_flag = 0;
+         break;
+      }
+
+      if (n_glob >= m)
+      {
+         if (verbosity_ > 1)
+         {
+            printf("system is square... exiting\n");
+            fflush(stdout);
+         }
+         exit_flag = 3;
+         break;
+      }
+
+      if (oiter > 101)  //we don't check for stall for the first 100 iterations
+      {
+         double mean0 = 0.0;
+         double mean1 = 0.0;
+         for (int i=0; i<50; ++i)
+         {
+            mean0 += l2_res_hist(oiter - i);
+            mean1 += l2_res_hist(oiter - 50 - i);
+         }
+
+         // Omitting division by 50, since a ratio is taken.
+         double mean_res_change = (mean1 / mean0) - 1.0;
+         if (std::abs(mean_res_change) < res_change_termination_tol_)
+         {
+            if (verbosity_ > 1)
+            {
+               printf("NNLS stall detected... exiting\n");
+               fflush(stdout);
+            }
+            exit_flag = 2;
+            break;
+         }
+      }
+
+      // find the next index
+      matTrans.Mult(res_glob, mu);
+
+      for (int i = 0; i < n_nz_ind; ++i)
+      {
+         mu(nz_ind[i]) = 0.0;
+      }
+      for (unsigned int i = 0; i < stalled_indices.size(); ++i)
+      {
+         mu(stalled_indices[i]) = 0.0;
+      }
+
+      mumax = mu(0);
+      for (int i=1; i<n; ++i)
+      {
+         mumax = std::max(mumax, mu(i));
+      }
+
+      if (mumax < mu_tol)
+      {
+         num_stalled = stalled_indices.size();
+         if (num_stalled > 0)
+         {
+            if (verbosity_ > 0)
+            {
+               mfem::out << "Lagrange multiplier is below the minimum threshold: mumax = " <<
+                         mumax << ", mutol = " << mu_tol << "\n" <<
+                         " Resetting stalled indices vector of size " << num_stalled << "\n";
+            }
+            stalled_indices.resize(0);
+
+            matTrans.Mult(res_glob, mu);
+
+            for (int i = 0; i < n_nz_ind; ++i)
+            {
+               mu(nz_ind[i]) = 0.0;
+            }
+
+            mumax = mu(0);
+            for (int i=1; i<n; ++i)
+            {
+               mumax = std::max(mumax, mu(i));
+            }
+         }
+      }
+
+      int imax = 0;
+      {
+         double tmax = mu(0);
+         for (int i=1; i<n; ++i)
+         {
+            if (mu(i) > tmax)
+            {
+               tmax = mu(i);
+               imax = i;
+            }
+         }
+      }
+
+      // record the local value of the next index
+      nz_ind[n_nz_ind] = imax;
+      ++n_nz_ind;
+
+      if (verbosity_ > 2)
+      {
+         printf("found next index: %d %.15e\n", imax, mumax);
+         fflush(stdout);
+      }
+
+      for (int i=0; i<m; ++i)
+      {
+         mat_0_data(i + (n_glob*m)) = matTrans(imax,i);
+         mat_qr_data(i + (n_glob*m)) = mat_0_data(i + (n_glob*m));
+      }
+
+      i_qr_start = n_glob;
+      ++n_glob; // increment the size of the global matrix
+
+      if (verbosity_ > 2)
+      {
+         printf("updated matrix with new index\n");
+         fflush(stdout);
+      }
+
+      for (iiter = 0; iiter < n_inner_; ++iiter)
+      {
+         ++n_total_inner_iter;
+
+         // initialize
+         const bool incremental_update = true;
+         n_update = n_glob - i_qr_start;
+         m_update = m - i_qr_start;
+         if (incremental_update)
+         {
+            // apply householder reflectors to compute Q^T new_cols
+            lwork = -1;
+            work.resize(10);
+
+            dormqr_(&lside, &trans, &m, &n_update, &i_qr_start,
+                    mat_qr_data.GetData(), &m, tau.GetData(),
+                    mat_qr_data.GetData() + (i_qr_start * m), &m,
+                    work.data(), &lwork, &info);
+            MFEM_VERIFY(info == 0, ""); // Q^T A update work calculation failed
+            lwork = static_cast<int>(work[0]);
+            work.resize(lwork);
+            dormqr_(&lside, &trans, &m, &n_update, &i_qr_start,
+                    mat_qr_data.GetData(), &m, tau.GetData(),
+                    mat_qr_data.GetData() + (i_qr_start * m), &m,
+                    work.data(), &lwork, &info);
+            MFEM_VERIFY(info == 0, ""); // Q^T A update failed
+            // compute QR factorization of the submatrix
+            lwork = -1;
+            work.resize(10);
+
+            // Copy m_update-by-n_update submatrix of mat_qr_data,
+            // starting at (i_qr_start, i_qr_start)
+            for (int i=0; i<m_update; ++i)
+               for (int j=0; j<n_update; ++j)
+               {
+                  submat_data[i + (j * m_update)] =
+                     mat_qr_data[i + i_qr_start + ((j + i_qr_start) * m)];
+               }
+
+            // Copy tau subvector of length n_update, starting at i_qr_start
+            for (int j=0; j<n_update; ++j)
+            {
+               sub_tau[j] = tau[i_qr_start + j];
+            }
+
+            dgeqrf_(&m_update, &n_update,
+                    submat_data.GetData(), &m_update, sub_tau.GetData(),
+                    work.data(), &lwork, &info);
+            MFEM_VERIFY(info == 0, ""); // QR update factorization work calculation
+            lwork = static_cast<int>(work[0]);
+            work.resize(lwork);
+            dgeqrf_(&m_update, &n_update,
+                    submat_data.GetData(), &m_update, sub_tau.GetData(),
+                    work.data(), &lwork, &info);
+            MFEM_VERIFY(info == 0, ""); // QR update factorization failed
+
+            // Copy result back
+            for (int i=0; i<m_update; ++i)
+               for (int j=0; j<n_update; ++j)
+               {
+                  mat_qr_data[i + i_qr_start + ((j + i_qr_start)* m)] =
+                     submat_data[i + (j * m_update)];
+               }
+
+            for (int j=0; j<n_update; ++j)
+            {
+               tau[i_qr_start + j] = sub_tau[j];
+            }
+         }
+         else
+         {
+            // copy everything to mat_qr then do full QR
+            for (int i=0; i<m; ++i)
+               for (int j=0; j<n_glob; ++j)
+               {
+                  mat_qr_data(i + (j*m)) = mat_0_data(i + (j*m));
+               }
+
+            // compute qr factorization (first find the size of work and then perform qr)
+            lwork = -1;
+            work.resize(10);
+            dgeqrf_(&m, &n_glob,
+                    mat_qr_data.GetData(), &m, tau.GetData(),
+                    work.data(), &lwork, &info);
+            MFEM_VERIFY(info == 0, ""); // QR factorization work calculation
+            lwork = static_cast<int>(work[0]);
+            work.resize(lwork);
+            dgeqrf_(&m, &n_glob,
+                    mat_qr_data.GetData(), &m, tau.GetData(),
+                    work.data(), &lwork, &info);
+            MFEM_VERIFY(info == 0, ""); // QR factorization failed
+         }
+
+         if (verbosity_ > 2)
+         {
+            printf("updated QR %d\n", iiter);
+            fflush(stdout);
+         }
+
+         // apply householder reflectors to compute Q^T b
+         if (incremental_update && iiter == 0)
+         {
+            lwork = -1;
+            work.resize(10);
+
+            // Copy submatrix of mat_qr_data starting at (i_qr_start, i_qr_start), of size m_update-by-1
+            // Copy submatrix of qt_rhs_glob starting at (i_qr_start, 0), of size m_update-by-1
+
+            for (int i=0; i<m_update; ++i)
+            {
+               submat_data[i] = mat_qr_data[i + i_qr_start + (i_qr_start * m)];
+               sub_qt[i] = qt_rhs_glob[i + i_qr_start];
+            }
+
+            sub_tau[0] = tau[i_qr_start];
+
+            dormqr_(&lside, &trans, &m_update, &ione, &ione,
+                    submat_data.GetData(), &m_update, sub_tau.GetData(),
+                    sub_qt.GetData(), &m_update,
+                    work.data(), &lwork, &info);
+            MFEM_VERIFY(info == 0, ""); // H_last y work calculation failed
+            lwork = static_cast<int>(work[0]);
+            work.resize(lwork);
+            dormqr_(&lside, &trans, &m_update, &ione, &ione,
+                    submat_data.GetData(), &m_update, sub_tau.GetData(),
+                    sub_qt.GetData(), &m_update,
+                    work.data(), &lwork, &info);
+            MFEM_VERIFY(info == 0, ""); // H_last y failed
+            // Copy result back
+            for (int i=0; i<m_update; ++i)
+            {
+               qt_rhs_glob[i + i_qr_start] = sub_qt[i];
+            }
+         }
+         else
+         {
+            // compute Q^T b from scratch
+            qt_rhs_glob = rhs_avg_glob;
+            lwork = -1;
+            work.resize(10);
+            dormqr_(&lside, &trans, &m, &ione, &n_glob,
+                    mat_qr_data.GetData(), &m, tau.GetData(),
+                    qt_rhs_glob.GetData(), &m,
+                    work.data(), &lwork, &info);
+            MFEM_VERIFY(info == 0, ""); // Q^T b work calculation failed
+            lwork = static_cast<int>(work[0]);
+            work.resize(lwork);
+            dormqr_(&lside, &trans, &m, &ione, &n_glob,
+                    mat_qr_data.GetData(), &m, tau.GetData(),
+                    qt_rhs_glob.GetData(), &m,
+                    work.data(), &lwork, &info);
+            MFEM_VERIFY(info == 0, ""); // Q^T b failed
+         }
+
+         if (verbosity_ > 2)
+         {
+            printf("updated rhs %d\n", iiter);
+            fflush(stdout);
+         }
+
+         // apply R^{-1}; first n_glob entries of vec1 are overwritten
+         char upper = 'U';
+         char nounit = 'N';
+         vec1 = qt_rhs_glob;
+         dtrsm_(&lside, &upper, &notrans, &nounit,
+                &n_glob, &ione, &fone,
+                mat_qr_data.GetData(), &m,
+                vec1.GetData(), &n_glob);
+
+         if (verbosity_ > 2)
+         {
+            printf("solved triangular system %d\n", iiter);
+            fflush(stdout);
+         }
+
+         // check if all entries are positive
+         int pos_ibool = 0;
+         double smin = n_glob > 0 ? vec1(0) : 0.0;
+         for (int i=0; i<n_glob; ++i)
+         {
+            soln_nz_glob_up(i) = vec1(i);
+            smin = std::min(smin, soln_nz_glob_up(i));
+         }
+
+         if (smin > zero_tol_)
+         {
+            pos_ibool = 1;
+            for (int i=0; i<n_glob; ++i)
+            {
+               soln_nz_glob(i) = soln_nz_glob_up(i);
+            }
+         }
+
+         if (pos_ibool == 1)
+         {
+            break;
+         }
+
+         if (verbosity_ > 2)
+         {
+            printf("start pruning %d\n", iiter);
+            for (int i = 0; i < n_glob; ++i)
+            {
+               if (soln_nz_glob_up(i) <= zero_tol_)
+               {
+                  printf("%d %d %.6e\n", i, n_glob, soln_nz_glob_up(i));
+               }
+            }
+            fflush(stdout);
+         }
+
+         if (soln_nz_glob_up(n_glob - 1) <= zero_tol_)
+         {
+            stalledFlag = 1;
+            if (verbosity_ > 2)
+            {
+               if (qr_residual_mode_ == QRresidualMode::hybrid)
+               {
+                  printf("Detected stall due to adding and removing same column. Switching to QR residual calculation method.\n");
+               }
+               else
+               {
+                  printf("Detected stall due to adding and removing same column. Exiting now.\n");
+               }
+               fflush(stdout);
+            }
+         }
+
+         if (stalledFlag == 1 && qr_residual_mode_ == QRresidualMode::hybrid)
+         {
+            NNLS_qrres_on_ = true;
+            break;
+         }
+
+         double alpha = 1.0e300;
+         // find maximum permissible step
+         for (int i = 0; i < n_glob; ++i)
+         {
+            if (soln_nz_glob_up(i) <= zero_tol_)
+            {
+               alpha = std::min(alpha, soln_nz_glob(i)/(soln_nz_glob(i) - soln_nz_glob_up(i)));
+            }
+         }
+         // update solution
+         smin = 0.0;
+         for (int i = 0; i < n_glob; ++i)
+         {
+            soln_nz_glob(i) += alpha*(soln_nz_glob_up(i) - soln_nz_glob(i));
+            if (i == 0 || soln_nz_glob(i) < smin)
+            {
+               smin = soln_nz_glob(i);
+            }
+         }
+
+         while (smin > zero_tol_)
+         {
+            // This means there was a rounding error, as we should have
+            // a zero element by definition. Recalcualte alpha based on
+            // the index that corresponds to the element that should be
+            // zero.
+
+            int index_min = 0;
+            smin = soln_nz_glob(0);
+            for (int i = 1; i < n_glob; ++i)
+            {
+               if (soln_nz_glob(i) < smin)
+               {
+                  smin = soln_nz_glob(i);
+                  index_min = i;
+               }
+            }
+
+            // TODO: there are many max/min computations. Refactor by
+            // implementing functions for this in Vector? Also for
+            // min/max index.
+
+            alpha = soln_nz_glob(index_min)/(soln_nz_glob(index_min)
+                                             - soln_nz_glob_up(index_min));
+
+            // reupdate solution
+            for (int i = 0; i < n_glob; ++i)
+            {
+               soln_nz_glob(i) += alpha*(soln_nz_glob_up(i) - soln_nz_glob(i));
+            }
+         }
+
+         // clean up zeroed entry
+         i_qr_start = n_glob+1;
+         while (true)
+         {
+            // check if there is a zero entry
+            int zero_ibool;
+
+            smin = n_glob > 0 ? soln_nz_glob(0) : 0.0;
+            for (int i=1; i<n_glob; ++i)
+            {
+               smin = std::min(smin, soln_nz_glob(i));
+            }
+
+            if (smin < zero_tol_)
+            {
+               zero_ibool = 1;
+            }
+            else
+            {
+               zero_ibool = 0;
+            }
+
+            if (zero_ibool == 0)   // break if there is no more zero entry
+            {
+               break;
+            }
+
+            int ind_zero = -1; // index where the first zero is encountered
+            nz_ind_zero = 0;
+
+            // identify global index of the zeroed element
+            for (int i = 0; i < n_glob; ++i)
+            {
+               if (soln_nz_glob(i) < zero_tol_)
+               {
+                  ind_zero = i;
+                  break;
+               }
+            }
+            MFEM_VERIFY(ind_zero != -1, "");
+            // identify the local index for nz_ind to which the zeroed entry belongs
+            for (int i = 0; i < ind_zero; ++i)
+            {
+               ++nz_ind_zero;
+            }
+
+            {
+               // copy mat_0.cols[ind_zero+1,n_glob) to mat_qr.cols[ind_zero,n_glob-1)
+               int ind_zero_f = ind_zero + 1; // FORTRAN index
+
+               // TODO: is it necessary to copy first to mat_qr_data?
+               for (int i=0; i<m; ++i)
+                  for (int j=ind_zero; j<n_glob-1; ++j)
+                  {
+                     mat_qr_data(i + (j*m)) = mat_0_data(i + ((j+1)*m));
+                  }
+
+               // copy mat_qr.cols[ind_zero,n_glob-1) to mat_0.cols[ind_zero,n_glob-1)
+               for (int i=0; i<m; ++i)
+                  for (int j=ind_zero; j<n_glob-1; ++j)
+                  {
+                     mat_0_data(i + (j*m)) = mat_qr_data(i + (j*m));
+                  }
+            }
+
+            // remove the zeroed entry from the local matrix index
+            // remove the zeroed entry
+            for (int i = nz_ind_zero; i < n_nz_ind-1; ++i)
+            {
+               nz_ind[i] = nz_ind[i+1];
+            }
+            --n_nz_ind;
+
+            // shift soln_nz_glob and proc_index
+            for (int i = ind_zero; i < n_glob-1; ++i)
+            {
+               soln_nz_glob(i) = soln_nz_glob(i+1);
+            }
+
+            i_qr_start = std::min(i_qr_start, ind_zero);
+            --n_glob;
+         } // end of pruning loop
+
+         if (verbosity_ > 2)
+         {
+            printf("finished pruning %d\n", iiter);
+            fflush(stdout);
+         }
+      } // end of inner loop
+
+      // check if we have stalled
+      if (stalledFlag == 1)
+      {
+         iiter = 1;
+         --n_glob;
+         {
+            --n_nz_ind;
+            num_stalled = stalled_indices.size();
+            stalled_indices.resize(num_stalled + 1);
+            stalled_indices[num_stalled] = imax;
+            if (verbosity_ > 2)
+            {
+               mfem::out << "Adding index " << imax <<
+                         " to stalled index list of size " << num_stalled << "\n";
+            }
+         }
+      }
+
+      // compute residual
+      if (!NNLS_qrres_on_)
+      {
+         res_glob = rhs_avg_glob;
+         double fmone = -1.0;
+         dgemv_(&notrans, &m, &n_glob, &fmone,
+                mat_0_data.GetData(), &m,
+                soln_nz_glob.GetData(), &ione, &fone,
+                res_glob.GetData(), &ione);
+      }
+      else
+      {
+         // compute residual using res = b - Q*Q^T*b, where Q is from economical QR decomposition
+         lwork = -1;
+         work.resize(10);
+         qqt_rhs_glob = 0.0;
+         for (int i=0; i<n_glob; ++i)
+         {
+            qqt_rhs_glob(i) = qt_rhs_glob(i);
+         }
+
+         dormqr_(&lside, &notrans, &m, &ione, &n_glob, mat_qr_data.GetData(), &m,
+                 tau.GetData(), qqt_rhs_glob.GetData(), &m,
+                 work.data(), &lwork, &info);
+
+         MFEM_VERIFY(info == 0, ""); // Q Q^T b work calculation failed.
+         lwork = static_cast<int>(work[0]);
+         work.resize(lwork);
+         dormqr_(&lside, &notrans, &m, &ione, &n_glob, mat_qr_data.GetData(), &m,
+                 tau.GetData(), qqt_rhs_glob.GetData(), &m,
+                 work.data(), &lwork, &info);
+         MFEM_VERIFY(info == 0, ""); // Q Q^T b calculation failed.
+         res_glob = rhs_avg_glob;
+         res_glob -= qqt_rhs_glob;
+      }
+
+      if (verbosity_ > 2)
+      {
+         printf("computed residual\n");
+         fflush(stdout);
+      }
+
+      ++n_outer_iter;
+   } // end of outer loop
+
+   // insert the solutions
+   MFEM_VERIFY(n_glob == n_nz_ind, "");
+   soln = 0.0;
+   for (int i = 0; i < n_glob; ++i)
+   {
+      soln(nz_ind[i]) = soln_nz_glob(i);
+   }
+
+   if (verbosity_ > 0)
+   {
+      printf("NNLS solver: m = %d, n = %d, outer_iter = %d, inner_iter = %d", m,
+             n, n_outer_iter, n_total_inner_iter);
+      if (exit_flag == 0)
+      {
+         printf(": converged\n");
+      }
+      else
+      {
+         printf("\n");
+         printf("Warning: NNLS unconverged. Stalled = %d\n", exit_flag == 2);
+         printf("resErr = %.8e vs tol = %.8e; mumax = %.6e vs tol = %.6e\n", rmax,
+                const_tol_, mumax, mu_tol);
+      }
+      fflush(stdout);
+   }
+
+#endif
 }
 
 } // namespace mfem

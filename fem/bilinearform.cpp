@@ -382,6 +382,8 @@ void BilinearForm::AssembleBdrElementMatrix(
    }
 }
 
+#include "../mesh/nurbs.hpp"
+
 void BilinearForm::Assemble(int skip_zeros)
 {
    if (ext)
