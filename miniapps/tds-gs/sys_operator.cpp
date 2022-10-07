@@ -97,8 +97,8 @@ Operator &SysOperator::GetGradient(const Vector &psi) const {
   compute_plasma_points(x, *mesh, vertex_map, plasma_inds, ind_ma, ind_x, val_ma, val_x, iprint);
   // val_x = 1.0;
   // val_ma = 0.0;
-  if ((iprint) || (false)) {
-    printf(" val_ma: %f, val_x: %f \n", val_ma, val_x);
+  if ((iprint) || (true)) {
+    // printf(" val_ma: %f, val_x: %f \n", val_ma, val_x);
     printf(" ind_ma: %d, ind_x: %d \n", ind_ma, ind_x);
   }
   // first nonlinear contribution: bilinear operator

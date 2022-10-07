@@ -9,12 +9,14 @@ using namespace std;
 
 double PlasmaModel::S_p_prime(double & psi_N) const
 {
+  // return zero when derivative is singular
   if ((gamma < 1.0) && (psi_N == 1.0)) {
     return 0.0;
   }
   if ((alpha < 1.0) && (psi_N == 0.0)) {
     return 0.0;
   }
+  // outside plasma, return 0
   if ((psi_N > 1.0) || (psi_N < 0.0)) {
     return 0.0;
   }
@@ -22,12 +24,14 @@ double PlasmaModel::S_p_prime(double & psi_N) const
 }
 double PlasmaModel::S_prime_p_prime(double & psi_N) const
 {
+  // return zero when derivative is singular
   if ((gamma < 1.0) && (psi_N == 1.0)) {
     return 0.0;
   }
   if ((alpha < 1.0) && (psi_N == 0.0)) {
     return 0.0;
   }
+  // outside plasma, return 0
   if ((psi_N > 1.0) || (psi_N < 0.0)) {
     return 0.0;
   }
@@ -37,12 +41,14 @@ double PlasmaModel::S_prime_p_prime(double & psi_N) const
 }
 double PlasmaModel::S_ff_prime(double & psi_N) const
 {
+  // return zero when derivative is singular
   if ((gamma < 1.0) && (psi_N == 1.0)) {
     return 0.0;
   }
   if ((alpha < 1.0) && (psi_N == 0.0)) {
     return 0.0;
   }
+  // outside plasma, return 0
   if ((psi_N > 1.0) || (psi_N < 0.0)) {
     return 0.0;
   }
@@ -50,12 +56,14 @@ double PlasmaModel::S_ff_prime(double & psi_N) const
 }
 double PlasmaModel::S_prime_ff_prime(double & psi_N) const
 {
+  // return zero when derivative is singular
   if ((gamma < 1.0) && (psi_N == 1.0)) {
     return 0.0;
   }
   if ((alpha < 1.0) && (psi_N == 0.0)) {
     return 0.0;
   }
+  // outside plasma, return 0
   if ((psi_N > 1.0) || (psi_N < 0.0)) {
     return 0.0;
   }
@@ -113,13 +121,7 @@ double NonlinearGridCoefficient::Eval(ElementTransformation & T,
   Mesh *gf_mesh = psi->FESpace()->GetMesh();
   int Component = 0;
 
-  if (T.mesh == gf_mesh) {
-    psi_val = psi->GetValue(T, ip, Component);
-  }
-  else {
-      cout << "problem!!!" << endl;
-      psi_val = 1.0;
-  }
+  psi_val = psi->GetValue(T, ip, Component);
   double psi_N = normalized_psi(psi_val, psi_max, psi_bdp);
   double mu = model->get_mu();
   double coeff_u2 = model->get_coeff_u2();
@@ -136,10 +138,10 @@ double NonlinearGridCoefficient::Eval(ElementTransformation & T,
       // coefficient for phi
       coeff = 1.0 / (psi_bdp - psi_max);
     } else if (option == 3) {
-      // coefficient for phi_max
+      // coefficient for phi_ma
       coeff = - 1.0 * (1 - psi_N) / (psi_bdp - psi_max);
     } else if (option == 4) {
-      // coefficient for phi_min
+      // coefficient for phi_x
       coeff = - 1.0 * psi_N / (psi_bdp - psi_max);
     }
 
@@ -190,6 +192,7 @@ void compute_plasma_points(const GridFunction & z, const Mesh & mesh,
    vector<int> candidate_x_points;
      
    int count = 0;
+   // **********************************************************************************
    // loop through vertices and check neighboring vertices to see if we found a saddle point
    for(int iv = 0; iv < mesh.GetNV(); ++iv) {
 
@@ -283,6 +286,7 @@ void compute_plasma_points(const GridFunction & z, const Mesh & mesh,
    max_val = x_val;
    ind_max = ind_x;
 
+   // **********************************************************************************
    // start at x_min and mark vertices that are in the plasma
    list<int> queue;
    set<int>::iterator plasma_inds_it;
@@ -294,7 +298,6 @@ void compute_plasma_points(const GridFunction & z, const Mesh & mesh,
      int iv = queue.front();
      queue.pop_front();
 
-     // cout << "index: " << iv << endl;
      // check for neighboring points
      vector<int> adjacent;
      try {
@@ -305,20 +308,20 @@ void compute_plasma_points(const GridFunction & z, const Mesh & mesh,
 
      // check if neighboring points are in the plasma
      for (int i = 0; i < adjacent.size(); ++i) {
-       // cout << "  adjacent: " << adjacent[i] << endl;
        double val = nval[adjacent[i]];
        plasma_inds_it = plasma_inds.find(adjacent[i]);
-       // cout << *plasma_inds_it << endl;
        // check that found vertex is not already accounted for
        if (plasma_inds_it == plasma_inds.end()) {
+         // point is not yet in plasma inds
          if ((val >= min_val) && (val <= x_val)) {
+           // value at this point is between min and max, it is part of plasma
+           // add the point to the queue
            queue.push_back(adjacent[i]);
            plasma_inds.insert(adjacent[i]);
          } else {
-           // add points that are adjacent to the plasma inds as well
+           // value at point is not between min and max, it is adjacent to the plasma
            plasma_inds.insert(adjacent[i]);
          }
-         // cout << "adding " << adjacent[i] << endl;
        }
      }
    }

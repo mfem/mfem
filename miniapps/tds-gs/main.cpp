@@ -353,7 +353,7 @@ int main(int argc, char *argv[])
    double error_old;
    double error;
    LinearForm solver_error(&fespace);
-   for (int i = 0; i < 20; ++i) {
+   for (int i = 0; i < 2; ++i) {
 
      op.Mult(x, out_vec);
      error = GetMaxError(out_vec);
@@ -369,7 +369,7 @@ int main(int argc, char *argv[])
      }
      error_old = error;
 
-     if (error < 1e-12) {
+     if (error < 1e-14) {
        break;
      }
 
@@ -406,7 +406,7 @@ int main(int argc, char *argv[])
      }
 
      
-     double tol = 1e-14;
+     double tol = 1e-12;
      max_iter = 1000;
      GSSmoother M(*Mat);
      GMRES(*Mat, dx, out_vec, M, max_iter, kdim, tol, 0.0, 0);
