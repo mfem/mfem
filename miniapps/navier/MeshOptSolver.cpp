@@ -36,6 +36,33 @@ int MeshMorphingSolver::Solve(
     mfem::ParGridFunction *X = dynamic_cast<mfem::ParGridFunction *>(pmesh_->GetNodes());
     *X += nodeDisp;
 
+    // Compute the minimum det(J) of the input mesh.
+    // Setup the quadrature rules for the TMOP integrator.
+    mfem::IntegrationRules *irules = nullptr;
+    mfem::IntegrationRules IntRulesLo(0, mfem::Quadrature1D::GaussLobatto);
+    irules = &IntRulesLo;
+
+    const int MyRank = pmesh_->GetMyRank();
+
+    double minJacDet = mfem::infinity();
+    const int NE = pmesh_->GetNE();
+    for (int i = 0; i < NE; i++)
+    {
+        const mfem::IntegrationRule &ir =
+            irules->Get(dispFESpace.GetFE(i)->GetGeomType(), quadOrder_);
+        mfem::ElementTransformation *transf = pmesh_->GetElementTransformation(i);
+        for (int j = 0; j < ir.GetNPoints(); j++)
+        {
+            transf->SetIntPoint(&ir.IntPoint(j));
+            minJacDet = std::min(minJacDet, transf->Jacobian().Det());
+        }
+    }
+    double minJ0;
+    MPI_Allreduce(&minJacDet, &minJ0, 1, MPI_DOUBLE, MPI_MIN, MPI_COMM_WORLD);
+    minJacDet = minJ0;
+
+    if (MyRank == 0) { std::cout << "Minimum det(J) of the final mesh is " << minJacDet << std::endl; }
+
     return retVal;
 }
 

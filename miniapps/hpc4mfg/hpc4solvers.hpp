@@ -2,6 +2,7 @@
 #define HPC4SOLVERS_HPP
 
 #include "mfem.hpp"
+#include "ascii.hpp"
 
 namespace mfem{
 
@@ -142,6 +143,189 @@ private:
     double cc;
     double dd;
 
+};
+
+class SurrogateNLDiffusionCoefficient:public BasicNLDiffusionCoefficient
+{
+public:
+
+    SurrogateNLDiffusionCoefficient( 
+        std::string & GradName,
+        std::string & HessianName )
+
+    {
+        this->readSurrogateModel();
+    }
+
+    ~SurrogateNLDiffusionCoefficient(){}
+
+    double Eval(ElementTransformation &T,
+                const IntegrationPoint &ip,
+                const Vector& u)
+    {
+        return 0.0;
+    }
+
+    void Grad(ElementTransformation &T,
+                const IntegrationPoint &ip,
+                const Vector& u, Vector& r)
+    {
+        int dim=u.Size()-1;
+        mfem::Vector du(u.GetData(),dim);
+        mfem::Vector HiddenVec( Weight1Rows );
+
+        mWeightMatrix1.MultTranspose( du, HiddenVec );
+        HiddenVec -= mBiasVector1;
+
+        // activation function
+        HiddenVec = HiddenVec;       //FIXME add activation function
+
+        mfem::Vector OutputVec( Weight2Rows );
+        mWeightMatrix2.MultTranspose( HiddenVec, OutputVec );
+        OutputVec -= mBiasVector1;
+    }
+
+    void Hessian(ElementTransformation &T,
+                 const IntegrationPoint &ip,
+                 const Vector& u, DenseMatrix& h)
+    {
+        int dim=u.Size()-1;
+        mfem::Vector du(u.GetData(),dim);
+        mfem::Vector HiddenVec( Weight1Rows );
+
+
+        HessWeightMatrix1.MultTranspose( du, HiddenVec );
+        HiddenVec -= HessBiasVector1;
+
+        // activation function
+        HiddenVec = HiddenVec;       //FIXME add activation function
+
+        mfem::Vector OutputVec( Weight2Rows );
+        HessWeightMatrix2.MultTranspose( HiddenVec, OutputVec );
+        OutputVec -= HessBiasVector1;
+
+        mfem::DenseMatrix LMat(dim,dim);  LMat = 0.0;
+        mfem::DenseMatrix SkewMat(dim,dim);  SkewMat = 0.0;
+        mfem::DenseMatrix LLT(dim,dim);  LLT = 0.0;
+
+        // tril
+        LMat(0,0) = OutputVec( 0 );
+        LMat(1,0) = OutputVec( 1 );
+        LMat(1,1) = OutputVec( 2 );
+        LMat(2,0) = OutputVec( 3 );
+        LMat(2,1) = OutputVec( 4 );
+        LMat(2,2) = OutputVec( 5 );
+
+        MultAAt( LMat, LLT );
+
+        // triu
+        SkewMat(0,1) = OutputVec( 6 );
+        SkewMat(0,2) = OutputVec( 7 );
+        SkewMat(1,2) = OutputVec( 8 );
+
+        mfem::DenseMatrix SkewMatTrans;
+        SkewMatTrans.Transpose(SkewMat);
+
+        h = 0.0;
+        h +=LLT;
+        h +=SkewMat;
+        h -=SkewMatTrans;
+    }
+
+    void GradientVelWRTDesing(ElementTransformation &T,
+            const IntegrationPoint &ip,
+            const Vector& u, Vector& h)
+    {
+
+    }
+
+
+private:
+
+    mfem::DenseMatrix mWeightMatrix1;
+    mfem::DenseMatrix mWeightMatrix2;
+    mfem::Vector mBiasVector1;
+    mfem::Vector mBiasVector2;
+
+    int Weight1Rows;
+    int Weight1Cols;
+    int Weight2Rows;
+    int Weight2Cols;
+
+    mfem::DenseMatrix HessWeightMatrix1;
+    mfem::DenseMatrix HessWeightMatrix2;
+    mfem::Vector HessBiasVector1;
+    mfem::Vector HessBiasVector2;
+
+    int HessWeight1Rows;
+    int HessWeight1Cols;
+    int HessWeight2Rows;
+    int HessWeight2Cols;
+
+    void readSurrogateModel()
+    {
+        std::string tStringWeight1 = "./weights1.txt";
+        std::string tStringWeight2 = "./weights2.txt";
+        std::string tStringBias1   = "./bias1.txt";
+        std::string tStringBias2 = "./bias2.txt";
+
+        mfem::Ascii tAsciiReader1( tStringWeight1, FileMode::OPEN_RDONLY );
+        mfem::Ascii tAsciiReader2( tStringWeight2, FileMode::OPEN_RDONLY );
+        mfem::Ascii tAsciiReader3( tStringBias1,   FileMode::OPEN_RDONLY );
+        mfem::Ascii tAsciiReader4( tStringBias2,   FileMode::OPEN_RDONLY );
+
+        int tNumLines1 = tAsciiReader1.length();        Weight1Rows = tNumLines1;
+        int tNumLines2 = tAsciiReader2.length();        Weight2Rows = tNumLines2;
+        int tNumLines3 = tAsciiReader3.length();
+        int tNumLines4 = tAsciiReader4.length();
+
+        int Weight1Cols = split_string(tAsciiReader1.line( 0 ), " ").size();
+        int Weight2Cols = split_string(tAsciiReader2.line( 0 ), " ").size();
+
+        mWeightMatrix1.SetSize(tNumLines1, Weight1Cols);
+        mWeightMatrix2.SetSize(tNumLines2, Weight2Cols);
+        mBiasVector1  .SetSize(tNumLines3);
+        mBiasVector2  .SetSize(tNumLines4);
+
+        for( int Ik = 0; Ik < tNumLines1; Ik++ )
+        {
+            const std::string & tFileLine = tAsciiReader1.line( Ik );
+
+            std::vector<std::string> ListOfStrings = split_string( tFileLine, " " );
+
+            for( int Ii = 0; Ii < ListOfStrings.size(); Ii++ )
+            {
+                mWeightMatrix1( Ik, Ii ) = std::stod( ListOfStrings[Ii] );
+            }
+        }
+
+        for( int Ik = 0; Ik < tNumLines2; Ik++ )
+        {
+            const std::string & tFileLine = tAsciiReader2.line( Ik );
+
+            std::vector<std::string> ListOfStrings = split_string( tFileLine, " " );
+
+            for( int Ii = 0; Ii < ListOfStrings.size(); Ii++ )
+            {
+                mWeightMatrix2( Ik, Ii ) = std::stod( ListOfStrings[Ii] );
+            }
+        }
+
+        for( int Ik = 0; Ik < tNumLines3; Ik++ )
+        {
+            const std::string & tFileLine = tAsciiReader4.line( Ik );
+                
+            mBiasVector1( Ik ) = std::stod( tFileLine );
+
+        }
+
+        for( int Ik = 0; Ik < tNumLines4; Ik++ )
+        {
+            const std::string & tFileLine = tAsciiReader4.line( Ik );
+
+            mBiasVector2( Ik ) = std::stod( tFileLine );
+        }
+    }
 };
 
 

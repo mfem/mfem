@@ -128,7 +128,7 @@ int main(int argc, char *argv[])
 
    solver->SetVelocity( &velCoeff );
 
-   mfem::Vector ConstVector(pmesh->Dimension());   ConstVector = 0.0;   //ConstVector(0) = 1.0;
+   mfem::Vector ConstVector(pmesh->Dimension());   ConstVector = 1.0;   //ConstVector(0) = 1.0;
    mfem::VectorConstantCoefficient avgTemp(ConstVector);
 
    solver->SetGradTempMean( &avgTemp );

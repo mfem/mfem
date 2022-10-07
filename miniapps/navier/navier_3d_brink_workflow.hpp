@@ -24,8 +24,9 @@ namespace navier
 struct s_NavierContext
 {
    int order = 2;
-   double kin_vis = 4.9e-3;//0.04231;//0.0456 ;  //0.055
-   double t_final = 0.6;
+   //double kin_vis = 1.0 / (2.64e-3*1.0/ (1.516e-5))  ;//0.055;//0.04231;//0.0456 ;  //0.055
+   double kin_vis = 1.0 / ( 0.1 / (1e-3))  ;//0.055;//0.04231;//0.0456 ;  //0.055
+   double t_final = 0.2;
    double dt = 1.0e-4;
 };
 
@@ -35,7 +36,7 @@ class DensityCoeff:public mfem::Coefficient
 
     enum ProjectionType {zero_one, continuous}; 
 
-    enum PatternType {Ball, Gyroid, SchwarzP, SchwarzD,FCC, BCC, Octet};
+    enum PatternType {Ball, Gyroid, SchwarzP, SchwarzD,FCC, BCC, Octet, TRUSS};
 
 private:
 
@@ -192,6 +193,29 @@ public:
             if(fabs(vv)>eta){ return 0.0;}
             else{return 1.0;}
         }else
+        if(pttype==TRUSS){
+            std::vector< double > Val(3);
+
+            double x[3];
+            Vector transip(x, 3);
+            T.Transform(ip,transip);
+
+            Val[0] =   std::sqrt( std::pow( x[0] - 0.5,2 ) + std::pow( x[1] - 0.5,2 ) )  ;
+            Val[1] =   std::sqrt( std::pow( x[1] - 0.5,2 ) + std::pow( x[2] - 0.5,2 ) ) ;
+            Val[2] =   std::sqrt( std::pow( x[0] - 0.5,2 ) + std::pow( x[2] - 0.5,2 ) ) ;
+
+
+            double vv = DBL_MAX;
+            // loop over corners
+            for( int Ik =0; Ik <3; Ik++)
+            {
+                vv = std::min( vv, Val[Ik]);           
+            }
+            if(prtype==continuous){return vv;}
+
+            if(fabs(vv)>eta){ return 0.0;}
+            else{return 1.0;}
+        }else
         if(pttype==Octet){
             std::vector< double > Val(24);
 
@@ -199,11 +223,44 @@ public:
             Vector transip(x, 3);
             T.Transform(ip,transip);
 
-            Val[0] =   std::abs( x[1] - x[0] ) + x[2] ;
-            Val[1] =   std::abs( x[1] + x[0] - 1.0 ) + x[2];
-            Val[2] =   std::abs( x[1] - x[0] ) + std::abs( x[2] - 1.0 );
-            Val[3] =   std::abs( x[1] + x[0] - 1.0 ) + std::abs( x[2] - 1.0 );
+            if(true)
+            {
+            Val[0]  = std::sqrt( std::pow(x[0] - 1.0 + x[1], 2 ) + std::pow(x[0] - 1.0 + x[1], 2 ) + std::pow(x[2], 2 ) );
+            Val[1]  = std::sqrt( std::pow(x[1] - 1.0 + x[2], 2 ) + std::pow(x[2] - 1.0 + x[1], 2 ) + std::pow(x[0], 2 ) );
+            Val[2]  = std::sqrt( std::pow(x[0] - 1.0 + x[2], 2 ) + std::pow(x[0] - 1.0 + x[2], 2 ) + std::pow(x[1], 2 ) );
 
+            Val[3]  = std::sqrt( std::pow(x[0] - 1.0 + x[1], 2 ) + std::pow(x[0] - 1.0 + x[1], 2 ) + std::pow(x[2] - 1.0, 2 ) );
+            Val[4]  = std::sqrt( std::pow(x[1] - 1.0 + x[2], 2 ) + std::pow(x[2] - 1.0 + x[1], 2 ) + std::pow(x[0] - 1.0, 2 ) );
+            Val[5]  = std::sqrt( std::pow(x[0] - 1.0 + x[2], 2 ) + std::pow(x[0] - 1.0 + x[2], 2 ) + std::pow(x[1] - 1.0, 2 ) );
+
+            Val[6]  = std::sqrt( std::pow(x[0] - x[1], 2 ) + std::pow(x[1] - x[0], 2 ) + std::pow(x[2], 2 ) );
+            Val[7]  = std::sqrt( std::pow(x[1] - x[2], 2 ) + std::pow(x[2] - x[1], 2 ) + std::pow(x[0], 2 ) );
+            Val[8]  = std::sqrt( std::pow(x[0] - x[2], 2 ) + std::pow(x[2] - x[0], 2 ) + std::pow(x[1], 2 ) );
+
+            Val[9]  = std::sqrt( std::pow(x[0] - x[1], 2 ) + std::pow(x[1] - x[0], 2 ) + std::pow(x[2] - 1.0, 2 ) );
+            Val[10] = std::sqrt( std::pow(x[1] - x[2], 2 ) + std::pow(x[2] - x[1], 2 ) + std::pow(x[0] - 1.0, 2 ) );
+            Val[11] = std::sqrt( std::pow(x[0] - x[2], 2 ) + std::pow(x[2] - x[0], 2 ) + std::pow(x[1] - 1.0, 2 ) );
+
+            Val[12] = std::sqrt( std::pow(x[0] - 0.5 + x[1], 2 ) + std::pow(x[1] - 0.5 + x[0], 2 ) + std::pow(x[2] - 0.5, 2 ) );
+            Val[13] = std::sqrt( std::pow(x[0] - 0.5 - x[1], 2 ) + std::pow(x[1] + 0.5 - x[0], 2 ) + std::pow(x[2] - 0.5, 2 ) );
+
+            Val[14] = std::sqrt( std::pow(x[1] - 0.5 + x[2], 2 ) + std::pow(x[2] - 0.5 + x[1], 2 ) + std::pow(x[0] - 0.5, 2 ) );
+            Val[15] = std::sqrt( std::pow(x[1] - 0.5 - x[2], 2 ) + std::pow(x[2] + 0.5 - x[1], 2 ) + std::pow(x[0] - 0.5, 2 ) );
+
+            Val[16] = std::sqrt( std::pow(x[0] - 0.5 + x[2], 2 ) + std::pow(x[2] - 0.5 + x[0], 2 ) + std::pow(x[1] - 0.5, 2 ) );
+            Val[17] = std::sqrt( std::pow(x[0] - 0.5 - x[2], 2 ) + std::pow(x[2] + 0.5 - x[0], 2 ) + std::pow(x[1] - 0.5, 2 ) );
+
+            Val[18] = std::sqrt( std::pow(x[0] + 0.5 - x[1], 2 ) + std::pow(x[1] - 0.5 - x[0], 2 ) + std::pow(x[2] - 0.5, 2 ) );
+            Val[19] = std::sqrt( std::pow(x[0] - 1.5 + x[1], 2 ) + std::pow(x[1] - 1.5 + x[0], 2 ) + std::pow(x[2] - 0.5, 2 ) );
+
+            Val[20] = std::sqrt( std::pow(x[1] + 0.5 - x[2], 2 ) + std::pow(x[2] - 0.5 - x[1], 2 ) + std::pow(x[0] - 0.5, 2 ) );
+            Val[21] = std::sqrt( std::pow(x[1] - 1.5 + x[2], 2 ) + std::pow(x[2] - 1.5 + x[1], 2 ) + std::pow(x[0] - 0.5, 2 ) );
+
+            Val[22] = std::sqrt( std::pow(x[0] + 0.5 - x[2], 2 ) + std::pow(x[2] - 0.5 - x[0], 2 ) + std::pow(x[1] - 0.5, 2 ) );
+            Val[23] = std::sqrt( std::pow(x[0] - 1.5 + x[2], 2 ) + std::pow(x[2] - 1.5 + x[0], 2 ) + std::pow(x[1] - 0.5, 2 ) );
+            }
+            else
+            {
             Val[4] =   std::abs( x[1] - x[2] ) + x[0] ;
             Val[5] =   std::abs( x[1] + x[2] - 1.0 ) + x[0];
             Val[6] =   std::abs( x[1] - x[2] ) + std::abs( x[0] - 1.0 );
@@ -228,6 +285,7 @@ public:
             Val[21] =  std::abs( x[2] + x[0] - 1.5 ) + std::abs( x[1] - 0.5);
             Val[22] =  std::abs( x[2] - x[0] - 0.5 ) + std::abs( x[1] - 0.5);
             Val[23] =  std::abs( x[2] + x[0] - 0.5 ) + std::abs( x[1] - 0.5);
+            }
 
             double vv = DBL_MAX;
             // loop over corners
@@ -241,7 +299,7 @@ public:
             else{return 1.0;}
         }else
         if(pttype==Gyroid){
-            const double period = 2.0 * M_PI;
+            const double period = 2.0 * M_PI*4.0;
             double xv[3];
             mfem::Vector xx(xv,3);
             T.Transform(ip,xx);
@@ -252,19 +310,19 @@ public:
             double vv=std::sin(x)*std::cos(y) +
                       std::sin(y)*std::cos(z) +
                       std::sin(z)*std::cos(x);
-            if(prtype==continuous)
-            {
-                double val;
-                if( vv > 0 )
-                {
-                    return -1.0*( vv - eta );
-                }
-                else
-                {
-                    return vv + eta;
-                }
-                
-            }
+            if(prtype==continuous){return vv;}
+            // if(prtype==continuous)
+            // {
+            //     double val;
+            //     if( vv > 0 )
+            //     {
+            //         return -1.0*( vv - eta );
+            //     }
+            //     else
+            //     {
+            //         return vv + eta;
+            //     }      
+            // }
 
             if(fabs(vv)>-eta && fabs(vv)<eta){ return 1.0;}
             else{return 0.0;}
@@ -306,10 +364,6 @@ public:
         }
 
     }
-
-
-
-
 };
 
 class BrinkPenalAccel:public mfem::VectorCoefficient
@@ -336,6 +390,11 @@ public:
         dcoeff=coeff;
     }
 
+    void SetBrinkmannPenalization( double BrinkammPen )
+    {
+        BrinkammPen_ = BrinkammPen;
+    }
+
     void SetParams(        
        double anx, 
        double any,
@@ -350,25 +409,82 @@ public:
 
     virtual void Eval (mfem::Vector &V, mfem::ElementTransformation &T, const mfem::IntegrationPoint &ip)
     {
-        double dens=dcoeff->Eval(T,ip);
         V.SetSize(GetVDim());
+
         if(vel==nullptr)
         {
             V=0.0;
         }
-        else
+        else if(true)
         {
-            if(dens<1e-8)
+            double dens=dcoeff->Eval(T,ip); 
+
+            if(true)
             {
-                V(0)=mnx * ma;
-                V(1)=mny * ma;
-                V(2)=mnz * ma;
-            }else{
-                vel->GetVectorValue(T,ip,V);
-                V*=-10000.0;
+                if(dens<1e-8)
+                {
+                        V(0)=mnx * ma;
+                        V(1)=mny * ma;
+                    if(T.GetDimension()==3)
+                    {
+                        V(2)=mnz * ma;
+                    }
+                }else
+                {
+                    vel->GetVectorValue(T,ip,V);
+                    V*=-BrinkammPen_;
+                }
+            }
+            else
+            {
+                if(std::abs(dens)<0.25)
+                {
+                    vel->GetVectorValue(T,ip,V);
+                    V*=-BrinkammPen_;
+
+                }
+                else if(dens>0.0)
+                {
+                    V(0)=mnx * ma;
+                    V(1)=mny * ma;
+                    if(T.GetDimension()==3)
+                    {
+                        V(2)=mnz * ma;
+                    }
+                }
+                else
+                {
+                    V(0)=-1.0*mnx * ma;
+                    V(1)=-1.0*mny * ma;
+                    if(T.GetDimension()==3)
+                    {
+                        V(2)=-1.0*mnz * ma;
+                    }
+                }
             }
         }
-    }
+        else
+        {
+            if( 2 == T.Attribute )
+            {
+                    V(0)=mnx * ma;
+                    V(1)=mny * ma;
+                    V(2)=mnz * ma;
+            }
+            else if(1 == T.Attribute )
+            {
+                vel->GetVectorValue(T,ip,V);
+                V*=-1000.0;
+            }
+            else
+            {
+                std::cout<<" unknown element attribute: " <<T.Attribute << std::endl;
+                mfem_error();
+            }
+        }
+    };
+    
+
 
 private:
     mfem::GridFunction* vel = nullptr;
@@ -378,6 +494,8 @@ private:
     double mny  = 0.0;
     double mnz  = 0.0;
     double ma   = 0.0;
+
+    double BrinkammPen_ =10000.0;
 
 };
 
@@ -433,11 +551,13 @@ public:
             meta = aeta;
        };
 
-   void SetDensityCoeff();
+   void SetDensityCoeff(    
+        enum DensityCoeff::PatternType aGeometry,
+        enum DensityCoeff::ProjectionType aProjectionType);
 
    void SetupFlowSolver();
 
-   void SetInitialConditions( std::function<void(const Vector &, double, Vector &)> TDF );
+   void SetInitialConditions( std::function<void(const Vector &, double, Vector &)> TDF, bool LoadSolVecFromFile, double BrinmannPen = 1.0e4 );
 
    void SetupOutput( );
 

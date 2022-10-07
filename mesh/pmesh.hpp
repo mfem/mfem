@@ -498,6 +498,15 @@ public:
    /// Old mesh format (Netgen/Truegrid) version of 'PrintAsOne'
    void PrintAsOneXG(std::ostream &out = mfem::out);
 
+      /** Write the mesh to the stream 'out' on Process 0 as a serial mesh. The
+       output mesh does not have any duplication of vertices/nodes at
+       processor boundaries. */
+   void PrintAsSerial(std::ostream &out = mfem::out) const;
+
+   /** Returns a Serial mesh on MPI rank @a save_rank that does not have any
+       duplication of vertices/nodes at processor boundaries. */
+   Mesh GetSerialMesh(int save_rank) const;
+
    /** Print the mesh in parallel PVTU format. The PVTU and VTU files will be
        stored in the directory specified by @a pathname. If the directory does
        not exist, it will be created. */

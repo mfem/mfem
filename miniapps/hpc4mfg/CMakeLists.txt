@@ -22,6 +22,10 @@ if (MFEM_USE_MPI)
         advection_diffusion_solver.cpp)
   list(APPEND DIST_COMMON_HEADERS
         advection_diffusion_solver.hpp)
+  list(APPEND DIST_COMMON_SOURCES
+        ascii.cpp)
+  list(APPEND DIST_COMMON_HEADERS
+        ascii.hpp)
 
 convert_filenames_to_full_paths(DIST_COMMON_SOURCES)
 convert_filenames_to_full_paths(DIST_COMMON_HEADERS)

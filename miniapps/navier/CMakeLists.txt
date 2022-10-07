@@ -60,6 +60,11 @@ if (MFEM_USE_MPI)
     ${NAVIER_COMMON_FILES}
     LIBRARIES mfem)
 
+  add_mfem_miniapp(test_LF
+    MAIN test_LF.cpp
+    ${NAVIER_COMMON_FILES}
+    LIBRARIES mfem)
+
   add_mfem_miniapp(navier_turbchan
     MAIN navier_turbchan.cpp
     ${NAVIER_COMMON_FILES}
@@ -70,8 +75,18 @@ if (MFEM_USE_MPI)
     ${NAVIER_COMMON_FILES}
     LIBRARIES mfem) 
 
+  add_mfem_miniapp(navier_2dbrink
+    MAIN navier_2dbrink.cpp
+    ${NAVIER_COMMON_FILES}
+    LIBRARIES mfem) 
+
   add_mfem_miniapp(navier_3dbrink_TMOP
     MAIN navier_3dbrink_TMOP.cpp
+    ${NAVIER_COMMON_FILES}
+    LIBRARIES mfem) 
+
+  add_mfem_miniapp(TMOP_test
+    MAIN TMOP_test.cpp
     ${NAVIER_COMMON_FILES}
     LIBRARIES mfem) 
 

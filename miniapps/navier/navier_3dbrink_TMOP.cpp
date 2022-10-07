@@ -17,6 +17,7 @@
 #include <fstream>
 #include <ctime>
 #include <cstdlib> 
+#include <unistd.h>
 
 using namespace mfem;
 using namespace navier;
@@ -33,7 +34,7 @@ void vel(const Vector &x, double t, Vector &u)
    double yi = x(1);
    double zi = x(2);
 
-   u(0) = 0.0;
+   u(0) = 0.2;
    u(1) = 0.0;
    if(zi<=1e-8){
        if(t<1.0){ u(2) = t;}
@@ -70,46 +71,53 @@ int main(int argc, char *argv[])
 
    args.Parse();
 
+      bool LoadSolVecFromFile = false;
+      enum DensityCoeff::PatternType tGeometry = DensityCoeff::PatternType::Gyroid;
+      enum DensityCoeff::ProjectionType tProjectionType = DensityCoeff::ProjectionType::zero_one;
+
 
 
    //Mesh *mesh = new Mesh("bar3d.msh");
-   Mesh *mesh = new Mesh("./cube.mesh");
+   //Mesh *mesh = new Mesh("./cube.mesh");
+  //Mesh *mesh = new Mesh("./inline-hex.mesh");
+
+  
    //mesh->EnsureNCMesh(true);
 
+   double MultInX = 2.0;
+   double MultInY = 2.0;
+   double MultInZ = 1.0;
+
+    double Lx = 1.0 * MultInX;
+    double Ly = 1.0 * MultInY;
+    double Lz = 1.0 * MultInZ;
+
+   int NX = 64 * MultInX;
+   int NY = 64 * MultInY;
+   int NZ = 64 * MultInZ;
+
+    Mesh mesh = Mesh::MakeCartesian3D(NX, NY, NZ, Element::HEXAHEDRON, Lx, Ly, Lz);
+
+// Mesh *mesh = &tmesh;
    for (int i = 0; i < serial_refinements; ++i)
    {
-      mesh->UniformRefinement();
+      mesh.UniformRefinement();
    }
 
    if (mpi.Root())
    {
-      std::cout << "Number of elements: " << mesh->GetNE() << std::endl;
+      std::cout << "Number of elements: " << mesh.GetNE() << std::endl;
    }
 
-   auto *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
-   delete mesh;
+   auto *pmesh = new ParMesh(MPI_COMM_WORLD, mesh);
+   //delete mesh;
    if (mpi.Root())
    {
       std::cout << "Mesh of elements: " << pmesh->GetNE() << std::endl;
    }
 
-   if(true)
-   {
-         // Mesh morphing based on level set field
-         const int quadOrder = 8; // integration order
-         const int targetId = 2;
-         const int metricId =  303;
-         const int maxSolvItr = 60;
-         const bool moveBnd = false;
-         const int verboLev = 2;
-         const double surfaceFit = 1e3;
-
-         mfem::MeshMorphingSolver  tmopMeshMorphing_( pmesh, quadOrder, targetId, metricId, maxSolvItr, moveBnd, verboLev, surfaceFit);
-
-
-
-         const int dim = pmesh->Dimension();
-         mfem::H1_FECollection FEColl(2, dim);
+            const int dim = pmesh->Dimension();
+         mfem::H1_FECollection FEColl(1, dim);
          mfem::ParFiniteElementSpace FEScalarSpace(pmesh, &FEColl, 1, pmesh->GetNodalFESpace()->GetOrdering());
          mfem::ParFiniteElementSpace FEVectorSpace(pmesh, &FEColl, dim, pmesh->GetNodalFESpace()->GetOrdering());
          pmesh->SetNodalFESpace(&FEVectorSpace);
@@ -118,32 +126,28 @@ int main(int argc, char *argv[])
          mfem::ParGridFunction x(&FEVectorSpace);
          pmesh->SetNodalGridFunction(&x);
 
-         mfem::ParGridFunction nodeDisp(&FEVectorSpace);
+   if(true)
+   {
+         // Mesh morphing based on level set field
+         const int quadOrder = 8; // integration order
+         const int targetId = 2;
+         const int metricId =  303;
+         const int maxSolvItr = 50;
+         const bool moveBnd = false;
+         const int verboLev = 2;
+         const double surfaceFit = 1e2;
 
+         mfem::MeshMorphingSolver  tmopMeshMorphing_( pmesh, quadOrder, targetId, metricId, maxSolvItr, moveBnd, verboLev, surfaceFit);
 
 
          mfem::ParGridFunction LSF_(&FEScalarSpace);
 
          mfem::navier::DensityCoeff * mDensCoeff = new DensityCoeff;
-         mDensCoeff->SetThreshold(0.6);
+         mDensCoeff->SetThreshold(0.4365);
          mDensCoeff->SetPatternType(DensityCoeff::PatternType::Gyroid);
          mDensCoeff->SetProjectionType(DensityCoeff::ProjectionType::continuous);
 
          LSF_.ProjectCoefficient(* mDensCoeff );
-
-      if( true )
-      {
-
-         mfem::ParaViewDataCollection mPvdc("TMOPGyroid_1", pmesh);
-
-        mPvdc.RegisterField("LSF", &LSF_);
-        mPvdc.SetCycle(1);
-        mPvdc.SetTime(1);
-        mPvdc.Save();
-
-        std::cout<<"-----------------------field output------------------------------"<<std::endl;
-      }
-
 
          tmopMeshMorphing_.Solve(LSF_);
 
@@ -159,11 +163,87 @@ int main(int argc, char *argv[])
       }
    }
 
+      Mesh *mesh1 = new Mesh("./cube.mesh");
+         for (int i = 0; i < serial_refinements; ++i)
+      {
+         mesh1->UniformRefinement();
+      }
+      auto *pmesh1 = new ParMesh(MPI_COMM_WORLD, *mesh1);
+      delete mesh1;
+
+      mfem::ParFiniteElementSpace FEVectorSpace1(pmesh1, &FEColl, dim, pmesh1->GetNodalFESpace()->GetOrdering());
+      pmesh1->SetNodalFESpace(&FEVectorSpace1);
+      pmesh1->SetNodalGridFunction(&x);
+
+      for( int Ik = 0; Ik<pmesh->GetNE(); Ik++)
+      {
+         int Attribute = pmesh->GetAttribute( Ik );
+         pmesh1->SetAttribute( Ik, Attribute );
+      }
+
+
+      std::ostringstream mesh_name;
+      mesh_name << "morphed_mesh.mesh";
+      std::ofstream mesh_ofs(mesh_name.str().c_str());
+      mesh_ofs.precision(14);
+      //std::ofstream C_file("morphed_mesh.mesh");
+      
+      std::cout<<"PrintAsSerial"<<std::endl;
+      pmesh1->PrintAsSerial( mesh_ofs );
+
+      MPI_Barrier(MPI_COMM_WORLD);
+
+      sleep(5);
+
+      std::cout<<"Creating new mesh from serial mesh"<<std::endl;
+      Mesh *mesh_morphed = new Mesh("./morphed_mesh.mesh");
+
+      std::cout<<"New mesh created from serial mesh"<<std::endl;
+            // double Lx = 2.0 * M_PI;
+            // double Ly = 1.0;
+            // double Lz = M_PI;
+
+            // int N = ctx.order + 1;
+            // int NL = std::round(64.0 / N); // Coarse
+            // // int NL = std::round(96.0 / N); // Baseline
+            // // int NL = std::round(128.0 / N); // Fine
+            // double LC = M_PI / NL;
+            // int NX = 2 * NL;
+            // int NY = 2 * std::round(48.0 / N);
+            // int NZ = NL;
+
+            //  Mesh mesh = Mesh::MakeCartesian3D(NX, NY, NZ, Element::HEXAHEDRON, Lx, Ly, Lz);
+
+         // Create translation vectors defining the periodicity
+         Vector x_translation({1.0*MultInX, 0.0, 0.0});
+         Vector y_translation({0.0, 1.0*MultInY, 0.0});
+         Vector z_translation({0.0, 0.0, 1.0*MultInZ});
+         std::vector<Vector> translations = {x_translation, y_translation, z_translation};
+
+         // Create the periodic mesh using the vertex mapping defined by the translation vectors
+         Mesh periodic_mesh = Mesh::MakePeriodic(*mesh_morphed,
+                                           mesh_morphed->CreatePeriodicVertexMapping(translations));
+
+      auto *pmesh_morphed = new ParMesh(MPI_COMM_WORLD, periodic_mesh);
+      delete mesh_morphed;
+
+      if( true )
+      {
+
+         mfem::ParaViewDataCollection mPvdc("TMOPGyroid_morphed", pmesh_morphed);
+         mPvdc.SetCycle(0);
+         mPvdc.SetTime(0.0);
+         mPvdc.Save();
+      }
+
+
+   
+
    //----------------------------------------------------------
 
    //tForce_Magnitude = tForce_Magnitude * 1.154e-3 *5.0 /(1e3 * std::pow(1.75e-2 ,2));
-   //tForce_Magnitude = tForce_Magnitude * 3.25e-3 /(1e3 * std::pow(8.0e-3 ,2));
-   tForce_Magnitude = tForce_Magnitude * 2.64e-3 /(1.18 * std::pow(1.0 ,2));
+   tForce_Magnitude = tForce_Magnitude * 3.25e-3 /(1e3 * std::pow(8.0e-3 ,2));
+  // tForce_Magnitude = tForce_Magnitude * 2.64e-3 /(1.18 * std::pow(1.0 ,2));
 
 
    // get random vals
@@ -182,7 +262,7 @@ int main(int argc, char *argv[])
         tRand[1] = 0.0;// / sqrt( 3.0 ); //ny
         tRand[2] = 0.0;// / sqrt( 3.0 ); //nz
         tRand[3] = tForce_Magnitude;//150.7*5/10*1.5;//150.7*1.5;        //a
-        tRand[4] = 0.1;//0.65;  //0.4365
+        tRand[4] = 0.4365;//0.65;  //0.4365
    }
 
    if (mpi.WorldSize() > 1 )
@@ -194,15 +274,16 @@ int main(int argc, char *argv[])
 
    //----------------------------------------------------------
    {
-      Navier3dBrinkWorkflow tWorkflow( mpi, pmesh, ctx );
+      Navier3dBrinkWorkflow tWorkflow( mpi, pmesh_morphed, ctx );
 
       tWorkflow.SetParams( tRand[0],tRand[1],tRand[2],tRand[3],tRand[4] );
 
-      tWorkflow.SetDensityCoeff(  );
+
+      tWorkflow.SetDensityCoeff( tGeometry, tProjectionType );
 
       tWorkflow.SetupFlowSolver(  );
 
-       tWorkflow.SetInitialConditions(  vel );
+       tWorkflow.SetInitialConditions(  vel, LoadSolVecFromFile );
 
       tWorkflow.SetupOutput(  );
 
