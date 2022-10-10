@@ -189,6 +189,8 @@ void GridFunction::Update()
    {
       SetSize(fes->GetVSize());
    }
+
+   if (t_vec.Size() > 0) { SetTrueVector(); }
 }
 
 void GridFunction::SetSpace(FiniteElementSpace *f)
