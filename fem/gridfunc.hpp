@@ -643,6 +643,25 @@ public:
                                        ) const
    { ComputeElementLpErrors(infinity(), exsol, error, NULL, NULL, irs, dir); }
 
+
+   virtual void ComputeElementL1Errors(VectorCoefficient &exsol,
+                                       Vector &error,
+                                       int dir = -1
+                                      ) const
+   { ComputeElementLpErrors(1.0, exsol, error, NULL, NULL, NULL, dir); }
+
+   virtual void ComputeElementL2Errors(VectorCoefficient &exsol,
+                                       Vector &error,
+                                       int dir = -1
+                                      ) const
+   { ComputeElementLpErrors(2.0, exsol, error, NULL, NULL, NULL, dir); }
+
+   virtual void ComputeElementMaxErrors(VectorCoefficient &exsol,
+                                        Vector &error,
+                                        int dir = -1
+                                       ) const
+   { ComputeElementLpErrors(infinity(), exsol, error, NULL, NULL, NULL, dir); }
+
    virtual void ComputeFlux(BilinearFormIntegrator &blfi,
                             GridFunction &flux,
                             bool wcoef = true, int subdomain = -1);
