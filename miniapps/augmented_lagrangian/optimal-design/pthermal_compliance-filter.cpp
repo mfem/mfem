@@ -2,7 +2,7 @@
 // Compile with: make optimal_design
 //
 // Sample runs:
-// mpirun -np 6 ./pthermal_compliance -gamma 0.001 -epsilon 0.0005 -alpha 0.005 -beta 5.0 -r 4 -o 2 -tl 0.000001 -bs 1
+// mpirun -np 8 ./pthermal_compliance-filter -epsilon 0.01 -alpha 0.1 -beta 5.0 -r 4 -o 2
 //
 //         min J(K) = <g,u>
 //                            
@@ -127,10 +127,10 @@ int main(int argc, char *argv[])
    double alpha = 1.0;
    double beta = 1.0;
    double epsilon = 1.0;
-   double mass_fraction = 0.3;
+   double mass_fraction = 0.4;
    int max_it = 1e2;
-   double tol_rho = 1e-2;
-   double tol_lambda = 1e-2;
+   double tol_rho = 5e-2;
+   double tol_lambda = 1e-3;
    double K_max = 1.0;
    double K_min = 1e-3;
 
