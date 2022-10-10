@@ -244,10 +244,6 @@ int main(int argc, char *argv[])
       pcg.SetMaxIter(500);
       pcg.SetPrintLevel(2);
       pcg.SetPreconditioner(ams);
-      pcg.SetOperator(*A.As<HypreParMatrix>());
-      pcg.Mult(B, X);
-
-      pcg.SetOperator(*A.As<HypreParMatrix>());
       pcg.Mult(B, X);
    }
 
