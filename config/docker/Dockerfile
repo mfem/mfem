@@ -1,30 +1,27 @@
-FROM ghcr.io/rse-ops/cuda-ubuntu-20.04:cuda-11.0.3
+FROM ghcr.io/mfem/mfem-ubuntu-base:latest as builder
 
-# docker build -t ghcr.io/mfem/mfem-ubuntu-base .
+# docker build -t ghcr.io/mfem/mfem-ubuntu .
+
+COPY ./config/docker/spack.yaml /opt/mfem-env/spack.yaml
+RUN apt-get install -y python3 && \
+    cd /opt/mfem-env && \
+    . /opt/spack/share/spack/setup-env.sh && \
+    spack env activate . && \
+    spack env view regenerate
+
+FROM ubuntu:22.04
+
+COPY --from=builder /opt/view /opt/view
+COPY --from=builder /opt/mfem-view /opt/mfem-view
 
 RUN apt-get update && \
     apt-get install -y unzip gfortran && \
-    spack compiler find && \
     apt-get install -y libcurl4-openssl-dev libssl-dev
 
-# /code is the working directory for code
-WORKDIR /code
-COPY . /code
-
-# This is for a spack environment/view to install from there
-WORKDIR /opt/mfem-env
-RUN . /opt/spack/share/spack/setup-env.sh && \
-    spack env create -d . && \
-    echo "  concretization: together" >> spack.yaml && \
-    spack env activate . && \
-    spack develop --path /code mfem@master+examples+miniapps && \
-    spack add mfem@master+examples+miniapps && \
-    spack install
-
-# ensure mfem always on various paths
-RUN cd /opt/mfem-env && \
-    spack env activate --sh -d . >> /etc/profile.d/z10_spack_environment.sh
+ENV PATH=$PATH:/opt/mfem-view/bin
+ENV LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/opt/mfem-view/lib:/opt/mfem-view/lib64
+ENV DEBIAN_FRONTEND=noninteractive
 
 # The user will see the view on shell into the container
-WORKDIR /opt/mfem-env/.spack-env/view/
-ENTRYPOINT ["/bin/bash", "--rcfile", "/etc/profile", "-l", "-c"]
+WORKDIR /opt/mfem-view
+ENTRYPOINT ["/bin/bash"]

@@ -47,6 +47,14 @@ public:
    static void DofsToVDofs(int ndofs, int vdim, Array<int> &dofs);
 };
 
+/// @brief Type describing possible layouts for Q-vectors.
+/// @sa QuadratureInterpolator and FaceQuadratureInterpolator.
+enum class QVectorLayout
+{
+   byNODES,  ///< NQPT x VDIM x NE (values) / NQPT x VDIM x DIM x NE (grads)
+   byVDIM    ///< VDIM x NQPT x NE (values) / VDIM x DIM x NQPT x NE (grads)
+};
+
 template <> inline int
 Ordering::Map<Ordering::byNODES>(int ndofs, int vdim, int dof, int vd)
 {
@@ -396,7 +404,7 @@ public:
    FiniteElementSpace();
 
    /** @brief Copy constructor: deep copy all data from @a orig except the Mesh,
-       the FiniteElementCollection, ans some derived data. */
+       the FiniteElementCollection, and some derived data. */
    /** If the @a mesh or @a fec pointers are NULL (default), then the new
        FiniteElementSpace will reuse the respective pointers from @a orig. If
        any of these pointers is not NULL, the given pointer will be used instead
@@ -508,7 +516,8 @@ public:
        L2ElementRestriction class.
 
        The returned Operator is owned by the FiniteElementSpace. */
-   const Operator *GetElementRestriction(ElementDofOrdering e_ordering) const;
+   const ElementRestrictionOperator *GetElementRestriction(
+      ElementDofOrdering e_ordering) const;
 
    /// Return an Operator that converts L-vectors to E-vectors on each face.
    virtual const FaceRestriction *GetFaceRestriction(
@@ -929,65 +938,14 @@ public:
    virtual ~FiniteElementSpace();
 };
 
-
-/// Class representing the storage layout of a QuadratureFunction.
-/** Multiple QuadratureFunction%s can share the same QuadratureSpace. */
-class QuadratureSpace
-{
-protected:
-   friend class QuadratureFunction; // Uses the element_offsets.
-
-   Mesh *mesh;
-   int order;
-   int size;
-
-   const IntegrationRule *int_rule[Geometry::NumGeom];
-   int *element_offsets; // scalar offsets; size = number of elements + 1
-
-   // protected functions
-
-   // Assuming mesh and order are set, construct the members: int_rule,
-   // element_offsets, and size.
-   void Construct();
-
-public:
-   /// Create a QuadratureSpace based on the global rules from #IntRules.
-   QuadratureSpace(Mesh *mesh_, int order_)
-      : mesh(mesh_), order(order_) { Construct(); }
-
-   /// Read a QuadratureSpace from the stream @a in.
-   QuadratureSpace(Mesh *mesh_, std::istream &in);
-
-   virtual ~QuadratureSpace() { delete [] element_offsets; }
-
-   /// Return the total number of quadrature points.
-   int GetSize() const { return size; }
-
-   /// Return the order of the quadrature rule(s) used by all elements.
-   int GetOrder() const { return order; }
-
-   /// Returns the mesh
-   inline Mesh *GetMesh() const { return mesh; }
-
-   /// Returns number of elements in the mesh.
-   inline int GetNE() const { return mesh->GetNE(); }
-
-   /// Get the IntegrationRule associated with mesh element @a idx.
-   const IntegrationRule &GetElementIntRule(int idx) const
-   { return *int_rule[mesh->GetElementBaseGeometry(idx)]; }
-
-   /// Write the QuadratureSpace to the stream @a out.
-   void Save(std::ostream &out) const;
-};
-
+/// @brief Return true if the mesh contains only one topology and the elements are tensor elements.
 inline bool UsesTensorBasis(const FiniteElementSpace& fes)
 {
-   // TODO: mixed meshes: return true if there is at least one tensor-product
-   // Geometry in the global mesh and the FE collection returns a
-   // TensorBasisElement for that Geometry?
-
+   Mesh & mesh = *fes.GetMesh();
+   const bool mixed = mesh.GetNumGeometries(mesh.Dimension()) > 1;
    // Potential issue: empty local mesh --> no element 0.
-   return dynamic_cast<const mfem::TensorBasisElement *>(fes.GetFE(0))!=nullptr;
+   return !mixed &&
+          dynamic_cast<const mfem::TensorBasisElement *>(fes.GetFE(0))!=nullptr;
 }
 
 }

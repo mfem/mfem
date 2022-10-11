@@ -307,6 +307,12 @@ public:
 
    Vector &operator+=(const Vector &v);
 
+   /// operator- is not supported. Use @ref subtract or @ref Add.
+   Vector &operator-(const Vector &v) = delete;
+
+   /// operator+ is not supported. Use @ref Add.
+   Vector &operator+(const Vector &v) = delete;
+
    /// (*this) += a * Va
    Vector &Add(const double a, const Vector &Va);
 
@@ -314,6 +320,8 @@ public:
    Vector &Set(const double a, const Vector &x);
 
    void SetVector(const Vector &v, int offset);
+
+   void AddSubVector(const Vector &v, int offset);
 
    /// (*this) = -(*this)
    void Neg();
@@ -432,7 +440,7 @@ public:
 
    /** @brief Count the number of entries in the Vector for which isfinite
        is false, i.e. the entry is a NaN or +/-Inf. */
-   int CheckFinite() const { return mfem::CheckFinite(data, size); }
+   int CheckFinite() const { return mfem::CheckFinite(HostRead(), size); }
 
    /// Destroys vector.
    virtual ~Vector();

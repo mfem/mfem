@@ -58,7 +58,7 @@ public:
       int err_flag = WSAStartup(MAKEWORD(2,2), &wsaData);
       if (err_flag != 0)
       {
-         mfem::out << "Error occured during initialization of WinSock."
+         mfem::out << "Error occurred during initialization of WinSock."
                    << std::endl;
          return;
       }
