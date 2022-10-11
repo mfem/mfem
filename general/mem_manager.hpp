@@ -1141,7 +1141,7 @@ inline void Memory<T>::SyncAlias(const Memory &base, int alias_size) const
 template <typename T>
 inline MemoryType Memory<T>::GetMemoryType() const
 {
-   if (!(flags & VALID_DEVICE)) { return h_mt; }
+   if (h_ptr == nullptr || !(flags & VALID_DEVICE)) { return h_mt; }
    return MemoryManager::GetDeviceMemoryType_(h_ptr, flags & ALIAS);
 }
 
