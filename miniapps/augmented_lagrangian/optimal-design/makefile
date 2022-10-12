@@ -28,7 +28,7 @@ PDEOPT_COMMON_OBJ = $(PDEOPT_COMMON_SRC:.cpp=.o)
 
 SEQ_MINIAPPS = optimal_design optimal_design_OUU fpde_driver \
 					optimal_design_OUU_ADMM optimal_design_ADMM
-PAR_MINIAPPS = fpde_driver_p optimal_design_OUU_ADMMp
+PAR_MINIAPPS = fpde_driver_p optimal_design_OUU_ADMMp elasticity_driver
 ifeq ($(MFEM_USE_MPI),NO)
    MINIAPPS = $(SEQ_MINIAPPS)
 else
