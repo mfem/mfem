@@ -59,8 +59,40 @@
 #include <fstream>
 #include "tmop-fitting.hpp"
 
+#include "ImplicitParameterization.hpp"
+
 using namespace mfem;
 using namespace std;
+
+class ImplicitCoefficient : public FunctionCoefficient
+{
+public:
+   ImplicitCoefficient(ImplicitGeometry::ImplicitParameterization &f)
+     : FunctionCoefficient([](const Vector&){return 0.0;}), f_(&f), sdim_(3), x_(sdim_)
+   {}
+
+   virtual void SetEvaluationCoordinate()
+   {
+      // copy values to std::vector for ImplicitParameterization evaluation
+      for (int i=0; i<sdim_; i++) 
+         {x_[i] = p_[i];}
+   }
+   double Eval(ElementTransformation &T, const IntegrationPoint &ip)
+   {
+      // compute integration point coordinate
+      T.SetIntPoint(&ip);
+      T.Transform(ip, p_);
+      // evaluate implicit parameterization
+      SetEvaluationCoordinate();
+      return f_->Eval(x_);
+   }
+private:
+   ImplicitGeometry::ImplicitParameterization *f_; // not owned
+protected:
+   int                    sdim_;
+   mfem::Vector              p_;
+   std::vector<double>       x_;
+};
 
 int main (int argc, char *argv[])
 {
@@ -246,7 +278,8 @@ int main (int argc, char *argv[])
    }
    const int dim = mesh->Dimension();
 
-   // Define level-set coefficient
+   // Define level-set coefficientkj
+   /*
    FunctionCoefficient *ls_coeff = NULL;
    if (surf_ls_type == 1) //Circle
    {
@@ -268,6 +301,10 @@ int main (int argc, char *argv[])
    {
       MFEM_ABORT("Surface fitting level set type not implemented yet.")
    }
+   */
+   std::vector<double> params {0.2, 0.2, 0.0};
+   ImplicitGeometry::Lattice2D parameterization(params);
+   mfem::FunctionCoefficient *ls_coeff = new ImplicitCoefficient(parameterization);
 
    // Trim the mesh based on material attribute and set boundary attribute for fitting to 3
    if (trim_mesh)
