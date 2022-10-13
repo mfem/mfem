@@ -70,8 +70,8 @@
 //   * mpirun -np 4 pmesh-optimizer -m stretched2D.mesh -o 2 -mid 2 -tid 1 -ni 50 -qo 5 -nor -vl 1 -alc 0.5 -fd -ae 1
 //
 //  Adaptive surface fitting:
-//    mpirun -np 4 pmesh-optimizer -m square01.mesh -o 3 -rs 1 -mid 58 -tid 1 -ni 200 -vl 1 -sfc 5e4 -rtol 1e-5 -nor
-//    mpirun -np 4 pmesh-optimizer -m square01-tri.mesh -o 3 -rs 0 -mid 58 -tid 1 -ni 200 -vl 1 -sfc 1e4 -rtol 1e-5 -nor
+//    mpirun -np 4 pmesh-optimizer -m square01.mesh -o 3 -rs 1 -mid 58 -tid 1 -ni 200 -vl 1 -sfc 5e4 -rtol 1e-5
+//    mpirun -np 4 pmesh-optimizer -m square01-tri.mesh -o 3 -rs 0 -mid 58 -tid 1 -ni 200 -vl 1 -sfc 1e4 -rtol 1e-5
 //  Surface fitting with weight adaptation and termination based on fitting error
 //    mpirun -np 4 pmesh-optimizer -m square01.mesh -o 2 -rs 1 -mid 2 -tid 1 -ni 100 -vl 2 -sfc 10 -rtol 1e-20 -st 0 -sfa -sft 1e-5
 //
@@ -175,7 +175,7 @@ int main (int argc, char *argv[])
    args.AddOption(&metric_id, "-mid", "--metric-id",
                   "Mesh optimization metric:\n\t"
                   "T-metrics\n\t"
-                  "1  : |T|^2                          -- 2D shape\n\t"
+                  "1  : |T|^2                          -- 2D no type\n\t"
                   "2  : 0.5|T|^2/tau-1                 -- 2D shape (condition number)\n\t"
                   "7  : |T-T^-t|^2                     -- 2D shape+size\n\t"
                   "9  : tau*|T-T^-t|^2                 -- 2D shape+size\n\t"
@@ -193,13 +193,22 @@ int main (int argc, char *argv[])
                   // "252: 0.5(tau-1)^2/(tau-tau_0)       -- 2D untangling\n\t"
                   "301: (|T||T^-1|)/3-1              -- 3D shape\n\t"
                   "302: (|T|^2|T^-1|^2)/9-1          -- 3D shape\n\t"
-                  "303: (|T|^2)/3*tau^(2/3)-1        -- 3D shape\n\t"
+                  "303: (|T|^2)/3/tau^(2/3)-1        -- 3D shape\n\t"
+                  "304: (|T|^3)/3^{3/2}/tau-1        -- 3D shape\n\t"
                   // "311: (tau-1)^2-tau+sqrt(tau^2+eps)-- 3D untangling\n\t"
                   "313: (|T|^2)(tau-tau0)^(-2/3)/3   -- 3D untangling\n\t"
-                  "315: (tau-1)^2                    -- 3D size\n\t"
-                  "316: 0.5(sqrt(tau)-1/sqrt(tau))^2 -- 3D size\n\t"
+                  "315: (tau-1)^2                    -- 3D no type\n\t"
+                  "316: 0.5(sqrt(tau)-1/sqrt(tau))^2 -- 3D no type\n\t"
                   "321: |T-T^-t|^2                   -- 3D shape+size\n\t"
+                  "322: |T-adjT^-t|^2                -- 3D shape+size\n\t"
+                  "323: |J|^3-3sqrt(3)ln(det(J))-3sqrt(3)  -- 3D shape+size\n\t"
+                  "328: (1-gamma) mu_301 + gamma mu_316  -- 3D shape+size\n\t"
+                  "332: (1-gamma) mu_302 + gamma mu_315  -- 3D shape+size\n\t"
+                  "333: (1-gamma) mu_302 + gamma mu_316  -- 3D shape+size\n\t"
+                  "334: (1-gamma) mu_303 + gamma mu_316  -- 3D shape+size\n\t"
+                  "347: (1-gamma) mu_304 + gamma mu_316  -- 3D shape+size\n\t"
                   // "352: 0.5(tau-1)^2/(tau-tau_0)     -- 3D untangling\n\t"
+                  "360: (|T|^3)/3^{3/2}-tau              -- 3D shape\n\t"
                   "A-metrics\n\t"
                   "11 : (1/4*alpha)|A-(adjA)^T(W^TW)/omega|^2 -- 2D shape\n\t"
                   "36 : (1/alpha)|A-W|^2                      -- 2D shape+size+orientation\n\t"
@@ -458,16 +467,21 @@ int main (int argc, char *argv[])
       case 301: metric = new TMOP_Metric_301; break;
       case 302: metric = new TMOP_Metric_302; break;
       case 303: metric = new TMOP_Metric_303; break;
+      case 304: metric = new TMOP_Metric_304; break;
       // case 311: metric = new TMOP_Metric_311; break;
       case 313: metric = new TMOP_Metric_313(min_detJ); break;
       case 315: metric = new TMOP_Metric_315; break;
       case 316: metric = new TMOP_Metric_316; break;
       case 321: metric = new TMOP_Metric_321; break;
+      case 322: metric = new TMOP_Metric_322; break;
+      case 323: metric = new TMOP_Metric_323; break;
       case 328: metric = new TMOP_Metric_328(0.5); break;
       case 332: metric = new TMOP_Metric_332(0.5); break;
       case 333: metric = new TMOP_Metric_333(0.5); break;
       case 334: metric = new TMOP_Metric_334(0.5); break;
+      case 347: metric = new TMOP_Metric_347(0.5); break;
       // case 352: metric = new TMOP_Metric_352(min_detJ); break;
+      case 360: metric = new TMOP_Metric_360; break;
       // A-metrics
       case 11: metric = new TMOP_AMetric_011; break;
       case 36: metric = new TMOP_AMetric_036; break;
