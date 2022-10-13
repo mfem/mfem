@@ -109,7 +109,8 @@ Miscellaneous
   outputs an `OperatorHandle` containing a `SparseMatrix` in serial, and an
   `HypreParMatrix` in parallel (instead of a `ConstrainedOperator`).
 
-- Added TMOP metrics for mesh untangling and worst-case quality improvement.
+- Added more 3D TMOP metrics, as well as specialized metrics for mesh
+  untangling and worst-case quality improvement;
 
 - Fully encapsulated SUNDIALS `N_Vector` object within the `SundialsNVector`
   class by removing deprecated (e.g. `HypreParVector::ToNVector`) and
