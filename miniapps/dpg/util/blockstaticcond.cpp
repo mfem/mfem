@@ -560,7 +560,7 @@ void BlockStaticCondensation::ParallelAssemble(BlockMatrix *m)
    for (int i = 0; i<nblocks; i++)
    {
       if (!tr_fes[i]) { continue; }
-      pfes_i = dynamic_cast<ParFiniteElementSpace*>(fes[i]);
+      pfes_i = dynamic_cast<ParFiniteElementSpace*>(tr_fes[i]);
       HypreParMatrix * Pi = (HypreParMatrix*)(&pP->GetBlock(skip_i,skip_i));
       int skip_j=0;
       for (int j = 0; j<nblocks; j++)
@@ -578,7 +578,7 @@ void BlockStaticCondensation::ParallelAssemble(BlockMatrix *m)
          }
          else
          {
-            pfes_j = dynamic_cast<ParFiniteElementSpace*>(fes[j]);
+            pfes_j = dynamic_cast<ParFiniteElementSpace*>(tr_fes[j]);
             HypreParMatrix * Pj = (HypreParMatrix*)(&pP->GetBlock(skip_j,skip_j));
             A = new HypreParMatrix(pfes_i->GetComm(), pfes_i->GlobalVSize(),
                                    pfes_j->GlobalVSize(), pfes_i->GetDofOffsets(),
