@@ -111,7 +111,7 @@ TEST_CASE("GetGradient Shared Faces", "[ParGridFunction][Parallel]")
          auto tr_f  = pmesh.GetSharedFaceTransformations(f);
          ElementTransformation &tr_e2 = tr_f->GetElement2Transformation();
          const IntegrationRule &ir_f = IntRules.Get(tr_f->GetGeometryType(),
-                                                  2*fe_order + 2);
+                                                    2*fe_order + 2);
          IntegrationRule ir_e2(ir_f.GetNPoints());
          tr_f->Loc2.Transform(ir_f, ir_e2);
 
