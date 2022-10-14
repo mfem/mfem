@@ -14,12 +14,56 @@
 
 using namespace mfem;
 
-double func_getgrad_test(const Vector &coord)
+namespace test_GetGradient_shared_faces
+{
+
+int dim;
+
+double func(const Vector &coord)
 {
    double x = coord(0),
-          y = (coord.Size() > 1) ? coord(1) : 0.0,
-          z = (coord.Size() > 2) ? coord(2) : 0.0;
+          y = (dim > 1) ? coord(1) : 0.0,
+          z = (dim > 2) ? coord(2) : 0.0;
    return x * x + y * y + z * z;
+}
+
+void func_grad(const Vector &coord, Vector &grad)
+{
+   grad.SetSize(coord.Size());
+   grad(0) = 2.0 * coord(0);
+   if (dim > 1) { grad(1) = 2.0 * coord(1); }
+   if (dim > 2) { grad(2) = 2.0 * coord(2); }
+}
+
+void vec_func(const Vector &coord, Vector &res)
+{
+   double x = coord(0),
+          y = (dim > 1) ? coord(1) : 0.0,
+          z = (dim > 2) ? coord(2) : 0.0;
+
+   res(0) = (x + 1.0) * (y + 1.0) * (z + 1.0);
+   res(1) = x * x + y * y + z * z;
+}
+
+void vec_func_grad(const Vector &coord, DenseMatrix &grad)
+{
+   grad.SetSize(2, dim);
+   double x = coord(0),
+          y = (dim > 1) ? coord(1) : 0.0,
+          z = (dim> 2) ? coord(2) : 0.0;
+
+   grad(0, 0) = (y + 1.0) * (z + 1.0);
+   grad(1, 0) = 2.0 * x;
+   if (dim > 1)
+   {
+      grad(0, 1) = (x + 1.0) * (z + 1.0);
+      grad(1, 1) = 2.0 * y;
+   }
+   if (dim > 2)
+   {
+      grad(0, 2) = (x + 1.0) * (y + 1.0);
+      grad(1, 2) = 2.0 * z;
+   }
 }
 
 #ifdef MFEM_USE_MPI
@@ -27,7 +71,7 @@ double func_getgrad_test(const Vector &coord)
 TEST_CASE("GetGradient Shared Faces", "[ParGridFunction][Parallel]")
 {
    const int fe_order = 3;
-   for (int dim = 1; dim <= 3; dim++)
+   for (dim = 1; dim <= 3; dim++)
    {
       int num_procs;
       MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
@@ -50,40 +94,60 @@ TEST_CASE("GetGradient Shared Faces", "[ParGridFunction][Parallel]")
       for (int i = 0; i < 2; i++) { mesh.UniformRefinement(); }
       ParMesh pmesh(MPI_COMM_WORLD, mesh);
 
-      FunctionCoefficient x_coeff(func_getgrad_test);
+      FunctionCoefficient func_coeff(func);
+      VectorFunctionCoefficient vec_func_coeff(2, vec_func);
       H1_FECollection fec(fe_order, dim);
-      ParFiniteElementSpace pfes(&pmesh, &fec);
-      ParGridFunction pgf(&pfes);
-      pgf.ProjectCoefficient(x_coeff);
+      ParFiniteElementSpace pfes(&pmesh, &fec), pfes_vec(&pmesh, &fec, 2);
+      ParGridFunction pgf(&pfes), pgf_vec(&pfes_vec);
+      pgf.ProjectCoefficient(func_coeff);
+      pgf_vec.ProjectCoefficient(vec_func_coeff);
       pgf.ExchangeFaceNbrData();
+      pgf_vec.ExchangeFaceNbrData();
 
-      double max_error = 0.0;
-      Vector grad_1(dim), grad_2(dim);
+      double max_error_grad = 0.0, max_error_grads = 0.0,
+             max_error_vec_grad = 0.0;
       for (int f = 0; f < pmesh.GetNSharedFaces(); f++)
       {
-         FaceElementTransformations *ft = pmesh.GetSharedFaceTransformations(f);
-         ElementTransformation *t1 = &ft->GetElement1Transformation();
-         ElementTransformation *t2 = &ft->GetElement2Transformation();
-         const IntegrationRule &ir = IntRules.Get(ft->GetGeometryType(),
+         auto tr_f  = pmesh.GetSharedFaceTransformations(f);
+         ElementTransformation &tr_e2 = tr_f->GetElement2Transformation();
+         const IntegrationRule &ir_f = IntRules.Get(tr_f->GetGeometryType(),
                                                   2*fe_order + 2);
+         IntegrationRule ir_e2(ir_f.GetNPoints());
+         tr_f->Loc2.Transform(ir_f, ir_e2);
 
-         for (int q = 0; q < ir.GetNPoints(); q++)
+         Vector grad_e2, grad_exact, coord(dim);
+
+         DenseMatrix grads_e2, vec_grad_e2, vec_grad_exact;
+         pgf.GetGradients(tr_e2, ir_e2, grads_e2);
+
+         for (int q = 0; q < ir_f.GetNPoints(); q++)
          {
-            const IntegrationPoint &ip = ir.IntPoint(q);
-            ft->SetAllIntPoints(&ip);
+            const IntegrationPoint &ip_f = ir_f.IntPoint(q);
+            tr_f->SetIntPoint(&ip_f);
+            tr_f->Transform(ip_f, coord);
+            func_grad(coord, grad_exact);
 
-            // On both sides, the function should be represented exactly.
-            pgf.GetGradient(*t1, grad_1);
-            pgf.GetGradient(*t2, grad_2);
+            pgf.GetGradient(tr_e2, grad_e2);
+            grad_e2 -= grad_exact;
+            max_error_grad = fmax(max_error_grad, grad_e2.Norml2());
 
-            Vector g(grad_1);
-            grad_1 -= grad_2;
-            max_error = fmax(max_error, grad_1.Norml2());
+            grads_e2.GetColumn(q, grad_e2);
+            grad_e2 -= grad_exact;
+            max_error_grads = fmax(max_error_grads, grad_e2.Norml2());
+
+            pgf_vec.GetVectorGradient(tr_e2, vec_grad_e2);
+            vec_func_grad(coord, vec_grad_exact);
+            vec_grad_e2 -= vec_grad_exact;
+            max_error_vec_grad = fmax(max_error_vec_grad, vec_grad_e2.FNorm2());
          }
       }
 
-      REQUIRE(max_error == MFEM_Approx(0.0));
+      REQUIRE(max_error_grad == MFEM_Approx(0.0));
+      REQUIRE(max_error_grads == MFEM_Approx(0.0));
+      REQUIRE(max_error_vec_grad == MFEM_Approx(0.0));
    }
+}
+
 }
 
 #endif

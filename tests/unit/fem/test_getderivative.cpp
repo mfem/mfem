@@ -14,6 +14,9 @@
 
 using namespace mfem;
 
+namespace test_GetDerivative_parallel
+{
+
 double func(const Vector &coord)
 {
    if (coord.Size() == 1) { return std::sin(coord(0)); }
@@ -71,6 +74,8 @@ TEST_CASE("GetDerivative", "[Parallel]")
                  pgf_grad.ComputeL2Error(zero) == MFEM_Approx(0.0));
       }
    }
+}
+
 }
 
 #endif

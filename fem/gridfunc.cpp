@@ -1432,21 +1432,13 @@ void GridFunction::GetDerivative(int comp, int der_comp, GridFunction &der)
    }
 }
 
-
 void GridFunction::GetVectorGradientHat(
    ElementTransformation &T, DenseMatrix &gh) const
 {
-   int elNo = T.ElementNo;
-   const FiniteElement *FElem = fes->GetFE(elNo);
+   const FiniteElement *FElem = fes->GetFE(T.ElementNo);
    int dim = FElem->GetDim(), dof = FElem->GetDof();
-   Array<int> vdofs;
-   DofTransformation * doftrans = fes->GetElementVDofs(elNo, vdofs);
    Vector loc_data;
-   GetSubVector(vdofs, loc_data);
-   if (doftrans)
-   {
-      doftrans->InvTransformPrimal(loc_data);
-   }
+   GetElementDofValues(T.ElementNo, loc_data);
    // assuming scalar FE
    int vdim = fes->GetVDim();
    DenseMatrix dshape(dof, dim);
@@ -1651,6 +1643,7 @@ void GridFunction::GetGradient(ElementTransformation &T, Vector &grad) const
          const FiniteElement *fe = fes->GetFE(T.ElementNo);
          MFEM_ASSERT(fe->GetMapType() == FiniteElement::VALUE,
                      "invalid FE map type");
+         MFEM_ASSERT(fes->GetVDim() == 1, "Defined for scalar functions.");
          int spaceDim = fes->GetMesh()->SpaceDimension();
          int dim = fe->GetDim(), dof = fe->GetDof();
          DenseMatrix dshape(dof, dim);
@@ -1719,13 +1712,8 @@ void GridFunction::GetGradients(ElementTransformation &tr,
    MFEM_ASSERT(fe->GetMapType() == FiniteElement::VALUE, "invalid FE map type");
    DenseMatrix dshape(fe->GetDof(), fe->GetDim());
    Vector lval, gh(fe->GetDim()), gcol;
-   Array<int> dofs;
-   DofTransformation * doftrans = fes->GetElementDofs(elNo, dofs);
-   GetSubVector(dofs, lval);
-   if (doftrans)
-   {
-      doftrans->InvTransformPrimal(lval);
-   }
+
+   GetElementDofValues(tr.ElementNo, lval);
    grad.SetSize(fe->GetDim(), ir.GetNPoints());
    for (int i = 0; i < ir.GetNPoints(); i++)
    {
