@@ -77,13 +77,20 @@ public:
       Function *A = new Scalar(a);
       double PI = 3.14159265358979323;
       Function *phi = new Scalar(-PI/2.0);
-      Function *a1 = new Scalar(1.0);
-      Function *a2 = new Scalar(1.0);
+      Function *zero = new Scalar(0.0);
+      Function *one = new Scalar(1.0);
 
       Function *sinX = new SineWave(x_[0], A, phi, lx);
       Function *sinY = new SineWave(x_[1], A, phi, ly);
+      Function *lattice = new ROr(sinX, sinY, a0, one, one);
 
-      f_ = new ROr(sinX, sinY, a0, a1, a2);
+      Function *shift = new Scalar(0.5);
+      Function *shift_x = new Subtraction(x_[0], shift);
+      Function *quad = new Power(shift_x, 2.0);
+      Function *offset = new Scalar((0.5-a/2.0)*(0.5-a/2.0));
+      Function *skin = new Subtraction(quad, offset);
+
+      f_ = new ROr(lattice, skin, zero, one, one);
    }
 private: 
    Function *f_;
