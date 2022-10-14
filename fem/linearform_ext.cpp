@@ -25,7 +25,8 @@ void LinearFormExtension::Assemble()
                "match the number of vector dofs!");
 
    const Array<Array<int>*> &domain_integs_marker = *lf->GetDLFI_Marker();
-   const int mesh_attributes_size = fes.GetMesh()->attributes.Size();
+   const int mesh_attributes_max = fes.GetMesh()->attributes.Size() ?
+                                   fes.GetMesh()->attributes.Max() : 0;
    const Array<LinearFormIntegrator*> &domain_integs = *lf->GetDLFI();
 
    for (int k = 0; k < domain_integs.Size(); ++k)
@@ -39,7 +40,7 @@ void LinearFormExtension::Assemble()
       if (has_markers_k)
       {
          // Element attribute marker should be of length mesh->attributes
-         MFEM_VERIFY(mesh_attributes_size == domain_integs_marker_k->Size(),
+         MFEM_VERIFY(mesh_attributes_max == domain_integs_marker_k->Size(),
                      "invalid element marker for domain linear form "
                      "integrator #" << k << ", counting from zero");
       }
@@ -59,11 +60,13 @@ void LinearFormExtension::Assemble()
       // Assemble the linear form
       b = 0.0;
       domain_integs[k]->AssembleDevice(fes, markers, b);
-      elem_restrict_lex->MultTranspose(b, *lf);
+      if (k == 0) { elem_restrict_lex->MultTranspose(b, *lf); }
+      else { elem_restrict_lex->AddMultTranspose(b, *lf); }
    }
 
    const Array<Array<int>*> &boundary_integs_marker = lf->boundary_integs_marker;
-   const int bdr_attributes_size = fes.GetMesh()->bdr_attributes.Size();
+   const int bdr_attributes_max = fes.GetMesh()->bdr_attributes.Size() ?
+                                  fes.GetMesh()->bdr_attributes.Max() : 0;
    const Array<LinearFormIntegrator*> &boundary_integs = lf->boundary_integs;
 
    for (int k = 0; k < boundary_integs.Size(); ++k)
@@ -77,7 +80,7 @@ void LinearFormExtension::Assemble()
       if (has_markers_k)
       {
          // Element attribute marker should be of length mesh->attributes
-         MFEM_VERIFY(bdr_attributes_size == boundary_integs_marker_k->Size(),
+         MFEM_VERIFY(bdr_attributes_max == boundary_integs_marker_k->Size(),
                      "invalid boundary marker for boundary linear form "
                      "integrator #" << k << ", counting from zero");
       }

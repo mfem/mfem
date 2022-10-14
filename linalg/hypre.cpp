@@ -22,10 +22,6 @@
 #include <cmath>
 #include <cstdlib>
 
-#ifdef MFEM_USE_SUNDIALS
-#include <nvector/nvector_parallel.h>
-#endif
-
 using namespace std;
 
 namespace mfem
@@ -412,15 +408,6 @@ HypreParVector::~HypreParVector()
       hypre_ParVectorDestroy(x);
    }
 }
-
-#ifdef MFEM_USE_SUNDIALS
-
-N_Vector HypreParVector::ToNVector()
-{
-   return N_VMake_Parallel(GetComm(), Size(), GlobalSize(), GetData());
-}
-
-#endif // MFEM_USE_SUNDIALS
 
 
 double InnerProduct(HypreParVector *x, HypreParVector *y)
@@ -4570,6 +4557,31 @@ void HypreParaSails::SetOperator(const Operator &op)
    auxX.Delete(); auxX.Reset();
 }
 
+void HypreParaSails::SetParams(double threshold, int max_levels)
+{
+   HYPRE_ParaSailsSetParams(sai_precond, threshold, max_levels);
+}
+
+void HypreParaSails::SetFilter(double filter)
+{
+   HYPRE_ParaSailsSetFilter(sai_precond, filter);
+}
+
+void HypreParaSails::SetLoadBal(double loadbal)
+{
+   HYPRE_ParaSailsSetLoadbal(sai_precond, loadbal);
+}
+
+void HypreParaSails::SetReuse(int reuse)
+{
+   HYPRE_ParaSailsSetReuse(sai_precond, reuse);
+}
+
+void HypreParaSails::SetLogging(int logging)
+{
+   HYPRE_ParaSailsSetLogging(sai_precond, logging);
+}
+
 void HypreParaSails::SetSymmetry(int sym)
 {
    HYPRE_ParaSailsSetSym(sai_precond, sym);
@@ -4610,6 +4622,31 @@ void HypreEuclid::SetDefaultOptions()
    HYPRE_EuclidSetMem(euc_precond, euc_mem);
    HYPRE_EuclidSetBJ(euc_precond, euc_bj);
    HYPRE_EuclidSetRowScale(euc_precond, euc_ro_sc);
+}
+
+void HypreEuclid::SetLevel(int level)
+{
+   HYPRE_EuclidSetLevel(euc_precond, level);
+}
+
+void HypreEuclid::SetStats(int stats)
+{
+   HYPRE_EuclidSetStats(euc_precond, stats);
+}
+
+void HypreEuclid::SetMemory(int mem)
+{
+   HYPRE_EuclidSetMem(euc_precond, mem);
+}
+
+void HypreEuclid::SetBJ(int bj)
+{
+   HYPRE_EuclidSetBJ(euc_precond, bj);
+}
+
+void HypreEuclid::SetRowScale(int row_scale)
+{
+   HYPRE_EuclidSetRowScale(euc_precond, row_scale);
 }
 
 void HypreEuclid::ResetEuclidPrecond(MPI_Comm comm)
@@ -4699,6 +4736,26 @@ void HypreILU::ResetILUPrecond()
 void HypreILU::SetLevelOfFill(HYPRE_Int lev_fill)
 {
    HYPRE_ILUSetLevelOfFill(ilu_precond, lev_fill);
+}
+
+void HypreILU::SetType(HYPRE_Int ilu_type)
+{
+   HYPRE_ILUSetType(ilu_precond, ilu_type);
+}
+
+void HypreILU::SetMaxIter(HYPRE_Int max_iter)
+{
+   HYPRE_ILUSetMaxIter(ilu_precond, max_iter);
+}
+
+void HypreILU::SetTol(HYPRE_Real tol)
+{
+   HYPRE_ILUSetTol(ilu_precond, tol);
+}
+
+void HypreILU::SetLocalReordering(HYPRE_Int reorder_type)
+{
+   HYPRE_ILUSetLocalReordering(ilu_precond, reorder_type);
 }
 
 void HypreILU::SetPrintLevel(HYPRE_Int print_level)

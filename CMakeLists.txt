@@ -137,7 +137,7 @@ if (MFEM_USE_CUDA)
    set(CUSPARSE_FOUND TRUE)
    set(CUSPARSE_LIBRARIES "cusparse")
    set(CUBLAS_FOUND TRUE)
-   set(CUSBLAS_LIBRARIES "cublas")
+   set(CUBLAS_LIBRARIES "cublas")
 endif()
 
 if (XSDK_ENABLE_C)
@@ -476,6 +476,15 @@ if (NOT DEFINED MFEM_TIMER_TYPE)
     endif()
   endif()
 endif()
+
+# Without this, CMake 3.21.1 (and 3.20.2) run into CMake Errors like the following:
+# CMake Error at config/cmake/modules/MfemCmakeUtilities.cmake:60 (add_library):
+#   Target "mfem" links to target "Threads::Threads" but the target was not
+#   found.  Perhaps a find_package() call is missing for an IMPORTED target, or
+#   an ALIAS target is missing?
+# Call Stack (most recent call first):
+#   CMakeLists.txt:474 (mfem_add_library)
+find_package(Threads REQUIRED)
 
 # List all possible libraries in order of dependencies.
 # [METIS < SuiteSparse]:
