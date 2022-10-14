@@ -52,6 +52,9 @@ Discretization improvements
 - Added a class CoefficientVector for efficient access of variable coefficient
   values at quadrature points (in particular for GPU/device kernels).
 
+- Added support for GridFunction::GetGradients() and
+  GriFunction::GetVectorGradient() on face-neighbor elements.
+
 Linear and nonlinear solvers
 ----------------------------
 - Added a new class DGMassInverse that performs a local elementwise CG
