@@ -14,11 +14,80 @@
 #include "pgridfunc.hpp"
 #include "tmop_tools.hpp"
 #include "../general/forall.hpp"
+#include "../linalg/invariants.hpp"
+#include "../linalg/dinvariants.hpp"
 
 namespace mfem
 {
 
 // Target-matrix optimization paradigm (TMOP) mesh quality metrics.
+
+void TMOP_QualityMetric::ComputeHIdentity(const int dim) const
+{
+   DenseMatrix Iden(dim);
+   Iden = 0.0;
+   for (int d = 0; d < dim; d++) { Iden(d, d) = 1.0; }
+   ComputeH(Iden);
+}
+
+double TMOP_QualityMetric::EvalLinearizedW(const DenseMatrix &Jpt,
+                                           DenseTensor &HIden) const
+{
+   const int dim = Jpt.Size();
+   DenseMatrix P(dim);
+   EvalLinearizedP(Jpt, HIden, P);
+   DenseMatrix X = Jpt;
+   for (int d = 0; d < dim; d++) { X(d, d) -= 1.0; }
+   return 0.5*DoubleDotProduct(P, X);
+}
+
+void TMOP_QualityMetric::EvalLinearizedP(const DenseMatrix &Jpt,
+                                         DenseTensor &HIden,
+                                         DenseMatrix &P) const
+{
+   P = 0.0;
+   DenseMatrix X = Jpt;
+   const int dim = Jpt.Size();;
+   for (int d = 0; d < dim; d++) { X(d, d) -= 1.0; }
+   for (int i = 0; i < dim; i++)
+   {
+      for (int j = 0; j < dim; j++)
+      {
+         P(i, j) = DoubleDotProduct(X, HIden(i+dim*j));
+      }
+   }
+}
+
+void TMOP_QualityMetric::AssembleLinearizedH(const DenseMatrix &Jpt,
+                                             const DenseMatrix &DS,
+                                             const double weight,
+                                             DenseMatrix &A,
+                                             DenseTensor &HIden) const
+{
+   const int dof = DS.Height(), dim = DS.Width();
+   for (int r = 0; r < dim; r++)
+   {
+      for (int c = 0; c < dim; c++)
+      {
+         DenseMatrix HdMdM(dim);
+         HdMdM.Set(1.0, HIden(r+dim*c));
+         for (int rr = 0; rr < dim; rr++)
+         {
+            for (int cc = 0; cc < dim; cc++)
+            {
+               const double entry_rr_cc = HdMdM(rr,cc);
+
+               for (int i = 0; i < dof; i++)
+                  for (int j = 0; j < dof; j++)
+                  {
+                     A(i+r*dof, j+rr*dof) +=
+                        weight * DS(i, c) * DS(j, cc) * entry_rr_cc;
+                  }
+            }
+         }
+      }
+   }
+}
 
 double TMOP_Combo_QualityMetric::EvalWMatrixForm(const DenseMatrix &Jpt) const
 {
@@ -249,14 +318,30 @@ double TMOP_Metric_002::EvalWMatrixForm(const DenseMatrix &Jpt) const
 
 double TMOP_Metric_002::EvalW(const DenseMatrix &Jpt) const
 {
-   ie.SetJacobian(Jpt.GetData());
-   return 0.5 * ie.Get_I1b() - 1.0;
+   if (linear)
+   {
+      if (HIden.TotalSize() == 0) { ComputeHIdentity(Jpt.Size()); }
+      return EvalLinearizedW(Jpt, HIden);
+   }
+   else
+   {
+      ie.SetJacobian(Jpt.GetData());
+      return 0.5 * ie.Get_I1b() - 1.0;
+   }
 }
 
 void TMOP_Metric_002::EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const
 {
-   ie.SetJacobian(Jpt.GetData());
-   P.Set(0.5, ie.Get_dI1b());
+   if (linear)
+   {
+      if (HIden.TotalSize() == 0) { ComputeHIdentity(Jpt.Size()); }
+      EvalLinearizedP(Jpt, HIden, P);
+   }
+   else
+   {
+      ie.SetJacobian(Jpt.GetData());
+      P.Set(0.5, ie.Get_dI1b());
+   }
 }
 
 void TMOP_Metric_002::AssembleH(const DenseMatrix &Jpt,
@@ -264,10 +349,40 @@ void TMOP_Metric_002::AssembleH(const DenseMatrix &Jpt,
                                 const double weight,
                                 DenseMatrix &A) const
 {
-   ie.SetJacobian(Jpt.GetData());
-   ie.SetDerivativeMatrix(DS.Height(), DS.GetData());
-   ie.Assemble_ddI1b(0.5*weight, A.GetData());
+   if (linear)
+   {
+      if (HIden.TotalSize() == 0) { ComputeHIdentity(Jpt.Size()); }
+      AssembleLinearizedH(Jpt, DS, weight, A, HIden);
+   }
+   else
+   {
+      ie.SetJacobian(Jpt.GetData());
+      ie.SetDerivativeMatrix(DS.Height(), DS.GetData());
+      ie.Assemble_ddI1b(0.5*weight, A.GetData());
+   }
 }
+
+void TMOP_Metric_002::ComputeH(const DenseMatrix &Jpt) const
+{
+   const int dim = Jpt.Size();
+   HIden.SetSize(dim, dim, dim*dim);
+   using Args = kernels::InvariantsEvaluator2D::Buffers;
+   double ddI1[4], ddI1b[4], dI2b[4];
+   kernels::InvariantsEvaluator2D ied(Args()
+                                      .J(Jpt.GetData())
+                                      .ddI1(ddI1)
+                                      .ddI1b(ddI1b)
+                                      .dI2b(dI2b));
+   for (int r = 0; r < dim; r++)
+   {
+      for (int c = 0; c < dim; c++)
+      {
+         DenseMatrix H(HIden(r+dim*c).GetData(),dim, dim);
+         H.Set(1.0, ied.Get_ddI1b(r,c));
+      }
+   }
+}
+
 
 double TMOP_Metric_004::EvalW(const DenseMatrix &Jpt) const
 {
@@ -544,18 +659,34 @@ double TMOP_Metric_058::EvalWMatrixForm(const DenseMatrix &Jpt) const
 
 double TMOP_Metric_058::EvalW(const DenseMatrix &Jpt) const
 {
-   // mu_58 = I1b*(I1b - 2)
-   ie.SetJacobian(Jpt.GetData());
-   const double I1b = ie.Get_I1b();
-   return I1b*(I1b - 2.0);
+   if (linear)
+   {
+      if (HIden.TotalSize() == 0) { ComputeHIdentity(Jpt.Size()); }
+      return EvalLinearizedW(Jpt, HIden);
+   }
+   else
+   {
+      // mu_58 = I1b*(I1b - 2)
+      ie.SetJacobian(Jpt.GetData());
+      const double I1b = ie.Get_I1b();
+      return I1b*(I1b - 2.0);
+   }
 }
 
 void TMOP_Metric_058::EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const
 {
-   // mu_58 = I1b*(I1b - 2)
-   // P = (2*I1b - 2)*dI1b
-   ie.SetJacobian(Jpt.GetData());
-   P.Set(2*ie.Get_I1b() - 2.0, ie.Get_dI1b());
+   if (linear)
+   {
+      if (HIden.TotalSize() == 0) { ComputeHIdentity(Jpt.Size()); }
+      EvalLinearizedP(Jpt, HIden, P);
+   }
+   else
+   {
+      // mu_58 = I1b*(I1b - 2)
+      // P = (2*I1b - 2)*dI1b
+      ie.SetJacobian(Jpt.GetData());
+      P.Set(2*ie.Get_I1b() - 2.0, ie.Get_dI1b());
+   }
 }
 
 void TMOP_Metric_058::AssembleH(const DenseMatrix &Jpt,
@@ -563,28 +694,90 @@ void TMOP_Metric_058::AssembleH(const DenseMatrix &Jpt,
                                 const double weight,
                                 DenseMatrix &A) const
 {
-   // P  = (2*I1b - 2)*dI1b
-   // dP =  2*(dI1b x dI1b) + (2*I1b - 2)*ddI1b
-   ie.SetJacobian(Jpt.GetData());
-   ie.SetDerivativeMatrix(DS.Height(), DS.GetData());
-   ie.Assemble_TProd(2*weight, ie.Get_dI1b(), A.GetData());
-   ie.Assemble_ddI1b(weight*(2*ie.Get_I1b() - 2.0), A.GetData());
+   if (linear)
+   {
+      if (HIden.TotalSize() == 0) { ComputeHIdentity(Jpt.Size()); }
+      AssembleLinearizedH(Jpt, DS, weight, A, HIden);
+   }
+   else
+   {
+      // P  = (2*I1b - 2)*dI1b
+      // dP =  2*(dI1b x dI1b) + (2*I1b - 2)*ddI1b
+      ie.SetJacobian(Jpt.GetData());
+      ie.SetDerivativeMatrix(DS.Height(), DS.GetData());
+      ie.Assemble_TProd(2*weight, ie.Get_dI1b(), A.GetData());
+      ie.Assemble_ddI1b(weight*(2*ie.Get_I1b() - 2.0), A.GetData());
+   }
+}
+
+void TMOP_Metric_058::ComputeH(const DenseMatrix &Jpt) const
+{
+   const int dim = 2;
+   HIden.SetSize(dim, dim, dim*dim);
+   using Args = kernels::InvariantsEvaluator2D::Buffers;
+   double ddI1[4], ddI1b[4], dI2b[4], dI1b[4];
+   kernels::InvariantsEvaluator2D ied(Args()
+                                      .J(Jpt.GetData())
+                                      .ddI1(ddI1)
+                                      .ddI1b(ddI1b)
+                                      .dI2b(dI2b)
+                                      .dI1b(dI1b));
+   DenseMatrix dI1bM(ied.Get_dI1b(), dim, dim);
+   double dI1bMSum = dI1bM(0, 0)+dI1bM(1, 0)+dI1bM(0, 1)+dI1bM(1, 1);
+
+   for (int r = 0; r < dim; r++)
+   {
+      for (int c = 0; c < dim; c++)
+      {
+         DenseMatrix H(HIden(r+dim*c).GetData(),dim, dim);
+         H.Set(2*ied.Get_I1b() - 2.0, ied.Get_ddI1b(r, c));
+         for (int rr = 0; rr < dim; rr++)
+         {
+            for (int cc = 0; cc < dim; cc++)
+            {
+               H(rr, cc) += 2.0*dI1bMSum*dI1bM(rr,cc);
+            }
+         }
+      }
+   }
+}
+
+double TMOP_Metric_077::EvalWMatrixForm(const DenseMatrix &Jpt) const
+{
+   const double det = Jpt.Det();
+   return 0.5*pow(det - 1.0/det, 2.0);
 }
 
 double TMOP_Metric_077::EvalW(const DenseMatrix &Jpt) const
 {
-   ie.SetJacobian(Jpt.GetData());
-   const double I2b = ie.Get_I2b();
-   return  0.5*(I2b*I2b + 1./(I2b*I2b) - 2.);
+   if (linear)
+   {
+      if (HIden.TotalSize() == 0) { ComputeHIdentity(Jpt.Size()); }
+      return EvalLinearizedW(Jpt, HIden);
+   }
+   else
+   {
+      ie.SetJacobian(Jpt.GetData());
+      const double I2b = ie.Get_I2b();
+      return  0.5*(I2b*I2b + 1./(I2b*I2b) - 2.);
+   }
 }
 
 void TMOP_Metric_077::EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const
 {
-   // Using I2b^2 = I2.
-   // dmu77_dJ = 1/2 (1 - 1/I2^2) dI2_dJ.
-   ie.SetJacobian(Jpt.GetData());
-   const double I2 = ie.Get_I2();
-   P.Set(0.5 * (1.0 - 1.0 / (I2 * I2)), ie.Get_dI2());
+   if (linear)
+   {
+      if (HIden.TotalSize() == 0) { ComputeHIdentity(Jpt.Size()); }
+      EvalLinearizedP(Jpt, HIden, P);
+   }
+   else
+   {
+      // Using I2b^2 = I2.
+      // dmu77_dJ = 1/2 (1 - 1/I2^2) dI2_dJ.
+      ie.SetJacobian(Jpt.GetData());
+      const double I2 = ie.Get_I2();
+      P.Set(0.5 * (1.0 - 1.0 / (I2 * I2)), ie.Get_dI2());
+   }
 }
 
 void TMOP_Metric_077::AssembleH(const DenseMatrix &Jpt,
@@ -592,11 +785,50 @@ void TMOP_Metric_077::AssembleH(const DenseMatrix &Jpt,
                                 const double weight,
                                 DenseMatrix &A) const
 {
-   ie.SetJacobian(Jpt.GetData());
-   ie.SetDerivativeMatrix(DS.Height(), DS.GetData());
-   const double I2 = ie.Get_I2(), I2inv_sq = 1.0 / (I2 * I2);
-   ie.Assemble_ddI2(weight*0.5*(1.0 - I2inv_sq), A.GetData());
-   ie.Assemble_TProd(weight * I2inv_sq / I2, ie.Get_dI2(), A.GetData());
+   if (linear)
+   {
+      if (HIden.TotalSize() == 0) { ComputeHIdentity(Jpt.Size()); }
+      AssembleLinearizedH(Jpt, DS, weight, A, HIden);
+   }
+   else
+   {
+      ie.SetJacobian(Jpt.GetData());
+      ie.SetDerivativeMatrix(DS.Height(), DS.GetData());
+      const double I2 = ie.Get_I2(), I2inv_sq = 1.0 / (I2 * I2);
+      ie.Assemble_ddI2(weight*0.5*(1.0 - I2inv_sq), A.GetData());
+      ie.Assemble_TProd(weight * I2inv_sq / I2, ie.Get_dI2(), A.GetData());
+   }
+}
+
+void TMOP_Metric_077::ComputeH(const DenseMatrix &Jpt) const
+{
+   const int dim = Jpt.Size();
+   HIden.SetSize(dim, dim, dim*dim);
+   using Args = kernels::InvariantsEvaluator2D::Buffers;
+   double dI2[4], dI2b[4], ddI2[4];
+   kernels::InvariantsEvaluator2D ied(Args()
+                                      .J(Jpt.GetData())
+                                      .dI2(dI2)
+                                      .dI2b(dI2b)
+                                      .ddI2(ddI2));
+   const double I2 = ied.Get_I2(), I2inv_sq = 1.0 / (I2 * I2);
+   DenseMatrix dI2M(ied.Get_dI2(), dim, dim);
+   for (int i = 0; i < dim; i++)
+   {
+      for (int j = 0; j < dim; j++)
+      {
+         DenseMatrix H(HIden(i+dim*j).GetData(), dim, dim);
+         DenseMatrix ddI2M(ied.Get_ddI2(i,j), dim, dim);
+         for (int r = 0; r < dim; r++)
+         {
+            for (int c = 0; c < dim; c++)
+            {
+               H(r, c) = 0.5 * (1.0 - I2inv_sq) * ddI2M(r,c) +
+                         (I2inv_sq / I2) * dI2M(r,c) * dI2M(i,j);
+            }
+         }
+      }
+   }
 }
 
 // mu_85 = |T-T'|^2, where T'= |T|*I/sqrt(2)
@@ -724,6 +956,59 @@ void TMOP_Metric_301::AssembleH(const DenseMatrix &Jpt,
                                 const double weight,
                                 DenseMatrix &A) const
 {
+   using Args = kernels::InvariantsEvaluator3D::Buffers;
+   double         dI1b[9], ddI1[9], ddI1b[9];
+   double dI2[9], dI2b[9], ddI2[9], ddI2b[9], dI3b[9], ddI3b[9], b[9];
+   kernels::InvariantsEvaluator3D ied(Args()
+                                      .J(Jpt.GetData()).B(b)
+                                      .dI1b(dI1b).ddI1(ddI1).ddI1b(ddI1b)
+                                      .dI2(dI2).dI2b(dI2b).ddI2(ddI2).ddI2b(ddI2b)
+                                      .dI3b(dI3b).ddI3b(ddI3b));
+
+   const int dof = DS.Height(), dim = DS.Width();
+   ie.SetJacobian(Jpt.GetData());
+   const double I1b = ie.Get_I1b(), I2b = ie.Get_I1b();
+   DenseMatrix dI1b_dM(ied.Get_dI1b(), dim, dim),
+               dI2b_dM(ied.Get_dI2b(), dim, dim);
+
+   double I1bI2b = I1b*I2b;
+
+   // The first two go over the rows and cols of dP_dJ where P = dW_dJ.
+   for (int r = 0; r < dim; r++)
+   {
+      for (int c = 0; c < dim; c++)
+      {
+         DenseMatrix  dI1b_dMdM(ied.Get_ddI1b(r, c), dim, dim),
+                      dI2b_dMdM(ied.Get_ddI2b(r, c), dim, dim);
+         // Compute each entry of d(Prc)_dJ.
+         for (int rr = 0; rr < dim; rr++)
+         {
+            for (int cc = 0; cc < dim; cc++)
+            {
+               const double entry_rr_cc =
+                  - (1./12.)*pow(I1bI2b,-1.5) *
+                  (dI1b_dM(rr,cc)*I2b + I1b*dI2b_dM(rr,cc)) *
+                  (dI1b_dM(r,c)*I2b + I1b*dI2b_dM(r,c))
+                  + (1./6)*pow(I1bI2b,-0.5) *
+                  (dI1b_dMdM(rr,cc)*I2b
+                   + dI1b_dM(r,c)*dI2b_dM(rr,cc)
+                   + dI1b_dM(rr,cc)*dI2b_dM(r,c)
+                   + I1b*dI2b_dMdM(rr,cc));
+
+               for (int i = 0; i < dof; i++)
+               {
+                  for (int j = 0; j < dof; j++)
+                  {
+                     A(i+r*dof, j+rr*dof) +=
+                        weight * DS(i, c) * DS(j, cc) * entry_rr_cc;
+                  }
+               }
+            }
+         }
+      }
+   }
+   return;
+#if true
    //  dW = (1/6)/sqrt(I1b*I2b)*[I2b*dI1b + I1b*dI2b]
    //  dW = (1/6)*[z2*dI1b + z1*dI2b], z1 = sqrt(I1b/I2b), z2 = sqrt(I2b/I1b)
    // ddW = (1/6)*[dI1b x dz2 + z2*ddI1b + dI2b x dz1 + z1*ddI2b]
@@ -752,6 +1037,7 @@ void TMOP_Metric_301::AssembleH(const DenseMatrix &Jpt,
    ie.Assemble_ddI1b(a*ie.Get_I2b(), A.GetData());
    ie.Assemble_ddI2b(a*ie.Get_I1b(), A.GetData());
    ie.Assemble_TProd(a/(2*I1b_I2b), d_I1b_I2b_data, A.GetData());
+#endif
 }
 
 double TMOP_Metric_302::EvalWMatrixForm(const DenseMatrix &Jpt) const
@@ -765,20 +1051,36 @@ double TMOP_Metric_302::EvalWMatrixForm(const DenseMatrix &Jpt) const
 
 double TMOP_Metric_302::EvalW(const DenseMatrix &Jpt) const
 {
-   // mu_2 = |J|^2 |J^{-1}|^2 / 9 - 1
-   //      = (l1^2 + l2^2 + l3^3)*(l1^{-2} + l2^{-2} + l3^{-2}) / 9 - 1
-   //      = I1*(l2^2*l3^2 + l1^2*l3^2 + l1^2*l2^2)/l1^2/l2^2/l3^2/9 - 1
-   //      = I1*I2/det(J)^2/9 - 1 = I1b*I2b/9-1
-   ie.SetJacobian(Jpt.GetData());
-   return ie.Get_I1b()*ie.Get_I2b()/9. - 1.;
+   if (linear)
+   {
+      if (HIden.TotalSize() == 0) { ComputeHIdentity(Jpt.Size()); }
+      return EvalLinearizedW(Jpt, HIden);
+   }
+   else
+   {
+      // mu_2 = |J|^2 |J^{-1}|^2 / 9 - 1
+      //      = (l1^2 + l2^2 + l3^3)*(l1^{-2} + l2^{-2} + l3^{-2}) / 9 - 1
+      //      = I1*(l2^2*l3^2 + l1^2*l3^2 + l1^2*l2^2)/l1^2/l2^2/l3^2/9 - 1
+      //      = I1*I2/det(J)^2/9 - 1 = I1b*I2b/9-1
+      ie.SetJacobian(Jpt.GetData());
+      return ie.Get_I1b()*ie.Get_I2b()/9. - 1.;
+   }
 }
 
 void TMOP_Metric_302::EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const
 {
-   // mu_2 = I1b*I2b/9-1
-   // P = (I1b/9)*dI2b + (I2b/9)*dI1b
-   ie.SetJacobian(Jpt.GetData());
-   Add(ie.Get_I1b()/9, ie.Get_dI2b(), ie.Get_I2b()/9, ie.Get_dI1b(), P);
+   if (linear)
+   {
+      if (HIden.TotalSize() == 0) { ComputeHIdentity(Jpt.Size()); }
+      EvalLinearizedP(Jpt, HIden, P);
+   }
+   else
+   {
+      // mu_2 = I1b*I2b/9-1
+      // P = (I1b/9)*dI2b + (I2b/9)*dI1b
+      ie.SetJacobian(Jpt.GetData());
+      Add(ie.Get_I1b()/9, ie.Get_dI2b(), ie.Get_I2b()/9, ie.Get_dI1b(), P);
+   }
 }
 
 void TMOP_Metric_302::AssembleH(const DenseMatrix &Jpt,
@@ -786,15 +1088,61 @@ void TMOP_Metric_302::AssembleH(const DenseMatrix &Jpt,
                                 const double weight,
                                 DenseMatrix &A) const
 {
-   // P  = (I1b/9)*dI2b + (I2b/9)*dI1b
-   // dP = (dI2b x dI1b)/9 + (I1b/9)*ddI2b + (dI1b x dI2b)/9 + (I2b/9)*ddI1b
-   //    = (dI2b x dI1b + dI1b x dI2b)/9 + (I1b/9)*ddI2b + (I2b/9)*ddI1b
-   ie.SetJacobian(Jpt.GetData());
-   ie.SetDerivativeMatrix(DS.Height(), DS.GetData());
-   const double c1 = weight/9;
-   ie.Assemble_TProd(c1, ie.Get_dI1b(), ie.Get_dI2b(), A.GetData());
-   ie.Assemble_ddI2b(c1*ie.Get_I1b(), A.GetData());
-   ie.Assemble_ddI1b(c1*ie.Get_I2b(), A.GetData());
+   if (linear)
+   {
+      if (HIden.TotalSize() == 0) { ComputeHIdentity(Jpt.Size()); }
+      AssembleLinearizedH(Jpt, DS, weight, A, HIden);
+   }
+   else
+   {
+      // P  = (I1b/9)*dI2b + (I2b/9)*dI1b
+      // dP = (dI2b x dI1b)/9 + (I1b/9)*ddI2b + (dI1b x dI2b)/9 + (I2b/9)*ddI1b
+      //    = (dI2b x dI1b + dI1b x dI2b)/9 + (I1b/9)*ddI2b + (I2b/9)*ddI1b
+      ie.SetJacobian(Jpt.GetData());
+      ie.SetDerivativeMatrix(DS.Height(), DS.GetData());
+      const double c1 = weight/9;
+      ie.Assemble_TProd(c1, ie.Get_dI1b(), ie.Get_dI2b(), A.GetData());
+      ie.Assemble_ddI2b(c1*ie.Get_I1b(), A.GetData());
+      ie.Assemble_ddI1b(c1*ie.Get_I2b(), A.GetData());
+   }
+}
+
+void TMOP_Metric_302::ComputeH(const DenseMatrix &Jpt) const
+{
+   const int dim = Jpt.Size();
+   HIden.SetSize(dim, dim, dim*dim);
+   using Args = kernels::InvariantsEvaluator3D::Buffers;
+   double         dI1b[9], ddI1[9], ddI1b[9];
+   double dI2[9], dI2b[9], ddI2[9], ddI2b[9], dI3b[9], ddI3b[9], b[9];
+   kernels::InvariantsEvaluator3D ied(Args()
+                                      .J(Jpt.GetData()).B(b)
+                                      .dI1b(dI1b).ddI1(ddI1).ddI1b(ddI1b)
+                                      .dI2(dI2).dI2b(dI2b).ddI2(ddI2).ddI2b(ddI2b)
+                                      .dI3b(dI3b).ddI3b(ddI3b));
+   DenseMatrix dI1bM(ied.Get_dI1b(), dim, dim),
+               dI2bM(ied.Get_dI2b(), dim, dim);
+   const double c1 = 1.0/9.;
+   const double I1b = ied.Get_I1b();
+   const double I2b = ied.Get_I2b();
+
+   for (int i = 0; i < dim; i++)
+   {
+      for (int j = 0; j < dim; j++)
+      {
+         DenseMatrix ddI1bM(ied.Get_ddI1b(i, j), dim, dim);
+         DenseMatrix ddI2bM(ied.Get_ddI2b(i, j), dim, dim);
+         DenseMatrix HdMdM(HIden(i+dim*j).GetData(),dim, dim);
+         for (int r = 0; r < dim; r++)
+         {
+            for (int c = 0; c < dim; c++)
+            {
+               HdMdM(r, c) = c1*( (dI2bM(r,c)*dI1bM(i,j) + dI1bM(r,c)*dI2bM(i,j))
+                                  + ddI2bM(r,c)*I1b
+                                  + ddI1bM(r,c)*I2b);
+            }
+         }
+      }
+   }
 }
 
 double TMOP_Metric_303::EvalWMatrixForm(const DenseMatrix &Jpt) const
@@ -806,17 +1154,33 @@ double TMOP_Metric_303::EvalWMatrixForm(const DenseMatrix &Jpt) const
 
 double TMOP_Metric_303::EvalW(const DenseMatrix &Jpt) const
 {
-   // mu_303 = |J|^2 / 3 / det(J)^(2/3) - 1 = I1b/3 - 1.
-   ie.SetJacobian(Jpt.GetData());
-   return ie.Get_I1b()/3.0 - 1.0;
+   if (linear)
+   {
+      if (HIden.TotalSize() == 0) { ComputeHIdentity(Jpt.Size()); }
+      return EvalLinearizedW(Jpt, HIden);
+   }
+   else
+   {
+      // mu_303 = |J|^2 / 3 / det(J)^(2/3) - 1 = I1b/3 - 1.
+      ie.SetJacobian(Jpt.GetData());
+      return ie.Get_I1b()/3.0 - 1.0;
+   }
 }
 
 void TMOP_Metric_303::EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const
 {
-   // mu_304 = I1b/3 - 1.
-   // P      = dI1b/3.
-   ie.SetJacobian(Jpt.GetData());
-   P.Set(1./3., ie.Get_dI1b());
+   if (linear)
+   {
+      if (HIden.TotalSize() == 0) { ComputeHIdentity(Jpt.Size()); }
+      EvalLinearizedP(Jpt, HIden, P);
+   }
+   else
+   {
+      // mu_304 = I1b/3 - 1.
+      // P      = dI1b/3.
+      ie.SetJacobian(Jpt.GetData());
+      P.Set(1./3., ie.Get_dI1b());
+   }
 }
 
 void TMOP_Metric_303::AssembleH(const DenseMatrix &Jpt,
@@ -824,11 +1188,44 @@ void TMOP_Metric_303::AssembleH(const DenseMatrix &Jpt,
                                 const double weight,
                                 DenseMatrix &A) const
 {
-   // P  = dI1b/3.
-   // dP = ddI1b/3.
-   ie.SetJacobian(Jpt.GetData());
-   ie.SetDerivativeMatrix(DS.Height(), DS.GetData());
-   ie.Assemble_ddI1b(weight/3., A.GetData());
+   if (linear)
+   {
+      if (HIden.TotalSize() == 0) { ComputeHIdentity(Jpt.Size()); }
+      AssembleLinearizedH(Jpt, DS, weight, A, HIden);
+   }
+   else
+   {
+      // P  = dI1b/3.
+      // dP = ddI1b/3.
+      ie.SetJacobian(Jpt.GetData());
+      ie.SetDerivativeMatrix(DS.Height(), DS.GetData());
+      ie.Assemble_ddI1b(weight/3., A.GetData());
+   }
+}
+
+void TMOP_Metric_303::ComputeH(const DenseMatrix &Jpt) const
+{
+   const int dim = 3;
+   HIden.SetSize(dim, dim, dim*dim);
+
+   using Args = kernels::InvariantsEvaluator3D::Buffers;
+   double         dI1b[9], ddI1[9], ddI1b[9];
+   double dI2[9], dI2b[9], ddI2[9], ddI2b[9], dI3b[9], ddI3b[9], b[9];
+   kernels::InvariantsEvaluator3D ied(Args()
+                                      .J(Jpt.GetData()).B(b)
+                                      .dI1b(dI1b).ddI1(ddI1).ddI1b(ddI1b)
+                                      .dI2(dI2).dI2b(dI2b).ddI2(ddI2).ddI2b(ddI2b)
+                                      .dI3b(dI3b).ddI3b(ddI3b));
+
+   // The first two go over the rows and cols of dG_dJ where G = dW_dJ.
+   for (int r = 0; r < dim; r++)
+   {
+      for (int c = 0; c < dim; c++)
+      {
+         DenseMatrix HdMdM(HIden(r+dim*c).GetData(),dim, dim);
+         HdMdM.Set(1.0/3.0, ied.Get_ddI1b(r, c));
+      }
+   }
 }
 
 double TMOP_Metric_304::EvalWMatrixForm(const DenseMatrix &Jpt) const
@@ -932,18 +1329,34 @@ void TMOP_Metric_313::AssembleH(const DenseMatrix &Jpt,
 
 double TMOP_Metric_315::EvalW(const DenseMatrix &Jpt) const
 {
-   // mu_315 = mu_15_3D = (det(J) - 1)^2
-   ie.SetJacobian(Jpt.GetData());
-   const double c1 = ie.Get_I3b() - 1.0;
-   return c1*c1;
+   if (linear)
+   {
+      if (HIden.TotalSize() == 0) { ComputeHIdentity(Jpt.Size()); }
+      return EvalLinearizedW(Jpt, HIden);
+   }
+   else
+   {
+      // mu_315 = mu_15_3D = (det(J) - 1)^2
+      ie.SetJacobian(Jpt.GetData());
+      const double c1 = ie.Get_I3b() - 1.0;
+      return c1*c1;
+   }
 }
 
 void TMOP_Metric_315::EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const
 {
-   // mu_315 = (I3b - 1)^2
-   // P = 2*(I3b - 1)*dI3b
-   ie.SetJacobian(Jpt.GetData());
-   P.Set(2*(ie.Get_I3b() - 1.0), ie.Get_dI3b());
+   if (linear)
+   {
+      if (HIden.TotalSize() == 0) { ComputeHIdentity(Jpt.Size()); }
+      EvalLinearizedP(Jpt, HIden, P);
+   }
+   else
+   {
+      // mu_315 = (I3b - 1)^2
+      // P = 2*(I3b - 1)*dI3b
+      ie.SetJacobian(Jpt.GetData());
+      P.Set(2*(ie.Get_I3b() - 1.0), ie.Get_dI3b());
+   }
 }
 
 void TMOP_Metric_315::AssembleH(const DenseMatrix &Jpt,
@@ -951,12 +1364,53 @@ void TMOP_Metric_315::AssembleH(const DenseMatrix &Jpt,
                                 const double weight,
                                 DenseMatrix &A) const
 {
-   // P  = 2*(I3b - 1)*dI3b
-   // dP = 2*(dI3b x dI3b) + 2*(I3b - 1)*ddI3b
-   ie.SetJacobian(Jpt.GetData());
-   ie.SetDerivativeMatrix(DS.Height(), DS.GetData());
-   ie.Assemble_TProd(2*weight, ie.Get_dI3b(), A.GetData());
-   ie.Assemble_ddI3b(2*weight*(ie.Get_I3b() - 1.0), A.GetData());
+   if (linear)
+   {
+      if (HIden.TotalSize() == 0) { ComputeHIdentity(Jpt.Size()); }
+      AssembleLinearizedH(Jpt, DS, weight, A, HIden);
+   }
+   else
+   {
+      // P  = 2*(I3b - 1)*dI3b
+      // dP = 2*(dI3b x dI3b) + 2*(I3b - 1)*ddI3b
+      ie.SetJacobian(Jpt.GetData());
+      ie.SetDerivativeMatrix(DS.Height(), DS.GetData());
+      ie.Assemble_TProd(2*weight, ie.Get_dI3b(), A.GetData());
+      ie.Assemble_ddI3b(2*weight*(ie.Get_I3b() - 1.0), A.GetData());
+   }
+}
+
+void TMOP_Metric_315::ComputeH(const DenseMatrix &Jpt) const
+{
+   const int dim = 3;
+   HIden.SetSize(dim, dim, dim*dim);
+
+   using Args = kernels::InvariantsEvaluator3D::Buffers;
+   double         dI3b[9], ddI3b[9];
+   kernels::InvariantsEvaluator3D ied(Args().
+                                      J(Jpt.GetData()).
+                                      dI3b(dI3b).ddI3b(ddI3b));
+   double sign_detJ;
+   const double I3b = ied.Get_I3b(sign_detJ);
+   DenseMatrix di3bM(ied.Get_dI3b(sign_detJ),dim,dim);
+
+   // The first two go over the rows and cols of dG_dJ where G = dW_dJ.
+   for (int i = 0; i < dim; i++)
+   {
+      for (int j = 0; j < dim; j++)
+      {
+         DenseMatrix HdMdM(HIden(i+dim*j).GetData(),dim, dim);
+         DenseMatrix ddi3bM(ied.Get_ddI3b(i,j),dim,dim);
+         for (int r = 0; r < dim; r++)
+         {
+            for (int c = 0; c < dim; c++)
+            {
+               HdMdM(r,c) = 2.0 * (I3b - 1.0) * ddi3bM(r,c) +
+                            2.0 * di3bM(r,c) * di3bM(i,j);
+            }
+         }
+      }
+   }
 }
 
 double TMOP_Metric_316::EvalWMatrixForm(const DenseMatrix &Jpt) const
@@ -1007,24 +1461,40 @@ double TMOP_Metric_321::EvalWMatrixForm(const DenseMatrix &Jpt) const
 
 double TMOP_Metric_321::EvalW(const DenseMatrix &Jpt) const
 {
-   // mu_321 = mu_21_3D = |J - J^{-t}|^2
-   //        = |J|^2 + |J^{-1}|^2 - 6
-   //        = |J|^2 + (l1^{-2} + l2^{-2} + l3^{-2}) - 6
-   //        = |J|^2 + (l2^2*l3^2 + l1^2*l3^2 + l1^2*l2^2)/det(J)^2 - 6
-   //        = I1 + I2/I3b^2 - 6 = I1 + I2/I3 - 6
-   ie.SetJacobian(Jpt.GetData());
-   return ie.Get_I1() + ie.Get_I2()/ie.Get_I3() - 6.0;
+   if (linear)
+   {
+      if (HIden.TotalSize() == 0) { ComputeHIdentity(Jpt.Size()); }
+      return EvalLinearizedW(Jpt, HIden);
+   }
+   else
+   {
+      // mu_321 = mu_21_3D = |J - J^{-t}|^2
+      //        = |J|^2 + |J^{-1}|^2 - 6
+      //        = |J|^2 + (l1^{-2} + l2^{-2} + l3^{-2}) - 6
+      //        = |J|^2 + (l2^2*l3^2 + l1^2*l3^2 + l1^2*l2^2)/det(J)^2 - 6
+      //        = I1 + I2/I3b^2 - 6 = I1 + I2/I3 - 6
+      ie.SetJacobian(Jpt.GetData());
+      return ie.Get_I1() + ie.Get_I2()/ie.Get_I3() - 6.0;
+   }
 }
 
 void TMOP_Metric_321::EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const
 {
-   // mu_321 = I1 + I2/I3b^2 - 6 = I1 + I2/I3 - 6
-   // P = dI1 + (1/I3)*dI2 - (2*I2/I3b^3)*dI3b
-   ie.SetJacobian(Jpt.GetData());
-   const double I3 = ie.Get_I3();
-   Add(1.0/I3, ie.Get_dI2(),
-       -2*ie.Get_I2()/(I3*ie.Get_I3b()), ie.Get_dI3b(), P);
-   P += ie.Get_dI1();
+   if (linear)
+   {
+      if (HIden.TotalSize() == 0) { ComputeHIdentity(Jpt.Size()); }
+      EvalLinearizedP(Jpt, HIden, P);
+   }
+   else
+   {
+      // mu_321 = I1 + I2/I3b^2 - 6 = I1 + I2/I3 - 6
+      // P = dI1 + (1/I3)*dI2 - (2*I2/I3b^3)*dI3b
+      ie.SetJacobian(Jpt.GetData());
+      const double I3 = ie.Get_I3();
+      Add(1.0/I3, ie.Get_dI2(),
+          -2*ie.Get_I2()/(I3*ie.Get_I3b()), ie.Get_dI3b(), P);
+      P += ie.Get_dI1();
+   }
 }
 
 void TMOP_Metric_321::AssembleH(const DenseMatrix &Jpt,
@@ -1032,25 +1502,83 @@ void TMOP_Metric_321::AssembleH(const DenseMatrix &Jpt,
                                 const double weight,
                                 DenseMatrix &A) const
 {
-   // P  = dI1 + (1/I3)*dI2 - (2*I2/I3b^3)*dI3b
-   // dP = ddI1 + (-2/I3b^3)*(dI2 x dI3b) + (1/I3)*ddI2 + (dI3b x dz) + z*ddI3b
-   //
-   // z  = -2*I2/I3b^3
-   // dz = (-2/I3b^3)*dI2 + (2*I2)*(3/I3b^4)*dI3b
-   //
-   // dP = ddI1 + (-2/I3b^3)*(dI2 x dI3b + dI3b x dI2) + (1/I3)*ddI2
-   //      + (6*I2/I3b^4)*(dI3b x dI3b) + (-2*I2/I3b^3)*ddI3b
-   ie.SetJacobian(Jpt.GetData());
-   ie.SetDerivativeMatrix(DS.Height(), DS.GetData());
-   const double c0 = 1.0/ie.Get_I3b();
-   const double c1 = weight*c0*c0;
+   if (linear)
+   {
+      if (HIden.TotalSize() == 0) { ComputeHIdentity(Jpt.Size()); }
+      AssembleLinearizedH(Jpt, DS, weight, A, HIden);
+   }
+   else
+   {
+      // P  = dI1 + (1/I3)*dI2 - (2*I2/I3b^3)*dI3b
+      // dP = ddI1 + (-2/I3b^3)*(dI2 x dI3b) + (1/I3)*ddI2 + (dI3b x dz) + z*ddI3b
+      //
+      // z  = -2*I2/I3b^3
+      // dz = (-2/I3b^3)*dI2 + (2*I2)*(3/I3b^4)*dI3b
+      //
+      // dP = ddI1 + (-2/I3b^3)*(dI2 x dI3b + dI3b x dI2) + (1/I3)*ddI2
+      //      + (6*I2/I3b^4)*(dI3b x dI3b) + (-2*I2/I3b^3)*ddI3b
+      ie.SetJacobian(Jpt.GetData());
+      ie.SetDerivativeMatrix(DS.Height(), DS.GetData());
+      const double c0 = 1.0/ie.Get_I3b();
+      const double c1 = weight*c0*c0;
+      const double c2 = -2*c0*c1;
+      const double c3 = c2*ie.Get_I2();
+      ie.Assemble_ddI1(weight, A.GetData());
+      ie.Assemble_ddI2(c1, A.GetData());
+      ie.Assemble_ddI3b(c3, A.GetData());
+      ie.Assemble_TProd(c2, ie.Get_dI2(), ie.Get_dI3b(), A.GetData());
+      ie.Assemble_TProd(-3*c0*c3, ie.Get_dI3b(), A.GetData());
+   }
+}
+
+void TMOP_Metric_321::ComputeH(const DenseMatrix &Jpt) const
+{
+   const int dim = 3;
+   HIden.SetSize(dim, dim, dim*dim);
+
+   using Args = kernels::InvariantsEvaluator3D::Buffers;
+   double         dI1b[9], ddI1[9], ddI1b[9];
+   double dI2[9], dI2b[9], ddI2[9], ddI2b[9], dI3b[9], ddI3b[9], b[9];
+   kernels::InvariantsEvaluator3D ied(Args()
+                                      .J(Jpt.GetData()).B(b)
+                                      .dI1b(dI1b).ddI1(ddI1).ddI1b(ddI1b)
+                                      .dI2(dI2).dI2b(dI2b).ddI2(ddI2).ddI2b(ddI2b)
+                                      .dI3b(dI3b).ddI3b(ddI3b));
+
+
+   double sign_detJ;
+   const double I2 = ied.Get_I2();
+   const double I3b = ied.Get_I3b(sign_detJ);
+
+   DenseMatrix di2M(ied.Get_dI2(),dim,dim);
+   DenseMatrix di3bM(ied.Get_dI3b(sign_detJ),dim,dim);
+
+   const double c0 = 1.0/I3b;
+   const double c1 = c0*c0;
    const double c2 = -2*c0*c1;
-   const double c3 = c2*ie.Get_I2();
-   ie.Assemble_ddI1(weight, A.GetData());
-   ie.Assemble_ddI2(c1, A.GetData());
-   ie.Assemble_ddI3b(c3, A.GetData());
-   ie.Assemble_TProd(c2, ie.Get_dI2(), ie.Get_dI3b(), A.GetData());
-   ie.Assemble_TProd(-3*c0*c3, ie.Get_dI3b(), A.GetData());
+   const double c3 = c2*I2;
+
+   for (int i = 0; i < dim; i++)
+   {
+      for (int j = 0; j < dim; j++)
+      {
+         ConstDeviceMatrix ddi1M(ied.Get_ddI1(i,j),dim,dim);
+         ConstDeviceMatrix ddi2M(ied.Get_ddI2(i,j),dim,dim);
+         ConstDeviceMatrix ddi3bM(ied.Get_ddI3b(i,j),dim,dim);
+         DenseMatrix HdMdM(HIden(i+dim*j).GetData(),dim, dim);
+         for (int r = 0; r < dim; r++)
+         {
+            for (int c = 0; c < dim; c++)
+            {
+               HdMdM(r, c) = ddi1M(r,c)
+                             + c1 * ddi2M(r,c)
+                             + c3 * ddi3bM(r,c)
+                             + c2 * ((di2M(r,c)*di3bM(i,j) + di3bM(r,c)*di2M(i,j)))
+                             -3*c0*c3 * di3bM(r,c)*di3bM(i,j);
+            }
+         }
+      }
+   }
 }
 
 double TMOP_Metric_322::EvalWMatrixForm(const DenseMatrix &Jpt) const
@@ -3307,31 +3835,63 @@ void TMOP_Integrator::AssembleElementGradExact(const FiniteElement &el,
       Tpr->GetPointMat().Transpose(PMatI);
    }
 
-   for (int q = 0; q < nqp; q++)
+   if (!store_element_h || elmatLinear.Size() == 0)
    {
-      const IntegrationPoint &ip = ir.IntPoint(q);
-      const DenseMatrix &Jtr_q = Jtr(q);
-      metric->SetTargetJacobian(Jtr_q);
-      CalcInverse(Jtr_q, Jrt);
-      weights(q) = ip.weight * Jtr_q.Det();
-      double weight_m = weights(q) * metric_normal;
-
-      el.CalcDShape(ip, DSh);
-      Mult(DSh, Jrt, DS);
-      MultAtB(PMatI, DS, Jpt);
-
-      if (metric_coeff) { weight_m *= metric_coeff->Eval(*Tpr, ip); }
-
-      metric->AssembleH(Jpt, DS, weight_m, elmat);
-
-      // TODO: derivatives of adaptivity-based targets.
-
-      if (lim_coeff)
+      for (int q = 0; q < nqp; q++)
       {
+         const IntegrationPoint &ip = ir.IntPoint(q);
+         const DenseMatrix &Jtr_q = Jtr(q);
+         metric->SetTargetJacobian(Jtr_q);
+         CalcInverse(Jtr_q, Jrt);
+         weights(q) = ip.weight * Jtr_q.Det();
+         double weight_m = weights(q) * metric_normal;
+
+         el.CalcDShape(ip, DSh);
+         Mult(DSh, Jrt, DS);
+         MultAtB(PMatI, DS, Jpt);
+
+         if (metric_coeff) { weight_m *= metric_coeff->Eval(*Tpr, ip); }
+
+         metric->AssembleH(Jpt, DS, weight_m, elmat);
+
+         // TODO: derivatives of adaptivity-based targets.
+      }
+      if (store_element_h) { elmatLinear = elmat; }
+   }
+   else if (store_element_h)
+   {
+      elmat = elmatLinear;
+   }
+
+   //   for (int q = 0; q < nqp; q++)
+   //   {
+   //      const IntegrationPoint &ip = ir.IntPoint(q);
+   //      const DenseMatrix &Jtr_q = Jtr(q);
+   //      metric->SetTargetJacobian(Jtr_q);
+   //      CalcInverse(Jtr_q, Jrt);
+   //      weights(q) = ip.weight * Jtr_q.Det();
+   //      double weight_m = weights(q) * metric_normal;
+
+   //      el.CalcDShape(ip, DSh);
+   //      Mult(DSh, Jrt, DS);
+   //      MultAtB(PMatI, DS, Jpt);
+
+   //      if (metric_coeff) { weight_m *= metric_coeff->Eval(*Tpr, ip); }
+
+   //      metric->AssembleH(Jpt, DS, weight_m, elmat);
+
+   //      // TODO: derivatives of adaptivity-based targets.
+   //   }
+
+   if (lim_coeff)
+   {
+      for (int q = 0; q < nqp; q++)
+      {
+         const IntegrationPoint &ip = ir.IntPoint(q);
          el.CalcShape(ip, shape);
          PMatI.MultTranspose(shape, p);
          pos0.MultTranspose(shape, p0);
-         weight_m = weights(q) * lim_normal * lim_coeff->Eval(*Tpr, ip);
+         double weight_m = weights(q) * lim_normal * lim_coeff->Eval(*Tpr, ip);
          lim_func->Eval_d2(p, p0, d_vals(q), hess);
          for (int i = 0; i < dof; i++)
          {

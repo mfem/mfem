@@ -24,6 +24,7 @@ int main(int argc, char *argv[])
    int metric_id = 2;
    int convergence_iter = 10;
    bool verbose = false;
+   bool linear  = false;
 
    // Choose metric.
    OptionsParser args(argc, argv);
@@ -32,6 +33,8 @@ int main(int argc, char *argv[])
                   "Enable extra screen output.");
    args.AddOption(&convergence_iter, "-i", "--iterations",
                   "Number of iterations to check convergence of derivatives.");
+   args.AddOption(&linear, "-lin", "-linear", "-no-lin", "--no-linear",
+                  "Check linearization mode for metric.");
 
    args.Parse();
    if (!args.Good())
@@ -40,6 +43,14 @@ int main(int argc, char *argv[])
       return 1;
    }
    args.PrintOptions(cout);
+
+   // Check if metric linearization is enabled
+   if (linear)
+   {
+      MFEM_VERIFY(metric_id == 2 || metric_id == 58 || metric_id == 80 ||
+                  metric_id == 77 || metric_id == 303,
+                  "Metric linearization is not enabled for this metric ID.");
+   }
 
    // Setup metric.
    double tauval = -0.1;
@@ -119,6 +130,50 @@ int main(int argc, char *argv[])
    }
    cout << "--- EvalW:     " << bad_cnt << " errors out of "
         << valid_cnt << " comparisons with det(T) > 0.\n";
+
+   // Check linearization convergence
+   if (linear)
+   {
+      DenseMatrix Pert(dim);
+      Vector Pert_vec(Pert.GetData(), dim * dim);
+      DenseMatrix Iden(dim);
+      Iden = 0.0;
+      for (int d = 0; d < dim; d++) { Iden(d, d) = 1.0; }
+      Pert_vec.Randomize(0);
+      Vector Pert_vec_copy = Pert_vec;
+      double dxm = 1.0;
+      double metric_err = 1.0,
+             metric_prev_err = 1.0;
+      double rate_mu_sum = 0.0;
+      for (int it = 0; it < convergence_iter; it++)
+      {
+         metric_prev_err = metric_err;
+         T = Iden;
+         T.Add(dxm, Pert);
+         const double exact = metric->EvalW(T);
+         metric->EnableLinearization();
+         const double approx = metric->EvalW(T);
+         metric->DisableLinearization();
+         dxm *= 0.5;
+         metric_err = fabs(approx-exact);
+         if (verbose && it == 0)
+         {
+            std::cout << "metric error " << it << ": " << metric_err << endl;
+         }
+         if (it > 0)
+         {
+            double r = log2(metric_prev_err / metric_err);
+            rate_mu_sum += r;
+            if (verbose)
+            {
+               std::cout << "metric error " << it << ": " << metric_err << " " << r << endl;
+            }
+         }
+      }
+      std::cout << "--- Metric Linearization:avg rate of convergence (should be 2): "
+                << rate_mu_sum / (convergence_iter - 1) << endl;
+      return 0.0;
+   }
 
    Mesh *mesh;
    if (dim == 2)

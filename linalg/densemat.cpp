@@ -1957,6 +1957,22 @@ void Add(double alpha, const DenseMatrix &A,
    Add(alpha, A.GetData(), beta, B.GetData(), C);
 }
 
+double DoubleDotProduct(const DenseMatrix &A,
+                        const DenseMatrix &B)
+{
+   MFEM_ASSERT(A.Height() == B.Height(), "");
+   MFEM_ASSERT(A.Width() == B.Width(), "");
+   double doubledot = 0.0;
+   for (int j = 0; j < A.Width(); j++)
+   {
+      for (int i = 0; i < A.Height(); i++)
+      {
+         doubledot += A(i, j)*B(i, j);
+      }
+   }
+   return doubledot;
+}
+
 bool LinearSolve(DenseMatrix& A, double* X, double TOL)
 {
    MFEM_VERIFY(A.IsSquare(), "A must be a square matrix!");

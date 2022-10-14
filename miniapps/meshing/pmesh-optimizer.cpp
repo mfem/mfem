@@ -159,6 +159,7 @@ int main (int argc, char *argv[])
    double surface_fit_threshold = -10;
    int barrier_type       = 0;
    int worst_case_type    = 0;
+   bool mu_linearization  = false;
 
    // 2. Parse command-line options.
    OptionsParser args(argc, argv);
@@ -307,6 +308,9 @@ int main (int argc, char *argv[])
                   "0 - None,"
                   "1 - Beta,"
                   "2 - PMean.");
+   args.AddOption(&mu_linearization, "-mulin", "--mu-linearization", "-no-mulin",
+                  "--no-mu-linearization",
+                  "Linearized form of metric.");
 
    args.Parse();
    if (!args.Good())
@@ -512,6 +516,7 @@ int main (int argc, char *argv[])
             return 3;
       }
    }
+   if (mu_linearization) { metric->EnableLinearization(); }
 
    TMOP_WorstCaseUntangleOptimizer_Metric::BarrierType btype;
    switch (barrier_type)
@@ -893,6 +898,11 @@ int main (int argc, char *argv[])
          common::VisualizeField(vis1, "localhost", 19916, adapt_lim_gf0, "Zeta 0",
                                 300, 600, 300, 300);
       }
+   }
+
+   if (mu_linearization && (target_id == 1 || target_id == 2))
+   {
+      tmop_integ->ComputeAndStoreElementH();
    }
 
    // Surface fitting.

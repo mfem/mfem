@@ -427,6 +427,9 @@ void Add(double alpha, const double *A,
 void Add(double alpha, const DenseMatrix &A,
          double beta,  const DenseMatrix &B, DenseMatrix &C);
 
+double DoubleDotProduct(const DenseMatrix &A, const DenseMatrix &B);
+
+
 /// @brief Solves the dense linear system, `A * X = B` for `X`
 ///
 /// @param [in,out] A the square matrix for the linear system
