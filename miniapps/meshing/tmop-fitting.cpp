@@ -68,14 +68,15 @@ class ImplicitCoefficient : public FunctionCoefficient
 {
 public:
    ImplicitCoefficient(ImplicitGeometry::ImplicitParameterization &f)
-     : FunctionCoefficient([](const Vector&){return 0.0;}), f_(&f), sdim_(3), x_(sdim_)
+      : FunctionCoefficient([](const Vector&) {return 0.0;}), f_(&f), sdim_(3),
+   x_(sdim_)
    {}
 
    virtual void SetEvaluationCoordinate()
    {
       // copy values to std::vector for ImplicitParameterization evaluation
-      for (int i=0; i<sdim_; i++) 
-         {x_[i] = p_[i];}
+      for (int i=0; i<sdim_; i++)
+      {x_[i] = p_[i];}
    }
    double Eval(ElementTransformation &T, const IntegrationPoint &ip)
    {
@@ -103,38 +104,51 @@ int main (int argc, char *argv[])
 
    // 1. Set the method's default parameters.
    const char *mesh_file = "icf.mesh";
-   int mesh_poly_deg     = 1;
+   int mesh_poly_deg     = 2;
    int rs_levels         = 0;
    int rp_levels         = 0;
-   int metric_id         = 1;
+   int metric_id         = 2;
    int target_id         = 1;
-   double surface_fit_const = 0.0;
    int quad_type         = 1;
    int quad_order        = 8;
    int solver_type       = 0;
-   int solver_iter       = 20;
+   int solver_iter       = 100;
    double solver_rtol    = 1e-10;
    int solver_art_type   = 0;
    int lin_solver        = 2;
    int max_lin_iter      = 100;
    bool move_bnd         = true;
    bool visualization    = true;
-   int verbosity_level   = 0;
-   int adapt_eval        = 0;
+   int verbosity_level   = 2;
+   int adapt_eval        = 1;
    const char *devopt    = "cpu";
-   double surface_fit_adapt = 0.0;
-   double surface_fit_threshold = -10;
    bool adapt_marking     = false;
    bool split_case        = false;
-   bool surf_bg_mesh     = false;
-   bool comp_dist     = false;
    int surf_ls_type      = 1;
    int marking_type      = 0;
-   bool mod_bndr_attr    = false;
    bool trim_mesh        = false;
    bool material         = false;
    int mesh_node_ordering = 0;
-   int amr_iters         = 0;
+
+   // initial surface fitting const
+   double surface_fit_const = 10.0;
+   // multiplying factor for surface_fit_const when being adapted
+   double surface_fit_adapt = 10.0;
+   // error threshold for convergence
+   double surface_fit_threshold = 1e-7;
+
+   // use background mesh
+   bool surf_bg_mesh     = false;
+   // number of amr iterations to do on background mesh
+   int amr_iters         = 4;
+   // compute distance function from 0 level set to use for surface fitting
+   bool comp_dist     = false;
+
+   // fix boundary attributes for boundaries taht are parallel to x/y/z
+   bool mod_bndr_attr    = false;
+
+
+
 
    // 2. Parse command-line options.
    OptionsParser args(argc, argv);
@@ -514,6 +528,22 @@ int main (int argc, char *argv[])
    if (surf_bg_mesh)
    {
       pmesh_surf_fit_bg->SetCurvature(mesh_poly_deg);
+
+      Vector p_min(dim), p_max(dim);
+      pmesh->GetBoundingBox(p_min, p_max);
+      GridFunction &x_bg = *pmesh_surf_fit_bg->GetNodes();
+      const int num_nodes = x_bg.Size() / dim;
+      for (int i = 0; i < num_nodes; i++)
+      {
+         for (int d = 0; d < dim; d++)
+         {
+            double length_d = p_max(d) - p_min(d),
+                   extra_d = 0.2 * length_d;
+            x_bg(i + d*num_nodes) = p_min(d) - extra_d +
+                                    x_bg(i + d*num_nodes) * (length_d + 2*extra_d);
+         }
+      }
+
       surf_fit_bg_fec = new H1_FECollection(mesh_poly_deg+1, dim);
       surf_fit_bg_fes = new ParFiniteElementSpace(pmesh_surf_fit_bg, surf_fit_bg_fec);
       surf_fit_bg_gf0 = new ParGridFunction(surf_fit_bg_fes);
@@ -690,7 +720,7 @@ int main (int argc, char *argv[])
       if (adapt_eval == 0)
       {
          adapt_surface = new AdvectorCG;
-         MFEM_ASSERT(!surf_bg_mesh, "Background meshes require GSLIB.");
+         MFEM_VERIFY(!surf_bg_mesh, "Background meshes require GSLIB.");
       }
       else if (adapt_eval == 1)
       {
