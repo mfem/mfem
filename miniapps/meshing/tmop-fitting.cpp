@@ -278,7 +278,7 @@ int main (int argc, char *argv[])
    }
    const int dim = mesh->Dimension();
 
-   // Define level-set coefficientkj
+   // Define level-set coefficient
    /*
    FunctionCoefficient *ls_coeff = NULL;
    if (surf_ls_type == 1) //Circle
@@ -302,8 +302,8 @@ int main (int argc, char *argv[])
       MFEM_ABORT("Surface fitting level set type not implemented yet.")
    }
    */
-   std::vector<double> params {0.2, 0.2, 0.0};
-   ImplicitGeometry::Lattice2D parameterization(params);
+   std::vector<double> params {0.3, 0.3, 0.0};
+   ImplicitGeometry::Lattice2D parameterization(params, 0.25);
    mfem::FunctionCoefficient *ls_coeff = new ImplicitCoefficient(parameterization);
 
    // Trim the mesh based on material attribute and set boundary attribute for fitting to 3

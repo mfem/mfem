@@ -75,7 +75,8 @@ public:
       Function *a0 = params_[2];
       
       Function *A = new Scalar(a);
-      Function *phi = new Scalar(0.0);
+      double PI = 3.14159265358979323;
+      Function *phi = new Scalar(-PI/2.0);
       Function *a1 = new Scalar(1.0);
       Function *a2 = new Scalar(1.0);
 
