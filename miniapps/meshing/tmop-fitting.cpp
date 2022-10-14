@@ -316,8 +316,8 @@ int main (int argc, char *argv[])
       MFEM_ABORT("Surface fitting level set type not implemented yet.")
    }
    */
-   std::vector<double> params {0.3, 0.3, 0.0};
-   ImplicitGeometry::Lattice2D parameterization(params, 0.25);
+   std::vector<double> params {-0.5, -0.5, 0.2};
+   ImplicitGeometry::Lattice2D parameterization(params, 0.20);
    mfem::FunctionCoefficient *ls_coeff = new ImplicitCoefficient(parameterization);
 
    // Trim the mesh based on material attribute and set boundary attribute for fitting to 3
@@ -773,6 +773,13 @@ int main (int argc, char *argv[])
       }
    }
 
+   mfem::VisItDataCollection visit_dc("mesh_fit", pmesh);
+   visit_dc.RegisterField("material", &mat);
+   visit_dc.RegisterField("level set", &surf_fit_gf0);
+   visit_dc.SetCycle(0); 
+   visit_dc.SetTime(0);
+   visit_dc.Save();
+
    // 13. Setup the final NonlinearForm (which defines the integral of interest,
    //     its first and second derivatives). Here we can use a combination of
    //     metrics, i.e., optimize the sum of two integrals, where both are
@@ -1044,6 +1051,10 @@ int main (int argc, char *argv[])
               << "keys jRmclA" << endl;
       }
    }
+
+   visit_dc.SetCycle(1); 
+   visit_dc.SetTime(1);
+   visit_dc.Save();
 
    // 20. Free the used memory.
    delete S;
