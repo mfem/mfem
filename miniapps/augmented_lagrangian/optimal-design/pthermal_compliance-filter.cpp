@@ -2,7 +2,7 @@
 // Compile with: make optimal_design
 //
 // Sample runs:
-// mpirun -np 8 ./pthermal_compliance-filter -epsilon 0.01 -alpha 0.1 -beta 5.0 -r 4 -o 2
+// mpirun -np 6 ./pthermal_compliance-filter -epsilon 0.01 -alpha 0.1 -beta 5.0 -r 4 -o 2
 //
 //         min J(K) = <g,u>
 //                            
@@ -300,15 +300,17 @@ int main(int argc, char *argv[])
    // 11. Connect to GLVis. Prepare for VisIt output.
    char vishost[] = "localhost";
    int  visport   = 19916;
-   socketstream sout_u,sout_K,sout_rho;
+   socketstream sout_u,sout_K,sout_rho, sout_rho_filter;
    if (visualization)
    {
       sout_u.open(vishost, visport);
       sout_rho.open(vishost, visport);
       sout_K.open(vishost, visport);
+      sout_rho_filter.open(vishost, visport);
       sout_u.precision(8);
       sout_rho.precision(8);
       sout_K.precision(8);
+      sout_rho_filter.precision(8);
    }
 
    mfem::ParaViewDataCollection paraview_dc("Thermal_compliance", &pmesh);
@@ -417,6 +419,10 @@ int main(int argc, char *argv[])
             sout_rho << "parallel " << num_procs << " " << myid << "\n";
             sout_rho << "solution\n" << pmesh << rho
                   << "window_title 'Control ρ '" << flush;
+
+            sout_rho_filter << "parallel " << num_procs << " " << myid << "\n";
+            sout_rho_filter << "solution\n" << pmesh << rho_filter
+                  << "window_title 'Control ρ filter '" << flush;                  
 
             paraview_dc.SetCycle(step);
             paraview_dc.SetTime((double)k);

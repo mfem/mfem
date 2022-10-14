@@ -2,33 +2,7 @@
 // Compile with: make optimal_design
 //
 // Sample runs:
-// mpirun -np 8 ./pthermal_compliance-filter -epsilon 0.01 -alpha 0.1 -beta 5.0 -r 4 -o 2
-//
-//         min J(K) = <g,u>
-//                            
-//                        Γ_1           Γ_2            Γ_1
-//               _ _ _ _ _ _ _ _ _ _ _________ _ _ _ _ _ _ _ _ _ _   
-//              |         |         |         |         |         |  
-//              |         |         |         |         |         |  
-//              |---------|---------|---------|---------|---------|  
-//              |         |         |         |         |         |  
-//              |         |         |         |         |         |  
-//      Γ_1-->  |---------|---------|---------|---------|---------|  <-- Γ_1
-//              |         |         |         |         |         |  
-//              |         |         |         |         |         |  
-//              |---------|---------|---------|---------|---------|  
-//              |         |         |         |         |         |  
-//              |         |         |         |         |         |  
-//               -------------------------------------------------|
-//                       |̂                              |̂  
-//                      Γ_1                            Γ_1                    
-//
-//
-//         subject to   - div( K\nabla u ) = f    in \Omega
-//                                       u = 0    on Γ_2
-//                               (K ∇ u)⋅n = 0    on Γ_1
-//         and                   ∫_Ω K dx <= V ⋅ vol(\Omega)
-//         and                  a <= K(x) <= b
+// mpirun -np 6 pelastic_compliance-filter -r 5 -o 2 -tl 0.0001 -tr 0.0001 -alpha 0.5 -beta 5.0 -epsilon 0.1 -mi 20
 
 #include "mfem.hpp"
 #include <memory>
@@ -37,7 +11,7 @@
 #include <random>
 #include "common/fpde.hpp"
 
-class DiffusionCoefficient : public Coefficient
+class SIMPCoefficient : public Coefficient
 {
 protected:
    GridFunction *rho_filter; // grid function
@@ -46,9 +20,9 @@ protected:
    double exponent;
 
 public:
-   DiffusionCoefficient(GridFunction &rho_filter_, double min_val_= 1e-3, double max_val_=1.0, 
+   SIMPCoefficient(GridFunction *rho_filter_, double min_val_= 1e-3, double max_val_=1.0, 
       double exponent_ = 3)
-      : rho_filter(&rho_filter_), min_val(min_val_), max_val(max_val_),exponent(exponent_) { }
+      : rho_filter(rho_filter_), min_val(min_val_), max_val(max_val_),exponent(exponent_) { }
 
    virtual double Eval(ElementTransformation &T, const IntegrationPoint &ip)
    {
@@ -58,28 +32,89 @@ public:
    }
 };
 
-class GradientRHSCoefficient : public Coefficient
+
+// A Coefficient for computing the components of the stress.
+class StrainEnergyDensityCoefficient : public Coefficient
 {
 protected:
-   GridFunction *u; // grid function
-   GridFunction *rho_filter; // grid function
-   double min_val;
-   double max_val;
+   Coefficient * lambda=nullptr;
+   Coefficient * mu=nullptr;
+   GridFunction *u = nullptr; // displacement
+   GridFunction *rho_filter = nullptr; // filter density
+   DenseMatrix grad; // auxiliary matrix, used in Eval
    double exponent;
+   double k_min;
 
 public:
-   GradientRHSCoefficient(GridFunction &u_, GridFunction & rho_filter_, 
-      double min_val_= 1e-3, double max_val_=1.0, double exponent_ = 3.0)
-      : u(&u_), rho_filter(&rho_filter_), min_val(min_val_), max_val(max_val_), 
-         exponent(exponent_) { }
+   StrainEnergyDensityCoefficient(Coefficient *lambda_, Coefficient *mu_, 
+      GridFunction * u_, GridFunction * rho_filter_, double k_min_=1e-6, 
+      double exponent_ = 3.0)
+      : lambda(lambda_), mu(mu_),  u(u_), rho_filter(rho_filter_), 
+         k_min(k_min_), exponent(exponent_)
+   {
+      MFEM_ASSERT(k_min_ >= 0.0, "k_min must be >= 0");
+      MFEM_ASSERT(k_min_ < 1.0,  "k_min must be > 1");
+      MFEM_ASSERT(u, "displacement field is not set");
+      MFEM_ASSERT(rho_filter, "density field is not set");
+   }
 
    virtual double Eval(ElementTransformation &T, const IntegrationPoint &ip)
    {
-      T.SetIntPoint(&ip);
+      double L = lambda->Eval(T, ip);
+      double M = mu->Eval(T, ip);
+      u->GetVectorGradient(T, grad);
+      double div_u = grad.Trace();
+      double density = L*div_u*div_u;
+      int dim = T.GetSpaceDim();
+      for (int i=0; i<dim; i++)
+      {
+         for (int j=0; j<dim; j++)
+         {
+            density += M*grad(i,j)*(grad(i,j)+grad(j,i));
+         }
+      }
       double val = rho_filter->GetValue(T,ip);
-      Vector gradu;
-      u->GetGradient(T,gradu);
-      return -exponent * pow(val, exponent-1.0) * (max_val-min_val) * (gradu * gradu); 
+
+      return -exponent * pow(val, exponent-1.0) * (1-k_min) * density;
+   }
+};
+
+class VolumeForceCoefficient : public VectorCoefficient
+{
+private:
+   double r;
+   Vector center;
+   Vector force;
+public:
+   VolumeForceCoefficient(double r_,Vector &  center_, Vector & force_) : 
+   VectorCoefficient(center_.Size()), r(r_), center(center_), force(force_) { }
+
+   virtual void Eval(Vector &V, ElementTransformation &T, const IntegrationPoint &ip)
+   {
+      Vector xx; xx.SetSize(T.GetDimension());
+      T.Transform(ip,xx);
+      for(int i=0;i<xx.Size();i++)
+      {
+         xx[i]=xx[i]-center[i];
+      }
+
+      double cr=xx.Norml2();
+      V.SetSize(T.GetDimension());
+      if (cr <= r) 
+      {
+         V = force;
+      } 
+      else
+      {
+         V = 0.0;
+      }
+   }
+
+   void Set(double r_,Vector & center_, Vector & force_)
+   {
+   r=r_;
+   center = center_;
+   force = force_;
    }
 };
 
@@ -87,31 +122,34 @@ public:
 using namespace std;
 using namespace mfem;
 
-// Let H^1_Γ_1 := {v ∈ H^1(Ω) | v|Γ_1 = 0}
 /** The Lagrangian for this problem is
  *    TODO
  * -------------------------------------------------------- 
  * 
  * We update ρ with projected gradient descent via
  * 
- *  1. Initialize λ, ρ 
+ *  1. Initialize ζ, ρ 
  *  while not converged
- *     2. Solve (ϵ^2 ∇ ρ̃, ∇ v ) + (ρ̃,v) = (ρ,v)  
- *     3. Solve (k(ρ̃) ∇ u , ∇ v) = (f,v) , k(ρ̃):= K_min + ρ̃^3 (K_max- Kmin)  
- *     4. Solve (ϵ^2 ∇ w̃ , ∇ v ) + (w̃ ,v) = (-k'(ρ̃) |∇ u|^2 ,v)
- *     5. Compute gradient in L2 w:= M^-1 w̃ 
+ *     2. Solve (ϵ² ∇ ρ̃, ∇ v ) + (ρ̃,v) = (ρ,v)  
+ *     3. (λ(ρ̃) ∇⋅u, ∇⋅v) + (2 μ(ρ̃) e(u)), e(v)) = (f,v),
+ *        k(ρ̃):= kₘᵢₙ + ρ̃³ (1 - kₘᵢₙ)    
+ *        λ(ρ̃):= λ k(ρ̃)    
+ *        μ(ρ̃):= μ k(ρ̃)    
+ * 
+ *     4. Solve (ϵ² ∇ w̃ , ∇ v ) + (w̃ ,v) = (-k'(ρ̃) ( λ(ρ̃) |∇⋅u|² + 2 μ(ρ̃) |e(u)|²),v)
+ *     5. Compute gradient in L² w:= M⁻¹ w̃ 
  *     6. update until convergence 
- *       ρ <--- P(ρ - α (w - λ + β (∫_Ω ρ - V ⋅ vol(Ω)) ) )     
+ *       ρ <--- P(ρ - α (w - ζ + β (∫_Ω ρ - V ⋅ vol(Ω)) ) )     
  *              P is the projection operator enforcing 0 <= ρ <= 1
  * 
- *  7. update λ 
- *     λ <- λ - β (∫_Ω K dx - V ⋅ vol(Ω))
+ *  7. update ζ 
+ *     ζ <- ζ - β (∫_Ω K dx - V ⋅ vol(Ω))
  * 
- *  ρ ∈ L^2 (order p - 1)
- *  ρ̃ ∈ H^1 (order p - 1)
- *  u ∈ H^1 (order p)
- *  w̃ ∈ H^1 (order p - 1)
- *  w ∈ L^2 (order p - 1)
+ *  ρ ∈ L² (order p - 1)
+ *  ρ̃ ∈ H¹ (order p - 1)
+ *  u ∈ (H¹)ᵈ (order p)
+ *  w̃ ∈ H¹ (order p - 1)
+ *  w ∈ L² (order p - 1)
  */
 
 int main(int argc, char *argv[])
@@ -121,6 +159,7 @@ int main(int argc, char *argv[])
    int myid = Mpi::WorldRank();
    Hypre::Init();   
    // 1. Parse command-line options.
+   const char *mesh_file = "bar2d.msh";
    int ref_levels = 2;
    int order = 2;
    bool visualization = true;
@@ -130,9 +169,10 @@ int main(int argc, char *argv[])
    double mass_fraction = 0.4;
    int max_it = 1e2;
    double tol_rho = 5e-2;
-   double tol_lambda = 1e-3;
-   double K_max = 1.0;
+   double tol_zeta = 1e-3;
    double K_min = 1e-3;
+   double lambda = 1.0;
+   double mu = 1.0;
 
    OptionsParser args(argc, argv);
    args.AddOption(&ref_levels, "-r", "--refine",
@@ -142,21 +182,23 @@ int main(int argc, char *argv[])
    args.AddOption(&alpha, "-alpha", "--alpha-step-length",
                   "Step length for gradient descent.");
    args.AddOption(&beta, "-beta", "--beta-step-length",
-                  "Step length for λ"); 
+                  "Step length for ζ "); 
    args.AddOption(&epsilon, "-epsilon", "--epsilon-thickness",
                   "epsilon phase field thickness");
    args.AddOption(&max_it, "-mi", "--max-it",
                   "Maximum number of gradient descent iterations.");
    args.AddOption(&tol_rho, "-tr", "--tol_rho",
                   "Exit tolerance for ρ ");     
-   args.AddOption(&tol_lambda, "-tl", "--tol_lambda",
-                  "Exit tolerance for λ");                                 
+   args.AddOption(&tol_zeta, "-tl", "--tol_zeta",
+                  "Exit tolerance for ζ");                                 
    args.AddOption(&mass_fraction, "-mf", "--mass-fraction",
                   "Mass fraction for diffusion coefficient.");
-   args.AddOption(&K_max, "-Kmax", "--K-max",
-                  "Maximum of diffusion diffusion coefficient.");
+   args.AddOption(&lambda, "-lambda", "--lambda",
+                  "Lame constant λ");
+   args.AddOption(&mu, "-mu", "--mu",
+                  "Lame constant μ");                                    
    args.AddOption(&K_min, "-Kmin", "--K-min",
-                  "Minimum of diffusion diffusion coefficient.");
+                  "Minimum of density coefficient.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -175,8 +217,9 @@ int main(int argc, char *argv[])
    {
       args.PrintOptions(cout);
    }
+   // Mesh *mesh = new Mesh(mesh_file, 1, 1);
 
-   Mesh mesh = Mesh::MakeCartesian2D(7,7,mfem::Element::Type::QUADRILATERAL,true,1.0,1.0);
+   Mesh mesh = Mesh::MakeCartesian2D(3,1,mfem::Element::Type::QUADRILATERAL,true,3.0,1.0);
 
    int dim = mesh.Dimension();
 
@@ -194,15 +237,15 @@ int main(int argc, char *argv[])
       center(1) = 0.5*(coords1[1] + coords2[1]);
 
 
-      if (abs(center(1) - 1.0) < 1e-10 && abs(center(0)-0.5) < 1e-10)
+      if (abs(center(0) - 0.0) < 1e-10)
       {
-         // the top edge
-         be->SetAttribute(2);
+         // the left edge
+         be->SetAttribute(1);
       }
       else
       {
          // all other boundaries
-         be->SetAttribute(1);
+         be->SetAttribute(2);
       }
    }
    mesh.SetAttributes();
@@ -220,7 +263,7 @@ int main(int argc, char *argv[])
    H1_FECollection state_fec(order, dim,BasisType::Positive); // space for u
    H1_FECollection filter_fec(order-1, dim,BasisType::Positive); // space for ρ̃  
    L2_FECollection control_fec(order-1, dim,BasisType::Positive); // space for ρ   
-   ParFiniteElementSpace state_fes(&pmesh, &state_fec);
+   ParFiniteElementSpace state_fes(&pmesh, &state_fec,dim);
    ParFiniteElementSpace filter_fes(&pmesh, &filter_fec);
    ParFiniteElementSpace control_fes(&pmesh, &control_fec);
    
@@ -247,21 +290,21 @@ int main(int argc, char *argv[])
    int maxat = pmesh.bdr_attributes.Max();
    Array<int> ess_bdr(maxat);
    ess_bdr = 0;
-   if (maxat > 0)
-   {
-      ess_bdr[maxat-1] = 1;
-   }
+   ess_bdr[0] = 1;
    ConstantCoefficient one(1.0);
-   FPDESolver * PoissonSolver = new FPDESolver();
-   PoissonSolver->SetMesh(&pmesh);
-   PoissonSolver->SetOrder(state_fec.GetOrder());
-   PoissonSolver->SetAlpha(1.0);
-   PoissonSolver->SetBeta(0.0);
-   PoissonSolver->SetupFEM();
+   ConstantCoefficient lambda_cf(lambda);
+   ConstantCoefficient mu_cf(mu);
+   LinearElasticitySolver * ElasticitySolver = new LinearElasticitySolver();
+   ElasticitySolver->SetMesh(&pmesh);
+   ElasticitySolver->SetOrder(state_fec.GetOrder());
+   ElasticitySolver->SetupFEM();
    // RandomFunctionCoefficient load_coeff(randomload);
-   PoissonSolver->SetRHSCoefficient(&one);
-   PoissonSolver->SetEssentialBoundary(ess_bdr);
-   PoissonSolver->Init();
+   Vector center(2); center(0) = 2.9; center(1) = 0.5;
+   Vector force(2); force(0) = 0.0; force(1) = -1.0;
+   double r = 0.05;
+   VolumeForceCoefficient vforce_cf(r,center,force);
+   ElasticitySolver->SetRHSCoefficient(&vforce_cf);
+   ElasticitySolver->SetEssentialBoundary(ess_bdr);
 
    ConstantCoefficient eps2_cf(epsilon*epsilon);
    FPDESolver * FilterSolver = new FPDESolver();
@@ -278,7 +321,6 @@ int main(int argc, char *argv[])
    ParBilinearForm mass(&control_fes);
    mass.AddDomainIntegrator(new InverseIntegrator(new MassIntegrator(one)));
    mass.Assemble();
-
    HypreParMatrix M;
    Array<int> empty;
    mass.FormSystemMatrix(empty,M);
@@ -311,7 +353,7 @@ int main(int argc, char *argv[])
       sout_K.precision(8);
    }
 
-   mfem::ParaViewDataCollection paraview_dc("Thermal_compliance", &pmesh);
+   mfem::ParaViewDataCollection paraview_dc("Elastic_compliance", &pmesh);
    paraview_dc.SetPrefixPath("ParaView");
    paraview_dc.SetLevelsOfDetail(order);
    paraview_dc.SetCycle(0);
@@ -323,7 +365,7 @@ int main(int argc, char *argv[])
 
    // 12. AL iterations
    int step = 0;
-   double lambda = 0.0;
+   double zeta = 0.0;
    for (int k = 1; k < max_it; k++)
    {
       // A. Form state equation
@@ -342,19 +384,21 @@ int main(int argc, char *argv[])
          rho_filter = *FilterSolver->GetFEMSolution();
          // ------------------------------------------------------------------
          // Step 3 - State Solve
-         DiffusionCoefficient K(rho_filter,K_min, K_max);
-         ParGridFunction k_cf(&control_fes);
-         k_cf.ProjectCoefficient(K);
+         SIMPCoefficient K_cf(&rho_filter,K_min, 1.0);
+         ProductCoefficient lambda_K_cf(lambda_cf,K_cf);
+         ProductCoefficient mu_K_cf(mu_cf,K_cf);
+         ElasticitySolver->SetLameCoefficients(&lambda_K_cf,&mu_K_cf);
+         ParGridFunction K_gf(&control_fes);
+         K_gf.ProjectCoefficient(K_cf);
          sout_K << "parallel " << num_procs << " " << myid << "\n";
-         sout_K << "solution\n" << pmesh << k_cf
+         sout_K << "solution\n" << pmesh << K_gf
                 << "window_title 'Control K'" << flush;         
 
-         PoissonSolver->SetDiffusionCoefficient(&K);
-         PoissonSolver->Solve();
-         u = *PoissonSolver->GetFEMSolution();
+         ElasticitySolver->Solve();
+         u = *ElasticitySolver->GetFEMSolution();
          // ------------------------------------------------------------------
          // Step 4 - Adjoint Solve
-         GradientRHSCoefficient rhs_cf(u,rho_filter,K_min, K_max);
+         StrainEnergyDensityCoefficient rhs_cf(&lambda_cf,&mu_cf,&u, &rho_filter, K_min);
          FilterSolver->SetRHSCoefficient(&rhs_cf);
          FilterSolver->Solve();
          w_filter = *FilterSolver->GetFEMSolution();
@@ -373,7 +417,7 @@ int main(int argc, char *argv[])
          }
 
          // step 6-update  ρ 
-         w -= lambda;
+         w -= zeta;
          double mf = vol_form(rho)/domain_volume;
          w += beta * (mf - mass_fraction)/domain_volume;
          rho.Add(-alpha, w);
@@ -396,7 +440,7 @@ int main(int argc, char *argv[])
          GridFunctionCoefficient tmp(&rho_old);
          double norm_rho = rho.ComputeL2Error(tmp)/alpha;
          rho_old = rho;
-         double compliance = (*(PoissonSolver->GetLinearForm()))(u);
+         double compliance = (*(ElasticitySolver->GetLinearForm()))(u);
          if (myid == 0)
          {
             mfem::out << "norm of reduced gradient = " << norm_rho << endl;
@@ -419,25 +463,25 @@ int main(int argc, char *argv[])
                   << "window_title 'Control ρ '" << flush;
 
             paraview_dc.SetCycle(step);
-            paraview_dc.SetTime((double)k);
+            paraview_dc.SetTime((double)step);
             paraview_dc.Save();
          }
 
       }
-      // λ <- λ - β (∫_Ω K dx - V⋅ vol(\Omega))
+      // ζ <- ζ - β (∫_Ω K dx - V⋅ vol(\Omega))
       double mass = vol_form(rho);
       if (myid == 0)
       {
          mfem::out << "mass_fraction = " << mass / domain_volume << endl;
       }
 
-      double lambda_inc = mass/domain_volume - mass_fraction;
+      double zeta_inc = mass/domain_volume - mass_fraction;
 
-      lambda -= beta*lambda_inc;
+      zeta -= beta*zeta_inc;
       if (myid == 0)
       {
-         mfem::out << "lambda_inc = " << lambda_inc << endl;
-         mfem::out << "lambda = " << lambda << endl;
+         mfem::out << "zeta_inc = " << zeta_inc << endl;
+         mfem::out << "zeta = " << zeta << endl;
       }
 
 
@@ -458,7 +502,7 @@ int main(int argc, char *argv[])
          paraview_dc.Save();
       }
 
-      if (abs(lambda_inc) < tol_lambda)
+      if (abs(zeta_inc) < tol_zeta)
       {
          break;
       }
