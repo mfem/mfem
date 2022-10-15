@@ -16,7 +16,6 @@
 #include "lininteg.hpp"
 #include "linearform_ext.hpp"
 #include "gridfunc.hpp"
-#include "assembly.hpp"
 
 namespace mfem
 {
@@ -33,8 +32,9 @@ protected:
    /** @brief Extension for supporting different assembly levels. */
    LinearFormExtension *ext;
 
-   /// The assembly level of the form (full or legacy)
-   AssemblyLevel assembly;
+   /// Should we use the device-compatible fast assembly algorithm (false by
+   /// default)
+   bool fast_assembly;
 
    /** @brief Indicates the LinearFormIntegrator%s stored in #domain_integs,
        #domain_delta_integs, #boundary_integs, and #boundary_face_integs are
@@ -87,7 +87,7 @@ private:
    {
       ext = nullptr;
       extern_lfs = 0;
-      assembly = AssemblyLevel::LEGACY;
+      fast_assembly = false;
    }
 
 public:
@@ -209,20 +209,13 @@ public:
        corresponding pointer (to Array<int>) will be NULL. */
    Array<Array<int>*> *GetFLFI_Marker() { return &boundary_face_integs_marker; }
 
-   /// Set the desired assembly level.
-   /** Valid choices are:
-
-       - AssemblyLevel::LEGACY (default)
-       - AssemblyLevel::FULL
-
-       If used, this method must be called before assembly. */
-   void SetAssemblyLevel(AssemblyLevel assembly_level);
-
-   /// Returns the assembly level
-   AssemblyLevel GetAssemblyLevel() const { return assembly; }
+   /// Which assembly algorithm to use: the new device-compatible fast assembly
+   /// (true), or the legacy CPU-only algorithm (false). If not set, the default
+   /// value is false.  If used, this method must be called before assembly. */
+   void UseFastAssembly(bool use_fa);
 
    /// Assembles the linear form i.e. sums over all domain/bdr integrators.
-   /// When AssemblyLevel::FULL is set and the linearform assembly is
+   /// When UseFastAssembly(true) has been called and the linearform assembly is
    /// compatible with device execution, it will be executed on the device.
    void Assemble();
 

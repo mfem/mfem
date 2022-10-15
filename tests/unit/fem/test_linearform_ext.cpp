@@ -168,10 +168,10 @@ struct LinearFormExtTest
 
       CAPTURE(mesh_filename, dim, p, q, ordering, vdim, scalar, grad);
 
-      lf_dev.SetAssemblyLevel(AssemblyLevel::FULL);
+      lf_dev.UseFastAssembly(true);
       lf_dev.Assemble();
 
-      lf_std.SetAssemblyLevel(AssemblyLevel::LEGACY);
+      lf_std.UseFastAssembly(false);
       lf_std.Assemble();
 
       lf_std -= lf_dev;
@@ -233,12 +233,12 @@ TEST_CASE("Linear Form Extension", "[LinearFormExtension], [CUDA]")
 
       LinearForm d1(&L2fes);
       d1.AddDomainIntegrator(new DomainLFIntegrator(norm2_grad_x));
-      d1.SetAssemblyLevel(AssemblyLevel::FULL);
+      d1.UseFastAssembly(true);
       d1.Assemble();
 
       LinearForm d2(&L2fes);
       d2.AddDomainIntegrator(new DomainLFIntegrator(norm2_grad_x));
-      d2.SetAssemblyLevel(AssemblyLevel::LEGACY);
+      d2.UseFastAssembly(false);
       d2.Assemble();
 
       d1 -= d2;
@@ -261,12 +261,12 @@ TEST_CASE("Linear Form Extension", "[LinearFormExtension], [CUDA]")
 
       LinearForm d1(&fes);
       d1.AddDomainIntegrator(new DomainLFIntegrator(coeff));
-      d1.SetAssemblyLevel(AssemblyLevel::FULL);
+      d1.UseFastAssembly(true);
       d1.Assemble();
 
       LinearForm d2(&fes);
       d2.AddDomainIntegrator(new DomainLFIntegrator(coeff));
-      d2.SetAssemblyLevel(AssemblyLevel::LEGACY);
+      d2.UseFastAssembly(false);
       d2.Assemble();
 
       CAPTURE(d1.Norml2(), d2.Norml2());

@@ -994,7 +994,7 @@ public:
    /// have changed, e.g. after the mesh has moved.
    /** It updates internal quantities derived from the node coordinates, such
        as the GeometricFactors. */
-   void Update() { DeleteGeometricFactors(); }
+   void NodesUpdated() { DeleteGeometricFactors(); }
 
    /// Equals 1 + num_holes - num_loops
    inline int EulerNumber() const

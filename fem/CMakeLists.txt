@@ -137,7 +137,6 @@ set(SRCS
   )
 
 set(HDRS
-  assembly.hpp
   bilinearform.hpp
   bilinearform_ext.hpp
   bilininteg.hpp

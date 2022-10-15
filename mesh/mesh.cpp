@@ -7915,7 +7915,7 @@ void Mesh::SetNodes(const Vector &node_coord)
    }
 
    // Invalidate the old geometric factors
-   Update();
+   NodesUpdated();
 }
 
 void Mesh::NewNodes(GridFunction &nodes, bool make_owner)
@@ -7937,7 +7937,7 @@ void Mesh::NewNodes(GridFunction &nodes, bool make_owner)
    }
 
    // Invalidate the old geometric factors
-   Update();
+   NodesUpdated();
 }
 
 void Mesh::SwapNodes(GridFunction *&nodes, int &own_nodes_)
@@ -7950,7 +7950,7 @@ void Mesh::SwapNodes(GridFunction *&nodes, int &own_nodes_)
    // NURBSext = (Nodes) ? Nodes->FESpace()->StealNURBSext() : NULL;
 
    // Invalidate the old geometric factors
-   Update();
+   NodesUpdated();
 }
 
 void Mesh::AverageVertices(const int *indexes, int n, int result)
@@ -7985,7 +7985,7 @@ void Mesh::UpdateNodes()
       SetVerticesFromNodes(Nodes);
 
       // Invalidate the old geometric factors
-      Update();
+      NodesUpdated();
    }
 }
 

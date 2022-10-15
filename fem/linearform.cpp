@@ -21,7 +21,7 @@ LinearForm::LinearForm(FiniteElementSpace *f, LinearForm *lf)
 {
    ext = nullptr;
    extern_lfs = 1;
-   assembly = AssemblyLevel::LEGACY;
+   fast_assembly = false;
    fes = f;
 
    // Linear forms are stored on the device
@@ -156,22 +156,13 @@ bool LinearForm::SupportsDevice()
    return true;
 }
 
-void LinearForm::SetAssemblyLevel(AssemblyLevel assembly_level)
+void LinearForm::UseFastAssembly(bool use_fa)
 {
-   if (ext)
+   fast_assembly = use_fa;
+
+   if (fast_assembly && SupportsDevice() && !ext)
    {
-      MFEM_ABORT("the assembly level has already been set!");
-   }
-   assembly = assembly_level;
-   switch (assembly)
-   {
-      case AssemblyLevel::LEGACY:
-         break;
-      case AssemblyLevel::FULL:
-         if (SupportsDevice()) { ext = new LinearFormExtension(this); }
-         break;
-      default:
-         MFEM_ABORT("Linearform does not support the given assembly level");
+      ext = new LinearFormExtension(this);
    }
 }
 
