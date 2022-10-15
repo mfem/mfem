@@ -2,8 +2,14 @@
 // Compile with: make optimal_design
 //
 // Sample runs:
-// mpirun -np 6 pelastic_compliance-filter -r 5 -o 2 -tl 0.0001 -tr 0.0001 -alpha 0.5 -beta 5.0 -epsilon 0.1 -mi 20
+// with bar2d.msh
+// mpirun -np 6 pelastic_compliance-filter -r 0 -o 3 -tl 0.00001 -tr 0.001 -alpha 0.5 -beta 1.0 -epsilon 0.01 -mi 30 -mf 0.5 -lambda 0.1 -mu 0.1 
+// mpirun -np 6 pelastic_compliance-filter -r 1 -o 2 -tl 0.00001 -tr 0.001 -alpha 0.5 -beta 1 -epsilon 0.01 -mi 30 -mf 0.3
 
+// with the mesh cartesian constructor
+// mpirun -np 6 pelastic_compliance-filter -r 4 -o 3 -tl 0.00001 -tr 0.001 -alpha 0.5 -beta 1.0 -epsilon 0.01 -mi 20 -mf 0.5 -lambda 0.1 -mu 0.1
+// mpirun -np 6 pelastic_compliance-filter -r 4 -o 3 -tl 0.000001 -tr 0.0001 -alpha 1.0 -beta 0.5 -epsilon 0.01 -mi 30 -mf 0.4
+// mpirun -np 6 pelastic_compliance-filter -r 6 -o 2 -tl 0.000001 -tr 0.0001 -alpha 1.0 -beta 0.2 -epsilon 0.01 -mi 30 -mf 0.5
 #include "mfem.hpp"
 #include <memory>
 #include <iostream>
@@ -217,7 +223,7 @@ int main(int argc, char *argv[])
    {
       args.PrintOptions(cout);
    }
-   // Mesh *mesh = new Mesh(mesh_file, 1, 1);
+   // Mesh mesh(mesh_file, 1, 1);
 
    Mesh mesh = Mesh::MakeCartesian2D(3,1,mfem::Element::Type::QUADRILATERAL,true,3.0,1.0);
 
@@ -440,7 +446,9 @@ int main(int argc, char *argv[])
          GridFunctionCoefficient tmp(&rho_old);
          double norm_rho = rho.ComputeL2Error(tmp)/alpha;
          rho_old = rho;
+
          double compliance = (*(ElasticitySolver->GetLinearForm()))(u);
+         MPI_Allreduce(MPI_IN_PLACE,&compliance,1,MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD);
          if (myid == 0)
          {
             mfem::out << "norm of reduced gradient = " << norm_rho << endl;
@@ -453,7 +461,6 @@ int main(int argc, char *argv[])
 
          if (visualization)
          {
-
             sout_u << "parallel " << num_procs << " " << myid << "\n";
             sout_u << "solution\n" << pmesh << u
                   << "window_title 'State u'" << flush;
@@ -461,10 +468,6 @@ int main(int argc, char *argv[])
             sout_rho << "parallel " << num_procs << " " << myid << "\n";
             sout_rho << "solution\n" << pmesh << rho
                   << "window_title 'Control ρ '" << flush;
-
-            paraview_dc.SetCycle(step);
-            paraview_dc.SetTime((double)step);
-            paraview_dc.Save();
          }
 
       }
@@ -476,7 +479,6 @@ int main(int argc, char *argv[])
       }
 
       double zeta_inc = mass/domain_volume - mass_fraction;
-
       zeta -= beta*zeta_inc;
       if (myid == 0)
       {
@@ -496,12 +498,10 @@ int main(int argc, char *argv[])
          sout_rho << "solution\n" << pmesh << rho
                 << "window_title 'Control ρ '" << flush;
      
-
-         paraview_dc.SetCycle(step);
+         paraview_dc.SetCycle(k);
          paraview_dc.SetTime((double)k);
          paraview_dc.Save();
       }
-
       if (abs(zeta_inc) < tol_zeta)
       {
          break;

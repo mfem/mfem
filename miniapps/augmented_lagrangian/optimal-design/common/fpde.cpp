@@ -242,7 +242,7 @@ LinearElasticitySolver::LinearElasticitySolver(Mesh * mesh_, int order_,
 void LinearElasticitySolver::SetupFEM()
 {
    dim = mesh->Dimension();
-   fec = new H1_FECollection(order, dim);
+   fec = new H1_FECollection(order, dim,BasisType::Positive);
    
 #ifdef MFEM_USE_MPI   
    if (parallel)
