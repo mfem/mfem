@@ -93,8 +93,8 @@ public:
         esolv->AddSurfLoad(1,0.0,.001,0.0);
         esolv->FSolve();
         esolv->GetSol(bsoly[4]);
-        esolv->AddSurfLoad(1,0.0,0.0,.001);
-        esolv->FSolve();
+        //esolv->AddSurfLoad(1,0.0,0.0,.001);
+        //esolv->FSolve();
         esolv->GetSol(bsolz[4]);
 
         // all solutions are stored in bsolx,bsoly,bsolz

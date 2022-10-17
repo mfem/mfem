@@ -568,6 +568,11 @@ public:
         coef=coef_;
     }
 
+    void SetProjParam(Coefficient& eta_, double beta_)
+    {
+
+    }
+
     void SetProjParam(double eta_, double beta_)
     {
         eta=eta_;
