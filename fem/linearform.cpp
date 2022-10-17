@@ -179,7 +179,7 @@ void LinearForm::Assemble()
    // The first use of AddElementVector() below will move it back to host
    // because both 'vdofs' and 'elemvect' are on host.
 
-   if (ext) { return ext->Assemble(); }
+   if (fast_assembly && ext) { return ext->Assemble(); }
 
    if (domain_integs.Size())
    {
