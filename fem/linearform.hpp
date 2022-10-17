@@ -209,9 +209,10 @@ public:
        corresponding pointer (to Array<int>) will be NULL. */
    Array<Array<int>*> *GetFLFI_Marker() { return &boundary_face_integs_marker; }
 
-   /// Which assembly algorithm to use: the new device-compatible fast assembly
-   /// (true), or the legacy CPU-only algorithm (false). If not set, the default
-   /// value is false.  If used, this method must be called before assembly. */
+   /// @brief Which assembly algorithm to use: the new device-compatible fast
+   /// assembly (true), or the legacy CPU-only algorithm (false).
+   /** If not set, the default value is false.  If used, this method must be
+       called before assembly. */
    void UseFastAssembly(bool use_fa);
 
    /// Assembles the linear form i.e. sums over all domain/bdr integrators.
