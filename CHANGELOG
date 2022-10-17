@@ -23,7 +23,7 @@ Discretization improvements
 ---------------------------
 - Added support for assembling low-order-refined matrices using a GPU-enabled
   "batched" algorithm. The lor_solvers and plor_solvers now fully support GPU
-  acceleration.
+  acceleration with arbitrary user-supplied coefficients.
 
 - Added support for partial assembly and fully matrix-free operators on mixed
   meshes (different element types and p-adaptivity) through libCEED, including
@@ -44,12 +44,28 @@ Discretization improvements
 - Added a new Zienkiewicz-Zhu patch recovery-based a posteriori error estimator.
   See fem/estimators.hpp.
 
+- Fixes and improvements in LinearFormExtension.
+
+- Added a new class FaceQuadratureSpace that allows for the construction of
+  QuadratureFunctions on the interior or boundary faces of a mesh.
+
+- Added a class CoefficientVector for efficient access of variable coefficient
+  values at quadrature points (in particular for GPU/device kernels).
+
 Linear and nonlinear solvers
 ----------------------------
-
 - Added a new class DGMassInverse that performs a local elementwise CG
   iteration to solve systems involving the discontinuous Galerkin mass matrix,
   including support for device/GPU acceleration.
+
+- Added more flexibility to the constraint solver classes:
+  * PenaltyConstrainedSolver now allows for a vector of penalty parameters
+    (necessary for penalty contact)
+  * PenaltyConstrainedSolver and EliminationSolver can use GMRES or PCG
+  * All constraint solver classes can take a user-defined preconditioner
+
+ - Added functions to toggle additional options for the SuperLU_Dist and Hypre
+   preconditioners (ParaSails, Euclid, ILU).
 
 New and updated examples and miniapps
 -------------------------------------
@@ -93,7 +109,15 @@ Miscellaneous
   outputs an `OperatorHandle` containing a `SparseMatrix` in serial, and an
   `HypreParMatrix` in parallel (instead of a `ConstrainedOperator`).
 
-- Added TMOP metrics for mesh untangling and worst-case quality improvement.
+- Added more 3D TMOP metrics, as well as specialized metrics for mesh
+  untangling and worst-case quality improvement;
+
+- Fully encapsulated SUNDIALS `N_Vector` object within the `SundialsNVector`
+  class by removing deprecated (e.g. `HypreParVector::ToNVector`) and
+  non-deprecated (e.g. `Vector::ToNVector`) functions in other classes.
+
+- The behavior of GridFunction::GetTrueVector() has been changed to not return
+  an empty true vector.
 
 
 Version 4.4, released on March 21, 2022
