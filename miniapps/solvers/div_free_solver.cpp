@@ -930,11 +930,8 @@ void BlockHybridizationSolver::Mult(const Vector &x, Vector &y) const
     block_offsets.PartialSum();
 
     BlockVector rhs(block_offsets);
-    rhs = 0.0;
+    rhs.SetVector(block_x.GetBlock(1), num_hat_dofs);
 
-    Vector x1;
-    x1.MakeRef(block_x.GetBlock(1), 0, test_space.GetNDofs());
-    rhs.SetVector(x1, num_hat_dofs);
 
     Array<int> dofs, test_dofs;
     for (int i = 0; i < pmesh.GetNE(); ++i)
