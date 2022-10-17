@@ -30,16 +30,16 @@ protected:
    FiniteElementSpace *fes;
 
    /** @brief Extension for supporting different assembly levels. */
-   LinearFormExtension *ext;
+   LinearFormExtension *ext = nullptr;
 
    /// @brief Should we use the device-compatible fast assembly algorithm (false
    /// by default)
-   bool fast_assembly;
+   bool fast_assembly = false;
 
    /** @brief Indicates the LinearFormIntegrator%s stored in #domain_integs,
        #domain_delta_integs, #boundary_integs, and #boundary_face_integs are
        owned by another LinearForm. */
-   int extern_lfs;
+   int extern_lfs = 0;
 
    /// Set of Domain Integrators to be applied.
    Array<LinearFormIntegrator*> domain_integs;
@@ -82,23 +82,11 @@ private:
    /// Copy construction is not supported; body is undefined.
    LinearForm(const LinearForm &);
 
-   /// Defaults values to be used in constructors
-   void Init()
-   {
-      ext = nullptr;
-      extern_lfs = 0;
-      fast_assembly = false;
-   }
-
 public:
    /// Creates linear form associated with FE space @a *f.
    /** The pointer @a f is not owned by the newly constructed object. */
    LinearForm(FiniteElementSpace *f) : Vector(f->GetVSize())
-   {
-      Init();
-      fes = f;
-      UseDevice(true);
-   }
+   { fes = f; UseDevice(true); }
 
    /** @brief Create a LinearForm on the FiniteElementSpace @a f, using the
        same integrators as the LinearForm @a lf.
@@ -114,11 +102,7 @@ public:
        methods: Update(FiniteElementSpace *) or
        Update(FiniteElementSpace *, Vector &, int). */
    LinearForm()
-   {
-      Init();
-      fes = NULL;
-      UseDevice(true);
-   }
+   { fes = NULL; UseDevice(true); }
 
    /// Construct a LinearForm using previously allocated array @a data.
    /** The LinearForm does not assume ownership of @a data which is assumed to
@@ -126,10 +110,7 @@ public:
        for externally allocated array, the pointer @a data can be NULL. The data
        array can be replaced later using the method SetData(). */
    LinearForm(FiniteElementSpace *f, double *data) : Vector(data, f->GetVSize())
-   {
-      Init();
-      fes = f;
-   }
+   { fes = f; }
 
    /// Copy assignment. Only the data of the base class Vector is copied.
    /** It is assumed that this object and @a rhs use FiniteElementSpace%s that
@@ -216,8 +197,9 @@ public:
    void UseFastAssembly(bool use_fa);
 
    /// Assembles the linear form i.e. sums over all domain/bdr integrators.
-   /// When UseFastAssembly(true) has been called and the linearform assembly is
-   /// compatible with device execution, it will be executed on the device.
+   /** When @ref UseFastAssembly "UseFastAssembly(true)" has been called and the
+       linearform assembly is compatible with device execution, it will be
+       executed on the device. */
    void Assemble();
 
    /// Return true if assembly on device is supported, false otherwise.

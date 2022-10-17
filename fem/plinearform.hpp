@@ -114,8 +114,9 @@ public:
    void MakeRef(ParFiniteElementSpace *pf, Vector &v, int v_offset);
 
    /// Assembles the ParLinearForm i.e. sums over all domain/bdr integrators.
-   /// When UseFastAssembly(true) has been called and the linearform assembly is
-   /// compatible with device execution, it will be executed on the device.
+   /** When @ref LinearForm::UseFastAssembly "UseFastAssembly(true)" has been
+       called and the linear form assembly is compatible with device execution,
+       the assembly will be executed on the device. */
    void Assemble();
 
    void AssembleSharedFaces();
