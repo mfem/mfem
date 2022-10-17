@@ -931,6 +931,8 @@ void BlockHybridizationSolver::Mult(const Vector &x, Vector &y) const
     BlockVector rhs(block_offsets);
     rhs.SetVector(block_x.GetBlock(1), num_hat_dofs);
 
+    Array<bool> dof_marker(offsets_[1]);
+    dof_marker = false;
 
     Array<int> dofs, test_dofs;
     for (int i = 0; i < pmesh.GetNE(); ++i)
@@ -940,6 +942,20 @@ void BlockHybridizationSolver::Mult(const Vector &x, Vector &y) const
         Vector g_i;
         g_i.MakeRef(rhs, hat_offsets[i], trial_size);
         x0.GetSubVector(dofs, g_i);  // reverses the sign if dof < 0
+
+        trial_space.AdjustVDofs(dofs);
+        for (int j = 0; j < trial_size; ++j)
+        {
+            int dof = dofs[j];
+            if (dof_marker[dof])
+            {
+                g_i(j) = 0.0;
+            }
+            else
+            {
+                dof_marker[dof] = true;
+            }
+        }
 
         dofs.SetSize(0);
         for (int j = hat_offsets[i]; j < hat_offsets[i + 1]; ++j)
