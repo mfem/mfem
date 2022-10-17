@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -35,7 +35,7 @@ ElementRestriction::ElementRestriction(const FiniteElementSpace &f,
      nedofs(ne*dof),
      offsets(ndofs+1),
      indices(ne*dof),
-     gatherMap(ne*dof)
+     gather_map(ne*dof)
 {
    // Assuming all finite elements are the same.
    height = vdim*ne*dof;
@@ -50,7 +50,7 @@ ElementRestriction::ElementRestriction(const FiniteElementSpace &f,
          const TensorBasisElement* el =
             dynamic_cast<const TensorBasisElement*>(fe);
          if (el) { continue; }
-         mfem_error("Finite element not suitable for lexicographic ordering");
+         MFEM_ABORT("Finite element not suitable for lexicographic ordering");
       }
       const FiniteElement *fe = fes.GetFE(0);
       const TensorBasisElement* el =
@@ -60,7 +60,7 @@ ElementRestriction::ElementRestriction(const FiniteElementSpace &f,
       dof_map = fe_dof_map.GetData();
    }
    const Table& e2dTable = fes.GetElementToDofTable();
-   const int* elementMap = e2dTable.GetJ();
+   const int* element_map = e2dTable.GetJ();
    // We will be keeping a count of how many local nodes point to its global dof
    for (int i = 0; i <= ndofs; ++i)
    {
@@ -70,7 +70,7 @@ ElementRestriction::ElementRestriction(const FiniteElementSpace &f,
    {
       for (int d = 0; d < dof; ++d)
       {
-         const int sgid = elementMap[dof*e + d];  // signed
+         const int sgid = element_map[dof*e + d];  // signed
          const int gid = (sgid >= 0) ? sgid : -1 - sgid;
          ++offsets[gid + 1];
       }
@@ -87,11 +87,11 @@ ElementRestriction::ElementRestriction(const FiniteElementSpace &f,
       {
          const int sdid = dof_reorder ? dof_map[d] : 0;  // signed
          const int did = (!dof_reorder)?d:(sdid >= 0 ? sdid : -1-sdid);
-         const int sgid = elementMap[dof*e + did];  // signed
+         const int sgid = element_map[dof*e + did];  // signed
          const int gid = (sgid >= 0) ? sgid : -1-sgid;
          const int lid = dof*e + d;
          const bool plus = (sgid >= 0 && sdid >= 0) || (sgid < 0 && sdid < 0);
-         gatherMap[lid] = plus ? gid : -1-gid;
+         gather_map[lid] = plus ? gid : -1-gid;
          indices[offsets[gid]++] = plus ? lid : -1-lid;
       }
    }
@@ -112,16 +112,16 @@ void ElementRestriction::Mult(const Vector& x, Vector& y) const
    const bool t = byvdim;
    auto d_x = Reshape(x.Read(), t?vd:ndofs, t?ndofs:vd);
    auto d_y = Reshape(y.Write(), nd, vd, ne);
-   auto d_gatherMap = gatherMap.Read();
+   auto d_gather_map = gather_map.Read();
    MFEM_FORALL(i, dof*ne,
    {
-      const int gid = d_gatherMap[i];
+      const int gid = d_gather_map[i];
       const bool plus = gid >= 0;
       const int j = plus ? gid : -1-gid;
       for (int c = 0; c < vd; ++c)
       {
-         const double dofValue = d_x(t?c:j, t?j:c);
-         d_y(i % nd, c, i / nd) = plus ? dofValue : -dofValue;
+         const double dof_value = d_x(t?c:j, t?j:c);
+         d_y(i % nd, c, i / nd) = plus ? dof_value : -dof_value;
       }
    });
 }
@@ -134,11 +134,11 @@ void ElementRestriction::MultUnsigned(const Vector& x, Vector& y) const
    const bool t = byvdim;
    auto d_x = Reshape(x.Read(), t?vd:ndofs, t?ndofs:vd);
    auto d_y = Reshape(y.Write(), nd, vd, ne);
-   auto d_gatherMap = gatherMap.Read();
+   auto d_gather_map = gather_map.Read();
 
    MFEM_FORALL(i, dof*ne,
    {
-      const int gid = d_gatherMap[i];
+      const int gid = d_gather_map[i];
       const int j = gid >= 0 ? gid : -1-gid;
       for (int c = 0; c < vd; ++c)
       {
@@ -160,17 +160,17 @@ void ElementRestriction::MultTranspose(const Vector& x, Vector& y) const
    MFEM_FORALL(i, ndofs,
    {
       const int offset = d_offsets[i];
-      const int nextOffset = d_offsets[i + 1];
+      const int next_offset = d_offsets[i + 1];
       for (int c = 0; c < vd; ++c)
       {
-         double dofValue = 0;
-         for (int j = offset; j < nextOffset; ++j)
+         double dof_value = 0;
+         for (int j = offset; j < next_offset; ++j)
          {
             const int idx_j = (d_indices[j] >= 0) ? d_indices[j] : -1 - d_indices[j];
-            dofValue += ((d_indices[j] >= 0) ? d_x(idx_j % nd, c, idx_j / nd) :
-                         -d_x(idx_j % nd, c, idx_j / nd));
+            dof_value += ((d_indices[j] >= 0) ? d_x(idx_j % nd, c, idx_j / nd) :
+                          -d_x(idx_j % nd, c, idx_j / nd));
          }
-         d_y(t?c:i,t?i:c) = dofValue;
+         d_y(t?c:i,t?i:c) = dof_value;
       }
    });
 }
@@ -188,16 +188,16 @@ void ElementRestriction::MultTransposeUnsigned(const Vector& x, Vector& y) const
    MFEM_FORALL(i, ndofs,
    {
       const int offset = d_offsets[i];
-      const int nextOffset = d_offsets[i + 1];
+      const int next_offset = d_offsets[i + 1];
       for (int c = 0; c < vd; ++c)
       {
-         double dofValue = 0;
-         for (int j = offset; j < nextOffset; ++j)
+         double dof_value = 0;
+         for (int j = offset; j < next_offset; ++j)
          {
             const int idx_j = (d_indices[j] >= 0) ? d_indices[j] : -1 - d_indices[j];
-            dofValue += d_x(idx_j % nd, c, idx_j / nd);
+            dof_value += d_x(idx_j % nd, c, idx_j / nd);
          }
-         d_y(t?c:i,t?i:c) = dofValue;
+         d_y(t?c:i,t?i:c) = dof_value;
       }
    });
 }
@@ -214,15 +214,15 @@ void ElementRestriction::MultLeftInverse(const Vector& x, Vector& y) const
    auto d_y = Reshape(y.Write(), t?vd:ndofs, t?ndofs:vd);
    MFEM_FORALL(i, ndofs,
    {
-      const int nextOffset = d_offsets[i + 1];
+      const int next_offset = d_offsets[i + 1];
       for (int c = 0; c < vd; ++c)
       {
-         double dofValue = 0;
-         const int j = nextOffset - 1;
+         double dof_value = 0;
+         const int j = next_offset - 1;
          const int idx_j = (d_indices[j] >= 0) ? d_indices[j] : -1 - d_indices[j];
-         dofValue = (d_indices[j] >= 0) ? d_x(idx_j % nd, c, idx_j / nd) :
+         dof_value = (d_indices[j] >= 0) ? d_x(idx_j % nd, c, idx_j / nd) :
          -d_x(idx_j % nd, c, idx_j / nd);
-         d_y(t?c:i,t?i:c) = dofValue;
+         d_y(t?c:i,t?i:c) = dof_value;
       }
    });
 }
@@ -244,10 +244,10 @@ void ElementRestriction::BooleanMask(Vector& y) const
    for (int i = 0; i < ndofs; ++i)
    {
       const int offset = d_offsets[i];
-      const int nextOffset = d_offsets[i+1];
+      const int next_offset = d_offsets[i+1];
       for (int c = 0; c < vd; ++c)
       {
-         for (int j = offset; j < nextOffset; ++j)
+         for (int j = offset; j < next_offset; ++j)
          {
             const int idx_j = d_indices[j];
             if (d_x(t?c:i,t?i:c))
@@ -312,51 +312,55 @@ int ElementRestriction::FillI(SparseMatrix &mat) const
    auto I = mat.ReadWriteI();
    auto d_offsets = offsets.Read();
    auto d_indices = indices.Read();
-   auto d_gatherMap = gatherMap.Read();
+   auto d_gather_map = gather_map.Read();
    MFEM_FORALL(i_L, vd*all_dofs+1,
    {
       I[i_L] = 0;
    });
-   MFEM_FORALL(e, ne,
+   MFEM_FORALL(l_dof, ne*elt_dofs,
    {
-      for (int i = 0; i < elt_dofs; i++)
+      const int e = l_dof/elt_dofs;
+      const int i = l_dof%elt_dofs;
+
+      int i_elts[Max];
+      const int i_gm = e*elt_dofs + i;
+      const int i_L = d_gather_map[i_gm];
+      const int i_offset = d_offsets[i_L];
+      const int i_next_offset = d_offsets[i_L+1];
+      const int i_nbElts = i_next_offset - i_offset;
+      MFEM_ASSERT_KERNEL(
+         i_nbElts <= Max,
+         "The connectivity of this mesh is beyond the max, increase the "
+         "MaxNbNbr variable to comply with your mesh.");
+      for (int e_i = 0; e_i < i_nbElts; ++e_i)
       {
-         int i_elts[Max];
-         const int i_E = e*elt_dofs + i;
-         const int i_L = d_gatherMap[i_E];
-         const int i_offset = d_offsets[i_L];
-         const int i_nextOffset = d_offsets[i_L+1];
-         const int i_nbElts = i_nextOffset - i_offset;
-         for (int e_i = 0; e_i < i_nbElts; ++e_i)
+         const int i_E = d_indices[i_offset+e_i];
+         i_elts[e_i] = i_E/elt_dofs;
+      }
+      for (int j = 0; j < elt_dofs; j++)
+      {
+         const int j_gm = e*elt_dofs + j;
+         const int j_L = d_gather_map[j_gm];
+         const int j_offset = d_offsets[j_L];
+         const int j_next_offset = d_offsets[j_L+1];
+         const int j_nbElts = j_next_offset - j_offset;
+         if (i_nbElts == 1 || j_nbElts == 1) // no assembly required
          {
-            const int i_E = d_indices[i_offset+e_i];
-            i_elts[e_i] = i_E/elt_dofs;
+            GetAndIncrementNnzIndex(i_L, I);
          }
-         for (int j = 0; j < elt_dofs; j++)
+         else // assembly required
          {
-            const int j_E = e*elt_dofs + j;
-            const int j_L = d_gatherMap[j_E];
-            const int j_offset = d_offsets[j_L];
-            const int j_nextOffset = d_offsets[j_L+1];
-            const int j_nbElts = j_nextOffset - j_offset;
-            if (i_nbElts == 1 || j_nbElts == 1) // no assembly required
+            int j_elts[Max];
+            for (int e_j = 0; e_j < j_nbElts; ++e_j)
+            {
+               const int j_E = d_indices[j_offset+e_j];
+               const int elt = j_E/elt_dofs;
+               j_elts[e_j] = elt;
+            }
+            int min_e = GetMinElt(i_elts, i_nbElts, j_elts, j_nbElts);
+            if (e == min_e) // add the nnz only once
             {
                GetAndIncrementNnzIndex(i_L, I);
-            }
-            else // assembly required
-            {
-               int j_elts[Max];
-               for (int e_j = 0; e_j < j_nbElts; ++e_j)
-               {
-                  const int j_E = d_indices[j_offset+e_j];
-                  const int elt = j_E/elt_dofs;
-                  j_elts[e_j] = elt;
-               }
-               int min_e = GetMinElt(i_elts, i_nbElts, j_elts, j_nbElts);
-               if (e == min_e) // add the nnz only once
-               {
-                  GetAndIncrementNnzIndex(i_L, I);
-               }
             }
          }
       }
@@ -388,71 +392,75 @@ void ElementRestriction::FillJAndData(const Vector &ea_data,
    auto Data = mat.WriteData();
    auto d_offsets = offsets.Read();
    auto d_indices = indices.Read();
-   auto d_gatherMap = gatherMap.Read();
+   auto d_gather_map = gather_map.Read();
    auto mat_ea = Reshape(ea_data.Read(), elt_dofs, elt_dofs, ne);
-   MFEM_FORALL(e, ne,
+   MFEM_FORALL(l_dof, ne*elt_dofs,
    {
-      for (int i = 0; i < elt_dofs; i++)
+      const int e = l_dof/elt_dofs;
+      const int i = l_dof%elt_dofs;
+
+      int i_elts[Max];
+      int i_B[Max];
+      const int i_gm = e*elt_dofs + i;
+      const int i_L = d_gather_map[i_gm];
+      const int i_offset = d_offsets[i_L];
+      const int i_next_offset = d_offsets[i_L+1];
+      const int i_nbElts = i_next_offset - i_offset;
+      MFEM_ASSERT_KERNEL(
+         i_nbElts <= Max,
+         "The connectivity of this mesh is beyond the max, increase the "
+         "MaxNbNbr variable to comply with your mesh.");
+      for (int e_i = 0; e_i < i_nbElts; ++e_i)
       {
-         int i_elts[Max];
-         int i_B[Max];
-         const int i_E = e*elt_dofs + i;
-         const int i_L = d_gatherMap[i_E];
-         const int i_offset = d_offsets[i_L];
-         const int i_nextOffset = d_offsets[i_L+1];
-         const int i_nbElts = i_nextOffset - i_offset;
-         for (int e_i = 0; e_i < i_nbElts; ++e_i)
+         const int i_E = d_indices[i_offset+e_i];
+         i_elts[e_i] = i_E/elt_dofs;
+         i_B[e_i]    = i_E%elt_dofs;
+      }
+      for (int j = 0; j < elt_dofs; j++)
+      {
+         const int j_gm = e*elt_dofs + j;
+         const int j_L = d_gather_map[j_gm];
+         const int j_offset = d_offsets[j_L];
+         const int j_next_offset = d_offsets[j_L+1];
+         const int j_nbElts = j_next_offset - j_offset;
+         if (i_nbElts == 1 || j_nbElts == 1) // no assembly required
          {
-            const int i_E = d_indices[i_offset+e_i];
-            i_elts[e_i] = i_E/elt_dofs;
-            i_B[e_i]    = i_E%elt_dofs;
+            const int nnz = GetAndIncrementNnzIndex(i_L, I);
+            J[nnz] = j_L;
+            Data[nnz] = mat_ea(j,i,e);
          }
-         for (int j = 0; j < elt_dofs; j++)
+         else // assembly required
          {
-            const int j_E = e*elt_dofs + j;
-            const int j_L = d_gatherMap[j_E];
-            const int j_offset = d_offsets[j_L];
-            const int j_nextOffset = d_offsets[j_L+1];
-            const int j_nbElts = j_nextOffset - j_offset;
-            if (i_nbElts == 1 || j_nbElts == 1) // no assembly required
+            int j_elts[Max];
+            int j_B[Max];
+            for (int e_j = 0; e_j < j_nbElts; ++e_j)
             {
-               const int nnz = GetAndIncrementNnzIndex(i_L, I);
-               J[nnz] = j_L;
-               Data[nnz] = mat_ea(j,i,e);
+               const int j_E = d_indices[j_offset+e_j];
+               const int elt = j_E/elt_dofs;
+               j_elts[e_j] = elt;
+               j_B[e_j]    = j_E%elt_dofs;
             }
-            else // assembly required
+            int min_e = GetMinElt(i_elts, i_nbElts, j_elts, j_nbElts);
+            if (e == min_e) // add the nnz only once
             {
-               int j_elts[Max];
-               int j_B[Max];
-               for (int e_j = 0; e_j < j_nbElts; ++e_j)
+               double val = 0.0;
+               for (int k = 0; k < i_nbElts; k++)
                {
-                  const int j_E = d_indices[j_offset+e_j];
-                  const int elt = j_E/elt_dofs;
-                  j_elts[e_j] = elt;
-                  j_B[e_j]    = j_E%elt_dofs;
-               }
-               int min_e = GetMinElt(i_elts, i_nbElts, j_elts, j_nbElts);
-               if (e == min_e) // add the nnz only once
-               {
-                  double val = 0.0;
-                  for (int i = 0; i < i_nbElts; i++)
+                  const int e_i = i_elts[k];
+                  const int i_Bloc = i_B[k];
+                  for (int l = 0; l < j_nbElts; l++)
                   {
-                     const int e_i = i_elts[i];
-                     const int i_Bloc = i_B[i];
-                     for (int j = 0; j < j_nbElts; j++)
+                     const int e_j = j_elts[l];
+                     const int j_Bloc = j_B[l];
+                     if (e_i == e_j)
                      {
-                        const int e_j = j_elts[j];
-                        const int j_Bloc = j_B[j];
-                        if (e_i == e_j)
-                        {
-                           val += mat_ea(j_Bloc, i_Bloc, e_i);
-                        }
+                        val += mat_ea(j_Bloc, i_Bloc, e_i);
                      }
                   }
-                  const int nnz = GetAndIncrementNnzIndex(i_L, I);
-                  J[nnz] = j_L;
-                  Data[nnz] = val;
                }
+               const int nnz = GetAndIncrementNnzIndex(i_L, I);
+               J[nnz] = j_L;
+               Data[nnz] = val;
             }
          }
       }
@@ -558,9 +566,10 @@ void L2ElementRestriction::FillJAndData(const Vector &ea_data,
    });
 }
 
-// Return the face degrees of freedom returned in Lexicographic order.
+/** Return the face degrees of freedom returned in Lexicographic order.
+    Note: Only for quad and hex */
 void GetFaceDofs(const int dim, const int face_id,
-                 const int dof1d, Array<int> &faceMap)
+                 const int dof1d, Array<int> &face_map)
 {
    switch (dim)
    {
@@ -568,10 +577,10 @@ void GetFaceDofs(const int dim, const int face_id,
          switch (face_id)
          {
             case 0: // WEST
-               faceMap[0] = 0;
+               face_map[0] = 0;
                break;
             case 1: // EAST
-               faceMap[0] = dof1d-1;
+               face_map[0] = dof1d-1;
                break;
          }
          break;
@@ -581,25 +590,25 @@ void GetFaceDofs(const int dim, const int face_id,
             case 0: // SOUTH
                for (int i = 0; i < dof1d; ++i)
                {
-                  faceMap[i] = i;
+                  face_map[i] = i;
                }
                break;
             case 1: // EAST
                for (int i = 0; i < dof1d; ++i)
                {
-                  faceMap[i] = dof1d-1 + i*dof1d;
+                  face_map[i] = dof1d-1 + i*dof1d;
                }
                break;
             case 2: // NORTH
                for (int i = 0; i < dof1d; ++i)
                {
-                  faceMap[i] = (dof1d-1)*dof1d + i;
+                  face_map[i] = (dof1d-1)*dof1d + i;
                }
                break;
             case 3: // WEST
                for (int i = 0; i < dof1d; ++i)
                {
-                  faceMap[i] = i*dof1d;
+                  face_map[i] = i*dof1d;
                }
                break;
          }
@@ -612,7 +621,7 @@ void GetFaceDofs(const int dim, const int face_id,
                {
                   for (int j = 0; j < dof1d; ++j)
                   {
-                     faceMap[i+j*dof1d] = i + j*dof1d;
+                     face_map[i+j*dof1d] = i + j*dof1d;
                   }
                }
                break;
@@ -621,7 +630,7 @@ void GetFaceDofs(const int dim, const int face_id,
                {
                   for (int j = 0; j < dof1d; ++j)
                   {
-                     faceMap[i+j*dof1d] = i + j*dof1d*dof1d;
+                     face_map[i+j*dof1d] = i + j*dof1d*dof1d;
                   }
                }
                break;
@@ -630,7 +639,7 @@ void GetFaceDofs(const int dim, const int face_id,
                {
                   for (int j = 0; j < dof1d; ++j)
                   {
-                     faceMap[i+j*dof1d] = dof1d-1 + i*dof1d + j*dof1d*dof1d;
+                     face_map[i+j*dof1d] = dof1d-1 + i*dof1d + j*dof1d*dof1d;
                   }
                }
                break;
@@ -639,7 +648,7 @@ void GetFaceDofs(const int dim, const int face_id,
                {
                   for (int j = 0; j < dof1d; ++j)
                   {
-                     faceMap[i+j*dof1d] = (dof1d-1)*dof1d + i + j*dof1d*dof1d;
+                     face_map[i+j*dof1d] = (dof1d-1)*dof1d + i + j*dof1d*dof1d;
                   }
                }
                break;
@@ -648,7 +657,7 @@ void GetFaceDofs(const int dim, const int face_id,
                {
                   for (int j = 0; j < dof1d; ++j)
                   {
-                     faceMap[i+j*dof1d] = i*dof1d + j*dof1d*dof1d;
+                     face_map[i+j*dof1d] = i*dof1d + j*dof1d*dof1d;
                   }
                }
                break;
@@ -657,7 +666,7 @@ void GetFaceDofs(const int dim, const int face_id,
                {
                   for (int j = 0; j < dof1d; ++j)
                   {
-                     faceMap[i+j*dof1d] = (dof1d-1)*dof1d*dof1d + i + j*dof1d;
+                     face_map[i+j*dof1d] = (dof1d-1)*dof1d*dof1d + i + j*dof1d;
                   }
                }
                break;
@@ -668,20 +677,91 @@ void GetFaceDofs(const int dim, const int face_id,
 
 H1FaceRestriction::H1FaceRestriction(const FiniteElementSpace &fes,
                                      const ElementDofOrdering e_ordering,
-                                     const FaceType type)
+                                     const FaceType type,
+                                     bool build)
    : fes(fes),
      nf(fes.GetNFbyType(type)),
      vdim(fes.GetVDim()),
      byvdim(fes.GetOrdering() == Ordering::byVDIM),
+     face_dofs(nf > 0 ? fes.GetFaceElement(0)->GetDof() : 0),
+     elem_dofs(fes.GetFE(0)->GetDof()),
+     nfdofs(nf*face_dofs),
      ndofs(fes.GetNDofs()),
-     dof(nf > 0 ? fes.GetFaceElement(0)->GetDof() : 0),
-     nfdofs(nf*dof),
-     scatter_indices(nf*dof),
-     offsets(ndofs+1),
-     gather_indices(nf*dof)
+     scatter_indices(nf*face_dofs),
+     gather_offsets(ndofs+1),
+     gather_indices(nf*face_dofs),
+     face_map(face_dofs)
 {
+   height = vdim*nf*face_dofs;
+   width = fes.GetVSize();
+   if (!build) { return; }
    if (nf==0) { return; }
 
+   CheckFESpace(e_ordering);
+
+   ComputeScatterIndicesAndOffsets(e_ordering, type);
+
+   ComputeGatherIndices(e_ordering,type);
+}
+
+H1FaceRestriction::H1FaceRestriction(const FiniteElementSpace &fes,
+                                     const ElementDofOrdering e_ordering,
+                                     const FaceType type)
+   : H1FaceRestriction(fes, e_ordering, type, true)
+{ }
+
+void H1FaceRestriction::Mult(const Vector& x, Vector& y) const
+{
+   if (nf==0) { return; }
+   // Assumes all elements have the same number of dofs
+   const int nface_dofs = face_dofs;
+   const int vd = vdim;
+   const bool t = byvdim;
+   auto d_indices = scatter_indices.Read();
+   auto d_x = Reshape(x.Read(), t?vd:ndofs, t?ndofs:vd);
+   auto d_y = Reshape(y.Write(), nface_dofs, vd, nf);
+   MFEM_FORALL(i, nfdofs,
+   {
+      const int idx = d_indices[i];
+      const int dof = i % nface_dofs;
+      const int face = i / nface_dofs;
+      for (int c = 0; c < vd; ++c)
+      {
+         d_y(dof, c, face) = d_x(t?c:idx, t?idx:c);
+      }
+   });
+}
+
+void H1FaceRestriction::AddMultTranspose(const Vector& x, Vector& y) const
+{
+   if (nf==0) { return; }
+   // Assumes all elements have the same number of dofs
+   const int nface_dofs = face_dofs;
+   const int vd = vdim;
+   const bool t = byvdim;
+   auto d_offsets = gather_offsets.Read();
+   auto d_indices = gather_indices.Read();
+   auto d_x = Reshape(x.Read(), nface_dofs, vd, nf);
+   auto d_y = Reshape(y.ReadWrite(), t?vd:ndofs, t?ndofs:vd);
+   MFEM_FORALL(i, ndofs,
+   {
+      const int offset = d_offsets[i];
+      const int next_offset = d_offsets[i + 1];
+      for (int c = 0; c < vd; ++c)
+      {
+         double dof_value = 0;
+         for (int j = offset; j < next_offset; ++j)
+         {
+            const int idx_j = d_indices[j];
+            dof_value +=  d_x(idx_j % nface_dofs, c, idx_j / nface_dofs);
+         }
+         d_y(t?c:i,t?i:c) += dof_value;
+      }
+   });
+}
+
+void H1FaceRestriction::CheckFESpace(const ElementDofOrdering e_ordering)
+{
 #ifdef MFEM_USE_MPI
 
    // If the underlying finite element space is parallel, ensure the face
@@ -694,19 +774,17 @@ H1FaceRestriction::H1FaceRestriction(const FiniteElementSpace &fes,
 
 #endif
 
+#ifdef MFEM_DEBUG
    // If fespace == H1
-   const FiniteElement *fe = fes.GetFE(0);
-   const TensorBasisElement *tfe = dynamic_cast<const TensorBasisElement*>(fe);
+   const FiniteElement *fe0 = fes.GetFE(0);
+   const TensorBasisElement *tfe = dynamic_cast<const TensorBasisElement*>(fe0);
    MFEM_VERIFY(tfe != NULL &&
                (tfe->GetBasisType()==BasisType::GaussLobatto ||
                 tfe->GetBasisType()==BasisType::Positive),
                "Only Gauss-Lobatto and Bernstein basis are supported in "
                "H1FaceRestriction.");
-   MFEM_VERIFY(fes.GetMesh()->Conforming(),
-               "Non-conforming meshes not yet supported with partial assembly.");
+
    // Assuming all finite elements are using Gauss-Lobatto.
-   height = vdim*nf*dof;
-   width = fes.GetVSize();
    const bool dof_reorder = (e_ordering == ElementDofOrdering::LEXICOGRAPHIC);
    if (dof_reorder && nf > 0)
    {
@@ -716,7 +794,7 @@ H1FaceRestriction::H1FaceRestriction(const FiniteElementSpace &fes,
          const TensorBasisElement* el =
             dynamic_cast<const TensorBasisElement*>(fe);
          if (el) { continue; }
-         mfem_error("Finite element not suitable for lexicographic ordering");
+         MFEM_ABORT("Finite element not suitable for lexicographic ordering");
       }
       const FiniteElement *fe = fes.GetFaceElement(0);
       const TensorBasisElement* el =
@@ -724,164 +802,143 @@ H1FaceRestriction::H1FaceRestriction(const FiniteElementSpace &fes,
       const Array<int> &fe_dof_map = el->GetDofMap();
       MFEM_VERIFY(fe_dof_map.Size() > 0, "invalid dof map");
    }
-   const TensorBasisElement* el =
-      dynamic_cast<const TensorBasisElement*>(fe);
-   const int *dof_map = el->GetDofMap().GetData();
-   const Table& e2dTable = fes.GetElementToDofTable();
-   const int* elementMap = e2dTable.GetJ();
-   Array<int> faceMap(dof);
-   int e1, e2;
-   int inf1, inf2;
-   int face_id;
-   int orientation;
-   const int dof1d = fes.GetFE(0)->GetOrder()+1;
-   const int elem_dofs = fes.GetFE(0)->GetDof();
-   const int dim = fes.GetMesh()->SpaceDimension();
-   // Computation of scatter_indices
+#endif
+}
+
+void H1FaceRestriction::ComputeScatterIndicesAndOffsets(
+   const ElementDofOrdering ordering,
+   const FaceType type)
+{
+   Mesh &mesh = *fes.GetMesh();
+
+   // Initialization of the offsets
+   for (int i = 0; i <= ndofs; ++i)
+   {
+      gather_offsets[i] = 0;
+   }
+
+   // Computation of scatter indices and offsets
    int f_ind = 0;
    for (int f = 0; f < fes.GetNF(); ++f)
    {
-      fes.GetMesh()->GetFaceElements(f, &e1, &e2);
-      fes.GetMesh()->GetFaceInfos(f, &inf1, &inf2);
-      orientation = inf1 % 64;
-      face_id = inf1 / 64;
-      if ((type==FaceType::Interior && (e2>=0 || (e2<0 && inf2>=0))) ||
-          (type==FaceType::Boundary && e2<0 && inf2<0) )
+      Mesh::FaceInformation face = mesh.GetFaceInformation(f);
+      if ( face.IsNonconformingCoarse() )
       {
-         // Assumes Gauss-Lobatto basis
-         if (dof_reorder)
-         {
-            if (orientation != 0)
-            {
-               mfem_error("FaceRestriction used on degenerated mesh.");
-            }
-            GetFaceDofs(dim, face_id, dof1d, faceMap); // Only for hex
-         }
-         else
-         {
-            mfem_error("FaceRestriction not yet implemented for this type of "
-                       "element.");
-            // TODO Something with GetFaceDofs?
-         }
-         for (int d = 0; d < dof; ++d)
-         {
-            const int face_dof = faceMap[d];
-            const int did = (!dof_reorder)?face_dof:dof_map[face_dof];
-            const int gid = elementMap[e1*elem_dofs + did];
-            const int lid = dof*f_ind + d;
-            scatter_indices[lid] = gid;
-         }
+         // We skip nonconforming coarse faces as they are treated
+         // by the corresponding nonconforming fine faces.
+         continue;
+      }
+      else if ( face.IsOfFaceType(type) )
+      {
+         SetFaceDofsScatterIndices(face, f_ind, ordering);
          f_ind++;
       }
    }
    MFEM_VERIFY(f_ind==nf, "Unexpected number of faces.");
-   // Computation of gather_indices
-   for (int i = 0; i <= ndofs; ++i)
-   {
-      offsets[i] = 0;
-   }
-   f_ind = 0;
-   for (int f = 0; f < fes.GetNF(); ++f)
-   {
-      fes.GetMesh()->GetFaceElements(f, &e1, &e2);
-      fes.GetMesh()->GetFaceInfos(f, &inf1, &inf2);
-      orientation = inf1 % 64;
-      face_id = inf1 / 64;
-      if ((type==FaceType::Interior && (e2>=0 || (e2<0 && inf2>=0))) ||
-          (type==FaceType::Boundary && e2<0 && inf2<0) )
-      {
-         GetFaceDofs(dim, face_id, dof1d, faceMap);
-         for (int d = 0; d < dof; ++d)
-         {
-            const int face_dof = faceMap[d];
-            const int did = (!dof_reorder)?face_dof:dof_map[face_dof];
-            const int gid = elementMap[e1*elem_dofs + did];
-            ++offsets[gid + 1];
-         }
-         f_ind++;
-      }
-   }
-   MFEM_VERIFY(f_ind==nf, "Unexpected number of faces.");
+
+   // Summation of the offsets
    for (int i = 1; i <= ndofs; ++i)
    {
-      offsets[i] += offsets[i - 1];
+      gather_offsets[i] += gather_offsets[i - 1];
    }
-   f_ind = 0;
+}
+
+void H1FaceRestriction::ComputeGatherIndices(
+   const ElementDofOrdering ordering,
+   const FaceType type)
+{
+   Mesh &mesh = *fes.GetMesh();
+
+   // Computation of gather_indices
+   int f_ind = 0;
    for (int f = 0; f < fes.GetNF(); ++f)
    {
-      fes.GetMesh()->GetFaceElements(f, &e1, &e2);
-      fes.GetMesh()->GetFaceInfos(f, &inf1, &inf2);
-      orientation = inf1 % 64;
-      face_id = inf1 / 64;
-      if ((type==FaceType::Interior && (e2>=0 || (e2<0 && inf2>=0))) ||
-          (type==FaceType::Boundary && e2<0 && inf2<0) )
+      Mesh::FaceInformation face = mesh.GetFaceInformation(f);
+      if ( face.IsNonconformingCoarse() )
       {
-         GetFaceDofs(dim, face_id, dof1d, faceMap);
-         for (int d = 0; d < dof; ++d)
-         {
-            const int face_dof = faceMap[d];
-            const int did = (!dof_reorder)?face_dof:dof_map[face_dof];
-            const int gid = elementMap[e1*elem_dofs + did];
-            const int lid = dof*f_ind + d;
-            gather_indices[offsets[gid]++] = lid;
-         }
+         // We skip nonconforming coarse faces as they are treated
+         // by the corresponding nonconforming fine faces.
+         continue;
+      }
+      else if ( face.IsOfFaceType(type) )
+      {
+         SetFaceDofsGatherIndices(face, f_ind, ordering);
          f_ind++;
       }
    }
    MFEM_VERIFY(f_ind==nf, "Unexpected number of faces.");
+
+   // Reset offsets to their initial value
    for (int i = ndofs; i > 0; --i)
    {
-      offsets[i] = offsets[i - 1];
+      gather_offsets[i] = gather_offsets[i - 1];
    }
-   offsets[0] = 0;
+   gather_offsets[0] = 0;
 }
 
-void H1FaceRestriction::Mult(const Vector& x, Vector& y) const
+void H1FaceRestriction::SetFaceDofsScatterIndices(
+   const Mesh::FaceInformation &face,
+   const int face_index,
+   const ElementDofOrdering ordering)
 {
-   // Assumes all elements have the same number of dofs
-   const int nd = dof;
-   const int vd = vdim;
-   const bool t = byvdim;
-   auto d_indices = scatter_indices.Read();
-   auto d_x = Reshape(x.Read(), t?vd:ndofs, t?ndofs:vd);
-   auto d_y = Reshape(y.Write(), nd, vd, nf);
-   MFEM_FORALL(i, nfdofs,
+   MFEM_ASSERT(!(face.IsNonconformingCoarse()),
+               "This method should not be used on nonconforming coarse faces.");
+   MFEM_ASSERT(face.element[0].orientation==0,
+               "FaceRestriction used on degenerated mesh.");
+
+   const TensorBasisElement* el =
+      dynamic_cast<const TensorBasisElement*>(fes.GetFE(0));
+   const int *dof_map = el->GetDofMap().GetData();
+   const Table& e2dTable = fes.GetElementToDofTable();
+   const int* elem_map = e2dTable.GetJ();
+   const int face_id = face.element[0].local_face_id;
+   const int dim = fes.GetMesh()->Dimension();
+   const int dof1d = fes.GetFE(0)->GetOrder()+1;
+   const int elem_index = face.element[0].index;
+   const bool dof_reorder = (ordering == ElementDofOrdering::LEXICOGRAPHIC);
+   GetFaceDofs(dim, face_id, dof1d, face_map); // Only for quad and hex
+
+   for (int face_dof = 0; face_dof < face_dofs; ++face_dof)
    {
-      const int idx = d_indices[i];
-      const int dof = i % nd;
-      const int face = i / nd;
-      for (int c = 0; c < vd; ++c)
-      {
-         d_y(dof, c, face) = d_x(t?c:idx, t?idx:c);
-      }
-   });
+      const int nat_volume_dof = face_map[face_dof];
+      const int volume_dof = (!dof_reorder)?
+                             nat_volume_dof:
+                             dof_map[nat_volume_dof];
+      const int global_dof = elem_map[elem_index*elem_dofs + volume_dof];
+      const int restriction_dof = face_dofs*face_index + face_dof;
+      scatter_indices[restriction_dof] = global_dof;
+      ++gather_offsets[global_dof + 1];
+   }
 }
 
-void H1FaceRestriction::AddMultTranspose(const Vector& x, Vector& y) const
+void H1FaceRestriction::SetFaceDofsGatherIndices(
+   const Mesh::FaceInformation &face,
+   const int face_index,
+   const ElementDofOrdering ordering)
 {
-   // Assumes all elements have the same number of dofs
-   const int nd = dof;
-   const int vd = vdim;
-   const bool t = byvdim;
-   auto d_offsets = offsets.Read();
-   auto d_indices = gather_indices.Read();
-   auto d_x = Reshape(x.Read(), nd, vd, nf);
-   auto d_y = Reshape(y.ReadWrite(), t?vd:ndofs, t?ndofs:vd);
-   MFEM_FORALL(i, ndofs,
+   MFEM_ASSERT(!(face.IsNonconformingCoarse()),
+               "This method should not be used on nonconforming coarse faces.");
+
+   const TensorBasisElement* el =
+      dynamic_cast<const TensorBasisElement*>(fes.GetFE(0));
+   const int *dof_map = el->GetDofMap().GetData();
+   const Table& e2dTable = fes.GetElementToDofTable();
+   const int* elem_map = e2dTable.GetJ();
+   const int face_id = face.element[0].local_face_id;
+   const int dim = fes.GetMesh()->Dimension();
+   const int dof1d = fes.GetFE(0)->GetOrder()+1;
+   const int elem_index = face.element[0].index;
+   const bool dof_reorder = (ordering == ElementDofOrdering::LEXICOGRAPHIC);
+   GetFaceDofs(dim, face_id, dof1d, face_map); // Only for quad and hex
+
+   for (int face_dof = 0; face_dof < face_dofs; ++face_dof)
    {
-      const int offset = d_offsets[i];
-      const int nextOffset = d_offsets[i + 1];
-      for (int c = 0; c < vd; ++c)
-      {
-         double dofValue = 0;
-         for (int j = offset; j < nextOffset; ++j)
-         {
-            const int idx_j = d_indices[j];
-            dofValue +=  d_x(idx_j % nd, c, idx_j / nd);
-         }
-         d_y(t?c:i,t?i:c) += dofValue;
-      }
-   });
+      const int nat_volume_dof = face_map[face_dof];
+      const int volume_dof = (!dof_reorder)?nat_volume_dof:dof_map[nat_volume_dof];
+      const int global_dof = elem_map[elem_index*elem_dofs + volume_dof];
+      const int restriction_dof = face_dofs*face_index + face_dof;
+      gather_indices[gather_offsets[global_dof]++] = restriction_dof;
+   }
 }
 
 static int ToLexOrdering2D(const int face_id, const int size1d, const int i)
@@ -1004,56 +1061,331 @@ int PermuteFaceL2(const int dim, const int face_id1,
       case 3:
          return PermuteFace3D(face_id1, face_id2, orientation, size1d, index);
       default:
-         mfem_error("Unsupported dimension.");
+         MFEM_ABORT("Unsupported dimension.");
          return 0;
    }
 }
 
 L2FaceRestriction::L2FaceRestriction(const FiniteElementSpace &fes,
+                                     const ElementDofOrdering e_ordering,
                                      const FaceType type,
-                                     const L2FaceValues m)
+                                     const L2FaceValues m,
+                                     bool build)
    : fes(fes),
      nf(fes.GetNFbyType(type)),
      ne(fes.GetNE()),
      vdim(fes.GetVDim()),
      byvdim(fes.GetOrdering() == Ordering::byVDIM),
+     face_dofs(nf > 0 ?
+               fes.GetTraceElement(0, fes.GetMesh()->GetFaceBaseGeometry(0))->GetDof()
+               : 0),
+     elem_dofs(fes.GetFE(0)->GetDof()),
+     nfdofs(nf*face_dofs),
      ndofs(fes.GetNDofs()),
-     dof(nf > 0 ?
-         fes.GetTraceElement(0, fes.GetMesh()->GetFaceBaseGeometry(0))->GetDof()
-         : 0),
-     elemDofs(fes.GetFE(0)->GetDof()),
+     type(type),
      m(m),
-     nfdofs(nf*dof),
-     scatter_indices1(nf*dof),
-     scatter_indices2(m==L2FaceValues::DoubleValued?nf*dof:0),
-     offsets(ndofs+1),
-     gather_indices((m==L2FaceValues::DoubleValued? 2 : 1)*nf*dof)
+     scatter_indices1(nf*face_dofs),
+     scatter_indices2(m==L2FaceValues::DoubleValued?nf*face_dofs:0),
+     gather_offsets(ndofs+1),
+     gather_indices((m==L2FaceValues::DoubleValued? 2 : 1)*nf*face_dofs),
+     face_map(face_dofs)
 {
+   height = (m==L2FaceValues::DoubleValued? 2 : 1)*vdim*nf*face_dofs;
+   width = fes.GetVSize();
+   if (!build) { return; }
+
+   CheckFESpace(e_ordering);
+
+   ComputeScatterIndicesAndOffsets(e_ordering,type);
+
+   ComputeGatherIndices(e_ordering, type);
 }
 
 L2FaceRestriction::L2FaceRestriction(const FiniteElementSpace &fes,
                                      const ElementDofOrdering e_ordering,
                                      const FaceType type,
                                      const L2FaceValues m)
-   : L2FaceRestriction(fes, type, m)
+   : L2FaceRestriction(fes, e_ordering, type, m, true)
+{ }
+
+void L2FaceRestriction::SingleValuedConformingMult(const Vector& x,
+                                                   Vector& y) const
 {
+   MFEM_ASSERT(
+      m == L2FaceValues::SingleValued,
+      "This method should be called when m == L2FaceValues::SingleValued.");
+   // Assumes all elements have the same number of dofs
+   const int nface_dofs = face_dofs;
+   const int vd = vdim;
+   const bool t = byvdim;
+   auto d_indices1 = scatter_indices1.Read();
+   auto d_x = Reshape(x.Read(), t?vd:ndofs, t?ndofs:vd);
+   auto d_y = Reshape(y.Write(), nface_dofs, vd, nf);
+   MFEM_FORALL(i, nfdofs,
+   {
+      const int dof = i % nface_dofs;
+      const int face = i / nface_dofs;
+      const int idx1 = d_indices1[i];
+      for (int c = 0; c < vd; ++c)
+      {
+         d_y(dof, c, face) = d_x(t?c:idx1, t?idx1:c);
+      }
+   });
+}
+
+void L2FaceRestriction::DoubleValuedConformingMult(const Vector& x,
+                                                   Vector& y) const
+{
+   MFEM_ASSERT(
+      m == L2FaceValues::DoubleValued,
+      "This method should be called when m == L2FaceValues::DoubleValued.");
+   // Assumes all elements have the same number of dofs
+   const int nface_dofs = face_dofs;
+   const int vd = vdim;
+   const bool t = byvdim;
+   auto d_indices1 = scatter_indices1.Read();
+   auto d_indices2 = scatter_indices2.Read();
+   auto d_x = Reshape(x.Read(), t?vd:ndofs, t?ndofs:vd);
+   auto d_y = Reshape(y.Write(), nface_dofs, vd, 2, nf);
+   MFEM_FORALL(i, nfdofs,
+   {
+      const int dof = i % nface_dofs;
+      const int face = i / nface_dofs;
+      const int idx1 = d_indices1[i];
+      for (int c = 0; c < vd; ++c)
+      {
+         d_y(dof, c, 0, face) = d_x(t?c:idx1, t?idx1:c);
+      }
+      const int idx2 = d_indices2[i];
+      for (int c = 0; c < vd; ++c)
+      {
+         d_y(dof, c, 1, face) = idx2==-1 ? 0.0 : d_x(t?c:idx2, t?idx2:c);
+      }
+   });
+}
+
+void L2FaceRestriction::Mult(const Vector& x, Vector& y) const
+{
+   if (nf==0) { return; }
+   if (m==L2FaceValues::DoubleValued)
+   {
+      DoubleValuedConformingMult(x, y);
+   }
+   else
+   {
+      SingleValuedConformingMult(x, y);
+   }
+}
+
+void L2FaceRestriction::SingleValuedConformingAddMultTranspose(
+   const Vector& x, Vector& y) const
+{
+   // Assumes all elements have the same number of dofs
+   const int nface_dofs = face_dofs;
+   const int vd = vdim;
+   const bool t = byvdim;
+   auto d_offsets = gather_offsets.Read();
+   auto d_indices = gather_indices.Read();
+   auto d_x = Reshape(x.Read(), nface_dofs, vd, nf);
+   auto d_y = Reshape(y.ReadWrite(), t?vd:ndofs, t?ndofs:vd);
+   MFEM_FORALL(i, ndofs,
+   {
+      const int offset = d_offsets[i];
+      const int next_offset = d_offsets[i + 1];
+      for (int c = 0; c < vd; ++c)
+      {
+         double dof_value = 0;
+         for (int j = offset; j < next_offset; ++j)
+         {
+            int idx_j = d_indices[j];
+            dof_value +=  d_x(idx_j % nface_dofs, c, idx_j / nface_dofs);
+         }
+         d_y(t?c:i,t?i:c) += dof_value;
+      }
+   });
+}
+
+void L2FaceRestriction::DoubleValuedConformingAddMultTranspose(
+   const Vector& x, Vector& y) const
+{
+   // Assumes all elements have the same number of dofs
+   const int nface_dofs = face_dofs;
+   const int vd = vdim;
+   const bool t = byvdim;
+   const int dofs = nfdofs;
+   auto d_offsets = gather_offsets.Read();
+   auto d_indices = gather_indices.Read();
+   auto d_x = Reshape(x.Read(), nface_dofs, vd, 2, nf);
+   auto d_y = Reshape(y.ReadWrite(), t?vd:ndofs, t?ndofs:vd);
+   MFEM_FORALL(i, ndofs,
+   {
+      const int offset = d_offsets[i];
+      const int next_offset = d_offsets[i + 1];
+      for (int c = 0; c < vd; ++c)
+      {
+         double dof_value = 0;
+         for (int j = offset; j < next_offset; ++j)
+         {
+            int idx_j = d_indices[j];
+            bool isE1 = idx_j < dofs;
+            idx_j = isE1 ? idx_j : idx_j - dofs;
+            dof_value +=  isE1 ?
+            d_x(idx_j % nface_dofs, c, 0, idx_j / nface_dofs)
+            :d_x(idx_j % nface_dofs, c, 1, idx_j / nface_dofs);
+         }
+         d_y(t?c:i,t?i:c) += dof_value;
+      }
+   });
+}
+
+void L2FaceRestriction::AddMultTranspose(const Vector& x, Vector& y) const
+{
+   if (nf==0) { return; }
+   if (m == L2FaceValues::DoubleValued)
+   {
+      DoubleValuedConformingAddMultTranspose(x, y);
+   }
+   else
+   {
+      SingleValuedConformingAddMultTranspose(x, y);
+   }
+}
+
+void L2FaceRestriction::FillI(SparseMatrix &mat,
+                              const bool keep_nbr_block) const
+{
+   const int nface_dofs = face_dofs;
+   auto d_indices1 = scatter_indices1.Read();
+   auto d_indices2 = scatter_indices2.Read();
+   auto I = mat.ReadWriteI();
+   MFEM_FORALL(fdof, nf*nface_dofs,
+   {
+      const int iE1 = d_indices1[fdof];
+      const int iE2 = d_indices2[fdof];
+      AddNnz(iE1,I,nface_dofs);
+      AddNnz(iE2,I,nface_dofs);
+   });
+}
+
+void L2FaceRestriction::FillJAndData(const Vector &fea_data,
+                                     SparseMatrix &mat,
+                                     const bool keep_nbr_block) const
+{
+   const int nface_dofs = face_dofs;
+   auto d_indices1 = scatter_indices1.Read();
+   auto d_indices2 = scatter_indices2.Read();
+   auto I = mat.ReadWriteI();
+   auto mat_fea = Reshape(fea_data.Read(), nface_dofs, nface_dofs, 2, nf);
+   auto J = mat.WriteJ();
+   auto Data = mat.WriteData();
+   MFEM_FORALL(fdof, nf*nface_dofs,
+   {
+      const int f  = fdof/nface_dofs;
+      const int iF = fdof%nface_dofs;
+      const int iE1 = d_indices1[f*nface_dofs+iF];
+      const int iE2 = d_indices2[f*nface_dofs+iF];
+      const int offset1 = AddNnz(iE1,I,nface_dofs);
+      const int offset2 = AddNnz(iE2,I,nface_dofs);
+      for (int jF = 0; jF < nface_dofs; jF++)
+      {
+         const int jE1 = d_indices1[f*nface_dofs+jF];
+         const int jE2 = d_indices2[f*nface_dofs+jF];
+         J[offset2+jF] = jE1;
+         J[offset1+jF] = jE2;
+         Data[offset2+jF] = mat_fea(jF,iF,0,f);
+         Data[offset1+jF] = mat_fea(jF,iF,1,f);
+      }
+   });
+}
+
+void L2FaceRestriction::AddFaceMatricesToElementMatrices(const Vector &fea_data,
+                                                         Vector &ea_data) const
+{
+   const int nface_dofs = face_dofs;
+   const int nelem_dofs = elem_dofs;
+   const int NE = ne;
+   if (m==L2FaceValues::DoubleValued)
+   {
+      auto d_indices1 = scatter_indices1.Read();
+      auto d_indices2 = scatter_indices2.Read();
+      auto mat_fea = Reshape(fea_data.Read(), nface_dofs, nface_dofs, 2, nf);
+      auto mat_ea = Reshape(ea_data.ReadWrite(), nelem_dofs, nelem_dofs, ne);
+      MFEM_FORALL(f, nf,
+      {
+         const int e1 = d_indices1[f*nface_dofs]/nelem_dofs;
+         const int e2 = d_indices2[f*nface_dofs]/nelem_dofs;
+         for (int j = 0; j < nface_dofs; j++)
+         {
+            const int jB1 = d_indices1[f*nface_dofs+j]%nelem_dofs;
+            for (int i = 0; i < nface_dofs; i++)
+            {
+               const int iB1 = d_indices1[f*nface_dofs+i]%nelem_dofs;
+               AtomicAdd(mat_ea(iB1,jB1,e1), mat_fea(i,j,0,f));
+            }
+         }
+         if (e2 < NE)
+         {
+            for (int j = 0; j < nface_dofs; j++)
+            {
+               const int jB2 = d_indices2[f*nface_dofs+j]%nelem_dofs;
+               for (int i = 0; i < nface_dofs; i++)
+               {
+                  const int iB2 = d_indices2[f*nface_dofs+i]%nelem_dofs;
+                  AtomicAdd(mat_ea(iB2,jB2,e2), mat_fea(i,j,1,f));
+               }
+            }
+         }
+      });
+   }
+   else
+   {
+      auto d_indices = scatter_indices1.Read();
+      auto mat_fea = Reshape(fea_data.Read(), nface_dofs, nface_dofs, nf);
+      auto mat_ea = Reshape(ea_data.ReadWrite(), nelem_dofs, nelem_dofs, ne);
+      MFEM_FORALL(f, nf,
+      {
+         const int e = d_indices[f*nface_dofs]/nelem_dofs;
+         for (int j = 0; j < nface_dofs; j++)
+         {
+            const int jE = d_indices[f*nface_dofs+j]%nelem_dofs;
+            for (int i = 0; i < nface_dofs; i++)
+            {
+               const int iE = d_indices[f*nface_dofs+i]%nelem_dofs;
+               AtomicAdd(mat_ea(iE,jE,e), mat_fea(i,j,f));
+            }
+         }
+      });
+   }
+}
+
+void L2FaceRestriction::CheckFESpace(const ElementDofOrdering e_ordering)
+{
+#ifdef MFEM_USE_MPI
+
+   // If the underlying finite element space is parallel, ensure the face
+   // neighbor information is generated.
+   if (const ParFiniteElementSpace *pfes
+       = dynamic_cast<const ParFiniteElementSpace*>(&fes))
+   {
+      pfes->GetParMesh()->ExchangeFaceNbrData();
+   }
+
+#endif
+
+#ifdef MFEM_DEBUG
    // If fespace == L2
-   const FiniteElement *fe = fes.GetFE(0);
-   const TensorBasisElement *tfe = dynamic_cast<const TensorBasisElement*>(fe);
+   const FiniteElement *fe0 = fes.GetFE(0);
+   const TensorBasisElement *tfe = dynamic_cast<const TensorBasisElement*>(fe0);
    MFEM_VERIFY(tfe != NULL &&
                (tfe->GetBasisType()==BasisType::GaussLobatto ||
                 tfe->GetBasisType()==BasisType::Positive),
                "Only Gauss-Lobatto and Bernstein basis are supported in "
                "L2FaceRestriction.");
-   MFEM_VERIFY(fes.GetMesh()->Conforming(),
-               "Non-conforming meshes not yet supported with partial assembly.");
    if (nf==0) { return; }
-   height = (m==L2FaceValues::DoubleValued? 2 : 1)*vdim*nf*dof;
-   width = fes.GetVSize();
    const bool dof_reorder = (e_ordering == ElementDofOrdering::LEXICOGRAPHIC);
    if (!dof_reorder)
    {
-      mfem_error("Non-Tensor L2FaceRestriction not yet implemented.");
+      MFEM_ABORT("Non-Tensor L2FaceRestriction not yet implemented.");
    }
    if (dof_reorder && nf > 0)
    {
@@ -1064,380 +1396,645 @@ L2FaceRestriction::L2FaceRestriction(const FiniteElementSpace &fes,
          const TensorBasisElement* el =
             dynamic_cast<const TensorBasisElement*>(fe);
          if (el) { continue; }
-         mfem_error("Finite element not suitable for lexicographic ordering");
+         MFEM_ABORT("Finite element not suitable for lexicographic ordering");
       }
    }
-   const Table& e2dTable = fes.GetElementToDofTable();
-   const int* elementMap = e2dTable.GetJ();
-   Array<int> faceMap1(dof), faceMap2(dof);
-   int e1, e2;
-   int inf1, inf2;
-   int face_id1 = -1, face_id2 = -1;
-   int orientation = -1;
-   const int dof1d = fes.GetFE(0)->GetOrder()+1;
-   const int elem_dofs = fes.GetFE(0)->GetDof();
-   const int dim = fes.GetMesh()->SpaceDimension();
-   // Computation of scatter indices
+#endif
+}
+
+void L2FaceRestriction::ComputeScatterIndicesAndOffsets(
+   const ElementDofOrdering ordering,
+   const FaceType face_type)
+{
+   Mesh &mesh = *fes.GetMesh();
+   // Initialization of the offsets
+   for (int i = 0; i <= ndofs; ++i)
+   {
+      gather_offsets[i] = 0;
+   }
+
+   // Computation of scatter indices and offsets
    int f_ind=0;
    for (int f = 0; f < fes.GetNF(); ++f)
    {
-      fes.GetMesh()->GetFaceElements(f, &e1, &e2);
-      fes.GetMesh()->GetFaceInfos(f, &inf1, &inf2);
-      if (dof_reorder)
+      Mesh::FaceInformation face = mesh.GetFaceInformation(f);
+      MFEM_ASSERT(!face.IsShared(),
+                  "Unexpected shared face in L2FaceRestriction.");
+      if ( face.IsOfFaceType(face_type) )
       {
-         orientation = inf1 % 64;
-         face_id1 = inf1 / 64;
-         GetFaceDofs(dim, face_id1, dof1d, faceMap1); // Only for hex
-         orientation = inf2 % 64;
-         face_id2 = inf2 / 64;
-         GetFaceDofs(dim, face_id2, dof1d, faceMap2); // Only for hex
-      }
-      else
-      {
-         mfem_error("FaceRestriction not yet implemented for this type of "
-                    "element.");
-         // TODO Something with GetFaceDofs?
-      }
-      if ((type==FaceType::Interior && e2>=0) ||
-          (type==FaceType::Boundary && e2<0))
-      {
-         for (int d = 0; d < dof; ++d)
+         SetFaceDofsScatterIndices1(face,f_ind);
+         if ( m==L2FaceValues::DoubleValued )
          {
-            const int face_dof = faceMap1[d];
-            const int did = face_dof;
-            const int gid = elementMap[e1*elem_dofs + did];
-            const int lid = dof*f_ind + d;
-            scatter_indices1[lid] = gid;
-         }
-         if (m==L2FaceValues::DoubleValued)
-         {
-            for (int d = 0; d < dof; ++d)
+            if ( face_type==FaceType::Interior && face.IsInterior() )
             {
-               if (type==FaceType::Interior && e2>=0) // interior face
-               {
-                  const int pd = PermuteFaceL2(dim, face_id1, face_id2,
-                                               orientation, dof1d, d);
-                  const int face_dof = faceMap2[pd];
-                  const int did = face_dof;
-                  const int gid = elementMap[e2*elem_dofs + did];
-                  const int lid = dof*f_ind + d;
-                  scatter_indices2[lid] = gid;
-               }
-               else if (type==FaceType::Boundary && e2<0) // true boundary face
-               {
-                  const int lid = dof*f_ind + d;
-                  scatter_indices2[lid] = -1;
-               }
+               PermuteAndSetFaceDofsScatterIndices2(face,f_ind);
+            }
+            else if ( face_type==FaceType::Boundary && face.IsBoundary() )
+            {
+               SetBoundaryDofsScatterIndices2(face,f_ind);
             }
          }
          f_ind++;
       }
    }
    MFEM_VERIFY(f_ind==nf, "Unexpected number of faces.");
-   // Computation of gather_indices
-   for (int i = 0; i <= ndofs; ++i)
-   {
-      offsets[i] = 0;
-   }
-   f_ind = 0;
-   for (int f = 0; f < fes.GetNF(); ++f)
-   {
-      fes.GetMesh()->GetFaceElements(f, &e1, &e2);
-      fes.GetMesh()->GetFaceInfos(f, &inf1, &inf2);
-      if ((type==FaceType::Interior && (e2>=0 || (e2<0 && inf2>=0))) ||
-          (type==FaceType::Boundary && e2<0 && inf2<0) )
-      {
-         orientation = inf1 % 64;
-         face_id1 = inf1 / 64;
-         GetFaceDofs(dim, face_id1, dof1d, faceMap1);
-         orientation = inf2 % 64;
-         face_id2 = inf2 / 64;
-         GetFaceDofs(dim, face_id2, dof1d, faceMap2);
-         for (int d = 0; d < dof; ++d)
-         {
-            const int did = faceMap1[d];
-            const int gid = elementMap[e1*elem_dofs + did];
-            ++offsets[gid + 1];
-         }
-         if (m==L2FaceValues::DoubleValued)
-         {
-            for (int d = 0; d < dof; ++d)
-            {
-               if (type==FaceType::Interior && e2>=0) // interior face
-               {
-                  const int pd = PermuteFaceL2(dim, face_id1, face_id2,
-                                               orientation, dof1d, d);
-                  const int did = faceMap2[pd];
-                  const int gid = elementMap[e2*elem_dofs + did];
-                  ++offsets[gid + 1];
-               }
-            }
-         }
-         f_ind++;
-      }
-   }
-   MFEM_VERIFY(f_ind==nf, "Unexpected number of faces.");
+
+   // Summation of the offsets
    for (int i = 1; i <= ndofs; ++i)
    {
-      offsets[i] += offsets[i - 1];
+      gather_offsets[i] += gather_offsets[i - 1];
    }
-   f_ind = 0;
+}
+
+void L2FaceRestriction::ComputeGatherIndices(
+   const ElementDofOrdering ordering,
+   const FaceType face_type)
+{
+   Mesh &mesh = *fes.GetMesh();
+   // Computation of gather_indices
+   int f_ind = 0;
    for (int f = 0; f < fes.GetNF(); ++f)
    {
-      fes.GetMesh()->GetFaceElements(f, &e1, &e2);
-      fes.GetMesh()->GetFaceInfos(f, &inf1, &inf2);
-      if ((type==FaceType::Interior && (e2>=0 || (e2<0 && inf2>=0))) ||
-          (type==FaceType::Boundary && e2<0 && inf2<0) )
+      Mesh::FaceInformation face = mesh.GetFaceInformation(f);
+      MFEM_ASSERT(!face.IsShared(),
+                  "Unexpected shared face in L2FaceRestriction.");
+      if ( face.IsOfFaceType(face_type) )
       {
-         orientation = inf1 % 64;
-         face_id1 = inf1 / 64;
-         GetFaceDofs(dim, face_id1, dof1d, faceMap1);
-         orientation = inf2 % 64;
-         face_id2 = inf2 / 64;
-         GetFaceDofs(dim, face_id2, dof1d, faceMap2);
-         for (int d = 0; d < dof; ++d)
+         SetFaceDofsGatherIndices1(face,f_ind);
+         if ( m==L2FaceValues::DoubleValued &&
+              face_type==FaceType::Interior &&
+              face.IsLocal())
          {
-            const int did = faceMap1[d];
-            const int gid = elementMap[e1*elem_dofs + did];
-            const int lid = dof*f_ind + d;
-            // We don't shift lid to express that it's e1 of f
-            gather_indices[offsets[gid]++] = lid;
-         }
-         if (m==L2FaceValues::DoubleValued)
-         {
-            for (int d = 0; d < dof; ++d)
-            {
-               if (type==FaceType::Interior && e2>=0) // interior face
-               {
-                  const int pd = PermuteFaceL2(dim, face_id1, face_id2,
-                                               orientation, dof1d, d);
-                  const int did = faceMap2[pd];
-                  const int gid = elementMap[e2*elem_dofs + did];
-                  const int lid = dof*f_ind + d;
-                  // We shift lid to express that it's e2 of f
-                  gather_indices[offsets[gid]++] = nfdofs + lid;
-               }
-            }
+            PermuteAndSetFaceDofsGatherIndices2(face,f_ind);
          }
          f_ind++;
       }
    }
    MFEM_VERIFY(f_ind==nf, "Unexpected number of faces.");
+
+   // Reset offsets to their correct value
    for (int i = ndofs; i > 0; --i)
    {
-      offsets[i] = offsets[i - 1];
+      gather_offsets[i] = gather_offsets[i - 1];
    }
-   offsets[0] = 0;
+   gather_offsets[0] = 0;
 }
 
-void L2FaceRestriction::Mult(const Vector& x, Vector& y) const
+void L2FaceRestriction::SetFaceDofsScatterIndices1(
+   const Mesh::FaceInformation &face,
+   const int face_index)
 {
-   // Assumes all elements have the same number of dofs
-   const int nd = dof;
-   const int vd = vdim;
-   const bool t = byvdim;
+   MFEM_ASSERT(!(face.IsNonconformingCoarse()),
+               "This method should not be used on nonconforming coarse faces.");
+   const Table& e2dTable = fes.GetElementToDofTable();
+   const int* elem_map = e2dTable.GetJ();
+   const int face_id1 = face.element[0].local_face_id;
+   const int dim = fes.GetMesh()->Dimension();
+   const int dof1d = fes.GetFE(0)->GetOrder()+1;
+   const int elem_index = face.element[0].index;
+   GetFaceDofs(dim, face_id1, dof1d, face_map); // Only for quad and hex
 
-   if (m==L2FaceValues::DoubleValued)
+   for (int face_dof_elem1 = 0; face_dof_elem1 < face_dofs; ++face_dof_elem1)
    {
-      auto d_indices1 = scatter_indices1.Read();
-      auto d_indices2 = scatter_indices2.Read();
-      auto d_x = Reshape(x.Read(), t?vd:ndofs, t?ndofs:vd);
-      auto d_y = Reshape(y.Write(), nd, vd, 2, nf);
-      MFEM_FORALL(i, nfdofs,
-      {
-         const int dof = i % nd;
-         const int face = i / nd;
-         const int idx1 = d_indices1[i];
-         for (int c = 0; c < vd; ++c)
-         {
-            d_y(dof, c, 0, face) = d_x(t?c:idx1, t?idx1:c);
-         }
-         const int idx2 = d_indices2[i];
-         for (int c = 0; c < vd; ++c)
-         {
-            d_y(dof, c, 1, face) = idx2==-1 ? 0.0 : d_x(t?c:idx2, t?idx2:c);
-         }
-      });
+      const int volume_dof_elem1 = face_map[face_dof_elem1];
+      const int global_dof_elem1 = elem_map[elem_index*elem_dofs + volume_dof_elem1];
+      const int restriction_dof_elem1 = face_dofs*face_index + face_dof_elem1;
+      scatter_indices1[restriction_dof_elem1] = global_dof_elem1;
+      ++gather_offsets[global_dof_elem1 + 1];
+   }
+}
+
+void L2FaceRestriction::PermuteAndSetFaceDofsScatterIndices2(
+   const Mesh::FaceInformation &face,
+   const int face_index)
+{
+   MFEM_ASSERT(face.IsLocal(),
+               "This method should only be used on local faces.");
+   const Table& e2dTable = fes.GetElementToDofTable();
+   const int* elem_map = e2dTable.GetJ();
+   const int elem_index = face.element[1].index;
+   const int face_id1 = face.element[0].local_face_id;
+   const int face_id2 = face.element[1].local_face_id;
+   const int orientation = face.element[1].orientation;
+   const int dim = fes.GetMesh()->Dimension();
+   const int dof1d = fes.GetFE(0)->GetOrder()+1;
+   GetFaceDofs(dim, face_id2, dof1d, face_map); // Only for quad and hex
+
+   for (int face_dof_elem1 = 0; face_dof_elem1 < face_dofs; ++face_dof_elem1)
+   {
+      const int face_dof_elem2 = PermuteFaceL2(dim, face_id1, face_id2,
+                                               orientation, dof1d,
+                                               face_dof_elem1);
+      const int volume_dof_elem2 = face_map[face_dof_elem2];
+      const int global_dof_elem2 = elem_map[elem_index*elem_dofs + volume_dof_elem2];
+      const int restriction_dof_elem2 = face_dofs*face_index + face_dof_elem1;
+      scatter_indices2[restriction_dof_elem2] = global_dof_elem2;
+      ++gather_offsets[global_dof_elem2 + 1];
+   }
+}
+
+void L2FaceRestriction::PermuteAndSetSharedFaceDofsScatterIndices2(
+   const Mesh::FaceInformation &face,
+   const int face_index)
+{
+#ifdef MFEM_USE_MPI
+   MFEM_ASSERT(face.IsShared(),
+               "This method should only be used on shared faces.");
+   const int elem_index = face.element[1].index;
+   const int face_id1 = face.element[0].local_face_id;
+   const int face_id2 = face.element[1].local_face_id;
+   const int orientation = face.element[1].orientation;
+   const int dim = fes.GetMesh()->Dimension();
+   const int dof1d = fes.GetFE(0)->GetOrder()+1;
+   GetFaceDofs(dim, face_id2, dof1d, face_map); // Only for quad and hex
+   Array<int> face_nbr_dofs;
+   const ParFiniteElementSpace &pfes =
+      static_cast<const ParFiniteElementSpace&>(this->fes);
+   pfes.GetFaceNbrElementVDofs(elem_index, face_nbr_dofs);
+
+   for (int face_dof_elem1 = 0; face_dof_elem1 < face_dofs; ++face_dof_elem1)
+   {
+      const int face_dof_elem2 = PermuteFaceL2(dim, face_id1, face_id2,
+                                               orientation, dof1d, face_dof_elem1);
+      const int volume_dof_elem2 = face_map[face_dof_elem2];
+      const int global_dof_elem2 = face_nbr_dofs[volume_dof_elem2];
+      const int restriction_dof_elem2 = face_dofs*face_index + face_dof_elem1;
+      // Trick to differentiate dof location inter/shared
+      scatter_indices2[restriction_dof_elem2] = ndofs+global_dof_elem2;
+   }
+#endif
+}
+
+void L2FaceRestriction::SetBoundaryDofsScatterIndices2(
+   const Mesh::FaceInformation &face,
+   const int face_index)
+{
+   MFEM_ASSERT(face.IsBoundary(),
+               "This method should only be used on boundary faces.");
+
+   for (int d = 0; d < face_dofs; ++d)
+   {
+      const int restriction_dof_elem2 = face_dofs*face_index + d;
+      scatter_indices2[restriction_dof_elem2] = -1;
+   }
+}
+
+void L2FaceRestriction::SetFaceDofsGatherIndices1(
+   const Mesh::FaceInformation &face,
+   const int face_index)
+{
+   MFEM_ASSERT(!(face.IsNonconformingCoarse()),
+               "This method should not be used on nonconforming coarse faces.");
+   const Table& e2dTable = fes.GetElementToDofTable();
+   const int* elem_map = e2dTable.GetJ();
+   const int face_id1 = face.element[0].local_face_id;
+   const int dim = fes.GetMesh()->Dimension();
+   const int dof1d = fes.GetFE(0)->GetOrder()+1;
+   const int elem_index = face.element[0].index;
+   GetFaceDofs(dim, face_id1, dof1d, face_map); // Only for quad and hex
+
+   for (int face_dof_elem1 = 0; face_dof_elem1 < face_dofs; ++face_dof_elem1)
+   {
+      const int volume_dof_elem1 = face_map[face_dof_elem1];
+      const int global_dof_elem1 = elem_map[elem_index*elem_dofs + volume_dof_elem1];
+      const int restriction_dof_elem1 = face_dofs*face_index + face_dof_elem1;
+      // We don't shift restriction_dof_elem1 to express that it's elem1 of the face
+      gather_indices[gather_offsets[global_dof_elem1]++] = restriction_dof_elem1;
+   }
+}
+
+void L2FaceRestriction::PermuteAndSetFaceDofsGatherIndices2(
+   const Mesh::FaceInformation &face,
+   const int face_index)
+{
+   MFEM_ASSERT(face.IsLocal(),
+               "This method should only be used on local faces.");
+   const Table& e2dTable = fes.GetElementToDofTable();
+   const int* elem_map = e2dTable.GetJ();
+   const int elem_index = face.element[1].index;
+   const int face_id1 = face.element[0].local_face_id;
+   const int face_id2 = face.element[1].local_face_id;
+   const int orientation = face.element[1].orientation;
+   const int dim = fes.GetMesh()->Dimension();
+   const int dof1d = fes.GetFE(0)->GetOrder()+1;
+   GetFaceDofs(dim, face_id2, dof1d, face_map); // Only for quad and hex
+
+   for (int face_dof_elem1 = 0; face_dof_elem1 < face_dofs; ++face_dof_elem1)
+   {
+      const int face_dof_elem2 = PermuteFaceL2(dim, face_id1, face_id2,
+                                               orientation, dof1d,
+                                               face_dof_elem1);
+      const int volume_dof_elem2 = face_map[face_dof_elem2];
+      const int global_dof_elem2 = elem_map[elem_index*elem_dofs + volume_dof_elem2];
+      const int restriction_dof_elem2 = face_dofs*face_index + face_dof_elem1;
+      // We shift restriction_dof_elem2 to express that it's elem2 of the face
+      gather_indices[gather_offsets[global_dof_elem2]++] = nfdofs +
+                                                           restriction_dof_elem2;
+   }
+}
+
+InterpolationManager::InterpolationManager(const FiniteElementSpace &fes,
+                                           ElementDofOrdering ordering,
+                                           FaceType type)
+   : fes(fes),
+     ordering(ordering),
+     interp_config(type==FaceType::Interior ? fes.GetNFbyType(type) : 0),
+     nc_cpt(0)
+{ }
+
+void InterpolationManager::RegisterFaceConformingInterpolation(
+   const Mesh::FaceInformation &face,
+   int face_index)
+{
+   interp_config[face_index] = InterpConfig();
+}
+
+void InterpolationManager::RegisterFaceCoarseToFineInterpolation(
+   const Mesh::FaceInformation &face,
+   int face_index)
+{
+   MFEM_ASSERT(!face.IsConforming(),
+               "Registering face as nonconforming even though it is not.");
+   const DenseMatrix* ptMat = face.point_matrix;
+   // In the case of nonconforming slave shared face the master face is elem1.
+   const int master_side =
+      face.element[0].conformity == Mesh::ElementConformity::Superset ? 0 : 1;
+   const int face_key = (master_side == 0 ? 1000 : 0) +
+                        face.element[0].local_face_id +
+                        6*face.element[1].local_face_id +
+                        36*face.element[1].orientation ;
+   // Unfortunately we can't trust unicity of the ptMat to identify the transformation.
+   Key key(ptMat, face_key);
+   auto itr = interp_map.find(key);
+   if ( itr == interp_map.end() )
+   {
+      const DenseMatrix* interpolator =
+         GetCoarseToFineInterpolation(face,ptMat);
+      interp_map[key] = {nc_cpt, interpolator};
+      interp_config[face_index] = {master_side, nc_cpt};
+      nc_cpt++;
    }
    else
    {
-      auto d_indices1 = scatter_indices1.Read();
-      auto d_x = Reshape(x.Read(), t?vd:ndofs, t?ndofs:vd);
-      auto d_y = Reshape(y.Write(), nd, vd, nf);
-      MFEM_FORALL(i, nfdofs,
-      {
-         const int dof = i % nd;
-         const int face = i / nd;
-         const int idx1 = d_indices1[i];
-         for (int c = 0; c < vd; ++c)
-         {
-            d_y(dof, c, face) = d_x(t?c:idx1, t?idx1:c);
-         }
-      });
+      interp_config[face_index] = {master_side, itr->second.first};
    }
 }
 
-void L2FaceRestriction::AddMultTranspose(const Vector& x, Vector& y) const
+const DenseMatrix* InterpolationManager::GetCoarseToFineInterpolation(
+   const Mesh::FaceInformation &face,
+   const DenseMatrix* ptMat)
+{
+   MFEM_VERIFY(ordering == ElementDofOrdering::LEXICOGRAPHIC,
+               "The following interpolation operator is only implemented for"
+               "lexicographic ordering.");
+   MFEM_VERIFY(!face.IsConforming(),
+               "This method should not be called on conforming faces.")
+   const int face_id1 = face.element[0].local_face_id;
+   const int face_id2 = face.element[1].local_face_id;
+
+   const bool is_ghost_slave =
+      face.element[0].conformity == Mesh::ElementConformity::Superset;
+   const int master_face_id = is_ghost_slave ? face_id1 : face_id2;
+
+   // Computation of the interpolation matrix from master
+   // (coarse) face to slave (fine) face.
+   // Assumes all trace elements are the same.
+   const FiniteElement *trace_fe =
+      fes.GetTraceElement(0, fes.GetMesh()->GetFaceGeometry(0));
+   const int face_dofs = trace_fe->GetDof();
+   const TensorBasisElement* el =
+      dynamic_cast<const TensorBasisElement*>(trace_fe);
+   const auto dof_map = el->GetDofMap();
+   DenseMatrix* interpolator = new DenseMatrix(face_dofs,face_dofs);
+   Vector shape(face_dofs);
+
+   IsoparametricTransformation isotr;
+   isotr.SetIdentityTransformation(trace_fe->GetGeomType());
+   isotr.SetPointMat(*ptMat);
+   DenseMatrix& trans_pt_mat = isotr.GetPointMat();
+   // PointMatrix needs to be flipped in 2D
+   if ( trace_fe->GetGeomType()==Geometry::SEGMENT && !is_ghost_slave )
+   {
+      std::swap(trans_pt_mat(0,0),trans_pt_mat(0,1));
+   }
+   DenseMatrix native_interpolator(face_dofs,face_dofs);
+   trace_fe->GetLocalInterpolation(isotr, native_interpolator);
+   const int dim = trace_fe->GetDim()+1;
+   const int dof1d = trace_fe->GetOrder()+1;
+   const int orientation = face.element[1].orientation;
+   for (int i = 0; i < face_dofs; i++)
+   {
+      const int ni = (dof_map.Size()==0) ? i : dof_map[i];
+      int li = ToLexOrdering(dim, master_face_id, dof1d, i);
+      if ( !is_ghost_slave )
+      {
+         // master side is elem 2, so we permute to order dofs as elem 1.
+         li = PermuteFaceL2(dim, face_id2, face_id1,
+                            orientation, dof1d, li);
+      }
+      for (int j = 0; j < face_dofs; j++)
+      {
+         int lj = ToLexOrdering(dim, master_face_id, dof1d, j);
+         if ( !is_ghost_slave )
+         {
+            // master side is elem 2, so we permute to order dofs as elem 1.
+            lj = PermuteFaceL2(dim, face_id2, face_id1,
+                               orientation, dof1d, lj);
+         }
+         const int nj = (dof_map.Size()==0) ? j : dof_map[j];
+         (*interpolator)(li,lj) = native_interpolator(ni,nj);
+      }
+   }
+   return interpolator;
+}
+
+void InterpolationManager::LinearizeInterpolatorMapIntoVector()
+{
+   // Assumes all trace elements are the same.
+   const FiniteElement *trace_fe =
+      fes.GetTraceElement(0, fes.GetMesh()->GetFaceBaseGeometry(0));
+   const int face_dofs = trace_fe->GetDof();
+   const int nc_size = interp_map.size();
+   MFEM_VERIFY(nc_cpt==nc_size, "Unexpected number of interpolators.");
+   interpolators.SetSize(face_dofs*face_dofs*nc_size);
+   auto d_interp = Reshape(interpolators.HostWrite(),face_dofs,face_dofs,nc_size);
+   for (auto val : interp_map)
+   {
+      const int idx = val.second.first;
+      const DenseMatrix &interpolator = *val.second.second;
+      for (int i = 0; i < face_dofs; i++)
+      {
+         for (int j = 0; j < face_dofs; j++)
+         {
+            d_interp(i,j,idx) = interpolator(i,j);
+         }
+      }
+      delete val.second.second;
+   }
+   interp_map.clear();
+}
+
+NCL2FaceRestriction::NCL2FaceRestriction(const FiniteElementSpace &fes,
+                                         const ElementDofOrdering ordering,
+                                         const FaceType type,
+                                         const L2FaceValues m,
+                                         bool build)
+   : L2FaceRestriction(fes, ordering, type, m, false),
+     interpolations(fes, ordering, type)
+{
+   if (!build) { return; }
+   x_interp.UseDevice(true);
+
+   CheckFESpace(ordering);
+
+   ComputeScatterIndicesAndOffsets(ordering, type);
+
+   ComputeGatherIndices(ordering, type);
+}
+
+NCL2FaceRestriction::NCL2FaceRestriction(const FiniteElementSpace &fes,
+                                         const ElementDofOrdering ordering,
+                                         const FaceType type,
+                                         const L2FaceValues m)
+   : NCL2FaceRestriction(fes, ordering, type, m, true)
+{ }
+
+void NCL2FaceRestriction::DoubleValuedNonconformingMult(
+   const Vector& x, Vector& y) const
 {
    // Assumes all elements have the same number of dofs
-   const int nd = dof;
+   const int nface_dofs = face_dofs;
    const int vd = vdim;
    const bool t = byvdim;
-   const int dofs = nfdofs;
-   auto d_offsets = offsets.Read();
-   auto d_indices = gather_indices.Read();
-
-   if (m == L2FaceValues::DoubleValued)
-   {
-      auto d_x = Reshape(x.Read(), nd, vd, 2, nf);
-      auto d_y = Reshape(y.ReadWrite(), t?vd:ndofs, t?ndofs:vd);
-      MFEM_FORALL(i, ndofs,
-      {
-         const int offset = d_offsets[i];
-         const int nextOffset = d_offsets[i + 1];
-         for (int c = 0; c < vd; ++c)
-         {
-            double dofValue = 0;
-            for (int j = offset; j < nextOffset; ++j)
-            {
-               int idx_j = d_indices[j];
-               bool isE1 = idx_j < dofs;
-               idx_j = isE1 ? idx_j : idx_j - dofs;
-               dofValue +=  isE1 ?
-               d_x(idx_j % nd, c, 0, idx_j / nd)
-               :d_x(idx_j % nd, c, 1, idx_j / nd);
-            }
-            d_y(t?c:i,t?i:c) += dofValue;
-         }
-      });
-   }
-   else
-   {
-      auto d_x = Reshape(x.Read(), nd, vd, nf);
-      auto d_y = Reshape(y.ReadWrite(), t?vd:ndofs, t?ndofs:vd);
-      MFEM_FORALL(i, ndofs,
-      {
-         const int offset = d_offsets[i];
-         const int nextOffset = d_offsets[i + 1];
-         for (int c = 0; c < vd; ++c)
-         {
-            double dofValue = 0;
-            for (int j = offset; j < nextOffset; ++j)
-            {
-               int idx_j = d_indices[j];
-               dofValue +=  d_x(idx_j % nd, c, idx_j / nd);
-            }
-            d_y(t?c:i,t?i:c) += dofValue;
-         }
-      });
-   }
-}
-
-void L2FaceRestriction::FillI(SparseMatrix &mat,
-                              const bool keep_nbr_block) const
-{
-   const int face_dofs = dof;
    auto d_indices1 = scatter_indices1.Read();
    auto d_indices2 = scatter_indices2.Read();
-   auto I = mat.ReadWriteI();
-   MFEM_FORALL(fdof, nf*face_dofs,
+   auto d_x = Reshape(x.Read(), t?vd:ndofs, t?ndofs:vd);
+   auto d_y = Reshape(y.Write(), nface_dofs, vd, 2, nf);
+   auto interp_config_ptr = interpolations.GetFaceInterpConfig().Read();
+   const int nc_size = interpolations.GetNumInterpolators();
+   auto d_interp = Reshape(interpolations.GetInterpolators().Read(),
+                           nface_dofs, nface_dofs, nc_size);
+   static constexpr int max_nd = 16*16;
+   MFEM_VERIFY(nface_dofs<=max_nd, "Too many degrees of freedom.");
+   MFEM_FORALL_3D(face, nf, nface_dofs, 1, 1,
    {
-      const int iE1 = d_indices1[fdof];
-      const int iE2 = d_indices2[fdof];
-      AddNnz(iE1,I,face_dofs);
-      AddNnz(iE2,I,face_dofs);
-   });
-}
-
-void L2FaceRestriction::FillJAndData(const Vector &ea_data,
-                                     SparseMatrix &mat,
-                                     const bool keep_nbr_block) const
-{
-   const int face_dofs = dof;
-   auto d_indices1 = scatter_indices1.Read();
-   auto d_indices2 = scatter_indices2.Read();
-   auto I = mat.ReadWriteI();
-   auto mat_fea = Reshape(ea_data.Read(), face_dofs, face_dofs, 2, nf);
-   auto J = mat.WriteJ();
-   auto Data = mat.WriteData();
-   MFEM_FORALL(fdof, nf*face_dofs,
-   {
-      const int f  = fdof/face_dofs;
-      const int iF = fdof%face_dofs;
-      const int iE1 = d_indices1[f*face_dofs+iF];
-      const int iE2 = d_indices2[f*face_dofs+iF];
-      const int offset1 = AddNnz(iE1,I,face_dofs);
-      const int offset2 = AddNnz(iE2,I,face_dofs);
-      for (int jF = 0; jF < face_dofs; jF++)
+      MFEM_SHARED double dof_values[max_nd];
+      const InterpConfig conf = interp_config_ptr[face];
+      const int master_side = conf.master_side;
+      const int interp_index = conf.index;
+      for (int side = 0; side < 2; side++)
       {
-         const int jE1 = d_indices1[f*face_dofs+jF];
-         const int jE2 = d_indices2[f*face_dofs+jF];
-         J[offset2+jF] = jE1;
-         J[offset1+jF] = jE2;
-         Data[offset2+jF] = mat_fea(jF,iF,0,f);
-         Data[offset1+jF] = mat_fea(jF,iF,1,f);
+         if ( !conf.is_non_conforming || side!=master_side )
+         {
+            // No interpolation needed
+            MFEM_FOREACH_THREAD(dof,x,nface_dofs)
+            {
+               const int i = face*nface_dofs + dof;
+               const int idx = side==0 ? d_indices1[i] : d_indices2[i];
+               for (int c = 0; c < vd; ++c)
+               {
+                  d_y(dof, c, side, face) = d_x(t?c:idx, t?idx:c);
+               }
+            }
+         }
+         else // Interpolation from coarse to fine
+         {
+            for (int c = 0; c < vd; ++c)
+            {
+               MFEM_FOREACH_THREAD(dof,x,nface_dofs)
+               {
+                  const int i = face*nface_dofs + dof;
+                  const int idx = side==0 ? d_indices1[i] : d_indices2[i];
+                  dof_values[dof] = d_x(t?c:idx, t?idx:c);
+               }
+               MFEM_SYNC_THREAD;
+               MFEM_FOREACH_THREAD(dof_out,x,nface_dofs)
+               {
+                  double res = 0.0;
+                  for (int dof_in = 0; dof_in<nface_dofs; dof_in++)
+                  {
+                     res += d_interp(dof_out, dof_in, interp_index)*dof_values[dof_in];
+                  }
+                  d_y(dof_out, c, side, face) = res;
+               }
+               MFEM_SYNC_THREAD;
+            }
+         }
       }
    });
 }
 
-void L2FaceRestriction::AddFaceMatricesToElementMatrices(Vector &fea_data,
-                                                         Vector &ea_data) const
+void NCL2FaceRestriction::Mult(const Vector& x, Vector& y) const
 {
-   const int face_dofs = dof;
-   const int elem_dofs = elemDofs;
-   const int NE = ne;
-   if (m==L2FaceValues::DoubleValued)
+   if (nf==0) { return; }
+   if ( type==FaceType::Interior && m==L2FaceValues::DoubleValued )
    {
-      auto d_indices1 = scatter_indices1.Read();
-      auto d_indices2 = scatter_indices2.Read();
-      auto mat_fea = Reshape(fea_data.Read(), face_dofs, face_dofs, 2, nf);
-      auto mat_ea = Reshape(ea_data.ReadWrite(), elem_dofs, elem_dofs, ne);
-      MFEM_FORALL(f, nf,
+      DoubleValuedNonconformingMult(x, y);
+   }
+   else if ( type==FaceType::Boundary && m==L2FaceValues::DoubleValued )
+   {
+      DoubleValuedConformingMult(x, y);
+   }
+   else // Single valued (assumes no nonconforming master on elem1)
+   {
+      SingleValuedConformingMult(x, y);
+   }
+}
+
+void NCL2FaceRestriction::SingleValuedNonconformingTransposeInterpolation(
+   const Vector& x) const
+{
+   MFEM_ASSERT(
+      m == L2FaceValues::SingleValued,
+      "This method should be called when m == L2FaceValues::SingleValued.");
+   if (x_interp.Size()==0)
+   {
+      x_interp.SetSize(x.Size());
+   }
+   x_interp = x;
+   // Assumes all elements have the same number of dofs
+   const int nface_dofs = face_dofs;
+   const int vd = vdim;
+   // Interpolation
+   auto d_x = Reshape(x_interp.ReadWrite(), nface_dofs, vd, nf);
+   auto interp_config_ptr = interpolations.GetFaceInterpConfig().Read();
+   auto interpolators = interpolations.GetInterpolators().Read();
+   const int nc_size = interpolations.GetNumInterpolators();
+   auto d_interp = Reshape(interpolators, nface_dofs, nface_dofs, nc_size);
+   static constexpr int max_nd = 16*16;
+   MFEM_VERIFY(nface_dofs<=max_nd, "Too many degrees of freedom.");
+   MFEM_FORALL_3D(face, nf, nface_dofs, 1, 1,
+   {
+      MFEM_SHARED double dof_values[max_nd];
+      const InterpConfig conf = interp_config_ptr[face];
+      const int master_side = conf.master_side;
+      const int interp_index = conf.index;
+      if ( conf.is_non_conforming && master_side==0 )
       {
-         const int e1 = d_indices1[f*face_dofs]/elem_dofs;
-         const int e2 = d_indices2[f*face_dofs]/elem_dofs;
-         for (int j = 0; j < face_dofs; j++)
+         // Interpolation from fine to coarse
+         for (int c = 0; c < vd; ++c)
          {
-            const int jB1 = d_indices1[f*face_dofs+j]%elem_dofs;
-            for (int i = 0; i < face_dofs; i++)
+            MFEM_FOREACH_THREAD(dof,x,nface_dofs)
             {
-               const int iB1 = d_indices1[f*face_dofs+i]%elem_dofs;
-               AtomicAdd(mat_ea(iB1,jB1,e1), mat_fea(i,j,0,f));
+               dof_values[dof] = d_x(dof, c, face);
             }
-         }
-         if (e2 < NE)
-         {
-            for (int j = 0; j < face_dofs; j++)
+            MFEM_SYNC_THREAD;
+            MFEM_FOREACH_THREAD(dof_out,x,nface_dofs)
             {
-               const int jB2 = d_indices2[f*face_dofs+j]%elem_dofs;
-               for (int i = 0; i < face_dofs; i++)
+               double res = 0.0;
+               for (int dof_in = 0; dof_in<nface_dofs; dof_in++)
                {
-                  const int iB2 = d_indices2[f*face_dofs+i]%elem_dofs;
-                  AtomicAdd(mat_ea(iB2,jB2,e2), mat_fea(i,j,1,f));
+                  res += d_interp(dof_in, dof_out, interp_index)*dof_values[dof_in];
                }
+               d_x(dof_out, c, face) = res;
             }
+            MFEM_SYNC_THREAD;
          }
-      });
+      }
+   });
+}
+
+void NCL2FaceRestriction::DoubleValuedNonconformingTransposeInterpolation(
+   const Vector& x) const
+{
+   MFEM_ASSERT(
+      m == L2FaceValues::DoubleValued,
+      "This method should be called when m == L2FaceValues::DoubleValued.");
+   if (x_interp.Size()==0)
+   {
+      x_interp.SetSize(x.Size());
+   }
+   x_interp = x;
+   // Assumes all elements have the same number of dofs
+   const int nface_dofs = face_dofs;
+   const int vd = vdim;
+   // Interpolation
+   auto d_x = Reshape(x_interp.ReadWrite(), nface_dofs, vd, 2, nf);
+   auto interp_config_ptr = interpolations.GetFaceInterpConfig().Read();
+   auto interpolators = interpolations.GetInterpolators().Read();
+   const int nc_size = interpolations.GetNumInterpolators();
+   auto d_interp = Reshape(interpolators, nface_dofs, nface_dofs, nc_size);
+   static constexpr int max_nd = 16*16;
+   MFEM_VERIFY(nface_dofs<=max_nd, "Too many degrees of freedom.");
+   MFEM_FORALL_3D(face, nf, nface_dofs, 1, 1,
+   {
+      MFEM_SHARED double dof_values[max_nd];
+      const InterpConfig conf = interp_config_ptr[face];
+      const int master_side = conf.master_side;
+      const int interp_index = conf.index;
+      if ( conf.is_non_conforming )
+      {
+         // Interpolation from fine to coarse
+         for (int c = 0; c < vd; ++c)
+         {
+            MFEM_FOREACH_THREAD(dof,x,nface_dofs)
+            {
+               dof_values[dof] = d_x(dof, c, master_side, face);
+            }
+            MFEM_SYNC_THREAD;
+            MFEM_FOREACH_THREAD(dof_out,x,nface_dofs)
+            {
+               double res = 0.0;
+               for (int dof_in = 0; dof_in<nface_dofs; dof_in++)
+               {
+                  res += d_interp(dof_in, dof_out, interp_index)*dof_values[dof_in];
+               }
+               d_x(dof_out, c, master_side, face) = res;
+            }
+            MFEM_SYNC_THREAD;
+         }
+      }
+   });
+}
+
+void NCL2FaceRestriction::AddMultTranspose(const Vector& x, Vector& y) const
+{
+   if (nf==0) { return; }
+   if (type==FaceType::Interior)
+   {
+      if ( m==L2FaceValues::DoubleValued )
+      {
+         DoubleValuedNonconformingTransposeInterpolation(x);
+         DoubleValuedConformingAddMultTranspose(x_interp, y);
+      }
+      else if ( m==L2FaceValues::SingleValued )
+      {
+         SingleValuedNonconformingTransposeInterpolation(x);
+         SingleValuedConformingAddMultTranspose(x_interp, y);
+      }
    }
    else
    {
-      auto d_indices = scatter_indices1.Read();
-      auto mat_fea = Reshape(fea_data.Read(), face_dofs, face_dofs, nf);
-      auto mat_ea = Reshape(ea_data.ReadWrite(), elem_dofs, elem_dofs, ne);
-      MFEM_FORALL(f, nf,
+      if ( m==L2FaceValues::DoubleValued )
       {
-         const int e = d_indices[f*face_dofs]/elem_dofs;
-         for (int j = 0; j < face_dofs; j++)
-         {
-            const int jE = d_indices[f*face_dofs+j]%elem_dofs;
-            for (int i = 0; i < face_dofs; i++)
-            {
-               const int iE = d_indices[f*face_dofs+i]%elem_dofs;
-               AtomicAdd(mat_ea(iE,jE,e), mat_fea(i,j,f));
-            }
-         }
-      });
+         DoubleValuedConformingAddMultTranspose(x, y);
+      }
+      else if ( m==L2FaceValues::SingleValued )
+      {
+         SingleValuedConformingAddMultTranspose(x, y);
+      }
    }
+}
+
+void NCL2FaceRestriction::FillI(SparseMatrix &mat,
+                                const bool keep_nbr_block) const
+{
+   MFEM_ABORT("Not yet implemented.");
+}
+
+void NCL2FaceRestriction::FillJAndData(const Vector &ea_data,
+                                       SparseMatrix &mat,
+                                       const bool keep_nbr_block) const
+{
+   MFEM_ABORT("Not yet implemented.");
+}
+
+void NCL2FaceRestriction::AddFaceMatricesToElementMatrices(
+   const Vector &fea_data,
+   Vector &ea_data)
+const
+{
+   MFEM_ABORT("Not yet implemented.");
 }
 
 int ToLexOrdering(const int dim, const int face_id, const int size1d,
@@ -1452,9 +2049,115 @@ int ToLexOrdering(const int dim, const int face_id, const int size1d,
       case 3:
          return ToLexOrdering3D(face_id, size1d, index%size1d, index/size1d);
       default:
-         mfem_error("Unsupported dimension.");
+         MFEM_ABORT("Unsupported dimension.");
          return 0;
    }
+}
+
+void NCL2FaceRestriction::ComputeScatterIndicesAndOffsets(
+   const ElementDofOrdering ordering,
+   const FaceType type)
+{
+   Mesh &mesh = *fes.GetMesh();
+
+   // Initialization of the offsets
+   for (int i = 0; i <= ndofs; ++i)
+   {
+      gather_offsets[i] = 0;
+   }
+
+   // Computation of scatter and offsets indices
+   int f_ind=0;
+   for (int f = 0; f < fes.GetNF(); ++f)
+   {
+      Mesh::FaceInformation face = mesh.GetFaceInformation(f);
+      if ( face.IsNonconformingCoarse() )
+      {
+         // We skip nonconforming coarse faces as they are treated
+         // by the corresponding nonconforming fine faces.
+         continue;
+      }
+      else if ( type==FaceType::Interior && face.IsInterior() )
+      {
+         SetFaceDofsScatterIndices1(face,f_ind);
+         if ( m==L2FaceValues::DoubleValued )
+         {
+            PermuteAndSetFaceDofsScatterIndices2(face,f_ind);
+            if ( face.IsConforming() )
+            {
+               interpolations.RegisterFaceConformingInterpolation(face,f_ind);
+            }
+            else // Non-conforming face
+            {
+               interpolations.RegisterFaceCoarseToFineInterpolation(face,f_ind);
+            }
+         }
+         f_ind++;
+      }
+      else if ( type==FaceType::Boundary && face.IsBoundary() )
+      {
+         SetFaceDofsScatterIndices1(face,f_ind);
+         if ( m==L2FaceValues::DoubleValued )
+         {
+            SetBoundaryDofsScatterIndices2(face,f_ind);
+         }
+         f_ind++;
+      }
+   }
+   MFEM_VERIFY(f_ind==nf, "Unexpected number of " <<
+               (type==FaceType::Interior? "interior" : "boundary") <<
+               " faces: " << f_ind << " vs " << nf );
+
+   // Summation of the offsets
+   for (int i = 1; i <= ndofs; ++i)
+   {
+      gather_offsets[i] += gather_offsets[i - 1];
+   }
+
+   // Transform the interpolation matrix map into a contiguous memory structure.
+   interpolations.LinearizeInterpolatorMapIntoVector();
+}
+
+void NCL2FaceRestriction::ComputeGatherIndices(
+   const ElementDofOrdering ordering,
+   const FaceType type)
+{
+   Mesh &mesh = *fes.GetMesh();
+   // Computation of gather_indices
+   int f_ind = 0;
+   for (int f = 0; f < fes.GetNF(); ++f)
+   {
+      Mesh::FaceInformation face = mesh.GetFaceInformation(f);
+      MFEM_ASSERT(!face.IsShared(),
+                  "Unexpected shared face in NCL2FaceRestriction.");
+      if ( face.IsNonconformingCoarse() )
+      {
+         // We skip nonconforming coarse faces as they are treated
+         // by the corresponding nonconforming fine faces.
+         continue;
+      }
+      else if ( face.IsOfFaceType(type) )
+      {
+         SetFaceDofsGatherIndices1(face,f_ind);
+         if ( m==L2FaceValues::DoubleValued &&
+              type==FaceType::Interior &&
+              face.IsInterior() )
+         {
+            PermuteAndSetFaceDofsGatherIndices2(face,f_ind);
+         }
+         f_ind++;
+      }
+   }
+   MFEM_VERIFY(f_ind==nf, "Unexpected number of " <<
+               (type==FaceType::Interior? "interior" : "boundary") <<
+               " faces: " << f_ind << " vs " << nf );
+
+   // Switch back offsets to their correct value
+   for (int i = ndofs; i > 0; --i)
+   {
+      gather_offsets[i] = gather_offsets[i - 1];
+   }
+   gather_offsets[0] = 0;
 }
 
 } // namespace mfem

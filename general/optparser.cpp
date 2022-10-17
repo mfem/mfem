@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -11,6 +11,7 @@
 
 #include "optparser.hpp"
 #include "../linalg/vector.hpp"
+#include "../general/communication.hpp"
 #include <cctype>
 
 namespace mfem
@@ -248,74 +249,70 @@ void OptionsParser::Parse()
    error_type = 0;
 }
 
-void OptionsParser::ParseCheck(std::ostream &out)
+void OptionsParser::ParseCheck(std::ostream &os)
 {
    Parse();
    int my_rank = 0;
 #ifdef MFEM_USE_MPI
-   int mpi_is_initialized;
-   int mpi_err = MPI_Initialized(&mpi_is_initialized);
-   if (mpi_err == MPI_SUCCESS && mpi_is_initialized)
-   {
-      MPI_Comm_rank(MPI_COMM_WORLD, &my_rank);
-   }
+   int mpi_is_initialized = Mpi::IsInitialized();
+   if (mpi_is_initialized) { my_rank = Mpi::WorldRank(); }
 #endif
    if (!Good())
    {
-      if (my_rank == 0) { PrintUsage(out); }
+      if (my_rank == 0) { PrintUsage(os); }
 #ifdef MFEM_USE_MPI
-      if (mpi_is_initialized) { MPI_Finalize(); }
+      Mpi::Finalize();
 #endif
       std::exit(1);
    }
-   if (my_rank == 0) { PrintOptions(out); }
+   if (my_rank == 0) { PrintOptions(os); }
 }
 
-void OptionsParser::WriteValue(const Option &opt, std::ostream &out)
+void OptionsParser::WriteValue(const Option &opt, std::ostream &os)
 {
    switch (opt.type)
    {
       case INT:
-         out << *(int *)(opt.var_ptr);
+         os << *(int *)(opt.var_ptr);
          break;
 
       case DOUBLE:
-         out << *(double *)(opt.var_ptr);
+         os << *(double *)(opt.var_ptr);
          break;
 
       case STRING:
-         out << *(const char **)(opt.var_ptr);
+         os << *(const char **)(opt.var_ptr);
          break;
 
       case ARRAY:
       {
          Array<int> &list = *(Array<int>*)(opt.var_ptr);
-         out << '\'';
+         os << '\'';
          if (list.Size() > 0)
          {
-            out << list[0];
+            os << list[0];
          }
          for (int i = 1; i < list.Size(); i++)
          {
-            out << ' ' << list[i];
+            os << ' ' << list[i];
          }
-         out << '\'';
+         os << '\'';
          break;
       }
 
       case VECTOR:
       {
          Vector &list = *(Vector*)(opt.var_ptr);
-         out << '\'';
+         os << '\'';
          if (list.Size() > 0)
          {
-            out << list(0);
+            os << list(0);
          }
          for (int i = 1; i < list.Size(); i++)
          {
-            out << ' ' << list(i);
+            os << ' ' << list(i);
          }
-         out << '\'';
+         os << '\'';
          break;
       }
 
@@ -324,81 +321,81 @@ void OptionsParser::WriteValue(const Option &opt, std::ostream &out)
    }
 }
 
-void OptionsParser::PrintOptions(ostream &out) const
+void OptionsParser::PrintOptions(ostream &os) const
 {
    static const char *indent = "   ";
 
-   out << "Options used:\n";
+   os << "Options used:\n";
    for (int j = 0; j < options.Size(); j++)
    {
       OptionType type = options[j].type;
 
-      out << indent;
+      os << indent;
       if (type == ENABLE)
       {
          if (*(bool *)(options[j].var_ptr) == true)
          {
-            out << options[j].long_name;
+            os << options[j].long_name;
          }
          else
          {
-            out << options[j+1].long_name;
+            os << options[j+1].long_name;
          }
          j++;
       }
       else
       {
-         out << options[j].long_name << " ";
-         WriteValue(options[j], out);
+         os << options[j].long_name << " ";
+         WriteValue(options[j], os);
       }
-      out << '\n';
+      os << '\n';
    }
 }
 
-void OptionsParser::PrintError(ostream &out) const
+void OptionsParser::PrintError(ostream &os) const
 {
    static const char *line_sep = "";
 
-   out << line_sep;
+   os << line_sep;
    switch (error_type)
    {
       case 2:
-         out << "Unrecognized option: " << argv[error_idx] << '\n' << line_sep;
+         os << "Unrecognized option: " << argv[error_idx] << '\n' << line_sep;
          break;
 
       case 3:
-         out << "Missing argument for the last option: " << argv[argc-1] << '\n'
-             << line_sep;
+         os << "Missing argument for the last option: " << argv[argc-1]
+            << '\n' << line_sep;
          break;
 
       case 4:
          if (options[error_idx].type == ENABLE )
-            out << "Option " << options[error_idx].long_name << " or "
-                << options[error_idx + 1].long_name
-                << " provided multiple times\n" << line_sep;
+            os << "Option " << options[error_idx].long_name << " or "
+               << options[error_idx + 1].long_name
+               << " provided multiple times\n" << line_sep;
          else if (options[error_idx].type == DISABLE)
-            out << "Option " << options[error_idx - 1].long_name << " or "
-                << options[error_idx].long_name
-                << " provided multiple times\n" << line_sep;
+            os << "Option " << options[error_idx - 1].long_name << " or "
+               << options[error_idx].long_name
+               << " provided multiple times\n" << line_sep;
          else
-            out << "Option " << options[error_idx].long_name
-                << " provided multiple times\n" << line_sep;
+            os << "Option " << options[error_idx].long_name
+               << " provided multiple times\n" << line_sep;
          break;
 
       case 5:
-         out << "Wrong option format: " << argv[error_idx - 1] << " "
-             << argv[error_idx] << '\n' << line_sep;
+         os << "Wrong option format: " << argv[error_idx - 1] << " "
+            << argv[error_idx] << '\n' << line_sep;
          break;
 
       case 6:
-         out << "Missing required option: " << options[error_idx].long_name
-             << '\n' << line_sep;
+         os << "Missing required option: " << options[error_idx].long_name
+            << '\n' << line_sep;
          break;
    }
-   out << endl;
+   os << endl;
 }
 
-void OptionsParser::PrintHelp(ostream &out) const
+void OptionsParser::PrintHelp(ostream &os) const
 {
    static const char *indent = "   ";
    static const char *seprtr = ", ";
@@ -408,60 +405,60 @@ void OptionsParser::PrintHelp(ostream &out) const
                                   " '<int>...'", " '<double>...'"
                                 };
 
-   out << indent << "-h" << seprtr << "--help" << descr_sep
-       << "Print this help message and exit.\n" << line_sep;
+   os << indent << "-h" << seprtr << "--help" << descr_sep
+      << "Print this help message and exit.\n" << line_sep;
    for (int j = 0; j < options.Size(); j++)
    {
       OptionType type = options[j].type;
 
-      out << indent << options[j].short_name << types[type]
-          << seprtr << options[j].long_name << types[type]
-          << seprtr;
+      os << indent << options[j].short_name << types[type]
+         << seprtr << options[j].long_name << types[type]
+         << seprtr;
       if (options[j].required)
       {
-         out << "(required)";
+         os << "(required)";
       }
       else
       {
          if (type == ENABLE)
          {
             j++;
-            out << options[j].short_name << types[type] << seprtr
-                << options[j].long_name << types[type] << seprtr
-                << "current option: ";
+            os << options[j].short_name << types[type] << seprtr
+               << options[j].long_name << types[type] << seprtr
+               << "current option: ";
             if (*(bool *)(options[j].var_ptr) == true)
             {
-               out << options[j-1].long_name;
+               os << options[j-1].long_name;
             }
             else
             {
-               out << options[j].long_name;
+               os << options[j].long_name;
             }
          }
          else
          {
-            out << "current value: ";
-            WriteValue(options[j], out);
+            os << "current value: ";
+            WriteValue(options[j], os);
          }
       }
-      out << descr_sep;
+      os << descr_sep;
 
       if (options[j].description)
       {
-         out << options[j].description << '\n';
+         os << options[j].description << '\n';
       }
-      out << line_sep;
+      os << line_sep;
    }
 }
 
-void OptionsParser::PrintUsage(ostream &out) const
+void OptionsParser::PrintUsage(ostream &os) const
 {
    static const char *line_sep = "";
 
-   PrintError(out);
-   out << "Usage: " << argv[0] << " [options] ...\n" << line_sep
-       << "Options:\n" << line_sep;
-   PrintHelp(out);
+   PrintError(os);
+   os << "Usage: " << argv[0] << " [options] ...\n" << line_sep
+      << "Options:\n" << line_sep;
+   PrintHelp(os);
 }
 
 }

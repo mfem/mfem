@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -1247,33 +1247,38 @@ public:
 
 
 /// Base class for symmetric matrix coefficients that optionally depend on time and space.
-class SymmetricMatrixCoefficient
+class SymmetricMatrixCoefficient : public MatrixCoefficient
 {
 protected:
-   int dim;
-   double time;
-
+   /// Internal matrix used when evaluating this coefficient as a DenseMatrix.
+   DenseSymmetricMatrix mat;
 public:
    /// Construct a dim x dim matrix coefficient.
    explicit SymmetricMatrixCoefficient(int dimension)
-   { dim = dimension; time = 0.; }
-
-   /// Set the time for time dependent coefficients
-   virtual void SetTime(double t) { time = t; }
-
-   /// Get the time for time dependent coefficients
-   double GetTime() { return time; }
+      : MatrixCoefficient(dimension, true) { }
 
    /// Get the size of the matrix.
-   int GetSize() const { return dim; }
+   int GetSize() const { return height; }
 
    /** @brief Evaluate the matrix coefficient in the element described by @a T
-       at the point @a ip, storing the result in @a K. */
+       at the point @a ip, storing the result as a symmetric matrix @a K. */
    /** @note When this method is called, the caller must make sure that the
        IntegrationPoint associated with @a T is the same as @a ip. This can be
        achieved by calling T.SetIntPoint(&ip). */
    virtual void Eval(DenseSymmetricMatrix &K, ElementTransformation &T,
                      const IntegrationPoint &ip) = 0;
+
+   using MatrixCoefficient::Eval;
+   /** @brief Evaluate the matrix coefficient in the element described by @a T
+       at the point @a ip, storing the result as a dense matrix @a K. */
+   /** This function allows the use of SymmetricMatrixCoefficient in situations
+       where the symmetry is not taken advantage of.
+
+       @note When this method is called, the caller must make sure that the
+       IntegrationPoint associated with @a T is the same as @a ip. This can be
+       achieved by calling T.SetIntPoint(&ip). */
+   virtual void Eval(DenseMatrix &K, ElementTransformation &T,
+                     const IntegrationPoint &ip);
 
    virtual ~SymmetricMatrixCoefficient() { }
 };
@@ -1289,6 +1294,7 @@ public:
    ///Construct using matrix @a m for the constant.
    SymmetricMatrixConstantCoefficient(const DenseSymmetricMatrix &m)
       : SymmetricMatrixCoefficient(m.Height()), mat(m) { }
+   using MatrixCoefficient::Eval;
    using SymmetricMatrixCoefficient::Eval;
    /// Evaluate the matrix coefficient at @a ip.
    virtual void Eval(DenseSymmetricMatrix &M, ElementTransformation &T,
@@ -1340,6 +1346,8 @@ public:
    /// Set the time for internally stored coefficients
    void SetTime(double t);
 
+   using MatrixCoefficient::Eval;
+   using SymmetricMatrixCoefficient::Eval;
    /// Evaluate the matrix coefficient at @a ip.
    virtual void Eval(DenseSymmetricMatrix &K, ElementTransformation &T,
                      const IntegrationPoint &ip);
@@ -1605,22 +1613,22 @@ public:
    void SetTime(double t);
 
    /// Reset the first vector coefficient
-   void SetACoef(VectorCoefficient &A) { ACoef = &A; }
+   void SetACoef(VectorCoefficient &A_) { ACoef = &A_; }
    /// Return the first vector coefficient
    VectorCoefficient * GetACoef() const { return ACoef; }
 
    /// Reset the second vector coefficient
-   void SetBCoef(VectorCoefficient &B) { BCoef = &B; }
+   void SetBCoef(VectorCoefficient &B_) { BCoef = &B_; }
    /// Return the second vector coefficient
    VectorCoefficient * GetBCoef() const { return BCoef; }
 
    /// Reset the factor in front of the first vector coefficient
-   void SetAlphaCoef(Coefficient &A) { alphaCoef = &A; }
+   void SetAlphaCoef(Coefficient &A_) { alphaCoef = &A_; }
    /// Return the factor in front of the first vector coefficient
    Coefficient * GetAlphaCoef() const { return alphaCoef; }
 
    /// Reset the factor in front of the second vector coefficient
-   void SetBetaCoef(Coefficient &B) { betaCoef = &B; }
+   void SetBetaCoef(Coefficient &B_) { betaCoef = &B_; }
    /// Return the factor in front of the second vector coefficient
    Coefficient * GetBetaCoef() const { return betaCoef; }
 
@@ -1845,6 +1853,35 @@ public:
    void SetBeta(double beta_) { beta = beta_; }
    /// Return the factor in front of the second matrix coefficient
    double GetBeta() const { return beta; }
+
+   /// Evaluate the matrix coefficient at @a ip.
+   virtual void Eval(DenseMatrix &M, ElementTransformation &T,
+                     const IntegrationPoint &ip);
+};
+
+/// Matrix coefficient defined as the product of two matrices
+class MatrixProductCoefficient : public MatrixCoefficient
+{
+private:
+   MatrixCoefficient * a;
+   MatrixCoefficient * b;
+
+   mutable DenseMatrix ma;
+   mutable DenseMatrix mb;
+
+public:
+   /// Construct with the two coefficients.  Result is A * B.
+   MatrixProductCoefficient(MatrixCoefficient &A, MatrixCoefficient &B);
+
+   /// Reset the first matrix coefficient
+   void SetACoef(MatrixCoefficient &A) { a = &A; }
+   /// Return the first matrix coefficient
+   MatrixCoefficient * GetACoef() const { return a; }
+
+   /// Reset the second matrix coefficient
+   void SetBCoef(MatrixCoefficient &B) { b = &B; }
+   /// Return the second matrix coefficient
+   MatrixCoefficient * GetBCoef() const { return b; }
 
    /// Evaluate the matrix coefficient at @a ip.
    virtual void Eval(DenseMatrix &M, ElementTransformation &T,

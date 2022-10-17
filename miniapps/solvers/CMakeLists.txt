@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -23,19 +23,26 @@ if (MFEM_USE_MPI)
 
   # Add the corresponding tests to the "test" target
   if (MFEM_ENABLE_TESTING)
-    add_test(NAME block-solvers-constant
+    add_test(NAME block-solvers-constant_np${MFEM_MPI_NP}
       COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${MFEM_MPI_NP}
       ${MPIEXEC_PREFLAGS}
-      $<TARGET_FILE:block-solvers> -r 2
+      $<TARGET_FILE:block-solvers> -r 2 -no-vis
       ${MPIEXEC_POSTFLAGS})
 
-    add_test(NAME block-solvers-anisotropic
+    add_test(NAME block-solvers-anisotropic_np${MFEM_MPI_NP}
       COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${MFEM_MPI_NP}
       ${MPIEXEC_PREFLAGS}
       $<TARGET_FILE:block-solvers> -r 2
       -m ${CMAKE_CURRENT_SOURCE_DIR}/anisotropic.mesh
       -c ${CMAKE_CURRENT_SOURCE_DIR}/anisotropic.coeff
       -eb ${CMAKE_CURRENT_SOURCE_DIR}/anisotropic.brd
+      -no-vis
+      ${MPIEXEC_POSTFLAGS})
+
+    add_test(NAME plor_solvers_np${MFEM_MPI_NP}
+      COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${MFEM_MPI_NP}
+      ${MPIEXEC_PREFLAGS}
+      $<TARGET_FILE:plor_solvers> -fe n -m ../../data/fichera.mesh -no-vis
       ${MPIEXEC_POSTFLAGS})
   endif()
 endif()
@@ -44,3 +51,7 @@ add_mfem_miniapp(lor_solvers
   MAIN lor_solvers.cpp
   EXTRA_HEADERS lor_mms.hpp
   LIBRARIES mfem)
+
+if (MFEM_ENABLE_TESTING)
+  add_test(NAME lor_solvers_ser COMMAND lor_solvers -fe n -no-vis)
+endif()

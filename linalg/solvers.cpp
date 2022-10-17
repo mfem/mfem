@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -112,7 +112,7 @@ void IterativeSolver::SetPrintLevel(PrintLevel options)
 }
 
 IterativeSolver::PrintLevel IterativeSolver::FromLegacyPrintLevel(
-   int print_level)
+   int print_level_)
 {
 #ifdef MFEM_USE_MPI
    int rank = 0;
@@ -122,7 +122,7 @@ IterativeSolver::PrintLevel IterativeSolver::FromLegacyPrintLevel(
    }
 #endif
 
-   switch (print_level)
+   switch (print_level_)
    {
       case -1:
          return PrintLevel();
@@ -139,7 +139,7 @@ IterativeSolver::PrintLevel IterativeSolver::FromLegacyPrintLevel(
          if (rank == 0)
 #endif
          {
-            MFEM_WARNING("Unknown print level " << print_level <<
+            MFEM_WARNING("Unknown print level " << print_level_ <<
                          ". Defaulting to level 0.");
          }
          return PrintLevel().Errors().Warnings();
@@ -1903,7 +1903,7 @@ void NewtonSolver::Mult(const Vector &b, Vector &x) const
       mfem::out << "Newton: Number of iterations: " << final_iter << '\n'
                 << "   ||r|| = " << final_norm << '\n';
    }
-   if (print_options.summary || (!converged && print_options.warnings))
+   if (!converged && (print_options.summary || print_options.warnings))
    {
       mfem::out << "Newton: No convergence!\n";
    }
@@ -1912,14 +1912,14 @@ void NewtonSolver::Mult(const Vector &b, Vector &x) const
 void NewtonSolver::SetAdaptiveLinRtol(const int type,
                                       const double rtol0,
                                       const double rtol_max,
-                                      const double alpha,
-                                      const double gamma)
+                                      const double alpha_,
+                                      const double gamma_)
 {
    lin_rtol_type = type;
    lin_rtol0 = rtol0;
    lin_rtol_max = rtol_max;
-   this->alpha = alpha;
-   this->gamma = gamma;
+   this->alpha = alpha_;
+   this->gamma = gamma_;
 }
 
 void NewtonSolver::AdaptiveLinRtolPreSolve(const Vector &x,
@@ -1995,7 +1995,6 @@ void LBFGSSolver::Mult(const Vector &b, Vector &x) const
 
    // Quadrature points that are checked for negative Jacobians etc.
    Vector sk, rk, yk, rho, alpha;
-   DenseMatrix skM(width, m), ykM(width, m);
 
    // r - r_{k+1}, c - descent direction
    sk.SetSize(width);    // x_{k+1}-x_k
@@ -2079,27 +2078,23 @@ void LBFGSSolver::Mult(const Vector &b, Vector &x) const
 
       // Save last m vectors
       last_saved_id = (last_saved_id == m-1) ? 0 : last_saved_id+1;
-      skM.SetCol(last_saved_id, sk);
-      ykM.SetCol(last_saved_id, yk);
+      *skArray[last_saved_id] = sk;
+      *ykArray[last_saved_id] = yk;
 
       c = r;
       for (int i = last_saved_id; i > -1; i--)
       {
-         skM.GetColumn(i, sk);
-         ykM.GetColumn(i, yk);
-         rho(i) = 1./Dot(sk, yk);
-         alpha(i) = rho(i)*Dot(sk,c);
-         add(c, -alpha(i), yk, c);
+         rho(i) = 1.0/Dot((*skArray[i]),(*ykArray[i]));
+         alpha(i) = rho(i)*Dot((*skArray[i]),c);
+         add(c, -alpha(i), (*ykArray[i]), c);
       }
       if (it > m-1)
       {
          for (int i = m-1; i > last_saved_id; i--)
          {
-            skM.GetColumn(i, sk);
-            ykM.GetColumn(i, yk);
-            rho(i) = 1./Dot(sk, yk);
-            alpha(i) = rho(i)*Dot(sk,c);
-            add(c, -alpha(i), yk, c);
+            rho(i) = 1./Dot((*skArray[i]), (*ykArray[i]));
+            alpha(i) = rho(i)*Dot((*skArray[i]),c);
+            add(c, -alpha(i), (*ykArray[i]), c);
          }
       }
 
@@ -2108,18 +2103,14 @@ void LBFGSSolver::Mult(const Vector &b, Vector &x) const
       {
          for (int i = last_saved_id+1; i < m ; i++)
          {
-            skM.GetColumn(i,sk);
-            ykM.GetColumn(i,yk);
-            double betai = rho(i)*Dot(yk, c);
-            add(c, alpha(i)-betai, sk, c);
+            double betai = rho(i)*Dot((*ykArray[i]), c);
+            add(c, alpha(i)-betai, (*skArray[i]), c);
          }
       }
       for (int i = 0; i < last_saved_id+1 ; i++)
       {
-         skM.GetColumn(i,sk);
-         ykM.GetColumn(i,yk);
-         double betai = rho(i)*Dot(yk, c);
-         add(c, alpha(i)-betai, sk, c);
+         double betai = rho(i)*Dot((*ykArray[i]), c);
+         add(c, alpha(i)-betai, (*skArray[i]), c);
       }
 
       norm = Norm(r);
