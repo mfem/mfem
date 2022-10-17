@@ -32,8 +32,8 @@ protected:
    /** @brief Extension for supporting different assembly levels. */
    LinearFormExtension *ext;
 
-   /// Should we use the device-compatible fast assembly algorithm (false by
-   /// default)
+   /// @brief Should we use the device-compatible fast assembly algorithm (false
+   /// by default)
    bool fast_assembly;
 
    /** @brief Indicates the LinearFormIntegrator%s stored in #domain_integs,
