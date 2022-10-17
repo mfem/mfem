@@ -631,7 +631,6 @@ BlockHybridizationSolver::BlockHybridizationSolver(const shared_ptr<ParBilinearF
 {
     ParMesh &pmesh(*trial_space.GetParMesh());
 
-    // Array<int> hat_offsets;
     hat_offsets.SetSize(pmesh.GetNE() + 1);
     hat_offsets[0] = 0;
 
@@ -940,7 +939,7 @@ void BlockHybridizationSolver::Mult(const Vector &x, Vector &y) const
         const int trial_size = dofs.Size();
         Vector g_i;
         g_i.MakeRef(rhs, hat_offsets[i], trial_size);
-        x0.GetSubVector(dofs, g_i);  // reverses the sign in assemble if dof < 0
+        x0.GetSubVector(dofs, g_i);  // reverses the sign if dof < 0
 
         dofs.SetSize(0);
         for (int j = hat_offsets[i]; j < hat_offsets[i + 1]; ++j)
