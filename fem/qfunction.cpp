@@ -96,10 +96,10 @@ void QuadratureFunction::ProjectGridFunction(const GridFunction &gf)
       R->Mult(gf, e_vec);
 
       // Use quadrature interpolator to go from E-vector to Q-vector
-      const QuadratureInterpolator *qi = gf_fes.GetQuadratureInterpolator(*qs_elem);
-      qi->SetOutputLayout(QVectorLayout::byVDIM);
-      qi->DisableTensorProducts(!use_tensor_products);
-      qi->Values(e_vec, *this);
+      QuadratureInterpolator qi(gf_fes, *qs_elem);
+      qi.SetOutputLayout(QVectorLayout::byVDIM);
+      qi.DisableTensorProducts(!use_tensor_products);
+      qi.Values(e_vec, *this);
    }
    else if (auto *qs_face = dynamic_cast<FaceQuadratureSpace*>(qspace))
    {
@@ -118,11 +118,10 @@ void QuadratureFunction::ProjectGridFunction(const GridFunction &gf)
       R->Mult(gf, e_vec);
 
       // Use quadrature interpolator to go from E-vector to Q-vector
-      const FaceQuadratureInterpolator *qi =
-         gf_fes.GetFaceQuadratureInterpolator(qspace->GetIntRule(0), face_type);
-      qi->SetOutputLayout(QVectorLayout::byVDIM);
-      qi->DisableTensorProducts(!use_tensor_products);
-      qi->Values(e_vec, *this);
+      FaceQuadratureInterpolator qi(gf_fes, qspace->GetIntRule(0), face_type);
+      qi.SetOutputLayout(QVectorLayout::byVDIM);
+      qi.DisableTensorProducts(!use_tensor_products);
+      qi.Values(e_vec, *this);
    }
    else
    {
