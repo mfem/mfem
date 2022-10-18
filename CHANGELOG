@@ -19,6 +19,10 @@ Meshing improvements
   of a given Mesh. These classes have the same functionality as Mesh and ParMesh
   and work with all existing MFEM interfaces like finite element spaces etc.
 
+- Added a new method Mesh::NodesUpdated, which should be called after the mesh
+  node coordinates have changed, e.g. after the mesh has moved. This is
+  necessary, for example, with device assembly of linear and bilinear forms.
+
 Discretization improvements
 ---------------------------
 - Added support for assembling low-order-refined matrices using a GPU-enabled
@@ -37,6 +41,11 @@ Discretization improvements
   * VectorDomainLF: ((f1,...,fn), (v1,...,vn))
   * DomainLFGrad: (f, grad(v))
   * VectorDomainLFGrad: ((f1x,f1y,f1z,...,fnx,fny,fnz), grad(v1,...,vn))
+
+- The device assembly of linear forms now has to be explicitly enabled by
+  calling LinearForm::UseFastAssembly(true). By default, the legacy linear form
+  assembly is used, which was not the case in mfem-4.4. As part of this change,
+  the boolean parameter of the Assemble method of LinearForm has been removed.
 
 - Added WhiteGaussianNoiseDomainLFIntegrator: a LinearFormIntegrator class for
   spatial Gaussian white noise.
