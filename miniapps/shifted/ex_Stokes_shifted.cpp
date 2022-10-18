@@ -2,9 +2,10 @@
 //
 // Compile with: make ex0
 //
-// Sample runs:  mpirun -np 4 ./ex_Stokes_shifted -penPar 10.0 -emb -gS 1 -rs 2 -tO 3 -vo 3 -po 2 -mumps -incCut
-//               mpirun -np 4 ./ex_Stokes_shifted -penPar 10.0 -emb -gS 1 -rs 2 -tO 3 -vo 3 -po 2 -mumps
-//               mpirun -np 4 ./ex_Stokes_shifted -penPar 10.0 -emb -gS 1 -rs 2 -tO 3 -vo 3 -po 2 -incCut
+// Sample runs:  mpirun -np 4 ./ex_Stokes_shifted -penPar 10.0 -emb -gS 1 -viscCoef 1.0 -rs 2 -tO 3 -vo 3 -po 2 -mumps -incCut
+//               mpirun -np 4 ./ex_Stokes_shifted -penPar 10.0 -emb -gS 1 -viscCoef 1.0 -rs 2 -tO 3 -vo 3 -po 2 -mumps
+//               mpirun -np 4 ./ex_Stokes_shifted -penPar 10.0 -emb -gS 1 -viscCoef 1.0 -rs 2 -tO 3 -vo 3 -po 2 -incCut
+//               mpirun -np 4 ./ex_Stokes_shifted -penPar 10.0 -emb -gS 1 -viscCoef 1.0 -rs 2 -tO 3 -vo 3 -po 2
 //               
 //
 // Description: This example code demonstrates the most basic usage of MFEM to
@@ -61,6 +62,7 @@ int main(int argc, char *argv[])
    bool visualization = true;
    bool include_cut = false;
    bool mumps_solver = false;
+   double viscosityCoefficient = 0.0;
        
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh", "Mesh file to use.");
@@ -83,6 +85,9 @@ int main(int argc, char *argv[])
    args.AddOption(&include_cut, "-incCut", "--include-cut", "-no-cut",
                   "--no-cut",
                   "Include/Exclude cut elements in the linear system.");
+   args.AddOption(&viscosityCoefficient, "-viscCoef", "--viscosityCoefficient",
+                  "Value of viscosity.");
+   
 #ifdef MFEM_USE_MUMPS
    args.AddOption(&mumps_solver, "-mumps", "--mumps-solver", "-no-mumps",
                   "--no-mumps-solver", "Use the MUMPS Solver.");
@@ -197,7 +202,7 @@ int main(int argc, char *argv[])
    lambda = 0.0;
    PWConstCoefficient lambda_func(lambda);
    Vector mu(pmesh->attributes.Max());
-   mu = 1.0;
+   mu = viscosityCoefficient;
    PWConstCoefficient mu_func(mu);
 
    // 7. Allocate memory (x, rhs) for the analytical solution and the right hand
