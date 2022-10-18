@@ -69,8 +69,7 @@ void TMOP_QualityMetric::AssembleLinearizedH(const DenseMatrix &Jpt,
    {
       for (int c = 0; c < dim; c++)
       {
-         DenseMatrix HdMdM(dim);
-         HdMdM.Set(1.0, HIden(r+dim*c));
+         DenseMatrix HdMdM(HIden(r+dim*c).GetData(), dim, dim);
          for (int rr = 0; rr < dim; rr++)
          {
             for (int cc = 0; cc < dim; cc++)
