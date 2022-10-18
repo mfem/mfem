@@ -2318,16 +2318,6 @@ void DiffusionIntegrator::AssemblePatchMatrix(
       const Array<int>& knotSpan1D = patchRule->GetPatchRule1D_KnotSpan(patch, d);
       MFEM_VERIFY(knotSpan1D.Size() == Q1D[d], "");
 
-      //std::vector<std::vector<std::set<int>>> patch_ijk;
-      //mesh->NURBSext->patch_ijk[patch][d];
-      std::map<int,int> ijkToElem1D;
-      int cnt = 0;
-      for (auto ijk : mesh->NURBSext->patch_ijk[patch][d])
-      {
-         ijkToElem1D[ijk] = cnt;
-         cnt++;
-      }
-
       for (int i = 0; i < Q1D[d]; i++)
       {
          const IntegrationPoint &ip = ir1d[d]->IntPoint(i);
@@ -2347,14 +2337,6 @@ void DiffusionIntegrator::AssemblePatchMatrix(
 
          pkv[d]->CalcShape(shape[d], ijk, (ip.x - kv0) / (kv1 - kv0));
          pkv[d]->CalcDShape(dshape[d], ijk, (ip.x - kv0) / (kv1 - kv0));
-
-         /*
-              // TODO: remove ijkToElem1D if not needed?
-              auto search = ijkToElem1D.find(ijk);
-              MFEM_VERIFY(search != ijkToElem1D.end(), "");
-              const int elem = search->second;
-              MFEM_VERIFY(elem + orders[d]+1 <= D1D[d], "");
-         */
 
          // Put shape into array B storing shapes for all points.
          // TODO: This should be based on NURBS3DFiniteElement::CalcShape and CalcDShape.
@@ -2407,40 +2389,50 @@ void DiffusionIntegrator::AssemblePatchMatrix(
    const auto qd = Reshape(qdata.Read(), Q1D[0]*Q1D[1]*Q1D[2],
                            (symmetric ? 6 : 9));
 
-   std::vector<std::vector<Vector>> reducedWeights00(dim);
-   std::vector<std::vector<std::vector<int>>> reducedIDs00(dim);
-   std::vector<std::vector<Vector>> reducedWeights11(dim);
-   std::vector<std::vector<std::vector<int>>> reducedIDs11(dim);
+   std::vector<std::vector<std::vector<Vector>>> reducedWeights(dim);
+   std::vector<std::vector<std::vector<std::vector<int>>>> reducedIDs(dim);
 
-   bool getQuadConstraints = true;
-   if (getQuadConstraints)
+   // Solve for reduced quadrature rules
    {
+      StopWatch sw;
+      sw.Start();
+
+      const int numTypes = 2;  // Number of rule types
+
       for (int d=0; d<dim; ++d)
       {
-         // TODO: cache reduced rules to avoid repeated computation.
+         // TODO: cache reduced rules to avoid repeated computation? The cost of this setup seems low.
+         reducedWeights[d].resize(numTypes);
+         reducedIDs[d].resize(numTypes);
+
          GetReducedRule(Q1D[d], D1D[d], B[d], G[d],
                         minQ[d], maxQ[d],
                         minD[d], maxD[d],
                         minDD[d], maxDD[d], ir1d[d], true,
-                        reducedWeights00[d], reducedIDs00[d]);
+                        reducedWeights[d][0], reducedIDs[d][0]);
          GetReducedRule(Q1D[d], D1D[d], B[d], G[d],
                         minQ[d], maxQ[d],
                         minD[d], maxD[d],
                         minDD[d], maxDD[d], ir1d[d], false,
-                        reducedWeights11[d], reducedIDs11[d]);
+                        reducedWeights[d][1], reducedIDs[d][1]);
       }
+
+      sw.Stop();
+      std::cout << "Patch " << patch << " NNLS time " << sw.RealTime() << std::endl;
    }
 
    // NOTE: the following is adapted from PADiffusionApply3D.
    std::vector<Array3D<double>> grad(dim);
-
    for (int d=0; d<dim; ++d)
    {
       grad[d].SetSize(Q1D[0], Q1D[1], Q1D[2]);
    }
 
-   Array3D<double> gradQXY(Q1D[0], Q1D[1], dim);
-   Array2D<double> gradQX(Q1D[0],2);
+   // Note that this large 3D array, most of which is unused,
+   // seems inefficient, but testing showed that it is faster
+   // than using a set<int> to store 1D indices of the used points.
+   Array3D<bool> gradUsed;
+   gradUsed.SetSize(Q1D[0], Q1D[1], Q1D[2]);
 
    Array3D<double> gradDXY(D1D[0], D1D[1], dim);
    Array2D<double> gradDX(D1D[0], dim);
@@ -2452,6 +2444,7 @@ void DiffusionIntegrator::AssemblePatchMatrix(
    int *smati = nullptr;
    int *smatj = nullptr;
    double *smata = nullptr;
+   bool bugfound = false;
    int nnz = 0;
 
    if (spmat)
@@ -2542,107 +2535,23 @@ void DiffusionIntegrator::AssemblePatchMatrix(
             {
                for (int qx = minD[0][jdx]; qx <= maxD[0][jdx]; ++qx)
                {
-                  grad[d](qx,qy,qz) = 0.0;
+                  //grad[d](qx,qy,qz) = 0.0;
+                  gradUsed(qx,qy,qz) = false;
                }
             }
          }
 
-      for (int qy = minD[1][jdy]; qy <= maxD[1][jdy]; ++qy)
-      {
-         for (int qx = minD[0][jdx]; qx <= maxD[0][jdx]; ++qx)
-         {
-            for (int d=0; d<dim; ++d)
-            {
-               gradQXY(qx,qy,d) = 0.0;
-            }
-         }
-      }
-
-      for (int qx = minD[0][jdx]; qx <= maxD[0][jdx]; ++qx)
-      {
-         gradQX(qx,0) = 0.0;
-         gradQX(qx,1) = 0.0;
-      }
-
-      // TODO: it doesn't seem necessary to store gradQX, gradQXY, grad
-      for (int qx = minD[0][jdx]; qx <= maxD[0][jdx]; ++qx)
-      {
-         gradQX(qx,0) = B[0](qx,jdx);
-         gradQX(qx,1) = G[0](qx,jdx);
-      }
-
-      for (int qy = minD[1][jdy]; qy <= maxD[1][jdy]; ++qy)
-      {
-         const double wy  = B[1](qy,jdy);
-         const double wDy = G[1](qy,jdy);
-         for (int qx = minD[0][jdx]; qx <= maxD[0][jdx]; ++qx)
-         {
-            const double wx  = gradQX(qx,0);
-            const double wDx = gradQX(qx,1);
-            gradQXY(qx,qy,0) = wDx * wy;
-            gradQXY(qx,qy,1) = wx  * wDy;
-            gradQXY(qx,qy,2) = wx  * wy;
-         }
-      }
-
-      for (int qz = minD[2][jdz]; qz <= maxD[2][jdz]; ++qz)
-      {
-         const double wz  = B[2](qz,jdz);
-         const double wDz = G[2](qz,jdz);
-         for (int qy = minD[1][jdy]; qy <= maxD[1][jdy]; ++qy)
-         {
-            for (int qx = minD[0][jdx]; qx <= maxD[0][jdx]; ++qx)
-            {
-               grad[0](qx,qy,qz) = gradQXY(qx,qy,0) * wz;
-               grad[1](qx,qy,qz) = gradQXY(qx,qy,1) * wz;
-               grad[2](qx,qy,qz) = gradQXY(qx,qy,2) * wDz;
-            }
-         }
-      } // qz
-
-      for (int qz = minD[2][jdz]; qz <= maxD[2][jdz]; ++qz)
-      {
-         for (int qy = minD[1][jdy]; qy <= maxD[1][jdy]; ++qy)
-         {
-            for (int qx = minD[0][jdx]; qx <= maxD[0][jdx]; ++qx)
-            {
-               const int q = qx + ((qy + (qz * Q1D[1])) * Q1D[0]);
-               const double O11 = qd(q,0);
-               const double O12 = qd(q,1);
-               const double O13 = qd(q,2);
-               const double O21 = symmetric ? O12 : qd(q,3);
-               const double O22 = symmetric ? qd(q,3) : qd(q,4);
-               const double O23 = symmetric ? qd(q,4) : qd(q,5);
-               const double O31 = symmetric ? O13 : qd(q,6);
-               const double O32 = symmetric ? O23 : qd(q,7);
-               const double O33 = symmetric ? qd(q,5) : qd(q,8);
-               const double gradX = grad[0](qx,qy,qz);
-               const double gradY = grad[1](qx,qy,qz);
-               const double gradZ = grad[2](qx,qy,qz);
-
-               grad[0](qx,qy,qz) = (O11*gradX)+(O12*gradY)+(O13*gradZ);
-               grad[1](qx,qy,qz) = (O21*gradX)+(O22*gradY)+(O23*gradZ);
-               grad[2](qx,qy,qz) = (O31*gradX)+(O32*gradY)+(O33*gradZ);
-            }
-         }
-      }
-
       for (int zquad = 0; zquad<2; ++zquad)
       {
          // Reduced quadrature in z
-         const int zdim = 2;  // z dimension
-
-         // TODO: an array with indexing by type would be better than this way of setting by reference
-         std::vector<int>& reducedIDs_z = (zquad == 0) ? reducedIDs00[zdim][jdz] :
-                                          reducedIDs11[zdim][jdz];
-         Vector& reducedWeights_z = (zquad == 0) ? reducedWeights00[zdim][jdz] :
-                                    reducedWeights11[zdim][jdz];
-         const int nwz = reducedIDs_z.size();
-
+         const int nwz = reducedIDs[2][zquad][jdz].size();
          for (int irz=0; irz < nwz; ++irz)
          {
-            const int qz = reducedIDs_z[irz] + minD[2][jdz];
-            const double zw = reducedWeights_z[irz];
+            const int qz = reducedIDs[2][zquad][jdz][irz] + minD[2][jdz];
+            const double zw = reducedWeights[2][zquad][jdz][irz];
+
+            const double gwz  = B[2](qz,jdz);
+            const double gwDz = G[2](qz,jdz);
 
             for (int dy = minDD[1][jdy]; dy <= maxDD[1][jdy]; ++dy)
             {
@@ -2658,19 +2567,14 @@ void DiffusionIntegrator::AssemblePatchMatrix(
             for (int yquad = 0; yquad<2; ++yquad)
             {
                // Reduced quadrature in y
-               const int ydim = 1;  // y dimension
-               // TODO: an array with indexing by type would be better than this way of setting by reference
-               std::vector<int>& reducedIDs_y = (yquad == 0) ? reducedIDs00[ydim][jdy] :
-                                                reducedIDs11[ydim][jdy];
-               Vector& reducedWeights_y = (yquad == 0) ? reducedWeights00[ydim][jdy] :
-                                          reducedWeights11[ydim][jdy];
-
-               const int nwy = reducedIDs_y.size();
-
+               const int nwy = reducedIDs[1][yquad][jdy].size();
                for (int iry=0; iry < nwy; ++iry)
                {
-                  const int qy = reducedIDs_y[iry] + minD[1][jdy];
-                  const double yw = reducedWeights_y[iry];
+                  const int qy = reducedIDs[1][yquad][jdy][iry] + minD[1][jdy];
+                  const double yw = reducedWeights[1][yquad][jdy][iry];
+
+                  const double gwy  = B[1](qy,jdy);
+                  const double gwDy = G[1](qy,jdy);
 
                   for (int dx = minDD[0][jdx]; dx <= maxDD[0][jdx]; ++dx)
                   {
@@ -2680,68 +2584,87 @@ void DiffusionIntegrator::AssemblePatchMatrix(
                      }
                   }
 
-                  if (getQuadConstraints)
+                  // Reduced quadrature in x
+                  for (int xquad=0; xquad<2; ++xquad)
                   {
-                     // Reduced quadrature in x
-                     const int xdim = 0;  // x dimension
-
-                     // 00 terms
-                     const int nw = reducedIDs00[xdim][jdx].size();
-                     for (int irx=0; irx < nw; ++irx)
+                     const int nwx = reducedIDs[0][xquad][jdx].size();
+                     for (int irx=0; irx < nwx; ++irx)
                      {
-                        const int qx = reducedIDs00[xdim][jdx][irx] + minD[0][jdx];
+                        const int qx = reducedIDs[0][xquad][jdx][irx] + minD[0][jdx];
 
-                        const double gX = grad[0](qx,qy,qz);
-                        const double gY = grad[1](qx,qy,qz);
-                        const double gZ = grad[2](qx,qy,qz);
-                        const double xw = reducedWeights00[xdim][jdx][irx];
-                        for (int dx = minQ[0][qx]; dx <= maxQ[0][qx]; ++dx)
+                        if (!gradUsed(qx,qy,qz))
                         {
-                           const double wx  = B[0](qx,dx);
-                           const double wDx = G[0](qx,dx);
-                           //gradDX(dx,0) += gX * wDx * xw;
-                           gradDX(dx,1) += gY * wx * xw;
-                           gradDX(dx,2) += gZ * wx * xw;
-                        }
-                     }
+                           const double gwx  = B[0](qx,jdx);
+                           const double gwDx = G[0](qx,jdx);
 
-                     // 11 terms
-                     const int nw11 = reducedIDs11[xdim][jdx].size();
-                     for (int irx=0; irx < nw11; ++irx)
-                     {
-                        const int qx = reducedIDs11[xdim][jdx][irx] + minD[0][jdx];
+                           const int q = qx + ((qy + (qz * Q1D[1])) * Q1D[0]);
+                           const double O11 = qd(q,0);
+                           const double O12 = qd(q,1);
+                           const double O13 = qd(q,2);
+                           const double O21 = symmetric ? O12 : qd(q,3);
+                           const double O22 = symmetric ? qd(q,3) : qd(q,4);
+                           const double O23 = symmetric ? qd(q,4) : qd(q,5);
+                           const double O31 = symmetric ? O13 : qd(q,6);
+                           const double O32 = symmetric ? O23 : qd(q,7);
+                           const double O33 = symmetric ? qd(q,5) : qd(q,8);
 
-                        const double gX = grad[0](qx,qy,qz);
-                        //const double gY = grad[1](qx,qy,qz);
-                        //const double gZ = grad[2](qx,qy,qz);
-                        const double xw = reducedWeights11[xdim][jdx][irx];
-                        for (int dx = minQ[0][qx]; dx <= maxQ[0][qx]; ++dx)
-                        {
-                           //const double wx  = B[0](qx,dx);
-                           const double wDx = G[0](qx,dx);
-                           gradDX(dx,0) += gX * wDx * xw;
-                           //gradDX(dx,1) += gY * wx * xw;
-                           //gradDX(dx,2) += gZ * wx * xw;
+                           const double gradX = gwDx * gwy * gwz;
+                           const double gradY = gwx * gwDy * gwz;
+                           const double gradZ = gwx * gwy * gwDz;
+
+                           grad[0](qx,qy,qz) = (O11*gradX)+(O12*gradY)+(O13*gradZ);
+                           grad[1](qx,qy,qz) = (O21*gradX)+(O22*gradY)+(O23*gradZ);
+                           grad[2](qx,qy,qz) = (O31*gradX)+(O32*gradY)+(O33*gradZ);
+
+                           gradUsed(qx,qy,qz) = true;
                         }
                      }
                   }
-                  else
+
+                  // 00 terms
+                  const int nw = reducedIDs[0][0][jdx].size();
+                  for (int irx=0; irx < nw; ++irx)
                   {
-                     // Full quadrature
-                     for (int qx = minD[0][jdx]; qx <= maxD[0][jdx]; ++qx)
+                     const int qx = reducedIDs[0][0][jdx][irx] + minD[0][jdx];
+
+                     //const double gX = grad[0](qx,qy,qz);
+                     const double gY = grad[1](qx,qy,qz);
+                     const double gZ = grad[2](qx,qy,qz);
+                     const double xw = reducedWeights[0][0][jdx][irx];
+                     for (int dx = minQ[0][qx]; dx <= maxQ[0][qx]; ++dx)
                      {
-                        const double gX = grad[0](qx,qy,qz);
-                        const double gY = grad[1](qx,qy,qz);
-                        const double gZ = grad[2](qx,qy,qz);
-                        const double xw = (*ir1d[0])[qx].weight;
-                        for (int dx = minQ[0][qx]; dx <= maxQ[0][qx]; ++dx)
+                        const double wx  = B[0](qx,dx);
+                        const double wDx = G[0](qx,dx);
+                        //gradDX(dx,0) += gX * wDx * xw;
+                        if (yquad == 1)
                         {
-                           const double wx  = B[0](qx,dx);
-                           const double wDx = G[0](qx,dx);
-                           gradDX(dx,0) += gX * wDx * xw;
                            gradDX(dx,1) += gY * wx * xw;
+                        }
+                        if (zquad == 1)
+                        {
                            gradDX(dx,2) += gZ * wx * xw;
                         }
+                     }
+                  }
+
+                  // 11 terms
+                  const int nw11 = reducedIDs[0][1][jdx].size();
+
+                  for (int irx=0; irx < nw11; ++irx)
+                  {
+                     const int qx = reducedIDs[0][1][jdx][irx] + minD[0][jdx];
+
+                     const double gX = grad[0](qx,qy,qz);
+                     //const double gY = grad[1](qx,qy,qz);
+                     //const double gZ = grad[2](qx,qy,qz);
+                     const double xw = reducedWeights[0][1][jdx][irx];
+                     for (int dx = minQ[0][qx]; dx <= maxQ[0][qx]; ++dx)
+                     {
+                        //const double wx  = B[0](qx,dx);
+                        const double wDx = G[0](qx,dx);
+                        gradDX(dx,0) += gX * wDx * xw;
+                        //gradDX(dx,1) += gY * wx * xw;
+                        //gradDX(dx,2) += gZ * wx * xw;
                      }
                   }
 
@@ -2753,10 +2676,16 @@ void DiffusionIntegrator::AssemblePatchMatrix(
                      {
                         if (yquad == 0)
                         {
-                           gradDXY(dx,dy,0) += gradDX(dx,0) * wy * yw;
-                           gradDXY(dx,dy,2) += gradDX(dx,2) * wy * yw;
+                           if (zquad == 1)
+                           {
+                              gradDXY(dx,dy,2) += gradDX(dx,2) * wy * yw;
+                           }
+                           else
+                           {
+                              gradDXY(dx,dy,0) += gradDX(dx,0) * wy * yw;
+                           }
                         }
-                        else
+                        else if (zquad == 0)
                         {
                            gradDXY(dx,dy,1) += gradDX(dx,1) * wDy * yw;
                         }
@@ -2772,7 +2701,6 @@ void DiffusionIntegrator::AssemblePatchMatrix(
                {
                   for (int dx = minDD[0][jdx]; dx <= maxDD[0][jdx]; ++dx)
                   {
-                     // TODO: optimize further by computing only what is necessary for each value of zquad, etc.
                      double v = (zquad == 0) ? (gradDXY(dx,dy,0) * wz) +
                                 (gradDXY(dx,dy,1) * wz) : gradDXY(dx,dy,2) * wDz;
 
@@ -2785,16 +2713,14 @@ void DiffusionIntegrator::AssemblePatchMatrix(
                                             dy - minDD[1][jd[1]],
                                             dz - minDD[2][jd[2]]);
 
-                     if (v == 0.0)
-                     {
-                        cout << "zero entry " << dof_j << ", " << odof << endl;
-                     }
-
                      if (spmat)
                      {
-                        // TODO: Make this MFEM_ASSERT or just remove it.
                         const int m = smati[dof_j] + loc;
-                        MFEM_VERIFY(smatj[m] == odof || smatj[m] == -1, "");
+                        if (!(smatj[m] == odof || smatj[m] == -1))
+                        {
+                           bugfound = true;
+                        }
+
                         smatj[m] = odof;
                         smata[m] += v;
                      }
@@ -2809,6 +2735,8 @@ void DiffusionIntegrator::AssemblePatchMatrix(
          } // qz
       } // zquad
    } // dof_j
+
+   MFEM_VERIFY(!bugfound, "");
 
    if (spmat)
    {
