@@ -190,7 +190,6 @@ void SerialAdvectorCGOper::Mult(const Vector &ind, Vector &di_dt) const
    // Move the mesh.
    const double t = GetTime();
    add(x0, t, u, x_now);
-
    K.FESpace()->GetMesh()->NodesUpdated();
 
    // Assemble on the new mesh.
@@ -260,7 +259,6 @@ void ParAdvectorCGOper::Mult(const Vector &ind, Vector &di_dt) const
    // Move the mesh.
    const double t = GetTime();
    add(x0, t, u, x_now);
-
    K.ParFESpace()->GetParMesh()->NodesUpdated();
 
    // Assemble on the new mesh.

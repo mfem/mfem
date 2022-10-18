@@ -119,6 +119,9 @@ public:
        the assembly will be executed on the device. */
    void Assemble();
 
+   /// Return true if assembly on device is supported, false otherwise.
+   virtual bool SupportsDevice();
+
    void AssembleSharedFaces();
 
    /// Assemble the vector on the true dofs, i.e. P^t v.

@@ -203,7 +203,7 @@ public:
    void Assemble();
 
    /// Return true if assembly on device is supported, false otherwise.
-   bool SupportsDevice();
+   virtual bool SupportsDevice();
 
    /// Assembles delta functions of the linear form
    void AssembleDelta();

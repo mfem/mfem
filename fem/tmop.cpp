@@ -2352,9 +2352,9 @@ void AdaptivityEvaluator::SetParMetaInfo(const ParMesh &m,
 void AdaptivityEvaluator::ClearGeometricFactors()
 {
 #ifdef MFEM_USE_MPI
-   if (pmesh) { pmesh->NodesUpdated(); }
+   if (pmesh) { pmesh->DeleteGeometricFactors(); }
 #else
-   if (mesh) { mesh->NodesUpdated(); }
+   if (mesh) { mesh->DeleteGeometricFactors(); }
 #endif
 }
 
