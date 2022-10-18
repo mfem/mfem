@@ -177,6 +177,7 @@ double par_compare_pa_assembly(int dim, int num_elements, int order,
    xv.Randomize();
    if (transpose)
    {
+      assembled_grad_mat->EnsureMultTranspose();
       assembled_grad_mat->MultTranspose(xv, assembled_y);
       pa_grad_oper->MultTranspose(xv, pa_y);
    }

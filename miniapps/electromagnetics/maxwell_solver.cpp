@@ -234,6 +234,7 @@ MaxwellSolver::MaxwellSolver(ParMesh & pmesh, int order,
    NegCurl_ = Curl_->ParallelAssemble();
    // Beware this modifies the matrix stored within the Curl_ object.
    *NegCurl_ *= -1.0;
+   NegCurl_->EnsureMultTranspose();
 
    // Build grid functions
    e_    = new ParGridFunction(HCurlFESpace_);
