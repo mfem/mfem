@@ -19,6 +19,11 @@ Meshing improvements
   of a given Mesh. These classes have the same functionality as Mesh and ParMesh
   and work with all existing MFEM interfaces like finite element spaces etc.
 
+- Added the method ParMesh::GetSerialMesh() that reconstructs a partitioned
+  parallel mesh on a given single rank. Also, added the method
+  ParMesh::PrintAsSerial() that saves the reconstructed serial mesh to a C++
+  stream on rank 0.
+
 Discretization improvements
 ---------------------------
 - Added support for assembling low-order-refined matrices using a GPU-enabled
@@ -98,8 +103,18 @@ Integrations, testing and documentation
 
 - Added Windows 2022 CI testing with GitHub actions.
 
+- New benchmark for the different assembly levels inspired by the CEED
+  Bake-Off Problems, see tests/benchmarks/bench_assembly_levels.cpp.
+
 Miscellaneous
 -------------
+- In various places in the library, replace the use of 'long' with 'long long'
+  to better support Win64 builds where 'long' is 32-bit and 'long long' is
+  64-bit. On Linux and MacOS, both types are typically 64-bit.
+
+- Update various "MemoryUsage" methods to return 'std::size_t' instead of 'long'
+  since the latter is 32-bit in Win64 builds.
+
 - Various other simplifications, extensions, and bugfixes in the code.
 
 - Added boundary elimination with device support for `SparseMatrix` and
@@ -150,11 +165,6 @@ Meshing improvements
 
 - Added a simpler interface to access mesh face information, see FaceInformation
   and GetFaceInformation in the Mesh class.
-
-- Added the method ParMesh::GetSerialMesh() that reconstructs a partitioned
-  parallel mesh on a given single rank. Also, added the method
-  ParMesh::PrintAsSerial() that saves the reconstructed serial mesh to a C++
-  stream on rank 0.
 
 - Gmsh meshes where all elements have zero physical tag (the default Gmsh output
   format if no physical groups are defined) are now successfully loaded, and
@@ -245,9 +255,6 @@ Integrations, testing and documentation
 - Switched from Artistic Style (astyle) version 2.05.1 to version 3.1 for code
   formatting. See the "make style" target.
 
-- New benchmark for the different assembly levels inspired by the CEED
-  Bake-Off Problems, see tests/benchmarks/bench_assembly_levels.cpp.
-
 Miscellaneous
 -------------
 - Added a simple singleton class, Mpi, as a replacement for MPI_Session. New
@@ -257,13 +264,6 @@ Miscellaneous
   QuadratureFunction::SaveVTU and ParaViewDataCollection::RegisterQField.
 
 - Fixed several MinGW build issues on Windows.
-
-- In various places in the library, replace the use of 'long' with 'long long'
-  to better support Win64 builds where 'long' is 32-bit and 'long long' is
-  64-bit. On Linux and MacOS, both types are typically 64-bit.
-
-- Update various "MemoryUsage" methods to return 'std::size_t' instead of 'long'
-  since the latter is 32-bit in Win64 builds.
 
 - Added 'double' atomicAdd implementation for previous versions of CUDA.
 
