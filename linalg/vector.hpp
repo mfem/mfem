@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -63,14 +63,19 @@ protected:
 
    Memory<double> data;
    int size;
+   bool global_seed_set = false;
 
 public:
 
-   /// Default constructor for Vector. Sets size = 0 and data = NULL.
-   Vector() { data.Reset(); size = 0; }
+   /** Default constructor for Vector. Sets size = 0, and calls Memory::Reset on
+       data through Memory<double>'s default constructor. */
+   Vector(): size(0) { }
 
    /// Copy constructor. Allocates a new data array and copies the data.
    Vector(const Vector &);
+
+   /// Move constructor. "Steals" data from its argument.
+   Vector(Vector&& v);
 
    /// @brief Creates vector of size s.
    /// @warning Entries are not initialized to zero!
@@ -278,6 +283,9 @@ public:
        assignment operator. */
    Vector &operator=(const Vector &v);
 
+   /// Move assignment
+   Vector &operator=(Vector&& v);
+
    /// Redefine '=' for vector = constant.
    Vector &operator=(double value);
 
@@ -299,6 +307,12 @@ public:
 
    Vector &operator+=(const Vector &v);
 
+   /// operator- is not supported. Use @ref subtract or @ref Add.
+   Vector &operator-(const Vector &v) = delete;
+
+   /// operator+ is not supported. Use @ref Add.
+   Vector &operator+(const Vector &v) = delete;
+
    /// (*this) += a * Va
    Vector &Add(const double a, const Vector &Va);
 
@@ -306,6 +320,8 @@ public:
    Vector &Set(const double a, const Vector &x);
 
    void SetVector(const Vector &v, int offset);
+
+   void AddSubVector(const Vector &v, int offset);
 
    /// (*this) = -(*this)
    void Neg();
@@ -401,6 +417,8 @@ public:
 
    /// Set random values in the vector.
    void Randomize(int seed = 0);
+   /// Set global seed for random values in sequential calls to Randomize().
+   void SetGlobalSeed(int gseed);
    /// Returns the l2 norm of the vector.
    double Norml2() const;
    /// Returns the l_infinity norm of the vector.
@@ -422,7 +440,7 @@ public:
 
    /** @brief Count the number of entries in the Vector for which isfinite
        is false, i.e. the entry is a NaN or +/-Inf. */
-   int CheckFinite() const { return mfem::CheckFinite(data, size); }
+   int CheckFinite() const { return mfem::CheckFinite(HostRead(), size); }
 
    /// Destroys vector.
    virtual ~Vector();
@@ -451,25 +469,6 @@ public:
    virtual double *HostReadWrite()
    { return mfem::ReadWrite(data, size, false); }
 
-#ifdef MFEM_USE_SUNDIALS
-   /// (DEPRECATED) Construct a wrapper Vector from SUNDIALS N_Vector.
-   MFEM_DEPRECATED explicit Vector(N_Vector nv);
-
-   /// (DEPRECATED) Return a new wrapper SUNDIALS N_Vector of type SUNDIALS_NVEC_SERIAL.
-   /** @deprecated The returned N_Vector must be destroyed by the caller. */
-   MFEM_DEPRECATED virtual N_Vector ToNVector()
-   { return N_VMake_Serial(Size(), GetData()); }
-
-   /** @deprecated @brief Update an existing wrapper SUNDIALS N_Vector to point to this
-       Vector.
-
-       \param[in] nv N_Vector to assign this vector's data to
-       \param[in] global_length An optional parameter that designates the global
-        length. If nv is a parallel vector and global_length == 0 then this
-        method will perform a global reduction and calculate the global length
-   */
-   MFEM_DEPRECATED virtual void ToNVector(N_Vector &nv, long global_length = 0);
-#endif
 };
 
 // Inline methods
@@ -503,15 +502,11 @@ inline int CheckFinite(const double *v, const int n)
 
 inline Vector::Vector(int s)
 {
+   MFEM_ASSERT(s>=0,"Unexpected negative size.");
+   size = s;
    if (s > 0)
    {
-      size = s;
       data.New(s);
-   }
-   else
-   {
-      size = 0;
-      data.Reset();
    }
 }
 

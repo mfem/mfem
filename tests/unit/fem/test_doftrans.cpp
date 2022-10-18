@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -60,6 +60,17 @@ TEST_CASE("DoF Transformation Classes",
 
          REQUIRE(w.Norml2() < tol * u.Norml2());
       }
+      SECTION("Inverse Dual DoF transformation")
+      {
+         Vector w;
+
+         ut = u; T.TransformDual(ut);
+         w = ut; T.InvTransformDual(w);
+
+         w -= u;
+
+         REQUIRE(w.Norml2() < tol * u.Norml2());
+      }
 
       SECTION("Inner product with linear form f(v)")
       {
@@ -98,7 +109,7 @@ TEST_CASE("DoF Transformation Classes",
          double uAv = A.InnerProduct(v, u);
 
          REQUIRE(fabs(uAv -  At.InnerProduct(vt, u )) < tol * fabs(uAv));
-         REQUIRE(fabs(uAv -  tA.InnerProduct(v , ut)) < tol * fabs(uAv));
+         REQUIRE(fabs(uAv -  tA.InnerProduct(v, ut)) < tol * fabs(uAv));
          REQUIRE(fabs(uAv - tAt.InnerProduct(vt, ut)) < tol * fabs(uAv));
       }
       SECTION("Inner product of a primal vector and a dual vector")
@@ -119,7 +130,7 @@ TEST_CASE("DoF Transformation Classes",
          double fAv = A.InnerProduct(v, f);
 
          REQUIRE(fabs(fAv -  At.InnerProduct(vt, f )) < tol * fabs(fAv));
-         REQUIRE(fabs(fAv -  tA.InnerProduct(v , ft)) < tol * fabs(fAv));
+         REQUIRE(fabs(fAv -  tA.InnerProduct(v, ft)) < tol * fabs(fAv));
          REQUIRE(fabs(fAv - tAt.InnerProduct(vt, ft)) < tol * fabs(fAv));
       }
    }
@@ -185,9 +196,9 @@ TEST_CASE("DoF Transformation Functions",
 
       double fAv = A.InnerProduct(v, f);
 
-      REQUIRE(fabs(fAv - nAn.InnerProduct(v , f )) < tol * fabs(fAv));
+      REQUIRE(fabs(fAv - nAn.InnerProduct(v, f )) < tol * fabs(fAv));
       REQUIRE(fabs(fAv -  At.InnerProduct(vt, f )) < tol * fabs(fAv));
-      REQUIRE(fabs(fAv -  tA.InnerProduct(v , ft)) < tol * fabs(fAv));
+      REQUIRE(fabs(fAv -  tA.InnerProduct(v, ft)) < tol * fabs(fAv));
       REQUIRE(fabs(fAv - tAt.InnerProduct(vt, ft)) < tol * fabs(fAv));
    }
    SECTION("TransformDual")
@@ -217,9 +228,9 @@ TEST_CASE("DoF Transformation Functions",
 
       double uAv = A.InnerProduct(v, u);
 
-      REQUIRE(fabs(uAv - nAn.InnerProduct(v , u )) < tol * fabs(uAv));
+      REQUIRE(fabs(uAv - nAn.InnerProduct(v, u )) < tol * fabs(uAv));
       REQUIRE(fabs(uAv -  At.InnerProduct(vt, u )) < tol * fabs(uAv));
-      REQUIRE(fabs(uAv -  tA.InnerProduct(v , ut)) < tol * fabs(uAv));
+      REQUIRE(fabs(uAv -  tA.InnerProduct(v, ut)) < tol * fabs(uAv));
       REQUIRE(fabs(uAv - tAt.InnerProduct(vt, ut)) < tol * fabs(uAv));
    }
 }
@@ -267,6 +278,17 @@ TEST_CASE("VDoF Transformation Class",
 
          REQUIRE(w.Norml2() < tol * v.Norml2());
       }
+      SECTION("Inverse Dual DoF transformation")
+      {
+         Vector w;
+
+         vt = v; T.TransformDual(vt);
+         w = vt; T.InvTransformDual(w);
+
+         w -= v;
+
+         REQUIRE(w.Norml2() < tol * v.Norml2());
+      }
       SECTION("Inner product with linear form f(v)")
       {
          vt = v; T.TransformPrimal(vt);
@@ -302,6 +324,17 @@ TEST_CASE("VDoF Transformation Class",
 
             REQUIRE(w.Norml2() < tol * v.Norml2());
          }
+         SECTION("Inverse Dual DoF transformation")
+         {
+            Vector w;
+
+            vt = v; T.TransformDual(vt);
+            w = vt; T.InvTransformDual(w);
+
+            w -= v;
+
+            REQUIRE(w.Norml2() < tol * v.Norml2());
+         }
          SECTION("Inner product with linear form f(v)")
          {
             vt = v; T.TransformPrimal(vt);
@@ -322,6 +355,17 @@ TEST_CASE("VDoF Transformation Class",
 
             vt = v; T.TransformPrimal(vt);
             w = vt; T.InvTransformPrimal(w);
+
+            w -= v;
+
+            REQUIRE(w.Norml2() < tol * v.Norml2());
+         }
+         SECTION("Inverse Dual DoF transformation")
+         {
+            Vector w;
+
+            vt = v; T.TransformDual(vt);
+            w = vt; T.InvTransformDual(w);
 
             w -= v;
 

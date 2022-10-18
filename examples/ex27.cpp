@@ -1,4 +1,4 @@
-//                       MFEM Example 27 - Serial Version
+//                                MFEM Example 27
 //
 // Compile with: make ex27
 //
@@ -75,7 +75,7 @@ Mesh * GenerateSerialMesh(int ref);
 // alpha*n.Grad(sol) + beta*sol - gamma over the same boundary.
 double IntegrateBC(const GridFunction &sol, const Array<int> &bdr_marker,
                    double alpha, double beta, double gamma,
-                   double &err);
+                   double &error);
 
 int main(int argc, char *argv[])
 {
@@ -295,43 +295,33 @@ int main(int argc, char *argv[])
    //     element solution.
    a.RecoverFEMSolution(X, b, u);
 
-   // 13. Build a mass matrix to help solve for n.Grad(u) where 'n' is a surface
-   //     normal.
-   BilinearForm m(&fespace);
-   m.AddDomainIntegrator(new MassIntegrator);
-   m.Assemble();
-
-   ess_tdof_list.SetSize(0);
-   OperatorPtr M;
-   m.FormSystemMatrix(ess_tdof_list, M);
-
-   // 14. Compute the various boundary integrals.
+   // 13. Compute the various boundary integrals.
    mfem::out << endl
              << "Verifying boundary conditions" << endl
              << "=============================" << endl;
    {
       // Integrate the solution on the Dirichlet boundary and compare to the
       // expected value.
-      double err, avg = IntegrateBC(u, dbc_bdr, 0.0, 1.0, dbc_val, err);
+      double error, avg = IntegrateBC(u, dbc_bdr, 0.0, 1.0, dbc_val, error);
 
       bool hom_dbc = (dbc_val == 0.0);
-      err /=  hom_dbc ? 1.0 : fabs(dbc_val);
+      error /=  hom_dbc ? 1.0 : fabs(dbc_val);
       mfem::out << "Average of solution on Gamma_dbc:\t"
                 << avg << ", \t"
                 << (hom_dbc ? "absolute" : "relative")
-                << " error " << err << endl;
+                << " error " << error << endl;
    }
    {
       // Integrate n.Grad(u) on the inhomogeneous Neumann boundary and compare
       // to the expected value.
-      double err, avg = IntegrateBC(u, nbc_bdr, 1.0, 0.0, nbc_val, err);
+      double error, avg = IntegrateBC(u, nbc_bdr, 1.0, 0.0, nbc_val, error);
 
       bool hom_nbc = (nbc_val == 0.0);
-      err /=  hom_nbc ? 1.0 : fabs(nbc_val);
+      error /=  hom_nbc ? 1.0 : fabs(nbc_val);
       mfem::out << "Average of n.Grad(u) on Gamma_nbc:\t"
                 << avg << ", \t"
                 << (hom_nbc ? "absolute" : "relative")
-                << " error " << err << endl;
+                << " error " << error << endl;
    }
    {
       // Integrate n.Grad(u) on the homogeneous Neumann boundary and compare to
@@ -340,28 +330,29 @@ int main(int argc, char *argv[])
       nbc0_bdr = 0;
       nbc0_bdr[3] = 1;
 
-      double err, avg = IntegrateBC(u, nbc0_bdr, 1.0, 0.0, 0.0, err);
+      double error, avg = IntegrateBC(u, nbc0_bdr, 1.0, 0.0, 0.0, error);
 
       bool hom_nbc = true;
       mfem::out << "Average of n.Grad(u) on Gamma_nbc0:\t"
                 << avg << ", \t"
                 << (hom_nbc ? "absolute" : "relative")
-                << " error " << err << endl;
+                << " error " << error << endl;
    }
    {
       // Integrate n.Grad(u) + a * u on the Robin boundary and compare to the
       // expected value.
-      double err, avg = IntegrateBC(u, rbc_bdr, 1.0, rbc_a_val, rbc_b_val, err);
+      double error;
+      double avg = IntegrateBC(u, rbc_bdr, 1.0, rbc_a_val, rbc_b_val, error);
 
       bool hom_rbc = (rbc_b_val == 0.0);
-      err /=  hom_rbc ? 1.0 : fabs(rbc_b_val);
+      error /=  hom_rbc ? 1.0 : fabs(rbc_b_val);
       mfem::out << "Average of n.Grad(u)+a*u on Gamma_rbc:\t"
                 << avg << ", \t"
                 << (hom_rbc ? "absolute" : "relative")
-                << " error " << err << endl;
+                << " error " << error << endl;
    }
 
-   // 15. Save the refined mesh and the solution. This output can be viewed
+   // 14. Save the refined mesh and the solution. This output can be viewed
    //     later using GLVis: "glvis -m refined.mesh -g sol.gf".
    {
       ofstream mesh_ofs("refined.mesh");
@@ -372,7 +363,7 @@ int main(int argc, char *argv[])
       u.Save(sol_ofs);
    }
 
-   // 16. Send the solution by socket to a GLVis server.
+   // 15. Send the solution by socket to a GLVis server.
    if (visualization)
    {
       string title_str = h1 ? "H1" : "DG";
@@ -385,7 +376,7 @@ int main(int argc, char *argv[])
                << " keys 'mmc'" << flush;
    }
 
-   // 17. Free the used memory.
+   // 16. Free the used memory.
    delete fec;
    delete mesh;
 
@@ -647,11 +638,11 @@ Mesh * GenerateSerialMesh(int ref)
 
 double IntegrateBC(const GridFunction &x, const Array<int> &bdr,
                    double alpha, double beta, double gamma,
-                   double &err)
+                   double &error)
 {
    double nrm = 0.0;
    double avg = 0.0;
-   err = 0.0;
+   error = 0.0;
 
    const bool a_is_zero = alpha == 0.0;
    const bool b_is_zero = beta == 0.0;
@@ -715,20 +706,20 @@ double IntegrateBC(const GridFunction &x, const Array<int> &bdr,
 
          // Integrate |alpha * n.Grad(x) + beta * x - gamma|^2
          val -= gamma;
-         err += (val*val) * ip.weight * face_weight;
+         error += (val*val) * ip.weight * face_weight;
       }
    }
 
    // Normalize by the length of the boundary
    if (std::abs(nrm) > 0.0)
    {
-      err /= nrm;
+      error /= nrm;
       avg /= nrm;
    }
 
    // Compute l2 norm of the error in the boundary condition (negative
-   // quadrature weights may produce negative 'err')
-   err = (err >= 0.0) ? sqrt(err) : -sqrt(-err);
+   // quadrature weights may produce negative 'error')
+   error = (error >= 0.0) ? sqrt(error) : -sqrt(-error);
 
    // Return the average value of alpha * n.Grad(x) + beta * x
    return avg;

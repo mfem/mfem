@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -910,6 +910,9 @@ IntegrationRules::IntegrationRules(int Ref, int type_):
    TetrahedronIntRules.SetSize(32, h_mt);
    TetrahedronIntRules = NULL;
 
+   PyramidIntRules.SetSize(32, h_mt);
+   PyramidIntRules = NULL;
+
    PrismIntRules.SetSize(32, h_mt);
    PrismIntRules = NULL;
 
@@ -930,6 +933,7 @@ const IntegrationRule &IntegrationRules::Get(int GeomType, int Order)
       case Geometry::TETRAHEDRON: ir_array = &TetrahedronIntRules; break;
       case Geometry::CUBE:        ir_array = &CubeIntRules; break;
       case Geometry::PRISM:       ir_array = &PrismIntRules; break;
+      case Geometry::PYRAMID:     ir_array = &PyramidIntRules; break;
       default:
          mfem_error("IntegrationRules::Get(...) : Unknown geometry type!");
          ir_array = NULL;
@@ -951,7 +955,7 @@ const IntegrationRule &IntegrationRules::Get(int GeomType, int Order)
             IntegrationRule *ir = GenerateIntegrationRule(GeomType, Order);
             int RealOrder = Order;
             while (RealOrder+1 < ir_array->Size() &&
-            /*  */ (*ir_array)[RealOrder+1] == ir)
+                   (*ir_array)[RealOrder+1] == ir)
             {
                RealOrder++;
             }
@@ -976,6 +980,7 @@ void IntegrationRules::Set(int GeomType, int Order, IntegrationRule &IntRule)
       case Geometry::TETRAHEDRON: ir_array = &TetrahedronIntRules; break;
       case Geometry::CUBE:        ir_array = &CubeIntRules; break;
       case Geometry::PRISM:       ir_array = &PrismIntRules; break;
+      case Geometry::PYRAMID:     ir_array = &PyramidIntRules; break;
       default:
          mfem_error("IntegrationRules::Set(...) : Unknown geometry type!");
          ir_array = NULL;
@@ -1019,6 +1024,7 @@ IntegrationRules::~IntegrationRules()
    DeleteIntRuleArray(TetrahedronIntRules);
    DeleteIntRuleArray(CubeIntRules);
    DeleteIntRuleArray(PrismIntRules);
+   DeleteIntRuleArray(PyramidIntRules);
 }
 
 
@@ -1041,6 +1047,8 @@ IntegrationRule *IntegrationRules::GenerateIntegrationRule(int GeomType,
          return CubeIntegrationRule(Order);
       case Geometry::PRISM:
          return PrismIntegrationRule(Order);
+      case Geometry::PYRAMID:
+         return PyramidIntegrationRule(Order);
       default:
          mfem_error("IntegrationRules::Set(...) : Unknown geometry type!");
          return NULL;
@@ -1073,8 +1081,7 @@ IntegrationRule *IntegrationRules::SegmentIntegrationRule(int Order)
    // Order is one of {RealOrder-1,RealOrder}
    AllocIntRule(SegmentIntRules, RealOrder);
 
-   IntegrationRule tmp, *ir;
-   ir = refined ? &tmp : new IntegrationRule;
+   IntegrationRule *ir = new IntegrationRule;
 
    int n = 0;
    // n is the number of points to achieve the exact integral of a
@@ -1124,14 +1131,16 @@ IntegrationRule *IntegrationRules::SegmentIntegrationRule(int Order)
    if (refined)
    {
       // Effectively passing memory management to SegmentIntegrationRules
-      ir = new IntegrationRule(2*n);
+      IntegrationRule *refined_ir = new IntegrationRule(2*n);
       for (int j = 0; j < n; j++)
       {
-         ir->IntPoint(j).x = tmp.IntPoint(j).x/2.0;
-         ir->IntPoint(j).weight = tmp.IntPoint(j).weight/2.0;
-         ir->IntPoint(j+n).x = 0.5 + tmp.IntPoint(j).x/2.0;
-         ir->IntPoint(j+n).weight = tmp.IntPoint(j).weight/2.0;
+         refined_ir->IntPoint(j).x = ir->IntPoint(j).x/2.0;
+         refined_ir->IntPoint(j).weight = ir->IntPoint(j).weight/2.0;
+         refined_ir->IntPoint(j+n).x = 0.5 + ir->IntPoint(j).x/2.0;
+         refined_ir->IntPoint(j+n).weight = ir->IntPoint(j).weight/2.0;
       }
+      delete ir;
+      ir = refined_ir;
    }
    SegmentIntRules[RealOrder-1] = SegmentIntRules[RealOrder] = ir;
    return ir;
@@ -1646,6 +1655,30 @@ IntegrationRule *IntegrationRules::TetrahedronIntegrationRule(int Order)
          TetrahedronIntRules[i-1] = TetrahedronIntRules[i] = ir;
          return ir;
    }
+}
+
+// Integration rules for reference pyramid
+IntegrationRule *IntegrationRules::PyramidIntegrationRule(int Order)
+{
+   // This is a simple integration rule adapted from an integration
+   // rule for a cube which seems to be adequate for now. When we
+   // implement high order finite elements for pyramids we should
+   // revisit this and see if we can improve upon it.
+   const IntegrationRule &irc = Get(Geometry::CUBE, Order);
+   int npts = irc.GetNPoints();
+   AllocIntRule(PyramidIntRules, Order);
+   PyramidIntRules[Order] = new IntegrationRule(npts);
+
+   for (int k=0; k<npts; k++)
+   {
+      const IntegrationPoint & ipc = irc.IntPoint(k);
+      IntegrationPoint & ipp = PyramidIntRules[Order]->IntPoint(k);
+      ipp.x = ipc.x * (1.0 - ipc.z);
+      ipp.y = ipc.y * (1.0 - ipc.z);
+      ipp.z = ipc.z;
+      ipp.weight = ipc.weight / 3.0;
+   }
+   return PyramidIntRules[Order];
 }
 
 // Integration rules for reference prism

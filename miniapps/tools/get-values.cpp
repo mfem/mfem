@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -36,7 +36,7 @@
 //
 // By default all available fields are evaluated.  The list of fields can be
 // reduced by specifying the desired field names with -fn. The -fn option
-// takes a space separated list of field names surrounded by qoutes.  Field
+// takes a space separated list of field names surrounded by quotes.  Field
 // names containing spaces, such as "Field 1" and "Field 2", can be entered as:
 //    get-values -fn "Field\ 1 Field\ 2"
 //
@@ -66,8 +66,9 @@ void writeLegend(const DataCollection::FieldMapType &fields,
 int main(int argc, char *argv[])
 {
 #ifdef MFEM_USE_MPI
-   MPI_Session mpi;
-   if (!mpi.Root()) { mfem::out.Disable(); mfem::err.Disable(); }
+   Mpi::Init();
+   if (!Mpi::Root()) { mfem::out.Disable(); mfem::err.Disable(); }
+   Hypre::Init();
 #endif
 
    // Parse command-line options.
@@ -159,7 +160,7 @@ int main(int argc, char *argv[])
    ofstream ofs;
    if (strcmp(out_file_c_str,"") != 0
 #ifdef MFEM_USE_MPI
-       && mpi.Root()
+       && Mpi::Root()
 #endif
       )
    {

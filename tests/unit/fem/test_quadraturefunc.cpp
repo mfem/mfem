@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -1315,8 +1315,6 @@ TEST_CASE("1D Quadrature Functions")
    mfem::QuadratureFunctions1D quad_func;
 
    // The tests will be reported in these sections.
-   // Each REQUIRE counts as an assertion.
-   // true = pass, false = fail
    SECTION("Gauss-Legendre")
    {
       const int np = 21;
@@ -1337,8 +1335,7 @@ TEST_CASE("1D Quadrature Functions")
             double err_w = std::fabs( ir.IntPoint(i).weight - w_tbl[i] );
             if ( (err_x > tol) || (err_w > tol) )
             {
-               std::cout << "Gauss Legendre with " << n << " points wrong\n";
-               REQUIRE(false);
+               FAIL("Gauss Legendre with " << n << " points wrong");
                break;
             }
          }
@@ -1365,8 +1362,7 @@ TEST_CASE("1D Quadrature Functions")
             double err_w = std::fabs( ir.IntPoint(i).weight - w_tbl[i] );
             if ( (err_x > tol) || (err_w > tol) )
             {
-               std::cout << "Gauss Lobatto with " << n << " points wrong\n";
-               REQUIRE(false);
+               FAIL("Gauss Lobatto with " << n << " points wrong");
                break;
             }
          }
@@ -1395,8 +1391,7 @@ TEST_CASE("1D Quadrature Functions")
             double err_w = std::fabs( ir.IntPoint(i).weight - w_tbl[i] );
             if ( (err_x > tol) || (err_w > tol) )
             {
-               std::cout << "Closed Newton-Cotes with " << n << " points wrong\n";
-               REQUIRE(false);
+               FAIL("Closed Newton-Cotes with " << n << " points wrong");
                break;
             }
          }
@@ -1425,8 +1420,7 @@ TEST_CASE("1D Quadrature Functions")
             double err_w = std::fabs( ir.IntPoint(i).weight - w_tbl[i] );
             if ( (err_x > tol) || (err_w > tol) )
             {
-               std::cout << "Open Newton-Cotes with " << n << " points wrong\n";
-               REQUIRE(false);
+               FAIL("Open Newton-Cotes with " << n << " points wrong");
                break;
             }
          }

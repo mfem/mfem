@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -9,11 +9,8 @@
 # terms of the BSD-3 license. We welcome feedback and contributions, see file
 # CONTRIBUTING.md for details.
 
-# Include the top mfem source directory - needed by some tests, e.g. to
-# #include "general/text.hpp".
-include_directories(BEFORE ${PROJECT_SOURCE_DIR})
-# Include the build directory where mfem.hpp and mfem-performance.hpp are.
-include_directories(BEFORE ${PROJECT_BINARY_DIR})
+project(mfem-unit-tests NONE)
+
 # Include the source directory for the unit tests - catch.hpp is there.
 include_directories(BEFORE ${CMAKE_CURRENT_SOURCE_DIR})
 
@@ -26,9 +23,11 @@ set(UNIT_TESTS_SRCS
   linalg/test_cg_indefinite.cpp
   linalg/test_chebyshev.cpp
   linalg/test_complex_operator.cpp
+  linalg/test_complex_dense_matrix.cpp
   linalg/test_constrainedsolver.cpp
   linalg/test_direct_solvers.cpp
   linalg/test_hypre_ilu.cpp
+  linalg/test_hypre_vector.cpp
   linalg/test_ilu.cpp
   linalg/test_matrix_block.cpp
   linalg/test_matrix_dense.cpp
@@ -44,29 +43,42 @@ set(UNIT_TESTS_SRCS
   mesh/test_mesh.cpp
   mesh/test_ncmesh.cpp
   mesh/test_pmesh.cpp
+  mesh/test_submesh.cpp
+  mesh/test_psubmesh.cpp
   mesh/test_periodic_mesh.cpp
   mesh/test_vtu.cpp
   fem/test_1d_bilininteg.cpp
   fem/test_2d_bilininteg.cpp
   fem/test_3d_bilininteg.cpp
+  fem/test_r1d_bilininteg.cpp
+  fem/test_r2d_bilininteg.cpp
   fem/test_assemblediagonalpa.cpp
   fem/test_assembly_levels.cpp
   fem/test_bilinearform.cpp
   fem/test_blocknonlinearform.cpp
   fem/test_calcshape.cpp
+  fem/test_calcvshape.cpp
+  fem/test_calcdshape.cpp
+  fem/test_calccurlshape.cpp
+  fem/test_calcdivshape.cpp
+  fem/test_coefficient.cpp
   fem/test_datacollection.cpp
   fem/test_derefine.cpp
+  fem/test_dgmassinv.cpp
   fem/test_estimator.cpp
   fem/test_face_elem_trans.cpp
   fem/test_face_permutation.cpp
   fem/test_fe.cpp
   fem/test_get_value.cpp
+  fem/test_getderivative.cpp
   fem/test_intrules.cpp
   fem/test_intruletypes.cpp
   fem/test_inversetransform.cpp
   fem/test_lexicographic_ordering.cpp
   fem/test_lin_interp.cpp
   fem/test_linear_fes.cpp
+  fem/test_lor.cpp
+  fem/test_lor_batched.cpp
   fem/test_operatorjacobismoother.cpp
   fem/test_pa_coeff.cpp
   fem/test_pa_grad.cpp
@@ -79,6 +91,7 @@ set(UNIT_TESTS_SRCS
   fem/test_tet_reorder.cpp
   fem/test_transfer.cpp
   fem/test_var_order.cpp
+  fem/test_white_noise.cpp
   # The following are tested separately (keep the comment as a reminder):
   # miniapps/test_debug_device.cpp
   # miniapps/test_sedov.cpp
@@ -187,6 +200,9 @@ add_serial_miniapp_test(sedov ON)  # UVM ON
 add_serial_miniapp_test(tmop_pa OFF)  # UVM OFF
 # TMOP tests need meshes in ../../miniapps/meshing
 add_dependencies(tmop_pa_tests_cpu copy_miniapps_meshing_data)
+
+# ParSubMesh tests need meshes in ../../miniapps/multidomain
+add_dependencies(unit_tests copy_miniapps_multidomain_data)
 
 #-----------------------------------------------------------
 # SERIAL CEED TESTS:

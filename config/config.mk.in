@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -58,6 +58,12 @@ MFEM_USE_UMPIRE        = @MFEM_USE_UMPIRE@
 MFEM_USE_SIMD          = @MFEM_USE_SIMD@
 MFEM_USE_ADIOS2        = @MFEM_USE_ADIOS2@
 MFEM_USE_MKL_CPARDISO  = @MFEM_USE_MKL_CPARDISO@
+MFEM_USE_MOONOLITH     = @MFEM_USE_MOONOLITH@
+MFEM_USE_ADFORWARD     = @MFEM_USE_ADFORWARD@
+MFEM_USE_CODIPACK      = @MFEM_USE_CODIPACK@
+MFEM_USE_BENCHMARK     = @MFEM_USE_BENCHMARK@
+MFEM_USE_PARELAG       = @MFEM_USE_PARELAG@
+MFEM_USE_ENZYME        = @MFEM_USE_ENZYME@
 
 # Compiler, compile options, and link options
 MFEM_CXX       = @MFEM_CXX@
@@ -87,7 +93,7 @@ MFEM_MPIEXEC_NP = @MFEM_MPIEXEC_NP@
 MFEM_MPI_NP     = @MFEM_MPI_NP@
 
 # The NVCC compiler cannot link with -x=cu
-MFEM_LINK_FLAGS := $(filter-out -x=cu, $(MFEM_FLAGS))
+MFEM_LINK_FLAGS := $(filter-out -x=cu -xhip, $(MFEM_FLAGS))
 
 # Optional extra configuration
 @MFEM_CONFIG_EXTRA@

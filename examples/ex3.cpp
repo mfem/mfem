@@ -16,6 +16,8 @@
 //               ex3 -m ../data/beam-hex-nurbs.mesh
 //               ex3 -m ../data/amr-hex.mesh
 //               ex3 -m ../data/fichera-amr.mesh
+//               ex3 -m ../data/ref-prism.mesh -o 1
+//               ex3 -m ../data/octahedron.mesh -o 1
 //               ex3 -m ../data/star-surf.mesh -o 1
 //               ex3 -m ../data/mobius-strip.mesh -f 0.1
 //               ex3 -m ../data/klein-bottle.mesh -f 0.1

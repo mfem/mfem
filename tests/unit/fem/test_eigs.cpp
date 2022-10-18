@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -52,7 +52,7 @@ int eigs[21] =
 };
 
 #ifdef MFEM_USE_LAPACK
-#
+
 TEST_CASE("Laplacian Eigenvalues",
           "[H1_FECollection]"
           "[GridFunction]"
@@ -78,7 +78,7 @@ TEST_CASE("Laplacian Eigenvalues",
       H1_FECollection fec(order, dim);
       FiniteElementSpace fespace(mesh, &fec);
       int size = fespace.GetTrueVSize();
-      std::cout << mt << " Eigenvalue system size: " << size << std::endl;
+      CAPTURE(mt, size);
 
       Array<int> ess_bdr;
       if (mesh->bdr_attributes.Size())
@@ -149,8 +149,7 @@ TEST_CASE("Laplacian Eigenvalues",
          max_err = std::max(max_err, err);
          REQUIRE(err < 5.0);
       }
-      std::cout << mt << " Maximum relative error: " << max_err << "%"
-                << std::endl;
+      CAPTURE(mt, max_err);
 
       delete mesh;
    }
@@ -199,10 +198,7 @@ TEST_CASE("Laplacian Eigenvalues in Parallel",
       H1_FECollection fec(order, dim);
       ParFiniteElementSpace fespace(&pmesh, &fec);
       HYPRE_Int size = fespace.GlobalTrueVSize();
-      if (my_rank == 0)
-      {
-         std::cout << mt << " Eigenvalue system size: " << size << std::endl;
-      }
+      CAPTURE(mt, size);
 
       Array<int> ess_bdr;
       if (pmesh.bdr_attributes.Size())
@@ -260,11 +256,7 @@ TEST_CASE("Laplacian Eigenvalues in Parallel",
          max_err = std::max(max_err, err);
          REQUIRE(err < 5.0);
       }
-      if (my_rank == 0)
-      {
-         std::cout << mt << " Maximum relative error: " << max_err << "%"
-                   << std::endl;
-      }
+      CAPTURE(mt, max_err);
 
       delete A;
       delete M;

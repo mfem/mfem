@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -113,7 +113,10 @@ public:
        build option MFEM_DEBUG is enabled. */
    void MakeRef(ParFiniteElementSpace *pf, Vector &v, int v_offset);
 
-   void Assemble();
+   /// Assembles the ParLinearForm i.e. sums over all domain/bdr integrators.
+   /// When @a use_device is set to true and all the ParLinearForm assembly is
+   /// compatible with device execution, it will be executed on the device.
+   void Assemble(bool use_device = true);
 
    void AssembleSharedFaces();
 

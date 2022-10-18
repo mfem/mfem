@@ -16,6 +16,8 @@
 //               mpirun -np 4 ex3p -m ../data/beam-hex-nurbs.mesh
 //               mpirun -np 4 ex3p -m ../data/amr-quad.mesh -o 2
 //               mpirun -np 4 ex3p -m ../data/amr-hex.mesh
+//               mpirun -np 4 ex3p -m ../data/ref-prism.mesh -o 1
+//               mpirun -np 4 ex3p -m ../data/octahedron.mesh -o 1
 //               mpirun -np 4 ex3p -m ../data/star-surf.mesh -o 2
 //               mpirun -np 4 ex3p -m ../data/mobius-strip.mesh -o 2 -f 0.1
 //               mpirun -np 4 ex3p -m ../data/klein-bottle.mesh -o 2 -f 0.1
@@ -57,11 +59,11 @@ int dim;
 
 int main(int argc, char *argv[])
 {
-   // 1. Initialize MPI.
-   int num_procs, myid;
-   MPI_Init(&argc, &argv);
-   MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
-   MPI_Comm_rank(MPI_COMM_WORLD, &myid);
+   // 1. Initialize MPI and HYPRE.
+   Mpi::Init(argc, argv);
+   int num_procs = Mpi::WorldSize();
+   int myid = Mpi::WorldRank();
+   Hypre::Init();
 
    // 2. Parse command-line options.
    const char *mesh_file = "../data/beam-tet.mesh";
@@ -103,8 +105,6 @@ int main(int argc, char *argv[])
       {
          args.PrintUsage(cout);
       }
-      // HYPRE_Finalize();
-      MPI_Finalize();
       return 1;
    }
    if (myid == 0)
@@ -253,10 +253,10 @@ int main(int argc, char *argv[])
 
    // 15. Compute and print the L^2 norm of the error.
    {
-      double err = x.ComputeL2Error(E);
+      double error = x.ComputeL2Error(E);
       if (myid == 0)
       {
-         cout << "\n|| E_h - E ||_{L^2} = " << err << '\n' << endl;
+         cout << "\n|| E_h - E ||_{L^2} = " << error << '\n' << endl;
       }
    }
 
@@ -295,8 +295,6 @@ int main(int argc, char *argv[])
    delete fespace;
    delete fec;
    delete pmesh;
-
-   MPI_Finalize();
 
    return 0;
 }

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -302,9 +302,9 @@ void hypre_ParCSRMatrixEliminateAXB(hypre_ParCSRMatrix *A,
                                        rowscols_to_elim);
 
    /* set boundary values in the rhs */
-   for (int i = 0; i < num_rowscols_to_elim; i++)
+   for (int ii = 0; ii < num_rowscols_to_elim; ii++)
    {
-      irow = rowscols_to_elim[i];
+      irow = rowscols_to_elim[ii];
       Bdata[irow] = Xdata[irow];
    }
 
@@ -508,8 +508,10 @@ void hypre_ParCSRMatrixEliminateAAe(hypre_ParCSRMatrix *A,
                                   hypre_ParCSRMatrixColStarts(A),
                                   0, 0, 0);
 
+#if MFEM_HYPRE_VERSION <= 22200
    hypre_ParCSRMatrixSetRowStartsOwner(*Ae, 0);
    hypre_ParCSRMatrixSetColStartsOwner(*Ae, 0);
+#endif
 
    hypre_CSRMatrix *Ae_diag = hypre_ParCSRMatrixDiag(*Ae);
    hypre_CSRMatrix *Ae_offd = hypre_ParCSRMatrixOffd(*Ae);
@@ -779,9 +781,9 @@ void hypre_CSRMatrixSplit(hypre_CSRMatrix *A,
       HYPRE_Int* B_i = hypre_CSRMatrixI(B);
 
       HYPRE_Int nnz = 0, rs;
-      for (int k = 1; k <= hypre_CSRMatrixNumRows(B); k++)
+      for (int kk = 1; kk <= hypre_CSRMatrixNumRows(B); kk++)
       {
-         rs = B_i[k], B_i[k] = nnz, nnz += rs;
+         rs = B_i[kk], B_i[kk] = nnz, nnz += rs;
       }
 
       hypre_CSRMatrixJ(B) = mfem_hypre_TAlloc_host(HYPRE_Int, nnz);
@@ -1002,10 +1004,17 @@ void hypre_ParCSRMatrixSplit(hypre_ParCSRMatrix *A,
 
       hypre_ParCSRMatrixOwnsData(blocks[i]) = 1;
 
+#if MFEM_HYPRE_VERSION <= 22200
       /* only the first block will own the row/col_starts */
       hypre_ParCSRMatrixOwnsRowStarts(blocks[i]) = !i;
       hypre_ParCSRMatrixOwnsColStarts(blocks[i]) = !i;
+#endif
    }
+
+#if MFEM_HYPRE_VERSION > 22200
+   mfem_hypre_TFree_host(row_starts);
+   mfem_hypre_TFree_host(col_starts);
+#endif
 }
 
 /* Based on hypre_CSRMatrixMatvec in hypre's csr_matvec.c */
@@ -1551,7 +1560,9 @@ void hypre_ParCSRMatrixAbsMatvecT(hypre_ParCSRMatrix *A,
 
    if (num_cols_offd)
    {
-#if MFEM_HYPRE_VERSION >= 21100
+      // Disable the use of offdT for now, until we implement
+      // hypre_CSRMatrixAbsMatvec on device.
+#if MFEM_HYPRE_VERSION >= 21100 && 0
       if (A->offdT)
       {
          // offdT is optional. Used only if it's present.
@@ -1566,7 +1577,9 @@ void hypre_ParCSRMatrixAbsMatvecT(hypre_ParCSRMatrix *A,
 
    comm_handle = hypre_ParCSRCommHandleCreate(2, comm_pkg, y_tmp, y_buf);
 
-#if MFEM_HYPRE_VERSION >= 21100
+   // Disable the use of diagT for now, until we implement
+   // hypre_CSRMatrixAbsMatvec on device.
+#if MFEM_HYPRE_VERSION >= 21100 && 0
    if (A->diagT)
    {
       // diagT is optional. Used only if it's present.
@@ -1688,7 +1701,9 @@ void hypre_ParCSRMatrixBooleanMatvecT(hypre_ParCSRMatrix *A,
 
    if (num_cols_offd)
    {
-#if MFEM_HYPRE_VERSION >= 21100
+      // Disable the use of offdT for now, until we implement
+      // hypre_CSRMatrixBooleanMatvec on device.
+#if MFEM_HYPRE_VERSION >= 21100 && 0
       if (A->offdT)
       {
          // offdT is optional. Used only if it's present.
@@ -1703,7 +1718,9 @@ void hypre_ParCSRMatrixBooleanMatvecT(hypre_ParCSRMatrix *A,
 
    comm_handle = hypre_ParCSRCommHandleCreate_bool(2, comm_pkg, y_tmp, y_buf);
 
-#if MFEM_HYPRE_VERSION >= 21100
+   // Disable the use of diagT for now, until we implement
+   // hypre_CSRMatrixBooleanMatvec on device.
+#if MFEM_HYPRE_VERSION >= 21100 && 0
    if (A->diagT)
    {
       // diagT is optional. Used only if it's present.
@@ -1916,9 +1933,12 @@ hypre_ParCSRMatrixAdd(hypre_ParCSRMatrix *A,
 
    /* C owns diag, offd, and cmap. */
    hypre_ParCSRMatrixSetDataOwner(C, 1);
+
+#if MFEM_HYPRE_VERSION <= 22200
    /* C does not own row and column starts. */
    hypre_ParCSRMatrixSetRowStartsOwner(C, 0);
    hypre_ParCSRMatrixSetColStartsOwner(C, 0);
+#endif
 
    return C;
 }

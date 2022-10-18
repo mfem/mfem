@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -90,7 +90,7 @@ private:
    /// Flag indicating the existence of shared triangles with interior ND dofs
    bool nd_strias;
 
-   /// Resets nd_strias flag at constuction or after rebalancing
+   /// Resets nd_strias flag at construction or after rebalancing
    void CheckNDSTriaDofs();
 
    ParNURBSExtension *pNURBSext() const
