@@ -149,23 +149,16 @@ int main(int argc, char *argv[])
    //    with each type of boundary condition. These arrays have an entry
    //    corresponding to each boundary attribute.  Placing a '1' in entry i
    //    marks attribute i+1 as being active, '0' is inactive.
-   Array<int> dbc_bdr_top_list, dbc_bdr_top(pmesh->bdr_attributes.Max());
-   Array<int> dbc_bdr_bottom_list, dbc_bdr_bottom(pmesh->bdr_attributes.Max());
-   Array<int> nbc_bdr_left_list, nbc_bdr_left(pmesh->bdr_attributes.Max());
-   Array<int> nbc_bdr_right_list, nbc_bdr_right(pmesh->bdr_attributes.Max());
-   Array<int> dbc_bdr_dir_list, dbc_bdr_dir(pmesh->bdr_attributes.Max());
+   Array<int> dbc_bdr_top(pmesh->bdr_attributes.Max());
+   Array<int> dbc_bdr_bottom(pmesh->bdr_attributes.Max());
+   Array<int> nbc_bdr_left(pmesh->bdr_attributes.Max());
+   Array<int> nbc_bdr_right(pmesh->bdr_attributes.Max());
+   Array<int> dbc_bdr_dir(pmesh->bdr_attributes.Max());
    dbc_bdr_top = 0; dbc_bdr_top[0] = 1;
    nbc_bdr_left = 0; nbc_bdr_left[1] = 1;
    dbc_bdr_bottom = 0; dbc_bdr_bottom[2] = 1;
    nbc_bdr_right = 0; nbc_bdr_right[3] = 1;
    dbc_bdr_dir = 0;  dbc_bdr_dir[0] = 1; dbc_bdr_dir[2] = 1;
-
-
-   V_H1FESpace.GetEssentialTrueDofs(dbc_bdr_top, dbc_bdr_top_list);
-   V_H1FESpace.GetEssentialTrueDofs(nbc_bdr_left, nbc_bdr_left_list);
-   V_H1FESpace.GetEssentialTrueDofs(dbc_bdr_bottom, dbc_bdr_bottom_list);
-   V_H1FESpace.GetEssentialTrueDofs(nbc_bdr_right, nbc_bdr_right_list);   
-   V_H1FESpace.GetEssentialTrueDofs(dbc_bdr_dir, dbc_bdr_dir_list);
 
    // 5. Define the coefficients, analytical solution, and rhs of the PDE.
    VectorFunctionCoefficient fcoeff(dim, fFun);
