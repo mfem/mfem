@@ -137,7 +137,7 @@ if (MFEM_USE_CUDA)
    set(CUSPARSE_FOUND TRUE)
    set(CUSPARSE_LIBRARIES "cusparse")
    set(CUBLAS_FOUND TRUE)
-   set(CUSBLAS_LIBRARIES "cublas")
+   set(CUBLAS_LIBRARIES "cublas")
 endif()
 
 if (XSDK_ENABLE_C)

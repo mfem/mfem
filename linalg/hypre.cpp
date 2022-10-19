@@ -22,10 +22,6 @@
 #include <cmath>
 #include <cstdlib>
 
-#ifdef MFEM_USE_SUNDIALS
-#include <nvector/nvector_parallel.h>
-#endif
-
 using namespace std;
 
 namespace mfem
@@ -412,15 +408,6 @@ HypreParVector::~HypreParVector()
       hypre_ParVectorDestroy(x);
    }
 }
-
-#ifdef MFEM_USE_SUNDIALS
-
-N_Vector HypreParVector::ToNVector()
-{
-   return N_VMake_Parallel(GetComm(), Size(), GlobalSize(), GetData());
-}
-
-#endif // MFEM_USE_SUNDIALS
 
 
 double InnerProduct(HypreParVector *x, HypreParVector *y)
