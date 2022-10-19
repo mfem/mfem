@@ -140,6 +140,9 @@ public:
 
 int main(int argc, char *argv[])
 {
+   // 0. Initialize SUNDIALS.
+   Sundials::Init();
+
    // 1. Parse command-line options.
    problem = 0;
    const char *mesh_file = "../../data/periodic-hexagon.mesh";
@@ -408,7 +411,7 @@ int main(int argc, char *argv[])
          arkode->Init(adv);
          arkode->SetSStolerances(reltol, abstol);
          arkode->SetMaxStep(dt);
-         arkode->SetERKTableNum(FEHLBERG_13_7_8);
+         arkode->SetERKTableNum(ARKODE_FEHLBERG_13_7_8);
          ode_solver = arkode; break;
    }
 
