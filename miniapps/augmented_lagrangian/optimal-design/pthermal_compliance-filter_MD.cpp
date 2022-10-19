@@ -2,7 +2,7 @@
 // Compile with: make optimal_design
 //
 // Sample runs:
-// mpirun -np 6 ./pthermal_compliance-filter -epsilon 0.01 -alpha 0.1 -beta 5.0 -r 4 -o 2
+// mpirun -np 8 ./pthermal_compliance-filter_MD -epsilon 0.01 -alpha 0.01 -r 4 -o 2 -mi 50
 //
 //         min J(K) = <g,u>
 //                            
