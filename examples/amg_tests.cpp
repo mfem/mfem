@@ -1,11 +1,14 @@
 //                       MFEM Example 2 - Parallel Version
 //
 
-// mpirun -np 6 ./amg_tests -lambda 100.0 -mu 100.0 -pr 4 -sx 50
-// hypre iterations: 126, 148, 168, 179, 203
+// mpirun -np 6 ./amg_tests -lambda 10.0 -mu 10.0 -pr 4 -sx 50
+// hypre iterations: 126, 148, 169, 179, 202
 
-// mpirun -np 6 ./amg_tests -lambda 100.0 -mu 100.0 -pr 4 -sx 50 -elast
-// hypre iterations: 100, 97, 120, 118, 452
+// mpirun -np 6 ./amg_tests -lambda 20.0 -mu 10.0 -pr 4 -sx 50 -elast
+// hypre iterations: 100, 94, 123, 171, 355
+
+// mpirun -np 6 ./amg_tests -lambda 2.0 -mu 1.0 -pr 3 -sx 100 -sy 8 -sz 2
+// hypre iterations: 119, 129, 143, 177
 
 #include "mfem.hpp"
 #include <fstream>
@@ -160,10 +163,14 @@ int main(int argc, char *argv[])
       f.Set(i, new ConstantCoefficient(0.0));
    }
    {
-      Vector pull_force(pmesh->bdr_attributes.Max());
-      pull_force = 0.0;
-      pull_force(1) = -1.0e-2;
-      f.Set(dim-1, new PWConstCoefficient(pull_force));
+      Vector pull_force_z(pmesh->bdr_attributes.Max());
+      pull_force_z = 0.0;
+      pull_force_z(1) = -1.0e-4;
+      f.Set(dim-1, new PWConstCoefficient(pull_force_z));
+      Vector pull_force_y(pmesh->bdr_attributes.Max());
+      pull_force_y = 0.0;
+      pull_force_y(1) = -1.0e-3;
+      f.Set(dim-2, new PWConstCoefficient(pull_force_y));
    }
 
    ParLinearForm *b = new ParLinearForm(fespace);
