@@ -100,6 +100,7 @@ TEST_CASE("HypreParMatrixAbsMult",  "[Parallel], [HypreParMatrixAbsMult]")
       X0.Randomize(1);
       X1.Randomize(1);
       A->AbsMultTranspose(3.4,Y0,-2.3,X0);
+      Aabs->EnsureMultTranspose();
       Aabs->MultTranspose(3.4,Y0,-2.3,X1);
       X1 -=X0;
 
