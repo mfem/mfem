@@ -1637,9 +1637,6 @@ void DiscreteAdaptTC::FinalizeParDiscreteTargetSpec(const ParGridFunction &t)
 
    ParFiniteElementSpace *ptspec_fes = t.ParFESpace();
 
-   adapt_eval->SetParMetaInfo(*ptspec_fes->GetParMesh(), *ptspec_fes);
-   adapt_eval->SetInitialField(*ptspec_fes->GetMesh()->GetNodes(), tspec);
-
    tspec_sav = tspec;
 
    delete tspec_fesv;
@@ -1653,6 +1650,9 @@ void DiscreteAdaptTC::FinalizeParDiscreteTargetSpec(const ParGridFunction &t)
    delete tspec_pgf;
    tspec_pgf = new ParGridFunction(ptspec_fesv, tspec);
    tspec_gf = tspec_pgf;
+
+   adapt_eval->SetParMetaInfo(*ptspec_fes->GetParMesh(), *ptspec_fesv);
+   adapt_eval->SetInitialField(*ptspec_fes->GetMesh()->GetNodes(), tspec);
 }
 
 void DiscreteAdaptTC::ParUpdateAfterMeshTopologyChange()
@@ -1815,8 +1815,6 @@ void DiscreteAdaptTC::FinalizeSerialDiscreteTargetSpec(const GridFunction &t)
    MFEM_VERIFY(ncomp > 0, "No target specifications have been set!");
 
    const FiniteElementSpace *tspec_fes = t.FESpace();
-   adapt_eval->SetSerialMetaInfo(*tspec_fes->GetMesh(), *tspec_fes);
-   adapt_eval->SetInitialField(*tspec_fes->GetMesh()->GetNodes(), tspec);
 
    tspec_sav = tspec;
 
@@ -1827,6 +1825,9 @@ void DiscreteAdaptTC::FinalizeSerialDiscreteTargetSpec(const GridFunction &t)
 
    delete tspec_gf;
    tspec_gf = new GridFunction(tspec_fesv, tspec);
+
+   adapt_eval->SetSerialMetaInfo(*tspec_fes->GetMesh(), *tspec_fesv);
+   adapt_eval->SetInitialField(*tspec_fes->GetMesh()->GetNodes(), tspec);
 }
 
 void DiscreteAdaptTC::GetDiscreteTargetSpec(GridFunction &tspec_, int idx)
