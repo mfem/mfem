@@ -32,7 +32,7 @@
 //               mesh-explorer -m ../../data/mobius-strip.mesh
 
 #include "mfem.hpp"
-#include "miniapps/common/mfem-common.hpp"
+#include "../common/mfem-common.hpp"
 #include <fstream>
 #include <limits>
 #include <cstdlib>
