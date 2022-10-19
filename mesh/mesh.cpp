@@ -12117,7 +12117,7 @@ FaceGeometricFactors::FaceGeometricFactors(const Mesh *mesh,
    }
 
    const FaceQuadratureInterpolator *qi =
-         fespace->GetFaceQuadratureInterpolator(ir, type);
+      fespace->GetFaceQuadratureInterpolator(ir, type);
    MFEM_ASSERT(qi->GetOutputLayout() == QVectorLayout::byNODES,
                "FaceGeometricFactors assume ordering byNODES.");
    qi->Mult(Fnodes, eval_flags, X, J, detJ, normal);
