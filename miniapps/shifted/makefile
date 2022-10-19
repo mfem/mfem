@@ -33,6 +33,8 @@ EXTRAPOLATE_SRC = extrapolate.cpp extrapolator.cpp marking.cpp
 EXTRAPOLATE_OBJ = $(EXTRAPOLATE_SRC:.cpp=.o)
 EX_STOKES_SHIFTED_SRC = ex_Stokes_shifted.cpp nitsche_solver.cpp shifted_solver.cpp p_divW.cpp AnalyticalSurface.cpp AnalyticalGeometricShape.cpp Circle.cpp
 EX_STOKES_SHIFTED_OBJ = $(EX_STOKES_SHIFTED_SRC:.cpp=.o)
+EX_STOKES_REFACTORED_SRC = ex_Stokes_refactored.cpp stokes_solver.cpp p_divW.cpp
+EX_STOKES_REFACTORED_OBJ = $(EX_STOKES_REFACTORED_SRC:.cpp=.o)
 
 PAR_MINIAPPS = distance diffusion extrapolate ex_Stokes_shifted
 
@@ -75,6 +77,9 @@ extrapolate: $(EXTRAPOLATE_OBJ)
 ex_Stokes_shifted: $(EX_STOKES_SHIFTED_OBJ)
 	$(MFEM_CXX) $(MFEM_LINK_FLAGS) -o $@ $(EX_STOKES_SHIFTED_OBJ) $(COMMON_LIB) $(MFEM_LIBS)
 
+ex_Stokes_refactored: $(EX_STOKES_REFACTORED_OBJ)
+	$(MFEM_CXX) $(MFEM_LINK_FLAGS) -o $@ $(EX_STOKES_REFACTORED_OBJ) $(COMMON_LIB) $(MFEM_LIBS)
+
 # Rule for building lib-common
 lib-common:
 	$(MAKE) -C $(MFEM_BUILD_DIR)/miniapps/common
@@ -99,9 +104,9 @@ $(MFEM_LIB_FILE):
 clean: clean-build clean-exec
 
 clean-build:
-	rm -f *.o *~ distance diffusion extrapolate ex_Stokes_shifted
+	rm -f *.o *~ distance diffusion extrapolate ex_Stokes_shifted ex_Stokes_refactored
 	rm -rf *.dSYM *.TVD.*breakpoints
 
 clean-exec:
-	@rm -f diffusion.mesh diffusion.gf ex_Stokes_shifted.mesh ex_Stokes_shifted.gf
+	@rm -f diffusion.mesh diffusion.gf ex_Stokes_shifted.mesh ex_Stokes_shifted.gf ex_Stokes_refactored.mesh ex_Stokes_refactored.gf
 	@rm -rf ParaViewDistance ParaViewDiffusion ParaViewExtrapolate
