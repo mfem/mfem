@@ -531,7 +531,11 @@ public:
        Operator returned by GetElementRestriction().
 
        All elements will use the same IntegrationRule, @a ir as the target
-       quadrature points. */
+       quadrature points.
+
+       @note The returned pointer is shared, so it is not advisable to change
+       its internals, e.g., its layout. A good practice is to cache the old
+       property and restore it after interpolation. */
    const QuadratureInterpolator *GetQuadratureInterpolator(
       const IntegrationRule &ir) const;
 
@@ -542,12 +546,20 @@ public:
        Operator returned by GetElementRestriction().
 
        The target quadrature points in the elements are described by the given
-       QuadratureSpace, @a qs. */
+       QuadratureSpace, @a qs.
+
+       @note The returned pointer is shared, so it is not advisable to change
+       its internals, e.g., its layout. A good practice is to cache the old
+       property and restore it after interpolation. */
    const QuadratureInterpolator *GetQuadratureInterpolator(
       const QuadratureSpace &qs) const;
 
    /** @brief Return a FaceQuadratureInterpolator that interpolates E-vectors to
-       quadrature point values and/or derivatives (Q-vectors). */
+       quadrature point values and/or derivatives (Q-vectors).
+
+       @note The returned pointer is shared, so it is not advisable to change
+       its internals, e.g., its layout. A good practice is to cache the old
+       property and restore it after interpolation. */
    const FaceQuadratureInterpolator *GetFaceQuadratureInterpolator(
       const IntegrationRule &ir, FaceType type) const;
 
