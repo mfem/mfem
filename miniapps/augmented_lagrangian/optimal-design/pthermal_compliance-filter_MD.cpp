@@ -2,7 +2,7 @@
 // Compile with: make optimal_design
 //
 // Sample runs:
-// mpirun -np 8 ./pthermal_compliance-filter_MD -epsilon 0.01 -alpha 0.01 -r 4 -o 2 -mi 50
+// mpirun -np 6 ./pthermal_compliance-filter_MD -epsilon 0.01 -alpha 0.01 -r 4 -o 2 -mi 50
 //
 //         min J(K) = <g,u>
 //                            
@@ -186,12 +186,16 @@ int main(int argc, char *argv[])
    double tol_rho = 1e-2;
    double K_max = 1.0;
    double K_min = 1e-3;
+   bool use_cylinder = false;
+   int dim = 2;
 
    OptionsParser args(argc, argv);
    args.AddOption(&ref_levels, "-r", "--refine",
                   "Number of times to refine the mesh uniformly.");
    args.AddOption(&order, "-o", "--order",
                   "Order (degree) of the finite elements.");
+   args.AddOption(&dim, "-dim", "--dim",
+                  "Dimension of the problem.");                  
    args.AddOption(&alpha, "-alpha", "--alpha-step-length",
                   "Step length for gradient descent.");
    args.AddOption(&epsilon, "-epsilon", "--epsilon-thickness",
@@ -206,6 +210,8 @@ int main(int argc, char *argv[])
                   "Maximum of diffusion diffusion coefficient.");
    args.AddOption(&K_min, "-Kmin", "--K-min",
                   "Minimum of diffusion diffusion coefficient.");
+   args.AddOption(&use_cylinder, "-cylinder", "--use-cylinder", "-no-cylinder",
+                  "--no-cylinder", "Use cylinder mesh");                  
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -225,44 +231,81 @@ int main(int argc, char *argv[])
       args.PrintOptions(cout);
    }
 
-   Mesh mesh = Mesh::MakeCartesian2D(7,7,mfem::Element::Type::QUADRILATERAL,true,1.0,1.0);
-
-   int dim = mesh.Dimension();
-
-   for (int i = 0; i<mesh.GetNBE(); i++)
+   Mesh * mesh = nullptr;
+   if (use_cylinder)
    {
-      Element * be = mesh.GetBdrElement(i);
-      Array<int> vertices;
-      be->GetVertices(vertices);
-
-      double * coords1 = mesh.GetVertex(vertices[0]);
-      double * coords2 = mesh.GetVertex(vertices[1]);
-
-      Vector center(2);
-      center(0) = 0.5*(coords1[0] + coords2[0]);
-      center(1) = 0.5*(coords1[1] + coords2[1]);
-
-
-      if (abs(center(1) - 1.0) < 1e-10 && abs(center(0)-0.5) < 1e-10)
+      const char *mesh_file = "cylinder2.mesh";
+      mesh = new Mesh(mesh_file,1,1);
+   }
+   else
+   {
+      if (dim == 2)
       {
-         // the top edge
-         be->SetAttribute(2);
+         mesh = new Mesh(Mesh::MakeCartesian2D(7,7,mfem::Element::Type::QUADRILATERAL,true,1.0,1.0));
       }
       else
       {
-         // all other boundaries
-         be->SetAttribute(1);
+         mesh = new Mesh(Mesh::MakeCartesian3D(7,7,7,mfem::Element::Type::HEXAHEDRON,true,1.0,1.0,1.0));
       }
    }
-   mesh.SetAttributes();
+
+   dim = mesh->Dimension();
+
+   double lz = (use_cylinder) ? 2.0 : 1.0;
+   double lx = (use_cylinder) ? 0.0883883 : 0.5;
+   double ly = (use_cylinder) ? 0.0883883 : 0.5;
+
+
+   if (dim == 2)
+   {
+      for (int i = 0; i<mesh->GetNBE(); i++)
+      {
+         Vector center(dim);
+         int bdrgeom = mesh->GetBdrElementBaseGeometry(i);
+         ElementTransformation * tr = mesh->GetBdrElementTransformation(i);
+         tr->Transform(Geometries.GetCenter(bdrgeom),center);
+         if (abs(center(1) - 1.0) < 1e-10 && abs(center(0)-0.5) < 1e-10)
+         {
+            // top edge
+            mesh->SetBdrAttribute(i,2);
+         }
+         else
+         {
+            // all other boundaries
+            mesh->SetBdrAttribute(i,1);
+         }
+      }
+   }
+   else
+   {
+      for (int i = 0; i<mesh->GetNBE(); i++)
+      {
+         Vector center(dim);
+         int bdrgeom = mesh->GetBdrElementBaseGeometry(i);
+         ElementTransformation * tr = mesh->GetBdrElementTransformation(i);
+         tr->Transform(Geometries.GetCenter(bdrgeom),center);
+         if (abs(center(2) - lz) < 1e-6 && abs(abs(center(0))-lx) < 1e-6 && abs(abs(center(1))-ly) < 1e-6)
+         {
+            // top face
+            mesh->SetBdrAttribute(i,2);
+         }
+         else
+         {
+            // all other boundaries
+            mesh->SetBdrAttribute(i,1);
+         }
+      }
+   }
+
+   mesh->SetAttributes();
 
    for (int lev = 0; lev < ref_levels; lev++)
    {
-      mesh.UniformRefinement();
+      mesh->UniformRefinement();
    }
 
-   ParMesh pmesh(MPI_COMM_WORLD, mesh);
-   mesh.Clear();
+   ParMesh pmesh(MPI_COMM_WORLD, *mesh);
+   delete mesh;
 
    // 5. Define the vector finite element spaces representing the state variable u,
    //    adjoint variable p, and the control variable f.
