@@ -216,11 +216,7 @@ void SerialAdvectorCGOper::Mult(const Vector &ind, Vector &di_dt) const
    // Move the mesh.
    const double t = GetTime();
    add(x0, t, u, x_now);
-
-   if (al == AssemblyLevel::PARTIAL)
-   {
-      K.FESpace()->GetMesh()->DeleteGeometricFactors();
-   }
+   K.FESpace()->GetMesh()->NodesUpdated();
 
    // Assemble on the new mesh.
    K.BilinearForm::operator=(0.0);
@@ -289,11 +285,7 @@ void ParAdvectorCGOper::Mult(const Vector &ind, Vector &di_dt) const
    // Move the mesh.
    const double t = GetTime();
    add(x0, t, u, x_now);
-
-   if (al == AssemblyLevel::PARTIAL)
-   {
-      K.ParFESpace()->GetParMesh()->DeleteGeometricFactors();
-   }
+   K.ParFESpace()->GetParMesh()->NodesUpdated();
 
    // Assemble on the new mesh.
    K.BilinearForm::operator=(0.0);

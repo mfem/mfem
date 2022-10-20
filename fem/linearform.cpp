@@ -19,12 +19,13 @@ namespace mfem
 LinearForm::LinearForm(FiniteElementSpace *f, LinearForm *lf)
    : Vector(f->GetVSize())
 {
-   // Linear forms are stored on the device
-   UseDevice(true);
-
-   fes = f;
    ext = nullptr;
    extern_lfs = 1;
+   fast_assembly = false;
+   fes = f;
+
+   // Linear forms are stored on the device
+   UseDevice(true);
 
    // Copy the pointers to the integrators
    domain_integs = lf->domain_integs;
@@ -154,17 +155,22 @@ bool LinearForm::SupportsDevice()
    return true;
 }
 
-void LinearForm::Assemble(bool use_device)
+void LinearForm::UseFastAssembly(bool use_fa)
+{
+   fast_assembly = use_fa;
+
+   if (fast_assembly && SupportsDevice() && !ext)
+   {
+      ext = new LinearFormExtension(this);
+   }
+}
+
+void LinearForm::Assemble()
 {
    Array<int> vdofs;
    ElementTransformation *eltrans;
    DofTransformation *doftrans;
    Vector elemvect;
-
-   if (!ext && use_device && SupportsDevice())
-   {
-      ext = new LinearFormExtension(this);
-   }
 
    Vector::operator=(0.0);
 
@@ -172,7 +178,7 @@ void LinearForm::Assemble(bool use_device)
    // The first use of AddElementVector() below will move it back to host
    // because both 'vdofs' and 'elemvect' are on host.
 
-   if (ext) { return ext->Assemble(); }
+   if (fast_assembly && ext) { return ext->Assemble(); }
 
    if (domain_integs.Size())
    {
