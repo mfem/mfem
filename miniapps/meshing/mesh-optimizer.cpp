@@ -46,9 +46,11 @@
 //
 //   Adapted discrete size:
 //     mesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 80 -tid 5 -ni 50 -qo 4 -nor
+//     (requires GSLIB):
+//   * mesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 80 -tid 5 -ni 50 -qo 4 -nor -mno 1 -ae 1
 //   Adapted discrete size 3D with PA:
 //     mesh-optimizer -m cube.mesh -o 2 -rs 2 -mid 321 -tid 5 -ls 3 -nor -pa
-//   Adapted discrete size 3D with PA on device (requires CUDA).
+//   Adapted discrete size 3D with PA on device (requires CUDA):
 //   * mesh-optimizer -m cube.mesh -o 3 -rs 3 -mid 321 -tid 5 -ls 3 -nor -lc 0.1 -pa -d cuda
 //   Adapted discrete size; explicit combo of metrics; mixed tri/quad mesh:
 //     mesh-optimizer -m ../../data/square-mixed.mesh -o 2 -rs 2 -mid 2 -tid 5 -ni 200 -bnd -qo 6 -cmb 2 -nor
@@ -77,6 +79,8 @@
 //
 //   Blade shape:
 //     mesh-optimizer -m blade.mesh -o 4 -mid 2 -tid 1 -ni 30 -ls 3 -art 1 -bnd -qt 1 -qo 8
+//     (requires CUDA):
+//   * mesh-optimizer -m blade.mesh -o 4 -mid 2 -tid 1 -ni 30 -ls 3 -art 1 -bnd -qt 1 -qo 8 -d cuda
 //   Blade shape with FD-based solver:
 //     mesh-optimizer -m blade.mesh -o 4 -mid 2 -tid 1 -ni 30 -ls 4 -bnd -qt 1 -qo 8 -fd
 //   Blade limited shape:
@@ -150,6 +154,7 @@ int main(int argc, char *argv[])
    int n_h_iter          = 1;
    bool surface_fit_adapt = false;
    double surface_fit_threshold = -10;
+   int mesh_node_ordering = 0;
    int barrier_type       = 0;
    int worst_case_type    = 0;
 
@@ -290,6 +295,9 @@ int main(int argc, char *argv[])
    args.AddOption(&surface_fit_threshold, "-sft", "--surf-fit-threshold",
                   "Set threshold for surface fitting. TMOP solver will"
                   "terminate when max surface fitting error is below this limit");
+   args.AddOption(&mesh_node_ordering, "-mno", "--mesh_node_ordering",
+                  "Ordering of mesh nodes."
+                  "0 (default): byNodes, 1: byVDIM");
    args.AddOption(&barrier_type, "-btype", "--barrier-type",
                   "0 - None,"
                   "1 - Shifted Barrier,"
@@ -334,7 +342,8 @@ int main(int argc, char *argv[])
       mesh_poly_deg = 2;
    }
    else { fec = new H1_FECollection(mesh_poly_deg, dim); }
-   FiniteElementSpace *fespace = new FiniteElementSpace(mesh, fec, dim);
+   FiniteElementSpace *fespace = new FiniteElementSpace(mesh, fec, dim,
+                                                        mesh_node_ordering);
 
    // 4. Make the mesh curved based on the above finite element space. This
    //    means that we define the mesh elements through a fespace-based
