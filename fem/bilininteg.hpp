@@ -2174,6 +2174,7 @@ public:
 /** Class for local mass matrix assembling a(u,v) := (Q u, v) */
 class MassIntegrator: public BilinearFormIntegrator
 {
+   friend class DGMassInverse;
 protected:
 #ifndef MFEM_THREAD_SAFE
    Vector shape, te_shape;
@@ -2524,6 +2525,7 @@ private:
 #ifndef MFEM_THREAD_SAFE
    Vector D;
    DenseMatrix curlshape, curlshape_dFt, M;
+   DenseMatrix te_curlshape, te_curlshape_dFt;
    DenseMatrix vshape, projcurl;
 #endif
 
@@ -2556,6 +2558,11 @@ public:
    virtual void AssembleElementMatrix(const FiniteElement &el,
                                       ElementTransformation &Trans,
                                       DenseMatrix &elmat);
+
+   virtual void AssembleElementMatrix2(const FiniteElement &trial_fe,
+                                       const FiniteElement &test_fe,
+                                       ElementTransformation &Trans,
+                                       DenseMatrix &elmat);
 
    virtual void ComputeElementFlux(const FiniteElement &el,
                                    ElementTransformation &Trans,
@@ -2600,6 +2607,35 @@ public:
    virtual double GetElementEnergy(const FiniteElement &el,
                                    ElementTransformation &Tr,
                                    const Vector &elfun);
+};
+
+/** Class for integrating the bilinear form a(u,v) := (Q curl u, v) where Q is
+    an optional scalar coefficient, and v is a vector with components v_i in
+    the L2 or H1 space. This integrator handles 3 cases:
+    (a) u ∈ H(curl) in 3D, v is a 3D vector with components v_i in L^2 or H^1
+    (b) u ∈ H(curl) in 2D, v is a scalar field in L^2 or H^1
+    (c) u is a scalar field in H^1, i.e, curl u := [0 1;-1 0]grad u and v is a
+        2D vector field with components v_i in L^2 or H^1 space.
+    Note: Case (b) can also be handled by MixedScalarCurlIntegrator  */
+class MixedCurlIntegrator : public BilinearFormIntegrator
+{
+protected:
+   Coefficient *Q;
+
+private:
+   Vector shape;
+   DenseMatrix dshape;
+   DenseMatrix curlshape;
+   DenseMatrix elmat_comp;
+public:
+   MixedCurlIntegrator() : Q{NULL} { }
+   MixedCurlIntegrator(Coefficient *q_) :  Q{q_} { }
+   MixedCurlIntegrator(Coefficient &q) :  Q{&q} { }
+
+   virtual void AssembleElementMatrix2(const FiniteElement &trial_fe,
+                                       const FiniteElement &test_fe,
+                                       ElementTransformation &Trans,
+                                       DenseMatrix &elmat);
 };
 
 /** Integrator for (Q u, v), where Q is an optional coefficient (of type scalar,
@@ -2725,7 +2761,7 @@ protected:
 
 private:
 #ifndef MFEM_THREAD_SAFE
-   Vector divshape;
+   Vector divshape, te_divshape;
 #endif
 
    // PA extension
@@ -2737,11 +2773,18 @@ private:
 
 public:
    DivDivIntegrator() { Q = NULL; }
-   DivDivIntegrator(Coefficient &q) : Q(&q) { }
+   DivDivIntegrator(Coefficient &q, const IntegrationRule *ir = NULL) :
+      BilinearFormIntegrator(ir), Q(&q) { }
 
    virtual void AssembleElementMatrix(const FiniteElement &el,
                                       ElementTransformation &Trans,
                                       DenseMatrix &elmat);
+
+   virtual void AssembleElementMatrix2(const FiniteElement &trial_fe,
+                                       const FiniteElement &test_fe,
+                                       ElementTransformation &Trans,
+                                       DenseMatrix &elmat);
+
    const Coefficient *GetCoefficient() const { return Q; }
 };
 

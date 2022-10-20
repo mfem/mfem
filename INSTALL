@@ -16,7 +16,11 @@ requires an MPI C++ compiler, as well as the following external libraries:
   https://github.com/hypre-space/hypre
 
 - METIS (a family of multilevel partitioning algorithms)
-  http://glaros.dtc.umn.edu/gkhome/metis/metis/overview
+  https://github.com/mfem/tpls
+
+  Note: We recommend our mirror of metis-4.0.3/5.1.0 above because the METIS
+  webpage, https://glaros.dtc.umn.edu/gkhome/metis/metis/overview, is often down
+  and we don't support yet the new repo https://github.com/KarypisLab/METIS.
 
 The hypre dependency can be downloaded as a tarball from GitHub or from the
 project webpage https://www.llnl.gov/casc/hypre. For example, the 2.24.0 release
@@ -472,10 +476,10 @@ MFEM_USE_CODIPACK = YES/NO
   www.scicomp.uni-kl.de/codi/
 
 MFEM_USE_ALGOIM = YES/NO
-  Enable the usage of Algoim - a collection of high-order accurate numerical 
-  methods and C++ algorithms for working with implicitly-defined geometry and 
-  level set methods. The Algoim library requires the Blitz++ library. The MFEM 
-  provides interface to Algoim v1. Thus, to check out the specific state use: 
+  Enable the usage of Algoim - a collection of high-order accurate numerical
+  methods and C++ algorithms for working with implicitly-defined geometry and
+  level set methods. The Algoim library requires the Blitz++ library. The MFEM
+  provides interface to Algoim v1. Thus, to check out the specific state use:
   git checkout 9c9ca0ef094d8ab0390ed36367a1151b459bbe0a
   https://algoim.github.io
 
@@ -550,13 +554,21 @@ MFEM_USE_FMS = YES/NO
    Enables support for the FMS library which consists of the DataCollection
    sub-class mfem::FMSDataCollection for I/O in FMS formats, see the header file
    fem/fmsdatacollection.hpp. In addition, this option enables in-memory
-   convetion routines between FMS's FmsDataCollection structure and MFEM's
+   conversion routines between FMS's FmsDataCollection structure and MFEM's
    DataCollection class, see the header file fem/fmsconvert.hpp.
 
 MFEM_USE_PARELAG = YES/NO
    Enables the miniapps that use the ParELAG library. MFEM does not currently
    use ParELAG. In fact, ParELAG is dependent on MFEM. Therefore, this option
    currently only concerns the miniapps.
+
+MFEM_USE_ENZYME = YES/NO
+   Enables automatic differentiation support through the LLVM plugin Enzyme.
+   This requires the compiler to be set to clang (>=14.0.0). We also advise to
+   use the link time optimization (LTO) plugin, to enable functions that you
+   define over multiple files (compilation units) and want to be differentiated
+   automatically, to work. This requires to also use LLVM/LLD for linking.
+   Recommended options are in config/defaults.mk.
 
 MFEM_BUILD_TAG = (any value)
    An optional tag to characterize the build. Exported to config/config.mk.
@@ -589,7 +601,7 @@ The specific libraries and their options are:
 
 - METIS, used when MFEM_USE_METIS = YES. If using METIS 5, set
   MFEM_USE_METIS_5 = YES (default is to use METIS 4).
-  URL: http://glaros.dtc.umn.edu/gkhome/metis/metis/overview
+  URL: https://github.com/mfem/tpls (MFEM mirror, see above)
   Options: METIS_OPT, METIS_LIB.
   Versions: METIS 4.0.3 or 5.1.0.
 
@@ -760,8 +772,6 @@ The specific libraries and their options are:
   Options: BLITZ_OPT, BLITZ_LIB
   Versions: BLITZ = 1.0.2
 
-
-
 - MKL CPardiso (optional), used when MFEM_USE_MKL_CPARDISO = YES.
   URL: https://software.intel.com/content/www/us/en/develop/tools/math-kernel-library.html
   Options: MKL_CPARDISO_OPT, MKL_CPARDISO_LIB.
@@ -837,6 +847,12 @@ The specific libraries and their options are:
 - ParELAG, used when MFEM_USE_PARELAG = YES.
   URL: https://github.com/LLNL/parelag
   Options: PARELAG_DIR, PARELAG_OPT, PARELAG_LIB.
+
+- Enzyme, used when MFEM_USE_ENZYME = YES. Requires LLVM/Clang >= 14.0.0.
+  URL: https://github.com/EnzymeAD/Enzyme
+  Options: ENZYME_DIR, ENZYME_OPT, ENZYME_LIB.
+  Versions: Enzyme >= v0.0.33.
+
 
 Building with CMake
 ===================
@@ -976,6 +992,7 @@ MFEM_USE_CALIPER
 MFEM_USE_FMS
 MFEM_USE_BENCHMARK
 MFEM_USE_PARELAG
+MFEM_USE_ENZYME
 
 The following options are CMake specific:
 
@@ -1035,6 +1052,7 @@ The CMake build system adds auto-detection for the following packages/libraries:
  - FMS
  - BENCHMARK
  - ParELAG
+ - Enzyme
 
 The following built-in CMake packages are also used:
 

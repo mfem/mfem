@@ -13,6 +13,7 @@
 #include "../../fem/quadinterpolator.hpp"
 #include "../../general/forall.hpp"
 #include <climits>
+#include "../pbilinearform.hpp"
 
 // Specializations
 #include "lor_h1.hpp"
@@ -44,30 +45,6 @@ bool HasIntegrators(BilinearForm &a)
    }
    return false;
 }
-
-#ifdef MFEM_USE_MPI
-
-void HypreStealOwnership(HypreParMatrix &A_hyp, SparseMatrix &A_diag)
-{
-#ifndef HYPRE_BIGINT
-   bool own_i = A_hyp.GetDiagMemoryI().OwnsHostPtr();
-   bool own_j = A_hyp.GetDiagMemoryJ().OwnsHostPtr();
-   MFEM_CONTRACT_VAR(own_j);
-   MFEM_ASSERT(own_i == own_j, "Inconsistent ownership");
-   if (!own_i)
-   {
-      std::swap(A_diag.GetMemoryI(), A_hyp.GetDiagMemoryI());
-      std::swap(A_diag.GetMemoryJ(), A_hyp.GetDiagMemoryJ());
-   }
-#endif
-   if (!A_hyp.GetDiagMemoryData().OwnsHostPtr())
-   {
-      std::swap(A_diag.GetMemoryData(), A_hyp.GetDiagMemoryData());
-   }
-   A_hyp.SetOwnerFlags(3, A_hyp.OwnsOffd(), A_hyp.OwnsColMap());
-}
-
-#endif
 
 bool BatchedLORAssembly::FormIsSupported(BilinearForm &a)
 {
@@ -103,7 +80,7 @@ void BatchedLORAssembly::FormLORVertexCoordinates(FiniteElementSpace &fes_ho,
    const int nel_ho = mesh_ho.GetNE();
    const int order = fes_ho.GetMaxElementOrder();
    const int nd1d = order + 1;
-   const int ndof_per_el = pow(nd1d, dim);
+   const int ndof_per_el = static_cast<int>(pow(nd1d, dim));
 
    const GridFunction *nodal_gf = mesh_ho.GetNodes();
    const FiniteElementSpace *nodal_fes = nodal_gf->FESpace();
@@ -114,9 +91,7 @@ void BatchedLORAssembly::FormLORVertexCoordinates(FiniteElementSpace &fes_ho,
    Vector nodal_evec(nodal_restriction->Height());
    nodal_restriction->Mult(*nodal_gf, nodal_evec);
 
-   IntegrationRules irs(0, Quadrature1D::GaussLobatto);
-   Geometry::Type geom = mesh_ho.GetElementGeometry(0);
-   const IntegrationRule &ir = irs.Get(geom, 2*nd1d - 3);
+   IntegrationRule ir = GetCollocatedIntRule(fes_ho);
 
    // Map from nodal E-vector to Q-vector at the LOR vertex points
    X_vert.SetSize(dim*ndof_per_el*nel_ho);
@@ -307,7 +282,7 @@ void BatchedLORAssembly::FillJAndData(SparseMatrix &A) const
          const bool plus = si_E >= 0;
          const int i_E = plus ? si_E : -1 - si_E;
          i_elts[e_i] = i_E/ndof_per_el;
-         const double i_Bi = i_E%ndof_per_el;
+         const int i_Bi = i_E % ndof_per_el;
          i_B[e_i] = plus ? i_Bi : -1 - i_Bi; // encode with sign
       }
       for (int j=0; j<nnz_per_row; ++j)
@@ -337,7 +312,7 @@ void BatchedLORAssembly::FillJAndData(SparseMatrix &A) const
                const bool plus = sj_E >= 0;
                const int j_E = plus ? sj_E : -1 - sj_E;
                j_elts[e_j] = j_E/ndof_per_el;
-               const double j_Bj = j_E%ndof_per_el;
+               const int j_Bj = j_E % ndof_per_el;
                j_B[e_j] = plus ? j_Bj : -1 - j_Bj; // encode with sign
             }
             const int min_e = GetMinElt(i_elts, i_ne, j_elts, j_ne);
@@ -483,199 +458,13 @@ void BatchedLORAssembly::ParAssemble(
    OperatorHandle A_local;
    AssembleWithoutBC(a, A_local);
 
-   ParFiniteElementSpace *pfes_ho =
-      dynamic_cast<ParFiniteElementSpace*>(&fes_ho);
-   MFEM_VERIFY(pfes_ho != nullptr,
-               "ParAssemble must be called with ParFiniteElementSpace");
+   ParBilinearForm *pa =
+      dynamic_cast<ParBilinearForm*>(&a);
 
-   // Create a block diagonal parallel matrix
-   OperatorHandle A_diag(Operator::Hypre_ParCSR);
-   A_diag.MakeSquareBlockDiag(pfes_ho->GetComm(),
-                              pfes_ho->GlobalVSize(),
-                              pfes_ho->GetDofOffsets(),
-                              A_local.As<SparseMatrix>());
+   pa->ParallelRAP(*A_local.As<SparseMatrix>(), A, true);
 
-   // Parallel matrix assembly using P^t A P (if needed)
-   if (IsIdentityProlongation(pfes_ho->GetProlongationMatrix()))
-   {
-      A_diag.SetOperatorOwner(false);
-      A.Reset(A_diag.Ptr());
-      HypreStealOwnership(*A.As<HypreParMatrix>(), *A_local.As<SparseMatrix>());
-   }
-   else
-   {
-      OperatorHandle P(Operator::Hypre_ParCSR);
-      P.ConvertFrom(pfes_ho->Dof_TrueDof_Matrix());
-      A.MakePtAP(A_diag, P);
-   }
-
-   // Eliminate the boundary conditions
-   HypreParMatrix *A_mat = A.As<HypreParMatrix>();
-   hypre_ParCSRMatrix *A_hypre = *A_mat;
-   A_mat->HypreReadWrite();
-
-   hypre_CSRMatrix *diag = hypre_ParCSRMatrixDiag(A_hypre);
-   hypre_CSRMatrix *offd = hypre_ParCSRMatrixOffd(A_hypre);
-
-   HYPRE_Int diag_nrows = hypre_CSRMatrixNumRows(diag);
-   HYPRE_Int offd_ncols = hypre_CSRMatrixNumCols(offd);
-
-   const int n_ess_dofs = ess_dofs.Size();
-   const auto ess_dofs_d = ess_dofs.GetMemory().Read(
-                              GetHypreMemoryClass(), n_ess_dofs);
-
-   // Start communication to figure out which columns need to be eliminated in
-   // the off-diagonal block
-   hypre_ParCSRCommHandle *comm_handle;
-   HYPRE_Int *int_buf_data, *eliminate_row, *eliminate_col;
-   {
-      eliminate_row = mfem_hypre_CTAlloc_host(HYPRE_Int, diag_nrows);
-      eliminate_col = mfem_hypre_CTAlloc_host(HYPRE_Int, offd_ncols);
-
-      // Make sure A has a communication package
-      hypre_ParCSRCommPkg *comm_pkg = hypre_ParCSRMatrixCommPkg(A_hypre);
-      if (!comm_pkg)
-      {
-         hypre_MatvecCommPkgCreate(A_hypre);
-         comm_pkg = hypre_ParCSRMatrixCommPkg(A_hypre);
-      }
-
-      // Which of the local rows are to be eliminated?
-      for (int i = 0; i < diag_nrows; i++)
-      {
-         eliminate_row[i] = 0;
-      }
-
-      ess_dofs.HostRead();
-      for (int i = 0; i < n_ess_dofs; i++)
-      {
-         eliminate_row[ess_dofs[i]] = 1;
-      }
-
-      // Use a matvec communication pattern to find (in eliminate_col) which of
-      // the local offd columns are to be eliminated
-      HYPRE_Int num_sends = hypre_ParCSRCommPkgNumSends(comm_pkg);
-      int_buf_data = mfem_hypre_CTAlloc_host(
-                        HYPRE_Int,
-                        hypre_ParCSRCommPkgSendMapStart(comm_pkg, num_sends));
-      int index = 0;
-      for (int i = 0; i < num_sends; i++)
-      {
-         int start = hypre_ParCSRCommPkgSendMapStart(comm_pkg, i);
-         for (int j = start; j < hypre_ParCSRCommPkgSendMapStart(comm_pkg, i+1); j++)
-         {
-            int k = hypre_ParCSRCommPkgSendMapElmt(comm_pkg,j);
-            int_buf_data[index++] = eliminate_row[k];
-         }
-      }
-      comm_handle = hypre_ParCSRCommHandleCreate(
-                       11, comm_pkg, int_buf_data, eliminate_col);
-   }
-
-   // Eliminate rows and columns in the diagonal block
-   {
-      const auto I = diag->i;
-      const auto J = diag->j;
-      auto data = diag->data;
-
-      MFEM_HYPRE_FORALL(i, n_ess_dofs,
-      {
-         const int idof = ess_dofs_d[i];
-         for (int j=I[idof]; j<I[idof+1]; ++j)
-         {
-            const int jdof = J[j];
-            if (jdof == idof)
-            {
-               // Set eliminate diagonal equal to identity
-               data[j] = 1.0;
-            }
-            else
-            {
-               data[j] = 0.0;
-               for (int k=I[jdof]; k<I[jdof+1]; ++k)
-               {
-                  if (J[k] == idof)
-                  {
-                     data[k] = 0.0;
-                     break;
-                  }
-               }
-            }
-         }
-      });
-   }
-
-   // Eliminate rows in the off-diagonal block
-   {
-      const auto I = offd->i;
-      auto data = offd->data;
-      MFEM_HYPRE_FORALL(i, n_ess_dofs,
-      {
-         const int idof = ess_dofs_d[i];
-         for (int j=I[idof]; j<I[idof+1]; ++j)
-         {
-            data[j] = 0.0;
-         }
-      });
-   }
-
-   // Wait for MPI communication to finish
-   Array<HYPRE_Int> cols_to_eliminate;
-   {
-      hypre_ParCSRCommHandleDestroy(comm_handle);
-
-      // set the array cols_to_eliminate
-      int ncols_to_eliminate = 0;
-      for (int i = 0; i < offd_ncols; i++)
-      {
-         if (eliminate_col[i]) { ncols_to_eliminate++; }
-      }
-
-      cols_to_eliminate.SetSize(ncols_to_eliminate);
-      cols_to_eliminate = 0.0;
-
-      ncols_to_eliminate = 0;
-      for (int i = 0; i < offd_ncols; i++)
-      {
-         if (eliminate_col[i])
-         {
-            cols_to_eliminate[ncols_to_eliminate++] = i;
-         }
-      }
-
-      mfem_hypre_TFree_host(int_buf_data);
-      mfem_hypre_TFree_host(eliminate_row);
-      mfem_hypre_TFree_host(eliminate_col);
-   }
-
-   // Eliminate columns in the off-diagonal block
-   {
-      const int ncols_to_eliminate = cols_to_eliminate.Size();
-      const int nrows_offd = hypre_CSRMatrixNumRows(offd);
-      const auto cols = cols_to_eliminate.GetMemory().Read(
-                           GetHypreMemoryClass(), ncols_to_eliminate);
-      const auto I = offd->i;
-      const auto J = offd->j;
-      auto data = offd->data;
-      // Note: could also try a different strategy, looping over nnz in the
-      // matrix and then doing a binary search in ncols_to_eliminate to see if
-      // the column should be eliminated.
-      MFEM_HYPRE_FORALL(idx, ncols_to_eliminate,
-      {
-         const int j = cols[idx];
-         for (int i=0; i<nrows_offd; ++i)
-         {
-            for (int jj=I[i]; jj<I[i+1]; ++jj)
-            {
-               if (J[jj] == j)
-               {
-                  data[jj] = 0.0;
-                  break;
-               }
-            }
-         }
-      });
-   }
+   A.As<HypreParMatrix>()->EliminateBC(ess_dofs,
+                                       Operator::DiagonalPolicy::DIAG_ONE);
 }
 #endif
 
@@ -692,40 +481,22 @@ void BatchedLORAssembly::Assemble(
    AssembleWithoutBC(a, A);
    SparseMatrix *A_mat = A.As<SparseMatrix>();
 
-   // Eliminate essential DOFs (BCs) from the matrix (what we do here is
-   // equivalent to  DiagonalPolicy::DIAG_KEEP).
-   const int n_ess_dofs = ess_dofs.Size();
-   const auto ess_dofs_d = ess_dofs.Read();
-   const auto I = A_mat->ReadI();
-   const auto J = A_mat->ReadJ();
-   auto dA = A_mat->ReadWriteData();
-
-   MFEM_FORALL(i, n_ess_dofs,
-   {
-      const int idof = ess_dofs_d[i];
-      for (int j=I[idof]; j<I[idof+1]; ++j)
-      {
-         const int jdof = J[j];
-         if (jdof != idof)
-         {
-            dA[j] = 0.0;
-            for (int k=I[jdof]; k<I[jdof+1]; ++k)
-            {
-               if (J[k] == idof)
-               {
-                  dA[k] = 0.0;
-                  break;
-               }
-            }
-         }
-      }
-   });
+   A_mat->EliminateBC(ess_dofs,
+                      Operator::DiagonalPolicy::DIAG_KEEP);
 }
 
 BatchedLORAssembly::BatchedLORAssembly(FiniteElementSpace &fes_ho_)
    : fes_ho(fes_ho_)
 {
    FormLORVertexCoordinates(fes_ho, X_vert);
+}
+
+IntegrationRule GetCollocatedIntRule(FiniteElementSpace &fes)
+{
+   IntegrationRules irs(0, Quadrature1D::GaussLobatto);
+   const Geometry::Type geom = fes.GetMesh()->GetElementGeometry(0);
+   const int nd1d = fes.GetMaxElementOrder() + 1;
+   return irs.Get(geom, 2*nd1d - 3);
 }
 
 } // namespace mfem

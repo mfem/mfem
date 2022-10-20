@@ -12,6 +12,7 @@
 #include "../general/forall.hpp"
 #include "bilininteg.hpp"
 #include "gridfunc.hpp"
+#include "qfunction.hpp"
 #include "ceed/integrators/convection/convection.hpp"
 #include "quadinterpolator.hpp"
 
@@ -1386,7 +1387,16 @@ void ConvectionIntegrator::AssemblePA(const FiniteElementSpace &fes)
    if (DeviceCanUseCeed())
    {
       delete ceedOp;
-      ceedOp = new ceed::PAConvectionIntegrator(fes, *ir, Q, alpha);
+      const bool mixed = mesh->GetNumGeometries(mesh->Dimension()) > 1 ||
+                         fes.IsVariableOrder();
+      if (mixed)
+      {
+         ceedOp = new ceed::MixedPAConvectionIntegrator(*this, fes, Q, alpha);
+      }
+      else
+      {
+         ceedOp = new ceed::PAConvectionIntegrator(fes, *ir, Q, alpha);
+      }
       return;
    }
    const int dims = el.GetDim();
@@ -1399,66 +1409,10 @@ void ConvectionIntegrator::AssemblePA(const FiniteElementSpace &fes)
    dofs1D = maps->ndof;
    quad1D = maps->nqpt;
    pa_data.SetSize(symmDims * nq * ne, mt);
-   Vector vel;
-   if (VectorConstantCoefficient *cQ =
-          dynamic_cast<VectorConstantCoefficient*>(Q))
-   {
-      vel = cQ->GetVec();
-   }
-   else if (VectorGridFunctionCoefficient *vgfQ =
-               dynamic_cast<VectorGridFunctionCoefficient*>(Q))
-   {
-      vel.SetSize(dim * nq * ne, mt);
 
-      const GridFunction *gf = vgfQ->GetGridFunction();
-      const FiniteElementSpace &gf_fes = *gf->FESpace();
-      const QuadratureInterpolator *qi(gf_fes.GetQuadratureInterpolator(*ir));
-      const bool use_tensor_products = UsesTensorBasis(gf_fes);
-      const ElementDofOrdering ordering = use_tensor_products ?
-                                          ElementDofOrdering::LEXICOGRAPHIC :
-                                          ElementDofOrdering::NATIVE;
-      const Operator *R = gf_fes.GetElementRestriction(ordering);
+   QuadratureSpace qs(*mesh, *ir);
+   CoefficientVector vel(*Q, qs, CoefficientStorage::COMPRESSED);
 
-      Vector xe(R->Height(), mt);
-      xe.UseDevice(true);
-
-      R->Mult(*gf, xe);
-      qi->SetOutputLayout(QVectorLayout::byVDIM);
-      qi->DisableTensorProducts(!use_tensor_products);
-      qi->Values(xe,vel);
-   }
-   else if (VectorQuadratureFunctionCoefficient* vqfQ =
-               dynamic_cast<VectorQuadratureFunctionCoefficient*>(Q))
-   {
-      const QuadratureFunction &qFun = vqfQ->GetQuadFunction();
-      MFEM_VERIFY(qFun.Size() == dim * nq * ne,
-                  "Incompatible QuadratureFunction dimension \n");
-
-      MFEM_VERIFY(ir == &qFun.GetSpace()->GetElementIntRule(0),
-                  "IntegrationRule used within integrator and in"
-                  " QuadratureFunction appear to be different");
-
-      qFun.Read();
-      vel.MakeRef(const_cast<QuadratureFunction &>(qFun),0);
-   }
-   else
-   {
-      vel.SetSize(dim * nq * ne);
-      auto C = Reshape(vel.HostWrite(), dim, nq, ne);
-      DenseMatrix MQ_ir;
-      for (int e = 0; e < ne; ++e)
-      {
-         ElementTransformation& T = *fes.GetElementTransformation(e);
-         Q->Eval(MQ_ir, T, *ir);
-         for (int q = 0; q < nq; ++q)
-         {
-            for (int i = 0; i < dim; ++i)
-            {
-               C(i,q,e) = MQ_ir(i,q);
-            }
-         }
-      }
-   }
    PAConvectionSetup(dim, nq, ne, ir->GetWeights(), geom->J,
                      vel, alpha, pa_data);
 }
@@ -1497,6 +1451,7 @@ static void PAConvectionApply(const int dim,
    {
       switch ((D1D << 4 ) | Q1D)
       {
+         case 0x22: return SmemPAConvectionApply3D<2,2>(NE,B,G,Bt,Gt,op,x,y);
          case 0x23: return SmemPAConvectionApply3D<2,3>(NE,B,G,Bt,Gt,op,x,y);
          case 0x24: return SmemPAConvectionApply3D<2,4>(NE,B,G,Bt,Gt,op,x,y);
          case 0x26: return SmemPAConvectionApply3D<2,6>(NE,B,G,Bt,Gt,op,x,y);
@@ -1548,6 +1503,7 @@ static void PAConvectionApplyT(const int dim,
    {
       switch ((D1D << 4 ) | Q1D)
       {
+         case 0x22: return SmemPAConvectionApplyT3D<2,2>(NE,B,G,Bt,Gt,op,x,y);
          case 0x23: return SmemPAConvectionApplyT3D<2,3>(NE,B,G,Bt,Gt,op,x,y);
          case 0x24: return SmemPAConvectionApplyT3D<2,4>(NE,B,G,Bt,Gt,op,x,y);
          case 0x26: return SmemPAConvectionApplyT3D<2,6>(NE,B,G,Bt,Gt,op,x,y);

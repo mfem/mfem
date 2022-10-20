@@ -12,6 +12,7 @@
 #include "../general/forall.hpp"
 #include "bilininteg.hpp"
 #include "gridfunc.hpp"
+#include "qspace.hpp"
 
 using namespace std;
 
@@ -967,8 +968,6 @@ void CurlCurlIntegrator::AssemblePA(const FiniteElementSpace &fes)
    dim = mesh->Dimension();
    MFEM_VERIFY(dim == 2 || dim == 3, "");
 
-   const int dimc = (dim == 3) ? 3 : 1;
-
    ne = fes.GetNE();
    geom = mesh->GetGeometricFactors(*ir, GeometricFactors::JACOBIANS);
    mapsC = &el->GetDofToQuad(*ir, DofToQuad::TENSOR);
@@ -978,87 +977,18 @@ void CurlCurlIntegrator::AssemblePA(const FiniteElementSpace &fes)
 
    MFEM_VERIFY(dofs1D == mapsO->ndof + 1 && quad1D == mapsO->nqpt, "");
 
-   auto SMQ = dynamic_cast<SymmetricMatrixCoefficient *>(MQ);
+   QuadratureSpace qs(*mesh, *ir);
+   CoefficientVector coeff(qs, CoefficientStorage::SYMMETRIC);
+   if (Q) { coeff.Project(*Q); }
+   else if (MQ) { coeff.ProjectTranspose(*MQ); }
+   else if (DQ) { coeff.Project(*DQ); }
+   else { coeff.SetConstant(1.0); }
 
-   const int MQsymmDim = SMQ ? (SMQ->GetSize() * (SMQ->GetSize() + 1)) / 2 : 0;
-   const int MQfullDim = MQ ? (MQ->GetHeight() * MQ->GetWidth()) : 0;
-   const int MQdim = SMQ ? MQsymmDim : MQfullDim;
-   const int coeffDim = MQ ? MQdim : (DQ ? DQ->GetVDim() : 1);
-
-   symmetric = (SMQ || MQ == NULL);
-
-   const int symmDims = (dims * (dims + 1)) / 2; // 1x1: 1, 2x2: 3, 3x3: 6
-   const int ndata = (dim == 2) ? 1 : (symmetric ? symmDims : MQfullDim);
+   const int coeff_dim = coeff.GetVDim();
+   symmetric = (coeff_dim != dim*dim);
+   const int sym_dims = (dims * (dims + 1)) / 2; // 1x1: 1, 2x2: 3, 3x3: 6
+   const int ndata = (dim == 2) ? 1 : (symmetric ? sym_dims : dim*dim);
    pa_data.SetSize(ndata * nq * ne, Device::GetMemoryType());
-
-   Vector coeff(coeffDim * ne * nq);
-   coeff = 1.0;
-   auto coeffh = Reshape(coeff.HostWrite(), coeffDim, nq, ne);
-   if (Q || DQ || MQ)
-   {
-      Vector DM(DQ ? coeffDim : 0);
-      DenseMatrix GM;
-      DenseSymmetricMatrix SM;
-
-      if (DQ)
-      {
-         MFEM_VERIFY(coeffDim == dimc, "");
-      }
-      if (SMQ)
-      {
-         SM.SetSize(dimc);
-         MFEM_VERIFY(SMQ->GetSize() == dimc, "");
-      }
-      else if (MQ)
-      {
-         GM.SetSize(dimc);
-         MFEM_VERIFY(coeffDim == MQdim, "");
-         MFEM_VERIFY(MQ->GetHeight() == dimc && MQ->GetWidth() == dimc, "");
-      }
-
-      for (int e=0; e<ne; ++e)
-      {
-         ElementTransformation *tr = mesh->GetElementTransformation(e);
-         for (int p=0; p<nq; ++p)
-         {
-            if (SMQ)
-            {
-               SMQ->Eval(SM, *tr, ir->IntPoint(p));
-
-               int cnt = 0;
-               for (int i=0; i<dimc; ++i)
-                  for (int j=i; j<dimc; ++j, ++cnt)
-                  {
-                     coeffh(cnt, p, e) = SM(i,j);
-                  }
-
-            }
-            else if (MQ)
-            {
-               MQ->Eval(GM, *tr, ir->IntPoint(p));
-
-               for (int i=0; i<dimc; ++i)
-                  for (int j=0; j<dimc; ++j)
-                  {
-                     coeffh(j+(i*dimc), p, e) = GM(i,j);
-                  }
-
-            }
-            else if (DQ)
-            {
-               DQ->Eval(DM, *tr, ir->IntPoint(p));
-               for (int i=0; i<coeffDim; ++i)
-               {
-                  coeffh(i, p, e) = DM[i];
-               }
-            }
-            else
-            {
-               coeffh(0, p, e) = Q->Eval(*tr, ir->IntPoint(p));
-            }
-         }
-      }
-   }
 
    if (el->GetDerivType() != mfem::FiniteElement::CURL)
    {
@@ -1067,7 +997,7 @@ void CurlCurlIntegrator::AssemblePA(const FiniteElementSpace &fes)
 
    if (dim == 3)
    {
-      PACurlCurlSetup3D(quad1D, coeffDim, ne, ir->GetWeights(), geom->J, coeff,
+      PACurlCurlSetup3D(quad1D, coeff_dim, ne, ir->GetWeights(), geom->J, coeff,
                         pa_data);
    }
    else
@@ -3489,20 +3419,8 @@ void MixedScalarCurlIntegrator::AssemblePA(const FiniteElementSpace &trial_fes,
 
    pa_data.SetSize(nq * ne, Device::GetMemoryType());
 
-   Vector coeff(ne * nq);
-   coeff = 1.0;
-   auto coeffh = Reshape(coeff.HostWrite(), nq, ne);
-   if (Q)
-   {
-      for (int e=0; e<ne; ++e)
-      {
-         ElementTransformation *tr = mesh->GetElementTransformation(e);
-         for (int p=0; p<nq; ++p)
-         {
-            coeffh(p, e) = Q->Eval(*tr, ir->IntPoint(p));
-         }
-      }
-   }
+   QuadratureSpace qs(*mesh, *ir);
+   CoefficientVector coeff(Q, qs, CoefficientStorage::FULL);
 
    if (dim == 2)
    {
@@ -3593,38 +3511,11 @@ void MixedVectorCurlIntegrator::AssemblePA(const FiniteElementSpace &trial_fes,
    const int ndata = curlSpaces ? (coeffDim == 1 ? 1 : 9) : symmDims;
    pa_data.SetSize(ndata * nq * ne, Device::GetMemoryType());
 
-   Vector coeff(coeffDim * nq * ne);
-   coeff = 1.0;
-   auto coeffh = Reshape(coeff.HostWrite(), coeffDim, nq, ne);
-   if (Q || DQ)
-   {
-      Vector V(coeffDim);
-      if (DQ)
-      {
-         MFEM_VERIFY(DQ->GetVDim() == coeffDim, "");
-      }
-
-      for (int e=0; e<ne; ++e)
-      {
-         ElementTransformation *tr = mesh->GetElementTransformation(e);
-
-         for (int p=0; p<nq; ++p)
-         {
-            if (DQ)
-            {
-               DQ->Eval(V, *tr, ir->IntPoint(p));
-               for (int i=0; i<coeffDim; ++i)
-               {
-                  coeffh(i, p, e) = V[i];
-               }
-            }
-            else
-            {
-               coeffh(0, p, e) = Q->Eval(*tr, ir->IntPoint(p));
-            }
-         }
-      }
-   }
+   QuadratureSpace qs(*mesh, *ir);
+   CoefficientVector coeff(qs, CoefficientStorage::FULL);
+   if (Q) { coeff.Project(*Q); }
+   else if (DQ) { coeff.Project(*DQ); }
+   else { coeff.SetConstant(1.0); }
 
    if (testType == mfem::FiniteElement::CURL &&
        trialType == mfem::FiniteElement::CURL && dim == 3)
@@ -5146,38 +5037,11 @@ void MixedVectorWeakCurlIntegrator::AssemblePA(const FiniteElementSpace
 
    pa_data.SetSize(ndata * nq * ne, Device::GetMemoryType());
 
-   Vector coeff(coeffDim * nq * ne);
-   coeff = 1.0;
-   auto coeffh = Reshape(coeff.HostWrite(), coeffDim, nq, ne);
-   if (Q || DQ)
-   {
-      Vector V(coeffDim);
-      if (DQ)
-      {
-         MFEM_VERIFY(DQ->GetVDim() == coeffDim, "");
-      }
-
-      for (int e=0; e<ne; ++e)
-      {
-         ElementTransformation *tr = mesh->GetElementTransformation(e);
-
-         for (int p=0; p<nq; ++p)
-         {
-            if (DQ)
-            {
-               DQ->Eval(V, *tr, ir->IntPoint(p));
-               for (int i=0; i<coeffDim; ++i)
-               {
-                  coeffh(i, p, e) = V[i];
-               }
-            }
-            else
-            {
-               coeffh(0, p, e) = Q->Eval(*tr, ir->IntPoint(p));
-            }
-         }
-      }
-   }
+   QuadratureSpace qs(*mesh, *ir);
+   CoefficientVector coeff(qs, CoefficientStorage::FULL);
+   if (Q) { coeff.Project(*Q); }
+   else if (DQ) { coeff.Project(*DQ); }
+   else { coeff.SetConstant(1.0); }
 
    if (trialType == mfem::FiniteElement::CURL && dim == 3)
    {

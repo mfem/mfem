@@ -33,7 +33,16 @@ void DiffusionIntegrator::AssembleMF(const FiniteElementSpace &fes)
       MFEM_VERIFY(!VQ && !MQ,
                   "Only scalar coefficient supported for DiffusionIntegrator"
                   " with libCEED");
-      ceedOp = new ceed::MFDiffusionIntegrator(fes, *ir, Q);
+      const bool mixed = mesh->GetNumGeometries(mesh->Dimension()) > 1 ||
+                         fes.IsVariableOrder();
+      if (mixed)
+      {
+         ceedOp = new ceed::MixedMFDiffusionIntegrator(*this, fes, Q);
+      }
+      else
+      {
+         ceedOp = new ceed::MFDiffusionIntegrator(fes, *ir, Q);
+      }
       return;
    }
    MFEM_ABORT("Error: DiffusionIntegrator::AssembleMF only implemented with"

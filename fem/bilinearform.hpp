@@ -333,7 +333,7 @@ public:
 
 
    /**  @brief Nullifies the internal matrix \f$ M \f$ and returns a pointer
-        to it.  Used for transfering ownership. */
+        to it.  Used for transferring ownership. */
    SparseMatrix *LoseMat() { SparseMatrix *tmp = mat; mat = NULL; return tmp; }
 
    /** @brief Returns a const reference to the sparse matrix of eliminated b.c.:
@@ -437,6 +437,14 @@ public:
    /// Get the output finite element space restriction matrix
    virtual const Operator *GetOutputRestriction() const
    { return GetRestriction(); }
+
+   /// @brief Compute serial RAP operator and store it in @a A as a SparseMatrix.
+   void SerialRAP(OperatorHandle &A)
+   {
+      MFEM_ASSERT(mat, "SerialRAP requires the SparseMatrix to be assembled.");
+      ConformingAssemble();
+      A.Reset(mat, false);
+   }
 
    /** @brief Form the linear system A X = B, corresponding to this bilinear
        form and the linear form @a b(.). */
@@ -766,7 +774,7 @@ public:
    SparseMatrix &SpMat() { return *mat; }
 
    /**  @brief Nullifies the internal matrix \f$ M \f$ and returns a pointer
-        to it.  Used for transfering ownership. */
+        to it.  Used for transferring ownership. */
    SparseMatrix *LoseMat() { SparseMatrix *tmp = mat; mat = NULL; return tmp; }
 
    /// Adds a domain integrator. Assumes ownership of @a bfi.

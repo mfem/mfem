@@ -9,7 +9,7 @@
 # terms of the BSD-3 license. We welcome feedback and contributions, see file
 # CONTRIBUTING.md for details.
 
-name: repo-check
+name: "Checks"
 
 permissions:
   actions: write
@@ -28,7 +28,7 @@ on:
 
 jobs:
   file-headers-check:
-    runs-on: ubuntu-18.04
+    runs-on: ubuntu-latest
     if: |
       (github.event_name == 'push' ||
        github.event.pull_request.head.repo.full_name != github.repository)
@@ -78,7 +78,7 @@ jobs:
         exit 1
 
   code-style:
-    runs-on: ubuntu-18.04
+    runs-on: ubuntu-latest
     if: |
       (github.event_name == 'push' ||
        github.event.pull_request.head.repo.full_name != github.repository)
@@ -88,14 +88,14 @@ jobs:
 
     - name: get astyle
       run: |
-        sudo apt-get install astyle=3.1-1ubuntu2
+        sudo apt-get install astyle
 
     - name: style check
       run: |
         ./config/githooks/pre-push --style
 
   documentation:
-    runs-on: ubuntu-18.04
+    runs-on: ubuntu-latest
     if: |
       (github.event_name == 'push' ||
        github.event.pull_request.head.repo.full_name != github.repository)
@@ -106,6 +106,8 @@ jobs:
     - name: get doxygen and graphviz
       run: |
         sudo apt-get install doxygen graphviz
+        cd doc
+        doxygen -u CodeDocumentation.conf.in
 
     - name: build documentation
       run: |
@@ -118,7 +120,7 @@ jobs:
       github.ref != 'refs/heads/master' &&
       (github.event_name == 'push' ||
        github.event.pull_request.head.repo.full_name != github.repository)
-    runs-on: ubuntu-18.04
+    runs-on: ubuntu-latest
     steps:
     - name: checkout mfem
       uses: actions/checkout@v2
