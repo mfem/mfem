@@ -318,6 +318,7 @@ miniapps/dpg/acoustics
 miniapps/dpg/pacoustics
 miniapps/dpg/maxwell
 miniapps/dpg/pmaxwell
+miniapps/dpg/ParaView
 
 # Unit test binary and outputs
 tests/unit/output_meshes

@@ -17,7 +17,7 @@
 // "ultraweak" (UW) DPG formulation for the convection-diffusion problem
 
 //     - εΔu + ∇⋅(βu) = f,   in Ω
-//                  u = u_0, on ∂Ω
+//                  u = u₀ , on ∂Ω
 
 // It solves the following kinds of problems
 // (a) A manufactured solution where u_exact = sin(π * (x + y + z)).
@@ -28,16 +28,16 @@
 // The DPG UW deals with the First Order System
 //     - ∇⋅σ + ∇⋅(βu) = f,   in Ω
 //        1/ε σ - ∇u  = 0,   in Ω
-//                  u = u_0, on ∂Ω
+//                  u = u₀ , on ∂Ω
 
 // Ultraweak-DPG is obtained by integration by parts of both equations and the
 // introduction of trace unknowns on the mesh skeleton
 //
-// u ∈ L^2(Ω), σ ∈ (L^2(Ω))^dim
+// u ∈ L²(Ω), σ ∈ (L²(Ω))ᵈⁱᵐ
 // û ∈ H^1/2, f̂ ∈ H^-1/2
-// -(βu , ∇v)  + (σ , ∇v)     + < f̂ ,  v  > = (f,v),   ∀ v ∈ H^1(Ω)
+// -(βu , ∇v)  + (σ , ∇v)     + < f̂ ,  v  > = (f,v),   ∀ v ∈ H¹(Ω)
 //   (u , ∇⋅τ) + 1/ε (σ , τ)  + < û , τ⋅n > = 0,       ∀ τ ∈ H(div,Ω)
-//                                        û = u_0  on ∂Ω
+//                                        û = u₀   on ∂Ω
 
 // Note:
 // f̂ := βu - σ
@@ -50,7 +50,7 @@
 // |   |           |           |           |          |         |
 // | τ | (u ,∇⋅τ)  | 1/ε(σ , τ)|  <û,τ⋅n>  |          |    0    |
 
-// where (v,τ) ∈  H^1(Ω_h) × H(div,Ω_h)
+// where (v,τ) ∈  H¹(Ωₕ) × H(div,Ωₕ)
 
 #include "mfem.hpp"
 #include "util/pweakform.hpp"

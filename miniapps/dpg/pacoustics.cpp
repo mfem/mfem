@@ -22,12 +22,12 @@
 // This example code demonstrates the use of MFEM to define and solve
 // the "ultraweak" (UW) DPG formulation for the Helmholtz problem
 
-//     - Δ p - ω^2 p = f̃ ,   in Ω
-//                 p = p_0, on ∂Ω
+//     - Δ p - ω² p = f̃ ,   in Ω
+//                p = p₀, on ∂Ω
 
 // It solves the following kinds of problems
 // 1) Known exact solutions with error convergence rates
-//    a) f̃ = 0 and p_0 is a plane wave
+//    a) f̃ = 0 and p₀ is a plane wave
 //    b) A manufactured solution problem where p_exact is a gaussian beam
 // 2) PML problems
 //    a) Gausian beam scattering from a square
@@ -37,21 +37,21 @@
 // The DPG UW deals with the First Order System
 //  ∇ p + i ω u = 0, in Ω
 //  ∇⋅u + i ω p = f, in Ω        (1)
-//           p = p_0, in ∂Ω
+//            p = p₀, in ∂Ω
 // where f:=f̃/(i ω)
 
 // The ultraweak-DPG formulation is obtained by integration by parts of both
 // equations and the introduction of trace unknowns on the mesh skeleton
 
-// p ∈ L^2(Ω), u ∈ (L^2(Ω))^dim
+// p ∈ L²(Ω), u ∈ (L²(Ω))ᵈⁱᵐ
 // p̂ ∈ H^1/2(Ω), û ∈ H^-1/2(Ω)
 // -(p,∇⋅v) + i ω (u,v) + <p̂,v⋅n> = 0,      ∀ v ∈ H(div,Ω)
 // -(u,∇ q) + i ω (p,q) + <û,q >  = (f,q)   ∀ q ∈ H^1(Ω)
-//                                   p̂  = p_0     on ∂Ω
+//                             p̂  = p₀      on ∂Ω
 
 // Note:
-// p̂ := p on Γ_h (skeleton)
-// û := u on Γ_h
+// p̂ := p on Γₕ  (skeleton)
+// û := u on Γₕ
 
 // -------------------------------------------------------------
 // |   |     p     |     u     |    p̂      |    û    |  RHS    |
@@ -60,15 +60,15 @@
 // |   |           |           |           |         |         |
 // | q | i ω (p,q) |-(u , ∇ q) |           | < û,q > |  (f,q)  |
 
-// where (q,v) ∈  H^1(Ω) × H(div,Ω)
+// where (q,v) ∈  H¹(Ω) × H(div,Ω)
 
 // Here we use the "Adjoint Graph" norm on the test space i.e.,
-// ||(q,v)||^2_V = ||A^*(q,v)||^2 + ||(q,v)||^2 where A is the
+// ||(q,v)||²ᵥ  = ||A^*(q,v)||² + ||(q,v)||² where A is the
 // acoustics operator defined by (1)
 
 // The PML formulation is
 
-//    - ∇⋅(|J| J^-1 J^-T ∇ p) - ω^2  |J| p = f
+//    - ∇⋅(|J| J⁻¹ J⁻ᵀ ∇ p) - ω²  |J| p = f
 
 // where J is the Jacobian of the stretching map and |J| its determinant.
 
@@ -76,20 +76,20 @@
 
 //  ∇ p + i ω α u = 0, in Ω
 //  ∇⋅u + i ω β p = f, in Ω         (2)
-//              p = p_0, in ∂Ω
-// where f:=f̃/(i ω), α:= J^T J / |J|, β:= |J|
+//              p = p₀, in ∂Ω
+// where f:=f̃/(i ω), α:= Jᵀ J / |J|, β:= |J|
 
 // and the ultraweak DPG formulation
 //
-// p ∈ L^2(Ω), u ∈ (L^2(Ω))^dim
+// p ∈ L²(Ω), u ∈ (L²(Ω))ᵈⁱᵐ
 // p̂ ∈ H^1/2(Ω), û ∈ H^-1/2(Ω)
 // -(p,  ∇⋅v) + i ω (α u , v) + < p̂, v⋅n> = 0,      ∀ v ∈ H(div,Ω)
-// -(u , ∇ q) + i ω (β p , q) + < û, q >  = (f,q)   ∀ q ∈ H^1(Ω)
-//                                      p̂ = p_0     on ∂Ω
+// -(u , ∇ q) + i ω (β p , q) + < û, q >  = (f,q)   ∀ q ∈ H¹(Ω)
+//                                      p̂ = p₀      on ∂Ω
 
 // Note:
-// p̂ := p on Γ_h (skeleton)
-// û := u on Γ_h
+// p̂ := p on Γₕ  (skeleton)
+// û := u on Γₕ
 
 // ----------------------------------------------------------------
 // |   |     p       |     u       |    p̂      |    û    |  RHS    |
@@ -98,11 +98,11 @@
 // |   |             |             |           |         |         |
 // | q | i ω (β p,q) |-(u , ∇ q)   |           | < û,q > |  (f,q)  |
 
-// where (q,v) ∈  H^1(Ω) × H(div,Ω)
+// where (q,v) ∈  H¹(Ω) × H(div,Ω)
 
 // Finally the test norm is defined by the adjoint operator of (2) i.e.,
 
-//    ||(q,v)||^2_V = ||A^*(q,v)||^2 + ||(q,v)||^2
+//    ||(q,v)||²ᵥ   = ||A^*(q,v)||² + ||(q,v)||²
 
 //where A is the operator defined by (2)
 

@@ -17,8 +17,8 @@
 // This example code demonstrates the use of MFEM to define and solve
 // the "ultraweak" (UW) DPG formulation for the Maxwell problem
 
-//      ∇×(1/μ ∇×E) - ω^2 ϵ E = Ĵ ,   in Ω
-//                E×n = E_0, on ∂Ω
+//      ∇×(1/μ ∇×E) - ω² ϵ E = Ĵ ,   in Ω
+//                       E×n = E₀ , on ∂Ω
 
 // It solves the following kinds of problems
 // 1) Known exact solutions with error convergence rates
@@ -44,25 +44,25 @@
 // or (∇ ⋅ AE , F) = (AE, ∇ F) + < AE ⋅ n, F>
 // where A = A = [0 1; -1 0];
 
-// E ∈ L^2(Ω)^2, H ∈ L^2(Ω)
-// Ê ∈ H^-1/2(Ω)(Γ_h), Ĥ ∈ H^1/2(Γ_h)
-//  i ω μ (H,F) + (E, ∇ × F) + < AÊ, F > = 0,      ∀ F ∈ H^1
+// E ∈ (L²(Ω))² , H ∈ L²(Ω)
+// Ê ∈ H^-1/2(Ω)(Γₕ), Ĥ ∈ H^1/2(Γₕ)
+//  i ω μ (H,F) + (E, ∇ × F) + < AÊ, F > = 0,      ∀ F ∈ H¹
 // -i ω ϵ (E,G) + (H,∇ × G)  + < Ĥ, G × n > = (J,G)   ∀ G ∈ H(curl,Ω)
-//                                    Ê = E_0     on ∂Ω
+//                                        Ê = E₀      on ∂Ω
 // -------------------------------------------------------------------------
 // |   |       E      |      H      |      Ê       |       Ĥ      |  RHS    |
 // -------------------------------------------------------------------------
 // | F |  (E,∇ × F)   | i ω μ (H,F) |   < Ê, F >   |              |         |
 // |   |              |             |              |              |         |
 // | G | -i ω ϵ (E,G) |  (H,∇ × G)  |              | < Ĥ, G × n > |  (J,G)  |
-// where (F,G) ∈  H^1 × H(curl,Ω)
+// where (F,G) ∈  H¹ × H(curl,Ω)
 
 // in 3D
-// E,H ∈ (L^2(Ω))^3
-// Ê ∈ H_0^1/2(Ω)(curl, Γ_h), Ĥ ∈ H^-1/2(curl, Γ_h)
+// E,H ∈ (L^2(Ω))³
+// Ê ∈ H_0^1/2(Ω)(curl, Γₕ), Ĥ ∈ H^-1/2(curl, Γₕ)
 //  i ω μ (H,F) + (E,∇ × F) + < Ê, F × n > = 0,      ∀ F ∈ H(curl,Ω)
 // -i ω ϵ (E,G) + (H,∇ × G) + < Ĥ, G × n > = (J,G)   ∀ G ∈ H(curl,Ω)
-//                                   Ê × n = E_0     on ∂Ω
+//                                   Ê × n = E₀      on ∂Ω
 // -------------------------------------------------------------------------
 // |   |       E      |      H      |      Ê       |       Ĥ      |  RHS    |
 // -------------------------------------------------------------------------
@@ -72,35 +72,35 @@
 // where (F,G) ∈  H(curl,Ω) × H(curl,Ω)
 
 // Here we use the "Adjoint Graph" norm on the test space i.e.,
-// ||(F,G)||^2_V = ||A^*(F,G)||^2 + ||(F,G)||^2 where A is the
+// ||(F,G)||²ᵥ  = ||A^*(F,G)||² + ||(F,G)||² where A is the
 // maxwell operator defined by (1)
 
 // The PML formulation is
 
-//      ∇×(1/μ α ∇×E) - ω^2 ϵ β E = Ĵ ,   in Ω
-//                E×n = E_0, on ∂Ω
+//      ∇×(1/μ α ∇×E) - ω² ϵ β E = Ĵ ,   in Ω
+//                E×n = E₀ , on ∂Ω
 
-// where α = |J|^-1 J^T J (in 2D it's the scalar |J|^-1),
-// β = |J| J^-1 J^-T, J is the Jacobian of the stretching map
+// where α = |J|⁻¹ Jᵀ J (in 2D it's the scalar |J|⁻¹),
+// β = |J| J⁻¹ J⁻ᵀ, J is the Jacobian of the stretching map
 // and |J| its determinant.
 
 // The first order system reads
-//  i ω μ α^-1 H + ∇ × E = 0,   in Ω
+//  i ω μ α⁻¹ H + ∇ × E = 0,   in Ω
 //    -i ω ϵ β E + ∇ × H = J,   in Ω
-//                 E × n = E_0, on ∂Ω
+//                 E × n = E₀,  on ∂Ω
 
 // and the ultraweak formulation is
 
 // in 2D
-// E ∈ L^2(Ω)^2, H ∈ L^2(Ω)
-// Ê ∈ H^-1/2(Ω)(Γ_h), Ĥ ∈ H^1/2(Γ_h)
-//  i ω μ (α^-1 H,F) + (E, ∇ × F) + < AÊ, F > = 0,         ∀ F ∈ H^1
-// -i ω ϵ (α E,G)    + (H,∇ × G)  + < Ĥ, G × n > = (J,G)   ∀ G ∈ H(curl,Ω)
-//                                             Ê = E_0     on ∂Ω
+// E ∈ (L²(Ω))² , H ∈ L²(Ω)
+// Ê ∈ H^-1/2(Ω)(Γₕ), Ĥ ∈ H^1/2(Γₕ)
+//  i ω μ (α⁻¹ H,F) + (E, ∇ × F) + < AÊ, F > = 0,          ∀ F ∈ H¹
+// -i ω ϵ (β E,G)   + (H,∇ × G)  + < Ĥ, G × n > = (J,G)   ∀ G ∈ H(curl,Ω)
+//                                            Ê = E₀     on ∂Ω
 // ---------------------------------------------------------------------------------
 // |   |       E        |        H         |      Ê       |       Ĥ      |  RHS    |
 // ---------------------------------------------------------------------------------
-// | F |  (E,∇ × F)     | i ω μ (α^-1 H,F) |   < Ê, F >   |              |         |
+// | F |  (E,∇ × F)     | i ω μ (α⁻¹ H,F)  |   < Ê, F >   |              |         |
 // |   |                |                  |              |              |         |
 // | G | -i ω ϵ (β E,G) |    (H,∇ × G)     |              | < Ĥ, G × n > |  (J,G)  |
 
@@ -108,15 +108,15 @@
 
 //
 // in 3D
-// E,H ∈ (L^2(Ω))^3
-// Ê ∈ H_0^1/2(Ω)(curl, Γ_h), Ĥ ∈ H^-1/2(curl, Γ_h)
-//  i ω μ (α^-1 H,F) + (E,∇ × F) + < Ê, F × n > = 0,      ∀ F ∈ H(curl,Ω)
+// E,H ∈ (L^2(Ω))³
+// Ê ∈ H_0^1/2(Ω)(curl, Γ_h), Ĥ ∈ H^-1/2(curl, Γₕ)
+//  i ω μ (α⁻¹ H,F) + (E,∇ × F) + < Ê, F × n > = 0,      ∀ F ∈ H(curl,Ω)
 // -i ω ϵ (β E,G)    + (H,∇ × G) + < Ĥ, G × n > = (J,G)   ∀ G ∈ H(curl,Ω)
 //                                        Ê × n = E_0     on ∂Ω
 // -------------------------------------------------------------------------------
 // |   |       E      |      H           |      Ê       |       Ĥ      |  RHS    |
 // -------------------------------------------------------------------------------
-// | F |  ( E,∇ × F)  | i ω μ (α^-1 H,F) | < n × Ê, F > |              |         |
+// | F |  ( E,∇ × F)  | i ω μ (α⁻¹ H,F)  | < n × Ê, F > |              |         |
 // |   |              |                  |              |              |         |
 // | G | -iωϵ (β E,G) |   (H,∇ × G)      |              | < n × Ĥ, G > |  (J,G)  |
 // where (F,G) ∈  H(curl,Ω) × H(curl,Ω)
