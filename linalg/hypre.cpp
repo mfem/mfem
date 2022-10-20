@@ -1610,7 +1610,7 @@ HypreParMatrix * HypreParMatrix::Transpose() const
    hypre_ParCSRMatrixTranspose(A, &At, 1);
    hypre_ParCSRMatrixSetNumNonzeros(At);
 
-   hypre_MatvecCommPkgCreate(At);
+   if (!hypre_ParCSRMatrixCommPkg(At)) { hypre_MatvecCommPkgCreate(At); }
 
    if ( M() == N() )
    {
@@ -2211,7 +2211,7 @@ void HypreParMatrix::Threshold(double threshold)
    {
       hypre_CSRMatrixReorder(hypre_ParCSRMatrixDiag(A));
    }
-   hypre_MatvecCommPkgCreate(A);
+   if (!hypre_ParCSRMatrixCommPkg(A)) { hypre_MatvecCommPkgCreate(A); }
    height = GetNumRows();
    width = GetNumCols();
 }
@@ -2533,7 +2533,7 @@ void HypreParMatrix::Read(MPI_Comm comm, const char *fname)
    hypre_ParCSRMatrixReadIJ(comm, fname, &base_i, &base_j, &A);
    hypre_ParCSRMatrixSetNumNonzeros(A);
 
-   hypre_MatvecCommPkgCreate(A);
+   if (!hypre_ParCSRMatrixCommPkg(A)) { hypre_MatvecCommPkgCreate(A); }
 
    height = GetNumRows();
    width = GetNumCols();
@@ -2554,7 +2554,7 @@ void HypreParMatrix::Read_IJMatrix(MPI_Comm comm, const char *fname)
 
    hypre_ParCSRMatrixSetNumNonzeros(A);
 
-   hypre_MatvecCommPkgCreate(A);
+   if (!hypre_ParCSRMatrixCommPkg(A)) { hypre_MatvecCommPkgCreate(A); }
 
    height = GetNumRows();
    width = GetNumCols();
@@ -2790,7 +2790,7 @@ HypreParMatrix *Add(double alpha, const HypreParMatrix &A,
                                       const_cast<HypreParMatrix &>(B));
    MFEM_VERIFY(C_hypre, "error in hypre_ParCSRMatrixAdd");
 
-   hypre_MatvecCommPkgCreate(C_hypre);
+   if (!hypre_ParCSRMatrixCommPkg(C_hypre)) { hypre_MatvecCommPkgCreate(C_hypre); }
    HypreParMatrix *C = new HypreParMatrix(C_hypre);
    *C = 0.0;
    C->Add(alpha, A);
@@ -2803,7 +2803,7 @@ HypreParMatrix * ParAdd(const HypreParMatrix *A, const HypreParMatrix *B)
 {
    hypre_ParCSRMatrix * C = internal::hypre_ParCSRMatrixAdd(*A,*B);
 
-   hypre_MatvecCommPkgCreate(C);
+   if (!hypre_ParCSRMatrixCommPkg(C)) { hypre_MatvecCommPkgCreate(C); }
 
    return new HypreParMatrix(C);
 }
@@ -2819,7 +2819,7 @@ HypreParMatrix *Add(double alpha, const HypreParMatrix &A,
 #else
    hypre_ParCSRMatrixAdd(alpha, A, beta, B, &C);
 #endif
-   hypre_MatvecCommPkgCreate(C);
+   if (!hypre_ParCSRMatrixCommPkg(C)) { hypre_MatvecCommPkgCreate(C); }
 
    return new HypreParMatrix(C);
 }
@@ -2832,6 +2832,7 @@ HypreParMatrix * ParAdd(const HypreParMatrix *A, const HypreParMatrix *B)
 #else
    hypre_ParCSRMatrixAdd(1.0, *A, 1.0, *B, &C);
 #endif
+   if (!hypre_ParCSRMatrixCommPkg(C)) { hypre_MatvecCommPkgCreate(C); }
 
    return new HypreParMatrix(C);
 }
@@ -2849,7 +2850,7 @@ HypreParMatrix * ParMult(const HypreParMatrix *A, const HypreParMatrix *B,
 #endif
    hypre_ParCSRMatrixSetNumNonzeros(ab);
 
-   hypre_MatvecCommPkgCreate(ab);
+   if (!hypre_ParCSRMatrixCommPkg(ab)) { hypre_MatvecCommPkgCreate(ab); }
    HypreParMatrix *C = new HypreParMatrix(ab);
    if (own_matrix)
    {
