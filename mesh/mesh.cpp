@@ -12118,8 +12118,11 @@ FaceGeometricFactors::FaceGeometricFactors(const Mesh *mesh,
 
    const FaceQuadratureInterpolator *qi =
       fespace->GetFaceQuadratureInterpolator(ir, type);
-   MFEM_ASSERT(qi->GetOutputLayout() == QVectorLayout::byNODES,
-               "FaceGeometricFactors assume ordering byNODES.");
+   // All face data vectors assume layout byNODES.
+   qi->SetOutputLayout(QVectorLayout::byNODES);
+   const bool use_tensor_products = UsesTensorBasis(*fespace);
+   qi->DisableTensorProducts(!use_tensor_products);
+
    qi->Mult(Fnodes, eval_flags, X, J, detJ, normal);
 }
 

@@ -533,9 +533,10 @@ public:
        All elements will use the same IntegrationRule, @a ir as the target
        quadrature points.
 
-       @note The returned pointer is shared, so it is not advisable to change
-       its internals, e.g., its layout. A good practice is to cache the old
-       property and restore it after interpolation. */
+       @note The returned pointer is shared. A good practice, before using it,
+       is to set all its properties to their expected values, as other parts of
+       the code may also change them. That is, it's good to call
+       SetOutputLayout() and DisableTensorProducts() before interpolating. */
    const QuadratureInterpolator *GetQuadratureInterpolator(
       const IntegrationRule &ir) const;
 
@@ -548,9 +549,10 @@ public:
        The target quadrature points in the elements are described by the given
        QuadratureSpace, @a qs.
 
-       @note The returned pointer is shared, so it is not advisable to change
-       its internals, e.g., its layout. A good practice is to cache the old
-       property and restore it after interpolation. */
+       @note The returned pointer is shared. A good practice, before using it,
+       is to set all its properties to their expected values, as other parts of
+       the code may also change them. That is, it's good to call
+       SetOutputLayout() and DisableTensorProducts() before interpolating. */
    const QuadratureInterpolator *GetQuadratureInterpolator(
       const QuadratureSpace &qs) const;
 
