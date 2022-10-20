@@ -855,9 +855,7 @@ void SparseMatrix::AddMultTranspose(const Vector &x, Vector &y,
    }
    else
    {
-      MFEM_VERIFY(!Device::Allows(~Backend::CPU_MASK), "transpose action with "
-                  "this backend is not enabled; see EnsureMultTranspose() for "
-                  "details.");
+      EnsureMultTranspose();
       for (int i = 0; i < height; i++)
       {
          const double xi = a * x[i];
@@ -1070,9 +1068,7 @@ void SparseMatrix::AbsMultTranspose(const Vector &x, Vector &y) const
    }
    else
    {
-      MFEM_VERIFY(!Device::Allows(~Backend::CPU_MASK), "transpose action with "
-                  "this backend is not enabled; see EnsureMultTranspose() for "
-                  "details.");
+      EnsureMultTranspose();
       for (int i = 0; i < height; i++)
       {
          const double xi = x[i];

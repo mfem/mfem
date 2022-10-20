@@ -233,8 +233,8 @@ int main(int argc, char *argv[])
    //     the normal equation operator, A = B^t Sinv B, and
    //     the normal equation right-hand-size, b = B^t Sinv F.
    BlockOperator B(true_offsets_test, true_offsets);
-   B.SetBlock(0, 0, matB0);      matB0->EnsureMultTranspose();
-   B.SetBlock(0, 1, matBhat);  matBhat->EnsureMultTranspose();
+   B.SetBlock(0, 0, matB0);
+   B.SetBlock(0, 1, matBhat);
 
    RAPOperator A(B, *matSinv, B);
 
