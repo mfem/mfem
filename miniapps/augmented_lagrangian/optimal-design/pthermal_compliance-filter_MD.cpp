@@ -3,6 +3,8 @@
 //
 // Sample runs:
 // mpirun -np 6 ./pthermal_compliance-filter_MD -epsilon 0.01 -alpha 0.01 -r 4 -o 2 -mi 50
+// mpirun -np 8 pthermal_compliance-filter_MD -epsilon 0.01 -alpha 0.01 -r 3 -o 2 -mi 100 -dim 3
+// mpirun -np 8 pthermal_compliance-filter_MD -epsilon 0.01 -alpha 0.01 -r 2 -o 2 -mi 100 -dim 3 -cylinder
 //
 //         min J(K) = <g,u>
 //                            
@@ -309,12 +311,17 @@ int main(int argc, char *argv[])
 
    // 5. Define the vector finite element spaces representing the state variable u,
    //    adjoint variable p, and the control variable f.
-   H1_FECollection state_fec(order, dim,BasisType::Positive); // space for u
-   H1_FECollection filter_fec(order-1, dim,BasisType::Positive); // space for ρ̃  
-   L2_FECollection control_fec(order-1, dim,BasisType::Positive); // space for ρ   
+   H1_FECollection state_fec(order, dim); // space for u
+   H1_FECollection filter_fec(order-1, dim); // space for ρ̃
+   L2_FECollection control_fec(order-1, dim,BasisType::Positive); // space for ρ
    ParFiniteElementSpace state_fes(&pmesh, &state_fec);
    ParFiniteElementSpace filter_fes(&pmesh, &filter_fec);
    ParFiniteElementSpace control_fes(&pmesh, &control_fec);
+
+   // For ParaView export of curl
+   ND_FECollection ND_fec(order, dim); // space for grad(u)
+   ParFiniteElementSpace ND_fes(&pmesh, &ND_fec);
+   ParGridFunction grad_u_gf(&ND_fes);
    
    HYPRE_BigInt state_size = state_fes.GlobalTrueVSize();
    HYPRE_BigInt control_size = control_fes.GlobalTrueVSize();
@@ -420,13 +427,14 @@ int main(int argc, char *argv[])
    paraview_dc.RegisterField("soln",&u);
    paraview_dc.RegisterField("rho",&rho);
    paraview_dc.RegisterField("rho_filter",&rho_filter);
+   paraview_dc.RegisterField("grad_soln",&grad_u_gf);
 
    // 12. AL iterations
    int step = 0;
    double lambda = 0.0;
    for (int k = 1; k < max_it; k++)
    {
-      if (k > 1) { alpha *= ((double) k) / ((double) k-1); }
+      // if (k > 1) { alpha *= ((double) k) / ((double) k-1); }
       step++;
 
       // A. Form state equation
@@ -512,6 +520,8 @@ int main(int argc, char *argv[])
          sout_rho_filter << "solution\n" << pmesh << rho_filter
                 << "window_title 'Filtered density ρ̃ '" << flush;
      
+         GradientGridFunctionCoefficient grad_u_cf(&u);
+         grad_u_gf.ProjectCoefficient(grad_u_cf);
 
          paraview_dc.SetCycle(step);
          paraview_dc.SetTime((double)k);

@@ -270,7 +270,12 @@ int main(int argc, char *argv[])
    FilterSolver->SetAlpha(1.0);
    FilterSolver->SetBeta(1.0);
    FilterSolver->SetDiffusionCoefficient(&eps2_cf);
-   Array<int> ess_bdr_filter(pmesh.bdr_attributes.Max()); ess_bdr_filter = 0;
+   Array<int> ess_bdr_filter;
+   if (pmesh.bdr_attributes.Size())
+   {
+      ess_bdr_filter.SetSize(pmesh.bdr_attributes.Max());
+      ess_bdr_filter = 0;
+   }
    FilterSolver->SetEssentialBoundary(ess_bdr_filter);
    FilterSolver->Init();
    FilterSolver->SetupFEM();
