@@ -119,6 +119,11 @@ Miscellaneous
 - The behavior of GridFunction::GetTrueVector() has been changed to not return
   an empty true vector.
 
+- The method SparseMatrix::EnsureMultTranspose() is now automatically called
+  by the methods AddMultTranspose(), MultTranspose(), and AbsMultTranspose().
+  Added a method with the same name to class HypreParMatrix which is also called
+  automatically by the HypreParMatrix::MultTranspose() methods.
+
 
 Version 4.4, released on March 21, 2022
 =======================================

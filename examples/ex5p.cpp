@@ -262,7 +262,6 @@ int main(int argc, char *argv[])
       M = mVarf->ParallelAssemble();
       B = bVarf->ParallelAssemble();
       (*B) *= -1;
-      B->EnsureMultTranspose();
       Bt = new TransposeOperator(B);
 
       darcyOp->SetBlock(0,0, M);
