@@ -804,7 +804,7 @@ HypreParMatrix::HypreParMatrix(MPI_Comm comm, HYPRE_BigInt glob_size,
    }
 #endif
 
-   if (!hypre_ParCSRMatrixCommPkg(A)) { hypre_MatvecCommPkgCreate(A); }
+   hypre_MatvecCommPkgCreate(A);
 }
 
 // Rectangular block-diagonal constructor (6 arguments, v1)
@@ -849,7 +849,7 @@ HypreParMatrix::HypreParMatrix(MPI_Comm comm,
 #endif
    }
 
-   if (!hypre_ParCSRMatrixCommPkg(A)) { hypre_MatvecCommPkgCreate(A); }
+   hypre_MatvecCommPkgCreate(A);
 }
 
 // General rectangular constructor with diagonal and off-diagonal (8+1
@@ -904,7 +904,7 @@ HypreParMatrix::HypreParMatrix(MPI_Comm comm,
 #endif
    }
 
-   if (!hypre_ParCSRMatrixCommPkg(A)) { hypre_MatvecCommPkgCreate(A); }
+   hypre_MatvecCommPkgCreate(A);
 }
 
 // General rectangular constructor with diagonal and off-diagonal (13+1
@@ -961,7 +961,7 @@ HypreParMatrix::HypreParMatrix(
       hypre_CSRMatrixReorder(hypre_ParCSRMatrixDiag(A));
    }
 
-   if (!hypre_ParCSRMatrixCommPkg(A)) { hypre_MatvecCommPkgCreate(A); }
+   hypre_MatvecCommPkgCreate(A);
 
    height = GetNumRows();
    width = GetNumCols();
@@ -1020,7 +1020,7 @@ HypreParMatrix::HypreParMatrix(MPI_Comm comm,
       hypre_CSRMatrixReorder(hypre_ParCSRMatrixDiag(new_A));
    }
 
-   if (!hypre_ParCSRMatrixCommPkg(A)) { hypre_MatvecCommPkgCreate(A); }
+   hypre_MatvecCommPkgCreate(A);
 
    WrapHypreParCSRMatrix(new_A);
 }
@@ -1064,7 +1064,7 @@ HypreParMatrix::HypreParMatrix(MPI_Comm comm,
 #endif
    }
 
-   if (!hypre_ParCSRMatrixCommPkg(A)) { hypre_MatvecCommPkgCreate(A); }
+   hypre_MatvecCommPkgCreate(A);
 
    height = GetNumRows();
    width = GetNumCols();
@@ -1146,7 +1146,7 @@ HypreParMatrix::HypreParMatrix(MPI_Comm comm, int id, int np,
       hypre_CSRMatrixReorder(hypre_ParCSRMatrixDiag(A));
    }
 
-   if (!hypre_ParCSRMatrixCommPkg(A)) { hypre_MatvecCommPkgCreate(A); }
+   hypre_MatvecCommPkgCreate(A);
 
    height = GetNumRows();
    width = GetNumCols();
@@ -1296,7 +1296,7 @@ HypreParMatrix::HypreParMatrix(MPI_Comm comm, int nrows,
       mfem_hypre_TFree_host(col_starts);
    }
 #endif
-   if (!hypre_ParCSRMatrixCommPkg(A)) { hypre_MatvecCommPkgCreate(A); }
+   hypre_MatvecCommPkgCreate(A);
 
    height = GetNumRows();
    width = GetNumCols();
@@ -1323,7 +1323,7 @@ HypreParMatrix::HypreParMatrix(const HypreParMatrix &P)
 
    hypre_ParCSRMatrixSetNumNonzeros(A);
 
-   if (!hypre_ParCSRMatrixCommPkg(A)) { hypre_MatvecCommPkgCreate(A); }
+   hypre_MatvecCommPkgCreate(A);
 
    diagOwner = HypreCsrToMem(A->diag, GetHypreMemoryType(), false, mem_diag);
    offdOwner = HypreCsrToMem(A->offd, GetHypreMemoryType(), false, mem_offd);
@@ -2830,6 +2830,7 @@ HypreParMatrix * ParAdd(const HypreParMatrix *A, const HypreParMatrix *B)
 #else
    hypre_ParCSRMatrixAdd(1.0, *A, 1.0, *B, &C);
 #endif
+   if (!hypre_ParCSRMatrixCommPkg(C)) { hypre_MatvecCommPkgCreate(C); }
 
    return new HypreParMatrix(C);
 }
