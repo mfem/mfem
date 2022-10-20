@@ -5525,7 +5525,7 @@ void HypreAMS::ResetAMSPrecond()
    HYPRE_Int maxit = hypre_AMSDataMaxIter(ams_data);
    HYPRE_Real tol = hypre_AMSDataTol(ams_data);
    HYPRE_Int cycle_type = hypre_AMSDataCycleType(ams_data);
-   HYPRE_Int print_level = hypre_AMSDataPrintLevel(ams_data);
+   HYPRE_Int ams_print_level = hypre_AMSDataPrintLevel(ams_data);
 
    /* Smoothing and AMG options */
    HYPRE_Int A_relax_type = hypre_AMSDataARelaxType(ams_data);
@@ -5559,7 +5559,7 @@ void HypreAMS::ResetAMSPrecond()
    HYPRE_AMSSetTol(ams, tol);
    HYPRE_AMSSetMaxIter(ams, maxit); // use as a preconditioner
    HYPRE_AMSSetCycleType(ams, cycle_type);
-   HYPRE_AMSSetPrintLevel(ams, print_level);
+   HYPRE_AMSSetPrintLevel(ams, ams_print_level);
 
    HYPRE_AMSSetCoordinateVectors(ams, hy_x, hy_y, hy_z);
 
@@ -5571,6 +5571,9 @@ void HypreAMS::ResetAMSPrecond()
    // set additional AMS options
    HYPRE_AMSSetSmoothingOptions(ams, A_relax_type, A_relax_times, A_relax_weight,
                                 A_omega);
+
+   hypre_AMSDataAChebyOrder(ams_data) = A_cheby_order;
+   hypre_AMSDataAChebyFraction(ams_data) = A_cheby_fraction;
 
    HYPRE_AMSSetAlphaAMGOptions(ams, B_Pi_coarsen_type, B_Pi_agg_levels,
                                B_Pi_relax_type,
