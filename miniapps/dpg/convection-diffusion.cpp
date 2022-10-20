@@ -31,9 +31,9 @@
 // Ultraweak-DPG is obtained by integration by parts of both equations and the
 // introduction of trace unknowns on the mesh skeleton
 //
-// u ∈ L^2(Ω), σ ∈ (L^2(Ω))^dim
+// u ∈ L²(Ω), σ ∈ (L²(Ω))ᵈⁱᵐ
 // û ∈ H^1/2, σ̂ ∈ H^-1/2
-// -(βu , ∇v)  + (σ , ∇v)     + < f̂ ,  v  > = (f,v),   ∀ v ∈ H^1(Ω)
+// -(βu , ∇v)  + (σ , ∇v)     + < f̂ ,  v  > = (f,v),   ∀ v ∈ H¹(Ω)
 //   (u , ∇⋅τ) + 1/ε (σ , τ)  + < û , τ⋅n > = 0,       ∀ τ ∈ H(div,Ω)
 //                                        û = u_0  on ∂Ω
 
@@ -48,7 +48,7 @@
 // |   |           |           |           |          |         |
 // | τ | (u ,∇⋅τ)  | 1/ε(σ , τ)|  <û,τ⋅n>  |          |    0    |
 
-// where (v,τ) ∈  H^1(Ω_h) × H(div,Ω_h)
+// where (v,τ) ∈  H¹(Ωₕ) × H(div,Ωₕ)
 
 #include "mfem.hpp"
 #include "util/weakform.hpp"

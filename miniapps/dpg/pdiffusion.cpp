@@ -21,7 +21,7 @@
 // the "ultraweak" (UW) DPG formulation for the Poisson problem in parallel
 
 //       - Δ u = f,   in Ω
-//         u = u_0, on ∂Ω
+//           u = u₀, on ∂Ω
 //
 // It solves two kinds of problems
 // a) A manufactured solution problem where u_exact = sin(π * (x + y + z)).
@@ -32,16 +32,16 @@
 // The DPG UW deals with the First Order System
 //   ∇ u - σ = 0, in Ω
 // - ∇⋅σ     = f, in Ω
-//        u  = u_0, in ∂Ω
+//        u  = u₀, in ∂Ω
 
 // Ultraweak-DPG is obtained by integration by parts of both equations and the
 // introduction of trace unknowns on the mesh skeleton
 
-// u ∈ L^2(Ω), σ ∈ (L^2(Ω))^dim
+// u ∈ L²(Ω), σ ∈ (L²(Ω))ᵈⁱᵐ
 // û ∈ H^1/2, σ̂ ∈ H^-1/2
 // -(u , ∇⋅τ) + < û, τ⋅n> - (σ , τ) = 0,      ∀ τ ∈ H(div,Ω)
-//  (σ , ∇ v) - < σ̂, v  >           = (f,v)   ∀ v ∈ H^1(Ω)
-//                                û = u_0        on ∂Ω
+//  (σ , ∇ v) - < σ̂, v  >           = (f,v)   ∀ v ∈ H¹(Ω)
+//                                û = u₀        on ∂Ω
 
 // Note:
 // û := u and σ̂ := -σ
@@ -53,8 +53,7 @@
 // |   |           |           |           |         |         |
 // | v |           |  (σ,∇ v)  |           | -<σ̂,v>  |  (f,v)  |
 
-
-// where (τ,v) ∈  H(div,Ω) × H^1(Ω)
+// where (τ,v) ∈  H(div,Ω) × H¹(Ω)
 
 #include "mfem.hpp"
 #include "util/pweakform.hpp"

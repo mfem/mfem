@@ -13,26 +13,26 @@
 // the "ultraweak" (UW) DPG formulation for the Poisson problem
 
 //       - Δ u = f,   in Ω
-//         u = u_0, on ∂Ω
+//           u = u₀, on ∂Ω
 
 // It solves two kinds of problems
-// a) f = 1 and u_0 = 0 (like ex1)
+// a) f = 1 and u₀  = 0 (like ex1)
 // b) A manufactured solution problem where u_exact = sin(π * (x + y + z)).
 //    This example computes and prints out convergence rates for the L2 error.
 
 // The DPG UW deals with the First Order System
 //   ∇ u - σ = 0, in Ω
 // - ∇⋅σ     = f, in Ω
-//        u  = u_0, in ∂Ω
+//        u  = u₀, in ∂Ω
 
 // Ultraweak-DPG is obtained by integration by parts of both equations and the
 // introduction of trace unknowns on the mesh skeleton
 //
-// u ∈ L^2(Ω), σ ∈ (L^2(Ω))^dim
-// û ∈ H^1/2(Γ_h), σ̂ ∈ H^-1/2(Γ_h)
+// u ∈ L²(Ω), σ ∈ (L²(Ω))ᵈⁱᵐ
+// û ∈ H^1/2(Γₕ), σ̂ ∈ H^-1/2(Γₕ)
 // -(u , ∇⋅τ) - (σ , τ) + < û, τ⋅n> = 0,      ∀ τ ∈ H(div,Ω)
-//  (σ , ∇ v) + < σ̂, v  >           = (f,v)   ∀ v ∈ H^1(Ω)
-//                                û = u_0       on ∂Ω
+//  (σ , ∇ v) + < σ̂, v  >           = (f,v)   ∀ v ∈ H¹(Ω)
+//                                û = u₀      on ∂Ω
 
 // Note:
 // û := u and σ̂ := -σ
@@ -48,7 +48,7 @@
 
 // Here we use the "space-induced" test norm i.e.,
 //
-// ||(t,v)||^2_H(div)×H^1 := ||t||^2 + ||∇⋅t||^2 + ||v||^2 + ||∇v||^2
+// ||(t,v)||²_H(div)×H¹ := ||t||² + ||∇⋅t||² + ||v||² + ||∇v||²
 
 #include "mfem.hpp"
 #include "util/weakform.hpp"

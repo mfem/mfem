@@ -14,13 +14,13 @@
 // This example code demonstrates the use of MFEM to define and solve
 // the "ultraweak" (UW) DPG formulation for the Helmholtz problem
 
-//     - Δ p - ω^2 p = f̃ ,   in Ω
-//                 p = p_0, on ∂Ω
+//     - Δ p - ω² p = f̃ ,   in Ω
+//                p = p₀, on ∂Ω
 
 // It solves two kinds of problems
-// a) f̃ = 0 and p_0 is a plane wave
+// a) f̃ = 0 and p₀ is a plane wave
 // b) A manufactured solution problem where p_exact is a gaussian beam
-// This example computes and prints out convergence rates for the L2 error.
+// This example computes and prints out convergence rates for the L² error.
 
 // The DPG UW deals with the First Order System
 //  ∇ p + i ω u = 0, in Ω
@@ -31,15 +31,15 @@
 // Ultraweak-DPG is obtained by integration by parts of both equations and the
 // introduction of trace unknowns on the mesh skeleton
 //
-// p ∈ L^2(Ω), u ∈ (L^2(Ω))^dim
+// p ∈ L²(Ω), u ∈ (L²(Ω))ᵈⁱᵐ
 // p̂ ∈ H^1/2(Ω), û ∈ H^-1/2(Ω)
 // -(p,  ∇⋅v) + i ω (u , v) + < p̂, v⋅n> = 0,      ∀ v ∈ H(div,Ω)
-// -(u , ∇ q) + i ω (p , q) + < û, q >  = (f,q)   ∀ q ∈ H^1(Ω)
-//                                  p̂  = p_0     on ∂Ω
+// -(u , ∇ q) + i ω (p , q) + < û, q >  = (f,q)   ∀ q ∈ H¹(Ω)
+//                                   p̂  = p₀      on ∂Ω
 
 // Note:
-// p̂ := p on Γ_h (skeleton)
-// û := u on Γ_h
+// p̂ := p on Γₕ  (skeleton)
+// û := u on Γₕ
 
 // -------------------------------------------------------------
 // |   |     p     |     u     |    p̂      |    û    |  RHS    |
@@ -48,10 +48,10 @@
 // |   |           |           |           |         |         |
 // | q | i ω (p,q) |-(u , ∇ q) |           | < û,q > |  (f,q)  |
 
-// where (q,v) ∈  H^1(Ω) × H(div,Ω)
+// where (q,v) ∈  H¹(Ω) × H(div,Ω)
 
 // Here we use the "Adjoint Graph" norm on the test space i.e.,
-// ||(q,v)||^2_V = ||A^*(q,v)||^2 + ||(q,v)||^2 where A is the
+// ||(q,v)||²ᵥ = ||A^*(q,v)||² + ||(q,v)||² where A is the
 // acoustics operator defined by (1)
 
 #include "mfem.hpp"
