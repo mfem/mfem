@@ -104,7 +104,8 @@ bool LinearForm::SupportsDevice()
 {
    // return false for NURBS meshs, so we don’t convert it to non-NURBS
    // through Assemble, AssembleDevice, GetGeometricFactors and EnsureNodes
-   if (fes->GetMesh()->NURBSext != nullptr) { return false; }
+   const Mesh &mesh = *fes->GetMesh();
+   if (mesh.NURBSext != nullptr) { return false; }
 
    // scan integrators to verify that all can use device assembly
    auto IntegratorsSupportDevice = [](const Array<LinearFormIntegrator*> &integ)
@@ -123,24 +124,22 @@ bool LinearForm::SupportsDevice()
 
    if (boundary_integs.Size() > 0)
    {
-      // Make sure every boundary element corresponds to a boundary face
-      for (int be = 0; be < fes->GetNBE(); ++be)
-      {
-         const int f = fes->GetMesh()->GetBdrElementEdgeIndex(be);
-         const auto face_info = fes->GetMesh()->GetFaceInformation(f);
-         if (!face_info.IsBoundary())
-         {
-            return false;
-         }
-      }
       // Make sure there are no boundary faces that are not boundary elements
       if (fes->GetNFbyType(FaceType::Boundary) != fes->GetNBE())
       {
          return false;
       }
+      // Make sure every boundary element corresponds to a boundary face
+      for (int be = 0; be < fes->GetNBE(); ++be)
+      {
+         const int f = mesh.GetBdrElementEdgeIndex(be);
+         const auto face_info = mesh.GetFaceInformation(f);
+         if (!face_info.IsBoundary())
+         {
+            return false;
+         }
+      }
    }
-
-   const Mesh &mesh = *fes->GetMesh();
 
    // no support for elements with varying polynomial orders
    if (fes->IsVariableOrder()) { return false; }

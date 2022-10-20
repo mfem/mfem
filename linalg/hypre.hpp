@@ -1753,6 +1753,19 @@ private:
    /// Nedelec interpolation matrix and its components
    HypreParMatrix *Pi, *Pix, *Piy, *Piz;
 
+   /// AMS cycle type
+   int ams_cycle_type = 0;
+   /// Spatial dimension of the underlying mesh
+   int space_dim = 0;
+   /// Flag set if `SetSingularProblem` is called, needed in `ResetAMSPrecond`
+   bool singular = false;
+   /// Flag set if `SetPrintLevel` is called, needed in `ResetAMSPrecond`
+   int print_level = 1;
+
+   // Recreates another AMS solver with the same options when SetOperator is
+   // called multiple times.
+   void ResetAMSPrecond();
+
 public:
    /// @brief Construct the AMS solver on the given edge finite element space.
    ///
@@ -1775,7 +1788,11 @@ public:
    void SetPrintLevel(int print_lvl);
 
    /// Set this option when solving a curl-curl problem with zero mass term
-   void SetSingularProblem() { HYPRE_AMSSetBetaPoissonMatrix(ams, NULL); }
+   void SetSingularProblem()
+   {
+      HYPRE_AMSSetBetaPoissonMatrix(ams, NULL);
+      singular = true;
+   }
 
    /// The typecast to HYPRE_Solver returns the internal ams object
    virtual operator HYPRE_Solver() const { return ams; }
@@ -1795,15 +1812,13 @@ private:
    /// Construct ADS solver from finite element space
    void Init(ParFiniteElementSpace *face_fespace);
 
-   /// Create the hypre solver object and set the default options, given the
-   /// cycle type @a cycle_type and AMS cycle type @a ams_cycle_type.
-   void MakeSolver(int cycle_type, int ams_cycle_type);
+   /// Create the hypre solver object and set the default options, using the
+   /// cycle type cycle_type and AMS cycle type ams_cycle_type data members.
+   void MakeSolver();
 
    /// Construct the discrete curl, gradient and interpolation matrices
    /// associated with @a face_fespace, and add them to the solver.
-   void MakeDiscreteMatrices(ParFiniteElementSpace *face_fespace,
-                             int cycle_type,
-                             int ams_cycle_type);
+   void MakeDiscreteMatrices(ParFiniteElementSpace *face_fespace);
 
    HYPRE_Solver ads;
 
@@ -1818,6 +1833,16 @@ private:
    /// Raviart-Thomas interpolation matrix and its components
    HypreParMatrix *RT_Pi, *RT_Pix, *RT_Piy, *RT_Piz;
 
+   /// ADS cycle type
+   const int cycle_type = 11;
+   /// AMS cycle type
+   const int ams_cycle_type = 14;
+   /// ADS print level
+   int print_level = 1;
+
+   // Recreates another ADS solver with the same options when SetOperator is
+   // called multiple times.
+   void ResetADSPrecond();
 public:
    HypreADS(ParFiniteElementSpace *face_fespace);
 
