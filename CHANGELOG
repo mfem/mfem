@@ -8,7 +8,7 @@
                                https://mfem.org
 
 
-Version 4.5, released on October 20, 2022
+Version 4.5, released on October 21, 2022
 =========================================
 
 Meshing improvements
@@ -25,6 +25,10 @@ Meshing improvements
 
 - Added more 3D TMOP metrics, as well as specialized metrics for mesh
   untangling and worst-case quality improvement.
+
+- Added a new method, Mesh::NodesUpdated, which should be called after the mesh
+  node coordinates have changed, e.g. after the mesh has moved. This is
+  necessary, for example, with device assembly of linear and bilinear forms.
 
 Discretization improvements
 ---------------------------
@@ -50,6 +54,11 @@ Discretization improvements
 
 - Added a class CoefficientVector for efficient access of variable coefficient
   values at quadrature points (in particular for GPU/device kernels).
+
+- The device assembly of linear forms now has to be explicitly enabled by
+  calling LinearForm::UseFastAssembly(true). By default, the legacy linear form
+  assembly is used, which was not the case in mfem-4.4. As part of this change,
+  the boolean parameter of the Assemble method of LinearForm has been removed.
 
 - Added WhiteGaussianNoiseDomainLFIntegrator: a LinearFormIntegrator class for
   spatial Gaussian white noise.
@@ -130,6 +139,8 @@ Miscellaneous
 
 - The behavior of GridFunction::GetTrueVector() has been changed to not return
   an empty true vector.
+
+- Added support for ordering search points byVDIM in FindPointsGSLIB.
 
 - Various other simplifications, extensions, and bugfixes in the code.
 

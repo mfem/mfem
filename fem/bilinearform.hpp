@@ -26,7 +26,8 @@ namespace mfem
 {
 
 /** @brief Enumeration defining the assembly level for bilinear and nonlinear
-    form classes derived from Operator. */
+    form classes derived from Operator. For more details, see
+    https://mfem.org/howto/assembly_levels */
 enum class AssemblyLevel
 {
    /// In the case of a BilinearForm LEGACY corresponds to a fully assembled
@@ -177,7 +178,7 @@ public:
        - AssemblyLevel::ELEMENT
        - AssemblyLevel::NONE
 
-       This method must be called before assembly. */
+       If used, this method must be called before assembly. */
    void SetAssemblyLevel(AssemblyLevel assembly_level);
 
    /// Returns the assembly level
