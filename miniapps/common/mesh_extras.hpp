@@ -100,6 +100,8 @@ public:
 
    virtual void Eval(Vector &V, ElementTransformation &T,
                      const IntegrationPoint &ip);
+
+   using VectorCoefficient::Eval;
 };
 
 

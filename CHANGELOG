@@ -140,6 +140,11 @@ Miscellaneous
 - The behavior of GridFunction::GetTrueVector() has been changed to not return
   an empty true vector.
 
+- The method SparseMatrix::EnsureMultTranspose() is now automatically called
+  by the methods AddMultTranspose(), MultTranspose(), and AbsMultTranspose().
+  Added a method with the same name to class HypreParMatrix which is also called
+  automatically by the HypreParMatrix::MultTranspose() methods.
+
 - Added support for ordering search points byVDIM in FindPointsGSLIB.
 
 - Various other simplifications, extensions, and bugfixes in the code.
