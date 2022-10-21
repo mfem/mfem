@@ -937,7 +937,6 @@ HypreParMatrix::HypreParMatrix(
 #ifdef HYPRE_USING_GPU
    hypre_CSRMatrixMemoryLocation(A->diag) = HYPRE_MEMORY_HOST;
 #endif
-   hypre_CSRMatrixSetRownnz(A->diag);
 
    hypre_CSRMatrixSetDataOwner(A->offd, hypre_arrays);
    hypre_CSRMatrixI(A->offd) = offd_i;
@@ -947,7 +946,6 @@ HypreParMatrix::HypreParMatrix(
 #ifdef HYPRE_USING_GPU
    hypre_CSRMatrixMemoryLocation(A->offd) = HYPRE_MEMORY_HOST;
 #endif
-   hypre_CSRMatrixSetRownnz(A->offd);
 
    hypre_ParCSRMatrixColMapOffd(A) = offd_col_map;
    // Prevent hypre from destroying A->col_map_offd, own A->col_map_offd
@@ -979,6 +977,9 @@ HypreParMatrix::HypreParMatrix(
       offdOwner = HypreCsrToMem(A->offd, host_mt, false, mem_offd);
    }
    HypreRead();
+
+   hypre_CSRMatrixSetRownnz(A->diag);
+   hypre_CSRMatrixSetRownnz(A->offd);
 }
 
 // Constructor from a CSR matrix on rank 0 (4 arguments, v2)
@@ -1123,7 +1124,6 @@ HypreParMatrix::HypreParMatrix(MPI_Comm comm, int id, int np,
 #ifdef HYPRE_USING_GPU
    hypre_CSRMatrixMemoryLocation(A->diag) = HYPRE_MEMORY_HOST;
 #endif
-   hypre_CSRMatrixSetRownnz(A->diag);
 
    hypre_CSRMatrixSetDataOwner(A->offd,0);
    hypre_CSRMatrixI(A->offd)    = i_offd;
@@ -1132,7 +1132,6 @@ HypreParMatrix::HypreParMatrix(MPI_Comm comm, int id, int np,
 #ifdef HYPRE_USING_GPU
    hypre_CSRMatrixMemoryLocation(A->offd) = HYPRE_MEMORY_HOST;
 #endif
-   hypre_CSRMatrixSetRownnz(A->offd);
 
    hypre_ParCSRMatrixColMapOffd(A) = cmap;
    // Prevent hypre from destroying A->col_map_offd, own A->col_map_offd
@@ -1155,6 +1154,9 @@ HypreParMatrix::HypreParMatrix(MPI_Comm comm, int id, int np,
    diagOwner = HypreCsrToMem(A->diag, host_mt, true, mem_diag);
    offdOwner = HypreCsrToMem(A->offd, host_mt, true, mem_offd);
    HypreRead();
+
+   hypre_CSRMatrixSetRownnz(A->diag);
+   hypre_CSRMatrixSetRownnz(A->offd);
 }
 
 // General rectangular constructor with diagonal and off-diagonal constructed
@@ -1708,6 +1710,25 @@ void HypreParMatrix::EnsureMultTranspose() const
 #endif
 }
 
+void HypreParMatrix::ResetTranspose() const
+{
+#if (MFEM_HYPRE_VERSION == 22500 && HYPRE_DEVELOP_NUMBER >= 1) || \
+    (MFEM_HYPRE_VERSION > 22500)
+#ifdef HYPRE_USING_GPU
+   if (A->diagT)
+   {
+      hypre_CSRMatrixDestroy(A->diagT);
+      A->diagT = NULL;
+   }
+   if (A->offdT)
+   {
+      hypre_CSRMatrixDestroy(A->offdT);
+      A->offdT = NULL;
+   }
+#endif
+#endif
+}
+
 HYPRE_Int HypreParMatrix::Mult(HypreParVector &x, HypreParVector &y,
                                double a, double b) const
 {
@@ -1830,13 +1851,7 @@ void HypreParMatrix::MultTranspose(double a, const Vector &x,
       }
    }
 
-#if (MFEM_HYPRE_VERSION == 22500 && HYPRE_DEVELOP_NUMBER >= 1) || \
-    (MFEM_HYPRE_VERSION > 22500)
-#ifdef HYPRE_USING_GPU
-   MFEM_VERIFY(A->diagT != NULL,
-               "Transpose action requires EnsureMultTranspose()");
-#endif
-#endif
+   EnsureMultTranspose();
 
    hypre_ParCSRMatrixMatvecT(a, A, *Y, b, *X);
 
@@ -1853,13 +1868,7 @@ HYPRE_Int HypreParMatrix::Mult(HYPRE_ParVector x, HYPRE_ParVector y,
 HYPRE_Int HypreParMatrix::MultTranspose(HypreParVector & x, HypreParVector & y,
                                         double a, double b) const
 {
-#if (MFEM_HYPRE_VERSION == 22500 && HYPRE_DEVELOP_NUMBER >= 1) || \
-    (MFEM_HYPRE_VERSION > 22500)
-#ifdef HYPRE_USING_GPU
-   MFEM_VERIFY(A->diagT != NULL,
-               "Transpose action requires EnsureMultTranspose()");
-#endif
-#endif
+   EnsureMultTranspose();
    x.HypreRead();
    (b == 0.0) ? y.HypreWrite() : y.HypreReadWrite();
    return hypre_ParCSRMatrixMatvecT(a, A, x, b, y);
