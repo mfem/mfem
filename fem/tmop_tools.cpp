@@ -27,17 +27,43 @@ void AdvectorCG::SetInitialField(const Vector &init_nodes,
 }
 
 void AdvectorCG::ComputeAtNewPosition(const Vector &new_nodes,
-                                      Vector &new_field)
+                                      Vector &new_field,
+                                      int new_nodes_ordering)
 {
+   FiniteElementSpace *space = fes;
+#ifdef MFEM_USE_MPI
+   if (pfes) { space = pfes; }
+#endif
+   int fes_ordering = space->GetOrdering(),
+       ncomp = space->GetVDim();
+
    // TODO: Implement for AMR meshes.
-   const int pnt_cnt = new_field.Size()/ncomp;
+   const int pnt_cnt = field0.Size() / ncomp;
 
    new_field = field0;
    Vector new_field_temp;
    for (int i = 0; i < ncomp; i++)
    {
-      new_field_temp.MakeRef(new_field, i*pnt_cnt, pnt_cnt);
+      if (fes_ordering == Ordering::byNODES)
+      {
+         new_field_temp.MakeRef(new_field, i*pnt_cnt, pnt_cnt);
+      }
+      else
+      {
+         new_field_temp.SetSize(pnt_cnt);
+         for (int j = 0; j < pnt_cnt; j++)
+         {
+            new_field_temp(j) = new_field(i + j*ncomp);
+         }
+      }
       ComputeAtNewPositionScalar(new_nodes, new_field_temp);
+      if (fes_ordering == Ordering::byVDIM)
+      {
+         for (int j = 0; j < pnt_cnt; j++)
+         {
+            new_field(i + j*ncomp) = new_field_temp(j);
+         }
+      }
    }
 
    field0 = new_field;
@@ -98,7 +124,7 @@ void AdvectorCG::ComputeAtNewPositionScalar(const Vector &new_nodes,
    for (int i = 0; i < s; i++)
    {
       double vel = 0.;
-      for (int j = 0; j < dim; j++)
+      for (int j = 0; j < m->Dimension(); j++)
       {
          vel += u(i+j*s)*u(i+j*s);
       }
@@ -190,11 +216,7 @@ void SerialAdvectorCGOper::Mult(const Vector &ind, Vector &di_dt) const
    // Move the mesh.
    const double t = GetTime();
    add(x0, t, u, x_now);
-
-   if (al == AssemblyLevel::PARTIAL)
-   {
-      K.FESpace()->GetMesh()->DeleteGeometricFactors();
-   }
+   K.FESpace()->GetMesh()->NodesUpdated();
 
    // Assemble on the new mesh.
    K.BilinearForm::operator=(0.0);
@@ -263,11 +285,7 @@ void ParAdvectorCGOper::Mult(const Vector &ind, Vector &di_dt) const
    // Move the mesh.
    const double t = GetTime();
    add(x0, t, u, x_now);
-
-   if (al == AssemblyLevel::PARTIAL)
-   {
-      K.ParFESpace()->GetParMesh()->DeleteGeometricFactors();
-   }
+   K.ParFESpace()->GetParMesh()->NodesUpdated();
 
    // Assemble on the new mesh.
    K.BilinearForm::operator=(0.0);
@@ -347,14 +365,13 @@ void InterpolatorFP::SetInitialField(const Vector &init_nodes,
 
    field0_gf.SetSpace(f);
    field0_gf = init_field;
-
-   dim = f->GetFE(0)->GetDim();
 }
 
 void InterpolatorFP::ComputeAtNewPosition(const Vector &new_nodes,
-                                          Vector &new_field)
+                                          Vector &new_field,
+                                          int new_nodes_ordering)
 {
-   finder->Interpolate(new_nodes, field0_gf, new_field);
+   finder->Interpolate(new_nodes, field0_gf, new_field, new_nodes_ordering);
 }
 
 #endif
@@ -701,13 +718,13 @@ void TMOPNewtonSolver::ProcessNewState(const Vector &x) const
          ti = dynamic_cast<TMOP_Integrator *>(integs[i]);
          if (ti)
          {
-            ti->UpdateAfterMeshPositionChange(x_loc);
+            ti->UpdateAfterMeshPositionChange(x_loc, pfesc->GetOrdering());
             ti->ComputeFDh(x_loc, *pfesc);
             if (compute_metric_quantile_flag)
             {
                ti->ComputeUntangleMetricQuantiles(x_loc, *pfesc);
             }
-            UpdateDiscreteTC(*ti, x_loc);
+            UpdateDiscreteTC(*ti, x_loc, pfesc->GetOrdering());
          }
          co = dynamic_cast<TMOPComboIntegrator *>(integs[i]);
          if (co)
@@ -715,13 +732,13 @@ void TMOPNewtonSolver::ProcessNewState(const Vector &x) const
             Array<TMOP_Integrator *> ati = co->GetTMOPIntegrators();
             for (int j = 0; j < ati.Size(); j++)
             {
-               ati[j]->UpdateAfterMeshPositionChange(x_loc);
+               ati[j]->UpdateAfterMeshPositionChange(x_loc, pfesc->GetOrdering());
                ati[j]->ComputeFDh(x_loc, *pfesc);
                if (compute_metric_quantile_flag)
                {
                   ati[j]->ComputeUntangleMetricQuantiles(x_loc, *pfesc);
                }
-               UpdateDiscreteTC(*ati[j], x_loc);
+               UpdateDiscreteTC(*ati[j], x_loc, pfesc->GetOrdering());
             }
          }
       }
@@ -746,13 +763,13 @@ void TMOPNewtonSolver::ProcessNewState(const Vector &x) const
          ti = dynamic_cast<TMOP_Integrator *>(integs[i]);
          if (ti)
          {
-            ti->UpdateAfterMeshPositionChange(x_loc);
+            ti->UpdateAfterMeshPositionChange(x_loc, fesc->GetOrdering());
             ti->ComputeFDh(x_loc, *fesc);
             if (compute_metric_quantile_flag)
             {
                ti->ComputeUntangleMetricQuantiles(x_loc, *fesc);
             }
-            UpdateDiscreteTC(*ti, x_loc);
+            UpdateDiscreteTC(*ti, x_loc, fesc->GetOrdering());
          }
          co = dynamic_cast<TMOPComboIntegrator *>(integs[i]);
          if (co)
@@ -760,13 +777,13 @@ void TMOPNewtonSolver::ProcessNewState(const Vector &x) const
             Array<TMOP_Integrator *> ati = co->GetTMOPIntegrators();
             for (int j = 0; j < ati.Size(); j++)
             {
-               ati[j]->UpdateAfterMeshPositionChange(x_loc);
+               ati[j]->UpdateAfterMeshPositionChange(x_loc, fesc->GetOrdering());
                ati[j]->ComputeFDh(x_loc, *fesc);
                if (compute_metric_quantile_flag)
                {
                   ati[j]->ComputeUntangleMetricQuantiles(x_loc, *fesc);
                }
-               UpdateDiscreteTC(*ati[j], x_loc);
+               UpdateDiscreteTC(*ati[j], x_loc, fesc->GetOrdering());
             }
          }
       }
@@ -809,18 +826,19 @@ void TMOPNewtonSolver::ProcessNewState(const Vector &x) const
 }
 
 void TMOPNewtonSolver::UpdateDiscreteTC(const TMOP_Integrator &ti,
-                                        const Vector &x_new) const
+                                        const Vector &x_new,
+                                        int x_ordering) const
 {
    const bool update_flag = true;
    DiscreteAdaptTC *discrtc = ti.GetDiscreteAdaptTC();
    if (discrtc)
    {
-      discrtc->UpdateTargetSpecification(x_new, update_flag);
+      discrtc->UpdateTargetSpecification(x_new, update_flag, x_ordering);
       if (ti.GetFDFlag())
       {
          double dx = ti.GetFDh();
-         discrtc->UpdateGradientTargetSpecification(x_new, dx, update_flag);
-         discrtc->UpdateHessianTargetSpecification(x_new, dx, update_flag);
+         discrtc->UpdateGradientTargetSpecification(x_new, dx, update_flag, x_ordering);
+         discrtc->UpdateHessianTargetSpecification(x_new, dx, update_flag, x_ordering);
       }
    }
 }
