@@ -849,13 +849,13 @@ void SparseMatrix::AddMultTranspose(const Vector &x, Vector &y,
       return;
    }
 
+   EnsureMultTranspose();
    if (At)
    {
       At->AddMult(x, y, a);
    }
    else
    {
-      EnsureMultTranspose();
       for (int i = 0; i < height; i++)
       {
          const double xi = a * x[i];
@@ -1062,13 +1062,13 @@ void SparseMatrix::AbsMultTranspose(const Vector &x, Vector &y) const
       return;
    }
 
+   EnsureMultTranspose();
    if (At)
    {
       At->AbsMult(x, y);
    }
    else
    {
-      EnsureMultTranspose();
       for (int i = 0; i < height; i++)
       {
          const double xi = x[i];
