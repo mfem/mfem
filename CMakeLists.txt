@@ -81,6 +81,10 @@ if (MFEM_USE_STRUMPACK)
   # Just needed to find the MPI_Fortran libraries to link with
   set(XSDK_ENABLE_Fortran ON)
 endif()
+# SUNDIALS >= 6.4.0 requires C++14:
+if (MFEM_USE_SUNDIALS AND ("${CMAKE_CXX_STANDARD}" LESS "14"))
+  set(CMAKE_CXX_STANDARD 14)
+endif()
 if (MFEM_USE_GINKGO AND ("${CMAKE_CXX_STANDARD}" LESS "14"))
   set(CMAKE_CXX_STANDARD 14)
 endif()
