@@ -19,7 +19,7 @@
 #include <string>
 #include <vector>
 
-#include "../../mfem.hpp"
+#include "mfem.hpp"
 #include "../../general/text.hpp"
 
 namespace mfem
