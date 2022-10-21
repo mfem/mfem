@@ -96,7 +96,8 @@ void QuadratureFunction::ProjectGridFunction(const GridFunction &gf)
       R->Mult(gf, e_vec);
 
       // Use quadrature interpolator to go from E-vector to Q-vector
-      const QuadratureInterpolator *qi = gf_fes.GetQuadratureInterpolator(*qs_elem);
+      const QuadratureInterpolator *qi =
+         gf_fes.GetQuadratureInterpolator(*qs_elem);
       qi->SetOutputLayout(QVectorLayout::byVDIM);
       qi->DisableTensorProducts(!use_tensor_products);
       qi->Values(e_vec, *this);
