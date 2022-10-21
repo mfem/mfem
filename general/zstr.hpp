@@ -5,7 +5,7 @@
 
 // Original version, https://github.com/mateidavid/zstr, distributed under MIT
 // license. This file is a combination of the zstr.hpp and strict_fstream.hpp
-// files in the original src/ directory with additional MFEM modifactions.
+// files in the original src/ directory with additional MFEM modifications.
 
 // The MIT License (MIT)
 //
