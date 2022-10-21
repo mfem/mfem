@@ -559,9 +559,10 @@ public:
    /** @brief Return a FaceQuadratureInterpolator that interpolates E-vectors to
        quadrature point values and/or derivatives (Q-vectors).
 
-       @note The returned pointer is shared, so it is not advisable to change
-       its internals, e.g., its layout. A good practice is to cache the old
-       property and restore it after interpolation. */
+       @note The returned pointer is shared. A good practice, before using it,
+       is to set all its properties to their expected values, as other parts of
+       the code may also change them. That is, it's good to call
+       SetOutputLayout() and DisableTensorProducts() before interpolating. */
    const FaceQuadratureInterpolator *GetFaceQuadratureInterpolator(
       const IntegrationRule &ir, FaceType type) const;
 
