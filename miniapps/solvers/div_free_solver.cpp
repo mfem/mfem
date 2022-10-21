@@ -626,8 +626,9 @@ BlockHybridizationSolver::BlockHybridizationSolver(const shared_ptr<ParBilinearF
                                                    const shared_ptr<ParMixedBilinearForm> &b,
                                                    const IterSolveParameters &param,
                                                    const Array<int> &ess_bdr_attr)
-   : DarcySolver(a->NumRows(), b->NumRows()), trial_space(*a->ParFESpace()),
-     test_space(*b->TestParFESpace()), elimination_(false), solver_(MPI_COMM_WORLD)
+   : DarcySolver(a->ParFESpace()->GetTrueVSize(), b->TestParFESpace()->GetTrueVSize()),
+     trial_space(*a->ParFESpace()), test_space(*b->TestParFESpace()), elimination_(false),
+     solver_(a->ParFESpace()->GetComm())
 {
     ParMesh &pmesh(*trial_space.GetParMesh());
 
@@ -895,28 +896,10 @@ BlockHybridizationSolver::~BlockHybridizationSolver()
 void BlockHybridizationSolver::Mult(const Vector &x, Vector &y) const
 {
     const SparseMatrix &R = *trial_space.GetRestrictionMatrix();
-    Array<int> true_offsets;
-    true_offsets.SetSize(3);
-    true_offsets[0] = 0;
-    true_offsets[1] = trial_space.GetTrueVSize();
-    true_offsets[2] = test_space.GetTrueVSize();
-    true_offsets.PartialSum();
-
     Vector x_e(x);
-    if (elimination_)
-    {
-        BlockVector block_y(y, true_offsets);
-        BlockVector block_x_e(x_e, true_offsets);
-        M_e_->Mult(-1.0, block_y.GetBlock(0), 1.0, block_x_e.GetBlock(0));
-        B_e_->Mult(-1.0, block_y.GetBlock(0), 1.0, block_x_e.GetBlock(1));
-        for (int dof : ess_tdof_list_)
-        {
-            x_e[dof] = y[dof];
-        }
-    }
-
-    BlockVector block_x(x_e.GetData(), true_offsets);
-    Vector x0(offsets_[1]);
+    if (elimination_) { EliminateEssentialBC(y, x_e);}
+    Vector x0(R.Width());
+    BlockVector block_x(x_e.GetData(), offsets_);
     R.MultTranspose(block_x.GetBlock(0), x0);
 
     ParMesh &pmesh(*trial_space.GetParMesh());
@@ -925,13 +908,13 @@ void BlockHybridizationSolver::Mult(const Vector &x, Vector &y) const
     Array<int> block_offsets(3);
     block_offsets[0] = 0;
     block_offsets[1] = num_hat_dofs;
-    block_offsets[2] = test_space.GetNDofs();
+    block_offsets[2] = offsets_[2] - offsets_[1];
     block_offsets.PartialSum();
 
     BlockVector rhs(block_offsets);
     rhs.SetVector(block_x.GetBlock(1), num_hat_dofs);
 
-    Array<bool> dof_marker(offsets_[1]);
+    Array<bool> dof_marker(x0.Size());
     dof_marker = false;
 
     Array<int> dofs, test_dofs;
@@ -1037,7 +1020,7 @@ void BlockHybridizationSolver::Mult(const Vector &x, Vector &y) const
             }
         }
     }
-    BlockVector block_y(y, true_offsets);
+    BlockVector block_y(y, offsets_);
     R.Mult(x0, block_y.GetBlock(0));
-    y.SetVector(rhs.GetBlock(1), true_offsets[1]);
+    y.SetVector(rhs.GetBlock(1), offsets_[1]);
 }
