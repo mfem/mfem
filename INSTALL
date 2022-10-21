@@ -762,12 +762,12 @@ The specific libraries and their options are:
   Options: GSLIB_OPT, GSLIB_LIB.
   Versions: GSLIB >= 1.0.7.
 
-- ALGOIM (optional), used when MFE_USE_ALGOIM=YES. The library provides only
+- ALGOIM (optional), used when MFEM_USE_ALGOIM=YES. The library provides only
   headers so it just needs to be downloaded at the same level as MFEM. Download
   the specific version we use as:
   "git clone https://github.com/algoim/algoim.git;
    git checkout 9c9ca0ef094d8ab0390ed36367a1151b459bbe0a"
-  ALGOIM depends on BLITZ and rhe library must be built prior to the MFEM build.
+  ALGOIM depends on BLITZ and the library must be built prior to the MFEM build.
   Download v1.0.2, untar it at the same level as MFEM and create a symbolic link:
   "ln -s blitz-1.0.2 blitz".
   Build Blitz using CMake as:
