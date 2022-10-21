@@ -654,8 +654,20 @@ public:
    /// Ensure the action of the transpose is performed fast.
    /** When HYPRE is built for GPUs, this method will construct and store the
        transposes of the 'diag' and 'offd' CSR matrices. When HYPRE is not built
-       for GPUs, this method is a no-op. */
+       for GPUs, this method is a no-op.
+
+       This method is automaticaly called by MultTranspose().
+
+       If the matrix is modified the old transpose blocks can be deleted by
+       calling ResetTranspose(). */
    void EnsureMultTranspose() const;
+
+   /** @brief Reset (destroy) the internal transpose matrix that is created by
+       EnsureMultTranspose() and MultTranspose().
+
+       If the matrix is modified, this method should be called to delete the
+       out-of-date transpose that is stored internally. */
+   void ResetTranspose() const;
 
    /// Computes y = alpha * A * x + beta * y
    HYPRE_Int Mult(HypreParVector &x, HypreParVector &y,
@@ -663,15 +675,29 @@ public:
    /// Computes y = alpha * A * x + beta * y
    HYPRE_Int Mult(HYPRE_ParVector x, HYPRE_ParVector y,
                   double alpha = 1.0, double beta = 0.0) const;
+
    /// Computes y = alpha * A^t * x + beta * y
+   /** If the matrix is modified, call ResetTranspose() and optionally
+       EnsureMultTranspose() to make sure this method uses the correct updated
+       transpose. */
    HYPRE_Int MultTranspose(HypreParVector &x, HypreParVector &y,
                            double alpha = 1.0, double beta = 0.0) const;
 
    void Mult(double a, const Vector &x, double b, Vector &y) const;
+
+   /// Computes y = alpha * A^t * x + beta * y
+   /** If the matrix is modified, call ResetTranspose() and optionally
+       EnsureMultTranspose() to make sure this method uses the correct updated
+       transpose. */
    void MultTranspose(double a, const Vector &x, double b, Vector &y) const;
 
    virtual void Mult(const Vector &x, Vector &y) const
    { Mult(1.0, x, 0.0, y); }
+
+   /// Computes y = A^t * x
+   /** If the matrix is modified, call ResetTranspose() and optionally
+       EnsureMultTranspose() to make sure this method uses the correct updated
+       transpose. */
    virtual void MultTranspose(const Vector &x, Vector &y) const
    { MultTranspose(1.0, x, 0.0, y); }
 
