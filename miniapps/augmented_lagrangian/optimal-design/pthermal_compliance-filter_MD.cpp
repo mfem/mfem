@@ -179,6 +179,7 @@ int main(int argc, char *argv[])
    Hypre::Init();   
    // 1. Parse command-line options.
    int ref_levels = 2;
+   int sref_levels = 0;
    int order = 2;
    bool visualization = true;
    double alpha = 1.0;
@@ -190,10 +191,13 @@ int main(int argc, char *argv[])
    double K_min = 1e-3;
    bool use_cylinder = false;
    int dim = 2;
+   const char *paraview_file = nullptr;
 
    OptionsParser args(argc, argv);
    args.AddOption(&ref_levels, "-r", "--refine",
-                  "Number of times to refine the mesh uniformly.");
+                  "Number of times to refine the parallel mesh uniformly.");
+   args.AddOption(&sref_levels, "-sr", "--ser-refine",
+                  "Number of times to refine the serial mesh uniformly.");                  
    args.AddOption(&order, "-o", "--order",
                   "Order (degree) of the finite elements.");
    args.AddOption(&dim, "-dim", "--dim",
@@ -217,6 +221,8 @@ int main(int argc, char *argv[])
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
+   args.AddOption(&paraview_file, "-paraview-file", "--paraview-file",
+                  "Paraview file name");                  
 
    args.Parse();
    if (!args.Good())
@@ -301,13 +307,18 @@ int main(int argc, char *argv[])
 
    mesh->SetAttributes();
 
-   for (int lev = 0; lev < ref_levels; lev++)
+   for (int lev = 0; lev < sref_levels; lev++)
    {
       mesh->UniformRefinement();
    }
 
    ParMesh pmesh(MPI_COMM_WORLD, *mesh);
    delete mesh;
+
+   for (int lev = 0; lev < ref_levels; lev++)
+   {
+      pmesh.UniformRefinement();
+   }
 
    // 5. Define the vector finite element spaces representing the state variable u,
    //    adjoint variable p, and the control variable f.
@@ -417,7 +428,11 @@ int main(int argc, char *argv[])
       sout_rho_filter.precision(8);
    }
 
-   mfem::ParaViewDataCollection paraview_dc("Thermal_compliance", &pmesh);
+   
+   std::string y("Thermal_compliance_");
+   y+=paraview_file;
+
+   mfem::ParaViewDataCollection paraview_dc(y, &pmesh);
    paraview_dc.SetPrefixPath("ParaView");
    paraview_dc.SetLevelsOfDetail(order);
    paraview_dc.SetCycle(0);
@@ -434,7 +449,7 @@ int main(int argc, char *argv[])
    double lambda = 0.0;
    for (int k = 1; k < max_it; k++)
    {
-      // if (k > 1) { alpha *= ((double) k) / ((double) k-1); }
+      if (k > 1) { alpha *= ((double) k) / ((double) k-1); }
       step++;
 
       // A. Form state equation

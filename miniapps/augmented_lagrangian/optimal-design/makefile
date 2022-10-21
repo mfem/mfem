@@ -39,7 +39,7 @@ endif
 .SUFFIXES: .o .cpp .mk
 .PHONY: all clean clean-build clean-exec
 
-COMMON_O = common/fpde.o common/rational_approximation.o ../entropy/H1_box_projection.o
+COMMON_O = common/fpde.o common/rational_approximation.o 
 
 # Remove built-in rules
 %: %.cpp
