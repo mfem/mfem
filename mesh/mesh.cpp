@@ -12128,8 +12128,13 @@ FaceGeometricFactors::FaceGeometricFactors(const Mesh *mesh,
       eval_flags |= FaceQuadratureInterpolator::NORMALS;
    }
 
-   const FaceQuadratureInterpolator *qi = fespace->GetFaceQuadratureInterpolator(
-                                             ir, type);
+   const FaceQuadratureInterpolator *qi =
+      fespace->GetFaceQuadratureInterpolator(ir, type);
+   // All face data vectors assume layout byNODES.
+   qi->SetOutputLayout(QVectorLayout::byNODES);
+   const bool use_tensor_products = UsesTensorBasis(*fespace);
+   qi->DisableTensorProducts(!use_tensor_products);
+
    qi->Mult(Fnodes, eval_flags, X, J, detJ, normal);
 }
 
