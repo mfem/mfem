@@ -103,7 +103,7 @@ void LinearForm::AddInteriorFaceIntegrator(LinearFormIntegrator *lfi)
 
 bool LinearForm::SupportsDevice()
 {
-   // return false for NURBS meshs, so we don’t convert it to non-NURBS
+   // return false for NURBS meshes, so we don’t convert it to non-NURBS
    // through Assemble, AssembleDevice, GetGeometricFactors and EnsureNodes
    const Mesh &mesh = *fes->GetMesh();
    if (mesh.NURBSext != nullptr) { return false; }

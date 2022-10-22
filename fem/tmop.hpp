@@ -119,7 +119,7 @@ public:
 /// and mu_hat = (mu/2phi(tau,ep)) where
 /// 2phi(tau,ep) = 1, when                                 when BarrierType = None,
 ///             = 2*(tau - min(alpha*min(tau)-detT_ep,0)), when BarrierType = Shifted
-///             = tau^2 + sqrt(tau^2 + ep^2),              when BarrierType = Pseuso
+///             = tau^2 + sqrt(tau^2 + ep^2),              when BarrierType = Pseudo
 /// where tau = det(T), and max(mu_hat) and min(tau) are computed over the
 /// entire mesh.
 /// Ultimately, this metric can be used for mesh untangling with the BarrierType
