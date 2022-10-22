@@ -70,6 +70,29 @@ public:
    bool transform, vis_glvis;
 };
 
+// A. Belyaev et al: "On Variational and PDE-based Distance Function
+// Approximations", Section 6, DOI:10.1111/cgf.12611.
+class NormalizationDistanceSolver : public DistanceSolver
+{
+private:
+   IterativeSolver::PrintLevel pl;
+
+   class NormalizationCoeff : public Coefficient
+   {
+   private:
+      ParGridFunction &u;
+
+   public:
+      NormalizationCoeff(ParGridFunction &u_gf) : u(u_gf) { }
+      virtual double Eval(ElementTransformation &T, const IntegrationPoint &ip);
+   };
+
+public:
+   NormalizationDistanceSolver() { pl.None(); }
+
+   void ComputeScalarDistance(Coefficient& u_coeff, ParGridFunction& dist);
+};
+
 
 // A. Belyaev et al: "On Variational and PDE-based Distance Function
 // Approximations", Section 7, DOI:10.1111/cgf.12611.
@@ -94,7 +117,6 @@ private:
    const int newton_iter;
    const double newton_rel_tol, newton_abs_tol;
 };
-
 
 class NormalizedGradCoefficient : public VectorCoefficient
 {
