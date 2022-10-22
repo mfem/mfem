@@ -4092,7 +4092,7 @@ void TensorProductLegendre(int dim,                // input
    }
    else
    {
-      // Bounding box is not reorientated no need to change orientation
+      // Bounding box is not reoriented no need to change orientation
       x = x_in;
    }
 
