@@ -279,6 +279,28 @@ void HeatDistanceSolver::ComputeScalarDistance(Coefficient &zero_level_set,
    }
 }
 
+double NormalizationDistanceSolver::NormalizationCoeff::
+   Eval(ElementTransformation &T,const IntegrationPoint &ip)
+{
+   T.SetIntPoint(&ip);
+   Vector u_grad;
+   u.GetGradient(T, u_grad);
+   const double u_value  = u.GetValue(T, ip);
+
+   return u_value / sqrt(u_value * u_value + u_grad * u_grad + 1e-12);
+}
+
+void NormalizationDistanceSolver::ComputeScalarDistance(Coefficient &u_coeff,
+                                                  ParGridFunction &dist)
+{
+   ParFiniteElementSpace &pfes = *dist.ParFESpace();
+
+   ParGridFunction u_gf(&pfes);
+   u_gf.ProjectCoefficient(u_coeff);
+
+   NormalizationCoeff rv_coeff(u_gf);
+   dist.ProjectDiscCoefficient(rv_coeff, GridFunction::AvgType::ARITHMETIC);
+}
 
 void PLapDistanceSolver::ComputeScalarDistance(Coefficient &func,
                                                ParGridFunction &fdist)

@@ -97,37 +97,63 @@ double sine_ls(const Vector &x)
    return (x(1) >= sine + 0.5) ? -1.0 : 1.0;
 }
 
+const double radius = 0.4;
+
 double sphere_ls(const Vector &x)
 {
    const int dim = x.Size();
-   if (dim == 2)
-   {
-      const double xc = x(0) - 0.5, yc = x(1) - 0.5;
-      const double r = sqrt(xc*xc + yc*yc);
-      return (r >= 0.4) ? -1.0 : 1.0;
-   }
-   else if (dim == 3)
-   {
-      const double xc = x(0) - 0.0, yc = x(1) - 0.0, zc = x(2) - 0.0;
-      const double r = sqrt(xc*xc + yc*yc + zc*zc);
-      return (r >= 0.8) ? -1.0 : 1.0;
-   }
-   else
-   {
-      return (x(0) >= 0.5) ? -1.0 : 1.0;
-   }
+   const double xc = x(0) - 0.5;
+   const double yc = (dim > 1) ? x(1) - 0.5 : 0.0;
+   const double zc = (dim > 2) ? x(2) - 0.5 : 0.0;
+   const double r = sqrt(xc*xc + yc*yc + zc*zc);
+
+   return (r >= radius) ? -1.0 : 1.0;
 }
+
+double exact_dist_sphere(const Vector &x)
+{
+   const int dim = x.Size();
+   const double xc = x(0) - 0.5;
+   const double yc = (dim > 1) ? x(1) - 0.5 : 0.0;
+   const double zc = (dim > 2) ? x(2) - 0.5 : 0.0;
+   const double r = sqrt(xc*xc + yc*yc + zc*zc);
+
+   return fabs(r - radius);
+}
+
+class ExactDistSphereLoc : public Coefficient
+{
+private:
+   ParGridFunction &dist;
+   double dx;
+
+public:
+   ExactDistSphereLoc(ParGridFunction &d) : dist(d)
+   {
+      ParMesh &pmesh = *dist.ParFESpace()->GetParMesh();
+      dx = pmesh.GetElementSize(0);
+   }
+
+   virtual double Eval(ElementTransformation &T, const IntegrationPoint &ip)
+   {
+      Vector pos(T.GetDimension());
+      T.Transform(ip, pos);
+      pos -= 0.5;
+      const double r = sqrt(pos * pos);
+
+      if (fabs(r - radius) < 2.0 * dx) { return fabs(r - radius); }
+      else                             { return dist.GetValue(T, ip); }
+   }
+};
+
 
 double Gyroid(const Vector &xx)
 {
    const double period = 2.0 * M_PI;
-   double x=xx[0]*period;
-   double y=xx[1]*period;
-   double z=0.0;
-   if (xx.Size()==3)
-   {
-      z=xx[2]*period;
-   }
+   double x = xx[0]*period;
+   double y = xx[1]*period;
+   double z = (xx.Size()==3) ? xx[2]*period : 0.0;
+
    return std::sin(x)*std::cos(y) +
           std::sin(y)*std::cos(z) +
           std::sin(z)*std::cos(x);
@@ -193,7 +219,8 @@ int main(int argc, char *argv[])
    args.AddOption(&solver_type, "-s", "--solver",
                   "Solver type:\n\t"
                   "0: Heat\n\t"
-                  "1: P-Laplacian");
+                  "1: P-Laplacian\n\t"
+                  "2: Rvachev scaling");
    args.AddOption(&problem, "-p", "--problem",
                   "Problem type:\n\t"
                   "0: Point source\n\t"
@@ -287,6 +314,10 @@ int main(int argc, char *argv[])
       auto ds = new PLapDistanceSolver(p, newton_iter);
       dist_solver = ds;
    }
+   else if (solver_type == 2)
+   {
+      dist_solver = new NormalizationDistanceSolver;
+   }
    else { MFEM_ABORT("Wrong solver option."); }
    dist_solver->print_level = 1;
 
@@ -299,7 +330,7 @@ int main(int argc, char *argv[])
    ParGridFunction filt_gf(&pfes_s);
    if (problem != 0)
    {
-      PDEFilter filter(pmesh, 1.0 * dx);
+      PDEFilter filter(pmesh, 5.0 * dx);
       filter.Filter(*ls_coeff, filt_gf);
    }
    else { filt_gf.ProjectCoefficient(*ls_coeff); }
@@ -350,7 +381,28 @@ int main(int argc, char *argv[])
    if (myid == 0)
    {
       cout << fixed << setprecision(10) << "Norms: "
-           << s_norm << " " << v_norm << std::endl;
+           << s_norm << " " << v_norm << endl;
+   }
+
+   if (problem == 1)
+   {
+      FunctionCoefficient exact_dist_coeff(exact_dist_sphere);
+      const double error_l1 = distance_s.ComputeL1Error(exact_dist_coeff),
+                   error_li = distance_s.ComputeMaxError(exact_dist_coeff);
+      if (myid == 0)
+      {
+         cout << "Global L1 error:   " << error_l1 << endl
+              << "Global Linf error: " << error_li << endl;
+      }
+
+      ExactDistSphereLoc exact_dist_coeff_loc(distance_s);
+      const double error_l1_loc = distance_s.ComputeL1Error(exact_dist_coeff_loc),
+                   error_li_loc = distance_s.ComputeMaxError(exact_dist_coeff_loc);
+      if (myid == 0)
+      {
+         cout << "Local  L1 error:   " << error_l1_loc << endl
+              << "Local  Linf error: " << error_li_loc << endl;
+      }
    }
 
    delete dist_solver;
