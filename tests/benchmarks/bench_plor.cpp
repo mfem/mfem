@@ -281,7 +281,7 @@ struct PLOR_Solvers_Bench
 
 // [0] Requested log_ndof
 // 30 max: 1076.88M NDOFs @ 1024 GPU
-#define LOG_NDOFS bm::CreateDenseRange(21,30,1)
+#define LOG_NDOFS bm::CreateDenseRange(23,30,1)
 
 // Maximum number of dofs per rank
 #define MAX_NDOFS 7*1024*1024

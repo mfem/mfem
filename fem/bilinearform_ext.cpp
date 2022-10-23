@@ -397,7 +397,7 @@ void PABilinearFormExtension::FormLinearSystem(const Array<int> &ess_tdof_list,
 void PABilinearFormExtension::Mult(const Vector &x, Vector &y) const
 {
 #warning [CGSolver::Mult] MFEM_DEVICE_SYNC
-  static const bool EKS = true; //getenv("EKS") != nullptr;
+   static const bool EKS = true; //getenv("EKS") != nullptr;
    static bool init = true;
    if (init) { if (EKS) {dbg("EKS");} init = false;}
 
@@ -469,7 +469,7 @@ void PABilinearFormExtension::Mult(const Vector &x, Vector &y) const
 
 void PABilinearFormExtension::MultTranspose(const Vector &x, Vector &y) const
 {
-   assert(false);
+   //assert(false);
    Array<BilinearFormIntegrator*> &integrators = *a->GetDBFI();
    const int iSz = integrators.Size();
    if (elem_restrict)
