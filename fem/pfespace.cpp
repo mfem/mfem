@@ -959,10 +959,6 @@ void ParFiniteElementSpace::Build_Dof_TrueDof_Matrix() const // matrix P
    SparseMatrix Pdiag;
    P->GetDiag(Pdiag);
    R = Transpose(Pdiag);
-
-   // The following call ensures that the action of the transpose of P is
-   // performed fast when HYPRE is built for GPUs.
-   P->EnsureMultTranspose();
 }
 
 HypreParMatrix *ParFiniteElementSpace::GetPartialConformingInterpolation()
@@ -2628,10 +2624,6 @@ int ParFiniteElementSpace
    {
       *P_ = MakeVDimHypreMatrix(pmatrix, ndofs, num_true_dofs,
                                 dof_offs, tdof_offs);
-
-      // The following call ensures that the action of the transpose of *P_ is
-      // performed fast when HYPRE is built for GPUs.
-      (*P_)->EnsureMultTranspose();
    }
 
    // clean up possible remaining messages in the queue to avoid receiving

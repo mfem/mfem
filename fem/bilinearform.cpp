@@ -136,7 +136,7 @@ void BilinearForm::SetAssemblyLevel(AssemblyLevel assembly_level)
          ext = new MFBilinearFormExtension(this);
          break;
       default:
-         mfem_error("Unknown assembly level");
+         MFEM_ABORT("BilinearForm: unknown assembly level");
    }
 }
 
