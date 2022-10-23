@@ -514,7 +514,7 @@ public:
                      const IntegrationPoint &ip) { V = vec; }
 
    /// Return a reference to the constant vector in this class.
-   const Vector& GetVec() { return vec; }
+   const Vector& GetVec() const { return vec; }
 };
 
 /** @brief A piecewise vector-valued coefficient with the pieces keyed off the
@@ -2239,7 +2239,7 @@ public:
    /// @sa CoefficientVector for a description of the @a compress argument.
    void Project(MatrixCoefficient &coeff, bool transpose=false);
 
-   /// @brief Project the tranpose of @a coeff.
+   /// @brief Project the transpose of @a coeff.
    ///
    /// @sa Project(MatrixCoefficient&, QuadratureSpace&, bool, bool)
    void ProjectTranspose(MatrixCoefficient &coeff);

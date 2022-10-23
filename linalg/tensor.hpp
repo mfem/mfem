@@ -1582,7 +1582,7 @@ tensor<T, n, n> inv(const tensor<T, n, n>& A)
  * @note when inverting a tensor of dual numbers,
  * hardcode the analytic derivative of the
  * inverse of a square matrix, rather than
- * apply gauss elimination directly on the dual number types
+ * apply Gauss elimination directly on the dual number types
  *
  * TODO: compare performance of this hardcoded implementation to just using inv() directly
  */
@@ -1751,7 +1751,7 @@ MFEM_HOST_DEVICE zero chain_rule(const zero /* df_dx */,
 
 /**
  * @overload
- * @note this overload implements a no-op for the case where the small change is indentically zero
+ * @note this overload implements a no-op for the case where the small change is identically zero
  */
 template <typename T>
 MFEM_HOST_DEVICE zero chain_rule(const T /* df_dx */,

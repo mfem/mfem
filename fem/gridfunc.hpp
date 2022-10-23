@@ -129,19 +129,21 @@ public:
    int CurlDim() const;
 
    /// Read only access to the (optional) internal true-dof Vector.
-   /** Note that the returned Vector may be empty, if not previously allocated
-       or set. */
-   const Vector &GetTrueVector() const { return t_vec; }
+   const Vector &GetTrueVector() const
+   {
+      MFEM_VERIFY(t_vec.Size() > 0, "SetTrueVector() before GetTrueVector()");
+      return t_vec;
+   }
    /// Read and write access to the (optional) internal true-dof Vector.
-   /** Note that the returned Vector may be empty, if not previously allocated
-       or set. */
-   Vector &GetTrueVector() { return t_vec; }
+   /** Note that @a t_vec is set if it is not allocated or set already.*/
+   Vector &GetTrueVector()
+   { if (t_vec.Size() == 0) { SetTrueVector(); } return t_vec; }
 
    /// Extract the true-dofs from the GridFunction.
    void GetTrueDofs(Vector &tv) const;
 
    /// Shortcut for calling GetTrueDofs() with GetTrueVector() as argument.
-   void SetTrueVector() { GetTrueDofs(GetTrueVector()); }
+   void SetTrueVector() { GetTrueDofs(t_vec); }
 
    /// Set the GridFunction from the given true-dof vector.
    virtual void SetFromTrueDofs(const Vector &tv);
@@ -476,20 +478,26 @@ public:
                                              Array<int> &bdr_attr);
 
 
-   virtual double ComputeL2Error(Coefficient &exsol,
-                                 const IntegrationRule *irs[] = NULL) const
-   { return ComputeLpError(2.0, exsol, NULL, irs); }
-
    virtual double ComputeL2Error(Coefficient *exsol[],
-                                 const IntegrationRule *irs[] = NULL) const;
-
-   virtual double ComputeL2Error(VectorCoefficient &exsol,
                                  const IntegrationRule *irs[] = NULL,
-                                 Array<int> *elems = NULL) const;
+                                 const Array<int> *elems = NULL) const;
 
    /// Returns ||grad u_ex - grad u_h||_L2 in element ielem for H1 or L2 elements
    virtual double ComputeElementGradError(int ielem, VectorCoefficient *exgrad,
                                           const IntegrationRule *irs[] = NULL) const;
+
+   /// Returns ||u_ex - u_h||_L2 for H1 or L2 elements
+   /* The @a elems input variable expects a list of markers:
+      an elem marker equal to 1 will compute the L2 error on that element
+      an elem marker equal to 0 will not compute the L2 error on that element */
+   virtual double ComputeL2Error(Coefficient &exsol,
+                                 const IntegrationRule *irs[] = NULL,
+                                 const Array<int> *elems = NULL) const
+   { return GridFunction::ComputeLpError(2.0, exsol, NULL, irs, elems); }
+
+   virtual double ComputeL2Error(VectorCoefficient &exsol,
+                                 const IntegrationRule *irs[] = NULL,
+                                 const Array<int> *elems = NULL) const;
 
    /// Returns ||grad u_ex - grad u_h||_L2 for H1 or L2 elements
    virtual double ComputeGradError(VectorCoefficient *exgrad,
@@ -564,16 +572,20 @@ public:
    { return ComputeLpError(1.0, exsol, NULL, irs); }
 
    virtual double ComputeW11Error(Coefficient *exsol, VectorCoefficient *exgrad,
-                                  int norm_type, Array<int> *elems = NULL,
+                                  int norm_type, const Array<int> *elems = NULL,
                                   const IntegrationRule *irs[] = NULL) const;
 
    virtual double ComputeL1Error(VectorCoefficient &exsol,
                                  const IntegrationRule *irs[] = NULL) const
    { return ComputeLpError(1.0, exsol, NULL, NULL, irs); }
 
+   /* The @a elems input variable expects a list of markers:
+    an elem marker equal to 1 will compute the L2 error on that element
+    an elem marker equal to 0 will not compute the L2 error on that element */
    virtual double ComputeLpError(const double p, Coefficient &exsol,
                                  Coefficient *weight = NULL,
-                                 const IntegrationRule *irs[] = NULL) const;
+                                 const IntegrationRule *irs[] = NULL,
+                                 const Array<int> *elems = NULL) const;
 
    /** Compute the Lp error in each element of the mesh and store the results in
        the Vector @a error. The result should be of length number of elements,
