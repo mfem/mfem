@@ -51,7 +51,7 @@ project(mfem NONE)
 # Current version of MFEM, see also `makefile`.
 #   mfem_VERSION = (string)
 #   MFEM_VERSION = (int)   [automatically derived from mfem_VERSION]
-set(${PROJECT_NAME}_VERSION 4.4.1)
+set(${PROJECT_NAME}_VERSION 4.5.0)
 
 # Prohibit in-source build
 if (${PROJECT_SOURCE_DIR} STREQUAL ${PROJECT_BINARY_DIR})
@@ -80,6 +80,10 @@ endif()
 if (MFEM_USE_STRUMPACK)
   # Just needed to find the MPI_Fortran libraries to link with
   set(XSDK_ENABLE_Fortran ON)
+endif()
+# SUNDIALS >= 6.4.0 requires C++14:
+if (MFEM_USE_SUNDIALS AND ("${CMAKE_CXX_STANDARD}" LESS "14"))
+  set(CMAKE_CXX_STANDARD 14)
 endif()
 if (MFEM_USE_GINKGO AND ("${CMAKE_CXX_STANDARD}" LESS "14"))
   set(CMAKE_CXX_STANDARD 14)
@@ -201,10 +205,10 @@ if (MFEM_USE_MPI)
   find_package(MPI REQUIRED)
   set(MPI_CXX_INCLUDE_DIRS ${MPI_CXX_INCLUDE_PATH})
   if (MFEM_MPIEXEC)
-    set(MPIEXEC ${MFEM_MPIEXEC})
+    string(REPLACE " " ";" MPIEXEC ${MFEM_MPIEXEC})
   endif()
   if (MFEM_MPIEXEC_NP)
-    set(MPIEXEC_NUMPROC_FLAG ${MFEM_MPIEXEC_NP})
+    string(REPLACE " " ";" MPIEXEC_NUMPROC_FLAG ${MFEM_MPIEXEC_NP})
   endif()
   # Parallel MFEM depends on hypre
   find_package(HYPRE REQUIRED)
