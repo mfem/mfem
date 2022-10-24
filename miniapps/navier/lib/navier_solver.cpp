@@ -18,6 +18,13 @@
 using namespace mfem;
 using namespace navier;
 
+static inline void vmul(const Vector &x, Vector &y)
+{
+   auto d_x = x.Read();
+   auto d_y = y.ReadWrite();
+   MFEM_FORALL(i, x.Size(), d_y[i] = d_x[i] * d_y[i];);
+}
+
 void CopyDBFIntegrators(ParBilinearForm *src, ParBilinearForm *dst)
 {
    Array<BilinearFormIntegrator *> *bffis = src->GetDBFI();
@@ -94,6 +101,9 @@ NavierSolver::NavierSolver(ParMesh *mesh, int order, double kin_vis)
    pn_gf = 0.0;
    resp_gf.SetSpace(pfes);
 
+   mv.SetSize(vfes_truevsize);
+   mvinv.SetSize(vfes_truevsize);
+
    kin_vis_gf.SetSpace(pfes);
    ConstantCoefficient kvcoeff_tmp(kin_vis);
    kin_vis_gf.ProjectCoefficient(kvcoeff_tmp);
@@ -139,7 +149,6 @@ void NavierSolver::Setup(double dt)
    Mv_form->AddDomainIntegrator(mv_blfi);
    Mv_form->SetAssemblyLevel(AssemblyLevel::PARTIAL);
    Mv_form->Assemble();
-   Mv_form->FormSystemMatrix(empty, Mv);
 
    Sp_form = new ParBilinearForm(pfes);
    auto *sp_blfi = new DiffusionIntegrator;
@@ -215,16 +224,15 @@ void NavierSolver::Setup(double dt)
       f_form->AddDomainIntegrator(vdlfi);
    }
 
-   Vector diag_pa(vfes->GetTrueVSize());
-   Mv_form->AssembleDiagonal(diag_pa);
-   MvInvPC = new OperatorJacobiSmoother(diag_pa, empty);
-   MvInv = new CGSolver(vfes->GetComm());
-   MvInv->iterative_mode = false;
-   MvInv->SetOperator(*Mv);
-   MvInv->SetPreconditioner(*MvInvPC);
-   MvInv->SetPrintLevel(pl_mvsolve);
-   MvInv->SetRelTol(1e-12);
-   MvInv->SetMaxIter(200);
+   // Build diagonal vector from velocity Mass operator
+   Mv_form->AssembleDiagonal(mv);
+
+   // Inverse mass operator is the inverse of the diagonal
+   {
+      const auto d_mv = mv.Read();
+      auto d_mvinv = mvinv.Write();
+      MFEM_FORALL(i, mv.Size(), d_mvinv[i] = 1.0 / d_mv[i];);
+   }
 
    lor = new ParLORDiscretization(*Sp_form, pres_ess_tdof);
    SpInvPC = new HypreBoomerAMG(lor->GetAssembledMatrix());
@@ -403,10 +411,7 @@ void NavierSolver::Step(double &time, double dt, int current_step,
    {
       Fext.Add(1.0, hpfrt_tdofs);
    }
-   MvInv->Mult(Fext, tmp1);
-   iter_mvsolve = MvInv->GetNumIterations();
-   res_mvsolve = MvInv->GetFinalNorm();
-   Fext.Set(1.0, tmp1);
+   vmul(mvinv, Fext);
 
    // Compute BDF terms.
    {
@@ -530,8 +535,8 @@ void NavierSolver::Step(double &time, double dt, int current_step,
    // Project velocity.
    G->Mult(pn, resu);
    resu.Neg();
-   Mv->Mult(Fext, tmp1);
-   resu.Add(1.0, tmp1);
+   vmul(mv, Fext);
+   resu.Add(1.0, Fext);
 
    // un_next_gf = un_gf;
 
@@ -1317,12 +1322,10 @@ NavierSolver::~NavierSolver()
    delete HInv;
    delete H_form;
    delete SpInv;
-   delete MvInvPC;
    delete SpInvOrthoPC;
    delete SpInvPC;
    delete lor;
    delete f_form;
-   delete MvInv;
    delete vfec;
    delete pfec;
    delete vfes;

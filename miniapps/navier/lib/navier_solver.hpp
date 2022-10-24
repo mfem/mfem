@@ -411,14 +411,10 @@ protected:
    ConstantCoefficient H_lincoeff;
    ConstantCoefficient H_bdfcoeff;
 
-   OperatorHandle Mv;
    OperatorHandle Sp;
    OperatorHandle D;
    OperatorHandle G;
    OperatorHandle H;
-
-   Solver *MvInvPC = nullptr;
-   CGSolver *MvInv = nullptr;
 
    HypreBoomerAMG *SpInvPC = nullptr;
    OrthoSolver *SpInvOrthoPC = nullptr;
@@ -432,6 +428,9 @@ protected:
    Vector tmp1, hpfrt_tdofs;
 
    Vector pn, resp, FText_bdr, g_bdr;
+
+   // Velocity space Mass and Mass inverse T-vectors
+   Vector mv, mvinv;
 
    ParGridFunction un_gf, un_next_gf, curlu_gf, curlcurlu_gf, Lext_gf, FText_gf,
                    resu_gf;
