@@ -256,6 +256,9 @@ public:
    /// Evaluate the coefficient at @a ip.
    real_t Eval(ElementTransformation &T,
                const IntegrationPoint &ip) override;
+
+   const std::function<real_t(const Vector &)>& GetFunction() const { return Function; }
+   const std::function<real_t(const Vector &,real_t)>& GetTDFunction() const { return TDFunction; }
 };
 
 /// A common base class for returning individual components of the domain's
@@ -767,6 +770,10 @@ public:
    /// Evaluate the vector coefficient at @a ip.
    void Eval(Vector &V, ElementTransformation &T,
              const IntegrationPoint &ip) override;
+
+   const std::function<void(const Vector &, Vector &)>& GetFunction() const { return Function; }
+   const std::function<void(const Vector &, real_t, Vector &)>& GetTDFunction()
+   const { return TDFunction; }
 
    virtual ~VectorFunctionCoefficient() { }
 };
