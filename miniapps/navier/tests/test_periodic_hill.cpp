@@ -25,8 +25,8 @@ struct s_NavierContext
    int nsteps = 5000;
    double dt = 1e-8;
    double dt_max = 5e-3;
-   double cfl_target = 0.5;
-   double t_final = 200.0;
+   double cfl_target = 0.9;
+   double t_final = 50.0;
    double Uavg = 1.0;
    double H = 1.0;
    double Lx = 9.0*H;
@@ -142,6 +142,12 @@ bool in_between(const double x, const double x0, const double x1)
    return (fabs(x - x0) >= tol) && (fabs(x - x1) >= tol);
 }
 
+void flowrate(const Vector &, double t, Vector &u)
+{
+   u(0) = 0.0;
+   u(1) = 0.0;
+}
+
 int main(int argc, char *argv[])
 {
    Mpi::Init(argc, argv);
@@ -179,8 +185,6 @@ int main(int argc, char *argv[])
    H1_FECollection mesh_fec(ctx.order, mesh.Dimension());
    FiniteElementSpace mesh_fes(&mesh, &mesh_fec, mesh.Dimension());
    mesh.SetNodalFESpace(&mesh_fes);
-
-   // Double sided stretching function cf. Vinokur.
 
    // See Nek5000 example. Decrease resolution in the high velocity regions
    // (increase CFL) and increase resolution near the wall.
@@ -270,8 +274,6 @@ int main(int argc, char *argv[])
 
    // Create the flow solver.
    NavierSolver flowsolver(pmesh, ctx.order, ctx.kin_vis);
-   flowsolver.EnablePA(true);
-   flowsolver.EnableNI(true);
 
    auto kv_gf = flowsolver.GetVariableViscosity();
    ConstantCoefficient kv_coeff(ctx.kin_vis);
@@ -312,6 +314,10 @@ int main(int argc, char *argv[])
    // ConstantCoefficient pres_outlet(0.0);
    // flowsolver.AddPresDirichletBC(&pres_outlet, outlet_attr);
 
+   Array<int> domain_attr(pmesh->attributes.Max());
+   domain_attr = 1;
+   flowsolver.AddAccelTerm(flowrate, domain_attr);
+
    double t = 0.0;
    double dt = ctx.dt;
    double t_final = ctx.t_final;
@@ -347,7 +353,7 @@ int main(int argc, char *argv[])
 
       flowsolver.Step(t, dt, step, true);
       // Get a prediction for a stable timestep
-      int ok = flowsolver.PredictTimestep(1e-10, ctx.dt_max, ctx.cfl_target, dt);
+      int ok = flowsolver.PredictTimestep(1e-8, ctx.dt_max, ctx.cfl_target, dt);
       if (ok < 0)
       {
          // Reject the time step
@@ -366,7 +372,7 @@ int main(int argc, char *argv[])
          t += dt;
       }
 
-      // Compute the CFL based on the provisional velocity
+      // Compute the CFL
       double cfl = flowsolver.ComputeCFL(*u_gf, dt);
 
       if (step % 250 == 0)

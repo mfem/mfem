@@ -229,7 +229,6 @@ int main(int argc, char *argv[])
    {
       flowsolver = new NavierSolver(pmesh, schwarz.fluid_order,
                                     schwarz.fluid_kin_vis);
-      flowsolver->EnablePA(true);
       u_gf = flowsolver->GetCurrentVelocity();
       Vector init_vel(dim);
       init_vel = 0.;

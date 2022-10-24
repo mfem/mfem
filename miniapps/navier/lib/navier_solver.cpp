@@ -113,14 +113,6 @@ void NavierSolver::Setup(double dt)
    if (verbose && pmesh->GetMyRank() == 0)
    {
       mfem::out << "Setup" << std::endl;
-      if (partial_assembly)
-      {
-         mfem::out << "Using Partial Assembly" << std::endl;
-      }
-      else
-      {
-         mfem::out << "Using Full Assembly" << std::endl;
-      }
    }
 
    sw_setup.Start();
@@ -136,71 +128,40 @@ void NavierSolver::Setup(double dt)
    nlcoeff.constant = -1.0;
    N = new ParNonlinearForm(vfes);
    auto *nlc_nlfi = new VectorConvectionNLFIntegrator(nlcoeff);
-   // TODO
-   if (numerical_integ)
-   {
-      nlc_nlfi->SetIntRule(&gll_ir_nl);
-   }
+   nlc_nlfi->SetIntRule(&gll_ir_nl);
    N->AddDomainIntegrator(nlc_nlfi);
-   if (partial_assembly)
-   {
-      N->SetAssemblyLevel(AssemblyLevel::PARTIAL);
-      N->Setup();
-   }
+   N->SetAssemblyLevel(AssemblyLevel::PARTIAL);
+   N->Setup();
 
    Mv_form = new ParBilinearForm(vfes);
    auto *mv_blfi = new VectorMassIntegrator;
-   if (numerical_integ)
-   {
-      mv_blfi->SetIntRule(&gll_ir);
-   }
+   mv_blfi->SetIntRule(&gll_ir);
    Mv_form->AddDomainIntegrator(mv_blfi);
-   if (partial_assembly)
-   {
-      Mv_form->SetAssemblyLevel(AssemblyLevel::PARTIAL);
-   }
+   Mv_form->SetAssemblyLevel(AssemblyLevel::PARTIAL);
    Mv_form->Assemble();
    Mv_form->FormSystemMatrix(empty, Mv);
 
    Sp_form = new ParBilinearForm(pfes);
    auto *sp_blfi = new DiffusionIntegrator;
-   if (numerical_integ)
-   {
-      sp_blfi->SetIntRule(&gll_ir);
-   }
+   sp_blfi->SetIntRule(&gll_ir);
    Sp_form->AddDomainIntegrator(sp_blfi);
-   if (partial_assembly)
-   {
-      Sp_form->SetAssemblyLevel(AssemblyLevel::PARTIAL);
-   }
+   Sp_form->SetAssemblyLevel(AssemblyLevel::PARTIAL);
    Sp_form->Assemble();
    Sp_form->FormSystemMatrix(pres_ess_tdof, Sp);
 
    D_form = new ParMixedBilinearForm(vfes, pfes);
    auto *vd_mblfi = new VectorDivergenceIntegrator();
-   if (numerical_integ)
-   {
-      vd_mblfi->SetIntRule(&gll_ir);
-   }
+   vd_mblfi->SetIntRule(&gll_ir);
    D_form->AddDomainIntegrator(vd_mblfi);
-   if (partial_assembly)
-   {
-      D_form->SetAssemblyLevel(AssemblyLevel::PARTIAL);
-   }
+   D_form->SetAssemblyLevel(AssemblyLevel::PARTIAL);
    D_form->Assemble();
    D_form->FormRectangularSystemMatrix(empty, empty, D);
 
    G_form = new ParMixedBilinearForm(pfes, vfes);
    auto *g_mblfi = new GradientIntegrator();
-   if (numerical_integ)
-   {
-      g_mblfi->SetIntRule(&gll_ir);
-   }
+   g_mblfi->SetIntRule(&gll_ir);
    G_form->AddDomainIntegrator(g_mblfi);
-   if (partial_assembly)
-   {
-      G_form->SetAssemblyLevel(AssemblyLevel::PARTIAL);
-   }
+   G_form->SetAssemblyLevel(AssemblyLevel::PARTIAL);
    G_form->Assemble();
    G_form->FormRectangularSystemMatrix(empty, empty, G);
 
@@ -210,22 +171,14 @@ void NavierSolver::Setup(double dt)
    auto *hmv_blfi = new VectorMassIntegrator(H_bdfcoeff);
 
    // auto *hdv_blfi = new VectorDiffusionIntegrator(H_lincoeff);
-
    // kin_vis_gf = kin_vis;
    kin_vis_gf_coeff.SetGridFunction(&kin_vis_gf);
    auto *hdv_blfi = new StressIntegrator(kin_vis_gf_coeff, gll_ir);
-
-   if (numerical_integ)
-   {
-      hmv_blfi->SetIntRule(&gll_ir);
-      hdv_blfi->SetIntRule(&gll_ir);
-   }
+   hmv_blfi->SetIntRule(&gll_ir);
+   hdv_blfi->SetIntRule(&gll_ir);
    H_form->AddDomainIntegrator(hmv_blfi);
    H_form->AddDomainIntegrator(hdv_blfi);
-   if (partial_assembly)
-   {
-      H_form->SetAssemblyLevel(AssemblyLevel::PARTIAL);
-   }
+   H_form->SetAssemblyLevel(AssemblyLevel::PARTIAL);
    H_form->Assemble();
    H_form->FormSystemMatrix(vel_ess_tdof, H);
 
@@ -233,29 +186,20 @@ void NavierSolver::Setup(double dt)
    auto *hmv_blfi2 = new VectorMassIntegrator(H_bdfcoeff);
    hmv_blfi2->SetIntRule(&gll_ir);
    HMv_form->AddDomainIntegrator(hmv_blfi2);
-   if (partial_assembly)
-   {
-      HMv_form->SetAssemblyLevel(AssemblyLevel::PARTIAL);
-   }
+   HMv_form->SetAssemblyLevel(AssemblyLevel::PARTIAL);
    HMv_form->Assemble();
 
    FText_gfcoeff = new VectorGridFunctionCoefficient(&FText_gf);
    FText_bdr_form = new ParLinearForm(pfes);
    auto *ftext_bnlfi = new BoundaryNormalLFIntegrator(*FText_gfcoeff);
-   if (numerical_integ)
-   {
-      ftext_bnlfi->SetIntRule(&gll_ir);
-   }
+   ftext_bnlfi->SetIntRule(&gll_ir);
    FText_bdr_form->AddBoundaryIntegrator(ftext_bnlfi, vel_ess_attr);
 
    g_bdr_form = new ParLinearForm(pfes);
    for (auto &vel_dbc : vel_dbcs)
    {
       auto *gbdr_bnlfi = new BoundaryNormalLFIntegrator(*vel_dbc.coeff);
-      if (numerical_integ)
-      {
-         gbdr_bnlfi->SetIntRule(&gll_ir);
-      }
+      gbdr_bnlfi->SetIntRule(&gll_ir);
       g_bdr_form->AddBoundaryIntegrator(gbdr_bnlfi, vel_dbc.attr);
    }
 
@@ -267,24 +211,13 @@ void NavierSolver::Setup(double dt)
       // const IntegrationRule &ir = IntRules.Get(vfes->GetFE(0)->GetGeomType(),
       //                                          4 * order);
       // vdlfi->SetIntRule(&ir);
-      if (numerical_integ)
-      {
-         vdlfi->SetIntRule(&gll_ir);
-      }
+      vdlfi->SetIntRule(&gll_ir);
       f_form->AddDomainIntegrator(vdlfi);
    }
 
-   if (partial_assembly)
-   {
-      Vector diag_pa(vfes->GetTrueVSize());
-      Mv_form->AssembleDiagonal(diag_pa);
-      MvInvPC = new OperatorJacobiSmoother(diag_pa, empty);
-   }
-   else
-   {
-      MvInvPC = new HypreSmoother(*Mv.As<HypreParMatrix>());
-      dynamic_cast<HypreSmoother *>(MvInvPC)->SetType(HypreSmoother::Jacobi, 1);
-   }
+   Vector diag_pa(vfes->GetTrueVSize());
+   Mv_form->AssembleDiagonal(diag_pa);
+   MvInvPC = new OperatorJacobiSmoother(diag_pa, empty);
    MvInv = new CGSolver(vfes->GetComm());
    MvInv->iterative_mode = false;
    MvInv->SetOperator(*Mv);
@@ -293,22 +226,12 @@ void NavierSolver::Setup(double dt)
    MvInv->SetRelTol(1e-12);
    MvInv->SetMaxIter(200);
 
-   if (partial_assembly)
-   {
-      lor = new ParLORDiscretization(*Sp_form, pres_ess_tdof);
-      SpInvPC = new HypreBoomerAMG(lor->GetAssembledMatrix());
-      SpInvPC->SetPrintLevel(pl_amg);
-      SpInvPC->Mult(resp, pn);
-      SpInvOrthoPC = new OrthoSolver(vfes->GetComm());
-      SpInvOrthoPC->SetSolver(*SpInvPC);
-   }
-   else
-   {
-      SpInvPC = new HypreBoomerAMG(*Sp.As<HypreParMatrix>());
-      SpInvPC->SetPrintLevel(0);
-      SpInvOrthoPC = new OrthoSolver(vfes->GetComm());
-      SpInvOrthoPC->SetSolver(*SpInvPC);
-   }
+   lor = new ParLORDiscretization(*Sp_form, pres_ess_tdof);
+   SpInvPC = new HypreBoomerAMG(lor->GetAssembledMatrix());
+   SpInvPC->SetPrintLevel(pl_amg);
+   SpInvPC->Mult(resp, pn);
+   SpInvOrthoPC = new OrthoSolver(vfes->GetComm());
+   SpInvOrthoPC->SetSolver(*SpInvPC);
    SpInv = new CGSolver(vfes->GetComm());
    SpInv->iterative_mode = true;
    SpInv->SetOperator(*Sp);
@@ -324,17 +247,6 @@ void NavierSolver::Setup(double dt)
    SpInv->SetRelTol(rtol_spsolve);
    SpInv->SetMaxIter(200);
 
-   if (partial_assembly)
-   {
-      // Vector diag_pa(vfes->GetTrueVSize());
-      // H_form->AssembleDiagonal(diag_pa);
-      // HInvPC = new OperatorJacobiSmoother(diag_pa, vel_ess_tdof);
-   }
-   else
-   {
-      HInvPC = new HypreSmoother(*H.As<HypreParMatrix>());
-      dynamic_cast<HypreSmoother *>(HInvPC)->SetType(HypreSmoother::Jacobi, 1);
-   }
    HInv = new CGSolver(vfes->GetComm());
    HInv->iterative_mode = true;
    HInv->SetOperator(*H);
@@ -352,7 +264,7 @@ void NavierSolver::Setup(double dt)
    // Set initial time step in the history array
    dthist[0] = dt;
 
-   if (filter_alpha != 0.0)
+   if (filter_method != FilterMethod::NONE)
    {
       vfec_filter = new H1_FECollection(order - filter_cutoff_modes,
                                         pmesh->Dimension());
@@ -404,6 +316,7 @@ void NavierSolver::Step(double &time, double dt, int current_step,
    if (rans_model)
    {
       // kv = rans_model->EvaluateTo(time + dt);
+      // kv_gf -= kv;
    }
 
    sw_step.Start();
@@ -428,14 +341,11 @@ void NavierSolver::Step(double &time, double dt, int current_step,
    H_form->FormSystemMatrix(vel_ess_tdof, H);
 
    HInv->SetOperator(*H);
-   if (partial_assembly)
-   {
-      delete HInvPC;
-      Vector diag_pa(vfes->GetTrueVSize());
-      HMv_form->AssembleDiagonal(diag_pa);
-      HInvPC = new OperatorJacobiSmoother(diag_pa, vel_ess_tdof);
-      HInv->SetPreconditioner(*HInvPC);
-   }
+   delete HInvPC;
+   Vector diag_pa(vfes->GetTrueVSize());
+   HMv_form->AssembleDiagonal(diag_pa);
+   HInvPC = new OperatorJacobiSmoother(diag_pa, vel_ess_tdof);
+   HInv->SetPreconditioner(*HInvPC);
 
    // Extrapolated f^{n+1}.
    for (auto &accel_term : accel_terms)
@@ -469,105 +379,31 @@ void NavierSolver::Step(double &time, double dt, int current_step,
 
    Fext.Add(1.0, fn);
 
-   if (hpfrt)
+   if (filter_method == FilterMethod::HPFRT_LOS)
    {
-      {
-         u_filter_basis_gf.ProjectGridFunction(un_gf);
-         u_low_modes_gf.ProjectGridFunction(u_filter_basis_gf);
-         const auto filter_alpha_ = filter_alpha;
-         const auto d_un_gf = un_gf.Read();
-         const auto d_u_low_modes_gf = u_low_modes_gf.Read();
-         auto d_hpfrt_gf = hpfrt_gf.ReadWrite();
-         MFEM_FORALL(i,
-                     un_gf.Size(),
-                     d_hpfrt_gf[i] = -10.0 * (d_un_gf[i] - d_u_low_modes_gf[i]););
+      u_filter_basis_gf.ProjectGridFunction(un_gf);
+      u_low_modes_gf.ProjectGridFunction(u_filter_basis_gf);
+      const auto d_un_gf = un_gf.Read();
+      const auto d_u_low_modes_gf = u_low_modes_gf.Read();
+      auto d_hpfrt_gf = hpfrt_gf.ReadWrite();
+      MFEM_FORALL(i,
+                  un_gf.Size(),
+                  d_hpfrt_gf[i] = -10.0 * (d_un_gf[i] - d_u_low_modes_gf[i]););
 
-         hpfrt_gf.ParallelAssemble(hpfrt_tdofs);
-      }
-
-      if (0)
-      {
-         const int hpf_kco = 1;
-         const double hpf_weight = 10.0;
-         const double hpf_chi = -1.0 * hpf_weight;
-         const int N = order + 1;
-
-         DenseMatrix D_filter;
-         D_filter.Diag(1.0, N);
-
-         const int k0 = N - hpf_kco;
-         // Amplitude
-         double a;
-
-         printf("N=%d, k0=%d\n", N, k0);
-         for (int k = k0; k < N; k++)
-         {
-            printf("k = %d\n", k);
-            a = (pow((double)(k+1 - k0), 2.0))/pow((double)(hpf_kco), 2.0);
-            printf("k = %d, a = %f\n", k, a);
-            D_filter(k, k) = 1.0 - a;
-            printf("diag(k)=%f\n", D_filter(k, k));
-         }
-
-         // Legendre Basis interpolation matrix (Vandermonde)
-         DenseMatrix V(N), Vinv(N);
-         Vector Vi(N);
-
-         // fake integration points to compare with Nek
-         Vector fake_ips(N);
-         fake_ips(0)= -1.0000000000000000;
-         fake_ips(1)= -0.65465367070797720;
-         fake_ips(2)= 0.0000000000000000;
-         fake_ips(3)= 0.65465367070797709;
-         fake_ips(4)= 1.0000000000000000;
-
-         for (int i = 0; i < N; i++)
-         {
-            // printf("z=%f\n", gll_ir.IntPoint(i).x);
-            // EvaluateLegendrePolynomial(N, gll_ir.IntPoint(i).x, Vi);
-            printf("z=%f\n", fake_ips(i));
-            EvaluateLegendrePolynomial(N, fake_ips(i), Vi);
-            V.SetRow(i, Vi);
-         }
-
-         // printf("V\n");
-         // V.Print(out, N);
-
-         DenseMatrix DfVinv(N), VDfVinv(N);
-         Vinv = V;
-         Vinv.Invert();
-
-         // printf("Vinv\n");
-         // Vinv.Print(out, N);
-
-         // printf("Df\n");
-         // D_filter.Print(out, N);
-
-         Mult(D_filter, Vinv, DfVinv);
-         // printf("DVinv\n");
-         // DfVinv.Print(out, N);
-
-         Mult(V, DfVinv, VDfVinv);
-
-         printf("VDfVinv\n");
-         VDfVinv.Print(out, N);
-
-         // compute u - F u F'
-      }
+      hpfrt_gf.ParallelProject(hpfrt_tdofs);
    }
 
-   // exit(0);
-   // return;
+   if (filter_method == FilterMethod::HPFRT_LPOLY)
+   {
+      BuildHPFForcing(un_gf);
+   }
 
-   // Mv->Mult(hpfrt_tdofs, tmp1);
-   // Fext.Add(1.0, tmp1);
-
-   // Fext = M^{-1} (F(u^{n}) + f^{n+1})
+   // Fext = M^{-1} (F(u^{n}) + f^{n+1} + RT^{n+1})
+   if (filter_method != FilterMethod::NONE)
+   {
+      Fext.Add(1.0, hpfrt_tdofs);
+   }
    MvInv->Mult(Fext, tmp1);
-   if (hpfrt)
-   {
-      tmp1.Add(1.0, hpfrt_tdofs);
-   }
    iter_mvsolve = MvInv->GetNumIterations();
    res_mvsolve = MvInv->GetFinalNorm();
    Fext.Set(1.0, tmp1);
@@ -644,8 +480,6 @@ void NavierSolver::Step(double &time, double dt, int current_step,
 
    FText.Add(1.0, grad_nu_sym_grad_uext);
 
-   // printf("|grad_nu_sym_grad_uext|=%.5E\n", grad_nu_sym_grad_uext.Norml2());
-
    // p_r = \nabla \cdot FText
    D->Mult(FText, resp);
    resp.Neg();
@@ -673,15 +507,8 @@ void NavierSolver::Step(double &time, double dt, int current_step,
    pfes->GetRestrictionMatrix()->MultTranspose(resp, resp_gf);
 
    Vector X1, B1;
-   if (partial_assembly)
-   {
-      auto *SpC = Sp.As<ConstrainedOperator>();
-      EliminateRHS(*Sp_form, *SpC, pres_ess_tdof, pn_gf, resp_gf, X1, B1, 1);
-   }
-   else
-   {
-      Sp_form->FormLinearSystem(pres_ess_tdof, pn_gf, resp_gf, Sp, X1, B1, 1);
-   }
+   auto *SpC = Sp.As<ConstrainedOperator>();
+   EliminateRHS(*Sp_form, *SpC, pres_ess_tdof, pn_gf, resp_gf, X1, B1, 1);
    sw_spsolve.Start();
    SpInv->Mult(B1, X1);
    sw_spsolve.Stop();
@@ -716,15 +543,8 @@ void NavierSolver::Step(double &time, double dt, int current_step,
    vfes->GetRestrictionMatrix()->MultTranspose(resu, resu_gf);
 
    Vector X2, B2;
-   if (partial_assembly)
-   {
-      auto *HC = H.As<ConstrainedOperator>();
-      EliminateRHS(*H_form, *HC, vel_ess_tdof, un_next_gf, resu_gf, X2, B2, 1);
-   }
-   else
-   {
-      H_form->FormLinearSystem(vel_ess_tdof, un_next_gf, resu_gf, H, X2, B2, 1);
-   }
+   auto *HC = H.As<ConstrainedOperator>();
+   EliminateRHS(*H_form, *HC, vel_ess_tdof, un_next_gf, resu_gf, X2, B2, 1);
    sw_hsolve.Start();
    HInv->Mult(B2, X2);
    sw_hsolve.Stop();
@@ -733,20 +553,6 @@ void NavierSolver::Step(double &time, double dt, int current_step,
    H_form->RecoverFEMSolution(X2, resu_gf, un_next_gf);
 
    un_next_gf.GetTrueDofs(un_next);
-
-
-   // if (filter_alpha != 0.0)
-   // {
-   //    un_NM1_gf.ProjectGridFunction(un_next_gf);
-   //    un_next_filtered_gf.ProjectGridFunction(un_NM1_gf);
-   //    const auto d_un_next_filtered_gf = un_next_filtered_gf.Read();
-   //    auto d_un_next_gf = un_next_gf.ReadWrite();
-   //    const auto filter_alpha_ = filter_alpha;
-   //    MFEM_FORALL(i,
-   //                un_next_gf.Size(),
-   //                d_un_next_gf[i] = (1.0 - filter_alpha_) * d_un_next_gf[i]
-   //                                  + filter_alpha_ * d_un_next_filtered_gf[i];);
-   // }
 
    // If the current time step is not provisional, accept the computed solution
    // and update the time step history by default.
@@ -763,15 +569,6 @@ void NavierSolver::Step(double &time, double dt, int current_step,
       mfem::out << std::setw(7) << "" << std::setw(3) << "It" << std::setw(8)
                 << "Resid" << std::setw(12) << "Reltol"
                 << "\n";
-      // If numerical integration is active, there is no solve (thus no
-      // iterations), on the inverse velocity mass application.
-      if (!numerical_integ)
-      {
-         mfem::out << std::setw(5) << "MVIN " << std::setw(5) << std::fixed
-                   << iter_mvsolve << "   " << std::setw(3)
-                   << std::setprecision(2) << std::scientific << res_mvsolve
-                   << "   " << 1e-12 << "\n";
-      }
       mfem::out << std::setw(5) << "PRES " << std::setw(5) << std::fixed
                 << iter_spsolve << "   " << std::setw(3) << std::setprecision(2)
                 << std::scientific << res_spsolve << "   " << rtol_spsolve
@@ -875,10 +672,7 @@ void NavierSolver::MeanZero(ParGridFunction &v)
       onecoeff.constant = 1.0;
       mass_lf = new ParLinearForm(v.ParFESpace());
       auto *dlfi = new DomainLFIntegrator(onecoeff);
-      if (numerical_integ)
-      {
-         dlfi->SetIntRule(&gll_ir);
-      }
+      dlfi->SetIntRule(&gll_ir);
       mass_lf->AddDomainIntegrator(dlfi);
       mass_lf->Assemble();
 
@@ -1135,37 +929,6 @@ double NavierSolver::ComputeCFL(ParGridFunction &u, double dt)
    // The integration rule here has to conform with the nonlinear term.
    auto ir = gll_ir;
 
-   // // Determine spacing between quadrature points
-   // int nqp1d = vfes->GetFE(0)->GetDofToQuad(ir, DofToQuad::TENSOR).nqpt;
-   // int nqp = ir.GetNPoints();
-   // Vector delta_r(nqp),
-   //        delta_s(nqp),
-   //        delta_t(nqp);
-
-   // for (int i = 0; i < nqp; i++)
-   // {
-   //    int idx1d = i % nqp1d;
-   //    if (idx1d == 0)
-   //    {
-   //       delta_r(i) = ir.IntPoint(i+1).x - ir.IntPoint(i).x;
-   //    }
-   //    else if (idx1d == nqp1d - 1)
-   //    {
-   //       delta_r(i) = ir.IntPoint(i).x - ir.IntPoint(i-1).x;
-   //    }
-   //    else
-   //    {
-   //       delta_r(i) = 0.5 * (ir.IntPoint(i+1).x - ir.IntPoint(i-1).x);
-   //    }
-   // }
-   // delta_s = delta_r;
-   // DenseMatrix tmp(delta_s.GetData(), nqp1d, nqp1d);
-   // tmp.Transpose();
-
-   // delta_r.Print(out, nqp1d);
-   // printf("\n");
-   // delta_s.Print(out, nqp1d);
-
    for (int e = 0; e < fes->GetNE(); ++e)
    {
       const FiniteElement *fe = fes->GetFE(e);
@@ -1186,34 +949,6 @@ double NavierSolver::ComputeCFL(ParGridFunction &u, double dt)
 
       for (int i = 0; i < ir.GetNPoints(); ++i)
       {
-         //    const IntegrationPoint &ip = ir.IntPoint(i);
-         //    tr->SetIntPoint(&ip);
-         //    const DenseMatrix &invJ = tr->InverseJacobian();
-         //    const double detJinv = 1.0 / tr->Jacobian().Det();
-
-         //    if (vdim == 2)
-         //    {
-         //       ur(i) = (ux(i) * invJ(0, 0) + uy(i) * invJ(1, 0)) * detJinv;
-         //       us(i) = (ux(i) * invJ(0, 1) + uy(i) * invJ(1, 1)) * detJinv;
-         //    }
-         //    else if (vdim == 3)
-         //    {
-         //       ur(i) = (ux(i) * invJ(0, 0) + uy(i) * invJ(1, 0)
-         //                + uz(i) * invJ(2, 0))
-         //               * detJinv;
-         //       us(i) = (ux(i) * invJ(0, 1) + uy(i) * invJ(1, 1)
-         //                + uz(i) * invJ(2, 1))
-         //               * detJinv;
-         //       ut(i) = (ux(i) * invJ(0, 2) + uy(i) * invJ(1, 2)
-         //                + uz(i) * invJ(2, 2))
-         //               * detJinv;
-         //    }
-
-         // printf("ur = %f, us = %f, delta_r = %f, delta_s = %f\n",
-         //        ur(i), us(i), delta_r(i), delta_s(i));
-
-         // cflx = fabs(dt * ur(i) / delta_s(i));
-         // cfly = fabs(dt * us(i) / delta_r(i));
          cflx = fabs(dt * ux(i) / hmin);
          cfly = fabs(dt * uy(i) / hmin);
 
@@ -1443,12 +1178,128 @@ void NavierSolver::EvaluateLegendrePolynomial(const int N, const double x,
    }
 }
 
+void NavierSolver::EvaluateLegendrePolynomialShifted(const int N,
+                                                     const double x,
+                                                     Vector &L)
+{
+   EvaluateLegendrePolynomial(N, 2.0 * x - 1.0, L);
+}
+
+void NavierSolver::EvaluateMonomialBasis(const int N, const double x, Vector &L)
+{
+   for (int i = 0; i < N; i++)
+   {
+      L(i) = std::pow(x, i);
+   }
+}
 
 void NavierSolver::SetRANSModel(std::shared_ptr<RANSModel> k)
 {
    rans_model = k;
 
    // rans_model->Setup(*pfes);
+}
+
+ParGridFunction *NavierSolver::BuildHPFForcing(ParGridFunction &vel_gf)
+{
+   const int hpf_kco = 1;
+   const double hpf_weight = 10.0;
+   const double hpf_chi = -1.0 * hpf_weight;
+   const int N = order + 1;
+
+   DenseMatrix D_filter;
+   D_filter.Diag(1.0, N);
+
+   const int k0 = N - hpf_kco;
+   // Amplitude
+   double a;
+
+   for (int k = k0; k < N; k++)
+   {
+      a = (pow((double)(k+1 - k0), 2.0))/pow((double)(hpf_kco), 2.0);
+      D_filter(k, k) = 1.0 - a;
+   }
+
+   // Legendre Basis interpolation matrix
+   DenseMatrix V(N), Vinv(N);
+   Vector Vi(N);
+
+   for (int i = 0; i < N; i++)
+   {
+      EvaluateLegendrePolynomialShifted(N, gll_ir.IntPoint(i).x, Vi);
+      V.SetRow(i, Vi);
+   }
+
+   DenseMatrix DfVinv(N), F(N), Ft(N);
+   Vinv = V;
+   Vinv.Invert();
+
+   // Construct F = V * D * V^-1
+   Mult(D_filter, Vinv, DfVinv);
+   Mult(V, DfVinv, F);
+
+   Ft.Transpose(F);
+
+   // compute u - F u F'
+   Array<int> vdofs, dofs;
+   Vector u_e, w1;
+   auto nodal_fe = dynamic_cast<const NodalFiniteElement*>(vfes->GetFE(0));
+   if (!nodal_fe)
+   {
+      MFEM_ABORT("internal error");
+   }
+   auto dofs_lex_ordering = nodal_fe->GetLexicographicOrdering();
+   int ndofs = nodal_fe->GetDof();
+   dofs.SetSize(ndofs);
+   int dim = nodal_fe->GetDim();
+   DenseMatrix W1, W2(N);
+
+   // hpfrt E-vector
+   auto h1v_element_restriction = vfes->GetElementRestriction(
+                                     ElementDofOrdering::LEXICOGRAPHIC);
+   Vector hpfrt_e(h1v_element_restriction->Height());
+   Vector hpfrt_edual(h1v_element_restriction->Height());
+
+   for (int e = 0; e < vfes->GetNE(); ++e)
+   {
+      Array <int> vdofs;
+      vfes->GetElementVDofs(e, vdofs);
+      for (int d = 0; d < dim; d++)
+      {
+         // Retrieve input field in single dimension d
+         for (int lex_idx = 0; lex_idx < ndofs; lex_idx++)
+         {
+            int scalar_h1_idx = dofs_lex_ordering[lex_idx];
+            int vector_h1_idx = scalar_h1_idx + ndofs * d;
+            dofs[lex_idx] = vdofs[vector_h1_idx];
+         }
+
+         vel_gf.GetSubVector(dofs, u_e);
+
+         // Copy 1D input field
+         w1 = u_e;
+         // Make 1D input field available as a matrix. Assumes that the 1D
+         // field is ordered the same as the quadrature rule.
+         W1.UseExternalData(w1.GetData(), N, N);
+         // W2 = F * W1
+         Mult(F, W1, W2);
+         // W1 = W2 * F'
+         Mult(W2, Ft, W1);
+         // In vector form, perform u_e = u_e - w1
+         subtract(u_e, w1, u_e);
+         // Set the dofs of the high-pass filtered GridFunction in the E-vector
+         hpfrt_e.SetVector(u_e, ndofs * (e * dim + d));
+      }
+   }
+   auto mv_integ = (*Mv_form->GetDBFI())[0];
+   hpfrt_edual = 0.0;
+   mv_integ->AddMultPA(hpfrt_e, hpfrt_edual);
+   h1v_element_restriction->MultTranspose(hpfrt_edual, hpfrt_gf);
+
+   hpfrt_gf.ParallelAssemble(hpfrt_tdofs);
+   hpfrt_tdofs *= hpf_chi;
+
+   return &hpfrt_gf;
 }
 
 NavierSolver::~NavierSolver()

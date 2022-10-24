@@ -212,13 +212,6 @@ public:
 
    void AddAccelTerm(VecFuncT *f, Array<int> &attr);
 
-   /// Enable partial assembly for every operator.
-   void EnablePA(bool pa) { partial_assembly = pa; }
-
-   /// Enable numerical integration rules. This means collocated quadrature at
-   /// the nodal points.
-   void EnableNI(bool ni) { numerical_integ = ni; }
-
    /// Print timing summary of the solving routine.
    /**
     * The summary shows the timing in seconds in the first row of
@@ -288,6 +281,8 @@ public:
     */
    void SetFilterAlpha(double a) { filter_alpha = a; }
 
+   ParGridFunction *BuildHPFForcing(ParGridFunction &vel_gf);
+
    ParGridFunction *GetVariableViscosity()
    {
       if (stress_computation) { return &kin_vis_gf; }
@@ -325,6 +320,12 @@ protected:
    // Evaluate Legendre Polynomials of order N at point x
    void EvaluateLegendrePolynomial(const int N, const double x, Vector &L);
 
+   // Evaluate Legendre Polynomials of order N at point x
+   void EvaluateLegendrePolynomialShifted(const int N, const double x, Vector &L);
+
+   // Evaluate Monomial Basis of order N at point x
+   void EvaluateMonomialBasis(const int N, const double x, Vector &L);
+
    /// Enable/disable debug output.
    bool debug = false;
 
@@ -338,9 +339,6 @@ protected:
    bool numerical_integ = false;
 
    bool stress_computation = true;
-
-   // High-Pass-Filter Relaxation Term
-   bool hpfrt = false;
 
    /// The parallel mesh.
    ParMesh *pmesh = nullptr;
@@ -365,11 +363,15 @@ protected:
    /// Velocity \f$H^1\f$ finite element collection.
    FiniteElementCollection *vfec = nullptr;
 
+   FiniteElementCollection *vfecL2 = nullptr;
+
    /// Pressure \f$H^1\f$ finite element collection.
    FiniteElementCollection *pfec = nullptr;
 
    /// Velocity \f$(H^1)^d\f$ finite element space.
    ParFiniteElementSpace *vfes = nullptr;
+
+   ParFiniteElementSpace *vfesL2 = nullptr;
 
    /// Pressure \f$H^1\f$ finite element space.
    ParFiniteElementSpace *pfes = nullptr;
@@ -491,8 +493,20 @@ protected:
    ParLORDiscretization *lor = nullptr;
 
    // Filter-based stabilization
-   int filter_cutoff_modes = 0;
-   double filter_alpha = 0.0;
+   enum FilterMethod
+   {
+      NONE,
+      // High-pass filter relaxation term using a lower order space to damp high
+      // frequency modes.
+      HPFRT_LOS,
+      // High-pass filter relaxation term using a projection to a Legendre
+      // polynomial space to damp high frequency modes.
+      HPFRT_LPOLY
+   } filter_method = FilterMethod::HPFRT_LPOLY;
+
+   int filter_cutoff_modes = 1;
+   double filter_alpha = 10.0;
+   DenseMatrix FHPF, FHPFt;
    FiniteElementCollection *vfec_filter = nullptr;
    ParFiniteElementSpace *vfes_filter = nullptr;
    ParGridFunction u_filter_basis_gf, u_low_modes_gf, hpfrt_gf;
