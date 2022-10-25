@@ -1138,8 +1138,8 @@ void ParNCMesh::GetFaceNeighbors(ParMesh &pmesh)
                   case 1:
                   {
                      DenseMatrix* pm2 = new DenseMatrix(*pm);
-                     std::swap((*pm2)(0,1), (*pm2)(0,2));
-                     std::swap((*pm2)(1,1), (*pm2)(1,2));
+                     std::swap((*pm2)(0,0), (*pm2)(0,1));
+                     std::swap((*pm2)(1,0), (*pm2)(1,1));
                      aux_pm_store.Append(pm2);
                      pm = pm2;
                      break;
@@ -1148,8 +1148,8 @@ void ParNCMesh::GetFaceNeighbors(ParMesh &pmesh)
                   case 3:
                   {
                      DenseMatrix* pm2 = new DenseMatrix(*pm);
-                     std::swap((*pm2)(0,0), (*pm2)(0,1));
-                     std::swap((*pm2)(1,0), (*pm2)(1,1));
+                     std::swap((*pm2)(0,1), (*pm2)(0,2));
+                     std::swap((*pm2)(1,1), (*pm2)(1,2));
                      aux_pm_store.Append(pm2);
                      pm = pm2;
                      break;
