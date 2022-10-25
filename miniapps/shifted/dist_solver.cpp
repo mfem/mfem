@@ -280,7 +280,7 @@ void HeatDistanceSolver::ComputeScalarDistance(Coefficient &zero_level_set,
 }
 
 double NormalizationDistanceSolver::NormalizationCoeff::
-   Eval(ElementTransformation &T,const IntegrationPoint &ip)
+Eval(ElementTransformation &T,const IntegrationPoint &ip)
 {
    T.SetIntPoint(&ip);
    Vector u_grad;
