@@ -561,6 +561,15 @@ void DenseMatrix::Add(const double c, const DenseMatrix &A)
    }
 }
 
+void DenseMatrix::Add(const double c, const double *A)
+{
+   const int s = Width()*Height();
+   for (int i = 0; i < s; i++)
+   {
+      data[i] += c*A[i];
+   }
+}
+
 DenseMatrix &DenseMatrix::operator=(double c)
 {
    const int s = Height()*Width();

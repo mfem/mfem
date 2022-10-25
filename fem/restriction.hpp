@@ -21,10 +21,19 @@ namespace mfem
 class FiniteElementSpace;
 enum class ElementDofOrdering;
 
+/// Abstract base class that defines an interface for element restrictions.
+class ElementRestrictionOperator : public Operator
+{
+public:
+   /// @brief Add the E-vector degrees of freedom @a x to the L-vector degrees
+   /// of freedom @a y.
+   virtual void AddMultTranspose(const Vector &x, Vector &y) const = 0;
+};
+
 /// Operator that converts FiniteElementSpace L-vectors to E-vectors.
 /** Objects of this type are typically created and owned by FiniteElementSpace
     objects, see FiniteElementSpace::GetElementRestriction(). */
-class ElementRestriction : public Operator
+class ElementRestriction : public ElementRestrictionOperator
 {
 private:
    /** This number defines the maximum number of elements any dof can belong to
@@ -58,6 +67,7 @@ public:
    ElementRestriction(const FiniteElementSpace&, ElementDofOrdering);
    void Mult(const Vector &x, Vector &y) const;
    void MultTranspose(const Vector &x, Vector &y) const;
+   void AddMultTranspose(const Vector &x, Vector &y) const;
 
    /// Compute Mult without applying signs based on DOF orientations.
    void MultUnsigned(const Vector &x, Vector &y) const;
@@ -85,6 +95,11 @@ public:
    /** Fill the J and Data arrays of SparseMatrix corresponding to the sparsity
        pattern given by this ElementRestriction, and the values of ea_data. */
    void FillJAndData(const Vector &ea_data, SparseMatrix &mat) const;
+   /// @private Not part of the public interface (device kernel limitation).
+   ///
+   /// Performs either MultTranspose or AddMultTranspose depending on the
+   /// boolean template parameter @a ADD.
+   template <bool ADD> void AddMultTranspose(const Vector &x, Vector &y) const;
 };
 
 /// Operator that converts L2 FiniteElementSpace L-vectors to E-vectors.
@@ -92,7 +107,7 @@ public:
     objects, see FiniteElementSpace::GetElementRestriction(). L-vectors
     corresponding to grid functions in L2 finite element spaces differ from
     E-vectors only in the ordering of the degrees of freedom. */
-class L2ElementRestriction : public Operator
+class L2ElementRestriction : public ElementRestrictionOperator
 {
    const int ne;
    const int vdim;
@@ -103,12 +118,18 @@ public:
    L2ElementRestriction(const FiniteElementSpace&);
    void Mult(const Vector &x, Vector &y) const;
    void MultTranspose(const Vector &x, Vector &y) const;
+   void AddMultTranspose(const Vector &x, Vector &y) const;
    /** Fill the I array of SparseMatrix corresponding to the sparsity pattern
        given by this ElementRestriction. */
    void FillI(SparseMatrix &mat) const;
    /** Fill the J and Data arrays of SparseMatrix corresponding to the sparsity
        pattern given by this L2FaceRestriction, and the values of ea_data. */
    void FillJAndData(const Vector &ea_data, SparseMatrix &mat) const;
+   /// @private Not part of the public interface (device kernel limitation).
+   ///
+   /// Performs either MultTranspose or AddMultTranspose depending on the
+   /// boolean template parameter @a ADD.
+   template <bool ADD> void AddMultTranspose(const Vector &x, Vector &y) const;
 };
 
 /** An enum type to specify if only e1 value is requested (SingleValued) or both
