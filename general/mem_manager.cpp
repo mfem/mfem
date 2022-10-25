@@ -1654,9 +1654,9 @@ int MemoryManager::CompareHostAndDevice_(void *h_ptr, size_t size,
                  mm.GetAliasDevicePtr(h_ptr, size, false) :
                  mm.GetDevicePtr(h_ptr, size, false);
    char *h_buf = new char[size];
-#ifdef MFEM_USE_CUDA
+#if defined(MFEM_USE_CUDA)
    CuMemcpyDtoH(h_buf, d_ptr, size);
-#elif MFE_USE_HIP
+#elif defined(MFEM_USE_HIP)
    HipMemcpyDtoH(h_buf, d_ptr, size);
 #else
    std::memcpy(h_buf, d_ptr, size);

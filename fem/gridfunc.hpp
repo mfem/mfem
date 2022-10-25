@@ -129,19 +129,21 @@ public:
    int CurlDim() const;
 
    /// Read only access to the (optional) internal true-dof Vector.
-   /** Note that the returned Vector may be empty, if not previously allocated
-       or set. */
-   const Vector &GetTrueVector() const { return t_vec; }
+   const Vector &GetTrueVector() const
+   {
+      MFEM_VERIFY(t_vec.Size() > 0, "SetTrueVector() before GetTrueVector()");
+      return t_vec;
+   }
    /// Read and write access to the (optional) internal true-dof Vector.
-   /** Note that the returned Vector may be empty, if not previously allocated
-       or set. */
-   Vector &GetTrueVector() { return t_vec; }
+   /** Note that @a t_vec is set if it is not allocated or set already.*/
+   Vector &GetTrueVector()
+   { if (t_vec.Size() == 0) { SetTrueVector(); } return t_vec; }
 
    /// Extract the true-dofs from the GridFunction.
    void GetTrueDofs(Vector &tv) const;
 
    /// Shortcut for calling GetTrueDofs() with GetTrueVector() as argument.
-   void SetTrueVector() { GetTrueDofs(GetTrueVector()); }
+   void SetTrueVector() { GetTrueDofs(t_vec); }
 
    /// Set the GridFunction from the given true-dof vector.
    virtual void SetFromTrueDofs(const Vector &tv);

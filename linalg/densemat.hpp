@@ -211,8 +211,12 @@ public:
       Set(alpha, A.GetData());
    }
 
-   /// Adds the matrix A multiplied by the number c to the matrix
+   /// Adds the matrix A multiplied by the number c to the matrix.
    void Add(const double c, const DenseMatrix &A);
+
+   /// Adds the matrix A multiplied by the number c to the matrix,
+   /// assuming A has the same dimensions and uses column-major layout.
+   void Add(const double c, const double *A);
 
    /// Sets the matrix elements equal to constant c
    DenseMatrix &operator=(double c);
@@ -577,11 +581,11 @@ void AddMult_a_VWt(const double a, const Vector &v, const Vector &w,
 void AddMult_a_VVt(const double a, const Vector &v, DenseMatrix &VVt);
 
 /** Computes matrix P^t * A * P. Note: The @a RAP matrix will be resized
-    to accomodate the data */
+    to accommodate the data */
 void RAP(const DenseMatrix &A, const DenseMatrix &P, DenseMatrix & RAP);
 
 /** Computes the matrix Rt^t * A * P. Note: The @a RAP matrix will be resized
-    to accomodate the data */
+    to accommodate the data */
 void RAP(const DenseMatrix &Rt, const DenseMatrix &A,
          const DenseMatrix &P, DenseMatrix & RAP);
 

@@ -516,7 +516,8 @@ public:
        L2ElementRestriction class.
 
        The returned Operator is owned by the FiniteElementSpace. */
-   const Operator *GetElementRestriction(ElementDofOrdering e_ordering) const;
+   const ElementRestrictionOperator *GetElementRestriction(
+      ElementDofOrdering e_ordering) const;
 
    /// Return an Operator that converts L-vectors to E-vectors on each face.
    virtual const FaceRestriction *GetFaceRestriction(
@@ -530,7 +531,12 @@ public:
        Operator returned by GetElementRestriction().
 
        All elements will use the same IntegrationRule, @a ir as the target
-       quadrature points. */
+       quadrature points.
+
+       @note The returned pointer is shared. A good practice, before using it,
+       is to set all its properties to their expected values, as other parts of
+       the code may also change them. That is, it's good to call
+       SetOutputLayout() and DisableTensorProducts() before interpolating. */
    const QuadratureInterpolator *GetQuadratureInterpolator(
       const IntegrationRule &ir) const;
 
@@ -541,12 +547,22 @@ public:
        Operator returned by GetElementRestriction().
 
        The target quadrature points in the elements are described by the given
-       QuadratureSpace, @a qs. */
+       QuadratureSpace, @a qs.
+
+       @note The returned pointer is shared. A good practice, before using it,
+       is to set all its properties to their expected values, as other parts of
+       the code may also change them. That is, it's good to call
+       SetOutputLayout() and DisableTensorProducts() before interpolating. */
    const QuadratureInterpolator *GetQuadratureInterpolator(
       const QuadratureSpace &qs) const;
 
    /** @brief Return a FaceQuadratureInterpolator that interpolates E-vectors to
-       quadrature point values and/or derivatives (Q-vectors). */
+       quadrature point values and/or derivatives (Q-vectors).
+
+       @note The returned pointer is shared. A good practice, before using it,
+       is to set all its properties to their expected values, as other parts of
+       the code may also change them. That is, it's good to call
+       SetOutputLayout() and DisableTensorProducts() before interpolating. */
    const FaceQuadratureInterpolator *GetFaceQuadratureInterpolator(
       const IntegrationRule &ir, FaceType type) const;
 

@@ -676,7 +676,6 @@ AlgebraicSpaceHierarchy::AlgebraicSpaceHierarchy(FiniteElementSpace &fes)
       const SparseMatrix *R = fespaces[ilevel+1]->GetRestrictionMatrix();
       if (R)
       {
-         R->EnsureMultTranspose();
          R_tr[ilevel] = new TransposeOperator(*R);
       }
       else
