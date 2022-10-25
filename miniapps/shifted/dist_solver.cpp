@@ -240,7 +240,9 @@ void HeatDistanceSolver::ComputeScalarDistance(Coefficient &zero_level_set,
 
       auto *prec = new HypreBoomerAMG;
       prec->SetPrintLevel(amg_print_level);
-      cg.SetPreconditioner(*prec);
+      OrthoSolver ortho(pfes.GetComm());
+      ortho.SetSolver(*prec);
+      cg.SetPreconditioner(ortho);
       cg.SetOperator(*A);
       cg.Mult(B, X);
       a2.RecoverFEMSolution(X, b2, distance);

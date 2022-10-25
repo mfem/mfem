@@ -19,7 +19,7 @@
 // point source), or any Coefficient (for the case of a level set). The output
 // is a GridFunction that can be scalar (representing the scalar distance), or a
 // vector (its magnitude is the distance, and its direction is the starting
-// direction of the shortest path). The miniapp supports 2 solvers:
+// direction of the shortest path). The miniapp supports 3 solvers:
 //
 // 1. Heat solver:
 //    K. Crane, C. Weischedel, M. Weischedel
@@ -29,7 +29,10 @@
 // 2. p-Laplacian solver:
 //    A. Belyaev, P. Fayolle
 //    On Variational and PDE-based Distance Function Approximations,
-//    Computer Graphics Forum, 34: 104-118, 2015
+//    Computer Graphics Forum, 34: 104-118, 2015, Section 7.
+//
+// 3. Rvachev normalization solver: same paper as p-Laplacian, Section 6.
+//
 //
 // The solution of the p-Laplacian solver approaches the signed distance when
 // p->\infinity. Therefore, increasing p will improve the computed distance and,
