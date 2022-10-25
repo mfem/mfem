@@ -26,7 +26,7 @@ protected:
 
 public:
    // 0 = nothing, 1 = main solver only, 2 = full (solver + preconditioner).
-   int print_level = 0;
+   IterativeSolver::PrintLevel print_level;
 
    DistanceSolver() { }
    virtual ~DistanceSolver() { }
@@ -75,7 +75,6 @@ public:
 class NormalizationDistanceSolver : public DistanceSolver
 {
 private:
-   IterativeSolver::PrintLevel pl;
 
    class NormalizationCoeff : public Coefficient
    {
@@ -88,7 +87,7 @@ private:
    };
 
 public:
-   NormalizationDistanceSolver() { pl.None(); }
+   NormalizationDistanceSolver() { }
 
    void ComputeScalarDistance(Coefficient& u_coeff, ParGridFunction& dist);
 };
@@ -100,12 +99,9 @@ class PLapDistanceSolver : public DistanceSolver
 {
 public:
    PLapDistanceSolver(int maxp_ = 30, int newton_iter_ = 10,
-                      double rtol = 1e-7, double atol = 1e-12, int print_lv = 0)
+                      double rtol = 1e-7, double atol = 1e-12)
       : maxp(maxp_), newton_iter(newton_iter_),
-        newton_rel_tol(rtol), newton_abs_tol(atol)
-   {
-      print_level = print_lv;
-   }
+        newton_rel_tol(rtol), newton_abs_tol(atol) { }
 
    void SetMaxPower(int new_pp) { maxp = new_pp; }
 

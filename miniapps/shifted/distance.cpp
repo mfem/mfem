@@ -127,14 +127,11 @@ class ExactDistSphereLoc : public Coefficient
 {
 private:
    ParGridFunction &dist;
-   double dx;
+   const double dx;
 
 public:
-   ExactDistSphereLoc(ParGridFunction &d) : dist(d)
-   {
-      ParMesh &pmesh = *dist.ParFESpace()->GetParMesh();
-      dx = pmesh.GetElementSize(0);
-   }
+   ExactDistSphereLoc(ParGridFunction &d)
+      : dist(d), dx(dist.ParFESpace()->GetParMesh()->GetElementSize(0)) { }
 
    virtual double Eval(ElementTransformation &T, const IntegrationPoint &ip)
    {
@@ -143,8 +140,9 @@ public:
       pos -= 0.5;
       const double r = sqrt(pos * pos);
 
-      if (fabs(r - radius) < 2.0 * dx) { return fabs(r - radius); }
-      else                             { return dist.GetValue(T, ip); }
+      // One zone length in every direction.
+      if (fabs(r - radius) < dx) { return fabs(r - radius); }
+      else                       { return dist.GetValue(T, ip); }
    }
 };
 
@@ -321,7 +319,7 @@ int main(int argc, char *argv[])
       dist_solver = new NormalizationDistanceSolver;
    }
    else { MFEM_ABORT("Wrong solver option."); }
-   dist_solver->print_level = 1;
+   dist_solver->print_level.FirstAndLast().Summary();
 
    H1_FECollection fec(order, dim);
    ParFiniteElementSpace pfes_s(&pmesh, &fec), pfes_v(&pmesh, &fec, dim);
