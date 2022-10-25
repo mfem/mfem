@@ -171,6 +171,7 @@ int main (int argc, char *argv[])
    int  benchmarkid      = 1;
    double ls_scale       = 1.0;
    int partition_type    = 0;
+   bool mesh_save        = false;
 
    // 2. Parse command-line options.
    OptionsParser args(argc, argv);
@@ -312,6 +313,10 @@ int main (int argc, char *argv[])
                   "of zones in each direction, e.g., the number of zones in direction x\n\t"
                   "must be divisible by the number of MPI tasks in direction x.\n\t"
                   "Available options: 11, 21, 111, 211, 221, 311, 321, 322, 432.");
+    args.AddOption(&mesh_save, "-ms", "--meshsave", "-no-ms",
+                  "--no-meshsave",
+                  "Save original and optimized mesh.");
+
    args.Parse();
    if (!args.Good())
    {
@@ -400,6 +405,10 @@ int main (int argc, char *argv[])
    }
    delete [] nxyz;
    delete mesh;
+
+   if (myid == 0) { 
+       cout << pmesh->GetNE() << " " << num_procs << " NE,NP"  << endl; 
+   }
 
    for (int lev = 0; lev < rp_levels; lev++)
    {
@@ -492,12 +501,14 @@ int main (int argc, char *argv[])
    // 10. Save the starting (prior to the optimization) mesh to a file. This
    //     output can be viewed later using GLVis: "glvis -m perturbed -np
    //     num_mpi_tasks".
+
+   if (mesh_save)
    {
       ostringstream mesh_name;
       mesh_name << "perturbed.mesh";
       ofstream mesh_ofs(mesh_name.str().c_str());
       mesh_ofs.precision(8);
-      //      pmesh->PrintAsOne(mesh_ofs);
+      pmesh->PrintAsOne(mesh_ofs);
    }
 
    x.HostReadWrite();
@@ -1416,12 +1427,13 @@ int main (int argc, char *argv[])
 
    // 16. Save the optimized mesh to a file. This output can be viewed later
    //     using GLVis: "glvis -m optimized -np num_mpi_tasks".
+   if (mesh_save)
    {
       ostringstream mesh_name;
       mesh_name << "optimized.mesh";
       ofstream mesh_ofs(mesh_name.str().c_str());
       mesh_ofs.precision(8);
-//      pmesh->PrintAsOne(mesh_ofs);
+      pmesh->PrintAsOne(mesh_ofs);
    }
 
    // Compute the final energy of the functional.
