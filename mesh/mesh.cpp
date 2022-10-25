@@ -10513,7 +10513,8 @@ void Mesh::PrintVTU(std::string fname,
                     VTKFormat format,
                     bool high_order_output,
                     int compression_level,
-                    bool bdr)
+                    bool bdr,
+                    double sf)
 {
    int ref = (high_order_output && Nodes)
              ? Nodes->FESpace()->GetMaxElementOrder() : 1;
@@ -10527,7 +10528,7 @@ void Mesh::PrintVTU(std::string fname,
    }
    os << " byte_order=\"" << VTKByteOrder() << "\">\n";
    os << "<UnstructuredGrid>\n";
-   PrintVTU(os, ref, format, high_order_output, compression_level, bdr);
+   PrintVTU(os, ref, format, high_order_output, compression_level, bdr, sf);
    os << "</Piece>\n"; // need to close the piece open in the PrintVTU method
    os << "</UnstructuredGrid>\n";
    os << "</VTKFile>" << std::endl;
@@ -10538,14 +10539,15 @@ void Mesh::PrintVTU(std::string fname,
 void Mesh::PrintBdrVTU(std::string fname,
                        VTKFormat format,
                        bool high_order_output,
-                       int compression_level)
+                       int compression_level,
+                       double sf)
 {
-   PrintVTU(fname, format, high_order_output, compression_level, true);
+   PrintVTU(fname, format, high_order_output, compression_level, true, sf);
 }
 
 void Mesh::PrintVTU(std::ostream &os, int ref, VTKFormat format,
                     bool high_order_output, int compression_level,
-                    bool bdr_elements)
+                    bool bdr_elements, double sf)
 {
    RefinedGeometry *RefG;
    DenseMatrix pmat;
@@ -10590,6 +10592,11 @@ void Mesh::PrintVTU(std::ostream &os, int ref, VTKFormat format,
       else
       {
          GetElementTransformation(i)->Transform(RefG->RefPts, pmat);
+      }
+
+      if (sf != 1.0)
+      {
+         pmat *= sf;
       }
 
       for (int j = 0; j < pmat.Width(); j++)
