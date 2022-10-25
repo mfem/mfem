@@ -121,6 +121,36 @@ void ParBilinearForm::pAllocMat()
    dof_dof.LoseData();
 }
 
+void ParBilinearForm::ParallelRAP(SparseMatrix &loc_A, OperatorHandle &A,
+                                  bool steal_loc_A)
+{
+   ParFiniteElementSpace &pfespace = *ParFESpace();
+
+   // Create a block diagonal parallel matrix
+   OperatorHandle A_diag(Operator::Hypre_ParCSR);
+   A_diag.MakeSquareBlockDiag(pfespace.GetComm(),
+                              pfespace.GlobalVSize(),
+                              pfespace.GetDofOffsets(),
+                              &loc_A);
+
+   // Parallel matrix assembly using P^t A P (if needed)
+   if (IsIdentityProlongation(pfespace.GetProlongationMatrix()))
+   {
+      A_diag.SetOperatorOwner(false);
+      A.Reset(A_diag.As<HypreParMatrix>());
+      if (steal_loc_A)
+      {
+         HypreStealOwnership(*A.As<HypreParMatrix>(), loc_A);
+      }
+   }
+   else
+   {
+      OperatorHandle P(Operator::Hypre_ParCSR);
+      P.ConvertFrom(pfespace.Dof_TrueDof_Matrix());
+      A.MakePtAP(A_diag, P);
+   }
+}
+
 void ParBilinearForm::ParallelAssemble(OperatorHandle &A, SparseMatrix *A_local)
 {
    A.Clear();
@@ -373,7 +403,6 @@ void ParBilinearForm::FormLinearSystem(
       P.MultTranspose(b, true_B);
       R.Mult(x, true_X);
       p_mat.EliminateBC(p_mat_e, ess_tdof_list, true_X, true_B);
-      R.EnsureMultTranspose();
       R.MultTranspose(true_B, b);
       hybridization->ReduceRHS(true_B, B);
       X.SetSize(B.Size());

@@ -12,6 +12,7 @@
 #include "../general/forall.hpp"
 #include "bilininteg.hpp"
 #include "gridfunc.hpp"
+#include "qfunction.hpp"
 #include "ceed/integrators/diffusion/diffusion.hpp"
 
 using namespace std;
@@ -368,7 +369,16 @@ void DiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
       MFEM_VERIFY(!VQ && !MQ,
                   "Only scalar coefficient supported for DiffusionIntegrator"
                   " with libCEED");
-      ceedOp = new ceed::PADiffusionIntegrator(fes, *ir, Q);
+      const bool mixed = mesh->GetNumGeometries(mesh->Dimension()) > 1 ||
+                         fes.IsVariableOrder();
+      if (mixed)
+      {
+         ceedOp = new ceed::MixedPADiffusionIntegrator(*this, fes, Q);
+      }
+      else
+      {
+         ceedOp = new ceed::PADiffusionIntegrator(fes, *ir, Q);
+      }
       return;
    }
    const int dims = el.GetDim();
@@ -381,120 +391,21 @@ void DiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
    maps = &el.GetDofToQuad(*ir, DofToQuad::TENSOR);
    dofs1D = maps->ndof;
    quad1D = maps->nqpt;
-   int coeffDim = 1;
-   Vector coeff;
-   const int MQfullDim = MQ ? MQ->GetHeight() * MQ->GetWidth() : 0;
-   if (auto *SMQ = dynamic_cast<SymmetricMatrixCoefficient *>(MQ))
-   {
-      MFEM_VERIFY(SMQ->GetSize() == dim, "");
-      coeffDim = symmDims;
-      coeff.SetSize(symmDims * nq * ne);
 
-      DenseSymmetricMatrix sym_mat;
-      sym_mat.SetSize(dim);
+   QuadratureSpace qs(*mesh, *ir);
+   CoefficientVector coeff(qs, CoefficientStorage::COMPRESSED);
 
-      auto C = Reshape(coeff.HostWrite(), symmDims, nq, ne);
+   if (MQ) { coeff.ProjectTranspose(*MQ); }
+   else if (VQ) { coeff.Project(*VQ); }
+   else if (Q) { coeff.Project(*Q); }
+   else { coeff.SetConstant(1.0); }
 
-      for (int e=0; e<ne; ++e)
-      {
-         ElementTransformation *tr = mesh->GetElementTransformation(e);
-         for (int p=0; p<nq; ++p)
-         {
-            SMQ->Eval(sym_mat, *tr, ir->IntPoint(p));
-            int cnt = 0;
-            for (int i=0; i<dim; ++i)
-               for (int j=i; j<dim; ++j, ++cnt)
-               {
-                  C(cnt, p, e) = sym_mat(i,j);
-               }
-         }
-      }
-   }
-   else if (MQ)
-   {
-      symmetric = false;
-      MFEM_VERIFY(MQ->GetHeight() == dim && MQ->GetWidth() == dim, "");
+   const int coeff_dim = coeff.GetVDim();
+   symmetric = (coeff_dim != dims*dims);
+   const int pa_size = symmetric ? symmDims : dims*dims;
 
-      coeffDim = MQfullDim;
-
-      coeff.SetSize(MQfullDim * nq * ne);
-
-      DenseMatrix mat;
-      mat.SetSize(dim);
-
-      auto C = Reshape(coeff.HostWrite(), MQfullDim, nq, ne);
-      for (int e=0; e<ne; ++e)
-      {
-         ElementTransformation *tr = mesh->GetElementTransformation(e);
-         for (int p=0; p<nq; ++p)
-         {
-            MQ->Eval(mat, *tr, ir->IntPoint(p));
-            for (int i=0; i<dim; ++i)
-               for (int j=0; j<dim; ++j)
-               {
-                  C(j+(i*dim), p, e) = mat(i,j);
-               }
-         }
-      }
-   }
-   else if (VQ)
-   {
-      MFEM_VERIFY(VQ->GetVDim() == dim, "");
-      coeffDim = VQ->GetVDim();
-      coeff.SetSize(coeffDim * nq * ne);
-      auto C = Reshape(coeff.HostWrite(), coeffDim, nq, ne);
-      Vector DM(coeffDim);
-      for (int e=0; e<ne; ++e)
-      {
-         ElementTransformation *tr = mesh->GetElementTransformation(e);
-         for (int p=0; p<nq; ++p)
-         {
-            VQ->Eval(DM, *tr, ir->IntPoint(p));
-            for (int i=0; i<coeffDim; ++i)
-            {
-               C(i, p, e) = DM[i];
-            }
-         }
-      }
-   }
-   else if (Q == nullptr)
-   {
-      coeff.SetSize(1);
-      coeff(0) = 1.0;
-   }
-   else if (ConstantCoefficient* cQ = dynamic_cast<ConstantCoefficient*>(Q))
-   {
-      coeff.SetSize(1);
-      coeff(0) = cQ->constant;
-   }
-   else if (QuadratureFunctionCoefficient* qfQ =
-               dynamic_cast<QuadratureFunctionCoefficient*>(Q))
-   {
-      const QuadratureFunction &qFun = qfQ->GetQuadFunction();
-      MFEM_VERIFY(qFun.Size() == ne*nq,
-                  "Incompatible QuadratureFunction dimension \n");
-
-      MFEM_VERIFY(ir == &qFun.GetSpace()->GetElementIntRule(0),
-                  "IntegrationRule used within integrator and in"
-                  " QuadratureFunction appear to be different");
-      qFun.Read();
-      coeff.MakeRef(const_cast<QuadratureFunction &>(qFun),0);
-   }
-   else
-   {
-      coeff.SetSize(nq * ne);
-      auto C = Reshape(coeff.HostWrite(), nq, ne);
-      for (int e = 0; e < ne; ++e)
-      {
-         ElementTransformation& T = *fes.GetElementTransformation(e);
-         for (int q = 0; q < nq; ++q)
-         {
-            C(q,e) = Q->Eval(T, ir->IntPoint(q));
-         }
-      }
-   }
-   pa_data.SetSize((symmetric ? symmDims : MQfullDim) * nq * ne, mt);
-   PADiffusionSetup(dim, sdim, dofs1D, quad1D, coeffDim, ne, ir->GetWeights(),
+   pa_data.SetSize(pa_size * nq * ne, mt);
+   PADiffusionSetup(dim, sdim, dofs1D, quad1D, coeff_dim, ne, ir->GetWeights(),
                     geom->J, coeff, pa_data);
 }
 

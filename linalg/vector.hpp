@@ -321,6 +321,8 @@ public:
 
    void SetVector(const Vector &v, int offset);
 
+   void AddSubVector(const Vector &v, int offset);
+
    /// (*this) = -(*this)
    void Neg();
 
@@ -438,7 +440,7 @@ public:
 
    /** @brief Count the number of entries in the Vector for which isfinite
        is false, i.e. the entry is a NaN or +/-Inf. */
-   int CheckFinite() const { return mfem::CheckFinite(data, size); }
+   int CheckFinite() const { return mfem::CheckFinite(HostRead(), size); }
 
    /// Destroys vector.
    virtual ~Vector();
@@ -467,25 +469,6 @@ public:
    virtual double *HostReadWrite()
    { return mfem::ReadWrite(data, size, false); }
 
-#ifdef MFEM_USE_SUNDIALS
-   /// (DEPRECATED) Construct a wrapper Vector from SUNDIALS N_Vector.
-   MFEM_DEPRECATED explicit Vector(N_Vector nv);
-
-   /// (DEPRECATED) Return a new wrapper SUNDIALS N_Vector of type SUNDIALS_NVEC_SERIAL.
-   /** @deprecated The returned N_Vector must be destroyed by the caller. */
-   MFEM_DEPRECATED virtual N_Vector ToNVector()
-   { return N_VMake_Serial(Size(), GetData()); }
-
-   /** @deprecated @brief Update an existing wrapper SUNDIALS N_Vector to point to this
-       Vector.
-
-       \param[in] nv N_Vector to assign this vector's data to
-       \param[in] global_length An optional parameter that designates the global
-        length. If nv is a parallel vector and global_length == 0 then this
-        method will perform a global reduction and calculate the global length
-   */
-   MFEM_DEPRECATED virtual void ToNVector(N_Vector &nv, long global_length = 0);
-#endif
 };
 
 // Inline methods

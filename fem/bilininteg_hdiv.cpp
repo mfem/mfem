@@ -12,6 +12,7 @@
 #include "../general/forall.hpp"
 #include "bilininteg.hpp"
 #include "gridfunc.hpp"
+#include "qspace.hpp"
 
 using namespace std;
 
@@ -1513,19 +1514,8 @@ void DivDivIntegrator::AssemblePA(const FiniteElementSpace &fes)
 
    pa_data.SetSize(nq * ne, Device::GetMemoryType());
 
-   Vector coeff(ne * nq);
-   coeff = 1.0;
-   if (Q)
-   {
-      for (int e=0; e<ne; ++e)
-      {
-         ElementTransformation *tr = mesh->GetElementTransformation(e);
-         for (int p=0; p<nq; ++p)
-         {
-            coeff[p + (e * nq)] = Q->Eval(*tr, ir->IntPoint(p));
-         }
-      }
-   }
+   QuadratureSpace qs(*mesh, *ir);
+   CoefficientVector coeff(Q, qs, CoefficientStorage::FULL);
 
    if (el->GetDerivType() == mfem::FiniteElement::DIV && dim == 3)
    {
@@ -1783,18 +1773,14 @@ VectorFEDivergenceIntegrator::AssemblePA(const FiniteElementSpace &trial_fes,
 
    pa_data.SetSize(nq * ne, Device::GetMemoryType());
 
-   Vector coeff(ne * nq);
-   coeff = 1.0;
-   if (Q)
+   QuadratureSpace qs(*mesh, *ir);
+   CoefficientVector coeff(Q, qs, CoefficientStorage::FULL);
+
+   if (test_el->GetMapType() == FiniteElement::INTEGRAL)
    {
-      for (int e=0; e<ne; ++e)
-      {
-         ElementTransformation *tr = mesh->GetElementTransformation(e);
-         for (int p=0; p<nq; ++p)
-         {
-            coeff[p + (e * nq)] = Q->Eval(*tr, ir->IntPoint(p));
-         }
-      }
+      const GeometricFactors *geom =
+         mesh->GetGeometricFactors(*ir, GeometricFactors::DETERMINANTS);
+      coeff /= geom->detJ;
    }
 
    if (trial_el->GetDerivType() == mfem::FiniteElement::DIV && dim == 3)
@@ -1811,7 +1797,7 @@ VectorFEDivergenceIntegrator::AssemblePA(const FiniteElementSpace &trial_fes,
    }
 }
 
-// Apply to x corresponding to DOF's in H(div) (trial), whose divergence is
+// Apply to x corresponding to DOFs in H(div) (trial), whose divergence is
 // integrated against L_2 test functions corresponding to y.
 static void PAHdivL2Apply3D(const int D1D,
                             const int Q1D,
@@ -1974,7 +1960,7 @@ static void PAHdivL2Apply3D(const int D1D,
    }); // end of element loop
 }
 
-// Apply to x corresponding to DOF's in H(div) (trial), whose divergence is
+// Apply to x corresponding to DOFs in H(div) (trial), whose divergence is
 // integrated against L_2 test functions corresponding to y.
 static void PAHdivL2Apply2D(const int D1D,
                             const int Q1D,
