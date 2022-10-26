@@ -175,6 +175,11 @@ public:
         Solve(bsoly,0.6);
         Solve(bsolz,0.7);
 
+        for(int i=0;i<16;i++){
+            bsoly[i]*=0.1;
+            bsolz[i]*=0.01;
+        }
+
     }
 
     void Solve(std::vector<mfem::ParGridFunction>& bsol,double eta)
