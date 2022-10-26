@@ -37,6 +37,8 @@
 #include <random>
 #include "common/fpde.hpp"
 
+bool random_seed = true;
+
 class DiffusionCoefficient : public Coefficient
 {
 protected:
@@ -83,6 +85,50 @@ public:
    }
 };
 
+class RandomFunctionCoefficient : public Coefficient
+{
+private:
+   double a = 0.4;
+   double b = 0.6;
+   double x,y;
+   std::default_random_engine generator;
+   std::uniform_real_distribution<double> * distribution;
+   double (*Function)(const Vector &, double, double);
+public:
+   RandomFunctionCoefficient(double (*F)(const Vector &, double, double), int seed = 0) 
+   : Function(F) 
+   {
+      generator.seed(seed);
+      distribution = new std::uniform_real_distribution<double> (a,b);
+      x = (*distribution)(generator);
+      y = (*distribution)(generator);
+   }
+   virtual double Eval(ElementTransformation &T,
+                       const IntegrationPoint &ip)
+   {
+      Vector transip(3);
+      T.Transform(ip, transip);
+      return ((*Function)(transip, x,y));
+   }
+   void resample()
+   {
+      x = (*distribution)(generator);
+      y = (*distribution)(generator);
+   }
+};
+
+double randomload(const Vector & X, double x0, double y0)
+{
+   double x = X(0);
+   double y = X(1);
+   double sigma = 0.3;
+   double sigma2 = sigma*sigma;
+   double alpha = 1.0/(2.0*M_PI*sigma2);
+   double r2 = (x-x0)*(x-x0) + (y-y0)*(y-y0);
+   double beta = -0.5/sigma2 * r2;
+   return alpha * exp(beta);
+   // return 1.0;
+}
 
 using namespace std;
 using namespace mfem;
@@ -133,6 +179,8 @@ int main(int argc, char *argv[])
    double tol_lambda = 1e-3;
    double K_max = 1.0;
    double K_min = 1e-3;
+   int batch_size_min = 2;
+   double theta = 0.5;
 
    OptionsParser args(argc, argv);
    args.AddOption(&ref_levels, "-r", "--refine",
@@ -157,6 +205,13 @@ int main(int argc, char *argv[])
                   "Maximum of diffusion diffusion coefficient.");
    args.AddOption(&K_min, "-Kmin", "--K-min",
                   "Minimum of diffusion diffusion coefficient.");
+   args.AddOption(&batch_size_min, "-bs", "--batch-size",
+                  "batch size for stochastic gradient descent.");     
+   args.AddOption(&theta, "-theta", "--theta-sampling-ratio",
+                  "Sampling ratio theta");         
+   args.AddOption(&random_seed, "-rs", "--random-seed", "-no-rs",
+                  "--no-random-seed",
+                  "Enable or disable GLVis visualization.");                                                     
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -175,6 +230,7 @@ int main(int argc, char *argv[])
    {
       args.PrintOptions(cout);
    }
+   int batch_size = batch_size_min;
 
    Mesh mesh = Mesh::MakeCartesian2D(7,7,mfem::Element::Type::QUADRILATERAL,true,1.0,1.0);
 
@@ -258,8 +314,11 @@ int main(int argc, char *argv[])
    PoissonSolver->SetAlpha(1.0);
    PoissonSolver->SetBeta(0.0);
    PoissonSolver->SetupFEM();
-   // RandomFunctionCoefficient load_coeff(randomload);
-   PoissonSolver->SetRHSCoefficient(&one);
+
+   int seed = (random_seed) ? rand()%100 + myid : myid;
+   
+   RandomFunctionCoefficient load_coeff(randomload, seed);
+   PoissonSolver->SetRHSCoefficient(&load_coeff);
    PoissonSolver->SetEssentialBoundary(ess_bdr);
    PoissonSolver->Init();
 
@@ -291,6 +350,7 @@ int main(int argc, char *argv[])
 
    // 9. Define the gradient function
    ParGridFunction w(&control_fes);
+   ParGridFunction avg_w(&control_fes);
    ParGridFunction w_filter(&filter_fes);
 
    // 10. Define some tools for later
@@ -340,6 +400,7 @@ int main(int argc, char *argv[])
          if (myid == 0)
          {
             cout << "\nStep = " << l << endl;
+            cout << "batch_size = " << batch_size << endl;
          }
          // Step 2 -  Filter Solve
          // Solve (ϵ^2 ∇ ρ̃, ∇ v ) + (ρ̃,v) = (ρ,v)  
@@ -356,34 +417,55 @@ int main(int argc, char *argv[])
          sout_K << "solution\n" << pmesh << k_cf
                 << "window_title 'Control K'" << flush;         
 
+         avg_w = 0.0;
+         double avg_w_norm = 0.;
+         double avg_compliance = 0.;
+
          PoissonSolver->SetDiffusionCoefficient(&K);
-         PoissonSolver->Solve();
-         u = *PoissonSolver->GetFEMSolution();
-         // ------------------------------------------------------------------
-         // Step 4 - Adjoint Solve
-         GradientRHSCoefficient rhs_cf(u,rho_filter,K_min, K_max);
-         FilterSolver->SetRHSCoefficient(&rhs_cf);
-         FilterSolver->Solve();
-         w_filter = *FilterSolver->GetFEMSolution();
-         // Step 5 - get grad of w
-         GridFunctionCoefficient w_cf(&w_filter);
-         ParLinearForm w_rhs(&control_fes);
-         w_rhs.AddDomainIntegrator(new DomainLFIntegrator(w_cf));
-         w_rhs.Assemble();
-         M.Mult(w_rhs,w);
-         // w.ProjectCoefficient(w_cf); // This might need to change to L2-projection
-         // ------------------------------------------------------------------
-
-         if (myid == 0)
-         {
-            cout << "norm of u = " << u.Norml2() << endl;
-         }
-
-         // step 6-update  ρ 
-         w -= lambda;
          double mf = vol_form(rho)/domain_volume;
-         w += beta * (mf - mass_fraction)/domain_volume;
-         rho.Add(-alpha, w);
+         for (int ib = 0; ib<batch_size; ib++)
+         {
+            load_coeff.resample();
+            PoissonSolver->Solve();
+            u = *PoissonSolver->GetFEMSolution();
+            if (myid == 0)
+            {
+               cout << "norm of u = " << u.Norml2() << endl;
+            }
+            // ------------------------------------------------------------------
+            // Step 4 - Adjoint Solve
+            GradientRHSCoefficient rhs_cf(u,rho_filter,K_min, K_max);
+            FilterSolver->SetRHSCoefficient(&rhs_cf);
+            FilterSolver->Solve();
+            w_filter = *FilterSolver->GetFEMSolution();
+            // Step 5 - get grad of w
+            GridFunctionCoefficient w_cf(&w_filter);
+            ParLinearForm w_rhs(&control_fes);
+            w_rhs.AddDomainIntegrator(new DomainLFIntegrator(w_cf));
+            w_rhs.Assemble();
+            M.Mult(w_rhs,w);
+            // w.ProjectCoefficient(w_cf); // This might need to change to L2-projection
+            // ------------------------------------------------------------------
+
+            // step 6-update  ρ 
+            w -= lambda;
+            w += beta * (mf - mass_fraction)/domain_volume;
+
+            avg_w += w;
+            double w_norm = w.ComputeL2Error(zero);
+            avg_w_norm += w_norm*w_norm;
+            avg_compliance += (*(PoissonSolver->GetLinearForm()))(u);
+         } // end of loop through batch samples
+
+         avg_w_norm /= (double)batch_size;  
+         avg_w /= (double)batch_size;
+         avg_compliance /= (double)batch_size;  
+
+         double norm_avg_w = pow(avg_w.ComputeL2Error(zero),2);
+         double denom = batch_size == 1 ? batch_size : batch_size-1;
+         double variance = (avg_w_norm - norm_avg_w)/denom;
+
+         rho.Add(-alpha, avg_w);
          // project
          for (int i = 0; i < rho.Size(); i++)
          {
@@ -408,10 +490,22 @@ int main(int argc, char *argv[])
          {
             mfem::out << "norm of reduced gradient = " << norm_rho << endl;
             mfem::out << "compliance = " << compliance << endl;
+            mfem::out << "variance = " << variance << std::endl;
          }
          if (norm_rho < tol_rho)
          {
             break;
+         }
+
+         double ratio = sqrt(abs(variance)) / norm_rho ;
+         if (myid == 0)
+         {
+            mfem::out << "ratio = " << ratio << std::endl;
+         }
+         MFEM_VERIFY(IsFinite(ratio), "ratio not finite");
+         if (ratio > theta)
+         {
+            batch_size = (int)(pow(ratio / theta,2.) * batch_size); 
          }
 
          if (visualization)
