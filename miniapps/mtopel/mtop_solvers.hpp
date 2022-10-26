@@ -551,12 +551,15 @@ public:
         dens=nullptr;
         Emax=1.0;
         Emin=1e-6;
-        eta=0.5;
+        loc_eta=new ConstantCoefficient(0.5);
+        eta=loc_eta;
         beta=8.0;
         pp=1.0;
     }
 
-    ~YoungModulus(){}
+    ~YoungModulus(){
+        delete loc_eta;
+    }
 
     void SetDens(ParGridFunction* dens_)
     {
@@ -570,12 +573,15 @@ public:
 
     void SetProjParam(Coefficient& eta_, double beta_)
     {
-
+        eta=&eta_;
+        beta=beta_;
     }
 
     void SetProjParam(double eta_, double beta_)
     {
-        eta=eta_;
+        delete loc_eta;
+        loc_eta=new ConstantCoefficient(eta_);
+        eta=loc_eta;
         beta=beta_;
     }
 
@@ -600,8 +606,10 @@ public:
 
         if(dd>1.0){dd=1.0;}
         if(dd<0.0){dd=0.0;}
+        //eval eta
+        double deta=eta->Eval(T,ip);
         //do the projection
-        double pd=PointwiseTrans::HProject(dd,eta,beta);
+        double pd=PointwiseTrans::HProject(dd,deta,beta);
         //evaluate the E modulus
         return Emin+(Emax-Emin)*std::pow(pd,pp);
     }
@@ -617,10 +625,12 @@ public:
 
         if(dd>1.0){dd=1.0;}
         if(dd<0.0){dd=0.0;}
+        //eval eta
+        double deta=eta->Eval(T,ip);
         //do the projection
-        double pd=PointwiseTrans::HProject(dd,eta,beta);
+        double pd=PointwiseTrans::HProject(dd,deta,beta);
         //evaluate hte gradient of the projection
-        double pg=PointwiseTrans::HGrad(dd,eta,beta);
+        double pg=PointwiseTrans::HGrad(dd,deta,beta);
         //evaluate the gradient with respect to the density field
         return (Emax-Emin)*pg*pp*std::pow(pd,pp-1.0);
     }
@@ -632,7 +642,8 @@ private:
     Coefficient* coef;
     double Emax;
     double Emin;
-    double eta;
+    Coefficient* eta;
+    Coefficient* loc_eta;
     double beta;
     double pp;
 

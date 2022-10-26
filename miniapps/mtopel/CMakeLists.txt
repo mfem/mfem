@@ -15,6 +15,7 @@ list(APPEND SEQADIFF_COMMON_SOURCES)
 list(APPEND SEQADIFF_COMMON_HEADERS)
 
 list(APPEND PARADIFF_COMMON_SOURCES
+	spde_solvers.cpp
 	mtop_filters.cpp
 	mtop_solvers.cpp
 	mtop_coefficients.cpp
@@ -23,6 +24,7 @@ list(APPEND PARADIFF_COMMON_SOURCES
 
 
 list(APPEND PARADIFF_COMMON_HEADERS
+	spde_solvers.hpp
 	mtop_filters.hpp
 	mtop_solvers.hpp
 	mtop_coefficients.hpp
@@ -125,5 +127,9 @@ add_mfem_miniapp(mtop_bra2D
      ${PARADIFF_COMMON_FILES}
      LIBRARIES mfem)
 
+add_mfem_miniapp(mtop_rf
+     MAIN mtop_rf.cpp
+     ${PARADIFF_COMMON_FILES}
+     LIBRARIES mfem)
 
 endif ()
