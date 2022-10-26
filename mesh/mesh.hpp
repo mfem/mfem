@@ -469,11 +469,6 @@ protected:
                                         const DSTable &v_to_v,
                                         Table &el_to_edge);
 
-   /** Return vertex to vertex table. The connections stored in the table
-       are from smaller to bigger vertex index, i.e. if i<j and (i, j) is
-       in the table, then (j, i) is not stored. */
-   void GetVertexToVertexTable(DSTable &) const;
-
    /** Return element to edge table and the indices for the boundary edges.
        The entries in the table are ordered according to the order of the
        nodes in the elements. For example, if T is the element to edge table
@@ -959,6 +954,11 @@ public:
    /// Return the total (global) number of elements.
    long long GetGlobalNE() const { return ReduceInt(NumOfElements); }
 
+   /** Return vertex to vertex table. The connections stored in the table
+    are from smaller to bigger vertex index, i.e. if i<j and (i, j) is
+    in the table, then (j, i) is not stored. */
+   void GetVertexToVertexTable(DSTable &) const;
+
    /** @brief Return the mesh geometric factors corresponding to the given
        integration rule.
 
@@ -989,6 +989,12 @@ public:
    /** This method can be used to force recomputation of the GeometricFactors,
        for example, after the mesh nodes are modified externally. */
    void DeleteGeometricFactors();
+
+   /// @brief This function should be called after the mesh node coordinates
+   /// have changed, e.g. after the mesh has moved.
+   /** It updates internal quantities derived from the node coordinates, such
+       as the GeometricFactors. */
+   void NodesUpdated() { DeleteGeometricFactors(); }
 
    /// Equals 1 + num_holes - num_loops
    inline int EulerNumber() const
@@ -1151,8 +1157,24 @@ public:
    int GetBdrElementEdgeIndex(int i) const;
 
    /** @brief For the given boundary element, bdr_el, return its adjacent
-       element and its info, i.e. 64*local_bdr_index+bdr_orientation. */
+       element and its info, i.e. 64*local_bdr_index+bdr_orientation.
+
+       The returned bdr_orientation is that of the boundary element relative to
+       the respective face element.
+
+       @sa GetBdrElementAdjacentElement2() */
    void GetBdrElementAdjacentElement(int bdr_el, int &el, int &info) const;
+
+   /** @brief For the given boundary element, bdr_el, return its adjacent
+       element and its info, i.e. 64*local_bdr_index+inverse_bdr_orientation.
+
+       The returned inverse_bdr_orientation is the inverse of the orientation of
+       the boundary element relative to the respective face element. In other
+       words this is the orientation of the face element relative to the
+       boundary element.
+
+       @sa GetBdrElementAdjacentElement() */
+   void GetBdrElementAdjacentElement2(int bdr_el, int &el, int &info) const;
 
    /// Returns the type of element i.
    Element::Type GetElementType(int i) const;
@@ -1431,6 +1453,8 @@ public:
 
    Geometry::Type GetFaceGeometryType(int Face) const;
    Element::Type  GetFaceElementType(int Face) const;
+
+   Array<int> GetFaceToBdrElMap() const;
 
    /// Check (and optionally attempt to fix) the orientation of the elements
    /** @param[in] fix_it  If `true`, attempt to fix the orientations of some
