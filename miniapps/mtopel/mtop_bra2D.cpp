@@ -167,23 +167,33 @@ public:
     void Solve()
     {
         //solve the problem for the base loads
-        bsolx.resize(0);
+        bsolx.resize(16);
         bsoly.resize(16);
-        bsolz.resize(0);
+        bsolz.resize(16);
 
+        Solve(bsolx,0.5);
+        Solve(bsoly,0.6);
+        Solve(bsolz,0.7);
+
+    }
+
+    void Solve(std::vector<mfem::ParGridFunction>& bsol,double eta)
+    {
+
+        E.SetProjParam(eta,8.0);
         //set all bc
         esolv->DelDispBC();
         for(int j=0;j<6;j++){esolv->AddDispBC(2+j,4,0.0);}
         esolv->AddSurfLoad(1,0.00,1.00,0.0);
         esolv->FSolve();
-        esolv->GetSol(bsoly[0]);
+        esolv->GetSol(bsol[0]);
 
         for(int i=0;i<6;i++){
             esolv->DelDispBC();
             for(int j=0;j<6;j++){if(j!=i){ esolv->AddDispBC(2+j,4,0.0);}}
             esolv->AddSurfLoad(1,0.00,1.00,0.0);
             esolv->FSolve();
-            esolv->GetSol(bsoly[1+i]);
+            esolv->GetSol(bsol[1+i]);
         }
 
         for(int i=0;i<5;i++){
@@ -191,7 +201,7 @@ public:
             for(int j=0;j<6;j++){if((j!=i)&&(j!=(i+1))){ esolv->AddDispBC(2+j,4,0.0);}}
             esolv->AddSurfLoad(1,0.00,1.00,0.0);
             esolv->FSolve();
-            esolv->GetSol(bsoly[7+i]);
+            esolv->GetSol(bsol[7+i]);
         }
 
         for(int i=0;i<4;i++){
@@ -199,7 +209,7 @@ public:
             for(int j=0;j<6;j++){if((j!=i)&&(j!=(i+1))&&(j!=(i+2))){ esolv->AddDispBC(2+j,4,0.0);}}
             esolv->AddSurfLoad(1,0.00,1.00,0.0);
             esolv->FSolve();
-            esolv->GetSol(bsoly[12+i]);
+            esolv->GetSol(bsol[12+i]);
         }
         // all solutions are stored in bsolx,bsoly,bsolz
     }
@@ -238,15 +248,23 @@ public:
     double MeanCompliance()
     {
         double mean=0.0;
+        mean=mean+1.0*Compliance(0,1.0,0.0,0.0);
         mean=mean+1.0*Compliance(0,0.0,1.0,0.0);
+        mean=mean+1.0*Compliance(0,0.0,0.0,1.0);
         for(int i=1;i<7;i++){
+            mean=mean+0.01*Compliance(i,1.0,0.0,0.0);
             mean=mean+0.01*Compliance(i,0.0,1.0,0.0);
+            mean=mean+0.01*Compliance(i,0.0,0.0,1.0);
         }
         for(int i=7;i<12;i++){
-            mean=mean+0.005*Compliance(i,0.0,1.0,0.0);
+            mean=mean+0.001*Compliance(i,1.0,0.0,0.0);
+            mean=mean+0.001*Compliance(i,0.0,1.0,0.0);
+            mean=mean+0.001*Compliance(i,0.0,0.0,1.0);
         }
         for(int i=12;i<16;i++){
-            mean=mean+0.001*Compliance(i,0.0,1.0,0.0);
+            mean=mean+0.0001*Compliance(i,1.0,0.0,0.0);
+            mean=mean+0.0001*Compliance(i,0.0,1.0,0.0);
+            mean=mean+0.0001*Compliance(i,0.0,0.0,1.0);
         }
         return mean;
     }
@@ -255,19 +273,25 @@ public:
     {
         grad=0.0;
         mfem::Vector cgrad(grad.Size()); cgrad=0.0;
-        GetComplianceGrad(0,0.0,1.0,0.0,cgrad);
-        grad.Add(1.0,cgrad);
+
+        GetComplianceGrad(0,1.0,0.0,0.0,cgrad);grad.Add(1.0,cgrad);
+        GetComplianceGrad(0,0.0,1.0,0.0,cgrad);grad.Add(1.0,cgrad);
+        GetComplianceGrad(0,0.0,0.0,1.0,cgrad);grad.Add(1.0,cgrad);
+
         for(int i=1;i<7;i++){
-            GetComplianceGrad(i,0.0,1.0,0.0,cgrad);
-            grad.Add(0.01,cgrad);
+            GetComplianceGrad(i,1.0,0.0,0.0,cgrad);grad.Add(0.01,cgrad);
+            GetComplianceGrad(i,0.0,1.0,0.0,cgrad);grad.Add(0.01,cgrad);
+            GetComplianceGrad(i,0.0,0.0,1.0,cgrad);grad.Add(0.01,cgrad);
         }
         for(int i=7;i<12;i++){
-            GetComplianceGrad(i,0.0,1.0,0.0,cgrad);
-            grad.Add(0.005,cgrad);
+            GetComplianceGrad(i,1.0,0.0,0.0,cgrad);grad.Add(0.001,cgrad);
+            GetComplianceGrad(i,0.0,1.0,0.0,cgrad);grad.Add(0.001,cgrad);
+            GetComplianceGrad(i,0.0,0.0,1.0,cgrad);grad.Add(0.001,cgrad);
         }
         for(int i=12;i<16;i++){
-            GetComplianceGrad(i,0.0,1.0,0.0,cgrad);
-            grad.Add(0.001,cgrad);
+            GetComplianceGrad(i,1.0,0.0,0.0,cgrad);grad.Add(0.0001,cgrad);
+            GetComplianceGrad(i,0.0,1.0,0.0,cgrad);grad.Add(0.0001,cgrad);
+            GetComplianceGrad(i,0.0,0.0,1.0,cgrad);grad.Add(0.0001,cgrad);
         }
     }
 
@@ -603,12 +627,15 @@ int main(int argc, char *argv[])
               spdegf.ProjectCoefficient(spderf);
           }*/
 
-          vobj->SetProjection(0.5,8.0);
+          vobj->SetProjection(0.3,8.0);
+          alco->SetDensity(vdens,0.5,8.0,3.0);
+          /*
           if(i<11){alco->SetDensity(vdens,0.5,1.0,3.0); vobj->SetProjection(0.5,1.0); }
           else if(i<80){alco->SetDensity(vdens,0.5,8.0,3.0);}
           else if(i<120){alco->SetDensity(vdens,0.5,8.0,3.0);}
           else if(i<160){alco->SetDensity(vdens,0.6,8.0,3.0); vobj->SetProjection(0.4,8.0); }
           else {alco->SetDensity(vdens,0.7,8.0,3.0);  vobj->SetProjection(0.3,8.0);}
+          */
           alco->Solve();
 
           cpl=alco->MeanCompliance();
