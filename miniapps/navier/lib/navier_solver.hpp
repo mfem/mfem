@@ -16,6 +16,8 @@
 
 #include "mfem.hpp"
 #include "rans/rans_model.hpp"
+#include "kernels/curl_evaluator.hpp"
+#include "kernels/mean_evaluator.hpp"
 #include "kernels/stress_evaluator.hpp"
 
 namespace mfem
@@ -143,6 +145,19 @@ public:
 class NavierSolver
 {
 public:
+   // Filter-based stabilization
+   enum FilterMethod
+   {
+      NONE,
+      // High-pass filter relaxation term using a lower order space to damp high
+      // frequency modes.
+      HPFRT_LOS,
+      // High-pass filter relaxation term using a projection to a Legendre
+      // polynomial space to damp high frequency modes.
+      HPFRT_LPOLY
+   } filter_method = FilterMethod::HPFRT_LPOLY;
+
+
    /// Initialize data structures, set FE space order and kinematic viscosity.
    /**
     * The ParMesh @a mesh can be a linear or curved parallel mesh. The @a order
@@ -268,6 +283,8 @@ public:
    int PredictTimestep(const double dt_min, const double dt_max,
                        const double cfl_target, double &dt);
 
+   void EnableFilter(FilterMethod f);
+
    /// Set the number of modes to cut off in the interpolation filter
    void SetCutoffModes(int c) { filter_cutoff_modes = c; }
 
@@ -281,14 +298,9 @@ public:
     */
    void SetFilterAlpha(double a) { filter_alpha = a; }
 
-   ParGridFunction *BuildHPFForcing(ParGridFunction &vel_gf);
-
    ParGridFunction *GetVariableViscosity()
    {
-      if (stress_computation) { return &kin_vis_gf; }
-      MFEM_ABORT("Stress computation needs to be enabled. See ");
-      // unreachable
-      return nullptr;
+      return &kin_vis_gf;
    }
 
    void SetRANSModel(std::shared_ptr<RANSModel> k);
@@ -317,6 +329,8 @@ protected:
                      Vector &B,
                      int copy_interior = 0);
 
+   void BuildHPFForcing(ParGridFunction &vel_gf);
+
    // Evaluate Legendre Polynomials of order N at point x
    void EvaluateLegendrePolynomial(const int N, const double x, Vector &L);
 
@@ -338,8 +352,6 @@ protected:
    /// Enable/disable numerical integration rules of forms.
    bool numerical_integ = false;
 
-   bool stress_computation = true;
-
    /// The parallel mesh.
    ParMesh *pmesh = nullptr;
 
@@ -357,6 +369,7 @@ protected:
 public:
    IntegrationRules gll_rules;
    IntegrationRule gll_ir;
+   IntegrationRule gll_ir_face;
    IntegrationRule gll_ir_nl;
 protected:
 
@@ -491,18 +504,6 @@ protected:
    // LOR related.
    ParLORDiscretization *lor = nullptr;
 
-   // Filter-based stabilization
-   enum FilterMethod
-   {
-      NONE,
-      // High-pass filter relaxation term using a lower order space to damp high
-      // frequency modes.
-      HPFRT_LOS,
-      // High-pass filter relaxation term using a projection to a Legendre
-      // polynomial space to damp high frequency modes.
-      HPFRT_LPOLY
-   } filter_method = FilterMethod::HPFRT_LPOLY;
-
    int filter_cutoff_modes = 1;
    double filter_alpha = 10.0;
    DenseMatrix FHPF, FHPFt;
@@ -513,7 +514,10 @@ protected:
    // RANS
    std::shared_ptr<RANSModel> rans_model;
 
-   StressEvaluator *stress_eval = nullptr;
+   StressEvaluator *stress_evaluator = nullptr;
+   CurlEvaluator *curl_evaluator = nullptr;
+   MeanEvaluator *mean_evaluator = nullptr;
+
    Vector grad_nu_sym_grad_uext, kv;
 };
 
