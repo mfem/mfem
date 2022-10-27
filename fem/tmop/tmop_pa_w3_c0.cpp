@@ -31,6 +31,7 @@ MFEM_REGISTER_TMOP_KERNELS(double, EnergyPA_C0_3D,
                            const Vector &x1_,
                            const Vector &ones,
                            Vector &energy,
+                           const bool exp_lim,
                            const int d1d,
                            const int q1d)
 {
@@ -120,17 +121,17 @@ MFEM_REGISTER_TMOP_KERNELS(double, EnergyPA_C0_3D,
                const double dist = D; // GetValues, default comp set to 0
                double id2 = 0.0;
                double dsq = 0.0;
-               if (quad_lim)
+               if (exp_lim == false)
                {
                  id2 = 0.5 / (dist*dist);
                  dsq = kernels::DistanceSquared<2>(p1,p0) * id2;
-                 E(qx,qy,e) = weight * lim_normal * dsq * coeff0;
+                 E(qx,qy,qz,e) = weight * lim_normal * dsq * coeff0;
                }
                else
                {
                 id2 = 1.0 / (dist*dist);
                 dsq = kernels::DistanceSquared<2>(p1,p0) * id2;
-                E(qx,qy,e) = weight * lim_normal * exp(10.0*dsq-1.0) * coeff0;
+                E(qx,qy,qz,e) = weight * lim_normal * exp(10.0*dsq-1.0) * coeff0;
                }
             }
          }
@@ -139,7 +140,7 @@ MFEM_REGISTER_TMOP_KERNELS(double, EnergyPA_C0_3D,
    return energy * ones;
 }
 
-double TMOP_Integrator::GetLocalStateEnergyPA_C0_3D(const Vector &X, const bool &quad_lim) const
+double TMOP_Integrator::GetLocalStateEnergyPA_C0_3D(const Vector &X) const
 {
    const int N = PA.ne;
    const int D1D = PA.maps->ndof;
@@ -158,7 +159,10 @@ double TMOP_Integrator::GetLocalStateEnergyPA_C0_3D(const Vector &X, const bool 
    const Vector &O = PA.O;
    Vector &E = PA.E;
 
-   MFEM_LAUNCH_TMOP_KERNEL(EnergyPA_C0_3D,id,ln,LD,C0,N,J,W,B,BLD,X0,X,O,E,quad_lim);
+   auto el = dynamic_cast<TMOP_ExponentialLimiter *>(lim_func);
+   const bool exp_lim = (el) ? true : false;
+
+   MFEM_LAUNCH_TMOP_KERNEL(EnergyPA_C0_3D,id,ln,LD,C0,N,J,W,B,BLD,X0,X,O,E,exp_lim);
 }
 
 } // namespace mfem
