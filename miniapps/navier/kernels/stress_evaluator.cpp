@@ -18,8 +18,7 @@ using namespace navier;
 StressEvaluator::StressEvaluator(const ParFiniteElementSpace &kvfes,
                                  const ParFiniteElementSpace &ufes,
                                  const IntegrationRule &ir)
-   : kvfes(kvfes), ufes(ufes), ir(ir), dim(kvfes.GetParMesh()->Dimension()),
-     ne(ufes.GetNE())
+   : ir(ir), dim(kvfes.GetParMesh()->Dimension()), ne(ufes.GetNE())
 {
    ElementDofOrdering ordering = ElementDofOrdering::LEXICOGRAPHIC;
    geom = ufes.GetParMesh()->GetGeometricFactors(

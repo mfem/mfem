@@ -12,7 +12,6 @@
 // 3D flow over a cylinder benchmark example
 
 #include "navier_solver.hpp"
-#include "ceed.h"
 #include <fstream>
 
 using namespace mfem;
@@ -26,7 +25,7 @@ struct s_NavierContext
    double dt = 1e-8;
    double dt_max = 5e-3;
    double cfl_target = 0.9;
-   double t_final = 50.0;
+   double t_final = 5.0;
    double Uavg = 1.0;
    double H = 1.0;
    double Lx = 9.0*H;
@@ -273,11 +272,11 @@ int main(int argc, char *argv[])
    auto *pmesh = new ParMesh(MPI_COMM_WORLD, periodic_mesh);
 
    // Create the flow solver.
-   NavierSolver flowsolver(pmesh, ctx.order, ctx.kin_vis);
+   NavierSolver navier(pmesh, ctx.order, ctx.kin_vis);
 
-   auto kv_gf = flowsolver.GetVariableViscosity();
-   ConstantCoefficient kv_coeff(ctx.kin_vis);
-   kv_gf->ProjectCoefficient(kv_coeff);
+   // auto kv_gf = navier.GetVariableViscosity();
+   // ConstantCoefficient kv_coeff(ctx.kin_vis);
+   // kv_gf->ProjectCoefficient(kv_coeff);
 
    // Add Dirichlet boundary conditions to velocity space restricted to
    // selected attributes on the mesh.
@@ -295,7 +294,7 @@ int main(int argc, char *argv[])
    outlet_attr[1] = 1;
 
    // Set the initial condition.
-   ParGridFunction *u_ic = flowsolver.GetCurrentVelocity();
+   ParGridFunction *u_ic = navier.GetCurrentVelocity();
    VectorFunctionCoefficient u_ic_coeff(pmesh->Dimension(), vel_ic);
    u_ic->ProjectCoefficient(u_ic_coeff);
 
@@ -308,28 +307,28 @@ int main(int argc, char *argv[])
                                                  velocity_wall);
    u_ic->ProjectBdrCoefficient(velocity_wall_coeff, wall_attr);
 
-   // flowsolver.AddVelDirichletBC(vel_inlet, inlet_attr);
-   flowsolver.AddVelDirichletBC(velocity_wall, wall_attr);
+   // navier.AddVelDirichletBC(vel_inlet, inlet_attr);
+   navier.AddVelDirichletBC(velocity_wall, wall_attr);
 
    // ConstantCoefficient pres_outlet(0.0);
-   // flowsolver.AddPresDirichletBC(&pres_outlet, outlet_attr);
+   // navier.AddPresDirichletBC(&pres_outlet, outlet_attr);
 
    Array<int> domain_attr(pmesh->attributes.Max());
    domain_attr = 1;
-   flowsolver.AddAccelTerm(flowrate, domain_attr);
+   navier.AddAccelTerm(flowrate, domain_attr);
 
    double t = 0.0;
    double dt = ctx.dt;
    double t_final = ctx.t_final;
    bool last_step = false;
 
-   flowsolver.SetFilterAlpha(0.1);
+   navier.SetFilterAlpha(0.1);
 
-   flowsolver.Setup(dt);
+   navier.Setup(dt);
 
    ParGridFunction *u_next_gf = nullptr;
-   ParGridFunction *u_gf = flowsolver.GetCurrentVelocity();
-   ParGridFunction *p_gf = flowsolver.GetCurrentPressure();
+   ParGridFunction *u_gf = navier.GetCurrentVelocity();
+   ParGridFunction *p_gf = navier.GetCurrentPressure();
 
    double cfl_max = 2.0;
    double cfl_tol = 1.0;
@@ -351,9 +350,9 @@ int main(int argc, char *argv[])
          last_step = true;
       }
 
-      flowsolver.Step(t, dt, step, true);
+      navier.Step(t, dt, step, true);
       // Get a prediction for a stable timestep
-      int ok = flowsolver.PredictTimestep(1e-8, ctx.dt_max, ctx.cfl_target, dt);
+      int ok = navier.PredictTimestep(1e-8, ctx.dt_max, ctx.cfl_target, dt);
       if (ok < 0)
       {
          // Reject the time step
@@ -367,13 +366,13 @@ int main(int argc, char *argv[])
       else
       {
          // Queue new time step in the history array
-         flowsolver.UpdateTimestepHistory(dt);
+         navier.UpdateTimestepHistory(dt);
          // Accept the time step
          t += dt;
       }
 
       // Compute the CFL
-      double cfl = flowsolver.ComputeCFL(*u_gf, dt);
+      double cfl = navier.ComputeCFL(*u_gf, dt);
 
       if (step % 250 == 0)
       {
@@ -390,7 +389,7 @@ int main(int argc, char *argv[])
       }
    }
 
-   flowsolver.PrintTimingData();
+   navier.PrintTimingData();
 
    delete pmesh;
 

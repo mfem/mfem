@@ -142,13 +142,11 @@ void PrandtlKolmogorovApply2D(
 
                const double JxW = detJ(qx, qy, e) * qweights(qx, qy);
                const auto dphidx = KernelHelpers::GradAllShapeFunctions(qx, qy, B, G, invJqp);
-               const auto phi = KernelHelpers::AllShapeFunctions(qx, qy, B);
                auto dkdx = dkdxi(qy, qx) * invJqp;
 
                const double sqrt_k = sqrt(k_q(qx, qy));
                const double kv_star =
                   kv_q(qx, qy, e) + mu_calibration_const * tls_q(qx,qy,e) * sqrt_k;
-               // const double kv_star = 1.0;
 
                for (int dx = 0; dx < d1d; dx++)
                {

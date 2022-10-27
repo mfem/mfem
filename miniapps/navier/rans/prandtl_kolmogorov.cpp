@@ -20,10 +20,10 @@ PrandtlKolmogorov::PrandtlKolmogorov(ParFiniteElementSpace &kfes,
    ne(kfes.GetNE()),
    vel_coeff(vel_coeff),
    kv_coeff(kv_coeff),
+   mu_calibration_const(mu_calibration_const),
    f_coeff(f_coeff),
-   tls_coeff(tls_coeff),
    k_bdrcoeff(k_bdrcoeff),
-   mu_calibration_const(mu_calibration_const)
+   tls_coeff(tls_coeff)
 {
    height = kfes.GetTrueVSize();
    width = height;

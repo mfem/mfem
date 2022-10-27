@@ -30,8 +30,6 @@ public:
    ~StressEvaluator() {};
 
 private:
-   const ParFiniteElementSpace &kvfes;
-   const ParFiniteElementSpace &ufes;
    const IntegrationRule &ir;
    const Operator *Pkv = nullptr;
    const Operator *Pu = nullptr;
