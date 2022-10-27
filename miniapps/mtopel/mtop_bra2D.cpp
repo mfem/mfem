@@ -175,10 +175,10 @@ public:
         Solve(bsoly,0.6);
         Solve(bsolz,0.7);
 
-        for(int i=0;i<16;i++){
-            bsoly[i]*=0.1;
-            bsolz[i]*=0.01;
-        }
+        //for(int i=0;i<16;i++){
+        //    bsoly[i]*=0.1;
+        //    bsolz[i]*=0.01;
+        //}
 
     }
 
@@ -250,6 +250,228 @@ public:
         cobj->Grad(GetSol(i,fx,fy,fz),grad);
     }
 
+    double CVar(){
+        std::vector<std::tuple<double,double,int,int>> vals;
+        double prob[16]={1.0, 0.01,0.01,0.01,0.01,0.01,0.01,
+                         0.001,0.001,0.001,0.001,0.001,
+                         0.0001,0.0001,0.0001,0.0001};
+
+        double tprob=(1.0+6*0.01+5*0.001+4*0.0001)*3.0;
+
+        double vv;
+        for(int i=0;i<16;i++){
+                vv=Compliance(i,1.0,0.0,0.0); vals.push_back(std::tuple<double,double,int,int>(vv,prob[i],i,0));
+                vv=Compliance(i,0.0,1.0,0.0); vals.push_back(std::tuple<double,double,int,int>(vv,prob[i],i,1));
+                vv=Compliance(i,0.0,0.0,1.0); vals.push_back(std::tuple<double,double,int,int>(vv,prob[i],i,2));
+        }
+
+        std::sort(vals.begin(),vals.end());
+        double cdf[48]; cdf[0]=std::get<1>(vals[0]);
+        double var;
+        double cvar=0.0;
+        double ww=0.0;
+        for(int i=1;i<48;i++){
+            cdf[i]=cdf[i-1]+std::get<1>(vals[i]);
+            if(cdf[i]>0.98*tprob){
+                var=std::get<0>(vals[i]);
+                break;
+            }
+        }
+
+        cdf[0]=std::get<1>(vals[0]);
+        //evaluate the probability
+        for(int i=1;i<48;i++){
+            cdf[i]=cdf[i-1]+std::get<1>(vals[i]);
+            if(!(std::get<0>(vals[i])<var)){
+                cvar=cvar+std::get<0>(vals[i])*std::get<1>(vals[i]);
+                ww=ww+std::get<1>(vals[i]);
+            }
+
+            /*
+            if(dfes->GetMyRank()==0){
+            std::cout<<std::get<0>(vals[i])<<" "<<std::get<1>(vals[i])<<" "<<cdf[i]<<
+                       " "<<std::get<2>(vals[i])<<" "<<std::get<3>(vals[i])<<std::endl;}*/
+        }
+
+        return cvar/ww;
+    }
+
+    void CVar(mfem::Vector& grad)
+    {
+        grad=0.0;
+        mfem::Vector cgrad(grad.Size()); cgrad=0.0;
+
+        std::vector<std::tuple<double,double,int,int>> vals;
+        double prob[16]={1.0, 0.01,0.01,0.01,0.01,0.01,0.01,
+                         0.001,0.001,0.001,0.001,0.001,
+                         0.0001,0.0001,0.0001,0.0001};
+
+        double tprob=(1.0+6*0.01+5*0.001+4*0.0001)*3.0;
+
+        double vv;
+        for(int i=0;i<16;i++){
+                vv=Compliance(i,1.0,0.0,0.0); vals.push_back(std::tuple<double,double,int,int>(vv,prob[i],i,0));
+                vv=Compliance(i,0.0,1.0,0.0); vals.push_back(std::tuple<double,double,int,int>(vv,prob[i],i,1));
+                vv=Compliance(i,0.0,0.0,1.0); vals.push_back(std::tuple<double,double,int,int>(vv,prob[i],i,2));
+        }
+
+        std::sort(vals.begin(),vals.end());
+        double cdf[48]; cdf[0]=std::get<1>(vals[0]);
+        double var;
+        double ww=0.0;
+        for(int i=1;i<48;i++){
+            cdf[i]=cdf[i-1]+std::get<1>(vals[i]);
+            if(cdf[i]>0.98*tprob){
+                var=std::get<0>(vals[i]);
+                break;
+            }
+        }
+
+        //evaluate the probability
+        for(int i=1;i<48;i++){
+            cdf[i]=cdf[i-1]+std::get<1>(vals[i]);
+            if(!(std::get<0>(vals[i])<var)){
+                ww=ww+std::get<1>(vals[i]);
+                //compute the gradients
+                int ii=std::get<2>(vals[i]);
+                int pp=std::get<3>(vals[i]);
+                double vv[3]={0.0,0.0,0.0}; vv[pp]=1.0;
+                GetComplianceGrad(ii,vv[0],vv[1],vv[2],cgrad);grad.Add(std::get<1>(vals[i]),cgrad);
+
+            }
+        }
+        grad/=ww;
+    }
+
+    double MeanSTD(double alpha=0.0)
+    {
+        double prob[16]={1.0, 0.01,0.01,0.01,0.01,0.01,0.01,
+                         0.001,0.001,0.001,0.001,0.001,
+                         0.0001,0.0001,0.0001,0.0001};
+
+        double tprob=(1.0+6*0.01+5*0.001+4*0.0001)*3.0;
+
+        double mean=0.0;
+        double var=0.0;
+
+        double rez=0.0;
+        double vv;
+        for(int i=0;i<16;i++){
+                vv=Compliance(i,1.0,0.0,0.0); mean=mean+prob[i]*vv; var=var+prob[i]*vv*vv;
+                vv=Compliance(i,0.0,1.0,0.0); mean=mean+prob[i]*vv; var=var+prob[i]*vv*vv;
+                vv=Compliance(i,0.0,0.0,1.0); mean=mean+prob[i]*vv; var=var+prob[i]*vv*vv;
+        }
+
+        mean=mean/tprob;
+        var=var/tprob;
+        var=var-mean*mean;
+
+        rez=alpha*mean+(1-alpha)*sqrt(var);
+        return rez;
+
+    }
+
+
+    void MeanSTD(mfem::Vector& grad, double alpha=0.0)
+    {
+        grad=0.0;
+        mfem::Vector cgrad(grad.Size()); cgrad=0.0;
+        mfem::Vector lgrad(grad.Size()); lgrad=0.0;
+
+        double prob[16]={1.0, 0.01,0.01,0.01,0.01,0.01,0.01,
+                         0.001,0.001,0.001,0.001,0.001,
+                         0.0001,0.0001,0.0001,0.0001};
+
+        double tprob=(1.0+6*0.01+5*0.001+4*0.0001)*3.0;
+
+        double mean=0.0;
+        double var=0.0;
+
+        double vv;
+        for(int i=0;i<16;i++){
+                vv=Compliance(i,1.0,0.0,0.0); mean=mean+prob[i]*vv; var=var+prob[i]*vv*vv;
+                GetComplianceGrad(i,1.0,0.0,0.0,cgrad);
+                grad.Add(prob[i],cgrad);
+                lgrad.Add(prob[i]*vv,cgrad);
+
+
+                vv=Compliance(i,0.0,1.0,0.0); mean=mean+prob[i]*vv; var=var+prob[i]*vv*vv;
+                GetComplianceGrad(i,0.0,1.0,0.0,cgrad);
+                grad.Add(prob[i],cgrad);
+                lgrad.Add(prob[i]*vv,cgrad);
+
+                vv=Compliance(i,0.0,0.0,1.0); mean=mean+prob[i]*vv; var=var+prob[i]*vv*vv;
+                GetComplianceGrad(i,0.0,0.0,1.0,cgrad);
+                grad.Add(prob[i],cgrad);
+                lgrad.Add(prob[i]*vv,cgrad);
+        }
+        grad/=tprob;
+        lgrad/=tprob;
+
+        mean=mean/tprob;
+        var=var/tprob;
+        var=var-mean*mean;
+
+        cgrad=grad;
+
+        grad*=alpha;
+        grad.Add((1.0-alpha)/sqrt(var),lgrad);
+        grad.Add(-(1.0-alpha)*mean/sqrt(var),cgrad);
+
+    }
+
+    /// weight parameter tt
+    double EntropicRisk(double tt=1.0)
+    {
+        double prob[16]={1.0, 0.01,0.01,0.01,0.01,0.01,0.01,
+                         0.001,0.001,0.001,0.001,0.001,
+                         0.0001,0.0001,0.0001,0.0001};
+
+        double tprob=(1.0+6*0.01+5*0.001+4*0.0001)*3.0;
+
+        double rez=0.0;
+        double vv;
+        for(int i=0;i<16;i++){
+                vv=Compliance(i,1.0,0.0,0.0); rez=rez+prob[i]*exp(vv/tt);
+                vv=Compliance(i,0.0,1.0,0.0); rez=rez+prob[i]*exp(vv/tt);
+                vv=Compliance(i,0.0,0.0,1.0); rez=rez+prob[i]*exp(vv/tt);
+        }
+
+        rez=rez/tprob;
+        rez=log(rez)*tt;
+        return rez;
+    }
+
+    void EntropicRisk(mfem::Vector& grad, double tt=1.0)
+    {
+        grad=0.0;
+        mfem::Vector cgrad(grad.Size()); cgrad=0.0;
+
+        double prob[16]={1.0, 0.01,0.01,0.01,0.01,0.01,0.01,
+                         0.001,0.001,0.001,0.001,0.001,
+                         0.0001,0.0001,0.0001,0.0001};
+
+        double tprob=(1.0+6*0.01+5*0.001+4*0.0001)*3.0;
+
+        double rez=0.0;
+        double vv;
+        for(int i=0;i<16;i++){
+                vv=Compliance(i,1.0,0.0,0.0); rez=rez+prob[i]*exp(vv/tt);
+                GetComplianceGrad(i,1.0,0.0,0.0,cgrad);grad.Add(prob[i]*exp(vv/tt),cgrad);
+
+                vv=Compliance(i,0.0,1.0,0.0); rez=rez+prob[i]*exp(vv/tt);
+                GetComplianceGrad(i,0.0,1.0,0.0,cgrad);grad.Add(prob[i]*exp(vv/tt),cgrad);
+
+                vv=Compliance(i,0.0,0.0,1.0); rez=rez+prob[i]*exp(vv/tt);
+                GetComplianceGrad(i,0.0,0.0,1.0,cgrad);grad.Add(prob[i]*exp(vv/tt),cgrad);
+        }
+
+        //grad/=tprob;
+        //rez=rez/tprob;
+        grad/=rez;
+    }
+
+
     double MeanCompliance()
     {
         double mean=0.0;
@@ -271,7 +493,9 @@ public:
             mean=mean+0.0001*Compliance(i,0.0,1.0,0.0);
             mean=mean+0.0001*Compliance(i,0.0,0.0,1.0);
         }
-        return mean;
+
+        double tprob=(1.0+6*0.01+5*0.001+4*0.0001)*3.0;
+        return mean/tprob;
     }
 
     void MeanCompliance(mfem::Vector& grad)
@@ -298,24 +522,27 @@ public:
             GetComplianceGrad(i,0.0,1.0,0.0,cgrad);grad.Add(0.0001,cgrad);
             GetComplianceGrad(i,0.0,0.0,1.0,cgrad);grad.Add(0.0001,cgrad);
         }
+
+        double tprob=(1.0+6*0.01+5*0.001+4*0.0001)*3.0;
+        grad/=tprob;
     }
 
     mfem::ParGridFunction& GetSol(int i, double fx, double fy, double fz)
     {
 
         sol.SetSpace((esolv->GetDisplacements()).ParFESpace()); sol=0.0;
-        //sol.Add(fx,bsolx[i]);
+        sol.Add(fx,bsolx[i]);
         sol.Add(fy,bsoly[i]);
-        //sol.Add(fz,bsolz[i]);
+        sol.Add(fz,bsolz[i]);
         return sol;
     }
 
     void GetSol(int i, double fx, double fy, double fz, mfem::ParGridFunction& msol)
     {
         msol.SetSpace((esolv->GetDisplacements()).ParFESpace()); msol=0.0;
-        //msol.Add(fx,bsolx[i]);
+        msol.Add(fx,bsolx[i]);
         msol.Add(fy,bsoly[i]);
-        //msol.Add(fz,bsolz[i]);
+        msol.Add(fz,bsolz[i]);
     }
 
 private:
@@ -624,6 +851,11 @@ int main(int argc, char *argv[])
       fsolv->Mult(vtmpv,vdens);
       pgdens.SetFromTrueDofs(vdens);
 
+      double cvar;
+      double erisk;
+      double meanstd;
+      double std;
+
       for(int i=1;i<max_it;i++){
 
           /*
@@ -632,8 +864,8 @@ int main(int argc, char *argv[])
               spdegf.ProjectCoefficient(spderf);
           }*/
 
-          vobj->SetProjection(0.3,8.0);
-          alco->SetDensity(vdens,0.5,8.0,3.0);
+          vobj->SetProjection(0.5,8.0);
+          alco->SetDensity(vdens,0.5,8.0,1.0);
           /*
           if(i<11){alco->SetDensity(vdens,0.5,1.0,3.0); vobj->SetProjection(0.5,1.0); }
           else if(i<80){alco->SetDensity(vdens,0.5,8.0,3.0);}
@@ -644,14 +876,21 @@ int main(int argc, char *argv[])
           alco->Solve();
 
           cpl=alco->MeanCompliance();
+          cvar=alco->CVar();
+          erisk=alco->EntropicRisk(100.0);
+          meanstd=alco->MeanSTD(0.5);
+          std=alco->MeanSTD();
           vol=vobj->Eval(vdens);
           ivol=ivobj->Eval(vdens);
 
           if(myrank==0){
-              std::cout<<"it: "<<i<<" obj="<<cpl<<" vol="<<vol<<" cvol="<<max_vol<<" ivol="<<ivol<<std::endl;
+              std::cout<<"it: "<<i<<" obj="<<cpl<<" vol="<<vol<<" cvol="<<max_vol<<" ivol="<<ivol<<
+                      " cvar="<<cvar<<" erisk="<<erisk<<" mstd="<<meanstd<<" std="<<std<<std::endl;
           }
           //compute the gradients
-          alco->MeanCompliance(ograd);
+          //alco->MeanCompliance(ograd);
+          //alco->CVar(ograd);
+          alco->MeanSTD(ograd,0.5);
           vobj->Grad(vdens,vgrad);
           //compute the original gradients
           fsolv->MultTranspose(ograd,ogrado);
