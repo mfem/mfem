@@ -75,6 +75,8 @@ int main(int argc, char *argv[]) {
   bool compute_boundary_integrals = false;
 
   OptionsParser args(argc, argv);
+  args.AddOption(&mesh_file, "-m", "--mesh",
+                  "Mesh file to use.");
   args.AddOption(&order, "-o", "--order",
                  "Finite element order (polynomial degree) or -1 for"
                  " isoparametric space.");
@@ -137,6 +139,7 @@ int main(int argc, char *argv[]) {
   // 2. Read the mesh from the given mesh file.
   Mesh mesh(mesh_file, 1, 1);
   int dim = mesh.Dimension();
+  bool is_3d = (dim == 3);
 
   // 4. Refine the mesh to increase the resolution.
   for (int i = 0; i < num_refs; i++) {
@@ -162,46 +165,49 @@ int main(int argc, char *argv[]) {
   // ========================================================================
   // II. Generate topological support
   // ========================================================================
+  
+  ParGridFunction v(&fespace); v = 0.0;
+  MaterialTopology *mdm = nullptr;
 
   // II.1 Define the metric for the topological support.
-  MaterialTopology *mdm = nullptr;
-  if (topological_support == TopologicalSupport::kOctetTruss) {
-    mdm = new OctetTrussTopology();
-  } else {
-    // Create the same random particles on all processors.
-    std::vector<double> random_positions(3 * number_of_particles);
-    std::vector<double> random_rotations(9 * number_of_particles);
-    if (Mpi::Root()) {
-      if (topological_support != TopologicalSupport::kParticles) {
-        mfem::out << "Warning: Selected topological support not valid.\n"
-                  << "         Fall back to kParticles." << std::endl;
+  if (is_3d){  
+    if (topological_support == TopologicalSupport::kOctetTruss) {
+      mdm = new OctetTrussTopology();
+    } else {
+      // Create the same random particles on all processors.
+      std::vector<double> random_positions(3 * number_of_particles);
+      std::vector<double> random_rotations(9 * number_of_particles);
+      if (Mpi::Root()) {
+        if (topological_support != TopologicalSupport::kParticles) {
+          mfem::out << "Warning: Selected topological support not valid.\n"
+                    << "         Fall back to kParticles." << std::endl;
+        }
+        // Generate random positions and rotations. We generate them on the root
+        // process and then broadcast them to all processes because we need the
+        // same random positions and rotations on all processes.
+        FillWithRandomNumbers(random_positions, 0.2, 0.8);
+        FillWithRandomRotations(random_rotations);
       }
-      // Generate random positions and rotations. We generate them on the root
-      // process and then broadcast them to all processes because we need the
-      // same random positions and rotations on all processes.
-      FillWithRandomNumbers(random_positions, 0.2, 0.8);
-      FillWithRandomRotations(random_rotations);
+
+      // Broadcast the random positions and rotations to all processes.
+      MPI_Bcast(random_positions.data(), 3 * number_of_particles, MPI_DOUBLE, 0,
+                MPI_COMM_WORLD);
+      MPI_Bcast(random_rotations.data(), 9 * number_of_particles, MPI_DOUBLE, 0,
+                MPI_COMM_WORLD);
+
+      mdm =
+          new ParticleTopology(pl1, pl2, pl3, random_positions, random_rotations);
     }
 
-    // Broadcast the random positions and rotations to all processes.
-    MPI_Bcast(random_positions.data(), 3 * number_of_particles, MPI_DOUBLE, 0,
-              MPI_COMM_WORLD);
-    MPI_Bcast(random_rotations.data(), 9 * number_of_particles, MPI_DOUBLE, 0,
-              MPI_COMM_WORLD);
+    // II.2 Define lambda to wrap the call to the distance metric.
+    auto topo = [&mdm, &tau](const Vector &x) {
+      return (tau - mdm->ComputeMetric(x));
+    };
 
-    mdm =
-        new ParticleTopology(pl1, pl2, pl3, random_positions, random_rotations);
+    // II.1 Create a grid funtion for the topological support.
+    FunctionCoefficient topo_coeff(topo);
+    v.ProjectCoefficient(topo_coeff);
   }
-
-  // II.2 Define lambda to wrap the call to the distance metric.
-  auto topo = [&mdm, &tau](const Vector &x) {
-    return (tau - mdm->ComputeMetric(x));
-  };
-
-  // II.1 Create a grid funtion for the topological support.
-  FunctionCoefficient topo_coeff(topo);
-  ParGridFunction v(&fespace);
-  v.ProjectCoefficient(topo_coeff);
 
   // ========================================================================
   // III. Generate random imperfections via fractional PDE
@@ -219,11 +225,11 @@ int main(int argc, char *argv[]) {
   MatrixConstantCoefficient diffusion_coefficient(diffusion_tensor);
 
   // III.3 Define the right hand side, for us this is a normalized white noise.
-  ParLinearForm b(&fespace);
   int seed = 0;
   if (random_seed) {
     seed = std::time(nullptr);
   }
+  ParLinearForm b(&fespace);
   auto *WhiteNoise = new WhiteGaussianNoiseDomainLFIntegrator(seed);
   b.AddDomainIntegrator(WhiteNoise);
   b.Assemble();
@@ -232,12 +238,6 @@ int main(int argc, char *argv[]) {
 
   // III.4 Define the boundary conditions.
   materials::Boundary bc;
-  bc.AddHomogeneousBoundaryCondition(1, materials::BoundaryType::kNeumann);
-  bc.AddHomogeneousBoundaryCondition(2, materials::BoundaryType::kNeumann);
-  bc.AddHomogeneousBoundaryCondition(3, materials::BoundaryType::kNeumann);
-  bc.AddHomogeneousBoundaryCondition(4, materials::BoundaryType::kNeumann);
-  bc.AddHomogeneousBoundaryCondition(5, materials::BoundaryType::kNeumann);
-  bc.AddHomogeneousBoundaryCondition(6, materials::BoundaryType::kNeumann);
   if (Mpi::Root()) {
     bc.PrintInfo();
     bc.VerifyDefinedBoundaries(pmesh);
@@ -286,7 +286,7 @@ int main(int argc, char *argv[]) {
   // VI. Export visualization to ParaView and GLVis
   // ========================================================================
 
-  materials::Visualizer vis(pmesh, order, u, v, w, level_set);
+  materials::Visualizer vis(pmesh, order, u, v, w, level_set, is_3d);
   if (paraview_export) {
     vis.ExportToParaView();
   }
