@@ -12,8 +12,8 @@
 #ifndef MATERIALS_SOLVERS_HPP
 #define MATERIALS_SOLVERS_HPP
 
-#include "mfem.hpp"
 #include "boundary.hpp"
+#include "mfem.hpp"
 
 namespace mfem {
 namespace materials {
@@ -37,26 +37,46 @@ namespace materials {
 /// a white noise right hands side. SPDESolver accepts arbitrary right hand
 /// sides but the solver has only been tested with white noise.
 class SPDESolver {
-public:
+ public:
   /// Constructor.
   /// @param diff_coefficient The diffusion coefficient \Theta.
   /// @param nu The coefficient nu, smoothness of the solution.
   /// @param bc Boundary conditions.
   /// @param fespace Finite element space.
-  SPDESolver(MatrixConstantCoefficient &diff_coefficient, double nu,
-             const Boundary& bc, ParFiniteElementSpace *fespace);
+  SPDESolver(double nu, const Boundary &bc, ParFiniteElementSpace *fespace,
+             double l1 = 0.1, double l2 = 0.1, double l3 = 0.1, double e1 = 0.0,
+             double e2 = 0.0, double e3 = 0.0);
 
   /// Solve the SPDE for a given right hand side b. May alter b if
   /// the exponent (alpha) is larger than 1. We avoid copying be default. If you
   /// need b later on, make a copy of it before calling this function.
   void Solve(ParLinearForm &b, ParGridFunction &x);
 
-private:
+  /// Generate a random field. Calls back to solve but generates the stochastic
+  /// load b internally. If no seed is provided, the function creates a seed
+  /// based on the system time, e.g. you obtain a different random field
+  /// whenever you call it.
+  void GenerateRandomField(ParGridFunction &x,
+                           int seed = std::numeric_limits<int>::max());
+
+  /// Construct the normalization coefficient eta of the white noise right hands
+  /// side.
+  static double ConstructNormalizationCoefficient(double nu, double l1,
+                                                  double l2, double l3,
+                                                  int dim);
+
+  /// Construct the second order tensor (matrix coefficient) Theta from the
+  /// equation R^T(e1,e2,e3) diag(l1,l2,l3) R (e1,e2,e3).
+  static DenseMatrix ConstructMatrixCoefficient(double l1, double l2, double l3,
+                                                double e1, double e2, double e3,
+                                                double nu, int dim);
+
+ private:
   /// The rational approximation of the SPDE results in multiple
   /// reactio-diffusion PDEs that need to be solved. This call solves the PDE
   /// (div \Theta grad + \alpha I)^exponent x = \beta b.
-  void Solve(const ParLinearForm &b, ParGridFunction &x, double alpha, double beta,
-             int exponent = 1);
+  void Solve(const ParLinearForm &b, ParGridFunction &x, double alpha,
+             double beta, int exponent = 1);
 
   /// Lift the solution to satisfy the inhomogeneous boundary conditions.
   void LiftSolution(ParGridFunction &x);
@@ -102,8 +122,8 @@ private:
 
   // Boundary conditions
   const Boundary &bc_;
-  Array<int> dbc_marker_; // Markers for Dirichlet boundary conditions.
-  Array<int> rbc_marker_; // Markers for Robin boundary conditions.
+  Array<int> dbc_marker_;  // Markers for Dirichlet boundary conditions.
+  Array<int> rbc_marker_;  // Markers for Robin boundary conditions.
 
   // Coefficients for the rational approximation of the solution.
   Array<double> coeffs_;
@@ -114,13 +134,21 @@ private:
   double alpha_ = 0.0;
   int integer_order_of_exponent_ = 0;
 
+  // Correlation length
+  double l1_ = 0.1;
+  double l2_ = 0.1;
+  double l3_ = 0.1;
+  double e1_ = 0.0;
+  double e2_ = 0.0;
+  double e3_ = 0.0;
+
   // Member to switch to repeated solve capabilities.
   bool repeated_solve_ = false;
   bool integer_order_ = false;
   bool apply_lift_ = false;
 };
 
-} // namespace materials
-} // namespace mfem
+}  // namespace materials
+}  // namespace mfem
 
-#endif // MATERIALS_SOLVERS_HPP
+#endif  // MATERIALS_SOLVERS_HPP
