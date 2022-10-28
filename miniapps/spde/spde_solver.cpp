@@ -88,12 +88,12 @@ SPDESolver::SPDESolver(double nu, const Boundary &bc,
   k_.AddDomainIntegrator(new DiffusionIntegrator(diffusion_coefficient));
   ConstantCoefficient robin_coefficient(bc_.robin_coefficient);
   k_.AddBoundaryIntegrator(new MassIntegrator(robin_coefficient), rbc_marker_);
-  k_.Assemble();
+  k_.Assemble(0);
 
   // Assemble mass matrix
   ConstantCoefficient one(1.0);
   m_.AddDomainIntegrator(new MassIntegrator(one));
-  m_.Assemble();
+  m_.Assemble(0);
 
   // Form matrices for the linear system
   Array<int> empty;
