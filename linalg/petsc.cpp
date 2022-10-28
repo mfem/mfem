@@ -460,6 +460,11 @@ PetscInt PetscParVector::GlobalSize() const
    return N;
 }
 
+void PetscParVector::SetBlockSize(PetscInt bs)
+{
+   ierr = VecSetBlockSize(x,bs); PCHKERRQ(x,ierr);
+}
+
 PetscParVector::PetscParVector(MPI_Comm comm, const Vector &x_,
                                bool copy) : Vector()
 {
@@ -940,6 +945,12 @@ PetscInt PetscParMatrix::NNZ() const
    MatInfo info;
    ierr = MatGetInfo(A,MAT_GLOBAL_SUM,&info); PCHKERRQ(A,ierr);
    return (PetscInt)info.nz_used;
+}
+
+void PetscParMatrix::SetBlockSize(PetscInt rbs, PetscInt cbs)
+{
+   if (cbs < 0) { cbs = rbs; }
+   ierr = MatSetBlockSizes(A,rbs,cbs); PCHKERRQ(A,ierr);
 }
 
 void PetscParMatrix::Init()

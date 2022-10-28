@@ -15,8 +15,7 @@
 
 using namespace mfem;
 
-TEST_CASE("Second order ODE methods",
-          "[ODE2]")
+TEST_CASE("Second order ODE methods", "[ODE]")
 {
    double tol = 0.1;
 
@@ -116,19 +115,19 @@ TEST_CASE("Second order ODE methods",
          err_u[0] = u.Norml2();
          err_du[0] = du.Norml2();
 
-         std::cout<<std::setw(12)<<"Error u"
+         mfem::out<<std::setw(12)<<"Error u"
                   <<std::setw(12)<<"Error du"
                   <<std::setw(12)<<"Ratio u"
                   <<std::setw(12)<<"Ratio du"
                   <<std::setw(12)<<"Order u"
                   <<std::setw(12)<<"Order du"<<std::endl;
-         std::cout<<std::setw(12)<<err_u[0]
+         mfem::out<<std::setw(12)<<err_u[0]
                   <<std::setw(12)<<err_du[0]<<std::endl;
 
          std::vector<Vector> uh(ode_solver->GetMaxStateSize());
          for (int l = 1; l< levels; l++)
          {
-            int lvl = pow(2,l);
+            int lvl = static_cast<int>(pow(2,l));
             t = 0.0;
             dt_order *= 0.5;
             u = u0;
@@ -172,7 +171,7 @@ TEST_CASE("Second order ODE methods",
             du -= dudt0;
             err_u[l] = u.Norml2();
             err_du[l] = du.Norml2();
-            std::cout<<std::setw(12)<<err_u[l]
+            mfem::out<<std::setw(12)<<err_u[l]
                      <<std::setw(12)<<err_du[l]
                      <<std::setw(12)<<err_u[l-1]/err_u[l]
                      <<std::setw(12)<<err_du[l-1]/err_du[l]
@@ -190,28 +189,24 @@ TEST_CASE("Second order ODE methods",
    // Newmark-based solvers
    SECTION("Newmark")
    {
-      std::cout <<"\nTesting NewmarkSolver" << std::endl;
       double conv_rate = check.order(new NewmarkSolver);
       REQUIRE(conv_rate + tol > 2.0);
    }
 
    SECTION("LinearAcceleration")
    {
-      std::cout <<"\nLinearAccelerationSolver" << std::endl;
       double conv_rate = check.order(new LinearAccelerationSolver);
       REQUIRE(conv_rate + tol > 2.0);
    }
 
    SECTION("CentralDifference")
    {
-      std::cout <<"\nTesting CentralDifference" << std::endl;
       double conv_rate = check.order(new CentralDifferenceSolver);
       REQUIRE(conv_rate + tol > 2.0);
    }
 
    SECTION("FoxGoodwin")
    {
-      std::cout <<"\nTesting FoxGoodwin" << std::endl;
       double conv_rate = check.order(new FoxGoodwinSolver);
       REQUIRE(conv_rate + tol > 4.0);
    }
@@ -219,28 +214,24 @@ TEST_CASE("Second order ODE methods",
    // Generalized-alpha based solvers
    SECTION("GeneralizedAlpha(0.0)")
    {
-      std::cout <<"\nTesting GeneralizedAlpha(0.0)" << std::endl;
       double conv_rate = check.order(new GeneralizedAlpha2Solver(0.0));
       REQUIRE(conv_rate + tol > 2.0);
    }
 
    SECTION("GeneralizedAlpha(0.5)")
    {
-      std::cout <<"\nTesting GeneralizedAlpha(0.5)" << std::endl;
       double conv_rate = check.order(new GeneralizedAlpha2Solver(0.5));
       REQUIRE(conv_rate + tol > 2.0);
    }
 
    SECTION("GeneralizedAlpha(0.5) - restart")
    {
-      std::cout <<"\nTesting GeneralizedAlpha(0.5) - restart" << std::endl;
       double conv_rate = check.order(new GeneralizedAlpha2Solver(0.5),true);
       REQUIRE(conv_rate + tol > 2.0);
    }
 
    SECTION("GeneralizedAlpha(1.0)")
    {
-      std::cout <<"\nTesting GeneralizedAlpha(1.0)" << std::endl;
       double conv_rate = check.order(new GeneralizedAlpha2Solver(1.0));
       REQUIRE(conv_rate + tol > 2.0);
    }
@@ -248,49 +239,42 @@ TEST_CASE("Second order ODE methods",
 
    SECTION("AverageAcceleration")
    {
-      std::cout <<"\nTesting AverageAcceleration" << std::endl;
       double conv_rate = check.order(new AverageAccelerationSolver);
       REQUIRE(conv_rate + tol > 2.0);
    }
 
    SECTION("HHTAlpha(2/3)")
    {
-      std::cout <<"\nTesting HHTAlpha(2/3)" << std::endl;
       double conv_rate = check.order(new HHTAlphaSolver(2.0/3.0));
       REQUIRE(conv_rate + tol > 2.0);
    }
 
    SECTION("HHTAlpha(0.75)")
    {
-      std::cout <<"\nTesting HHTAlpha(0.75)" << std::endl;
       double conv_rate = check.order(new HHTAlphaSolver(0.75));
       REQUIRE(conv_rate + tol > 2.0);
    }
 
    SECTION("HHTAlpha(1.0)")
    {
-      std::cout <<"\nTesting HHTAlpha(1.0)" << std::endl;
       double conv_rate = check.order(new HHTAlphaSolver(1.0));
       REQUIRE(conv_rate + tol > 2.0);
    }
 
    SECTION("WBZAlpha(0.0)")
    {
-      std::cout <<"\nTesting WBZAlpha(0.0)" << std::endl;
       double conv_rate = check.order(new WBZAlphaSolver(0.0));
       REQUIRE(conv_rate + tol > 2.0);
    }
 
    SECTION("WBZAlpha(0.5)")
    {
-      std::cout <<"\nTesting WBZAlpha(0.5)" << std::endl;
       double conv_rate = check.order(new WBZAlphaSolver(0.5));
       REQUIRE(conv_rate + tol > 2.0);
    }
 
    SECTION("WBZAlpha(1.0)")
    {
-      std::cout <<"\nTesting WBZAlpha(1.0)" << std::endl;
       double conv_rate = check.order(new WBZAlphaSolver(1.0));
       REQUIRE(conv_rate + tol > 2.0);
    }

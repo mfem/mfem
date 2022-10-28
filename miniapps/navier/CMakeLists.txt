@@ -11,11 +11,9 @@
 
 if (MFEM_USE_MPI)
   list(APPEND NAVIER_COMMON_SOURCES
-      navier_solver.cpp
-      ortho_solver.cpp)
+      navier_solver.cpp)
   list(APPEND NAVIER_COMMON_HEADERS
-      navier_solver.hpp
-      ortho_solver.hpp)
+      navier_solver.hpp)
 
   convert_filenames_to_full_paths(NAVIER_COMMON_SOURCES)
   convert_filenames_to_full_paths(NAVIER_COMMON_HEADERS)
@@ -51,6 +49,11 @@ if (MFEM_USE_MPI)
 
   add_mfem_miniapp(navier_3dfoc
     MAIN navier_3dfoc.cpp
+    ${NAVIER_COMMON_FILES}
+    LIBRARIES mfem)
+
+  add_mfem_miniapp(navier_turbchan
+    MAIN navier_turbchan.cpp
     ${NAVIER_COMMON_FILES}
     LIBRARIES mfem)
 

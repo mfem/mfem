@@ -43,8 +43,9 @@
 #include "transfer.hpp"
 #include "fespacehierarchy.hpp"
 #include "multigrid.hpp"
-#include "ceed/algebraic.hpp"
-#include "lor.hpp"
+#include "ceed/solvers/algebraic.hpp"
+#include "lor/lor.hpp"
+#include "dgmassinv.hpp"
 /* HDG */
 #include "hdg_integrators.hpp"
 #include "HDGBilinearForm.hpp"

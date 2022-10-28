@@ -54,6 +54,14 @@ void ParLinearForm::Assemble()
    }
 }
 
+bool ParLinearForm::SupportsDevice()
+{
+   bool parallel;
+   bool local = LinearForm::SupportsDevice();
+   MPI_Allreduce(&local, &parallel, 1, MPI_C_BOOL, MPI_LAND, pfes->GetComm());
+   return parallel;
+}
+
 void ParLinearForm::AssembleSharedFaces()
 {
    Array<int> vdofs;

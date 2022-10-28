@@ -121,6 +121,36 @@ void ParBilinearForm::pAllocMat()
    dof_dof.LoseData();
 }
 
+void ParBilinearForm::ParallelRAP(SparseMatrix &loc_A, OperatorHandle &A,
+                                  bool steal_loc_A)
+{
+   ParFiniteElementSpace &pfespace = *ParFESpace();
+
+   // Create a block diagonal parallel matrix
+   OperatorHandle A_diag(Operator::Hypre_ParCSR);
+   A_diag.MakeSquareBlockDiag(pfespace.GetComm(),
+                              pfespace.GlobalVSize(),
+                              pfespace.GetDofOffsets(),
+                              &loc_A);
+
+   // Parallel matrix assembly using P^t A P (if needed)
+   if (IsIdentityProlongation(pfespace.GetProlongationMatrix()))
+   {
+      A_diag.SetOperatorOwner(false);
+      A.Reset(A_diag.As<HypreParMatrix>());
+      if (steal_loc_A)
+      {
+         HypreStealOwnership(*A.As<HypreParMatrix>(), loc_A);
+      }
+   }
+   else
+   {
+      OperatorHandle P(Operator::Hypre_ParCSR);
+      P.ConvertFrom(pfespace.Dof_TrueDof_Matrix());
+      A.MakePtAP(A_diag, P);
+   }
+}
+
 void ParBilinearForm::ParallelAssemble(OperatorHandle &A, SparseMatrix *A_local)
 {
    A.Clear();
@@ -373,7 +403,6 @@ void ParBilinearForm::FormLinearSystem(
       P.MultTranspose(b, true_B);
       R.Mult(x, true_X);
       p_mat.EliminateBC(p_mat_e, ess_tdof_list, true_X, true_B);
-      R.EnsureMultTranspose();
       R.MultTranspose(true_B, b);
       hybridization->ReduceRHS(true_B, B);
       X.SetSize(B.Size());
@@ -628,13 +657,21 @@ void ParDiscreteLinearOperator::ParallelAssemble(OperatorHandle &A)
                                domain_fes->GetDofOffsets(),
                                mat);
 
-   OperatorHandle R_test_transpose(A.Type()), P_trial(A.Type());
+   SparseMatrix *Rt = Transpose(*range_fes->GetRestrictionMatrix());
+   OperatorHandle R_test_transpose(A.Type());
+   R_test_transpose.MakeRectangularBlockDiag(range_fes->GetComm(),
+                                             range_fes->GlobalVSize(),
+                                             range_fes->GlobalTrueVSize(),
+                                             range_fes->GetDofOffsets(),
+                                             range_fes->GetTrueDofOffsets(),
+                                             Rt);
 
    // TODO - construct the Dof_TrueDof_Matrix directly in the required format.
-   R_test_transpose.ConvertFrom(range_fes->Dof_TrueDof_Matrix());
+   OperatorHandle P_trial(A.Type());
    P_trial.ConvertFrom(domain_fes->Dof_TrueDof_Matrix());
 
    A.MakeRAP(R_test_transpose, dA, P_trial);
+   delete Rt;
 }
 
 void ParDiscreteLinearOperator::FormRectangularSystemMatrix(OperatorHandle &A)

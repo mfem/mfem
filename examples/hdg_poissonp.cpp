@@ -292,6 +292,12 @@ int main(int argc, char *argv[])
 
       HypreParVector *Lambda =  new HypreParVector(M_space);
 
+      *Lambda = 0.0;
+
+      Lambda->Add(1.0, lambda);
+
+      lambda.Print();
+
       Array<int> ess_bdr(pmesh->bdr_attributes.Max());
       ess_bdr = 1;
 
@@ -395,6 +401,8 @@ int main(int argc, char *argv[])
       // It is mostly important for the parallel code,
       // here it is done this way to make the 2 codes more similar
       lambda = ParGridFunction(M_space, Lambda);
+
+      lambda.Print();
 
       chrono.Clear();
       chrono.Start();
