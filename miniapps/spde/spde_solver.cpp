@@ -131,6 +131,9 @@ void SPDESolver::Solve(ParLinearForm &b, ParGridFunction &x) {
   StopWatch sw;
   sw.Start();
 
+  // Zero initialize x to avoid touching uninitialized memory
+  x = 0.0;
+
   ParGridFunction helper_gf(fespace_ptr_);
   helper_gf = 0.0;
 
