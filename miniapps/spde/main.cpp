@@ -27,7 +27,7 @@
 #include "mfem.hpp"
 
 #include "material_metrics.hpp"
-#include "solvers.hpp"
+#include "spde_solver.hpp"
 #include "transformation.hpp"
 #include "util.hpp"
 #include "visualizer.hpp"
