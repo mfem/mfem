@@ -1084,6 +1084,15 @@ void ParGridFunction::SaveAsOne(std::ostream &os) const
    delete [] nrdofs;
 }
 
+/* HDG */
+double GlobalMean(double loc_mean, MPI_Comm comm)
+{
+   double glob_mean;
+   MPI_Allreduce(&loc_mean, &glob_mean, 1, MPI_DOUBLE, MPI_SUM, comm);
+
+   return glob_mean;
+}
+
 double GlobalLpNorm(const double p, double loc_norm, MPI_Comm comm)
 {
    double glob_norm;

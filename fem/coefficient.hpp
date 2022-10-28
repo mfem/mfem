@@ -2111,6 +2111,19 @@ double ComputeGlobalLpNorm(double p, VectorCoefficient &coeff, ParMesh &pmesh,
                            const IntegrationRule *irs[]);
 #endif
 
+/* HDG */
+/** Compute the mean of a function f.
+    \f$ | f |_{mean} = ( \int_\Omega f d\Omega) \f$ */
+double ComputeMean(Coefficient &coeff, Mesh &mesh,
+                   const IntegrationRule *irs[]);
+
+#ifdef MFEM_USE_MPI
+/** Compute the mean of a function f.
+    \f$ | f |_{mean} = ( \int_\Omega f d\Omega) \f$ */
+double ComputeGlobalMean(Coefficient &coeff, ParMesh &pmesh,
+                         const IntegrationRule *irs[]);
+#endif
+
 }
 
 #endif

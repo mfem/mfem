@@ -493,6 +493,18 @@ public:
                                  const IntegrationRule *irs[] = NULL,
                                  Array<int> *elems = NULL) const;
 
+   /* HDG */
+   double ComputeMean(const IntegrationRule *irs[]) const;
+
+   double ComputeL2ErrorMinusMean(Coefficient &exsol,
+                                const double mean,
+                                const IntegrationRule *irs[] = NULL) const
+   { return ComputeLpErrorMinusMean(2.0, exsol, mean, NULL, irs); }
+
+   double ComputeLpErrorMinusMean(const double p, Coefficient &exsol, const double mean,
+		   	   	   	   	   	   	  Coefficient *weight = NULL,
+								  const IntegrationRule *irs[] = NULL) const;
+
    /// Returns ||grad u_ex - grad u_h||_L2 for H1 or L2 elements
    virtual double ComputeGradError(VectorCoefficient *exgrad,
                                    const IntegrationRule *irs[] = NULL) const;

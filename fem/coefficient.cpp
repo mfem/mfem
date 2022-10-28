@@ -1454,4 +1454,41 @@ double QuadratureFunctionCoefficient::Eval(ElementTransformation &T,
    return temp[0];
 }
 
+/* HDG */
+double ComputeMean(Coefficient &coeff, Mesh &mesh,
+                   const IntegrationRule *irs[])
+{
+   double norm = 0.0;
+   ElementTransformation *tr;
+
+   for (int i = 0; i < mesh.GetNE(); i++)
+   {
+      tr = mesh.GetElementTransformation(i);
+      const IntegrationRule &ir = *irs[mesh.GetElementType(i)];
+      for (int j = 0; j < ir.GetNPoints(); j++)
+      {
+         const IntegrationPoint &ip = ir.IntPoint(j);
+         tr->SetIntPoint(&ip);
+         double val = coeff.Eval(*tr, ip);
+
+         norm += ip.weight * tr->Weight() * val;
+      }
+   }
+   return norm;
+}
+
+#ifdef MFEM_USE_MPI
+double ComputeGlobalMean(Coefficient &coeff, ParMesh &pmesh,
+                         const IntegrationRule *irs[])
+{
+   double loc_norm = ComputeMean(coeff, pmesh, irs);
+   double glob_norm = 0;
+
+   MPI_Comm comm = pmesh.GetComm();
+
+   MPI_Allreduce(&loc_norm, &glob_norm, 1, MPI_DOUBLE, MPI_SUM, comm);
+
+   return glob_norm;
+}
+#endif
 }

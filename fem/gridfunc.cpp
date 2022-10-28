@@ -2397,6 +2397,29 @@ void GridFunction::ProjectCoefficientSkeleton(Coefficient &coeff)
 {
    DeltaCoefficient *delta_c = dynamic_cast<DeltaCoefficient *>(&coeff);
 
+   bool hdg_space, edg_space;
+
+   const FiniteElementCollection *fe_coll = fes->FEColl();
+   hdg_space = dynamic_cast<const DG_Interface_FECollection*>(fe_coll);
+   edg_space = dynamic_cast<const H1_Trace_FECollection*>(fe_coll);
+
+   cout << "Const: hdg_space "  << hdg_space << " edg_space " << edg_space
+		    << endl << flush;
+
+   bool hdg_space_no_const = dynamic_cast<DG_Interface_FECollection*>(fec);
+   bool edg_space_no_const = dynamic_cast<H1_Trace_FECollection*>(fec);
+
+   cout << "No Const hdg_space "  << hdg_space_no_const << " edg_space " << edg_space_no_const
+		    << endl << flush;
+//   FiniteElementCollection *hdg_space, *edg_space;
+//   hdg_space = dynamic_cast<const DG_Interface_FECollection*>(edge_fec);
+//   edg_space = dynamic_cast<const H1_Trace_FECollection*>(edge_fec);
+//
+//   if ((hdg_space == NULL) && (edg_space != NULL))
+//	   cout << "EDG space" << endl << flush;
+//   if ((edg_space == NULL) && (hdg_space != NULL))
+//	   cout << "HDG space" << endl << flush;
+
    if (delta_c == NULL)
    {
       Mesh *mesh = fes->GetMesh();
@@ -2428,6 +2451,14 @@ void GridFunction::ProjectCoefficientSkeleton(VectorCoefficient &vcoeff)
    int nfaces = mesh->GetNumFaces();
    Array<int> vdofs;
    Vector vals;
+
+   bool hdg_space, edg_space;
+   hdg_space = dynamic_cast<DG_Interface_FECollection*>(fec);
+   edg_space = dynamic_cast<H1_Trace_FECollection*>(fec);
+
+   cout << "hdg_space "  << hdg_space << " edg_space " << edg_space
+		   << endl << flush;
+
 
    for (int i = 0; i < nfaces; i++)
    {
@@ -3337,6 +3368,41 @@ double GridFunction::ComputeW11Error(
 }
 
 /* HDG */
+double GridFunction::ComputeMean(const IntegrationRule *irs[]) const
+{
+   double global_mean = 0.0;
+   double element_mean;
+   const FiniteElement *fe;
+   ElementTransformation *T;
+   Vector vals;
+
+   for (int i = 0; i < fes->GetNE(); i++)
+   {
+      fe = fes->GetFE(i);
+      const IntegrationRule *ir;
+      if (irs)
+      {
+         ir = irs[fe->GetGeomType()];
+      }
+      else
+      {
+         int intorder = 2*fe->GetOrder() + 1; // <----------
+         ir = &(IntRules.Get(fe->GetGeomType(), intorder));
+      }
+      GetValues(i, *ir, vals);
+      T = fes->GetElementTransformation(i);
+      element_mean = 0.0;
+      for (int j = 0; j < ir->GetNPoints(); j++)
+      {
+         const IntegrationPoint &ip = ir->IntPoint(j);
+         T->SetIntPoint(&ip);
+         element_mean += ip.weight * T->Weight() * vals(j);
+      }
+      global_mean += element_mean;
+   }
+   return global_mean;
+}
+
 /// To compute \| mean(u) - mean(u_h) \|_p
 double GridFunction::ComputeMeanLpError(const double p, Coefficient &exsol,
                                         const IntegrationRule *irs[]) const
@@ -3715,6 +3781,73 @@ void GridFunction::ComputeElementLpErrors(const double p,
    }
 }
 
+/* HDG */
+double GridFunction::ComputeLpErrorMinusMean(const double p,
+                                           Coefficient &exsol,
+                                           const double mean,
+                                           Coefficient *weight,
+                                           const IntegrationRule *irs[]) const
+{
+   double error = 0.0;
+   const FiniteElement *fe;
+   ElementTransformation *T;
+   Vector vals;
+
+   for (int i = 0; i < fes->GetNE(); i++)
+   {
+      fe = fes->GetFE(i);
+      const IntegrationRule *ir;
+      if (irs)
+      {
+         ir = irs[fe->GetGeomType()];
+      }
+      else
+      {
+         int intorder = 2*fe->GetOrder() + 1; // <----------
+         ir = &(IntRules.Get(fe->GetGeomType(), intorder));
+      }
+      GetValues(i, *ir, vals);
+      T = fes->GetElementTransformation(i);
+      for (int j = 0; j < ir->GetNPoints(); j++)
+      {
+         const IntegrationPoint &ip = ir->IntPoint(j);
+         T->SetIntPoint(&ip);
+         double err = fabs(vals(j) - mean - exsol.Eval(*T, ip));
+         if (p < numeric_limits<double>::infinity())
+         {
+            err = pow(err, p);
+            if (weight)
+            {
+               err *= weight->Eval(*T, ip);
+            }
+            error += ip.weight * T->Weight() * err;
+         }
+         else
+         {
+            if (weight)
+            {
+               err *= weight->Eval(*T, ip);
+            }
+            error = std::max(error, err);
+         }
+      }
+   }
+
+   if (p < numeric_limits<double>::infinity())
+   {
+      // negative quadrature weights may cause the error to be negative
+      if (error < 0.)
+      {
+         error = -pow(-error, 1./p);
+      }
+      else
+      {
+         error = pow(error, 1./p);
+      }
+   }
+
+   return error;
+}
 GridFunction & GridFunction::operator=(double value)
 {
    Vector::operator=(value);
