@@ -12,7 +12,7 @@
 # Use the MFEM build directory
 MFEM_DIR ?= ../..
 MFEM_BUILD_DIR ?= ../..
-SRC = $(if $(MFEM_DIR:../..=),$(MFEM_DIR)/miniapps/materials/,)
+SRC = $(if $(MFEM_DIR:../..=),$(MFEM_DIR)/miniapps/spde/,)
 CONFIG_MK = $(MFEM_BUILD_DIR)/config/config.mk
 # Use the MFEM install directory
 # MFEM_INSTALL_DIR = ../../mfem
@@ -21,9 +21,9 @@ CONFIG_MK = $(MFEM_BUILD_DIR)/config/config.mk
 MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
-MATERIALS_COMMON_SRC = material_metrics.cpp solvers.cpp util.cpp \
+SPDE_COMMON_SRC = material_metrics.cpp solvers.cpp util.cpp \
 											 visualizer.cpp transformation.cpp boundary.cpp
-MATERIALS_COMMON_OBJ = $(MATERIALS_COMMON_SRC:.cpp=.o)
+SPDE_COMMON_OBJ = $(SPDE_COMMON_SRC:.cpp=.o)
 
 PAR_MINIAPPS = main
 
@@ -41,7 +41,7 @@ endif
 %: %.cpp
 %.o: %.cpp
 
-%: %.o $(MATERIALS_COMMON_OBJ)
+%: %.o $(SPDE_COMMON_OBJ)
 	$(MFEM_CXX) $(MFEM_LINK_FLAGS) $^ -o $@ $(MFEM_LIBS)
 
 %.o: $(SRC)%.cpp $(MFEM_LIB_FILE) $(CONFIG_MK)

@@ -9,14 +9,14 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details
 
-#ifndef MATERIALS_SOLVERS_HPP
-#define MATERIALS_SOLVERS_HPP
+#ifndef SPDE_SOLVERS_HPP
+#define SPDE_SOLVERS_HPP
 
 #include "boundary.hpp"
 #include "mfem.hpp"
 
 namespace mfem {
-namespace materials {
+namespace spde {
 
 /// Solver for the SPDE method based on a rational approximation with the AAA
 /// algorithm. The SPDE method is described in the paper
@@ -148,7 +148,7 @@ class SPDESolver {
   bool apply_lift_ = false;
 };
 
-}  // namespace materials
+}  // namespace spde
 }  // namespace mfem
 
-#endif  // MATERIALS_SOLVERS_HPP
+#endif  // SPDE_SOLVERS_HPP

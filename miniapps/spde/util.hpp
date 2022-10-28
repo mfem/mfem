@@ -9,12 +9,12 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details
 
-#ifndef MATERIALS_UTIL_HPP
-#define MATERIALS_UTIL_HPP
+#ifndef SPDE_UTIL_HPP
+#define SPDE_UTIL_HPP
 
-#include "mfem.hpp"
 #include <random>
 #include <vector>
+#include "mfem.hpp"
 
 namespace mfem {
 
@@ -28,6 +28,6 @@ void FillWithRandomNumbers(std::vector<double> &x, double a = 0.0,
 /// rotation that fit into the vector and should be a multiple of 9.
 void FillWithRandomRotations(std::vector<double> &x);
 
-} // namespace mfem
+}  // namespace mfem
 
-#endif // MATERIALS_UTIL_HPP
+#endif  // SPDE_UTIL_HPP
