@@ -23,9 +23,11 @@ void Visualizer::ExportToParaView() {
   paraview_dc.SetHighOrderOutput(true);
   paraview_dc.SetTime(0.0); // set the time
   paraview_dc.RegisterField("random_field", &g1_);
-  paraview_dc.RegisterField("topological_support", &g2_);
-  paraview_dc.RegisterField("imperfect_topology", &g3_);
-  paraview_dc.RegisterField("level_set", &g4_);
+  if (is_3D_) {
+    paraview_dc.RegisterField("topological_support", &g2_);
+    paraview_dc.RegisterField("imperfect_topology", &g3_);
+    paraview_dc.RegisterField("level_set", &g4_);
+  }
   paraview_dc.Save();
 }
 
@@ -34,8 +36,8 @@ void Visualizer::SendToGLVis() {
   int visport = 19916;
   int num_procs = Mpi::WorldSize();
   int process_rank = Mpi::WorldRank();
-  socketstream uout, vout, wout, lout;
-  std::ostringstream oss_u, oss_v, oss_w, oss_l;
+  socketstream uout;
+  std::ostringstream oss_u;
   uout.open(vishost, visport);
   uout.precision(8);
   oss_u.str("");
@@ -46,6 +48,12 @@ void Visualizer::SendToGLVis() {
        << *mesh_ << g1_ << "window_title '" << oss_u.str() << "'" << std::flush;
   uout.close();
 
+  if(!is_3D_){
+     return;
+  }
+
+  socketstream vout, wout, lout;
+  std::ostringstream oss_v, oss_w, oss_l;
   vout.open(vishost, visport);
   vout.precision(8);
   oss_v.str("");
