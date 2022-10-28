@@ -9,18 +9,31 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details
 
-#include "solvers.hpp"
+#include <ctime>
+
 #include "examples/ex33.hpp"
+#include "solvers.hpp"
 
 namespace mfem {
 namespace materials {
 
-SPDESolver::SPDESolver(MatrixConstantCoefficient &diff_coefficient, double nu,
-                       const Boundary& bc,
-                       ParFiniteElementSpace *fespace)
-    : nu_(nu), bc_(bc), fespace_ptr_(fespace),
-      k_(fespace), m_(fespace), restriction_matrix_(nullptr),
-      prolongation_matrix_(nullptr), Op_(nullptr) {
+SPDESolver::SPDESolver(double nu, const Boundary &bc,
+                       ParFiniteElementSpace *fespace, double l1, double l2,
+                       double l3, double e1, double e2, double e3)
+    : nu_(nu),
+      bc_(bc),
+      fespace_ptr_(fespace),
+      k_(fespace),
+      m_(fespace),
+      restriction_matrix_(nullptr),
+      prolongation_matrix_(nullptr),
+      Op_(nullptr),
+      l1_(l1),
+      l2_(l2),
+      l3_(l3),
+      e1_(e1),
+      e2_(e2),
+      e3_(e3) {
   if (Mpi::Root()) {
     mfem::out << "<SPDESolver> Initialize Solver .." << std::endl;
   }
@@ -40,7 +53,7 @@ SPDESolver::SPDESolver(MatrixConstantCoefficient &diff_coefficient, double nu,
   for (const auto &it : bc_.boundary_attributes) {
     switch (it.second) {
       case BoundaryType::kDirichlet:
-        dbc_marker_[it.first -1] = 1;
+        dbc_marker_[it.first - 1] = 1;
         break;
       case BoundaryType::kRobin:
         rbc_marker_[it.first - 1] = 1;
@@ -50,15 +63,15 @@ SPDESolver::SPDESolver(MatrixConstantCoefficient &diff_coefficient, double nu,
     }
   }
 
-  // Handle homogeneous Dirichlet boundary conditions 
-  // Note: for non zero DBC we usually need to project the boundary onto the 
-  // solution. This is not necessary in this case since the boundary is 
+  // Handle homogeneous Dirichlet boundary conditions
+  // Note: for non zero DBC we usually need to project the boundary onto the
+  // solution. This is not necessary in this case since the boundary is
   // homogeneous. For inhomogeneous Dirichlet we consider a lifting scheme.
   fespace_ptr_->GetEssentialTrueDofs(dbc_marker_, ess_tdof_list_);
 
   // Compute the rational approximation coefficients.
   int dim = fespace_ptr_->GetParMesh()->Dimension();
-  alpha_ = (nu_ + dim / 2.0) / 2.0; // fractional exponent
+  alpha_ = (nu_ + dim / 2.0) / 2.0;  // fractional exponent
   integer_order_of_exponent_ = std::floor(alpha_);
   double exponent_to_approximate = alpha_ - integer_order_of_exponent_;
 
@@ -68,7 +81,11 @@ SPDESolver::SPDESolver(MatrixConstantCoefficient &diff_coefficient, double nu,
   // Set the bilinear forms.
 
   // Assemble stiffness matrix
-  k_.AddDomainIntegrator(new DiffusionIntegrator(diff_coefficient));
+  auto diffusion_tensor =
+      ConstructMatrixCoefficient(l1_, l2_, l3_, e1_, e2_, e3_, nu_,
+                                 fespace_ptr_->GetParMesh()->Dimension());
+  MatrixConstantCoefficient diffusion_coefficient(diffusion_tensor);
+  k_.AddDomainIntegrator(new DiffusionIntegrator(diffusion_coefficient));
   ConstantCoefficient robin_coefficient(bc_.robin_coefficient);
   k_.AddBoundaryIntegrator(new MassIntegrator(robin_coefficient), rbc_marker_);
   k_.Assemble();
@@ -117,7 +134,6 @@ void SPDESolver::Solve(ParLinearForm &b, ParGridFunction &x) {
   ParGridFunction helper_gf(fespace_ptr_);
   helper_gf = 0.0;
 
-
   if (integer_order_of_exponent_ > 0) {
     if (Mpi::Root()) {
       mfem::out << "<SPDESolver> Solving PDE (A)^" << integer_order_of_exponent_
@@ -165,6 +181,93 @@ void SPDESolver::Solve(ParLinearForm &b, ParGridFunction &x) {
   }
 }
 
+void SPDESolver::GenerateRandomField(ParGridFunction &x, int seed) {
+  // Create the stochastic load
+  if (seed == std::numeric_limits<int>::max()) {
+    seed = std::time(nullptr);
+  }
+  ParLinearForm b(fespace_ptr_);
+  auto *WhiteNoise = new WhiteGaussianNoiseDomainLFIntegrator(seed);
+  b.AddDomainIntegrator(WhiteNoise);
+  b.Assemble();
+  double normalization = ConstructNormalizationCoefficient(
+      nu_, l1_, l2_, l3_, fespace_ptr_->GetParMesh()->Dimension());
+  b *= normalization;
+
+  // Call back to solve to generate the random field
+  Solve(b, x);
+};
+
+double SPDESolver::ConstructNormalizationCoefficient(double nu, double l1,
+                                                     double l2, double l3,
+                                                     int dim) {
+  // Computation considers squaring components, computing determinant, and
+  // squaring
+  double det = 0;
+  if (dim == 1) {
+    det = l1;
+  } else if (dim == 2) {
+    det = l1 * l2;
+  } else if (dim == 3) {
+    det = l1 * l2 * l3;
+  }
+  const double gamma1 = tgamma(nu + static_cast<double>(dim) / 2.0);
+  const double gamma2 = tgamma(nu);
+  return sqrt(pow(2 * M_PI, dim / 2.0) * det * gamma1 /
+              (gamma2 * pow(nu, dim / 2.0)));
+}
+
+DenseMatrix SPDESolver::ConstructMatrixCoefficient(double l1, double l2,
+                                                   double l3, double e1,
+                                                   double e2, double e3,
+                                                   double nu, int dim) {
+  if (dim == 3) {
+    // Compute cosine and sine of the angles e1, e2, e3
+    const double c1 = cos(e1);
+    const double s1 = sin(e1);
+    const double c2 = cos(e2);
+    const double s2 = sin(e2);
+    const double c3 = cos(e3);
+    const double s3 = sin(e3);
+
+    // Fill the rotation matrix R with the Euler angles.
+    DenseMatrix R(3, 3);
+    R(0, 0) = c1 * c3 - c2 * s1 * s3;
+    R(0, 1) = -c1 * s3 - c2 * c3 * s1;
+    R(0, 2) = s1 * s2;
+    R(1, 0) = c3 * s1 + c1 * c2 * s3;
+    R(1, 1) = c1 * c2 * c3 - s1 * s3;
+    R(1, 2) = -c1 * s2;
+    R(2, 0) = s2 * s3;
+    R(2, 1) = c3 * s2;
+    R(2, 2) = c2;
+
+    // Multiply the rotation matrix R with the translation vector.
+    Vector l(3);
+    l(0) = std::pow(l1, 2);
+    l(1) = std::pow(l2, 2);
+    l(2) = std::pow(l3, 2);
+    l *= (1 / (2.0 * nu));
+
+    // Compute result = R^t diag(l) R
+    DenseMatrix res(3, 3);
+    R.Transpose();
+    MultADBt(R, l, R, res);
+    return res;
+  } else if (dim == 2) {
+    DenseMatrix res(2, 2);
+    res(0, 0) = std::pow(l1, 2) / (2.0 * nu);
+    res(1, 1) = std::pow(l2, 2) / (2.0 * nu);
+    res(0, 1) = 0;
+    res(1, 0) = 0;
+    return res;
+  } else {
+    DenseMatrix res(1, 1);
+    res(0, 0) = std::pow(l1, 2) / (2.0 * nu);
+    return res;
+  }
+}
+
 void SPDESolver::Solve(const ParLinearForm &b, ParGridFunction &x, double alpha,
                        double beta, int exponent) {
   // Form system of equations. This is less general than
@@ -177,7 +280,7 @@ void SPDESolver::Solve(const ParLinearForm &b, ParGridFunction &x, double alpha,
   }
   B_ *= beta;
 
-  if (!apply_lift_){
+  if (!apply_lift_) {
     // Initialize X_ to zero. Important! Might contain nan/inf -> crash.
     X_ = 0.0;
   } else {
@@ -185,9 +288,9 @@ void SPDESolver::Solve(const ParLinearForm &b, ParGridFunction &x, double alpha,
   }
 
   delete Op_;
-  Op_ = Add(1.0, stiffness_, alpha, mass_bc_); //  construct Operator
+  Op_ = Add(1.0, stiffness_, alpha, mass_bc_);  //  construct Operator
   HypreParMatrix *Ae = Op_->EliminateRowsCols(ess_tdof_list_);
-  Op_->EliminateBC(*Ae, ess_tdof_list_, X_, B_); // only for homogeneous BC
+  Op_->EliminateBC(*Ae, ess_tdof_list_, X_, B_);  // only for homogeneous BC
 
   for (int i = 0; i < exponent; i++) {
     // Solve the linear system Op_ X_ = B_
@@ -208,7 +311,7 @@ void SPDESolver::Solve(const ParLinearForm &b, ParGridFunction &x, double alpha,
   delete Ae;
 }
 
-void SPDESolver::LiftSolution(ParGridFunction& x){
+void SPDESolver::LiftSolution(ParGridFunction &x) {
   // Set lifting flag
   apply_lift_ = true;
 
@@ -225,7 +328,8 @@ void SPDESolver::LiftSolution(ParGridFunction& x){
   // Project the boundary conditions onto the solution space.
   for (const auto &bc : bc_.dirichlet_coefficients) {
     Array<int> marker(fespace_ptr_->GetParMesh()->bdr_attributes.Max());
-    marker = 0; marker[bc.first - 1] = 1;
+    marker = 0;
+    marker[bc.first - 1] = 1;
     ConstantCoefficient cc(bc.second);
     helper_gf.ProjectBdrCoefficient(cc, marker);
   }
@@ -291,5 +395,5 @@ void SPDESolver::ComputeRationalCoefficients(double exponent) {
   }
 }
 
-} // namespace materials
-} // namespace mfem
+}  // namespace materials
+}  // namespace mfem

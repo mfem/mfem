@@ -28,17 +28,6 @@ void FillWithRandomNumbers(std::vector<double> &x, double a = 0.0,
 /// rotation that fit into the vector and should be a multiple of 9.
 void FillWithRandomRotations(std::vector<double> &x);
 
-/// Construct the second order tensor (matrix coefficient) Theta from the
-/// equation R^T(e1,e2,e3) diag(l1,l2,l3) R (e1,e2,e3).
-DenseMatrix ConstructMatrixCoefficient(double l1, double l2, double l3,
-                                       double e1, double e2, double e3,
-                                       double nu, int dim);
-
-/// Construct the normalization coefficient eta of the white noise right hands
-/// side.
-double ConstructNormalizationCoefficient(double nu, double l1, double l2,
-                                         double l3, int dim);
-
 } // namespace mfem
 
 #endif // MATERIALS_UTIL_HPP

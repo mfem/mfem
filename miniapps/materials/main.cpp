@@ -20,18 +20,17 @@
 //
 // ===========================================================================
 
-#include "mfem.hpp"
+#include <math.h>
 #include <fstream>
 #include <iostream>
-#include <math.h>
-#include <ctime>
 #include <string>
+#include "mfem.hpp"
 
 #include "material_metrics.hpp"
 #include "solvers.hpp"
+#include "transformation.hpp"
 #include "util.hpp"
 #include "visualizer.hpp"
-#include "transformation.hpp"
 
 using namespace std;
 using namespace mfem;
@@ -75,8 +74,7 @@ int main(int argc, char *argv[]) {
   bool compute_boundary_integrals = false;
 
   OptionsParser args(argc, argv);
-  args.AddOption(&mesh_file, "-m", "--mesh",
-                  "Mesh file to use.");
+  args.AddOption(&mesh_file, "-m", "--mesh", "Mesh file to use.");
   args.AddOption(&order, "-o", "--order",
                  "Finite element order (polynomial degree) or -1 for"
                  " isoparametric space.");
@@ -102,14 +100,14 @@ int main(int argc, char *argv[]) {
   args.AddOption(&pl3, "-pl3", "--pl3", "Length scale 3 of particles");
   args.AddOption(&uniform_min, "-umin", "--uniform-min",
                  "Minimum value of uniform distribution");
-  args.AddOption(&uniform_max, "-umax", "--uniform-max", 
-                  "Maximum value of uniform distribution");
+  args.AddOption(&uniform_max, "-umax", "--uniform-max",
+                 "Maximum value of uniform distribution");
   args.AddOption(&offset, "-off", "--offset",
-                  "Offset for random field u(x) -> u(x) + a");
+                 "Offset for random field u(x) -> u(x) + a");
   args.AddOption(&scale, "-s", "--scale",
-                  "Scale for random field u(x) -> a * u(x)");
+                 "Scale for random field u(x) -> a * u(x)");
   args.AddOption(&level_set_threshold, "-lst", "--level-set-threshold",
-                  "Level set threshold");
+                 "Level set threshold");
   args.AddOption(&number_of_particles, "-n", "--number-of-particles",
                  "Number of particles");
   args.AddOption(&paraview_export, "-pvis", "--paraview-visualization",
@@ -123,9 +121,9 @@ int main(int argc, char *argv[]) {
                  "Enable or disable the transformation of GRF to URF.");
   args.AddOption(&random_seed, "-rs", "--random-seed", "-no-rs",
                  "--no-random-seed", "Enable or disable random seed.");
-  args.AddOption(&compute_boundary_integrals, "-cbi", 
+  args.AddOption(&compute_boundary_integrals, "-cbi",
                  "--compute-boundary-integrals", "-no-cbi",
-                 "--no-compute-boundary-integrals", 
+                 "--no-compute-boundary-integrals",
                  "Enable or disable computation of boundary integrals.");
   args.Parse();
   if (!args.Good()) {
@@ -156,7 +154,7 @@ int main(int argc, char *argv[]) {
   ParFiniteElementSpace fespace(&pmesh, &fec);
   HYPRE_BigInt size = fespace.GlobalTrueVSize();
   if (Mpi::Root()) {
-    const Array<int> boundary (pmesh.bdr_attributes);
+    const Array<int> boundary(pmesh.bdr_attributes);
     cout << "Number of finite element unknowns: " << size << "\n";
     cout << "Boundary attributes: ";
     boundary.Print(cout, 6);
@@ -165,12 +163,13 @@ int main(int argc, char *argv[]) {
   // ========================================================================
   // II. Generate topological support
   // ========================================================================
-  
-  ParGridFunction v(&fespace); v = 0.0;
+
+  ParGridFunction v(&fespace);
+  v = 0.0;
   MaterialTopology *mdm = nullptr;
 
   // II.1 Define the metric for the topological support.
-  if (is_3d){  
+  if (is_3d) {
     if (topological_support == TopologicalSupport::kOctetTruss) {
       mdm = new OctetTrussTopology();
     } else {
@@ -195,8 +194,8 @@ int main(int argc, char *argv[]) {
       MPI_Bcast(random_rotations.data(), 9 * number_of_particles, MPI_DOUBLE, 0,
                 MPI_COMM_WORLD);
 
-      mdm =
-          new ParticleTopology(pl1, pl2, pl3, random_positions, random_rotations);
+      mdm = new ParticleTopology(pl1, pl2, pl3, random_positions,
+                                 random_rotations);
     }
 
     // II.2 Define lambda to wrap the call to the distance metric.
@@ -217,39 +216,24 @@ int main(int argc, char *argv[]) {
   ParGridFunction u(&fespace);
   u = 0.0;
 
-  // III.2 Define Diffusion Tensor for the anisotropic SPDE method. The function
-  // below creates a diagonal matrix (l1, l2, l3)^2 and rotates it by the Euler
-  // angles (e1, e2, e3). nu and dim normalize.
-  auto diffusion_tensor =
-      ConstructMatrixCoefficient(l1, l2, l3, e1, e2, e3, nu, dim);
-  MatrixConstantCoefficient diffusion_coefficient(diffusion_tensor);
-
-  // III.3 Define the right hand side, for us this is a normalized white noise.
-  int seed = 0;
-  if (random_seed) {
-    seed = std::time(nullptr);
-  }
-  ParLinearForm b(&fespace);
-  auto *WhiteNoise = new WhiteGaussianNoiseDomainLFIntegrator(seed);
-  b.AddDomainIntegrator(WhiteNoise);
-  b.Assemble();
-  double normalization = ConstructNormalizationCoefficient(nu, l1, l2, l3, dim);
-  b *= normalization;
-
-  // III.4 Define the boundary conditions.
+  // III.2 Define the boundary conditions.
   materials::Boundary bc;
   if (Mpi::Root()) {
     bc.PrintInfo();
     bc.VerifyDefinedBoundaries(pmesh);
   }
 
-  // III.5 Solve the SPDE problem
-  materials::SPDESolver solver(diffusion_coefficient, nu, bc,
-                               &fespace);
-  solver.Solve(b, u);
+  // III.3 Solve the SPDE problem
+  materials::SPDESolver solver(nu, bc, &fespace, l1, l2, l3, e1, e2, e3);
+  if (random_seed) {
+    solver.GenerateRandomField(u);
+  } else {
+    const int seed = 0;
+    solver.GenerateRandomField(u, seed);
+  }
 
-  /// III.6 Verify boundary conditions
-  if (compute_boundary_integrals){
+  /// III.4 Verify boundary conditions
+  if (compute_boundary_integrals) {
     bc.ComputeBoundaryError(u);
   }
 
@@ -259,7 +243,7 @@ int main(int argc, char *argv[]) {
 
   if (uniform_rf) {
     /// Transform the random field to a uniform random field.
-    materials::UniformGRFTransformer transformation (uniform_min,uniform_max);
+    materials::UniformGRFTransformer transformation(uniform_min, uniform_max);
     transformation.Transform(u);
   }
   if (scale != 1.0) {
@@ -272,11 +256,11 @@ int main(int argc, char *argv[]) {
     materials::OffsetTransformer transformation(offset);
     transformation.Transform(u);
   }
-  ParGridFunction w(&fespace); // Noisy material field.
+  ParGridFunction w(&fespace);  // Noisy material field.
   w = 0.0;
   w += u;
   w += v;
-  ParGridFunction level_set(w); // Level set field.
+  ParGridFunction level_set(w);  // Level set field.
   {
     materials::LevelSetTransformer transformation(level_set_threshold);
     transformation.Transform(level_set);
