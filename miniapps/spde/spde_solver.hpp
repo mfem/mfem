@@ -47,6 +47,9 @@ class SPDESolver {
              double l1 = 0.1, double l2 = 0.1, double l3 = 0.1, double e1 = 0.0,
              double e2 = 0.0, double e3 = 0.0);
 
+  /// Destructor.
+  ~SPDESolver() { delete Op_; };
+
   /// Solve the SPDE for a given right hand side b. May alter b if
   /// the exponent (alpha) is larger than 1. We avoid copying be default. If you
   /// need b later on, make a copy of it before calling this function.
