@@ -10,7 +10,7 @@
 # CONTRIBUTING.md for details.
 
 # In this CI section, we build different variants of mfem and run test on them.
-name: builds-and-tests
+name: "Tests"
 
 # Github actions can use the default "GITHUB_TOKEN". By default, this token
 # is set to have permissive access. However, this is not a good practice
@@ -47,17 +47,17 @@ jobs:
   builds-and-tests:
     strategy:
       matrix:
-        os: [ubuntu-20.04, macos-10.15, windows-2022]
+        os: [ubuntu-latest, macos-latest, windows-latest]
         target: [dbg, opt]
         mpi: [seq, par]
         build-system: [make, cmake]
         hypre-target: [int32]
         exclude:
-          - os: ubuntu-20.04
+          - os: ubuntu-latest
             build-system: cmake
-          - os: macos-10.15
+          - os: macos-latest
             build-system: cmake
-          - os: windows-2022
+          - os: windows-latest
             build-system: make
         # 'include' allows us to:
         # - Add a variable to all jobs without creating a new matrix dimension.
@@ -72,15 +72,15 @@ jobs:
             codecov: NO
           - target: opt
             codecov: YES
-          - os: windows-2022
+          - os: windows-latest
             codecov: NO
-          - os: ubuntu-20.04
+          - os: ubuntu-latest
             target: opt
             codecov: NO
             mpi: par
             build-system: cmake
             hypre-target: int32
-          - os: ubuntu-20.04
+          - os: ubuntu-latest
             target: opt
             codecov: NO
             mpi: par
@@ -112,35 +112,35 @@ jobs:
     # TODO: It would be nice to have only one step, e.g. with a dedicated
     # action, but I (@adrienbernede) don't see how at the moment.
     - name: get MPI (Linux)
-      if: matrix.mpi == 'par' && matrix.os == 'ubuntu-20.04'
+      if: matrix.mpi == 'par' && matrix.os == 'ubuntu-latest'
       run: |
         sudo apt-get install mpich libmpich-dev
         export MAKE_CXX_FLAG="MPICXX=mpic++"
 
     - name: get lcov (Linux)
-      if: matrix.codecov == 'YES' && matrix.os == 'ubuntu-20.04'
+      if: matrix.codecov == 'YES' && matrix.os == 'ubuntu-latest'
       run: |
         sudo apt-get install lcov
 
     - name: Set up Homebrew
-      if: ( matrix.mpi == 'par' || matrix.codecov == 'YES' ) && matrix.os == 'macos-10.15'
+      if: ( matrix.mpi == 'par' || matrix.codecov == 'YES' ) && matrix.os == 'macos-latest'
       uses: Homebrew/actions/setup-homebrew@c4aafe8c4620bf08883dd4679c374f11e73329d3
 
     - name: get MPI (MacOS)
-      if: matrix.mpi == 'par' && matrix.os == 'macos-10.15'
+      if: matrix.mpi == 'par' && matrix.os == 'macos-latest'
       run: |
         export HOMEBREW_NO_INSTALL_CLEANUP=1
         brew install openmpi
         export MAKE_CXX_FLAG="MPICXX=mpic++"
 
     - name: get MPI (MacOS)
-      if: matrix.codecov == 'YES' && matrix.os == 'macos-10.15'
+      if: matrix.codecov == 'YES' && matrix.os == 'macos-latest'
       run: |
         export HOMEBREW_NO_INSTALL_CLEANUP=1
         brew install lcov
 
     - name: get MPI (Windows)
-      if: matrix.mpi == 'par' && matrix.os == 'windows-2022'
+      if: matrix.mpi == 'par' && matrix.os == 'windows-latest'
       uses: mpi4py/setup-mpi@v1.0.3
 
     # Get Hypre through cache, or build it.
@@ -154,7 +154,7 @@ jobs:
         key: ${{ runner.os }}-build-${{ env.HYPRE_TOP_DIR }}-${{ matrix.hypre-target }}-v2.2
 
     - name: get hypre
-      if: matrix.mpi == 'par' && steps.hypre-cache.outputs.cache-hit != 'true' && matrix.os != 'windows-2022'
+      if: matrix.mpi == 'par' && steps.hypre-cache.outputs.cache-hit != 'true' && matrix.os != 'windows-latest'
       uses: mfem/github-actions/build-hypre@v2.2
       with:
         archive: ${{ env.HYPRE_ARCHIVE }}
@@ -163,7 +163,7 @@ jobs:
         build-system: make
 
     - name: get hypre (Windows)
-      if: matrix.mpi == 'par' && steps.hypre-cache.outputs.cache-hit != 'true' && matrix.os == 'windows-2022'
+      if: matrix.mpi == 'par' && steps.hypre-cache.outputs.cache-hit != 'true' && matrix.os == 'windows-latest'
       uses: mfem/github-actions/build-hypre@v2.2
       with:
         archive: ${{ env.HYPRE_ARCHIVE }}
@@ -175,14 +175,14 @@ jobs:
     # Install will only run on cache miss.
     - name: cache metis
       id: metis-cache
-      if: matrix.mpi == 'par' && matrix.os != 'windows-2022'
+      if: matrix.mpi == 'par' && matrix.os != 'windows-latest'
       uses: actions/cache@v2
       with:
         path: ${{ env.METIS_TOP_DIR }}
         key: ${{ runner.os }}-build-${{ env.METIS_TOP_DIR }}-v2.2
 
     - name: install metis
-      if: matrix.mpi == 'par' && matrix.os != 'windows-2022' && steps.metis-cache.outputs.cache-hit != 'true'
+      if: matrix.mpi == 'par' && matrix.os != 'windows-latest' && steps.metis-cache.outputs.cache-hit != 'true'
       uses: mfem/github-actions/build-metis@v2.2
       with:
         archive: ${{ env.METIS_ARCHIVE }}
@@ -196,16 +196,16 @@ jobs:
         key: ${{ runner.os }}-${{ matrix.mpi }}-vcpkg-v1
 
     - name: prepare binary cache location
-      if: matrix.os == 'windows-2022' && steps.vcpkg-cache.outputs.cache-hit != 'true'
+      if: matrix.os == 'windows-latest' && steps.vcpkg-cache.outputs.cache-hit != 'true'
       run: |
         mkdir -p vcpkg_cache
 
     - name: install metis (Windows)
-      if: matrix.mpi == 'par' && matrix.os == 'windows-2022'
+      if: matrix.mpi == 'par' && matrix.os == 'windows-latest'
       env:
         VCPKG_DEFAULT_BINARY_CACHE: ${{ github.workspace }}/vcpkg_cache
       run: |
-        vcpkg install metis --triplet=x64-windows-static
+        vcpkg install metis-mfem --triplet=x64-windows-static --overlay-ports=${{ env.MFEM_TOP_DIR }}/config/vcpkg/ports
 
     # MFEM build and test
     - name: build
@@ -248,7 +248,7 @@ jobs:
       shell: bash
 
     - name: cmake unit tests (Ubuntu 20.04)
-      if: matrix.build-system == 'cmake' && matrix.target == 'opt' && matrix.os == 'ubuntu-20.04'
+      if: matrix.build-system == 'cmake' && matrix.target == 'opt' && matrix.os == 'ubuntu-latest'
       run: |
         CTEST_CONFIG="Release"
         [[ ${{ matrix.target }} == 'dbg' ]] && CTEST_CONFIG="Debug"
@@ -256,7 +256,7 @@ jobs:
       shell: bash
 
     - name: cmake tests
-      if: matrix.build-system == 'cmake' && matrix.target == 'opt' && matrix.os != 'ubuntu-20.04'
+      if: matrix.build-system == 'cmake' && matrix.target == 'opt' && matrix.os != 'ubuntu-latest'
       run: |
         CTEST_CONFIG="Release"
         cd ${{ env.MFEM_TOP_DIR }}/build && ctest --output-on-failure -C ${CTEST_CONFIG}
