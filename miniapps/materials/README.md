@@ -96,6 +96,13 @@ mpirun -np 4 main -o 1 -r 3 -rp 3 -nu 2 \
        -t 0.08 -top 1 -urf -rs
 ```
 
+A 2D random field with anisotropy
+```
+mpirun -np 4 main -o 1 -r 3 -rp 3 -nu 4 \
+       -l1 0.09 -l2 0.03 -l3 0.05 -s 0.01 \
+       -t 0.08 -top 1 -no-rs -m ../../data/ref-square.mesh
+```
+
 ## Visualization
 
 The results can be visualized via GLVis or ParaView. GLVis offers quick and 
