@@ -12,7 +12,7 @@
 #include "visualizer.hpp"
 
 namespace mfem {
-namespace materials {
+namespace spde {
 
 void Visualizer::ExportToParaView() {
   ParaViewDataCollection paraview_dc("SurrogateMaterial", mesh_);
@@ -21,7 +21,7 @@ void Visualizer::ExportToParaView() {
   paraview_dc.SetCycle(0);
   paraview_dc.SetDataFormat(VTKFormat::BINARY);
   paraview_dc.SetHighOrderOutput(true);
-  paraview_dc.SetTime(0.0); // set the time
+  paraview_dc.SetTime(0.0);  // set the time
   paraview_dc.RegisterField("random_field", &g1_);
   if (is_3D_) {
     paraview_dc.RegisterField("topological_support", &g2_);
@@ -48,8 +48,8 @@ void Visualizer::SendToGLVis() {
        << *mesh_ << g1_ << "window_title '" << oss_u.str() << "'" << std::flush;
   uout.close();
 
-  if(!is_3D_){
-     return;
+  if (!is_3D_) {
+    return;
   }
 
   socketstream vout, wout, lout;
@@ -85,5 +85,5 @@ void Visualizer::SendToGLVis() {
   lout.close();
 }
 
-} // namespace materials
-} // namespace mfem
+}  // namespace spde
+}  // namespace mfem

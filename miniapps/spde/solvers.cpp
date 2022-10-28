@@ -15,7 +15,7 @@
 #include "solvers.hpp"
 
 namespace mfem {
-namespace materials {
+namespace spde {
 
 SPDESolver::SPDESolver(double nu, const Boundary &bc,
                        ParFiniteElementSpace *fespace, double l1, double l2,
@@ -395,5 +395,5 @@ void SPDESolver::ComputeRationalCoefficients(double exponent) {
   }
 }
 
-}  // namespace materials
+}  // namespace spde
 }  // namespace mfem

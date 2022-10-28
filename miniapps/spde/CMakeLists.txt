@@ -17,8 +17,8 @@ if (MFEM_USE_MPI)
     LIBRARIES mfem)
 
   # Copy files to the build folder.
-  file(COPY ${PROJECT_SOURCE_DIR}/miniapps/materials/README.md
-       DESTINATION ${PROJECT_BINARY_DIR}/miniapps/materials)
+  file(COPY ${PROJECT_SOURCE_DIR}/miniapps/spde/README.md
+       DESTINATION ${PROJECT_BINARY_DIR}/miniapps/spde)
 else ()
   message("This miniapp requires MPI to be enabled." 
           "Please compile with MFEM_USE_MPI.")

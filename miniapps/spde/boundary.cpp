@@ -12,7 +12,7 @@
 #include "boundary.hpp"
 
 namespace mfem {
-namespace materials {
+namespace spde {
 
 void Boundary::PrintInfo(std::ostream &os) const {
   os << "\n<Boundary Info>\n"
@@ -43,7 +43,7 @@ void Boundary::PrintInfo(std::ostream &os) const {
   if (!dirichlet_coefficients.empty()) {
     os << "  Inhomogeneous Dirichlet defined on ";
     for (const auto &it : dirichlet_coefficients) {
-      if (!first_print_statement){
+      if (!first_print_statement) {
         os << ", ";
       } else {
         first_print_statement = false;
@@ -55,23 +55,23 @@ void Boundary::PrintInfo(std::ostream &os) const {
   os << "<Boundary Info>\n\n";
 }
 
-void Boundary::VerifyDefinedBoundaries(const Mesh& mesh) const{
-  // Verify that all defined boundaries are actually defined on the 
-  // mesh, i.e. if the keys of boundary attributes appear in the boundary 
+void Boundary::VerifyDefinedBoundaries(const Mesh &mesh) const {
+  // Verify that all defined boundaries are actually defined on the
+  // mesh, i.e. if the keys of boundary attributes appear in the boundary
   // attributes of the mesh.
   mfem::out << "\n<Boundary Verify>\n";
-  const Array<int> boundary (mesh.bdr_attributes);
+  const Array<int> boundary(mesh.bdr_attributes);
   for (const auto &it : boundary_attributes) {
     if (boundary.Find(it.first) == -1) {
-      MFEM_ABORT("  Boundary " 
-                    << it.first 
-                    << " is not defined on the mesh but in Boundary class."
-                    << "Exiting...");
+      MFEM_ABORT("  Boundary "
+                 << it.first
+                 << " is not defined on the mesh but in Boundary class."
+                 << "Exiting...");
     }
   }
 
-  /// Verify if all boundary attributes appear as keys in the 
-  /// boundary attributes, if not let the user know that we use Neumann by 
+  /// Verify if all boundary attributes appear as keys in the
+  /// boundary attributes, if not let the user know that we use Neumann by
   /// default.
   std::vector<int> boundary_attributes_keys;
   for (int i = 0; i < boundary.Size(); i++) {
@@ -83,7 +83,7 @@ void Boundary::VerifyDefinedBoundaries(const Mesh& mesh) const{
     mfem::out << "  Boundaries (";
     for (const auto &it : boundary_attributes_keys) {
       mfem::out << it << ", ";
-    }  
+    }
     mfem::out << ") are defined on the mesh but not in the";
     mfem::out << " boundary attributes (Use Neumann).";
   }
@@ -92,25 +92,26 @@ void Boundary::VerifyDefinedBoundaries(const Mesh& mesh) const{
   for (const auto &it : boundary_attributes) {
     if (it.second == BoundaryType::kPeriodic) {
       MFEM_ABORT("  Periodic boundaries must be defined on the mesh"
-                    << ", not in Boundaries. Exiting...");
+                 << ", not in Boundaries. Exiting...");
     }
   }
 
   mfem::out << "\n<Boundary Verify>\n\n";
 }
 
-void Boundary::ComputeBoundaryError(const ParGridFunction& solution){
+void Boundary::ComputeBoundaryError(const ParGridFunction &solution) {
   const ParFiniteElementSpace &fes = *solution.ParFESpace();
   ParMesh &pmesh = *fes.GetParMesh();
 
-  if (Mpi::Root()){
-    mfem::out << "<Boundary::ComputeBoundaryError>" << "\n";
+  if (Mpi::Root()) {
+    mfem::out << "<Boundary::ComputeBoundaryError>"
+              << "\n";
     mfem::out << "   GetVDim: " << fes.GetVDim() << "\n";
   }
 
-  double alpha {0.0};
-  double beta {1.0};
-  double gamma {0.0};
+  double alpha{0.0};
+  double beta{1.0};
+  double gamma{0.0};
 
   // Index i needs to be incremented by one to map to the boundary attributes
   // in the mesh.
@@ -120,10 +121,10 @@ void Boundary::ComputeBoundaryError(const ParGridFunction& solution){
     bdr = 0;
     bdr[i] = 1;
 
-    UpdateIntegrationCoefficients(i+1, alpha, beta, gamma);
+    UpdateIntegrationCoefficients(i + 1, alpha, beta, gamma);
     avg = IntegrateBC(solution, bdr, alpha, beta, gamma, error);
-    if (Mpi::Root()){
-      mfem::out << "->Boundary " << i+1 << "\n";
+    if (Mpi::Root()) {
+      mfem::out << "->Boundary " << i + 1 << "\n";
       mfem::out << "    Alpha   : " << alpha << "\n";
       mfem::out << "    Beta    : " << beta << "\n";
       mfem::out << "    Gamma   : " << gamma << "\n";
@@ -132,13 +133,13 @@ void Boundary::ComputeBoundaryError(const ParGridFunction& solution){
     }
   }
 
-  if (Mpi::Root()){
+  if (Mpi::Root()) {
     mfem::out << "<Boundary::ComputeBoundaryError>" << std::endl;
   }
 }
 
-void Boundary::UpdateIntegrationCoefficients(int i, double& alpha, double& beta, 
-                                     double& gamma){
+void Boundary::UpdateIntegrationCoefficients(int i, double &alpha, double &beta,
+                                             double &gamma) {
   // Check if i is a key in boundary_attributes
   if (boundary_attributes.find(i) != boundary_attributes.end()) {
     switch (boundary_attributes[i]) {
@@ -175,121 +176,116 @@ void Boundary::UpdateIntegrationCoefficients(int i, double& alpha, double& beta,
   }
 }
 
-void Boundary::AddHomogeneousBoundaryCondition(int boundary, BoundaryType type) {
+void Boundary::AddHomogeneousBoundaryCondition(int boundary,
+                                               BoundaryType type) {
   boundary_attributes[boundary] = type;
 }
 
-void Boundary::AddInhomogeneousDirichletBoundaryCondition(
-  int boundary, double coefficient){
+void Boundary::AddInhomogeneousDirichletBoundaryCondition(int boundary,
+                                                          double coefficient) {
   boundary_attributes[boundary] = BoundaryType::kDirichlet;
   dirichlet_coefficients[boundary] = coefficient;
 }
 
-void Boundary::SetRobinCoefficient(double coefficient){
+void Boundary::SetRobinCoefficient(double coefficient) {
   robin_coefficient = coefficient;
 };
 
 double IntegrateBC(const ParGridFunction &x, const Array<int> &bdr,
-                   double alpha, double beta, double gamma,
-                   double &glb_err)
-{
-   double loc_vals[3];
-   double &nrm = loc_vals[0];
-   double &avg = loc_vals[1];
-   double &error = loc_vals[2];
+                   double alpha, double beta, double gamma, double &glb_err) {
+  double loc_vals[3];
+  double &nrm = loc_vals[0];
+  double &avg = loc_vals[1];
+  double &error = loc_vals[2];
 
-   nrm = 0.0;
-   avg = 0.0;
-   error = 0.0;
+  nrm = 0.0;
+  avg = 0.0;
+  error = 0.0;
 
-   const bool a_is_zero = alpha == 0.0;
-   const bool b_is_zero = beta == 0.0;
+  const bool a_is_zero = alpha == 0.0;
+  const bool b_is_zero = beta == 0.0;
 
-   const ParFiniteElementSpace &fes = *x.ParFESpace();
-   MFEM_ASSERT(fes.GetVDim() == 1, "");
-   ParMesh &mesh = *fes.GetParMesh();
-   Vector shape, loc_dofs, w_nor;
-   DenseMatrix dshape;
-   Array<int> dof_ids;
-   for (int i = 0; i < mesh.GetNBE(); i++)
-   {
-      if (bdr[mesh.GetBdrAttribute(i)-1] == 0) { continue; }
+  const ParFiniteElementSpace &fes = *x.ParFESpace();
+  MFEM_ASSERT(fes.GetVDim() == 1, "");
+  ParMesh &mesh = *fes.GetParMesh();
+  Vector shape, loc_dofs, w_nor;
+  DenseMatrix dshape;
+  Array<int> dof_ids;
+  for (int i = 0; i < mesh.GetNBE(); i++) {
+    if (bdr[mesh.GetBdrAttribute(i) - 1] == 0) {
+      continue;
+    }
 
-      FaceElementTransformations *FTr = mesh.GetBdrFaceTransformations(i);
-      if (FTr == nullptr) { continue; }
+    FaceElementTransformations *FTr = mesh.GetBdrFaceTransformations(i);
+    if (FTr == nullptr) {
+      continue;
+    }
 
-      const FiniteElement &fe = *fes.GetFE(FTr->Elem1No);
-      MFEM_ASSERT(fe.GetMapType() == FiniteElement::VALUE, "");
-      const int int_order = 2*fe.GetOrder() + 3;
-      const IntegrationRule &ir = IntRules.Get(FTr->FaceGeom, int_order);
+    const FiniteElement &fe = *fes.GetFE(FTr->Elem1No);
+    MFEM_ASSERT(fe.GetMapType() == FiniteElement::VALUE, "");
+    const int int_order = 2 * fe.GetOrder() + 3;
+    const IntegrationRule &ir = IntRules.Get(FTr->FaceGeom, int_order);
 
-      fes.GetElementDofs(FTr->Elem1No, dof_ids);
-      x.GetSubVector(dof_ids, loc_dofs);
-      if (!a_is_zero)
-      {
-         const int sdim = FTr->Face->GetSpaceDim();
-         w_nor.SetSize(sdim);
-         dshape.SetSize(fe.GetDof(), sdim);
+    fes.GetElementDofs(FTr->Elem1No, dof_ids);
+    x.GetSubVector(dof_ids, loc_dofs);
+    if (!a_is_zero) {
+      const int sdim = FTr->Face->GetSpaceDim();
+      w_nor.SetSize(sdim);
+      dshape.SetSize(fe.GetDof(), sdim);
+    }
+    if (!b_is_zero) {
+      shape.SetSize(fe.GetDof());
+    }
+    for (int j = 0; j < ir.GetNPoints(); j++) {
+      const IntegrationPoint &ip = ir.IntPoint(j);
+      IntegrationPoint eip;
+      FTr->Loc1.Transform(ip, eip);
+      FTr->Face->SetIntPoint(&ip);
+      double face_weight = FTr->Face->Weight();
+      double val = 0.0;
+      if (!a_is_zero) {
+        FTr->Elem1->SetIntPoint(&eip);
+        fe.CalcPhysDShape(*FTr->Elem1, dshape);
+        CalcOrtho(FTr->Face->Jacobian(), w_nor);
+        val += alpha * dshape.InnerProduct(w_nor, loc_dofs) / face_weight;
       }
-      if (!b_is_zero)
-      {
-         shape.SetSize(fe.GetDof());
+      if (!b_is_zero) {
+        fe.CalcShape(eip, shape);
+        val += beta * (shape * loc_dofs);
       }
-      for (int j = 0; j < ir.GetNPoints(); j++)
-      {
-         const IntegrationPoint &ip = ir.IntPoint(j);
-         IntegrationPoint eip;
-         FTr->Loc1.Transform(ip, eip);
-         FTr->Face->SetIntPoint(&ip);
-         double face_weight = FTr->Face->Weight();
-         double val = 0.0;
-         if (!a_is_zero)
-         {
-            FTr->Elem1->SetIntPoint(&eip);
-            fe.CalcPhysDShape(*FTr->Elem1, dshape);
-            CalcOrtho(FTr->Face->Jacobian(), w_nor);
-            val += alpha * dshape.InnerProduct(w_nor, loc_dofs) / face_weight;
-         }
-         if (!b_is_zero)
-         {
-            fe.CalcShape(eip, shape);
-            val += beta * (shape * loc_dofs);
-         }
 
-         // Measure the length of the boundary
-         nrm += ip.weight * face_weight;
+      // Measure the length of the boundary
+      nrm += ip.weight * face_weight;
 
-         // Integrate alpha * n.Grad(x) + beta * x
-         avg += val * ip.weight * face_weight;
+      // Integrate alpha * n.Grad(x) + beta * x
+      avg += val * ip.weight * face_weight;
 
-         // Integrate |alpha * n.Grad(x) + beta * x - gamma|^2
-         val -= gamma;
-         error += (val*val) * ip.weight * face_weight;
-      }
-   }
+      // Integrate |alpha * n.Grad(x) + beta * x - gamma|^2
+      val -= gamma;
+      error += (val * val) * ip.weight * face_weight;
+    }
+  }
 
-   double glb_vals[3];
-   MPI_Allreduce(loc_vals, glb_vals, 3, MPI_DOUBLE, MPI_SUM, fes.GetComm());
+  double glb_vals[3];
+  MPI_Allreduce(loc_vals, glb_vals, 3, MPI_DOUBLE, MPI_SUM, fes.GetComm());
 
-   double glb_nrm = glb_vals[0];
-   double glb_avg = glb_vals[1];
-   glb_err = glb_vals[2];
+  double glb_nrm = glb_vals[0];
+  double glb_avg = glb_vals[1];
+  glb_err = glb_vals[2];
 
-   // Normalize by the length of the boundary
-   if (std::abs(glb_nrm) > 0.0)
-   {
-      glb_err /= glb_nrm;
-      glb_avg /= glb_nrm;
-   }
+  // Normalize by the length of the boundary
+  if (std::abs(glb_nrm) > 0.0) {
+    glb_err /= glb_nrm;
+    glb_avg /= glb_nrm;
+  }
 
-   // Compute l2 norm of the error in the boundary condition (negative
-   // quadrature weights may produce negative 'error')
-   glb_err = (glb_err >= 0.0) ? sqrt(glb_err) : -sqrt(-glb_err);
+  // Compute l2 norm of the error in the boundary condition (negative
+  // quadrature weights may produce negative 'error')
+  glb_err = (glb_err >= 0.0) ? sqrt(glb_err) : -sqrt(-glb_err);
 
-   // Return the average value of alpha * n.Grad(x) + beta * x
-   return glb_avg;
+  // Return the average value of alpha * n.Grad(x) + beta * x
+  return glb_avg;
 }
 
-}
-}
-
+}  // namespace spde
+}  // namespace mfem

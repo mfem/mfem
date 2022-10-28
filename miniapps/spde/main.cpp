@@ -11,12 +11,12 @@
 
 // ===========================================================================
 //
-//        Mini-App: surrogate model for imperfect materials.
+//        Mini-App: surrogate model for imperfect spde.
 //
 //  Details: refer to README
 //
 //  Runs:
-//    mpirun -np 4 ./miniapps/materials/main
+//    mpirun -np 4 ./miniapps/spde/main
 //
 // ===========================================================================
 
@@ -217,14 +217,14 @@ int main(int argc, char *argv[]) {
   u = 0.0;
 
   // III.2 Define the boundary conditions.
-  materials::Boundary bc;
+  spde::Boundary bc;
   if (Mpi::Root()) {
     bc.PrintInfo();
     bc.VerifyDefinedBoundaries(pmesh);
   }
 
   // III.3 Solve the SPDE problem
-  materials::SPDESolver solver(nu, bc, &fespace, l1, l2, l3, e1, e2, e3);
+  spde::SPDESolver solver(nu, bc, &fespace, l1, l2, l3, e1, e2, e3);
   if (random_seed) {
     solver.GenerateRandomField(u);
   } else {
@@ -243,17 +243,17 @@ int main(int argc, char *argv[]) {
 
   if (uniform_rf) {
     /// Transform the random field to a uniform random field.
-    materials::UniformGRFTransformer transformation(uniform_min, uniform_max);
+    spde::UniformGRFTransformer transformation(uniform_min, uniform_max);
     transformation.Transform(u);
   }
   if (scale != 1.0) {
     /// Scale the random field.
-    materials::ScaleTransformer transformation(scale);
+    spde::ScaleTransformer transformation(scale);
     transformation.Transform(u);
   }
   if (offset != 0.0) {
     /// Add an offset to the random field.
-    materials::OffsetTransformer transformation(offset);
+    spde::OffsetTransformer transformation(offset);
     transformation.Transform(u);
   }
   ParGridFunction w(&fespace);  // Noisy material field.
@@ -262,7 +262,7 @@ int main(int argc, char *argv[]) {
   w += v;
   ParGridFunction level_set(w);  // Level set field.
   {
-    materials::LevelSetTransformer transformation(level_set_threshold);
+    spde::LevelSetTransformer transformation(level_set_threshold);
     transformation.Transform(level_set);
   }
 
@@ -270,7 +270,7 @@ int main(int argc, char *argv[]) {
   // VI. Export visualization to ParaView and GLVis
   // ========================================================================
 
-  materials::Visualizer vis(pmesh, order, u, v, w, level_set, is_3d);
+  spde::Visualizer vis(pmesh, order, u, v, w, level_set, is_3d);
   if (paraview_export) {
     vis.ExportToParaView();
   }
