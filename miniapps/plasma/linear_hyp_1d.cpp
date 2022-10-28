@@ -135,6 +135,13 @@ public:
 
 class LinearHyp1DIntegrator : public BlockNonlinearFormIntegrator
 {
+protected:
+
+  Vector nor;
+  Vector shape_n, shape_q;
+  DenseMatrix dshape_n, dshape_q;
+  Vector shape1_n, shape2_n, shape1_q, shape2_q;
+  
 public:
   LinearHyp1DIntegrator() {}
 
@@ -464,15 +471,18 @@ void MyParBlockNonlinearForm::Mult(const Vector &x, Vector &y) const
 
    BlockNonlinearForm::MultBlocked(xs, ys);
 
-   if (fnfi.Size() > 0)
+   const ParFiniteElementSpace *pfes = ParFESpace(0);
+   ParMesh *pmesh = pfes->GetParMesh();
+   const int n_shared_faces = pmesh->GetNSharedFaces();
+
+   if (fnfi.Size() > 0 && n_shared_faces > 0)
    {
       // MFEM_ABORT("TODO: assemble contributions from shared face terms");
 
       // MFEM_VERIFY(!NonlinearForm::ext, "Not implemented (extensions + faces");
      cout << 0 << endl;
       // Terms over shared interior faces in parallel.
-      const ParFiniteElementSpace *pfes = ParFESpace(0);
-      ParMesh *pmesh = pfes->GetParMesh();
+
       FaceElementTransformations *tr;
       //const FiniteElement *fe1, *fe2;
       Array<const FiniteElement*> fe1(fes.Size());
@@ -502,7 +512,6 @@ void MyParBlockNonlinearForm::Mult(const Vector &x, Vector &y) const
 	Y[i]->MakeRef(aux2.GetBlock(i), 0); // aux2 contains P.y
       }
       cout << 4 << endl;
-      const int n_shared_faces = pmesh->GetNSharedFaces();
       for (int i = 0; i < n_shared_faces; i++)
       {
 	 tr = pmesh->GetSharedFaceTransformations(i, true);
@@ -554,7 +563,55 @@ void LinearHyp1DIntegrator::AssembleElementVector(
 			    const Array<const Vector *> &elfun,
 			    const Array<Vector *> &elvec)
 {
+   if (el.Size() != 2)
+   {
+      mfem_error("LinearHyp1DIntegrator::AssembleElementVector"
+                 " has finite element space of incorrect block number");
+   }
 
+   int dof_n = el[0]->GetDof();
+   int dof_q = el[1]->GetDof();
+
+   int dim = el[0]->GetDim();
+   // int spaceDim = Tr.GetSpaceDim();
+
+   shape_n.SetSize(dof_n);
+   shape_q.SetSize(dof_q);
+
+   dshape_n.SetSize(dof_n, dim);
+   dshape_q.SetSize(dof_q, dim);
+
+   Vector dshape_n_v(dshape_n.GetData(), dof_n);
+   Vector dshape_q_v(dshape_q.GetData(), dof_q);
+   
+   int intorder = 2*el[0]->GetOrder() + 3; // <---
+   const IntegrationRule &ir = IntRules.Get(el[0]->GetGeomType(), intorder);
+
+   elvec[0]->SetSize(dof_n);
+   elvec[1]->SetSize(dof_q);
+   
+   *elvec[0] = 0.0;
+   *elvec[1] = 0.0;
+   
+   for (int i = 0; i < ir.GetNPoints(); ++i)
+   {
+      const IntegrationPoint &ip = ir.IntPoint(i);
+      Tr.SetIntPoint(&ip);
+
+      double detJ = Tr.Weight();
+      
+      el[0]->CalcPhysShape(Tr, shape_n);
+      el[1]->CalcPhysShape(Tr, shape_q);
+
+      el[0]->CalcPhysDShape(Tr, dshape_n);
+      el[1]->CalcPhysDShape(Tr, dshape_q);
+
+      double n = shape_n * *elfun[0];
+      double q = shape_q * *elfun[1];
+      
+      elvec[0]->Add(-ip.weight * detJ * q, dshape_n_v);
+      elvec[1]->Add(-ip.weight * detJ * n, dshape_q_v);
+   }
 }
 
 void LinearHyp1DIntegrator::AssembleFaceVector(
@@ -562,9 +619,100 @@ void LinearHyp1DIntegrator::AssembleFaceVector(
 			    const Array<const FiniteElement *> &el2,
 			    FaceElementTransformations &Tr,
 			    const Array<const Vector *> &elfun,
-			    const Array<Vector *> &elvect)
+			    const Array<Vector *> &elvec)
 {
+   if (el1.Size() != 2)
+   {
+      mfem_error("LinearHyp1DIntegrator::AssembleFaceVector"
+                 " has finite element space of incorrect block number");
+   }
 
+   double alpha = 1.0;
+   
+   int dof1_n = el1[0]->GetDof();
+   int dof2_n = el2[0]->GetDof();
+   int dof1_q = el1[1]->GetDof();
+   int dof2_q = el2[1]->GetDof();
+
+   int dim = el1[0]->GetDim();
+
+   nor.SetSize(dim);
+   
+   shape1_n.SetSize(dof1_n);
+   shape2_n.SetSize(dof2_n);
+   shape1_q.SetSize(dof1_q);
+   shape2_q.SetSize(dof2_q);
+
+   int intorder = 2*el1[0]->GetOrder() + 3; // <---
+   const IntegrationRule &ir = IntRules.Get(Tr.GetGeometryType(), intorder);
+
+   Vector elfun1_n(elfun[0]->GetData(), dof1_n);
+   Vector elfun2_n(elfun[0]->GetData() + dof1_n, dof2_n);
+   Vector elfun1_q(elfun[1]->GetData(), dof1_q);
+   Vector elfun2_q(elfun[1]->GetData() + dof1_q, dof2_q);
+   
+   elvec[0]->SetSize(dof1_n + dof2_n);
+   elvec[1]->SetSize(dof1_q + dof2_q);
+   
+   *elvec[0] = 0.0;
+   *elvec[1] = 0.0;
+
+   Vector elvec1_n(elvec[0]->GetData(), dof1_n);
+   Vector elvec2_n(elvec[0]->GetData() + dof1_n, dof2_n);
+   Vector elvec1_q(elvec[1]->GetData(), dof1_q);
+   Vector elvec2_q(elvec[1]->GetData() + dof1_q, dof2_q);
+   
+   for (int p = 0; p < ir.GetNPoints(); p++)
+   {
+      const IntegrationPoint &ip = ir.IntPoint(p);
+
+      // Set the integration point in the face and the neighboring elements
+      Tr.SetAllIntPoints(&ip);
+
+      // Access the neighboring elements' integration points
+      // Note: eip2 will only contain valid data if Elem2 exists
+      const IntegrationPoint &eip1 = Tr.GetElement1IntPoint();
+      //const IntegrationPoint &eip2 = Tr.GetElement2IntPoint();
+
+      // Get the normal vector and the flux on the face
+      if (dim == 1)
+      {
+         nor(0) = 2*eip1.x - 1.0;
+      }
+      else
+      {
+	CalcOrtho(Tr.Jacobian(), nor);
+      }
+
+      /*
+      el1[0]->CalcShape(eip1, shape1_n);
+      el1[1]->CalcShape(eip1, shape1_q);
+      el2[0]->CalcShape(eip2, shape2_n);
+      el2[1]->CalcShape(eip2, shape2_q);
+      */
+      el1[0]->CalcPhysShape(*Tr.Elem1, shape1_n);
+      el1[1]->CalcPhysShape(*Tr.Elem1, shape1_q);
+      el2[0]->CalcPhysShape(*Tr.Elem2, shape2_n);
+      el2[1]->CalcPhysShape(*Tr.Elem2, shape2_q);
+
+      double n1 = elfun1_n * shape1_n;
+      double n2 = elfun2_n * shape2_n;
+      double q1 = elfun1_q * shape1_q;
+      double q2 = elfun2_q * shape2_q;
+
+      double nAvg = 0.5 * (n1 + n2);
+      double qAvg = 0.5 * (q1 + q2);
+      double nJmp = n1 - n2;
+      double qJmp = q1 - q2;
+
+      double Fn = qAvg + 0.5 * alpha * nJmp;      
+      double Fq = nAvg + 0.5 * alpha * qJmp;
+
+      elvec1_n.Add(ip.weight * Tr.Weight() * Fn * nor[0], shape1_n);
+      elvec2_n.Add(ip.weight * Tr.Weight() * Fn * nor[0], shape2_n);
+      elvec1_q.Add(ip.weight * Tr.Weight() * Fq * nor[0], shape1_q);
+      elvec2_q.Add(ip.weight * Tr.Weight() * Fq * nor[0], shape2_q);
+   }
 }
 
 // Check that the state is physical - enabled in debug mode
