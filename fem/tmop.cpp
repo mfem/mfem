@@ -728,17 +728,17 @@ void TMOP_Metric_301::AssembleH(const DenseMatrix &Jpt,
    //  dW = (1/6)*[z2*dI1b + z1*dI2b], z1 = sqrt(I1b/I2b), z2 = sqrt(I2b/I1b)
    // ddW = (1/6)*[dI1b x dz2 + z2*ddI1b + dI2b x dz1 + z1*ddI2b]
    //
-   // dz1 = (1/2)*sqrt(I2b/I1b) [ (1/I2b)*dI1b + (I1b/(I2b*I2b))*dI2b ]
-   //     = (1/2)/sqrt(I1b*I2b) [ dI1b + (I1b/I2b)*dI2b ]
-   // dz2 = (1/2)/sqrt(I1b*I2b) [ (I2b/I1b)*dI1b + dI2b ]
+   // dz1 = (1/2)*sqrt(I2b/I1b) [ (1/I2b)*dI1b - (I1b/(I2b*I2b))*dI2b ]
+   //     = (1/2)/sqrt(I1b*I2b) [ dI1b - (I1b/I2b)*dI2b ]
+   // dz2 = (1/2)/sqrt(I1b*I2b) [ di2b - (I2b/I1b)*dI1b ]
    //
    // dI1b x dz2 + dI2b x dz1 =
-   //    (1/2)/sqrt(I1b*I2b) dI1b x [ (I2b/I1b)*dI1b + dI2b ] +
-   //    (1/2)/sqrt(I1b*I2b) dI2b x [ dI1b + (I1b/I2b)*dI2b ] =
-   //    (1/2)/sqrt(I1b*I2b) [sqrt(I2b/I1b)*dI1b + sqrt(I1b/I2b)*dI2b] x
-   //                        [sqrt(I2b/I1b)*dI1b + sqrt(I1b/I2b)*dI2b] =
-   //    (1/2)/sqrt(I1b*I2b) [ 6*dW x 6*dW ] =
-   //    (1/2)*(I1b*I2b)^{-3/2} (I2b*dI1b + I1b*dI2b) x (I2b*dI1b + I1b*dI2b)
+   //    (1/2)/sqrt(I1b*I2b) dI1b x [ dI2b - (I2b/I1b)*dI1b ] +
+   //    (1/2)/sqrt(I1b*I2b) dI2b x [ dI1b - (I1b/I2b)*dI2b ] =
+   //    (1/2)/sqrt(I1b*I2b) [sqrt(I1b/I2b)*dI2b - sqrt(I2b/I1b)*dI1b] x
+   //                        [sqrt(I2b/I1b)*dI1b - sqrt(I1b/I2b)*dI2b] =
+   //    (1/2)*(I1b*I2b)^{-3/2} (I1b*dI2b - I2b*dI1b) x (I2b*dI1b - I1b*dI2b)
+   //      and the last two parentheses are the same up to a sign.
    //
    // z1 = I1b/sqrt(I1b*I2b), z2 = I2b/sqrt(I1b*I2b)
 
@@ -746,12 +746,12 @@ void TMOP_Metric_301::AssembleH(const DenseMatrix &Jpt,
    ie.SetDerivativeMatrix(DS.Height(), DS.GetData());
    double d_I1b_I2b_data[9];
    DenseMatrix d_I1b_I2b(d_I1b_I2b_data, 3, 3);
-   Add(ie.Get_I2b(), ie.Get_dI1b(), ie.Get_I1b(), ie.Get_dI2b(), d_I1b_I2b);
+   Add(- ie.Get_I2b(), ie.Get_dI1b(), ie.Get_I1b(), ie.Get_dI2b(), d_I1b_I2b);
    const double I1b_I2b = ie.Get_I1b()*ie.Get_I2b();
    const double a = weight/(6*std::sqrt(I1b_I2b));
    ie.Assemble_ddI1b(a*ie.Get_I2b(), A.GetData());
    ie.Assemble_ddI2b(a*ie.Get_I1b(), A.GetData());
-   ie.Assemble_TProd(a/(2*I1b_I2b), d_I1b_I2b_data, A.GetData());
+   ie.Assemble_TProd(-a/(2*I1b_I2b), d_I1b_I2b_data, A.GetData());
 }
 
 double TMOP_Metric_302::EvalWMatrixForm(const DenseMatrix &Jpt) const

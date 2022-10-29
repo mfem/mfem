@@ -221,6 +221,8 @@ int main(int argc, char *argv[])
          if (k > 0)
          {
             double r = log2(err_old / err_k);
+            // Error is zero (2nd derivative is exact) -> put rate 2 (optimal).
+            if (err_k < 1e-14) { r = 2.0; }
             rate_sum += r;
             if (verbose)
             {
