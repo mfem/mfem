@@ -250,6 +250,7 @@ public:
         cobj->Grad(GetSol(i,fx,fy,fz),grad);
     }
 
+
     double CVar(){
         std::vector<std::tuple<double,double,int,int>> vals;
         double prob[16]={1.0, 0.01,0.01,0.01,0.01,0.01,0.01,
@@ -817,6 +818,7 @@ int main(int argc, char *argv[])
    double cpl; //compliance
    double vol; //volume
    double ivol; //intermediate volume
+   double dcpl;
 
 
    mfem::ParGridFunction solx;
@@ -875,6 +877,7 @@ int main(int argc, char *argv[])
           */
           alco->Solve();
 
+          dcpl=alco->Compliance(0,0.0,0.0,1.0);
           cpl=alco->MeanCompliance();
           cvar=alco->CVar();
           erisk=alco->EntropicRisk(100.0);
@@ -885,12 +888,13 @@ int main(int argc, char *argv[])
 
           if(myrank==0){
               std::cout<<"it: "<<i<<" obj="<<cpl<<" vol="<<vol<<" cvol="<<max_vol<<" ivol="<<ivol<<
-                      " cvar="<<cvar<<" erisk="<<erisk<<" mstd="<<meanstd<<" std="<<std<<std::endl;
+                      " cvar="<<cvar<<" erisk="<<erisk<<" mstd="<<meanstd<<" std="<<std<<" dcompl="<<dcpl<<std::endl;
           }
           //compute the gradients
           //alco->MeanCompliance(ograd);
           //alco->CVar(ograd);
-          alco->MeanSTD(ograd,0.5);
+          //alco->MeanSTD(ograd,0.5);
+          alco->GetComplianceGrad(0,0.0,0.0,1.0,ograd);
           vobj->Grad(vdens,vgrad);
           //compute the original gradients
           fsolv->MultTranspose(ograd,ogrado);
