@@ -28,6 +28,7 @@
 #else
 #include <hipsparse/hipsparse.h>
 #endif
+#endif
 
 
 namespace mfem
