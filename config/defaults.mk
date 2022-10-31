@@ -251,12 +251,16 @@ POSIX_CLOCKS_LIB = -lrt
 # SUNDIALS library configuration
 # For sundials_nvecmpiplusx and nvecparallel remember to build with MPI_ENABLE=ON
 # and modify cmake variables for hypre for sundials
-SUNDIALS_DIR    = @MFEM_DIR@/../sundials-5.0.0/instdir
-SUNDIALS_OPT    = -I$(SUNDIALS_DIR)/include
-SUNDIALS_LIBDIR = $(wildcard $(SUNDIALS_DIR)/lib*)
-SUNDIALS_LIB    = $(XLINKER)-rpath,$(SUNDIALS_LIBDIR) -L$(SUNDIALS_LIBDIR)\
+SUNDIALS_DIR = @MFEM_DIR@/../sundials-5.0.0/instdir
+# SUNDIALS >= 6.4.0 requires C++14:
+ifeq ($(MFEM_USE_SUNDIALS),YES)
+   BASE_FLAGS = -std=c++14
+endif
+SUNDIALS_OPT = -I$(SUNDIALS_DIR)/include
+SUNDIALS_LIB = $(XLINKER)-rpath,$(SUNDIALS_DIR)/lib64\
+ $(XLINKER)-rpath,$(SUNDIALS_DIR)/lib\
+ -L$(SUNDIALS_DIR)/lib64 -L$(SUNDIALS_DIR)/lib\
  -lsundials_arkode -lsundials_cvodes -lsundials_nvecserial -lsundials_kinsol
-
 ifeq ($(MFEM_USE_MPI),YES)
    SUNDIALS_LIB += -lsundials_nvecparallel -lsundials_nvecmpiplusx
 endif

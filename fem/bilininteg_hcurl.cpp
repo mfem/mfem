@@ -2710,7 +2710,7 @@ void CurlCurlIntegrator::AssembleDiagonalPA(Vector& diag)
    }
 }
 
-// Apply to x corresponding to DOF's in H^1 (trial), whose gradients are
+// Apply to x corresponding to DOFs in H^1 (trial), whose gradients are
 // integrated against H(curl) test functions corresponding to y.
 void PAHcurlH1Apply3D(const int D1D,
                       const int Q1D,
@@ -2900,7 +2900,7 @@ void PAHcurlH1Apply3D(const int D1D,
    }); // end of element loop
 }
 
-// Apply to x corresponding to DOF's in H(curl), integrated
+// Apply to x corresponding to DOFs in H(curl), integrated
 // against gradients of H^1 functions corresponding to y.
 void PAHcurlH1ApplyTranspose3D(const int D1D,
                                const int Q1D,
@@ -3099,7 +3099,7 @@ void PAHcurlH1ApplyTranspose3D(const int D1D,
    }); // end of element loop
 }
 
-// Apply to x corresponding to DOF's in H^1 (trial), whose gradients are
+// Apply to x corresponding to DOFs in H^1 (trial), whose gradients are
 // integrated against H(curl) test functions corresponding to y.
 void PAHcurlH1Apply2D(const int D1D,
                       const int Q1D,
@@ -3223,7 +3223,7 @@ void PAHcurlH1Apply2D(const int D1D,
    }); // end of element loop
 }
 
-// Apply to x corresponding to DOF's in H(curl), integrated
+// Apply to x corresponding to DOFs in H(curl), integrated
 // against gradients of H^1 functions corresponding to y.
 void PAHcurlH1ApplyTranspose2D(const int D1D,
                                const int Q1D,
@@ -3543,7 +3543,7 @@ void MixedVectorCurlIntegrator::AssemblePA(const FiniteElementSpace &trial_fes,
    }
 }
 
-// Apply to x corresponding to DOF's in H(curl) (trial), whose curl is
+// Apply to x corresponding to DOFs in H(curl) (trial), whose curl is
 // integrated against H(curl) test functions corresponding to y.
 template<int MAX_D1D = HCURL_MAX_D1D, int MAX_Q1D = HCURL_MAX_Q1D>
 static void PAHcurlL2Apply3D(const int D1D,
@@ -3906,7 +3906,7 @@ static void PAHcurlL2Apply3D(const int D1D,
    }); // end of element loop
 }
 
-// Apply to x corresponding to DOF's in H(curl) (trial), whose curl is
+// Apply to x corresponding to DOFs in H(curl) (trial), whose curl is
 // integrated against H(curl) test functions corresponding to y.
 template<int MAX_D1D = HCURL_MAX_D1D, int MAX_Q1D = HCURL_MAX_Q1D>
 static void SmemPAHcurlL2Apply3D(const int D1D,
@@ -4216,7 +4216,7 @@ static void SmemPAHcurlL2Apply3D(const int D1D,
    ForallWrap<3>(true, NE, device_kernel, host_kernel, Q1D, Q1D, Q1D);
 }
 
-// Apply to x corresponding to DOF's in H(curl) (trial), whose curl is
+// Apply to x corresponding to DOFs in H(curl) (trial), whose curl is
 // integrated against H(div) test functions corresponding to y.
 template<int MAX_D1D = HCURL_MAX_D1D, int MAX_Q1D = HCURL_MAX_Q1D>
 static void PAHcurlHdivApply3D(const int D1D,
@@ -4572,7 +4572,7 @@ static void PAHcurlHdivApply3D(const int D1D,
    }); // end of element loop
 }
 
-// Apply to x corresponding to DOF's in H(div) (test), integrated against the
+// Apply to x corresponding to DOFs in H(div) (test), integrated against the
 // curl of H(curl) trial functions corresponding to y.
 template<int MAX_D1D = HCURL_MAX_D1D, int MAX_Q1D = HCURL_MAX_Q1D>
 static void PAHcurlHdivApply3DTranspose(const int D1D,
@@ -5067,7 +5067,7 @@ void MixedVectorWeakCurlIntegrator::AssemblePA(const FiniteElementSpace
    }
 }
 
-// Apply to x corresponding to DOF's in H(curl) (trial), integrated against curl
+// Apply to x corresponding to DOFs in H(curl) (trial), integrated against curl
 // of H(curl) test functions corresponding to y.
 template<int MAX_D1D = HCURL_MAX_D1D, int MAX_Q1D = HCURL_MAX_Q1D>
 static void PAHcurlL2Apply3DTranspose(const int D1D,
