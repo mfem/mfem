@@ -76,6 +76,6 @@ TEST_CASE("GetDerivative", "[Parallel]")
    }
 }
 
-}
-
 #endif
+
+}
