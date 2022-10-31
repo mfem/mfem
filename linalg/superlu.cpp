@@ -269,7 +269,10 @@ SuperLUSolver::~SuperLUSolver()
       LUstructFree(LUstruct);
    }
 
-   dSolveFinalize(options, SOLVEstruct);
+   if ( options->SolveInitialized )
+   {
+      dSolveFinalize(options, SOLVEstruct);
+   }
 
    if (     options != NULL ) { delete options; }
    if (        stat != NULL ) { delete stat; }

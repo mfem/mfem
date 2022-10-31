@@ -656,7 +656,7 @@ public:
        transposes of the 'diag' and 'offd' CSR matrices. When HYPRE is not built
        for GPUs, this method is a no-op.
 
-       This method is automaticaly called by MultTranspose().
+       This method is automatically called by MultTranspose().
 
        If the matrix is modified the old transpose blocks can be deleted by
        calling ResetTranspose(). */
