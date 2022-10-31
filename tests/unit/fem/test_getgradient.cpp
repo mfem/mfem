@@ -148,6 +148,6 @@ TEST_CASE("GetGradient Shared Faces", "[ParGridFunction][Parallel]")
    }
 }
 
-}
-
 #endif
+
+}
