@@ -7,6 +7,10 @@
 
                                https://mfem.org
 
+This file provides a detailed description of how to build and install the MFEM
+library. For a simple build, see the step-by-step instructions on the website
+at https://mfem.org/building.
+
 The MFEM library has a serial and an MPI-based parallel version, which largely
 share the same code base. The only prerequisite for building the serial version
 of MFEM is a (modern) C++ compiler, such as g++. The parallel version of MFEM
@@ -19,7 +23,7 @@ requires an MPI C++ compiler, as well as the following external libraries:
   https://github.com/mfem/tpls
 
   Note: We recommend our mirror of metis-4.0.3/5.1.0 above because the METIS
-  webpage, https://glaros.dtc.umn.edu/gkhome/metis/metis/overview, is often down
+  webpage, http://glaros.dtc.umn.edu/gkhome/metis/metis/overview, is often down
   and we don't support yet the new repo https://github.com/KarypisLab/METIS.
 
 The hypre dependency can be downloaded as a tarball from GitHub or from the
@@ -758,12 +762,12 @@ The specific libraries and their options are:
   Options: GSLIB_OPT, GSLIB_LIB.
   Versions: GSLIB >= 1.0.7.
 
-- ALGOIM (optional), used when MFE_USE_ALGOIM=YES. The library provides only
+- ALGOIM (optional), used when MFEM_USE_ALGOIM=YES. The library provides only
   headers so it just needs to be downloaded at the same level as MFEM. Download
   the specific version we use as:
   "git clone https://github.com/algoim/algoim.git;
    git checkout 9c9ca0ef094d8ab0390ed36367a1151b459bbe0a"
-  ALGOIM depends on BLITZ and rhe library must be built prior to the MFEM build.
+  ALGOIM depends on BLITZ and the library must be built prior to the MFEM build.
   Download v1.0.2, untar it at the same level as MFEM and create a symbolic link:
   "ln -s blitz-1.0.2 blitz".
   Build Blitz using CMake as:
