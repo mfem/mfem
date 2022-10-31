@@ -348,9 +348,15 @@ public:
    void AddMult(const Vector &x, Vector &y, const double a = 1.0) const;
 
    /// Multiply a vector with the transposed matrix. y = At * x
+   /** If the matrix is modified, call ResetTranspose() and optionally
+       EnsureMultTranspose() to make sure this method uses the correct updated
+       transpose. */
    void MultTranspose(const Vector &x, Vector &y) const;
 
    /// y += At * x (default)  or  y += a * At * x
+   /** If the matrix is modified, call ResetTranspose() and optionally
+       EnsureMultTranspose() to make sure this method uses the correct updated
+       transpose. */
    void AddMultTranspose(const Vector &x, Vector &y,
                          const double a = 1.0) const;
 
@@ -362,16 +368,16 @@ public:
        MultTranspose(), and AbsMultTranspose().
 
        Warning: any changes in this matrix will invalidate the internal
-       transpose. To rebuild the transpose, call ResetTranspose() followed by a
-       call to this method. If the internal transpose is already built, this
-       method has no effect.
+       transpose. To rebuild the transpose, call ResetTranspose() followed by
+       (optionally) a call to this method. If the internal transpose is already
+       built, this method has no effect.
 
        When any non-serial-CPU backend is enabled, i.e. the call
        Device::Allows(~ Backend::CPU_MASK) returns true, the above methods
        require the internal transpose to be built. If that is not the case (i.e.
-       the internal transpose is not built), these methods will raise an error
-       with an appropriate message pointing to EnsureMultTranspose(). When using
-       any backend from Backend::CPU_MASK, calling this method is optional.
+       the internal transpose is not built), these methods will automatically
+       call EnsureMultTranspose(). When using any backend from
+       Backend::CPU_MASK, calling this method is optional.
 
        This method can only be used when the sparse matrix is finalized.
 
@@ -414,6 +420,9 @@ public:
    void AbsMult(const Vector &x, Vector &y) const;
 
    /// y = |At| * x, using entry-wise absolute values of the transpose of matrix A
+   /** If the matrix is modified, call ResetTranspose() and optionally
+       EnsureMultTranspose() to make sure this method uses the correct updated
+       transpose. */
    void AbsMultTranspose(const Vector &x, Vector &y) const;
 
    /// Compute y^t A x
