@@ -36,7 +36,7 @@
 #include <fstream>
 #include <random>
 #include "common/fpde.hpp"
-#include "../entropy/H1_box_projection.hpp"
+// #include "../entropy/H1_box_projection.hpp"
 
 using namespace std;
 using namespace mfem;
@@ -334,7 +334,7 @@ int main(int argc, char *argv[])
    // 11. Connect to GLVis. Prepare for VisIt output.
    char vishost[] = "localhost";
    int  visport   = 19916;
-   socketstream sout_u,sout_p,sout_K;
+   socketstream sout_u,sout_K;
    if (visualization)
    {
       sout_u.open(vishost, visport);
@@ -357,21 +357,21 @@ int main(int argc, char *argv[])
    // Project initial K onto constraint set.
    // GridFunctionCoefficient kgf(&K);
    // GradientGridFunctionCoefficient grad_kgf(&K);
-   BoxProjection * proj = nullptr;
-   if (BoxH1proj)
-   {
-      proj = new BoxProjection(&K,true);
-      // proj = new BoxProjection(&pmesh,order,&kgf, &grad_kgf,true);
-      proj->SetBoxBounds(K_min, K_max);
-      proj->Solve();
-      proj->SetPrintLevel(-1);
-      ExpitGridFunctionCoefficient expit_p(proj->Getp());
-      expit_p.SetBounds(K_min,K_max);
-      K.ProjectCoefficient(expit_p);
+   // BoxProjection * proj = nullptr;
+   // if (BoxH1proj)
+   // {
+   //    proj = new BoxProjection(&K,true);
+   //    // proj = new BoxProjection(&pmesh,order,&kgf, &grad_kgf,true);
+   //    proj->SetBoxBounds(K_min, K_max);
+   //    proj->Solve();
+   //    proj->SetPrintLevel(-1);
+   //    ExpitGridFunctionCoefficient expit_p(proj->Getp());
+   //    expit_p.SetBounds(K_min,K_max);
+   //    K.ProjectCoefficient(expit_p);
       
-      delete proj;
-   }
-   else
+   //    delete proj;
+   // }
+   // else
    {
       for (int i = 0; i < K.Size(); i++)
       {
@@ -459,29 +459,29 @@ int main(int argc, char *argv[])
          // K. Project onto constraint set.
          // GridFunctionCoefficient kgf1(&K);
          // GradientGridFunctionCoefficient grad_kgf1(&K);
-         BoxProjection * proj1 = nullptr;
-         if (BoxH1proj)
-         {
-            proj1 = new BoxProjection(&K,true);
-            // proj1 = new BoxProjection(&pmesh,order,&kgf, &grad_kgf,true);
-            proj1->SetNewtonStepSize(0.1);
-            proj1->SetBregmanStepSize(0.1/epsilon);
-            // proj1->SetBregmanStepSize(0.001/epsilon);
-            proj1->SetMaxInnerIterations(4);
-            proj1->SetMaxOuterIterations(10);
-            proj1->SetInnerIterationTol(1e-6);
-            proj1->SetOuterIterationTol(1e-4);
-            proj1->SetNormWeight(0.0);
-            proj1->SetDiffusionConstant(epsilon*epsilon);
-            proj1->SetPrintLevel(-1);
-            proj1->SetBoxBounds(K_min, K_max);
-            proj1->Solve();
-            ExpitGridFunctionCoefficient expit_p(proj1->Getp());
-            expit_p.SetBounds(K_min,K_max);
-            K.ProjectCoefficient(expit_p);
-            delete proj1;
-         }
-         else
+         // BoxProjection * proj1 = nullptr;
+         // if (BoxH1proj)
+         // {
+         //    proj1 = new BoxProjection(&K,true);
+         //    // proj1 = new BoxProjection(&pmesh,order,&kgf, &grad_kgf,true);
+         //    proj1->SetNewtonStepSize(0.1);
+         //    proj1->SetBregmanStepSize(0.1/epsilon);
+         //    // proj1->SetBregmanStepSize(0.001/epsilon);
+         //    proj1->SetMaxInnerIterations(4);
+         //    proj1->SetMaxOuterIterations(10);
+         //    proj1->SetInnerIterationTol(1e-6);
+         //    proj1->SetOuterIterationTol(1e-4);
+         //    proj1->SetNormWeight(0.0);
+         //    proj1->SetDiffusionConstant(epsilon*epsilon);
+         //    proj1->SetPrintLevel(-1);
+         //    proj1->SetBoxBounds(K_min, K_max);
+         //    proj1->Solve();
+         //    ExpitGridFunctionCoefficient expit_p(proj1->Getp());
+         //    expit_p.SetBounds(K_min,K_max);
+         //    K.ProjectCoefficient(expit_p);
+         //    delete proj1;
+         // }
+         // else
          {
             for (int i = 0; i < K.Size(); i++)
             {

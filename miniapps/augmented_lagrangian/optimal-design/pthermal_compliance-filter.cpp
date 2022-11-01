@@ -4,6 +4,12 @@
 // Sample runs:
 // mpirun -np 6 ./pthermal_compliance-filter -epsilon 0.01 -alpha 0.1 -beta 5.0 -r 4 -o 2
 //
+// η ∈ [0.8,0.9]
+// mpirun -np 6 ./pthermal_compliance-filter -epsilon 0.01 -alpha 0.05 -beta 10.0 -r 4 -obs 5 -no-simp -theta 0.7 -mi 50
+
+
+// mpirun -np 6 ./pthermal_compliance-filter -epsilon 0.01 -alpha 0.01 -beta 5.0 -r 5 -o 2 -bs 10 -theta 2.0 -mi 100 -mf 0.4 -no-simp  -paraview
+
 //         min J(K) = <g,u>
 //                            
 //                        Γ_1           Γ_2            Γ_1
@@ -38,6 +44,79 @@
 #include "common/fpde.hpp"
 
 bool random_seed = true;
+
+class RandomConstantCoefficient : public ConstantCoefficient
+{
+private:
+   std::default_random_engine generator;
+   std::uniform_real_distribution<double> * distribution;
+public:
+   RandomConstantCoefficient(double a=0.4, double b=0.6, int seed = 0) 
+   {
+      generator.seed(seed);
+      distribution = new std::uniform_real_distribution<double> (a,b);
+      constant = (*distribution)(generator);
+   }
+   void resample()
+   {
+      constant = (*distribution)(generator);
+   }
+};
+
+
+class SigmoidDiffusionCoefficient : public Coefficient
+{
+protected:
+   GridFunction *rho_filter; // grid function
+   Coefficient * eta;
+   double min_val;
+   double max_val;
+   double beta;
+
+public:
+   SigmoidDiffusionCoefficient(GridFunction &rho_filter_, Coefficient * eta_, 
+   double min_val_= 1e-3, double max_val_=1.0, double beta_ = 8.0)
+      : rho_filter(&rho_filter_), eta(eta_), min_val(min_val_), max_val(max_val_),beta(beta_) { }
+
+   virtual double Eval(ElementTransformation &T, const IntegrationPoint &ip)
+   {
+      double val_rho = rho_filter->GetValue(T, ip);
+      double val_eta = eta->Eval(T,ip);
+      double val = std::tanh(beta*val_eta);
+      double numer = val + std::tanh(beta*(val_rho-val_eta));
+      double denom = val + std::tanh(beta*(1.0-val_eta)); 
+      return min_val + numer/denom * (max_val - min_val);
+   }
+};
+
+class GradientSigmoidRHSCoefficient : public Coefficient
+{
+protected:
+   GridFunction *u; // grid function
+   GridFunction *rho_filter; // grid function
+   Coefficient * eta;
+   double min_val;
+   double max_val;
+   double beta;
+
+public:
+   GradientSigmoidRHSCoefficient(GridFunction &u_, GridFunction & rho_filter_, Coefficient * eta_,
+      double min_val_= 1e-3, double max_val_=1.0, double beta_ = 8.0)
+      : u(&u_), rho_filter(&rho_filter_), eta(eta_), min_val(min_val_), max_val(max_val_), 
+         beta(beta_) { }
+
+   virtual double Eval(ElementTransformation &T, const IntegrationPoint &ip)
+   {
+      T.SetIntPoint(&ip);
+      double val_rho = rho_filter->GetValue(T,ip);
+      double val_eta = eta->Eval(T,ip);
+      Vector gradu;
+      u->GetGradient(T,gradu);
+      double denom = std::tanh(beta * val_eta) + std::tanh(beta*(1.0-val_eta));
+      denom *= pow(std::cosh(beta*(val_rho-val_eta)),2);
+      return - beta/denom * (max_val - min_val) * (gradu * gradu); 
+   }
+};
 
 class DiffusionCoefficient : public Coefficient
 {
@@ -181,7 +260,8 @@ int main(int argc, char *argv[])
    double K_min = 1e-3;
    int batch_size_min = 2;
    double theta = 0.5;
-
+   bool use_simp = true;
+   bool paraview = false;
    OptionsParser args(argc, argv);
    args.AddOption(&ref_levels, "-r", "--refine",
                   "Number of times to refine the mesh uniformly.");
@@ -208,13 +288,19 @@ int main(int argc, char *argv[])
    args.AddOption(&batch_size_min, "-bs", "--batch-size",
                   "batch size for stochastic gradient descent.");     
    args.AddOption(&theta, "-theta", "--theta-sampling-ratio",
-                  "Sampling ratio theta");         
+                  "Sampling ratio theta");       
+   args.AddOption(&use_simp, "-simp", "--simp", "-no-simp",
+                  "--no-simp",
+                  "Use SIMP.");                    
    args.AddOption(&random_seed, "-rs", "--random-seed", "-no-rs",
                   "--no-random-seed",
-                  "Enable or disable GLVis visualization.");                                                     
+                  "Enable or disable random seed.");                                                     
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
+   args.AddOption(&paraview, "-paraview", "--paraview", "-no-paraview",
+                  "--no-paraview",
+                  "Enable or disable paraview export.");                  
 
    args.Parse();
    if (!args.Good())
@@ -231,6 +317,16 @@ int main(int argc, char *argv[])
       args.PrintOptions(cout);
    }
    int batch_size = batch_size_min;
+
+   ostringstream file_name;
+   file_name << "conv_order" << order << "_GD" << ".csv";
+   ofstream conv(file_name.str().c_str());
+   if (myid == 0)
+   {
+      conv << "Step,  Inner Step,    Sample Size,"
+           << " Compliance,    Mass Fraction, Norm of reduced grad" 
+           << " Lambda " << endl;
+   } 
 
    Mesh mesh = Mesh::MakeCartesian2D(7,7,mfem::Element::Type::QUADRILATERAL,true,1.0,1.0);
 
@@ -317,8 +413,7 @@ int main(int argc, char *argv[])
 
    int seed = (random_seed) ? rand()%100 + myid : myid;
    
-   RandomFunctionCoefficient load_coeff(randomload, seed);
-   PoissonSolver->SetRHSCoefficient(&load_coeff);
+   PoissonSolver->SetRHSCoefficient(&one);
    PoissonSolver->SetEssentialBoundary(ess_bdr);
    PoissonSolver->Init();
 
@@ -339,13 +434,13 @@ int main(int argc, char *argv[])
    FilterSolver->Init();
    FilterSolver->SetupFEM();
 
-   ParBilinearForm mass(&control_fes);
-   mass.AddDomainIntegrator(new InverseIntegrator(new MassIntegrator(one)));
-   mass.Assemble();
+   // ParBilinearForm mass(&control_fes);
+   // mass.AddDomainIntegrator(new InverseIntegrator(new MassIntegrator(one)));
+   // mass.Assemble();
 
-   HypreParMatrix M;
-   Array<int> empty;
-   mass.FormSystemMatrix(empty,M);
+   // HypreParMatrix M;
+   // Array<int> empty;
+   // mass.FormSystemMatrix(empty,M);
 
 
    // 9. Define the gradient function
@@ -365,35 +460,43 @@ int main(int argc, char *argv[])
    // 11. Connect to GLVis. Prepare for VisIt output.
    char vishost[] = "localhost";
    int  visport   = 19916;
-   socketstream sout_u,sout_K,sout_rho, sout_rho_filter;
+   socketstream sout_u,sout_rho, sout_rho_filter;
    if (visualization)
    {
       sout_u.open(vishost, visport);
       sout_rho.open(vishost, visport);
-      sout_K.open(vishost, visport);
       sout_rho_filter.open(vishost, visport);
       sout_u.precision(8);
       sout_rho.precision(8);
-      sout_K.precision(8);
       sout_rho_filter.precision(8);
    }
 
-   mfem::ParaViewDataCollection paraview_dc("Thermal_compliance", &pmesh);
-   paraview_dc.SetPrefixPath("ParaView");
-   paraview_dc.SetLevelsOfDetail(order);
-   paraview_dc.SetCycle(0);
-   paraview_dc.SetDataFormat(VTKFormat::BINARY);
-   paraview_dc.SetHighOrderOutput(true);
-   paraview_dc.SetTime(0.0); // set the time
-   paraview_dc.RegisterField("soln",&u);
-   paraview_dc.RegisterField("dens",&rho);
-
+   ParaViewDataCollection * paraview_dc = nullptr;
+   
+   if (paraview)
+   {
+      paraview_dc = new ParaViewDataCollection("Thermal_compliance", &pmesh);
+      paraview_dc->SetPrefixPath("ParaView");
+      paraview_dc->SetLevelsOfDetail(order);
+      paraview_dc->SetCycle(0);
+      paraview_dc->SetDataFormat(VTKFormat::BINARY);
+      paraview_dc->SetHighOrderOutput(true);
+      paraview_dc->SetTime(0.0); // set the time
+      paraview_dc->RegisterField("soln",&u);
+      paraview_dc->RegisterField("dens",&rho);
+   }
    // 12. AL iterations
    int step = 0;
-   double lambda = 0.0;
+   double lambda = -6.0;
+   // RandomConstantCoefficient eta_cf(0.4,0.6,myid);
+   RandomConstantCoefficient eta_cf(0.5,0.9,1);
+   // RandomConstantCoefficient eta_cf(0.2,0.2,1);
+   Coefficient * K_cf = nullptr;
+   Coefficient * rhs_cf = nullptr;
    for (int k = 1; k < max_it; k++)
    {
       // A. Form state equation
+      double ratio_avg = 0.0;
       for (int l = 1; l < max_it; l++)
       {
          step++;
@@ -410,41 +513,47 @@ int main(int argc, char *argv[])
          rho_filter = *FilterSolver->GetFEMSolution();
          // ------------------------------------------------------------------
          // Step 3 - State Solve
-         DiffusionCoefficient K(rho_filter,K_min, K_max);
-         ParGridFunction k_cf(&control_fes);
-         k_cf.ProjectCoefficient(K);
-         sout_K << "parallel " << num_procs << " " << myid << "\n";
-         sout_K << "solution\n" << pmesh << k_cf
-                << "window_title 'Control K'" << flush;         
 
          avg_w = 0.0;
          double avg_w_norm = 0.;
          double avg_compliance = 0.;
 
-         PoissonSolver->SetDiffusionCoefficient(&K);
          double mf = vol_form(rho)/domain_volume;
+         if (use_simp)
+         {
+            K_cf = new DiffusionCoefficient(rho_filter,K_min,K_max);
+            rhs_cf = new GradientRHSCoefficient(u,rho_filter,K_min, K_max);
+         }
+         else
+         {
+            K_cf = new SigmoidDiffusionCoefficient(rho_filter,&eta_cf,K_min,K_max,8.0);
+            rhs_cf = new GradientSigmoidRHSCoefficient(u,rho_filter,&eta_cf,K_min, K_max, 8.0);
+         }
+         PoissonSolver->SetDiffusionCoefficient(K_cf);
+         FilterSolver->SetRHSCoefficient(rhs_cf);
          for (int ib = 0; ib<batch_size; ib++)
          {
-            load_coeff.resample();
+            if (!use_simp)
+            {
+               eta_cf.resample();
+            }
             PoissonSolver->Solve();
             u = *PoissonSolver->GetFEMSolution();
-            if (myid == 0)
-            {
-               cout << "norm of u = " << u.Norml2() << endl;
-            }
+            // if (myid == 0)
+            // {
+            //    cout << "norm of u = " << u.Norml2() << endl;
+            // }
             // ------------------------------------------------------------------
             // Step 4 - Adjoint Solve
-            GradientRHSCoefficient rhs_cf(u,rho_filter,K_min, K_max);
-            FilterSolver->SetRHSCoefficient(&rhs_cf);
             FilterSolver->Solve();
             w_filter = *FilterSolver->GetFEMSolution();
             // Step 5 - get grad of w
             GridFunctionCoefficient w_cf(&w_filter);
-            ParLinearForm w_rhs(&control_fes);
-            w_rhs.AddDomainIntegrator(new DomainLFIntegrator(w_cf));
-            w_rhs.Assemble();
-            M.Mult(w_rhs,w);
-            // w.ProjectCoefficient(w_cf); // This might need to change to L2-projection
+            // ParLinearForm w_rhs(&control_fes);
+            // w_rhs.AddDomainIntegrator(new DomainLFIntegrator(w_cf));
+            // w_rhs.Assemble();
+            // M.Mult(w_rhs,w);
+            w.ProjectCoefficient(w_cf); // This might need to change to L2-projection
             // ------------------------------------------------------------------
 
             // step 6-update  ρ 
@@ -501,12 +610,36 @@ int main(int argc, char *argv[])
          if (myid == 0)
          {
             mfem::out << "ratio = " << ratio << std::endl;
+            conv << step << ",   "
+                 << l << ",   " 
+                 << batch_size << ",   " 
+                 << avg_compliance <<  ",   " 
+                 << mf << ",   "
+                 << norm_rho << ",   "
+                 << lambda << endl;
          }
          MFEM_VERIFY(IsFinite(ratio), "ratio not finite");
-         if (ratio > theta)
-         {
-            batch_size = (int)(pow(ratio / theta,2.) * batch_size); 
-         }
+         // if (l%batch_size_min!=0)
+         // {
+            // ratio_avg += ratio;
+         // }
+         // else
+         // {
+            // ratio_avg /= batch_size_min;
+            ratio_avg = ratio;
+            if (myid == 0)
+            {
+               mfem::out << "ratio_avg = " << ratio_avg << std::endl;
+            }
+            if (ratio_avg > theta && step > 5)
+            {
+               batch_size = max((int)(pow(ratio / theta,1) * batch_size),batch_size_min); 
+            }
+            else if (ratio_avg < 0.1 * theta && step > 5)
+            {
+               batch_size = max((int)(pow(ratio / theta,1) * batch_size),batch_size_min); 
+            }
+         // }
 
          if (visualization)
          {
@@ -523,11 +656,15 @@ int main(int argc, char *argv[])
             sout_rho_filter << "solution\n" << pmesh << rho_filter
                   << "window_title 'Control ρ filter '" << flush;                  
 
-            paraview_dc.SetCycle(step);
-            paraview_dc.SetTime((double)k);
-            paraview_dc.Save();
          }
-
+         if (paraview)
+         {
+            paraview_dc->SetCycle(step);
+            paraview_dc->SetTime((double)step);
+            paraview_dc->Save();
+         }
+         delete K_cf;
+         delete rhs_cf;
       }
       // λ <- λ - β (∫_Ω K dx - V⋅ vol(\Omega))
       double mass = vol_form(rho);
@@ -539,6 +676,7 @@ int main(int argc, char *argv[])
       double lambda_inc = mass/domain_volume - mass_fraction;
 
       lambda -= beta*lambda_inc;
+      // batch_size = batch_size_min;
       if (myid == 0)
       {
          mfem::out << "lambda_inc = " << lambda_inc << endl;
@@ -557,16 +695,23 @@ int main(int argc, char *argv[])
          sout_rho << "solution\n" << pmesh << rho
                 << "window_title 'Control ρ '" << flush;
      
-
-         paraview_dc.SetCycle(step);
-         paraview_dc.SetTime((double)k);
-         paraview_dc.Save();
+      }
+      if (paraview)
+      {
+         paraview_dc->SetCycle(step);
+         paraview_dc->SetTime((double)step);
+         paraview_dc->Save();
       }
 
       if (abs(lambda_inc) < tol_lambda)
       {
          break;
       }
+   }
+
+   if (paraview)
+   {
+      delete paraview_dc;
    }
 
    return 0;
