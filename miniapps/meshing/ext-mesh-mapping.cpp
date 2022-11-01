@@ -13,14 +13,14 @@
 //                       External Mesh Mapping Miniapp
 //             ---------------------------------------------------
 //
-// This miniapp starts with a serial non-conforming mesh in a dummy format and demonstrates 
-// how to build up a corresponding non-conforming MFEM Mesh and then decompose it 
-// into a parallel ParMesh.  As part of this process we will demonstrate how to obtain 
-// and compose the vertex ID mappings from the various steps that can shuffle the 
-// vertices.  In the end this will let us map between the vertex ID numbers in the 
+// This miniapp starts with a serial non-conforming mesh in a dummy format and demonstrates
+// how to build up a corresponding non-conforming MFEM Mesh and then decompose it
+// into a parallel ParMesh.  As part of this process we will demonstrate how to obtain
+// and compose the vertex ID mappings from the various steps that can shuffle the
+// vertices.  In the end this will let us map between the vertex ID numbers in the
 // external dummy mesh and the parallel non-conforming mesh constructed in MFEM.  This
 // is the sort of thing you will have to do if you intend to add MFEM meshes to an existing
-// simulation code and need them to exist and share data with other kinds of meshes in that 
+// simulation code and need them to exist and share data with other kinds of meshes in that
 // code.  If you are starting a new MFEM code, it makes much more sense to do everything with
 // MFEM meshes.
 //
@@ -34,8 +34,10 @@
 using namespace mfem;
 
 Mesh *build_mfem_mesh(DummyMesh *dmesh);
-void create_pmesh_to_mesh_emaps(Array<int> &partition, ParMesh *pmesh, Array<int> &emap);
-void create_pmesh_to_mesh_vmaps(ParMesh *pmesh, Mesh *mesh, Array<int> &emap, Array<int> &vmap);
+void create_pmesh_to_mesh_emaps(Array<int> &partition, ParMesh *pmesh,
+                                Array<int> &emap);
+void create_pmesh_to_mesh_vmaps(ParMesh *pmesh, Mesh *mesh, Array<int> &emap,
+                                Array<int> &vmap);
 
 void print_dmesh_verts(DummyMesh *dmesh);
 void print_mesh_verts(Mesh *mesh, const Array<int> &vmap = Array<int>());
@@ -56,7 +58,8 @@ int main(int argc, char *argv[])
    Array<int> mesh_to_dmesh_vmap;
    const Array<int> vmap = mesh->ncmesh->GetVertexIDMap();
    mesh_to_dmesh_vmap = vmap;
-   print_mesh_verts(mesh, mesh_to_dmesh_vmap);     //Print the vertices reordered using the vmap
+   print_mesh_verts(mesh,
+                    mesh_to_dmesh_vmap);     //Print the vertices reordered using the vmap
 
    //Now enable parallel, given the following partition of the elements.
    //Note that we only have local vertex ids in the pmesh object.
@@ -82,19 +85,20 @@ int main(int argc, char *argv[])
    {
       final_vmap[local_vi] = mesh_to_dmesh_vmap[pmesh_to_mesh_vmap[local_vi]];
    }
-   print_pmesh_verts(pmesh, final_vmap);           //Print the vertices with global IDs from the final_vmap
+   print_pmesh_verts(pmesh,
+                     final_vmap);           //Print the vertices with global IDs from the final_vmap
 }
 
-// Build up an MFEM Mesh from the data in the Dummy Mesh.  Since we are 
+// Build up an MFEM Mesh from the data in the Dummy Mesh.  Since we are
 // building the vertex and element lists in the same order as we found them
 // in the dmesh, the element id and vertex id mappings will be the identity maps.
 Mesh *build_mfem_mesh(DummyMesh *dmesh)
 {
    //Initilize the the dimension and memory for the mesh
    Mesh *mesh = new Mesh(2,    // The dimension of the mesh
-                         dmesh->num_vertices, 
-                         dmesh->num_elements, 
-                         dmesh->num_belements, 
+                         dmesh->num_vertices,
+                         dmesh->num_elements,
+                         dmesh->num_belements,
                          2    // The dimension of the space the mesh lives in (different for surface meshes)
                         );
 
@@ -133,7 +137,8 @@ Mesh *build_mfem_mesh(DummyMesh *dmesh)
    //Finally add vertex parents to mark element 0 for anisotropic refinement
    for (int vpi = 0; vpi < dmesh->num_vparents; ++vpi)
    {
-      mesh->AddVertexParents(std::get<0>(dmesh->VP[vpi]),std::get<1>(dmesh->VP[vpi]),std::get<2>(dmesh->VP[vpi]));
+      mesh->AddVertexParents(std::get<0>(dmesh->VP[vpi]),std::get<1>(dmesh->VP[vpi]),
+                             std::get<2>(dmesh->VP[vpi]));
    }
 
    //This will make the mesh usable
@@ -145,7 +150,8 @@ Mesh *build_mfem_mesh(DummyMesh *dmesh)
 
 // We can use the partition array to compute the mapping between the local
 // element ids on each processor in pmesh and the global element ids in mesh.
-void create_pmesh_to_mesh_emaps(Array<int> &partition, ParMesh *pmesh, Array<int> &emap)
+void create_pmesh_to_mesh_emaps(Array<int> &partition, ParMesh *pmesh,
+                                Array<int> &emap)
 {
    int my_rank = Mpi::WorldRank();
    emap.SetSize(pmesh->GetNE());
@@ -159,14 +165,15 @@ void create_pmesh_to_mesh_emaps(Array<int> &partition, ParMesh *pmesh, Array<int
       local_eid++;
       it++;
       it = std::find(it, partition.end(), my_rank);
-   }   
+   }
 }
 
 
 // We can use the local elements with local vertex ids defined in pmesh and the global
-// elements defined with global vertex ids in mesh to define a mapping from the 
-// local vertex ids on each processor to their global vertex id numbers. 
-void create_pmesh_to_mesh_vmaps(ParMesh *pmesh, Mesh *mesh, Array<int> &emap, Array<int> &vmap)
+// elements defined with global vertex ids in mesh to define a mapping from the
+// local vertex ids on each processor to their global vertex id numbers.
+void create_pmesh_to_mesh_vmaps(ParMesh *pmesh, Mesh *mesh, Array<int> &emap,
+                                Array<int> &vmap)
 {
    vmap.SetSize(pmesh->GetNV());
    for (int local_eid = 0; local_eid < pmesh->GetNE(); ++local_eid)
@@ -195,12 +202,13 @@ void print_dmesh_verts(DummyMesh *dmesh)
       std::cout << "|  1  |     |" << std::endl;
       std::cout << "9----10  2  |" << std::endl;
       std::cout << "|  0  |     |" << std::endl;
-      std::cout << "0-----1-----2" << std::endl;      
+      std::cout << "0-----1-----2" << std::endl;
 
       std::cout << "DummyMesh vertices:  "  << std::endl;
       for (int vid = 0; vid < dmesh->num_vertices; ++vid)
       {
-         std::cout << vid << ":  " << dmesh->V[vid].x << ", " << dmesh->V[vid].y << std::endl;
+         std::cout << vid << ":  " << dmesh->V[vid].x << ", " << dmesh->V[vid].y <<
+                   std::endl;
       }
       std::cout << std::endl;
    }
@@ -222,7 +230,7 @@ void print_mesh_verts(Mesh *mesh, const Array<int> &vmap)
          std::cout << vid << ":  " <<  vertex[0] << ", " << vertex[1] << std::endl;
       }
       std::cout << std::endl;
-   }   
+   }
 }
 
 
@@ -264,21 +272,24 @@ void print_pmesh_verts(ParMesh *pmesh, const Array<int> &vmap)
       if (vmap.Size() > 0)
       {
          std::cout << "(Remapped vertex ids)" << std::endl;
-      }      
+      }
 
       for (int p = 0; p < num_rank; ++p)
       {
          if (p != 0)
          {
             MPI_Status status;
-            MPI_Recv(id_data.GetData(), num_verts[p], MPI_INTEGER, p, 0, MPI_COMM_WORLD, &status);
-            MPI_Recv(x_data.GetData(), num_verts[p], MPI_DOUBLE, p, 1, MPI_COMM_WORLD, &status);
-            MPI_Recv(y_data.GetData(), num_verts[p], MPI_DOUBLE, p, 2, MPI_COMM_WORLD, &status);
+            MPI_Recv(id_data.GetData(), num_verts[p], MPI_INTEGER, p, 0, MPI_COMM_WORLD,
+                     &status);
+            MPI_Recv(x_data.GetData(), num_verts[p], MPI_DOUBLE, p, 1, MPI_COMM_WORLD,
+                     &status);
+            MPI_Recv(y_data.GetData(), num_verts[p], MPI_DOUBLE, p, 2, MPI_COMM_WORLD,
+                     &status);
          }
 
          for (int vid = 0; vid < num_verts[p]; ++vid)
          {
-            std::cout << "rank (" << p << ") id (" << id_data[vid] << "):  " 
+            std::cout << "rank (" << p << ") id (" << id_data[vid] << "):  "
                       << x_data[vid]  << ", " << y_data[vid] << std::endl;
          }
       }

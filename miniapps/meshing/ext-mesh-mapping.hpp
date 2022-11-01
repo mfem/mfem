@@ -28,7 +28,7 @@ class DummyMesh
 {
    class Vertex
    {
-      public:
+   public:
       Vertex(): x(0.0), y(0.0) {}
 
       void Set(double x_, double y_)
@@ -43,7 +43,7 @@ class DummyMesh
 
    class Element
    {
-      public:
+   public:
       Element() {}
 
       void Set(int id0, int id1, int id2, int id3)
@@ -58,7 +58,7 @@ class DummyMesh
 
    class BElement
    {
-      public:
+   public:
       BElement() {}
 
       void Set(int id0, int id1)
@@ -70,8 +70,9 @@ class DummyMesh
       std::array<int,2> vertex_ids;
    };
 
-   public:
-   DummyMesh() : num_vertices(11), num_elements(5), num_belements(9), num_vparents(2)
+public:
+   DummyMesh() : num_vertices(11), num_elements(5), num_belements(9),
+      num_vparents(2)
    {
       //Vertices
       V[6].Set(0.0, 2.0);  V[7].Set(1.0, 2.0);  V[8].Set(2.0, 2.0);
@@ -79,7 +80,7 @@ class DummyMesh
       V[0].Set(0.0, 0.0);  V[1].Set(1.0, 0.0);  V[2].Set(2.0, 0.0);
 
       V[9].Set(0.0, 0.5);  V[10].Set(1.0, 0.5);
-      
+
       // Elements in this dummy format have their vertex indices listed
       // lexographic order rather than going around the element as is normal
       // in MFEM.
