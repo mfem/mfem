@@ -1,43 +1,16 @@
-//                       MFEM Example 18 - Parallel Version
 //
-// Compile with: make ex18
+// This code is designed to test MFEM's implementation of a simple system of
+// advective equations. It is a modified version of example 18.
 //
-// Sample runs:
+// Automatic time step computation is not currently selecting stable
+// time steps.
 //
-//       mpirun -np 4 ex18p -p 1 -rs 2 -rp 1 -o 1 -s 3
-//       mpirun -np 4 ex18p -p 1 -rs 1 -rp 1 -o 3 -s 4
-//       mpirun -np 4 ex18p -p 1 -rs 1 -rp 1 -o 5 -s 6
-//       mpirun -np 4 ex18p -p 2 -rs 1 -rp 1 -o 1 -s 3
-//       mpirun -np 4 ex18p -p 2 -rs 1 -rp 1 -o 3 -s 3
+// Periodic test:
+//  ./linear_hyp_1d -m ../../data/periodic-segment.mesh -dt 1e-4
 //
-// Description:  This example code solves the compressible Euler system of
-//               equations, a model nonlinear hyperbolic PDE, with a
-//               discontinuous Galerkin (DG) formulation.
+// Boundary condition test (currently failing):
+// ./linear_hyp_1d -m ../../data/inline-segment.mesh -dt 1e-4
 //
-//               Specifically, it solves for an exact solution of the equations
-//               whereby a vortex is transported by a uniform flow. Since all
-//               boundaries are periodic here, the method's accuracy can be
-//               assessed by measuring the difference between the solution and
-//               the initial condition at a later time when the vortex returns
-//               to its initial location.
-//
-//               Note that as the order of the spatial discretization increases,
-//               the timestep must become smaller. This example currently uses a
-//               simple estimate derived by Cockburn and Shu for the 1D RKDG
-//               method. An additional factor can be tuned by passing the --cfl
-//               (or -c shorter) flag.
-//
-//               The example demonstrates user-defined bilinear and nonlinear
-//               form integrators for systems of equations that are defined with
-//               block vectors, and how these are used with an operator for
-//               explicit time integrators. In this case the system also
-//               involves an external approximate Riemann solver for the DG
-//               interface flux. It also demonstrates how to use GLVis for
-//               in-situ visualization of vector grid functions.
-//
-//               We recommend viewing examples 9, 14 and 17 before viewing this
-//               example.
-
 #include "mfem.hpp"
 #include <fstream>
 #include <sstream>
@@ -51,15 +24,82 @@ int problem;
 
 // Equation constant parameters.
 const int num_equation = 2;
-//const double specific_heat_ratio = 1.4;
-//const double gas_constant = 1.0;
 
 // Maximum characteristic speed (updated by integrators)
 double max_char_speed;
 
-// Classes FE_Evolution, RiemannSolver, and FaceIntegrator
-// shared between the serial and parallel version of the example.
-//#include "ex18.hpp"
+// Exact solution starts as a constant in `n` and a Gaussian in
+// `q`. The time-dependent solution consists of Gaussians moving to
+// the left and right in both `n` and `q`.
+class ExactNCoef : public Coefficient
+{
+private:
+   mutable Vector x_;
+
+public:
+   ExactNCoef() : x_(1) {}
+
+   double Eval(ElementTransformation &T,
+               const IntegrationPoint &ip)
+   {
+      T.Transform(ip, x_);
+
+      const double a = 50.0;
+      double xp = x_[0] - 0.5 - time;
+      double xm = x_[0] - 0.5 + time;
+      return 1.0 + 0.5 * (exp(-a * xp * xp) - exp(-a * xm * xm));
+   }
+};
+
+class ExactQCoef : public Coefficient
+{
+private:
+   mutable Vector x_;
+
+public:
+   ExactQCoef() : x_(1) {}
+
+   double Eval(ElementTransformation &T,
+               const IntegrationPoint &ip)
+   {
+      T.Transform(ip, x_);
+
+      const double a = 50.0;
+      double xp = x_[0] - 0.5 - time;
+      double xm = x_[0] - 0.5 + time;
+      return 0.5 * (exp(-a * xp * xp) + exp(-a * xm * xm));
+   }
+};
+
+class ExactNQCoef : public VectorCoefficient
+{
+private:
+   mutable Vector x_;
+
+public:
+   ExactNQCoef() : VectorCoefficient(2), x_(1) {}
+
+   void Eval(Vector &nq, ElementTransformation &T,
+             const IntegrationPoint &ip)
+   {
+      nq.SetSize(2);
+
+      T.Transform(ip, x_);
+
+      const double a = 50.0;
+      double xp = x_[0] - 0.5 - time;
+      double xm = x_[0] - 0.5 + time;
+
+      double ep = exp(-a * xp * xp);
+      double em = exp(-a * xm * xm);
+
+      nq[0] = 1.0 + 0.5 * (ep - em);
+      nq[1] = 0.5 * (ep + em);
+   }
+
+   virtual void Project(QuadratureFunction &qf) {}
+};
+
 
 // Time-dependent operator for the right-hand side of the ODE representing the
 // DG weak form.
@@ -72,16 +112,17 @@ private:
    ParBlockNonlinearForm &A;
    DenseTensor Me_inv;
 
+   ParLinearForm & src;
+
    mutable Vector state;
    mutable DenseMatrix f;
    mutable DenseTensor flux;
    mutable Vector z;
 
-   void GetFlux(const DenseMatrix &state_, DenseTensor &flux_) const;
-
 public:
    FE_Evolution(FiniteElementSpace &vfes_,
-                ParBlockNonlinearForm &A_);
+                ParBlockNonlinearForm &A_,
+                ParLinearForm & src_);
 
    virtual void Mult(const Vector &x, Vector &y) const;
 
@@ -89,6 +130,7 @@ public:
 };
 
 // Implements a simple Rusanov flux
+// (left-over from example 18 but not used here)
 class RiemannSolver
 {
 private:
@@ -101,76 +143,81 @@ public:
                const Vector &nor, Vector &flux);
 };
 
-// Interior face term: <F.n(u),[w]>
-class FaceIntegrator : public NonlinearFormIntegrator
-{
-private:
-   RiemannSolver rsolver;
-   Vector shape1;
-   Vector shape2;
-   Vector funval1;
-   Vector funval2;
-   Vector nor;
-   Vector fluxN;
-
-public:
-   FaceIntegrator(RiemannSolver &rsolver_, const int dim);
-
-   virtual void AssembleFaceVector(const FiniteElement &el1,
-                                   const FiniteElement &el2,
-                                   FaceElementTransformations &Tr,
-                                   const Vector &elfun, Vector &elvect);
-};
-
+// A custom implementation of the MFEM class. This is a temporary
+// work-around because the MFEM class does not support DG in
+// parallel. This class has the same limitation but at least it will
+// run in serial whereas the MFEM implentation will not.
 class MyParBlockNonlinearForm : public ParBlockNonlinearForm
 {
 protected:
    mutable Array<ParGridFunction*> X, Y;
-  
+
 public:
-  MyParBlockNonlinearForm(Array<ParFiniteElementSpace *> &pf);
+   MyParBlockNonlinearForm(Array<ParFiniteElementSpace *> &pf);
 
    void Mult(const Vector &x, Vector &y) const;
 };
 
+// Custom integrators defining our linear hyperbolic test problem
 class LinearHyp1DIntegrator : public BlockNonlinearFormIntegrator
 {
 protected:
 
-  Vector nor;
-  Vector shape_n, shape_q;
-  DenseMatrix dshape_n, dshape_q;
-  Vector shape1_n, shape2_n, shape1_q, shape2_q;
-  
+   Vector nor;
+   Vector shape_n, shape_q;
+   DenseMatrix dshape_n, dshape_q;
+   Vector shape1_n, shape2_n, shape1_q, shape2_q;
+
 public:
-  LinearHyp1DIntegrator() {}
+   LinearHyp1DIntegrator() {}
 
-  void AssembleElementVector(const Array<const FiniteElement *> &el,
-			     ElementTransformation &Tr,
-			     const Array<const Vector *> &elfun,
-			     const Array<Vector *> &elvec);
+   void AssembleElementVector(const Array<const FiniteElement *> &el,
+                              ElementTransformation &Tr,
+                              const Array<const Vector *> &elfun,
+                              const Array<Vector *> &elvec);
 
-  void AssembleFaceVector(const Array<const FiniteElement *> &el1,
-			  const Array<const FiniteElement *> &el2,
-			  FaceElementTransformations &Tr,
-			  const Array<const Vector *> &elfun,
-			  const Array<Vector *> &elvect);
+   void AssembleFaceVector(const Array<const FiniteElement *> &el1,
+                           const Array<const FiniteElement *> &el2,
+                           FaceElementTransformations &Tr,
+                           const Array<const Vector *> &elfun,
+                           const Array<Vector *> &elvect);
 };
 
-//class LinearHypFaceIntegrator : public BlockNonlinearformIntegrator
-//{};
+// Custom integrator for implementing the boundary condition (and
+// potentially source terms)
+class LinearHyp1DBdrIntegrator : public LinearFormIntegrator
+{
+private:
+   VectorCoefficient &nqCoef;
+
+   Vector nor, nq;
+   Vector shape_n, shape_q;
+
+public:
+   LinearHyp1DBdrIntegrator(VectorCoefficient &nqCoef_)
+      : nqCoef(nqCoef_), nq(2) {}
+
+   virtual void AssembleRHSElementVect(const FiniteElement &el,
+                                       ElementTransformation &Tr,
+                                       Vector &elvect);
+
+   virtual void AssembleRHSElementVect(const FiniteElement &el,
+                                       FaceElementTransformations &Tr,
+                                       Vector &elvect);
+
+};
 
 // Implementation of class FE_Evolution
 FE_Evolution::FE_Evolution(FiniteElementSpace &vfes_,
-			   ParBlockNonlinearForm &A_)
+                           ParBlockNonlinearForm &A_,
+                           ParLinearForm & src_)
    : TimeDependentOperator(A_.Height()),
      dim(vfes_.GetFE(0)->GetDim()),
      vfes(vfes_),
      A(A_),
      Me_inv(vfes.GetFE(0)->GetDof(), vfes.GetFE(0)->GetDof(), vfes.GetNE()),
+     src(src_),
      state(num_equation),
-     // f(num_equation, dim),
-     // flux(A_.ParFESpace(0)->GetNDofs(), dim, num_equation),
      z(A.Height())
 {
    // Standard local assembly and inversion for energy mass matrices.
@@ -188,29 +235,18 @@ FE_Evolution::FE_Evolution(FiniteElementSpace &vfes_,
 
 void FE_Evolution::Mult(const Vector &x, Vector &y) const
 {
-   // 0. Reset wavespeed computation before operator application.
+   // Reset wavespeed computation before operator application.
    max_char_speed = 0.;
 
-   // 1. Create the vector z with the face terms -<F.n(u), [w]>.
+   // Create the vector z with the face terms -<F.n(u), [w]>.
    A.Mult(x, z);
 
-   // 2. Add the element terms.
-   // i.  computing the flux approximately as a grid function by interpolating
-   //     at the solution nodes.
-   // ii. multiplying this grid function by a (constant) mixed bilinear form for
-   //     each of the num_equation, computing (F(u), grad(w)) for each equation.
-   /*
-   DenseMatrix xmat(x.GetData(), vfes.GetNDofs(), num_equation);
-   GetFlux(xmat, flux);
+   // Add source terms
+   src = 0.0;
+   src.Assemble();
+   z.Add(1.0, src);
 
-   for (int k = 0; k < num_equation; k++)
-   {
-      Vector fk(flux(k).GetData(), dim * vfes.GetNDofs());
-      Vector zk(z.GetData() + k * vfes.GetNDofs(), vfes.GetNDofs());
-      Aflux.AddMult(fk, zk);
-   }
-   */
-   // 3. Multiply element-wise by the inverse mass matrices.
+   // Multiply element-wise by the inverse mass matrices.
    Vector zval;
    Array<int> vdofs;
    const int dof = vfes.GetFE(0)->GetDof();
@@ -227,232 +263,24 @@ void FE_Evolution::Mult(const Vector &x, Vector &y) const
    }
 }
 
-// Physicality check (at end)
-//bool StateIsPhysical(const Vector &state, const int dim);
-
-// Pressure (EOS) computation
-/*
-inline double ComputePressure(const Vector &state, int dim)
-{
-   const double den = state(0);
-   const Vector den_vel(state.GetData() + 1, dim);
-   const double den_energy = state(1 + dim);
-
-   double den_vel2 = 0;
-   for (int d = 0; d < dim; d++) { den_vel2 += den_vel(d) * den_vel(d); }
-   den_vel2 /= den;
-
-   return (specific_heat_ratio - 1.0) * (den_energy - 0.5 * den_vel2);
-}
-*/
-
-// Compute the vector flux F(u)
-void ComputeFlux(const Vector &state, int dim, DenseMatrix &flux)
-{
-   const double n = state(0);
-   const double q = state(1);
-
-   flux(0, 0) = q;
-   flux(1, 0) = n;
-
-   for (int d = 1; d < dim; d++)
-   {
-      flux(0, d) = 0.0;
-      flux(1, d) = 0.0;
-   }
-}
-
-// Compute the scalar F(u).n
-void ComputeFluxDotN(const Vector &state, const Vector &nor,
-                     Vector &fluxN)
-{
-   // NOTE: nor in general is not a unit normal
-   const int dim = nor.Size();
-   const double n = state(0);
-   const double q = state(1);
-
-   Vector b(dim); b = 0.0; b(0) = 1.0;
-   
-   double bN = 0;
-   for (int d = 0; d < dim; d++) { bN += b(d) * nor(d); }
-
-   fluxN(0) = q * bN;
-   fluxN(1) = n * bN;
-}
-
 // Compute the maximum characteristic speed.
 inline double ComputeMaxCharSpeed(const Vector &state, const int dim)
 {
    return 1.0;
 }
 
-// Compute the flux at solution nodes.
-void FE_Evolution::GetFlux(const DenseMatrix &x_, DenseTensor &flux_) const
+MyParBlockNonlinearForm::MyParBlockNonlinearForm(Array<ParFiniteElementSpace *>
+                                                 &pf)
+   : ParBlockNonlinearForm(pf), X(pf.Size()), Y(pf.Size())
 {
-   const int flux_dof = flux_.SizeI();
-   const int flux_dim = flux_.SizeJ();
-
-   for (int i = 0; i < flux_dof; i++)
+   for (int s=0; s<pf.Size(); s++)
    {
-      for (int k = 0; k < num_equation; k++) { state(k) = x_(i, k); }
-      ComputeFlux(state, flux_dim, f);
-
-      for (int d = 0; d < flux_dim; d++)
-      {
-         for (int k = 0; k < num_equation; k++)
-         {
-            flux_(i, d, k) = f(k, d);
-         }
-      }
-
-      // Update max char speed
-      const double mcs = ComputeMaxCharSpeed(state, flux_dim);
-      if (mcs > max_char_speed) { max_char_speed = mcs; }
-   }
-}
-
-// Implementation of class RiemannSolver
-RiemannSolver::RiemannSolver() :
-   flux1(num_equation),
-   flux2(num_equation) { }
-
-double RiemannSolver::Eval(const Vector &state1, const Vector &state2,
-                           const Vector &nor, Vector &flux)
-{
-   // NOTE: nor in general is not a unit normal
-   const int dim = nor.Size();
-
-   // MFEM_ASSERT(StateIsPhysical(state1, dim), "");
-   // MFEM_ASSERT(StateIsPhysical(state2, dim), "");
-
-   const double maxE1 = ComputeMaxCharSpeed(state1, dim);
-   const double maxE2 = ComputeMaxCharSpeed(state2, dim);
-
-   const double maxE = max(maxE1, maxE2);
-
-   ComputeFluxDotN(state1, nor, flux1);
-   ComputeFluxDotN(state2, nor, flux2);
-
-   double normag = 0;
-   for (int i = 0; i < dim; i++)
-   {
-      normag += nor(i) * nor(i);
-   }
-   normag = sqrt(normag);
-
-   for (int i = 0; i < num_equation; i++)
-   {
-      flux(i) = 0.5 * (flux1(i) + flux2(i))
-                - 0.5 * maxE * (state2(i) - state1(i)) * normag;
-   }
-
-   return maxE;
-}
-
-// Implementation of class FaceIntegrator
-FaceIntegrator::FaceIntegrator(RiemannSolver &rsolver_, const int dim) :
-   rsolver(rsolver_),
-   funval1(num_equation),
-   funval2(num_equation),
-   nor(dim),
-   fluxN(num_equation) { }
-
-void FaceIntegrator::AssembleFaceVector(const FiniteElement &el1,
-                                        const FiniteElement &el2,
-                                        FaceElementTransformations &Tr,
-                                        const Vector &elfun, Vector &elvect)
-{
-   int dim = el1.GetDim();
-  
-   // Compute the term <F.n(u),[w]> on the interior faces.
-   const int dof1 = el1.GetDof();
-   const int dof2 = el2.GetDof();
-
-   shape1.SetSize(dof1);
-   shape2.SetSize(dof2);
-
-   elvect.SetSize((dof1 + dof2) * num_equation);
-   elvect = 0.0;
-
-   DenseMatrix elfun1_mat(elfun.GetData(), dof1, num_equation);
-   DenseMatrix elfun2_mat(elfun.GetData() + dof1 * num_equation, dof2,
-                          num_equation);
-
-   DenseMatrix elvect1_mat(elvect.GetData(), dof1, num_equation);
-   DenseMatrix elvect2_mat(elvect.GetData() + dof1 * num_equation, dof2,
-                           num_equation);
-
-   // Integration order calculation from DGTraceIntegrator
-   int intorder;
-   if (Tr.Elem2No >= 0)
-      intorder = (min(Tr.Elem1->OrderW(), Tr.Elem2->OrderW()) +
-                  2*max(el1.GetOrder(), el2.GetOrder()));
-   else
-   {
-      intorder = Tr.Elem1->OrderW() + 2*el1.GetOrder();
-   }
-   if (el1.Space() == FunctionSpace::Pk)
-   {
-      intorder++;
-   }
-   const IntegrationRule *ir = &IntRules.Get(Tr.GetGeometryType(), intorder);
-
-   for (int i = 0; i < ir->GetNPoints(); i++)
-   {
-      const IntegrationPoint &ip = ir->IntPoint(i);
-
-      Tr.SetAllIntPoints(&ip); // set face and element int. points
-
-      const IntegrationPoint &eip1 = Tr.GetElement1IntPoint();
-      
-      // Calculate basis functions on both elements at the face
-      el1.CalcShape(Tr.GetElement1IntPoint(), shape1);
-      el2.CalcShape(Tr.GetElement2IntPoint(), shape2);
-
-      // Interpolate elfun at the point
-      elfun1_mat.MultTranspose(shape1, funval1);
-      elfun2_mat.MultTranspose(shape2, funval2);
-
-      // Get the normal vector and the flux on the face
-      if (dim == 1)
-      {
-         nor(0) = 2*eip1.x - 1.0;
-      }
-      else
-      {
-	CalcOrtho(Tr.Jacobian(), nor);
-      }
-      const double mcs = rsolver.Eval(funval1, funval2, nor, fluxN);
-
-      // Update max char speed
-      if (mcs > max_char_speed) { max_char_speed = mcs; }
-
-      fluxN *= ip.weight;
-      for (int k = 0; k < num_equation; k++)
-      {
-         for (int s = 0; s < dof1; s++)
-         {
-            elvect1_mat(s, k) -= fluxN(k) * shape1(s);
-         }
-         for (int s = 0; s < dof2; s++)
-         {
-            elvect2_mat(s, k) += fluxN(k) * shape2(s);
-         }
-      }
-   }
-}
-
-MyParBlockNonlinearForm::MyParBlockNonlinearForm(Array<ParFiniteElementSpace *> &pf)
-  : ParBlockNonlinearForm(pf), X(pf.Size()), Y(pf.Size())
-{
-  for (int s=0; s<pf.Size(); s++)
-    {
       X[s] = new ParGridFunction;
       Y[s] = new ParGridFunction;
 
       X[s]->MakeRef(pf[s], NULL);
       Y[s]->MakeRef(pf[s], NULL);
-    }
+   }
 }
 
 void MyParBlockNonlinearForm::Mult(const Vector &x, Vector &y) const
@@ -480,68 +308,63 @@ void MyParBlockNonlinearForm::Mult(const Vector &x, Vector &y) const
       // MFEM_ABORT("TODO: assemble contributions from shared face terms");
 
       // MFEM_VERIFY(!NonlinearForm::ext, "Not implemented (extensions + faces");
-     cout << 0 << endl;
       // Terms over shared interior faces in parallel.
 
       FaceElementTransformations *tr;
-      //const FiniteElement *fe1, *fe2;
       Array<const FiniteElement*> fe1(fes.Size());
       Array<const FiniteElement*> fe2(fes.Size());
-      
+
       Array<Array<int> *> vdofs1(fes.Size());
       Array<Array<int> *> vdofs2(fes.Size());
       Array<Vector*> el_x(fes.Size()), el_y(fes.Size());
-     cout << 1 << endl;
+
       for (int i=0; i<fes.Size(); ++i)
       {
-	el_x[i] = new Vector();
-	el_y[i] = new Vector();
-	vdofs1[i] = new Array<int>;
-	vdofs2[i] = new Array<int>;
+         el_x[i] = new Vector();
+         el_y[i] = new Vector();
+         vdofs1[i] = new Array<int>;
+         vdofs2[i] = new Array<int>;
       }
-     cout << 2 << endl;
+
       aux1.HostReadWrite();
-           cout << 3 << endl;
+
       for (int i=0; i<fes.Size(); ++i)
       {
-	cout << X[i] << endl;
-	X[i]->MakeRef(aux1.GetBlock(i), 0); // aux1 contains P.x
-           cout << "3a" << endl;
-	   X[i]->ExchangeFaceNbrData();
-           cout << "3b" << endl;
-	Y[i]->MakeRef(aux2.GetBlock(i), 0); // aux2 contains P.y
+         X[i]->MakeRef(aux1.GetBlock(i), 0); // aux1 contains P.x
+         X[i]->ExchangeFaceNbrData();
+
+         Y[i]->MakeRef(aux2.GetBlock(i), 0); // aux2 contains P.y
       }
-      cout << 4 << endl;
+
       for (int i = 0; i < n_shared_faces; i++)
       {
-	 tr = pmesh->GetSharedFaceTransformations(i, true);
-	 int Elem2NbrNo = tr->Elem2No - pmesh->GetNE();
+         tr = pmesh->GetSharedFaceTransformations(i, true);
+         int Elem2NbrNo = tr->Elem2No - pmesh->GetNE();
 
-	 for (int s=0; s<fes.Size(); s++)
-	 {
- 	    fe1[s] = ParFESpace(s)->GetFE(tr->Elem1No);
-	    fe2[s] = ParFESpace(s)->GetFaceNbrFE(Elem2NbrNo);
+         for (int s=0; s<fes.Size(); s++)
+         {
+            fe1[s] = ParFESpace(s)->GetFE(tr->Elem1No);
+            fe2[s] = ParFESpace(s)->GetFaceNbrFE(Elem2NbrNo);
 
-	    ParFESpace(s)->GetElementVDofs(tr->Elem1No, *vdofs1[s]);
-	    ParFESpace(s)->GetFaceNbrElementVDofs(Elem2NbrNo, *vdofs2[s]);
+            ParFESpace(s)->GetElementVDofs(tr->Elem1No, *vdofs1[s]);
+            ParFESpace(s)->GetFaceNbrElementVDofs(Elem2NbrNo, *vdofs2[s]);
 
-	    el_x[s]->SetSize(vdofs1[s]->Size() + vdofs2[s]->Size());
-	    // el_y[s]->SetSize(vdofs1[s]->Size() + vdofs2[s]->Size());
+            el_x[s]->SetSize(vdofs1[s]->Size() + vdofs2[s]->Size());
 
-	    X[s]->GetSubVector(*vdofs1[s], el_x[s]->GetData());
-	    X[s]->FaceNbrData().GetSubVector(*vdofs2[s],
-					     el_x[s]->GetData() + vdofs1[s]->Size());
-	 }
+            X[s]->GetSubVector(*vdofs1[s], el_x[s]->GetData());
+            X[s]->FaceNbrData().GetSubVector(*vdofs2[s],
+                                             el_x[s]->GetData() + vdofs1[s]->Size());
+         }
 
-	 for (int k = 0; k < fnfi.Size(); k++)
-	 {
-	    fnfi[k]->AssembleFaceVector(fe1, fe2, *tr, el_x, el_y);
-	    // aux2.AddElementVector(vdofs1, el_y.GetData());
-	    for (int s=0; s<fes.Size(); s++)
-	    {
-	      Y[s]->AddElementVector(*vdofs1[s], el_y[s]->GetData());
-	    }
-	 }
+         for (int k = 0; k < fnfi.Size(); k++)
+         {
+            fnfi[k]->AssembleFaceVector(fe1, fe2, *tr, el_x, el_y);
+
+            for (int s=0; s<fes.Size(); s++)
+            {
+               Y[s]->AddElementVector(*vdofs1[s], el_y[s]->GetData());
+            }
+         }
       }
    }
 
@@ -558,10 +381,10 @@ void MyParBlockNonlinearForm::Mult(const Vector &x, Vector &y) const
 }
 
 void LinearHyp1DIntegrator::AssembleElementVector(
-			    const Array<const FiniteElement *> &el,
-			    ElementTransformation &Tr,
-			    const Array<const Vector *> &elfun,
-			    const Array<Vector *> &elvec)
+   const Array<const FiniteElement *> &el,
+   ElementTransformation &Tr,
+   const Array<const Vector *> &elfun,
+   const Array<Vector *> &elvec)
 {
    if (el.Size() != 2)
    {
@@ -573,7 +396,6 @@ void LinearHyp1DIntegrator::AssembleElementVector(
    int dof_q = el[1]->GetDof();
 
    int dim = el[0]->GetDim();
-   // int spaceDim = Tr.GetSpaceDim();
 
    shape_n.SetSize(dof_n);
    shape_q.SetSize(dof_q);
@@ -583,23 +405,23 @@ void LinearHyp1DIntegrator::AssembleElementVector(
 
    Vector dshape_n_v(dshape_n.GetData(), dof_n);
    Vector dshape_q_v(dshape_q.GetData(), dof_q);
-   
-   int intorder = 2*el[0]->GetOrder() + 3; // <---
+
+   int intorder = 2*el[0]->GetOrder() + 0; // <---
    const IntegrationRule &ir = IntRules.Get(el[0]->GetGeomType(), intorder);
 
    elvec[0]->SetSize(dof_n);
    elvec[1]->SetSize(dof_q);
-   
+
    *elvec[0] = 0.0;
    *elvec[1] = 0.0;
-   
+
    for (int i = 0; i < ir.GetNPoints(); ++i)
    {
       const IntegrationPoint &ip = ir.IntPoint(i);
       Tr.SetIntPoint(&ip);
 
       double detJ = Tr.Weight();
-      
+
       el[0]->CalcPhysShape(Tr, shape_n);
       el[1]->CalcPhysShape(Tr, shape_q);
 
@@ -608,18 +430,18 @@ void LinearHyp1DIntegrator::AssembleElementVector(
 
       double n = shape_n * *elfun[0];
       double q = shape_q * *elfun[1];
-      
-      elvec[0]->Add(-ip.weight * detJ * q, dshape_n_v);
-      elvec[1]->Add(-ip.weight * detJ * n, dshape_q_v);
+
+      elvec[0]->Add(ip.weight * detJ * q, dshape_n_v);
+      elvec[1]->Add(ip.weight * detJ * n, dshape_q_v);
    }
 }
 
 void LinearHyp1DIntegrator::AssembleFaceVector(
-			    const Array<const FiniteElement *> &el1,
-			    const Array<const FiniteElement *> &el2,
-			    FaceElementTransformations &Tr,
-			    const Array<const Vector *> &elfun,
-			    const Array<Vector *> &elvec)
+   const Array<const FiniteElement *> &el1,
+   const Array<const FiniteElement *> &el2,
+   FaceElementTransformations &Tr,
+   const Array<const Vector *> &elfun,
+   const Array<Vector *> &elvec)
 {
    if (el1.Size() != 2)
    {
@@ -628,7 +450,7 @@ void LinearHyp1DIntegrator::AssembleFaceVector(
    }
 
    double alpha = 1.0;
-   
+
    int dof1_n = el1[0]->GetDof();
    int dof2_n = el2[0]->GetDof();
    int dof1_q = el1[1]->GetDof();
@@ -637,23 +459,23 @@ void LinearHyp1DIntegrator::AssembleFaceVector(
    int dim = el1[0]->GetDim();
 
    nor.SetSize(dim);
-   
+
    shape1_n.SetSize(dof1_n);
    shape2_n.SetSize(dof2_n);
    shape1_q.SetSize(dof1_q);
    shape2_q.SetSize(dof2_q);
 
-   int intorder = 2*el1[0]->GetOrder() + 3; // <---
+   int intorder = 2*el1[0]->GetOrder() + 1; // <---
    const IntegrationRule &ir = IntRules.Get(Tr.GetGeometryType(), intorder);
 
    Vector elfun1_n(elfun[0]->GetData(), dof1_n);
    Vector elfun2_n(elfun[0]->GetData() + dof1_n, dof2_n);
    Vector elfun1_q(elfun[1]->GetData(), dof1_q);
    Vector elfun2_q(elfun[1]->GetData() + dof1_q, dof2_q);
-   
+
    elvec[0]->SetSize(dof1_n + dof2_n);
    elvec[1]->SetSize(dof1_q + dof2_q);
-   
+
    *elvec[0] = 0.0;
    *elvec[1] = 0.0;
 
@@ -661,7 +483,7 @@ void LinearHyp1DIntegrator::AssembleFaceVector(
    Vector elvec2_n(elvec[0]->GetData() + dof1_n, dof2_n);
    Vector elvec1_q(elvec[1]->GetData(), dof1_q);
    Vector elvec2_q(elvec[1]->GetData() + dof1_q, dof2_q);
-   
+
    for (int p = 0; p < ir.GetNPoints(); p++)
    {
       const IntegrationPoint &ip = ir.IntPoint(p);
@@ -669,10 +491,12 @@ void LinearHyp1DIntegrator::AssembleFaceVector(
       // Set the integration point in the face and the neighboring elements
       Tr.SetAllIntPoints(&ip);
 
+      double detJ = Tr.Weight();
+
       // Access the neighboring elements' integration points
       // Note: eip2 will only contain valid data if Elem2 exists
       const IntegrationPoint &eip1 = Tr.GetElement1IntPoint();
-      //const IntegrationPoint &eip2 = Tr.GetElement2IntPoint();
+      // const IntegrationPoint &eip2 = Tr.GetElement2IntPoint();
 
       // Get the normal vector and the flux on the face
       if (dim == 1)
@@ -681,15 +505,9 @@ void LinearHyp1DIntegrator::AssembleFaceVector(
       }
       else
       {
-	CalcOrtho(Tr.Jacobian(), nor);
+         CalcOrtho(Tr.Jacobian(), nor);
       }
 
-      /*
-      el1[0]->CalcShape(eip1, shape1_n);
-      el1[1]->CalcShape(eip1, shape1_q);
-      el2[0]->CalcShape(eip2, shape2_n);
-      el2[1]->CalcShape(eip2, shape2_q);
-      */
       el1[0]->CalcPhysShape(*Tr.Elem1, shape1_n);
       el1[1]->CalcPhysShape(*Tr.Elem1, shape1_q);
       el2[0]->CalcPhysShape(*Tr.Elem2, shape2_n);
@@ -705,64 +523,97 @@ void LinearHyp1DIntegrator::AssembleFaceVector(
       double nJmp = n1 - n2;
       double qJmp = q1 - q2;
 
-      double Fn = qAvg + 0.5 * alpha * nJmp;      
-      double Fq = nAvg + 0.5 * alpha * qJmp;
+      double Fn = qAvg * nor(0) + 0.5 * alpha * nJmp;
+      double Fq = nAvg * nor(0) + 0.5 * alpha * qJmp;
 
-      elvec1_n.Add(ip.weight * Tr.Weight() * Fn * nor[0], shape1_n);
-      elvec2_n.Add(ip.weight * Tr.Weight() * Fn * nor[0], shape2_n);
-      elvec1_q.Add(ip.weight * Tr.Weight() * Fq * nor[0], shape1_q);
-      elvec2_q.Add(ip.weight * Tr.Weight() * Fq * nor[0], shape2_q);
+      const double s = -1.0;
+
+      elvec1_n.Add( ip.weight * detJ * Fn * s, shape1_n);
+      elvec2_n.Add(-ip.weight * detJ * Fn * s, shape2_n);
+      elvec1_q.Add( ip.weight * detJ * Fq * s, shape1_q);
+      elvec2_q.Add(-ip.weight * detJ * Fq * s, shape2_q);
    }
 }
 
-// Check that the state is physical - enabled in debug mode
-/*
-bool StateIsPhysical(const Vector &state, const int dim)
+void LinearHyp1DBdrIntegrator::AssembleRHSElementVect(
+   const FiniteElement &el,
+   ElementTransformation &Tr,
+   Vector &elvect)
 {
-   const double den = state(0);
-   const Vector den_vel(state.GetData() + 1, dim);
-   const double den_energy = state(1 + dim);
-
-   if (den < 0)
-   {
-      cout << "Negative density: ";
-      for (int i = 0; i < state.Size(); i++)
-      {
-         cout << state(i) << " ";
-      }
-      cout << endl;
-      return false;
-   }
-   if (den_energy <= 0)
-   {
-      cout << "Negative energy: ";
-      for (int i = 0; i < state.Size(); i++)
-      {
-         cout << state(i) << " ";
-      }
-      cout << endl;
-      return false;
-   }
-
-   double den_vel2 = 0;
-   for (int i = 0; i < dim; i++) { den_vel2 += den_vel(i) * den_vel(i); }
-   den_vel2 /= den;
-
-   const double pres = (specific_heat_ratio - 1.0) * (den_energy - 0.5 * den_vel2);
-
-   if (pres <= 0)
-   {
-      cout << "Negative pressure: " << pres << ", state: ";
-      for (int i = 0; i < state.Size(); i++)
-      {
-         cout << state(i) << " ";
-      }
-      cout << endl;
-      return false;
-   }
-   return true;
+   cout << "Not yet implemented" << endl;
 }
-*/
+
+void LinearHyp1DBdrIntegrator::AssembleRHSElementVect(
+   const FiniteElement &el,
+   FaceElementTransformations &Tr,
+   Vector &elvec)
+{
+   int dof_n = el.GetDof();
+   int dof_q = dof_n;
+
+   double alpha = 1.0;
+
+   int dim = el.GetDim();
+
+   nor.SetSize(dim);
+
+   shape_n.SetSize(dof_n);
+   shape_q.SetSize(dof_q);
+
+   int intorder = 2*el.GetOrder() + 1; // <---
+   const IntegrationRule &ir = IntRules.Get(Tr.GetGeometryType(), intorder);
+
+   elvec.SetSize(dof_n + dof_q);
+   elvec = 0.0;
+
+   Vector elvec_n(elvec.GetData(), dof_n);
+   Vector elvec_q(elvec.GetData() + dof_n, dof_q);
+
+   for (int p = 0; p < ir.GetNPoints(); p++)
+   {
+      const IntegrationPoint &ip = ir.IntPoint(p);
+
+      // Set the integration point in the face and the neighboring elements
+      Tr.SetAllIntPoints(&ip);
+
+      double detJ = Tr.Weight();
+
+      // Access the neighboring elements' integration points
+      const IntegrationPoint &eip1 = Tr.GetElement1IntPoint();
+
+      // Get the normal vector and the flux on the face
+      if (dim == 1)
+      {
+         nor(0) = 2*eip1.x - 1.0;
+      }
+      else
+      {
+         CalcOrtho(Tr.Jacobian(), nor);
+      }
+
+      el.CalcPhysShape(*Tr.Elem1, shape_n);
+      el.CalcPhysShape(*Tr.Elem1, shape_q);
+
+      nqCoef.Eval(nq, *Tr.Elem1, eip1);
+
+      double n = nq[0];
+      double q = nq[1];
+
+      double nAvg = 0.5 * (n + 0.0);
+      double qAvg = 0.5 * (q + 0.0);
+      double nJmp = n - 0.0;
+      double qJmp = q - 0.0;
+
+      double Fn = qAvg * nor(0) + 0.5 * alpha * nJmp;
+      double Fq = nAvg * nor(0) + 0.5 * alpha * qJmp;
+
+      const double s = -1.0;
+
+      elvec_n.Add( ip.weight * detJ * Fn * s, shape_n);
+      elvec_q.Add( ip.weight * detJ * Fq * s, shape_q);
+   }
+}
+
 // Initial condition
 void InitialCondition(const Vector &x, Vector &y)
 {
@@ -772,7 +623,7 @@ void InitialCondition(const Vector &x, Vector &y)
    const double xc = 0.5;
 
    double px = x(0) - xc;
-   
+
    y(0) = 1.0;
    y(1) = exp(-50.0 * px * px);
 }
@@ -790,7 +641,7 @@ int main(int argc, char *argv[])
    int ser_ref_levels = 0;
    int par_ref_levels = 1;
    int order = 3;
-   int ode_solver_type = 4;
+   int ode_solver_type = 1;
    double t_final = 2.0;
    double dt = -0.01;
    double cfl = 0.3;
@@ -841,8 +692,6 @@ int main(int argc, char *argv[])
    Mesh mesh(mesh_file, 1, 1);
    const int dim = mesh.Dimension();
 
-   // MFEM_ASSERT(dim == 2, "Need a two-dimensional mesh for the problem definition");
-
    // 4. Define the ODE solver used for time integration. Several explicit
    //    Runge-Kutta methods are available.
    ODESolver *ode_solver = NULL;
@@ -879,19 +728,22 @@ int main(int argc, char *argv[])
       pmesh.UniformRefinement();
    }
 
+   cout << "Number of elements:       " << pmesh.GetNE() << endl;
+   cout << "Number of faces:          " << pmesh.GetNumFaces() << endl;
+   cout << "Number of boundary faces: " << pmesh.GetNBE() << endl;
+
    // 7. Define the discontinuous DG finite element space of the given
    //    polynomial order on the refined mesh.
-   DG_FECollection fec(order, dim);
+   DG_FECollection fec(order, dim, BasisType::GaussLegendre);
+   // DG_FECollection fec(order, dim, BasisType::GaussLobatto);
    // Finite element space for a scalar (thermodynamic quantity)
    ParFiniteElementSpace fes(&pmesh, &fec);
-   // Finite element space for a mesh-dim vector quantity (momentum)
-   // ParFiniteElementSpace dfes(&pmesh, &fec, dim, Ordering::byNODES);
    // Finite element space for all variables together (total thermodynamic state)
    ParFiniteElementSpace vfes(&pmesh, &fec, num_equation, Ordering::byNODES);
 
    Array<ParFiniteElementSpace*> afes(num_equation);
    afes = &fes;
-   
+
    // This example depends on this ordering of the space.
    MFEM_ASSERT(fes.GetOrdering() == Ordering::byNODES, "");
 
@@ -910,7 +762,7 @@ int main(int argc, char *argv[])
    for (int k = 0; k <= num_equation; k++) { offsets[k] = k * fes.GetNDofs(); }
    BlockVector u_block(offsets);
 
-   // Momentum grid function on dfes for visualization.
+   // Grid functions for visualization.
    ParGridFunction n(&fes, u_block.GetData() + offsets[0]);
    ParGridFunction q(&fes, u_block.GetData() + offsets[1]);
 
@@ -942,25 +794,19 @@ int main(int argc, char *argv[])
 
    // 9. Set up the nonlinear form corresponding to the DG discretization of the
    //    flux divergence, and assemble the corresponding mass matrix.
-   /*
-   MixedBilinearForm Aflux(&fes, &fes);
-   Aflux.AddDomainIntegrator(new TransposeIntegrator(new GradientIntegrator()));
-   Aflux.Assemble();
 
-   ParNonlinearForm A(&vfes);
-   RiemannSolver rsolver;
-   A.AddInteriorFaceIntegrator(new FaceIntegrator(rsolver, dim));
-   */
-   
    MyParBlockNonlinearForm A(afes);
    A.AddDomainIntegrator(new LinearHyp1DIntegrator());
    A.AddInteriorFaceIntegrator(new LinearHyp1DIntegrator());
-   
+
+   ExactNQCoef nq_exact;
+   ParLinearForm src(&vfes);
+   src.AddBdrFaceIntegrator(new LinearHyp1DBdrIntegrator(nq_exact));
+
    // 10. Define the time-dependent evolution operator describing the ODE
    //     right-hand side, and perform time-integration (looping over the time
    //     iterations, ti, with a time-step dt).
-   // FE_Evolution lin_hyp(vfes, A, Aflux.SpMat());
-   FE_Evolution lin_hyp(vfes, A);
+   FE_Evolution lin_hyp(vfes, A, src);
 
    // Visualize the density
    socketstream nout, qout;
@@ -990,8 +836,8 @@ int main(int argc, char *argv[])
               << " " << Mpi::WorldRank() << "\n";
          nout.precision(precision);
          nout << "solution\n" << pmesh << n;
-	 nout << "window_title 'n'\n";
-	 nout << "window_geometry 0 0 400 400\n";
+         nout << "window_title 'n'\n";
+         nout << "window_geometry 0 0 400 400\n";
          nout << "pause\n";
          nout << flush;
          if (Mpi::Root())
@@ -1021,8 +867,8 @@ int main(int argc, char *argv[])
               << " " << Mpi::WorldRank() << "\n";
          qout.precision(precision);
          qout << "solution\n" << pmesh << q;
-	 qout << "window_title 'q'\n";
-	 qout << "window_geometry 400 0 400 400\n";
+         qout << "window_title 'q'\n";
+         qout << "window_geometry 400 0 400 400\n";
          qout << "pause\n";
          qout << flush;
          if (Mpi::Root())
@@ -1035,7 +881,10 @@ int main(int argc, char *argv[])
 
    // Determine the minimum element size.
    double hmin;
-   if (cfl > 0)
+   if (cfl < 0.0)
+   {
+      cfl = 0.1 / (2 * order + 1);
+   }
    {
       double my_hmin = pmesh.GetElementSize(0, 1);
       for (int i = 1; i < pmesh.GetNE(); i++)
@@ -1044,6 +893,10 @@ int main(int argc, char *argv[])
       }
       // Reduce to find the global minimum element size
       MPI_Allreduce(&my_hmin, &hmin, 1, MPI_DOUBLE, MPI_MIN, pmesh.GetComm());
+   }
+   if (dt < 0.0)
+   {
+      dt = hmin * cfl;
    }
 
    // Start the timer.
@@ -1054,7 +907,7 @@ int main(int argc, char *argv[])
    lin_hyp.SetTime(t);
    ode_solver->Init(lin_hyp);
 
-   if (cfl > 0)
+   if (cfl > 0 && false)
    {
       // Find a safe dt, using a temporary vector. Calling Mult() computes the
       // maximum char speed at all quadrature points on all faces.
@@ -1070,6 +923,12 @@ int main(int argc, char *argv[])
       }
       dt = cfl * hmin / max_char_speed / (2*order+1);
    }
+   if (Mpi::Root())
+   {
+      cout << "Minimum edge length: " << hmin << endl;
+      cout << "CFL factor:          " << cfl << endl;
+      cout << "Time step:           " << dt << endl;
+   }
 
    // Integrate in time.
    bool done = false;
@@ -1077,8 +936,10 @@ int main(int argc, char *argv[])
    {
       double dt_real = min(dt, t_final - t);
 
+      nq_exact.SetTime(t + dt_real);
+
       ode_solver->Step(sol, t, dt_real);
-      if (cfl > 0)
+      if (cfl > 0 && false)
       {
          // Reduce to find the global maximum wave speed
          {
@@ -1105,7 +966,7 @@ int main(int argc, char *argv[])
                  << " " << Mpi::WorldRank() << "\n";
             nout << "solution\n" << pmesh << n << flush;
 
-	    MPI_Barrier(pmesh.GetComm());
+            MPI_Barrier(pmesh.GetComm());
             qout << "parallel " << Mpi::WorldSize()
                  << " " << Mpi::WorldRank() << "\n";
             qout << "solution\n" << pmesh << q << flush;
