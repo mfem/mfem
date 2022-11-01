@@ -27,6 +27,7 @@ MFEM_REGISTER_TMOP_KERNELS(void, SetupGradPA_C0_2D,
                            const Array<double> &w_,
                            const Array<double> &bld_,
                            Vector &h0_,
+                           const bool exp_lim,
                            const int d1d,
                            const int q1d)
 {
@@ -77,7 +78,7 @@ MFEM_REGISTER_TMOP_KERNELS(void, SetupGradPA_C0_2D,
             const double coeff0 = const_c0 ? C0(0,0,0) : C0(qx,qy,e);
             const double weight_m = weight * lim_normal * coeff0;
 
-            double D;
+            double D, p0[2], p1[2];;
             kernels::internal::PullEval<MQ1,NBZ>(Q1D,qx,qy,QQ,D);
             const double dist = D; // GetValues, default comp set to 0
 
@@ -85,7 +86,24 @@ MFEM_REGISTER_TMOP_KERNELS(void, SetupGradPA_C0_2D,
             // d2.Diag(1.0 / (dist * dist), x.Size());
             const double c = 1.0 / (dist * dist);
             double grad_grad[4];
-            kernels::Diag<2>(c, grad_grad);
+
+            if (!exp_lim)
+            {
+                kernels::Diag<2>(c, grad_grad);
+            }
+            else
+            {
+                double tmp[2];
+                kernels::Subtract<2>(1.0, p1, p0, tmp);
+                double dsq = kernels::DistanceSquared<2>(p1,p0);
+                double dist_squared = dist*dist;
+                double dist_squared_squared = dist_squared*dist_squared;
+                double f = exp(10.0*(dsq / dist_squared)-1.0);
+                grad_grad[0] = ((400.0*tmp[0]*tmp[0]*f)/dist_squared_squared)+(20.0*f/dist_squared);
+                grad_grad[1] = (400.0*tmp[0]*tmp[1]*f)/dist_squared_squared;
+                grad_grad[2] = grad_grad[1];
+                grad_grad[3] = ((400.0*tmp[1]*tmp[1]*f)/dist_squared_squared)+(20.0*f/dist_squared);
+            }
             ConstDeviceMatrix gg(grad_grad,DIM,DIM);
 
             for (int i = 0; i < DIM; i++)
@@ -115,7 +133,10 @@ void TMOP_Integrator::AssembleGradPA_C0_2D(const Vector &X) const
    const Vector &C0 = PA.C0;
    Vector &H0 = PA.H0;
 
-   MFEM_LAUNCH_TMOP_KERNEL(SetupGradPA_C0_2D,id,ln,LD,C0,N,J,W,BLD,H0);
+   auto el = dynamic_cast<TMOP_ExponentialLimiter *>(lim_func);
+   const bool exp_lim = (el) ? true : false;
+
+   MFEM_LAUNCH_TMOP_KERNEL(SetupGradPA_C0_2D,id,ln,LD,C0,N,J,W,BLD,H0,exp_lim);
 }
 
 } // namespace mfem
