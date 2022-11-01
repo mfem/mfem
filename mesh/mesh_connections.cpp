@@ -21,13 +21,14 @@ MeshConnections::MeshConnections(const Mesh &m) :
 
 }
 
-void MeshConnections::ConnectionsOfEntity(const EntityIndex entity, EntityIndices connected) const
+void MeshConnections::ConnectionsOfEntity(const EntityIndex entity, EntityIndices &connected) const
 {
-
+   Table *t = GetTable(entity.dim, entity.index_type, connected.dim, connected.index_type);
+   t->GetRow(entity.index, connected.indices);
 }
 
 void MeshConnections::ConnectionsOfEntities(const EntityIndices entities, 
-                                            EntityIndices connected, bool covered) const
+                                            EntityIndices &connected, bool covered) const
 {
 
 }
@@ -96,6 +97,21 @@ int MeshConnections::GetBdrIdxFromAllIdx(int all_idx) const
 Table* MeshConnections::GetTable(int row_dim, EntityIndexType row_type, 
                                  int col_dim, EntityIndexType col_type) const
 {
+   const int mesh_dim = mesh.Dimension();
+   MFEM_ASSERT(row_type != BdrIdx || row_dim == mesh_dim - 1, "Row boundary index must be 1 less than the mesh dimension.")
+   MFEM_ASSERT(col_type != BdrIdx || col_dim == mesh_dim - 1, "Col boundary index must be 1 less than the mesh dimension.")
+   MFEM_ASSERT(row_dim != col_dim, "Row and Col dims must be different.  For neighbor connections use GetNeighborTable.")
+
+   int row_i = row_type == BdrInd ? mesh_dim + 1 : row_dim;
+   int col_i = col_type == BdrInd ? mesh_dim + 1 : col_dim;
+
+   MFEM_ASSERT(row_i != col_i, "The row and col dim/type cannot be the same for GetTable.  Use GetNeighborTable for neighbors.")
+   Table *t = T[row_i][col_i];
+   if (t != nullptr)
+   {
+      return t;
+   }
+
    return nullptr;
 }
 

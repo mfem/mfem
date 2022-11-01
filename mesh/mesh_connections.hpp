@@ -39,7 +39,7 @@ enum EntityIndexType : bool
    instance a 1D boundary member on a 2D mesh will have dim=1 and index_type=BdrIdx.  It
    should be noted that edges on the boundary of a 2D mesh have 2 numbers associated with them,
    their 1D edge numering and their 1D boundary element numbering.  This is of course also
-   the case with 3D meshes and the 2D faces and 2D oundary elements.**/
+   the case with 3D meshes and the 2D faces and 2D boundary elements.**/
 struct EntityIndex
 {
   unsigned short dim;
@@ -73,7 +73,7 @@ struct EntityIndices
     than the following queries.  It is worth noting that our naming convention of child
     and parent connections actually describes ancestor/decendent relationship eg. a node can
     be a "child" of edges, faces, and volumes.  It should also be noted that the ConnectionsOf
-    methods provide all of the funcitonality of the ChildrenOf/ParentsOf methods and vice-versa.
+    methods provide all of the functionality of the ChildrenOf/ParentsOf methods and vice-versa.
     Both approaches are provided as a convenience to folks that are used to thiking of meshes 
     in either context.**/
 class MeshConnections
@@ -89,6 +89,12 @@ private:
        different kinds of entities (0D/All, 1D/All, 2D/All, 3D/All, 2D/Bdr) respectively.  For example
        the Table mapping Vertices to Boundary Elements/Faces on a 3D mesh would be at T[0][3]*/
    mutable std::vector<std::vector<Table*>> T;
+
+   /** @brief 2D Array of tables describing neighbor connections among entity indices in the Mesh.
+       The 2D array represents tables mapping from entities to neighboring entities of different kinds
+       (0D/All, 1D/All, 2D/All, 3D/All, 2D/Bdr) across the shared dimension.  For example
+       the Table for neighboring elements shared across nodes in a 3D mesh would be NT[3,0]*/   
+   mutable std::vector<std::vector<Table*>> NT;
 
 public:
 
@@ -127,7 +133,7 @@ public:
       ConnectionsOfEntity({1,AllIdx,7}, {2,AllIdx,{}}) ->  {2,AllIdx,{0,1}}, ParentsOf relationship
       ConnectionsOfEntity({1,BdrIdx,5}, {2,AllIdx,{}}) ->  {2,AllIdx,{1}}, ParentsOf relationship
       ConnectionsOfEntity({2,AllIdx,0}, {2,AllIdx,{}}) ->  {2,AllIdx,{}}, No connections defined of the same dimension**/
-   void ConnectionsOfEntity(const EntityIndex entity, EntityIndices connected) const;
+   void ConnectionsOfEntity(const EntityIndex entity, EntityIndices &connected) const;
 
    /** @brief General method for getting the @a connected entity indices of the given set of
        @a entities.  This method can represent both parent/child and child/parent relationships
@@ -157,7 +163,7 @@ public:
       ConnectionsOfEntities({0,AllIdx,{0,8}}, {2,AllIdx,{}}, false)      ->  {2,AllIdx,{0,3}}
       ConnectionsOfEntities({1,AllIdx,{0,1,2,6,7}}, {2,AllIdx,{}}, true) ->  {2,AllIdx,{0}}, only elem 0 is covered                     
     */
-   void ConnectionsOfEntities(const EntityIndices entities, EntityIndices connected, bool covered) const;
+   void ConnectionsOfEntities(const EntityIndices entities, EntityIndices &connected, bool covered) const;
 
    /** @brief Returns true if the @a parent entity is indeed a
        a parent of the @a child entity.  For the example mesh
@@ -354,7 +360,9 @@ public:
    int GetAllIdxFromBdrIdx(int bdr_idx) const;
    int GetBdrIdxFromAllIdx(int all_idx) const;
 
-   /// Raw table access
+   /** @brief Returns a pointer to the table with the connections from the row_dim, row_ind_type (AllIdx or BdrIdx)
+       to the col_dim, col_idx_type.  row_dim and col_dim
+   **/
    Table* GetTable(int row_dim, EntityIndexType row_ind_type, int col_dim, EntityIndexType col_ind_type) const;
 
    Table* GetNeighborTable(int entity_dim, EntityIndexType int_type, int shared_dim);
