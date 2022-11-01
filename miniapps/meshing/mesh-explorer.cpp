@@ -32,6 +32,7 @@
 //               mesh-explorer -m ../../data/mobius-strip.mesh
 
 #include "mfem.hpp"
+#include "../common/mfem-common.hpp"
 #include <fstream>
 #include <limits>
 #include <cstdlib>
@@ -496,7 +497,37 @@ int main (int argc, char *argv[])
 
       if (mk == 't')
       {
-         mesh->Transform(transformation);
+         char type;
+         cout << "Choose a transformation:\n"
+              "u) User-defined transform through mesh-explorer::transformation()\n"
+              "k) Kershaw transform\n"<< "---> " << flush;
+         cin >> type;
+         if (type == 'u')
+         {
+            mesh->Transform(transformation);
+         }
+         else if (type == 'k')
+         {
+            cout << "Note: For Kershaw transformation, the input must be "
+                 "Cartesian aligned with nx multiple of 6 and "
+                 "both ny and nz multiples of 2."
+                 "Kershaw transform works for 2D meshes also.\n" << flush;
+
+            double epsy, epsz = 0.0;
+            cout << "Kershaw transform factor, epsy in (0, 1]) ---> " << flush;
+            cin >> epsy;
+            if (mesh->Dimension() == 3)
+            {
+               cout << "Kershaw transform factor, epsz in (0, 1]) ---> " << flush;
+               cin >> epsz;
+            }
+            common::KershawTransformation kershawT(mesh->Dimension(), epsy, epsz);
+            mesh->Transform(kershawT);
+         }
+         else
+         {
+            MFEM_ABORT("Transformation type not supported.");
+         }
          print_char = 1;
       }
 

@@ -30,6 +30,8 @@
 //    findpts -m ../../data/rt-2d-p4-tri.mesh -o 4
 //    findpts -m ../../data/inline-tri.mesh -o 3
 //    findpts -m ../../data/inline-quad.mesh -o 3
+//    findpts -m ../../data/inline-quad.mesh -o 3 -po 1
+//    findpts -m ../../data/inline-quad.mesh -o 3 -po 1 -fo 1 -nc 2
 //    findpts -m ../../data/inline-quad.mesh -o 3 -hr -pr
 //    findpts -m ../../data/inline-tet.mesh -o 3
 //    findpts -m ../../data/inline-hex.mesh -o 3
@@ -134,6 +136,8 @@ int main (int argc, char *argv[])
    int ncomp             = 1;
    bool hrefinement      = false;
    bool prefinement      = false;
+   int point_ordering    = 0;
+   int gf_ordering       = 0;
 
    // Parse command-line options.
    OptionsParser args(argc, argv);
@@ -158,6 +162,12 @@ int main (int argc, char *argv[])
    args.AddOption(&prefinement, "-pr", "--p-refinement", "-no-pr",
                   "--no-p-refinement",
                   "Do random p refinements to solution field (does not work for pyramids).");
+   args.AddOption(&point_ordering, "-po", "--point-ordering",
+                  "Ordering of points to be found."
+                  "0 (default): byNodes, 1: byVDIM");
+   args.AddOption(&gf_ordering, "-fo", "--fespace-ordering",
+                  "Ordering of fespace that will be used for gridfunction to be interpolated."
+                  "0 (default): byNodes, 1: byVDIM");
 
    args.Parse();
    if (!args.Good())
@@ -231,7 +241,7 @@ int main (int argc, char *argv[])
    {
       MFEM_ABORT("Invalid field type.");
    }
-   FiniteElementSpace sc_fes(&mesh, fec, ncomp);
+   FiniteElementSpace sc_fes(&mesh, fec, ncomp, gf_ordering);
    GridFunction field_vals(&sc_fes);
 
    // Random p-refinements to the solution field
@@ -292,8 +302,16 @@ int main (int argc, char *argv[])
       for (int i = 0; i < ir.GetNPoints(); i++)
       {
          const IntegrationPoint &ip = ir.IntPoint(i);
-         vxyz(i)           = pos_min(0) + ip.x * (pos_max(0)-pos_min(0));
-         vxyz(pts_cnt + i) = pos_min(1) + ip.y * (pos_max(1)-pos_min(1));
+         if (point_ordering == Ordering::byNODES)
+         {
+            vxyz(i)           = pos_min(0) + ip.x * (pos_max(0)-pos_min(0));
+            vxyz(pts_cnt + i) = pos_min(1) + ip.y * (pos_max(1)-pos_min(1));
+         }
+         else
+         {
+            vxyz(i*dim + 0) = pos_min(0) + ip.x * (pos_max(0)-pos_min(0));
+            vxyz(i*dim + 1) = pos_min(1) + ip.y * (pos_max(1)-pos_min(1));
+         }
       }
    }
    else
@@ -303,9 +321,18 @@ int main (int argc, char *argv[])
       for (int i = 0; i < ir.GetNPoints(); i++)
       {
          const IntegrationPoint &ip = ir.IntPoint(i);
-         vxyz(i)             = pos_min(0) + ip.x * (pos_max(0)-pos_min(0));
-         vxyz(pts_cnt + i)   = pos_min(1) + ip.y * (pos_max(1)-pos_min(1));
-         vxyz(2*pts_cnt + i) = pos_min(2) + ip.z * (pos_max(2)-pos_min(2));
+         if (point_ordering == Ordering::byNODES)
+         {
+            vxyz(i)             = pos_min(0) + ip.x * (pos_max(0)-pos_min(0));
+            vxyz(pts_cnt + i)   = pos_min(1) + ip.y * (pos_max(1)-pos_min(1));
+            vxyz(2*pts_cnt + i) = pos_min(2) + ip.z * (pos_max(2)-pos_min(2));
+         }
+         else
+         {
+            vxyz(i*dim + 0) = pos_min(0) + ip.x * (pos_max(0)-pos_min(0));
+            vxyz(i*dim + 1) = pos_min(1) + ip.y * (pos_max(1)-pos_min(1));
+            vxyz(i*dim + 2) = pos_min(2) + ip.z * (pos_max(2)-pos_min(2));
+         }
       }
    }
 
@@ -314,12 +341,12 @@ int main (int argc, char *argv[])
    FindPointsGSLIB finder;
    finder.Setup(mesh);
    finder.SetL2AvgType(FindPointsGSLIB::NONE);
-   finder.Interpolate(vxyz, field_vals, interp_vals);
+   finder.Interpolate(vxyz, field_vals, interp_vals, point_ordering);
    Array<unsigned int> code_out    = finder.GetCode();
    Vector dist_p_out = finder.GetDist();
 
    int face_pts = 0, not_found = 0, found = 0;
-   double max_err = 0.0, max_dist = 0.0;
+   double err = 0.0, max_err = 0.0, max_dist = 0.0;
    Vector pos(dim);
    int npt = 0;
    for (int j = 0; j < vec_dim; j++)
@@ -329,10 +356,18 @@ int main (int argc, char *argv[])
          if (code_out[i] < 2)
          {
             if (j == 0) { found++; }
-            for (int d = 0; d < dim; d++) { pos(d) = vxyz(d * pts_cnt + i); }
+            for (int d = 0; d < dim; d++)
+            {
+               pos(d) = point_ordering == Ordering::byNODES ?
+                        vxyz(d*pts_cnt + i) :
+                        vxyz(i*dim + d);
+            }
             Vector exact_val(vec_dim);
             F_exact(pos, exact_val);
-            max_err  = std::max(max_err, fabs(exact_val(j) - interp_vals[npt]));
+            err = gf_ordering == Ordering::byNODES ?
+                  fabs(exact_val(j) - interp_vals[i + j*pts_cnt]) :
+                  fabs(exact_val(j) - interp_vals[i*vec_dim + j]);
+            max_err  = std::max(max_err, err);
             max_dist = std::max(max_dist, dist_p_out(i));
             if (code_out[i] == 1 && j == 0) { face_pts++; }
          }

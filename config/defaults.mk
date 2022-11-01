@@ -179,7 +179,7 @@ ifeq ($(MFEM_USE_MPI)$(MFEM_USE_HIP),YESYES)
 endif
 
 # ROCM/HIP directory such that ROCM/HIP libraries like rocsparse and rocrand are
-# found in $(HIP_DIR)/lib, usually as links. Typically, this directoory is of
+# found in $(HIP_DIR)/lib, usually as links. Typically, this directory is of
 # the form /opt/rocm-X.Y.Z which is called ROCM_PATH by hipconfig.
 ifeq ($(MFEM_USE_HIP),YES)
    HIP_DIR := $(patsubst %/,%,$(dir $(shell which $(HIP_CXX))))
@@ -251,12 +251,16 @@ POSIX_CLOCKS_LIB = -lrt
 # SUNDIALS library configuration
 # For sundials_nvecmpiplusx and nvecparallel remember to build with MPI_ENABLE=ON
 # and modify cmake variables for hypre for sundials
-SUNDIALS_DIR    = @MFEM_DIR@/../sundials-5.0.0/instdir
-SUNDIALS_OPT    = -I$(SUNDIALS_DIR)/include
-SUNDIALS_LIBDIR = $(wildcard $(SUNDIALS_DIR)/lib*)
-SUNDIALS_LIB    = $(XLINKER)-rpath,$(SUNDIALS_LIBDIR) -L$(SUNDIALS_LIBDIR)\
+SUNDIALS_DIR = @MFEM_DIR@/../sundials-5.0.0/instdir
+# SUNDIALS >= 6.4.0 requires C++14:
+ifeq ($(MFEM_USE_SUNDIALS),YES)
+   BASE_FLAGS = -std=c++14
+endif
+SUNDIALS_OPT = -I$(SUNDIALS_DIR)/include
+SUNDIALS_LIB = $(XLINKER)-rpath,$(SUNDIALS_DIR)/lib64\
+ $(XLINKER)-rpath,$(SUNDIALS_DIR)/lib\
+ -L$(SUNDIALS_DIR)/lib64 -L$(SUNDIALS_DIR)/lib\
  -lsundials_arkode -lsundials_cvodes -lsundials_nvecserial -lsundials_kinsol
-
 ifeq ($(MFEM_USE_MPI),YES)
    SUNDIALS_LIB += -lsundials_nvecparallel -lsundials_nvecmpiplusx
 endif
@@ -309,7 +313,7 @@ SCALAPACK_LIB = -L$(SCALAPACK_DIR)/lib -lscalapack $(LAPACK_LIB)
 MPI_FORTRAN_LIB = -lmpifort
 # OpenMPI:
 # MPI_FORTRAN_LIB = -lmpi_mpifh
-# Additional Fortan library:
+# Additional Fortran library:
 # MPI_FORTRAN_LIB += -lgfortran
 
 # MUMPS library configuration
