@@ -14,6 +14,11 @@ add_mfem_miniapp(display-basis
   ${MFEM_MINIAPPS_COMMON_HEADERS}
   LIBRARIES mfem mfem-common)
 
+add_mfem_miniapp(coef-fact
+  MAIN coef-fact.cpp
+  ${MFEM_MINIAPPS_COMMON_HEADERS}
+  LIBRARIES mfem mfem-common)
+
 add_mfem_miniapp(get-values
   MAIN get-values.cpp
   ${MFEM_MINIAPPS_COMMON_HEADERS}

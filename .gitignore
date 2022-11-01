@@ -272,10 +272,13 @@ miniapps/shifted/lsf_integral
 
 miniapps/tools/display-basis
 miniapps/tools/load-dc
+miniapps/tools/coef-fact
 miniapps/tools/convert-dc
 miniapps/tools/lor-transfer
 miniapps/tools/get-values
 miniapps/tools/check-tmop-metric
+
+miniapps/tools/coef-fact.inp
 
 miniapps/toys/automata
 miniapps/toys/life

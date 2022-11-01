@@ -1,0 +1,53 @@
+##############################################################################
+# For the ConstantCoefficient the argument is the constant value
+##############################################################################
+scalar_coef
+ConstantCoefficient
+3.14
+
+vector_coef
+##############################################################################
+# For the VectorConstantCoefficient the arguments are the dimension of the
+# vector and it components.
+##############################################################################
+VectorConstantCoefficient
+2 2.0 1.0
+
+scalar_coef
+##############################################################################
+# For the FunctionCoefficient the first integer specifies the type of
+# constructor to be used (based on a simple function of position in this case)
+# and the second is the index into an array of simple functions provided
+# in the calling application via CoefFactory::AddExternalFunction.
+##############################################################################
+FunctionCoefficient
+0 0
+
+vector_coef
+##############################################################################
+# For the VectorFunctionCoefficient the first integer argument is the
+# dimension of the vector and the second specifies the type of
+# constructor to be used (based on a simple function of position in this case)
+# and the second is the index into an array of simple vector-valued functions
+# provided in the calling application via CoefFactory::AddExternalFunction.
+##############################################################################
+VectorFunctionCoefficient
+2 0 0
+
+scalar_coef
+##############################################################################
+# Application specific (or user supplied) Coefficients can be added by
+# implementing a Factory class which derives from CoefFactory and recognizes
+# the new Coefficient types.
+##############################################################################
+MyCoefficient
+2 2.0 1.0
+
+vector_coef
+##############################################################################
+# Application specific (or user supplied) VectorCoefficients can be added by
+# implementing a Factory class which derives from CoefFactory and recognizes
+# the new VectorCoefficient types.
+##############################################################################
+MyVectorCoefficient
+2 3.0 2.0 1.0
