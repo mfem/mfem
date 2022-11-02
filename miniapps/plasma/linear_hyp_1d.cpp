@@ -112,8 +112,6 @@ private:
    ParBlockNonlinearForm &A;
    DenseTensor Me_inv;
 
-   ParLinearForm & src;
-
    mutable Vector state;
    mutable DenseMatrix f;
    mutable DenseTensor flux;
@@ -121,8 +119,7 @@ private:
 
 public:
    FE_Evolution(FiniteElementSpace &vfes_,
-                ParBlockNonlinearForm &A_,
-                ParLinearForm & src_);
+                ParBlockNonlinearForm &A_);
 
    virtual void Mult(const Vector &x, Vector &y) const;
 
@@ -162,14 +159,16 @@ public:
 class LinearHyp1DIntegrator : public BlockNonlinearFormIntegrator
 {
 protected:
+   VectorCoefficient &nqCoef;
 
-   Vector nor;
+   Vector nor, nq;
    Vector shape_n, shape_q;
    DenseMatrix dshape_n, dshape_q;
    Vector shape1_n, shape2_n, shape1_q, shape2_q;
 
 public:
-   LinearHyp1DIntegrator() {}
+   LinearHyp1DIntegrator(VectorCoefficient &nqCoef_)
+      : nqCoef(nqCoef_), nq(2) {}
 
    void AssembleElementVector(const Array<const FiniteElement *> &el,
                               ElementTransformation &Tr,
@@ -183,40 +182,14 @@ public:
                            const Array<Vector *> &elvect);
 };
 
-// Custom integrator for implementing the boundary condition (and
-// potentially source terms)
-class LinearHyp1DBdrIntegrator : public LinearFormIntegrator
-{
-private:
-   VectorCoefficient &nqCoef;
-
-   Vector nor, nq;
-   Vector shape_n, shape_q;
-
-public:
-   LinearHyp1DBdrIntegrator(VectorCoefficient &nqCoef_)
-      : nqCoef(nqCoef_), nq(2) {}
-
-   virtual void AssembleRHSElementVect(const FiniteElement &el,
-                                       ElementTransformation &Tr,
-                                       Vector &elvect);
-
-   virtual void AssembleRHSElementVect(const FiniteElement &el,
-                                       FaceElementTransformations &Tr,
-                                       Vector &elvect);
-
-};
-
 // Implementation of class FE_Evolution
 FE_Evolution::FE_Evolution(FiniteElementSpace &vfes_,
-                           ParBlockNonlinearForm &A_,
-                           ParLinearForm & src_)
+                           ParBlockNonlinearForm &A_)
    : TimeDependentOperator(A_.Height()),
      dim(vfes_.GetFE(0)->GetDim()),
      vfes(vfes_),
      A(A_),
      Me_inv(vfes.GetFE(0)->GetDof(), vfes.GetFE(0)->GetDof(), vfes.GetNE()),
-     src(src_),
      state(num_equation),
      z(A.Height())
 {
@@ -240,11 +213,6 @@ void FE_Evolution::Mult(const Vector &x, Vector &y) const
 
    // Create the vector z with the face terms -<F.n(u), [w]>.
    A.Mult(x, z);
-
-   // Add source terms
-   src = 0.0;
-   src.Assemble();
-   z.Add(-1.0, src);
 
    // Multiply element-wise by the inverse mass matrices.
    Vector zval;
@@ -455,162 +423,167 @@ void LinearHyp1DIntegrator::AssembleFaceVector(
 
    if (!bdr_face)
    {
-     int dof1_n = el1[0]->GetDof();
-     int dof2_n = el2[0]->GetDof();
-     int dof1_q = el1[1]->GetDof();
-     int dof2_q = el2[1]->GetDof();
+      int dof1_n = el1[0]->GetDof();
+      int dof2_n = el2[0]->GetDof();
+      int dof1_q = el1[1]->GetDof();
+      int dof2_q = el2[1]->GetDof();
 
-     int dim = el1[0]->GetDim();
+      int dim = el1[0]->GetDim();
 
-     nor.SetSize(dim);
+      nor.SetSize(dim);
 
-     shape1_n.SetSize(dof1_n);
-     shape2_n.SetSize(dof2_n);
-     shape1_q.SetSize(dof1_q);
-     shape2_q.SetSize(dof2_q);
+      shape1_n.SetSize(dof1_n);
+      shape2_n.SetSize(dof2_n);
+      shape1_q.SetSize(dof1_q);
+      shape2_q.SetSize(dof2_q);
 
-     int intorder = 2*el1[0]->GetOrder() + 1; // <---
-     const IntegrationRule &ir = IntRules.Get(Tr.GetGeometryType(), intorder);
+      int intorder = 2*el1[0]->GetOrder() + 1; // <---
+      const IntegrationRule &ir = IntRules.Get(Tr.GetGeometryType(), intorder);
 
-     Vector elfun1_n(elfun[0]->GetData(), dof1_n);
-     Vector elfun2_n(elfun[0]->GetData() + dof1_n, dof2_n);
-     Vector elfun1_q(elfun[1]->GetData(), dof1_q);
-     Vector elfun2_q(elfun[1]->GetData() + dof1_q, dof2_q);
+      Vector elfun1_n(elfun[0]->GetData(), dof1_n);
+      Vector elfun2_n(elfun[0]->GetData() + dof1_n, dof2_n);
+      Vector elfun1_q(elfun[1]->GetData(), dof1_q);
+      Vector elfun2_q(elfun[1]->GetData() + dof1_q, dof2_q);
 
-     elvec[0]->SetSize(dof1_n + dof2_n);
-     elvec[1]->SetSize(dof1_q + dof2_q);
+      elvec[0]->SetSize(dof1_n + dof2_n);
+      elvec[1]->SetSize(dof1_q + dof2_q);
 
-     *elvec[0] = 0.0;
-     *elvec[1] = 0.0;
+      *elvec[0] = 0.0;
+      *elvec[1] = 0.0;
 
-     Vector elvec1_n(elvec[0]->GetData(), dof1_n);
-     Vector elvec2_n(elvec[0]->GetData() + dof1_n, dof2_n);
-     Vector elvec1_q(elvec[1]->GetData(), dof1_q);
-     Vector elvec2_q(elvec[1]->GetData() + dof1_q, dof2_q);
+      Vector elvec1_n(elvec[0]->GetData(), dof1_n);
+      Vector elvec2_n(elvec[0]->GetData() + dof1_n, dof2_n);
+      Vector elvec1_q(elvec[1]->GetData(), dof1_q);
+      Vector elvec2_q(elvec[1]->GetData() + dof1_q, dof2_q);
 
-     for (int p = 0; p < ir.GetNPoints(); p++)
-     {
-       const IntegrationPoint &ip = ir.IntPoint(p);
+      for (int p = 0; p < ir.GetNPoints(); p++)
+      {
+         const IntegrationPoint &ip = ir.IntPoint(p);
 
-       // Set the integration point in the face and the neighboring elements
-       Tr.SetAllIntPoints(&ip);
+         // Set the integration point in the face and the neighboring elements
+         Tr.SetAllIntPoints(&ip);
 
-       double detJ = Tr.Weight();
+         double detJ = Tr.Weight();
 
-       // Access the neighboring elements' integration points
-       // Note: eip2 will only contain valid data if Elem2 exists
-       const IntegrationPoint &eip1 = Tr.GetElement1IntPoint();
-       // const IntegrationPoint &eip2 = Tr.GetElement2IntPoint();
+         // Access the neighboring elements' integration points
+         // Note: eip2 will only contain valid data if Elem2 exists
+         const IntegrationPoint &eip1 = Tr.GetElement1IntPoint();
+         // const IntegrationPoint &eip2 = Tr.GetElement2IntPoint();
 
-       // Get the normal vector and the flux on the face
-       if (dim == 1)
-       {
-         nor(0) = 2*eip1.x - 1.0;
-       }
-       else
-       {
-         CalcOrtho(Tr.Jacobian(), nor);
-       }
+         // Get the normal vector and the flux on the face
+         if (dim == 1)
+         {
+            nor(0) = 2*eip1.x - 1.0;
+         }
+         else
+         {
+            CalcOrtho(Tr.Jacobian(), nor);
+         }
 
-       el1[0]->CalcPhysShape(*Tr.Elem1, shape1_n);
-       el1[1]->CalcPhysShape(*Tr.Elem1, shape1_q);
-       el2[0]->CalcPhysShape(*Tr.Elem2, shape2_n);
-       el2[1]->CalcPhysShape(*Tr.Elem2, shape2_q);
+         el1[0]->CalcPhysShape(*Tr.Elem1, shape1_n);
+         el1[1]->CalcPhysShape(*Tr.Elem1, shape1_q);
+         el2[0]->CalcPhysShape(*Tr.Elem2, shape2_n);
+         el2[1]->CalcPhysShape(*Tr.Elem2, shape2_q);
 
-       double n1 = elfun1_n * shape1_n;
-       double n2 = elfun2_n * shape2_n;
-       double q1 = elfun1_q * shape1_q;
-       double q2 = elfun2_q * shape2_q;
-       
-       double nAvg = 0.5 * (n1 + n2);
-       double qAvg = 0.5 * (q1 + q2);
-       double nJmp = n1 - n2;
-       double qJmp = q1 - q2;
+         double n1 = elfun1_n * shape1_n;
+         double n2 = elfun2_n * shape2_n;
+         double q1 = elfun1_q * shape1_q;
+         double q2 = elfun2_q * shape2_q;
 
-       double Fn = qAvg * nor(0) + 0.5 * alpha * nJmp;
-       double Fq = nAvg * nor(0) + 0.5 * alpha * qJmp;
+         double nAvg = 0.5 * (n1 + n2);
+         double qAvg = 0.5 * (q1 + q2);
+         double nJmp = n1 - n2;
+         double qJmp = q1 - q2;
 
-       const double s = -1.0;
+         double Fn = qAvg * nor(0) + 0.5 * alpha * nJmp;
+         double Fq = nAvg * nor(0) + 0.5 * alpha * qJmp;
 
-       elvec1_n.Add( ip.weight * detJ * Fn * s, shape1_n);
-       elvec2_n.Add(-ip.weight * detJ * Fn * s, shape2_n);
-       elvec1_q.Add( ip.weight * detJ * Fq * s, shape1_q);
-       elvec2_q.Add(-ip.weight * detJ * Fq * s, shape2_q);
-     }
+         const double s = -1.0;
+
+         elvec1_n.Add( ip.weight * detJ * Fn * s, shape1_n);
+         elvec2_n.Add(-ip.weight * detJ * Fn * s, shape2_n);
+         elvec1_q.Add( ip.weight * detJ * Fq * s, shape1_q);
+         elvec2_q.Add(-ip.weight * detJ * Fq * s, shape2_q);
+      }
    }
    else
    {
-     int dof1_n = el1[0]->GetDof();
-     int dof1_q = el1[1]->GetDof();
+      int dof1_n = el1[0]->GetDof();
+      int dof1_q = el1[1]->GetDof();
 
-     int dim = el1[0]->GetDim();
+      int dim = el1[0]->GetDim();
 
-     nor.SetSize(dim);
+      nor.SetSize(dim);
 
-     shape1_n.SetSize(dof1_n);
-     shape1_q.SetSize(dof1_q);
+      shape1_n.SetSize(dof1_n);
+      shape1_q.SetSize(dof1_q);
 
-     int intorder = 2*el1[0]->GetOrder() + 1; // <---
-     const IntegrationRule &ir = IntRules.Get(Tr.GetGeometryType(), intorder);
+      int intorder = 2*el1[0]->GetOrder() + 1; // <---
+      const IntegrationRule &ir = IntRules.Get(Tr.GetGeometryType(), intorder);
 
-     Vector elfun1_n(elfun[0]->GetData(), dof1_n);
-     Vector elfun1_q(elfun[1]->GetData(), dof1_q);
+      Vector elfun1_n(elfun[0]->GetData(), dof1_n);
+      Vector elfun1_q(elfun[1]->GetData(), dof1_q);
 
-     elvec[0]->SetSize(dof1_n);
-     elvec[1]->SetSize(dof1_q);
+      elvec[0]->SetSize(dof1_n);
+      elvec[1]->SetSize(dof1_q);
 
-     *elvec[0] = 0.0;
-     *elvec[1] = 0.0;
+      *elvec[0] = 0.0;
+      *elvec[1] = 0.0;
 
-     Vector elvec1_n(elvec[0]->GetData(), dof1_n);
-     Vector elvec1_q(elvec[1]->GetData(), dof1_q);
+      Vector elvec1_n(elvec[0]->GetData(), dof1_n);
+      Vector elvec1_q(elvec[1]->GetData(), dof1_q);
 
-     for (int p = 0; p < ir.GetNPoints(); p++)
-     {
-       const IntegrationPoint &ip = ir.IntPoint(p);
+      for (int p = 0; p < ir.GetNPoints(); p++)
+      {
+         const IntegrationPoint &ip = ir.IntPoint(p);
 
-       // Set the integration point in the face and the neighboring elements
-       Tr.SetAllIntPoints(&ip);
+         // Set the integration point in the face and the neighboring elements
+         Tr.SetAllIntPoints(&ip);
 
-       double detJ = Tr.Weight();
+         double detJ = Tr.Weight();
 
-       // Access the neighboring elements' integration points
-       // Note: eip2 will only contain valid data if Elem2 exists
-       const IntegrationPoint &eip1 = Tr.GetElement1IntPoint();
-       // const IntegrationPoint &eip2 = Tr.GetElement2IntPoint();
+         // Access the neighboring elements' integration points
+         // Note: eip2 will only contain valid data if Elem2 exists
+         const IntegrationPoint &eip1 = Tr.GetElement1IntPoint();
+         // const IntegrationPoint &eip2 = Tr.GetElement2IntPoint();
 
-       // Get the normal vector and the flux on the face
-       if (dim == 1)
-       {
-         nor(0) = 2*eip1.x - 1.0;
-       }
-       else
-       {
-         CalcOrtho(Tr.Jacobian(), nor);
-       }
+         // Get the normal vector and the flux on the face
+         if (dim == 1)
+         {
+            nor(0) = 2*eip1.x - 1.0;
+         }
+         else
+         {
+            CalcOrtho(Tr.Jacobian(), nor);
+         }
 
-       el1[0]->CalcPhysShape(*Tr.Elem1, shape1_n);
-       el1[1]->CalcPhysShape(*Tr.Elem1, shape1_q);
+         el1[0]->CalcPhysShape(*Tr.Elem1, shape1_n);
+         el1[1]->CalcPhysShape(*Tr.Elem1, shape1_q);
 
-       double n1 = elfun1_n * shape1_n;
-       double q1 = elfun1_q * shape1_q;
-       
-       double nAvg = 0.5 * n1;
-       double qAvg = 0.5 * q1;
-       double nJmp = n1;
-       double qJmp = q1;
+         double n1 = elfun1_n * shape1_n;
+         double q1 = elfun1_q * shape1_q;
 
-       double Fn = qAvg * nor(0) + 0.5 * alpha * nJmp;
-       double Fq = nAvg * nor(0) + 0.5 * alpha * qJmp;
+         nqCoef.Eval(nq, *Tr.Elem1, eip1);
 
-       const double s = -1.0;
+         double n2 = nq[0];
+         double q2 = nq[1];
 
-       elvec1_n.Add( ip.weight * detJ * Fn * s, shape1_n);
-       elvec1_q.Add( ip.weight * detJ * Fq * s, shape1_q);
-     }
+         double nAvg = 0.5 * (n1 + n2);
+         double qAvg = 0.5 * (q1 + q2);
+         double nJmp = n1 - n2;
+         double qJmp = q1 - q2;
+
+         double Fn = qAvg * nor(0) + 0.5 * alpha * nJmp;
+         double Fq = nAvg * nor(0) + 0.5 * alpha * qJmp;
+
+         const double s = -1.0;
+
+         elvec1_n.Add( ip.weight * detJ * Fn * s, shape1_n);
+         elvec1_q.Add( ip.weight * detJ * Fq * s, shape1_q);
+      }
    }
 }
-
+/*
 void LinearHyp1DBdrIntegrator::AssembleRHSElementVect(
    const FiniteElement &el,
    ElementTransformation &Tr,
@@ -689,7 +662,7 @@ void LinearHyp1DBdrIntegrator::AssembleRHSElementVect(
       elvec_q.Add( ip.weight * detJ * Fq * s, shape_q);
    }
 }
-
+*/
 // Initial condition
 void InitialCondition(const Vector &x, Vector &y)
 {
@@ -870,20 +843,17 @@ int main(int argc, char *argv[])
 
    // 9. Set up the nonlinear form corresponding to the DG discretization of the
    //    flux divergence, and assemble the corresponding mass matrix.
+   ExactNQCoef nq_exact;
 
    MyParBlockNonlinearForm A(afes);
-   A.AddDomainIntegrator(new LinearHyp1DIntegrator());
-   A.AddInteriorFaceIntegrator(new LinearHyp1DIntegrator());
-   A.AddBdrFaceIntegrator(new LinearHyp1DIntegrator());
-
-   ExactNQCoef nq_exact;
-   ParLinearForm src(&vfes);
-   src.AddBdrFaceIntegrator(new LinearHyp1DBdrIntegrator(nq_exact));
+   A.AddDomainIntegrator(new LinearHyp1DIntegrator(nq_exact));
+   A.AddInteriorFaceIntegrator(new LinearHyp1DIntegrator(nq_exact));
+   A.AddBdrFaceIntegrator(new LinearHyp1DIntegrator(nq_exact));
 
    // 10. Define the time-dependent evolution operator describing the ODE
    //     right-hand side, and perform time-integration (looping over the time
    //     iterations, ti, with a time-step dt).
-   FE_Evolution lin_hyp(vfes, A, src);
+   FE_Evolution lin_hyp(vfes, A);
 
    // Visualize the density
    socketstream nout, qout;
