@@ -253,13 +253,10 @@ if (MFEM_USE_MPI)
   if (MFEM_MPIEXEC_NP)
     string(REPLACE " " ";" MPIEXEC_NUMPROC_FLAG ${MFEM_MPIEXEC_NP})
   endif()
-  list(APPEND TPL_PACKAGES MPI::MPI_CXX)
   # Parallel MFEM depends on hypre
-  # Modern versions of HYPRE already provide CMake portable packages, so it
-  # wll be possible to add it to TPL_PACKAGES. Unfortunately, mfem does not
-  # work with those yet
   find_package(HYPRE REQUIRED)
-  string(REPLACE "." "" MFEM_HYPRE_VERSION ${HYPRE_VERSION})
+  list(APPEND TPL_PACKAGES MPI::MPI_CXX HYPRE::HYPRE)
+  math(EXPR MFEM_HYPRE_VERSION "10000 * ${HYPRE_VERSION_MAJOR} + 100 * ${HYPRE_VERSION_MINOR} + ${HYPRE_VERSION_PATCH}" OUTPUT_FORMAT DECIMAL)
   if (MFEM_USE_PETSC)
     find_package(PETSc REQUIRED)
     message(STATUS "Found PETSc version ${PETSC_VERSION}")
@@ -548,8 +545,8 @@ list(APPEND TPL_PACKAGES Threads::Threads)
 #    With newer versions of SuiteSparse which include METIS header using 64-bit
 #    integers, the METIS header (with 32-bit indices, as used by mfem) needs to
 #    be before SuiteSparse.
-set(MFEM_TPLS HYPRE SuperLUDist STRUMPACK METIS SuiteSparse SUNDIALS PETSC
-    SLEPC MUMPS AXOM FMS CONDUIT Ginkgo GNUTLS GSLIB MPFR PUMI HIOP
+set(MFEM_TPLS SuperLUDist STRUMPACK METIS SuiteSparse SUNDIALS PETSC SLEPC
+    MUMPS AXOM FMS CONDUIT Ginkgo GNUTLS GSLIB MPFR PUMI HIOP
     POSIXCLOCKS MFEMBacktrace ZLIB OCCA CEED RAJA UMPIRE CUBLAS CUSPARSE
     MKL_CPARDISO AMGX CALIPER CODIPACK BENCHMARK PARELAG HIP HIPSPARSE
     MOONOLITH BLITZ ALGOIM ENZYME)
@@ -570,7 +567,30 @@ list(REVERSE TPL_LIBRARIES)
 list(REMOVE_DUPLICATES TPL_INCLUDE_DIRS)
 # message(STATUS "TPL_INCLUDE_DIRS = ${TPL_INCLUDE_DIRS}")
 
+<<<<<<< HEAD
 message(STATUS "MFEM shared library: BUILD_SHARED_LIBS = ${BUILD_SHARED_LIBS}")
+=======
+# Now split the libraries in directories and files, for the sake of portability
+set(TPL_LIBRARY_DIRS "")
+set(TPL_LIBRARY_FILES "")
+foreach(LIB IN LISTS TPL_LIBRARIES)
+  get_filename_component(DIR ${LIB} DIRECTORY)
+  list(APPEND TPL_LIBRARY_DIRS ${DIR})
+  get_filename_component(FILE ${LIB} NAME)
+  list(APPEND TPL_LIBRARY_FILES ${FILE})
+endforeach(LIB)
+list(REMOVE_DUPLICATES TPL_LIBRARY_DIRS)
+list(REMOVE_DUPLICATES TPL_LIBRARY_FILES)
+
+if (OPENMP_FOUND)
+  message(STATUS "MFEM: using package OpenMP")
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
+  if (MFEM_USE_CUDA)
+    set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -Xcompiler=${OpenMP_CXX_FLAGS}")
+  endif()
+endif()
+
+>>>>>>> 5d601788f (Do not use absolute paths for the module-based dependencies)
 message(STATUS "MFEM build type: CMAKE_BUILD_TYPE = ${CMAKE_BUILD_TYPE}")
 message(STATUS "MFEM version: v${MFEM_VERSION_STRING}")
 message(STATUS "MFEM git string: ${MFEM_GIT_STRING}")
@@ -614,8 +634,10 @@ set(MFEM_INSTALL_DIR ${CMAKE_INSTALL_PREFIX} CACHE PATH
 # Declaring the library
 mfem_add_library(mfem ${SOURCES} ${HEADERS} ${MASTER_HEADERS})
 message(STATUS "TPL_PACKAGES = ${TPL_PACKAGES}")
-message(STATUS "TPL_LIBRARIES = ${TPL_LIBRARIES}")
-target_link_libraries(mfem PUBLIC ${TPL_PACKAGES} INTERFACE ${TPL_LIBRARIES})
+message(STATUS "TPL_LIBRARY_DIRS = ${TPL_LIBRARY_DIRS}")
+message(STATUS "TPL_LIBRARY_FILES = ${TPL_LIBRARY_FILES}")
+link_directories(${TPL_LIBRARY_DIRS})
+target_link_libraries(mfem PUBLIC ${TPL_PACKAGES} ${TPL_LIBRARY_FILES})
 if (MINGW)
   target_link_libraries(mfem PRIVATE ws2_32)
 endif()
