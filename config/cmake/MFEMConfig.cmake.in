@@ -23,19 +23,6 @@ set(MFEM_THREAD_SAFE @MFEM_THREAD_SAFE@)
 set(MFEM_USE_MEMALLOC @MFEM_USE_MEMALLOC@)
 set(MFEM_TIMER_TYPE @MFEM_TIMER_TYPE@)
 
-function(mfem_find_dependency Name)
-  # A thin wrapper of find_dependency, which is populating the library dirs
-  # In case of CMake packages providing a config file, it is better to use
-  # directly find_dependency
-  find_dependency(${Name})
-  if (${Name}_FOUND)
-    foreach(LIB IN LISTS ${Name}_LIBRARIES)
-      get_filename_component(DIR ${LIB} DIRECTORY)
-      link_directories(${DIR})
-    endforeach(LIB)
-  endif()
-endfunction(mfem_find_dependency)
-
 set(MFEM_USE_HIP @MFEM_USE_HIP@)
 if(MFEM_USE_HIP)
   find_dependency(HIP)
@@ -107,6 +94,8 @@ if(MFEM_USE_STRUMPACK)
 endif()
 set(MFEM_USE_GNUTLS @MFEM_USE_GNUTLS@)
 if(MFEM_USE_GNUTLS)
+  # BUG: We have a collision name here, because GNUTLS_FOUND is set instead of
+  # _GnuTLS_FOUND
   find_dependency(_GnuTLS)
 endif()
 set(MFEM_USE_GSLIB @MFEM_USE_GSLIB@)

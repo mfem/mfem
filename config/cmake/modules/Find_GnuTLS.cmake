@@ -20,3 +20,7 @@ set(_GnuTLS_REQUIRED_PACKAGES "ALT:" "GnuTLS")
 mfem_find_package(_GnuTLS GNUTLS GNUTLS_DIR "include" gnutls/gnutls.h
   "lib" "gnutls;libgnutls"
   "Paths to headers required by GnuTLS." "Libraries required by GnuTLS.")
+if(GNUTLS_FOUND)
+  # Set also _GnuTLS_FOUND, so find_dependency does not get twisted
+  set(_GnuTLS_FOUND TRUE CACHE BOOL "_GnuTLS was found." FORCE)
+endif()
