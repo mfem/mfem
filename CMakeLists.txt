@@ -74,7 +74,8 @@ set(XSDK_ENABLE_Fortran OFF)
 # Check if we need to enable C or Fortran.
 if (MFEM_USE_CONDUIT OR
     MFEM_USE_SIDRE OR
-    MFEM_USE_PETSC)
+    MFEM_USE_PETSC OR
+    MFEM_USE_ADIOS2)
    # This seems to be needed by:
    #  * find_package(BLAS REQUIRED) and
    #  * find_package(HDF5 REQUIRED) needed, in turn, by:
@@ -204,6 +205,10 @@ if (WIN32 AND BUILD_SHARED_LIBS)
   # set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib")
 endif()
 
+# Start collecting the packages (which have all the automagic stuff to set
+# dependencies and so on)
+set(TPL_PACKAGES "")
+
 # AMD HIP
 if (MFEM_USE_HIP)
   if (HIP_ARCH)
@@ -215,6 +220,7 @@ if (MFEM_USE_HIP)
   endif()
   find_package(HIP REQUIRED)
   find_package(HIPSPARSE REQUIRED)
+  list(APPEND TPL_PACKAGES HIP::HIP HIPSPARSE::HIPSPARSE)
 endif()
 
 # OpenMP
@@ -247,9 +253,13 @@ if (MFEM_USE_MPI)
   if (MFEM_MPIEXEC_NP)
     string(REPLACE " " ";" MPIEXEC_NUMPROC_FLAG ${MFEM_MPIEXEC_NP})
   endif()
+  list(APPEND TPL_PACKAGES MPI::MPI_CXX)
   # Parallel MFEM depends on hypre
+  # Modern versions of HYPRE already provide CMake portable packages, so it
+  # wll be possible to add it to TPL_PACKAGES. Unfortunately, mfem does not
+  # work with those yet
   find_package(HYPRE REQUIRED)
-  set(MFEM_HYPRE_VERSION ${HYPRE_VERSION})
+  string(REPLACE "." "" MFEM_HYPRE_VERSION ${HYPRE_VERSION})
   if (MFEM_USE_PETSC)
     find_package(PETSc REQUIRED)
     message(STATUS "Found PETSc version ${PETSC_VERSION}")
@@ -300,6 +310,22 @@ endif()
 if (MFEM_USE_LAPACK)
   find_package(BLAS REQUIRED)
   find_package(LAPACK REQUIRED)
+  list(APPEND TPL_PACKAGES BLAS::BLAS LAPACK::LAPACK)
+endif()
+
+# OpenMP
+if (MFEM_USE_OPENMP OR MFEM_USE_LEGACY_OPENMP)
+  if (NOT MFEM_THREAD_SAFE AND MFEM_USE_LEGACY_OPENMP)
+    message(FATAL_ERROR " *** MFEM_USE_LEGACY_OPENMP requires MFEM_THREAD_SAFE=ON.")
+  endif()
+  find_package(OpenMP REQUIRED)
+  list(APPEND TPL_PACKAGES OpenMP::OpenMP_CXX)
+  set(OPENMP_LIBRARIES ${OpenMP_CXX_LIBRARIES})
+  if(APPLE)
+    # On macOS, the compiler needs additional help to find the <omp.h> header.
+    # See issue #2642 for more information.
+    set(OPENMP_INCLUDE_DIRS ${OpenMP_CXX_INCLUDE_DIRS})
+  endif(APPLE)
 endif()
 
 # SuiteSparse (before SUNDIALS which may depend on KLU)
@@ -359,7 +385,8 @@ endif()
 
 # NetCDF
 if (MFEM_USE_NETCDF)
-  find_package(NetCDF REQUIRED)
+  find_package(netCDF REQUIRED)
+  list(APPEND TPL_PACKAGES netCDF::netcdf)
 endif()
 
 # MPFR
@@ -463,7 +490,8 @@ endif()
 
 # ADIOS2 for parallel I/O
 if (MFEM_USE_ADIOS2)
-   find_package(ADIOS2 REQUIRED)
+  find_package(ADIOS2 REQUIRED)
+  list(APPEND TPL_PACKAGES adios2::adios2)
 endif()
 
 if (MFEM_USE_MKL_CPARDISO)
@@ -512,19 +540,21 @@ endif()
 #       "Threads::Threads" and call the next line only when that TPL library is
 #       enabled.  -V. Dobrev
 find_package(Threads REQUIRED)
+list(APPEND TPL_PACKAGES Threads::Threads)
 
-# List all possible libraries in order of dependencies.
+# List all possible libraries in order of dependencies. Here we are just
+# considering those which are not in TPL_PACKAGES
 # [METIS < SuiteSparse]:
 #    With newer versions of SuiteSparse which include METIS header using 64-bit
 #    integers, the METIS header (with 32-bit indices, as used by mfem) needs to
 #    be before SuiteSparse.
-set(MFEM_TPLS OPENMP HYPRE LAPACK BLAS SuperLUDist STRUMPACK METIS SuiteSparse
-    SUNDIALS PETSC SLEPC MUMPS AXOM FMS CONDUIT Ginkgo GNUTLS GSLIB
-    NETCDF MPFR PUMI HIOP POSIXCLOCKS MFEMBacktrace ZLIB OCCA CEED RAJA UMPIRE
-    ADIOS2 CUBLAS CUSPARSE MKL_CPARDISO AMGX CALIPER CODIPACK BENCHMARK PARELAG
-    MPI_CXX HIP HIPSPARSE MOONOLITH BLITZ ALGOIM ENZYME)
+set(MFEM_TPLS HYPRE SuperLUDist STRUMPACK METIS SuiteSparse SUNDIALS PETSC
+    SLEPC MUMPS AXOM FMS CONDUIT Ginkgo GNUTLS GSLIB MPFR PUMI HIOP
+    POSIXCLOCKS MFEMBacktrace ZLIB OCCA CEED RAJA UMPIRE CUBLAS CUSPARSE
+    MKL_CPARDISO AMGX CALIPER CODIPACK BENCHMARK PARELAG HIP HIPSPARSE
+    MOONOLITH BLITZ ALGOIM ENZYME)
 
-# Add all *_FOUND libraries in the variable TPL_LIBRARIES.
+# Add all *_FOUND libraries in the variable TPL_PACKAGES.
 set(TPL_LIBRARIES "")
 set(TPL_INCLUDE_DIRS "")
 foreach(TPL IN LISTS MFEM_TPLS)
@@ -583,8 +613,9 @@ set(MFEM_INSTALL_DIR ${CMAKE_INSTALL_PREFIX} CACHE PATH
 
 # Declaring the library
 mfem_add_library(mfem ${SOURCES} ${HEADERS} ${MASTER_HEADERS})
-# message(STATUS "TPL_LIBRARIES = ${TPL_LIBRARIES}")
-target_link_libraries(mfem PUBLIC ${TPL_LIBRARIES})
+message(STATUS "TPL_PACKAGES = ${TPL_PACKAGES}")
+message(STATUS "TPL_LIBRARIES = ${TPL_LIBRARIES}")
+target_link_libraries(mfem PUBLIC ${TPL_PACKAGES} INTERFACE ${TPL_LIBRARIES})
 if (MINGW)
   target_link_libraries(mfem PRIVATE ws2_32)
 endif()
@@ -597,6 +628,7 @@ target_include_directories(mfem
     $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}>
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
     # The INSTALL_INTERFACE is handled below
+  PRIVATE
     ${TPL_INCLUDE_DIRS})
 if (MFEM_USE_MPI)
   if (MPI_CXX_COMPILE_FLAGS)
@@ -740,8 +772,8 @@ set(INSTALL_LIB_DIR lib
 set(INSTALL_CMAKE_DIR lib/cmake/mfem
   CACHE PATH "Relative path for installing cmake config files.")
 
-target_include_directories(mfem BEFORE
-  PUBLIC
+target_include_directories(mfem
+  INTERFACE
     $<INSTALL_INTERFACE:${INSTALL_INCLUDE_DIR}>)
 
 # The 'install' target will not depend on 'all'.
@@ -838,7 +870,14 @@ install(FILES
 
 # Install the export set for use with the install-tree
 install(EXPORT ${PROJECT_NAME_UC}Targets
+    NAMESPACE MFEM::
     DESTINATION ${INSTALL_CMAKE_DIR})
+
+# Install the modules directory, so it can be used to find the dependencies
+install(DIRECTORY config/cmake/modules
+  DESTINATION ${INSTALL_CMAKE_DIR}
+  FILES_MATCHING PATTERN "*.cmake")
+
 
 #-------------------------------------------------------------------------------
 # Create 'config.mk' from 'config.mk.in' for the build and install locations and
