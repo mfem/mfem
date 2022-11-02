@@ -94,8 +94,6 @@ if(MFEM_USE_STRUMPACK)
 endif()
 set(MFEM_USE_GNUTLS @MFEM_USE_GNUTLS@)
 if(MFEM_USE_GNUTLS)
-  # BUG: We have a collision name here, because GNUTLS_FOUND is set instead of
-  # _GnuTLS_FOUND
   find_dependency(_GnuTLS)
 endif()
 set(MFEM_USE_GSLIB @MFEM_USE_GSLIB@)
