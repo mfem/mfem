@@ -1122,7 +1122,6 @@ void NURBSPatch::SwapDirections(int dir1, int dir2)
    swap(newpatch);
 }
 
-
 void NURBSPatch::Rotate(double angle, double n[])
 {
    if (Dim == 3)
