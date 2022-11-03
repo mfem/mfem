@@ -166,7 +166,7 @@ void FPDESolver::Solve()
       M = new GSSmoother((SparseMatrix&)(*A));
       cg = new CGSolver;
 #endif
-      cg->SetRelTol(1e-6);
+      cg->SetRelTol(1e-12);
       cg->SetMaxIter(10000);
       cg->SetPrintLevel(0);
       cg->SetPreconditioner(*M);
