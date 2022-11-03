@@ -9,7 +9,7 @@
 //               NURBS patch. We then interpolate a sine function on the bottom
 //               edge. The results can be viewed in VisIt.
 //
-//               Us use curve interpolation for curves with all weights being 1,
+//               We use curve interpolation for curves with all weights being 1,
 //               B-splines, and curves with not all weights being 1, NURBS. The
 //               spacing in both cases is chosen differently.
 
@@ -62,15 +62,13 @@ int main(int argc, char *argv[])
                   "Height and width of the box");
    args.AddOption(&a, "-a", "--sine-ampl",
                   "Amplitude of the fitted sine function.");
-   args.AddOption(&a, "-a", "--sine-ampl",
-                  "Amplitude of the fitted sine function.");
    args.AddOption(&ncp, "-n", "--ncp",
                   "Number of control points used over four box sides.");
    args.AddOption(&order, "-o", "--order",
                   "Order of the NURBSPatch");
    args.AddOption(&ifbspline, "-uw", "--unit-weight", "-nw",
                   "--non-unit-weight",
-                  "Use a weight of one only for the NURBS-patches (default) or not: B-splines");
+                  "Use a unit-weight for B-splines (default) or not: for general NURBS");
 
    // Parse and print commandline options
    args.Parse();
@@ -133,13 +131,13 @@ int main(int argc, char *argv[])
    {
       // We locate the controlpoints at the location of the
       // maxima of the knotvectors. This works very well
-      // for patches with the weight being one.
+      // for patches with unit weights.
       kv->FindMaxima(i_args,xi_args, u_args);
 
       for (int i = 0; i < ncp; i++)
       {
          (*xy[0])[i] = u_args[i]*l;
-         (*xy[1])[i] = a * sin((*xy[0])[i]/l*2*3.1415);
+         (*xy[1])[i] = a * sin((*xy[0])[i]/l*2*M_PI);
       }
 
       kv->FindInterpolant(xy);
@@ -155,12 +153,12 @@ int main(int argc, char *argv[])
    else
    {
       // We use a uniform spacing of the controlpoints. This
-      // works better for patches with not all weights being one
+      // works better for patches with not non-unit weights
       // than using the locations of the maxima.
       for (int i = 0; i < ncp; i++)
       {
          (*xy[0])[i] = -0.5+(double) i * l/(ncp-1);
-         (*xy[1])[i] = -a * sin((*xy[0])[i]/l*2*3.1415)-0.5*l;
+         (*xy[1])[i] = -a * sin((*xy[0])[i]/l*2*M_PI)-0.5*l;
       }
 
       kv->FindInterpolant(xy);
@@ -178,9 +176,7 @@ int main(int argc, char *argv[])
    patch.KnotInsert(1, *kv);
 
    // 3. Open and write mesh output file
-   string mesh_file;
-   mesh_file.append("sin-fit");
-   mesh_file.append(".mesh");
+   string mesh_file("sin-fit.mesh");
    ofstream output(mesh_file.c_str());
 
    output<<"MFEM NURBS mesh v1.0"<<endl;
@@ -231,7 +227,8 @@ int main(int argc, char *argv[])
    dc.SetTime(0.0);
    dc.Save();
 
-   delete kv_o1, kv;
+   delete kv_o1;
+   delete kv;
    delete mesh;
 
    return 0;
