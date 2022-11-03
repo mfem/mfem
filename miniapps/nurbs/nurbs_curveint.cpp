@@ -122,6 +122,8 @@ int main(int argc, char *argv[])
    patch.DegreeElevate(0, order-kv_o1->GetOrder());
    if (!ifbspline)
    {
+      // We we alter the weight for demonstration purposes. This is
+      // not necessary for general curve fitting.
       patch(1,0,2) = sqrt(2)/2;
    }
    patch.KnotInsert(0, *kv);
@@ -148,13 +150,14 @@ int main(int argc, char *argv[])
 
    if(!ifbspline)
    {
-      // Convert to other coordinate system
+      // Convert to homogeneous coordinates. Find interpolant returns
+      // carthesian coordinates.
       for (int i = 0; i < ncp; i++)
       {
          patch(i,0,0) = patch(i,0,0)*patch(i,0,2);
          patch(i,0,1) = patch(i,0,1)*patch(i,0,2);
       }
-   }   
+   }
 
    // Refinement in curve interpolation direction
    patch.DegreeElevate(1, order-kv_o1->GetOrder());

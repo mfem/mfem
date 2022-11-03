@@ -362,11 +362,11 @@ void KnotVector::FindMaxima(Array<int> &ks,
          int i = j - d;
          if (isElement(i))
          {
-            arg1 = 0;
+            arg1 = 1e-16;
             CalcShape(shape, i, arg1);
             max1 = shape[d];
 
-            arg2 = 1;
+            arg2 = 1-(1e-16);
             CalcShape(shape, i, arg2);
             max2 = shape[d];
 
