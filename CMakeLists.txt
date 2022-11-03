@@ -255,7 +255,10 @@ if (MFEM_USE_MPI)
   endif()
   # Parallel MFEM depends on hypre
   find_package(HYPRE REQUIRED)
-  list(APPEND TPL_PACKAGES MPI::MPI_CXX HYPRE::HYPRE)
+  list(APPEND TPL_PACKAGES MPI::MPI_C MPI::MPI_CXX HYPRE::HYPRE)
+  if (XSDK_ENABLE_Fortran)
+    list(APPEND TPL_PACKAGES MPI::MPI_Fortran)
+  endif()
   math(EXPR MFEM_HYPRE_VERSION "10000 * ${HYPRE_VERSION_MAJOR} + 100 * ${HYPRE_VERSION_MINOR} + ${HYPRE_VERSION_PATCH}" OUTPUT_FORMAT DECIMAL)
   if (MFEM_USE_PETSC)
     find_package(PETSc REQUIRED)
@@ -356,6 +359,7 @@ endif()
 if (MFEM_USE_MUMPS)
   if (MFEM_USE_MPI)
     find_package(MUMPS REQUIRED mumps_common pord)
+    find_package(Scotch REQUIRED scotch scotcherr esmumps)
   else()
     message(FATAL_ERROR " *** MUMPS requires that MPI be enabled.")
   endif()
@@ -539,6 +543,11 @@ endif()
 find_package(Threads REQUIRED)
 list(APPEND TPL_PACKAGES Threads::Threads)
 
+foreach(TPL IN LISTS TPL_PACKAGES)
+  message(STATUS "MFEM: using target ${TPL}")
+endforeach(TPL)
+
+
 # List all possible libraries in order of dependencies. Here we are just
 # considering those which are not in TPL_PACKAGES
 # [METIS < SuiteSparse]:
@@ -546,7 +555,7 @@ list(APPEND TPL_PACKAGES Threads::Threads)
 #    integers, the METIS header (with 32-bit indices, as used by mfem) needs to
 #    be before SuiteSparse.
 set(MFEM_TPLS SuperLUDist STRUMPACK METIS SuiteSparse SUNDIALS PETSC SLEPC
-    MUMPS AXOM FMS CONDUIT Ginkgo GNUTLS GSLIB MPFR PUMI HIOP
+    MUMPS Scotch AXOM FMS CONDUIT Ginkgo GNUTLS GSLIB MPFR PUMI HIOP
     POSIXCLOCKS MFEMBacktrace ZLIB OCCA CEED RAJA UMPIRE CUBLAS CUSPARSE
     MKL_CPARDISO AMGX CALIPER CODIPACK BENCHMARK PARELAG HIP HIPSPARSE
     MOONOLITH BLITZ ALGOIM ENZYME)
@@ -567,9 +576,6 @@ list(REVERSE TPL_LIBRARIES)
 list(REMOVE_DUPLICATES TPL_INCLUDE_DIRS)
 # message(STATUS "TPL_INCLUDE_DIRS = ${TPL_INCLUDE_DIRS}")
 
-<<<<<<< HEAD
-message(STATUS "MFEM shared library: BUILD_SHARED_LIBS = ${BUILD_SHARED_LIBS}")
-=======
 # Now split the libraries in directories and files, for the sake of portability
 set(TPL_LIBRARY_DIRS "")
 set(TPL_LIBRARY_FILES "")
@@ -590,7 +596,7 @@ if (OPENMP_FOUND)
   endif()
 endif()
 
->>>>>>> 5d601788f (Do not use absolute paths for the module-based dependencies)
+message(STATUS "MFEM shared library: BUILD_SHARED_LIBS = ${BUILD_SHARED_LIBS}")
 message(STATUS "MFEM build type: CMAKE_BUILD_TYPE = ${CMAKE_BUILD_TYPE}")
 message(STATUS "MFEM version: v${MFEM_VERSION_STRING}")
 message(STATUS "MFEM git string: ${MFEM_GIT_STRING}")

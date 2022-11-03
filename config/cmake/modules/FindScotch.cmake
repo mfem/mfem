@@ -18,12 +18,14 @@ include(MfemCmakeUtilities)
 mfem_find_package(Scotch Scotch Scotch_DIR "" "" "" ""
   "Paths to headers required by Scotch."
   "Libraries required by Scotch."
-  ADD_COMPONENT "scotch" "include" scotch.h "lib" scotch
+  ADD_COMPONENT "scotch" "include" scotch/scotch.h "lib" scotch
   ADD_COMPONENT "scotcherr" "" "" "lib" scotcherr
   ADD_COMPONENT "scotcherrexit" "" "" "lib" scotcherrexit
   ADD_COMPONENT "scotchmetis" "include" "metis.h" "lib" scotchmetis
-  ADD_COMPONENT "ptscotch" "include" ptscotch.h "lib" ptscotch
+  ADD_COMPONENT "ptscotch" "include" scotch/ptscotch.h "lib" ptscotch
   ADD_COMPONENT "ptscotcherr" "" "" "lib" ptscotcherr
   ADD_COMPONENT "ptscotcherrexit" "" "" "lib" ptscotcherrexit
   ADD_COMPONENT "ptscotchparmetis" "include" "parmetis.h" "lib" ptscotchparmetis
+  ADD_COMPONENT "esmumps" "" "" "lib" esmumps
+  ADD_COMPONENT "ptesmumps" "" "" "lib" esmumps
   )
