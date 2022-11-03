@@ -13,8 +13,6 @@
 //               B-splines, and curves with not all weights being 1, NURBS. The
 //               spacing in both cases is chosen differently.
 
-
-
 #include "mfem.hpp"
 #include <fstream>
 #include <iostream>
@@ -44,8 +42,6 @@ KnotVector *UniformKnotVector(int order, int ncp)
    }
    return kv;
 }
-
-
 
 int main(int argc, char *argv[])
 {
@@ -119,12 +115,17 @@ int main(int argc, char *argv[])
    xy[0]->SetSize(ncp); xy[1]->SetSize(ncp);
 
    // Refine direction which has fitting
-   patch.DegreeElevate(0, order-kv_o1->GetOrder());
-   if (!ifbspline)
+   if(!ifbspline)
    {
       // We we alter the weight for demonstration purposes. This is
       // not necessary for general curve fitting.
+      patch.DegreeElevate(0, 1);
       patch(1,0,2) = sqrt(2)/2;
+      patch.DegreeElevate(0, order-kv_o1->GetOrder()-1);
+   }
+   else
+   {
+      patch.DegreeElevate(0, order-kv_o1->GetOrder());
    }
    patch.KnotInsert(0, *kv);
    
@@ -135,8 +136,9 @@ int main(int argc, char *argv[])
 
    for (int i = 0; i < ncp; i++)
    {
-      (*xy[0])[i] = u_args[i]*l;
-      (*xy[1])[i] = a * sin((*xy[0])[i]/l*2*M_PI);
+      (*xy[0])[i]  = u_args[i]*l;
+      (*xy[1])[i]  = a * sin((*xy[0])[i]/l*2*M_PI)-0.5*l;
+      (*xy[0])[i] -= 0.5*l;
    }
 
    kv->FindInterpolant(xy);
@@ -144,18 +146,18 @@ int main(int argc, char *argv[])
    // Apply interpolation to patch
    for (int i = 0; i < ncp; i++)
    {
-      patch(i,0,0) = (*xy[0])[i]-0.5*l;
-      patch(i,0,1) = (*xy[1])[i]-0.5*l;
+      patch(i,0,0) = (*xy[0])[i];
+      patch(i,0,1) = (*xy[1])[i];
    }
 
    if(!ifbspline)
    {
-      // Convert to homogeneous coordinates. Find interpolant returns
+      // Convert to homogeneous coordinates. FindInterpolant returns
       // carthesian coordinates.
       for (int i = 0; i < ncp; i++)
       {
-         patch(i,0,0) = patch(i,0,0)*patch(i,0,2);
-         patch(i,0,1) = patch(i,0,1)*patch(i,0,2);
+         patch(i,0,0) *= patch(i,0,2);
+         patch(i,0,1) *= patch(i,0,2);
       }
    }
 
