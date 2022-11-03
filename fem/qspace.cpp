@@ -16,7 +16,7 @@ namespace mfem
 
 QuadratureSpaceBase::QuadratureSpaceBase(Mesh &mesh_, Geometry::Type geom,
                                          const IntegrationRule &ir)
-   : mesh(mesh_), order(ir.GetOrder()), size(ir.GetNPoints() * mesh_.GetNE())
+   : mesh(mesh_), order(ir.GetOrder())
 {
    for (int g = 0; g < Geometry::NumGeom; g++)
    {
