@@ -1149,7 +1149,7 @@ public:
          d2(0,2) = (400.0*tmp(0)*tmp(2)*f)/dist_squared_squared;
          d2(1,2) = (400.0*tmp(1)*tmp(2)*f)/dist_squared_squared;
          d2(2,0) = d2(0,2);
-         d2(1,2) = d2(2,1);
+         d2(2,1) = d2(1,2);
          d2(2,2) = ((400.0*tmp(2)*tmp(2)*f)/dist_squared_squared)+(20.0*f/dist_squared);
       }
 

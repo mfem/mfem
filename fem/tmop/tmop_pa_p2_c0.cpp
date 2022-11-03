@@ -126,20 +126,20 @@ MFEM_REGISTER_TMOP_KERNELS(void, AddMultPA_Kernel_C0_2D,
             double a = 0.0;
             const double w = weight * lim_normal * coeff0;
             const double dist_squared = dist * dist;
-            
+
             if (!exp_lim)
             {
-              a =  1.0 / dist_squared;
+               a =  1.0 / dist_squared;
             }
             else
             {
-              double dsq = kernels::DistanceSquared<2>(p1,p0) / dist_squared;
-              a = 20.0*exp(10.0*(dsq - 1.0))/dist_squared;
+               double dsq = kernels::DistanceSquared<2>(p1,p0) / dist_squared;
+               a = 20.0*exp(10.0*(dsq - 1.0))/dist_squared;
             }
             kernels::Subtract<2>(w*a, p1, p0, d1);
             kernels::internal::PushEval<MQ1,NBZ>(Q1D,qx,qy,d1,QQ0);
-            
-            
+
+
          }
       }
       MFEM_SYNC_THREAD;
@@ -168,7 +168,8 @@ void TMOP_Integrator::AddMultPA_C0_2D(const Vector &X, Vector &Y) const
    auto el = dynamic_cast<TMOP_ExponentialLimiter *>(lim_func);
    const bool exp_lim = (el) ? true : false;
 
-   MFEM_LAUNCH_TMOP_KERNEL(AddMultPA_Kernel_C0_2D,id,ln,LD,C0,N,J,W,B,BLD,X0,X,Y,exp_lim);
+   MFEM_LAUNCH_TMOP_KERNEL(AddMultPA_Kernel_C0_2D,id,ln,LD,C0,N,J,W,B,BLD,X0,X,Y,
+                           exp_lim);
 }
 
 } // namespace mfem

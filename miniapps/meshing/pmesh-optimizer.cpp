@@ -874,12 +874,7 @@ int main (int argc, char *argv[])
    if (normalization) { dist = small_phys_size; }
    ConstantCoefficient lim_coeff(lim_const);
 
-   if (lim_const != 0.0)
-   {
-      tmop_integ->EnableLimiting(x0, dist, lim_coeff,
-                                 new TMOP_ExponentialLimiter);
-//      tmop_integ->EnableLimiting(x0, dist, lim_coeff);
-   }
+   if (lim_const != 0.0){ tmop_integ->EnableLimiting(x0, dist, lim_coeff); }
 
    // Adaptive limiting.
    ParGridFunction adapt_lim_gf0(&ind_fes);
