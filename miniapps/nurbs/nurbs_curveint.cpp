@@ -104,7 +104,6 @@ int main(int argc, char *argv[])
    patch(1,0,0) = 0.5*l;
    patch(1,0,1) = -0.5*l;
 
-
    patch(0,1,0) = -0.5*l;
    patch(0,1,1) = 0.5*l;
 
@@ -126,50 +125,36 @@ int main(int argc, char *argv[])
       patch(1,0,2) = sqrt(2)/2;
    }
    patch.KnotInsert(0, *kv);
+   
+   // We locate the controlpoints at the location of the
+   // maxima of the knotvectors. This works very well
+   // for patches with unit weights.
+   kv->FindMaxima(i_args,xi_args, u_args);
 
-   if (ifbspline)
+   for (int i = 0; i < ncp; i++)
    {
-      // We locate the controlpoints at the location of the
-      // maxima of the knotvectors. This works very well
-      // for patches with unit weights.
-      kv->FindMaxima(i_args,xi_args, u_args);
-
-      for (int i = 0; i < ncp; i++)
-      {
-         (*xy[0])[i] = u_args[i]*l;
-         (*xy[1])[i] = a * sin((*xy[0])[i]/l*2*M_PI);
-      }
-
-      kv->FindInterpolant(xy);
-
-      // Apply interpolation to patch
-      for (int i = 0; i < ncp; i++)
-      {
-         patch(i,0,0) = (*xy[0])[i]*patch(i,0,2)-0.5*l;
-         patch(i,0,1) = (*xy[1])[i]*patch(i,0,2)-0.5*l;
-      }
+      (*xy[0])[i] = u_args[i]*l;
+      (*xy[1])[i] = a * sin((*xy[0])[i]/l*2*M_PI);
    }
 
-   else
+   kv->FindInterpolant(xy);
+
+   // Apply interpolation to patch
+   for (int i = 0; i < ncp; i++)
    {
-      // We use a uniform spacing of the controlpoints. This
-      // works better for patches with not non-unit weights
-      // than using the locations of the maxima.
-      for (int i = 0; i < ncp; i++)
-      {
-         (*xy[0])[i] = -0.5+(double) i * l/(ncp-1);
-         (*xy[1])[i] = -a * sin((*xy[0])[i]/l*2*M_PI)-0.5*l;
-      }
-
-      kv->FindInterpolant(xy);
-
-      // Apply interpolation to patch
-      for (int i = 0; i < ncp; i++)
-      {
-         patch(i,0,0) = (*xy[0])[i]*patch(i,0,2);
-         patch(i,0,1) = (*xy[1])[i]*patch(i,0,2);
-      }
+      patch(i,0,0) = (*xy[0])[i]-0.5*l;
+      patch(i,0,1) = (*xy[1])[i]-0.5*l;
    }
+
+   if(!ifbspline)
+   {
+      // Convert to other coordinate system
+      for (int i = 0; i < ncp; i++)
+      {
+         patch(i,0,0) = patch(i,0,0)*patch(i,0,2);
+         patch(i,0,1) = patch(i,0,1)*patch(i,0,2);
+      }
+   }   
 
    // Refinement in curve interpolation direction
    patch.DegreeElevate(1, order-kv_o1->GetOrder());
