@@ -115,10 +115,10 @@ int main(int argc, char *argv[])
    xy[0]->SetSize(ncp); xy[1]->SetSize(ncp);
 
    // Refine direction which has fitting
-   if(!ifbspline)
+   if (!ifbspline)
    {
-      // We we alter the weight for demonstration purposes. This is
-      // not necessary for general curve fitting.
+      // We we alter the weight for demonstration purposes to a random value. This
+      // is not necessary for general curve fitting.
       patch.DegreeElevate(0, 1);
       patch(1,0,2) = sqrt(2)/2;
       patch.DegreeElevate(0, order-kv_o1->GetOrder()-1);
@@ -128,7 +128,7 @@ int main(int argc, char *argv[])
       patch.DegreeElevate(0, order-kv_o1->GetOrder());
    }
    patch.KnotInsert(0, *kv);
-   
+
    // We locate the controlpoints at the location of the
    // maxima of the knotvectors. This works very well
    // for patches with unit weights.
@@ -150,7 +150,7 @@ int main(int argc, char *argv[])
       patch(i,0,1) = (*xy[1])[i];
    }
 
-   if(!ifbspline)
+   if (!ifbspline)
    {
       // Convert to homogeneous coordinates. FindInterpolant returns
       // carthesian coordinates.
