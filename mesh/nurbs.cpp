@@ -347,7 +347,7 @@ void KnotVector::FindMaxima(Array<int> &ks,
 {
    Vector shape(Order+1);
    Vector maxima(GetNCP());
-   double arg1,arg2,arg,max1,max2,max;
+   double arg1, arg2, arg, max1, max2, max;
 
    xi.SetSize(GetNCP());
    u.SetSize(GetNCP());
@@ -361,15 +361,15 @@ void KnotVector::FindMaxima(Array<int> &ks,
          if (isElement(i))
          {
             arg1 = 0;
-            CalcShape ( shape, i, arg1);
+            CalcShape(shape, i, arg1);
             max1 = shape[d];
 
             arg2 = 1;
-            CalcShape ( shape, i, arg2);
+            CalcShape(shape, i, arg2);
             max2 = shape[d];
 
             arg = (arg1 + arg2)/2;
-            CalcShape ( shape, i, arg);
+            CalcShape(shape, i, arg);
             max = shape[d];
 
             while ( ( max > max1 ) || (max > max2) )
@@ -403,6 +403,7 @@ void KnotVector::FindMaxima(Array<int> &ks,
 }
 
 // Routine from "The NURBS book" - 2nd ed - Piegl and Tiller
+// Algorithm A9.1 p. 369
 void KnotVector::FindInterpolant(Array<Vector*> &x)
 {
    int order = GetOrder();
