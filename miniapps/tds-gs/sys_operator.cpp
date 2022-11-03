@@ -72,11 +72,11 @@ void SysOperator::Mult(const Vector &psi, Vector &y) const {
 
   // deal with boundary conditions
   Vector u_b_exact, u_tmp, u_b;
-  psi.GetSubVector(*boundary_dofs, u_b);
+  psi.GetSubVector(boundary_dofs, u_b);
   u_tmp = u_b;
-  u_boundary->GetSubVector(*boundary_dofs, u_b_exact);
+  u_boundary->GetSubVector(boundary_dofs, u_b_exact);
   u_tmp -= u_b_exact;
-  y.SetSubVector(*boundary_dofs, u_tmp);
+  y.SetSubVector(boundary_dofs, u_tmp);
 
 }
 
@@ -97,7 +97,7 @@ Operator &SysOperator::GetGradient(const Vector &psi) const {
   compute_plasma_points(x, *mesh, vertex_map, plasma_inds, ind_ma, ind_x, val_ma, val_x, iprint);
   // val_x = 1.0;
   // val_ma = 0.0;
-  if ((iprint) || (true)) {
+  if ((iprint) || (false)) {
     // printf(" val_ma: %f, val_x: %f \n", val_ma, val_x);
     printf(" ind_ma: %d, ind_x: %d \n", ind_ma, ind_x);
   }
@@ -105,7 +105,7 @@ Operator &SysOperator::GetGradient(const Vector &psi) const {
   NonlinearGridCoefficient nlgcoeff_2(model, 2, &x, val_ma, val_x, plasma_inds, attr_lim);
   BilinearForm diff_plasma_term_2(fespace);
   diff_plasma_term_2.AddDomainIntegrator(new MassIntegrator(nlgcoeff_2));
-  // diff_plasma_term_2.EliminateEssentialBC(*boundary_dofs, DIAG_ZERO);
+  // diff_plasma_term_2.EliminateEssentialBC(boundary_dofs, DIAG_ZERO);
   diff_plasma_term_2.Assemble();
 
   // second nonlinear contribution: corresponds to the magnetic axis point column in jacobian
@@ -144,8 +144,8 @@ Operator &SysOperator::GetGradient(const Vector &psi) const {
 
   SparseMatrix *Mat_;
   Mat_ = Add(1.0, M1, -1.0, M2);
-  for (int k = 0; k < boundary_dofs->Size(); ++k) {
-    Mat_->EliminateRow((*boundary_dofs)[k], DIAG_ONE);
+  for (int k = 0; k < boundary_dofs.Size(); ++k) {
+    Mat_->EliminateRow((boundary_dofs)[k], DIAG_ONE);
   }
 
   SparseMatrix *Final;

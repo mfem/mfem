@@ -1,0 +1,77 @@
+
+TODO:
+ - regression tests
+
+
+*****************************************
+11/3/22
+Options used:
+   --mesh meshes/test_off_center.msh
+   --order 1
+   --magnetic_permeability 1
+   --data_file separated_file.data
+   --refinement_factor 0
+performing tests...
+Boundary elements with wrong orientation: 113 / 185 (fixed)
+Found saddle at ( 0.990723, -0.358776), val= 1.000182
+Found saddle at ( 1.358475,  0.008743), val= 1.000093
+Found saddle at ( 0.640843,  0.008258), val= 0.999685
+total saddles found: 3
+  min of  0.001816 at ( 0.990625,  0.001526), ind 6505
+  max of  1.999758 at ( 1.347548,  0.347548), ind 1017
+x_val of  0.999685 at ( 0.640843,  0.008258), ind 6766
+tests finished...
+
+
+Boundary elements with wrong orientation: 113 / 185 (fixed)
+Number of unknowns: 5250
+i:   0, max residual: 1.234e-01
+i:   1, max residual: 8.826e-07, ratio 1.398e+05
+
+
+********************************
+final max residual: 9.127e-14, ratio 9.671e+06
+********************************
+
+********************************
+numerical error: 1.331e-02
+L2 error: 3.008e-02
+********************************
+
+
+
+*****************************************
+Options used:
+   --mesh meshes/test.msh
+   --order 1
+   --magnetic_permeability 1
+   --data_file separated_file.data
+   --refinement_factor 0
+performing tests...
+Boundary elements with wrong orientation: 113 / 185 (fixed)
+Found saddle at ( 0.990723, -0.358776), val= 1.000182
+Found saddle at ( 1.358475,  0.008743), val= 1.000093
+Found saddle at ( 0.640843,  0.008258), val= 0.999685
+total saddles found: 3
+  min of  0.001816 at ( 0.990625,  0.001526), ind 6505
+  max of  1.999758 at ( 1.347548,  0.347548), ind 1017
+x_val of  0.999685 at ( 0.640843,  0.008258), ind 6766
+tests finished...
+
+
+Boundary elements with wrong orientation: 113 / 185 (fixed)
+Number of unknowns: 5262
+i:   0, max residual: 5.484e+00
+i:   1, max residual: 1.918e-05, ratio 2.860e+05
+
+
+********************************
+final max residual: 1.297e-10, ratio 1.479e+05
+********************************
+
+
+
+********************************
+numerical error: 1.067e-01
+L2 error: 2.011e-01
+********************************
