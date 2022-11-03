@@ -157,6 +157,7 @@ void KnotVector::PrintFunctions(std::ostream &os, int samples) const
 }
 
 // Routine from "The NURBS book" - 2nd ed - Piegl and Tiller
+// Algorithm A2.2 p. 70
 void KnotVector::CalcShape(Vector &shape, int i, double xi) const
 {
    MFEM_ASSERT(Order <= MaxOrder, "Order > MaxOrder!");
@@ -183,6 +184,7 @@ void KnotVector::CalcShape(Vector &shape, int i, double xi) const
 }
 
 // Routine from "The NURBS book" - 2nd ed - Piegl and Tiller
+// Algorithm A2.3 p. 72
 void KnotVector::CalcDShape(Vector &grad, int i, double xi) const
 {
    int    p = Order, rk, pk;
