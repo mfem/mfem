@@ -121,12 +121,12 @@ jobs:
     - name: get MPI (Linux)
       if: matrix.mpi == 'par' && matrix.os == 'ubuntu-latest'
       run: |
-        sudo apt-get install mpich libmpich-dev
+        sudo apt-get update && sudo apt-get -y mpich libmpich-dev
 
     - name: get lcov (Linux)
       if: matrix.codecov == 'YES' && matrix.os == 'ubuntu-latest'
       run: |
-        sudo apt-get install lcov
+        sudo apt-get update && sudo apt-get -y install lcov
 
     # Keep the following section in case we need it again in the future,
     # see: https://github.com/mfem/mfem/pull/3385#discussion_r1058013032
