@@ -676,21 +676,10 @@ message(STATUS "TPL_INCLUDE_DIRS = ${TPL_INCLUDE_DIRS}")
 target_include_directories(mfem
   PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}>
-    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
-    # The INSTALL_INTERFACE is handled below
-  PRIVATE
-    ${TPL_INCLUDE_DIRS})
-if (MFEM_USE_MPI)
-  if (MPI_CXX_COMPILE_FLAGS)
-    separate_arguments(MPI_CXX_COMPILE_ARGS UNIX_COMMAND
-      "${MPI_CXX_COMPILE_FLAGS}")
-    target_compile_options(mfem PUBLIC ${MPI_CXX_COMPILE_ARGS})
-  endif()
-  if (MPI_CXX_LINK_FLAGS)
-    target_link_libraries(mfem PUBLIC ${MPI_CXX_LINK_FLAGS})
-  endif()
-endif()
-
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>)
+foreach(INC IN LISTS TPL_INCLUDE_DIRS)
+  target_include_directories(mfem PUBLIC $<BUILD_INTERFACE:${INC}>)
+endforeach(INC)
 set_target_properties(mfem PROPERTIES VERSION "${mfem_VERSION}")
 set_target_properties(mfem PROPERTIES SOVERSION "${mfem_VERSION}")
 
