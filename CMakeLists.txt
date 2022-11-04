@@ -264,6 +264,7 @@ if (MFEM_USE_MPI)
   # We first try to find the CMake package/config. This is only available if it
   # was built using CMake, which at the time of writing these lines was not the
   # default option.
+  set(MFEM_HYPRE_DIR ${HYPRE_DIR})
   find_package(HYPRE NO_MODULE)
   if (HYPRE_FOUND)
     message(STATUS ${HYPRE_LIBRARIES})
@@ -272,6 +273,9 @@ if (MFEM_USE_MPI)
   else()
     # Do not mess up with the cached variable
     unset(HYPRE_FOUND)
+    unset(HYPRE_DIR)
+    set(HYPRE_DIR ${MFEM_HYPRE_DIR})
+    # Now we can try again with the module
     find_package(HYPRE MODULE REQUIRED)
     set(MFEM_HYPRE_VERSION ${HYPRE_VERSION})
   endif()
