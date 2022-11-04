@@ -3604,25 +3604,73 @@ DeviceConformingProlongationOperator::DeviceConformingProlongationOperator(
       const int nb_connections = nbr_ltdof.Size_of_connections();
       shr_ltdof.SetSize(nb_connections);
       shr_ltdof.CopyFrom(nbr_ltdof.GetJ());
-      shr_buf.SetSize(nb_connections);
-      shr_buf.UseDevice(true);
       shr_buf_offsets = nbr_ltdof.GetIMemory();
+      // Note: add object to class as Array<int>
+      // data aligned to 64 byte boundary for mpi_irecv to arrive into
+      // size -> number of neighbors
+      // nbr_ltdof.I is defined as having a size of nbr_ltdof.Size() + 1
+      // We'd want the same down below.
+      shr_buf_align_offsets.SetSize(nbr_ltdof.Size() + 1);
+      shr_buf_align_offsets[0] = 0;
+      // Loop aligns data to a 64 byte boundary for each recv
+      for (int nb_index = 1; nb_index < shr_buf_align_offsets.Size(); nb_index++) {
+         int nb_shr_dofs = shr_buf_offsets[nb_index] - shr_buf_offsets[nb_index - 1];
+         // Data being sent are doubles
+         const int offset = nb_shr_dofs%(64/sizeof(double));
+         if (offset > 0) {
+            nb_shr_dofs += (64/sizeof(double) - offset);
+         }
+         shr_buf_align_offsets[nb_index] = shr_buf_align_offsets[nb_index - 1] + nb_shr_dofs;
+      }
+
+      // This guy need to align to 64 byte boundary and have length extended for this additional alignment
+      shr_buf.SetSize(shr_buf_align_offsets.Last(), MemoryType::HOST_64);
+      shr_buf.UseDevice(true);
+
       {
          Array<int> shared_ltdof(nbr_ltdof.GetJ(), nb_connections);
          Array<int> unique_ltdof(shared_ltdof);
          unique_ltdof.Sort();
+         // Removes duplicates from array
          unique_ltdof.Unique();
          // Note: the next loop modifies the J array of nbr_ltdof
          for (int i = 0; i < shared_ltdof.Size(); i++)
          {
+            // Returns index of unique array and putting into shared_ltdof
+            // get indices of L to T dof indices that are really shared
             shared_ltdof[i] = unique_ltdof.FindSorted(shared_ltdof[i]);
             MFEM_ASSERT(shared_ltdof[i] != -1, "internal error");
          }
          Table unique_shr;
+         // Above indexing changed from shared buffer to this unique buffer index
+         // Transpose creates a reverse multi-value mapping that goes from
+         // unique buffer shared index to extended shared buffer
          Transpose(shared_ltdof, unique_shr, unique_ltdof.Size());
          unq_ltdof = Array<int>(unique_ltdof, unique_ltdof.Size());
          unq_shr_i = Array<int>(unique_shr.GetI(), unique_shr.Size()+1);
+         // TODO
+         // For each index we can find which processor bin with offsets array
+         // map to align offsets / index
+         // (processor local index) + aligned offset for that processor
          unq_shr_j = Array<int>(unique_shr.GetJ(), unique_shr.Size_of_connections());
+
+         // Lift this index out of the loop as we're dealing with a sorted
+         // array so the indices should be linearly increasing as we progress through the loop
+         int nb_index = 0;
+         for (int shr_index = 0; shr_index < unq_shr_j.Size(); shr_index++) {
+            bool nb_found = false;
+            // computes the local processor index (nb_index) based on unq_shr_j[shr_index]
+            for (int i = nb_index; i < shr_buf_align_offsets.Size() - 1; i++) {
+               if ((unq_shr_j[shr_index] > shr_buf_offsets[i] && unq_shr_j[shr_index] < shr_buf_offsets[i + 1])) {
+                  nb_found = true;
+                  nb_index = i;
+                  break;
+               }
+            }
+            MFEM_ASSERT(nb_found, "A NB index was not found are we sure they were sorted?");
+            unq_shr_j[shr_index] += shr_buf_align_offsets[nb_index] - shr_buf_offsets[nb_index];
+         }
+         //
       }
       nbr_ltdof.GetJMemory().Delete();
       nbr_ltdof.LoseData();
@@ -3797,7 +3845,7 @@ static void AddSubVector(const Array<int> &unique_dst_indices,
    const auto x = src.Read();
    const auto DST_I = unique_dst_indices.Read();
    const auto SRC_O = unique_to_src_offsets.Read();
-   const auto SRC_I = unique_to_src_indices.Read();
+   const auto SRC_I = unique_to_src_indices.Read(); // This needs modification
    MFEM_FORALL(i, unique_dst_indices.Size(),
    {
       const int dst_idx = DST_I[i];
@@ -3834,8 +3882,8 @@ void DeviceConformingProlongationOperator::MultTranspose(const Vector &x,
                       gtopo.GetNeighborRank(nbr), 41823,
                       gtopo.GetComm(), &requests[req_counter++]);
          }
-         const int recv_offset = shr_buf_offsets[nbr];
-         const int recv_size = shr_buf_offsets[nbr+1] - recv_offset;
+         const int recv_offset = shr_buf_align_offsets[nbr];
+         const int recv_size = shr_buf_offsets[nbr+1] - shr_buf_offsets[nbr];
          if (recv_size > 0)
          {
             auto recv_buf = mpi_gpu_aware ? shr_buf.Write() : shr_buf.HostWrite();

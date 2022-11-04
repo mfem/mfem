@@ -489,6 +489,7 @@ protected:
    Memory<int> shr_buf_offsets, ext_buf_offsets;
    Array<int> ltdof_ldof, unq_ltdof;
    Array<int> unq_shr_i, unq_shr_j;
+   Array<int> shr_buf_align_offsets;
    MPI_Request *requests;
 
    // Kernel: copy ltdofs from 'src' to 'shr_buf' - prepare for send.
