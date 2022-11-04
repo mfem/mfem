@@ -80,6 +80,9 @@ protected:
    /** @brief Extension for supporting Full Assembly (FA), Element Assembly (EA),
        Partial Assembly (PA), or Matrix Free assembly (MF). */
    BilinearFormExtension *ext;
+   /** Indicates if the sparse matrix is sorted after assembly when using
+       Full Assembly (FA). */
+   bool sort_sparse_matrix = false;
 
    /** @brief Indicates the Mesh::sequence corresponding to the current state of
        the BilinearForm. */
@@ -180,6 +183,19 @@ public:
 
        If used, this method must be called before assembly. */
    void SetAssemblyLevel(AssemblyLevel assembly_level);
+
+   /** @brief Force the sparse matrix entries to be sorted when using
+       AssemblyLevel::FULL.
+
+       When assembling on device the assembly algorithm uses atomic
+       operations to insert values in the sparse matrix. Calling this
+       method forces a sorting algorithm to be called at the end of
+       the assembly procedure.
+   */
+   void EnableSparseMatrixSorting(bool enable_it)
+   {
+      sort_sparse_matrix = enable_it;
+   }
 
    /// Returns the assembly level
    AssemblyLevel GetAssemblyLevel() const { return assembly; }
