@@ -277,7 +277,7 @@ public:
    // compute weighted mean from a weighted sum
    virtual Float mean(const WeightedSum& sum) const = 0;
 
-   // compute k'th iteration bond for egde of length l and weight w
+   // compute k'th iteration bond for edge of length l and weight w
    virtual Float bond(Float w, Float l, uint k) const = 0;
 
    // compute position that minimizes weighted distance to a point set

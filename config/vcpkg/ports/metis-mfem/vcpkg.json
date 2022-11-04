@@ -3,5 +3,5 @@
   "version-string": "5.1.0",
   "port-version": 0,
   "description": "Serial Graph Partitioning and Fill-reducing Matrix Ordering",
-  "homepage": "https://glaros.dtc.umn.edu/gkhome/metis/metis/overview"
+  "homepage": "http://glaros.dtc.umn.edu/gkhome/metis/metis/overview"
 }

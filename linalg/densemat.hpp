@@ -207,8 +207,12 @@ public:
       Set(alpha, A.GetData());
    }
 
-   /// Adds the matrix A multiplied by the number c to the matrix
+   /// Adds the matrix A multiplied by the number c to the matrix.
    void Add(const double c, const DenseMatrix &A);
+
+   /// Adds the matrix A multiplied by the number c to the matrix,
+   /// assuming A has the same dimensions and uses column-major layout.
+   void Add(const double c, const double *A);
 
    /// Sets the matrix elements equal to constant c
    DenseMatrix &operator=(double c);
@@ -355,6 +359,55 @@ public:
    /// Perform (ro+i,co+j)+=a*A(i,j) for 0<=i<A.Height, 0<=j<A.Width
    void AddMatrix(double a, const DenseMatrix &A, int ro, int co);
 
+   /** Get the square submatrix which corresponds to the given indices @a idx.
+       Note: the @a A matrix will be resized to accommodate the data */
+   void GetSubMatrix(const Array<int> & idx, DenseMatrix & A) const;
+
+   /** Get the rectangular submatrix which corresponds to the given indices
+      @a idx_i and @a idx_j. Note: the @a A matrix will be resized to
+      accommodate the data */
+   void GetSubMatrix(const Array<int> & idx_i, const Array<int> & idx_j,
+                     DenseMatrix & A) const;
+
+   /** Get the square submatrix which corresponds to the range
+       [ @a ibeg, @a iend ). Note: the @a A matrix will be resized
+        to accommodate the data */
+   void GetSubMatrix(int ibeg, int iend, DenseMatrix & A);
+
+   /** Get the square submatrix which corresponds to the range
+      i ∈ [ @a ibeg, @a iend ) and j ∈ [ @a jbeg, @a jend )
+      Note: the @a A matrix will be resized to accommodate the data */
+   void GetSubMatrix(int ibeg, int iend, int jbeg, int jend, DenseMatrix & A);
+
+   /// Set (*this)(idx[i],idx[j]) = A(i,j)
+   void SetSubMatrix(const Array<int> & idx, const DenseMatrix & A);
+
+   /// Set (*this)(idx_i[i],idx_j[j]) = A(i,j)
+   void SetSubMatrix(const Array<int> & idx_i, const Array<int> & idx_j,
+                     const DenseMatrix & A);
+
+   /** Set a submatrix of (this) to the given matrix @a A
+       with row and column offset @a ibeg */
+   void SetSubMatrix(int ibeg, const DenseMatrix & A);
+
+   /** Set a submatrix of (this) to the given matrix @a A
+       with row and column offset @a ibeg and @a jbeg respectively */
+   void SetSubMatrix(int ibeg, int jbeg, const DenseMatrix & A);
+
+   /// (*this)(idx[i],idx[j]) += A(i,j)
+   void AddSubMatrix(const Array<int> & idx, const DenseMatrix & A);
+
+   /// (*this)(idx_i[i],idx_j[j]) += A(i,j)
+   void AddSubMatrix(const Array<int> & idx_i, const Array<int> & idx_j,
+                     const DenseMatrix & A);
+
+   /** Add the submatrix @a A to this with row and column offset @a ibeg */
+   void AddSubMatrix(int ibeg, const DenseMatrix & A);
+
+   /** Add the submatrix @a A to this with row and column offsets
+       @a ibeg and @a jbeg respectively */
+   void AddSubMatrix(int ibeg, int jbeg, const DenseMatrix & A);
+
    /// Add the matrix 'data' to the Vector 'v' at the given 'offset'
    void AddToVector(int offset, Vector &v) const;
    /// Get the matrix 'data' from the Vector 'v' at the given 'offset'
@@ -368,7 +421,7 @@ public:
 
    /** Count the number of entries in the matrix for which isfinite
        is false, i.e. the entry is a NaN or +/-Inf. */
-   int CheckFinite() const { return mfem::CheckFinite(data, height*width); }
+   int CheckFinite() const { return mfem::CheckFinite(HostRead(), height*width); }
 
    /// Prints matrix to stream out.
    virtual void Print(std::ostream &out = mfem::out, int width_ = 4) const;
@@ -523,6 +576,14 @@ void AddMult_a_VWt(const double a, const Vector &v, const Vector &w,
 /// VVt += a * v v^t
 void AddMult_a_VVt(const double a, const Vector &v, DenseMatrix &VVt);
 
+/** Computes matrix P^t * A * P. Note: The @a RAP matrix will be resized
+    to accommodate the data */
+void RAP(const DenseMatrix &A, const DenseMatrix &P, DenseMatrix & RAP);
+
+/** Computes the matrix Rt^t * A * P. Note: The @a RAP matrix will be resized
+    to accommodate the data */
+void RAP(const DenseMatrix &Rt, const DenseMatrix &A,
+         const DenseMatrix &P, DenseMatrix & RAP);
 
 /** Abstract class that can compute factorization of external data and perform various
     operations with the factored data. */
@@ -887,7 +948,7 @@ class Table;
 class DenseTensor
 {
 private:
-   DenseMatrix Mk;
+   mutable DenseMatrix Mk;
    Memory<double> tdata;
    int nk;
 
@@ -966,7 +1027,12 @@ public:
       return Mk;
    }
    const DenseMatrix &operator()(int k) const
-   { return const_cast<DenseTensor&>(*this)(k); }
+   {
+      MFEM_ASSERT_INDEX_IN_RANGE(k, 0, SizeK());
+      Mk.data = Memory<double>(const_cast<double*>(GetData(k)), SizeI()*SizeJ(),
+                               false);
+      return Mk;
+   }
 
    double &operator()(int i, int j, int k)
    {
@@ -985,6 +1051,12 @@ public:
    }
 
    double *GetData(int k)
+   {
+      MFEM_ASSERT_INDEX_IN_RANGE(k, 0, SizeK());
+      return tdata+k*Mk.Height()*Mk.Width();
+   }
+
+   const double *GetData(int k) const
    {
       MFEM_ASSERT_INDEX_IN_RANGE(k, 0, SizeK());
       return tdata+k*Mk.Height()*Mk.Width();
