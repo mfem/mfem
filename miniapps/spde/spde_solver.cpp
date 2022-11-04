@@ -148,6 +148,9 @@ void SPDESolver::Solve(ParLinearForm &b, ParGridFunction &x) {
       // If the exponent is an integer, we can directly add the solution to the
       // final solution and return.
       x += helper_gf;
+      if (!bc_.dirichlet_coefficients.empty()) {
+        LiftSolution(x);
+      }
       return;
     }
     UpdateRHS(b);
