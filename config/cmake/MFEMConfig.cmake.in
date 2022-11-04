@@ -199,6 +199,14 @@ foreach (dir ${MFEM_INCLUDE_DIRS})
   set_and_check(MFEM_INCLUDE_DIR "${dir}")
 endforeach (dir "${MFEM_INCLUDE_DIRS}")
 
+# Look for the include dirs of the dependencies which might be included as
+# modules
+foreach(TPL IN LISTS "@MFEM_TPLS@")
+  if (${TPL}_FOUND)
+    list(APPEND MFEM_INCLUDE_DIRS ${${TPL}_INCLUDE_DIRS})
+  endif()
+endforeach(TPL)
+
 set_and_check(MFEM_LIBRARY_DIR "@PACKAGE_LIB_INSTALL_DIR@")
 
 check_required_components(MFEM)

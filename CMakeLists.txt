@@ -261,23 +261,17 @@ if (MFEM_USE_MPI)
     list(APPEND TPL_PACKAGES MPI::MPI_Fortran)
   endif()
   # Parallel MFEM depends on hypre
-  # We first try to find the CMake package/config. This is only available if it
-  # was built using CMake, which at the time of writing these lines was not the
-  # default option.
-  set(MFEM_HYPRE_DIR ${HYPRE_DIR})
-  find_package(HYPRE NO_MODULE)
-  if (HYPRE_FOUND)
-    message(STATUS ${HYPRE_LIBRARIES})
+  # The user always can opt to try to use the config provided by HYPRE instead
+  # of the module provided by us with the option
+  # -DCMAKE_FIND_PACKAGE_PREFER_CONFIG=TRUE
+  find_package(HYPRE REQUIRED)
+  if (HYPRE_VERSION_MAJOR)
     math(EXPR MFEM_HYPRE_VERSION "10000 * ${HYPRE_VERSION_MAJOR} + 100 * ${HYPRE_VERSION_MINOR} + ${HYPRE_VERSION_PATCH}" OUTPUT_FORMAT DECIMAL)  
-    list(APPEND TPL_PACKAGES MPI::MPI_C MPI::MPI_CXX HYPRE::HYPRE)
-  else()
-    # Do not mess up with the cached variable
-    unset(HYPRE_FOUND)
-    unset(HYPRE_DIR)
-    set(HYPRE_DIR ${MFEM_HYPRE_DIR})
-    # Now we can try again with the module
-    find_package(HYPRE MODULE REQUIRED)
+  else ()
     set(MFEM_HYPRE_VERSION ${HYPRE_VERSION})
+  endif()
+  if (NOT HYPRE_LIBRARIES)
+    list(APPEND TPL_PACKAGES HYPRE::HYPRE)
   endif()
   if (MFEM_USE_PETSC)
     find_package(PETSc REQUIRED)
