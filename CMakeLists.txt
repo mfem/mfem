@@ -253,13 +253,25 @@ if (MFEM_USE_MPI)
   if (MFEM_MPIEXEC_NP)
     string(REPLACE " " ";" MPIEXEC_NUMPROC_FLAG ${MFEM_MPIEXEC_NP})
   endif()
-  # Parallel MFEM depends on hypre
-  find_package(HYPRE REQUIRED)
-  list(APPEND TPL_PACKAGES MPI::MPI_C MPI::MPI_CXX HYPRE::HYPRE)
+  list(APPEND TPL_PACKAGES MPI::MPI_C MPI::MPI_CXX)
   if (XSDK_ENABLE_Fortran)
     list(APPEND TPL_PACKAGES MPI::MPI_Fortran)
   endif()
-  math(EXPR MFEM_HYPRE_VERSION "10000 * ${HYPRE_VERSION_MAJOR} + 100 * ${HYPRE_VERSION_MINOR} + ${HYPRE_VERSION_PATCH}" OUTPUT_FORMAT DECIMAL)
+  # Parallel MFEM depends on hypre
+  # We first try to find the CMake package/config. This is only available if it
+  # was built using CMake, which at the time of writing these lines was not the
+  # default option.
+  find_package(HYPRE NO_MODULE)
+  if (HYPRE_FOUND)
+    message(STATUS ${HYPRE_LIBRARIES})
+    math(EXPR MFEM_HYPRE_VERSION "10000 * ${HYPRE_VERSION_MAJOR} + 100 * ${HYPRE_VERSION_MINOR} + ${HYPRE_VERSION_PATCH}" OUTPUT_FORMAT DECIMAL)  
+    list(APPEND TPL_PACKAGES MPI::MPI_C MPI::MPI_CXX HYPRE::HYPRE)
+  else()
+    # Do not mess up with the cached variable
+    unset(HYPRE_FOUND)
+    find_package(HYPRE MODULE REQUIRED)
+    set(MFEM_HYPRE_VERSION ${HYPRE_VERSION})
+  endif()
   if (MFEM_USE_PETSC)
     find_package(PETSc REQUIRED)
     message(STATUS "Found PETSc version ${PETSC_VERSION}")
@@ -559,7 +571,10 @@ set(MFEM_TPLS SuperLUDist STRUMPACK METIS SuiteSparse SUNDIALS PETSC SLEPC
     POSIXCLOCKS MFEMBacktrace ZLIB OCCA CEED RAJA UMPIRE CUBLAS CUSPARSE
     MKL_CPARDISO AMGX CALIPER CODIPACK BENCHMARK PARELAG HIP HIPSPARSE
     MOONOLITH BLITZ ALGOIM ENZYME)
-
+list (FIND TPL_PACKAGES HYPRE::HYPRE _index)
+if (${_index} EQUAL -1)
+  list(PREPEND MFEM_TPLS HYPRE)
+endif()
 # Add all *_FOUND libraries in the variable TPL_PACKAGES.
 set(TPL_LIBRARIES "")
 set(TPL_INCLUDE_DIRS "")
