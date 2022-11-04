@@ -121,7 +121,7 @@ jobs:
     - name: get MPI (Linux)
       if: matrix.mpi == 'par' && matrix.os == 'ubuntu-latest'
       run: |
-        sudo apt-get update && sudo apt-get -y mpich libmpich-dev
+        sudo apt-get update && sudo apt-get -y install mpich libmpich-dev
 
     - name: get lcov (Linux)
       if: matrix.codecov == 'YES' && matrix.os == 'ubuntu-latest'
