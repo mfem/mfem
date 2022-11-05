@@ -24,7 +24,8 @@
 #include <iostream>
 #include <fstream>
 #include <random>
-#include "common/fpde.hpp"
+#include "../solvers/fpde.hpp"
+
 
 using namespace std;
 using namespace mfem;
@@ -152,9 +153,9 @@ double randomload(const Vector & X, double x1, double y1)
 
 double load(const Vector & x)
 {
-   double x1 = x(0);
-   double x2 = x(1);
-   double r = sqrt(x1*x1 + x2*x2);
+   // double x1 = x(0);
+   // double x2 = x(1);
+   // double r = sqrt(x1*x1 + x2*x2);
    // if (r <= 0.5)
    // {
    //    return 1.0;
@@ -190,15 +191,14 @@ int main(int argc, char *argv[])
    double tol_lambda = 1e-3;
    double K_max = 0.9;
    double K_min = 1e-3;
-   int prob = 0;
    int batch_size = 5;
    double gamma = 1.0;
    double theta = 0.5;
 
    double primal_tolerance_decay_factor = 1.0;
    double dual_tolerance_decay_factor = 1.0;
-   double primal_stepsize_decay_factor = 1.0;
-   double dual_stepsize_growth_factor = 1.0;
+   // double primal_stepsize_decay_factor = 1.0;
+   // double dual_stepsize_growth_factor = 1.0;
    // double primal_tolerance_decay_factor = 0.5;
    // double dual_tolerance_decay_factor = 0.5;
    // double primal_stepsize_decay_factor = 0.9;
@@ -324,7 +324,7 @@ int main(int argc, char *argv[])
    PoissonSolver->Init();
    PoissonSolver->SetupFEM();
 
-   int seed = (random_seed) ? rand()%100 + myid : myid;
+   // int seed = (random_seed) ? rand()%100 + myid : myid;
    // RandomFunctionCoefficient load_coeff(randomload,seed);
    RandomFunctionCoefficient load_coeff(randomload);
    PoissonSolver->SetRHSCoefficient(&load_coeff);
@@ -550,8 +550,8 @@ int main(int argc, char *argv[])
             ProjectionSolver.SetupFEM();
             ProjectionSolver.SetRHSCoefficient(&rhs);
             ProjectionSolver.SetDiffusionCoefficient(&gamma_cf2);
-            Array<int> ess_bdr(pmesh.bdr_attributes.Max()); ess_bdr = 0;
-            ProjectionSolver.SetEssentialBoundary(ess_bdr);
+            Array<int> ess_bdr1(pmesh.bdr_attributes.Max()); ess_bdr1 = 0;
+            ProjectionSolver.SetEssentialBoundary(ess_bdr1);
             ProjectionSolver.Solve();
             K_tilde = *ProjectionSolver.GetFEMSolution();
          }

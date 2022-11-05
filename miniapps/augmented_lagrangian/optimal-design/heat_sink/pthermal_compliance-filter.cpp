@@ -41,7 +41,9 @@
 #include <iostream>
 #include <fstream>
 #include <random>
-#include "common/fpde.hpp"
+#include "../solvers/pde_solvers.hpp"
+#include "../../../spde/boundary.hpp"
+#include "../../../spde/spde_solver.hpp"
 
 bool random_seed = true;
 
@@ -404,26 +406,24 @@ int main(int argc, char *argv[])
       ess_bdr[maxat-1] = 1;
    }
    ConstantCoefficient one(1.0);
-   FPDESolver * PoissonSolver = new FPDESolver();
+   DiffusionSolver * PoissonSolver = new DiffusionSolver();
    PoissonSolver->SetMesh(&pmesh);
    PoissonSolver->SetOrder(state_fec.GetOrder());
-   PoissonSolver->SetAlpha(1.0);
-   PoissonSolver->SetBeta(0.0);
    PoissonSolver->SetupFEM();
 
    int seed = (random_seed) ? rand()%100 + myid : myid;
    
    PoissonSolver->SetRHSCoefficient(&one);
    PoissonSolver->SetEssentialBoundary(ess_bdr);
-   PoissonSolver->Init();
+
 
    ConstantCoefficient eps2_cf(epsilon*epsilon);
-   FPDESolver * FilterSolver = new FPDESolver();
+   DiffusionSolver * FilterSolver = new DiffusionSolver();
    FilterSolver->SetMesh(&pmesh);
    FilterSolver->SetOrder(filter_fec.GetOrder());
-   FilterSolver->SetAlpha(1.0);
-   FilterSolver->SetBeta(1.0);
    FilterSolver->SetDiffusionCoefficient(&eps2_cf);
+   FilterSolver->SetMassCoefficient(&one);
+
    Array<int> ess_bdr_filter;
    if (pmesh.bdr_attributes.Size())
    {
@@ -431,7 +431,6 @@ int main(int argc, char *argv[])
       ess_bdr_filter = 0;
    }
    FilterSolver->SetEssentialBoundary(ess_bdr_filter);
-   FilterSolver->Init();
    FilterSolver->SetupFEM();
 
    // ParBilinearForm mass(&control_fes);
@@ -489,7 +488,7 @@ int main(int argc, char *argv[])
    int step = 0;
    double lambda = -6.0;
    // RandomConstantCoefficient eta_cf(0.4,0.6,myid);
-   RandomConstantCoefficient eta_cf(0.5,0.9,1);
+   RandomConstantCoefficient eta_cf(0.5,0.5,1);
    // RandomConstantCoefficient eta_cf(0.2,0.2,1);
    Coefficient * K_cf = nullptr;
    Coefficient * rhs_cf = nullptr;

@@ -10,9 +10,9 @@
 # CONTRIBUTING.md for details.
 
 # Use the MFEM build directory
-MFEM_DIR ?= ../../..
-MFEM_BUILD_DIR ?= ../../..
-SRC = $(if $(MFEM_DIR:../../..=),$(MFEM_DIR)/miniapps/augmented_lagrangian/optimal_design,)
+MFEM_DIR ?= ../../../..
+MFEM_BUILD_DIR ?= ../../../..
+SRC = $(if $(MFEM_DIR:../../../..=),$(MFEM_DIR)/miniapps/augmented_lagrangian/optimal_design/heat_sink,)
 CONFIG_MK = $(MFEM_BUILD_DIR)/config/config.mk
 
 # Include defaults.mk to get XLINKER
@@ -26,9 +26,8 @@ PDEOPT_COMMON_SRC =
 
 PDEOPT_COMMON_OBJ = $(PDEOPT_COMMON_SRC:.cpp=.o)
 
-SEQ_MINIAPPS = optimal_design optimal_design_OUU fpde_driver \
-					optimal_design_OUU_ADMM optimal_design_ADMM
-PAR_MINIAPPS = fpde_driver_p optimal_design_OUU_ADMMp elasticity_driver
+SEQ_MINIAPPS = 
+PAR_MINIAPPS = pthermal_compliance-filter
 ifeq ($(MFEM_USE_MPI),NO)
    MINIAPPS = $(SEQ_MINIAPPS)
 else
@@ -39,7 +38,7 @@ endif
 .SUFFIXES: .o .cpp .mk
 .PHONY: all clean clean-build clean-exec
 
-COMMON_O = common/fpde.o common/rational_approximation.o 
+COMMON_O = ../solvers/pde_solvers.o ../../../spde/boundary.o ../../../spde/spde_solver.o ../../../spde/util.o
 
 # Remove built-in rules
 %: %.cpp
@@ -53,19 +52,6 @@ COMMON_O = common/fpde.o common/rational_approximation.o
 
 all: $(MINIAPPS)
 
-MFEM_TESTS = MINIAPPS
-include $(MFEM_TEST_MK)
-
-# Testing: Parallel vs. serial runs
-RUN_MPI = $(MFEM_MPIEXEC) $(MFEM_MPIEXEC_NP) $(MFEM_MPI_NP)
-TEST_NAME := PDEOPT miniapp
-%-test-par: %
-	@$(call mfem-test,$<, $(RUN_MPI), $(TEST_NAME))
-%-test-seq: %
-	@$(call mfem-test,$<,, $(TEST_NAME))
-
-# Testing: "test" target and mfem-test* variables are defined in config/test.mk
-
 # Generate an error message if the MFEM library is not built and exit
 $(MFEM_LIB_FILE):
 	$(error The MFEM library is not built)
@@ -75,5 +61,4 @@ clean: clean-build clean-exec
 clean-build:
 	rm -f *.o *~ $(SEQ_MINIAPPS) $(PAR_MINIAPPS)
 	rm -rf *.dSYM *.TVD.*breakpoints
-
 clean-exec:

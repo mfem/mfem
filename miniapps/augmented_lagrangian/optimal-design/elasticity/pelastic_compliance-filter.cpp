@@ -15,7 +15,7 @@
 #include <iostream>
 #include <fstream>
 #include <random>
-#include "common/fpde.hpp"
+#include "../solvers/pde_solvers.hpp"
 
 class SIMPCoefficient : public Coefficient
 {
@@ -165,7 +165,7 @@ int main(int argc, char *argv[])
    int myid = Mpi::WorldRank();
    Hypre::Init();   
    // 1. Parse command-line options.
-   const char *mesh_file = "bar2d.msh";
+   const char *mesh_file = "../meshes/bar2d.msh";
    int ref_levels = 2;
    int order = 2;
    bool visualization = true;
@@ -313,11 +313,10 @@ int main(int argc, char *argv[])
    ElasticitySolver->SetEssentialBoundary(ess_bdr);
 
    ConstantCoefficient eps2_cf(epsilon*epsilon);
-   FPDESolver * FilterSolver = new FPDESolver();
+   DiffusionSolver * FilterSolver = new DiffusionSolver();
    FilterSolver->SetMesh(&pmesh);
    FilterSolver->SetOrder(filter_fec.GetOrder());
-   FilterSolver->SetAlpha(1.0);
-   FilterSolver->SetBeta(1.0);
+   FilterSolver->SetMassCoefficient(&one);
    FilterSolver->SetDiffusionCoefficient(&eps2_cf);
    Array<int> ess_bdr_filter;
    if (pmesh.bdr_attributes.Size())
@@ -326,7 +325,6 @@ int main(int argc, char *argv[])
       ess_bdr_filter = 0;
    }
    FilterSolver->SetEssentialBoundary(ess_bdr_filter);
-   FilterSolver->Init();
    FilterSolver->SetupFEM();
 
    ParBilinearForm mass(&control_fes);

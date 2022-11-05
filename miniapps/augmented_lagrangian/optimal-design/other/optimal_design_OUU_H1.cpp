@@ -3,10 +3,11 @@
 // Compile with: make optimal_design
 //
 // Sample runs:
-//    ./optimal_design_OUU_ADMM -alpha 0.1 -beta 0.1 -admm -r 3 -o 2 -gamma 0.01 -sigma 1
-//    ./optimal_design_OUU_ADMM -alpha 0.1 -beta 0.1 -admm -r 3 -o 2 -gamma 0.01 -sigma 0.5
-//    ./optimal_design_OUU_ADMM -alpha 0.1 -beta 0.1 -admm -r 3 -o 2 -gamma 0.01 -sigma 0.2
-//    ./optimal_design_OUU_ADMM -alpha 0.1 -beta 0.1 -r 3 -o 2
+//    optimal_design -r 3
+//    optimal_design -m ../../data/star.mesh -r 3
+//    optimal_design -sl 1 -m ../../data/mobius-strip.mesh -r 4
+//    optimal_design -m ../../data/star.mesh -sl 5 -r 3 -mf 0.5 -o 5 -max 0.75
+//
 // Description:  This examples solves the following PDE-constrained
 //               optimization problem:
 //
@@ -24,15 +25,19 @@
 #include <iostream>
 #include <fstream>
 #include <random>
-#include "common/fpde.hpp"
+#include "../solvers/fpde.hpp"
+
 
 using namespace std;
 using namespace mfem;
 
 /** The Lagrangian for this problem is
  *    
- *    L(u,K,p,λ) = (f,u) - (K \nabla u, \nabla p) + (f,p) - λ (∫_Ω K dx - V ⋅ vol(\Omega))
- *                                                + β/2 (∫_Ω K dx - V ⋅ vol(\Omega))^2    
+ *    L(u,K,p,λ) = (f,u) - (K \nabla u, \nabla p) + (f,p)
+ *                + \gamma\epsilon/2 (\nabla K, \nabla K)
+ *                + \gamma/(2\epsilon) ∫_Ω K(1-K) dx
+ *                - λ (∫_Ω K dx - V ⋅ vol(\Omega))
+ *                + β/2 (∫_Ω K dx - V ⋅ vol(\Omega))^2    
  *      u, p \in H^1_0(\Omega)
  *      K \in L^\infty(\Omega)
  * 
@@ -75,8 +80,8 @@ using namespace mfem;
 class RandomFunctionCoefficient : public Coefficient
 {
 private:
-   double a = 0.0;
-   double b = 1.0;
+   double a = 0.45;
+   double b = 0.55;
    double x1,y1;
    std::default_random_engine generator;
    std::uniform_real_distribution<double> * distribution;
@@ -116,34 +121,37 @@ double randomload(const Vector & X, double x1, double y1)
    {
       return 0.0;
    }
+   // return 1.0;
 }
+
 
 double load(const Vector & x)
 {
    double x1 = x(0);
    double x2 = x(1);
    double r = sqrt(x1*x1 + x2*x2);
-   // if (r <= 0.5)
-   // {
-   //    return 1.0;
-   // }
-   // else
-   // {
-   //    return 0.0;
-   // }
-   return 1.;
+   if (r <= 0.5)
+   {
+      return 1.0;
+   }
+   else
+   {
+      return 0.0;
+   }
 }
 
 int main(int argc, char *argv[])
 {
    // 1. Parse command-line options.
-   const char *mesh_file = "../../data/inline-quad.mesh";
+   const char *mesh_file = "../../../data/inline-quad.mesh";
    int ref_levels = 2;
    int order = 2;
    bool visualization = true;
    double alpha = 1.0;
    double beta = 1.0;
-   double sigma = 1.0;
+   double gamma = 1.0;
+   double epsilon = 1.0;
+   double theta = 0.5;
    double mass_fraction = 0.5;
    double compliance_max = 0.15;
    int max_it = 1e2;
@@ -152,21 +160,7 @@ int main(int argc, char *argv[])
    double K_max = 0.9;
    double K_min = 1e-3;
    int prob = 0;
-   int batch_size = 5;
-   double gamma = 1.0;
-   double theta = 0.5;
-
-   double primal_tolerance_decay_factor = 1.0;
-   double dual_tolerance_decay_factor = 1.0;
-   double primal_stepsize_decay_factor = 1.0;
-   double dual_stepsize_growth_factor = 1.0;
-   // double primal_tolerance_decay_factor = 0.5;
-   // double dual_tolerance_decay_factor = 0.5;
-   // double primal_stepsize_decay_factor = 0.9;
-   // double dual_stepsize_growth_factor = 1.0/0.9;
-
-   bool ADMM = false;
-
+   int batch_size_min = 5;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -178,21 +172,21 @@ int main(int argc, char *argv[])
    args.AddOption(&alpha, "-alpha", "--alpha-step-length",
                   "Step length for gradient descent.");
    args.AddOption(&beta, "-beta", "--beta-step-length",
-                  "Step length for λ");
-   args.AddOption(&sigma, "-sigma", "--sigma",
-                  "Fractional exponent σ");                  
-   args.AddOption(&gamma, "-gamma", "--gamma-penalization",
-                  "Step length for γ");                  
+                  "Step length for λ"); 
+   args.AddOption(&gamma, "-gamma", "--gamma-penalty",
+                  "gamma penalty weight");
+   args.AddOption(&epsilon, "-epsilon", "--epsilon-thickness",
+                  "epsilon phase field thickness");
+   args.AddOption(&theta, "-theta", "--theta-sampling-ratio",
+                  "Sampling ratio theta");                  
    args.AddOption(&max_it, "-mi", "--max-it",
                   "Maximum number of gradient descent iterations.");
    args.AddOption(&tol_K, "-tk", "--tol_K",
                   "Exit tolerance for K");     
-   args.AddOption(&batch_size, "-bs", "--batch-size",
+   args.AddOption(&batch_size_min, "-bs", "--batch-size",
                   "batch size for stochastic gradient descent.");                             
    args.AddOption(&tol_lambda, "-tl", "--tol_lambda",
-                  "Exit tolerance for λ");    
-   args.AddOption(&theta, "-theta", "--theta",
-                  "Adaptive sampling factor");                                                     
+                  "Exit tolerance for λ");                                 
    args.AddOption(&mass_fraction, "-mf", "--mass-fraction",
                   "Mass fraction for diffusion coefficient.");
    args.AddOption(&compliance_max, "-cmax", "--compliance-max",
@@ -204,9 +198,8 @@ int main(int argc, char *argv[])
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
-   args.AddOption(&ADMM, "-admm", "--admm", "-no-admm",
-                  "--no-admm",
-                  "Enable or disable ADMM method.");
+   args.AddOption(&prob, "-p", "--problem",
+                  "Optimization problem: 0 - Compliance Minimization, 1 - Mass Minimization.");
 
    args.Parse();
    if (!args.Good())
@@ -215,9 +208,7 @@ int main(int argc, char *argv[])
       return 1;
    }
    args.PrintOptions(cout);
-
-   double initial_primal_tolerance = tol_K;
-   double initial_dual_tolerance = tol_lambda;
+   int batch_size = batch_size_min;
 
    ostringstream file_name;
    file_name << "conv_order" << order << "_GD" << ".csv";
@@ -235,7 +226,7 @@ int main(int argc, char *argv[])
    // 5. Define the vector finite element spaces representing the state variable u,
    //    adjoint variable p, and the control variable f.
    H1_FECollection state_fec(order, dim);
-   L2_FECollection control_fec(order-1, dim, BasisType::Positive);
+   H1_FECollection control_fec(order-1, dim, BasisType::Positive);
    FiniteElementSpace state_fes(&mesh, &state_fec);
    FiniteElementSpace control_fes(&mesh, &control_fec);
 
@@ -249,38 +240,40 @@ int main(int argc, char *argv[])
    Array<int> ess_tdof_list;
    state_fes.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
 
-   // 7. Set the initial guess for f and the boundary conditions for u and p.
+   // 7. Set the initial guess for f and the boundary conditions for u.
    GridFunction u(&state_fes);
-   GridFunction p(&state_fes);
    GridFunction K(&control_fes);
    GridFunction K_old(&control_fes);
-   GridFunction K_tilde(&state_fes);
-   GridFunction lambda_L2(&control_fes);
    u = 0.0;
-   p = 0.0;
    K = 1.0;
-   K_tilde = 0.5;
    K_old = 0.0;
+
+
+   RandomFunctionCoefficient load_coeff(randomload);
 
    // 8. Set up the linear form b(.) for the state and adjoint equations.
 
-
+   ConstantCoefficient eps2_cf(epsilon*epsilon);
    FPDESolver * PoissonSolver = new FPDESolver();
    PoissonSolver->SetMesh(&mesh);
-   PoissonSolver->SetOrder(order);
+   PoissonSolver->SetOrder(order-1);
    PoissonSolver->SetAlpha(1.0);
-   PoissonSolver->SetBeta(0.0);
+   PoissonSolver->SetBeta(1.0);
+   PoissonSolver->SetDiffusionCoefficient(&eps2_cf);
+   Array<int> ess_bdr_K(mesh.bdr_attributes.Max()); ess_bdr_K = 0;
+   PoissonSolver->SetEssentialBoundary(ess_bdr_K);
    PoissonSolver->Init();
    PoissonSolver->SetupFEM();
-   RandomFunctionCoefficient load_coeff(randomload);
-   PoissonSolver->SetRHSCoefficient(&load_coeff);
 
-
+   LinearForm b(&state_fes);
+   b.AddDomainIntegrator(new DomainLFIntegrator(load_coeff));
+   // b.AddDomainIntegrator(new DomainLFIntegrator(f));
    OperatorPtr A;
    Vector B, C, X;
 
    // 9. Define the gradient function
    GridFunction grad(&control_fes);
+   GridFunction tmp_grad(&control_fes);
    GridFunction avg_grad(&control_fes);
 
    // 10. Define some tools for later
@@ -290,7 +283,7 @@ int main(int argc, char *argv[])
    onegf = 1.0;
    LinearForm vol_form(&control_fes);
    vol_form.AddDomainIntegrator(new DomainLFIntegrator(one));
-   vol_form.Assemble();
+   vol_form.Assemble(false);
    double domain_volume = vol_form(onegf);
 
    // 11. Connect to GLVis. Prepare for VisIt output.
@@ -321,81 +314,65 @@ int main(int argc, char *argv[])
       }
    }
 
-   // 12. Perform projected gradient descent
-   double intermediate_tol_K = initial_primal_tolerance;
-   double intermediate_tol_lambda = initial_dual_tolerance;
 
+   // 12. AL iterations
    double lambda = 0.0;
-   lambda_L2 = 0.0;
    for (int k = 1; k < max_it; k++)
    {
-      double adaptive_batch_size = batch_size;
+      // A. Form state equation
 
-      double norm_K;
       for (int l = 1; l < max_it; l++)
       {
          cout << "Step = " << l << endl;
-         cout << "batch_size = " << adaptive_batch_size << endl;
+         cout << "batch_size = " << batch_size << endl;
+
          avg_grad = 0.0;
          double avg_grad_norm = 0.;
-
-         for (int ib = 0; ib<adaptive_batch_size; ib++)
+         for (int ib = 0; ib<batch_size; ib++)
          {
+            BilinearForm a(&state_fes);
             GridFunctionCoefficient diffusion_coeff(&K);
+            a.AddDomainIntegrator(new DiffusionIntegrator(diffusion_coeff));
+            a.Assemble();
 
-            PoissonSolver->SetDiffusionCoefficient(&diffusion_coeff);
             load_coeff.resample();
-            PoissonSolver->Solve();
-            u = *PoissonSolver->GetFEMSolution();
-            // H. Construct gradient function (i.e., -|\nabla u|^2 - λ + β⋅(∫_Ω K dx - V ⋅ vol(\Omega)) - λ_L2 + β⋅(K - \tilde{K})
+            b.Assemble(false);
 
-            // -|\nabla u|^2
+            a.FormLinearSystem(ess_tdof_list, u, b, A, X, B);
+
+            // B. Solve state equation
+            GSSmoother M((SparseMatrix&)(*A));
+            PCG(*A, M, B, X, 0, 800, 1e-12, 0.0);
+
+            // C. Recover state variable
+            a.RecoverFEMSolution(X, b, u);
+
+            // H. Constuct gradient function
+            // i.e., \nabla J = \gamma/\epsilon (1/2 + K) - λ + β(∫_Ω K dx - V ⋅ vol(\Omega)) - R^{-1}(|\nabla u|^2 + 2\gamma/\epsilon K)
             GradientGridFunctionCoefficient grad_u(&u);
             InnerProductCoefficient norm2_grad_u(grad_u,grad_u);
-            ProductCoefficient minus_norm2_grad_u(-1.0,norm2_grad_u);
+            SumCoefficient grad_cf(norm2_grad_u,diffusion_coeff,-1.0,-2.0*gamma/epsilon);
+            PoissonSolver->SetRHSCoefficient(&grad_cf);
+            PoissonSolver->Solve();
+            
+            grad = K;
+            grad += (K_max-K_min)/2.0;
+            grad *= gamma/epsilon;
+            grad += *PoissonSolver->GetFEMSolution();
 
-            // -λ_L2
-            GridFunctionCoefficient lambda_cf(&lambda_L2);
-            ProductCoefficient minus_lambda_cf(-1.0,lambda_cf);
-
-            // β⋅(K - \tilde{K})
-            GridFunctionCoefficient K_cf(&K);
-            GridFunctionCoefficient K_tilde_cf(&K_tilde);
-            SumCoefficient beta_K_diff(K_cf,K_tilde_cf, beta, -beta);
-
-            // -λ + β⋅(∫_Ω K dx - V ⋅ vol(\Omega))
-            double c = -lambda + beta * (vol_form(K)/domain_volume - mass_fraction)/domain_volume;
-            ConstantCoefficient scalar_terms(c);
-
-            LinearForm d(&control_fes);
-            d.AddDomainIntegrator(new DomainLFIntegrator(minus_norm2_grad_u));
-            if (ADMM)
-            {
-               d.AddDomainIntegrator(new DomainLFIntegrator(minus_lambda_cf));    
-               d.AddDomainIntegrator(new DomainLFIntegrator(beta_K_diff));
-            }
-            d.AddDomainIntegrator(new DomainLFIntegrator(scalar_terms));
-            d.Assemble(false);
-
-            BilinearForm L2proj(&control_fes);
-            InverseIntegrator * m = new InverseIntegrator(new MassIntegrator());
-            L2proj.AddDomainIntegrator(m);
-            L2proj.Assemble();
-            Array<int> empty_list;
-            OperatorPtr invM;
-            L2proj.FormSystemMatrix(empty_list,invM);   
-            invM->Mult(d,grad);
+            // - λ + β(∫_Ω K dx - V ⋅ vol(\Omega)))
+            grad -= lambda;
+            grad += beta * (vol_form(K)/domain_volume - mass_fraction)/domain_volume;
 
             avg_grad += grad;
             double grad_norm = grad.ComputeL2Error(zero);
             avg_grad_norm += grad_norm*grad_norm;
-         }
-
-         avg_grad_norm /= (double)adaptive_batch_size;  
-         avg_grad /= (double)adaptive_batch_size;
+         } // enf of loop through batch samples
+         avg_grad_norm /= (double)batch_size;  
+         avg_grad /= (double)batch_size;
 
          double norm_avg_grad = pow(avg_grad.ComputeL2Error(zero),2);
-         double variance = (avg_grad_norm - norm_avg_grad)/(adaptive_batch_size - 1);  
+         double variance = (avg_grad_norm - norm_avg_grad)/(batch_size - 1);  
 
          avg_grad *= alpha;
          K -= avg_grad;
@@ -417,15 +394,12 @@ int main(int argc, char *argv[])
          }
 
          GridFunctionCoefficient tmp(&K_old);
-         norm_K = K.ComputeL2Error(tmp)/alpha;
+         double norm_K = K.ComputeL2Error(tmp)/alpha;
          K_old = K;
          mfem::out << "norm of reduced gradient = " << norm_K << endl;
-         mfem::out << "compliance = " << (*(PoissonSolver->GetLinearForm()))(u) << endl;
+         mfem::out << "compliance = " << b(u) << endl;
          mfem::out << "variance = " << variance << std::endl;
-
-         // R = (x_{k} - x_{k+1})/alpha
-         // x_{k+1} = x_k - alpha R
-         if (norm_K < intermediate_tol_K)
+         if (norm_K < tol_K)
          {
             break;
          }
@@ -435,9 +409,13 @@ int main(int argc, char *argv[])
          MFEM_VERIFY(IsFinite(ratio), "ratio not finite");
          if (ratio > theta)
          {
-            // adaptive_batch_size = (int)(pow(ratio / theta,2.) * adaptive_batch_size); 
-            adaptive_batch_size +=5;
+            batch_size = (int)(pow(ratio / theta,2.) * batch_size); 
          }
+         else if (ratio < 0.5*theta)
+         {
+            batch_size = max(batch_size/2,batch_size_min);
+         }
+
       }
       // λ <- λ - β (∫_Ω K dx - V⋅ vol(\Omega))
       double mass = vol_form(K);
@@ -448,11 +426,10 @@ int main(int argc, char *argv[])
 
       lambda -= beta*lambda_inc;
 
-      double norm_gradient = avg_grad.ComputeL2Error(zero);
-      mfem::out << "\ngrad norm = " << norm_gradient << endl;
-
       mfem::out << "lambda_inc = " << lambda_inc << endl;
       mfem::out << "lambda = " << lambda << endl;
+
+
 
       if (visualization)
       {
@@ -464,57 +441,7 @@ int main(int argc, char *argv[])
                 << "window_title 'Control K'" << flush;
       }
 
-      if (ADMM)
-      {
-         // -\gamma \Delta \tilde{K} + \beta \tilde{K} = \beta K - \lambda
-         {
-            LinearForm d(&state_fes);
-            GridFunctionCoefficient K_cf(&K);
-            GridFunctionCoefficient lambda_cf(&lambda_L2);
-            SumCoefficient rhs(K_cf,lambda_cf,beta,-1.0);
-
-            FPDESolver ProjectionSolver;
-            ConstantCoefficient gamma_cf2(pow(gamma,1./sigma));
-            ProjectionSolver.SetMesh(&mesh);
-            ProjectionSolver.SetOrder(order);
-            ProjectionSolver.SetAlpha(sigma);
-            ProjectionSolver.SetBeta(beta);
-            ProjectionSolver.Init();
-            ProjectionSolver.SetupFEM();
-            ProjectionSolver.SetRHSCoefficient(&rhs);
-            ProjectionSolver.SetDiffusionCoefficient(&gamma_cf2);
-            Array<int> ess_bdr(mesh.bdr_attributes.Max()); ess_bdr = 0;
-            ProjectionSolver.SetEssentialBoundary(ess_bdr);
-            ProjectionSolver.Solve();
-            K_tilde = *ProjectionSolver.GetFEMSolution();
-
-         }
-
-         ///// UPDATE lambda_L2 <- lambda_L2 - \beta (K - \tilde{K})
-         GridFunctionCoefficient K_tilde_cf(&K_tilde);
-         GridFunction lambda_L2_inc(&control_fes);
-         lambda_L2_inc.ProjectCoefficient(K_tilde_cf);
-         lambda_L2_inc -= K;
-         double norm_lambda_L2_inc = lambda_L2_inc.ComputeL2Error(zero);
-
-         lambda_L2_inc *= beta;
-         lambda_L2 += lambda_L2_inc;
-
-         cout << " norm_lambda_L2_inc = " << norm_lambda_L2_inc << endl;
-      }
-
-      if (abs(lambda_inc) < intermediate_tol_K)
-      {
-         intermediate_tol_K *= primal_tolerance_decay_factor;
-         intermediate_tol_lambda *= dual_tolerance_decay_factor;
-      }
-      // else
-      // {
-      //    alpha *= primal_stepsize_decay_factor;
-      //    beta *= dual_stepsize_growth_factor;
-      // }
-
-      if ((abs(lambda_inc) < tol_lambda) && (norm_K < tol_K))
+      if (abs(lambda_inc) < tol_lambda)
       {
          break;
       }
