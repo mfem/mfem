@@ -22,7 +22,7 @@ MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
 SEQ_MINIAPPS = 
-PAR_MINIAPPS = braginskii transport2d dg_adv_diff linear_hyp_1d
+PAR_MINIAPPS = braginskii transport2d dg_adv_diff linear_hyp_1d linear_adv_diff_1d
 ifeq ($(MFEM_USE_MPI),NO)
    MINIAPPS = $(SEQ_MINIAPPS)
 else
@@ -50,6 +50,9 @@ braginskii: braginskii.cpp braginskii_solver.o $(COMMON_O) $(MFEM_LIB_FILE) $(CO
 	$(MFEM_CXX) $(MFEM_FLAGS) $< -o $@ braginskii_solver.o $(COMMON_O) $(MFEM_LIBS)
 
 linear_hyp_1d: linear_hyp_1d.cpp $(MFEM_LIB_FILE) $(CONFIG_MK)
+	$(MFEM_CXX) $(MFEM_FLAGS) $< -o $@ $(MFEM_LIBS)
+
+linear_adv_diff_1d: linear_adv_diff_1d.cpp $(MFEM_LIB_FILE) $(CONFIG_MK)
 	$(MFEM_CXX) $(MFEM_FLAGS) $< -o $@ $(MFEM_LIBS)
 
 #dg_adv_diff_test: dg_adv_diff_test.cpp transport_solver.hpp \

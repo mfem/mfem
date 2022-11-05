@@ -6,10 +6,10 @@
 // time steps.
 //
 // Periodic test:
-//  ./linear_hyp_1d -m ../../data/periodic-segment.mesh -dt 1e-4
+//   ./linear_hyp_1d -m ../../data/periodic-segment.mesh -dt 1e-4
 //
-// Boundary condition test (currently failing):
-// ./linear_hyp_1d -m ../../data/inline-segment.mesh -dt 1e-4
+// Boundary condition test:
+//   ./linear_hyp_1d -m ../../data/inline-segment.mesh -dt 1e-4
 //
 #include "mfem.hpp"
 #include <fstream>

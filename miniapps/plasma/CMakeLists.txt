@@ -46,4 +46,10 @@ if (MFEM_USE_MPI)
     EXTRA_HEADERS ${MFEM_MINIAPPS_COMMON_HEADERS}
     LIBRARIES mfem mfem-common)
 
+  add_mfem_miniapp(linear_adv_diff_1d
+    MAIN linear_adv_diff_1d.cpp
+    EXTRA_SOURCES
+    EXTRA_HEADERS ${MFEM_MINIAPPS_COMMON_HEADERS}
+    LIBRARIES mfem mfem-common)
+
 endif()
