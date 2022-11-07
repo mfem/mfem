@@ -3654,14 +3654,14 @@ DeviceConformingProlongationOperator::DeviceConformingProlongationOperator(
          // (processor local index) + aligned offset for that processor
          unq_shr_j = Array<int>(unique_shr.GetJ(), unique_shr.Size_of_connections());
 
-         // Lift this index out of the loop as we're dealing with a sorted
-         // array so the indices should be linearly increasing as we progress through the loop
-         int nb_index = 0;
          for (int shr_index = 0; shr_index < unq_shr_j.Size(); shr_index++) {
             bool nb_found = false;
+            // unq_shr_j is not a sorted array so this index can't be lifted
+            // any further out of the loop
+            int nb_index = 0;
             // computes the local processor index (nb_index) based on unq_shr_j[shr_index]
             for (int i = nb_index; i < shr_buf_align_offsets.Size() - 1; i++) {
-               if ((unq_shr_j[shr_index] > shr_buf_offsets[i] && unq_shr_j[shr_index] < shr_buf_offsets[i + 1])) {
+               if ((unq_shr_j[shr_index] >= shr_buf_offsets[i]) && (unq_shr_j[shr_index] < shr_buf_offsets[i + 1])) {
                   nb_found = true;
                   nb_index = i;
                   break;
