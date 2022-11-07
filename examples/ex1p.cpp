@@ -223,6 +223,7 @@ int main(int argc, char *argv[])
    {
       a.SetAssemblyLevel(AssemblyLevel::FULL);
       a.EnableSparseMatrixSorting( Device::Allows(~Backend::CPU_MASK) );
+      a.SetDiagonalPolicy( Operator::DiagonalPolicy::DIAG_ONE );
    }
    a.AddDomainIntegrator(new DiffusionIntegrator(one));
 
