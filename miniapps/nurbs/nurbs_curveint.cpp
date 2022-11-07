@@ -117,7 +117,7 @@ int main(int argc, char *argv[])
    // Refine direction which has fitting
    if (!ifbspline)
    {
-      // We we alter the weight for demonstration purposes to a random value. This
+      // We alter the weight for demonstration purposes to a random value. This
       // is not necessary for general curve fitting.
       patch.DegreeElevate(0, 1);
       patch(1,0,2) = sqrt(2)/2;
@@ -153,7 +153,7 @@ int main(int argc, char *argv[])
    if (!ifbspline)
    {
       // Convert to homogeneous coordinates. FindInterpolant returns
-      // carthesian coordinates.
+      // cartesian coordinates.
       for (int i = 0; i < ncp; i++)
       {
          patch(i,0,0) *= patch(i,0,2);
