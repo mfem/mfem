@@ -3648,10 +3648,6 @@ DeviceConformingProlongationOperator::DeviceConformingProlongationOperator(
          Transpose(shared_ltdof, unique_shr, unique_ltdof.Size());
          unq_ltdof = Array<int>(unique_ltdof, unique_ltdof.Size());
          unq_shr_i = Array<int>(unique_shr.GetI(), unique_shr.Size()+1);
-         // TODO
-         // For each index we can find which processor bin with offsets array
-         // map to align offsets / index
-         // (processor local index) + aligned offset for that processor
          unq_shr_j = Array<int>(unique_shr.GetJ(), unique_shr.Size_of_connections());
 
          for (int shr_index = 0; shr_index < unq_shr_j.Size(); shr_index++) {
@@ -3659,6 +3655,8 @@ DeviceConformingProlongationOperator::DeviceConformingProlongationOperator(
             // unq_shr_j is not a sorted array so this index can't be lifted
             // any further out of the loop
             int nb_index = 0;
+            // TODO: Potentially replaces this with another search method if our number of neighbors
+            //       becomes too big
             // computes the local processor index (nb_index) based on unq_shr_j[shr_index]
             for (int i = nb_index; i < shr_buf_align_offsets.Size() - 1; i++) {
                if ((unq_shr_j[shr_index] >= shr_buf_offsets[i]) && (unq_shr_j[shr_index] < shr_buf_offsets[i + 1])) {
