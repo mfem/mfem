@@ -599,7 +599,7 @@ public:
    void MergeDiagAndOffd(SparseMatrix &merged);
 
    /// Return the diagonal of the matrix (Operator interface).
-   virtual void AssembleDiagonal(Vector &diag) const { GetDiag(diag); }
+   void AssembleDiagonal(Vector &diag) const override { GetDiag(diag); }
 
    /** Split the matrix into M x N equally sized blocks of parallel matrices.
        The size of 'blocks' must already be set to M x N. */
@@ -649,7 +649,7 @@ public:
        partitioning array. */
    HYPRE_BigInt *GetColStarts() const { return hypre_ParCSRMatrixColStarts(A); }
 
-   virtual MemoryClass GetMemoryClass() const { return GetHypreMemoryClass(); }
+   MemoryClass GetMemoryClass() const override { return GetHypreMemoryClass(); }
 
    /// Ensure the action of the transpose is performed fast.
    /** When HYPRE is built for GPUs, this method will construct and store the
@@ -691,20 +691,20 @@ public:
        transpose. */
    void MultTranspose(double a, const Vector &x, double b, Vector &y) const;
 
-   virtual void Mult(const Vector &x, Vector &y) const
+   void Mult(const Vector &x, Vector &y) const override
    { Mult(1.0, x, 0.0, y); }
 
    /// Computes y = A^t * x
    /** If the matrix is modified, call ResetTranspose() and optionally
        EnsureMultTranspose() to make sure this method uses the correct updated
        transpose. */
-   virtual void MultTranspose(const Vector &x, Vector &y) const
+   void MultTranspose(const Vector &x, Vector &y) const override
    { MultTranspose(1.0, x, 0.0, y); }
 
-   virtual void AddMult(const Vector &x, Vector &y, const double a = 1.0) const
+   void AddMult(const Vector &x, Vector &y, const double a = 1.0) const override
    { Mult(a, x, 1.0, y); }
-   virtual void AddMultTranspose(const Vector &x, Vector &y,
-                                 const double a = 1.0) const
+   void AddMultTranspose(const Vector &x, Vector &y,
+                         const double a = 1.0) const override
    { MultTranspose(a, x, 1.0, y); }
 
    using Operator::Mult;
