@@ -3742,8 +3742,8 @@ Operator *DGTransportTDO::NLOperator::GetGradientBlock(int i)
             if (use_schwarz)
             {
 
-               D_schwarz_ = new SchwarzSmoother(cgblf_[i]->ParFESpace()->GetParMesh(),
-                                                0, cgblf_[i]->ParFESpace(), D_cg_);  // TODO: delete this pointer
+               //D_schwarz_ = new SchwarzSmoother(cgblf_[i]->ParFESpace()->GetParMesh(),
+               //                                 0, cgblf_[i]->ParFESpace(), D_cg_);  // TODO: delete this pointer
                D_mult_ = new MultiplicativePreconditioner(*D_amg_,
                                                           *D_schwarz_);  // TODO: delete this pointer
 
