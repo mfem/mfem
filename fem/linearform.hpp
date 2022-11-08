@@ -74,6 +74,7 @@ protected:
    /* HDG */
    /// Set of Boundary Skeleton Integrators .
    Array<LinearFormIntegrator*> bdrsklneufi;
+   Array<Array<int>*>           bdrsklneufi_marker;
 
    /// If true, the delta locations are not (re)computed during assembly.
    bool HaveDeltaLocations()
@@ -158,6 +159,9 @@ public:
    /* HDG */
    /// Adds new Boundary Face Integrator with face number.
    void AddSktBoundaryNeumannIntegrator (LinearFormIntegrator * lfi);
+
+   void AddSktBoundaryNeumannIntegrator (LinearFormIntegrator * lfi,
+                              Array<int> &bdr_attr_marker);
 
    /** @brief Add new Boundary Face Integrator, restricted to the given boundary
        attributes.

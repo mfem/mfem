@@ -105,6 +105,13 @@ void LinearForm::AddInteriorFaceIntegrator(LinearFormIntegrator *lfi)
 void LinearForm::AddSktBoundaryNeumannIntegrator(LinearFormIntegrator * lfi)
 {
    bdrsklneufi.Append (lfi);
+   bdrsklneufi_marker.Append(NULL); // NULL -> all attributes are active
+}
+void LinearForm::AddSktBoundaryNeumannIntegrator(LinearFormIntegrator * lfi,
+                                                 Array<int> &bdr_attr_marker)
+{
+   bdrsklneufi.Append (lfi);
+   bdrsklneufi_marker.Append(&bdr_attr_marker); // NULL -> all attributes are active
 }
 
 bool LinearForm::SupportsDevice()
@@ -349,29 +356,64 @@ void LinearForm::Assemble()
    /* HDG */
    if (bdrsklneufi.Size())
    {
-      FaceElementTransformations *ftr;
-      const FiniteElement *face_fe;
-      int nbdrfaces = fes->GetNBE();
-      Mesh *mesh = fes -> GetMesh();
+//      FaceElementTransformations *ftr;
+//      const FiniteElement *face_fe;
+//      int nbdrfaces = fes->GetNBE();
+//      Mesh *mesh = fes -> GetMesh();
+//
+//      for (int i = 0; i < nbdrfaces; i++)
+//      {
+//         int face;
+//         face = mesh->GetBdrFace(i);
+//         ftr = mesh->GetBdrFaceTransformations(i); // the transformation of the face
+//         fes->GetFaceVDofs(face, vdofs);   // the degrees of freedom related to the face
+//         face_fe = fes->GetFaceElement(
+//                      face);   // point face_fe to the FiniteElement over the edge
+//         if (ftr != NULL)
+//         {
+//            for (int k = 0; k < bdrsklneufi.Size(); k++) // Loop over the related interals
+//            {
+//               bdrsklneufi[k] -> AssembleRHSElementVect (*face_fe, *ftr, elemvect);
+//               AddElementVector (vdofs, elemvect);
+//            }
+//         }
+//
+//      }
+	      FaceElementTransformations *ftr;
+	      const FiniteElement *face_fe;
+	      int nbdrfaces = fes->GetNBE();
+	      Mesh *mesh = fes -> GetMesh();
 
-      for (int i = 0; i < nbdrfaces; i++)
-      {
-         int face;
-         face = mesh->GetBdrFace(i);
-         ftr = mesh->GetBdrFaceTransformations(i); // the transformation of the face
-         fes->GetFaceVDofs(face, vdofs);   // the degrees of freedom related to the face
-         face_fe = fes->GetFaceElement(
-                      face);   // point face_fe to the FiniteElement over the edge
-         if (ftr != NULL)
-         {
-            for (int k = 0; k < bdrsklneufi.Size(); k++) // Loop over the related interals
-            {
-               bdrsklneufi[k] -> AssembleRHSElementVect (*face_fe, *ftr, elemvect);
-               AddElementVector (vdofs, elemvect);
-            }
-         }
+	      for (int i = 0; i < nbdrfaces; i++)
+	      {
+	         int face = mesh->GetBdrFace(i);
+	         ftr = mesh->GetFaceElementTransformations(face); // the transformation of the face
+	         fes->GetFaceVDofs(face, vdofs);   // the degrees of freedom related to the face
+	         face_fe = fes->GetFaceElement(face);   // point face_fe to the FiniteElement over the edge
 
-      }
+	         if (ftr != NULL)
+	         {
+	            for (int k = 0; k < bdrsklneufi.Size(); k++) // Loop over the related interals
+	            {
+	               int compute = 0;
+	               if (bdrsklneufi_marker[k] == NULL)
+	                  compute = 1;
+	               else
+	               {
+	                  Array<int> &bdr_marker = *bdrsklneufi_marker[k];
+	                  const int bdr_attr = mesh->GetBdrAttribute(i);
+	                  if (bdr_marker[bdr_attr-1] == 1)
+	                     compute = 1;
+	               }
+	               if (compute)
+	               {
+	                  bdrsklneufi[k] -> AssembleRHSElementVect (*face_fe, *ftr, elemvect);
+	                  AddElementVector (vdofs, elemvect);
+	               }
+	            }
+	         }
+
+	      }
    }
 
 }

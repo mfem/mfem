@@ -648,7 +648,7 @@ double uFun_ex(const Vector & x)
    {
       case 2:
       {
-         return 1.0 + xi + sin(2.0*M_PI*xi)*sin(2.0*M_PI*yi);
+         return 1.;//1.0 + xi + sin(2.0*M_PI*xi)*sin(2.0*M_PI*yi);
          break;
       }
       case 3:
@@ -672,8 +672,8 @@ void qFun_ex(const Vector & x, Vector & q)
    {
       case 2:
       {
-         q(0) = -diff*1.0 - diff*2.0*M_PI*cos(2.0*M_PI*xi)*sin(2.0*M_PI*yi);
-         q(1) =  0.0 - diff*2.0*M_PI*sin(2.0*M_PI*xi)*cos(2.0*M_PI*yi);
+         q(0) = 0.;// -diff*1.0 - diff*2.0*M_PI*cos(2.0*M_PI*xi)*sin(2.0*M_PI*yi);
+         q(1) = 0.;// 0.0 - diff*2.0*M_PI*sin(2.0*M_PI*xi)*cos(2.0*M_PI*yi);
          break;
       }
       case 3:
@@ -699,7 +699,7 @@ double fFun(const Vector & x)
    {
       case 2:
       {
-         return diff*8.0*M_PI*M_PI*sin(2.0*M_PI*xi)*sin(2.0*M_PI*yi);
+         return 0.0;//diff*8.0*M_PI*M_PI*sin(2.0*M_PI*xi)*sin(2.0*M_PI*yi);
          break;
       }
       case 3:
