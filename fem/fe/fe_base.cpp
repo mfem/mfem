@@ -36,19 +36,19 @@ FiniteElement::FiniteElement(int D, Geometry::Type G,
 #endif
 }
 
-void FiniteElement::CalcVShape (
+void FiniteElement::CalcVShape(
    const IntegrationPoint &ip, DenseMatrix &shape) const
 {
    MFEM_ABORT("method is not implemented for this class");
 }
 
-void FiniteElement::CalcVShape (
+void FiniteElement::CalcVShape(
    ElementTransformation &Trans, DenseMatrix &shape) const
 {
    MFEM_ABORT("method is not implemented for this class");
 }
 
-void FiniteElement::CalcDivShape (
+void FiniteElement::CalcDivShape(
    const IntegrationPoint &ip, Vector &divshape) const
 {
    MFEM_ABORT("method is not implemented for this class");
@@ -97,14 +97,14 @@ void FiniteElement::GetFaceDofs(int face, int **dofs, int *ndofs) const
    MFEM_ABORT("method is not overloaded");
 }
 
-void FiniteElement::CalcHessian (const IntegrationPoint &ip,
-                                 DenseMatrix &h) const
+void FiniteElement::CalcHessian(const IntegrationPoint &ip,
+                                DenseMatrix &h) const
 {
    MFEM_ABORT("method is not overloaded");
 }
 
-void FiniteElement::GetLocalInterpolation (ElementTransformation &Trans,
-                                           DenseMatrix &I) const
+void FiniteElement::GetLocalInterpolation(ElementTransformation &Trans,
+                                          DenseMatrix &I) const
 {
    MFEM_ABORT("method is not overloaded");
 }
@@ -122,13 +122,13 @@ void FiniteElement::GetTransferMatrix(const FiniteElement &fe,
    MFEM_ABORT("method is not overloaded");
 }
 
-void FiniteElement::Project (
+void FiniteElement::Project(
    Coefficient &coeff, ElementTransformation &Trans, Vector &dofs) const
 {
    MFEM_ABORT("method is not overloaded");
 }
 
-void FiniteElement::Project (
+void FiniteElement::Project(
    VectorCoefficient &vc, ElementTransformation &Trans, Vector &dofs) const
 {
    MFEM_ABORT("method is not overloaded");
@@ -137,7 +137,7 @@ void FiniteElement::Project (
 void FiniteElement::ProjectFromNodes(Vector &vc, ElementTransformation &Trans,
                                      Vector &dofs) const
 {
-   mfem_error ("FiniteElement::ProjectFromNodes() (vector) is not overloaded!");
+   mfem_error("FiniteElement::ProjectFromNodes() (vector) is not overloaded!");
 }
 
 void FiniteElement::ProjectMatrixCoefficient(
@@ -250,7 +250,7 @@ void FiniteElement::CalcPhysLinLaplacian(ElementTransformation &Trans,
    DenseMatrix Gij(dim,dim);
    Vector scale(size);
 
-   CalcHessian (Trans.GetIntPoint(), hess);
+   CalcHessian(Trans.GetIntPoint(), hess);
    MultAAt(Trans.InverseJacobian(), Gij);
 
    if (dim == 3)
@@ -363,11 +363,128 @@ void  FiniteElement::CalcPhysHessian(ElementTransformation &Trans,
    Mult( hess, lhm, Hessian);
 }
 
-const DofToQuad &FiniteElement::GetDofToQuad(const IntegrationRule &,
-                                             DofToQuad::Mode) const
+const DofToQuad &FiniteElement::GetDofToQuad(const IntegrationRule &ir,
+                                             DofToQuad::Mode mode) const
 {
-   MFEM_ABORT("method is not implemented for this element");
-   return *dof2quad_array[0]; // suppress a warning
+   MFEM_VERIFY(mode == DofToQuad::FULL, "invalid mode requested");
+
+   for (int i = 0; i < dof2quad_array.Size(); i++)
+   {
+      const DofToQuad &d2q = *dof2quad_array[i];
+      if (d2q.IntRule == &ir && d2q.mode == mode) { return d2q; }
+   }
+
+#ifdef MFEM_THREAD_SAFE
+   DenseMatrix vshape(dof, dim);
+#endif
+
+   DofToQuad *d2q = new DofToQuad;
+   const int nqpt = ir.GetNPoints();
+   d2q->FE = this;
+   d2q->IntRule = &ir;
+   d2q->mode = mode;
+   d2q->ndof = dof;
+   d2q->nqpt = nqpt;
+   if (range_type == SCALAR)
+   {
+      d2q->B.SetSize(nqpt*dof);
+      d2q->Bt.SetSize(dof*nqpt);
+
+      Vector shape;
+      vshape.GetColumnReference(0, shape);
+      for (int i = 0; i < nqpt; i++)
+      {
+         const IntegrationPoint &ip = ir.IntPoint(i);
+         CalcShape(ip, shape);
+         for (int j = 0; j < dof; j++)
+         {
+            d2q->B[i+nqpt*j] = d2q->Bt[j+dof*i] = shape(j);
+         }
+      }
+   }
+   else
+   {
+      d2q->B.SetSize(nqpt*dim*dof);
+      d2q->Bt.SetSize(dof*nqpt*dim);
+
+      for (int i = 0; i < nqpt; i++)
+      {
+         const IntegrationPoint &ip = ir.IntPoint(i);
+         CalcVShape(ip, vshape);
+         for (int d = 0; d < dim; d++)
+         {
+            for (int j = 0; j < dof; j++)
+            {
+               d2q->B[i+nqpt*(d+dim*j)] = d2q->Bt[j+dof*(i+nqpt*d)] = vshape(j, d);
+            }
+         }
+      }
+   }
+   switch (deriv_type)
+   {
+      case GRAD:
+      {
+         d2q->G.SetSize(nqpt*dim*dof);
+         d2q->Gt.SetSize(dof*nqpt*dim);
+
+         for (int i = 0; i < nqpt; i++)
+         {
+            const IntegrationPoint &ip = ir.IntPoint(i);
+            CalcDShape(ip, vshape);
+            for (int d = 0; d < dim; d++)
+            {
+               for (int j = 0; j < dof; j++)
+               {
+                  d2q->G[i+nqpt*(d+dim*j)] = d2q->Gt[j+dof*(i+nqpt*d)] = vshape(j, d);
+               }
+            }
+         }
+         break;
+      }
+      case DIV:
+      {
+         d2q->G.SetSize(nqpt*dof);
+         d2q->Gt.SetSize(dof*nqpt);
+
+         Vector divshape;
+         vshape.GetColumnReference(0, divshape);
+         for (int i = 0; i < nqpt; i++)
+         {
+            const IntegrationPoint &ip = ir.IntPoint(i);
+            CalcDivShape(ip, divshape);
+            for (int j = 0; j < dof; j++)
+            {
+               d2q->G[i+nqpt*j] = d2q->Gt[j+dof*i] = divshape(j);
+            }
+         }
+         break;
+      }
+      case CURL:
+      {
+         d2q->G.SetSize(nqpt*cdim*dof);
+         d2q->Gt.SetSize(dof*nqpt*cdim);
+
+         DenseMatrix curlshape(vshape.GetData(), dof, cdim);  // cdim <= dim
+         for (int i = 0; i < nqpt; i++)
+         {
+            const IntegrationPoint &ip = ir.IntPoint(i);
+            CalcCurlShape(ip, curlshape);
+            for (int d = 0; d < cdim; d++)
+            {
+               for (int j = 0; j < dof; j++)
+               {
+                  d2q->G[i+nqpt*(d+dim*j)] = d2q->Gt[j+dof*(i+nqpt*d)] = curlshape(j, d);
+               }
+            }
+         }
+         break;
+      }
+      case NONE:
+      default:
+         MFEM_ABORT("invalid finite element derivative type");
+   }
+   dof2quad_array.Append(d2q);
+   return *d2q;
 }
 
 FiniteElement::~FiniteElement()
@@ -379,16 +496,19 @@ FiniteElement::~FiniteElement()
 }
 
 
-void ScalarFiniteElement::NodalLocalInterpolation (
+void ScalarFiniteElement::NodalLocalInterpolation(
    ElementTransformation &Trans, DenseMatrix &I,
    const ScalarFiniteElement &fine_fe) const
 {
    double v[Geometry::MaxDim];
-   Vector vv (v, dim);
+   Vector vv(v, dim);
    IntegrationPoint f_ip;
 
 #ifdef MFEM_THREAD_SAFE
-   Vector c_shape(dof);
+   Vector shape(dof);
+#else
+   Vector shape;
+   vshape.GetColumnReference(0, shape);
 #endif
 
    MFEM_ASSERT(map_type == fine_fe.GetMapType(), "");
@@ -398,10 +518,10 @@ void ScalarFiniteElement::NodalLocalInterpolation (
    {
       Trans.Transform(fine_fe.Nodes.IntPoint(i), vv);
       f_ip.Set(v, dim);
-      CalcShape(f_ip, c_shape);
+      CalcShape(f_ip, shape);
       for (int j = 0; j < dof; j++)
       {
-         if (fabs(I(i,j) = c_shape(j)) < 1.0e-12)
+         if (fabs(I(i,j) = shape(j)) < 1.0e-12)
          {
             I(i,j) = 0.0;
          }
@@ -422,7 +542,7 @@ void ScalarFiniteElement::ScalarLocalInterpolation(
    // General "interpolation", defined by L2 projection
 
    double v[Geometry::MaxDim];
-   Vector vv (v, dim);
+   Vector vv(v, dim);
    IntegrationPoint f_ip;
 
    const int fs = fine_fe.GetDof(), cs = this->GetDof();
@@ -462,7 +582,7 @@ void ScalarFiniteElement::ScalarLocalRestriction(
 {
    // General "restriction", defined by L2 projection
    double v[Geometry::MaxDim];
-   Vector vv (v, dim);
+   Vector vv(v, dim);
    IntegrationPoint f_ip;
 
    const int cs = coarse_fe.GetDof(), fs = this->GetDof();
@@ -494,95 +614,6 @@ void ScalarFiniteElement::ScalarLocalRestriction(
       R *= 1.0 / Trans.Weight();
    }
 }
-const DofToQuad &ScalarFiniteElement::GetDofToQuad(const IntegrationRule &ir,
-                                                   DofToQuad::Mode mode) const
-{
-   MFEM_VERIFY(mode == DofToQuad::FULL, "invalid mode requested");
-
-   for (int i = 0; i < dof2quad_array.Size(); i++)
-   {
-      const DofToQuad &d2q = *dof2quad_array[i];
-      if (d2q.IntRule == &ir && d2q.mode == mode) { return d2q; }
-   }
-
-   DofToQuad *d2q = new DofToQuad;
-   const int nqpt = ir.GetNPoints();
-   d2q->FE = this;
-   d2q->IntRule = &ir;
-   d2q->mode = mode;
-   d2q->ndof = dof;
-   d2q->nqpt = nqpt;
-   d2q->B.SetSize(nqpt*dof);
-   d2q->Bt.SetSize(dof*nqpt);
-   d2q->G.SetSize(nqpt*dim*dof);
-   d2q->Gt.SetSize(dof*nqpt*dim);
-#ifdef MFEM_THREAD_SAFE
-   Vector c_shape(dof);
-   DenseMatrix vshape(dof, dim);
-#endif
-   for (int i = 0; i < nqpt; i++)
-   {
-      const IntegrationPoint &ip = ir.IntPoint(i);
-      CalcShape(ip, c_shape);
-      for (int j = 0; j < dof; j++)
-      {
-         d2q->B[i+nqpt*j] = d2q->Bt[j+dof*i] = c_shape(j);
-      }
-      CalcDShape(ip, vshape);
-      for (int d = 0; d < dim; d++)
-      {
-         for (int j = 0; j < dof; j++)
-         {
-            d2q->G[i+nqpt*(d+dim*j)] = d2q->Gt[j+dof*(i+nqpt*d)] = vshape(j,d);
-         }
-      }
-   }
-   dof2quad_array.Append(d2q);
-   return *d2q;
-}
-
-// protected method
-const DofToQuad &ScalarFiniteElement::GetTensorDofToQuad(
-   const TensorBasisElement &tb,
-   const IntegrationRule &ir, DofToQuad::Mode mode) const
-{
-   MFEM_VERIFY(mode == DofToQuad::TENSOR, "invalid mode requested");
-
-   for (int i = 0; i < dof2quad_array.Size(); i++)
-   {
-      const DofToQuad &d2q = *dof2quad_array[i];
-      if (d2q.IntRule == &ir && d2q.mode == mode) { return d2q; }
-   }
-
-   DofToQuad *d2q = new DofToQuad;
-   const Poly_1D::Basis &basis_1d = tb.GetBasis1D();
-   const int ndof = order + 1;
-   const int nqpt = (int)floor(pow(ir.GetNPoints(), 1.0/dim) + 0.5);
-   d2q->FE = this;
-   d2q->IntRule = &ir;
-   d2q->mode = mode;
-   d2q->ndof = ndof;
-   d2q->nqpt = nqpt;
-   d2q->B.SetSize(nqpt*ndof);
-   d2q->Bt.SetSize(ndof*nqpt);
-   d2q->G.SetSize(nqpt*ndof);
-   d2q->Gt.SetSize(ndof*nqpt);
-   Vector val(ndof), grad(ndof);
-   for (int i = 0; i < nqpt; i++)
-   {
-      // The first 'nqpt' points in 'ir' have the same x-coordinates as those
-      // of the 1D rule.
-      basis_1d.Eval(ir.IntPoint(i).x, val, grad);
-      for (int j = 0; j < ndof; j++)
-      {
-         d2q->B[i+nqpt*j] = d2q->Bt[j+ndof*i] = val(j);
-         d2q->G[i+nqpt*j] = d2q->Gt[j+ndof*i] = grad(j);
-      }
-   }
-   dof2quad_array.Append(d2q);
-   return *d2q;
-}
-
 
 void NodalFiniteElement::ProjectCurl_2D(
    const FiniteElement &fe, ElementTransformation &Trans,
@@ -631,7 +662,10 @@ void NodalFiniteElement::GetLocalRestriction(ElementTransformation &Trans,
    Vector pt(&ipt.x, dim);
 
 #ifdef MFEM_THREAD_SAFE
-   Vector c_shape(dof);
+   Vector shape(dof);
+#else
+   Vector shape;
+   vshape.GetColumnReference(0, shape);
 #endif
 
    Trans.SetIntPoint(&Nodes[0]);
@@ -641,8 +675,8 @@ void NodalFiniteElement::GetLocalRestriction(ElementTransformation &Trans,
       InvertLinearTrans(Trans, Nodes[j], pt);
       if (Geometries.CheckPoint(geom_type, ipt)) // do we need an epsilon here?
       {
-         CalcShape(ipt, c_shape);
-         R.SetRow(j, c_shape);
+         CalcShape(ipt, shape);
+         R.SetRow(j, shape);
       }
       else
       {
@@ -653,7 +687,7 @@ void NodalFiniteElement::GetLocalRestriction(ElementTransformation &Trans,
    R.Threshold(1e-12);
 }
 
-void NodalFiniteElement::Project (
+void NodalFiniteElement::Project(
    Coefficient &coeff, ElementTransformation &Trans, Vector &dofs) const
 {
    for (int i = 0; i < dof; i++)
@@ -662,7 +696,7 @@ void NodalFiniteElement::Project (
       // some coefficients expect that Trans.IntPoint is the same
       // as the second argument of Eval
       Trans.SetIntPoint(&ip);
-      dofs(i) = coeff.Eval (Trans, ip);
+      dofs(i) = coeff.Eval(Trans, ip);
       if (map_type == INTEGRAL)
       {
          dofs(i) *= Trans.Weight();
@@ -670,7 +704,7 @@ void NodalFiniteElement::Project (
    }
 }
 
-void NodalFiniteElement::Project (
+void NodalFiniteElement::Project(
    VectorCoefficient &vc, ElementTransformation &Trans, Vector &dofs) const
 {
    MFEM_ASSERT(dofs.Size() == vc.GetVDim()*dof, "");
@@ -849,18 +883,18 @@ VectorFiniteElement::VectorFiniteElement(int D, Geometry::Type G,
    }
 }
 
-void VectorFiniteElement::CalcShape (
+void VectorFiniteElement::CalcShape(
    const IntegrationPoint &ip, Vector &shape ) const
 {
-   mfem_error ("Error: Cannot use scalar CalcShape(...) function with\n"
-               "   VectorFiniteElements!");
+   mfem_error("Error: Cannot use scalar CalcShape(...) function with\n"
+              "   VectorFiniteElements!");
 }
 
-void VectorFiniteElement::CalcDShape (
+void VectorFiniteElement::CalcDShape(
    const IntegrationPoint &ip, DenseMatrix &dshape ) const
 {
-   mfem_error ("Error: Cannot use scalar CalcDShape(...) function with\n"
-               "   VectorFiniteElements!");
+   mfem_error("Error: Cannot use scalar CalcDShape(...) function with\n"
+              "   VectorFiniteElements!");
 }
 
 void VectorFiniteElement::SetDerivMembers()
@@ -900,7 +934,7 @@ void VectorFiniteElement::SetDerivMembers()
    }
 }
 
-void VectorFiniteElement::CalcVShape_RT (
+void VectorFiniteElement::CalcVShape_RT(
    ElementTransformation &Trans, DenseMatrix &shape) const
 {
    MFEM_ASSERT(map_type == H_DIV, "");
@@ -912,7 +946,7 @@ void VectorFiniteElement::CalcVShape_RT (
    shape *= (1.0 / Trans.Weight());
 }
 
-void VectorFiniteElement::CalcVShape_ND (
+void VectorFiniteElement::CalcVShape_ND(
    ElementTransformation &Trans, DenseMatrix &shape) const
 {
    MFEM_ASSERT(map_type == H_CURL, "");
@@ -2403,6 +2437,46 @@ TensorBasisElement::TensorBasisElement(const int dims, const int p,
    }
 }
 
+const DofToQuad &TensorBasisElement::GetTensorDofToQuad(
+   const FiniteElement &fe, const IntegrationRule &ir,
+   DofToQuad::Mode mode, const Poly_1D::Basis &basis, bool closed,
+   Array<DofToQuad*> &dof2quad_array)
+{
+   MFEM_VERIFY(mode == DofToQuad::TENSOR, "invalid mode requested");
+
+   for (int i = 0; i < dof2quad_array.Size(); i++)
+   {
+      const DofToQuad &d2q = *dof2quad_array[i];
+      if (d2q.IntRule == &ir && d2q.mode == mode) { return d2q; }
+   }
+
+   DofToQuad *d2q = new DofToQuad;
+   const int ndof = closed ? fe.GetOrder() + 1 : fe.GetOrder();
+   const int nqpt = (int)floor(pow(ir.GetNPoints(), 1.0/fe.GetDim()) + 0.5);
+   d2q->FE = &fe;
+   d2q->IntRule = &ir;
+   d2q->mode = mode;
+   d2q->ndof = ndof;
+   d2q->nqpt = nqpt;
+   d2q->B.SetSize(nqpt*ndof);
+   d2q->Bt.SetSize(ndof*nqpt);
+   d2q->G.SetSize(nqpt*ndof);
+   d2q->Gt.SetSize(ndof*nqpt);
+   Vector val(ndof), grad(ndof);
+   for (int i = 0; i < nqpt; i++)
+   {
+      // The first 'nqpt' points in 'ir' have the same x-coordinates as those
+      // of the 1D rule.
+      basis.Eval(ir.IntPoint(i).x, val, grad);
+      for (int j = 0; j < ndof; j++)
+      {
+         d2q->B[i+nqpt*j] = d2q->Bt[j+ndof*i] = val(j);
+         d2q->G[i+nqpt*j] = d2q->Gt[j+ndof*i] = grad(j);
+      }
+   }
+   dof2quad_array.Append(d2q);
+   return *d2q;
+}
 
 NodalTensorFiniteElement::NodalTensorFiniteElement(const int dims,
                                                    const int p,
@@ -2437,8 +2511,7 @@ VectorTensorFiniteElement::VectorTensorFiniteElement(const int dims,
                                                      const DofMapType dmtype)
    : VectorFiniteElement(dims, GetTensorProductGeometry(dims), d,
                          p, M, FunctionSpace::Qk),
-     TensorBasisElement(dims, p, VerifyNodal(cbtype), dmtype),
-     cbasis1d(poly1d.GetBasis(p, VerifyClosed(cbtype))),
+     TensorBasisElement(dims, p, VerifyNodal(VerifyClosed(cbtype)), dmtype),
      obasis1d(poly1d.GetBasis(p - 1, VerifyOpen(obtype)))
 {
    MFEM_VERIFY(dims > 1, "Constructor for VectorTensorFiniteElement with both "
@@ -2453,91 +2526,11 @@ VectorTensorFiniteElement::VectorTensorFiniteElement(const int dims,
                                                      const DofMapType dmtype)
    : VectorFiniteElement(dims, GetTensorProductGeometry(dims), d,
                          p, M, FunctionSpace::Pk),
-     TensorBasisElement(dims, p, obtype, dmtype),
-     cbasis1d(poly1d.GetBasis(p, VerifyOpen(obtype))),
+     TensorBasisElement(dims, p, VerifyOpen(obtype), dmtype),
      obasis1d(poly1d.GetBasis(p, VerifyOpen(obtype)))
 {
    MFEM_VERIFY(dims == 1, "Constructor for VectorTensorFiniteElement without "
                "closed basis is only valid for 1D elements.");
-}
-
-const DofToQuad &VectorTensorFiniteElement::GetDofToQuad(
-   const IntegrationRule &ir,
-   DofToQuad::Mode mode) const
-{
-   MFEM_VERIFY(mode != DofToQuad::FULL, "invalid mode requested");
-
-   return GetTensorDofToQuad(ir, mode, true);
-}
-
-const DofToQuad &VectorTensorFiniteElement::GetDofToQuadOpen(
-   const IntegrationRule &ir,
-   DofToQuad::Mode mode) const
-{
-   MFEM_VERIFY(mode != DofToQuad::FULL, "invalid mode requested");
-
-   return GetTensorDofToQuad(ir, mode, false);
-}
-
-const DofToQuad &VectorTensorFiniteElement::GetTensorDofToQuad(
-   const IntegrationRule &ir,
-   DofToQuad::Mode mode,
-   const bool closed) const
-{
-   MFEM_VERIFY(mode == DofToQuad::TENSOR, "invalid mode requested");
-
-   for (int i = 0;
-        i < (closed ? dof2quad_array.Size() : dof2quad_array_open.Size());
-        i++)
-   {
-      const DofToQuad &d2q = closed ? *dof2quad_array[i] : *dof2quad_array_open[i];
-      if (d2q.IntRule == &ir && d2q.mode == mode) { return d2q; }
-   }
-
-   DofToQuad *d2q = new DofToQuad;
-   const int ndof = closed ? order + 1 : order;
-   const int nqpt = (int)floor(pow(ir.GetNPoints(), 1.0/dim) + 0.5);
-   d2q->FE = this;
-   d2q->IntRule = &ir;
-   d2q->mode = mode;
-   d2q->ndof = ndof;
-   d2q->nqpt = nqpt;
-   d2q->B.SetSize(nqpt*ndof);
-   d2q->Bt.SetSize(ndof*nqpt);
-   d2q->G.SetSize(nqpt*ndof);
-   d2q->Gt.SetSize(ndof*nqpt);
-   Vector val(ndof), grad(ndof);
-   for (int i = 0; i < nqpt; i++)
-   {
-      // The first 'nqpt' points in 'ir' have the same x-coordinates as those
-      // of the 1D rule.
-
-      if (closed)
-      {
-         cbasis1d.Eval(ir.IntPoint(i).x, val, grad);
-      }
-      else
-      {
-         obasis1d.Eval(ir.IntPoint(i).x, val, grad);
-      }
-
-      for (int j = 0; j < ndof; j++)
-      {
-         d2q->B[i+nqpt*j] = d2q->Bt[j+ndof*i] = val(j);
-         d2q->G[i+nqpt*j] = d2q->Gt[j+ndof*i] = grad(j);
-      }
-   }
-
-   if (closed)
-   {
-      dof2quad_array.Append(d2q);
-   }
-   else
-   {
-      dof2quad_array_open.Append(d2q);
-   }
-
-   return *d2q;
 }
 
 VectorTensorFiniteElement::~VectorTensorFiniteElement()
