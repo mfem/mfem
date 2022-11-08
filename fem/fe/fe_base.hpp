@@ -157,8 +157,7 @@ public:
           dimensions using 1D number of quadrature points and degrees of
           freedom. */
       /** When representing a vector-valued FiniteElement, two DofToQuad objects
-          are used to describe the "closed" and "open" 1D basis functions
-          (TODO). */
+          are used to describe the "closed" and "open" 1D basis functions. */
       TENSOR
    };
 
@@ -176,7 +175,7 @@ public:
    /// Basis functions evaluated at quadrature points.
    /** The storage layout is column-major with dimensions:
        - #nqpt x #ndof, for scalar elements, or
-       - #nqpt x dim x #ndof, for vector elements, (TODO)
+       - #nqpt x dim x #ndof, for vector elements,
 
        where
 
@@ -187,15 +186,15 @@ public:
    /// Transpose of #B.
    /** The storage layout is column-major with dimensions:
        - #ndof x #nqpt, for scalar elements, or
-       - #ndof x #nqpt x dim, for vector elements (TODO). */
+       - #ndof x #nqpt x dim, for vector elements. */
    Array<double> Bt;
 
    /** @brief Gradients/divergences/curls of basis functions evaluated at
        quadrature points. */
    /** The storage layout is column-major with dimensions:
        - #nqpt x dim x #ndof, for scalar elements, or
-       - #nqpt x #ndof, for H(div) vector elements (TODO), or
-       - #nqpt x cdim x #ndof, for H(curl) vector elements (TODO),
+       - #nqpt x #ndof, for H(div) vector elements, or
+       - #nqpt x cdim x #ndof, for H(curl) vector elements,
 
        where
 
@@ -208,8 +207,8 @@ public:
    /// Transpose of #G.
    /** The storage layout is column-major with dimensions:
        - #ndof x #nqpt x dim, for scalar elements, or
-       - #ndof x #nqpt, for H(div) vector elements (TODO), or
-       - #ndof x #nqpt x cdim, for H(curl) vector elements (TODO). */
+       - #ndof x #nqpt, for H(div) vector elements, or
+       - #ndof x #nqpt x cdim, for H(curl) vector elements. */
    Array<double> Gt;
 };
 
@@ -247,7 +246,7 @@ protected:
    mutable int orders[Geometry::MaxDim]; ///< Anisotropic orders
    IntegrationRule Nodes;
 #ifndef MFEM_THREAD_SAFE
-   mutable DenseMatrix vshape; // Dof x VDim
+   mutable DenseMatrix vshape; // Dof x Dim
 #endif
    /// Container for all DofToQuad objects created by the FiniteElement.
    /** Multiple DofToQuad objects may be needed when different quadrature rules
@@ -347,7 +346,6 @@ public:
        functions are mapped to physical space, one of {VALUE, INTEGRAL
        H_DIV, H_CURL}. */
    int GetMapType() const { return map_type; }
-
 
    /** @brief Returns the FiniteElement::DerivType of the element describing the
        spatial derivative method implemented, one of {NONE, GRAD,
@@ -455,8 +453,8 @@ public:
        part of the Hessian of one shape function.
        The order in 2D is {u_xx, u_xy, u_yy}.
        The size (#dof x (#dim (#dim+1)/2) of @a Hessian must be set in advance.*/
-   virtual void CalcHessian (const IntegrationPoint &ip,
-                             DenseMatrix &Hessian) const;
+   virtual void CalcHessian(const IntegrationPoint &ip,
+                            DenseMatrix &Hessian) const;
 
    /** @brief Evaluate the Hessian of all shape functions of a scalar finite
        element in reference space at the given point @a ip. */
@@ -577,6 +575,7 @@ public:
    /** See the documentation for DofToQuad for more details. */
    virtual const DofToQuad &GetDofToQuad(const IntegrationRule &ir,
                                          DofToQuad::Mode mode) const;
+
    /// Deconstruct the FiniteElement
    virtual ~FiniteElement();
 
@@ -629,20 +628,12 @@ public:
 class ScalarFiniteElement : public FiniteElement
 {
 protected:
-#ifndef MFEM_THREAD_SAFE
-   mutable Vector c_shape;
-#endif
-
    static const ScalarFiniteElement &CheckScalarFE(const FiniteElement &fe)
    {
       MFEM_VERIFY(fe.GetRangeType() == SCALAR,
                   "'fe' must be a ScalarFiniteElement");
       return static_cast<const ScalarFiniteElement &>(fe);
    }
-
-   const DofToQuad &GetTensorDofToQuad(const class TensorBasisElement &tb,
-                                       const IntegrationRule &ir,
-                                       DofToQuad::Mode mode) const;
 
 public:
    /** @brief Construct ScalarFiniteElement with given
@@ -654,13 +645,8 @@ public:
     */
    ScalarFiniteElement(int D, Geometry::Type G, int Do, int O,
                        int F = FunctionSpace::Pk)
-#ifdef MFEM_THREAD_SAFE
       : FiniteElement(D, G, Do, O, F)
    { deriv_type = GRAD; deriv_range_type = VECTOR; deriv_map_type = H_CURL; }
-#else
-      : FiniteElement(D, G, Do, O, F), c_shape(dof)
-   { deriv_type = GRAD; deriv_range_type = VECTOR; deriv_map_type = H_CURL; }
-#endif
 
    /** @brief Set the FiniteElement::MapType of the element to either VALUE or
        INTEGRAL. Also sets the FiniteElement::DerivType to GRAD if the
@@ -696,9 +682,6 @@ public:
    void ScalarLocalRestriction(ElementTransformation &Trans,
                                DenseMatrix &R,
                                const ScalarFiniteElement &coarse_fe) const;
-
-   virtual const DofToQuad &GetDofToQuad(const IntegrationRule &ir,
-                                         DofToQuad::Mode mode) const;
 };
 
 
@@ -1205,6 +1188,11 @@ public:
          default: MFEM_ABORT("invalid dimension: " << dim); return -1;
       }
    }
+
+   static const DofToQuad &GetTensorDofToQuad(
+      const FiniteElement &fe, const IntegrationRule &ir,
+      DofToQuad::Mode mode, const Poly_1D::Basis &basis, bool closed,
+      Array<DofToQuad*> &dof2quad_array);
 };
 
 class NodalTensorFiniteElement : public NodalFiniteElement,
@@ -1218,8 +1206,8 @@ public:
                                  DofToQuad::Mode mode) const
    {
       return (mode == DofToQuad::FULL) ?
-             ScalarFiniteElement::GetDofToQuad(ir, mode) :
-             ScalarFiniteElement::GetTensorDofToQuad(*this, ir, mode);
+             FiniteElement::GetDofToQuad(ir, mode) :
+             GetTensorDofToQuad(*this, ir, mode, basis1d, true, dof2quad_array);
    }
 
    virtual void SetMapType(const int map_type_);
@@ -1246,7 +1234,7 @@ private:
    mutable Array<DofToQuad*> dof2quad_array_open;
 
 protected:
-   Poly_1D::Basis &cbasis1d, &obasis1d;
+   Poly_1D::Basis &obasis1d;
 
 public:
    VectorTensorFiniteElement(const int dims, const int d, const int p,
@@ -1259,14 +1247,20 @@ public:
                              const DofMapType dmtype);
 
    const DofToQuad &GetDofToQuad(const IntegrationRule &ir,
-                                 DofToQuad::Mode mode) const;
+                                 DofToQuad::Mode mode) const
+   {
+      MFEM_VERIFY(mode != DofToQuad::FULL, "invalid mode requested");
+      return GetTensorDofToQuad(*this, ir, mode, basis1d, true,
+                                dof2quad_array);
+   }
 
    const DofToQuad &GetDofToQuadOpen(const IntegrationRule &ir,
-                                     DofToQuad::Mode mode) const;
-
-   const DofToQuad &GetTensorDofToQuad(const IntegrationRule &ir,
-                                       DofToQuad::Mode mode,
-                                       const bool closed) const;
+                                     DofToQuad::Mode mode) const
+   {
+      MFEM_VERIFY(mode != DofToQuad::FULL, "invalid mode requested");
+      return GetTensorDofToQuad(*this, ir, mode, obasis1d, false,
+                                dof2quad_array_open);
+   }
 
    ~VectorTensorFiniteElement();
 };
