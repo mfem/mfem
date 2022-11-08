@@ -27,7 +27,8 @@ class ElementRestrictionOperator : public Operator
 public:
    /// @brief Add the E-vector degrees of freedom @a x to the L-vector degrees
    /// of freedom @a y.
-   virtual void AddMultTranspose(const Vector &x, Vector &y) const = 0;
+   void AddMultTranspose(const Vector &x, Vector &y,
+                         double a = 1.0) const override = 0;
 };
 
 /// Operator that converts FiniteElementSpace L-vectors to E-vectors.
@@ -65,9 +66,10 @@ protected:
 
 public:
    ElementRestriction(const FiniteElementSpace&, ElementDofOrdering);
-   void Mult(const Vector &x, Vector &y) const;
-   void MultTranspose(const Vector &x, Vector &y) const;
-   void AddMultTranspose(const Vector &x, Vector &y) const;
+   void Mult(const Vector &x, Vector &y) const override;
+   void MultTranspose(const Vector &x, Vector &y) const override;
+   void AddMultTranspose(const Vector &x, Vector &y,
+                         double a = 1.0) const override;
 
    /// Compute Mult without applying signs based on DOF orientations.
    void MultUnsigned(const Vector &x, Vector &y) const;
@@ -116,9 +118,10 @@ class L2ElementRestriction : public ElementRestrictionOperator
    const int ndofs;
 public:
    L2ElementRestriction(const FiniteElementSpace&);
-   void Mult(const Vector &x, Vector &y) const;
-   void MultTranspose(const Vector &x, Vector &y) const;
-   void AddMultTranspose(const Vector &x, Vector &y) const;
+   void Mult(const Vector &x, Vector &y) const override;
+   void MultTranspose(const Vector &x, Vector &y) const override;
+   void AddMultTranspose(const Vector &x, Vector &y,
+                         double a = 1.0) const override;
    /** Fill the I array of SparseMatrix corresponding to the sparsity pattern
        given by this ElementRestriction. */
    void FillI(SparseMatrix &mat) const;

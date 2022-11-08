@@ -183,8 +183,10 @@ void ElementRestriction::MultTranspose(const Vector& x, Vector& y) const
    AddMultTranspose<ADD>(x, y);
 }
 
-void ElementRestriction::AddMultTranspose(const Vector& x, Vector& y) const
+void ElementRestriction::AddMultTranspose(const Vector& x, Vector& y,
+                                          double a) const
 {
+   MFEM_VERIFY(a == 1.0, "General coefficient case is not yet supported!");
    constexpr bool ADD = true;
    AddMultTranspose<ADD>(x, y);
 }
@@ -547,8 +549,10 @@ void L2ElementRestriction::MultTranspose(const Vector &x, Vector &y) const
    AddMultTranspose<ADD>(x, y);
 }
 
-void L2ElementRestriction::AddMultTranspose(const Vector &x, Vector &y) const
+void L2ElementRestriction::AddMultTranspose(const Vector &x, Vector &y,
+                                            double a) const
 {
+   MFEM_VERIFY(a == 1.0, "General coefficient case is not yet supported!");
    constexpr bool ADD = true;
    AddMultTranspose<ADD>(x, y);
 }
@@ -761,7 +765,7 @@ void H1FaceRestriction::Mult(const Vector& x, Vector& y) const
 }
 
 void H1FaceRestriction::AddMultTranspose(const Vector& x, Vector& y,
-                                         const double a) const
+                                         double a) const
 {
    MFEM_VERIFY(a == 1.0, "General coefficient case is not yet supported!");
    if (nf==0) { return; }
