@@ -263,7 +263,7 @@ DivergenceFreeProjector::Update()
 
 void VisualizeMesh(socketstream &sock, const char *vishost, int visport,
                    ParMesh &pmesh, const char *title,
-                   int x, int y, int w, int h, const char *keys, bool vec)
+                   int x, int y, int w, int h, const char *keys)
 {
    MPI_Comm comm = pmesh.GetComm();
 
@@ -273,6 +273,12 @@ void VisualizeMesh(socketstream &sock, const char *vishost, int visport,
 
    bool newly_opened = false;
    int connection_failed;
+
+   const int dim = pmesh.Dimension();
+   L2_FECollection attr_col(0, dim);
+   ParFiniteElementSpace attr_fes(&pmesh, &attr_col);
+   ParGridFunction attr(&attr_fes);
+   attr = 0.0;
 
    do
    {
@@ -288,6 +294,7 @@ void VisualizeMesh(socketstream &sock, const char *vishost, int visport,
       }
 
       pmesh.PrintAsOne(sock);
+      attr.SaveAsOne(sock);
 
       if (myid == 0 && newly_opened)
       {
@@ -295,8 +302,7 @@ void VisualizeMesh(socketstream &sock, const char *vishost, int visport,
               << "window_geometry "
               << x << " " << y << " " << w << " " << h << "\n";
          if ( keys ) { sock << "keys " << keys << "\n"; }
-         else { sock << "keys maaAc"; }
-         if ( vec ) { sock << "vvv"; }
+         else { (dim == 3) ? sock << "keys jm\n" : sock << "keys Rjme\n"; }
          sock << endl;
       }
 
