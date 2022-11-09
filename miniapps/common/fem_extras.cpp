@@ -58,10 +58,16 @@ RT_FESpace::~RT_FESpace()
 
 void VisualizeMesh(socketstream &sock, const char *vishost, int visport,
                    Mesh &mesh, const char *title,
-                   int x, int y, int w, int h, const char * keys, bool vec)
+                   int x, int y, int w, int h, const char * keys)
 {
    bool newly_opened = false;
    int connection_failed;
+
+   const int dim = mesh.Dimension();
+   L2_FECollection attr_col(0, mesh.Dimension());
+   FiniteElementSpace attr_fes(&mesh, &attr_col);
+   GridFunction attr(&attr_fes);
+   attr = 0.0;
 
    do
    {
@@ -74,6 +80,7 @@ void VisualizeMesh(socketstream &sock, const char *vishost, int visport,
       sock << "solution\n";
 
       mesh.Print(sock);
+      attr.Save(sock);
 
       if (newly_opened)
       {
@@ -81,8 +88,7 @@ void VisualizeMesh(socketstream &sock, const char *vishost, int visport,
               << "window_geometry "
               << x << " " << y << " " << w << " " << h << "\n";
          if ( keys ) { sock << "keys " << keys << "\n"; }
-         else { sock << "keys maaAc\n"; }
-         if ( vec ) { sock << "vvv"; }
+         else { (dim == 3) ? sock << "keys jm\n" : sock << "keys Rjme\n"; }
          sock << endl;
       }
 
