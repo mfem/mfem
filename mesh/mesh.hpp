@@ -1494,10 +1494,10 @@ public:
    /// Set the attribute of patch i, for a NURBS mesh.
    void SetPatchAttribute(int i, int attr);
 
-   /// Return the attribute of boundary element i, for a NURBS mesh.
+   /// Return the attribute of patch boundary element i, for a NURBS mesh.
    int GetPatchBdrAttribute(int i) const;
 
-   /// Set the attribute of boundary element i, for a NURBS mesh.
+   /// Set the attribute of patch boundary element i, for a NURBS mesh.
    void SetPatchBdrAttribute(int i, int attr);
 
    const Table &ElementToElementTable();
