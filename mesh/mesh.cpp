@@ -2774,6 +2774,41 @@ void Mesh::DoNodeReorder(DSTable *old_v_to_v, Table *old_elem_vert)
    Nodes->Update(); // just needed to update Nodes->sequence
 }
 
+void Mesh::SetPatchAttribute(int i, int attr)
+{
+   MFEM_ASSERT(NURBSext, "SetPatchAttribute is only for NURBS meshes");
+   NURBSext->SetPatchAttribute(i, attr);
+   const Array<int>& elems = NURBSext->GetPatchElements(i);
+   for (auto e : elems)
+   {
+      SetAttribute(e, attr);
+   }
+}
+
+int Mesh::GetPatchAttribute(int i) const
+{
+   MFEM_ASSERT(NURBSext, "GetPatchAttribute is only for NURBS meshes");
+   return NURBSext->GetPatchAttribute(i);
+}
+
+void Mesh::SetPatchBdrAttribute(int i, int attr)
+{
+   MFEM_ASSERT(NURBSext, "SetPatchBdrAttribute is only for NURBS meshes");
+   NURBSext->SetPatchBdrAttribute(i, attr);
+
+   const Array<int>& bdryelems = NURBSext->GetPatchBdrElements(i);
+   for (auto be : bdryelems)
+   {
+      SetBdrAttribute(be, attr);
+   }
+}
+
+int Mesh::GetPatchBdrAttribute(int i) const
+{
+   MFEM_ASSERT(NURBSext, "GetBdrPatchBdrAttribute is only for NURBS meshes");
+   return NURBSext->GetPatchBdrAttribute(i);
+}
+
 void Mesh::FinalizeTetMesh(int generate_edges, int refine, bool fix_orientation)
 {
    FinalizeCheck();

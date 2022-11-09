@@ -3305,6 +3305,47 @@ void NURBSExtension::Set3DSolutionVector(Vector &coords, int vdim)
    }
 }
 
+void NURBSExtension::SetPatchToElements()
+{
+   const int np = GetNP();
+   patch_to_el.resize(np);
+
+   for (int e=0; e<el_to_patch.Size(); ++e)
+   {
+      patch_to_el[el_to_patch[e]].Append(e);
+   }
+}
+
+void NURBSExtension::SetPatchToBdrElements()
+{
+   const int nbp = GetNBP();
+   patch_to_bel.resize(nbp);
+
+   for (int e=0; e<bel_to_patch.Size(); ++e)
+   {
+      patch_to_bel[bel_to_patch[e]].Append(e);
+   }
+}
+
+const Array<int>& NURBSExtension::GetPatchElements(int patch)
+{
+   if (patch_to_el.size() == 0)
+   {
+      SetPatchToElements();
+   }
+
+   return patch_to_el[patch];
+}
+
+const Array<int>& NURBSExtension::GetPatchBdrElements(int patch)
+{
+   if (patch_to_bel.size() == 0)
+   {
+      SetPatchToBdrElements();
+   }
+
+   return patch_to_bel[patch];
+}
 
 #ifdef MFEM_USE_MPI
 ParNURBSExtension::ParNURBSExtension(const ParNURBSExtension &orig)
