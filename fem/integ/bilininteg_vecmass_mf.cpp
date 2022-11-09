@@ -9,19 +9,16 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-#include "../general/forall.hpp"
-#include "bilininteg.hpp"
-#include "gridfunc.hpp"
-#include "ceed/integrators/mass/mass.hpp"
+#include "../../general/forall.hpp"
+#include "../bilininteg.hpp"
+#include "../gridfunc.hpp"
+#include "../ceed/integrators/mass/mass.hpp"
 
 using namespace std;
 
 namespace mfem
 {
 
-// MF Mass Integrator
-
-// MF Mass Assemble kernel
 void VectorMassIntegrator::AssembleMF(const FiniteElementSpace &fes)
 {
    // Assuming the same element type

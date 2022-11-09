@@ -9,17 +9,14 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-#include "../general/forall.hpp"
-#include "bilininteg.hpp"
-#include "gridfunc.hpp"
-#include "qfunction.hpp"
-#include "ceed/integrators/convection/convection.hpp"
-#include "quadinterpolator.hpp"
+#include "../../general/forall.hpp"
+#include "../bilininteg.hpp"
+#include "../gridfunc.hpp"
+#include "../qfunction.hpp"
+#include "../ceed/integrators/convection/convection.hpp"
 
 namespace mfem
 {
-
-// PA Convection Integrator
 
 // PA Convection Assemble 2D kernel
 static void PAConvectionSetup2D(const int NQ,

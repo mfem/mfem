@@ -12,9 +12,9 @@
 #ifndef MFEM_DGMASSINV_KERNELS_HPP
 #define MFEM_DGMASSINV_KERNELS_HPP
 
-#include "bilininteg_mass_pa.hpp"
 #include "../linalg/kernels.hpp"
 #include "kernels.hpp"
+#include "integ/bilininteg_mass_kernels.hpp"
 
 namespace mfem
 {
@@ -22,6 +22,7 @@ namespace mfem
 namespace internal
 {
 
+MFEM_HOST_DEVICE inline
 void MakeReciprocal(int n, double *x)
 {
    MFEM_FORALL(i, n, x[i] = 1.0/x[i]; );

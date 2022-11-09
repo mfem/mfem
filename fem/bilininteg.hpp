@@ -3522,17 +3522,5 @@ protected:
    VectorCoefficient *VQ;
 };
 
-
-
-// PA Diffusion Assemble 2D kernel
-template<const int T_SDIM>
-void PADiffusionSetup2D(const int Q1D,
-                        const int coeffDim,
-                        const int NE,
-                        const Array<double> &w,
-                        const Vector &j,
-                        const Vector &c,
-                        Vector &d);
-
 }
 #endif

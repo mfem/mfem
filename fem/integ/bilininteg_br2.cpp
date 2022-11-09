@@ -9,8 +9,8 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-#include "bilininteg.hpp"
-#include "pfespace.hpp"
+#include "../bilininteg.hpp"
+#include "../pfespace.hpp"
 #include <algorithm>
 
 namespace mfem
