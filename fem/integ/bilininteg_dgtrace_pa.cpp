@@ -9,16 +9,17 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-#include "../general/forall.hpp"
-#include "bilininteg.hpp"
-#include "gridfunc.hpp"
-#include "qfunction.hpp"
-#include "restriction.hpp"
+#include "../../general/forall.hpp"
+#include "../bilininteg.hpp"
+#include "../gridfunc.hpp"
+#include "../qfunction.hpp"
+#include "../restriction.hpp"
 
 using namespace std;
 
 namespace mfem
 {
+
 // PA DG Trace Integrator
 static void PADGTraceSetup2D(const int Q1D,
                              const int NF,

@@ -9,24 +9,24 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-#include "../general/forall.hpp"
-#include "bilininteg.hpp"
-#include "gridfunc.hpp"
-#include "ceed/integrators/diffusion/diffusion.hpp"
+#include "../../general/forall.hpp"
+#include "../bilininteg.hpp"
+#include "../gridfunc.hpp"
+#include "../ceed/integrators/diffusion/diffusion.hpp"
 
 using namespace std;
 
 namespace mfem
 {
 
-void DiffusionIntegrator::AssembleMF(const FiniteElementSpace &fes)
+void VectorDiffusionIntegrator::AssembleMF(const FiniteElementSpace &fes)
 {
-   // Assuming the same element type
-   fespace = &fes;
+   // Assumes tensor-product elements
    Mesh *mesh = fes.GetMesh();
    if (mesh->GetNE() == 0) { return; }
    const FiniteElement &el = *fes.GetFE(0);
-   const IntegrationRule *ir = IntRule ? IntRule : &GetRule(el, el);
+   const IntegrationRule *ir
+      = IntRule ? IntRule : &DiffusionIntegrator::GetRule(el, el);
    if (DeviceCanUseCeed())
    {
       delete ceedOp;
@@ -45,24 +45,11 @@ void DiffusionIntegrator::AssembleMF(const FiniteElementSpace &fes)
       }
       return;
    }
-   MFEM_ABORT("Error: DiffusionIntegrator::AssembleMF only implemented with"
-              " libCEED");
+   MFEM_ABORT("Error: VectorDiffusionIntegrator::AssembleMF only implemented"
+              " with libCEED");
 }
 
-void DiffusionIntegrator::AssembleDiagonalMF(Vector &diag)
-{
-   if (DeviceCanUseCeed())
-   {
-      ceedOp->GetDiagonal(diag);
-   }
-   else
-   {
-      MFEM_ABORT("Error: DiffusionIntegrator::AssembleDiagonalMF only"
-                 " implemented with libCEED");
-   }
-}
-
-void DiffusionIntegrator::AddMultMF(const Vector &x, Vector &y) const
+void VectorDiffusionIntegrator::AddMultMF(const Vector &x, Vector &y) const
 {
    if (DeviceCanUseCeed())
    {
@@ -70,9 +57,22 @@ void DiffusionIntegrator::AddMultMF(const Vector &x, Vector &y) const
    }
    else
    {
-      MFEM_ABORT("Error: DiffusionIntegrator::AddMultMF only implemented with"
-                 " libCEED");
+      MFEM_ABORT("Error: VectorDiffusionIntegrator::AddMultMF only implemented"
+                 " with libCEED");
    }
 }
 
+void VectorDiffusionIntegrator::AssembleDiagonalMF(Vector &diag)
+{
+   if (DeviceCanUseCeed())
+   {
+      ceedOp->GetDiagonal(diag);
+   }
+   else
+   {
+      MFEM_ABORT("Error: VectorDiffusionIntegrator::AssembleDiagonalMF only"
+                 " implemented with libCEED");
+   }
 }
+
+} // namespace mfem

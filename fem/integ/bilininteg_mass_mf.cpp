@@ -9,24 +9,25 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-#include "../general/forall.hpp"
-#include "bilininteg.hpp"
-#include "gridfunc.hpp"
-#include "ceed/integrators/convection/convection.hpp"
+#include "../../general/forall.hpp"
+#include "../bilininteg.hpp"
+#include "../gridfunc.hpp"
+#include "../ceed/integrators/mass/mass.hpp"
 
 using namespace std;
 
 namespace mfem
 {
 
-void ConvectionIntegrator::AssembleMF(const FiniteElementSpace &fes)
+void MassIntegrator::AssembleMF(const FiniteElementSpace &fes)
 {
    // Assuming the same element type
+   fespace = &fes;
    Mesh *mesh = fes.GetMesh();
    if (mesh->GetNE() == 0) { return; }
    const FiniteElement &el = *fes.GetFE(0);
-   ElementTransformation &Trans = *fes.GetElementTransformation(0);
-   const IntegrationRule *ir = IntRule ? IntRule : &GetRule(el, Trans);
+   ElementTransformation *T = mesh->GetElementTransformation(0);
+   const IntegrationRule *ir = IntRule ? IntRule : &GetRule(el, el, *T);
    if (DeviceCanUseCeed())
    {
       delete ceedOp;
@@ -34,32 +35,19 @@ void ConvectionIntegrator::AssembleMF(const FiniteElementSpace &fes)
                          fes.IsVariableOrder();
       if (mixed)
       {
-         ceedOp = new ceed::MixedMFConvectionIntegrator(*this, fes, Q, alpha);
+         ceedOp = new ceed::MixedMFMassIntegrator(*this, fes, Q);
       }
       else
       {
-         ceedOp = new ceed::MFConvectionIntegrator(fes, *ir, Q, alpha);
+         ceedOp = new ceed::MFMassIntegrator(fes, *ir, Q);
       }
       return;
    }
-   MFEM_ABORT("Error: ConvectionIntegrator::AssembleMF only implemented with"
+   MFEM_ABORT("Error: MassIntegrator::AssembleMF only implemented with"
               " libCEED");
 }
 
-void ConvectionIntegrator::AssembleDiagonalMF(Vector &diag)
-{
-   if (DeviceCanUseCeed())
-   {
-      ceedOp->GetDiagonal(diag);
-   }
-   else
-   {
-      MFEM_ABORT("Error: ConvectionIntegrator::AssembleDiagonalMF only"
-                 " implemented with libCEED");
-   }
-}
-
-void ConvectionIntegrator::AddMultMF(const Vector &x, Vector &y) const
+void MassIntegrator::AddMultMF(const Vector &x, Vector &y) const
 {
    if (DeviceCanUseCeed())
    {
@@ -67,9 +55,22 @@ void ConvectionIntegrator::AddMultMF(const Vector &x, Vector &y) const
    }
    else
    {
-      MFEM_ABORT("Error: ConvectionIntegrator::AddMultMF only implemented with"
+      MFEM_ABORT("Error: MassIntegrator::AddMultMF only implemented with"
                  " libCEED");
    }
 }
 
+void MassIntegrator::AssembleDiagonalMF(Vector &diag)
+{
+   if (DeviceCanUseCeed())
+   {
+      ceedOp->GetDiagonal(diag);
+   }
+   else
+   {
+      MFEM_ABORT("Error: MassIntegrator::AssembleDiagonalMF only implemented"
+                 " with libCEED");
+   }
 }
+
+} // namespace mfem

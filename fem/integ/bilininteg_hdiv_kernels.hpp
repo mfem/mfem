@@ -9,13 +9,12 @@
 // terms of the BSD-3 license.  We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-#include "../general/forall.hpp"
-#include "bilininteg.hpp"
-#include "gridfunc.hpp"
-#include "qspace.hpp"
+#ifndef MFEM_BILININTEG_HDIV_KERNELS_HPP
+#define MFEM_BILININTEG_HDIV_KERNELS_HPP
 
-using namespace std;
-
+#include "../../config/config.hpp"
+#include "../../general/forall.hpp"
+#include "../../linalg/dtensor.hpp"
 
 // Piola transformation in H(div): w = (1 / det (dF)) dF \hat{w}
 // div w = (1 / det (dF)) \hat{div} \hat{w}
@@ -23,14 +22,18 @@ using namespace std;
 namespace mfem
 {
 
+namespace internal
+{
+
 // PA H(div) Mass Assemble 2D kernel
-void PAHdivSetup2D(const int Q1D,
-                   const int coeffDim,
-                   const int NE,
-                   const Array<double> &w,
-                   const Vector &j,
-                   Vector &coeff_,
-                   Vector &op)
+MFEM_HOST_DEVICE inline
+void PAHdivMassSetup2D(const int Q1D,
+                       const int coeffDim,
+                       const int NE,
+                       const Array<double> &w,
+                       const Vector &j,
+                       Vector &coeff_,
+                       Vector &op)
 {
    const bool symmetric = (coeffDim != 4);
    const int NQ = Q1D*Q1D;
@@ -88,13 +91,14 @@ void PAHdivSetup2D(const int Q1D,
 }
 
 // PA H(div) Mass Assemble 3D kernel
-void PAHdivSetup3D(const int Q1D,
-                   const int coeffDim,
-                   const int NE,
-                   const Array<double> &w,
-                   const Vector &j,
-                   Vector &coeff_,
-                   Vector &op)
+MFEM_HOST_DEVICE inline
+void PAHdivMassSetup3D(const int Q1D,
+                       const int coeffDim,
+                       const int NE,
+                       const Array<double> &w,
+                       const Vector &j,
+                       Vector &coeff_,
+                       Vector &op)
 {
    const bool symmetric = (coeffDim != 9);
    const int NQ = Q1D*Q1D*Q1D;
@@ -175,6 +179,7 @@ void PAHdivSetup3D(const int Q1D,
    });
 }
 
+MFEM_HOST_DEVICE inline
 void PAHdivMassApply2D(const int D1D,
                        const int Q1D,
                        const int NE,
@@ -307,6 +312,7 @@ void PAHdivMassApply2D(const int D1D,
 }
 
 template<int T_D1D = 0, int T_Q1D = 0>
+MFEM_HOST_DEVICE inline
 void SmemPAHdivMassApply2D(const int NE,
                            const bool symmetric,
                            const Array<double> &Bo_,
@@ -475,6 +481,7 @@ void SmemPAHdivMassApply2D(const int NE,
    });
 }
 
+MFEM_HOST_DEVICE inline
 void PAHdivMassAssembleDiagonal2D(const int D1D,
                                   const int Q1D,
                                   const int NE,
@@ -531,6 +538,7 @@ void PAHdivMassAssembleDiagonal2D(const int D1D,
    }); // end of element loop
 }
 
+MFEM_HOST_DEVICE inline
 void PAHdivMassAssembleDiagonal3D(const int D1D,
                                   const int Q1D,
                                   const int NE,
@@ -600,6 +608,7 @@ void PAHdivMassAssembleDiagonal3D(const int D1D,
    }); // end of element loop
 }
 
+MFEM_HOST_DEVICE inline
 void PAHdivMassApply3D(const int D1D,
                        const int Q1D,
                        const int NE,
@@ -796,6 +805,7 @@ void PAHdivMassApply3D(const int D1D,
 }
 
 template<int T_D1D = 0, int T_Q1D = 0>
+MFEM_HOST_DEVICE inline
 void SmemPAHdivMassApply3D(const int NE,
                            const bool symmetric,
                            const Array<double> &Bo_,
@@ -1083,6 +1093,7 @@ void SmemPAHdivMassApply3D(const int NE,
    });
 }
 
+MFEM_HOST_DEVICE inline
 void PAHdivMassApply(const int dim,
                      const int D1D,
                      const int Q1D,
@@ -1127,13 +1138,14 @@ void PAHdivMassApply(const int dim,
 }
 
 // PA H(div) div-div assemble 2D kernel
-// NOTE: this is identical to PACurlCurlSetup3D
-static void PADivDivSetup2D(const int Q1D,
-                            const int NE,
-                            const Array<double> &w,
-                            const Vector &j,
-                            Vector &coeff_,
-                            Vector &op)
+// NOTE: this is identical to PACurlCurlSetup2D
+MFEM_HOST_DEVICE inline
+void PADivDivSetup2D(const int Q1D,
+                     const int NE,
+                     const Array<double> &w,
+                     const Vector &j,
+                     Vector &coeff_,
+                     Vector &op)
 {
    const int NQ = Q1D*Q1D;
    auto W = w.Read();
@@ -1154,12 +1166,13 @@ static void PADivDivSetup2D(const int Q1D,
    });
 }
 
-static void PADivDivSetup3D(const int Q1D,
-                            const int NE,
-                            const Array<double> &w,
-                            const Vector &j,
-                            Vector &coeff_,
-                            Vector &op)
+MFEM_HOST_DEVICE inline
+void PADivDivSetup3D(const int Q1D,
+                     const int NE,
+                     const Array<double> &w,
+                     const Vector &j,
+                     Vector &coeff_,
+                     Vector &op)
 {
    const int NQ = Q1D*Q1D*Q1D;
    auto W = w.Read();
@@ -1188,16 +1201,17 @@ static void PADivDivSetup3D(const int Q1D,
    });
 }
 
-static void PADivDivApply2D(const int D1D,
-                            const int Q1D,
-                            const int NE,
-                            const Array<double> &Bo_,
-                            const Array<double> &Gc_,
-                            const Array<double> &Bot_,
-                            const Array<double> &Gct_,
-                            const Vector &op_,
-                            const Vector &x_,
-                            Vector &y_)
+MFEM_HOST_DEVICE inline
+void PADivDivApply2D(const int D1D,
+                     const int Q1D,
+                     const int NE,
+                     const Array<double> &Bo_,
+                     const Array<double> &Gc_,
+                     const Array<double> &Bot_,
+                     const Array<double> &Gct_,
+                     const Vector &op_,
+                     const Vector &x_,
+                     Vector &y_)
 {
    constexpr static int VDIM = 2;
    constexpr static int MAX_D1D = HDIV_MAX_D1D;
@@ -1307,16 +1321,17 @@ static void PADivDivApply2D(const int D1D,
    }); // end of element loop
 }
 
-static void PADivDivApply3D(const int D1D,
-                            const int Q1D,
-                            const int NE,
-                            const Array<double> &Bo_,
-                            const Array<double> &Gc_,
-                            const Array<double> &Bot_,
-                            const Array<double> &Gct_,
-                            const Vector &op_,
-                            const Vector &x_,
-                            Vector &y_)
+MFEM_HOST_DEVICE inline
+void PADivDivApply3D(const int D1D,
+                     const int Q1D,
+                     const int NE,
+                     const Array<double> &Bo_,
+                     const Array<double> &Gc_,
+                     const Array<double> &Bot_,
+                     const Array<double> &Gct_,
+                     const Vector &op_,
+                     const Vector &x_,
+                     Vector &y_)
 {
    MFEM_VERIFY(D1D <= HDIV_MAX_D1D, "Error: D1D > HDIV_MAX_D1D");
    MFEM_VERIFY(Q1D <= HDIV_MAX_Q1D, "Error: Q1D > HDIV_MAX_Q1D");
@@ -1483,75 +1498,14 @@ static void PADivDivApply3D(const int D1D,
    }); // end of element loop
 }
 
-void DivDivIntegrator::AssemblePA(const FiniteElementSpace &fes)
-{
-   // Assumes tensor-product elements
-   Mesh *mesh = fes.GetMesh();
-   const FiniteElement *fel = fes.GetFE(0);
-
-   const VectorTensorFiniteElement *el =
-      dynamic_cast<const VectorTensorFiniteElement*>(fel);
-   MFEM_VERIFY(el != NULL, "Only VectorTensorFiniteElement is supported!");
-
-   const IntegrationRule *ir = IntRule ? IntRule : &MassIntegrator::GetRule
-                               (*el, *el, *mesh->GetElementTransformation(0));
-
-   const int dims = el->GetDim();
-   MFEM_VERIFY(dims == 2 || dims == 3, "");
-
-   const int nq = ir->GetNPoints();
-   dim = mesh->Dimension();
-   MFEM_VERIFY(dim == 2 || dim == 3, "");
-
-   ne = fes.GetNE();
-   geom = mesh->GetGeometricFactors(*ir, GeometricFactors::JACOBIANS);
-   mapsC = &el->GetDofToQuad(*ir, DofToQuad::TENSOR);
-   mapsO = &el->GetDofToQuadOpen(*ir, DofToQuad::TENSOR);
-   dofs1D = mapsC->ndof;
-   quad1D = mapsC->nqpt;
-
-   MFEM_VERIFY(dofs1D == mapsO->ndof + 1 && quad1D == mapsO->nqpt, "");
-
-   pa_data.SetSize(nq * ne, Device::GetMemoryType());
-
-   QuadratureSpace qs(*mesh, *ir);
-   CoefficientVector coeff(Q, qs, CoefficientStorage::FULL);
-
-   if (el->GetDerivType() == mfem::FiniteElement::DIV && dim == 3)
-   {
-      PADivDivSetup3D(quad1D, ne, ir->GetWeights(), geom->J, coeff, pa_data);
-   }
-   else if (el->GetDerivType() == mfem::FiniteElement::DIV && dim == 2)
-   {
-      PADivDivSetup2D(quad1D, ne, ir->GetWeights(), geom->J, coeff, pa_data);
-   }
-   else
-   {
-      MFEM_ABORT("Unknown kernel.");
-   }
-}
-
-void DivDivIntegrator::AddMultPA(const Vector &x, Vector &y) const
-{
-   if (dim == 3)
-      PADivDivApply3D(dofs1D, quad1D, ne, mapsO->B, mapsC->G,
-                      mapsO->Bt, mapsC->Gt, pa_data, x, y);
-   else if (dim == 2)
-      PADivDivApply2D(dofs1D, quad1D, ne, mapsO->B, mapsC->G,
-                      mapsO->Bt, mapsC->Gt, pa_data, x, y);
-   else
-   {
-      MFEM_ABORT("Unsupported dimension!");
-   }
-}
-
-static void PADivDivAssembleDiagonal2D(const int D1D,
-                                       const int Q1D,
-                                       const int NE,
-                                       const Array<double> &Bo_,
-                                       const Array<double> &Gc_,
-                                       const Vector &op_,
-                                       Vector &diag_)
+MFEM_HOST_DEVICE inline
+void PADivDivAssembleDiagonal2D(const int D1D,
+                                const int Q1D,
+                                const int NE,
+                                const Array<double> &Bo_,
+                                const Array<double> &Gc_,
+                                const Vector &op_,
+                                Vector &diag_)
 {
    constexpr static int VDIM = 2;
    constexpr static int MAX_Q1D = HDIV_MAX_Q1D;
@@ -1601,13 +1555,14 @@ static void PADivDivAssembleDiagonal2D(const int D1D,
    });
 }
 
-static void PADivDivAssembleDiagonal3D(const int D1D,
-                                       const int Q1D,
-                                       const int NE,
-                                       const Array<double> &Bo_,
-                                       const Array<double> &Gc_,
-                                       const Vector &op_,
-                                       Vector &diag_)
+MFEM_HOST_DEVICE inline
+void PADivDivAssembleDiagonal3D(const int D1D,
+                                const int Q1D,
+                                const int NE,
+                                const Array<double> &Bo_,
+                                const Array<double> &Gc_,
+                                const Vector &op_,
+                                Vector &diag_)
 {
    MFEM_VERIFY(D1D <= HDIV_MAX_D1D, "Error: D1D > HDIV_MAX_D1D");
    MFEM_VERIFY(Q1D <= HDIV_MAX_Q1D, "Error: Q1D > HDIV_MAX_Q1D");
@@ -1667,26 +1622,13 @@ static void PADivDivAssembleDiagonal3D(const int D1D,
    }); // end of element loop
 }
 
-void DivDivIntegrator::AssembleDiagonalPA(Vector& diag)
-{
-   if (dim == 3)
-   {
-      PADivDivAssembleDiagonal3D(dofs1D, quad1D, ne,
-                                 mapsO->B, mapsC->G, pa_data, diag);
-   }
-   else
-   {
-      PADivDivAssembleDiagonal2D(dofs1D, quad1D, ne,
-                                 mapsO->B, mapsC->G, pa_data, diag);
-   }
-}
-
 // PA H(div)-L2 (div u, p) assemble 2D kernel
-static void PADivL2Setup2D(const int Q1D,
-                           const int NE,
-                           const Array<double> &w,
-                           Vector &coeff_,
-                           Vector &op)
+MFEM_HOST_DEVICE inline
+void PAHdivL2Setup2D(const int Q1D,
+                     const int NE,
+                     const Array<double> &w,
+                     Vector &coeff_,
+                     Vector &op)
 {
    const int NQ = Q1D*Q1D;
    auto W = w.Read();
@@ -1701,11 +1643,12 @@ static void PADivL2Setup2D(const int Q1D,
    });
 }
 
-static void PADivL2Setup3D(const int Q1D,
-                           const int NE,
-                           const Array<double> &w,
-                           Vector &coeff_,
-                           Vector &op)
+MFEM_HOST_DEVICE inline
+void PAHdivL2Setup3D(const int Q1D,
+                     const int NE,
+                     const Array<double> &w,
+                     Vector &coeff_,
+                     Vector &op)
 {
    const int NQ = Q1D*Q1D*Q1D;
    auto W = w.Read();
@@ -1721,94 +1664,19 @@ static void PADivL2Setup3D(const int Q1D,
    });
 }
 
-void
-VectorFEDivergenceIntegrator::AssemblePA(const FiniteElementSpace &trial_fes,
-                                         const FiniteElementSpace &test_fes)
-{
-   // Assumes tensor-product elements, with a vector test space and
-   // scalar trial space.
-   Mesh *mesh = trial_fes.GetMesh();
-   const FiniteElement *trial_fel = trial_fes.GetFE(0);
-   const FiniteElement *test_fel = test_fes.GetFE(0);
-
-   const VectorTensorFiniteElement *trial_el =
-      dynamic_cast<const VectorTensorFiniteElement*>(trial_fel);
-   MFEM_VERIFY(trial_el != NULL, "Only VectorTensorFiniteElement is supported!");
-
-   const NodalTensorFiniteElement *test_el =
-      dynamic_cast<const NodalTensorFiniteElement*>(test_fel);
-   MFEM_VERIFY(test_el != NULL, "Only NodalTensorFiniteElement is supported!");
-
-   const IntegrationRule *ir = IntRule ? IntRule : &MassIntegrator::GetRule(
-                                  *trial_el, *trial_el,
-                                  *mesh->GetElementTransformation(0));
-
-   const int dims = trial_el->GetDim();
-   MFEM_VERIFY(dims == 2 || dims == 3, "");
-
-   const int nq = ir->GetNPoints();
-   dim = mesh->Dimension();
-   MFEM_VERIFY(dim == 2 || dim == 3, "");
-
-   MFEM_VERIFY(trial_el->GetOrder() == test_el->GetOrder() + 1, "");
-
-   ne = trial_fes.GetNE();
-   mapsC = &trial_el->GetDofToQuad(*ir, DofToQuad::TENSOR);
-   mapsO = &trial_el->GetDofToQuadOpen(*ir, DofToQuad::TENSOR);
-   dofs1D = mapsC->ndof;
-   quad1D = mapsC->nqpt;
-
-   L2mapsO = &test_el->GetDofToQuad(*ir, DofToQuad::TENSOR);
-   L2dofs1D = L2mapsO->ndof;
-
-   MFEM_VERIFY(dofs1D == mapsO->ndof + 1 && quad1D == mapsO->nqpt, "");
-   if (dim == 2)
-   {
-      MFEM_VERIFY(nq == quad1D * quad1D, "");
-   }
-   else
-   {
-      MFEM_VERIFY(nq == quad1D * quad1D * quad1D, "");
-   }
-
-   pa_data.SetSize(nq * ne, Device::GetMemoryType());
-
-   QuadratureSpace qs(*mesh, *ir);
-   CoefficientVector coeff(Q, qs, CoefficientStorage::FULL);
-
-   if (test_el->GetMapType() == FiniteElement::INTEGRAL)
-   {
-      const GeometricFactors *geom =
-         mesh->GetGeometricFactors(*ir, GeometricFactors::DETERMINANTS);
-      coeff /= geom->detJ;
-   }
-
-   if (trial_el->GetDerivType() == mfem::FiniteElement::DIV && dim == 3)
-   {
-      PADivL2Setup3D(quad1D, ne, ir->GetWeights(), coeff, pa_data);
-   }
-   else if (trial_el->GetDerivType() == mfem::FiniteElement::DIV && dim == 2)
-   {
-      PADivL2Setup2D(quad1D, ne, ir->GetWeights(), coeff, pa_data);
-   }
-   else
-   {
-      MFEM_ABORT("Unknown kernel.");
-   }
-}
-
 // Apply to x corresponding to DOFs in H(div) (trial), whose divergence is
 // integrated against L_2 test functions corresponding to y.
-static void PAHdivL2Apply3D(const int D1D,
-                            const int Q1D,
-                            const int L2D1D,
-                            const int NE,
-                            const Array<double> &Bo_,
-                            const Array<double> &Gc_,
-                            const Array<double> &L2Bot_,
-                            const Vector &op_,
-                            const Vector &x_,
-                            Vector &y_)
+MFEM_HOST_DEVICE inline
+void PAHdivL2Apply3D(const int D1D,
+                     const int Q1D,
+                     const int L2D1D,
+                     const int NE,
+                     const Array<double> &Bo_,
+                     const Array<double> &Gc_,
+                     const Array<double> &L2Bot_,
+                     const Vector &op_,
+                     const Vector &x_,
+                     Vector &y_)
 {
    MFEM_VERIFY(D1D <= HDIV_MAX_D1D, "Error: D1D > HDIV_MAX_D1D");
    MFEM_VERIFY(Q1D <= HDIV_MAX_Q1D, "Error: Q1D > HDIV_MAX_Q1D");
@@ -1962,16 +1830,17 @@ static void PAHdivL2Apply3D(const int D1D,
 
 // Apply to x corresponding to DOFs in H(div) (trial), whose divergence is
 // integrated against L_2 test functions corresponding to y.
-static void PAHdivL2Apply2D(const int D1D,
-                            const int Q1D,
-                            const int L2D1D,
-                            const int NE,
-                            const Array<double> &Bo_,
-                            const Array<double> &Gc_,
-                            const Array<double> &L2Bot_,
-                            const Vector &op_,
-                            const Vector &x_,
-                            Vector &y_)
+MFEM_HOST_DEVICE inline
+void PAHdivL2Apply2D(const int D1D,
+                     const int Q1D,
+                     const int L2D1D,
+                     const int NE,
+                     const Array<double> &Bo_,
+                     const Array<double> &Gc_,
+                     const Array<double> &L2Bot_,
+                     const Vector &op_,
+                     const Vector &x_,
+                     Vector &y_)
 {
    constexpr static int VDIM = 2;
    constexpr static int MAX_D1D = HDIV_MAX_D1D;
@@ -2068,16 +1937,17 @@ static void PAHdivL2Apply2D(const int D1D,
    }); // end of element loop
 }
 
-static void PAHdivL2ApplyTranspose3D(const int D1D,
-                                     const int Q1D,
-                                     const int L2D1D,
-                                     const int NE,
-                                     const Array<double> &L2Bo_,
-                                     const Array<double> &Gct_,
-                                     const Array<double> &Bot_,
-                                     const Vector &op_,
-                                     const Vector &x_,
-                                     Vector &y_)
+MFEM_HOST_DEVICE inline
+void PAHdivL2ApplyTranspose3D(const int D1D,
+                              const int Q1D,
+                              const int L2D1D,
+                              const int NE,
+                              const Array<double> &L2Bo_,
+                              const Array<double> &Gct_,
+                              const Array<double> &Bot_,
+                              const Vector &op_,
+                              const Vector &x_,
+                              Vector &y_)
 {
    MFEM_VERIFY(D1D <= HDIV_MAX_D1D, "Error: D1D > HDIV_MAX_D1D");
    MFEM_VERIFY(Q1D <= HDIV_MAX_Q1D, "Error: Q1D > HDIV_MAX_Q1D");
@@ -2230,16 +2100,17 @@ static void PAHdivL2ApplyTranspose3D(const int D1D,
    }); // end of element loop
 }
 
-static void PAHdivL2ApplyTranspose2D(const int D1D,
-                                     const int Q1D,
-                                     const int L2D1D,
-                                     const int NE,
-                                     const Array<double> &L2Bo_,
-                                     const Array<double> &Gct_,
-                                     const Array<double> &Bot_,
-                                     const Vector &op_,
-                                     const Vector &x_,
-                                     Vector &y_)
+MFEM_HOST_DEVICE inline
+void PAHdivL2ApplyTranspose2D(const int D1D,
+                              const int Q1D,
+                              const int L2D1D,
+                              const int NE,
+                              const Array<double> &L2Bo_,
+                              const Array<double> &Gct_,
+                              const Array<double> &Bot_,
+                              const Vector &op_,
+                              const Vector &x_,
+                              Vector &y_)
 {
    constexpr static int VDIM = 2;
    constexpr static int MAX_D1D = HDIV_MAX_D1D;
@@ -2336,45 +2207,17 @@ static void PAHdivL2ApplyTranspose2D(const int D1D,
    }); // end of element loop
 }
 
-void VectorFEDivergenceIntegrator::AddMultPA(const Vector &x, Vector &y) const
-{
-   if (dim == 3)
-      PAHdivL2Apply3D(dofs1D, quad1D, L2dofs1D, ne, mapsO->B, mapsC->G,
-                      L2mapsO->Bt, pa_data, x, y);
-   else if (dim == 2)
-      PAHdivL2Apply2D(dofs1D, quad1D, L2dofs1D, ne, mapsO->B, mapsC->G,
-                      L2mapsO->Bt, pa_data, x, y);
-   else
-   {
-      MFEM_ABORT("Unsupported dimension!");
-   }
-}
-
-void VectorFEDivergenceIntegrator::AddMultTransposePA(const Vector &x,
-                                                      Vector &y) const
-{
-   if (dim == 3)
-      PAHdivL2ApplyTranspose3D(dofs1D, quad1D, L2dofs1D, ne, L2mapsO->B,
-                               mapsC->Gt, mapsO->Bt, pa_data, x, y);
-   else if (dim == 2)
-      PAHdivL2ApplyTranspose2D(dofs1D, quad1D, L2dofs1D, ne, L2mapsO->B,
-                               mapsC->Gt, mapsO->Bt, pa_data, x, y);
-   else
-   {
-      MFEM_ABORT("Unsupported dimension!");
-   }
-}
-
-static void PAHdivL2AssembleDiagonal_ADAt_3D(const int D1D,
-                                             const int Q1D,
-                                             const int L2D1D,
-                                             const int NE,
-                                             const Array<double> &L2Bo_,
-                                             const Array<double> &Gct_,
-                                             const Array<double> &Bot_,
-                                             const Vector &op_,
-                                             const Vector &D_,
-                                             Vector &diag_)
+MFEM_HOST_DEVICE inline
+void PAHdivL2AssembleDiagonal_ADAt_3D(const int D1D,
+                                      const int Q1D,
+                                      const int L2D1D,
+                                      const int NE,
+                                      const Array<double> &L2Bo_,
+                                      const Array<double> &Gct_,
+                                      const Array<double> &Bot_,
+                                      const Vector &op_,
+                                      const Vector &D_,
+                                      Vector &diag_)
 {
    MFEM_VERIFY(D1D <= HDIV_MAX_D1D, "Error: D1D > HDIV_MAX_D1D");
    MFEM_VERIFY(Q1D <= HDIV_MAX_Q1D, "Error: Q1D > HDIV_MAX_Q1D");
@@ -2490,16 +2333,17 @@ static void PAHdivL2AssembleDiagonal_ADAt_3D(const int D1D,
    }); // end of element loop
 }
 
-static void PAHdivL2AssembleDiagonal_ADAt_2D(const int D1D,
-                                             const int Q1D,
-                                             const int L2D1D,
-                                             const int NE,
-                                             const Array<double> &L2Bo_,
-                                             const Array<double> &Gct_,
-                                             const Array<double> &Bot_,
-                                             const Vector &op_,
-                                             const Vector &D_,
-                                             Vector &diag_)
+MFEM_HOST_DEVICE inline
+void PAHdivL2AssembleDiagonal_ADAt_2D(const int D1D,
+                                      const int Q1D,
+                                      const int L2D1D,
+                                      const int NE,
+                                      const Array<double> &L2Bo_,
+                                      const Array<double> &Gct_,
+                                      const Array<double> &Bot_,
+                                      const Vector &op_,
+                                      const Vector &D_,
+                                      Vector &diag_)
 {
    constexpr static int VDIM = 2;
 
@@ -2582,19 +2426,8 @@ static void PAHdivL2AssembleDiagonal_ADAt_2D(const int D1D,
    }); // end of element loop
 }
 
-void VectorFEDivergenceIntegrator::AssembleDiagonalPA_ADAt(const Vector &D,
-                                                           Vector &diag)
-{
-   if (dim == 3)
-      PAHdivL2AssembleDiagonal_ADAt_3D(dofs1D, quad1D, L2dofs1D, ne, L2mapsO->B,
-                                       mapsC->Gt, mapsO->Bt, pa_data, D, diag);
-   else if (dim == 2)
-      PAHdivL2AssembleDiagonal_ADAt_2D(dofs1D, quad1D, L2dofs1D, ne, L2mapsO->B,
-                                       mapsC->Gt, mapsO->Bt, pa_data, D, diag);
-   else
-   {
-      MFEM_ABORT("Unsupported dimension!");
-   }
-}
+} // namespace internal
 
 } // namespace mfem
+
+#endif

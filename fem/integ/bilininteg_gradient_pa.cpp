@@ -9,17 +9,15 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-#include "../general/forall.hpp"
-#include "bilininteg.hpp"
-#include "gridfunc.hpp"
-#include "qfunction.hpp"
+#include "../../general/forall.hpp"
+#include "../bilininteg.hpp"
+#include "../gridfunc.hpp"
+#include "../qfunction.hpp"
 
 using namespace std;
 
 namespace mfem
 {
-
-// PA Gradient Integrator
 
 /* Description of the *SetupND functions
    Inputs are as follows
