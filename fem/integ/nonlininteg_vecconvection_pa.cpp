@@ -9,14 +9,15 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-#include "../general/forall.hpp"
-#include "nonlininteg.hpp"
-#include "ceed/integrators/nlconvection/nlconvection.hpp"
+#include "../../general/forall.hpp"
+#include "../nonlininteg.hpp"
+#include "../ceed/integrators/nlconvection/nlconvection.hpp"
 
 using namespace std;
 
 namespace mfem
 {
+
 void VectorConvectionNLFIntegrator::AssemblePA(const FiniteElementSpace &fes)
 {
    MFEM_ASSERT(fes.GetOrdering() == Ordering::byNODES,
