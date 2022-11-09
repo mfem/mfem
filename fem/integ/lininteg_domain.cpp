@@ -9,18 +9,19 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-#include "fem.hpp"
-#include "../fem/kernels.hpp"
-#include "../general/forall.hpp"
+#include "../../general/forall.hpp"
+#include "../../fem/kernels.hpp"
+#include "../fem.hpp"
 
 namespace mfem
 {
 
-template<int T_D1D = 0, int T_Q1D = 0> static
-void DLFEvalAssemble2D(const int vdim, const int ne, const int d, const int q,
-                       const int map_type, const int *markers, const double *b,
-                       const double *detj, const double *weights,
-                       const Vector &coeff, double *y)
+template<int T_D1D = 0, int T_Q1D = 0>
+static void DLFEvalAssemble2D(const int vdim, const int ne, const int d,
+                              const int q,
+                              const int map_type, const int *markers, const double *b,
+                              const double *detj, const double *weights,
+                              const Vector &coeff, double *y)
 {
    const auto F = coeff.Read();
    const auto M = Reshape(markers, ne);
@@ -85,11 +86,12 @@ void DLFEvalAssemble2D(const int vdim, const int ne, const int d, const int q,
    });
 }
 
-template<int T_D1D = 0, int T_Q1D = 0> static
-void DLFEvalAssemble3D(const int vdim, const int ne, const int d, const int q,
-                       const int map_type, const int *markers, const double *b,
-                       const double *detj, const double *weights,
-                       const Vector &coeff, double *y)
+template<int T_D1D = 0, int T_Q1D = 0>
+static void DLFEvalAssemble3D(const int vdim, const int ne, const int d,
+                              const int q,
+                              const int map_type, const int *markers, const double *b,
+                              const double *detj, const double *weights,
+                              const Vector &coeff, double *y)
 {
    const auto F = coeff.Read();
    const auto M = Reshape(markers, ne);

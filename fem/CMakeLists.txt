@@ -39,6 +39,13 @@ set(SRCS
   integ/bilininteg_vecmass_pa.cpp
   integ/bilininteg_vectorfediv_pa.cpp
   integ/bilininteg_vectorfemass_pa.cpp
+  integ/lininteg_boundary.cpp
+  integ/lininteg_boundary_flux.cpp
+  integ/lininteg_domain.cpp
+  integ/lininteg_domain_grad.cpp
+  integ/lininteg_domain_vectorfe.cpp
+  integ/nonlininteg_vecconvection_pa.cpp
+  integ/nonlininteg_vecconvection_mf.cpp
   coefficient.cpp
   complex_fem.cpp
   convergence.cpp
@@ -78,11 +85,6 @@ set(SRCS
   linearform.cpp
   linearform_ext.cpp
   lininteg.cpp
-  lininteg_boundary.cpp
-  lininteg_boundary_flux.cpp
-  lininteg_domain.cpp
-  lininteg_domain_grad.cpp
-  lininteg_vectorfe_domain.cpp
   lor/lor.cpp
   lor/lor_ads.cpp
   lor/lor_ams.cpp
@@ -95,8 +97,6 @@ set(SRCS
   nonlinearform_ext.cpp
   nonlininteg.cpp
   fespacehierarchy.cpp
-  nonlininteg_vectorconvection.cpp
-  nonlininteg_vectorconvection_mf.cpp
   qfunction.cpp
   qinterp/det.cpp
   qinterp/eval_by_nodes.cpp
