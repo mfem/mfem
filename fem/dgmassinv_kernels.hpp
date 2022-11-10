@@ -22,12 +22,6 @@ namespace mfem
 namespace internal
 {
 
-MFEM_HOST_DEVICE inline
-void MakeReciprocal(int n, double *x)
-{
-   MFEM_FORALL(i, n, x[i] = 1.0/x[i]; );
-}
-
 template <int DIM, int D1D, int Q1D>
 MFEM_HOST_DEVICE inline
 void DGMassApply(const int e,

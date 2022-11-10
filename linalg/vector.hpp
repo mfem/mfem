@@ -323,6 +323,9 @@ public:
    /// (*this) = -(*this)
    void Neg();
 
+   /// (*this)(i) = 1.0 / (*this)(i)
+   void Reciprocal();
+
    /// Swap the contents of two Vectors
    inline void Swap(Vector &other);
 
