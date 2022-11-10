@@ -356,8 +356,8 @@ void CoarsenRandomly(ParMesh& pmesh,
 
 void stress_parallel_coarsen(int order, Element::Type el_type, int basis_type)
 {
-// This is deactivated until we have a way to exactly project onto
-// positive finite elements.
+   // This is deactivated until we have a way to exactly project onto
+   // positive finite elements.
 #if 0
    int myid = Mpi::WorldRank();
 

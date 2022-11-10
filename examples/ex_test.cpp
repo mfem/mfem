@@ -38,7 +38,10 @@ struct PolyCoeff
       int& o = order_;
       if (dimension == 2)
       {
-         return pow(x[0],o) +pow(x[1],o);
+         if (x[0] < 0.5) { return 1.0; }
+         return 2.0;
+         //return pow(x[0],o) +pow(x[1],o);
+         // return pow(x[0],o) +pow(x[1],o);
       }
       else
       {
@@ -75,12 +78,12 @@ double square_integrate(GridFunction* gf)
 int main()
 {
    Mesh mesh = Mesh::MakeCartesian2D(
-                  //                  1, 1, Element::QUADRILATERAL, true, 1.0, 1.0);
-                  1, 1, Element::TRIANGLE, true, 1.0, 1.0);
+                  1, 1, Element::QUADRILATERAL, true, 1.0, 1.0);
+   // 1, 1, Element::TRIANGLE, true, 1.0, 1.0);
    mesh.EnsureNCMesh(true);
    mesh.EnsureNodes();
 
-   int order = 1;
+   int order = 2;
    L2_FECollection fec(order, dimension, BasisType::GaussLegendre);
    // L2_FECollection fec(order, dimension, BasisType::Positive);
    FiniteElementSpace fespace(&mesh, &fec);
