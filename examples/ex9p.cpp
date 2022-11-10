@@ -1,4 +1,4 @@
-//                       MFEM Example 9 - Parallel Version
+//                       MFEttM Example 9 - Parallel Version
 //
 // Compile with: make ex9p
 //
@@ -240,16 +240,16 @@ int main(int argc, char *argv[])
 
    // 2. Parse command-line options.
    problem = 0;
-   const char *mesh_file = "../data/periodic-hexagon.mesh";
-   int ser_ref_levels = 2;
+   const char *mesh_file = "../data/amr-quad.mesh";
+   int ser_ref_levels = 1;
    int par_ref_levels = 0;
-   int order = 3;
+   int order = 2;
    bool pa = false;
    bool ea = false;
    bool fa = false;
    const char *device_config = "cpu";
    int ode_solver_type = 4;
-   double t_final = 10.0;
+   double t_final = 0.04;
    double dt = 0.01;
    bool visualization = true;
    bool visit = false;
@@ -364,13 +364,21 @@ int main(int argc, char *argv[])
          return 3;
    }
 
+   const int N_elems = 5;
+   Array<int> mark_elem(N_elems);
+   for (int i=0; i<N_elems; ++i)
+   {
+      mark_elem[i] = i;
+   }
+
    // 5. Refine the mesh in serial to increase the resolution. In this example
    //    we do 'ser_ref_levels' of uniform refinement, where 'ser_ref_levels' is
    //    a command-line parameter. If the mesh is of NURBS type, we convert it
    //    to a (piecewise-polynomial) high-order mesh.
    for (int lev = 0; lev < ser_ref_levels; lev++)
    {
-      mesh->UniformRefinement();
+      //mesh->UniformRefinement();
+      mesh->GeneralRefinement(mark_elem, 1, 0);
    }
    if (mesh->NURBSext)
    {
@@ -390,7 +398,7 @@ int main(int argc, char *argv[])
 
    // 7. Define the parallel discontinuous DG finite element space on the
    //    parallel refined mesh of the given polynomial order.
-   DG_FECollection fec(order, dim, BasisType::GaussLobatto);
+   DG_FECollection fec(order, dim, BasisType::Positive);
    ParFiniteElementSpace *fes = new ParFiniteElementSpace(pmesh, &fec);
 
    HYPRE_BigInt global_vSize = fes->GlobalTrueVSize();
@@ -427,8 +435,23 @@ int main(int argc, char *argv[])
    m->AddDomainIntegrator(new MassIntegrator);
    constexpr double alpha = -1.0;
    k->AddDomainIntegrator(new ConvectionIntegrator(velocity, alpha));
+
+
+   //Interior face
+   const int int_order = 7;
+   mfem::FaceQuadratureSpace K_int_face_qspace(*pmesh,
+                                               int_order,FaceType::Interior);
+
+   mfem::QuadratureFunction K_int_face_qVec(&K_int_face_qspace,
+                                            dim);  //is actually a vector
+
+   //Set to 1.0
+   K_int_face_qVec = 5.0;
+
+   mfem::VectorQuadratureFunctionCoefficient K_int_face_coeff(K_int_face_qVec);
+
    k->AddInteriorFaceIntegrator(
-      new NonconservativeDGTraceIntegrator(velocity, alpha));
+      new NonconservativeDGTraceIntegrator(K_int_face_coeff, alpha));
    k->AddBdrFaceIntegrator(
       new NonconservativeDGTraceIntegrator(velocity, alpha));
 

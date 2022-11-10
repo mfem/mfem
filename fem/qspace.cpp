@@ -120,6 +120,8 @@ void FaceQuadratureSpace::ConstructOffsets()
    offsets.SetSize(num_faces + 1);
    int offset = 0;
    int f_idx = 0;
+   std::cout<<"ref - mesh.GetNumFacesWithGhost() = "<<mesh.GetNumFacesWithGhost()
+            <<std::endl;
    for (int i = 0; i < mesh.GetNumFacesWithGhost(); i++)
    {
       const Mesh::FaceInformation face = mesh.GetFaceInformation(i);

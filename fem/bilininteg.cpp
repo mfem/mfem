@@ -3355,6 +3355,8 @@ const IntegrationRule &DGTraceIntegrator::GetRule(
    Geometry::Type geom, int order, FaceElementTransformations &T)
 {
    int int_order = T.Elem1->OrderW() + 2*order;
+
+   std::cout<<"int order = "<<int_order<<std::endl;
    return IntRules.Get(geom, int_order);
 }
 
