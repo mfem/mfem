@@ -32,6 +32,8 @@ class ParPumiMesh;
 class ParMesh : public Mesh
 {
 protected:
+   friend class ParSubMesh;
+
    MPI_Comm MyComm;
    int NRanks, MyRank;
 
@@ -81,7 +83,8 @@ protected:
    IsoparametricTransformation FaceNbrTransformation;
 
    // glob_elem_offset + local element number defines a global element numbering
-   mutable long glob_elem_offset, glob_offset_sequence;
+   mutable long long glob_elem_offset;
+   mutable long glob_offset_sequence;
    void ComputeGlobalElementOffset() const;
 
    // Enable Print() to add the parallel interface as boundary (typically used
@@ -205,6 +208,62 @@ protected:
    void BuildSharedVertMapping(int nvert, const Table* vert_element,
                                const Array<int> &vert_global_local);
 
+   /**
+    * @brief Get the shared edges GroupCommunicator.
+    *
+    * The output of the shared edges is chosen by the @a ordering parameter with
+    * the following options
+    * 0: Internal ordering. Not exposed to public interfaces.
+    * 1: Contiguous ordering.
+    *
+    * @param[in] ordering Ordering for the shared edges.
+    * @param[out] sedge_comm
+    */
+   void GetSharedEdgeCommunicator(int ordering,
+                                  GroupCommunicator& sedge_comm) const;
+
+   /**
+    * @brief Get the shared vertices GroupCommunicator.
+    *
+    * The output of the shared vertices is chosen by the @a ordering parameter
+    * with the following options
+    * 0: Internal ordering. Not exposed to public interfaces.
+    * 1: Contiguous ordering.
+    *
+    * @param[in] ordering
+    * @param[out] svert_comm
+    */
+   void GetSharedVertexCommunicator(int ordering,
+                                    GroupCommunicator& svert_comm) const;
+
+   /**
+    * @brief Get the shared face quadrilaterals GroupCommunicator.
+    *
+    * The output of the shared face quadrilaterals is chosen by the @a ordering
+    * parameter with the following options
+    * 0: Internal ordering. Not exposed to public interfaces.
+    * 1: Contiguous ordering.
+    *
+    * @param[in] ordering
+    * @param[out] squad_comm
+    */
+   void GetSharedQuadCommunicator(int ordering,
+                                  GroupCommunicator& squad_comm) const;
+
+   /**
+    * @brief Get the shared face triangles GroupCommunicator.
+    *
+    * The output of the shared face triangles is chosen by the @a ordering
+    * parameter with the following options
+    * 0: Internal ordering. Not exposed to public interfaces.
+    * 1: Contiguous ordering.
+    *
+    * @param[in] ordering
+    * @param[out] stria_comm
+    */
+   void GetSharedTriCommunicator(int ordering,
+                                 GroupCommunicator& stria_comm) const;
+
    // Similar to Mesh::GetFacesTable()
    STable3D *GetSharedFacesTable();
 
@@ -295,10 +354,10 @@ public:
 
    /** Map a global element number to a local element number. If the global
        element is not on this processor, return -1. */
-   int GetLocalElementNum(long global_element_num) const;
+   int GetLocalElementNum(long long global_element_num) const;
 
    /// Map a local element number to a global element number.
-   long GetGlobalElementNum(int local_element_num) const;
+   long long GetGlobalElementNum(int local_element_num) const;
 
    /** The following functions define global indices for all local vertices,
        edges, faces, or elements. The global indices have no meaning or
@@ -328,20 +387,62 @@ public:
 
    ParNCMesh* pncmesh;
 
+   int *partitioning_cache = nullptr;
+
    int GetNGroups() const { return gtopo.NGroups(); }
 
    ///@{ @name These methods require group > 0
-   int GroupNVertices(int group) { return group_svert.RowSize(group-1); }
-   int GroupNEdges(int group)    { return group_sedge.RowSize(group-1); }
-   int GroupNTriangles(int group) { return group_stria.RowSize(group-1); }
-   int GroupNQuadrilaterals(int group) { return group_squad.RowSize(group-1); }
+   int GroupNVertices(int group) const { return group_svert.RowSize(group-1); }
+   int GroupNEdges(int group) const { return group_sedge.RowSize(group-1); }
+   int GroupNTriangles(int group) const { return group_stria.RowSize(group-1); }
+   int GroupNQuadrilaterals(int group) const { return group_squad.RowSize(group-1); }
 
-   int GroupVertex(int group, int i)
+   int GroupVertex(int group, int i) const
    { return svert_lvert[group_svert.GetRow(group-1)[i]]; }
-   void GroupEdge(int group, int i, int &edge, int &o);
-   void GroupTriangle(int group, int i, int &face, int &o);
-   void GroupQuadrilateral(int group, int i, int &face, int &o);
+   void GroupEdge(int group, int i, int &edge, int &o) const;
+   void GroupTriangle(int group, int i, int &face, int &o) const;
+   void GroupQuadrilateral(int group, int i, int &face, int &o) const;
    ///@}
+
+   /**
+    * @brief Get the shared edges GroupCommunicator.
+    *
+    * @param[out] sedge_comm
+    */
+   void GetSharedEdgeCommunicator(GroupCommunicator& sedge_comm) const
+   {
+      GetSharedEdgeCommunicator(1, sedge_comm);
+   }
+
+   /**
+    * @brief Get the shared vertices GroupCommunicator.
+    *
+    * @param[out] svert_comm
+    */
+   void GetSharedVertexCommunicator(GroupCommunicator& svert_comm) const
+   {
+      GetSharedVertexCommunicator(1, svert_comm);
+   }
+
+   /**
+    * @brief Get the shared face quadrilaterals GroupCommunicator.
+    *
+    * @param[out] squad_comm
+    */
+   void GetSharedQuadCommunicator(GroupCommunicator& squad_comm) const
+   {
+      GetSharedQuadCommunicator(1, squad_comm);
+   }
+
+   /**
+   * @brief Get the shared face triangles GroupCommunicator.
+   *
+   * @param[out] stria_comm
+   */
+   void GetSharedTriCommunicator(GroupCommunicator& stria_comm) const
+   {
+      GetSharedTriCommunicator(1, stria_comm);
+   }
 
    void GenerateOffsets(int N, HYPRE_BigInt loc_sizes[],
                         Array<HYPRE_BigInt> *offsets[]) const;
@@ -351,6 +452,12 @@ public:
 
    void SetCurvature(int order, bool discont = false, int space_dim = -1,
                      int ordering = 1) override;
+
+   /** Replace the internal node GridFunction with a new GridFunction defined
+       on the given FiniteElementSpace. The new node coordinates are projected
+       (derived) from the current nodes/vertices. */
+   void SetNodalFESpace(FiniteElementSpace *nfes) override;
+   void SetNodalFESpace(ParFiniteElementSpace *npfes);
 
    int GetNFaceNeighbors() const { return face_nbr_group.Size(); }
    int GetNFaceNeighborElements() const { return face_nbr_elements.Size(); }
@@ -446,7 +553,7 @@ public:
    MFEM_DEPRECATED void ReorientTetMesh() override;
 
    /// Utility function: sum integers from all processors (Allreduce).
-   long ReduceInt(int value) const override;
+   long long ReduceInt(int value) const override;
 
    /** Load balance the mesh by equipartitioning the global space-filling
        sequence of elements. Works for nonconforming meshes only. */
@@ -490,6 +597,15 @@ public:
        boundary is added to the actual boundary; both the element and boundary
        attributes are set to the processor number.  */
    void PrintAsOne(std::ostream &out = mfem::out) const;
+
+   /** Write the mesh to the stream 'out' on Process 0 as a serial mesh. The
+       output mesh does not have any duplication of vertices/nodes at
+       processor boundaries. */
+   void PrintAsSerial(std::ostream &out = mfem::out) const;
+
+   /** Returns a Serial mesh on MPI rank @a save_rank that does not have any
+       duplication of vertices/nodes at processor boundaries. */
+   Mesh GetSerialMesh(int save_rank) const;
 
    /// Save the mesh as a single file (using ParMesh::PrintAsOne). The given
    /// @a precision is used for ASCII output.
