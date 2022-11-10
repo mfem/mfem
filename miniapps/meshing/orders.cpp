@@ -28,6 +28,7 @@ double test_func(const Vector &coord)
    return sin(M_PI*coord(0)) * sin(2.0*M_PI*coord(1));
 }
 
+double MinDetJ(ParMesh &pmesh, int quad_order);
 
 void OptimizeMesh(ParGridFunction &x,
                   TMOP_QualityMetric &metric, int quad_order);
@@ -75,20 +76,18 @@ int main (int argc, char *argv[])
    // Initialize and refine the starting mesh.
    Mesh *mesh = new Mesh(mesh_file, 1, 1, false);
    for (int lev = 0; lev < rs_levels; lev++) { mesh->UniformRefinement(); }
-   ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
-   const int dim = pmesh->Dimension();
-   const int NE = pmesh->GetNE();
-
+   ParMesh pmesh(MPI_COMM_WORLD, *mesh);
+   const int dim = pmesh.Dimension();
    delete mesh;
 
    // Define a finite element space on the mesh.
    H1_FECollection fec(mesh_poly_deg, dim);
-   ParFiniteElementSpace pfes(pmesh, &fec, dim);
-   pmesh->SetNodalFESpace(&pfes);
+   ParFiniteElementSpace pfes(&pmesh, &fec, dim);
+   pmesh.SetNodalFESpace(&pfes);
 
    // Get the mesh nodes as a finite element grid function in fespace.
    ParGridFunction x(&pfes);
-   pmesh->SetNodalGridFunction(&x);
+   pmesh.SetNodalGridFunction(&x);
 
    // Store the starting (prior to the optimization) positions.
    ParGridFunction x0(&pfes);
@@ -114,28 +113,31 @@ int main (int argc, char *argv[])
    auto target_c = new TargetConstructor(target_t, MPI_COMM_WORLD);
    target_c->SetNodes(x0);
 
-   // Visualize the starting mesh and metric values.
+   H1_FECollection fec_1(1, dim);
+   ParFiniteElementSpace pfes_1(&pmesh, &fec_1, dim);
+   ParGridFunction x_1(&pfes_1);
+
+
+   cout << "HO detJ: " << MinDetJ(pmesh, 8) << endl;
+
+   TransferHighToLow(x, x_1);
+   OptimizeMesh(x_1, *metric, 4);
    {
-      char title[] = "Initial metric values";
-      //vis_tmop_metric_p(mesh_poly_deg, *metric, *target_c, *pmesh, title, 0);
+      socketstream vis_g;
+      common::VisualizeMesh(vis_g, "localhost", 19916, pmesh,
+                             "LO Optimized", 400, 0, 400, 400, "mpRj");
    }
 
    // If needed, perform worst-case optimization with fixed boundary.
-   //OptimizeMesh(x, *metric, quad_order);
-
-   FunctionCoefficient fc(test_func);
-   ConstantCoefficient cz(0.0);
-
-   H1_FECollection fec_1(1, dim);
-   ParFiniteElementSpace pfes_1(pmesh, &fec_1);
-   ParGridFunction g_1(&pfes_1);
-   g_1.ProjectCoefficient(fc);
+   TransferLowToHigh(x_1, x);
+   OptimizeMesh(x, *metric, 8);
    {
       socketstream vis_g;
-      common::VisualizeField(vis_g, "localhost", 19916, g_1,
-                             "Order 1", 400, 0, 400, 400, "Rj");
+      common::VisualizeMesh(vis_g, "localhost", 19916, pmesh,
+                             "HO Optimized", 800, 0, 400, 400, "mpRj");
    }
 
+   /*
    ParFiniteElementSpace pfes_s(pmesh, &fec);
    ParGridFunction g(&pfes_s);
    g.ProjectCoefficient(fc);
@@ -145,7 +147,6 @@ int main (int argc, char *argv[])
                              "High order", 0, 0, 400, 400, "Rj");
    }
 
-   double norm_1 = g_1.ComputeL1Error(cz);
    double norm_2 = g.ComputeL1Error(cz);
    if (myid == 0)
    {
@@ -186,42 +187,76 @@ int main (int argc, char *argv[])
       //vis_tmop_metric_p(mesh_poly_deg, *metric, *target_c, *pmesh, title, 600);
    }
 
-//   // Visualize the mesh displacement.
-//   {
-//      x0 -= x;
-//      socketstream sock;
-//      if (myid == 0)
+*/
+//      // Visualize the mesh displacement.
 //      {
-//         sock.open("localhost", 19916);
-//         sock << "solution\n";
+//         x0 -= x;
+//         socketstream sock;
+//         if (myid == 0)
+//         {
+//            sock.open("localhost", 19916);
+//            sock << "fem2d_gf_data_keys\n";
+//         }
+//         pmesh->PrintAsOne(sock);
+//         x0.SaveAsOne(sock);
+//         if (myid == 0)
+//         {
+//            sock << "window_title 'Displacements'\n"
+//                 << "window_geometry "
+//                 << 1200 << " " << 0 << " " << 600 << " " << 600 << "\n"
+//                 << "keys jRmclA" << endl;
+//         }
 //      }
-//      pmesh->PrintAsOne(sock);
-//      x0.SaveAsOne(sock);
-//      if (myid == 0)
-//      {
-//         sock << "window_title 'Displacements'\n"
-//              << "window_geometry "
-//              << 1200 << " " << 0 << " " << 600 << " " << 600 << "\n"
-//              << "keys jRmclA" << endl;
-//      }
-//   }
-
    delete target_c;
    delete metric;
-   delete pmesh;
 
    return 0;
+}
+
+void Interpolate(const ParGridFunction &src, const Array<int> &y_fixed_marker,
+                 ParGridFunction &y)
+{
+   const int dim = y.ParFESpace()->GetVDim();
+   Array<int> dofs;
+   for (int e = 0; e < y.ParFESpace()->GetNE(); e++)
+   {
+      const IntegrationRule &ir = y.ParFESpace()->GetFE(e)->GetNodes();
+      const int ndof = ir.GetNPoints();
+      y.ParFESpace()->GetElementVDofs(e, dofs);
+
+      for (int i = 0; i < ndof; i++)
+      {
+         const IntegrationPoint &ip = ir.IntPoint(i);
+         for (int d = 0; d < dim; d++)
+         {
+            if (y_fixed_marker[dofs[d*ndof + i]] == 0)
+            {
+               y(dofs[d*ndof + i]) = src.GetValue(e, ip, d+1);
+            }
+         }
+      }
+   }
 }
 
 
 void TransferLowToHigh(const ParGridFunction &l, ParGridFunction &h)
 {
-   TransferOperator transfer(*l.ParFESpace(), *h.ParFESpace());
-   transfer.Mult(l, h);
+   Array<int> ess_bdr(h.ParFESpace()->GetParMesh()->bdr_attributes.Max());
+   ess_bdr = 1;
+   Array<int> h_ess_marker(h.Size());
+   h.ParFESpace()->GetEssentialVDofs(ess_bdr, h_ess_marker);
+
+   // Doesn't preserve the boundary nodes of h.
+//   TransferOperator transfer(*l.ParFESpace(), *h.ParFESpace());
+//   transfer.Mult(l, h);
+
+   Interpolate(l, h_ess_marker, h);
 }
 
 void TransferHighToLow(const ParGridFunction &h, ParGridFunction &l)
 {
+   Array<int> l_ess_vdof_marker(l.Size());
+   l_ess_vdof_marker = 0;
    // wrong.
   // PRefinementTransferOperator transfer(*l.ParFESpace(), *h.ParFESpace());
   // transfer.MultTranspose(h, l);
@@ -229,26 +264,43 @@ void TransferHighToLow(const ParGridFunction &h, ParGridFunction &l)
    // Projects, doesn't interpolate.
    //l.ProjectGridFunction(h);
 
-   Array<int> dofs;
-   for (int e = 0; e < l.ParFESpace()->GetNE(); e++)
-   {
-      const IntegrationRule &ir = l.ParFESpace()->GetFE(e)->GetNodes();
-      l.ParFESpace()->GetElementDofs(e, dofs);
+   Interpolate(h, l_ess_vdof_marker, l);
+}
 
-      for (int i = 0; i < ir.GetNPoints(); i++)
+double MinDetJ(ParMesh &pmesh, int quad_order)
+{
+   GridFunction &nodes = *pmesh.GetNodes();
+   FiniteElementSpace &pfes = *nodes.FESpace();
+
+   double min_detJ = infinity();
+   for (int e = 0; e < pmesh.GetNE(); e++)
+   {
+      const IntegrationRule &ir =
+         IntRulesLo.Get(pfes.GetFE(e)->GetGeomType(), quad_order);
+      ElementTransformation *transf = pmesh.GetElementTransformation(e);
+      for (int q = 0; q < ir.GetNPoints(); q++)
       {
-         const IntegrationPoint &ip = ir.IntPoint(i);
-         l(dofs[i]) = h.GetValue(e, ip);
+         transf->SetIntPoint(&ir.IntPoint(q));
+         min_detJ = fmin(min_detJ, transf->Jacobian().Det());
       }
    }
+
+   return min_detJ;
 }
 
 void OptimizeMesh(ParGridFunction &x,
                   TMOP_QualityMetric &metric, int quad_order)
 {
+   ParMesh &pmesh = *x.ParFESpace()->GetParMesh();
+
+   GridFunction *ptr = &x;
+   int dont_own_nodes = 0;
+   pmesh.SwapNodes(ptr, dont_own_nodes);
+
    ParFiniteElementSpace &pfes = *x.ParFESpace();
 
-   if (pfes.GetMyRank() == 0) { cout << "*** \nWorst Quality Phase\n***\n"; }
+   cout << "\n*** Optimizing Order " << pfes.GetFE(0)->GetOrder() << " ***\n\n";
+   cout << "Min detJ before opt: " << MinDetJ(pmesh, quad_order) << endl;
 
    // Metric / target / integrator.
    TargetConstructor::TargetType target =
@@ -291,6 +343,8 @@ void OptimizeMesh(ParGridFunction &x,
    Vector b;
    solver.Mult(b, x.GetTrueVector());
    x.SetFromTrueVector();
+
+   cout << "Min detJ after opt: " << MinDetJ(pmesh, quad_order) << endl;
 
    return;
 }
