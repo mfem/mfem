@@ -311,6 +311,14 @@ void Vector::Neg()
    MFEM_FORALL_SWITCH(use_dev, i, N, y[i] = -y[i];);
 }
 
+void Vector::Reciprocal()
+{
+   const bool use_dev = UseDevice();
+   const int N = size;
+   auto y = ReadWrite(use_dev);
+   MFEM_FORALL_SWITCH(use_dev, i, N, y[i] = 1.0/y[i]; );
+}
+
 void add(const Vector &v1, const Vector &v2, Vector &v)
 {
    MFEM_ASSERT(v.size == v1.size && v.size == v2.size,
