@@ -188,11 +188,7 @@ TEST_CASE("H1 PA Coefficient", "[PartialAssembly][Coefficient]")
                   {
                      paform.AddDomainIntegrator(new DiffusionIntegrator(*vcoeff));
                   }
-                  else if (coeffType == 4)
-                  {
-                     paform.AddDomainIntegrator(new DiffusionIntegrator(*mcoeff));
-                  }
-                  else if (coeffType == 5)
+                  else if (coeffType >= 4)
                   {
                      paform.AddDomainIntegrator(new DiffusionIntegrator(*mcoeff));
                   }
@@ -235,7 +231,7 @@ TEST_CASE("H1 PA Coefficient", "[PartialAssembly][Coefficient]")
                const SparseMatrix& A_explicit = assemblyform.SpMat();
 
                Vector xin(h1_fespace.GetTrueVSize());
-               xin.Randomize();
+               xin.Randomize(1);
                Vector y_mat(xin);
                y_mat = 0.0;
                Vector y_assembly(xin);
@@ -373,7 +369,7 @@ TEST_CASE("Hcurl/Hdiv PA Coefficient",
                   }
 
                   Vector xin(fespace.GetTrueVSize());
-                  xin.Randomize();
+                  xin.Randomize(1);
 
                   Vector y_mat, y_assembly, y_pa;
 
@@ -480,7 +476,6 @@ TEST_CASE("Hcurl/Hdiv PA Coefficient",
                         v_pa = 0.0;
 
                         const SparseMatrix& A_spmat = assemblyform->SpMat();
-                        A_spmat.EnsureMultTranspose();
                         paopr->MultTranspose(u, v_pa);
                         assemblyform->MultTranspose(u, v_assembly);
                         A_spmat.MultTranspose(u, v_mat);
@@ -802,7 +797,6 @@ TEST_CASE("Hcurl/Hdiv Mixed PA Coefficient",
                      y_assembly.SetSize(y_mat.Size());
                      y_pa.SetSize(y_mat.Size());
 
-                     A_explicit.EnsureMultTranspose();
                      paform->MultTranspose(xin, y_pa);
                      assemblyform->MultTranspose(xin, y_assembly);
                      A_explicit.MultTranspose(xin, y_mat);

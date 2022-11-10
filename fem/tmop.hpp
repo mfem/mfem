@@ -26,8 +26,8 @@ protected:
    const DenseMatrix *Jtr; /**< Jacobian of the reference-element to
                                 target-element transformation. */
 
-   /** @brief The method SetTransformation() is hidden for TMOP_QualityMetric%s,
-       because it is not used. */
+   /** @brief The method HyperelasticModel::SetTransformation() is hidden
+       for TMOP_QualityMetric%s, because it is not used. */
    void SetTransformation(ElementTransformation &) { }
 
 public:
@@ -42,7 +42,13 @@ public:
        Jpt. */
    virtual void SetTargetJacobian(const DenseMatrix &Jtr_) { Jtr = &Jtr_; }
 
-   /** @brief Evaluate the strain energy density function, W = W(Jpt).
+   /** @brief Evaluates the metric in matrix form (opposed to invariant form).
+       Used for validating the invariant evaluations. */
+   virtual double EvalWMatrixForm(const DenseMatrix &Jpt) const
+   { return -1.0; /* not implemented -> checks would fail. */ }
+
+   /** @brief Evaluate the strain energy density function, W = W(Jpt), by using
+       the 2D or 3D matrix invariants, see linalg/invariants.hpp.
        @param[in] Jpt  Represents the target->physical transformation
                        Jacobian matrix. */
    virtual double EvalW(const DenseMatrix &Jpt) const = 0;
@@ -64,13 +70,11 @@ public:
 
        Computes weight * d(dW_dxi)_d(xj) at the current point, for all i and j,
        where x1 ... xn are the FE dofs. This function is usually defined using
-       the matrix invariants and their derivatives.
-   */
+       the matrix invariants and their derivatives. */
    virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
                           const double weight, DenseMatrix &A) const = 0;
 
-   /** @brief Return the metric ID.
-    */
+   /** @brief Return the metric ID. */
    virtual int Id() const { return 0; }
 };
 
@@ -96,6 +100,8 @@ public:
       }
    }
 
+   virtual double EvalWMatrixForm(const DenseMatrix &Jpt) const;
+
    virtual double EvalW(const DenseMatrix &Jpt) const;
 
    virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const;
@@ -113,7 +119,7 @@ public:
 /// and mu_hat = (mu/2phi(tau,ep)) where
 /// 2phi(tau,ep) = 1, when                                 when BarrierType = None,
 ///             = 2*(tau - min(alpha*min(tau)-detT_ep,0)), when BarrierType = Shifted
-///             = tau^2 + sqrt(tau^2 + ep^2),              when BarrierType = Pseuso
+///             = tau^2 + sqrt(tau^2 + ep^2),              when BarrierType = Pseudo
 /// where tau = det(T), and max(mu_hat) and min(tau) are computed over the
 /// entire mesh.
 /// Ultimately, this metric can be used for mesh untangling with the BarrierType
@@ -272,7 +278,10 @@ protected:
    mutable InvariantsEvaluator2D<double> ie;
 
 public:
-   // W = 0.5|J|^2 / det(J) - 1.
+   // W = 0.5 |J|^2 / det(J) - 1.
+   virtual double EvalWMatrixForm(const DenseMatrix &Jpt) const;
+
+   // W = 0.5 I1b - 1.
    virtual double EvalW(const DenseMatrix &Jpt) const;
 
    virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const;
@@ -428,7 +437,9 @@ protected:
 
 public:
    // W = |J^t J|^2 / det(J)^2 - 2|J|^2 / det(J) + 2
-   //   = I1b (I1b - 2).
+   virtual double EvalWMatrixForm(const DenseMatrix &Jpt) const;
+
+   // W = I1b (I1b - 2).
    virtual double EvalW(const DenseMatrix &Jpt) const;
 
    virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const;
@@ -570,14 +581,17 @@ public:
                           const double weight, DenseMatrix &A) const;
 };
 
-/// 3D barrier Shape (S) metric.
+/// 3D barrier Shape (S) metric, well-posed (polyconvex & invex).
 class TMOP_Metric_301 : public TMOP_QualityMetric
 {
 protected:
    mutable InvariantsEvaluator3D<double> ie;
 
 public:
-   // W = |J| |J^-1| / 3 - 1.
+   // W = 1/3 |J| |J^-1| - 1.
+   virtual double EvalWMatrixForm(const DenseMatrix &Jpt) const;
+
+   // W = 1/3 sqrt(I1b * I2b) - 1
    virtual double EvalW(const DenseMatrix &Jpt) const;
 
    virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const;
@@ -586,14 +600,17 @@ public:
                           const double weight, DenseMatrix &A) const;
 };
 
-/// 3D barrier Shape (S) metric.
+/// 3D barrier Shape (S) metric, well-posed (polyconvex & invex).
 class TMOP_Metric_302 : public TMOP_QualityMetric
 {
 protected:
    mutable InvariantsEvaluator3D<double> ie;
 
 public:
-   // W = |J|^2 |J^-1|^2 / 9 - 1.
+   // W = |J|^2 |J^{-1}|^2 / 9 - 1.
+   virtual double EvalWMatrixForm(const DenseMatrix &Jpt) const;
+
+   // W = I1b * I2b / 9 - 1.
    virtual double EvalW(const DenseMatrix &Jpt) const;
 
    virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const;
@@ -604,14 +621,17 @@ public:
    virtual int Id() const { return 302; }
 };
 
-/// 3D barrier Shape (S) metric.
+/// 3D barrier Shape (S) metric, well-posed (polyconvex & invex).
 class TMOP_Metric_303 : public TMOP_QualityMetric
 {
 protected:
    mutable InvariantsEvaluator3D<double> ie;
 
 public:
-   // W = |J|^2 / (3 * det(J)^(2/3)) - 1.
+   // W = |J|^2 / 3 / det(J)^(2/3) - 1.
+   virtual double EvalWMatrixForm(const DenseMatrix &Jpt) const;
+
+   // W = I1b / 3 - 1.
    virtual double EvalW(const DenseMatrix &Jpt) const;
 
    virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const;
@@ -620,6 +640,27 @@ public:
                           const double weight, DenseMatrix &A) const;
 
    virtual int Id() const { return 303; }
+};
+
+/// 3D barrier Shape (S) metric, well-posed (polyconvex & invex).
+class TMOP_Metric_304 : public TMOP_QualityMetric
+{
+protected:
+   mutable InvariantsEvaluator3D<double> ie;
+
+public:
+   // W = |J|^3 / 3^(3/2) / det(J) - 1.
+   virtual double EvalWMatrixForm(const DenseMatrix &Jpt) const;
+
+   // W = (I1b/3)^3/2 - 1.
+   virtual double EvalW(const DenseMatrix &Jpt) const;
+
+   virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const;
+
+   virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
+                          const double weight, DenseMatrix &A) const;
+
+   virtual int Id() const { return 304; }
 };
 
 /// 3D Size (V) untangling metric.
@@ -662,7 +703,7 @@ public:
    virtual int Id() const { return 313; }
 };
 
-/// 3D non-barrier Size (V) metric.
+/// 3D non-barrier metric without a type.
 class TMOP_Metric_315 : public TMOP_QualityMetric
 {
 protected:
@@ -680,16 +721,17 @@ public:
    virtual int Id() const { return 315; }
 };
 
-/// 3D barrier Size (V) metric.
+/// 3D barrier metric without a type.
 class TMOP_Metric_316 : public TMOP_QualityMetric
 {
 protected:
    mutable InvariantsEvaluator3D<double> ie;
 
 public:
-   // W = 0.5( sqrt(det(J)) - 1 / sqrt(det(J)) )^2
-   //   = 0.5( det(J) - 1 )^2 / det(J)
-   //   = 0.5( det(J) + 1/det(J) ) - 1.
+   // W = 0.5 (det(J) + 1/det(J)) - 1.
+   virtual double EvalWMatrixForm(const DenseMatrix &Jpt) const;
+
+   // W = 0.5 (I3b + 1/I3b) - 1.
    virtual double EvalW(const DenseMatrix &Jpt) const;
 
    virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const;
@@ -698,7 +740,7 @@ public:
                           const double weight, DenseMatrix &A) const;
 };
 
-/// 3D barrier Shape+Size (VS) metric.
+/// 3D barrier Shape+Size (VS) metric, well-posed (invex).
 class TMOP_Metric_321 : public TMOP_QualityMetric
 {
 protected:
@@ -706,6 +748,9 @@ protected:
 
 public:
    // W = |J - J^-t|^2.
+   virtual double EvalWMatrixForm(const DenseMatrix &Jpt) const;
+
+   // W = I1 + I2/I3 - 6.
    virtual double EvalW(const DenseMatrix &Jpt) const;
 
    virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const;
@@ -714,6 +759,48 @@ public:
                           const double weight, DenseMatrix &A) const;
 
    virtual int Id() const { return 321; }
+};
+
+/// 3D barrier Shape+Size (VS) metric, well-posed (invex).
+class TMOP_Metric_322 : public TMOP_QualityMetric
+{
+protected:
+   mutable InvariantsEvaluator3D<double> ie;
+
+public:
+   // W = |J - adjJ^-t|^2.
+   virtual double EvalWMatrixForm(const DenseMatrix &Jpt) const;
+
+   // W = I1b / (I3b^-1/3) / 6 + I2b (I3b^1/3) / 6 - 1
+   virtual double EvalW(const DenseMatrix &Jpt) const;
+
+   virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const;
+
+   virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
+                          const double weight, DenseMatrix &A) const;
+
+   virtual int Id() const { return 322; }
+};
+
+/// 3D barrier Shape+Size (VS) metric, well-posed (invex).
+class TMOP_Metric_323 : public TMOP_QualityMetric
+{
+protected:
+   mutable InvariantsEvaluator3D<double> ie;
+
+public:
+   // W = |J|^3 - 3 sqrt(3) ln(det(J)) - 3 sqrt(3).
+   virtual double EvalWMatrixForm(const DenseMatrix &Jpt) const;
+
+   // W = I1^3/2 - 3 sqrt(3) ln(I3b) - 3 sqrt(3).
+   virtual double EvalW(const DenseMatrix &Jpt) const;
+
+   virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const;
+
+   virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
+                          const double weight, DenseMatrix &A) const;
+
+   virtual int Id() const { return 323; }
 };
 
 /// 3D barrier Shape+Size (VS) metric (polyconvex).
@@ -760,7 +847,7 @@ public:
    virtual ~TMOP_Metric_332() { delete sh_metric; delete sz_metric; }
 };
 
-/// 3D barrier Shape+Size (VS) metric (polyconvex).
+/// 3D barrier Shape+Size (VS) metric, well-posed (polyconvex).
 class TMOP_Metric_333 : public TMOP_Combo_QualityMetric
 {
 protected:
@@ -781,7 +868,7 @@ public:
    virtual ~TMOP_Metric_333() { delete sh_metric; delete sz_metric; }
 };
 
-/// 3D barrier Shape+Size (VS) metric (polyconvex).
+/// 3D barrier Shape+Size (VS) metric, well-posed (polyconvex).
 class TMOP_Metric_334 : public TMOP_Combo_QualityMetric
 {
 protected:
@@ -799,10 +886,37 @@ public:
       AddQualityMetric(sz_metric, gamma_);
    }
 
+   virtual int Id() const { return 334; }
+   double GetGamma() const { return gamma; }
+
    virtual ~TMOP_Metric_334() { delete sh_metric; delete sz_metric; }
 };
 
-/// Shifted barrier form of 3D metric 16 (volume, ideal barrier metric), 3D
+/// 3D barrier Shape+Size (VS) metric, well-posed (polyconvex).
+class TMOP_Metric_347 : public TMOP_Combo_QualityMetric
+{
+protected:
+   mutable InvariantsEvaluator2D<double> ie;
+   double gamma;
+   TMOP_QualityMetric *sh_metric, *sz_metric;
+
+public:
+   TMOP_Metric_347(double gamma_) : gamma(gamma_),
+      sh_metric(new TMOP_Metric_304),
+      sz_metric(new TMOP_Metric_316)
+   {
+      // (1-gamma) mu_304 + gamma mu_316
+      AddQualityMetric(sh_metric, 1.-gamma_);
+      AddQualityMetric(sz_metric, gamma_);
+   }
+
+   virtual int Id() const { return 347; }
+   double GetGamma() const { return gamma; }
+
+   virtual ~TMOP_Metric_347() { delete sh_metric; delete sz_metric; }
+};
+
+/// 3D shifted barrier form of metric 316 (not typed).
 class TMOP_Metric_352 : public TMOP_QualityMetric
 {
 protected:
@@ -819,6 +933,27 @@ public:
 
    virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
                           const double weight, DenseMatrix &A) const;
+};
+
+/// 3D non-barrier Shape (S) metric.
+class TMOP_Metric_360 : public TMOP_QualityMetric
+{
+protected:
+   mutable InvariantsEvaluator3D<double> ie;
+
+public:
+   // W = |J|^3 / 3^(3/2) - det(J).
+   virtual double EvalWMatrixForm(const DenseMatrix &Jpt) const;
+
+   // W = (I1b/3)^3/2 - 1.
+   virtual double EvalW(const DenseMatrix &Jpt) const;
+
+   virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const;
+
+   virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
+                          const double weight, DenseMatrix &A) const;
+
+   virtual int Id() const { return 360; }
 };
 
 /// A-metrics
@@ -987,8 +1122,6 @@ protected:
    ParFiniteElementSpace *pfes;
 #endif
 
-   int dim, ncomp;
-
 public:
    AdaptivityEvaluator() : mesh(NULL), fes(NULL)
    {
@@ -999,15 +1132,15 @@ public:
    }
    virtual ~AdaptivityEvaluator();
 
-   /** Specifies the Mesh and FiniteElementCollection of the solution that will
+   /** Specifies the Mesh and FiniteElementSpace of the solution that will
        be evaluated. The given mesh will be copied into the internal object. */
    void SetSerialMetaInfo(const Mesh &m,
-                          const FiniteElementCollection &fec, int num_comp);
+                          const FiniteElementSpace &f);
 
 #ifdef MFEM_USE_MPI
    /// Parallel version of SetSerialMetaInfo.
    void SetParMetaInfo(const ParMesh &m,
-                       const FiniteElementCollection &fec, int num_comp);
+                       const ParFiniteElementSpace &f);
 #endif
 
    // TODO use GridFunctions to make clear it's on the ldofs?
@@ -1015,7 +1148,8 @@ public:
                                 const Vector &init_field) = 0;
 
    virtual void ComputeAtNewPosition(const Vector &new_nodes,
-                                     Vector &new_field) = 0;
+                                     Vector &new_field,
+                                     int new_nodes_ordering = Ordering::byNODES) = 0;
 
    void ClearGeometricFactors();
 };
@@ -1216,7 +1350,7 @@ protected:
    // Discrete target specification.
    // Data is owned, updated by UpdateTargetSpecification.
    int ncomp, sizeidx, skewidx, aspectratioidx, orientationidx;
-   Vector tspec;             //eta(x)
+   Vector tspec;             //eta(x) - we enforce Ordering::byNODES
    Vector tspec_sav;
    Vector tspec_pert1h;      //eta(x+h)
    Vector tspec_pert2h;      //eta(x+2*h)
@@ -1330,9 +1464,11 @@ public:
    /** Used to update the target specification after the mesh has changed. The
        new mesh positions are given by new_x. If @a use_flags is true, repeated
        calls won't do anything until ResetUpdateFlags() is called. */
-   void UpdateTargetSpecification(const Vector &new_x, bool use_flag = false);
+   void UpdateTargetSpecification(const Vector &new_x, bool use_flag = false,
+                                  int new_x_ordering=Ordering::byNODES);
 
-   void UpdateTargetSpecification(Vector &new_x, Vector &IntData);
+   void UpdateTargetSpecification(Vector &new_x, Vector &IntData,
+                                  int new_x_ordering=Ordering::byNODES);
 
    void UpdateTargetSpecificationAtNode(const FiniteElement &el,
                                         ElementTransformation &T,
@@ -1346,13 +1482,15 @@ public:
        If @a use_flags is true, repeated calls won't do anything until
        ResetUpdateFlags() is called. */
    void UpdateGradientTargetSpecification(const Vector &x, double dx,
-                                          bool use_flag = false);
+                                          bool use_flag = false,
+                                          int x_ordering = Ordering::byNODES);
    /** Used for finite-difference based computations. Computes the target
        specifications after two mesh perturbations in x and/or y direction.
        If @a use_flags is true, repeated calls won't do anything until
        ResetUpdateFlags() is called. */
    void UpdateHessianTargetSpecification(const Vector &x, double dx,
-                                         bool use_flag = false);
+                                         bool use_flag = false,
+                                         int x_ordering = Ordering::byNODES);
 
    void SetAdaptivityEvaluator(AdaptivityEvaluator *ae)
    {
@@ -1587,7 +1725,8 @@ protected:
    void ComputeFDh(const Vector &x, const FiniteElementSpace &fes);
    void ComputeMinJac(const Vector &x, const FiniteElementSpace &fes);
 
-   void UpdateAfterMeshPositionChange(const Vector &new_x);
+   void UpdateAfterMeshPositionChange(const Vector &new_x,
+                                      int new_x_ordering = Ordering::byNODES);
 
    void DisableLimiting()
    {

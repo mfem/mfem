@@ -19,12 +19,13 @@ namespace mfem
 LinearForm::LinearForm(FiniteElementSpace *f, LinearForm *lf)
    : Vector(f->GetVSize())
 {
-   // Linear forms are stored on the device
-   UseDevice(true);
-
-   fes = f;
    ext = nullptr;
    extern_lfs = 1;
+   fast_assembly = false;
+   fes = f;
+
+   // Linear forms are stored on the device
+   UseDevice(true);
 
    // Copy the pointers to the integrators
    domain_integs = lf->domain_integs;
@@ -102,24 +103,44 @@ void LinearForm::AddInteriorFaceIntegrator(LinearFormIntegrator *lfi)
 
 bool LinearForm::SupportsDevice()
 {
-   // return false for NURBS meshs, so we don’t convert it to non-NURBS
+   // return false for NURBS meshes, so we don’t convert it to non-NURBS
    // through Assemble, AssembleDevice, GetGeometricFactors and EnsureNodes
-   if (fes->GetMesh()->NURBSext != nullptr) { return false; }
+   const Mesh &mesh = *fes->GetMesh();
+   if (mesh.NURBSext != nullptr) { return false; }
 
-   // scan domain integrator to verify that all can use device assembly
-   if (domain_integs.Size() > 0)
+   // scan integrators to verify that all can use device assembly
+   auto IntegratorsSupportDevice = [](const Array<LinearFormIntegrator*> &integ)
    {
-      for (int k = 0; k < domain_integs.Size(); k++)
+      for (int k = 0; k < integ.Size(); k++)
       {
-         if (!domain_integs[k]->SupportsDevice()) { return false; }
+         if (!integ[k]->SupportsDevice()) { return false; }
+      }
+      return true;
+   };
+
+   if (!IntegratorsSupportDevice(domain_integs)) { return false; }
+   if (!IntegratorsSupportDevice(boundary_integs)) { return false; }
+   if (boundary_face_integs.Size() > 0 || interior_face_integs.Size() > 0 ||
+       domain_delta_integs.Size() > 0) { return false; }
+
+   if (boundary_integs.Size() > 0)
+   {
+      // Make sure there are no boundary faces that are not boundary elements
+      if (fes->GetNFbyType(FaceType::Boundary) != fes->GetNBE())
+      {
+         return false;
+      }
+      // Make sure every boundary element corresponds to a boundary face
+      for (int be = 0; be < fes->GetNBE(); ++be)
+      {
+         const int f = mesh.GetBdrElementEdgeIndex(be);
+         const auto face_info = mesh.GetFaceInformation(f);
+         if (!face_info.IsBoundary())
+         {
+            return false;
+         }
       }
    }
-
-   // boundary, delta and face integrators are not supported yet
-   if (GetBLFI()->Size() > 0 || GetFLFI()->Size() > 0 ||
-       GetDLFI_Delta()->Size() > 0 || GetIFLFI()->Size() > 0) { return false; }
-
-   const Mesh &mesh = *fes->GetMesh();
 
    // no support for elements with varying polynomial orders
    if (fes->IsVariableOrder()) { return false; }
@@ -129,27 +150,27 @@ bool LinearForm::SupportsDevice()
    if (mesh_dim == 1 || mesh_dim != mesh.SpaceDimension()) { return false; }
 
    // tensor-product finite element space only
-   // with point values preserving scalar fields
-   for (int e = 0; e < fes->GetNE(); ++e)
-   {
-      const FiniteElement *fe = fes->GetFE(e);
-      if (!dynamic_cast<const TensorBasisElement*>(fe)) { return false; }
-   }
+   if (!UsesTensorBasis(*fes)) { return false; }
 
    return true;
 }
 
-void LinearForm::Assemble(bool use_device)
+void LinearForm::UseFastAssembly(bool use_fa)
+{
+   fast_assembly = use_fa;
+
+   if (fast_assembly && SupportsDevice() && !ext)
+   {
+      ext = new LinearFormExtension(this);
+   }
+}
+
+void LinearForm::Assemble()
 {
    Array<int> vdofs;
    ElementTransformation *eltrans;
    DofTransformation *doftrans;
    Vector elemvect;
-
-   if (!ext && use_device && SupportsDevice())
-   {
-      ext = new LinearFormExtension(this);
-   }
 
    Vector::operator=(0.0);
 
@@ -157,7 +178,7 @@ void LinearForm::Assemble(bool use_device)
    // The first use of AddElementVector() below will move it back to host
    // because both 'vdofs' and 'elemvect' are on host.
 
-   if (ext) { return ext->Assemble(); }
+   if (fast_assembly && ext) { return ext->Assemble(); }
 
    if (domain_integs.Size())
    {
@@ -178,8 +199,8 @@ void LinearForm::Assemble(bool use_device)
          int elem_attr = fes->GetMesh()->GetAttribute(i);
          for (int k = 0; k < domain_integs.Size(); k++)
          {
-            if ( domain_integs_marker[k] == NULL ||
-                 (*(domain_integs_marker[k]))[elem_attr-1] == 1 )
+            const Array<int> * const markers = domain_integs_marker[k];
+            if ( markers == NULL || (*markers)[elem_attr-1] == 1 )
             {
                doftrans = fes -> GetElementVDofs (i, vdofs);
                eltrans = fes -> GetElementTransformation (i);

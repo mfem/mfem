@@ -948,7 +948,7 @@ static void BoundaryPreservingOptimization(mfem::MesquiteMesh &mesh)
           num_fixed_boundary_flags, num_boundary_vertices);
 
 
-   // creates three intruction queues
+   // creates three instruction queues
    Mesquite::InstructionQueue boundary_queue;
    Mesquite::InstructionQueue interior_queue;
 
@@ -1179,7 +1179,7 @@ void mfem::Mesh::MesquiteSmooth(const int mesquite_option)
    }
    else
    {
-      // boundary perserving smoothing doesn't have a wrapper yet.
+      // boundary preserving smoothing doesn't have a wrapper yet.
       BoundaryPreservingOptimization( msq_mesh );
    }
 }

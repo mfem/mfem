@@ -28,7 +28,16 @@ void VectorConvectionNLFIntegrator::AssemblePA(const FiniteElementSpace &fes)
    if (DeviceCanUseCeed())
    {
       delete ceedOp;
-      ceedOp = new ceed::PAVectorConvectionNLFIntegrator(fes, *ir, Q);
+      const bool mixed = mesh->GetNumGeometries(mesh->Dimension()) > 1 ||
+                         fes.IsVariableOrder();
+      if (mixed)
+      {
+         ceedOp = new ceed::MixedPAVectorConvectionNLIntegrator(*this, fes, Q);
+      }
+      else
+      {
+         ceedOp = new ceed::PAVectorConvectionNLFIntegrator(fes, *ir, Q);
+      }
       return;
    }
    dim = mesh->Dimension();
