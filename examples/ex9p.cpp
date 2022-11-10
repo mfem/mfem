@@ -1,4 +1,4 @@
-//                       MFEttM Example 9 - Parallel Version
+//                       MFEM Example 9 - Parallel Version
 //
 // Compile with: make ex9p
 //
