@@ -24,17 +24,12 @@ using namespace std;
 void PositiveFiniteElement::Project(
    Coefficient &coeff, ElementTransformation &Trans, Vector &dofs) const
 {
-   DenseMatrix mass;
-   MassIntegrator mass_integ;
-
-   mass_integ.AssembleElementMatrix(*this, Trans, mass);
-   DenseMatrixInverse mass_inv(mass);
-
-   Vector rhs(dofs.Size());
-   DomainLFIntegrator lfi(coeff);
-   lfi.AssembleRHSElementVect(*this, Trans, rhs);
-
-   mass_inv.Mult(rhs, dofs);
+   for (int i = 0; i < dof; i++)
+   {
+      const IntegrationPoint &ip = Nodes.IntPoint(i);
+      Trans.SetIntPoint(&ip);
+      dofs(i) = coeff.Eval(Trans, ip);
+   }
 }
 
 void PositiveFiniteElement::Project(
