@@ -67,6 +67,13 @@ void StressEvaluator::Apply(const Vector &kv, const Vector &u,
       const int id = (d1d << 4) | q1d;
       switch (id)
       {
+         case 0x22:
+         {
+            StressEvaluatorApply2D<2, 2>(ne, maps->B, maps->G, ir.GetWeights(),
+                                         geom->J,
+                                         geom->detJ, u_e, y_e, dkv_qp);
+            break;
+         }
          case 0x33:
          {
             StressEvaluatorApply2D<3, 3>(ne, maps->B, maps->G, ir.GetWeights(),

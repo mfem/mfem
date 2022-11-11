@@ -182,7 +182,6 @@ void NavierSolver::Setup(double dt)
    G_form->Assemble();
    G_form->FormRectangularSystemMatrix(empty, empty, G);
 
-   H_lincoeff.constant = kin_vis;
    H_bdfcoeff.constant = 1.0 / dt;
    H_form = new ParBilinearForm(vfes);
 

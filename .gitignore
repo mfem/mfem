@@ -10,6 +10,7 @@
 *.o
 /libmfem.*
 /miniapps/common/libmfem-common.*
+*.d
 
 # CMake generated files
 CMakeCache.txt
@@ -241,8 +242,11 @@ miniapps/navier/navier_tgv
 miniapps/navier/navier_shear
 miniapps/navier/navier_3dfoc
 miniapps/navier/navier_turbchan
+miniapps/navier/navier_periodic_hill
+miniapps/navier/test_filter
 miniapps/navier/tgv_out*.txt
-miniapps/navier/*_output
+miniapps/navier/output/*
+
 
 miniapps/nurbs/nurbs_ex1
 miniapps/nurbs/nurbs_ex1p

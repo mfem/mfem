@@ -188,17 +188,18 @@ int main(int argc, char *argv[])
       exit(0);
    }
 
-   double t_final = 0.5;
+   double t_final = 1e-3;
    double t = 0.0;
    double dt = t_final;
 
    ARKStepSolver pk_ode(MPI_COMM_WORLD, ARKStepSolver::IMEX);
    pk_ode.Init(pk);
-   pk_ode.SetSStolerances(1e-8, 1e-8);
+   pk_ode.SetSStolerances(1e-5, 1e-5);
    pk_ode.SetMaxStep(dt);
 
-   FILE* fout = fopen("arkode.log", "w");
-   int flag = ARKStepSetDiagnostics(pk_ode.GetMem(), fout);
+   int flag = 0;
+   // FILE* fout = fopen("arkode.log", "w");
+   // int flag = ARKStepSetDiagnostics(pk_ode.GetMem(), fout);
    flag = ARKStepSetPostprocessStepFn(pk_ode.GetMem(),
                                       PrandtlKolmogorov::PostProcessCallback);
    MFEM_VERIFY(flag >= 0, "error in ARKStepSetPostprocessStepFn()");

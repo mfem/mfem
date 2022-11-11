@@ -155,8 +155,7 @@ public:
       // High-pass filter relaxation term using a projection to a Legendre
       // polynomial space to damp high frequency modes.
       HPFRT_LPOLY
-   } filter_method = FilterMethod::HPFRT_LPOLY;
-
+   };
 
    /// Initialize data structures, set FE space order and kinematic viscosity.
    /**
@@ -248,14 +247,6 @@ public:
    void PrintTimingData();
 
    ~NavierSolver();
-
-   /// Compute \f$\nabla \times \nabla \times u\f$ for \f$u \in (H^1)^2\f$.
-   void ComputeCurl2D(ParGridFunction &u,
-                      ParGridFunction &cu,
-                      bool assume_scalar = false);
-
-   /// Compute \f$\nabla \times \nabla \times u\f$ for \f$u \in (H^1)^3\f$.
-   void ComputeCurl3D(ParGridFunction &u, ParGridFunction &cu);
 
    /// Remove mean from a Vector.
    /**
@@ -504,6 +495,7 @@ protected:
    // LOR related.
    ParLORDiscretization *lor = nullptr;
 
+   FilterMethod filter_method = FilterMethod::NONE;
    int filter_cutoff_modes = 1;
    double filter_alpha = 10.0;
    DenseMatrix FHPF, FHPFt;

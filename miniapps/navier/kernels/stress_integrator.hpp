@@ -63,6 +63,13 @@ public:
       const int id = (d1d << 4) | q1d;
       switch (id)
       {
+         case 0x22:
+         {
+            return StressIntegratorApply2D<2, 2>(ne, maps->B, maps->G, ir.GetWeights(),
+                                                 geom->J,
+                                                 geom->detJ, x, y, nu_wrap);
+            break;
+         }
          case 0x33:
          {
             return StressIntegratorApply2D<3, 3>(ne, maps->B, maps->G, ir.GetWeights(),

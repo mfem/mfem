@@ -19,7 +19,10 @@ namespace mfem
 namespace navier
 {
 
-class RANSModel : public TimeDependentOperator {};
+class RANSModel : public TimeDependentOperator
+{
+
+};
 
 } // namespace navier
 

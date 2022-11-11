@@ -26,7 +26,7 @@ public:
                      VectorCoefficient &vel_coeff,
                      Coefficient &kv_coeff,
                      Coefficient &f_coeff,
-                     Coefficient &turb_length_scale,
+                     Coefficient &wall_distance_coeff,
                      Coefficient &k_bdrcoeff,
                      const double mu_calibration_const,
                      Array<int> ess_attr);
@@ -60,20 +60,20 @@ public:
    const GeometricFactors *geom = nullptr;
    const int dim, ne = 0;
    const double mu_calibration_const;
-   Vector kv_q, u_q, kv_e, u_e, f_q, tls_e, tls_q, b, k_bdr_values;
+   Vector kv_q, u_q, kv_e, u_e, f_q, wd_e, wd_q, b, k_bdr_values;
    mutable Vector k_l, k_e, y_l, y_e, dRdk, z, z1, z2, x_ess;
    ParGridFunction k_gf;
    VectorCoefficient &vel_coeff;
    Coefficient &kv_coeff;
    Coefficient &f_coeff;
    Coefficient &k_bdrcoeff;
-   Coefficient &tls_coeff;
+   Coefficient &wall_distance_coeff;
    mutable Array<int> ess_attr, ess_tdof_list;
 
    ParBilinearForm *Mform = nullptr, *Kform = nullptr;
    ParLinearForm *bform = nullptr;
-   CGSolver *M_inv = nullptr;
-   OperatorHandle M, K;
+   Vector m, minv;
+   OperatorHandle K;
 
    SparseMatrix *mat = nullptr;
    HypreParMatrix *Amat = nullptr;

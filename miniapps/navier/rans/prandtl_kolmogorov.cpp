@@ -7,11 +7,18 @@ namespace mfem
 namespace navier
 {
 
+static inline void vmul(const Vector &x, Vector &y)
+{
+   auto d_x = x.Read();
+   auto d_y = y.ReadWrite();
+   MFEM_FORALL(i, x.Size(), d_y[i] = d_x[i] * d_y[i];);
+}
+
 PrandtlKolmogorov::PrandtlKolmogorov(ParFiniteElementSpace &kfes,
                                      VectorCoefficient &vel_coeff,
                                      Coefficient &kv_coeff,
                                      Coefficient &f_coeff,
-                                     Coefficient &tls_coeff,
+                                     Coefficient &wall_distance_coeff,
                                      Coefficient &k_bdrcoeff,
                                      const double mu_calibration_const,
                                      Array<int> eattr) :
@@ -23,7 +30,7 @@ PrandtlKolmogorov::PrandtlKolmogorov(ParFiniteElementSpace &kfes,
    mu_calibration_const(mu_calibration_const),
    f_coeff(f_coeff),
    k_bdrcoeff(k_bdrcoeff),
-   tls_coeff(tls_coeff)
+   wall_distance_coeff(wall_distance_coeff)
 {
    height = kfes.GetTrueVSize();
    width = height;
@@ -50,7 +57,7 @@ PrandtlKolmogorov::PrandtlKolmogorov(ParFiniteElementSpace &kfes,
    kv_q.SetSize(ir->GetNPoints() * ne);
    u_q.SetSize(ir->GetNPoints() * ne * dim);
    f_q.SetSize(ir->GetNPoints() * ne);
-   tls_q.SetSize(ir->GetNPoints() * ne);
+   wd_q.SetSize(ir->GetNPoints() * ne);
    k_l.SetSize(Pk->Height());
    k_e.SetSize(Rk->Height());
    y_l.SetSize(Pk->Height());
@@ -96,6 +103,10 @@ PrandtlKolmogorov::PrandtlKolmogorov(ParFiniteElementSpace &kfes,
 
       kv_e.SetSize(Rk->Height());
    }
+   else if (auto *c = dynamic_cast<ConstantCoefficient *>(&kv_coeff))
+   {
+      kv_e.SetSize(Rk->Height());
+   }
    else if (auto *c = dynamic_cast<FunctionCoefficient *>(&kv_coeff))
    {
       // No setup needed.
@@ -105,16 +116,16 @@ PrandtlKolmogorov::PrandtlKolmogorov(ParFiniteElementSpace &kfes,
       MFEM_ABORT("Coefficient type not supported");
    }
 
-   if (auto *c = dynamic_cast<GridFunctionCoefficient *>(&tls_coeff))
+   if (auto *c = dynamic_cast<GridFunctionCoefficient *>(&wall_distance_coeff))
    {
       auto tls_pfes = static_cast<const ParGridFunction *>
                       (c->GetGridFunction())->ParFESpace();
       qi_tls = tls_pfes->GetQuadratureInterpolator(*ir);
       qi_tls->SetOutputLayout(QVectorLayout::byNODES);
 
-      tls_e.SetSize(Rk->Height());
+      wd_e.SetSize(Rk->Height());
    }
-   else if (auto *c = dynamic_cast<FunctionCoefficient *>(&tls_coeff))
+   else if (auto *c = dynamic_cast<FunctionCoefficient *>(&wall_distance_coeff))
    {
       // No setup needed.
    }
@@ -123,7 +134,11 @@ PrandtlKolmogorov::PrandtlKolmogorov(ParFiniteElementSpace &kfes,
       MFEM_ABORT("Coefficient type not supported");
    }
 
-   if (auto *c = dynamic_cast<FunctionCoefficient *>(&f_coeff))
+   if (auto *c = dynamic_cast<ConstantCoefficient *>(&f_coeff))
+   {
+      // No setup needed.
+   }
+   else if (auto *c = dynamic_cast<FunctionCoefficient *>(&f_coeff))
    {
       // No setup needed.
    }
@@ -140,19 +155,23 @@ PrandtlKolmogorov::PrandtlKolmogorov(ParFiniteElementSpace &kfes,
    Mform->AddDomainIntegrator(mass_integrator);
    Mform->SetAssemblyLevel(AssemblyLevel::PARTIAL);
    Mform->Assemble();
-   Mform->FormSystemMatrix(empty, M);
 
-   M_inv = new CGSolver(MPI_COMM_WORLD);
-   M_inv->iterative_mode = false;
-   M_inv->SetOperator(*M);
+   m.SetSize(kfes.GetTrueVSize());
+   minv.SetSize(kfes.GetTrueVSize());
+   Mform->AssembleDiagonal(m);
+   {
+      const auto d_m = m.Read();
+      auto d_minv = minv.Write();
+      MFEM_FORALL(i, m.Size(), d_minv[i] = 1.0 / d_m[i];);
+   }
 
    A_amg = new HypreBoomerAMG;
    A_amg->SetPrintLevel(0);
 
    A_inv = new GMRESSolver(MPI_COMM_WORLD);
    A_inv->iterative_mode = true;
-   A_inv->SetMaxIter(500);
-   A_inv->SetKDim(500);
+   A_inv->SetMaxIter(100);
+   A_inv->SetKDim(30);
    A_inv->SetRelTol(1e-8);
    A_inv->SetPrintLevel(0);
    A_inv->SetPreconditioner(*A_amg);
@@ -176,6 +195,7 @@ void PrandtlKolmogorov::SetTime(double t)
 
    if (auto *c = dynamic_cast<VectorGridFunctionCoefficient *>(&vel_coeff))
    {
+      Ru->Mult(*c->GetGridFunction(), u_e);
       qi_vel->Values(u_e, u_q);
    }
    else if (auto *c = dynamic_cast<VectorFunctionCoefficient *>(&vel_coeff))
@@ -202,7 +222,19 @@ void PrandtlKolmogorov::SetTime(double t)
 
    if (auto *c = dynamic_cast<GridFunctionCoefficient *>(&kv_coeff))
    {
+      Rk->Mult(*c->GetGridFunction(), kv_e);
       qi_kv->Values(kv_e, kv_q);
+   }
+   if (auto *c = dynamic_cast<ConstantCoefficient *>(&kv_coeff))
+   {
+      auto C = Reshape(kv_q.HostWrite(), ir->GetNPoints(), ne);
+      for (int e = 0; e < ne; ++e)
+      {
+         for (int qp = 0; qp < ir->GetNPoints(); ++qp)
+         {
+            C(qp, e) = c->constant;
+         }
+      }
    }
    else if (auto *c = dynamic_cast<FunctionCoefficient *>(&kv_coeff))
    {
@@ -222,13 +254,14 @@ void PrandtlKolmogorov::SetTime(double t)
       // Should never be reached.
    }
 
-   if (auto *c = dynamic_cast<GridFunctionCoefficient *>(&tls_coeff))
+   if (auto *c = dynamic_cast<GridFunctionCoefficient *>(&wall_distance_coeff))
    {
-      qi_tls->Values(tls_e, tls_q);
+      Rk->Mult(*c->GetGridFunction(), wd_e);
+      qi_tls->Values(wd_e, wd_q);
    }
-   else if (auto *c = dynamic_cast<FunctionCoefficient *>(&tls_coeff))
+   else if (auto *c = dynamic_cast<FunctionCoefficient *>(&wall_distance_coeff))
    {
-      auto C = Reshape(tls_q.HostWrite(), ir->GetNPoints(), ne);
+      auto C = Reshape(wd_q.HostWrite(), ir->GetNPoints(), ne);
       for (int e = 0; e < ne; ++e)
       {
          ElementTransformation& T = *kfes.GetElementTransformation(e);
@@ -244,7 +277,18 @@ void PrandtlKolmogorov::SetTime(double t)
       // Should never be reached.
    }
 
-   if (auto *c = dynamic_cast<FunctionCoefficient *>(&f_coeff))
+   if (auto *c = dynamic_cast<ConstantCoefficient *>(&f_coeff))
+   {
+      auto C = Reshape(f_q.HostWrite(), ir->GetNPoints(), ne);
+      for (int e = 0; e < ne; ++e)
+      {
+         for (int qp = 0; qp < ir->GetNPoints(); ++qp)
+         {
+            C(qp, e) = c->constant;
+         }
+      }
+   }
+   else if (auto *c = dynamic_cast<FunctionCoefficient *>(&f_coeff))
    {
       auto C = Reshape(f_q.HostWrite(), ir->GetNPoints(), ne);
       for (int e = 0; e < ne; ++e)
@@ -268,7 +312,8 @@ void PrandtlKolmogorov::Mult(const Vector &x, Vector &y) const
    // y = M^-1 f(x)
 
    Apply(x, z1);
-   M_inv->Mult(z1, y);
+   y = z1;
+   vmul(minv, y);
 
    for (int i = 0; i < ess_tdof_list.Size(); i++)
    {
@@ -290,6 +335,8 @@ void PrandtlKolmogorov::Apply(const Vector &x, Vector &y) const
    // Reset output vector.
    y_e = 0.0;
 
+   // printf("apply()\n");
+
    if (dim == 2)
    {
       const int id = (d1d << 4) | q1d;
@@ -300,7 +347,7 @@ void PrandtlKolmogorov::Apply(const Vector &x, Vector &y) const
             PrandtlKolmogorovApply2D<2, 2>(eval_mode, ne, maps->B, maps->G,
                                            ir->GetWeights(),
                                            geom->J,
-                                           geom->detJ, k_e, y_e, u_q, kv_q, f_q, tls_q, mu_calibration_const);
+                                           geom->detJ, k_e, y_e, u_q, kv_q, f_q, wd_q, mu_calibration_const);
             break;
          }
          case 0x33:
@@ -308,7 +355,7 @@ void PrandtlKolmogorov::Apply(const Vector &x, Vector &y) const
             PrandtlKolmogorovApply2D<3, 3>(eval_mode, ne, maps->B, maps->G,
                                            ir->GetWeights(),
                                            geom->J,
-                                           geom->detJ, k_e, y_e, u_q, kv_q, f_q, tls_q, mu_calibration_const);
+                                           geom->detJ, k_e, y_e, u_q, kv_q, f_q, wd_q, mu_calibration_const);
             break;
          }
          case 0x44:
@@ -316,7 +363,7 @@ void PrandtlKolmogorov::Apply(const Vector &x, Vector &y) const
             PrandtlKolmogorovApply2D<4, 4>(eval_mode, ne, maps->B, maps->G,
                                            ir->GetWeights(),
                                            geom->J,
-                                           geom->detJ, k_e, y_e, u_q, kv_q, f_q, tls_q, mu_calibration_const);
+                                           geom->detJ, k_e, y_e, u_q, kv_q, f_q, wd_q, mu_calibration_const);
             break;
          }
          case 0x55:
@@ -324,7 +371,7 @@ void PrandtlKolmogorov::Apply(const Vector &x, Vector &y) const
             PrandtlKolmogorovApply2D<5, 5>(eval_mode, ne, maps->B, maps->G,
                                            ir->GetWeights(),
                                            geom->J,
-                                           geom->detJ, k_e, y_e, u_q, kv_q, f_q, tls_q, mu_calibration_const);
+                                           geom->detJ, k_e, y_e, u_q, kv_q, f_q, wd_q, mu_calibration_const);
             break;
          }
          case 0x99:
@@ -332,7 +379,7 @@ void PrandtlKolmogorov::Apply(const Vector &x, Vector &y) const
             PrandtlKolmogorovApply2D<9, 9>(eval_mode, ne, maps->B, maps->G,
                                            ir->GetWeights(),
                                            geom->J,
-                                           geom->detJ, k_e, y_e, u_q, kv_q, f_q, tls_q, mu_calibration_const);
+                                           geom->detJ, k_e, y_e, u_q, kv_q, f_q, wd_q, mu_calibration_const);
             break;
          }
 
@@ -356,6 +403,7 @@ int PrandtlKolmogorov::SUNImplicitSetup(const Vector &x, const Vector &fx,
 {
    const int d1d = maps->ndof, q1d = maps->nqpt;
 
+   delete Amat;
    mat = new SparseMatrix(kfes.GetVSize());
 
    // T -> L
@@ -379,7 +427,7 @@ int PrandtlKolmogorov::SUNImplicitSetup(const Vector &x, const Vector &fx,
             PrandtlKolmogorovAssembleJacobian2D<2, 2>(ne, maps->B, maps->G,
                                                       ir->GetWeights(),
                                                       geom->J,
-                                                      geom->detJ, k_e, dRdk, kv_q, tls_q, mu_calibration_const, gamma);
+                                                      geom->detJ, k_e, dRdk, kv_q, wd_q, mu_calibration_const, gamma);
             break;
          }
          case 0x33:
@@ -387,7 +435,23 @@ int PrandtlKolmogorov::SUNImplicitSetup(const Vector &x, const Vector &fx,
             PrandtlKolmogorovAssembleJacobian2D<3, 3>(ne, maps->B, maps->G,
                                                       ir->GetWeights(),
                                                       geom->J,
-                                                      geom->detJ, k_e, dRdk, kv_q, tls_q, mu_calibration_const, gamma);
+                                                      geom->detJ, k_e, dRdk, kv_q, wd_q, mu_calibration_const, gamma);
+            break;
+         }
+         case 0x44:
+         {
+            PrandtlKolmogorovAssembleJacobian2D<4, 4>(ne, maps->B, maps->G,
+                                                      ir->GetWeights(),
+                                                      geom->J,
+                                                      geom->detJ, k_e, dRdk, kv_q, wd_q, mu_calibration_const, gamma);
+            break;
+         }
+         case 0x55:
+         {
+            PrandtlKolmogorovAssembleJacobian2D<5, 5>(ne, maps->B, maps->G,
+                                                      ir->GetWeights(),
+                                                      geom->J,
+                                                      geom->detJ, k_e, dRdk, kv_q, wd_q, mu_calibration_const, gamma);
             break;
          }
          default:
@@ -421,7 +485,7 @@ int PrandtlKolmogorov::SUNImplicitSetup(const Vector &x, const Vector &fx,
       MFEM_ABORT("unknown kernel");
    }
 
-   dRdk.Destroy();
+   // dRdk.Destroy();
    mat->Finalize();
 
    if (Pk_mat == nullptr)
@@ -451,7 +515,8 @@ int PrandtlKolmogorov::SUNImplicitSolve(const Vector &b, Vector &x, double tol)
    Vector b_mod(b.Size());
    // The RHS has to modified to have zeros at the essential boundary
    // conditions. This way the correction to those values will be zero.
-   M->Mult(b, b_mod);
+   b_mod = b;
+   vmul(m, b_mod);
    b_mod.SetSubVector(ess_tdof_list, 0.0);
 
    A_inv->SetAbsTol(tol);
