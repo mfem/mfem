@@ -11,6 +11,8 @@
 Version 4.5.1 (development)
 ===========================
 
+- Removed the support for the Mesquite toolkit. Mesh optimization can be
+  performed by MFEM's TMOP functionality, see the mesh-optimizer miniapp.
 
 Version 4.5, released on October 22, 2022
 =========================================
