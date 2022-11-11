@@ -598,6 +598,37 @@ void InitialCondition(const Vector &x, Vector &y)
    y(1) = exp(-50.0 * px * px);
 }
 
+class MyGridFunctionCoefficient : public Coefficient
+{
+private:
+   const GridFunction *GridF;
+   Mesh *mesh;
+   int Component;
+
+public:
+   MyGridFunctionCoefficient() : GridF(NULL), Component(1) { }
+   /** Construct GridFunctionCoefficient from a given GridFunction, and
+       optionally specify a component to use if it is a vector GridFunction. */
+   MyGridFunctionCoefficient (const GridFunction *gf, int comp = 1)
+  { GridF = gf; mesh = gf->FESpace()->GetMesh(); Component = comp; }
+
+   /// Set the internal GridFunction
+   void SetGridFunction(const GridFunction *gf) { GridF = gf; }
+
+   /// Get the internal GridFunction
+   const GridFunction * GetGridFunction() const { return GridF; }
+
+   /// Evaluate the coefficient at @a ip.
+   virtual double Eval(ElementTransformation &T,
+                       const IntegrationPoint &ip)
+   {
+     int elem = T.ElementNo;
+     
+     ElementTransformation * Tr1d = mesh->GetElementTransformation(elem);
+
+     return GridF->GetValue(*Tr1d, ip, Component);
+   }
+};
 
 int main(int argc, char *argv[])
 {
@@ -616,6 +647,8 @@ int main(int argc, char *argv[])
    double dt = -0.01;
    double cfl = 0.3;
    bool visualization = true;
+   bool visit = false;
+   bool binary = false;
    int vis_steps = 50;
 
    int precision = 8;
@@ -646,6 +679,12 @@ int main(int argc, char *argv[])
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
+   args.AddOption(&visit, "-visit", "--visit-datafiles", "-no-visit",
+                  "--no-visit-datafiles",
+                  "Save data files for VisIt (visit.llnl.gov) visualisation");
+   args.AddOption(&binary, "-binary", "--binary-datafiles", "-ascii",
+                  "--ascii-datafiles",
+                  "Use binary (Sidre) or ascii format for VisIt data files.");
    args.AddOption(&vis_steps, "-vs", "--visualization-steps",
                   "Visualize every n-th timestep.");
 
@@ -698,6 +737,9 @@ int main(int argc, char *argv[])
       pmesh.UniformRefinement();
    }
 
+   // Create a 2D copy of the mesh for visualizing in VisIt.
+   Mesh *mesh2d = Extrude1D(&pmesh, 1, .1);
+   
    cout << "Number of elements:       " << pmesh.GetNE() << endl;
    cout << "Number of faces:          " << pmesh.GetNumFaces() << endl;
    cout << "Number of boundary faces: " << pmesh.GetNBE() << endl;
@@ -705,9 +747,11 @@ int main(int argc, char *argv[])
    // 7. Define the discontinuous DG finite element space of the given
    //    polynomial order on the refined mesh.
    DG_FECollection fec(order, dim, BasisType::GaussLegendre);
+   DG_FECollection fec2d(order, 2, BasisType::GaussLegendre);
    // DG_FECollection fec(order, dim, BasisType::GaussLobatto);
    // Finite element space for a scalar (thermodynamic quantity)
    ParFiniteElementSpace fes(&pmesh, &fec);
+   FiniteElementSpace fes2d(mesh2d, &fec2d);
    // Finite element space for all variables together (total thermodynamic state)
    ParFiniteElementSpace vfes(&pmesh, &fec, num_equation, Ordering::byNODES);
 
@@ -736,6 +780,12 @@ int main(int argc, char *argv[])
    ParGridFunction n(&fes, u_block.GetData() + offsets[0]);
    ParGridFunction q(&fes, u_block.GetData() + offsets[1]);
 
+   MyGridFunctionCoefficient nCoef(&n);
+   MyGridFunctionCoefficient qCoef(&q);
+   
+   GridFunction n2d(&fes2d);
+   GridFunction q2d(&fes2d);
+   
    // Initialize the state.
    VectorFunctionCoefficient u0(num_equation, InitialCondition);
    ParGridFunction sol(&vfes, u_block.GetData());
@@ -777,6 +827,48 @@ int main(int argc, char *argv[])
    FE_Evolution lin_hyp(vfes, A);
 
    // Visualize the density
+   // VisIt cannot currently make use of GridFunction data from 1D meshes
+   // so we need to project the solutions onto a 2D mesh. 
+   // DataCollection *dc = NULL;
+   DataCollection *dc2d = NULL;
+   int cycle = 0;
+   if (visit)
+   {
+      if (binary) 
+      {           
+#ifdef MFEM_USE_SIDRE
+        // dc = new SidreDataCollection("linear_hyp_1d-Parallel", &pmesh);
+         dc2d = new SidreDataCollection("linear_hyp_1d", mesh2d);
+#else             
+         MFEM_ABORT("Must build with MFEM_USE_SIDRE=YES for binary output.");
+#endif
+      }
+      else  
+      {
+         // dc = new VisItDataCollection("linear_hyp_1d-Parallel", &pmesh);
+	 // dc->SetPrecision(precision);
+         dc2d = new VisItDataCollection("linear_hyp_1d", mesh2d);
+	 dc2d->SetPrecision(precision);
+         //dc->SetFormat(DataCollection::PARALLEL_FORMAT);
+      }
+      /*
+      dc->RegisterField("flux", &q);
+      dc->RegisterField("density", &n);
+      dc->SetCycle(cycle);
+      dc->SetTime(0.0);
+      dc->Save();
+      */
+      
+      q2d.ProjectCoefficient(qCoef);
+      n2d.ProjectCoefficient(nCoef);
+      
+      dc2d->RegisterField("flux", &q2d);
+      dc2d->RegisterField("density", &n2d);
+      dc2d->SetCycle(cycle);
+      dc2d->SetTime(0.0);
+      dc2d->Save();
+   }
+
    socketstream nout, qout;
    if (visualization)
    {
@@ -940,6 +1032,22 @@ int main(int argc, char *argv[])
                  << " " << Mpi::WorldRank() << "\n";
             qout << "solution\n" << pmesh << q << flush;
          }
+
+         if (visit)
+         {
+            cycle++;
+	    /*
+            dc->SetCycle(cycle);
+            dc->SetTime(t);
+            dc->Save();
+	    */
+	    q2d.ProjectCoefficient(qCoef);
+	    n2d.ProjectCoefficient(nCoef);
+
+            dc2d->SetCycle(cycle);
+            dc2d->SetTime(t);
+            dc2d->Save();
+	 }
       }
    }
 
