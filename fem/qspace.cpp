@@ -129,7 +129,7 @@ void FaceQuadratureSpace::ConstructOffsets()
       }
       face_indices[f_idx] = i;
       offsets[f_idx] = offset;
-      Geometry::Type geom = mesh.GetFaceGeometry(i);
+      Geometry::Type geom = mesh.GetFaceGeometryType(i);
       MFEM_ASSERT(int_rule[geom] != NULL, "Missing integration rule");
       offset += int_rule[geom]->GetNPoints();
 
