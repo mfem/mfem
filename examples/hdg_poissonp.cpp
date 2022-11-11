@@ -296,8 +296,6 @@ int main(int argc, char *argv[])
 
       Lambda->Add(1.0, lambda);
 
-      lambda.Print();
-
       Array<int> ess_bdr(pmesh->bdr_attributes.Max());
       ess_bdr = 1;
 
@@ -336,7 +334,7 @@ int main(int argc, char *argv[])
          //=======================
          PetscLinearSolver *petsc_solver;
          PetscPreconditioner *petsc_precon= NULL;
-         petsc_solver = new PetscLinearSolver(MPI_COMM_WORLD, "solver_");
+         petsc_solver = new PetscLinearSolver(MPI_COMM_WORLD, "solver_", 1, 0);
          petsc_precon = new PetscPreconditioner(MPI_COMM_WORLD,*SC,"solver_");
          petsc_solver->SetOperator(*SC);
          petsc_solver->SetPreconditioner(*petsc_precon);
@@ -401,8 +399,6 @@ int main(int argc, char *argv[])
       // It is mostly important for the parallel code,
       // here it is done this way to make the 2 codes more similar
       lambda = ParGridFunction(M_space, Lambda);
-
-      lambda.Print();
 
       chrono.Clear();
       chrono.Start();
@@ -648,7 +644,7 @@ double uFun_ex(const Vector & x)
    {
       case 2:
       {
-         return 1.;//1.0 + xi + sin(2.0*M_PI*xi)*sin(2.0*M_PI*yi);
+         return 1.0 + xi + sin(2.0*M_PI*xi)*sin(2.0*M_PI*yi);
          break;
       }
       case 3:
@@ -672,8 +668,8 @@ void qFun_ex(const Vector & x, Vector & q)
    {
       case 2:
       {
-         q(0) = 0.;// -diff*1.0 - diff*2.0*M_PI*cos(2.0*M_PI*xi)*sin(2.0*M_PI*yi);
-         q(1) = 0.;// 0.0 - diff*2.0*M_PI*sin(2.0*M_PI*xi)*cos(2.0*M_PI*yi);
+         q(0) = -diff*1.0 - diff*2.0*M_PI*cos(2.0*M_PI*xi)*sin(2.0*M_PI*yi);
+         q(1) = 0.0 - diff*2.0*M_PI*sin(2.0*M_PI*xi)*cos(2.0*M_PI*yi);
          break;
       }
       case 3:
@@ -699,7 +695,7 @@ double fFun(const Vector & x)
    {
       case 2:
       {
-         return 0.0;//diff*8.0*M_PI*M_PI*sin(2.0*M_PI*xi)*sin(2.0*M_PI*yi);
+         return diff*8.0*M_PI*M_PI*sin(2.0*M_PI*xi)*sin(2.0*M_PI*yi);
          break;
       }
       case 3:
