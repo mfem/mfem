@@ -652,14 +652,14 @@ class PlasmaProfile : public Coefficient
 {
 public:
    enum Type {CONSTANT, GRADIENT, TANH, ELLIPTIC_COS, PARABOLIC, PEDESTAL,
-              NUABSORB, NUE, NUI, CMODDEN, CUSTOM1, CUSTOM2, POWER
+              NUABSORB, NUE, NUI, CMODDEN, CUSTOM1, CUSTOM2, POWER, WHAM
              };
 
 private:
    Type type_;
    Vector p_;
 
-   const int np_[13] = {1, 7, 9, 7, 7, 7, 3, 2, 2, 1, 2, 2, 4};
+   const int np_[14] = {1, 7, 9, 7, 7, 7, 3, 2, 2, 1, 2, 2, 4, 7};
 
    mutable Vector x_;
 

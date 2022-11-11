@@ -147,10 +147,17 @@ static Vector slab_params_
 (0); // Amplitude of x, y, z current source, position in 2D, and size in 2D
 static int slab_profile_;
 
+// Amplitude of z, r, phi current source, position in 2D (z, r), size in 2D,
+// angle of rectangular current source in degrees
+static Vector wham_params_(0);
+
+
 void rod_current_source_r(const Vector &x, Vector &j);
 void rod_current_source_i(const Vector &x, Vector &j);
 void slab_current_source_r(const Vector &x, Vector &j);
 void slab_current_source_i(const Vector &x, Vector &j);
+void wham_current_source_r(const Vector &x, Vector &j);
+void wham_current_source_i(const Vector &x, Vector &j);
 void j_src_r(const Vector &x, Vector &j)
 {
    if (rod_params_.Size() > 0)
@@ -160,6 +167,10 @@ void j_src_r(const Vector &x, Vector &j)
    else if (slab_params_.Size() > 0)
    {
       slab_current_source_r(x, j);
+   }
+   else if (wham_params_.Size() > 0)
+   {
+      wham_current_source_r(x, j);
    }
 }
 void j_src_i(const Vector &x, Vector &j)
@@ -171,6 +182,10 @@ void j_src_i(const Vector &x, Vector &j)
    else if (slab_params_.Size() > 0)
    {
       slab_current_source_i(x, j);
+   }
+   else if (wham_params_.Size() > 0)
+   {
+      wham_current_source_i(x, j);
    }
 }
 
@@ -802,6 +817,9 @@ int main(int argc, char *argv[])
                   "2D Position, 2D Size");
    args.AddOption(&slab_profile_, "-slab-prof", "--slab_profile",
                   "0 (Constant) or 1 (Sin Function)");
+   args.AddOption(&wham_params_, "-wham", "--wham_params",
+                  "3D Vector Amplitude (Real x,y,z, Imag x,y,z), "
+                  "2D Position (r, z), 2D Size, angle (degrees)");
    args.AddOption(&abcs, "-abcs", "--absorbing-bc-surf",
                   "Absorbing Boundary Condition Surfaces");
    args.AddOption(&sbca, "-sbcs", "--sheath-bc-surf",
@@ -1798,7 +1816,9 @@ int main(int argc, char *argv[])
 
    VectorFunctionCoefficient jrCoef(3, j_src_r);
    VectorFunctionCoefficient jiCoef(3, j_src_i);
-   if (rod_params_.Size() > 0 ||slab_params_.Size() > 0)
+   if (rod_params_.Size() > 0 ||
+       slab_params_.Size() > 0 ||
+       wham_params_.Size() > 0)
    {
       if (mpi.Root())
       {
@@ -2493,6 +2513,68 @@ void slab_current_source_i(const Vector &x, Vector &j)
          if (slab_profile_ == 1)
          { j *= 0.5 * (1.0 + sin(M_PI*((2.0 * (x[1] - y0) + dy)/dy - 0.5))); }
       }
+   }
+}
+
+void wham_current_source_r(const Vector &x, Vector &j)
+{
+   MFEM_ASSERT(x.Size() == 2, "current source requires 2D space.");
+
+   j.SetSize(3);
+   j = 0.0;
+
+   bool cmplx = wham_params_.Size() == 11;
+
+   int o = 3 + (cmplx ? 3 : 0);
+
+   double r0 = wham_params_(o+0);
+   double z0 = wham_params_(o+1);
+   double dv = wham_params_(o+2);
+   double du = wham_params_(o+3);
+   double th = wham_params_(o+4);
+
+   double c = cos(M_PI * th / 180.0);
+   double s = sin(M_PI * th / 180.0);
+
+   double u =  (x[0] - z0) * c + (x[1] - r0) * s;
+   double v = -(x[0] - z0) * s + (x[1] - r0) * c;
+
+   if (fabs(u) <= 0.5 * du && fabs(v) <= 0.5 * dv)
+   {
+      j(0) = wham_params_(0);
+      j(1) = wham_params_(1);
+      j(2) = wham_params_(2);
+   }
+}
+
+void wham_current_source_i(const Vector &x, Vector &j)
+{
+   MFEM_ASSERT(x.Size() == 2, "current source requires 2D space.");
+
+   j.SetSize(3);
+   j = 0.0;
+
+   bool cmplx = wham_params_.Size() == 11;
+
+   int o = 3 + (cmplx ? 3 : 0);
+
+   double r0 = wham_params_(o+0);
+   double z0 = wham_params_(o+1);
+   double dv = wham_params_(o+2);
+   double du = wham_params_(o+3);
+   double th = wham_params_(o+4);
+
+   double c = cos(M_PI * th / 180.0);
+   double s = sin(M_PI * th / 180.0);
+
+   double u =  (x[0] - z0) * c + (x[1] - r0) * s;
+   double v = -(x[0] - z0) * s + (x[1] - r0) * c;
+
+   if (fabs(u) <= 0.5 * du && fabs(v) <= 0.5 * dv && cmplx)
+   {
+      j(0) = wham_params_(3);
+      j(1) = wham_params_(4);
+      j(2) = wham_params_(5);
    }
 }
 

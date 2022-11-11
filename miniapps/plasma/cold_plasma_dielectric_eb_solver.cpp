@@ -945,10 +945,9 @@ void SheathPotential::Update()
 {
    phi_h1_.Update();
    // phi_l2_.Update();
+   fes_rtt_.Update(false);
    phi_rtt_.Update();
-
    this->UpdateDofs();
-
    grad_.Update();
    m_.Update();
    phi_lf_.Update();

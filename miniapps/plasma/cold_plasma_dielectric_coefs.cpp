@@ -1495,6 +1495,23 @@ double PlasmaProfile::Eval(ElementTransformation &T,
          return a + (b - a) * pow(x_[comp], p);
       }
       break;
+      case WHAM:
+      {
+         double a = p_[0];
+         double b = p_[1];
+         double c = p_[2];
+         double d = p_[3];
+         double p = p_[4];
+         double ba = p_[5];
+         double bb = p_[6];
+
+         double bz = ba + bb * pow(x_[0], 4);
+         double r_lim = sqrt(0.01 / bz);
+
+         double rho_r = 0.5 * (1.0 + tanh(d * (r_lim - x_[1])));
+         return a + ((b + (c - b) * pow(x_[0], p)) - a) * rho_r;
+      }
+      break;
       default:
          return 0.0;
    }
