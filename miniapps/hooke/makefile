@@ -29,6 +29,11 @@ HOOKE_OBJ = $(HOOKE_SRC:.cpp=.o)
 
 SEQ_MINIAPPS =
 PAR_MINIAPPS = hooke
+# The hooke miniapp crashes the AMD HIP compiler, so for now we disable it
+# when HIP is enabled:
+ifeq ($(MFEM_USE_HIP),YES)
+   PAR_MINIAPPS =
+endif
 ifeq ($(MFEM_USE_MPI),NO)
    MINIAPPS = $(SEQ_MINIAPPS)
 else
