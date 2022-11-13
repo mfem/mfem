@@ -499,6 +499,9 @@ CEED_OPT = -I$(CEED_DIR)/include
 CEED_LIB = $(XLINKER)-rpath,$(CEED_DIR)/lib -L$(CEED_DIR)/lib -lceed
 
 # RAJA library configuration
+ifeq ($(MFEM_USE_RAJA),YES)
+   BASE_FLAGS = -std=c++14
+endif
 RAJA_DIR = @MFEM_DIR@/../raja
 RAJA_OPT = -I$(RAJA_DIR)/include
 ifdef CUB_DIR
