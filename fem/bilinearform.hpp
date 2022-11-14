@@ -184,13 +184,15 @@ public:
        If used, this method must be called before assembly. */
    void SetAssemblyLevel(AssemblyLevel assembly_level);
 
-   /** @brief Force the sparse matrix entries to be sorted when using
+   /** @brief Force the sparse matrix column indices to be sorted when using
        AssemblyLevel::FULL.
 
-       When assembling on device the assembly algorithm uses atomic
-       operations to insert values in the sparse matrix. Calling this
-       method forces a sorting algorithm to be called at the end of
-       the assembly procedure.
+       When assembling on device the assembly algorithm uses atomic operations
+       to insert values in the sparse matrix, which can result in different
+       column index orderings across runs. Calling this method with @a enable_it
+       set to @a true forces a sorting algorithm to be called at the end of the
+       assembly procedure to ensure sorted column indices (and therefore
+       deterministic results).
    */
    void EnableSparseMatrixSorting(bool enable_it)
    {
