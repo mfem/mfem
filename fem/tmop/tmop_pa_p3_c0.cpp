@@ -140,7 +140,7 @@ MFEM_REGISTER_TMOP_KERNELS(void, AddMultPA_Kernel_C0_3D,
                }
                else
                {
-                  double dsq = kernels::DistanceSquared<2>(p1,p0) / dist_squared;
+                  double dsq = kernels::DistanceSquared<3>(p1,p0) / dist_squared;
                   a = 20.0*exp(10.0*(dsq - 1.0))/dist_squared;
                }
 
