@@ -496,41 +496,41 @@ class KDTreeNodalTransfer
 {
 private:
 
-    /// Pointer to the KDTree for the 3D case
-    KDTree3D* kdt3D;
+   /// Pointer to the KDTree for the 3D case
+   KDTree3D* kdt3D;
 
-    /// Pointer to the KDTree for the 2D case
-    KDTree2D* kdt2D;
+   /// Pointer to the KDTree for the 2D case
+   KDTree2D* kdt2D;
 
-    /// Pointer to the target grid function
-    GridFunction* dest;
+   /// Pointer to the target grid function
+   GridFunction* dest;
 
-    /// Upper corner of the bounding box
-    Vector maxbb;
+   /// Upper corner of the bounding box
+   Vector maxbb;
 
-    /// Lower corner of the bounding box
-    Vector minbb;
+   /// Lower corner of the bounding box
+   Vector minbb;
 
 public:
-    /// The constructor takes as input an L2 or H1 grid function (it can be a vector grid
-    /// function). The Transfer method coppies a set of values to the grid function.
-    KDTreeNodalTransfer(GridFunction& dest_);
+   /// The constructor takes as input an L2 or H1 grid function (it can be a vector grid
+   /// function). The Transfer method coppies a set of values to the grid function.
+   KDTreeNodalTransfer(GridFunction& dest_);
 
-    /// Frees the memory allocated for the transfer
-    ~KDTreeNodalTransfer()
-    {
-        delete kdt2D;
-        delete kdt3D;
-    }
+   /// Frees the memory allocated for the transfer
+   ~KDTreeNodalTransfer()
+   {
+      delete kdt2D;
+      delete kdt3D;
+   }
 
-    /// The transfer method can be called as many time as necessary with different sets
-    /// of coordinates and corresponding values. For vector grid function, users have to
-    /// specify the data ordering and for all cases the user can modify the error tolerance
-    /// err to smaller or bigger value. A node in the target grid function is mathcning
-    /// a point with coordinates psecified in the vector coords if the distance between them
-    /// is smaller than err.
-    void Transfer(Vector& coords, Vector& src,
-                  int ordering=Ordering::byNODES ,double err=1e-8);
+   /// The transfer method can be called as many time as necessary with different sets
+   /// of coordinates and corresponding values. For vector grid function, users have to
+   /// specify the data ordering and for all cases the user can modify the error tolerance
+   /// err to smaller or bigger value. A node in the target grid function is mathcning
+   /// a point with coordinates psecified in the vector coords if the distance between them
+   /// is smaller than err.
+   void Transfer(Vector& coords, Vector& src,
+                 int ordering=Ordering::byNODES,double err=1e-8);
 
 };
 
