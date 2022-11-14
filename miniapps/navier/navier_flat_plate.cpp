@@ -63,21 +63,7 @@ struct s_NavierContext
    bool visualization = false;
    bool paraview = true;
    bool checkres = false;
-} ctx;
-struct schwarz_common
-{
-   // common
-   double dt = 2e-2;
-   double t_final = 250*dt;
-   // fluid
-   int fluid_order = 4;
-   double fluid_kin_vis = 0.001;
-   // solid
-   int solid_order = 4;
-   int ode_solver_type = 3;
-   double alpha = 1.0e-2;
-   double kappa = 0.5;
-} schwarz;
+} ctx; // Might also be called Schwartz in some of the functions
 
 // Dirichlet conditions for velocity
 void vel_dbc(const Vector &x, double t, Vector &u);
@@ -123,6 +109,12 @@ int main(int argc, char *argv[])
                   "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
+   args.AddOption(&ctx.paraview,
+                  "-pv",
+                  "--paraview",
+                  "-no-pv",
+                  "--no-paraview",
+                  "Enable or disable Paraview file creation.");
    args.AddOption(
       &ctx.checkres,
       "-cr",
@@ -134,67 +126,53 @@ int main(int argc, char *argv[])
 
    if (!args.Good())
    {
-      args.PrintUsage(cout);
+      if (Mpi::Root())
+      {
+         args.PrintUsage(mfem::out);
+      }
       return 1;
    }
-   if (myid == 0)
+   if (Mpi::Root())
    {
-      args.PrintOptions(cout);
+      args.PrintOptions(mfem::out);
    }
 
-   const int nmeshes         = 2;
-   mesh_file_list[0]         = "fluid-cht.mesh";
-   mesh_file_list[1]         = "solid-cht.mesh";
-
-   // Setup MPI communicator for each mesh
-   MPI_Comm *comml = new MPI_Comm;
-   int color = 0;
-   int npsum = 0;
-   for (int i = 0; i < nmeshes; i++)
-   {
-      npsum += np_list[i];
-      if (myid < npsum) { color = i; break; }
-   }
-   MPI_Comm_split(MPI_COMM_WORLD, color, myid, comml);
-   int myidlocal, numproclocal;
-   MPI_Comm_rank(*comml, &myidlocal);
-   MPI_Comm_size(*comml, &numproclocal);
-
-   Mesh *mesh = new Mesh(mesh_file_list[color], 1, 1);
+   Mesh *mesh = new Mesh("flat-plate.mesh"); // Need to name our mesh flat-plate.mesh 
    int dim = mesh->Dimension();
-   mesh->SetCurvature(color == 0 ? schwarz.fluid_order : schwarz.solid_order);
 
-   for (int lev = 0; lev < rs_levels[color]; lev++)
+   //Mesh refinement
+   for (int i = 0; i < ctx.ser_ref_levels; ++i)
    {
-      mesh->UniformRefinement();
+      mesh.UniformRefinement();
    }
 
-
-   if (color == 0 && myidlocal == 0)
+   if (Mpi::Root())
    {
-      std::cout << "Number of elements: " << mesh->GetNE() << std::endl;
+      std::cout << "Number of elements: " << mesh.GetNE() << std::endl;
    }
 
-   // Setup ParMesh based on the communicator for each mesh
-   ParMesh *pmesh;
-   pmesh = new ParMesh(*comml, *mesh);
-   delete mesh;
+   auto *pmesh = new ParMesh(MPI_COMM_WORLD, mesh);
+   mesh.Clear();
 
-   // Setup pointer for FESpaces, GridFunctions, and Solvers
-   H1_FECollection *fec_s            = NULL; //FECollection for solid
-   ParFiniteElementSpace *fes_s      = NULL; //FESpace for solid
-   ParFiniteElementSpace *adv_fes_s  = NULL; //FESpace for advection in solid
-   ParGridFunction *u_gf             = NULL; //Velocity solution on both meshes
-   ParGridFunction *t_gf             = NULL; //Temperature solution
-   NavierSolver *flowsolver          = NULL; //Fluid solver
-   ConductionOperator *coper         = NULL; //Temperature solver
-   Vector t_tdof;                            //Temperature true-dof vector
 
-   double t       = 0,
-          dt      = schwarz.dt,
-          t_final = schwarz.t_final;
-   bool last_step = false;
+   // Create the flow solver.
+   NavierSolver flowsolver(pmesh, ctx.order, ctx.kinvis);
+   flowsolver.EnablePA(ctx.pa);
+   flowsolver.EnableNI(ctx.ni);
 
+   // Set the initial condition.
+   ParGridFunction *u_ic = flowsolver.GetCurrentVelocity(); // u_ic is u_gf in the rest of the code. 
+   VectorFunctionCoefficient u_excoeff(pmesh->Dimension(), vel_dbc);
+   u_ic->ProjectCoefficient(u_excoeff);
+
+   FunctionCoefficient p_excoeff(pres_kovasznay);
+
+   // Add Dirichlet boundary conditions to velocity space restricted to
+   // selected attributes on the mesh.
+   Array<int> attr(pmesh->bdr_attributes.Max());
+   attr = 1;
+   flowsolver.AddVelDirichletBC(vel_kovasznay, attr);
+   // ===============================================================
    // Setup flow solver on mesh for fluid
    if (color == 0)
    {
@@ -218,6 +196,7 @@ int main(int argc, char *argv[])
       flowsolver->Setup(dt);
       u_gf = flowsolver->GetCurrentVelocity();
    }
+   // ===============================================================
 
    // Setup temperature solver for mesh on solid
    ODESolver *ode_solver = NULL;
