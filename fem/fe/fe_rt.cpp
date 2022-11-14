@@ -145,13 +145,14 @@ void RT_QuadrilateralElement::CalcVShape(const IntegrationPoint &ip,
 
 #ifdef MFEM_THREAD_SAFE
    Vector shape_cx(pp1 + 1), shape_ox(pp1), shape_cy(pp1 + 1), shape_oy(pp1);
-   Vector dshape_cx, dshape_cy;
+   Vector dshape_cx(pp1 + 1), dshape_cy(pp1 + 1);
 #endif
 
    if (obasis1d.IsIntegratedType())
    {
       cbasis1d.Eval(ip.x, shape_cx, dshape_cx);
       cbasis1d.Eval(ip.y, shape_cy, dshape_cy);
+      obasis1d.ScaleIntegrated(false);
       obasis1d.EvalIntegrated(dshape_cx, shape_ox);
       obasis1d.EvalIntegrated(dshape_cy, shape_oy);
    }
@@ -210,6 +211,7 @@ void RT_QuadrilateralElement::CalcDivShape(const IntegrationPoint &ip,
    cbasis1d.Eval(ip.y, shape_cy, dshape_cy);
    if (obasis1d.IsIntegratedType())
    {
+      obasis1d.ScaleIntegrated(false);
       obasis1d.EvalIntegrated(dshape_cx, shape_ox);
       obasis1d.EvalIntegrated(dshape_cy, shape_oy);
    }
@@ -471,7 +473,7 @@ void RT_HexahedronElement::CalcVShape(const IntegrationPoint &ip,
 #ifdef MFEM_THREAD_SAFE
    Vector shape_cx(pp1 + 1), shape_ox(pp1), shape_cy(pp1 + 1), shape_oy(pp1);
    Vector shape_cz(pp1 + 1), shape_oz(pp1);
-   Vector dshape_cx, dshape_cy, dshape_cz;
+   Vector dshape_cx(pp1 + 1), dshape_cy(pp1 + 1), dshape_cz(pp1 + 1);
 #endif
 
    if (obasis1d.IsIntegratedType())
@@ -479,6 +481,7 @@ void RT_HexahedronElement::CalcVShape(const IntegrationPoint &ip,
       cbasis1d.Eval(ip.x, shape_cx, dshape_cx);
       cbasis1d.Eval(ip.y, shape_cy, dshape_cy);
       cbasis1d.Eval(ip.z, shape_cz, dshape_cz);
+      obasis1d.ScaleIntegrated(false);
       obasis1d.EvalIntegrated(dshape_cx, shape_ox);
       obasis1d.EvalIntegrated(dshape_cy, shape_oy);
       obasis1d.EvalIntegrated(dshape_cz, shape_oz);
@@ -566,6 +569,7 @@ void RT_HexahedronElement::CalcDivShape(const IntegrationPoint &ip,
    cbasis1d.Eval(ip.z, shape_cz, dshape_cz);
    if (obasis1d.IsIntegratedType())
    {
+      obasis1d.ScaleIntegrated(false);
       obasis1d.EvalIntegrated(dshape_cx, shape_ox);
       obasis1d.EvalIntegrated(dshape_cy, shape_oy);
       obasis1d.EvalIntegrated(dshape_cz, shape_oz);

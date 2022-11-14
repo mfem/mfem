@@ -17,13 +17,6 @@
 namespace mfem
 {
 
-/// Type describing possible layouts for Q-vectors.
-enum class QVectorLayout
-{
-   byNODES,  ///< NQPT x VDIM x NE (values) / NQPT x VDIM x DIM x NE (grads)
-   byVDIM    ///< VDIM x NQPT x NE (values) / VDIM x DIM x NQPT x NE (grads)
-};
-
 /** @brief A class that performs interpolation from an E-vector to quadrature
     point values and/or derivatives (Q-vectors). */
 /** An E-vector represents the element-wise discontinuous version of the FE

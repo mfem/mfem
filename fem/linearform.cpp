@@ -19,11 +19,13 @@ namespace mfem
 LinearForm::LinearForm(FiniteElementSpace *f, LinearForm *lf)
    : Vector(f->GetVSize())
 {
+   ext = nullptr;
+   extern_lfs = 1;
+   fast_assembly = false;
+   fes = f;
+
    // Linear forms are stored on the device
    UseDevice(true);
-
-   fes = f;
-   extern_lfs = 1;
 
    // Copy the pointers to the integrators
    domain_integs = lf->domain_integs;
@@ -99,6 +101,70 @@ void LinearForm::AddInteriorFaceIntegrator(LinearFormIntegrator *lfi)
    interior_face_integs.Append(lfi);
 }
 
+bool LinearForm::SupportsDevice()
+{
+   // return false for NURBS meshes, so we don’t convert it to non-NURBS
+   // through Assemble, AssembleDevice, GetGeometricFactors and EnsureNodes
+   const Mesh &mesh = *fes->GetMesh();
+   if (mesh.NURBSext != nullptr) { return false; }
+
+   // scan integrators to verify that all can use device assembly
+   auto IntegratorsSupportDevice = [](const Array<LinearFormIntegrator*> &integ)
+   {
+      for (int k = 0; k < integ.Size(); k++)
+      {
+         if (!integ[k]->SupportsDevice()) { return false; }
+      }
+      return true;
+   };
+
+   if (!IntegratorsSupportDevice(domain_integs)) { return false; }
+   if (!IntegratorsSupportDevice(boundary_integs)) { return false; }
+   if (boundary_face_integs.Size() > 0 || interior_face_integs.Size() > 0 ||
+       domain_delta_integs.Size() > 0) { return false; }
+
+   if (boundary_integs.Size() > 0)
+   {
+      // Make sure there are no boundary faces that are not boundary elements
+      if (fes->GetNFbyType(FaceType::Boundary) != fes->GetNBE())
+      {
+         return false;
+      }
+      // Make sure every boundary element corresponds to a boundary face
+      for (int be = 0; be < fes->GetNBE(); ++be)
+      {
+         const int f = mesh.GetBdrElementEdgeIndex(be);
+         const auto face_info = mesh.GetFaceInformation(f);
+         if (!face_info.IsBoundary())
+         {
+            return false;
+         }
+      }
+   }
+
+   // no support for elements with varying polynomial orders
+   if (fes->IsVariableOrder()) { return false; }
+
+   // no support for 1D and embedded meshes
+   const int mesh_dim = mesh.Dimension();
+   if (mesh_dim == 1 || mesh_dim != mesh.SpaceDimension()) { return false; }
+
+   // tensor-product finite element space only
+   if (!UsesTensorBasis(*fes)) { return false; }
+
+   return true;
+}
+
+void LinearForm::UseFastAssembly(bool use_fa)
+{
+   fast_assembly = use_fa;
+
+   if (fast_assembly && SupportsDevice() && !ext)
+   {
+      ext = new LinearFormExtension(this);
+   }
+}
+
 void LinearForm::Assemble()
 {
    Array<int> vdofs;
@@ -111,6 +177,8 @@ void LinearForm::Assemble()
    // The above operation is executed on device because of UseDevice().
    // The first use of AddElementVector() below will move it back to host
    // because both 'vdofs' and 'elemvect' are on host.
+
+   if (fast_assembly && ext) { return ext->Assemble(); }
 
    if (domain_integs.Size())
    {
@@ -131,8 +199,8 @@ void LinearForm::Assemble()
          int elem_attr = fes->GetMesh()->GetAttribute(i);
          for (int k = 0; k < domain_integs.Size(); k++)
          {
-            if ( domain_integs_marker[k] == NULL ||
-                 (*(domain_integs_marker[k]))[elem_attr-1] == 1 )
+            const Array<int> * const markers = domain_integs_marker[k];
+            if ( markers == NULL || (*markers)[elem_attr-1] == 1 )
             {
                doftrans = fes -> GetElementVDofs (i, vdofs);
                eltrans = fes -> GetElementTransformation (i);
@@ -273,6 +341,12 @@ void LinearForm::Assemble()
    }
 }
 
+void LinearForm::Update()
+{
+   SetSize(fes->GetVSize()); ResetDeltaLocations();
+   if (ext) { ext->Update(); }
+}
+
 void LinearForm::Update(FiniteElementSpace *f, Vector &v, int v_offset)
 {
    MFEM_ASSERT(v.Size() >= v_offset + f->GetVSize(), "");
@@ -280,6 +354,7 @@ void LinearForm::Update(FiniteElementSpace *f, Vector &v, int v_offset)
    v.UseDevice(true);
    this->Vector::MakeRef(v, v_offset, fes->GetVSize());
    ResetDeltaLocations();
+   if (ext) { ext->Update(); }
 }
 
 void LinearForm::MakeRef(FiniteElementSpace *f, Vector &v, int v_offset)
@@ -355,6 +430,8 @@ LinearForm::~LinearForm()
       for (k=0; k < interior_face_integs.Size(); k++)
       { delete interior_face_integs[k]; }
    }
+
+   delete ext;
 }
 
 }

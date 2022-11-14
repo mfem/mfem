@@ -43,22 +43,14 @@ function(convert_filenames_to_full_paths NAMES)
   set(${NAMES} ${tmp_names} PARENT_SCOPE)
 endfunction()
 
-# Wrapper for add_executable that calls the HIP wrapper if applicable
+# Wrapper for add_executable
 macro(mfem_add_executable NAME)
-  if (MFEM_USE_HIP)
-    add_executable(${NAME} ${ARGN})
-  else()
-    add_executable(${NAME} ${ARGN})
-  endif()
+  add_executable(${NAME} ${ARGN})
 endmacro()
 
-# Wrapper for add_library that calls the HIP wrapper if applicable
+# Wrapper for add_library
 macro(mfem_add_library NAME)
-  if (MFEM_USE_HIP)
-    add_library(${NAME} ${ARGN})
-  else()
-    add_library(${NAME} ${ARGN})
-  endif()
+  add_library(${NAME} ${ARGN})
 endmacro()
 
 # Simple shortcut to add_custom_target() with option to add the target to the
@@ -894,7 +886,7 @@ function(mfem_export_mk_files)
       MFEM_USE_HIP MFEM_USE_RAJA MFEM_USE_OCCA MFEM_USE_CEED MFEM_USE_CALIPER
       MFEM_USE_UMPIRE MFEM_USE_SIMD MFEM_USE_ADIOS2 MFEM_USE_MKL_CPARDISO
       MFEM_USE_ADFORWARD MFEM_USE_CODIPACK MFEM_USE_BENCHMARK MFEM_USE_PARELAG
-      MFEM_USE_MOONOLITH)
+      MFEM_USE_MOONOLITH MFEM_USE_ALGOIM MFEM_USE_ENZYME)
   foreach(var ${CONFIG_MK_BOOL_VARS})
     if (${var})
       set(${var} YES)
@@ -978,9 +970,11 @@ function(mfem_export_mk_files)
       string(REGEX REPLACE "^SCOREC::" "" libname ${pumilib})
       string(FIND "${pumilib}" ".a" staticlib)
       string(FIND "${pumilib}" ".so" sharedlib)
+      string(FIND "${pumilib}" ".dylib" dynamiclib)
       find_library(lib ${libname} PATHS ${PUMI_DIR}/lib NO_DEFAULT_PATH)
       if (NOT "${sharedlib}" MATCHES "-1" OR
-          NOT "${staticlib}" MATCHES "-1"   )
+          NOT "${staticlib}" MATCHES "-1" OR
+          NOT "${dynamiclib}" MATCHES "-1"  )
         set(MFEM_EXT_LIBS "${pumilib} ${MFEM_EXT_LIBS}")
       elseif (NOT "${lib}" MATCHES "lib-NOTFOUND")
         set(MFEM_EXT_LIBS "${lib} ${MFEM_EXT_LIBS}")

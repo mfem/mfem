@@ -182,7 +182,7 @@ int main(int argc, char *argv[])
    }
    for (int level = 0; level < order_refinements; ++level)
    {
-      collections.Append(new H1_FECollection(std::pow(2, level+1), dim));
+      collections.Append(new H1_FECollection((int)std::pow(2, level+1), dim));
       fespaces.AddOrderRefinedLevel(collections.Last());
    }
 

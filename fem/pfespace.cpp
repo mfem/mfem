@@ -129,7 +129,7 @@ void ParFiniteElementSpace::ParInit(ParMesh *pm)
       ApplyLDofSigns(*elem_dof);
    }
 
-   // Check for shared trianglular faces with interior Nedelec DoFs
+   // Check for shared triangular faces with interior Nedelec DoFs
    CheckNDSTriaDofs();
 }
 
@@ -194,12 +194,12 @@ void ParFiniteElementSpace::Construct()
 
 void ParFiniteElementSpace::PrintPartitionStats()
 {
-   long ltdofs = ltdof_size;
-   long min_ltdofs, max_ltdofs, sum_ltdofs;
+   long long ltdofs = ltdof_size;
+   long long min_ltdofs, max_ltdofs, sum_ltdofs;
 
-   MPI_Reduce(&ltdofs, &min_ltdofs, 1, MPI_LONG, MPI_MIN, 0, MyComm);
-   MPI_Reduce(&ltdofs, &max_ltdofs, 1, MPI_LONG, MPI_MAX, 0, MyComm);
-   MPI_Reduce(&ltdofs, &sum_ltdofs, 1, MPI_LONG, MPI_SUM, 0, MyComm);
+   MPI_Reduce(&ltdofs, &min_ltdofs, 1, MPI_LONG_LONG, MPI_MIN, 0, MyComm);
+   MPI_Reduce(&ltdofs, &max_ltdofs, 1, MPI_LONG_LONG, MPI_MAX, 0, MyComm);
+   MPI_Reduce(&ltdofs, &sum_ltdofs, 1, MPI_LONG_LONG, MPI_SUM, 0, MyComm);
 
    if (MyRank == 0)
    {
@@ -219,14 +219,14 @@ void ParFiniteElementSpace::PrintPartitionStats()
          for (int i = 1; i < NRanks; i++)
          {
             MPI_Status status;
-            MPI_Recv(&ltdofs, 1, MPI_LONG, i, 123, MyComm, &status);
+            MPI_Recv(&ltdofs, 1, MPI_LONG_LONG, i, 123, MyComm, &status);
             mfem::out << " " << ltdofs;
          }
          mfem::out << "\n";
       }
       else
       {
-         MPI_Send(&ltdofs, 1, MPI_LONG, 0, 123, MyComm);
+         MPI_Send(&ltdofs, 1, MPI_LONG_LONG, 0, 123, MyComm);
       }
    }
 }
@@ -3204,6 +3204,9 @@ void ParFiniteElementSpace::CopyProlongationAndRestriction(
    MFEM_VERIFY(pfes != NULL, "");
    MFEM_VERIFY(P == NULL, "");
    MFEM_VERIFY(R == NULL, "");
+
+   // Ensure R and P matrices are built
+   pfes->Dof_TrueDof_Matrix();
 
    SparseMatrix *perm_mat = NULL, *perm_mat_tr = NULL;
    if (perm)
