@@ -261,7 +261,7 @@ Integrations, testing and documentation
   * HYPRE >= 2.23.0 for HIP support
   * libCEED >= 0.10
   * PUMI >= 2.2.6
-  * RAJA >= 2022.10.2
+  * RAJA >= 0.14.0
   * Umpire >= 3.0.0
   see INSTALL for more details.
 
