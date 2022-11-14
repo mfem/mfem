@@ -64,10 +64,6 @@ void VisualizeMesh(socketstream &sock, const char *vishost, int visport,
    int connection_failed;
 
    const int dim = mesh.Dimension();
-   L2_FECollection attr_col(0, mesh.Dimension());
-   FiniteElementSpace attr_fes(&mesh, &attr_col);
-   GridFunction attr(&attr_fes);
-   attr = 0.0;
 
    do
    {
@@ -77,10 +73,9 @@ void VisualizeMesh(socketstream &sock, const char *vishost, int visport,
          sock.precision(8);
          newly_opened = true;
       }
-      sock << "solution\n";
+      sock << "mesh\n";
 
       mesh.Print(sock);
-      attr.Save(sock);
 
       if (newly_opened)
       {
