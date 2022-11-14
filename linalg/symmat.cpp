@@ -70,7 +70,7 @@ const double &DenseSymmetricMatrix::Elem(int i, int j) const
 
 DenseSymmetricMatrix &DenseSymmetricMatrix::operator*=(double c)
 {
-   int s = Height()*(Height()+1)/2;
+   int s = GetStoredSize();
    for (int i = 0; i < s; i++)
    {
       data[i] *= c;

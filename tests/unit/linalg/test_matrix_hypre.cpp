@@ -88,7 +88,7 @@ TEST_CASE("HypreParMatrixAbsMult",  "[Parallel], [HypreParMatrixAbsMult]")
       Y1 -=Y0;
       double error = Y1.Norml2();
 
-      std::cout << "Testing AbsMult:   order: " << order
+      mfem::out << "Testing AbsMult:   order: " << order
                 << ", error norm on rank "
                 << rank << ": " << error << std::endl;
 
@@ -104,7 +104,7 @@ TEST_CASE("HypreParMatrixAbsMult",  "[Parallel], [HypreParMatrixAbsMult]")
       X1 -=X0;
 
       error = X1.Norml1();
-      std::cout << "Testing AbsMultT:  order: " << order
+      mfem::out << "Testing AbsMultT:  order: " << order
                 << ", error norm on rank "
                 << rank << ": " << error << std::endl;
 

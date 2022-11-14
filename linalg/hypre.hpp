@@ -43,6 +43,19 @@
 #error "MFEM_USE_HIP=YES is required when HYPRE is built with HIP!"
 #endif
 
+// MFEM_HYPRE_FORALL is a macro similar to MFEM_FORALL, but it executes on the
+// device that hypre was configured with (no matter what device was selected
+// in MFEM's runtime configuration).
+#if defined(HYPRE_USING_CUDA)
+#define MFEM_HYPRE_FORALL(i, N,...) CuWrap1D(N, [=] MFEM_DEVICE      \
+                                       (int i) {__VA_ARGS__})
+#elif defined(HYPRE_USING_HIP)
+#define MFEM_HYPRE_FORALL(i, N,...) HipWrap1D(N, [=] MFEM_DEVICE     \
+                                        (int i) {__VA_ARGS__})
+#else
+#define MFEM_HYPRE_FORALL(i, N,...) for (int i = 0; i < N; i++) { __VA_ARGS__ }
+#endif
+
 #include "sparsemat.hpp"
 #include "hypre_parcsr.hpp"
 
@@ -314,13 +327,6 @@ public:
 
    /// Calls hypre's destroy function
    ~HypreParVector();
-
-#ifdef MFEM_USE_SUNDIALS
-   /// (DEPRECATED) Return a new wrapper SUNDIALS N_Vector of type SUNDIALS_NVEC_PARALLEL.
-   /** @deprecated The returned N_Vector must be destroyed by the caller. */
-   MFEM_DEPRECATED virtual N_Vector ToNVector();
-   using Vector::ToNVector;
-#endif
 };
 
 /// Returns the inner product of x and y
@@ -645,21 +651,53 @@ public:
 
    virtual MemoryClass GetMemoryClass() const { return GetHypreMemoryClass(); }
 
+   /// Ensure the action of the transpose is performed fast.
+   /** When HYPRE is built for GPUs, this method will construct and store the
+       transposes of the 'diag' and 'offd' CSR matrices. When HYPRE is not built
+       for GPUs, this method is a no-op.
+
+       This method is automatically called by MultTranspose().
+
+       If the matrix is modified the old transpose blocks can be deleted by
+       calling ResetTranspose(). */
+   void EnsureMultTranspose() const;
+
+   /** @brief Reset (destroy) the internal transpose matrix that is created by
+       EnsureMultTranspose() and MultTranspose().
+
+       If the matrix is modified, this method should be called to delete the
+       out-of-date transpose that is stored internally. */
+   void ResetTranspose() const;
+
    /// Computes y = alpha * A * x + beta * y
    HYPRE_Int Mult(HypreParVector &x, HypreParVector &y,
                   double alpha = 1.0, double beta = 0.0) const;
    /// Computes y = alpha * A * x + beta * y
    HYPRE_Int Mult(HYPRE_ParVector x, HYPRE_ParVector y,
                   double alpha = 1.0, double beta = 0.0) const;
+
    /// Computes y = alpha * A^t * x + beta * y
+   /** If the matrix is modified, call ResetTranspose() and optionally
+       EnsureMultTranspose() to make sure this method uses the correct updated
+       transpose. */
    HYPRE_Int MultTranspose(HypreParVector &x, HypreParVector &y,
                            double alpha = 1.0, double beta = 0.0) const;
 
    void Mult(double a, const Vector &x, double b, Vector &y) const;
+
+   /// Computes y = alpha * A^t * x + beta * y
+   /** If the matrix is modified, call ResetTranspose() and optionally
+       EnsureMultTranspose() to make sure this method uses the correct updated
+       transpose. */
    void MultTranspose(double a, const Vector &x, double b, Vector &y) const;
 
    virtual void Mult(const Vector &x, Vector &y) const
    { Mult(1.0, x, 0.0, y); }
+
+   /// Computes y = A^t * x
+   /** If the matrix is modified, call ResetTranspose() and optionally
+       EnsureMultTranspose() to make sure this method uses the correct updated
+       transpose. */
    virtual void MultTranspose(const Vector &x, Vector &y) const
    { MultTranspose(1.0, x, 0.0, y); }
 
@@ -776,6 +814,14 @@ public:
    void EliminateBC(const HypreParMatrix &Ae, const Array<int> &ess_dof_list,
                     const Vector &X, Vector &B) const;
 
+   /** @brief Eliminate essential (Dirichlet) boundary conditions.
+
+       @param[in] ess_dofs indices of the degrees of freedom belonging to the
+                           essential boundary conditions.
+       @param[in] diag_policy policy for diagonal entries. */
+   void EliminateBC(const Array<int> &ess_dofs,
+                    DiagonalPolicy diag_policy);
+
    /// Update the internal hypre_ParCSRMatrix object, A, to be on host.
    /** After this call A's diagonal and off-diagonal should not be modified
        until after a suitable call to {Host,Hypre}{Write,ReadWrite}. */
@@ -812,6 +858,14 @@ public:
        current data. */
    void HypreWrite() { Write(GetHypreMemoryClass()); }
 
+   Memory<HYPRE_Int> &GetDiagMemoryI() { return mem_diag.I; }
+   Memory<HYPRE_Int> &GetDiagMemoryJ() { return mem_diag.J; }
+   Memory<double> &GetDiagMemoryData() { return mem_diag.data; }
+
+   const Memory<HYPRE_Int> &GetDiagMemoryI() const { return mem_diag.I; }
+   const Memory<HYPRE_Int> &GetDiagMemoryJ() const { return mem_diag.J; }
+   const Memory<double> &GetDiagMemoryData() const { return mem_diag.data; }
+
    /// Prints the locally owned rows in parallel
    void Print(const char *fname, HYPRE_Int offi = 0, HYPRE_Int offj = 0) const;
    /// Reads the matrix from a file
@@ -834,6 +888,18 @@ public:
 
    Type GetType() const { return Hypre_ParCSR; }
 };
+
+/// @brief Make @a A_hyp steal ownership of its diagonal part @a A_diag.
+///
+/// If @a A_hyp does not own I and J, then they are aliases pointing to the I
+/// and J arrays in @a A_diag. In that case, this function swaps the memory
+/// objects. Similarly for the data array.
+///
+/// After this function is called, @a A_hyp will own all of the arrays of its
+/// diagonal part.
+///
+/// @note I and J can only be aliases when HYPRE_BIGINT is disabled.
+void HypreStealOwnership(HypreParMatrix &A_hyp, SparseMatrix &A_diag);
 
 #if MFEM_HYPRE_VERSION >= 21800
 
@@ -1049,6 +1115,12 @@ protected:
    /// How to treat hypre errors.
    mutable ErrorMode error_mode;
 
+   /// @brief Makes the internal HypreParVector%s @a B and @a X wrap the input
+   /// vectors @a b and @a x.
+   ///
+   /// Returns true if @a x can be shallow-copied, false otherwise.
+   bool WrapVectors(const Vector &b, Vector &x) const;
+
 public:
    HypreSolver();
 
@@ -1062,14 +1134,30 @@ public:
    /// hypre's internal Solve function
    virtual HYPRE_PtrToParSolverFcn SolveFcn() const = 0;
 
+   ///@{
+
+   /// @brief Set up the solver (if not set up already, also called
+   /// automatically by HypreSolver::Mult).
+   virtual void Setup(const HypreParVector &b, HypreParVector &x) const;
+   /// @brief Set up the solver (if not set up already, also called
+   /// automatically by HypreSolver::Mult).
+   virtual void Setup(const Vector &b, Vector &x) const;
+
+   ///@}
+
    virtual void SetOperator(const Operator &op)
    { mfem_error("HypreSolvers do not support SetOperator!"); }
 
    virtual MemoryClass GetMemoryClass() const { return GetHypreMemoryClass(); }
 
+   ///@{
+
    /// Solve the linear system Ax=b
    virtual void Mult(const HypreParVector &b, HypreParVector &x) const;
+   /// Solve the linear system Ax=b
    virtual void Mult(const Vector &b, Vector &x) const;
+
+   ///@}
 
    /** @brief Set the behavior for treating hypre errors, see the ErrorMode
        enum. The default mode in the base class is ABORT_HYPRE_ERRORS. */
@@ -1154,6 +1242,12 @@ public:
       num_iterations = internal::to_int(num_it);
    }
 
+   void GetFinalResidualNorm(double &final_res_norm) const
+   {
+      HYPRE_ParCSRPCGGetFinalRelativeResidualNorm(pcg_solver,
+                                                  &final_res_norm);
+   }
+
    /// The typecast to HYPRE_Solver returns the internal pcg_solver
    virtual operator HYPRE_Solver() const { return pcg_solver; }
 
@@ -1205,6 +1299,19 @@ public:
    /// non-hypre setting
    void SetZeroInitialIterate() { iterative_mode = false; }
 
+   void GetNumIterations(int &num_iterations) const
+   {
+      HYPRE_Int num_it;
+      HYPRE_ParCSRGMRESGetNumIterations(gmres_solver, &num_it);
+      num_iterations = internal::to_int(num_it);
+   }
+
+   void GetFinalResidualNorm(double &final_res_norm) const
+   {
+      HYPRE_ParCSRGMRESGetFinalRelativeResidualNorm(gmres_solver,
+                                                    &final_res_norm);
+   }
+
    /// The typecast to HYPRE_Solver returns the internal gmres_solver
    virtual operator HYPRE_Solver() const  { return gmres_solver; }
 
@@ -1254,6 +1361,19 @@ public:
 
    /// non-hypre setting
    void SetZeroInitialIterate() { iterative_mode = false; }
+
+   void GetNumIterations(int &num_iterations) const
+   {
+      HYPRE_Int num_it;
+      HYPRE_ParCSRFlexGMRESGetNumIterations(fgmres_solver, &num_it);
+      num_iterations = internal::to_int(num_it);
+   }
+
+   void GetFinalResidualNorm(double &final_res_norm) const
+   {
+      HYPRE_ParCSRFlexGMRESGetFinalRelativeResidualNorm(fgmres_solver,
+                                                        &final_res_norm);
+   }
 
    /// The typecast to HYPRE_Solver returns the internal fgmres_solver
    virtual operator HYPRE_Solver() const  { return fgmres_solver; }
@@ -1331,6 +1451,11 @@ public:
 
    virtual void SetOperator(const Operator &op);
 
+   void SetParams(double threshold, int max_levels);
+   void SetFilter(double filter);
+   void SetLoadBal(double loadbal);
+   void SetReuse(int reuse);
+   void SetLogging(int logging);
    void SetSymmetry(int sym);
 
    /// The typecast to HYPRE_Solver returns the internal sai_precond
@@ -1369,6 +1494,12 @@ public:
    HypreEuclid(MPI_Comm comm);
 
    HypreEuclid(const HypreParMatrix &A);
+
+   void SetLevel(int level);
+   void SetStats(int stats);
+   void SetMemory(int mem);
+   void SetBJ(int bj);
+   void SetRowScale(int row_scale);
 
    virtual void SetOperator(const Operator &op);
 
@@ -1420,6 +1551,11 @@ public:
 
    /// Set the fill level for ILU(k); the default is k=1.
    void SetLevelOfFill(HYPRE_Int lev_fill);
+
+   void SetType(HYPRE_Int ilu_type);
+   void SetMaxIter(HYPRE_Int max_iter);
+   void SetTol(HYPRE_Real tol);
+   void SetLocalReordering(HYPRE_Int reorder_type);
 
    /// Set the print level: 0 = none, 1 = setup, 2 = solve, 3 = setup+solve
    void SetPrintLevel(HYPRE_Int print_level);
@@ -1596,11 +1732,20 @@ HypreParMatrix* DiscreteCurl(ParFiniteElementSpace *face_fespace,
 class HypreAMS : public HypreSolver
 {
 private:
-   /// Constuct AMS solver from finite element space
+   /// Construct AMS solver from finite element space
    void Init(ParFiniteElementSpace *edge_space);
 
-   HYPRE_Solver ams;
+   /// Create the hypre solver object and set the default options, given the
+   /// space dimension @a sdim and cycle type @a cycle_type.
+   void MakeSolver(int sdim, int cycle_type);
 
+   /// Construct the gradient and interpolation matrices associated with
+   /// @a edge_fespace, and add them to the solver.
+   void MakeGradientAndInterpolation(ParFiniteElementSpace *edge_fespace,
+                                     int cycle_type);
+
+   /// The underlying hypre solver object
+   HYPRE_Solver ams;
    /// Vertex coordinates
    HypreParVector *x, *y, *z;
    /// Discrete gradient matrix
@@ -1608,17 +1753,46 @@ private:
    /// Nedelec interpolation matrix and its components
    HypreParMatrix *Pi, *Pix, *Piy, *Piz;
 
+   /// AMS cycle type
+   int ams_cycle_type = 0;
+   /// Spatial dimension of the underlying mesh
+   int space_dim = 0;
+   /// Flag set if `SetSingularProblem` is called, needed in `ResetAMSPrecond`
+   bool singular = false;
+   /// Flag set if `SetPrintLevel` is called, needed in `ResetAMSPrecond`
+   int print_level = 1;
+
+   // Recreates another AMS solver with the same options when SetOperator is
+   // called multiple times.
+   void ResetAMSPrecond();
+
 public:
+   /// @brief Construct the AMS solver on the given edge finite element space.
+   ///
+   /// HypreAMS::SetOperator must be called to set the system matrix.
    HypreAMS(ParFiniteElementSpace *edge_fespace);
 
+   /// Construct the AMS solver using the given matrix and finite element space.
    HypreAMS(const HypreParMatrix &A, ParFiniteElementSpace *edge_fespace);
+
+   /// @brief Construct the AMS solver using the provided discrete gradient
+   /// matrix @a G_ and the vertex coordinate vectors @a x_, @a y_, and @a z_.
+   ///
+   /// For 2D problems, @a z_ may be NULL. All other parameters must be
+   /// non-NULL. The solver assumes ownership of G_, x_, y_, and z_.
+   HypreAMS(const HypreParMatrix &A, HypreParMatrix *G_, HypreParVector *x_,
+            HypreParVector *y_, HypreParVector *z_=NULL);
 
    virtual void SetOperator(const Operator &op);
 
    void SetPrintLevel(int print_lvl);
 
    /// Set this option when solving a curl-curl problem with zero mass term
-   void SetSingularProblem() { HYPRE_AMSSetBetaPoissonMatrix(ams, NULL); }
+   void SetSingularProblem()
+   {
+      HYPRE_AMSSetBetaPoissonMatrix(ams, NULL);
+      singular = true;
+   }
 
    /// The typecast to HYPRE_Solver returns the internal ams object
    virtual operator HYPRE_Solver() const { return ams; }
@@ -1635,8 +1809,16 @@ public:
 class HypreADS : public HypreSolver
 {
 private:
-   /// Constuct ADS solver from finite element space
+   /// Construct ADS solver from finite element space
    void Init(ParFiniteElementSpace *face_fespace);
+
+   /// Create the hypre solver object and set the default options, using the
+   /// cycle type cycle_type and AMS cycle type ams_cycle_type data members.
+   void MakeSolver();
+
+   /// Construct the discrete curl, gradient and interpolation matrices
+   /// associated with @a face_fespace, and add them to the solver.
+   void MakeDiscreteMatrices(ParFiniteElementSpace *face_fespace);
 
    HYPRE_Solver ads;
 
@@ -1651,10 +1833,29 @@ private:
    /// Raviart-Thomas interpolation matrix and its components
    HypreParMatrix *RT_Pi, *RT_Pix, *RT_Piy, *RT_Piz;
 
+   /// ADS cycle type
+   const int cycle_type = 11;
+   /// AMS cycle type
+   const int ams_cycle_type = 14;
+   /// ADS print level
+   int print_level = 1;
+
+   // Recreates another ADS solver with the same options when SetOperator is
+   // called multiple times.
+   void ResetADSPrecond();
 public:
    HypreADS(ParFiniteElementSpace *face_fespace);
 
    HypreADS(const HypreParMatrix &A, ParFiniteElementSpace *face_fespace);
+
+   /// @brief Construct the ADS solver using the provided discrete curl matrix
+   /// @a C, discrete gradient matrix @a G_ and vertex coordinate vectors @a x_,
+   /// @a y_, and @a z_.
+   ///
+   /// None of the inputs may be NULL. The solver assumes ownership of C_, G_,
+   /// x_, y_, and z_.
+   HypreADS(const HypreParMatrix &A, HypreParMatrix *C_, HypreParMatrix *G_,
+            HypreParVector *x_, HypreParVector *y_, HypreParVector *z_);
 
    virtual void SetOperator(const Operator &op);
 

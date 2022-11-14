@@ -667,7 +667,7 @@ bool StringCompare(const char *s1, const char *s2)
    return strcmp(s1, s2) == 0;
 }
 
-/// Abstract base class for reading continguous arrays of (potentially
+/// Abstract base class for reading contiguous arrays of (potentially
 /// compressed, potentially base-64 encoded) binary data from a buffer into a
 /// destination array. The types of the source and destination arrays may be
 /// different (e.g. read data of type uint8_t into destination array of
@@ -1671,11 +1671,11 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
             -1,-1, /* unsupported tetrahedral types */
             -1,-1, /* unsupported polygonal and polyhedral types */
             16,  /* 16-node third order quadrilateral (4 nodes associated with
-                    the vertices, 8 with the edges, 4 wth the face) */
+                    the vertices, 8 with the edges, 4 with the face) */
             25,  /* 25-node fourth order quadrilateral (4 nodes associated with
-                    the vertices, 12 with the edges, 9 wth the face) */
+                    the vertices, 12 with the edges, 9 with the face) */
             36,  /* 36-node fifth order quadrilateral (4 nodes associated with
-                    the vertices, 16 with the edges, 16 wth the face) */
+                    the vertices, 16 with the edges, 16 with the face) */
             -1,-1,-1, /* unsupported quadrilateral types */
             28,  /* 28-node sixth order complete triangle (3 nodes associated
                     with the vertices, 15 with the edges, 10 with the face) */
@@ -1688,15 +1688,15 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
             66,  /* 66-node tenth order complete triangle (3 nodes associated
                     with the vertices, 27 with the edges, 36 with the face) */
             49,  /* 49-node sixth order quadrilateral (4 nodes associated with
-                    the vertices, 20 with the edges, 25 wth the face) */
+                    the vertices, 20 with the edges, 25 with the face) */
             64,  /* 64-node seventh order quadrilateral (4 nodes associated with
-                    the vertices, 24 with the edges, 36 wth the face) */
+                    the vertices, 24 with the edges, 36 with the face) */
             81,  /* 81-node eighth order quadrilateral (4 nodes associated with
-                    the vertices, 28 with the edges, 49 wth the face) */
+                    the vertices, 28 with the edges, 49 with the face) */
             100, /* 100-node ninth order quadrilateral (4 nodes associated with
-                    the vertices, 32 with the edges, 64 wth the face) */
+                    the vertices, 32 with the edges, 64 with the face) */
             121, /* 121-node tenth order quadrilateral (4 nodes associated with
-                    the vertices, 36 with the edges, 81 wth the face) */
+                    the vertices, 36 with the edges, 81 with the face) */
             -1,-1,-1,-1,-1, /* unsupported triangular types */
             -1,-1,-1,-1,-1, /* unsupported quadrilateral types */
             7,   /* 7-node sixth order edge (2 nodes associated with the

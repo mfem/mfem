@@ -36,6 +36,7 @@
 #include "general/version.hpp"
 #include "general/globals.hpp"
 #include "general/kdtree.hpp"
+#include "general/enzyme.hpp"
 #ifdef MFEM_USE_MPI
 #include "general/communication.hpp"
 #endif // MFEM_USE_MPI

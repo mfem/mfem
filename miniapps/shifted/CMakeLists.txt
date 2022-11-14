@@ -15,7 +15,7 @@ if (MFEM_USE_MPI)
         sbm_solver.cpp
         marking.cpp
         extrapolator.cpp
-	kdtree.cpp)
+	integ_algoim.cpp)
 
   list(APPEND DIST_COMMON_HEADERS
         dist_solver.hpp
@@ -23,7 +23,7 @@ if (MFEM_USE_MPI)
         sbm_aux.hpp
         marking.hpp
         extrapolator.hpp
-	kdtree.hpp)
+	integ_algoim.hpp)
 
   convert_filenames_to_full_paths(DIST_COMMON_SOURCES)
   convert_filenames_to_full_paths(DIST_COMMON_HEADERS)
@@ -47,8 +47,8 @@ if (MFEM_USE_MPI)
     ${DIST_COMMON_FILES}
     LIBRARIES mfem mfem-common)
 
-  add_mfem_miniapp(kdtree_test
-    MAIN kdtree_test.cpp
+  add_mfem_miniapp(lsf_integral
+    MAIN lsf_integral.cpp
     ${DIST_COMMON_FILES}
     LIBRARIES mfem mfem-common)
 
