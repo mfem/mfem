@@ -31,6 +31,7 @@ list(APPEND SRCS
   tinyxml2.cpp
   version.cpp
   hip.cpp
+  kdtree.cpp
   )
 
 list(APPEND HDRS
@@ -63,6 +64,7 @@ list(APPEND HDRS
   text.hpp
   version.hpp
   hip.hpp
+  kdtree.hpp
   )
 
 if (MFEM_USE_MPI)
