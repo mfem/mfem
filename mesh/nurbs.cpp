@@ -2634,6 +2634,8 @@ void NURBSExtension::GenerateElementDofTable()
       Generate3DElementDofTable();
    }
 
+   SetPatchToElements();
+
    NumOfActiveDofs = 0;
    for (int d = 0; d < GetNTotalDof(); d++)
       if (activeDof[d])
@@ -3329,10 +3331,7 @@ void NURBSExtension::SetPatchToBdrElements()
 
 const Array<int>& NURBSExtension::GetPatchElements(int patch)
 {
-   if (patch_to_el.size() == 0)
-   {
-      SetPatchToElements();
-   }
+   MFEM_ASSERT(patch_to_el.size() > 0, "patch_to_el not set");
 
    return patch_to_el[patch];
 }
