@@ -385,11 +385,20 @@ public:
    void GetVertexLocalToGlobal(Array<int> &lvert_vert);
    void GetElementLocalToGlobal(Array<int> &lelem_elem);
 
+   // Set the attribute for patch @a i, which is set to all elements in the
+   // patch.
    void SetPatchAttribute(int i, int attr) { patchTopo->SetAttribute(i, attr); }
+
+   // Get the attribute for patch @a i, which is set to all elements in the
+   // patch.
    int GetPatchAttribute(int i) const { return patchTopo->GetAttribute(i); }
 
+   // Set the attribute for patch boundary element @a i, which is set to all
+   // boundary elements in the patch.
    void SetPatchBdrAttribute(int i, int attr)
    { patchTopo->SetBdrAttribute(i, attr); }
+   // Get the attribute for patch boundary element @a i, which is set to all
+   // boundary elements in the patch.
    int GetPatchBdrAttribute(int i) const
    { return patchTopo->GetBdrAttribute(i); }
 
