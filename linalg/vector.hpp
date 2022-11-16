@@ -661,6 +661,12 @@ inline double Distance(const double *x, const double *y, const int n)
    return std::sqrt(DistanceSquared(x, y, n));
 }
 
+inline double Distance(const Vector &x, const Vector &y)
+{
+   MFEM_ASSERT(x.Size() == y.Size(), "Incompatible vector sizes.");
+   return Distance(x.HostRead(), y.HostRead(), x.Size());
+}
+
 inline double Vector::DistanceSquaredTo(const double *p) const
 {
    return DistanceSquared(data, p, size);
