@@ -55,9 +55,9 @@ struct s_NavierContext
 {
    int ser_ref_levels = 1; //Serial Refinement Levels
    int order = 6; // Finite Element function space order
-   double kinvis = 0.0001; //Kinematic viscocity - SET THIS TO APPROPRIATE VALUE
-   double t_final = 10 * 0.001; //Final time of simulation
+   double kinvis = 0.0014607; //Kinematic viscocity - SET THIS TO APPROPRIATE VALUE
    double dt = 0.001; //Time-step size
+   double t_final = 25 * dt; //Final time of simulation
    double reference_pressure = 0.0; //Reference Pressure
    bool pa = true;
    bool ni = false;
@@ -179,10 +179,18 @@ int main(int argc, char *argv[])
    Array<int> attr(pmesh->bdr_attributes.Max());
    // Inlet is attribute 1.
    attr[0] = 1;
-   // Walls is attribute 3.
+   // Outlet is arttribute 2.
+   attr[1] = 0; 
+   // Top symmetry is attribute 3.
    attr[2] = 1;
+   // Bottom symmetry is attribute 4.
+   attr[3] = 1;
+   // Plate is attribute 5.
+   attr[4] = 1;
    flowsolver.AddVelDirichletBC(vel_inlet, attr[0]);
-   flowsolver.AddVelDirichletBC(vel_wall, attr[2]);
+   flowsolver.AddVelDirichletBC(vel_slip, attr[2]);
+   flowsolver.AddVelDirichletBC(vel_slip, attr[3]);
+   flowsolver.AddVelDirichletBC(vel_plate, attr[4]);
    // ===============================================================
 
    double t = 0.0; //Start time
@@ -288,23 +296,16 @@ int main(int argc, char *argv[])
 // Dirichlet conditions for uniform flow velocity in the inlet
 void vel_inlet(const Vector &x, double t, Vector &u)
 {
-   double xi = x(0);
-   double yi = x(1);
-
    double U = 68.058;
-   double edge_of_plate = 0.1;
-
-   if(xi <= edge_of_plate)
-   {
-   	u(0) = U;
-   }
-   else
-   {
-	u(0) = 0;
-   }
+   u(0) = U;
    u(1) = 0.;
 }
 
+// Symmetry condition for top and bottom walls of domain
+void vel_slip(const Vector &x, double t, Vector &u)
+{
+   u(1) = 0.;
+}
 // Initial conditions for velocity everywhere in domain
 void vel_ic(const Vector &x, double t, Vector &u)
 {
@@ -313,9 +314,9 @@ void vel_ic(const Vector &x, double t, Vector &u)
    u(1) = 0.;
 }
 
-// Direchlet 0 m/s at walls.
-void vel_wall(const Vector &x, double t, Vector &u)
+// Direchlet 0 m/s at plate.
+void vel_plate(const Vector &x, double t, Vector &u)
 {
-	u(0) = 0.;
-	u(1) = 0.;
+   u(0) = 0.;
+   u(1) = 0.;
 }
