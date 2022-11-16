@@ -113,23 +113,13 @@ int main (int argc, char *argv[])
    auto target_c = new TargetConstructor(target_t, MPI_COMM_WORLD);
    target_c->SetNodes(x0);
 
-   H1_FECollection fec_1(1, dim);
-   ParFiniteElementSpace pfes_1(&pmesh, &fec_1, dim);
-   ParGridFunction x_1(&pfes_1);
-
-
    cout << "HO detJ: " << MinDetJ(pmesh, 8) << endl;
-
-   TransferHighToLow(x, x_1);
-   OptimizeMesh(x_1, *metric, 4);
    {
       socketstream vis_g;
       common::VisualizeMesh(vis_g, "localhost", 19916, pmesh,
-                             "LO Optimized", 400, 0, 400, 400, "mpRj");
+                            "Initial mesh", 0, 0, 400, 400, "mpRj");
    }
 
-   // If needed, perform worst-case optimization with fixed boundary.
-   TransferLowToHigh(x_1, x);
    OptimizeMesh(x, *metric, 8);
    {
       socketstream vis_g;
@@ -293,13 +283,15 @@ void OptimizeMesh(ParGridFunction &x,
 {
    ParMesh &pmesh = *x.ParFESpace()->GetParMesh();
 
-   GridFunction *ptr = &x;
+   GridFunction *ptr_nodes = pmesh.GetNodes();
+   GridFunction *ptr_x = &x;
    int dont_own_nodes = 0;
-   pmesh.SwapNodes(ptr, dont_own_nodes);
+   pmesh.SwapNodes(ptr_x, dont_own_nodes);
 
    ParFiniteElementSpace &pfes = *x.ParFESpace();
 
-   cout << "\n*** Optimizing Order " << pfes.GetFE(0)->GetOrder() << " ***\n\n";
+   const int order = pfes.GetFE(0)->GetOrder(), dim = pmesh.Dimension();
+   cout << "\n*** Optimizing Order " << order << " ***\n\n";
    cout << "Min detJ before opt: " << MinDetJ(pmesh, quad_order) << endl;
 
    // Metric / target / integrator.
@@ -333,18 +325,31 @@ void OptimizeMesh(ParGridFunction &x,
    solver.SetOperator(nlf);
    solver.SetPreconditioner(minres);
    solver.SetMaxIter(1000);
-   solver.SetRelTol(1e-8);
-   solver.SetAbsTol(0.0);
+   solver.SetRelTol(0.0);
    IterativeSolver::PrintLevel newton_pl;
    solver.SetPrintLevel(newton_pl.Iterations().Summary());
 
    // Optimize.
-   x.SetTrueVector();
    Vector b;
+
+   double residual_0 = solver.GetResidual(b, x);
+   double abs_tol = residual_0 * 1e-8;
+   if (order > 1)
+   {
+      H1_FECollection fec_1(1, dim);
+      ParFiniteElementSpace pfes_1(&pmesh, &fec_1, dim);
+      ParGridFunction x_1(&pfes_1);
+      TransferHighToLow(x, x_1);
+      OptimizeMesh(x_1, metric, 4);
+      TransferLowToHigh(x_1, x);
+   }
+
+   x.SetTrueVector();
+   solver.SetAbsTol(abs_tol);
    solver.Mult(b, x.GetTrueVector());
    x.SetFromTrueVector();
 
    cout << "Min detJ after opt: " << MinDetJ(pmesh, quad_order) << endl;
 
-   return;
+   pmesh.SwapNodes(ptr_nodes, dont_own_nodes);
 }

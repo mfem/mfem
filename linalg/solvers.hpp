@@ -660,6 +660,9 @@ public:
    /** This method is equivalent to calling SetPreconditioner(). */
    virtual void SetSolver(Solver &solver) { prec = &solver; }
 
+   /// Get the system residual for the given @a x and right-hand side @a b.
+   double GetResidual(const Vector &b, const Vector &x) const;
+
    /// Solve the nonlinear system with right-hand side @a b.
    /** If `b.Size() != Height()`, then @a b is assumed to be zero. */
    virtual void Mult(const Vector &b, Vector &x) const;
