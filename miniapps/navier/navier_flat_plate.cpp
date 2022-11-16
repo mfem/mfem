@@ -9,33 +9,33 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 //
-// Incompressible Navier Stokes Flat Plate stagnation flow example
+// Incompressible Navier-Stokes stagnation flat plate example
 //
-// Solve for the steady Flat Plate stagnation flow at Re =  defined by
-// P = 101325Pa (1 atm)
+// Solve for steady flow defined by:
+// P = 101325Pa (sea level condition)
 // u = 68.058 m/s (Mach 0.2)
-// mu = 1.7894x10^-5 Kg /m * s (for atmospheric)
-// mu = 1.7894x10^-3 Kg /m * s (scaled by 100 to remain laminar)
-// Re_x = 4.66x10^4
-// rho = 1.225 km/m^3
+// mu = 1.7894x10^-3 Kg /m * s (sea level condition scaled by 100 to ensure
+//     the flow remains laminar)
+// Re_x = 4.66x10^4 (at the end of the plate)
+// rho = 1.225 km/m^3 (sea level condition)
 //
 // The 2D problem domain is set up like this:
-//
 // 
-// Uniform inflow passes over a flat plate of 1m is with its leading edge 
-// located at 0.1m into the domain. The Fluid domain models the entire domain, 
-// minus the flat plate, and the incompressible Navier-Stokes equations are 
-// solved on it:
+// Uniform flow from the left passes over a flat plate of 1m in length with its
+// leading edge located at 0.1m into the domain. The incompressible
+// Navier-Stokes equations are modeled throughout the entire domain as
+// illustrated below:
 //
-//                                Atmosphere
+//                 Atmosphere (symmetry boundary condition)
 //                 ________________________________________
 //                |                                        |
 //                |             FLUID DOMAIN               |
 //                |                                        |
-//   -->inflow    |                                        | --> outflow
-//     (attr=1)   |                                        |     (attr=2)
-//                |_____------------------------------_____|
-//                               Flat Plate
+//   --> inflow   |                                        | --> outflow
+//   (attr=1)     |                                        | (attr=2)
+//                |_____-----------------------------------|
+//
+//                                  Flat Plate
 //
 // Uniform Dirichlet velocity conditions are imposed at inflow (attr=1) and
 // homogeneous Dirichlet conditions are imposed on all surface (attr=3) except
