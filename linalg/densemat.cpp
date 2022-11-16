@@ -180,7 +180,7 @@ void DenseMatrix::Mult(const Vector &x, Vector &y) const
    MFEM_ASSERT(height == y.Size() && width == x.Size(),
                "incompatible dimensions");
 
-   Mult((const double *)x, (double *)y);
+   Mult(x.HostRead(), y.HostWrite());
 }
 
 double DenseMatrix::operator *(const DenseMatrix &m) const
@@ -218,7 +218,7 @@ void DenseMatrix::MultTranspose(const Vector &x, Vector &y) const
    MFEM_ASSERT(height == x.Size() && width == y.Size(),
                "incompatible dimensions");
 
-   MultTranspose((const double *)x, (double *)y);
+   MultTranspose(x.HostRead(), y.HostWrite());
 }
 
 void DenseMatrix::AddMult(const Vector &x, Vector &y) const
@@ -226,8 +226,8 @@ void DenseMatrix::AddMult(const Vector &x, Vector &y) const
    MFEM_ASSERT(height == y.Size() && width == x.Size(),
                "incompatible dimensions");
 
-   const double *xp = x, *d_col = data;
-   double *yp = y;
+   const double *xp = x.HostRead(), *d_col = data;
+   double *yp = y.HostReadWrite();
    for (int col = 0; col < width; col++)
    {
       double x_col = xp[col];
@@ -262,8 +262,8 @@ void DenseMatrix::AddMult_a(double a, const Vector &x, Vector &y) const
    MFEM_ASSERT(height == y.Size() && width == x.Size(),
                "incompatible dimensions");
 
-   const double *xp = x, *d_col = data;
-   double *yp = y;
+   const double *xp = x.HostRead(), *d_col = data;
+   double *yp = y.HostReadWrite();
    for (int col = 0; col < width; col++)
    {
       const double x_col = a*xp[col];
@@ -1181,7 +1181,7 @@ void DenseMatrix::SingularValues(Vector &sv) const
    int         n            = Width();
    double      *a           = copy_of_this.data;
    sv.SetSize(min(m, n));
-   double      *s           = sv;
+   double      *s           = sv.HostReadWrite();
    double      *u           = NULL;
    double      *vt          = NULL;
    double      *work        = NULL;
@@ -4179,7 +4179,7 @@ const
    const double *d_col = tdata;
    double *yp = y.HostReadWrite();
    double x_col;
-   const double *xp = x;
+   const double *xp = x.HostRead();
    // the '4' here can be tuned for given platform and compiler
    if (n <= 4)
    {

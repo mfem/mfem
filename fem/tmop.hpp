@@ -1082,7 +1082,7 @@ public:
    {
       MFEM_ASSERT(x.Size() == x0.Size(), "Bad input.");
 
-      return 0.5 * x.DistanceSquaredTo(x0) / (dist * dist);
+      return 0.5 * x.DistanceSquaredTo(x0.HostRead()) / (dist * dist);
    }
 
    virtual void Eval_d1(const Vector &x, const Vector &x0, double dist,

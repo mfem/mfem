@@ -353,7 +353,7 @@ public:
          GridFunction *nodes = by_vdim ? &x0 : S.fes->GetMesh()->GetNodes();
          x.HostReadWrite();
          nodes->HostRead();
-         double rnorm = nodes->DistanceTo(x) / nodes->Norml2();
+         double rnorm = nodes->DistanceTo(x.HostRead()) / nodes->Norml2();
          if (!opt.id) { mfem::out << "rnorm = " << rnorm << std::endl; }
          const double lambda = opt.lambda;
          if (by_vdim)

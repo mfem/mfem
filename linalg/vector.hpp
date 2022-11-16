@@ -209,15 +209,11 @@ public:
    inline double *GetData() const
    { return const_cast<double*>((const double*)data); }
 
-   /// Conversion to `double *`.
-   /** @note This conversion function makes it possible to use [] for indexing
-       in addition to the overloaded operator()(int). */
-   inline operator double *() { return data; }
+   /// Conversion to `double *`. Deprecated.
+   MFEM_DEPRECATED inline operator double *() { return data; }
 
-   /// Conversion to `const double *`.
-   /** @note This conversion function makes it possible to use [] for indexing
-       in addition to the overloaded operator()(int). */
-   inline operator const double *() const { return data; }
+   /// Conversion to `const double *`. Deprecated.
+   MFEM_DEPRECATED inline operator const double *() const { return data; }
 
    /// STL-like begin.
    inline double *begin() { return data; }
@@ -269,6 +265,14 @@ public:
    /** @note If MFEM_DEBUG is enabled, bounds checking is performed. */
    inline const double &operator()(int i) const;
 
+   /// Access Vector entries using () for 0-based indexing.
+   /** @note If MFEM_DEBUG is enabled, bounds checking is performed. */
+   inline double &operator[](int i) { return (*this)(i); }
+
+   /// Read only access to Vector entries using () for 0-based indexing.
+   /** @note If MFEM_DEBUG is enabled, bounds checking is performed. */
+   inline const double &operator[](int i) const { return (*this)(i); }
+
    /// Dot product with a `double *` array.
    double operator*(const double *) const;
 
@@ -306,12 +310,6 @@ public:
    Vector &operator+=(double c);
 
    Vector &operator+=(const Vector &v);
-
-   /// operator- is not supported. Use @ref subtract or @ref Add.
-   Vector &operator-(const Vector &v) = delete;
-
-   /// operator+ is not supported. Use @ref Add.
-   Vector &operator+(const Vector &v) = delete;
 
    /// (*this) += a * Va
    Vector &Add(const double a, const Vector &Va);
@@ -644,6 +642,12 @@ inline double DistanceSquared(const double *x, const double *y, const int n)
 inline double Distance(const double *x, const double *y, const int n)
 {
    return std::sqrt(DistanceSquared(x, y, n));
+}
+
+inline double Distance(const Vector &x, const Vector &y)
+{
+   MFEM_ASSERT(x.Size() == y.Size(), "Incompatible vector sizes.");
+   return Distance(x.HostRead(), y.HostRead(), x.Size());
 }
 
 inline double Vector::DistanceSquaredTo(const double *p) const
