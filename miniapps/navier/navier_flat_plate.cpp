@@ -320,3 +320,7 @@ void vel_plate(const Vector &x, double t, Vector &u)
    u(0) = 0.;
    u(1) = 0.;
 }
+
+// To represent the outflow boundary condition the zero-stress boundary condition
+// is used. The zero-stress boundary condition is automatically applied if there
+// is no other boundary condition applied to a certain attribute.
