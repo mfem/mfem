@@ -457,6 +457,12 @@ public:
    virtual void RegisterQField(const std::string& q_field_name,
                                QuadratureFunction *qf);
 
+   /// Set the number of digits used for both the cycle and the MPI rank
+   /// @note VisIt seems to require 6 pad digits for the MPI rank. Therefore,
+   /// this function uses this default value. This behavior can be overridden
+   /// by calling SetPadDigitsCycle() and SetPadDigitsRank() instead.
+   void SetPadDigits(int digits) { pad_digits_cycle=digits; pad_digits_rank=6; }
+
    /// Set VisIt parameter: default levels of detail for the MultiresControl
    void SetLevelsOfDetail(int levels_of_detail);
 
