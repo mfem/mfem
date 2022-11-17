@@ -10518,8 +10518,8 @@ void Mesh::PrintVTU(std::ostream &os, int ref, VTKFormat format,
    };
 
    int ne = bdr_elements ? GetNBE() : GetNE();
-   // count the points, cells, size
-   int np = 0, nc_ref = 0, size = 0;
+   // count the number of points and cells
+   int np = 0, nc_ref = 0;
    for (int i = 0; i < ne; i++)
    {
       Geometry::Type geom = get_geom(i);
@@ -10527,7 +10527,6 @@ void Mesh::PrintVTU(std::ostream &os, int ref, VTKFormat format,
       RefG = GlobGeometryRefiner.Refine(geom, ref, 1);
       np += RefG->RefPts.GetNPoints();
       nc_ref += RefG->RefGeoms.Size() / nv;
-      size += (RefG->RefGeoms.Size() / nv) * (nv + 1);
    }
 
    os << "<Piece NumberOfPoints=\"" << np << "\" NumberOfCells=\""
