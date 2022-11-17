@@ -510,12 +510,12 @@ endif
 ifdef CAMP_DIR
    RAJA_OPT += -I$(CAMP_DIR)/include
 endif
-RAJA_LIB = $(XLINKER)-rpath,$(RAJA_DIR)/lib -L$(RAJA_DIR)/lib -lRAJA
+RAJA_LIB = $(XLINKER)-rpath,$(RAJA_DIR)/lib -L$(RAJA_DIR)/lib -lRAJA -lcamp
 
 # UMPIRE library configuration
 UMPIRE_DIR = @MFEM_DIR@/../umpire
 UMPIRE_OPT = -I$(UMPIRE_DIR)/include $(if $(CAMP_DIR), -I$(CAMP_DIR)/include)
-UMPIRE_LIB = -L$(UMPIRE_DIR)/lib -lumpire
+UMPIRE_LIB = -L$(UMPIRE_DIR)/lib -lumpire -lcamp
 
 # MKL CPardiso library configuration
 MKL_CPARDISO_DIR ?=
