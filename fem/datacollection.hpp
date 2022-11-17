@@ -338,11 +338,12 @@ public:
    /// Set the precision (number of digits) used for the text output of doubles
    void SetPrecision(int prec) { precision = prec; }
    /// Set the number of digits used for both the cycle and the MPI rank
-   void SetPadDigits(int digits) { pad_digits_cycle=pad_digits_rank = digits; }
+   virtual void SetPadDigits(int digits)
+   { pad_digits_cycle=pad_digits_rank = digits; }
    /// Set the number of digits used for the cycle
-   void SetPadDigitsCycle(int digits) { pad_digits_cycle = digits; }
+   virtual void SetPadDigitsCycle(int digits) { pad_digits_cycle = digits; }
    /// Set the number of digits used for the MPI rank in filenames
-   void SetPadDigitsRank(int digits) { pad_digits_rank = digits; }
+   virtual void SetPadDigitsRank(int digits) { pad_digits_rank = digits; }
    /// Set the desired output mesh and data format.
    /** See the enumeration #Format for valid options. Derived classes can define
        their own format enumerations and override this method to perform input
