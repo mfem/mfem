@@ -145,7 +145,7 @@ int main(int argc, char *argv[])
       args.PrintOptions(mfem::out);
    }
 
-   Mesh *mesh = new Mesh("flat-plate.mesh"); // Need to name our mesh flat-plate.mesh 
+   Mesh *mesh = new Mesh("flat_plate.msh"); // Need to name our mesh flat-plate.mesh 
    int dim = mesh->Dimension();
 
    //Mesh refinement
