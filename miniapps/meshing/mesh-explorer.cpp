@@ -56,9 +56,9 @@ void transformation(const Vector &p, Vector &v)
       double xscale=1;
       //v(0) = tan(p(0)*xscale)/tan(xscale);
       //v(1) = tan(p(1)*xscale)/tan(xscale);
-      v(0) = p(0);
+      v(0) = p(0)*0.2;
       //v(1) = p(1)+1;
-      v(1) = p(1)*2.;
+      v(1) = p(1)*0.4;
    }
    else
    {
