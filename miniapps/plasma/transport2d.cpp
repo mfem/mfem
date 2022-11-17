@@ -2867,6 +2867,26 @@ void InitialCondition(const Vector &x, Vector &y)
    */
 }
 
+/** Coefficient which returns a * x[c] + b */
+class Linear1D: public Coefficient
+{
+private:
+  double a_, b_;
+  int comp_;
+
+   mutable Vector x_;
+
+public:
+  Linear1D(double a, double b, int comp)
+    : a_(a), b_(a), comp_(comp), x_(3) {}
+
+   double Eval(ElementTransformation &T, const IntegrationPoint &ip)
+   {
+      T.Transform(ip, x_);
+      return a_ * x_[comp_] + b_;
+   }
+};
+
 /** Coefficient which returns a * cos(kx * (x - c)) + b */
 class Cos1D: public Coefficient
 {
@@ -3563,7 +3583,14 @@ Coefficient *
 Transport2DCoefFactory::GetScalarCoef(std::string &name, std::istream &input)
 {
    int coef_idx = -1;
-   if (name == "Sin1D")
+   if (name == "Linear1D")
+   {
+      double a, b;
+      int c;
+      input >> a >> b >> c;
+      coef_idx = sCoefs.Append(new Linear1D(a, b, c));
+   }
+   else if (name == "Sin1D")
    {
       double a, b, c, kx;
       input >> a >> b >> c >> kx;
