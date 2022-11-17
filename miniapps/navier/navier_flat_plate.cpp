@@ -47,18 +47,18 @@
 #include <fstream>
 #include <iostream>
 
-using namspace std;
+using namespace std;
 using namespace mfem;
 using namespace navier;
 
 // Context structure for our Navier Solver
 struct s_NavierContext
 {
-   int ser_ref_levels = 1; //Serial Refinement Levels
-   int order = 6; // Finite Element function space order
-   double kinvis = 0.0014607; //Kinematic viscocity - SET THIS TO APPROPRIATE VALUE
-   double dt = 0.001; //Time-step size
-   double t_final = 25 * dt; //Final time of simulation
+   int ser_ref_levels = 3; //Serial Refinement Levels
+   int order = 1; // Finite Element function space order
+   double kinvis = 10* 0.0014607; //Kinematic viscocity - SET THIS TO APPROPRIATE VALUE
+   double dt = 0.0001; //Time-step size
+   double t_final = 250 * dt; //Final time of simulation
    double reference_pressure = 0.0; //Reference Pressure
    bool pa = true;
    bool ni = false;
@@ -68,9 +68,8 @@ struct s_NavierContext
 } ctx; 
 
 // Dirichlet conditions for velocity
-void vel_inlet(const Vector &x, double t, Vector &u);
 void vel_ic(const Vector &x, double t, Vector &u);
-void vel_wall(const Vector &x, double t, Vector &u);
+void vel_dbc(const Vector &x, double t, Vector &u);
 
 // Visualizion of the solution
 void VisualizeField(socketstream &sock, const char *vishost, int visport,
@@ -145,8 +144,7 @@ int main(int argc, char *argv[])
       args.PrintOptions(mfem::out);
    }
 
-   Mesh *mesh = new Mesh("flat_plate.msh"); // Need to name our mesh flat-plate.mesh 
-   int dim = mesh->Dimension();
+   Mesh mesh = Mesh("flat_plate.msh", 1, 1); 
 
    //Mesh refinement
    for (int i = 0; i < ctx.ser_ref_levels; ++i)
@@ -182,16 +180,13 @@ int main(int argc, char *argv[])
    attr[0] = 1;
    // Outlet is arttribute 2.
    attr[1] = 0; 
-   // Top symmetry is attribute 3.
+   // Top slip is attribute 3.
    attr[2] = 1;
-   // Bottom symmetry is attribute 4.
+   // Bottom slip is attribute 4.
    attr[3] = 1;
    // Plate is attribute 5.
    attr[4] = 1;
-   flowsolver.AddVelDirichletBC(vel_inlet, attr[0]);
-   flowsolver.AddVelDirichletBC(vel_slip, attr[2]);
-   flowsolver.AddVelDirichletBC(vel_slip, attr[3]);
-   flowsolver.AddVelDirichletBC(vel_plate, attr[4]);
+   flowsolver.AddVelDirichletBC(vel_dbc, attr);
    // ===============================================================
 
    double t = 0.0; //Start time
@@ -209,7 +204,7 @@ int main(int argc, char *argv[])
    // =======================================================================
    // Visualize the solution with GLVis - Initializing the viewer - Auto off
    socketstream sout;
-   if (visualization)
+   if (ctx.visualization)
    {
       char vishost[] = "localhost";
       int  visport   = 19916;
@@ -219,7 +214,7 @@ int main(int argc, char *argv[])
          if (Mpi::Root())
             cout << "Unable to connect to GLVis server at "
                  << vishost << ':' << visport << endl;
-         visualization = false;
+         ctx.visualization = false;
          if (Mpi::Root())
          {
             cout << "GLVis visualization disabled.\n";
@@ -240,18 +235,18 @@ int main(int argc, char *argv[])
 
 
    //Paraview Data collection - Initializing based on command line flags - Auto on  
-   ParaViewDataCollection pvdc = NULL;
+   ParaViewDataCollection *pvdc = NULL;
    if(ctx.paraview)
    {
-      pvdc = ParaViewDataCollection pvdc("flat_plate", pmesh);
-      pvdc.SetDataFormat(VTKFormat::BINARY32);
-      pvdc.SetHighOrderOutput(true);
-      pvdc.SetLevelsOfDetail(ctx.order);
-      pvdc.SetCycle(0);
-      pvdc.SetTime(t);
-      pvdc.RegisterField("velocity", u_gf);
-      pvdc.RegisterField("pressure", p_gf);
-      pvdc.Save();
+      pvdc = new ParaViewDataCollection("flat_plate", pmesh);
+      pvdc->SetDataFormat(VTKFormat::BINARY32);
+      pvdc->SetHighOrderOutput(true);
+      pvdc->SetLevelsOfDetail(ctx.order);
+      pvdc->SetCycle(0);
+      pvdc->SetTime(t);
+      pvdc->RegisterField("velocity", u_gf);
+      pvdc->RegisterField("pressure", p_gf);
+      pvdc->Save();
    }
    //========================================================================
    
@@ -265,17 +260,18 @@ int main(int argc, char *argv[])
 
       flowsolver.Step(t, dt, step);
 
-      if(visualization)
+      if(ctx.visualization)
       {
 	 sout << "parallel " << num_procs << " " << myid << "\n";
          sout << "Velocity solution\n" << *pmesh << *u_gf << flush;
       }
       
-      if (paraview && step % 10 == 0) //Storing every 10th time step for paraview visualization
+      //if (ctx.paraview && step % 10 == 0) //Storing every 10th time step for paraview visualization
+      if (ctx.paraview) //Storing every 10th time step for paraview visualization
       {
-         pvdc.SetCycle(step);
-         pvdc.SetTime(t);
-         pvdc.Save();
+         pvdc->SetCycle(step);
+         pvdc->SetTime(t);
+         pvdc->Save();
       }
 
       if (Mpi::Root())
@@ -293,21 +289,8 @@ int main(int argc, char *argv[])
 }
 
 // VELOCITY FUNCTIONS
-// Fluid data
-// Dirichlet conditions for uniform flow velocity in the inlet
-void vel_inlet(const Vector &x, double t, Vector &u)
-{
-   double U = 68.058;
-   u(0) = U;
-   u(1) = 0.;
-}
-
-// Symmetry condition for top and bottom walls of domain
-void vel_slip(const Vector &x, double t, Vector &u)
-{
-   u(1) = 0.;
-}
 // Initial conditions for velocity everywhere in domain
+// Dirichlet conditions for uniform flow velocity in the inlet
 void vel_ic(const Vector &x, double t, Vector &u)
 {
    double u_ic = 0.0001; //Small initial velocity to not divide by 0 anywhere. 
@@ -315,11 +298,31 @@ void vel_ic(const Vector &x, double t, Vector &u)
    u(1) = 0.;
 }
 
-// Direchlet 0 m/s at plate.
-void vel_plate(const Vector &x, double t, Vector &u)
-{
-   u(0) = 0.;
-   u(1) = 0.;
+
+void vel_dbc(const Vector &x, double t, Vector &u){
+	double xi = x(0);
+	double yi = x(1);
+	
+	double U = 68.058; //Freestream velocity
+
+	//Inlet
+	if(xi <= 0){
+		u(0) = U;
+		u(1) = 0;
+	}
+	//Slip walls & Plate
+	else if(yi <= 0){
+		if(xi < 0.1){ //Bottom slip wall
+			u(1) = 0;
+		}
+		else{ // No-slip, no-penetration plate
+			u(0) = 0;
+			u(1) = 0;
+		}
+	}
+	else if(yi >= (0.1 - (0.01*xi)/1.1)){ //Top slip wall
+		u(1) = 0;
+	}
 }
 
 // To represent the outflow boundary condition the zero-stress boundary condition
