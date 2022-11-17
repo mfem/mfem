@@ -27,3 +27,6 @@ add_mfem_miniapp(convert-dc
 
 add_mfem_miniapp(lor-transfer
   MAIN lor-transfer.cpp LIBRARIES mfem)
+
+add_mfem_miniapp(check-tmop-metric
+  MAIN check-tmop-metric.cpp LIBRARIES mfem)

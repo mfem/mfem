@@ -22,6 +22,10 @@ extern bool launch_all_non_regression_tests;
     and tests tagged with [MFEMData] will be skipped. */
 extern std::string mfem_data_dir;
 
+/// Command line '--verbose' argument, false by default.
+/** Enables extra log messages and the mfem::out stream. */
+extern bool verbose_tests;
+
 /** @brief MFEM_Approx can be used to compare floating point values within an
     absolute tolerance of @a abs_tol (default value 1e-12) and relative
     tolerance of @a rel_tol (default value 1e-12). */

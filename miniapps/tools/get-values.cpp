@@ -36,7 +36,7 @@
 //
 // By default all available fields are evaluated.  The list of fields can be
 // reduced by specifying the desired field names with -fn. The -fn option
-// takes a space separated list of field names surrounded by qoutes.  Field
+// takes a space separated list of field names surrounded by quotes.  Field
 // names containing spaces, such as "Field 1" and "Field 2", can be entered as:
 //    get-values -fn "Field\ 1 Field\ 2"
 //

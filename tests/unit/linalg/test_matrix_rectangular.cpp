@@ -159,7 +159,7 @@ TEST_CASE("ParallelFormRectangular",
    }
 }
 
-TEST_CASE("HypreParMatrixBlocks",
+TEST_CASE("HypreParMatrixBlocksRectangular",
           "[Parallel], [BlockMatrix]")
 {
    SECTION("HypreParMatrixFromBlocks")
@@ -257,7 +257,7 @@ TEST_CASE("HypreParMatrixBlocks",
 
       yH -= yB;
       double error = yH.Norml2();
-      std::cout << "  order: " << order
+      mfem::out << "  order: " << order
                 << ", block matrix error norm on rank " << rank << ": " << error << std::endl;
       REQUIRE(error < 1.e-12);
 
