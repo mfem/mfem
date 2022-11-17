@@ -3,7 +3,6 @@
 double vari_coeff=10.;
 double visc_bdy=1e-2;
 double tau=200.;
-double L0=1.0;
 
 double InitialPhi(const Vector &x)
 {
@@ -199,6 +198,8 @@ double InitialPsi7(const Vector &x)
 {
     double lx = x_factor*L0, ly = 1.0*L0, llong = 50.0*L0;
     return -L0*log(cosh(x(1)/L0)) + beta*exp( - (x(0)/lx)*(x(0)/lx) - (x(1)/ly)*(x(1)/ly) );
+
+    //some old versions of perturbation 
     //return -L0*log(cosh(x(1)/L0)) + beta*sin(M_PI/llong*x(1))*cos(M_PI/lx*x(0));
     //return -L0*log(cosh(x(1)/L0)) + beta*exp(-(x(1)/ly)*(x(1)/ly))*cos(M_PI/lx*x(0));
 }
@@ -213,6 +214,8 @@ double InitialJ7(const Vector &x)
     double lx = x_factor*L0, ly = 1.0*L0, llong = 50.0*L0;
     double exp_xy =exp( - (x(0)/lx)*(x(0)/lx) - (x(1)/ly)*(x(1)/ly) );
     return ( tanh(x(1)/L0)*tanh(x(1)/L0) - 1.0 )/L0  - beta*exp_xy*( 2.0/lx/lx + 2.0/ly/ly - 4.0*(x(0)/lx)*(x(0)/lx)/lx/lx - 4.0*(x(1)/ly)*(x(1)/ly)/ly/ly );
+
+    //some old versions of perturbation 
     //return ( tanh(x(1)/L0)*tanh(x(1)/L0) - 1.0 )/L0  - beta*sin(M_PI/llong*x(1))*cos(M_PI/lx*x(0))*M_PI*M_PI*(1.0/llong/llong+1.0/lx/lx);
     //return ( tanh(x(1)/L0)*tanh(x(1)/L0) - 1.0 )/L0  + beta*exp(-(x(1)/ly)*(x(1)/ly))*cos(M_PI/lx*x(0))*(-M_PI*M_PI/lx/lx - 2/ly/ly + 4*x(1)*x(1)/ly/ly/ly/ly);
 }

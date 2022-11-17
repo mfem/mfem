@@ -6,12 +6,13 @@
 using namespace std;
 using namespace mfem;
 
-extern double beta; //a global value of magnetude for the pertubation
-extern double Lx;  //size of x domain
+extern double beta;     //a global value of magnitude for the perturbation
+extern double Lx;       //size of x domain
 extern double lambda;
 extern double resiG;
 extern double ep;
-extern double x_factor; //pertuerbation factor in x
+extern double x_factor; //perturbation factor in x
+extern double L0;       //initial current sheet width
 
 //initial condition
 double InitialPhi(const Vector &x);
@@ -25,7 +26,7 @@ double exactPhi1(const Vector &x, double t);
 double exactPsi1(const Vector &x, double t);
 double exactW1(const Vector &x, double t);
 
-//exact solutoion for Reyleigh
+//exact solution for Reyleigh
 double exactPhiRe(const Vector &x, double t);
 double exactPsiRe(const Vector &x, double t);
 double exactWRe(const Vector &x, double t);

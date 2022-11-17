@@ -31,6 +31,7 @@ double lambda;
 double resiG;
 double x_factor=5.0;
 double ep=.2;
+double L0=1.0;
 int icase = 1;
 ParMesh *pmesh;
 
@@ -135,6 +136,7 @@ int main(int argc, char *argv[])
    args.AddOption(&visc, "-visc", "--viscosity", "Viscosity coefficient.");
    args.AddOption(&resi, "-resi", "--resistivity", "Resistivity coefficient.");
    args.AddOption(&x_factor,"-x-factor","--x-factor", "spatial perturbation factor in x.");
+   args.AddOption(&L0,"-L0","--L0", "current sheet width.");
    args.AddOption(&ALPHA, "-alpha", "--hyperdiff",
                   "Numerical hyprediffusion coefficient.");
    args.AddOption(&beta, "-beta", "--perturb", "Pertubation coefficient in initial conditions.");
