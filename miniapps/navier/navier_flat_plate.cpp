@@ -26,16 +26,17 @@
 // Navier-Stokes equations are modeled throughout the entire domain as
 // illustrated below:
 //
-//                 Atmosphere (symmetry boundary condition)
+//                 Atmosphere - symmetry boundary condition
+//                 		(attr=3)
 //                 ________________________________________
 //                |                                        |
 //                |             FLUID DOMAIN               |
 //                |                                        |
 //   --> inflow   |                                        | --> outflow
-//   (attr=1)     |                                        | (attr=2)
+//    (attr=1)    |                                        |  (attr=2)
 //                |_____-----------------------------------|
-//
-//                                  Flat Plate
+//	       Atm. sym. bc.	     flat plate
+//               (attr=4)             (attr=5)    
 //
 // Uniform Dirichlet velocity conditions are imposed at inflow (attr=1) and
 // homogeneous Dirichlet conditions are imposed on all surface (attr=3) except
