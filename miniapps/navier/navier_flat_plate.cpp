@@ -181,7 +181,7 @@ int main(int argc, char *argv[])
    // Outlet is arttribute 2.
    attr[1] = 0; 
    // Top slip is attribute 3.
-   attr[2] = 1;
+   attr[2] = 0;
    // Bottom slip is attribute 4.
    attr[3] = 1;
    // Plate is attribute 5.
@@ -295,7 +295,7 @@ void vel_ic(const Vector &x, double t, Vector &u)
 {
    double u_ic = 0.0001; //Small initial velocity to not divide by 0 anywhere. 
    u(0) = u_ic;
-   u(1) = 0.;
+   u(1) = 0.0;
 }
 
 
@@ -303,25 +303,25 @@ void vel_dbc(const Vector &x, double t, Vector &u){
 	double xi = x(0);
 	double yi = x(1);
 	
-	double U = 68.058; //Freestream velocity
+	double U = 10.0;68.058; //Freestream velocity
 
 	//Inlet
 	if(xi <= 0){
 		u(0) = U;
-		u(1) = 0;
+		u(1) = 0.0;
 	}
 	//Slip walls & Plate
 	else if(yi <= 0){
 		if(xi < 0.1){ //Bottom slip wall
-			u(1) = 0;
+			u(1) = 0.0;
 		}
 		else{ // No-slip, no-penetration plate
-			u(0) = 0;
-			u(1) = 0;
+			u(0) = 0.0;
+			u(1) = 0.0;
 		}
 	}
 	else if(yi >= (0.1 - (0.01*xi)/1.1)){ //Top slip wall
-		u(1) = 0;
+		u(1) = 0.0;
 	}
 }
 
