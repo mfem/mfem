@@ -56,8 +56,8 @@ using namespace navier;
 struct s_NavierContext
 {
    int ser_ref_levels = 0; //Serial Refinement Levels
-   int order = 1; // Finite Element function space order
-   double kinvis = 10* 0.0014607; //Kinematic viscocity - SET THIS TO APPROPRIATE VALUE
+   int order = 6; // Finite Element function space order
+   double kinvis = 10 * 0.0014607; //Kinematic viscocity - SET THIS TO APPROPRIATE VALUE
    double dt = 0.0001; //Time-step size
    double t_final = 0.250; //Final time of simulation
    bool pa = true;
