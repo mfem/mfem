@@ -306,12 +306,12 @@ void vel_dbc(const Vector &x, double t, Vector &u){
 	double U = 10.0;//68.058; //Freestream velocity
 
 	//Inlet
-	if(xi <= 0){
+	if(xi <= 0.0){
 		u(0) = U;
 		u(1) = 0.0;
 	}
 	//Slip walls & Plate
-	else if(yi <= 0){
+	else if(yi <= 0.0){
 		if(xi < 0.1){ //Bottom slip wall
 			u(1) = 0.0;
 		}
