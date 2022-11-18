@@ -65,6 +65,7 @@ struct s_NavierContext
    bool visualization = false;
    bool paraview = true;
    bool checkres = false;
+   const char *mesh = "flat-plate.msh";
 } ctx; 
 
 // Dirichlet conditions for velocity
@@ -117,7 +118,8 @@ int main(int argc, char *argv[])
                   "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
-   args.AddOption(&ctx.paraview, "-paraview", 
+   args.AddOption(&ctx.paraview,
+                  "-paraview", 
 		  "--paraview-datafiles", 
 		  "-no-paraview",
         	  "--no-paraview-datafiles",
@@ -129,6 +131,10 @@ int main(int argc, char *argv[])
       "-no-cr",
       "--no-checkresult",
       "Enable or disable checking of the result. Returns -1 on failure.");
+   args.AddOption(&ctx.mesh, 
+                  "-m", 
+                  "--mesh",
+                  "Mesh file to use.");
    args.Parse();
 
    if (!args.Good())
@@ -144,7 +150,7 @@ int main(int argc, char *argv[])
       args.PrintOptions(mfem::out);
    }
 
-   Mesh mesh = Mesh("flat-plate.msh", 1, 1); 
+   Mesh mesh = Mesh(ctx.mesh, 1, 1); 
 
    //Mesh refinement
    for (int i = 0; i < ctx.ser_ref_levels; ++i)
@@ -306,12 +312,12 @@ void vel_dbc(const Vector &x, double t, Vector &u){
 	double U = 10.0; //Freestream velocity
 
 	//Inlet
-	if(xi <= 0.0){
+	if(xi <= 1e-8){
 		u(0) = U;
 		u(1) = 0.0;
 	}
 	//Slip walls & Plate
-	else if(yi <= 0.0){
+	if(yi <= 1e-8){
 		if(xi < 0.1){ //Bottom slip wall
 			u(1) = 0.0;
 		}
@@ -320,9 +326,9 @@ void vel_dbc(const Vector &x, double t, Vector &u){
 			u(1) = 0.0;
 		}
 	}
-	else if(yi >= (0.1 - (0.01*xi)/1.1)){ //Top slip wall
-		u(1) = 0.0;
-	}
+//	else (yi >= (0.1 - (0.01*xi)/1.1)){ //Top slip wall
+//		u(1) = 0.0;
+//	}
 }
 
 // To represent the outflow boundary condition the zero-stress boundary condition
