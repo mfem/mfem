@@ -303,7 +303,6 @@ void vel_dbc(const Vector &x, double t, Vector &u){
 	double xi = x(0);
 	double yi = x(1);
 	
-	//double U = 68.058; //Freestream velocity
 	double U = 10.0; //Freestream velocity
 
 	//Inlet
