@@ -134,12 +134,10 @@ int main(int argc, char *argv[])
                   "Number of digits in source cycle.");
    args.AddOption(&out_pad_digits_cycle, "-opdc", "--out-pad-digits-cycle",
                   "Number of digits in output cycle.");
-#ifdef MFEM_USE_MPI
    args.AddOption(&src_pad_digits_rank, "-pdr", "--pad-digits-rank",
                   "Number of digits in source MPI rank.");
    args.AddOption(&out_pad_digits_rank, "-opdr", "--out-pad-digits-rank",
                   "Number of digits in output MPI rank.");
-#endif
    args.AddOption(&src_coll_type, "-st", "--source-type",
                   "Set the source data collection type. Options:\n"
                   "\t   visit:                VisItDataCollection (default)\n"
@@ -186,12 +184,10 @@ int main(int argc, char *argv[])
    DataCollection *out_dc = create_data_collection(std::string(out_coll_name),
                                                    std::string(out_coll_type));
 
-#ifdef MFEM_USE_MPI
-   out_dc->SetPadDigitsRank(out_pad_digits_rank);
-   src_dc->SetPadDigitsRank(src_pad_digits_rank);
-#endif
    out_dc->SetPadDigitsCycle(out_pad_digits_cycle);
+   out_dc->SetPadDigitsRank(out_pad_digits_rank);
    src_dc->SetPadDigitsCycle(src_pad_digits_cycle);
+   src_dc->SetPadDigitsRank(src_pad_digits_rank);
    src_dc->Load(src_cycle);
 
    if (src_dc->Error() != DataCollection::NO_ERROR)
