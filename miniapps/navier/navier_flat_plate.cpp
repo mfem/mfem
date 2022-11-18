@@ -55,7 +55,7 @@ using namespace navier;
 // Context structure for our Navier Solver
 struct s_NavierContext
 {
-   int ser_ref_levels = 3; //Serial Refinement Levels
+   int ser_ref_levels = 0; //Serial Refinement Levels
    int order = 1; // Finite Element function space order
    double kinvis = 10* 0.0014607; //Kinematic viscocity - SET THIS TO APPROPRIATE VALUE
    double dt = 0.0001; //Time-step size
