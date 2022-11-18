@@ -51,10 +51,8 @@ int main(int argc, char *argv[])
    args.AddOption(&cycle, "-c", "--cycle", "Set the cycle index to read.");
    args.AddOption(&pad_digits_cycle, "-pdc", "--pad-digits-cycle",
                   "Number of digits in cycle.");
-#ifdef MFEM_USE_MPI
    args.AddOption(&pad_digits_rank, "-pdr", "--pad-digits-rank",
                   "Number of digits in MPI rank.");
-#endif
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -68,11 +66,11 @@ int main(int argc, char *argv[])
 
 #ifdef MFEM_USE_MPI
    VisItDataCollection dc(MPI_COMM_WORLD, coll_name);
-   dc.SetPadDigitsRank(pad_digits_rank);
 #else
    VisItDataCollection dc(coll_name);
 #endif
    dc.SetPadDigitsCycle(pad_digits_cycle);
+   dc.SetPadDigitsRank(pad_digits_rank);
    dc.Load(cycle);
 
    if (dc.Error() != DataCollection::NO_ERROR)
