@@ -42,6 +42,7 @@
 // homogeneous Dirichlet conditions are imposed on all surface (attr=3) except
 // the outflow (attr=2) which has Neumann boundary conditions for velocity.
 
+//CURRENT CONFIGURATION IS FOR DEBUGGING.
 #include "mfem.hpp"
 #include "navier_solver.hpp"
 #include <fstream>
