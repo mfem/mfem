@@ -93,7 +93,7 @@ struct Tensors1D
       for (int q = 0; q < nqp1D; q++)
       {
          LQshape1D.GetColumnReference(q, col);
-         poly1d.CalcBernstein(L2order, quad1D_pos[q], col.HostWrite());
+         poly1d.CalcBernstein(L2order, quad1D_pos[q], col);
       }
    }
 };

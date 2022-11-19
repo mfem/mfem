@@ -265,11 +265,11 @@ public:
    /** @note If MFEM_DEBUG is enabled, bounds checking is performed. */
    inline const double &operator()(int i) const;
 
-   /// Access Vector entries using () for 0-based indexing.
+   /// Access Vector entries using [] for 0-based indexing.
    /** @note If MFEM_DEBUG is enabled, bounds checking is performed. */
    inline double &operator[](int i) { return (*this)(i); }
 
-   /// Read only access to Vector entries using () for 0-based indexing.
+   /// Read only access to Vector entries using [] for 0-based indexing.
    /** @note If MFEM_DEBUG is enabled, bounds checking is performed. */
    inline const double &operator[](int i) const { return (*this)(i); }
 
@@ -431,8 +431,12 @@ public:
    double Sum() const;
    /// Compute the square of the Euclidean distance to another vector.
    inline double DistanceSquaredTo(const double *p) const;
+   /// Compute the square of the Euclidean distance to another vector.
+   inline double DistanceSquaredTo(const Vector &p) const;
    /// Compute the Euclidean distance to another vector.
    inline double DistanceTo(const double *p) const;
+   /// Compute the Euclidean distance to another vector.
+   inline double DistanceTo(const Vector &p) const;
 
    /** @brief Count the number of entries in the Vector for which isfinite
        is false, i.e. the entry is a NaN or +/-Inf. */
@@ -663,8 +667,7 @@ inline double Distance(const double *x, const double *y, const int n)
 
 inline double Distance(const Vector &x, const Vector &y)
 {
-   MFEM_ASSERT(x.Size() == y.Size(), "Incompatible vector sizes.");
-   return Distance(x.HostRead(), y.HostRead(), x.Size());
+   return x.DistanceTo(y);
 }
 
 inline double Vector::DistanceSquaredTo(const double *p) const
@@ -672,9 +675,21 @@ inline double Vector::DistanceSquaredTo(const double *p) const
    return DistanceSquared(data, p, size);
 }
 
+inline double Vector::DistanceSquaredTo(const Vector &p) const
+{
+   MFEM_ASSERT(p.Size() == Size(), "Incompatible vector sizes.");
+   return DistanceSquared(data, p.data, size);
+}
+
 inline double Vector::DistanceTo(const double *p) const
 {
    return Distance(data, p, size);
+}
+
+inline double Vector::DistanceTo(const Vector &p) const
+{
+   MFEM_ASSERT(p.Size() == Size(), "Incompatible vector sizes.");
+   return Distance(data, p.data, size);
 }
 
 /// Returns the inner product of x and y

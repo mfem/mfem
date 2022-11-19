@@ -618,7 +618,7 @@ void InvertLinearTrans(ElementTransformation &trans,
 
    double store[3];
    Vector v(store, x.Size());
-   pt.Get(v.HostReadWrite(), x.Size());
+   pt.Get(store, x.Size());
    v -= x;
 
    trans.InverseJacobian().Mult(v, x);
@@ -954,8 +954,8 @@ void VectorFiniteElement::Project_RT(
    {
       Trans.SetIntPoint(&Nodes.IntPoint(k));
       // dof_k = nk^t adj(J) xk
-      Vector vk(vc.GetData()+k*sdim, sdim);
-      dofs(k) = Trans.AdjugateJacobian().InnerProduct(vk.HostRead(), nk + d2n[k]*dim);
+      dofs(k) = Trans.AdjugateJacobian().InnerProduct(
+                   &vc[k*sdim], nk + d2n[k]*dim);
       if (!square_J) { dofs(k) /= Trans.Weight(); }
    }
 }
@@ -978,7 +978,7 @@ void VectorFiniteElement::ProjectMatrixCoefficient_RT(
       T.SetIntPoint(&Nodes.IntPoint(k));
       mc.Eval(MQ, T, Nodes.IntPoint(k));
       // nk_phys = adj(J)^t nk
-      T.AdjugateJacobian().MultTranspose(nk + d2n[k]*dim, nk_phys.HostWrite());
+      T.AdjugateJacobian().MultTranspose(nk + d2n[k]*dim, nk_phys);
       if (!square_J) { nk_phys /= T.Weight(); }
       MQ.Mult(nk_phys, dofs_k);
       for (int r = 0; r < MQ.Height(); r++)
@@ -1053,7 +1053,7 @@ void VectorFiniteElement::Project_RT(
          // Compute fe basis functions in physical space
          fe.CalcVShape(Trans, vshape);
          // Project fe basis functions onto transformed face normals
-         vshape.Mult(vk, vshapenk.HostWrite());
+         vshape.Mult(vk, vshapenk);
          if (!square_J) { vshapenk /= Trans.Weight(); }
          for (int j=0; j<vshapenk.Size(); j++)
          {
@@ -1082,7 +1082,7 @@ void VectorFiniteElement::ProjectGrad_RT(
       fe.CalcDShape(Nodes.IntPoint(k), dshape);
       tk[0] = nk[d2n[k]*dim+1];
       tk[1] = -nk[d2n[k]*dim];
-      dshape.Mult(tk, grad_k.HostWrite());
+      dshape.Mult(tk, grad_k);
       for (int j = 0; j < grad_k.Size(); j++)
       {
          grad(k,j) = (fabs(grad_k(j)) < 1e-12) ? 0.0 : grad_k(j);
@@ -1120,7 +1120,7 @@ void VectorFiniteElement::ProjectCurl_ND(
       fe.CalcCurlShape(ip, curlshape);
       Mult(curlshape, JtJ, curlshape_J);
 
-      curlshape_J.Mult(tk + d2t[k]*dim, curl_k.HostWrite());
+      curlshape_J.Mult(tk + d2t[k]*dim, curl_k);
       for (int j = 0; j < curl_k.Size(); j++)
       {
          curl(k,j) = (fabs(curl_k(j)) < 1e-12) ? 0.0 : curl_k(j);
@@ -1139,7 +1139,7 @@ void VectorFiniteElement::ProjectCurl_RT(
    for (int k = 0; k < dof; k++)
    {
       fe.CalcCurlShape(Nodes.IntPoint(k), curl_shape);
-      curl_shape.Mult(nk + d2n[k]*dim, curl_k.HostWrite());
+      curl_shape.Mult(nk + d2n[k]*dim, curl_k);
       for (int j = 0; j < curl_k.Size(); j++)
       {
          curl(k,j) = (fabs(curl_k(j)) < 1e-12) ? 0.0 : curl_k(j);
@@ -1171,9 +1171,8 @@ void VectorFiniteElement::Project_ND(
    for (int k = 0; k < dof; k++)
    {
       Trans.SetIntPoint(&Nodes.IntPoint(k));
-      Vector vk(vc.GetData()+k*dim, dim);
       // dof_k = xk^t J tk
-      dofs(k) = Trans.Jacobian().InnerProduct(tk + d2t[k]*dim, vk.HostRead());
+      dofs(k) = Trans.Jacobian().InnerProduct(tk + d2t[k]*dim, &vc[k*dim]);
    }
 }
 
@@ -1194,7 +1193,7 @@ void VectorFiniteElement::ProjectMatrixCoefficient_ND(
       T.SetIntPoint(&Nodes.IntPoint(k));
       mc.Eval(MQ, T, Nodes.IntPoint(k));
       // tk_phys = J tk
-      T.Jacobian().Mult(tk + d2t[k]*dim, tk_phys.HostWrite());
+      T.Jacobian().Mult(tk + d2t[k]*dim, tk_phys);
       MQ.Mult(tk_phys, dofs_k);
       for (int r = 0; r < MQ.Height(); r++)
       {
@@ -1267,7 +1266,7 @@ void VectorFiniteElement::Project_ND(
          // Compute fe basis functions in physical space
          fe.CalcVShape(Trans, vshape);
          // Project fe basis functions onto transformed edge tangents
-         vshape.Mult(vk, vshapetk.HostWrite());
+         vshape.Mult(vk, vshapetk);
          for (int j=0; j<vshapetk.Size(); j++)
          {
             I(k, j) = vshapetk(j);
@@ -1289,7 +1288,7 @@ void VectorFiniteElement::ProjectGrad_ND(
    for (int k = 0; k < dof; k++)
    {
       fe.CalcDShape(Nodes.IntPoint(k), dshape);
-      dshape.Mult(tk + d2t[k]*dim, grad_k.HostWrite());
+      dshape.Mult(tk + d2t[k]*dim, grad_k);
       for (int j = 0; j < grad_k.Size(); j++)
       {
          grad(k,j) = (fabs(grad_k(j)) < 1e-12) ? 0.0 : grad_k(j);
@@ -1320,7 +1319,7 @@ void VectorFiniteElement::LocalL2Projection_RT(
       double w = ip.weight;
       this->CalcVShape(ip, fine_shape);
       Trans.Transform(ip, v);
-      tr_ip.Set(v.HostRead(), dim);
+      tr_ip.Set(v.GetData(), dim);
       cfe.CalcVShape(tr_ip, coarse_shape);
 
       AddMult_a_AAt(w, fine_shape, fine_mass);
@@ -1407,7 +1406,7 @@ void VectorFiniteElement::LocalL2Projection_ND(
       const IntegrationPoint &ip = ir.IntPoint(i);
       this->CalcVShape(ip, fine_shape);
       Trans.Transform(ip, v);
-      tr_ip.Set(v.HostRead(), dim);
+      tr_ip.Set(v.GetData(), dim);
       cfe.CalcVShape(tr_ip, coarse_shape);
 
       AddMult_a_AAt(ip.weight, fine_shape, fine_mass);
@@ -1625,7 +1624,7 @@ void Poly_1D::Basis::Eval(const double y, Vector &u) const
    {
       case ChangeOfBasis:
       {
-         CalcBasis(Ai.Width() - 1, y, x.HostWrite());
+         CalcBasis(Ai.Width() - 1, y, x);
          Ai.Mult(x, u);
          break;
       }
@@ -1670,7 +1669,7 @@ void Poly_1D::Basis::Eval(const double y, Vector &u) const
          break;
       }
       case Positive:
-         CalcBernstein(x.Size() - 1, y, u.HostWrite());
+         CalcBernstein(x.Size() - 1, y, u);
          break;
       case Integrated:
          auxiliary_basis->Eval(y, u_aux, d_aux);
@@ -1686,7 +1685,7 @@ void Poly_1D::Basis::Eval(const double y, Vector &u, Vector &d) const
    {
       case ChangeOfBasis:
       {
-         CalcBasis(Ai.Width() - 1, y, x.HostWrite(), w.HostWrite());
+         CalcBasis(Ai.Width() - 1, y, x, w);
          Ai.Mult(x, u);
          Ai.Mult(w, d);
          break;
@@ -1749,7 +1748,7 @@ void Poly_1D::Basis::Eval(const double y, Vector &u, Vector &d) const
          break;
       }
       case Positive:
-         CalcBernstein(x.Size() - 1, y, u.HostWrite(), d.HostWrite());
+         CalcBernstein(x.Size() - 1, y, u, d);
          break;
       case Integrated:
          auxiliary_basis->Eval(y, u_aux, d_aux, d2_aux);
@@ -1770,7 +1769,7 @@ void Poly_1D::Basis::Eval(const double y, Vector &u, Vector &d,
    {
       case ChangeOfBasis:
       {
-         CalcBasis(Ai.Width() - 1, y, x.HostWrite(), w.HostWrite());
+         CalcBasis(Ai.Width() - 1, y, x, w);
          Ai.Mult(x, u);
          Ai.Mult(w, d);
          // set d2 (not implemented yet)
@@ -1842,7 +1841,7 @@ void Poly_1D::Basis::Eval(const double y, Vector &u, Vector &d,
          break;
       }
       case Positive:
-         CalcBernstein(x.Size() - 1, y, u.HostWrite(), d.HostWrite());
+         CalcBernstein(x.Size() - 1, y, u, d);
          break;
       case Integrated:
          MFEM_ABORT("Integrated basis must be evaluated with EvalIntegrated");
