@@ -33,6 +33,7 @@ namespace mfem
 
     void SetupElementStatus(Array<int> &elemStatus, Array<int> &ess_inactive,  Array<int> &ess_inactive_p);
     void ComputeDistanceAndNormalAtCoordinates(const Vector &x, Vector &D, Vector &tN);
+    bool IsInElement(const Vector &x);
   };
 
 }

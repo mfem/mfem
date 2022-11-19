@@ -55,20 +55,20 @@ namespace mfem
 
     AnalyticalGeometricShape *geometry;
 
-  
+    
   public:
     AnalyticalSurface(int geometryType, ParFiniteElementSpace &h1_fes, ParFiniteElementSpace &Ph1_fes, bool includeCut = 0);
-  void SetupNodeStatus();
-  void SetupElementStatus();
-  void ComputeDistanceAndNormalAtCoordinates(const Vector &x, Vector &D, Vector &tN);
-  void ResetData();
-  Array<int>& GetEss_Vdofs();
-  Array<int>& GetEss_Vdofs_P();  
-  Array<int>& GetElement_Status();
-  const DenseMatrix& GetQuadratureDistance();
-  const DenseMatrix& GetQuadratureTrueNormal();
-    
-  ~AnalyticalSurface();
+    void SetupNodeStatus();
+    void SetupElementStatus();
+    void ComputeDistanceAndNormalAtCoordinates(const Vector &x, Vector &D, Vector &tN);
+    void ResetData();
+    Array<int>& GetEss_Vdofs();
+    Array<int>& GetEss_Vdofs_P();  
+    Array<int>& GetElement_Status();
+    const DenseMatrix& GetQuadratureDistance() const;
+    const DenseMatrix& GetQuadratureTrueNormal() const;
+    const bool IsInElement(const Vector &x) const;    
+    ~AnalyticalSurface();
   };
 }
 #endif // MFEM_LAGHOS

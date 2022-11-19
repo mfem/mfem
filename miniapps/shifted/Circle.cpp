@@ -160,5 +160,10 @@ namespace mfem{
     double normD = sqrt(distX * distX + distY * distY);
     tN(0) = distX /  normD;
     tN(1) = distY /  normD;
-  }	      
+  }
+
+  bool Circle::IsInElement(const Vector &x){
+    return ((pow(x(0)-center(0),2.0)+pow(x(1)-center(1),2.0)) >= pow(radius,2.0)) ? true : false;
+  }
+
 }
