@@ -175,8 +175,8 @@ int main(int argc, char *argv[])
             x1[0] = q(0);
             x1[1] = p(0);
             x1[2] = 0.0;
-            mesh.AddVertex(x0.GetData());
-            mesh.AddVertex(x1.GetData());
+            mesh.AddVertex(x0);
+            mesh.AddVertex(x1);
          }
       }
 
@@ -198,8 +198,8 @@ int main(int argc, char *argv[])
          x1[0] = q(0);
          x1[1] = p(0);
          x1[2] = t;
-         mesh.AddVertex(x0.GetData());
-         mesh.AddVertex(x1.GetData());
+         mesh.AddVertex(x0);
+         mesh.AddVertex(x1);
          v[0] = 2*i;
          v[1] = 2*(i+1);
          v[2] = 2*(i+1)+1;

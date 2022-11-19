@@ -357,7 +357,7 @@ public:
          GridFunction *nodes = by_vdim ? &x0 : S.fes->GetMesh()->GetNodes();
          x.HostReadWrite();
          nodes->HostRead();
-         double rnorm = nodes->DistanceTo(x.HostRead()) / nodes->Norml2();
+         double rnorm = nodes->DistanceTo(x) / nodes->Norml2();
          double glob_norm;
          MPI_Allreduce(&rnorm, &glob_norm, 1, MPI_DOUBLE, MPI_MAX, MPI_COMM_WORLD);
          rnorm = glob_norm;

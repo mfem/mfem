@@ -690,7 +690,7 @@ double FaceElementTransformations::CheckConsistency(int print_level,
       if (have_face)
       {
          coords_el -= coords_base;
-         coords_el.Norm2(dist.GetData());
+         coords_el.Norm2(dist);
          max_dist = std::max(max_dist, dist.Normlinf());
       }
       else
@@ -709,7 +709,7 @@ double FaceElementTransformations::CheckConsistency(int print_level,
          coords_el.PrintT(os, coords_el.Height());
       }
       coords_el -= coords_base;
-      coords_el.Norm2(dist.GetData());
+      coords_el.Norm2(dist);
       max_dist = std::max(max_dist, dist.Normlinf());
    }
 

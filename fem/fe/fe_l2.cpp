@@ -597,9 +597,9 @@ L2_TriangleElement::L2_TriangleElement(const int p, const int btype)
    for (int k = 0; k < dof; k++)
    {
       IntegrationPoint &ip = Nodes.IntPoint(k);
-      poly1d.CalcBasis(p, ip.x, shape_x.HostWrite());
-      poly1d.CalcBasis(p, ip.y, shape_y.HostWrite());
-      poly1d.CalcBasis(p, 1. - ip.x - ip.y, shape_l.HostWrite());
+      poly1d.CalcBasis(p, ip.x, shape_x);
+      poly1d.CalcBasis(p, ip.y, shape_y);
+      poly1d.CalcBasis(p, 1. - ip.x - ip.y, shape_l);
 
       for (int o = 0, j = 0; j <= p; j++)
          for (int i = 0; i + j <= p; i++)
@@ -621,9 +621,9 @@ void L2_TriangleElement::CalcShape(const IntegrationPoint &ip,
    Vector shape_x(p + 1), shape_y(p + 1), shape_l(p + 1), u(dof);
 #endif
 
-   poly1d.CalcBasis(p, ip.x, shape_x.HostWrite());
-   poly1d.CalcBasis(p, ip.y, shape_y.HostWrite());
-   poly1d.CalcBasis(p, 1. - ip.x - ip.y, shape_l.HostWrite());
+   poly1d.CalcBasis(p, ip.x, shape_x);
+   poly1d.CalcBasis(p, ip.y, shape_y);
+   poly1d.CalcBasis(p, 1. - ip.x - ip.y, shape_l);
 
    for (int o = 0, j = 0; j <= p; j++)
       for (int i = 0; i + j <= p; i++)
@@ -645,10 +645,9 @@ void L2_TriangleElement::CalcDShape(const IntegrationPoint &ip,
    DenseMatrix du(dof, dim);
 #endif
 
-   poly1d.CalcBasis(p, ip.x, shape_x.HostWrite(), dshape_x.HostWrite());
-   poly1d.CalcBasis(p, ip.y, shape_y.HostWrite(), dshape_y.HostWrite());
-   poly1d.CalcBasis(p, 1. - ip.x - ip.y, shape_l.HostWrite(),
-                    dshape_l.HostWrite());
+   poly1d.CalcBasis(p, ip.x, shape_x, dshape_x);
+   poly1d.CalcBasis(p, ip.y, shape_y, dshape_y);
+   poly1d.CalcBasis(p, 1. - ip.x - ip.y, shape_l, dshape_l);
 
    for (int o = 0, j = 0; j <= p; j++)
       for (int i = 0; i + j <= p; i++)
@@ -726,10 +725,10 @@ L2_TetrahedronElement::L2_TetrahedronElement(const int p, const int btype)
    for (int m = 0; m < dof; m++)
    {
       IntegrationPoint &ip = Nodes.IntPoint(m);
-      poly1d.CalcBasis(p, ip.x, shape_x.HostWrite());
-      poly1d.CalcBasis(p, ip.y, shape_y.HostWrite());
-      poly1d.CalcBasis(p, ip.z, shape_z.HostWrite());
-      poly1d.CalcBasis(p, 1. - ip.x - ip.y - ip.z, shape_l.HostWrite());
+      poly1d.CalcBasis(p, ip.x, shape_x);
+      poly1d.CalcBasis(p, ip.y, shape_y);
+      poly1d.CalcBasis(p, ip.z, shape_z);
+      poly1d.CalcBasis(p, 1. - ip.x - ip.y - ip.z, shape_l);
 
       for (int o = 0, k = 0; k <= p; k++)
          for (int j = 0; j + k <= p; j++)
@@ -753,10 +752,10 @@ void L2_TetrahedronElement::CalcShape(const IntegrationPoint &ip,
    Vector u(dof);
 #endif
 
-   poly1d.CalcBasis(p, ip.x, shape_x.HostWrite());
-   poly1d.CalcBasis(p, ip.y, shape_y.HostWrite());
-   poly1d.CalcBasis(p, ip.z, shape_z.HostWrite());
-   poly1d.CalcBasis(p, 1. - ip.x - ip.y - ip.z, shape_l.HostWrite());
+   poly1d.CalcBasis(p, ip.x, shape_x);
+   poly1d.CalcBasis(p, ip.y, shape_y);
+   poly1d.CalcBasis(p, ip.z, shape_z);
+   poly1d.CalcBasis(p, 1. - ip.x - ip.y - ip.z, shape_l);
 
    for (int o = 0, k = 0; k <= p; k++)
       for (int j = 0; j + k <= p; j++)
@@ -779,11 +778,10 @@ void L2_TetrahedronElement::CalcDShape(const IntegrationPoint &ip,
    DenseMatrix du(dof, dim);
 #endif
 
-   poly1d.CalcBasis(p, ip.x, shape_x.HostWrite(), dshape_x.HostWrite());
-   poly1d.CalcBasis(p, ip.y, shape_y.HostWrite(), dshape_y.HostWrite());
-   poly1d.CalcBasis(p, ip.z, shape_z.HostWrite(), dshape_z.HostWrite());
-   poly1d.CalcBasis(p, 1. - ip.x - ip.y - ip.z, shape_l.HostWrite(),
-                    dshape_l.HostWrite());
+   poly1d.CalcBasis(p, ip.x, shape_x, dshape_x);
+   poly1d.CalcBasis(p, ip.y, shape_y, dshape_y);
+   poly1d.CalcBasis(p, ip.z, shape_z, dshape_z);
+   poly1d.CalcBasis(p, 1. - ip.x - ip.y - ip.z, shape_l, dshape_l);
 
    for (int o = 0, k = 0; k <= p; k++)
       for (int j = 0; j + k <= p; j++)

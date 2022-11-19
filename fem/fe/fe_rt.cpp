@@ -145,11 +145,13 @@ void RT_QuadrilateralElement::CalcVShape(const IntegrationPoint &ip,
 
 #ifdef MFEM_THREAD_SAFE
    Vector shape_cx(pp1 + 1), shape_ox(pp1), shape_cy(pp1 + 1), shape_oy(pp1);
-   Vector dshape_cx, dshape_cy;
 #endif
 
    if (obasis1d.IsIntegratedType())
    {
+#ifdef MFEM_THREAD_SAFE
+      Vector dshape_cx(pp1 + 1), dshape_cy(pp1 + 1);
+#endif
       cbasis1d.Eval(ip.x, shape_cx, dshape_cx);
       cbasis1d.Eval(ip.y, shape_cy, dshape_cy);
       obasis1d.ScaleIntegrated(false);
@@ -473,11 +475,13 @@ void RT_HexahedronElement::CalcVShape(const IntegrationPoint &ip,
 #ifdef MFEM_THREAD_SAFE
    Vector shape_cx(pp1 + 1), shape_ox(pp1), shape_cy(pp1 + 1), shape_oy(pp1);
    Vector shape_cz(pp1 + 1), shape_oz(pp1);
-   Vector dshape_cx, dshape_cy, dshape_cz;
 #endif
 
    if (obasis1d.IsIntegratedType())
    {
+#ifdef MFEM_THREAD_SAFE
+      Vector dshape_cx(pp1 + 1), dshape_cy(pp1 + 1), dshape_cz(pp1 + 1);
+#endif
       cbasis1d.Eval(ip.x, shape_cx, dshape_cx);
       cbasis1d.Eval(ip.y, shape_cy, dshape_cy);
       cbasis1d.Eval(ip.z, shape_cz, dshape_cz);
@@ -742,9 +746,9 @@ RT_TriangleElement::RT_TriangleElement(const int p)
    for (int k = 0; k < dof; k++)
    {
       const IntegrationPoint &ip = Nodes.IntPoint(k);
-      poly1d.CalcBasis(p, ip.x, shape_x.HostWrite());
-      poly1d.CalcBasis(p, ip.y, shape_y.HostWrite());
-      poly1d.CalcBasis(p, 1. - ip.x - ip.y, shape_l.HostWrite());
+      poly1d.CalcBasis(p, ip.x, shape_x);
+      poly1d.CalcBasis(p, ip.y, shape_y);
+      poly1d.CalcBasis(p, 1. - ip.x - ip.y, shape_l);
       const double *n_k = nk + 2*dof2nk[k];
 
       o = 0;
@@ -776,9 +780,9 @@ void RT_TriangleElement::CalcVShape(const IntegrationPoint &ip,
    DenseMatrix u(dof, dim);
 #endif
 
-   poly1d.CalcBasis(p, ip.x, shape_x.HostWrite());
-   poly1d.CalcBasis(p, ip.y, shape_y.HostWrite());
-   poly1d.CalcBasis(p, 1. - ip.x - ip.y, shape_l.HostWrite());
+   poly1d.CalcBasis(p, ip.x, shape_x);
+   poly1d.CalcBasis(p, ip.y, shape_y);
+   poly1d.CalcBasis(p, 1. - ip.x - ip.y, shape_l);
 
    int o = 0;
    for (int j = 0; j <= p; j++)
@@ -810,10 +814,9 @@ void RT_TriangleElement::CalcDivShape(const IntegrationPoint &ip,
    Vector divu(dof);
 #endif
 
-   poly1d.CalcBasis(p, ip.x, shape_x.HostWrite(), dshape_x.HostWrite());
-   poly1d.CalcBasis(p, ip.y, shape_y.HostWrite(), dshape_y.HostWrite());
-   poly1d.CalcBasis(p, 1. - ip.x - ip.y, shape_l.HostWrite(),
-                    dshape_l.HostWrite());
+   poly1d.CalcBasis(p, ip.x, shape_x, dshape_x);
+   poly1d.CalcBasis(p, ip.y, shape_y, dshape_y);
+   poly1d.CalcBasis(p, 1. - ip.x - ip.y, shape_l, dshape_l);
 
    int o = 0;
    for (int j = 0; j <= p; j++)
@@ -915,10 +918,10 @@ RT_TetrahedronElement::RT_TetrahedronElement(const int p)
    for (int m = 0; m < dof; m++)
    {
       const IntegrationPoint &ip = Nodes.IntPoint(m);
-      poly1d.CalcBasis(p, ip.x, shape_x.HostWrite());
-      poly1d.CalcBasis(p, ip.y, shape_y.HostWrite());
-      poly1d.CalcBasis(p, ip.z, shape_z.HostWrite());
-      poly1d.CalcBasis(p, 1. - ip.x - ip.y - ip.z, shape_l.HostWrite());
+      poly1d.CalcBasis(p, ip.x, shape_x);
+      poly1d.CalcBasis(p, ip.y, shape_y);
+      poly1d.CalcBasis(p, ip.z, shape_z);
+      poly1d.CalcBasis(p, 1. - ip.x - ip.y - ip.z, shape_l);
       const double *nm = nk + 3*dof2nk[m];
 
       o = 0;
@@ -954,10 +957,10 @@ void RT_TetrahedronElement::CalcVShape(const IntegrationPoint &ip,
    DenseMatrix u(dof, dim);
 #endif
 
-   poly1d.CalcBasis(p, ip.x, shape_x.HostWrite());
-   poly1d.CalcBasis(p, ip.y, shape_y.HostWrite());
-   poly1d.CalcBasis(p, ip.z, shape_z.HostWrite());
-   poly1d.CalcBasis(p, 1. - ip.x - ip.y - ip.z, shape_l.HostWrite());
+   poly1d.CalcBasis(p, ip.x, shape_x);
+   poly1d.CalcBasis(p, ip.y, shape_y);
+   poly1d.CalcBasis(p, ip.z, shape_z);
+   poly1d.CalcBasis(p, 1. - ip.x - ip.y - ip.z, shape_l);
 
    int o = 0;
    for (int k = 0; k <= p; k++)
@@ -991,11 +994,10 @@ void RT_TetrahedronElement::CalcDivShape(const IntegrationPoint &ip,
    Vector divu(dof);
 #endif
 
-   poly1d.CalcBasis(p, ip.x, shape_x.HostWrite(), dshape_x.HostWrite());
-   poly1d.CalcBasis(p, ip.y, shape_y.HostWrite(), dshape_y.HostWrite());
-   poly1d.CalcBasis(p, ip.z, shape_z.HostWrite(), dshape_z.HostWrite());
-   poly1d.CalcBasis(p, 1. - ip.x - ip.y - ip.z, shape_l.HostWrite(),
-                    dshape_l.HostWrite());
+   poly1d.CalcBasis(p, ip.x, shape_x, dshape_x);
+   poly1d.CalcBasis(p, ip.y, shape_y, dshape_y);
+   poly1d.CalcBasis(p, ip.z, shape_z, dshape_z);
+   poly1d.CalcBasis(p, 1. - ip.x - ip.y - ip.z, shape_l, dshape_l);
 
    int o = 0;
    for (int k = 0; k <= p; k++)
@@ -1402,7 +1404,7 @@ void RT_R1D_SegmentElement::Project(const FiniteElement &fe,
          Trans.SetIntPoint(&ip);
          // Transform RT face normals from reference to physical space
          // vk = adj(J)^T nk
-         Trans.AdjugateJacobian().MultTranspose(n1.HostRead(), vk);
+         Trans.AdjugateJacobian().MultTranspose(n1, vk);
          vk[1] = n3[1] * Trans.Weight();
          vk[2] = n3[2] * Trans.Weight();
          if (fe.GetMapType() == INTEGRAL)
@@ -1448,7 +1450,7 @@ void RT_R1D_SegmentElement::Project(const FiniteElement &fe,
          Trans.SetIntPoint(&ip);
          // Transform RT face normals from reference to physical space
          // vk = adj(J)^T nk
-         Trans.AdjugateJacobian().MultTranspose(n1.HostRead(), vk);
+         Trans.AdjugateJacobian().MultTranspose(n1, vk);
          // Compute fe basis functions in physical space
          fe.CalcVShape(Trans, vshape);
          // Project fe basis functions onto transformed face normals
@@ -1479,7 +1481,7 @@ void RT_R1D_SegmentElement::ProjectCurl(const FiniteElement &fe,
    for (int k = 0; k < dof; k++)
    {
       fe.CalcCurlShape(Nodes.IntPoint(k), curl_shape);
-      curl_shape.Mult(nk_ptr + dof2nk[k] * 3, curl_k.HostWrite());
+      curl_shape.Mult(nk_ptr + dof2nk[k] * 3, curl_k);
       for (int j = 0; j < curl_k.Size(); j++)
       {
          curl(k,j) = (fabs(curl_k(j)) < 1e-12) ? 0.0 : curl_k(j);
@@ -1583,7 +1585,7 @@ void RT_R2D_SegmentElement::LocalInterpolation(const VectorFiniteElement &cfe,
       ip.Set3(vk);
       cfe.CalcVShape(ip, vshape);
       // xk = |J| J^{-t} n_k
-      adjJ.MultTranspose(n2.HostRead(), vk);
+      adjJ.MultTranspose(n2, vk);
       // I_k = vshape_k.adj(J)^t.n_k, k=1,...,dof
       for (int j = 0; j < vshape.Height(); j++)
       {
@@ -1656,7 +1658,7 @@ RT_R2D_FiniteElement::LocalInterpolation(const VectorFiniteElement &cfe,
       ip.Set3(vk);
       cfe.CalcVShape(ip, vshape);
       // xk = |J| J^{-t} n_k
-      adjJ.MultTranspose(n2.HostRead(), vk);
+      adjJ.MultTranspose(n2, vk);
       // I_k = vshape_k.adj(J)^t.n_k, k=1,...,dof
       for (int j = 0; j < vshape.Height(); j++)
       {
@@ -1697,7 +1699,7 @@ void RT_R2D_FiniteElement::GetLocalRestriction(ElementTransformation &Trans,
       if (Geometries.CheckPoint(geom_type, ip)) // do we need an epsilon here?
       {
          CalcVShape(ip, vshape);
-         J.MultTranspose(n2.HostRead(), pt_data);
+         J.MultTranspose(n2, pt_data);
          pt /= weight;
          for (int k = 0; k < dof; k++)
          {
@@ -1766,7 +1768,7 @@ void RT_R2D_FiniteElement::Project(const FiniteElement &fe,
          Trans.SetIntPoint(&ip);
          // Transform RT face normals from reference to physical space
          // vk = adj(J)^T nk
-         Trans.AdjugateJacobian().MultTranspose(n2.HostRead(), vk);
+         Trans.AdjugateJacobian().MultTranspose(n2, vk);
          vk[2] = n3[2] * Trans.Weight();
          if (fe.GetMapType() == INTEGRAL)
          {
@@ -1811,7 +1813,7 @@ void RT_R2D_FiniteElement::Project(const FiniteElement &fe,
          Trans.SetIntPoint(&ip);
          // Transform RT face normals from reference to physical space
          // vk = adj(J)^T nk
-         Trans.AdjugateJacobian().MultTranspose(n2.HostRead(), vk);
+         Trans.AdjugateJacobian().MultTranspose(n2, vk);
          // Compute fe basis functions in physical space
          fe.CalcVShape(Trans, vshape);
          // Project fe basis functions onto transformed face normals
@@ -1844,7 +1846,7 @@ void RT_R2D_FiniteElement::ProjectCurl(const FiniteElement &fe,
    for (int k = 0; k < dof; k++)
    {
       fe.CalcCurlShape(Nodes.IntPoint(k), curl_shape);
-      curl_shape.Mult(nk_ptr + dof2nk[k] * 3, curl_k.HostWrite());
+      curl_shape.Mult(nk_ptr + dof2nk[k] * 3, curl_k);
       for (int j = 0; j < curl_k.Size(); j++)
       {
          curl(k,j) = (fabs(curl_k(j)) < 1e-12) ? 0.0 : curl_k(j);
