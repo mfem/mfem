@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+# OACopyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -25,25 +25,44 @@ if (MFEM_USE_MPI)
 	integ_algoim.hpp)
   list(APPEND STOKES_SHIFTED_COMMON_SOURCES
         nitsche_solver.cpp
-	shifter_solver.cpp
+	shifted_solver.cpp
 	p_divW.cpp
 	AnalyticalSurface.cpp
 	AnalyticalGeometricShape.cpp
-	Circle.cpp
-	shifted_solver.cpp)
+	Circle.cpp)
   list(APPEND STOKES_SHIFTED_COMMON_HEADERS
 	nitsche_solver.hpp
-	shifter_solver.hpp
+	shifted_solver.hpp
 	p_divW.hpp
 	AnalyticalSurface.hpp
 	AnalyticalGeometricShape.hpp
+	Circle.hpp)
+  list(APPEND STOKES_WEIGHTED_SHIFTED_COMMON_SOURCES
+        nitsche_weighted_solver.cpp
+	shifted_weighted_solver.cpp
+	volume_fractions.cpp
+	volume_integrals.cpp
+	AnalyticalSurface.cpp
+	AnalyticalGeometricShape.cpp
+	Circle.cpp
+	ghost_penalty.cpp)
+  list(APPEND STOKES_WEIGHTED_SHIFTED_COMMON_HEADERS
+	nitsche_weighted_solver.hpp
+	shifted_weighted_solver.hpp
+	volume_fractions.hpp
+	volume_intgrals.hpp
+	AnalyticalSurface.hpp
+	AnalyticalGeometricShape.hpp
 	Circle.hpp
-	shifted_solver.hpp)
+	ghost_penalty.hpp)
+
 
   convert_filenames_to_full_paths(DIST_COMMON_SOURCES)
   convert_filenames_to_full_paths(DIST_COMMON_HEADERS)
   convert_filenames_to_full_paths(STOKES_SHIFTED_COMMON_SOURCES)
   convert_filenames_to_full_paths(STOKES_SHIFTED_COMMON_HEADERS)
+  convert_filenames_to_full_paths(STOKES_WEIGHTED_SHIFTED_COMMON_SOURCES)
+  convert_filenames_to_full_paths(STOKES_WEIGHTED_SHIFTED_COMMON_HEADERS)
 
   set(DIST_COMMON_FILES
       EXTRA_SOURCES ${DIST_COMMON_SOURCES}
@@ -52,6 +71,10 @@ if (MFEM_USE_MPI)
   set(STOKES_SHIFTED_COMMON_FILES
       EXTRA_SOURCES ${STOKES_SHIFTED_COMMON_SOURCES}
       EXTRA_HEADERS ${STOKES_SHIFTED_COMMON_HEADERS})
+
+set(STOKES_WEIGHTED_SHIFTED_COMMON_FILES
+      EXTRA_SOURCES ${STOKES_WEIGHTED_SHIFTED_COMMON_SOURCES}
+      EXTRA_HEADERS ${STOKES_WEIGHTED_SHIFTED_COMMON_HEADERS})
 
   add_mfem_miniapp(distance
     MAIN distance.cpp
@@ -68,12 +91,17 @@ if (MFEM_USE_MPI)
     ${DIST_COMMON_FILES}
     LIBRARIES mfem mfem-common)
 
- add_mfem_miniapp(ex_Stokes_shifted
+  add_mfem_miniapp(ex_Stokes_shifted
     MAIN ex_Stokes_shifted.cpp
     ${STOKES_SHIFTED_COMMON_FILES}
     LIBRARIES mfem mfem-common)
 
-add_mfem_miniapp(lsf_integral
+  add_mfem_miniapp(ex_Stokes_WSBM
+    MAIN ex_Stokes_WSBM.cpp
+    ${STOKES_WEIGHTED_SHIFTED_COMMON_FILES}
+    LIBRARIES mfem mfem-common)
+
+  add_mfem_miniapp(lsf_integral
     MAIN lsf_integral.cpp
     ${DIST_COMMON_FILES}
     LIBRARIES mfem mfem-common)
@@ -95,6 +123,12 @@ add_mfem_miniapp(lsf_integral
       COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${MFEM_MPI_NP}
       ${MPIEXEC_PREFLAGS}
       $<TARGET_FILE:ex_Stokes_shifted> -no-vis
+      ${MPIEXEC_POSTFLAGS})
+
+    add_test(NAME ex_Stokes_WSBM_np${MFEM_MPI_NP}
+      COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${MFEM_MPI_NP}
+      ${MPIEXEC_PREFLAGS}
+      $<TARGET_FILE:ex_Stokes_WSBM> -no-vis
       ${MPIEXEC_POSTFLAGS})
       
   endif()

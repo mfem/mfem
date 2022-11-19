@@ -11,7 +11,7 @@
 //              can be specified by command line options.
 
 #include "mfem.hpp"
-#include "nitsche_solver.hpp"
+#include "nitsche_weighted_solver.hpp"
 #include "ghost_penalty.hpp"
 #include "shifted_weighted_solver.hpp"
 #include "volume_fractions.hpp"
@@ -20,7 +20,7 @@
 #include <algorithm>
 #include "volume_integrals.hpp"
 #include "AnalyticalSurface.hpp"
-#include "/Users/nma727/Desktop/MFEM/Source/mfem/miniapps/common/mfem-common.hpp"
+#include "../common/mfem-common.hpp"
 
 using namespace std;
 using namespace mfem;
