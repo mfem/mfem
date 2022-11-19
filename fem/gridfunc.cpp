@@ -12,6 +12,7 @@
 // Implementation of GridFunction
 
 #include "gridfunc.hpp"
+#include "quadinterpolator.hpp"
 #include "../mesh/nurbs.hpp"
 #include "../general/text.hpp"
 
@@ -188,6 +189,8 @@ void GridFunction::Update()
    {
       SetSize(fes->GetVSize());
    }
+
+   if (t_vec.Size() > 0) { SetTrueVector(); }
 }
 
 void GridFunction::SetSpace(FiniteElementSpace *f)
@@ -1429,21 +1432,13 @@ void GridFunction::GetDerivative(int comp, int der_comp, GridFunction &der)
    }
 }
 
-
 void GridFunction::GetVectorGradientHat(
    ElementTransformation &T, DenseMatrix &gh) const
 {
-   int elNo = T.ElementNo;
-   const FiniteElement *FElem = fes->GetFE(elNo);
+   const FiniteElement *FElem = fes->GetFE(T.ElementNo);
    int dim = FElem->GetDim(), dof = FElem->GetDof();
-   Array<int> vdofs;
-   DofTransformation * doftrans = fes->GetElementVDofs(elNo, vdofs);
    Vector loc_data;
-   GetSubVector(vdofs, loc_data);
-   if (doftrans)
-   {
-      doftrans->InvTransformPrimal(loc_data);
-   }
+   GetElementDofValues(T.ElementNo, loc_data);
    // assuming scalar FE
    int vdim = fes->GetVDim();
    DenseMatrix dshape(dof, dim);
@@ -1648,6 +1643,7 @@ void GridFunction::GetGradient(ElementTransformation &T, Vector &grad) const
          const FiniteElement *fe = fes->GetFE(T.ElementNo);
          MFEM_ASSERT(fe->GetMapType() == FiniteElement::VALUE,
                      "invalid FE map type");
+         MFEM_ASSERT(fes->GetVDim() == 1, "Defined for scalar functions.");
          int spaceDim = fes->GetMesh()->SpaceDimension();
          int dim = fe->GetDim(), dof = fe->GetDof();
          DenseMatrix dshape(dof, dim);
@@ -1716,13 +1712,8 @@ void GridFunction::GetGradients(ElementTransformation &tr,
    MFEM_ASSERT(fe->GetMapType() == FiniteElement::VALUE, "invalid FE map type");
    DenseMatrix dshape(fe->GetDof(), fe->GetDim());
    Vector lval, gh(fe->GetDim()), gcol;
-   Array<int> dofs;
-   DofTransformation * doftrans = fes->GetElementDofs(elNo, dofs);
-   GetSubVector(dofs, lval);
-   if (doftrans)
-   {
-      doftrans->InvTransformPrimal(lval);
-   }
+
+   GetElementDofValues(tr.ElementNo, lval);
    grad.SetSize(fe->GetDim(), ir.GetNPoints());
    for (int i = 0; i < ir.GetNPoints(); i++)
    {
@@ -2759,7 +2750,6 @@ void GridFunction::ProjectBdrCoefficientTangent(
    }
 #endif
 }
-
 
 double GridFunction::ComputeL2Error(
    Coefficient *exsol[], const IntegrationRule *irs[],
@@ -3973,178 +3963,6 @@ void GridFunction::LegacyNCReorder()
    Vector::Swap(tmp);
 }
 
-
-QuadratureFunction::QuadratureFunction(Mesh *mesh, std::istream &in)
-{
-   const char *msg = "invalid input stream";
-   string ident;
-
-   qspace = new QuadratureSpace(mesh, in);
-   own_qspace = true;
-
-   in >> ident; MFEM_VERIFY(ident == "VDim:", msg);
-   in >> vdim;
-
-   Load(in, vdim*qspace->GetSize());
-}
-
-QuadratureFunction & QuadratureFunction::operator=(double value)
-{
-   Vector::operator=(value);
-   return *this;
-}
-
-QuadratureFunction & QuadratureFunction::operator=(const Vector &v)
-{
-   MFEM_ASSERT(qspace && v.Size() == this->Size(), "");
-   Vector::operator=(v);
-   return *this;
-}
-
-QuadratureFunction & QuadratureFunction::operator=(const QuadratureFunction &v)
-{
-   return this->operator=((const Vector &)v);
-}
-
-void QuadratureFunction::Save(std::ostream &os) const
-{
-   qspace->Save(os);
-   os << "VDim: " << vdim << '\n'
-      << '\n';
-   Vector::Print(os, vdim);
-   os.flush();
-}
-
-std::ostream &operator<<(std::ostream &os, const QuadratureFunction &qf)
-{
-   qf.Save(os);
-   return os;
-}
-
-void QuadratureFunction::SaveVTU(std::ostream &os, VTKFormat format,
-                                 int compression_level) const
-{
-   os << R"(<VTKFile type="UnstructuredGrid" version="0.1")";
-   if (compression_level != 0)
-   {
-      os << R"( compressor="vtkZLibDataCompressor")";
-   }
-   os << " byte_order=\"" << VTKByteOrder() << "\">\n";
-   os << "<UnstructuredGrid>\n";
-
-   const char *fmt_str = (format == VTKFormat::ASCII) ? "ascii" : "binary";
-   const char *type_str = (format != VTKFormat::BINARY32) ? "Float64" : "Float32";
-   std::vector<char> buf;
-
-   int np = qspace->GetSize();
-   int ne = qspace->GetNE();
-   int sdim = qspace->GetMesh()->SpaceDimension();
-
-   // For quadrature functions, each point is a vertex cell, so number of cells
-   // is equal to number of points
-   os << "<Piece NumberOfPoints=\"" << np
-      << "\" NumberOfCells=\"" << np << "\">\n";
-
-   // print out the points
-   os << "<Points>\n";
-   os << "<DataArray type=\"" << type_str
-      << "\" NumberOfComponents=\"3\" format=\"" << fmt_str << "\">\n";
-
-   Vector pt(sdim);
-   for (int i = 0; i < ne; i++)
-   {
-      ElementTransformation &T = *qspace->GetMesh()->GetElementTransformation(i);
-      const IntegrationRule &ir = GetElementIntRule(i);
-      for (int j = 0; j < ir.Size(); j++)
-      {
-         T.Transform(ir[j], pt);
-         WriteBinaryOrASCII(os, buf, pt[0], " ", format);
-         if (sdim > 1) { WriteBinaryOrASCII(os, buf, pt[1], " ", format); }
-         else { WriteBinaryOrASCII(os, buf, 0.0, " ", format); }
-         if (sdim > 2) { WriteBinaryOrASCII(os, buf, pt[2], "", format); }
-         else { WriteBinaryOrASCII(os, buf, 0.0, "", format); }
-         if (format == VTKFormat::ASCII) { os << '\n'; }
-      }
-   }
-   if (format != VTKFormat::ASCII)
-   {
-      WriteBase64WithSizeAndClear(os, buf, compression_level);
-   }
-   os << "</DataArray>\n";
-   os << "</Points>\n";
-
-   // Write cells (each cell is just a vertex)
-   os << "<Cells>\n";
-   // Connectivity
-   os << R"(<DataArray type="Int32" Name="connectivity" format=")"
-      << fmt_str << "\">\n";
-
-   for (int i=0; i<np; ++i) { WriteBinaryOrASCII(os, buf, i, "\n", format); }
-   if (format != VTKFormat::ASCII)
-   {
-      WriteBase64WithSizeAndClear(os, buf, compression_level);
-   }
-   os << "</DataArray>\n";
-   // Offsets
-   os << R"(<DataArray type="Int32" Name="offsets" format=")"
-      << fmt_str << "\">\n";
-   for (int i=0; i<np; ++i) { WriteBinaryOrASCII(os, buf, i, "\n", format); }
-   if (format != VTKFormat::ASCII)
-   {
-      WriteBase64WithSizeAndClear(os, buf, compression_level);
-   }
-   os << "</DataArray>\n";
-   // Types
-   os << R"(<DataArray type="UInt8" Name="types" format=")"
-      << fmt_str << "\">\n";
-   for (int i = 0; i < np; i++)
-   {
-      uint8_t vtk_cell_type = VTKGeometry::POINT;
-      WriteBinaryOrASCII(os, buf, vtk_cell_type, "\n", format);
-   }
-   if (format != VTKFormat::ASCII)
-   {
-      WriteBase64WithSizeAndClear(os, buf, compression_level);
-   }
-   os << "</DataArray>\n";
-   os << "</Cells>\n";
-
-   os << "<PointData>\n";
-   os << "<DataArray type=\"" << type_str << "\" Name=\"u\" format=\""
-      << fmt_str << "\" NumberOfComponents=\"" << vdim << "\">\n";
-   for (int i = 0; i < ne; i++)
-   {
-      DenseMatrix vals;
-      GetElementValues(i, vals);
-      for (int j = 0; j < vals.Size(); ++j)
-      {
-         for (int vd = 0; vd < vdim; ++vd)
-         {
-            WriteBinaryOrASCII(os, buf, vals(vd, j), " ", format);
-         }
-         if (format == VTKFormat::ASCII) { os << '\n'; }
-      }
-   }
-   if (format != VTKFormat::ASCII)
-   {
-      WriteBase64WithSizeAndClear(os, buf, compression_level);
-   }
-   os << "</DataArray>\n";
-   os << "</PointData>\n";
-
-   os << "</Piece>\n";
-   os << "</UnstructuredGrid>\n";
-   os << "</VTKFile>" << std::endl;
-}
-
-void QuadratureFunction::SaveVTU(const std::string &filename, VTKFormat format,
-                                 int compression_level) const
-{
-   std::ofstream f(filename + ".vtu");
-   SaveVTU(f, format, compression_level);
-}
-
-
 double ZZErrorEstimator(BilinearFormIntegrator &blfi,
                         GridFunction &u,
                         GridFunction &flux, Vector &error_estimates,
@@ -4262,7 +4080,7 @@ void TensorProductLegendre(int dim,                // input
    }
    else
    {
-      // Bounding box is not reorientated no need to change orientation
+      // Bounding box is not reoriented no need to change orientation
       x = x_in;
    }
 
@@ -4281,49 +4099,49 @@ void TensorProductLegendre(int dim,                // input
       poly1d.CalcLegendre(order, x3, poly_z);
    }
 
-   int basis_dimension = pow(order+1,dim);
+   int basis_dimension = static_cast<int>(pow(order+1,dim));
    poly.SetSize(basis_dimension);
    switch (dim)
    {
       case 1:
+      {
+         for (int i = 0; i <= order; i++)
+         {
+            poly(i) = poly_x(i);
+         }
+      }
+      break;
+      case 2:
+      {
+         for (int j = 0; j <= order; j++)
          {
             for (int i = 0; i <= order; i++)
             {
-               poly(i) = poly_x(i);
+               int cnt = i + (order+1) * j;
+               poly(cnt) = poly_x(i) * poly_y(j);
             }
          }
-         break;
-      case 2:
+      }
+      break;
+      case 3:
+      {
+         for (int k = 0; k <= order; k++)
          {
             for (int j = 0; j <= order; j++)
             {
                for (int i = 0; i <= order; i++)
                {
-                  int cnt = i + (order+1) * j;
-                  poly(cnt) = poly_x(i) * poly_y(j);
+                  int cnt = i + (order+1) * j + (order+1) * (order+1) * k;
+                  poly(cnt) = poly_x(i) * poly_y(j) * poly_z(k);
                }
             }
          }
-         break;
-      case 3:
-         {
-            for (int k = 0; k <= order; k++)
-            {
-               for (int j = 0; j <= order; j++)
-               {
-                  for (int i = 0; i <= order; i++)
-                  {
-                     int cnt = i + (order+1) * j + (order+1) * (order+1) * k;
-                     poly(cnt) = poly_x(i) * poly_y(j) * poly_z(k);
-                  }
-               }
-            }
-         }
-         break;
+      }
+      break;
       default:
-         {
-            MFEM_ABORT("TensorProductLegendre: invalid value of dim");
-         }
+      {
+         MFEM_ABORT("TensorProductLegendre: invalid value of dim");
+      }
    }
 }
 
@@ -4463,7 +4281,7 @@ double LSZZErrorEstimator(BilinearFormIntegrator &blfi,  // input
       const int patch_order = max(ufes->GetElementOrder(el1),
                                   ufes->GetElementOrder(el2));
 
-      int num_basis_functions = pow(patch_order+1,dim);
+      int num_basis_functions = static_cast<int>(pow(patch_order+1,dim));
       int flux_order = 2*patch_order + 1;
       DenseMatrix A(num_basis_functions);
       Array<double> b(sdim * num_basis_functions);

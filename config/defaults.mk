@@ -42,6 +42,9 @@ STATIC = YES
 SHARED = NO
 
 # CUDA configuration options
+#
+# If you set MFEM_USE_ENZYME=YES, CUDA_CXX has to be configured to use cuda with
+# clang as its host compiler.
 CUDA_CXX = nvcc
 CUDA_ARCH = sm_60
 CUDA_FLAGS = -x=cu --expt-extended-lambda -arch=$(CUDA_ARCH)
@@ -153,6 +156,7 @@ MFEM_USE_RAJA          = NO
 MFEM_USE_OCCA          = NO
 MFEM_USE_CEED          = NO
 MFEM_USE_CALIPER       = NO
+MFEM_USE_ALGOIM        = NO
 MFEM_USE_UMPIRE        = NO
 MFEM_USE_SIMD          = NO
 MFEM_USE_ADIOS2        = NO
@@ -162,6 +166,7 @@ MFEM_USE_ADFORWARD     = NO
 MFEM_USE_CODIPACK      = NO
 MFEM_USE_BENCHMARK     = NO
 MFEM_USE_PARELAG       = NO
+MFEM_USE_ENZYME        = NO
 
 # MPI library compile and link flags
 # These settings are used only when building MFEM with MPI + HIP
@@ -174,7 +179,7 @@ ifeq ($(MFEM_USE_MPI)$(MFEM_USE_HIP),YESYES)
 endif
 
 # ROCM/HIP directory such that ROCM/HIP libraries like rocsparse and rocrand are
-# found in $(HIP_DIR)/lib, usually as links. Typically, this directoory is of
+# found in $(HIP_DIR)/lib, usually as links. Typically, this directory is of
 # the form /opt/rocm-X.Y.Z which is called ROCM_PATH by hipconfig.
 ifeq ($(MFEM_USE_HIP),YES)
    HIP_DIR := $(patsubst %/,%,$(dir $(shell which $(HIP_CXX))))
@@ -202,7 +207,7 @@ HYPRE_OPT = -I$(HYPRE_DIR)/include
 HYPRE_LIB = -L$(HYPRE_DIR)/lib -lHYPRE
 ifeq (YES,$(MFEM_USE_CUDA))
    # This is only necessary when hypre is built with cuda:
-   HYPRE_LIB += -lcusparse -lcurand
+   HYPRE_LIB += -lcusparse -lcurand -lcublas
 endif
 ifeq (YES,$(MFEM_USE_HIP))
    # This is only necessary when hypre is built with hip:
@@ -246,12 +251,16 @@ POSIX_CLOCKS_LIB = -lrt
 # SUNDIALS library configuration
 # For sundials_nvecmpiplusx and nvecparallel remember to build with MPI_ENABLE=ON
 # and modify cmake variables for hypre for sundials
-SUNDIALS_DIR    = @MFEM_DIR@/../sundials-5.0.0/instdir
-SUNDIALS_OPT    = -I$(SUNDIALS_DIR)/include
-SUNDIALS_LIBDIR = $(wildcard $(SUNDIALS_DIR)/lib*)
-SUNDIALS_LIB    = $(XLINKER)-rpath,$(SUNDIALS_LIBDIR) -L$(SUNDIALS_LIBDIR)\
+SUNDIALS_DIR = @MFEM_DIR@/../sundials-5.0.0/instdir
+# SUNDIALS >= 6.4.0 requires C++14:
+ifeq ($(MFEM_USE_SUNDIALS),YES)
+   BASE_FLAGS = -std=c++14
+endif
+SUNDIALS_OPT = -I$(SUNDIALS_DIR)/include
+SUNDIALS_LIB = $(XLINKER)-rpath,$(SUNDIALS_DIR)/lib64\
+ $(XLINKER)-rpath,$(SUNDIALS_DIR)/lib\
+ -L$(SUNDIALS_DIR)/lib64 -L$(SUNDIALS_DIR)/lib\
  -lsundials_arkode -lsundials_cvodes -lsundials_nvecserial -lsundials_kinsol
-
 ifeq ($(MFEM_USE_MPI),YES)
    SUNDIALS_LIB += -lsundials_nvecparallel -lsundials_nvecmpiplusx
 endif
@@ -304,7 +313,7 @@ SCALAPACK_LIB = -L$(SCALAPACK_DIR)/lib -lscalapack $(LAPACK_LIB)
 MPI_FORTRAN_LIB = -lmpifort
 # OpenMPI:
 # MPI_FORTRAN_LIB = -lmpi_mpifh
-# Additional Fortan library:
+# Additional Fortran library:
 # MPI_FORTRAN_LIB += -lgfortran
 
 # MUMPS library configuration
@@ -469,6 +478,16 @@ CALIPER_DIR = @MFEM_DIR@/../caliper
 CALIPER_OPT = -I$(CALIPER_DIR)/include
 CALIPER_LIB = $(XLINKER)-rpath,$(CALIPER_DIR)/lib64 -L$(CALIPER_DIR)/lib64 -lcaliper
 
+# BLITZ library configuration
+BLITZ_DIR = @MFEM_DIR@/../blitz
+BLITZ_OPT = -I$(BLITZ_DIR)/include
+BLITZ_LIB = $(XLINKER)-rpath,$(BLITZ_DIR)/lib -L$(BLITZ_DIR)/lib -lblitz
+
+# ALGOIM library configuration
+ALGOIM_DIR = @MFEM_DIR@/../algoim
+ALGOIM_OPT = -I$(ALGOIM_DIR)/src $(BLITZ_OPT)
+ALGOIM_LIB = $(BLITZ_LIB)
+
 # BENCHMARK library configuration
 BENCHMARK_DIR = @MFEM_DIR@/../google-benchmark
 BENCHMARK_OPT = -I$(BENCHMARK_DIR)/include
@@ -508,6 +527,22 @@ MKL_CPARDISO_LIB = $(XLINKER)-rpath,$(MKL_CPARDISO_DIR)/$(MKL_LIBRARY_SUBDIR)\
 PARELAG_DIR = @MFEM_DIR@/../parelag
 PARELAG_OPT = -I$(PARELAG_DIR)/src -I$(PARELAG_DIR)/build/src
 PARELAG_LIB = -L$(PARELAG_DIR)/build/src -lParELAG
+
+# Enzyme configuration
+
+# If you want to enable automatic differentiation at compile time, use the
+# options below, adapted to your configuration. To be more flexible, we
+# recommend using the Enzyme plugin during link time optimization. One option is
+# to add your options to the global compiler/linker flags like
+#
+# BASE_FLAGS += -flto
+# CXX_XLINKER += -fuse-ld=lld -Wl,--lto-legacy-pass-manager\
+#                -Wl,-mllvm=-load=$(ENZYME_DIR)/LLDEnzyme-$(ENZYME_VERSION).so -Wl,
+#
+ENZYME_DIR ?= @MFEM_DIR@/../enzyme
+ENZYME_VERSION ?= 14
+ENZYME_OPT = -fno-experimental-new-pass-manager -Xclang -load -Xclang $(ENZYME_DIR)/ClangEnzyme-$(ENZYME_VERSION).so
+ENZYME_LIB = ""
 
 # If YES, enable some informational messages
 VERBOSE = NO

@@ -470,7 +470,7 @@ void Mesh::GetBdrElementTransformation(int i, IsoparametricTransformation* ElTr)
       else // L2 Nodes (e.g., periodic mesh)
       {
          int elem_id, face_info;
-         GetBdrElementAdjacentElement(i, elem_id, face_info);
+         GetBdrElementAdjacentElement2(i, elem_id, face_info);
 
          GetLocalFaceTransformation(GetBdrElementType(i),
                                     GetElementType(elem_id),
@@ -859,7 +859,7 @@ const GeometricFactors* Mesh::GetGeometricFactors(const IntegrationRule& ir,
 
 const FaceGeometricFactors* Mesh::GetFaceGeometricFactors(
    const IntegrationRule& ir,
-   const int flags, FaceType type)
+   const int flags, FaceType type, MemoryType d_mt)
 {
    for (int i = 0; i < face_geom_factors.Size(); i++)
    {
@@ -873,7 +873,8 @@ const FaceGeometricFactors* Mesh::GetFaceGeometricFactors(
 
    this->EnsureNodes();
 
-   FaceGeometricFactors *gf = new FaceGeometricFactors(this, ir, flags, type);
+   FaceGeometricFactors *gf = new FaceGeometricFactors(this, ir, flags, type,
+                                                       d_mt);
    face_geom_factors.Append(gf);
    return gf;
 }
@@ -1431,6 +1432,17 @@ Geometry::Type Mesh::GetFaceGeometryType(int Face) const
 Element::Type Mesh::GetFaceElementType(int Face) const
 {
    return (Dim == 1) ? Element::POINT : faces[Face]->GetType();
+}
+
+Array<int> Mesh::GetFaceToBdrElMap() const
+{
+   Array<int> face_to_be(NumOfFaces);
+   face_to_be = -1;
+   for (int i = 0; i < NumOfBdrElements; i++)
+   {
+      face_to_be[GetBdrElementEdgeIndex(i)] = i;
+   }
+   return face_to_be;
 }
 
 void Mesh::Init()
@@ -2405,7 +2417,7 @@ void Mesh::MarkForRefinement()
 
 void Mesh::MarkTriMeshForRefinement()
 {
-   // Mark the longest triangle edge by rotating the indeces so that
+   // Mark the longest triangle edge by rotating the indices so that
    // vertex 0 - vertex 1 is the longest edge in the triangle.
    DenseMatrix pmat;
    for (int i = 0; i < NumOfElements; i++)
@@ -6213,6 +6225,28 @@ void Mesh::GetBdrElementAdjacentElement(int bdr_el, int &el, int &info) const
    info = fi.Elem1Inf + ori;
 }
 
+void Mesh::GetBdrElementAdjacentElement2(int bdr_el, int &el, int &info) const
+{
+   int fid = GetBdrElementEdgeIndex(bdr_el);
+
+   const FaceInfo &fi = faces_info[fid];
+   MFEM_ASSERT(fi.Elem1Inf % 64 == 0, "internal error"); // orientation == 0
+
+   const int *fv = (Dim > 1) ? faces[fid]->GetVertices() : NULL;
+   const int *bv = boundary[bdr_el]->GetVertices();
+   int ori;
+   switch (GetBdrElementGeometry(bdr_el))
+   {
+      case Geometry::POINT:    ori = 0; break;
+      case Geometry::SEGMENT:  ori = (fv[0] == bv[0]) ? 0 : 1; break;
+      case Geometry::TRIANGLE: ori = GetTriOrientation(bv, fv); break;
+      case Geometry::SQUARE:   ori = GetQuadOrientation(bv, fv); break;
+      default: MFEM_ABORT("boundary element type not implemented"); ori = 0;
+   }
+   el   = fi.Elem1No;
+   info = fi.Elem1Inf + ori;
+}
+
 Element::Type Mesh::GetElementType(int i) const
 {
    return elements[i]->GetType();
@@ -7879,6 +7913,9 @@ void Mesh::SetNodes(const Vector &node_coord)
    {
       SetVertices(node_coord);
    }
+
+   // Invalidate the old geometric factors
+   NodesUpdated();
 }
 
 void Mesh::NewNodes(GridFunction &nodes, bool make_owner)
@@ -7898,6 +7935,9 @@ void Mesh::NewNodes(GridFunction &nodes, bool make_owner)
    {
       ncmesh->MakeTopologyOnly();
    }
+
+   // Invalidate the old geometric factors
+   NodesUpdated();
 }
 
 void Mesh::SwapNodes(GridFunction *&nodes, int &own_nodes_)
@@ -7908,6 +7948,9 @@ void Mesh::SwapNodes(GridFunction *&nodes, int &own_nodes_)
    // if (nodes)
    //    nodes->FESpace()->MakeNURBSextOwner();
    // NURBSext = (Nodes) ? Nodes->FESpace()->StealNURBSext() : NULL;
+
+   // Invalidate the old geometric factors
+   NodesUpdated();
 }
 
 void Mesh::AverageVertices(const int *indexes, int n, int result)
@@ -7940,6 +7983,9 @@ void Mesh::UpdateNodes()
 
       // update vertex coordinates for compatibility (e.g., GetVertex())
       SetVerticesFromNodes(Nodes);
+
+      // Invalidate the old geometric factors
+      NodesUpdated();
    }
 }
 
@@ -9765,7 +9811,7 @@ void Mesh::UniformRefinement(int i, const DSTable &v_to_v,
       Triangle *tri0 = (Triangle*) elements[i];
       tri0->GetVertices(v);
 
-      // 1. Get the indeces for the new vertices in array v_new
+      // 1. Get the indices for the new vertices in array v_new
       bisect[0] = v_to_v(v[0],v[1]);
       bisect[1] = v_to_v(v[1],v[2]);
       bisect[2] = v_to_v(v[0],v[2]);
@@ -9800,7 +9846,7 @@ void Mesh::UniformRefinement(int i, const DSTable &v_to_v,
          }
       }
 
-      // 2. Set the node indeces for the new elements in v1, v2, v3 & v4 so that
+      // 2. Set the node indices for the new elements in v1, v2, v3 & v4 so that
       //    the edges marked for refinement be between the first two nodes.
       v1[0] =     v[0]; v1[1] = v_new[0]; v1[2] = v_new[2];
       v2[0] = v_new[0]; v2[1] =     v[1]; v2[2] = v_new[1];
@@ -12033,7 +12079,8 @@ void GeometricFactors::Compute(const GridFunction &nodes,
 
 FaceGeometricFactors::FaceGeometricFactors(const Mesh *mesh,
                                            const IntegrationRule &ir,
-                                           int flags, FaceType type)
+                                           int flags, FaceType type,
+                                           MemoryType d_mt)
    : type(type)
 {
    this->mesh = mesh;
@@ -12050,33 +12097,44 @@ FaceGeometricFactors::FaceGeometricFactors(const Mesh *mesh,
                                           ElementDofOrdering::LEXICOGRAPHIC,
                                           type,
                                           L2FaceValues::SingleValued );
-   Vector Fnodes(face_restr->Height());
+
+
+   MemoryType my_d_mt = (d_mt != MemoryType::DEFAULT) ? d_mt :
+                        Device::GetDeviceMemoryType();
+
+   Vector Fnodes(face_restr->Height(), my_d_mt);
    face_restr->Mult(*nodes, Fnodes);
 
    unsigned eval_flags = 0;
+
    if (flags & FaceGeometricFactors::COORDINATES)
    {
-      X.SetSize(vdim*NQ*NF);
+      X.SetSize(vdim*NQ*NF, my_d_mt);
       eval_flags |= FaceQuadratureInterpolator::VALUES;
    }
    if (flags & FaceGeometricFactors::JACOBIANS)
    {
-      J.SetSize(vdim*vdim*NQ*NF);
+      J.SetSize(vdim*vdim*NQ*NF, my_d_mt);
       eval_flags |= FaceQuadratureInterpolator::DERIVATIVES;
    }
    if (flags & FaceGeometricFactors::DETERMINANTS)
    {
-      detJ.SetSize(NQ*NF);
+      detJ.SetSize(NQ*NF, my_d_mt);
       eval_flags |= FaceQuadratureInterpolator::DETERMINANTS;
    }
    if (flags & FaceGeometricFactors::NORMALS)
    {
-      normal.SetSize(vdim*NQ*NF);
+      normal.SetSize(vdim*NQ*NF, my_d_mt);
       eval_flags |= FaceQuadratureInterpolator::NORMALS;
    }
 
-   const FaceQuadratureInterpolator *qi = fespace->GetFaceQuadratureInterpolator(
-                                             ir, type);
+   const FaceQuadratureInterpolator *qi =
+      fespace->GetFaceQuadratureInterpolator(ir, type);
+   // All face data vectors assume layout byNODES.
+   qi->SetOutputLayout(QVectorLayout::byNODES);
+   const bool use_tensor_products = UsesTensorBasis(*fespace);
+   qi->DisableTensorProducts(!use_tensor_products);
+
    qi->Mult(Fnodes, eval_flags, X, J, detJ, normal);
 }
 

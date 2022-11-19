@@ -261,18 +261,21 @@ miniapps/performance/sol.*
 
 miniapps/shifted/distance
 miniapps/shifted/ParaViewDistance
+miniapps/shifted/ParaViewLSF
 miniapps/shifted/extrapolate
 miniapps/shifted/ParaViewExtrapolate
 miniapps/shifted/diffusion
 miniapps/shifted/diffusion.mesh
 miniapps/shifted/diffusion.gf
 miniapps/shifted/ParaViewDiffusion
+miniapps/shifted/lsf_integral
 
 miniapps/tools/display-basis
 miniapps/tools/load-dc
 miniapps/tools/convert-dc
 miniapps/tools/lor-transfer
 miniapps/tools/get-values
+miniapps/tools/check-tmop-metric
 
 miniapps/toys/automata
 miniapps/toys/life
@@ -304,6 +307,9 @@ miniapps/solvers/sol.*
 
 miniapps/parelag/MultilevelHcurlHdivSolver
 miniapps/parelag/*.mesh
+
+miniapps/multidomain/multidomain
+miniapps/hooke/hooke
 
 # Unit test binary and outputs
 tests/unit/output_meshes

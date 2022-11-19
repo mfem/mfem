@@ -53,8 +53,12 @@ public:
 
    virtual int DofForGeometry(Geometry::Type GeomType) const = 0;
 
-   /** @brief Returns an array, say p, that maps a local permuted index i to
-       a local base index: base_i = p[i]. */
+   /** @brief Returns an array, say p, that maps a local permuted index i to a
+       local base index: base_i = p[i].
+
+       @note Only provides information about interior dofs. See
+       FiniteElementCollection::SubDofOrder if interior \a and boundary dof
+       order is needed. */
    virtual const int *DofOrderForOrientation(Geometry::Type GeomType,
                                              int Or) const = 0;
 
@@ -95,10 +99,10 @@ public:
    | RT_ValTrace_[DIM]_[ORDER] | H^{1/2} | * | 1 / 0 | VALUE | H^{1/2}-conforming trace elements for H(div) defined on the interface between mesh elements (faces) |
    | RT_Trace@[BTYPE]_[DIM]_[ORDER] | H^{1/2} | * | 1 / 0 | INTEGRAL | H^{1/2}-conforming trace elements for H(div) defined on the interface between mesh elements (faces) |
    | RT_ValTrace@[BTYPE]_[DIM]_[ORDER] |  H^{1/2} | * | 1 / 0 | VALUE | H^{1/2}-conforming trace elements for H(div) defined on the interface between mesh elements (faces) |
-   | L2_[DIM]_[ORDER] | L2 | * | 0 | VALUE | Discontinous L2 elements |
-   | L2_T[BTYPE]_[DIM]_[ORDER] | L2 | * | 0 | VALUE | Discontinous L2 elements |
-   | L2Int_[DIM]_[ORDER] | L2 | * | 0 | INTEGRAL | Discontinous L2 elements |
-   | L2Int_T[BTYPE]_[DIM]_[ORDER] | L2 | * | 0 | INTEGRAL | Discontinous L2 elements |
+   | L2_[DIM]_[ORDER] | L2 | * | 0 | VALUE | Discontinuous L2 elements |
+   | L2_T[BTYPE]_[DIM]_[ORDER] | L2 | * | 0 | VALUE | Discontinuous L2 elements |
+   | L2Int_[DIM]_[ORDER] | L2 | * | 0 | INTEGRAL | Discontinuous L2 elements |
+   | L2Int_T[BTYPE]_[DIM]_[ORDER] | L2 | * | 0 | INTEGRAL | Discontinuous L2 elements |
    | DG_Iface_[DIM]_[ORDER] | - | * | 0 | VALUE | Discontinuous elements on the interface between mesh elements (faces) |
    | DG_Iface@[BTYPE]_[DIM]_[ORDER] | - | * | 0 | VALUE | Discontinuous elements on the interface between mesh elements (faces) |
    | DG_IntIface_[DIM]_[ORDER] | - | * | 0 | INTEGRAL | Discontinuous elements on the interface between mesh elements (faces) |

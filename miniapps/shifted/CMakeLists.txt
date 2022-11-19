@@ -14,13 +14,15 @@ if (MFEM_USE_MPI)
         dist_solver.cpp
         sbm_solver.cpp
         marking.cpp
-        extrapolator.cpp)
+        extrapolator.cpp
+	integ_algoim.cpp)
   list(APPEND DIST_COMMON_HEADERS
         dist_solver.hpp
         sbm_solver.hpp
         sbm_aux.hpp
         marking.hpp
-        extrapolator.hpp)	
+	extrapolator.hpp
+	integ_algoim.hpp)
   list(APPEND STOKES_SHIFTED_COMMON_SOURCES
         nitsche_solver.cpp
 	shifter_solver.cpp
@@ -66,9 +68,14 @@ if (MFEM_USE_MPI)
     ${DIST_COMMON_FILES}
     LIBRARIES mfem mfem-common)
 
-  add_mfem_miniapp(ex_Stokes_shifted
+ add_mfem_miniapp(ex_Stokes_shifted
     MAIN ex_Stokes_shifted.cpp
     ${STOKES_SHIFTED_COMMON_FILES}
+    LIBRARIES mfem mfem-common)
+
+add_mfem_miniapp(lsf_integral
+    MAIN lsf_integral.cpp
+    ${DIST_COMMON_FILES}
     LIBRARIES mfem mfem-common)
 
   if (MFEM_ENABLE_TESTING)
@@ -92,3 +99,4 @@ if (MFEM_USE_MPI)
       
   endif()
 endif ()
+B

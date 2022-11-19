@@ -1,4 +1,4 @@
-name: Build Deploy Container
+name: "Docker"
 
 on:
 
@@ -20,6 +20,7 @@ on:
 
 jobs:
   build:
+    if: github.repository == 'mfem/mfem' # Don't run in forks
     permissions:
       packages: write
     strategy:
@@ -27,7 +28,8 @@ jobs:
       matrix:
 
         # Dockerfiles to build, a matrix supports future expanded builds
-        container: [["config/docker/Dockerfile", "ghcr.io/mfem/mfem-ubuntu-base"]]
+        container: [["config/docker/Dockerfile.base", "ghcr.io/mfem/mfem-ubuntu-base"],
+                    ["config/docker/Dockerfile", "ghcr.io/mfem/mfem-ubuntu"]]
 
     runs-on: ubuntu-latest
     name: Build

@@ -35,11 +35,15 @@ EX_STOKES_SHIFTED_SRC = ex_Stokes_shifted.cpp nitsche_solver.cpp shifted_solver.
 EX_STOKES_SHIFTED_OBJ = $(EX_STOKES_SHIFTED_SRC:.cpp=.o)
 EX_STOKES_REFACTORED_SRC = ex_Stokes_refactored.cpp stokes_solver.cpp p_divW.cpp
 EX_STOKES_REFACTORED_OBJ = $(EX_STOKES_REFACTORED_SRC:.cpp=.o)
+ALGOIM_SRC = integ_algoim.cpp lsf_integral.cpp
+ALGOIM_OBJ = $(ALGOIM_SRC:.cpp=.o)
+EX_STOKES_WSBM_SRC = ex_Stokes_WSBM.cpp nitsche_weighted_solver.cpp AnalyticalGeometricShape.cpp AnalyticalSurface.cpp Circle.cpp volume_integrals.cpp volume_fractions.cpp shifted_weighted_solver.cpp ghost_penalty.cpp
+EX_STOKES_WSBM_OBJ = $(EX_STOKES_WSBM_SRC:.cpp=.o)
 
-PAR_MINIAPPS = distance diffusion extrapolate ex_Stokes_shifted
+PAR_MINIAPPS = ex_Stokes_WSBM distance diffusion extrapolate lsf_integral ex_Stokes_shifted
 
 ifeq ($(MFEM_USE_MPI),NO)
-   MINIAPPS =
+   MINIAPPS = 
 else
    MINIAPPS = $(PAR_MINIAPPS)
 endif
@@ -65,6 +69,9 @@ COMMON_LIB += $(if $(MFEM_SHARED:YES=),,\
 
 all: $(MINIAPPS)
 
+lsf_integral: $(ALGOIM_OBJ)
+	$(MFEM_CXX) $(MFEM_LINK_FLAGS) -o $@ $(ALGOIM_OBJ) $(COMMON_LIB) $(MFEM_LIBS)
+
 distance: $(DISTANCE_OBJ)
 	$(MFEM_CXX) $(MFEM_LINK_FLAGS) -o $@ $(DISTANCE_OBJ) $(COMMON_LIB) $(MFEM_LIBS)
 
@@ -79,6 +86,9 @@ ex_Stokes_shifted: $(EX_STOKES_SHIFTED_OBJ)
 
 ex_Stokes_refactored: $(EX_STOKES_REFACTORED_OBJ)
 	$(MFEM_CXX) $(MFEM_LINK_FLAGS) -o $@ $(EX_STOKES_REFACTORED_OBJ) $(COMMON_LIB) $(MFEM_LIBS)
+
+ex_Stokes_WSBM: $(EX_STOKES_WSBM_OBJ)
+	$(MFEM_CXX) $(MFEM_LINK_FLAGS) -o $@ $(EX_STOKES_WSBM_OBJ) $(COMMON_LIB) $(MFEM_LIBS)
 
 # Rule for building lib-common
 lib-common:
@@ -104,9 +114,9 @@ $(MFEM_LIB_FILE):
 clean: clean-build clean-exec
 
 clean-build:
-	rm -f *.o *~ distance diffusion extrapolate ex_Stokes_shifted ex_Stokes_refactored
+	rm -f *.o *~ distance diffusion extrapolate ex_Stokes_shifted ex_Stokes_refactored lsf_integral ex_Stokes_WSBM 
 	rm -rf *.dSYM *.TVD.*breakpoints
 
 clean-exec:
-	@rm -f diffusion.mesh diffusion.gf ex_Stokes_shifted.mesh ex_Stokes_shifted.gf ex_Stokes_refactored.mesh ex_Stokes_refactored.gf
-	@rm -rf ParaViewDistance ParaViewDiffusion ParaViewExtrapolate
+	@rm -f  ex_Stokes_WSBM.mesh ex_Stokes_WSBM.gf diffusion.mesh diffusion.gf ex_Stokes_shifted.mesh ex_Stokes_shifted.gf ex_Stokes_refactored.mesh ex_Stokes_refactored.gf
+	@rm -rf ParaViewDistance ParaViewDiffusion ParaViewExtrapolate ParaViewLSF

@@ -15,7 +15,7 @@
 #include "../general/forall.hpp"
 #include "../mesh/mesh_headers.hpp"
 #include "fem.hpp"
-#include "ceed/util.hpp"
+#include "ceed/interface/util.hpp"
 
 #include <cmath>
 #include <cstdarg>
@@ -1199,8 +1199,6 @@ void FiniteElementSpace::BuildConformingInterpolation() const
       MakeVDimMatrix(*cR);
       if (cR_hp) { MakeVDimMatrix(*cR_hp); }
    }
-
-   cP->EnsureMultTranspose();
 }
 
 void FiniteElementSpace::MakeVDimMatrix(SparseMatrix &mat) const
@@ -1258,7 +1256,7 @@ int FiniteElementSpace::GetNConformingDofs() const
    return P ? (P->Width() / vdim) : ndofs;
 }
 
-const Operator *FiniteElementSpace::GetElementRestriction(
+const ElementRestrictionOperator *FiniteElementSpace::GetElementRestriction(
    ElementDofOrdering e_ordering) const
 {
    // Check if we have a discontinuous space using the FE collection:
@@ -1273,7 +1271,7 @@ const Operator *FiniteElementSpace::GetElementRestriction(
          // The output E-vector layout is: ND x VDIM x NE.
          L2E_nat.Reset(new L2ElementRestriction(*this));
       }
-      return L2E_nat.Ptr();
+      return L2E_nat.Is<ElementRestrictionOperator>();
    }
    if (e_ordering == ElementDofOrdering::LEXICOGRAPHIC)
    {
@@ -1281,14 +1279,14 @@ const Operator *FiniteElementSpace::GetElementRestriction(
       {
          L2E_lex.Reset(new ElementRestriction(*this, e_ordering));
       }
-      return L2E_lex.Ptr();
+      return L2E_lex.Is<ElementRestrictionOperator>();
    }
    // e_ordering == ElementDofOrdering::NATIVE
    if (L2E_nat.Ptr() == NULL)
    {
       L2E_nat.Reset(new ElementRestriction(*this, e_ordering));
    }
-   return L2E_nat.Ptr();
+   return L2E_nat.Is<ElementRestrictionOperator>();
 }
 
 const FaceRestriction *FiniteElementSpace::GetFaceRestriction(
@@ -3611,60 +3609,6 @@ FiniteElementCollection *FiniteElementSpace::Load(Mesh *m, std::istream &input)
    Constructor(m, nurbs_ext, r_fec, vdim, ord);
 
    return r_fec;
-}
-
-
-void QuadratureSpace::Construct()
-{
-   // protected method
-   int offset = 0;
-   const int num_elem = mesh->GetNE();
-   element_offsets = new int[num_elem + 1];
-   for (int g = 0; g < Geometry::NumGeom; g++)
-   {
-      int_rule[g] = NULL;
-   }
-   for (int i = 0; i < num_elem; i++)
-   {
-      element_offsets[i] = offset;
-      int geom = mesh->GetElementBaseGeometry(i);
-      if (int_rule[geom] == NULL)
-      {
-         int_rule[geom] = &IntRules.Get(geom, order);
-      }
-      offset += int_rule[geom]->GetNPoints();
-   }
-   element_offsets[num_elem] = size = offset;
-}
-
-QuadratureSpace::QuadratureSpace(Mesh *mesh_, std::istream &in)
-   : mesh(mesh_)
-{
-   const char *msg = "invalid input stream";
-   string ident;
-
-   in >> ident; MFEM_VERIFY(ident == "QuadratureSpace", msg);
-   in >> ident; MFEM_VERIFY(ident == "Type:", msg);
-   in >> ident;
-   if (ident == "default_quadrature")
-   {
-      in >> ident; MFEM_VERIFY(ident == "Order:", msg);
-      in >> order;
-   }
-   else
-   {
-      MFEM_ABORT("unknown QuadratureSpace type: " << ident);
-      return;
-   }
-
-   Construct();
-}
-
-void QuadratureSpace::Save(std::ostream &os) const
-{
-   os << "QuadratureSpace\n"
-      << "Type: default_quadrature\n"
-      << "Order: " << order << '\n';
 }
 
 } // namespace mfem

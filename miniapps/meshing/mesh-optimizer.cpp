@@ -46,9 +46,11 @@
 //
 //   Adapted discrete size:
 //     mesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 80 -tid 5 -ni 50 -qo 4 -nor
+//     (requires GSLIB):
+//   * mesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 80 -tid 5 -ni 50 -qo 4 -nor -mno 1 -ae 1
 //   Adapted discrete size 3D with PA:
 //     mesh-optimizer -m cube.mesh -o 2 -rs 2 -mid 321 -tid 5 -ls 3 -nor -pa
-//   Adapted discrete size 3D with PA on device (requires CUDA).
+//   Adapted discrete size 3D with PA on device (requires CUDA):
 //   * mesh-optimizer -m cube.mesh -o 3 -rs 3 -mid 321 -tid 5 -ls 3 -nor -lc 0.1 -pa -d cuda
 //   Adapted discrete size; explicit combo of metrics; mixed tri/quad mesh:
 //     mesh-optimizer -m ../../data/square-mixed.mesh -o 2 -rs 2 -mid 2 -tid 5 -ni 200 -bnd -qo 6 -cmb 2 -nor
@@ -70,13 +72,15 @@
 //   * mesh-optimizer -m stretched2D.mesh -o 2 -mid 2 -tid 1 -ni 50 -qo 5 -nor -vl 1 -alc 0.5 -fd -ae 1
 //
 //  Adaptive surface fitting:
-//    mesh-optimizer -m square01.mesh -o 3 -rs 1 -mid 58 -tid 1 -ni 200 -vl 1 -sfc 5e4 -rtol 1e-5 -nor
-//    mesh-optimizer -m square01-tri.mesh -o 3 -rs 0 -mid 58 -tid 1 -ni 200 -vl 1 -sfc 1e4 -rtol 1e-5 -nor
+//    mesh-optimizer -m square01.mesh -o 3 -rs 1 -mid 58 -tid 1 -ni 200 -vl 1 -sfc 5e4 -rtol 1e-5
+//    mesh-optimizer -m square01-tri.mesh -o 3 -rs 0 -mid 58 -tid 1 -ni 200 -vl 1 -sfc 1e4 -rtol 1e-5
 //  Surface fitting with weight adaptation and termination based on fitting error
 //    mesh-optimizer -m square01.mesh -o 2 -rs 1 -mid 2 -tid 1 -ni 100 -vl 2 -sfc 10 -rtol 1e-20 -st 0 -sfa -sft 1e-5
 //
 //   Blade shape:
 //     mesh-optimizer -m blade.mesh -o 4 -mid 2 -tid 1 -ni 30 -ls 3 -art 1 -bnd -qt 1 -qo 8
+//     (requires CUDA):
+//   * mesh-optimizer -m blade.mesh -o 4 -mid 2 -tid 1 -ni 30 -ls 3 -art 1 -bnd -qt 1 -qo 8 -d cuda
 //   Blade shape with FD-based solver:
 //     mesh-optimizer -m blade.mesh -o 4 -mid 2 -tid 1 -ni 30 -ls 4 -bnd -qt 1 -qo 8 -fd
 //   Blade limited shape:
@@ -100,6 +104,8 @@
 //
 //   2D untangling:
 //     mesh-optimizer -m jagged.mesh -o 2 -mid 22 -tid 1 -ni 50 -li 50 -qo 4 -fd -vl 1
+//   2D untangling with shifted barrier metric:
+//     mesh-optimizer -m jagged.mesh -o 2 -mid 4 -tid 1 -ni 50 -qo 4 -fd -vl 1 -btype 1
 //   3D untangling (the mesh is in the mfem/data GitHub repository):
 //   * mesh-optimizer -m ../../../mfem_data/cube-holes-inv.mesh -o 3 -mid 313 -tid 1 -rtol 1e-5 -li 50 -qo 4 -fd -vl 1
 
@@ -148,6 +154,9 @@ int main(int argc, char *argv[])
    int n_h_iter          = 1;
    bool surface_fit_adapt = false;
    double surface_fit_threshold = -10;
+   int mesh_node_ordering = 0;
+   int barrier_type       = 0;
+   int worst_case_type    = 0;
 
    // 1. Parse command-line options.
    OptionsParser args(argc, argv);
@@ -162,7 +171,7 @@ int main(int argc, char *argv[])
    args.AddOption(&metric_id, "-mid", "--metric-id",
                   "Mesh optimization metric:\n\t"
                   "T-metrics\n\t"
-                  "1  : |T|^2                          -- 2D shape\n\t"
+                  "1  : |T|^2                          -- 2D no type\n\t"
                   "2  : 0.5|T|^2/tau-1                 -- 2D shape (condition number)\n\t"
                   "7  : |T-T^-t|^2                     -- 2D shape+size\n\t"
                   "9  : tau*|T-T^-t|^2                 -- 2D shape+size\n\t"
@@ -180,13 +189,22 @@ int main(int argc, char *argv[])
                   // "252: 0.5(tau-1)^2/(tau-tau_0)       -- 2D untangling\n\t"
                   "301: (|T||T^-1|)/3-1              -- 3D shape\n\t"
                   "302: (|T|^2|T^-1|^2)/9-1          -- 3D shape\n\t"
-                  "303: (|T|^2)/3*tau^(2/3)-1        -- 3D shape\n\t"
+                  "303: (|T|^2)/3/tau^(2/3)-1        -- 3D shape\n\t"
+                  "304: (|T|^3)/3^{3/2}/tau-1        -- 3D shape\n\t"
                   //"311: (tau-1)^2-tau+sqrt(tau^2+eps)-- 3D untangling\n\t"
                   "313: (|T|^2)(tau-tau0)^(-2/3)/3   -- 3D untangling\n\t"
-                  "315: (tau-1)^2                    -- 3D size\n\t"
-                  "316: 0.5(sqrt(tau)-1/sqrt(tau))^2 -- 3D size\n\t"
+                  "315: (tau-1)^2                    -- 3D no type\n\t"
+                  "316: 0.5(sqrt(tau)-1/sqrt(tau))^2 -- 3D no type\n\t"
                   "321: |T-T^-t|^2                   -- 3D shape+size\n\t"
-                  // "352: 0.5(tau-1)^2/(tau-tau_0)     -- 3D untangling\n\t"
+                  "322: |T-adjT^-t|^2                -- 3D shape+size\n\t"
+                  "323: |J|^3-3sqrt(3)ln(det(J))-3sqrt(3)  -- 3D shape+size\n\t"
+                  "328: (1-gamma) mu_301 + gamma mu_316  -- 3D shape+size\n\t"
+                  "332: (1-gamma) mu_302 + gamma mu_315  -- 3D shape+size\n\t"
+                  "333: (1-gamma) mu_302 + gamma mu_316  -- 3D shape+size\n\t"
+                  "334: (1-gamma) mu_303 + gamma mu_316  -- 3D shape+size\n\t"
+                  "347: (1-gamma) mu_304 + gamma mu_316  -- 3D shape+size\n\t"
+                  // "352: 0.5(tau-1)^2/(tau-tau_0)      -- 3D untangling\n\t"
+                  "360: (|T|^3)/3^{3/2}-tau              -- 3D shape\n\t"
                   "A-metrics\n\t"
                   "11 : (1/4*alpha)|A-(adjA)^T(W^TW)/omega|^2 -- 2D shape\n\t"
                   "36 : (1/alpha)|A-W|^2                      -- 2D shape+size+orientation\n\t"
@@ -277,6 +295,17 @@ int main(int argc, char *argv[])
    args.AddOption(&surface_fit_threshold, "-sft", "--surf-fit-threshold",
                   "Set threshold for surface fitting. TMOP solver will"
                   "terminate when max surface fitting error is below this limit");
+   args.AddOption(&mesh_node_ordering, "-mno", "--mesh_node_ordering",
+                  "Ordering of mesh nodes."
+                  "0 (default): byNodes, 1: byVDIM");
+   args.AddOption(&barrier_type, "-btype", "--barrier-type",
+                  "0 - None,"
+                  "1 - Shifted Barrier,"
+                  "2 - Pseudo Barrier.");
+   args.AddOption(&worst_case_type, "-wctype", "--worst-case-type",
+                  "0 - None,"
+                  "1 - Beta,"
+                  "2 - PMean.");
    args.Parse();
    if (!args.Good())
    {
@@ -313,7 +342,8 @@ int main(int argc, char *argv[])
       mesh_poly_deg = 2;
    }
    else { fec = new H1_FECollection(mesh_poly_deg, dim); }
-   FiniteElementSpace *fespace = new FiniteElementSpace(mesh, fec, dim);
+   FiniteElementSpace *fespace = new FiniteElementSpace(mesh, fec, dim,
+                                                        mesh_node_ordering);
 
    // 4. Make the mesh curved based on the above finite element space. This
    //    means that we define the mesh elements through a fespace-based
@@ -394,40 +424,47 @@ int main(int argc, char *argv[])
    x0 = x;
 
    // 11. Form the integrator that uses the chosen metric and target.
-   double tauval = -0.1;
+   double min_detJ = -0.1;
    TMOP_QualityMetric *metric = NULL;
    switch (metric_id)
    {
       // T-metrics
       case 1: metric = new TMOP_Metric_001; break;
       case 2: metric = new TMOP_Metric_002; break;
+      case 4: metric = new TMOP_Metric_004; break;
       case 7: metric = new TMOP_Metric_007; break;
       case 9: metric = new TMOP_Metric_009; break;
       case 14: metric = new TMOP_Metric_014; break;
-      case 22: metric = new TMOP_Metric_022(tauval); break;
+      case 22: metric = new TMOP_Metric_022(min_detJ); break;
       case 50: metric = new TMOP_Metric_050; break;
       case 55: metric = new TMOP_Metric_055; break;
       case 56: metric = new TMOP_Metric_056; break;
       case 58: metric = new TMOP_Metric_058; break;
+      case 66: metric = new TMOP_Metric_066(0.5); break;
       case 77: metric = new TMOP_Metric_077; break;
       case 80: metric = new TMOP_Metric_080(0.5); break;
       case 85: metric = new TMOP_Metric_085; break;
       case 98: metric = new TMOP_Metric_098; break;
       // case 211: metric = new TMOP_Metric_211; break;
-      // case 252: metric = new TMOP_Metric_252(tauval); break;
+      // case 252: metric = new TMOP_Metric_252(min_detJ); break;
       case 301: metric = new TMOP_Metric_301; break;
       case 302: metric = new TMOP_Metric_302; break;
       case 303: metric = new TMOP_Metric_303; break;
+      case 304: metric = new TMOP_Metric_304; break;
       // case 311: metric = new TMOP_Metric_311; break;
-      case 313: metric = new TMOP_Metric_313(tauval); break;
+      case 313: metric = new TMOP_Metric_313(min_detJ); break;
       case 315: metric = new TMOP_Metric_315; break;
       case 316: metric = new TMOP_Metric_316; break;
       case 321: metric = new TMOP_Metric_321; break;
+      case 322: metric = new TMOP_Metric_322; break;
+      case 323: metric = new TMOP_Metric_323; break;
       case 328: metric = new TMOP_Metric_328(0.5); break;
       case 332: metric = new TMOP_Metric_332(0.5); break;
       case 333: metric = new TMOP_Metric_333(0.5); break;
       case 334: metric = new TMOP_Metric_334(0.5); break;
-      // case 352: metric = new TMOP_Metric_352(tauval); break;
+      case 347: metric = new TMOP_Metric_347(0.5); break;
+      // case 352: metric = new TMOP_Metric_352(min_detJ); break;
+      case 360: metric = new TMOP_Metric_360; break;
       // A-metrics
       case 11: metric = new TMOP_AMetric_011; break;
       case 36: metric = new TMOP_AMetric_036; break;
@@ -457,6 +494,49 @@ int main(int argc, char *argv[])
                           endl;
             return 3;
       }
+   }
+
+   TMOP_WorstCaseUntangleOptimizer_Metric::BarrierType btype;
+   switch (barrier_type)
+   {
+      case 0: btype = TMOP_WorstCaseUntangleOptimizer_Metric::BarrierType::None;
+         break;
+      case 1: btype = TMOP_WorstCaseUntangleOptimizer_Metric::BarrierType::Shifted;
+         break;
+      case 2: btype = TMOP_WorstCaseUntangleOptimizer_Metric::BarrierType::Pseudo;
+         break;
+      default: cout << "barrier_type not supported: " << barrier_type << endl;
+         return 3;
+   }
+
+   TMOP_WorstCaseUntangleOptimizer_Metric::WorstCaseType wctype;
+   switch (worst_case_type)
+   {
+      case 0: wctype = TMOP_WorstCaseUntangleOptimizer_Metric::WorstCaseType::None;
+         break;
+      case 1: wctype = TMOP_WorstCaseUntangleOptimizer_Metric::WorstCaseType::Beta;
+         break;
+      case 2: wctype = TMOP_WorstCaseUntangleOptimizer_Metric::WorstCaseType::PMean;
+         break;
+      default: cout << "worst_case_type not supported: " << worst_case_type << endl;
+         return 3;
+   }
+
+   TMOP_QualityMetric *untangler_metric = NULL;
+   if (barrier_type > 0 || worst_case_type > 0)
+   {
+      if (barrier_type > 0)
+      {
+         MFEM_VERIFY(metric_id == 4 || metric_id == 14 || metric_id == 66,
+                     "Metric not supported for shifted/pseudo barriers.");
+      }
+      untangler_metric = new TMOP_WorstCaseUntangleOptimizer_Metric(*metric,
+                                                                    2,
+                                                                    1.5,
+                                                                    0.001, //0.01 for pseudo barrier
+                                                                    0.001,
+                                                                    btype,
+                                                                    wctype);
    }
 
    if (metric_id < 300 || h_metric_id < 300)
@@ -700,8 +780,16 @@ int main(int argc, char *argv[])
       target_c = new TargetConstructor(target_t);
    }
    target_c->SetNodes(x0);
-   TMOP_Integrator *tmop_integ = new TMOP_Integrator(metric, target_c,
+   TMOP_QualityMetric *metric_to_use = barrier_type > 0 || worst_case_type > 0
+                                       ? untangler_metric
+                                       : metric;
+   TMOP_Integrator *tmop_integ = new TMOP_Integrator(metric_to_use, target_c,
                                                      h_metric);
+   if (barrier_type > 0 || worst_case_type > 0)
+   {
+      tmop_integ->ComputeUntangleMetricQuantiles(x, *fespace);
+   }
+
 
    // Finite differences for computations of derivatives.
    if (fdscheme)
@@ -804,7 +892,7 @@ int main(int argc, char *argv[])
       for (int i = 0; i < mesh->GetNE(); i++)
       {
          mat(i) = material_id(i, surf_fit_gf0);
-         mesh->SetAttribute(i, mat(i) + 1);
+         mesh->SetAttribute(i, static_cast<int>(mat(i) + 1));
       }
 
       GridFunctionCoefficient mat_coeff(&mat);
@@ -907,7 +995,7 @@ int main(int argc, char *argv[])
    if (pa) { a.Setup(); }
 
    // Compute the minimum det(J) of the starting mesh.
-   tauval = infinity();
+   min_detJ = infinity();
    const int NE = mesh->GetNE();
    for (int i = 0; i < NE; i++)
    {
@@ -917,27 +1005,28 @@ int main(int argc, char *argv[])
       for (int j = 0; j < ir.GetNPoints(); j++)
       {
          transf->SetIntPoint(&ir.IntPoint(j));
-         tauval = min(tauval, transf->Jacobian().Det());
+         min_detJ = min(min_detJ, transf->Jacobian().Det());
       }
    }
-   cout << "Minimum det(J) of the original mesh is " << tauval << endl;
+   cout << "Minimum det(J) of the original mesh is " << min_detJ << endl;
 
-   if (tauval < 0.0 && metric_id != 22 && metric_id != 211 && metric_id != 252
+   if (min_detJ < 0.0 && barrier_type == 0
+       && metric_id != 22 && metric_id != 211 && metric_id != 252
        && metric_id != 311 && metric_id != 313 && metric_id != 352)
    {
       MFEM_ABORT("The input mesh is inverted! Try an untangling metric.");
    }
-   if (tauval < 0.0)
+   if (min_detJ < 0.0)
    {
       MFEM_VERIFY(target_t == TargetConstructor::IDEAL_SHAPE_UNIT_SIZE,
                   "Untangling is supported only for ideal targets.");
 
       const DenseMatrix &Wideal =
          Geometries.GetGeomToPerfGeomJac(fespace->GetFE(0)->GetGeomType());
-      tauval /= Wideal.Det();
+      min_detJ /= Wideal.Det();
 
       // Slightly below minJ0 to avoid div by 0.
-      tauval -= 0.01 * h0.Min();
+      min_detJ -= 0.01 * h0.Min();
    }
 
    // For HR tests, the energy is normalized by the number of elements.
@@ -1082,7 +1171,7 @@ int main(int argc, char *argv[])
       solver.SetPreconditioner(*S);
    }
    // For untangling, the solver will update the min det(T) values.
-   if (tauval < 0.0) { solver.SetMinDetPtr(&tauval); }
+   solver.SetMinDetPtr(&min_detJ);
    solver.SetMaxIter(solver_iter);
    solver.SetRelTol(solver_rtol);
    solver.SetAbsTol(0.0);
@@ -1200,6 +1289,7 @@ int main(int argc, char *argv[])
    delete adapt_coeff;
    delete h_metric;
    delete metric;
+   delete untangler_metric;
    delete fespace;
    delete fec;
    delete mesh;
