@@ -26,7 +26,7 @@
 // Navier-Stokes equations are modeled throughout the entire domain as
 // illustrated below:
 //
-//                             No slip wall 
+//                              Slip wall*  
 //                 		(attr=3)
 //                 ________________________________________
 //                |                                        |
@@ -35,8 +35,10 @@
 //   --> inflow   |                                        | --> outflow
 //    (attr=1)    |                                        |  (attr=2)
 //                |_____-----------------------------------|
-//	       No slip wall	     flat plate
-//               (attr=4)             (attr=5)    
+//	       Slip wall*	     flat plate
+//               (attr=4)             (attr=4) *use 'slip_case' in vel_dbc
+//               			   	to set flat plate, and slip 
+//               			   	walls on/off
 //
 // Uniform Dirichlet velocity conditions are imposed at inflow (attr=1) and
 // homogeneous Dirichlet conditions are imposed on all surface (attr=3) except
@@ -180,12 +182,12 @@ int main(int argc, char *argv[])
    attr[0] = 1;
    // Outlet is arttribute 2.
    attr[1] = 0; 
-   // Top no slip is attribute 3.
+   // Top is attribute 3.
    attr[2] = 1;
-   // Bottom no slip is attribute 4.
+   // Bottom is attribute 4
    attr[3] = 1;
    // Plate is attribute 5. (no slip)
-   attr[4] = 1;
+   //attr[4] = 1;
    flowsolver.AddVelDirichletBC(vel_dbc, attr);
    // ===============================================================
 
