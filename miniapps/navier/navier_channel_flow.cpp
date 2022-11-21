@@ -310,25 +310,24 @@ void vel_dbc(const Vector &x, double t, Vector &u){
 	double U = 2.5; //Freestream velocity
 
 	//Wall conditions
-	switch(slip_case){
-		case 0:
+	if(slip_case == 0){
 		//No Slip walls & Plate
 		if(yi <= 0.0 || yi >= 0.25){
 			u(0) = 0.0;
 			u(1) = 0.0;
 		}
-		break;
+	}
 
-		case 1:
+	else if(slip_case == 1){
 		//Slip walls & Plate
-		if(yi <= 0.0 || yi >= 0.25){
+		if(yi <= 1e-6 || yi >= (0.25-1e-6)){
 			u(1) = 0.0;
-			}
-		break;
+		}
+	}
 
-		case 2:
+	else{
 		//Slip top, partial slip bottom, no slip plate
-		if(yi <= 0.0){
+		if(yi <= 1e-6){
 			if(xi < 0.1){ 
 				u(1) = 0;
 			}
@@ -337,10 +336,9 @@ void vel_dbc(const Vector &x, double t, Vector &u){
 				u(1) = 0;
 			}
 		}
-		else if(yi >= 0.25){
+		else if(yi >= (0.25-1e-6)){
 			u(1) = 0;
 		}
-		break;
 	}
 
 	//Inlet
