@@ -145,7 +145,7 @@ void RT_QuadrilateralElement::CalcVShape(const IntegrationPoint &ip,
 
 #ifdef MFEM_THREAD_SAFE
    Vector shape_cx(pp1 + 1), shape_ox(pp1), shape_cy(pp1 + 1), shape_oy(pp1);
-   Vector dshape_cx, dshape_cy;
+   Vector dshape_cx(pp1 + 1), dshape_cy(pp1 + 1);
 #endif
 
    if (obasis1d.IsIntegratedType())
@@ -473,7 +473,7 @@ void RT_HexahedronElement::CalcVShape(const IntegrationPoint &ip,
 #ifdef MFEM_THREAD_SAFE
    Vector shape_cx(pp1 + 1), shape_ox(pp1), shape_cy(pp1 + 1), shape_oy(pp1);
    Vector shape_cz(pp1 + 1), shape_oz(pp1);
-   Vector dshape_cx, dshape_cy, dshape_cz;
+   Vector dshape_cx(pp1 + 1), dshape_cy(pp1 + 1), dshape_cz(pp1 + 1);
 #endif
 
    if (obasis1d.IsIntegratedType())

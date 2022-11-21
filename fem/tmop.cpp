@@ -2164,10 +2164,6 @@ void DiscreteAdaptTC::FinalizeParDiscreteTargetSpec(const ParGridFunction &t)
 
    ParFiniteElementSpace *ptspec_fes = t.ParFESpace();
 
-   adapt_eval->SetParMetaInfo(*ptspec_fes->GetParMesh(),
-                              *ptspec_fes->FEColl(), ncomp);
-   adapt_eval->SetInitialField(*ptspec_fes->GetMesh()->GetNodes(), tspec);
-
    tspec_sav = tspec;
 
    delete tspec_fesv;
@@ -2181,6 +2177,9 @@ void DiscreteAdaptTC::FinalizeParDiscreteTargetSpec(const ParGridFunction &t)
    delete tspec_pgf;
    tspec_pgf = new ParGridFunction(ptspec_fesv, tspec);
    tspec_gf = tspec_pgf;
+
+   adapt_eval->SetParMetaInfo(*ptspec_fes->GetParMesh(), *ptspec_fesv);
+   adapt_eval->SetInitialField(*ptspec_fes->GetMesh()->GetNodes(), tspec);
 }
 
 void DiscreteAdaptTC::ParUpdateAfterMeshTopologyChange()
@@ -2197,8 +2196,7 @@ void DiscreteAdaptTC::ParUpdateAfterMeshTopologyChange()
    tspec.SetDataAndSize(tspec_pgf->GetData(), tspec_pgf->Size());
    tspec_sav = tspec;
 
-   adapt_eval->SetParMetaInfo(*ptspec_fesv->GetParMesh(),
-                              *ptspec_fesv->FEColl(), ncomp);
+   adapt_eval->SetParMetaInfo(*ptspec_fesv->GetParMesh(), *ptspec_fesv);
    adapt_eval->SetInitialField(*ptspec_fesv->GetMesh()->GetNodes(), tspec);
 }
 
@@ -2217,6 +2215,8 @@ void DiscreteAdaptTC::SetTspecAtIndex(int idx, const ParGridFunction &tspec_)
 
 void DiscreteAdaptTC::SetParDiscreteTargetSize(const ParGridFunction &tspec_)
 {
+   MFEM_VERIFY(tspec_.FESpace()->GetOrdering() == Ordering::byNODES,
+               "Discrete target size should be ordered byNodes.");
    if (sizeidx > -1) { SetTspecAtIndex(sizeidx, tspec_); return; }
    sizeidx = ncomp;
    SetDiscreteTargetBase(tspec_);
@@ -2225,6 +2225,8 @@ void DiscreteAdaptTC::SetParDiscreteTargetSize(const ParGridFunction &tspec_)
 
 void DiscreteAdaptTC::SetParDiscreteTargetSkew(const ParGridFunction &tspec_)
 {
+   MFEM_VERIFY(tspec_.FESpace()->GetOrdering() == Ordering::byNODES,
+               "Discrete target skewness should be ordered byNodes.");
    if (skewidx > -1) { SetTspecAtIndex(skewidx, tspec_); return; }
    skewidx = ncomp;
    SetDiscreteTargetBase(tspec_);
@@ -2233,6 +2235,8 @@ void DiscreteAdaptTC::SetParDiscreteTargetSkew(const ParGridFunction &tspec_)
 
 void DiscreteAdaptTC::SetParDiscreteTargetAspectRatio(const ParGridFunction &ar)
 {
+   MFEM_VERIFY(ar.FESpace()->GetOrdering() == Ordering::byNODES,
+               "Discrete target aspect ratio should be ordered byNodes.");
    if (aspectratioidx > -1) { SetTspecAtIndex(aspectratioidx, ar); return; }
    aspectratioidx = ncomp;
    SetDiscreteTargetBase(ar);
@@ -2241,6 +2245,8 @@ void DiscreteAdaptTC::SetParDiscreteTargetAspectRatio(const ParGridFunction &ar)
 
 void DiscreteAdaptTC::SetParDiscreteTargetOrientation(const ParGridFunction &o)
 {
+   MFEM_VERIFY(o.FESpace()->GetOrdering() == Ordering::byNODES,
+               "Discrete target orientation should be ordered byNodes.");
    if (orientationidx > -1) { SetTspecAtIndex(orientationidx, o); return; }
    orientationidx = ncomp;
    SetDiscreteTargetBase(o);
@@ -2292,6 +2298,8 @@ void DiscreteAdaptTC::SetTspecAtIndex(int idx, const GridFunction &tspec_)
 
 void DiscreteAdaptTC::SetSerialDiscreteTargetSize(const GridFunction &tspec_)
 {
+   MFEM_VERIFY(tspec_.FESpace()->GetOrdering() == Ordering::byNODES,
+               "Discrete target size should be ordered byNodes.");
    if (sizeidx > -1) { SetTspecAtIndex(sizeidx, tspec_); return; }
    sizeidx = ncomp;
    SetDiscreteTargetBase(tspec_);
@@ -2300,6 +2308,8 @@ void DiscreteAdaptTC::SetSerialDiscreteTargetSize(const GridFunction &tspec_)
 
 void DiscreteAdaptTC::SetSerialDiscreteTargetSkew(const GridFunction &tspec_)
 {
+   MFEM_VERIFY(tspec_.FESpace()->GetOrdering() == Ordering::byNODES,
+               "Discrete target skewness should be ordered byNodes.");
    if (skewidx > -1) { SetTspecAtIndex(skewidx, tspec_); return; }
    skewidx = ncomp;
    SetDiscreteTargetBase(tspec_);
@@ -2308,6 +2318,8 @@ void DiscreteAdaptTC::SetSerialDiscreteTargetSkew(const GridFunction &tspec_)
 
 void DiscreteAdaptTC::SetSerialDiscreteTargetAspectRatio(const GridFunction &ar)
 {
+   MFEM_VERIFY(ar.FESpace()->GetOrdering() == Ordering::byNODES,
+               "Discrete target aspect ratio should be ordered byNodes.");
    if (aspectratioidx > -1) { SetTspecAtIndex(aspectratioidx, ar); return; }
    aspectratioidx = ncomp;
    SetDiscreteTargetBase(ar);
@@ -2316,6 +2328,8 @@ void DiscreteAdaptTC::SetSerialDiscreteTargetAspectRatio(const GridFunction &ar)
 
 void DiscreteAdaptTC::SetSerialDiscreteTargetOrientation(const GridFunction &o)
 {
+   MFEM_VERIFY(o.FESpace()->GetOrdering() == Ordering::byNODES,
+               "Discrete target orientation should be ordered byNodes.");
    if (orientationidx > -1) { SetTspecAtIndex(orientationidx, o); return; }
    orientationidx = ncomp;
    SetDiscreteTargetBase(o);
@@ -2328,18 +2342,19 @@ void DiscreteAdaptTC::FinalizeSerialDiscreteTargetSpec(const GridFunction &t)
    MFEM_VERIFY(ncomp > 0, "No target specifications have been set!");
 
    const FiniteElementSpace *tspec_fes = t.FESpace();
-   adapt_eval->SetSerialMetaInfo(*tspec_fes->GetMesh(),
-                                 *tspec_fes->FEColl(), ncomp);
-   adapt_eval->SetInitialField(*tspec_fes->GetMesh()->GetNodes(), tspec);
 
    tspec_sav = tspec;
 
    delete tspec_fesv;
    tspec_fesv = new FiniteElementSpace(tspec_fes->GetMesh(),
-                                       tspec_fes->FEColl(), ncomp);
+                                       tspec_fes->FEColl(), ncomp,
+                                       Ordering::byNODES);
 
    delete tspec_gf;
    tspec_gf = new GridFunction(tspec_fesv, tspec);
+
+   adapt_eval->SetSerialMetaInfo(*tspec_fes->GetMesh(), *tspec_fesv);
+   adapt_eval->SetInitialField(*tspec_fes->GetMesh()->GetNodes(), tspec);
 }
 
 void DiscreteAdaptTC::GetDiscreteTargetSpec(GridFunction &tspec_, int idx)
@@ -2363,8 +2378,7 @@ void DiscreteAdaptTC::UpdateAfterMeshTopologyChange()
    tspec.SetDataAndSize(tspec_gf->GetData(), tspec_gf->Size());
    tspec_sav = tspec;
 
-   adapt_eval->SetSerialMetaInfo(*tspec_fesv->GetMesh(),
-                                 *tspec_fesv->FEColl(), ncomp);
+   adapt_eval->SetSerialMetaInfo(*tspec_fesv->GetMesh(), *tspec_fesv);
    adapt_eval->SetInitialField(*tspec_fesv->GetMesh()->GetNodes(), tspec);
 }
 
@@ -2375,21 +2389,23 @@ void DiscreteAdaptTC::SetSerialDiscreteTargetSpec(const GridFunction &tspec_)
 
 
 void DiscreteAdaptTC::UpdateTargetSpecification(const Vector &new_x,
-                                                bool use_flag)
+                                                bool use_flag,
+                                                int new_x_ordering)
 {
    if (use_flag && good_tspec) { return; }
 
    MFEM_VERIFY(tspec.Size() > 0, "Target specification is not set!");
-   adapt_eval->ComputeAtNewPosition(new_x, tspec);
+   adapt_eval->ComputeAtNewPosition(new_x, tspec, new_x_ordering);
    tspec_sav = tspec;
 
    good_tspec = use_flag;
 }
 
 void DiscreteAdaptTC::UpdateTargetSpecification(Vector &new_x,
-                                                Vector &IntData)
+                                                Vector &IntData,
+                                                int new_x_ordering)
 {
-   adapt_eval->ComputeAtNewPosition(new_x, IntData);
+   adapt_eval->ComputeAtNewPosition(new_x, IntData, new_x_ordering);
 }
 
 void DiscreteAdaptTC::UpdateTargetSpecificationAtNode(const FiniteElement &el,
@@ -3019,9 +3035,10 @@ void DiscreteAdaptTC::ComputeElementTargetsGradient(const IntegrationRule &ir,
    Jtrcomp.Clear();
 }
 
-void DiscreteAdaptTC::UpdateGradientTargetSpecification(const Vector &x,
-                                                        const double dx,
-                                                        bool use_flag)
+void DiscreteAdaptTC:: UpdateGradientTargetSpecification(const Vector &x,
+                                                         const double dx,
+                                                         bool use_flag,
+                                                         int x_ordering)
 {
    if (use_flag && good_tspec_grad) { return; }
 
@@ -3034,19 +3051,28 @@ void DiscreteAdaptTC::UpdateGradientTargetSpecification(const Vector &x,
    Vector xtemp = x;
    for (int j = 0; j < dim; j++)
    {
-      for (int i = 0; i < cnt; i++) { xtemp(j*cnt+i) += dx; }
+      for (int i = 0; i < cnt; i++)
+      {
+         int idx = x_ordering == Ordering::byNODES ? j*cnt + i : i*dim + j;
+         xtemp(idx) += dx;
+      }
 
       TSpecTemp.NewDataAndSize(tspec_pert1h.GetData() + j*cnt*ncomp, cnt*ncomp);
-      UpdateTargetSpecification(xtemp, TSpecTemp);
+      UpdateTargetSpecification(xtemp, TSpecTemp, x_ordering);
 
-      for (int i = 0; i < cnt; i++) { xtemp(j*cnt+i) -= dx; }
+      for (int i = 0; i < cnt; i++)
+      {
+         int idx = x_ordering == Ordering::byNODES ? j*cnt + i : i*dim + j;
+         xtemp(idx) -= dx;
+      }
    }
 
    good_tspec_grad = use_flag;
 }
 
 void DiscreteAdaptTC::UpdateHessianTargetSpecification(const Vector &x,
-                                                       double dx, bool use_flag)
+                                                       double dx, bool use_flag,
+                                                       int x_ordering)
 {
 
    if (use_flag && good_tspec_hess) { return; }
@@ -3064,12 +3090,20 @@ void DiscreteAdaptTC::UpdateHessianTargetSpecification(const Vector &x,
    // T(x+2h)
    for (int j = 0; j < dim; j++)
    {
-      for (int i = 0; i < cnt; i++) { xtemp(j*cnt+i) += 2*dx; }
+      for (int i = 0; i < cnt; i++)
+      {
+         int idx = x_ordering == Ordering::byNODES ? j*cnt + i : i*dim + j;
+         xtemp(idx) += 2*dx;
+      }
 
       TSpecTemp.NewDataAndSize(tspec_pert2h.GetData() + j*cnt*ncomp, cnt*ncomp);
-      UpdateTargetSpecification(xtemp, TSpecTemp);
+      UpdateTargetSpecification(xtemp, TSpecTemp, x_ordering);
 
-      for (int i = 0; i < cnt; i++) { xtemp(j*cnt+i) -= 2*dx; }
+      for (int i = 0; i < cnt; i++)
+      {
+         int idx = x_ordering == Ordering::byNODES ? j*cnt + i : i*dim + j;
+         xtemp(idx) -= 2*dx;
+      }
    }
 
    // T(x+h,y+h)
@@ -3080,17 +3114,21 @@ void DiscreteAdaptTC::UpdateHessianTargetSpecification(const Vector &x,
       {
          for (int i = 0; i < cnt; i++)
          {
-            xtemp(k1*cnt+i) += dx;
-            xtemp(k2*cnt+i) += dx;
+            int idx1 = x_ordering == Ordering::byNODES ? k1*cnt+i : i*dim + k1;
+            int idx2 = x_ordering == Ordering::byNODES ? k2*cnt+i : i*dim + k2;
+            xtemp(idx1) += dx;
+            xtemp(idx2) += dx;
          }
 
          TSpecTemp.NewDataAndSize(tspec_pertmix.GetData() + j*cnt*ncomp, cnt*ncomp);
-         UpdateTargetSpecification(xtemp, TSpecTemp);
+         UpdateTargetSpecification(xtemp, TSpecTemp, x_ordering);
 
          for (int i = 0; i < cnt; i++)
          {
-            xtemp(k1*cnt+i) -= dx;
-            xtemp(k2*cnt+i) -= dx;
+            int idx1 = x_ordering == Ordering::byNODES ? k1*cnt+i : i*dim + k1;
+            int idx2 = x_ordering == Ordering::byNODES ? k2*cnt+i : i*dim + k2;
+            xtemp(idx1) -= dx;
+            xtemp(idx2) -= dx;
          }
          j++;
       }
@@ -3110,28 +3148,24 @@ DiscreteAdaptTC::~DiscreteAdaptTC()
 }
 
 void AdaptivityEvaluator::SetSerialMetaInfo(const Mesh &m,
-                                            const FiniteElementCollection &fec,
-                                            int num_comp)
+                                            const FiniteElementSpace &f)
 {
    delete fes;
    delete mesh;
    mesh = new Mesh(m, true);
-   fes = new FiniteElementSpace(mesh, &fec, num_comp);
-   dim = fes->GetFE(0)->GetDim();
-   ncomp = num_comp;
+   fes = new FiniteElementSpace(mesh, f.FEColl(),
+                                f.GetVDim(), f.GetOrdering());
 }
 
 #ifdef MFEM_USE_MPI
 void AdaptivityEvaluator::SetParMetaInfo(const ParMesh &m,
-                                         const FiniteElementCollection &fec,
-                                         int num_comp)
+                                         const ParFiniteElementSpace &f)
 {
    delete pfes;
    delete pmesh;
    pmesh = new ParMesh(m, true);
-   pfes  = new ParFiniteElementSpace(pmesh, &fec, num_comp);
-   dim = pfes->GetFE(0)->GetDim();
-   ncomp = num_comp;
+   pfes  = new ParFiniteElementSpace(pmesh, f.FEColl(),
+                                     f.GetVDim(), f.GetOrdering());
 }
 #endif
 
@@ -3215,8 +3249,8 @@ void TMOP_Integrator::EnableAdaptiveLimiting(const GridFunction &z0,
    adapt_lim_coeff = &coeff;
    adapt_lim_eval = &ae;
 
-   adapt_lim_eval->SetSerialMetaInfo(*adapt_lim_gf->FESpace()->GetMesh(),
-                                     *adapt_lim_gf->FESpace()->FEColl(), 1);
+   adapt_lim_eval->SetSerialMetaInfo(*z0.FESpace()->GetMesh(),
+                                     *z0.FESpace());
    adapt_lim_eval->SetInitialField
    (*adapt_lim_gf->FESpace()->GetMesh()->GetNodes(), *adapt_lim_gf);
 }
@@ -3234,7 +3268,7 @@ void TMOP_Integrator::EnableAdaptiveLimiting(const ParGridFunction &z0,
    adapt_lim_eval = &ae;
 
    adapt_lim_eval->SetParMetaInfo(*z0.ParFESpace()->GetParMesh(),
-                                  *z0.ParFESpace()->FEColl(), 1);
+                                  *z0.ParFESpace());
    adapt_lim_eval->SetInitialField
    (*adapt_lim_gf->FESpace()->GetMesh()->GetNodes(), *adapt_lim_gf);
 }
@@ -3252,7 +3286,7 @@ void TMOP_Integrator::EnableSurfaceFitting(const GridFunction &s0,
    surf_fit_eval = &ae;
 
    surf_fit_eval->SetSerialMetaInfo(*s0.FESpace()->GetMesh(),
-                                    *s0.FESpace()->FEColl(), 1);
+                                    *s0.FESpace());
    surf_fit_eval->SetInitialField
    (*surf_fit_gf->FESpace()->GetMesh()->GetNodes(), *surf_fit_gf);
 }
@@ -3270,7 +3304,7 @@ void TMOP_Integrator::EnableSurfaceFitting(const ParGridFunction &s0,
    surf_fit_eval = &ae;
 
    surf_fit_eval->SetParMetaInfo(*s0.ParFESpace()->GetParMesh(),
-                                 *s0.ParFESpace()->FEColl(), 1);
+                                 *s0.ParFESpace());
    surf_fit_eval->SetInitialField
    (*surf_fit_gf->FESpace()->GetMesh()->GetNodes(), *surf_fit_gf);
 }
@@ -3311,7 +3345,7 @@ void TMOP_Integrator::UpdateAfterMeshTopologyChange()
    {
       adapt_lim_gf->Update();
       adapt_lim_eval->SetSerialMetaInfo(*adapt_lim_gf->FESpace()->GetMesh(),
-                                        *adapt_lim_gf->FESpace()->FEColl(), 1);
+                                        *adapt_lim_gf->FESpace());
       adapt_lim_eval->SetInitialField
       (*adapt_lim_gf->FESpace()->GetMesh()->GetNodes(), *adapt_lim_gf);
    }
@@ -3324,7 +3358,7 @@ void TMOP_Integrator::ParUpdateAfterMeshTopologyChange()
    {
       adapt_lim_gf->Update();
       adapt_lim_eval->SetParMetaInfo(*adapt_lim_pgf0->ParFESpace()->GetParMesh(),
-                                     *adapt_lim_pgf0->ParFESpace()->FEColl(), 1);
+                                     *adapt_lim_pgf0->ParFESpace());
       adapt_lim_eval->SetInitialField
       (*adapt_lim_gf->FESpace()->GetMesh()->GetNodes(), *adapt_lim_gf);
    }
@@ -4479,19 +4513,23 @@ void TMOP_Integrator::ComputeMinJac(const Vector &x,
    dx = detv_avg_min / dxscale;
 }
 
-void TMOP_Integrator::UpdateAfterMeshPositionChange(const Vector &new_x)
+void TMOP_Integrator::UpdateAfterMeshPositionChange(const Vector &new_x,
+                                                    int new_x_ordering)
 {
    if (discr_tc)
    {
       PA.Jtr_needs_update = true;
    }
    // Update adapt_lim_gf if adaptive limiting is enabled.
-   if (adapt_lim_gf) { adapt_lim_eval->ComputeAtNewPosition(new_x, *adapt_lim_gf); }
+   if (adapt_lim_gf)
+   {
+      adapt_lim_eval->ComputeAtNewPosition(new_x, *adapt_lim_gf, new_x_ordering);
+   }
 
    // Update surf_fit_gf if surface fitting is enabled.
    if (surf_fit_gf)
    {
-      surf_fit_eval->ComputeAtNewPosition(new_x, *surf_fit_gf);
+      surf_fit_eval->ComputeAtNewPosition(new_x, *surf_fit_gf, new_x_ordering);
    }
 }
 
@@ -4518,9 +4556,9 @@ void TMOP_Integrator::EnableFiniteDifferences(const GridFunction &x)
    ComputeFDh(x,*fes);
    if (discr_tc)
    {
-      discr_tc->UpdateTargetSpecification(x);
-      discr_tc->UpdateGradientTargetSpecification(x, dx);
-      discr_tc->UpdateHessianTargetSpecification(x, dx);
+      discr_tc->UpdateTargetSpecification(x, false, fes->GetOrdering());
+      discr_tc->UpdateGradientTargetSpecification(x, dx, false, fes->GetOrdering());
+      discr_tc->UpdateHessianTargetSpecification(x, dx, false, fes->GetOrdering());
    }
 }
 
@@ -4532,9 +4570,9 @@ void TMOP_Integrator::EnableFiniteDifferences(const ParGridFunction &x)
    ComputeFDh(x,*pfes);
    if (discr_tc)
    {
-      discr_tc->UpdateTargetSpecification(x);
-      discr_tc->UpdateGradientTargetSpecification(x, dx);
-      discr_tc->UpdateHessianTargetSpecification(x, dx);
+      discr_tc->UpdateTargetSpecification(x, false, pfes->GetOrdering());
+      discr_tc->UpdateGradientTargetSpecification(x, dx, false, pfes->GetOrdering());
+      discr_tc->UpdateHessianTargetSpecification(x, dx, false, pfes->GetOrdering());
    }
 }
 #endif
