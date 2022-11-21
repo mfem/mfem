@@ -89,6 +89,7 @@ class DarcyProblem
    ParMesh mesh_;
    shared_ptr<ParBilinearForm> Mform_;
    shared_ptr<ParMixedBilinearForm> Bform_;
+   unique_ptr<PWConstCoefficient> mass_coeff_;
    VectorFunctionCoefficient ucoeff_;
    FunctionCoefficient pcoeff_;
    const Array<int> &ess_bdr_;
@@ -135,7 +136,8 @@ DarcyProblem::DarcyProblem(MPI_Comm comm, Mesh &mesh, int num_refs, int order,
       ifstream coef_str(coef_file);
       coef_vector.Load(coef_str, mesh.GetNE());
    }
-   PWConstCoefficient mass_coeff(coef_vector);
+   unique_ptr<PWConstCoefficient> temp_coeff(new PWConstCoefficient(coef_vector));
+   mass_coeff_ = move(temp_coeff);
    VectorFunctionCoefficient fcoeff(mesh_.Dimension(), f_exact);
    FunctionCoefficient natcoeff(natural_bc);
    FunctionCoefficient gcoeff(g_exact);
@@ -167,8 +169,7 @@ DarcyProblem::DarcyProblem(MPI_Comm comm, Mesh &mesh, int num_refs, int order,
    gform.ParallelAssemble(blk_rhs.GetBlock(1));
 
    Mform_ = make_shared<ParBilinearForm>(u_fes);
-   // Mform_->AddDomainIntegrator(new VectorFEMassIntegrator(mass_coeff));
-   Mform_->AddDomainIntegrator(new VectorFEMassIntegrator());
+   Mform_->AddDomainIntegrator(new VectorFEMassIntegrator(mass_coeff_.get()));
    Mform_->Assemble();
    Mform_->Finalize();
 
