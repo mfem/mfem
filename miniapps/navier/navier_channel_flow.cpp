@@ -60,8 +60,8 @@ struct s_NavierContext
    int ser_ref_levels = 0; //Serial Refinement Levels
    int order = 4; // Finite Element function space order
    double kinvis = 0.0014607; //Kinematic viscocity - SET THIS TO APPROPRIATE VALUE
-   double dt = 0.0001; //Time-step size
-   double t_final = 0.250; //Final time of simulation
+   double dt = 0.001; //Time-step size
+   double t_final = 0.500; //Final time of simulation
    bool pa = true;
    bool ni = false;
    bool visualization = false;
@@ -183,7 +183,7 @@ int main(int argc, char *argv[])
    // Outlet is arttribute 2.
    attr[1] = 0; 
    // Top is attribute 3.
-   attr[2] = 1;
+   attr[2] = 0;
    // Bottom is attribute 4
    attr[3] = 1;
    // Plate is attribute 5. (no slip)
@@ -304,7 +304,7 @@ void vel_ic(const Vector &x, double t, Vector &u)
 void vel_dbc(const Vector &x, double t, Vector &u){
 	double xi = x(0);
 	double yi = x(1);
-	int slip_case = 0; // 0 - All no-slip walls | 1 - All slip walls | 2 - Slip top, partial slip bottom, no slip plate
+	int slip_case = 1; // 0 - All no-slip walls | 1 - All slip walls | 2 - Slip top, partial slip bottom, no slip plate
 
 	//double U = 68.058; //Freestream velocity
 	double U = 2.5; //Freestream velocity
@@ -317,11 +317,14 @@ void vel_dbc(const Vector &x, double t, Vector &u){
 			u(0) = 0.0;
 			u(1) = 0.0;
 		}
+		break;
+
 		case 1:
 		//Slip walls & Plate
 		if(yi <= 0.0 || yi >= 0.25){
 			u(1) = 0.0;
-		}
+			}
+		break;
 
 		case 2:
 		//Slip top, partial slip bottom, no slip plate
@@ -337,6 +340,7 @@ void vel_dbc(const Vector &x, double t, Vector &u){
 		else if(yi >= 0.25){
 			u(1) = 0;
 		}
+		break;
 	}
 
 	//Inlet
