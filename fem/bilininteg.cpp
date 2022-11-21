@@ -59,6 +59,14 @@ void BilinearFormIntegrator::AssembleEA(const FiniteElementSpace &fes,
                "   is not implemented for this class.");
 }
 
+void BilinearFormIntegrator::AssembleEA(const FiniteElementSpace &fes,
+                                        DenseTensor &emat,
+                                        const bool add)
+{
+   mfem_error ("BilinearFormIntegrator::AssembleEA(...)\n"
+               "   is not implemented for this class.");
+}
+
 void BilinearFormIntegrator::AssembleEAInteriorFaces(const FiniteElementSpace
                                                      &fes,
                                                      Vector &ea_data_int,
