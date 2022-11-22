@@ -119,9 +119,9 @@ MemoryClass operator*(MemoryClass mc1, MemoryClass mc2);
     - Pointer arithmetic is not supported, MakeAlias() should be used instead.
     - Const Memory object does not allow modification of the content
       (unlike e.g. a const pointer).
-    - Move constructor and assignement will transfer ownership flags, and
+    - Move constructor and assignment will transfer ownership flags, and
       Reset() the moved Memory object.
-    - Copy constructor and assignement copy flags. This may result in two Memory
+    - Copy constructor and assignment copy flags. This may result in two Memory
       objects owning the data which is an invalid state. This invalid state MUST
       be resolved by users manually using SetHostPtrOwner(),
       SetDevicePtrOwner(), or ClearOwnerFlags(). It is also possible to call
@@ -1141,7 +1141,7 @@ inline void Memory<T>::SyncAlias(const Memory &base, int alias_size) const
 template <typename T>
 inline MemoryType Memory<T>::GetMemoryType() const
 {
-   if (!(flags & VALID_DEVICE)) { return h_mt; }
+   if (h_ptr == nullptr || !(flags & VALID_DEVICE)) { return h_mt; }
    return MemoryManager::GetDeviceMemoryType_(h_ptr, flags & ALIAS);
 }
 

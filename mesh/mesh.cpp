@@ -2417,7 +2417,7 @@ void Mesh::MarkForRefinement()
 
 void Mesh::MarkTriMeshForRefinement()
 {
-   // Mark the longest triangle edge by rotating the indeces so that
+   // Mark the longest triangle edge by rotating the indices so that
    // vertex 0 - vertex 1 is the longest edge in the triangle.
    DenseMatrix pmat;
    for (int i = 0; i < NumOfElements; i++)
@@ -7025,6 +7025,11 @@ int *Mesh::CartesianPartitioning(int nxyz[])
    return partitioning;
 }
 
+void FindPartitioningComponents(Table &elem_elem,
+                                const Array<int> &partitioning,
+                                Array<int> &component,
+                                Array<int> &num_comp);
+
 int *Mesh::GeneratePartitioning(int nparts, int part_method)
 {
 #ifdef MFEM_USE_METIS
@@ -7106,6 +7111,15 @@ int *Mesh::GeneratePartitioning(int nparts, int part_method)
 #else
       METIS_SetDefaultOptions(options);
       options[METIS_OPTION_CONTIG] = 1; // set METIS_OPTION_CONTIG
+      // If the mesh is disconnected, disable METIS_OPTION_CONTIG.
+      {
+         Array<int> part(partitioning, NumOfElements);
+         part = 0; // single part for the whole mesh
+         Array<int> component; // size will be set to num. elem.
+         Array<int> num_comp;  // size will be set to num. parts (1)
+         FindPartitioningComponents(*el_to_el, part, component, num_comp);
+         if (num_comp[0] > 1) { options[METIS_OPTION_CONTIG] = 0; }
+      }
 #endif
 
       // Sort the neighbor lists
@@ -7913,6 +7927,9 @@ void Mesh::SetNodes(const Vector &node_coord)
    {
       SetVertices(node_coord);
    }
+
+   // Invalidate the old geometric factors
+   NodesUpdated();
 }
 
 void Mesh::NewNodes(GridFunction &nodes, bool make_owner)
@@ -7932,6 +7949,9 @@ void Mesh::NewNodes(GridFunction &nodes, bool make_owner)
    {
       ncmesh->MakeTopologyOnly();
    }
+
+   // Invalidate the old geometric factors
+   NodesUpdated();
 }
 
 void Mesh::SwapNodes(GridFunction *&nodes, int &own_nodes_)
@@ -7942,6 +7962,9 @@ void Mesh::SwapNodes(GridFunction *&nodes, int &own_nodes_)
    // if (nodes)
    //    nodes->FESpace()->MakeNURBSextOwner();
    // NURBSext = (Nodes) ? Nodes->FESpace()->StealNURBSext() : NULL;
+
+   // Invalidate the old geometric factors
+   NodesUpdated();
 }
 
 void Mesh::AverageVertices(const int *indexes, int n, int result)
@@ -7974,6 +7997,9 @@ void Mesh::UpdateNodes()
 
       // update vertex coordinates for compatibility (e.g., GetVertex())
       SetVerticesFromNodes(Nodes);
+
+      // Invalidate the old geometric factors
+      NodesUpdated();
    }
 }
 
@@ -9799,7 +9825,7 @@ void Mesh::UniformRefinement(int i, const DSTable &v_to_v,
       Triangle *tri0 = (Triangle*) elements[i];
       tri0->GetVertices(v);
 
-      // 1. Get the indeces for the new vertices in array v_new
+      // 1. Get the indices for the new vertices in array v_new
       bisect[0] = v_to_v(v[0],v[1]);
       bisect[1] = v_to_v(v[1],v[2]);
       bisect[2] = v_to_v(v[0],v[2]);
@@ -9834,7 +9860,7 @@ void Mesh::UniformRefinement(int i, const DSTable &v_to_v,
          }
       }
 
-      // 2. Set the node indeces for the new elements in v1, v2, v3 & v4 so that
+      // 2. Set the node indices for the new elements in v1, v2, v3 & v4 so that
       //    the edges marked for refinement be between the first two nodes.
       v1[0] =     v[0]; v1[1] = v_new[0]; v1[2] = v_new[2];
       v2[0] = v_new[0]; v2[1] =     v[1]; v2[2] = v_new[1];
@@ -10492,8 +10518,8 @@ void Mesh::PrintVTU(std::ostream &os, int ref, VTKFormat format,
    };
 
    int ne = bdr_elements ? GetNBE() : GetNE();
-   // count the points, cells, size
-   int np = 0, nc_ref = 0, size = 0;
+   // count the number of points and cells
+   int np = 0, nc_ref = 0;
    for (int i = 0; i < ne; i++)
    {
       Geometry::Type geom = get_geom(i);
@@ -10501,7 +10527,6 @@ void Mesh::PrintVTU(std::ostream &os, int ref, VTKFormat format,
       RefG = GlobGeometryRefiner.Refine(geom, ref, 1);
       np += RefG->RefPts.GetNPoints();
       nc_ref += RefG->RefGeoms.Size() / nv;
-      size += (RefG->RefGeoms.Size() / nv) * (nv + 1);
    }
 
    os << "<Piece NumberOfPoints=\"" << np << "\" NumberOfCells=\""
@@ -12116,8 +12141,13 @@ FaceGeometricFactors::FaceGeometricFactors(const Mesh *mesh,
       eval_flags |= FaceQuadratureInterpolator::NORMALS;
    }
 
-   const FaceQuadratureInterpolator *qi = fespace->GetFaceQuadratureInterpolator(
-                                             ir, type);
+   const FaceQuadratureInterpolator *qi =
+      fespace->GetFaceQuadratureInterpolator(ir, type);
+   // All face data vectors assume layout byNODES.
+   qi->SetOutputLayout(QVectorLayout::byNODES);
+   const bool use_tensor_products = UsesTensorBasis(*fespace);
+   qi->DisableTensorProducts(!use_tensor_products);
+
    qi->Mult(Fnodes, eval_flags, X, J, detJ, normal);
 }
 
