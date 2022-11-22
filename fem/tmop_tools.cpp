@@ -458,7 +458,6 @@ double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
    // TODO:
    // - Customized line search for worst-quality optimization.
    // - What is the Newton exit criterion for worst-quality optimization?
->>>>>>> 9ecfbbf35509a09bd62b3f35e3d077ef34e76d01
 
    // Perform the line search.
    for (int i = 0; i < 12; i++)
