@@ -30,3 +30,8 @@ add_mfem_miniapp(lor-transfer
 
 add_mfem_miniapp(check-tmop-metric
   MAIN check-tmop-metric.cpp LIBRARIES mfem)
+
+if (MFEM_USE_MPI)
+add_mfem_miniapp(nodal_transfer
+  MAIN nodal_transfer.cpp LIBRARIES mfem)
+endif()

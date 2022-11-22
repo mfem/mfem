@@ -14,7 +14,6 @@
 
 #include "../linalg/linalg.hpp"
 #include "fespace.hpp"
-#include "../general/kdtree.hpp"
 
 #ifdef MFEM_USE_MPI
 #include "pfespace.hpp"
@@ -486,52 +485,6 @@ public:
    /** The true dof vector \p x corresponding to the fine space is restricted to
        the true dof vector \p y corresponding to the coarse space. */
    virtual void MultTranspose(const Vector& x, Vector& y) const override;
-};
-
-/// The class provides methods for transfering function values evaluated on a
-/// set of points to a grid function. The points are directly copied to the nodal
-/// values of the target grid function if any of the points is matching a node of
-///  the grid function.
-class KDTreeNodalTransfer
-{
-private:
-
-   /// Pointer to the KDTree for the 3D case
-   KDTree3D* kdt3D;
-
-   /// Pointer to the KDTree for the 2D case
-   KDTree2D* kdt2D;
-
-   /// Pointer to the target grid function
-   GridFunction* dest;
-
-   /// Upper corner of the bounding box
-   Vector maxbb;
-
-   /// Lower corner of the bounding box
-   Vector minbb;
-
-public:
-   /// The constructor takes as input an L2 or H1 grid function (it can be a vector grid
-   /// function). The Transfer method coppies a set of values to the grid function.
-   KDTreeNodalTransfer(GridFunction& dest_);
-
-   /// Frees the memory allocated for the transfer
-   ~KDTreeNodalTransfer()
-   {
-      delete kdt2D;
-      delete kdt3D;
-   }
-
-   /// The transfer method can be called as many time as necessary with different sets
-   /// of coordinates and corresponding values. For vector grid function, users have to
-   /// specify the data ordering and for all cases the user can modify the error tolerance
-   /// err to smaller or bigger value. A node in the target grid function is mathcning
-   /// a point with coordinates psecified in the vector coords if the distance between them
-   /// is smaller than err.
-   void Transfer(Vector& coords, Vector& src,
-                 int ordering=Ordering::byNODES,double err=1e-8);
-
 };
 
 } // namespace mfem

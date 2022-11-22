@@ -4550,4 +4550,406 @@ GridFunction *Extrude1DGridFunction(Mesh *mesh, Mesh *mesh2d,
    return sol2d;
 }
 
+KDTreeNodalProjection::KDTreeNodalProjection(GridFunction& dest_)
+{
+   dest=&dest_;
+   FiniteElementSpace* space=dest->FESpace();
+   Mesh* mesh=space->GetMesh();
+   int dim=mesh->SpaceDimension();
+
+   if (dim==2) { kdt2D=new KDTree2D(); kdt3D=nullptr;}
+   if (dim==3) { kdt3D=new KDTree3D(); kdt2D=nullptr;}
+   std::vector<bool> indt; indt.resize(space->GetVSize()/space->GetVDim());
+   for (size_t i=0; i<indt.size(); i++) {indt[i]=true;}
+
+   minbb.SetSize(dim);
+   maxbb.SetSize(dim);
+
+   //set the loocal coordinates
+   {
+      ElementTransformation *trans;
+      const IntegrationRule* ir=nullptr;
+      Array<int> vdofs;
+      DenseMatrix elco;
+      int isca=1;
+      if (space->GetOrdering()==Ordering::byVDIM) {isca=space->GetVDim();}
+
+      //intialize the bounding box
+      const FiniteElement* el=space->GetFE(0);
+      trans = space->GetElementTransformation(0);
+      ir=&(el->GetNodes());
+      space->GetElementVDofs(0,vdofs);
+      elco.SetSize(dim,ir->GetNPoints());
+      trans->Transform(*ir,elco);
+      for (int d=0; d<dim; d++)
+      {
+         minbb[d]=elco(d,0);
+         maxbb[d]=elco(d,0);
+      }
+
+
+      for (int i=0; i<space->GetNE(); i++)
+      {
+         const FiniteElement* el=space->GetFE(i);
+         //get the element transformation
+         trans = space->GetElementTransformation(i);
+         ir=&(el->GetNodes());
+         space->GetElementVDofs(i,vdofs);
+         elco.SetSize(dim,ir->GetNPoints());
+         trans->Transform(*ir,elco);
+
+         if (dim==2)
+         {
+            for (int p=0; p<ir->GetNPoints(); p++)
+            {
+               int bind=vdofs[p]/isca;
+               if (indt[bind]==true)
+               {
+                  kdt2D->AddPoint(elco(0,p),elco(1,p),bind);
+                  indt[bind]=false;
+
+                  for (int d=0; d<2; d++)
+                  {
+                     if (minbb[d]>elco(d,p)) {minbb[d]=elco(d,p);}
+                     if (maxbb[d]<elco(d,p)) {maxbb[d]=elco(d,p);}
+                  }
+               }
+            }
+         }
+         else if (dim==3)
+         {
+            for (int p=0; p<ir->GetNPoints(); p++)
+            {
+               int bind=vdofs[p]/isca;
+               if (indt[bind]==true)
+               {
+                  kdt3D->AddPoint(elco(0,p),elco(1,p),elco(2,p),bind);
+                  indt[bind]=false;
+
+                  for (int d=0; d<3; d++)
+                  {
+                     if (minbb[d]>elco(d,p)) {minbb[d]=elco(d,p);}
+                     if (maxbb[d]<elco(d,p)) {maxbb[d]=elco(d,p);}
+                  }
+
+               }
+            }
+         }
+      }
+   }
+
+   // build the KDTree
+   if (dim==2) { kdt2D->Sort();}
+   else {kdt3D->Sort();}
+
+   minbb-=1e-8;
+   maxbb+=1e-8;
+
+}
+
+void KDTreeNodalProjection::Project(Vector& coords, Vector& src,
+                                    int ordering,double err)
+{
+   int dim=dest->FESpace()->GetMesh()->SpaceDimension();
+   int vd=dest->VectorDim();
+   int np=src.Size()/vd;
+   int ind;
+   double dist;
+   bool flag;
+
+   if (dim==2)
+   {
+      KDTree2D::PointND pnd;
+      for (int i=0; i<np; i++)
+      {
+         pnd.xx[0]=coords(i*dim+0);
+         pnd.xx[1]=coords(i*dim+1);
+
+         flag=true;
+         for (int j=0; j<dim; j++)
+         {
+            if (pnd.xx[j]>maxbb[j]) {flag=false; break;}
+            if (pnd.xx[j]<minbb[j]) {flag=false; break;}
+         }
+
+         if (flag)
+         {
+            //kdtree->FindClosestPoint(pt,ind,dist);
+            kdt2D->FindClosestPoint(pnd,ind,dist);
+            if (dist<err)
+            {
+               if (dest->FESpace()->GetOrdering()==Ordering::byNODES)
+               {
+                  if (ordering==Ordering::byNODES)
+                  {
+                     for (int di=0; di<vd; di++)
+                     {
+                        (*dest)[di*np+ind]=src[di*np+i];
+                     }
+                  }
+                  else
+                  {
+                     for (int di=0; di<vd; di++)
+                     {
+                        (*dest)[di*np+ind]=src[di+i*vd];
+                     }
+                  }
+               }
+               else
+               {
+                  if (ordering==Ordering::byNODES)
+                  {
+                     for (int di=0; di<vd; di++)
+                     {
+                        (*dest)[di+ind*vd]=src[di*np+i];
+                     }
+                  }
+                  else
+                  {
+                     for (int di=0; di<vd; di++)
+                     {
+                        (*dest)[di+ind*vd]=src[di+i*vd];
+                     }
+                  }
+               }
+            }
+         }
+      }
+   }
+   else if (dim==3)
+   {
+      KDTree3D::PointND pnd;
+      for (int i=0; i<np; i++)
+      {
+         pnd.xx[0]=coords(i*dim+0);
+         pnd.xx[1]=coords(i*dim+1);
+         pnd.xx[2]=coords(i*dim+2);
+
+         flag=true;
+         for (int j=0; j<dim; j++)
+         {
+            if (pnd.xx[j]>maxbb[j]) {flag=false; break;}
+            if (pnd.xx[j]<minbb[j]) {flag=false; break;}
+         }
+
+         if (flag)
+         {
+            kdt3D->FindClosestPoint(pnd,ind,dist);
+            if (dist<err)
+            {
+               if (dest->FESpace()->GetOrdering()==Ordering::byNODES)
+               {
+                  if (ordering==Ordering::byNODES)
+                  {
+                     for (int di=0; di<vd; di++)
+                     {
+                        (*dest)[di*np+ind]=src[di*np+i];
+                     }
+                  }
+                  else
+                  {
+                     for (int di=0; di<vd; di++)
+                     {
+                        (*dest)[di*np+ind]=src[di+i*vd];
+                     }
+                  }
+               }
+               else
+               {
+                  if (ordering==Ordering::byNODES)
+                  {
+                     for (int di=0; di<vd; di++)
+                     {
+                        (*dest)[di+ind*vd]=src[di*np+i];
+                     }
+                  }
+                  else
+                  {
+                     for (int di=0; di<vd; di++)
+                     {
+                        (*dest)[di+ind*vd]=src[di+i*vd];
+                     }
+                  }
+               }
+            }
+         }
+      }
+   }
+}
+
+void KDTreeNodalProjection::Project(GridFunction& gf, double err)
+{
+   int ordering = gf.FESpace()->GetOrdering();
+   int dim=dest->FESpace()->GetMesh()->SpaceDimension();
+   Vector coo;
+   int np=gf.FESpace()->GetVSize()/gf.FESpace()->GetVDim();
+   coo.SetSize(np*dim);
+   int vd=dest->VectorDim();
+   int ind;
+   double dist;
+
+
+   Vector bbmax(dim);
+   Vector bbmin(dim);
+
+   // extract the nodal coordinates from gf
+   {
+      ElementTransformation *trans;
+      const IntegrationRule* ir=nullptr;
+      Array<int> vdofs;
+      DenseMatrix elco;
+      int isca=1;
+      if (gf.FESpace()->GetOrdering()==Ordering::byVDIM)
+      {
+         isca=gf.FESpace()->GetVDim();
+      }
+
+      // initialize bbmax and bbmin
+      const FiniteElement* el=gf.FESpace()->GetFE(0);
+      trans = gf.FESpace()->GetElementTransformation(0);
+      ir=&(el->GetNodes());
+      gf.FESpace()->GetElementVDofs(0,vdofs);
+      elco.SetSize(dim,ir->GetNPoints());
+      trans->Transform(*ir,elco);
+      for (int d=0; d<dim; d++)
+      {
+         bbmax(d)=elco(d,0);
+         bbmin(d)=elco(d,0);
+      }
+
+      for (int i=0; i<gf.FESpace()->GetNE(); i++)
+      {
+         el=gf.FESpace()->GetFE(i);
+         //get the element transformation
+         trans = gf.FESpace()->GetElementTransformation(i);
+         ir=&(el->GetNodes());
+         gf.FESpace()->GetElementVDofs(i,vdofs);
+         elco.SetSize(dim,ir->GetNPoints());
+         trans->Transform(*ir,elco);
+         for (int p=0; p<ir->GetNPoints(); p++)
+         {
+            for (int d=0; d<dim; d++)
+            {
+               coo[vdofs[p]*dim/isca+d]=elco(d,p);
+
+               if (bbmax(d)<elco(d,p)) {bbmax(d)=elco(d,p);}
+               if (bbmin(d)>elco(d,p)) {bbmin(d)=elco(d,p);}
+            }
+         }
+      }
+   }
+
+   //check for intersection
+   bool flag;
+   {
+      flag=true;
+      for (int i=0; i<dim; i++)
+      {
+         if (bbmin(i)>maxbb(i)) {flag=false;}
+         if (bbmax(i)<minbb(i)) {flag=false;}
+      }
+      if (flag==false) {return;}
+   }
+
+
+   if (dim==2)
+   {
+      KDTree2D::PointND pnd;
+      for (int i=0; i<np; i++)
+      {
+         pnd.xx[0]=coo(i*dim+0);
+         pnd.xx[1]=coo(i*dim+1);
+
+         kdt2D->FindClosestPoint(pnd,ind,dist);
+         if (dist<err)
+         {
+            if (dest->FESpace()->GetOrdering()==Ordering::byNODES)
+            {
+               if (ordering==Ordering::byNODES)
+               {
+                  for (int di=0; di<vd; di++)
+                  {
+                     (*dest)[di*np+ind]=gf[di*np+i];
+                  }
+               }
+               else
+               {
+                  for (int di=0; di<vd; di++)
+                  {
+                     (*dest)[di*np+ind]=gf[di+i*vd];
+                  }
+               }
+            }
+            else
+            {
+               if (ordering==Ordering::byNODES)
+               {
+                  for (int di=0; di<vd; di++)
+                  {
+                     (*dest)[di+ind*vd]=gf[di*np+i];
+                  }
+               }
+               else
+               {
+                  for (int di=0; di<vd; di++)
+                  {
+                     (*dest)[di+ind*vd]=gf[di+i*vd];
+                  }
+               }
+            }
+         }
+      }
+   }
+   else if (dim==3)
+   {
+      KDTree3D::PointND pnd;
+      for (int i=0; i<np; i++)
+      {
+         pnd.xx[0]=coo(i*dim+0);
+         pnd.xx[1]=coo(i*dim+1);
+         pnd.xx[2]=coo(i*dim+2);
+
+         kdt3D->FindClosestPoint(pnd,ind,dist);
+         if (dist<err)
+         {
+            if (dest->FESpace()->GetOrdering()==Ordering::byNODES)
+            {
+               if (ordering==Ordering::byNODES)
+               {
+                  for (int di=0; di<vd; di++)
+                  {
+                     (*dest)[di*np+ind]=gf[di*np+i];
+                  }
+               }
+               else
+               {
+                  for (int di=0; di<vd; di++)
+                  {
+                     (*dest)[di*np+ind]=gf[di+i*vd];
+                  }
+               }
+            }
+            else
+            {
+               if (ordering==Ordering::byNODES)
+               {
+                  for (int di=0; di<vd; di++)
+                  {
+                     (*dest)[di+ind*vd]=gf[di*np+i];
+                  }
+               }
+               else
+               {
+                  for (int di=0; di<vd; di++)
+                  {
+                     (*dest)[di+ind*vd]=gf[di+i*vd];
+                  }
+               }
+            }
+         }
+      }
+   }
+
+}
+
 }

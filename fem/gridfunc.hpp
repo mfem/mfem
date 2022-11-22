@@ -22,6 +22,7 @@
 #include <limits>
 #include <ostream>
 #include <string>
+#include "../general/kdtree.hpp"
 
 namespace mfem
 {
@@ -853,6 +854,60 @@ public:
 /// Extrude a scalar 1D GridFunction, after extruding the mesh with Extrude1D.
 GridFunction *Extrude1DGridFunction(Mesh *mesh, Mesh *mesh2d,
                                     GridFunction *sol, const int ny);
+
+/// The class provides methods for projecting function values evaluated on a
+/// set of points to a grid function. The values are directly copied to the
+/// nodal values of the target grid function if any of the points is matching
+/// a node of the grid function.
+class KDTreeNodalProjection
+{
+private:
+
+   /// Pointer to the KDTree for the 3D case
+   KDTree3D* kdt3D;
+
+   /// Pointer to the KDTree for the 2D case
+   KDTree2D* kdt2D;
+
+   /// Pointer to the target grid function
+   GridFunction* dest;
+
+   /// Upper corner of the bounding box
+   Vector maxbb;
+
+   /// Lower corner of the bounding box
+   Vector minbb;
+
+public:
+   /// The constructor takes as input an L2 or H1 grid function (it can be
+   /// a vector grid function). The Transfer method coppies a set of values
+   /// to the grid function.
+   KDTreeNodalProjection(GridFunction& dest_);
+
+   /// Frees the memory allocated for the transfer
+   ~KDTreeNodalProjection()
+   {
+      delete kdt2D;
+      delete kdt3D;
+   }
+
+   /// The projection method can be called as many time as necessary with
+   /// different sets of coordinates and corresponding values. For vector
+   /// grid function, users have to specify the data ordering and for all
+   /// cases the user can modify the error tolerance err to smaller or
+   /// bigger value. A node in the target grid function is mathcning
+   /// a point with coordinates psecified in the vector coords if the
+   /// distance between them is smaller than err.
+   void Project(Vector& coords, Vector& src,
+                int ordering=Ordering::byNODES,double err=1e-8);
+
+   /// The project method can be called as many times as necessary with
+   /// different grid functions gf. A node in the target grid function is
+   /// mathcning a node from the source grid function if the distance
+   /// between them is smaller than err.
+   void Project(GridFunction& gf, double err=1e-8);
+
+};
 
 } // namespace mfem
 
