@@ -4590,7 +4590,7 @@ KDTreeNodalProjection::KDTreeNodalProjection(GridFunction& dest_)
 
       for (int i=0; i<space->GetNE(); i++)
       {
-         const FiniteElement* el=space->GetFE(i);
+         el=space->GetFE(i);
          //get the element transformation
          trans = space->GetElementTransformation(i);
          ir=&(el->GetNodes());
@@ -4648,7 +4648,7 @@ KDTreeNodalProjection::KDTreeNodalProjection(GridFunction& dest_)
 }
 
 void KDTreeNodalProjection::Project(Vector& coords, Vector& src,
-                                    int ordering,double err)
+                                    int ordering,double lerr)
 {
    int dim=dest->FESpace()->GetMesh()->SpaceDimension();
    int vd=dest->VectorDim();
@@ -4676,7 +4676,7 @@ void KDTreeNodalProjection::Project(Vector& coords, Vector& src,
          {
             //kdtree->FindClosestPoint(pt,ind,dist);
             kdt2D->FindClosestPoint(pnd,ind,dist);
-            if (dist<err)
+            if (dist<lerr)
             {
                if (dest->FESpace()->GetOrdering()==Ordering::byNODES)
                {
@@ -4735,7 +4735,7 @@ void KDTreeNodalProjection::Project(Vector& coords, Vector& src,
          if (flag)
          {
             kdt3D->FindClosestPoint(pnd,ind,dist);
-            if (dist<err)
+            if (dist<lerr)
             {
                if (dest->FESpace()->GetOrdering()==Ordering::byNODES)
                {
@@ -4777,7 +4777,7 @@ void KDTreeNodalProjection::Project(Vector& coords, Vector& src,
    }
 }
 
-void KDTreeNodalProjection::Project(GridFunction& gf, double err)
+void KDTreeNodalProjection::Project(GridFunction& gf, double lerr)
 {
    int ordering = gf.FESpace()->GetOrdering();
    int dim=dest->FESpace()->GetMesh()->SpaceDimension();
@@ -4861,7 +4861,7 @@ void KDTreeNodalProjection::Project(GridFunction& gf, double err)
          pnd.xx[1]=coo(i*dim+1);
 
          kdt2D->FindClosestPoint(pnd,ind,dist);
-         if (dist<err)
+         if (dist<lerr)
          {
             if (dest->FESpace()->GetOrdering()==Ordering::byNODES)
             {
@@ -4910,7 +4910,7 @@ void KDTreeNodalProjection::Project(GridFunction& gf, double err)
          pnd.xx[2]=coo(i*dim+2);
 
          kdt3D->FindClosestPoint(pnd,ind,dist);
-         if (dist<err)
+         if (dist<lerr)
          {
             if (dest->FESpace()->GetOrdering()==Ordering::byNODES)
             {

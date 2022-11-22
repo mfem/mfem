@@ -373,8 +373,7 @@ private:
          {
             PSearch(itb+siz/2+1, ite, level, bc);
          }
-         else
-         if ((bc.sp.xx[dim]+bc.dist)<mtb->pt.xx[dim]) // look on the left only
+         else if ((bc.sp.xx[dim]+bc.dist)<mtb->pt.xx[dim]) // look on the left only
          {
             PSearch(itb,itb+siz/2, level, bc);
          }
@@ -391,8 +390,10 @@ private:
                   {
                      // check central one
                      Tfloat dd=Dist(mtb->pt, bc.sp);
-                     if (dd<bc.dist){
-                         bc.dist=dd; bc.pos=mtb-data.begin(); bc.level=level; }
+                     if (dd<bc.dist)
+                     {
+                        bc.dist=dd; bc.pos=mtb-data.begin(); bc.level=level;
+                     }
                   }// end central point check
                }
             }
@@ -407,8 +408,10 @@ private:
                   {
                      // check central one
                      Tfloat dd=Dist(mtb->pt, bc.sp);
-                     if (dd<bc.dist){
-                         bc.dist=dd; bc.pos=mtb-data.begin(); bc.level=level; }
+                     if (dd<bc.dist)
+                     {
+                        bc.dist=dd; bc.pos=mtb-data.begin(); bc.level=level;
+                     }
                   } // end central point check
                }
             }
