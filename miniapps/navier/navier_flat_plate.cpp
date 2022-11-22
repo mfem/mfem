@@ -52,7 +52,7 @@ using namespace navier;
 struct s_NavierContext
 {
    int ser_ref_levels = 0; //Serial Refinement Levels
-   int order = 1; //Finite Element function space order
+   int order = 4; //Finite Element function space order
    double kinvis = 0.0015; //Kinematic viscocity
    double dt = 1e-4; //Time step size
    double steps = 1000; //Number of time steps
@@ -288,7 +288,7 @@ int main(int argc, char *argv[])
 // Dirichlet conditions for uniform flow velocity in the inlet
 void vel_ic(const Vector &x, double t, Vector &u)
 {
-   double u_ic = 1e-5; //Small initial velocity to not divide by 0 anywhere. 
+   double u_ic = 1e-5; //Small initial velocity to avoid divide by 0. 
    u(0) = u_ic;
    u(1) = 0.0;
 }
@@ -301,12 +301,13 @@ void vel_dbc(const Vector &x, double t, Vector &u){
 	double U = 3.0; //Freestream velocity
 	double tol = 1e-9; //must be smaller than smallest mesh element
 
-	// No slip plate and symmetry condition before the plate on bottom boundary
+	// Bottom boundary
 	if(yi <= tol){
-		if(xi < 0.01){ 
+		if(xi < 0.01){ //Symmetry condition before the plate
 			u(1) = 0.0;
 		}
-		else{
+		
+		else{ // No slip plate 
 			u(0) = 0.0;
 			u(1) = 0.0;
 		}
