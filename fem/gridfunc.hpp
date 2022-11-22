@@ -899,13 +899,13 @@ public:
    /// a point with coordinates psecified in the vector coords if the
    /// distance between them is smaller than err.
    void Project(Vector& coords, Vector& src,
-                int ordering=Ordering::byNODES,double err=1e-8);
+                int ordering=Ordering::byNODES,double lerr=1e-8);
 
    /// The project method can be called as many times as necessary with
    /// different grid functions gf. A node in the target grid function is
    /// mathcning a node from the source grid function if the distance
    /// between them is smaller than err.
-   void Project(GridFunction& gf, double err=1e-8);
+   void Project(GridFunction& gf, double lerr=1e-8);
 
 };
 
