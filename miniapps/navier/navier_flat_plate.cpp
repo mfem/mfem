@@ -52,7 +52,7 @@ using namespace navier;
 struct s_NavierContext
 {
    int ser_ref_levels = 0; //Serial Refinement Levels
-   int order = 4; //Finite Element function space order
+   int order = 1; //Finite Element function space order
    double kinvis = 0.0015; //Kinematic viscocity
    double dt = 1e-4; //Time step size
    double steps = 1000; //Number of time steps
@@ -62,6 +62,7 @@ struct s_NavierContext
    bool visualization = false;
    bool paraview = true;
    bool checkres = false;
+   const char *mesh = "flat-plate.msh";
 } ctx; 
 
 // Dirichlet conditions for velocity
@@ -114,7 +115,8 @@ int main(int argc, char *argv[])
                   "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
-   args.AddOption(&ctx.paraview, "-paraview", 
+   args.AddOption(&ctx.paraview,
+                  "-paraview", 
 		  "--paraview-datafiles", 
 		  "-no-paraview",
         	  "--no-paraview-datafiles",
@@ -126,6 +128,10 @@ int main(int argc, char *argv[])
       "-no-cr",
       "--no-checkresult",
       "Enable or disable checking of the result. Returns -1 on failure.");
+   args.AddOption(&ctx.mesh, 
+                  "-m", 
+                  "--mesh",
+                  "Mesh file to use.");
    args.Parse();
 
    if (!args.Good())
@@ -141,7 +147,7 @@ int main(int argc, char *argv[])
       args.PrintOptions(mfem::out);
    }
 
-   Mesh mesh = Mesh("flat-plate.msh", 1, 1); 
+   Mesh mesh = Mesh(ctx.mesh, 1, 1); 
 
    //Mesh refinement
    for (int i = 0; i < ctx.ser_ref_levels; ++i)
@@ -292,7 +298,6 @@ void vel_ic(const Vector &x, double t, Vector &u)
    u(0) = u_ic;
    u(1) = 0.0;
 }
-
 
 void vel_dbc(const Vector &x, double t, Vector &u){
 	double xi = x(0);
