@@ -141,7 +141,7 @@ int main(int argc, char *argv[])
       args.PrintOptions(mfem::out);
    }
 
-   Mesh mesh = Mesh("flat_plate.msh", 1, 1); 
+   Mesh mesh = Mesh("flat-plate.msh", 1, 1); 
 
    //Mesh refinement
    for (int i = 0; i < ctx.ser_ref_levels; ++i)
