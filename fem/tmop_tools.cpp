@@ -424,7 +424,7 @@ double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
    double energy_out = 0.0, min_detT_out;
    const double norm_in = Norm(r);
 
-   const double detJ_factor = (solver_type == 1) ? 0.25 : 0.4;
+   const double detJ_factor = (solver_type == 1) ? 0.25 : 0.25;
 
    // Perform the line search.
    for (int i = 0; i < 12; i++)
