@@ -293,6 +293,7 @@ public:
                                    DenseMatrix &elmat);
 
    using BilinearFormIntegrator::AssemblePA;
+   using BilinearFormIntegrator::AssembleEA;
 
    virtual void AssemblePA(const FiniteElementSpace& fes)
    {
@@ -320,9 +321,6 @@ public:
    }
 
    virtual void AssembleEA(const FiniteElementSpace &fes, Vector &emat,
-                           const bool add);
-
-   virtual void AssembleEA(const FiniteElementSpace &fes, DenseTensor &emat,
                            const bool add);
 
    virtual void AssembleEAInteriorFaces(const FiniteElementSpace &fes,
@@ -413,6 +411,8 @@ public:
                                    DenseMatrix &elmat);
 
    using BilinearFormIntegrator::AssemblePA;
+   using BilinearFormIntegrator::AssembleEA;
+
    virtual void AssemblePA(const FiniteElementSpace& fes);
 
    virtual void AssembleDiagonalPA(Vector &diag);
@@ -434,9 +434,6 @@ public:
    virtual void AssembleDiagonalMF(Vector &diag);
 
    virtual void AssembleEA(const FiniteElementSpace &fes, Vector &emat,
-                           const bool add);
-
-   virtual void AssembleEA(const FiniteElementSpace &fes, DenseTensor &emat,
                            const bool add);
 
    virtual void AssembleEAInteriorFaces(const FiniteElementSpace &fes,
@@ -2158,15 +2155,13 @@ public:
                                     Vector &flux, Vector *d_energy = NULL);
 
    using BilinearFormIntegrator::AssemblePA;
+   using BilinearFormIntegrator::AssembleEA;
 
    virtual void AssembleMF(const FiniteElementSpace &fes);
 
    virtual void AssemblePA(const FiniteElementSpace &fes);
 
    virtual void AssembleEA(const FiniteElementSpace &fes, Vector &emat,
-                           const bool add);
-
-   virtual void AssembleEA(const FiniteElementSpace &fes, DenseTensor &emat,
                            const bool add);
 
    virtual void AssembleDiagonalPA(Vector &diag);
@@ -2293,15 +2288,13 @@ public:
                                       DenseMatrix &);
 
    using BilinearFormIntegrator::AssemblePA;
+   using BilinearFormIntegrator::AssembleEA;
 
    virtual void AssembleMF(const FiniteElementSpace &fes);
 
    virtual void AssemblePA(const FiniteElementSpace&);
 
    virtual void AssembleEA(const FiniteElementSpace &fes, Vector &emat,
-                           const bool add);
-
-   virtual void AssembleEA(const FiniteElementSpace &fes, DenseTensor &emat,
                            const bool add);
 
    virtual void AssembleDiagonalPA(Vector &diag);
