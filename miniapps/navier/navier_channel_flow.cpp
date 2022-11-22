@@ -60,7 +60,7 @@ struct s_NavierContext
    int ser_ref_levels = 0; //Serial Refinement Levels
    int order = 4; // Finite Element function space order
    double kinvis = 0.0014607; //Kinematic viscocity - SET THIS TO APPROPRIATE VALUE
-   double dt = 0.001; //Time-step size
+   double dt = 0.0001; //Time-step size
    double t_final = 0.500; //Final time of simulation
    bool pa = true;
    bool ni = false;
@@ -304,7 +304,7 @@ void vel_ic(const Vector &x, double t, Vector &u)
 void vel_dbc(const Vector &x, double t, Vector &u){
 	double xi = x(0);
 	double yi = x(1);
-	int slip_case = 1; // 0 - All no-slip walls | 1 - All slip walls | 2 - Slip top, partial slip bottom, no slip plate
+	int slip_case = 2; // 0 - All no-slip walls | 1 - All slip walls | 2 - Slip top, partial slip bottom, no slip plate
 
 	//double U = 68.058; //Freestream velocity
 	double U = 2.5; //Freestream velocity
@@ -312,7 +312,7 @@ void vel_dbc(const Vector &x, double t, Vector &u){
 	//Wall conditions
 	if(slip_case == 0){
 		//No Slip walls & Plate
-		if(yi <= 0.0 || yi >= 0.25){
+		if(yi <= 1e-6 || yi >= (0.25-1e-6)){
 			u(0) = 0.0;
 			u(1) = 0.0;
 		}

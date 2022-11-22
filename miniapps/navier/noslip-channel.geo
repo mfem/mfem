@@ -1,11 +1,10 @@
 // Gmsh project created on Tue Nov 08 10:43:03 2022
 SetFactory("OpenCASCADE");
 
-f = 0.5e-2;
-h = 0.25;
-w = 1.1;
-start_plate = 0.1;
-coarsening = 1.0; 
+f = 1e-4;
+h = 0.025;
+w = 0.11;
+coarsening = 40; 
 
 //+ Define Points
 Point(1) = {0, 0, 0, f};
