@@ -1459,10 +1459,10 @@ void DenseMatrix::GradToCurl(DenseMatrix &curl)
          int j = i+n;
 
          // curl of (Ui,0)
-         curl(i,0) = y;
+         curl(i,0) = -y;
 
          // curl of (0,Ui)
-         curl(j,0) = -x;
+         curl(j,0) = x;
       }
    }
    else
@@ -1492,6 +1492,20 @@ void DenseMatrix::GradToCurl(DenseMatrix &curl)
          curl(k,1) = -x;
          curl(k,2) =  0.;
       }
+   }
+}
+
+void DenseMatrix::GradToVectorCurl2D(DenseMatrix &curl)
+{
+   MFEM_VERIFY(Width() == 2,
+               "DenseMatrix::GradToVectorCurl2D(...): dimension must be 2")
+
+   int n = Height();
+   // rotate gradient
+   for (int i = 0; i < n; i++)
+   {
+      curl(i,0) = (*this)(i,1);
+      curl(i,1) = -(*this)(i,0);
    }
 }
 
