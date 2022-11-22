@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -120,6 +120,22 @@ MFEM_HOST_DEVICE inline void LoadBGt(const int D1D, const int Q1D,
    MFEM_SYNC_THREAD;
 }
 
+/// Load 2D input scalar into given DeviceMatrix
+MFEM_HOST_DEVICE inline void LoadX(const int e, const int D1D,
+                                   const DeviceTensor<3, const double> &x,
+                                   DeviceMatrix &DD)
+{
+   MFEM_FOREACH_THREAD(dy,y,D1D)
+   {
+      MFEM_FOREACH_THREAD(dx,x,D1D)
+      {
+         DD(dx,dy) = x(dx,dy,e);
+      }
+   }
+   MFEM_SYNC_THREAD;
+}
+
+
 /// Load 2D input scalar into shared memory
 template<int MD1, int NBZ>
 MFEM_HOST_DEVICE inline void LoadX(const int e, const int D1D,
@@ -128,15 +144,7 @@ MFEM_HOST_DEVICE inline void LoadX(const int e, const int D1D,
 {
    const int tidz = MFEM_THREAD_ID(z);
    DeviceMatrix X(sX[tidz], D1D, D1D);
-
-   MFEM_FOREACH_THREAD(dy,y,D1D)
-   {
-      MFEM_FOREACH_THREAD(dx,x,D1D)
-      {
-         X(dx,dy) = x(dx,dy,e);
-      }
-   }
-   MFEM_SYNC_THREAD;
+   LoadX(e, D1D, x, X);
 }
 
 /// Load 2D input scalar into shared memory, with comp
@@ -837,34 +845,6 @@ MFEM_HOST_DEVICE inline void LoadX(const int e, const int D1D,
    MFEM_SYNC_THREAD;
 }
 
-/// Load 3D input vector into shared memory from L vector
-template<int MD1> MFEM_HOST_DEVICE inline
-void LoadX(const int e, const int D1D,
-           const DeviceTensor<4, const int> &M,
-           const DeviceTensor<2, const double> &X,
-           double (*sm)[MD1*MD1*MD1])
-{
-   DeviceCube Xx(sm[0], D1D, D1D, D1D);
-   DeviceCube Xy(sm[1], D1D, D1D, D1D);
-   DeviceCube Xz(sm[2], D1D, D1D, D1D);
-
-   MFEM_FOREACH_THREAD(dz,z,D1D)
-   {
-      MFEM_FOREACH_THREAD(dy,y,D1D)
-      {
-         MFEM_FOREACH_THREAD(dx,x,D1D)
-         {
-            const int gid = M(dx, dy, dz, e);
-            const int idx = gid >= 0 ? gid : -1 - gid;
-            Xx(dx,dy,dz) = X(idx,0);
-            Xy(dx,dy,dz) = X(idx,1);
-            Xz(dx,dy,dz) = X(idx,2);
-         }
-      }
-   }
-   MFEM_SYNC_THREAD;
-}
-
 /// 3D Vector Evaluation, 1/3 (only B)
 template<int MD1, int MQ1>
 MFEM_HOST_DEVICE inline void EvalX(const int D1D, const int Q1D,
@@ -1350,7 +1330,7 @@ template<int MQ1>
 MFEM_HOST_DEVICE inline void PushGrad(const int Q1D,
                                       const int x, const int y, const int z,
                                       const double *A,
-                                      double (*sQQQ)[MQ1*MQ1*MQ1])
+                                      double (&sQQQ)[9][MQ1*MQ1*MQ1])
 {
    DeviceCube XxBBG(sQQQ[0], Q1D, Q1D, Q1D);
    DeviceCube XxBGB(sQQQ[1], Q1D, Q1D, Q1D);
@@ -1377,8 +1357,8 @@ MFEM_HOST_DEVICE inline void PushGrad(const int Q1D,
 template<int MD1, int MQ1>
 MFEM_HOST_DEVICE inline void GradZt(const int D1D, const int Q1D,
                                     const double (&sBG)[2][MQ1*MD1],
-                                    const double (*sQQQ)[MQ1*MQ1*MQ1],
-                                    double (*sDQQ)[MD1*MQ1*MQ1])
+                                    const double (&sQQQ)[9][MQ1*MQ1*MQ1],
+                                    double (&sDQQ)[9][MD1*MQ1*MQ1])
 {
 
    ConstDeviceMatrix Bt(sBG[0], Q1D, D1D);
@@ -1449,8 +1429,8 @@ MFEM_HOST_DEVICE inline void GradZt(const int D1D, const int Q1D,
 template<int MD1, int MQ1>
 MFEM_HOST_DEVICE inline void GradYt(const int D1D, const int Q1D,
                                     const double (&sBG)[2][MQ1*MD1],
-                                    const double (*sDQQ)[MD1*MQ1*MQ1],
-                                    double (*sDDQ)[MD1*MD1*MQ1])
+                                    const double (&sDQQ)[9][MD1*MQ1*MQ1],
+                                    double (&sDDQ)[9][MD1*MD1*MQ1])
 {
    ConstDeviceMatrix Bt(sBG[0], Q1D, D1D);
    ConstDeviceMatrix Gt(sBG[1], Q1D, D1D);
@@ -1521,7 +1501,7 @@ MFEM_HOST_DEVICE inline void GradYt(const int D1D, const int Q1D,
 template<int MD1, int MQ1>
 MFEM_HOST_DEVICE inline void GradXt(const int D1D, const int Q1D,
                                     const double (&sBG)[2][MQ1*MD1],
-                                    const double (*sDDQ)[MD1*MD1*MQ1],
+                                    const double (&sDDQ)[9][MD1*MD1*MQ1],
                                     const DeviceTensor<5> &Y, // output
                                     const int e)
 {
@@ -1566,66 +1546,6 @@ MFEM_HOST_DEVICE inline void GradXt(const int D1D, const int Q1D,
             Y(dx,dy,dz,0,e) += u[0] + v[0] + w[0];
             Y(dx,dy,dz,1,e) += u[1] + v[1] + w[1];
             Y(dx,dy,dz,2,e) += u[2] + v[2] + w[2];
-         }
-      }
-   }
-}
-
-/// 3D Transposed Gradient on a L vector, 3/3
-template<int MD1, int MQ1> MFEM_HOST_DEVICE inline
-void GradXt(const int D1D, const int Q1D,
-            const double (&sBG)[2][MQ1*MD1],
-            const double (*sDDQ)[MD1*MD1*MQ1],
-            const DeviceTensor<4, const int> &M,
-            const DeviceMatrix &YD, // output
-            const int e)
-{
-   ConstDeviceMatrix Bt(sBG[0], Q1D, D1D);
-   ConstDeviceMatrix Gt(sBG[1], Q1D, D1D);
-   ConstDeviceCube XxB(sDDQ[0], Q1D, D1D, D1D);
-   ConstDeviceCube XxG(sDDQ[1], Q1D, D1D, D1D);
-   ConstDeviceCube XyB(sDDQ[2], Q1D, D1D, D1D);
-   ConstDeviceCube XyG(sDDQ[3], Q1D, D1D, D1D);
-   ConstDeviceCube XzB(sDDQ[4], Q1D, D1D, D1D);
-   ConstDeviceCube XzG(sDDQ[5], Q1D, D1D, D1D);
-   ConstDeviceCube XxC(sDDQ[6], Q1D, D1D, D1D);
-   ConstDeviceCube XyC(sDDQ[7], Q1D, D1D, D1D);
-   ConstDeviceCube XzC(sDDQ[8], Q1D, D1D, D1D);
-
-   MFEM_FOREACH_THREAD(dz,z,D1D)
-   {
-      MFEM_FOREACH_THREAD(dy,y,D1D)
-      {
-         MFEM_FOREACH_THREAD(dx,x,D1D)
-         {
-            double u[3] = {0.0, 0.0, 0.0};
-            double v[3] = {0.0, 0.0, 0.0};
-            double w[3] = {0.0, 0.0, 0.0};
-            for (int qz = 0; qz < Q1D; ++qz)
-            {
-               const double Btz = Bt(qz,dz);
-               const double Gtz = Gt(qz,dz);
-
-               u[0] += XxB(qz,dy,dx) * Btz;
-               v[0] += XxC(qz,dy,dx) * Btz;
-               w[0] += XxG(qz,dy,dx) * Gtz;
-
-               u[1] += XyB(qz,dy,dx) * Btz;
-               v[1] += XyC(qz,dy,dx)* Btz;
-               w[1] += XyG(qz,dy,dx) * Gtz;
-
-               u[2] += XzB(qz,dy,dx) * Btz;
-               v[2] += XzC(qz,dy,dx) * Btz;
-               w[2] += XzG(qz,dy,dx) * Gtz;
-            }
-            const int gid = M(dx,dy,dz,e);
-            const int idx = gid >= 0 ? gid : -1 - gid;
-            const double y0 = u[0] + v[0] + w[0];
-            const double y1 = u[1] + v[1] + w[1];
-            const double y2 = u[2] + v[2] + w[2];
-            AtomicAdd(YD(idx,0), y0);
-            AtomicAdd(YD(idx,1), y1);
-            AtomicAdd(YD(idx,2), y2);
          }
       }
    }

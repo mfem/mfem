@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -26,7 +26,8 @@ namespace mfem
 {
 
 /** @brief Enumeration defining the assembly level for bilinear and nonlinear
-    form classes derived from Operator. */
+    form classes derived from Operator. For more details, see
+    https://mfem.org/howto/assembly_levels */
 enum class AssemblyLevel
 {
    /// In the case of a BilinearForm LEGACY corresponds to a fully assembled
@@ -91,7 +92,8 @@ protected:
 
    /// Set of Domain Integrators to be applied.
    Array<BilinearFormIntegrator*> domain_integs;
-   /// Element attribute marker (should be of length mesh->attributes)
+   /// Element attribute marker (should be of length mesh->attributes.Max() or
+   /// 0 if mesh->attributes is empty)
    /// Includes all by default.
    /// 0 - ignore attribute
    /// 1 - include attribute
@@ -176,7 +178,7 @@ public:
        - AssemblyLevel::ELEMENT
        - AssemblyLevel::NONE
 
-       This method must be called before assembly. */
+       If used, this method must be called before assembly. */
    void SetAssemblyLevel(AssemblyLevel assembly_level);
 
    /// Returns the assembly level
@@ -292,8 +294,7 @@ public:
    { mat->AddMultTranspose(x, y); mat_e->AddMultTranspose(x, y); }
 
    /// Matrix transpose vector multiplication:  \f$ y = M^T x \f$
-   virtual void MultTranspose(const Vector & x, Vector & y) const
-   { y = 0.0; AddMultTranspose (x, y); }
+   virtual void MultTranspose(const Vector & x, Vector & y) const;
 
    /// Compute \f$ y^T M x \f$
    double InnerProduct(const Vector &x, const Vector &y) const
@@ -305,36 +306,64 @@ public:
    /// Finalizes the matrix initialization.
    virtual void Finalize(int skip_zeros = 1);
 
-   /// Returns a const reference to the sparse matrix.
+   /** @brief Returns a const reference to the sparse matrix:  \f$ M \f$
+
+       This will fail if HasSpMat() is false. */
    const SparseMatrix &SpMat() const
    {
       MFEM_VERIFY(mat, "mat is NULL and can't be dereferenced");
       return *mat;
    }
 
-   /// Returns a reference to the sparse matrix:  \f$ M \f$
+   /** @brief Returns a reference to the sparse matrix:  \f$ M \f$
+
+       This will fail if HasSpMat() is false. */
    SparseMatrix &SpMat()
    {
       MFEM_VERIFY(mat, "mat is NULL and can't be dereferenced");
       return *mat;
    }
 
+   /** @brief Returns true if the sparse matrix is not null, false otherwise.
+
+       @sa SpMat(). */
+   bool HasSpMat()
+   {
+      return mat != nullptr;
+   }
+
+
    /**  @brief Nullifies the internal matrix \f$ M \f$ and returns a pointer
-        to it.  Used for transfering ownership. */
+        to it.  Used for transferring ownership. */
    SparseMatrix *LoseMat() { SparseMatrix *tmp = mat; mat = NULL; return tmp; }
 
-   /// Returns a const reference to the sparse matrix of eliminated b.c.: \f$ M_e \f$
+   /** @brief Returns a const reference to the sparse matrix of eliminated b.c.:
+       \f$ M_e \f$
+
+       This will fail if HasSpMatElim() is false. */
    const SparseMatrix &SpMatElim() const
    {
       MFEM_VERIFY(mat_e, "mat_e is NULL and can't be dereferenced");
       return *mat_e;
    }
 
-   /// Returns a reference to the sparse matrix of eliminated b.c.: \f$ M_e \f$
+   /** @brief Returns a reference to the sparse matrix of eliminated b.c.:
+       \f$ M_e \f$
+
+       This will fail if HasSpMatElim() is false. */
    SparseMatrix &SpMatElim()
    {
       MFEM_VERIFY(mat_e, "mat_e is NULL and can't be dereferenced");
       return *mat_e;
+   }
+
+   /**  @brief Returns true if the sparse matrix of eliminated b.c.s is not null,
+        false otherwise.
+
+        @sa SpMatElim(). */
+   bool HasSpMatElim()
+   {
+      return mat_e != nullptr;
    }
 
    /// Adds new Domain Integrator. Assumes ownership of @a bfi.
@@ -409,6 +438,14 @@ public:
    /// Get the output finite element space restriction matrix
    virtual const Operator *GetOutputRestriction() const
    { return GetRestriction(); }
+
+   /// @brief Compute serial RAP operator and store it in @a A as a SparseMatrix.
+   void SerialRAP(OperatorHandle &A)
+   {
+      MFEM_ASSERT(mat, "SerialRAP requires the SparseMatrix to be assembled.");
+      ConformingAssemble();
+      A.Reset(mat, false);
+   }
 
    /** @brief Form the linear system A X = B, corresponding to this bilinear
        form and the linear form @a b(.). */
@@ -738,7 +775,7 @@ public:
    SparseMatrix &SpMat() { return *mat; }
 
    /**  @brief Nullifies the internal matrix \f$ M \f$ and returns a pointer
-        to it.  Used for transfering ownership. */
+        to it.  Used for transferring ownership. */
    SparseMatrix *LoseMat() { SparseMatrix *tmp = mat; mat = NULL; return tmp; }
 
    /// Adds a domain integrator. Assumes ownership of @a bfi.

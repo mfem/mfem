@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -27,7 +27,6 @@ TEST_CASE("Save and load from collections", "[DataCollection]")
 {
    SECTION("VisIt data files")
    {
-      std::cout<<"Testing VisIt data files"<<std::endl;
       // Set up a small mesh and a couple of grid function on that mesh
       Mesh mesh = Mesh::MakeCartesian2D(2, 3, Element::QUADRILATERAL, 0, 2.0, 3.0);
       FiniteElementCollection *fec = new LinearFECollection;
@@ -59,8 +58,6 @@ TEST_CASE("Save and load from collections", "[DataCollection]")
 
       SECTION("Uncompressed MFEM format")
       {
-         std::cout<<"Testing uncompressed MFEM format"<<std::endl;
-
          // Collect the mesh and grid functions into a DataCollection and test that they got in there
          VisItDataCollection dc("base", &mesh);
          dc.RegisterField("u", u);
@@ -147,8 +144,6 @@ TEST_CASE("Save and load from collections", "[DataCollection]")
 #ifdef MFEM_USE_ZLIB
       SECTION("Compressed MFEM format")
       {
-         std::cout<<"Testing compressed MFEM format"<<std::endl;
-
          // Collect the mesh and grid functions into a DataCollection and test that they got in there
          VisItDataCollection dc("base", &mesh);
          dc.RegisterField("u", u);

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -53,8 +53,12 @@ public:
 
    virtual int DofForGeometry(Geometry::Type GeomType) const = 0;
 
-   /** @brief Returns an array, say p, that maps a local permuted index i to
-       a local base index: base_i = p[i]. */
+   /** @brief Returns an array, say p, that maps a local permuted index i to a
+       local base index: base_i = p[i].
+
+       @note Only provides information about interior dofs. See
+       FiniteElementCollection::SubDofOrder if interior \a and boundary dof
+       order is needed. */
    virtual const int *DofOrderForOrientation(Geometry::Type GeomType,
                                              int Or) const = 0;
 
@@ -95,10 +99,10 @@ public:
    | RT_ValTrace_[DIM]_[ORDER] | H^{1/2} | * | 1 / 0 | VALUE | H^{1/2}-conforming trace elements for H(div) defined on the interface between mesh elements (faces) |
    | RT_Trace@[BTYPE]_[DIM]_[ORDER] | H^{1/2} | * | 1 / 0 | INTEGRAL | H^{1/2}-conforming trace elements for H(div) defined on the interface between mesh elements (faces) |
    | RT_ValTrace@[BTYPE]_[DIM]_[ORDER] |  H^{1/2} | * | 1 / 0 | VALUE | H^{1/2}-conforming trace elements for H(div) defined on the interface between mesh elements (faces) |
-   | L2_[DIM]_[ORDER] | L2 | * | 0 | VALUE | Discontinous L2 elements |
-   | L2_T[BTYPE]_[DIM]_[ORDER] | L2 | * | 0 | VALUE | Discontinous L2 elements |
-   | L2Int_[DIM]_[ORDER] | L2 | * | 0 | INTEGRAL | Discontinous L2 elements |
-   | L2Int_T[BTYPE]_[DIM]_[ORDER] | L2 | * | 0 | INTEGRAL | Discontinous L2 elements |
+   | L2_[DIM]_[ORDER] | L2 | * | 0 | VALUE | Discontinuous L2 elements |
+   | L2_T[BTYPE]_[DIM]_[ORDER] | L2 | * | 0 | VALUE | Discontinuous L2 elements |
+   | L2Int_[DIM]_[ORDER] | L2 | * | 0 | INTEGRAL | Discontinuous L2 elements |
+   | L2Int_T[BTYPE]_[DIM]_[ORDER] | L2 | * | 0 | INTEGRAL | Discontinuous L2 elements |
    | DG_Iface_[DIM]_[ORDER] | - | * | 0 | VALUE | Discontinuous elements on the interface between mesh elements (faces) |
    | DG_Iface@[BTYPE]_[DIM]_[ORDER] | - | * | 0 | VALUE | Discontinuous elements on the interface between mesh elements (faces) |
    | DG_IntIface_[DIM]_[ORDER] | - | * | 0 | INTEGRAL | Discontinuous elements on the interface between mesh elements (faces) |
@@ -454,6 +458,148 @@ public:
    ND_Trace_FECollection(const int p, const int dim,
                          const int cb_type = BasisType::GaussLobatto,
                          const int ob_type = BasisType::GaussLegendre);
+};
+
+/// Arbitrary order 3D H(curl)-conforming Nedelec finite elements in 1D.
+class ND_R1D_FECollection : public FiniteElementCollection
+{
+protected:
+   char nd_name[32];
+   FiniteElement *ND_Elements[Geometry::NumGeom];
+   int ND_dof[Geometry::NumGeom];
+
+public:
+   ND_R1D_FECollection(const int p, const int dim,
+                       const int cb_type = BasisType::GaussLobatto,
+                       const int ob_type = BasisType::GaussLegendre);
+
+   virtual const FiniteElement *FiniteElementForGeometry(Geometry::Type GeomType)
+   const
+   { return ND_Elements[GeomType]; }
+   virtual int DofForGeometry(Geometry::Type GeomType) const
+   { return ND_dof[GeomType]; }
+   virtual const int *DofOrderForOrientation(Geometry::Type GeomType,
+                                             int Or) const;
+   virtual const char *Name() const { return nd_name; }
+   virtual int GetContType() const { return TANGENTIAL; }
+   FiniteElementCollection *GetTraceCollection() const;
+
+   virtual ~ND_R1D_FECollection();
+};
+
+/// Arbitrary order 3D H(div)-conforming Raviart-Thomas finite elements in 1D.
+class RT_R1D_FECollection : public FiniteElementCollection
+{
+protected:
+   char rt_name[32];
+   FiniteElement *RT_Elements[Geometry::NumGeom];
+   int RT_dof[Geometry::NumGeom];
+
+public:
+   RT_R1D_FECollection(const int p, const int dim,
+                       const int cb_type = BasisType::GaussLobatto,
+                       const int ob_type = BasisType::GaussLegendre);
+
+   virtual const FiniteElement *FiniteElementForGeometry(Geometry::Type GeomType)
+   const
+   { return RT_Elements[GeomType]; }
+   virtual int DofForGeometry(Geometry::Type GeomType) const
+   { return RT_dof[GeomType]; }
+   virtual const int *DofOrderForOrientation(Geometry::Type GeomType,
+                                             int Or) const;
+   virtual const char *Name() const { return rt_name; }
+   virtual int GetContType() const { return NORMAL; }
+   FiniteElementCollection *GetTraceCollection() const;
+
+   virtual ~RT_R1D_FECollection();
+};
+
+/// Arbitrary order 3D H(curl)-conforming Nedelec finite elements in 2D.
+class ND_R2D_FECollection : public FiniteElementCollection
+{
+protected:
+   char nd_name[32];
+   FiniteElement *ND_Elements[Geometry::NumGeom];
+   int ND_dof[Geometry::NumGeom];
+   int *SegDofOrd[2];
+
+public:
+   ND_R2D_FECollection(const int p, const int dim,
+                       const int cb_type = BasisType::GaussLobatto,
+                       const int ob_type = BasisType::GaussLegendre);
+
+   virtual const FiniteElement *FiniteElementForGeometry(Geometry::Type GeomType)
+   const
+   { return ND_Elements[GeomType]; }
+   virtual int DofForGeometry(Geometry::Type GeomType) const
+   { return ND_dof[GeomType]; }
+   virtual const int *DofOrderForOrientation(Geometry::Type GeomType,
+                                             int Or) const;
+   virtual const char *Name() const { return nd_name; }
+   virtual int GetContType() const { return TANGENTIAL; }
+   FiniteElementCollection *GetTraceCollection() const;
+
+   virtual ~ND_R2D_FECollection();
+};
+
+/** @brief Arbitrary order 3D H(curl)-trace finite elements in 2D defined on the
+    interface between mesh elements (edges); these are the tangential
+    trace FEs of the H(curl)-conforming FEs. */
+class ND_R2D_Trace_FECollection : public ND_R2D_FECollection
+{
+public:
+   ND_R2D_Trace_FECollection(const int p, const int dim,
+                             const int cb_type = BasisType::GaussLobatto,
+                             const int ob_type = BasisType::GaussLegendre);
+};
+
+/// Arbitrary order 3D H(div)-conforming Raviart-Thomas finite elements in 2D.
+class RT_R2D_FECollection : public FiniteElementCollection
+{
+protected:
+   int ob_type; // open BasisType
+   char rt_name[32];
+   FiniteElement *RT_Elements[Geometry::NumGeom];
+   int RT_dof[Geometry::NumGeom];
+   int *SegDofOrd[2];
+
+   // Initialize only the face elements
+   void InitFaces(const int p, const int dim, const int map_type,
+                  const bool signs);
+
+   // Constructor used by the constructor of the RT_R2D_Trace_FECollection
+   RT_R2D_FECollection(const int p, const int dim, const int map_type,
+                       const bool signs,
+                       const int ob_type = BasisType::GaussLegendre);
+
+public:
+   RT_R2D_FECollection(const int p, const int dim,
+                       const int cb_type = BasisType::GaussLobatto,
+                       const int ob_type = BasisType::GaussLegendre);
+
+   virtual const FiniteElement *FiniteElementForGeometry(Geometry::Type GeomType)
+   const
+   { return RT_Elements[GeomType]; }
+   virtual int DofForGeometry(Geometry::Type GeomType) const
+   { return RT_dof[GeomType]; }
+   virtual const int *DofOrderForOrientation(Geometry::Type GeomType,
+                                             int Or) const;
+   virtual const char *Name() const { return rt_name; }
+   virtual int GetContType() const { return NORMAL; }
+   FiniteElementCollection *GetTraceCollection() const;
+
+   virtual ~RT_R2D_FECollection();
+};
+
+/** @brief Arbitrary order 3D "H^{-1/2}-conforming" face finite elements defined on
+    the interface between mesh elements (faces); these are the normal trace FEs
+    of the H(div)-conforming FEs. */
+class RT_R2D_Trace_FECollection : public RT_R2D_FECollection
+{
+public:
+   RT_R2D_Trace_FECollection(const int p, const int dim,
+                             const int map_type = FiniteElement::INTEGRAL,
+                             const int ob_type = BasisType::GaussLegendre);
 };
 
 /// Arbitrary order non-uniform rational B-splines (NURBS) finite elements.
@@ -1117,7 +1263,7 @@ public:
    { return (GeomType == GeomType_) ? Local_Element : NULL; }
    virtual int DofForGeometry(Geometry::Type GeomType_) const
    { return (GeomType == GeomType_) ? Local_Element->GetDof() : 0; }
-   virtual const int *DofOrderForOrientation(Geometry::Type GeomType,
+   virtual const int *DofOrderForOrientation(Geometry::Type GeomType_,
                                              int Or) const
    { return NULL; }
    virtual const char *Name() const { return d_name; }

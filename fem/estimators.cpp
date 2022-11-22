@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -22,14 +22,25 @@ void ZienkiewiczZhuEstimator::ComputeEstimates()
    GridFunction flux(flux_space);
 
    if (!anisotropic) { aniso_flags.SetSize(0); }
-   total_error = ZZErrorEstimator(*integ, *solution, flux, error_estimates,
+   total_error = ZZErrorEstimator(integ, solution, flux, error_estimates,
                                   anisotropic ? &aniso_flags : NULL,
                                   flux_averaging,
                                   with_coeff);
 
-   current_sequence = solution->FESpace()->GetMesh()->GetSequence();
+   current_sequence = solution.FESpace()->GetMesh()->GetSequence();
 }
 
+void LSZienkiewiczZhuEstimator::ComputeEstimates()
+{
+   total_error = LSZZErrorEstimator(integ,
+                                    solution,
+                                    error_estimates,
+                                    subdomain_reconstruction,
+                                    with_coeff,
+                                    tichonov_coeff);
+
+   current_sequence = solution.FESpace()->GetMesh()->GetSequence();
+}
 
 #ifdef MFEM_USE_MPI
 
@@ -41,11 +52,11 @@ void L2ZienkiewiczZhuEstimator::ComputeEstimates()
    // TODO: move these parameters in the class, and add Set* methods.
    const double solver_tol = 1e-12;
    const int solver_max_it = 200;
-   total_error = L2ZZErrorEstimator(*integ, *solution, *smooth_flux_space,
+   total_error = L2ZZErrorEstimator(integ, solution, *smooth_flux_space,
                                     *flux_space, error_estimates,
                                     local_norm_p, solver_tol, solver_max_it);
 
-   current_sequence = solution->FESpace()->GetMesh()->GetSequence();
+   current_sequence = solution.FESpace()->GetMesh()->GetSequence();
 }
 
 #endif // MFEM_USE_MPI
@@ -148,7 +159,7 @@ void KellyErrorEstimator::ComputeEstimates()
    // the FaceInfo class [1]. Also, the FaceElementTransformations
    // documentation [2] may be helpful to grasp what is going on. Note
    // that the FaceElementTransformations also works in the non-
-   // conforming case to transfer the gauss points from the slave to
+   // conforming case to transfer the Gauss points from the slave to
    // the master element.
    // [1]
    // https://github.com/mfem/mfem/blob/02d0bfe9c18ce049c3c93a6a4208080fcfc96991/mesh/mesh.hpp#L94
@@ -406,7 +417,7 @@ void KellyErrorEstimator::ComputeEstimates()
          Vector val(flux_space->GetVDim());
          flux->GetVectorValue(FT->Elem2No, ip, val);
 
-         // Evaluate gauss point
+         // Evaluate Gauss point
          Vector normal(mesh->SpaceDimension());
          FT->Face->SetIntPoint(&fip);
          if (mesh->Dimension() == mesh->SpaceDimension())

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -11,7 +11,7 @@
 
 #include "../general/forall.hpp"
 #include "nonlininteg.hpp"
-#include "ceed/nlconvection.hpp"
+#include "ceed/integrators/nlconvection/nlconvection.hpp"
 
 using namespace std;
 
@@ -28,7 +28,16 @@ void VectorConvectionNLFIntegrator::AssemblePA(const FiniteElementSpace &fes)
    if (DeviceCanUseCeed())
    {
       delete ceedOp;
-      ceedOp = new ceed::PAVectorConvectionNLFIntegrator(fes, *ir, Q);
+      const bool mixed = mesh->GetNumGeometries(mesh->Dimension()) > 1 ||
+                         fes.IsVariableOrder();
+      if (mixed)
+      {
+         ceedOp = new ceed::MixedPAVectorConvectionNLIntegrator(*this, fes, Q);
+      }
+      else
+      {
+         ceedOp = new ceed::PAVectorConvectionNLFIntegrator(fes, *ir, Q);
+      }
       return;
    }
    dim = mesh->Dimension();
@@ -807,13 +816,13 @@ void VectorConvectionNLFIntegrator::AddMultPA(const Vector &x, Vector &y) const
       const int NE = ne;
       const int D1D = maps->ndof;
       const int Q1D = maps->nqpt;
-      const Vector &Q = pa_data;
+      const Vector &QV = pa_data;
       const Array<double> &B = maps->B;
       const Array<double> &G = maps->G;
       const Array<double> &Bt = maps->Bt;
       if (dim == 2)
       {
-         return PAConvectionNLApply2D(NE, B, G, Bt, Q, x, y, D1D, Q1D);
+         return PAConvectionNLApply2D(NE, B, G, Bt, QV, x, y, D1D, Q1D);
       }
       if (dim == 3)
       {
@@ -821,7 +830,7 @@ void VectorConvectionNLFIntegrator::AddMultPA(const Vector &x, Vector &y) const
          constexpr int T_MAX_Q1D = 8;
          MFEM_VERIFY(D1D <= T_MAX_D1D && Q1D <= T_MAX_Q1D, "Not yet implemented!");
          return SmemPAConvectionNLApply3D<0, 0, T_MAX_D1D, T_MAX_Q1D>
-                (NE, B, G, Q, x, y, D1D, Q1D);
+                (NE, B, G, QV, x, y, D1D, Q1D);
       }
       MFEM_ABORT("Not yet implemented!");
    }

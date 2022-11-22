@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -79,7 +79,7 @@ double TMOPNewtonSolver::MinDetJpr_3D(const FiniteElementSpace *fes,
 {
    const ElementDofOrdering ordering = ElementDofOrdering::LEXICOGRAPHIC;
    const Operator *R = fes->GetElementRestriction(ordering);
-   static Vector XE(R->Height(), Device::GetDeviceMemoryType());
+   Vector XE(R->Height(), Device::GetDeviceMemoryType());
    XE.UseDevice(true);
    R->Mult(X, XE);
 
@@ -92,7 +92,7 @@ double TMOPNewtonSolver::MinDetJpr_3D(const FiniteElementSpace *fes,
    const Array<double> &B = maps.B;
    const Array<double> &G = maps.G;
 
-   static Vector E(NE*NQ);
+   Vector E(NE*NQ);
    E.UseDevice(true);
 
    MFEM_LAUNCH_TMOP_KERNEL(MinDetJpr_Kernel_3D,id,NE,B,G,XE,E);

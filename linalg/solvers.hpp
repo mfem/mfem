@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -57,7 +57,7 @@ public:
    {
    }
 
-   /** @brief This method is invoked by ItertiveSolver::SetMonitor, informing
+   /** @brief This method is invoked by IterativeSolver::SetMonitor, informing
        the monitor which IterativeSolver is using it. */
    void SetIterativeSolver(const IterativeSolver &solver)
    { iter_solver = &solver; }
@@ -66,10 +66,55 @@ public:
 /// Abstract base class for iterative solver
 class IterativeSolver : public Solver
 {
+public:
+   /** @brief Settings for the output behavior of the IterativeSolver.
+
+       By default, all output is suppressed. The construction of the desired
+       print level can be achieved through a builder pattern, for example
+
+           PrintLevel().Errors().Warnings()
+
+       constructs the print level with only errors and warnings enabled.
+     */
+   struct PrintLevel
+   {
+      /** @brief If a fatal problem has been detected the failure will be
+          reported to @ref mfem::err. */
+      bool errors = false;
+      /** @brief If a non-fatal problem has been detected some context-specific
+          information will be reported to @ref mfem::out */
+      bool warnings = false;
+      /** @brief Detailed information about each iteration will be reported to
+          @ref mfem::out */
+      bool iterations = false;
+      /** @brief A summary of the solver process will be reported after the last
+          iteration to @ref mfem::out */
+      bool summary = false;
+      /** @brief Information about the first and last iteration will be printed
+          to @ref mfem::out */
+      bool first_and_last = false;
+
+      /// Initializes the print level to suppress
+      PrintLevel() = default;
+
+      /** @name Builder
+         These methods are utilized to construct PrintLevel objects through a
+         builder approach by chaining the function calls in this group. */
+      ///@{
+      PrintLevel &None() { *this = PrintLevel(); return *this; }
+      PrintLevel &Warnings() { warnings=true; return *this; }
+      PrintLevel &Errors() { errors=true; return *this; }
+      PrintLevel &Iterations() { iterations=true; return *this; }
+      PrintLevel &FirstAndLast() { first_and_last=true; return *this; }
+      PrintLevel &Summary() { summary=true; return *this; }
+      PrintLevel &All() { return Warnings().Errors().Iterations().FirstAndLast().Summary(); }
+      ///@}
+   };
+
 #ifdef MFEM_USE_MPI
 private:
    int dot_prod_type; // 0 - local, 1 - global over 'comm'
-   MPI_Comm comm;
+   MPI_Comm comm = MPI_COMM_NULL;
 #endif
 
 protected:
@@ -77,12 +122,51 @@ protected:
    Solver *prec;
    IterativeSolverMonitor *monitor = nullptr;
 
-   int max_iter, print_level;
-   double rel_tol, abs_tol;
+   /// @name Reporting (protected attributes and member functions)
+   ///@{
 
-   // stats
-   mutable int final_iter, converged;
+   /** @brief (DEPRECATED) Legacy print level definition, which is left for
+       compatibility with custom iterative solvers.
+       @deprecated #print_options should be used instead. */
+   int print_level = -1;
+
+   /** @brief Output behavior for the iterative solver.
+
+       This primarily controls the output behavior of the iterative solvers
+       provided by this library. This member must be synchronized with
+       #print_level to ensure compatibility with custom iterative solvers. */
+   PrintLevel print_options;
+
+   /// Convert a legacy print level integer to a PrintLevel object
+   PrintLevel FromLegacyPrintLevel(int);
+
+   /// @brief Use some heuristics to guess a legacy print level corresponding to
+   /// the given PrintLevel.
+   static int GuessLegacyPrintLevel(PrintLevel);
+   ///@}
+
+   /// @name Convergence (protected attributes)
+   ///@{
+
+   /// Limit for the number of iterations the solver is allowed to do
+   int max_iter;
+
+   /// Relative tolerance.
+   double rel_tol;
+
+   /// Absolute tolerance.
+   double abs_tol;
+
+   ///@}
+
+   /// @name Solver statistics (protected attributes)
+   ///@{
+
+   mutable int final_iter;
+   mutable bool converged;
    mutable double final_norm;
+
+   ///@}
 
    double Dot(const Vector &x, const Vector &y) const;
    double Norm(const Vector &x) const { return sqrt(Dot(x, x)); }
@@ -96,20 +180,80 @@ public:
    IterativeSolver(MPI_Comm comm_);
 #endif
 
+   /** @name Convergence
+       @brief Termination criteria for the iterative solvers.
+
+       @details While the convergence criterion is solver specific, most of the
+       provided iterative solvers use one of the following criteria
+
+       \f$ ||r||_X \leq tol_{rel}||r_0||_X \f$,
+
+       \f$ ||r||_X \leq tol_{abs} \f$,
+
+       \f$ ||r||_X \leq \max\{ tol_{abs}, tol_{rel} ||r_0||_X \} \f$,
+
+       where X denotes the space in which the norm is measured. The choice of
+       X depends on the specific iterative solver.
+      */
+   ///@{
    void SetRelTol(double rtol) { rel_tol = rtol; }
    void SetAbsTol(double atol) { abs_tol = atol; }
    void SetMaxIter(int max_it) { max_iter = max_it; }
-   void SetPrintLevel(int print_lvl);
+   ///@}
 
+   /** @name Reporting
+       These options control the internal reporting behavior into ::mfem::out
+       and ::mfem::err of the iterative solvers.
+    */
+   ///@{
+
+   /// @brief Legacy method to set the level of verbosity of the solver output.
+   /** This is the old way to control what information will be printed to
+       ::mfem::out and ::mfem::err. The behavior for the print level for all
+       iterative solvers is:
+
+       - -1: Suppress all outputs.
+       -  0: Print information about all detected issues (e.g. no convergence).
+       -  1: Same as level 0, but with detailed information about each
+             iteration.
+       -  2: Print detected issues and a summary when the solver terminates.
+       -  3: Same as 2, but print also the first and last iterations.
+       - >3: Custom print options which are dependent on the specific solver.
+
+       In parallel, only rank 0 produces output.
+
+       @note It is recommended to use @ref SetPrintLevel(PrintLevel) instead.
+
+       @note Some derived classes, like KINSolver, redefine this method and use
+       their own set of print level constants. */
+   virtual void SetPrintLevel(int print_lvl);
+
+   /// @brief Set the level of verbosity of the solver output.
+   /** In parallel, only rank 0 produces outputs. Errors are output to
+       ::mfem::err and all other information to ::mfem::out.
+
+       @note Not all subclasses of IterativeSolver support all possible options.
+
+       @note Some derived classes, like KINSolver, disable this method in favor
+       of SetPrintLevel(int).
+
+       @sa PrintLevel for possible options.
+   */
+   virtual void SetPrintLevel(PrintLevel);
+   ///@}
+
+   /// @name Solver statistics
+   ///@{
    int GetNumIterations() const { return final_iter; }
-   int GetConverged() const { return converged; }
+   bool GetConverged() const { return converged; }
    double GetFinalNorm() const { return final_norm; }
+   ///@}
 
    /// This should be called before SetOperator
    virtual void SetPreconditioner(Solver &pr);
 
    /// Also calls SetOperator for the preconditioner if there is one
-   virtual void SetOperator(const Operator &op);
+   virtual void SetOperator(const Operator &op) override;
 
    /// Set the iterative solver monitor
    void SetMonitor(IterativeSolverMonitor &m)
@@ -584,22 +728,48 @@ class LBFGSSolver : public NewtonSolver
 {
 protected:
    int m = 10;
-   mutable Array<Vector *> skMV, ykMV;
+   mutable Array<Vector *> skArray, ykArray;
+
+   void DeleteStorageVectors()
+   {
+      for (int i = 0; i < skArray.Size(); i++)
+      {
+         delete skArray[i];
+         delete ykArray[i];
+      }
+   }
+
+   void InitializeStorageVectors()
+   {
+      DeleteStorageVectors();
+      skArray.SetSize(m);
+      ykArray.SetSize(m);
+      for (int i = 0; i < m; i++)
+      {
+         skArray[i] = new Vector(width);
+         ykArray[i] = new Vector(width);
+         skArray[i]->UseDevice(true);
+         ykArray[i]->UseDevice(true);
+      }
+   }
 
 public:
-   LBFGSSolver() : NewtonSolver() {
-       InitializeStorageVectors();
-   }
+   LBFGSSolver() : NewtonSolver() { }
 
 #ifdef MFEM_USE_MPI
-   LBFGSSolver(MPI_Comm comm_) : NewtonSolver(comm_) {
-       InitializeStorageVectors();
-   }
+   LBFGSSolver(MPI_Comm comm_) : NewtonSolver(comm_) { }
 #endif
 
-   void SetHistorySize(int dim) {
-       m = dim;
-       InitializeStorageVectors();
+   virtual void SetOperator(const Operator &op)
+   {
+      NewtonSolver::SetOperator(op);
+      InitializeStorageVectors();
+   }
+
+   void SetHistorySize(int dim)
+   {
+      m = dim;
+      InitializeStorageVectors();
    }
 
    /// Solve the nonlinear system with right-hand side @a b.
@@ -611,29 +781,9 @@ public:
    virtual void SetSolver(Solver &solver)
    { MFEM_WARNING("L-BFGS won't use the given solver."); }
 
-   void DeleteStorageVectors() {
-       for (int i = 0; i < skMV.Size(); i++)
-       {
-           skMV[i]->Destroy();
-           ykMV[i]->Destroy();
-       }
-   }
-
-   void InitializeStorageVectors() {
-       DeleteStorageVectors();
-       skMV.SetSize(m);
-       ykMV.SetSize(m);
-       for (int i = 0; i < m; i++)
-       {
-          skMV[i] = new Vector(width);
-          ykMV[i] = new Vector(width);
-          skMV[i]->UseDevice(true);
-          ykMV[i]->UseDevice(true);
-       }
-   }
-
    virtual ~LBFGSSolver() { DeleteStorageVectors(); }
 };
+
 
 /** Adaptive restarted GMRES.
     m_max and m_min(=1) are the maximal and minimal restart parameters.
@@ -1002,6 +1152,57 @@ public:
    virtual void Mult(const Vector &x, Vector &y) const;
    virtual void MultTranspose(const Vector &x, Vector &y) const;
    virtual void SetOperator(const Operator &op) { }
+};
+
+/// Solver wrapper which orthogonalizes the input and output vector
+/**
+ * OrthoSolver wraps an existing Solver and orthogonalizes the input vector
+ * before passing it to the Mult() method of the Solver. This is a convenience
+ * implementation to handle e.g. a Poisson problem with pure Neumann boundary
+ * conditions, where this procedure removes the Nullspace.
+ */
+class OrthoSolver : public Solver
+{
+private:
+#ifdef MFEM_USE_MPI
+   MPI_Comm mycomm;
+   mutable HYPRE_BigInt global_size;
+   const bool parallel;
+#else
+   mutable int global_size;
+#endif
+
+public:
+   OrthoSolver();
+#ifdef MFEM_USE_MPI
+   OrthoSolver(MPI_Comm mycomm_);
+#endif
+
+   /// Set the solver used by the OrthoSolver.
+   /** The action of the OrthoSolver is given by P * s * P where P is the
+       projection to the subspace of vectors with zero sum. Calling this method
+       is required before calling SetOperator() or Mult(). */
+   void SetSolver(Solver &s);
+
+   /// Set the Operator that is the OrthoSolver is to invert (approximately).
+   /** The Operator @a op is simply forwarded to the solver object given by
+       SetSolver() which needs to be called before this method. Calling this
+       method is optional when the solver already has an associated Operator. */
+   virtual void SetOperator(const Operator &op);
+
+   /** @brief Perform the action of the OrthoSolver: P * solver * P where P is
+       the projection to the subspace of vectors with zero sum. */
+   /** @note The projection P can be written as P = I - 1 1^T / (1^T 1) where
+       I is the identity matrix and 1 is the column-vector with all components
+       equal to 1. */
+   void Mult(const Vector &b, Vector &x) const;
+
+private:
+   Solver *solver = nullptr;
+
+   mutable Vector b_ortho;
+
+   void Orthogonalize(const Vector &v, Vector &v_ortho) const;
 };
 
 #ifdef MFEM_USE_MPI

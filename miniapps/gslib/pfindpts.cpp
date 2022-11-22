@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -30,24 +30,35 @@
 //    mpirun -np 2 pfindpts -m ../../data/rt-2d-p4-tri.mesh -o 4
 //    mpirun -np 2 pfindpts -m ../../data/inline-tri.mesh -o 3
 //    mpirun -np 2 pfindpts -m ../../data/inline-quad.mesh -o 3
+//    mpirun -np 2 pfindpts -m ../../data/inline-quad.mesh -o 3 -po 1
+//    mpirun -np 2 pfindpts -m ../../data/inline-quad.mesh -o 3 -po 1 -gfo 1 -nc 2
+//    mpirun -np 2 pfindpts -m ../../data/inline-quad.mesh -o 3 -hr
 //    mpirun -np 2 pfindpts -m ../../data/inline-tet.mesh -o 3
 //    mpirun -np 2 pfindpts -m ../../data/inline-hex.mesh -o 3
 //    mpirun -np 2 pfindpts -m ../../data/inline-wedge.mesh -o 3
 //    mpirun -np 2 pfindpts -m ../../data/amr-quad.mesh -o 2
 //    mpirun -np 2 pfindpts -m ../../data/rt-2d-q3.mesh -o 3 -mo 4 -ft 2
 //    mpirun -np 2 pfindpts -m ../../data/inline-quad.mesh -ft 1 -no-vis -sr0
+//    mpirun -np 2 pfindpts -m ../../data/square-mixed.mesh -o 2 -mo 2
+//    mpirun -np 2 pfindpts -m ../../data/square-mixed.mesh -o 2 -mo 2 -hr
+//    mpirun -np 2 pfindpts -m ../../data/square-mixed.mesh -o 2 -mo 3 -ft 2
+//    mpirun -np 2 pfindpts -m ../../data/fichera-mixed.mesh -o 3 -mo 2
+//    mpirun -np 2 pfindpts -m ../../data/inline-pyramid.mesh -o 1 -mo 1
+//    mpirun -np 2 pfindpts -m ../../data/tinyzoo-3d.mesh -o 1 -mo 1
 
 #include "mfem.hpp"
 
 using namespace mfem;
 using namespace std;
 
+double func_order;
+
 // Scalar function to project
 double field_func(const Vector &x)
 {
    const int dim = x.Size();
    double res = 0.0;
-   for (int d = 0; d < dim; d++) { res += x(d) * x(d); }
+   for (int d = 0; d < dim; d++) { res += std::pow(x(d), func_order); }
    return res;
 }
 
@@ -59,11 +70,11 @@ void F_exact(const Vector &p, Vector &F)
 
 int main (int argc, char *argv[])
 {
-   // Initialize MPI.
-   int num_procs, myid;
-   MPI_Init(&argc, &argv);
-   MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
-   MPI_Comm_rank(MPI_COMM_WORLD, &myid);
+   // Initialize MPI and HYPRE.
+   Mpi::Init(argc, argv);
+   int num_procs = Mpi::WorldSize();
+   int myid = Mpi::WorldRank();
+   Hypre::Init();
 
    // Set the method's default parameters.
    const char *mesh_file = "../../data/rt-2d-q3.mesh";
@@ -75,6 +86,9 @@ int main (int argc, char *argv[])
    int fieldtype         = 0;
    int ncomp             = 1;
    bool search_on_rank_0 = false;
+   bool hrefinement      = false;
+   int point_ordering    = 0;
+   int gf_ordering       = 0;
 
    // Parse command-line options.
    OptionsParser args(argc, argv);
@@ -98,6 +112,16 @@ int main (int argc, char *argv[])
    args.AddOption(&search_on_rank_0, "-sr0", "--search-on-r0", "-no-sr0",
                   "--no-search-on-r0",
                   "Enable search only on rank 0 (disable to search points on all tasks).");
+   args.AddOption(&hrefinement, "-hr", "--h-refinement", "-no-hr",
+                  "--no-h-refinement",
+                  "Do random h refinements to mesh (does not work for pyramids).");
+   args.AddOption(&point_ordering, "-po", "--point-ordering",
+                  "Ordering of points to be found."
+                  "0 (default): byNodes, 1: byVDIM");
+   args.AddOption(&gf_ordering, "-gfo", "--gridfunc-ordering",
+                  "Ordering of fespace that will be used for gridfunction to be interpolated."
+                  "0 (default): byNodes, 1: byVDIM");
+
    args.Parse();
    if (!args.Good())
    {
@@ -105,6 +129,8 @@ int main (int argc, char *argv[])
       return 1;
    }
    if (myid == 0) { args.PrintOptions(cout); }
+
+   func_order = std::min(order, 2);
 
    // Initialize and refine the starting mesh.
    Mesh *mesh = new Mesh(mesh_file, 1, 1, false);
@@ -134,9 +160,13 @@ int main (int argc, char *argv[])
    }
 
    // Distribute the mesh.
+   if (hrefinement) { mesh->EnsureNCMesh(); }
    ParMesh pmesh(MPI_COMM_WORLD, *mesh);
    delete mesh;
    for (int lev = 0; lev < rp_levels; lev++) { pmesh.UniformRefinement(); }
+
+   // Random h-refinements to mesh
+   if (hrefinement) { pmesh.RandomRefinement(0.5); }
 
    // Curve the mesh based on the chosen polynomial degree.
    H1_FECollection fecm(mesh_poly_deg, dim);
@@ -178,7 +208,7 @@ int main (int argc, char *argv[])
    {
       if (myid == 0) { MFEM_ABORT("Invalid FECollection type."); }
    }
-   ParFiniteElementSpace sc_fes(&pmesh, fec, ncomp);
+   ParFiniteElementSpace sc_fes(&pmesh, fec, ncomp, gf_ordering);
    ParGridFunction field_vals(&sc_fes);
 
    // Project the GridFunction using VectorFunctionCoefficient.
@@ -214,7 +244,7 @@ int main (int argc, char *argv[])
    // Generate equidistant points in physical coordinates over the whole mesh.
    // Note that some points might be outside, if the mesh is not a box. Note
    // also that all tasks search the same points (not mandatory).
-   const int pts_cnt_1D = 10;
+   const int pts_cnt_1D = 25;
    int pts_cnt = pow(pts_cnt_1D, dim);
    Vector vxyz(pts_cnt * dim);
    if (dim == 2)
@@ -224,8 +254,16 @@ int main (int argc, char *argv[])
       for (int i = 0; i < ir.GetNPoints(); i++)
       {
          const IntegrationPoint &ip = ir.IntPoint(i);
-         vxyz(i)           = pos_min(0) + ip.x * (pos_max(0)-pos_min(0));
-         vxyz(pts_cnt + i) = pos_min(1) + ip.y * (pos_max(1)-pos_min(1));
+         if (point_ordering == Ordering::byNODES)
+         {
+            vxyz(i)           = pos_min(0) + ip.x * (pos_max(0)-pos_min(0));
+            vxyz(pts_cnt + i) = pos_min(1) + ip.y * (pos_max(1)-pos_min(1));
+         }
+         else
+         {
+            vxyz(i*dim + 0) = pos_min(0) + ip.x * (pos_max(0)-pos_min(0));
+            vxyz(i*dim + 1) = pos_min(1) + ip.y * (pos_max(1)-pos_min(1));
+         }
       }
    }
    else
@@ -235,9 +273,18 @@ int main (int argc, char *argv[])
       for (int i = 0; i < ir.GetNPoints(); i++)
       {
          const IntegrationPoint &ip = ir.IntPoint(i);
-         vxyz(i)             = pos_min(0) + ip.x * (pos_max(0)-pos_min(0));
-         vxyz(pts_cnt + i)   = pos_min(1) + ip.y * (pos_max(1)-pos_min(1));
-         vxyz(2*pts_cnt + i) = pos_min(2) + ip.z * (pos_max(2)-pos_min(2));
+         if (point_ordering == Ordering::byNODES)
+         {
+            vxyz(i)             = pos_min(0) + ip.x * (pos_max(0)-pos_min(0));
+            vxyz(pts_cnt + i)   = pos_min(1) + ip.y * (pos_max(1)-pos_min(1));
+            vxyz(2*pts_cnt + i) = pos_min(2) + ip.z * (pos_max(2)-pos_min(2));
+         }
+         else
+         {
+            vxyz(i*dim + 0) = pos_min(0) + ip.x * (pos_max(0)-pos_min(0));
+            vxyz(i*dim + 1) = pos_min(1) + ip.y * (pos_max(1)-pos_min(1));
+            vxyz(i*dim + 2) = pos_min(2) + ip.z * (pos_max(2)-pos_min(2));
+         }
       }
    }
 
@@ -251,7 +298,7 @@ int main (int argc, char *argv[])
    Vector interp_vals(pts_cnt*vec_dim);
    FindPointsGSLIB finder(MPI_COMM_WORLD);
    finder.Setup(pmesh);
-   finder.Interpolate(vxyz, field_vals, interp_vals);
+   finder.Interpolate(vxyz, field_vals, interp_vals, point_ordering);
    Array<unsigned int> code_out    = finder.GetCode();
    Array<unsigned int> task_id_out = finder.GetProc();
    Vector dist_p_out = finder.GetDist();
@@ -261,7 +308,7 @@ int main (int argc, char *argv[])
    if (myid == 0 )
    {
       int face_pts = 0, not_found = 0, found_loc = 0, found_away = 0;
-      double max_err = 0.0, max_dist = 0.0;
+      double err = 0.0, max_err = 0.0, max_dist = 0.0;
       Vector pos(dim);
       int npt = 0;
       for (int j = 0; j < vec_dim; j++)
@@ -275,10 +322,18 @@ int main (int argc, char *argv[])
 
             if (code_out[i] < 2)
             {
-               for (int d = 0; d < dim; d++) { pos(d) = vxyz(d * pts_cnt + i); }
+               for (int d = 0; d < dim; d++)
+               {
+                  pos(d) = point_ordering == Ordering::byNODES ?
+                           vxyz(d*pts_cnt + i) :
+                           vxyz(i*dim + d);
+               }
                Vector exact_val(vec_dim);
                F_exact(pos, exact_val);
-               max_err  = std::max(max_err, fabs(exact_val(j) - interp_vals(npt)));
+               err = gf_ordering == Ordering::byNODES ?
+                     fabs(exact_val(j) - interp_vals[i + j*pts_cnt]) :
+                     fabs(exact_val(j) - interp_vals[i*vec_dim + j]);
+               max_err  = std::max(max_err, err);
                max_dist = std::max(max_dist, dist_p_out(i));
                if (code_out[i] == 1 && j == 0) { face_pts++; }
             }
@@ -302,6 +357,5 @@ int main (int argc, char *argv[])
 
    delete fec;
 
-   MPI_Finalize();
    return 0;
 }

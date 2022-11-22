@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -17,87 +17,6 @@
 
 using namespace mfem;
 using namespace std;
-
-class DiscreteSize2D : public Coefficient
-{
-protected:
-   const int ref_levels, type;
-
-public:
-   DiscreteSize2D(int ref_levels_, int type_ = 2)
-      : ref_levels(ref_levels_), type(type_)  { }
-
-   virtual double Eval(ElementTransformation &T,
-                       const IntegrationPoint &ip)
-   {
-      const double small = 0.016/pow(4., ref_levels), big = 0.16/pow(4., ref_levels);
-      double val = 0.;
-      Vector x(3);
-      T.Transform(ip, x);
-
-      if (type == 1) // sine wave.
-      {
-         const double X = x(0), Y = x(1);
-         val = std::tanh((10*(Y-0.5) + std::sin(4.0*M_PI*X)) + 1) -
-               std::tanh((10*(Y-0.5) + std::sin(4.0*M_PI*X)) - 1);
-      }
-      else if (type == 2) // semi-circle
-      {
-         const double xc = x(0) - 0.0, yc = x(1) - 0.5;
-         const double r = sqrt(xc*xc + yc*yc);
-         double r1 = 0.45; double r2 = 0.55; double sf=30.0;
-         val = 0.5*(1+std::tanh(sf*(r-r1))) - 0.5*(1+std::tanh(sf*(r-r2)));
-      }
-      else if (type == 3)
-      {
-         double dxyl = 0.25;
-         const double xc = fabs(x(0) - 0.5), yc = fabs(x(1) - 0.5);
-         const double dxy = max(xc, yc);
-         if (dxy <= dxyl) { val = 1.0; }
-         else { val = 0.0; }
-         return val * (dxyl*dxyl/16) + (1.0 - val)*(1 - dxyl*dxyl)/(64-16);
-      }
-
-      val = std::max(0.,val);
-      val = std::min(1.,val);
-
-      return val * small + (1.0 - val) * big;
-   }
-};
-
-
-class DiscreteSize3D : public Coefficient
-{
-protected:
-   const int ref_levels;
-
-public:
-   DiscreteSize3D(int ref_levels_)
-      : ref_levels(ref_levels_) { }
-
-   virtual double Eval(ElementTransformation &T,
-                       const IntegrationPoint &ip)
-   {
-      Vector x(3);
-      T.Transform(ip, x);
-
-      double small = 0.0064/pow(8., ref_levels),
-             big   =   0.64/pow(8., ref_levels);
-
-      double val = 0.;
-
-      // semi-circle
-      const double xc = x(0) - 0.0, yc = x(1) - 0.5, zc = x(2) - 0.5;
-      const double r = sqrt(xc*xc + yc*yc + zc*zc);
-      double r1 = 0.45; double r2 = 0.55; double sf=30.0;
-      val = 0.5*(1+std::tanh(sf*(r-r1))) - 0.5*(1+std::tanh(sf*(r-r2)));
-
-      val = std::max(0.,val);
-      val = std::min(1.,val);
-
-      return val * small + (1.0 - val) * big;
-   }
-};
 
 double discrete_size_2d(const Vector &x)
 {

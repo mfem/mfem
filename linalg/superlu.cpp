@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -427,6 +427,15 @@ void SuperLUSolver::SetSymmetricPattern( bool sym )
    yes_no_t opt = sym?YES:NO;
 
    options->SymPattern = opt;
+}
+
+void SuperLUSolver::SetParSymbFact( bool par )
+{
+   superlu_dist_options_t * options = (superlu_dist_options_t*)optionsPtr_;
+
+   yes_no_t opt = par?YES:NO;
+
+   options->ParSymbFact = opt;
 }
 
 void SuperLUSolver::SetupGrid()

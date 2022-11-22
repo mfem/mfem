@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -43,23 +43,14 @@ function(convert_filenames_to_full_paths NAMES)
   set(${NAMES} ${tmp_names} PARENT_SCOPE)
 endfunction()
 
-# Wrapper for add_executable that calls the HIP wrapper if applicable
+# Wrapper for add_executable
 macro(mfem_add_executable NAME)
-  if (MFEM_USE_HIP)
-    hip_add_executable(${NAME} ${ARGN})
-    set_target_properties(${NAME} PROPERTIES LINKER_LANGUAGE CXX)
-  else()
-    add_executable(${NAME} ${ARGN})
-  endif()
+  add_executable(${NAME} ${ARGN})
 endmacro()
 
-# Wrapper for add_library that calls the HIP wrapper if applicable
+# Wrapper for add_library
 macro(mfem_add_library NAME)
-  if (MFEM_USE_HIP)
-    hip_add_library(${NAME} ${ARGN})
-  else()
-    add_library(${NAME} ${ARGN})
-  endif()
+  add_library(${NAME} ${ARGN})
 endmacro()
 
 # Simple shortcut to add_custom_target() with option to add the target to the
@@ -92,8 +83,6 @@ macro(add_mfem_examples EXE_SRCS)
     # If CUDA is enabled, tag source files to be compiled with nvcc.
     if (MFEM_USE_CUDA)
       set_source_files_properties(${SRC_FILE} PROPERTIES LANGUAGE CUDA)
-    elseif(MFEM_USE_HIP)
-      set_source_files_properties(${SRC_FILE} PROPERTIES HIP_SOURCE_PROPERTY_FORMAT TRUE)
     endif()
 
     get_filename_component(SRC_FILENAME ${SRC_FILE} NAME)
@@ -159,8 +148,6 @@ macro(add_mfem_miniapp MFEM_EXE_NAME)
       endforeach()
       set(EXTRA_OPTIONS_LIST ${LIST_})
     endif()
-  elseif(MFEM_USE_HIP)
-    set_source_files_properties(${MAIN_LIST} ${EXTRA_SOURCES_LIST} PROPERTIES HIP_SOURCE_PROPERTY_FORMAT TRUE)
   endif()
 
   # Actually add the executable
@@ -534,12 +521,15 @@ function(mfem_find_package Name Prefix DirVar IncSuffixes Header LibSuffixes
             if (NOT ImportConfig)
               set(ImportConfig RELEASE)
             endif()
+            set(ImportConfigSuffix "_${ImportConfig}")
             get_target_property(ImpConfigs ${TargetName} IMPORTED_CONFIGURATIONS)
             list(FIND ImpConfigs ${ImportConfig} _Index)
-            if (_Index EQUAL -1)
-              message(FATAL_ERROR " *** ${ReqPack}: configuration "
-                "${ImportConfig} not found. Set ${ReqPack}_IMPORT_CONFIG "
-                "from the list: ${ImpConfigs}.")
+            if ((_Index EQUAL -1) OR ("${ImportConfig}" STREQUAL "NO_CONFIG"))
+              set(ImportConfig "NO_CONFIG")
+              set(ImportConfigSuffix "")
+              # message(FATAL_ERROR " *** ${ReqPack}: configuration "
+              #   "${ImportConfig} not found. Set ${ReqPack}_IMPORT_CONFIG "
+              #   "from the list: ${ImpConfigs}.")
             endif()
           endif()
           # Set _Pack_LIBS
@@ -551,8 +541,8 @@ function(mfem_find_package Name Prefix DirVar IncSuffixes Header LibSuffixes
             endif()
           else()
             # Set _Pack_LIBS from the target properties for ImportConfig
-            foreach (_prop IMPORTED_LOCATION_${ImportConfig}
-                IMPORTED_LINK_INTERFACE_LIBRARIES_${ImportConfig})
+            foreach (_prop IMPORTED_LOCATION${ImportConfigSuffix}
+                IMPORTED_LINK_INTERFACE_LIBRARIES${ImportConfigSuffix})
               get_target_property(_value ${TargetName} ${_prop})
               if (_value)
                 list(APPEND _Pack_LIBS ${_value})
@@ -564,7 +554,7 @@ function(mfem_find_package Name Prefix DirVar IncSuffixes Header LibSuffixes
             endif()
           endif()
           # Set _Pack_INCS
-          foreach (_prop INCLUDE_DIRECTORIES)
+          foreach (_prop INCLUDE_DIRECTORIES INTERFACE_INCLUDE_DIRECTORIES)
             get_target_property(_value ${TargetName} ${_prop})
             if (_value)
               list(APPEND _Pack_INCS ${_value})
@@ -743,6 +733,133 @@ endfunction(mfem_find_library)
 
 
 #
+# Extract compile and link options needed by the given target.
+#
+function(mfem_get_target_options Target CompileOptsVar LinkOptsVar)
+
+  if (NOT TARGET ${Target})
+    return()
+  endif()
+
+  # CMAKE_SHARED_LIBRARY_RUNTIME_C_FLAG -> '-Wl,-rpath,'
+  set(shared_link_flag ${CMAKE_SHARED_LIBRARY_RUNTIME_C_FLAG})
+  if (NOT shared_link_flag)
+    set(shared_link_flag "-Wl,-rpath,")
+  endif()
+
+  set(tgt "${Target}")
+  unset(CompileOpts)
+  unset(LinkOpts)
+  get_target_property(IsImported ${tgt} IMPORTED)
+  # message(STATUS "${tgt}[IMPORTED]: ${IsImported}")
+  # Generally, the possible target types are: STATIC_LIBRARY, MODULE_LIBRARY,
+  # SHARED_LIBRARY, INTERFACE_LIBRARY, EXECUTABLE.
+  get_target_property(type ${tgt} TYPE)
+  # message(STATUS "${tgt}[TYPE]: ${type}")
+  unset(ImportConfig)
+  get_target_property(ImportConfigs ${tgt} IMPORTED_CONFIGURATIONS)
+  if (ImportConfigs)
+    list(GET ImportConfigs 0 ImportConfig)
+  endif()
+  if (NOT ImportConfig)
+    set(ImportConfig RELEASE)
+  endif()
+  # message(STATUS "${tgt}[ImportConfig]: ${ImportConfig}")
+  # List all properties with: cmake --help-property-list
+  get_target_property(Defs ${tgt} INTERFACE_COMPILE_DEFINITIONS)
+  if (Defs)
+    list(REMOVE_DUPLICATES Defs)
+    foreach(Def ${Defs})
+      list(APPEND CompileOpts "-D${Def}")
+    endforeach()
+  endif()
+  get_target_property(Opts ${tgt} INTERFACE_COMPILE_OPTIONS)
+  if (Opts)
+    foreach(Opt ${Opts})
+      list(APPEND CompileOpts "${Opt}")
+    endforeach()
+  endif()
+  get_target_property(Dirs ${tgt} INTERFACE_INCLUDE_DIRECTORIES)
+  if (Dirs)
+    list(REMOVE_DUPLICATES Dirs)
+    foreach(Dir ${Dirs})
+      list(APPEND CompileOpts "-I\"${Dir}\"")
+    endforeach()
+  endif()
+  get_target_property(SysDirs ${tgt} INTERFACE_SYSTEM_INCLUDE_DIRECTORIES)
+  if (SysDirs)
+    list(REMOVE_DUPLICATES SysDirs)
+    foreach(SysDir ${SysDirs})
+      list(APPEND CompileOpts "-isystem \"${SysDir}\"")
+    endforeach()
+  endif()
+  if ("${type}" STREQUAL "STATIC_LIBRARY")
+    get_target_property(Location ${tgt} LOCATION)
+    if (Location)
+      list(APPEND LinkOpts "\"${Location}\"")
+    else()
+      message(STATUS " *** Warning: [${tgt}] LOCATION not defined!")
+    endif()
+  elseif ("${type}" STREQUAL "SHARED_LIBRARY")
+    get_target_property(Location ${tgt} LOCATION)
+    if (Location)
+      get_filename_component(Dir ${Location} DIRECTORY)
+      get_filename_component(NameWE ${Location} NAME_WE)
+      string(REGEX REPLACE "^lib" "" LibName ${NameWE})
+      list(APPEND LinkOpts
+        "-L\"${Dir}\""
+        "${shared_link_flag}\"${Dir}\""
+        "-l${LibName}")
+    else()
+      message(STATUS " *** Warning: [${tgt}] LOCATION not defined!")
+    endif()
+  elseif ("${type}" STREQUAL "INTERFACE_LIBRARY")
+    get_target_property(Libs ${tgt} INTERFACE_LINK_LIBRARIES)
+    if (Libs)
+      foreach(Lib ${Libs})
+        if (NOT (TARGET ${Lib}))
+          list(APPEND LinkOpts "${Lib}")
+        else()
+          mfem_get_target_options(${Lib} COpts LOpts)
+          list(APPEND CompileOpts ${COpts})
+          list(APPEND LinkOpts ${LOpts})
+        endif()
+      endforeach()
+    endif()
+    # Other properties we may need to handle:
+    # INTERFACE_LINK_DEPENDS
+    # INTERFACE_LINK_DIRECTORIES
+    # INTERFACE_LINK_OPTIONS
+  else()
+    message(STATUS " *** Warning: [${tgt}] uses target type '${type}'"
+      " which is not supported!")
+  endif()
+
+  # Other potentially relevant properties:
+  # - For all target types:
+  # IMPORTED_LIBNAME
+  # IMPORTED_LIBNAME_${ImportConfig}
+  # INTERFACE_AUTOUIC_OPTIONS
+  # INTERFACE_COMPILE_FEATURES
+  # INTERFACE_POSITION_INDEPENDENT_CODE
+  # INTERFACE_SOURCES
+  # INTERFACE_SYSTEM_INCLUDE_DIRECTORIES)
+  # - For non-"INTERFACE_LIBRARY" target types only:
+  # IMPORTED_LOCATION
+  # IMPORTED_LOCATION_${ImportConfig}
+  # IMPORTED_LINK_INTERFACE_LIBRARIES
+  # IMPORTED_LINK_INTERFACE_LIBRARIES_${ImportConfig}
+  # LINK_FLAGS
+  # LINK_FLAGS_${ImportConfig}
+  # LOCATION_${ImportConfig})
+
+  set(${CompileOptsVar} "${CompileOpts}" PARENT_SCOPE)
+  set(${LinkOptsVar} "${LinkOpts}" PARENT_SCOPE)
+
+endfunction(mfem_get_target_options)
+
+
+#
 #   Function that creates 'config.mk' from 'config.mk.in' for the both the
 #   build- and the install-locations and define install rules for 'config.mk'
 #   and 'test.mk'.
@@ -760,13 +877,16 @@ function(mfem_export_mk_files)
   # Convert Boolean vars to YES/NO without writing the values to cache
   set(CONFIG_MK_BOOL_VARS MFEM_USE_MPI MFEM_USE_METIS MFEM_USE_METIS_5
       MFEM_DEBUG MFEM_USE_EXCEPTIONS MFEM_USE_ZLIB MFEM_USE_LIBUNWIND
-      MFEM_USE_LAPACK MFEM_THREAD_SAFE MFEM_USE_OPENMP MFEM_USE_LEGACY_OPENMP
+      MFEM_USE_LAPACK MFEM_THREAD_SAFE MFEM_USE_LEGACY_OPENMP MFEM_USE_OPENMP
       MFEM_USE_MEMALLOC MFEM_USE_SUNDIALS MFEM_USE_MESQUITE MFEM_USE_SUITESPARSE
-      MFEM_USE_SUPERLU MFEM_USE_STRUMPACK MFEM_USE_GINKGO MFEM_USE_AMGX
-      MFEM_USE_GNUTLS MFEM_USE_GSLIB MFEM_USE_NETCDF MFEM_USE_PETSC
-      MFEM_USE_SLEPC MFEM_USE_MPFR MFEM_USE_SIDRE MFEM_USE_CONDUIT MFEM_USE_PUMI
-      MFEM_USE_CUDA MFEM_USE_OCCA MFEM_USE_RAJA MFEM_USE_UMPIRE MFEM_USE_SIMD
-      MFEM_USE_ADIOS2 MFEM_USE_BENCHMARK MFEM_USE_PARELAG)
+      MFEM_USE_SUPERLU MFEM_USE_SUPERLU5 MFEM_USE_MUMPS MFEM_USE_STRUMPACK
+      MFEM_USE_GINKGO MFEM_USE_AMGX MFEM_USE_GNUTLS MFEM_USE_NETCDF
+      MFEM_USE_PETSC MFEM_USE_SLEPC MFEM_USE_MPFR MFEM_USE_SIDRE MFEM_USE_FMS
+      MFEM_USE_CONDUIT MFEM_USE_PUMI MFEM_USE_HIOP MFEM_USE_GSLIB MFEM_USE_CUDA
+      MFEM_USE_HIP MFEM_USE_RAJA MFEM_USE_OCCA MFEM_USE_CEED MFEM_USE_CALIPER
+      MFEM_USE_UMPIRE MFEM_USE_SIMD MFEM_USE_ADIOS2 MFEM_USE_MKL_CPARDISO
+      MFEM_USE_ADFORWARD MFEM_USE_CODIPACK MFEM_USE_BENCHMARK MFEM_USE_PARELAG
+      MFEM_USE_MOONOLITH MFEM_USE_ALGOIM MFEM_USE_ENZYME)
   foreach(var ${CONFIG_MK_BOOL_VARS})
     if (${var})
       set(${var} YES)
@@ -850,9 +970,11 @@ function(mfem_export_mk_files)
       string(REGEX REPLACE "^SCOREC::" "" libname ${pumilib})
       string(FIND "${pumilib}" ".a" staticlib)
       string(FIND "${pumilib}" ".so" sharedlib)
+      string(FIND "${pumilib}" ".dylib" dynamiclib)
       find_library(lib ${libname} PATHS ${PUMI_DIR}/lib NO_DEFAULT_PATH)
       if (NOT "${sharedlib}" MATCHES "-1" OR
-          NOT "${staticlib}" MATCHES "-1"   )
+          NOT "${staticlib}" MATCHES "-1" OR
+          NOT "${dynamiclib}" MATCHES "-1"  )
         set(MFEM_EXT_LIBS "${pumilib} ${MFEM_EXT_LIBS}")
       elseif (NOT "${lib}" MATCHES "lib-NOTFOUND")
         set(MFEM_EXT_LIBS "${lib} ${MFEM_EXT_LIBS}")
@@ -867,9 +989,19 @@ function(mfem_export_mk_files)
   foreach(lib ${TPL_LIBRARIES})
     get_filename_component(suffix ${lib} EXT)
     # handle interfaces (e.g., SCOREC::apf)
-    if ("${lib}" MATCHES "SCOREC::.*" OR "${lib}" MATCHES "Ginkgo::.*")
-    elseif (NOT "${lib}" MATCHES "SCOREC::.*" AND "${lib}" MATCHES ".*::.*")
-      message(FATAL_ERROR "***** interface lib found ... exiting *****")
+    if ("${lib}" MATCHES "SCOREC::.*" OR "${lib}" MATCHES "Ginkgo::.*" OR "${lib}" MATCHES "ParMoonolith::.*")
+    elseif (TARGET "${lib}")
+      mfem_get_target_options(${lib} CompileOpts LinkOpts)
+      # Removing duplicates may lead to issues:
+      # list(REMOVE_DUPLICATES CompileOpts)
+      # list(REMOVE_DUPLICATES LinkOpts)
+      string(REPLACE ";" " " COpts "${CompileOpts}")
+      string(REPLACE ";" " " LOpts "${LinkOpts}")
+      # message(STATUS "${lib}[COpts]: '${COpts}'")
+      # message(STATUS "${lib}[LOpts]: '${LOpts}'")
+      set(MFEM_TPLFLAGS "${MFEM_TPLFLAGS} ${COpts}")
+      set(MFEM_EXT_LIBS "${MFEM_EXT_LIBS} ${LOpts}")
+      # message(FATAL_ERROR "***** interface lib found ... exiting *****")
       # handle static and shared libs
     elseif ("${suffix}" STREQUAL "${CMAKE_SHARED_LIBRARY_SUFFIX}")
       get_filename_component(dir ${lib} DIRECTORY)

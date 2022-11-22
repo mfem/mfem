@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -78,7 +78,7 @@ public:
 /// method.
 /// A(u, w) = -<nabla u.n, w>
 ///           -<u + nabla u.d + h.o.t, nabla w.n>
-///           -<alpha h^{-1} (u + nabla u.d + h.o.t), w + nabla w.d + h.o.t>
+///           +<alpha h^{-1} (u + nabla u.d + h.o.t), w + nabla w.d + h.o.t>
 /// where h.o.t include higher-order derivatives (nabla^k u) due to Taylor
 /// expansion. Since this interior face integrator is applied to the surrogate
 /// boundary (see marking.hpp for notes on how the surrogate faces are
@@ -133,7 +133,7 @@ public:
 /// LinearFormIntegrator for the high-order extension of shifted boundary
 /// method.
 /// (u, w) = -<u_D, nabla w.n >
-///          -<alpha h^{-1} u_D, w + nabla w.d + h.o.t>
+///          +<alpha h^{-1} u_D, w + nabla w.d + h.o.t>
 /// where h.o.t include higher-order derivatives (nabla^k u) due to Taylor
 /// expansion. Since this interior face integrator is applied to the surrogate
 /// boundary (see marking.hpp for notes on how the surrogate faces are

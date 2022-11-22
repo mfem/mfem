@@ -1,0 +1,81 @@
+%\documentclass[tikz]{standalone}
+\documentclass[preview, border=4mm, convert={density=600,outext=.png}]{standalone}
+\usepackage{pgfplots}
+\pgfplotsset{compat=newest, table/col sep=comma}
+\usepackage{tikzscale}
+\usetikzlibrary{backgrounds}
+\usetikzlibrary{calc}
+
+\newcommand{\DATA}{bench_tmop_ss.org}
+
+\usepackage{times}
+\usepackage{bm}
+\usepackage{fontspec}
+\setmainfont{Calibri}
+
+\definecolor{RYB2}{RGB}{31,120,180}   % Dark blue
+\definecolor{RYB4}{RGB}{51,160,44}    % Dark green
+\definecolor{RYB6}{RGB}{227,26,28}    % Dark red
+\definecolor{RYB8}{RGB}{255,127,0}    % Dark orange
+\definecolor{RYB10}{RGB}{160,60,140}  % Dark purple (modified)
+\definecolor{RYB12}{RGB}{177,89,40}   % Dark brown
+
+\definecolor{firebrick}{HTML}{B22222}
+\definecolor{steelblue4}{HTML}{3B77AF}
+
+\pgfplotsset{tick scale binop=\times}
+
+\pgfplotsset{every axis/.append style={
+axis line style={->},
+label style={font=\Large},
+tick label style={font=\large},
+title style={font=\Large\bfseries, text=steelblue4}
+}}
+
+\begin{document}
+\pgfplotscreateplotcyclelist{CycleList}{%
+gray\\%
+RYB4!50!black,every mark/.append style={fill=RYB4},mark=*\\%
+RYB6!50!black,every mark/.append style={fill=RYB6},mark=*\\%
+RYB8!50!black,every mark/.append style={fill=RYB8},mark=*\\%
+RYB10!50!black,every mark/.append style={fill=RYB10},mark=*\\%
+RYB12!50!black,every mark/.append style={fill=RYB12},mark=*\\%
+}
+
+\begin{tikzpicture}[background rectangle/.style={fill=white},
+show background rectangle, scale=1.0]
+\begin{axis}[
+    xmode=log,
+    ymode=log,
+    grid=none,
+    %xmajorgrids=true,
+    %xminorgrids=true,
+    %xmajorgrids=true,
+    %major grid style={line width=.1pt,draw=gray!50},
+    %minor grid style={line width=.1pt,draw=gray!25},
+    width=4in,
+    xlabel={Number of GPUs},
+    ylabel={Solve Time (second)},
+    ylabel style={at={(axis description cs:-0.07,0.5)}},
+    cycle list name=CycleList,
+    legend style={draw=none},
+    legend cell align=right,
+    legend pos=north east,
+    legend entries={Ideal, $p=1$, $p=2$, $p=3$, $p=4$},
+    %title={TMOP-Strong Scaling @ Lassen-V100},
+    ymax=16,
+    ymin=0.4,
+    xmin=3,
+    xmax=192,
+    xtick={4, 8, 16, 32, 64, 128},
+    xticklabels={4, 8, 16, 32, 64, 128}
+  ]
+  \addplot +[raw gnuplot] gnuplot { set datafile separator '|'; plot "\DATA" skip 1 using 2:(($3==0&&$4==0)?$5:NaN)};
+  \addplot +[raw gnuplot] gnuplot { set datafile separator '|'; plot "\DATA" skip 1 using 2:(($3==1&&$4==4)?$5:NaN)};
+  \addplot +[raw gnuplot] gnuplot { set datafile separator '|'; plot "\DATA" skip 1 using 2:(($3==2&&$4==4)?$5:NaN)};
+  \addplot +[raw gnuplot] gnuplot { set datafile separator '|'; plot "\DATA" skip 1 using 2:(($3==3&&$4==4)?$5:NaN)};
+  \addplot +[raw gnuplot] gnuplot { set datafile separator '|'; plot "\DATA" skip 1 using 2:(($3==4&&$4==4)?$5:NaN)};
+
+\end{axis}
+\end{tikzpicture}
+\end{document}

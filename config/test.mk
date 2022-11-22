@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -58,14 +58,14 @@ ifneq (,$(filter test%,$(MAKECMDGOALS)))
    MAKEFLAGS += -k
 endif
 # Test runs of the examples/miniapps with parameters - check exit code:
-# 0 means success, 255 means the test was skipped, anything else means error
+# 0 means success, 242 means the test was skipped, anything else means error
 mfem-test = \
    printf "   $(3) [$(2) $(1) ... ]: "; \
    $(call $(TIMEFUN),$(TIMECMD),$(2) ./$(1) $(if $(5),,-no-vis )$(4) \
      > $(1).stderr 2>&1); \
    err="$$3"; \
    if [ "$$3" = 0 ]; then $(PRINT_OK); \
-   else if [ "$$3" = 255 ]; then $(PRINT_SKIP); err=0; \
+   else if [ "$$3" = 242 ]; then $(PRINT_SKIP); err=0; \
    else $(PRINT_FAILED); cat $(1).stderr; fi; fi; \
    rm -f $(1).stderr; exit $$err
 
@@ -76,7 +76,7 @@ mfem-test-file = \
    $(call $(TIMEFUN),$(TIMECMD),$(2) ./$(1) -no-vis > $(1).stderr 2>&1); \
    err="$$3"; \
    if [ "$$3" = 0 ] && [ -e $(4) ]; then $(PRINT_OK); \
-   else if [ "$$3" = 255 ] && [ -e $(4) ]; then $(PRINT_SKIP); err=0; \
+   else if [ "$$3" = 242 ] && [ -e $(4) ]; then $(PRINT_SKIP); err=0; \
    else $(PRINT_FAILED); cat $(1).stderr; err=64; fi; fi; \
    rm -f $(1).stderr; exit $$err
 

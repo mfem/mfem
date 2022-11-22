@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -27,17 +27,43 @@ void AdvectorCG::SetInitialField(const Vector &init_nodes,
 }
 
 void AdvectorCG::ComputeAtNewPosition(const Vector &new_nodes,
-                                      Vector &new_field)
+                                      Vector &new_field,
+                                      int new_nodes_ordering)
 {
+   FiniteElementSpace *space = fes;
+#ifdef MFEM_USE_MPI
+   if (pfes) { space = pfes; }
+#endif
+   int fes_ordering = space->GetOrdering(),
+       ncomp = space->GetVDim();
+
    // TODO: Implement for AMR meshes.
-   const int pnt_cnt = new_field.Size()/ncomp;
+   const int pnt_cnt = field0.Size() / ncomp;
 
    new_field = field0;
    Vector new_field_temp;
    for (int i = 0; i < ncomp; i++)
    {
-      new_field_temp.MakeRef(new_field, i*pnt_cnt, pnt_cnt);
+      if (fes_ordering == Ordering::byNODES)
+      {
+         new_field_temp.MakeRef(new_field, i*pnt_cnt, pnt_cnt);
+      }
+      else
+      {
+         new_field_temp.SetSize(pnt_cnt);
+         for (int j = 0; j < pnt_cnt; j++)
+         {
+            new_field_temp(j) = new_field(i + j*ncomp);
+         }
+      }
       ComputeAtNewPositionScalar(new_nodes, new_field_temp);
+      if (fes_ordering == Ordering::byVDIM)
+      {
+         for (int j = 0; j < pnt_cnt; j++)
+         {
+            new_field(i + j*ncomp) = new_field_temp(j);
+         }
+      }
    }
 
    field0 = new_field;
@@ -98,7 +124,7 @@ void AdvectorCG::ComputeAtNewPositionScalar(const Vector &new_nodes,
    for (int i = 0; i < s; i++)
    {
       double vel = 0.;
-      for (int j = 0; j < dim; j++)
+      for (int j = 0; j < m->Dimension(); j++)
       {
          vel += u(i+j*s)*u(i+j*s);
       }
@@ -190,11 +216,7 @@ void SerialAdvectorCGOper::Mult(const Vector &ind, Vector &di_dt) const
    // Move the mesh.
    const double t = GetTime();
    add(x0, t, u, x_now);
-
-   if (al == AssemblyLevel::PARTIAL)
-   {
-      K.FESpace()->GetMesh()->DeleteGeometricFactors();
-   }
+   K.FESpace()->GetMesh()->NodesUpdated();
 
    // Assemble on the new mesh.
    K.BilinearForm::operator=(0.0);
@@ -263,11 +285,7 @@ void ParAdvectorCGOper::Mult(const Vector &ind, Vector &di_dt) const
    // Move the mesh.
    const double t = GetTime();
    add(x0, t, u, x_now);
-
-   if (al == AssemblyLevel::PARTIAL)
-   {
-      K.ParFESpace()->GetParMesh()->DeleteGeometricFactors();
-   }
+   K.ParFESpace()->GetParMesh()->NodesUpdated();
 
    // Assemble on the new mesh.
    K.BilinearForm::operator=(0.0);
@@ -347,14 +365,13 @@ void InterpolatorFP::SetInitialField(const Vector &init_nodes,
 
    field0_gf.SetSpace(f);
    field0_gf = init_field;
-
-   dim = f->GetFE(0)->GetDim();
 }
 
 void InterpolatorFP::ComputeAtNewPosition(const Vector &new_nodes,
-                                          Vector &new_field)
+                                          Vector &new_field,
+                                          int new_nodes_ordering)
 {
-   finder->Interpolate(new_nodes, field0_gf, new_field);
+   finder->Interpolate(new_nodes, field0_gf, new_field, new_nodes_ordering);
 }
 
 #endif
@@ -398,6 +415,23 @@ double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
    }
 #endif
 
+   double scale = 1.0;
+   if (surf_fit_max_threshold > 0.0)
+   {
+      double avg_err, max_err;
+      GetSurfaceFittingError(avg_err, max_err);
+      if (max_err < surf_fit_max_threshold)
+      {
+         if (print_options.iterations)
+         {
+            mfem::out << "TMOPNewtonSolver converged "
+                      "based on the surface fitting error.\n";
+         }
+         scale = 0.0;
+         return scale;
+      }
+   }
+
    // Check if the starting mesh (given by x) is inverted. Note that x hasn't
    // been modified by the Newton update yet.
    const double min_detT_in = ComputeMinDet(x_out_loc, *fes);
@@ -414,17 +448,17 @@ double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
 
    const bool have_b = (b.Size() == Height());
 
-   static Vector x_out(x.Size());
+   Vector x_out(x.Size());
    bool x_out_ok = false;
-   double scale = init_scale;
-   if (adaptive_line_search)
-   {
-      scale = std::min(init_scale, scale_history.Sum()*2.0/5);
-   }
    double energy_out = 0.0, min_detT_out;
    const double norm_in = Norm(r);
 
    const double detJ_factor = (solver_type == 1) ? 0.25 : 0.25;
+   compute_metric_quantile_flag = false;
+   // TODO:
+   // - Customized line search for worst-quality optimization.
+   // - What is the Newton exit criterion for worst-quality optimization?
+>>>>>>> 9ecfbbf35509a09bd62b3f35e3d077ef34e76d01
 
    // Perform the line search.
    for (int i = 0; i < 12; i++)
@@ -438,10 +472,7 @@ double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
          else     { cP->Mult(x_out, x_out_loc); }
       }
 #ifdef MFEM_USE_MPI
-      else
-      {
-         fes->GetProlongationMatrix()->Mult(x_out, x_out_loc);
-      }
+      else { fes->GetProlongationMatrix()->Mult(x_out, x_out_loc); }
 #endif
 
       // Check the changes in detJ.
@@ -449,15 +480,19 @@ double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
       if (untangling == false && min_detT_out < 0.0)
       {
          // No untangling, and detJ got negative -- no good.
-         if (print_level >= 0)
-         { mfem::out << "Scale = " << scale << " Neg det(J) found.\n"; }
+         if (print_options.iterations)
+         {
+            mfem::out << "Scale = " << scale << " Neg det(J) found.\n";
+         }
          scale *= detJ_factor; continue;
       }
       if (untangling == true && min_detT_out < *min_det_ptr)
       {
          // Untangling, and detJ got even more negative -- no good.
-         if (print_level >= 0)
-         { mfem::out << "Scale = " << scale << " Neg det(J) decreased.\n"; }
+         if (print_options.iterations)
+         {
+            mfem::out << "Scale = " << scale << " Neg det(J) decreased.\n";
+         }
          scale *= detJ_factor; continue;
       }
 
@@ -482,7 +517,7 @@ double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
       if (energy_out > energy_in + 0.2*fabs(energy_in) ||
           std::isnan(energy_out) != 0)
       {
-         if (print_level >= 0)
+         if (print_options.iterations)
          {
             mfem::out << "Scale = " << scale << " Increasing energy: "
                       << energy_in << " --> " << energy_out << '\n';
@@ -491,13 +526,13 @@ double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
       }
 
       // Check the changes in the Newton residual.
-      //oper->Mult(x_out, r);
+      oper->Mult(x_out, r);
       if (have_b) { r -= b; }
       double norm_out = Norm(r);
 
       if (norm_out > 1.2*norm_in)
       {
-         if (print_level >= 0)
+         if (print_options.iterations)
          {
             mfem::out << "Scale = " << scale << " Norm increased: "
                       << norm_in << " --> " << norm_out << '\n';
@@ -513,13 +548,15 @@ double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
       if (min_detT_out > 0.0)
       {
          *min_det_ptr = 0.0;
-         if (print_level >= 0)
+         if (print_options.summary || print_options.iterations ||
+             print_options.first_and_last)
          { mfem::out << "The mesh has been untangled at the used points!\n"; }
       }
       else { *min_det_ptr = untangle_factor * min_detT_out; }
    }
 
-   if (print_level >= 0)
+   if (print_options.summary || print_options.iterations ||
+       print_options.first_and_last)
    {
       if (untangling)
       {
@@ -538,24 +575,105 @@ double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
 
    if (x_out_ok == false) { scale = 0.0; }
 
-   if (adaptive_line_search)
-   {
-      if (iteration_count < 5)
-      {
-         scale_history(iteration_count) = scale;
-         iteration_count += 1;
-      }
-      else
-      {
-         for (int i = 0; i < 4; i++)
-         {
-            scale_history(i) = scale_history(i+1);
-         }
-         scale_history(4) = scale;
-      }
-   }
+   if (adaptive_surf_fit) { update_surf_fit_coeff = true; }
+   compute_metric_quantile_flag = true;
 
    return scale;
+}
+
+void TMOPNewtonSolver::UpdateSurfaceFittingWeight(double factor) const
+{
+   const NonlinearForm *nlf = dynamic_cast<const NonlinearForm *>(oper);
+   const Array<NonlinearFormIntegrator*> &integs = *nlf->GetDNFI();
+   TMOP_Integrator *ti  = NULL;
+   TMOPComboIntegrator *co = NULL;
+   for (int i = 0; i < integs.Size(); i++)
+   {
+      ti = dynamic_cast<TMOP_Integrator *>(integs[i]);
+      if (ti)
+      {
+         ti->UpdateSurfaceFittingWeight(factor);
+      }
+      co = dynamic_cast<TMOPComboIntegrator *>(integs[i]);
+      if (co)
+      {
+         Array<TMOP_Integrator *> ati = co->GetTMOPIntegrators();
+         for (int j = 0; j < ati.Size(); j++)
+         {
+            ati[j]->UpdateSurfaceFittingWeight(factor);
+         }
+      }
+   }
+}
+
+void TMOPNewtonSolver::GetSurfaceFittingWeight(Array<double> &weights) const
+{
+   const NonlinearForm *nlf = dynamic_cast<const NonlinearForm *>(oper);
+   const Array<NonlinearFormIntegrator*> &integs = *nlf->GetDNFI();
+   TMOP_Integrator *ti  = NULL;
+   TMOPComboIntegrator *co = NULL;
+   weights.SetSize(0);
+   double weight;
+
+   for (int i = 0; i < integs.Size(); i++)
+   {
+      ti = dynamic_cast<TMOP_Integrator *>(integs[i]);
+      if (ti)
+      {
+         weight = ti->GetSurfaceFittingWeight();
+         weights.Append(weight);
+      }
+      co = dynamic_cast<TMOPComboIntegrator *>(integs[i]);
+      if (co)
+      {
+         Array<TMOP_Integrator *> ati = co->GetTMOPIntegrators();
+         for (int j = 0; j < ati.Size(); j++)
+         {
+            weight = ati[j]->GetSurfaceFittingWeight();
+            weights.Append(weight);
+         }
+      }
+   }
+}
+
+void TMOPNewtonSolver::GetSurfaceFittingError(double &err_avg,
+                                              double &err_max) const
+{
+   const NonlinearForm *nlf = dynamic_cast<const NonlinearForm *>(oper);
+   const Array<NonlinearFormIntegrator*> &integs = *nlf->GetDNFI();
+   TMOP_Integrator *ti  = NULL;
+   TMOPComboIntegrator *co = NULL;
+
+   err_avg = 0.0;
+   err_max = 0.0;
+   double err_avg_loc, err_max_loc;
+   for (int i = 0; i < integs.Size(); i++)
+   {
+      ti = dynamic_cast<TMOP_Integrator *>(integs[i]);
+      if (ti)
+      {
+         if (ti->IsSurfaceFittingEnabled())
+         {
+            ti->GetSurfaceFittingErrors(err_avg_loc, err_max_loc);
+            err_avg = std::fmax(err_avg_loc, err_avg);
+            err_max = std::fmax(err_max_loc, err_max);
+         }
+      }
+      co = dynamic_cast<TMOPComboIntegrator *>(integs[i]);
+      if (co)
+      {
+         Array<TMOP_Integrator *> ati = co->GetTMOPIntegrators();
+         for (int j = 0; j < ati.Size(); j++)
+         {
+            if (ati[j]->IsSurfaceFittingEnabled())
+            {
+               ati[j]->GetSurfaceFittingErrors(err_avg_loc, err_max_loc);
+               err_avg = std::fmax(err_avg_loc, err_avg);
+               err_max = std::fmax(err_max_loc, err_max);
+            }
+         }
+      }
+   }
 }
 
 void TMOPNewtonSolver::ProcessNewState(const Vector &x) const
@@ -591,9 +709,9 @@ void TMOPNewtonSolver::ProcessNewState(const Vector &x) const
    if (parallel)
    {
 #ifdef MFEM_USE_MPI
-      const ParNonlinearForm *nlf =
+      const ParNonlinearForm *pnlf =
          dynamic_cast<const ParNonlinearForm *>(oper);
-      const ParFiniteElementSpace *pfesc = nlf->ParFESpace();
+      const ParFiniteElementSpace *pfesc = pnlf->ParFESpace();
       Vector x_loc(pfesc->GetVSize());
       pfesc->GetProlongationMatrix()->Mult(x, x_loc);
       for (int i = 0; i < integs.Size(); i++)
@@ -601,9 +719,13 @@ void TMOPNewtonSolver::ProcessNewState(const Vector &x) const
          ti = dynamic_cast<TMOP_Integrator *>(integs[i]);
          if (ti)
          {
-            ti->UpdateAfterMeshPositionChange(x_loc);
+            ti->UpdateAfterMeshPositionChange(x_loc, pfesc->GetOrdering());
             ti->ComputeFDh(x_loc, *pfesc);
-            UpdateDiscreteTC(*ti, x_loc);
+            if (compute_metric_quantile_flag)
+            {
+               ti->ComputeUntangleMetricQuantiles(x_loc, *pfesc);
+            }
+            UpdateDiscreteTC(*ti, x_loc, pfesc->GetOrdering());
          }
          co = dynamic_cast<TMOPComboIntegrator *>(integs[i]);
          if (co)
@@ -611,9 +733,13 @@ void TMOPNewtonSolver::ProcessNewState(const Vector &x) const
             Array<TMOP_Integrator *> ati = co->GetTMOPIntegrators();
             for (int j = 0; j < ati.Size(); j++)
             {
-               ati[j]->UpdateAfterMeshPositionChange(x_loc);
+               ati[j]->UpdateAfterMeshPositionChange(x_loc, pfesc->GetOrdering());
                ati[j]->ComputeFDh(x_loc, *pfesc);
-               UpdateDiscreteTC(*ati[j], x_loc);
+               if (compute_metric_quantile_flag)
+               {
+                  ati[j]->ComputeUntangleMetricQuantiles(x_loc, *pfesc);
+               }
+               UpdateDiscreteTC(*ati[j], x_loc, pfesc->GetOrdering());
             }
          }
       }
@@ -623,7 +749,7 @@ void TMOPNewtonSolver::ProcessNewState(const Vector &x) const
    {
       const FiniteElementSpace *fesc = nlf->FESpace();
       const Operator *P = nlf->GetProlongation();
-      static Vector x_loc;
+      Vector x_loc;
       if (P)
       {
          x_loc.SetSize(P->Height());
@@ -638,9 +764,13 @@ void TMOPNewtonSolver::ProcessNewState(const Vector &x) const
          ti = dynamic_cast<TMOP_Integrator *>(integs[i]);
          if (ti)
          {
-            ti->UpdateAfterMeshPositionChange(x_loc);
+            ti->UpdateAfterMeshPositionChange(x_loc, fesc->GetOrdering());
             ti->ComputeFDh(x_loc, *fesc);
-            UpdateDiscreteTC(*ti, x_loc);
+            if (compute_metric_quantile_flag)
+            {
+               ti->ComputeUntangleMetricQuantiles(x_loc, *fesc);
+            }
+            UpdateDiscreteTC(*ti, x_loc, fesc->GetOrdering());
          }
          co = dynamic_cast<TMOPComboIntegrator *>(integs[i]);
          if (co)
@@ -648,28 +778,68 @@ void TMOPNewtonSolver::ProcessNewState(const Vector &x) const
             Array<TMOP_Integrator *> ati = co->GetTMOPIntegrators();
             for (int j = 0; j < ati.Size(); j++)
             {
-               ati[j]->UpdateAfterMeshPositionChange(x_loc);
+               ati[j]->UpdateAfterMeshPositionChange(x_loc, fesc->GetOrdering());
                ati[j]->ComputeFDh(x_loc, *fesc);
-               UpdateDiscreteTC(*ati[j], x_loc);
+               if (compute_metric_quantile_flag)
+               {
+                  ati[j]->ComputeUntangleMetricQuantiles(x_loc, *fesc);
+               }
+               UpdateDiscreteTC(*ati[j], x_loc, fesc->GetOrdering());
             }
          }
       }
    }
+
+   // Constant coefficient associated with the surface fitting terms if
+   // adaptive surface fitting is enabled. The idea is to increase the
+   // coefficient if the surface fitting error does not sufficiently
+   // decrease between subsequent TMOPNewtonSolver iterations.
+   if (update_surf_fit_coeff)
+   {
+      double surf_fit_err_max = -10;
+      double surf_fit_err_avg = -10;
+      // Get surface fitting errors.
+      GetSurfaceFittingError(surf_fit_err_avg, surf_fit_err_max);
+      // Get array with surface fitting weights.
+      Array<double> weights;
+      GetSurfaceFittingWeight(weights);
+
+      if (print_options.iterations)
+      {
+         mfem::out << "Avg/Max surface fitting error: " <<
+                   surf_fit_err_avg << " " <<
+                   surf_fit_err_max << "\n";
+         mfem::out << "Min/Max surface fitting weight: " <<
+                   weights.Min() << " " << weights.Max() << "\n";
+      }
+
+      double change_surf_fit_err = surf_fit_err_avg_prvs-surf_fit_err_avg;
+      double rel_change_surf_fit_err = change_surf_fit_err/surf_fit_err_avg_prvs;
+      // Increase the surface fitting coefficient if the surface fitting error
+      // does not decrease sufficiently.
+      if (rel_change_surf_fit_err < 1.e-2)
+      {
+         UpdateSurfaceFittingWeight(10);
+      }
+      surf_fit_err_avg_prvs = surf_fit_err_avg;
+      update_surf_fit_coeff = false;
+   }
 }
 
 void TMOPNewtonSolver::UpdateDiscreteTC(const TMOP_Integrator &ti,
-                                        const Vector &x_new) const
+                                        const Vector &x_new,
+                                        int x_ordering) const
 {
    const bool update_flag = true;
    DiscreteAdaptTC *discrtc = ti.GetDiscreteAdaptTC();
    if (discrtc)
    {
-      discrtc->UpdateTargetSpecification(x_new, update_flag);
+      discrtc->UpdateTargetSpecification(x_new, update_flag, x_ordering);
       if (ti.GetFDFlag())
       {
          double dx = ti.GetFDh();
-         discrtc->UpdateGradientTargetSpecification(x_new, dx, update_flag);
-         discrtc->UpdateHessianTargetSpecification(x_new, dx, update_flag);
+         discrtc->UpdateGradientTargetSpecification(x_new, dx, update_flag, x_ordering);
+         discrtc->UpdateHessianTargetSpecification(x_new, dx, update_flag, x_ordering);
       }
    }
 }

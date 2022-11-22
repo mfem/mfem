@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -18,7 +18,8 @@ CONFIG_MK = $(MFEM_BUILD_DIR)/config/config.mk
 MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
-SEQ_TESTS = bench_ceed bench_tmop bench_vector bench_virtuals
+SEQ_TESTS = bench_assembly_levels bench_ceed bench_dg_amr bench_elasticity \
+            bench_tmop bench_vector bench_virtuals
 PAR_TESTS = 
 ifeq ($(MFEM_USE_MPI),NO)
    TESTS = $(SEQ_TESTS)
@@ -51,7 +52,14 @@ $($(TESTS)): \
 $(MFEM_LIB_FILE):
 	$(error The MFEM library is not built)
 
-clean: clean-build clean-exec
+cpu:
+	xelatex -file-line-error -shell-escape -interaction nonstopmode -halt-on-error bench_tmop_cpu.tex
+gpu:
+	xelatex -file-line-error -shell-escape -interaction nonstopmode -halt-on-error bench_tmop_gpu.tex
+ss:
+	xelatex -file-line-error -shell-escape -interaction nonstopmode -halt-on-error bench_tmop_ss.tex
+
+clean: clean-build clean-exec clean-tex
 
 clean-build:
 	rm -f *.o *~ $(SEQ_TESTS) $(PAR_TESTS)
@@ -60,3 +68,5 @@ clean-build:
 clean-exec:
 	@rm -f refined.mesh sol.gf
 
+clean-tex:
+	@rm -f *.aux *.log *.table *.gnuplot

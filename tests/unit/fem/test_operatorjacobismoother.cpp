@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -14,19 +14,16 @@
 
 using namespace mfem;
 
-namespace operatorjacobismoother
-{
-
-TEST_CASE("operatorjacobismoother")
+TEST_CASE("OperatorJacobiSmoother", "[OperatorJacobiSmoother]")
 {
    for (int dimension = 2; dimension < 4; ++dimension)
    {
       for (int ne = 1; ne < 3; ++ne)
       {
-         std::cout << "Testing " << dimension << "D partial assembly smoother: "
-                   << std::pow(ne, dimension) << " elements." << std::endl;
+         const int n_elements = std::pow(ne, dimension);
          for (int order = 1; order < 5; ++order)
          {
+            CAPTURE(dimension, n_elements, order);
             Mesh mesh;
             if (dimension == 2)
             {
@@ -78,8 +75,6 @@ TEST_CASE("operatorjacobismoother")
             pa_smoother.Mult(xin, y_pa);
 
             y_fa -= y_pa;
-            double error = y_fa.Norml2();
-            std::cout << "    order: " << order << ", error norm: " << error << std::endl;
             REQUIRE(y_fa.Norml2() < 1.e-12);
 
             delete h1_fec;
@@ -88,15 +83,14 @@ TEST_CASE("operatorjacobismoother")
    }
 }
 
-TEST_CASE("operatorjacobifichera")
+TEST_CASE("OperatorJacobiSmoother Fichera", "[OperatorJacobiSmoother]")
 {
    const int dimension = 3;
    for (int refine = 1; refine < 4; ++refine)
    {
-      std::cout << "Testing " << 3 << "D partial assembly smoother: "
-                << "fichera mesh, refine level " << refine << std::endl;
       for (int order = 1; order < 5; ++order)
       {
+         CAPTURE(refine, order);
          Mesh mesh("../../data/fichera.mesh", 1, refine, true);
          FiniteElementCollection *h1_fec = new H1_FECollection(order, dimension);
          FiniteElementSpace h1_fespace(&mesh, h1_fec);
@@ -138,13 +132,9 @@ TEST_CASE("operatorjacobifichera")
          pa_smoother.Mult(xin, y_pa);
 
          y_fa -= y_pa;
-         double error = y_fa.Norml2();
-         std::cout << "    order: " << order << ", error norm: " << error << std::endl;
          REQUIRE(y_fa.Norml2() < 1.e-12);
 
          delete h1_fec;
       }
    }
 }
-
-} // namespace operatorjacobismoother

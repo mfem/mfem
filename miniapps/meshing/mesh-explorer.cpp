@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -32,6 +32,7 @@
 //               mesh-explorer -m ../../data/mobius-strip.mesh
 
 #include "mfem.hpp"
+#include "../common/mfem-common.hpp"
 #include <fstream>
 #include <limits>
 #include <cstdlib>
@@ -496,7 +497,37 @@ int main (int argc, char *argv[])
 
       if (mk == 't')
       {
-         mesh->Transform(transformation);
+         char type;
+         cout << "Choose a transformation:\n"
+              "u) User-defined transform through mesh-explorer::transformation()\n"
+              "k) Kershaw transform\n"<< "---> " << flush;
+         cin >> type;
+         if (type == 'u')
+         {
+            mesh->Transform(transformation);
+         }
+         else if (type == 'k')
+         {
+            cout << "Note: For Kershaw transformation, the input must be "
+                 "Cartesian aligned with nx multiple of 6 and "
+                 "both ny and nz multiples of 2."
+                 "Kershaw transform works for 2D meshes also.\n" << flush;
+
+            double epsy, epsz = 0.0;
+            cout << "Kershaw transform factor, epsy in (0, 1]) ---> " << flush;
+            cin >> epsy;
+            if (mesh->Dimension() == 3)
+            {
+               cout << "Kershaw transform factor, epsz in (0, 1]) ---> " << flush;
+               cin >> epsz;
+            }
+            common::KershawTransformation kershawT(mesh->Dimension(), epsy, epsz);
+            mesh->Transform(kershawT);
+         }
+         else
+         {
+            MFEM_ABORT("Transformation type not supported.");
+         }
          print_char = 1;
       }
 
@@ -1143,30 +1174,30 @@ int main (int argc, char *argv[])
 
       if (mk == 'S')
       {
-         const char mesh_file[] = "mesh-explorer.mesh";
-         ofstream omesh(mesh_file);
+         const char omesh_file[] = "mesh-explorer.mesh";
+         ofstream omesh(omesh_file);
          omesh.precision(14);
          mesh->Print(omesh);
-         cout << "New mesh file: " << mesh_file << endl;
+         cout << "New mesh file: " << omesh_file << endl;
       }
 
       if (mk == 'V')
       {
-         const char mesh_file[] = "mesh-explorer.vtk";
-         ofstream omesh(mesh_file);
+         const char omesh_file[] = "mesh-explorer.vtk";
+         ofstream omesh(omesh_file);
          omesh.precision(14);
          mesh->PrintVTK(omesh);
-         cout << "New VTK mesh file: " << mesh_file << endl;
+         cout << "New VTK mesh file: " << omesh_file << endl;
       }
 
 #ifdef MFEM_USE_ZLIB
       if (mk == 'Z')
       {
-         const char mesh_file[] = "mesh-explorer.mesh.gz";
-         ofgzstream omesh(mesh_file, "zwb9");
+         const char omesh_file[] = "mesh-explorer.mesh.gz";
+         ofgzstream omesh(omesh_file, "zwb9");
          omesh.precision(14);
          mesh->Print(omesh);
-         cout << "New mesh file: " << mesh_file << endl;
+         cout << "New mesh file: " << omesh_file << endl;
       }
 #endif
 
