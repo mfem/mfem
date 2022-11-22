@@ -42,7 +42,7 @@ void KDTreeM::FindClosestPoint(Vector& pt, int &ind, double& dist)
    ind=data[best_candidate.pos].ind;
 }
 
-void KDTreeM::rFindClosestPoint(Vector& pt,int& ind, double& dist)
+void KDTreeM::_FindClosestPoint(Vector& pt,int& ind, double& dist)
 {
    PointS best_candidate;
    best_candidate.sp.xx=pt.GetData();

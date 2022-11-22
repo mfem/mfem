@@ -248,7 +248,7 @@ public:
    }
 
    /// Brute force search - please, use it only for debuging purposes
-   void rFindNeighborPoints(PointND& pt,Tfloat R, std::vector<Tindex> & res,
+   void _FindNeighborPoints(PointND& pt,Tfloat R, std::vector<Tindex> & res,
                             std::vector<Tfloat> & dist)
    {
       Tfloat dd;
@@ -264,7 +264,7 @@ public:
    }
 
    /// Brute force search - please, use it only for debuging purposes
-   void rFindNeighborPoints(PointND& pt,Tfloat R, std::vector<Tindex> & res)
+   void _FindNeighborPoints(PointND& pt,Tfloat R, std::vector<Tindex> & res)
    {
       Tfloat dd;
       for (auto iti=data.begin(); iti!=data.end(); iti++)
@@ -367,58 +367,61 @@ private:
       typename std::vector<NodeND>::iterator mtb=itb+siz/2;
       if (siz>2)
       {
-         //median is at itb+siz/2
+         // median is at itb+siz/2
          level=level+1;
-         if ((bc.sp.xx[dim]-bc.dist)>mtb->pt.xx[dim]) //look on the right only
+         if ((bc.sp.xx[dim]-bc.dist)>mtb->pt.xx[dim]) // look on the right only
          {
             PSearch(itb+siz/2+1, ite, level, bc);
          }
-         else if ((bc.sp.xx[dim]+bc.dist)<mtb->pt.xx[dim]) //look on the left only
+         else
+         if ((bc.sp.xx[dim]+bc.dist)<mtb->pt.xx[dim]) // look on the left only
          {
             PSearch(itb,itb+siz/2, level, bc);
          }
-         else  //check all
+         else  // check all
          {
             if (bc.sp.xx[dim]<mtb->pt.xx[dim])
             {
-               //start with the left portion
+               // start with the left portion
                PSearch(itb,itb+siz/2, level, bc);
-               //and continue to the right
+               // and continue to the right
                if (!((bc.sp.xx[dim]+bc.dist)<mtb->pt.xx[dim]))
                {
                   PSearch(itb+siz/2+1, ite, level, bc);
                   {
-                     //check central one
+                     // check central one
                      Tfloat dd=Dist(mtb->pt, bc.sp);
-                     if (dd<bc.dist) { bc.dist=dd; bc.pos=mtb-data.begin(); bc.level=level; }
-                  }//end central point check
+                     if (dd<bc.dist){
+                         bc.dist=dd; bc.pos=mtb-data.begin(); bc.level=level; }
+                  }// end central point check
                }
             }
             else
             {
-               //start with the right portion
+               // start with the right portion
                PSearch(itb+siz/2+1, ite, level, bc);
-               //and continue with left
+               // and continue with left
                if (!((bc.sp.xx[dim]-bc.dist)>mtb->pt.xx[dim]))
                {
                   PSearch(itb, itb+siz/2, level, bc);
                   {
-                     //check central one
+                     // check central one
                      Tfloat dd=Dist(mtb->pt, bc.sp);
-                     if (dd<bc.dist) { bc.dist=dd; bc.pos=mtb-data.begin(); bc.level=level; }
-                  }//end central point check
+                     if (dd<bc.dist){
+                         bc.dist=dd; bc.pos=mtb-data.begin(); bc.level=level; }
+                  } // end central point check
                }
             }
          }
       }
       else
       {
-         //check the nodes
+         // check the nodes
          Tfloat dd;
          for (auto it=itb; it!=ite; it++)
          {
             dd=Dist(it->pt, bc.sp);
-            if (dd<bc.dist) //update bc
+            if (dd<bc.dist) // update bc
             {
                bc.pos=it-data.begin();
                bc.dist=dd;
@@ -440,30 +443,29 @@ private:
       typename std::vector<NodeND>::iterator mtb=itb+siz/2;
       if (siz>2)
       {
-         //median is at itb+siz/2
+         // median is at itb+siz/2
          level=level+1;
          Tfloat R=std::get<0>(res[npoints-1]);
-         //check central one
+         // check central one
          Tfloat dd=Dist(mtb->pt, pt);
          if (dd<R)
          {
             res[npoints-1]=std::make_tuple(dd,mtb->ind);
-            //std::sort(res.begin(),res.end());
             std::nth_element(res.begin(), res.end()-1, res.end());
             R=std::get<0>(res[npoints-1]);
          }
-         if ((pt.xx[dim]-R)>mtb->pt.xx[dim]) //look to the right only
+         if ((pt.xx[dim]-R)>mtb->pt.xx[dim]) // look to the right only
          {
             NNS(pt, npoints, itb+siz/2+1, ite, level, res);
          }
-         else if ((pt.xx[dim]+R)<mtb->pt.xx[dim]) //look to the left only
+         else if ((pt.xx[dim]+R)<mtb->pt.xx[dim]) // look to the left only
          {
             NNS(pt, npoints, itb, itb+siz/2, level,   res);
          }
-         else  //check all
+         else  // check all
          {
-            NNS(pt,npoints, itb+siz/2+1, ite, level, res); //right
-            NNS(pt,npoints, itb, itb+siz/2, level,   res); //left
+            NNS(pt,npoints, itb+siz/2+1, ite, level, res); // right
+            NNS(pt,npoints, itb, itb+siz/2, level,   res); // left
          }
       }
       else
@@ -472,10 +474,9 @@ private:
          for (auto it=itb; it!=ite; it++)
          {
             dd=Dist(it->pt, pt);
-            if (dd< std::get<0>(res[npoints-1])) //update the list
+            if (dd< std::get<0>(res[npoints-1])) // update the list
             {
                res[npoints-1]=std::make_tuple(dd,it->ind);
-               //std::sort(res.begin(),res.end());
                std::nth_element(res.begin(), res.end()-1, res.end());
             }
          }
@@ -494,22 +495,22 @@ private:
       typename std::vector<NodeND>::iterator mtb=itb+siz/2;
       if (siz>2)
       {
-         //median is at itb+siz/2
+         // median is at itb+siz/2
          level=level+1;
-         if ((pt.xx[dim]-R)>mtb->pt.xx[dim]) //look to the right only
+         if ((pt.xx[dim]-R)>mtb->pt.xx[dim]) // look to the right only
          {
             RNS(pt, R, itb+siz/2+1, ite, level, res);
          }
-         else if ((pt.xx[dim]+R)<mtb->pt.xx[dim]) //look to the left only
+         else if ((pt.xx[dim]+R)<mtb->pt.xx[dim]) // look to the left only
          {
             RNS(pt,R, itb, itb+siz/2, level,   res);
          }
          else  //check all
          {
-            RNS(pt,R, itb+siz/2+1, ite, level, res); //right
-            RNS(pt,R, itb, itb+siz/2, level,   res); //left
+            RNS(pt,R, itb+siz/2+1, ite, level, res); // right
+            RNS(pt,R, itb, itb+siz/2, level,   res); // left
 
-            //check central one
+            // check central one
             Tfloat dd=Dist(mtb->pt, pt);
             if (dd<R)
             {
@@ -544,22 +545,22 @@ private:
       typename std::vector<NodeND>::iterator mtb=itb+siz/2;
       if (siz>2)
       {
-         //median is at itb+siz/2
+         // median is at itb+siz/2
          level=level+1;
-         if ((pt.xx[dim]-R)>mtb->pt.xx[dim]) //look to the right only
+         if ((pt.xx[dim]-R)>mtb->pt.xx[dim]) // look to the right only
          {
             RNS(pt, R, itb+siz/2+1, ite, level, res, dist);
          }
-         else if ((pt.xx[dim]+R)<mtb->pt.xx[dim]) //look to the left only
+         else if ((pt.xx[dim]+R)<mtb->pt.xx[dim]) // look to the left only
          {
             RNS(pt,R, itb, itb+siz/2, level,   res, dist);
          }
-         else  //check all
+         else  // check all
          {
-            RNS(pt,R, itb+siz/2+1, ite, level, res, dist); //right
-            RNS(pt,R, itb, itb+siz/2, level,   res, dist); //left
+            RNS(pt,R, itb+siz/2+1, ite, level, res, dist); // right
+            RNS(pt,R, itb, itb+siz/2, level,   res, dist); // left
 
-            //check central one
+            // check central one
             Tfloat dd=Dist(mtb->pt, pt);
             if (dd<R)
             {
@@ -574,7 +575,7 @@ private:
          for (auto it=itb; it!=ite; it++)
          {
             dd=Dist(it->pt, pt);
-            if (dd<R) //update bc
+            if (dd<R) // update bc
             {
                res.push_back(it->ind);
                dist.push_back(dd);
@@ -603,6 +604,7 @@ typedef KDTree<int,double,1> KDTree1D;
 class KDTreeM
 {
 public:
+   /// Construtor
    KDTreeM(mfem::Vector& coords_,int dim_)
    {
       gf=&coords_;
@@ -654,7 +656,7 @@ public:
    void FindClosestPoint(Vector& pt, int &ind, double& dist);
 
    /// Brute force search - please, use it only for debuging purposes.
-   void rFindClosestPoint(Vector& pt,int& ind, double& dist);
+   void _FindClosestPoint(Vector& pt,int& ind, double& dist);
 
 private:
    mfem::Vector* gf;
@@ -724,5 +726,5 @@ private:
 
 };
 
-};
+}
 #endif

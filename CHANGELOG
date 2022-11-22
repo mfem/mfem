@@ -10,7 +10,11 @@
 
 Version 4.5.1 (development)
 ===========================
-
+- Added KDTree classes for a 3D set or 2D set of points and a KDTree class with
+  points stored externally. In addition, the KDTree classes are utilized in
+  KDTreeNodalProjection class for projecting a function defined on an arbitrary
+  set of points onto an MFEM grid function. The functionality is demonstrated
+  in the nodal_transfer miniapp in the tools subdirectory.
 
 Version 4.5, released on October 22, 2022
 =========================================
