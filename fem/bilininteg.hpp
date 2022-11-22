@@ -224,10 +224,10 @@ public:
                              function by any coefficients describing the
                              integrator.
        @param[in] ir  If passed (the default value is NULL), the implementation
-                        of the method will ignore the integration rule provided
-                        by the @a fluxelem parameter and, instead, compute the
-                        discrete flux at the points specified by the integration
-                        rule @a ir.
+                      of the method will ignore the integration rule provided
+                      by the @a fluxelem parameter and, instead, compute the
+                      discrete flux at the points specified by the integration
+                      rule @a ir.
     */
    virtual void ComputeElementFlux(const FiniteElement &el,
                                    ElementTransformation &Trans,
@@ -3068,8 +3068,8 @@ public:
 
 /** Integrator for the DG form:
 
-    - < {(Q grad(u)).n}, [v] > + sigma < [u], {(Q grad(v)).n} >
-    + kappa < {h^{-1} Q} [u], [v] >,
+        - < {(Q grad(u)).n}, [v] > + sigma < [u], {(Q grad(v)).n} >
+        + kappa < {h^{-1} Q} [u], [v] >
 
     where Q is a scalar or matrix diffusion coefficient and u, v are the trial
     and test spaces, respectively. The parameters sigma and kappa determine the

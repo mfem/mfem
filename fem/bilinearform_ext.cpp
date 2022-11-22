@@ -955,6 +955,10 @@ void FABilinearFormExtension::Assemble()
       }
       a->mat = mat;
    }
+   if ( a->sort_sparse_matrix )
+   {
+      a->mat->SortColumnIndices();
+   }
 }
 
 

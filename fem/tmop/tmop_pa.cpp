@@ -192,7 +192,7 @@ void TMOP_Integrator::AssemblePA(const FiniteElementSpace &fes)
    const FiniteElement &fe = *fes.GetFE(0);
    PA.ir = &EnergyIntegrationRule(fe);
    const IntegrationRule &ir = *PA.ir;
-   MFEM_ASSERT(fes.GetOrdering() == Ordering::byNODES,
+   MFEM_VERIFY(fes.GetOrdering() == Ordering::byNODES,
                "PA Only supports Ordering::byNODES!");
 
    const int nq = PA.nq = ir.GetNPoints();
