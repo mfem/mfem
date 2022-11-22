@@ -12,37 +12,33 @@
 // Incompressible Navier-Stokes stagnation flat plate example
 //
 // Solve for steady flow defined by:
-// P = 101325Pa (sea level condition)
-// u = 68.058 m/s (Mach 0.2)
-// mu = 1.7894x10^-3 Kg /m * s (sea level condition scaled by 100 to ensure
-//     the flow remains laminar)
-// Re_x = 4.66x10^4 (at the end of the plate)
-// rho = 1.225 km/m^3 (sea level condition)
+// U = 3.0 m/s
+// nu = 1.5x10^-3 m^2/s
+// Re_x = 200 (at the end of the plate)
 //
 // The 2D problem domain is set up like this:
 // 
-// Uniform flow from the left passes over a flat plate of 1m in length with its
-// leading edge located at 0.1m into the domain. The incompressible
+// Uniform flow from the left passes over a flat plate of 0.1m in length with its
+// leading edge located at 0.01m into the domain. The incompressible
 // Navier-Stokes equations are modeled throughout the entire domain as
 // illustrated below:
 //
-//                 Atmosphere - symmetry boundary condition
-//                 		(attr=3)
-//                 ________________________________________
-//                |                                        |
-//                |             FLUID DOMAIN               |
-//                |                                        |
-//   --> inflow   |                                        | --> outflow
-//    (attr=1)    |                                        |  (attr=2)
-//                |_____-----------------------------------|
-//	       Atm. sym. bc.	     flat plate
-//               (attr=4)             (attr=5)    
+//                                 Outflow
+//                             (mesh attr = 3)
+//                  ________________________________________
+//                 |                                        |
+//                 |             FLUID DOMAIN               |
+//                 |                                        |
+//   --> inflow    |                                        | -->  outflow
+// (mesh attr = 4) |                                        |  (mesh attr = 2)
+//                 |_____-----------------------------------|
+//	        Atm. sym. bc.	     flat plate
+//             (mesh attr = 1)      (mesh attr = 1)    
 //
-// Uniform Dirichlet velocity conditions are imposed at inflow (attr=1) and
-// homogeneous Dirichlet conditions are imposed on all surface (attr=3) except
-// the outflow (attr=2) which has Neumann boundary conditions for velocity.
+// Dirichlet velocity conditions are imposed at the left boundary (inflow) and
+// the bottom boundary (symmetry and plate). Numann Pressure conditions are imposed
+// on the right and top boundaries (outflow).
 
-//CURRENT CONFIGURATION IS FOR DEBUGGING.
 #include "mfem.hpp"
 #include "navier_solver.hpp"
 #include <fstream>
@@ -56,10 +52,11 @@ using namespace navier;
 struct s_NavierContext
 {
    int ser_ref_levels = 0; //Serial Refinement Levels
-   int order = 6; // Finite Element function space order
-   double kinvis = 10 * 0.0014607; //Kinematic viscocity - SET THIS TO APPROPRIATE VALUE
-   double dt = 0.0001; //Time-step size
-   double t_final = 0.250; //Final time of simulation
+   int order = 1; //Finite Element function space order
+   double kinvis = 0.0015; //Kinematic viscocity
+   double dt = 1e-4; //Time step size
+   double steps = 1000; //Number of time steps
+   double t_final = dt*steps; //Total run time
    bool pa = true;
    bool ni = false;
    bool visualization = false;
@@ -182,16 +179,14 @@ int main(int argc, char *argv[])
    // Add Dirichlet boundary conditions to velocity space restricted to
    // selected attributes on the mesh.
    Array<int> attr(pmesh->bdr_attributes.Max());
-   // Inlet is attribute 1.
+   // Bottom is attribute 1.
    attr[0] = 1;
-   // Outlet is arttribute 2.
+   // Outlet is attribute 2.
    attr[1] = 0; 
-   // Top slip is attribute 3.
+   // Top is attribute 3.
    attr[2] = 0;
-   // Bottom slip is attribute 4.
+   // Inlet is attribute 4
    attr[3] = 1;
-   // Plate is attribute 5.
-   attr[4] = 1;
    flowsolver.AddVelDirichletBC(vel_dbc, attr);
    // ===============================================================
 
@@ -299,36 +294,35 @@ int main(int argc, char *argv[])
 // Dirichlet conditions for uniform flow velocity in the inlet
 void vel_ic(const Vector &x, double t, Vector &u)
 {
-   double u_ic = 0.0001; //Small initial velocity to not divide by 0 anywhere. 
+   double u_ic = 1e-5; //Small initial velocity to avoid divide by 0. 
    u(0) = u_ic;
    u(1) = 0.0;
 }
-
 
 void vel_dbc(const Vector &x, double t, Vector &u){
 	double xi = x(0);
 	double yi = x(1);
 	
-	double U = 10.0; //Freestream velocity
+	double U = 3.0; //Freestream velocity
+	double tol = 1e-9; //must be smaller than smallest mesh element
 
-	//Inlet
-	if(xi <= 1e-8){
-		u(0) = U;
-		u(1) = 0.0;
-	}
-	//Slip walls & Plate
-	if(yi <= 1e-8){
-		if(xi < 0.1){ //Bottom slip wall
+	// Bottom boundary
+	if(yi <= tol){
+		if(xi < 0.01){ //Symmetry condition before the plate
 			u(1) = 0.0;
 		}
-		else{ // No-slip, no-penetration plate
+		
+		else{ // No slip plate 
 			u(0) = 0.0;
 			u(1) = 0.0;
 		}
 	}
-//	else (yi >= (0.1 - (0.01*xi)/1.1)){ //Top slip wall
-//		u(1) = 0.0;
-//	}
+
+	//Uniform velocity at inlet on left boundary
+	if(xi <= tol){
+		u(0) = U;
+		u(1) = 0.0;
+	}
 }
 
 // To represent the outflow boundary condition the zero-stress boundary condition
