@@ -197,16 +197,16 @@ public:
    /// Finds the nearest neighbour index and return the clossest poitn in clp
    Tindex FindClosestPoint(PointND& pt, PointND& clp)
    {
-       PointS best_candidate;
-       best_candidate.sp=pt;
-       //initialize the best candidate
-       best_candidate.pos =0;
-       best_candidate.dist=Dist(data[0].pt, best_candidate.sp);
-       best_candidate.level=0;
-       PSearch(data.begin(), data.end(), 0, best_candidate);
+      PointS best_candidate;
+      best_candidate.sp=pt;
+      //initialize the best candidate
+      best_candidate.pos =0;
+      best_candidate.dist=Dist(data[0].pt, best_candidate.sp);
+      best_candidate.level=0;
+      PSearch(data.begin(), data.end(), 0, best_candidate);
 
-       clp=data[best_candidate.pos].pt;
-       return data[best_candidate.pos].ind;
+      clp=data[best_candidate.pos].pt;
+      return data[best_candidate.pos].ind;
    }
 
    /// Returns the closest point and the distance to the input point pt.

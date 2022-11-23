@@ -4668,8 +4668,8 @@ void KDTreeNodalProjection::Project(Vector& coords, Vector& src,
          flag=true;
          for (int j=0; j<dim; j++)
          {
-            if (pnd.xx[j]>maxbb[j]) {flag=false; break;}
-            if (pnd.xx[j]<minbb[j]) {flag=false; break;}
+            if (pnd.xx[j]>(maxbb[j]+lerr)) {flag=false; break;}
+            if (pnd.xx[j]<(minbb[j]-lerr)) {flag=false; break;}
          }
 
          if (flag)
@@ -4838,6 +4838,9 @@ void KDTreeNodalProjection::Project(GridFunction& gf, double lerr)
          }
       }
    }
+
+   bbmax+=lerr;
+   bbmin-=lerr;
 
    //check for intersection
    bool flag;
