@@ -86,6 +86,7 @@ int main(int argc, char* argv[])
    int order = 1;
    int gen_data = 1;
    int src_num_procs = 4;
+   bool vis = true;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh", "Mesh file to use.");
@@ -109,6 +110,9 @@ int main(int argc, char* argv[])
                   "-snp",
                   "--src_num_procs",
                   "Number of processes for the src grid function.");
+   args.AddOption(&vis, "-vis", "--visualization", "-no-vis",
+                  "--no-visualization",
+                  "Enable or disable GLVis visualization.");
    args.Parse();
    if (!args.Good())
    {
