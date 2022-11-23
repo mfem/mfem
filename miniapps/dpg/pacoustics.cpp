@@ -252,6 +252,7 @@ int main(int argc, char *argv[])
       mesh.UniformRefinement();
    }
    dim = mesh.Dimension();
+   MFEM_VERIFY(dim > 1, "Dimension = 1 is not supported in this example");
 
    CartesianPML * pml = nullptr;
    if (with_pml)
@@ -273,15 +274,15 @@ int main(int argc, char *argv[])
    // Define spaces
    enum TrialSpace
    {
-      p_space,
-      u_space,
-      hatp_space,
-      hatu_space
+      p_space     = 0,
+      u_space     = 1,
+      hatp_space  = 2,
+      hatu_space  = 3
    };
    enum TestSpace
    {
-      q_space,
-      v_space
+      q_space = 0,
+      v_space = 1
    };
 
    // L2 space for p
