@@ -72,6 +72,8 @@ public:
 
 // A. Belyaev et al: "On Variational and PDE-based Distance Function
 // Approximations", Section 6, DOI:10.1111/cgf.12611.
+// This solver is computationally cheap, but is accurate for distance
+// approximations only near the zero level set.
 class NormalizationDistanceSolver : public DistanceSolver
 {
 private:
