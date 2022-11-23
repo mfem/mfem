@@ -32,6 +32,8 @@
 //    Computer Graphics Forum, 34: 104-118, 2015, Section 7.
 //
 // 3. Rvachev normalization solver: same paper as p-Laplacian, Section 6.
+//    This solver is computationally cheap, but is accurate for distance
+//    approximations only near the zero level set.
 //
 //
 // The solution of the p-Laplacian solver approaches the signed distance when
@@ -314,8 +316,7 @@ int main(int argc, char *argv[])
    {
       const int p = 10;
       const int newton_iter = 50;
-      auto ds = new PLapDistanceSolver(p, newton_iter);
-      dist_solver = ds;
+      dist_solver = new PLapDistanceSolver(p, newton_iter);
    }
    else if (solver_type == 2)
    {
