@@ -92,6 +92,8 @@ public:
     *  internally in HiOp. */
    virtual bool get_starting_point(const hiop::size_type &n, double *x0);
 
+   using hiop::hiopInterfaceBase::get_starting_point;
+
    virtual bool get_vars_info(const hiop::size_type &n, double *xlow, double* xupp,
                               NonlinearityType* type);
 
@@ -136,6 +138,8 @@ public:
                           const hiop::index_type *idx_cons,
                           const double *x, bool new_x, double *cons);
 
+   using hiop::hiopInterfaceBase::eval_cons;
+
    /** Evaluates the Jacobian of the subset of constraints indicated by
     *  idx_cons. The idx_cons is assumed to be of size num_cons.
     *  Example: if cons[c] = C(x)[idx_cons[c]] where c = 0 .. num_cons-1, then
@@ -151,6 +155,8 @@ public:
                               const hiop::size_type &num_cons,
                               const hiop::index_type *idx_cons,
                               const double *x, bool new_x, double *Jac);
+
+   using hiop::hiopInterfaceDenseConstraints::eval_Jac_cons;
 
    /** Specifies column partitioning for distributed memory vectors.
     *  Process p owns vector entries with indices cols[p] to cols[p+1]-1,
