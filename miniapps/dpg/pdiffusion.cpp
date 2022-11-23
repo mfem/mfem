@@ -150,6 +150,7 @@ int main(int argc, char *argv[])
 
    Mesh mesh(mesh_file, 1, 1);
    int dim = mesh.Dimension();
+   MFEM_VERIFY(dim > 1, "Dimension = 1 is not supported in this example");
 
    if (prob == prob_type::lshape)
    {
@@ -178,15 +179,15 @@ int main(int argc, char *argv[])
    // Define spaces
    enum TrialSpace
    {
-      u_space,
-      sigma_space,
-      hatu_space,
-      hatsigma_space
+      u_space        = 0,
+      sigma_space    = 1,
+      hatu_space     = 2,
+      hatsigma_space = 3
    };
    enum TestSpace
    {
-      tau_space,
-      v_space
+      tau_space = 0,
+      v_space   = 1
    };
    // L2 space for u
    FiniteElementCollection *u_fec = new L2_FECollection(order-1,dim);

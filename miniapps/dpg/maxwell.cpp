@@ -159,21 +159,23 @@ int main(int argc, char *argv[])
 
    Mesh mesh(mesh_file, 1, 1);
    dim = mesh.Dimension();
+   MFEM_VERIFY(dim > 1, "Dimension = 1 is not supported in this example");
+
    dimc = (dim == 3) ? 3 : 1;
    int test_order = order+delta_order;
 
    // Define spaces
    enum TrialSpace
    {
-      E_space,
-      H_space,
-      hatE_space,
-      hatH_space
+      E_space     = 0,
+      H_space     = 1,
+      hatE_space  = 2,
+      hatH_space  = 3
    };
    enum TestSpace
    {
-      F_space,
-      G_space
+      F_space = 0,
+      G_space = 1
    };
    // L2 space for E
    FiniteElementCollection *E_fec = new L2_FECollection(order-1,dim);
