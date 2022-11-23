@@ -199,7 +199,7 @@ void BlockStaticCondensation::GetReduceElementIndicesAndOffsets(int el,
    else
    {
       MFEM_ABORT("BlockStaticCondensation::GetReduceElementIndicesAndOffsets: "
-                  "dim > 3 not supported");
+                 "dim > 3 not supported");
    }
    int numfaces = faces.Size();
 

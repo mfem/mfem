@@ -752,7 +752,7 @@ Vector & DPGWeakForm::ComputeResidual(const BlockVector & x)
       else
       {
          MFEM_ABORT("DPGWeakForm::ComputeResidual: "
-                     "dim > 3 not supported");
+                    "dim > 3 not supported");
       }
       int numfaces = faces.Size();
 
