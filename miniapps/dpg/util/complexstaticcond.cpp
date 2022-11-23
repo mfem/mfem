@@ -207,7 +207,7 @@ void ComplexBlockStaticCondensation::GetReduceElementIndicesAndOffsets(int el,
    }
    else
    {
-      MFEM_ABORT("ComplexBlockStaticCondensation::GetReduceElementIndicesAndOffsets: " 
+      MFEM_ABORT("ComplexBlockStaticCondensation::GetReduceElementIndicesAndOffsets: "
                  "dim > 3 not supported");
    }
    int numfaces = faces.Size();

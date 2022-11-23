@@ -979,7 +979,7 @@ Vector & ComplexDPGWeakForm::ComputeResidual(const Vector & x)
       else
       {
          MFEM_ABORT("ComplexDPGWeakForm::ComputeResidual: "
-                     "dim > 3 not supported");
+                    "dim > 3 not supported");
       }
       int numfaces = faces.Size();
 

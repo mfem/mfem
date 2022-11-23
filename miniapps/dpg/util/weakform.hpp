@@ -65,9 +65,9 @@ protected:
    Array<Array<LinearFormIntegrator * > * > lfis;
 
    /// Block Prolongation
-   BlockMatrix * P = nullptr; 
+   BlockMatrix * P = nullptr;
    /// Block Restriction
-   BlockMatrix * R = nullptr; 
+   BlockMatrix * R = nullptr;
 
    mfem::Operator::DiagonalPolicy diag_policy;
 
