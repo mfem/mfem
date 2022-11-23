@@ -50,13 +50,13 @@ protected:
    BlockMatrix *mat_e_r = nullptr;
    BlockMatrix *mat_e_i = nullptr;
 
-   // Trial FE spaces
+   /// Trial FE spaces
    Array<FiniteElementSpace * > trial_fes;
 
-   // Flags to determine if a FiniteElementSpace is Trace
+   /// Flags to determine if a FiniteElementSpace is Trace
    Array<int> IsTraceFes;
 
-   // Test FE Collections (Broken)
+   /// Test FE Collections (Broken)
    Array<FiniteElementCollection *> test_fecols;
    Array<int> test_fecols_vdims;
 
@@ -72,8 +72,10 @@ protected:
    Array<Array<LinearFormIntegrator * > * > lfis_r;
    Array<Array<LinearFormIntegrator * > * > lfis_i;
 
-   BlockMatrix * P = nullptr; // Block Prolongation
-   BlockMatrix * R = nullptr; // Block Restriction
+   /// Block Prolongation
+   BlockMatrix * P = nullptr; 
+   /// Block Restriction
+   BlockMatrix * R = nullptr; 
 
    mfem::Operator::DiagonalPolicy diag_policy;
 
@@ -91,8 +93,8 @@ protected:
 
    bool store_matrices = false;
 
-   // Store the matrix L^-1 B  and Vector L^-1 l
-   // where G = L L^t
+   /** Store the matrix L^-1 B  and Vector L^-1 l
+       where G = L L^t */
    Array<ComplexDenseMatrix * > Bmat;
    Array<Vector * > fvec;
    Vector residuals;
@@ -145,38 +147,42 @@ public:
    // Get the size of the bilinear form of the ComplexDPGWeakForm
    int Size() const { return height; }
 
-   // Pre-allocate the internal SparseMatrix before assembly.
+   // Pre-allocate the internal real and imag BlockMatrix before assembly.
    void AllocateMatrix() { if (mat_r == NULL) { AllocMat(); } }
 
    ///  Finalizes the matrix initialization.
    void Finalize(int skip_zeros = 1);
 
-   /// Returns a reference to the sparse matrix:  \f$ M \f$
+   /// Returns a reference to the BlockMatrix:  \f$ M_r \f$
    BlockMatrix &BlockMat_r()
    {
       MFEM_VERIFY(mat_r, "mat_r is NULL and can't be dereferenced");
       return *mat_r;
    }
+   /// Returns a reference to the BlockMatrix:  \f$ M_i \f$
    BlockMatrix &BlockMat_i()
    {
       MFEM_VERIFY(mat_i, "mat_i is NULL and can't be dereferenced");
       return *mat_i;
    }
 
-   /// Returns a reference to the sparse matrix of eliminated b.c.: \f$ M_e \f$
+   /// Returns a reference to the BlockMatrix of eliminated b.c.: \f$ M_e_r \f$
    BlockMatrix &BlockMatElim_r()
    {
       MFEM_VERIFY(mat_e_r, "mat_e is NULL and can't be dereferenced");
       return *mat_e_r;
    }
 
+   /// Returns a reference to the BlockMatrix of eliminated b.c.: \f$ M_e_i \f$
    BlockMatrix &BlockMatElim_i()
    {
       MFEM_VERIFY(mat_e_i, "mat_e is NULL and can't be dereferenced");
       return *mat_e_i;
    }
 
-   /// Adds new Trial Integrator. Assumes ownership of @a bfi.
+   /** Adds new Trial Integrator. Assumes ownership of @a bfi.
+       @a n and @a m correspond to the trial FESpace and test FEColl
+       respectively */
    void AddTrialIntegrator(BilinearFormIntegrator *bfi_r,
                            BilinearFormIntegrator *bfi_i,
                            int n, int m);

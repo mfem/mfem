@@ -197,13 +197,18 @@ void ComplexBlockStaticCondensation::GetReduceElementIndicesAndOffsets(int el,
    {
       mesh->GetElementVertices(el, faces);
    }
-   if (dim == 2)
+   else if (dim == 2)
    {
       mesh->GetElementEdges(el, faces, ori);
    }
-   else //dim = 3
+   else if (dim == 3)
    {
       mesh->GetElementFaces(el,faces,ori);
+   }
+   else
+   {
+      MFEM_ABORT("ComplexBlockStaticCondensation::GetReduceElementIndicesAndOffsets: " 
+                 "dim > 3 not supported");
    }
    int numfaces = faces.Size();
 
@@ -267,13 +272,18 @@ void ComplexBlockStaticCondensation::GetReduceElementVDofs(int el,
    {
       mesh->GetElementVertices(el, faces);
    }
-   if (dim == 2)
+   else if (dim == 2)
    {
       mesh->GetElementEdges(el, faces, ori);
    }
-   else //dim = 3
+   else if (dim == 3)
    {
       mesh->GetElementFaces(el,faces,ori);
+   }
+   else
+   {
+      MFEM_ABORT("ComplexBlockStaticCondensation::GetReduceElementVDofs: "
+                 "dim > 3 not supported");
    }
    int numfaces = faces.Size();
    rdofs.SetSize(0);
@@ -314,13 +324,18 @@ void ComplexBlockStaticCondensation::GetElementVDofs(int el,
    {
       mesh->GetElementVertices(el, faces);
    }
-   if (dim == 2)
+   else if (dim == 2)
    {
       mesh->GetElementEdges(el, faces, ori);
    }
-   else //dim = 3
+   else if (dim == 3)
    {
       mesh->GetElementFaces(el,faces,ori);
+   }
+   else
+   {
+      MFEM_ABORT("ComplexBlockStaticCondensation::GetElementVDofs: "
+                 "dim > 3 not supported");
    }
    int numfaces = faces.Size();
    vdofs.SetSize(0);
@@ -468,13 +483,18 @@ void ComplexBlockStaticCondensation::AssembleReducedSystem(int el,
    {
       mesh->GetElementVertices(el, faces);
    }
-   if (dim == 2)
+   else if (dim == 2)
    {
       mesh->GetElementEdges(el, faces, ori);
    }
-   else //dim = 3
+   else if (dim == 3)
    {
       mesh->GetElementFaces(el,faces,ori);
+   }
+   else
+   {
+      MFEM_ABORT("ComplexBlockStaticCondensation::AssembleReducedSystem: "
+                 "dim > 3 not supported");
    }
    int numfaces = faces.Size();
 
