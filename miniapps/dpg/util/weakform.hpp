@@ -37,7 +37,7 @@ protected:
    /// Block matrix \f$ M \f$ to be associated with the Block bilinear form. Owned.
    BlockMatrix *mat = nullptr;
 
-   /// BlockVector to be associated with the Block linear form
+   /// Block vector \f$ y \f$ to be associated with the Block linear form
    BlockVector * y = nullptr;
 
    /** @brief Block Matrix \f$ M_e \f$ used to store the eliminations
@@ -45,13 +45,13 @@ protected:
        \f$ M + M_e = M_{original} \f$ */
    BlockMatrix *mat_e = nullptr;
 
-   // Trial FE spaces
+   /// Trial FE spaces
    Array<FiniteElementSpace * > trial_fes;
 
-   // Flags to determine if a FiniteElementSpace is Trace
+   /// Flags to determine if a FiniteElementSpace is Trace
    Array<int> IsTraceFes;
 
-   // Test FE Collections (Broken)
+   /// Test FE Collections (Broken)
    Array<FiniteElementCollection *> test_fecols;
    Array<int> test_fecols_vdims;
 
@@ -64,15 +64,17 @@ protected:
    /// Set of Liniear Froem Integrators to be applied.
    Array<Array<LinearFormIntegrator * > * > lfis;
 
-   BlockMatrix * P = nullptr; // Block Prolongation
-   BlockMatrix * R = nullptr; // Block Restriction
+   /// Block Prolongation
+   BlockMatrix * P = nullptr; 
+   /// Block Restriction
+   BlockMatrix * R = nullptr; 
 
    mfem::Operator::DiagonalPolicy diag_policy;
 
    void Init();
    void ReleaseInitMemory();
 
-   // Allocate appropriate SparseMatrix and assign it to mat
+   /// Allocate appropriate BlockMatrix and assign it to mat
    void AllocMat();
 
    void ConformingAssemble();
@@ -83,24 +85,21 @@ protected:
 
    bool store_matrices = false;
 
-   // Store the matrix L^-1 B  and Vector L^-1 l
-   // where G = L L^t
+   /** Store the matrix L^-1 B  and Vector L^-1 l
+       where G = L L^t */
    Array<DenseMatrix * > Bmat;
    Array<Vector * > fvec;
    Vector residuals;
 
-
-private:
-
 public:
 
-   /// Creates bilinear form associated with FE spaces @a *fespaces.
    DPGWeakForm()
    {
       height = 0.;
       width = 0;
    }
 
+   /// Creates bilinear form associated with FE spaces @a *fespaces.
    DPGWeakForm(Array<FiniteElementSpace* > & fes_,
                Array<FiniteElementCollection *> & fecol_)
    {
@@ -111,8 +110,6 @@ public:
    {
       test_fecols_vdims[test_fec] = vdim;
    }
-
-
 
    void SetSpaces(Array<FiniteElementSpace* > & fes_,
                   Array<FiniteElementCollection *> & fecol_)
@@ -137,16 +134,16 @@ public:
       Init();
    }
 
-   // Get the size of the bilinear form of the DPGWeakForm
+   /// Get the size of the bilinear form of the DPGWeakForm
    int Size() const { return height; }
 
-   // Pre-allocate the internal SparseMatrix before assembly.
+   /// Pre-allocate the internal BlockMatrix before assembly.
    void AllocateMatrix() { if (mat == NULL) { AllocMat(); } }
 
    ///  Finalizes the matrix initialization.
    void Finalize(int skip_zeros = 1);
 
-   /// Returns a reference to the sparse matrix:  \f$ M \f$
+   /// Returns a reference to the BlockMatrix:  \f$ M \f$
    BlockMatrix &BlockMat()
    {
       MFEM_VERIFY(mat, "mat is NULL and can't be dereferenced");
@@ -240,7 +237,6 @@ public:
 
    Vector & ComputeResidual(const BlockVector & x);
 
-   /// Destroys bilinear form.
    virtual ~DPGWeakForm();
 
 };

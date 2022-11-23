@@ -145,10 +145,6 @@ void DPGWeakForm::BuildProlongation()
          P->SetBlock(i,i,const_cast<SparseMatrix*>(P_));
          R->SetBlock(i,i,const_cast<SparseMatrix*>(R_));
       }
-      else
-      {
-         // do nothing
-      }
    }
 }
 
@@ -272,13 +268,17 @@ void DPGWeakForm::Assemble(int skip_zeros)
       {
          mesh->GetElementVertices(iel, faces);
       }
-      if (dim == 2)
+      else if (dim == 2)
       {
          mesh->GetElementEdges(iel, faces, ori);
       }
-      else //dim = 3
+      else if (dim == 3)
       {
          mesh->GetElementFaces(iel,faces,ori);
+      }
+      else
+      {
+         MFEM_ABORT("DPGWeakForm::Assemble: dim > 3 not supported");
       }
       int numfaces = faces.Size();
 
@@ -741,13 +741,18 @@ Vector & DPGWeakForm::ComputeResidual(const BlockVector & x)
       {
          mesh->GetElementVertices(iel, faces);
       }
-      if (dim == 2)
+      else if (dim == 2)
       {
          mesh->GetElementEdges(iel, faces, ori);
       }
-      else //dim = 3
+      else if (dim == 3)
       {
          mesh->GetElementFaces(iel,faces,ori);
+      }
+      else
+      {
+         MFEM_ABORT("DPGWeakForm::ComputeResidual: "
+                     "dim > 3 not supported");
       }
       int numfaces = faces.Size();
 

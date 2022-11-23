@@ -14,47 +14,46 @@
 namespace mfem
 {
 
-// Class for setting up a simple Cartesian PML region
+/// Class for setting up a simple Cartesian PML region
 class CartesianPML
 {
 private:
    Mesh *mesh;
 
-   // Length of the PML Region in each direction
+   /// Length of the PML Region in each direction
    Array2D<double> length;
 
-   // Computational Domain Boundary
+   /// Computational Domain Boundary
    Array2D<double> comp_dom_bdr;
 
-   // Domain Boundary
+   /// Domain Boundary
    Array2D<double> dom_bdr;
 
-   // Integer Array identifying elements in the pml
-   // 0: in the pml, 1: not in the pml
+   /** Integer Array identifying elements in the pml
+       0: in the pml, 1: not in the pml */
    Array<int> elems;
 
-   // Compute Domain and Computational Domain Boundaries
+   /// Compute Domain and Computational Domain Boundaries
    void SetBoundaries();
 
 public:
-   // Constructor
    CartesianPML(Mesh *mesh_,Array2D<double> length_);
 
    int dim;
    double omega;
-   //for Maxwell
+   // Default values for Maxwell
    double epsilon = 1.0;
    double mu = 1.0;
-   // Return Computational Domain Boundary
+   /// Return Computational Domain Boundary
    Array2D<double> GetCompDomainBdr() {return comp_dom_bdr;}
 
-   // Return Domain Boundary
+   /// Return Domain Boundary
    Array2D<double> GetDomainBdr() {return dom_bdr;}
 
-   // Return Marker list for elements
+   /// Return Marker list for elements
    Array<int> * GetMarkedPMLElements() {return &elems;}
 
-   // Mark element in the PML region
+   /// Mark element in the PML region
    void SetAttributes(Mesh *mesh_, Array<int> * attrNonPML = nullptr,
                       Array<int> * attrPML = nullptr);
 
@@ -64,7 +63,7 @@ public:
       epsilon = epsilon_;
       mu = mu_;
    }
-   // PML complex stretching function
+   /// PML complex stretching function
    void StretchFunction(const Vector &x, std::vector<std::complex<double>> &dxs);
 };
 
@@ -87,8 +86,6 @@ public:
    }
 };
 
-
-// This includes scalar coefficients
 class PmlMatrixCoefficient : public MatrixCoefficient
 {
 private:

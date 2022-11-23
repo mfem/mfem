@@ -188,13 +188,18 @@ void BlockStaticCondensation::GetReduceElementIndicesAndOffsets(int el,
    {
       mesh->GetElementVertices(el, faces);
    }
-   if (dim == 2)
+   else if (dim == 2)
    {
       mesh->GetElementEdges(el, faces, ori);
    }
-   else //dim = 3
+   else if (dim == 3)
    {
       mesh->GetElementFaces(el,faces,ori);
+   }
+   else
+   {
+      MFEM_ABORT("BlockStaticCondensation::GetReduceElementIndicesAndOffsets: "
+                  "dim > 3 not supported");
    }
    int numfaces = faces.Size();
 
@@ -258,13 +263,18 @@ void BlockStaticCondensation::GetReduceElementVDofs(int el,
    {
       mesh->GetElementVertices(el, faces);
    }
-   if (dim == 2)
+   else if (dim == 2)
    {
       mesh->GetElementEdges(el, faces, ori);
    }
-   else //dim = 3
+   else if (dim == 3)
    {
       mesh->GetElementFaces(el,faces,ori);
+   }
+   else
+   {
+      MFEM_ABORT("BlockStaticCondensation::GetReduceElementVDofs: "
+                 "dim > 3 not supported");
    }
    int numfaces = faces.Size();
    rdofs.SetSize(0);
@@ -304,13 +314,18 @@ void BlockStaticCondensation::GetElementVDofs(int el, Array<int> & vdofs) const
    {
       mesh->GetElementVertices(el, faces);
    }
-   if (dim == 2)
+   else if (dim == 2)
    {
       mesh->GetElementEdges(el, faces, ori);
    }
-   else //dim = 3
+   else if (dim == 3)
    {
       mesh->GetElementFaces(el,faces,ori);
+   }
+   else
+   {
+      MFEM_ABORT("BlockStaticCondensation::GetElementVDofs: "
+                 "dim > 3 not supported");
    }
    int numfaces = faces.Size();
    vdofs.SetSize(0);
@@ -414,20 +429,24 @@ void BlockStaticCondensation::AssembleReducedSystem(int el,
    // Assemble global mat and rhs
    DofTransformation * doftrans_i, *doftrans_j;
 
-
    Array<int> faces, ori;
    int dim = mesh->Dimension();
    if (dim == 1)
    {
       mesh->GetElementVertices(el, faces);
    }
-   if (dim == 2)
+   else if (dim == 2)
    {
       mesh->GetElementEdges(el, faces, ori);
    }
-   else //dim = 3
+   else if (dim == 3)
    {
       mesh->GetElementFaces(el,faces,ori);
+   }
+   else
+   {
+      MFEM_ABORT("BlockStaticCondensation::AssembleReducedSystem: "
+                 "dim > 3 not supported");
    }
    int numfaces = faces.Size();
 
