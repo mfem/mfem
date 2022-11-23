@@ -654,8 +654,20 @@ public:
    /// Ensure the action of the transpose is performed fast.
    /** When HYPRE is built for GPUs, this method will construct and store the
        transposes of the 'diag' and 'offd' CSR matrices. When HYPRE is not built
-       for GPUs, this method is a no-op. */
+       for GPUs, this method is a no-op.
+
+       This method is automatically called by MultTranspose().
+
+       If the matrix is modified the old transpose blocks can be deleted by
+       calling ResetTranspose(). */
    void EnsureMultTranspose() const;
+
+   /** @brief Reset (destroy) the internal transpose matrix that is created by
+       EnsureMultTranspose() and MultTranspose().
+
+       If the matrix is modified, this method should be called to delete the
+       out-of-date transpose that is stored internally. */
+   void ResetTranspose() const;
 
    /// Computes y = alpha * A * x + beta * y
    HYPRE_Int Mult(HypreParVector &x, HypreParVector &y,
@@ -663,15 +675,29 @@ public:
    /// Computes y = alpha * A * x + beta * y
    HYPRE_Int Mult(HYPRE_ParVector x, HYPRE_ParVector y,
                   double alpha = 1.0, double beta = 0.0) const;
+
    /// Computes y = alpha * A^t * x + beta * y
+   /** If the matrix is modified, call ResetTranspose() and optionally
+       EnsureMultTranspose() to make sure this method uses the correct updated
+       transpose. */
    HYPRE_Int MultTranspose(HypreParVector &x, HypreParVector &y,
                            double alpha = 1.0, double beta = 0.0) const;
 
    void Mult(double a, const Vector &x, double b, Vector &y) const;
+
+   /// Computes y = alpha * A^t * x + beta * y
+   /** If the matrix is modified, call ResetTranspose() and optionally
+       EnsureMultTranspose() to make sure this method uses the correct updated
+       transpose. */
    void MultTranspose(double a, const Vector &x, double b, Vector &y) const;
 
    virtual void Mult(const Vector &x, Vector &y) const
    { Mult(1.0, x, 0.0, y); }
+
+   /// Computes y = A^t * x
+   /** If the matrix is modified, call ResetTranspose() and optionally
+       EnsureMultTranspose() to make sure this method uses the correct updated
+       transpose. */
    virtual void MultTranspose(const Vector &x, Vector &y) const
    { MultTranspose(1.0, x, 0.0, y); }
 
@@ -1727,6 +1753,19 @@ private:
    /// Nedelec interpolation matrix and its components
    HypreParMatrix *Pi, *Pix, *Piy, *Piz;
 
+   /// AMS cycle type
+   int ams_cycle_type = 0;
+   /// Spatial dimension of the underlying mesh
+   int space_dim = 0;
+   /// Flag set if `SetSingularProblem` is called, needed in `ResetAMSPrecond`
+   bool singular = false;
+   /// Flag set if `SetPrintLevel` is called, needed in `ResetAMSPrecond`
+   int print_level = 1;
+
+   // Recreates another AMS solver with the same options when SetOperator is
+   // called multiple times.
+   void ResetAMSPrecond();
+
 public:
    /// @brief Construct the AMS solver on the given edge finite element space.
    ///
@@ -1749,7 +1788,11 @@ public:
    void SetPrintLevel(int print_lvl);
 
    /// Set this option when solving a curl-curl problem with zero mass term
-   void SetSingularProblem() { HYPRE_AMSSetBetaPoissonMatrix(ams, NULL); }
+   void SetSingularProblem()
+   {
+      HYPRE_AMSSetBetaPoissonMatrix(ams, NULL);
+      singular = true;
+   }
 
    /// The typecast to HYPRE_Solver returns the internal ams object
    virtual operator HYPRE_Solver() const { return ams; }
@@ -1769,15 +1812,13 @@ private:
    /// Construct ADS solver from finite element space
    void Init(ParFiniteElementSpace *face_fespace);
 
-   /// Create the hypre solver object and set the default options, given the
-   /// cycle type @a cycle_type and AMS cycle type @a ams_cycle_type.
-   void MakeSolver(int cycle_type, int ams_cycle_type);
+   /// Create the hypre solver object and set the default options, using the
+   /// cycle type cycle_type and AMS cycle type ams_cycle_type data members.
+   void MakeSolver();
 
    /// Construct the discrete curl, gradient and interpolation matrices
    /// associated with @a face_fespace, and add them to the solver.
-   void MakeDiscreteMatrices(ParFiniteElementSpace *face_fespace,
-                             int cycle_type,
-                             int ams_cycle_type);
+   void MakeDiscreteMatrices(ParFiniteElementSpace *face_fespace);
 
    HYPRE_Solver ads;
 
@@ -1792,6 +1833,16 @@ private:
    /// Raviart-Thomas interpolation matrix and its components
    HypreParMatrix *RT_Pi, *RT_Pix, *RT_Piy, *RT_Piz;
 
+   /// ADS cycle type
+   const int cycle_type = 11;
+   /// AMS cycle type
+   const int ams_cycle_type = 14;
+   /// ADS print level
+   int print_level = 1;
+
+   // Recreates another ADS solver with the same options when SetOperator is
+   // called multiple times.
+   void ResetADSPrecond();
 public:
    HypreADS(ParFiniteElementSpace *face_fespace);
 

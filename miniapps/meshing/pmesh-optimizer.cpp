@@ -31,6 +31,19 @@
 //
 // Compile with: make pmesh-optimizer
 //
+////////////////////////////////////////////////////////////////////////////////
+// GPU runs
+//   Kershaw 2D
+//     mpirun -np 4 pmesh-optimizer -m quad.mesh -o 2 -mid 2 -tid 1 -ni 300 -ls 4 -bnd -qt 1 -qo 8 -bm -vl 2 -st 0 -rs 1
+//
+//   Kershaw 3D
+//     mpirun -np 4 pmesh-optimizer -m hex.mesh -o 2 -mid 301 -tid 1 -ni 300 -ls 4 -bnd -qt 1 -qo 8 -bm -vl 2 -st 0 -rs 1
+//
+//   Stretch/Rotate 2D
+//     mpirun -np 4 pmesh-optimizer -m quad.mesh -o 2 -mid 2 -tid 1 -ni 300 -ls 4 -bnd -qt 1 -qo 8 -bm -vl 2 -st 0 -rs 2 -bm_id 2
+//     mpirun -np 4 pmesh-optimizer -m hex.mesh -o 2 -mid 301 -tid 1 -ni 300 -ls 4 -bnd -qt 1 -qo 8 -bm -vl 2 -st 0 -rs 2 -bm_id 2
+////////////////////////////////////////////////////////////////////////////////
+//
 // Sample runs:
 //   Adapted analytic shape:
 //     mpirun -np 4 pmesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 2 -tid 4 -ni 200 -bnd -qt 1 -qo 8
@@ -46,9 +59,11 @@
 //
 //   Adapted discrete size:
 //     mpirun -np 4 pmesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 80 -tid 5 -ni 50 -qo 4 -nor
+//     (requires GSLIB):
+//   * mpirun -np 4 pmesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 80 -tid 5 -ni 50 -qo 4 -nor -mno 1 -ae 1
 //   Adapted discrete size 3D with PA:
 //     mpirun -np 4 pmesh-optimizer -m cube.mesh -o 2 -rs 2 -mid 321 -tid 5 -ls 3 -nor -pa
-//   Adapted discrete size 3D with PA on device (requires CUDA).
+//   Adapted discrete size 3D with PA on device (requires CUDA):
 //   * mpirun -n 4 pmesh-optimizer -m cube.mesh -o 3 -rs 3 -mid 321 -tid 5 -ls 3 -nor -lc 0.1 -pa -d cuda
 //   Adapted discrete size; explicit combo of metrics; mixed tri/quad mesh:
 //     mpirun -np 4 pmesh-optimizer -m ../../data/square-mixed.mesh -o 2 -rs 2 -mid 2 -tid 5 -ni 200 -bnd -qo 6 -cmb 2 -nor
@@ -77,6 +92,7 @@
 //
 //   Blade shape:
 //     mpirun -np 4 pmesh-optimizer -m blade.mesh -o 4 -mid 2 -tid 1 -ni 30 -ls 3 -art 1 -bnd -qt 1 -qo 8
+//     (requires CUDA):
 //   * mpirun -np 4 pmesh-optimizer -m blade.mesh -o 4 -mid 2 -tid 1 -ni 30 -ls 3 -art 1 -bnd -qt 1 -qo 8 -d cuda
 //   Blade shape with FD-based solver:
 //     mpirun -np 4 pmesh-optimizer -m blade.mesh -o 4 -mid 2 -tid 1 -ni 30 -ls 4 -bnd -qt 1 -qo 8 -fd
@@ -105,6 +121,10 @@
 //     mpirun -np 4 pmesh-optimizer -m jagged.mesh -o 2 -mid 4 -tid 1 -ni 50 -qo 4 -fd -vl 1 -btype 1
 //   3D untangling (the mesh is in the mfem/data GitHub repository):
 //   * mpirun -np 4 pmesh-optimizer -m ../../../mfem_data/cube-holes-inv.mesh -o 3 -mid 313 -tid 1 -rtol 1e-5 -li 50 -qo 4 -fd -vl 1
+//   Shape optimization for a Kershaw transformed mesh using partial assembly:
+//   Mesh for Kershaw transformation must be a Cartesian mesh with nx % 6 = ny % 2 = nz % 2 = 0.
+//   Kershaw transformation can be imposed using the transformation ('t') feature in the mesh-explorer miniapp.
+//   * mpirun - np 6 pmesh-optimizer -m kershaw-24x24x24.mesh -mid 303 -tid 1 -bnd -ni 100 -art 1 -ls 3 -qo 8 -li 40 -o 2 -qo 8 -ker -pa
 
 #include "mfem.hpp"
 #include "../common/mfem-common.hpp"
@@ -119,7 +139,8 @@ int main (int argc, char *argv[])
 {
    // 0. Initialize MPI and HYPRE.
    Mpi::Init(argc, argv);
-   int myid = Mpi::WorldRank();
+   const int myid = Mpi::WorldRank();
+   const int num_procs = Mpi::WorldSize();
    Hypre::Init();
 
    // 1. Set the method's default parameters.
@@ -146,7 +167,7 @@ int main (int argc, char *argv[])
    bool hradaptivity     = false;
    int h_metric_id       = -1;
    bool normalization    = false;
-   bool visualization    = true;
+   bool visualization    = false;
    int verbosity_level   = 0;
    bool fdscheme         = false;
    int adapt_eval        = 0;
@@ -155,8 +176,14 @@ int main (int argc, char *argv[])
    bool pa               = false;
    int n_hr_iter         = 5;
    int n_h_iter          = 1;
+   bool benchmark        = false;
+   int  benchmarkid      = 1;
+   double ls_scale       = 1.0;
+   int partition_type    = 0;
+   bool mesh_save        = false;
    bool surface_fit_adapt = false;
    double surface_fit_threshold = -10;
+   int mesh_node_ordering = 0;
    int barrier_type       = 0;
    int worst_case_type    = 0;
    bool mu_linearization  = false;
@@ -294,12 +321,34 @@ int main (int argc, char *argv[])
    args.AddOption(&n_h_iter, "-nh", "--n_h_iter",
                   "Number of h-adaptivity iterations per r-adaptivity"
                   "iteration.");
+   args.AddOption(&benchmark, "-bm", "--benchmark", "-no-bm",
+                  "--no-benchmark",
+                  "Apply benchmark modification.");
+   args.AddOption(&benchmarkid, "-bm_id", "--benchmark_id",
+                  "1 = kershaw, 2 is stretching.");
+   args.AddOption(&ls_scale, "-scale", "--scale",
+                  "Initial line search scale");
+   args.AddOption(&partition_type, "-pt", "--partition",
+                  "Customized x/y/z Cartesian MPI partitioning of the serial mesh.\n\t"
+                  "Here x,y,z are relative task ratios in each direction.\n\t"
+                  "Example: with 48 mpi tasks and -pt 321, one would get a Cartesian\n\t"
+                  "partition of the serial mesh by (6,4,2) MPI tasks in (x,y,z).\n\t"
+                  "NOTE: the serially refined mesh must have the appropriate number\n\t"
+                  "of zones in each direction, e.g., the number of zones in direction x\n\t"
+                  "must be divisible by the number of MPI tasks in direction x.\n\t"
+                  "Available options: 11, 21, 111, 211, 221, 311, 321, 322, 432.");
+    args.AddOption(&mesh_save, "-ms", "--meshsave", "-no-ms",
+                  "--no-meshsave",
+                  "Save original and optimized mesh.");
    args.AddOption(&surface_fit_adapt, "-sfa", "--adaptive-surface-fit", "-no-sfa",
                   "--no-adaptive-surface-fit",
                   "Enable or disable adaptive surface fitting.");
    args.AddOption(&surface_fit_threshold, "-sft", "--surf-fit-threshold",
                   "Set threshold for surface fitting. TMOP solver will"
                   "terminate when max surface fitting error is below this limit");
+   args.AddOption(&mesh_node_ordering, "-mno", "--mesh_node_ordering",
+                  "Ordering of mesh nodes."
+                  "0 (default): byNodes, 1: byVDIM");
    args.AddOption(&barrier_type, "-btype", "--barrier-type",
                   "0 - None,"
                   "1 - Shifted Barrier,"
@@ -329,6 +378,11 @@ int main (int argc, char *argv[])
    Device device(devopt);
    if (myid == 0) { device.Print();}
 
+#warning quad_order set from command line
+   // quad_order = mesh_poly_deg + 4;
+   // quad_order = 8;
+   // quad_order = mesh_poly_deg * 2;
+
    // 3. Initialize and refine the starting mesh.
    Mesh *mesh = new Mesh(mesh_file, 1, 1, false);
    for (int lev = 0; lev < rs_levels; lev++)
@@ -338,9 +392,68 @@ int main (int argc, char *argv[])
    const int dim = mesh->Dimension();
 
    if (hradaptivity) { mesh->EnsureNCMesh(); }
-   ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
 
+   // Parallel partitioning of the mesh.
+   ParMesh *pmesh = nullptr;
+   int unit = 1;
+   int *nxyz = new int[dim];
+   switch (partition_type)
+   {
+      case 0:
+         for (int d = 0; d < dim; d++) { nxyz[d] = unit; }
+         break;
+      case 11:
+      case 111:
+         unit = static_cast<int>(floor(pow(num_procs, 1.0 / dim) + 1e-2));
+         for (int d = 0; d < dim; d++) { nxyz[d] = unit; }
+         break;
+      case 211: // 3D.
+         unit = static_cast<int>(floor(pow(num_procs / 2, 1.0 / 3) + 1e-2));
+         nxyz[0] = 2 * unit; nxyz[1] = 1 * unit; nxyz[2] = 1 * unit;
+         break;
+      case 221: // 3D.
+         unit = static_cast<int>(floor(pow(num_procs / 4, 1.0 / 3) + 1e-2));
+         nxyz[0] = 2 * unit; nxyz[1] = 2 * unit; nxyz[2] = 1 * unit;
+         break;
+      default:
+         if (myid == 0)
+         {
+            cout << "Unknown partition type: " << partition_type << '\n';
+         }
+         delete mesh;
+         MPI_Finalize();
+         return 3;
+   }
+   int product = 1;
+   for (int d = 0; d < dim; d++) { product *= nxyz[d]; }
+   if (product == num_procs)
+   {
+      int *partitioning = mesh->CartesianPartitioning(nxyz);
+      pmesh = new ParMesh(MPI_COMM_WORLD, *mesh, partitioning);
+      delete [] partitioning;
+   }
+   else
+   {
+      if (myid == 0)
+      {
+         cout << "Non-Cartesian partitioning through METIS will be used.\n";
+#ifndef MFEM_USE_METIS
+         cout << "MFEM was built without METIS. "
+              << "Adjust the number of tasks to use a Cartesian split." << endl;
+#endif
+      }
+#ifndef MFEM_USE_METIS
+      return 1;
+#endif
+      pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
+   }
+   delete [] nxyz;
    delete mesh;
+
+   if (myid == 0) { 
+       cout << pmesh->GetNE() << " " << num_procs << " NE,NP"  << endl; 
+   }
+
    for (int lev = 0; lev < rp_levels; lev++)
    {
       pmesh->UniformRefinement();
@@ -357,7 +470,8 @@ int main (int argc, char *argv[])
       mesh_poly_deg = 2;
    }
    else { fec = new H1_FECollection(mesh_poly_deg, dim); }
-   ParFiniteElementSpace *pfespace = new ParFiniteElementSpace(pmesh, fec, dim);
+   ParFiniteElementSpace *pfespace = new ParFiniteElementSpace(pmesh, fec, dim,
+                                                               mesh_node_ordering);
 
    // 5. Make the mesh curved based on the above finite element space. This
    //    means that we define the mesh elements through a fespace-based
@@ -432,6 +546,8 @@ int main (int argc, char *argv[])
    // 10. Save the starting (prior to the optimization) mesh to a file. This
    //     output can be viewed later using GLVis: "glvis -m perturbed -np
    //     num_mpi_tasks".
+
+   if (mesh_save)
    {
       ostringstream mesh_name;
       mesh_name << "perturbed.mesh";
@@ -439,6 +555,208 @@ int main (int argc, char *argv[])
       mesh_ofs.precision(8);
       pmesh->PrintAsOne(mesh_ofs);
    }
+
+   x.HostReadWrite();
+   // Add benchmark transformation
+   if (benchmark)
+   {
+      for (int i = 0; i < pfespace->GetNDofs(); i++)
+      {
+         Array<double> xc(dim), xn(dim);
+         for (int d = 0; d < dim; d++)
+         {
+            xc[d] = x(pfespace->DofToVDof(i,d));
+         }
+         double epsy = 0.3,
+                epsz = 0.3;
+
+         if (benchmarkid == 1)
+         {
+            kershaw(epsy, epsz, xc[0], xc[1], xc[dim-1], xn[0], xn[1], xn[dim-1]);
+         }
+         else if (benchmarkid == 2)
+         {
+            if (dim == 2)
+            {
+               stretching2D(xc[0], xc[1], xn[0], xn[1]);
+            }
+            else if (dim == 3)
+            {
+               stretching3D(xc[0], xc[1], xc[dim-1], xn[0], xn[1], xn[dim-1]);
+            }
+         }
+         else if (benchmarkid == 3)
+         {
+            rotation2D(xc[0], xc[1], xn[0], xn[1]);
+            if (dim == 3) { xn[2] = xc[2]; }
+         }
+         else if (benchmarkid == 4)
+         {
+            kershaw8(epsy, epsz, xc[0], xc[1], xc[dim-1], xn[0], xn[1], xn[dim-1]);
+         }
+
+         for (int d = 0; d < dim; d++)
+         {
+            x(pfespace->DofToVDof(i,d)) = xn[d];
+         }
+      }
+      x.SetTrueVector();
+      x.SetFromTrueVector();
+      {
+         ostringstream mesh_name;
+         mesh_name << "perturbed.mesh";
+         ofstream mesh_ofs(mesh_name.str().c_str());
+         mesh_ofs.precision(8);
+         //         pmesh->PrintAsOne(mesh_ofs);
+      }
+   }
+
+   x.HostReadWrite();
+   // Change boundary attribute for boundary element if tangential relaxation is allowed
+   if (move_bnd && benchmark)
+   {
+      for (int e = 0; e < pmesh->GetNBE(); e++)
+      {
+         Array<int> dofs;
+         pfespace->GetBdrElementDofs(e, dofs);
+         Array<double> x_c(dim);
+         Array<int> nnodes(dim);
+         nnodes = 0;
+         double tolerance = 1.e-6;
+         for (int j = 0; j < dofs.Size(); j++)
+         {
+            if (j == 0)
+            {
+               for (int d = 0; d < dim; d++)
+               {
+                  x_c[d] = x(pfespace->DofToVDof(dofs[j], d));
+                  nnodes[d]++;
+               }
+            }
+            else
+            {
+               for (int d = 0; d < dim; d++)
+               {
+                  if (abs(x_c[d] - x(pfespace->DofToVDof(dofs[j],d))) < tolerance)
+                  {
+                     nnodes[d]++;
+                  }
+               }
+            }
+         }
+         Element *be = pmesh->GetBdrElement(e);
+         be->SetAttribute(4);
+         for (int d = 0; d < dim; d++)
+         {
+            if (nnodes[d] == dofs.Size())
+            {
+               be->SetAttribute(d+1);
+            }
+         }
+      }
+   }
+   pmesh->SetAttributes();
+
+   x.HostReadWrite();
+   // Add benchmark transformation
+   if (benchmark)
+   {
+      for (int i = 0; i < pfespace->GetNDofs(); i++)
+      {
+         Array<double> xc(dim), xn(dim);
+         for (int d = 0; d < dim; d++)
+         {
+            xc[d] = x(pfespace->DofToVDof(i,d));
+         }
+         double epsy = 0.3,
+                epsz = 0.3;
+
+         if (benchmarkid == 1)
+         {
+            kershaw(epsy, epsz, xc[0], xc[1], xc[dim-1], xn[0], xn[1], xn[dim-1]);
+         }
+         else if (benchmarkid == 2)
+         {
+            if (dim == 2)
+            {
+               stretching2D(xc[0], xc[1], xn[0], xn[1]);
+            }
+            else if (dim == 3)
+            {
+               stretching3D(xc[0], xc[1], xc[dim-1], xn[0], xn[1], xn[dim-1]);
+            }
+         }
+         else if (benchmarkid == 3)
+         {
+            rotation2D(xc[0], xc[1], xn[0], xn[1]);
+            if (dim == 3) { xn[2] = xc[2]; }
+         }
+         else if (benchmarkid == 4)
+         {
+            kershaw8(epsy, epsz, xc[0], xc[1], xc[dim-1], xn[0], xn[1], xn[dim-1]);
+         }
+
+         for (int d = 0; d < dim; d++)
+         {
+            x(pfespace->DofToVDof(i,d)) = xn[d];
+         }
+      }
+      x.SetTrueVector();
+      x.SetFromTrueVector();
+      {
+         ostringstream mesh_name;
+         mesh_name << "perturbed.mesh";
+         ofstream mesh_ofs(mesh_name.str().c_str());
+         mesh_ofs.precision(8);
+         //         pmesh->PrintAsOne(mesh_ofs);
+      }
+   }
+
+   x.HostReadWrite();
+   // Change boundary attribute for boundary element if tangential relaxation is allowed
+   if (move_bnd && benchmark)
+   {
+      for (int e = 0; e < pmesh->GetNBE(); e++)
+      {
+         Array<int> dofs;
+         pfespace->GetBdrElementDofs(e, dofs);
+         Array<double> x_c(dim);
+         Array<int> nnodes(dim);
+         nnodes = 0;
+         double tolerance = 1.e-6;
+         for (int j = 0; j < dofs.Size(); j++)
+         {
+            if (j == 0)
+            {
+               for (int d = 0; d < dim; d++)
+               {
+                  x_c[d] = x(pfespace->DofToVDof(dofs[j], d));
+                  nnodes[d]++;
+               }
+            }
+            else
+            {
+               for (int d = 0; d < dim; d++)
+               {
+                  if (abs(x_c[d] - x(pfespace->DofToVDof(dofs[j],d))) < tolerance)
+                  {
+                     nnodes[d]++;
+                  }
+               }
+            }
+         }
+         Element *be = pmesh->GetBdrElement(e);
+         be->SetAttribute(4);
+         for (int d = 0; d < dim; d++)
+         {
+            if (nnodes[d] == dofs.Size())
+            {
+               be->SetAttribute(d+1);
+            }
+         }
+      }
+   }
+   pmesh->SetAttributes();
 
    // 11. Store the starting (prior to the optimization) positions.
    ParGridFunction x0(pfespace);
@@ -1232,7 +1550,7 @@ int main (int argc, char *argv[])
    // "h_per_r_iter" iterations of h-adaptivity after each r-adaptivity.
    // The solver terminates if an h-adaptivity iteration does not modify
    // any element in the mesh.
-   TMOPHRSolver hr_solver(*pmesh, a, solver,
+   /*TMOPHRSolver hr_solver(*pmesh, a, solver,
                           x, move_bnd, hradaptivity,
                           mesh_poly_deg, h_metric_id,
                           n_hr_iter, n_h_iter);
@@ -1242,10 +1560,82 @@ int main (int argc, char *argv[])
       hr_solver.AddGridFunctionForUpdate(&adapt_lim_gf0);
       hr_solver.AddFESpaceForUpdate(&ind_fes);
    }
-   hr_solver.Mult();
+   hr_solver.Mult();*/
+
+   solver.SetOperator(a);
+   StopWatch TimeSolver;
+   TimeSolver.Start();
+   solver.Mult(b, x.GetTrueVector());
+   TimeSolver.Stop();
+   x.SetFromTrueVector();
+
+   const double solvertime = TimeSolver.RealTime(),
+                vectortime = solver.GetAssembleElementVectorTime(),
+                gradtime   = solver.GetAssembleElementGradTime(),
+                prectime   = solver.GetPrecMultTime(),
+                processnewstatetime = solver.GetProcessNewStateTime(),
+                scalefactortime = solver.GetComputeScalingTime();
+
+   if (myid == 0 && solver.GetConverged() == false)
+   {
+      cout << "Nonlinear solver: rtol = " << solver_rtol << " not achieved.\n";
+   }
+
+   MPI_Barrier(MPI_COMM_WORLD);
+   int NDofs = x.ParFESpace()->GlobalTrueVSize()/pmesh->Dimension(),
+       NEGlob = pmesh->GetGlobalNE();
+   int device_tag  = 0; //gpu
+   const double fin_energy = a.GetParGridFunctionEnergy(x) /
+                             (hradaptivity ? pmesh->GetGlobalNE() : 1);
+   if (strcmp(devopt,"cpu")==0) { device_tag = 1; } //not gpu
+   if (myid == 0)
+   {
+      std::cout << "Monitoring info      :" << endl
+                << "Number of elements   :" << NEGlob << endl
+                << "Number of procs      :" << num_procs << endl
+                << "Polynomial degree    :" << mesh_poly_deg << endl
+                << "Total TDofs          :" << NDofs << endl
+                << std::setprecision(4)
+                << "Total Iterations     :" << solver.GetNumIterations() << endl
+                << "Total Prec Iterations:" << solver.GetTotalPrecIterations() << endl
+                << "Total Solver Time (%):" << solvertime << " "
+                << (solvertime*100/solvertime) << endl
+                << "Assemble Vector Time :" << vectortime << " "
+                << (vectortime*100/solvertime) << endl
+                << "Assemble Grad Time   :" << gradtime << " "
+                << gradtime*100/solvertime <<  endl
+                << "Prec Solve Time      :" << prectime << " "
+                << prectime*100/solvertime <<  endl
+                << "ProcessNewState Time :" << processnewstatetime << " "
+                << (processnewstatetime*100/solvertime) <<  endl
+                << "ComputeScale Time    :" << scalefactortime << " "
+                << (scalefactortime*100/solvertime) <<  "  " << endl
+                << "Device Tag (0 for gpu, 1 otherwise):" << device_tag << endl
+                << " Final energy: " << fin_energy << endl;
+
+
+      std::cout << "run_info: " << std::setprecision(4) << " "
+                << rs_levels << " "
+                << mesh_poly_deg << " " << quad_order << " "
+                << solver_type << " " <<  solver_art_type << " "
+                << lin_solver << " " << max_lin_iter << " "
+                << pa << " " << metric_id << " " << num_procs
+                << std::setprecision(10) << " "
+                << NEGlob << " " << NDofs << " "
+                << solver.GetNumIterations() << " "
+                << solver.GetTotalPrecIterations() << " "
+                << solvertime << " "
+                << (vectortime*100/solvertime) << " "
+                << (gradtime*100/solvertime) << " "
+                << (prectime*100/solvertime) << " "
+                << (processnewstatetime*100/solvertime) << " "
+                << (scalefactortime*100/solvertime) << " " <<
+                device_tag << " " << fin_energy << endl;
+   }
 
    // 16. Save the optimized mesh to a file. This output can be viewed later
    //     using GLVis: "glvis -m optimized -np num_mpi_tasks".
+   if (mesh_save)
    {
       ostringstream mesh_name;
       mesh_name << "optimized.mesh";
@@ -1255,8 +1645,6 @@ int main (int argc, char *argv[])
    }
 
    // Compute the final energy of the functional.
-   const double fin_energy = a.GetParGridFunctionEnergy(x) /
-                             (hradaptivity ? pmesh->GetGlobalNE() : 1);
    double fin_metric_energy = fin_energy;
    if (lim_const > 0.0 || adapt_lim_const > 0.0 || surface_fit_const > 0.0)
    {

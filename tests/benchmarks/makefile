@@ -52,7 +52,14 @@ $($(TESTS)): \
 $(MFEM_LIB_FILE):
 	$(error The MFEM library is not built)
 
-clean: clean-build clean-exec
+cpu:
+	xelatex -file-line-error -shell-escape -interaction nonstopmode -halt-on-error bench_tmop_cpu.tex
+gpu:
+	xelatex -file-line-error -shell-escape -interaction nonstopmode -halt-on-error bench_tmop_gpu.tex
+ss:
+	xelatex -file-line-error -shell-escape -interaction nonstopmode -halt-on-error bench_tmop_ss.tex
+
+clean: clean-build clean-exec clean-tex
 
 clean-build:
 	rm -f *.o *~ $(SEQ_TESTS) $(PAR_TESTS)
@@ -61,3 +68,5 @@ clean-build:
 clean-exec:
 	@rm -f refined.mesh sol.gf
 
+clean-tex:
+	@rm -f *.aux *.log *.table *.gnuplot

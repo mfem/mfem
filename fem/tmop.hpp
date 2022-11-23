@@ -166,7 +166,7 @@ public:
 /// and mu_hat = (mu/2phi(tau,ep)) where
 /// 2phi(tau,ep) = 1, when                                 when BarrierType = None,
 ///             = 2*(tau - min(alpha*min(tau)-detT_ep,0)), when BarrierType = Shifted
-///             = tau^2 + sqrt(tau^2 + ep^2),              when BarrierType = Pseuso
+///             = tau^2 + sqrt(tau^2 + ep^2),              when BarrierType = Pseudo
 /// where tau = det(T), and max(mu_hat) and min(tau) are computed over the
 /// entire mesh.
 /// Ultimately, this metric can be used for mesh untangling with the BarrierType
@@ -1223,8 +1223,6 @@ protected:
    ParFiniteElementSpace *pfes;
 #endif
 
-   int dim, ncomp;
-
 public:
    AdaptivityEvaluator() : mesh(NULL), fes(NULL)
    {
@@ -1235,15 +1233,15 @@ public:
    }
    virtual ~AdaptivityEvaluator();
 
-   /** Specifies the Mesh and FiniteElementCollection of the solution that will
+   /** Specifies the Mesh and FiniteElementSpace of the solution that will
        be evaluated. The given mesh will be copied into the internal object. */
    void SetSerialMetaInfo(const Mesh &m,
-                          const FiniteElementCollection &fec, int num_comp);
+                          const FiniteElementSpace &f);
 
 #ifdef MFEM_USE_MPI
    /// Parallel version of SetSerialMetaInfo.
    void SetParMetaInfo(const ParMesh &m,
-                       const FiniteElementCollection &fec, int num_comp);
+                       const ParFiniteElementSpace &f);
 #endif
 
    // TODO use GridFunctions to make clear it's on the ldofs?
@@ -1251,7 +1249,8 @@ public:
                                 const Vector &init_field) = 0;
 
    virtual void ComputeAtNewPosition(const Vector &new_nodes,
-                                     Vector &new_field) = 0;
+                                     Vector &new_field,
+                                     int new_nodes_ordering = Ordering::byNODES) = 0;
 
    void ClearGeometricFactors();
 };
@@ -1452,7 +1451,7 @@ protected:
    // Discrete target specification.
    // Data is owned, updated by UpdateTargetSpecification.
    int ncomp, sizeidx, skewidx, aspectratioidx, orientationidx;
-   Vector tspec;             //eta(x)
+   Vector tspec;             //eta(x) - we enforce Ordering::byNODES
    Vector tspec_sav;
    Vector tspec_pert1h;      //eta(x+h)
    Vector tspec_pert2h;      //eta(x+2*h)
@@ -1566,9 +1565,11 @@ public:
    /** Used to update the target specification after the mesh has changed. The
        new mesh positions are given by new_x. If @a use_flags is true, repeated
        calls won't do anything until ResetUpdateFlags() is called. */
-   void UpdateTargetSpecification(const Vector &new_x, bool use_flag = false);
+   void UpdateTargetSpecification(const Vector &new_x, bool use_flag = false,
+                                  int new_x_ordering=Ordering::byNODES);
 
-   void UpdateTargetSpecification(Vector &new_x, Vector &IntData);
+   void UpdateTargetSpecification(Vector &new_x, Vector &IntData,
+                                  int new_x_ordering=Ordering::byNODES);
 
    void UpdateTargetSpecificationAtNode(const FiniteElement &el,
                                         ElementTransformation &T,
@@ -1582,13 +1583,15 @@ public:
        If @a use_flags is true, repeated calls won't do anything until
        ResetUpdateFlags() is called. */
    void UpdateGradientTargetSpecification(const Vector &x, double dx,
-                                          bool use_flag = false);
+                                          bool use_flag = false,
+                                          int x_ordering = Ordering::byNODES);
    /** Used for finite-difference based computations. Computes the target
        specifications after two mesh perturbations in x and/or y direction.
        If @a use_flags is true, repeated calls won't do anything until
        ResetUpdateFlags() is called. */
    void UpdateHessianTargetSpecification(const Vector &x, double dx,
-                                         bool use_flag = false);
+                                         bool use_flag = false,
+                                         int x_ordering = Ordering::byNODES);
 
    void SetAdaptivityEvaluator(AdaptivityEvaluator *ae)
    {
@@ -1825,7 +1828,8 @@ protected:
    void ComputeFDh(const Vector &x, const FiniteElementSpace &fes);
    void ComputeMinJac(const Vector &x, const FiniteElementSpace &fes);
 
-   void UpdateAfterMeshPositionChange(const Vector &new_x);
+   void UpdateAfterMeshPositionChange(const Vector &new_x,
+                                      int new_x_ordering = Ordering::byNODES);
 
    void DisableLimiting()
    {

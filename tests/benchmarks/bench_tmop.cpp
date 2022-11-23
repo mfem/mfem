@@ -16,180 +16,195 @@
 #include "fem/tmop.hpp"
 #include <cassert>
 #include <memory>
+#include <string>
 #include <cmath>
 
+////////////////////////////////////////////////////////////////////////////////
+static MPI_Session *mpi = nullptr;
+static int config_dev_size = 4; // default 4 GPU per node
+static bool config_d1d_eq_q1d = false;
+
+////////////////////////////////////////////////////////////////////////////////
 struct TMOP
 {
-   const int N, p, q, dim = 3;
-   Mesh mesh;
+   const int mpi_world_size, p, q, n, nx, ny, nz, dim = 3;
+   const bool check_x, check_y, check_z, checked;
+   const bool device_is_enabled;
+   Mesh smesh;
+   int nxyz[3];
+   bool set_nxyz;
+   int *partitioning;
+   ParMesh pmesh;
    TMOP_Metric_302 metric;
    TargetConstructor::TargetType target_t;
    TargetConstructor target_c;
-   H1_FECollection fec;
-   FiniteElementSpace fes;
-   const Operator *R;
-   const IntegrationRule *ir;
    TMOP_Integrator nlfi;
+   H1_FECollection fec;
+   ParFiniteElementSpace pfes;
+   const Operator *R;
+   const IntegrationRule &ir;
    const int dofs;
-   GridFunction x;
-   Vector de,xe,ye;
+   ParGridFunction x;
+   Vector xl,xe,ye,de;
    double mdof;
 
-   TMOP(int p, bool p_eq_q = false):
-      N(Device::IsEnabled()?16:8),
-      p(p), q(2*p + (p_eq_q ? 0 : 2)),
-      mesh(Mesh::MakeCartesian3D(N,N,N,Element::HEXAHEDRON)),
-      target_t(TargetConstructor::IDEAL_SHAPE_EQUAL_SIZE),
-      target_c(target_t),
-      fec(p, dim),
-      fes(&mesh, &fec, dim),
-      R(fes.GetElementRestriction(ElementDofOrdering::LEXICOGRAPHIC)),
-      ir(&IntRules.Get(fes.GetFE(0)->GetGeomType(), q)),
+   TMOP(int p, int c, bool d1d_eq_q1d):
+      mpi_world_size(mpi->WorldSize()),
+      p(p),
+      q(2*p + (d1d_eq_q1d ? 0 : 2)),
+      n((assert(c>=p), c/p)),
+      nx(n + (p*(n+1)*p*n*p*n < c*c*c ?1:0)),
+      ny(n + (p*(n+1)*p*(n+1)*p*n < c*c*c ?1:0)),
+      nz(n),
+      check_x(p*nx * p*ny * p*nz <= c*c*c),
+      check_y(p*(nx+1) * p*(ny+1) * p*nz > c*c*c),
+      check_z(p*(nx+1) * p*(ny+1) * p*(nz+1) > c*c*c),
+      checked((assert(check_x && check_y && check_z), true)),
+      device_is_enabled(Device::IsEnabled()),
+      smesh(Mesh::MakeCartesian3D(mpi_world_size*nx,ny,nz,Element::HEXAHEDRON)),
+      set_nxyz((nxyz[0]=mpi_world_size, nxyz[1]=1, nxyz[2]=1, true)),
+      partitioning(smesh.CartesianPartitioning(nxyz)),
+      pmesh(MPI_COMM_WORLD, smesh, partitioning),
+      target_t(TargetConstructor::IDEAL_SHAPE_UNIT_SIZE),
+      target_c(target_t, MPI_COMM_WORLD),
       nlfi(&metric, &target_c),
-      dofs(fes.GetVSize()),
-      x(&fes),
-      de(R->Height(), Device::GetMemoryType()),
+      fec(p, dim),
+      pfes(&pmesh, &fec, dim),
+      R(pfes.GetElementRestriction(ElementDofOrdering::LEXICOGRAPHIC)),
+      ir(IntRules.Get(pfes.GetFE(0)->GetGeomType(), q)),
+      dofs(pfes.GlobalTrueVSize()),
+      x(&pfes),
+      xl(pfes.GetVSize()),
       xe(R->Height(), Device::GetMemoryType()),
       ye(R->Height(), Device::GetMemoryType()),
+      de(R->Height(), Device::GetMemoryType()),
       mdof(0.0)
    {
-      mesh.SetNodalGridFunction(&x);
+      pmesh.SetNodalFESpace(&pfes);
+      pmesh.SetNodalGridFunction(&x);
+      x.SetTrueVector();
+      x.SetFromTrueVector();
+
       target_c.SetNodes(x);
 
-      R->Mult(x, xe);
+      pfes.GetProlongationMatrix()->Mult(x.GetTrueVector(), xl);
+      R->Mult(xl, xe);
       ye = 0.0;
 
-      nlfi.SetIntegrationRule(*ir);
-      nlfi.AssemblePA(fes);
-      nlfi.AssembleGradPA(xe,fes);
-
-      tic_toc.Clear();
+      nlfi.SetIntegrationRule(ir);
+      nlfi.AssemblePA(pfes);
+      nlfi.AssembleGradPA(xe, pfes);
    }
 
    void AddMultPA()
    {
-      tic_toc.Start();
       nlfi.AddMultPA(xe,ye);
-      MFEM_DEVICE_SYNC;
-      tic_toc.Stop();
+      if (device_is_enabled) { MFEM_DEVICE_SYNC; }
       mdof += 1e-6 * dofs;
    }
 
    void AddMultGradPA()
    {
-      tic_toc.Start();
       nlfi.AddMultGradPA(xe,ye);
-      MFEM_DEVICE_SYNC;
-      tic_toc.Stop();
+      if (device_is_enabled) { MFEM_DEVICE_SYNC; }
       mdof += 1e-6 * dofs;
    }
 
    void GetLocalStateEnergyPA()
    {
-      tic_toc.Start();
-      const double energy = nlfi.GetLocalStateEnergyPA(xe);
-      MFEM_DEVICE_SYNC;
-      tic_toc.Stop();
-      MFEM_CONTRACT_VAR(energy);
+      nlfi.GetLocalStateEnergyPA(xe);
+      if (device_is_enabled) { MFEM_DEVICE_SYNC; }
       mdof += 1e-6 * dofs;
    }
 
    void AssembleGradDiagonalPA()
    {
-      tic_toc.Start();
       nlfi.AssembleGradDiagonalPA(de);
-      MFEM_DEVICE_SYNC;
-      tic_toc.Stop();
+      if (device_is_enabled) { MFEM_DEVICE_SYNC; }
       mdof += 1e-6 * dofs;
    }
 
    double Mdof() const { return mdof; }
-
-   double Mdofs() const { return mdof / tic_toc.RealTime(); }
 };
 
-// The different orders the tests can run
-#define P_ORDERS {1,2,3,4}
-
-// P_EQ_Q selects the D1D & Q1D to use instantiated kernels
-//  P_EQ_Q: 0x22, 0x33, 0x44, 0x55
-// !P_EQ_Q: 0x23, 0x34, 0x45, 0x56
-#define P_EQ_Q {false,true}
-
-/**
- * @brief The Kernel bm::Fixture struct
- */
-struct Kernel: public bm::Fixture
-{
-   std::unique_ptr<TMOP> ker;
-   ~Kernel() { assert(ker == nullptr); }
-
-   using bm::Fixture::SetUp;
-   void SetUp(const bm::State& state) BENCHMARK_OVERRIDE
-   { ker.reset(new TMOP(state.range(1), state.range(0))); }
-
-   using bm::Fixture::TearDown;
-   void TearDown(const bm::State &) BENCHMARK_OVERRIDE { ker.reset(); }
-};
-
-/**
-  Fixture kernels definitions and registrations
-*/
-#define BENCHMARK_TMOP_F(Bench)\
-BENCHMARK_DEFINE_F(Kernel,Bench)(bm::State &state){\
-   assert(ker.get());\
-   while (state.KeepRunning()) { ker->Bench(); }\
-   state.counters["MDof"] = bm::Counter(ker->Mdof(), bm::Counter::kIsRate);\
-   state.counters["MDof/s"] = bm::Counter(ker->Mdofs());}\
- BENCHMARK_REGISTER_F(Kernel,Bench)->ArgsProduct({P_EQ_Q,P_ORDERS})->Unit(bm::kMicrosecond);
-/// creating/registering, not used
-//BENCHMARK_TMOP_F(AddMultPA)
-//BENCHMARK_TMOP_F(AddMultGradPA)
-//BENCHMARK_TMOP_F(GetLocalStateEnergyPA)
-//BENCHMARK_TMOP_F(AssembleGradDiagonalPA)
+#define MAX_NDOFS 8*1024*1024
+#define P_ORDERS bm::CreateDenseRange(1,4,1)
+#define P_SIDES bm::CreateDenseRange(10,88,1)
 
 /**
   Kernels definitions and registrations
 */
 #define BENCHMARK_TMOP(Bench)\
 static void Bench(bm::State &state){\
-   TMOP ker(state.range(1),state.range(0));\
+   const int p = state.range(0);\
+   const int c = state.range(1);\
+   TMOP ker(p, c, config_d1d_eq_q1d);\
+   if (mpi->WorldSize() > (c*c*c)/(p*p*p)) { state.SkipWithError("MIN_NDOFS"); }\
+   if (ker.dofs > MAX_NDOFS) { state.SkipWithError("MAX_NDOFS"); }\
    while (state.KeepRunning()) { ker.Bench(); }\
-   state.counters["MDof"] = bm::Counter(ker.Mdof(), bm::Counter::kIsRate);\
-   state.counters["MDof/s"] = bm::Counter(ker.Mdofs());}\
- BENCHMARK(Bench)->ArgsProduct({P_EQ_Q,P_ORDERS})->Unit(bm::kMicrosecond);
+   const bm::Counter::Flags isRate = bm::Counter::kIsRate; \
+   state.counters["MDofs"] = bm::Counter(ker.Mdof(), isRate); \
+   state.counters["Dofs"] = bm::Counter(ker.dofs); \
+   state.counters["P"] = bm::Counter(p); \
+   state.counters["Ranks"] = bm::Counter(mpi->WorldSize()); \
+}\
+BENCHMARK(Bench)\
+-> ArgsProduct( {P_ORDERS,P_SIDES})\
+-> Unit(bm::kMillisecond)\
+-> Iterations(100);
+
 /// creating/registering
-BENCHMARK_TMOP(AddMultPA)
+//BENCHMARK_TMOP(AddMultPA)
 BENCHMARK_TMOP(AddMultGradPA)
-BENCHMARK_TMOP(GetLocalStateEnergyPA)
-BENCHMARK_TMOP(AssembleGradDiagonalPA)
+//BENCHMARK_TMOP(GetLocalStateEnergyPA)
+//BENCHMARK_TMOP(AssembleGradDiagonalPA)
 
 /**
  * @brief main entry point
  * --benchmark_filter=AddMultPA/4
- * --benchmark_context=device=cuda
+ * --benchmark_context=dev=cuda
  */
 int main(int argc, char *argv[])
 {
+#ifdef MFEM_USE_MPI
+   mfem::MPI_Session main_mpi(argc, argv);
+   mpi = &main_mpi;
+#endif
+
    bm::ConsoleReporter CR;
    bm::Initialize(&argc, argv);
 
    // Device setup, cpu by default
-   std::string device_config = "cpu";
+   std::string config_device = "cpu";
+
    if (bmi::global_context != nullptr)
    {
-      const auto device = bmi::global_context->find("device");
-      if (device != bmi::global_context->end())
-      {
-         mfem::out << device->first << " : " << device->second << std::endl;
-         device_config = device->second;
-      }
+      bmi::FindInContext("dev", config_device); // dev=cuda
+      bmi::FindInContext("ndev", config_dev_size); // ndev=4
+      bmi::FindInContext("peqq", config_d1d_eq_q1d);
    }
-   Device device(device_config.c_str());
-   device.Print();
+
+   const int mpi_rank = mpi->WorldRank();
+   const int mpi_size = mpi->WorldSize();
+   const int dev = config_dev_size > 0 ? mpi_rank % config_dev_size : 0;
+
+   Device device(config_device.c_str(), dev);
+   if (mpi->Root()) { device.Print(); }
 
    if (bm::ReportUnrecognizedArguments(argc, argv)) { return 1; }
+
+#ifndef MFEM_USE_MPI
    bm::RunSpecifiedBenchmarks(&CR);
+#else
+   if (mpi->Root()) { bm::RunSpecifiedBenchmarks(&CR); }
+   else
+   {
+      // No display_reporter and file_reporter
+      bm::BenchmarkReporter *file_reporter = NoReporter();
+      bm::BenchmarkReporter *display_reporter = NoReporter();
+      bm::RunSpecifiedBenchmarks(display_reporter, file_reporter);
+   }
+#endif
    return 0;
 }
 

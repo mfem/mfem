@@ -31,6 +31,19 @@
 //
 // Compile with: make mesh-optimizer
 //
+// GPU runs
+// Kershaw 2D
+// make mesh-optimizer;./mesh-optimizer -m quad.mesh -o 2 -mid 2 -tid 1 -ni 300 -ls 4 -bnd -qt 1 -qo 8 -bm -vl 2 -st 0 -rs 1
+// Kershaw 3D
+// make mesh-optimizer;./mesh-optimizer -m hex.mesh -o 2 -mid 301 -tid 1 -ni 300 -ls 4 -bnd -qt 1 -qo 8 -bm -vl 2 -st 0 -rs 1
+// Kershaw 3D, PA runs, CUDA: 0m3.867s, CPU: 3m56.210s
+// ./mesh-optimizer -m hex.mesh -o 2 -mid 302 -tid 1 -ni 300 -ls 3 -bnd -qt 1 -qo 8 -bm -vl 0 -st 0 -rs 1 -pa -d cuda -no-vis
+//
+// Stretch/Rotate 2D
+// make mesh-optimizer;./mesh-optimizer -m quad.mesh -o 2 -mid 2 -tid 1 -ni 300 -ls 4 -bnd -qt 1 -qo 8 -bm -vl 2 -st 0 -rs 2 -bm_id 2
+// 3D
+// make mesh-optimizer;./mesh-optimizer -m hex.mesh -o 2 -mid 301 -tid 1 -ni 300 -ls 4 -bnd -qt 1 -qo 8 -bm -vl 2 -st 0 -rs 2 -bm_id 2
+
 // Sample runs:
 //   Adapted analytic shape:
 //     mesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 2 -tid 4 -ni 200 -bnd -qt 1 -qo 8
@@ -46,9 +59,11 @@
 //
 //   Adapted discrete size:
 //     mesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 80 -tid 5 -ni 50 -qo 4 -nor
+//     (requires GSLIB):
+//   * mesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 80 -tid 5 -ni 50 -qo 4 -nor -mno 1 -ae 1
 //   Adapted discrete size 3D with PA:
 //     mesh-optimizer -m cube.mesh -o 2 -rs 2 -mid 321 -tid 5 -ls 3 -nor -pa
-//   Adapted discrete size 3D with PA on device (requires CUDA).
+//   Adapted discrete size 3D with PA on device (requires CUDA):
 //   * mesh-optimizer -m cube.mesh -o 3 -rs 3 -mid 321 -tid 5 -ls 3 -nor -lc 0.1 -pa -d cuda
 //   Adapted discrete size; explicit combo of metrics; mixed tri/quad mesh:
 //     mesh-optimizer -m ../../data/square-mixed.mesh -o 2 -rs 2 -mid 2 -tid 5 -ni 200 -bnd -qo 6 -cmb 2 -nor
@@ -77,6 +92,8 @@
 //
 //   Blade shape:
 //     mesh-optimizer -m blade.mesh -o 4 -mid 2 -tid 1 -ni 30 -ls 3 -art 1 -bnd -qt 1 -qo 8
+//     (requires CUDA):
+//   * mesh-optimizer -m blade.mesh -o 4 -mid 2 -tid 1 -ni 30 -ls 3 -art 1 -bnd -qt 1 -qo 8 -d cuda
 //   Blade shape with FD-based solver:
 //     mesh-optimizer -m blade.mesh -o 4 -mid 2 -tid 1 -ni 30 -ls 4 -bnd -qt 1 -qo 8 -fd
 //   Blade limited shape:
@@ -146,10 +163,13 @@ int main(int argc, char *argv[])
    bool exactaction      = false;
    const char *devopt    = "cpu";
    bool pa               = false;
+   bool benchmark       = false;
+   int  benchmarkid      = 1;
    int n_hr_iter         = 5;
    int n_h_iter          = 1;
    bool surface_fit_adapt = false;
    double surface_fit_threshold = -10;
+   int mesh_node_ordering = 0;
    int barrier_type       = 0;
    int worst_case_type    = 0;
 
@@ -279,6 +299,11 @@ int main(int argc, char *argv[])
                   "Device configuration string, see Device::Configure().");
    args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
                   "--no-partial-assembly", "Enable Partial Assembly.");
+   args.AddOption(&benchmark, "-bm", "--benchmark",
+                  "-no-bm", "--no-benchmark",
+                  "Apply benchmark modification.");
+   args.AddOption(&benchmarkid, "-bm_id", "--benchmark_id",
+                  "1: kershaw, 2: stretching.");
    args.AddOption(&n_hr_iter, "-nhr", "--n_hr_iter",
                   "Number of hr-adaptivity iterations.");
    args.AddOption(&n_h_iter, "-nh", "--n_h_iter",
@@ -290,6 +315,9 @@ int main(int argc, char *argv[])
    args.AddOption(&surface_fit_threshold, "-sft", "--surf-fit-threshold",
                   "Set threshold for surface fitting. TMOP solver will"
                   "terminate when max surface fitting error is below this limit");
+   args.AddOption(&mesh_node_ordering, "-mno", "--mesh_node_ordering",
+                  "Ordering of mesh nodes."
+                  "0 (default): byNodes, 1: byVDIM");
    args.AddOption(&barrier_type, "-btype", "--barrier-type",
                   "0 - None,"
                   "1 - Shifted Barrier,"
@@ -334,7 +362,8 @@ int main(int argc, char *argv[])
       mesh_poly_deg = 2;
    }
    else { fec = new H1_FECollection(mesh_poly_deg, dim); }
-   FiniteElementSpace *fespace = new FiniteElementSpace(mesh, fec, dim);
+   FiniteElementSpace *fespace = new FiniteElementSpace(mesh, fec, dim,
+                                                        mesh_node_ordering);
 
    // 4. Make the mesh curved based on the above finite element space. This
    //    means that we define the mesh elements through a fespace-based
@@ -402,6 +431,7 @@ int main(int argc, char *argv[])
    x -= rdm;
    x.SetTrueVector();
    x.SetFromTrueVector();
+   x.HostReadWrite();
 
    // 9. Save the starting (prior to the optimization) mesh to a file. This
    //    output can be viewed later using GLVis: "glvis -m perturbed.mesh".
@@ -409,6 +439,109 @@ int main(int argc, char *argv[])
       ofstream mesh_ofs("perturbed.mesh");
       mesh->Print(mesh_ofs);
    }
+
+   // Add benchmark transformation
+   if (benchmark)
+   {
+      Vector xc(dim), xn(dim);
+      const double epsy = 0.3, epsz = 0.3;
+      for (int i = 0; i < fespace->GetNDofs(); i++)
+      {
+         for (int d = 0; d < dim; d++)
+         {
+            xc[d] = x(fespace->DofToVDof(i,d));
+         }
+         xn = xc;
+
+         if (benchmarkid == 1)
+         {
+            kershaw(epsy, epsz, xc[0], xc[1], xc[dim-1], xn[0], xn[1], xn[dim-1]);
+         }
+         else if (benchmarkid == 2)
+         {
+            if (dim == 2)
+            {
+               stretching2D(xc[0], xc[1], xn[0], xn[1]);
+            }
+            else if (dim == 3)
+            {
+               stretching3D(xc[0], xc[1], xc[dim-1], xn[0], xn[1], xn[dim-1]);
+            }
+            else { MFEM_ABORT("Unsupported benchmark dim!"); }
+         }
+         else if (benchmarkid == 3)
+         {
+            rotation2D(xc[0], xc[1], xn[0], xn[1]);
+            if (dim == 3) { xn[2] = xc[2]; }
+         }
+         else if (benchmarkid == 4)
+         {
+            xn[0] = xc[0];
+            if (xc[1] == 0.25)
+            {
+               xn[1] = 0.05;
+            }
+            else if (xc[1] == 0.75)
+            {
+               xn[1] = 0.95;
+            }
+            else
+            {
+               xn[1] = xc[1];
+            }
+            if (dim == 3) { xn[2] = xc[2]; }
+         }
+
+         for (int d = 0; d < dim; d++)
+         {
+            x(fespace->DofToVDof(i,d)) = xn[d];
+         }
+      }
+      x.SetTrueVector();
+      x.SetFromTrueVector();
+      {
+         ofstream mesh_ofs("perturbed.mesh");
+         mesh->Print(mesh_ofs);
+      }
+   }
+
+
+   // Change boundary attribute for boundary element if tangential relaxation is allowed
+   if (move_bnd && benchmark)
+   {
+      for (int e = 0; e < mesh->GetNBE(); e++)
+      {
+         Array<int> dofs;
+         fespace->GetBdrElementDofs(e, dofs);
+         Array<bool> check(dim);
+         check = true;
+         Array<double> x_c(dim);
+         for (int j = 0; j < dofs.Size(); j++)
+         {
+            if (j == 0)
+            {
+               for (int d = 0; d < dim; d++)
+               {
+                  x_c[d] = x(fespace->DofToVDof(dofs[j], d));
+               }
+            }
+            else
+            {
+               for (int d = 0; d < dim; d++)
+               {
+                  check[d] = check[d] && (x_c[d] == x(fespace->DofToVDof(dofs[j],d)));
+               }
+            }
+            Element *be = mesh->GetBdrElement(e);
+            be->SetAttribute(4);
+            for (int d = 0; d < dim; d++)
+            {
+               if (check[d]) { be->SetAttribute(d+1); }
+            }
+         }
+      }
+   }
+
 
    // 10. Store the starting (prior to the optimization) positions.
    GridFunction x0(fespace);
@@ -436,7 +569,7 @@ int main(int argc, char *argv[])
       case 80: metric = new TMOP_Metric_080(0.5); break;
       case 85: metric = new TMOP_Metric_085; break;
       case 98: metric = new TMOP_Metric_098; break;
-      // case 211: metric = new TMOP_Metric_211; break;
+      case 211: metric = new TMOP_Metric_211; break;
       // case 252: metric = new TMOP_Metric_252(min_detJ); break;
       case 301: metric = new TMOP_Metric_301; break;
       case 302: metric = new TMOP_Metric_302; break;

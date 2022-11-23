@@ -404,7 +404,6 @@ void test_pa_convection(const std::string &meshname, int order, int prob,
 
    k_fa.Assemble();
    k_fa.Finalize();
-   k_fa.SpMat().EnsureMultTranspose();
 
    k_pa.SetAssemblyLevel(AssemblyLevel::PARTIAL);
    k_pa.Assemble();

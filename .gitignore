@@ -327,6 +327,7 @@ tests/unit/debug_device_tests
 # Benchmark binaries
 tests/benchmarks/bench_ceed
 tests/benchmarks/bench_tmop
+tests/benchmarks/bench_tmop_ss
 tests/benchmarks/bench_vector
 tests/benchmarks/bench_virtuals
 
