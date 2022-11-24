@@ -222,7 +222,10 @@ int main(int argc, char *argv[])
    if (fa)
    {
       a.SetAssemblyLevel(AssemblyLevel::FULL);
-      a.EnableSparseMatrixSorting( Device::Allows(~Backend::CPU_MASK) );
+      // Sort the matrix column indices when running on GPU or with OpenMP (i.e.
+      // when Device::IsEnabled() returns true). This makes the results
+      // bit-for-bit deterministic at the cost of somewhat longer run time.
+      a.EnableSparseMatrixSorting(Device::IsEnabled());
    }
    a.AddDomainIntegrator(new DiffusionIntegrator(one));
 
