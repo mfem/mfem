@@ -157,26 +157,6 @@ int main (int argc, char *argv[])
                              "HO Optimized", 800, 0, 400, 400, "mpRj");
    }
 
-//      // Visualize the mesh displacement.
-//      {
-//         x0 -= x;
-//         socketstream sock;
-//         if (myid == 0)
-//         {
-//            sock.open("localhost", 19916);
-//            sock << "fem2d_gf_data_keys\n";
-//         }
-//         pmesh->PrintAsOne(sock);
-//         x0.SaveAsOne(sock);
-//         if (myid == 0)
-//         {
-//            sock << "window_title 'Displacements'\n"
-//                 << "window_geometry "
-//                 << 1200 << " " << 0 << " " << 600 << " " << 600 << "\n"
-//                 << "keys jRmclA" << endl;
-//         }
-//
-
    return 0;
 }
 
