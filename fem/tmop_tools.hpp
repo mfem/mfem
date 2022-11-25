@@ -149,15 +149,6 @@ protected:
 
    MemoryType temp_mt = MemoryType::DEFAULT;
 
-   const IntegrationRule &GetIntegrationRule(const FiniteElement &el) const
-   {
-      if (IntegRules)
-      {
-         return IntegRules->Get(el.GetGeomType(), integ_order);
-      }
-      return ir;
-   }
-
    void UpdateDiscreteTC(const TMOP_Integrator &ti, const Vector &x_new,
                          int x_ordering = Ordering::byNODES) const;
 
@@ -198,6 +189,15 @@ public:
    {
       IntegRules = &irules;
       integ_order = order;
+   }
+
+   const IntegrationRule &GetIntegrationRule(const FiniteElement &el) const
+   {
+      if (IntegRules)
+      {
+         return IntegRules->Get(el.GetGeomType(), integ_order);
+      }
+      return ir;
    }
 
    void SetMinDetPtr(double *md_ptr) { min_det_ptr = md_ptr; }

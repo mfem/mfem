@@ -30,12 +30,44 @@ double test_func(const Vector &coord)
 
 double MinDetJ(ParMesh &pmesh, int quad_order);
 
-void OptimizeMesh(ParGridFunction &x,
-                  TMOP_QualityMetric &metric, int quad_order);
-
 void TransferLowToHigh(const ParGridFunction &l, ParGridFunction &h);
 
 void TransferHighToLow(const ParGridFunction &h, ParGridFunction &l);
+
+class MeshOptimizer
+{
+private:
+   TMOP_QualityMetric *metric = nullptr;
+   TargetConstructor *target_c = nullptr;
+   ParNonlinearForm *nlf = nullptr;
+   IterativeSolver *lin_solver = nullptr;
+   TMOPNewtonSolver *solver = nullptr;
+
+public:
+   MeshOptimizer() { }
+
+   ~MeshOptimizer()
+   {
+      delete solver;
+      delete lin_solver;
+      delete nlf;
+      delete target_c;
+      delete metric;
+   }
+
+   // Must be called before optimization.
+   void Setup(ParFiniteElementSpace &pfes, int metric_id, int quad_order);
+
+   void SetAbsTol(double atol) { solver->SetAbsTol(atol); }
+
+   // Optimizes the node positions given in x.
+   // When we enter, x contains the initial node positions.
+   // When we exit, x contains the optimized node positions.
+   // The underlying mesh of x remains unchanged (its positions don't change).
+   void OptimizeNodes(ParGridFunction &x);
+
+   double Residual(ParGridFunction &x);
+};
 
 int main (int argc, char *argv[])
 {
@@ -93,91 +125,38 @@ int main (int argc, char *argv[])
    ParGridFunction x0(&pfes);
    x0 = x;
 
-   // Metric.
-   TMOP_QualityMetric *metric = NULL;
-   if (dim == 2)
-   {
-      switch (metric_id)
-      {
-      case 1: metric = new TMOP_Metric_001; break;
-      case 2: metric = new TMOP_Metric_002; break;
-      case 50: metric = new TMOP_Metric_050; break;
-      case 58: metric = new TMOP_Metric_058; break;
-      case 80: metric = new TMOP_Metric_080(0.1); break;
-      }
-   }
-   else { metric = new TMOP_Metric_302; }
-
-   TargetConstructor::TargetType target_t =
-         TargetConstructor::IDEAL_SHAPE_UNIT_SIZE;
-   auto target_c = new TargetConstructor(target_t, MPI_COMM_WORLD);
-   target_c->SetNodes(x0);
-
-   cout << "HO detJ: " << MinDetJ(pmesh, 8) << endl;
    {
       socketstream vis_g;
       common::VisualizeMesh(vis_g, "localhost", 19916, pmesh,
                             "Initial mesh", 0, 0, 400, 400, "mpRj");
    }
 
-   OptimizeMesh(x, *metric, 8);
+   MeshOptimizer optimizer;
+   optimizer.Setup(pfes, metric_id, 8);
+   double res_0 = optimizer.Residual(x);
+
+   for (int o = 1; o < mesh_poly_deg; o++)
+   {
+      H1_FECollection fec_LO(o, dim);
+      ParFiniteElementSpace pfes_LO(&pmesh, &fec_LO, dim);
+      ParGridFunction x_LO(&pfes_LO);
+
+      MeshOptimizer optimizer_LO;
+      optimizer_LO.Setup(pfes_LO, metric_id, 6);
+      TransferHighToLow(x, x_LO);
+      optimizer_LO.OptimizeNodes(x_LO);
+      TransferLowToHigh(x_LO, x);
+   }
+
+   optimizer.SetAbsTol(res_0 * 1e-8);
+   optimizer.OptimizeNodes(x);
+
    {
       socketstream vis_g;
       common::VisualizeMesh(vis_g, "localhost", 19916, pmesh,
                              "HO Optimized", 800, 0, 400, 400, "mpRj");
    }
 
-   /*
-   ParFiniteElementSpace pfes_s(pmesh, &fec);
-   ParGridFunction g(&pfes_s);
-   g.ProjectCoefficient(fc);
-   {
-      socketstream vis_b_func;
-      common::VisualizeField(vis_b_func, "localhost", 19916, g,
-                             "High order", 0, 0, 400, 400, "Rj");
-   }
-
-   double norm_2 = g.ComputeL1Error(cz);
-   if (myid == 0)
-   {
-      std::cout << "Original: " << norm_1 << " " << norm_2 << endl;
-   }
-
-   ParGridFunction g_1_orig(g_1);
-
-   TransferHighToLow(g, g_1);
-   {
-      socketstream vis_b_func;
-      common::VisualizeField(vis_b_func, "localhost", 19916, g_1,
-                             "High -> 1", 400, 400, 400, 400, "Rj");
-   }
-
-   TransferLowToHigh(g_1_orig, g);
-   {
-      socketstream vis_b_func;
-      common::VisualizeField(vis_b_func, "localhost", 19916, g,
-                             "1 -> High",0, 400, 400, 400, "Rj");
-   }
-
-   norm_1 = g_1.ComputeL1Error(cz);
-   norm_2 = g.ComputeL1Error(cz);
-   if (myid == 0)
-   {
-      std::cout << norm_1 << " " << norm_2 << endl;
-   }
-
-
-#ifndef MFEM_USE_GSLIB
-   MFEM_ABORT("GSLIB needed for this functionality.");
-#endif
-
-   // Visualize the final mesh and metric values.
-   {
-      char title[] = "Final metric values";
-      //vis_tmop_metric_p(mesh_poly_deg, *metric, *target_c, *pmesh, title, 600);
-   }
-
-*/
 //      // Visualize the mesh displacement.
 //      {
 //         x0 -= x;
@@ -196,9 +175,7 @@ int main (int argc, char *argv[])
 //                 << 1200 << " " << 0 << " " << 600 << " " << 600 << "\n"
 //                 << "keys jRmclA" << endl;
 //         }
-//      }
-   delete target_c;
-   delete metric;
+//
 
    return 0;
 }
@@ -275,13 +252,77 @@ double MinDetJ(ParMesh &pmesh, int quad_order)
       }
    }
 
+   MPI_Allreduce(MPI_IN_PLACE, &min_detJ, 1, MPI_DOUBLE, MPI_MIN,
+                 pmesh.GetComm());
+
    return min_detJ;
 }
 
-void OptimizeMesh(ParGridFunction &x,
-                  TMOP_QualityMetric &metric, int quad_order)
+void MeshOptimizer::Setup(ParFiniteElementSpace &pfes,
+                          int metric_id, int quad_order)
 {
+   const int dim = pfes.GetMesh()->Dimension();
+
+   // Metric.
+   if (dim == 2)
+   {
+      switch (metric_id)
+      {
+      case 1: metric = new TMOP_Metric_001; break;
+      case 2: metric = new TMOP_Metric_002; break;
+      case 50: metric = new TMOP_Metric_050; break;
+      case 58: metric = new TMOP_Metric_058; break;
+      case 80: metric = new TMOP_Metric_080(0.1); break;
+      }
+   }
+   else { metric = new TMOP_Metric_302; }
+
+   // Target.
+   TargetConstructor::TargetType target =
+         TargetConstructor::IDEAL_SHAPE_UNIT_SIZE;
+   target_c = new TargetConstructor(target, pfes.GetComm());
+
+   // Integrator.
+   auto tmop_integ = new TMOP_Integrator(metric, target_c, nullptr);
+   tmop_integ->SetIntegrationRules(IntRulesLo, quad_order);
+
+   // Nonlinear form.
+   nlf = new ParNonlinearForm(&pfes);
+   nlf->AddDomainIntegrator(tmop_integ);
+
+   // Boundary.
+   Array<int> ess_bdr(pfes.GetParMesh()->bdr_attributes.Max());
+   ess_bdr = 1;
+   nlf->SetEssentialBC(ess_bdr);
+
+   // Linear solver.
+   lin_solver = new MINRESSolver(pfes.GetComm());
+   lin_solver->SetMaxIter(100);
+   lin_solver->SetRelTol(1e-12);
+   lin_solver->SetAbsTol(0.0);
+   IterativeSolver::PrintLevel minres_pl;
+   lin_solver->SetPrintLevel(minres_pl.FirstAndLast().Summary());
+
+   // Nonlinear solver.
+   const IntegrationRule &ir =
+      IntRulesLo.Get(pfes.GetFE(0)->GetGeomType(), quad_order);
+   solver = new TMOPNewtonSolver(pfes.GetComm(), ir);
+   solver->SetIntegrationRules(IntRulesLo, quad_order);
+   solver->SetOperator(*nlf);
+   solver->SetPreconditioner(*lin_solver);
+   solver->SetMaxIter(1000);
+   solver->SetRelTol(1e-8);
+   solver->SetAbsTol(0.0);
+   IterativeSolver::PrintLevel newton_pl;
+   solver->SetPrintLevel(newton_pl.Iterations().Summary());
+}
+
+void MeshOptimizer::OptimizeNodes(ParGridFunction &x)
+{
+   MFEM_VERIFY(solver, "Setup() has not been called.");
+
    ParMesh &pmesh = *x.ParFESpace()->GetParMesh();
+   int myid = pmesh.GetMyRank();
 
    GridFunction *ptr_nodes = pmesh.GetNodes();
    GridFunction *ptr_x = &x;
@@ -290,66 +331,35 @@ void OptimizeMesh(ParGridFunction &x,
 
    ParFiniteElementSpace &pfes = *x.ParFESpace();
 
-   const int order = pfes.GetFE(0)->GetOrder(), dim = pmesh.Dimension();
-   cout << "\n*** Optimizing Order " << order << " ***\n\n";
-   cout << "Min detJ before opt: " << MinDetJ(pmesh, quad_order) << endl;
-
-   // Metric / target / integrator.
-   TargetConstructor::TargetType target =
-         TargetConstructor::IDEAL_SHAPE_UNIT_SIZE;
-   TargetConstructor target_c(target, pfes.GetComm());
-   auto tmop_integ = new TMOP_Integrator(&metric, &target_c, nullptr);
-   tmop_integ->SetIntegrationRules(IntRulesLo, quad_order);
-
-   // Nonlinear form.
-   ParNonlinearForm nlf(&pfes);
-   nlf.AddDomainIntegrator(tmop_integ);
-
-   Array<int> ess_bdr(pfes.GetParMesh()->bdr_attributes.Max());
-   ess_bdr = 1;
-   nlf.SetEssentialBC(ess_bdr);
-
-   // Linear solver.
-   MINRESSolver minres(pfes.GetComm());
-   minres.SetMaxIter(100);
-   minres.SetRelTol(1e-12);
-   minres.SetAbsTol(0.0);
-   IterativeSolver::PrintLevel minres_pl;
-   minres.SetPrintLevel(minres_pl.FirstAndLast().Summary());
-
-   // Nonlinear solver.
-   const IntegrationRule &ir =
-      IntRulesLo.Get(pfes.GetFE(0)->GetGeomType(), quad_order);
-   TMOPNewtonSolver solver(pfes.GetComm(), ir);
-   solver.SetIntegrationRules(IntRulesLo, quad_order);
-   solver.SetOperator(nlf);
-   solver.SetPreconditioner(minres);
-   solver.SetMaxIter(1000);
-   solver.SetRelTol(0.0);
-   IterativeSolver::PrintLevel newton_pl;
-   solver.SetPrintLevel(newton_pl.Iterations().Summary());
-
-   // Optimize.
-   Vector b;
-
-   double residual_0 = solver.GetResidual(b, x);
-   double abs_tol = residual_0 * 1e-8;
-   if (order > 1)
+   const int quad_order =
+      solver->GetIntegrationRule(*x.ParFESpace()->GetFE(0)).GetOrder();
+   const int order = pfes.GetFE(0)->GetOrder();
+   double min_detJ = MinDetJ(pmesh, quad_order);
+   if (myid == 0)
    {
-      H1_FECollection fec_1(1, dim);
-      ParFiniteElementSpace pfes_1(&pmesh, &fec_1, dim);
-      ParGridFunction x_1(&pfes_1);
-      TransferHighToLow(x, x_1);
-      OptimizeMesh(x_1, metric, 4);
-      TransferLowToHigh(x_1, x);
+      cout << "\n*** Optimizing Order " << order << " ***\n\n";
+      cout << "Min detJ before opt: " << min_detJ << endl;
    }
 
+   // Optimize.
    x.SetTrueVector();
-   solver.SetAbsTol(abs_tol);
-   solver.Mult(b, x.GetTrueVector());
+   Vector b;
+   solver->Mult(b, x.GetTrueVector());
    x.SetFromTrueVector();
 
-   cout << "Min detJ after opt: " << MinDetJ(pmesh, quad_order) << endl;
+   min_detJ = MinDetJ(pmesh, quad_order);
+   if (myid == 0)
+   {
+      cout << "Min detJ after opt: " << min_detJ << endl;
+   }
 
    pmesh.SwapNodes(ptr_nodes, dont_own_nodes);
+}
+
+double MeshOptimizer::Residual(ParGridFunction &x)
+{
+   MFEM_VERIFY(solver, "Setup() has not been called.");
+   Vector b;
+   x.SetTrueVector();
+   return solver->GetResidual(b, x.GetTrueVector());
 }
