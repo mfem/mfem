@@ -36,7 +36,7 @@ class DensityCoeff:public mfem::Coefficient
 
     enum ProjectionType {zero_one, continuous}; 
 
-    enum PatternType {Ball, Gyroid, SchwarzP, SchwarzD,FCC, BCC, Octet, TRUSS};
+    enum PatternType {Ball, Gyroid, SchwarzP, SchwarzD,FCC, BCC, Octet, TRUSS,Ellipse,Spheres};
 
 private:
 
@@ -100,6 +100,7 @@ public:
     double Eval(mfem::ElementTransformation &T, const mfem::IntegrationPoint &ip)
     {
 	if(pttype==Ball){	
+
             double x[3];
             Vector transip(x, 3);
             T.Transform(ip,transip);
@@ -108,6 +109,79 @@ public:
             if(T.GetDimension()==3)
             {
                 rr=rr+(x[2]-cz)*(x[2]-cz);
+            }
+            rr=std::sqrt(rr);
+            if(prtype==continuous){return rr;}
+
+            if(rr>eta){return 0.0;}
+            return 1.0; 
+        }else
+        if(pttype==Spheres){	
+            double x[3];
+            Vector transip(x, 3);
+            T.Transform(ip,transip);
+
+            double unitCellSize = 0.05;
+            
+            if(x[0] < 0.0 || x[1] < 0.0 || x[1] > 1.0)
+            {return 0.0;}
+            else
+            {
+               double remainder_x = std::fmod( x[0] , unitCellSize);
+               double remainder_y = std::fmod( x[1] , unitCellSize);
+
+               remainder_x = remainder_x / unitCellSize;
+               remainder_y = remainder_y / unitCellSize;
+
+               double rr=(remainder_x-cx)*(remainder_x-cx);
+               rr=rr+(remainder_y-cy)*(remainder_y-cy);
+               if(T.GetDimension()==3)
+               {
+                   //rr=rr+(x[2]-cz)*(x[2]-cz);
+               }
+               rr=std::sqrt(rr);
+               if(prtype==continuous){return rr;}
+
+               if(rr>eta){return 0.0;}
+               return 1.0; 
+            }
+
+
+            double rr=(x[0]-cx)*(x[0]-cx);
+            rr=rr+(x[1]-cy)*(x[1]-cy);
+            if(T.GetDimension()==3)
+            {
+                rr=rr+(x[2]-cz)*(x[2]-cz);
+            }
+            rr=std::sqrt(rr);
+            if(prtype==continuous){return rr;}
+
+            if(rr>eta){return 0.0;}
+            return 1.0; 
+        }else
+        if(pttype==Ellipse){	
+            mfem::Vector transip(3);
+            mfem::Vector rotatedCoords(3);
+            T.Transform(ip,transip);
+            transip -= 0.5;
+
+            double Angele = M_PI /6.0;
+
+            mfem::DenseMatrix tRot(3); tRot = 0.0;
+            tRot(0,0) = std::cos(Angele);
+            tRot(1,0) = -std::sin(Angele);
+            tRot(0,1) = std::sin(Angele);
+            tRot(1,1) = std::cos(Angele);
+
+            tRot.Mult(transip,rotatedCoords);
+
+            rotatedCoords +=0.5;
+
+            double rr=(rotatedCoords[0]-cx)*(rotatedCoords[0]-cx);
+            rr=rr+(rotatedCoords[1]-cy)*(rotatedCoords[1]-cy)/0.25;
+            if(T.GetDimension()==3)
+            {
+                mfem_error("not implemented");
             }
             rr=std::sqrt(rr);
             if(prtype==continuous){return rr;}
@@ -423,11 +497,11 @@ public:
             {
                 if(dens<1e-8)
                 {
-                        V(0)=mnx * ma;
-                        V(1)=mny * ma;
+                        V(0)= -1.0*mnx * ma;
+                        V(1)= -1.0*mny * ma;
                     if(T.GetDimension()==3)
                     {
-                        V(2)=mnz * ma;
+                        V(2)=-1.0* mnz * ma;
                     }
                 }else
                 {

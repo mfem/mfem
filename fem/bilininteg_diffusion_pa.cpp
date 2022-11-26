@@ -12,7 +12,8 @@
 #include "../general/forall.hpp"
 #include "bilininteg.hpp"
 #include "gridfunc.hpp"
-#include "ceed/diffusion.hpp"
+#include "qfunction.hpp"
+#include "ceed/integrators/diffusion/diffusion.hpp"
 
 using namespace std;
 
@@ -271,18 +272,21 @@ void PADiffusionSetup3D(const int Q1D,
                   D(qx,qy,qz,1,e) = D12; // 1,2
                   D(qx,qy,qz,2,e) = w_detJ * (A11*R13 + A12*R23 + A13*R33); // 1,3
 
-                  const double D21 = w_detJ * (A21*R11 + A22*R21 + A23*R31);
                   const double D22 = w_detJ * (A21*R12 + A22*R22 + A23*R32);
                   const double D23 = w_detJ * (A21*R13 + A22*R23 + A23*R33);
 
                   const double D33 = w_detJ * (A31*R13 + A32*R23 + A33*R33);
 
-                  D(qx,qy,qz,3,e) = symmetric ? D22 : D21; // 2,2 or 2,1
                   D(qx,qy,qz,4,e) = symmetric ? D23 : D22; // 2,3 or 2,2
                   D(qx,qy,qz,5,e) = symmetric ? D33 : D23; // 3,3 or 2,3
 
-                  if (!symmetric)
+                  if (symmetric)
                   {
+                     D(qx,qy,qz,3,e) = D22; // 2,2
+                  }
+                  else
+                  {
+                     D(qx,qy,qz,3,e) = w_detJ * (A21*R11 + A22*R21 + A23*R31); // 2,1
                      D(qx,qy,qz,6,e) = w_detJ * (A31*R11 + A32*R21 + A33*R31); // 3,1
                      D(qx,qy,qz,7,e) = w_detJ * (A31*R12 + A32*R22 + A33*R32); // 3,2
                      D(qx,qy,qz,8,e) = D33; // 3,3
@@ -365,7 +369,16 @@ void DiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
       MFEM_VERIFY(!VQ && !MQ,
                   "Only scalar coefficient supported for DiffusionIntegrator"
                   " with libCEED");
-      ceedOp = new ceed::PADiffusionIntegrator(fes, *ir, Q);
+      const bool mixed = mesh->GetNumGeometries(mesh->Dimension()) > 1 ||
+                         fes.IsVariableOrder();
+      if (mixed)
+      {
+         ceedOp = new ceed::MixedPADiffusionIntegrator(*this, fes, Q);
+      }
+      else
+      {
+         ceedOp = new ceed::PADiffusionIntegrator(fes, *ir, Q);
+      }
       return;
    }
    const int dims = el.GetDim();
@@ -378,120 +391,21 @@ void DiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
    maps = &el.GetDofToQuad(*ir, DofToQuad::TENSOR);
    dofs1D = maps->ndof;
    quad1D = maps->nqpt;
-   int coeffDim = 1;
-   Vector coeff;
-   const int MQfullDim = MQ ? MQ->GetHeight() * MQ->GetWidth() : 0;
-   if (auto *SMQ = dynamic_cast<SymmetricMatrixCoefficient *>(MQ))
-   {
-      MFEM_VERIFY(SMQ->GetSize() == dim, "");
-      coeffDim = symmDims;
-      coeff.SetSize(symmDims * nq * ne);
 
-      DenseSymmetricMatrix sym_mat;
-      sym_mat.SetSize(dim);
+   QuadratureSpace qs(*mesh, *ir);
+   CoefficientVector coeff(qs, CoefficientStorage::COMPRESSED);
 
-      auto C = Reshape(coeff.HostWrite(), symmDims, nq, ne);
+   if (MQ) { coeff.ProjectTranspose(*MQ); }
+   else if (VQ) { coeff.Project(*VQ); }
+   else if (Q) { coeff.Project(*Q); }
+   else { coeff.SetConstant(1.0); }
 
-      for (int e=0; e<ne; ++e)
-      {
-         ElementTransformation *tr = mesh->GetElementTransformation(e);
-         for (int p=0; p<nq; ++p)
-         {
-            SMQ->Eval(sym_mat, *tr, ir->IntPoint(p));
-            int cnt = 0;
-            for (int i=0; i<dim; ++i)
-               for (int j=i; j<dim; ++j, ++cnt)
-               {
-                  C(cnt, p, e) = sym_mat(i,j);
-               }
-         }
-      }
-   }
-   else if (MQ)
-   {
-      symmetric = false;
-      MFEM_VERIFY(MQ->GetHeight() == dim && MQ->GetWidth() == dim, "");
+   const int coeff_dim = coeff.GetVDim();
+   symmetric = (coeff_dim != dims*dims);
+   const int pa_size = symmetric ? symmDims : dims*dims;
 
-      coeffDim = MQfullDim;
-
-      coeff.SetSize(MQfullDim * nq * ne);
-
-      DenseMatrix mat;
-      mat.SetSize(dim);
-
-      auto C = Reshape(coeff.HostWrite(), MQfullDim, nq, ne);
-      for (int e=0; e<ne; ++e)
-      {
-         ElementTransformation *tr = mesh->GetElementTransformation(e);
-         for (int p=0; p<nq; ++p)
-         {
-            MQ->Eval(mat, *tr, ir->IntPoint(p));
-            for (int i=0; i<dim; ++i)
-               for (int j=0; j<dim; ++j)
-               {
-                  C(j+(i*dim), p, e) = mat(i,j);
-               }
-         }
-      }
-   }
-   else if (VQ)
-   {
-      MFEM_VERIFY(VQ->GetVDim() == dim, "");
-      coeffDim = VQ->GetVDim();
-      coeff.SetSize(coeffDim * nq * ne);
-      auto C = Reshape(coeff.HostWrite(), coeffDim, nq, ne);
-      Vector DM(coeffDim);
-      for (int e=0; e<ne; ++e)
-      {
-         ElementTransformation *tr = mesh->GetElementTransformation(e);
-         for (int p=0; p<nq; ++p)
-         {
-            VQ->Eval(DM, *tr, ir->IntPoint(p));
-            for (int i=0; i<coeffDim; ++i)
-            {
-               C(i, p, e) = DM[i];
-            }
-         }
-      }
-   }
-   else if (Q == nullptr)
-   {
-      coeff.SetSize(1);
-      coeff(0) = 1.0;
-   }
-   else if (ConstantCoefficient* cQ = dynamic_cast<ConstantCoefficient*>(Q))
-   {
-      coeff.SetSize(1);
-      coeff(0) = cQ->constant;
-   }
-   else if (QuadratureFunctionCoefficient* qfQ =
-               dynamic_cast<QuadratureFunctionCoefficient*>(Q))
-   {
-      const QuadratureFunction &qFun = qfQ->GetQuadFunction();
-      MFEM_VERIFY(qFun.Size() == ne*nq,
-                  "Incompatible QuadratureFunction dimension \n");
-
-      MFEM_VERIFY(ir == &qFun.GetSpace()->GetElementIntRule(0),
-                  "IntegrationRule used within integrator and in"
-                  " QuadratureFunction appear to be different");
-      qFun.Read();
-      coeff.MakeRef(const_cast<QuadratureFunction &>(qFun),0);
-   }
-   else
-   {
-      coeff.SetSize(nq * ne);
-      auto C = Reshape(coeff.HostWrite(), nq, ne);
-      for (int e = 0; e < ne; ++e)
-      {
-         ElementTransformation& T = *fes.GetElementTransformation(e);
-         for (int q = 0; q < nq; ++q)
-         {
-            C(q,e) = Q->Eval(T, ir->IntPoint(q));
-         }
-      }
-   }
-   pa_data.SetSize((symmetric ? symmDims : MQfullDim) * nq * ne, mt);
-   PADiffusionSetup(dim, sdim, dofs1D, quad1D, coeffDim, ne, ir->GetWeights(),
+   pa_data.SetSize(pa_size * nq * ne, mt);
+   PADiffusionSetup(dim, sdim, dofs1D, quad1D, coeff_dim, ne, ir->GetWeights(),
                     geom->J, coeff, pa_data);
 }
 

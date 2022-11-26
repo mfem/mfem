@@ -40,7 +40,6 @@ void Navier3dBrinkWorkflow::SetDensityCoeff(
    mDensCoeff->SetPatternType(aGeometry);
 
    mDensCoeff->SetProjectionType(aProjectionType);
-
 }
 
 
@@ -142,16 +141,21 @@ void Navier3dBrinkWorkflow::Perform( )
    double t_final = mCtk.t_final;
    bool last_step = false;
 
+   std::cout<<"before loop"<<std::endl;
+
     for (int step = 0; !last_step; ++step)
     {
+
+
        if (t + dt >= t_final - dt / 2)
        {
           last_step = true;
        }
-
+                std::cout<<"in loop on rank: "<<mMPI.WorldRank() <<std::endl;
        mFlowsolver->Step(t, dt, step);
-       mBp->SetVel(mFlowsolver->GetCurrentVelocity());
 
+       mBp->SetVel(mFlowsolver->GetCurrentVelocity());
+         std::cout<<"setting vel: "<<mMPI.WorldRank() <<std::endl;
        //mFlowsolver->GetCurrentVelocity()->norm2();
    //    //mBp->SetVel(flowsolver.GetProvisionalVelocity());
       if( mVisualization )
@@ -170,7 +174,7 @@ void Navier3dBrinkWorkflow::Perform( )
             fflush(stdout);
          }
     }
-
+         std::cout<<"print timing: "<<mMPI.WorldRank() <<std::endl;
     mFlowsolver->PrintTimingData();
 }
 

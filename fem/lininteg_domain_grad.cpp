@@ -278,6 +278,7 @@ static void DLFGradAssemble(const FiniteElementSpace &fes,
 
    if (dim==2)
    {
+      if (d==1 && q==1) { ker=DLFGradAssemble2D<1,1>; }
       if (d==2 && q==2) { ker=DLFGradAssemble2D<2,2>; }
       if (d==3 && q==3) { ker=DLFGradAssemble2D<3,3>; }
       if (d==4 && q==4) { ker=DLFGradAssemble2D<4,4>; }
@@ -290,6 +291,7 @@ static void DLFGradAssemble(const FiniteElementSpace &fes,
 
    if (dim==3)
    {
+      if (d==1 && q==1) { ker=DLFGradAssemble3D<1,1>; }
       if (d==2 && q==2) { ker=DLFGradAssemble3D<2,2>; }
       if (d==3 && q==3) { ker=DLFGradAssemble3D<3,3>; }
       if (d==4 && q==4) { ker=DLFGradAssemble3D<4,4>; }
@@ -322,104 +324,24 @@ void DomainLFGradIntegrator::AssembleDevice(const FiniteElementSpace &fes,
    const int qorder = 2 * fe.GetOrder();
    const Geometry::Type gtype = fe.GetGeomType();
    const IntegrationRule *ir = IntRule ? IntRule : &IntRules.Get(gtype, qorder);
-   const int nq = ir->GetNPoints(), ne = fes.GetMesh()->GetNE();
 
-   if (VectorConstantCoefficient *vcQ =
-          dynamic_cast<VectorConstantCoefficient*>(&Q))
-   {
-      Qvec = vcQ->GetVec();
-   }
-   else if (VectorQuadratureFunctionCoefficient *vqfQ =
-               dynamic_cast<VectorQuadratureFunctionCoefficient*>(&Q))
-   {
-      const QuadratureFunction &qfun = vqfQ->GetQuadFunction();
-      MFEM_VERIFY(qfun.Size() == ne*nq,
-                  "Incompatible QuadratureFunction dimension \n");
-      MFEM_VERIFY(ir == &qfun.GetSpace()->GetElementIntRule(0),
-                  "IntegrationRule used within integrator and in"
-                  " QuadratureFunction appear to be different.\n");
-      qfun.Read();
-      Qvec.MakeRef(const_cast<QuadratureFunction&>(qfun),0);
-   }
-   else
-   {
-      const int qvdim = Q.GetVDim();
-      Vector qvec(qvdim);
-      Qvec.SetSize(qvdim * nq * ne);
-      auto C = Reshape(Qvec.HostWrite(), qvdim, nq, ne);
-      for (int e = 0; e < ne; ++e)
-      {
-         ElementTransformation& T = *fes.GetElementTransformation(e);
-         for (int q = 0; q < nq; ++q)
-         {
-            Q.Eval(qvec, T, ir->IntPoint(q));
-            for (int c=0; c < qvdim; ++c)
-            {
-               C(c,q,e) = qvec[c];
-            }
-         }
-      }
-   }
-   DLFGradAssemble(fes, ir, markers, Qvec, b);
+   QuadratureSpace qs(*fes.GetMesh(), *ir);
+   CoefficientVector coeff(Q, qs, CoefficientStorage::COMPRESSED);
+   DLFGradAssemble(fes, ir, markers, coeff, b);
 }
 
 void VectorDomainLFGradIntegrator::AssembleDevice(const FiniteElementSpace &fes,
                                                   const Array<int> &markers,
                                                   Vector &b)
 {
-   const int vdim = fes.GetVDim();
    const FiniteElement &fe = *fes.GetFE(0);
    const int qorder = 2 * fe.GetOrder();
    const Geometry::Type gtype = fe.GetGeomType();
    const IntegrationRule *ir = IntRule ? IntRule : &IntRules.Get(gtype, qorder);
-   const int nq = ir->GetNPoints(), ne = fes.GetMesh()->GetNE(),
-             ns = fes.GetMesh()->SpaceDimension();
 
-   if (VectorConstantCoefficient *vcQ =
-          dynamic_cast<VectorConstantCoefficient*>(&Q))
-   {
-      Qvec = vcQ->GetVec();
-   }
-   else if (QuadratureFunctionCoefficient *qfQ =
-               dynamic_cast<QuadratureFunctionCoefficient*>(&Q))
-   {
-      const QuadratureFunction &qfun = qfQ->GetQuadFunction();
-      MFEM_VERIFY(qfun.Size() == ne*nq,
-                  "Incompatible QuadratureFunction dimension \n");
-      MFEM_VERIFY(ir == &qfun.GetSpace()->GetElementIntRule(0),
-                  "IntegrationRule used within integrator and in"
-                  " QuadratureFunction appear to be different.\n");
-      qfun.Read();
-      Qvec.MakeRef(const_cast<QuadratureFunction&>(qfun),0);
-   }
-   else if (VectorQuadratureFunctionCoefficient* vqfQ =
-               dynamic_cast<VectorQuadratureFunctionCoefficient*>(&Q))
-   {
-      const QuadratureFunction &qFun = vqfQ->GetQuadFunction();
-      MFEM_VERIFY(qFun.Size() == vdim * ns * nq * ne,
-                  "Incompatible QuadratureFunction dimension \n");
-      MFEM_VERIFY(ir == &qFun.GetSpace()->GetElementIntRule(0),
-                  "IntegrationRule used within integrator and in"
-                  " QuadratureFunction appear to be different");
-      qFun.Read();
-      Qvec.MakeRef(const_cast<QuadratureFunction &>(qFun),0);
-   }
-   else
-   {
-      Vector qvec(vdim);
-      Qvec.SetSize(vdim * nq * ne);
-      auto C = Reshape(Qvec.HostWrite(), vdim, nq, ne);
-      for (int e = 0; e < ne; ++e)
-      {
-         ElementTransformation &Tr = *fes.GetElementTransformation(e);
-         for (int q = 0; q < nq; ++q)
-         {
-            Q.Eval(qvec, Tr, ir->IntPoint(q));
-            for (int c = 0; c<vdim; ++c) { C(c,q,e) = qvec[c]; }
-         }
-      }
-   }
-   DLFGradAssemble(fes, ir, markers, Qvec, b);
+   QuadratureSpace qs(*fes.GetMesh(), *ir);
+   CoefficientVector coeff(Q, qs, CoefficientStorage::COMPRESSED);
+   DLFGradAssemble(fes, ir, markers, coeff, b);
 }
 
 } // namespace mfem

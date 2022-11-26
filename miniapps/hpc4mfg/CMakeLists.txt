@@ -10,43 +10,73 @@
 # CONTRIBUTING.md for details.
 
 if (MFEM_USE_MPI)
-  list(APPEND DIST_COMMON_SOURCES
-        hpc4solvers.cpp)
-  list(APPEND DIST_COMMON_HEADERS
-        hpc4solvers.hpp)
-  list(APPEND DIST_COMMON_SOURCES
-        NLGLSIntegrator.cpp)
-  list(APPEND DIST_COMMON_HEADERS
-        NLGLSIntegrator.hpp)
-  list(APPEND DIST_COMMON_SOURCES
-        advection_diffusion_solver.cpp)
-  list(APPEND DIST_COMMON_HEADERS
-        advection_diffusion_solver.hpp)
-  list(APPEND DIST_COMMON_SOURCES
-        ascii.cpp)
-  list(APPEND DIST_COMMON_HEADERS
-        ascii.hpp)
-
+  list(APPEND HPC4_COMMON_SOURCES
+      ascii.cpp
+      hpc4mat.cpp
+      hpc4solvers.cpp
+      NLGLSIntegrator.cpp
+      advection_diffusion_solver.cpp
+      MMA.cpp
+      Stokes.cpp)
+  list(APPEND HPC4_COMMON_HEADERS
+    ascii.hpp
+      hpc4mat.hpp
+      hpc4solvers.hpp
+      NLGLSIntegrator.hpp
+      advection_diffusion_solver.hpp
+      MMA.hpp
+      Stokes.hpp)
+             
 convert_filenames_to_full_paths(DIST_COMMON_SOURCES)
 convert_filenames_to_full_paths(DIST_COMMON_HEADERS)
 
-set(DIST_COMMON_FILES
-        EXTRA_SOURCES ${DIST_COMMON_SOURCES}
-        EXTRA_HEADERS ${DIST_COMMON_HEADERS})
+set(HPC4_COMMON_FILES
+    EXTRA_SOURCES ${HPC4_COMMON_SOURCES}
+    EXTRA_HEADERS ${HPC4_COMMON_HEADERS})
 
 add_mfem_miniapp(ndarcy
     MAIN ndarcy.cpp
-    ${DIST_COMMON_FILES}
+    ${HPC4_COMMON_FILES}
+    LIBRARIES mfem mfem-common)
+
+add_mfem_miniapp(ndarcy_opt
+    MAIN ndarcy_opt.cpp
+    ${HPC4_COMMON_FILES}
+    LIBRARIES mfem mfem-common)
+
+add_mfem_miniapp(ndarcy_opt_2
+    MAIN ndarcy_opt_2.cpp
+    ${HPC4_COMMON_FILES}
+    LIBRARIES mfem mfem-common)
+
+add_mfem_miniapp(ndarcy_opt_3
+    MAIN ndarcy_opt_3.cpp
+    ${HPC4_COMMON_FILES}
+    LIBRARIES mfem mfem-common)
+
+add_mfem_miniapp(FESpaceMinExample
+    MAIN FESpaceMinExample.cpp
+    ${HPC4_COMMON_FILES}
     LIBRARIES mfem mfem-common)
 
 add_mfem_miniapp(GLSSolver
     MAIN GLS_Solver.cpp
-    ${DIST_COMMON_FILES}
+    ${HPC4_COMMON_FILES}
     LIBRARIES mfem mfem-common)
 
 add_mfem_miniapp(AdvDiffSolver
     MAIN AdvDiff_Solver.cpp
-    ${DIST_COMMON_FILES}
+    ${HPC4_COMMON_FILES}
+    LIBRARIES mfem mfem-common)
+
+add_mfem_miniapp(Stokes3DMicro
+    MAIN Stokes3DMicro.cpp
+    ${HPC4_COMMON_FILES}
+    LIBRARIES mfem mfem-common)
+
+add_mfem_miniapp(Stokes2DMicro
+    MAIN Stokes2DMicro.cpp
+    ${HPC4_COMMON_FILES}
     LIBRARIES mfem mfem-common)
 
 

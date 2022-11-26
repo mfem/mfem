@@ -1,7 +1,6 @@
 #ifndef ADVECTION_DIFFUSION_SOLVER_HPP
 #define ADVECTION_DIFFUSION_SOLVER_HPP
 
-#include "mfem.hpp"
 #include "hpc4solvers.hpp"
 
 namespace mfem{

@@ -39,9 +39,9 @@ int main(int argc, char *argv[])
    args.Parse();
 
    {
-      std::string tStringOut = "./A_OutputFile_";
+      std::string tStringOut = "./B_OutputFile_Ellipse";
 
-      int tNumFiles = 1000;
+      int tNumFiles = 200;
 
       std::vector< std::string > tVec(tNumFiles, "");
 
@@ -53,7 +53,7 @@ int main(int argc, char *argv[])
 
          if( !file_exists(tString) )
          {
-             std::cout<<"file does not exist"<<std::endl;
+             std::cout<<"file does not exist: "<<Ik<<std::endl;
          }
          else
          {
@@ -66,7 +66,7 @@ int main(int argc, char *argv[])
             {
                std::string tLine = tAsciiWriter.line( Ii );
 
-              tVec[tCounter] = tVec[tCounter] + " " + tLine;
+               tVec[tCounter] = tVec[tCounter] + " " + tLine;
             }
 
             tCounter++;
@@ -80,7 +80,7 @@ int main(int argc, char *argv[])
       {
           tAsciiWriter.print(tVec[Ik]);
 
-          std::cout<<tVec[Ik]<<std::endl;
+          //std::cout<<tVec[Ik]<<std::endl;
       }
          
       tAsciiWriter.save();

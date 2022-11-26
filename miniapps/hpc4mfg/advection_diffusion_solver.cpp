@@ -2,7 +2,10 @@
 #include "../navier/adv_diff_cg.hpp"
 #include "NLGLSIntegrator.hpp"
 
+
+#ifdef MFEM_USE_PETSC
 #include "petsc.h"
+#endif
 
 namespace mfem {
 
@@ -187,8 +190,12 @@ void Advection_Diffusion_Solver::FSolve()
     }
     else
     {
+#ifdef MFEM_USE_PETSC
         if(false)
         {
+
+
+
          const char *petscrc_file = "";
          MFEMInitializePetsc(NULL,NULL,petscrc_file,NULL);
 
@@ -276,6 +283,7 @@ void Advection_Diffusion_Solver::FSolve()
         X_petsc.ResetMemory();
 
         KSPDestroy( &tPetscKSPProblem );
+
         }
         else{
 
@@ -326,6 +334,7 @@ void Advection_Diffusion_Solver::FSolve()
         delete pcg;
         delete prec;
         }
+#endif
       }
 
     solgf = X;     // copy solution

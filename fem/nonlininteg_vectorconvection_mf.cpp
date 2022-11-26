@@ -11,7 +11,7 @@
 
 #include "../general/forall.hpp"
 #include "nonlininteg.hpp"
-#include "ceed/nlconvection.hpp"
+#include "ceed/integrators/nlconvection/nlconvection.hpp"
 
 using namespace std;
 
@@ -28,7 +28,16 @@ void VectorConvectionNLFIntegrator::AssembleMF(const FiniteElementSpace &fes)
    if (DeviceCanUseCeed())
    {
       delete ceedOp;
-      ceedOp = new ceed::MFVectorConvectionNLFIntegrator(fes, *ir, Q);
+      const bool mixed = mesh->GetNumGeometries(mesh->Dimension()) > 1 ||
+                         fes.IsVariableOrder();
+      if (mixed)
+      {
+         ceedOp = new ceed::MixedMFVectorConvectionNLIntegrator(*this, fes, Q);
+      }
+      else
+      {
+         ceedOp = new ceed::MFVectorConvectionNLFIntegrator(fes, *ir, Q);
+      }
       return;
    }
    MFEM_ABORT("Not yet implemented.");

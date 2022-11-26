@@ -12,7 +12,7 @@
 #include "../general/forall.hpp"
 #include "bilininteg.hpp"
 #include "gridfunc.hpp"
-#include "ceed/diffusion.hpp"
+#include "ceed/integrators/diffusion/diffusion.hpp"
 
 using namespace std;
 
@@ -30,7 +30,19 @@ void VectorDiffusionIntegrator::AssembleMF(const FiniteElementSpace &fes)
    if (DeviceCanUseCeed())
    {
       delete ceedOp;
-      ceedOp = new ceed::MFDiffusionIntegrator(fes, *ir, Q);
+      MFEM_VERIFY(!VQ && !MQ,
+                  "Only scalar coefficient supported for DiffusionIntegrator"
+                  " with libCEED");
+      const bool mixed = mesh->GetNumGeometries(mesh->Dimension()) > 1 ||
+                         fes.IsVariableOrder();
+      if (mixed)
+      {
+         ceedOp = new ceed::MixedMFDiffusionIntegrator(*this, fes, Q);
+      }
+      else
+      {
+         ceedOp = new ceed::MFDiffusionIntegrator(fes, *ir, Q);
+      }
       return;
    }
    MFEM_ABORT("Error: VectorDiffusionIntegrator::AssembleMF only implemented"

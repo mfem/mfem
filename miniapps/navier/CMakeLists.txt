@@ -12,13 +12,11 @@
 if (MFEM_USE_MPI)
   list(APPEND NAVIER_COMMON_SOURCES
       navier_solver.cpp
-      ortho_solver.cpp
       navier_3d_brink_workflow.cpp
       ascii.cpp
       MeshOptSolver.cpp)
   list(APPEND NAVIER_COMMON_HEADERS
       navier_solver.hpp
-      ortho_solver.hpp
       navier_3d_brink_workflow.hpp
       ascii.hpp
       MeshOptSolver.hpp)
@@ -77,6 +75,11 @@ if (MFEM_USE_MPI)
 
   add_mfem_miniapp(navier_2dbrink
     MAIN navier_2dbrink.cpp
+    ${NAVIER_COMMON_FILES}
+    LIBRARIES mfem) 
+
+  add_mfem_miniapp(navier_2dbrink_full
+    MAIN navier_2dbrink_full.cpp
     ${NAVIER_COMMON_FILES}
     LIBRARIES mfem) 
 

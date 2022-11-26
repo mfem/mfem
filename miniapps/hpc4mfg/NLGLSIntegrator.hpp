@@ -362,6 +362,11 @@ public:
         materials.push_back(nmat);
     }
 
+    void AddDesignGF(ParGridFunction* desGF_)
+    {
+        desfield.push_back(desGF_);
+    }
+
     /// Returns the solution vector.
     mfem::Vector& GetSol(){return sol;}
 
@@ -372,6 +377,7 @@ private:
     mfem::ParMesh* pmesh;
 
     std::vector<MatrixCoefficient*> materials;
+    std::vector<ParGridFunction*>   desfield;
 
     //solution true vector
     mfem::Vector sol;

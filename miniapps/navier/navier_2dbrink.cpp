@@ -33,7 +33,7 @@ void vel(const Vector &x, double t, Vector &u)
    double xi = x(0);
    double yi = x(1);
 
-   u(0) = 0.2;
+   u(0) = 0.0;
    u(1) = 0.0;
 }
 
@@ -63,11 +63,13 @@ int main(int argc, char *argv[])
 
    args.Parse();
 
+   bool tPerturbed = false;
+   double PerturbationSize = 0.01;
    bool LoadSolVecFromFile = false;
-   enum DensityCoeff::PatternType tGeometry = DensityCoeff::PatternType::Ball;
+   enum DensityCoeff::PatternType tGeometry = DensityCoeff::PatternType::Ellipse;
    enum DensityCoeff::ProjectionType tProjectionType = DensityCoeff::ProjectionType::zero_one;
   
-   double tLengthScale = 1.0e-1;
+   double tLengthScale = 1.0e-2;
    double tThreshold = 0.25;
    double tDensity = 1.0e3;
    double tRefVelocity = 1.0e-3; 
@@ -82,8 +84,8 @@ int main(int argc, char *argv[])
    s_NavierContext ctx;
    ctx.order = 2;
    ctx.kin_vis = 1.0 / ReynoldsNumber;
-   ctx.t_final = 1.5;
-   ctx.dt = 1e-4;
+   ctx.t_final = 3.0;
+   ctx.dt = 2e-4;
 
    //mesh->EnsureNCMesh(true);
 
@@ -148,17 +150,32 @@ int main(int argc, char *argv[])
    {
       srand(run_id+1);  
 
-      //   tRand[0] = (rand() / double(RAND_MAX)) * 2.0 - 1.0; //nx
-      //   tRand[1] = (rand() / double(RAND_MAX)) * 2.0 - 1.0; //ny
-      //   tRand[2] = (rand() / double(RAND_MAX)) * 2.0 - 1.0; //nz
-      //   tRand[3] = rand() / double(RAND_MAX) * 10;          //a
-      //   tRand[4] = rand() / double(RAND_MAX);   //eta
+      double rForceMag = rand() / double(RAND_MAX) * 10;
 
-        tRand[0] = 1.0; //nx
-        tRand[1] = 0.0;// / sqrt( 3.0 ); //ny
-        tRand[2] = 0.0;// / sqrt( 3.0 ); //nz
-        tRand[3] = tForce_Magnitude;//150.7*5/10*1.5;//150.7*1.5;        //a
-        tRand[4] = tThreshold;//0.65;  //0.4365
+      tRand[0] = ((rand() / double(RAND_MAX)) * 2.0 - 1.0)*rForceMag; //nx
+      tRand[1] = ((rand() / double(RAND_MAX)) * 2.0 - 1.0)*rForceMag; //ny
+      tRand[2] = 0.0; //nz
+      tRand[3] = 1.0;          //a
+      tRand[4] = rand() * 0.4 / double(RAND_MAX)+0.1;   //eta
+      //      tRand[4] = 0.5;   //eta
+
+      if( tPerturbed )
+      {
+         double tRand4 = ((rand() / double(RAND_MAX)) * 2.0 - 1.0);
+         double tRand5 = ((rand() / double(RAND_MAX)) * 2.0 - 1.0);
+         double norm = std::sqrt( tRand4* tRand4 + tRand5*tRand5);
+         tRand4 = tRand4 * PerturbationSize / norm;
+         tRand5 = tRand5 * PerturbationSize / norm;
+
+         tRand[0] = tRand[0] + tRand4;
+         tRand[1] = tRand[1] + tRand5;
+      }
+
+      //   tRand[0] = 1.0; //nx
+      //   tRand[1] = 0.0;// / sqrt( 3.0 ); //ny
+      //   tRand[2] = 0.0;// / sqrt( 3.0 ); //nz
+      //   tRand[3] = tForce_Magnitude;//150.7*5/10*1.5;//150.7*1.5;        //a
+      //   tRand[4] = tThreshold;//0.65;  //0.4365
    }
 
    if (mpi.WorldSize() > 1 )
@@ -177,16 +194,11 @@ int main(int argc, char *argv[])
 
       tWorkflow.SetDensityCoeff( tGeometry, tProjectionType );
 
-      std::cout<<"---density set---"<<std::endl;
-
       tWorkflow.SetupFlowSolver(  );
-            std::cout<<"---solver set---"<<std::endl;
 
       tWorkflow.SetInitialConditions(  vel, LoadSolVecFromFile );
-            std::cout<<"---ini cond set---"<<std::endl;
 
       tWorkflow.SetupOutput(  );
-            std::cout<<"---output set---"<<std::endl;
 
       tWorkflow.Perform(  );
             std::cout<<"---perform---"<<std::endl;
