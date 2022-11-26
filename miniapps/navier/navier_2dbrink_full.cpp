@@ -107,15 +107,6 @@ int main(int argc, char *argv[])
       std::cout << "Number of elements: " << mesh.GetNE() << std::endl;
    }
 
-   // // Create translation vectors defining the periodicity
-   // Vector x_translation({1.0*MultInX, 0.0});
-   // Vector y_translation({0.0, 1.0*MultInY});
-
-   // std::vector<Vector> translations = {x_translation, y_translation};
-
-   // // Create the periodic mesh using the vertex mapping defined by the translation vectors
-   // Mesh periodic_mesh = Mesh::MakePeriodic(mesh,
-   //                                         mesh.CreatePeriodicVertexMapping(translations));
 
    auto *pmesh = new ParMesh(MPI_COMM_WORLD, mesh);
    //delete mesh;
@@ -140,47 +131,6 @@ int main(int argc, char *argv[])
 
    tForce_Magnitude = preasureGrad * tLengthScale /(tDensity * std::pow(tRefVelocity ,2));
  
-   // get random vals
-   std::vector< double > tRand(5,0.0);
-   if (mpi.Root())
-   {
-      srand(run_id+1);  
-
-      double rForceMag = rand() / double(RAND_MAX) * 10;
-
-      tRand[0] = ((rand() / double(RAND_MAX)) * 2.0 - 1.0)*rForceMag; //nx
-      tRand[1] = ((rand() / double(RAND_MAX)) * 2.0 - 1.0)*rForceMag; //ny
-      tRand[2] = 0.0; //nz
-      tRand[3] = 1.0;          //a
-      tRand[4] = rand() * 0.4 / double(RAND_MAX)+0.1;   //eta
-      //      tRand[4] = 0.5;   //eta
-
-      if( tPerturbed )
-      {
-         double tRand4 = ((rand() / double(RAND_MAX)) * 2.0 - 1.0);
-         double tRand5 = ((rand() / double(RAND_MAX)) * 2.0 - 1.0);
-         double norm = std::sqrt( tRand4* tRand4 + tRand5*tRand5);
-         tRand4 = tRand4 * PerturbationSize / norm;
-         tRand5 = tRand5 * PerturbationSize / norm;
-
-         tRand[0] = tRand[0] + tRand4;
-         tRand[1] = tRand[1] + tRand5;
-      }
-
-      //   tRand[0] = 1.0; //nx
-      //   tRand[1] = 0.0;// / sqrt( 3.0 ); //ny
-      //   tRand[2] = 0.0;// / sqrt( 3.0 ); //nz
-      //   tRand[3] = tForce_Magnitude;//150.7*5/10*1.5;//150.7*1.5;        //a
-      //   tRand[4] = tThreshold;//0.65;  //0.4365
-   }
-
-   if (mpi.WorldSize() > 1 )
-   {
-      MPI_Bcast( tRand.data(), tRand.size(), MPI_DOUBLE , 0, MPI_COMM_WORLD );
-   }
-
-   std::cout<< tRand[0]<<" "<<tRand[1]<<" "<<tRand[2]<<" "<<tRand[4]<<" "<<tRand[4]<<" "<<std::endl;
-
    //----------------------------------------------------------
    {
       DensityCoeff* DensCoeff = new DensityCoeff;
