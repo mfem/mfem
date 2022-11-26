@@ -278,6 +278,10 @@ public:
    // The underlying mesh of x remains unchanged (its positions don't change).
    void OptimizeNodes(ParGridFunction &x);
 
+   TMOP_Integrator *GetIntegrator();
+
+   TMOPNewtonSolver *GetSolver() { return solver; }
+
    double Residual(ParGridFunction &x);
 };
 
@@ -314,9 +318,9 @@ void MeshOptimizer::Setup(ParFiniteElementSpace &pfes,
    nlf->AddDomainIntegrator(tmop_integ);
 
    // Boundary.
-   Array<int> ess_bdr(pfes.GetParMesh()->bdr_attributes.Max());
-   ess_bdr = 1;
-   nlf->SetEssentialBC(ess_bdr);
+//   Array<int> ess_bdr(pfes.GetParMesh()->bdr_attributes.Max());
+//   ess_bdr = 1;
+//   nlf->SetEssentialBC(ess_bdr);
 
    // Linear solver.
    lin_solver = new MINRESSolver(pfes.GetComm());
@@ -401,6 +405,12 @@ void MeshOptimizer::OptimizeNodes(ParGridFunction &x)
    }
 
    pmesh.SwapNodes(ptr_nodes, dont_own_nodes);
+}
+
+TMOP_Integrator *MeshOptimizer::GetIntegrator()
+{
+   const Array<NonlinearFormIntegrator*> &integs = *nlf->GetDNFI();
+   return dynamic_cast<TMOP_Integrator *>(integs[0]);
 }
 
 double MeshOptimizer::Residual(ParGridFunction &x)

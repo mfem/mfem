@@ -2821,8 +2821,7 @@ void TMOP_Integrator::EnableSurfaceFittingFromSource(const ParGridFunction
 
    surf_fit_gf_bg = true;
    surf_fit_eval->SetParMetaInfo(*s0_bg.ParFESpace()->GetParMesh(),
-                                 *s0_bg.ParFESpace()->FEColl(), 1,
-                                 s0_bg.ParFESpace()->GetOrdering());
+                                 *s0_bg.ParFESpace());
    surf_fit_eval->SetInitialField
    (*s0_bg.FESpace()->GetMesh()->GetNodes(), s0_bg);
 
@@ -2835,9 +2834,7 @@ void TMOP_Integrator::EnableSurfaceFittingFromSource(const ParGridFunction
    surf_fit_eval_bg_grad = &age;
    surf_fit_eval_bg_hess = &ahe;
    surf_fit_eval_bg_grad->SetParMetaInfo(*s0_bg_grad.ParFESpace()->GetParMesh(),
-                                         *s0_bg_grad.ParFESpace()->FEColl(),
-                                         s0_bg_grad.ParFESpace()->GetVDim(),
-                                         s0_bg_grad.ParFESpace()->GetOrdering());
+                                         *s0_bg_grad.ParFESpace());
    surf_fit_eval_bg_grad->SetInitialField
    (*s0_bg_grad.FESpace()->GetMesh()->GetNodes(), s0_bg_grad);
 
@@ -2851,9 +2848,7 @@ void TMOP_Integrator::EnableSurfaceFittingFromSource(const ParGridFunction
 
    // Setup Hessian on background mesh
    surf_fit_eval_bg_hess->SetParMetaInfo(*s0_bg_hess.ParFESpace()->GetParMesh(),
-                                         *s0_bg_hess.ParFESpace()->FEColl(),
-                                         s0_bg_hess.ParFESpace()->GetVDim(),
-                                         s0_bg_hess.ParFESpace()->GetOrdering());
+                                         *s0_bg_hess.ParFESpace());
    surf_fit_eval_bg_hess->SetInitialField
    (*s0_bg_hess.FESpace()->GetMesh()->GetNodes(), s0_bg_hess);
 

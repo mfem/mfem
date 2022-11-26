@@ -52,7 +52,6 @@ int main (int argc, char *argv[])
    const char *mesh_file = "jagged.mesh";
    int rs_levels         = 0;
    int mesh_poly_deg     = 2;
-   bool fdscheme         = false;
    bool worst_case       = true;
    bool fit_optimize     = true;
    int solver_iter       = 50;
@@ -73,8 +72,6 @@ int main (int argc, char *argv[])
                   "Number of times to refine the mesh uniformly in serial.");
    args.AddOption(&solver_iter, "-ni", "--newton-iters",
                   "Maximum number of Newton iterations.");
-   args.AddOption(&fdscheme, "-fd", "--fd_approx", "-no-fd", "--no-fd-approx",
-                  "Enable finite difference based derivative computations.");
    args.AddOption(&worst_case, "-wc", "--worst-case",
                                "-no-wc", "--no-worst-case",
                   "Enable worst case optimization step.");
@@ -395,14 +392,8 @@ int main (int argc, char *argv[])
       visit_dc.Save();
    }
 
-   TMOP_Integrator *tmop_integ = new TMOP_Integrator(metric, target_c, nullptr);
-
-   // Finite differences for computations of derivatives.
-   if (fdscheme) { tmop_integ->EnableFiniteDifferences(x); }
-
    // Setup the quadrature rules for the TMOP integrator.
    IntegrationRules *irules = &IntRulesLo;
-   tmop_integ->SetIntegrationRules(*irules, quad_order);
    if (myid == 0 && dim == 2)
    {
       cout << "Triangle quadrature points: "
@@ -499,12 +490,6 @@ int main (int argc, char *argv[])
       adapt_grad_surface = new InterpolatorFP;
       adapt_hess_surface = new InterpolatorFP;
 
-      tmop_integ->EnableSurfaceFittingFromSource(bg_domain, domain,
-                                                 surf_fit_marker, surf_fit_coeff,
-                                                 *adapt_surface,
-                                                 *bg_grad, *surf_fit_grad, *adapt_grad_surface,
-                                                 *bg_hess, *surf_fit_hess, *adapt_hess_surface);
-      if (true)
       {
          socketstream vis1;
          common::VisualizeField(vis1, "localhost", 19916, surf_fit_mat_gf,
@@ -513,153 +498,67 @@ int main (int argc, char *argv[])
       }
    }
 
-   // Setup the final NonlinearForm.
-   ParNonlinearForm a(&pfes);
-   a.AddDomainIntegrator(tmop_integ);
-
-   // Compute the minimum det(J) of the starting mesh.
-   double min_detJ = infinity();
-   for (int i = 0; i < NE; i++)
+   MeshOptimizer mesh_opt;
+   mesh_opt.Setup(pfes, metric_id, quad_order);
+   mesh_opt.GetIntegrator()->
+      EnableSurfaceFittingFromSource(bg_domain, domain,
+                                     surf_fit_marker, surf_fit_coeff,
+                                     *adapt_surface,
+                                     *bg_grad, *surf_fit_grad, *adapt_grad_surface,
+                                     *bg_hess, *surf_fit_hess, *adapt_hess_surface);
+   mesh_opt.GetSolver()->SetAdaptiveSurfaceFittingScalingFactor(surface_fit_adapt);
+   mesh_opt.GetSolver()->SetTerminationWithMaxSurfaceFittingError(surface_fit_threshold);
+   if (surface_fit_const > 0.0)
    {
-      const IntegrationRule &ir =
-         irules->Get(pfes.GetFE(i)->GetGeomType(), quad_order);
-      ElementTransformation *transf = pmesh->GetElementTransformation(i);
-      for (int j = 0; j < ir.GetNPoints(); j++)
+      double err_avg, err_max;
+      mesh_opt.GetIntegrator()->GetSurfaceFittingErrors(err_avg, err_max);
+      if (myid == 0)
       {
-         transf->SetIntPoint(&ir.IntPoint(j));
-         min_detJ = min(min_detJ, transf->Jacobian().Det());
+         std::cout << "Initial Avg fitting error: " << err_avg << std::endl
+                   << "Initial Max fitting error: " << err_max << std::endl;
       }
    }
-   MPI_Allreduce(MPI_IN_PLACE, &min_detJ, 1, MPI_DOUBLE,
-                 MPI_MIN, MPI_COMM_WORLD);
-   if (myid == 0)
-   { cout << "Minimum det(J) of the original mesh is " << min_detJ << endl; }
+   mesh_opt.OptimizeNodes(x);
 
-   if (min_detJ < 0.0)
-   {
-      MFEM_VERIFY(target_t == TargetConstructor::IDEAL_SHAPE_UNIT_SIZE,
-                  "Untangling is supported only for ideal targets.");
-
-      const DenseMatrix &Wideal =
-         Geometries.GetGeomToPerfGeomJac(pfes.GetFE(0)->GetGeomType());
-      min_detJ /= Wideal.Det();
-
-      // Slightly below minJ0 to avoid div by 0.
-      min_detJ -= 0.01 * min_dx;
-   }
-
-   // For HR tests, the energy is normalized by the number of elements.
-   const double init_energy = a.GetParGridFunctionEnergy(x);
-   //   surf_fit_coeff.constant   = 0.0;
-   double init_metric_energy = a.GetParGridFunctionEnergy(x);
-   //   surf_fit_coeff.constant  = surface_fit_const;
-
-   // Setup Newton's Jacobian solver.
-   Solver *S = NULL;
-   MINRESSolver *minres = new MINRESSolver(MPI_COMM_WORLD);
-   minres->SetMaxIter(100);
-   minres->SetRelTol(1e-12);
-   minres->SetAbsTol(0.0);
-   IterativeSolver::PrintLevel minres_pl;
-   minres_pl.FirstAndLast().Summary();
-   minres->SetPrintLevel(minres_pl);
-   S = minres;
-
-   // Perform the nonlinear optimization.
-   const IntegrationRule &ir =
-      irules->Get(pfes.GetFE(0)->GetGeomType(), quad_order);
-   TMOPNewtonSolver solver(pfes.GetComm(), ir);
-   if (surface_fit_adapt > 0.0)
-   {
-      solver.SetAdaptiveSurfaceFittingScalingFactor(surface_fit_adapt);
-   }
-   if (surface_fit_threshold > 0)
-   {
-      solver.SetTerminationWithMaxSurfaceFittingError(surface_fit_threshold);
-   }
-   solver.SetIntegrationRules(*irules, quad_order);
-   solver.SetPreconditioner(*S);
-
-      if (surface_fit_const > 0.0)
-      {
-         double err_avg, err_max;
-         tmop_integ->GetSurfaceFittingErrors(err_avg, err_max);
-         if (myid == 0)
-         {
-            std::cout << "Initial Avg fitting error: " << err_avg << std::endl
-                      << "Initial Max fitting error: " << err_max << std::endl;
-         }
-      }
-
-   // For untangling, the solver will update the min det(T) values.
-   solver.SetMinDetPtr(&min_detJ);
-   solver.SetMaxIter(solver_iter);
-   solver.SetRelTol(1e-8);
-   solver.SetAbsTol(0.0);
-   IterativeSolver::PrintLevel newton_pl;
-   newton_pl.Iterations().Summary();
-   solver.SetPrintLevel(newton_pl);
-
-   solver.SetOperator(a);
-   Vector b(0);
-   x.SetTrueVector();
-   solver.Mult(b, x.GetTrueVector());
-   x.SetFromTrueVector();
-
-   // Save the optimized mesh to a file.
+   // Save the optimized mesh to files.
    {
       ostringstream mesh_name;
       mesh_name << "amster-out.mesh";
       ofstream mesh_ofs(mesh_name.str().c_str());
       mesh_ofs.precision(8);
       pmesh->PrintAsOne(mesh_ofs);
+
+      VisItDataCollection visit_dc("amster_opt", pmesh);
+      visit_dc.SetFormat(DataCollection::SERIAL_FORMAT);
+      visit_dc.Save();
    }
 
    {
-       VisItDataCollection visit_dc("amster_opt", pmesh);
-       visit_dc.SetFormat(DataCollection::SERIAL_FORMAT);
-       visit_dc.Save();
+      socketstream vis;
+      common::VisualizeMesh(vis, "localhost", 19916, *pmesh,
+                            "Final mesh", 800, 0, 400, 400, "me");
    }
 
-   // Visualize the final mesh and metric values.
+   if (surface_fit_const > 0.0)
    {
-      char title[] = "Final metric values";
-      vis_tmop_metric_p(mesh_poly_deg, *metric, *target_c, *pmesh, title, 600);
+      double err_avg, err_max;
+      mesh_opt.GetIntegrator()->GetSurfaceFittingErrors(err_avg, err_max);
+      if (myid == 0)
+      {
+         std::cout << "Avg fitting error: " << err_avg << std::endl
+                   << "Max fitting error: " << err_max << std::endl;
+      }
    }
-
-   //   if (surface_fit_const > 0.0)
-   //   {
-   //      double err_avg, err_max;
-   //      tmop_integ->GetSurfaceFittingErrors(err_avg, err_max);
-   //      if (myid == 0)
-   //      {
-   //         std::cout << "Avg fitting error: " << err_avg << std::endl
-   //                   << "Max fitting error: " << err_max << std::endl;
-   //      }
-   //   }
 
    // Visualize the mesh displacement.
    {
+      socketstream vis;
       x0 -= x;
-      socketstream sock;
-      if (myid == 0)
-      {
-         sock.open("localhost", 19916);
-         sock << "solution\n";
-      }
-      pmesh->PrintAsOne(sock);
-      x0.SaveAsOne(sock);
-      if (myid == 0)
-      {
-         sock << "window_title 'Displacements'\n"
-              << "window_geometry "
-              << 1200 << " " << 0 << " " << 600 << " " << 600 << "\n"
-              << "keys jRmclA" << endl;
-      }
+      common::VisualizeField(vis, "localhost", 19916, x0,
+                             "Displacements", 1200, 0, 400, 400, "jRmclA");
    }
 
    // 20. Free the used memory.
-   delete S;
    //   delete metric_coeff1;
    //   delete adapt_lim_eval;
    //   delete adapt_surface;

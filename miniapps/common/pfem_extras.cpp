@@ -274,11 +274,6 @@ void VisualizeMesh(socketstream &sock, const char *vishost, int visport,
    bool newly_opened = false;
    int connection_failed;
 
-   L2_FECollection attr_col(0, pmesh.Dimension());
-   ParFiniteElementSpace attr_fes(&pmesh, &attr_col);
-   ParGridFunction attr(&attr_fes);
-   for (int e = 0; e < pmesh.GetNE(); e++) { attr(e) = pmesh.GetAttribute(e); }
-
    do
    {
       if (myid == 0)
@@ -289,11 +284,10 @@ void VisualizeMesh(socketstream &sock, const char *vishost, int visport,
             sock.precision(8);
             newly_opened = true;
          }
-         sock << "solution\n";
+         sock << "mesh\n";
       }
 
       pmesh.PrintAsOne(sock);
-      attr.SaveAsOne(sock);
 
       if (myid == 0 && newly_opened)
       {
@@ -301,7 +295,6 @@ void VisualizeMesh(socketstream &sock, const char *vishost, int visport,
               << "window_geometry "
               << x << " " << y << " " << w << " " << h << "\n";
          if ( keys ) { sock << "keys " << keys << "\n"; }
-         else { sock << "keys maaAc"; }
          sock << endl;
       }
 
