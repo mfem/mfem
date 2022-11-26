@@ -119,7 +119,7 @@ public:
 /// and mu_hat = (mu/2phi(tau,ep)) where
 /// 2phi(tau,ep) = 1, when                                 when BarrierType = None,
 ///             = 2*(tau - min(alpha*min(tau)-detT_ep,0)), when BarrierType = Shifted
-///             = tau^2 + sqrt(tau^2 + ep^2),              when BarrierType = Pseuso
+///             = tau^2 + sqrt(tau^2 + ep^2),              when BarrierType = Pseudo
 /// where tau = det(T), and max(mu_hat) and min(tau) are computed over the
 /// entire mesh.
 /// Ultimately, this metric can be used for mesh untangling with the BarrierType
@@ -454,7 +454,9 @@ protected:
 
 public:
    // W = |J^t J|^2 / det(J)^2 - 2|J|^2 / det(J) + 2
-   //   = I1b (I1b - 2).
+   virtual double EvalWMatrixForm(const DenseMatrix &Jpt) const;
+
+   // W = I1b (I1b - 2).
    virtual double EvalW(const DenseMatrix &Jpt) const;
 
    virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const;
@@ -1130,15 +1132,12 @@ protected:
    // Owned.
    Mesh *mesh;
    FiniteElementSpace *fes;
-   int ordering;
 
 #ifdef MFEM_USE_MPI
    // Owned.
    ParMesh *pmesh;
    ParFiniteElementSpace *pfes;
 #endif
-
-   int dim, ncomp;
 
 public:
    AdaptivityEvaluator() : mesh(NULL), fes(NULL)
@@ -1150,17 +1149,15 @@ public:
    }
    virtual ~AdaptivityEvaluator();
 
-   /** Specifies the Mesh and FiniteElementCollection of the solution that will
+   /** Specifies the Mesh and FiniteElementSpace of the solution that will
        be evaluated. The given mesh will be copied into the internal object. */
    void SetSerialMetaInfo(const Mesh &m,
-                          const FiniteElementCollection &fec, int num_comp,
-                          int ordering_=Ordering::byNODES);
+                          const FiniteElementSpace &f);
 
 #ifdef MFEM_USE_MPI
    /// Parallel version of SetSerialMetaInfo.
    void SetParMetaInfo(const ParMesh &m,
-                       const FiniteElementCollection &fec, int num_comp,
-                       int ordering_=Ordering::byNODES);
+                       const ParFiniteElementSpace &f);
 #endif
 
    // TODO use GridFunctions to make clear it's on the ldofs?
@@ -1169,7 +1166,7 @@ public:
 
    virtual void ComputeAtNewPosition(const Vector &new_nodes,
                                      Vector &new_field,
-                                     int ordering = Ordering::byNODES) = 0;
+                                     int new_nodes_ordering = Ordering::byNODES) = 0;
 
    void ClearGeometricFactors();
 };
@@ -1485,10 +1482,10 @@ public:
        new mesh positions are given by new_x. If @a use_flags is true, repeated
        calls won't do anything until ResetUpdateFlags() is called. */
    void UpdateTargetSpecification(const Vector &new_x, bool use_flag = false,
-                                  int ordering=Ordering::byNODES);
+                                  int new_x_ordering=Ordering::byNODES);
 
    void UpdateTargetSpecification(Vector &new_x, Vector &IntData,
-                                  int ordering=Ordering::byNODES);
+                                  int new_x_ordering=Ordering::byNODES);
 
    void UpdateTargetSpecificationAtNode(const FiniteElement &el,
                                         ElementTransformation &T,
@@ -1503,14 +1500,14 @@ public:
        ResetUpdateFlags() is called. */
    void UpdateGradientTargetSpecification(const Vector &x, double dx,
                                           bool use_flag = false,
-                                          int ordering = Ordering::byNODES);
+                                          int x_ordering = Ordering::byNODES);
    /** Used for finite-difference based computations. Computes the target
        specifications after two mesh perturbations in x and/or y direction.
        If @a use_flags is true, repeated calls won't do anything until
        ResetUpdateFlags() is called. */
    void UpdateHessianTargetSpecification(const Vector &x, double dx,
                                          bool use_flag = false,
-                                         int ordering = Ordering::byNODES);
+                                         int x_ordering = Ordering::byNODES);
 
    void SetAdaptivityEvaluator(AdaptivityEvaluator *ae)
    {
@@ -1749,7 +1746,7 @@ protected:
    void ComputeMinJac(const Vector &x, const FiniteElementSpace &fes);
 
    void UpdateAfterMeshPositionChange(const Vector &new_x,
-                                      int ordering = Ordering::byNODES);
+                                      int new_x_ordering = Ordering::byNODES);
 
    void DisableLimiting()
    {

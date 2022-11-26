@@ -58,7 +58,6 @@ private:
    Vector nodes0;
    GridFunction field0_gf;
    FindPointsGSLIB *finder;
-   int dim;
 public:
    InterpolatorFP() : finder(NULL) { }
 
@@ -67,7 +66,7 @@ public:
 
    virtual void ComputeAtNewPosition(const Vector &new_nodes,
                                      Vector &new_field,
-                                     int ordering = Ordering::byNODES);
+                                     int new_nodes_ordering = Ordering::byNODES);
 
    ~InterpolatorFP()
    {
@@ -159,17 +158,8 @@ protected:
 
    MemoryType temp_mt = MemoryType::DEFAULT;
 
-   const IntegrationRule &GetIntegrationRule(const FiniteElement &el) const
-   {
-      if (IntegRules)
-      {
-         return IntegRules->Get(el.GetGeomType(), integ_order);
-      }
-      return ir;
-   }
-
    void UpdateDiscreteTC(const TMOP_Integrator &ti, const Vector &x_new,
-                         int ordering=Ordering::byNODES) const;
+                         int x_ordering = Ordering::byNODES) const;
 
    double ComputeMinDet(const Vector &x_loc,
                         const FiniteElementSpace &fes) const;
@@ -208,6 +198,15 @@ public:
    {
       IntegRules = &irules;
       integ_order = order;
+   }
+
+   const IntegrationRule &GetIntegrationRule(const FiniteElement &el) const
+   {
+      if (IntegRules)
+      {
+         return IntegRules->Get(el.GetGeomType(), integ_order);
+      }
+      return ir;
    }
 
    void SetMinDetPtr(double *md_ptr) { min_det_ptr = md_ptr; }

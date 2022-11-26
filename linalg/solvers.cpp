@@ -1811,6 +1811,19 @@ void NewtonSolver::SetOperator(const Operator &op)
    c.SetSize(width);
 }
 
+double NewtonSolver::GetResidual(const Vector &b, const Vector &x) const
+{
+   MFEM_ASSERT(oper != NULL, "the Operator is not set (use SetOperator).");
+   MFEM_ASSERT(x.Size() == width, "Incorrect input size.");
+
+   ProcessNewState(x);
+
+   oper->Mult(x, r);
+   if (b.Size() == height) { r -= b; }
+
+   return Norm(r);
+}
+
 void NewtonSolver::Mult(const Vector &b, Vector &x) const
 {
    MFEM_ASSERT(oper != NULL, "the Operator is not set (use SetOperator).");

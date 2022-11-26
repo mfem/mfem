@@ -30,28 +30,38 @@ void AdvectorCG::ComputeAtNewPosition(const Vector &new_nodes,
                                       Vector &new_field,
                                       int new_nodes_ordering)
 {
+   FiniteElementSpace *space = fes;
+#ifdef MFEM_USE_MPI
+   if (pfes) { space = pfes; }
+#endif
+   int fes_ordering = space->GetOrdering(),
+       ncomp = space->GetVDim();
+
    // TODO: Implement for AMR meshes.
-   const int pnt_cnt = new_field.Size()/ncomp;
+   const int pnt_cnt = field0.Size() / ncomp;
 
    new_field = field0;
    Vector new_field_temp;
    for (int i = 0; i < ncomp; i++)
    {
-      if (ordering == Ordering::byNODES)
+      if (fes_ordering == Ordering::byNODES)
       {
          new_field_temp.MakeRef(new_field, i*pnt_cnt, pnt_cnt);
       }
       else
       {
          new_field_temp.SetSize(pnt_cnt);
-         new_field_temp = 0.;
+         for (int j = 0; j < pnt_cnt; j++)
+         {
+            new_field_temp(j) = new_field(i + j*ncomp);
+         }
       }
       ComputeAtNewPositionScalar(new_nodes, new_field_temp);
-      if (ordering != Ordering::byNODES)
+      if (fes_ordering == Ordering::byVDIM)
       {
          for (int j = 0; j < pnt_cnt; j++)
          {
-            new_field(i + j*ncomp) = new_field(j);
+            new_field(i + j*ncomp) = new_field_temp(j);
          }
       }
    }
@@ -114,7 +124,7 @@ void AdvectorCG::ComputeAtNewPositionScalar(const Vector &new_nodes,
    for (int i = 0; i < s; i++)
    {
       double vel = 0.;
-      for (int j = 0; j < dim; j++)
+      for (int j = 0; j < m->Dimension(); j++)
       {
          vel += u(i+j*s)*u(i+j*s);
       }
@@ -206,11 +216,7 @@ void SerialAdvectorCGOper::Mult(const Vector &ind, Vector &di_dt) const
    // Move the mesh.
    const double t = GetTime();
    add(x0, t, u, x_now);
-
-   if (al == AssemblyLevel::PARTIAL)
-   {
-      K.FESpace()->GetMesh()->DeleteGeometricFactors();
-   }
+   K.FESpace()->GetMesh()->NodesUpdated();
 
    // Assemble on the new mesh.
    K.BilinearForm::operator=(0.0);
@@ -279,11 +285,7 @@ void ParAdvectorCGOper::Mult(const Vector &ind, Vector &di_dt) const
    // Move the mesh.
    const double t = GetTime();
    add(x0, t, u, x_now);
-
-   if (al == AssemblyLevel::PARTIAL)
-   {
-      K.ParFESpace()->GetParMesh()->DeleteGeometricFactors();
-   }
+   K.ParFESpace()->GetParMesh()->NodesUpdated();
 
    // Assemble on the new mesh.
    K.BilinearForm::operator=(0.0);
@@ -363,8 +365,6 @@ void InterpolatorFP::SetInitialField(const Vector &init_nodes,
 
    field0_gf.SetSpace(f);
    field0_gf = init_field;
-
-   dim = f->GetFE(0)->GetDim();
 }
 
 void InterpolatorFP::ComputeAtNewPosition(const Vector &new_nodes,
@@ -894,18 +894,18 @@ void TMOPNewtonSolver::ProcessNewState(const Vector &x) const
 
 void TMOPNewtonSolver::UpdateDiscreteTC(const TMOP_Integrator &ti,
                                         const Vector &x_new,
-                                        int ordering) const
+                                        int x_ordering) const
 {
    const bool update_flag = true;
    DiscreteAdaptTC *discrtc = ti.GetDiscreteAdaptTC();
    if (discrtc)
    {
-      discrtc->UpdateTargetSpecification(x_new, update_flag, ordering);
+      discrtc->UpdateTargetSpecification(x_new, update_flag, x_ordering);
       if (ti.GetFDFlag())
       {
          double dx = ti.GetFDh();
-         discrtc->UpdateGradientTargetSpecification(x_new, dx, update_flag, ordering);
-         discrtc->UpdateHessianTargetSpecification(x_new, dx, update_flag, ordering);
+         discrtc->UpdateGradientTargetSpecification(x_new, dx, update_flag, x_ordering);
+         discrtc->UpdateHessianTargetSpecification(x_new, dx, update_flag, x_ordering);
       }
    }
 }

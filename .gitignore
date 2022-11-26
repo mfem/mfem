@@ -308,6 +308,7 @@ miniapps/solvers/sol.*
 miniapps/parelag/MultilevelHcurlHdivSolver
 miniapps/parelag/*.mesh
 
+miniapps/multidomain/multidomain
 miniapps/hooke/hooke
 
 # Unit test binary and outputs

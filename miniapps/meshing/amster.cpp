@@ -450,8 +450,7 @@ int main (int argc, char *argv[])
       bg_hess_fes = new ParFiniteElementSpace(pmesh_bg, &bg_fec, n_hessian_bg);
       bg_hess = new ParGridFunction(bg_hess_fes);
 
-
-      //Setup gradient of the background mesh
+      // Setup gradient of the background mesh.
       bg_grad->ReorderByNodes();
       for (int d = 0; d < pmesh_bg->Dimension(); d++)
       {
@@ -459,12 +458,12 @@ int main (int argc, char *argv[])
          bg_domain.GetDerivative(1, d, bg_grad_comp);
       }
 
-      //Setup Hessian on background mesh
+      // Setup Hessian on background mesh.
       bg_hess->ReorderByNodes();
       int id = 0;
-      for (int d = 0; d < pmesh_bg->Dimension(); d++)
+      for (int d = 0; d < dim; d++)
       {
-         for (int idir = 0; idir < pmesh_bg->Dimension(); idir++)
+         for (int idir = 0; idir < dim; idir++)
          {
             ParGridFunction bg_grad_comp(&bg_pfes, bg_grad->GetData()+d*bg_domain.Size());
             ParGridFunction bg_hess_comp(&bg_pfes, bg_hess->GetData()+id*bg_domain.Size());
@@ -473,7 +472,7 @@ int main (int argc, char *argv[])
          }
       }
 
-      //Setup functions on the mesh being optimized
+      // Setup functions on the mesh being optimized.
       grad_fes = new ParFiniteElementSpace(pmesh, &fec, dim);
       surf_fit_grad = new ParGridFunction(grad_fes);
 

@@ -31,7 +31,7 @@
 //    mpirun -np 2 pfindpts -m ../../data/inline-tri.mesh -o 3
 //    mpirun -np 2 pfindpts -m ../../data/inline-quad.mesh -o 3
 //    mpirun -np 2 pfindpts -m ../../data/inline-quad.mesh -o 3 -po 1
-//    mpirun -np 2 pfindpts -m ../../data/inline-quad.mesh -o 3 -po 1 -fo 1 -nc 2
+//    mpirun -np 2 pfindpts -m ../../data/inline-quad.mesh -o 3 -po 1 -gfo 1 -nc 2
 //    mpirun -np 2 pfindpts -m ../../data/inline-quad.mesh -o 3 -hr
 //    mpirun -np 2 pfindpts -m ../../data/inline-tet.mesh -o 3
 //    mpirun -np 2 pfindpts -m ../../data/inline-hex.mesh -o 3
@@ -88,7 +88,7 @@ int main (int argc, char *argv[])
    bool search_on_rank_0 = false;
    bool hrefinement      = false;
    int point_ordering    = 0;
-   int fespace_ordering  = 0;
+   int gf_ordering       = 0;
 
    // Parse command-line options.
    OptionsParser args(argc, argv);
@@ -118,7 +118,7 @@ int main (int argc, char *argv[])
    args.AddOption(&point_ordering, "-po", "--point-ordering",
                   "Ordering of points to be found."
                   "0 (default): byNodes, 1: byVDIM");
-   args.AddOption(&fespace_ordering, "-fo", "--fespace-ordering",
+   args.AddOption(&gf_ordering, "-gfo", "--gridfunc-ordering",
                   "Ordering of fespace that will be used for gridfunction to be interpolated."
                   "0 (default): byNodes, 1: byVDIM");
 
@@ -208,7 +208,7 @@ int main (int argc, char *argv[])
    {
       if (myid == 0) { MFEM_ABORT("Invalid FECollection type."); }
    }
-   ParFiniteElementSpace sc_fes(&pmesh, fec, ncomp, fespace_ordering);
+   ParFiniteElementSpace sc_fes(&pmesh, fec, ncomp, gf_ordering);
    ParGridFunction field_vals(&sc_fes);
 
    // Project the GridFunction using VectorFunctionCoefficient.
@@ -330,7 +330,7 @@ int main (int argc, char *argv[])
                }
                Vector exact_val(vec_dim);
                F_exact(pos, exact_val);
-               err = fespace_ordering == Ordering::byNODES ?
+               err = gf_ordering == Ordering::byNODES ?
                      fabs(exact_val(j) - interp_vals[i + j*pts_cnt]) :
                      fabs(exact_val(j) - interp_vals[i*vec_dim + j]);
                max_err  = std::max(max_err, err);

@@ -93,7 +93,6 @@ double compare_pa_assembly(int dim, int num_elements, int order, bool transpose)
    xv.Randomize();
    if (transpose)
    {
-      assembled_grad_mat.EnsureMultTranspose();
       assembled_grad_mat.MultTranspose(xv, assembled_y);
       pa_grad.MultTranspose(xv, pa_y);
    }

@@ -289,6 +289,19 @@ void Vector::SetVector(const Vector &v, int offset)
    }
 }
 
+void Vector::AddSubVector(const Vector &v, int offset)
+{
+   MFEM_ASSERT(v.Size() + offset <= size, "invalid sub-vector");
+
+   const int vs = v.Size();
+   const double *vp = v.data;
+   double *p = data + offset;
+   for (int i = 0; i < vs; i++)
+   {
+      p[i] += vp[i];
+   }
+}
+
 void Vector::Neg()
 {
    const bool use_dev = UseDevice();
@@ -1253,66 +1266,5 @@ vector_min_cpu:
    }
    return minimum;
 }
-
-
-#ifdef MFEM_USE_SUNDIALS
-
-Vector::Vector(N_Vector nv)
-{
-   N_Vector_ID nvid = N_VGetVectorID(nv);
-
-   switch (nvid)
-   {
-      case SUNDIALS_NVEC_SERIAL:
-         SetDataAndSize(NV_DATA_S(nv), NV_LENGTH_S(nv));
-         break;
-#ifdef MFEM_USE_MPI
-      case SUNDIALS_NVEC_PARALLEL:
-         SetDataAndSize(NV_DATA_P(nv), NV_LOCLENGTH_P(nv));
-         break;
-#endif
-      default:
-         MFEM_ABORT("N_Vector type " << nvid << " is not supported");
-   }
-}
-
-void Vector::ToNVector(N_Vector &nv, long global_length)
-{
-   MFEM_ASSERT(nv, "N_Vector handle is NULL");
-   N_Vector_ID nvid = N_VGetVectorID(nv);
-
-   switch (nvid)
-   {
-      case SUNDIALS_NVEC_SERIAL:
-         MFEM_ASSERT(NV_OWN_DATA_S(nv) == SUNFALSE, "invalid serial N_Vector");
-         NV_DATA_S(nv) = data;
-         NV_LENGTH_S(nv) = size;
-         break;
-#ifdef MFEM_USE_MPI
-      case SUNDIALS_NVEC_PARALLEL:
-         MFEM_ASSERT(NV_OWN_DATA_P(nv) == SUNFALSE, "invalid parallel N_Vector");
-         NV_DATA_P(nv) = data;
-         NV_LOCLENGTH_P(nv) = size;
-         if (global_length == 0)
-         {
-            global_length = NV_GLOBLENGTH_P(nv);
-
-            if (global_length == 0 && global_length != size)
-            {
-               MPI_Comm sundials_comm = NV_COMM_P(nv);
-               long local_size = size;
-               MPI_Allreduce(&local_size, &global_length, 1, MPI_LONG,
-                             MPI_SUM,sundials_comm);
-            }
-         }
-         NV_GLOBLENGTH_P(nv) = global_length;
-         break;
-#endif
-      default:
-         MFEM_ABORT("N_Vector type " << nvid << " is not supported");
-   }
-}
-
-#endif // MFEM_USE_SUNDIALS
 
 }
