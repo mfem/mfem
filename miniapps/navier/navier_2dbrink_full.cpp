@@ -295,6 +295,10 @@ int main(int argc, char *argv[])
       // }
    }
 
+   delete mPvdc;
+   delete d_gf;
+   delete Bp;
+   delete DensCoeff;
    delete pmesh;
 
    return 0;
