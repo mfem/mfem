@@ -246,6 +246,76 @@ void DiffuseH1(ParGridFunction &g, double c)
    delete prec;
 }
 
+class BackgroundData
+{
+public:
+   int dist_order = 1;
+   ParMesh *pmesh_bg = nullptr;
+   H1_FECollection *fec_bg = nullptr;
+   ParFiniteElementSpace *pfes_bg = nullptr;
+   ParGridFunction *dist_bg = nullptr;
+
+   BackgroundData(ParMesh &pmesh_front, ParGridFunction &dist_front,
+                  int amr_steps);
+
+   ~BackgroundData()
+   {
+      delete dist_bg;
+      delete pfes_bg;
+      delete fec_bg;
+      delete pmesh_bg;
+   }
+};
+
+BackgroundData::BackgroundData(ParMesh &pmesh_front,
+                               ParGridFunction &dist_front, int amr_steps)
+{
+   const int dim = pmesh_front.Dimension();
+
+   // Create the background mesh.
+   Mesh *m = NULL;
+   if (dim == 2)
+   {
+      m = new Mesh(Mesh::MakeCartesian2D(4, 4, Element::QUADRILATERAL, true));
+   }
+   else if (dim == 3)
+   {
+      m = new Mesh(Mesh::MakeCartesian3D(4, 4, 4, Element::HEXAHEDRON, true));
+   }
+   m->EnsureNCMesh();
+   pmesh_bg = new ParMesh(MPI_COMM_WORLD, *m);
+   delete m;
+   // TODO does this have to be the same order? Can it be just 1?
+   pmesh_bg->SetCurvature(dist_order, false, -1, 0);
+
+   // Make the background mesh big enough to cover the original domain.
+   Vector p_min(dim), p_max(dim);
+   pmesh_front.GetBoundingBox(p_min, p_max);
+   GridFunction &x_bg = *pmesh_bg->GetNodes();
+   const int num_nodes = x_bg.Size() / dim;
+   for (int i = 0; i < num_nodes; i++)
+   {
+      for (int d = 0; d < dim; d++)
+      {
+         double length_d = p_max(d) - p_min(d),
+                extra_d = 0.2 * length_d;
+         x_bg(i + d*num_nodes) = p_min(d) - extra_d +
+                                 x_bg(i + d*num_nodes) * (length_d + 2*extra_d);
+      }
+   }
+
+   fec_bg = new H1_FECollection(dist_order, dim);
+   pfes_bg = new ParFiniteElementSpace(pmesh_bg, fec_bg);
+   dist_bg = new ParGridFunction(pfes_bg);
+
+   OptimizeMeshWithAMRForAnotherMesh(*pmesh_bg, dist_front,
+                                     amr_steps, *dist_bg);
+   pmesh_bg->Rebalance();
+   pfes_bg->Update();
+   dist_bg->Update();
+}
+
+
 class MeshOptimizer
 {
 private:

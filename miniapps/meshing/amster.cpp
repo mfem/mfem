@@ -299,95 +299,52 @@ int main (int argc, char *argv[])
       visit_dc.Save();
    }
 
-   // Create the background mesh.
-   ParMesh *pmesh_bg = NULL;
-   Mesh *mesh_bg = NULL;
-   if (dim == 2)
-   {
-      mesh_bg = new Mesh(Mesh::MakeCartesian2D(4, 4, Element::QUADRILATERAL, true));
-   }
-   else if (dim == 3)
-   {
-      mesh_bg = new Mesh(Mesh::MakeCartesian3D(4, 4, 4, Element::HEXAHEDRON, true));
-   }
-   mesh_bg->EnsureNCMesh();
-   pmesh_bg = new ParMesh(MPI_COMM_WORLD, *mesh_bg);
-   delete mesh_bg;
-   // Set curvature to linear because we use it with FindPoints for
-   // interpolating a linear function later.
-   int mesh_bg_curv = mesh_poly_deg;
-   pmesh_bg->SetCurvature(mesh_bg_curv, false, -1, 0);
-
-   // Make the background mesh big enough to cover the original domain.
-   Vector p_min(dim), p_max(dim);
-   pmesh->GetBoundingBox(p_min, p_max);
-   GridFunction &x_bg = *pmesh_bg->GetNodes();
-   const int num_nodes = x_bg.Size() / dim;
-   for (int i = 0; i < num_nodes; i++)
-   {
-      for (int d = 0; d < dim; d++)
-      {
-         double length_d = p_max(d) - p_min(d),
-                extra_d = 0.2 * length_d;
-         x_bg(i + d*num_nodes) = p_min(d) - extra_d +
-                                 x_bg(i + d*num_nodes) * (length_d + 2*extra_d);
-      }
-   }
+   BackgroundData backgrnd(*pmesh, dist, bg_amr_steps);
 
 #ifndef MFEM_USE_GSLIB
    MFEM_ABORT("GSLIB needed for this functionality.");
 #endif
 
-   // The background level set function is always linear to avoid oscillations.
-   H1_FECollection bg_fec(mesh_bg_curv, dim);
-   ParFiniteElementSpace bg_pfes(pmesh_bg, &bg_fec);
-   ParGridFunction bg_domain(&bg_pfes);
-
    // Refine the background mesh around the boundary.
-   OptimizeMeshWithAMRForAnotherMesh(*pmesh_bg, dist, bg_amr_steps, bg_domain);
    {
       socketstream vis_b_func;
-      common::VisualizeField(vis_b_func, "localhost", 19916, bg_domain,
+      common::VisualizeField(vis_b_func, "localhost", 19916, *backgrnd.dist_bg,
                              "Dist on Background", 300, 700, 300, 300, "Rj");
    }
-   // Rebalance par mesh because of AMR
-   pmesh_bg->Rebalance();
-   bg_pfes.Update();
-   bg_domain.Update();
 
    {
-       VisItDataCollection visit_dc("amster_bg", pmesh_bg);
-       visit_dc.RegisterField("distance", &bg_domain);
+       VisItDataCollection visit_dc("amster_bg", backgrnd.pmesh_bg);
+       visit_dc.RegisterField("distance", backgrnd.dist_bg);
        visit_dc.SetFormat(DataCollection::SERIAL_FORMAT);
        visit_dc.Save();
    }
 
    // Compute min element size.
    double min_dx = std::numeric_limits<double>::infinity();
-   for (int e = 0; e < pmesh_bg->GetNE(); e++)
+   for (int e = 0; e < backgrnd.pmesh_bg->GetNE(); e++)
    {
-      min_dx = fmin(min_dx, pmesh_bg->GetElementSize(e));
+      min_dx = fmin(min_dx, backgrnd.pmesh_bg->GetElementSize(e));
    }
    MPI_Allreduce(MPI_IN_PLACE, &min_dx, 1, MPI_DOUBLE, MPI_MIN, MPI_COMM_WORLD);
 
    // Shift the zero level set by ~ one element inside.
    const double alpha = 0.75*min_dx;
-   bg_domain -= alpha;
+   *backgrnd.dist_bg -= alpha;
 
    // Compute a distance function on the background.
-   GridFunctionCoefficient ls_filt_coeff(&bg_domain);
-   ComputeScalarDistanceFromLevelSet(*pmesh_bg, ls_filt_coeff, bg_domain, true);
-   bg_domain *= -1.0;
+   GridFunctionCoefficient ls_filt_coeff(backgrnd.dist_bg);
+   ComputeScalarDistanceFromLevelSet(*backgrnd.pmesh_bg, ls_filt_coeff, *backgrnd.dist_bg, true);
+   *backgrnd.dist_bg *= -1.0;
 
    // Offset back to the original position of the boundary.
-   bg_domain += alpha;
+   *backgrnd.dist_bg += alpha;
    {
       socketstream vis_b_func;
-      common::VisualizeField(vis_b_func, "localhost", 19916, bg_domain,
+      common::VisualizeField(vis_b_func, "localhost", 19916, *backgrnd.dist_bg,
                              "Final LS", 600, 700, 300, 300, "Rjmm");
 
-      VisItDataCollection visit_dc("amster_bg", pmesh_bg);
-      visit_dc.RegisterField("distance", &bg_domain);
+      VisItDataCollection visit_dc("amster_bg", backgrnd.pmesh_bg);
+      visit_dc.RegisterField("distance", backgrnd.dist_bg);
       visit_dc.SetFormat(DataCollection::SERIAL_FORMAT);
       visit_dc.Save();
    }
@@ -434,19 +391,19 @@ int main (int argc, char *argv[])
 
    if (surface_fit_const > 0.0)
    {
-      bg_grad_fes = new ParFiniteElementSpace(pmesh_bg, &bg_fec, dim);
+      bg_grad_fes = new ParFiniteElementSpace(backgrnd.pmesh_bg, backgrnd.fec_bg, dim);
       bg_grad = new ParGridFunction(bg_grad_fes);
 
       int n_hessian_bg = dim * dim;
-      bg_hess_fes = new ParFiniteElementSpace(pmesh_bg, &bg_fec, n_hessian_bg);
+      bg_hess_fes = new ParFiniteElementSpace(backgrnd.pmesh_bg, backgrnd.fec_bg, n_hessian_bg);
       bg_hess = new ParGridFunction(bg_hess_fes);
 
       // Setup gradient of the background mesh.
       bg_grad->ReorderByNodes();
-      for (int d = 0; d < pmesh_bg->Dimension(); d++)
+      for (int d = 0; d < backgrnd.pmesh_bg->Dimension(); d++)
       {
-         ParGridFunction bg_grad_comp(&bg_pfes, bg_grad->GetData()+d*bg_domain.Size());
-         bg_domain.GetDerivative(1, d, bg_grad_comp);
+         ParGridFunction bg_grad_comp(backgrnd.pfes_bg, bg_grad->GetData()+d*backgrnd.dist_bg->Size());
+         backgrnd.dist_bg->GetDerivative(1, d, bg_grad_comp);
       }
 
       // Setup Hessian on background mesh.
@@ -456,8 +413,8 @@ int main (int argc, char *argv[])
       {
          for (int idir = 0; idir < dim; idir++)
          {
-            ParGridFunction bg_grad_comp(&bg_pfes, bg_grad->GetData()+d*bg_domain.Size());
-            ParGridFunction bg_hess_comp(&bg_pfes, bg_hess->GetData()+id*bg_domain.Size());
+            ParGridFunction bg_grad_comp(backgrnd.pfes_bg, bg_grad->GetData()+d*backgrnd.dist_bg->Size());
+            ParGridFunction bg_hess_comp(backgrnd.pfes_bg, bg_hess->GetData()+id*backgrnd.dist_bg->Size());
             bg_grad_comp.GetDerivative(1, idir, bg_hess_comp);
             id++;
          }
@@ -501,7 +458,7 @@ int main (int argc, char *argv[])
    MeshOptimizer mesh_opt;
    mesh_opt.Setup(pfes, metric_id, quad_order);
    mesh_opt.GetIntegrator()->
-      EnableSurfaceFittingFromSource(bg_domain, domain,
+      EnableSurfaceFittingFromSource(*backgrnd.dist_bg, domain,
                                      surf_fit_marker, surf_fit_coeff,
                                      *adapt_surface,
                                      *bg_grad, *surf_fit_grad, *adapt_grad_surface,
@@ -577,7 +534,6 @@ int main (int argc, char *argv[])
    delete bg_hess_fes;
    delete bg_grad;
    delete bg_grad_fes;
-   delete pmesh_bg;
    delete pmesh;
 
    return 0;
