@@ -54,11 +54,6 @@ add_mfem_miniapp(ndarcy_opt_3
     ${HPC4_COMMON_FILES}
     LIBRARIES mfem mfem-common)
 
-add_mfem_miniapp(FESpaceMinExample
-    MAIN FESpaceMinExample.cpp
-    ${HPC4_COMMON_FILES}
-    LIBRARIES mfem mfem-common)
-
 add_mfem_miniapp(GLSSolver
     MAIN GLS_Solver.cpp
     ${HPC4_COMMON_FILES}
