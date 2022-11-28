@@ -11,6 +11,9 @@
 //
 // Incompressible Navier-Stokes stagnation flat plate example
 //
+// mpirun -np 4 navier_flat_plate -mesh flat-plate-coarse.msh
+// mpirun -np 4 navier_flat_plate -mesh flat-plate-coarser.msh -o 2
+//
 // Solve for steady flow defined by:
 // U = 3.0 m/s
 // nu = 1.5x10^-3 m^2/s
@@ -55,25 +58,18 @@ struct s_NavierContext
    int order = 1; //Finite Element function space order
    double kinvis = 0.0015; //Kinematic viscocity
    double dt = 1e-4; //Time step size
-   double steps = 1000; //Number of time steps
+   double steps = 2000; //Number of time steps
    double t_final = dt*steps; //Total run time
    bool pa = true;
    bool ni = false;
-   bool visualization = false;
    bool paraview = true;
-   bool checkres = false;
    const char *mesh = "flat-plate.msh";
+   const char *sol_dir = "flat_plate";
 } ctx; 
 
 // Dirichlet conditions for velocity
 void vel_ic(const Vector &x, double t, Vector &u);
 void vel_dbc(const Vector &x, double t, Vector &u);
-
-// Visualizion of the solution
-void VisualizeField(socketstream &sock, const char *vishost, int visport,
-                    ParGridFunction &gf, const char *title,
-                    int x = 0, int y = 0, int w = 400, int h = 400,
-                    bool vec = false);
 
 int main(int argc, char *argv[])
 {
@@ -109,29 +105,20 @@ int main(int argc, char *argv[])
                   "-no-ni",
                   "--disable-ni",
                   "Enable numerical integration rules.");
-   args.AddOption(&ctx.visualization,
-                  "-vis",
-                  "--visualization",
-                  "-no-vis",
-                  "--no-visualization",
-                  "Enable or disable GLVis visualization.");
    args.AddOption(&ctx.paraview,
                   "-paraview", 
 		  "--paraview-datafiles", 
 		  "-no-paraview",
         	  "--no-paraview-datafiles",
         	  "Save data files for ParaView (paraview.org) visualization.");
-   args.AddOption(
-      &ctx.checkres,
-      "-cr",
-      "--checkresult",
-      "-no-cr",
-      "--no-checkresult",
-      "Enable or disable checking of the result. Returns -1 on failure.");
    args.AddOption(&ctx.mesh, 
                   "-m", 
                   "--mesh",
                   "Mesh file to use.");
+   args.AddOption(&ctx.sol_dir, 
+                  "-sd", 
+                  "--sol_dir",
+                  "Paraview output directory to create.");
    args.Parse();
 
    if (!args.Good())
@@ -174,7 +161,6 @@ int main(int argc, char *argv[])
    VectorFunctionCoefficient u_excoeff(pmesh->Dimension(), vel_ic);
    u_ic->ProjectCoefficient(u_excoeff);
 
-   //FunctionCoefficient p_excoeff(pres_kovasznay);
 
    // Add Dirichlet boundary conditions to velocity space restricted to
    // selected attributes on the mesh.
@@ -201,45 +187,11 @@ int main(int argc, char *argv[])
    ParGridFunction *u_gf = flowsolver.GetCurrentVelocity();
    ParGridFunction *p_gf = flowsolver.GetCurrentPressure();
 
-   // INITIALIZING THE VISUALIZATION ASPECTS - GLVIS AND PARAVIEW IF ENEABLED
-   // =======================================================================
-   // Visualize the solution with GLVis - Initializing the viewer - Auto off
-   socketstream sout;
-   if (ctx.visualization)
-   {
-      char vishost[] = "localhost";
-      int  visport   = 19916;
-      sout.open(vishost, visport);
-      if (!sout)
-      {
-         if (Mpi::Root())
-            cout << "Unable to connect to GLVis server at "
-                 << vishost << ':' << visport << endl;
-         ctx.visualization = false;
-         if (Mpi::Root())
-         {
-            cout << "GLVis visualization disabled.\n";
-         }
-      }
-      else
-      {
-         sout << "parallel " << num_procs << " " << myid << "\n";
-         sout.precision(precision);
-         sout << "Velocity solution\n" << *pmesh << *u_gf;
-         sout << "pause\n";
-         sout << flush;
-         if (Mpi::Root())
-            cout << "GLVis visualization paused."
-                 << " Press space (in the GLVis window) to resume it.\n";
-      }
-   }
-
-
    //Paraview Data collection - Initializing based on command line flags - Auto on  
    ParaViewDataCollection *pvdc = NULL;
    if(ctx.paraview)
    {
-      pvdc = new ParaViewDataCollection("flat_plate", pmesh);
+      pvdc = new ParaViewDataCollection(ctx.sol_dir, pmesh);
       pvdc->SetDataFormat(VTKFormat::BINARY32);
       pvdc->SetHighOrderOutput(true);
       pvdc->SetLevelsOfDetail(ctx.order);
@@ -261,14 +213,8 @@ int main(int argc, char *argv[])
 
       flowsolver.Step(t, dt, step);
 
-      if(ctx.visualization)
-      {
-	 sout << "parallel " << num_procs << " " << myid << "\n";
-         sout << "Velocity solution\n" << *pmesh << *u_gf << flush;
-      }
-      
-      //if (ctx.paraview && step % 10 == 0) //Storing every 10th time step for paraview visualization
-      if (ctx.paraview) //Storing every 10th time step for paraview visualization
+      //if (ctx.paraview &&tep % 10 == 0) //Storing every 10th time step for paraview visualization
+      if (ctx.paraview && (step % 10 == 0)) //Storing every 10th time step for paraview visualization
       {
          pvdc->SetCycle(step);
          pvdc->SetTime(t);
