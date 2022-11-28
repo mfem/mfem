@@ -14,6 +14,9 @@ Version 4.5.1 (development)
 - Removed the support for the Mesquite toolkit. We recommend using MFEM's TMOP
   functionality instead for mesh optimization. See the mesh-optimizer miniapp.
 
+- Added a fast normalization-based distance solver, see
+  miniapps/shifted/distance.cpp.
+
 
 Version 4.5, released on October 22, 2022
 =========================================
