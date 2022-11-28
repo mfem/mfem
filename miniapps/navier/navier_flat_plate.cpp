@@ -11,9 +11,6 @@
 //
 // Incompressible Navier-Stokes stagnation flat plate example
 //
-// mpirun -np 4 navier_flat_plate -mesh flat-plate-coarse.msh
-// mpirun -np 4 navier_flat_plate -mesh flat-plate-coarser.msh -o 2
-//
 // Solve for steady flow defined by:
 // U = 3.0 m/s
 // nu = 1.5x10^-3 m^2/s
@@ -62,9 +59,10 @@ struct s_NavierContext
    double t_final = dt*steps; //Total run time
    bool pa = true;
    bool ni = false;
+   bool slip_top = false; //option to have a slip wall on the top of boundary (attr 3)
    bool paraview = true;
-   const char *mesh = "flat-plate.msh";
-   const char *sol_dir = "flat_plate";
+   const char *mesh = "flat-plate-coarse.msh";
+   const char *sol_dir = "flat_plate_coarse";
 } ctx; 
 
 // Dirichlet conditions for velocity
@@ -119,6 +117,12 @@ int main(int argc, char *argv[])
                   "-sd", 
                   "--sol_dir",
                   "Paraview output directory to create.");
+   args.AddOption(&ctx.slip_top, 
+                  "-st", 
+                  "--enable-slip_top",
+		  "-no-slip_top",
+		  "--disable-slip_top",
+                  "Turn slip top on or off.");
    args.Parse();
 
    if (!args.Good())
@@ -170,7 +174,12 @@ int main(int argc, char *argv[])
    // Outlet is attribute 2.
    attr[1] = 0; 
    // Top is attribute 3.
-   attr[2] = 0;
+   if(ctx.slip_top){
+	   attr[2] = 1;
+   }
+   else{
+	   attr[2] = 0;
+   }
    // Inlet is attribute 4
    attr[3] = 1;
    flowsolver.AddVelDirichletBC(vel_dbc, attr);
@@ -213,7 +222,6 @@ int main(int argc, char *argv[])
 
       flowsolver.Step(t, dt, step);
 
-      //if (ctx.paraview &&tep % 10 == 0) //Storing every 10th time step for paraview visualization
       if (ctx.paraview && (step % 10 == 0)) //Storing every 10th time step for paraview visualization
       {
          pvdc->SetCycle(step);
@@ -262,6 +270,10 @@ void vel_dbc(const Vector &x, double t, Vector &u){
 			u(0) = 0.0;
 			u(1) = 0.0;
 		}
+	}
+	//Top boundary
+	if (ctx.slip_top && yi >= 0.05-tol){ //slip wall on top boundary if specified.
+		u(1) = 0.0;
 	}
 
 	//Uniform velocity at inlet on left boundary
