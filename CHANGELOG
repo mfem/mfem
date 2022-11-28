@@ -21,6 +21,10 @@ Miscellaneous
   This parameter can still be explicitly overridden with
   VisItDataCollection::SetPadDigitsRank().
 
+- Added a fast normalization-based distance solver, see
+  miniapps/shifted/distance.cpp.
+
+
 Version 4.5, released on October 22, 2022
 =========================================
 
