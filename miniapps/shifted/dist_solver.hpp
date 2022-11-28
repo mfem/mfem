@@ -26,7 +26,7 @@ protected:
 
 public:
    // 0 = nothing, 1 = main solver only, 2 = full (solver + preconditioner).
-   int print_level = 0;
+   IterativeSolver::PrintLevel print_level;
 
    DistanceSolver() { }
    virtual ~DistanceSolver() { }
@@ -70,6 +70,30 @@ public:
    bool transform, vis_glvis;
 };
 
+// A. Belyaev et al: "On Variational and PDE-based Distance Function
+// Approximations", Section 6, DOI:10.1111/cgf.12611.
+// This solver is computationally cheap, but is accurate for distance
+// approximations only near the zero level set.
+class NormalizationDistanceSolver : public DistanceSolver
+{
+private:
+
+   class NormalizationCoeff : public Coefficient
+   {
+   private:
+      ParGridFunction &u;
+
+   public:
+      NormalizationCoeff(ParGridFunction &u_gf) : u(u_gf) { }
+      virtual double Eval(ElementTransformation &T, const IntegrationPoint &ip);
+   };
+
+public:
+   NormalizationDistanceSolver() { }
+
+   void ComputeScalarDistance(Coefficient& u_coeff, ParGridFunction& dist);
+};
+
 
 // A. Belyaev et al: "On Variational and PDE-based Distance Function
 // Approximations", Section 7, DOI:10.1111/cgf.12611.
@@ -77,12 +101,9 @@ class PLapDistanceSolver : public DistanceSolver
 {
 public:
    PLapDistanceSolver(int maxp_ = 30, int newton_iter_ = 10,
-                      double rtol = 1e-7, double atol = 1e-12, int print_lv = 0)
+                      double rtol = 1e-7, double atol = 1e-12)
       : maxp(maxp_), newton_iter(newton_iter_),
-        newton_rel_tol(rtol), newton_abs_tol(atol)
-   {
-      print_level = print_lv;
-   }
+        newton_rel_tol(rtol), newton_abs_tol(atol) { }
 
    void SetMaxPower(int new_pp) { maxp = new_pp; }
 
@@ -94,7 +115,6 @@ private:
    const int newton_iter;
    const double newton_rel_tol, newton_abs_tol;
 };
-
 
 class NormalizedGradCoefficient : public VectorCoefficient
 {
