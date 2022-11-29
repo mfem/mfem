@@ -287,12 +287,12 @@ void MassIntegrator::AssembleEA(const FiniteElementSpace &fes,
 
    Vector ea_vec;
    mfem::Swap(ea_vec.GetMemory(), ea_tensor.GetMemory());
-
    ea_vec.SetSize(ea_tensor.TotalSize())
 
    AssembleEA(fes, ea_vec, add);
 
    mfem::Swap(ea_vec.GetMemory(), ea_tensor.GetMemory());
+   ea_vec.SetSize(0)
 }
 
 }
