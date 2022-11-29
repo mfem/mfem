@@ -499,7 +499,6 @@ void ScalarFiniteElement::ScalarLocalL2Restriction(
 
    if (map_type == INTEGRAL)
    {
-      // todo: is this necessary?
       // assuming Trans is linear; this should be ok for all refinement types
       Trans.SetIntPoint(&Geometries.GetCenter(geom_type));
       R *= 1.0 / Trans.Weight();
