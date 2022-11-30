@@ -31,10 +31,12 @@ int main(int argc, char *argv[])
    BilinearForm a(&fespace);
    a.SetAssemblyLevel(AssemblyLevel::PARTIAL);
    a.AddDomainIntegrator(new DiffusionIntegrator);
+   a.AddDomainIntegrator(new MassIntegrator);
 
    const Geometry::Type geom = mesh.GetElementGeometry(0);
    const IntegrationRule &ir = IntRules.Get(geom, 2*order + 2);
    (*a.GetDBFI())[0]->SetIntegrationRule(ir);
+   (*a.GetDBFI())[1]->SetIntegrationRule(ir);
 
    a.Assemble();
 
@@ -49,6 +51,7 @@ int main(int argc, char *argv[])
    a.AssembleDiagonal(diag);
 
    DiffusionIntegrator::AddSpecialization<2,2,3>();
+   MassIntegrator::AddSpecialization<2,2,3>();
    A->Mult(X, B);
    a.AssembleDiagonal(diag);
 
