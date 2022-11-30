@@ -73,11 +73,7 @@ int main(int argc, char *argv[])
 {
    // Initialize MPI and HYPRE.
    Mpi::Init(argc, argv);
-   int num_procs = Mpi::WorldSize();
-   int myid = Mpi::WorldRank();
    Hypre::Init();
-
-   int precision = 8;
 
    // parse command-line options
    OptionsParser args(argc, argv);
@@ -174,11 +170,13 @@ int main(int argc, char *argv[])
    // Outlet is attribute 2.
    attr[1] = 0; 
    // Top is attribute 3.
-   if(ctx.slip_top){
-	   attr[2] = 1;
+   if(ctx.slip_top)
+   {
+      attr[2] = 1;
    }
-   else{
-	   attr[2] = 0;
+   else
+   {
+      attr[2] = 0;
    }
    // Inlet is attribute 4
    attr[3] = 1;
@@ -253,36 +251,38 @@ void vel_ic(const Vector &x, double t, Vector &u)
    u(1) = 0.0;
 }
 
-void vel_dbc(const Vector &x, double t, Vector &u){
-	double xi = x(0);
-	double yi = x(1);
-	
-	double U = 3.0; //Freestream velocity
-	double tol = 1e-9; //must be smaller than smallest mesh element
-
-	// Bottom boundary
-	if(yi <= tol){
-		if(xi < 0.01){ //Symmetry condition before the plate
-			u(1) = 0.0;
-		}
-		
-		else{ // No slip plate 
-			u(0) = 0.0;
-			u(1) = 0.0;
-		}
-	}
-	//Top boundary
-	if (ctx.slip_top && yi >= 0.05-tol){ //slip wall on top boundary if specified.
-		u(1) = 0.0;
-	}
-
-	//Uniform velocity at inlet on left boundary
-	if(xi <= tol){
-		u(0) = U;
-		u(1) = 0.0;
-	}
+void vel_dbc(const Vector &x, double t, Vector &u)
+{
+   double xi = x(0);
+   double yi = x(1);
+   
+   double U = 3.0; //Freestream velocity
+   double tol = 1e-9; //must be smaller than smallest mesh element
+   
+   // Bottom boundary
+   if(yi <= tol)
+   {
+      if(xi < 0.01) //Symmetry condition before the plate
+      {
+         u(1) = 0.0;
+      }
+      
+      else // No slip plate 
+      { 
+         u(0) = 0.0;
+         u(1) = 0.0;
+      }
+   }
+   //Top boundary
+   if (ctx.slip_top && yi >= 0.05-tol)
+   {
+      u(1) = 0.0 //slip wall on top boundary if specified.;
+   }
+   
+   //Uniform velocity at inlet on left boundary
+   if(xi <= tol)
+   {	
+      u(0) = U;
+      u(1) = 0.0;
+   }
 }
-
-// To represent the outflow boundary condition the zero-stress boundary condition
-// is used. The zero-stress boundary condition is automatically applied if there
-// is no other boundary condition applied to a certain attribute.
