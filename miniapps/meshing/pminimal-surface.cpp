@@ -330,7 +330,7 @@ public:
             if (opt.amr) { Amr(); }
             if (opt.vis) { Surface::Visualize(opt, S.mesh); }
             if (!opt.id) { mfem::out << "Iteration " << i << ": "; }
-            S.mesh->DeleteGeometricFactors();
+            S.mesh->NodesUpdated();
             a.Update();
             a.Assemble();
             if (Step() == converged) { break; }
