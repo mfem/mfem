@@ -12,6 +12,8 @@
 #include "bilininteg_diffusion_pa.hpp"
 #include "gridfunc.hpp"
 #include "ceed/integrators/diffusion/diffusion.hpp"
+#include "bilininteg.hpp"
+#include "kernel_dispatch.hpp"
 
 using namespace std;
 
@@ -20,10 +22,8 @@ namespace mfem
 
 // PA Diffusion Integrator
 
-// define dispatch table static member
-DiffusionIntegrator::DispatchTable DiffusionIntegrator::dispatch_table;
-
-DiffusionIntegrator::DispatchTable::DispatchTable()
+DiffusionIntegrator::Kernels DiffusionIntegrator::kernels;
+DiffusionIntegrator::Kernels::Kernels()
 {
    // 2D
    DiffusionIntegrator::AddSpecialization<2,2,2>();
@@ -552,24 +552,7 @@ void DiffusionIntegrator::AssembleDiagonalPA(Vector &diag)
       const Array<double> &G = maps->G;
       const Vector &Dv = pa_data;
 
-      auto it = dispatch_table.diagonal.find({dim, dofs1D, quad1D});
-      if (it != dispatch_table.diagonal.end())
-      {
-         mfem::out << "Diagonal specialized\n";
-         it->second(NE,symm,B,G,Dv,diag,D1D,Q1D);
-      }
-      else
-      {
-         mfem::out << "Diagonal fallback\n";
-         if (dim == 2)
-         {
-            return PADiffusionDiagonal2D(NE,symm,B,G,Dv,diag,D1D,Q1D);
-         }
-         else if (dim == 3)
-         {
-            return PADiffusionDiagonal3D(NE,symm,B,G,Dv,diag,D1D,Q1D);
-         }
-      }
+      kernels.diag.Run(dim, D1D, Q1D, NE, symm, B, G, Dv, diag, D1D, Q1D);
    }
 }
 
@@ -710,25 +693,7 @@ void DiffusionIntegrator::AddMultPA(const Vector &x, Vector &y) const
       }
 #endif // MFEM_USE_OCCA
 
-      auto it = dispatch_table.apply.find({dim, D1D, Q1D});
-      if (it != dispatch_table.apply.end())
-      {
-         mfem::out << "Specialized\n";
-         return it->second(NE,symm,B,G,Dv,x,y,D1D,Q1D);
-      }
-      else
-      {
-         mfem::out << "Fallback\n";
-         if (dim == 2)
-         {
-            return PADiffusionApply2D(NE,symm,B,G,Bt,Gt,Dv,x,y,D1D,Q1D);
-         }
-         else if (dim == 3)
-         {
-            return PADiffusionApply3D(NE,symm,B,G,Bt,Gt,Dv,x,y,D1D,Q1D);
-         }
-      }
-      MFEM_ABORT("Unknown kernel");
+      kernels.apply.Run(dim,D1D,Q1D,NE,symm,B,G,Bt,Gt,Dv,x,y,D1D,Q1D);
    }
 }
 

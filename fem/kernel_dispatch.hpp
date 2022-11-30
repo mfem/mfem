@@ -9,6 +9,9 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
+#ifndef MFEM_KERNELDISPATCH_HPP
+#define MFEM_KERNELDISPATCH_HPP
+
 #include <functional>
 #include <unordered_map>
 
@@ -42,7 +45,7 @@ struct KernelDispatchKeyHash
 
 template <typename T>
 class KernelDispatchTable : public
-   DispatchTable<KernelDispatchKey, decltype(&T::Fallback2D), KernelDispatchKeyHash>
+   DispatchTable<KernelDispatchKey, typename T::Kernel, KernelDispatchKeyHash>
 {
 public:
    template <typename... Args>
@@ -52,17 +55,19 @@ public:
       const auto it = this->table.find(key);
       if (it != this->table.end())
       {
+         mfem::out << "Specialized.\n";
          it->second(args...);
       }
       else
       {
+         mfem::out << "Fallback.\n";
          if (key.dim == 2)
          {
-            T::Fallback2D(args...);
+            T::Fallback2D()(args...);
          }
          else if (key.dim == 3)
          {
-            T::Fallback3D(args...);
+            T::Fallback3D()(args...);
          }
          else
          {
@@ -74,6 +79,7 @@ public:
    template <int DIM, int D1D, int Q1D>
    void AddSpecialization()
    {
+      mfem::out << "Adding specialization.\n";
       constexpr KernelDispatchKey key = {DIM, D1D, Q1D};
       if (DIM == 2)
       {
@@ -92,3 +98,5 @@ public:
 };
 
 }
+
+#endif

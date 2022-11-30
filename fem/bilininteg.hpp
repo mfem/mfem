@@ -17,6 +17,11 @@
 #include "fespace.hpp"
 #include "ceed/interface/util.hpp"
 
+#include "kernel_dispatch.hpp"
+// Want to hide this... i.e. have dispatch table not be a template, but have
+// some templated pointer in its implementaiton
+#include "bilininteg_diffusion_pa.hpp"
+
 namespace mfem
 {
 
@@ -2094,48 +2099,13 @@ private:
    Vector pa_data;
    bool symmetric = true; ///< False if using a nonsymmetric matrix coefficient
 
-   using ApplyKernel = void(*)(const int NE,
-                               const bool symmetric,
-                               const Array<double> &b_,
-                               const Array<double> &g_,
-                               const Vector &d_,
-                               const Vector &x_,
-                               Vector &y_,
-                               const int d1d,
-                               const int q1d);
-
-   using DiagonalKernel = void(*)(const int NE,
-                                  const bool symmetric,
-                                  const Array<double> &b_,
-                                  const Array<double> &g_,
-                                  const Vector &d_,
-                                  Vector &y_,
-                                  const int d1d,
-                                  const int q1d);
-
-   struct DispatchKey
+   struct Kernels
    {
-      const int dim, d1d, q1d;
-      bool operator==(const DispatchKey &k) const
-      {
-         return (dim == k.dim) && (d1d == k.d1d) && (q1d == k.q1d);
-      }
+      KernelDispatchTable<DiffusionApplyPAKernels> apply;
+      KernelDispatchTable<DiffusionDiagonalPAKernels> diag;
+      Kernels();
    };
-   struct DispatchKeyHash
-   {
-      std::hash<int> h;
-      std::size_t operator()(const DispatchKey &k) const
-      {
-         return h(k.dim + 4*k.d1d + 4*32*k.q1d);
-      }
-   };
-   struct DispatchTable
-   {
-      std::unordered_map<DispatchKey, ApplyKernel, DispatchKeyHash> apply;
-      std::unordered_map<DispatchKey, DiagonalKernel, DispatchKeyHash> diagonal;
-      DispatchTable();
-   };
-   static DispatchTable dispatch_table;
+   static Kernels kernels;
 
 public:
    /// Construct a diffusion integrator with coefficient Q = 1
@@ -2215,6 +2185,62 @@ public:
 
    template <int DIM, int D1D, int Q1D>
    static void AddSpecialization();
+};
+
+template <int DIM, int D1D, int Q1D>
+void DiffusionIntegrator::AddSpecialization()
+{
+   kernels.apply.AddSpecialization<DIM, D1D, Q1D>();
+   kernels.diag.AddSpecialization<DIM, D1D, Q1D>();
+}
+
+constexpr int ipow(int x, int p) { return p == 0 ? 1 : x*ipow(x, p-1); }
+
+class DiffusionApplyPAKernels
+{
+private:
+   constexpr static int D(int D1D) { return (11 - D1D) / 2; }
+public:
+   using Kernel = void(*)(const int, const bool, const Array<double>&,
+                          const Array<double>&, const Array<double>&,
+                          const Array<double>&, const Vector&, const Vector&,
+                          Vector&, const int, const int);
+   constexpr static int NBZ(int D1D, int Q1D)
+   {
+      return ipow(2, D(D1D) >= 0 ? D(D1D) : 0);
+   }
+
+   template<int T_D1D = 0, int T_Q1D = 0, int T_NBZ = 0>
+   static Kernel Kernel2D() { return SmemPADiffusionApply2D<T_D1D, T_Q1D, T_NBZ>; }
+
+   template<int T_D1D = 0, int T_Q1D = 0>
+   static Kernel Kernel3D() { return SmemPADiffusionApply3D<T_D1D, T_Q1D>; }
+
+   static Kernel Fallback2D() { return PADiffusionApply2D<0,0>; }
+
+   static Kernel Fallback3D() { return PADiffusionApply3D<0,0>; }
+};
+
+class DiffusionDiagonalPAKernels
+{
+public:
+   using Kernel = void(*)(const int, const bool, const Array<double>&,
+                          const Array<double>&, const Vector&, Vector&,
+                          const int, const int);
+   constexpr static int NBZ(int D1D, int Q1D)
+   {
+      return DiffusionApplyPAKernels::NBZ(D1D, Q1D) / 2;
+   }
+
+   template<int T_D1D = 0, int T_Q1D = 0, int T_NBZ = 0>
+   static Kernel Kernel2D() { return SmemPADiffusionDiagonal2D<T_D1D, T_Q1D, T_NBZ>; }
+
+   template<int T_D1D = 0, int T_Q1D = 0>
+   static Kernel Kernel3D() { return SmemPADiffusionDiagonal3D<T_D1D, T_Q1D>; }
+
+   static Kernel Fallback2D() { return PADiffusionDiagonal2D<0,0>; }
+
+   static Kernel Fallback3D() { return PADiffusionDiagonal3D<0,0>; }
 };
 
 /** Class for local mass matrix assembling a(u,v) := (Q u, v) */
