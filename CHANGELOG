@@ -13,6 +13,8 @@ Version 4.5.1 (development)
 
 - Added a fast normalization-based distance solver, see
   miniapps/shifted/distance.cpp.
+- Added a navier mini flat plate boundary layer example. see
+  miniapps/navier/navier_flat_plate.cpp
 
 Version 4.5, released on October 22, 2022
 =========================================
