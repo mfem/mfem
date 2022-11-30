@@ -416,13 +416,24 @@ void GridFunction::GetNodalValues(int i, Array<double> &nval, int vdim) const
 
    if (FElem->GetRangeType() == FiniteElement::SCALAR)
    {
-      MFEM_ASSERT(FElem->GetMapType() == FiniteElement::VALUE,
-                  "invalid FE map type");
       Vector shape(dof);
-      for (k = 0; k < n; k++)
+      if (FElem->GetMapType() == FiniteElement::VALUE)
       {
-         FElem->CalcShape(ElemVert->IntPoint(k), shape);
-         nval[k] = shape * ((const double *)loc_data + dof * vdim);
+         for (k = 0; k < n; k++)
+         {
+            FElem->CalcShape(ElemVert->IntPoint(k), shape);
+            nval[k] = shape * ((const double *)loc_data + dof * vdim);
+         }
+      }
+      else
+      {
+         ElementTransformation *Tr = fes->GetElementTransformation(i);
+         for (k = 0; k < n; k++)
+         {
+            Tr->SetIntPoint(&ElemVert->IntPoint(k));
+            FElem->CalcPhysShape(*Tr, shape);
+            nval[k] = shape * ((const double *)loc_data + dof * vdim);
+         }
       }
    }
    else
