@@ -66,13 +66,16 @@ public:
 
    virtual int GetContType() const = 0;
 
-   /** The following methods provide the same information as the
-       corresponding methods of the FiniteElement base class. */
+   /** @note The following methods provide the same information as the
+       corresponding methods of the FiniteElement base class.
+       @{
+   */
    virtual int GetRangeType() const = 0;
    virtual int GetDerivRangeType() const = 0;
    virtual int GetMapType() const = 0;
    virtual int GetDerivType() const = 0;
    virtual int GetDerivMapType() const = 0;
+   /** @} */
 
    int HasFaceDofs(Geometry::Type geom, int p) const;
 
