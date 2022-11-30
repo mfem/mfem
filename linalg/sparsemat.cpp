@@ -15,6 +15,7 @@
 #include "../general/forall.hpp"
 #include "../general/table.hpp"
 #include "../general/sort_pairs.hpp"
+#include "../general/backends.hpp"
 
 #include <iostream>
 #include <iomanip>
@@ -462,25 +463,108 @@ void SparseMatrix::SortColumnIndices()
       return;
    }
 
-   const int * Ip=HostReadI();
-   HostReadWriteJ();
-   HostReadWriteData();
-
-   Array<Pair<int,double> > row;
-   for (int j = 0, i = 0; i < height; i++)
+#ifdef MFEM_USE_CUDA_OR_HIP
+   if ( Device::Allows( Backend::CUDA_MASK ))
    {
-      int end = Ip[i+1];
-      row.SetSize(end - j);
-      for (int k = 0; k < row.Size(); k++)
+#if defined(MFEM_USE_CUDA)
+      size_t pBufferSizeInBytes = 0;
+      void *pBuffer = NULL;
+
+      const int n = Height();
+      const int m = Width();
+      const int nnzA = J.Capacity();
+      double * d_a_sorted = ReadWriteData();
+      const int * d_ia = ReadI();
+      int * d_ja_sorted = ReadWriteJ();
+      csru2csrInfo_t sortInfoA;
+
+      cusparseMatDescr_t matA_descr;
+      cusparseCreateMatDescr( &matA_descr );
+      cusparseSetMatIndexBase( matA_descr, CUSPARSE_INDEX_BASE_ZERO );
+      cusparseSetMatType( matA_descr, CUSPARSE_MATRIX_TYPE_GENERAL );
+
+      cusparseCreateCsru2csrInfo( &sortInfoA );
+
+      cusparseDcsru2csr_bufferSizeExt( handle, n, m, nnzA, d_a_sorted, d_ia,
+                                       d_ja_sorted, sortInfoA,
+                                       &pBufferSizeInBytes);
+
+      CuMemAlloc( &pBuffer, pBufferSizeInBytes );
+
+      cusparseDcsru2csr( handle, n, m, nnzA, matA_descr, d_a_sorted, d_ia,
+                         d_ja_sorted, sortInfoA, pBuffer);
+
+      cusparseDestroyCsru2csrInfo( sortInfoA );
+      cusparseDestroyMatDescr( matA_descr );
+
+      CuMemFree( pBuffer );
+#endif
+   }
+   else if ( Device::Allows( Backend::HIP_MASK ))
+   {
+#if defined(MFEM_USE_HIP)
+      size_t pBufferSizeInBytes = 0;
+      void *pBuffer = NULL;
+      int *P = NULL;
+
+      const int n = Height();
+      const int m = Width();
+      const int nnzA = J.Capacity();
+      double * d_a_sorted = ReadWriteData();
+      const int * d_ia = ReadI();
+      int * d_ja_sorted = ReadWriteJ();
+
+      hipsparseMatDescr_t descrA;
+      hipsparseCreateMatDescr( &descrA );
+      // FIXME: There is not in-place version of csr sort in hipSPARSE currently, so we make
+      //        a temporary copy of the data for gthr, sort that, and then copy the sorted values
+      //        back to the array being returned. Where there is an in-place version available,
+      //        we should use it.
+      Array< double > a_tmp( nnzA );
+      double *d_a_tmp = a_tmp.Write();
+
+      hipsparseXcsrsort_bufferSizeExt(handle, n, m, nnzA, d_ia, d_ja_sorted,
+                                      &pBufferSizeInBytes);
+
+      HipMemAlloc( &pBuffer, pBufferSizeInBytes );
+      HipMemAlloc( &P, nnzA * sizeof(int) );
+
+      hipsparseCreateIdentityPermutation(handle, nnzA, P);
+      hipsparseXcsrsort(handle, n, m, nnzA, descrA, d_ia, d_ja_sorted, P, pBuffer);
+
+      hipsparseDgthr(handle, nnzA, d_a_sorted, d_a_tmp, P,
+                     HIPSPARSE_INDEX_BASE_ZERO);
+
+      A.CopyFrom( a_tmp.GetMemory(), nnzA );
+      hipsparseDestroyMatDescr( descrA );
+
+      HipMemFree( pBuffer );
+      HipMemFree( P );
+#endif
+   }
+   else
+#endif // MFEM_USE_CUDA_OR_HIP
+   {
+      const int * Ip=HostReadI();
+      HostReadWriteJ();
+      HostReadWriteData();
+
+      Array<Pair<int,double> > row;
+      for (int j = 0, i = 0; i < height; i++)
       {
-         row[k].one = J[j+k];
-         row[k].two = A[j+k];
-      }
-      row.Sort();
-      for (int k = 0; k < row.Size(); k++, j++)
-      {
-         J[j] = row[k].one;
-         A[j] = row[k].two;
+         int end = Ip[i+1];
+         row.SetSize(end - j);
+         for (int k = 0; k < row.Size(); k++)
+         {
+            row[k].one = J[j+k];
+            row[k].two = A[j+k];
+         }
+         row.Sort();
+         for (int k = 0; k < row.Size(); k++, j++)
+         {
+            J[j] = row[k].one;
+            A[j] = row[k].two;
+         }
       }
    }
    isSorted = true;
@@ -849,15 +933,13 @@ void SparseMatrix::AddMultTranspose(const Vector &x, Vector &y,
       return;
    }
 
+   EnsureMultTranspose();
    if (At)
    {
       At->AddMult(x, y, a);
    }
    else
    {
-      MFEM_VERIFY(!Device::Allows(~Backend::CPU_MASK), "transpose action with "
-                  "this backend is not enabled; see EnsureMultTranspose() for "
-                  "details.");
       for (int i = 0; i < height; i++)
       {
          const double xi = a * x[i];
@@ -1064,15 +1146,13 @@ void SparseMatrix::AbsMultTranspose(const Vector &x, Vector &y) const
       return;
    }
 
+   EnsureMultTranspose();
    if (At)
    {
       At->AbsMult(x, y);
    }
    else
    {
-      MFEM_VERIFY(!Device::Allows(~Backend::CPU_MASK), "transpose action with "
-                  "this backend is not enabled; see EnsureMultTranspose() for "
-                  "details.");
       for (int i = 0; i < height; i++)
       {
          const double xi = x[i];
@@ -1772,6 +1852,9 @@ void SparseMatrix::EliminateRowCol(int rc, const double sol, Vector &rhs,
 {
    MFEM_ASSERT(rc < height && rc >= 0,
                "Row " << rc << " not in matrix of height " << height);
+   HostReadWriteI();
+   HostReadWriteJ();
+   HostReadWriteData();
 
    if (Rows == NULL)
    {
@@ -3056,7 +3139,7 @@ SparseMatrix &SparseMatrix::operator+=(const SparseMatrix &B)
    MFEM_ASSERT(height == B.height && width == B.width,
                "Mismatch of this matrix size and rhs.  This height = "
                << height << ", width = " << width << ", B.height = "
-               << B.height << ", B.width = " << width);
+               << B.height << ", B.width = " << B.width);
 
    for (int i = 0; i < height; i++)
    {

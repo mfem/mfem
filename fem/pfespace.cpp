@@ -129,7 +129,7 @@ void ParFiniteElementSpace::ParInit(ParMesh *pm)
       ApplyLDofSigns(*elem_dof);
    }
 
-   // Check for shared trianglular faces with interior Nedelec DoFs
+   // Check for shared triangular faces with interior Nedelec DoFs
    CheckNDSTriaDofs();
 }
 
@@ -959,10 +959,6 @@ void ParFiniteElementSpace::Build_Dof_TrueDof_Matrix() const // matrix P
    SparseMatrix Pdiag;
    P->GetDiag(Pdiag);
    R = Transpose(Pdiag);
-
-   // The following call ensures that the action of the transpose of P is
-   // performed fast when HYPRE is built for GPUs.
-   P->EnsureMultTranspose();
 }
 
 HypreParMatrix *ParFiniteElementSpace::GetPartialConformingInterpolation()
@@ -2610,7 +2606,7 @@ int ParFiniteElementSpace
       if (dump < 10)
       {
          char fname[100];
-         sprintf(fname, "dofs%02d.txt", MyRank);
+         snprintf(fname, 100, "dofs%02d.txt", MyRank);
          std::ofstream f(fname);
          DebugDumpDOFs(f, deps, dof_group, dof_owner, finalized);
          dump++;
@@ -2628,10 +2624,6 @@ int ParFiniteElementSpace
    {
       *P_ = MakeVDimHypreMatrix(pmatrix, ndofs, num_true_dofs,
                                 dof_offs, tdof_offs);
-
-      // The following call ensures that the action of the transpose of *P_ is
-      // performed fast when HYPRE is built for GPUs.
-      (*P_)->EnsureMultTranspose();
    }
 
    // clean up possible remaining messages in the queue to avoid receiving

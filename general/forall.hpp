@@ -36,7 +36,7 @@ const int MAX_Q1D = 14;
 #define MFEM_PRAGMA(X) _Pragma(#X)
 
 // MFEM_UNROLL pragma macro that can be used inside MFEM_FORALL macros.
-#if defined(MFEM_USE_CUDA)
+#if defined(MFEM_USE_CUDA) && defined(__CUDA_ARCH__)
 #define MFEM_UNROLL(N) MFEM_PRAGMA(unroll(N))
 #else
 #define MFEM_UNROLL(N)

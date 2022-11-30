@@ -210,6 +210,9 @@ void visualize(ostream &os, Mesh *mesh, GridFunction *deformed_nodes,
 
 int main(int argc, char *argv[])
 {
+   // 0. Initialize SUNDIALS.
+   Sundials::Init();
+
    // 1. Parse command-line options.
    const char *mesh_file = "../../data/beam-quad.mesh";
    int ref_levels = 2;

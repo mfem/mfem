@@ -266,7 +266,10 @@ public:
       PETSC_MATGENERIC, ///< ID for class PetscParMatrix, unspecified format.
       Complex_Operator, ///< ID for class ComplexOperator.
       MFEM_ComplexSparseMat, ///< ID for class ComplexSparseMatrix.
-      Complex_Hypre_ParCSR   ///< ID for class ComplexHypreParMatrix.
+      Complex_Hypre_ParCSR,   ///< ID for class ComplexHypreParMatrix.
+      Complex_DenseMat,  ///< ID for class ComplexDenseMatrix
+      MFEM_Block_Matrix,     ///< ID for class BlockMatrix.
+      MFEM_Block_Operator   ///< ID for the base class BlockOperator.
    };
 
    /// Return the type ID of the Operator class.

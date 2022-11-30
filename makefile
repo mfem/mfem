@@ -10,7 +10,7 @@
 # CONTRIBUTING.md for details.
 
 # The current MFEM version as an integer, see also `CMakeLists.txt`.
-MFEM_VERSION = 40401
+MFEM_VERSION = 40501
 MFEM_VERSION_STRING = $(shell printf "%06d" $(MFEM_VERSION) | \
   sed -e 's/^0*\(.*.\)\(..\)\(..\)$$/\1.\2.\3/' -e 's/\.0/./g' -e 's/\.0$$//')
 
@@ -124,7 +124,7 @@ EXAMPLE_DIRS := examples $(addprefix examples/,$(EXAMPLE_SUBDIRS))
 EXAMPLE_TEST_DIRS := examples
 
 MINIAPP_SUBDIRS = common electromagnetics meshing navier performance tools \
- toys nurbs gslib adjoint solvers shifted mtop parelag autodiff hooke
+ toys nurbs gslib adjoint solvers shifted mtop parelag autodiff hooke multidomain
 MINIAPP_DIRS := $(addprefix miniapps/,$(MINIAPP_SUBDIRS))
 MINIAPP_TEST_DIRS := $(filter-out %/common,$(MINIAPP_DIRS))
 MINIAPP_USE_COMMON := $(addprefix miniapps/,electromagnetics meshing tools \
@@ -414,7 +414,7 @@ ifneq (,$(filter install,$(MAKECMDGOALS)))
 endif
 
 # Source dirs in logical order
-DIRS = general linalg linalg/simd mesh fem fem/ceed/interface \
+DIRS = general linalg linalg/simd mesh mesh/submesh fem fem/ceed/interface \
        fem/ceed/integrators/mass fem/ceed/integrators/convection \
        fem/ceed/integrators/diffusion fem/ceed/integrators/nlconvection \
        fem/ceed/solvers fem/fe fem/lor fem/qinterp fem/tmop
