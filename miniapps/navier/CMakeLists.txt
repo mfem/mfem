@@ -57,6 +57,11 @@ if (MFEM_USE_MPI)
     ${NAVIER_COMMON_FILES}
     LIBRARIES mfem)
 
+  add_mfem_miniapp(navier_flat_plate
+    MAIN navier_flat_plate.cpp
+    ${NAVIER_COMMON_FILES}
+    LIBRARIES mfem)
+
   if (MFEM_USE_GSLIB)
     add_mfem_miniapp(navier_cht
       MAIN navier_cht.cpp
