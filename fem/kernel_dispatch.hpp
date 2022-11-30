@@ -55,12 +55,12 @@ public:
       const auto it = this->table.find(key);
       if (it != this->table.end())
       {
-         mfem::out << "Specialized.\n";
+         printf("Specialized.\n");
          it->second(args...);
       }
       else
       {
-         mfem::out << "Fallback.\n";
+         printf("Fallback.\n");
          if (key.dim == 2)
          {
             T::Fallback2D()(args...);
@@ -79,7 +79,7 @@ public:
    template <int DIM, int D1D, int Q1D>
    void AddSpecialization()
    {
-      mfem::out << "Adding specialization.\n";
+      printf("Adding specialization.\n");
       constexpr KernelDispatchKey key = {DIM, D1D, Q1D};
       if (DIM == 2)
       {

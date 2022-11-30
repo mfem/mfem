@@ -18,9 +18,9 @@
 #include "ceed/interface/util.hpp"
 
 #include "kernel_dispatch.hpp"
-// Want to hide this... i.e. have dispatch table not be a template, but have
-// some templated pointer in its implementaiton
+
 #include "bilininteg_diffusion_pa.hpp"
+#include "bilininteg_mass_pa.hpp"
 
 namespace mfem
 {
@@ -2074,6 +2074,9 @@ public:
                                          ElementTransformation &Trans);
 };
 
+
+constexpr int ipow(int x, int p) { return p == 0 ? 1 : x*ipow(x, p-1); }
+
 /** Class for integrating the bilinear form a(u,v) := (Q grad u, grad v) where Q
     can be a scalar or a matrix coefficient. */
 class DiffusionIntegrator: public BilinearFormIntegrator
@@ -2099,10 +2102,57 @@ private:
    Vector pa_data;
    bool symmetric = true; ///< False if using a nonsymmetric matrix coefficient
 
+   class ApplyPAKernels
+   {
+   private:
+      constexpr static int D(int D1D) { return (11 - D1D) / 2; }
+   public:
+      using Kernel = void(*)(const int, const bool, const Array<double>&,
+                             const Array<double>&, const Array<double>&,
+                             const Array<double>&, const Vector&, const Vector&,
+                             Vector&, const int, const int);
+      constexpr static int NBZ(int D1D, int Q1D)
+      {
+         return ipow(2, D(D1D) >= 0 ? D(D1D) : 0);
+      }
+
+      template<int T_D1D = 0, int T_Q1D = 0, int T_NBZ = 0>
+      static Kernel Kernel2D() { return SmemPADiffusionApply2D<T_D1D, T_Q1D, T_NBZ>; }
+
+      template<int T_D1D = 0, int T_Q1D = 0>
+      static Kernel Kernel3D() { return SmemPADiffusionApply3D<T_D1D, T_Q1D>; }
+
+      static Kernel Fallback2D() { return PADiffusionApply2D<0,0>; }
+
+      static Kernel Fallback3D() { return PADiffusionApply3D<0,0>; }
+   };
+
+   class DiagonalPAKernels
+   {
+   public:
+      using Kernel = void(*)(const int, const bool, const Array<double>&,
+                             const Array<double>&, const Vector&, Vector&,
+                             const int, const int);
+      constexpr static int NBZ(int D1D, int Q1D)
+      {
+         return ApplyPAKernels::NBZ(D1D, Q1D) / 2;
+      }
+
+      template<int T_D1D = 0, int T_Q1D = 0, int T_NBZ = 0>
+      static Kernel Kernel2D() { return SmemPADiffusionDiagonal2D<T_D1D, T_Q1D, T_NBZ>; }
+
+      template<int T_D1D = 0, int T_Q1D = 0>
+      static Kernel Kernel3D() { return SmemPADiffusionDiagonal3D<T_D1D, T_Q1D>; }
+
+      static Kernel Fallback2D() { return PADiffusionDiagonal2D<0,0>; }
+
+      static Kernel Fallback3D() { return PADiffusionDiagonal3D<0,0>; }
+   };
+
    struct Kernels
    {
-      KernelDispatchTable<DiffusionApplyPAKernels> apply;
-      KernelDispatchTable<DiffusionDiagonalPAKernels> diag;
+      KernelDispatchTable<ApplyPAKernels> apply;
+      KernelDispatchTable<DiagonalPAKernels> diag;
       Kernels();
    };
    static Kernels kernels;
@@ -2184,63 +2234,11 @@ public:
    Coefficient *GetCoefficient() const { return Q; }
 
    template <int DIM, int D1D, int Q1D>
-   static void AddSpecialization();
-};
-
-template <int DIM, int D1D, int Q1D>
-void DiffusionIntegrator::AddSpecialization()
-{
-   kernels.apply.AddSpecialization<DIM, D1D, Q1D>();
-   kernels.diag.AddSpecialization<DIM, D1D, Q1D>();
-}
-
-constexpr int ipow(int x, int p) { return p == 0 ? 1 : x*ipow(x, p-1); }
-
-class DiffusionApplyPAKernels
-{
-private:
-   constexpr static int D(int D1D) { return (11 - D1D) / 2; }
-public:
-   using Kernel = void(*)(const int, const bool, const Array<double>&,
-                          const Array<double>&, const Array<double>&,
-                          const Array<double>&, const Vector&, const Vector&,
-                          Vector&, const int, const int);
-   constexpr static int NBZ(int D1D, int Q1D)
+   static void AddSpecialization()
    {
-      return ipow(2, D(D1D) >= 0 ? D(D1D) : 0);
+      kernels.apply.AddSpecialization<DIM, D1D, Q1D>();
+      kernels.diag.AddSpecialization<DIM, D1D, Q1D>();
    }
-
-   template<int T_D1D = 0, int T_Q1D = 0, int T_NBZ = 0>
-   static Kernel Kernel2D() { return SmemPADiffusionApply2D<T_D1D, T_Q1D, T_NBZ>; }
-
-   template<int T_D1D = 0, int T_Q1D = 0>
-   static Kernel Kernel3D() { return SmemPADiffusionApply3D<T_D1D, T_Q1D>; }
-
-   static Kernel Fallback2D() { return PADiffusionApply2D<0,0>; }
-
-   static Kernel Fallback3D() { return PADiffusionApply3D<0,0>; }
-};
-
-class DiffusionDiagonalPAKernels
-{
-public:
-   using Kernel = void(*)(const int, const bool, const Array<double>&,
-                          const Array<double>&, const Vector&, Vector&,
-                          const int, const int);
-   constexpr static int NBZ(int D1D, int Q1D)
-   {
-      return DiffusionApplyPAKernels::NBZ(D1D, Q1D) / 2;
-   }
-
-   template<int T_D1D = 0, int T_Q1D = 0, int T_NBZ = 0>
-   static Kernel Kernel2D() { return SmemPADiffusionDiagonal2D<T_D1D, T_Q1D, T_NBZ>; }
-
-   template<int T_D1D = 0, int T_Q1D = 0>
-   static Kernel Kernel3D() { return SmemPADiffusionDiagonal3D<T_D1D, T_Q1D>; }
-
-   static Kernel Fallback2D() { return PADiffusionDiagonal2D<0,0>; }
-
-   static Kernel Fallback3D() { return PADiffusionDiagonal3D<0,0>; }
 };
 
 /** Class for local mass matrix assembling a(u,v) := (Q u, v) */
@@ -2257,6 +2255,72 @@ protected:
    const DofToQuad *maps;         ///< Not owned
    const GeometricFactors *geom;  ///< Not owned
    int dim, ne, nq, dofs1D, quad1D;
+
+   class ApplyPAKernels
+   {
+   private:
+      constexpr static int D(int D1D) { return (11 - D1D) / 2; }
+   public:
+      using Kernel = void(*)(const int, const Array<double>&,
+                             const Array<double>&, const Vector&, const Vector&,
+                             Vector&, const int, const int);
+      constexpr static int NBZ(int D1D, int Q1D)
+      {
+         return ipow(2, D(D1D) >= 0 ? D(D1D) : 0);
+      }
+
+      template<int T_D1D = 0, int T_Q1D = 0, int T_NBZ = 0>
+      static Kernel Kernel2D() { return SmemPAMassApply2D<T_D1D, T_Q1D, T_NBZ>; }
+
+      template<int T_D1D = 0, int T_Q1D = 0>
+      static Kernel Kernel3D() { return SmemPAMassApply3D<T_D1D, T_Q1D>; }
+
+      static Kernel Fallback2D() { return PAMassApply2D<0,0>; }
+
+      static Kernel Fallback3D() { return PAMassApply3D<0,0>; }
+   };
+
+   class DiagonalPAKernels
+   {
+   public:
+      using Kernel = void(*)(const int, const Array<double>&,
+                             const Vector&, Vector&, const int, const int);
+      constexpr static int NBZ(int D1D, int Q1D) { return 0; }
+
+      template<int T_D1D = 0, int T_Q1D = 0, int T_NBZ = 0>
+      static Kernel Kernel2D() { return PAMassAssembleDiagonal2D<T_D1D, T_Q1D>; }
+
+      template<int T_D1D = 0, int T_Q1D = 0>
+      static Kernel Kernel3D() { return PAMassAssembleDiagonal3D<T_D1D, T_Q1D>; }
+
+      static Kernel Fallback2D() { return PAMassAssembleDiagonal2D<0,0>; }
+
+      static Kernel Fallback3D() { return PAMassAssembleDiagonal3D<0,0>; }
+   };
+
+   struct Kernels
+   {
+      KernelDispatchTable<ApplyPAKernels> apply;
+      KernelDispatchTable<DiagonalPAKernels> diag;
+      Kernels();
+   };
+   static Kernels kernels;
+
+   void PAAssembleDiagonal(const int dim, const int D1D,
+                           const int Q1D, const int NE,
+                           const Array<double> &B,
+                           const Vector &D,
+                           Vector &Y) const;
+
+   void PAMassApply(const int dim,
+                    const int D1D,
+                    const int Q1D,
+                    const int NE,
+                    const Array<double> &B,
+                    const Array<double> &Bt,
+                    const Vector &D,
+                    const Vector &X,
+                    Vector &Y) const;
 
 public:
    MassIntegrator(const IntegrationRule *ir = NULL)
@@ -2302,6 +2366,13 @@ public:
    bool SupportsCeed() const { return DeviceCanUseCeed(); }
 
    const Coefficient *GetCoefficient() const { return Q; }
+
+   template <int DIM, int D1D, int Q1D>
+   static void AddSpecialization()
+   {
+      kernels.apply.AddSpecialization<DIM, D1D, Q1D>();
+      kernels.diag.AddSpecialization<DIM, D1D, Q1D>();
+   }
 };
 
 /** Mass integrator (u, v) restricted to the boundary of a domain */
