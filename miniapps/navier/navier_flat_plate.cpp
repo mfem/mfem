@@ -61,8 +61,8 @@ struct s_NavierContext
    bool ni = false;
    bool slip_top = false; //option to have a slip wall on the top of boundary (attr 3)
    bool paraview = true;
-   const char *mesh = "flat-plate-coarse.msh";
-   const char *sol_dir = "flat_plate_coarse";
+   const char *mesh = "flat-plate.msh";
+   const char *sol_dir = "flat_plate_paraview_output";
 } ctx; 
 
 // Dirichlet conditions for velocity
