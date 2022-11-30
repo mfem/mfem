@@ -3,6 +3,7 @@
 #include <iostream>
 
 #include "fem/bilininteg_diffusion_pa.hpp"
+#include "fem/kernel_dispatch.hpp"
 
 using namespace std;
 using namespace mfem;
@@ -11,6 +12,12 @@ int main(int argc, char *argv[])
 {
    const char *mesh_file = "../data/star.mesh";
    const int order = 1;
+
+   // KernelDispatchTable<DiffusionApplyPAKernels> apply;
+
+   // Array<double> a1;
+   // Vector v1;
+   // apply.Run(2, 1, 1, 1, true, a1, a1, a1, a1, v1, v1, v1, 1, 1);
 
    Mesh mesh(mesh_file, 1, 1);
    int dim = mesh.Dimension();
@@ -28,7 +35,6 @@ int main(int argc, char *argv[])
    const Geometry::Type geom = mesh.GetElementGeometry(0);
    const IntegrationRule &ir = IntRules.Get(geom, 2*order + 2);
    (*a.GetDBFI())[0]->SetIntegrationRule(ir);
-   std::cout << ir.Size() << '\n';
 
    a.Assemble();
 

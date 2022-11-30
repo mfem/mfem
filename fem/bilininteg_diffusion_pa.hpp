@@ -9,8 +9,13 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
+#ifndef MFEM_BILININTEG_DIFFUSION_PA_HPP
+#define MFEM_BILININTEG_DIFFUSION_PA_HPP
+
+#include "../general/array.hpp"
+#include "../linalg/vector.hpp"
 #include "../general/forall.hpp"
-#include "bilininteg.hpp"
+#include "kernel_dispatch.hpp"
 
 namespace mfem
 {
@@ -521,6 +526,8 @@ static void SmemPADiffusionApply2D(const int NE,
                                    const bool symmetric,
                                    const Array<double> &b_,
                                    const Array<double> &g_,
+                                   const Array<double> &bt_,
+                                   const Array<double> &gt_,
                                    const Vector &d_,
                                    const Vector &x_,
                                    Vector &y_,
@@ -871,6 +878,8 @@ static void SmemPADiffusionApply3D(const int NE,
                                    const bool symmetric,
                                    const Array<double> &b_,
                                    const Array<double> &g_,
+                                   const Array<double> &bt_,
+                                   const Array<double> &gt_,
                                    const Vector &d_,
                                    const Vector &x_,
                                    Vector &y_,
@@ -1088,24 +1097,6 @@ static void SmemPADiffusionApply3D(const int NE,
    });
 }
 
-constexpr int ipow(int x, int p) { return p == 0 ? 1 : x*ipow(x, p-1); }
-
-template <int DIM, int D1D, int Q1D>
-void DiffusionIntegrator::AddSpecialization()
-{
-   constexpr DispatchKey key = {DIM, D1D, Q1D};
-   if (DIM == 2)
-   {
-      constexpr int D = (11 - D1D) / 2;
-      constexpr int NBZ = ipow(2, D >= 0 ? D : 0);
-      dispatch_table.apply[key] = SmemPADiffusionApply2D<D1D, Q1D, NBZ>;
-      dispatch_table.diagonal[key] = SmemPADiffusionDiagonal2D<D1D, Q1D, NBZ/2>;
-   }
-   else if (DIM == 3)
-   {
-      dispatch_table.apply[key] = SmemPADiffusionApply3D<D1D, Q1D>;
-      dispatch_table.diagonal[key] = SmemPADiffusionDiagonal3D<D1D, Q1D>;
-   }
-}
-
 } // namespace mfem
+
+#endif
