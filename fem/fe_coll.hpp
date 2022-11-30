@@ -66,6 +66,14 @@ public:
 
    virtual int GetContType() const = 0;
 
+   /** The following methods provide the same information as the
+       corresponding methods of the FiniteElement base class. */
+   virtual int GetRangeType() const = 0;
+   virtual int GetDerivRangeType() const = 0;
+   virtual int GetMapType() const = 0;
+   virtual int GetDerivType() const = 0;
+   virtual int GetDerivMapType() const = 0;
+
    int HasFaceDofs(Geometry::Type geom, int p) const;
 
    virtual const FiniteElement *TraceFiniteElementForGeometry(
@@ -240,6 +248,11 @@ public:
 
    virtual const char *Name() const { return h1_name; }
    virtual int GetContType() const { return CONTINUOUS; }
+   virtual int GetRangeType() const { return FiniteElement::SCALAR; }
+   virtual int GetDerivRangeType() const { return FiniteElement::VECTOR; }
+   virtual int GetMapType() const { return FiniteElement::VALUE; }
+   virtual int GetDerivType() const { return FiniteElement::GRAD; }
+   virtual int GetDerivMapType() const { return FiniteElement::H_CURL; }
    int GetBasisType() const { return b_type; }
 
    FiniteElementCollection *GetTraceCollection() const;
@@ -319,6 +332,11 @@ public:
    virtual const char *Name() const { return d_name; }
 
    virtual int GetContType() const { return DISCONTINUOUS; }
+   virtual int GetRangeType() const { return FiniteElement::SCALAR; }
+   virtual int GetDerivRangeType() const { return FiniteElement::VECTOR; }
+   virtual int GetMapType() const { return m_type; }
+   virtual int GetDerivType() const { return FiniteElement::GRAD; }
+   virtual int GetDerivMapType() const { return FiniteElement::H_CURL; }
 
    virtual const FiniteElement *TraceFiniteElementForGeometry(
       Geometry::Type GeomType) const
@@ -378,6 +396,11 @@ public:
                                              int Or) const;
    virtual const char *Name() const { return rt_name; }
    virtual int GetContType() const { return NORMAL; }
+   virtual int GetRangeType() const { return FiniteElement::VECTOR; }
+   virtual int GetDerivRangeType() const { return FiniteElement::SCALAR; }
+   virtual int GetMapType() const { return FiniteElement::H_DIV; }
+   virtual int GetDerivType() const { return FiniteElement::DIV; }
+   virtual int GetDerivMapType() const { return FiniteElement::INTEGRAL; }
    FiniteElementCollection *GetTraceCollection() const;
 
    int GetClosedBasisType() const { return cb_type; }
@@ -438,6 +461,13 @@ public:
                                              int Or) const;
    virtual const char *Name() const { return nd_name; }
    virtual int GetContType() const { return TANGENTIAL; }
+   virtual int GetRangeType() const { return FiniteElement::VECTOR; }
+   virtual int GetDerivRangeType() const
+   { return (dim==3) ? FiniteElement::VECTOR : FiniteElement::SCALAR; }
+   virtual int GetMapType() const { return FiniteElement::H_CURL; }
+   virtual int GetDerivType() const { return FiniteElement::CURL; }
+   virtual int GetDerivMapType() const
+   { return (dim==3) ? FiniteElement::H_DIV : FiniteElement::INTEGRAL; }
    FiniteElementCollection *GetTraceCollection() const;
 
    int GetClosedBasisType() const { return cb_type; }
@@ -482,6 +512,11 @@ public:
                                              int Or) const;
    virtual const char *Name() const { return nd_name; }
    virtual int GetContType() const { return TANGENTIAL; }
+   virtual int GetRangeType() const { return FiniteElement::VECTOR; }
+   virtual int GetDerivRangeType() const { return FiniteElement::VECTOR; }
+   virtual int GetMapType() const { return FiniteElement::H_CURL; }
+   virtual int GetDerivType() const { return FiniteElement::CURL; }
+   virtual int GetDerivMapType() const { return FiniteElement::H_DIV; }
    FiniteElementCollection *GetTraceCollection() const;
 
    virtual ~ND_R1D_FECollection();
@@ -509,6 +544,11 @@ public:
                                              int Or) const;
    virtual const char *Name() const { return rt_name; }
    virtual int GetContType() const { return NORMAL; }
+   virtual int GetRangeType() const { return FiniteElement::VECTOR; }
+   virtual int GetDerivRangeType() const { return FiniteElement::SCALAR; }
+   virtual int GetMapType() const { return FiniteElement::H_DIV; }
+   virtual int GetDerivType() const { return FiniteElement::DIV; }
+   virtual int GetDerivMapType() const { return FiniteElement::INTEGRAL; }
    FiniteElementCollection *GetTraceCollection() const;
 
    virtual ~RT_R1D_FECollection();
@@ -537,6 +577,11 @@ public:
                                              int Or) const;
    virtual const char *Name() const { return nd_name; }
    virtual int GetContType() const { return TANGENTIAL; }
+   virtual int GetRangeType() const { return FiniteElement::VECTOR; }
+   virtual int GetDerivRangeType() const { return FiniteElement::VECTOR; }
+   virtual int GetMapType() const { return FiniteElement::H_CURL; }
+   virtual int GetDerivType() const { return FiniteElement::CURL; }
+   virtual int GetDerivMapType() const { return FiniteElement::H_DIV; }
    FiniteElementCollection *GetTraceCollection() const;
 
    virtual ~ND_R2D_FECollection();
@@ -586,6 +631,11 @@ public:
                                              int Or) const;
    virtual const char *Name() const { return rt_name; }
    virtual int GetContType() const { return NORMAL; }
+   virtual int GetRangeType() const { return FiniteElement::VECTOR; }
+   virtual int GetDerivRangeType() const { return FiniteElement::SCALAR; }
+   virtual int GetMapType() const { return FiniteElement::H_DIV; }
+   virtual int GetDerivType() const { return FiniteElement::DIV; }
+   virtual int GetDerivMapType() const { return FiniteElement::INTEGRAL; }
    FiniteElementCollection *GetTraceCollection() const;
 
    virtual ~RT_R2D_FECollection();
@@ -652,6 +702,11 @@ public:
    virtual const char *Name() const { return name; }
 
    virtual int GetContType() const { return CONTINUOUS; }
+   virtual int GetRangeType() const { return FiniteElement::SCALAR; }
+   virtual int GetDerivRangeType() const { return FiniteElement::VECTOR; }
+   virtual int GetMapType() const { return FiniteElement::VALUE; }
+   virtual int GetDerivType() const { return FiniteElement::GRAD; }
+   virtual int GetDerivMapType() const { return FiniteElement::H_CURL; }
 
    FiniteElementCollection *GetTraceCollection() const;
 
@@ -685,6 +740,11 @@ public:
    virtual const char * Name() const { return "Linear"; }
 
    virtual int GetContType() const { return CONTINUOUS; }
+   virtual int GetRangeType() const { return FiniteElement::SCALAR; }
+   virtual int GetDerivRangeType() const { return FiniteElement::VECTOR; }
+   virtual int GetMapType() const { return FiniteElement::VALUE; }
+   virtual int GetDerivType() const { return FiniteElement::GRAD; }
+   virtual int GetDerivMapType() const { return FiniteElement::H_CURL; }
 };
 
 /// Piecewise-(bi)quadratic continuous finite elements.
@@ -714,6 +774,11 @@ public:
    virtual const char * Name() const { return "Quadratic"; }
 
    virtual int GetContType() const { return CONTINUOUS; }
+   virtual int GetRangeType() const { return FiniteElement::SCALAR; }
+   virtual int GetDerivRangeType() const { return FiniteElement::VECTOR; }
+   virtual int GetMapType() const { return FiniteElement::VALUE; }
+   virtual int GetDerivType() const { return FiniteElement::GRAD; }
+   virtual int GetDerivMapType() const { return FiniteElement::H_CURL; }
 };
 
 /// Version of QuadraticFECollection with positive basis functions.
@@ -737,6 +802,11 @@ public:
    virtual const char * Name() const { return "QuadraticPos"; }
 
    virtual int GetContType() const { return CONTINUOUS; }
+   virtual int GetRangeType() const { return FiniteElement::SCALAR; }
+   virtual int GetDerivRangeType() const { return FiniteElement::VECTOR; }
+   virtual int GetMapType() const { return FiniteElement::VALUE; }
+   virtual int GetDerivType() const { return FiniteElement::GRAD; }
+   virtual int GetDerivMapType() const { return FiniteElement::H_CURL; }
 };
 
 /// Piecewise-(bi)cubic continuous finite elements.
@@ -768,6 +838,11 @@ public:
    virtual const char * Name() const { return "Cubic"; }
 
    virtual int GetContType() const { return CONTINUOUS; }
+   virtual int GetRangeType() const { return FiniteElement::SCALAR; }
+   virtual int GetDerivRangeType() const { return FiniteElement::VECTOR; }
+   virtual int GetMapType() const { return FiniteElement::VALUE; }
+   virtual int GetDerivType() const { return FiniteElement::GRAD; }
+   virtual int GetDerivMapType() const { return FiniteElement::H_CURL; }
 };
 
 /// Crouzeix-Raviart nonconforming elements in 2D.
@@ -791,6 +866,11 @@ public:
    virtual const char * Name() const { return "CrouzeixRaviart"; }
 
    virtual int GetContType() const { return DISCONTINUOUS; }
+   virtual int GetRangeType() const { return FiniteElement::SCALAR; }
+   virtual int GetDerivRangeType() const { return FiniteElement::VECTOR; }
+   virtual int GetMapType() const { return FiniteElement::VALUE; }
+   virtual int GetDerivType() const { return FiniteElement::GRAD; }
+   virtual int GetDerivMapType() const { return FiniteElement::H_CURL; }
 };
 
 /// Piecewise-linear nonconforming finite elements in 3D.
@@ -816,6 +896,11 @@ public:
    virtual const char * Name() const { return "LinearNonConf3D"; }
 
    virtual int GetContType() const { return DISCONTINUOUS; }
+   virtual int GetRangeType() const { return FiniteElement::SCALAR; }
+   virtual int GetDerivRangeType() const { return FiniteElement::VECTOR; }
+   virtual int GetMapType() const { return FiniteElement::VALUE; }
+   virtual int GetDerivType() const { return FiniteElement::GRAD; }
+   virtual int GetDerivMapType() const { return FiniteElement::H_CURL; }
 };
 
 
@@ -841,6 +926,11 @@ public:
    virtual const char * Name() const { return "RT0_2D"; }
 
    virtual int GetContType() const { return NORMAL; }
+   virtual int GetRangeType() const { return FiniteElement::VECTOR; }
+   virtual int GetDerivRangeType() const { return FiniteElement::SCALAR; }
+   virtual int GetMapType() const { return FiniteElement::H_DIV; }
+   virtual int GetDerivType() const { return FiniteElement::DIV; }
+   virtual int GetDerivMapType() const { return FiniteElement::INTEGRAL; }
 };
 
 /** @brief Second order Raviart-Thomas finite elements in 2D. This class is kept
@@ -865,6 +955,11 @@ public:
    virtual const char * Name() const { return "RT1_2D"; }
 
    virtual int GetContType() const { return NORMAL; }
+   virtual int GetRangeType() const { return FiniteElement::VECTOR; }
+   virtual int GetDerivRangeType() const { return FiniteElement::SCALAR; }
+   virtual int GetMapType() const { return FiniteElement::H_DIV; }
+   virtual int GetDerivType() const { return FiniteElement::DIV; }
+   virtual int GetDerivMapType() const { return FiniteElement::INTEGRAL; }
 };
 
 /** @brief Third order Raviart-Thomas finite elements in 2D. This class is kept
@@ -889,6 +984,11 @@ public:
    virtual const char * Name() const { return "RT2_2D"; }
 
    virtual int GetContType() const { return NORMAL; }
+   virtual int GetRangeType() const { return FiniteElement::VECTOR; }
+   virtual int GetDerivRangeType() const { return FiniteElement::SCALAR; }
+   virtual int GetMapType() const { return FiniteElement::H_DIV; }
+   virtual int GetDerivType() const { return FiniteElement::DIV; }
+   virtual int GetDerivMapType() const { return FiniteElement::INTEGRAL; }
 };
 
 /** @brief Piecewise-constant discontinuous finite elements in 2D. This class is
@@ -913,6 +1013,11 @@ public:
    virtual const char * Name() const { return "Const2D"; }
 
    virtual int GetContType() const { return DISCONTINUOUS; }
+   virtual int GetRangeType() const { return FiniteElement::SCALAR; }
+   virtual int GetDerivRangeType() const { return FiniteElement::VECTOR; }
+   virtual int GetMapType() const { return FiniteElement::VALUE; }
+   virtual int GetDerivType() const { return FiniteElement::GRAD; }
+   virtual int GetDerivMapType() const { return FiniteElement::H_CURL; }
 };
 
 /** @brief Piecewise-linear discontinuous finite elements in 2D. This class is
@@ -938,6 +1043,11 @@ public:
    virtual const char * Name() const { return "LinearDiscont2D"; }
 
    virtual int GetContType() const { return DISCONTINUOUS; }
+   virtual int GetRangeType() const { return FiniteElement::SCALAR; }
+   virtual int GetDerivRangeType() const { return FiniteElement::VECTOR; }
+   virtual int GetMapType() const { return FiniteElement::VALUE; }
+   virtual int GetDerivType() const { return FiniteElement::GRAD; }
+   virtual int GetDerivMapType() const { return FiniteElement::H_CURL; }
 };
 
 /// Version of LinearDiscont2DFECollection with dofs in the Gaussian points.
@@ -962,6 +1072,11 @@ public:
    virtual const char * Name() const { return "GaussLinearDiscont2D"; }
 
    virtual int GetContType() const { return DISCONTINUOUS; }
+   virtual int GetRangeType() const { return FiniteElement::SCALAR; }
+   virtual int GetDerivRangeType() const { return FiniteElement::VECTOR; }
+   virtual int GetMapType() const { return FiniteElement::VALUE; }
+   virtual int GetDerivType() const { return FiniteElement::GRAD; }
+   virtual int GetDerivMapType() const { return FiniteElement::H_CURL; }
 };
 
 /// Linear (P1) finite elements on quadrilaterals.
@@ -978,6 +1093,11 @@ public:
                                              int Or) const;
    virtual const char * Name() const { return "P1OnQuad"; }
    virtual int GetContType() const { return DISCONTINUOUS; }
+   virtual int GetRangeType() const { return FiniteElement::SCALAR; }
+   virtual int GetDerivRangeType() const { return FiniteElement::VECTOR; }
+   virtual int GetMapType() const { return FiniteElement::VALUE; }
+   virtual int GetDerivType() const { return FiniteElement::GRAD; }
+   virtual int GetDerivMapType() const { return FiniteElement::H_CURL; }
 };
 
 /** @brief Piecewise-quadratic discontinuous finite elements in 2D. This class
@@ -1002,6 +1122,11 @@ public:
 
    virtual const char * Name() const { return "QuadraticDiscont2D"; }
    virtual int GetContType() const { return DISCONTINUOUS; }
+   virtual int GetRangeType() const { return FiniteElement::SCALAR; }
+   virtual int GetDerivRangeType() const { return FiniteElement::VECTOR; }
+   virtual int GetMapType() const { return FiniteElement::VALUE; }
+   virtual int GetDerivType() const { return FiniteElement::GRAD; }
+   virtual int GetDerivMapType() const { return FiniteElement::H_CURL; }
 };
 
 /// Version of QuadraticDiscont2DFECollection with positive basis functions.
@@ -1020,6 +1145,11 @@ public:
    { return NULL; }
    virtual const char * Name() const { return "QuadraticPosDiscont2D"; }
    virtual int GetContType() const { return DISCONTINUOUS; }
+   virtual int GetRangeType() const { return FiniteElement::SCALAR; }
+   virtual int GetDerivRangeType() const { return FiniteElement::VECTOR; }
+   virtual int GetMapType() const { return FiniteElement::VALUE; }
+   virtual int GetDerivType() const { return FiniteElement::GRAD; }
+   virtual int GetDerivMapType() const { return FiniteElement::H_CURL; }
 };
 
 /// Version of QuadraticDiscont2DFECollection with dofs in the Gaussian points.
@@ -1043,6 +1173,11 @@ public:
 
    virtual const char * Name() const { return "GaussQuadraticDiscont2D"; }
    virtual int GetContType() const { return DISCONTINUOUS; }
+   virtual int GetRangeType() const { return FiniteElement::SCALAR; }
+   virtual int GetDerivRangeType() const { return FiniteElement::VECTOR; }
+   virtual int GetMapType() const { return FiniteElement::VALUE; }
+   virtual int GetDerivType() const { return FiniteElement::GRAD; }
+   virtual int GetDerivMapType() const { return FiniteElement::H_CURL; }
 };
 
 /** @brief Piecewise-cubic discontinuous finite elements in 2D. This class is
@@ -1067,6 +1202,11 @@ public:
 
    virtual const char * Name() const { return "CubicDiscont2D"; }
    virtual int GetContType() const { return DISCONTINUOUS; }
+   virtual int GetRangeType() const { return FiniteElement::SCALAR; }
+   virtual int GetDerivRangeType() const { return FiniteElement::VECTOR; }
+   virtual int GetMapType() const { return FiniteElement::VALUE; }
+   virtual int GetDerivType() const { return FiniteElement::GRAD; }
+   virtual int GetDerivMapType() const { return FiniteElement::H_CURL; }
 };
 
 /** @brief Piecewise-constant discontinuous finite elements in 3D. This class is
@@ -1093,6 +1233,11 @@ public:
 
    virtual const char * Name() const { return "Const3D"; }
    virtual int GetContType() const { return DISCONTINUOUS; }
+   virtual int GetRangeType() const { return FiniteElement::SCALAR; }
+   virtual int GetDerivRangeType() const { return FiniteElement::VECTOR; }
+   virtual int GetMapType() const { return FiniteElement::VALUE; }
+   virtual int GetDerivType() const { return FiniteElement::GRAD; }
+   virtual int GetDerivMapType() const { return FiniteElement::H_CURL; }
 };
 
 /** @brief Piecewise-linear discontinuous finite elements in 3D. This class is
@@ -1119,6 +1264,11 @@ public:
 
    virtual const char * Name() const { return "LinearDiscont3D"; }
    virtual int GetContType() const { return DISCONTINUOUS; }
+   virtual int GetRangeType() const { return FiniteElement::SCALAR; }
+   virtual int GetDerivRangeType() const { return FiniteElement::VECTOR; }
+   virtual int GetMapType() const { return FiniteElement::VALUE; }
+   virtual int GetDerivType() const { return FiniteElement::GRAD; }
+   virtual int GetDerivMapType() const { return FiniteElement::H_CURL; }
 };
 
 /** @brief Piecewise-quadratic discontinuous finite elements in 3D. This class
@@ -1144,6 +1294,11 @@ public:
 
    virtual const char * Name() const { return "QuadraticDiscont3D"; }
    virtual int GetContType() const { return DISCONTINUOUS; }
+   virtual int GetRangeType() const { return FiniteElement::SCALAR; }
+   virtual int GetDerivRangeType() const { return FiniteElement::VECTOR; }
+   virtual int GetMapType() const { return FiniteElement::VALUE; }
+   virtual int GetDerivType() const { return FiniteElement::GRAD; }
+   virtual int GetDerivMapType() const { return FiniteElement::H_CURL; }
 };
 
 /// Finite element collection on a macro-element.
@@ -1170,6 +1325,11 @@ public:
 
    virtual const char * Name() const { return "RefinedLinear"; }
    virtual int GetContType() const { return CONTINUOUS; }
+   virtual int GetRangeType() const { return FiniteElement::SCALAR; }
+   virtual int GetDerivRangeType() const { return FiniteElement::VECTOR; }
+   virtual int GetMapType() const { return FiniteElement::VALUE; }
+   virtual int GetDerivType() const { return FiniteElement::GRAD; }
+   virtual int GetDerivMapType() const { return FiniteElement::H_CURL; }
 };
 
 /** @brief Lowest order Nedelec finite elements in 3D. This class is kept only
@@ -1196,6 +1356,11 @@ public:
 
    virtual const char * Name() const { return "ND1_3D"; }
    virtual int GetContType() const { return TANGENTIAL; }
+   virtual int GetRangeType() const { return FiniteElement::VECTOR; }
+   virtual int GetDerivRangeType() const { return FiniteElement::VECTOR; }
+   virtual int GetMapType() const { return FiniteElement::H_CURL; }
+   virtual int GetDerivType() const { return FiniteElement::CURL; }
+   virtual int GetDerivMapType() const { return FiniteElement::H_DIV; }
 };
 
 /** @brief First order Raviart-Thomas finite elements in 3D. This class is kept
@@ -1222,6 +1387,11 @@ public:
 
    virtual const char * Name() const { return "RT0_3D"; }
    virtual int GetContType() const { return NORMAL; }
+   virtual int GetRangeType() const { return FiniteElement::VECTOR; }
+   virtual int GetDerivRangeType() const { return FiniteElement::SCALAR; }
+   virtual int GetMapType() const { return FiniteElement::H_DIV; }
+   virtual int GetDerivType() const { return FiniteElement::DIV; }
+   virtual int GetDerivMapType() const { return FiniteElement::INTEGRAL; }
 };
 
 /** @brief Second order Raviart-Thomas finite elements in 3D. This class is kept
@@ -1245,6 +1415,11 @@ public:
 
    virtual const char * Name() const { return "RT1_3D"; }
    virtual int GetContType() const { return NORMAL; }
+   virtual int GetRangeType() const { return FiniteElement::VECTOR; }
+   virtual int GetDerivRangeType() const { return FiniteElement::SCALAR; }
+   virtual int GetMapType() const { return FiniteElement::H_DIV; }
+   virtual int GetDerivType() const { return FiniteElement::DIV; }
+   virtual int GetDerivMapType() const { return FiniteElement::INTEGRAL; }
 };
 
 /// Discontinuous collection defined locally by a given finite element.
@@ -1270,6 +1445,11 @@ public:
 
    virtual ~Local_FECollection() { delete Local_Element; }
    virtual int GetContType() const { return DISCONTINUOUS; }
+   virtual int GetRangeType() const { return FiniteElement::SCALAR; }
+   virtual int GetDerivRangeType() const { return FiniteElement::VECTOR; }
+   virtual int GetMapType() const { return FiniteElement::VALUE; }
+   virtual int GetDerivType() const { return FiniteElement::GRAD; }
+   virtual int GetDerivMapType() const { return FiniteElement::H_CURL; }
 };
 
 }
