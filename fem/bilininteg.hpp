@@ -2285,7 +2285,6 @@ protected:
    public:
       using Kernel = void(*)(const int, const Array<double>&,
                              const Vector&, Vector&, const int, const int);
-      constexpr static int NBZ(int D1D, int Q1D) { return 0; }
 
       template<int T_D1D = 0, int T_Q1D = 0, int T_NBZ = 0>
       static Kernel Kernel2D() { return PAMassAssembleDiagonal2D<T_D1D, T_Q1D>; }

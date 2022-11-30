@@ -12,7 +12,6 @@
 #ifndef MFEM_KERNELDISPATCH_HPP
 #define MFEM_KERNELDISPATCH_HPP
 
-#include <functional>
 #include <unordered_map>
 
 namespace mfem
@@ -47,6 +46,23 @@ template <typename T>
 class KernelDispatchTable : public
    DispatchTable<KernelDispatchKey, typename T::Kernel, KernelDispatchKeyHash>
 {
+private:
+   // If the type U has member U::NBZ, this overload will be selected, and will
+   // return U::NBZ(d1d, q1d).
+   template <typename U>
+   static constexpr int GetNBZ_(int d1d, int q1d, decltype(U::NBZ(0,0),nullptr))
+   {
+      return U::NBZ(d1d, q1d);
+   }
+   // If the type U does not have member U::NBZ, this "fallback" overload will
+   // be selected
+   template <typename U> static constexpr int GetNBZ_(int d1d, int q1d, ...)
+   {
+      return 0;
+   }
+   // Return T::NBZ(d1d, q1d) if T::NBZ is defined, 0 otherwise.
+   static constexpr int GetNBZ(int d1d, int q1d)
+   { return GetNBZ_<T>(d1d, q1d, nullptr); }
 public:
    template <typename... Args>
    void Run(int dim, int d1d, int q1d, Args&&... args)
@@ -83,7 +99,8 @@ public:
       constexpr KernelDispatchKey key = {DIM, D1D, Q1D};
       if (DIM == 2)
       {
-         constexpr int NBZ = T::NBZ(D1D, Q1D);
+         constexpr int NBZ = GetNBZ(D1D, Q1D);
+         printf("NBZ = %d\n", NBZ);
          this->table[key] = T::template Kernel2D<D1D, Q1D, NBZ>();
       }
       else if (DIM == 3)
