@@ -19,6 +19,7 @@
 #include "../general/sort_pairs.hpp"
 #include "../mesh/mesh_headers.hpp"
 #include "../general/binaryio.hpp"
+#include "../general/annotation.hpp"
 
 #include <limits>
 #include <list>
@@ -3594,6 +3595,7 @@ DeviceConformingProlongationOperator::DeviceConformingProlongationOperator(
    : ConformingProlongationOperator(R->Width(), gc_, local_),
      mpi_gpu_aware(Device::GetGPUAwareMPI())
 {
+   MFEM_PERF_FUNCTION;
    MFEM_ASSERT(R->Finalized(), "");
    const int tdofs = R->Height();
    MFEM_ASSERT(tdofs == R->HostReadI()[tdofs], "");
@@ -3714,6 +3716,7 @@ DeviceConformingProlongationOperator::DeviceConformingProlongationOperator(
 static void ExtractSubVector(const Array<int> &indices,
                              const Vector &vin, Vector &vout)
 {
+   MFEM_PERF_FUNCTION;
    MFEM_ASSERT(indices.Size() == vout.Size(), "incompatible sizes!");
    auto y = vout.Write();
    const auto x = vin.Read();
@@ -3724,6 +3727,7 @@ static void ExtractSubVector(const Array<int> &indices,
 void DeviceConformingProlongationOperator::BcastBeginCopy(
    const Vector &x) const
 {
+   MFEM_PERF_FUNCTION;
    // shr_buf[i] = src[shr_ltdof[i]]
    if (shr_ltdof.Size() == 0) { return; }
    ExtractSubVector(shr_ltdof, x, shr_buf);
@@ -3735,6 +3739,7 @@ void DeviceConformingProlongationOperator::BcastBeginCopy(
 static void SetSubVector(const Array<int> &indices,
                          const Vector &vin, Vector &vout)
 {
+   MFEM_PERF_FUNCTION;
    MFEM_ASSERT(indices.Size() == vin.Size(), "incompatible sizes!");
    // Use ReadWrite() since we modify only a subset of the indices:
    auto y = vout.ReadWrite();
@@ -3746,6 +3751,7 @@ static void SetSubVector(const Array<int> &indices,
 void DeviceConformingProlongationOperator::BcastLocalCopy(
    const Vector &x, Vector &y) const
 {
+   MFEM_PERF_FUNCTION;
    // dst[ltdof_ldof[i]] = src[i]
    if (ltdof_ldof.Size() == 0) { return; }
    SetSubVector(ltdof_ldof, x, y);
@@ -3754,6 +3760,7 @@ void DeviceConformingProlongationOperator::BcastLocalCopy(
 void DeviceConformingProlongationOperator::BcastEndCopy(
    Vector &y) const
 {
+   MFEM_PERF_FUNCTION;
    // dst[ext_ldof[i]] = ext_buf[i]
    if (ext_ldof.Size() == 0) { return; }
    SetSubVector(ext_ldof, ext_buf, y);
@@ -3762,6 +3769,7 @@ void DeviceConformingProlongationOperator::BcastEndCopy(
 void DeviceConformingProlongationOperator::Mult(const Vector &x,
                                                 Vector &y) const
 {
+   MFEM_PERF_FUNCTION;
    const GroupTopology &gtopo = gc.GetGroupTopology();
    int req_counter = 0;
    // Make sure 'y' is marked as valid on device and for use on device.
@@ -3777,6 +3785,7 @@ void DeviceConformingProlongationOperator::Mult(const Vector &x,
    else
    {
       BcastBeginCopy(x); // copy to 'shr_buf'
+      MFEM_PERF_BEGIN("DeviceConformingProlongationOperator::Mult::MPICalls");
       for (int nbr = 1; nbr < gtopo.GetNumNeighbors(); nbr++)
       {
          const int send_offset = shr_buf_offsets[nbr];
@@ -3798,6 +3807,7 @@ void DeviceConformingProlongationOperator::Mult(const Vector &x,
                       gtopo.GetComm(), &requests[req_counter++]);
          }
       }
+      MFEM_PERF_END("DeviceConformingProlongationOperator::Mult::MPICalls");
    }
    BcastLocalCopy(x, y);
    if (!local)
@@ -3817,6 +3827,7 @@ DeviceConformingProlongationOperator::~DeviceConformingProlongationOperator()
 void DeviceConformingProlongationOperator::ReduceBeginCopy(
    const Vector &x) const
 {
+   MFEM_PERF_FUNCTION;
    // ext_buf[i] = src[ext_ldof[i]]
    if (ext_ldof.Size() == 0) { return; }
    ExtractSubVector(ext_ldof, x, ext_buf);
@@ -3828,6 +3839,7 @@ void DeviceConformingProlongationOperator::ReduceBeginCopy(
 void DeviceConformingProlongationOperator::ReduceLocalCopy(
    const Vector &x, Vector &y) const
 {
+   MFEM_PERF_FUNCTION;
    // dst[i] = src[ltdof_ldof[i]]
    if (ltdof_ldof.Size() == 0) { return; }
    ExtractSubVector(ltdof_ldof, x, y);
@@ -3839,6 +3851,7 @@ static void AddSubVector(const Array<int> &unique_dst_indices,
                          const Vector &src,
                          Vector &dst)
 {
+   MFEM_PERF_FUNCTION;
    auto y = dst.ReadWrite();
    const auto x = src.Read();
    const auto DST_I = unique_dst_indices.Read();
@@ -3856,6 +3869,7 @@ static void AddSubVector(const Array<int> &unique_dst_indices,
 
 void DeviceConformingProlongationOperator::ReduceEndAssemble(Vector &y) const
 {
+   MFEM_PERF_FUNCTION;
    // dst[shr_ltdof[i]] += shr_buf[i]
    if (unq_ltdof.Size() == 0) { return; }
    AddSubVector(unq_ltdof, unq_shr_i, unq_shr_j, shr_buf, y);
@@ -3864,11 +3878,13 @@ void DeviceConformingProlongationOperator::ReduceEndAssemble(Vector &y) const
 void DeviceConformingProlongationOperator::MultTranspose(const Vector &x,
                                                          Vector &y) const
 {
+   MFEM_PERF_FUNCTION;
    const GroupTopology &gtopo = gc.GetGroupTopology();
    int req_counter = 0;
    if (!local)
    {
       ReduceBeginCopy(x); // copy to 'ext_buf'
+      MFEM_PERF_BEGIN("DeviceConformingProlongationOperator::MultTranspose::MPICalls");
       for (int nbr = 1; nbr < gtopo.GetNumNeighbors(); nbr++)
       {
          const int send_offset = ext_buf_offsets[nbr];
@@ -3890,6 +3906,7 @@ void DeviceConformingProlongationOperator::MultTranspose(const Vector &x,
                       gtopo.GetComm(), &requests[req_counter++]);
          }
       }
+      MFEM_PERF_END("DeviceConformingProlongationOperator::MultTranspose::MPICalls");
    }
    ReduceLocalCopy(x, y);
    if (!local)
