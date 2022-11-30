@@ -160,15 +160,6 @@ void MassIntegrator::AssemblePA(const FiniteElementSpace &fes)
    }
 }
 
-void MassIntegrator::PAAssembleDiagonal(const int dim, const int D1D,
-                                        const int Q1D, const int NE,
-                                        const Array<double> &B,
-                                        const Vector &D,
-                                        Vector &Y) const
-{
-   kernels.diag.Run(dim, D1D, Q1D, NE, B, D, Y, D1D, Q1D);
-}
-
 void MassIntegrator::AssembleDiagonalPA(Vector &diag)
 {
    if (DeviceCanUseCeed())
@@ -177,7 +168,8 @@ void MassIntegrator::AssembleDiagonalPA(Vector &diag)
    }
    else
    {
-      PAAssembleDiagonal(dim, dofs1D, quad1D, ne, maps->B, pa_data, diag);
+      const int D1D = dofs1D, Q1D = quad1D;
+      kernels.diag.Run(dim, D1D, Q1D, ne, maps->B, pa_data, diag, D1D, Q1D);
    }
 }
 
@@ -274,33 +266,6 @@ static void OccaPAMassApply3D(const int D1D,
 }
 #endif // MFEM_USE_OCCA
 
-void MassIntegrator::PAMassApply(const int dim,
-                                 const int D1D,
-                                 const int Q1D,
-                                 const int NE,
-                                 const Array<double> &B,
-                                 const Array<double> &Bt,
-                                 const Vector &D,
-                                 const Vector &X,
-                                 Vector &Y) const
-{
-#ifdef MFEM_USE_OCCA
-   if (DeviceCanUseOcca())
-   {
-      if (dim == 2)
-      {
-         return OccaPAMassApply2D(D1D,Q1D,NE,B,Bt,D,X,Y);
-      }
-      if (dim == 3)
-      {
-         return OccaPAMassApply3D(D1D,Q1D,NE,B,Bt,D,X,Y);
-      }
-      MFEM_ABORT("OCCA PA Mass Apply unknown kernel!");
-   }
-#endif // MFEM_USE_OCCA
-   kernels.apply.Run(dim,D1D,Q1D,NE,B,Bt,D,X,Y,D1D,Q1D);
-}
-
 void MassIntegrator::AddMultPA(const Vector &x, Vector &y) const
 {
    if (DeviceCanUseCeed())
@@ -309,7 +274,26 @@ void MassIntegrator::AddMultPA(const Vector &x, Vector &y) const
    }
    else
    {
-      PAMassApply(dim, dofs1D, quad1D, ne, maps->B, maps->Bt, pa_data, x, y);
+      const int D1D = dofs1D;
+      const int Q1D = quad1D;
+      const Array<double> &B = maps->B;
+      const Array<double> &Bt = maps->Bt;
+      const Vector &D = pa_data;
+#ifdef MFEM_USE_OCCA
+      if (DeviceCanUseOcca())
+      {
+         if (dim == 2)
+         {
+            return OccaPAMassApply2D(D1D,Q1D,ne,B,Bt,D,x,y);
+         }
+         if (dim == 3)
+         {
+            return OccaPAMassApply3D(D1D,Q1D,ne,B,Bt,D,x,y);
+         }
+         MFEM_ABORT("OCCA PA Mass Apply unknown kernel!");
+      }
+#endif // MFEM_USE_OCCA
+      kernels.apply.Run(dim,D1D,Q1D,ne,B,Bt,D,x,y,D1D,Q1D);
    }
 }
 

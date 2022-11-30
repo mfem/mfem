@@ -2306,22 +2306,6 @@ protected:
    };
    static Kernels kernels;
 
-   void PAAssembleDiagonal(const int dim, const int D1D,
-                           const int Q1D, const int NE,
-                           const Array<double> &B,
-                           const Vector &D,
-                           Vector &Y) const;
-
-   void PAMassApply(const int dim,
-                    const int D1D,
-                    const int Q1D,
-                    const int NE,
-                    const Array<double> &B,
-                    const Array<double> &Bt,
-                    const Vector &D,
-                    const Vector &X,
-                    Vector &Y) const;
-
 public:
    MassIntegrator(const IntegrationRule *ir = NULL)
       : BilinearFormIntegrator(ir), Q(NULL), maps(NULL), geom(NULL) { }
