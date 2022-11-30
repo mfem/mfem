@@ -122,7 +122,6 @@ MFEM_REGISTER_TMOP_KERNELS(void, SetupGradPA_Kernel_C0_3D,
 
                // lim_func->Eval_d2(p1, p0, d_vals(q), grad_grad);
 
-
                double grad_grad[9];
 
                if (!exp_lim)
