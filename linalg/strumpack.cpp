@@ -219,6 +219,7 @@ void STRUMPACKSolver::Mult( const Vector & x, Vector & y ) const
          MFEM_ABORT("STRUMPACK:  Matrix reordering failed!");
       }
       break;
+      default: MFEM_ABORT("STRUMPACK: error code: " << ret);
    }
    solver_->options().set_verbose( solve_verbose_ );
    solver_->solve(xPtr, yPtr);
