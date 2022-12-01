@@ -150,11 +150,11 @@ $(OBJECT_FILES) $(SEQ_MAIN_OBJ) $(PAR_MAIN_OBJ) \
  $(CUDA_MAIN_OBJ) $(PCUDA_MAIN_OBJ) $(MJIT_MAIN_OBJ) $(PMJIT_MAIN_OBJ) \
  $(DEBUG_DEVICE_OBJ): %.o: $(SRC)%.cpp $(HEADER_FILES) $(CONFIG_MK)
 	@mkdir -p $(@D)
-	$(CCC) -c $(abspath $(<)) $(MFEM_FLAGS) $(INCLUDES) -o $(@)
+	$(CCC) $(MFEM_FLAGS) $(INCLUDES) -c $(abspath $(<)) -o $(@)
 
 $(CEED_OBJ): %.o: $(SRC)%.cpp $(HEADER_FILES) $(CONFIG_MK)
 	@mkdir -p $(@D)
-	$(CCC) -c $(abspath $(<)) $(MFEM_FLAGS) $(INCLUDES) -o $(@)
+	$(CCC) $(MFEM_FLAGS) $(INCLUDES) -c $(abspath $(<)) -o $(@)
 
 $(MJIT_OBJ): %.o: $(SRC)%.cpp $(HEADER_FILES) $(CONFIG_MK) $(MFEM_DIR)/mjit
 	@mkdir -p $(@D)
@@ -179,7 +179,7 @@ sedov_tests_$(1): unit_test_main.o $$(SEQ_SEDOV_$(2)_OBJ_FILES) \
 	   $$(MFEM_LINK_FLAGS) $$(MFEM_LIBS) -o $$(@)
 $$(SEQ_SEDOV_$(2)_OBJ_FILES): %.$(1).o: $$(SRC)%.cpp $$(HEADER_FILES) $$(CONFIG_MK)
 	@mkdir -p $$(@D)
-	$$(CCC) -c $$(abspath $$(<)) $$(MFEM_FLAGS) $$(INCLUDES) \
+	$$(CCC) $$(MFEM_FLAGS) $$(INCLUDES) -c $$(abspath $$(<)) \
 	   $$(SEDOV_TESTS_FLAGS) -o $$(@)
 endef
 $(eval $(call sedov_tests,cpu,CPU,cpu))
@@ -196,7 +196,7 @@ psedov_tests_$(1): punit_test_main.o $$(PAR_SEDOV_$(2)_OBJ_FILES) \
 	   $$(MFEM_LINK_FLAGS) $$(MFEM_LIBS) -o $$(@)
 $$(PAR_SEDOV_$(2)_OBJ_FILES): %.p$(1).o: $$(SRC)%.cpp $$(HEADER_FILES) $$(CONFIG_MK)
 	@mkdir -p $$(@D)
-	$$(CCC) -c $$(abspath $$(<)) $$(MFEM_FLAGS) $$(INCLUDES) \
+	$$(CCC) $$(MFEM_FLAGS) $$(INCLUDES) -c $$(abspath $$(<)) \
 	   $$(SEDOV_TESTS_FLAGS) -o $$(@)
 endef
 $(eval $(call psedov_tests,cpu,CPU,cpu))
@@ -222,7 +222,7 @@ tmop_pa_tests_$(1): unit_test_main.o $$(SEQ_TMOP_$(2)_OBJ_FILES) \
 	   $$(MFEM_LINK_FLAGS) $$(MFEM_LIBS) -o $$(@)
 $$(SEQ_TMOP_$(2)_OBJ_FILES): %.$(1).o: $$(SRC)%.cpp $$(HEADER_FILES) $$(CONFIG_MK)
 	@mkdir -p $$(@D)
-	$$(CCC) -c $$(abspath $$(<)) $$(MFEM_FLAGS) $$(INCLUDES) \
+	$$(CCC) $$(MFEM_FLAGS) $$(INCLUDES) -c $$(abspath $$(<)) \
 	   $$(TMOP_TESTS_FLAGS) -o $$(@)
 endef
 $(eval $(call tmop_pa_tests,cpu,CPU,cpu))
@@ -240,7 +240,7 @@ ptmop_pa_tests_$(1): punit_test_main.o $$(PAR_TMOP_$(2)_OBJ_FILES) \
 	   $$(MFEM_LINK_FLAGS) $$(MFEM_LIBS) -o $$(@)
 $$(PAR_TMOP_$(2)_OBJ_FILES): %.p$(1).o: $$(SRC)%.cpp $$(HEADER_FILES) $$(CONFIG_MK)
 	@mkdir -p $$(@D)
-	$$(CCC) -c $$(abspath $$(<)) $$(MFEM_FLAGS) $$(INCLUDES) \
+	$$(CCC) $$(MFEM_FLAGS) $$(INCLUDES) -c $$(abspath $$(<)) \
 	   $$(TMOP_TESTS_FLAGS) -o $$(@)
 endef
 $(eval $(call ptmop_pa_tests,cpu,CPU,cpu))
