@@ -336,7 +336,7 @@ void TMOP_Metric_005::AssembleH(const DenseMatrix &Jpt,
             }
          }
       }
-//   A.Print();
+   //   A.Print();
 }
 
 double TMOP_Metric_007::EvalW(const DenseMatrix &Jpt) const
