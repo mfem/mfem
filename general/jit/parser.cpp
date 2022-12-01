@@ -37,10 +37,13 @@ namespace mfem
 namespace internal
 {
 
+namespace jit
+{
+
 struct Parser
 {
    /*
-   * The kernel_t struct holds the folowing information:
+   * The kernel_t struct holds the following information:
    *    - name,
    *    - templated format strings, arguments strings,
    *    - (single) FORALL data,
@@ -126,8 +129,7 @@ struct Parser
    void check(const bool tst, string msg = "") { if (!tst) { error(msg); }}
 
    /*
-    * pp_line returns an pre-processor line used by to locate file and
-    * line number.
+    * pp_line returns a pre-processor line used to locate file and line number.
     */
    string pp_line()
    {
@@ -249,9 +251,9 @@ struct Parser
 
    /*
     * mfem_jit_prefix is the main parser part: it prepares the templated
-    * format and argument strings, verify the signature, parse and prepare the
-    * arguments, prepare the prefix which will load the runtime device backends,
-    * switch the MFEM_FORALL_*D to MFEM_FORALL_*D_JIT and set the pre-processor
+    * format and argument strings, verifies the signature, parses and prepares
+    * the arguments, the prefix which will load the runtime device backends,
+    * switches the MFEM_FORALL_*D to MFEM_FORALL_*D_JIT and set the pre-processor
     * line to the current source file and line location.
     */
    void mfem_jit_prefix()
@@ -300,7 +302,7 @@ struct Parser
       next(); // kernel's name
       out << (ker.name = get_id());
 
-      next_check([&]() { return put()=='(';}, "no first '(' in kernel");
+      next_check([&]() { return put()=='('; }, "no first '(' in kernel");
 
       // Get the arguments
       ker.advance(); // Symbol => Params
@@ -566,6 +568,8 @@ struct Parser
    }
 };
 
+} // namespace jit
+
 } // namespace internal
 
 } // namespace mfem
@@ -595,7 +599,7 @@ int main(const int argc, char* argv[])
    assert(ifs.is_open() && "Could not open input file!");
    assert((empty || ofs.is_open()) && "Could not open output file!");
    const int status =
-      mfem::internal::Parser(ifs, empty ? std::cout : ofs, file).operator()();
+      mfem::internal::jit::Parser(ifs, empty?std::cout:ofs, file).operator()();
    return ifs.close(), ofs.close(), status;
 }
 

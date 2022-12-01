@@ -79,7 +79,8 @@ namespace io
 static inline bool Exists(const char *path)
 {
    struct stat buf;
-   return stat(path, &buf) == 0;
+   // stat obtains information about the file pointed to by path
+   return stat(path, &buf) == 0; // check successful completion
 }
 
 template <typename T> static
@@ -143,6 +144,7 @@ static bool IsInitialized()
 #endif
 }
 
+// Does the MPI_Init, which should be called from Mpi::Init when MFEM_USE_JIT
 static int Init(int *argc, char ***argv)
 {
 #ifdef MFEM_USE_MPI
@@ -208,15 +210,15 @@ static int Bcast(int value)
 
 class System // System singleton object
 {
-   pid_t pid; // of child process
+   pid_t pid; // of the child process
    int *s_ack, rank; // shared status, must be able to store one MPI rank
    char *s_mem; // shared memory to store the command for the system call
    uintptr_t size; // of the s_mem shared memory
-   std::string path {"."};
+   std::string path {"."}; // default cache path
    std::string lib_ar {"libmjit.a"}, lib_so {"./libmjit." MFEM_SO_EXT};
-   bool keep_cache = true; // keep lib_ar
+   bool keep_cache = true; // option to keep the lib_ar cache library
 
-   struct Command
+   struct Command // convenient system command builder & cast
    {
       std::ostringstream cmd {};
       Command& operator<<(const char *c) { cmd << c << ' '; return *this; }
@@ -225,23 +227,28 @@ class System // System singleton object
       {
          static thread_local std::string sl_cmd;
          sl_cmd = cmd.str();
-         (cmd.clear(), cmd.str("")); // flush for next command
+         (cmd.clear(), cmd.str("")); // real flush for next command
          return sl_cmd.c_str();
       }
    } command;
 
+   // Acknowledge functions (EQ and NE) with thread sleep
    template <typename OP> static
    void Ack(int xx) { io::Sleep([&]() { return OP()(*Ack(), xx); }); }
    static void AckEQ(int xx = ACK) { Ack<std::equal_to<int>>(xx); }
    static void AckNE(int xx = ACK) { Ack<std::not_equal_to<int>>(xx); }
+
+   // Acknowledgement status values
    static constexpr int ACK = ~0, CALL = 0x3243F6A8, EXIT = 0x9e3779b9;
 
+   // Read, Write, Acknowledge, Send & Wait using the shared memory 's_ack'
    static int Read() { return *Ack(); }
    static int Write(int xx) { return *Get().s_ack = xx; }
    static void Acknowledge() { Write(ACK); }
    static void Send(int xx) { AckNE(Write(xx)); } // blocks until != xx
    static void Wait(bool EQ = true) { EQ ? AckEQ() : AckNE(); }
 
+   // Call/Exit/Ack decode 's_ack'
    static bool IsCall() { return Read() == CALL; }
    static bool IsExit() { return Read() == EXIT; }
    static bool IsAck() { return Read() == ACK; }
@@ -266,9 +273,13 @@ class System // System singleton object
 
    ~System() // warning: can't use mpi::Root here
    {
-      if (!Get().keep_cache && Rank()==0 && io::Exists(Lib_ar())) { std::remove(Lib_ar()); }
+      if (!Get().keep_cache && Rank()==0 && io::Exists(Lib_ar()))
+      {
+         std::remove(Lib_ar());
+      }
    }
 
+   // Shortcut functions to access System's singleton internal variables
    static int Rank() { return Get().rank; }
    static pid_t Pid() { return Get().pid; }
    static int* Ack() { return Get().s_ack; }
@@ -277,6 +288,8 @@ class System // System singleton object
    static std::string Path() { return Get().path; }
    static Command& Command() { return Get().command; }
 
+   // Initialisation of the shared memory between the MPI root and the
+   // thread that will laucnh the 'system' commands
    static void MmapInit()
    {
       constexpr int prot = PROT_READ | PROT_WRITE;
@@ -288,6 +301,7 @@ class System // System singleton object
    }
 
 public:
+   /// @brief Initialize JIT, used in the MPI communication singleton.
    static void Init(int *argc, char ***argv)
    {
       MFEM_VERIFY(!mpi::IsInitialized(), "[JIT] MPI already initialized!");
@@ -331,6 +345,28 @@ public:
       MFEM_VERIFY(Pid()!=0, "[JIT] Children shall not pass!");
    }
 
+   /// @brief Finalize JIT, used in the MPI communication singleton.
+   static void Finalize()
+   {
+      // child and env-ranked have nothing to do
+      if (Pid()==0 || Pid()==getpid()) { return; }
+      MFEM_VERIFY(IsAck(), "[JIT] Finalize acknowledgment error!");
+      int status;
+      Send(EXIT);
+      ::waitpid(Pid(), &status, WUNTRACED | WCONTINUED); // wait for child
+      MFEM_VERIFY(status == 0, "[JIT] Error with the compiler thread");
+      if (::munmap(Mem(), Size()) != 0 || // release shared memory
+          ::munmap(Ack(), sizeof(int)) != 0)
+      { MFEM_ABORT("[JIT] Finalize memory error!"); }
+   }
+
+   /** @brief Set the archive name to @a name and the path to @a path.
+    *  If @a keep is set to false, the cache will be removed by the MPI root.
+    *  @param[in] name basename of the JIT cache, set to \c mjit by default,
+    *  @param[in] path path of the JIT cache, set to '.' dy default,
+    *  @param[in] keep determines if the cache will be removed or not by the MPI
+    *  root rank during Jit::Finalize().
+    **/
    static void Configure(const char *name, const char *path, bool keep)
    {
       Get().path = path;
@@ -355,20 +391,6 @@ public:
 
       const char *so_ext = "" MFEM_SO_EXT; // declared on the compile line
       Get().lib_so = create_full_path(so_ext);
-   }
-
-   static void Finalize()
-   {
-      // child and env-ranked have nothing to do
-      if (Pid()==0 || Pid()==getpid()) { return; }
-      MFEM_VERIFY(IsAck(), "[JIT] Finalize acknowledgment error!");
-      int status;
-      Send(EXIT);
-      ::waitpid(Pid(), &status, WUNTRACED | WCONTINUED); // wait for child
-      MFEM_VERIFY(status == 0, "[JIT] Error with the compiler thread");
-      if (::munmap(Mem(), Size()) != 0 || // release shared memory
-          ::munmap(Ack(), sizeof(int)) != 0)
-      { MFEM_ABORT("[JIT] Finalize memory error!"); }
    }
 
    static std::string Xpic() { return "" MFEM_PICFLAG; }
@@ -430,7 +452,7 @@ public:
          MFEM_VERIFY(handle, "[JIT] Error " << Lib_ar() << " => " << Lib_so());
       }
 
-      auto WorldCompile = [&]() // but only root compiles
+      auto WorldCompile = [&]() // but only root does the compilation
       {
          // each compilation process adds there id to the hash,
          // this is used to handle parallel compilations of the same source

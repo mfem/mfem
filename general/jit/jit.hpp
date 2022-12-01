@@ -31,24 +31,24 @@ namespace mfem
  * @brief The Jit structure provides the folowing static functions:
  *    - Jit::Init(), used in Mpi::Init(),
  *    - Jit::Finalize(), used in Mpi::Finalize(),
- *    - Jit::Configure(), to set the optionaly the basename, path of the cache,
- *      as well as a boolean telling to keep or not the cache.
+ *    - Jit::Configure(), to optionaly set the basename, path of the cache,
+ *      as well as a boolean telling to keep the cache or not.
  *      The default cache basename is \c mjit, path is \c '.' (outputed in
- *      current directory) and the cache is \c kept.
+ *      current directory) and the cache library is \c kept.
  *    - Various Jit::Hash() functions, used at runtime,
  *    - Jit::ToString() which turns a \c hash and optional \c extension into a
  *      specific name, used as symbol,
- *    - Jit::Lookup() which looks the symbol in the cache and launch the
+ *    - Jit::Lookup() which looks the symbol in the cache and launches the
  *      compilation if needed,
  *    - Jit::Find() which finds a kernel in a given @a map, if the kernel cannot
- *      be found, it will compiled and inserted into the map.
+ *      be found, it will do the compilation and insert it into the map.
  */
 struct Jit
 {
-   /// @brief Initialize JIT, used in communication MPI singleton.
+   /// @brief Initialize JIT, used in the MPI communication singleton.
    static void Init(int *argc, char ***argv);
 
-   /// @brief Finalize JIT, used in communication MPI singleton.
+   /// @brief Finalize JIT, used in the MPI communication singleton.
    static void Finalize();
 
    /** @brief Set the archive name to @a name and the path to @a path.
@@ -82,7 +82,7 @@ struct Jit
    /** @brief Lookup symbol in the cache and launch the compilation if needed.
     *  @param[in] hash of the kernel as a \c size_t,
     *  @param[in] name of the kernel with the templated inputs,
-    *  @param[in] cxx MFEM's compiler,
+    *  @param[in] MFEM's CXX compiler,
     *  @param[in] flags coresponding to MFEM_BUILD_FLAGS,
     *  @param[in] link coresponding to MFEM_LINK_FLAGS,
     *  @param[in] libs coresponding to MFEM_EXT_LIBS,
@@ -97,7 +97,7 @@ struct Jit
     *  given input parameters and provides the Jit::Kernel::operator()() launcher.
     *  @param[in] hash of the kernel,
     *  @param[in] name of the kernel with the templated inputs,
-    *  @param[in] cxx MFEM's compiler,
+    *  @param[in] MFEM's CXX compiler,
     *  @param[in] flags coresponding to MFEM_BUILD_FLAGS,
     *  @param[in] link coresponding to MFEM_LINK_FLAGS,
     *  @param[in] libs coresponding to MFEM_EXT_LIBS,
@@ -118,7 +118,7 @@ struct Jit
     *  it will be inserted into the map.
     *  @param[in] hash of the kernel,
     *  @param[in] kernel_name name of the kernel with the templated inputs,
-    *  @param[in] cxx MFEM's compiler,
+    *  @param[in] MFEM's CXX compiler,
     *  @param[in] flags coresponding to MFEM_BUILD_FLAGS,
     *  @param[in] link coresponding to MFEM_LINK_FLAGS,
     *  @param[in] libs coresponding to MFEM_EXT_LIBS,
