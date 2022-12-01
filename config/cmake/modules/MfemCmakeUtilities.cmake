@@ -46,6 +46,10 @@ endfunction()
 # Wrapper for add_executable
 macro(mfem_add_executable NAME)
   add_executable(${NAME} ${ARGN})
+  if (MFEM_USE_CUDA)
+    set_target_properties(${NAME} PROPERTIES
+      CUDA_RESOLVE_DEVICE_SYMBOLS ON)
+  endif()
 endmacro()
 
 # Wrapper for add_library
