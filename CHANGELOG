@@ -21,6 +21,9 @@ Miscellaneous
   This parameter can still be explicitly overridden with
   VisItDataCollection::SetPadDigitsRank().
 
+- Removed the support for the Mesquite toolkit. We recommend using MFEM's TMOP
+  functionality instead for mesh optimization. See the mesh-optimizer miniapp.
+
 - Added a fast normalization-based distance solver, see
   miniapps/shifted/distance.cpp.
 
