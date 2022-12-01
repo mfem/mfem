@@ -110,14 +110,80 @@
 //   Kershaw transformation can be imposed using the transformation ('t') feature in the mesh-explorer miniapp.
 //   * mpirun - np 6 pmesh-optimizer -m kershaw-24x24x24.mesh -mid 303 -tid 1 -bnd -ni 100 -art 1 -ls 3 -qo 8 -li 40 -o 2 -qo 8 -ker -pa
 
+
+// make pmesh-optimizer;mpirun -np 6 pmesh-optimizer -m inline-quad-3.mesh -o 2 -rs 2 -tid 1 -ni 200 -fix-bnd -qt 1 -qo 4 -mid 3 -vl 2 -keps 0.05
+// make pmesh-optimizer;mpirun -np 6 pmesh-optimizer -m inline-quad-3.mesh -o 2 -rs 2 -tid 1 -ni 200 -bnd -qt 1 -qo 4 -mid 5 -vl 2 -keps 0.05
+
 #include "mfem.hpp"
-#include "../common/mfem-common.hpp"
+#include "fem/../miniapps/common/mfem-common.hpp"
 #include <iostream>
 #include <fstream>
 #include "mesh-optimizer.hpp"
 
 using namespace mfem;
 using namespace std;
+
+class StretchTransformation : public VectorCoefficient
+{
+private:
+   int dim, poww;
+
+public:
+   StretchTransformation(const int dim_, int pow_ = 1)
+      : VectorCoefficient(dim_), dim(dim_), poww(pow_)
+   {
+      MFEM_VERIFY(dim > 1,"Stretch transformation only works for 2D and 3D"
+                  "meshes.");
+   }
+
+   virtual void Eval(Vector &V, ElementTransformation &T,
+                     const IntegrationPoint &ip);
+};
+
+void StretchTransformation::Eval(Vector &V, ElementTransformation &T,
+                                 const IntegrationPoint &ip)
+{
+   V = 0.0;
+   Vector pos(dim);
+   T.Transform(ip, pos);
+   double x = pos(0), y = pos(1), z = dim == 3 ? pos(2) : 0;
+
+   V.SetSize(dim);
+   V(0) = pow(x, poww*1.0);
+   V(1) = pow(y, poww*1.0);
+   if (dim == 3) { V(2) = pow(z, poww*1.0); }
+}
+
+class ShearTransformation : public VectorCoefficient
+{
+private:
+   int dim, shear;
+
+public:
+   ShearTransformation(const int dim_, int shear_ = 1)
+      : VectorCoefficient(dim_), dim(dim_), shear(shear_)
+   {
+      MFEM_VERIFY(dim > 1 && dim < 3,"Stretch transformation only works for 2D"
+                  "meshes.");
+   }
+
+   virtual void Eval(Vector &V, ElementTransformation &T,
+                     const IntegrationPoint &ip);
+};
+
+void ShearTransformation::Eval(Vector &V, ElementTransformation &T,
+                               const IntegrationPoint &ip)
+{
+   V = 0.0;
+   Vector pos(dim);
+   T.Transform(ip, pos);
+   double x = pos(0), y = pos(1), z = dim == 3 ? pos(2) : 0;
+
+   V.SetSize(dim);
+   V(0) = x+shear*y;
+   V(1) = y;
+   if (dim == 3) { V(2) = z; }
+}
 
 int main (int argc, char *argv[])
 {
@@ -163,6 +229,10 @@ int main (int argc, char *argv[])
    double surface_fit_threshold = -10;
    int barrier_type       = 0;
    int worst_case_type    = 0;
+   double kereps          = 0.0;
+   int stretch          = 1.0;
+   double shear         = 0.0;
+   int target_id2         = 1;
 
    // 2. Parse command-line options.
    OptionsParser args(argc, argv);
@@ -311,6 +381,18 @@ int main (int argc, char *argv[])
                   "0 - None,"
                   "1 - Beta,"
                   "2 - PMean.");
+   args.AddOption(&kereps, "-keps", "--kershaw-eps",
+                  "Kershaw const.");
+   args.AddOption(&stretch, "-stretch", "--stretch",
+                  "stretch transformation factor.");
+   args.AddOption(&shear, "-shear", "--shear",
+                  "shear transformation factor.");
+   args.AddOption(&target_id2, "-tid2", "--target-id2",
+                  "Target (ideal element) type:\n\t"
+                  "1: Ideal shape, unit size\n\t"
+                  "2: Ideal shape, equal size\n\t"
+                  "3: Ideal shape, initial size\n\t"
+                  "4: Given full analytic Jacobian (in physical space)\n\t");
 
    args.Parse();
    if (!args.Good())
@@ -336,6 +418,24 @@ int main (int argc, char *argv[])
       mesh->UniformRefinement();
    }
    const int dim = mesh->Dimension();
+
+   if (kereps > 0.0)
+   {
+      common::KershawTransformation kershawT(mesh->Dimension(), kereps, kereps, 2);
+      mesh->Transform(kershawT);
+   }
+
+   if (stretch > 0.0)
+   {
+      StretchTransformation stretchT(mesh->Dimension(), stretch);
+      mesh->Transform(stretchT);
+   }
+
+   if (shear > 0.0)
+   {
+      ShearTransformation shearT(mesh->Dimension(), shear);
+      mesh->Transform(shearT);
+   }
 
    if (hradaptivity) { mesh->EnsureNCMesh(); }
    ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
@@ -452,7 +552,9 @@ int main (int argc, char *argv[])
       // T-metrics
       case 1: metric = new TMOP_Metric_001; break;
       case 2: metric = new TMOP_Metric_002; break;
+      case 3: metric = new TMOP_Metric_003; break;
       case 4: metric = new TMOP_Metric_004; break;
+      case 5: metric = new TMOP_Metric_005; break;
       case 7: metric = new TMOP_Metric_007; break;
       case 9: metric = new TMOP_Metric_009; break;
       case 14: metric = new TMOP_Metric_014; break;
@@ -867,7 +969,7 @@ int main (int argc, char *argv[])
    ConstantCoefficient lim_coeff(lim_const);
    if (lim_const != 0.0) { tmop_integ->EnableLimiting(x0, dist, lim_coeff); }
 
-   // Adaptive limiting.
+   // Adaptive limiting.o
    ParGridFunction adapt_lim_gf0(&ind_fes);
    ConstantCoefficient adapt_lim_coeff(adapt_lim_const);
    AdaptivityEvaluator *adapt_lim_eval = NULL;
@@ -984,6 +1086,7 @@ int main (int argc, char *argv[])
    TMOP_QualityMetric *metric2 = NULL;
    TargetConstructor *target_c2 = NULL;
    FunctionCoefficient metric_coeff2(weight_fun);
+   TargetConstructor::TargetType target_t2;
 
    // Explicit combination of metrics.
    if (combomet > 0)
@@ -993,8 +1096,31 @@ int main (int argc, char *argv[])
       tmop_integ->SetCoefficient(*metric_coeff1);
 
       // Second metric.
-      if (dim == 2) { metric2 = new TMOP_Metric_077; }
-      else          { metric2 = new TMOP_Metric_315; }
+      //      if (dim == 2) { metric2 = new TMOP_Metric_002; }
+      //      else          { metric2 = new TMOP_Metric_315; }
+
+      switch (combomet)
+      {
+         // T-metrics
+         case 1: metric2 = new TMOP_Metric_001; break;
+         case 2: metric2 = new TMOP_Metric_002; break;
+         case 3: metric2 = new TMOP_Metric_003; break;
+         case 4: metric2 = new TMOP_Metric_004; break;
+         case 7: metric2 = new TMOP_Metric_007; break;
+         case 9: metric2 = new TMOP_Metric_009; break;
+         case 14: metric2 = new TMOP_Metric_014; break;
+         case 22: metric2 = new TMOP_Metric_022(min_detJ); break;
+         case 50: metric2 = new TMOP_Metric_050; break;
+         case 55: metric2 = new TMOP_Metric_055; break;
+         case 56: metric2 = new TMOP_Metric_056; break;
+         case 58: metric2 = new TMOP_Metric_058; break;
+         case 66: metric2 = new TMOP_Metric_066(0.5); break;
+         case 77: metric2 = new TMOP_Metric_077; break;
+         case 80: metric2 = new TMOP_Metric_080(0.5); break;
+         default:
+            if (myid == 0) { cout << "Unknown metric_id: " << metric_id << endl; }
+            return 3;
+      }
       TMOP_Integrator *tmop_integ2 = NULL;
       if (combomet == 1)
       {
@@ -1005,7 +1131,63 @@ int main (int argc, char *argv[])
          tmop_integ2 = new TMOP_Integrator(metric2, target_c2, h_metric);
          tmop_integ2->SetCoefficient(metric_coeff2);
       }
-      else { tmop_integ2 = new TMOP_Integrator(metric2, target_c, h_metric); }
+      else
+      {
+         switch (target_id2)
+         {
+            case 1: target_t2 = TargetConstructor::IDEAL_SHAPE_UNIT_SIZE; break;
+            case 2: target_t2 = TargetConstructor::IDEAL_SHAPE_EQUAL_SIZE; break;
+            case 3: target_t2 = TargetConstructor::IDEAL_SHAPE_GIVEN_SIZE; break;
+            case 4:
+            {
+               target_t2 = TargetConstructor::GIVEN_FULL;
+               AnalyticAdaptTC *tc2 = new AnalyticAdaptTC(target_t2);
+               adapt_coeff = new HessianCoefficient(dim, combomet);
+               tc2->SetAnalyticTargetSpec(NULL, NULL, adapt_coeff);
+               target_c2 = tc2;
+               break;
+            }
+            case 5: // Discrete size 2D or 3D
+            {
+               target_t2 = TargetConstructor::IDEAL_SHAPE_GIVEN_SIZE;
+               DiscreteAdaptTC *tc2 = new DiscreteAdaptTC(target_t2);
+               if (adapt_eval == 0)
+               {
+                  tc2->SetAdaptivityEvaluator(new AdvectorCG(al));
+               }
+               else
+               {
+#ifdef MFEM_USE_GSLIB
+                  tc2->SetAdaptivityEvaluator(new InterpolatorFP);
+#else
+                  MFEM_ABORT("MFEM is not built with GSLIB.");
+#endif
+               }
+               if (dim == 2)
+               {
+                  FunctionCoefficient size_coeff(discrete_size_2d);
+                  size.ProjectCoefficient(size_coeff);
+               }
+               else if (dim == 3)
+               {
+                  FunctionCoefficient size_coeff(discrete_size_3d);
+                  size.ProjectCoefficient(size_coeff);
+               }
+               tc2->SetParDiscreteTargetSize(size);
+               target_c2 = tc2;
+               break;
+            }
+            default:
+               if (myid == 0) { cout << "Unknown target_id: " << target_id << endl; }
+               return 3;
+
+         }
+         if (target_c2 == NULL)
+         {
+            target_c2 = new TargetConstructor(target_t2, MPI_COMM_WORLD);
+         }
+         tmop_integ2 = new TMOP_Integrator(metric2, target_c2, h_metric);
+      }
       tmop_integ2->SetIntegrationRules(*irules, quad_order);
       if (fdscheme) { tmop_integ2->EnableFiniteDifferences(x); }
       tmop_integ2->SetExactActionFlag(exactaction);
@@ -1245,7 +1427,7 @@ int main (int argc, char *argv[])
       mesh_name << "optimized.mesh";
       ofstream mesh_ofs(mesh_name.str().c_str());
       mesh_ofs.precision(8);
-      pmesh->PrintAsOne(mesh_ofs);
+      pmesh->PrintAsSerial(mesh_ofs);
    }
 
    // Compute the final energy of the functional.

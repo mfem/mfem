@@ -293,6 +293,52 @@ void TMOP_Metric_004::AssembleH(const DenseMatrix &Jpt,
    ie.Assemble_ddI2b(-2.0*weight, A.GetData());
 }
 
+double TMOP_Metric_005::EvalW(const DenseMatrix &Jpt) const
+{
+   MFEM_VERIFY(Jpt.Size() == 2,"2D matrices only with metric 5");
+   ie.SetJacobian(Jpt.GetData());
+   return Jpt(0,1)*Jpt(0,1) + Jpt(1,0)*Jpt(1,0);
+}
+
+void TMOP_Metric_005::EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const
+{
+   ie.SetJacobian(Jpt.GetData());
+   P *= 0;
+   P(0, 1) = 2.0*Jpt(0, 1);
+   P(1, 0) = 2.0*Jpt(1, 0);
+}
+
+void TMOP_Metric_005::AssembleH(const DenseMatrix &Jpt,
+                                const DenseMatrix &DS,
+                                const double weight,
+                                DenseMatrix &A) const
+{
+   ie.SetJacobian(Jpt.GetData());
+   const int dof = DS.Height(), dim = DS.Width();
+
+   // The first two go over the rows and cols of dG_dJ where G = dW_dJ.
+   for (int r = 0; r < dim; r++)
+      for (int c = 0; c < dim; c++)
+      {
+         // Compute each entry of d(Grc)_dJ.
+         for (int rr = 0; rr < dim; rr++)
+         {
+            for (int cc = 0; cc < dim; cc++)
+            {
+               const double entry_rr_cc = r == rr &&  c == cc && r != c ? 2.0 : 0.0;
+
+               for (int i = 0; i < dof; i++)
+                  for (int j = 0; j < dof; j++)
+                  {
+                     A(i+r*dof, j+rr*dof) +=
+                        weight * DS(i, c) * DS(j, cc) * entry_rr_cc;
+                  }
+            }
+         }
+      }
+//   A.Print();
+}
+
 double TMOP_Metric_007::EvalW(const DenseMatrix &Jpt) const
 {
    // mu_7 = |J-J^{-t}|^2 = |J|^2 + |J^{-1}|^2 - 4
@@ -2880,41 +2926,68 @@ double TMOP_Integrator::GetElementEnergy(const FiniteElement &el,
       adapt_lim_gf0->GetValues(el_id, ir, adapt_lim_gf0_q);
    }
 
-   for (int i = 0; i < ir.GetNPoints(); i++)
+   if (metric->Id() == 3)
    {
-      const IntegrationPoint &ip = ir.IntPoint(i);
+      DenseMatrix DHess(dof, dim*(dim+1)/2);
+      DenseMatrix JJpr(dim, dim*(dim+1)/2);
 
-      const DenseMatrix &Jtr_i = Jtr(i);
-      metric->SetTargetJacobian(Jtr_i);
-      CalcInverse(Jtr_i, Jrt);
-      const double weight = ip.weight * Jtr_i.Det();
-
-      el.CalcDShape(ip, DSh);
-      MultAtB(PMatI, DSh, Jpr);
-      Mult(Jpr, Jrt, Jpt);
-
-      double val = metric_normal * metric->EvalW(Jpt);
-      if (metric_coeff) { val *= metric_coeff->Eval(*Tpr, ip); }
-
-      if (lim_coeff)
+      for (int i = 0; i < ir.GetNPoints(); i++)
       {
-         el.CalcShape(ip, shape);
-         PMatI.MultTranspose(shape, p);
-         pos0.MultTranspose(shape, p0);
-         val += lim_normal *
-                lim_func->Eval(p, p0, d_vals(i)) *
-                lim_coeff->Eval(*Tpr, ip);
-      }
+         const IntegrationPoint &ip = ir.IntPoint(i);
 
-      // Contribution from the adaptive limiting term.
-      if (adaptive_limiting)
-      {
-         const double diff = adapt_lim_gf_q(i) - adapt_lim_gf0_q(i);
-         val += adapt_lim_coeff->Eval(*Tpr, ip) * lim_normal * diff * diff;
-      }
+         const DenseMatrix &Jtr_i = Jtr(i);
+         metric->SetTargetJacobian(Jtr_i);
+         CalcInverse(Jtr_i, Jrt);
+         const double weight = ip.weight;
 
-      energy += weight * val;
+         el.CalcHessian(ip, DHess);
+         MultAtB(PMatI, DHess, JJpr);
+
+         el.CalcDShape(ip, DSh);
+         MultAtB(PMatI, DSh, Jpr);
+
+         energy += weight*(JJpr.FNorm2()+JJpr(0,1)*JJpr(0,1) + JJpr(1,1)*JJpr(1,1));
+      }
    }
+   else
+   {
+      for (int i = 0; i < ir.GetNPoints(); i++)
+      {
+         const IntegrationPoint &ip = ir.IntPoint(i);
+
+         const DenseMatrix &Jtr_i = Jtr(i);
+         metric->SetTargetJacobian(Jtr_i);
+         CalcInverse(Jtr_i, Jrt);
+         const double weight = ip.weight * Jtr_i.Det();
+
+         el.CalcDShape(ip, DSh);
+         MultAtB(PMatI, DSh, Jpr);
+         Mult(Jpr, Jrt, Jpt);
+
+         double val = metric_normal * metric->EvalW(Jpt);
+         if (metric_coeff) { val *= metric_coeff->Eval(*Tpr, ip); }
+
+         if (lim_coeff)
+         {
+            el.CalcShape(ip, shape);
+            PMatI.MultTranspose(shape, p);
+            pos0.MultTranspose(shape, p0);
+            val += lim_normal *
+                   lim_func->Eval(p, p0, d_vals(i)) *
+                   lim_coeff->Eval(*Tpr, ip);
+         }
+
+         // Contribution from the adaptive limiting term.
+         if (adaptive_limiting)
+         {
+            const double diff = adapt_lim_gf_q(i) - adapt_lim_gf0_q(i);
+            val += adapt_lim_coeff->Eval(*Tpr, ip) * lim_normal * diff * diff;
+         }
+
+         energy += weight * val;
+      }
+   }
+
 
    // Contribution from the surface fitting term.
    if (surface_fit)
@@ -3179,67 +3252,127 @@ void TMOP_Integrator::AssembleElementVectorExact(const FiniteElement &el,
    Vector d_detW_dx(dim);
    Vector d_Winv_dx(dim);
 
-   for (int q = 0; q < nqp; q++)
+   if (metric->Id() == 3)
    {
-      const IntegrationPoint &ip = ir.IntPoint(q);
-      const DenseMatrix &Jtr_q = Jtr(q);
-      metric->SetTargetJacobian(Jtr_q);
-      CalcInverse(Jtr_q, Jrt);
-      weights(q) = ip.weight * Jtr_q.Det();
-      double weight_m = weights(q) * metric_normal;
+      DenseMatrix DHess(dof, dim*(dim+1)/2);
+      DenseMatrix JJpr(dim, dim*(dim+1)/2);
 
-      el.CalcDShape(ip, DSh);
-      Mult(DSh, Jrt, DS);
-      MultAtB(PMatI, DS, Jpt);
+      DenseMatrix DHess2(dof, 4);
+      DenseMatrix JJpr2(dim, 4);
 
-      metric->EvalP(Jpt, P);
-
-      if (metric_coeff) { weight_m *= metric_coeff->Eval(*Tpr, ip); }
-
-      P *= weight_m;
-      AddMultABt(DS, P, PMatO); // w_q det(W) dmu/dx : dA/dx Winv
-
-      if (exact_action)
+      for (int q = 0; q < nqp; q++)
       {
-         el.CalcShape(ip, shape);
-         // Derivatives of adaptivity-based targets.
-         // First term: w_q d*(Det W)/dx * mu(T)
-         // d(Det W)/dx = det(W)*Tr[Winv*dW/dx]
-         DenseMatrix dwdx(dim);
-         for (int d = 0; d < dim; d++)
-         {
-            const DenseMatrix &dJtr_q = dJtr(q + d * nqp);
-            Mult(Jrt, dJtr_q, dwdx );
-            d_detW_dx(d) = dwdx.Trace();
-         }
-         d_detW_dx *= weight_m*metric->EvalW(Jpt); // *[w_q*det(W)]*mu(T)
+         const IntegrationPoint &ip = ir.IntPoint(q);
+         double weight_m = ip.weight;
 
-         // Second term: w_q det(W) dmu/dx : AdWinv/dx
-         // dWinv/dx = -Winv*dW/dx*Winv
-         MultAtB(PMatI, DSh, Amat);
-         for (int d = 0; d < dim; d++)
-         {
-            const DenseMatrix &dJtr_q = dJtr(q + d*nqp);
-            Mult(Jrt, dJtr_q, work1); // Winv*dw/dx
-            Mult(work1, Jrt, work2);  // Winv*dw/dx*Winv
-            Mult(Amat, work2, work1); // A*Winv*dw/dx*Winv
-            MultAtB(P, work1, work2); // dmu/dT^T*A*Winv*dw/dx*Winv
-            d_Winv_dx(d) = work2.Trace(); // Tr[dmu/dT : AWinv*dw/dx*Winv]
-         }
-         d_Winv_dx *= -weight_m; // Include (-) factor as well
+         el.CalcHessian(ip, DHess); //DHess = Nx3
+         MultAtB(PMatI, DHess, JJpr); //JJpr = 2x3
 
-         d_detW_dx += d_Winv_dx;
-         AddMultVWt(shape, d_detW_dx, PMatO);
+         for (int i = 0; i < dof; i++)
+         {
+            for (int j = 0; j < 2; j++)
+            {
+               DHess2(i, j) = DHess(i, j);
+            }
+            for (int j = 2; j < 4; j++)
+            {
+               DHess2(i, j) = DHess(i, j-1);
+            }
+         }
+         for (int i = 0; i < dim; i++)
+         {
+            for (int j = 0; j < 2; j++)
+            {
+               JJpr2(i, j) = JJpr(i, j);
+            }
+            for (int j = 2; j < 4; j++)
+            {
+               JJpr2(i, j) = JJpr(i, j-1);
+            }
+         }
+
+         JJpr2 *= weight_m * 2.0;
+         AddMultABt(DHess2, JJpr2, PMatO);
+         //         PMatO.Print();
+
+         //         PMatO *= 0;
+         //         for (int a = 0; a < dof; a++) {
+         //             for (int o = 0; o < dim; o++) {
+         //                 for (int j = 0; j < dim; j++) {
+         //                     for (int k = 0; k < dim; k++) {
+         //                         PMatO(a, o) += JJpr2(o, j+dim*k)*DHess2(a, j+dim*k);
+         //                     }
+         //                 }
+         //             }
+         //         }
+         //          PMatO.Print();
+         //          MFEM_ABORT(" ");
       }
-
-      if (lim_coeff)
+   }
+   else
+   {
+      for (int q = 0; q < nqp; q++)
       {
-         if (!exact_action) { el.CalcShape(ip, shape); }
-         PMatI.MultTranspose(shape, p);
-         pos0.MultTranspose(shape, p0);
-         lim_func->Eval_d1(p, p0, d_vals(q), grad);
-         grad *= weights(q) * lim_normal * lim_coeff->Eval(*Tpr, ip);
-         AddMultVWt(shape, grad, PMatO);
+         const IntegrationPoint &ip = ir.IntPoint(q);
+         const DenseMatrix &Jtr_q = Jtr(q);
+         metric->SetTargetJacobian(Jtr_q);
+         CalcInverse(Jtr_q, Jrt);
+         weights(q) = ip.weight * Jtr_q.Det();
+         double weight_m = weights(q) * metric_normal;
+
+         el.CalcDShape(ip, DSh);
+         Mult(DSh, Jrt, DS);
+         MultAtB(PMatI, DS, Jpt);
+
+         metric->EvalP(Jpt, P);
+
+         if (metric_coeff) { weight_m *= metric_coeff->Eval(*Tpr, ip); }
+
+         P *= weight_m;
+         AddMultABt(DS, P, PMatO); // w_q det(W) dmu/dx : dA/dx Winv
+
+         if (exact_action)
+         {
+            el.CalcShape(ip, shape);
+            // Derivatives of adaptivity-based targets.
+            // First term: w_q d*(Det W)/dx * mu(T)
+            // d(Det W)/dx = det(W)*Tr[Winv*dW/dx]
+            DenseMatrix dwdx(dim);
+            for (int d = 0; d < dim; d++)
+            {
+               const DenseMatrix &dJtr_q = dJtr(q + d * nqp);
+               Mult(Jrt, dJtr_q, dwdx );
+               d_detW_dx(d) = dwdx.Trace();
+            }
+            d_detW_dx *= weight_m*metric->EvalW(Jpt); // *[w_q*det(W)]*mu(T)
+
+            // Second term: w_q det(W) dmu/dx : AdWinv/dx
+            // dWinv/dx = -Winv*dW/dx*Winv
+            MultAtB(PMatI, DSh, Amat);
+            for (int d = 0; d < dim; d++)
+            {
+               const DenseMatrix &dJtr_q = dJtr(q + d*nqp);
+               Mult(Jrt, dJtr_q, work1); // Winv*dw/dx
+               Mult(work1, Jrt, work2);  // Winv*dw/dx*Winv
+               Mult(Amat, work2, work1); // A*Winv*dw/dx*Winv
+               MultAtB(P, work1, work2); // dmu/dT^T*A*Winv*dw/dx*Winv
+               d_Winv_dx(d) = work2.Trace(); // Tr[dmu/dT : AWinv*dw/dx*Winv]
+            }
+            d_Winv_dx *= -weight_m; // Include (-) factor as well
+
+            d_detW_dx += d_Winv_dx;
+            AddMultVWt(shape, d_detW_dx, PMatO);
+         }
+
+         if (lim_coeff)
+         {
+            if (!exact_action) { el.CalcShape(ip, shape); }
+            PMatI.MultTranspose(shape, p);
+            pos0.MultTranspose(shape, p0);
+            lim_func->Eval_d1(p, p0, d_vals(q), grad);
+            grad *= weights(q) * lim_normal * lim_coeff->Eval(*Tpr, ip);
+            AddMultVWt(shape, grad, PMatO);
+         }
       }
    }
 
@@ -3307,43 +3440,112 @@ void TMOP_Integrator::AssembleElementGradExact(const FiniteElement &el,
       Tpr->GetPointMat().Transpose(PMatI);
    }
 
-   for (int q = 0; q < nqp; q++)
+   if (metric->Id() == 3)
    {
-      const IntegrationPoint &ip = ir.IntPoint(q);
-      const DenseMatrix &Jtr_q = Jtr(q);
-      metric->SetTargetJacobian(Jtr_q);
-      CalcInverse(Jtr_q, Jrt);
-      weights(q) = ip.weight * Jtr_q.Det();
-      double weight_m = weights(q) * metric_normal;
 
-      el.CalcDShape(ip, DSh);
-      Mult(DSh, Jrt, DS);
-      MultAtB(PMatI, DS, Jpt);
+      DenseMatrix DHess(dof, dim*(dim+1)/2);
+      DenseMatrix JJpr(dim, dim*(dim+1)/2);
 
-      if (metric_coeff) { weight_m *= metric_coeff->Eval(*Tpr, ip); }
+      DenseMatrix DHess2(dof, 4);
+      DenseMatrix JJpr2(dim, 4);
 
-      metric->AssembleH(Jpt, DS, weight_m, elmat);
-
-      // TODO: derivatives of adaptivity-based targets.
-
-      if (lim_coeff)
+      for (int q = 0; q < nqp; q++)
       {
-         el.CalcShape(ip, shape);
-         PMatI.MultTranspose(shape, p);
-         pos0.MultTranspose(shape, p0);
-         weight_m = weights(q) * lim_normal * lim_coeff->Eval(*Tpr, ip);
-         lim_func->Eval_d2(p, p0, d_vals(q), hess);
+         const IntegrationPoint &ip = ir.IntPoint(q);
+         double weight_m = ip.weight;
+
+         el.CalcHessian(ip, DHess); //DHess = Nx3
+         //           MultAtB(PMatI, DHess, JJpr); //JJpr = 2x3
+
          for (int i = 0; i < dof; i++)
          {
-            const double w_shape_i = weight_m * shape(i);
-            for (int j = 0; j < dof; j++)
+            for (int j = 0; j < 2; j++)
             {
-               const double w = w_shape_i * shape(j);
-               for (int d1 = 0; d1 < dim; d1++)
+               DHess2(i, j) = DHess(i, j);
+            }
+            for (int j = 2; j < 4; j++)
+            {
+               DHess2(i, j) = DHess(i, j-1);
+            }
+         }
+
+         for (int i = 0; i < dim; i++)
+         {
+            for (int j = 0; j < dim; j++)
+            {
+               for (int k = 0; k < dim; k++)
                {
-                  for (int d2 = 0; d2 < dim; d2++)
+                  for (int l = 0; l < dim; l++)
                   {
-                     elmat(d1*dof + i, d2*dof + j) += w * hess(d1, d2);
+                     for (int m = 0; m < dim; m++)
+                     {
+                        for (int n = 0; n < dim; n++)
+                        {
+                           double left = i == l && j == m && n == k?
+                                         2.0 : 0.0;
+                           for (int a = 0; a < dof; a++)
+                           {
+                              for (int b = 0; b < dof; b++)
+                              {
+                                 double right1 = DHess2(a, j+dim*k);
+                                 double right2 = DHess2(b, m+dim*n);
+                                 elmat(a+i*dof,b+l*dof) += weight_m*
+                                                           left*
+                                                           right1*
+                                                           right2;
+                              }
+                           }
+                        }
+                     }
+                  }
+               }
+            }
+         }
+
+         //          metric->AssembleH(Jpt, DS, weight_m, elmat);
+      }
+   }
+   else
+   {
+
+      for (int q = 0; q < nqp; q++)
+      {
+         const IntegrationPoint &ip = ir.IntPoint(q);
+         const DenseMatrix &Jtr_q = Jtr(q);
+         metric->SetTargetJacobian(Jtr_q);
+         CalcInverse(Jtr_q, Jrt);
+         weights(q) = ip.weight * Jtr_q.Det();
+         double weight_m = weights(q) * metric_normal;
+
+         el.CalcDShape(ip, DSh);
+         Mult(DSh, Jrt, DS);
+         MultAtB(PMatI, DS, Jpt);
+
+         if (metric_coeff) { weight_m *= metric_coeff->Eval(*Tpr, ip); }
+
+         metric->AssembleH(Jpt, DS, weight_m, elmat);
+
+         // TODO: derivatives of adaptivity-based targets.
+
+         if (lim_coeff)
+         {
+            el.CalcShape(ip, shape);
+            PMatI.MultTranspose(shape, p);
+            pos0.MultTranspose(shape, p0);
+            weight_m = weights(q) * lim_normal * lim_coeff->Eval(*Tpr, ip);
+            lim_func->Eval_d2(p, p0, d_vals(q), hess);
+            for (int i = 0; i < dof; i++)
+            {
+               const double w_shape_i = weight_m * shape(i);
+               for (int j = 0; j < dof; j++)
+               {
+                  const double w = w_shape_i * shape(j);
+                  for (int d1 = 0; d1 < dim; d1++)
+                  {
+                     for (int d2 = 0; d2 < dim; d2++)
+                     {
+                        elmat(d1*dof + i, d2*dof + j) += w * hess(d1, d2);
+                     }
                   }
                }
             }
@@ -4346,7 +4548,23 @@ void InterpolateTMOP_QualityMetric(TMOP_QualityMetric &metric,
          MultAtB(pos, dshape, A);
          Mult(A, Winv, T);
 
-         metric_gf(gf_dofs[j]) = metric.EvalW(T);
+         if (metric.Id() == 3)
+         {
+            DenseMatrix DHess(dof, dim*(dim+1)/2);
+            DenseMatrix JJpr(dim, dim*(dim+1)/2);
+
+            fe_pos.CalcHessian(ip, DHess);
+            MultAtB(pos, DHess, JJpr);
+
+            metric_gf(gf_dofs[j]) = (JJpr.FNorm2()+JJpr(0,1)*JJpr(0,1) + JJpr(1,1)*JJpr(1,
+                                                                                        1));
+
+         }
+         else
+         {
+
+            metric_gf(gf_dofs[j]) = metric.EvalW(T);
+         }
       }
    }
 }

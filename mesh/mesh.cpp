@@ -20,6 +20,7 @@
 #include "../general/tic_toc.hpp"
 #include "../general/gecko.hpp"
 #include "../fem/quadinterpolator.hpp"
+#include "../linalg/vector.hpp"
 
 #include <iostream>
 #include <sstream>
@@ -57,11 +58,18 @@ using namespace std;
 namespace mfem
 {
 
-void Mesh::GetElementJacobian(int i, DenseMatrix &J)
+void Mesh::GetElementJacobian(int i, DenseMatrix &J, const IntegrationPoint *ip)
 {
    Geometry::Type geom = GetElementBaseGeometry(i);
    ElementTransformation *eltransf = GetElementTransformation(i);
-   eltransf->SetIntPoint(&Geometries.GetCenter(geom));
+   if (ip == NULL)
+   {
+      eltransf->SetIntPoint(&Geometries.GetCenter(geom));
+   }
+   else
+   {
+      eltransf->SetIntPoint(ip);
+   }
    Geometries.JacToPerfJac(geom, eltransf->Jacobian(), J);
 }
 
@@ -11982,6 +11990,128 @@ int Mesh::FindPoints(DenseMatrix &point_mat, Array<int>& elem_ids,
       MFEM_WARNING((npts-pts_found) << " points were not found");
    }
    return pts_found;
+}
+
+void Mesh::GetGeometricParametersFromJacobian(const DenseMatrix &J, Vector &par)
+{
+   MFEM_VERIFY(Dim == 2 || Dim == 3, "Only 2D/3D meshes supported right now.");
+   MFEM_VERIFY(Dim == spaceDim, "Surface meshes not currently supported.");
+   if (Dim == 2)
+   {
+      par.SetSize(4);
+      Vector col1, col2;
+      J.GetColumn(0, col1);
+      J.GetColumn(1, col2);
+
+      // Area/Volume
+      double det = J.Det();
+
+      // Aspect-ratio
+      double aspr = col2.Norml2()/col1.Norml2();
+
+      // Skewness
+      double skew = std::atan2(J.Det(), col1 * col2);
+
+      // Orientation
+      double ori = std::atan2(J(1,0), J(0,0));
+
+      par(0) = det;   // Determinant
+      par(1) = aspr;  // Aspect-Ratio
+      par(2) = skew;  // Skewness
+      par(3) = ori;   // Orientation
+   }
+   else if (Dim == 3)
+   {
+      par.SetSize(12);
+      Vector col1, col2, col3;
+      J.GetColumn(0, col1);
+      J.GetColumn(1, col2);
+      J.GetColumn(2, col3);
+      double len1 = col1.Norml2(),
+             len2 = col2.Norml2(),
+             len3 = col3.Norml2();
+
+      Vector col1unit = col1,
+             col2unit = col2,
+             col3unit = col3;
+      col1unit *= 1.0/len1;
+      col2unit *= 1.0/len2;
+      col3unit *= 1.0/len3;
+
+      // Area/Volume
+      double det = J.Det();
+
+      // Aspect-ratio - dimensional
+      double sigma1 = std::sqrt(len1/(len2*len3)),
+             sigma2 = std::sqrt(len2/(len1*len3));
+
+      // Aspect-ratio - non-dimensional
+      double rho1 = len1/std::sqrt(len2*len3),
+             rho2 = len2/std::sqrt(len1*len3);
+
+      // Skewness
+      Vector crosscol12, crosscol13;
+      col1.cross3D(col2, crosscol12);
+      col1.cross3D(col3, crosscol13);
+      double phi_12 = std::acos(col1unit*col2unit),
+             phi_13 = std::acos(col1unit*col3unit),
+             chi = std::atan(len1*det/(crosscol12*crosscol13));
+
+      // Orientation
+      // First we define the rotation matrix
+      DenseMatrix rot(Dim);
+      // First column
+      for (int d=0; d<Dim; d++) { rot(d, 0) = col1unit(d); }
+      // Second column
+      Vector rot2 = col2unit;
+      Vector rot1 = col1unit;
+      rot1 *= col1unit*col2unit;
+      rot2 -= rot1;
+      col1unit.cross3D(col2unit, rot1);
+      rot2 /= rot1.Norml2();
+      for (int d=0; d < Dim; d++) { rot(d, 1) = rot2(d); }
+      // Third column
+      rot1 /= rot1.Norml2();
+      for (int d=0; d < Dim; d++) { rot(d, 2) = rot1(d); }
+      double delta = sqrt(pow(rot(2,1)-rot(1,2), 2.0) +
+                          pow(rot(0,2)-rot(2,0), 2.0) +
+                          pow(rot(1,0)-rot(0,1), 2.0));
+      Vector uvw(3);
+      uvw *= 0.0;
+      double lambda = 0.0;
+      if (delta == 0.0)   // Matrix is symmetric. Check if it is Identity.
+      {
+         DenseMatrix Iden(Dim);
+         for (int d = 0; d < Dim; d++) { Iden(d, d) = 1.0; };
+         Iden -= rot;
+         if (Iden.FNorm2() != 0)
+         {
+            // Todo: Handling of these cases.
+            rot.Print();
+            MFEM_ABORT("Invalid rotation matrix. Contact TMOP Developers.");
+         }
+      }
+      else
+      {
+         uvw(0) = (1./delta)*(rot(2,1)-rot(1,2));
+         uvw(1) = (1./delta)*(rot(0,2)-rot(2,0));
+         uvw(2) = (1./delta)*(rot(1,0)-rot(0,1));
+         lambda = std::acos(0.5*(rot.Trace()-1.0));
+      }
+
+      par(0) = det;     // Determinant
+      par(1) = rho1;    // Non-dimensional aspect-ratio
+      par(2) = rho2;    // Non-dimensional aspect-ratio
+      par(3) = phi_12;  // Skewness
+      par(4) = phi_13;  // Skewness
+      par(5) = chi;     // Skewness
+      par(6) = uvw(0);  // Orientation
+      par(7) = uvw(1);  // Orientation
+      par(8) = uvw(2);  // Orientation
+      par(9) = lambda;  // Orientation
+      par(10) = sigma1; // Dimensional Aspect-ratio
+      par(11) = sigma2; // Dimensional Aspect-ratio
+   }
 }
 
 

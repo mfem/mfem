@@ -496,7 +496,7 @@ double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
          energy_out = p_nlf->GetParGridFunctionEnergy(x_out_loc);
       }
 #endif
-      if (energy_out > energy_in + 0.2*fabs(energy_in) ||
+      if (energy_out > energy_in + 0.1*fabs(energy_in) ||
           std::isnan(energy_out) != 0)
       {
          if (print_options.iterations)

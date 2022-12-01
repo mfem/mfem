@@ -20,7 +20,7 @@ using namespace std;
 
 double discrete_size_2d(const Vector &x)
 {
-   int opt = 2;
+   int opt = 1;
    const double small = 0.001, big = 0.01;
    double val = 0.;
 
