@@ -27,7 +27,7 @@ Circle(829) = {429, 431, 430};
 //+
 Line(830) = {429, 430};
 //+
-Physical Curve("boundary", 831) = {830, 829};
+Physical Curve("boundary", 831) = {829};
 //+
 Physical Surface("coil1", 832) = {803};
 //+

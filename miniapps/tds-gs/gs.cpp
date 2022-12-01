@@ -1,5 +1,7 @@
 #include "mfem.hpp"
 #include "gs.hpp"
+#include "boundary.hpp"
+#include "double_integrals.hpp"
 
 using namespace std;
 using namespace mfem;
@@ -50,7 +52,7 @@ void PrintMatlab(SparseMatrix *Mat, SparseMatrix *M1, SparseMatrix *M2) {
   int i, j;
   for (i = 0; i < height; ++i) {
     for (j = I[i]; j < I[i+1]; ++j) {
-      if (A[j] > tol) {
+      if (abs(A[j]) > tol) {
         double m1 = 0.0;
         double m2 = 0.0;
         for (int k = M1->GetI()[i]; k < M1->GetI()[i+1]; ++k) {
@@ -76,7 +78,9 @@ void PrintMatlab(SparseMatrix *Mat, SparseMatrix *M1, SparseMatrix *M2) {
 
 
 
-LinearForm * DefineRHS(PlasmaModel & model, Mesh & mesh, map<int, double> & coil_current_values,
+LinearForm * DefineRHS(PlasmaModel & model, double & rho_gamma,
+                       Mesh & mesh, map<int, double> & coil_current_values,
+                       ExactCoefficient & exact_coefficient,
                        ExactForcingCoefficient & exact_forcing_coeff, LinearForm & coil_term) {
   /*
     Inputs:
@@ -121,8 +125,35 @@ LinearForm * DefineRHS(PlasmaModel & model, Mesh & mesh, map<int, double> & coil
   if (true) {
     coil_term.AddDomainIntegrator(new DomainLFIntegrator(exact_forcing_coeff));
   }
-   
+
   coil_term.Assemble();
+
+  if (true) {
+    BilinearForm b(coil_term.FESpace());
+    double mu = model.get_mu();
+    
+    auto N_lambda = [&rho_gamma, &mu](const Vector &x) -> double
+    {
+      return N_coefficient(x, rho_gamma, mu);
+    };
+    FunctionCoefficient first_boundary_coeff(N_lambda);
+    b.AddBoundaryIntegrator(new MassIntegrator(first_boundary_coeff));
+    auto M_lambda = [&mu](const Vector &x, const Vector &y) -> double
+    {
+      return M_coefficient(x, y, mu);
+    };
+    DoubleBoundaryBFIntegrator i(M_lambda);
+    b.Assemble();
+    AssembleDoubleBoundaryIntegrator(b, i, attr_ff_bdr);
+    b.Finalize(); // is this needed?
+
+    GridFunction u_ex(coil_term.FESpace());
+    u_ex.ProjectCoefficient(exact_coefficient);
+
+    b.AddMult(u_ex, coil_term);
+
+  }
+   
 }
 
 void DefineLHS(PlasmaModel & model, double rho_gamma, BilinearForm & diff_operator) {
@@ -139,15 +170,35 @@ void DefineLHS(PlasmaModel & model, double rho_gamma, BilinearForm & diff_operat
    }
    
    // boundary integral
-   if (false) {
-     BoundaryCoefficient first_boundary_coeff(rho_gamma, &model, 1);
+   double mu = model.get_mu();
+   if (true) {
+     auto N_lambda = [&rho_gamma, &mu](const Vector &x) -> double
+     {
+       return N_coefficient(x, rho_gamma, mu);
+     };
+
+     FunctionCoefficient first_boundary_coeff(N_lambda);
      diff_operator.AddBoundaryIntegrator(new MassIntegrator(first_boundary_coeff));
+
+     
+     // BoundaryCoefficient first_boundary_coeff(rho_gamma, &model, 1);
+     // diff_operator.AddBoundaryIntegrator(new MassIntegrator(first_boundary_coeff));
      // https://en.cppreference.com/w/cpp/experimental/special_functions
    }
 
    // assemble diff_operator
    diff_operator.Assemble();
 
+   if (true) {
+     auto M_lambda = [&mu](const Vector &x, const Vector &y) -> double
+     {
+       return M_coefficient(x, y, mu);
+     };
+     DoubleBoundaryBFIntegrator i(M_lambda);
+     AssembleDoubleBoundaryIntegrator(diff_operator, i, attr_ff_bdr);
+     diff_operator.Finalize(); // is this needed?
+   }
+   
 }
 
 
@@ -332,7 +383,7 @@ double gs(const char * mesh_file, const char * data_file, int order, int d_refin
     */
    // Set up the contribution from the coils
   LinearForm coil_term(&fespace);
-  DefineRHS(model, mesh, coil_current_values, exact_forcing_coeff, coil_term);
+  DefineRHS(model, rho_gamma, mesh, coil_current_values, exact_coefficient, exact_forcing_coeff, coil_term);
 
    /* 
       -------------------------------------------------------------------------------------------

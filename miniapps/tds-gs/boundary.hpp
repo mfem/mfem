@@ -7,6 +7,13 @@
 using namespace mfem;
 using namespace std;
 
+
+
+double N_coefficient(const Vector &x, const double & rho_gamma, const double & mu);
+double M_coefficient(const Vector &x, const Vector &y, const double & mu);
+
+
+
 /*
   Coefficient denoted as N(x) (order = 1) or M(x) (order = 2) in notes
 */

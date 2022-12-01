@@ -1,4 +1,6 @@
 *.dat
 *.gf
 *.mesh
+meshes/semicirc*
+meshes/test_old*
 *#*
