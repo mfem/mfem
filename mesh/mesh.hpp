@@ -1022,7 +1022,7 @@ public:
    void DeleteGeometricFactors();
 
    /** @brief This function should be called after the mesh node coordinates
-       have been updated externally, e.g. by modifyng the internal nodal
+       have been updated externally, e.g. by modifying the internal nodal
        GridFunction returned by GetNodes(). */
    /** It updates/deletes internal quantities derived from the node coordinates,
        such as the (Face)GeometricFactors.
