@@ -74,12 +74,12 @@ jobs:
             codecov: YES
           - os: windows-latest
             codecov: NO
-          - os: ubuntu-latest
-            target: opt
-            codecov: NO
-            mpi: par
-            build-system: cmake
-            hypre-target: int32
+          # - os: ubuntu-latest
+          #   target: opt
+          #   codecov: NO
+          #   mpi: par
+          #   build-system: cmake
+          #   hypre-target: int32
           - os: ubuntu-latest
             target: opt
             codecov: NO
@@ -247,7 +247,7 @@ jobs:
         cd ${{ env.MFEM_TOP_DIR }} && cmake --build build --target check --config ${CTEST_CONFIG}
       shell: bash
 
-    - name: cmake unit tests (Ubuntu 20.04)
+    - name: cmake unit tests (Ubuntu)
       if: matrix.build-system == 'cmake' && matrix.target == 'opt' && matrix.os == 'ubuntu-latest'
       run: |
         CTEST_CONFIG="Release"
