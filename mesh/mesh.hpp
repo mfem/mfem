@@ -380,8 +380,14 @@ protected:
    void InitRefinementTransforms();
    int FindCoarseElement(int i);
 
-   /// Update the nodes of a curved mesh after refinement
-   /** If the Nodes GridFunction is defined, invokes NodesUpdated(). */
+   /** @brief Update the nodes of a curved mesh after the topological part of a
+       Mesh::Operation, such as refinement, has been performed. */
+   /** If Nodes GridFunction is defined, i.e. not NULL, this method calls
+       NodesUpdated().
+
+       @note Unlike the similarly named public method NodesUpdated() this
+       method modifies the mesh nodes (if they exist) and calls NodesUpdated().
+   */
    void UpdateNodes();
 
    /// Helper to set vertex coordinates given a high-order curvature function.
@@ -1015,10 +1021,14 @@ public:
        should be to call NodesUpdated(). */
    void DeleteGeometricFactors();
 
-   /// @brief This function should be called after the mesh node coordinates
-   /// have changed, e.g. after the mesh has moved.
-   /** It updates internal quantities derived from the node coordinates, such
-       as the GeometricFactors. */
+   /** @brief This function should be called after the mesh node coordinates
+       have been updated externally, e.g. by modifyng the internal nodal
+       GridFunction returned by GetNodes(). */
+   /** It updates/deletes internal quantities derived from the node coordinates,
+       such as the (Face)GeometricFactors.
+
+       @note Unlike the similarly named protected method UpdateNodes() this
+       method does not modify the nodes. */
    void NodesUpdated() { DeleteGeometricFactors(); }
 
    /// Equals 1 + num_holes - num_loops
