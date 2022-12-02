@@ -201,7 +201,9 @@ macro(add_mfem_miniapp MFEM_EXE_NAME)
       target_include_directories(${MFEM_EXE_NAME} PRIVATE ${MPI_CXX_INCLUDE_PATH})
     endif()
     if (MPI_CXX_COMPILE_FLAGS)
-      target_compile_options(${MFEM_EXE_NAME} PRIVATE ${MPI_CXX_COMPILE_FLAGS})
+      separate_arguments(MPI_CXX_COMPILE_ARGS UNIX_COMMAND
+        "${MPI_CXX_COMPILE_FLAGS}")
+      target_compile_options(${MFEM_EXE_NAME} PRIVATE ${MPI_CXX_COMPILE_ARGS})
     endif()
 
     if (MPI_CXX_LINK_FLAGS)
