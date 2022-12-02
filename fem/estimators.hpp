@@ -690,6 +690,106 @@ public:
    void ResetCoefficientFunctions();
 };
 
+class PRefDiffEstimator : public ErrorEstimator
+{
+public:
+
+private:
+   int current_sequence = -1;
+
+   Vector error_estimates;
+
+   double total_error = 0.0;
+
+   int p_comp = -1;
+
+   GridFunction* solution;               ///< Not owned.
+
+   /// Check if the mesh of the solution was modified.
+   bool MeshIsModified()
+   {
+      long mesh_sequence = solution->FESpace()->GetMesh()->GetSequence();
+      MFEM_ASSERT(mesh_sequence >= current_sequence,
+                  "improper mesh update sequence");
+      return (mesh_sequence > current_sequence);
+   }
+
+   void ComputeEstimates();
+
+public:
+   /** @brief Construct a new PRefDiffEstimator object for a scalar field.
+       @param sol_        The solution field whose error is to be estimated.
+       @param p_comp_     Comparison order.. if -ve, subtract this from current order
+   */
+   PRefDiffEstimator(GridFunction& sol_, int p_comp_);
+
+   ~PRefDiffEstimator() { };
+
+   /// Get a Vector with all element errors.
+   const Vector& GetLocalErrors() override
+   {
+      if (MeshIsModified())
+      {
+         ComputeEstimates();
+      }
+      return error_estimates;
+   }
+
+   /// Reset the error estimator.
+   void Reset() override { current_sequence = -1; };
+
+   virtual double GetTotalError() const override { return total_error; }
+};
+
+class PRefJumpEstimator : public ErrorEstimator
+{
+public:
+
+private:
+   int current_sequence = -1;
+
+   Vector error_estimates;
+
+   double total_error = 0.0;
+
+   GridFunction* solution;               ///< Not owned.
+
+   /// Check if the mesh of the solution was modified.
+   bool MeshIsModified()
+   {
+      long mesh_sequence = solution->FESpace()->GetMesh()->GetSequence();
+      MFEM_ASSERT(mesh_sequence >= current_sequence,
+                  "improper mesh update sequence");
+      return (mesh_sequence > current_sequence);
+   }
+
+   void ComputeEstimates();
+
+public:
+   /** @brief Construct a new PRefJumpEstimator object for a scalar field.
+       @param sol_        The solution field whose error is to be estimated.
+       @param p_comp_     Comparison order.. if -ve, subtract this from current order
+   */
+   PRefJumpEstimator(GridFunction& sol_);
+
+   ~PRefJumpEstimator() { };
+
+   /// Get a Vector with all element errors.
+   const Vector& GetLocalErrors() override
+   {
+      if (MeshIsModified())
+      {
+         ComputeEstimates();
+      }
+      return error_estimates;
+   }
+
+   /// Reset the error estimator.
+   void Reset() override { current_sequence = -1; };
+
+   virtual double GetTotalError() const override { return total_error; }
+};
+
 } // namespace mfem
 
 #endif // MFEM_ERROR_ESTIMATORS
