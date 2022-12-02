@@ -124,7 +124,7 @@ jobs:
 
     - name: Set up Homebrew
       if: ( matrix.mpi == 'par' || matrix.codecov == 'YES' ) && matrix.os == 'macos-latest'
-      uses: Homebrew/actions/setup-homebrew@c4aafe8c4620bf08883dd4679c374f11e73329d3
+      uses: Homebrew/actions/setup-homebrew@master
 
     - name: get MPI (MacOS)
       if: matrix.mpi == 'par' && matrix.os == 'macos-latest'
@@ -141,7 +141,7 @@ jobs:
 
     - name: get MPI (Windows)
       if: matrix.mpi == 'par' && matrix.os == 'windows-latest'
-      uses: mpi4py/setup-mpi@v1.0.3
+      uses: mpi4py/setup-mpi@v1.1.2
 
     # Get Hypre through cache, or build it.
     # Install will only run on cache miss.
