@@ -4329,7 +4329,7 @@ void NCMesh::GetPointMatrix(Geometry::Type geom, const char* ref_path,
          if (child == 0)   //Pyramid
          {
             pm = PointMatrix(pm(0), mid01, midf0, mid03, mid04);
-         } 
+         }
          else if (child == 1)   //Pyramid
          {
             pm = PointMatrix(mid01, pm(1), mid12, midf0, mid14);
