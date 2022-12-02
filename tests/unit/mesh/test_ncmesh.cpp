@@ -121,7 +121,7 @@ TEST_CASE("NCMesh 3D Refined Volume", "[NCMesh]")
                               "../../data/ref-prism.mesh",
                               "../../data/ref-pyramid.mesh"
                              );
-   
+
    auto ref_type = GENERATE(Refinement::X,
                             Refinement::Y,
                             Refinement::Z,
@@ -153,7 +153,7 @@ TEST_CASE("NCMesh 3D Derefined Volume", "[NCMesh]")
                               "../../data/ref-prism.mesh",
                               "../../data/ref-pyramid.mesh"
                              );
-   
+
    auto ref_type = GENERATE(Refinement::XYZ);
 
    Mesh mesh(mesh_fname, 1, 1);
@@ -163,7 +163,7 @@ TEST_CASE("NCMesh 3D Derefined Volume", "[NCMesh]")
    ref[0].ref_type = ref_type; ref[0].index = 0;
 
    mesh.GeneralRefinement(ref, 1);
- 
+
    Array<double> elem_error(mesh.GetNE());
    for (int i = 0; i < mesh.GetNE(); ++i)
    {
