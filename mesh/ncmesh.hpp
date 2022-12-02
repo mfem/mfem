@@ -422,13 +422,13 @@ protected: // implementation
    bool Legacy; ///< true if the mesh was loaded from the legacy v1.1 format
 
    static const int MaxElemNodes =
-      8;       ///< Size of the buffers for nodes of an element
+      8;       ///< Number of nodes of an element can have
    static const int MaxElemEdges =
-      12;      ///< Size of the buffers for edges of an element
+      12;      ///< Number of edges of an element can have
    static const int MaxElemFaces =
-      6;       ///< Size of the buffers for faces of an element
+      6;       ///< Number of faces of an element can have
    static const int MaxElemChildren =
-      10;   ///< Size of the buffers for children of an element
+      10;      ///< Number of children of an element can have
 
    /** A Node can hold a vertex, an edge, or both. Elements directly point to
        their corner nodes, but edge nodes also exist and can be accessed using
@@ -680,9 +680,6 @@ protected: // implementation
 
    void CheckAnisoPrism(int vn1, int vn2, int vn3, int vn4,
                         const Refinement *refs, int nref);
-
-   void CheckAnisoPyramid(int vn1, int vn2, int vn3, int vn4,
-                          const Refinement *refs, int nref);
 
    void CheckAnisoFace(int vn1, int vn2, int vn3, int vn4,
                        int mid12, int mid34, int level = 0);

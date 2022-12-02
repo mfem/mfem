@@ -113,21 +113,28 @@ TEST_CASE("NCMesh PA diagonal", "[NCMesh]")
 
 } // test case
 
-TEST_CASE("NCMesh Refined volume", "[NCMesh]")
+
+TEST_CASE("NCMesh 3D Refined Volume", "[NCMesh]")
 {
-   auto mesh_fname = GENERATE("../../data/ref-triangle.mesh",
-                              "../../data/ref-square.mesh",
-                              "../../data/ref-tetrahedron.mesh",
+   auto mesh_fname = GENERATE("../../data/ref-tetrahedron.mesh",
                               "../../data/ref-cube.mesh",
                               "../../data/ref-prism.mesh",
                               "../../data/ref-pyramid.mesh"
                              );
+   
+   auto ref_type = GENERATE(Refinement::X,
+                            Refinement::Y,
+                            Refinement::Z,
+                            Refinement::XY,
+                            Refinement::XZ,
+                            Refinement::YZ,
+                            Refinement::XYZ);
 
    Mesh mesh(mesh_fname, 1, 1);
    mesh.EnsureNCMesh(true);
    double original_volume = mesh.GetElementVolume(0);
    Array<Refinement> ref(1);
-   ref[0].ref_type = Refinement::XYZ; ref[0].index = 0;
+   ref[0].ref_type = ref_type; ref[0].index = 0;
 
    mesh.GeneralRefinement(ref, 1);
    double summed_volume = 0.0;
@@ -136,16 +143,38 @@ TEST_CASE("NCMesh Refined volume", "[NCMesh]")
       summed_volume += mesh.GetElementVolume(i);
    }
    REQUIRE(summed_volume == MFEM_Approx(original_volume));
+} // test case
 
+
+TEST_CASE("NCMesh 3D Derefined Volume", "[NCMesh]")
+{
+   auto mesh_fname = GENERATE("../../data/ref-tetrahedron.mesh",
+                              "../../data/ref-cube.mesh",
+                              "../../data/ref-prism.mesh",
+                              "../../data/ref-pyramid.mesh"
+                             );
+   
+   auto ref_type = GENERATE(Refinement::XYZ);
+
+   Mesh mesh(mesh_fname, 1, 1);
+   mesh.EnsureNCMesh(true);
+   double original_volume = mesh.GetElementVolume(0);
+   Array<Refinement> ref(1);
+   ref[0].ref_type = ref_type; ref[0].index = 0;
+
+   mesh.GeneralRefinement(ref, 1);
+ 
    Array<double> elem_error(mesh.GetNE());
    for (int i = 0; i < mesh.GetNE(); ++i)
    {
       elem_error[i] = 0.0;
    }
    mesh.DerefineByError(elem_error, 1.0);
+
    double derefined_volume = mesh.GetElementVolume(0);
    REQUIRE(derefined_volume == MFEM_Approx(original_volume));
 } // test case
+
 
 #ifdef MFEM_USE_MPI
 
