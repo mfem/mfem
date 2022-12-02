@@ -47,7 +47,8 @@ jobs:
   builds-and-tests:
     strategy:
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
+        # os: [ubuntu-latest, macos-latest, windows-latest]
+        os: [ubuntu-latest]
         target: [dbg, opt]
         mpi: [seq, par]
         build-system: [make, cmake]
@@ -74,12 +75,12 @@ jobs:
             codecov: YES
           - os: windows-latest
             codecov: NO
-          # - os: ubuntu-latest
-          #   target: opt
-          #   codecov: NO
-          #   mpi: par
-          #   build-system: cmake
-          #   hypre-target: int32
+          - os: ubuntu-latest
+            target: opt
+            codecov: NO
+            mpi: par
+            build-system: cmake
+            hypre-target: int32
           - os: ubuntu-latest
             target: opt
             codecov: NO
@@ -222,7 +223,8 @@ jobs:
         hypre-dir: ${{ env.HYPRE_TOP_DIR }}
         metis-dir: ${{ env.METIS_TOP_DIR }}
         mfem-dir: ${{ env.MFEM_TOP_DIR }}
-        config-options: ${{ env.MFEM_EXTRA_CONFIG }}
+        # config-options: ${{ env.MFEM_EXTRA_CONFIG }}
+        config-options: ${{ fromJSON('{"make":"","cmake":"-DCMAKE_VERBOSE_MAKEFILE=1"}')[matrix.build-system] }}
         library-only: ${{ matrix.target == 'dbg' }}
 
     # Run checks (and only checks) on debug targets
