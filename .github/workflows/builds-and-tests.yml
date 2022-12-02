@@ -73,8 +73,8 @@ jobs:
             codecov: NO
           - target: opt
             codecov: YES
-          - os: windows-latest
-            codecov: NO
+          # - os: windows-latest
+          #   codecov: NO
           - os: ubuntu-latest
             target: opt
             codecov: NO
