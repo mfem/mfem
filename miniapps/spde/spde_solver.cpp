@@ -138,10 +138,10 @@ void SPDESolver::Solve(ParLinearForm &b, ParGridFunction &x) {
   helper_gf = 0.0;
 
   if (integer_order_of_exponent_ > 0) {
-    if (Mpi::Root()) {
-      mfem::out << "<SPDESolver> Solving PDE (A)^" << integer_order_of_exponent_
-                << " u = f" << std::endl;
-    }
+    // if (Mpi::Root()) {
+    //   mfem::out << "<SPDESolver> Solving PDE (A)^" << integer_order_of_exponent_
+    //             << " u = f" << std::endl;
+    // }
     ActivateRepeatedSolve();
     Solve(b, helper_gf, 1.0, 1.0, integer_order_of_exponent_);
     if (integer_order_) {
@@ -323,9 +323,9 @@ void SPDESolver::LiftSolution(ParGridFunction &x) {
 
   // Lifting of the solution takes care of inhomogeneous boundary conditions.
   // See doi:10.1016/j.jcp.2019.109009; section 2.6
-  if (Mpi::Root()) {
-    mfem::out << "\n<SPDESolver> Applying inhomogeneous DBC" << std::endl;
-  }
+  // if (Mpi::Root()) {
+  //   mfem::out << "\n<SPDESolver> Applying inhomogeneous DBC" << std::endl;
+  // }
 
   // Define temporary grid function for lifting.
   ParGridFunction helper_gf(fespace_ptr_);
@@ -376,7 +376,7 @@ void SPDESolver::SolveLinearSystem() {
   CGSolver cg(MPI_COMM_WORLD);
   cg.SetRelTol(1e-12);
   cg.SetMaxIter(2000);
-  cg.SetPrintLevel(3);
+  cg.SetPrintLevel(0);
   cg.SetPreconditioner(prec);
   cg.SetOperator(*Op_);
   cg.Mult(B_, X_);

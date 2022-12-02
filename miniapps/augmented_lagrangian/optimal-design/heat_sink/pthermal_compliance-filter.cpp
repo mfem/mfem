@@ -9,25 +9,25 @@
 
 
 // mpirun -np 6 ./pthermal_compliance-filter -epsilon 0.01 -alpha 0.01 -beta 5.0 -r 5 -o 2 -bs 10 -theta 2.0 -mi 100 -mf 0.4 -no-simp  -paraview
-
+// mpirun -np 6 ./pthermal_compliance-filter -epsilon 0.01 -alpha 0.01 -beta 5.0 -r 4 -o 2 -bs 1 -theta 2.0 -mi 100 -mf 0.4 -paraview
 //         min J(K) = <g,u>
 //                            
-//                        Γ_1           Γ_2            Γ_1
+//                        Γ_2           Γ_1            Γ_2
 //               _ _ _ _ _ _ _ _ _ _ _________ _ _ _ _ _ _ _ _ _ _   
 //              |         |         |         |         |         |  
 //              |         |         |         |         |         |  
 //              |---------|---------|---------|---------|---------|  
 //              |         |         |         |         |         |  
 //              |         |         |         |         |         |  
-//      Γ_1-->  |---------|---------|---------|---------|---------|  <-- Γ_1
+//      Γ_4-->  |---------|---------|---------|---------|---------|  <-- Γ_4
 //              |         |         |         |         |         |  
 //              |         |         |         |         |         |  
 //              |---------|---------|---------|---------|---------|  
 //              |         |         |         |         |         |  
 //              |         |         |         |         |         |  
-//               -------------------------------------------------|
-//                       |̂                              |̂  
-//                      Γ_1                            Γ_1                    
+//               -------------------------------------------------
+//                                        |̂                          
+//                                       Γ_3                                   
 //
 //
 //         subject to   - div( K\nabla u ) = f    in \Omega
@@ -350,13 +350,24 @@ int main(int argc, char *argv[])
 
       if (abs(center(1) - 1.0) < 1e-10 && abs(center(0)-0.5) < 1e-10)
       {
-         // the top edge
+         // middle the top edge
+         be->SetAttribute(1);
+      }
+      else if (abs(center(1) - 1.0) < 1e-10)
+      {
+         // the rest of top edge
          be->SetAttribute(2);
+
+      }
+      else if (abs(center(0)) < 1e-10 || abs(center(0)-1.0) < 1e-10)
+      {
+         // left and right edge
+         be->SetAttribute(4);
       }
       else
       {
-         // all other boundaries
-         be->SetAttribute(1);
+         // bottom edge
+         be->SetAttribute(3);
       }
    }
    mesh.SetAttributes();
@@ -388,6 +399,47 @@ int main(int argc, char *argv[])
       cout << "Number of control unknowns: " << control_size << endl;
    }
 
+
+   // Setup SPDE for random load generation
+   spde::Boundary bc;
+
+   RandomConstantCoefficient rand_bc(-2.0, 2.0);
+   rand_bc.resample();
+   bc.AddInhomogeneousDirichletBoundaryCondition(2,rand_bc.constant);
+   bc.AddInhomogeneousDirichletBoundaryCondition(1,rand_bc.constant);
+   bc.AddHomogeneousBoundaryCondition(3,spde::BoundaryType::kDirichlet);
+   if (Mpi::Root()) 
+   {
+     bc.PrintInfo();
+     bc.VerifyDefinedBoundaries(pmesh);
+   }
+   double nu = 1.0;
+   double l1 = 0.1, l2 = 0.1, l3 = 1.0;
+   double e1 = 1.0, e2 = 0.0, e3 = 0.0;
+   spde::SPDESolver random_load_solver(nu, bc, &state_fes, l1, l2);
+
+   ParGridFunction load_gf(&state_fes);
+   random_load_solver.GenerateRandomField(load_gf);
+
+   GridFunctionCoefficient load_cf(&load_gf);
+
+   // for (int i = 0; i<5; i++)
+   // {
+   //    random_load_solver.GenerateRandomField(load_gf);
+
+   //    {
+   //       char vishost[] = "localhost";
+   //       int  visport   = 19916;
+   //       socketstream sol_sock(vishost, visport);
+   //       sol_sock << "parallel " << num_procs << " " << myid << "\n";
+   //       sol_sock.precision(8);
+   //       sol_sock << "solution\n" << pmesh << load_gf << flush;
+   //    }
+   // }
+
+   // return 0;
+
+
    // 7. Set the initial guess for f and the boundary conditions for u.
    ParGridFunction u(&state_fes);
    ParGridFunction rho(&control_fes);
@@ -403,7 +455,7 @@ int main(int argc, char *argv[])
    ess_bdr = 0;
    if (maxat > 0)
    {
-      ess_bdr[maxat-1] = 1;
+      ess_bdr[0] = 1;
    }
    ConstantCoefficient one(1.0);
    DiffusionSolver * PoissonSolver = new DiffusionSolver();
@@ -413,7 +465,7 @@ int main(int argc, char *argv[])
 
    int seed = (random_seed) ? rand()%100 + myid : myid;
    
-   PoissonSolver->SetRHSCoefficient(&one);
+   PoissonSolver->SetRHSCoefficient(&load_cf);
    PoissonSolver->SetEssentialBoundary(ess_bdr);
 
 
@@ -486,7 +538,7 @@ int main(int argc, char *argv[])
    }
    // 12. AL iterations
    int step = 0;
-   double lambda = -6.0;
+   double lambda = 1.0;
    // RandomConstantCoefficient eta_cf(0.4,0.6,myid);
    RandomConstantCoefficient eta_cf(0.5,0.5,1);
    // RandomConstantCoefficient eta_cf(0.2,0.2,1);
@@ -535,6 +587,13 @@ int main(int argc, char *argv[])
             if (!use_simp)
             {
                eta_cf.resample();
+            }
+            else
+            {
+               rand_bc.resample();
+               bc.AddInhomogeneousDirichletBoundaryCondition(1,rand_bc.constant);
+               bc.AddInhomogeneousDirichletBoundaryCondition(2,rand_bc.constant);
+               random_load_solver.GenerateRandomField(load_gf);
             }
             PoissonSolver->Solve();
             u = *PoissonSolver->GetFEMSolution();
