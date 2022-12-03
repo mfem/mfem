@@ -336,7 +336,7 @@ public:
             {
                Wait(); // waiting for the root to wake us
                if (IsCall()) { if (std::system(Mem())) break; }
-               if (IsExit()) { break;}
+               if (IsExit()) { break; }
                Acknowledge();
             }
          }
