@@ -47,7 +47,6 @@ jobs:
     - name: Get MPI (Linux)
       run: |
         sudo apt-get install mpich libmpich-dev
-        # export MAKE_CXX_FLAG="MPICXX=mpic++"
 
     - name: Cache Hypre Install
       id: hypre-cache

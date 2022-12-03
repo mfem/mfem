@@ -47,8 +47,7 @@ jobs:
   builds-and-tests:
     strategy:
       matrix:
-        # os: [ubuntu-latest, macos-latest, windows-latest]
-        os: [ubuntu-latest]
+        os: [ubuntu-latest, macos-latest, windows-latest]
         target: [dbg, opt]
         mpi: [seq, par]
         build-system: [make, cmake]
@@ -73,8 +72,8 @@ jobs:
             codecov: NO
           - target: opt
             codecov: YES
-          # - os: windows-latest
-          #   codecov: NO
+          - os: windows-latest
+            codecov: NO
           - os: ubuntu-latest
             target: opt
             codecov: NO
@@ -116,7 +115,6 @@ jobs:
       if: matrix.mpi == 'par' && matrix.os == 'ubuntu-latest'
       run: |
         sudo apt-get install mpich libmpich-dev
-        # export MAKE_CXX_FLAG="MPICXX=mpic++"
 
     - name: get lcov (Linux)
       if: matrix.codecov == 'YES' && matrix.os == 'ubuntu-latest'
@@ -132,7 +130,6 @@ jobs:
       run: |
         export HOMEBREW_NO_INSTALL_CLEANUP=1
         brew install openmpi
-        # export MAKE_CXX_FLAG="MPICXX=mpic++"
 
     - name: get lcov (MacOS)
       if: matrix.codecov == 'YES' && matrix.os == 'macos-latest'
@@ -223,8 +220,7 @@ jobs:
         hypre-dir: ${{ env.HYPRE_TOP_DIR }}
         metis-dir: ${{ env.METIS_TOP_DIR }}
         mfem-dir: ${{ env.MFEM_TOP_DIR }}
-        # config-options: ${{ env.MFEM_EXTRA_CONFIG }}
-        config-options: ${{ fromJSON('{"make":"","cmake":"-DCMAKE_VERBOSE_MAKEFILE=1"}')[matrix.build-system] }}
+        config-options: ${{ env.MFEM_EXTRA_CONFIG }}
         library-only: ${{ matrix.target == 'dbg' }}
 
     # Run checks (and only checks) on debug targets
@@ -233,12 +229,7 @@ jobs:
       run: |
         cd ${{ env.MFEM_TOP_DIR }}  && make check
 
-    # Included in 'tests'
-    # - name: unit tests
-    #   if: matrix.build-system == 'make' && matrix.target == 'opt'
-    #   run: |
-    #     cd ${{ env.MFEM_TOP_DIR }} && make unittest
-
+    # Note: 'tests' include the unit tests
     - name: tests
       if: matrix.build-system == 'make' && matrix.target == 'opt'
       run: |
