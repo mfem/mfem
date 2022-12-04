@@ -11,6 +11,9 @@
 Version 4.5.1 (development)
 ===========================
 
+- Removed the support for the Mesquite toolkit. We recommend using MFEM's TMOP
+  functionality instead for mesh optimization. See the mesh-optimizer miniapp.
+
 Miscellaneous
 -------------
 - VisItDataCollection now correctly handles collection names containing
