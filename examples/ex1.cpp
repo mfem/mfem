@@ -30,7 +30,7 @@
 //
 // Device sample runs:
 //               ex1 -pa -d cuda
-//             * ex1 -fa -d cuda
+//               ex1 -fa -d cuda
 //               ex1 -pa -d raja-cuda
 //             * ex1 -pa -d raja-hip
 //               ex1 -pa -d occa-cuda
@@ -192,7 +192,14 @@ int main(int argc, char *argv[])
    //    domain integrator.
    BilinearForm a(&fespace);
    if (pa) { a.SetAssemblyLevel(AssemblyLevel::PARTIAL); }
-   if (fa) { a.SetAssemblyLevel(AssemblyLevel::FULL); }
+   if (fa)
+   {
+      a.SetAssemblyLevel(AssemblyLevel::FULL);
+      // Sort the matrix column indices when running on GPU or with OpenMP (i.e.
+      // when Device::IsEnabled() returns true). This makes the results
+      // bit-for-bit deterministic at the cost of somewhat longer run time.
+      a.EnableSparseMatrixSorting(Device::IsEnabled());
+   }
    a.AddDomainIntegrator(new DiffusionIntegrator(one));
 
    // 10. Assemble the bilinear form and the corresponding linear system,
