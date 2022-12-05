@@ -8,35 +8,52 @@
                                https://mfem.org
 
 
-Version 4.4.1 (development)
+Version 4.5.1 (development)
 ===========================
+
+
+Version 4.5, released on October 22, 2022
+=========================================
 
 Meshing improvements
 --------------------
-- Added support for mixed meshes and pyramids in GSLIB-FindPoints.
-
 - Added new SubMesh and ParSubMesh classes that can be used to extract a subset
   of a given Mesh. These classes have the same functionality as Mesh and ParMesh
   and work with all existing MFEM interfaces like finite element spaces etc.
 
+- Added a method, ParMesh::GetSerialMesh(), that reconstructs a partitioned
+  parallel mesh on a given single rank. Also, added ParMesh::PrintAsSerial(),
+  which saves the reconstructed serial mesh to a C++ stream on rank 0.
+
+- Added more 3D TMOP metrics, as well as specialized metrics for mesh
+  untangling and worst-case quality improvement.
+
+- Added a new method, Mesh::NodesUpdated, which should be called after the mesh
+  node coordinates have changed, e.g. after the mesh has moved. This is
+  necessary, for example, with device assembly of linear and bilinear forms.
+
+- Added support for mixed meshes and pyramids in GSLIB-FindPoints.
+
 Discretization improvements
 ---------------------------
-- Added support for assembling low-order-refined matrices using a GPU-enabled
-  "batched" algorithm. The lor_solvers and plor_solvers now fully support GPU
-  acceleration.
-
-- Added support for partial assembly and fully matrix-free operators on mixed
-  meshes (different element types and p-adaptivity) through libCEED, including
-  device acceleration, e.g. with NVIDIA and AMD GPUs. The p-adaptivity is
-  currently limited by MFEM capabilities, i.e. 2D serial meshes. All mixed
-  element topologies are supported in serial and parallel: segment, triangle,
-  square, tetrahedron, cube, prism, and pyramid.
-
 - Added full assembly and device support for several LinearForm integrators:
   * DomainLF: (f, v)
   * VectorDomainLF: ((f1,...,fn), (v1,...,vn))
   * DomainLFGrad: (f, grad(v))
   * VectorDomainLFGrad: ((f1x,f1y,f1z,...,fnx,fny,fnz), grad(v1,...,vn))
+  The device assembly of linear forms has to be explicitly enabled by calling
+  LinearForm::UseFastAssembly(true), otherwise the legacy linear form assembly
+  is used by default.
+
+- Added support for assembling low-order-refined matrices using a GPU-enabled
+  "batched" algorithm. The lor_solvers and plor_solvers now fully support GPU
+  acceleration with arbitrary user-supplied coefficients.
+
+- Added a new class FaceQuadratureSpace that allows for the construction of
+  QuadratureFunctions on the interior or boundary faces of a mesh.
+
+- Added a class CoefficientVector for efficient access of variable coefficient
+  values at quadrature points (in particular for GPU/device kernels).
 
 - Added WhiteGaussianNoiseDomainLFIntegrator: a LinearFormIntegrator class for
   spatial Gaussian white noise.
@@ -44,12 +61,25 @@ Discretization improvements
 - Added a new Zienkiewicz-Zhu patch recovery-based a posteriori error estimator.
   See fem/estimators.hpp.
 
+- Various fixes and improvements in LinearFormExtension.
+
 Linear and nonlinear solvers
 ----------------------------
-
-- Added a new class DGMassInverse that performs a local elementwise CG
+- Added a new class DGMassInverse that performs a local element-wise CG
   iteration to solve systems involving the discontinuous Galerkin mass matrix,
   including support for device/GPU acceleration.
+
+- Added more flexibility to the constrained solver classes:
+  * PenaltyConstrainedSolver now allows for a vector of penalty parameters
+    (necessary for penalty contact)
+  * PenaltyConstrainedSolver and EliminationSolver can use GMRES or PCG
+  * All constraint solver classes can take a user-defined preconditioner
+
+ - Added functions to toggle additional options for the SuperLU_Dist and Hypre
+   preconditioners (ParaSails, Euclid, ILU).
+
+- Added boundary elimination with device support for `SparseMatrix` and
+  `HypreParMatrix`.
 
 New and updated examples and miniapps
 -------------------------------------
@@ -59,12 +89,28 @@ New and updated examples and miniapps
   automatic differentiation tools like a native dual number implementation or a
   third party library such as Enzyme. See miniapps/elasticity for more details.
 
+- Added example for body-fitted volumetric and shape integration using the
+  Algoim library in miniapps/shifted.
+
 - Add a new example code, Example 33/33p, to demonstrate the solution of
   spectral fractional PDEs with MFEM.
 
 Integrations, testing and documentation
 ---------------------------------------
 - Added a Dockerfile for a simple MFEM container, see config/docker/README.md.
+  More sophisticated developer containers are available in the new repo
+  https://github.com/mfem/containers.
+
+- Added support for the LLVM-based automatic differentiation tool Enzyme, see
+  https://github.com/EnzymeAD/Enzyme. Build system flags and a convenience
+  header are provided. The functionality and interaction are demonstrated in a
+  new miniapp in miniapps/elasticity.
+
+- Added support for partial assembly and fully matrix-free operators on mixed
+  meshes (different element types and p-adaptivity) through libCEED, including
+  device acceleration, e.g. with NVIDIA and AMD GPUs. The p-adaptivity is
+  currently limited to 2D serial meshes. All mixed element topologies are
+  supported in both serial and parallel.
 
 - Added support for ParMoonolith, https://bitbucket.org/zulianp/par_moonolith,
   which provides parallel non-conforming, non-matching, variational, volumetric
@@ -72,28 +118,39 @@ Integrations, testing and documentation
   between arbitrarily distributed and unrelated finite element meshes in a
   variationally consistent way.
 
-- Added support for the LLVM-based automatic differentiation tool Enzyme, see
-  https://github.com/EnzymeAD/Enzyme. Build system flags and a convenience
-  header are provided. The functionality and interaction are demonstrated in a
-  new miniapp in miniapps/elasticity.
+- Fully encapsulated SUNDIALS `N_Vector` object within the `SundialsNVector`
+  class by removing deprecated (e.g. `HypreParVector::ToNVector`) and
+  non-deprecated (e.g. `Vector::ToNVector`) functions in other classes.
 
-- Added example for body-fitted volumetric and shape integration using the
-  Algoim library.
+- New benchmark for the different assembly levels inspired by the CEED
+  Bake-Off Problems, see tests/benchmarks/bench_assembly_levels.cpp.
 
 - Added Windows 2022 CI testing with GitHub actions.
 
 Miscellaneous
 -------------
-- Various other simplifications, extensions, and bugfixes in the code.
+- The method SparseMatrix::EnsureMultTranspose() is now automatically called
+  by the methods AddMultTranspose(), MultTranspose(), and AbsMultTranspose().
+  Added a method with the same name to class HypreParMatrix which is also called
+  automatically by the HypreParMatrix::MultTranspose() methods.
 
-- Added boundary elimination with device support for `SparseMatrix` and
-  `HypreParMatrix`.
+- Updated various MemoryUsage methods to return 'std::size_t' instead of 'long'
+  since the latter is 32-bit in Win64 builds.
 
 - When using `AssemblyLevel::FULL`, `FABilinearFormExtension::FormSystemMatrix`
   outputs an `OperatorHandle` containing a `SparseMatrix` in serial, and an
   `HypreParMatrix` in parallel (instead of a `ConstrainedOperator`).
 
-- Added TMOP metrics for mesh untangling and worst-case quality improvement.
+- In various places in the library, replace the use of 'long' with 'long long'
+  to better support Win64 builds where 'long' is 32-bit and 'long long' is
+  64-bit. On Linux and MacOS, both types are typically 64-bit.
+
+- The behavior of GridFunction::GetTrueVector() has been changed to not return
+  an empty true vector.
+
+- Added support for ordering search points byVDIM in FindPointsGSLIB.
+
+- Various other simplifications, extensions, and bugfixes in the code.
 
 
 Version 4.4, released on March 21, 2022
@@ -126,11 +183,6 @@ Meshing improvements
 
 - Added a simpler interface to access mesh face information, see FaceInformation
   and GetFaceInformation in the Mesh class.
-
-- Added the method ParMesh::GetSerialMesh() that reconstructs a partitioned
-  parallel mesh on a given single rank. Also, added the method
-  ParMesh::PrintAsSerial() that saves the reconstructed serial mesh to a C++
-  stream on rank 0.
 
 - Gmsh meshes where all elements have zero physical tag (the default Gmsh output
   format if no physical groups are defined) are now successfully loaded, and
@@ -221,9 +273,6 @@ Integrations, testing and documentation
 - Switched from Artistic Style (astyle) version 2.05.1 to version 3.1 for code
   formatting. See the "make style" target.
 
-- New benchmark for the different assembly levels inspired by the CEED
-  Bake-Off Problems, see tests/benchmarks/bench_assembly_levels.cpp.
-
 Miscellaneous
 -------------
 - Added a simple singleton class, Mpi, as a replacement for MPI_Session. New
@@ -233,13 +282,6 @@ Miscellaneous
   QuadratureFunction::SaveVTU and ParaViewDataCollection::RegisterQField.
 
 - Fixed several MinGW build issues on Windows.
-
-- In various places in the library, replace the use of 'long' with 'long long'
-  to better support Win64 builds where 'long' is 32-bit and 'long long' is
-  64-bit. On Linux and MacOS, both types are typically 64-bit.
-
-- Update various "MemoryUsage" methods to return 'std::size_t' instead of 'long'
-  since the latter is 32-bit in Win64 builds.
 
 - Added 'double' atomicAdd implementation for previous versions of CUDA.
 

@@ -550,6 +550,15 @@ void DenseMatrix::Add(const double c, const DenseMatrix &A)
    }
 }
 
+void DenseMatrix::Add(const double c, const double *A)
+{
+   const int s = Width()*Height();
+   for (int i = 0; i < s; i++)
+   {
+      data[i] += c*A[i];
+   }
+}
+
 DenseMatrix &DenseMatrix::operator=(double c)
 {
    const int s = Height()*Width();
@@ -1450,10 +1459,10 @@ void DenseMatrix::GradToCurl(DenseMatrix &curl)
          int j = i+n;
 
          // curl of (Ui,0)
-         curl(i,0) = -y;
+         curl(i,0) = y;
 
          // curl of (0,Ui)
-         curl(j,0) =  x;
+         curl(j,0) = -x;
       }
    }
    else
@@ -1715,6 +1724,336 @@ void DenseMatrix::AddMatrix(double a, const DenseMatrix &A, int ro, int co)
       }
       p  += h;
       ap += ah;
+   }
+}
+
+void DenseMatrix::GetSubMatrix(const Array<int> & idx, DenseMatrix & A) const
+{
+   int k = idx.Size();
+   int idx_max = idx.Max();
+   MFEM_VERIFY(idx.Min() >=0 && idx_max < this->height && idx_max < this->width,
+               "DenseMatrix::GetSubMatrix: Index out of bounds");
+   A.SetSize(k);
+   double * adata = A.Data();
+
+   int ii, jj;
+   for (int i = 0; i<k; i++)
+   {
+      ii = idx[i];
+      for (int j = 0; j<k; j++)
+      {
+         jj = idx[j];
+         adata[i+j*k] = this->data[ii+jj*height];
+      }
+   }
+}
+
+void DenseMatrix::GetSubMatrix(const Array<int> & idx_i,
+                               const Array<int> & idx_j, DenseMatrix & A) const
+{
+   int k = idx_i.Size();
+   int l = idx_j.Size();
+
+   MFEM_VERIFY(idx_i.Min() >=0 && idx_i.Max() < this->height,
+               "DenseMatrix::GetSubMatrix: Row index out of bounds");
+   MFEM_VERIFY(idx_j.Min() >=0 && idx_j.Max() < this->width,
+               "DenseMatrix::GetSubMatrix: Col index out of bounds");
+
+   A.SetSize(k,l);
+   double * adata = A.Data();
+
+   int ii, jj;
+   for (int i = 0; i<k; i++)
+   {
+      ii = idx_i[i];
+      for (int j = 0; j<l; j++)
+      {
+         jj = idx_j[j];
+         adata[i+j*k] = this->data[ii+jj*height];
+      }
+   }
+}
+
+void DenseMatrix::GetSubMatrix(int ibeg, int iend, DenseMatrix & A)
+{
+   MFEM_VERIFY(iend >= ibeg, "DenseMatrix::GetSubMatrix: Inconsistent range");
+   MFEM_VERIFY(ibeg >=0,
+               "DenseMatrix::GetSubMatrix: Negative index");
+   MFEM_VERIFY(iend <= this->height && iend <= this->width,
+               "DenseMatrix::GetSubMatrix: Index bigger than upper bound");
+
+   int k = iend - ibeg;
+   A.SetSize(k);
+   double * adata = A.Data();
+
+   int ii, jj;
+   for (int i = 0; i<k; i++)
+   {
+      ii = ibeg + i;
+      for (int j = 0; j<k; j++)
+      {
+         jj = ibeg + j;
+         adata[i+j*k] = this->data[ii+jj*height];
+      }
+   }
+}
+
+void DenseMatrix::GetSubMatrix(int ibeg, int iend, int jbeg, int jend,
+                               DenseMatrix & A)
+{
+   MFEM_VERIFY(iend >= ibeg,
+               "DenseMatrix::GetSubMatrix: Inconsistent row range");
+   MFEM_VERIFY(jend >= jbeg,
+               "DenseMatrix::GetSubMatrix: Inconsistent col range");
+   MFEM_VERIFY(ibeg >=0,
+               "DenseMatrix::GetSubMatrix: Negative row index");
+   MFEM_VERIFY(jbeg >=0,
+               "DenseMatrix::GetSubMatrix: Negative row index");
+   MFEM_VERIFY(iend <= this->height,
+               "DenseMatrix::GetSubMatrix: Index bigger than row upper bound");
+   MFEM_VERIFY(jend <= this->width,
+               "DenseMatrix::GetSubMatrix: Index bigger than col upper bound");
+
+   int k = iend - ibeg;
+   int l = jend - jbeg;
+   A.SetSize(k,l);
+   double * adata = A.Data();
+
+   int ii, jj;
+   for (int i = 0; i<k; i++)
+   {
+      ii = ibeg + i;
+      for (int j = 0; j<l; j++)
+      {
+         jj = jbeg + j;
+         adata[i+j*k] = this->data[ii+jj*height];
+      }
+   }
+}
+
+void DenseMatrix::SetSubMatrix(const Array<int> & idx, const DenseMatrix & A)
+{
+   int k = idx.Size();
+   MFEM_VERIFY(A.Height() == k && A.Width() == k,
+               "DenseMatrix::SetSubMatrix:Inconsistent matrix dimensions");
+
+   int idx_max = idx.Max();
+
+   MFEM_VERIFY(idx.Min() >=0,
+               "DenseMatrix::SetSubMatrix: Negative index");
+   MFEM_VERIFY(idx_max < this->height,
+               "DenseMatrix::SetSubMatrix: Index bigger than row upper bound");
+   MFEM_VERIFY(idx_max < this->width,
+               "DenseMatrix::SetSubMatrix: Index bigger than col upper bound");
+
+   double * adata = A.Data();
+
+   int ii, jj;
+   for (int i = 0; i<k; i++)
+   {
+      ii = idx[i];
+      for (int j = 0; j<k; j++)
+      {
+         jj = idx[j];
+         this->data[ii+jj*height] = adata[i+j*k];
+      }
+   }
+}
+
+void DenseMatrix::SetSubMatrix(const Array<int> & idx_i,
+                               const Array<int> & idx_j, const DenseMatrix & A)
+{
+   int k = idx_i.Size();
+   int l = idx_j.Size();
+   MFEM_VERIFY(k == A.Height() && l == A.Width(),
+               "DenseMatrix::SetSubMatrix:Inconsistent matrix dimensions");
+   MFEM_VERIFY(idx_i.Min() >=0,
+               "DenseMatrix::SetSubMatrix: Negative row index");
+   MFEM_VERIFY(idx_j.Min() >=0,
+               "DenseMatrix::SetSubMatrix: Negative col index");
+   MFEM_VERIFY(idx_i.Max() < this->height,
+               "DenseMatrix::SetSubMatrix: Index bigger than row upper bound");
+   MFEM_VERIFY(idx_j.Max() < this->width,
+               "DenseMatrix::SetSubMatrix: Index bigger than col upper bound");
+
+   double * adata = A.Data();
+
+   int ii, jj;
+   for (int i = 0; i<k; i++)
+   {
+      ii = idx_i[i];
+      for (int j = 0; j<l; j++)
+      {
+         jj = idx_j[j];
+         this->data[ii+jj*height] = adata[i+j*k];
+      }
+   }
+}
+
+void DenseMatrix::SetSubMatrix(int ibeg, const DenseMatrix & A)
+{
+   int k = A.Height();
+
+   MFEM_VERIFY(A.Width() == k, "DenseMatrix::SetSubmatrix: A is not square");
+   MFEM_VERIFY(ibeg >=0,
+               "DenseMatrix::SetSubmatrix: Negative index");
+   MFEM_VERIFY(ibeg + k <= this->height,
+               "DenseMatrix::SetSubmatrix: index bigger than row upper bound");
+   MFEM_VERIFY(ibeg + k <= this->width,
+               "DenseMatrix::SetSubmatrix: index bigger than col upper bound");
+
+   double * adata = A.Data();
+
+   int ii, jj;
+   for (int i = 0; i<k; i++)
+   {
+      ii = ibeg + i;
+      for (int j = 0; j<k; j++)
+      {
+         jj = ibeg + j;
+         this->data[ii+jj*height] = adata[i+j*k];
+      }
+   }
+}
+
+void DenseMatrix::SetSubMatrix(int ibeg, int jbeg, const DenseMatrix & A)
+{
+   int k = A.Height();
+   int l = A.Width();
+
+   MFEM_VERIFY(ibeg>=0,
+               "DenseMatrix::SetSubmatrix: Negative row index");
+   MFEM_VERIFY(jbeg>=0,
+               "DenseMatrix::SetSubmatrix: Negative col index");
+   MFEM_VERIFY(ibeg + k <= this->height,
+               "DenseMatrix::SetSubmatrix: Index bigger than row upper bound");
+   MFEM_VERIFY(jbeg + l <= this->width,
+               "DenseMatrix::SetSubmatrix: Index bigger than col upper bound");
+
+   double * adata = A.Data();
+
+   int ii, jj;
+   for (int i = 0; i<k; i++)
+   {
+      ii = ibeg + i;
+      for (int j = 0; j<l; j++)
+      {
+         jj = jbeg + j;
+         this->data[ii+jj*height] = adata[i+j*k];
+      }
+   }
+}
+
+void DenseMatrix::AddSubMatrix(const Array<int> & idx, const DenseMatrix & A)
+{
+   int k = idx.Size();
+   MFEM_VERIFY(A.Height() == k && A.Width() == k,
+               "DenseMatrix::AddSubMatrix:Inconsistent matrix dimensions");
+
+   int idx_max = idx.Max();
+
+   MFEM_VERIFY(idx.Min() >=0, "DenseMatrix::AddSubMatrix: Negative index");
+   MFEM_VERIFY(idx_max < this->height,
+               "DenseMatrix::AddSubMatrix: Index bigger than row upper bound");
+   MFEM_VERIFY(idx_max < this->width,
+               "DenseMatrix::AddSubMatrix: Index bigger than col upper bound");
+
+   double * adata = A.Data();
+
+   int ii, jj;
+   for (int i = 0; i<k; i++)
+   {
+      ii = idx[i];
+      for (int j = 0; j<k; j++)
+      {
+         jj = idx[j];
+         this->data[ii+jj*height] += adata[i+j*k];
+      }
+   }
+}
+
+void DenseMatrix::AddSubMatrix(const Array<int> & idx_i,
+                               const Array<int> & idx_j, const DenseMatrix & A)
+{
+   int k = idx_i.Size();
+   int l = idx_j.Size();
+   MFEM_VERIFY(k == A.Height() && l == A.Width(),
+               "DenseMatrix::AddSubMatrix:Inconsistent matrix dimensions");
+
+   MFEM_VERIFY(idx_i.Min() >=0,
+               "DenseMatrix::AddSubMatrix: Negative row index");
+   MFEM_VERIFY(idx_j.Min() >=0,
+               "DenseMatrix::AddSubMatrix: Negative col index");
+   MFEM_VERIFY(idx_i.Max() < this->height,
+               "DenseMatrix::AddSubMatrix: Index bigger than row upper bound");
+   MFEM_VERIFY(idx_j.Max() < this->width,
+               "DenseMatrix::AddSubMatrix: Index bigger than col upper bound");
+
+   double * adata = A.Data();
+
+   int ii, jj;
+   for (int i = 0; i<k; i++)
+   {
+      ii = idx_i[i];
+      for (int j = 0; j<l; j++)
+      {
+         jj = idx_j[j];
+         this->data[ii+jj*height] += adata[i+j*k];
+      }
+   }
+}
+
+void DenseMatrix::AddSubMatrix(int ibeg, const DenseMatrix & A)
+{
+   int k = A.Height();
+   MFEM_VERIFY(A.Width() == k, "DenseMatrix::AddSubmatrix: A is not square");
+
+   MFEM_VERIFY(ibeg>=0,
+               "DenseMatrix::AddSubmatrix: Negative index");
+   MFEM_VERIFY(ibeg + k <= this->Height(),
+               "DenseMatrix::AddSubmatrix: Index bigger than row upper bound");
+   MFEM_VERIFY(ibeg + k <= this->Width(),
+               "DenseMatrix::AddSubmatrix: Index bigger than col upper bound");
+
+   double * adata = A.Data();
+
+   int ii, jj;
+   for (int i = 0; i<k; i++)
+   {
+      ii = ibeg + i;
+      for (int j = 0; j<k; j++)
+      {
+         jj = ibeg + j;
+         this->data[ii+jj*height] += adata[i+j*k];
+      }
+   }
+}
+
+void DenseMatrix::AddSubMatrix(int ibeg, int jbeg, const DenseMatrix & A)
+{
+   int k = A.Height();
+   int l = A.Width();
+
+   MFEM_VERIFY(ibeg>=0,
+               "DenseMatrix::AddSubmatrix: Negative row index");
+   MFEM_VERIFY(jbeg>=0,
+               "DenseMatrix::AddSubmatrix: Negative col index");
+   MFEM_VERIFY(ibeg + k <= this->height,
+               "DenseMatrix::AddSubmatrix: Index bigger than row upper bound");
+   MFEM_VERIFY(jbeg + l <= this->width,
+               "DenseMatrix::AddSubmatrix: Index bigger than col upper bound");
+
+   double * adata = A.Data();
+
+   int ii, jj;
+   for (int i = 0; i<k; i++)
+   {
+      ii = ibeg + i;
+      for (int j = 0; j<l; j++)
+      {
+         jj = jbeg + j;
+         this->data[ii+jj*height] += adata[i+j*k];
+      }
    }
 }
 
@@ -2857,6 +3196,22 @@ void AddMult_a_VVt(const double a, const Vector &v, DenseMatrix &VVt)
    }
 }
 
+void RAP(const DenseMatrix &A, const DenseMatrix &P, DenseMatrix & RAP)
+{
+   DenseMatrix RA(P.Width(),A.Width());
+   MultAtB(P,A,RA);
+   RAP.SetSize(RA.Height(), P.Width());
+   Mult(RA,P, RAP);
+}
+
+void RAP(const DenseMatrix &Rt, const DenseMatrix &A,
+         const DenseMatrix &P, DenseMatrix & RAP)
+{
+   DenseMatrix RA(Rt.Width(),A.Width());
+   MultAtB(Rt,A,RA);
+   RAP.SetSize(RA.Height(), P.Width());
+   Mult(RA,P, RAP);
+}
 
 bool LUFactors::Factor(int m, double TOL)
 {
