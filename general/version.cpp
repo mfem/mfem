@@ -112,9 +112,6 @@ const char *GetConfigStr()
 #ifdef MFEM_USE_MEMALLOC
       "MFEM_USE_MEMALLOC\n"
 #endif
-#ifdef MFEM_USE_MESQUITE
-      "MFEM_USE_MESQUITE\n"
-#endif
 #ifdef MFEM_USE_METIS
       "MFEM_USE_METIS\n"
 #endif
