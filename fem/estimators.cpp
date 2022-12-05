@@ -563,7 +563,7 @@ void PRefJumpEstimator::ComputeEstimates()
     GridFunction *solutionProlong = ProlongToMaxOrder(solution);
     GridFunctionCoefficient solutionProlongCoeff(solutionProlong);
     solutionh1.ProjectDiscCoefficient(solutionProlongCoeff,
-                                      ParGridFunction::AvgType::ARITHMETIC);
+                                      GridFunction::AvgType::ARITHMETIC);
 
     error_estimates = 0.0;
     for (int e = 0; e < nelem; e++) {
