@@ -140,7 +140,11 @@ int CeedOperatorGetActiveField(CeedOperator oper, CeedOperatorField *field)
    CeedOperator *subops;
    if (isComposite)
    {
+#if CEED_VERSION_GE(0, 10, 2)
+      ierr = CeedCompositeOperatorGetSubList(oper, &subops); CeedChk(ierr);
+#else
       ierr = CeedOperatorGetSubList(oper, &subops); CeedChk(ierr);
+#endif
       ierr = CeedOperatorGetQFunction(subops[0], &qf); CeedChk(ierr);
    }
    else
