@@ -262,6 +262,34 @@ inline void QuadratureFunction::GetValues(
    }
 }
 
+
+inline void QuadratureFunction::SetSpace(QuadratureSpaceBase *qspace_,
+                                         int vdim_)
+{
+   if (qspace_ != qspace)
+   {
+      if (own_qspace) { delete qspace; }
+      qspace = qspace_;
+      own_qspace = false;
+   }
+   vdim = (vdim_ < 0) ? vdim : vdim_;
+   SetSize(vdim*qspace->GetSize());
+}
+
+inline void QuadratureFunction::SetSpace(
+   QuadratureSpaceBase *qspace_, double *qf_data, int vdim_)
+{
+   if (qspace_ != qspace)
+   {
+      if (own_qspace) { delete qspace; }
+      qspace = qspace_;
+      own_qspace = false;
+   }
+   vdim = (vdim_ < 0) ? vdim : vdim_;
+   NewDataAndSize(qf_data, vdim*qspace->GetSize());
+}
+
+
 } // namespace mfem
 
 #endif
