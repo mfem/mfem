@@ -94,7 +94,7 @@ jobs:
     # This external action allows to interrupt a workflow already running on
     # the same branch to save resource
     - name: Cancel Previous Runs
-      uses: styfle/cancel-workflow-action@0.9.0
+      uses: styfle/cancel-workflow-action@0.11.0
       with:
         access_token: ${{ github.token }}
 
@@ -102,7 +102,7 @@ jobs:
     # /home/runner/work/mfem/mfem/mfem
     # Note: Done now to access "install-hypre" and "install-metis" actions.
     - name: checkout mfem
-      uses: actions/checkout@v2
+      uses: actions/checkout@v3
       with:
         path: ${{ env.MFEM_TOP_DIR }}
         # Fetch the complete history for codecov to access commits ID
@@ -115,7 +115,6 @@ jobs:
       if: matrix.mpi == 'par' && matrix.os == 'ubuntu-latest'
       run: |
         sudo apt-get install mpich libmpich-dev
-        export MAKE_CXX_FLAG="MPICXX=mpic++"
 
     - name: get lcov (Linux)
       if: matrix.codecov == 'YES' && matrix.os == 'ubuntu-latest'
@@ -124,16 +123,15 @@ jobs:
 
     - name: Set up Homebrew
       if: ( matrix.mpi == 'par' || matrix.codecov == 'YES' ) && matrix.os == 'macos-latest'
-      uses: Homebrew/actions/setup-homebrew@c4aafe8c4620bf08883dd4679c374f11e73329d3
+      uses: Homebrew/actions/setup-homebrew@master
 
     - name: get MPI (MacOS)
       if: matrix.mpi == 'par' && matrix.os == 'macos-latest'
       run: |
         export HOMEBREW_NO_INSTALL_CLEANUP=1
         brew install openmpi
-        export MAKE_CXX_FLAG="MPICXX=mpic++"
 
-    - name: get MPI (MacOS)
+    - name: get lcov (MacOS)
       if: matrix.codecov == 'YES' && matrix.os == 'macos-latest'
       run: |
         export HOMEBREW_NO_INSTALL_CLEANUP=1
@@ -141,14 +139,14 @@ jobs:
 
     - name: get MPI (Windows)
       if: matrix.mpi == 'par' && matrix.os == 'windows-latest'
-      uses: mpi4py/setup-mpi@v1.0.3
+      uses: mpi4py/setup-mpi@v1.1.2
 
     # Get Hypre through cache, or build it.
     # Install will only run on cache miss.
     - name: cache hypre
       id: hypre-cache
       if: matrix.mpi == 'par'
-      uses: actions/cache@v2
+      uses: actions/cache@v3
       with:
         path: ${{ env.HYPRE_TOP_DIR }}
         key: ${{ runner.os }}-build-${{ env.HYPRE_TOP_DIR }}-${{ matrix.hypre-target }}-v2.2
@@ -176,7 +174,7 @@ jobs:
     - name: cache metis
       id: metis-cache
       if: matrix.mpi == 'par' && matrix.os != 'windows-latest'
-      uses: actions/cache@v2
+      uses: actions/cache@v3
       with:
         path: ${{ env.METIS_TOP_DIR }}
         key: ${{ runner.os }}-build-${{ env.METIS_TOP_DIR }}-v2.2
@@ -190,12 +188,13 @@ jobs:
 
     - name: cache vcpkg (Windows)
       id: vcpkg-cache
+      if: matrix.os == 'windows-latest'
       uses: actions/cache@v3
       with:
         path: vcpkg_cache
         key: ${{ runner.os }}-${{ matrix.mpi }}-vcpkg-v1
 
-    - name: prepare binary cache location
+    - name: prepare vcpkg binary cache location (Windows)
       if: matrix.os == 'windows-latest' && steps.vcpkg-cache.outputs.cache-hit != 'true'
       run: |
         mkdir -p vcpkg_cache
@@ -230,11 +229,7 @@ jobs:
       run: |
         cd ${{ env.MFEM_TOP_DIR }}  && make check
 
-    - name: unit tests
-      if: matrix.build-system == 'make' && matrix.target == 'opt'
-      run: |
-        cd ${{ env.MFEM_TOP_DIR }} && make unittest
-
+    # Note: 'tests' include the unit tests
     - name: tests
       if: matrix.build-system == 'make' && matrix.target == 'opt'
       run: |
@@ -247,7 +242,7 @@ jobs:
         cd ${{ env.MFEM_TOP_DIR }} && cmake --build build --target check --config ${CTEST_CONFIG}
       shell: bash
 
-    - name: cmake unit tests (Ubuntu 20.04)
+    - name: cmake unit tests (Ubuntu)
       if: matrix.build-system == 'cmake' && matrix.target == 'opt' && matrix.os == 'ubuntu-latest'
       run: |
         CTEST_CONFIG="Release"
@@ -265,7 +260,7 @@ jobs:
     # Code coverage (process and upload reports)
     - name: codecov
       if: matrix.codecov == 'YES'
-      uses: mfem/github-actions/upload-coverage@v2.0
+      uses: mfem/github-actions/upload-coverage@v2.2
       with:
         name: ${{ matrix.os }}-${{ matrix.build-system }}-${{ matrix.target }}-${{ matrix.mpi }}-${{ matrix.hypre-target }}
         project_dir: ${{ env.MFEM_TOP_DIR }}
