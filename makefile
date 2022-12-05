@@ -10,7 +10,7 @@
 # CONTRIBUTING.md for details.
 
 # The current MFEM version as an integer, see also `CMakeLists.txt`.
-MFEM_VERSION = 40401
+MFEM_VERSION = 40501
 MFEM_VERSION_STRING = $(shell printf "%06d" $(MFEM_VERSION) | \
   sed -e 's/^0*\(.*.\)\(..\)\(..\)$$/\1.\2.\3/' -e 's/\.0/./g' -e 's/\.0$$//')
 
