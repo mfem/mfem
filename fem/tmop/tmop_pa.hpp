@@ -19,11 +19,17 @@
 
 #include <unordered_map>
 
+#ifdef MFEM_USE_JIT
+#include "../../general/jit/jit.hpp" // for MFEM_JIT
+#endif
+
 namespace mfem
 {
 
 namespace kernels
 {
+
+#ifndef MFEM_USE_JIT
 
 template <typename K> class KernelMap;
 
@@ -184,6 +190,8 @@ else {\
    const int d1d = (id>>4)&0xF, q1d = id&0xF;\
    MFEM_VERIFY(d1d <= MAX_D1D && q1d <= MAX_Q1D, "Max size error!");\
    return kernel<0,0,T_MAX>(__VA_ARGS__,d1d,q1d); }
+
+#endif // MFEM_USE_JIT
 
 } // namespace kernels
 

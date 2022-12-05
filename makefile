@@ -466,7 +466,13 @@ else
 # JIT compilation rules
 # Files that will be preprocessed
 JIT_SOURCE_FILES = $(SRC)fem/bilininteg_diffusion_pa.cpp \
-$(SRC)fem/bilininteg_mass_pa.cpp
+$(SRC)fem/bilininteg_mass_pa.cpp \
+$(SRC)fem/tmop/tmop_pa_da3.cpp \
+$(SRC)fem/tmop/tmop_pa_h2d.cpp \
+$(SRC)fem/tmop/tmop_pa_h2d_c0.cpp \
+$(SRC)fem/tmop/tmop_pa_h2m.cpp \
+$(SRC)fem/tmop/tmop_pa_h2m_c0.cpp \
+$(SRC)fem/tmop/tmop_pa_h2s.cpp
 
 # Filter out objects that will be compiled through the preprocessor
 JIT_OBJECT_FILES = $(JIT_SOURCE_FILES:$(SRC)%.cpp=$(BLD)%.o)

@@ -386,6 +386,8 @@ struct Parser
       //   - HYPRE_config.h in mem_manager.hpp
       ker.src << "\n#define MFEM_JIT_COMPILATION"
               << "\n#include \"general/forall.hpp\""
+              << "\n#include \"linalg/dinvariants.hpp\""
+              << "\n#include \"fem/kernels.hpp\""
               << "\n#include \"linalg/kernels.hpp\""
               << "\n#include \"fem/bilininteg_mass_pa.hpp\"";
       // MFEM_FORALL_2D_JIT

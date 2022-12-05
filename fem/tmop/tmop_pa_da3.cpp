@@ -17,27 +17,24 @@
 namespace mfem
 {
 
-MFEM_REGISTER_TMOP_KERNELS(void, DatcSize,
-                           const int NE,
-                           const int ncomp,
-                           const int sizeidx,
-                           const DenseMatrix &w_,
-                           const Array<double> &b_,
-                           const Vector &x_,
-                           DenseTensor &j_,
-                           const int d1d,
-                           const int q1d)
+MFEM_JIT
+template<int T_D1D = 0, int T_Q1D = 0, int T_MAX = 4>
+void DatcSize(const int NE,
+              const int ncomp,
+              const int sizeidx,
+              const ConstDeviceMatrix &W,
+              const ConstDeviceMatrix &B,
+              const DeviceTensor<5, const double> &X,
+              DeviceTensor<6> &J,
+              const int d1d = 0,
+              const int q1d = 0,
+              const int max = 4)
 {
    MFEM_VERIFY(ncomp==1,"");
    constexpr int DIM = 3;
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
    MFEM_VERIFY(D1D <= Q1D, "");
-
-   const auto b = Reshape(b_.Read(), Q1D, D1D);
-   const auto W = Reshape(w_.Read(), DIM,DIM);
-   const auto X = Reshape(x_.Read(), D1D, D1D, D1D, ncomp, NE);
-   auto J = Reshape(j_.Write(), DIM,DIM, Q1D,Q1D,Q1D, NE);
 
    const double infinity = std::numeric_limits<double>::infinity();
    MFEM_VERIFY(sizeidx == 0,"");
@@ -55,7 +52,7 @@ MFEM_REGISTER_TMOP_KERNELS(void, DatcSize,
       MFEM_SHARED double sm0[MDQ*MDQ*MDQ];
       MFEM_SHARED double sm1[MDQ*MDQ*MDQ];
 
-      kernels::internal::LoadB<MD1,MQ1>(D1D,Q1D,b,sB);
+      kernels::internal::LoadB<MD1,MQ1>(D1D,Q1D,B,sB);
 
       ConstDeviceMatrix B(sB, D1D, Q1D);
       DeviceCube DDD(sm0, MD1,MD1,MD1);
@@ -169,8 +166,41 @@ void DiscreteAdaptTC::ComputeAllElementTargets(const FiniteElementSpace &pa_fes,
    tspec_e.UseDevice(true);
    tspec.UseDevice(true);
    R->Mult(tspec, tspec_e);
-   const int id = (D1D << 4 ) | Q1D;
-   MFEM_LAUNCH_TMOP_KERNEL(DatcSize,id,NE,ncomp,sizeidx,W,B,tspec_e,Jtr);
+
+   constexpr int DIM = 3;
+   const auto Br = Reshape(B.Read(), Q1D, D1D);
+   const auto Wr = Reshape(W.Read(), DIM,DIM);
+   const auto Xr = Reshape(tspec_e.Read(), D1D, D1D, D1D, ncomp, NE);
+   auto Jw = Reshape(Jtr.Write(), DIM,DIM, Q1D,Q1D,Q1D, NE);
+
+#ifndef MFEM_USE_JIT
+   decltype(&DatcSize<>) ker = DatcSize<>;
+
+   const int d=D1D, q=Q1D;
+   if (d == 2 && q==2) { ker = DatcSize<2,2>; }
+   if (d == 2 && q==3) { ker = DatcSize<2,3>; }
+   if (d == 2 && q==4) { ker = DatcSize<2,4>; }
+   if (d == 2 && q==5) { ker = DatcSize<2,5>; }
+   if (d == 2 && q==6) { ker = DatcSize<2,6>; }
+
+   if (d == 3 && q==3) { ker = DatcSize<3,3>; }
+   if (d == 3 && q==4) { ker = DatcSize<4,4>; }
+   if (d == 3 && q==5) { ker = DatcSize<5,5>; }
+   if (d == 3 && q==6) { ker = DatcSize<6,6>; }
+
+   if (d == 4 && q==4) { ker = DatcSize<4,4>; }
+   if (d == 4 && q==5) { ker = DatcSize<4,5>; }
+   if (d == 4 && q==6) { ker = DatcSize<4,6>; }
+
+   if (d == 5 && q==5) { ker = DatcSize<5,5>; }
+   if (d == 5 && q==6) { ker = DatcSize<5,6>; }
+
+   MFEM_VERIFY(ker, "No kernel ndof " << d << " nqpt " << q);
+
+   ker(NE,ncomp,sizeidx,Wr,Br,Xr,Jw);
+#else
+   DatcSize(NE,ncomp,sizeidx,Wr,Br,Xr,Jw,D1D,Q1D,4);
+#endif
 }
 
 } // namespace mfem
