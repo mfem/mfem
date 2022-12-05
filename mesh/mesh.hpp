@@ -1024,7 +1024,7 @@ public:
    /** @brief This function should be called after the mesh node coordinates
        have been updated externally, e.g. by modifying the internal nodal
        GridFunction returned by GetNodes(). */
-   /** It updates/deletes internal quantities derived from the node coordinates,
+   /** It deletes internal quantities derived from the node coordinates,
        such as the (Face)GeometricFactors.
 
        @note Unlike the similarly named protected method UpdateNodes() this
