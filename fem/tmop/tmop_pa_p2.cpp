@@ -84,21 +84,18 @@ void TMOP_AddMultPA_2D(const double metric_normal,
             double P[4];
             if (mid==1)
             {
-               //EvalP_001(Jpt, P);
                double dI1[4];
                kernels::InvariantsEvaluator2D ie(Args().J(Jpt).dI1(dI1));
                kernels::Set(2,2, 1.0, ie.Get_dI1(), P);
             }
             if (mid==2)
             {
-               //EvalP_002(Jpt, P);
                double dI1b[4], dI2b[4];
                kernels::InvariantsEvaluator2D ie(Args().J(Jpt).dI1b(dI1b).dI2b(dI2b));
                kernels::Set(2,2, 1./2., ie.Get_dI1b(), P);
             }
             if (mid==7)
             {
-               //EvalP_007(Jpt, P);
                double dI1[4], dI2[4], dI2b[4];
                kernels::InvariantsEvaluator2D ie(Args().J(Jpt).dI1(dI1)
                                                  .dI2(dI2).dI2b(dI2b));
@@ -108,7 +105,6 @@ void TMOP_AddMultPA_2D(const double metric_normal,
             }
             if (mid==77)
             {
-               //EvalP_077(Jpt, P);
                double dI2[4], dI2b[4];
                kernels::InvariantsEvaluator2D ie(Args().
                                                  J(Jpt).
@@ -118,9 +114,7 @@ void TMOP_AddMultPA_2D(const double metric_normal,
             }
             if (mid==80)
             {
-               //EvalP_080(Jpt, metric_param, P);
-               // p_80 = (1-gamma) p_2 + gamma p_77.
-
+               // p_80 = (1-gamma) p_2 + gamma p_77
                double dI1b[4], dI2[4], dI2b[4];
                kernels::InvariantsEvaluator2D ie
                (Args().J(Jpt).dI1b(dI1b).dI2(dI2).dI2b(dI2b));

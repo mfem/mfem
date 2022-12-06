@@ -85,7 +85,6 @@ void TMOP_SetupGradPA_2D(const DeviceTensor<4,const double> &X,
             if (mid==1)
             {
                // weight * ddI1
-               constexpr int DIM = 2;
                double ddI1[4];
                kernels::InvariantsEvaluator2D ie(Args().J(Jpt).ddI1(ddI1));
                for (int i = 0; i < DIM; i++)
