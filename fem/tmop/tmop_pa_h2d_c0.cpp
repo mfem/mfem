@@ -34,8 +34,8 @@ void TMOP_AssembleDiagonalPA_C0_2D(const int NE,
       constexpr int DIM = 2;
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
-      constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
-      constexpr int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;
+      constexpr int MD1 = T_D1D ? T_D1D : T_MAX;
+      constexpr int MQ1 = T_Q1D ? T_Q1D : T_MAX;
 
       MFEM_SHARED double qd[MQ1*MD1];
       DeviceTensor<2,double> QD(qd, MQ1, MD1);
