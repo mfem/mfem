@@ -120,7 +120,7 @@ MFEM_REGISTER_TMOP_KERNELS(double, EnergyPA_C0_2D,
             {
                id2 = 1.0 / (dist*dist);
                dsq = kernels::DistanceSquared<2>(p1,p0) * id2;
-               E(qx,qy,e) = weight * lim_normal * exp(10.0*dsq-1.0) * coeff0;
+               E(qx,qy,e) = weight * lim_normal * exp(10.0*(dsq-1.0)) * coeff0;
             }
          }
       }

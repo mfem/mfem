@@ -1113,7 +1113,7 @@ public:
    {
       MFEM_ASSERT(x.Size() == x0.Size(), "Bad input.");
 
-      return  exp(10.0*(x.DistanceSquaredTo(x0) / (dist * dist))-1.0);
+      return  exp(10.0*((x.DistanceSquaredTo(x0) / (dist * dist))-1.0));
    }
 
    virtual void Eval_d1(const Vector &x, const Vector &x0, double dist,
@@ -1135,7 +1135,7 @@ public:
       tmp.SetSize(x.Size());
       double dist_squared = dist*dist;
       double dist_squared_squared = dist_squared*dist_squared;
-      double f = exp(10.0*(x.DistanceSquaredTo(x0) / dist_squared)-1.0);
+      double f = exp(10.0*((x.DistanceSquaredTo(x0) / dist_squared)-1.0));
 
       subtract(x,x0,tmp);
       d2.SetSize(x.Size());
