@@ -1047,6 +1047,7 @@ public:
 
    const Element *GetFace(int i) const { return faces[i]; }
 
+   /// Return the Geometry::Type associated with face @a i.
    Geometry::Type GetFaceGeometry(int i) const;
 
    Geometry::Type GetElementGeometry(int i) const
@@ -1059,7 +1060,7 @@ public:
       return boundary[i]->GetGeometryType();
    }
 
-   // deprecated: "base geometry" no longer means anything
+   /// Deprecated in factor of Mesh::GetFaceGeometry
    MFEM_DEPRECATED Geometry::Type GetFaceBaseGeometry(int i) const
    { return GetFaceGeometry(i); }
 
@@ -1448,6 +1449,7 @@ public:
    void GetFaceInfos (int Face, int *Inf1, int *Inf2) const;
    void GetFaceInfos (int Face, int *Inf1, int *Inf2, int *NCFace) const;
 
+   /// Deprecated in factor of Mesh::GetFaceGeometry
    MFEM_DEPRECATED Geometry::Type GetFaceGeometryType(int Face) const
    { return GetElementGeometry(Face); }
 
