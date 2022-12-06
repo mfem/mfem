@@ -18,39 +18,31 @@
 namespace mfem
 {
 
-MFEM_REGISTER_TMOP_KERNELS(void, SetupGradPA_C0_2D,
-                           const double lim_normal,
-                           const Vector &lim_dist,
-                           const Vector &c0_,
-                           const int NE,
-                           const DenseTensor &j_,
-                           const Array<double> &w_,
-                           const Array<double> &bld_,
-                           Vector &h0_,
-                           const int d1d,
-                           const int q1d)
+MFEM_JIT
+template<int T_D1D = 0, int T_Q1D = 0, int T_MAX = 4>
+void TMOP_SetupGradPA_C0_2D(const double lim_normal,
+                            const ConstDeviceCube &LD,
+                            const bool const_c0,
+                            const DeviceTensor<3, const double> &C0,
+                            const int NE,
+                            const DeviceTensor<5, const double> &J,
+                            const ConstDeviceMatrix &W,
+                            const ConstDeviceMatrix &bld,
+                            DeviceTensor<5> &H0,
+                            const int d1d,
+                            const int q1d,
+                            const int max)
 {
-   constexpr int DIM = 2;
    constexpr int NBZ = 1;
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
-
-   const bool const_c0 = c0_.Size() == 1;
-   const auto C0 = const_c0 ?
-                   Reshape(c0_.Read(), 1, 1, 1) :
-                   Reshape(c0_.Read(), Q1D, Q1D, NE);
-   const auto LD = Reshape(lim_dist.Read(), D1D, D1D, NE);
-   const auto J = Reshape(j_.Read(), DIM, DIM, Q1D, Q1D, NE);
-   const auto W = Reshape(w_.Read(), Q1D, Q1D);
-   const auto bld = Reshape(bld_.Read(), Q1D, D1D);
-
-   auto H0 = Reshape(h0_.Write(), DIM, DIM, Q1D, Q1D, NE);
 
    MFEM_FORALL_2D(e, NE, Q1D, Q1D, NBZ,
    {
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
       constexpr int NBZ = 1;
+      constexpr int DIM = 2;
       constexpr int MQ1 = T_Q1D ? T_Q1D : T_MAX;
       constexpr int MD1 = T_D1D ? T_D1D : T_MAX;
 
@@ -103,19 +95,48 @@ MFEM_REGISTER_TMOP_KERNELS(void, SetupGradPA_C0_2D,
 void TMOP_Integrator::AssembleGradPA_C0_2D(const Vector &X) const
 {
    MFEM_CONTRACT_VAR(X);
-   const int N = PA.ne;
+   const int NE = PA.ne;
+   constexpr int DIM = 2;
    const int D1D = PA.maps_lim->ndof;
    const int Q1D = PA.maps_lim->nqpt;
-   const int id = (D1D << 4 ) | Q1D;
-   const double ln = lim_normal;
-   const Vector &LD = PA.LD;
-   const DenseTensor &J = PA.Jtr;
-   const Array<double> &W   = PA.ir->GetWeights();
-   const Array<double> &BLD = PA.maps_lim->B;
-   const Vector &C0 = PA.C0;
-   Vector &H0 = PA.H0;
 
-   MFEM_LAUNCH_TMOP_KERNEL(SetupGradPA_C0_2D,id,ln,LD,C0,N,J,W,BLD,H0);
+   const double ln = lim_normal;
+   const bool const_c0 = PA.C0.Size() == 1;
+   const auto C0 = const_c0 ?
+                   Reshape(PA.C0.Read(), 1, 1, 1) :
+                   Reshape(PA.C0.Read(), Q1D, Q1D, NE);
+   const auto J = Reshape(PA.Jtr.Read(), DIM, DIM, Q1D, Q1D, NE);
+   const auto W = Reshape(PA.ir->GetWeights().Read(), Q1D, Q1D);
+   const auto BLD = Reshape(PA.maps_lim->B.Read(), Q1D, D1D);
+   const auto LD = Reshape(PA.LD.Read(), D1D, D1D, NE);
+   auto H0 = Reshape(PA.H0.Write(), DIM, DIM, Q1D, Q1D, NE);
+
+#ifndef MFEM_USE_JIT
+   decltype(&TMOP_SetupGradPA_C0_2D<>) ker = TMOP_SetupGradPA_C0_2D<>;
+
+   const int d=D1D, q=Q1D;
+   if (d == 2 && q==2) { ker = TMOP_SetupGradPA_C0_2D<2,2>; }
+   if (d == 2 && q==3) { ker = TMOP_SetupGradPA_C0_2D<2,3>; }
+   if (d == 2 && q==4) { ker = TMOP_SetupGradPA_C0_2D<2,4>; }
+   if (d == 2 && q==5) { ker = TMOP_SetupGradPA_C0_2D<2,5>; }
+   if (d == 2 && q==6) { ker = TMOP_SetupGradPA_C0_2D<2,6>; }
+
+   if (d == 3 && q==3) { ker = TMOP_SetupGradPA_C0_2D<3,3>; }
+   if (d == 3 && q==4) { ker = TMOP_SetupGradPA_C0_2D<4,4>; }
+   if (d == 3 && q==5) { ker = TMOP_SetupGradPA_C0_2D<5,5>; }
+   if (d == 3 && q==6) { ker = TMOP_SetupGradPA_C0_2D<6,6>; }
+
+   if (d == 4 && q==4) { ker = TMOP_SetupGradPA_C0_2D<4,4>; }
+   if (d == 4 && q==5) { ker = TMOP_SetupGradPA_C0_2D<4,5>; }
+   if (d == 4 && q==6) { ker = TMOP_SetupGradPA_C0_2D<4,6>; }
+
+   if (d == 5 && q==5) { ker = TMOP_SetupGradPA_C0_2D<5,5>; }
+   if (d == 5 && q==6) { ker = TMOP_SetupGradPA_C0_2D<5,6>; }
+
+   ker(ln,LD,const_c0,C0,NE,J,W,BLD,H0,D1D,Q1D,4);
+#else
+   TMOP_SetupGradPA_C0_2D(ln,LD,const_c0,C0,NE,J,W,BLD,H0,D1D,Q1D,4);
+#endif
 }
 
 } // namespace mfem

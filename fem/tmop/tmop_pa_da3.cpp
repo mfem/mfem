@@ -195,8 +195,6 @@ void DiscreteAdaptTC::ComputeAllElementTargets(const FiniteElementSpace &pa_fes,
    if (d == 5 && q==5) { ker = DatcSize<5,5>; }
    if (d == 5 && q==6) { ker = DatcSize<5,6>; }
 
-   MFEM_VERIFY(ker, "No kernel ndof " << d << " nqpt " << q);
-
    ker(NE,ncomp,sizeidx,Wr,Br,Xr,Jw);
 #else
    DatcSize(NE,ncomp,sizeidx,Wr,Br,Xr,Jw,D1D,Q1D,4);

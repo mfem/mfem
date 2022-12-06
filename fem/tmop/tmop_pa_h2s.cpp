@@ -48,6 +48,7 @@ void TMOP_SetupGradPA_2D(const DeviceTensor<4,const double> &X,
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
       constexpr int NBZ = 1;
+      constexpr int DIM = 2;
       constexpr int MQ1 = T_Q1D ? T_Q1D : T_MAX;
       constexpr int MD1 = T_D1D ? T_D1D : T_MAX;
 
@@ -85,173 +86,137 @@ void TMOP_SetupGradPA_2D(const DeviceTensor<4,const double> &X,
             // metric->AssembleH
             if (mid ==  1)
             {
-               auto EvalH_001 = [&]() // weight * ddI1
+               // weight * ddI1
+               constexpr int DIM = 2;
+               double ddI1[4];
+               kernels::InvariantsEvaluator2D ie(Args().J(Jpt).ddI1(ddI1));
+               for (int i = 0; i < DIM; i++)
                {
-                  constexpr int DIM = 2;
-                  double ddI1[4];
-                  kernels::InvariantsEvaluator2D ie(Args().J(Jpt).ddI1(ddI1));
-                  for (int i = 0; i < DIM; i++)
+                  for (int j = 0; j < DIM; j++)
                   {
-                     for (int j = 0; j < DIM; j++)
+                     ConstDeviceMatrix ddi1(ie.Get_ddI1(i,j),DIM,DIM);
+                     for (int r = 0; r < DIM; r++)
                      {
-                        ConstDeviceMatrix ddi1(ie.Get_ddI1(i,j),DIM,DIM);
-                        for (int r = 0; r < DIM; r++)
+                        for (int c = 0; c < DIM; c++)
                         {
-                           for (int c = 0; c < DIM; c++)
-                           {
-                              const double h = ddi1(r,c);
-                              H(r,c,i,j,qx,qy,e) = weight * h;
-                           }
+                           const double h = ddi1(r,c);
+                           H(r,c,i,j,qx,qy,e) = weight * h;
                         }
                      }
                   }
-               };
-               EvalH_001();
+               }
             }
 
             if (mid ==  2)
             {
-               constexpr int DIM = 2;
-               auto EvalH_002 = [&]() // 0.5 * weight * dI1b
+               // 0.5 * weight * dI1b
+               double ddI1[4], ddI1b[4], dI2b[4];
+               kernels::InvariantsEvaluator2D ie
+               (Args().J(Jpt).ddI1(ddI1).ddI1b(ddI1b).dI2b(dI2b));
+               const double w = 0.5 * weight;
+               for (int i = 0; i < DIM; i++)
                {
-                  double ddI1[4], ddI1b[4], dI2b[4];
-                  kernels::InvariantsEvaluator2D ie(Args()
-                                                    .J(Jpt)
-                                                    .ddI1(ddI1)
-                                                    .ddI1b(ddI1b)
-                                                    .dI2b(dI2b));
-                  const double w = 0.5 * weight;
-                  for (int i = 0; i < DIM; i++)
+                  for (int j = 0; j < DIM; j++)
                   {
-                     for (int j = 0; j < DIM; j++)
+                     ConstDeviceMatrix ddi1b(ie.Get_ddI1b(i,j),DIM,DIM);
+                     for (int r = 0; r < DIM; r++)
                      {
-                        ConstDeviceMatrix ddi1b(ie.Get_ddI1b(i,j),DIM,DIM);
-                        for (int r = 0; r < DIM; r++)
+                        for (int c = 0; c < DIM; c++)
                         {
-                           for (int c = 0; c < DIM; c++)
-                           {
-                              const double h = ddi1b(r,c);
-                              H(r,c,i,j,qx,qy,e) = w * h;
-                           }
+                           const double h = ddi1b(r,c);
+                           H(r,c,i,j,qx,qy,e) = w * h;
                         }
                      }
                   }
-               };
-               EvalH_002();
+               }
             }
 
             if (mid ==  7)
             {
-               auto EvalH_007 = [&]()
-               {
-                  constexpr int DIM = 2;
-                  double ddI1[4], ddI2[4], dI1[4], dI2[4], dI2b[4];
-                  kernels::InvariantsEvaluator2D ie(Args()
-                                                    .J(Jpt)
-                                                    .ddI1(ddI1)
-                                                    .ddI2(ddI2)
-                                                    .dI1(dI1)
-                                                    .dI2(dI2)
-                                                    .dI2b(dI2b));
-                  const double c1 = 1./ie.Get_I2();
-                  const double c2 = weight*c1*c1;
-                  const double c3 = ie.Get_I1()*c2;
-                  ConstDeviceMatrix di1(ie.Get_dI1(),DIM,DIM);
-                  ConstDeviceMatrix di2(ie.Get_dI2(),DIM,DIM);
+               double ddI1[4], ddI2[4], dI1[4], dI2[4], dI2b[4];
+               kernels::InvariantsEvaluator2D ie
+               (Args().J(Jpt).ddI1(ddI1).ddI2(ddI2)
+                .dI1(dI1).dI2(dI2).dI2b(dI2b));
+               const double c1 = 1./ie.Get_I2();
+               const double c2 = weight*c1*c1;
+               const double c3 = ie.Get_I1()*c2;
+               ConstDeviceMatrix di1(ie.Get_dI1(),DIM,DIM);
+               ConstDeviceMatrix di2(ie.Get_dI2(),DIM,DIM);
 
-                  for (int i = 0; i < DIM; i++)
+               for (int i = 0; i < DIM; i++)
+               {
+                  for (int j = 0; j < DIM; j++)
                   {
-                     for (int j = 0; j < DIM; j++)
+                     ConstDeviceMatrix ddi1(ie.Get_ddI1(i,j),DIM,DIM);
+                     ConstDeviceMatrix ddi2(ie.Get_ddI2(i,j),DIM,DIM);
+                     for (int r = 0; r < DIM; r++)
                      {
-                        ConstDeviceMatrix ddi1(ie.Get_ddI1(i,j),DIM,DIM);
-                        ConstDeviceMatrix ddi2(ie.Get_ddI2(i,j),DIM,DIM);
-                        for (int r = 0; r < DIM; r++)
+                        for (int c = 0; c < DIM; c++)
                         {
-                           for (int c = 0; c < DIM; c++)
-                           {
-                              H(r,c,i,j,qx,qy,e) =
-                                 weight * (1.0 + c1) * ddi1(r,c)
-                                 - c3 * ddi2(r,c)
-                                 - c2 * ( di1(i,j) * di2(r,c) + di2(i,j) * di1(r,c) )
-                                 + 2.0 * c1 * c3 * di2(r,c) * di2(i,j);
-                           }
+                           H(r,c,i,j,qx,qy,e) =
+                              weight * (1.0 + c1) * ddi1(r,c)
+                              - c3 * ddi2(r,c)
+                              - c2 * ( di1(i,j) * di2(r,c) + di2(i,j) * di1(r,c) )
+                              + 2.0 * c1 * c3 * di2(r,c) * di2(i,j);
                         }
                      }
                   }
-               };
-               EvalH_007();
+               }
             }
 
             if (mid == 77)
             {
-               auto EvalH_077 = [&]()
+               double dI2[4], dI2b[4], ddI2[4];
+               kernels::InvariantsEvaluator2D ie
+               (Args().J(Jpt) .dI2(dI2).dI2b(dI2b).ddI2(ddI2));
+               const double I2 = ie.Get_I2(), I2inv_sq = 1.0 / (I2 * I2);
+               ConstDeviceMatrix di2(ie.Get_dI2(),DIM,DIM);
+               for (int i = 0; i < DIM; i++)
                {
-                  constexpr int DIM = 2;
-                  double dI2[4], dI2b[4], ddI2[4];
-                  kernels::InvariantsEvaluator2D ie(Args()
-                                                    .J(Jpt)
-                                                    .dI2(dI2)
-                                                    .dI2b(dI2b)
-                                                    .ddI2(ddI2));
-                  const double I2 = ie.Get_I2(), I2inv_sq = 1.0 / (I2 * I2);
-                  ConstDeviceMatrix di2(ie.Get_dI2(),DIM,DIM);
-                  for (int i = 0; i < DIM; i++)
+                  for (int j = 0; j < DIM; j++)
                   {
-                     for (int j = 0; j < DIM; j++)
+                     ConstDeviceMatrix ddi2(ie.Get_ddI2(i,j),DIM,DIM);
+                     for (int r = 0; r < DIM; r++)
                      {
-                        ConstDeviceMatrix ddi2(ie.Get_ddI2(i,j),DIM,DIM);
-                        for (int r = 0; r < DIM; r++)
+                        for (int c = 0; c < DIM; c++)
                         {
-                           for (int c = 0; c < DIM; c++)
-                           {
-                              H(r,c,i,j,qx,qy,e) =
-                                 weight * 0.5 * (1.0 - I2inv_sq) * ddi2(r,c)
-                                 + weight * (I2inv_sq / I2) * di2(r,c) * di2(i,j);
-                           }
+                           H(r,c,i,j,qx,qy,e) =
+                              weight * 0.5 * (1.0 - I2inv_sq) * ddi2(r,c)
+                              + weight * (I2inv_sq / I2) * di2(r,c) * di2(i,j);
                         }
                      }
                   }
-               };
-               EvalH_077();
+               }
             }
 
             if (mid == 80)
             {
-               auto EvalH_080 = [&](const double h_gamma)
+               // h_80 = (1-gamma) h_2 + gamma h_77.
+               double ddI1[4], ddI1b[4], dI2[4], dI2b[4], ddI2[4];
+               kernels::InvariantsEvaluator2D ie
+               (Args().J(Jpt).dI2(dI2).ddI1(ddI1)
+                .ddI1b(ddI1b).dI2b(dI2b).ddI2(ddI2));
+               const double I2 = ie.Get_I2(), I2inv_sq = 1.0 / (I2 * I2);
+               ConstDeviceMatrix di2(ie.Get_dI2(),DIM,DIM);
+               for (int i = 0; i < DIM; i++)
                {
-                  // h_80 = (1-gamma) h_2 + gamma h_77.
-                  constexpr int DIM = 2;
-                  double ddI1[4], ddI1b[4], dI2[4], dI2b[4], ddI2[4];
-                  kernels::InvariantsEvaluator2D ie(Args()
-                                                    .J(Jpt)
-                                                    .dI2(dI2)
-                                                    .ddI1(ddI1)
-                                                    .ddI1b(ddI1b)
-                                                    .dI2b(dI2b)
-                                                    .ddI2(ddI2));
-
-                  const double I2 = ie.Get_I2(), I2inv_sq = 1.0 / (I2 * I2);
-                  ConstDeviceMatrix di2(ie.Get_dI2(),DIM,DIM);
-                  for (int i = 0; i < DIM; i++)
+                  for (int j = 0; j < DIM; j++)
                   {
-                     for (int j = 0; j < DIM; j++)
+                     ConstDeviceMatrix ddi1b(ie.Get_ddI1b(i,j),DIM,DIM);
+                     ConstDeviceMatrix ddi2(ie.Get_ddI2(i,j),DIM,DIM);
+                     for (int r = 0; r < DIM; r++)
                      {
-                        ConstDeviceMatrix ddi1b(ie.Get_ddI1b(i,j),DIM,DIM);
-                        ConstDeviceMatrix ddi2(ie.Get_ddI2(i,j),DIM,DIM);
-                        for (int r = 0; r < DIM; r++)
+                        for (int c = 0; c < DIM; c++)
                         {
-                           for (int c = 0; c < DIM; c++)
-                           {
-                              H(r,c,i,j,qx,qy,e) =
-                                 (1.0 - h_gamma) * 0.5 * weight * ddi1b(r,c) +
-                                 h_gamma * ( weight * 0.5 * (1.0 - I2inv_sq) * ddi2(r,c) +
-                                             weight * (I2inv_sq / I2) * di2(r,c) * di2(i,j) );
-                           }
+                           H(r,c,i,j,qx,qy,e) =
+                              (1.0 - metric_param) * 0.5 * weight * ddi1b(r,c) +
+                              metric_param *
+                              ( weight * 0.5 * (1.0 - I2inv_sq) * ddi2(r,c) +
+                                weight * (I2inv_sq / I2) * di2(r,c) * di2(i,j) );
                         }
                      }
                   }
-               };
-               EvalH_080(metric_param);
+               }
             }
          } // qx
       } // qy
@@ -270,9 +235,9 @@ void TMOP_Integrator::AssembleGradPA_2D(const Vector &x) const
    double mp = 0.0;
    if (auto m = dynamic_cast<TMOP_Metric_080 *>(metric)) { mp = m->GetGamma(); }
 
-   const auto W = Reshape(PA.ir->GetWeights().Read(), Q1D, Q1D);
    const auto B = Reshape(PA.maps->B.Read(), Q1D, D1D);
    const auto G = Reshape(PA.maps->G.Read(), Q1D, D1D);
+   const auto W = Reshape(PA.ir->GetWeights().Read(), Q1D, Q1D);
    const auto J = Reshape(PA.Jtr.Read(), DIM, DIM, Q1D, Q1D, NE);
    const auto X = Reshape(x.Read(), D1D, D1D, DIM, NE);
    auto H = Reshape(PA.H.Write(), DIM, DIM, DIM, DIM, Q1D, Q1D, NE);
@@ -298,8 +263,6 @@ void TMOP_Integrator::AssembleGradPA_2D(const Vector &x) const
 
    if (d == 5 && q==5) { ker = TMOP_SetupGradPA_2D<5,5>; }
    if (d == 5 && q==6) { ker = TMOP_SetupGradPA_2D<5,6>; }
-
-   MFEM_VERIFY(ker, "No kernel ndof " << d << " nqpt " << q);
 
    ker(X,mn,mp,M,NE,W,B,G,J,H,D1D,Q1D,4);
 #else

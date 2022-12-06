@@ -18,24 +18,20 @@
 namespace mfem
 {
 
-MFEM_REGISTER_TMOP_KERNELS(double, MinDetJpr_Kernel_3D,
-                           const int NE,
-                           const Array<double> &b_,
-                           const Array<double> &g_,
-                           const Vector &x_,
-                           Vector &DetJ,
-                           const int d1d,
-                           const int q1d)
+MFEM_JIT
+template<int T_D1D = 0, int T_Q1D = 0, int T_MAX = 4>
+void TMOP_MinDetJpr_3D(const int NE,
+                       const ConstDeviceMatrix &B,
+                       const ConstDeviceMatrix &G,
+                       const DeviceTensor<5, const double> &X,
+                       DeviceTensor<4> &E,
+                       const int d1d,
+                       const int q1d,
+                       const int max)
 {
    constexpr int DIM = 3;
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
-
-   const auto b = Reshape(b_.Read(), Q1D, D1D);
-   const auto g = Reshape(g_.Read(), Q1D, D1D);
-   const auto X = Reshape(x_.Read(), D1D, D1D, D1D, DIM, NE);
-
-   auto E = Reshape(DetJ.Write(), Q1D, Q1D, Q1D, NE);
 
    MFEM_FORALL_3D(e, NE, Q1D, Q1D, Q1D,
    {
@@ -51,7 +47,7 @@ MFEM_REGISTER_TMOP_KERNELS(double, MinDetJpr_Kernel_3D,
       MFEM_SHARED double QQQ[9][MQ1*MQ1*MQ1];
 
       kernels::internal::LoadX<MD1>(e,D1D,X,DDD);
-      kernels::internal::LoadBG<MD1,MQ1>(D1D,Q1D,b,g,BG);
+      kernels::internal::LoadBG<MD1,MQ1>(D1D,Q1D,B,G,BG);
 
       kernels::internal::GradX<MD1,MQ1>(D1D,Q1D,BG,DDD,DDQ);
       kernels::internal::GradY<MD1,MQ1>(D1D,Q1D,BG,DDQ,DQQ);
@@ -70,32 +66,59 @@ MFEM_REGISTER_TMOP_KERNELS(double, MinDetJpr_Kernel_3D,
          }
       }
    });
-
-   return DetJ.Min();
 }
 
 double TMOPNewtonSolver::MinDetJpr_3D(const FiniteElementSpace *fes,
-                                      const Vector &X) const
+                                      const Vector &x) const
 {
    const ElementDofOrdering ordering = ElementDofOrdering::LEXICOGRAPHIC;
    const Operator *R = fes->GetElementRestriction(ordering);
-   Vector XE(R->Height(), Device::GetDeviceMemoryType());
-   XE.UseDevice(true);
-   R->Mult(X, XE);
+   Vector xe(R->Height(), Device::GetDeviceMemoryType());
+   xe.UseDevice(true);
+   R->Mult(x, xe);
 
    const DofToQuad &maps = fes->GetFE(0)->GetDofToQuad(ir, DofToQuad::TENSOR);
    const int NE = fes->GetMesh()->GetNE();
    const int NQ = ir.GetNPoints();
    const int D1D = maps.ndof;
    const int Q1D = maps.nqpt;
-   const int id = (D1D << 4 ) | Q1D;
-   const Array<double> &B = maps.B;
-   const Array<double> &G = maps.G;
 
-   Vector E(NE*NQ);
-   E.UseDevice(true);
+   constexpr int DIM = 2;
+   const auto B = Reshape(maps.B.Read(), Q1D, D1D);
+   const auto G = Reshape(maps.G.Read(), Q1D, D1D);
+   const auto XE = Reshape(xe.Read(), D1D, D1D, D1D, DIM, NE);
 
-   MFEM_LAUNCH_TMOP_KERNEL(MinDetJpr_Kernel_3D,id,NE,B,G,XE,E);
+   Vector e(NE*NQ);
+   e.UseDevice(true);
+   auto E = Reshape(e.Write(), Q1D, Q1D, Q1D, NE);
+
+#ifndef MFEM_USE_JIT
+   decltype(&TMOP_MinDetJpr_3D<>) ker = TMOP_MinDetJpr_3D<>;
+
+   const int d=D1D, q=Q1D;
+   if (d == 2 && q==2) { ker = TMOP_MinDetJpr_3D<2,2>; }
+   if (d == 2 && q==3) { ker = TMOP_MinDetJpr_3D<2,3>; }
+   if (d == 2 && q==4) { ker = TMOP_MinDetJpr_3D<2,4>; }
+   if (d == 2 && q==5) { ker = TMOP_MinDetJpr_3D<2,5>; }
+   if (d == 2 && q==6) { ker = TMOP_MinDetJpr_3D<2,6>; }
+
+   if (d == 3 && q==3) { ker = TMOP_MinDetJpr_3D<3,3>; }
+   if (d == 3 && q==4) { ker = TMOP_MinDetJpr_3D<4,4>; }
+   if (d == 3 && q==5) { ker = TMOP_MinDetJpr_3D<5,5>; }
+   if (d == 3 && q==6) { ker = TMOP_MinDetJpr_3D<6,6>; }
+
+   if (d == 4 && q==4) { ker = TMOP_MinDetJpr_3D<4,4>; }
+   if (d == 4 && q==5) { ker = TMOP_MinDetJpr_3D<4,5>; }
+   if (d == 4 && q==6) { ker = TMOP_MinDetJpr_3D<4,6>; }
+
+   if (d == 5 && q==5) { ker = TMOP_MinDetJpr_3D<5,5>; }
+   if (d == 5 && q==6) { ker = TMOP_MinDetJpr_3D<5,6>; }
+
+   ker(NE,B,G,XE,E,D1D,Q1D,4);
+#else
+   TMOP_MinDetJpr_3D(NE,B,G,XE,E,D1D,Q1D,4);
+#endif
+   return e.Min();
 }
 
 } // namespace mfem

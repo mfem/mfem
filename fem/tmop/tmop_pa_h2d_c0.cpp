@@ -111,8 +111,6 @@ void TMOP_Integrator::AssembleDiagonalPA_C0_2D(Vector &diagonal) const
    if (d == 5 && q==5) { ker = TMOP_AssembleDiagonalPA_C0_2D<5,5>; }
    if (d == 5 && q==6) { ker = TMOP_AssembleDiagonalPA_C0_2D<5,6>; }
 
-   MFEM_VERIFY(ker, "No kernel ndof " << d << " nqpt " << q);
-
    ker(NE,B,H0,D,D1D,Q1D,4);
 #else
    TMOP_AssembleDiagonalPA_C0_2D(NE,B,H0,D,D1D,Q1D,4);

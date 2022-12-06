@@ -142,6 +142,7 @@ void TMOP_AssembleDiagonalPA_2D(const int NE,
 void TMOP_Integrator::AssembleDiagonalPA_2D(Vector &diagonal) const
 {
    const int NE = PA.ne;
+   constexpr int DIM = 2;
    const int D1D = PA.maps->ndof;
    const int Q1D = PA.maps->nqpt;
 
@@ -150,7 +151,6 @@ void TMOP_Integrator::AssembleDiagonalPA_2D(Vector &diagonal) const
    const Array<double> &g = PA.maps->G;
    const Vector &h = PA.H;
 
-   constexpr int DIM = 2;
    const auto B = Reshape(b.Read(), Q1D, D1D);
    const auto G = Reshape(g.Read(), Q1D, D1D);
    const auto J = Reshape(j.Read(), DIM, DIM, Q1D, Q1D, NE);
@@ -178,8 +178,6 @@ void TMOP_Integrator::AssembleDiagonalPA_2D(Vector &diagonal) const
 
    if (d == 5 && q==5) { ker = TMOP_AssembleDiagonalPA_2D<5,5>; }
    if (d == 5 && q==6) { ker = TMOP_AssembleDiagonalPA_2D<5,6>; }
-
-   MFEM_VERIFY(ker, "No kernel ndof " << d << " nqpt " << q);
 
    ker(NE,B,G,J,H,D,D1D,Q1D,4);
 #else

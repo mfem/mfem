@@ -472,7 +472,21 @@ $(SRC)fem/tmop/tmop_pa_h2d.cpp \
 $(SRC)fem/tmop/tmop_pa_h2d_c0.cpp \
 $(SRC)fem/tmop/tmop_pa_h2m.cpp \
 $(SRC)fem/tmop/tmop_pa_h2m_c0.cpp \
-$(SRC)fem/tmop/tmop_pa_h2s.cpp
+$(SRC)fem/tmop/tmop_pa_h2s.cpp \
+$(SRC)fem/tmop/tmop_pa_h2s_c0.cpp \
+$(SRC)fem/tmop/tmop_pa_h3d.cpp \
+$(SRC)fem/tmop/tmop_pa_h3d_c0.cpp \
+$(SRC)fem/tmop/tmop_pa_h3m.cpp \
+$(SRC)fem/tmop/tmop_pa_h3m_c0.cpp \
+$(SRC)fem/tmop/tmop_pa_h3s.cpp \
+$(SRC)fem/tmop/tmop_pa_h3s_c0.cpp \
+$(SRC)fem/tmop/tmop_pa_jp2.cpp \
+$(SRC)fem/tmop/tmop_pa_jp3.cpp \
+$(SRC)fem/tmop/tmop_pa_p2.cpp \
+$(SRC)fem/tmop/tmop_pa_p2_c0.cpp \
+$(SRC)fem/tmop/tmop_pa_p3.cpp \
+$(SRC)fem/tmop/tmop_pa_p3_c0.cpp \
+$(SRC)fem/tmop/tmop_pa_tc2.cpp
 
 # Filter out objects that will be compiled through the preprocessor
 JIT_OBJECT_FILES = $(JIT_SOURCE_FILES:$(SRC)%.cpp=$(BLD)%.o)

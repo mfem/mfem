@@ -121,8 +121,6 @@ void TMOP_Integrator::AddMultGradPA_C0_2D(const Vector &R,Vector &C) const
    if (d == 5 && q==5) { ker = TMOP_AddMultGradPA_C0_2D<5,5>; }
    if (d == 5 && q==6) { ker = TMOP_AddMultGradPA_C0_2D<5,6>; }
 
-   MFEM_VERIFY(ker, "No kernel ndof " << d << " nqpt " << q);
-
    ker(NE,B,H0,X,Y,D1D,Q1D,4);
 #else
    TMOP_AddMultGradPA_C0_2D(NE,B,H0,X,Y,D1D,Q1D,4);
