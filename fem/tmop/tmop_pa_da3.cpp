@@ -31,7 +31,6 @@ void DatcSize(const int NE,
               const int max = 4)
 {
    MFEM_VERIFY(ncomp==1,"");
-   constexpr int DIM = 3;
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
    MFEM_VERIFY(D1D <= Q1D, "");
@@ -42,6 +41,7 @@ void DatcSize(const int NE,
 
    MFEM_FORALL_3D(e, NE, Q1D, Q1D, Q1D,
    {
+      constexpr int DIM = 3;
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
       constexpr int MQ1 = T_Q1D ? T_Q1D : T_MAX;
@@ -150,10 +150,9 @@ void DiscreteAdaptTC::ComputeAllElementTargets(const FiniteElementSpace &pa_fes,
                "mixed meshes are not supported");
    MFEM_VERIFY(!fes->IsVariableOrder(), "variable orders are not supported");
    const FiniteElement &fe = *fes->GetFE(0);
-   const DenseMatrix &W = Geometries.GetGeomToPerfGeomJac(fe.GetGeomType());
+   const DenseMatrix &w = Geometries.GetGeomToPerfGeomJac(fe.GetGeomType());
    const DofToQuad::Mode mode = DofToQuad::TENSOR;
    const DofToQuad &maps = fe.GetDofToQuad(ir, mode);
-   const Array<double> &B = maps.B;
    const int D1D = maps.ndof;
    const int Q1D = maps.nqpt;
 
@@ -168,37 +167,33 @@ void DiscreteAdaptTC::ComputeAllElementTargets(const FiniteElementSpace &pa_fes,
    R->Mult(tspec, tspec_e);
 
    constexpr int DIM = 3;
-   const auto Br = Reshape(B.Read(), Q1D, D1D);
-   const auto Wr = Reshape(W.Read(), DIM,DIM);
-   const auto Xr = Reshape(tspec_e.Read(), D1D, D1D, D1D, ncomp, NE);
-   auto Jw = Reshape(Jtr.Write(), DIM,DIM, Q1D,Q1D,Q1D, NE);
+   const auto B = Reshape(maps.B.Read(), Q1D, D1D);
+   const auto W = Reshape(w.Read(), DIM,DIM);
+   const auto X = Reshape(tspec_e.Read(), D1D, D1D, D1D, ncomp, NE);
+   auto J = Reshape(Jtr.Write(), DIM,DIM, Q1D,Q1D,Q1D, NE);
 
+   decltype(&DatcSize<>) ker = DatcSize;
 #ifndef MFEM_USE_JIT
-   decltype(&DatcSize<>) ker = DatcSize<>;
-
    const int d=D1D, q=Q1D;
-   if (d == 2 && q==2) { ker = DatcSize<2,2>; }
-   if (d == 2 && q==3) { ker = DatcSize<2,3>; }
-   if (d == 2 && q==4) { ker = DatcSize<2,4>; }
-   if (d == 2 && q==5) { ker = DatcSize<2,5>; }
-   if (d == 2 && q==6) { ker = DatcSize<2,6>; }
+   if (d==2 && q==2) { ker = DatcSize<2,2>; }
+   if (d==2 && q==3) { ker = DatcSize<2,3>; }
+   if (d==2 && q==4) { ker = DatcSize<2,4>; }
+   if (d==2 && q==5) { ker = DatcSize<2,5>; }
+   if (d==2 && q==6) { ker = DatcSize<2,6>; }
 
-   if (d == 3 && q==3) { ker = DatcSize<3,3>; }
-   if (d == 3 && q==4) { ker = DatcSize<4,4>; }
-   if (d == 3 && q==5) { ker = DatcSize<5,5>; }
-   if (d == 3 && q==6) { ker = DatcSize<6,6>; }
+   if (d==3 && q==3) { ker = DatcSize<3,3>; }
+   if (d==3 && q==4) { ker = DatcSize<4,4>; }
+   if (d==3 && q==5) { ker = DatcSize<5,5>; }
+   if (d==3 && q==6) { ker = DatcSize<6,6>; }
 
-   if (d == 4 && q==4) { ker = DatcSize<4,4>; }
-   if (d == 4 && q==5) { ker = DatcSize<4,5>; }
-   if (d == 4 && q==6) { ker = DatcSize<4,6>; }
+   if (d==4 && q==4) { ker = DatcSize<4,4>; }
+   if (d==4 && q==5) { ker = DatcSize<4,5>; }
+   if (d==4 && q==6) { ker = DatcSize<4,6>; }
 
-   if (d == 5 && q==5) { ker = DatcSize<5,5>; }
-   if (d == 5 && q==6) { ker = DatcSize<5,6>; }
-
-   ker(NE,ncomp,sizeidx,Wr,Br,Xr,Jw);
-#else
-   DatcSize(NE,ncomp,sizeidx,Wr,Br,Xr,Jw,D1D,Q1D,4);
+   if (d==5 && q==5) { ker = DatcSize<5,5>; }
+   if (d==5 && q==6) { ker = DatcSize<5,6>; }
 #endif
+   ker(NE,ncomp,sizeidx,W,B,X,J,D1D,Q1D,4);
 }
 
 } // namespace mfem

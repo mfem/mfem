@@ -29,10 +29,7 @@ void TMOP_MinDetJpr_2D(const int NE,
                        const int q1d,
                        const int max)
 {
-   constexpr int DIM = 2;
    constexpr int NBZ = 1;
-
-   const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
 
    MFEM_FORALL_2D(e, NE, Q1D, Q1D, NBZ,
@@ -90,32 +87,28 @@ double TMOPNewtonSolver::MinDetJpr_2D(const FiniteElementSpace *fes,
    e.UseDevice(true);
    auto E = Reshape(e.Write(), Q1D, Q1D, NE);
 
+   decltype(&TMOP_MinDetJpr_2D<>) ker = TMOP_MinDetJpr_2D;
 #ifndef MFEM_USE_JIT
-   decltype(&TMOP_MinDetJpr_2D<>) ker = TMOP_MinDetJpr_2D<>;
-
    const int d=D1D, q=Q1D;
-   if (d == 2 && q==2) { ker = TMOP_MinDetJpr_2D<2,2>; }
-   if (d == 2 && q==3) { ker = TMOP_MinDetJpr_2D<2,3>; }
-   if (d == 2 && q==4) { ker = TMOP_MinDetJpr_2D<2,4>; }
-   if (d == 2 && q==5) { ker = TMOP_MinDetJpr_2D<2,5>; }
-   if (d == 2 && q==6) { ker = TMOP_MinDetJpr_2D<2,6>; }
+   if (d==2 && q==2) { ker = TMOP_MinDetJpr_2D<2,2>; }
+   if (d==2 && q==3) { ker = TMOP_MinDetJpr_2D<2,3>; }
+   if (d==2 && q==4) { ker = TMOP_MinDetJpr_2D<2,4>; }
+   if (d==2 && q==5) { ker = TMOP_MinDetJpr_2D<2,5>; }
+   if (d==2 && q==6) { ker = TMOP_MinDetJpr_2D<2,6>; }
 
-   if (d == 3 && q==3) { ker = TMOP_MinDetJpr_2D<3,3>; }
-   if (d == 3 && q==4) { ker = TMOP_MinDetJpr_2D<4,4>; }
-   if (d == 3 && q==5) { ker = TMOP_MinDetJpr_2D<5,5>; }
-   if (d == 3 && q==6) { ker = TMOP_MinDetJpr_2D<6,6>; }
+   if (d==3 && q==3) { ker = TMOP_MinDetJpr_2D<3,3>; }
+   if (d==3 && q==4) { ker = TMOP_MinDetJpr_2D<3,4>; }
+   if (d==3 && q==5) { ker = TMOP_MinDetJpr_2D<3,5>; }
+   if (d==3 && q==6) { ker = TMOP_MinDetJpr_2D<3,6>; }
 
-   if (d == 4 && q==4) { ker = TMOP_MinDetJpr_2D<4,4>; }
-   if (d == 4 && q==5) { ker = TMOP_MinDetJpr_2D<4,5>; }
-   if (d == 4 && q==6) { ker = TMOP_MinDetJpr_2D<4,6>; }
+   if (d==4 && q==4) { ker = TMOP_MinDetJpr_2D<4,4>; }
+   if (d==4 && q==5) { ker = TMOP_MinDetJpr_2D<4,5>; }
+   if (d==4 && q==6) { ker = TMOP_MinDetJpr_2D<4,6>; }
 
-   if (d == 5 && q==5) { ker = TMOP_MinDetJpr_2D<5,5>; }
-   if (d == 5 && q==6) { ker = TMOP_MinDetJpr_2D<5,6>; }
-
-   ker(NE,B,G,XE,E,D1D,Q1D,4);
-#else
-   TMOP_MinDetJpr_2D(NE,B,G,XE,E,D1D,Q1D,4);
+   if (d==5 && q==5) { ker = TMOP_MinDetJpr_2D<5,5>; }
+   if (d==5 && q==6) { ker = TMOP_MinDetJpr_2D<5,6>; }
 #endif
+   ker(NE,B,G,XE,E,D1D,Q1D,4);
    return e.Min();
 }
 

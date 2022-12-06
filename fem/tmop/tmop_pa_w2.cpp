@@ -36,13 +36,10 @@ void TMOP_EnergyPA_2D(const double metric_normal,
                       const int max)
 {
    using Args = kernels::InvariantsEvaluator2D::Buffers;
-   MFEM_VERIFY(mid == 1 || mid == 2 || mid == 7 || mid == 77 || mid == 80,
+   MFEM_VERIFY(mid==1 || mid==2 || mid==7 || mid==77 || mid==80,
                "2D metric not yet implemented!");
 
-   constexpr int DIM = 2;
    constexpr int NBZ = 1;
-
-   const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
 
    MFEM_FORALL_2D(e, NE, Q1D, Q1D, NBZ,
@@ -102,11 +99,11 @@ void TMOP_EnergyPA_2D(const double metric_normal,
                return (1.0 - gamma) * EvalW_002() + gamma * EvalW_077();
             };
             const double EvalW =
-               mid ==  1 ? EvalW_001() :
-               mid ==  2 ? EvalW_002() :
-               mid ==  7 ? EvalW_007() :
-               mid == 77 ? EvalW_077() :
-               mid == 80 ? EvalW_080() : 0.0;
+               mid== 1 ? EvalW_001() :
+               mid== 2 ? EvalW_002() :
+               mid== 7 ? EvalW_007() :
+               mid==77 ? EvalW_077() :
+               mid==80 ? EvalW_080() : 0.0;
 
             E(qx,qy,e) = weight * EvalW;
          }
@@ -134,32 +131,28 @@ double TMOP_Integrator::GetLocalStateEnergyPA_2D(const Vector &x) const
 
    auto E = Reshape(PA.E.Write(), Q1D, Q1D, NE);
 
+   decltype(&TMOP_EnergyPA_2D<>) ker = TMOP_EnergyPA_2D;
 #ifndef MFEM_USE_JIT
-   decltype(&TMOP_EnergyPA_2D<>) ker = TMOP_EnergyPA_2D<>;
-
    const int d=D1D, q=Q1D;
-   if (d == 2 && q==2) { ker = TMOP_EnergyPA_2D<2,2>; }
-   if (d == 2 && q==3) { ker = TMOP_EnergyPA_2D<2,3>; }
-   if (d == 2 && q==4) { ker = TMOP_EnergyPA_2D<2,4>; }
-   if (d == 2 && q==5) { ker = TMOP_EnergyPA_2D<2,5>; }
-   if (d == 2 && q==6) { ker = TMOP_EnergyPA_2D<2,6>; }
+   if (d==2 && q==2) { ker = TMOP_EnergyPA_2D<2,2>; }
+   if (d==2 && q==3) { ker = TMOP_EnergyPA_2D<2,3>; }
+   if (d==2 && q==4) { ker = TMOP_EnergyPA_2D<2,4>; }
+   if (d==2 && q==5) { ker = TMOP_EnergyPA_2D<2,5>; }
+   if (d==2 && q==6) { ker = TMOP_EnergyPA_2D<2,6>; }
 
-   if (d == 3 && q==3) { ker = TMOP_EnergyPA_2D<3,3>; }
-   if (d == 3 && q==4) { ker = TMOP_EnergyPA_2D<4,4>; }
-   if (d == 3 && q==5) { ker = TMOP_EnergyPA_2D<5,5>; }
-   if (d == 3 && q==6) { ker = TMOP_EnergyPA_2D<6,6>; }
+   if (d==3 && q==3) { ker = TMOP_EnergyPA_2D<3,3>; }
+   if (d==3 && q==4) { ker = TMOP_EnergyPA_2D<3,4>; }
+   if (d==3 && q==5) { ker = TMOP_EnergyPA_2D<3,5>; }
+   if (d==3 && q==6) { ker = TMOP_EnergyPA_2D<3,6>; }
 
-   if (d == 4 && q==4) { ker = TMOP_EnergyPA_2D<4,4>; }
-   if (d == 4 && q==5) { ker = TMOP_EnergyPA_2D<4,5>; }
-   if (d == 4 && q==6) { ker = TMOP_EnergyPA_2D<4,6>; }
+   if (d==4 && q==4) { ker = TMOP_EnergyPA_2D<4,4>; }
+   if (d==4 && q==5) { ker = TMOP_EnergyPA_2D<4,5>; }
+   if (d==4 && q==6) { ker = TMOP_EnergyPA_2D<4,6>; }
 
-   if (d == 5 && q==5) { ker = TMOP_EnergyPA_2D<5,5>; }
-   if (d == 5 && q==6) { ker = TMOP_EnergyPA_2D<5,6>; }
-
-   ker(mn,mp,M,NE,J,W,B,G,X,E,D1D,Q1D,4);
-#else
-   TMOP_EnergyPA_2D(mn,mp,M,NE,J,W,B,G,X,E,D1D,Q1D,4);
+   if (d==5 && q==5) { ker = TMOP_EnergyPA_2D<5,5>; }
+   if (d==5 && q==6) { ker = TMOP_EnergyPA_2D<5,6>; }
 #endif
+   ker(mn,mp,M,NE,J,W,B,G,X,E,D1D,Q1D,4);
    return PA.E * PA.O;
 }
 

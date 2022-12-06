@@ -29,8 +29,6 @@ void TMOP_AssembleDiagonalPA_3D(const int NE,
                                 const int q1d = 0,
                                 const int max = 4)
 {
-   constexpr int DIM = 3;
-   const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
 
    MFEM_FORALL_3D(e, NE, Q1D, Q1D, Q1D,
@@ -141,32 +139,28 @@ void TMOP_Integrator::AssembleDiagonalPA_3D(Vector &diagonal) const
    const auto H = Reshape(PA.H.Read(), DIM, DIM, DIM, DIM, Q1D, Q1D, Q1D, NE);
    auto D = Reshape(diagonal.ReadWrite(), D1D, D1D, D1D, DIM, NE);
 
+   decltype(&TMOP_AssembleDiagonalPA_3D<>) ker = TMOP_AssembleDiagonalPA_3D;
 #ifndef MFEM_USE_JIT
-   decltype(&TMOP_AssembleDiagonalPA_3D<>) ker = TMOP_AssembleDiagonalPA_3D<>;
-
    const int d=D1D, q=Q1D;
-   if (d == 2 && q==2) { ker = TMOP_AssembleDiagonalPA_3D<2,2>; }
-   if (d == 2 && q==3) { ker = TMOP_AssembleDiagonalPA_3D<2,3>; }
-   if (d == 2 && q==4) { ker = TMOP_AssembleDiagonalPA_3D<2,4>; }
-   if (d == 2 && q==5) { ker = TMOP_AssembleDiagonalPA_3D<2,5>; }
-   if (d == 2 && q==6) { ker = TMOP_AssembleDiagonalPA_3D<2,6>; }
+   if (d==2 && q==2) { ker = TMOP_AssembleDiagonalPA_3D<2,2>; }
+   if (d==2 && q==3) { ker = TMOP_AssembleDiagonalPA_3D<2,3>; }
+   if (d==2 && q==4) { ker = TMOP_AssembleDiagonalPA_3D<2,4>; }
+   if (d==2 && q==5) { ker = TMOP_AssembleDiagonalPA_3D<2,5>; }
+   if (d==2 && q==6) { ker = TMOP_AssembleDiagonalPA_3D<2,6>; }
 
-   if (d == 3 && q==3) { ker = TMOP_AssembleDiagonalPA_3D<3,3>; }
-   if (d == 3 && q==4) { ker = TMOP_AssembleDiagonalPA_3D<4,4>; }
-   if (d == 3 && q==5) { ker = TMOP_AssembleDiagonalPA_3D<5,5>; }
-   if (d == 3 && q==6) { ker = TMOP_AssembleDiagonalPA_3D<6,6>; }
+   if (d==3 && q==3) { ker = TMOP_AssembleDiagonalPA_3D<3,3>; }
+   if (d==3 && q==4) { ker = TMOP_AssembleDiagonalPA_3D<3,4>; }
+   if (d==3 && q==5) { ker = TMOP_AssembleDiagonalPA_3D<3,5>; }
+   if (d==3 && q==6) { ker = TMOP_AssembleDiagonalPA_3D<3,6>; }
 
-   if (d == 4 && q==4) { ker = TMOP_AssembleDiagonalPA_3D<4,4>; }
-   if (d == 4 && q==5) { ker = TMOP_AssembleDiagonalPA_3D<4,5>; }
-   if (d == 4 && q==6) { ker = TMOP_AssembleDiagonalPA_3D<4,6>; }
+   if (d==4 && q==4) { ker = TMOP_AssembleDiagonalPA_3D<4,4>; }
+   if (d==4 && q==5) { ker = TMOP_AssembleDiagonalPA_3D<4,5>; }
+   if (d==4 && q==6) { ker = TMOP_AssembleDiagonalPA_3D<4,6>; }
 
-   if (d == 5 && q==5) { ker = TMOP_AssembleDiagonalPA_3D<5,5>; }
-   if (d == 5 && q==6) { ker = TMOP_AssembleDiagonalPA_3D<5,6>; }
-
-   ker(NE,B,G,J,H,D,D1D,Q1D,4);
-#else
-   TMOP_AssembleDiagonalPA_3D(NE,B,G,J,H,D,D1D,Q1D,4);
+   if (d==5 && q==5) { ker = TMOP_AssembleDiagonalPA_3D<5,5>; }
+   if (d==5 && q==6) { ker = TMOP_AssembleDiagonalPA_3D<5,6>; }
 #endif
+   ker(NE,B,G,J,H,D,D1D,Q1D,4);
 }
 
 } // namespace mfem

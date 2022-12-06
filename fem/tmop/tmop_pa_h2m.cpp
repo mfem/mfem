@@ -30,14 +30,12 @@ void TMOP_AddMultGradPA_2D(const int NE,
                            const int q1d,
                            const int max)
 {
-   constexpr int DIM = 2;
    constexpr int NBZ = 1;
-
-   const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
 
    MFEM_FORALL_2D(e, NE, Q1D, Q1D, NBZ,
    {
+      constexpr int DIM = 2;
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
       constexpr int NBZ = 1;
@@ -120,32 +118,28 @@ void TMOP_Integrator::AddMultGradPA_2D(const Vector &R, Vector &C) const
    const auto X = Reshape(R.Read(), D1D, D1D, DIM, NE);
    auto Y = Reshape(C.ReadWrite(), D1D, D1D, DIM, NE);
 
+   decltype(&TMOP_AddMultGradPA_2D<>) ker = TMOP_AddMultGradPA_2D;
 #ifndef MFEM_USE_JIT
-   decltype(&TMOP_AddMultGradPA_2D<>) ker = TMOP_AddMultGradPA_2D<>;
-
    const int d=D1D, q=Q1D;
-   if (d == 2 && q==2) { ker = TMOP_AddMultGradPA_2D<2,2>; }
-   if (d == 2 && q==3) { ker = TMOP_AddMultGradPA_2D<2,3>; }
-   if (d == 2 && q==4) { ker = TMOP_AddMultGradPA_2D<2,4>; }
-   if (d == 2 && q==5) { ker = TMOP_AddMultGradPA_2D<2,5>; }
-   if (d == 2 && q==6) { ker = TMOP_AddMultGradPA_2D<2,6>; }
+   if (d==2 && q==2) { ker = TMOP_AddMultGradPA_2D<2,2>; }
+   if (d==2 && q==3) { ker = TMOP_AddMultGradPA_2D<2,3>; }
+   if (d==2 && q==4) { ker = TMOP_AddMultGradPA_2D<2,4>; }
+   if (d==2 && q==5) { ker = TMOP_AddMultGradPA_2D<2,5>; }
+   if (d==2 && q==6) { ker = TMOP_AddMultGradPA_2D<2,6>; }
 
-   if (d == 3 && q==3) { ker = TMOP_AddMultGradPA_2D<3,3>; }
-   if (d == 3 && q==4) { ker = TMOP_AddMultGradPA_2D<4,4>; }
-   if (d == 3 && q==5) { ker = TMOP_AddMultGradPA_2D<5,5>; }
-   if (d == 3 && q==6) { ker = TMOP_AddMultGradPA_2D<6,6>; }
+   if (d==3 && q==3) { ker = TMOP_AddMultGradPA_2D<3,3>; }
+   if (d==3 && q==4) { ker = TMOP_AddMultGradPA_2D<3,4>; }
+   if (d==3 && q==5) { ker = TMOP_AddMultGradPA_2D<3,5>; }
+   if (d==3 && q==6) { ker = TMOP_AddMultGradPA_2D<3,6>; }
 
-   if (d == 4 && q==4) { ker = TMOP_AddMultGradPA_2D<4,4>; }
-   if (d == 4 && q==5) { ker = TMOP_AddMultGradPA_2D<4,5>; }
-   if (d == 4 && q==6) { ker = TMOP_AddMultGradPA_2D<4,6>; }
+   if (d==4 && q==4) { ker = TMOP_AddMultGradPA_2D<4,4>; }
+   if (d==4 && q==5) { ker = TMOP_AddMultGradPA_2D<4,5>; }
+   if (d==4 && q==6) { ker = TMOP_AddMultGradPA_2D<4,6>; }
 
-   if (d == 5 && q==5) { ker = TMOP_AddMultGradPA_2D<5,5>; }
-   if (d == 5 && q==6) { ker = TMOP_AddMultGradPA_2D<5,6>; }
-
-   ker(NE,B,G,J,H,X,Y,D1D,Q1D,4);
-#else
-   TMOP_AddMultGradPA_2D(NE,B,G,J,H,X,Y,D1D,Q1D,4);
+   if (d==5 && q==5) { ker = TMOP_AddMultGradPA_2D<5,5>; }
+   if (d==5 && q==6) { ker = TMOP_AddMultGradPA_2D<5,6>; }
 #endif
+   ker(NE,B,G,J,H,X,Y,D1D,Q1D,4);
 }
 
 } // namespace mfem

@@ -22,21 +22,18 @@ namespace mfem
 {
 
 MFEM_JIT
-template<int T_D1D = 0, int T_Q1D = 0, int T_MAX = 4>
+template<int T_Q1D = 0>
 void TMOP_TcIdealShapeUnitSize_2D(const int NE,
                                   const ConstDeviceMatrix &W,
                                   DeviceTensor<5> &J,
-                                  const int d1d,
-                                  const int q1d,
-                                  const int max)
+                                  const int q1d)
 {
-   constexpr int DIM = 2;
    constexpr int NBZ = 1;
-
    const int Q1D = T_Q1D ? T_Q1D : q1d;
 
    MFEM_FORALL_2D(e, NE, Q1D, Q1D, NBZ,
    {
+      constexpr int DIM = 2;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
       MFEM_FOREACH_THREAD(qy,y,Q1D)
       {
@@ -61,14 +58,12 @@ void TMOP_TcIdealShapeGivenSize_2D(const int NE,
                                    const int q1d,
                                    const int max)
 {
-   constexpr int DIM = 2;
    constexpr int NBZ = 1;
-
-   const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
 
    MFEM_FORALL_2D(e, NE, Q1D, Q1D, NBZ,
    {
+      constexpr int DIM = 2;
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
 
@@ -136,32 +131,17 @@ TargetConstructor::ComputeAllElementTargets<2>(const FiniteElementSpace &fes,
    {
       case IDEAL_SHAPE_UNIT_SIZE: // Jtr(i) = Wideal;
       {
+         decltype(&TMOP_TcIdealShapeUnitSize_2D<>) ker =
+            TMOP_TcIdealShapeUnitSize_2D;
 #ifndef MFEM_USE_JIT
-         decltype(&TMOP_TcIdealShapeUnitSize_2D<>) ker = TMOP_TcIdealShapeUnitSize_2D<>;
-
-         const int d=D1D, q=Q1D;
-         if (d == 2 && q==2) { ker = TMOP_TcIdealShapeUnitSize_2D<2,2>; }
-         if (d == 2 && q==3) { ker = TMOP_TcIdealShapeUnitSize_2D<2,3>; }
-         if (d == 2 && q==4) { ker = TMOP_TcIdealShapeUnitSize_2D<2,4>; }
-         if (d == 2 && q==5) { ker = TMOP_TcIdealShapeUnitSize_2D<2,5>; }
-         if (d == 2 && q==6) { ker = TMOP_TcIdealShapeUnitSize_2D<2,6>; }
-
-         if (d == 3 && q==3) { ker = TMOP_TcIdealShapeUnitSize_2D<3,3>; }
-         if (d == 3 && q==4) { ker = TMOP_TcIdealShapeUnitSize_2D<4,4>; }
-         if (d == 3 && q==5) { ker = TMOP_TcIdealShapeUnitSize_2D<5,5>; }
-         if (d == 3 && q==6) { ker = TMOP_TcIdealShapeUnitSize_2D<6,6>; }
-
-         if (d == 4 && q==4) { ker = TMOP_TcIdealShapeUnitSize_2D<4,4>; }
-         if (d == 4 && q==5) { ker = TMOP_TcIdealShapeUnitSize_2D<4,5>; }
-         if (d == 4 && q==6) { ker = TMOP_TcIdealShapeUnitSize_2D<4,6>; }
-
-         if (d == 5 && q==5) { ker = TMOP_TcIdealShapeUnitSize_2D<5,5>; }
-         if (d == 5 && q==6) { ker = TMOP_TcIdealShapeUnitSize_2D<5,6>; }
-
-         ker(NE,B,G,XE,E,D1D,Q1D,4);
-#else
-         TMOP_TcIdealShapeUnitSize_2D(NE,W,J,D1D,Q1D,4);
+         const int q=Q1D;
+         if (q==2) { ker = TMOP_TcIdealShapeUnitSize_2D<2>; }
+         if (q==3) { ker = TMOP_TcIdealShapeUnitSize_2D<3>; }
+         if (q==4) { ker = TMOP_TcIdealShapeUnitSize_2D<4>; }
+         if (q==5) { ker = TMOP_TcIdealShapeUnitSize_2D<5>; }
+         if (q==6) { ker = TMOP_TcIdealShapeUnitSize_2D<6>; }
 #endif
+         ker(NE,W,J,Q1D);
          return true;
       }
       case IDEAL_SHAPE_EQUAL_SIZE: return false;
@@ -175,33 +155,30 @@ TargetConstructor::ComputeAllElementTargets<2>(const FiniteElementSpace &fes,
          R->Mult(*nodes, x);
          MFEM_ASSERT(nodes->FESpace()->GetVDim() == 2, "");
          const auto X = Reshape(x.Read(), D1D, D1D, DIM, NE);
-#ifndef MFEM_USE_JIT
+
          decltype(&TMOP_TcIdealShapeGivenSize_2D<>) ker =
-            TMOP_TcIdealShapeGivenSize_2D<>;
-
+            TMOP_TcIdealShapeGivenSize_2D;
+#ifndef MFEM_USE_JIT
          const int d=D1D, q=Q1D;
-         if (d == 2 && q==2) { ker = TMOP_TcIdealShapeGivenSize_2D<2,2>; }
-         if (d == 2 && q==3) { ker = TMOP_TcIdealShapeGivenSize_2D<2,3>; }
-         if (d == 2 && q==4) { ker = TMOP_TcIdealShapeGivenSize_2D<2,4>; }
-         if (d == 2 && q==5) { ker = TMOP_TcIdealShapeGivenSize_2D<2,5>; }
-         if (d == 2 && q==6) { ker = TMOP_TcIdealShapeGivenSize_2D<2,6>; }
+         if (d==2 && q==2) { ker = TMOP_TcIdealShapeGivenSize_2D<2,2>; }
+         if (d==2 && q==3) { ker = TMOP_TcIdealShapeGivenSize_2D<2,3>; }
+         if (d==2 && q==4) { ker = TMOP_TcIdealShapeGivenSize_2D<2,4>; }
+         if (d==2 && q==5) { ker = TMOP_TcIdealShapeGivenSize_2D<2,5>; }
+         if (d==2 && q==6) { ker = TMOP_TcIdealShapeGivenSize_2D<2,6>; }
 
-         if (d == 3 && q==3) { ker = TMOP_TcIdealShapeGivenSize_2D<3,3>; }
-         if (d == 3 && q==4) { ker = TMOP_TcIdealShapeGivenSize_2D<4,4>; }
-         if (d == 3 && q==5) { ker = TMOP_TcIdealShapeGivenSize_2D<5,5>; }
-         if (d == 3 && q==6) { ker = TMOP_TcIdealShapeGivenSize_2D<6,6>; }
+         if (d==3 && q==3) { ker = TMOP_TcIdealShapeGivenSize_2D<3,3>; }
+         if (d==3 && q==4) { ker = TMOP_TcIdealShapeGivenSize_2D<3,4>; }
+         if (d==3 && q==5) { ker = TMOP_TcIdealShapeGivenSize_2D<3,5>; }
+         if (d==3 && q==6) { ker = TMOP_TcIdealShapeGivenSize_2D<3,6>; }
 
-         if (d == 4 && q==4) { ker = TMOP_TcIdealShapeGivenSize_2D<4,4>; }
-         if (d == 4 && q==5) { ker = TMOP_TcIdealShapeGivenSize_2D<4,5>; }
-         if (d == 4 && q==6) { ker = TMOP_TcIdealShapeGivenSize_2D<4,6>; }
+         if (d==4 && q==4) { ker = TMOP_TcIdealShapeGivenSize_2D<4,4>; }
+         if (d==4 && q==5) { ker = TMOP_TcIdealShapeGivenSize_2D<4,5>; }
+         if (d==4 && q==6) { ker = TMOP_TcIdealShapeGivenSize_2D<4,6>; }
 
-         if (d == 5 && q==5) { ker = TMOP_TcIdealShapeGivenSize_2D<5,5>; }
-         if (d == 5 && q==6) { ker = TMOP_TcIdealShapeGivenSize_2D<5,6>; }
-
-         ker(NE,B,G,W,X,J,D1D,Q1D,4);
-#else
-         TMOP_TcIdealShapeGivenSize_2D(NE,detW,B,G,W,X,J,D1D,Q1D,4);
+         if (d==5 && q==5) { ker = TMOP_TcIdealShapeGivenSize_2D<5,5>; }
+         if (d==5 && q==6) { ker = TMOP_TcIdealShapeGivenSize_2D<5,6>; }
 #endif
+         ker(NE,detW,B,G,W,X,J,D1D,Q1D,4);
          return true;
       }
       case GIVEN_SHAPE_AND_SIZE: return false;

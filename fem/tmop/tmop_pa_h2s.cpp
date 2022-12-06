@@ -35,12 +35,10 @@ void TMOP_SetupGradPA_2D(const DeviceTensor<4,const double> &X,
                          const int max)
 {
    using Args = kernels::InvariantsEvaluator2D::Buffers;
-   MFEM_VERIFY(mid == 1 || mid == 2 || mid == 7 || mid == 77 || mid == 80,
+   MFEM_VERIFY(mid==1 || mid==2 || mid==7 || mid==77 || mid==80,
                "Metric not yet implemented!");
 
-   constexpr int DIM = 2;
    constexpr int NBZ = 1;
-   const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
 
    MFEM_FORALL_2D(e, NE, Q1D, Q1D, NBZ,
@@ -84,7 +82,7 @@ void TMOP_SetupGradPA_2D(const DeviceTensor<4,const double> &X,
             kernels::Mult(2,2,2, Jpr, Jrt, Jpt);
 
             // metric->AssembleH
-            if (mid ==  1)
+            if (mid==1)
             {
                // weight * ddI1
                constexpr int DIM = 2;
@@ -107,7 +105,7 @@ void TMOP_SetupGradPA_2D(const DeviceTensor<4,const double> &X,
                }
             }
 
-            if (mid ==  2)
+            if (mid==2)
             {
                // 0.5 * weight * dI1b
                double ddI1[4], ddI1b[4], dI2b[4];
@@ -131,7 +129,7 @@ void TMOP_SetupGradPA_2D(const DeviceTensor<4,const double> &X,
                }
             }
 
-            if (mid ==  7)
+            if (mid==7)
             {
                double ddI1[4], ddI2[4], dI1[4], dI2[4], dI2b[4];
                kernels::InvariantsEvaluator2D ie
@@ -164,7 +162,7 @@ void TMOP_SetupGradPA_2D(const DeviceTensor<4,const double> &X,
                }
             }
 
-            if (mid == 77)
+            if (mid==77)
             {
                double dI2[4], dI2b[4], ddI2[4];
                kernels::InvariantsEvaluator2D ie
@@ -189,7 +187,7 @@ void TMOP_SetupGradPA_2D(const DeviceTensor<4,const double> &X,
                }
             }
 
-            if (mid == 80)
+            if (mid==80)
             {
                // h_80 = (1-gamma) h_2 + gamma h_77.
                double ddI1[4], ddI1b[4], dI2[4], dI2b[4], ddI2[4];
@@ -242,32 +240,28 @@ void TMOP_Integrator::AssembleGradPA_2D(const Vector &x) const
    const auto X = Reshape(x.Read(), D1D, D1D, DIM, NE);
    auto H = Reshape(PA.H.Write(), DIM, DIM, DIM, DIM, Q1D, Q1D, NE);
 
+   decltype(&TMOP_SetupGradPA_2D<>) ker = TMOP_SetupGradPA_2D;
 #ifndef MFEM_USE_JIT
-   decltype(&TMOP_SetupGradPA_2D<>) ker = TMOP_SetupGradPA_2D<>;
-
    const int d=D1D, q=Q1D;
-   if (d == 2 && q==2) { ker = TMOP_SetupGradPA_2D<2,2>; }
-   if (d == 2 && q==3) { ker = TMOP_SetupGradPA_2D<2,3>; }
-   if (d == 2 && q==4) { ker = TMOP_SetupGradPA_2D<2,4>; }
-   if (d == 2 && q==5) { ker = TMOP_SetupGradPA_2D<2,5>; }
-   if (d == 2 && q==6) { ker = TMOP_SetupGradPA_2D<2,6>; }
+   if (d==2 && q==2) { ker = TMOP_SetupGradPA_2D<2,2>; }
+   if (d==2 && q==3) { ker = TMOP_SetupGradPA_2D<2,3>; }
+   if (d==2 && q==4) { ker = TMOP_SetupGradPA_2D<2,4>; }
+   if (d==2 && q==5) { ker = TMOP_SetupGradPA_2D<2,5>; }
+   if (d==2 && q==6) { ker = TMOP_SetupGradPA_2D<2,6>; }
 
-   if (d == 3 && q==3) { ker = TMOP_SetupGradPA_2D<3,3>; }
-   if (d == 3 && q==4) { ker = TMOP_SetupGradPA_2D<4,4>; }
-   if (d == 3 && q==5) { ker = TMOP_SetupGradPA_2D<5,5>; }
-   if (d == 3 && q==6) { ker = TMOP_SetupGradPA_2D<6,6>; }
+   if (d==3 && q==3) { ker = TMOP_SetupGradPA_2D<3,3>; }
+   if (d==3 && q==4) { ker = TMOP_SetupGradPA_2D<3,4>; }
+   if (d==3 && q==5) { ker = TMOP_SetupGradPA_2D<3,5>; }
+   if (d==3 && q==6) { ker = TMOP_SetupGradPA_2D<3,6>; }
 
-   if (d == 4 && q==4) { ker = TMOP_SetupGradPA_2D<4,4>; }
-   if (d == 4 && q==5) { ker = TMOP_SetupGradPA_2D<4,5>; }
-   if (d == 4 && q==6) { ker = TMOP_SetupGradPA_2D<4,6>; }
+   if (d==4 && q==4) { ker = TMOP_SetupGradPA_2D<4,4>; }
+   if (d==4 && q==5) { ker = TMOP_SetupGradPA_2D<4,5>; }
+   if (d==4 && q==6) { ker = TMOP_SetupGradPA_2D<4,6>; }
 
-   if (d == 5 && q==5) { ker = TMOP_SetupGradPA_2D<5,5>; }
-   if (d == 5 && q==6) { ker = TMOP_SetupGradPA_2D<5,6>; }
-
-   ker(X,mn,mp,M,NE,W,B,G,J,H,D1D,Q1D,4);
-#else
-   TMOP_SetupGradPA_2D(X,mn,mp,M,NE,W,B,G,J,H,D1D,Q1D,4);
+   if (d==5 && q==5) { ker = TMOP_SetupGradPA_2D<5,5>; }
+   if (d==5 && q==6) { ker = TMOP_SetupGradPA_2D<5,6>; }
 #endif
+   ker(X,mn,mp,M,NE,W,B,G,J,H,D1D,Q1D,4);
 }
 
 } // namespace mfem

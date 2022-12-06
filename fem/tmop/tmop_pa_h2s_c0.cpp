@@ -34,7 +34,6 @@ void TMOP_SetupGradPA_C0_2D(const double lim_normal,
                             const int max)
 {
    constexpr int NBZ = 1;
-   const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
 
    MFEM_FORALL_2D(e, NE, Q1D, Q1D, NBZ,
@@ -111,32 +110,28 @@ void TMOP_Integrator::AssembleGradPA_C0_2D(const Vector &X) const
    const auto LD = Reshape(PA.LD.Read(), D1D, D1D, NE);
    auto H0 = Reshape(PA.H0.Write(), DIM, DIM, Q1D, Q1D, NE);
 
+   decltype(&TMOP_SetupGradPA_C0_2D<>) ker = TMOP_SetupGradPA_C0_2D;
 #ifndef MFEM_USE_JIT
-   decltype(&TMOP_SetupGradPA_C0_2D<>) ker = TMOP_SetupGradPA_C0_2D<>;
-
    const int d=D1D, q=Q1D;
-   if (d == 2 && q==2) { ker = TMOP_SetupGradPA_C0_2D<2,2>; }
-   if (d == 2 && q==3) { ker = TMOP_SetupGradPA_C0_2D<2,3>; }
-   if (d == 2 && q==4) { ker = TMOP_SetupGradPA_C0_2D<2,4>; }
-   if (d == 2 && q==5) { ker = TMOP_SetupGradPA_C0_2D<2,5>; }
-   if (d == 2 && q==6) { ker = TMOP_SetupGradPA_C0_2D<2,6>; }
+   if (d==2 && q==2) { ker = TMOP_SetupGradPA_C0_2D<2,2>; }
+   if (d==2 && q==3) { ker = TMOP_SetupGradPA_C0_2D<2,3>; }
+   if (d==2 && q==4) { ker = TMOP_SetupGradPA_C0_2D<2,4>; }
+   if (d==2 && q==5) { ker = TMOP_SetupGradPA_C0_2D<2,5>; }
+   if (d==2 && q==6) { ker = TMOP_SetupGradPA_C0_2D<2,6>; }
 
-   if (d == 3 && q==3) { ker = TMOP_SetupGradPA_C0_2D<3,3>; }
-   if (d == 3 && q==4) { ker = TMOP_SetupGradPA_C0_2D<4,4>; }
-   if (d == 3 && q==5) { ker = TMOP_SetupGradPA_C0_2D<5,5>; }
-   if (d == 3 && q==6) { ker = TMOP_SetupGradPA_C0_2D<6,6>; }
+   if (d==3 && q==3) { ker = TMOP_SetupGradPA_C0_2D<3,3>; }
+   if (d==3 && q==4) { ker = TMOP_SetupGradPA_C0_2D<3,4>; }
+   if (d==3 && q==5) { ker = TMOP_SetupGradPA_C0_2D<3,5>; }
+   if (d==3 && q==6) { ker = TMOP_SetupGradPA_C0_2D<3,6>; }
 
-   if (d == 4 && q==4) { ker = TMOP_SetupGradPA_C0_2D<4,4>; }
-   if (d == 4 && q==5) { ker = TMOP_SetupGradPA_C0_2D<4,5>; }
-   if (d == 4 && q==6) { ker = TMOP_SetupGradPA_C0_2D<4,6>; }
+   if (d==4 && q==4) { ker = TMOP_SetupGradPA_C0_2D<4,4>; }
+   if (d==4 && q==5) { ker = TMOP_SetupGradPA_C0_2D<4,5>; }
+   if (d==4 && q==6) { ker = TMOP_SetupGradPA_C0_2D<4,6>; }
 
-   if (d == 5 && q==5) { ker = TMOP_SetupGradPA_C0_2D<5,5>; }
-   if (d == 5 && q==6) { ker = TMOP_SetupGradPA_C0_2D<5,6>; }
-
-   ker(ln,LD,const_c0,C0,NE,J,W,BLD,H0,D1D,Q1D,4);
-#else
-   TMOP_SetupGradPA_C0_2D(ln,LD,const_c0,C0,NE,J,W,BLD,H0,D1D,Q1D,4);
+   if (d==5 && q==5) { ker = TMOP_SetupGradPA_C0_2D<5,5>; }
+   if (d==5 && q==6) { ker = TMOP_SetupGradPA_C0_2D<5,6>; }
 #endif
+   ker(ln,LD,const_c0,C0,NE,J,W,BLD,H0,D1D,Q1D,4);
 }
 
 } // namespace mfem
