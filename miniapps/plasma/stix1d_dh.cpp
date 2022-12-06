@@ -287,18 +287,22 @@ void Update(ParFiniteElementSpace & H1FESpace,
             ParFiniteElementSpace & HCurlFESpace,
             ParFiniteElementSpace & HDivFESpace,
             ParFiniteElementSpace & L2FESpace,
-            ParGridFunction & BField,
             VectorCoefficient & BCoef,
             Coefficient & rhoCoef,
             Coefficient & TCoef,
+            Coefficient & nueCoef,
+            Coefficient & nuiCoef,
             int & size_h1,
             int & size_l2,
             Array<int> & density_offsets,
             Array<int> & temperature_offsets,
             BlockVector & density,
             BlockVector & temperature,
+            ParGridFunction & BField,
             ParGridFunction & density_gf,
-            ParGridFunction & temperature_gf);
+            ParGridFunction & temperature_gf,
+            ParGridFunction & nue_gf,
+            ParGridFunction & nui_gf);
 
 //static double freq_ = 1.0e9;
 
@@ -343,11 +347,19 @@ int main(int argc, char *argv[])
    Vector charges;
    Vector masses;
    Vector temps;
+   double nue = 0;
+   double nui = 0;
 
    PlasmaProfile::Type dpt = PlasmaProfile::CONSTANT;
    PlasmaProfile::Type tpt = PlasmaProfile::CONSTANT;
+   PlasmaProfile::Type nept = PlasmaProfile::CONSTANT;
+   PlasmaProfile::Type nipt = PlasmaProfile::CONSTANT;
+   BFieldProfile::Type bpt = BFieldProfile::CONSTANT;
    Vector dpp;
    Vector tpp;
+   Vector bpp;
+   Vector nepp;
+   Vector nipp;
    int nuprof = 0;
 
    Array<int> abcs; // Absorbing BC attributes
@@ -399,12 +411,44 @@ int main(int argc, char *argv[])
                   "location of 0 point, unit vector along gradient, "
                   "   ELLIPTIC_COS: value at -1, value at 1, "
                   "radius in x, radius in y, location of center.");
+   args.AddOption((int*)&bpt, "-bp", "--Bfield-profile",
+                  "BField Profile Type: \n"
+                  "0 - Constant, 1 - Constant Gradient, "
+                  "2 - Hyprebolic Tangent, 3 - Elliptic Cosine.");
+   args.AddOption(&bpp, "-bpp", "--Bfield-profile-params",
+                  "BField Profile Parameters:\n"
+                  "  B_P: value at -1, value at 1, "
+                  "radius in x, radius in y, location of center, Bz, placeholder.");
    args.AddOption((int*)&tpt, "-tp", "--temperature-profile",
                   "Temperature Profile Type: \n"
                   "0 - Constant, 1 - Constant Gradient, "
                   "2 - Hyperbolic Tangent, 3 - Elliptic Cosine.");
    args.AddOption(&tpp, "-tpp", "--temperature-profile-params",
                   "Temperature Profile Parameters: \n"
+                  "   CONSTANT: temperature value \n"
+                  "   GRADIENT: value, location, gradient (7 params)\n"
+                  "   TANH:     value at 0, value at 1, skin depth, "
+                  "location of 0 point, unit vector along gradient, "
+                  "   ELLIPTIC_COS: value at -1, value at 1, "
+                  "radius in x, radius in y, location of center.");
+   args.AddOption((int*)&nept, "-nep", "--electron-collision-profile",
+                  "Electron Collisions Profile Type: \n"
+                  "0 - Constant, 1 - Constant Gradient, "
+                  "2 - Hyperbolic Tangent, 3 - Elliptic Cosine.");
+   args.AddOption(&nepp, "-nepp", "--electron-collisions-profile-params",
+                  "Electron Collisions Profile Parameters: \n"
+                  "   CONSTANT: temperature value \n"
+                  "   GRADIENT: value, location, gradient (7 params)\n"
+                  "   TANH:     value at 0, value at 1, skin depth, "
+                  "location of 0 point, unit vector along gradient, "
+                  "   ELLIPTIC_COS: value at -1, value at 1, "
+                  "radius in x, radius in y, location of center.");
+   args.AddOption((int*)&nipt, "-nip", "--ion-collision-profile",
+                  "Ion Collisions Profile Type: \n"
+                  "0 - Constant, 1 - Constant Gradient, "
+                  "2 - Hyperbolic Tangent, 3 - Elliptic Cosine.");
+   args.AddOption(&nipp, "-nipp", "--ion-collisions-profile-params",
+                  "Ion Collisions Profile Parameters: \n"
                   "   CONSTANT: temperature value \n"
                   "   GRADIENT: value, location, gradient (7 params)\n"
                   "   TANH:     value at 0, value at 1, skin depth, "
@@ -576,6 +620,26 @@ int main(int argc, char *argv[])
       dpp.SetSize(1);
       dpp[0] = 1.0e19;
    }
+   if (nepp.Size() == 0)
+   {
+      nepp.SetSize(1);
+      nepp[0] = 0;
+   }
+   if (nipp.Size() == 0)
+   {
+      nipp.SetSize(1);
+      nipp[0] = 0;
+   }
+   if (bpp.Size() == 0)
+   {
+      bpt = BFieldProfile::CONSTANT;
+      bpp.SetSize(3);
+      bpp[0] = 0.0; bpp[1] = 0.1; bpp[2] = 0.0;
+   }
+   if (bpt == BFieldProfile::CONSTANT)
+   {
+      BVec = bpp;
+   }
    if (charges.Size() == 0)
    {
       charges.SetSize(2);
@@ -667,15 +731,15 @@ int main(int argc, char *argv[])
    {
       double lam0 = c0_ / freq;
       double Bmag = BVec.Norml2();
-      std::complex<double> S = S_cold_plasma(omega, Bmag, numbers,
+      std::complex<double> S = S_cold_plasma(omega, Bmag, nue, nui, numbers,
                                              charges, masses, temps, nuprof);
-      std::complex<double> P = P_cold_plasma(omega, numbers,
+      std::complex<double> P = P_cold_plasma(omega, nue, numbers,
                                              charges, masses, temps, nuprof);
-      std::complex<double> D = D_cold_plasma(omega, Bmag, numbers,
+      std::complex<double> D = D_cold_plasma(omega, Bmag, nue, nui, numbers,
                                              charges, masses, temps, nuprof);
-      std::complex<double> R = R_cold_plasma(omega, Bmag, numbers,
+      std::complex<double> R = R_cold_plasma(omega, Bmag, nue, nui, numbers,
                                              charges, masses, temps, nuprof);
-      std::complex<double> L = L_cold_plasma(omega, Bmag, numbers,
+      std::complex<double> L = L_cold_plasma(omega, Bmag, nue, nui, numbers,
                                              charges, masses, temps, nuprof);
 
       cout << "\nConvenient Terms:\n";
@@ -744,8 +808,9 @@ int main(int argc, char *argv[])
    tic_toc.Clear();
    tic_toc.Start();
 
-   Mesh * mesh = new Mesh(num_elements, 3, 3, Element::HEXAHEDRON, 1,
-                          mesh_dim_(0), mesh_dim_(1), mesh_dim_(2));
+   Mesh * mesh = new Mesh;
+   *mesh = Mesh::MakeCartesian3D(num_elements, 3, 3, Element::HEXAHEDRON,
+                                 mesh_dim_(0), mesh_dim_(1), mesh_dim_(2));
    {
       Array<int> v2v(mesh->GetNV());
       for (int i=0; i<v2v.Size(); i++) { v2v[i] = i; }
@@ -810,6 +875,7 @@ int main(int argc, char *argv[])
       return 3;
    }
    */
+   /*
    double Bmag = BVec.Norml2();
    Vector BUnitVec(3);
    BUnitVec(0) = BVec(0)/Bmag;
@@ -818,6 +884,7 @@ int main(int argc, char *argv[])
 
    VectorConstantCoefficient BCoef(BVec);
    VectorConstantCoefficient BUnitCoef(BUnitVec);
+   */
    // VectorConstantCoefficient kCoef(kVec);
    /*
    double ion_frac = 0.0;
@@ -832,8 +899,19 @@ int main(int argc, char *argv[])
    L2_ParFESpace L2FESpace(&pmesh, order, pmesh.Dimension());
 
    ParGridFunction BField(&HDivFESpace);
+
    ParGridFunction temperature_gf;
    ParGridFunction density_gf;
+   ParGridFunction nue_gf(&H1FESpace);
+   ParGridFunction nui_gf(&H1FESpace);
+
+   PlasmaProfile nueCoef(nept, nepp);
+   nue_gf.ProjectCoefficient(nueCoef);
+   PlasmaProfile nuiCoef(nipt, nipp);
+   nui_gf.ProjectCoefficient(nuiCoef);
+
+   BFieldProfile BCoef(bpt, bpp, false);
+   BFieldProfile BUnitCoef(bpt, bpp, true);
 
    BField.ProjectCoefficient(BCoef);
 
@@ -905,15 +983,18 @@ int main(int argc, char *argv[])
    Coefficient * etaInvCoef = SetupRealAdmittanceCoefficient(pmesh, abcs);
 
    // Create tensor coefficients describing the dielectric permittivity
-   InverseDielectricTensor epsilonInv_real(BField, density, temperature,
+   InverseDielectricTensor epsilonInv_real(BField, nue_gf, nui_gf,
+                                           density, temperature,
                                            L2FESpace, H1FESpace,
                                            omega, charges, masses, nuprof,
                                            true);
-   InverseDielectricTensor epsilonInv_imag(BField, density, temperature,
+   InverseDielectricTensor epsilonInv_imag(BField, nue_gf, nui_gf,
+                                           density, temperature,
                                            L2FESpace, H1FESpace,
                                            omega, charges, masses, nuprof,
                                            false);
-   SPDDielectricTensor epsilon_abs(BField, density, temperature,
+   SPDDielectricTensor epsilon_abs(BField, nue_gf, nui_gf,
+                                   density, temperature,
                                    L2FESpace, H1FESpace,
                                    omega, charges, masses, nuprof);
    SheathImpedance z_r(BField, density, temperature,
@@ -935,10 +1016,12 @@ int main(int argc, char *argv[])
 
    if (check_eps_inv)
    {
-      DielectricTensor epsilon_real(BField, density, temperature,
+      DielectricTensor epsilon_real(BField, nue_gf, nui_gf,
+                                    density, temperature,
                                     L2FESpace, H1FESpace,
                                     omega, charges, masses, nuprof, true);
-      DielectricTensor epsilon_imag(BField, density, temperature,
+      DielectricTensor epsilon_imag(BField, nue_gf, nui_gf,
+                                    density, temperature,
                                     L2FESpace, H1FESpace,
                                     omega, charges, masses, nuprof, false);
       DenseMatrix epsInvRe(3,3);
@@ -1529,12 +1612,12 @@ int main(int argc, char *argv[])
       }
 
       // Update the magnetostatic solver to reflect the new state of the mesh.
-      Update(H1FESpace, HCurlFESpace, HDivFESpace, L2FESpace, BField, BCoef,
-             rhoCoef, tempCoef,
+      Update(H1FESpace, HCurlFESpace, HDivFESpace, L2FESpace, BCoef,
+             rhoCoef, tempCoef, nueCoef, nuiCoef,
              size_h1, size_l2,
              density_offsets, temperature_offsets,
              density, temperature,
-             density_gf, temperature_gf);
+             BField, density_gf, temperature_gf, nue_gf, nui_gf);
       CPD.Update();
 
       if (pmesh.Nonconforming() && mpi.WorldSize() > 1 && false)
@@ -1543,12 +1626,12 @@ int main(int argc, char *argv[])
          pmesh.Rebalance();
 
          // Update again after rebalancing
-         Update(H1FESpace, HCurlFESpace, HDivFESpace, L2FESpace, BField, BCoef,
-                rhoCoef, tempCoef,
+         Update(H1FESpace, HCurlFESpace, HDivFESpace, L2FESpace, BCoef,
+                rhoCoef, tempCoef, nueCoef, nuiCoef,
                 size_h1, size_l2,
                 density_offsets, temperature_offsets,
                 density, temperature,
-                density_gf, temperature_gf);
+                BField, density_gf, temperature_gf, nue_gf, nui_gf);
          CPD.Update();
       }
    }
@@ -1574,18 +1657,22 @@ void Update(ParFiniteElementSpace & H1FESpace,
             ParFiniteElementSpace & HCurlFESpace,
             ParFiniteElementSpace & HDivFESpace,
             ParFiniteElementSpace & L2FESpace,
-            ParGridFunction & BField,
             VectorCoefficient & BCoef,
             Coefficient & rhoCoef,
             Coefficient & TCoef,
+            Coefficient & nueCoef,
+            Coefficient & nuiCoef,
             int & size_h1,
             int & size_l2,
             Array<int> & density_offsets,
             Array<int> & temperature_offsets,
             BlockVector & density,
             BlockVector & temperature,
+            ParGridFunction & BField,
             ParGridFunction & density_gf,
-            ParGridFunction & temperature_gf)
+            ParGridFunction & temperature_gf,
+            ParGridFunction & nue_gf,
+            ParGridFunction & nui_gf)
 {
    H1FESpace.Update();
    HCurlFESpace.Update();
@@ -1594,6 +1681,11 @@ void Update(ParFiniteElementSpace & H1FESpace,
 
    BField.Update();
    BField.ProjectCoefficient(BCoef);
+
+   nue_gf.Update();
+   nue_gf.ProjectCoefficient(nueCoef);
+   nui_gf.Update();
+   nui_gf.ProjectCoefficient(nuiCoef);
 
    size_l2 = L2FESpace.GetVSize();
    for (int i=1; i<density_offsets.Size(); i++)
@@ -1799,11 +1891,15 @@ ColdPlasmaPlaneWaveH::ColdPlasmaPlaneWaveH(char type,
    beta_r_ = 0.0;
    beta_i_ = 0.0;
 
-   S_ = S_cold_plasma(omega_, Bmag_, numbers_, charges_, masses_, temps_,
+   double nue = 0;
+   double nui = 0;
+
+   S_ = S_cold_plasma(omega_, Bmag_, nue, nui, numbers_, charges_, masses_,
+                      temps_, nuprof_);
+   D_ = D_cold_plasma(omega_, Bmag_, nue, nui, numbers_, charges_, masses_,
+                      temps_, nuprof_);
+   P_ = P_cold_plasma(omega_, nue, numbers_, charges_, masses_, temps_,
                       nuprof_);
-   D_ = D_cold_plasma(omega_, Bmag_, numbers_, charges_, masses_, temps_,
-                      nuprof_);
-   P_ = P_cold_plasma(omega_, numbers_, charges_, masses_, temps_, nuprof_);
 
    switch (type_)
    {
@@ -2043,11 +2139,15 @@ ColdPlasmaPlaneWaveE::ColdPlasmaPlaneWaveE(char type,
    beta_r_ = 0.0;
    beta_i_ = 0.0;
 
-   S_ = S_cold_plasma(omega_, Bmag_, numbers_, charges_, masses_, temps_,
+   double nue = 0;
+   double nui = 0;
+
+   S_ = S_cold_plasma(omega_, Bmag_, nue, nui, numbers_, charges_, masses_,
+                      temps_, nuprof_);
+   D_ = D_cold_plasma(omega_, Bmag_, nue, nui, numbers_, charges_, masses_,
+                      temps_, nuprof_);
+   P_ = P_cold_plasma(omega_, nue, numbers_, charges_, masses_, temps_,
                       nuprof_);
-   D_ = D_cold_plasma(omega_, Bmag_, numbers_, charges_, masses_, temps_,
-                      nuprof_);
-   P_ = P_cold_plasma(omega_, numbers_, charges_, masses_, temps_, nuprof_);
 
    switch (type_)
    {

@@ -1,13 +1,13 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
-// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
-// LICENSE and NOTICE for details. LLNL-CODE-806117.
+// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
+// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
+// reserved. See file COPYRIGHT for details.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability visit https://mfem.org.
+// availability see http://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the BSD-3 license. We welcome feedback and contributions, see file
-// CONTRIBUTING.md for details.
+// terms of the GNU Lesser General Public License (as published by the Free
+// Software Foundation) version 2.1 dated February 1999.
 
 #ifndef MFEM_COLD_PLASMA_DIELECTRIC_SOLVER
 #define MFEM_COLD_PLASMA_DIELECTRIC_SOLVER
@@ -441,12 +441,16 @@ private:
    ParDiscreteGradOperator * grad_; // For Computing E = Grad phi
    ParDiscreteLinearOperator * kOp_; // E += i k phi
    ParComplexGridFunction * phi_; // Complex sheath potential (H1)
-   ParComplexGridFunction * phi_tmp_; // Complex sheath potential temporary (H1)
-   ParComplexGridFunction * rectPot_; // Complex rectified potential (H1)
+   ParComplexGridFunction * prev_phi_; // Complex sheath potential temporary (H1)
+   ParComplexGridFunction * next_phi_; // Complex sheath potential temporary (H1)
+   ParComplexGridFunction * z_; // Complex sheath potential (H1)
+  
+   ParGridFunction * rectPot_; // Real valued rectified potential (H1)
    ParComplexGridFunction * j_;   // Complex current density (HCurl)
    ParComplexLinearForm   * rhs_; // Dual of complex current density (HCurl)
    ParGridFunction        * e_t_; // Time dependent Electric field
    ParComplexGridFunction * e_b_; // Complex parallel electric field (L2)
+   ParComplexGridFunction * e_perp_; // Complex perpendicular electric field (L2)
    ParComplexGridFunction * e_v_; // Complex electric field (L2^d)
    ParComplexGridFunction * d_v_; // Complex electric flux (L2^d)
    ParComplexGridFunction * phi_v_; // Complex sheath potential (L2)
@@ -459,7 +463,7 @@ private:
    ParComplexGridFunction * StixS_; // Stix S Coefficient (L2)
    ParComplexGridFunction * StixD_; // Stix D Coefficient (L2)
    ParComplexGridFunction * StixP_; // Stix P Coefficient (L2)
-   ParComplexGridFunction * EpsPara_; // B^T eps B / |B|^2 Coefficient (L2)
+   //ParComplexGridFunction * EpsPara_; // B^T eps B / |B|^2 Coefficient (L2)
 
    VectorCoefficient * BCoef_;        // B Field Unit Vector
    MatrixCoefficient * epsReCoef_;    // Dielectric Material Coefficient

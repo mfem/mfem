@@ -487,4 +487,64 @@ void LpErrorEstimator::ComputeEstimates()
    current_sequence = sol->FESpace()->GetMesh()->GetSequence();
 }
 
+void ComplexLpErrorEstimator::ComputeEstimates()
+{
+   MFEM_VERIFY(real_coef != NULL || real_vcoef != NULL,
+               "ComplexLpErrorEstimator has no coefficient "
+               "for the real part!  "
+               "Call SetRealCoef first.");
+   MFEM_VERIFY(imag_coef != NULL || imag_vcoef != NULL,
+               "ComplexLpErrorEstimator has no coefficient "
+               "for the imaginary part!  "
+               "Call SetImagCoef first.");
+
+   int ne = 0;
+   if (sol) { ne = sol->FESpace()->GetMesh()->GetNE(); }
+#ifdef MFEM_USE_MPI
+   if (par_sol) { ne = par_sol->FESpace()->GetMesh()->GetNE(); }
+#endif
+
+   error_estimates.SetSize(ne);
+
+   const Vector & real_errors = real_estimator.GetLocalErrors();
+   const Vector & imag_errors = imag_estimator.GetLocalErrors();
+
+   if (local_norm_p < infinity())
+   {
+      for (int i=0; i<ne; i++)
+      {
+         const double re = pow(real_errors[i], local_norm_p);
+         const double ie = pow(imag_errors[i], local_norm_p);
+
+         error_estimates[i] = pow(re + ie, 1./local_norm_p);
+      }
+   }
+   else
+   {
+      for (int i=0; i<ne; i++)
+      {
+         error_estimates[i] = std::max(real_errors[i], imag_errors[i]);
+      }
+   }
+   /*
+   #ifdef MFEM_USE_MPI
+   total_error = error_estimates.Sum();
+   auto pfes = dynamic_cast<ParFiniteElementSpace*>(sol->FESpace());
+   if (pfes)
+   {
+      auto process_local_error = total_error;
+      MPI_Allreduce(&process_local_error, &total_error, 1, MPI_DOUBLE,
+                    MPI_SUM, pfes->GetComm());
+   }
+   #endif // MFEM_USE_MPI
+   total_error = pow(total_error, 1.0/local_norm_p);
+   */
+   current_sequence = -1;
+   if (sol) { current_sequence = sol->FESpace()->GetMesh()->GetSequence(); }
+#ifdef MFEM_USE_MPI
+   if (par_sol)
+   { current_sequence = par_sol->FESpace()->GetMesh()->GetSequence(); }
+#endif
+}
+
 } // namespace mfem
