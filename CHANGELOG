@@ -8,6 +8,13 @@
                                https://mfem.org
 
 
+API changes
+-----------
+- The implicit cast methods of class Vector to 'double *' and 'const double *'
+  have been deprecated and generate deprecation warnings if used. They will be
+  removed in a future release.
+
+
 Version 4.4.1 (development)
 ===========================
 

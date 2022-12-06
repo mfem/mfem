@@ -145,7 +145,7 @@ void KellyErrorEstimator::ResetCoefficientFunctions()
             auto fip2 = vtx_intrule->IntPoint(j);
             FT->Transform(fip2, p2);
 
-            diameter = std::max<double>(diameter, p2.DistanceTo(p1.HostRead()));
+            diameter = std::max<double>(diameter, p2.DistanceTo(p1));
          }
       }
       return diameter/(2.0*order);

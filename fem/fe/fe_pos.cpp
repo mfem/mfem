@@ -212,7 +212,7 @@ void BiQuadPos2DFiniteElement::GetLocalInterpolation(
 void BiQuadPos2DFiniteElement::Project(
    Coefficient &coeff, ElementTransformation &Trans, Vector &dofs) const
 {
-   double *d = dofs.HostWrite();
+   double *d = dofs.GetData();
 
    for (int i = 0; i < 9; i++)
    {
@@ -382,8 +382,8 @@ void H1Pos_QuadrilateralElement::CalcShape(const IntegrationPoint &ip,
    Vector shape_x(p+1), shape_y(p+1);
 #endif
 
-   Poly_1D::CalcBernstein(p, ip.x, shape_x.HostWrite());
-   Poly_1D::CalcBernstein(p, ip.y, shape_y.HostWrite());
+   Poly_1D::CalcBernstein(p, ip.x, shape_x);
+   Poly_1D::CalcBernstein(p, ip.y, shape_y);
 
    // Reorder so that vertices are at the beginning of the list
    for (int o = 0, j = 0; j <= p; j++)
@@ -402,8 +402,8 @@ void H1Pos_QuadrilateralElement::CalcDShape(const IntegrationPoint &ip,
    Vector shape_x(p+1), shape_y(p+1), dshape_x(p+1), dshape_y(p+1);
 #endif
 
-   Poly_1D::CalcBernstein(p, ip.x, shape_x.HostWrite(), dshape_x.HostWrite());
-   Poly_1D::CalcBernstein(p, ip.y, shape_y.HostWrite(), dshape_y.HostWrite());
+   Poly_1D::CalcBernstein(p, ip.x, shape_x, dshape_x);
+   Poly_1D::CalcBernstein(p, ip.y, shape_y, dshape_y);
 
    // Reorder so that vertices are at the beginning of the list
    for (int o = 0, j = 0; j <= p; j++)
@@ -1058,7 +1058,7 @@ L2Pos_SegmentElement::L2Pos_SegmentElement(const int p)
 void L2Pos_SegmentElement::CalcShape(const IntegrationPoint &ip,
                                      Vector &shape) const
 {
-   Poly_1D::CalcBernstein(order, ip.x, shape.HostWrite());
+   Poly_1D::CalcBernstein(order, ip.x, shape);
 }
 
 void L2Pos_SegmentElement::CalcDShape(const IntegrationPoint &ip,
@@ -1069,7 +1069,7 @@ void L2Pos_SegmentElement::CalcDShape(const IntegrationPoint &ip,
 #else
    dshape_x.SetData(dshape.Data());
 #endif
-   Poly_1D::CalcBernstein(order, ip.x, shape_x.HostWrite(), dshape_x.HostWrite());
+   Poly_1D::CalcBernstein(order, ip.x, shape_x, dshape_x);
 }
 
 void L2Pos_SegmentElement::ProjectDelta(int vertex, Vector &dofs) const
@@ -1112,8 +1112,8 @@ void L2Pos_QuadrilateralElement::CalcShape(const IntegrationPoint &ip,
    Vector shape_x(p+1), shape_y(p+1);
 #endif
 
-   Poly_1D::CalcBernstein(p, ip.x, shape_x.HostWrite());
-   Poly_1D::CalcBernstein(p, ip.y, shape_y.HostWrite());
+   Poly_1D::CalcBernstein(p, ip.x, shape_x);
+   Poly_1D::CalcBernstein(p, ip.y, shape_y);
 
    for (int o = 0, j = 0; j <= p; j++)
       for (int i = 0; i <= p; i++)
@@ -1131,8 +1131,8 @@ void L2Pos_QuadrilateralElement::CalcDShape(const IntegrationPoint &ip,
    Vector shape_x(p+1), shape_y(p+1), dshape_x(p+1), dshape_y(p+1);
 #endif
 
-   Poly_1D::CalcBernstein(p, ip.x, shape_x.HostWrite(), dshape_x.HostWrite());
-   Poly_1D::CalcBernstein(p, ip.y, shape_y.HostWrite(), dshape_y.HostWrite());
+   Poly_1D::CalcBernstein(p, ip.x, shape_x, dshape_x);
+   Poly_1D::CalcBernstein(p, ip.y, shape_y, dshape_y);
 
    for (int o = 0, j = 0; j <= p; j++)
       for (int i = 0; i <= p; i++)
@@ -1193,9 +1193,9 @@ void L2Pos_HexahedronElement::CalcShape(const IntegrationPoint &ip,
    Vector shape_x(p+1), shape_y(p+1), shape_z(p+1);
 #endif
 
-   Poly_1D::CalcBernstein(p, ip.x, shape_x.HostWrite());
-   Poly_1D::CalcBernstein(p, ip.y, shape_y.HostWrite());
-   Poly_1D::CalcBernstein(p, ip.z, shape_z.HostWrite());
+   Poly_1D::CalcBernstein(p, ip.x, shape_x);
+   Poly_1D::CalcBernstein(p, ip.y, shape_y);
+   Poly_1D::CalcBernstein(p, ip.z, shape_z);
 
    for (int o = 0, k = 0; k <= p; k++)
       for (int j = 0; j <= p; j++)
@@ -1215,9 +1215,9 @@ void L2Pos_HexahedronElement::CalcDShape(const IntegrationPoint &ip,
    Vector dshape_x(p+1), dshape_y(p+1), dshape_z(p+1);
 #endif
 
-   Poly_1D::CalcBernstein(p, ip.x, shape_x.HostWrite(), dshape_x.HostWrite());
-   Poly_1D::CalcBernstein(p, ip.y, shape_y.HostWrite(), dshape_y.HostWrite());
-   Poly_1D::CalcBernstein(p, ip.z, shape_z.HostWrite(), dshape_z.HostWrite());
+   Poly_1D::CalcBernstein(p, ip.x, shape_x, dshape_x);
+   Poly_1D::CalcBernstein(p, ip.y, shape_y, dshape_y);
+   Poly_1D::CalcBernstein(p, ip.z, shape_z, dshape_z);
 
    for (int o = 0, k = 0; k <= p; k++)
       for (int j = 0; j <= p; j++)

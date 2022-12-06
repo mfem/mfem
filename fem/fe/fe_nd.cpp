@@ -314,11 +314,13 @@ void ND_HexahedronElement::CalcVShape(const IntegrationPoint &ip,
 #ifdef MFEM_THREAD_SAFE
    Vector shape_cx(p + 1), shape_ox(p), shape_cy(p + 1), shape_oy(p);
    Vector shape_cz(p + 1), shape_oz(p);
-   Vector dshape_cx, dshape_cy, dshape_cz;
 #endif
 
    if (obasis1d.IsIntegratedType())
    {
+#ifdef MFEM_THREAD_SAFE
+      Vector dshape_cx(p + 1), dshape_cy(p + 1), dshape_cz(p + 1);
+#endif
       cbasis1d.Eval(ip.x, shape_cx, dshape_cx);
       cbasis1d.Eval(ip.y, shape_cy, dshape_cy);
       cbasis1d.Eval(ip.z, shape_cz, dshape_cz);
@@ -656,11 +658,13 @@ void ND_QuadrilateralElement::CalcVShape(const IntegrationPoint &ip,
 
 #ifdef MFEM_THREAD_SAFE
    Vector shape_cx(p + 1), shape_ox(p), shape_cy(p + 1), shape_oy(p);
-   Vector dshape_cx, dshape_cy;
 #endif
 
    if (obasis1d.IsIntegratedType())
    {
+#ifdef MFEM_THREAD_SAFE
+      Vector dshape_cx(p + 1), dshape_cy(p + 1);
+#endif
       cbasis1d.Eval(ip.x, shape_cx, dshape_cx);
       cbasis1d.Eval(ip.y, shape_cy, dshape_cy);
       obasis1d.ScaleIntegrated(false);
@@ -889,10 +893,10 @@ ND_TetrahedronElement::ND_TetrahedronElement(const int p)
       const double *tm = tk + 3*dof2tk[m];
       o = 0;
 
-      poly1d.CalcBasis(pm1, ip.x, shape_x.HostWrite());
-      poly1d.CalcBasis(pm1, ip.y, shape_y.HostWrite());
-      poly1d.CalcBasis(pm1, ip.z, shape_z.HostWrite());
-      poly1d.CalcBasis(pm1, 1. - ip.x - ip.y - ip.z, shape_l.HostWrite());
+      poly1d.CalcBasis(pm1, ip.x, shape_x);
+      poly1d.CalcBasis(pm1, ip.y, shape_y);
+      poly1d.CalcBasis(pm1, ip.z, shape_z);
+      poly1d.CalcBasis(pm1, 1. - ip.x - ip.y - ip.z, shape_l);
 
       for (int k = 0; k <= pm1; k++)
          for (int j = 0; j + k <= pm1; j++)
@@ -932,10 +936,10 @@ void ND_TetrahedronElement::CalcVShape(const IntegrationPoint &ip,
    DenseMatrix u(dof, dim);
 #endif
 
-   poly1d.CalcBasis(pm1, ip.x, shape_x.HostWrite());
-   poly1d.CalcBasis(pm1, ip.y, shape_y.HostWrite());
-   poly1d.CalcBasis(pm1, ip.z, shape_z.HostWrite());
-   poly1d.CalcBasis(pm1, 1. - ip.x - ip.y - ip.z, shape_l.HostWrite());
+   poly1d.CalcBasis(pm1, ip.x, shape_x);
+   poly1d.CalcBasis(pm1, ip.y, shape_y);
+   poly1d.CalcBasis(pm1, ip.z, shape_z);
+   poly1d.CalcBasis(pm1, 1. - ip.x - ip.y - ip.z, shape_l);
 
    int n = 0;
    for (int k = 0; k <= pm1; k++)
@@ -975,11 +979,10 @@ void ND_TetrahedronElement::CalcCurlShape(const IntegrationPoint &ip,
    DenseMatrix u(dof, dim);
 #endif
 
-   poly1d.CalcBasis(pm1, ip.x, shape_x.HostWrite(), dshape_x.HostWrite());
-   poly1d.CalcBasis(pm1, ip.y, shape_y.HostWrite(), dshape_y.HostWrite());
-   poly1d.CalcBasis(pm1, ip.z, shape_z.HostWrite(), dshape_z.HostWrite());
-   poly1d.CalcBasis(pm1, 1. - ip.x - ip.y - ip.z, shape_l.HostWrite(),
-                    dshape_l.HostWrite());
+   poly1d.CalcBasis(pm1, ip.x, shape_x, dshape_x);
+   poly1d.CalcBasis(pm1, ip.y, shape_y, dshape_y);
+   poly1d.CalcBasis(pm1, ip.z, shape_z, dshape_z);
+   poly1d.CalcBasis(pm1, 1. - ip.x - ip.y - ip.z, shape_l, dshape_l);
 
    int n = 0;
    for (int k = 0; k <= pm1; k++)
@@ -1095,9 +1098,9 @@ ND_TriangleElement::ND_TriangleElement(const int p)
       const double *tm = tk + 2*dof2tk[m];
       n = 0;
 
-      poly1d.CalcBasis(pm1, ip.x, shape_x.HostWrite());
-      poly1d.CalcBasis(pm1, ip.y, shape_y.HostWrite());
-      poly1d.CalcBasis(pm1, 1. - ip.x - ip.y, shape_l.HostWrite());
+      poly1d.CalcBasis(pm1, ip.x, shape_x);
+      poly1d.CalcBasis(pm1, ip.y, shape_y);
+      poly1d.CalcBasis(pm1, 1. - ip.x - ip.y, shape_l);
 
       for (int j = 0; j <= pm1; j++)
          for (int i = 0; i + j <= pm1; i++)
@@ -1128,9 +1131,9 @@ void ND_TriangleElement::CalcVShape(const IntegrationPoint &ip,
    DenseMatrix u(dof, dim);
 #endif
 
-   poly1d.CalcBasis(pm1, ip.x, shape_x.HostWrite());
-   poly1d.CalcBasis(pm1, ip.y, shape_y.HostWrite());
-   poly1d.CalcBasis(pm1, 1. - ip.x - ip.y, shape_l.HostWrite());
+   poly1d.CalcBasis(pm1, ip.x, shape_x);
+   poly1d.CalcBasis(pm1, ip.y, shape_y);
+   poly1d.CalcBasis(pm1, 1. - ip.x - ip.y, shape_l);
 
    int n = 0;
    for (int j = 0; j <= pm1; j++)
@@ -1163,10 +1166,9 @@ void ND_TriangleElement::CalcCurlShape(const IntegrationPoint &ip,
    Vector curlu(dof);
 #endif
 
-   poly1d.CalcBasis(pm1, ip.x, shape_x.HostWrite(), dshape_x.HostWrite());
-   poly1d.CalcBasis(pm1, ip.y, shape_y.HostWrite(), dshape_y.HostWrite());
-   poly1d.CalcBasis(pm1, 1. - ip.x - ip.y, shape_l.HostWrite(),
-                    dshape_l.HostWrite());
+   poly1d.CalcBasis(pm1, ip.x, shape_x, dshape_x);
+   poly1d.CalcBasis(pm1, ip.y, shape_y, dshape_y);
+   poly1d.CalcBasis(pm1, 1. - ip.x - ip.y, shape_l, dshape_l);
 
    int n = 0;
    for (int j = 0; j <= pm1; j++)
@@ -1752,7 +1754,7 @@ void ND_R1D_SegmentElement::Project(const FiniteElement &fe,
          Trans.SetIntPoint(&ip);
          // Transform ND edge tengents from reference to physical space
          // vk = J tk
-         Trans.Jacobian().Mult(t1.HostRead(), vk);
+         Trans.Jacobian().Mult(t1, vk);
          vk[1] = t3[1];
          vk[2] = t3[2];
          if (fe.GetMapType() == INTEGRAL)
@@ -1798,7 +1800,7 @@ void ND_R1D_SegmentElement::Project(const FiniteElement &fe,
          Trans.SetIntPoint(&ip);
          // Transform ND edge tangents from reference to physical space
          // vk = J tk
-         Trans.Jacobian().Mult(t1.HostRead(), vk);
+         Trans.Jacobian().Mult(t1, vk);
          // Compute fe basis functions in physical space
          fe.CalcVShape(Trans, vshape);
          // Project fe basis functions onto transformed edge tangents
@@ -1963,7 +1965,7 @@ void ND_R2D_SegmentElement::LocalInterpolation(const VectorFiniteElement &cfe,
       ip.Set3(vk);
       cfe.CalcVShape(ip, vshape);
       // xk = J t_k
-      J.Mult(t1.HostRead(), vk);
+      J.Mult(t1, vk);
       // I_k = vshape_k.J.t_k, k=1,...,Dof
       for (int j = 0; j < vshape.Height(); j++)
       {
@@ -2086,7 +2088,7 @@ void ND_R2D_FiniteElement::LocalInterpolation(
       ip.Set3(vk);
       cfe.CalcVShape(ip, vshape);
       // xk = J t_k
-      J.Mult(t2.HostRead(), vk);
+      J.Mult(t2, vk);
       // I_k = vshape_k.J.t_k, k=1,...,Dof
       for (int j = 0; j < vshape.Height(); j++)
       {
@@ -2126,7 +2128,7 @@ void ND_R2D_FiniteElement::GetLocalRestriction(ElementTransformation &Trans,
       if (Geometries.CheckPoint(geom_type, ip)) // do we need an epsilon here?
       {
          CalcVShape(ip, vshape);
-         Jinv.Mult(t2.HostRead(), pt_data);
+         Jinv.Mult(t2, pt_data);
          for (int k = 0; k < dof; k++)
          {
             double R_jk = 0.0;
@@ -2194,7 +2196,7 @@ void ND_R2D_FiniteElement::Project(const FiniteElement &fe,
          Trans.SetIntPoint(&ip);
          // Transform ND edge tengents from reference to physical space
          // vk = J tk
-         Trans.Jacobian().Mult(t2.HostRead(), vk);
+         Trans.Jacobian().Mult(t2, vk);
          vk[2] = t3[2];
          if (fe.GetMapType() == INTEGRAL)
          {
@@ -2239,7 +2241,7 @@ void ND_R2D_FiniteElement::Project(const FiniteElement &fe,
          Trans.SetIntPoint(&ip);
          // Transform ND edge tangents from reference to physical space
          // vk = J tk
-         Trans.Jacobian().Mult(t2.HostRead(), vk);
+         Trans.Jacobian().Mult(t2, vk);
          // Compute fe basis functions in physical space
          fe.CalcVShape(Trans, vshape);
          // Project fe basis functions onto transformed edge tangents
@@ -2272,7 +2274,7 @@ void ND_R2D_FiniteElement::ProjectGrad(const FiniteElement &fe,
    for (int k = 0; k < dof; k++)
    {
       fe.CalcDShape(Nodes.IntPoint(k), dshape);
-      dshape.Mult(tk + dof2tk[k]*vdim, grad_k.HostWrite());
+      dshape.Mult(tk + dof2tk[k]*vdim, grad_k);
       for (int j = 0; j < grad_k.Size(); j++)
       {
          grad(k,j) = (fabs(grad_k(j)) < 1e-12) ? 0.0 : grad_k(j);
