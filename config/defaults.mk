@@ -131,7 +131,6 @@ MFEM_USE_LEGACY_OPENMP = NO
 MFEM_USE_MEMALLOC      = YES
 MFEM_TIMER_TYPE        = $(if $(NOTMAC),2,4)
 MFEM_USE_SUNDIALS      = NO
-MFEM_USE_MESQUITE      = NO
 MFEM_USE_SUITESPARSE   = NO
 MFEM_USE_SUPERLU       = NO
 MFEM_USE_SUPERLU5      = NO
@@ -251,12 +250,16 @@ POSIX_CLOCKS_LIB = -lrt
 # SUNDIALS library configuration
 # For sundials_nvecmpiplusx and nvecparallel remember to build with MPI_ENABLE=ON
 # and modify cmake variables for hypre for sundials
-SUNDIALS_DIR    = @MFEM_DIR@/../sundials-5.0.0/instdir
-SUNDIALS_OPT    = -I$(SUNDIALS_DIR)/include
-SUNDIALS_LIBDIR = $(wildcard $(SUNDIALS_DIR)/lib*)
-SUNDIALS_LIB    = $(XLINKER)-rpath,$(SUNDIALS_LIBDIR) -L$(SUNDIALS_LIBDIR)\
+SUNDIALS_DIR = @MFEM_DIR@/../sundials-5.0.0/instdir
+# SUNDIALS >= 6.4.0 requires C++14:
+ifeq ($(MFEM_USE_SUNDIALS),YES)
+   BASE_FLAGS = -std=c++14
+endif
+SUNDIALS_OPT = -I$(SUNDIALS_DIR)/include
+SUNDIALS_LIB = $(XLINKER)-rpath,$(SUNDIALS_DIR)/lib64\
+ $(XLINKER)-rpath,$(SUNDIALS_DIR)/lib\
+ -L$(SUNDIALS_DIR)/lib64 -L$(SUNDIALS_DIR)/lib\
  -lsundials_arkode -lsundials_cvodes -lsundials_nvecserial -lsundials_kinsol
-
 ifeq ($(MFEM_USE_MPI),YES)
    SUNDIALS_LIB += -lsundials_nvecparallel -lsundials_nvecmpiplusx
 endif
@@ -265,11 +268,6 @@ ifeq ($(MFEM_USE_CUDA),YES)
 endif
 # If SUNDIALS was built with KLU:
 # MFEM_USE_SUITESPARSE = YES
-
-# MESQUITE library configuration
-MESQUITE_DIR = @MFEM_DIR@/../mesquite-2.99
-MESQUITE_OPT = -I$(MESQUITE_DIR)/include
-MESQUITE_LIB = -L$(MESQUITE_DIR)/lib -lmesquite
 
 # SuiteSparse library configuration
 LIB_RT = $(if $(NOTMAC),-lrt,)

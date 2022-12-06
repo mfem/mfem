@@ -275,9 +275,14 @@ CeedOperator CoarsenCeedCompositeOperator(
                                       &op_coarse); PCeedChk(ierr);
 
    int nsub;
-   ierr = CeedOperatorGetNumSub(op, &nsub); PCeedChk(ierr);
    CeedOperator *subops;
+#if CEED_VERSION_GE(0, 10, 2)
+   ierr = CeedCompositeOperatorGetNumSub(op, &nsub); PCeedChk(ierr);
+   ierr = CeedCompositeOperatorGetSubList(op, &subops); PCeedChk(ierr);
+#else
+   ierr = CeedOperatorGetNumSub(op, &nsub); PCeedChk(ierr);
    ierr = CeedOperatorGetSubList(op, &subops); PCeedChk(ierr);
+#endif
    for (int isub=0; isub<nsub; ++isub)
    {
       CeedOperator subop = subops[isub];
@@ -676,7 +681,6 @@ AlgebraicSpaceHierarchy::AlgebraicSpaceHierarchy(FiniteElementSpace &fes)
       const SparseMatrix *R = fespaces[ilevel+1]->GetRestrictionMatrix();
       if (R)
       {
-         R->EnsureMultTranspose();
          R_tr[ilevel] = new TransposeOperator(*R);
       }
       else
@@ -822,11 +826,11 @@ HypreParMatrix *ParAlgebraicCoarseSpace::GetProlongationHypreParMatrix()
 
    ParMesh *pmesh = dynamic_cast<ParMesh*>(mesh);
    MFEM_VERIFY(pmesh != NULL, "");
-   Array<HYPRE_Int> dof_offsets, tdof_offsets, tdof_nb_offsets;
-   Array<HYPRE_Int> *offsets[2] = {&dof_offsets, &tdof_offsets};
+   Array<HYPRE_BigInt> dof_offsets, tdof_offsets, tdof_nb_offsets;
+   Array<HYPRE_BigInt> *offsets[2] = {&dof_offsets, &tdof_offsets};
    int lsize = P->Height();
    int ltsize = P->Width();
-   HYPRE_Int loc_sizes[2] = {lsize, ltsize};
+   HYPRE_BigInt loc_sizes[2] = {lsize, ltsize};
    pmesh->GenerateOffsets(2, loc_sizes, offsets);
 
    MPI_Comm comm = pmesh->GetComm();
@@ -870,12 +874,12 @@ HypreParMatrix *ParAlgebraicCoarseSpace::GetProlongationHypreParMatrix()
    HYPRE_Int *j_offd = Memory<HYPRE_Int>(lsize-ltsize);
    int offd_counter;
 
-   HYPRE_Int *cmap   = Memory<HYPRE_Int>(lsize-ltsize);
+   HYPRE_BigInt *cmap   = Memory<HYPRE_BigInt>(lsize-ltsize);
 
-   HYPRE_Int *col_starts = tdof_offsets;
-   HYPRE_Int *row_starts = dof_offsets;
+   HYPRE_BigInt *col_starts = tdof_offsets;
+   HYPRE_BigInt *row_starts = dof_offsets;
 
-   Array<Pair<HYPRE_Int, int> > cmap_j_offd(lsize-ltsize);
+   Array<Pair<HYPRE_BigInt, int> > cmap_j_offd(lsize-ltsize);
 
    i_diag[0] = i_offd[0] = 0;
    diag_counter = offd_counter = 0;
@@ -909,7 +913,7 @@ HypreParMatrix *ParAlgebraicCoarseSpace::GetProlongationHypreParMatrix()
       i_offd[i_ldof+1] = offd_counter;
    }
 
-   SortPairs<HYPRE_Int, int>(cmap_j_offd, offd_counter);
+   SortPairs<HYPRE_BigInt, int>(cmap_j_offd, offd_counter);
 
    for (int i = 0; i < offd_counter; i++)
    {

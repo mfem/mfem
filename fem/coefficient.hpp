@@ -2239,7 +2239,7 @@ public:
    /// @sa CoefficientVector for a description of the @a compress argument.
    void Project(MatrixCoefficient &coeff, bool transpose=false);
 
-   /// @brief Project the tranpose of @a coeff.
+   /// @brief Project the transpose of @a coeff.
    ///
    /// @sa Project(MatrixCoefficient&, QuadratureSpace&, bool, bool)
    void ProjectTranspose(MatrixCoefficient &coeff);

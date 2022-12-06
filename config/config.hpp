@@ -31,8 +31,10 @@
 
 // Windows specific options
 #ifdef _WIN32
+#ifndef _USE_MATH_DEFINES
 // Macro needed to get defines like M_PI from <cmath>. (Visual Studio C++ only?)
 #define _USE_MATH_DEFINES
+#endif
 #endif
 // On Cygwin the option -std=c++11 prevents the definition of M_PI. Defining
 // the following macro allows us to get M_PI and some needed functions, e.g.

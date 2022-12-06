@@ -5,7 +5,7 @@
 
 // Original version, https://github.com/mateidavid/zstr, distributed under MIT
 // license. This file is a combination of the zstr.hpp and strict_fstream.hpp
-// files in the original src/ directory with additional MFEM modifactions.
+// files in the original src/ directory with additional MFEM modifications.
 
 // The MIT License (MIT)
 //
@@ -60,9 +60,9 @@ namespace strict_fstream
 {
 
 // Overloaded error checks to handle POSIX and GNU strerror_r
-inline char* check_strerror_r(int r, char* buff, int err)
+inline char* check_strerror_r(int r, char* buff, size_t buff_size)
 {
-   if (r) { sprintf(buff, "unknown error: %d", err); }
+   if (r) { snprintf(buff, buff_size, "unknown error: %d", r); }
    return buff;
 }
 
