@@ -62,6 +62,8 @@ public:
    virtual void AssemblePA(const FiniteElementSpace &trial_fes,
                            const FiniteElementSpace &test_fes);
 
+   virtual void AssembleNURBSPA(const FiniteElementSpace &fes);
+
    virtual void AssemblePAInteriorFaces(const FiniteElementSpace &fes);
 
    virtual void AssemblePABoundaryFaces(const FiniteElementSpace &fes);
@@ -80,6 +82,8 @@ public:
        This method can be called only after the method AssemblePA() has been
        called. */
    virtual void AddMultPA(const Vector &x, Vector &y) const;
+
+   virtual void AddMultNURBSPA(const Vector&x, Vector&y) const;
 
    /// Method for partially assembled transposed action.
    /** Perform the transpose action of integrator on the input @a x and add the
@@ -2106,8 +2110,19 @@ private:
    Vector pa_data;
    bool symmetric = true; ///< False if using a nonsymmetric matrix coefficient
 
-   void SetupPatchPA(const int patch, Array<int> const& Q1D, Mesh *mesh,
-                     Vector & D, bool unitWeights=false);
+   // Data for NURBS patch PA
+   // TODO: put this in a struct?
+   int numPatches = 0;
+   std::vector<std::vector<std::vector<std::vector<Vector>>>> reducedWeights;
+   std::vector<std::vector<std::vector<std::vector<std::vector<int>>>>> reducedIDs;
+   std::vector<Array<int>> pQ1D, pD1D;
+   std::vector<std::vector<Array2D<double>>> pB, pG;
+   std::vector<std::vector<std::vector<int>>> pminD, pmaxD, pminQ, pmaxQ, pminDD,
+       pmaxDD;
+   std::vector<Array<const IntegrationRule*>> pir1d;
+
+   void SetupPatchPA(const int patch, const int dim, Mesh *mesh,
+                     bool unitWeights=false);
 
    void SetupPatch3D(const int Q1Dx,
                      const int Q1Dy,
@@ -2117,6 +2132,8 @@ private:
                      const Vector &j,
                      const Vector &c,
                      Vector &d);
+
+   void SetupPatchBasisData(Mesh *mesh, const int patch);
 
 public:
    /// Construct a diffusion integrator with coefficient Q = 1
@@ -2166,6 +2183,10 @@ public:
                                                  Mesh *mesh,
                                                  DenseMatrix &pmat);
 
+   virtual void AssembleNURBSPA(const FiniteElementSpace &fes);
+
+   void AssemblePatchPA(const int patch, const FiniteElementSpace &fes);
+
    /// Perform the local action of the BilinearFormIntegrator
    virtual void AssembleElementVector(const FiniteElement &el,
                                       ElementTransformation &Tr,
@@ -2199,6 +2220,13 @@ public:
    virtual void AddMultPA(const Vector&, Vector&) const;
 
    virtual void AddMultTransposePA(const Vector&, Vector&) const;
+
+   virtual void AddMultNURBSPA(const Vector&, Vector&) const;
+
+   void AddMultPatchPA_inefficient(const int patch, const Vector &x,
+                                   Vector &y) const;
+
+   void AddMultPatchPA(const int patch, const Vector &x, Vector &y) const;
 
    static const IntegrationRule &GetRule(const FiniteElement &trial_fe,
                                          const FiniteElement &test_fe);
