@@ -27,7 +27,7 @@
 //                We recommend viewing examples 5, 9, and 14 before viewing this example.
 //
 //                [1]  Rivière B. DG Methods for Solving Elliptic and Parabolic Equations Theory and
-//                     Implementation. Society for Industrial and Applied Mathematics; 2008. 
+//                     Implementation. Society for Industrial and Applied Mathematics; 2008.
 //                     doi: 10.1137/1.9780898717440
 
 #include "mfem.hpp"

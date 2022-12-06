@@ -148,12 +148,12 @@ void VectorDGDiffusionIntegrator::AssembleFaceMatrix(
       // Note: in the jump term, we use 1/h1 = |nor|/det(J1) which is
       // independent of Loc1 and always gives the size of element 1 in
       // direction perpendicular to the face. Indeed, for linear transformation
-      //     
+      //
       //      |nor|=measure(face)/measure(ref. face),
       //
       //      det(J1)=measure(element)/measure(ref. element),
       //
-      //      and the ratios measure(ref. element)/measure(ref. face) 
+      //      and the ratios measure(ref. element)/measure(ref. face)
       //      are compatible for all element/face pairs.
       //
       // For example: meas(ref. tetrahedron)/meas(ref. triangle) = 1/3, and
