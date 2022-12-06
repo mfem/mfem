@@ -541,7 +541,7 @@ void PRefDiffEstimator::ComputeEstimates()
     delete solutionProlong;
     delete solutionCompProlong;
 
-    total_error = error_estimates.Sum();
+    total_error = error_estimates.Norml2();
 }
 
 PRefJumpEstimator::PRefJumpEstimator(GridFunction& sol_)
@@ -609,10 +609,22 @@ void PRefJumpEstimator::ComputeEstimates()
         error_estimates(e) *= 1.0/counters[e];
     }
 
-    total_error = error_estimates.Sum();
+    total_error = error_estimates.Norml2();
 
     delete solutionProlong;
 }
 
+ExactError::ExactError(GridFunction& sol_, FunctionCoefficient &exact_)
+   : solution(&sol_), exact(&exact_)
+{ }
+
+void ExactError::ComputeEstimates()
+{
+    const int nelem = solution->FESpace()->GetNE();
+    const int dim = solution->FESpace()->GetMesh()->Dimension();
+    error_estimates.SetSize(nelem);
+    solution->ComputeElementL2Errors(*exact, error_estimates);
+    total_error = error_estimates.Norml2();
+}
 
 } // namespace mfem

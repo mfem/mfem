@@ -790,6 +790,56 @@ public:
    virtual double GetTotalError() const override { return total_error; }
 };
 
+class ExactError : public ErrorEstimator
+{
+public:
+
+private:
+   int current_sequence = -1;
+
+   Vector error_estimates;
+
+   double total_error = 0.0;
+
+   GridFunction* solution;               ///< Not owned.
+   FunctionCoefficient* exact;
+
+   /// Check if the mesh of the solution was modified.
+   bool MeshIsModified()
+   {
+      long mesh_sequence = solution->FESpace()->GetMesh()->GetSequence();
+      MFEM_ASSERT(mesh_sequence >= current_sequence,
+                  "improper mesh update sequence");
+      return (mesh_sequence > current_sequence);
+   }
+
+   void ComputeEstimates();
+
+public:
+   /** @brief Construct a new ExactError object for a scalar field.
+       @param sol_        The solution field whose error is to be estimated.
+       @param exact_      The exact solution coefficient
+   */
+   ExactError(GridFunction& sol_, FunctionCoefficient &exact_);
+
+   ~ExactError() { };
+
+   /// Get a Vector with all element errors.
+   const Vector& GetLocalErrors() override
+   {
+      if (MeshIsModified())
+      {
+         ComputeEstimates();
+      }
+      return error_estimates;
+   }
+
+   /// Reset the error estimator.
+   void Reset() override { current_sequence = -1; };
+
+   virtual double GetTotalError() const override { return total_error; }
+};
+
 } // namespace mfem
 
 #endif // MFEM_ERROR_ESTIMATORS

@@ -28,10 +28,41 @@ double sfun(const Vector & x)
         return std::exp(-100*(xc*xc+yc*yc));
 
     }
-    else { // sin(2 pi x)*sin(2 pi y) + cos(2 pi x)*cos(2 pi y)
+    else if (type == 1) { // sin(2 pi x)*sin(2 pi y) + cos(2 pi x)*cos(2 pi y)
         return std::sin(x(0)*2.0*M_PI)*std::sin(x(1)*2.0*M_PI) +
                std::cos(x(0)*2.0*M_PI)*std::cos(x(1)*2.0*M_PI);
     }
+    else if (type == 2) { // sin(2 pi x)*sin(2 pi y)
+        return std::sin(x(0)*2.0*M_PI)*std::sin(x(1)*2.0*M_PI);
+    }
+    else if (type == 3) { // sin(2 pi r) + sin(3 pi r)
+        double xc = x(0) - 0.5;
+        double yc = x(1) - 0.5;
+        double rc =std::pow(xc*xc+yc*yc, 0.5);
+        return std::sin(rc*2.0*M_PI) + std::sin(rc*3.0*M_PI);
+    }
+    else if (type == 4) { //Eq 3.3 from https://www.math.tamu.edu/~guermond/PUBLICATIONS/MS/non_stationnary_jlg_rp_bp.pdf
+        double xc = x(0) - 1.0;
+        double yc = x(1) - 1.0;
+        double rc =std::pow(xc*xc+yc*yc, 0.5);
+        if (std::fabs(2*rc-0.3) <= 0.25) {
+            return std::exp(-300*(2*rc-0.3)*(2*rc-0.3));
+        }
+        else if (std::fabs(2*rc-0.9) <= 0.25) {
+            return std::exp(-300*(2*rc-0.3)*(2*rc-0.3));
+        }
+        else if (std::fabs(2*rc-1.6) <= 0.2) {
+            return std::pow(1.0 - std::pow((2*rc-1.6)/0.2, 2.0), 0.5);
+        }
+        else if (std::fabs(rc-0.3) < 0.2) {
+            return 0.0;
+        }
+        return 0.0;
+    }
+    else {
+        MFEM_ABORT(" unknown function type. ");
+    }
+    return 0.0;
 }
 
 void LogNormalizeErrors(const Vector &error, GridFunction &xl2)
@@ -135,15 +166,18 @@ int main(int argc, char *argv[])
 
    ErrorEstimator *es = NULL;
    if (estimator == 0) {
-       es = new LSZienkiewiczZhuEstimator(integ, x);
+       es = new ExactError(x, scoeff);
    }
    else if (estimator == 1) {
-       es = new KellyErrorEstimator(integ, x, &flux_fespace);
+       es = new LSZienkiewiczZhuEstimator(integ, x);
    }
    else if (estimator == 2) {
-       es = new PRefDiffEstimator(x, -1);
+       es = new KellyErrorEstimator(integ, x, &flux_fespace);
    }
    else if (estimator == 3) {
+       es = new PRefDiffEstimator(x, -1);
+   }
+   else if (estimator == 4) {
        es = new PRefJumpEstimator(x);
    }
    else {
@@ -151,19 +185,21 @@ int main(int argc, char *argv[])
    }
 
    ThresholdRefiner refiner(*es);
-   refiner.SetTotalErrorFraction(0.5); // use purely local threshold
+   refiner.SetTotalErrorFraction(0.8); // use purely local threshold
 
    int ndofs = x.FESpace()->GetNDofs();
    double global_err = x.ComputeL2Error(scoeff);
 
-   std::cout << estimator << " " <<
+   std::cout << type << " " << estimator << " " <<
            order << " " <<
            mesh.GetNE() << " " <<
            ndofs << " " <<
            global_err << " " <<
            "Totalerror\n";
 
-   for (int i = 0; i < 10; i++) {
+   int tarndofs = 2*ndofs;
+   while (ndofs < tarndofs) {
+//   for (int i = 0; i < 10; i++) {
        Vector error_estimate = es->GetLocalErrors();
        double threshold = error_estimate.Max() * 0.8;
        for (int e = 0; e < mesh.GetNE(); e++) {
@@ -179,13 +215,37 @@ int main(int argc, char *argv[])
        ndofs = x.FESpace()->GetNDofs();
        global_err = x.ComputeL2Error(scoeff);
 
-       std::cout << estimator << " " <<
-               order << " " <<
-               mesh.GetNE() << " " <<
-               ndofs << " " <<
-               global_err << " " <<
-               "Totalerror\n";
+       std::cout << type << " " <<
+                    estimator << " " <<
+                    order << " " <<
+                    mesh.GetNE() << " " <<
+                    ndofs << " " <<
+                    global_err << " " <<
+                    "Totalerror\n";
    }
 
+   for (int e = 0; e < mesh.GetNE(); e++) {
+       ElOrder(e) = fespace.GetElementOrder(e);
+   }
+   max_order = fespace.GetMaxElementOrder();
+
+   GridFunction *xprolong = ProlongToMaxOrder(&x);
+
+   int px = 0;
+   int py = 0;
+   int wx = 400;
+   int wy = 400;
+
+   if (true) {
+       socketstream vis1;
+       common::VisualizeField(vis1, "localhost", 19916, *xprolong, "Solution",
+                              px, py, wx, wy, "jRmc");
+   }
+   px += wx;
+   if (true) {
+       socketstream vis1;
+       common::VisualizeField(vis1, "localhost", 19916, ElOrder, "ElementOrder",
+                              px, py, wx, wy, "jRmc");
+   }
    return 0;
 }
