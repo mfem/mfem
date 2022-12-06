@@ -1234,8 +1234,8 @@ CPDSolverDH::Assemble()
    // a0_->Assemble();
    // a0_->Finalize();
 
-   a1_->Assemble();
-   if (!pa_) { a1_->Finalize(); }
+   a1_->Assemble(0);
+   if (!pa_) { a1_->Finalize(0); }
 
    tic_toc.Stop();
    if ( myid_ == 0 && logging_ > 0 )
