@@ -13,6 +13,8 @@
 
 #include "fem.hpp"
 #include "../general/device.hpp"
+#include "../mesh/nurbs.hpp"
+#include "../general/tic_toc.hpp"
 #include <cmath>
 
 namespace mfem
@@ -382,8 +384,6 @@ void BilinearForm::AssembleBdrElementMatrix(
       }
    }
 }
-
-#include "../mesh/nurbs.hpp"
 
 void BilinearForm::Assemble(int skip_zeros)
 {

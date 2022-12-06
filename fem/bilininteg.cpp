@@ -12,6 +12,8 @@
 // Implementation of Bilinear Form Integrators
 
 #include "fem.hpp"
+#include "../mesh/nurbs.hpp"
+#include "../general/tic_toc.hpp"
 #include <cmath>
 #include <algorithm>
 

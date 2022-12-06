@@ -16,6 +16,7 @@
 // Formulas at http://nines.cs.kuleuven.be/research/ecf/ecf.html
 
 #include "fem.hpp"
+#include "../mesh/nurbs.hpp"
 #include <cmath>
 
 #ifdef MFEM_USE_MPFR
