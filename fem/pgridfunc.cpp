@@ -353,7 +353,7 @@ void ParGridFunction::GetVectorValue(int i, const IntegrationPoint &ip,
          val.SetSize(vdim);
          for (int k = 0; k < vdim; k++)
          {
-            val(k) = shape * (loc_data.HostRead() + dof * k);
+            val(k) = shape * (&loc_data[dof * k]);
          }
       }
       else
@@ -468,7 +468,7 @@ void ParGridFunction::GetVectorValue(ElementTransformation &T,
       val.SetSize(vdim);
       for (int k = 0; k < vdim; k++)
       {
-         val(k) = shape * (loc_data.HostRead() + dof * k);
+         val(k) = shape * (&loc_data[dof * k]);
       }
    }
    else
