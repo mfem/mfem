@@ -578,15 +578,17 @@ static void tmop_require(int id, const char *args[])
    REQUIRE(res[0].diag == MFEM_Approx(res[1].diag));
 }
 
+static constexpr size_t sz = 16;
+
 static inline const char *itoa(const int i, char *buf)
 {
-   std::sprintf(buf, "%d", i);
+   std::snprintf(buf, sz, "%d", i);
    return buf;
 }
 
 static inline const char *dtoa(const double d, char *buf)
 {
-   std::sprintf(buf, "%.4f", d);
+   std::snprintf(buf, sz, "%.4f", d);
    return buf;
 }
 
@@ -652,7 +654,7 @@ public:
    {
       if ((id==0) && name) { mfem::out << "[" << name << "]" << std::endl; }
       DEFAULT_ARGS;
-      char ni[8] {}, rs[8] {}, li[8] {}, lc[16] {}, ji[16] {}, cmb[8] {};
+      char ni[sz] {}, rs[sz] {}, li[sz] {}, lc[sz] {}, ji[sz] {}, cmb[sz] {};
       args[MSH] = mesh;
       args[RS] = itoa(REFINE,rs);
       args[NI] = itoa(NEWTON_ITERATIONS,ni);
@@ -663,31 +665,31 @@ public:
       args[NOR] = NORMALIZATION ? "1" : "0";
       for (int p : P_ORDERS)
       {
-         char por[2] {};
+         char por[sz] {};
          args[POR] = itoa(p, por);
          for (int t : TARGET_IDS)
          {
-            char tid[2] {};
+            char tid[sz] {};
             args[TID] = itoa(t, tid);
             for (int m : METRIC_IDS)
             {
-               char mid[4] {};
+               char mid[sz] {};
                args[MID] = itoa(m, mid);
                for (int q : Q_ORDERS)
                {
                   if (q <= p) { continue; }
-                  char qor[2] {};
+                  char qor[sz] {};
                   args[QOR] = itoa(q, qor);
                   for (int ls : LINEAR_SOLVERS)
                   {
                      // skip some linear solver & metric combinations
                      // that lead to non positive definite operators
                      if (ls == 1 && m != 1) { continue; }
-                     char lsb[2] {};
+                     char lsb[sz] {};
                      args[LS] = itoa(ls, lsb);
                      for (int n : NEWTON_LOOPS)
                      {
-                        char nl[2] {};
+                        char nl[sz] {};
                         args[NL] = itoa(n, nl);
                         tmop_require(id, args);
                         if (!nr) { break; }

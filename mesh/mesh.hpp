@@ -991,6 +991,12 @@ public:
        for example, after the mesh nodes are modified externally. */
    void DeleteGeometricFactors();
 
+   /// @brief This function should be called after the mesh node coordinates
+   /// have changed, e.g. after the mesh has moved.
+   /** It updates internal quantities derived from the node coordinates, such
+       as the GeometricFactors. */
+   void NodesUpdated() { DeleteGeometricFactors(); }
+
    /// Equals 1 + num_holes - num_loops
    inline int EulerNumber() const
    { return NumOfVertices - NumOfEdges + NumOfFaces - NumOfElements; }
@@ -1777,8 +1783,6 @@ public:
    {
       PrintCharacteristics(NULL, NULL, os);
    }
-
-   void MesquiteSmooth(const int mesquite_option = 0);
 
    /** @brief Find the ids of the elements that contain the given points, and
        their corresponding reference coordinates.

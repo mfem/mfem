@@ -476,7 +476,6 @@ TEST_CASE("Hcurl/Hdiv PA Coefficient",
                         v_pa = 0.0;
 
                         const SparseMatrix& A_spmat = assemblyform->SpMat();
-                        A_spmat.EnsureMultTranspose();
                         paopr->MultTranspose(u, v_pa);
                         assemblyform->MultTranspose(u, v_assembly);
                         A_spmat.MultTranspose(u, v_mat);
@@ -798,7 +797,6 @@ TEST_CASE("Hcurl/Hdiv Mixed PA Coefficient",
                      y_assembly.SetSize(y_mat.Size());
                      y_pa.SetSize(y_mat.Size());
 
-                     A_explicit.EnsureMultTranspose();
                      paform->MultTranspose(xin, y_pa);
                      assemblyform->MultTranspose(xin, y_assembly);
                      A_explicit.MultTranspose(xin, y_mat);

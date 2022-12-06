@@ -338,11 +338,12 @@ public:
    /// Set the precision (number of digits) used for the text output of doubles
    void SetPrecision(int prec) { precision = prec; }
    /// Set the number of digits used for both the cycle and the MPI rank
-   void SetPadDigits(int digits) { pad_digits_cycle=pad_digits_rank = digits; }
+   virtual void SetPadDigits(int digits)
+   { pad_digits_cycle=pad_digits_rank = digits; }
    /// Set the number of digits used for the cycle
-   void SetPadDigitsCycle(int digits) { pad_digits_cycle = digits; }
+   virtual void SetPadDigitsCycle(int digits) { pad_digits_cycle = digits; }
    /// Set the number of digits used for the MPI rank in filenames
-   void SetPadDigitsRank(int digits) { pad_digits_rank = digits; }
+   virtual void SetPadDigitsRank(int digits) { pad_digits_rank = digits; }
    /// Set the desired output mesh and data format.
    /** See the enumeration #Format for valid options. Derived classes can define
        their own format enumerations and override this method to perform input
@@ -441,21 +442,29 @@ public:
 #endif
 
    /// Set/change the mesh associated with the collection
-   virtual void SetMesh(Mesh *new_mesh);
+   virtual void SetMesh(Mesh *new_mesh) override;
 
 #ifdef MFEM_USE_MPI
    /// Set/change the mesh associated with the collection.
-   virtual void SetMesh(MPI_Comm comm, Mesh *new_mesh);
+   virtual void SetMesh(MPI_Comm comm, Mesh *new_mesh) override;
 #endif
 
    /// Add a grid function to the collection and update the root file
-   virtual void RegisterField(const std::string& field_name, GridFunction *gf);
+   virtual void RegisterField(const std::string& field_name,
+                              GridFunction *gf) override;
 
    /// Add a quadrature function to the collection and update the root file.
    /** Visualization of quadrature function is not supported in VisIt(3.12).
        A patch has been sent to VisIt developers in June 2020. */
    virtual void RegisterQField(const std::string& q_field_name,
-                               QuadratureFunction *qf);
+                               QuadratureFunction *qf) override;
+
+   /// Set the number of digits used for both the cycle and the MPI rank
+   /// @note VisIt seems to require 6 pad digits for the MPI rank. Therefore,
+   /// this function uses this default value. This behavior can be overridden
+   /// by calling SetPadDigitsCycle() and SetPadDigitsRank() instead.
+   virtual void SetPadDigits(int digits) override
+   { pad_digits_cycle=digits; pad_digits_rank=6; }
 
    /// Set VisIt parameter: default levels of detail for the MultiresControl
    void SetLevelsOfDetail(int levels_of_detail);
@@ -468,13 +477,13 @@ public:
    void DeleteAll();
 
    /// Save the collection and a VisIt root file
-   virtual void Save();
+   virtual void Save() override;
 
    /// Save a VisIt root file for the collection
    void SaveRootFile();
 
    /// Load the collection based on its VisIt data (described in its root file)
-   virtual void Load(int cycle_ = 0);
+   virtual void Load(int cycle_ = 0) override;
 
    /// We will delete the mesh and fields if we own them
    virtual ~VisItDataCollection() {}
