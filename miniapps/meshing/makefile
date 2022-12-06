@@ -27,7 +27,7 @@ MFEM_LIB_FILE = mfem_is_not_built
 
 SEQ_MINIAPPS = mobius-strip klein-bottle toroid trimmer twist mesh-explorer\
 	shaper extruder mesh-optimizer minimal-surface polar-nc
-PAR_MINIAPPS = pmesh-optimizer pminimal-surface ext_mesh_mapping
+PAR_MINIAPPS = pmesh-optimizer pminimal-surface ext-mesh-mapping
 ifeq ($(MFEM_USE_MPI),NO)
    MINIAPPS = $(SEQ_MINIAPPS)
 else
@@ -65,7 +65,7 @@ MESH_FILES = amr-quad-q2.mesh blade.mesh cube.mesh icf.mesh jagged.mesh\
  square01.mesh stretched2D.mesh
 $(MESH_FILES): %: $(SRC)%
 	ln -sf $(<) .
-mesh-optimizer pmesh-optimizer: | $(MESH_FILES)
+mesh-optimizer pmesh-optimizer ext-mesh-mapping: | $(MESH_FILES)
 .PHONY: copy-data
 copy-data: | $(MESH_FILES)
 endif
@@ -111,6 +111,7 @@ clean-build:
 	rm -f mesh-explorer shaper extruder trimmer
 	rm -f mesh-optimizer pmesh-optimizer polar-nc
 	rm -f minimal-surface pminimal-surface
+	rm -f ext-mesh-mapping
 	rm -rf *.dSYM *.TVD.*breakpoints
 
 clean-exec:
