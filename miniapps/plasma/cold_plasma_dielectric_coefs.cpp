@@ -194,7 +194,6 @@ complex<double> S_cold_plasma(double omega,
          omega_c(Bmag, q, m_eff) - complex<double>(0.0, nui_res);
       complex<double> w_p = omega_p(n, q, m_eff);
       val -= w_p * w_p / (omega * omega - w_c * w_c);
-
    }
    return val;
 }
@@ -651,15 +650,15 @@ double SheathImpedance::Eval(ElementTransformation &T,
    cout << "Check 6:" << yi(0.2, 0.3, 0.4, 13,masses_[0], masses_[1]).real() - 0.006543897148693344 << yi(0.2, 0.3, 0.4, 13,masses_[0], masses_[1]).imag()+0.013727440802110503 << endl;
    cout << "Check 7:" << ytot(0.2, 0.3, 0.4, 13,masses_[0], masses_[1]).real()-0.05185050837032144 << ytot(0.2, 0.3, 0.4, 13,masses_[0], masses_[1]).imag()+0.0394656455302314 << endl;
     */
-    
-    if (isnan(zsheath_norm.real()))
-    {
-        zsheath_norm = complex<double>(0.0, zsheath_norm.imag());
-    }
-    if (isnan(zsheath_norm.imag()))
-    {
-        zsheath_norm = complex<double>(zsheath_norm.real(), 0.0);
-    }
+
+   if (isnan(zsheath_norm.real()))
+   {
+      zsheath_norm = complex<double>(0.0, zsheath_norm.imag());
+   }
+   if (isnan(zsheath_norm.imag()))
+   {
+      zsheath_norm = complex<double>(zsheath_norm.real(), 0.0);
+   }
 
    if (realPart_)
    {
@@ -1387,17 +1386,17 @@ double PlasmaProfile::Eval(ElementTransformation &T,
       }
       break;
       case NUE:
-       {
-          double nu0 = p_[0];
-          double decay = p_[1];
-          double shift = p_[2];
-          double rho = pow(pow(x_[0], 2) + pow(x_[1], 2), 0.5);
-          //double test = 5e7*exp((rho - 0.97)/0.015);
-          //double test = pow( 1.0 + exp( - (rho - 1.015)/0.01 ),-1.0);
-          double test = 0.0;
+      {
+         double nu0 = p_[0];
+         double decay = p_[1];
+         double shift = p_[2];
+         double rho = pow(pow(x_[0], 2) + pow(x_[1], 2), 0.5);
+         //double test = 5e7*exp((rho - 0.97)/0.015);
+         //double test = pow( 1.0 + exp( - (rho - 1.015)/0.01 ),-1.0);
+         double test = 0.0;
 
-          return nu0*exp(-(x_[0]-shift)/decay) + 5e8*test;
-       }
+         return nu0*exp(-(x_[0]-shift)/decay) + 5e8*test;
+      }
       break;
       case NUI:
       {
@@ -1410,20 +1409,20 @@ double PlasmaProfile::Eval(ElementTransformation &T,
       break;
       case CMODDEN:
       {
-          double rho = pow(pow(x_[0], 2) + pow(x_[1], 2), 0.5);
+         double rho = pow(pow(x_[0], 2) + pow(x_[1], 2), 0.5);
 
-          double pmin1 = 1e14;
-          double pmax1 = (2e20 - 3e19);
-          double lam1 = 0.86253;
-          double n1 = 60.0;
-          double ne1 = (pmax1 - pmin1)* pow(cosh(pow((rho / lam1), n1)), -1.0) + pmin1;
+         double pmin1 = 1e14;
+         double pmax1 = (2e20 - 3e19);
+         double lam1 = 0.86253;
+         double n1 = 60.0;
+         double ne1 = (pmax1 - pmin1)* pow(cosh(pow((rho / lam1), n1)), -1.0) + pmin1;
 
-          double pmin2 = 1e14;
-          double pmax2 = 3e19;
-          double lam2 = 0.9;
-          double n2 = 30.0;
-          double ne2 = (pmax2 - pmin2)* pow(cosh(pow((rho / lam2), n2)), -1.0) + pmin2;
-          return ne1 + ne2;
+         double pmin2 = 1e14;
+         double pmax2 = 3e19;
+         double lam2 = 0.9;
+         double n2 = 30.0;
+         double ne2 = (pmax2 - pmin2)* pow(cosh(pow((rho / lam2), n2)), -1.0) + pmin2;
+         return ne1 + ne2;
       }
       break;
       default:

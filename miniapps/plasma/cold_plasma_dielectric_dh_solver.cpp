@@ -983,7 +983,7 @@ CPDSolverDH::CPDSolverDH(ParMesh & pmesh, int order, double omega,
 
       rectPot_ = new ParGridFunction(H1FESpace_);
       *rectPot_ = 0.0;
-       
+
       Bn_ = new ParGridFunction(H1FESpace_);
       *Bn_ = 0.0;
 
@@ -1629,16 +1629,17 @@ CPDSolverDH::Solve()
       nxD01_->FormRectangularSystemMatrix(non_sbc_h1_tdofs_, dbc_nd_tdofs_, B);
       m0_->FormSystemMatrix(non_sbc_h1_tdofs_, D);
 
-      {/*
-         if (B.As<ComplexHypreParMatrix>()->hasRealPart())
-         { B.As<ComplexHypreParMatrix>()->real().Print("nxD01_Re.mat"); }
-         if (B.As<ComplexHypreParMatrix>()->hasImagPart())
-         { B.As<ComplexHypreParMatrix>()->imag().Print("nxD01_Im.mat"); }
-         if (D.As<ComplexHypreParMatrix>()->hasRealPart())
-         { D.As<ComplexHypreParMatrix>()->real().Print("m0_Re.mat"); }
-         if (D.As<ComplexHypreParMatrix>()->hasImagPart())
-         { D.As<ComplexHypreParMatrix>()->imag().Print("m0_Im.mat"); }
-        */
+      {
+         /*
+           if (B.As<ComplexHypreParMatrix>()->hasRealPart())
+           { B.As<ComplexHypreParMatrix>()->real().Print("nxD01_Re.mat"); }
+           if (B.As<ComplexHypreParMatrix>()->hasImagPart())
+           { B.As<ComplexHypreParMatrix>()->imag().Print("nxD01_Im.mat"); }
+           if (D.As<ComplexHypreParMatrix>()->hasRealPart())
+           { D.As<ComplexHypreParMatrix>()->real().Print("m0_Re.mat"); }
+           if (D.As<ComplexHypreParMatrix>()->hasImagPart())
+           { D.As<ComplexHypreParMatrix>()->imag().Print("m0_Im.mat"); }
+          */
       }
 
       rhs0_->real() = 0.0;
@@ -1660,12 +1661,12 @@ CPDSolverDH::Solve()
          nzD12_->FormRectangularSystemMatrix(dbc_nd_tdofs_,
                                              non_sbc_h1_tdofs_, C);
          {
-             /*
+            /*
             if (C.As<ComplexHypreParMatrix>()->hasRealPart())
             { C.As<ComplexHypreParMatrix>()->real().Print("nzD12_Re.mat"); }
             if (C.As<ComplexHypreParMatrix>()->hasImagPart())
             { C.As<ComplexHypreParMatrix>()->imag().Print("nzD12_Im.mat"); }
-              */
+             */
          }
 
          SchurComplimentOperator schur(AInv, *B, *C, *D);
@@ -1966,7 +1967,7 @@ CPDSolverDH::RegisterVisItFields(VisItDataCollection & visit_dc)
    {
       visit_dc.RegisterField("Rec_Phi", rectPot_);
    }
-    
+
    if ( Bn_ )
    {
       visit_dc.RegisterField("Bn", Bn_);
@@ -2062,9 +2063,9 @@ CPDSolverDH::WriteVisItFields(int it)
             rectPot_->ProjectCoefficient(rectPotCoef);
             if ( Bn_ && BCoef_ )
             {
-                b_hat_->ProjectCoefficient(*BCoef_);
-                BFieldAngle BnCoef(*sb, *b_hat_, true);
-                Bn_->ProjectBdrCoefficient(BnCoef, sbc_bdr_marker_);
+               b_hat_->ProjectCoefficient(*BCoef_);
+               BFieldAngle BnCoef(*sb, *b_hat_, true);
+               Bn_->ProjectBdrCoefficient(BnCoef, sbc_bdr_marker_);
             }
          }
       }
