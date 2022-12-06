@@ -444,7 +444,7 @@ private:
    ParComplexGridFunction * prev_phi_; // Complex sheath potential temporary (H1)
    ParComplexGridFunction * next_phi_; // Complex sheath potential temporary (H1)
    ParComplexGridFunction * z_; // Complex sheath potential (H1)
-  
+
    ParGridFunction * rectPot_; // Real valued rectified potential (H1)
    ParComplexGridFunction * j_;   // Complex current density (HCurl)
    ParComplexLinearForm   * rhs_; // Dual of complex current density (HCurl)
