@@ -3501,7 +3501,6 @@ BlockOrthoSolver::BlockOrthoSolver(Array<int> &bOffsets_) : Solver(0, false),
 {
    // form index array corresponding to velocity block
    int start_ind = bOffsets[0];
-   int end_ind = bOffsets[1];
    int vblock_size = bOffsets[1] - bOffsets[0];
    vblock.SetSize(vblock_size);
    for (int i=0; i < vblock_size; i++)
@@ -3511,7 +3510,6 @@ BlockOrthoSolver::BlockOrthoSolver(Array<int> &bOffsets_) : Solver(0, false),
 
    // form index array corresponding to pressure block
    start_ind = bOffsets[1];
-   end_ind = bOffsets[2];
    int pblock_size = bOffsets[2] - bOffsets[1];
    pblock.SetSize(pblock_size);
    for (int i=0; i < pblock_size; i++)
