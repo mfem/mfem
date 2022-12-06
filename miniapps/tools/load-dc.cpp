@@ -41,12 +41,18 @@ int main(int argc, char *argv[])
    // Parse command-line options.
    const char *coll_name = NULL;
    int cycle = 0;
+   int pad_digits_cycle = 6;
+   int pad_digits_rank = 6;
    bool visualization = true;
 
    OptionsParser args(argc, argv);
    args.AddOption(&coll_name, "-r", "--root-file",
                   "Set the VisIt data collection root file prefix.", true);
    args.AddOption(&cycle, "-c", "--cycle", "Set the cycle index to read.");
+   args.AddOption(&pad_digits_cycle, "-pdc", "--pad-digits-cycle",
+                  "Number of digits in cycle.");
+   args.AddOption(&pad_digits_rank, "-pdr", "--pad-digits-rank",
+                  "Number of digits in MPI rank.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -63,6 +69,8 @@ int main(int argc, char *argv[])
 #else
    VisItDataCollection dc(coll_name);
 #endif
+   dc.SetPadDigitsCycle(pad_digits_cycle);
+   dc.SetPadDigitsRank(pad_digits_rank);
    dc.Load(cycle);
 
    if (dc.Error() != DataCollection::NO_ERROR)
