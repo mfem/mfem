@@ -1429,12 +1429,6 @@ Geometry::Type Mesh::GetFaceGeometry(int Face) const
    return Geometry::INVALID;
 }
 
-Geometry::Type Mesh::GetFaceGeometryType(int Face) const
-{
-   return GetFaceGeometry(Face);
-
-}
-
 Element::Type Mesh::GetFaceElementType(int Face) const
 {
    return (Dim == 1) ? Element::POINT : faces[Face]->GetType();
