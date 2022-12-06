@@ -1448,7 +1448,9 @@ public:
    void GetFaceInfos (int Face, int *Inf1, int *Inf2) const;
    void GetFaceInfos (int Face, int *Inf1, int *Inf2, int *NCFace) const;
 
-   MFEM_DEPRECATED Geometry::Type GetFaceGeometryType(int Face) const;
+   MFEM_DEPRECATED Geometry::Type GetFaceGeometryType(int Face) const
+   { return GetElementGeometry(Face); }
+
    Element::Type  GetFaceElementType(int Face) const;
 
    Array<int> GetFaceToBdrElMap() const;
