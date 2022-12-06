@@ -1451,7 +1451,7 @@ public:
 
    /// Deprecated in factor of Mesh::GetFaceGeometry
    MFEM_DEPRECATED Geometry::Type GetFaceGeometryType(int Face) const
-   { return GetElementGeometry(Face); }
+   { return GetFaceGeometry(Face); }
 
    Element::Type  GetFaceElementType(int Face) const;
 
