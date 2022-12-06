@@ -209,6 +209,7 @@ void TMOP_Integrator::AssemblePA(const FiniteElementSpace &fes)
    PA.H.SetSize(dim*dim * dim*dim * nq*ne, mt);
 
    // Scalar Q-vector of '1', used to compute sums via dot product
+   PA.O.UseDevice(true);
    PA.O.SetSize(ne*nq, Device::GetDeviceMemoryType());
    PA.O = 1.0;
 

@@ -486,7 +486,12 @@ $(SRC)fem/tmop/tmop_pa_p2.cpp \
 $(SRC)fem/tmop/tmop_pa_p2_c0.cpp \
 $(SRC)fem/tmop/tmop_pa_p3.cpp \
 $(SRC)fem/tmop/tmop_pa_p3_c0.cpp \
-$(SRC)fem/tmop/tmop_pa_tc2.cpp
+$(SRC)fem/tmop/tmop_pa_tc2.cpp \
+$(SRC)fem/tmop/tmop_pa_tc3.cpp \
+$(SRC)fem/tmop/tmop_pa_w2.cpp \
+$(SRC)fem/tmop/tmop_pa_w2_c0.cpp \
+$(SRC)fem/tmop/tmop_pa_w3.cpp \
+$(SRC)fem/tmop/tmop_pa_w3_c0.cpp
 
 # Filter out objects that will be compiled through the preprocessor
 JIT_OBJECT_FILES = $(JIT_SOURCE_FILES:$(SRC)%.cpp=$(BLD)%.o)
