@@ -82,7 +82,7 @@ struct Jit
    /** @brief Lookup symbol in the cache and launch the compilation if needed.
     *  @param[in] hash of the kernel as a \c size_t,
     *  @param[in] name of the kernel with the templated inputs,
-    *  @param[in] MFEM's CXX compiler,
+    *  @param[in] cxx MFEM's CXX compiler,
     *  @param[in] flags coresponding to MFEM_BUILD_FLAGS,
     *  @param[in] link coresponding to MFEM_LINK_FLAGS,
     *  @param[in] libs coresponding to MFEM_EXT_LIBS,
@@ -93,24 +93,28 @@ struct Jit
                        const char *flags, const char *link, const char *libs,
                        const char *source, const char *symbol);
 
-   /** @brief Kernel struct which Jit::Lookup() the kernel, hashed from the
-    *  given input parameters and provides the Jit::Kernel::operator()() launcher.
-    *  @param[in] hash of the kernel,
-    *  @param[in] name of the kernel with the templated inputs,
-    *  @param[in] MFEM's CXX compiler,
-    *  @param[in] flags coresponding to MFEM_BUILD_FLAGS,
-    *  @param[in] link coresponding to MFEM_LINK_FLAGS,
-    *  @param[in] libs coresponding to MFEM_EXT_LIBS,
-    *  @param[in] src source of the kernel,
-    *  @param[in] sym symbol of the kernel.
-    **/
+   /// @brief Kernel structure to hold the kernel and its launcher.
    template<typename T> struct Kernel
    {
+      /// kernel placeholder.
       T kernel;
+      /** @brief Kernel constructor which Jit::Lookup() the kernel, hashed from
+      *  the given input parameters and provides the Jit::Kernel::operator()()
+      *  launcher.
+      *  @param[in] hash of the kernel,
+      *  @param[in] name of the kernel with the templated inputs,
+      *  @param[in] cxx MFEM's CXX compiler,
+      *  @param[in] flags coresponding to MFEM_BUILD_FLAGS,
+      *  @param[in] link coresponding to MFEM_LINK_FLAGS,
+      *  @param[in] libs coresponding to MFEM_EXT_LIBS,
+      *  @param[in] src source of the kernel,
+      *  @param[in] sym symbol of the kernel.
+      **/
       Kernel(const size_t hash, const char *name, const char *cxx, const char *flags,
              const char *link, const char *libs, const char *src, const char *sym):
          kernel((T) Jit::Lookup(hash, name, cxx, flags, link, libs, src, sym)) {}
 
+      /// @brief Kernel launch operator.
       template<typename... Args> void operator()(Args... as) { kernel(as...); }
    };
 
@@ -118,7 +122,7 @@ struct Jit
     *  it will be inserted into the map.
     *  @param[in] hash of the kernel,
     *  @param[in] kernel_name name of the kernel with the templated inputs,
-    *  @param[in] MFEM's CXX compiler,
+    *  @param[in] cxx MFEM's CXX compiler,
     *  @param[in] flags coresponding to MFEM_BUILD_FLAGS,
     *  @param[in] link coresponding to MFEM_LINK_FLAGS,
     *  @param[in] libs coresponding to MFEM_EXT_LIBS,
