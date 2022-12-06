@@ -325,8 +325,13 @@ public:
    /** Given a DShape matrix (from a scalar FE), stored in *this, returns the
        CurlShape matrix. If *this is a N by D matrix, then curl is a D*N by
        D*(D-1)/2 matrix. The size of curl must be set outside. The dimension D
-       can be either 2 or 3. */
+       can be either 2 or 3. In 2D this computes the scalar-valued curl of a
+       2D vector field */
    void GradToCurl(DenseMatrix &curl);
+   /** Given a DShape matrix (from a scalar FE), stored in *this, returns the
+       CurlShape matrix. This computes the vector-valued curl of a scalar field.
+       *this is N by 2 matrix and curl is N by 2 matrix as well. */
+   void GradToVectorCurl2D(DenseMatrix &curl);
    /** Given a DShape matrix (from a scalar FE), stored in *this,
        returns the DivShape vector. If *this is a N by dim matrix,
        then div is a dim*N vector. The size of div must be set
