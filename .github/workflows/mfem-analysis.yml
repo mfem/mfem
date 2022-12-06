@@ -9,7 +9,7 @@
 # terms of the BSD-3 license. We welcome feedback and contributions, see file
 # CONTRIBUTING.md for details.
 
-name: build-analysis
+name: "Build Analysis"
 
 permissions:
   actions: write
@@ -31,7 +31,7 @@ env:
 
 jobs:
   gitignore:
-    runs-on: ubuntu-18.04
+    runs-on: ubuntu-latest
 
     steps:
     - name: Cancel Previous Runs

@@ -30,7 +30,6 @@ option(MFEM_USE_OPENMP "Enable the OpenMP backend" OFF)
 option(MFEM_USE_LEGACY_OPENMP "Enable legacy OpenMP usage" OFF)
 option(MFEM_USE_MEMALLOC "Enable the internal MEMALLOC option." ON)
 option(MFEM_USE_SUNDIALS "Enable SUNDIALS usage" OFF)
-option(MFEM_USE_MESQUITE "Enable MESQUITE usage" OFF)
 option(MFEM_USE_SUITESPARSE "Enable SuiteSparse usage" OFF)
 option(MFEM_USE_SUPERLU "Enable SuperLU_DIST usage" OFF)
 option(MFEM_USE_SUPERLU5 "Use the old SuperLU_DIST 5.1 version" OFF)
@@ -64,6 +63,7 @@ option(MFEM_USE_ADFORWARD "Enable forward mode for AD" OFF)
 option(MFEM_USE_CODIPACK "Enable automatic differentiation (AD) using CoDiPack" OFF)
 option(MFEM_USE_BENCHMARK "Enable Google Benchmark" OFF)
 option(MFEM_USE_PARELAG "Enable ParELAG" OFF)
+option(MFEM_USE_ENZYME "Enable Enzyme" OFF)
 
 # Optional overrides for autodetected MPIEXEC and MPIEXEC_NUMPROC_FLAG
 # set(MFEM_MPIEXEC "mpirun" CACHE STRING "Command for running MPI tests")
@@ -122,9 +122,6 @@ set(SUNDIALS_DIR "${MFEM_DIR}/../sundials-5.0.0/instdir" CACHE PATH
 # The following may be necessary, if SUNDIALS was built with KLU:
 # set(SUNDIALS_REQUIRED_PACKAGES "SuiteSparse/KLU/AMD/BTF/COLAMD/config"
 #     CACHE STRING "Additional packages required by SUNDIALS.")
-
-set(MESQUITE_DIR "${MFEM_DIR}/../mesquite-2.99" CACHE PATH
-    "Path to the Mesquite library.")
 
 set(SuiteSparse_DIR "${MFEM_DIR}/../SuiteSparse" CACHE PATH
     "Path to the SuiteSparse library.")

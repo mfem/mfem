@@ -26,7 +26,9 @@
 namespace mfem
 {
 
+class FiniteElement;
 class FiniteElementSpace;
+class ElementTransformation;
 class IntegrationRule;
 class Vector;
 
@@ -55,14 +57,50 @@ void RemoveBasisAndRestriction(const mfem::FiniteElementSpace *fes);
 /// Initialize a CeedVector from an mfem::Vector
 void InitVector(const mfem::Vector &v, CeedVector &cv);
 
-/** Initialize a CeedBasis and a CeedElemRestriction based on an
-    mfem::FiniteElementSpace @a fes, and an mfem::IntegrationRule @a ir. */
+/** @brief Initialize a CeedBasis and a CeedElemRestriction based on an
+    mfem::FiniteElementSpace @a fes, and an mfem::IntegrationRule @a ir.
+
+    @param[in] fes The finite element space.
+    @param[in] ir The integration rule.
+    @param[in] ceed The Ceed object.
+    @param[out] basis The `CeedBasis` to initialize.
+    @param[out] restr The `CeedElemRestriction` to initialize.
+
+    @warning Only for non-mixed finite element spaces. */
 void InitBasisAndRestriction(const mfem::FiniteElementSpace &fes,
                              const mfem::IntegrationRule &ir,
                              Ceed ceed, CeedBasis *basis,
                              CeedElemRestriction *restr);
 
+/** @brief Initialize a CeedBasis and a CeedElemRestriction based on an
+    mfem::FiniteElementSpace @a fes, and an mfem::IntegrationRule @a ir,
+    and a list of @a nelem elements of indices @a indices.
+
+    @param[in] fes The finite element space.
+    @param[in] ir The integration rule.
+    @param[in] nelem The number of elements.
+    @param[in] indices The indices of the elements of same type in the
+                       `FiniteElementSpace`. If `indices == nullptr`, assumes
+                       that the `FiniteElementSpace` is not mixed.
+    @param[in] ceed The Ceed object.
+    @param[out] basis The `CeedBasis` to initialize.
+    @param[out] restr The `CeedElemRestriction` to initialize. */
+void InitBasisAndRestriction(const FiniteElementSpace &fes,
+                             const IntegrationRule &ir,
+                             int nelem,
+                             const int* indices,
+                             Ceed ceed, CeedBasis *basis,
+                             CeedElemRestriction *restr);
+
 int CeedOperatorGetActiveField(CeedOperator oper, CeedOperatorField *field);
+
+
+template <typename Integrator>
+const IntegrationRule & GetRule(
+   const Integrator &integ,
+   const FiniteElement &trial_fe,
+   const FiniteElement &test_fe,
+   ElementTransformation &Trans);
 
 /// Return the path to the libCEED q-function headers.
 const std::string &GetCeedPath();
@@ -87,7 +125,7 @@ struct BasisHash
 };
 using BasisMap = std::unordered_map<const BasisKey, CeedBasis, BasisHash>;
 
-enum restr_type {Standard, Strided};
+enum restr_type {Standard, Strided, Coeff};
 
 // Hash table for CeedElemRestriction
 using RestrKey =
@@ -117,6 +155,8 @@ namespace internal
 {
 
 #ifdef MFEM_USE_CEED
+/** @warning These maps have a tendency to create bugs when adding new "types"
+    of CeedBasis and CeedElemRestriction. */
 extern ceed::BasisMap ceed_basis_map;
 extern ceed::RestrMap ceed_restr_map;
 #endif
