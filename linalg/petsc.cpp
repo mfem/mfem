@@ -1335,7 +1335,12 @@ void PetscParMatrix::ConvertOperator(MPI_Comm comm, const Operator &op, Mat* A,
       PetscBool ismatis;
 #endif
 
+#if PETSC_VERSION_LT(3,18,0)
       ierr = PetscObjectTypeCompare((PetscObject)(pA->A),MATTRANSPOSEMAT,&istrans);
+#else
+      ierr = PetscObjectTypeCompare((PetscObject)(pA->A),MATTRANSPOSEVIRTUAL,
+                                    &istrans);
+#endif
       CCHKERRQ(pA->GetComm(),ierr);
       if (!istrans)
       {
@@ -2850,37 +2855,43 @@ void PetscBCHandler::ZeroBC(const Vector &x, Vector &y)
 // PetscLinearSolver methods
 
 PetscLinearSolver::PetscLinearSolver(MPI_Comm comm, const std::string &prefix,
-                                     bool wrapin)
-   : PetscSolver(), Solver(), wrap(wrapin)
+                                     bool wrapin, bool iter_mode)
+   : PetscSolver(), Solver(0,iter_mode), wrap(wrapin)
 {
    KSP ksp;
    ierr = KSPCreate(comm,&ksp); CCHKERRQ(comm,ierr);
    obj  = (PetscObject)ksp;
    ierr = PetscObjectGetClassId(obj,&cid); PCHKERRQ(obj,ierr);
    ierr = KSPSetOptionsPrefix(ksp, prefix.c_str()); PCHKERRQ(ksp, ierr);
+   ierr = KSPSetInitialGuessNonzero(ksp, (PetscBool)iterative_mode);
+   PCHKERRQ(ksp, ierr);
 }
 
 PetscLinearSolver::PetscLinearSolver(const PetscParMatrix &A,
-                                     const std::string &prefix)
-   : PetscSolver(), Solver(), wrap(false)
+                                     const std::string &prefix, bool iter_mode)
+   : PetscSolver(), Solver(0,iter_mode), wrap(false)
 {
    KSP ksp;
    ierr = KSPCreate(A.GetComm(),&ksp); CCHKERRQ(A.GetComm(),ierr);
    obj  = (PetscObject)ksp;
    ierr = PetscObjectGetClassId(obj,&cid); PCHKERRQ(obj,ierr);
    ierr = KSPSetOptionsPrefix(ksp, prefix.c_str()); PCHKERRQ(ksp, ierr);
+   ierr = KSPSetInitialGuessNonzero(ksp, (PetscBool)iterative_mode);
+   PCHKERRQ(ksp, ierr);
    SetOperator(A);
 }
 
 PetscLinearSolver::PetscLinearSolver(const HypreParMatrix &A, bool wrapin,
-                                     const std::string &prefix)
-   : PetscSolver(), Solver(), wrap(wrapin)
+                                     const std::string &prefix, bool iter_mode)
+   : PetscSolver(), Solver(0,iter_mode), wrap(wrapin)
 {
    KSP ksp;
    ierr = KSPCreate(A.GetComm(),&ksp); CCHKERRQ(A.GetComm(),ierr);
    obj  = (PetscObject)ksp;
    ierr = PetscObjectGetClassId(obj, &cid); PCHKERRQ(obj, ierr);
    ierr = KSPSetOptionsPrefix(ksp, prefix.c_str()); PCHKERRQ(ksp, ierr);
+   ierr = KSPSetInitialGuessNonzero(ksp, (PetscBool)iterative_mode);
+   PCHKERRQ(ksp, ierr);
    SetOperator(A);
 }
 
@@ -3089,12 +3100,12 @@ void PetscLinearSolver::MultKernel(const Vector &b, Vector &x, bool trans) const
       }
    }
    B->PlaceMemory(b.GetMemory());
-   X->PlaceMemory(x.GetMemory(),iterative_mode);
 
    Customize();
 
-   ierr = KSPSetInitialGuessNonzero(ksp, (PetscBool)iterative_mode);
-   PCHKERRQ(ksp, ierr);
+   PetscBool flg;
+   ierr = KSPGetInitialGuessNonzero(ksp, &flg);
+   X->PlaceMemory(x.GetMemory(),flg);
 
    // Solve the system.
    if (trans)
@@ -3129,8 +3140,9 @@ PetscLinearSolver::~PetscLinearSolver()
 
 // PetscPCGSolver methods
 
-PetscPCGSolver::PetscPCGSolver(MPI_Comm comm, const std::string &prefix)
-   : PetscLinearSolver(comm,prefix)
+PetscPCGSolver::PetscPCGSolver(MPI_Comm comm, const std::string &prefix,
+                               bool iter_mode)
+   : PetscLinearSolver(comm,prefix,iter_mode)
 {
    KSP ksp = (KSP)obj;
    ierr = KSPSetType(ksp,KSPCG); PCHKERRQ(ksp,ierr);
@@ -3138,8 +3150,9 @@ PetscPCGSolver::PetscPCGSolver(MPI_Comm comm, const std::string &prefix)
    ierr = KSPSetNormType(ksp,KSP_NORM_NATURAL); PCHKERRQ(ksp,ierr);
 }
 
-PetscPCGSolver::PetscPCGSolver(PetscParMatrix& A, const std::string &prefix)
-   : PetscLinearSolver(A,prefix)
+PetscPCGSolver::PetscPCGSolver(PetscParMatrix& A, const std::string &prefix,
+                               bool iter_mode)
+   : PetscLinearSolver(A,prefix,iter_mode)
 {
    KSP ksp = (KSP)obj;
    ierr = KSPSetType(ksp,KSPCG); PCHKERRQ(ksp,ierr);
@@ -3148,8 +3161,8 @@ PetscPCGSolver::PetscPCGSolver(PetscParMatrix& A, const std::string &prefix)
 }
 
 PetscPCGSolver::PetscPCGSolver(HypreParMatrix& A, bool wrap,
-                               const std::string &prefix)
-   : PetscLinearSolver(A,wrap,prefix)
+                               const std::string &prefix, bool iter_mode)
+   : PetscLinearSolver(A,wrap,prefix,iter_mode)
 {
    KSP ksp = (KSP)obj;
    ierr = KSPSetType(ksp,KSPCG); PCHKERRQ(ksp,ierr);
