@@ -294,7 +294,14 @@ void PABilinearFormExtension::Assemble()
    const int integratorCount = integrators.Size();
    for (int i = 0; i < integratorCount; ++i)
    {
-      integrators[i]->AssemblePA(*a->FESpace());
+      if (a->FESpace()->GetMesh()->NURBSext && integrators[i]->Patchwise())
+      {
+         integrators[i]->AssembleNURBSPA(*a->FESpace());
+      }
+      else
+      {
+         integrators[i]->AssemblePA(*a->FESpace());
+      }
    }
 
    MFEM_VERIFY(a->GetBBFI()->Size() == 0,
@@ -385,13 +392,39 @@ void PABilinearFormExtension::Mult(const Vector &x, Vector &y) const
    Array<BilinearFormIntegrator*> &integrators = *a->GetDBFI();
 
    const int iSz = integrators.Size();
-   if (DeviceCanUseCeed() || !elem_restrict)
+
+   bool allPatchwise = true;
+   bool somePatchwise = false;
+
+   for (int i = 0; i < iSz; ++i)
+   {
+      if (integrators[i]->Patchwise())
+      {
+         somePatchwise = true;
+      }
+      else
+      {
+         allPatchwise = false;
+      }
+   }
+
+   MFEM_VERIFY(!(somePatchwise && !allPatchwise),
+               "All or none should be patchwise");
+
+   if (DeviceCanUseCeed() || !elem_restrict || allPatchwise)
    {
       y.UseDevice(true); // typically this is a large vector, so store on device
       y = 0.0;
       for (int i = 0; i < iSz; ++i)
       {
-         integrators[i]->AddMultPA(x, y);
+         if (integrators[i]->Patchwise())
+         {
+            integrators[i]->AddMultNURBSPA(x, y);
+         }
+         else
+         {
+            integrators[i]->AddMultPA(x, y);
+         }
       }
    }
    else
