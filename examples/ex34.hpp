@@ -5,114 +5,6 @@
 using namespace std;
 using namespace mfem;
 
-// Solver wrapper which orthogonalizes the input and output of part of a block vector
-// This is a modification of OrthoSolver in Navier miniapp
-class BlockOrthoSolver : public Solver
-{
-public:
-   BlockOrthoSolver(Array<int> &bOffsets_);
-
-   int global_size;
-
-   void SetSolver(Solver &s);
-
-   virtual void SetOperator(const Operator &op);
-
-   void Mult(const Vector &b, Vector &x) const;
-
-private:
-   Solver *solver = nullptr;
-
-   mutable Vector p_ortho, p_vec, v_vec;
-
-   mutable Vector temp;
-
-   Array<int> bOffsets, vblock, pblock;
-
-   void Orthogonalize(const Vector &v, Vector &v_ortho) const;
-};
-
-BlockOrthoSolver::BlockOrthoSolver(Array<int> &bOffsets_) : Solver(0, false),
-   bOffsets(bOffsets_)
-{
-   // form index array corresponding to velocity block
-   int start_ind = bOffsets[0];
-   int end_ind = bOffsets[1];
-   int vblock_size = bOffsets[1] - bOffsets[0];
-   vblock.SetSize(vblock_size);
-   for (int i=0; i < vblock_size; i++)
-   {
-      vblock[i] = start_ind + i;
-   }
-
-   // form index array corresponding to pressure block
-   start_ind = bOffsets[1];
-   end_ind = bOffsets[2];
-   int pblock_size = bOffsets[2] - bOffsets[1];
-   pblock.SetSize(pblock_size);
-   for (int i=0; i < pblock_size; i++)
-   {
-      pblock[i] = start_ind + i;
-   }
-}
-
-void BlockOrthoSolver::SetSolver(Solver &s)
-{
-   solver = &s;
-   height = s.Height();
-   width = s.Width();
-   MFEM_VERIFY(height == width, "Solver must be a square Operator!");
-}
-
-void BlockOrthoSolver::Mult(const Vector &b, Vector &x) const
-{
-   MFEM_VERIFY(solver, "Solver hasn't been set, call SetSolver() first.");
-   MFEM_VERIFY(height == solver->Height(),
-               "solver was modified externally! call SetSolver() again!");
-   MFEM_VERIFY(height == b.Size(), "incompatible input Vector size!");
-   MFEM_VERIFY(height == x.Size(), "incompatible output Vector size!");
-
-   // Orthogonalize input pressure block
-   b.GetSubVector(pblock,p_vec);
-   Orthogonalize(p_vec, p_ortho);
-   temp = b;
-   temp.SetSubVector(pblock,p_ortho); // update pressure block
-
-   // Propagate iterative_mode to the solver:
-   solver->iterative_mode = iterative_mode;
-
-   // Apply the Solver
-   solver->Mult(temp, x);
-
-   // Orthogonalize output
-   x.GetSubVector(pblock,p_vec);
-   Orthogonalize(p_vec,p_ortho);
-   temp = x;
-   temp.SetSubVector(pblock,p_ortho);
-}
-
-void BlockOrthoSolver::Orthogonalize(const Vector &v, Vector &v_ortho) const
-{
-   int global_size = v.Size();
-   double global_sum = v.Sum();
-
-   double ratio = global_sum / static_cast<double>(global_size);
-   v_ortho.SetSize(v.Size());
-   for (int i = 0; i < v_ortho.Size(); ++i)
-   {
-      v_ortho(i) = v(i) - ratio;
-   }
-}
-
-void BlockOrthoSolver::SetOperator(const Operator &op)
-{
-   MFEM_VERIFY(solver, "Solver hasn't been set, call SetSolver() first.");
-   solver->SetOperator(op);
-   height = solver->Height();
-   width = solver->Width();
-   MFEM_VERIFY(height == width, "Solver must be a square Operator!");
-}
-
 // Vector DG diffusion integrator
 class VectorDGDiffusionIntegrator : public BilinearFormIntegrator
 {
@@ -190,7 +82,7 @@ void VectorDGDiffusionIntegrator::AssembleFaceMatrix(
    const IntegrationRule *ir = IntRule;
    if (ir == NULL)
    {
-      // a simple choice for the integration order; is this OK?
+      // a simple choice for the integration order
       int order;
       if (ndof2)
       {
@@ -256,12 +148,17 @@ void VectorDGDiffusionIntegrator::AssembleFaceMatrix(
       // Note: in the jump term, we use 1/h1 = |nor|/det(J1) which is
       // independent of Loc1 and always gives the size of element 1 in
       // direction perpendicular to the face. Indeed, for linear transformation
-      //     |nor|=measure(face)/measure(ref. face),
-      //   det(J1)=measure(element)/measure(ref. element),
-      // and the ratios measure(ref. element)/measure(ref. face) are
-      // compatible for all element/face pairs.
+      //     
+      //      |nor|=measure(face)/measure(ref. face),
+      //
+      //      det(J1)=measure(element)/measure(ref. element),
+      //
+      //      and the ratios measure(ref. element)/measure(ref. face) 
+      //      are compatible for all element/face pairs.
+      //
       // For example: meas(ref. tetrahedron)/meas(ref. triangle) = 1/3, and
       // for any tetrahedron vol(tet)=(1/3)*height*area(base).
+      //
       // For interior faces: q_e/h_e=(q1/h1+q2/h2)/2.
 
       dshape1.Mult(nh, dshape1dn);

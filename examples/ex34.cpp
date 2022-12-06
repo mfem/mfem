@@ -17,15 +17,18 @@
 //                                           p = x
 //
 //                The problem is discretized using the SIP DG method described in chapter 6 of
-//                B. Rivière DG Methods for Solving Elliptic and Parabolic equations.
-//                Specifically, we discretize with L2 finite elements for velocity u and
-//                pressure p of order k and k-1 respectively.
+//                B. Rivière (2006) [1]. Specifically, we discretize with L2 finite elements
+//                for velocity u and pressure p of order k and k-1 respectively.
 //
 //                This example demonstrates the use of user-defined bilinear form integrators, block
 //                vectors and matrices, how to create vector forms of exisiting scalar integrators,
 //                and how to apply a zero mean condition on part of a block vector.
 //
 //                We recommend viewing examples 5, 9, and 14 before viewing this example.
+//
+//                [1]  Rivière B. DG Methods for Solving Elliptic and Parabolic Equations Theory and
+//                     Implementation. Society for Industrial and Applied Mathematics; 2008. 
+//                     doi: 10.1137/1.9780898717440
 
 #include "mfem.hpp"
 #include <fstream>
