@@ -48,6 +48,16 @@ int main(int argc, char *argv[])
    Mpi::Init(argc, argv);
    Hypre::Init();
 
+   //This miniapp is designed to work on the test mesh with exactly 4 ranks
+   if (Mpi::WorldSize() != 4)
+   {
+      if (Mpi::Root())
+      {
+         std::cout << "Miniapp must run with exactly 4 MPI ranks." << std::endl;
+      }
+      exit(0);
+   }
+
    //Initilize our dummy mesh and display the coordinates of the vertices
    DummyMesh *dmesh = new DummyMesh();
    print_dmesh_verts(dmesh);
