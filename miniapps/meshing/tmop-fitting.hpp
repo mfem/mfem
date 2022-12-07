@@ -665,7 +665,8 @@ void OptimizeMeshWithAMRAroundZeroLevelSet(ParMesh &pmesh,
                                            FunctionCoefficient &ls_coeff,
                                            int amr_iter,
                                            ParGridFunction &distance_s,
-                                           const int quad_order = 5)
+                                           const int quad_order = 5,
+                                           Array<ParGridFunction *> *pgf_to_update = NULL)
 {
    mfem::H1_FECollection h1fec(distance_s.ParFESpace()->FEColl()->GetOrder(),
                                pmesh.Dimension());
@@ -758,6 +759,15 @@ void OptimizeMeshWithAMRAroundZeroLevelSet(ParMesh &pmesh,
 
       distance_s.ParFESpace()->Update();
       distance_s.Update();
+
+      if (pgf_to_update != NULL)
+      {
+         for (int i = 0; i < pgf_to_update->Size(); i++)
+         {
+            (*pgf_to_update)[i]->ParFESpace()->Update();
+            (*pgf_to_update)[i]->Update();
+         }
+      }
    }
 }
 

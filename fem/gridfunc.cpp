@@ -2017,7 +2017,7 @@ void GridFunction::GetNodalValues(Vector &nval, int vdim) const
 }
 
 
-void GridFunction::CountZones(Array<int> &zones_per_vdof)
+void GridFunction::CountZones(Array<int> &zones_per_vdof) const
 {
    zones_per_vdof.SetSize(fes->GetVSize());
    zones_per_vdof = 0;
@@ -2032,7 +2032,6 @@ void GridFunction::CountZones(Array<int> &zones_per_vdof)
          zones_per_vdof[vdofs[j]]++;
       }
    }
-
 }
 
 void GridFunction::AccumulateAndCountZones(Coefficient &coeff,

@@ -482,7 +482,7 @@ void ParGridFunction::GetVectorValue(ElementTransformation &T,
    }
 }
 
-void ParGridFunction::CountZones(Array<int> &zones_per_vdof)
+void ParGridFunction::CountZones(Array<int> &zones_per_vdof) const
 {
    GridFunction::CountZones(zones_per_vdof);
    // Count the zones globally.
