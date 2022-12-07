@@ -65,7 +65,7 @@ public:
     * that memory is kept alive during successive call. The data layout of the
     * outputs will be
     *
-    * @a Ke_diag: #dofs x #dofs x #dofs x dim x ne x dim
+    * @a Ke_diag: dofs x dofs x dofs x dim x ne x dim
     *
     * @a K_diag_local: width(H1_Restriction) x dim
     *
