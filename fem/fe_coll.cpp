@@ -22,6 +22,20 @@ namespace mfem
 
 using namespace std;
 
+const FiniteElement *
+FiniteElementCollection::FiniteElementForDim(int dim) const
+{
+   for (int g = Geometry::DimStart[dim]; g < Geometry::DimStart[dim+1]; g++)
+   {
+      const FiniteElement *fe = FiniteElementForGeometry((Geometry::Type)g);
+      if (fe != NULL)
+      {
+         return fe;
+      }
+   }
+   return NULL;
+}
+
 int FiniteElementCollection::HasFaceDofs(Geometry::Type geom, int p) const
 {
    switch (geom)
