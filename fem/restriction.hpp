@@ -28,7 +28,7 @@ public:
    /// @brief Add the E-vector degrees of freedom @a x to the L-vector degrees
    /// of freedom @a y.
    void AddMultTranspose(const Vector &x, Vector &y,
-                         double a = 1.0) const override = 0;
+                         const double a = 1.0) const override = 0;
 };
 
 /// Operator that converts FiniteElementSpace L-vectors to E-vectors.
@@ -69,7 +69,7 @@ public:
    void Mult(const Vector &x, Vector &y) const override;
    void MultTranspose(const Vector &x, Vector &y) const override;
    void AddMultTranspose(const Vector &x, Vector &y,
-                         double a = 1.0) const override;
+                         const double a = 1.0) const override;
 
    /// Compute Mult without applying signs based on DOF orientations.
    void MultUnsigned(const Vector &x, Vector &y) const;
@@ -101,7 +101,7 @@ public:
    ///
    /// Performs either MultTranspose or AddMultTranspose depending on the
    /// boolean template parameter @a ADD.
-   template <bool ADD> void AddMultTranspose(const Vector &x, Vector &y) const;
+   template <bool ADD> void TAddMultTranspose(const Vector &x, Vector &y) const;
 };
 
 /// Operator that converts L2 FiniteElementSpace L-vectors to E-vectors.
@@ -121,7 +121,7 @@ public:
    void Mult(const Vector &x, Vector &y) const override;
    void MultTranspose(const Vector &x, Vector &y) const override;
    void AddMultTranspose(const Vector &x, Vector &y,
-                         double a = 1.0) const override;
+                         const double a = 1.0) const override;
    /** Fill the I array of SparseMatrix corresponding to the sparsity pattern
        given by this ElementRestriction. */
    void FillI(SparseMatrix &mat) const;
@@ -132,7 +132,7 @@ public:
    ///
    /// Performs either MultTranspose or AddMultTranspose depending on the
    /// boolean template parameter @a ADD.
-   template <bool ADD> void AddMultTranspose(const Vector &x, Vector &y) const;
+   template <bool ADD> void TAddMultTranspose(const Vector &x, Vector &y) const;
 };
 
 /** An enum type to specify if only e1 value is requested (SingleValued) or both
