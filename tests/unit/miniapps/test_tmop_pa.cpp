@@ -388,7 +388,7 @@ int tmop(int id, Req &res, int argc, char *argv[])
             else
             {
                nlfi_fa->EnableLimiting(x0, dist, lim_coeff,
-                                            new TMOP_ExponentialLimiter);
+                                       new TMOP_ExponentialLimiter);
             }
          }
          nlf_fa.AddDomainIntegrator(nlfi_fa);
