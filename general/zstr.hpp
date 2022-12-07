@@ -60,9 +60,9 @@ namespace strict_fstream
 {
 
 // Overloaded error checks to handle POSIX and GNU strerror_r
-inline char* check_strerror_r(int r, char* buff, int err)
+inline char* check_strerror_r(int r, char* buff, size_t buff_size)
 {
-   if (r) { sprintf(buff, "unknown error: %d", err); }
+   if (r) { snprintf(buff, buff_size, "unknown error: %d", r); }
    return buff;
 }
 
