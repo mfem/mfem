@@ -524,7 +524,6 @@ int main (int argc, char *argv[])
          surf_fit_hess = new ParGridFunction(surf_fit_hess_fes);
 
          //Setup gradient of the background mesh
-         surf_fit_bg_grad->ReorderByNodes();
          for (int d = 0; d < pmesh_surf_fit_bg->Dimension(); d++)
          {
             ParGridFunction surf_fit_bg_grad_comp(surf_fit_bg_fes,
@@ -533,7 +532,6 @@ int main (int argc, char *argv[])
          }
 
          //Setup Hessian on background mesh
-         surf_fit_bg_hess->ReorderByNodes();
          int id = 0;
          for (int d = 0; d < pmesh_surf_fit_bg->Dimension(); d++)
          {
