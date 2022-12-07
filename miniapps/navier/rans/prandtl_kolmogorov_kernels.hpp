@@ -17,7 +17,7 @@ double sqrtk_f(const double k)
 static inline
 double tls_f(const double k, const double wd)
 {
-   const double L = 0.03,
+   const double L = 0.3,
                 tau = 1.0,
                 d = 0.41*wd*sqrt(wd/L);
 
@@ -40,7 +40,7 @@ public:
       wall_distance(wall_distance),
       mu(mu) {}
 
-   double  Eval(ElementTransformation &T, const IntegrationPoint &ip) override
+   double Eval(ElementTransformation &T, const IntegrationPoint &ip) override
    {
       const double k_q = k.GetValue(T, ip);
       const double wd_q = wall_distance.GetValue(T, ip);
@@ -133,13 +133,13 @@ void PrandtlKolmogorovApply2D(
                const double tls = tls_f(k_q(qx,qy), wd_q(qx,qy,e));
 
                // grad(u) + grad(u)^T
-               const auto S = (dudx + transpose(dudx));
+               const auto S = 0.5*(dudx + transpose(dudx));
 
                // nu_t |grad(u) + grad(u)^T|^2 = nu_t |S|^2 = nu_t S:S
-               // const auto nu_t_abs_S_squared = mu_calibration_const *
-               //                                 tls * sqrt_k * ddot(S,S);
                const auto nu_t_abs_S_squared = mu_calibration_const *
-                                               ddot(S,S);
+                                               tls * sqrt_k * ddot(S,S);
+               // const auto nu_t_abs_S_squared = mu_calibration_const *
+               //                                 ddot(S,S);
 
                const double JxW = detJ(qx, qy, e) * qweights(qx, qy);
                const auto dphidx = KernelHelpers::GradAllShapeFunctions(qx, qy, B, G, invJqp);

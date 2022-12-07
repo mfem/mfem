@@ -13,7 +13,7 @@
 
 #include "navier_solver.hpp"
 #include "prandtl_kolmogorov.hpp"
-#include "prandtl_kolmogorov_kernels.hpp"
+#include "smagorinsky.hpp"
 #include "dist_solver.hpp"
 #include <fstream>
 
@@ -28,11 +28,11 @@ struct s_NavierContext
    double dt = 1e-8;
    double dt_max = 1e-3;
    double cfl_target = 0.5;
-   double t_final = 2.0;
+   double t_final = 1.0;
    double Uavg = 1.0;
    double H = 0.03;
-   bool les = false;
-   bool rans = true;
+   bool les = true;
+   bool rans = false;
 } ctx;
 
 void vel_ic(const Vector &c, double t, Vector &u)
@@ -45,7 +45,6 @@ void vel_inlet(const Vector &c, double t, Vector &u)
 {
    const double y = c(1);
 
-   // u(0) = -1111.111111 * y*y + 66.6666666 * y;
    u(0) = 1.0;
    u(1) = 0.0;
 }
@@ -119,7 +118,7 @@ int main(int argc, char *argv[])
    Device device(device_config);
    if (myid == 0) { device.Print(); }
 
-   int serial_refinements = 0;
+   int serial_refinements = 1;
 
    Mesh mesh("bfs2d.e");
 
@@ -137,10 +136,6 @@ int main(int argc, char *argv[])
    {
       std::cout << "Number of elements: " << mesh.GetNE() << std::endl;
    }
-
-   // char buffer[50];
-   // sprintf(buffer,"phill_%d_%d_%d.mesh", nx, ny, serial_refinements);
-   // mesh.Save(buffer);
 
    auto *pmesh = new ParMesh(MPI_COMM_WORLD, mesh);
 
@@ -201,91 +196,82 @@ int main(int argc, char *argv[])
    ParGridFunction *u_gf = navier.GetCurrentVelocity();
    ParGridFunction *p_gf = navier.GetCurrentPressure();
 
-   std::shared_ptr<RANSModel> rans_model;
-   std::shared_ptr<ODESolver> rans_ode;
+   std::shared_ptr<TurbulenceModel> les_sgs_model;
+   std::shared_ptr<LESDelta> les_delta, geometric_delta;
+   std::shared_ptr<ParGridFunction> nut_sgs_gf;
    ParGridFunction *wall_distance_gf = nullptr, *k_gf = nullptr,
                     *nu_t_gf = nullptr;
    ConstantCoefficient zero_coeff(0.0);
+   GridFunctionCoefficient *wall_distance_coeff = nullptr;
+   // Compute wall distance function
+   wall_distance_gf = new ParGridFunction(
+      navier.GetVariableViscosity()->ParFESpace());
+
+   ParGridFunction ls_gf(navier.GetVariableViscosity()->ParFESpace());
+   ls_gf = 1.0;
+   ls_gf.ProjectBdrCoefficient(zero_coeff, wall_attr);
+
+   GridFunctionCoefficient ls_coeff(&ls_gf);
+
+   const int p = 10;
+   const int newton_iter = 50;
+   const double dx = AvgElementSize(*pmesh);
+   HeatDistanceSolver dist_solver(dx * dx);
+   // PLapDistanceSolver dist_solver(p, newton_iter);
+   dist_solver.print_level = 0;
+   dist_solver.ComputeScalarDistance(ls_coeff, *wall_distance_gf);
+
+   wall_distance_coeff = new GridFunctionCoefficient(wall_distance_gf);
+
+   if (ctx.les)
+   {
+      geometric_delta = std::make_shared<CurvedGeometricDelta>(ctx.order);
+      les_delta = std::make_shared<VanDriestDelta>(*geometric_delta, *u_gf,
+                                                   *wall_distance_gf, 1.0/ctx.kin_vis);
+      les_sgs_model = std::make_shared<Smagorinsky>(*u_gf, *les_delta);
+      nut_sgs_gf = std::make_shared<ParGridFunction>(*p_gf);
+   }
+
+   std::shared_ptr<PrandtlKolmogorov> rans_model;
+   std::shared_ptr<ODESolver> rans_ode;
+
    VectorGridFunctionCoefficient vel_coeff(navier.GetCurrentVelocity());
    GridFunctionCoefficient kv_coeff(navier.GetVariableViscosity());
-   GridFunctionCoefficient *wall_distance_coeff = nullptr;
-   FunctionCoefficient *k_bdr_coeff = nullptr;
-   EddyViscosityCoefficient *nu_t_coeff = nullptr;
+   PrandtlKolmogorov::EddyViscosityCoefficient *nu_t_coeff = nullptr;
    ParGridFunction kv_orig(*navier.GetVariableViscosity());
+   RANSInitCoefficient *init_coeff = nullptr;
    Vector k_tdof;
    if (ctx.rans)
    {
-      ParFiniteElementSpace &kfes = *navier.GetVariableViscosity()->ParFESpace();
-      k_gf = new ParGridFunction(&kfes);
-      *k_gf = 4.5e-5;
-
-      k_bdr_coeff = new FunctionCoefficient(k_bdr);
-      k_gf->ProjectBdrCoefficient(*k_bdr_coeff, inlet_attr);
-
-      k_tdof.SetSize(kfes.GetTrueVSize());
-      k_gf->ParallelProject(k_tdof);
-
-      nu_t_gf = new ParGridFunction(&kfes);
+      nu_t_gf = new ParGridFunction(navier.GetVariableViscosity()->ParFESpace());
       *nu_t_gf = 0.0;
-
-      // Compute wall distance function
-      wall_distance_gf = new ParGridFunction(&kfes);
-
-      ParGridFunction ls_gf(&kfes);
-      ls_gf = 1.0;
-      ls_gf.ProjectBdrCoefficient(zero_coeff, wall_attr);
-
-      GridFunctionCoefficient ls_coeff(&ls_gf);
-
-      const int p = 10;
-      const int newton_iter = 50;
-      const double dx = AvgElementSize(*pmesh);
-      HeatDistanceSolver dist_solver(dx * dx);
-      // PLapDistanceSolver dist_solver(p, newton_iter);
-      dist_solver.print_level = 0;
-      dist_solver.ComputeScalarDistance(ls_coeff, *wall_distance_gf);
-
-      wall_distance_coeff = new GridFunctionCoefficient(wall_distance_gf);
 
       const double mu_calibration_const = 0.55;
 
-      Array<int> essential_attr(pmesh->bdr_attributes.Max());
-      essential_attr = 0;
-      essential_attr[0] = 1;
-      // essential_attr[2] = 1;
-
       rans_model.reset(new PrandtlKolmogorov(
-                          kfes,
-                          vel_coeff,
-                          kv_coeff,
-                          zero_coeff,
-                          *wall_distance_coeff,
-                          *k_bdr_coeff,
-                          mu_calibration_const,
-                          essential_attr));
+                          *pmesh, ctx.order, *u_gf, kv_orig, *wall_distance_gf));
+
+      init_coeff = new RANSInitCoefficient(*u_gf, 1.0/ctx.kin_vis);
+      auto inflow_coeff = new ConstantCoefficient(4.5e-5);
+      rans_model->SetFixedValue(*init_coeff, {0, 2});
+      rans_model->Setup();
+
+      k_gf = &rans_model->GetScalar();
+      *k_gf = 4.5e-5;
+      // k_gf->ProjectCoefficient(*init_coeff);
+      k_tdof.SetSize(k_gf->ParFESpace()->GetTrueVSize());
+      k_gf->ParallelProject(k_tdof);
 
       rans_ode.reset(new ARKStepSolver(MPI_COMM_WORLD, ARKStepSolver::EXPLICIT));
       rans_ode->Init(*rans_model);
+      ARKStepSolver *ark = static_cast<ARKStepSolver *>(rans_ode.get());
+      ark->SetSStolerances(1e-5, 1e-5);
+      ark->SetMaxStep(ctx.dt_max);
+      ark->SetERKTableNum(0);
 
-      int flag = 0;
-      ARKStepSetPostprocessStepFn(static_cast<ARKStepSolver *>
-                                  (rans_ode.get())->GetMem(),
-                                  PrandtlKolmogorov::PostProcessCallback);
-      MFEM_VERIFY(flag >= 0, "error in ARKStepSetPostprocessStepFn()");
-      ARKStepSetPostprocessStageFn(static_cast<ARKStepSolver *>
-                                   (rans_ode.get())->GetMem(),
-                                   PrandtlKolmogorov::PostProcessCallback);
-      MFEM_VERIFY(flag >= 0, "error in ARKStepSetPostprocessStageFn()");
-      ARKStepSetStagePredictFn(static_cast<ARKStepSolver *>
-                               (rans_ode.get())->GetMem(),
-                               PrandtlKolmogorov::PostProcessCallback);
-      MFEM_VERIFY(flag >= 0, "error in ARKStepSetStagePredictFn()");
-      // static_cast<ARKStepSolver *>(rans_ode.get())->SetIMEXTableNum(
-      //    HEUN_EULER_2_1_2, SDIRK_2_1_2);
-      static_cast<ARKStepSolver *>(rans_ode.get())->SetERKTableNum(0);
-
-      nu_t_coeff = new EddyViscosityCoefficient(*k_gf, *wall_distance_gf,
-                                                mu_calibration_const);
+      nu_t_coeff = new PrandtlKolmogorov::EddyViscosityCoefficient(*k_gf,
+                                                                   *wall_distance_gf,
+                                                                   mu_calibration_const);
       nu_t_gf->ProjectCoefficient(*nu_t_coeff);
    }
 
@@ -311,12 +297,16 @@ int main(int argc, char *argv[])
    pvdc.SetTime(t);
    pvdc.RegisterField("velocity", u_gf);
    pvdc.RegisterField("pressure", p_gf);
-   pvdc.RegisterField("nu", navier.GetVariableViscosity());
    if (ctx.rans)
    {
       pvdc.RegisterField("wall_distance", wall_distance_gf);
       pvdc.RegisterField("k", k_gf);
       pvdc.RegisterField("nu_t", nu_t_gf);
+      pvdc.RegisterField("nuPLUSnu_t", navier.GetVariableViscosity());
+   }
+   if (ctx.les)
+   {
+      pvdc.RegisterField("nu_t_sgs", nut_sgs_gf.get());
    }
    pvdc.Save();
 
@@ -338,6 +328,8 @@ int main(int argc, char *argv[])
       pvdc.Save();
    };
 
+   write_output();
+
    for (step = 0; !last_step; ++step)
    {
       if (t + dt >= t_final - dt / 2)
@@ -345,28 +337,10 @@ int main(int argc, char *argv[])
          last_step = true;
       }
 
-      if (ctx.rans)
-      {
-         *navier.GetVariableViscosity() = kv_orig;
-
-         t_rans = t;
-
-         // TODO: Calling Init here to reset (not implemented in the interface)
-         rans_ode->Init(*rans_model);
-         rans_ode->Step(k_tdof, t_rans, dt_rans);
-
-         if (Mpi::Root())
-         {
-            static_cast<ARKStepSolver *>(rans_ode.get())->PrintInfo();
-         }
-
-         nu_t_gf->ProjectCoefficient(*nu_t_coeff);
-         *navier.GetVariableViscosity() += *nu_t_gf;
-      }
-
       navier.Step(t, dt, step, true);
       // Get a prediction for a stable timestep
-      int ok = navier.PredictTimestep(1e-8, ctx.dt_max, ctx.cfl_target, dt);
+      double dt_next = dt;
+      int ok = navier.PredictTimestep(1e-8, ctx.dt_max, ctx.cfl_target, dt_next);
       if (ok < 0)
       {
          // Reject the time step
@@ -379,16 +353,36 @@ int main(int argc, char *argv[])
       }
       else
       {
+         if (ctx.rans)
+         {
+            t_rans = t;
+            dt_rans = dt;
+            *navier.GetVariableViscosity() = kv_orig;
+            rans_ode->Init(*rans_model);
+            rans_ode->Step(k_tdof, t_rans, dt_rans);
+            nu_t_gf->ProjectCoefficient(*nu_t_coeff);
+            *navier.GetVariableViscosity() += *nu_t_gf;
+         }
+
+         if (ctx.les)
+         {
+            les_sgs_model->ComputeEddyViscosity(*nut_sgs_gf);
+
+            *navier.GetVariableViscosity() = kv_orig;
+            *navier.GetVariableViscosity() += *nut_sgs_gf;
+         }
+
          // Queue new time step in the history array
          navier.UpdateTimestepHistory(dt);
          // Accept the time step
          t += dt;
+         dt = dt_next;
       }
 
       // Compute the CFL
       double cfl = navier.ComputeCFL(*u_gf, dt);
 
-      if (step % 50 == 0)
+      if (step % 5 == 0)
       {
          write_output();
       }

@@ -86,8 +86,6 @@ int main(int argc, char *argv[])
 
    // Create the flow solver.
    NavierSolver flowsolver(pmesh, ctx.order, ctx.kin_vis);
-   flowsolver.EnablePA(true);
-   flowsolver.EnableNI(true);
 
    auto kv_gf = flowsolver.GetVariableViscosity();
    ConstantCoefficient kv_coeff(ctx.kin_vis);
