@@ -56,7 +56,6 @@ template <int dim> struct LinearElasticMaterial
     * compute the gradient matrix entries of the current quadrature point,
     * instead of the action.
     *
-    * @param[in] dudx
     * @return tensor<double, dim, dim, dim, dim>
     */
    tensor<double, dim, dim, dim, dim>
