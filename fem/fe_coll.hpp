@@ -51,6 +51,14 @@ public:
    virtual const FiniteElement *
    FiniteElementForGeometry(Geometry::Type GeomType) const = 0;
 
+   /** @brief Returns the first non-NULL FiniteElement for the given dimension
+
+       @note Repeatedly calls FiniteElementForGeometry in the order defined in
+       the Geometry::Type enumeration.
+   */
+   virtual const FiniteElement *
+   FiniteElementForDim(int dim) const;
+
    virtual int DofForGeometry(Geometry::Type GeomType) const = 0;
 
    /** @brief Returns an array, say p, that maps a local permuted index i to a
