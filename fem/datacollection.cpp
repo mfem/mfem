@@ -724,7 +724,7 @@ void VisItDataCollection::ParseVisItRootString(const std::string& json)
 
    // Set the DataCollection::name using the mesh path
    std::string path = mesh.get("path").get<std::string>();
-   size_t right_sep = path.find('_');
+   size_t right_sep = path.rfind('_');
    if (right_sep == std::string::npos)
    {
       error = READ_ERROR;
