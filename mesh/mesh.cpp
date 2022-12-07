@@ -1627,6 +1627,13 @@ int Mesh::AddVertex(const double *coords)
    return NumOfVertices++;
 }
 
+int Mesh::AddVertex(const Vector &coords)
+{
+   MFEM_ASSERT(coords.Size() >= spaceDim,
+               "invalid 'coords' size: " << coords.Size());
+   return AddVertex(coords.GetData());
+}
+
 void Mesh::AddVertexParents(int i, int p1, int p2)
 {
    tmp_vertex_parents.Append(Triple<int, int, int>(i, p1, p2));
