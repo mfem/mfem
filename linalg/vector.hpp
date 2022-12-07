@@ -63,7 +63,6 @@ protected:
 
    Memory<double> data;
    int size;
-   bool global_seed_set = false;
 
 public:
 
@@ -415,8 +414,6 @@ public:
 
    /// Set random values in the vector.
    void Randomize(int seed = 0);
-   /// Set global seed for random values in sequential calls to Randomize().
-   void SetGlobalSeed(int gseed);
    /// Returns the l2 norm of the vector.
    double Norml2() const;
    /// Returns the l_infinity norm of the vector.
