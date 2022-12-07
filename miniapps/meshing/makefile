@@ -92,10 +92,13 @@ minimal-surface-test-seq: minimal-surface
 pminimal-surface-test-par: pminimal-surface
 	@$(call mfem-test,$<, $(RUN_MPI), Parallel meshing miniapp)
 
+
 # Testing: Specific execution options
 mesh-explorer-test-seq:
 	@true
-shaper-test-seq:
+shaper-test-seq:	
+	@true
+ext-mesh-mapping-test-par: 
 	@true
 
 # Testing: "test" target and mfem-test* variables are defined in config/test.mk
