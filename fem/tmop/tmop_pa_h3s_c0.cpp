@@ -138,7 +138,7 @@ MFEM_REGISTER_TMOP_KERNELS(void, SetupGradPA_Kernel_C0_3D,
                   double dsq = kernels::DistanceSquared<3>(p1,p0);
                   double dist_squared = dist*dist;
                   double dist_squared_squared = dist_squared*dist_squared;
-                  double f = exp(10.0*(dsq / dist_squared)-1.0);
+                  double f = exp(10.0*((dsq / dist_squared)-1.0));
                   grad_grad[0] = ((400.0*tmp[0]*tmp[0]*f)/dist_squared_squared)+
                                  (20.0*f/dist_squared);
                   grad_grad[1] = (400.0*tmp[0]*tmp[1]*f)/dist_squared_squared;
