@@ -1216,7 +1216,7 @@ public:
    /// @a ElTr must be allocated in advance and will be owned by the caller.
    void GetBdrElementTransformation(int i, IsoparametricTransformation *ElTr);
 
-   //// Builds the transformation defining the i-th face element in @a FTr.
+   /// Builds the transformation defining the i-th face element in @a FTr.
    /// @a FTr must be allocated in advance and will be owned by the caller.
    void GetFaceTransformation(int i, IsoparametricTransformation *FTr);
 
@@ -1234,7 +1234,7 @@ public:
    /// this function resets pointers obtained from previous calls.
    ElementTransformation *GetFaceTransformation(int FaceNo);
 
-   //// Builds the transformation defining the i-th edge element in @a EdTr.
+   /// Builds the transformation defining the i-th edge element in @a EdTr.
    /// @a EdTr must be allocated in advance and will be owned by the caller.
    void GetEdgeTransformation(int i, IsoparametricTransformation *EdTr);
 
