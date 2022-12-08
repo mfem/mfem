@@ -56,7 +56,9 @@ STRUMPACKRowLocMatrix::STRUMPACKRowLocMatrix(const HypreParMatrix & hypParMat)
 
    // Create the CSRMatrixMPI A_ by borrowing the internal data from a
    // hypre_CSRMatrix.
+   hypParMat.HostRead();
    hypre_CSRMatrix * csr_op = hypre_MergeDiagAndOffd(parcsr_op);
+   hypParMat.HypreRead();
    hypre_CSRMatrixSetDataOwner(csr_op,0);
 #if MFEM_HYPRE_VERSION >= 21600
    // For now, this method assumes that HYPRE_Int is int. Also, csr_op->num_cols
