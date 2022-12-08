@@ -606,8 +606,6 @@ function(mfem_find_package Name Prefix DirVar IncSuffixes Header LibSuffixes
         math(EXPR I "${I}+1")
         set(TestSrc "${ARGV${I}}")
         include(CheckCXXSourceCompiles)
-        set(CMAKE_REQUIRED_FLAGS
-            ${CMAKE_CXX${CMAKE_CXX_STANDARD}_STANDARD_COMPILE_OPTION})
         set(CMAKE_REQUIRED_INCLUDES ${${Prefix}_INCLUDE_DIRS})
         set(CMAKE_REQUIRED_LIBRARIES ${${Prefix}_LIBRARIES})
         set(CMAKE_REQUIRED_QUIET ${${Name}_FIND_QUIETLY})
