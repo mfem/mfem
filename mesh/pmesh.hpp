@@ -501,6 +501,9 @@ public:
    ///    mask & 4 - Loc1, mask & 8 - Loc2, mask & 16 - Face.
    /// These mask values are defined in the ConfigMasks enum type as part of the
    /// FaceElementTransformations class in fem/eltrans.hpp.
+   ///
+   /// Note that the pointer is owned by the class and is shared, i.e., calling
+   /// this function resets pointers obtained from previous calls.
    FaceElementTransformations *GetFaceElementTransformations(
       int FaceNo,
       int mask = 31) override;
@@ -509,7 +512,9 @@ public:
        using the shared face index @a sf. @a fill2 specify if the information
        for elem2 of the face should be computed or not.
        In the returned object, 1 and 2 refer to the local and the neighbor
-       elements, respectively. */
+       elements, respectively.
+       Note that the pointer is owned by the class and is shared, i.e., calling
+       this function resets pointers obtained from previous calls. */
    FaceElementTransformations *
    GetSharedFaceTransformations(int sf, bool fill2 = true);
 
@@ -517,12 +522,16 @@ public:
        using the face index @a FaceNo. @a fill2 specify if the information
        for elem2 of the face should be computed or not.
        In the returned object, 1 and 2 refer to the local and the neighbor
-       elements, respectively. */
+       elements, respectively.
+       Note that the pointer is owned by the class and is shared, i.e., calling
+       this function resets pointers obtained from previous calls. */
    FaceElementTransformations *
    GetSharedFaceTransformationsByLocalIndex(int FaceNo, bool fill2 = true);
 
-   ElementTransformation *
-   GetFaceNbrElementTransformation(int i)
+   /// Returns a pointer to the transformation defining the i-th face neighbor.
+   /// Note that the pointer is owned by the class and is shared, i.e., calling
+   /// this function resets pointers obtained from previous calls.
+   ElementTransformation *GetFaceNbrElementTransformation(int i)
    {
       GetFaceNbrElementTransformation(i, &FaceNbrTransformation);
 
