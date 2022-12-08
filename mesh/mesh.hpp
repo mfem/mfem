@@ -1192,24 +1192,32 @@ public:
 
    static FiniteElement *GetTransformationFEforElementType(Element::Type);
 
-   /** Builds the transformation defining the i-th element in the user-defined
-       variable. */
+   /// Builds the transformation defining the i-th element in @a ElTr.
+   /// @a ElTr must be allocated in advance and will be owned by the caller.
    void GetElementTransformation(int i, IsoparametricTransformation *ElTr);
 
-   /// Returns the transformation defining the i-th element
+   /// Returns a pointer to the transformation defining the i-th element.
+   /// Note that the pointer is owned by the class and is shared, i.e., calling
+   /// this function resets pointers obtained from previous calls.
    ElementTransformation *GetElementTransformation(int i);
 
-   /** Return the transformation defining the i-th element assuming
-       the position of the vertices/nodes are given by 'nodes'. */
+   /// Builds the transformation defining the i-th element in @a ElTr
+   /// assuming position of the vertices/nodes are given by @a nodes.
+   /// @a ElTr must be allocated in advance and will be owned by the caller.
    void GetElementTransformation(int i, const Vector &nodes,
                                  IsoparametricTransformation *ElTr);
 
-   /// Returns the transformation defining the i-th boundary element
-   ElementTransformation * GetBdrElementTransformation(int i);
+   /// Returns a pointer to the transformation defining the i-th boundary
+   /// element. Note that the pointer is owned by the class and is shared, i.e.,
+   /// calling this function resets pointers obtained from previous calls.
+   ElementTransformation *GetBdrElementTransformation(int i);
+
+   /// Builds the transformation defining the i-th boundary element in @a ElTr.
+   /// @a ElTr must be allocated in advance and will be owned by the caller.
    void GetBdrElementTransformation(int i, IsoparametricTransformation *ElTr);
 
-   /** @brief Returns the transformation defining the given face element in a
-       user-defined variable. */
+   //// Builds the transformation defining the i-th face element in @a FTr.
+   /// @a FTr must be allocated in advance and will be owned by the caller.
    void GetFaceTransformation(int i, IsoparametricTransformation *FTr);
 
    /** @brief A helper method that constructs a transformation from the
@@ -1221,14 +1229,18 @@ public:
                                    IsoparametricTransformation &Transf,
                                    int info);
 
-   /// Returns the transformation defining the given face element
+   /// Returns a pointer to the transformation defining the given face element.
+   /// Note that the pointer is owned by the class and is shared, i.e., calling
+   /// this function resets pointers obtained from previous calls.
    ElementTransformation *GetFaceTransformation(int FaceNo);
 
-   /** Returns the transformation defining the given edge element.
-       The transformation is stored in a user-defined variable. */
+   //// Builds the transformation defining the i-th edge element in @a EdTr.
+   /// @a EdTr must be allocated in advance and will be owned by the caller.
    void GetEdgeTransformation(int i, IsoparametricTransformation *EdTr);
 
-   /// Returns the transformation defining the given face element
+   /// Returns a pointer to the transformation defining the given edge element.
+   /// Note that the pointer is owned by the class and is shared, i.e., calling
+   /// this function resets pointers obtained from previous calls.
    ElementTransformation *GetEdgeTransformation(int EdgeNo);
 
    /// Returns (a pointer to an object containing) the following data:
@@ -1261,16 +1273,22 @@ public:
    ///    mask & 4 - Loc1, mask & 8 - Loc2, mask & 16 - Face.
    /// These mask values are defined in the ConfigMasks enum type as part of the
    /// FaceElementTransformations class in fem/eltrans.hpp.
+   ///
+   /// Note that the pointer is owned by the class and is shared, i.e., calling
+   /// this function resets pointers obtained from previous calls.
    virtual FaceElementTransformations *GetFaceElementTransformations(
       int FaceNo,
       int mask = 31);
 
+   /// See GetFaceElementTransformations().
    FaceElementTransformations *GetInteriorFaceTransformations (int FaceNo)
    {
       if (faces_info[FaceNo].Elem2No < 0) { return NULL; }
       return GetFaceElementTransformations (FaceNo);
    }
 
+   /// Builds the transformation defining the given boundary face.
+   /// The returned pointer is owned by the caller.
    FaceElementTransformations *GetBdrFaceTransformations (int BdrElemNo);
 
    /// Return the local face index for the given boundary face.
