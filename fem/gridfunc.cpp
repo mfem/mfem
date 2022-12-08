@@ -422,7 +422,7 @@ void GridFunction::GetNodalValues(int i, Array<double> &nval, int vdim) const
          for (k = 0; k < n; k++)
          {
             FElem->CalcShape(ElemVert->IntPoint(k), shape);
-            nval[k] = shape * ((const double *)loc_data + dof * vdim);
+            nval[k] = shape * (&loc_data[dof * vdim]);
          }
       }
       else
@@ -432,7 +432,7 @@ void GridFunction::GetNodalValues(int i, Array<double> &nval, int vdim) const
          {
             Tr->SetIntPoint(&ElemVert->IntPoint(k));
             FElem->CalcPhysShape(*Tr, shape);
-            nval[k] = shape * ((const double *)loc_data + dof * vdim);
+            nval[k] = shape * (&loc_data[dof * vdim]);
          }
       }
    }
