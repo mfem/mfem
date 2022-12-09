@@ -1920,7 +1920,7 @@ DataCollectionToFmsDataCollection(DataCollection *mfem_dc,
                                              FMS_NODAL_GAUSS_CLOSED, 1);
       err |= FmsDataCollectionAddField(*dc, "Coords", &fcoords);
       err |= FmsFieldSet(fcoords, fdcoords, mmesh->SpaceDimension(), FMS_BY_NODES,
-                         FMS_DOUBLE, mverts);
+                         FMS_DOUBLE, mverts.HostRead());
       err |= FmsComponentSetCoordinates(volume, fcoords);
    }
 
