@@ -11656,6 +11656,7 @@ void Mesh::Transform(void (*f)(const Vector&, Vector&))
       xnew.ProjectCoefficient(f_pert);
       *Nodes = xnew;
    }
+   NodesUpdated();
 }
 
 void Mesh::Transform(VectorCoefficient &deformation)
@@ -11680,6 +11681,7 @@ void Mesh::Transform(VectorCoefficient &deformation)
       xnew.ProjectCoefficient(deformation);
       *Nodes = xnew;
    }
+   NodesUpdated();
 }
 
 void Mesh::RemoveUnusedVertices()
