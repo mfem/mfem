@@ -86,7 +86,7 @@ void ElasticityOperator::Mult(const Vector &X, Vector &Y) const
    // Apply operator
    element_apply_kernel_wrapper(ne_, maps_->B, maps_->G, ir_->GetWeights(),
                                 geometric_factors_->J, geometric_factors_->detJ,
-                                X_el_, Y_el_);
+                                X_el_, Y_el_, false);
 
    // E-vector to L-vector
    h1_element_restriction_->MultTranspose(Y_el_, Y_local_);

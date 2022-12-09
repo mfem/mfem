@@ -14,6 +14,7 @@
 
 #include "kernel_helpers.hpp"
 #include "linalg/vector.hpp"
+#include "../materials/material_traits.hpp"
 
 using mfem::internal::tensor;
 using mfem::internal::make_tensor;
@@ -23,7 +24,6 @@ namespace mfem
 
 namespace ElasticityKernels
 {
-
 /**
  * @brief Apply the 3D elasticity kernel
  *
@@ -45,7 +45,8 @@ namespace ElasticityKernels
  * @param Y_ Output vector d1d x d1d x d1d x vdim x ne.
  * @param material Material object.
  */
-template <int d1d, int q1d, typename material_type> static inline
+template <int d1d, int q1d, typename material_type, typename material_type_state>
+static inline
 void Apply3D(const int ne,
              const Array<double> &B_,
              const Array<double> &G_,
@@ -53,7 +54,8 @@ void Apply3D(const int ne,
              const Vector &Jacobian_,
              const Vector &detJ_,
              const Vector &X_, Vector &Y_,
-             const material_type &material)
+             const material_type &material,
+             Array<material_type_state> &material_state_)
 {
    static constexpr int dim = 3;
    KernelHelpers::CheckMemoryRestriction(d1d, q1d);
@@ -68,6 +70,8 @@ void Apply3D(const int ne,
    const auto J = Reshape(Jacobian_.Read(), q1d, q1d, q1d, dim, dim, ne);
    const auto detJ = Reshape(detJ_.Read(), q1d, q1d, q1d, ne);
    const auto U = Reshape(X_.Read(), d1d, d1d, d1d, dim, ne);
+   // This will access random memory if material_type_state is NoState
+   auto state = Reshape(material_state_.ReadWrite(), q1d, q1d, q1d, ne);
    auto force = Reshape(Y_.ReadWrite(), d1d, d1d, d1d, dim, ne);
 
    MFEM_FORALL_3D(e, ne, q1d, q1d, q1d,
@@ -95,10 +99,20 @@ void Apply3D(const int ne,
 
                // This represents the quadrature function operation in the
                // Finite Element Operator Decomposition e.g. A_Q(x).
-               auto sigma = material.stress(dudx);
+               if constexpr (material_has_state<material_type>::value)
+               {
+                  auto sigma = material.stress(state(qx,qy,qz,e), dudx);
 
-               invJ_sigma_detJw(qx, qy, qz) =
-                  invJqp * sigma * detJ(qx, qy, qz, e) * qweights(qx, qy, qz);
+                  invJ_sigma_detJw(qx, qy, qz) =
+                     invJqp * sigma * detJ(qx, qy, qz, e) * qweights(qx, qy, qz);
+               }
+               else
+               {
+                  auto sigma = material.stress(dudx);
+
+                  invJ_sigma_detJw(qx, qy, qz) =
+                     invJqp * sigma * detJ(qx, qy, qz, e) * qweights(qx, qy, qz);
+               }
             }
          }
       }
@@ -138,12 +152,14 @@ void Apply3D(const int ne,
  * @param dsigma_cache_ Vector to use as memory for the cache of dsigma/dudx.
  * Size needed is ne x q1d x q1d x q1d x dim x dim x dim x dim.
  */
-template <int d1d, int q1d, typename material_type> static inline
+template <int d1d, int q1d, typename material_type, typename material_type_state>
+static inline
 void ApplyGradient3D(const int ne,
                      const Array<double> &B_, const Array<double> &G_,
                      const Array<double> &W_, const Vector &Jacobian_,
                      const Vector &detJ_, const Vector &dU_, Vector &dF_,
                      const Vector &U_, const material_type &material,
+                     Array<material_type_state> &material_state_,
                      const bool use_cache_, const bool recompute_cache_,
                      Vector &dsigma_cache_)
 {
@@ -162,6 +178,8 @@ void ApplyGradient3D(const int ne,
    const auto dU = Reshape(dU_.Read(), d1d, d1d, d1d, dim, ne);
    auto force = Reshape(dF_.ReadWrite(), d1d, d1d, d1d, dim, ne);
    const auto U = Reshape(U_.Read(), d1d, d1d, d1d, dim, ne);
+   // This will access random memory if material_type_state is NoState
+   auto state = Reshape(material_state_.ReadWrite(), q1d, q1d, q1d, ne);
 
    auto dsigma_cache = Reshape(dsigma_cache_.ReadWrite(), ne, q1d, q1d, q1d,
                                dim, dim, dim, dim);
@@ -204,7 +222,7 @@ void ApplyGradient3D(const int ne,
 
                   if (recompute_cache_)
                   {
-                     C = material.gradient(dudx);
+                     C = material.gradient(state(qx,qy,qz,e), dudx);
                      for (int i = 0; i < dim; i++)
                      {
                         for (int j = 0; j < dim; j++)
@@ -229,7 +247,8 @@ void ApplyGradient3D(const int ne,
                }
                else
                {
-                  auto dsigma = material.action_of_gradient(dudx, ddudx);
+                  auto dsigma = material.action_of_gradient(state(qx,qy,qz,e), dudx,
+                                                            ddudx);
                   invJ_dsigma_detJw(qx, qy, qz) =
                      invJqp * dsigma * detJ(qx, qy, qz, e) * qweights(qx, qy, qz);
                }
@@ -265,7 +284,8 @@ void ApplyGradient3D(const int ne,
  * matrices. Size needed is d1d x d1d x d1d x dim x ne x dim.
  * @param material Material object.
  */
-template <int d1d, int q1d, typename material_type> static inline
+template <int d1d, int q1d, typename material_type, typename material_type_state>
+static inline
 void AssembleGradientDiagonal3D(const int ne,
                                 const Array<double> &B_,
                                 const Array<double> &G_,
@@ -274,7 +294,8 @@ void AssembleGradientDiagonal3D(const int ne,
                                 const Vector &detJ_,
                                 const Vector &X_,
                                 Vector &Ke_diag_memory,
-                                const material_type &material)
+                                const material_type &material,
+                                Array<material_type_state> &material_state)
 {
    static constexpr int dim = 3;
    KernelHelpers::CheckMemoryRestriction(d1d, q1d);
@@ -289,6 +310,8 @@ void AssembleGradientDiagonal3D(const int ne,
    const auto J = Reshape(Jacobian_.Read(), q1d, q1d, q1d, dim, dim, ne);
    const auto detJ = Reshape(detJ_.Read(), q1d, q1d, q1d, ne);
    const auto U = Reshape(X_.Read(), d1d, d1d, d1d, dim, ne);
+   // This will access random memory if material_type_state is NoState
+   auto state = Reshape(material_state.ReadWrite(), q1d, q1d, q1d, ne);
 
    auto Ke_diag_m =
       Reshape(Ke_diag_memory.ReadWrite(), d1d, d1d, d1d, dim, ne, dim);
@@ -318,10 +341,11 @@ void AssembleGradientDiagonal3D(const int ne,
 
                const auto dudx = dudxi(qz, qy, qx) * invJqp;
 
-               const auto dsigma_ddudx = material.gradient(dudx);
+               const auto dsigma_ddudx = material.gradient(state(qx,qy,qz,e), dudx);
 
                const double JxW = detJ(qx, qy, qz, e) * qweights(qx, qy, qz);
-               const auto dphidx = KernelHelpers::GradAllShapeFunctions(qx, qy, qz, B, G, invJqp);
+               const auto dphidx = KernelHelpers::GradAllShapeFunctions(qx, qy, qz, B, G,
+                                                                        invJqp);
 
                for (int dx = 0; dx < d1d; dx++)
                {

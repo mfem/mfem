@@ -34,6 +34,7 @@
 
 #include "materials/linear_elastic.hpp"
 #include "materials/neohookean.hpp"
+#include "materials/j2_plastic.hpp"
 #include "operators/elasticity_gradient_operator.hpp"
 #include "operators/elasticity_operator.hpp"
 #include "preconditioners/diagonal_preconditioner.hpp"
@@ -128,8 +129,27 @@ int main(int argc, char *argv[])
    // * EnzymeRev
    // * FiniteDiff
    // * InternalFwd
-   const NeoHookeanMaterial<dimension, GradientType::InternalFwd> material{};
-   elasticity_op.SetMaterial(material);
+   // const NeoHookeanMaterial<dimension, GradientType::InternalFwd> material{};
+   double G = 79000;
+   double K = 10 * G;
+   double E  = 9 * K * G / (3 * K + G);
+   double nu = (3 * K - 2 * G) / (2 * (3 * K + G));
+   J2Material material
+   {
+      E,                // Young's modulus
+      nu,               // Poisson's ratio
+      10.0,              // isotropic hardening constant
+      0.0,              // kinematic hardening constant
+      165 * sqrt(3.0),  // yield stress
+      1.0               // mass density
+   };
+   auto material_state = elasticity_op.CreateMaterialState(material);
+   for (int i = 0; i < material_state.Size(); i++)
+   {
+      material_state[i] = {};
+   }
+
+   elasticity_op.SetMaterial(material, material_state);
 
    // Define all essential boundaries. In this specific example, this includes
    // all fixed and statically displaced degrees of freedom on mesh entities in
@@ -160,15 +180,12 @@ int main(int argc, char *argv[])
    Vector U;
    U_gf.GetTrueDofs(U);
 
-   // Prescribe a fixed displacement to the displaced degrees of freedom.
-   U.SetSubVector(elasticity_op.GetPrescribedDisplacementTDofs(), 1.0e-2);
-
    // Define the type of preconditioner to use for the linear solver.
    ElasticityDiagonalPreconditioner diagonal_pc(
       static_cast<ElasticityDiagonalPreconditioner::Type>(diagpc_type));
 
    CGSolver cg(MPI_COMM_WORLD);
-   cg.SetRelTol(1e-1);
+   cg.SetRelTol(1e-4);
    cg.SetMaxIter(10000);
    cg.SetPrintLevel(2);
    cg.SetPreconditioner(diagonal_pc);
@@ -176,14 +193,36 @@ int main(int argc, char *argv[])
    NewtonSolver newton(MPI_COMM_WORLD);
    newton.SetSolver(cg);
    newton.SetOperator(elasticity_op);
-   newton.SetRelTol(1e-6);
-   newton.SetMaxIter(10);
+   newton.SetRelTol(1e-8);
+   newton.SetAbsTol(1e-11);
+   newton.SetMaxIter(1000);
    newton.SetPrintLevel(1);
 
-   Vector zero;
-   newton.Mult(zero, U);
+   Array<double> displacement_increments(20);
 
-   U_gf.Distribute(U);
+   for (int i = 0; i < displacement_increments.Size(); i++)
+   {
+      printf("\n>>> solving displacement increment %d\n", i);
+      // Prescribe a fixed displacement to the displaced degrees of freedom.
+      U.SetSubVector(elasticity_op.GetPrescribedDisplacementTDofs(),
+                     min(i, displacement_increments.Size()-i-1)*1.0e-3);
+
+      Vector zero;
+      newton.Mult(zero, U);
+
+      elasticity_op.UpdateMaterialState();
+
+      for (int i = 0; i < material_state.Size(); i++)
+      {
+         if (material_state[i].accumulated_plastic_strain > 0.0)
+         {
+            printf(">>> plastic deformation reached\n");
+            break;
+         }
+      }
+
+      U_gf.Distribute(U);
+   }
 
    if (visualization)
    {

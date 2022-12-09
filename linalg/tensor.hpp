@@ -1211,7 +1211,8 @@ T sqnorm(const tensor<T, m, n>& A)
 template <typename T, int... n> MFEM_HOST_DEVICE
 T norm(const tensor<T, n...>& A)
 {
-   return std::sqrt(sqnorm(A));
+   using std::sqrt;
+   return sqrt(sqnorm(A));
 }
 
 /**

@@ -13,6 +13,7 @@
 #define MFEM_ELASTICITY_OP_HPP
 
 #include "../kernels/elasticity_kernels.hpp"
+#include "../materials/material_traits.hpp"
 #include "mfem.hpp"
 
 namespace mfem
@@ -83,6 +84,12 @@ public:
    void AssembleGradientDiagonal(Vector &Ke_diag, Vector &K_diag_local,
                                  Vector &K_diag) const;
 
+   template<typename material_type>
+   Array<typename material_type::State> CreateMaterialState(material_type material)
+   {
+      return Array<typename material_type::State>(q1d_*q1d_*q1d_*ne_);
+   }
+
    ~ElasticityOperator();
 
    ParMesh &mesh_;
@@ -143,7 +150,7 @@ public:
     */
    std::function<void(const int, const Array<double> &, const Array<double> &,
                       const Array<double> &, const Vector &, const Vector &,
-                      const Vector &, Vector &)>
+                      const Vector &, Vector &, bool retrieve_swap)>
    element_apply_kernel_wrapper;
 
    /**
@@ -175,8 +182,9 @@ public:
     * @tparam material_type
     * @param[in] material
     */
-   template <typename material_type>
-   void SetMaterial(const material_type &material)
+   template <typename material_type, typename material_type_state = NoState>
+   void SetMaterial(const material_type &material,
+                    Array<material_type_state> &material_state = NoStateArray)
    {
       if (dim_ != 3)
       {
@@ -184,87 +192,118 @@ public:
       }
 
       element_apply_kernel_wrapper =
-         [=](const int ne, const Array<double> &B_, const Array<double> &G_,
-             const Array<double> &W_, const Vector &Jacobian_,
-             const Vector &detJ_, const Vector &X_, Vector &Y_)
+         [=, material_state_swap = material_state, &material_state]
+         (const int ne,
+          const Array<double> &B_,
+          const Array<double> &G_,
+          const Array<double> &W_, const Vector &Jacobian_,
+          const Vector &detJ_, const Vector &X_, Vector &Y_, bool retrieve_swap = false)
+         mutable
       {
+         if (retrieve_swap)
+         {
+            material_state = material_state_swap;
+            return;
+         }
+         material_state_swap = material_state;
+
          const int id = (d1d_ << 4) | q1d_;
          switch (id)
          {
             case 0x22:
             {
                ElasticityKernels::Apply3D<2, 2, material_type>(
-                  ne, B_, G_, W_, Jacobian_, detJ_, X_, Y_, material);
+                  ne, B_, G_, W_, Jacobian_, detJ_, X_, Y_, material, material_state_swap);
                break;
             }
-            case 0x33:
-            {
-               ElasticityKernels::Apply3D<3, 3, material_type>(
-                  ne, B_, G_, W_, Jacobian_, detJ_, X_, Y_, material);
-               break;
-            }
-            case 0x44:
-               ElasticityKernels::Apply3D<4, 4, material_type>(
-                  ne, B_, G_, W_, Jacobian_, detJ_, X_, Y_, material);
-               break;
+            // case 0x33:
+            // {
+            //    ElasticityKernels::Apply3D<3, 3, material_type>(
+            //       ne, B_, G_, W_, Jacobian_, detJ_, X_, Y_, material, material_state_swap);
+            //    break;
+            // }
+            // case 0x44:
+            //    ElasticityKernels::Apply3D<4, 4, material_type>(
+            //       ne, B_, G_, W_, Jacobian_, detJ_, X_, Y_, material, material_state_swap);
+            //    break;
             default:
                MFEM_ABORT("Not implemented: " << std::hex << id << std::dec);
          }
       };
 
       element_apply_gradient_kernel_wrapper =
-         [=](const int ne, const Array<double> &B_, const Array<double> &G_,
-             const Array<double> &W_, const Vector &Jacobian_,
-             const Vector &detJ_, const Vector &dU_, Vector &dF_,
-             const Vector &U_)
+         [=, material_state_swap = material_state, &material_state]
+         (const int ne,
+          const Array<double> &B_,
+          const Array<double> &G_,
+          const Array<double> &W_, const Vector &Jacobian_,
+          const Vector &detJ_, const Vector &dU_, Vector &dF_,
+          const Vector &U_)
+         mutable
       {
+         material_state_swap = material_state;
+
          const int id = (d1d_ << 4) | q1d_;
          switch (id)
          {
             case 0x22:
                ElasticityKernels::ApplyGradient3D<2, 2, material_type>(
-                  ne, B_, G_, W_, Jacobian_, detJ_, dU_, dF_, U_, material,
+                  ne, B_, G_, W_, Jacobian_, detJ_, dU_, dF_, U_, material, material_state_swap,
                   use_cache_, recompute_cache_, dsigma_cache_);
                break;
-            case 0x33:
-               ElasticityKernels::ApplyGradient3D<3, 3, material_type>(
-                  ne, B_, G_, W_, Jacobian_, detJ_, dU_, dF_, U_, material,
-                  use_cache_, recompute_cache_, dsigma_cache_);
-               break;
-            case 0x44:
-               ElasticityKernels::ApplyGradient3D<4, 4, material_type>(
-                  ne, B_, G_, W_, Jacobian_, detJ_, dU_, dF_, U_, material,
-                  use_cache_, recompute_cache_, dsigma_cache_);
-               break;
+            // case 0x33:
+            //    ElasticityKernels::ApplyGradient3D<3, 3, material_type>(
+            //       ne, B_, G_, W_, Jacobian_, detJ_, dU_, dF_, U_, material,
+            //       use_cache_, recompute_cache_, dsigma_cache_);
+            //    break;
+            // case 0x44:
+            //    ElasticityKernels::ApplyGradient3D<4, 4, material_type>(
+            //       ne, B_, G_, W_, Jacobian_, detJ_, dU_, dF_, U_, material,
+            //       use_cache_, recompute_cache_, dsigma_cache_);
+            //    break;
             default:
                MFEM_ABORT("Not implemented for D1D=" << d1d_ << " and Q1D=" << q1d_);
          }
       };
 
       element_kernel_assemble_diagonal_wrapper =
-         [=](const int ne, const Array<double> &B_, const Array<double> &G_,
-             const Array<double> &W_, const Vector &Jacobian_,
-             const Vector &detJ_, const Vector &X_, Vector &Y_)
+         [=, material_state_swap = material_state, &material_state]
+         (const int ne, const Array<double> &B_,
+          const Array<double> &G_,
+          const Array<double> &W_, const Vector &Jacobian_,
+          const Vector &detJ_, const Vector &X_, Vector &Y_)
+         mutable
       {
+         material_state_swap = material_state;
+
          const int id = (d1d_ << 4) | q1d_;
          switch (id)
          {
             case 0x22:
                ElasticityKernels::AssembleGradientDiagonal3D<2, 2, material_type>(
-                  ne, B_, G_, W_, Jacobian_, detJ_, X_, Y_, material);
+                  ne, B_, G_, W_, Jacobian_, detJ_, X_, Y_, material, material_state_swap);
                break;
-            case 0x33:
-               ElasticityKernels::AssembleGradientDiagonal3D<3, 3, material_type>(
-                  ne, B_, G_, W_, Jacobian_, detJ_, X_, Y_, material);
-               break;
-            case 0x44:
-               ElasticityKernels::AssembleGradientDiagonal3D<4, 4, material_type>(
-                  ne, B_, G_, W_, Jacobian_, detJ_, X_, Y_, material);
-               break;
+            // case 0x33:
+            //    ElasticityKernels::AssembleGradientDiagonal3D<3, 3, material_type>(
+            //       ne, B_, G_, W_, Jacobian_, detJ_, X_, Y_, material);
+            //    break;
+            // case 0x44:
+            //    ElasticityKernels::AssembleGradientDiagonal3D<4, 4, material_type>(
+            //       ne, B_, G_, W_, Jacobian_, detJ_, X_, Y_, material);
+            //    break;
             default:
                MFEM_ABORT("Not implemented: " << std::hex << id << std::dec);
          }
       };
+   }
+
+   void UpdateMaterialState()
+   {
+      // This is a dummy call. We only retrieve the latest material state and
+      // exit.
+      element_apply_kernel_wrapper(ne_, maps_->B, maps_->G, ir_->GetWeights(),
+                                   geometric_factors_->J,
+                                   geometric_factors_->detJ, X_el_, Y_el_, true);
    }
 
    /**
