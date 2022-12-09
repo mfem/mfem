@@ -705,6 +705,7 @@ public:
 
    int AddVertex(double x, double y = 0.0, double z = 0.0);
    int AddVertex(const double *coords);
+   int AddVertex(const Vector &coords);
    /// Mark vertex @a i as nonconforming, with parent vertices @a p1 and @a p2.
    void AddVertexParents(int i, int p1, int p2);
 
