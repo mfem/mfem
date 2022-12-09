@@ -422,7 +422,7 @@ void GridFunction::GetNodalValues(int i, Array<double> &nval, int vdim) const
       for (k = 0; k < n; k++)
       {
          FElem->CalcShape(ElemVert->IntPoint(k), shape);
-         nval[k] = shape * ((const double *)loc_data + dof * vdim);
+         nval[k] = shape * (&loc_data[dof * vdim]);
       }
    }
    else
@@ -495,7 +495,7 @@ void GridFunction::GetVectorValue(int i, const IntegrationPoint &ip,
       val.SetSize(vdim);
       for (int k = 0; k < vdim; k++)
       {
-         val(k) = shape * ((const double *)loc_data + dof * k);
+         val(k) = shape * (&loc_data[dof * k]);
       }
    }
    else
@@ -1027,7 +1027,7 @@ void GridFunction::GetVectorValue(ElementTransformation &T,
       val.SetSize(vdim);
       for (int k = 0; k < vdim; k++)
       {
-         val(k) = shape * ((const double *)loc_data + dof * k);
+         val(k) = shape * (&loc_data[dof * k]);
       }
    }
    else
@@ -1078,7 +1078,7 @@ void GridFunction::GetVectorValues(ElementTransformation &T,
 
          for (int k = 0; k < vdim; k++)
          {
-            vals(k,j) = shape * ((const double *)loc_data + dof * k);
+            vals(k,j) = shape * (&loc_data[dof * k]);
          }
       }
    }
@@ -1181,8 +1181,7 @@ void GridFunction::GetValuesFrom(const GridFunction &orig_func)
          orig_fe->CalcShape(ip, shape);
          for (d = 0; d < vdim; d++)
          {
-            loc_values(d*dof+j) =
-               shape * ((const double *)orig_loc_values + d * odof) ;
+            loc_values(d*dof+j) = shape * (&orig_loc_values[d * odof]);
          }
       }
       if (doftrans)
@@ -1224,8 +1223,7 @@ void GridFunction::GetBdrValuesFrom(const GridFunction &orig_func)
          orig_fe->CalcShape(ip, shape);
          for (d = 0; d < vdim; d++)
          {
-            loc_values(d*dof+j) =
-               shape * ((const double *)orig_loc_values + d * odof);
+            loc_values(d*dof+j) = shape * (&orig_loc_values[d * odof]);
          }
       }
       SetSubVector(vdofs, loc_values);
@@ -4099,16 +4097,16 @@ void TensorProductLegendre(int dim,                // input
    // Map x to [0, 1] to use CalcLegendre since it uses shifted Legendre Polynomials.
    double x1 = (x(0) - xmin(0))/(xmax(0)-xmin(0)), x2, x3;
    Vector poly_x(order+1), poly_y(order+1), poly_z(order+1);
-   poly1d.CalcLegendre(order, x1, poly_x);
+   poly1d.CalcLegendre(order, x1, poly_x.GetData());
    if (dim > 1)
    {
       x2 = (x(1)-xmin(1))/(xmax(1)-xmin(1));
-      poly1d.CalcLegendre(order, x2, poly_y);
+      poly1d.CalcLegendre(order, x2, poly_y.GetData());
    }
    if (dim == 3)
    {
       x3 = (x(2)-xmin(2))/(xmax(2)-xmin(2));
-      poly1d.CalcLegendre(order, x3, poly_z);
+      poly1d.CalcLegendre(order, x3, poly_z.GetData());
    }
 
    int basis_dimension = static_cast<int>(pow(order+1,dim));
