@@ -187,21 +187,24 @@ void SPDESolver::Solve(ParLinearForm &b, ParGridFunction &x) {
   }
 }
 
-void SPDESolver::GenerateRandomField(ParGridFunction &x, int seed) {
+void SPDESolver::SetupRandomFieldGenerator(int seed) {
+  delete b;
+  delete integ;
+  integ = new WhiteGaussianNoiseDomainLFIntegrator(seed);
+  b = new ParLinearForm(fespace_ptr_);
+  b->AddDomainIntegrator(integ);
+};
+
+void SPDESolver::GenerateRandomField(ParGridFunction &x) {
+  if (!integ) MFEM_ABORT("Need to call SPDESolver::SetupRandomFieldGenerator(...) first");
   // Create the stochastic load
-  if (seed == std::numeric_limits<int>::max()) {
-    seed = std::time(nullptr);
-  }
-  ParLinearForm b(fespace_ptr_);
-  auto *WhiteNoise = new WhiteGaussianNoiseDomainLFIntegrator(seed);
-  b.AddDomainIntegrator(WhiteNoise);
-  b.Assemble();
+  b->Assemble();
   double normalization = ConstructNormalizationCoefficient(
       nu_, l1_, l2_, l3_, fespace_ptr_->GetParMesh()->Dimension());
-  b *= normalization;
+  (*b) *= normalization;
 
   // Call back to solve to generate the random field
-  Solve(b, x);
+  Solve(*b, x);
 };
 
 double SPDESolver::ConstructNormalizationCoefficient(double nu, double l1,
@@ -400,6 +403,12 @@ void SPDESolver::ComputeRationalCoefficients(double exponent) {
     }
   }
 }
+
+SPDESolver::~SPDESolver() {   
+  delete Op_; 
+  delete b;
+  delete integ;
+};
 
 }  // namespace spde
 }  // namespace mfem

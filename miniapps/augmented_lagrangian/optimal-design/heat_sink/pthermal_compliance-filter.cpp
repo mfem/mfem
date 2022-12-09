@@ -10,6 +10,8 @@
 
 // mpirun -np 6 ./pthermal_compliance-filter -epsilon 0.01 -alpha 0.01 -beta 5.0 -r 5 -o 2 -bs 10 -theta 2.0 -mi 100 -mf 0.4 -no-simp  -paraview
 // mpirun -np 6 ./pthermal_compliance-filter -epsilon 0.01 -alpha 0.01 -beta 5.0 -r 4 -o 2 -bs 1 -theta 2.0 -mi 100 -mf 0.4 -paraview
+// mpirun -np 6 ./pthermal_compliance-filter -epsilon 0.01 -alpha 0.01 -beta 5.0 -r 4 -o 2 -bs 5 -theta 1.0 -mi 100 -mf 0.4
+
 //         min J(K) = <g,u>
 //                            
 //                        Γ_2           Γ_1            Γ_2
@@ -47,16 +49,34 @@
 
 bool random_seed = true;
 
-class RandomConstantCoefficient : public ConstantCoefficient
+class RandomUniformConstantCoefficient : public ConstantCoefficient
 {
 private:
    std::default_random_engine generator;
    std::uniform_real_distribution<double> * distribution;
 public:
-   RandomConstantCoefficient(double a=0.4, double b=0.6, int seed = 0) 
+   RandomUniformConstantCoefficient(double a=0.4, double b=0.6, int seed = 0) 
    {
       generator.seed(seed);
       distribution = new std::uniform_real_distribution<double> (a,b);
+      constant = (*distribution)(generator);
+   }
+   void resample()
+   {
+      constant = (*distribution)(generator);
+   }
+};
+
+class RandomNormalConstantCoefficient : public ConstantCoefficient
+{
+private:
+   std::default_random_engine generator;
+   std::normal_distribution<double> * distribution;
+public:
+   RandomNormalConstantCoefficient(double mu=0.0, double sigma=1.0, int seed = 0) 
+   {
+      generator.seed(seed);
+      distribution = new std::normal_distribution<double> (mu,sigma);
       constant = (*distribution)(generator);
    }
    void resample()
@@ -403,7 +423,8 @@ int main(int argc, char *argv[])
    // Setup SPDE for random load generation
    spde::Boundary bc;
 
-   RandomConstantCoefficient rand_bc(-2.0, 2.0);
+   // RandomUniformConstantCoefficient rand_bc(-2.0, 2.0);
+   RandomNormalConstantCoefficient rand_bc(0.0, 0.5);
    rand_bc.resample();
    bc.AddInhomogeneousDirichletBoundaryCondition(2,rand_bc.constant);
    bc.AddInhomogeneousDirichletBoundaryCondition(1,rand_bc.constant);
@@ -415,10 +436,11 @@ int main(int argc, char *argv[])
    }
    double nu = 1.0;
    double l1 = 0.1, l2 = 0.1, l3 = 1.0;
-   double e1 = 1.0, e2 = 0.0, e3 = 0.0;
+   double e1 = 0.0, e2 = 0.0, e3 = 0.0;
    spde::SPDESolver random_load_solver(nu, bc, &state_fes, l1, l2);
 
    ParGridFunction load_gf(&state_fes);
+   random_load_solver.SetupRandomFieldGenerator(myid+1);
    random_load_solver.GenerateRandomField(load_gf);
 
    GridFunctionCoefficient load_cf(&load_gf);
@@ -540,7 +562,7 @@ int main(int argc, char *argv[])
    int step = 0;
    double lambda = 1.0;
    // RandomConstantCoefficient eta_cf(0.4,0.6,myid);
-   RandomConstantCoefficient eta_cf(0.5,0.5,1);
+   RandomUniformConstantCoefficient eta_cf(0.5,0.5,1);
    // RandomConstantCoefficient eta_cf(0.2,0.2,1);
    Coefficient * K_cf = nullptr;
    Coefficient * rhs_cf = nullptr;
