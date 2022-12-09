@@ -183,7 +183,7 @@ void ParTransferMap::CommunicateSharedVdofs(Vector &f) const
    }
 
    // TODO: do the reduce only on dofs of interest
-   root_gc_->Reduce<double>(f, GroupCommunicator::Sum);
+   root_gc_->Reduce<double>(f.HostReadWrite(), GroupCommunicator::Sum);
 
    // Indices that were set from this rank or other ranks have been summed up
    // and therefore need to be "averaged". Note that this results in the exact
@@ -211,7 +211,7 @@ void ParTransferMap::CommunicateSharedVdofs(Vector &f) const
       }
    }
 
-   root_gc_->Bcast<double>(f);
+   root_gc_->Bcast<double>(f.HostReadWrite());
 }
 
 ParTransferMap::~ParTransferMap()
