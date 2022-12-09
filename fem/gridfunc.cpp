@@ -2905,6 +2905,43 @@ double GridFunction::ComputeElementGradError(int ielem,
    return (error < 0.0) ? -sqrt(-error) : sqrt(error);
 }
 
+double GridFunction::ComputeElementL2Error(int ielem,
+                                           Coefficient *exsol,
+                                           const IntegrationRule *irs[]) const
+{
+   double error = 0.0;
+   const FiniteElement *fe;
+   ElementTransformation *Tr;
+   Array<int> dofs;
+   Vector grad;
+   int intorder;
+
+   fe = fes->GetFE(ielem);
+   Tr = fes->GetElementTransformation(ielem);
+   intorder = 2*fe->GetOrder() + 3; // <--------
+   const IntegrationRule *ir;
+   if (irs)
+   {
+      ir = irs[fe->GetGeomType()];
+   }
+   else
+   {
+      ir = &(IntRules.Get(fe->GetGeomType(), intorder));
+   }
+
+   Vector vals;
+   GetValues(ielem, *ir, vals);
+   for (int j = 0; j < ir->GetNPoints(); j++)
+   {
+      const IntegrationPoint &ip = ir->IntPoint(j);
+      Tr->SetIntPoint(&ip);
+      double iperror = exsol->Eval(*Tr, ip) - vals(j);
+
+      error += ip.weight* Tr->Weight() * (iperror * iperror);
+   }
+   return (error < 0.0) ? -sqrt(-error) : sqrt(error);
+}
+
 double GridFunction::ComputeGradError(VectorCoefficient *exgrad,
                                       const IntegrationRule *irs[]) const
 {
@@ -4431,7 +4468,8 @@ double LSZZErrorEstimator(BilinearFormIntegrator &blfi,  // input
                           Vector &error_estimates,       // output
                           bool subdomain_reconstruction, // input (optional)
                           bool with_coeff,               // input (optional)
-                          double tichonov_coeff)         // input (optional)
+                          double tichonov_coeff,         // input (optional)
+                          bool sol_based)
 {
    MFEM_VERIFY(tichonov_coeff >= 0.0, "tichonov_coeff cannot be negative");
    FiniteElementSpace *ufes = u.FESpace();
@@ -4439,7 +4477,7 @@ double LSZZErrorEstimator(BilinearFormIntegrator &blfi,  // input
 
    Mesh *mesh = ufes->GetMesh();
    int dim = mesh->Dimension();
-   int sdim = mesh->SpaceDimension();
+   int sdim = sol_based ? 1 : mesh->SpaceDimension();
    int nfe = ufes->GetNE();
    int nfaces = ufes->GetNF();
 
@@ -4521,8 +4559,15 @@ double LSZZErrorEstimator(BilinearFormIntegrator &blfi,  // input
          u.GetSubVector(udofs, ul);
          Transf = ufes->GetElementTransformation(ielem);
          FiniteElement *dummy = nullptr;
-         blfi.ComputeElementFlux(*ufes->GetFE(ielem), *Transf, ul,
-                                 *dummy, fl, with_coeff, ir);
+         if (sol_based)
+         {
+            u.GetValues(ielem, *ir, fl);
+         }
+         else
+         {
+            blfi.ComputeElementFlux(*ufes->GetFE(ielem), *Transf, ul,
+                                    *dummy, fl, with_coeff, ir);
+         }
 
          // 2.C.ii. Use global polynomial basis to construct normal
          //         equations
@@ -4593,13 +4638,28 @@ double LSZZErrorEstimator(BilinearFormIntegrator &blfi,  // input
       };
       VectorFunctionCoefficient global_poly(sdim, global_poly_tmp);
 
+      auto global_poly_tmp_scalar = [=] (const Vector &x)
+      {
+         Vector p;
+         TensorProductLegendre(dim, patch_order, x, xmax, xmin, p, angle, &midpoint);
+         double f = 0.0;
+         for (int i = 0; i < num_basis_functions; i++)
+         {
+            f += b[i] * p(i);
+         }
+         return f;
+      };
+      FunctionCoefficient global_poly_scalar(global_poly_tmp_scalar);
+
       // 3. Compute error contributions from the face.
       double element_error = 0.0;
       double patch_error = 0.0;
       for (int i = 0; i < patch.Size(); i++)
       {
          int ielem = patch[i];
-         element_error = u.ComputeElementGradError(ielem, &global_poly);
+         element_error = sol_based ?
+                         u.ComputeElementL2Error(ielem, &global_poly_scalar) :
+                         u.ComputeElementGradError(ielem, &global_poly);
          element_error *= element_error;
          patch_error += element_error;
          error_estimates(ielem) += element_error;

@@ -492,6 +492,9 @@ public:
    virtual double ComputeElementGradError(int ielem, VectorCoefficient *exgrad,
                                           const IntegrationRule *irs[] = NULL) const;
 
+   virtual double ComputeElementL2Error(int ielem, Coefficient *exsol,
+                                        const IntegrationRule *irs[] = NULL) const;
+
    /// Returns ||grad u_ex - grad u_h||_L2 for H1 or L2 elements
    virtual double ComputeGradError(VectorCoefficient *exgrad,
                                    const IntegrationRule *irs[] = NULL) const;
@@ -1011,7 +1014,8 @@ double LSZZErrorEstimator(BilinearFormIntegrator &blfi,         // input
                           Vector &error_estimates,              // output
                           bool subdomain_reconstruction = true, // input (optional)
                           bool with_coeff = false,              // input (optional)
-                          double tichonov_coeff = 0.0);         // input (optional)
+                          double tichonov_coeff = 0.0,          // input (optional)
+                          bool sol_based = false);
 
 /// Compute the Lp distance between two grid functions on the given element.
 double ComputeElementLpDistance(double p, int i,

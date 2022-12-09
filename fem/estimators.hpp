@@ -246,6 +246,7 @@ protected:
    double total_error;
    bool subdomain_reconstruction = true;
    double tichonov_coeff;
+   bool sol_based;
 
    BilinearFormIntegrator &integ;
    GridFunction &solution;
@@ -275,7 +276,8 @@ public:
         tichonov_coeff(0.0),
         integ(integ),
         solution(sol),
-        with_coeff(false)
+        with_coeff(false),
+        sol_based(false)
    { }
 
    /** @brief Consider the coefficient in BilinearFormIntegrator to calculate
@@ -309,6 +311,8 @@ public:
 
    /// Reset the error estimator.
    virtual void Reset() override { current_sequence = -1; }
+
+   virtual void EnableSolutionBasedFit() { sol_based = true; }
 
    virtual ~LSZienkiewiczZhuEstimator() { }
 };

@@ -46,13 +46,13 @@ double sfun(const Vector & x)
         double yc = x(1) - 1.0;
         double rc =std::pow(xc*xc+yc*yc, 0.5);
         if (std::fabs(2*rc-0.3) <= 0.25) {
-            return std::exp(-300*(2*rc-0.3)*(2*rc-0.3));
+            return std::exp(-100*(2*rc-0.3)*(2*rc-0.3)); //300
         }
         else if (std::fabs(2*rc-0.9) <= 0.25) {
-            return std::exp(-300*(2*rc-0.3)*(2*rc-0.3));
+            return std::exp(-100*(2*rc-0.3)*(2*rc-0.3)); //300
         }
         else if (std::fabs(2*rc-1.6) <= 0.2) {
-            return std::pow(1.0 - std::pow((2*rc-1.6)/0.2, 2.0), 0.5);
+            return std::pow(1.0 - std::pow((2*rc-1.6)/0.5, 2.0), 0.5); // /0.2
         }
         else if (std::fabs(rc-0.3) < 0.2) {
             return 0.0;
@@ -180,6 +180,10 @@ int main(int argc, char *argv[])
    else if (estimator == 4) {
        es = new PRefJumpEstimator(x);
    }
+   else if (estimator == 5) {
+       es = new LSZienkiewiczZhuEstimator(integ, x);
+       dynamic_cast<LSZienkiewiczZhuEstimator *>(es)->EnableSolutionBasedFit();
+   }
    else {
        MFEM_ABORT("invalid estimator type");
    }
@@ -228,7 +232,6 @@ int main(int argc, char *argv[])
        ElOrder(e) = fespace.GetElementOrder(e);
    }
    max_order = fespace.GetMaxElementOrder();
-
    GridFunction *xprolong = ProlongToMaxOrder(&x);
 
    int px = 0;
@@ -247,5 +250,8 @@ int main(int argc, char *argv[])
        common::VisualizeField(vis1, "localhost", 19916, ElOrder, "ElementOrder",
                               px, py, wx, wy, "jRmc");
    }
+
+   delete xprolong;
+   delete es;
    return 0;
 }

@@ -84,7 +84,8 @@ public:
    Vector nor;
    Vector fluxN;
 
-   NeumannBCFaceIntegrator(RiemannSolver &rsolver_, const int dim, double num_equation_);
+   NeumannBCFaceIntegrator(RiemannSolver &rsolver_, const int dim,
+                           double num_equation_);
 
    virtual void AssembleFaceVector(const FiniteElement &el1,
                                    const FiniteElement &el2,
@@ -317,13 +318,16 @@ float EulerSystem::GetMaxWavespeed(const Vector &u)
 
    DenseMatrix umat(u.GetData(), vfes->GetNDofs(), num_equation);
 
-   for (int i = 0; i < flux_dof; i++) {
-      for (int k = 0; k < num_equation; k++) {
+   for (int i = 0; i < flux_dof; i++)
+   {
+      for (int k = 0; k < num_equation; k++)
+      {
          state(k) = umat(i, k);
       }
 
       // Update maximum wavespeed
-      lambda = max(lambda, ComputeMaxCharSpeed(state, dim, specific_heat_ratio, num_equation));
+      lambda = max(lambda, ComputeMaxCharSpeed(state, dim, specific_heat_ratio,
+                                               num_equation));
    }
 
    return lambda;
@@ -457,7 +461,8 @@ void FaceIntegrator::AssembleFaceVector(const FiniteElement &el1,
 }
 
 // Implementation of class NeumannBCFaceIntegrator
-NeumannBCFaceIntegrator::NeumannBCFaceIntegrator(RiemannSolver &rsolver_, const int dim, double num_equation_) :
+NeumannBCFaceIntegrator::NeumannBCFaceIntegrator(RiemannSolver &rsolver_,
+                                                 const int dim, double num_equation_) :
    rsolver(rsolver_),
    num_equation(num_equation_),
    funval(num_equation),
@@ -482,10 +487,11 @@ void NeumannBCFaceIntegrator::AssembleFaceVector(const FiniteElement &el1,
 
    // Integration order calculation from DGTraceIntegrator
    int intorder = Tr.Elem1->OrderW() + 2*el1.GetOrder();
-   
+
 
    const IntegrationRule *ir = &IntRules.Get(Tr.GetGeometryType(), intorder);
-   for (int i = 0; i < ir->GetNPoints(); i++) {
+   for (int i = 0; i < ir->GetNPoints(); i++)
+   {
       const IntegrationPoint &ip = ir->IntPoint(i);
 
       Tr.SetAllIntPoints(&ip); // set face and element int. points
@@ -501,8 +507,10 @@ void NeumannBCFaceIntegrator::AssembleFaceVector(const FiniteElement &el1,
       const double mcs = rsolver.Eval(funval, funval, nor, fluxN);
 
       fluxN *= ip.weight;
-      for (int k = 0; k < num_equation; k++) {
-         for (int s = 0; s < dof; s++) {
+      for (int k = 0; k < num_equation; k++)
+      {
+         for (int s = 0; s < dof; s++)
+         {
             elvect_mat(s, k) -= fluxN(k) * shape(s);
          }
       }

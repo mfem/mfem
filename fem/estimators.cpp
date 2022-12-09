@@ -38,7 +38,8 @@ void LSZienkiewiczZhuEstimator::ComputeEstimates()
                                     error_estimates,
                                     subdomain_reconstruction,
                                     with_coeff,
-                                    tichonov_coeff);
+                                    tichonov_coeff,
+                                    sol_based);
 
    current_sequence = solution.FESpace()->GetMesh()->GetSequence();
 }
@@ -219,7 +220,7 @@ void KellyErrorEstimator::ComputeEstimates()
    {
       auto FT = mesh->GetFaceElementTransformations(f);
 
-//      auto &int_rule = IntRules.Get(FT->FaceGeom, 2 * xfes->GetFaceOrder(f));
+      //      auto &int_rule = IntRules.Get(FT->FaceGeom, 2 * xfes->GetFaceOrder(f));
       auto &int_rule = IntRules.Get(FT->FaceGeom, 2 * xfes->GetMaxElementOrder());
       const auto nip = int_rule.GetNPoints();
 
@@ -506,42 +507,45 @@ PRefDiffEstimator::PRefDiffEstimator(GridFunction& sol_, int p_comp_)
 
 void PRefDiffEstimator::ComputeEstimates()
 {
-    const int nelem = solution->FESpace()->GetNE();
-    error_estimates.SetSize(nelem);
+   const int nelem = solution->FESpace()->GetNE();
+   error_estimates.SetSize(nelem);
 
-    FiniteElementSpace *fespace = solution->FESpace();
-    FiniteElementSpace fespaceComp = FiniteElementSpace(*(solution->FESpace()));
+   FiniteElementSpace *fespace = solution->FESpace();
+   FiniteElementSpace fespaceComp = FiniteElementSpace(*(solution->FESpace()));
 
-    for (int e = 0; e < nelem; e++) {
-        fespaceComp.SetElementOrder(e, solution->FESpace()->GetElementOrder(e));
-    }
-    fespaceComp.Update(false);
+   for (int e = 0; e < nelem; e++)
+   {
+      fespaceComp.SetElementOrder(e, solution->FESpace()->GetElementOrder(e));
+   }
+   fespaceComp.Update(false);
 
-    GridFunction solutionComp(&fespaceComp);
-    solutionComp = 0;
-    solutionComp += *solution;
+   GridFunction solutionComp(&fespaceComp);
+   solutionComp = 0;
+   solutionComp += *solution;
 
-    for (int e = 0; e < nelem; e++) {
-        int setOrder = p_comp >= 0 ? p_comp : fespace->GetElementOrder(e)+p_comp;
-        fespaceComp.SetElementOrder(e, setOrder);
-    }
-    fespaceComp.Update(false);
-    solutionComp.Update();
+   for (int e = 0; e < nelem; e++)
+   {
+      int setOrder = p_comp >= 0 ? p_comp : fespace->GetElementOrder(e)+p_comp;
+      fespaceComp.SetElementOrder(e, setOrder);
+   }
+   fespaceComp.Update(false);
+   solutionComp.Update();
 
-    PRefinementTransferOperator Transfer(*fespace, fespaceComp);
-    Transfer.Mult(*solution, solutionComp);
+   PRefinementTransferOperator Transfer(*fespace, fespaceComp);
+   Transfer.Mult(*solution, solutionComp);
 
-    GridFunction *solutionCompProlong = ProlongToMaxOrder(&solutionComp);
-    GridFunction *solutionProlong = ProlongToMaxOrder(solution);
+   GridFunction *solutionCompProlong = ProlongToMaxOrder(&solutionComp);
+   GridFunction *solutionProlong = ProlongToMaxOrder(solution);
 
-    GridFunctionCoefficient solutionCompProlongCoeff(solutionCompProlong);
+   GridFunctionCoefficient solutionCompProlongCoeff(solutionCompProlong);
 
-    solutionProlong->ComputeElementL2Errors(solutionCompProlongCoeff, error_estimates);
+   solutionProlong->ComputeElementL2Errors(solutionCompProlongCoeff,
+                                           error_estimates);
 
-    delete solutionProlong;
-    delete solutionCompProlong;
+   delete solutionProlong;
+   delete solutionCompProlong;
 
-    total_error = error_estimates.Norml2();
+   total_error = error_estimates.Norml2();
 }
 
 PRefJumpEstimator::PRefJumpEstimator(GridFunction& sol_)
@@ -550,68 +554,71 @@ PRefJumpEstimator::PRefJumpEstimator(GridFunction& sol_)
 
 void PRefJumpEstimator::ComputeEstimates()
 {
-    const int nelem = solution->FESpace()->GetNE();
-    const int dim = solution->FESpace()->GetMesh()->Dimension();
-    error_estimates.SetSize(nelem);
+   const int nelem = solution->FESpace()->GetNE();
+   const int dim = solution->FESpace()->GetMesh()->Dimension();
+   error_estimates.SetSize(nelem);
 
-    FiniteElementSpace *fespace = solution->FESpace();
+   FiniteElementSpace *fespace = solution->FESpace();
 
-    H1_FECollection fech1(fespace->GetMaxElementOrder(), dim);
-    FiniteElementSpace fespaceh1(fespace->GetMesh(), &fech1);
-    GridFunction solutionh1(&fespaceh1);
+   H1_FECollection fech1(fespace->GetMaxElementOrder(), dim);
+   FiniteElementSpace fespaceh1(fespace->GetMesh(), &fech1);
+   GridFunction solutionh1(&fespaceh1);
 
-    GridFunction *solutionProlong = ProlongToMaxOrder(solution);
-    GridFunctionCoefficient solutionProlongCoeff(solutionProlong);
-    solutionh1.ProjectDiscCoefficient(solutionProlongCoeff,
-                                      GridFunction::AvgType::ARITHMETIC);
+   GridFunction *solutionProlong = ProlongToMaxOrder(solution);
+   GridFunctionCoefficient solutionProlongCoeff(solutionProlong);
+   solutionh1.ProjectDiscCoefficient(solutionProlongCoeff,
+                                     GridFunction::AvgType::ARITHMETIC);
 
-    error_estimates = 0.0;
-    for (int e = 0; e < nelem; e++) {
-        auto &int_rule = IntRules.Get(fespace->GetMesh()->GetElementBaseGeometry(e),
-                                      2 * fespace->GetMaxElementOrder());
-        ElementTransformation *T = fespace->GetElementTransformation(e);
-        Vector l2vals(int_rule.GetNPoints()), h1vals(int_rule.GetNPoints());
-        solutionh1.GetValues(e, int_rule, h1vals);
-        solution->GetValues(e, int_rule, l2vals);
-        l2vals -= h1vals;
-        for (int q = 0; q < int_rule.GetNPoints(); q++) {
-            error_estimates(e) += int_rule.IntPoint(q).weight * T->Weight() *
-                                  l2vals(q) * l2vals(q);
-        }
-    }
+   error_estimates = 0.0;
+   for (int e = 0; e < nelem; e++)
+   {
+      auto &int_rule = IntRules.Get(fespace->GetMesh()->GetElementBaseGeometry(e),
+                                    2 * fespace->GetMaxElementOrder());
+      ElementTransformation *T = fespace->GetElementTransformation(e);
+      Vector l2vals(int_rule.GetNPoints()), h1vals(int_rule.GetNPoints());
+      solutionh1.GetValues(e, int_rule, h1vals);
+      solution->GetValues(e, int_rule, l2vals);
+      l2vals -= h1vals;
+      for (int q = 0; q < int_rule.GetNPoints(); q++)
+      {
+         error_estimates(e) += int_rule.IntPoint(q).weight * T->Weight() *
+                               l2vals(q) * l2vals(q);
+      }
+   }
 
-    Mesh *mesh = fespace->GetMesh();
-    const int nfaces = fespace->GetNF();
+   Mesh *mesh = fespace->GetMesh();
+   const int nfaces = fespace->GetNF();
 
-    Array<int> counters(mesh->GetNE());
-    counters = 0;
+   Array<int> counters(mesh->GetNE());
+   counters = 0;
 
-    for (int iface = 0; iface < nfaces; iface++)
-    {
-        // 1.A. Find all elements in the face patch.
-        int el1;
-        int el2;
-        mesh->GetFaceElements(iface, &el1, &el2);
-        Array<int> patch(2);
-        patch[0] = el1; patch[1] = el2;
+   for (int iface = 0; iface < nfaces; iface++)
+   {
+      // 1.A. Find all elements in the face patch.
+      int el1;
+      int el2;
+      mesh->GetFaceElements(iface, &el1, &el2);
+      Array<int> patch(2);
+      patch[0] = el1; patch[1] = el2;
 
-        // 1.B. Check if boundary face or non-conforming coarse face and continue if true.
-        if (el1 == -1 || el2 == -1)
-        {
-           continue;
-        }
+      // 1.B. Check if boundary face or non-conforming coarse face and continue if true.
+      if (el1 == -1 || el2 == -1)
+      {
+         continue;
+      }
 
-        counters[el1]++;
-        counters[el2]++;
-    }
+      counters[el1]++;
+      counters[el2]++;
+   }
 
-    for (int e = 0; e < error_estimates.Size(); e++) {
-        error_estimates(e) *= 1.0/counters[e];
-    }
+   for (int e = 0; e < error_estimates.Size(); e++)
+   {
+      error_estimates(e) *= 1.0/counters[e];
+   }
 
-    total_error = error_estimates.Norml2();
+   total_error = error_estimates.Norml2();
 
-    delete solutionProlong;
+   delete solutionProlong;
 }
 
 ExactError::ExactError(GridFunction& sol_, FunctionCoefficient &exact_)
@@ -620,11 +627,11 @@ ExactError::ExactError(GridFunction& sol_, FunctionCoefficient &exact_)
 
 void ExactError::ComputeEstimates()
 {
-    const int nelem = solution->FESpace()->GetNE();
-    const int dim = solution->FESpace()->GetMesh()->Dimension();
-    error_estimates.SetSize(nelem);
-    solution->ComputeElementL2Errors(*exact, error_estimates);
-    total_error = error_estimates.Norml2();
+   const int nelem = solution->FESpace()->GetNE();
+   const int dim = solution->FESpace()->GetMesh()->Dimension();
+   error_estimates.SetSize(nelem);
+   solution->ComputeElementL2Errors(*exact, error_estimates);
+   total_error = error_estimates.Norml2();
 }
 
 } // namespace mfem
