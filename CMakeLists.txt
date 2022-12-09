@@ -10,7 +10,8 @@
 # CONTRIBUTING.md for details.
 
 # The variable CMAKE_CXX_STANDARD and related were introduced in CMake v3.1
-# Version 3.8 fixes the handling of CMAKE_CXX_STANDARD for try_compile
+# Version 3.8 fixes the handling of CMAKE_CXX_STANDARD for try_compile.
+# Version 3.8 or newer is required for direct CUDA support.
 cmake_minimum_required(VERSION 3.8)
 set(USER_CONFIG "${CMAKE_CURRENT_SOURCE_DIR}/config/user.cmake" CACHE PATH
   "Path to optional user configuration file.")
@@ -67,8 +68,7 @@ set(XSDK_ENABLE_C OFF)
 set(XSDK_ENABLE_Fortran OFF)
 
 # Check if we need to enable C or Fortran.
-if (CMAKE_VERSION VERSION_LESS 3.2 OR
-    MFEM_USE_CONDUIT OR
+if (MFEM_USE_CONDUIT OR
     MFEM_USE_SIDRE OR
     MFEM_USE_PETSC)
    # This seems to be needed by:
@@ -102,8 +102,6 @@ if (MFEM_USE_CUDA)
    if (MFEM_USE_HIP)
       message(FATAL_ERROR " *** MFEM_USE_HIP cannot be combined with MFEM_USE_CUDA.")
    endif()
-   # MFEM_USE_CUDA requires CMake 3.8 or newer (for direct CUDA support)
-   cmake_minimum_required(VERSION 3.8 FATAL_ERROR)
    # Use ${CMAKE_CXX_COMPILER} as the cuda host compiler.
    if (NOT CMAKE_CUDA_HOST_COMPILER)
       set(CMAKE_CUDA_HOST_COMPILER ${CMAKE_CXX_COMPILER})
@@ -211,7 +209,6 @@ if (MFEM_USE_OPENMP OR MFEM_USE_LEGACY_OPENMP)
     set(OPENMP_INCLUDE_DIRS ${OpenMP_CXX_INCLUDE_DIRS})
   endif(APPLE)
   if (OPENMP_FOUND)
-    message(STATUS "MFEM: using package OpenMP")
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
     if (MFEM_USE_CUDA)
       set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -Xcompiler=${OpenMP_CXX_FLAGS}")
