@@ -203,8 +203,8 @@ void STRUMPACKSolver::Mult( const Vector & x, Vector & y ) const
    MFEM_ASSERT(y.Size() == Height(), "invalid y.Size() = " << y.Size()
                << ", expected size = " << Height());
 
-   double*  yPtr = (double*)y;
-   double*  xPtr = (double*)(const_cast<Vector&>(x));
+   double*  yPtr = y.HostWrite();
+   const double*  xPtr = x.HostRead();
 
    solver_->options().set_verbose( factor_verbose_ );
    ReturnCode ret = solver_->factor();
@@ -221,6 +221,10 @@ void STRUMPACKSolver::Mult( const Vector & x, Vector & y ) const
          MFEM_ABORT("STRUMPACK:  Matrix reordering failed!");
       }
       break;
+      default:
+      {
+         MFEM_ABORT("STRUMPACK: 'factor()' error code = " << ret);
+      }
    }
    solver_->options().set_verbose( solve_verbose_ );
    solver_->solve(xPtr, yPtr);
