@@ -6099,8 +6099,10 @@ void ParMesh::GetBoundingBox(Vector &gp_min, Vector &gp_max, int ref)
    gp_min.SetSize(sdim);
    gp_max.SetSize(sdim);
 
-   MPI_Allreduce(p_min.GetData(), gp_min, sdim, MPI_DOUBLE, MPI_MIN, MyComm);
-   MPI_Allreduce(p_max.GetData(), gp_max, sdim, MPI_DOUBLE, MPI_MAX, MyComm);
+   MPI_Allreduce(p_min.GetData(), gp_min.GetData(), sdim, MPI_DOUBLE,
+                 MPI_MIN, MyComm);
+   MPI_Allreduce(p_max.GetData(), gp_max.GetData(), sdim, MPI_DOUBLE,
+                 MPI_MAX, MyComm);
 }
 
 void ParMesh::GetCharacteristics(double &gh_min, double &gh_max,
