@@ -12,6 +12,9 @@
 // mpirun -np 6 ./pthermal_compliance-filter -epsilon 0.01 -alpha 0.01 -beta 5.0 -r 4 -o 2 -bs 1 -theta 2.0 -mi 100 -mf 0.4 -paraview
 // mpirun -np 6 ./pthermal_compliance-filter -epsilon 0.01 -alpha 0.01 -beta 5.0 -r 4 -o 2 -bs 5 -theta 1.0 -mi 100 -mf 0.4
 
+// run on ruby on 8 nodes
+// srun -np 256 ./pthermal_compliance-filter -epsilon 0.01 -alpha 0.01 -beta 5.0 -r 5 -o 2 -bs 5 -theta 1.0 -mi 100 -mf 0.4 -paraview
+
 //         min J(K) = <g,u>
 //                            
 //                        Γ_2           Γ_1            Γ_2
