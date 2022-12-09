@@ -31,10 +31,12 @@ MFEM_LIB_FILE = mfem_is_not_built
 ifneq (clean,$(MAKECMDGOALS))
    -include $(CONFIG_MK)
 
-   ifeq ($(MFEM_USE_CUDA)$(MFEM_USE_HIP),NONO)
-      XLINKER = $(CXX_XLINKER)
-   else ifeq ($(MFEM_USE_CUDA),YES)
+   ifeq ($(MFEM_USE_CUDA),YES)
       XLINKER = $(CUDA_XLINKER)
+   else ifeq ($(MFEM_USE_HIP),YES)
+      XLINKER = $(HIP_XLINKER)
+   else
+      XLINKER = $(CXX_XLINKER)
    endif
 
    BUILD_REAL_DIR = $(realpath .)
