@@ -105,7 +105,9 @@ void ParTransferMap::Transfer(const ParGridFunction &src,
       // dst = S1^T src
       for (int i = 0; i < sub1_to_parent_map_.Size(); i++)
       {
-         dst(i) = src(sub1_to_parent_map_[i]);
+         double s = 1.0;
+         int j = FiniteElementSpace::DecodeDof(sub1_to_parent_map_[i], s);
+         dst(i) = s * src(j);
       }
    }
    else if (category_ == TransferCategory::SubMeshToParent)
@@ -117,7 +119,9 @@ void ParTransferMap::Transfer(const ParGridFunction &src,
 
       for (int i = 0; i < sub1_to_parent_map_.Size(); i++)
       {
-         dst(sub1_to_parent_map_[i]) = src(i);
+         double s = 1.0;
+         int j = FiniteElementSpace::DecodeDof(sub1_to_parent_map_[i], s);
+         dst(j) = s * src(i);
       }
 
       CommunicateSharedVdofs(dst);
