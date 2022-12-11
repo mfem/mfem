@@ -8,6 +8,8 @@
                                https://mfem.org
 
 
+
+
 Version 4.5.1 (development)
 ===========================
 
@@ -43,6 +45,12 @@ Miscellaneous
   used to represent the MPI rank because VisIt seems to require 6 digits.
   This parameter can still be explicitly overridden with
   VisItDataCollection::SetPadDigitsRank().
+
+API changes
+-----------
+- The implicit cast methods of class Vector to 'double *' and 'const double *'
+  have been deprecated and generate deprecation warnings if used. They will be
+  removed in a future release.
 
 
 Version 4.5, released on October 22, 2022
