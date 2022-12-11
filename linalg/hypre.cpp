@@ -5347,7 +5347,6 @@ void HypreAMS::MakeGradientAndInterpolation(
 
    MFEM_VERIFY(!edge_fespace->IsVariableOrder(), "");
    int p = edge_fec->GetOrder();
-   if (trace_space && dim == 2) { p++; }
 
    ParMesh *pmesh = edge_fespace->GetParMesh();
    if (rt_trace_space)
@@ -5737,7 +5736,6 @@ void HypreADS::MakeDiscreteMatrices(ParFiniteElementSpace *face_fespace)
    bool trace_space =
       (dynamic_cast<const RT_Trace_FECollection*>(face_fec) != NULL);
    int p = face_fec->GetOrder();
-   if (trace_space) { p++; }
 
    // define the nodal and edge finite element spaces associated with face_fespace
    ParMesh *pmesh = (ParMesh *) face_fespace->GetMesh();
