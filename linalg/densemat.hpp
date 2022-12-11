@@ -142,10 +142,22 @@ public:
    void Mult(const double *x, double *y) const;
 
    /// Matrix vector multiplication.
+   void Mult(const double *x, Vector &y) const;
+
+   /// Matrix vector multiplication.
+   void Mult(const Vector &x, double *y) const;
+
+   /// Matrix vector multiplication.
    virtual void Mult(const Vector &x, Vector &y) const;
 
    /// Multiply a vector with the transpose matrix.
    void MultTranspose(const double *x, double *y) const;
+
+   /// Multiply a vector with the transpose matrix.
+   void MultTranspose(const double *x, Vector &y) const;
+
+   /// Multiply a vector with the transpose matrix.
+   void MultTranspose(const Vector &x, double *y) const;
 
    /// Multiply a vector with the transpose matrix.
    virtual void MultTranspose(const Vector &x, Vector &y) const;
@@ -180,7 +192,7 @@ public:
 
    /// Compute y^t A x
    double InnerProduct(const Vector &x, const Vector &y) const
-   { return InnerProduct((const double *)x, (const double *)y); }
+   { return InnerProduct(x.GetData(), y.GetData()); }
 
    /// Returns a pointer to the inverse matrix.
    virtual MatrixInverse *Inverse() const;
@@ -235,6 +247,13 @@ public:
 
    /// Take the 2-norm of the columns of A and store in v
    void Norm2(double *v) const;
+
+   /// Take the 2-norm of the columns of A and store in v
+   void Norm2(Vector &v) const
+   {
+      MFEM_ASSERT(v.Size() == Width(), "incompatible Vector size!");
+      Norm2(v.GetData());
+   }
 
    /// Compute the norm ||A|| = max_{ij} |A_{ij}|
    double MaxMaxNorm() const;
