@@ -63,7 +63,7 @@ void NCMesh::GeomInfo::InitGeom(Geometry::Type geom)
       }
    }
 
-   // in 1D & 2D we pretend to have faces too, so we can use NCMesh::Face::elem[2]
+   // in 1D/2D we pretend to have faces too, so we can use NCMesh::Face::elem[2]
    if (!nf)
    {
       if (ne)
@@ -120,7 +120,7 @@ NCMesh::NCMesh(const Mesh *mesh)
       CheckSupportedGeom(geom);
       GI[geom].InitGeom(geom);
 
-      //If we have pyramids we will need tets after refinement
+      // if we have pyramids we will need tets after refinement
       if (geom == Geometry::PYRAMID)
       {
          GI[Geometry::TETRAHEDRON].InitGeom(Geometry::TETRAHEDRON);
@@ -4328,43 +4328,43 @@ void NCMesh::GetPointMatrix(Geometry::Type geom, const char* ref_path,
          Point mid24(pm(2), pm(4)), mid34(pm(3), pm(4));
          Point midf0(mid23, mid12, mid01, mid03);
 
-         if (child == 0)   //Pyramid
+         if (child == 0)        // Pyramid
          {
             pm = PointMatrix(pm(0), mid01, midf0, mid03, mid04);
          }
-         else if (child == 1)   //Pyramid
+         else if (child == 1)   // Pyramid
          {
             pm = PointMatrix(mid01, pm(1), mid12, midf0, mid14);
          }
-         else if (child == 2)   //Pyramid
+         else if (child == 2)   // Pyramid
          {
             pm = PointMatrix(midf0, mid12, pm(2), mid23, mid24);
          }
-         else if (child == 3)   //Pyramid
+         else if (child == 3)   // Pyramid
          {
             pm = PointMatrix(mid03, midf0, mid23, pm(3), mid34);
          }
-         else if (child == 4)   //Pyramid
+         else if (child == 4)   // Pyramid
          {
             pm = PointMatrix(mid24, mid14, mid04, mid34, midf0);
          }
-         else if (child == 5)   //Pyramid
+         else if (child == 5)   // Pyramid
          {
             pm = PointMatrix(mid04, mid14, mid24, mid34, pm(4));
          }
-         else if (child == 6)   //Tet
+         else if (child == 6)   // Tet
          {
             pm = PointMatrix(mid01, midf0, mid04, mid14);
          }
-         else if (child == 7)   //Tet
+         else if (child == 7)   // Tet
          {
             pm = PointMatrix(midf0, mid14, mid12, mid24);
          }
-         else if (child == 8)   //Tet
+         else if (child == 8)   // Tet
          {
             pm = PointMatrix(midf0, mid23, mid34, mid24);
          }
-         else if (child == 9)   //Tet
+         else if (child == 9)   // Tet
          {
             pm = PointMatrix(mid03, mid04, midf0, mid34);
          }
