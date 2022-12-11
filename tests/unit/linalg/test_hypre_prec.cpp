@@ -35,6 +35,14 @@ void sin3d_vec(const Vector &x, Vector &v)
 void GeneratePart(PartType part_type, int nelems, int world_size,
                   int *partitioning)
 {
+   if (world_size == 1)
+   {
+      for (int i=0; i<nelems; i++)
+      {
+         partitioning[i] = 0;
+      }
+      return;
+   }
    switch (part_type)
    {
       case ALL:
@@ -85,52 +93,54 @@ TEST_CASE("HypreBoomerAMG", "[Parallel], [HypreBoomerAMG]")
    int nelems = mesh.GetNE();
    int *partitioning = new int[nelems];
 
-   auto part_type = GENERATE(ALL, FIRST, LAST, ALL_BUT_LAST, ALL_BUT_FIRST);
+   PartType last_type = (world_size == 1) ? ALL : ALL_BUT_FIRST;
+   for (int part_type = ALL; part_type <= last_type; part_type++)
+   {
+      GeneratePart((PartType)part_type, nelems, world_size, partitioning);
 
-   GeneratePart(part_type, nelems, world_size, partitioning);
+      ParMesh pmesh(MPI_COMM_WORLD, mesh, partitioning);
 
-   ParMesh pmesh(MPI_COMM_WORLD, mesh, partitioning);
+      H1_FECollection fec(order, dim);
+      ParFiniteElementSpace fespace(&pmesh, &fec);
 
-   H1_FECollection fec(order, dim);
-   ParFiniteElementSpace fespace(&pmesh, &fec);
+      ParBilinearForm a(&fespace);
+      a.AddDomainIntegrator(new DiffusionIntegrator);
+      a.AddDomainIntegrator(new MassIntegrator);
+      a.Assemble();
 
-   ParBilinearForm a(&fespace);
-   a.AddDomainIntegrator(new DiffusionIntegrator);
-   a.AddDomainIntegrator(new MassIntegrator);
-   a.Assemble();
+      ParGridFunction x(&fespace);
+      FunctionCoefficient sin3dCoef(sin3d);
+      x.ProjectCoefficient(sin3dCoef);
+      double err0 = x.ComputeL2Error(sin3dCoef);
 
-   ParGridFunction x(&fespace);
-   FunctionCoefficient sin3dCoef(sin3d);
-   x.ProjectCoefficient(sin3dCoef);
-   double err0 = x.ComputeL2Error(sin3dCoef);
+      ParLinearForm b(&fespace);
+      a.Mult(x, b);
+      x = 0.0;
 
-   ParLinearForm b(&fespace);
-   a.Mult(x, b);
-   x = 0.0;
+      OperatorPtr A;
+      Vector B, X;
+      Array<int> ess_tdof_list;
+      a.FormLinearSystem(ess_tdof_list, x, b, A, X, B);
 
-   OperatorPtr A;
-   Vector B, X;
-   Array<int> ess_tdof_list;
-   a.FormLinearSystem(ess_tdof_list, x, b, A, X, B);
+      HypreBoomerAMG amg;
+      amg.SetPrintLevel(0);
 
-   HypreBoomerAMG amg;
-   amg.SetPrintLevel(0);
+      HyprePCG pcg(MPI_COMM_WORLD);
+      pcg.SetTol(1e-10);
+      pcg.SetMaxIter(2000);
+      pcg.SetPrintLevel(3);
+      pcg.SetPreconditioner(amg);
+      pcg.SetOperator(*A);
+      pcg.Mult(B, X);
 
-   HyprePCG pcg(MPI_COMM_WORLD);
-   pcg.SetTol(1e-10);
-   pcg.SetMaxIter(2000);
-   pcg.SetPrintLevel(3);
-   pcg.SetPreconditioner(amg);
-   pcg.SetOperator(*A);
-   pcg.Mult(B, X);
+      int its = -1;
+      pcg.GetNumIterations(its);
 
-   int its = -1;
-   pcg.GetNumIterations(its);
+      a.RecoverFEMSolution(X, b, x);
 
-   a.RecoverFEMSolution(X, b, x);
-
-   double err = x.ComputeL2Error(sin3dCoef);
-   REQUIRE(fabs(err - err0) < 1e-6 * err0);
+      double err = x.ComputeL2Error(sin3dCoef);
+      REQUIRE(fabs(err - err0) < 1e-6 * err0);
+   }
 }
 
 TEST_CASE("HypreAMS", "[Parallel], [HypreAMS]")
@@ -148,52 +158,54 @@ TEST_CASE("HypreAMS", "[Parallel], [HypreAMS]")
    int nelems = mesh.GetNE();
    int *partitioning = new int[nelems];
 
-   auto part_type = GENERATE(ALL, FIRST, LAST, ALL_BUT_LAST, ALL_BUT_FIRST);
+   PartType last_type = (world_size == 1) ? ALL : ALL_BUT_FIRST;
+   for (int part_type = ALL; part_type <= last_type; part_type++)
+   {
+      GeneratePart((PartType)part_type, nelems, world_size, partitioning);
 
-   GeneratePart(part_type, nelems, world_size, partitioning);
+      ParMesh pmesh(MPI_COMM_WORLD, mesh, partitioning);
 
-   ParMesh pmesh(MPI_COMM_WORLD, mesh, partitioning);
+      ND_FECollection fec(order, dim);
+      ParFiniteElementSpace fespace(&pmesh, &fec);
 
-   ND_FECollection fec(order, dim);
-   ParFiniteElementSpace fespace(&pmesh, &fec);
+      ParBilinearForm a(&fespace);
+      a.AddDomainIntegrator(new CurlCurlIntegrator);
+      a.AddDomainIntegrator(new VectorFEMassIntegrator);
+      a.Assemble();
 
-   ParBilinearForm a(&fespace);
-   a.AddDomainIntegrator(new CurlCurlIntegrator);
-   a.AddDomainIntegrator(new VectorFEMassIntegrator);
-   a.Assemble();
+      ParGridFunction x(&fespace);
+      VectorFunctionCoefficient sin3dCoef(3, sin3d_vec);
+      x.ProjectCoefficient(sin3dCoef);
+      double err0 = x.ComputeL2Error(sin3dCoef);
 
-   ParGridFunction x(&fespace);
-   VectorFunctionCoefficient sin3dCoef(3, sin3d_vec);
-   x.ProjectCoefficient(sin3dCoef);
-   double err0 = x.ComputeL2Error(sin3dCoef);
+      ParLinearForm b(&fespace);
+      a.Mult(x, b);
+      x = 0.0;
 
-   ParLinearForm b(&fespace);
-   a.Mult(x, b);
-   x = 0.0;
+      OperatorPtr A;
+      Vector B, X;
+      Array<int> ess_tdof_list;
+      a.FormLinearSystem(ess_tdof_list, x, b, A, X, B);
 
-   OperatorPtr A;
-   Vector B, X;
-   Array<int> ess_tdof_list;
-   a.FormLinearSystem(ess_tdof_list, x, b, A, X, B);
+      HypreAMS ams(*A.As<HypreParMatrix>(), &fespace);
+      ams.SetPrintLevel(0);
 
-   HypreAMS ams(*A.As<HypreParMatrix>(), &fespace);
-   ams.SetPrintLevel(0);
+      HyprePCG pcg(MPI_COMM_WORLD);
+      pcg.SetTol(1e-10);
+      pcg.SetMaxIter(2000);
+      pcg.SetPrintLevel(3);
+      pcg.SetPreconditioner(ams);
+      pcg.SetOperator(*A);
+      pcg.Mult(B, X);
 
-   HyprePCG pcg(MPI_COMM_WORLD);
-   pcg.SetTol(1e-10);
-   pcg.SetMaxIter(2000);
-   pcg.SetPrintLevel(3);
-   pcg.SetPreconditioner(ams);
-   pcg.SetOperator(*A);
-   pcg.Mult(B, X);
+      int its = -1;
+      pcg.GetNumIterations(its);
 
-   int its = -1;
-   pcg.GetNumIterations(its);
+      a.RecoverFEMSolution(X, b, x);
 
-   a.RecoverFEMSolution(X, b, x);
-
-   double err = x.ComputeL2Error(sin3dCoef);
-   REQUIRE(fabs(err - err0) < 1e-6 * err0);
+      double err = x.ComputeL2Error(sin3dCoef);
+      REQUIRE(fabs(err - err0) < 1e-6 * err0);
+   }
 }
 
 TEST_CASE("HypreADS", "[Parallel], [HypreADS]")
@@ -211,52 +223,54 @@ TEST_CASE("HypreADS", "[Parallel], [HypreADS]")
    int nelems = mesh.GetNE();
    int *partitioning = new int[nelems];
 
-   auto part_type = GENERATE(ALL, FIRST, LAST, ALL_BUT_LAST, ALL_BUT_FIRST);
+   PartType last_type = (world_size == 1) ? ALL : ALL_BUT_FIRST;
+   for (int part_type = ALL; part_type <= last_type; part_type++)
+   {
+      GeneratePart((PartType)part_type, nelems, world_size, partitioning);
 
-   GeneratePart(part_type, nelems, world_size, partitioning);
+      ParMesh pmesh(MPI_COMM_WORLD, mesh, partitioning);
 
-   ParMesh pmesh(MPI_COMM_WORLD, mesh, partitioning);
+      RT_FECollection fec(order, dim);
+      ParFiniteElementSpace fespace(&pmesh, &fec);
 
-   RT_FECollection fec(order, dim);
-   ParFiniteElementSpace fespace(&pmesh, &fec);
+      ParBilinearForm a(&fespace);
+      a.AddDomainIntegrator(new DivDivIntegrator);
+      a.AddDomainIntegrator(new VectorFEMassIntegrator);
+      a.Assemble();
 
-   ParBilinearForm a(&fespace);
-   a.AddDomainIntegrator(new DivDivIntegrator);
-   a.AddDomainIntegrator(new VectorFEMassIntegrator);
-   a.Assemble();
+      ParGridFunction x(&fespace);
+      VectorFunctionCoefficient sin3dCoef(3, sin3d_vec);
+      x.ProjectCoefficient(sin3dCoef);
+      double err0 = x.ComputeL2Error(sin3dCoef);
 
-   ParGridFunction x(&fespace);
-   VectorFunctionCoefficient sin3dCoef(3, sin3d_vec);
-   x.ProjectCoefficient(sin3dCoef);
-   double err0 = x.ComputeL2Error(sin3dCoef);
+      ParLinearForm b(&fespace);
+      a.Mult(x, b);
+      x = 0.0;
 
-   ParLinearForm b(&fespace);
-   a.Mult(x, b);
-   x = 0.0;
+      OperatorPtr A;
+      Vector B, X;
+      Array<int> ess_tdof_list;
+      a.FormLinearSystem(ess_tdof_list, x, b, A, X, B);
 
-   OperatorPtr A;
-   Vector B, X;
-   Array<int> ess_tdof_list;
-   a.FormLinearSystem(ess_tdof_list, x, b, A, X, B);
+      HypreADS ads(*A.As<HypreParMatrix>(), &fespace);
+      ads.SetPrintLevel(0);
 
-   HypreADS ads(*A.As<HypreParMatrix>(), &fespace);
-   ads.SetPrintLevel(0);
+      HyprePCG pcg(MPI_COMM_WORLD);
+      pcg.SetTol(1e-10);
+      pcg.SetMaxIter(2000);
+      pcg.SetPrintLevel(3);
+      pcg.SetPreconditioner(ads);
+      pcg.SetOperator(*A);
+      pcg.Mult(B, X);
 
-   HyprePCG pcg(MPI_COMM_WORLD);
-   pcg.SetTol(1e-10);
-   pcg.SetMaxIter(2000);
-   pcg.SetPrintLevel(3);
-   pcg.SetPreconditioner(ads);
-   pcg.SetOperator(*A);
-   pcg.Mult(B, X);
+      int its = -1;
+      pcg.GetNumIterations(its);
 
-   int its = -1;
-   pcg.GetNumIterations(its);
+      a.RecoverFEMSolution(X, b, x);
 
-   a.RecoverFEMSolution(X, b, x);
-
-   double err = x.ComputeL2Error(sin3dCoef);
-   REQUIRE(fabs(err - err0) < 1e-6 * err0);
+      double err = x.ComputeL2Error(sin3dCoef);
+      REQUIRE(fabs(err - err0) < 1e-6 * err0);
+   }
 }
 
 #endif // MFEM_USE_MPI
