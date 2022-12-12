@@ -30,6 +30,7 @@ MFEM_REGISTER_TMOP_KERNELS(void, AddMultPA_Kernel_C0_2D,
                            const Vector &x0_,
                            const Vector &x1_,
                            Vector &y_,
+                           const bool exp_lim,
                            const int d1d,
                            const int q1d)
 {
@@ -110,14 +111,35 @@ MFEM_REGISTER_TMOP_KERNELS(void, AddMultPA_Kernel_C0_2D,
             const double dist = ld; // GetValues, default comp set to 0
 
             double d1[2];
-            // Eval_d1
+            // Eval_d1 (Quadratic Limiter)
             // subtract(1.0 / (dist * dist), x, x0, d1);
             // z = a * (x - y)
             // grad = a * (x - x0)
-            const double a = 1.0 / (dist * dist);
+
+            // Eval_d1 (Exponential Limiter)
+            // double dist_squared = dist*dist;
+            // subtract(20.0*exp(10.0*((x.DistanceSquaredTo(x0) / dist_squared) - 1.0)) /
+            // dist_squared, x, x0, d1);
+            // z = a * (x - y)
+            // grad = a * (x - x0)
+
+            double a = 0.0;
             const double w = weight * lim_normal * coeff0;
+            const double dist_squared = dist * dist;
+
+            if (!exp_lim)
+            {
+               a =  1.0 / dist_squared;
+            }
+            else
+            {
+               double dsq = kernels::DistanceSquared<2>(p1,p0) / dist_squared;
+               a = 20.0*exp(10.0*(dsq - 1.0))/dist_squared;
+            }
             kernels::Subtract<2>(w*a, p1, p0, d1);
             kernels::internal::PushEval<MQ1,NBZ>(Q1D,qx,qy,d1,QQ0);
+
+
          }
       }
       MFEM_SYNC_THREAD;
@@ -143,8 +165,11 @@ void TMOP_Integrator::AddMultPA_C0_2D(const Vector &X, Vector &Y) const
    MFEM_VERIFY(PA.maps_lim->nqpt == Q1D, "");
    const Vector &X0 = PA.X0;
    const Vector &C0 = PA.C0;
+   auto el = dynamic_cast<TMOP_ExponentialLimiter *>(lim_func);
+   const bool exp_lim = (el) ? true : false;
 
-   MFEM_LAUNCH_TMOP_KERNEL(AddMultPA_Kernel_C0_2D,id,ln,LD,C0,N,J,W,B,BLD,X0,X,Y);
+   MFEM_LAUNCH_TMOP_KERNEL(AddMultPA_Kernel_C0_2D,id,ln,LD,C0,N,J,W,B,BLD,X0,X,Y,
+                           exp_lim);
 }
 
 } // namespace mfem
