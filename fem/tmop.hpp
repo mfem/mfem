@@ -1105,6 +1105,59 @@ public:
    virtual ~TMOP_QuadraticLimiter() { }
 };
 
+/// Exponential limiter function in TMOP_Integrator.
+class TMOP_ExponentialLimiter : public TMOP_LimiterFunction
+{
+public:
+   virtual double Eval(const Vector &x, const Vector &x0, double dist) const
+   {
+      MFEM_ASSERT(x.Size() == x0.Size(), "Bad input.");
+
+      return  exp(10.0*((x.DistanceSquaredTo(x0) / (dist * dist))-1.0));
+   }
+
+   virtual void Eval_d1(const Vector &x, const Vector &x0, double dist,
+                        Vector &d1) const
+   {
+      MFEM_ASSERT(x.Size() == x0.Size(), "Bad input.");
+
+      d1.SetSize(x.Size());
+      double dist_squared = dist*dist;
+      subtract(20.0*exp(10.0*((x.DistanceSquaredTo(x0) / dist_squared) - 1.0)) /
+               dist_squared, x, x0, d1);
+   }
+
+   virtual void Eval_d2(const Vector &x, const Vector &x0, double dist,
+                        DenseMatrix &d2) const
+   {
+      MFEM_ASSERT(x.Size() == x0.Size(), "Bad input.");
+      Vector tmp;
+      tmp.SetSize(x.Size());
+      double dist_squared = dist*dist;
+      double dist_squared_squared = dist_squared*dist_squared;
+      double f = exp(10.0*((x.DistanceSquaredTo(x0) / dist_squared)-1.0));
+
+      subtract(x,x0,tmp);
+      d2.SetSize(x.Size());
+      d2(0,0) = ((400.0*tmp(0)*tmp(0)*f)/dist_squared_squared)+(20.0*f/dist_squared);
+      d2(1,1) = ((400.0*tmp(1)*tmp(1)*f)/dist_squared_squared)+(20.0*f/dist_squared);
+      d2(0,1) = (400.0*tmp(0)*tmp(1)*f)/dist_squared_squared;
+      d2(1,0) = d2(0,1);
+
+      if (x.Size() == 3)
+      {
+         d2(0,2) = (400.0*tmp(0)*tmp(2)*f)/dist_squared_squared;
+         d2(1,2) = (400.0*tmp(1)*tmp(2)*f)/dist_squared_squared;
+         d2(2,0) = d2(0,2);
+         d2(2,1) = d2(1,2);
+         d2(2,2) = ((400.0*tmp(2)*tmp(2)*f)/dist_squared_squared)+(20.0*f/dist_squared);
+      }
+
+   }
+
+   virtual ~TMOP_ExponentialLimiter() { }
+};
+
 class FiniteElementCollection;
 class FiniteElementSpace;
 class ParFiniteElementSpace;
