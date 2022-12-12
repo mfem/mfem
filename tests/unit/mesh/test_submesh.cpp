@@ -139,10 +139,10 @@ void test_2d(Element::Type element_type,
       return y + 0.05 * sin(x * 2.0 * M_PI);
    });
 
-   auto vcoeff = VectorFunctionCoefficient(vdim, [](const Vector &coords,
-                                                    Vector &V)
+   auto vcoeff = VectorFunctionCoefficient(dim, [](const Vector &coords,
+                                                   Vector &V)
    {
-      V.SetSize(dim);
+      V.SetSize(2);
       double x = coords(0);
       double y = coords(1);
 
@@ -309,10 +309,10 @@ void test_3d(Element::Type element_type,
       return y + 0.05 * sin(x * 2.0 * M_PI) + z;
    });
 
-   auto vcoeff = VectorFunctionCoefficient(vdim, [](const Vector &coords,
-                                                    Vector &V)
+   auto vcoeff = VectorFunctionCoefficient(dim, [](const Vector &coords,
+                                                   Vector &V)
    {
-      V.SetSize(dim);
+      V.SetSize(3);
       double x = coords(0);
       double y = coords(1);
       double z = coords(2);
