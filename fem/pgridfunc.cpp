@@ -151,14 +151,14 @@ void ParGridFunction::ParallelAverage(Vector &tv) const
 {
    MFEM_VERIFY(pfes->Conforming(), "not implemented for NC meshes");
    pfes->GetProlongationMatrix()->MultTranspose(*this, tv);
-   pfes->DivideByGroupSize(tv);
+   pfes->DivideByGroupSize(tv.HostReadWrite());
 }
 
 void ParGridFunction::ParallelAverage(HypreParVector &tv) const
 {
    MFEM_VERIFY(pfes->Conforming(), "not implemented for NC meshes");
    pfes->GetProlongationMatrix()->MultTranspose(*this, tv);
-   pfes->DivideByGroupSize(tv);
+   pfes->DivideByGroupSize(tv.HostReadWrite());
 }
 
 HypreParVector *ParGridFunction::ParallelAverage() const
@@ -353,7 +353,7 @@ void ParGridFunction::GetVectorValue(int i, const IntegrationPoint &ip,
          val.SetSize(vdim);
          for (int k = 0; k < vdim; k++)
          {
-            val(k) = shape * ((const double *)loc_data + dof * k);
+            val(k) = shape * (&loc_data[dof * k]);
          }
       }
       else
@@ -468,7 +468,7 @@ void ParGridFunction::GetVectorValue(ElementTransformation &T,
       val.SetSize(vdim);
       for (int k = 0; k < vdim; k++)
       {
-         val(k) = shape * ((const double *)loc_data + dof * k);
+         val(k) = shape * (&loc_data[dof * k]);
       }
    }
    else
@@ -644,9 +644,9 @@ void ParGridFunction::ProjectBdrCoefficient(
 
    // Count the values globally.
    GroupCommunicator &gcomm = pfes->GroupComm();
-   gcomm.Reduce<int>(values_counter, GroupCommunicator::Sum);
+   gcomm.Reduce<int>(values_counter.HostReadWrite(), GroupCommunicator::Sum);
    // Accumulate the values globally.
-   gcomm.Reduce<double>(values, GroupCommunicator::Sum);
+   gcomm.Reduce<double>(values.HostReadWrite(), GroupCommunicator::Sum);
    // Only the values in the master are guaranteed to be correct!
    for (int i = 0; i < values.Size(); i++)
    {
@@ -682,9 +682,9 @@ void ParGridFunction::ProjectBdrCoefficientTangent(VectorCoefficient &vcoeff,
 
    // Count the values globally.
    GroupCommunicator &gcomm = pfes->GroupComm();
-   gcomm.Reduce<int>(values_counter, GroupCommunicator::Sum);
+   gcomm.Reduce<int>(values_counter.HostReadWrite(), GroupCommunicator::Sum);
    // Accumulate the values globally.
-   gcomm.Reduce<double>(values, GroupCommunicator::Sum);
+   gcomm.Reduce<double>(values.HostReadWrite(), GroupCommunicator::Sum);
    // Only the values in the master are guaranteed to be correct!
    for (int i = 0; i < values.Size(); i++)
    {
@@ -1109,11 +1109,11 @@ void ParGridFunction::ComputeFlux(
    SumFluxAndCount(blfi, flux, count, wcoef, subdomain);
 
    // Accumulate flux and counts in parallel
-   ffes->GroupComm().Reduce<double>(flux, GroupCommunicator::Sum);
-   ffes->GroupComm().Bcast<double>(flux);
+   ffes->GroupComm().Reduce<double>(flux.HostReadWrite(), GroupCommunicator::Sum);
+   ffes->GroupComm().Bcast<double>(flux.HostReadWrite());
 
-   ffes->GroupComm().Reduce<int>(count, GroupCommunicator::Sum);
-   ffes->GroupComm().Bcast<int>(count);
+   ffes->GroupComm().Reduce<int>(count.HostReadWrite(), GroupCommunicator::Sum);
+   ffes->GroupComm().Bcast<int>(count.HostReadWrite());
 
    // complete averaging
    for (int i = 0; i < count.Size(); i++)
