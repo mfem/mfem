@@ -27,8 +27,12 @@ void TMOP_SetupGradPA_C0_3D(const double lim_normal,
                             const int NE,
                             const DeviceTensor<6, const double> &J,
                             const ConstDeviceCube &W,
+                            const ConstDeviceMatrix &b,
                             const ConstDeviceMatrix &bld,
+                            const DeviceTensor<5, const double> &X0,
+                            const DeviceTensor<5, const double> &X1,
                             DeviceTensor<6> &H0,
+                            const bool exp_lim,
                             const int d1d,
                             const int q1d,
                             const int max)
@@ -44,6 +48,7 @@ void TMOP_SetupGradPA_C0_3D(const double lim_normal,
       constexpr int MD1 = T_D1D ? T_D1D : T_MAX;
       constexpr int MDQ = (MQ1 > MD1) ? MQ1 : MD1;
 
+      MFEM_SHARED double B[MQ1*MD1];
       MFEM_SHARED double sBLD[MQ1*MD1];
       kernels::internal::LoadB<MD1,MQ1>(D1D,Q1D,bld,sBLD);
       ConstDeviceMatrix BLD(sBLD, D1D, Q1D);
@@ -55,11 +60,33 @@ void TMOP_SetupGradPA_C0_3D(const double lim_normal,
       DeviceCube DQQ(sm0, MD1,MQ1,MQ1);
       DeviceCube QQQ(sm1, MQ1,MQ1,MQ1);
 
+      MFEM_SHARED double DDD0[3][MD1*MD1*MD1];
+      MFEM_SHARED double DDQ0[3][MD1*MD1*MQ1];
+      MFEM_SHARED double DQQ0[3][MD1*MQ1*MQ1];
+      MFEM_SHARED double QQQ0[3][MQ1*MQ1*MQ1];
+
+      MFEM_SHARED double DDD1[3][MD1*MD1*MD1];
+      MFEM_SHARED double DDQ1[3][MD1*MD1*MQ1];
+      MFEM_SHARED double DQQ1[3][MD1*MQ1*MQ1];
+      MFEM_SHARED double QQQ1[3][MQ1*MQ1*MQ1];
+
       kernels::internal::LoadX(e,D1D,LD,DDD);
+      kernels::internal::LoadX<MD1>(e,D1D,X0,DDD0);
+      kernels::internal::LoadX<MD1>(e,D1D,X1,DDD1);
+
+      kernels::internal::LoadB<MD1,MQ1>(D1D,Q1D,b,B);
 
       kernels::internal::EvalX(D1D,Q1D,BLD,DDD,DDQ);
       kernels::internal::EvalY(D1D,Q1D,BLD,DDQ,DQQ);
       kernels::internal::EvalZ(D1D,Q1D,BLD,DQQ,QQQ);
+
+      kernels::internal::EvalX<MD1,MQ1>(D1D,Q1D,B,DDD0,DDQ0);
+      kernels::internal::EvalY<MD1,MQ1>(D1D,Q1D,B,DDQ0,DQQ0);
+      kernels::internal::EvalZ<MD1,MQ1>(D1D,Q1D,B,DQQ0,QQQ0);
+
+      kernels::internal::EvalX<MD1,MQ1>(D1D,Q1D,B,DDD1,DDQ1);
+      kernels::internal::EvalY<MD1,MQ1>(D1D,Q1D,B,DDQ1,DQQ1);
+      kernels::internal::EvalZ<MD1,MQ1>(D1D,Q1D,B,DQQ1,QQQ1);
 
       MFEM_FOREACH_THREAD(qz,z,Q1D)
       {
@@ -73,15 +100,40 @@ void TMOP_SetupGradPA_C0_3D(const double lim_normal,
                const double coeff0 = const_c0 ? C0(0,0,0,0) : C0(qx,qy,qz,e);
                const double weight_m = weight * lim_normal * coeff0;
 
-               double D;
+               double D, grad_grad[9];
                kernels::internal::PullEval(qx,qy,qz,QQQ,D);
                const double dist = D; // GetValues, default comp set to 0
 
-               // lim_func->Eval_d2(p1, p0, d_vals(q), grad_grad);
-               // d2.Diag(1.0 / (dist * dist), x.Size());
-               const double c = 1.0 / (dist * dist);
-               double grad_grad[9];
-               kernels::Diag<3>(c, grad_grad);
+               if (!exp_lim)
+               {
+                  // lim_func->Eval_d2(p1, p0, d_vals(q), grad_grad);
+                  // d2.Diag(1.0 / (dist * dist), x.Size());
+                  const double c = 1.0 / (dist * dist);
+                  kernels::Diag<3>(c, grad_grad);
+               }
+               else
+               {
+                  double p0[3], p1[3], tmp[3];
+                  kernels::internal::PullEval<MQ1>(Q1D,qx,qy,qz,QQQ0,p0);
+                  kernels::internal::PullEval<MQ1>(Q1D,qx,qy,qz,QQQ1,p1);
+                  kernels::Subtract<3>(1.0, p1, p0, tmp);
+                  double dsq = kernels::DistanceSquared<3>(p1,p0);
+                  double dist_squared = dist*dist;
+                  double dist_squared_squared = dist_squared*dist_squared;
+                  double f = exp(10.0*((dsq / dist_squared)-1.0));
+                  grad_grad[0] = ((400.0*tmp[0]*tmp[0]*f)/dist_squared_squared)+
+                                 (20.0*f/dist_squared);
+                  grad_grad[1] = (400.0*tmp[0]*tmp[1]*f)/dist_squared_squared;
+                  grad_grad[2] = (400.0*tmp[0]*tmp[2]*f)/dist_squared_squared;
+                  grad_grad[3] = grad_grad[1];
+                  grad_grad[4] = ((400.0*tmp[1]*tmp[1]*f)/dist_squared_squared)+
+                                 (20.0*f/dist_squared);
+                  grad_grad[5] = (400.0*tmp[1]*tmp[2]*f)/dist_squared_squared;
+                  grad_grad[6] = grad_grad[2];
+                  grad_grad[7] = grad_grad[5];
+                  grad_grad[8] = ((400.0*tmp[2]*tmp[2]*f)/dist_squared_squared)+
+                                 (20.0*f/dist_squared);
+               }
                ConstDeviceMatrix gg(grad_grad,DIM,DIM);
 
                for (int i = 0; i < DIM; i++)
@@ -97,7 +149,7 @@ void TMOP_SetupGradPA_C0_3D(const double lim_normal,
    });
 }
 
-void TMOP_Integrator::AssembleGradPA_C0_3D(const Vector &X) const
+void TMOP_Integrator::AssembleGradPA_C0_3D(const Vector &x) const
 {
    const int NE = PA.ne;
    constexpr int DIM = 3;
@@ -111,9 +163,15 @@ void TMOP_Integrator::AssembleGradPA_C0_3D(const Vector &X) const
                    Reshape(PA.C0.Read(), Q1D, Q1D, Q1D, NE);
    const auto J = Reshape(PA.Jtr.Read(), DIM, DIM, Q1D, Q1D, Q1D, NE);
    const auto W = Reshape(PA.ir->GetWeights().Read(), Q1D, Q1D, Q1D);
+   const auto B = Reshape(PA.maps->B.Read(), Q1D, D1D);
    const auto BLD = Reshape(PA.maps_lim->B.Read(), Q1D, D1D);
    const auto LD = Reshape(PA.LD.Read(), D1D, D1D, D1D, NE);
+   const auto X0 = Reshape(PA.X0.Read(), D1D, D1D, D1D, DIM, NE);
+   const auto X = Reshape(x.Read(), D1D, D1D, D1D, DIM, NE);
    auto H0 = Reshape(PA.H0.Write(), DIM, DIM, Q1D, Q1D, Q1D, NE);
+
+   auto el = dynamic_cast<TMOP_ExponentialLimiter *>(lim_func);
+   const bool exp_lim = (el) ? true : false;
 
    decltype(&TMOP_SetupGradPA_C0_3D<>) ker = TMOP_SetupGradPA_C0_3D;
 #ifndef MFEM_USE_JIT
@@ -136,7 +194,7 @@ void TMOP_Integrator::AssembleGradPA_C0_3D(const Vector &X) const
    if (d==5 && q==5) { ker = TMOP_SetupGradPA_C0_3D<5,5>; }
    if (d==5 && q==6) { ker = TMOP_SetupGradPA_C0_3D<5,6>; }
 #endif
-   ker(ln,LD,const_c0,C0,NE,J,W,BLD,H0,D1D,Q1D,4);
+   ker(ln,LD,const_c0,C0,NE,J,W,B,BLD,X0,X,H0,exp_lim,D1D,Q1D,4);
 }
 
 } // namespace mfem

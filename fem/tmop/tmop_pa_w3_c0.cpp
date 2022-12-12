@@ -32,6 +32,7 @@ void TMOP_EnergyPA_C0_3D(const double lim_normal,
                          const DeviceTensor<5, const double> &X0,
                          const DeviceTensor<5, const double> &X1,
                          DeviceTensor<4> &E,
+                         const bool exp_lim,
                          const int d1d,
                          const int q1d,
                          const int max)
@@ -103,10 +104,20 @@ void TMOP_EnergyPA_C0_3D(const double lim_normal,
                kernels::internal::PullEval<MQ1>(Q1D,qx,qy,qz,QQQ1,p1);
 
                const double dist = D; // GetValues, default comp set to 0
-               const double id2 = 0.5 / (dist*dist);
-
-               const double dsq = kernels::DistanceSquared<3>(p1,p0) * id2;
-               E(qx,qy,qz,e) = weight * lim_normal * dsq * coeff0;
+               double id2 = 0.0;
+               double dsq = 0.0;
+               if (!exp_lim)
+               {
+                  id2 = 0.5 / (dist*dist);
+                  dsq = kernels::DistanceSquared<3>(p1,p0) * id2;
+                  E(qx,qy,qz,e) = weight * lim_normal * dsq * coeff0;
+               }
+               else
+               {
+                  id2 = 1.0 / (dist*dist);
+                  dsq = kernels::DistanceSquared<3>(p1,p0) * id2;
+                  E(qx,qy,qz,e) = weight * lim_normal * exp(10.0*(dsq-1.0)) * coeff0;
+               }
             }
          }
       }
@@ -137,6 +148,10 @@ double TMOP_Integrator::GetLocalStateEnergyPA_C0_3D(const Vector &x) const
    const auto X1 = Reshape(x.Read(), D1D, D1D, D1D, DIM, NE);
    auto E = Reshape(PA.E.Write(), Q1D, Q1D, Q1D, NE);
 
+   auto el = dynamic_cast<TMOP_ExponentialLimiter *>(lim_func);
+   const bool exp_lim = (el) ? true : false;
+
+
    decltype(&TMOP_EnergyPA_C0_3D<>) ker = TMOP_EnergyPA_C0_3D;
 #ifndef MFEM_USE_JIT
    const int d=D1D, q=Q1D;
@@ -158,7 +173,7 @@ double TMOP_Integrator::GetLocalStateEnergyPA_C0_3D(const Vector &x) const
    if (d==5 && q==5) { ker = TMOP_EnergyPA_C0_3D<5,5>; }
    if (d==5 && q==6) { ker = TMOP_EnergyPA_C0_3D<5,6>; }
 #endif
-   ker(ln,LD,const_c0,C0,NE,J,W,B,BLD,X0,X1,E,D1D,Q1D,4);
+   ker(ln,LD,const_c0,C0,NE,J,W,B,BLD,X0,X1,E,exp_lim,D1D,Q1D,4);
    return PA.E * PA.O;
 }
 

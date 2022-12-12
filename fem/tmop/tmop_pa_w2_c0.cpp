@@ -32,6 +32,7 @@ void TMOP_EnergyPA_C0_2D(const double lim_normal,
                          const DeviceTensor<4, const double> &X0,
                          const DeviceTensor<4, const double> &X1,
                          DeviceTensor<3> &E,
+                         const bool exp_lim,
                          const int d1d,
                          const int q1d,
                          const int max)
@@ -87,13 +88,26 @@ void TMOP_EnergyPA_C0_2D(const double lim_normal,
             const double detJtr = kernels::Det<2>(Jtr);
             const double weight = W(qx,qy) * detJtr;
             const double coeff0 = const_c0 ? C0(0,0,0) : C0(qx,qy,e);
+
             kernels::internal::PullEval<MQ1,NBZ>(Q1D,qx,qy,QQ,ld);
             kernels::internal::PullEval<MQ1,NBZ>(Q1D,qx,qy,QQ0,p0);
             kernels::internal::PullEval<MQ1,NBZ>(Q1D,qx,qy,QQ1,p1);
+
             const double dist = ld; // GetValues, default comp set to 0
-            const double id2 = 0.5 / (dist*dist);
-            const double dsq = kernels::DistanceSquared<2>(p1,p0) * id2;
-            E(qx,qy,e) = weight * lim_normal * dsq * coeff0;
+            double id2 = 0.0;
+            double dsq = 0.0;
+            if (!exp_lim)
+            {
+               id2 = 0.5 / (dist*dist);
+               dsq = kernels::DistanceSquared<2>(p1,p0) * id2;
+               E(qx,qy,e) = weight * lim_normal * dsq * coeff0;
+            }
+            else
+            {
+               id2 = 1.0 / (dist*dist);
+               dsq = kernels::DistanceSquared<2>(p1,p0) * id2;
+               E(qx,qy,e) = weight * lim_normal * exp(10.0*(dsq-1.0)) * coeff0;
+            }
          }
       }
    });
@@ -120,8 +134,11 @@ double TMOP_Integrator::GetLocalStateEnergyPA_C0_2D(const Vector &x) const
    const auto BLD = Reshape(PA.maps_lim->B.Read(), Q1D, D1D);
    const auto W = Reshape(PA.ir->GetWeights().Read(), Q1D, Q1D);
    const auto X0 = Reshape(PA.X0.Read(), D1D, D1D, DIM, NE);
-   const auto X1 = Reshape(x.Read(), D1D, D1D, DIM, NE);
+   const auto X = Reshape(x.Read(), D1D, D1D, DIM, NE);
    auto E = Reshape(PA.E.Write(), Q1D, Q1D, NE);
+
+   auto el = dynamic_cast<TMOP_ExponentialLimiter *>(lim_func);
+   const bool exp_lim = (el) ? true : false;
 
    decltype(&TMOP_EnergyPA_C0_2D<>) ker = TMOP_EnergyPA_C0_2D;
 #ifndef MFEM_USE_JIT
@@ -144,7 +161,7 @@ double TMOP_Integrator::GetLocalStateEnergyPA_C0_2D(const Vector &x) const
    if (d==5 && q==5) { ker = TMOP_EnergyPA_C0_2D<5,5>; }
    if (d==5 && q==6) { ker = TMOP_EnergyPA_C0_2D<5,6>; }
 #endif
-   ker(ln,LD,const_c0,C0,NE,J,W,B,BLD,X0,X1,E,D1D,Q1D,4);
+   ker(ln,LD,const_c0,C0,NE,J,W,B,BLD,X0,X,E,exp_lim,D1D,Q1D,4);
    return PA.E * PA.O;
 }
 
