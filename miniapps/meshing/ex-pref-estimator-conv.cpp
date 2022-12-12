@@ -3,6 +3,7 @@
 // Compile with: make ex-pref-estimator-conv
 //
 // Sample runs:  ex-pref-estimator-conv -o 2 -rs 0 -nrand 3 -prob 0.0 -type 1 -es 3
+// ./ex-pref-estimator-conv -o 2 -rs 0 -type 1 -es 4 -refa 2
 //
 // Description: This example code demonstrates the most basic usage of MFEM to
 //              define a simple finite element discretization of the Laplace
@@ -102,6 +103,7 @@ int main(int argc, char *argv[])
    int nrand = 0;
    double probmin = 0.0;
    int estimator = 0;
+   int refine_approach = 0;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh", "Mesh file to use.");
@@ -110,7 +112,8 @@ int main(int argc, char *argv[])
    args.AddOption(&type, "-type", "--type", "Type of function");
    args.AddOption(&nrand, "-nrand", "--nrand", "Number of random refinement");
    args.AddOption(&probmin, "-prob", "--prob", "Min probability of refinement when nrand > 0");
-   args.AddOption(&estimator, "-es", "--estimator", "ZZ(0), Kelly(1), P-1(2), FaceJump(3)");
+   args.AddOption(&estimator, "-es", "--estimator", "ZZ(1), Kelly(2), P-1(3), FaceJump(4), ZZ+SolJump(5)");
+   args.AddOption(&refine_approach, "-refa", "--refa", "0 - refine top K, 1 - uniform refine");
    args.ParseCheck();
 
    // 2. Read the mesh from the given mesh file, and refine once uniformly.
@@ -188,43 +191,67 @@ int main(int argc, char *argv[])
        MFEM_ABORT("invalid estimator type");
    }
 
-   ThresholdRefiner refiner(*es);
-   refiner.SetTotalErrorFraction(0.8); // use purely local threshold
-
    int ndofs = x.FESpace()->GetNDofs();
-   double global_err = x.ComputeL2Error(scoeff);
+   double exact_err = x.ComputeL2Error(scoeff);
+   Vector error_estimate = es->GetLocalErrors();
+   double tot_es_err = es->GetTotalError();
 
-   std::cout << type << " " << estimator << " " <<
-           order << " " <<
-           mesh.GetNE() << " " <<
-           ndofs << " " <<
-           global_err << " " <<
-           "Totalerror\n";
+   std::cout << type << " " <<
+                estimator << " " <<
+                order << " " <<
+                mesh.GetNE() << " " <<
+                ndofs << " " <<
+                exact_err << " " <<
+                refine_approach << " " <<
+                exact_err/tot_es_err << " " <<
+                tot_es_err << " " <<
+                "Totalerror\n";
 
    int tarndofs = 2*ndofs;
-   while (ndofs < tarndofs) {
-//   for (int i = 0; i < 10; i++) {
-       Vector error_estimate = es->GetLocalErrors();
-       double threshold = error_estimate.Max() * 0.8;
-       for (int e = 0; e < mesh.GetNE(); e++) {
-           if (error_estimate(e) > threshold) {
-               int setOrder = fespace.GetElementOrder(e);
-               fespace.SetElementOrder(e, setOrder+1);
+   if (refine_approach == 1) {
+       tarndofs = 1;
+   }
+//   while (ndofs < tarndofs) {
+   for (int it = 0; it < 8; it++) {
+       if (refine_approach == 0 || refine_approach == 2) {
+       double threshold = refine_approach == 0 ?
+                          error_estimate.Max() * 0.8 :
+                          -1.0;
+           for (int e = 0; e < mesh.GetNE(); e++) {
+               if (error_estimate(e) > threshold) {
+                   int setOrder = fespace.GetElementOrder(e);
+                   fespace.SetElementOrder(e, setOrder+1);
+               }
            }
+           fespace.Update(false);
        }
-       fespace.Update(false);
+       else if (refine_approach == 1) {
+           mesh.UniformRefinement();
+           fespace.Update();
+       }
+       else {
+           MFEM_ABORT("invalid refine_approach");
+       }
+
        x.Update();
        x.ProjectCoefficient(scoeff);
 
        ndofs = x.FESpace()->GetNDofs();
-       global_err = x.ComputeL2Error(scoeff);
+       exact_err = x.ComputeL2Error(scoeff);
+
+       // Compute error estimate on this mesh
+       error_estimate = es->GetLocalErrors();
+       tot_es_err = es->GetTotalError();
 
        std::cout << type << " " <<
                     estimator << " " <<
                     order << " " <<
                     mesh.GetNE() << " " <<
                     ndofs << " " <<
-                    global_err << " " <<
+                    exact_err << " " <<
+                    refine_approach << " " <<
+                    exact_err/tot_es_err << " " <<
+                    tot_es_err << " " <<
                     "Totalerror\n";
    }
 
@@ -250,6 +277,9 @@ int main(int argc, char *argv[])
        common::VisualizeField(vis1, "localhost", 19916, ElOrder, "ElementOrder",
                               px, py, wx, wy, "jRmc");
    }
+   // uniformly refine the mesh, project exact solution,
+   // k = estimate the total error/divide by exact error.
+
 
    delete xprolong;
    delete es;

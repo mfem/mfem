@@ -520,8 +520,7 @@ void PRefDiffEstimator::ComputeEstimates()
    fespaceComp.Update(false);
 
    GridFunction solutionComp(&fespaceComp);
-   solutionComp = 0;
-   solutionComp += *solution;
+   solutionComp = *solution;
 
    for (int e = 0; e < nelem; e++)
    {
@@ -534,16 +533,8 @@ void PRefDiffEstimator::ComputeEstimates()
    PRefinementTransferOperator Transfer(*fespace, fespaceComp);
    Transfer.Mult(*solution, solutionComp);
 
-   GridFunction *solutionCompProlong = ProlongToMaxOrder(&solutionComp);
-   GridFunction *solutionProlong = ProlongToMaxOrder(solution);
-
-   GridFunctionCoefficient solutionCompProlongCoeff(solutionCompProlong);
-
-   solutionProlong->ComputeElementL2Errors(solutionCompProlongCoeff,
-                                           error_estimates);
-
-   delete solutionProlong;
-   delete solutionCompProlong;
+   GridFunctionCoefficient solutionCompCoeff(&solutionComp);
+   solution->ComputeElementL2Errors(solutionCompCoeff, error_estimates);
 
    total_error = error_estimates.Norml2();
 }
@@ -614,6 +605,7 @@ void PRefJumpEstimator::ComputeEstimates()
    for (int e = 0; e < error_estimates.Size(); e++)
    {
       error_estimates(e) *= 1.0/counters[e];
+      error_estimates(e) = sqrt(error_estimates(e));
    }
 
    total_error = error_estimates.Norml2();
