@@ -486,6 +486,10 @@ endif()
 #   an ALIAS target is missing?
 # Call Stack (most recent call first):
 #   CMakeLists.txt:474 (mfem_add_library)
+#
+# NOTE: We need to figure out which TPL library adds the dependency on
+#       "Threads::Threads" and call the next line only when that TPL library is
+#       enabled.  -V. Dobrev
 find_package(Threads REQUIRED)
 
 # List all possible libraries in order of dependencies.
