@@ -51,14 +51,14 @@ Eliminator::Eliminator(const SparseMatrix& B, const Array<int>& lagrange_tdofs_,
 void Eliminator::Eliminate(const Vector& vin, Vector& vout) const
 {
    Bp.Mult(vin, vout);
-   Bsinverse.Solve(Bs.Height(), 1, vout);
+   Bsinverse.Solve(Bs.Height(), 1, vout.GetData());
    vout *= -1.0;
 }
 
 void Eliminator::EliminateTranspose(const Vector& vin, Vector& vout) const
 {
    Vector work(vin);
-   BsTinverse.Solve(Bs.Height(), 1, work);
+   BsTinverse.Solve(Bs.Height(), 1, work.GetData());
    Bp.MultTranspose(work, vout);
    vout *= -1.0;
 }
@@ -66,14 +66,14 @@ void Eliminator::EliminateTranspose(const Vector& vin, Vector& vout) const
 void Eliminator::LagrangeSecondary(const Vector& vin, Vector& vout) const
 {
    vout = vin;
-   Bsinverse.Solve(Bs.Height(), 1, vout);
+   Bsinverse.Solve(Bs.Height(), 1, vout.GetData());
 }
 
 void Eliminator::LagrangeSecondaryTranspose(const Vector& vin,
                                             Vector& vout) const
 {
    vout = vin;
-   BsTinverse.Solve(Bs.Height(), 1, vout);
+   BsTinverse.Solve(Bs.Height(), 1, vout.GetData());
 }
 
 void Eliminator::ExplicitAssembly(DenseMatrix& mat) const
