@@ -527,7 +527,7 @@ void SparseMatrix::SortColumnIndices()
                                       &pBufferSizeInBytes);
 
       HipMemAlloc( &pBuffer, pBufferSizeInBytes );
-      HipMemAlloc( &P, nnzA * sizeof(int) );
+      HipMemAlloc( (void**)&P, nnzA * sizeof(int) );
 
       hipsparseCreateIdentityPermutation(handle, nnzA, P);
       hipsparseXcsrsort(handle, n, m, nnzA, descrA, d_ia, d_ja_sorted, P, pBuffer);
