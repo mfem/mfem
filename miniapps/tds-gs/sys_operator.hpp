@@ -45,9 +45,10 @@ public:
     // and the far-field will not be marked as dirichlet
     Array<int> bdr_attribs(mesh->bdr_attributes);
     Array<int> ess_bdr(bdr_attribs.Max());
-    ess_bdr = 1;
+    ess_bdr = 0;
     // ess_bdr[attr_ff_bdr-1] = 0;
-    // ess_bdr[attr_ff_bdr-1] = 1;
+    int attr_axis = 900;
+    ess_bdr[attr_axis-1] = 1;
     fespace->GetEssentialTrueDofs(ess_bdr, boundary_dofs, 1);    
   }
   virtual void Mult(const Vector &psi, Vector &y) const;

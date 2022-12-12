@@ -3,4 +3,6 @@
 *.mesh
 meshes/semicirc*
 meshes/test_old*
+*.png
+*.txt
 *#*

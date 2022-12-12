@@ -105,7 +105,7 @@ InitialCoefficient from_manufactured_solution() {
   double L = 0.35;
   double k = M_PI/(2.0*L);
 
-  ExactCoefficient exact_coeff(r0, z0, k);
+  ExactCoefficient exact_coeff(r0, z0, k, true);
   InitialCoefficient initial_coeff(exact_coeff);
   return initial_coeff;
 }
@@ -150,9 +150,14 @@ InitialCoefficient read_data_file(const char *data_file) {
   r1 = rleft+rdim;
   z0 = zmid-zdim/2.0;
   z1 = zmid+zdim/2.0;
-  // DAS - this is overrided since mesh isn't based on ITER geometry yet
-  r0 = .67; r1 = 1.321;
-  z0 = -0.556; z1 = 0.5556;
+
+  // // DAS - this is overrided since mesh isn't based on ITER geometry yet
+  // r0 = .67; r1 = 1.321;
+  // z0 = -0.556; z1 = 0.5556;
+
+  // geometry based on iter
+  r0 = 3.0; r1 = 9.0;
+  z0 = -5; z1 = 5;
   
   while (getline(inFile, line)) {
     if (line.find("psizr") != std::string::npos) {

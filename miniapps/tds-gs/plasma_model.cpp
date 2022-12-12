@@ -274,6 +274,7 @@ void compute_plasma_points(const GridFunction & z, const Mesh & mesh,
    const double* x_min = mesh.GetVertex(ind_min);
    const double* x_max = mesh.GetVertex(ind_max);
    const double* x_x = mesh.GetVertex(ind_x);
+   
    if (iprint) {
      cout << "total saddles found: " << count << endl;
      printf("  min of %9.6f at (%9.6f, %9.6f), ind %d\n", min_val, x_min[0], x_min[1], ind_min);

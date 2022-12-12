@@ -33,7 +33,12 @@ double ExactCoefficient::Eval(ElementTransformation & T,
    double r(x(0));
    double z(x(1));
 
-   return psi_exact(r, z, r0, z0, k);
+   if (use_manufactured) {
+     return psi_exact(r, z, r0, z0, k);
+   } else {
+     return 0.0;
+   }
+   
 }
 
 double ExactForcingCoefficient::Eval(ElementTransformation & T,
@@ -49,7 +54,7 @@ double ExactForcingCoefficient::Eval(ElementTransformation & T,
    double coeff_u2 = model.get_coeff_u2();
    double ans;
 
-   if (false) {
+   if (!use_manufactured) {
      return 0.0;
    }
 

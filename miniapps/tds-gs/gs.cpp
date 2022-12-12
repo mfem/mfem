@@ -2,6 +2,7 @@
 #include "gs.hpp"
 #include "boundary.hpp"
 #include "double_integrals.hpp"
+#include <stdio.h>
 
 using namespace std;
 using namespace mfem;
@@ -240,7 +241,9 @@ void Solve(FiniteElementSpace & fespace, SysOperator & op, GridFunction & x, int
      error = GetMaxError(out_vec);
 
      op.Mult(x, res);
-     // res.Save("res.gf");
+     // char buffer [50];
+     // sprintf(buffer, "res%d.gf", i);
+     // res.Save(buffer);
 
      if (i == 0) {
        printf("i: %3d, max residual: %.3e\n", i, error);
@@ -286,7 +289,11 @@ void Solve(FiniteElementSpace & fespace, SysOperator & op, GridFunction & x, int
      }
 
      GSSmoother M(*Mat);
-     GMRES(*Mat, dx, out_vec, M, max_krylov_iter, kdim, krylov_tol, 0.0, 0);
+     // printf("iter: %d, tol: %e, kdim: %d\n", max_krylov_iter, krylov_tol, kdim);
+     int gmres_iter = max_krylov_iter;
+     double gmres_tol = krylov_tol;
+     int gmres_kdim = kdim;
+     GMRES(*Mat, dx, out_vec, M, gmres_iter, gmres_kdim, gmres_tol, 0.0, 0);
 
      // print solver error
      // Mat->Mult(dx, solver_error);
@@ -306,28 +313,25 @@ void Solve(FiniteElementSpace & fespace, SysOperator & op, GridFunction & x, int
 }
 
 
-double gs(const char * mesh_file, const char * data_file, int order, int d_refine) {
+double gs(const char * mesh_file, const char * data_file, int order, int d_refine,
+          double & alpha, double & beta, double & lambda, double & gamma, double & mu,
+          double & r0, double & rho_gamma, int max_krylov_iter, int max_newton_iter,
+          double & krylov_tol, double & newton_tol,
+          double & c1, double & c2, double & c3, double & c4, double & c5, double & c6, double & c7,
+          bool do_manufactured_solution) {
 
-   // constants associated with plasma model
-   double alpha = 0.9;
-   double beta = 1.5;
-   double lambda = 1.0;
-   double gamma = 0.9;
-   double mu = 1.0;
-   double r0 = 1.0;
-
-   // boundary of far-field
-   double rho_gamma = 2.5;
+  // todo, make the below options
+  // different initial condition
 
    map<int, double> coil_current_values;
    // 832 is the long current
-   coil_current_values[832] = 0.0;
-   coil_current_values[833] = 3.0;
-   coil_current_values[834] = 1.0;
-   coil_current_values[835] = 1.0;
-   coil_current_values[836] = 1.0;
-   coil_current_values[837] = 1.0;
-   coil_current_values[838] = 1.0;
+   coil_current_values[832] = c1;
+   coil_current_values[833] = c2;
+   coil_current_values[834] = c3;
+   coil_current_values[835] = c4;
+   coil_current_values[836] = c5;
+   coil_current_values[837] = c6;
+   coil_current_values[838] = c7;
 
    // exact solution
    double r0_ = 1.0;
@@ -336,10 +340,6 @@ double gs(const char * mesh_file, const char * data_file, int order, int d_refin
 
    // solver options
    int kdim = 10000;
-   int max_krylov_iter = 1000;
-   int max_newton_iter = 5;
-   double krylov_tol = 1e-12;
-   double newton_tol = 1e-12;
    
    /* 
       -------------------------------------------------------------------------------------------
@@ -369,8 +369,8 @@ double gs(const char * mesh_file, const char * data_file, int order, int d_refin
    cout << "Number of unknowns: " << fespace.GetTrueVSize() << endl;
    
    double k_ = M_PI/(2.0*L_);
-   ExactForcingCoefficient exact_forcing_coeff(r0_, z0_, k_, model);
-   ExactCoefficient exact_coefficient(r0_, z0_, k_);
+   ExactForcingCoefficient exact_forcing_coeff(r0_, z0_, k_, model, do_manufactured_solution);
+   ExactCoefficient exact_coefficient(r0_, z0_, k_, do_manufactured_solution);
 
    /* 
       -------------------------------------------------------------------------------------------
@@ -411,8 +411,15 @@ double gs(const char * mesh_file, const char * data_file, int order, int d_refin
    // the initial guess to zero, which also sets the boundary conditions.
    GridFunction x(&fespace);
    GridFunction u(&fespace);
-   u.ProjectCoefficient(exact_coefficient);
-   u.Save("exact.gf");
+   if (do_manufactured_solution) {
+     u.ProjectCoefficient(exact_coefficient);
+     u.Save("exact.gf");
+   } else {
+     InitialCoefficient init_coeff = read_data_file(data_file);
+     u.ProjectCoefficient(init_coeff);
+     u.Save("initial.gf");
+   }
+
    x = u;
    // now we have an initial guess: x
    // x.Save("initial_guess.gf");
@@ -420,6 +427,9 @@ double gs(const char * mesh_file, const char * data_file, int order, int d_refin
    SysOperator op(&diff_operator, &coil_term, &model, &fespace, &mesh, attr_lim, &u);
    Solve(fespace, op, x, kdim, max_newton_iter, max_krylov_iter, newton_tol, krylov_tol);
    x.Save("final.gf");
+   printf("Saved solution to final.gf\n");
+   printf("Saved mesh to mesh.mesh\n");
+   printf("glvis -m mesh.mesh -g final.gf\n");
      
    /* 
       -------------------------------------------------------------------------------------------
@@ -430,16 +440,21 @@ double gs(const char * mesh_file, const char * data_file, int order, int d_refin
       -------------------------------------------------------------------------------------------
       -------------------------------------------------------------------------------------------
     */
-   GridFunction diff(&fespace);
-   add(x, -1.0, u, diff);
-   double num_error = GetMaxError(diff);
-   diff.Save("error.gf");
-   double L2_error = x.ComputeL2Error(exact_coefficient);
-   printf("\n\n********************************\n");
-   printf("numerical error: %.3e\n", num_error);
-   printf("L2 error: %.3e\n", L2_error);
-   printf("********************************\n\n");
 
-   return L2_error;
+   if (do_manufactured_solution) {
+     GridFunction diff(&fespace);
+     add(x, -1.0, u, diff);
+     double num_error = GetMaxError(diff);
+     diff.Save("error.gf");
+     double L2_error = x.ComputeL2Error(exact_coefficient);
+     printf("\n\n********************************\n");
+     printf("numerical error: %.3e\n", num_error);
+     printf("L2 error: %.3e\n", L2_error);
+     printf("********************************\n\n");
+
+     return L2_error;
+   } else {
+     return 0.0;
+   }
   
 }

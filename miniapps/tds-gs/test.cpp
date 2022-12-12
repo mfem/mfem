@@ -73,7 +73,8 @@ void test_read_data_file() {
   // load mesh and project initial solution
   // const char *mesh_file = "meshes/gs_mesh.msh";
   // const char *mesh_file = "meshes/test.msh";
-  const char *mesh_file = "meshes/test_off_center.msh";
+  // const char *mesh_file = "meshes/test_off_center.msh";
+  const char *mesh_file = "meshes/iter_gen.msh";
   const char *data_file = "separated_file.data";
   int order = 1;
   Mesh mesh(mesh_file);
@@ -97,12 +98,36 @@ void test_solve() {
   const char *data_file = "separated_file.data";
   int order = 1;
   int d_refine = 0;
+  // constants associated with plasma model
+  double alpha = 0.9;
+  double beta = 1.5;
+  double lambda = 1.0;
+  double gamma = 0.9;
+  double mu = 1.0;
+  double r0 = 1.0;
+  // boundary of far-field
+  double rho_gamma = 2.5;
+  bool do_manufactured_solution = true;
+  int max_krylov_iter = 1000;
+  int max_newton_iter = 5;
+  double krylov_tol = 1e-12;
+  double newton_tol = 1e-12;
+  double c1 = 0.0;
+  double c2 = 3.0;
+  double c3 = 1.0;
+  double c4 = 1.0;
+  double c5 = 1.0;
+  double c6 = 1.0;
+  double c7 = 1.0;
 
   vector<double> errors;
   double error;
 
   for (d_refine = 0; d_refine <= 2; ++d_refine) {
-    error = gs(mesh_file, data_file, order, d_refine);
+    error = gs(mesh_file, data_file, order, d_refine, alpha, beta, lambda, gamma, mu, r0, rho_gamma,
+               max_krylov_iter, max_newton_iter, krylov_tol, newton_tol,
+               c1, c2, c3, c4, c5, c6, c7,
+               do_manufactured_solution);
     errors.push_back(error);
   }
 
@@ -198,23 +223,28 @@ void Print__(const Vector &y) {
   }
 }
 
-void PrintMatlab_(SparseMatrix *Mat) {
+void PrintMatlabToFile(SparseMatrix *Mat, const char *filename) {
 
+  FILE *fp;
+  fp = fopen(filename, "w");
+  
   int *I = Mat->GetI();
   int *J = Mat->GetJ();
   double *A = Mat->GetData();
   int height = Mat->Height();
 
   double tol = 1e-5;
-  
+
+  fprintf(fp, "N=%d\n", height);
   int i, j;
   for (i = 0; i < height; ++i) {
     for (j = I[i]; j < I[i+1]; ++j) {
       if (abs(A[j]) > tol) {
-        printf("i=%d, j=%d, a=%10.3e \n", i, J[j], A[j]);
+        fprintf(fp, "i=%d, j=%d, a=%.3e \n", i, J[j], A[j]);
       }
     }
   }
+  fclose(fp);
 }
 
 void test_square_boundary_integral()
@@ -235,6 +265,8 @@ void test_square_boundary_integral()
   DoubleBoundaryBFIntegrator i(M_func);
   AssembleDoubleBoundaryIntegrator(a, i, attrib);
   a.Finalize();
+
+  PrintMatlabToFile(&a.SpMat(), "out/03_spy.txt");
 
   // define functions to integrate over
   FunctionCoefficient a_coeff(a_func);
@@ -321,12 +353,58 @@ void test_circle_boundary_integral()
   assert(abs( result -  true_result) < TOL);
 }
 
+void profile_boundary_integral_assembly()
+{
+  using chrono::high_resolution_clock;
+  using chrono::duration_cast;
+  using chrono::duration;
+  using chrono::milliseconds;
+
+  const char *mesh_file = "meshes/test.msh";
+  int attrib = 831;
+  int order = 1;
+  Mesh mesh(mesh_file);
+
+  double prev_time = 0.0;
+  int prev_NBE = 0;
+  cout << "  --- profiling results ---" << endl;
+  for (int k = 0; k < 4; ++k) {
+    auto t1 = high_resolution_clock::now();
+    mesh.UniformRefinement();
+    
+    H1_FECollection fec(order, mesh.Dimension());
+    FiniteElementSpace fespace(&mesh, &fec);
+    BilinearForm a(&fespace);
+    a.Assemble();
+    DoubleBoundaryBFIntegrator i(M2_func);
+    AssembleDoubleBoundaryIntegrator(a, i, attrib);
+    a.Finalize();
+
+    auto t2 = high_resolution_clock::now();
+    duration<double, milli> ms_double = t2 - t1;
+
+    double time = ms_double.count() / 1000.0;
+    int NBE = fespace.GetNBE();
+    if (k > 0) {
+      double p = log(prev_time / time) / log(1.0 * prev_NBE / (1.0 * NBE));
+      printf("  Ndof=%6d, NBE=%4d, time=%.2f, p=%.2f\n", fespace.GetTrueVSize(), NBE, time, p);
+    } else {
+      printf("  Ndof=%6d, NBE=%4d, time=%.2f\n", fespace.GetTrueVSize(), NBE, time);
+    }
+    
+    prev_time = time;
+    prev_NBE = NBE;
+  }
+
+}
+
 void test_double_integral()
 {
   cout << "*** test_double_integral" << endl;
 
   test_square_boundary_integral();
   test_circle_boundary_integral();
+  profile_boundary_integral_assembly();
 }
 
 void test_boundary_coefficients()
