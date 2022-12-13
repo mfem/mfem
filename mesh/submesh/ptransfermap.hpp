@@ -79,7 +79,7 @@ private:
    TransferCategory category_;
 
    /// Mapping of the ParGridFunction defined on the SubMesh to the
-   /// ParGridfunction of its parent ParMesh.
+   /// ParGridFunction of its parent ParMesh.
    Array<int> sub1_to_parent_map_;
 
    /// Mapping of the ParGridFunction defined on the second SubMesh to the

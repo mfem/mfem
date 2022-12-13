@@ -149,7 +149,9 @@ SuperLURowLocMatrix::SuperLURowLocMatrix( const HypreParMatrix & hypParMat )
 
    // Create the SuperMatrix A by borrowing the internal data from a
    // hypre_CSRMatrix.
+   hypParMat.HostRead();
    hypre_CSRMatrix * csr_op = hypre_MergeDiagAndOffd(parcsr_op);
+   hypParMat.HypreRead();
    hypre_CSRMatrixSetDataOwner(csr_op,0);
 #if MFEM_HYPRE_VERSION >= 21600
    // For now, this method assumes that HYPRE_BigInt is int. Also, csr_op->num_cols
@@ -269,7 +271,10 @@ SuperLUSolver::~SuperLUSolver()
       LUstructFree(LUstruct);
    }
 
-   dSolveFinalize(options, SOLVEstruct);
+   if ( options->SolveInitialized )
+   {
+      dSolveFinalize(options, SOLVEstruct);
+   }
 
    if (     options != NULL ) { delete options; }
    if (        stat != NULL ) { delete stat; }
