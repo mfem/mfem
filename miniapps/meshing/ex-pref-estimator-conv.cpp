@@ -66,34 +66,6 @@ double sfun(const Vector & x)
     return 0.0;
 }
 
-void LogNormalizeErrors(const Vector &error, GridFunction &xl2)
-{
-    MFEM_VERIFY(error.Size() == xl2.Size(), "Vector and gridfunction size"
-                                            "incompatible.");
-    for (int i = 0; i < error.Size(); i++) {
-        xl2(i) = std::log(error(i));
-    }
-
-    double minv = xl2.Min();
-    double maxv = xl2.Max();
-
-    for (int i = 0; i < xl2.Size(); i++) {
-        xl2(i) = (xl2(i)-minv)/(maxv-minv);
-    }
-}
-
-void CompareErrors(const Vector &exact_error, GridFunction &estimate)
-{
-    MFEM_VERIFY(exact_error.Size() == estimate.Size(), "Vector and gridfunction size"
-                                            "incompatible.");
-    for (int i = 0; i < estimate.Size(); i++) {
-        estimate(i) = std::fabs(estimate(i)-exact_error(i));
-        if (exact_error(i) > 0.0) {
-            estimate(i) *= 1.0/exact_error(i);
-        }
-    }
-}
-
 int main(int argc, char *argv[])
 {
    // 1. Parse command line options.
@@ -103,7 +75,10 @@ int main(int argc, char *argv[])
    int nrand = 0;
    double probmin = 0.0;
    int estimator = 0;
-   int refine_approach = 0;
+   double theta = 0.0;
+   int niters = 0;
+   bool pref = false;
+   bool vis = false;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh", "Mesh file to use.");
@@ -113,7 +88,14 @@ int main(int argc, char *argv[])
    args.AddOption(&nrand, "-nrand", "--nrand", "Number of random refinement");
    args.AddOption(&probmin, "-prob", "--prob", "Min probability of refinement when nrand > 0");
    args.AddOption(&estimator, "-es", "--estimator", "ZZ(1), Kelly(2), P-1(3), FaceJump(4), ZZ+SolJump(5)");
-   args.AddOption(&refine_approach, "-refa", "--refa", "0 - refine top K, 1 - uniform refine");
+   args.AddOption(&theta, "-theta", "--theta", "AMR theta factor");
+   args.AddOption(&niters, "-n", "--niter", "Number of AMR steps");
+   args.AddOption(&pref, "-pref", "--pref", "-no-pref",
+                  "--no-pref",
+                  "Enable or disable p-refinement mode.");
+   args.AddOption(&vis, "-vis", "--vis", "-no-vis",
+                  "--no-vis",
+                  "Enable or disable visualization.");
    args.ParseCheck();
 
    // 2. Read the mesh from the given mesh file, and refine once uniformly.
@@ -142,13 +124,10 @@ int main(int argc, char *argv[])
    GridFunction x(&fespace);
    x = 0.0;
 
-   // Space and Function for element-wise quantities
-   L2_FECollection fecl2(0, mesh.Dimension());
-   FiniteElementSpace fespacel2(&mesh, &fecl2);
-   GridFunction xl2(&fespacel2);
-
    // Element order after p-refinement
-   GridFunction ElOrder(&fespacel2);
+   L2_FECollection visfec(0, mesh.Dimension());
+   FiniteElementSpace visfespace(&mesh, &visfec);
+   GridFunction ElOrder(&visfespace);
    for (int e = 0; e < mesh.GetNE(); e++) {
        ElOrder(e) = fespace.GetElementOrder(e);
    }
@@ -162,10 +141,18 @@ int main(int argc, char *argv[])
    Vector elem_errors_exact(mesh.GetNE());
    x.ComputeElementL2Errors(scoeff, elem_errors_exact, NULL);
 
+   // Convergence
+   ConvergenceStudy error_study;
    ConstantCoefficient one(1.0);
    DiffusionIntegrator integ(one);
    L2_FECollection flux_fec(max_order, mesh.Dimension());
    FiniteElementSpace flux_fespace(&mesh, &flux_fec);
+
+   Array<double> estimates;
+   Array<double> estimates_rate;
+   Array<int> ndofs;
+   Array<int> nels;
+   estimates_rate.Append(0.0);
 
    ErrorEstimator *es = NULL;
    if (estimator == 0) {
@@ -191,97 +178,188 @@ int main(int argc, char *argv[])
        MFEM_ABORT("invalid estimator type");
    }
 
-   int ndofs = x.FESpace()->GetNDofs();
+   socketstream sol_out;
+   socketstream mesh_out;
+   char vishost[] = "localhost";
+   int  visport   = 19916;
+
+   BilinearForm m(&fespace);
+   m.AddDomainIntegrator(new InverseIntegrator(new MassIntegrator()));
+
+   LinearForm l(&fespace);
+   l.AddDomainIntegrator(new DomainLFIntegrator(scoeff));
+   Vector element_estimates;
+   Array<int> element_marker;
+
+   // L2 Projection solution
+   x = 0.0;
+   m.Assemble();
+   l.Assemble(false);
+   m.Mult(l,x);
+
    double exact_err = x.ComputeL2Error(scoeff);
    Vector error_estimate = es->GetLocalErrors();
    double tot_es_err = es->GetTotalError();
 
-   std::cout << type << " " <<
-                estimator << " " <<
-                order << " " <<
-                mesh.GetNE() << " " <<
-                ndofs << " " <<
-                exact_err << " " <<
-                refine_approach << " " <<
-                exact_err/tot_es_err << " " <<
-                tot_es_err << " " <<
-                "Totalerror\n";
+   for (int it = 0; it < niters; it++)
+   {
 
-   int tarndofs = 2*ndofs;
-   if (refine_approach == 1) {
-       tarndofs = 1;
-   }
-//   while (ndofs < tarndofs) {
-   for (int it = 0; it < 8; it++) {
-       if (refine_approach == 0 || refine_approach == 2) {
-       double threshold = refine_approach == 0 ?
-                          error_estimate.Max() * 0.8 :
-                          -1.0;
-           for (int e = 0; e < mesh.GetNE(); e++) {
-               if (error_estimate(e) > threshold) {
-                   int setOrder = fespace.GetElementOrder(e);
-                   fespace.SetElementOrder(e, setOrder+1);
-               }
-           }
-           fespace.Update(false);
-       }
-       else if (refine_approach == 1) {
-           mesh.UniformRefinement();
-           fespace.Update();
-       }
-       else {
-           MFEM_ABORT("invalid refine_approach");
+       for (int e = 0; e < mesh.GetNE(); e++)
+       {
+          ElOrder(e) = fespace.GetElementOrder(e);
        }
 
-       x.Update();
-       x.ProjectCoefficient(scoeff);
+       // L2 projection or regular projection
+       x = 0.0;
+       m.Assemble();
+       l.Assemble(false);
+       m.Mult(l,x);
+       // x.ProjectCoefficient(scoeff);
 
-       ndofs = x.FESpace()->GetNDofs();
+       //
+       ndofs.Append(fespace.GetTrueVSize());
+       nels.Append(mesh.GetNE());
+       error_study.AddL2GridFunction(&x,&scoeff);
+       element_estimates = es->GetLocalErrors();
+       estimates.Append(element_estimates.Norml2());
+
        exact_err = x.ComputeL2Error(scoeff);
-
-       // Compute error estimate on this mesh
-       error_estimate = es->GetLocalErrors();
        tot_es_err = es->GetTotalError();
 
-       std::cout << type << " " <<
-                    estimator << " " <<
-                    order << " " <<
-                    mesh.GetNE() << " " <<
-                    ndofs << " " <<
-                    exact_err << " " <<
-                    refine_approach << " " <<
-                    exact_err/tot_es_err << " " <<
-                    tot_es_err << " " <<
-                    "Totalerror\n";
+       if (it>0)
+       {
+          double num =  log(estimates[it-1]/estimates[it]);
+          double den = log((double)ndofs[it]/ndofs[it-1]);
+          estimates_rate.Append(dim*num/den);
+       }
+
+       const char * keys = (it == 0) ? "pppppjRmlk\n" : nullptr;
+       const char * viskeys = (it == 0) ? "jRmlkc\n" : nullptr;
+       if (vis) {
+           if (pref)
+           {
+              GridFunction *xprolong = ProlongToMaxOrder(&x);
+              common::VisualizeField(sol_out,vishost,visport,*xprolong,"",0,0,500,500,keys);
+              common::VisualizeField(mesh_out,vishost,visport,ElOrder,"orders",550,0,500,500,viskeys);
+              delete xprolong;
+           }
+           else
+           {
+              common::VisualizeField(sol_out,vishost,visport,x,"",0,0,800,800,keys);
+           }
+       }
+
+       if (it == niters - 1)
+       {
+          break;
+       }
+
+
+       // Adaptive refinements;
+       double max_estimate = element_estimates.Max();
+       element_marker.SetSize(0);
+       for (int iel = 0; iel<mesh.GetNE(); iel ++)
+       {
+          if (element_estimates[iel] >= theta * max_estimate)
+          {
+             element_marker.Append(iel);
+          }
+       }
+
+       if (pref)
+       {
+          // Array<int> additional_elements;
+          // const Table & e2e = mesh.ElementToElementTable();
+          // for (int iel = 0; iel<element_marker.Size(); iel++)
+          // {
+          //    int el = element_marker[iel];
+          //    int eorder = fespace.GetElementOrder(el);
+          //    int size = e2e.RowSize(el);
+          //    const int * row = e2e.GetRow(el);
+          //    for (int j = 0; j<size; j++)
+          //    {
+          //       int norder = fespace.GetElementOrder(row[j]);
+          //       if (norder <= eorder)
+          //       {
+          //          additional_elements.Append(row[j]);
+          //       }
+          //    }
+          // }
+          // element_marker.Append(additional_elements);
+          // element_marker.Sort();
+          // element_marker.Unique();
+
+          for (int iel = 0; iel<element_marker.Size(); iel++)
+          {
+             int el = element_marker[iel];
+             int eorder = fespace.GetElementOrder(el);
+             fespace.SetElementOrder(el,eorder+1);
+          }
+       }
+       else
+       {
+          mesh.GeneralRefinement(element_marker,-1,1);
+       }
+
+       fespace.Update(false);
+       x.Update();
+       l.Update();
+       m.Update();
+       visfespace.Update(false);
+       ElOrder.Update();
    }
 
-   for (int e = 0; e < mesh.GetNE(); e++) {
-       ElOrder(e) = fespace.GetElementOrder(e);
+   // Info for python plots
+   std::cout << "\n";
+   std::cout << " ---------------------------------------------------------------------------------------" << "\n";
+   std::cout <<  std::setw(82) << "                       Convergence Info                               " << "\n";
+   std::cout << " ---------------------------------------------------------------------------------------"
+      << "\n";
+   std::cout << std::right<< std::setw(15)<< "Type "<<
+                std::setw(8) << "Estimator "<<
+                std::setw(8) << "Order "<<
+                std::setw(8) << "NEL "<<
+                std::setw(10) << "NDOFS "<<
+                std::setw(10) << "ExactL2 "<<
+                std::setw(10) << "EstimatorL2" <<
+                std::setw(10) << "Ref Mode" << std::endl;
+   std::cout << " ---------------------------------------------------------------------------------------"
+      << "\n";
+   std::cout << std::setprecision(4);
+   for (int i = 0; i<niters; i++)
+   {
+      std::cout << std::right << std::setw(10)<< type
+                << std::setw(10)<< estimator
+                << std::setw(10)<< order
+                << std::setw(10)<< nels[i]
+                << std::setw(10)<< ndofs[i]
+                << std::setw(10)<< error_study.GetL2Error(i)
+                << std::setw(10)<< estimates[i]
+                << std::setw(10)<< pref
+                << " ConvInfo \n";
    }
-   max_order = fespace.GetMaxElementOrder();
-   GridFunction *xprolong = ProlongToMaxOrder(&x);
 
-   int px = 0;
-   int py = 0;
-   int wx = 400;
-   int wy = 400;
+   // Info for vis inspection
+   error_study.Print();
 
-   if (true) {
-       socketstream vis1;
-       common::VisualizeField(vis1, "localhost", 19916, *xprolong, "Solution",
-                              px, py, wx, wy, "jRmc");
+   std::cout << "\n";
+   std::cout << " -------------------------------------------" << "\n";
+   std::cout <<  std::setw(31) << "   Estimates    " << "\n";
+   std::cout << " -------------------------------------------"
+      << "\n";
+   std::cout << std::right<< std::setw(11)<< "DOFs "<< std::setw(15) << "Estimate ";
+   std::cout <<  std::setw(13) << "Rate " << "\n";
+   std::cout << " -------------------------------------------"
+      << "\n";
+   std::cout << std::setprecision(4);
+   for (int i = 0; i<niters; i++)
+   {
+      std::cout << std::right << std::setw(10)<< ndofs[i] << std::setw(16)
+            << std::scientific << estimates[i] << std::setw(13)
+            << std::fixed << estimates_rate[i] << "\n";
    }
-   px += wx;
-   if (true) {
-       socketstream vis1;
-       common::VisualizeField(vis1, "localhost", 19916, ElOrder, "ElementOrder",
-                              px, py, wx, wy, "jRmc");
-   }
-   // uniformly refine the mesh, project exact solution,
-   // k = estimate the total error/divide by exact error.
 
-
-   delete xprolong;
+//   delete xprolong;
    delete es;
    return 0;
 }
