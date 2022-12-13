@@ -272,8 +272,8 @@ public:
    NURBSExtension *NURBSext; ///< Optional NURBS mesh extension.
    NCMesh *ncmesh;           ///< Optional nonconforming mesh extension.
    Array<GeometricFactors*> geom_factors; ///< Optional geometric factors.
-   Array<FaceGeometricFactors*>
-   face_geom_factors; ///< Optional face geometric factors.
+   Array<FaceGeometricFactors*> face_geom_factors; /**< Optional face geometric
+                                                        factors. */
 
    // Global parameter that can be used to control the removal of unused
    // vertices performed when reading a mesh in MFEM format. The default value
@@ -380,7 +380,14 @@ protected:
    void InitRefinementTransforms();
    int FindCoarseElement(int i);
 
-   /// Update the nodes of a curved mesh after refinement
+   /** @brief Update the nodes of a curved mesh after the topological part of a
+       Mesh::Operation, such as refinement, has been performed. */
+   /** If Nodes GridFunction is defined, i.e. not NULL, this method calls
+       NodesUpdated().
+
+       @note Unlike the similarly named public method NodesUpdated() this
+       method modifies the mesh nodes (if they exist) and calls NodesUpdated().
+   */
    void UpdateNodes();
 
    /// Helper to set vertex coordinates given a high-order curvature function.
@@ -705,6 +712,7 @@ public:
 
    int AddVertex(double x, double y = 0.0, double z = 0.0);
    int AddVertex(const double *coords);
+   int AddVertex(const Vector &coords);
    /// Mark vertex @a i as nonconforming, with parent vertices @a p1 and @a p2.
    void AddVertexParents(int i, int p1, int p2);
 
@@ -964,10 +972,19 @@ public:
 
        The IntegrationRule used with GetGeometricFactors needs to remain valid
        until the internally stored GeometricFactors objects are destroyed (by
-       either calling Mesh::DeleteGeometricFactors or the Mesh destructor). If
-       the device MemoryType parameter @a d_mt is specified, then the returned
-       object will use that type unless it was previously allocated with a
-       different type. */
+       calling Mesh::DeleteGeometricFactors(), Mesh::NodesUpdated(), or the Mesh
+       destructor).
+
+       If the device MemoryType parameter @a d_mt is specified, then the
+       returned object will use that type unless it was previously allocated
+       with a different type.
+
+       The returned pointer points to an internal object that may be invalidated
+       by mesh operations such as refinement, vertex/node movement, etc. Since
+       not all such modifications can be tracked by the Mesh class (e.g. when
+       using the pointer returned by GetNodes() to change the nodes) one needs
+       to account for such changes by calling the method NodesUpdated() which,
+       in particular, will call DeleteGeometricFactors(). */
    const GeometricFactors* GetGeometricFactors(
       const IntegrationRule& ir,
       const int flags,
@@ -978,22 +995,41 @@ public:
 
        The IntegrationRule used with GetFaceGeometricFactors needs to remain
        valid until the internally stored FaceGeometricFactors objects are
-       destroyed (by either calling Mesh::DeleteGeometricFactors or the Mesh
-       destructor). */
-   const FaceGeometricFactors* GetFaceGeometricFactors(const IntegrationRule& ir,
-                                                       const int flags,
-                                                       FaceType type,
-                                                       MemoryType d_mt = MemoryType::DEFAULT);
+       destroyed (by either calling Mesh::DeleteGeometricFactors(),
+       Mesh::NodesUpdated(), or the Mesh destructor).
+
+       If the device MemoryType parameter @a d_mt is specified, then the
+       returned object will use that type unless it was previously allocated
+       with a different type.
+
+       The returned pointer points to an internal object that may be invalidated
+       by mesh operations such as refinement, vertex/node movement, etc. Since
+       not all such modifications can be tracked by the Mesh class (e.g. when
+       using the pointer returned by GetNodes() to change the nodes) one needs
+       to account for such changes by calling the method NodesUpdated() which,
+       in particular, will call DeleteGeometricFactors(). */
+   const FaceGeometricFactors* GetFaceGeometricFactors(
+      const IntegrationRule& ir,
+      const int flags,
+      FaceType type,
+      MemoryType d_mt = MemoryType::DEFAULT);
 
    /// Destroy all GeometricFactors stored by the Mesh.
    /** This method can be used to force recomputation of the GeometricFactors,
-       for example, after the mesh nodes are modified externally. */
+       for example, after the mesh nodes are modified externally.
+
+       @note In general, the preferred method for resetting the GeometricFactors
+       should be to call NodesUpdated(). */
    void DeleteGeometricFactors();
 
-   /// @brief This function should be called after the mesh node coordinates
-   /// have changed, e.g. after the mesh has moved.
-   /** It updates internal quantities derived from the node coordinates, such
-       as the GeometricFactors. */
+   /** @brief This function should be called after the mesh node coordinates
+       have been updated externally, e.g. by modifying the internal nodal
+       GridFunction returned by GetNodes(). */
+   /** It deletes internal quantities derived from the node coordinates,
+       such as the (Face)GeometricFactors.
+
+       @note Unlike the similarly named protected method UpdateNodes() this
+       method does not modify the nodes. */
    void NodesUpdated() { DeleteGeometricFactors(); }
 
    /// Equals 1 + num_holes - num_loops
@@ -1535,6 +1571,7 @@ public:
    // mesh is not curved (i.e. Nodes == NULL).
    void MoveNodes(const Vector &displacements);
    void GetNodes(Vector &node_coord) const;
+   /// Updates the vertex/node locations. Invokes NodesUpdated().
    void SetNodes(const Vector &node_coord);
 
    /// Return a pointer to the internal node GridFunction (may be NULL).
@@ -1545,9 +1582,11 @@ public:
    /// Set the mesh nodes ownership flag.
    void SetNodesOwner(bool nodes_owner) { own_nodes = nodes_owner; }
    /// Replace the internal node GridFunction with the given GridFunction.
+   /** Invokes NodesUpdated(). */
    void NewNodes(GridFunction &nodes, bool make_owner = false);
-   /** Swap the internal node GridFunction pointer and ownership flag members
-       with the given ones. */
+   /** @brief Swap the internal node GridFunction pointer and ownership flag
+       members with the given ones. */
+   /** Invokes NodesUpdated(). */
    void SwapNodes(GridFunction *&nodes, int &own_nodes_);
 
    /// Return the mesh nodes/vertices projected on the given GridFunction.
@@ -1782,8 +1821,6 @@ public:
    {
       PrintCharacteristics(NULL, NULL, os);
    }
-
-   void MesquiteSmooth(const int mesquite_option = 0);
 
    /** @brief Find the ids of the elements that contain the given points, and
        their corresponding reference coordinates.

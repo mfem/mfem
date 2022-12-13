@@ -131,7 +131,6 @@ MFEM_USE_LEGACY_OPENMP = NO
 MFEM_USE_MEMALLOC      = YES
 MFEM_TIMER_TYPE        = $(if $(NOTMAC),2,4)
 MFEM_USE_SUNDIALS      = NO
-MFEM_USE_MESQUITE      = NO
 MFEM_USE_SUITESPARSE   = NO
 MFEM_USE_SUPERLU       = NO
 MFEM_USE_SUPERLU5      = NO
@@ -270,11 +269,6 @@ endif
 # If SUNDIALS was built with KLU:
 # MFEM_USE_SUITESPARSE = YES
 
-# MESQUITE library configuration
-MESQUITE_DIR = @MFEM_DIR@/../mesquite-2.99
-MESQUITE_OPT = -I$(MESQUITE_DIR)/include
-MESQUITE_LIB = -L$(MESQUITE_DIR)/lib -lmesquite
-
 # SuiteSparse library configuration
 LIB_RT = $(if $(NOTMAC),-lrt,)
 SUITESPARSE_DIR = @MFEM_DIR@/../SuiteSparse
@@ -324,6 +318,9 @@ MUMPS_LIB = $(XLINKER)-rpath,$(MUMPS_DIR)/lib -L$(MUMPS_DIR)/lib -ldmumps\
 
 # STRUMPACK library configuration
 STRUMPACK_DIR = @MFEM_DIR@/../STRUMPACK-build
+ifeq ($(MFEM_USE_STRUMPACK),YES)
+   BASE_FLAGS = -std=c++14
+endif
 STRUMPACK_OPT = -I$(STRUMPACK_DIR)/include $(SCOTCH_OPT)
 # If STRUMPACK was build with OpenMP support, the following may be need:
 # STRUMPACK_OPT += $(OPENMP_OPT)
