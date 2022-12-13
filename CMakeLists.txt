@@ -87,6 +87,9 @@ if ((MFEM_USE_SUNDIALS OR MFEM_USE_STRUMPACK OR MFEM_USE_GINKGO) AND
     ("${CMAKE_CXX_STANDARD}" LESS "14"))
   set(CMAKE_CXX_STANDARD 14)
 endif()
+if (MFEM_USE_RAJA AND ("${CMAKE_CXX_STANDARD}" LESS "14"))
+  set(CMAKE_CXX_STANDARD 14)
+endif()
 
 # Include xSDK default CMake file.
 include("${CMAKE_CURRENT_SOURCE_DIR}/config/XSDKDefaults.cmake")
