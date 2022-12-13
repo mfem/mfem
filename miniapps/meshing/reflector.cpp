@@ -23,6 +23,7 @@
 #include <fstream>
 #include <iostream>
 #include <set>
+#include <array>
 
 using namespace std;
 using namespace mfem;
@@ -46,10 +47,15 @@ class ReflectedCoefficient : public VectorCoefficient
 private:
    VectorCoefficient * a;
    const Vector origin, normal;
-   std::vector<int> *r2o;  // reflected to original mesh element map
-   std::vector<int> *r2i;  // reflected to initial element map on reflected mesh.
-   Mesh *meshOrig;  // Cannot be const, since GetElementTransformation is called.
+   Mesh *meshOrig;
    Mesh *rmesh;
+
+   // Map from reflected to original mesh elements
+   std::vector<int> *r2o;
+
+   // Map from reflected to original elements on reflected mesh
+   std::vector<int> *r2i;
+
    std::vector<std::vector<int>> *perm;
 
 public:
