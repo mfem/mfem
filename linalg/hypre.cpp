@@ -297,7 +297,7 @@ HypreParVector& HypreParVector::operator=(HypreParVector &&y)
    // Either way the argument vector will no longer own its data
    y.own_ParVector = 0;
    y.x = nullptr;
-   y.data.Reset();
+   y.data.Delete();
    y.size = 0;
    return *this;
 }
