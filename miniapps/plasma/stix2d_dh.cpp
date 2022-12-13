@@ -323,15 +323,16 @@ private:
    int num_straps_;
    double tol_;
    Vector params_;
+   Vector current_vals_;
    Vector x_;
 
 public:
-   MultiStrapAntennaH(int n, const Vector &params,
+   MultiStrapAntennaH(int n, const Vector &params, const Vector &current_vals,
                       bool real_part, double tol = 1e-6)
       : VectorCoefficient(3), real_part_(real_part), num_straps_(n),
-        tol_(tol), params_(params), x_(2)
+        tol_(tol), params_(params), current_vals_(current_vals), x_(2)
    {
-      MFEM_ASSERT(params.Size() == 10 * n,
+      MFEM_ASSERT(params.Size() == 8 * n,
                   "Incorrect number of parameters provided to "
                   "MultiStrapAntennaH");
    }
@@ -343,17 +344,17 @@ public:
       T.Transform(ip, x_);
       for (int i=0; i<num_straps_; i++)
       {
-         double x0  = params_[10 * i + 0];
-         double y0  = params_[10 * i + 1];
-         double x1  = params_[10 * i + 2];
-         double y1  = params_[10 * i + 3];
-         double x2  = params_[10 * i + 4];
-         double y2  = params_[10 * i + 5];
-         double x3  = params_[10 * i + 6];
-         double y3  = params_[10 * i + 7];
+         double x0  = params_[8 * i + 0];
+         double y0  = params_[8 * i + 1];
+         double x1  = params_[8 * i + 2];
+         double y1  = params_[8 * i + 3];
+         double x2  = params_[8 * i + 4];
+         double y2  = params_[8 * i + 5];
+         double x3  = params_[8 * i + 6];
+         double y3  = params_[8 * i + 7];
 
-         double ReI = params_[10 * i + 8];
-         double ImI = params_[10 * i + 9];
+         double ReI = current_vals_[2 * i + 0];
+         double ImI = current_vals_[2 * i + 1];
 
          double d01 = sqrt(pow(x1 - x0, 2) + pow(y1 - y0, 2));
          double d12 = sqrt(pow(x2 - x1, 2) + pow(y2 - y1, 2));
@@ -407,7 +408,6 @@ public:
       }
    }
 };
-
 
 void AdaptInitialMesh(MPI_Session &mpi,
                       ParMesh &pmesh,
@@ -480,10 +480,8 @@ int main(int argc, char *argv[])
    int logging = 1;
 
    // Parse command-line options.
-   const char *eqdsk_file = "";
    const char *mesh_file = "ellipse_origin_h0pt0625_o3.mesh";
-   const char *init_amr = "";
-   double init_amr_tol = 1e-2;
+   double init_amr_tol = 1e-5;
    int init_amr_max_its = 10;
    int init_amr_max_dofs = 100000;
    int ser_ref_levels = 0;
@@ -492,6 +490,7 @@ int main(int argc, char *argv[])
    int sol = 2;
    int prec = 1;
    // int nspecies = 2;
+   bool amr_s = true;
    bool herm_conv = false;
    bool vis_u = false;
    bool visualization = true;
@@ -548,6 +547,7 @@ int main(int argc, char *argv[])
 
    int msa_n = 0;
    Vector msa_p(0);
+   Vector msa_c(0);
 
    int num_elements = 10;
 
@@ -563,12 +563,11 @@ int main(int argc, char *argv[])
    bool check_eps_inv = false;
    bool pa = false;
    const char *device_config = "cpu";
+   const char *eqdsk_file = "";
 
    OptionsParser args(argc, argv);
    args.AddOption(&logo, "-logo", "--print-logo", "-no-logo",
                   "--no-print-logo", "Print logo and exit.");
-   args.AddOption(&eqdsk_file, "-eqdsk", "--eqdsk-file",
-                  "G EQDSK input file.");
    args.AddOption(&mesh_file, "-m", "--mesh",
                   "Mesh file to use.");
    args.AddOption(&per_y, "-per-y", "--periodic-in-y", "-no-per-y",
@@ -576,8 +575,9 @@ int main(int argc, char *argv[])
                   "The input mesh is periodic in the y-direction.");
    args.AddOption(&ser_ref_levels, "-rs", "--refine-serial",
                   "Number of times to refine the mesh uniformly in serial.");
-   args.AddOption(&init_amr, "-iamr", "--init-amr",
-                  "Initial AMR to capture Stix coefficient: S, D, L, or R.");
+   args.AddOption(&amr_s, "-amr-s", "--init-amr-s", "-no-amr-s",
+                  "--no-init-amr-s",
+                  "Initial AMR to capture Stix S coefficient.");
    args.AddOption(&init_amr_tol, "-iatol", "--init-amr-tol",
                   "Initial AMR tolerance.");
    args.AddOption(&init_amr_max_its, "-iamit", "--init-amr-max-its",
@@ -665,6 +665,7 @@ int main(int argc, char *argv[])
                   "followed by 3 imaginary phase shifts");
    args.AddOption(&msa_n, "-ns", "--num-straps","");
    args.AddOption(&msa_p, "-sp", "--strap-params","");
+   args.AddOption(&msa_c, "-sc", "--strap-currents","");
    //args.AddOption(&numbers, "-num", "--number-densites",
    //               "Number densities of the various species");
    args.AddOption(&charges, "-q", "--charges",
@@ -768,6 +769,8 @@ int main(int argc, char *argv[])
                   "--no-partial-assembly", "Enable Partial Assembly.");
    args.AddOption(&device_config, "-d", "--device",
                   "Device configuration string, see Device::Configure().");
+   args.AddOption(&eqdsk_file, "-eqdsk", "--eqdsk-file",
+                  "G EQDSK input file.");
    args.Parse();
    if (!args.Good())
    {
@@ -792,6 +795,7 @@ int main(int argc, char *argv[])
       dpp.SetSize(1);
       dpp[0] = 1.0e19;
    }
+
    if (nepp.Size() == 0)
    {
       nepp.SetSize(1);
@@ -802,6 +806,7 @@ int main(int argc, char *argv[])
       nipp.SetSize(1);
       nipp[0] = 0;
    }
+
    if (bpp.Size() == 0)
    {
       bpt = BFieldProfile::CONSTANT;
@@ -1084,15 +1089,15 @@ int main(int argc, char *argv[])
       double lam0 = c0_ / freq;
       double Bmag = BVec.Norml2();
       std::complex<double> S = S_cold_plasma(omega, Bmag, nue, nui, numbers,
-                                             charges, masses, temps, nuprof);
+                                              charges, masses, temps, nuprof);
       std::complex<double> P = P_cold_plasma(omega, nue, numbers,
-                                             charges, masses, temps, nuprof);
+                                              charges, masses, temps, nuprof);
       std::complex<double> D = D_cold_plasma(omega, Bmag, nue, nui, numbers,
-                                             charges, masses, temps, nuprof);
+                                              charges, masses, temps, nuprof);
       std::complex<double> R = R_cold_plasma(omega, Bmag, nue, nui, numbers,
-                                             charges, masses, temps, nuprof);
+                                              charges, masses, temps, nuprof);
       std::complex<double> L = L_cold_plasma(omega, Bmag, nue, nui, numbers,
-                                             charges, masses, temps, nuprof);
+                                              charges, masses, temps, nuprof);
 
       cout << "\nConvenient Terms:\n";
       cout << "R = " << R << ",\tL = " << L << endl;
@@ -1187,7 +1192,7 @@ int main(int argc, char *argv[])
    }
 
    // Ensure that quad and hex meshes are treated as non-conforming.
-   if (maxit > 1 || strcmp(init_amr,""))
+   if (maxit > 1 || amr_s)
    {
       mesh->EnsureNCMesh();
    }
@@ -1307,70 +1312,21 @@ int main(int argc, char *argv[])
       density_gf *= numbers[i]/numbers[0];
    }
 
-   if (strcmp(init_amr,""))
+   if (amr_s)
    {
-      if (strcmp(init_amr,"S") && strcmp(init_amr,"D") &&
-          strcmp(init_amr,"L") && strcmp(init_amr,"R"))
-      {
-         if (mpi.Root())
-         {
-            cout << "Unrecognized parameter for initial AMR loop '"
-                 << init_amr << "' coefficient." << endl;
-         }
-         return 1;
-      }
       if (mpi.Root())
       {
-         cout << "Adapting mesh to Stix '" << init_amr << "' coefficient."
-              << endl;
+         cout << "Adapting mesh to Stix 'P' coefficient." << endl;
       }
 
-      Coefficient *ReCoefPtr = NULL;
-      Coefficient *ImCoefPtr = NULL;
-      if (!strcmp(init_amr,"S"))
-      {
-         ReCoefPtr = new StixSCoef(BField, nue_gf, nui_gf, density, temperature,
-                                   L2FESpace, H1FESpace,
-                                   omega, charges, masses, nuprof,
-                                   true);
-         ImCoefPtr = new StixSCoef(BField, nue_gf, nui_gf, density, temperature,
-                                   L2FESpace, H1FESpace,
-                                   omega, charges, masses, nuprof,
-                                   false);
-      }
-      else if (!strcmp(init_amr,"D"))
-      {
-         ReCoefPtr = new StixDCoef(BField, nue_gf, nui_gf, density, temperature,
-                                   L2FESpace, H1FESpace,
-                                   omega, charges, masses, nuprof,
-                                   true);
-         ImCoefPtr = new StixDCoef(BField, nue_gf, nui_gf, density, temperature,
-                                   L2FESpace, H1FESpace,
-                                   omega, charges, masses, nuprof,
-                                   false);
-      }
-      else if (!strcmp(init_amr,"L"))
-      {
-         ReCoefPtr = new StixLCoef(BField, nue_gf, nui_gf, density, temperature,
-                                   L2FESpace, H1FESpace,
-                                   omega, charges, masses, nuprof,
-                                   true);
-         ImCoefPtr = new StixLCoef(BField, nue_gf, nui_gf, density, temperature,
-                                   L2FESpace, H1FESpace,
-                                   omega, charges, masses, nuprof,
-                                   false);
-      }
-      else if (!strcmp(init_amr,"R"))
-      {
-         ReCoefPtr = new StixRCoef(BField, nue_gf, nui_gf, density, temperature,
-                                   L2FESpace, H1FESpace,
-                                   omega, charges, masses, nuprof,
-                                   true);
-         ImCoefPtr = new StixRCoef(BField, nue_gf, nui_gf, density, temperature,
-                                   L2FESpace, H1FESpace,
-                                   omega, charges, masses, nuprof,
-                                   false);
-      }
+      StixPCoef RePCoef(BField, nue_gf, nui_gf, density, temperature,
+                        L2FESpace, H1FESpace,
+                        omega, charges, masses, nuprof,
+                        true);
+      StixPCoef ImPCoef(BField, nue_gf, nui_gf, density, temperature,
+                        L2FESpace, H1FESpace,
+                        omega, charges, masses, nuprof,
+                        false);
 
       L2_ParFESpace err_fes(&pmesh, 0, pmesh.Dimension());
 
@@ -1381,13 +1337,10 @@ int main(int argc, char *argv[])
                        density_offsets, temperature_offsets,
                        density, temperature,
                        BField, density_gf, temperature_gf, nue_gf, nui_gf,
-                       *ReCoefPtr, *ImCoefPtr,
+                       RePCoef, ImPCoef,
                        order,
                        init_amr_tol, init_amr_max_its, init_amr_max_dofs,
                        visualization);
-
-      delete ReCoefPtr;
-      delete ImCoefPtr;
    }
 
    if (mpi.Root())
@@ -1422,8 +1375,8 @@ int main(int argc, char *argv[])
                        L2FESpace, H1FESpace,
                        omega, charges, masses, false);
 
-   MultiStrapAntennaH HReStrapCoef(msa_n, msa_p, true);
-   MultiStrapAntennaH HImStrapCoef(msa_n, msa_p, false);
+   MultiStrapAntennaH HReStrapCoef(msa_n, msa_p, msa_c, true);
+   MultiStrapAntennaH HImStrapCoef(msa_n, msa_p, msa_c, false);
 
    ColdPlasmaPlaneWaveH HReCoef(wave_type[0], omega, BVec,
                                 numbers, charges, masses, temps, nuprof, true);
@@ -1437,12 +1390,10 @@ int main(int argc, char *argv[])
 
    if (check_eps_inv)
    {
-      DielectricTensor epsilon_real(BField, nue_gf, nui_gf,
-                                    density, temperature,
+      DielectricTensor epsilon_real(BField, nue_gf, nui_gf, density, temperature,
                                     L2FESpace, H1FESpace,
                                     omega, charges, masses, nuprof, true);
-      DielectricTensor epsilon_imag(BField, nue_gf, nui_gf,
-                                    density, temperature,
+      DielectricTensor epsilon_imag(BField, nue_gf, nui_gf, density, temperature,
                                     L2FESpace, H1FESpace,
                                     omega, charges, masses, nuprof, false);
       DenseMatrix epsInvRe(3,3);
@@ -1896,7 +1847,7 @@ int main(int argc, char *argv[])
       visit_dc.RegisterField("Electron_Density", &density_gf);
 
       //nue_gf *= 1/omega;
-      visit_dc.RegisterField("Collisional Profile", &nue_gf);
+      visit_dc.RegisterField("Collisional_Profile", &nue_gf);
 
       visit_dc.RegisterField("B_background", &BField);
 
@@ -2002,7 +1953,7 @@ int main(int argc, char *argv[])
 
       // Refine the elements whose error is larger than a fraction of the
       // maximum element error.
-      const double frac = 0.5;
+      const double frac = 0.3;
       double threshold = frac * global_max_err;
       if (mpi.Root()) { cout << "Refining ..." << endl; }
       {
@@ -2546,15 +2497,15 @@ ColdPlasmaPlaneWaveH::ColdPlasmaPlaneWaveH(char type,
    beta_r_ = 0.0;
    beta_i_ = 0.0;
 
-   double nue = 0;
-   double nui = 0;
+   double nue_ = 0;
+   double nui_ = 0;
 
-   S_ = S_cold_plasma(omega_, Bmag_, nue, nui, numbers_, charges_, masses_,
-                      temps_, nuprof_);
-   D_ = D_cold_plasma(omega_, Bmag_, nue, nui, numbers_, charges_, masses_,
-                      temps_, nuprof_);
-   P_ = P_cold_plasma(omega_, nue, numbers_, charges_, masses_, temps_,
+   S_ = S_cold_plasma(omega_, Bmag_, nue_, nui_, numbers_, charges_, masses_,
+                      temps_,
                       nuprof_);
+   D_ = D_cold_plasma(omega_, Bmag_, nue_, nui_, numbers_, charges_, masses_, temps_,
+                      nuprof_);
+   P_ = P_cold_plasma(omega_, nue_, numbers_, charges_, masses_, temps_, nuprof_);
 
    switch (type_)
    {
@@ -2794,15 +2745,15 @@ ColdPlasmaPlaneWaveE::ColdPlasmaPlaneWaveE(char type,
    beta_r_ = 0.0;
    beta_i_ = 0.0;
 
-   double nue = 0;
-   double nui = 0;
+   double nue_ = 0;
+   double nui_ = 0;
 
-   S_ = S_cold_plasma(omega_, Bmag_, nue, nui, numbers_, charges_, masses_,
-                      temps_, nuprof_);
-   D_ = D_cold_plasma(omega_, Bmag_, nue, nui, numbers_, charges_, masses_,
-                      temps_, nuprof_);
-   P_ = P_cold_plasma(omega_, nue, numbers_, charges_, masses_, temps_,
+   S_ = S_cold_plasma(omega_, Bmag_, nue_, nui_, numbers_, charges_, masses_,
+                      temps_,
                       nuprof_);
+   D_ = D_cold_plasma(omega_, Bmag_, nue_, nui_, numbers_, charges_, masses_, temps_,
+                      nuprof_);
+   P_ = P_cold_plasma(omega_, nue_, numbers_, charges_, masses_, temps_, nuprof_);
 
    switch (type_)
    {

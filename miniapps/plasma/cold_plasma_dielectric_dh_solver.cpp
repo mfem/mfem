@@ -497,6 +497,10 @@ CPDSolverDH::CPDSolverDH(ParMesh & pmesh, int order, double omega,
      kReCross_(NULL),
      kImCross_(NULL),
      h_(NULL),
+     hr_(NULL),
+     hi_(NULL),
+     //ht_real_(NULL),
+     //ht_imag_(NULL),
      e_(NULL),
      // e_tmp_(NULL),
      d_(NULL),
@@ -512,6 +516,7 @@ CPDSolverDH::CPDSolverDH(ParMesh & pmesh, int order, double omega,
      rhs0_(NULL),
      e_t_(NULL),
      e_b_(NULL),
+     h_b_(NULL),
      e_perp_(NULL),
      h_v_(NULL),
      e_v_(NULL),
@@ -616,6 +621,8 @@ CPDSolverDH::CPDSolverDH(ParMesh & pmesh, int order, double omega,
    {
       e_b_ = new ParComplexGridFunction(L2FESpace_);
       *e_b_ = 0.0;
+      h_b_ = new ParComplexGridFunction(L2FESpace_);
+      *h_b_ = 0.0;
       e_perp_ = new ParComplexGridFunction(L2VFESpace_);
       *e_perp_ = 0.0;
       b_hat_ = new ParGridFunction(HDivFESpace_);
@@ -947,12 +954,19 @@ CPDSolverDH::CPDSolverDH(ParMesh & pmesh, int order, double omega,
    // Build grid functions
    h_  = new ParComplexGridFunction(HCurlFESpace_);
    *h_ = 0.0;
+    
+   hr_  = new ParGridFunction(HCurlFESpace_);
+   *hr_ = 0.0;
+   hi_  = new ParGridFunction(HCurlFESpace_);
+   *hi_ = 0.0;
+    
+   //ht_real_  = new ParGridFunction(HCurlFESpace_);
+   //*ht_real_ = 0.0;
+   //ht_imag_  = new ParGridFunction(HCurlFESpace_);
+   //*ht_imag_ = 0.0;
 
    e_  = new ParComplexGridFunction(HCurlFESpace_);
    *e_ = 0.0;
-
-   // temp_ = new ParGridFunction(HCurlFESpace_);
-   // *temp_ = 0.0;
 
    d_  = new ParComplexGridFunction(HDivFESpace_);
    *d_ = 0.0;
@@ -973,17 +987,16 @@ CPDSolverDH::CPDSolverDH(ParMesh & pmesh, int order, double omega,
 
    if (sbcs_->Size() > 0)
    {
-      /*
+       /*
       PlasmaProfile::Type dpt = PlasmaProfile::GRADIENT;
       Vector dpp(6);
       dpp[0] = 2e20; dpp[1] = 0; dpp[2] = 0; dpp[3] = 0; dpp[4] = 0; dpp[5] = 100; dpp[6] = 0;
       PlasmaProfile rhoCoef(dpt, dpp);
       phi_->ProjectCoefficient(rhoCoef, rhoCoef);
        */
-
       rectPot_ = new ParGridFunction(H1FESpace_);
       *rectPot_ = 0.0;
-
+       
       Bn_ = new ParGridFunction(H1FESpace_);
       *Bn_ = 0.0;
 
@@ -1128,11 +1141,16 @@ CPDSolverDH::~CPDSolverDH()
    if (j_v_ != j_) { delete j_v_; }
    if (phi_v_ != phi_) {delete phi_v_;}
    delete e_b_;
+   delete h_b_;
    delete e_perp_;
    delete b_hat_;
    // delete e_r_;
    // delete e_i_;
    delete h_;
+   delete hr_;
+   delete hi_;
+   //delete ht_real_;
+   //delete ht_imag_;
    delete e_;
    delete d_;
    delete j_;
@@ -1468,6 +1486,10 @@ CPDSolverDH::Update()
 
    // Inform the grid functions that the space has changed.
    h_->Update();
+   hr_->Update();
+   hi_->Update();
+   //ht_real_->Update();
+   //ht_imag_->Update();
    e_->Update();
    d_->Update();
    j_->Update();
@@ -1481,6 +1503,7 @@ CPDSolverDH::Update()
    if (S_) { S_->Update(); }
    if (e_t_) { e_t_->Update(); }
    if (e_b_) { e_b_->Update(); }
+   if (h_b_) { h_b_->Update(); }
    if (e_perp_) { e_perp_->Update(); }
    if (h_v_) { h_v_->Update(); }
    if (e_v_) { e_v_->Update(); }
@@ -1609,18 +1632,47 @@ CPDSolverDH::Solve()
    }
 
    a1_->FormLinearSystem(dbc_nd_tdofs_, *h_, *rhs1_, A1, H, RHS1);
+    
+    ComplexHypreParMatrix * A1Z = A1.As<ComplexHypreParMatrix>();
+    HypreParMatrix * A1C = (sol_ != SolverType::ZMUMPS) ?
+                              A1Z->GetSystemMatrix() : NULL;
 
-#ifdef MFEM_USE_SUPERLU
-   if ( myid_ == 0 && logging_ > 0 )
-   {
-      cout << "SuperLU Solver Requested" << endl;
-   }
-   ComplexHypreParMatrix * A1Z = A1.As<ComplexHypreParMatrix>();
-   HypreParMatrix * A1C = A1Z->GetSystemMatrix();
-   SuperLURowLocMatrix A_SuperLU(*A1C);
-   SuperLUSolver AInv(MPI_COMM_WORLD);
-   AInv.SetOperator(A_SuperLU);
-   // solver.Mult(RHS1, H);
+    Solver * AInv = nullptr;
+
+    #ifdef MFEM_USE_SUPERLU
+    SuperLURowLocMatrix * A_SuperLU = nullptr;
+       if (sol_ == SolverType::SUPERLU)
+       {
+          if ( myid_ == 0 && logging_ > 0 )
+          {
+             cout << "SuperLU Solver Requested" << endl;
+          }
+           A_SuperLU = new SuperLURowLocMatrix(*A1C);
+           AInv = new SuperLUSolver(MPI_COMM_WORLD);
+           AInv->SetOperator(*A_SuperLU);
+       }
+    #endif
+    #ifdef MFEM_USE_MUMPS
+       if (sol_ == SolverType::DMUMPS)
+       {
+          if ( myid_ == 0 && logging_ > 0 )
+          {
+             cout << "MUMPS (Real) Solver Requested" << endl;
+          }
+           AInv = new MUMPSSolver;
+           AInv->SetOperator(*A1C);
+       }
+       if (sol_ == SolverType::ZMUMPS)
+       {
+          if ( myid_ == 0 && logging_ > 0 )
+          {
+             cout << "MUMPS (Complex) Solver Requested" << endl;
+          }
+           AInv = new ComplexMUMPSSolver;
+           AInv->SetOperator(*A1);
+       }
+    #endif
+    if (!AInv) { MFEM_VERIFY(AInv, "Direct Solver pointer is null"); }
 
    if (sbcs_->Size() > 0)
    {
@@ -1629,17 +1681,16 @@ CPDSolverDH::Solve()
       nxD01_->FormRectangularSystemMatrix(non_sbc_h1_tdofs_, dbc_nd_tdofs_, B);
       m0_->FormSystemMatrix(non_sbc_h1_tdofs_, D);
 
-      {
-         /*
-           if (B.As<ComplexHypreParMatrix>()->hasRealPart())
-           { B.As<ComplexHypreParMatrix>()->real().Print("nxD01_Re.mat"); }
-           if (B.As<ComplexHypreParMatrix>()->hasImagPart())
-           { B.As<ComplexHypreParMatrix>()->imag().Print("nxD01_Im.mat"); }
-           if (D.As<ComplexHypreParMatrix>()->hasRealPart())
-           { D.As<ComplexHypreParMatrix>()->real().Print("m0_Re.mat"); }
-           if (D.As<ComplexHypreParMatrix>()->hasImagPart())
-           { D.As<ComplexHypreParMatrix>()->imag().Print("m0_Im.mat"); }
-          */
+      {/*
+         if (B.As<ComplexHypreParMatrix>()->hasRealPart())
+         { B.As<ComplexHypreParMatrix>()->real().Print("nxD01_Re.mat"); }
+         if (B.As<ComplexHypreParMatrix>()->hasImagPart())
+         { B.As<ComplexHypreParMatrix>()->imag().Print("nxD01_Im.mat"); }
+         if (D.As<ComplexHypreParMatrix>()->hasRealPart())
+         { D.As<ComplexHypreParMatrix>()->real().Print("m0_Re.mat"); }
+         if (D.As<ComplexHypreParMatrix>()->hasImagPart())
+         { D.As<ComplexHypreParMatrix>()->imag().Print("m0_Im.mat"); }
+        */
       }
 
       rhs0_->real() = 0.0;
@@ -1652,31 +1703,46 @@ CPDSolverDH::Solve()
       double phi_diff = std::numeric_limits<double>::max();
       GridFunctionCoefficient prevPhiReCoef(&prev_phi_->real());
       GridFunctionCoefficient prevPhiImCoef(&prev_phi_->imag());
+       /*
+      if (myid_ == 0) { cout << "Reading in previous solution" << endl; }
+       for (int i=0;i<num_procs_;i++)
+           {
+               string filename = "PHI_np" + to_string(myid_)+ ".txt";
+               ifstream indata;
+               indata.open(filename);
+               for (int j=0; j<PHI.Size(); j++)
+               {
+                   indata >> PHI[j];
+               }
+               indata.close();
+           }
+           phi_->Distribute(PHI);
+    
+        */
       while (H_iter < 20)
       {
-         if ( phi_diff < 1e-3) {break;}
          nzD12_->Update();
          nzD12_->Assemble();
          nzD12_->Finalize();
          nzD12_->FormRectangularSystemMatrix(dbc_nd_tdofs_,
                                              non_sbc_h1_tdofs_, C);
          {
-            /*
+             /*
             if (C.As<ComplexHypreParMatrix>()->hasRealPart())
             { C.As<ComplexHypreParMatrix>()->real().Print("nzD12_Re.mat"); }
             if (C.As<ComplexHypreParMatrix>()->hasImagPart())
             { C.As<ComplexHypreParMatrix>()->imag().Print("nzD12_Im.mat"); }
-             */
+              */
          }
 
-         SchurComplimentOperator schur(AInv, *B, *C, *D);
+          SchurComplimentOperator schur(*AInv, &(*B), &(*C), *D);
 
          const Vector & RHS = schur.GetRHSVector(RHS1, RHS0);
 
          GMRESSolver gmres(MPI_COMM_WORLD);
          gmres.SetKDim(50);
-         gmres.SetRelTol(1e-5);
-         gmres.SetAbsTol(1e-5);
+         gmres.SetRelTol(4e-5);
+         gmres.SetAbsTol(4e-5);
          gmres.SetMaxIter(500);
          gmres.SetPrintLevel(1);
          gmres.SetOperator(schur);
@@ -1696,6 +1762,23 @@ CPDSolverDH::Solve()
          prev_phi_->Vector::operator=((Vector&)(*phi_));
 
          H_iter++;
+          /*
+          if ( phi_diff < 1e-5) {
+              if (myid_ == 0) { cout << "Writing out solution" << endl; }
+          for ( int i=0;i<num_procs_;i++)
+           {
+               ofstream ofs;
+               string filename = "PHI_np" + to_string(myid_) + ".txt";
+               ofs.open(filename);
+               for (int j=0; j<PHI.Size(); j++)
+               {
+                   ofs << PHI[j] << '\n';
+               }
+               ofs.close();
+           }
+          }
+        */
+          if ( phi_diff < 1e-5) {break;}
       }
       if (myid_ == 0)
       {
@@ -1705,12 +1788,14 @@ CPDSolverDH::Solve()
    }
    else
    {
-      AInv.Mult(RHS1, H);
+      AInv->Mult(RHS1, H);
 
       *phi_ = 0.0;
    }
-
-   delete A1C;
+    delete AInv;
+    delete A1C;
+#ifdef MFEM_USE_SUPERLU
+   if (sol_ == SolverType::SUPERLU) { delete A_SuperLU; }
 #endif
 
    a1_->RecoverFEMSolution(H, *rhs1_, *h_);
@@ -1950,6 +2035,9 @@ CPDSolverDH::RegisterVisItFields(VisItDataCollection & visit_dc)
 
    visit_dc.RegisterField("Re_H", &h_->real());
    visit_dc.RegisterField("Im_H", &h_->imag());
+    
+   //visit_dc.RegisterField("Re_Ht", ht_real_);
+   //visit_dc.RegisterField("Im_Ht", ht_imag_);
 
    visit_dc.RegisterField("Re_E", &e_->real());
    visit_dc.RegisterField("Im_E", &e_->imag());
@@ -1967,7 +2055,7 @@ CPDSolverDH::RegisterVisItFields(VisItDataCollection & visit_dc)
    {
       visit_dc.RegisterField("Rec_Phi", rectPot_);
    }
-
+    
    if ( Bn_ )
    {
       visit_dc.RegisterField("Bn", Bn_);
@@ -1980,6 +2068,8 @@ CPDSolverDH::RegisterVisItFields(VisItDataCollection & visit_dc)
       visit_dc.RegisterField("Im_EB", &e_b_->imag());
       visit_dc.RegisterField("Re_EPerp", &e_perp_->real());
       visit_dc.RegisterField("Im_EPerp", &e_perp_->imag());
+      visit_dc.RegisterField("Re_HB", &h_b_->real());
+      visit_dc.RegisterField("Im_HB", &h_b_->imag());
       // visit_dc.RegisterField("Re_EpsPara", &EpsPara_->real());
       // visit_dc.RegisterField("Im_EpsPara", &EpsPara_->imag());
    }
@@ -2029,6 +2119,27 @@ CPDSolverDH::WriteVisItFields(int it)
    if ( visit_dc_ )
    {
       if (myid_ == 0) { cout << "Writing VisIt files ..." << flush; }
+       
+       //Array<int> bdr_marker;
+       //bdr_marker.SetSize(pmesh_->bdr_attributes.Max());
+       //bdr_marker = 1;
+
+       //VectorGridFunctionCoefficient h_r(&h_->real());
+       //if (myid_ == 0){ cout << "SIZE.... " << sbc_bdr_marker_.Size() << endl; }
+       //if (myid_ == 0){ sbc_bdr_marker_.Print(cout); }
+       
+       //MPI_Barrier(MPI_COMM_WORLD);
+       //HTangential HtReCoef(h_->real());
+       
+       //ht_real_->ProjectBdrCoefficient(HtReCoef, sbc_bdr_marker_);
+       //ht_real_->ProjectBdrCoefficientTangent(h_r, sbc_bdr_marker_);
+       
+       //VectorGridFunctionCoefficient h_i(&h_->imag());
+    
+       //HTangential HtImCoef(h_->imag());
+       //ht_imag_->ProjectBdrCoefficient(HtImCoef, sbc_bdr_marker_);
+       //ht_imag_->ProjectBdrCoefficientTangent(h_i,sbc_bdr_marker_);
+       
       /*
       if ( j_ )
       {
@@ -2061,15 +2172,18 @@ CPDSolverDH::WriteVisItFields(int it)
          {
             RectifiedSheathPotential rectPotCoef(*sb, true);
             rectPot_->ProjectCoefficient(rectPotCoef);
+
+            /*
             if ( Bn_ && BCoef_ )
             {
-               b_hat_->ProjectCoefficient(*BCoef_);
-               BFieldAngle BnCoef(*sb, *b_hat_, true);
-               Bn_->ProjectBdrCoefficient(BnCoef, sbc_bdr_marker_);
+                b_hat_->ProjectCoefficient(*BCoef_);
+                BFieldAngle BnCoef(*sb, *b_hat_, true);
+                Bn_->ProjectBdrCoefficient(BnCoef, sbc_bdr_marker_);
             }
+             */
          }
       }
-
+       
       if ( BCoef_)
       {
          b_hat_->ProjectCoefficient(*BCoef_);
@@ -2080,6 +2194,13 @@ CPDSolverDH::WriteVisItFields(int it)
          InnerProductCoefficient ebiCoef(e_i, *BCoef_);
 
          e_b_->ProjectCoefficient(ebrCoef, ebiCoef);
+          
+         VectorGridFunctionCoefficient h_r(&h_->real());
+         VectorGridFunctionCoefficient h_i(&h_->imag());
+         InnerProductCoefficient hbrCoef(h_r, *BCoef_);
+         InnerProductCoefficient hbiCoef(h_i, *BCoef_);
+
+         h_b_->ProjectCoefficient(hbrCoef, hbiCoef);
 
          IdentityMatrixCoefficient identityM(3);
          OuterProductCoefficient bb(*BCoef_, *BCoef_);
@@ -2154,11 +2275,8 @@ CPDSolverDH::InitializeGLVis()
       socks_["Phii"] = new socketstream;
       socks_["Phii"]->precision(8);
 
-      socks_["RecPhir"] = new socketstream;
-      socks_["RecPhir"]->precision(8);
-
-      socks_["RecPhii"] = new socketstream;
-      socks_["RecPhii"]->precision(8);
+      socks_["RecPhi"] = new socketstream;
+      socks_["RecPhi"]->precision(8);
    }
 
    if (BCoef_)
@@ -2334,12 +2452,8 @@ CPDSolverDH::DisplayToGLVis()
       /*
 
       Wx += offx;
-      VisualizeField(*socks_["RecPhir"], vishost, visport,
-                    rectPot_->real(), "Rectified Potential, Re(RecPhi)", Wx, Wy, Ww, Wh);
-      Wx += offx;
-
-      VisualizeField(*socks_["RecPhii"], vishost, visport,
-                    rectPot_->imag(), "Rectified Potential, Im(RecPhi)", Wx, Wy, Ww, Wh);
+      VisualizeField(*socks_["RecPhi"], vishost, visport,
+                    rectPot_->real(), "Rectified Potential, RecPhi", Wx, Wy, Ww, Wh);
        */
 
    }

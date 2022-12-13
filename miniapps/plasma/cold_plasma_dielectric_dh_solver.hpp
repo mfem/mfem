@@ -284,15 +284,17 @@ public:
       AMS         =  4
    };
 
-   enum SolverType
-   {
-      INVALID_SOL = -1,
-      GMRES       =  1,
-      FGMRES      =  2,
-      MINRES      =  3,
-      SUPERLU     =  4,
-      STRUMPACK   =  5
-   };
+    enum SolverType
+    {
+       INVALID_SOL = -1,
+       GMRES       =  1,
+       FGMRES      =  2,
+       MINRES      =  3,
+       SUPERLU     =  4,
+       STRUMPACK   =  5,
+       DMUMPS      =  6,
+       ZMUMPS      =  7
+    };
 
    CPDSolverDH(ParMesh & pmesh, int order, double omega,
                CPDSolverDH::SolverType s, SolverOptions & sOpts,
@@ -645,6 +647,10 @@ private:
    ParDiscreteLinearOperator * kImCross_;
 
    ParComplexGridFunction * h_;   // Complex magnetic field (HCurl)
+   ParGridFunction * hr_;   // Real component to magnetic field (HCurl)
+   ParGridFunction * hi_;   // Imag component to magnetic field (HCurl)
+   //ParGridFunction * ht_real_;   // Tangential real component to magnetic field (HCurl)
+   //ParGridFunction * ht_imag_;   // Tangential imag component to magnetic field (HCurl)
    ParComplexGridFunction * e_;   // Complex electric field (HCurl)
    ParComplexGridFunction * d_;   // Complex electric flux (HDiv)
    ParComplexGridFunction * j_;   // Complex current density (HDiv)
@@ -661,7 +667,8 @@ private:
    ParComplexLinearForm   * rhs1_; // RHS of magnetic field eqn (HCurl)
    ParComplexLinearForm   * rhs0_; // RHS of sheath potential eqn (H1)
    ParGridFunction        * e_t_; // Time dependent Electric field
-   ParComplexGridFunction * e_b_; // Complex parallel electric field (L2)
+   ParComplexGridFunction * e_b_; // Complex parallel magnetic field (L2)
+   ParComplexGridFunction * h_b_; // Complex parallel electric field (L2)
    ParComplexGridFunction * e_perp_; // Complex perpendicular electric field (L2)
    ParComplexGridFunction * h_v_; // Complex magnetic field (L2^d)
    ParComplexGridFunction * e_v_; // Complex electric field (L2^d)

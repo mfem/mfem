@@ -275,6 +275,19 @@ private:
    const ParGridFunction & B_;
 };
 
+
+class HTangential : public VectorCoefficient
+{
+public:
+    HTangential(const ParGridFunction & H);
+
+    void Eval(Vector &Ht,ElementTransformation &T,
+             const IntegrationPoint &ip);
+private:
+    const ParGridFunction & H_;
+};
+
+
 class SheathImpedance: public SheathBase
 {
 public:
@@ -641,7 +654,7 @@ private:
    Type type_;
    Vector p_;
 
-   const int np_[10] = {1, 7, 9, 7, 7, 7, 3, 6, 3, 1};
+   const int np_[10] = {1, 7, 9, 7, 7, 7, 3, 3, 3, 1};
 
    mutable Vector x_;
 
