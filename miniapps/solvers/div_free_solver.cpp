@@ -489,8 +489,8 @@ void DivFreeSolver::SolveParticular(const Vector& rhs, Vector& sol) const
    std::vector<Vector> rhss(smoothers_.Size());
    std::vector<Vector> sols(smoothers_.Size());
 
-   rhss.back().SetDataAndSize(const_cast<Vector&>(rhs), rhs.Size());
-   sols.back().SetDataAndSize(sol, sol.Size());
+   rhss.back().SetDataAndSize(const_cast<double*>(rhs.HostRead()), rhs.Size());
+   sols.back().SetDataAndSize(sol.HostWrite(), sol.Size());
 
    for (int l = blk_Ps_.Size()-1; l >= 0; --l)
    {

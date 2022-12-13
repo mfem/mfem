@@ -3034,7 +3034,7 @@ void BlockILU::Mult(const Vector &b, Vector &x) const
       }
       LUFactors A_ii_inv(&DB(0,0,i), &ipiv[i*block_size]);
       // x_i = D_ii^{-1} x_i
-      A_ii_inv.Solve(block_size, 1, xi);
+      A_ii_inv.Solve(block_size, 1, xi.GetData());
    }
 }
 
@@ -3197,7 +3197,8 @@ void UMFPackSolver::Mult(const Vector &b, Vector &x) const
    {
       int status =
          umfpack_di_solve(UMFPACK_At, mat->HostReadI(), mat->HostReadJ(),
-                          mat->HostReadData(), x, b, Numeric, Control, Info);
+                          mat->HostReadData(), x.HostWrite(), b.HostRead(),
+                          Numeric, Control, Info);
       umfpack_di_report_info(Control, Info);
       if (status < 0)
       {
@@ -3208,8 +3209,9 @@ void UMFPackSolver::Mult(const Vector &b, Vector &x) const
    else
    {
       SuiteSparse_long status =
-         umfpack_dl_solve(UMFPACK_At, AI, AJ, mat->HostReadData(), x, b,
-                          Numeric, Control, Info);
+         umfpack_dl_solve(UMFPACK_At, AI, AJ, mat->HostReadData(),
+                          x.HostWrite(), b.HostRead(), Numeric, Control,
+                          Info);
       umfpack_dl_report_info(Control, Info);
       if (status < 0)
       {
@@ -3230,7 +3232,8 @@ void UMFPackSolver::MultTranspose(const Vector &b, Vector &x) const
    {
       int status =
          umfpack_di_solve(UMFPACK_A, mat->HostReadI(), mat->HostReadJ(),
-                          mat->HostReadData(), x, b, Numeric, Control, Info);
+                          mat->HostReadData(), x.HostWrite(), b.HostRead(),
+                          Numeric, Control, Info);
       umfpack_di_report_info(Control, Info);
       if (status < 0)
       {
@@ -3242,8 +3245,9 @@ void UMFPackSolver::MultTranspose(const Vector &b, Vector &x) const
    else
    {
       SuiteSparse_long status =
-         umfpack_dl_solve(UMFPACK_A, AI, AJ, mat->HostReadData(), x, b,
-                          Numeric, Control, Info);
+         umfpack_dl_solve(UMFPACK_A, AI, AJ, mat->HostReadData(),
+                          x.HostWrite(), b.HostRead(), Numeric, Control,
+                          Info);
       umfpack_dl_report_info(Control, Info);
       if (status < 0)
       {

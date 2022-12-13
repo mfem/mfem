@@ -1032,12 +1032,12 @@ void WhiteGaussianNoiseDomainLFIntegrator::AssembleRHSElementVect
       massinteg.AssembleElementMatrix(el, Tr, *M);
       CholeskyFactors chol(M->Data());
       chol.Factor(M->Height());
-      chol.LMult(n,1,elvect);
+      chol.LMult(n,1,elvect.GetData());
    }
    else
    {
       CholeskyFactors chol(L[iel]->Data());
-      chol.LMult(n,1,elvect);
+      chol.LMult(n,1,elvect.GetData());
    }
 }
 
