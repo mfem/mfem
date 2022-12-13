@@ -121,7 +121,7 @@ MFEM_REGISTER_TMOP_KERNELS(double, EnergyPA_C0_3D,
                const double dist = D; // GetValues, default comp set to 0
                double id2 = 0.0;
                double dsq = 0.0;
-               if (exp_lim == false)
+               if (!exp_lim)
                {
                   id2 = 0.5 / (dist*dist);
                   dsq = kernels::DistanceSquared<3>(p1,p0) * id2;

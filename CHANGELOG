@@ -8,8 +8,49 @@
                                https://mfem.org
 
 
+
+
 Version 4.5.1 (development)
 ===========================
+
+Meshing improvements
+--------------------
+- Added support for pyramids in non-conforming meshes. Currently only isotropic
+  refinement is supported in this case.
+
+Discretization improvements
+---------------------------
+- TBD
+
+Linear and nonlinear solvers
+----------------------------
+- Added a fast normalization-based distance solver, see the Distance miniapp
+  in the miniapps/shifted/ directory.
+
+New and updated examples and miniapps
+-------------------------------------
+- TBD
+
+Integrations, testing and documentation
+---------------------------------------
+- Removed the support for the Mesquite toolkit. We recommend using MFEM's TMOP
+  functionality instead for mesh optimization. See the mesh-optimizer miniapp.
+
+Miscellaneous
+-------------
+- VisItDataCollection now correctly handles collection names containing
+  underscores.
+
+- VisItDataCollection::SetPadDigits() no longer alters the number of digits
+  used to represent the MPI rank because VisIt seems to require 6 digits.
+  This parameter can still be explicitly overridden with
+  VisItDataCollection::SetPadDigitsRank().
+
+API changes
+-----------
+- The implicit cast methods of class Vector to 'double *' and 'const double *'
+  have been deprecated and generate deprecation warnings if used. They will be
+  removed in a future release.
 
 
 Version 4.5, released on October 22, 2022
