@@ -255,8 +255,15 @@ public:
    ParFiniteElementSpace *pfes_bg = nullptr;
    ParGridFunction *dist_bg = nullptr;
 
+   ParFiniteElementSpace *pfes_grad_bg = nullptr, *pfes_hess_bg = nullptr;
+   ParGridFunction *grad_bg = nullptr, *hess_bg = nullptr;
+
    BackgroundData(ParMesh &pmesh_front, ParGridFunction &dist_front,
                   int amr_steps);
+
+   void ComputeBackgroundDistance();
+
+   void ComputeGradientAndHessian();
 
    ~BackgroundData()
    {
@@ -264,6 +271,11 @@ public:
       delete pfes_bg;
       delete fec_bg;
       delete pmesh_bg;
+
+      delete hess_bg;
+      delete grad_bg;
+      delete pfes_hess_bg;
+      delete pfes_grad_bg;
    }
 };
 
@@ -308,6 +320,7 @@ BackgroundData::BackgroundData(ParMesh &pmesh_front,
    pfes_bg = new ParFiniteElementSpace(pmesh_bg, fec_bg);
    dist_bg = new ParGridFunction(pfes_bg);
 
+   // Refine the background mesh around the boundary.
    OptimizeMeshWithAMRForAnotherMesh(*pmesh_bg, dist_front,
                                      amr_steps, *dist_bg);
    pmesh_bg->Rebalance();
@@ -315,6 +328,61 @@ BackgroundData::BackgroundData(ParMesh &pmesh_front,
    dist_bg->Update();
 }
 
+void BackgroundData::ComputeBackgroundDistance()
+{
+   // Compute min element size.
+   double min_dx = std::numeric_limits<double>::infinity();
+   for (int e = 0; e < pmesh_bg->GetNE(); e++)
+   {
+      min_dx = fmin(min_dx, pmesh_bg->GetElementSize(e));
+   }
+   MPI_Allreduce(MPI_IN_PLACE, &min_dx, 1, MPI_DOUBLE, MPI_MIN,
+                 pmesh_bg->GetComm());
+
+   // Shift the zero level set by ~ one element inside.
+   const double alpha = 0.75 * min_dx;
+   *dist_bg -= alpha;
+
+   // Compute a distance function on the background.
+   GridFunctionCoefficient ls_coeff(dist_bg);
+   ComputeScalarDistanceFromLevelSet(*pmesh_bg, ls_coeff, *dist_bg, true);
+   *dist_bg *= -1.0;
+
+   // Offset back to the original position of the boundary.
+   *dist_bg += alpha;
+}
+
+void BackgroundData::ComputeGradientAndHessian()
+{
+   const int dim = pmesh_bg->Dimension();
+   pfes_grad_bg = new ParFiniteElementSpace(pmesh_bg, fec_bg, dim);
+   pfes_hess_bg = new ParFiniteElementSpace(pmesh_bg, fec_bg, dim * dim);
+
+   grad_bg = new ParGridFunction(pfes_grad_bg);
+   hess_bg = new ParGridFunction(pfes_hess_bg);
+
+   const int size = dist_bg->Size();
+   grad_bg->ReorderByNodes();
+   for (int d = 0; d < dim; d++)
+   {
+      ParGridFunction bg_grad_comp(pfes_bg, grad_bg->GetData() + d * size);
+      dist_bg->GetDerivative(1, d, bg_grad_comp);
+   }
+
+   // Setup Hessian on background mesh.
+   hess_bg->ReorderByNodes();
+   int id = 0;
+   for (int d = 0; d < dim; d++)
+   {
+      for (int idir = 0; idir < dim; idir++)
+      {
+         ParGridFunction bg_grad_comp(pfes_bg, grad_bg->GetData() + d * size);
+         ParGridFunction bg_hess_comp(pfes_bg, hess_bg->GetData() + id * size);
+         bg_grad_comp.GetDerivative(1, idir, bg_hess_comp);
+         id++;
+      }
+   }
+}
 
 class MeshOptimizer
 {

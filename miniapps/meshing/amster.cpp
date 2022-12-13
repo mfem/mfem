@@ -43,6 +43,10 @@ void WorstCaseOptimize(ParGridFunction &x, int quad_order);
 
 int main (int argc, char *argv[])
 {
+#ifndef MFEM_USE_GSLIB
+   cout << "AMSTER requires GSLIB!" << endl; return 1;
+#endif
+
    // Initialize MPI and HYPRE.
    Mpi::Init(argc, argv);
    const int myid = Mpi::WorldRank();
@@ -173,10 +177,11 @@ int main (int argc, char *argv[])
    auto target_c = new TargetConstructor(target_t, MPI_COMM_WORLD);
    target_c->SetNodes(x0);
 
-   // Visualize the starting mesh and metric values.
+   // Visualize the starting mesh.
    {
-      char title[] = "Initial metric values";
-      vis_tmop_metric_p(mesh_poly_deg, *metric, *target_c, *pmesh, title, 0);
+      socketstream vis;
+      common::VisualizeMesh(vis, "localhost", 19916, *pmesh,
+                            "Initial mesh", 0, 0, 400, 400, "me");
    }
 
    // If needed, untangle with fixed boundary.
@@ -300,48 +305,17 @@ int main (int argc, char *argv[])
    }
 
    BackgroundData backgrnd(*pmesh, dist, bg_amr_steps);
-
-#ifndef MFEM_USE_GSLIB
-   MFEM_ABORT("GSLIB needed for this functionality.");
-#endif
-
-   // Refine the background mesh around the boundary.
    {
       socketstream vis_b_func;
       common::VisualizeField(vis_b_func, "localhost", 19916, *backgrnd.dist_bg,
                              "Dist on Background", 300, 700, 300, 300, "Rj");
    }
 
-   {
-       VisItDataCollection visit_dc("amster_bg", backgrnd.pmesh_bg);
-       visit_dc.RegisterField("distance", backgrnd.dist_bg);
-       visit_dc.SetFormat(DataCollection::SERIAL_FORMAT);
-       visit_dc.Save();
-   }
-
-   // Compute min element size.
-   double min_dx = std::numeric_limits<double>::infinity();
-   for (int e = 0; e < backgrnd.pmesh_bg->GetNE(); e++)
-   {
-      min_dx = fmin(min_dx, backgrnd.pmesh_bg->GetElementSize(e));
-   }
-   MPI_Allreduce(MPI_IN_PLACE, &min_dx, 1, MPI_DOUBLE, MPI_MIN, MPI_COMM_WORLD);
-
-   // Shift the zero level set by ~ one element inside.
-   const double alpha = 0.75*min_dx;
-   *backgrnd.dist_bg -= alpha;
-
-   // Compute a distance function on the background.
-   GridFunctionCoefficient ls_filt_coeff(backgrnd.dist_bg);
-   ComputeScalarDistanceFromLevelSet(*backgrnd.pmesh_bg, ls_filt_coeff, *backgrnd.dist_bg, true);
-   *backgrnd.dist_bg *= -1.0;
-
-   // Offset back to the original position of the boundary.
-   *backgrnd.dist_bg += alpha;
+   backgrnd.ComputeBackgroundDistance();
    {
       socketstream vis_b_func;
       common::VisualizeField(vis_b_func, "localhost", 19916, *backgrnd.dist_bg,
-                             "Final LS", 600, 700, 300, 300, "Rjmm");
+                             "Final Background LS", 600, 700, 300, 300, "Rjmm");
 
       VisItDataCollection visit_dc("amster_bg", backgrnd.pmesh_bg);
       visit_dc.RegisterField("distance", backgrnd.dist_bg);
@@ -376,12 +350,6 @@ int main (int argc, char *argv[])
    AdaptivityEvaluator *adapt_grad_surface = NULL;
    AdaptivityEvaluator *adapt_hess_surface = NULL;
 
-   // Background mesh FECollection, FESpace, and GridFunction
-   ParFiniteElementSpace *bg_grad_fes = NULL;
-   ParGridFunction *bg_grad = NULL;
-   ParFiniteElementSpace *bg_hess_fes = NULL;
-   ParGridFunction *bg_hess = NULL;
-
    // If a background mesh is used, we interpolate the Gradient and Hessian
    // from that mesh to the current mesh being optimized.
    ParFiniteElementSpace *grad_fes = NULL;
@@ -391,34 +359,7 @@ int main (int argc, char *argv[])
 
    if (surface_fit_const > 0.0)
    {
-      bg_grad_fes = new ParFiniteElementSpace(backgrnd.pmesh_bg, backgrnd.fec_bg, dim);
-      bg_grad = new ParGridFunction(bg_grad_fes);
-
-      int n_hessian_bg = dim * dim;
-      bg_hess_fes = new ParFiniteElementSpace(backgrnd.pmesh_bg, backgrnd.fec_bg, n_hessian_bg);
-      bg_hess = new ParGridFunction(bg_hess_fes);
-
-      // Setup gradient of the background mesh.
-      bg_grad->ReorderByNodes();
-      for (int d = 0; d < backgrnd.pmesh_bg->Dimension(); d++)
-      {
-         ParGridFunction bg_grad_comp(backgrnd.pfes_bg, bg_grad->GetData()+d*backgrnd.dist_bg->Size());
-         backgrnd.dist_bg->GetDerivative(1, d, bg_grad_comp);
-      }
-
-      // Setup Hessian on background mesh.
-      bg_hess->ReorderByNodes();
-      int id = 0;
-      for (int d = 0; d < dim; d++)
-      {
-         for (int idir = 0; idir < dim; idir++)
-         {
-            ParGridFunction bg_grad_comp(backgrnd.pfes_bg, bg_grad->GetData()+d*backgrnd.dist_bg->Size());
-            ParGridFunction bg_hess_comp(backgrnd.pfes_bg, bg_hess->GetData()+id*backgrnd.dist_bg->Size());
-            bg_grad_comp.GetDerivative(1, idir, bg_hess_comp);
-            id++;
-         }
-      }
+      backgrnd.ComputeGradientAndHessian();
 
       // Setup functions on the mesh being optimized.
       grad_fes = new ParFiniteElementSpace(pmesh, &fec, dim);
@@ -461,8 +402,8 @@ int main (int argc, char *argv[])
       EnableSurfaceFittingFromSource(*backgrnd.dist_bg, domain,
                                      surf_fit_marker, surf_fit_coeff,
                                      *adapt_surface,
-                                     *bg_grad, *surf_fit_grad, *adapt_grad_surface,
-                                     *bg_hess, *surf_fit_hess, *adapt_hess_surface);
+                                     *backgrnd.grad_bg, *surf_fit_grad, *adapt_grad_surface,
+                                     *backgrnd.hess_bg, *surf_fit_hess, *adapt_hess_surface);
    mesh_opt.GetSolver()->SetAdaptiveSurfaceFittingScalingFactor(surface_fit_adapt);
    mesh_opt.GetSolver()->SetTerminationWithMaxSurfaceFittingError(surface_fit_threshold);
    if (surface_fit_const > 0.0)
@@ -530,10 +471,6 @@ int main (int argc, char *argv[])
    delete surf_fit_hess_fes;
    delete surf_fit_grad;
    delete grad_fes;
-   delete bg_hess;
-   delete bg_hess_fes;
-   delete bg_grad;
-   delete bg_grad_fes;
    delete pmesh;
 
    return 0;
