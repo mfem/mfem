@@ -1186,7 +1186,8 @@ public:
    /// Return the indices and the orientations of all faces of element i.
    void GetElementFaces(int i, Array<int> &faces, Array<int> &ori) const;
 
-   /// Returns the elements sharing a face with element @elem, including @elem.
+   /** @brief Returns the elements sharing a face with element @a elem,
+       including @a elem. */
    void FindFaceNeighbors(const int elem, std::set<int> & nghb) const;
 
    /// Return the index and the orientation of the face of bdr element i. (3D)
