@@ -34,23 +34,6 @@ double circle_level_set(const Vector &x)
    }
 }
 
-double squircle_level_set(const Vector &x)
-{
-   double power = 4.0;
-   const int dim = x.Size();
-   if (dim == 2)
-   {
-      const double xc = x(0) - 0.5, yc = x(1) - 0.5;
-      const double r2 = pow(xc, power) + pow(yc, power);
-      return r2 - pow(0.1, power);
-   }
-   else
-   {
-      MFEM_ABORT("Squircle level set implemented for only 2D right now.");
-      return 0.0;
-   }
-}
-
 double in_circle(const Vector &x, const Vector &x_center, double radius)
 {
    Vector x_current = x;
@@ -106,6 +89,7 @@ double in_rectangle(const Vector &x, double xc, double yc, double w, double h)
    }
 }
 
+// Fischer-Tropsch like geometry
 double reactor(const Vector &x)
 {
    // Circle
@@ -189,7 +173,7 @@ double r_remove(double r1, double r2)
    return r_intersect(r1, -r2);
 }
 
-double object_three(const Vector &x)
+double csg_cubecylsph(const Vector &x)
 {
    Vector xcc(3);
    xcc = 0.5;
@@ -747,6 +731,8 @@ void OptimizeMeshWithAMRAroundZeroLevelSet(ParMesh &pmesh,
       {
          pmesh.GeneralRefinement(el_to_refine_list, 1);
       }
+
+      // Update
       h1fespace.Update();
       x.Update();
       x.ProjectCoefficient(ls_coeff);
@@ -811,10 +797,5 @@ void ComputeScalarDistanceFromLevelSet(ParMesh &pmesh,
    DiffuseField(distance_s, nDiffuse);
    distance_s.SetTrueVector();
    distance_s.SetFromTrueVector();
-   for (int i = 0; i < distance_s.Size(); i++)
-   {
-      //distance_s(i) = std::fabs(distance_s(i));
-      distance_s(i) *= -1;
-   }
 }
 #endif

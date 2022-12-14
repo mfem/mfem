@@ -13,45 +13,29 @@
 //              Boundary and Interface Fitting Miniapp
 //    --------------------------------------------------------------
 //
-// This miniapp performs mesh optimization using the Target-Matrix Optimization
-// Paradigm (TMOP) by P.Knupp et al., and a global variational minimization
-// approach. It minimizes the quantity sum_T int_T mu(J(x)), where T are the
-// target (ideal) elements, J is the Jacobian of the transformation from the
-// target to the physical element, and mu is the mesh quality metric. This
-// metric can measure shape, size or alignment of the region around each
-// quadrature point. The combination of targets & quality metrics is used to
-// optimize the physical node positions, i.e., they must be as close as possible
-// to the shape / size / alignment of their targets. This code also demonstrates
-// a possible use of nonlinear operators (the class TMOP_QualityMetric, defining
-// mu(J), and the class TMOP_Integrator, defining int mu(J)), as well as their
-// coupling to Newton methods for solving minimization problems. Note that the
-// utilized Newton methods are oriented towards avoiding invalid meshes with
-// negative Jacobian determinants. Each Newton step requires the inversion of a
-// Jacobian matrix, which is done through an inner linear solver.
-//
+// This miniapp performs mesh optimization for controlling mesh quality and
+// aligning a selected set of nodes to boundary and/or interface of interest
+// defined using a level-set function. The mesh quality aspect is based on a
+// variational formulation of the Target-Matrix Optimization Paradigm (TMOP).
+// Boundary/interface alignment is weakly enforced using a penalization term
+// that moves a selected set of nodes towards the zero level set of a signed
+// smooth discrete function. See the following papers for more details:
+// (1) "Adaptive Surface Fitting and Tangential Relaxation for High-Order Mesh Optimization" by
+//     Knupp, Kolev, Mittal, Tomov.
+// (2) "Implicit High-Order Meshing using Boundary and Interface Fitting" by
+//     Barrera, Kolev, Mittal, Tomov.
+// (3) "The target-matrix optimization paradigm for high-order meshes" by
+//     Dobrev, Knupp, Kolev, Mittal, Tomov.
+
 // Compile with: make tmop-fitting
-//
-// Base example with triangles
-// mpirun -np 4 tmop-fitting -m square01-tri.mesh -o 3 -rs 0 -mid 58 -tid 1 -ni 200 -vl 1 -sfc 1e4 -rtol 1e-5
-// Impact of marking with triangles
-// mpirun -np 4 tmop-fitting -m ../../data/inline-tri.mesh -o 2 -rs 1 -mid 2 -tid 1 -ni 100 -vl 2 -sfc 10 -rtol 1e-20 -st 0 -sfa 10.0 -fix-bnd -marking
-// mpirun -np 4 tmop-fitting -m ../../data/inline-tri.mesh -o 2 -rs 1 -mid 2 -tid 1 -ni 100 -vl 2 -sfc 10 -rtol 1e-20 -st 0 -sfa 10.0 -fix-bnd
-// Impact of splitting with quadrilaterals
-// mpirun -np 4 tmop-fitting -m quad-split.mesh -o 2 -rs 0 -mid 2 -tid 1 -ni 100 -vl 2 -sfc 10 -rtol 1e-20 -st 0 -sfa 10.0 -fix-bnd -marking -split
-//
-//
 // Sample runs:
 //  Interface fitting:
 //    mpirun -np 4 tmop-fitting -m square01.mesh -o 3 -rs 1 -mid 58 -tid 1 -ni 200 -vl 1 -sfc 5e4 -rtol 1e-5
 //    mpirun -np 4 tmop-fitting -m square01-tri.mesh -o 3 -rs 0 -mid 58 -tid 1 -ni 200 -vl 1 -sfc 1e4 -rtol 1e-5
 //  Surface fitting with weight adaptation and termination based on fitting error
 //    mpirun -np 4 tmop-fitting -m square01.mesh -o 2 -rs 1 -mid 2 -tid 1 -ni 100 -vl 2 -sfc 10 -rtol 1e-20 -st 0 -sfa 10.0 -sft 1e-5
-
-// mpirun -np 6 tmop-fitting -m square01.mesh -o 2 -rs 2 -mid 2 -tid 1 -vl 2 -sfc 100 -rtol 1e-12 -ni 100 -ae 1 -fix-bnd -sbgmesh -slstype 1 -smtype 3 -trim -sfa 10.0
-// mpirun -np 6 tmop-fitting -m square01.mesh -o 2 -rs 3 -mid 2 -tid 1 -vl 2 -sfc 100 -rtol 1e-12 -ni 100 -ae 1 -bnd -sbgmesh -slstype 3 -smtype 0 -sfa 10.0 -sft 1e-4 -amriter 5 -dist
-
-// make tmop-fitting;mpirun -np 6 tmop-fitting -m cube.mesh -o 3 -rs 2 -mid 303 -tid 1 -ni 100 -vl 2 -sfc 100 -rtol 1e-20 -st 0 -sfa 10.0 -sft 1e-10  -split
-// mpirun -np 6 tmop-fitting -m square01-tri.mesh -o 1 -rs 4 -mid 58 -tid 1 -ni 200 -vl 1 -sfc 10 -rtol 1e-5 -smtype 0 -slstype 3 -sbgmesh -amriter 4 -ae 1 -dist -sfa 10
+//  Fitting to Fischer-Tropsch reactor like domain
+//  * mpirun -np 6 tmop-fitting -m square01.mesh -o 2 -rs 4 -mid 2 -tid 1 -vl 2 -sfc 100 -rtol 1e-12 -ni 100 -ae 1 -bnd -sbgmesh -slstype 2 -smtype 0 -sfa 10.0 -sft 1e-4 -amriter 7 -dist
 
 #include "mfem.hpp"
 #include "../common/mfem-common.hpp"
@@ -93,7 +77,6 @@ int main (int argc, char *argv[])
    double surface_fit_adapt = 0.0;
    double surface_fit_threshold = -10;
    bool adapt_marking     = false;
-   bool split_case        = false;
    bool surf_bg_mesh     = false;
    bool comp_dist     = false;
    int surf_ls_type      = 1;
@@ -204,9 +187,6 @@ int main (int argc, char *argv[])
    args.AddOption(&adapt_marking, "-marking", "--adaptive-marking", "-no-amarking",
                   "--no-adaptive-marking",
                   "Enable or disable adaptive marking surface fitting.");
-   args.AddOption(&split_case, "-split", "--split", "-no-split",
-                  "--no-split",
-                  "Split case with predefined marking.");
    args.AddOption(&surf_bg_mesh, "-sbgmesh", "--surf-bg-mesh",
                   "-no-sbgmesh","--no-surf-bg-mesh", "Use background mesh for surface fitting.");
    args.AddOption(&comp_dist, "-dist", "--comp-dist",
@@ -252,17 +232,13 @@ int main (int argc, char *argv[])
    {
       ls_coeff = new FunctionCoefficient(circle_level_set);
    }
-   else if (surf_ls_type == 2) // Squircle
-   {
-      ls_coeff = new FunctionCoefficient(squircle_level_set);
-   }
-   else if (surf_ls_type == 3) // reactor
+   else if (surf_ls_type == 2) // reactor
    {
       ls_coeff = new FunctionCoefficient(reactor);
    }
    else if (surf_ls_type == 6) // 3D shape
    {
-      ls_coeff = new FunctionCoefficient(object_three);
+      ls_coeff = new FunctionCoefficient(csg_cubecylsph);
    }
    else
    {
@@ -648,6 +624,8 @@ int main (int argc, char *argv[])
          }
       }
 
+      // Set AdaptivityEvaluators for transferring information from initial
+      // mesh to current mesh as it moves during adaptivity.
       if (adapt_eval == 0)
       {
          adapt_surface = new AdvectorCG;
