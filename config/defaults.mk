@@ -473,7 +473,17 @@ OCCA_LIB = $(XLINKER)-rpath,$(OCCA_DIR)/lib -L$(OCCA_DIR)/lib -locca
 # CALIPER library configuration
 CALIPER_DIR = @MFEM_DIR@/../caliper
 CALIPER_OPT = -I$(CALIPER_DIR)/include
-CALIPER_LIB = $(XLINKER)-rpath,$(CALIPER_DIR)/lib64 -L$(CALIPER_DIR)/lib64 -lcaliper
+CALIPER_LIB = $(XLINKER)-rpath,$(CALIPER_DIR)/lib -L$(CALIPER_DIR)/lib -lcaliper
+
+ifdef ADIAK_DIR
+   CALIPER_OPT += -I$(ADIAK_DIR)/include
+   CALIPER_LIB += $(XLINKER)-rpath,$(ADIAK_DIR)/lib -L$(ADIAK_DIR)/lib -ladiak
+endif
+ifdef GOTCHA_DIR
+   CALIPER_OPT += -I$(GOTCHA_DIR)/include
+   CALIPER_LIB += $(XLINKER)-rpath,$(GOTCHA_DIR)/lib -L$(GOTCHA_DIR)/lib -lgotcha
+endif
+
 
 # BLITZ library configuration
 BLITZ_DIR = @MFEM_DIR@/../blitz
