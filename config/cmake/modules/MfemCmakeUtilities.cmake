@@ -46,6 +46,10 @@ endfunction()
 # Wrapper for add_executable
 macro(mfem_add_executable NAME)
   add_executable(${NAME} ${ARGN})
+  if (MFEM_USE_CUDA)
+    set_target_properties(${NAME} PROPERTIES
+      CUDA_RESOLVE_DEVICE_SYMBOLS ON)
+  endif()
 endmacro()
 
 # Wrapper for add_library
@@ -158,27 +162,12 @@ macro(add_mfem_miniapp MFEM_EXE_NAME)
 
   # Append the additional libraries and options
   if (LIBRARIES_LIST)
-    if(CMAKE_VERSION VERSION_GREATER 2.8.11)
-      target_link_libraries(${MFEM_EXE_NAME} PRIVATE ${LIBRARIES_LIST})
-    else()
-      target_link_libraries(${MFEM_EXE_NAME} ${LIBRARIES_LIST})
-    endif()
+    target_link_libraries(${MFEM_EXE_NAME} PRIVATE ${LIBRARIES_LIST})
   endif()
   if (EXTRA_OPTIONS_LIST)
     string(REPLACE ";" " " EXTRA_OPTIONS_STRING "${EXTRA_OPTIONS_LIST}")
     message(STATUS "${MFEM_EXE_NAME}: add flags \"${EXTRA_OPTIONS_STRING}\"")
-    if(CMAKE_VERSION VERSION_GREATER 2.8.11)
-      target_compile_options(${MFEM_EXE_NAME} PRIVATE ${EXTRA_OPTIONS_LIST})
-    else()
-      get_target_property(THIS_COMPILE_FLAGS ${MFEM_EXE_NAME} COMPILE_FLAGS)
-      if (THIS_COMPILE_FLAGS)
-        set(THIS_COMPILE_FLAGS "${THIS_COMPILE_FLAGS} ${EXTRA_OPTIONS_STRING}")
-      else()
-        set(THIS_COMPILE_FLAGS "${EXTRA_OPTIONS_STRING}")
-      endif()
-      set_target_properties(${MFEM_EXE_NAME}
-        PROPERTIES COMPILE_FLAGS ${THIS_COMPILE_FLAGS})
-    endif()
+    target_compile_options(${MFEM_EXE_NAME} PRIVATE ${EXTRA_OPTIONS_LIST})
   endif()
   if (EXTRA_DEFINES_LIST)
     target_compile_definitions(${MFEM_EXE_NAME} PRIVATE ${EXTRA_DEFINES_LIST})
@@ -187,17 +176,15 @@ macro(add_mfem_miniapp MFEM_EXE_NAME)
   # Handle the MPI separately
   if (MFEM_USE_MPI)
     # Add MPI_CXX_LIBRARIES, in case this target does not link with mfem.
-    if(CMAKE_VERSION VERSION_GREATER 2.8.11)
-      target_link_libraries(${MFEM_EXE_NAME} PRIVATE ${MPI_CXX_LIBRARIES})
-    else()
-      target_link_libraries(${MFEM_EXE_NAME} ${MPI_CXX_LIBRARIES})
-    endif()
+    target_link_libraries(${MFEM_EXE_NAME} PRIVATE ${MPI_CXX_LIBRARIES})
 
     if (MPI_CXX_INCLUDE_PATH)
       target_include_directories(${MFEM_EXE_NAME} PRIVATE ${MPI_CXX_INCLUDE_PATH})
     endif()
     if (MPI_CXX_COMPILE_FLAGS)
-      target_compile_options(${MFEM_EXE_NAME} PRIVATE ${MPI_CXX_COMPILE_FLAGS})
+      separate_arguments(MPI_CXX_COMPILE_ARGS UNIX_COMMAND
+        "${MPI_CXX_COMPILE_FLAGS}")
+      target_compile_options(${MFEM_EXE_NAME} PRIVATE ${MPI_CXX_COMPILE_ARGS})
     endif()
 
     if (MPI_CXX_LINK_FLAGS)
@@ -878,7 +865,7 @@ function(mfem_export_mk_files)
   set(CONFIG_MK_BOOL_VARS MFEM_USE_MPI MFEM_USE_METIS MFEM_USE_METIS_5
       MFEM_DEBUG MFEM_USE_EXCEPTIONS MFEM_USE_ZLIB MFEM_USE_LIBUNWIND
       MFEM_USE_LAPACK MFEM_THREAD_SAFE MFEM_USE_LEGACY_OPENMP MFEM_USE_OPENMP
-      MFEM_USE_MEMALLOC MFEM_USE_SUNDIALS MFEM_USE_MESQUITE MFEM_USE_SUITESPARSE
+      MFEM_USE_MEMALLOC MFEM_USE_SUNDIALS MFEM_USE_SUITESPARSE
       MFEM_USE_SUPERLU MFEM_USE_SUPERLU5 MFEM_USE_MUMPS MFEM_USE_STRUMPACK
       MFEM_USE_GINKGO MFEM_USE_AMGX MFEM_USE_GNUTLS MFEM_USE_NETCDF
       MFEM_USE_PETSC MFEM_USE_SLEPC MFEM_USE_MPFR MFEM_USE_SIDRE MFEM_USE_FMS

@@ -116,8 +116,12 @@ int main(int argc, char *argv[])
    const char *src_coll_name = NULL;
    const char *src_coll_type = "visit";
    int src_cycle = 0;
+   int src_pad_digits_cycle = 6;
+   int src_pad_digits_rank = 6;
    const char *out_coll_name = NULL;
    const char *out_coll_type = "visit";
+   int out_pad_digits_cycle = -1;
+   int out_pad_digits_rank = -1;
 
    OptionsParser args(argc, argv);
    args.AddOption(&src_coll_name, "-s", "--source-root-prefix",
@@ -126,6 +130,14 @@ int main(int argc, char *argv[])
                   "Set the source data collection root file prefix.", true);
    args.AddOption(&src_cycle, "-c", "--cycle",
                   "Set the source cycle index to read.");
+   args.AddOption(&src_pad_digits_cycle, "-pdc", "--pad-digits-cycle",
+                  "Number of digits in source cycle.");
+   args.AddOption(&out_pad_digits_cycle, "-opdc", "--out-pad-digits-cycle",
+                  "Number of digits in output cycle.");
+   args.AddOption(&src_pad_digits_rank, "-pdr", "--pad-digits-rank",
+                  "Number of digits in source MPI rank.");
+   args.AddOption(&out_pad_digits_rank, "-opdr", "--out-pad-digits-rank",
+                  "Number of digits in output MPI rank.");
    args.AddOption(&src_coll_type, "-st", "--source-type",
                   "Set the source data collection type. Options:\n"
                   "\t   visit:                VisItDataCollection (default)\n"
@@ -156,6 +168,14 @@ int main(int argc, char *argv[])
       args.PrintUsage(mfem::out);
       return 1;
    }
+   if (out_pad_digits_cycle < 0)
+   {
+      out_pad_digits_cycle = src_pad_digits_cycle;
+   }
+   if (out_pad_digits_rank < 0)
+   {
+      out_pad_digits_rank = src_pad_digits_rank;
+   }
    args.PrintOptions(mfem::out);
 
    DataCollection *src_dc = create_data_collection(std::string(src_coll_name),
@@ -164,6 +184,10 @@ int main(int argc, char *argv[])
    DataCollection *out_dc = create_data_collection(std::string(out_coll_name),
                                                    std::string(out_coll_type));
 
+   out_dc->SetPadDigitsCycle(out_pad_digits_cycle);
+   out_dc->SetPadDigitsRank(out_pad_digits_rank);
+   src_dc->SetPadDigitsCycle(src_pad_digits_cycle);
+   src_dc->SetPadDigitsRank(src_pad_digits_rank);
    src_dc->Load(src_cycle);
 
    if (src_dc->Error() != DataCollection::NO_ERROR)

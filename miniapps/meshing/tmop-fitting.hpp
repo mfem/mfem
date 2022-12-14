@@ -794,7 +794,6 @@ void ComputeScalarDistanceFromLevelSet(ParMesh &pmesh,
    const int newton_iter = pLapNewton;
    auto ds = new PLapDistanceSolver(p, newton_iter);
    dist_solver = ds;
-   dist_solver->print_level = 1;
 
    ParFiniteElementSpace pfes_s(*distance_s.ParFESpace());
 

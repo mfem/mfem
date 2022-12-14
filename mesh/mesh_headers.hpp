@@ -33,10 +33,6 @@
 #include "wedge.hpp"
 #include "pyramid.hpp"
 
-#ifdef MFEM_USE_MESQUITE
-#include "mesquite.hpp"
-#endif
-
 #ifdef MFEM_USE_MPI
 #include "pncmesh.hpp"
 #include "pmesh.hpp"
