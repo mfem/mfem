@@ -6186,11 +6186,11 @@ void Mesh::FindFaceNeighbors(const int elem, std::set<int> & nghb) const
       face_to_elem = GetFaceToElementTable();
    }
 
-   Array<int> faces;
+   Array<int> elem_faces;
    Array<int> ori;
-   GetElementFaces(elem, faces, ori);
+   GetElementFaces(elem, elem_faces, ori);
 
-   for (auto f : faces)
+   for (auto f : elem_faces)
    {
       Array<int> row;
       face_to_elem->GetRow(f, row);
