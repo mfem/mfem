@@ -193,23 +193,6 @@ public:
    virtual WorstCaseType GetWorstCaseType() { return wctype; }
 };
 
-class TMOP_Metric_000 : public TMOP_QualityMetric
-{
-protected:
-   mutable InvariantsEvaluator2D<double> ie;
-
-public:
-   // W = |J|^2.
-   virtual double EvalW(const DenseMatrix &Jpt) const { return 0.0; };
-
-   virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const {P=0.0;};
-
-   virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
-                          const double weight, DenseMatrix &A) const {A=0.0;};
-
-   virtual int Id() const { return 0; }
-};
-
 /// 2D non-barrier metric without a type.
 class TMOP_Metric_001 : public TMOP_QualityMetric
 {
@@ -1967,6 +1950,34 @@ public:
    void EnableSurfaceFitting(const GridFunction &s0,
                              const Array<bool> &smarker, Coefficient &coeff,
                              AdaptivityEvaluator &ae);
+
+#ifdef MFEM_USE_MPI
+   /// Parallel support for surface fitting.
+   void EnableSurfaceFitting(const ParGridFunction &s0,
+                             const Array<bool> &smarker, Coefficient &coeff,
+                             AdaptivityEvaluator &ae);
+
+   /** @brief Fitting of certain DOFs in the current mesh to the zero level set
+       of a function defined on another (finer) mesh
+
+       Having a level set function s0_bg(x0_bg) on a source/background mesh,
+       a set of marked nodes (or DOFs) in the current mesh, we move the marked
+       nodes to the zero level set of s0_bg. This functionality is used for
+       surface fitting and tangential relaxation.
+
+       @param[in] s0_bg      The level set function on the background mesh.
+       @param[in] s0         The level set function (automatically) interpolated on
+                             the initial mesh.
+       @param[in] smarker    Indicates which DOFs in the current mesh will be aligned.
+       @param[in] coeff      Coefficient c for the above integral.
+       @param[in] ae         AdaptivityEvaluator to compute s(x) from s0(x0).
+       @param[in] s0_bg_grad Gridfunction for computing gradient of s0_bg.
+       @param[in] s0_grad    Gridfunction for interpolating gradient of s0_bg from x0_bg to x0.
+       @param[in] age        AdaptivityEvaluator for interpolating gradient.
+       @param[in] s0_bg_hess Gridfunction for computing second derivatives of s0_bg.
+       @param[in] s0_hess    Gridfunction for interpolating second derivatives of s0_bg from x0_bg to x0.
+       @param[in] ahe        AdaptivityEvaluator for interpolating second derivatives.
+       See the tmop-fitting miniapp for detail on usage. */
    void EnableSurfaceFittingFromSource(const ParGridFunction &s0_bg,
                                        ParGridFunction &s0,
                                        const Array<bool> &smarker,
@@ -1978,12 +1989,6 @@ public:
                                        const ParGridFunction &s0_bg_hess,
                                        ParGridFunction &s0_hess,
                                        AdaptivityEvaluator &ahe);
-
-#ifdef MFEM_USE_MPI
-   /// Parallel support for surface fitting.
-   void EnableSurfaceFitting(const ParGridFunction &s0,
-                             const Array<bool> &smarker, Coefficient &coeff,
-                             AdaptivityEvaluator &ae);
 #endif
    void GetSurfaceFittingErrors(double &err_avg, double &err_max);
    bool IsSurfaceFittingEnabled() { return (surf_fit_gf != NULL); }
