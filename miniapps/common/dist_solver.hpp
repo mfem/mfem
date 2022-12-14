@@ -14,6 +14,8 @@
 
 #include "mfem.hpp"
 
+#ifdef MFEM_USE_MPI
+
 namespace mfem
 {
 
@@ -305,4 +307,5 @@ private:
 
 } // namespace mfem
 
+#endif // MFEM_USE_MPI
 #endif

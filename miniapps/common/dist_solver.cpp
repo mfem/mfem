@@ -11,6 +11,8 @@
 
 #include "dist_solver.hpp"
 
+#ifdef MFEM_USE_MPI
+
 namespace mfem
 {
 
@@ -812,3 +814,5 @@ void PDEFilter::Filter(Coefficient &func, ParGridFunction &ffield)
 }
 
 }
+
+#endif
