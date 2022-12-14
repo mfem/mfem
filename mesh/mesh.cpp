@@ -1466,7 +1466,8 @@ void Mesh::Init()
 void Mesh::InitTables()
 {
    el_to_edge =
-      el_to_face = el_to_el = bel_to_edge = face_edge = edge_vertex = NULL;
+      el_to_el = bel_to_edge = face_edge = edge_vertex = face_to_elem = NULL;
+   el_to_face = NULL;
 }
 
 void Mesh::SetEmpty()
@@ -1489,6 +1490,9 @@ void Mesh::DestroyTables()
 
    delete face_edge;
    delete edge_vertex;
+
+   delete face_to_elem;
+   face_to_elem = NULL;
 }
 
 void Mesh::DestroyPointers()
@@ -6171,6 +6175,28 @@ void Mesh::GetElementFaces(int i, Array<int> &el_faces, Array<int> &ori) const
       {
          MFEM_ASSERT(faces_info[el_faces[j]].Elem2No == i, "internal error");
          ori[j] = faces_info[el_faces[j]].Elem2Inf % 64;
+      }
+   }
+}
+
+void Mesh::FindFaceNeighbors(const int elem, std::set<int> & nghb) const
+{
+   if (face_to_elem == NULL)
+   {
+      face_to_elem = GetFaceToElementTable();
+   }
+
+   Array<int> faces;
+   Array<int> ori;
+   GetElementFaces(elem, faces, ori);
+
+   for (auto f : faces)
+   {
+      Array<int> row;
+      face_to_elem->GetRow(f, row);
+      for (auto r : row)
+      {
+         nghb.insert(r);
       }
    }
 }

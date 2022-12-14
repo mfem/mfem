@@ -17,6 +17,11 @@
 // normal vector. Element and boundary element attributes are copied from the
 // corresponding elements in the original mesh, except for boundary elements on
 // the plane of reflection.
+//
+// Compile with: make reflector
+//
+// Sample runs:  reflector -m ../../data/pipe-nurbs.mesh -n '0 0 1'
+//               reflector -m ../../data/fichera.mesh -o '1 0 0' -n '1 0 0'
 
 
 #include "mfem.hpp"
@@ -53,21 +58,16 @@ private:
    // Map from reflected to original mesh elements
    std::vector<int> *r2o;
 
-   // Map from reflected to original elements on reflected mesh
-   std::vector<int> *r2i;
-
    std::vector<std::vector<int>> *perm;
 
 public:
    ReflectedCoefficient(VectorCoefficient &A, Vector const& origin_,
-                        Vector const& normal_,
-                        std::vector<int> *r2o_, std::vector<int> *r2i_,
+                        Vector const& normal_, std::vector<int> *r2o_,
                         Mesh *mesh, Mesh *refmesh,
-                        std::vector<std::vector<int>> *refPerm) : VectorCoefficient(3),
-      a(&A), origin(origin_), normal(normal_),
-      r2o(r2o_), r2i(r2i_),
-      meshOrig(mesh), rmesh(refmesh),
-      perm(refPerm) { }
+                        std::vector<std::vector<int>> *refPerm) :
+      VectorCoefficient(3), a(&A), origin(origin_), normal(normal_),
+      meshOrig(mesh), rmesh(refmesh), r2o(r2o_), perm(refPerm)
+   { }
 
    virtual void Eval(Vector &V, ElementTransformation &T,
                      const IntegrationPoint &ip);
@@ -97,25 +97,23 @@ void ReflectedCoefficient::Eval(Vector &V, ElementTransformation &T,
 
    IntegrationPoint ipo;
 
-   MFEM_VERIFY(reflected == ((*r2i)[elem] >= 0), "");
-
    a->Eval(V, *T_orig, ip);
 
    if (reflected)
    {
-      // Map from ip in reflected elements to ip in initial elements, in Mesh reflected.
-      // y = Ax + b in reference spaces, where A has 9 entries, b has 3, total of 12 unknowns.
-      // The number of data points is 3 * 8 = 24, so it is overdetermined.
-      // It seems 4 points out of 8 can be used, for example (0,0,0), (1,0,0), (0,1,0), (0,0,1).
-      // Indeed, b = y for x=(0,0,0), and the other choices give the columns of A.
-
-      const std::vector<int>& p = (*perm)[(*r2i)[elem] / 2];
+      // Map from ip in reflected elements to ip in initial elements, in mesh
+      // `reflected`. y = Ax + b in reference spaces, where A has 9 entries,
+      // and b has 3, totaling 12 unknowns. The number of data points is
+      // 3 * 8 = 24, so it is overdetermined. We use 4 points out of 8, (0,0,0),
+      // (1,0,0), (0,1,0), (0,0,1). For x=(0,0,0), b = y, and the other choices
+      // give the columns of A.
 
       // Permutation p is such that hex_reflected[i] = hex_init[p[i]]
+      const std::vector<int>& p = (*perm)[elem];
 
-      // ip is on reflected hex. We want to map from the reflected hex to the initial hex,
-      // in reference space. Thus we need y = Ax + b, where x is in the reflected reference
-      // space, and y is in the initial hex reference space.
+      // ip is on reflected hex. We map from the reflected hex to the initial
+      // hex, in reference space. Thus we use y = Ax + b, where x is in the
+      // reflected reference space, and y is in the initial hex reference space.
 
       const IntegrationRule *ir = Geometries.GetVertices(Geometry::CUBE);
 
@@ -182,6 +180,11 @@ void GetHexPermutation(Array<int> const& h1, Array<int> const& h2,
    }
 }
 
+// This class facilitates constructing a hexahedral mesh one element at a time,
+// using AddElement. The hexahedron input to AddElement is specified by vertices
+// without requiring consistent global orientations. The mesh can be constructed
+// simply by calling AddVertex for all vertices and then AddElement for all
+// hexahedra.
 class HexMeshBuilder
 {
 public:
@@ -198,24 +201,48 @@ public:
             {1,2,6,5}
          }
       };
+
+      e2v =
+      {
+         {  {0,1},
+            {1,2},
+            {2,3},
+            {0,3},
+            {4,5},
+            {5,6},
+            {6,7},
+            {4,7},
+            {0,4},
+            {1,5},
+            {2,6},
+            {3,7}
+         }
+      };
    }
 
-   Mesh *mesh;
-   std::vector<std::vector<int>> refPerm;
-
+   /** @brief Add a single vertex to the mesh, specified by 3 coordinates. */
    int AddVertex(const double *coords) const
    {
       return mesh->AddVertex(coords);
    }
 
+   /** @brief Add a single hexahedral element to the mesh, specified by 8
+       vertices. */
+   /** If reorder is false, the ordering in @vertices is used, so it must be
+       known in advance to have consistent orientations. Otherwise, a new
+       ordering will be found to ensure consistent orientations in the mesh.
+    */
    int AddElement(Array<int> const& vertices, const bool reorder);
 
-private:
+   Mesh *mesh;
+   std::vector<std::vector<int>> refPerm;
 
+private:
    std::vector<std::vector<int>> faces;
    std::vector<std::set<int>> v2f;
    std::vector<std::vector<int>> f2e;
    std::array<std::array<int, 4>, 6> f2v;
+   std::array<std::array<int, 2>, 12> e2v;
 
    int FindFourthVertexOnFace(Array<int> const& hex,
                               std::vector<int> const& v3) const;
@@ -233,17 +260,19 @@ private:
 
 int HexMeshBuilder::AddElement(Array<int> const& vertices, const bool reorder)
 {
+   MFEM_ASSERT(vertices.Size() == 8, "Hexahedron must have 8 vertices");
+
    Array<int> rvert(vertices);
    if (reorder)
    {
       ReorderHex(rvert);  // First reorder to set (0,0,0) and (1,1,1) vertices.
 
-      // Now do possibly multiple reorderings to get consistent face orientations.
+      // Now reorder to get consistent face orientations.
       bool reordered = true;
       int iter = 0;
       do
       {
-         reordered = ReorderHex_faceOrientations(rvert); //, faces, v2f, f2e, *mesh);
+         reordered = ReorderHex_faceOrientations(rvert);
          iter++;
          MFEM_VERIFY(iter < 5, "");
       }
@@ -251,7 +280,11 @@ int HexMeshBuilder::AddElement(Array<int> const& vertices, const bool reorder)
 
       std::vector<int> perm_e(8);
       GetHexPermutation(rvert, vertices, perm_e);
-      refPerm.push_back(perm_e);  // TODO: set refperm for all elements?
+      refPerm.push_back(perm_e);
+   }
+   else
+   {
+      refPerm.push_back(std::vector<int> {0, 1, 2, 3, 4, 5, 6, 7});
    }
 
    SaveHexFaces(mesh->GetNE(), rvert);
@@ -342,24 +375,6 @@ void HexMeshBuilder::ReorderHex(Array<int> & hex) const
    }
 
    // Find the 3 vertices sharing an edge with v0.
-
-   std::array<std::array<int, 2>, 12> e2v =
-   {
-      {  {0,1},
-         {1,2},
-         {2,3},
-         {0,3},
-         {4,5},
-         {5,6},
-         {6,7},
-         {4,7},
-         {0,4},
-         {1,5},
-         {2,6},
-         {3,7}
-      }
-   };
-
    std::vector<int> v0e;
    for (int e=0; e<12; ++e)
    {
@@ -626,25 +641,7 @@ void HexMeshBuilder::SaveHexFaces(const int elem, Array<int> const& hex)
    }
 }
 
-void FindFaceNeighbors(Mesh const& mesh, Table *f2e, const int el,
-                       std::set<int> & nghb)
-{
-   Array<int> faces;
-   Array<int> ori;
-   mesh.GetElementFaces(el, faces, ori);
-
-   for (auto f : faces)
-   {
-      Array<int> row;
-      f2e->GetRow(f, row);
-      for (auto r : row)
-      {
-         nghb.insert(r);
-      }
-   }
-}
-
-double GetElementDiameter(Mesh const& mesh, const int elem)
+double GetElementEdgeMin(Mesh const& mesh, const int elem)
 {
    Array<int> edges, cor;
    mesh.GetElementEdges(elem, edges, cor);
@@ -679,7 +676,7 @@ void FindElementsTouchingPlane(Mesh const& mesh, Vector const& origin,
 
    for (int e=0; e<mesh.GetNE(); ++e)
    {
-      const double diam = GetElementDiameter(mesh, e);
+      const double diam = GetElementEdgeMin(mesh, e);
       Array<int> vert;
       mesh.GetElementVertices(e, vert);
 
@@ -727,8 +724,6 @@ bool GetMeshElementOrder(Mesh const& mesh, Vector const& origin,
       return false;
    }
 
-   Table *f2e = mesh.GetFaceToElementTable();
-
    int cnt = 0;
    while (cnt < ne)
    {
@@ -745,7 +740,7 @@ bool GetMeshElementOrder(Mesh const& mesh, Vector const& origin,
       for (auto e : layer)
       {
          std::set<int> nghb;
-         FindFaceNeighbors(mesh, f2e, e, nghb);
+         mesh.FindFaceNeighbors(e, nghb);
 
          for (auto n : nghb)
          {
@@ -772,7 +767,6 @@ Mesh* ReflectHighOrderMesh(Mesh & mesh, Vector origin, Vector normal)
 {
    MFEM_VERIFY(mesh.Dimension() == 3, "Only 3D meshes can be reflected");
 
-   // TODO: make a function in Mesh for edge length stats?
    // Find the minimum edge length, to use for a relative tolerance.
    double minLength = 0.0;
    for (int i=0; i<mesh.GetNE(); i++)
@@ -809,14 +803,13 @@ Mesh* ReflectHighOrderMesh(Mesh & mesh, Vector origin, Vector normal)
    const int nv = mesh.GetNV();
    const int ne = mesh.GetNE();
 
-   std::vector<int> r2o, r2i;
+   std::vector<int> r2o;
 
    const int nv_reflected = (2*nv) - planeVertices.size();
 
    HexMeshBuilder builder(nv_reflected, 2*ne);
 
    r2o.assign(2*ne, -1);
-   r2i.assign(2*ne, -1);
 
    std::vector<int> v2r;
    v2r.assign(mesh.GetNV(), -1);
@@ -870,9 +863,7 @@ Mesh* ReflectHighOrderMesh(Mesh & mesh, Vector origin, Vector normal)
       }
 
       const int newElem = builder.AddElement(rvert, onPlane);
-
       r2o[newElem] = -1 - e;
-      r2i[newElem] = copiedElem;
    }
 
    Mesh *reflected = builder.mesh;
@@ -1013,7 +1004,7 @@ Mesh* ReflectHighOrderMesh(Mesh & mesh, Vector origin, Vector normal)
 
       VectorGridFunctionCoefficient nodesCoef(Nodes);
 
-      ReflectedCoefficient rc(nodesCoef, origin, normal, &r2o, &r2i, &mesh, reflected,
+      ReflectedCoefficient rc(nodesCoef, origin, normal, &r2o, &mesh, reflected,
                               &builder.refPerm);
 
       newReflectedNodes.ProjectCoefficient(rc);

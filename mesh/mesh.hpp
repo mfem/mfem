@@ -27,6 +27,7 @@
 #include "../general/adios2stream.hpp"
 #endif
 #include <iostream>
+#include <set>
 
 namespace mfem
 {
@@ -223,6 +224,7 @@ protected:
    Array<int> be_to_edge;  // for 2D
    Table *bel_to_edge;     // for 3D
    Array<int> be_to_face;
+   mutable Table *face_to_elem;
    mutable Table *face_edge;
    mutable Table *edge_vertex;
 
@@ -1183,6 +1185,9 @@ public:
 
    /// Return the indices and the orientations of all faces of element i.
    void GetElementFaces(int i, Array<int> &faces, Array<int> &ori) const;
+
+   /// Returns the elements sharing a face with element @elem, including @elem.
+   void FindFaceNeighbors(const int elem, std::set<int> & nghb) const;
 
    /// Return the index and the orientation of the face of bdr element i. (3D)
    void GetBdrElementFace(int i, int *f, int *o) const;
