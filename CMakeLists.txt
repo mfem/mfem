@@ -82,12 +82,13 @@ if (MFEM_USE_STRUMPACK)
   # Just needed to find the MPI_Fortran libraries to link with
   set(XSDK_ENABLE_Fortran ON)
 endif()
-# SUNDIALS, STRUMPACK, and Ginkgo require C++14:
-if ((MFEM_USE_SUNDIALS OR MFEM_USE_STRUMPACK OR MFEM_USE_GINKGO) AND
+# SUNDIALS, STRUMPACK, Ginkgo, RAJA and Umpire require C++14:
+if ((MFEM_USE_SUNDIALS OR
+     MFEM_USE_STRUMPACK OR
+     MFEM_USE_GINKGO OR
+     MFEM_USE_RAJA OR
+     MFEM_USE_UMPIRE) AND
     ("${CMAKE_CXX_STANDARD}" LESS "14"))
-  set(CMAKE_CXX_STANDARD 14)
-endif()
-if (MFEM_USE_RAJA AND ("${CMAKE_CXX_STANDARD}" LESS "14"))
   set(CMAKE_CXX_STANDARD 14)
 endif()
 

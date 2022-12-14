@@ -8,8 +8,6 @@
                                https://mfem.org
 
 
-
-
 Version 4.5.1 (development)
 ===========================
 
@@ -35,6 +33,9 @@ Integrations, testing and documentation
 ---------------------------------------
 - Removed the support for the Mesquite toolkit. We recommend using MFEM's TMOP
   functionality instead for mesh optimization. See the mesh-optimizer miniapp.
+
+- The following integrations have updated minimum version requirements:
+  * RAJA >= 2022.10.3
 
 Miscellaneous
 -------------
@@ -302,7 +303,7 @@ Integrations, testing and documentation
   * HYPRE >= 2.23.0 for HIP support
   * libCEED >= 0.10
   * PUMI >= 2.2.6
-  * RAJA >= 2022.10.3
+  * RAJA >= 0.14.0
   * Umpire >= 3.0.0
   see INSTALL for more details.
 
