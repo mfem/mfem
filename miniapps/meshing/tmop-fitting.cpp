@@ -82,7 +82,6 @@ int main (int argc, char *argv[])
    int surf_ls_type      = 1;
    int marking_type      = 0;
    bool mod_bndr_attr    = false;
-   bool trim_mesh        = false;
    bool material         = false;
    int mesh_node_ordering = 0;
    int amr_iters         = 0;
@@ -198,10 +197,8 @@ int main (int argc, char *argv[])
    args.AddOption(&mod_bndr_attr, "-mod-bndr-attr", "--modify-boundary-attribute",
                   "-fix-bndr-attr", "--fix-boundary-attribute",
                   "Change boundary attribue based on alignment with Cartesian axes.");
-   args.AddOption(&trim_mesh, "-trim", "--trim",
-                  "-no-trim","--no-trim", "trim the mesh or not.");
    args.AddOption(&material, "-mat", "--mat",
-                  "-no-mat","--no-mat", "Use specified material attributes.");
+                  "-no-mat","--no-mat", "Use default material attributes.");
    args.AddOption(&mesh_node_ordering, "-mno", "--mesh_node_ordering",
                   "Ordering of mesh nodes."
                   "0 (default): byNodes, 1: byVDIM");
@@ -243,15 +240,6 @@ int main (int argc, char *argv[])
    else
    {
       MFEM_ABORT("Surface fitting level set type not implemented yet.")
-   }
-
-   // Trim the mesh based on material attribute and set boundary attribute for fitting to 3
-   if (trim_mesh)
-   {
-      Mesh *mesh_trim = TrimMesh(*mesh, *ls_coeff, mesh_poly_deg, 1);
-      delete mesh;
-      mesh = new Mesh(*mesh_trim);
-      delete mesh_trim;
    }
 
    ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
@@ -453,6 +441,21 @@ int main (int argc, char *argv[])
    if (surf_bg_mesh)
    {
       pmesh_surf_fit_bg->SetCurvature(mesh_poly_deg);
+
+      Vector p_min(dim), p_max(dim);
+      pmesh->GetBoundingBox(p_min, p_max);
+      GridFunction &x_bg = *pmesh_surf_fit_bg->GetNodes();
+      const int num_nodes = x_bg.Size() / dim;
+      for (int i = 0; i < num_nodes; i++)
+      {
+         for (int d = 0; d < dim; d++)
+         {
+            double length_d = p_max(d) - p_min(d),
+                   extra_d = 0.2 * length_d;
+            x_bg(i + d*num_nodes) = p_min(d) - extra_d +
+                                    x_bg(i + d*num_nodes) * (length_d + 2*extra_d);
+         }
+      }
       surf_fit_bg_fec = new H1_FECollection(mesh_poly_deg+1, dim);
       surf_fit_bg_fes = new ParFiniteElementSpace(pmesh_surf_fit_bg, surf_fit_bg_fec);
       surf_fit_bg_gf0 = new ParGridFunction(surf_fit_bg_fes);
