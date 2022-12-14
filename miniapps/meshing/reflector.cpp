@@ -1017,12 +1017,13 @@ Mesh* ReflectHighOrderMesh(Mesh & mesh, Vector origin, Vector normal)
 int main(int argc, char *argv[])
 {
    // Parse command-line options.
-   const char *mesh_file = "../../data/beam-hex.mesh";
+   const char *mesh_file = "../../data/pipe-nurbs.mesh";
    bool visualization = 1;
    Vector normal(3);
    Vector origin(3);
 
    normal = 0.0;
+   normal[2] = 1.0;
    origin = 0.0;
 
    OptionsParser args(argc, argv);
