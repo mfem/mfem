@@ -101,24 +101,6 @@ double TMOP_WorstCaseUntangleOptimizer_Metric::EvalWBarrier(
    return tmop_metric.EvalW(Jpt)/denominator;
 }
 
-//double TMOP_Metric_000::EvalW(const DenseMatrix &Jpt) const
-//{
-//   return 0.0;
-//}
-
-//void TMOP_Metric_000::EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const
-//{
-//   P = 0.0;
-//}
-
-//void TMOP_Metric_000::AssembleH(const DenseMatrix &Jpt,
-//                                const DenseMatrix &DS,
-//                                const double weight,
-//                                DenseMatrix &A) const
-//{
-//   A = 0.0;
-//}
-
 double TMOP_Metric_001::EvalW(const DenseMatrix &Jpt) const
 {
    ie.SetJacobian(Jpt.GetData());
@@ -4109,9 +4091,7 @@ void TMOP_Integrator::UpdateAfterMeshPositionChange(const Vector &new_x,
    {
       if (surf_fit_gf_bg)
       {
-         //surf_fit_eval->ComputeAtNewPosition(new_x, *surf_fit_gf, ordering);
-         //surf_fit_eval_bg_grad->ComputeAtNewPosition(new_x, *surf_fit_grad, ordering);
-         //surf_fit_eval_bg_hess->ComputeAtNewPosition(new_x, *surf_fit_hess, ordering);
+         // Interpolate information for only DOFs marked for fitting.
          const int dim = surf_fit_gf->FESpace()->GetMesh()->Dimension();
          const int cnt = surf_fit_marker_dof_index.Size();
          const int total_cnt = new_x.Size()/dim;

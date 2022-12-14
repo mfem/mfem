@@ -318,6 +318,7 @@ int main (int argc, char *argv[])
                   "0 - None,"
                   "1 - Beta,"
                   "2 - PMean.");
+
    args.Parse();
    if (!args.Good())
    {

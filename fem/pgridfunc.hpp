@@ -226,6 +226,7 @@ public:
                                const IntegrationPoint &ip,
                                Vector &val, Vector *tr = NULL) const;
 
+   /** @brief Counts in how many zones each vdof appears. */
    void CountZones(Array<int> &zones_per_vdof) const;
 
    /// Parallel version of GridFunction::GetDerivative(); see its documentation.
