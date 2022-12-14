@@ -90,7 +90,6 @@ double compare_pa_id_assembly(int dim, int num_elements, int order,
    x.Randomize();
    if (transpose)
    {
-      assembled_id_mat.EnsureMultTranspose();
       assembled_id_mat.MultTranspose(x, assembled_y);
       pa_id.MultTranspose(x, pa_y);
    }

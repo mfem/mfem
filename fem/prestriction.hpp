@@ -68,6 +68,21 @@ public:
        @param[in,out] y The L-vector degrees of freedom. */
    void AddMultTranspose(const Vector &x, Vector &y) const override;
 
+   /** @brief Gather the degrees of freedom, i.e. goes from face E-Vector to
+       L-Vector.
+
+       @param[in,out]  x The face E-Vector degrees of freedom with the given format:
+                         face_dofs x vdim x nf
+                         where nf is the number of interior or boundary faces
+                         requested by @a type in the constructor.
+                         The face_dofs should be ordered according to the given
+                         ElementDofOrdering.
+       @param[in,out] y The L-vector degrees of freedom.
+
+      @note This method is an optimization of AddMultTranspose where the @a x
+      Vector is used and modified to avoid memory allocation and memcpy. */
+   void AddMultTransposeInPlace(Vector &x, Vector &y) const override;
+
 private:
    /** @brief Compute the scatter indices: L-vector to E-vector, the offsets
        for the gathering: E-vector to L-vector, and the interpolators from
@@ -88,6 +103,31 @@ private:
    */
    void ComputeGatherIndices(const ElementDofOrdering ordering,
                              const FaceType type);
+
+public: // For nvcc
+   /** @brief Apply a change of basis from coarse element basis to fine element
+       basis for the coarse face dofs.
+
+       @param[in,out] x The dofs vector that needs coarse dofs to be express in
+                        term of the fine basis.
+   */
+   void NonconformingInterpolation(Vector& x) const;
+
+   /** @brief Apply a change of basis from fine element basis to coarse element
+       basis for the coarse face dofs.
+
+       @param[in] x The dofs vector that needs coarse dofs to be express in term
+                    of the coarse basis, the result is stored in x_interp.
+   */
+   void NonconformingTransposeInterpolation(const Vector& x) const;
+
+   /** @brief Apply a change of basis from fine element basis to coarse element
+       basis for the coarse face dofs.
+
+       @param[in] x The dofs vector that needs coarse dofs to be express in term
+                    of the coarse basis, the result is stored in x_interp.
+   */
+   void NonconformingTransposeInterpolationInPlace(Vector& x) const;
 };
 
 /// Operator that extracts Face degrees of freedom in parallel.
@@ -264,6 +304,21 @@ public:
                      ElementDofOrdering
        @param[in,out] y The L-vector degrees of freedom. */
    void AddMultTranspose(const Vector &x, Vector &y) const override;
+
+   /** @brief Gather the degrees of freedom, i.e. goes from face E-Vector to
+       L-Vector.
+
+       @param[in,out]  x The face E-Vector degrees of freedom with the given format:
+                         if L2FacesValues::DoubleValued (face_dofs x vdim x 2 x nf),
+                         if L2FacesValues::SingleValued (face_dofs x vdim x nf),
+                         where nf is the number of interior or boundary faces
+                         requested by @a type in the constructor.
+                         The face_dofs should be ordered according to the given
+                         ElementDofOrdering
+       @param[in,out] y The L-vector degrees of freedom.
+
+       @note @a x is used for computation. */
+   void AddMultTransposeInPlace(Vector &x, Vector &y) const override;
 
    /** @brief Fill the I array of SparseMatrix corresponding to the sparsity
        pattern given by this ParNCL2FaceRestriction.

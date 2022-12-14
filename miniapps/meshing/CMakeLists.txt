@@ -37,7 +37,8 @@ add_mfem_miniapp(klein-bottle
 
 add_mfem_miniapp(mesh-explorer
   MAIN mesh-explorer.cpp
-  LIBRARIES mfem)
+  ${MFEM_MINIAPPS_COMMON_HEADERS}
+  LIBRARIES mfem mfem-common)
 
 add_mfem_miniapp(mobius-strip
   MAIN mobius-strip.cpp

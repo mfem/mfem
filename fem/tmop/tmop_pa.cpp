@@ -58,8 +58,9 @@ void TMOP_Integrator::AssemblePA_Limiting()
 
    MFEM_VERIFY(PA.enabled, "AssemblePA_Limiting but PA is not enabled!");
    MFEM_VERIFY(lim_func, "No TMOP_LimiterFunction specification!")
-   MFEM_VERIFY(dynamic_cast<TMOP_QuadraticLimiter*>(lim_func),
-               "Only TMOP_QuadraticLimiter is supported");
+   MFEM_VERIFY(dynamic_cast<TMOP_QuadraticLimiter*>(lim_func) ||
+               dynamic_cast<TMOP_ExponentialLimiter*>(lim_func),
+               "Only TMOP_QuadraticLimiter and TMOP_ExponentialLimiter are supported");
 
    const FiniteElementSpace *fes = PA.fes;
    const int NE = PA.ne;
@@ -192,7 +193,7 @@ void TMOP_Integrator::AssemblePA(const FiniteElementSpace &fes)
    const FiniteElement &fe = *fes.GetFE(0);
    PA.ir = &EnergyIntegrationRule(fe);
    const IntegrationRule &ir = *PA.ir;
-   MFEM_ASSERT(fes.GetOrdering() == Ordering::byNODES,
+   MFEM_VERIFY(fes.GetOrdering() == Ordering::byNODES,
                "PA Only supports Ordering::byNODES!");
 
    const int nq = PA.nq = ir.GetNPoints();

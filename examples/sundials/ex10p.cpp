@@ -215,10 +215,11 @@ void visualize(ostream &os, ParMesh *mesh, ParGridFunction *deformed_nodes,
 
 int main(int argc, char *argv[])
 {
-   // 1. Initialize MPI and HYPRE.
+   // 1. Initialize MPI, HYPRE, and SUNDIALS.
    Mpi::Init(argc, argv);
    int myid = Mpi::WorldRank();
    Hypre::Init();
+   Sundials::Init();
 
    // 2. Parse command-line options.
    const char *mesh_file = "../../data/beam-quad.mesh";

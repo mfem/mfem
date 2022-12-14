@@ -121,9 +121,9 @@ public:
    void Setup(Mesh &m, const double bb_t = 0.1,
               const double newt_tol = 1.0e-12,
               const int npt_max = 256);
-   /** Searches positions given in physical space by @a point_pos. These positions
-       can be ordered byNodes: (XXX...,YYY...,ZZZ) or byVDim: (XYZ,XYZ,....XYZ)
-       specified by @ordering.
+   /** Searches positions given in physical space by @a point_pos.
+       These positions can be ordered byNodes: (XXX...,YYY...,ZZZ) or
+       byVDim: (XYZ,XYZ,....XYZ) specified by @a point_pos_ordering.
        This function populates the following member variables:
        #gsl_code        Return codes for each point: inside element (0),
                         element boundary (1), not found (2).
@@ -141,10 +141,11 @@ public:
                         Defaults to 0 for points that were not found.
        #gsl_dist        Distance between the sought and the found point
                         in physical space. */
-   void FindPoints(const Vector &point_pos, int ordering = Ordering::byNODES);
+   void FindPoints(const Vector &point_pos,
+                   int point_pos_ordering = Ordering::byNODES);
    /// Setup FindPoints and search positions
    void FindPoints(Mesh &m, const Vector &point_pos,
-                   int ordering = Ordering::byNODES,
+                   int point_pos_ordering = Ordering::byNODES,
                    const double bb_t = 0.1,
                    const double newt_tol = 1.0e-12,  const int npt_max = 256);
 
@@ -156,11 +157,15 @@ public:
        @param[out] field_out  Interpolated values. For points that are not found
                               the value is set to #default_interp_value. */
    virtual void Interpolate(const GridFunction &field_in, Vector &field_out);
-   /** Search positions and interpolate */
+   /** Search positions and interpolate. The ordering (byNODES or byVDIM) of
+       the output values in @a field_out corresponds to the ordering used
+       in the input GridFunction @a field_in. */
    void Interpolate(const Vector &point_pos, const GridFunction &field_in,
                     Vector &field_out,
                     int point_pos_ordering = Ordering::byNODES);
-   /** Setup FindPoints, search positions and interpolate */
+   /** Setup FindPoints, search positions and interpolate. The ordering (byNODES
+       or byVDIM) of the output values in @a field_out corresponds to the
+       ordering used in the input GridFunction @a field_in. */
    void Interpolate(Mesh &m, const Vector &point_pos,
                     const GridFunction &field_in, Vector &field_out,
                     int point_pos_ordering = Ordering::byNODES);
@@ -251,12 +256,12 @@ public:
    /** Searches positions given in physical space by @a point_pos. All output
        Arrays and Vectors are expected to have the correct size.
 
-       @param[in]  point_pos  Positions to be found.
-       @param[in]  point_id   Index of the mesh that the point belongs to
-                              (corresponding to @a meshid in Setup).
-       @param[in]  ordering   Ordering of the points:
-                              byNodes: (XXX...,YYY...,ZZZ) or
-                              byVDim: (XYZ,XYZ,....XYZ) */
+       @param[in]  point_pos           Positions to be found.
+       @param[in]  point_id            Index of the mesh that the point belongs
+                                       to (corresponding to @a meshid in Setup).
+       @param[in]  point_pos_ordering  Ordering of the points:
+                                       byNodes: (XXX...,YYY...,ZZZ) or
+                                       byVDim: (XYZ,XYZ,....XYZ) */
    void FindPoints(const Vector &point_pos,
                    Array<unsigned int> &point_id,
                    int point_pos_ordering = Ordering::byNODES);
