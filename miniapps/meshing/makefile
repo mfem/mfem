@@ -26,7 +26,7 @@ MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
 SEQ_MINIAPPS = mobius-strip klein-bottle toroid trimmer twist mesh-explorer\
-	shaper extruder mesh-optimizer minimal-surface polar-nc
+	shaper extruder mesh-optimizer minimal-surface polar-nc reflector
 PAR_MINIAPPS = pmesh-optimizer pminimal-surface
 ifeq ($(MFEM_USE_MPI),NO)
    MINIAPPS = $(SEQ_MINIAPPS)
@@ -108,13 +108,13 @@ clean: clean-build clean-exec
 
 clean-build:
 	rm -f *.o *~ mobius-strip klein-bottle toroid twist
-	rm -f mesh-explorer shaper extruder trimmer
+	rm -f mesh-explorer shaper extruder trimmer reflector
 	rm -f mesh-optimizer pmesh-optimizer polar-nc
 	rm -f minimal-surface pminimal-surface
 	rm -rf *.dSYM *.TVD.*breakpoints
 
 clean-exec:
 	@rm -f mobius-strip.mesh klein-bottle.mesh mesh-explorer.mesh
-	@rm -f toroid-*.mesh twist-*.mesh trimmer.mesh
+	@rm -f toroid-*.mesh twist-*.mesh trimmer.mesh reflected.mesh
 	@rm -f partitioning.txt shaper.mesh extruder.mesh
 	@rm -f optimized* perturbed* polar-nc.mesh
