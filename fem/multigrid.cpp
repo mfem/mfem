@@ -109,11 +109,11 @@ void MultigridBase::Mult(const Vector& x, Vector& y) const
    Array<Vector*> Y_(1);
    X_[0] = &x;
    Y_[0] = &y;
-   Mult(X_, Y_);
+   ArrayMult(X_, Y_);
 }
 
-void MultigridBase::Mult(const Array<const Vector*>& X_,
-                         Array<Vector*>& Y_) const
+void MultigridBase::ArrayMult(const Array<const Vector*>& X_,
+                              Array<Vector*>& Y_) const
 {
    MFEM_ASSERT(operators.Size() > 0,
                "Multigrid solver does not have operators set!");
@@ -150,7 +150,7 @@ void MultigridBase::SmoothingStep(int level, bool zero, bool transpose) const
    if (zero)
    {
       Array<Vector *> X_(X[level], nrhs), Y_(Y[level], nrhs);
-      GetSmootherAtLevel(level)->Mult(X_, Y_);
+      GetSmootherAtLevel(level)->ArrayMult(X_, Y_);
    }
    else
    {
@@ -160,14 +160,14 @@ void MultigridBase::SmoothingStep(int level, bool zero, bool transpose) const
       {
          *R_[j] = *X(level, j);
       }
-      GetOperatorAtLevel(level)->AddMult(Y_, R_, -1.0);
+      GetOperatorAtLevel(level)->ArrayAddMult(Y_, R_, -1.0);
       if (transpose)
       {
-         GetSmootherAtLevel(level)->MultTranspose(R_, Z_);
+         GetSmootherAtLevel(level)->ArrayMultTranspose(R_, Z_);
       }
       else
       {
-         GetSmootherAtLevel(level)->Mult(R_, Z_);
+         GetSmootherAtLevel(level)->ArrayMult(R_, Z_);
       }
       for (int j = 0; j < nrhs; ++j)
       {
@@ -199,8 +199,8 @@ void MultigridBase::Cycle(int level) const
       {
          *R_[j] = *X(level, j);
       }
-      GetOperatorAtLevel(level)->AddMult(Y_, R_, -1.0);
-      GetProlongationAtLevel(level - 1)->MultTranspose(R_, X_);
+      GetOperatorAtLevel(level)->ArrayAddMult(Y_, R_, -1.0);
+      GetProlongationAtLevel(level - 1)->ArrayMultTranspose(R_, X_);
       for (int j = 0; j < nrhs; ++j)
       {
          *Y(level - 1, j) = 0.0;
@@ -217,7 +217,7 @@ void MultigridBase::Cycle(int level) const
    // Prolongate and add
    {
       Array<Vector *> Y_(Y[level - 1], nrhs), Z_(Z[level], nrhs);
-      GetProlongationAtLevel(level - 1)->Mult(Y_, Z_);
+      GetProlongationAtLevel(level - 1)->ArrayMult(Y_, Z_);
       for (int j = 0; j < nrhs; ++j)
       {
          *Y(level, j) += *Z_[j];

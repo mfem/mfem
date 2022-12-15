@@ -53,8 +53,7 @@ public:
 
    /// Initializes memory for true vectors of linear system
    void InitTVectors(const Operator *Po, const Operator *Ri, const Operator *Pi,
-                     Vector &x, Vector &b,
-                     Vector &X, Vector &B) const;
+                     Vector &x, Vector &b, Vector &X, Vector &B) const;
 
    /// Construct a square Operator with given size s (default 0).
    explicit Operator(int s = 0) { height = width = s; }
@@ -102,21 +101,21 @@ public:
                                  const double a = 1.0) const;
 
    /// Operator application on a matrix: `Y=A(X)`.
-   virtual void Mult(const Array<const Vector *> &X, Array<Vector *> &Y) const;
+   virtual void ArrayMult(const Array<const Vector *> &X,
+                          Array<Vector *> &Y) const;
 
    /// Action of the transpose operator on a matrix: `Y=A^t(X)`.
-   virtual void MultTranspose(const Array<const Vector *> &X,
-                              Array<Vector *> &Y) const;
+   virtual void ArrayMultTranspose(const Array<const Vector *> &X,
+                                   Array<Vector *> &Y) const;
 
    /// Operator application on a matrix: `Y+=A(X)` (default) or `Y+=a*A(X)`.
-   virtual void AddMult(const Array<const Vector *> &X, Array<Vector *> &Y,
-                        const double a = 1.0) const;
+   virtual void ArrayAddMult(const Array<const Vector *> &X, Array<Vector *> &Y,
+                             const double a = 1.0) const;
 
    /** @brief Operator transpose application on a matrix: `Y+=A^t(X)` (default)
        or `Y+=a*A^t(X)`. */
-   virtual void AddMultTranspose(const Array<const Vector *> &X,
-                                 Array<Vector *> &Y,
-                                 const double a = 1.0) const;
+   virtual void ArrayAddMultTranspose(const Array<const Vector *> &X,
+                                      Array<Vector *> &Y, const double a = 1.0) const;
 
    /** @brief Evaluate the gradient operator at the point @a x. The default
        behavior in class Operator is to generate an error. */
@@ -138,20 +137,24 @@ public:
    /** @brief Prolongation operator from linear algebra (linear system) vectors,
        to input vectors for the operator. `NULL` means identity. */
    virtual const Operator *GetProlongation() const { return NULL; }
+
    /** @brief Restriction operator from input vectors for the operator to linear
        algebra (linear system) vectors. `NULL` means identity. */
    virtual const Operator *GetRestriction() const  { return NULL; }
+
    /** @brief Prolongation operator from linear algebra (linear system) vectors,
        to output vectors for the operator. `NULL` means identity. */
    virtual const Operator *GetOutputProlongation() const
    {
       return GetProlongation(); // Assume square unless specialized
    }
+
    /** @brief Transpose of GetOutputRestriction, directly available in this
        form to facilitate matrix-free RAP-type operators.
 
        `NULL` means identity. */
    virtual const Operator *GetOutputRestrictionTranspose() const { return NULL; }
+
    /** @brief Restriction operator from output vectors for the operator to linear
        algebra (linear system) vectors. `NULL` means identity. */
    virtual const Operator *GetOutputRestriction() const
