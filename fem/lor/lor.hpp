@@ -70,7 +70,7 @@ protected:
    BilinearForm *a = nullptr;
    class BatchedLORAssembly *batched_lor = nullptr;
    OperatorHandle A;
-   mutable Array<int> perm;
+   mutable Array<int> perm, l_perm;
 
    /// Constructs the local DOF (ldof) permutation. In parallel this is used as
    /// an intermediate step in computing the DOF permutation (see
@@ -126,6 +126,16 @@ public:
    /// nontrivial. Returns an array @a perm such that, given an index @a i of a
    /// LOR dof, @a perm[i] is the index of the corresponding HO dof.
    const Array<int> &GetDofPermutation() const;
+
+   /// @brief Returns the local permutation that maps LOR DOFs to high-order DOFs.
+   ///
+   /// This permutation is constructed the first time it is requested, and then
+   /// is cached. When running in parallel, only permutation of the local DOFs
+   /// is returned. These can be inconsistent with the orientation of the global
+   /// DOFs and GetDofPermutation() should be used instead to get a consistent
+   /// global permutation.
+   /// @see GetDofPermutation()
+   const Array<int> &GetLocalDofPermutation() const;
 
    /// Returns the low-order refined finite element space.
    FiniteElementSpace &GetFESpace() const;

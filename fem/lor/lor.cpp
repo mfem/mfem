@@ -255,6 +255,12 @@ const Array<int> &LORBase::GetDofPermutation() const
    return perm;
 }
 
+const Array<int> &LORBase::GetLocalDofPermutation() const
+{
+   if (l_perm.Size() == 0) { ConstructLocalDofPermutation(l_perm); }
+   return l_perm;
+}
+
 bool LORBase::HasSameDofNumbering() const
 {
    FESpaceType type = GetFESpaceType();
