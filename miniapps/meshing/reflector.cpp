@@ -876,19 +876,16 @@ Mesh* ReflectHighOrderMesh(Mesh & mesh, Vector origin, Vector normal)
       reflected->SetAttribute(i, mesh.GetAttribute(e));
    }
 
-   // In order to set boundary attributes, first set a map
-   // from original mesh boundary elements to reflected mesh
-   // boundary elements, by using the vertex map v2r.
-   // Note that for v < mesh.GetNV(), vertex v of `mesh`
-   // coincides with vertex v of `reflected`, and if that
-   // vertex is not in the reflection plane, vertex
-   // v2r[v] >= mesh.GetNV() is the index of the vertex
-   // in `reflected` that is its reflection.
+   // In order to set boundary attributes, first set a map from original mesh
+   // boundary elements to reflected mesh boundary elements, by using the vertex
+   // map v2r. Note that for v < mesh.GetNV(), vertex v of `mesh` coincides with
+   // vertex v of `reflected`, and if that vertex is not in the reflection
+   // plane, v2r[v] >= mesh.GetNV() is the index of the vertex in `reflected`
+   // that is its reflection.
 
-   // Identify each quadrilateral boundary element with
-   // the unique pair of vertices (v1, v2) such that
-   // v1 is the minimum vertex index in the quadrilateral,
-   // and v2 is diagonally opposite v1.
+   // Identify each quadrilateral boundary element with the unique pair of
+   // vertices (v1, v2) such that v1 is the minimum vertex index in the
+   // quadrilateral, and v2 is diagonally opposite v1.
 
    std::map<std::pair<int, int>, int> mapBE;
    for (int i=0; i<mesh.GetNBE(); ++i)
