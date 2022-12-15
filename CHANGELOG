@@ -29,7 +29,8 @@ Linear and nonlinear solvers
 
 New and updated examples and miniapps
 -------------------------------------
-- TBD
+- Added a new meshing miniapp, reflector, which reflects a high-order or NURBS
+  hexahedral mesh about a plane.
 
 Integrations, testing and documentation
 ---------------------------------------
