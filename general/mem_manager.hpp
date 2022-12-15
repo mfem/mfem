@@ -828,6 +828,21 @@ public:
 
    static MemoryType GetHostMemoryType() { return host_mem_type; }
    static MemoryType GetDeviceMemoryType() { return device_mem_type; }
+
+#ifdef MFEM_USE_ENZYME
+   static void myfree(void* mem, MemoryType MT, unsigned &flags)
+   {
+       MemoryManager::Delete_(mem, MT, flags);
+   }
+   __attribute__((used))
+   inline static void* __enzyme_allocation_like1[4] = {(void*)static_cast<void*(*)(void*, size_t, MemoryType, unsigned&)>(MemoryManager::New_),
+                                                       (void*)1, (void*)"-1,2,3", (void*)myfree};
+   __attribute__((used))
+   inline static void* __enzyme_allocation_like2[4] = {(void*)static_cast<void*(*)(void*, size_t, MemoryType, MemoryType, unsigned, unsigned&)>(MemoryManager::New_),
+                                                       (void*)1, (void*)"-1,2,4", (void*)MemoryManager::Delete_};
+   __attribute__((used))
+   inline static void* __enzyme_function_like[2] = {(void*)MemoryManager::Delete_, (void*)"free"};
+#endif
 };
 
 
