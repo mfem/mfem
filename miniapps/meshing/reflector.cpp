@@ -876,9 +876,6 @@ Mesh* ReflectHighOrderMesh(Mesh & mesh, Vector origin, Vector normal)
       reflected->SetAttribute(i, mesh.GetAttribute(e));
    }
 
-   cout << "Original NBE " << mesh.GetNBE() << endl;
-   cout << "Reflected NBE " << reflected->GetNBE() << endl;
-
    // In order to set boundary attributes, first set a map
    // from original mesh boundary elements to reflected mesh
    // boundary elements, by using the vertex map v2r.
