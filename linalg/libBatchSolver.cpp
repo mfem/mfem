@@ -19,28 +19,26 @@ void LibBatchMult::Mult(const Vector &b, Vector &x)
 
    const double alpha = 1.0, beta = 0.0;
    MFEM_SUB_cu_or_hip(blasStatus_t)
-   status = MFEM_SUB_cu_or_hip(blasDgemmStridedBatched)(MFEM_SUB_Cuda_or_Hip(
+   status = MFEM_SUB_cu_or_hip(blasDgemvStridedBatched)(MFEM_SUB_Cuda_or_Hip(
                                                            BLAS::Handle)(),
                                                         MFEM_SUB_CU_or_HIP(BLAS_OP_N),
-                                                        MFEM_SUB_CU_or_HIP(BLAS_OP_N),
                                                         mat_size,
-                                                        1,
                                                         mat_size,
                                                         &alpha,
                                                         MatrixBatch.Read(),
                                                         mat_size,
                                                         mat_size * mat_size,
                                                         b.Read(),
-                                                        mat_size,
-                                                        mat_size,
+                                                        1,
+							mat_size,
                                                         &beta,
                                                         x.Write(),
-                                                        mat_size,
-                                                        mat_size,
+                                                        1,
+							mat_size,
                                                         num_mats);
 
    MFEM_VERIFY(status == MFEM_SUB_CU_or_HIP(BLAS_STATUS_SUCCESS),
-               "blasDgemmStridedBatched");
+               "blasDgemvStridedBatched");
 }
 
 
