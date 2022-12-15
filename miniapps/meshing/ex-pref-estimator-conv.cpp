@@ -90,8 +90,8 @@ int main(int argc, char *argv[])
    args.AddOption(&estimator, "-es", "--estimator", "ZZ(1), Kelly(2), P-1(3), FaceJump(4), ZZ+SolJump(5)");
    args.AddOption(&theta, "-theta", "--theta", "AMR theta factor");
    args.AddOption(&niters, "-n", "--niter", "Number of AMR steps");
-   args.AddOption(&pref, "-pref", "--pref", "-no-pref",
-                  "--no-pref",
+   args.AddOption(&pref, "-pref", "--pref", "-href",
+                  "--href",
                   "Enable or disable p-refinement mode.");
    args.AddOption(&vis, "-vis", "--vis", "-no-vis",
                   "--no-vis",
@@ -191,15 +191,7 @@ int main(int argc, char *argv[])
    Vector element_estimates;
    Array<int> element_marker;
 
-   // L2 Projection solution
-   x = 0.0;
-   m.Assemble();
-   l.Assemble(false);
-   m.Mult(l,x);
-
-   double exact_err = x.ComputeL2Error(scoeff);
-   Vector error_estimate = es->GetLocalErrors();
-   double tot_es_err = es->GetTotalError();
+   double exact_err, tot_es_err;
 
    for (int it = 0; it < niters; it++)
    {
@@ -220,6 +212,7 @@ int main(int argc, char *argv[])
        ndofs.Append(fespace.GetTrueVSize());
        nels.Append(mesh.GetNE());
        error_study.AddL2GridFunction(&x,&scoeff);
+       es->Reset();
        element_estimates = es->GetLocalErrors();
        estimates.Append(element_estimates.Norml2());
 
@@ -268,32 +261,33 @@ int main(int argc, char *argv[])
 
        if (pref)
        {
-          // Array<int> additional_elements;
-          // const Table & e2e = mesh.ElementToElementTable();
-          // for (int iel = 0; iel<element_marker.Size(); iel++)
-          // {
-          //    int el = element_marker[iel];
-          //    int eorder = fespace.GetElementOrder(el);
-          //    int size = e2e.RowSize(el);
-          //    const int * row = e2e.GetRow(el);
-          //    for (int j = 0; j<size; j++)
-          //    {
-          //       int norder = fespace.GetElementOrder(row[j]);
-          //       if (norder <= eorder)
-          //       {
-          //          additional_elements.Append(row[j]);
-          //       }
-          //    }
-          // }
-          // element_marker.Append(additional_elements);
-          // element_marker.Sort();
-          // element_marker.Unique();
+//           Array<int> additional_elements;
+//           const Table & e2e = mesh.ElementToElementTable();
+//           for (int iel = 0; iel<element_marker.Size(); iel++)
+//           {
+//              int el = element_marker[iel];
+//              int eorder = fespace.GetElementOrder(el);
+//              int size = e2e.RowSize(el);
+//              const int * row = e2e.GetRow(el);
+//              for (int j = 0; j<size; j++)
+//              {
+//                 int norder = fespace.GetElementOrder(row[j]);
+//                 if (norder <= eorder)
+//                 {
+//                    additional_elements.Append(row[j]);
+//                 }
+//              }
+//           }
+//           element_marker.Append(additional_elements);
+//           element_marker.Sort();
+//           element_marker.Unique();
 
           for (int iel = 0; iel<element_marker.Size(); iel++)
           {
              int el = element_marker[iel];
              int eorder = fespace.GetElementOrder(el);
              fespace.SetElementOrder(el,eorder+1);
+             flux_fespace.SetElementOrder(el, eorder+1);
           }
        }
        else
@@ -307,6 +301,7 @@ int main(int argc, char *argv[])
        m.Update();
        visfespace.Update(false);
        ElOrder.Update();
+       flux_fespace.Update(false);
    }
 
    // Info for python plots
