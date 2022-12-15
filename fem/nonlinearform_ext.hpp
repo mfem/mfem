@@ -126,6 +126,8 @@ public:
    void Update() override;
 };
 
+class DenseTensor;
+class LibBatchMult;
 /// Data and methods for element-assembled bilinear forms
 class EANonlinearFormExtension : public PANonlinearFormExtension
 {
@@ -167,6 +169,8 @@ protected:
    // The element matrices are stored row major
    mutable Vector ea_data;
    mutable EAGradient eaGrad;
+   mutable DenseTensor eaGradDT;
+   LibBatchMult* batchMult = nullptr;
 
 public:
    EANonlinearFormExtension(const NonlinearForm *nlf, const ElementDofOrdering edf = ElementDofOrdering::LEXICOGRAPHIC);
@@ -184,6 +188,7 @@ public:
        which enables support for the method FormSystemOperator to define the
        matrix-free global true-dof gradient with imposed boundary conditions. */
    virtual Operator &GetGradient(const Vector &x) const;
+   ~EANonlinearFormExtension();
 };
 
 /// Data and methods for fully-assembled bilinear forms

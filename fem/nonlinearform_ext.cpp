@@ -15,6 +15,32 @@
 #include "nonlinearform.hpp"
 #include "ceed/interface/util.hpp"
 #include "../general/forall.hpp"
+#include "../linalg/densemat.hpp"
+#include "../linalg/libBatchSolver.hpp"
+
+#if defined(MFEM_USE_HIP)
+
+__launch_bounds__(warpSize)
+__global__
+static
+void hipmatvec(const double *const a, const double *const x, double *__restrict__ const y)
+{
+  const int ndofs = gridDim.x;
+  const int j = blockIdx.x;
+  const int e = blockIdx.y;
+  const int ix = threadIdx.x;
+
+  const double *const xe = x + ndofs * e;
+  const double *const aje = a + ndofs * (j + ndofs * e);
+
+  double res = 0;
+  for (int i = ix; i < ndofs; i += warpSize) res += aje[i] * xe[i];
+  for (int i = 1; i < warpSize; i += i) res += __shfl_down(res, i);
+  if (ix == 0) y[j + ndofs * e] += res;
+}
+
+#endif
+
 
 namespace mfem
 {
@@ -139,12 +165,25 @@ void PANonlinearFormExtension::PAGradient::Update()
 }
 
 EANonlinearFormExtension::EANonlinearFormExtension(const NonlinearForm *nlf, const ElementDofOrdering edf_):
-   PANonlinearFormExtension(nlf, edf), eaGrad(*this)
+  PANonlinearFormExtension(nlf, edf), eaGrad(*this)
 {
    ne = fes.GetMesh()->GetNE();
    elemDofs = fes.GetFE(0)->GetDof() * fes.GetFE(0)->GetDim();
    ea_data.SetSize(ne * elemDofs * elemDofs, Device::GetMemoryType());
    ea_data.UseDevice(true);
+   eaGradDT.UseExternalData(ea_data.ReadWrite(), elemDofs, elemDofs, ne);
+   if (Device::Allows(Backend::CUDA) || Device::Allows(Backend::RAJA_CUDA) ||
+       Device::Allows(Backend::HIP)  || Device::Allows(Backend::RAJA_HIP))
+   {
+     batchMult = new LibBatchMult(eaGradDT);
+   }
+}
+
+EANonlinearFormExtension::~EANonlinearFormExtension()
+{
+  if (batchMult) {
+    delete batchMult;
+  }
 }
 
 EANonlinearFormExtension::EAGradient::EAGradient(const EANonlinearFormExtension &e):
@@ -158,6 +197,7 @@ void EANonlinearFormExtension::EAGradient::AssembleGrad(const Vector &g)
    {
       ext.dnfi[i]->AssembleGradEA(ext.xe, ext.fes, ext.ea_data);
    }
+   ext.eaGradDT.UseExternalData(ext.ea_data.ReadWrite(), ext.elemDofs, ext.elemDofs, ext.ne);
 }
 
 void EANonlinearFormExtension::EAGradient::Mult(const Vector &x, Vector &y) const
@@ -165,24 +205,36 @@ void EANonlinearFormExtension::EAGradient::Mult(const Vector &x, Vector &y) cons
    MFEM_PERF_SCOPE("EANonlinearFormExtension::EAGradient::Mult");
    ext.ye = 0.0;
    ext.elemR->Mult(x, ext.xe);
-
+   MFEM_PERF_BEGIN("EANonlinearFormExtension::EAGradient::Mult::MatVecMult");
    // Apply the Element Matrices
-   const int NDOFS = ext.elemDofs;
-   auto X = Reshape(ext.xe.Read(), NDOFS, ext.ne);
-   auto Y = Reshape(ext.ye.ReadWrite(), NDOFS, ext.ne);
-   auto A = Reshape(ext.ea_data.Read(), NDOFS, NDOFS, ext.ne);
-   MFEM_FORALL(glob_j, ext.ne * NDOFS,
+   if (ext.batchMult)
    {
-      const int e = glob_j / NDOFS;
-      const int j = glob_j % NDOFS;
-      double res = 0.0;
-      for (int i = 0; i < NDOFS; i++)
+      ext.batchMult->Mult(ext.xe, ext.ye);
+   }
+   else
+   {
+      const int NDOFS = ext.elemDofs;
+      //#if defined(MFEM_USE_HIP)
+      //hipmatvec<<<dim3(NDOFS, ext.ne), warpSize>>>(ext.ea_data.Read(), ext.xe.Read(), ext.ye.ReadWrite());
+      //hipmatvec(const double *const a, const double *const x, double *__restrict__ const y)
+      //#else 
+      auto X = Reshape(ext.xe.Read(), NDOFS, ext.ne);
+      auto Y = Reshape(ext.ye.ReadWrite(), NDOFS, ext.ne);
+      auto A = Reshape(ext.ea_data.Read(), NDOFS, NDOFS, ext.ne);
+      MFEM_FORALL(glob_j, ext.ne * NDOFS,
       {
-         res += A(i, j, e) * X(i, e);
-      }
-      Y(j, e) += res;
-   });
-
+         const int e = glob_j / NDOFS;
+         const int j = glob_j % NDOFS;
+         double res = 0.0;
+         for (int i = 0; i < NDOFS; i++)
+         {
+            res += A(i, j, e) * X(i, e);
+         }
+         Y(j, e) += res;
+      });
+      //#endif
+   }
+   MFEM_PERF_END("EANonlinearFormExtension::EAGradient::Mult::MatVecMult");
    ext.elemR->MultTranspose(ext.ye, y);
 }
 
