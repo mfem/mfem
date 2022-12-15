@@ -3784,8 +3784,22 @@ void DeviceConformingProlongationOperator::Mult(const Vector &x,
    }
    else
    {
-      BcastBeginCopy(x); // copy to 'shr_buf'
       MFEM_PERF_BEGIN("DeviceConformingProlongationOperator::Mult::MPICalls");
+      for (int nbr = 1; nbr < gtopo.GetNumNeighbors(); nbr++)
+      {
+         const int recv_offset = ext_buf_offsets[nbr];
+         const int recv_size = ext_buf_offsets[nbr+1] - recv_offset;
+         if (recv_size > 0)
+         {
+            auto recv_buf = mpi_gpu_aware ? ext_buf.Write() : ext_buf.HostWrite();
+            MPI_Irecv(recv_buf + recv_offset, recv_size, MPI_DOUBLE,
+                      gtopo.GetNeighborRank(nbr), 41822,
+                      gtopo.GetComm(), &requests[req_counter++]);
+         }
+      }
+
+      BcastBeginCopy(x); // copy to 'shr_buf'
+
       for (int nbr = 1; nbr < gtopo.GetNumNeighbors(); nbr++)
       {
          const int send_offset = shr_buf_offsets[nbr];
@@ -3794,15 +3808,6 @@ void DeviceConformingProlongationOperator::Mult(const Vector &x,
          {
             auto send_buf = mpi_gpu_aware ? shr_buf.Read() : shr_buf.HostRead();
             MPI_Isend(send_buf + send_offset, send_size, MPI_DOUBLE,
-                      gtopo.GetNeighborRank(nbr), 41822,
-                      gtopo.GetComm(), &requests[req_counter++]);
-         }
-         const int recv_offset = ext_buf_offsets[nbr];
-         const int recv_size = ext_buf_offsets[nbr+1] - recv_offset;
-         if (recv_size > 0)
-         {
-            auto recv_buf = mpi_gpu_aware ? ext_buf.Write() : ext_buf.HostWrite();
-            MPI_Irecv(recv_buf + recv_offset, recv_size, MPI_DOUBLE,
                       gtopo.GetNeighborRank(nbr), 41822,
                       gtopo.GetComm(), &requests[req_counter++]);
          }
@@ -3881,10 +3886,24 @@ void DeviceConformingProlongationOperator::MultTranspose(const Vector &x,
    MFEM_PERF_FUNCTION;
    const GroupTopology &gtopo = gc.GetGroupTopology();
    int req_counter = 0;
+   ReduceLocalCopy(x, y);
    if (!local)
    {
-      ReduceBeginCopy(x); // copy to 'ext_buf'
       MFEM_PERF_BEGIN("DeviceConformingProlongationOperator::MultTranspose::MPICalls");
+      for (int nbr = 1; nbr < gtopo.GetNumNeighbors(); nbr++)
+      {
+         const int recv_offset = shr_buf_align_offsets[nbr];
+         const int recv_size = shr_buf_offsets[nbr+1] - shr_buf_offsets[nbr];
+         if (recv_size > 0)
+         {
+            auto recv_buf = mpi_gpu_aware ? shr_buf.Write() : shr_buf.HostWrite();
+            MPI_Irecv(recv_buf + recv_offset, recv_size, MPI_DOUBLE,
+                      gtopo.GetNeighborRank(nbr), 41823,
+                      gtopo.GetComm(), &requests[req_counter++]);
+         }
+      }
+      // move between recv and send loops 
+      ReduceBeginCopy(x); // copy to 'ext_buf'
       for (int nbr = 1; nbr < gtopo.GetNumNeighbors(); nbr++)
       {
          const int send_offset = ext_buf_offsets[nbr];
@@ -3896,19 +3915,9 @@ void DeviceConformingProlongationOperator::MultTranspose(const Vector &x,
                       gtopo.GetNeighborRank(nbr), 41823,
                       gtopo.GetComm(), &requests[req_counter++]);
          }
-         const int recv_offset = shr_buf_align_offsets[nbr];
-         const int recv_size = shr_buf_offsets[nbr+1] - shr_buf_offsets[nbr];
-         if (recv_size > 0)
-         {
-            auto recv_buf = mpi_gpu_aware ? shr_buf.Write() : shr_buf.HostWrite();
-            MPI_Irecv(recv_buf + recv_offset, recv_size, MPI_DOUBLE,
-                      gtopo.GetNeighborRank(nbr), 41823,
-                      gtopo.GetComm(), &requests[req_counter++]);
-         }
       }
       MFEM_PERF_END("DeviceConformingProlongationOperator::MultTranspose::MPICalls");
    }
-   ReduceLocalCopy(x, y);
    if (!local)
    {
       MPI_Waitall(req_counter, requests, MPI_STATUSES_IGNORE);
