@@ -263,7 +263,8 @@ inline void QuadratureFunction::GetValues(
 }
 
 
-inline void QuadratureFunction::SetSpace(QuadratureSpaceBase *qspace_, int vdim_)
+inline void QuadratureFunction::SetSpace(QuadratureSpaceBase *qspace_,
+                                         int vdim_)
 {
    if (qspace_ != qspace)
    {

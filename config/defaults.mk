@@ -462,11 +462,11 @@ GSLIB_LIB = -L$(GSLIB_DIR)/lib -lgs
 
 # CUDA library configuration
 CUDA_OPT =
-CUDA_LIB = -lcusparse
+CUDA_LIB = -lcusparse -lcublas
 
 # HIP library configuration
 HIP_OPT =
-HIP_LIB = -L$(HIP_DIR)/lib $(XLINKER)-rpath,$(HIP_DIR)/lib -lhipsparse
+HIP_LIB = -L$(HIP_DIR)/lib $(XLINKER)-rpath,$(HIP_DIR)/lib -lhipsparse -lhipblas
 
 # OCCA library configuration
 OCCA_DIR = @MFEM_DIR@/../occa
