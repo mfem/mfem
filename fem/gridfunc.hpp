@@ -48,8 +48,6 @@ protected:
 
    void SaveSTLTri(std::ostream &out, double p1[], double p2[], double p3[]);
 
-   void GetVectorGradientHat(ElementTransformation &T, DenseMatrix &gh) const;
-
    // Project the delta coefficient without scaling and return the (local)
    // integral of the projection.
    void ProjectDeltaCoefficient(DeltaCoefficient &delta_coeff,
@@ -339,6 +337,8 @@ public:
    { GetGradients(*fes->GetElementTransformation(elem), ir, grad); }
 
    void GetVectorGradient(ElementTransformation &tr, DenseMatrix &grad) const;
+
+   void GetVectorGradientHat(ElementTransformation &T, DenseMatrix &gh) const;
 
    /** Compute \f$ (\int_{\Omega} (*this) \psi_i)/(\int_{\Omega} \psi_i) \f$,
        where \f$ \psi_i \f$ are the basis functions for the FE space of avgs.
