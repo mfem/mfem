@@ -37,6 +37,7 @@
 #define MFEM_SUB_Cuda_or_Hip(stub) Hip##stub
 #define MFEM_SUB_CUDA_or_HIP(stub) HIP##stub
 #define MFEM_SUB_CU_or_HIP(stub) HIP##stub
+#include <hipblas/hipblas.h>
 #include <hip/hip_runtime.h>
 #include <hip/hip_runtime_api.h>
 #endif  // MFEM_USE_HIP
