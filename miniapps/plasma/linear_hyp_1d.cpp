@@ -28,76 +28,51 @@ const int num_equation = 2;
 // Maximum characteristic speed (updated by integrators)
 double max_char_speed;
 
-// Exact solution starts as a constant in `n` and a Gaussian in
-// `q`. The time-dependent solution consists of Gaussians moving to
-// the left and right in both `n` and `q`.
-class ExactNCoef : public Coefficient
+// Initial condition
+void InitialCondition(const Vector &x, Vector &y)
 {
-private:
+   MFEM_ASSERT(x.Size() >= 1, "");
+   MFEM_ASSERT(y.Size() >= 2, "");
+
+   const double xc = 0.5;
+   const double a = 50.0;
+
+   double px = x(0) - xc;
+
+   y(0) = 1.0;
+   y(1) = exp(-a * px * px);
+}
+
+class ExactNQ
+{
+   mutable double time_;
    mutable Vector x_;
 
 public:
-   ExactNCoef() : x_(1) {}
-
-   double Eval(ElementTransformation &T,
-               const IntegrationPoint &ip)
-   {
-      T.Transform(ip, x_);
-
-      const double a = 50.0;
-      double xp = x_[0] - 0.5 - time;
-      double xm = x_[0] - 0.5 + time;
-      return 1.0 + 0.5 * (exp(-a * xp * xp) - exp(-a * xm * xm));
-   }
-};
-
-class ExactQCoef : public Coefficient
-{
-private:
-   mutable Vector x_;
-
-public:
-   ExactQCoef() : x_(1) {}
-
-   double Eval(ElementTransformation &T,
-               const IntegrationPoint &ip)
-   {
-      T.Transform(ip, x_);
-
-      const double a = 50.0;
-      double xp = x_[0] - 0.5 - time;
-      double xm = x_[0] - 0.5 + time;
-      return 0.5 * (exp(-a * xp * xp) + exp(-a * xm * xm));
-   }
-};
-
-class ExactNQCoef : public VectorCoefficient
-{
-private:
-   mutable Vector x_;
-
-public:
-   ExactNQCoef() : VectorCoefficient(2), x_(1) {}
+   ExactNQ() : time_(0.0), x_(1) {}
 
    void Eval(Vector &nq, ElementTransformation &T,
-             const IntegrationPoint &ip)
+             const IntegrationPoint &ip) const
    {
       nq.SetSize(2);
 
       T.Transform(ip, x_);
 
-      const double a = 50.0;
-      double xp = x_[0] - 0.5 - time;
-      double xm = x_[0] - 0.5 + time;
+      double xp = x_(0) + time_;
+      double xm = x_(0) - time_;
 
-      double ep = exp(-a * xp * xp);
-      double em = exp(-a * xm * xm);
+      Vector nqp(2), nqm(2);
+      InitialCondition(Vector({xp}), nqp);
+      InitialCondition(Vector({xm}), nqm);
 
-      nq[0] = 1.0 + 0.5 * (ep - em);
-      nq[1] = 0.5 * (ep + em);
+      nq[0] = 0.5 * (nqp(0) + nqm(0)) - 0.5 * (nqp(1) - nqm(1));
+      nq[1] = 0.5 * (nqp(1) + nqm(1)) - 0.5 * (nqp(0) - nqm(0));
    }
 
-   virtual void Project(QuadratureFunction &qf) {}
+   void SetTime(double time)
+   {
+      time_ = time;
+   }
 };
 
 
@@ -312,17 +287,19 @@ public:
 // Custom integrators defining our linear hyperbolic test problem
 class LinearHyp1DIntegrator : public BlockNonlinearFormIntegrator
 {
-protected:
-   VectorCoefficient &nqCoef;
+   const NumericalFlux& flux;
+   const NumericalBoundary& boundary;
 
-   Vector nor, nq;
+protected:
+
+   Vector nor;
    Vector shape_n, shape_q;
    DenseMatrix dshape_n, dshape_q;
    Vector shape1_n, shape2_n, shape1_q, shape2_q;
 
 public:
-   LinearHyp1DIntegrator(VectorCoefficient &nqCoef_)
-      : nqCoef(nqCoef_), nq(2) {}
+   LinearHyp1DIntegrator(const NumericalFlux& flux, const NumericalBoundary& boundary)
+      : flux(flux), boundary(boundary) {}
 
    void AssembleElementVector(const Array<const FiniteElement *> &el,
                               ElementTransformation &Tr,
@@ -644,20 +621,16 @@ void LinearHyp1DIntegrator::AssembleFaceVector(
          double q1 = elfun1_q * shape1_q;
          double q2 = elfun2_q * shape2_q;
 
-         double nAvg = 0.5 * (n1 + n2);
-         double qAvg = 0.5 * (q1 + q2);
-         double nJmp = n1 - n2;
-         double qJmp = q1 - q2;
+         // compute flux from element 1 to element 2
+         Vector yL = nor(0) > 0.0 ? Vector({n1,q1}) : Vector({n2,q2});
+         Vector yR = nor(0) > 0.0 ? Vector({n2,q2}) : Vector({n1,q1});
+         Vector F12 = flux.Eval(yL,yR);
+         F12 *= nor(0);
 
-         double Fn = qAvg * nor(0) + 0.5 * alpha * nJmp;
-         double Fq = nAvg * nor(0) + 0.5 * alpha * qJmp;
-
-         const double s = -1.0;
-
-         elvec1_n.Add( ip.weight * detJ * Fn * s, shape1_n);
-         elvec2_n.Add(-ip.weight * detJ * Fn * s, shape2_n);
-         elvec1_q.Add( ip.weight * detJ * Fq * s, shape1_q);
-         elvec2_q.Add(-ip.weight * detJ * Fq * s, shape2_q);
+         elvec1_n.Add(-ip.weight * detJ * F12(0), shape1_n);
+         elvec2_n.Add( ip.weight * detJ * F12(0), shape2_n);
+         elvec1_q.Add(-ip.weight * detJ * F12(1), shape1_q);
+         elvec2_q.Add( ip.weight * detJ * F12(1), shape2_q);
       }
    }
    else
@@ -716,40 +689,15 @@ void LinearHyp1DIntegrator::AssembleFaceVector(
 
          double n1 = elfun1_n * shape1_n;
          double q1 = elfun1_q * shape1_q;
+         Vector y1({n1,q1});
 
-         nqCoef.Eval(nq, *Tr.Elem1, eip1);
+         Vector F = nor(0) > 0.0 ? boundary.EvalRight(y1, *Tr.Elem1, eip1) : boundary.EvalLeft(y1, *Tr.Elem1, eip1);
+         F *= nor(0);
 
-         double n2 = nq[0];
-         double q2 = nq[1];
-
-         double nAvg = 0.5 * (n1 + n2);
-         double qAvg = 0.5 * (q1 + q2);
-         double nJmp = n1 - n2;
-         double qJmp = q1 - q2;
-
-         double Fn = qAvg * nor(0) + 0.5 * alpha * nJmp;
-         double Fq = nAvg * nor(0) + 0.5 * alpha * qJmp;
-
-         const double s = -1.0;
-
-         elvec1_n.Add( ip.weight * detJ * Fn * s, shape1_n);
-         elvec1_q.Add( ip.weight * detJ * Fq * s, shape1_q);
+         elvec1_n.Add(-ip.weight * detJ * F(0), shape1_n);
+         elvec1_q.Add(-ip.weight * detJ * F(1), shape1_q);
       }
    }
-}
-
-// Initial condition
-void InitialCondition(const Vector &x, Vector &y)
-{
-   MFEM_ASSERT(x.Size() >= 1, "");
-   MFEM_ASSERT(y.Size() >= 2, "");
-
-   const double xc = 0.5;
-
-   double px = x(0) - xc;
-
-   y(0) = 1.0;
-   y(1) = exp(-50.0 * px * px);
 }
 
 
@@ -771,6 +719,8 @@ int main(int argc, char *argv[])
    double cfl = 0.3;
    bool visualization = true;
    int vis_steps = 50;
+   int flux_type = 1;
+   int boundary_type = 1;
 
    int precision = 8;
    cout.precision(precision);
@@ -802,6 +752,10 @@ int main(int argc, char *argv[])
                   "Enable or disable GLVis visualization.");
    args.AddOption(&vis_steps, "-vs", "--visualization-steps",
                   "Visualize every n-th timestep.");
+   args.AddOption(&flux_type, "-f", "--flux-type",
+                  "Numerical flux to use: 1 - Lax-Friedrichs,\t 2 - Godunov.");
+   args.AddOption(&boundary_type, "-b", "--boundary-type",
+                  "Numerical boundary treatment to use: 1 - Characteristic outflow,\t 2 - Dirichlet with exact solution");
 
    args.Parse();
    if (!args.Good())
@@ -918,12 +872,46 @@ int main(int argc, char *argv[])
 
    // 9. Set up the nonlinear form corresponding to the DG discretization of the
    //    flux divergence, and assemble the corresponding mass matrix.
-   ExactNQCoef nq_exact;
+
+   // Set numerical flux approach
+   NumericalFlux* flux = nullptr;
+   switch (flux_type)
+   {
+      case 1: flux = new LaxFriedrichsFlux; break;
+      case 2: flux = new GodunovFlux; break;
+      default:
+         if (Mpi::Root())
+         {
+            cout << "Unknown numerical flux type: " << flux_type << '\n';
+         }
+         return 3;
+   }
+
+   // Set numerical boundary treatment
+   NumericalBoundary* boundary = nullptr;
+   switch (boundary_type)
+   {
+      case 1:
+      {
+         Vector y0L(2), y0R(2);
+         InitialCondition(Vector({0.0}), y0L);
+         InitialCondition(Vector({1.0}), y0R);
+         boundary = new CharacteristicOutflow(y0L, y0R);
+         break;
+      }
+      case 2: boundary = new DirichletBoundary(*flux); break;
+      default:
+         if (Mpi::Root())
+         {
+            cout << "Unknown numerical boundary type: " << boundary_type << '\n';
+         }
+         return 4;
+   }
 
    MyParBlockNonlinearForm A(afes);
-   A.AddDomainIntegrator(new LinearHyp1DIntegrator(nq_exact));
-   A.AddInteriorFaceIntegrator(new LinearHyp1DIntegrator(nq_exact));
-   A.AddBdrFaceIntegrator(new LinearHyp1DIntegrator(nq_exact));
+   A.AddDomainIntegrator(new LinearHyp1DIntegrator(*flux, *boundary));
+   A.AddInteriorFaceIntegrator(new LinearHyp1DIntegrator(*flux, *boundary));
+   A.AddBdrFaceIntegrator(new LinearHyp1DIntegrator(*flux, *boundary));
 
    // 10. Define the time-dependent evolution operator describing the ODE
    //     right-hand side, and perform time-integration (looping over the time
@@ -1027,7 +1015,11 @@ int main(int argc, char *argv[])
 
    double t = 0.0;
    lin_hyp.SetTime(t);
-   nq_exact.SetTime(t);
+   if (DirichletBoundary* dirichletBoundary
+         = dynamic_cast<DirichletBoundary*>(boundary))
+   {
+      dirichletBoundary->SetTime(t);
+   }
    ode_solver->Init(lin_hyp);
 
    if (cfl > 0 && false)
@@ -1059,7 +1051,11 @@ int main(int argc, char *argv[])
    {
       double dt_real = min(dt, t_final - t);
 
-      nq_exact.SetTime(t + dt_real);
+      if (DirichletBoundary* dirichletBoundary
+            = dynamic_cast<DirichletBoundary*>(boundary))
+      {
+         dirichletBoundary->SetTime(t);
+      }
 
       ode_solver->Step(sol, t, dt_real);
       if (cfl > 0 && false)
@@ -1131,6 +1127,8 @@ int main(int argc, char *argv[])
 
    // Free the used memory.
    delete ode_solver;
+   delete flux;
+   delete boundary;
 
    return 0;
 }
