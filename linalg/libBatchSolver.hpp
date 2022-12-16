@@ -86,9 +86,9 @@ public:
    LibBatchMult() = delete;
 
    LibBatchMult(DenseTensor &MatrixBatch_) :
+      MatrixBatch(MatrixBatch_),
       mat_size(MatrixBatch.SizeI()),
-      num_mats(MatrixBatch.SizeK()),
-      MatrixBatch(MatrixBatch_) {};
+      num_mats(MatrixBatch.SizeK()) {};
 
    //Action of block diagonal matrix
    void Mult(const Vector &b, Vector &x);
