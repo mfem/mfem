@@ -61,6 +61,10 @@ void mfem_error(const char *msg = NULL);
 /// Function called by the macro MFEM_WARNING.
 void mfem_warning(const char *msg = NULL);
 
+#ifdef MFEM_USE_ENZYME
+static void* __enzyme_inactive_global_err = (void*)mfem_error;
+static void* __enzyme_inactive_global_warn = (void*)mfem_warning;
+#endif
 }
 
 #ifndef _MFEM_FUNC_NAME
