@@ -772,7 +772,7 @@ int main(int argc, char *argv[])
 
    // 4. Define the ODE solver used for time integration. Several explicit
    //    Runge-Kutta methods are available.
-   ODESolver *ode_solver = NULL;
+   ODESolver *ode_solver = nullptr;
    switch (ode_solver_type)
    {
       case 1: ode_solver = new ForwardEulerSolver; break;
@@ -783,9 +783,9 @@ int main(int argc, char *argv[])
       default:
          if (Mpi::Root())
          {
-            cout << "Unknown ODE solver type: " << ode_solver_type << '\n';
+            cerr << "Unknown ODE solver type: " << ode_solver_type << '\n';
          }
-         return 3;
+         return 2;
    }
 
    // 5. Refine the mesh in serial to increase the resolution. In this example
