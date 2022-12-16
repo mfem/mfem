@@ -126,19 +126,173 @@ public:
    virtual ~FE_Evolution() { }
 };
 
-// Implements a simple Rusanov flux
-// (left-over from example 18 but not used here)
-class RiemannSolver
+class NumericalFlux
 {
-private:
-   Vector flux1;
-   Vector flux2;
+public:
+
+   virtual Vector Eval(const Vector &yL, const Vector &yR) const = 0;
+};
+
+
+class NumericalBoundary
+{
+public:
+   virtual Vector EvalLeft(const Vector &yR, ElementTransformation &T,
+      const IntegrationPoint &ip) const = 0;
+
+   virtual Vector EvalRight(const Vector &yL, ElementTransformation &T,
+      const IntegrationPoint &ip) const = 0;
+};
+
+// namespace containing eigen information for test problem defined by
+//
+//   dy/dt + A dy/dx = 0, where A = | 0 1 |
+//                                  | 1 0 |
+//
+namespace test_problem
+{
+   // eigenvalue and eigenvector for left-going information
+   const double sL = -1.0;
+   const Vector vL = Vector({1.0, -1.0});
+
+   // eigenvalue and eigenvector for right-going information
+   const double sR = 1.0;
+   const Vector vR = Vector({1.0, 1.0});
+
+   // compute A*y
+   inline Vector Ay(const Vector &y)
+   {
+      return Vector({y(1),y(0)});
+   }
+
+   // eigenvector decomposition weights: x = wL * vL + wR * vR
+   inline double wL(const Vector &x)
+   {
+      return 0.5*(x(0) - x(1));
+   }
+   inline double wR(const Vector &x)
+   {
+      return 0.5*(x(0) + x(1));
+   }
+};
+
+class GodunovFlux : public NumericalFlux
+{
 
 public:
-   RiemannSolver();
-   double Eval(const Vector &state1, const Vector &state2,
-               const Vector &nor, Vector &flux);
+
+   Vector Eval(const Vector &yL, const Vector &yR) const override
+   {
+      // compute jump
+      Vector yJmp(2);
+      add(1.0, yL, -1.0, yR, yJmp);
+
+      // compute left-going wave wL = 0.5 * ( nJmp - qJmp )
+      const double wL = test_problem::wL(yJmp);
+
+      // Godunov flux is F(yL,yR) = A*yI(yL,yR), yI(yL,yR) = yL - wL(yL-yR) * vL,
+      Vector yI(2);
+      add(1.0, yL, -wL, test_problem::vL, yI);
+      return test_problem::Ay(yI);
+   }
 };
+
+class LaxFriedrichsFlux : public NumericalFlux
+{
+
+public:
+
+   Vector Eval(const Vector &yL, const Vector &yR) const override
+   {
+      // compute jump
+      Vector yJmp(2);
+      add(1.0, yL, -1.0, yR, yJmp);
+
+      // Lax-Friedrichs flux is F(yL,yR) = 0.5 * (A*yL + A*yR) + 0.5 * 1.0 * (yL - yR)
+      Vector F(2);
+      add(0.5, test_problem::Ay(yL), 0.5, test_problem::Ay(yR), F);
+      F.Add(0.5, yJmp);
+      return F;
+   }
+};
+
+class DirichletBoundary : public NumericalBoundary
+{
+   const NumericalFlux& flux;
+   ExactNQ nqExact;
+
+public:
+
+   DirichletBoundary(const NumericalFlux& flux) : flux(flux) {}
+
+   Vector EvalLeft(const Vector &yR, ElementTransformation &T,
+      const IntegrationPoint &ip) const override
+   {
+      Vector yL(2);
+      nqExact.Eval(yL, T, ip);
+
+      return flux.Eval(yL, yR);
+   }
+
+   Vector EvalRight(const Vector &yL, ElementTransformation &T,
+      const IntegrationPoint &ip) const override
+   {
+      Vector yR(2);
+      nqExact.Eval(yR, T, ip);
+
+      return flux.Eval(yL, yR);
+   }
+
+   void SetTime(double time)
+   {
+      nqExact.SetTime(time);
+   }
+};
+
+class CharacteristicOutflow : public NumericalBoundary
+{
+   // storage of y(-infty,0) and y(+infty,0) states
+   const Vector y0L;
+   const Vector y0R;
+
+public:
+
+   CharacteristicOutflow(const Vector &y0L, const Vector &y0R) : y0L(y0L), y0R(y0R) {}
+
+
+   Vector EvalLeft(const Vector &yR, ElementTransformation &T,
+      const IntegrationPoint &ip) const override
+   {
+      // use that
+      // wL(x,t) = 0.5 * [n(x,t) + q(x,t)]
+      // wR(x,t) = wR(x-t,0) = 0.5 * [n(x-t,0) - q(x-t,0)]
+      return EvalWithCharacteristics(y0L, yR);
+   }
+
+   Vector EvalRight(const Vector &yL, ElementTransformation &T,
+      const IntegrationPoint &ip) const override
+   {
+      // use that
+      // wL(x,t) = wL(x+t,0) = 0.5 * [n(x+t,t) + q(x+t,t)]
+      // wR(x,t) = 0.5 * [n(x,t) - q(x,t)]
+      return EvalWithCharacteristics(yL, y0R);
+   }
+
+private:
+
+   Vector EvalWithCharacteristics(const Vector &yL, const Vector &yR) const
+   {
+      // compute left-going and right-going characteristic
+      const double wL = test_problem::wL(yR);
+      const double wR = test_problem::wR(yL);
+
+      // characteristic flux is F(yR) = A*yI(yL,yR), yI(yR) = wL(yL,yR) * vL + wR(yL,yR) * vR
+      Vector yI(2);
+      add(wL, test_problem::vL, wR, test_problem::vR, yI);
+      return test_problem::Ay(yI);
+   }
+};
+
 
 // A custom implementation of the MFEM class. This is a temporary
 // work-around because the MFEM class does not support DG in
