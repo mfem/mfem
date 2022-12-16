@@ -393,11 +393,32 @@ private:
    IterativeSolver *lin_solver = nullptr;
    TMOPNewtonSolver *solver = nullptr;
 
+   ParFiniteElementSpace *pfes_nodes_scalar = nullptr;
+   ParFiniteElementSpace *pfes_fit_grad = nullptr;
+   ParFiniteElementSpace *pfes_fit_hess = nullptr;
+   ParGridFunction *surf_fit = nullptr;
+   ParGridFunction *surf_fit_grad = nullptr;
+   ParGridFunction *surf_fit_hess = nullptr;
+   Array<bool> surf_fit_marker;
+   AdaptivityEvaluator *adapt_surf = nullptr;
+   AdaptivityEvaluator *adapt_surf_grad = nullptr;
+   AdaptivityEvaluator *adapt_surf_hess = nullptr;
+
 public:
    MeshOptimizer() { }
 
    ~MeshOptimizer()
    {
+      delete adapt_surf_hess;
+      delete adapt_surf_grad;
+      delete adapt_surf;
+      delete surf_fit_hess;
+      delete surf_fit_grad;
+      delete surf_fit;
+      delete pfes_fit_hess;
+      delete pfes_fit_grad;
+      delete pfes_nodes_scalar;
+
       delete solver;
       delete lin_solver;
       delete nlf;
@@ -407,6 +428,10 @@ public:
 
    // Must be called before optimization.
    void Setup(ParFiniteElementSpace &pfes, int metric_id, int quad_order);
+
+   void SetupSurfaceFit(ParFiniteElementSpace &pfes_nodes,
+                        ConstantCoefficient &surf_fit_coeff,
+                        BackgroundData &backgrnd);
 
    void SetAbsTol(double atol) { solver->SetAbsTol(atol); }
 
@@ -480,6 +505,46 @@ void MeshOptimizer::Setup(ParFiniteElementSpace &pfes,
    solver->SetAbsTol(0.0);
    IterativeSolver::PrintLevel newton_pl;
    solver->SetPrintLevel(newton_pl.Iterations().Summary());
+}
+
+void MeshOptimizer::SetupSurfaceFit(ParFiniteElementSpace &pfes_nodes,
+                                    ConstantCoefficient &surf_fit_coeff,
+                                    BackgroundData &backgrnd)
+{
+   const int dim = pfes_nodes.GetMesh()->Dimension();
+   pfes_nodes_scalar = new ParFiniteElementSpace(pfes_nodes.GetParMesh(),
+                                                 pfes_nodes.FEColl(), 1);
+   pfes_fit_grad     = new ParFiniteElementSpace(pfes_nodes.GetParMesh(),
+                                                 pfes_nodes.FEColl(), dim);
+   pfes_fit_hess     = new ParFiniteElementSpace(pfes_nodes.GetParMesh(),
+                                                 pfes_nodes.FEColl(), dim*dim);
+
+   surf_fit      = new ParGridFunction(pfes_nodes_scalar);
+   surf_fit_grad = new ParGridFunction(pfes_fit_grad);
+   surf_fit_hess = new ParGridFunction(pfes_fit_hess);
+   surf_fit_marker.SetSize(pfes_nodes_scalar->GetVSize());
+
+   surf_fit_marker = false;
+   *surf_fit = 1.0;
+   Array<int> vdofs;
+   for (int i = 0; i < pfes_nodes_scalar->GetParMesh()->GetNBE(); i++)
+   {
+      pfes_nodes_scalar->GetBdrElementVDofs(i, vdofs);
+      for (int j = 0; j < vdofs.Size(); j++)
+      {
+         surf_fit_marker[vdofs[j]] = true;
+         (*surf_fit)(vdofs[j]) = 0.0;
+      }
+   }
+
+   adapt_surf      = new InterpolatorFP;
+   adapt_surf_grad = new InterpolatorFP;
+   adapt_surf_hess = new InterpolatorFP;
+
+   GetIntegrator()->EnableSurfaceFittingFromSource
+      (*backgrnd.dist_bg, *surf_fit, surf_fit_marker, surf_fit_coeff,
+       *adapt_surf, *backgrnd.grad_bg, *surf_fit_grad, *adapt_surf_grad,
+       *backgrnd.hess_bg, *surf_fit_hess, *adapt_surf_hess);
 }
 
 double MinDetJ(ParMesh &pmesh, int quad_order)

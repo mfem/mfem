@@ -66,6 +66,7 @@ int main (int argc, char *argv[])
    double surface_fit_threshold = 1e-7;
    int metric_id         = 2;
    int target_id         = 1;
+   bool vis              = false;
 
    // Parse command-line input file.
    OptionsParser args(argc, argv);
@@ -97,6 +98,8 @@ int main (int argc, char *argv[])
                   "Mesh optimization metric 1/2/50/58 in 2D:\n\t");
    args.AddOption(&target_id, "-tid", "--target-id",
                   "Mesh optimization metric 1/2/3 in 2D:\n\t");
+   args.AddOption(&vis, "-vis", "--vis", "-no-vis", "--no-vis",
+                  "Enable or disable GLVis visualization.");
    args.Parse();
    if (!args.Good())
    {
@@ -178,6 +181,7 @@ int main (int argc, char *argv[])
    target_c->SetNodes(x0);
 
    // Visualize the starting mesh.
+   if (vis)
    {
       socketstream vis;
       common::VisualizeMesh(vis, "localhost", 19916, *pmesh,
@@ -191,6 +195,7 @@ int main (int argc, char *argv[])
    if (worst_case) { WorstCaseOptimize(x, quad_order); }
 
    // Visualize the starting mesh and metric values.
+   if (vis)
    {
       char title[] = "After Untangl / WC";
       vis_tmop_metric_p(mesh_poly_deg, *metric, *target_c, *pmesh, title, 0);
@@ -245,19 +250,9 @@ int main (int argc, char *argv[])
            << "Avg mu: " << integral_mu / volume << endl;
    }
 
-   // Detect boundary nodes.
-   Array<int> vdofs;
-   ParFiniteElementSpace pfes_s(pmesh, &fec);
-   ParGridFunction domain(&pfes_s);
-   domain = 1.0;
-   for (int i = 0; i < pfes_s.GetNBE(); i++)
-   {
-      pfes_s.GetBdrElementDofs(i, vdofs);
-      for (int j = 0; j < vdofs.Size(); j++) { domain(vdofs[j]) = 0.0; }
-   }
-
    // Compute size field.
-   ParGridFunction size_gf(&pfes_s);
+   ParFiniteElementSpace pfes_nodes_scalar(pmesh, &fec);
+   ParGridFunction size_gf(&pfes_nodes_scalar);
    for (int e = 0; e < NE; e++)
    {
       const FiniteElement &fe = *pfes.GetFE(e);
@@ -276,23 +271,36 @@ int main (int argc, char *argv[])
       }
       size_gf.SetSubVector(dofs, loc_size);
    }
+   if (vis)
    {
       socketstream vis;
       common::VisualizeField(vis, "localhost", 19916, size_gf,
                              "Size", 0, 0, 300, 300, "Rj");
    }
    DiffuseH1(size_gf, 2.0);
+   if (vis)
    {
       socketstream vis;
       common::VisualizeField(vis, "localhost", 19916, size_gf,
                              "Size", 300, 0, 300, 300, "Rj");
    }
 
+   // Detect boundary nodes.
+   Array<int> vdofs;
+   ParGridFunction domain(&pfes_nodes_scalar);
+   domain = 1.0;
+   for (int i = 0; i < pfes_nodes_scalar.GetNBE(); i++)
+   {
+      pfes_nodes_scalar.GetBdrElementDofs(i, vdofs);
+      for (int j = 0; j < vdofs.Size(); j++) { domain(vdofs[j]) = 0.0; }
+   }
+
    // Distance to the boundary, on the original mesh.
    GridFunctionCoefficient coeff(&domain);
-   ParGridFunction dist(&pfes_s);
+   ParGridFunction dist(&pfes_nodes_scalar);
    ComputeScalarDistanceFromLevelSet(*pmesh, coeff, dist, false);
    dist *= -1.0;
+   if (vis)
    {
       socketstream vis_b_func;
       common::VisualizeField(vis_b_func, "localhost", 19916, dist,
@@ -304,14 +312,16 @@ int main (int argc, char *argv[])
       visit_dc.Save();
    }
 
+   // Setup distance field on the background mesh.
    BackgroundData backgrnd(*pmesh, dist, bg_amr_steps);
+   if (vis)
    {
       socketstream vis_b_func;
       common::VisualizeField(vis_b_func, "localhost", 19916, *backgrnd.dist_bg,
                              "Dist on Background", 300, 700, 300, 300, "Rj");
    }
-
    backgrnd.ComputeBackgroundDistance();
+   if (vis)
    {
       socketstream vis_b_func;
       common::VisualizeField(vis_b_func, "localhost", 19916, *backgrnd.dist_bg,
@@ -322,6 +332,7 @@ int main (int argc, char *argv[])
       visit_dc.SetFormat(DataCollection::SERIAL_FORMAT);
       visit_dc.Save();
    }
+   backgrnd.ComputeGradientAndHessian();
 
    // Setup the quadrature rules for the TMOP integrator.
    IntegrationRules *irules = &IntRulesLo;
@@ -342,80 +353,45 @@ int main (int argc, char *argv[])
            << irules->Get(Geometry::PRISM, quad_order).GetNPoints() << endl;
    }
 
-   // Surface fitting.
-   Array<bool> surf_fit_marker(domain.Size());
-   ParGridFunction surf_fit_mat_gf(&pfes_s);
+   MeshOptimizer mesh_opt;
+   mesh_opt.Setup(pfes, metric_id, quad_order);
+
    ConstantCoefficient surf_fit_coeff(surface_fit_const);
-   AdaptivityEvaluator *adapt_surface = NULL;
-   AdaptivityEvaluator *adapt_grad_surface = NULL;
-   AdaptivityEvaluator *adapt_hess_surface = NULL;
-
-   // If a background mesh is used, we interpolate the Gradient and Hessian
-   // from that mesh to the current mesh being optimized.
-   ParFiniteElementSpace *grad_fes = NULL;
-   ParGridFunction *surf_fit_grad = NULL;
-   ParFiniteElementSpace *surf_fit_hess_fes = NULL;
-   ParGridFunction *surf_fit_hess = NULL;
-
    if (surface_fit_const > 0.0)
    {
-      backgrnd.ComputeGradientAndHessian();
+      mesh_opt.SetupSurfaceFit(pfes_nodes_scalar, surf_fit_coeff, backgrnd);
+      mesh_opt.GetSolver()->
+            SetAdaptiveSurfaceFittingScalingFactor(surface_fit_adapt);
+      mesh_opt.GetSolver()->
+            SetTerminationWithMaxSurfaceFittingError(surface_fit_threshold);
 
-      // Setup functions on the mesh being optimized.
-      grad_fes = new ParFiniteElementSpace(pmesh, &fec, dim);
-      surf_fit_grad = new ParGridFunction(grad_fes);
-
-      surf_fit_hess_fes = new ParFiniteElementSpace(pmesh, &fec, dim * dim);
-      surf_fit_hess = new ParGridFunction(surf_fit_hess_fes);
-
-      for (int i = 0; i < surf_fit_marker.Size(); i++)
+      if (vis)
       {
-         surf_fit_marker[i] = false;
-         surf_fit_mat_gf[i] = 0.0;
-      }
-
-      for (int i = 0; i < pmesh->GetNBE(); i++)
-      {
-         pfes_s.GetBdrElementVDofs(i, vdofs);
-         for (int j = 0; j < vdofs.Size(); j++)
+         ParGridFunction surf_fit_mat_gf(&pfes_nodes_scalar);
+         surf_fit_mat_gf = 0.0;
+         for (int i = 0; i < pmesh->GetNBE(); i++)
          {
-            surf_fit_marker[vdofs[j]] = true;
-            surf_fit_mat_gf(vdofs[j]) = 1.0;
+            pfes_nodes_scalar.GetBdrElementVDofs(i, vdofs);
+            for (int j = 0; j < vdofs.Size(); j++)
+            {
+               surf_fit_mat_gf(vdofs[j]) = 1.0;
+            }
          }
-      }
-
-      adapt_surface = new InterpolatorFP;
-      adapt_grad_surface = new InterpolatorFP;
-      adapt_hess_surface = new InterpolatorFP;
-
-      {
          socketstream vis1;
          common::VisualizeField(vis1, "localhost", 19916, surf_fit_mat_gf,
                                 "Boundary DOFs to Fit",
                                 900, 600, 300, 300);
       }
-   }
 
-   MeshOptimizer mesh_opt;
-   mesh_opt.Setup(pfes, metric_id, quad_order);
-   mesh_opt.GetIntegrator()->
-      EnableSurfaceFittingFromSource(*backgrnd.dist_bg, domain,
-                                     surf_fit_marker, surf_fit_coeff,
-                                     *adapt_surface,
-                                     *backgrnd.grad_bg, *surf_fit_grad, *adapt_grad_surface,
-                                     *backgrnd.hess_bg, *surf_fit_hess, *adapt_hess_surface);
-   mesh_opt.GetSolver()->SetAdaptiveSurfaceFittingScalingFactor(surface_fit_adapt);
-   mesh_opt.GetSolver()->SetTerminationWithMaxSurfaceFittingError(surface_fit_threshold);
-   if (surface_fit_const > 0.0)
-   {
       double err_avg, err_max;
       mesh_opt.GetIntegrator()->GetSurfaceFittingErrors(err_avg, err_max);
       if (myid == 0)
       {
-         std::cout << "Initial Avg fitting error: " << err_avg << std::endl
-                   << "Initial Max fitting error: " << err_max << std::endl;
+         cout << "Initial Avg fitting error: " << err_avg << endl
+              << "Initial Max fitting error: " << err_max << endl;
       }
    }
+
    mesh_opt.OptimizeNodes(x);
 
    // Save the optimized mesh to files.
@@ -431,6 +407,7 @@ int main (int argc, char *argv[])
       visit_dc.Save();
    }
 
+   if (vis)
    {
       socketstream vis;
       common::VisualizeMesh(vis, "localhost", 19916, *pmesh,
@@ -449,6 +426,7 @@ int main (int argc, char *argv[])
    }
 
    // Visualize the mesh displacement.
+   if (vis)
    {
       socketstream vis;
       x0 -= x;
@@ -459,18 +437,10 @@ int main (int argc, char *argv[])
    // 20. Free the used memory.
    //   delete metric_coeff1;
    //   delete adapt_lim_eval;
-   //   delete adapt_surface;
    delete target_c;
    //   delete adapt_coeff;
    delete metric;
    //   delete untangler_metric;
-   delete adapt_hess_surface;
-   delete adapt_grad_surface;
-   delete adapt_surface;
-   delete surf_fit_hess;
-   delete surf_fit_hess_fes;
-   delete surf_fit_grad;
-   delete grad_fes;
    delete pmesh;
 
    return 0;
