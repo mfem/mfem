@@ -310,10 +310,11 @@ inline uintptr_t MmuLengthP(const void *ptr, const size_t bytes)
 /// The protected access error, used for the host
 static void MmuError(int, siginfo_t *si, void*)
 {
+   constexpr size_t buf_size = 64;
    fflush(0);
-   char str[64];
+   char str[buf_size];
    const void *ptr = si->si_addr;
-   sprintf(str, "Error while accessing address %p!", ptr);
+   snprintf(str, buf_size, "Error while accessing address %p!", ptr);
    mfem::out << std::endl << "An illegal memory access was made!";
    MFEM_ABORT(str);
 }

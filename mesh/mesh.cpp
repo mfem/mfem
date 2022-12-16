@@ -1627,6 +1627,13 @@ int Mesh::AddVertex(const double *coords)
    return NumOfVertices++;
 }
 
+int Mesh::AddVertex(const Vector &coords)
+{
+   MFEM_ASSERT(coords.Size() >= spaceDim,
+               "invalid 'coords' size: " << coords.Size());
+   return AddVertex(coords.GetData());
+}
+
 void Mesh::AddVertexParents(int i, int p1, int p2)
 {
    tmp_vertex_parents.Append(Triple<int, int, int>(i, p1, p2));
@@ -10518,8 +10525,8 @@ void Mesh::PrintVTU(std::ostream &os, int ref, VTKFormat format,
    };
 
    int ne = bdr_elements ? GetNBE() : GetNE();
-   // count the points, cells, size
-   int np = 0, nc_ref = 0, size = 0;
+   // count the number of points and cells
+   int np = 0, nc_ref = 0;
    for (int i = 0; i < ne; i++)
    {
       Geometry::Type geom = get_geom(i);
@@ -10527,7 +10534,6 @@ void Mesh::PrintVTU(std::ostream &os, int ref, VTKFormat format,
       RefG = GlobGeometryRefiner.Refine(geom, ref, 1);
       np += RefG->RefPts.GetNPoints();
       nc_ref += RefG->RefGeoms.Size() / nv;
-      size += (RefG->RefGeoms.Size() / nv) * (nv + 1);
    }
 
    os << "<Piece NumberOfPoints=\"" << np << "\" NumberOfCells=\""
@@ -11650,6 +11656,7 @@ void Mesh::Transform(void (*f)(const Vector&, Vector&))
       xnew.ProjectCoefficient(f_pert);
       *Nodes = xnew;
    }
+   NodesUpdated();
 }
 
 void Mesh::Transform(VectorCoefficient &deformation)
@@ -11674,6 +11681,7 @@ void Mesh::Transform(VectorCoefficient &deformation)
       xnew.ProjectCoefficient(deformation);
       *Nodes = xnew;
    }
+   NodesUpdated();
 }
 
 void Mesh::RemoveUnusedVertices()

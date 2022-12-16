@@ -275,9 +275,14 @@ CeedOperator CoarsenCeedCompositeOperator(
                                       &op_coarse); PCeedChk(ierr);
 
    int nsub;
-   ierr = CeedOperatorGetNumSub(op, &nsub); PCeedChk(ierr);
    CeedOperator *subops;
+#if CEED_VERSION_GE(0, 10, 2)
+   ierr = CeedCompositeOperatorGetNumSub(op, &nsub); PCeedChk(ierr);
+   ierr = CeedCompositeOperatorGetSubList(op, &subops); PCeedChk(ierr);
+#else
+   ierr = CeedOperatorGetNumSub(op, &nsub); PCeedChk(ierr);
    ierr = CeedOperatorGetSubList(op, &subops); PCeedChk(ierr);
+#endif
    for (int isub=0; isub<nsub; ++isub)
    {
       CeedOperator subop = subops[isub];
