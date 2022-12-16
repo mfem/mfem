@@ -45,6 +45,7 @@
 namespace mfem
 {
 
+#if defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP)
 class MFEM_SUB_Cuda_or_Hip(BLAS)
 {
 protected:
@@ -69,6 +70,7 @@ protected:
 public:
    static MFEM_SUB_cu_or_hip(blasHandle_t) Handle() { return Instance().handle; }
 };
+#endif
 
 /**
    Use GPU library calls to perform action of block diagonal matrices
