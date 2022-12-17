@@ -12,9 +12,11 @@
 if (MFEM_USE_MPI)
   list(APPEND DIST_COMMON_SOURCES
 	  coefficients.cpp
+	  elplast.cpp
       )
   list(APPEND DIST_COMMON_HEADERS
 	  coefficients.hpp
+	  elplast.hpp
       )
 
   convert_filenames_to_full_paths(DIST_COMMON_SOURCES)
@@ -26,6 +28,21 @@ if (MFEM_USE_MPI)
 
   add_mfem_miniapp(adapt
     MAIN adaptive_el.cpp
+    ${DIST_COMMON_FILES}
+    LIBRARIES mfem mfem-common)
+
+  add_mfem_miniapp(test_elplinteg
+    MAIN test_elinteg.cpp
+    ${DIST_COMMON_FILES}
+    LIBRARIES mfem mfem-common)
+
+  add_mfem_miniapp(elpl_elem
+    MAIN elpl_test.cpp
+    ${DIST_COMMON_FILES}
+    LIBRARIES mfem mfem-common)
+
+  add_mfem_miniapp(holep
+    MAIN holep.cpp
     ${DIST_COMMON_FILES}
     LIBRARIES mfem mfem-common)
 
