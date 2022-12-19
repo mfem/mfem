@@ -630,6 +630,31 @@ void TMOPNewtonSolver::UpdateSurfaceFittingWeight(double factor) const
    }
 }
 
+void TMOPNewtonSolver::SaveSurfaceFittingWeight() const
+{
+   const NonlinearForm *nlf = dynamic_cast<const NonlinearForm *>(oper);
+   const Array<NonlinearFormIntegrator*> &integs = *nlf->GetDNFI();
+   TMOP_Integrator *ti  = NULL;
+   TMOPComboIntegrator *co = NULL;
+   for (int i = 0; i < integs.Size(); i++)
+   {
+      ti = dynamic_cast<TMOP_Integrator *>(integs[i]);
+      if (ti)
+      {
+         ti->SaveSurfaceFittingWeight();
+      }
+      co = dynamic_cast<TMOPComboIntegrator *>(integs[i]);
+      if (co)
+      {
+         Array<TMOP_Integrator *> ati = co->GetTMOPIntegrators();
+         for (int j = 0; j < ati.Size(); j++)
+         {
+            ati[j]->SaveSurfaceFittingWeight();
+         }
+      }
+   }
+}
+
 void TMOPNewtonSolver::GetSurfaceFittingWeight(Array<double> &weights) const
 {
    const NonlinearForm *nlf = dynamic_cast<const NonlinearForm *>(oper);
@@ -839,6 +864,7 @@ void TMOPNewtonSolver::ProcessNewState(const Vector &x) const
       double rel_change_surf_fit_err = change_surf_fit_err/surf_fit_err_avg_prvs;
       // Increase the surface fitting coefficient if the surface fitting error
       // does not decrease sufficiently.
+      SaveSurfaceFittingWeight();
       if (rel_change_surf_fit_err < surf_fit_rel_change_threshold)
       {
          UpdateSurfaceFittingWeight(surf_fit_scale_factor);

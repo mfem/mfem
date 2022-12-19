@@ -933,6 +933,11 @@ int main (int argc, char *argv[])
       {
          std::cout << "Avg fitting error: " << err_avg << std::endl
                    << "Max fitting error: " << err_max << std::endl;
+
+
+         std::cout << "Last active surface fitting constant: " <<
+                   tmop_integ->GetLastActiveSurfaceFittingWeight() <<
+                   std::endl;
       }
    }
 

@@ -1271,6 +1271,100 @@ void OversetFindPointsGSLIB::Interpolate(const Vector &point_pos,
 }
 
 
+#ifdef MFEM_USE_MPI
+GSLIBCommunicator::GSLIBCommunicator(MPI_Comm comm_)
+   : cr(NULL), gsl_comm(NULL)
+{
+   gsl_comm = new gslib::comm;
+   cr      = new gslib::crystal;
+   comm_init(gsl_comm, comm_);
+   crystal_init(cr, gsl_comm);
+}
+
+void GSLIBCommunicator::SendInfo(Array<unsigned int> &gsl_proc,
+                                 Array<unsigned int> &gsl_mfem_elem,
+                                 Vector &sendinfoDoubles,
+                                 Vector &gsl_mfem_ref)
+{
+   int nptsend = gsl_proc.Size();
+   int nptElem   = gsl_mfem_elem.Size();
+   int nptRST    = gsl_mfem_ref.Size();
+   const int dim = nptRST/nptsend;
+   int nptD    = sendinfoDoubles.Size();
+
+   MFEM_VERIFY(nptElem == nptsend,
+               "Incompatible Elem size.");
+   MFEM_VERIFY(nptsend*dim == nptD,
+               "Incompatible Double size.");
+   MFEM_VERIFY(dim <= 3,
+               "Incompatible dimension.");
+
+   // Pack data to send via crystal router
+   struct gslib::array *outpt = new gslib::array;
+
+   struct out_pt { double rst[3], infoD[3]; uint index, elem, proc; };
+   struct out_pt *pt;
+   array_init(struct out_pt, outpt, nptsend);
+   outpt->n=nptsend;
+   pt = (struct out_pt *)outpt->ptr;
+   for (int index = 0; index < nptsend; index++)
+   {
+      pt->index = index;
+      pt->elem = gsl_mfem_elem[index];
+      pt->proc  = gsl_proc[index];
+      for (int d = 0; d < dim; ++d)
+      {
+         pt->rst[d]= gsl_mfem_ref(index*dim + d);
+         pt->infoD[d] = sendinfoDoubles(index*dim + d);
+      }
+      ++pt;
+   }
+
+   // Transfer data to target MPI ranks
+   sarray_transfer(struct out_pt, outpt, proc, 1, cr);
+
+   // Store received data
+   int npt = outpt->n;
+   recv_gsl_proc.SetSize(npt);
+   recv_gsl_mfem_elem.SetSize(npt);
+   recvinfoIndex.SetSize(npt);
+   recv_gsl_mfem_ref.SetSize(npt*dim);
+   recvinfoDoubles.SetSize(npt*dim);
+
+   pt = (struct out_pt *)outpt->ptr;
+   for (int index = 0; index < npt; index++)
+   {
+      recvinfoIndex[index] = pt->index;
+      recv_gsl_mfem_elem[index] = pt->elem;
+      recv_gsl_proc[index] = pt->proc;
+      for (int d = 0; d < dim; ++d)
+      {
+         recv_gsl_mfem_ref(index*dim + d)= pt->rst[d];
+         recvinfoDoubles(index*dim + d)= pt->infoD[d];
+      }
+      ++pt;
+   }
+
+   array_free(outpt);
+   delete outpt;
+}
+
+void GSLIBCommunicator::FreeData()
+{
+   crystal_free(cr);
+}
+
+GSLIBCommunicator::~GSLIBCommunicator()
+{
+   delete gsl_comm;
+   delete cr;
+}
+
+
+
+#endif
+
+
 } // namespace mfem
 
 #endif // MFEM_USE_GSLIB

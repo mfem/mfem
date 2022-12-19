@@ -273,6 +273,36 @@ public:
    using FindPointsGSLIB::Interpolate;
 };
 
+#ifdef MFEM_USE_MPI
+// Use to send info to certain processes
+class GSLIBCommunicator
+{
+protected:
+   struct gslib::crystal *cr;             // gslib's internal data
+   struct gslib::comm *gsl_comm;          // gslib's internal data
+   Vector recvinfoDoubles, recv_gsl_mfem_ref;
+   Array<unsigned int> recvinfoIndex, recv_gsl_mfem_elem, recv_gsl_proc;
+
+public:
+   GSLIBCommunicator(MPI_Comm comm_);
+
+   virtual ~GSLIBCommunicator();
+
+   void SendInfo(Array<unsigned int> &gsl_proc,
+                 Array<unsigned int> &gsl_mfem_elem,
+                 Vector &sendinfoDoubles,
+                 Vector &gsl_mfem_ref);
+
+   virtual const Array<unsigned int> &GetElem() const { return recv_gsl_mfem_elem; }
+   virtual const Array<unsigned int> &GetProc() const { return recv_gsl_proc; }
+   virtual const Vector &GetReferencePosition() const { return recv_gsl_mfem_ref;  }
+   virtual const Vector &GetDoubles() const { return recvinfoDoubles;  }
+
+   virtual void FreeData();
+};
+#endif
+
+
 } // namespace mfem
 
 #endif // MFEM_USE_GSLIB
