@@ -432,6 +432,9 @@ int main(int argc, char *argv[])
                         TestSpace::q_space, TestSpace::q_space);
 
    // integrators in the PML region
+   // Custom integration rule for the test space in the PML region
+   const IntegrationRule &ir = IntRules.Get(pmesh.GetElementGeometry(0),
+                                            2*test_order + 1);
    if (pml)
    {
       // Trial integrators
@@ -440,6 +443,7 @@ int main(int argc, char *argv[])
       a->AddTrialIntegrator(new MixedScalarMassIntegrator(negomeg_detJ_i_restr),
                             new MixedScalarMassIntegrator(omeg_detJ_r_restr),
                             TrialSpace::p_space,TestSpace::q_space);
+
       // i ω (α u,v) =  i ω ( (α_re u,v) + i (α_im u,v) )
       //             = (-ω a_im u,v) + i (ω a_re u, v)
       a->AddTrialIntegrator(new TransposeIntegrator(
@@ -450,33 +454,46 @@ int main(int argc, char *argv[])
       // Test integrators
       // -i ω (α ∇q,δv) = -i ω ( (α_r ∇q,δv) + i (α_i ∇q,δv) )
       //                = (ω α_i ∇q,δv) + i (-ω α_r ∇q,δv)
-      a->AddTestIntegrator(new MixedVectorGradientIntegrator(
-                              omeg_Jt_J_detJinv_i_restr),
-                           new MixedVectorGradientIntegrator(negomeg_Jt_J_detJinv_r_restr),
+      MixedVectorGradientIntegrator * integ0_r = new MixedVectorGradientIntegrator(
+         omeg_Jt_J_detJinv_i_restr);
+      integ0_r->SetIntegrationRule(ir);
+      MixedVectorGradientIntegrator * integ0_i = new MixedVectorGradientIntegrator(
+         negomeg_Jt_J_detJinv_r_restr);
+      integ0_i->SetIntegrationRule(ir);
+      a->AddTestIntegrator(integ0_r, integ0_i,
                            TestSpace::q_space,TestSpace::v_space);
-      // // i ω (α^* v,∇ δq)  = i ω (ᾱ v,∇ δq) (since α is diagonal)
-      // //                   = i ω ( (α_r v,∇ δq) - i (α_i v,∇ δq)
-      // //                   = (ω α_i v, ∇ δq) + i (ω α_r v,∇ δq )
+
+      // i ω (α^* v,∇ δq)  = i ω (ᾱ v,∇ δq) (since α is diagonal)
+      //                   = i ω ( (α_r v,∇ δq) - i (α_i v,∇ δq)
+      //                   = (ω α_i v, ∇ δq) + i (ω α_r v,∇ δq )
       a->AddTestIntegrator(new MixedVectorWeakDivergenceIntegrator(
                               negomeg_Jt_J_detJinv_i_restr),
                            new MixedVectorWeakDivergenceIntegrator(negomeg_Jt_J_detJinv_r_restr),
                            TestSpace::v_space,TestSpace::q_space);
-      // // ω^2 (|α|^2 v,δv) α α^* = |α|^2 since α is diagonal
-      a->AddTestIntegrator(new VectorFEMassIntegrator(omeg2_abs_Jt_J_detJinv_2_restr),
-                           nullptr,TestSpace::v_space,TestSpace::v_space);
-      // // - i ω (β ∇⋅v,δq) = - i ω ( (β_re ∇⋅v,δq) + i (β_im ∇⋅v,δq) )
-      // //                  = (ω β_im ∇⋅v,δq) + i (-ω β_re ∇⋅v,δq )
+
+      // ω^2 (|α|^2 v,δv) α α^* = |α|^2 since α is diagonal
+      VectorFEMassIntegrator * integ1 = new VectorFEMassIntegrator(
+         omeg2_abs_Jt_J_detJinv_2_restr);
+      integ1->SetIntegrationRule(ir);
+      a->AddTestIntegrator(integ1, nullptr,TestSpace::v_space,TestSpace::v_space);
+
+      // - i ω (β ∇⋅v,δq) = - i ω ( (β_re ∇⋅v,δq) + i (β_im ∇⋅v,δq) )
+      //                  = (ω β_im ∇⋅v,δq) + i (-ω β_re ∇⋅v,δq )
       a->AddTestIntegrator(new VectorFEDivergenceIntegrator(omeg_detJ_i_restr),
                            new VectorFEDivergenceIntegrator(negomeg_detJ_r_restr),
                            TestSpace::v_space,TestSpace::q_space);
-      // // i ω (β̄ q,∇⋅v) =  i ω ( (β_re ∇⋅v,δq) - i (β_im ∇⋅v,δq) )
-      // //               =  (ω β_im ∇⋅v,δq) + i (ω β_re ∇⋅v,δq )
+
+      // i ω (β̄ q,∇⋅v) =  i ω ( (β_re ∇⋅v,δq) - i (β_im ∇⋅v,δq) )
+      //               =  (ω β_im ∇⋅v,δq) + i (ω β_re ∇⋅v,δq )
       a->AddTestIntegrator(new MixedScalarWeakGradientIntegrator(
                               negomeg_detJ_i_restr),
                            new MixedScalarWeakGradientIntegrator(negomeg_detJ_r_restr),
                            TestSpace::q_space,TestSpace::v_space);
-      // // ω^2 (β̄ β q,δq) = (ω^2 |β|^2 )
-      a->AddTestIntegrator(new MassIntegrator(omeg2_abs_detJ_2_restr),nullptr,
+
+      // ω^2 (β̄ β q,δq) = (ω^2 |β|^2 )
+      MassIntegrator * integ = new MassIntegrator(omeg2_abs_detJ_2_restr);
+      integ->SetIntegrationRule(ir);
+      a->AddTestIntegrator(integ,nullptr,
                            TestSpace::q_space,TestSpace::q_space);
    }
 
