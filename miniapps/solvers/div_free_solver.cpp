@@ -887,8 +887,8 @@ BlockHybridizationSolver::BlockHybridizationSolver(const shared_ptr<ParBilinearF
 BlockHybridizationSolver::~BlockHybridizationSolver()
 {
     delete M;
-    delete ipiv;
-    delete data;
+    delete [] ipiv;
+    delete [] data;
     delete Ct;
     delete c_fes;
 }
