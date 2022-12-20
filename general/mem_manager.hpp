@@ -644,9 +644,8 @@ private: // Static methods used by the Memory<T> class
    static void SetDeviceMemoryType_(void *h_ptr, unsigned flags,
                                     MemoryType d_mt);
 
-   /// Un-register and free memory identified by its host pointer. Returns the
-   /// memory type of the host pointer.
-   static MemoryType Delete_(void *h_ptr, MemoryType mt, unsigned flags);
+   /// Un-register and free memory identified by its host pointer.
+   static void Delete_(void *h_ptr, MemoryType mt, unsigned flags);
 
    /// Free device memory identified by its host pointer
    static void DeleteDevice_(void *h_ptr, unsigned & flags);
@@ -828,6 +827,23 @@ public:
 
    static MemoryType GetHostMemoryType() { return host_mem_type; }
    static MemoryType GetDeviceMemoryType() { return device_mem_type; }
+
+#ifdef MFEM_USE_ENZYME
+   static void myfree(void* mem, MemoryType MT, unsigned &flags)
+   {
+      MemoryManager::Delete_(mem, MT, flags);
+   }
+   __attribute__((used))
+   inline static void* __enzyme_allocation_like1[4] = {(void*)static_cast<void*(*)(void*, size_t, MemoryType, unsigned&)>(MemoryManager::New_),
+                                                       (void*)1, (void*)"-1,2,3", (void*)myfree
+                                                      };
+   __attribute__((used))
+   inline static void* __enzyme_allocation_like2[4] = {(void*)static_cast<void*(*)(void*, size_t, MemoryType, MemoryType, unsigned, unsigned&)>(MemoryManager::New_),
+                                                       (void*)1, (void*)"-1,2,4", (void*)MemoryManager::Delete_
+                                                      };
+   __attribute__((used))
+   inline static void* __enzyme_function_like[2] = {(void*)MemoryManager::Delete_, (void*)"free"};
+#endif
 };
 
 
@@ -1007,8 +1023,12 @@ inline void Memory<T>::Delete()
    const bool mt_host = h_mt == MemoryType::HOST;
    const bool std_delete = !registered && mt_host;
 
-   if (std_delete ||
-       MemoryManager::Delete_((void*)h_ptr, h_mt, flags) == MemoryType::HOST)
+   if (!std_delete)
+   {
+      MemoryManager::Delete_((void*)h_ptr, h_mt, flags);
+   }
+
+   if (mt_host)
    {
       if (flags & OWNS_HOST) { delete [] h_ptr; }
    }
