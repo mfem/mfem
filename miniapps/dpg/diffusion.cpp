@@ -270,7 +270,7 @@ int main(int argc, char *argv[])
       x = 0.0;
       if (prob == prob_type::manufactured)
       {
-         hatu_gf.MakeRef(hatu_fes,x.GetBlock(2));
+         hatu_gf.MakeRef(hatu_fes,x.GetBlock(2),0);
          hatu_gf.ProjectBdrCoefficient(hatuex,ess_bdr);
       }
 
@@ -298,8 +298,8 @@ int main(int argc, char *argv[])
       a->RecoverFEMSolution(X,x);
 
       GridFunction u_gf, sigma_gf;
-      u_gf.MakeRef(u_fes,x.GetBlock(0));
-      sigma_gf.MakeRef(sigma_fes,x.GetBlock(1));
+      u_gf.MakeRef(u_fes,x.GetBlock(0),0);
+      sigma_gf.MakeRef(sigma_fes,x.GetBlock(1),0);
 
       if (prob == prob_type::manufactured)
       {

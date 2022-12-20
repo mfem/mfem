@@ -333,8 +333,8 @@ int main(int argc, char *argv[])
       offsets.PartialSum();
 
       BlockVector x(offsets); x = 0.0;
-      hatu_gf.MakeRef(hatu_fes,x.GetBlock(2));
-      hatf_gf.MakeRef(hatf_fes,x.GetBlock(3));
+      hatu_gf.MakeRef(hatu_fes,x.GetBlock(2),0);
+      hatf_gf.MakeRef(hatf_fes,x.GetBlock(3),0);
       hatu_gf.ProjectBdrCoefficient(hatuex,ess_bdr_uhat);
       hatf_gf.ProjectBdrCoefficientNormal(hatfex,ess_bdr_fhat);
 
@@ -362,8 +362,8 @@ int main(int argc, char *argv[])
       a->RecoverFEMSolution(X,x);
 
       GridFunction u_gf, sigma_gf;
-      u_gf.MakeRef(u_fes,x.GetBlock(0));
-      sigma_gf.MakeRef(sigma_fes,x.GetBlock(1));
+      u_gf.MakeRef(u_fes,x.GetBlock(0),0);
+      sigma_gf.MakeRef(sigma_fes,x.GetBlock(1),0);
 
       double u_err = u_gf.ComputeL2Error(uex);
       double sigma_err = sigma_gf.ComputeL2Error(sigmaex);

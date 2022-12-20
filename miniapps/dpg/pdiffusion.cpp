@@ -88,8 +88,10 @@ double f_exact(const Vector & X);
 
 int main(int argc, char *argv[])
 {
-   MPI_Session mpi;
-   int myid = mpi.WorldRank();
+   // 0. Initialize MPI and HYPRE.
+   Mpi::Init();
+   int myid = Mpi::WorldRank();
+   Hypre::Init();
 
    // 1. Parse command-line options.
    const char *mesh_file = "../../data/inline-quad.mesh";
@@ -348,7 +350,7 @@ int main(int argc, char *argv[])
       offsets.PartialSum();
       BlockVector x(offsets);
       x = 0.0;
-      hatu_gf.MakeRef(hatu_fes,x.GetBlock(2));
+      hatu_gf.MakeRef(hatu_fes,x.GetBlock(2),0);
       hatu_gf.ProjectBdrCoefficient(uex,ess_bdr);
 
       Vector X,B;
@@ -407,8 +409,8 @@ int main(int argc, char *argv[])
 
       globalresidual = sqrt(globalresidual);
 
-      u_gf.MakeRef(u_fes,x.GetBlock(0));
-      sigma_gf.MakeRef(sigma_fes,x.GetBlock(1));
+      u_gf.MakeRef(u_fes,x.GetBlock(0),0);
+      sigma_gf.MakeRef(sigma_fes,x.GetBlock(1),0);
 
       int dofs = u_fes->GlobalTrueVSize() + sigma_fes->GlobalTrueVSize()
                  + hatu_fes->GlobalTrueVSize() + hatsigma_fes->GlobalTrueVSize();
