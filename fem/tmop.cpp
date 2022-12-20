@@ -2540,6 +2540,8 @@ void TMOP_Integrator::EnableSurfaceFitting(const GridFunction &s0,
                                     surf_fit_gf->FESpace()->GetOrdering());
    surf_fit_eval->SetInitialField
    (*surf_fit_gf->FESpace()->GetMesh()->GetNodes(), *surf_fit_gf);
+
+   SaveSurfaceFittingWeight();
 }
 
 #ifdef MFEM_USE_MPI
@@ -2561,6 +2563,8 @@ void TMOP_Integrator::EnableSurfaceFitting(const ParGridFunction &s0,
    surf_fit_eval->SetInitialField
    (*surf_fit_gf->FESpace()->GetMesh()->GetNodes(), *surf_fit_gf);
    surf_fit_gf_bg = false;
+
+   SaveSurfaceFittingWeight();
 }
 
 void TMOP_Integrator::EnableSurfaceFittingFromSource(const ParGridFunction
@@ -2638,6 +2642,8 @@ void TMOP_Integrator::EnableSurfaceFittingFromSource(const ParGridFunction
          surf_fit_marker_dof_index.Append(i);
       }
    }
+
+   SaveSurfaceFittingWeight();
 }
 #endif
 
@@ -3511,9 +3517,9 @@ void TMOP_Integrator::AssembleElemGradSurfFit(const FiniteElement &el_x,
                      /* */ surf_fit_grad_s(jdim) * shape_x(jdof) +
                      2.0 * sigma_e(s) * surf_fit_hess_s(idim, jdim) *
                      /* */ shape_x(idof) * shape_x(jdof));
-            const int count = std::min(surf_fit_dof_count[cdofs[idof]],
-                                       surf_fit_dof_count[cdofs[jdof]]);
-            entry *= 1.0/count;
+            const int dofcount = std::min(surf_fit_dof_count[cdofs[idof]],
+                                          surf_fit_dof_count[cdofs[jdof]]);
+            entry *= 1.0/dofcount;
             mat(i, j) += entry;
             if (i != j) { mat(j, i) += entry; }
          }
@@ -3727,6 +3733,16 @@ double TMOP_Integrator::GetSurfaceFittingWeight()
       return cf->constant;
    }
    return 0.0;
+}
+
+void TMOP_Integrator::SaveSurfaceFittingWeight()
+{
+   if (surf_fit_coeff)
+   {
+      auto cf = dynamic_cast<ConstantCoefficient *>(surf_fit_coeff);
+      MFEM_VERIFY(cf, "Dynamic weight works only with a ConstantCoefficient.");
+      last_active_surf_fit_const = cf->constant;
+   }
 }
 
 void TMOP_Integrator::EnableNormalization(const GridFunction &x)

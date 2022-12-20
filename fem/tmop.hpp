@@ -1500,6 +1500,7 @@ protected:
    AdaptivityEvaluator *surf_fit_eval_bg_grad, *surf_fit_eval_bg_hess;
    Array<int> surf_fit_dof_count;
    Array<int> surf_fit_marker_dof_index;
+   double last_active_surf_fit_const;
 
    DiscreteAdaptTC *discr_tc;
 
@@ -1888,6 +1889,10 @@ public:
 
    /// Get the surface fitting weight.
    double GetSurfaceFittingWeight();
+
+   double GetLastActiveSurfaceFittingWeight() { return last_active_surf_fit_const; };
+
+   void SaveSurfaceFittingWeight();
 
    /// Computes quantiles needed for UntangleMetrics. Note that in parallel,
    /// the ParFiniteElementSpace must be passed as argument for consistency
