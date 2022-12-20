@@ -424,11 +424,11 @@ int main(int argc, char *argv[])
       offsets.PartialSum();
       BlockVector x(offsets);
       x = 0.0;
-      hatu_gf.MakeRef(hatu_fes,x.GetBlock(2));
+      hatu_gf.MakeRef(hatu_fes,x.GetBlock(2),0);
       FunctionCoefficient bdr_cf(bdr_data);
       hatu_gf.ProjectBdrCoefficient(bdr_cf,ess_bdr_uhat);
 
-      hatf_gf.MakeRef(hatf_fes,x.GetBlock(3));
+      hatf_gf.MakeRef(hatf_fes,x.GetBlock(3),0);
       hatf_gf.ProjectBdrCoefficientNormal(hatfex,ess_bdr_fhat);
 
       OperatorPtr Ah;
@@ -436,7 +436,6 @@ int main(int argc, char *argv[])
       a->FormLinearSystem(ess_tdof_list,x,Ah,X,B);
 
       BlockOperator * A = Ah.As<BlockOperator>();
-
 
       BlockDiagonalPreconditioner M(A->RowOffsets());
       M.owns_blocks = 1;
@@ -469,7 +468,7 @@ int main(int argc, char *argv[])
 
       CGSolver cg(MPI_COMM_WORLD);
       cg.SetRelTol(1e-12);
-      cg.SetMaxIter(200000);
+      cg.SetMaxIter(2000);
       cg.SetPrintLevel(0);
       cg.SetPreconditioner(M);
       cg.SetOperator(*A);
@@ -498,8 +497,8 @@ int main(int argc, char *argv[])
          }
       }
 
-      u_gf.MakeRef(u_fes,x.GetBlock(0));
-      sigma_gf.MakeRef(sigma_fes,x.GetBlock(1));
+      u_gf.MakeRef(u_fes,x.GetBlock(0),0);
+      sigma_gf.MakeRef(sigma_fes,x.GetBlock(1),0);
 
       int dofs = u_fes->GlobalTrueVSize()
                  + sigma_fes->GlobalTrueVSize()
