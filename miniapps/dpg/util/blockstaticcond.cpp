@@ -175,10 +175,10 @@ void BlockStaticCondensation::Init()
    *y = 0.;
 }
 
-void BlockStaticCondensation::GetReduceElementIndicesAndOffsets(int el,
-                                                                Array<int> & trace_ldofs,
-                                                                Array<int> & interior_ldofs,
-                                                                Array<int> & offsets) const
+void BlockStaticCondensation::GetReducedElementIndicesAndOffsets(int el,
+                                                                 Array<int> & trace_ldofs,
+                                                                 Array<int> & interior_ldofs,
+                                                                 Array<int> & offsets) const
 {
    int dim = mesh->Dimension();
    offsets.SetSize(tr_fes.Size()+1); offsets = 0;
@@ -198,7 +198,7 @@ void BlockStaticCondensation::GetReduceElementIndicesAndOffsets(int el,
    }
    else
    {
-      MFEM_ABORT("BlockStaticCondensation::GetReduceElementIndicesAndOffsets: "
+      MFEM_ABORT("BlockStaticCondensation::GetReducedElementIndicesAndOffsets: "
                  "dim > 3 not supported");
    }
    int numfaces = faces.Size();
@@ -254,8 +254,8 @@ void BlockStaticCondensation::GetReduceElementIndicesAndOffsets(int el,
 }
 
 
-void BlockStaticCondensation::GetReduceElementVDofs(int el,
-                                                    Array<int> & rdofs) const
+void BlockStaticCondensation::GetReducedElementVDofs(int el,
+                                                     Array<int> & rdofs) const
 {
    Array<int> faces, ori;
    int dim = mesh->Dimension();
@@ -273,7 +273,7 @@ void BlockStaticCondensation::GetReduceElementVDofs(int el,
    }
    else
    {
-      MFEM_ABORT("BlockStaticCondensation::GetReduceElementVDofs: "
+      MFEM_ABORT("BlockStaticCondensation::GetReducedElementVDofs: "
                  "dim > 3 not supported");
    }
    int numfaces = faces.Size();
@@ -306,6 +306,7 @@ void BlockStaticCondensation::GetReduceElementVDofs(int el,
       rdofs.Append(vdofs);
    }
 }
+
 void BlockStaticCondensation::GetElementVDofs(int el, Array<int> & vdofs) const
 {
    Array<int> faces, ori;
@@ -356,10 +357,13 @@ void BlockStaticCondensation::GetElementVDofs(int el, Array<int> & vdofs) const
 }
 
 
-void BlockStaticCondensation::GetLocalShurComplement(int el,
-                                                     const Array<int> & tr_idx, const Array<int> & int_idx,
-                                                     const DenseMatrix & elmat, const Vector & elvect,
-                                                     DenseMatrix & rmat, Vector & rvect)
+void BlockStaticCondensation::GetLocalSchurComplement(int el,
+                                                      const Array<int> & tr_idx,
+                                                      const Array<int> & int_idx,
+                                                      const DenseMatrix & elmat,
+                                                      const Vector & elvect,
+                                                      DenseMatrix & rmat,
+                                                      Vector & rvect)
 {
    int rdofs = tr_idx.Size();
    int idofs = int_idx.Size();
@@ -405,18 +409,18 @@ void BlockStaticCondensation::AssembleReducedSystem(int el,
                                                     DenseMatrix &elmat,
                                                     Vector & elvect)
 {
-   // Get Shur Complement
+   // Get Schur Complement
    Array<int> tr_idx, int_idx;
    Array<int> offsets;
    // Get local element idx and offsets for global assembly
-   GetReduceElementIndicesAndOffsets(el, tr_idx,int_idx, offsets);
+   GetReducedElementIndicesAndOffsets(el, tr_idx,int_idx, offsets);
 
    DenseMatrix rmat, *rmatptr;
    Vector rvec, *rvecptr;
    // Extract the reduced matrices based on tr_idx and int_idx
    if (int_idx.Size()!=0)
    {
-      GetLocalShurComplement(el,tr_idx,int_idx, elmat, elvect, rmat, rvec);
+      GetLocalSchurComplement(el,tr_idx,int_idx, elmat, elvect, rmat, rvec);
       rmatptr = &rmat;
       rvecptr = &rvec;
    }
@@ -935,20 +939,19 @@ void BlockStaticCondensation::ComputeSolution(const Vector &sc_sol,
    for (int iel = 0; iel < NE; iel++)
    {
       lsol.SetSize(lmat[iel]->Width() + lmat[iel]->Height());
-      // GetReduceElementIndicesAndOffsets(iel, trace_ldofs, interior_ldofs, tr_offsets);
-      GetReduceElementVDofs(iel, trace_vdofs);
+      GetReducedElementVDofs(iel, trace_vdofs);
 
       lsr.SetSize(trace_vdofs.Size());
       sol_r.GetSubVector(trace_vdofs, lsr);
-      // complete the interior dofs
 
+      // complete the interior dofs
       lsi.SetSize(lmat[iel]->Height());
       lmat[iel]->Mult(lsr,lsi);
       lsi.Neg();
       lsi+=*lvec[iel];
 
       Array<int> tr_idx,int_idx,idx_offs;
-      GetReduceElementIndicesAndOffsets(iel,tr_idx, int_idx, idx_offs);
+      GetReducedElementIndicesAndOffsets(iel,tr_idx, int_idx, idx_offs);
       lsol.SetSubVector(tr_idx,lsr);
 
       lsol.SetSubVector(int_idx,lsi);

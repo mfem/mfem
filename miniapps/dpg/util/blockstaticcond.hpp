@@ -39,8 +39,9 @@ class BlockStaticCondensation
    Array<int> rdof_offsets;
    Array<int> rtdof_offsets;
 
-   // Schur complement matrix
-   // S = A_ii - A_ib (A_bb)^{-1} A_bi.
+   /** Schur complement matrix
+       S = A_ii - A_ib (A_bb)^{-1} A_bi.
+       Here (b) and (i) stand for "bubble" and "interface" respectively */
    BlockMatrix * S = nullptr;
    BlockMatrix * S_e = nullptr;
 
@@ -66,20 +67,20 @@ class BlockStaticCondensation
 
    // tr_idx (trace dofs indices)
    // int_idx (interior dof indices)
-   void GetReduceElementIndicesAndOffsets(int el, Array<int> & tr_idx,
-                                          Array<int> & int_idx,
-                                          Array<int> & offsets) const;
+   void GetReducedElementIndicesAndOffsets(int el, Array<int> & tr_idx,
+                                           Array<int> & int_idx,
+                                           Array<int> & offsets) const;
 
-   void GetReduceElementVDofs(int el, Array<int> & rdofs) const;
+   void GetReducedElementVDofs(int el, Array<int> & rdofs) const;
    void GetElementVDofs(int el, Array<int> & vdofs) const;
 
 
-   //  S = A_ii - A_ib (A_bb)^{-1} A_bi.
-   //  y = y_i - A_ib (A_bb)^{-1} y_b
-   void GetLocalShurComplement(int el, const Array<int> & tr_idx,
-                               const Array<int> & int_idx,
-                               const DenseMatrix & elmat, const Vector & elvect,
-                               DenseMatrix & rmat, Vector & rvect);
+   /** S = A_ii - A_ib (A_bb)^{-1} A_bi and  y = y_i - A_ib (A_bb)^{-1} y_b.
+       Here (b) and (i) stand for "bubble" and "interface" respectively */
+   void GetLocalSchurComplement(int el, const Array<int> & tr_idx,
+                                const Array<int> & int_idx,
+                                const DenseMatrix & elmat, const Vector & elvect,
+                                DenseMatrix & rmat, Vector & rvect);
 
    void ComputeOffsets();
 
@@ -138,17 +139,17 @@ public:
    }
 
    /// Return the serial Schur complement matrix.
-   BlockMatrix &GetMatrix() { return *S; }
+   BlockMatrix &GetSchurMatrix() { return *S; }
 
    /// Return the eliminated part of the serial Schur complement matrix.
-   BlockMatrix &GetMatrixElim() { return *S_e; }
+   BlockMatrix &GetSchurMatrixElim() { return *S_e; }
 
 #ifdef MFEM_USE_MPI
    /// Return the parallel Schur complement matrix.
-   BlockOperator &GetParallelMatrix() { return *pS; }
+   BlockOperator &GetParallelSchurMatrix() { return *pS; }
 
    /// Return the eliminated part of the parallel Schur complement matrix.
-   BlockOperator &GetParallelMatrixElim() { return *pS_e; }
+   BlockOperator &GetParallelSchurMatrixElim() { return *pS_e; }
 
    void ParallelAssemble(BlockMatrix *m);
 #endif

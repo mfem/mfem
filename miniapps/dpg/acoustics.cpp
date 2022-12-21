@@ -121,7 +121,7 @@ int main(int argc, char *argv[])
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
-   args.AddOption(&rnum, "-rnum", "--number_of_wavelenths",
+   args.AddOption(&rnum, "-rnum", "--number_of_wavelengths",
                   "Number of wavelengths");
    args.AddOption(&iprob, "-prob", "--problem", "Problem case"
                   " 0: plane wave, 1: Gaussian beam");

@@ -7,7 +7,7 @@
 // mpirun -np 4 ./pacoustics -o 3 -m ../../data/star.mesh -sref 1 -pref 2 -rnum 1.9 -sc -prob 0
 // mpirun -np 4 ./pacoustics -o 3 -m ../../data/inline-quad.mesh -sref 1 -pref 2  -rnum 5.2 -sc -prob 1
 // mpirun -np 4 ./pacoustics -o 4 -m ../../data/inline-tri.mesh -sref 1 -pref 2  -rnum 7.1 -sc -prob 1
-// mpirun -np 4 ./pacoustics -o 2 -m ../../data/inline-hex.mesh -sref 0 -pref 0 -rnum 1.9 -sc -prob 0
+// mpirun -np 4 ./pacoustics -o 2 -m ../../data/inline-hex.mesh -sref 0 -pref 1 -rnum 1.9 -sc -prob 0
 // mpirun -np 4 ./pacoustics -o 3 -m ../../data/inline-quad.mesh -sref 2 -pref 0  -rnum 7.1 -sc -prob 2
 // mpirun -np 4 ./pacoustics -o 2 -m ../../data/inline-hex.mesh -sref 0 -pref 1  -rnum 4.1 -sc -prob 2
 // mpirun -np 4 ./pacoustics -o 3 -m meshes/scatter.mesh -sref 1 -pref 0  -rnum 7.1 -sc -prob 3
@@ -195,7 +195,7 @@ int main(int argc, char *argv[])
                   "Mesh file to use.");
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree)");
-   args.AddOption(&rnum, "-rnum", "--number_of_wavelenths",
+   args.AddOption(&rnum, "-rnum", "--number_of_wavelengths",
                   "Number of wavelengths");
    args.AddOption(&iprob, "-prob", "--problem", "Problem case"
                   " 0: plane wave, 1: Gaussian beam, 2: Generic PML,"

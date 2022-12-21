@@ -149,9 +149,9 @@ public:
    }
 
    /// Return the serial Schur complement matrix.
-   BlockMatrix &GetMatrix_r() { return *S_r; }
-   BlockMatrix &GetMatrix_i() { return *S_i; }
-   ComplexOperator &GetComplexOperator()
+   BlockMatrix &GetSchurMatrix_r() { return *S_r; }
+   BlockMatrix &GetSchurMatrix_i() { return *S_i; }
+   ComplexOperator &GetSchurComplexOperator()
    {
       if (!S)
       {
@@ -172,17 +172,17 @@ public:
    }
 
    /// Return the eliminated part of the serial Schur complement matrix.
-   BlockMatrix &GetMatrixElim_r() { return *S_e_r; }
-   BlockMatrix &GetMatrixElim_i() { return *S_e_i; }
+   BlockMatrix &GetSchurMatrixElim_r() { return *S_e_r; }
+   BlockMatrix &GetSchurMatrixElim_i() { return *S_e_i; }
 
 #ifdef MFEM_USE_MPI
    /// Return the parallel Schur complement matrix.
-   BlockOperator &GetParallelMatrix_r() { return *pS_r; }
-   BlockOperator &GetParallelMatrix_i() { return *pS_i; }
+   BlockOperator &GetParallelSchurMatrix_r() { return *pS_r; }
+   BlockOperator &GetParallelSchurMatrix_i() { return *pS_i; }
 
    /// Return the eliminated part of the parallel Schur complement matrix.
-   BlockOperator &GetParallelMatrixElim_r() { return *pS_e_r; }
-   BlockOperator &GetParallelMatrixElim_i() { return *pS_e_i; }
+   BlockOperator &GetParallelSchurMatrixElim_r() { return *pS_e_r; }
+   BlockOperator &GetParallelSchurMatrixElim_i() { return *pS_e_i; }
 
    void ParallelAssemble(BlockMatrix *m_r, BlockMatrix*m_i);
 #endif

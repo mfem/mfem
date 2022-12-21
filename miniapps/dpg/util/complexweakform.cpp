@@ -60,7 +60,6 @@ void ComplexDPGWeakForm::Init()
 
    if (store_matrices)
    {
-      // Ginv.SetSize(mesh->GetNE());
       Bmat.SetSize(mesh->GetNE());
       fvec.SetSize(mesh->GetNE());
    }
@@ -714,7 +713,7 @@ void ComplexDPGWeakForm::FormSystemMatrix(const Array<int>
          static_cond->SetEssentialTrueDofs(ess_tdof_list);
          static_cond->FormSystemMatrix(diag_policy);
       }
-      A.Reset(&static_cond->GetComplexOperator(), false);
+      A.Reset(&static_cond->GetSchurComplexOperator(), false);
    }
    else
    {

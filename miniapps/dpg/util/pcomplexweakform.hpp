@@ -20,28 +20,27 @@
 namespace mfem
 {
 
-/** @brief Class representing the whole weak formulation. (Convenient for DPG or
+/** @brief Class representing the parallel weak formulation. (Convenient for DPG or
     Normal Equations) */
 class ParComplexDPGWeakForm : public ComplexDPGWeakForm
 {
 
 protected:
-   // Trial FE spaces
+   /// Trial FE spaces
    Array<ParFiniteElementSpace * > trial_pfes;
 
-   // ess_tdof list for each space
+   /// ess_tdof list for each space
    Array<Array<int> *> ess_tdofs;
 
-   // // split ess_tdof_list give in global tdof (for all spaces)
-   // // to individual lists for each space
-   // // (this can be changed i.e., the lists to be given by the user)
+   /** split ess_tdof_list give in global tdof (for all spaces)
+    to individual lists for each space */
    void FillEssTdofLists(const Array<int> & ess_tdof_list);
 
-   // Block operator of HypreParMatrix
-   BlockOperator * P = nullptr; // Block Prolongation
-   BlockMatrix * R = nullptr; // Block Restriction
+   // Block Prolongation
+   BlockOperator * P = nullptr;
+   // Block Restriction
+   BlockMatrix * R = nullptr;
 
-   // // Block operator of HypreParMatrix
    ComplexOperator * p_mat = nullptr;
    BlockOperator * p_mat_r = nullptr;
    BlockOperator * p_mat_i = nullptr;
@@ -50,13 +49,11 @@ protected:
 
    void BuildProlongation();
 
-private:
-
 public:
 
    ParComplexDPGWeakForm() {}
 
-   /// Creates bilinear form associated with FE spaces @a *fespaces.
+   /// Creates bilinear form associated with FE spaces @a trial_pfes_.
    ParComplexDPGWeakForm(Array<ParFiniteElementSpace* > & trial_pfes_,
                          Array<FiniteElementCollection* > & fecol_)
       : ComplexDPGWeakForm()
