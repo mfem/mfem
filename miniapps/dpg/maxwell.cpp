@@ -62,6 +62,8 @@
 // ||(F,G)||²ᵥ  = ||A^*(F,G)||² + ||(F,G)||² where A is the
 // Maxwell operator defined by (1)
 
+// For more information see https://doi.org/10.1016/j.camwa.2021.01.017
+
 #include "mfem.hpp"
 #include "util/complexweakform.hpp"
 #include "../common/mfem-common.hpp"

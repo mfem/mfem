@@ -44,7 +44,7 @@
 //                                û = u₀        on ∂Ω
 
 // Note:
-// û := u and σ̂ := -σ
+// û := u and σ̂ := -σ on the mesh skeleton
 
 // -------------------------------------------------------------
 // |   |     u     |     σ     |    û      |    σ̂    |  RHS    |
@@ -54,6 +54,8 @@
 // | v |           |  (σ,∇ v)  |           | -<σ̂,v>  |  (f,v)  |
 
 // where (τ,v) ∈  H(div,Ω) × H¹(Ω)
+
+// For more information see https://doi.org/10.1007/978-3-319-01818-8_6
 
 #include "mfem.hpp"
 #include "util/pweakform.hpp"
@@ -156,6 +158,8 @@ int main(int argc, char *argv[])
 
    if (prob == prob_type::lshape)
    {
+      /** rotate mesh to be consistent with l-shape benchmark problem
+          See https://doi.org/10.1016/j.amc.2013.05.068 */
       mesh.EnsureNodes();
       GridFunction *nodes = mesh.GetNodes();
       int size = nodes->Size()/2;
@@ -379,10 +383,12 @@ int main(int argc, char *argv[])
       HypreSolver * prec;
       if (dim == 2)
       {
+         // AMS preconditioner for 2D H(div) (trace) space
          prec = new HypreAMS((HypreParMatrix &)A->GetBlock(skip+1,skip+1), hatsigma_fes);
       }
       else
       {
+         // ADS preconditioner for 3D H(div) (trace) space
          prec = new HypreADS((HypreParMatrix &)A->GetBlock(skip+1,skip+1), hatsigma_fes);
       }
       M.SetDiagonalBlock(skip+1,prec);

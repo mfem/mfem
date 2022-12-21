@@ -103,13 +103,13 @@ private:
 
 public:
 
-   /// Creates bilinear form associated with FE spaces @a *fespaces.
    ComplexDPGWeakForm()
    {
       height = 0.;
       width = 0;
    }
 
+   /// Creates bilinear form associated with FE spaces @a fes_.
    ComplexDPGWeakForm(Array<FiniteElementSpace* > & fes_,
                       Array<FiniteElementCollection *> & fecol_)
    {

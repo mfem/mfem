@@ -99,7 +99,7 @@ public:
       width = 0;
    }
 
-   /// Creates bilinear form associated with FE spaces @a *fespaces.
+   /// Creates bilinear form associated with FE spaces @a fes_.
    DPGWeakForm(Array<FiniteElementSpace* > & fes_,
                Array<FiniteElementCollection *> & fecol_)
    {

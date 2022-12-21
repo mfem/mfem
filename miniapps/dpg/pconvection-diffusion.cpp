@@ -40,8 +40,7 @@
 //                                        û = u₀   on ∂Ω
 
 // Note:
-// f̂ := βu - σ
-// û := -u
+// f̂ := βu - σ, û := -u on the mesh skeleton
 
 // -------------------------------------------------------------
 // |   |     u     |     σ     |   û       |     f̂    |  RHS    |
@@ -51,6 +50,8 @@
 // | τ | (u ,∇⋅τ)  | 1/ε(σ , τ)|  <û,τ⋅n>  |          |    0    |
 
 // where (v,τ) ∈  H¹(Ωₕ) × H(div,Ωₕ)
+
+// For more information see https://doi.org/10.1016/j.camwa.2013.06.010
 
 #include "mfem.hpp"
 #include "util/pweakform.hpp"
@@ -65,9 +66,9 @@ using namespace mfem::common;
 enum prob_type
 {
    sinusoidal,
-   EJ, // from https://www.sciencedirect.com/science/article/pii/S0898122113003751
-   curved_streamlines, // form https://par.nsf.gov/servlets/purl/10160205
-   bdr_layer // from https://web.pdx.edu/~gjay/pub/dpg2.pdf
+   EJ, // see https://doi.org/10.1016/j.camwa.2013.06.010
+   curved_streamlines, // see https://doi.org/10.1515/cmam-2018-0207
+   bdr_layer // see  https://doi.org/10.1002/num.20640
 };
 
 static const char *enum_str[] =
@@ -458,10 +459,12 @@ int main(int argc, char *argv[])
       HypreSolver * prec;
       if (dim == 2)
       {
+         // AMS preconditioner for 2D H(div) (trace) space
          prec = new HypreAMS((HypreParMatrix &)A->GetBlock(skip+1,skip+1), hatf_fes);
       }
       else
       {
+         // ADS preconditioner for 3D H(div) (trace) space
          prec = new HypreADS((HypreParMatrix &)A->GetBlock(skip+1,skip+1), hatf_fes);
       }
       M.SetDiagonalBlock(skip+1,prec);

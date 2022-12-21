@@ -35,7 +35,7 @@
 //                                û = u₀      on ∂Ω
 
 // Note:
-// û := u and σ̂ := -σ
+// û := u and σ̂ := -σ on the mesh skeleton
 //
 // -------------------------------------------------------------
 // |   |     u     |     σ     |    û      |    σ̂    |  RHS    |
@@ -49,6 +49,8 @@
 // Here we use the "space-induced" test norm i.e.,
 //
 // ||(t,v)||²_H(div)×H¹ := ||t||² + ||∇⋅t||² + ||v||² + ||∇v||²
+
+// For more information see https://doi.org/10.1007/978-3-319-01818-8_6
 
 #include "mfem.hpp"
 #include "util/weakform.hpp"

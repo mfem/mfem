@@ -38,8 +38,9 @@
 //                                   p̂  = p₀      on ∂Ω
 
 // Note:
-// p̂ := p on Γₕ  (skeleton)
-// û := u on Γₕ
+// p̂ := p, û := u on the mesh skeleton
+
+// For more information see https://doi.org/10.1016/j.camwa.2017.06.044
 
 // -------------------------------------------------------------
 // |   |     p     |     u     |    p̂      |    û    |  RHS    |
