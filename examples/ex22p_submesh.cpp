@@ -208,11 +208,27 @@ int main(int argc, char *argv[])
    ParSubMesh *pmesh_port =
       new ParSubMesh(ParSubMesh::CreateFromBoundary(*pmesh, port_bc_attr));
 
+   for (int i=0; i<num_procs; i++)
+   {
+     if (myid == i)
+     {
+       cout << myid << ": num verts " << pmesh_port->GetNV() << endl;
+       cout << myid << ": num edges " << pmesh_port->GetNEdges() << endl;
+       cout << myid << ": num elems " << pmesh_port->GetNE() << endl;
+       cout << myid << ": num bdr edges " << pmesh_port->GetNBE() << endl;
+     }
+     MPI_Barrier(MPI_COMM_WORLD);
+   }
+   // pmesh_port->PrintInfo(cout);
+   pmesh_port->PrintSharedEntities("port");
+   
    // pmesh_port->FinalizeTopo(true);
-   pmesh_port->GenerateBoundaryElements();
+   // pmesh_port->GenerateBoundaryElements();
    pmesh_port->SetAttributes();
    // pmesh_port->FinalizeParTopo();
 
+   exit(0);
+   
    // 7. Define a parallel finite element space on the parallel mesh. Here we
    //    use continuous Lagrange, Nedelec, or Raviart-Thomas finite elements of
    //    the specified order.
