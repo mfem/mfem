@@ -539,7 +539,7 @@ void DPGWeakForm::FormSystemMatrix(const Array<int>
          static_cond->SetEssentialTrueDofs(ess_tdof_list);
          static_cond->FormSystemMatrix(diag_policy);
       }
-      A.Reset(&static_cond->GetMatrix(), false);
+      A.Reset(&static_cond->GetSchurMatrix(), false);
    }
    else
    {

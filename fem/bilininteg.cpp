@@ -4013,6 +4013,11 @@ void TraceIntegrator::AssembleTraceFaceMatrix(int elem,
                                               FaceElementTransformations & Trans,
                                               DenseMatrix &elmat)
 {
+   MFEM_VERIFY(test_fe.GetMapType() == FiniteElement::VALUE,
+               "TraceIntegrator::AssembleTraceFaceMatrix: Test space should be H1");
+   MFEM_VERIFY(trial_face_fe.GetMapType() == FiniteElement::INTEGRAL,
+               "TraceIntegrator::AssembleTraceFaceMatrix: Trial space should be RT trace");
+
    int i, j, face_ndof, ndof;
    int order;
 
@@ -4030,10 +4035,6 @@ void TraceIntegrator::AssembleTraceFaceMatrix(int elem,
    {
       order = test_fe.GetOrder();
       order += trial_face_fe.GetOrder();
-      if (trial_face_fe.GetMapType() == FiniteElement::VALUE)
-      {
-         order += Trans.OrderW();
-      }
       ir = &IntRules.Get(Trans.GetGeometryType(), order);
    }
 
@@ -4058,12 +4059,12 @@ void TraceIntegrator::AssembleTraceFaceMatrix(int elem,
       ElementTransformation * eltrans = (iel == elem) ? Trans.Elem1 : Trans.Elem2;
       test_fe.CalcPhysShape(*eltrans, shape);
 
-      face_shape *= Trans.Weight()*ip.weight;
+      face_shape *= Trans.Weight()*ip.weight*scale;
       for (i = 0; i < ndof; i++)
       {
          for (j = 0; j < face_ndof; j++)
          {
-            elmat(i, j) += scale * shape(i) * face_shape(j);
+            elmat(i, j) += shape(i) * face_shape(j);
          }
       }
    }
@@ -4078,7 +4079,10 @@ void NormalTraceIntegrator::AssembleTraceFaceMatrix(int elem,
    int i, j, face_ndof, ndof, dim;
    int order;
 
-   MFEM_VERIFY(trial_face_fe.GetMapType() == FiniteElement::VALUE, "");
+   MFEM_VERIFY(test_fe.GetMapType() == FiniteElement::H_DIV,
+               "NormalTraceIntegrator::AssembleTraceFaceMatrix: Test space should be RT");
+   MFEM_VERIFY(trial_face_fe.GetMapType() == FiniteElement::VALUE,
+               "NormalTraceIntegrator::AssembleTraceFaceMatrix: Trial space should be H1 (trace)");
 
    face_ndof = trial_face_fe.GetDof();
    ndof = test_fe.GetDof();
@@ -4118,13 +4122,13 @@ void NormalTraceIntegrator::AssembleTraceFaceMatrix(int elem,
       ElementTransformation * etrans = (iel == elem) ? Trans.Elem1 : Trans.Elem2;
       test_fe.CalcVShape(*etrans, shape);
       shape.Mult(normal, shape_n);
-      face_shape *= ip.weight;
+      face_shape *= ip.weight*scale;
 
       for (i = 0; i < ndof; i++)
       {
          for (j = 0; j < face_ndof; j++)
          {
-            elmat(i, j) += scale * shape_n(i) * face_shape(j);
+            elmat(i, j) += shape_n(i) * face_shape(j);
          }
       }
    }
@@ -4137,7 +4141,8 @@ void TangentTraceIntegrator::AssembleTraceFaceMatrix(int elem,
                                                      DenseMatrix &elmat)
 {
 
-   MFEM_VERIFY(test_fe.GetMapType() == FiniteElement::H_CURL, "");
+   MFEM_VERIFY(test_fe.GetMapType() == FiniteElement::H_CURL,
+               "TangentTraceIntegrator::AssembleTraceFaceMatrix: Test space should be ND");
 
    int face_ndof, ndof, dim;
    int order;

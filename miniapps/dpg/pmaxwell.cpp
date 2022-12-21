@@ -225,7 +225,7 @@ int main(int argc, char *argv[])
                   "Mesh file to use.");
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree)");
-   args.AddOption(&rnum, "-rnum", "--number_of_wavelenths",
+   args.AddOption(&rnum, "-rnum", "--number_of_wavelengths",
                   "Number of wavelengths");
    args.AddOption(&mu, "-mu", "--permeability",
                   "Permeability of free space (or 1/(spring constant)).");

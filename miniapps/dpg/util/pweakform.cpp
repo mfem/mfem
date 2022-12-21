@@ -148,7 +148,7 @@ void ParDPGWeakForm::FormSystemMatrix(const Array<int>
          static_cond->SetEssentialTrueDofs(ess_tdof_list);
          static_cond->FormSystemMatrix(Operator::DiagonalPolicy::DIAG_ONE);
       }
-      A.Reset(&static_cond->GetParallelMatrix(), false);
+      A.Reset(&static_cond->GetParallelSchurMatrix(), false);
    }
    else
    {

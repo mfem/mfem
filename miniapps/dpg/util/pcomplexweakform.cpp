@@ -194,7 +194,7 @@ void ParComplexDPGWeakForm::FormSystemMatrix(const Array<int>
          static_cond->SetEssentialTrueDofs(ess_tdof_list);
          static_cond->FormSystemMatrix(Operator::DiagonalPolicy::DIAG_ONE);
       }
-      A.Reset(&static_cond->GetComplexOperator(), false);
+      A.Reset(&static_cond->GetSchurComplexOperator(), false);
    }
    else
    {
