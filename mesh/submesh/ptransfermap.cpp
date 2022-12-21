@@ -163,7 +163,7 @@ void ParTransferMap::CommunicateIndicesSet(Array<int> &map, int dst_sz)
    indices_set_local_ = 0;
    for (int i = 0; i < map.Size(); i++)
    {
-      indices_set_local_[map[i]] = 1;
+      indices_set_local_[(map[i]>=0)?map[i]:(-map[i]-1)] = 1;
    }
    indices_set_global_ = indices_set_local_;
    root_gc_->Reduce(indices_set_global_, GroupCommunicator::Sum);
