@@ -38,8 +38,7 @@
 //                                        û = u_0  on ∂Ω
 
 // Note:
-// f̂ := βu - σ
-// û := -u
+// f̂ := βu - σ, û := -u on the mesh skeleton
 
 // -------------------------------------------------------------
 // |   |     u     |     σ     |   û       |     f̂    |  RHS    |
@@ -49,6 +48,8 @@
 // | τ | (u ,∇⋅τ)  | 1/ε(σ , τ)|  <û,τ⋅n>  |          |    0    |
 
 // where (v,τ) ∈  H¹(Ωₕ) × H(div,Ωₕ)
+
+// For more information see https://doi.org/10.1016/j.camwa.2013.06.010
 
 #include "mfem.hpp"
 #include "util/weakform.hpp"
@@ -63,7 +64,7 @@ using namespace mfem::common;
 enum prob_type
 {
    manufactured,
-   EJ
+   EJ // see https://doi.org/10.1016/j.camwa.2013.06.010
 };
 
 prob_type prob;

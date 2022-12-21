@@ -53,7 +53,7 @@ public:
 
    ParDPGWeakForm() {}
 
-   /// Creates bilinear form associated with FE spaces @a *fespaces.
+   /// Creates bilinear form associated with FE spaces @a trial_pfes_.
    ParDPGWeakForm(Array<ParFiniteElementSpace* > & trial_pfes_,
                   Array<FiniteElementCollection* > & fecol_)
       : DPGWeakForm()

@@ -8,11 +8,11 @@
 // mpirun -np 4 ./pacoustics -o 3 -m ../../data/inline-quad.mesh -sref 1 -pref 2  -rnum 5.2 -sc -prob 1
 // mpirun -np 4 ./pacoustics -o 4 -m ../../data/inline-tri.mesh -sref 1 -pref 2  -rnum 7.1 -sc -prob 1
 // mpirun -np 4 ./pacoustics -o 2 -m ../../data/inline-hex.mesh -sref 0 -pref 1 -rnum 1.9 -sc -prob 0
-// mpirun -np 4 ./pacoustics -o 3 -m ../../data/inline-quad.mesh -sref 2 -pref 0  -rnum 7.1 -sc -prob 2
+// mpirun -np 4 ./pacoustics -o 3 -m ../../data/inline-quad.mesh -sref 2 -pref 1 -rnum 7.1 -sc -prob 2
 // mpirun -np 4 ./pacoustics -o 2 -m ../../data/inline-hex.mesh -sref 0 -pref 1  -rnum 4.1 -sc -prob 2
-// mpirun -np 4 ./pacoustics -o 3 -m meshes/scatter.mesh -sref 1 -pref 0  -rnum 7.1 -sc -prob 3
-// mpirun -np 4 ./pacoustics -o 4 -m meshes/scatter.mesh -sref 1 -pref 0  -rnum 10.1 -sc -prob 4
-// mpirun -np 4 ./pacoustics -o 4 -m meshes/scatter.mesh -sref 1 -pref 0  -rnum 12.1 -sc -prob 5
+// mpirun -np 4 ./pacoustics -o 3 -m meshes/scatter.mesh -sref 1 -pref 1  -rnum 7.1 -sc -prob 3
+// mpirun -np 4 ./pacoustics -o 4 -m meshes/scatter.mesh -sref 1 -pref 1  -rnum 10.1 -sc -prob 4
+// mpirun -np 4 ./pacoustics -o 4 -m meshes/scatter.mesh -sref 1 -pref 1  -rnum 12.1 -sc -prob 5
 
 // AMR runs
 // mpirun -np 4 ./pacoustics -o 3 -m meshes/scatter.mesh -sref 0 -pref 10 -theta 0.75 -rnum 10.1 -sc -prob 3
@@ -50,8 +50,7 @@
 //                             p̂  = p₀      on ∂Ω
 
 // Note:
-// p̂ := p on Γₕ  (skeleton)
-// û := u on Γₕ
+// p̂ := p, û := u on the mesh skeleton
 
 // -------------------------------------------------------------
 // |   |     p     |     u     |    p̂      |    û    |  RHS    |
@@ -105,6 +104,8 @@
 //    ||(q,v)||²ᵥ   = ||A^*(q,v)||² + ||(q,v)||²
 
 //where A is the operator defined by (2)
+
+// For more information see https://doi.org/10.1016/j.camwa.2017.06.044
 
 #include "mfem.hpp"
 #include "util/pcomplexweakform.hpp"
@@ -666,12 +667,14 @@ int main(int argc, char *argv[])
       HypreSolver * solver_hatu = nullptr;
       if (dim == 2)
       {
+         // AMS preconditioner for 2D H(div) (trace) space
          solver_hatu = new HypreAMS((HypreParMatrix &)BlockA_r->GetBlock(skip+1,skip+1),
                                     hatu_fes);
          dynamic_cast<HypreAMS*>(solver_hatu)->SetPrintLevel(0);
       }
       else
       {
+         // ADS preconditioner for 3D H(div) (trace) space
          solver_hatu = new HypreADS((HypreParMatrix &)BlockA_r->GetBlock(skip+1,skip+1),
                                     hatu_fes);
          dynamic_cast<HypreADS*>(solver_hatu)->SetPrintLevel(0);

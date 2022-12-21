@@ -104,7 +104,7 @@
 // |   |                |                  |              |              |         |
 // | G | -i ω ϵ (β E,G) |    (H,∇ × G)     |              | < Ĥ, G × n > |  (J,G)  |
 
-// where (F,G) ∈  H^1 × H(curl,Ω)
+// where (F,G) ∈  H¹ × H(curl,Ω)
 
 //
 // in 3D
@@ -121,6 +121,7 @@
 // | G | -iωϵ (β E,G) |   (H,∇ × G)      |              | < n × Ĥ, G > |  (J,G)  |
 // where (F,G) ∈  H(curl,Ω) × H(curl,Ω)
 
+// For more information see https://doi.org/10.1016/j.camwa.2021.01.017
 
 #include "mfem.hpp"
 #include "util/pcomplexweakform.hpp"
