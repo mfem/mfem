@@ -129,6 +129,7 @@ jobs:
       if: matrix.mpi == 'par' && matrix.os == 'macos-latest'
       run: |
         export HOMEBREW_NO_INSTALL_CLEANUP=1
+	brew unlink python@3.10 && brew link --overwrite python@3.10
         brew install openmpi
 
     - name: get lcov (MacOS)
