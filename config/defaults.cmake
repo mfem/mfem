@@ -184,6 +184,7 @@ set(GNUTLS_DIR "" CACHE PATH "Path to the GnuTLS library.")
 
 set(GSLIB_DIR "" CACHE PATH "Path to the GSLIB library.")
 
+set(HDF5_DIR "/usr" CACHE PATH "Path to the HDF5 library.")
 set(NETCDF_DIR "" CACHE PATH "Path to the NetCDF library.")
 set(NetCDF_REQUIRED_PACKAGES "HDF5/C/HL" CACHE STRING
     "Additional packages required by NetCDF.")
