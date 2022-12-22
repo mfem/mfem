@@ -1164,7 +1164,8 @@ public:
               int verbosity=0,
               double res_change_termination_tol=1.0e-4,
               double zero_tol=1.0e-14, int n_outer=100000,
-              int n_inner=100000);
+              int n_inner=100000,
+              int n_stallCheck=100);
 
    /**
     * Destructor*/
@@ -1194,23 +1195,17 @@ public:
    void set_qrresidual_mode(const QRresidualMode qr_residual_mode);
 
    /**
-    *TODO: update this, removing discussion of libROM and processes.
-    * Solve the NNLS problem. Specifically, we find a vector soln, such that
-    * rhs_lb < mat*soln < rhs_ub is satisfied. The matrix should hold a column
-    * distributed matrix (each process has all rows, but a subset of cols).
-    * Since libROM only supports row distributed matrices, the transpose is
-    * input. rhs_ub and rhs_lb are the true bounds divided by the number of
-    * processors, such that when the rhs_lb and rhs_ub are summed across all
-    * processes we get the true bounds. soln is a vector containing the
-    * solution. rhs_lb, rhs_ub and soln are all identical across all processes.
+    * @brief Solve the NNLS problem. Specifically, we find a vector @a soln,
+    * such that rhs_lb < mat*soln < rhs_ub is satisfied, where mat is the
+    * DenseMatrix whose transpose @a matTrans is input.
+    *
     * The method by which we find the solution is the active-set method
-    * developed by Lawson and Hanson (1974) using scalapack functions to effect
-    * the multi-processor matrix operations. To decrease rounding errors in the
-    * case of very tight tolerances, we have the option to compute the residual
-    * using the QR factorization of A, by res = b - Q*Q^T*b. This residual
-    * calculation results in less rounding error, but is more computationally
-    * expensive. To select whether to use the QR residual method or not, see
-    * set_qrresidual_mode above.
+    * developed by Lawson and Hanson (1974) using lapack. To decrease rounding
+    * errors in the case of very tight tolerances, we have the option to compute
+    * the residual using the QR factorization of A, by res = b - Q*Q^T*b. This
+    * residual calculation results in less rounding error, but is more
+    * computationally expensive. To select whether to use the QR residual method
+    * or not, see set_qrresidual_mode above.
     */
    void solve_serial(const DenseMatrix& matTrans,
                      const Vector& rhs_lb,
@@ -1218,7 +1213,7 @@ public:
 
    /**
     * Normalize the constraints such that the tolerances for each constraint
-    * (ie (UB - LB)/2 ) are equal. This seems to help the performance in most
+    * (i.e. (UB - LB)/2) are equal. This seems to help the performance in most
     * cases.
     */
    void normalize_constraints(DenseMatrix& matTrans, Vector& rhs_lb,
@@ -1234,10 +1229,11 @@ private:
    unsigned int max_nnz_; // maximum number of nonzero entries
 
    /**
-    * @brief Threshold on relative change in residual over 100 iterations for
-    * stall sensing.
+    * @brief Threshold on relative change in residual over nStallCheck iterations
+    * for stall sensing.
     */
    double res_change_termination_tol_;
+   int nStallCheck;
 
    bool normalize_const_;
    bool QR_reduce_const_;

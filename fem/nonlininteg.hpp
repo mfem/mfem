@@ -29,7 +29,12 @@ class NonlinearFormIntegrator
 protected:
    const IntegrationRule *IntRule;
    NURBSPatchRule *patchRule = nullptr;
+
+   // If true, integration is patch-wise rather than element-wise.
    bool patchwise;
+
+   // If true, use approximate reduced integration rules.
+   bool reducedRule;
 
    // CEED extension
    ceed::Operator* ceedOp;
@@ -37,8 +42,10 @@ protected:
    MemoryType pa_mt = MemoryType::DEFAULT;
 
    NonlinearFormIntegrator(const IntegrationRule *ir = NULL,
-                           bool patchIntegrator = false)
-      : IntRule(ir), ceedOp(NULL), patchwise(patchIntegrator) { }
+                           bool patchIntegrator = false,
+                           bool reducedIntegration = false)
+      : IntRule(ir), ceedOp(NULL), patchwise(patchIntegrator),
+        reducedRule(reducedIntegration) { }
 
 public:
    /** @brief Prescribe a fixed IntegrationRule to use (when @a ir != NULL) or

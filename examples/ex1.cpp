@@ -85,6 +85,7 @@ int main(int argc, char *argv[])
    bool visualization = true;
    bool algebraic_ceed = false;
    bool patchAssembly = false;
+   bool reducedIntegration = true;
    int ref_levels = 0;
 
    OptionsParser args(argc, argv);
@@ -110,6 +111,8 @@ int main(int argc, char *argv[])
                   "Enable or disable GLVis visualization.");
    args.AddOption(&patchAssembly, "-patcha", "--patch-assembly", "-no-patcha",
                   "--no-patch-assembly", "Enable patch-wise assembly.");
+   args.AddOption(&reducedIntegration, "-rint", "--reduced-integration", "-fint",
+                  "--full-integration", "Enable reduced integration rules.");
    args.AddOption(&ref_levels, "-ref", "--refine",
                   "Number of uniform mesh refinements.");
    args.Parse();
@@ -221,7 +224,8 @@ int main(int argc, char *argv[])
       a.EnableSparseMatrixSorting(Device::IsEnabled());
    }
 
-   DiffusionIntegrator *di = new DiffusionIntegrator(one, nullptr, patchAssembly);
+   DiffusionIntegrator *di = new DiffusionIntegrator(one, nullptr, patchAssembly,
+                                                     reducedIntegration);
    NURBSPatchRule *patchRule = nullptr;
    if (order < 0)
    {

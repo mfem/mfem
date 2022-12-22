@@ -36,8 +36,9 @@ class BilinearFormIntegrator : public NonlinearFormIntegrator
 {
 protected:
    BilinearFormIntegrator(const IntegrationRule *ir = NULL,
-                          bool patchIntegrator = false)
-      : NonlinearFormIntegrator(ir, patchIntegrator) { }
+                          bool patchIntegrator = false,
+                          bool reducedIntegration = false)
+      : NonlinearFormIntegrator(ir, patchIntegrator, reducedIntegration) { }
 
 public:
    // TODO: add support for other assembly levels (in addition to PA) and their
@@ -151,12 +152,11 @@ public:
                                        ElementTransformation &Trans,
                                        DenseMatrix &elmat);
 
-   /// Given a particular NURBS patch, computes the patch matrix pmat.
-   /// Sum factorization is preferable to this dense matrix assembly.
-   // TODO: implement sum factorization and comment here how to use it.
-   virtual void AssemblePatchMatrix(const int patch,
-                                    Mesh *mesh,
-                                    DenseMatrix &pmat, SparseMatrix*& smat);
+   /** Given a particular NURBS patch, computes the patch matrix as a
+       SparseMatrix @a smat.
+    */
+   virtual void AssemblePatchMatrix(const int patch, Mesh *mesh,
+                                    SparseMatrix*& smat);
 
    virtual void AssembleFaceMatrix(const FiniteElement &el1,
                                    const FiniteElement &el2,
@@ -2143,8 +2143,9 @@ public:
 
    /// Construct a diffusion integrator with a scalar coefficient q
    DiffusionIntegrator(Coefficient &q, const IntegrationRule *ir = nullptr,
-                       bool patchIntegrator = false)
-      : BilinearFormIntegrator(ir, patchIntegrator),
+                       bool patchIntegrator = false,
+                       bool reducedIntegration = false)
+      : BilinearFormIntegrator(ir, patchIntegrator, reducedIntegration),
         Q(&q), VQ(NULL), MQ(NULL), maps(NULL), geom(NULL) { }
 
    /// Construct a diffusion integrator with a vector coefficient q
@@ -2171,13 +2172,14 @@ public:
                                        ElementTransformation &Trans,
                                        DenseMatrix &elmat);
 
-   virtual void AssemblePatchMatrix(const int patch,
-                                    Mesh *mesh,
-                                    DenseMatrix &pmat, SparseMatrix*& smat);
+   virtual void AssemblePatchMatrix(const int patch, Mesh *mesh,
+                                    SparseMatrix*& smat);
 
-   void AssemblePatchMatrix_fullQuadrature(const int patch,
-                                           Mesh *mesh,
-                                           DenseMatrix &pmat, SparseMatrix*& smat);
+   void AssemblePatchMatrix_fullQuadrature(const int patch, Mesh *mesh,
+                                           SparseMatrix*& smat);
+
+   void AssemblePatchMatrix_reducedQuadrature(const int patch, Mesh *mesh,
+                                              SparseMatrix*& smat);
 
    void AssemblePatchMatrix_simpleButInefficient(const int patch,
                                                  Mesh *mesh,
