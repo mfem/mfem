@@ -1096,7 +1096,7 @@ public:
       return boundary[i]->GetGeometryType();
    }
 
-   /// Deprecated in factor of Mesh::GetFaceGeometry
+   /// Deprecated in favor of Mesh::GetFaceGeometry
    MFEM_DEPRECATED Geometry::Type GetFaceBaseGeometry(int i) const
    { return GetFaceGeometry(i); }
 
