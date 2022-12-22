@@ -60,8 +60,10 @@ using namespace mfem;
 
 void parseFieldNames(const char * field_name_c_str, set<string> &field_names);
 void parsePoints(int spaceDim, const char *pts_file_c_str, Vector &pts);
+/// @cond Suppress_Doxygen_warnings
 void writeLegend(const DataCollection::FieldMapType &fields,
                  const set<string> & field_names, int spaceDim);
+/// @endcond
 
 int main(int argc, char *argv[])
 {
