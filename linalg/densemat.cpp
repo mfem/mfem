@@ -4354,14 +4354,14 @@ void BatchLUSolve(const DenseTensor &Mlu, const Array<int> &P, Vector &X)
 }
 
 NNLSserial::NNLSserial(double const_tol, int min_nnz, int max_nnz,
-                       int verbosity,
-                       double res_change_termination_tol,
-                       double zero_tol, int n_outer, int n_inner)
+                       int verbosity, double res_change_termination_tol,
+                       double zero_tol, int n_outer, int n_inner,
+                       int n_stallCheck)
    : const_tol_(const_tol), min_nnz_(min_nnz), max_nnz_(max_nnz),
      verbosity_(verbosity),
      res_change_termination_tol_(res_change_termination_tol),
      zero_tol_(zero_tol), n_outer_(n_outer), n_inner_(n_inner),
-     NNLS_qrres_on_(false),
+     nStallCheck(n_stallCheck), NNLS_qrres_on_(false),
      qr_residual_mode_(QRresidualMode::hybrid)
 {
 }
@@ -4461,7 +4461,7 @@ void NNLSserial::solve_serial(const DenseMatrix& matTrans,
    int m_update;
    int min_nnz_cap = std::min(static_cast<int>(min_nnz_), std::min(m,n));
    int info;
-   Vector l2_res_hist(n_outer_);
+   std::vector<double> l2_res_hist;
    std::vector<unsigned int> stalled_indices;
    int stalledFlag = 0;
    int num_stalled = 0;
@@ -4524,12 +4524,12 @@ void NNLSserial::solve_serial(const DenseMatrix& matTrans,
          rmax = std::max(rmax, fabs(res_glob(i)) - rhs_halfgap_glob(i));
       }
 
-      l2_res_hist(oiter) = res_glob.Norml2();
+      l2_res_hist.push_back(res_glob.Norml2());
 
       if (verbosity_ > 1)
       {
          printf("%d %d %d %d %d %.15e %.15e\n", oiter, n_total_inner_iter,
-                m, n, n_glob, rmax, l2_res_hist(oiter));
+                m, n, n_glob, rmax, l2_res_hist[oiter]);
          fflush(stdout);
       }
       if (rmax <= const_tol_ && n_glob >= min_nnz_cap)
@@ -4565,17 +4565,17 @@ void NNLSserial::solve_serial(const DenseMatrix& matTrans,
          break;
       }
 
-      if (oiter > 101)  //we don't check for stall for the first 100 iterations
+      // Check for stall after the first nStallCheck iterations
+      if (oiter > nStallCheck)
       {
          double mean0 = 0.0;
          double mean1 = 0.0;
-         for (int i=0; i<50; ++i)
+         for (int i=0; i<nStallCheck/2; ++i)
          {
-            mean0 += l2_res_hist(oiter - i);
-            mean1 += l2_res_hist(oiter - 50 - i);
+            mean0 += l2_res_hist[oiter - i];
+            mean1 += l2_res_hist[oiter - (nStallCheck) - i];
          }
 
-         // Omitting division by 50, since a ratio is taken.
          double mean_res_change = (mean1 / mean0) - 1.0;
          if (std::abs(mean_res_change) < res_change_termination_tol_)
          {
@@ -4930,7 +4930,7 @@ void NNLSserial::solve_serial(const DenseMatrix& matTrans,
          while (smin > zero_tol_)
          {
             // This means there was a rounding error, as we should have
-            // a zero element by definition. Recalcualte alpha based on
+            // a zero element by definition. Recalculate alpha based on
             // the index that corresponds to the element that should be
             // zero.
 
@@ -5025,7 +5025,6 @@ void NNLSserial::solve_serial(const DenseMatrix& matTrans,
             }
 
             // remove the zeroed entry from the local matrix index
-            // remove the zeroed entry
             for (int i = nz_ind_zero; i < n_nz_ind-1; ++i)
             {
                nz_ind[i] = nz_ind[i+1];
