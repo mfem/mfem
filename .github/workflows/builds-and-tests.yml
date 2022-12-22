@@ -129,7 +129,6 @@ jobs:
       if: matrix.mpi == 'par' && matrix.os == 'macos-latest'
       run: |
         export HOMEBREW_NO_INSTALL_CLEANUP=1
-        export HOMEBREW_NO_INSTALLED_DEPENDENTS_CHECK=1
         brew install openmpi
 
     - name: get lcov (MacOS)
