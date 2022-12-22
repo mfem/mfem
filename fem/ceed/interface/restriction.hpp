@@ -47,6 +47,7 @@ void InitRestrictionWithIndices(const FiniteElementSpace &fes,
 
 /** @brief Initialize a strided CeedElemRestriction
 
+    @param[in] fes Input finite element space.
     @param[in] nelem is the number of elements.
     @param[in] nqpts is the total number of quadrature points.
     @param[in] qdatasize is the number of data per quadrature point.

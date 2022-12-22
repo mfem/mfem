@@ -124,6 +124,7 @@ void BilinearForm::SetAssemblyLevel(AssemblyLevel assembly_level)
       case AssemblyLevel::LEGACY:
          break;
       case AssemblyLevel::FULL:
+         SetDiagonalPolicy( DIAG_ONE ); // Only diagonal policy supported on device
          ext = new FABilinearFormExtension(this);
          break;
       case AssemblyLevel::ELEMENT:
