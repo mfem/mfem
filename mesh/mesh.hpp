@@ -1485,7 +1485,7 @@ public:
    void GetFaceInfos (int Face, int *Inf1, int *Inf2) const;
    void GetFaceInfos (int Face, int *Inf1, int *Inf2, int *NCFace) const;
 
-   /// Deprecated in factor of Mesh::GetFaceGeometry
+   /// Deprecated in favor of Mesh::GetFaceGeometry
    MFEM_DEPRECATED Geometry::Type GetFaceGeometryType(int Face) const
    { return GetFaceGeometry(Face); }
 
