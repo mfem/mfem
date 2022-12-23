@@ -44,6 +44,7 @@ int main(int argc, char *argv[])
    bool compareToElementWise = true;
    int nurbs_degree_increase = 0;  // Elevate the NURBS mesh degree by this
    int ref_levels = 0;
+   int ir_order = -1;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -67,6 +68,8 @@ int main(int argc, char *argv[])
                   "--full-integration", "Enable reduced integration rules.");
    args.AddOption(&ref_levels, "-ref", "--refine",
                   "Number of uniform mesh refinements.");
+   args.AddOption(&ir_order, "-iro", "--integration-order",
+                  "Order of integration rule.");
    args.AddOption(&nurbs_degree_increase, "-incdeg", "--nurbs-degree-increase",
                   "Elevate NURBS mesh degree by this amount.");
    args.AddOption(&compareToElementWise, "-cew", "--compare-element",
@@ -160,7 +163,7 @@ int main(int argc, char *argv[])
    NURBSPatchRule *patchRule = nullptr;
    if (order < 0)
    {
-      const int ir_order = 2*fec->GetOrder();
+      if (ir_order == -1) { ir_order = 2*fec->GetOrder(); }
       cout << "Using ir_order " << ir_order << endl;
 
       patchRule = new NURBSPatchRule(mesh.NURBSext->GetNP(), dim);
@@ -175,7 +178,6 @@ int main(int argc, char *argv[])
 
          // Construct 1D integration rules by applying the rule ir to each
          // knot span.
-
          for (int i=0; i<dim; ++i)
          {
             ir1D[i] = ir->ApplyToKnotIntervals(*kv[i]);
@@ -285,10 +287,10 @@ void AssembleAndSolve(LinearForm & b, BilinearFormIntegrator * bfi,
    const double timeFormLinearSystem = sw.RealTime();
 
    cout << "Timing for Assemble: " << timeAssemble << " seconds" << endl;
-   cout << "Timing for FormLinearSystem: " << timeFormLinearSystem << " seconds" <<
-        endl;
-   cout << "Timing for entire setup: " << timeAssemble + timeFormLinearSystem <<
-        " seconds" << endl;
+   cout << "Timing for FormLinearSystem: " << timeFormLinearSystem << " seconds"
+        << endl;
+   cout << "Timing for entire setup: " << timeAssemble + timeFormLinearSystem
+        << " seconds" << endl;
 
    sw.Clear();
    sw.Start();
