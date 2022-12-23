@@ -874,13 +874,6 @@ void DiffusionIntegrator::AssembleElementMatrix
       int ijk[3];
       NURBSFE->GetIJK(ijk);
       Array<const KnotVector*>& kv = NURBSFE->KnotVectors();
-      /*
-      cout << "Patch " << patch << ", ijk " << ijk[0] << ", " << ijk[1] << ", " <<
-           ijk[2] << endl;
-      */
-
-      MFEM_VERIFY(kv.Size() == dim, "Sanity check (remove later)");
-
       irn = &patchRule->GetElementRule(NURBSFE->GetElement(), patch, ijk, kv);
    }
 
@@ -1160,8 +1153,8 @@ void SolveNNLS(DenseMatrix & Gt, Vector const& w, Vector & sol)
       }
    }
 
-   cout << "Number of nonzeros in MFEM NNLS solution: " << nnz
-        << ", out of " << sol.Size() << endl;
+   mfem::out << "Number of nonzeros in MFEM NNLS solution: " << nnz
+             << ", out of " << sol.Size() << endl;
 
    // Check residual of NNLS solution
    Vector res(Gt.NumCols());
@@ -1172,8 +1165,8 @@ void SolveNNLS(DenseMatrix & Gt, Vector const& w, Vector & sol)
 
    res -= rhs_Gw;
    const double relNorm = res.Norml2() / std::max(normGsol, normRHS);
-   cout << "Relative residual norm for MFEM NNLS solution of Gs = Gw: " <<
-        relNorm << endl;
+   mfem::out << "Relative residual norm for MFEM NNLS solution of Gs = Gw: "
+             << relNorm << endl;
 }
 
 void GetReducedRule(const int nq, const int nd,
@@ -1203,7 +1196,7 @@ void GetReducedRule(const int nq, const int nd,
       const int nc_dof = maxDD[dof] - minDD[dof] + 1;
       const int nw_dof = maxD[dof] - minD[dof] + 1;
 
-      cout << "NNLS system size " << nc_dof << " by " << nw_dof << endl;
+      mfem::out << "NNLS system size " << nc_dof << " by " << nw_dof << endl;
 
       // G is of size nc_dof x nw_dof
       MFEM_VERIFY(nc_dof <= nw_dof, "");
@@ -2605,9 +2598,9 @@ void DiffusionIntegrator::AssemblePatchMatrix_reducedQuadrature(
    {
       if (smata[i] == 0.0)
       {
-         //cout << "zero entry " << i << endl;
-         smata[i] = 1.0e-16; // This prevents failure of SparseMatrix EliminateRowCol.
+         // This prevents failure of SparseMatrix EliminateRowCol.
          // TODO: is there a better solution?
+         smata[i] = 1.0e-16;
       }
    }
 

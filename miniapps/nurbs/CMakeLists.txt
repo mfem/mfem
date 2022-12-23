@@ -53,6 +53,10 @@ if (MFEM_ENABLE_TESTING)
     -m ${PROJECT_SOURCE_DIR}/data/square-disc-nurbs-patch.mesh -o 2 --weak-bc -r 1)
 endif()
 
+add_mfem_miniapp(nurbs_patch_ex1
+  MAIN nurbs_patch_ex1.cpp
+  LIBRARIES mfem)
+
 if (MFEM_USE_MPI)
   add_mfem_miniapp(nurbs_ex1p
     MAIN nurbs_ex1p.cpp

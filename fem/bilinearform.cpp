@@ -14,7 +14,6 @@
 #include "fem.hpp"
 #include "../general/device.hpp"
 #include "../mesh/nurbs.hpp"
-#include "../general/tic_toc.hpp"
 #include <cmath>
 
 namespace mfem
