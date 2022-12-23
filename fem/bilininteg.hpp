@@ -201,6 +201,12 @@ public:
                                                      DenseMatrix &elmat2,
                                                      DenseMatrix &elmat3,
                                                      DenseMatrix &elmat4);
+   // Assemble a local matrix over an edge, HDG skeleton integral
+   virtual void AssembleFaceMatrix(const FiniteElement &face_fe,
+                                   FaceElementTransformations &Trans,
+                                   DenseMatrix &elmat);
+   /* End of HDG integrators */
+
 
    /// Perform the local action of the BilinearFormIntegrator
    /// @brief Perform the local action of the BilinearFormIntegrator.

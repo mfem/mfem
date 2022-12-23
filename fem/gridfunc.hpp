@@ -285,6 +285,12 @@ public:
                            DenseMatrix &vals, DenseMatrix &tr) const;
    ///@}
 
+   /* HDG */
+   double GetValueFacet(FaceElementTransformations &T,
+                        const IntegrationPoint &ip,
+                        int vdim = 1,
+                        Vector *tr = NULL) const;
+
    void GetLaplacians(int i, const IntegrationRule &ir, Vector &laps,
                       int vdim = 1) const;
 
@@ -444,6 +450,10 @@ protected:
                                            Array<int> &bdr_attr,
                                            Array<int> &values_counter);
 
+   /* HDG */
+   /* Compute the mean of a GridFunction */
+   double ComputeMean(const IntegrationRule *irs[]) const;
+
    // Complete the computation of averages; called e.g. after
    // AccumulateAndCountZones().
    void ComputeMeans(AvgType type, Array<int> &zones_per_vdof);
@@ -505,17 +515,15 @@ public:
                                  const IntegrationRule *irs[] = NULL,
                                  const Array<int> *elems = NULL) const;
 
-   /* HDG */
-   double ComputeMean(const IntegrationRule *irs[]) const;
-
    double ComputeL2ErrorMinusMean(Coefficient &exsol,
-                                const double mean,
-                                const IntegrationRule *irs[] = NULL) const
+                                  const double mean,
+                                  const IntegrationRule *irs[] = NULL) const
    { return ComputeLpErrorMinusMean(2.0, exsol, mean, NULL, irs); }
 
-   double ComputeLpErrorMinusMean(const double p, Coefficient &exsol, const double mean,
-		   	   	   	   	   	   	  Coefficient *weight = NULL,
-								  const IntegrationRule *irs[] = NULL) const;
+   double ComputeLpErrorMinusMean(const double p, Coefficient &exsol,
+                                  const double mean,
+                                  Coefficient *weight = NULL,
+                                  const IntegrationRule *irs[] = NULL) const;
 
    /// Returns ||grad u_ex - grad u_h||_L2 for H1 or L2 elements
    virtual double ComputeGradError(VectorCoefficient *exgrad,
@@ -635,6 +643,16 @@ public:
                                         const IntegrationRule *irs[] = NULL
                                        ) const
    { ComputeElementLpErrors(infinity(), exsol, error, NULL, irs); }
+
+   /* HDG  - Lp error for facets */
+   virtual double ComputeLpErrorFacets(const double p, Coefficient &exsol,
+                                       Coefficient *weight = NULL,
+                                       const IntegrationRule *irs[] = NULL) const;
+
+   /* HDG - L2 error for facets */
+   virtual double ComputeL2ErrorFacets(Coefficient &exsol,
+                                       const IntegrationRule *irs[] = NULL) const
+   { return ComputeLpErrorFacets(2.0, exsol, NULL, irs); }
 
    /** When given a vector weight, compute the pointwise (scalar) error as the
        dot product of the vector error with the vector weight. Otherwise, the

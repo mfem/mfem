@@ -110,6 +110,15 @@ protected:
    Array<BilinearFormIntegrator*> boundary_face_integs;
    Array<Array<int>*> boundary_face_integs_marker; ///< Entries are not owned.
 
+   /* HDG */
+   /// Set of HDG skeleton face Integrators over interior face to be applied.
+   Array<BilinearFormIntegrator*> hdgintbfi;
+
+   /* HDG */
+   /// Set of HDG skeleton face Integrators over boundary face to be applied.
+   Array<BilinearFormIntegrator*> hdgbdrbfi;
+   Array<Array<int>*> skeleton_boundary_face_integs_marker;
+
    DenseMatrix elemmat;
    Array<int>  vdofs;
 
@@ -254,6 +263,14 @@ public:
    Array<Array<int>*> *GetBFBFI_Marker()
    { return &boundary_face_integs_marker; }
 
+   /* HDG */
+   // Array of the HDG type bilinear form integrators, right now there is only one
+   Array<BilinearFormIntegrator*> *GetHDGIntBFI() { return &hdgintbfi; }
+
+   /* HDG */
+   // Array of the HDG type bilinear form integrators, right now there is only one
+   Array<BilinearFormIntegrator*> *GetHDGBdrBFI() { return &hdgbdrbfi; }
+
    /// Returns a reference to: \f$ M_{ij} \f$
    const double &operator()(int i, int j) { return (*mat)(i,j); }
 
@@ -397,6 +414,17 @@ public:
        as a pointer to the given Array<int> object. */
    void AddBdrFaceIntegrator(BilinearFormIntegrator *bfi,
                              Array<int> &bdr_marker);
+
+   /* HDG */
+   /// Adds HDG Interior Integrator.
+   void AddHDGInteriorFaceIntegrator(BilinearFormIntegrator *bfi);
+
+   /* HDG */
+   /// Adds new HDG Boundary Integrator.
+   void AddHDGBoundaryFaceIntegrator(BilinearFormIntegrator *bfi);
+
+   void AddHDGBoundaryFaceIntegrator(BilinearFormIntegrator *bfi,
+		   	   	   	   	   	   	   	 Array<int> &bdr_marker);
 
    /// Sets all sparse values of \f$ M \f$ and \f$ M_e \f$ to 'a'.
    void operator=(const double a)

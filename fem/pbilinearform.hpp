@@ -44,6 +44,8 @@ protected:
 
    void AssembleSharedFaces(int skip_zeros = 1);
 
+   /* HDG */
+   void AssembleSharedHDGFaces(int skip_zeros = 1);
 private:
    /// Copy construction is not supported; body is undefined.
    ParBilinearForm(const ParBilinearForm &);

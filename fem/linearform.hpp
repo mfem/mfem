@@ -76,6 +76,11 @@ protected:
    Array<LinearFormIntegrator*> bdrsklneufi;
    Array<Array<int>*>           bdrsklneufi_marker;
 
+   /* HDG */
+   /// Set of Interior Skeleton Integrators .
+   Array<LinearFormIntegrator*> interiorsklfi;
+
+
    /// If true, the delta locations are not (re)computed during assembly.
    bool HaveDeltaLocations()
    { return (domain_delta_integs_elem_id.Size() != 0); }
@@ -161,7 +166,11 @@ public:
    void AddSktBoundaryNeumannIntegrator (LinearFormIntegrator * lfi);
 
    void AddSktBoundaryNeumannIntegrator (LinearFormIntegrator * lfi,
-                              Array<int> &bdr_attr_marker);
+                                         Array<int> &bdr_attr_marker);
+
+   /* HDG */
+   /// Access all integrators added with AddSktBoundaryNeumannIntegrator().
+   Array<LinearFormIntegrator*> *GetBDRSKTFLFI() { return &bdrsklneufi; }
 
    /** @brief Add new Boundary Face Integrator, restricted to the given boundary
        attributes.
@@ -201,6 +210,13 @@ public:
        If no marker was specified when the integrator was added, the
        corresponding pointer (to Array<int>) will be NULL. */
    Array<Array<int>*> *GetFLFI_Marker() { return &boundary_face_integs_marker; }
+
+   /* HDG */
+   void AddSktInteriorFaceIntegrator(LinearFormIntegrator * lfi);
+
+   /* HDG */
+   /// Access all integrators added with AddSktInteriorFaceIntegrator().
+   Array<LinearFormIntegrator*> *GetISKTFLFI() { return &interiorsklfi; }
 
    /// @brief Which assembly algorithm to use: the new device-compatible fast
    /// assembly (true), or the legacy CPU-only algorithm (false).

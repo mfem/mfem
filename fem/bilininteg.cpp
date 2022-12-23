@@ -213,6 +213,17 @@ void BilinearFormIntegrator::AssembleFaceMatrixOneElement2and2FES(
 }
 /* HDG optimized integrators ends */
 
+/* HDG */
+void AssembleFaceMatrix(const FiniteElement &face_fe,
+		 	 	 	 	FaceElementTransformations &Trans,
+						DenseMatrix &elmat)
+{
+   MFEM_ABORT("AssembleFaceMatrix(const FiniteElement &face_fe,"
+                               " FaceElementTransformations &Trans,"
+                               " DenseMatrix &elmat) is not implemented for this"
+              " Integrator class.");
+}
+
 void BilinearFormIntegrator::AssembleElementVector(
    const FiniteElement &el, ElementTransformation &Tr, const Vector &elfun,
    Vector &elvect)

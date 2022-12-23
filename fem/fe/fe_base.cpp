@@ -689,27 +689,27 @@ void NodalFiniteElement::Project (
 void NodalFiniteElement::Project (
    VectorCoefficient &vc, FaceElementTransformations &Trans, Vector &dofs) const
 {
-    MFEM_ASSERT(vc.GetVDim() <= 3, "");
+   MFEM_ASSERT(vc.GetVDim() <= 3, "");
 
-    double v[3];
-    Vector x (v, vc.GetVDim());
+   double v[3];
+   Vector x (v, vc.GetVDim());
 
-    for (int i = 0; i < dof; i++)
-    {
-       const IntegrationPoint &ip = Nodes.IntPoint(i);
-       // some coefficients expect that Trans.IntPoint is the same
-       // as the second argument of Eval
-       Trans.Face->SetIntPoint(&ip);
-       vc.Eval (x, *Trans.Face, ip);
-       if (map_type == INTEGRAL)
-       {
-          dofs(i) *= Trans.Face->Weight();
-       }
-       for (int j = 0; j < x.Size(); j++)
-       {
-          dofs(dof*j+i) = v[j];
-       }
-    }
+   for (int i = 0; i < dof; i++)
+   {
+      const IntegrationPoint &ip = Nodes.IntPoint(i);
+      // some coefficients expect that Trans.IntPoint is the same
+      // as the second argument of Eval
+      Trans.Face->SetIntPoint(&ip);
+      vc.Eval (x, *Trans.Face, ip);
+      if (map_type == INTEGRAL)
+      {
+         dofs(i) *= Trans.Face->Weight();
+      }
+      for (int j = 0; j < x.Size(); j++)
+      {
+         dofs(dof*j+i) = v[j];
+      }
+   }
 }
 
 

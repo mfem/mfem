@@ -109,6 +109,11 @@ BilinearForm::BilinearForm (FiniteElementSpace * f, BilinearForm * bf, int ps)
    boundary_face_integs = bf->boundary_face_integs;
    boundary_face_integs_marker = bf->boundary_face_integs_marker;
 
+   /* HDG */
+   hdgintbfi = bf->hdgintbfi;
+   hdgbdrbfi = bf->hdgbdrbfi;
+
+
    AllocMat();
 }
 
@@ -275,6 +280,27 @@ void BilinearForm::AddBdrFaceIntegrator(BilinearFormIntegrator *bfi,
 {
    boundary_face_integs.Append(bfi);
    boundary_face_integs_marker.Append(&bdr_marker);
+}
+
+/* HDG */
+void BilinearForm::AddHDGInteriorFaceIntegrator (BilinearFormIntegrator * bfi)
+{
+   hdgintbfi.Append (bfi);
+}
+
+/* HDG */
+void BilinearForm::AddHDGBoundaryFaceIntegrator (BilinearFormIntegrator * bfi)
+{
+   hdgbdrbfi.Append (bfi);
+   skeleton_boundary_face_integs_marker.Append(NULL);
+}
+
+/* HDG */
+void BilinearForm::AddHDGBoundaryFaceIntegrator (BilinearFormIntegrator * bfi,
+												 Array<int> &bdr_marker)
+{
+   hdgbdrbfi.Append (bfi);
+   skeleton_boundary_face_integs_marker.Append(&bdr_marker);
 }
 
 void BilinearForm::ComputeElementMatrix(int i, DenseMatrix &elmat)
@@ -628,6 +654,88 @@ void BilinearForm::Assemble(int skip_zeros)
          }
       }
    }
+
+   /* HDG */
+   // Skeleton interior face integrals for HDG
+   if (hdgintbfi.Size())
+   {
+      FaceElementTransformations *ftr;
+      const FiniteElement *face_fe;
+      int nfaces = mesh->GetNumFaces();
+
+      // loop over all the edges
+      for (int i = 0; i < nfaces; i++)
+      {
+         ftr = mesh->GetInteriorFaceTransformations(i); // the transformation of the face
+         fes->GetFaceVDofs(i, vdofs);   // the defrees of freedom related to the face
+         face_fe = fes->GetFaceElement(i);   // point face_fe to the FiniteElement over the edge
+         if (ftr != NULL)
+         {
+            for (int k = 0; k < hdgintbfi.Size(); k++) // Loop over the related interals, but there is only one hdgintbfi right now
+            {
+               hdgintbfi[k] -> AssembleFaceMatrix (*face_fe, *ftr, elemmat); // call AssembleFaceMatrix over the face
+               mat -> AddSubMatrix (vdofs, vdofs, elemmat, skip_zeros);  // assemble the local matrix to the global one, skipping the zeros
+            }
+         }
+      }
+   }
+
+   /* HDG */
+   // Skeleton boundary face integrals for HDG
+   if (hdgbdrbfi.Size())
+   {
+      FaceElementTransformations *ftr;
+      const FiniteElement *face_fe;
+      // Which boundary attributes need to be processed?
+      Array<int> bdr_attr_marker(mesh->bdr_attributes.Size() ?
+	     					     mesh->bdr_attributes.Max() : 0);
+      bdr_attr_marker = 0;
+      for (int k = 0; k < hdgbdrbfi.Size(); k++)
+      {
+    	  if (skeleton_boundary_face_integs_marker[k] == NULL)
+		  {
+    		  bdr_attr_marker = 1;
+    		  break;
+		  }
+		  Array<int> &bdr_marker = *skeleton_boundary_face_integs_marker[k];
+		  MFEM_ASSERT(bdr_marker.Size() == bdr_attr_marker.Size(),
+					  "invalid boundary marker for boundary face integrator #"
+					  << k << ", counting from zero");
+		  for (int i = 0; i < bdr_attr_marker.Size(); i++)
+		  {
+			  bdr_attr_marker[i] |= bdr_marker[i];
+		  }
+      }
+
+
+      int nbdrfaces = fes->GetNBE();
+
+      // loop over all the edges
+      for (int i = 0; i < nbdrfaces; i++)
+      {
+    	 const int bdr_attr = mesh->GetBdrAttribute(i);
+         if (bdr_attr_marker[bdr_attr-1] == 0) { continue; }
+
+         int face = mesh->GetBdrFace(i);
+         ftr = mesh->GetBdrFaceTransformations(i); // the transformation of the face
+
+         if (ftr != NULL)
+         {
+            fes->GetFaceVDofs(face, vdofs);   // the defrees of freedom related to the face
+            face_fe = fes->GetFaceElement(face);   // point face_fe to the FiniteElement over the edge
+            for (int k = 0; k < hdgbdrbfi.Size(); k++) // Loop over the related interals, but there is only one hdgbdrbfi right now
+            {
+                if (skeleton_boundary_face_integs_marker[k] &&
+                    (*skeleton_boundary_face_integs_marker[k])[bdr_attr-1] == 0)
+                { continue; }
+
+                hdgbdrbfi[k] -> AssembleFaceMatrix (*face_fe, *ftr, elemmat); // call AssembleFaceMatrix over the face
+                mat -> AddSubMatrix (vdofs, vdofs, elemmat, skip_zeros);  // assemble the local matrix to the global one, skipping the zeros
+            }
+         }
+      }
+   }
+
 
 #ifdef MFEM_USE_LEGACY_OPENMP
    if (free_element_matrices)
@@ -1142,6 +1250,10 @@ BilinearForm::~BilinearForm()
       { delete interior_face_integs[k]; }
       for (k=0; k < boundary_face_integs.Size(); k++)
       { delete boundary_face_integs[k]; }
+      /* HDG */
+      // Delete skeleton integrals for HDG
+      for (k=0; k < hdgintbfi.Size(); k++) { delete hdgintbfi[k]; }
+      for (k=0; k < hdgbdrbfi.Size(); k++) { delete hdgbdrbfi[k]; }
    }
 
    delete ext;

@@ -343,18 +343,19 @@ public:
    }
 
    double ComputeL2ErrorMinusMean(Coefficient &exsol, const double mean,
-                                const IntegrationRule *irs[] = NULL) const
+                                  const IntegrationRule *irs[] = NULL) const
    {
       return ComputeLpErrorMinusMean(2.0, exsol, mean, NULL, irs);
    }
 
    /* UW */
-   double ComputeLpErrorMinunMean(const double p, Coefficient &exsol, const double mean,
-                                Coefficient *weight = NULL,
-                                const IntegrationRule *irs[] = NULL) const
+   double ComputeLpErrorMinunMean(const double p, Coefficient &exsol,
+                                  const double mean,
+                                  Coefficient *weight = NULL,
+                                  const IntegrationRule *irs[] = NULL) const
    {
       return GlobalLpNorm(p, GridFunction::ComputeLpErrorMinusMean(
-                          p, exsol, mean, weight, irs), pfes->GetComm());
+                             p, exsol, mean, weight, irs), pfes->GetComm());
    }
 
 
@@ -444,6 +445,23 @@ public:
    {
       return GlobalLpNorm(p, GridFunction::ComputeLpError(
                              p, exsol, weight, v_weight, irs), pfes->GetComm());
+   }
+
+   /* HDG */
+   virtual double ComputeLpErrorFacets(const double p, Coefficient &exsol,
+                                       Array<int> &bdr_attr_marker,
+                                       Coefficient *weight = NULL,
+                                       const IntegrationRule *irs[] = NULL) const
+   {
+      return GlobalLpNorm(p, GridFunction::ComputeLpErrorFacets(
+                             p, exsol, weight, irs), pfes->GetComm());
+   }
+   /* HDG */
+   virtual double ComputeL2ErrorFacets(Coefficient &exsol,
+                                       const IntegrationRule *irs[] = NULL) const
+   {
+      return GlobalLpNorm(2., GridFunction::ComputeL2ErrorFacets(
+                             exsol, irs), pfes->GetComm());
    }
 
    virtual void ComputeFlux(BilinearFormIntegrator &blfi,
