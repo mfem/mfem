@@ -310,8 +310,7 @@ int main(int argc, char *argv[])
    // Initialize the mesh, boundary attributes, and solver parameters
    Mesh *mesh = new Mesh(mesh_file, 1, 1);
    int dim = mesh->Dimension();
-   int ser_ref_lvls =
-      (int)ceil(log(Mpi::WorldSize()/mesh->GetNE())/log(2.)/dim);
+   int ser_ref_lvls = ceil(log2((float)Mpi::WorldSize()/mesh->GetNE())/dim);
    for (int i = 0; i < ser_ref_lvls; ++i)
    {
       mesh->UniformRefinement();
