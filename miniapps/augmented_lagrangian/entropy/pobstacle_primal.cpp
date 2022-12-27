@@ -37,7 +37,7 @@ protected:
    double max_val;
 
 public:
-   ExponentialGridFunctionCoefficient(GridFunction &u_, Coefficient &obst_, double min_val_=1e-8, double max_val_=1e8)
+   ExponentialGridFunctionCoefficient(GridFunction &u_, Coefficient &obst_, double min_val_=1e-4, double max_val_=1e4)
       : u(&u_), obstacle(&obst_), min_val(min_val_), max_val(max_val_) { }
 
    virtual double Eval(ElementTransformation &T, const IntegrationPoint &ip);
@@ -101,7 +101,7 @@ int main(int argc, char *argv[])
    ParMesh pmesh(MPI_COMM_WORLD, mesh);
    mesh.Clear();
 
-   H1_FECollection H1fec(order, dim);
+   H1_FECollection H1fec(order+1, dim);
    ParFiniteElementSpace H1fes(&pmesh, &H1fec);
 
    L2_FECollection L2fec(order-1, dim);
@@ -275,15 +275,19 @@ int main(int argc, char *argv[])
          GridFunctionCoefficient psi_old_cf(&psi_old_gf);
          SumCoefficient psi_old_minus_psi(psi_old_cf, psi_cf, 1.0, -1.0);
          ProductCoefficient phi_exp_minus_psi(obstacle, exp_minus_psi);
+         GridFunctionCoefficient u_old_cf(&u_old_gf);
 
          b.AddDomainIntegrator(new DomainLFIntegrator(alpha_f));
          b.AddDomainIntegrator(new DomainLFIntegrator(psi_old_minus_psi));
          b.AddDomainIntegrator(new DomainLFIntegrator(phi_exp_minus_psi));
          b.AddDomainIntegrator(new DomainLFIntegrator(one));
+         b.AddDomainIntegrator(new DomainLFIntegrator(u_old_cf));
+
          b.Assemble();
 
          ParBilinearForm a(&H1fes);
          a.AddDomainIntegrator(new DiffusionIntegrator(c1_cf));
+         a.AddDomainIntegrator(new MassIntegrator(one));
          a.AddDomainIntegrator(new MassIntegrator(exp_minus_psi));
          a.Assemble();
 
@@ -291,21 +295,22 @@ int main(int argc, char *argv[])
          Vector B, X;
          a.FormLinearSystem(ess_tdof_list, u_gf, b, A, X, B);
 
-         // CGSolver cg(MPI_COMM_WORLD);
-         // cg.SetRelTol(1e-12);
-         // cg.SetMaxIter(2000);
-         // cg.SetPrintLevel(-1);
-         // HypreBoomerAMG prec;
-         // prec.SetPrintLevel(-1);
-         // cg.SetPreconditioner(prec);
-         // cg.SetOperator(*A);
-         // cg.Mult(B, X);
+         CGSolver cg(MPI_COMM_WORLD);
+         cg.SetRelTol(1e-12);
+         cg.SetTRTol(4e1);
+         cg.SetMaxIter(2000);
+         cg.SetPrintLevel(-1);
+         HypreBoomerAMG prec;
+         prec.SetPrintLevel(-1);
+         cg.SetPreconditioner(prec);
+         cg.SetOperator(*A);
+         cg.Mult(B, X);
 
-         MUMPSSolver mumps;
-         mumps.SetPrintLevel(0);
-         mumps.SetMatrixSymType(MUMPSSolver::MatType::SYMMETRIC_POSITIVE_DEFINITE);
-         mumps.SetOperator(*A);
-         mumps.Mult(B, X);
+         // MUMPSSolver mumps;
+         // mumps.SetPrintLevel(0);
+         // mumps.SetMatrixSymType(MUMPSSolver::MatType::SYMMETRIC_POSITIVE_DEFINITE);
+         // mumps.SetOperator(*A);
+         // mumps.Mult(B, X);
 
          a.RecoverFEMSolution(X, b, u_gf);
 
@@ -318,31 +323,38 @@ int main(int argc, char *argv[])
          SumCoefficient u_cf_minus_phi(u_cf, obstacle, 1.0, -1.0);
          ProductCoefficient u_cf_minus_phi_exp_minus_psi(u_cf_minus_phi,exp_minus_psi);
 
-         // ParBilinearForm c(&H1fes);
-         // c.AddDomainIntegrator(new MassIntegrator(one));
-         // c.Assemble();
+         ParBilinearForm L2proj(&L2fes);
+         L2proj.AddDomainIntegrator(new InverseIntegrator(new MassIntegrator()));
+         L2proj.Assemble();
 
-         // ParLinearForm d(&H1fes);
-         // d.AddDomainIntegrator(new DomainLFIntegrator(u_cf_minus_phi_phi_exp_minus_psine));
-         // d.AddDomainIntegrator(new DomainLFIntegrator(minus_one));
-         // d.Assemble();
+         ParLinearForm d(&L2fes);
+         d.AddDomainIntegrator(new DomainLFIntegrator(u_cf_minus_phi_exp_minus_psi));
+         d.AddDomainIntegrator(new DomainLFIntegrator(minus_one));
+         d.Assemble();
+
+         Array<int> empty_list;
+         OperatorPtr invM;
+         L2proj.FormSystemMatrix(empty_list,invM);   
+         invM->Mult(d,delta_psi_gf);
          
-         delta_psi_gf.ProjectCoefficient(u_cf_minus_phi_exp_minus_psi);
-         delta_psi_gf -= 1.0;
+         // USE ACTUAL L2-PROJECTION HERE!!!!
+         // delta_psi_gf.ProjectCoefficient(u_cf_minus_phi_exp_minus_psi);
+         // delta_psi_gf -= 1.0;
 
          sol_sock << "parallel " << num_procs << " " << myid << "\n";
          sol_sock << "solution\n" << pmesh << u_gf << "window_title 'Discrete solution'" << flush;
          mfem::out << endl;
          // psi_sock << "solution\n" << pmesh << delta_psi_gf << "window_title 'delta psi'" << flush;
 
-         double gamma = 0.1;
-         // double gamma = 1.0;
+         // double gamma = 0.1;
+         double gamma = 1.0;
          delta_psi_gf *= gamma;
          psi_gf += delta_psi_gf;
 
          // for (int i = 0; i < delta_psi_gf.Size(); i++)
          // {
-         //    if (psi_gf[i] < -7.0) { psi_gf[i] = -7.0; }
+         //    if (psi_gf[i] < -10.0) { psi_gf[i] = -10.0; }
+         //    if (psi_gf[i] > 10.0) { psi_gf[i] = 10.0; }
          // }
 
          psi_sock << "solution\n" << pmesh << psi_gf << "window_title 'psi'" << flush;

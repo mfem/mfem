@@ -37,7 +37,7 @@ protected:
    double max_val;
 
 public:
-   ExponentialGridFunctionCoefficient(GridFunction &u_, Coefficient &obst_, double min_val_=1e-6, double max_val_=1e6)
+   ExponentialGridFunctionCoefficient(GridFunction &u_, Coefficient &obst_, double min_val_=0.0, double max_val_=1e6)
       : u(&u_), obstacle(&obst_), min_val(min_val_), max_val(max_val_) { }
 
    virtual double Eval(ElementTransformation &T, const IntegrationPoint &ip);
@@ -103,7 +103,7 @@ int main(int argc, char *argv[])
 
    // Need help for Socratis to use AMR
 
-   H1_FECollection H1fec(order, dim);
+   H1_FECollection H1fec(order+1, dim);
    ParFiniteElementSpace H1fes(&pmesh, &H1fec);
 
    L2_FECollection L2fec(order-1, dim);
@@ -256,8 +256,9 @@ int main(int argc, char *argv[])
    for (k = 0; k < max_it; k++)
    {
       // double alpha = alpha0 / sqrt(k+1);
+      double alpha = alpha0 * (k+1);
       // double alpha = alpha0 * sqrt(k+1);
-      double alpha = alpha0;
+      // double alpha = alpha0;
       // alpha *= 2;
 
       ParGridFunction u_tmp(&H1fes);
@@ -395,10 +396,10 @@ int main(int argc, char *argv[])
             break;
          }
       }
-      if (j > 5)
-      {
-         alpha0 /= 2.0;
-      }
+      // if (j > 5)
+      // {
+      //    alpha0 /= 2.0;
+      // }
       mfem::out << "Number of Newton iterations = " << j+1 << endl;
       
       u_tmp = u_gf;
