@@ -21,6 +21,8 @@ void LibBatchMult::Mult(const Vector &b, Vector &x)
    if (Device::Allows(Backend::DEVICE_MASK))
    {
       const double alpha = 1.0, beta = 0.0;
+
+#if defined(MFEM_USE_HIP) || (defined(MFEM_USE_CUDA) && CUDART_VERSION >= 1107)
       MFEM_SUB_cu_or_hip(blasStatus_t)
       status = MFEM_SUB_cu_or_hip(blasDgemvStridedBatched)(MFEM_SUB_Cuda_or_Hip(
                                                               BLAS::Handle)(),
@@ -39,6 +41,31 @@ void LibBatchMult::Mult(const Vector &b, Vector &x)
                                                            1,
                                                            mat_size,
                                                            num_mats);
+#else
+
+      MFEM_SUB_cu_or_hip(blasStatus_t)
+      status = MFEM_SUB_cu_or_hip(blasDgemmStridedBatched)(MFEM_SUB_Cuda_or_Hip(
+                                                              BLAS::Handle)(),
+                                                           MFEM_SUB_CU_or_HIP(BLAS_OP_N),
+                                                           MFEM_SUB_CU_or_HIP(BLAS_OP_N),
+                                                           mat_size,
+                                                           1,
+                                                           mat_size,
+                                                           &alpha,
+                                                           MatrixBatch.Read(),
+                                                           mat_size,
+                                                           mat_size * mat_size,
+                                                           b.Read(),
+                                                           mat_size,
+                                                           mat_size,
+                                                           &beta,
+                                                           x.Write(),
+                                                           mat_size,
+                                                           mat_size,
+                                                           num_mats);
+
+
+#endif
 
       MFEM_VERIFY(status == MFEM_SUB_CU_or_HIP(BLAS_STATUS_SUCCESS),
                   "blasDgemvStridedBatched");
