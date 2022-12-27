@@ -715,13 +715,13 @@ public:
 
    static void AdjustVDofs(Array<int> &vdofs);
 
-   /// Returns indexes of degrees of freedom in array dofs for i'th element.
+   /// Returns indexes of degrees of freedom in array @a vdofs for element @a i.
    DofTransformation *GetElementVDofs(int i, Array<int> &vdofs) const;
 
    /// Returns indexes of degrees of freedom for i'th boundary element.
    DofTransformation *GetBdrElementVDofs(int i, Array<int> &vdofs) const;
 
-   /// Returns indexes of degrees of freedom in array dofs for i'th NURBS patch.
+   /// Returns indexes of degrees of freedom in @a vdofs for NURBS patch @a i.
    void GetPatchVDofs(int i, Array<int> &vdofs) const;
 
    /// Returns indexes of degrees of freedom for i'th face element (2D and 3D).

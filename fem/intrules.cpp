@@ -1797,7 +1797,7 @@ IntegrationRule& NURBSPatchRule::GetElementRule(const int elem,
       return *elementRule[search->second];
    }
 
-   if (patchRules1D.NumRows())
+   if (patchRules1D.NumRows())  // Use a tensor product of rules on the patch.
    {
       MFEM_VERIFY(kv.Size() == dim, "");
 
@@ -1831,16 +1831,10 @@ IntegrationRule& NURBSPatchRule::GetElementRule(const int elem,
          np *= npd[d];
       }
 
-      if (irp == nullptr)
-      {
-         irp = new IntegrationRule(np);
-      }
-      else
-      {
-         irp->SetSize(np);
-      }
+      IntegrationRule *irp = new IntegrationRule(np);
 
-      // Set (*irp)[i + j*npd[0] + k*npd[0]*npd[1]] = (el[0][2*i], el[1][2*j], el[2][2*k])
+      // Set (*irp)[i + j*npd[0] + k*npd[0]*npd[1]] =
+      //     (el[0][2*i], el[1][2*j], el[2][2*k])
 
       MFEM_VERIFY(npd[0] > 0 && npd[1] > 0, "Assuming 2D or 3D");
 
@@ -1868,13 +1862,13 @@ IntegrationRule& NURBSPatchRule::GetElementRule(const int elem,
 
       return *irp;
    }
-   else if (patchRule.Size())  // TODO: this case is never used. Remove it?
+   else if (patchRule.Size())  // Use a rule defined for the patch.
    {
       return *patchRule[patch];
    }
    else
    {
-      return *ir;
+      return *ir;  // Use the rule set for all patches.
    }
 }
 
@@ -1902,6 +1896,8 @@ void NURBSPatchRule::GetIntegrationPointFrom1D(const int patch, int i, int j,
 
 void NURBSPatchRule::SetPointToElement(Mesh const& mesh)
 {
+   if (pointToElem.size() == npatches) { return; }  // Already set
+
    MFEM_VERIFY(elementToRule.empty() && patchRules1D.NumRows() > 0
                && npatches > 0, "Assuming patchRules1D is set.");
    MFEM_VERIFY(mesh.NURBSext, "");
@@ -1941,22 +1937,9 @@ void NURBSPatchRule::SetPointToElement(Mesh const& mesh)
          np[d] = patchRules1D(p,d)->Size();
       }
 
-      // TODO: remove and replace with patchRules1D_KnotSpan
-      std::vector<Array<int>> ip_ijk(dim);
-      for (int d=0; d<dim; ++d)
-      {
-         ip_ijk[d].SetSize(np[d]);
-      }
-
       // For each patch, set a map from ijk to element index.
       Array3D<int> ijk2elem(maxijk[0], maxijk[1], maxijk[2]);
-      // TODO: why doesn't Array3D have operator=(const T &a) like Array2D?
-      for (int i=0; i<maxijk[0]; ++i)
-         for (int j=0; j<maxijk[1]; ++j)
-            for (int k=0; k<maxijk[2]; ++k)
-            {
-               ijk2elem(i, j, k) = -1;
-            }
+      ijk2elem = -1;
 
       for (auto elem : patchElements[p])
       {
@@ -1999,7 +1982,6 @@ void NURBSPatchRule::SetPointToElement(Mesh const& mesh)
                }
             }
 
-            ip_ijk[d][r] = ijk_d;
             patchRules1D_KnotSpan[p][d][r] = ijk_d;
          }
       }
@@ -2009,7 +1991,9 @@ void NURBSPatchRule::SetPointToElement(Mesh const& mesh)
          for (int j=0; j<np[1]; ++j)
             for (int k=0; k<np[2]; ++k)
             {
-               const int elem = ijk2elem(ip_ijk[0][i], ip_ijk[1][j], ip_ijk[2][k]);
+               const int elem = ijk2elem(patchRules1D_KnotSpan[p][0][i],
+                                         patchRules1D_KnotSpan[p][1][j],
+                                         patchRules1D_KnotSpan[p][2][k]);
                MFEM_VERIFY(elem >= 0, "");
                pointToElem[p](i,j,k) = elem;
             }
@@ -2030,7 +2014,6 @@ void NURBSPatchRule::SetPatchRules1D(const int patch,
 NURBSPatchRule::~NURBSPatchRule()
 {
    delete ir;
-   delete irp;
 }
 
 }

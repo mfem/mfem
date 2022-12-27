@@ -1199,6 +1199,95 @@ public:
 };
 #endif // MFEM_USE_MPI
 
+/** Non-negative least squares (NNLS) solver class, for computing a vector
+    with non-negative entries approximately satisfying an under-determined
+    linear system. */
+class NNLS
+{
+public:
+   /**
+   * Constructor*/
+   NNLS(double const_tol=1.0e-14, int min_nnz=0, int max_nnz=0,
+        int verbosity=0,
+        double res_change_termination_tol=1.0e-4,
+        double zero_tol=1.0e-14, int n_outer=100000,
+        int n_inner=100000,
+        int n_stallCheck=100);
+
+   /**
+    * Destructor*/
+   ~NNLS();
+
+   /**
+    * Set verbosity. If set to 0: print nothing; if 1: just print results;
+    * if 2: print short update on every iteration; if 3: print longer update
+    * each iteration.
+    */
+   void SetVerbosity(const int verbosity_in);
+
+   /**
+    * Enumerated types of QRresidual mode. Options are 'off': the residual is
+    * calculated normally, 'on': the residual is calculated using the QR
+    * method, 'hybrid': the residual is calculated normally until we experience
+    * rounding errors, then the QR method is used. The default is 'hybrid',
+    * which should see the best performance. Recommend using 'hybrid' or 'off'
+    * only, since 'on' is computationally expensive.
+    */
+   enum class QRresidualMode {off, on, hybrid};
+
+   /**
+    * Set the residual calculation mode for the NNLS solver. See QRresidualMode
+    * enum above for details.
+    */
+   void SetQRResidualMode(const QRresidualMode qr_residual_mode);
+
+   /**
+    * @brief Solve the NNLS problem. Specifically, we find a vector @a soln,
+    * such that rhs_lb < mat*soln < rhs_ub is satisfied, where mat is the
+    * DenseMatrix whose transpose @a matTrans is input.
+    *
+    * The method by which we find the solution is the active-set method
+    * developed by Lawson and Hanson (1974) using lapack. To decrease rounding
+    * errors in the case of very tight tolerances, we have the option to compute
+    * the residual using the QR factorization of A, by res = b - Q*Q^T*b. This
+    * residual calculation results in less rounding error, but is more
+    * computationally expensive. To select whether to use the QR residual method
+    * or not, see set_qrresidual_mode above.
+    */
+   void Solve(const DenseMatrix& matTrans,
+              const Vector& rhs_lb,
+              const Vector& rhs_ub, Vector& soln);
+
+   /**
+    * Normalize the constraints such that the tolerances for each constraint
+    * (i.e. (UB - LB)/2) are equal. This seems to help the performance in most
+    * cases.
+    */
+   void NormalizeConstraints(DenseMatrix& matTrans, Vector& rhs_lb,
+                             Vector& rhs_ub);
+
+private:
+   unsigned int n_outer_;
+   unsigned int n_inner_;
+   double zero_tol_;
+   double const_tol_;
+   int verbosity_;
+   unsigned int min_nnz_; // minimum number of nonzero entries
+   unsigned int max_nnz_; // maximum number of nonzero entries
+
+   /**
+    * @brief Threshold on relative change in residual over nStallCheck iterations
+    * for stall sensing.
+    */
+   double res_change_termination_tol_;
+   int nStallCheck;
+
+   bool normalize_const_;
+   bool QR_reduce_const_;
+   bool NNLS_qrres_on_;
+   QRresidualMode qr_residual_mode_;
+};
+
 }
 
 #endif // MFEM_SOLVERS
