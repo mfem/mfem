@@ -138,10 +138,10 @@ void SPDESolver::Solve(ParLinearForm &b, ParGridFunction &x) {
   helper_gf = 0.0;
 
   if (integer_order_of_exponent_ > 0) {
-    if (Mpi::Root()) {
-      mfem::out << "<SPDESolver> Solving PDE (A)^" << integer_order_of_exponent_
-                << " u = f" << std::endl;
-    }
+    // if (Mpi::Root()) {
+    //   mfem::out << "<SPDESolver> Solving PDE (A)^" << integer_order_of_exponent_
+    //             << " u = f" << std::endl;
+    // }
     ActivateRepeatedSolve();
     Solve(b, helper_gf, 1.0, 1.0, integer_order_of_exponent_);
     if (integer_order_) {
@@ -187,21 +187,24 @@ void SPDESolver::Solve(ParLinearForm &b, ParGridFunction &x) {
   }
 }
 
-void SPDESolver::GenerateRandomField(ParGridFunction &x, int seed) {
+void SPDESolver::SetupRandomFieldGenerator(int seed) {
+  delete b;
+  delete integ;
+  integ = new WhiteGaussianNoiseDomainLFIntegrator(seed);
+  b = new ParLinearForm(fespace_ptr_);
+  b->AddDomainIntegrator(integ);
+};
+
+void SPDESolver::GenerateRandomField(ParGridFunction &x) {
+  if (!integ) MFEM_ABORT("Need to call SPDESolver::SetupRandomFieldGenerator(...) first");
   // Create the stochastic load
-  if (seed == std::numeric_limits<int>::max()) {
-    seed = std::time(nullptr);
-  }
-  ParLinearForm b(fespace_ptr_);
-  auto *WhiteNoise = new WhiteGaussianNoiseDomainLFIntegrator(seed);
-  b.AddDomainIntegrator(WhiteNoise);
-  b.Assemble();
+  b->Assemble();
   double normalization = ConstructNormalizationCoefficient(
       nu_, l1_, l2_, l3_, fespace_ptr_->GetParMesh()->Dimension());
-  b *= normalization;
+  (*b) *= normalization;
 
   // Call back to solve to generate the random field
-  Solve(b, x);
+  Solve(*b, x);
 };
 
 double SPDESolver::ConstructNormalizationCoefficient(double nu, double l1,
@@ -323,9 +326,9 @@ void SPDESolver::LiftSolution(ParGridFunction &x) {
 
   // Lifting of the solution takes care of inhomogeneous boundary conditions.
   // See doi:10.1016/j.jcp.2019.109009; section 2.6
-  if (Mpi::Root()) {
-    mfem::out << "\n<SPDESolver> Applying inhomogeneous DBC" << std::endl;
-  }
+  // if (Mpi::Root()) {
+  //   mfem::out << "\n<SPDESolver> Applying inhomogeneous DBC" << std::endl;
+  // }
 
   // Define temporary grid function for lifting.
   ParGridFunction helper_gf(fespace_ptr_);
@@ -376,7 +379,7 @@ void SPDESolver::SolveLinearSystem() {
   CGSolver cg(MPI_COMM_WORLD);
   cg.SetRelTol(1e-12);
   cg.SetMaxIter(2000);
-  cg.SetPrintLevel(3);
+  cg.SetPrintLevel(0);
   cg.SetPreconditioner(prec);
   cg.SetOperator(*Op_);
   cg.Mult(B_, X_);
@@ -400,6 +403,12 @@ void SPDESolver::ComputeRationalCoefficients(double exponent) {
     }
   }
 }
+
+SPDESolver::~SPDESolver() {   
+  delete Op_; 
+  delete b;
+  delete integ;
+};
 
 }  // namespace spde
 }  // namespace mfem
