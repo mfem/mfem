@@ -187,7 +187,6 @@ int main(int argc, char *argv[])
       }  // loop (p) over patches
 
       patchRule->SetPointToElement(mesh);
-
       di->SetNURBSPatchIntRule(patchRule);
    }
 

@@ -177,14 +177,6 @@ void BilinearFormIntegrator::AssembleFaceMatrix(
               " Integrator class.");
 }
 
-void BilinearFormIntegrator::AssembleNURBSPatchMatrix(
-   const FiniteElement &el, ElementTransformation &Trans,
-   DenseMatrix &elmat)
-{
-   mfem_error ("BilinearFormIntegrator::AssembleNURBSPatchMatrix(...)\n"
-               "   is not implemented for this class.");
-}
-
 void BilinearFormIntegrator::AssembleElementVector(
    const FiniteElement &el, ElementTransformation &Tr, const Vector &elfun,
    Vector &elvect)
@@ -1123,8 +1115,8 @@ void DiffusionIntegrator::SetupPatch3D(const int Q1Dx,
 
 void SolveNNLS(DenseMatrix & Gt, Vector const& w, Vector & sol)
 {
-   NNLSserial nnls;
-   nnls.set_verbosity(2);
+   NNLS nnls;
+   nnls.SetVerbosity(2);
 
    Vector rhs_ub(Gt.NumCols());
    Gt.MultTranspose(w, rhs_ub);
@@ -1139,10 +1131,8 @@ void SolveNNLS(DenseMatrix & Gt, Vector const& w, Vector & sol)
       rhs_ub(i) += delta;
    }
 
-   nnls.normalize_constraints(Gt, rhs_lb, rhs_ub);
-   nnls.solve_serial(Gt, rhs_lb, rhs_ub, sol);
-
-   sol.Print();
+   nnls.NormalizeConstraints(Gt, rhs_lb, rhs_ub);
+   nnls.Solve(Gt, rhs_lb, rhs_ub, sol);
 
    int nnz = 0;
    for (int i=0; i<sol.Size(); ++i)

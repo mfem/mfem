@@ -53,7 +53,7 @@ public:
    virtual void SetIntRule(const IntegrationRule *ir) { IntRule = ir; }
 
    void SetNURBSPatchIntRule(NURBSPatchRule *pr) { patchRule = pr; }
-   bool HasNURBSPatchRule() const { return patchRule != nullptr; }
+   bool HasNURBSPatchIntRule() const { return patchRule != nullptr; }
 
    bool Patchwise() const { return patchwise; }
 
