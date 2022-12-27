@@ -22,7 +22,7 @@ void LibBatchMult::Mult(const Vector &b, Vector &x)
    {
       const double alpha = 1.0, beta = 0.0;
 
-#if defined(MFEM_USE_HIP) || (defined(MFEM_USE_CUDA) && CUDART_VERSION >= 1107)
+#if defined(MFEM_USE_HIP) || (defined(MFEM_USE_CUDA) && CUDA_VERSION >= 11070)
       MFEM_SUB_cu_or_hip(blasStatus_t)
       status = MFEM_SUB_cu_or_hip(blasDgemvStridedBatched)(MFEM_SUB_Cuda_or_Hip(
                                                               BLAS::Handle)(),
@@ -42,7 +42,6 @@ void LibBatchMult::Mult(const Vector &b, Vector &x)
                                                            mat_size,
                                                            num_mats);
 #else
-
       MFEM_SUB_cu_or_hip(blasStatus_t)
       status = MFEM_SUB_cu_or_hip(blasDgemmStridedBatched)(MFEM_SUB_Cuda_or_Hip(
                                                               BLAS::Handle)(),

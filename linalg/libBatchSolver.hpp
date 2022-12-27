@@ -25,6 +25,7 @@
 #define MFEM_SUB_CUDA_or_HIP(stub) CUDA##stub
 #define MFEM_SUB_CU_or_HIP(stub) CU##stub
 
+#include <cuda.h>
 #include <cublas.h>
 #include <cusolverDn.h>
 #include <cuda_runtime.h>
