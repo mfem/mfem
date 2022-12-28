@@ -899,6 +899,159 @@ public:
    virtual void Mult(const Vector &xt, Vector &x) const;
 };
 
+/** Defines operators and constraints for the following nonlinear contact
+ *  problem:
+ *
+ *    Find x in R^n and lambda in R^m such that
+ *    K(x) - \nabla g(x)^T lambda = f
+ *    0 <= g(x) \perp lambda >= 0
+ *    
+ *    Above, the perpendicularity ("\perp") equation is understood pointwise,
+ *    i.e., g_i(x) lambda_i = 0, for all i=1,2,...,m.
+ *
+ *  This is class is to be derived by concrete contact problems and will be
+ * called by the contact solver to evaluate the contact problem.
+ */
+class ContactProblem
+{
+protected:
+   // Problem sizes
+   const int m, n;
+   // Right-hand side of the contact problem
+   mutable Vector f;
+  
+public:
+   /// Constructor taking the problem sizes as parameters.
+   ContactProblem(int m, int n);
+
+   int GetNumConstraints() const { return m; }
+   int GetNumDOFs () { return n; }
+
+   // Returns the rhs of the (first set of equations of the ) contact problem.
+   void GetRhs(const Vector &f_out) { f = f_in; }
+  
+   /** This method evaluates the nonlinear function K from the first set of contact
+    * equations. The contact solver calls this function. Concrete contact 
+    * problems need to implement this callback. The method should return false
+    * when the evaluation of the contact gap function failed, otherwise should 
+    * return true. */
+   bool EvalK(const Vector &x, Vector &Katx) = 0;
+
+   /** This method evaluates the gradient of the function K at x. The contact 
+    * solver calls this function. Concrete contact problems need to implement this
+    * callback. The method should return false when the evaluation of the contact 
+    * gap function failed, otherwise should return true. */
+   bool EvalGradK(const Vector &x, Operator &gradKatx) = 0;
+  
+   /** This method evaluates the contact gap function g at x. 
+    * The contact solver calls this function and concrete contact problems will
+    * implement this callback. The method should return false when the 
+    * evaluation of the contact gap function failed, otherwise should return 
+    * true. */
+   bool Evalg(const Vector &x, Vector &g) = 0;
+
+   /** This method evaluates the gradient (nonlinear operator) of the gap 
+    * function g at x. The contact solver calls this function. Concrete contact 
+    * problems need to implement this callback. The method should return false
+    * when the evaluation of the contact gap function failed, otherwise should 
+    * return true. */
+   bool EvalGradg(const Vector &x, Operator &gradG) = 0;
+
+   //TODO: Hessian of the Lagrangian
+};
+
+//forward declaration of the "contact" linear solver
+class ContactLinearSolver;
+
+/// Abstract solver for ContactProblems.
+class ContactSolver : public IterativeSolver
+{
+protected:
+   ContactProblem *problem;
+   const ContactLinearSolver* linear_solver;
+public:
+   ContactSolver(): IterativeSolver(), problem(NULL) { }
+#ifdef MFEM_USE_MPI
+   ContactSolver(MPI_Comm comm_): IterativeSolver(comm_), problem(NULL) { }
+#endif
+   virtual ~ContactSolver() { }
+
+   /** This method is virtual as solvers might need to perform some initial
+    *  actions (e.g., validation) with the ContactProblem. */
+   virtual void SetContactProblem(const ContactProblem &prob)
+   { problem = &prob; }
+
+   void SetLinearSolver(const ContactLinearSolver &lsolver)
+   { linear_solver = &lsolver; }
+  
+   /** This method performs the numerical solve of the complementarity 
+    * problem. Potential implementations of this purely virtual method 
+    * will be available via derived classes, e.g. implementations of 
+    * Uzawa (Augmented Lagrangian), interior-point method, etc. 
+    * 
+    * TODO: work around the two input parameters to pass the initial 
+    * point and return the solution. Are there multivector vectors in MFEM?*/
+   virtual void Mult(const Vector &xt, Vector &x) const = 0;
+
+   virtual void SetPreconditioner(Solver &pr)
+   { MFEM_ABORT("Not meaningful for this solver."); }
+   virtual void SetOperator(const Operator &op)
+   { MFEM_ABORT("Not meaningful for this solver."); }
+};
+
+/** Abstract linear solver for internal use in ContactSolver. Implementations
+ * of this class will solve linearizations of the contact problem in the form
+ * shown below. The unknowns are vectors dx, ds, and dlambda
+ * 
+ * (gradK+\sum \lambda_i \nabla^2 g_i) dx - gradG^T dlambda = r1
+ * gradG dx + ds = r2
+ * Lambda ds + S dlambda = r3
+ * (fixme: work in progress)
+ */
+class ContactLinearSolver : public Solver
+{
+public:
+  void SetHessian(const Operator &gradK);
+  void SetRhs(const Vector &r1, const Vector &r2);
+  void SetGradG(const Operator& gradG)
+  //to be continued...
+   
+   virtual void Mult(const Vector &x_in, Vector &x_out) const = 0;
+protected:
+};
+
+/** Implementation of the contact linear solve in the form of
+ * 
+ * (gradK+\sum \lambda_i \nabla^2 g_i + gradG^T gradG) dx = rhs
+ * 
+ * The solver uses AMG and ...
+ * //!wip
+ */
+class ContactLinearSolverCondensed : public ContactLinearSolver
+{
+public:
+   virtual void Mult(const Vector &x_in, Vector &x_out) const
+   {
+     MFEM_ASSERT(false && "to be implemented");
+   }
+protected:
+};
+
+/** Implementation of the contact linear solve in the form of tbd
+ * using direct linear solvers (for testing and debugging purposes
+ * //!wip
+ */
+class ContactLinearSolverDirect : public ContactLinearSolver
+{
+public:
+   virtual void Mult(const Vector &x_in, Vector &x_out) const
+   {
+     MFEM_ASSERT(false && "to be implemented");
+   }
+protected:
+};
+
+
 /** Block ILU solver:
  *  Performs a block ILU(k) approximate factorization with specified block
  *  size. Currently only k=0 is supported. This is useful as a preconditioner
