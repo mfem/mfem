@@ -33,13 +33,13 @@ add_mfem_examples(CALIPER_EXE_SRCS ${PREFIX})
 if (MFEM_ENABLE_TESTING)
   foreach(SRC_FILE ${CALIPER_EXE_SRCS})
     get_filename_component(SRC_FILENAME ${SRC_FILE} NAME)
-    string(REPLACE ".cpp" "" TEST_NAME ${SRC_FILENAME})
+    string(REPLACE ".cpp" "" TEST_NAME ${PREFIX}${SRC_FILENAME})
 
     set(THIS_TEST_OPTIONS "-no-vis")
 
     if (NOT (${TEST_NAME} MATCHES ".*p$"))
       add_test(NAME ${TEST_NAME}_ser
-        COMMAND ${TEST_NAME} ${THIS_TEST_OPTIONS})
+        COMMAND $<TARGET_FILE:${TEST_NAME}> ${THIS_TEST_OPTIONS})
     else()
       add_test(NAME ${TEST_NAME}_np=${MFEM_MPI_NP}
         COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${MFEM_MPI_NP}
