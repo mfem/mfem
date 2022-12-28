@@ -908,7 +908,7 @@ void MemoryManager::SetDeviceMemoryType_(void *h_ptr, unsigned flags,
    }
 }
 
-MemoryType MemoryManager::Delete_(void *h_ptr, MemoryType h_mt, unsigned flags)
+void MemoryManager::Delete_(void *h_ptr, MemoryType h_mt, unsigned flags)
 {
    const bool alias = flags & Mem::ALIAS;
    const bool registered = flags & Mem::REGISTERED;
@@ -925,7 +925,7 @@ MemoryType MemoryManager::Delete_(void *h_ptr, MemoryType h_mt, unsigned flags)
    MFEM_ASSERT(registered || !(owns_host || owns_device || owns_internal) ||
                (!(owns_device || owns_internal) && h_ptr == nullptr),
                "invalid Memory state");
-   if (!mm.exists || !registered) { return h_mt; }
+   if (!mm.exists || !registered) { return; }
    if (alias)
    {
       if (owns_internal)
@@ -946,7 +946,6 @@ MemoryType MemoryManager::Delete_(void *h_ptr, MemoryType h_mt, unsigned flags)
          mm.Erase(h_ptr, owns_device);
       }
    }
-   return h_mt;
 }
 
 void MemoryManager::DeleteDevice_(void *h_ptr, unsigned & flags)
