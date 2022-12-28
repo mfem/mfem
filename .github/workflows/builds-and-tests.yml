@@ -121,6 +121,8 @@ jobs:
       run: |
         sudo apt-get install lcov
 
+    # Keep the following section in case we need it again in the future,
+    # see: https://github.com/mfem/mfem/pull/3385#discussion_r1058013032
     # - name: Set up Homebrew
     #   if: ( matrix.mpi == 'par' || matrix.codecov == 'YES' ) && matrix.os == 'macos-latest'
     #   uses: Homebrew/actions/setup-homebrew@master
