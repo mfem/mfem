@@ -1264,7 +1264,7 @@ void DiffusionIntegrator::SetupPatchPA(const int patch, const int dim,
 
    const Array<const IntegrationRule*>& ir1d = pir1d[patch];
 
-   MFEM_VERIFY(Q1D.Size() == 3, "");  // If not 3D, Q1D[2] should be 1?
+   MFEM_VERIFY(Q1D.Size() == 3, "");
 
    const int dims = dim;  // TODO: generalize
    const int symmDims = (dims * (dims + 1)) / 2; // 1x1: 1, 2x2: 3, 3x3: 6
@@ -1452,7 +1452,6 @@ void DiffusionIntegrator::SetupPatchPA(const int patch, const int dim,
    }
 
    // Solve for reduced 1D quadrature rules
-   // TODO: push_back instead of this resize?
    reducedWeights.resize(numPatches);
    reducedIDs.resize(numPatches);
    reducedWeights[patch].resize(dim);
@@ -1462,7 +1461,8 @@ void DiffusionIntegrator::SetupPatchPA(const int patch, const int dim,
 
    for (int d=0; d<dim; ++d)
    {
-      // TODO: cache reduced rules to avoid repeated computation? The cost of this setup seems low.
+      // The reduced rules could be cached to avoid repeated computation, but
+      // the cost of this setup seems low.
       reducedWeights[patch][d].resize(numTypes);
       reducedIDs[patch][d].resize(numTypes);
 
@@ -1534,7 +1534,7 @@ void DiffusionIntegrator::AssemblePatchMatrix_simpleButInefficient(
       Q1D[d] = ir1d[d]->GetNPoints();
 
       orders[d] = pkv[d]->GetOrder();
-      D1D[d] = mesh->NURBSext->ndof1D(patch,d);
+      D1D[d] = mesh->NURBSext->NumPatchDofs1D(patch,d);
       shape[d].SetSize(orders[d]+1);
       dshape[d].SetSize(orders[d]+1);
 
@@ -1605,10 +1605,9 @@ void DiffusionIntegrator::AssemblePatchMatrix_simpleButInefficient(
       grad[d].SetSize(Q1D[0], Q1D[1], Q1D[2]);
    }
 
-   // TODO: this is an inefficient loop over mat-vec mults of standard basis
-   // vectors, just to verify the patch matrix assembly while using the PA
-   // operator code. The code for the mat-vec mult should go into a PA operator
-   // mult function.
+   // NOTE: this is an inefficient loop over mat-vec mults of standard basis
+   // vectors, just to verify the patch matrix assembly using sum factorization.
+   // A more efficient version is AssemblePatchMatrix_fullQuadrature.
    Vector ej(ndof);
 
    for (int dof_j=0; dof_j<ndof; ++dof_j)
@@ -1717,7 +1716,6 @@ void DiffusionIntegrator::AssemblePatchMatrix_simpleButInefficient(
 
       for (int qz = 0; qz < Q1D[2]; ++qz)
       {
-         //double gradXY[max_D1D][max_D1D][3];
          Array3D<double> gradXY(D1D[0], D1D[1], dim);
          for (int dy = 0; dy < D1D[1]; ++dy)
          {
@@ -1731,7 +1729,6 @@ void DiffusionIntegrator::AssemblePatchMatrix_simpleButInefficient(
          }
          for (int qy = 0; qy < Q1D[1]; ++qy)
          {
-            //double gradX[max_D1D][3];
             Array2D<double> gradX(D1D[0], dim);
 
             for (int dx = 0; dx < D1D[0]; ++dx)
@@ -1841,11 +1838,6 @@ void DiffusionIntegrator::AssemblePatchMatrix_fullQuadrature(
    MFEM_VERIFY(3 == dim, "Only 3D so far");
 
    // Setup quadrature point data.
-   // NOTE: in an operator setting, this point data should be stored for subsequent Mult() calls.
-   //Array2D<double> qdata(Q1D[0]*Q1D[1]*Q1D[2], symmetric ? 6 : 9);
-   // TODO: for GPUs, this needs to be allocated with mt, as in AssemblePA.
-   //Vector qdata(Q1D[0]*Q1D[1]*Q1D[2] * (symmetric ? 6 : 9));
-
    const auto qd = Reshape(pa_data.Read(), Q1D[0]*Q1D[1]*Q1D[2],
                            (symmetric ? 6 : 9));
 
@@ -1856,9 +1848,6 @@ void DiffusionIntegrator::AssemblePatchMatrix_fullQuadrature(
    {
       grad[d].SetSize(Q1D[0], Q1D[1], Q1D[2]);
    }
-
-   Array3D<double> gradQXY(Q1D[0], Q1D[1], dim);
-   Array2D<double> gradQX(Q1D[0],2);
 
    Array3D<double> gradDXY(D1D[0], D1D[1], dim);
    Array2D<double> gradDX(D1D[0], dim);
@@ -1885,7 +1874,7 @@ void DiffusionIntegrator::AssemblePatchMatrix_fullQuadrature(
    cdofs.SetSize(maxw[0], maxw[1], maxw[2]);
 
    // Compute sparsity of the sparse matrix
-   smati = new int[ndof+1];  // TODO: delete
+   smati = new int[ndof+1];
    smati[0] = 0;
 
    for (int dof_j=0; dof_j<ndof; ++dof_j)
@@ -1908,8 +1897,8 @@ void DiffusionIntegrator::AssemblePatchMatrix_fullQuadrature(
       nnz += ndd;
    }
 
-   smatj = new int[nnz];  // TODO: delete
-   smata = new double[nnz];  // TODO: delete
+   smatj = new int[nnz];
+   smata = new double[nnz];
 
    for (int i=0; i<nnz; ++i)
    {
@@ -1949,63 +1938,16 @@ void DiffusionIntegrator::AssemblePatchMatrix_fullQuadrature(
             }
          }
 
-      for (int qy = minD[1][jdy]; qy <= maxD[1][jdy]; ++qy)
-      {
-         for (int qx = minD[0][jdx]; qx <= maxD[0][jdx]; ++qx)
-         {
-            for (int d=0; d<dim; ++d)
-            {
-               gradQXY(qx,qy,d) = 0.0;
-            }
-         }
-      }
-
-      for (int qx = minD[0][jdx]; qx <= maxD[0][jdx]; ++qx)
-      {
-         gradQX(qx,0) = 0.0;
-         gradQX(qx,1) = 0.0;
-      }
-
-      // TODO: it doesn't seem necessary to store gradQX, gradQXY, grad
-      for (int qx = minD[0][jdx]; qx <= maxD[0][jdx]; ++qx)
-      {
-         gradQX(qx,0) = B[0](qx,jdx);
-         gradQX(qx,1) = G[0](qx,jdx);
-      }
-
-      for (int qy = minD[1][jdy]; qy <= maxD[1][jdy]; ++qy)
-      {
-         const double wy  = B[1](qy,jdy);
-         const double wDy = G[1](qy,jdy);
-         for (int qx = minD[0][jdx]; qx <= maxD[0][jdx]; ++qx)
-         {
-            const double wx  = gradQX(qx,0);
-            const double wDx = gradQX(qx,1);
-            gradQXY(qx,qy,0) = wDx * wy;
-            gradQXY(qx,qy,1) = wx  * wDy;
-            gradQXY(qx,qy,2) = wx  * wy;
-         }
-      }
-
       for (int qz = minD[2][jdz]; qz <= maxD[2][jdz]; ++qz)
       {
          const double wz  = B[2](qz,jdz);
          const double wDz = G[2](qz,jdz);
-         for (int qy = minD[1][jdy]; qy <= maxD[1][jdy]; ++qy)
-         {
-            for (int qx = minD[0][jdx]; qx <= maxD[0][jdx]; ++qx)
-            {
-               grad[0](qx,qy,qz) = gradQXY(qx,qy,0) * wz;
-               grad[1](qx,qy,qz) = gradQXY(qx,qy,1) * wz;
-               grad[2](qx,qy,qz) = gradQXY(qx,qy,2) * wDz;
-            }
-         }
-      } // qz
 
-      for (int qz = minD[2][jdz]; qz <= maxD[2][jdz]; ++qz)
-      {
          for (int qy = minD[1][jdy]; qy <= maxD[1][jdy]; ++qy)
          {
+            const double wy  = B[1](qy,jdy);
+            const double wDy = G[1](qy,jdy);
+
             for (int qx = minD[0][jdx]; qx <= maxD[0][jdx]; ++qx)
             {
                const int q = qx + ((qy + (qz * Q1D[1])) * Q1D[0]);
@@ -2018,9 +1960,14 @@ void DiffusionIntegrator::AssemblePatchMatrix_fullQuadrature(
                const double O31 = symmetric ? O13 : qd(q,6);
                const double O32 = symmetric ? O23 : qd(q,7);
                const double O33 = symmetric ? qd(q,5) : qd(q,8);
-               const double gradX = grad[0](qx,qy,qz);
-               const double gradY = grad[1](qx,qy,qz);
-               const double gradZ = grad[2](qx,qy,qz);
+
+               const double wx  = B[0](qx,jdx);
+               const double wDx = G[0](qx,jdx);
+
+               const double gradX = wDx * wy * wz;
+               const double gradY = wx  * wDy * wz;
+               const double gradZ = wx  * wy * wDz;
+
                grad[0](qx,qy,qz) = (O11*gradX)+(O12*gradY)+(O13*gradZ);
                grad[1](qx,qy,qz) = (O21*gradX)+(O22*gradY)+(O23*gradZ);
                grad[2](qx,qy,qz) = (O31*gradX)+(O32*gradY)+(O33*gradZ);
@@ -2105,12 +2052,12 @@ void DiffusionIntegrator::AssemblePatchMatrix_fullQuadrature(
       } // qz
    } // dof_j
 
+   // Note that smat takes ownership of its input data.
    smat = new SparseMatrix(smati, smatj, smata, ndof, ndof);
 }
 
 void DiffusionIntegrator::SetupPatchBasisData(Mesh *mesh, const int patch)
 {
-   // TODO: check whether this setup has already been done?
    MFEM_VERIFY(pB.size() == patch && pG.size() == patch, "");
    MFEM_VERIFY(pQ1D.size() == patch && pD1D.size() == patch, "");
    MFEM_VERIFY(pminQ.size() == patch && pmaxQ.size() == patch, "");
@@ -2147,7 +2094,7 @@ void DiffusionIntegrator::SetupPatchBasisData(Mesh *mesh, const int patch)
       Q1D[d] = ir1d[d]->GetNPoints();
 
       orders[d] = pkv[d]->GetOrder();
-      D1D[d] = mesh->NURBSext->ndof1D(patch,d);
+      D1D[d] = mesh->NURBSext->NumPatchDofs1D(patch,d);
       shape[d].SetSize(orders[d]+1);
       dshape[d].SetSize(orders[d]+1);
 
@@ -2268,11 +2215,6 @@ void DiffusionIntegrator::AssemblePatchMatrix_reducedQuadrature(
    MFEM_VERIFY(3 == dim, "Only 3D so far");
 
    // Setup quadrature point data.
-   // NOTE: in an operator setting, this point data should be stored for subsequent Mult() calls.
-   //Array2D<double> qdata(Q1D[0]*Q1D[1]*Q1D[2], symmetric ? 6 : 9);
-   // TODO: for GPUs, this needs to be allocated with mt, as in AssemblePA.
-   //Vector qdata(Q1D[0]*Q1D[1]*Q1D[2] * (symmetric ? 6 : 9));
-
    // For each point in patchRule, get the corresponding element and element
    // reference point, in order to use element transformations. This requires
    // data set up in NURBSPatchRule::SetPointToElement.
@@ -2339,7 +2281,7 @@ void DiffusionIntegrator::AssemblePatchMatrix_reducedQuadrature(
    cdofs.SetSize(maxw[0], maxw[1], maxw[2]);
 
    // Compute sparsity of the sparse matrix
-   smati = new int[ndof+1];  // TODO: delete
+   smati = new int[ndof+1];
    smati[0] = 0;
 
    for (int dof_j=0; dof_j<ndof; ++dof_j)
@@ -2362,8 +2304,8 @@ void DiffusionIntegrator::AssemblePatchMatrix_reducedQuadrature(
       nnz += ndd;
    }
 
-   smatj = new int[nnz];  // TODO: delete
-   smata = new double[nnz];  // TODO: delete
+   smatj = new int[nnz];
+   smata = new double[nnz];
 
    for (int i=0; i<nnz; ++i)
    {
@@ -2594,6 +2536,7 @@ void DiffusionIntegrator::AssemblePatchMatrix_reducedQuadrature(
       }
    }
 
+   // Note that smat takes ownership of its input data.
    smat = new SparseMatrix(smati, smatj, smata, ndof, ndof);
 }
 

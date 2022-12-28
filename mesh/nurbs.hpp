@@ -412,9 +412,13 @@ public:
    int GetElementPatch(int elem) const { return el_to_patch[elem]; }
    void GetElementIJK(int elem, Array<int> & ijk);
 
-   // TODO: make this private and add access functions
-   Array2D<int> ndof1D;
+   const Array3D<int>& GetPatchDofs(const int patch);
+
+   int NumPatchDofs1D(const int patch, const int dim);
+
+private:
    std::vector<Array3D<int>> patchDofs;
+   Array2D<int> ndof1D;
    std::vector<std::vector<std::set<int>>> patch_ijk;
 };
 

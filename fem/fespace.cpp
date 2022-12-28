@@ -2786,16 +2786,18 @@ FiniteElementSpace::GetElementDofs(int elem, Array<int> &dofs) const
 
 void FiniteElementSpace::GetPatchDofs(int patch, Array<int> &dofs) const
 {
-   const int nx = NURBSext->ndof1D(patch,0);
-   const int ny = NURBSext->ndof1D(patch,1);
-   const int nz = NURBSext->ndof1D(patch,2);
+   const int nx = NURBSext->NumPatchDofs1D(patch,0);
+   const int ny = NURBSext->NumPatchDofs1D(patch,1);
+   const int nz = NURBSext->NumPatchDofs1D(patch,2);
    dofs.SetSize(nx * ny * nz);
+
+   const Array3D<int>& patchDofs = NURBSext->GetPatchDofs(patch);
 
    for (int k=0; k<nz; ++k)
       for (int j=0; j<ny; ++j)
          for (int i=0; i<nx; ++i)
          {
-            dofs[i + (nx * (j + (k * ny)))] = NURBSext->patchDofs[patch](i,j,k);
+            dofs[i + (nx * (j + (k * ny)))] = patchDofs(i,j,k);
          }
 }
 
