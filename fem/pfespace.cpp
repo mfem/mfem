@@ -2606,7 +2606,7 @@ int ParFiniteElementSpace
       if (dump < 10)
       {
          char fname[100];
-         sprintf(fname, "dofs%02d.txt", MyRank);
+         snprintf(fname, 100, "dofs%02d.txt", MyRank);
          std::ofstream f(fname);
          DebugDumpDOFs(f, deps, dof_group, dof_owner, finalized);
          dump++;

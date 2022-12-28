@@ -3059,8 +3059,8 @@ public:
 
 /** Integrator for the DG form:
 
-    - < {(Q grad(u)).n}, [v] > + sigma < [u], {(Q grad(v)).n} >
-    + kappa < {h^{-1} Q} [u], [v] >,
+        - < {(Q grad(u)).n}, [v] > + sigma < [u], {(Q grad(v)).n} >
+        + kappa < {h^{-1} Q} [u], [v] >
 
     where Q is a scalar or matrix diffusion coefficient and u, v are the trial
     and test spaces, respectively. The parameters sigma and kappa determine the

@@ -72,13 +72,6 @@ if (MFEM_USE_MPI)
     submesh/psubmesh.hpp)
 endif()
 
-if (MFEM_USE_MESQUITE)
-  list(APPEND SRCS mesquite.cpp)
-  # If this list (HDRS -> HEADERS) is used for install, we probably want the
-  # header added all the time.
-  list(APPEND HDRS mesquite.hpp)
-endif()
-
 if (MFEM_USE_PUMI)
   list(APPEND SRCS
     pumi.cpp)
