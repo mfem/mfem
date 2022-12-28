@@ -430,9 +430,6 @@ void DiffusionIntegrator::AssemblePatchPA(const int patch,
    Mesh *mesh = fes.GetMesh();
    SetupPatchBasisData(mesh, patch);
 
-   // TODO: make a switch here for full or reduced quadrature.
-   // TODO: skip the NNLS reduced quadrature solve in the case of full quadrature.
-   //SetupPatchPA(patch, dim, mesh, true);  // For reduced quadrature, unitWeights = true
    SetupPatchPA(patch, dim, mesh);  // For full quadrature, unitWeights = false
 }
 
@@ -1767,6 +1764,7 @@ void DiffusionIntegrator::AddMultTransposePA(const Vector &x, Vector &y) const
 
 // This version uses full 1D quadrature rules, neglecting to take advantage of the limited
 // interaction between basis functions and integration points.
+// TODO: remove this?
 void DiffusionIntegrator::AddMultPatchPA_inefficient(const int patch,
                                                      const Vector &x, Vector &y) const
 {
@@ -1792,12 +1790,10 @@ void DiffusionIntegrator::AddMultPatchPA_inefficient(const int patch,
    const auto qd = Reshape(pa_data.Read(), Q1D[0]*Q1D[1]*Q1D[2],
                            (symmetric ? 6 : 9));
 
-   // NOTE: the following is adapted from AssemblePatchMatrix_simpleButInefficient
    std::vector<Array3D<double>> grad(dim);
-   Array3D<double> gradXY(3, std::max(Q1D[0], D1D[0]), std::max(Q1D[1],
-                                                                D1D[1]));  // TODO: optimal order of dimensions?
-   Array2D<double> gradX(3, std::max(Q1D[0],
-                                     D1D[0]));  // TODO: optimal order of dimensions?
+   // TODO: Can an optimal order of dimensions be determined, for each patch?
+   Array3D<double> gradXY(3, std::max(Q1D[0], D1D[0]), std::max(Q1D[1], D1D[1]));
+   Array2D<double> gradX(3, std::max(Q1D[0], D1D[0]));
 
    for (int d=0; d<dim; ++d)
    {

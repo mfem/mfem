@@ -59,7 +59,7 @@ public:
 
    void GetIJK(int *IJK) const
    {
-      for (int i=0; i<3; ++i) { IJK[i] = ijk[i]; }
+      for (int i=0; i<dim; ++i) { IJK[i] = ijk[i]; }
    }
 };
 

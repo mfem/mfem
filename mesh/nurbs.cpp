@@ -1497,9 +1497,6 @@ NURBSExtension::NURBSExtension(std::istream &input)
    GenerateActiveBdrElems();
    GenerateBdrElementDofTable();
 
-   // TODO: call this to construct the table only if requested?
-   GeneratePatchDofTable();
-
    // periodic
    if (ident == "periodic")
    {
@@ -2771,6 +2768,26 @@ void NURBSExtension::Generate3DElementDofTable()
    }
    // We must NOT sort el_dof_list in this case.
    el_dof = new Table(NumOfActiveElems, el_dof_list);
+}
+
+int NURBSExtension::NumPatchDofs1D(const int patch, const int dim)
+{
+   if (ndof1D.NumRows() <= patch)
+   {
+      GeneratePatchDofTable();
+   }
+
+   return ndof1D(patch, dim);
+}
+
+const Array3D<int>& NURBSExtension::GetPatchDofs(const int patch)
+{
+   if (patchDofs.size() <= patch)
+   {
+      GeneratePatchDofTable();
+   }
+
+   return patchDofs[patch];
 }
 
 void NURBSExtension::GeneratePatchDofTable()
