@@ -267,9 +267,6 @@ protected:
    // el_to_patch, el_to_IJK, activeDof map (global-to-local)
    void GenerateElementDofTable();
 
-   void GeneratePatchDofTable();
-   void Generate3DPatchDofTable();
-
    // generate elem_to_global-dof table for the active elements
    // define el_to_patch, el_to_IJK, activeDof (as bool)
    void Generate2DElementDofTable();
@@ -420,6 +417,9 @@ private:
    std::vector<Array3D<int>> patchDofs;
    Array2D<int> ndof1D;
    std::vector<std::vector<std::set<int>>> patch_ijk;
+
+   void GeneratePatchDofTable();
+   void Generate3DPatchDofTable();
 };
 
 

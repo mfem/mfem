@@ -1991,10 +1991,9 @@ void DiffusionIntegrator::AddMultPatchPA(const int patch, const Vector &x,
 
    // NOTE: the following is adapted from AssemblePatchMatrix_fullQuadrature
    std::vector<Array3D<double>> grad(dim);
-   Array3D<double> gradXY(3, std::max(Q1D[0], D1D[0]), std::max(Q1D[1],
-                                                                D1D[1]));  // TODO: optimal order of dimensions?
-   Array2D<double> gradX(3, std::max(Q1D[0],
-                                     D1D[0]));  // TODO: optimal order of dimensions?
+   // TODO: Can an optimal order of dimensions be determined, for each patch?
+   Array3D<double> gradXY(3, std::max(Q1D[0], D1D[0]), std::max(Q1D[1], D1D[1]));
+   Array2D<double> gradX(3, std::max(Q1D[0], D1D[0]));
 
    for (int d=0; d<dim; ++d)
    {
