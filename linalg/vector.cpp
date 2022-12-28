@@ -786,27 +786,18 @@ void Vector::Randomize(int seed)
 {
    const double max = (double)(RAND_MAX) + 1.;
 
-   if (!global_seed_set)
+   if (seed == 0)
    {
-      if (seed == 0)
-      {
-         seed = (int)time(0);
-      }
-
-      srand((unsigned)seed);
+      seed = (int)time(0);
    }
+
+   srand((unsigned)seed);
 
    HostWrite();
    for (int i = 0; i < size; i++)
    {
       data[i] = std::abs(rand()/max);
    }
-}
-
-void Vector::SetGlobalSeed(int gseed)
-{
-   srand((unsigned)gseed);
-   global_seed_set = true;
 }
 
 double Vector::Norml2() const

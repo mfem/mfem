@@ -22,6 +22,70 @@ namespace mfem
 
 using namespace std;
 
+const FiniteElement *
+FiniteElementCollection::FiniteElementForDim(int dim) const
+{
+   for (int g = Geometry::DimStart[dim]; g < Geometry::DimStart[dim+1]; g++)
+   {
+      const FiniteElement *fe = FiniteElementForGeometry((Geometry::Type)g);
+      if (fe != NULL)
+      {
+         return fe;
+      }
+   }
+   return NULL;
+}
+
+int FiniteElementCollection::GetRangeType(int dim) const
+{
+   const FiniteElement *fe = FiniteElementForDim(dim);
+   if (fe)
+   {
+      return fe->GetRangeType();
+   }
+   return FiniteElement::UNKNOWN_RANGE_TYPE;
+}
+
+int FiniteElementCollection::GetDerivRangeType(int dim) const
+{
+   const FiniteElement *fe = FiniteElementForDim(dim);
+   if (fe)
+   {
+      return fe->GetDerivRangeType();
+   }
+   return FiniteElement::UNKNOWN_RANGE_TYPE;
+}
+
+int FiniteElementCollection::GetMapType(int dim) const
+{
+   const FiniteElement *fe = FiniteElementForDim(dim);
+   if (fe)
+   {
+      return fe->GetMapType();
+   }
+   return FiniteElement::UNKNOWN_MAP_TYPE;
+}
+
+int FiniteElementCollection::GetDerivType(int dim) const
+{
+   const FiniteElement *fe = FiniteElementForDim(dim);
+   if (fe)
+   {
+      return fe->GetDerivType();
+   }
+   return FiniteElement::NONE;
+}
+
+int FiniteElementCollection::GetDerivMapType(int dim) const
+{
+   const FiniteElement *fe = FiniteElementForDim(dim);
+   if (fe)
+   {
+      return fe->GetDerivMapType();
+   }
+   return FiniteElement::UNKNOWN_MAP_TYPE;
+}
+
 int FiniteElementCollection::HasFaceDofs(Geometry::Type geom, int p) const
 {
    switch (geom)
