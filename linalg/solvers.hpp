@@ -924,38 +924,40 @@ public:
    /// Constructor taking the problem sizes as parameters.
    ContactProblem(int m, int n);
 
-   int GetNumConstraints() const { return m; }
-   int GetNumDOFs () { return n; }
+   inline int GetNumConstraints() const { return m; }
+   inline int GetNumDOFs () { return n; }
 
-   // Returns the rhs of the (first set of equations of the ) contact problem.
-   void GetRhs(const Vector &f_out) { f = f_in; }
+   // [TODO:] an alternative design would be via a pure virtual method `Eval()`
+   // a members+getters for the problem's rhs, K, gradK, g, and gradG. The
+   // downside is that for nonlinear IPMs, sometimes g and K are evaluated without
+   // needing to evaluate their derivatives, gradG and gradK.
+  
+   /// Returns the rhs of the (first set of equations of the ) contact problem.
+   virtual void GetRhs(Vector &f_out) { f_out = f; }
   
    /** This method evaluates the nonlinear function K from the first set of contact
     * equations. The contact solver calls this function. Concrete contact 
     * problems need to implement this callback. The method should return false
-    * when the evaluation of the contact gap function failed, otherwise should 
-    * return true. */
-   bool EvalK(const Vector &x, Vector &Katx) = 0;
+    * when the evaluation failed, otherwise should return true. */
+   virtual bool EvalK(const Vector &x, Vector &Katx) = 0;
 
    /** This method evaluates the gradient of the function K at x. The contact 
     * solver calls this function. Concrete contact problems need to implement this
-    * callback. The method should return false when the evaluation of the contact 
-    * gap function failed, otherwise should return true. */
-   bool EvalGradK(const Vector &x, Operator &gradKatx) = 0;
+    * callback. The method should return false when the evaluation  failed, otherwise 
+    * should return true. */
+   virtual bool EvalGradK(const Vector &x, Operator &gradKatx) = 0;
   
    /** This method evaluates the contact gap function g at x. 
     * The contact solver calls this function and concrete contact problems will
     * implement this callback. The method should return false when the 
-    * evaluation of the contact gap function failed, otherwise should return 
-    * true. */
-   bool Evalg(const Vector &x, Vector &g) = 0;
+    * evaluation failed, otherwise should return true. */
+   virtual bool Evalg(const Vector &x, Vector &g) = 0;
 
    /** This method evaluates the gradient (nonlinear operator) of the gap 
     * function g at x. The contact solver calls this function. Concrete contact 
     * problems need to implement this callback. The method should return false
-    * when the evaluation of the contact gap function failed, otherwise should 
-    * return true. */
-   bool EvalGradg(const Vector &x, Operator &gradG) = 0;
+    * when the evaluation failed, otherwise should return true. */
+   virtual bool EvalGradg(const Vector &x, Operator &gradG) = 0;
 
    //TODO: Hessian of the Lagrangian
 };
@@ -968,20 +970,22 @@ class ContactSolver : public IterativeSolver
 {
 protected:
    ContactProblem *problem;
-   const ContactLinearSolver* linear_solver;
+   ContactLinearSolver* linear_solver;
 public:
-   ContactSolver(): IterativeSolver(), problem(NULL) { }
+   ContactSolver()
+     : IterativeSolver(), problem(nullptr), linear_solver(nullptr) { }
 #ifdef MFEM_USE_MPI
-   ContactSolver(MPI_Comm comm_): IterativeSolver(comm_), problem(NULL) { }
+   ContactSolver(MPI_Comm comm_)
+     : IterativeSolver(comm_), problem(nullptr), linear_solver(nullptr) { }
 #endif
    virtual ~ContactSolver() { }
-
+  
    /** This method is virtual as solvers might need to perform some initial
     *  actions (e.g., validation) with the ContactProblem. */
-   virtual void SetContactProblem(const ContactProblem &prob)
+   virtual void SetContactProblem(ContactProblem &prob)
    { problem = &prob; }
 
-   void SetLinearSolver(const ContactLinearSolver &lsolver)
+   virtual void SetLinearSolver(ContactLinearSolver &lsolver)
    { linear_solver = &lsolver; }
   
    /** This method performs the numerical solve of the complementarity 
@@ -989,8 +993,10 @@ public:
     * will be available via derived classes, e.g. implementations of 
     * Uzawa (Augmented Lagrangian), interior-point method, etc. 
     * 
-    * TODO: work around the two input parameters to pass the initial 
-    * point and return the solution. Are there multivector vectors in MFEM?*/
+    * [TODO: work around the two input parameters to pass the initial 
+    * point and return the solution. Are there multivector vectors in 
+    * MFEM?] */
+   ///[TODO: clarify the const `Mult`;
    virtual void Mult(const Vector &xt, Vector &x) const = 0;
 
    virtual void SetPreconditioner(Solver &pr)
@@ -999,21 +1005,163 @@ public:
    { MFEM_ABORT("Not meaningful for this solver."); }
 };
 
+#if 0
+// illustration of the contact nonlinear (outer) loop and interplay with
+// linear solver and contact problem
+void ContactSolverIPM::Mult(const Vector &xin, Vector &xout) const
+{
+  x_iter.SetToZero();
+  s_iter.SetToZero();
+  l_iter.SetToZero();
+  R.SetToZero();
+  mu = 1.0;
+  int num_iter = 0;
+  
+  //solve loop
+  while(true) {
+    //evaluate contact problem at x_iter
+    problem->GetRhs(f);
+    problem->EvalK(x_iter, K);
+    problem->EvalGradK(x_iter, GradK);
+    problem->Evalg(x_iter, g);
+    problem->EvalGradG(x_iter, gradG);
+
+    //evaluate residuals of the contact problem (illustration for IPM)
+    // rx = f + gradG^T l_iter - K
+    // rs = s - g
+    // rc = mu*ones(m,1) - l_iter .* s_iter
+    this->ComputeResiduals(rx, rs, rc);
+
+    //check residual norms, max # of iterations, etc.
+    if(this->StoppingCriteriaMet(num_iter, rx, rs, rc)) {
+      break;
+    }
+    num_iter++;
+    
+    
+    //
+    //set up linear system and solve to obtain search
+    //direction/step  dx, ds, dl
+    //
+
+    //right hand side for linear system for the 
+    // predictor step rc_pred = - l_iter .* s_iter
+    this->ComputePredictorResidual(rc_pred)
+    
+    linear_solver->SetHessian(K);
+    linear_solver->SetGradG(gradG)
+    linear_solver->SetRhs(rx, rs, rc_pred);
+    linear_solver->SetLambda(l_iter);
+    linear_solver->SetS(s_iter);
+    linear_solver->SetPrimalReg(R);
+
+    linear_solver->Mult(dx, ds, dl);
+    //probably more like
+    //linear_solver->Mult(rx, rs, rc_pred, dx, ds, dl);
+    
+    //was the linear solve successful?
+    while(!lin_sol_ok) {
+      this->ComputeRegularization(R);
+      linear_solver->SetPrimalReg(R);
+      linear_solver->Mult(dx, ds, dl);
+      //check linear solve ok
+    }
+
+    //uses x_iter, s_iter, l_iter, dx, ds, dl
+    double alpha = this->LineSearchBlocking();
+    //uses x_iter, s_iter, l_iter, dx, ds, dl, alpha;
+    double sigma = this->ComputeCenteringParameter(alpha); 
+    
+    //right hand side for linear system for the 
+    // corrector step rc_pred = mu*sigma*ones(m,1) + ds.*dl - l_iter .* s_iter
+    //also uses s_iter, l_iter, ds, dl,
+    this->ComputeCorrectorResidual(mu, sigma, rc_corr);
+
+    linear_solver->SetRhs(rx, rs, rc_corr);
+    linear_solver->Mult(dx, ds, dl);
+    
+    //was the linear solve successful?
+    while(!lin_sol_ok) {
+      this->ComputeRegularization(R);
+      linear_solver->SetPrimalReg(R);
+      linear_solver->Mult(dx, ds, dl);
+      //check linear solve ok
+    }
+
+    //uses x_iter, s_iter, l_iter, dx, ds, dl
+    double alpha_corr = this->LineSearchCorrector();
+
+    //x = x+alpha*dx  s=s+alpha*ds  l=l+alpha*dl
+    this->UpdateIter(alpha_corr);
+  } //end of contact loop
+
+  //return x_iter, s_iter, l_iter as the solution
+  //[TODO:]
+}
+
+#endif
+
+#if 0
+//illustration of the "main" driver
+int main()
+{
+  //dream big
+  //
+  mfem::ContactProblem* problem = new mfem::apps::ContactProblemMortar(/*mesh_files*/);
+  //this is curently doable
+  //mfem::ContactProblem* problem = new mfem::apps::ContactLinearProblemFromFiles(/*matrix_files*/);
+
+  //linear solver based on options
+  mfem::ContactLinearSolver* lin_solver = nullptr;
+  if(that) {
+    lin_solver = new mfem::ContactLinearSolverCondensed();
+  } else {
+    //testing
+    lin_solver = new mfem::ContactLinearSolverCondensendDirect();
+  }
+  mfem::ContactSolver* solver = new mfem::ContactSolverIPM();
+
+  solver->SetContactProblem(*problem);
+  solver->SetLinearSolver(*lin_solver);
+
+  solver->Mult();
+  //error control = ?
+
+  //[TODO: what does the interface(s) need to accomdate solving a sequence of (related) problems
+  
+  //clean up
+  delete lin_solver;
+  delete problem;
+}
+#endif
+
 /** Abstract linear solver for internal use in ContactSolver. Implementations
  * of this class will solve linearizations of the contact problem in the form
  * shown below. The unknowns are vectors dx, ds, and dlambda
  * 
- * (gradK+\sum \lambda_i \nabla^2 g_i) dx - gradG^T dlambda = r1
- * gradG dx + ds = r2
- * Lambda ds + S dlambda = r3
- * (fixme: work in progress)
+ *    (H+R)dx - gradG^T dlambda = r1
+ *    gradG dx - ds = r2
+ *    Lambda ds + S dlambda = r3
+ * 
+ * Above, H is an nxn symm. psd matrix, for example can be
+ *    H = gradK(x)-\sum \lambda_i \nabla^2 g_i(x), 
+ * or
+ *    H = gradK(x),
+ * depending on the contact solver. gradG is an mxn matrix and Lambda and
+ * S are diagonal matrices with nonnegative entries. The regularization R 
+ * is also a diagonal matrix with nonnegative entries.
+ * 
  */
 class ContactLinearSolver : public Solver
 {
 public:
+  // [TODO: better names?]
   void SetHessian(const Operator &gradK);
-  void SetRhs(const Vector &r1, const Vector &r2);
-  void SetGradG(const Operator& gradG)
+  void SetRhs(const Vector &r1, const Vector &r2, const Vector &r3);
+  void SetGradG(const Operator& gradG);
+  void SetLambda(const Vector& Lambda);
+  void SetS(const Vector& S);
+  void SetPrimalReg(const Vector& R);
   //to be continued...
    
    virtual void Mult(const Vector &x_in, Vector &x_out) const = 0;
@@ -1022,31 +1170,70 @@ protected:
 
 /** Implementation of the contact linear solve in the form of
  * 
- * (gradK+\sum \lambda_i \nabla^2 g_i + gradG^T gradG) dx = rhs
+ *    (H + R + gradG^T S^{-1} Lambda gradG) dx = 
+ *                r1 + gradG^T S^{-1} (Lambda r2 + r3)
+ *    ds = gradG dx - r2
+ *    dlambda = -S^{-1} Lambda ds + S^{-1}r3
  * 
- * The solver uses AMG and ...
- * //!wip
+ * Essentially, the solve is a Gauss elimination of the linearization
+ * described in ContactLinearSolver. The matrix from the first set
+ * of equations is generally symm. positive definite. The solve
+ * done by this class can/is allowed to fail, in which case the
+ * subsequent linear solve will be done with a "more" p.d. R.
+ * [TODO: ask about error control]
+ *
+ * This applies to both interior-point and Uzawa linearizations. To
+ * use this class with Uzawa, one needs to set S to the identity 
+ * matrix and Lambda to a diagonal matrix having entry (i,i) equal to
+ * one when the corresponding gap is active (i.e., g_i(x)=0) or to 
+ * zero  otherwise, for all i=1,2,...,m. [TODO: what about r3?]
+ * 
+ * The solver uses AMG [TODO: update me].
  */
 class ContactLinearSolverCondensed : public ContactLinearSolver
 {
 public:
-   virtual void Mult(const Vector &x_in, Vector &x_out) const
+   virtual void Mult(const Vector &dx_in, Vector &dx_out) const
    {
-     MFEM_ASSERT(false && "to be implemented");
+     MFEM_ASSERT(false, "to be implemented");
    }
 protected:
 };
 
-/** Implementation of the contact linear solve in the form of tbd
- * using direct linear solvers (for testing and debugging purposes
- * //!wip
+/** Implementation of the contact linear solve in the form of the
+ * general symmetric indefinite linear system shown above in the
+ * ContactLinearSolver class using direct linear solvers. This is
+ * mostly for testing and debugging purposes.
+ * 
+ * [TODO: update me] Using a symmetric direct linear solver such
+ * as MA57, Pardiso, WSMP, etc. would do it. LU solvers OK.
  */
 class ContactLinearSolverDirect : public ContactLinearSolver
 {
 public:
    virtual void Mult(const Vector &x_in, Vector &x_out) const
    {
-     MFEM_ASSERT(false && "to be implemented");
+     MFEM_ASSERT(false, "to be implemented");
+   }
+protected:
+};
+
+/** Implementation of the contact linear solve in the form of the
+ * symmetric p.d. linear system shown above in the
+ * ContactLinearSolverCondensed class using direct linear solvers. 
+ * This is mostly for testing and debugging purposes.
+ * 
+ * [TODO: update me] Using a Cholesky direct linear solver such
+ * as MA57, Pardiso, WSMP, etc.Cholmod would do it. LU or symmetric
+ * indefinite direct solvers OK.
+ * 
+ */
+class ContactLinearSolverCondensendDirect : public ContactLinearSolverCondensed
+{
+public:
+   virtual void Mult(const Vector &x_in, Vector &x_out) const
+   {
+     MFEM_ASSERT(false, "to be implemented");
    }
 protected:
 };
