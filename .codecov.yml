@@ -12,7 +12,7 @@ coverage:
         threshold: 0%
         base: auto
         branches:
-          - master
+          - main
         if_ci_failed: error
         informational: true
         only_pulls: true
@@ -22,7 +22,7 @@ coverage:
         threshold: 1%  # allows variations around the target
         base: auto
         branches:
-          - master
+          - main
         if_ci_failed: error
         only_pulls: true
 
