@@ -25,6 +25,9 @@
 //    2D fitting:
 //      mpirun -np 6 amster -m amster_q4warp.mesh -rs 1 -o 3 -no-wc -amr 7
 //
+//    2D orders prec:
+//      mpirun -np 6 amster -m ../../data/star.mesh -rs 0 -o 1 -no-wc -amr 7 -vis
+//
 //    3D untangling:
 //      mpirun -np 6 amster -m ../../../mfem_data/cube-holes-inv.mesh -o 3 -qo 4 -no-wc -no-fit
 
@@ -37,6 +40,9 @@
 
 using namespace mfem;
 using namespace std;
+
+void TransferLowToHigh(const ParGridFunction &l, ParGridFunction &h);
+void TransferHighToLow(const ParGridFunction &h, ParGridFunction &l);
 
 void Untangle(ParGridFunction &x, double min_detA, int quad_order);
 void WorstCaseOptimize(ParGridFunction &x, int quad_order);
@@ -63,7 +69,7 @@ int main (int argc, char *argv[])
    int bg_amr_steps      = 6;
    double surface_fit_const = 10.0;
    double surface_fit_adapt = 10.0;
-   double surface_fit_threshold = 1e-7;
+   double surface_fit_threshold = 1e-5;
    int metric_id         = 2;
    int target_id         = 1;
    bool vis              = false;
@@ -298,7 +304,7 @@ int main (int argc, char *argv[])
    // Distance to the boundary, on the original mesh.
    GridFunctionCoefficient coeff(&domain);
    ParGridFunction dist(&pfes_nodes_scalar);
-   ComputeScalarDistanceFromLevelSet(*pmesh, coeff, dist, false);
+   ComputeScalarDistanceFromLevelSet(*pmesh, coeff, dist, 10);
    dist *= -1.0;
    if (vis)
    {
@@ -333,6 +339,8 @@ int main (int argc, char *argv[])
       visit_dc.Save();
    }
    backgrnd.ComputeGradientAndHessian();
+
+   return 0;
 
    // Setup the quadrature rules for the TMOP integrator.
    IntegrationRules *irules = &IntRulesLo;
@@ -392,7 +400,25 @@ int main (int argc, char *argv[])
       }
    }
 
-   mesh_opt.OptimizeNodes(x);
+   mesh_opt.OptimizeNodes(x, vis);
+
+   MeshOptimizer mesh_opt_2;
+   H1_FECollection fec_2(2, dim);
+   ParFiniteElementSpace pfes_2(pmesh, &fec_2, dim);
+   ParFiniteElementSpace pfes_2_scalar(pmesh, &fec_2, dim);
+   ParGridFunction x_2(&pfes_2);
+   TransferLowToHigh(x, x_2);
+   mesh_opt_2.Setup(pfes_2, metric_id, quad_order);
+   if (surface_fit_const > 0.0)
+   {
+      surf_fit_coeff.constant = surface_fit_const;
+      mesh_opt_2.SetupSurfaceFit(pfes_2_scalar, surf_fit_coeff, backgrnd);
+      mesh_opt_2.GetSolver()->
+            SetAdaptiveSurfaceFittingScalingFactor(surface_fit_adapt);
+      mesh_opt_2.GetSolver()->
+            SetTerminationWithMaxSurfaceFittingError(1e-7);
+   }
+   mesh_opt_2.OptimizeNodes(x_2, vis);
 
    // Save the optimized mesh to files.
    {
@@ -405,13 +431,6 @@ int main (int argc, char *argv[])
       VisItDataCollection visit_dc("amster_opt", pmesh);
       visit_dc.SetFormat(DataCollection::SERIAL_FORMAT);
       visit_dc.Save();
-   }
-
-   if (vis)
-   {
-      socketstream vis;
-      common::VisualizeMesh(vis, "localhost", 19916, *pmesh,
-                            "Final mesh", 800, 0, 400, 400, "me");
    }
 
    if (surface_fit_const > 0.0)
@@ -434,13 +453,8 @@ int main (int argc, char *argv[])
                              "Displacements", 1200, 0, 400, 400, "jRmclA");
    }
 
-   // 20. Free the used memory.
-   //   delete metric_coeff1;
-   //   delete adapt_lim_eval;
    delete target_c;
-   //   delete adapt_coeff;
    delete metric;
-   //   delete untangler_metric;
    delete pmesh;
 
    return 0;
@@ -579,4 +593,51 @@ void WorstCaseOptimize(ParGridFunction &x, int quad_order)
    delete metric;
 
    return;
+}
+
+void Interpolate(const ParGridFunction &src, const Array<int> &y_fixed_marker,
+                 ParGridFunction &y)
+{
+   const int dim = y.ParFESpace()->GetVDim();
+   Array<int> dofs;
+   for (int e = 0; e < y.ParFESpace()->GetNE(); e++)
+   {
+      const IntegrationRule &ir = y.ParFESpace()->GetFE(e)->GetNodes();
+      const int ndof = ir.GetNPoints();
+      y.ParFESpace()->GetElementVDofs(e, dofs);
+
+      for (int i = 0; i < ndof; i++)
+      {
+         const IntegrationPoint &ip = ir.IntPoint(i);
+         for (int d = 0; d < dim; d++)
+         {
+            if (y_fixed_marker[dofs[d*ndof + i]] == 0)
+            {
+               y(dofs[d*ndof + i]) = src.GetValue(e, ip, d+1);
+            }
+         }
+      }
+   }
+}
+
+void TransferLowToHigh(const ParGridFunction &l, ParGridFunction &h)
+{
+   Array<int> h_ess_marker(h.Size());
+   h_ess_marker = 0;
+
+   Interpolate(l, h_ess_marker, h);
+}
+
+void TransferHighToLow(const ParGridFunction &h, ParGridFunction &l)
+{
+   Array<int> l_ess_vdof_marker(l.Size());
+   l_ess_vdof_marker = 0;
+   // wrong.
+  // PRefinementTransferOperator transfer(*l.ParFESpace(), *h.ParFESpace());
+  // transfer.MultTranspose(h, l);
+
+   // Projects, doesn't interpolate.
+   //l.ProjectGridFunction(h);
+
+   Interpolate(h, l_ess_vdof_marker, l);
 }

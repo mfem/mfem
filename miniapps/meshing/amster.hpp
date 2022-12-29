@@ -12,6 +12,7 @@
 #include "mfem.hpp"
 #include <fstream>
 #include <iostream>
+#include "../common/mfem-common.hpp"
 using namespace std;
 using namespace mfem;
 
@@ -21,10 +22,6 @@ void OptimizeMeshWithAMRForAnotherMesh(ParMesh &pmesh,
                                        int amr_iter,
                                        ParGridFunction &x)
 {
-   //   H1_FECollection h1fec(source.ParFESpace()->FEColl()->GetOrder(),
-   //                               pmesh.Dimension());
-   //   ParFiniteElementSpace h1fespace(&pmesh, &h1fec);
-   //   ParGridFunction x(&h1fespace);
    const int dim = pmesh.Dimension();
 
    MFEM_VERIFY(pmesh.GetNodes() != NULL, "Nodes node set for mesh.");
@@ -34,8 +31,8 @@ void OptimizeMeshWithAMRForAnotherMesh(ParMesh &pmesh,
    Vector interp_vals(nodes_cnt);
 
    FindPointsGSLIB finder(source.ParFESpace()->GetComm());
-   finder.SetDefaultInterpolationValue(-1.0);
    finder.Setup(*(source.FESpace()->GetMesh()),0.0);
+   finder.SetDefaultInterpolationValue(-1.0);
 
    vxyz = *(pmesh.GetNodes());
    finder.Interpolate(vxyz, source, interp_vals, ordering);
@@ -68,7 +65,7 @@ void OptimizeMeshWithAMRForAnotherMesh(ParMesh &pmesh,
          double max_val = x_vals.Max();
          // Mark for refinement if the element is cut, or near the boundary.
          if (min_val * max_val < 0.0 ||
-             fabs(min_val) < 1e-12 || fabs(max_val) < 1e-12)
+             fabs(min_val) < 1e-8 || fabs(max_val) < 1e-8)
          {
             el_to_refine(e) = 1.0;
          }
@@ -82,19 +79,12 @@ void OptimizeMeshWithAMRForAnotherMesh(ParMesh &pmesh,
          lhx.ProjectDiscCoefficient(field_in_dg, GridFunction::ARITHMETIC);
          for (int e = 0; e < pmesh.GetNE(); e++)
          {
-            Array<int> dofs;
             Vector x_vals;
-            lhfespace.GetElementDofs(e, dofs);
-            //         lhx.GetSubVector(dofs, x_vals);
             const IntegrationRule &ir =
                IntRules.Get(lhx.ParFESpace()->GetFE(e)->GetGeomType(), 7);
             lhx.GetValues(e, ir, x_vals);
 
-            double max_val = x_vals.Max();
-            if (max_val > 0)
-            {
-               el_to_refine(e) = 1.0;
-            }
+            if (x_vals.Max() > 0) { el_to_refine(e) = 1.0; }
          }
       }
 
@@ -105,78 +95,44 @@ void OptimizeMeshWithAMRForAnotherMesh(ParMesh &pmesh,
          if (el_to_refine(e) > 0.0) { el_to_refine_list.Append(e); }
       }
 
-      int loc_count = el_to_refine_list.Size();
-      int glob_count = loc_count;
-      MPI_Allreduce(&loc_count, &glob_count, 1, MPI_INT, MPI_SUM,
+      int ref_count = el_to_refine_list.Size();
+      MPI_Allreduce(MPI_IN_PLACE, &ref_count, 1, MPI_INT, MPI_SUM,
                     pmesh.GetComm());
-      MPI_Barrier(pmesh.GetComm());
-      if (glob_count > 0)
+      if (ref_count > 0)
       {
          pmesh.GeneralRefinement(el_to_refine_list, 1);
       }
+
       x.ParFESpace()->Update();
       x.Update();
-
       l2fespace.Update();
       el_to_refine.Update();
-
       lhfespace.Update();
       lhx.Update();
    }
-   {
-       vxyz = *(pmesh.GetNodes());
-       finder.Interpolate(vxyz, source, interp_vals, ordering);
-       x = interp_vals;
-   }
+
+   vxyz = *(pmesh.GetNodes());
+   finder.Interpolate(vxyz, source, interp_vals, ordering);
+   x = interp_vals;
 }
+#endif
 
 void ComputeScalarDistanceFromLevelSet(ParMesh &pmesh,
                                        GridFunctionCoefficient &ls_coeff,
                                        ParGridFunction &distance_s,
-                                       bool filter_input,
                                        const int pLap = 5)
 {
-   H1_FECollection h1fec(distance_s.ParFESpace()->FEColl()->GetOrder(),
-                         pmesh.Dimension());
-   ParFiniteElementSpace h1fespace(&pmesh, &h1fec);
-   ParGridFunction x(&h1fespace);
-
-   x.ProjectCoefficient(ls_coeff);
-   x.ExchangeFaceNbrData();
-
-   //Now determine distance
    const int p = pLap;
    const int newton_iter = 50;
    PLapDistanceSolver dist_solver(p, newton_iter);
-   dist_solver.print_level = 1;
+   dist_solver.print_level.Summary();
 
-   ParFiniteElementSpace pfes_s(*distance_s.ParFESpace());
-
-   // Smooth-out Gibbs oscillations from the input level set. The smoothing
-   // parameter here is specified to be mesh dependent with length scale dx.
-   ParGridFunction filt_gf(&pfes_s);
-   if (filter_input)
-   {
-      const double dx = AvgElementSize(pmesh);
-      PDEFilter filter(pmesh, 1.0 * dx);
-      filter.Filter(ls_coeff, filt_gf);
-   }
-   else { filt_gf.ProjectCoefficient(ls_coeff); }
-   GridFunctionCoefficient ls_filt_coeff(&filt_gf);
-
-   dist_solver.ComputeScalarDistance(ls_filt_coeff, distance_s);
+   dist_solver.ComputeScalarDistance(ls_coeff, distance_s);
    distance_s.SetTrueVector();
    distance_s.SetFromTrueVector();
 
-   distance_s.SetTrueVector();
-   distance_s.SetFromTrueVector();
-   for (int i = 0; i < distance_s.Size(); i++)
-   {
-      //distance_s(i) = std::fabs(distance_s(i));
-      distance_s(i) *= -1;
-   }
+   distance_s *= -1.0;
 }
-#endif
 
 // g - c * dx * dx * laplace(g) = g_old.
 void DiffuseH1(ParGridFunction &g, double c)
@@ -297,7 +253,6 @@ BackgroundData::BackgroundData(ParMesh &pmesh_front,
    m->EnsureNCMesh();
    pmesh_bg = new ParMesh(MPI_COMM_WORLD, *m);
    delete m;
-   // TODO does this have to be the same order? Can it be just 1?
    pmesh_bg->SetCurvature(dist_order, false, -1, 0);
 
    // Make the background mesh big enough to cover the original domain.
@@ -339,13 +294,17 @@ void BackgroundData::ComputeBackgroundDistance()
    MPI_Allreduce(MPI_IN_PLACE, &min_dx, 1, MPI_DOUBLE, MPI_MIN,
                  pmesh_bg->GetComm());
 
-   // Shift the zero level set by ~ one element inside.
-   const double alpha = 0.75 * min_dx;
+   // Shift the zero level into the smooth region.
+   const double alpha = 1.5 * min_dx;
    *dist_bg -= alpha;
 
+   // Need a copy, otherwise the coefficient points to the same function
+   // that's being updated in the distance computation.
+   ParGridFunction copy_dist(*dist_bg);
+
    // Compute a distance function on the background.
-   GridFunctionCoefficient ls_coeff(dist_bg);
-   ComputeScalarDistanceFromLevelSet(*pmesh_bg, ls_coeff, *dist_bg, true);
+   GridFunctionCoefficient ls_coeff(&copy_dist);
+   ComputeScalarDistanceFromLevelSet(*pmesh_bg, ls_coeff, *dist_bg, 8);
    *dist_bg *= -1.0;
 
    // Offset back to the original position of the boundary.
@@ -439,7 +398,7 @@ public:
    // When we enter, x contains the initial node positions.
    // When we exit, x contains the optimized node positions.
    // The underlying mesh of x remains unchanged (its positions don't change).
-   void OptimizeNodes(ParGridFunction &x);
+   void OptimizeNodes(ParGridFunction &x, bool vis);
 
    TMOP_Integrator *GetIntegrator();
 
@@ -500,7 +459,7 @@ void MeshOptimizer::Setup(ParFiniteElementSpace &pfes,
    solver->SetIntegrationRules(IntRulesLo, quad_order);
    solver->SetOperator(*nlf);
    solver->SetPreconditioner(*lin_solver);
-   solver->SetMaxIter(1000);
+   solver->SetMaxIter(100);
    solver->SetRelTol(1e-8);
    solver->SetAbsTol(0.0);
    IterativeSolver::PrintLevel newton_pl;
@@ -571,7 +530,7 @@ double MinDetJ(ParMesh &pmesh, int quad_order)
    return min_detJ;
 }
 
-void MeshOptimizer::OptimizeNodes(ParGridFunction &x)
+void MeshOptimizer::OptimizeNodes(ParGridFunction &x, bool vis = false)
 {
    MFEM_VERIFY(solver, "Setup() has not been called.");
 
@@ -605,6 +564,13 @@ void MeshOptimizer::OptimizeNodes(ParGridFunction &x)
    if (myid == 0)
    {
       cout << "Min detJ after opt: " << min_detJ << endl;
+   }
+
+   if (vis)
+   {
+      socketstream vis;
+      common::VisualizeMesh(vis, "localhost", 19916, pmesh,
+                            "Final mesh", 800, 0, 400, 400, "me");
    }
 
    pmesh.SwapNodes(ptr_nodes, dont_own_nodes);
