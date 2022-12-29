@@ -1774,7 +1774,7 @@ IntegrationRule *IntegrationRules::CubeIntegrationRule(int Order)
 NURBSPatchRule::NURBSPatchRule(IntegrationRule *irx,
                                IntegrationRule *iry,
                                IntegrationRule *irz)
-   : dim(irz ? 3 : 2), npatches(0)
+   : npatches(0), dim(irz ? 3 : 2)
 {
    if (irz)
    {
@@ -1896,7 +1896,7 @@ void NURBSPatchRule::GetIntegrationPointFrom1D(const int patch, int i, int j,
 
 void NURBSPatchRule::SetPointToElement(Mesh const& mesh)
 {
-   if (pointToElem.size() == npatches) { return; }  // Already set
+   if ((int) pointToElem.size() == npatches) { return; }  // Already set
 
    MFEM_VERIFY(elementToRule.empty() && patchRules1D.NumRows() > 0
                && npatches > 0, "Assuming patchRules1D is set.");
@@ -1927,7 +1927,7 @@ void NURBSPatchRule::SetPointToElement(Mesh const& mesh)
 
       // For each patch, get the range of ijk.
       mesh.NURBSext->GetPatchKnotVectors(p, pkv);
-      MFEM_VERIFY(pkv.Size() == dim, "");
+      MFEM_VERIFY((int) pkv.Size() == dim, "");
 
       maxijk = 1;
       np = 1;
@@ -2003,7 +2003,7 @@ void NURBSPatchRule::SetPointToElement(Mesh const& mesh)
 void NURBSPatchRule::SetPatchRules1D(const int patch,
                                      std::vector<const IntegrationRule*> & ir1D)
 {
-   MFEM_VERIFY(ir1D.size() == dim, "Wrong dimension");
+   MFEM_VERIFY((int) ir1D.size() == dim, "Wrong dimension");
 
    for (int i=0; i<dim; ++i)
    {

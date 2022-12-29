@@ -2129,7 +2129,7 @@ private:
                      const Vector &c,
                      Vector &d);
 
-   void SetupPatchBasisData(Mesh *mesh, const int patch);
+   void SetupPatchBasisData(Mesh *mesh, unsigned int patch);
 
 public:
    /// Construct a diffusion integrator with coefficient Q = 1

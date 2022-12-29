@@ -3585,8 +3585,8 @@ void NNLS::NormalizeConstraints(DenseMatrix& matTrans, Vector& rhs_lb,
                                 Vector& rhs_ub)
 {
    // Scale everything so that rescaled half gap is the same for all constraints
-   const unsigned int n = matTrans.NumRows();
-   const unsigned int m = matTrans.NumCols();
+   const int n = matTrans.NumRows();
+   const int m = matTrans.NumCols();
 
    MFEM_VERIFY(rhs_lb.Size() == m && rhs_ub.Size() == m, "");
 
@@ -3686,7 +3686,6 @@ void NNLS::Solve(const DenseMatrix& matTrans, const Vector& rhs_lb,
    int n_total_inner_iter = 0;
    int i_qr_start;
    int n_update;
-   unsigned int iiter;
    // 0 = converged; 1 = maximum iterations reached;
    // 2 = NNLS stalled (no change in residual for many iterations)
    int exit_flag = 1;
@@ -3714,7 +3713,7 @@ void NNLS::Solve(const DenseMatrix& matTrans, const Vector& rhs_lb,
    double rmax = 0.0;
    double mumax = 0.0;
 
-   for (unsigned int oiter = 0; oiter < n_outer_; ++oiter)
+   for (int oiter = 0; oiter < n_outer_; ++oiter)
    {
       stalledFlag = 0;
 
@@ -3874,7 +3873,7 @@ void NNLS::Solve(const DenseMatrix& matTrans, const Vector& rhs_lb,
          fflush(stdout);
       }
 
-      for (iiter = 0; iiter < n_inner_; ++iiter)
+      for (int iiter = 0; iiter < n_inner_; ++iiter)
       {
          ++n_total_inner_iter;
 
@@ -4213,8 +4212,6 @@ void NNLS::Solve(const DenseMatrix& matTrans, const Vector& rhs_lb,
 
             {
                // Copy mat_0.cols[ind_zero+1,n_glob) to mat_qr.cols[ind_zero,n_glob-1)
-               int ind_zero_f = ind_zero + 1; // FORTRAN index
-
                // TODO: is it necessary to copy first to mat_qr_data?
                for (int i=0; i<m; ++i)
                   for (int j=ind_zero; j<n_glob-1; ++j)
@@ -4258,7 +4255,6 @@ void NNLS::Solve(const DenseMatrix& matTrans, const Vector& rhs_lb,
       // Check if we have stalled
       if (stalledFlag == 1)
       {
-         iiter = 1;
          --n_glob;
          {
             --n_nz_ind;

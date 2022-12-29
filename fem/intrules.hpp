@@ -277,8 +277,8 @@ class NURBSPatchRule
 public:
    /// Construct a rule for each patch, using SetPatchRule.
    NURBSPatchRule(const int numPatches, const int dim_) :
-      patchRule(numPatches), patchRules1D(numPatches, dim_), dim(dim_),
-      npatches(numPatches)
+      patchRule(numPatches), patchRules1D(numPatches, dim_),
+      npatches(numPatches), dim(dim_)
    {
       patchRule = nullptr;
    }
