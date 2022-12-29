@@ -1199,6 +1199,7 @@ public:
 };
 #endif // MFEM_USE_MPI
 
+#ifdef MFEM_USE_LAPACK
 /** Non-negative least squares (NNLS) solver class, for computing a vector
     with non-negative entries approximately satisfying an under-determined
     linear system. */
@@ -1288,6 +1289,7 @@ private:
    bool normalize_const_;
    bool QR_reduce_const_;
 };
+#endif // MFEM_USE_LAPACK
 
 }
 
