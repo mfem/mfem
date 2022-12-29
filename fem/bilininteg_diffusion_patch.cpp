@@ -441,8 +441,7 @@ void DiffusionIntegrator::SetupPatchPA(const int patch, const int dim,
       coeff.SetSize(1);
       coeff(0) = cQ->constant;
    }
-   else if (QuadratureFunctionCoefficient* qfQ =
-               dynamic_cast<QuadratureFunctionCoefficient*>(Q))
+   else if (dynamic_cast<QuadratureFunctionCoefficient*>(Q))
    {
       MFEM_ABORT("QuadratureFunction not supported yet\n");
    }
@@ -1060,7 +1059,6 @@ void DiffusionIntegrator::AssemblePatchMatrix_fullQuadrature(
             {
                for (int dx = minDD[0][jdx]; dx <= maxDD[0][jdx]; ++dx)
                {
-                  const int row = dx + (D1D[0] * (dy + (D1D[1] * dz)));
                   const double v = (gradDXY(dx,dy,0) * wz) +
                                    (gradDXY(dx,dy,1) * wz) +
                                    (gradDXY(dx,dy,2) * wDz);
@@ -1086,7 +1084,7 @@ void DiffusionIntegrator::AssemblePatchMatrix_fullQuadrature(
    smat = new SparseMatrix(smati, smatj, smata, ndof, ndof);
 }
 
-void DiffusionIntegrator::SetupPatchBasisData(Mesh *mesh, const int patch)
+void DiffusionIntegrator::SetupPatchBasisData(Mesh *mesh, unsigned int patch)
 {
    MFEM_VERIFY(pB.size() == patch && pG.size() == patch, "");
    MFEM_VERIFY(pQ1D.size() == patch && pD1D.size() == patch, "");
@@ -1466,7 +1464,6 @@ void DiffusionIntegrator::AssemblePatchMatrix_reducedQuadrature(
                      for (int dx = minQ[0][qx]; dx <= maxQ[0][qx]; ++dx)
                      {
                         const double wx  = B[0](qx,dx);
-                        const double wDx = G[0](qx,dx);
                         if (yquad == 1)
                         {
                            gradDX(dx,1) += gY * wx * xw;

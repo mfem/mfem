@@ -1776,14 +1776,6 @@ void DiffusionIntegrator::AddMultPatchPA_inefficient(const int patch,
    const std::vector<Array2D<double>>& B = pB[patch];
    const std::vector<Array2D<double>>& G = pG[patch];
 
-   const std::vector<std::vector<int>>& minD = pminD[patch];
-   const std::vector<std::vector<int>>& maxD = pmaxD[patch];
-   const std::vector<std::vector<int>>& minQ = pminQ[patch];
-   const std::vector<std::vector<int>>& maxQ = pmaxQ[patch];
-
-   const std::vector<std::vector<int>>& minDD = pminDD[patch];
-   const std::vector<std::vector<int>>& maxDD = pmaxDD[patch];
-
    auto X = Reshape(x.Read(), D1D[0], D1D[1], D1D[2]);
    auto Y = Reshape(y.ReadWrite(), D1D[0], D1D[1], D1D[2]);
 
@@ -1979,9 +1971,6 @@ void DiffusionIntegrator::AddMultPatchPA(const int patch, const Vector &x,
    const std::vector<std::vector<int>>& maxD = pmaxD[patch];
    const std::vector<std::vector<int>>& minQ = pminQ[patch];
    const std::vector<std::vector<int>>& maxQ = pmaxQ[patch];
-
-   const std::vector<std::vector<int>>& minDD = pminDD[patch];
-   const std::vector<std::vector<int>>& maxDD = pmaxDD[patch];
 
    auto X = Reshape(x.Read(), D1D[0], D1D[1], D1D[2]);
    auto Y = Reshape(y.ReadWrite(), D1D[0], D1D[1], D1D[2]);

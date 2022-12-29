@@ -30,14 +30,14 @@ protected:
    const IntegrationRule *IntRule;
    NURBSPatchRule *patchRule = nullptr;
 
+   // CEED extension
+   ceed::Operator* ceedOp;
+
    // If true, integration is patch-wise rather than element-wise.
    bool patchwise;
 
    // If true, use approximate reduced integration rules.
    bool reducedRule;
-
-   // CEED extension
-   ceed::Operator* ceedOp;
 
    MemoryType pa_mt = MemoryType::DEFAULT;
 

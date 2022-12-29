@@ -1267,25 +1267,26 @@ public:
                              Vector& rhs_ub);
 
 private:
-   unsigned int n_outer_;
-   unsigned int n_inner_;
-   double zero_tol_;
    double const_tol_;
+   int min_nnz_; // minimum number of nonzero entries
+   int max_nnz_; // maximum number of nonzero entries
    int verbosity_;
-   unsigned int min_nnz_; // minimum number of nonzero entries
-   unsigned int max_nnz_; // maximum number of nonzero entries
 
    /**
     * @brief Threshold on relative change in residual over nStallCheck iterations
     * for stall sensing.
     */
    double res_change_termination_tol_;
+
+   double zero_tol_;
+   int n_outer_;
+   int n_inner_;
    int nStallCheck;
 
-   bool normalize_const_;
-   bool QR_reduce_const_;
    bool NNLS_qrres_on_;
    QRresidualMode qr_residual_mode_;
+   bool normalize_const_;
+   bool QR_reduce_const_;
 };
 
 }
