@@ -1224,8 +1224,8 @@ protected:
  * This is mostly for testing and debugging purposes.
  * 
  * [TODO: update me] Using a Cholesky direct linear solver such
- * as MA57, Pardiso, WSMP, etc.Cholmod would do it. LU or symmetric
- * indefinite direct solvers OK.
+ * as Cholmod would do it. LU or symmetric indefinite direct 
+ * solvers OK.
  * 
  */
 class ContactLinearSolverCondensendDirect : public ContactLinearSolverCondensed
