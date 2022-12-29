@@ -3924,6 +3924,7 @@ void NNLS::Solve(const DenseMatrix& matTrans, const Vector& rhs_lb,
                     work.data(), &lwork, &info);
             MFEM_VERIFY(info == 0, ""); // QR update factorization work calc
             lwork = static_cast<int>(work[0]);
+            if (lwork == 0) { lwork = 1; }
             work.resize(lwork);
             dgeqrf_(&m_update, &n_update,
                     submat_data.GetData(), &m_update, sub_tau.GetData(),
