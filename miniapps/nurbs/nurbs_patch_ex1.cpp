@@ -158,7 +158,7 @@ int main(int argc, char *argv[])
    //    domain integrator.
 
    DiffusionIntegrator *di = new DiffusionIntegrator(one, nullptr, patchAssembly,
-                                                     reducedIntegration);
+                                                     reducedIntegration && !pa);
 
    NURBSPatchRule *patchRule = nullptr;
    if (order < 0)

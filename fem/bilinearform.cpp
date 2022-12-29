@@ -488,12 +488,17 @@ void BilinearForm::Assemble(int skip_zeros)
       {
          for (int p=0; p<mesh->NURBSext->GetNP(); ++p)
          {
-            fes->GetPatchVDofs(p, vdofs);
-
+            bool vdofsSet = false;
             for (int k = 0; k < domain_integs.Size(); k++)
             {
                if (domain_integs[k]->Patchwise())
                {
+                  if (!vdofsSet)
+                  {
+                     fes->GetPatchVDofs(p, vdofs);
+                     vdofsSet = true;
+                  }
+
                   SparseMatrix* spmat = nullptr;
                   domain_integs[k]->AssemblePatchMatrix(p, mesh, spmat);
                   Array<int> cols;
