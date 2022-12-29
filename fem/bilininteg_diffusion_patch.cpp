@@ -145,6 +145,9 @@ void DiffusionIntegrator::SetupPatch3D(const int Q1Dx,
 
 void SolveNNLS(DenseMatrix & Gt, Vector const& w, Vector & sol)
 {
+#ifndef MFEM_USE_LAPACK
+   MFEM_ABORT("MFEM must be built with LAPACK in order to use NNLS");
+#else
    NNLS nnls;
    nnls.SetVerbosity(2);
 
@@ -187,6 +190,7 @@ void SolveNNLS(DenseMatrix & Gt, Vector const& w, Vector & sol)
    const double relNorm = res.Norml2() / std::max(normGsol, normRHS);
    mfem::out << "Relative residual norm for MFEM NNLS solution of Gs = Gw: "
              << relNorm << endl;
+#endif
 }
 
 void GetReducedRule(const int nq, const int nd,

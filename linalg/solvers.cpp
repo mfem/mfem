@@ -3549,8 +3549,6 @@ dgemv_(char *, int *, int *, double *, double *, int *, double *, int *,
 extern "C" void
 dtrsm_(char *side, char *uplo, char *transa, char *diag, int *m, int *n,
        double *alpha, double *a, int *lda, double *b, int *ldb);
-#endif // MFEM_USE_LAPACK
-
 
 NNLS::NNLS(double const_tol, int min_nnz, int max_nnz, int verbosity,
            double res_change_termination_tol, double zero_tol, int n_outer,
@@ -3619,9 +3617,6 @@ void NNLS::NormalizeConstraints(DenseMatrix& matTrans, Vector& rhs_lb,
 void NNLS::Solve(const DenseMatrix& matTrans, const Vector& rhs_lb,
                  const Vector& rhs_ub, Vector& soln)
 {
-#ifndef MFEM_USE_LAPACK
-   MFEM_ABORT("MFEM must be built with LAPACK in order to use NNLS::Solve");
-#else
    int n = matTrans.NumRows();
    int m = matTrans.NumCols();
 
@@ -4341,8 +4336,7 @@ void NNLS::Solve(const DenseMatrix& matTrans, const Vector& rhs_lb,
       }
       fflush(stdout);
    }
-
-#endif
 }
+#endif // MFEM_USE_LAPACK
 
 }
