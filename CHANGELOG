@@ -20,7 +20,10 @@ Meshing improvements
 
 Discretization improvements
 ---------------------------
-- TBD
+- Added support for partial assembly on NURBS patches and NURBS patch sparse
+  matrix assembly. Patch matrix assembly includes the option to use reduced
+  approximate integration rules, computed by the newly implemented non-negative
+  least-squares (NNLS) solver.
 
 Linear and nonlinear solvers
 ----------------------------
