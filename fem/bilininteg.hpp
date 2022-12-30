@@ -2117,17 +2117,7 @@ private:
        pmaxDD;
    std::vector<Array<const IntegrationRule*>> pir1d;
 
-   void SetupPatchPA(const int patch, const int dim, Mesh *mesh,
-                     bool unitWeights=false);
-
-   void SetupPatch3D(const int Q1Dx,
-                     const int Q1Dy,
-                     const int Q1Dz,
-                     const int coeffDim,
-                     const Array<double> &w,
-                     const Vector &j,
-                     const Vector &c,
-                     Vector &d);
+   void SetupPatchPA(const int patch, Mesh *mesh, bool unitWeights=false);
 
    void SetupPatchBasisData(Mesh *mesh, unsigned int patch);
 

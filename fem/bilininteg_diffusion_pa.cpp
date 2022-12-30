@@ -430,7 +430,7 @@ void DiffusionIntegrator::AssemblePatchPA(const int patch,
    Mesh *mesh = fes.GetMesh();
    SetupPatchBasisData(mesh, patch);
 
-   SetupPatchPA(patch, dim, mesh);  // For full quadrature, unitWeights = false
+   SetupPatchPA(patch, mesh);  // For full quadrature, unitWeights = false
 }
 
 template<int T_D1D = 0, int T_Q1D = 0>
@@ -1868,23 +1868,23 @@ void DiffusionIntegrator::AddMultPatchPA_inefficient(const int patch,
          for (int qx = 0; qx < Q1D[0]; ++qx)
          {
             const int q = qx + ((qy + (qz * Q1D[1])) * Q1D[0]);
-            const double O11 = qd(q,0);
-            const double O12 = qd(q,1);
-            const double O13 = qd(q,2);
-            const double O21 = symmetric ? O12 : qd(q,3);
-            const double O22 = symmetric ? qd(q,3) : qd(q,4);
-            const double O23 = symmetric ? qd(q,4) : qd(q,5);
-            const double O31 = symmetric ? O13 : qd(q,6);
-            const double O32 = symmetric ? O23 : qd(q,7);
-            const double O33 = symmetric ? qd(q,5) : qd(q,8);
+            const double O00 = qd(q,0);
+            const double O01 = qd(q,1);
+            const double O02 = qd(q,2);
+            const double O10 = symmetric ? O01 : qd(q,3);
+            const double O11 = symmetric ? qd(q,3) : qd(q,4);
+            const double O12 = symmetric ? qd(q,4) : qd(q,5);
+            const double O20 = symmetric ? O02 : qd(q,6);
+            const double O21 = symmetric ? O12 : qd(q,7);
+            const double O22 = symmetric ? qd(q,5) : qd(q,8);
 
-            const double gradX = grad[0](qx,qy,qz);
-            const double gradY = grad[1](qx,qy,qz);
-            const double gradZ = grad[2](qx,qy,qz);
+            const double grad0 = grad[0](qx,qy,qz);
+            const double grad1 = grad[1](qx,qy,qz);
+            const double grad2 = grad[2](qx,qy,qz);
 
-            grad[0](qx,qy,qz) = (O11*gradX)+(O12*gradY)+(O13*gradZ);
-            grad[1](qx,qy,qz) = (O21*gradX)+(O22*gradY)+(O23*gradZ);
-            grad[2](qx,qy,qz) = (O31*gradX)+(O32*gradY)+(O33*gradZ);
+            grad[0](qx,qy,qz) = (O00*grad0)+(O01*grad1)+(O02*grad2);
+            grad[1](qx,qy,qz) = (O10*grad0)+(O11*grad1)+(O12*grad2);
+            grad[2](qx,qy,qz) = (O20*grad0)+(O21*grad1)+(O22*grad2);
          } // qx
       } // qy
    } // qz
@@ -2066,23 +2066,23 @@ void DiffusionIntegrator::AddMultPatchPA(const int patch, const Vector &x,
          for (int qx = 0; qx < Q1D[0]; ++qx)
          {
             const int q = qx + ((qy + (qz * Q1D[1])) * Q1D[0]);
-            const double O11 = qd(q,0);
-            const double O12 = qd(q,1);
-            const double O13 = qd(q,2);
-            const double O21 = symmetric ? O12 : qd(q,3);
-            const double O22 = symmetric ? qd(q,3) : qd(q,4);
-            const double O23 = symmetric ? qd(q,4) : qd(q,5);
-            const double O31 = symmetric ? O13 : qd(q,6);
-            const double O32 = symmetric ? O23 : qd(q,7);
-            const double O33 = symmetric ? qd(q,5) : qd(q,8);
+            const double O00 = qd(q,0);
+            const double O01 = qd(q,1);
+            const double O02 = qd(q,2);
+            const double O10 = symmetric ? O01 : qd(q,3);
+            const double O11 = symmetric ? qd(q,3) : qd(q,4);
+            const double O12 = symmetric ? qd(q,4) : qd(q,5);
+            const double O20 = symmetric ? O02 : qd(q,6);
+            const double O21 = symmetric ? O12 : qd(q,7);
+            const double O22 = symmetric ? qd(q,5) : qd(q,8);
 
-            const double gradX = grad[0](qx,qy,qz);
-            const double gradY = grad[1](qx,qy,qz);
-            const double gradZ = grad[2](qx,qy,qz);
+            const double grad0 = grad[0](qx,qy,qz);
+            const double grad1 = grad[1](qx,qy,qz);
+            const double grad2 = grad[2](qx,qy,qz);
 
-            grad[0](qx,qy,qz) = (O11*gradX)+(O12*gradY)+(O13*gradZ);
-            grad[1](qx,qy,qz) = (O21*gradX)+(O22*gradY)+(O23*gradZ);
-            grad[2](qx,qy,qz) = (O31*gradX)+(O32*gradY)+(O33*gradZ);
+            grad[0](qx,qy,qz) = (O00*grad0)+(O01*grad1)+(O02*grad2);
+            grad[1](qx,qy,qz) = (O10*grad0)+(O11*grad1)+(O12*grad2);
+            grad[2](qx,qy,qz) = (O20*grad0)+(O21*grad1)+(O22*grad2);
          } // qx
       } // qy
    } // qz

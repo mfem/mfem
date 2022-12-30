@@ -23,14 +23,15 @@ namespace mfem
 {
 
 // Adapted from PADiffusionSetup3D
-void DiffusionIntegrator::SetupPatch3D(const int Q1Dx,
-                                       const int Q1Dy,
-                                       const int Q1Dz,
-                                       const int coeffDim,
-                                       const Array<double> &w,
-                                       const Vector &j,
-                                       const Vector &c,
-                                       Vector &d)
+void SetupPatch3D(const int Q1Dx,
+                  const int Q1Dy,
+                  const int Q1Dz,
+                  const int coeffDim,
+                  const bool symmetric,
+                  const Array<double> &w,
+                  const Vector &j,
+                  const Vector &c,
+                  Vector &d)
 {
    const bool const_c = (c.Size() == 1);
    MFEM_VERIFY(coeffDim < 6 ||
@@ -280,8 +281,8 @@ void GetReducedRule(const int nq, const int nd,
 }
 
 // Adapted from AssemblePA
-void DiffusionIntegrator::SetupPatchPA(const int patch, const int dim,
-                                       Mesh *mesh, bool unitWeights)
+void DiffusionIntegrator::SetupPatchPA(const int patch, Mesh *mesh,
+                                       bool unitWeights)
 {
    const Array<int>& Q1D = pQ1D[patch];
    const Array<int>& D1D = pD1D[patch];
@@ -475,7 +476,8 @@ void DiffusionIntegrator::SetupPatchPA(const int patch, const int dim,
       weights = 1.0;
    }
 
-   SetupPatch3D(Q1D[0], Q1D[1], Q1D[2], coeffDim, weights, jac, coeff, pa_data);
+   SetupPatch3D(Q1D[0], Q1D[1], Q1D[2], coeffDim, symmetric, weights, jac,
+                coeff, pa_data);
 
    numPatches = mesh->NURBSext->GetNP();
 
@@ -554,8 +556,6 @@ void DiffusionIntegrator::AssemblePatchMatrix_simpleButInefficient(
    Array<int> Q1D(dim);
    Array<int> orders(dim);
    Array<int> D1D(dim);
-   std::vector<Vector> shape(dim);
-   std::vector<Vector> dshape(dim);
    std::vector<Array2D<double>> B(dim);
    std::vector<Array2D<double>> G(dim);
    Array<const IntegrationRule*> ir1d(dim);
@@ -568,8 +568,9 @@ void DiffusionIntegrator::AssemblePatchMatrix_simpleButInefficient(
 
       orders[d] = pkv[d]->GetOrder();
       D1D[d] = mesh->NURBSext->NumPatchDofs1D(patch,d);
-      shape[d].SetSize(orders[d]+1);
-      dshape[d].SetSize(orders[d]+1);
+
+      Vector shapeKV(orders[d]+1);
+      Vector dshapeKV(orders[d]+1);
 
       B[d].SetSize(Q1D[d], D1D[d]);
       G[d].SetSize(Q1D[d], D1D[d]);
@@ -597,16 +598,16 @@ void DiffusionIntegrator::AssemblePatchMatrix_simpleButInefficient(
 
          MFEM_VERIFY(kv1 > kv0, "");
 
-         pkv[d]->CalcShape(shape[d], ijk, (ip.x - kv0) / (kv1 - kv0));
-         pkv[d]->CalcDShape(dshape[d], ijk, (ip.x - kv0) / (kv1 - kv0));
+         pkv[d]->CalcShape(shapeKV, ijk, (ip.x - kv0) / (kv1 - kv0));
+         pkv[d]->CalcDShape(dshapeKV, ijk, (ip.x - kv0) / (kv1 - kv0));
 
-         // Put shape into array B storing shapes for all points.
+         // Put shapeKV into array B storing shapes for all points.
          // TODO: This should be based on NURBS3DFiniteElement::CalcShape and CalcDShape.
          // For now, it works under the assumption that all NURBS weights are 1.
          for (int j=0; j<orders[d]+1; ++j)
          {
-            B[d](i,ijk + j) = shape[d][j];
-            G[d](i,ijk + j) = dshape[d][j];
+            B[d](i,ijk + j) = shapeKV[j];
+            G[d](i,ijk + j) = dshapeKV[j];
          }
       }
    }
@@ -625,7 +626,7 @@ void DiffusionIntegrator::AssemblePatchMatrix_simpleButInefficient(
    // For each point in patchRule, get the corresponding element and element
    // reference point, in order to use element transformations. This requires
    // data set up in NURBSPatchRule::SetPointToElement.
-   SetupPatchPA(patch, dim, mesh);
+   SetupPatchPA(patch, mesh);
 
    const auto qd = Reshape(pa_data.Read(), Q1D[0]*Q1D[1]*Q1D[2],
                            (symmetric ? 6 : 9));
@@ -847,7 +848,7 @@ void DiffusionIntegrator::AssemblePatchMatrix_fullQuadrature(
 
    SetupPatchBasisData(mesh, patch);
 
-   SetupPatchPA(patch, dim, mesh);
+   SetupPatchPA(patch, mesh);
 
    const Array<int>& Q1D = pQ1D[patch];
    const Array<int>& D1D = pD1D[patch];
@@ -1105,8 +1106,6 @@ void DiffusionIntegrator::SetupPatchBasisData(Mesh *mesh, unsigned int patch)
    Array<int> Q1D(dim);
    Array<int> orders(dim);
    Array<int> D1D(dim);
-   std::vector<Vector> shape(dim);
-   std::vector<Vector> dshape(dim);
    std::vector<Array2D<double>> B(dim);
    std::vector<Array2D<double>> G(dim);
    Array<const IntegrationRule*> ir1d(dim);
@@ -1127,8 +1126,9 @@ void DiffusionIntegrator::SetupPatchBasisData(Mesh *mesh, unsigned int patch)
 
       orders[d] = pkv[d]->GetOrder();
       D1D[d] = mesh->NURBSext->NumPatchDofs1D(patch,d);
-      shape[d].SetSize(orders[d]+1);
-      dshape[d].SetSize(orders[d]+1);
+
+      Vector shapeKV(orders[d]+1);
+      Vector dshapeKV(orders[d]+1);
 
       B[d].SetSize(Q1D[d], D1D[d]);
       G[d].SetSize(Q1D[d], D1D[d]);
@@ -1162,16 +1162,16 @@ void DiffusionIntegrator::SetupPatchBasisData(Mesh *mesh, unsigned int patch)
 
          MFEM_VERIFY(kv1 > kv0, "");
 
-         pkv[d]->CalcShape(shape[d], ijk, (ip.x - kv0) / (kv1 - kv0));
-         pkv[d]->CalcDShape(dshape[d], ijk, (ip.x - kv0) / (kv1 - kv0));
+         pkv[d]->CalcShape(shapeKV, ijk, (ip.x - kv0) / (kv1 - kv0));
+         pkv[d]->CalcDShape(dshapeKV, ijk, (ip.x - kv0) / (kv1 - kv0));
 
-         // Put shape into array B storing shapes for all points.
+         // Put shapeKV into array B storing shapes for all points.
          // TODO: This should be based on NURBS3DFiniteElement::CalcShape and CalcDShape.
          // For now, it works under the assumption that all NURBS weights are 1.
          for (int j=0; j<orders[d]+1; ++j)
          {
-            B[d](i,ijk + j) = shape[d][j];
-            G[d](i,ijk + j) = dshape[d][j];
+            B[d](i,ijk + j) = shapeKV[j];
+            G[d](i,ijk + j) = dshapeKV[j];
 
             minD[d][ijk + j] = std::min(minD[d][ijk + j], i);
             maxD[d][ijk + j] = std::max(maxD[d][ijk + j], i);
@@ -1250,7 +1250,7 @@ void DiffusionIntegrator::AssemblePatchMatrix_reducedQuadrature(
    // For each point in patchRule, get the corresponding element and element
    // reference point, in order to use element transformations. This requires
    // data set up in NURBSPatchRule::SetPointToElement.
-   SetupPatchPA(patch, dim, mesh, true);
+   SetupPatchPA(patch, mesh, true);
 
    const Array<int>& Q1D = pQ1D[patch];
    const Array<int>& D1D = pD1D[patch];
