@@ -4181,7 +4181,6 @@ void NNLS::Solve(const DenseMatrix& matTrans, const Vector& rhs_lb,
 
             {
                // Copy mat_0.cols[ind_zero+1,n_glob) to mat_qr.cols[ind_zero,n_glob-1)
-               // TODO: is it necessary to copy first to mat_qr_data?
                for (int i=0; i<m; ++i)
                   for (int j=ind_zero; j<n_glob-1; ++j)
                   {

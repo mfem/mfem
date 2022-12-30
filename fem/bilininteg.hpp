@@ -2107,7 +2107,6 @@ private:
    bool symmetric = true; ///< False if using a nonsymmetric matrix coefficient
 
    // Data for NURBS patch PA
-   // TODO: put this in a struct?
    int numPatches = 0;
    std::vector<std::vector<std::vector<std::vector<Vector>>>> reducedWeights;
    std::vector<std::vector<std::vector<std::vector<std::vector<int>>>>> reducedIDs;
