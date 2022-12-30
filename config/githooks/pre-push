@@ -98,7 +98,7 @@ fi
 
 # branch-history
 if [[ "${option}" == "--history" || "${option}" == "" ]]; then
-  git fetch origin master:master
+  git fetch origin main:main
   cd tests/scripts
   if ! ./runtest branch-history; then code=1; fi
   cd -
