@@ -3696,13 +3696,7 @@ void NNLS::Solve(const DenseMatrix& matTrans, const Vector& rhs_lb,
    {
       Vector tmp(n);
       matTrans.Mult(rhs_halfgap_glob, tmp);
-      double maxv = tmp(0);
-      for (int i=1; i<n; ++i)
-      {
-         maxv = std::max(maxv, tmp(i));
-      }
-
-      mu_tol = 1.0e-15 * maxv;
+      mu_tol = 1.0e-15 * tmp.Max();
    }
 
    double rmax = 0.0;
@@ -3722,16 +3716,15 @@ void NNLS::Solve(const DenseMatrix& matTrans, const Vector& rhs_lb,
 
       if (verbosity_ > 1)
       {
-         printf("%d %d %d %d %d %.15e %.15e\n", oiter, n_total_inner_iter,
-                m, n, n_glob, rmax, l2_res_hist[oiter]);
-         fflush(stdout);
+         mfem::out << oiter << " " << n_total_inner_iter << " " << m << " "
+                   << n << " " << n_glob << " " << rmax << " "
+                   << l2_res_hist[oiter] << endl;
       }
       if (rmax <= const_tol_ && n_glob >= min_nnz_cap)
       {
          if (verbosity_ > 1)
          {
-            printf("target tolerance met\n");
-            fflush(stdout);
+            mfem::out << "Target tolerance met" << endl;
          }
          exit_flag = 0;
          break;
@@ -3741,8 +3734,7 @@ void NNLS::Solve(const DenseMatrix& matTrans, const Vector& rhs_lb,
       {
          if (verbosity_ > 1)
          {
-            printf("target nnz met\n");
-            fflush(stdout);
+            mfem::out << "Target nnz met" << endl;
          }
          exit_flag = 0;
          break;
@@ -3752,8 +3744,7 @@ void NNLS::Solve(const DenseMatrix& matTrans, const Vector& rhs_lb,
       {
          if (verbosity_ > 1)
          {
-            printf("system is square... exiting\n");
-            fflush(stdout);
+            mfem::out << "System is square... exiting" << endl;
          }
          exit_flag = 3;
          break;
@@ -3775,8 +3766,7 @@ void NNLS::Solve(const DenseMatrix& matTrans, const Vector& rhs_lb,
          {
             if (verbosity_ > 1)
             {
-               printf("NNLS stall detected... exiting\n");
-               fflush(stdout);
+               mfem::out << "NNLS stall detected... exiting" << endl;
             }
             exit_flag = 2;
             break;
@@ -3795,11 +3785,7 @@ void NNLS::Solve(const DenseMatrix& matTrans, const Vector& rhs_lb,
          mu(stalled_indices[i]) = 0.0;
       }
 
-      mumax = mu(0);
-      for (int i=1; i<n; ++i)
-      {
-         mumax = std::max(mumax, mu(i));
-      }
+      mumax = mu.Max();
 
       if (mumax < mu_tol)
       {
@@ -3822,11 +3808,7 @@ void NNLS::Solve(const DenseMatrix& matTrans, const Vector& rhs_lb,
                mu(nz_ind[i]) = 0.0;
             }
 
-            mumax = mu(0);
-            for (int i=1; i<n; ++i)
-            {
-               mumax = std::max(mumax, mu(i));
-            }
+            mumax = mu.Max();
          }
       }
 
@@ -3849,8 +3831,7 @@ void NNLS::Solve(const DenseMatrix& matTrans, const Vector& rhs_lb,
 
       if (verbosity_ > 2)
       {
-         printf("found next index: %d %.15e\n", imax, mumax);
-         fflush(stdout);
+         mfem::out << "Found next index: " << imax << " " << mumax << endl;
       }
 
       for (int i=0; i<m; ++i)
@@ -3864,8 +3845,7 @@ void NNLS::Solve(const DenseMatrix& matTrans, const Vector& rhs_lb,
 
       if (verbosity_ > 2)
       {
-         printf("updated matrix with new index\n");
-         fflush(stdout);
+         mfem::out << "Updated matrix with new index" << endl;
       }
 
       for (int iiter = 0; iiter < n_inner_; ++iiter)
@@ -3965,8 +3945,7 @@ void NNLS::Solve(const DenseMatrix& matTrans, const Vector& rhs_lb,
 
          if (verbosity_ > 2)
          {
-            printf("updated QR %d\n", iiter);
-            fflush(stdout);
+            mfem::out << "Updated QR " << iiter << endl;
          }
 
          // Apply Householder reflectors to compute Q^T b
@@ -4028,8 +4007,7 @@ void NNLS::Solve(const DenseMatrix& matTrans, const Vector& rhs_lb,
 
          if (verbosity_ > 2)
          {
-            printf("updated rhs %d\n", iiter);
-            fflush(stdout);
+            mfem::out << "Updated rhs " << iiter << endl;
          }
 
          // Apply R^{-1}; first n_glob entries of vec1 are overwritten
@@ -4043,8 +4021,7 @@ void NNLS::Solve(const DenseMatrix& matTrans, const Vector& rhs_lb,
 
          if (verbosity_ > 2)
          {
-            printf("solved triangular system %d\n", iiter);
-            fflush(stdout);
+            mfem::out << "Solved triangular system " << iiter << endl;
          }
 
          // Check if all entries are positive
@@ -4072,15 +4049,14 @@ void NNLS::Solve(const DenseMatrix& matTrans, const Vector& rhs_lb,
 
          if (verbosity_ > 2)
          {
-            printf("start pruning %d\n", iiter);
+            mfem::out << "Start pruning " << iiter << endl;
             for (int i = 0; i < n_glob; ++i)
             {
                if (soln_nz_glob_up(i) <= zero_tol_)
                {
-                  printf("%d %d %.6e\n", i, n_glob, soln_nz_glob_up(i));
+                  mfem::out << i << " " << n_glob << " " << soln_nz_glob_up(i) << endl;
                }
             }
-            fflush(stdout);
          }
 
          if (soln_nz_glob_up(n_glob - 1) <= zero_tol_)
@@ -4090,13 +4066,15 @@ void NNLS::Solve(const DenseMatrix& matTrans, const Vector& rhs_lb,
             {
                if (qr_residual_mode_ == QRresidualMode::hybrid)
                {
-                  printf("Detected stall due to adding and removing same column. Switching to QR residual calculation method.\n");
+                  mfem::out << "Detected stall due to adding and removing same "
+                            << "column. Switching to QR residual calculation "
+                            << "method." << endl;
                }
                else
                {
-                  printf("Detected stall due to adding and removing same column. Exiting now.\n");
+                  mfem::out << "Detected stall due to adding and removing same"
+                            << " column. Exiting now." << endl;
                }
-               fflush(stdout);
             }
          }
 
@@ -4143,10 +4121,6 @@ void NNLS::Solve(const DenseMatrix& matTrans, const Vector& rhs_lb,
                   index_min = i;
                }
             }
-
-            // TODO: there are many max/min computations. Refactor by
-            // implementing functions for this in Vector? Also for
-            // min/max index.
 
             alpha = soln_nz_glob(index_min)/(soln_nz_glob(index_min)
                                              - soln_nz_glob_up(index_min));
@@ -4242,8 +4216,7 @@ void NNLS::Solve(const DenseMatrix& matTrans, const Vector& rhs_lb,
 
          if (verbosity_ > 2)
          {
-            printf("finished pruning %d\n", iiter);
-            fflush(stdout);
+            mfem::out << "Finished pruning " << iiter << endl;
          }
       } // End of inner loop
 
@@ -4251,17 +4224,14 @@ void NNLS::Solve(const DenseMatrix& matTrans, const Vector& rhs_lb,
       if (stalledFlag == 1)
       {
          --n_glob;
+         --n_nz_ind;
+         num_stalled = stalled_indices.size();
+         stalled_indices.resize(num_stalled + 1);
+         stalled_indices[num_stalled] = imax;
+         if (verbosity_ > 2)
          {
-            --n_nz_ind;
-            num_stalled = stalled_indices.size();
-            stalled_indices.resize(num_stalled + 1);
-            stalled_indices[num_stalled] = imax;
-            if (verbosity_ > 2)
-            {
-               mfem::out << "Adding index " << imax
-                         << " to stalled index list of size " << num_stalled
-                         << endl;
-            }
+            mfem::out << "Adding index " << imax << " to stalled index list "
+                      << "of size " << num_stalled << endl;
          }
       }
 
@@ -4304,8 +4274,7 @@ void NNLS::Solve(const DenseMatrix& matTrans, const Vector& rhs_lb,
 
       if (verbosity_ > 2)
       {
-         printf("computed residual\n");
-         fflush(stdout);
+         mfem::out << "Computed residual" << endl;
       }
 
       ++n_outer_iter;
@@ -4321,20 +4290,21 @@ void NNLS::Solve(const DenseMatrix& matTrans, const Vector& rhs_lb,
 
    if (verbosity_ > 0)
    {
-      printf("NNLS solver: m = %d, n = %d, outer_iter = %d, inner_iter = %d", m,
-             n, n_outer_iter, n_total_inner_iter);
+      mfem::out << "NNLS solver: m = " << m << ", n = " << n
+                << ", outer_iter = " << n_outer_iter << ", inner_iter = "
+                << n_total_inner_iter;
+
       if (exit_flag == 0)
       {
-         printf(": converged\n");
+         mfem::out << ": converged" << endl;
       }
       else
       {
-         printf("\n");
-         printf("Warning: NNLS unconverged. Stalled = %d\n", exit_flag == 2);
-         printf("resErr = %.8e vs tol = %.8e; mumax = %.6e vs tol = %.6e\n",
-                rmax, const_tol_, mumax, mu_tol);
+         mfem::out << endl << "Warning: NNLS unconverged. Stalled = "
+                   << (exit_flag == 2) << endl;
+         mfem::out << "resErr = " << rmax << " vs tol = " << const_tol_
+                   << "; mumax = " << mumax << " vs tol = " << mu_tol << endl;
       }
-      fflush(stdout);
    }
 }
 #endif // MFEM_USE_LAPACK

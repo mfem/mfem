@@ -13,6 +13,10 @@ add_mfem_miniapp(nurbs_ex1
   MAIN nurbs_ex1.cpp
   LIBRARIES mfem)
 
+add_mfem_miniapp(nurbs_patch_ex1
+  MAIN nurbs_patch_ex1.cpp
+  LIBRARIES mfem)
+
 if (MFEM_ENABLE_TESTING)
   add_test(NAME nurbs_ex1_r0_o4_ser
     COMMAND $<TARGET_FILE:nurbs_ex1> -no-vis -r 0 -o 4)
@@ -51,11 +55,17 @@ if (MFEM_ENABLE_TESTING)
   add_test(NAME nurbs_ex1_weak_patch_format_r1_ser
     COMMAND $<TARGET_FILE:nurbs_ex1> -no-vis
     -m ${PROJECT_SOURCE_DIR}/data/square-disc-nurbs-patch.mesh -o 2 --weak-bc -r 1)
-endif()
 
-add_mfem_miniapp(nurbs_patch_ex1
-  MAIN nurbs_patch_ex1.cpp
-  LIBRARIES mfem)
+  add_test(NAME nurbs_patch_ex1_o4_r2_iro8_patcha_ser
+    COMMAND $<TARGET_FILE:nurbs_patch_ex1> -incdeg 3 -ref 2 -iro 8 -patcha)
+
+  add_test(NAME nurbs_patch_ex1_o4_r2_iro8_patcha_pa_ser
+    COMMAND $<TARGET_FILE:nurbs_patch_ex1> -incdeg 3 -ref 2 -iro 8 -patcha -pa)
+
+  add_test(NAME nurbs_patch_ex1_o4_r2_iro8_patcha_fint_ser
+    COMMAND $<TARGET_FILE:nurbs_patch_ex1> -incdeg 3 -ref 2 -iro 8 -patcha -fint)
+
+endif()
 
 if (MFEM_USE_MPI)
   add_mfem_miniapp(nurbs_ex1p

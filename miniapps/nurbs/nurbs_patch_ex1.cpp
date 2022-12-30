@@ -2,7 +2,9 @@
 //
 // Compile with: make nurbs_patch_ex1
 //
-// Sample runs:  nurbs_patch_ex1 -patcha
+// Sample runs:  nurbs_patch_ex1 -incdeg 3 -ref 2 -iro 8 -patcha
+//               nurbs_patch_ex1 -incdeg 3 -ref 2 -iro 8 -patcha -pa
+//               nurbs_patch_ex1 -incdeg 3 -ref 2 -iro 8 -patcha -fint
 //
 // Description:  This example code demonstrates the use of MFEM to define a
 //               simple finite element discretization of the Laplace problem
