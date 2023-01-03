@@ -15,14 +15,22 @@ if (MFEM_USE_MPI)
         sbm_solver.cpp
         marking.cpp
         extrapolator.cpp
-	integ_algoim.cpp)
+        integ_algoim.cpp
+        shape_grad.cpp
+        mtop_solvers.cpp
+        mtop_filters.cpp)
+
+
   list(APPEND DIST_COMMON_HEADERS
         dist_solver.hpp
         sbm_solver.hpp
         sbm_aux.hpp
         marking.hpp
         extrapolator.hpp
-	integ_algoim.hpp)
+        integ_algoim.hpp
+        shape_grad.hpp
+        mtop_solvers.hpp
+        mtop_filters.hpp)
 
   convert_filenames_to_full_paths(DIST_COMMON_SOURCES)
   convert_filenames_to_full_paths(DIST_COMMON_HEADERS)
@@ -50,6 +58,21 @@ if (MFEM_USE_MPI)
     MAIN lsf_integral.cpp
     ${DIST_COMMON_FILES}
     LIBRARIES mfem mfem-common)
+
+  add_mfem_miniapp(shape_test
+    MAIN shape_grad_test.cpp
+    ${DIST_COMMON_FILES}
+    LIBRARIES mfem mfem-common)
+
+  add_mfem_miniapp(nodal_test
+      MAIN nodal_grad_test.cpp
+      ${DIST_COMMON_FILES}
+      LIBRARIES mfem mfem-common)
+
+  add_mfem_miniapp(cfem_test
+      MAIN cfem_test.cpp
+      ${DIST_COMMON_FILES}
+      LIBRARIES mfem mfem-common)
 
   if (MFEM_ENABLE_TESTING)
     add_test(NAME shifted_distance_np${MFEM_MPI_NP}

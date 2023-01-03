@@ -176,7 +176,9 @@ void ElementMarker::SetLevelSetFunction(const ParGridFunction &ls_fun)
             }
         }
     }
-    elgf.ExchangeFaceNbrData();
+    if(pmesh->GetNRanks()>0){
+    elgf.ExchangeFaceNbrData();}
+
 }
 
 void ElementMarker::MarkElements(Array<int> &elem_marker)
