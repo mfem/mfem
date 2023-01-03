@@ -599,107 +599,65 @@ void L2ElementRestriction::FillJAndData(const Vector &ea_data,
 void GetFaceDofs(const int dim, const int face_id,
                  const int dof1d, Array<int> &face_map)
 {
+   int n_face_dofs = pow(dof1d, dim - 1);
+   int offset;
+   std::vector<int> strides;
    switch (dim)
    {
       case 1:
-         switch (face_id)
-         {
-            case 0: // WEST
-               face_map[0] = 0;
-               break;
-            case 1: // EAST
-               face_map[0] = dof1d-1;
-               break;
-         }
+         offset = (face_id == 0) ? 0 : dof1d - 1;
          break;
       case 2:
+         strides = {(face_id == 0 || face_id == 2) ? 1 : dof1d};
          switch (face_id)
          {
-            case 0: // SOUTH
-               for (int i = 0; i < dof1d; ++i)
-               {
-                  face_map[i] = i;
-               }
-               break;
-            case 1: // EAST
-               for (int i = 0; i < dof1d; ++i)
-               {
-                  face_map[i] = dof1d-1 + i*dof1d;
-               }
-               break;
-            case 2: // NORTH
-               for (int i = 0; i < dof1d; ++i)
-               {
-                  face_map[i] = (dof1d-1)*dof1d + i;
-               }
-               break;
-            case 3: // WEST
-               for (int i = 0; i < dof1d; ++i)
-               {
-                  face_map[i] = i*dof1d;
-               }
-               break;
+            case 0: offset = 0; break; // y = 0
+            case 1: offset = dof1d - 1; break; // x = 1
+            case 2: offset = (dof1d-1)*dof1d; break; // y = 1
+            case 3: offset = 0; break; // x = 0
          }
          break;
       case 3:
          switch (face_id)
          {
-            case 0: // BOTTOM
-               for (int i = 0; i < dof1d; ++i)
-               {
-                  for (int j = 0; j < dof1d; ++j)
-                  {
-                     face_map[i+j*dof1d] = i + j*dof1d;
-                  }
-               }
+            case 0: // z = 0
+               offset = 0;
+               strides = {1, dof1d};
                break;
-            case 1: // SOUTH
-               for (int i = 0; i < dof1d; ++i)
-               {
-                  for (int j = 0; j < dof1d; ++j)
-                  {
-                     face_map[i+j*dof1d] = i + j*dof1d*dof1d;
-                  }
-               }
+            case 1: // y = 0
+               offset = 0;
+               strides = {1, dof1d*dof1d};
                break;
-            case 2: // EAST
-               for (int i = 0; i < dof1d; ++i)
-               {
-                  for (int j = 0; j < dof1d; ++j)
-                  {
-                     face_map[i+j*dof1d] = dof1d-1 + i*dof1d + j*dof1d*dof1d;
-                  }
-               }
+            case 2: // x = 1
+               offset = dof1d-1;
+               strides = {dof1d, dof1d*dof1d};
                break;
-            case 3: // NORTH
-               for (int i = 0; i < dof1d; ++i)
-               {
-                  for (int j = 0; j < dof1d; ++j)
-                  {
-                     face_map[i+j*dof1d] = (dof1d-1)*dof1d + i + j*dof1d*dof1d;
-                  }
-               }
+            case 3: // y = 1
+               offset = (dof1d-1)*dof1d;
+               strides = {1, dof1d*dof1d};
                break;
-            case 4: // WEST
-               for (int i = 0; i < dof1d; ++i)
-               {
-                  for (int j = 0; j < dof1d; ++j)
-                  {
-                     face_map[i+j*dof1d] = i*dof1d + j*dof1d*dof1d;
-                  }
-               }
+            case 4: // x = 0
+               offset = 0;
+               strides = {dof1d, dof1d*dof1d};
                break;
-            case 5: // TOP
-               for (int i = 0; i < dof1d; ++i)
-               {
-                  for (int j = 0; j < dof1d; ++j)
-                  {
-                     face_map[i+j*dof1d] = (dof1d-1)*dof1d*dof1d + i + j*dof1d;
-                  }
-               }
+            case 5: // z = 1
+               offset = (dof1d-1)*dof1d*dof1d;
+               strides = {1, dof1d};
                break;
          }
          break;
+   }
+
+   for (int i = 0; i < n_face_dofs; ++i)
+   {
+      int idx = offset;
+      int j = i;
+      for (int d = 0; d < dim - 1; ++d)
+      {
+         idx += strides[d]*(j % dof1d);
+         j /= dof1d;
+      }
+      face_map[i] = idx;
    }
 }
 
