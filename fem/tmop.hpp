@@ -506,8 +506,15 @@ public:
       AddQualityMetric(sh_metric, 1.-gamma_);
       AddQualityMetric(sz_metric, gamma_);
    }
+
    virtual int Id() const { return 80; }
    double GetGamma() const { return gamma; }
+   void SetGamma(double gamma_new)
+   {
+      gamma = gamma_new;
+      wt_arr[0] = 1-gamma;
+      wt_arr[1] = gamma;
+   }
 
    virtual ~TMOP_Metric_080() { delete sh_metric; delete sz_metric; }
 };
