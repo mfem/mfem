@@ -8,8 +8,6 @@
                                https://mfem.org
 
 
-
-
 Version 4.5.1 (development)
 ===========================
 - When using discontinuous (L2) spaces, use local (element-wise) L2 projection
@@ -37,6 +35,9 @@ Integrations, testing and documentation
 ---------------------------------------
 - Removed the support for the Mesquite toolkit. We recommend using MFEM's TMOP
   functionality instead for mesh optimization. See the mesh-optimizer miniapp.
+
+- The following integrations have updated minimum version requirements:
+  * RAJA >= 2022.10.3
 
 Miscellaneous
 -------------
