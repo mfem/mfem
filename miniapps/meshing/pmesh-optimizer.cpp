@@ -827,7 +827,6 @@ int main (int argc, char *argv[])
       tmop_integ->ComputeUntangleMetricQuantiles(x, *pfespace);
    }
 
-
    // Finite differences for computations of derivatives.
    if (fdscheme)
    {
@@ -864,6 +863,79 @@ int main (int argc, char *argv[])
            << "\nPrism quadrature points: "
            << irules->Get(Geometry::PRISM, quad_order).GetNPoints() << endl;
    }
+
+   // Automatically balanced gamma in composite metrics.
+   // mpirun -np 4 pmesh-optimizer -o 3 -mid 80 -tid 2 -ni 25 -ls 3 -art 2 -qo 5 -vl 1
+   double integr_mu_shape = 0.0, integr_mu_size = 0.0, volume = 0.0,
+          max_mu_shape = -1.0, max_mu_size = -1.0;
+   auto metric_shape = new TMOP_Metric_002;
+   auto metric_size  = new TMOP_Metric_077;
+   for (int i = 0; i < pmesh->GetNE(); i++)
+   {
+      const FiniteElement &fe_pos = *x.FESpace()->GetFE(i);
+      const IntegrationRule &ir = irules->Get(fe_pos.GetGeomType(), 10);
+      const int nsp = ir.GetNPoints(), dof = fe_pos.GetDof();
+
+      DenseMatrix dshape(dof, dim);
+      DenseMatrix pos(dof, dim);
+      pos.SetSize(dof, dim);
+      Vector posV(pos.Data(), dof * dim);
+
+      Array<int> pos_dofs;
+      x.FESpace()->GetElementVDofs(i, pos_dofs);
+      x.GetSubVector(pos_dofs, posV);
+
+      DenseTensor W(dim, dim, nsp);
+      DenseMatrix Winv(dim), T(dim), A(dim);
+      target_c->ComputeElementTargets(i, fe_pos, ir, posV, W);
+
+      for (int q = 0; q < nsp; q++)
+      {
+         const DenseMatrix &Wj = W(q);
+         CalcInverse(Wj, Winv);
+
+         const IntegrationPoint &ip = ir.IntPoint(q);
+         fe_pos.CalcDShape(ip, dshape);
+         MultAtB(pos, dshape, A);
+         Mult(A, Winv, T);
+
+         metric_shape->SetTargetJacobian(Wj);
+         metric_size->SetTargetJacobian(Wj);
+
+         double mu_shape = metric_shape->EvalW(T),
+                mu_size = metric_size->EvalW(T);
+         integr_mu_shape += mu_shape * ip.weight * A.Det();
+         integr_mu_size  += mu_size  * ip.weight * A.Det();
+         max_mu_shape = fmax(mu_shape, max_mu_shape);
+         max_mu_size  = fmax(mu_size,  max_mu_size);
+         volume += ip.weight * A.Det();
+      }
+   }
+   MPI_Allreduce(MPI_IN_PLACE, &integr_mu_shape, 1, MPI_DOUBLE, MPI_SUM,
+                 pfespace->GetComm());
+   MPI_Allreduce(MPI_IN_PLACE, &integr_mu_size, 1, MPI_DOUBLE, MPI_SUM,
+                 pfespace->GetComm());
+   MPI_Allreduce(MPI_IN_PLACE, &max_mu_shape, 1, MPI_DOUBLE, MPI_MAX,
+                 pfespace->GetComm());
+   MPI_Allreduce(MPI_IN_PLACE, &max_mu_size, 1, MPI_DOUBLE, MPI_MAX,
+                 pfespace->GetComm());
+   MPI_Allreduce(MPI_IN_PLACE, &volume, 1, MPI_DOUBLE, MPI_SUM,
+                 pfespace->GetComm());
+   double mu_shape_avg = integr_mu_shape / volume,
+          mu_size_avg  = integr_mu_size / volume;
+   double gamma_bal = mu_shape_avg / (mu_size_avg + mu_shape_avg);
+   if (myid == 0)
+   {
+      cout << "Max mu shape: " << max_mu_shape << endl
+           << "Avg mu shape: " << mu_shape_avg << endl
+           << "Max mu size:  " << max_mu_size << endl
+           << "Avg mu size:  " << mu_size_avg << endl
+           << "Gamma bal:    " << gamma_bal << endl;
+   }
+   auto metric_80 = dynamic_cast<TMOP_Metric_080 *>(metric);
+   if (metric_80) { metric_80->SetGamma(gamma_bal); }
+   delete metric_shape;
+   delete metric_size;
 
    // Limit the node movement.
    // The limiting distances can be given by a general function of space.
