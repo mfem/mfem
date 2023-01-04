@@ -216,7 +216,7 @@ public:
 /// Operator that extracts Face degrees of freedom for H1 FiniteElementSpaces.
 /** Objects of this type are typically created and owned by FiniteElementSpace
     objects, see FiniteElementSpace::GetFaceRestriction(). */
-class H1FaceRestriction : public FaceRestriction
+class H1_ND_RT_FaceRestriction : public FaceRestriction
 {
 protected:
    const FiniteElementSpace &fes;
@@ -231,28 +231,28 @@ protected:
    Array<int> gather_offsets; // offsets for the gathering indices of each dof
    Array<int> gather_indices; // gathering indices for each dof
 
-   /** @brief Construct an H1FaceRestriction.
+   /** @brief Construct an H1_ND_RT_FaceRestriction.
 
        @param[in] fes      The FiniteElementSpace on which this operates
        @param[in] ordering Request a specific element ordering
        @param[in] type     Request internal or boundary faces dofs
        @param[in] build    Request the NCL2FaceRestriction to compute the
                            scatter/gather indices. False should only be used
-                           when inheriting from H1FaceRestriction.
+                           when inheriting from H1_ND_RT_FaceRestriction.
    */
-   H1FaceRestriction(const FiniteElementSpace& fes,
-                     const ElementDofOrdering ordering,
-                     const FaceType type,
-                     bool build);
+   H1_ND_RT_FaceRestriction(const FiniteElementSpace& fes,
+                            const ElementDofOrdering ordering,
+                            const FaceType type,
+                            bool build);
 public:
-   /** @brief Construct an H1FaceRestriction.
+   /** @brief Construct an H1_ND_RT_FaceRestriction.
 
        @param[in] fes      The FiniteElementSpace on which this operates
        @param[in] ordering Request a specific element ordering
        @param[in] type     Request internal or boundary faces dofs */
-   H1FaceRestriction(const FiniteElementSpace& fes,
-                     const ElementDofOrdering ordering,
-                     const FaceType type);
+   H1_ND_RT_FaceRestriction(const FiniteElementSpace& fes,
+                            const ElementDofOrdering ordering,
+                            const FaceType type);
 
    /** @brief Scatter the degrees of freedom, i.e. goes from L-Vector to
        face E-Vector.
@@ -303,7 +303,7 @@ private:
 protected:
    mutable Array<int> face_map; // Used in the computation of GetFaceDofs
 
-   /** @brief Verify that H1FaceRestriction is build from an H1 FESpace.
+   /** @brief Verify that H1_ND_RT_FaceRestriction is build from an H1 FESpace.
 
        @param[in] ordering The FESpace element ordering.
    */
@@ -331,6 +331,10 @@ protected:
                                  const int face_index,
                                  const ElementDofOrdering ordering);
 };
+
+/// @brief Alias for H1_ND_RT_FaceRestriction, for backwards compatibility and
+/// as base class for ParNCH1FaceRestriction.
+using H1FaceRestriction = H1_ND_RT_FaceRestriction;
 
 /// Operator that extracts Face degrees of freedom for L2 spaces.
 /** Objects of this type are typically created and owned by FiniteElementSpace
