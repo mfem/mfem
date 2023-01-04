@@ -70,9 +70,10 @@ enum prob_type
 prob_type prob;
 Vector beta;
 double epsilon;
-// Function returns the solution u, and gradient du and the Laplacian d2u
-void solution(const Vector & x, double & u, Vector & du, double & d2u);
+
 double exact_u(const Vector & X);
+void exact_gradu(const Vector & X, Vector & du);
+double exact_laplacian_u(const Vector & X);
 void exact_sigma(const Vector & X, Vector & sigma);
 double exact_hatu(const Vector & X);
 void exact_hatf(const Vector & X, Vector & hatf);
@@ -451,8 +452,38 @@ int main(int argc, char *argv[])
    return 0;
 }
 
+double exact_u(const Vector & X)
+{
+   double x = X[0];
+   double y = X[1];
+   double z = 0.;
+   if (X.Size() == 3) { z = X[2]; }
+   switch (prob)
+   {
+      case EJ:
+      {
+         double alpha = sqrt(1. + 4. * epsilon * epsilon * M_PI * M_PI);
+         double r1 = (1. + alpha) / (2.*epsilon);
+         double r2 = (1. - alpha) / (2.*epsilon);
+         double denom = exp(-r2) - exp(-r1);
 
-void solution(const Vector & X, double & u, Vector & du, double & d2u)
+         double g1 = exp(r2*(x-1.));
+         double g2 = exp(r1*(x-1.));
+         double g = g1-g2;
+
+         return g * cos(M_PI * y)/denom;
+      }
+      break;
+      default:
+      {
+         double alpha = M_PI * (x + y + z);
+         return sin(alpha);
+      }
+      break;
+   }
+}
+
+void exact_gradu(const Vector & X, Vector & du)
 {
    double x = X[0];
    double y = X[1];
@@ -460,7 +491,45 @@ void solution(const Vector & X, double & u, Vector & du, double & d2u)
    if (X.Size() == 3) { z = X[2]; }
    du.SetSize(X.Size());
    du = 0.;
-   d2u = 0.;
+   switch (prob)
+   {
+      case EJ:
+      {
+         double alpha = sqrt(1. + 4. * epsilon * epsilon * M_PI * M_PI);
+         double r1 = (1. + alpha) / (2.*epsilon);
+         double r2 = (1. - alpha) / (2.*epsilon);
+         double denom = exp(-r2) - exp(-r1);
+
+         double g1 = exp(r2*(x-1.));
+         double g1_x = r2*g1;
+         double g2 = exp(r1*(x-1.));
+         double g2_x = r1*g2;
+         double g = g1-g2;
+         double g_x = g1_x - g2_x;
+
+         du[0] = g_x * cos(M_PI * y)/denom;
+         du[1] = -M_PI * g * sin(M_PI*y)/denom;
+      }
+      break;
+      default:
+      {
+         double alpha = M_PI * (x + y + z);
+         du.SetSize(X.Size());
+         for (int i = 0; i<du.Size(); i++)
+         {
+            du[i] = M_PI * cos(alpha);
+         }
+      }
+      break;
+   }
+}
+
+double exact_laplacian_u(const Vector & X)
+{
+   double x = X[0];
+   double y = X[1];
+   double z = 0.;
+   if (X.Size() == 3) { z = X[2]; }
 
    switch (prob)
    {
@@ -478,49 +547,28 @@ void solution(const Vector & X, double & u, Vector & du, double & d2u)
          double g2_x = r1*g2;
          double g2_xx = r1*g2_x;
          double g = g1-g2;
-         double g_x = g1_x - g2_x;
          double g_xx = g1_xx - g2_xx;
 
-         u = g * cos(M_PI * y)/denom;
-         double u_x = g_x * cos(M_PI * y)/denom;
+         double u = g * cos(M_PI * y)/denom;
          double u_xx = g_xx * cos(M_PI * y)/denom;
-         double u_y = -M_PI * g * sin(M_PI*y)/denom;
          double u_yy = -M_PI * M_PI * u;
-         du[0] = u_x;
-         du[1] = u_y;
-         d2u = u_xx + u_yy;
+         return u_xx + u_yy;
       }
       break;
       default:
       {
          double alpha = M_PI * (x + y + z);
-         u = sin(alpha);
-         du.SetSize(X.Size());
-         for (int i = 0; i<du.Size(); i++)
-         {
-            du[i] = M_PI * cos(alpha);
-         }
-         d2u = - M_PI*M_PI * u * du.Size();
+         double u = sin(alpha);
+         return -M_PI*M_PI * u * X.Size();
       }
       break;
    }
 }
 
-double exact_u(const Vector & X)
-{
-   double u, d2u;
-   Vector du;
-   solution(X,u,du,d2u);
-   return u;
-}
-
 void exact_sigma(const Vector & X, Vector & sigma)
 {
-   double u, d2u;
-   Vector du;
-   solution(X,u,du,d2u);
    // σ = ε ∇ u
-   sigma = du;
+   exact_gradu(X,sigma);
    sigma *= epsilon;
 }
 
@@ -544,9 +592,9 @@ void exact_hatf(const Vector & X, Vector & hatf)
 double f_exact(const Vector & X)
 {
    // f = - εΔu + ∇⋅(βu)
-   double u, d2u;
    Vector du;
-   solution(X,u,du,d2u);
+   exact_gradu(X,du);
+   double d2u = exact_laplacian_u(X);
 
    double s = 0;
    for (int i = 0; i<du.Size(); i++)

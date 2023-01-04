@@ -118,14 +118,9 @@ using namespace std;
 using namespace mfem;
 using namespace mfem::common;
 
-void acoustics_solution(const Vector & X, complex<double> & p,
-                        vector<complex<double>> &dp, complex<double> & d2p);
-
-void acoustics_solution_r(const Vector & X, double & p,
-                          Vector &dp, double & d2p);
-
-void acoustics_solution_i(const Vector & X, double & p,
-                          Vector &dp, double & d2p);
+complex<double> acoustics_solution(const Vector & X);
+void acoustics_solution_grad(const Vector & X,vector<complex<double>> &dp);
+complex<double> acoustics_solution_laplacian(const Vector & X);
 
 double p_exact_r(const Vector &x);
 double p_exact_i(const Vector &x);
@@ -141,7 +136,6 @@ double d2_exact_r(const Vector &x);
 double d2_exact_i(const Vector &x);
 double hatp_exact_r(const Vector & X);
 double hatp_exact_i(const Vector & X);
-void hatu_exact(const Vector & X, Vector & hatu);
 void hatu_exact_r(const Vector & X, Vector & hatu);
 void hatu_exact_i(const Vector & X, Vector & hatu);
 double source_function(const Vector &x);
@@ -853,18 +847,12 @@ int main(int argc, char *argv[])
 
 double p_exact_r(const Vector &x)
 {
-   double p,d2p;
-   Vector dp;
-   acoustics_solution_r(x,p,dp,d2p);
-   return p;
+   return acoustics_solution(x).real();
 }
 
 double p_exact_i(const Vector &x)
 {
-   double p,d2p;
-   Vector dp;
-   acoustics_solution_i(x,p,dp,d2p);
-   return p;
+   return acoustics_solution(x).imag();
 }
 
 double hatp_exact_r(const Vector & X)
@@ -877,34 +865,36 @@ double hatp_exact_i(const Vector & X)
    return p_exact_i(X);
 }
 
-void gradp_exact_r(const Vector &x, Vector &grad)
+void gradp_exact_r(const Vector &x, Vector &grad_r)
 {
-   grad.SetSize(x.Size());
-   double p,d2p;
-   acoustics_solution_r(x,p,grad,d2p);
+   grad_r.SetSize(x.Size());
+   vector<complex<double>> grad;
+   acoustics_solution_grad(x,grad);
+   for (int i = 0; i<grad.size(); i++)
+   {
+      grad_r[i] = grad[i].real();
+   }
 }
 
-void gradp_exact_i(const Vector &x, Vector &grad)
+void gradp_exact_i(const Vector &x, Vector &grad_i)
 {
-   grad.SetSize(x.Size());
-   double p,d2p;
-   acoustics_solution_i(x,p,grad,d2p);
+   grad_i.SetSize(x.Size());
+   vector<complex<double>> grad;
+   acoustics_solution_grad(x,grad);
+   for (int i = 0; i<grad.size(); i++)
+   {
+      grad_i[i] = grad[i].imag();
+   }
 }
 
 double d2_exact_r(const Vector &x)
 {
-   double p,d2p;
-   Vector dp;
-   acoustics_solution_r(x,p,dp,d2p);
-   return d2p;
+   return acoustics_solution_laplacian(x).real();
 }
 
 double d2_exact_i(const Vector &x)
 {
-   double p,d2p;
-   Vector dp;
-   acoustics_solution_i(x,p,dp,d2p);
-   return d2p;
+   return acoustics_solution_laplacian(x).imag();
 }
 
 //  u = - ∇ p / (i ω )
@@ -962,45 +952,9 @@ double rhs_func_i(const Vector &x)
    return divu + omega * p;
 }
 
-void acoustics_solution_r(const Vector & X, double & p,
-                          Vector &dp, double & d2p)
+complex<double> acoustics_solution(const Vector & X)
 {
-   complex<double> zp, d2zp;
-   vector<complex<double>> dzp;
-   acoustics_solution(X,zp,dzp,d2zp);
-   p = zp.real();
-   d2p = d2zp.real();
-   dp.SetSize(X.Size());
-   for (int i = 0; i<X.Size(); i++)
-   {
-      dp[i] = dzp[i].real();
-   }
-}
-
-void acoustics_solution_i(const Vector & X, double & p,
-                          Vector &dp, double & d2p)
-{
-   complex<double> zp, d2zp;
-   vector<complex<double>> dzp;
-   acoustics_solution(X,zp,dzp,d2zp);
-   p = zp.imag();
-   d2p = d2zp.imag();
-   dp.SetSize(X.Size());
-   for (int i = 0; i<X.Size(); i++)
-   {
-      dp[i] = dzp[i].imag();
-   }
-}
-
-void acoustics_solution(const Vector & X, complex<double> & p,
-                        vector<complex<double>> & dp,
-                        complex<double> & d2p)
-{
-   dp.resize(X.Size());
    complex<double> zi = complex<double>(0., 1.);
-   // initilize
-   for (int i = 0; i<X.Size(); i++) { dp[i] = 0.0; }
-   d2p = 0.0;
    switch (prob)
    {
       case pml_plane_wave_scatter:
@@ -1008,12 +962,157 @@ void acoustics_solution(const Vector & X, complex<double> & p,
       {
          double beta = omega/std::sqrt((double)X.Size());
          complex<double> alpha = beta * zi * X.Sum();
-         p = exp(alpha);
-         d2p =  dim * beta * beta * p;
+         return exp(alpha);
+      }
+      break;
+      case gaussian_beam:
+      case pml_beam_scatter:
+      {
+         double rk = omega;
+         double degrees = 45;
+         double alpha = (180+degrees) * M_PI/180.;
+         double sina = sin(alpha);
+         double cosa = cos(alpha);
+         // shift the origin
+         double shift = 0.1;
+         double xprim=X(0) + shift;
+         double yprim=X(1) + shift;
+
+         double  x = xprim*sina - yprim*cosa;
+         double  y = xprim*cosa + yprim*sina;
+         //wavelength
+         double rl = 2.*M_PI/rk;
+
+         // beam waist radius
+         double w0 = 0.05;
+
+         // function w
+         double fact = rl/M_PI/(w0*w0);
+         double aux = 1. + (fact*y)*(fact*y);
+
+         double w = w0*sqrt(aux);
+
+         double phi0 = atan(fact*y);
+
+         double r = y + 1./y/(fact*fact);
+
+         // pressure
+         complex<double> ze = - x*x/(w*w) - zi*rk*y - zi * M_PI * x * x/rl/r +
+                              zi*phi0/2.;
+         double pf = pow(2.0/M_PI/(w*w),0.25);
+
+         return pf*exp(ze);
+      }
+      break;
+      case pml_pointsource:
+      {
+         double x = X(0)-0.5;
+         double y = X(1)-0.5;
+         double r = sqrt(x*x + y*y);
+         double beta = omega * r;
+         complex<double> Ho = jn(0, beta) + zi * yn(0, beta);
+         return 0.25*zi*Ho;
+      }
+      break;
+      default:
+         MFEM_ABORT("Should be unreachable");
+         return 1;
+         break;
+   }
+}
+
+void acoustics_solution_grad(const Vector & X, vector<complex<double>> & dp)
+{
+   dp.resize(X.Size());
+   complex<double> zi = complex<double>(0., 1.);
+   // initialize
+   for (int i = 0; i<X.Size(); i++) { dp[i] = 0.0; }
+   switch (prob)
+   {
+      case pml_plane_wave_scatter:
+      case plane_wave:
+      {
+         double beta = omega/std::sqrt((double)X.Size());
+         complex<double> alpha = beta * zi * X.Sum();
+         complex<double> p = exp(alpha);
          for (int i = 0; i<X.Size(); i++)
          {
             dp[i] = zi * beta * p;
          }
+      }
+      break;
+      case gaussian_beam:
+      case pml_beam_scatter:
+      {
+         double rk = omega;
+         double degrees = 45;
+         double alpha = (180+degrees) * M_PI/180.;
+         double sina = sin(alpha);
+         double cosa = cos(alpha);
+         // shift the origin
+         double shift = 0.1;
+         double xprim=X(0) + shift;
+         double yprim=X(1) + shift;
+
+         double  x = xprim*sina - yprim*cosa;
+         double  y = xprim*cosa + yprim*sina;
+         double  dxdxprim = sina, dxdyprim = -cosa;
+         double  dydxprim = cosa, dydyprim =  sina;
+         //wavelength
+         double rl = 2.*M_PI/rk;
+
+         // beam waist radius
+         double w0 = 0.05;
+
+         // function w
+         double fact = rl/M_PI/(w0*w0);
+         double aux = 1. + (fact*y)*(fact*y);
+
+         double w = w0*sqrt(aux);
+         double dwdy = w0*fact*fact*y/sqrt(aux);
+
+         double phi0 = atan(fact*y);
+         double dphi0dy = cos(phi0)*cos(phi0)*fact;
+
+         double r = y + 1./y/(fact*fact);
+         double drdy = 1. - 1./(y*y)/(fact*fact);
+
+         // pressure
+         complex<double> ze = - x*x/(w*w) - zi*rk*y - zi * M_PI * x * x/rl/r +
+                              zi*phi0/2.;
+
+         complex<double> zdedx = -2.*x/(w*w) - 2.*zi*M_PI*x/rl/r;
+         complex<double> zdedy = 2.*x*x/(w*w*w)*dwdy - zi*rk + zi*M_PI*x*x/rl/
+                                 (r*r)*drdy + zi*dphi0dy/2.;
+
+         double pf = pow(2.0/M_PI/(w*w),0.25);
+         double dpfdy = -pow(2./M_PI/(w*w),-0.75)/M_PI/(w*w*w)*dwdy;
+
+         complex<double> zp = pf*exp(ze);
+         complex<double> zdpdx = zp*zdedx;
+         complex<double> zdpdy = dpfdy*exp(ze)+zp*zdedy;
+
+         dp[0] = (zdpdx*dxdxprim + zdpdy*dydxprim);
+         dp[1] = (zdpdx*dxdyprim + zdpdy*dydyprim);
+      }
+      break;
+      default:
+         MFEM_ABORT("Should be unreachable");
+         break;
+   }
+}
+
+complex<double> acoustics_solution_laplacian(const Vector & X)
+{
+   complex<double> zi = complex<double>(0., 1.);
+   switch (prob)
+   {
+      case pml_plane_wave_scatter:
+      case plane_wave:
+      {
+         double beta = omega/std::sqrt((double)X.Size());
+         complex<double> alpha = beta * zi * X.Sum();
+         return dim * beta * beta * exp(alpha);
       }
       break;
       case gaussian_beam:
@@ -1084,33 +1183,19 @@ void acoustics_solution(const Vector & X, complex<double> & p,
          complex<double> zd2pdydy = d2pfdydy*exp(ze) + dpfdy*exp(
                                        ze)*zdedy + zdpdy*zdedy + zp*zd2edydy;
 
-         p = zp;
-         dp[0] = (zdpdx*dxdxprim + zdpdy*dydxprim);
-         dp[1] = (zdpdx*dxdyprim + zdpdy*dydyprim);
 
-         d2p = (zd2pdxdx*dxdxprim + zd2pdydx*dydxprim)*dxdxprim +
-               (zd2pdxdy*dxdxprim + zd2pdydy*dydxprim)*dydxprim
-               + (zd2pdxdx*dxdyprim + zd2pdydx*dydyprim)*dxdyprim + (zd2pdxdy*dxdyprim +
-                                                                     zd2pdydy*dydyprim)*dydyprim;
-      }
-      break;
-      case pml_pointsource:
-      {
-         double x = X(0)-0.5;
-         double y = X(1)-0.5;
-         double r = sqrt(x*x + y*y);
-         double beta = omega * r;
-         complex<double> Ho = jn(0, beta) + zi * yn(0, beta);
-         p = 0.25*zi*Ho;
-         // derivatives are not used
+         return (zd2pdxdx*dxdxprim + zd2pdydx*dydxprim)*dxdxprim
+                + (zd2pdxdy*dxdxprim + zd2pdydy*dydxprim)*dydxprim
+                + (zd2pdxdx*dxdyprim + zd2pdydx*dydyprim)*dxdyprim
+                + (zd2pdxdy*dxdyprim + zd2pdydy*dydyprim)*dydyprim;
       }
       break;
       default:
          MFEM_ABORT("Should be unreachable");
+         return 1;
          break;
    }
 }
-
 
 double source_function(const Vector &x)
 {

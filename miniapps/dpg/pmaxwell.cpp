@@ -162,17 +162,14 @@ double hatH_exact_scalar_r(const Vector & X);
 double hatH_exact_scalar_i(const Vector & X);
 
 void maxwell_solution(const Vector & X,
-                      std::vector<complex<double>> &E,
-                      std::vector<complex<double>> &curlE,
-                      std::vector<complex<double>> &curlcurlE);
+                      std::vector<complex<double>> &E);
 
-void maxwell_solution_r(const Vector & X, Vector &E_r,
-                        Vector &curlE_r,
-                        Vector &curlcurlE_r);
+void maxwell_solution_curl(const Vector & X,
+                           std::vector<complex<double>> &curlE);
 
-void maxwell_solution_i(const Vector & X, Vector &E_i,
-                        Vector &curlE_i,
-                        Vector &curlcurlE_i);
+void maxwell_solution_curlcurl(const Vector & X,
+                               std::vector<complex<double>> &curlcurlE);
+
 void source_function(const Vector &x, Vector & f);
 
 int dim;
@@ -1052,48 +1049,68 @@ int main(int argc, char *argv[])
 
 void E_exact_r(const Vector &x, Vector & E_r)
 {
-   Vector curlE_r;
-   Vector curlcurlE_r;
-
-   maxwell_solution_r(x,E_r,curlE_r,curlcurlE_r);
+   std::vector<std::complex<double>> E;
+   maxwell_solution(x,E);
+   E_r.SetSize(E.size());
+   for (int i = 0; i<E.size(); i++)
+   {
+      E_r[i]= E[i].real();
+   }
 }
 
 void E_exact_i(const Vector &x, Vector & E_i)
 {
-   Vector curlE_i;
-   Vector curlcurlE_i;
-
-   maxwell_solution_i(x,E_i,curlE_i,curlcurlE_i);
+   std::vector<std::complex<double>> E;
+   maxwell_solution(x, E);
+   E_i.SetSize(E.size());
+   for (int i = 0; i<E.size(); i++)
+   {
+      E_i[i]= E[i].imag();
+   }
 }
 
 void curlE_exact_r(const Vector &x, Vector &curlE_r)
 {
-   Vector E_r;
-   Vector curlcurlE_r;
-
-   maxwell_solution_r(x,E_r,curlE_r,curlcurlE_r);
+   std::vector<std::complex<double>> curlE;
+   maxwell_solution_curl(x, curlE);
+   curlE_r.SetSize(curlE.size());
+   for (int i = 0; i<curlE.size(); i++)
+   {
+      curlE_r[i]= curlE[i].real();
+   }
 }
 
 void curlE_exact_i(const Vector &x, Vector &curlE_i)
 {
-   Vector E_i;
-   Vector curlcurlE_i;
-
-   maxwell_solution_i(x,E_i,curlE_i,curlcurlE_i);
+   std::vector<std::complex<double>> curlE;
+   maxwell_solution_curl(x, curlE);
+   curlE_i.SetSize(curlE.size());
+   for (int i = 0; i<curlE.size(); i++)
+   {
+      curlE_i[i]= curlE[i].imag();
+   }
 }
 
 void curlcurlE_exact_r(const Vector &x, Vector & curlcurlE_r)
 {
-   Vector E_r;
-   Vector curlE_r;
-   maxwell_solution_r(x,E_r,curlE_r,curlcurlE_r);
+   std::vector<std::complex<double>> curlcurlE;
+   maxwell_solution_curlcurl(x, curlcurlE);
+   curlcurlE_r.SetSize(curlcurlE.size());
+   for (int i = 0; i<curlcurlE.size(); i++)
+   {
+      curlcurlE_r[i]= curlcurlE[i].real();
+   }
 }
 
 void curlcurlE_exact_i(const Vector &x, Vector & curlcurlE_i)
 {
-   Vector E_i;
-   Vector curlE_i;
-   maxwell_solution_i(x,E_i,curlE_i,curlcurlE_i);
+   std::vector<std::complex<double>> curlcurlE;
+   maxwell_solution_curlcurl(x, curlcurlE);
+   curlcurlE_i.SetSize(curlcurlE.size());
+   for (int i = 0; i<curlcurlE.size(); i++)
+   {
+      curlcurlE_i[i]= curlcurlE[i].imag();
+   }
 }
 
 
@@ -1233,59 +1250,24 @@ void  rhs_func_i(const Vector &x, Vector & J_i)
    }
 }
 
-void maxwell_solution(const Vector & X, std::vector<complex<double>> &E,
-                      std::vector<complex<double>> &curlE,
-                      std::vector<complex<double>> &curlcurlE)
+void maxwell_solution(const Vector & X, std::vector<complex<double>> &E)
 {
    complex<double> zi = complex<double>(0., 1.);
    E.resize(dim);
-   curlE.resize(dimc);
-   curlcurlE.resize(dim);
    for (int i = 0; i < dim; ++i)
    {
       E[i] = 0.0;
-      curlcurlE[i] = 0.0;;
    }
-   for (int i = 0; i < dimc; ++i)
-   {
-      curlE[i] = 0.0;
-   }
-
    switch (prob)
    {
       case plane_wave:
       {
-         std::complex<double> pw = exp(zi * omega * (X.Sum()));
-         E[0] = pw;
-         E[1] = 0.0;
-         if (dim == 3)
-         {
-            E[1] = 0.0;
-            E[2] = 0.0;
-            curlE[0] = 0.0;
-            curlE[1] = zi * omega * pw;
-            curlE[2] = -zi * omega * pw;
-
-            curlcurlE[0] = 2.0 * omega * omega * pw;
-            curlcurlE[1] = - omega * omega * pw;
-            curlcurlE[2] = - omega * omega * pw;
-         }
-         else
-         {
-            curlE[0] = -zi * omega * pw;
-            curlcurlE[0] = omega * omega * pw;
-            curlcurlE[1] = -omega * omega * pw;
-         }
+         E[0] = exp(zi * omega * (X.Sum()));
       }
       break;
       case pml_plane_wave_scatter:
       {
-         std::complex<double> pw = exp(zi * omega * (X(0)));
-         E[0] = 0.0;
-         E[1] = pw;
-         curlE[0] = zi * omega * pw;
-         curlcurlE[0] = 0.0;
-         curlcurlE[1] = omega * omega * pw;
+         E[1] = exp(zi * omega * (X(0)));
       }
       break;
       case fichera_oven:
@@ -1366,54 +1348,82 @@ void maxwell_solution(const Vector & X, std::vector<complex<double>> &E,
          MFEM_ABORT("Should be unreachable");
          break;
    }
-
 }
 
-void maxwell_solution_r(const Vector & X, Vector &E_r,
-                        Vector &curlE_r,
-                        Vector &curlcurlE_r)
+void maxwell_solution_curl(const Vector & X,
+                           std::vector<complex<double>> &curlE)
 {
-   E_r.SetSize(dim);
-   curlE_r.SetSize(dimc);
-   curlcurlE_r.SetSize(dim);
-
-   std::vector<complex<double>> E;
-   std::vector<complex<double>> curlE;
-   std::vector<complex<double>> curlcurlE;
-
-   maxwell_solution(X,E,curlE,curlcurlE);
-   for (int i = 0; i<dim ; i++)
+   complex<double> zi = complex<double>(0., 1.);
+   curlE.resize(dimc);
+   for (int i = 0; i < dimc; ++i)
    {
-      E_r(i) = E[i].real();
-      curlcurlE_r(i) = curlcurlE[i].real();
+      curlE[i] = 0.0;
    }
-   for (int i = 0; i<dimc; i++)
+   switch (prob)
    {
-      curlE_r(i) = curlE[i].real();
+      case plane_wave:
+      {
+         std::complex<double> pw = exp(zi * omega * (X.Sum()));
+         if (dim == 3)
+         {
+            curlE[0] = 0.0;
+            curlE[1] = zi * omega * pw;
+            curlE[2] = -zi * omega * pw;
+         }
+         else
+         {
+            curlE[0] = -zi * omega * pw;
+         }
+      }
+      break;
+      case pml_plane_wave_scatter:
+      {
+         std::complex<double> pw = exp(zi * omega * (X(0)));
+         curlE[0] = zi * omega * pw;
+      }
+      break;
+      default:
+         MFEM_ABORT("Should be unreachable");
+         break;
    }
 }
 
-void maxwell_solution_i(const Vector & X, Vector &E_i,
-                        Vector &curlE_i,
-                        Vector &curlcurlE_i)
+void maxwell_solution_curlcurl(const Vector & X,
+                               std::vector<complex<double>> &curlcurlE)
 {
-   E_i.SetSize(dim);
-   curlE_i.SetSize(dimc);
-   curlcurlE_i.SetSize(dim);
-
-   std::vector<complex<double>> E;
-   std::vector<complex<double>> curlE;
-   std::vector<complex<double>> curlcurlE;
-
-   maxwell_solution(X,E,curlE,curlcurlE);
-   for (int i = 0; i<dim; i++)
+   complex<double> zi = complex<double>(0., 1.);
+   curlcurlE.resize(dim);
+   for (int i = 0; i < dim; ++i)
    {
-      E_i(i) = E[i].imag();
-      curlcurlE_i(i) = curlcurlE[i].imag();
+      curlcurlE[i] = 0.0;;
    }
-   for (int i = 0; i<dimc; i++)
+   switch (prob)
    {
-      curlE_i(i) = curlE[i].imag();
+      case plane_wave:
+      {
+         std::complex<double> pw = exp(zi * omega * (X.Sum()));
+         if (dim == 3)
+         {
+            curlcurlE[0] = 2.0 * omega * omega * pw;
+            curlcurlE[1] = - omega * omega * pw;
+            curlcurlE[2] = - omega * omega * pw;
+         }
+         else
+         {
+            curlcurlE[0] = omega * omega * pw;
+            curlcurlE[1] = -omega * omega * pw;
+         }
+      }
+      break;
+      case pml_plane_wave_scatter:
+      {
+         std::complex<double> pw = exp(zi * omega * (X(0)));
+         curlcurlE[1] = omega * omega * pw;
+      }
+      break;
+      default:
+         MFEM_ABORT("Should be unreachable");
+         break;
    }
 }
 

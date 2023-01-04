@@ -82,8 +82,10 @@ static const char *enum_str[] =
 prob_type prob;
 Vector beta;
 double epsilon;
-// Function returns the solution u, and gradient du and the Laplacian d2u
-void solution(const Vector & x, double & u, Vector & du, double & d2u);
+
+double exact_u(const Vector & X);
+void exact_gradu(const Vector & X, Vector & du);
+double exact_laplacian_u(const Vector & X);
 double exact_u(const Vector & X);
 void exact_sigma(const Vector & X, Vector & sigma);
 double exact_hatu(const Vector & X);
@@ -603,28 +605,18 @@ int main(int argc, char *argv[])
    return 0;
 }
 
-void solution(const Vector & X, double & u, Vector & du, double & d2u)
+double exact_u(const Vector & X)
 {
    double x = X[0];
    double y = X[1];
    double z = 0.;
    if (X.Size() == 3) { z = X[2]; }
-   du.SetSize(X.Size());
-   du = 0.;
-   d2u = 0.;
-
    switch (prob)
    {
       case sinusoidal:
       {
          double alpha = M_PI * (x + y + z);
-         u = sin(alpha);
-         du.SetSize(X.Size());
-         for (int i = 0; i<du.Size(); i++)
-         {
-            du[i] = M_PI * cos(alpha);
-         }
-         d2u = - M_PI*M_PI * u * du.Size();
+         return sin(alpha);
       }
       break;
       case EJ:
@@ -634,37 +626,71 @@ void solution(const Vector & X, double & u, Vector & du, double & d2u)
          double r2 = (1. - alpha) / (2.*epsilon);
          double denom = exp(-r2) - exp(-r1);
 
-
          double g1 = exp(r2*(x-1.));
-         double g1_x = r2*g1;
-         double g1_xx = r2*g1_x;
          double g2 = exp(r1*(x-1.));
-         double g2_x = r1*g2;
-         double g2_xx = r1*g2_x;
          double g = g1-g2;
-         double g_x = g1_x - g2_x;
-         double g_xx = g1_xx - g2_xx;
-
-
-         u = g * cos(M_PI * y)/denom;
-         double u_x = g_x * cos(M_PI * y)/denom;
-         double u_xx = g_xx * cos(M_PI * y)/denom;
-         double u_y = -M_PI * g * sin(M_PI*y)/denom;
-         double u_yy = -M_PI * M_PI * u;
-         du[0] = u_x;
-         du[1] = u_y;
-         d2u = u_xx + u_yy;
+         return g * cos(M_PI * y)/denom;
       }
       break;
       case curved_streamlines:
       {
          double r = sqrt(x*x+y*y);
-         u = atan((1.0-r)/epsilon);
+         return atan((1.0-r)/epsilon);
+      }
+      break;
+      default:
+         MFEM_ABORT("Wrong code path");
+         return 1;
+         break;
+   }
+}
+
+void exact_gradu(const Vector & X, Vector & du)
+{
+   double x = X[0];
+   double y = X[1];
+   double z = 0.;
+   if (X.Size() == 3) { z = X[2]; }
+   du.SetSize(X.Size());
+
+   switch (prob)
+   {
+      case sinusoidal:
+      {
+         double alpha = M_PI * (x + y + z);
+         for (int i = 0; i<du.Size(); i++)
+         {
+            du[i] = M_PI * cos(alpha);
+         }
+      }
+      break;
+      case EJ:
+      {
+         double alpha = sqrt(1. + 4. * epsilon * epsilon * M_PI * M_PI);
+         double r1 = (1. + alpha) / (2.*epsilon);
+         double r2 = (1. - alpha) / (2.*epsilon);
+         double denom = exp(-r2) - exp(-r1);
+
+         double g1 = exp(r2*(x-1.));
+         double g1_x = r2*g1;
+         double g2 = exp(r1*(x-1.));
+         double g2_x = r1*g2;
+         double g = g1-g2;
+         double g_x = g1_x - g2_x;
+
+         double u_x = g_x * cos(M_PI * y)/denom;
+         double u_y = -M_PI * g * sin(M_PI*y)/denom;
+         du[0] = u_x;
+         du[1] = u_y;
+      }
+      break;
+      case curved_streamlines:
+      {
+         double r = sqrt(x*x+y*y);
          double alpha = -2.0*r + r*r + epsilon*epsilon + 1;
          double denom = r*alpha;
          du[0] = - x* epsilon / denom;
          du[1] = - y* epsilon / denom;
-         d2u = epsilon * (r*r - epsilon*epsilon - 1.0) / (r*alpha*alpha);
       }
       break;
       default:
@@ -673,40 +699,61 @@ void solution(const Vector & X, double & u, Vector & du, double & d2u)
    }
 }
 
-
-void beta_function(const Vector & X, Vector & beta_val)
+double exact_laplacian_u(const Vector & X)
 {
-   beta_val.SetSize(2);
-   if (prob == prob_type::curved_streamlines)
+   double x = X[0];
+   double y = X[1];
+   double z = 0.;
+   if (X.Size() == 3) { z = X[2]; }
+   switch (prob)
    {
-      double x = X(0);
-      double y = X(1);
-      beta_val(0) = exp(x)*sin(y);
-      beta_val(1) = exp(x)*cos(y);
+      case sinusoidal:
+      {
+         double alpha = M_PI * (x + y + z);
+         double u = sin(alpha);
+         return - M_PI*M_PI * u * X.Size();
+      }
+      break;
+      case EJ:
+      {
+         double alpha = sqrt(1. + 4. * epsilon * epsilon * M_PI * M_PI);
+         double r1 = (1. + alpha) / (2.*epsilon);
+         double r2 = (1. - alpha) / (2.*epsilon);
+         double denom = exp(-r2) - exp(-r1);
+
+         double g1 = exp(r2*(x-1.));
+         double g1_x = r2*g1;
+         double g1_xx = r2*g1_x;
+         double g2 = exp(r1*(x-1.));
+         double g2_x = r1*g2;
+         double g2_xx = r1*g2_x;
+         double g = g1-g2;
+         double g_xx = g1_xx - g2_xx;
+
+         double u = g * cos(M_PI * y)/denom;
+         double u_xx = g_xx * cos(M_PI * y)/denom;
+         double u_yy = -M_PI * M_PI * u;
+         return u_xx + u_yy;
+      }
+      break;
+      case curved_streamlines:
+      {
+         double r = sqrt(x*x+y*y);
+         double alpha = -2.0*r + r*r + epsilon*epsilon + 1;
+         return epsilon * (r*r - epsilon*epsilon - 1.0) / (r*alpha*alpha);
+      }
+      break;
+      default:
+         MFEM_ABORT("Wrong code path");
+         return 1;
+         break;
    }
-   else
-   {
-      beta_val = beta;
-   }
-}
-
-
-
-double exact_u(const Vector & X)
-{
-   double u, d2u;
-   Vector du;
-   solution(X,u,du,d2u);
-   return u;
 }
 
 void exact_sigma(const Vector & X, Vector & sigma)
 {
-   double u, d2u;
-   Vector du;
-   solution(X,u,du,d2u);
    // σ = ε ∇ u
-   sigma = du;
+   exact_gradu(X,sigma);
    sigma *= epsilon;
 }
 
@@ -718,7 +765,6 @@ double exact_hatu(const Vector & X)
 void exact_hatf(const Vector & X, Vector & hatf)
 {
    Vector sigma;
-   exact_sigma(X,sigma);
    Vector beta_val;
    beta_function(X,beta_val);
    exact_sigma(X,sigma);
@@ -733,9 +779,10 @@ void exact_hatf(const Vector & X, Vector & hatf)
 double f_exact(const Vector & X)
 {
    // f = - εΔu + ∇⋅(βu)
-   double u, d2u;
    Vector du;
-   solution(X,u,du,d2u);
+   exact_gradu(X,du);
+   double d2u = exact_laplacian_u(X);
+
    Vector beta_val;
    beta_function(X,beta_val);
 
@@ -770,6 +817,22 @@ double bdr_data(const Vector &X)
    else
    {
       return exact_hatu(X);
+   }
+}
+
+void beta_function(const Vector & X, Vector & beta_val)
+{
+   beta_val.SetSize(2);
+   if (prob == prob_type::curved_streamlines)
+   {
+      double x = X(0);
+      double y = X(1);
+      beta_val(0) = exp(x)*sin(y);
+      beta_val(1) = exp(x)*cos(y);
+   }
+   else
+   {
+      beta_val = beta;
    }
 }
 
