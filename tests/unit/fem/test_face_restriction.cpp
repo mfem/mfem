@@ -14,68 +14,55 @@
 
 using namespace mfem;
 
-
-TEST_CASE("2D RT Face Restriction", "[FaceRestriction]")
+Mesh MakeCartesianMesh(int nx, int dim)
 {
+   if (dim == 2)
+   {
+      return Mesh::MakeCartesian2D(nx, nx, Element::QUADRILATERAL, true);
+   }
+   else
+   {
+      return Mesh::MakeCartesian3D(nx, nx, nx, Element::HEXAHEDRON);
+   }
+}
+
+TEST_CASE("RT Face Restriction", "[FaceRestriction]")
+{
+   const int dim = GENERATE(2, 3);
    const int nx = 3;
    const int order = 4;
 
-   Mesh mesh = Mesh::MakeCartesian2D(nx, nx, Element::QUADRILATERAL, true);
-   const int dim = mesh.Dimension();
+   CAPTURE(dim);
+
+   Mesh mesh = MakeCartesianMesh(nx, dim);
 
    RT_FECollection fec(order-1, dim);
    FiniteElementSpace fes(&mesh, &fec);
 
    auto ordering = ElementDofOrdering::LEXICOGRAPHIC;
    auto ftype = FaceType::Boundary;
+   const int nfaces = fes.GetNFbyType(FaceType::Boundary);
+   const int ndof_per_face = int(pow(order, dim-1));
    const FaceRestriction *face_restr =
       fes.GetFaceRestriction(ordering, ftype);
 
    REQUIRE(face_restr != nullptr);
 
+   Array<int> bdr_dofs;
+   fes.GetBoundaryTrueDofs(bdr_dofs);
+
+   // Set gf to have random values on the boundary, zero on the interior
    GridFunction gf(&fes);
-   VectorFunctionCoefficient coeff(dim, [](const Vector &xvec, Vector &v)
-   {
-      v[0] = 2*(xvec[0] - 0.5);
-      v[1] = 20*(xvec[1] - 0.5);
-      // v[0] = 1.0;
-      // v[1] = 2.0;
-   });
+   gf.Randomize(0);
+   gf.SetSubVectorComplement(bdr_dofs, 0.0);
 
-   Array<int> attr;
-   if (mesh.bdr_attributes.Size())
-   {
-      attr.SetSize(mesh.bdr_attributes.Max());
-      attr = 1;
-   }
-
-   gf = 0.0;
-   gf.ProjectBdrCoefficient(coeff, attr);
-
+   // Mapping to face E-vector and back to L-vector should give back the
+   // original grid function.
    Vector face_vec(face_restr->Height());
+   REQUIRE(face_vec.Size() == fes.GetNFbyType(ftype)*ndof_per_face);
    face_restr->Mult(gf, face_vec);
-
-   const int nfaces = fes.GetNFbyType(ftype);
-   REQUIRE(face_vec.Size() == nfaces*order);
-
-   // for (int f = 0; f < nfaces; ++f)
-   // {
-   //    std::cout << "Face " << f << ":\n";
-   //    for (int i = 0; i < order; ++i)
-   //    {
-   //       std::cout << "    " << face_vec[f*order + i] << '\n';
-   //    }
-   // }
-   // std::cout << '\n';
-
    GridFunction gf2(&fes);
-   gf2 = 0.0;
    face_restr->MultTranspose(face_vec, gf2);
-
-   // for (int i = 0; i < gf.Size(); ++i)
-   // {
-   //    printf("%8.2f   %8.2f    %8.2f\n", gf[i], gf2[i], gf[i]-gf2[i]);
-   // }
 
    gf2 -= gf;
    REQUIRE(gf2.Normlinf() == MFEM_Approx(0.0));
