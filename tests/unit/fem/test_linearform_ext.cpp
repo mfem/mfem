@@ -288,8 +288,6 @@ TEST_CASE("Linear Form Extension", "[LinearFormExtension], [CUDA]")
       Mesh mesh(mesh_file);
       const int dim = mesh.Dimension();
 
-      if (dim == 3) { return; }
-
       CAPTURE(mesh_file, dim, p);
 
       RT_FECollection fec(p-1, dim);
