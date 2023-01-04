@@ -1319,6 +1319,7 @@ std::ostream& operator<<(std::ostream& os, const Mesh::FaceInformation& info)
          os << "NA";
          break;
    }
+   os << '\n';
    os << "element[0].location=";
    switch (info.element[0].location)
    {
@@ -1332,7 +1333,7 @@ std::ostream& operator<<(std::ostream& os, const Mesh::FaceInformation& info)
          os << "NA";
          break;
    }
-   os << std::endl;
+   os << '\n';
    os << "element[1].location=";
    switch (info.element[1].location)
    {
@@ -1346,7 +1347,7 @@ std::ostream& operator<<(std::ostream& os, const Mesh::FaceInformation& info)
          os << "NA";
          break;
    }
-   os << std::endl;
+   os << '\n';
    os << "element[0].conformity=";
    switch (info.element[0].conformity)
    {
@@ -1363,7 +1364,7 @@ std::ostream& operator<<(std::ostream& os, const Mesh::FaceInformation& info)
          os << "NA";
          break;
    }
-   os << std::endl;
+   os << '\n';
    os << "element[1].conformity=";
    switch (info.element[1].conformity)
    {
@@ -1380,13 +1381,13 @@ std::ostream& operator<<(std::ostream& os, const Mesh::FaceInformation& info)
          os << "NA";
          break;
    }
-   os << std::endl;
-   os << "element[0].index=" << info.element[0].index << std::endl
-      << "element[1].index=" << info.element[1].index << std::endl
-      << "element[0].local_face_id=" << info.element[0].local_face_id << std::endl
-      << "element[1].local_face_id=" << info.element[1].local_face_id << std::endl
-      << "element[0].orientation=" << info.element[0].orientation << std::endl
-      << "element[1].orientation=" << info.element[1].orientation << std::endl
+   os << '\n';
+   os << "element[0].index=" << info.element[0].index << '\n'
+      << "element[1].index=" << info.element[1].index << '\n'
+      << "element[0].local_face_id=" << info.element[0].local_face_id << '\n'
+      << "element[1].local_face_id=" << info.element[1].local_face_id << '\n'
+      << "element[0].orientation=" << info.element[0].orientation << '\n'
+      << "element[1].orientation=" << info.element[1].orientation << '\n'
       << "ncface=" << info.ncface << std::endl;
    return os;
 }
