@@ -282,4 +282,35 @@ TEST_CASE("Linear Form Extension", "[LinearFormExtension], [CUDA]")
 
       REQUIRE(d1.Norml2() == MFEM_Approx(0.0));
    }
+
+   SECTION("VectorFE")
+   {
+      Mesh mesh(mesh_file);
+      const int dim = mesh.Dimension();
+
+      if (dim == 3) { return; }
+
+      CAPTURE(mesh_file, dim, p);
+
+      RT_FECollection fec(p-1, dim);
+      FiniteElementSpace fes(&mesh, &fec);
+
+      FunctionCoefficient coeff(f);
+
+      LinearForm d1(&fes);
+      d1.AddBoundaryIntegrator(new VectorFEBoundaryFluxLFIntegrator(coeff));
+      d1.UseFastAssembly(true);
+      d1.Assemble();
+
+      LinearForm d2(&fes);
+      d2.AddBoundaryIntegrator(new VectorFEBoundaryFluxLFIntegrator(coeff));
+      d2.UseFastAssembly(false);
+      d2.Assemble();
+
+      CAPTURE(d1.Norml2(), d2.Norml2());
+
+      d1 -= d2;
+
+      REQUIRE(d1.Norml2() == MFEM_Approx(0.0));
+   }
 }
