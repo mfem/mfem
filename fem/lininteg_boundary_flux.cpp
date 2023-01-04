@@ -55,80 +55,61 @@ void BFLFEvalAssemble3D(const int nbe, const int d, const int q,
                         const int *markers, const double *b,
                         const double *weights, const Vector &coeff, double *y)
 {
-   // const auto F = coeff.Read();
-   // const auto M = Reshape(markers, nbe);
-   // const auto B = Reshape(b, q, d);
-   // const auto detJ = Reshape(detj, q, q, nbe);
-   // const auto N = Reshape(n, q, q, 3, nbe);
-   // const auto W = Reshape(weights, q, q);
-   // const int cvdim = normals ? 3 : 1;
-   // const bool cst = coeff.Size() == cvdim;
-   // const auto C = cst ? Reshape(F,cvdim,1,1,1) : Reshape(F,cvdim,q,q,nbe);
-   // auto Y = Reshape(y, d, d, vdim, nbe);
+   const auto F = coeff.Read();
+   const auto M = Reshape(markers, nbe);
+   const auto B = Reshape(b, q, d);
+   const auto W = Reshape(weights, q, q);
+   const bool const_coeff = coeff.Size() == 1;
+   const auto C = const_coeff ? Reshape(F,1,1,1) : Reshape(F,q,q,nbe);
+   auto Y = Reshape(y, d, d, nbe);
 
-   // MFEM_FORALL_2D(e, nbe, q, q, 1,
-   // {
-   //    if (M(e) == 0) { return; } // ignore
+   MFEM_FORALL_2D(e, nbe, q, q, 1,
+   {
+      if (M(e) == 0) { return; } // ignore
 
-   //    constexpr int Q = T_Q1D ? T_Q1D : MAX_Q1D;
-   //    constexpr int D = T_D1D ? T_D1D : MAX_D1D;
+      constexpr int Q = T_Q1D ? T_Q1D : MAX_Q1D;
+      constexpr int D = T_D1D ? T_D1D : MAX_D1D;
 
-   //    MFEM_SHARED double sBt[Q*D];
-   //    MFEM_SHARED double sQQ[Q*Q];
-   //    MFEM_SHARED double sQD[Q*D];
+      MFEM_SHARED double sBt[Q*D];
+      MFEM_SHARED double sQQ[Q*Q];
+      MFEM_SHARED double sQD[Q*D];
 
-   //    const DeviceMatrix Bt(sBt, d, q);
-   //    kernels::internal::LoadB<D,Q>(d, q, B, sBt);
+      const DeviceMatrix Bt(sBt, d, q);
+      kernels::internal::LoadB<D,Q>(d, q, B, sBt);
 
-   //    const DeviceMatrix QQ(sQQ, q, q);
-   //    const DeviceMatrix QD(sQD, q, d);
+      const DeviceMatrix QQ(sQQ, q, q);
+      const DeviceMatrix QD(sQD, q, d);
 
-   //    for (int c = 0; c < vdim; ++c)
-   //    {
-   //       MFEM_FOREACH_THREAD(x,x,q)
-   //       {
-   //          MFEM_FOREACH_THREAD(y,y,q)
-   //          {
-   //             double coeff_val = 0.0;
-   //             if (normals)
-   //             {
-   //                for (int cd = 0; cd < 3; ++cd)
-   //                {
-   //                   double cval = cst ? C(cd,0,0,0) : C(cd,x,y,e);
-   //                   coeff_val += cval * N(x,y,cd,e);
-   //                }
-   //             }
-   //             else
-   //             {
-   //                coeff_val = cst ? C(0,0,0,0) : C(0,x,y,e);
-   //             }
-   //             QQ(y,x) = W(x,y) * coeff_val * detJ(x,y,e);
-   //          }
-   //       }
-   //       MFEM_SYNC_THREAD;
-   //       MFEM_FOREACH_THREAD(qy,y,q)
-   //       {
-   //          MFEM_FOREACH_THREAD(dx,x,d)
-   //          {
-   //             double u = 0.0;
-   //             for (int qx = 0; qx < q; ++qx) { u += QQ(qy,qx) * Bt(dx,qx); }
-   //             QD(qy,dx) = u;
-   //          }
-   //       }
-   //       MFEM_SYNC_THREAD;
-   //       MFEM_FOREACH_THREAD(dy,y,d)
-   //       {
-   //          MFEM_FOREACH_THREAD(dx,x,d)
-   //          {
-   //             double u = 0.0;
-   //             for (int qy = 0; qy < q; ++qy) { u += QD(qy,dx) * Bt(dy,qy); }
-   //             Y(dx,dy,c,e) += u;
-   //          }
-   //       }
-   //       MFEM_SYNC_THREAD;
-   //    }
-   // });
-   MFEM_ABORT("Not implemented.");
+      MFEM_FOREACH_THREAD(x,x,q)
+      {
+         MFEM_FOREACH_THREAD(y,y,q)
+         {
+            const double coeff_val = const_coeff ? C(0,0,0) : C(x,y,e);
+            QQ(y,x) = W(x,y) * coeff_val;
+         }
+      }
+      MFEM_SYNC_THREAD;
+      MFEM_FOREACH_THREAD(qy,y,q)
+      {
+         MFEM_FOREACH_THREAD(dx,x,d)
+         {
+            double u = 0.0;
+            for (int qx = 0; qx < q; ++qx) { u += QQ(qy,qx) * Bt(dx,qx); }
+            QD(qy,dx) = u;
+         }
+      }
+      MFEM_SYNC_THREAD;
+      MFEM_FOREACH_THREAD(dy,y,d)
+      {
+         MFEM_FOREACH_THREAD(dx,x,d)
+         {
+            double u = 0.0;
+            for (int qy = 0; qy < q; ++qy) { u += QD(qy,dx) * Bt(dy,qy); }
+            Y(dx,dy,e) += u;
+         }
+      }
+      MFEM_SYNC_THREAD;
+   });
 }
 
 static void BFLFEvalAssemble(const FiniteElementSpace &fes,
