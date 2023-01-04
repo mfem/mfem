@@ -70,8 +70,9 @@ enum prob_type
 
 prob_type prob;
 
-void solution(const Vector & X, double & u, Vector & du, double & d2u);
 double exact_u(const Vector & X);
+void exact_gradu(const Vector & X, Vector &gradu);
+double exact_laplacian_u(const Vector & X);
 void exact_sigma(const Vector & X, Vector & sigma);
 double exact_hatu(const Vector & X);
 void exact_hatsigma(const Vector & X, Vector & hatsigma);
@@ -362,34 +363,34 @@ int main(int argc, char *argv[])
    return 0;
 }
 
-void solution(const Vector & X, double & u, Vector & du, double & d2u)
+double exact_u(const Vector & X)
+{
+   double alpha = M_PI * (X.Sum());
+   return sin(alpha);
+}
+
+void exact_gradu(const Vector & X, Vector & du)
 {
    du.SetSize(X.Size());
    double alpha = M_PI * (X.Sum());
-   u = sin(alpha);
    du.SetSize(X.Size());
    for (int i = 0; i<du.Size(); i++)
    {
       du[i] = M_PI * cos(alpha);
    }
-   d2u = - M_PI*M_PI * u * du.Size();
 }
 
-double exact_u(const Vector & X)
+double exact_laplacian_u(const Vector & X)
 {
-   double u, d2u;
-   Vector du;
-   solution(X,u,du,d2u);
-   return u;
+   double alpha = M_PI * (X.Sum());
+   double u = sin(alpha);
+   return - M_PI*M_PI * u * X.Size();
 }
 
 void exact_sigma(const Vector & X, Vector & sigma)
 {
-   double u, d2u;
-   Vector du;
-   solution(X,u,du,d2u);
    // σ = ∇ u
-   sigma = du;
+   exact_gradu(X,sigma);
 }
 
 double exact_hatu(const Vector & X)
@@ -405,8 +406,5 @@ void exact_hatsigma(const Vector & X, Vector & hatsigma)
 
 double f_exact(const Vector & X)
 {
-   double u, d2u;
-   Vector du;
-   solution(X,u,du,d2u);
-   return -d2u;
+   return -exact_laplacian_u(X);
 }

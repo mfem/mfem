@@ -81,8 +81,9 @@ static const char *enum_str[] =
 
 prob_type prob;
 
-void solution(const Vector & X, double & u, Vector & du, double & d2u);
 double exact_u(const Vector & X);
+void exact_gradu(const Vector & X, Vector &gradu);
+double exact_laplacian_u(const Vector & X);
 void exact_sigma(const Vector & X, Vector & sigma);
 double exact_hatu(const Vector & X);
 void exact_hatsigma(const Vector & X, Vector & hatsigma);
@@ -509,7 +510,31 @@ int main(int argc, char *argv[])
    return 0;
 }
 
-void solution(const Vector & X, double & u, Vector & du, double & d2u)
+double exact_u(const Vector & X)
+{
+   switch (prob)
+   {
+      case prob_type::lshape:
+      {
+         double x = X[0];
+         double y = X[1];
+         double r = sqrt(x*x + y*y);
+         double alpha = 2./3.;
+         double phi = atan2(y,x);
+         if (phi < 0) { phi += 2*M_PI; }
+         return pow(r,alpha) * sin(alpha * phi);
+      }
+      break;
+      default:
+      {
+         double alpha = M_PI * (X.Sum());
+         return sin(alpha);
+      }
+      break;
+   }
+}
+
+void exact_gradu(const Vector & X, Vector & du)
 {
    du.SetSize(X.Size());
    switch (prob)
@@ -523,8 +548,6 @@ void solution(const Vector & X, double & u, Vector & du, double & d2u)
          double phi = atan2(y,x);
          if (phi < 0) { phi += 2*M_PI; }
 
-         u = pow(r,alpha) * sin(alpha * phi);
-
          double r_x = x/r;
          double r_y = y/r;
          double phi_x = - y / (r*r);
@@ -532,41 +555,43 @@ void solution(const Vector & X, double & u, Vector & du, double & d2u)
          double beta = alpha * pow(r,alpha - 1.);
          du[0] = beta*(r_x * sin(alpha*phi) + r * phi_x * cos(alpha*phi));
          du[1] = beta*(r_y * sin(alpha*phi) + r * phi_y * cos(alpha*phi));
-
-         d2u = 0.0; // Not computed since it's not needed for rhs (f = 0)
       }
       break;
-
       default:
       {
          double alpha = M_PI * (X.Sum());
-         u = sin(alpha);
          du.SetSize(X.Size());
          for (int i = 0; i<du.Size(); i++)
          {
             du[i] = M_PI * cos(alpha);
          }
-         d2u = - M_PI*M_PI * u * du.Size();
       }
       break;
    }
 }
 
-double exact_u(const Vector & X)
+double exact_laplacian_u(const Vector & X)
 {
-   double u, d2u;
-   Vector du;
-   solution(X,u,du,d2u);
-   return u;
+   switch (prob)
+   {
+      case prob_type::manufactured:
+      {
+         double alpha = M_PI * (X.Sum());
+         double u = sin(alpha);
+         return - M_PI*M_PI * u * X.Size();
+      }
+      break;
+      default:
+         MFEM_ABORT("Should be unreachable");
+         return 1;
+         break;
+   }
 }
 
 void exact_sigma(const Vector & X, Vector & sigma)
 {
-   double u, d2u;
-   Vector du;
-   solution(X,u,du,d2u);
    // σ = ∇ u
-   sigma = du;
+   exact_gradu(X,sigma);
 }
 
 double exact_hatu(const Vector & X)
@@ -584,8 +609,5 @@ double f_exact(const Vector & X)
 {
    MFEM_VERIFY(prob!=prob_type::lshape,
                "f_exact should not be called for l-shape benchmark problem, i.e., f = 0")
-   double u, d2u;
-   Vector du;
-   solution(X,u,du,d2u);
-   return -d2u;
+   return -exact_laplacian_u(X);
 }
