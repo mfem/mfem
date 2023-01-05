@@ -529,7 +529,7 @@ void EABilinearFormExtension::Assemble()
    }
 
    faceDofs = trial_fes ->
-              GetTraceElement(0, trial_fes->GetMesh()->GetFaceBaseGeometry(0)) ->
+              GetTraceElement(0, trial_fes->GetMesh()->GetFaceGeometry(0)) ->
               GetDof();
 
    MFEM_VERIFY(a->GetBBFI()->Size() == 0,
