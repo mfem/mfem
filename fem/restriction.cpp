@@ -594,24 +594,41 @@ void L2ElementRestriction::FillJAndData(const Vector &ea_data,
    });
 }
 
-void FillFaceMap(const int n_face_dofs,
-                 const int dim,
-                 const int offset,
+/// @brief Fills in the entries of the lexicographic face_map.
+///
+/// n_face_dofs_per_component is the number of DOFs for each vector component
+/// on the face (there is only one vector component in all cases except for 3D
+/// Nedelec elements, where the face DOFs have two components to span the
+/// tangent space).
+///
+/// The DOFs for the ith vector component begin at offsets[i] (i.e. the number
+/// of vector components is given by offsets.size()).
+///
+/// The DOFs for each vector component are arranged in a Cartesian grid defined
+/// by strides and n_dofs_per_dim.
+void FillFaceMap(const int n_face_dofs_per_component,
+                 const std::vector<int> offsets,
                  const std::vector<int> &strides,
-                 const std::vector<int> &n_dofs,
+                 const std::vector<int> &n_dofs_per_dim,
                  Array<int> &face_map)
 {
-   for (int i = 0; i < n_face_dofs; ++i)
+   const int n_components = offsets.size();
+   const int face_dim = strides.size() / n_components;
+   for (int comp = 0; comp < n_components; ++comp)
    {
-      int idx = offset;
-      int j = i;
-      for (int d = 0; d < dim - 1; ++d)
+      const int offset = offsets[comp];
+      for (int i = 0; i < n_face_dofs_per_component; ++i)
       {
-         const int dof1d = n_dofs[d];
-         idx += strides[d]*(j % dof1d);
-         j /= dof1d;
+         int idx = offset;
+         int j = i;
+         for (int d = 0; d < face_dim; ++d)
+         {
+            const int dof1d = n_dofs_per_dim[comp*(face_dim) + d];
+            idx += strides[comp*(face_dim) + d]*(j % dof1d);
+            j /= dof1d;
+         }
+         face_map[comp*n_face_dofs_per_component + i] = idx;
       }
-      face_map[i] = idx;
    }
 }
 
@@ -621,48 +638,47 @@ void GetFaceDofs_H1_L2(const int dim, const int face_id,
                        const int dof1d, Array<int> &face_map)
 {
    int n_face_dofs = pow(dof1d, dim - 1);
-   int offset;
-   std::vector<int> strides;
+   std::vector<int> offsets, strides;
    switch (dim)
    {
       case 1:
-         offset = (face_id == 0) ? 0 : dof1d - 1;
+         offsets = {(face_id == 0) ? 0 : dof1d - 1};
          break;
       case 2:
          strides = {(face_id == 0 || face_id == 2) ? 1 : dof1d};
          switch (face_id)
          {
-            case 0: offset = 0; break; // y = 0
-            case 1: offset = dof1d - 1; break; // x = 1
-            case 2: offset = (dof1d-1)*dof1d; break; // y = 1
-            case 3: offset = 0; break; // x = 0
+            case 0: offsets = {0}; break; // y = 0
+            case 1: offsets = {dof1d - 1}; break; // x = 1
+            case 2: offsets = {(dof1d-1)*dof1d}; break; // y = 1
+            case 3: offsets = {0}; break; // x = 0
          }
          break;
       case 3:
          switch (face_id)
          {
             case 0: // z = 0
-               offset = 0;
+               offsets = {0};
                strides = {1, dof1d};
                break;
             case 1: // y = 0
-               offset = 0;
+               offsets = {0};
                strides = {1, dof1d*dof1d};
                break;
             case 2: // x = 1
-               offset = dof1d-1;
+               offsets = {dof1d-1};
                strides = {dof1d, dof1d*dof1d};
                break;
             case 3: // y = 1
-               offset = (dof1d-1)*dof1d;
+               offsets = {(dof1d-1)*dof1d};
                strides = {1, dof1d*dof1d};
                break;
             case 4: // x = 0
-               offset = 0;
+               offsets = {0};
                strides = {dof1d, dof1d*dof1d};
                break;
             case 5: // z = 1
-               offset = (dof1d-1)*dof1d*dof1d;
+               offsets = {(dof1d-1)*dof1d*dof1d};
                strides = {1, dof1d};
                break;
          }
@@ -671,92 +687,67 @@ void GetFaceDofs_H1_L2(const int dim, const int face_id,
 
    // same number of DOFs in each dimension, repeat dof1d (dim - 1) times
    std::vector<int> n_dofs(dim - 1, dof1d);
-   FillFaceMap(n_face_dofs, dim, offset, strides, n_dofs, face_map);
+   FillFaceMap(n_face_dofs, offsets, strides, n_dofs, face_map);
 }
 
 void GetFaceDofs_ND(const int dim, const int face_id, const int pp1,
                     Array<int> &face_map)
 {
    const int p = pp1 - 1;
-   std::vector<int> strides;
+   const int n_face_dofs_per_component = p*int(pow(pp1, dim-2));
+   std::vector<int> strides, offsets, n_dofs;
 
    switch (dim)
    {
       case 1: MFEM_ABORT("Unsupported dimension."); break;
       case 2:
       {
-         int offset;
-         const int n_face_dofs = p;
          strides = {(face_id == 0 || face_id == 2) ? 1 : pp1};
+         n_dofs = {p};
          switch (face_id)
          {
-            case 0: offset = 0; break; // y = 0
-            case 1: offset = p*pp1 + pp1 - 1; break; // x = 1
-            case 2: offset = p*(pp1 - 1); break; // y = 1
-            case 3: offset = p*pp1; break; // x = 0
+            case 0: offsets = {0}; break; // y = 0
+            case 1: offsets = {p*pp1 + pp1 - 1}; break; // x = 1
+            case 2: offsets = {p*(pp1 - 1)}; break; // y = 1
+            case 3: offsets = {p*pp1}; break; // x = 0
          }
-         std::vector<int> n_dofs(dim - 1, p);
-         FillFaceMap(n_face_dofs, dim, offset, strides, n_dofs, face_map);
          break;
       }
       case 3:
       {
-         // const int n_face_dof = (dim - 1)*p*pp1;
+         n_dofs = {p, pp1, pp1, p};
          const int n_dof_per_dim = p*pp1*pp1;
-         std::vector<int> offsets;
-         std::vector<int> n_dofs;
          switch (face_id)
          {
             case 0: // z = 0
                offsets = {0, n_dof_per_dim};
                strides = {1, p, 1, pp1};
-               n_dofs = {p, pp1, pp1, p};
                break;
             case 1: // y = 0
                offsets = {0, 2*n_dof_per_dim};
                strides = {1, p*pp1, 1, pp1*pp1};
-               n_dofs = {p, pp1, pp1, p};
                break;
             case 2: // x = 1
                offsets = {n_dof_per_dim + pp1 - 1, 2*n_dof_per_dim + pp1 - 1};
                strides = {pp1, p*pp1, pp1, pp1*pp1};
-               n_dofs = {p, pp1, pp1, p};
                break;
             case 3: // y = 1
                offsets = {p*(pp1 - 1), 2*n_dof_per_dim + pp1*(pp1 - 1)};
                strides = {1, p*pp1, 1, pp1*pp1};
-               n_dofs = {p, pp1, pp1, p};
                break;
             case 4: // x = 0
                offsets = {n_dof_per_dim, 2*n_dof_per_dim};
                strides = {pp1, p*pp1, pp1, pp1*pp1};
-               n_dofs = {p, pp1, pp1, p};
                break;
             case 5: // z = 1
                offsets = {p*pp1*(pp1 - 1), n_dof_per_dim + p*pp1*(pp1 - 1)};
                strides = {1, p, 1, pp1};
-               n_dofs = {p, pp1, pp1, p};
                break;
-         }
-         for (int vd = 0; vd < 2; ++vd)
-         {
-            const int offset = offsets[vd];
-            for (int i = 0; i < p*pp1; ++i)
-            {
-               int idx = offset;
-               int j = i;
-               for (int d = 0; d < dim - 1; ++d)
-               {
-                  const int dof1d = n_dofs[vd*2 + d];
-                  idx += strides[vd*2 + d]*(j % dof1d);
-                  j /= dof1d;
-               }
-               face_map[vd*p*pp1 + i] = idx;
-            }
          }
          break;
       }
    }
+   FillFaceMap(n_face_dofs_per_component, offsets, strides, n_dofs, face_map);
 }
 
 void GetFaceDofs_RT(const int dim, const int face_id, const int pp1,
@@ -764,8 +755,7 @@ void GetFaceDofs_RT(const int dim, const int face_id, const int pp1,
 {
    const int p = pp1 - 1;
    int n_face_dofs = static_cast<int>(pow(p, dim - 1));
-   int offset = 0;
-   std::vector<int> strides;
+   std::vector<int> strides, offsets;
 
    switch (dim)
    {
@@ -774,10 +764,10 @@ void GetFaceDofs_RT(const int dim, const int face_id, const int pp1,
          strides = {(face_id == 0 || face_id == 2) ? 1 : pp1};
          switch (face_id)
          {
-            case 0: offset = p*pp1; break; // y = 0
-            case 1: offset = pp1 - 1; break; // x = 1
-            case 2: offset = p*pp1 + p*(pp1 - 1); break; // y = 1
-            case 3: offset = 0; break; // x = 0
+            case 0: offsets = {p*pp1}; break; // y = 0
+            case 1: offsets = {pp1 - 1}; break; // x = 1
+            case 2: offsets = {p*pp1 + p*(pp1 - 1)}; break; // y = 1
+            case 3: offsets = {0}; break; // x = 0
          }
          break;
       case 3:
@@ -786,27 +776,27 @@ void GetFaceDofs_RT(const int dim, const int face_id, const int pp1,
          switch (face_id)
          {
             case 0: // z = 0
-               offset = 2*n_dof_per_dim;
+               offsets = {2*n_dof_per_dim};
                strides = {1, p};
                break;
             case 1: // y = 0
-               offset = n_dof_per_dim;
+               offsets = {n_dof_per_dim};
                strides = {1, p*pp1};
                break;
             case 2: // x = 1
-               offset = pp1 - 1;
+               offsets = {pp1 - 1};
                strides = {pp1, p*pp1};
                break;
             case 3: // y = 1
-               offset = n_dof_per_dim + p*(pp1 - 1);
+               offsets = {n_dof_per_dim + p*(pp1 - 1)};
                strides = {1, p*pp1};
                break;
             case 4: // x = 0
-               offset = 0;
+               offsets = {0};
                strides = {pp1, p*pp1};
                break;
             case 5: // z = 1
-               offset = 2*n_dof_per_dim + p*p*(pp1 - 1);
+               offsets = {2*n_dof_per_dim + p*p*(pp1 - 1)};
                strides = {1, p};
                break;
          }
@@ -814,7 +804,7 @@ void GetFaceDofs_RT(const int dim, const int face_id, const int pp1,
       }
    }
    std::vector<int> n_dofs(dim - 1, p);
-   FillFaceMap(n_face_dofs, dim, offset, strides, n_dofs, face_map);
+   FillFaceMap(n_face_dofs, offsets, strides, n_dofs, face_map);
 }
 
 void GetFaceDofs(const FiniteElementSpace &fes,
