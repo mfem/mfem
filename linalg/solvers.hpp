@@ -469,6 +469,8 @@ protected:
 
    void UpdateVectors();
 
+   double tr_tol;
+
 public:
    CGSolver() { }
 
@@ -480,18 +482,21 @@ public:
    { IterativeSolver::SetOperator(op); UpdateVectors(); }
 
    virtual void Mult(const Vector &b, Vector &x) const;
+
+   void SetTRTol(double trtol) { tr_tol = trtol; }
 };
 
 /// Conjugate gradient method. (tolerances are squared)
 void CG(const Operator &A, const Vector &b, Vector &x,
         int print_iter = 0, int max_num_iter = 1000,
-        double RTOLERANCE = 1e-12, double ATOLERANCE = 1e-24);
+        double RTOLERANCE = 1e-12, double ATOLERANCE = 1e-24,
+        double TRUST_REGION_TOL = 0.0);
 
 /// Preconditioned conjugate gradient method. (tolerances are squared)
 void PCG(const Operator &A, Solver &B, const Vector &b, Vector &x,
          int print_iter = 0, int max_num_iter = 1000,
-         double RTOLERANCE = 1e-12, double ATOLERANCE = 1e-24);
-
+         double RTOLERANCE = 1e-12, double ATOLERANCE = 1e-24,
+         double TRUST_REGION_TOL = 0.0);
 
 /// GMRES method
 class GMRESSolver : public IterativeSolver

@@ -783,13 +783,43 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
       }
    }
 
+   Vector x_tmp;
+   if (tr_tol > 0.0) { x_tmp.SetSize(x.Size()); }
+
    // start iteration
    converged = false;
    final_iter = max_iter;
    for (i = 1; true; )
    {
       alpha = nom/den;
-      add(x,  alpha, d, x);     //  x = x + alpha d
+      add(x,  alpha, d, x_tmp);     //  x_tmp = x + alpha d
+      // add(x,  alpha, d, x);     //  x = x + alpha d
+
+      if (tr_tol > 0.0)
+      {
+         double xx_tmp = Dot(x_tmp, x_tmp);
+         mfem::out << "||x_next|| = " << sqrt(xx_tmp) << '\n';
+         if (xx_tmp > tr_tol*tr_tol)
+         {
+            // enforce x = ||x + alpha d|| =  tr_tol
+            double dd = Dot(d, d);
+            double dx = Dot(d, x);
+            double xx = Dot(x, x);
+            double tmp = dx*dx + 4.0*dd*(tr_tol*tr_tol - xx);
+            tmp = sqrt(tmp) - dx;
+            alpha = tmp / (2.0*dd);
+            add(x,  alpha, d, x);
+            mfem::out << "||x_next|| = " << sqrt(Dot(x, x)) << '\n';
+            cin.get();
+            converged = true;
+            final_iter = i;
+            break;
+         }
+         else
+         {
+            x = x_tmp;
+         }
+      }
       add(r, -alpha, z, r);     //  r = r - alpha A d
 
       if (prec)
@@ -888,7 +918,8 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
 
 void CG(const Operator &A, const Vector &b, Vector &x,
         int print_iter, int max_num_iter,
-        double RTOLERANCE, double ATOLERANCE)
+        double RTOLERANCE, double ATOLERANCE,
+        double TRUST_REGION_TOL)
 {
    MFEM_PERF_FUNCTION;
 
@@ -897,13 +928,15 @@ void CG(const Operator &A, const Vector &b, Vector &x,
    cg.SetMaxIter(max_num_iter);
    cg.SetRelTol(sqrt(RTOLERANCE));
    cg.SetAbsTol(sqrt(ATOLERANCE));
+   cg.SetTRTol(sqrt(TRUST_REGION_TOL));
    cg.SetOperator(A);
    cg.Mult(b, x);
 }
 
 void PCG(const Operator &A, Solver &B, const Vector &b, Vector &x,
          int print_iter, int max_num_iter,
-         double RTOLERANCE, double ATOLERANCE)
+         double RTOLERANCE, double ATOLERANCE,
+         double TRUST_REGION_TOL)
 {
    MFEM_PERF_FUNCTION;
 
@@ -912,6 +945,7 @@ void PCG(const Operator &A, Solver &B, const Vector &b, Vector &x,
    pcg.SetMaxIter(max_num_iter);
    pcg.SetRelTol(sqrt(RTOLERANCE));
    pcg.SetAbsTol(sqrt(ATOLERANCE));
+   pcg.SetTRTol(sqrt(TRUST_REGION_TOL));
    pcg.SetOperator(A);
    pcg.SetPreconditioner(B);
    pcg.Mult(b, x);

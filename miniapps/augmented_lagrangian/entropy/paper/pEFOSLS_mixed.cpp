@@ -10,7 +10,6 @@ using namespace mfem;
 
 Vector beta;
 double eps = 1e-2;
-// double eps = 1e-2;
 double Ramp_BC(const Vector &pt);
 double EJ_exact_solution(const Vector &pt);
 
@@ -206,7 +205,7 @@ int main(int argc, char *argv[])
       Vector gradient(2);
       gradient(0) = 2.0*M_PI * cos(2.0*M_PI*x(0))*sin(2.0*M_PI*x(1));
       gradient(1) = 2.0*M_PI * sin(2.0*M_PI*x(0))*cos(2.0*M_PI*x(1));
-      return (-eps * x.Size() * pow(2.0*M_PI,2) * val + beta*gradient) / 2.0;
+      return (eps * x.Size() * pow(2.0*M_PI,2) * val + beta*gradient) / 2.0;
    };
    auto perturbation_func = [](const Vector &x)
    {
@@ -322,23 +321,19 @@ int main(int argc, char *argv[])
          GridFunctionCoefficient psi_old_cf(&psi_old_gf);
          ExpitGridFunctionCoefficient expit_psi(psi_gf, alpha);
          dExpitdxGridFunctionCoefficient dexpitdx_psi(psi_gf, alpha);
-
-         // TODO
-         // 1. modify expit classes to take in alpha parameter
-         // 2. verify formulas
-         // 3. debug with beta = 0
-         // 4. debug with beta ≠ 0
-
+         SumCoefficient psi_old_minus_psi(psi_old_cf, psi_cf, 1.0, -1.0);
+         
          ParLinearForm b0,b1,b2;
          b0.Update(&H1fes,rhs.GetBlock(0),0);
          b1.Update(&RTfes,rhs.GetBlock(1),0);
          b2.Update(&L2fes,rhs.GetBlock(2),0);
 
          // b0 and b1 are zero
+         b0.AddDomainIntegrator(new DomainLFIntegrator(psi_old_minus_psi));
          b0.Assemble();
          b1.AddDomainIntegrator(new VectorFEDomainLFDivIntegrator(f_cf));
          b1.Assemble();
-         // b2.AddDomainIntegrator(new DomainLFIntegrator(expit_psi));
+         b2.AddDomainIntegrator(new DomainLFIntegrator(expit_psi));
          b2.Assemble();
 
          // // a00: ϵ(∇u,∇v) + (β⋅∇u,β⋅∇v)
@@ -477,8 +472,6 @@ int main(int argc, char *argv[])
 
          sol_sock << "parallel " << num_procs << " " << myid << "\n";
          sol_sock << "solution\n" << pmesh << u_gf << "window_title 'Discrete solution'" << flush;
-         mfem::out << endl;
-
 
          double gamma = 1.0;
          delta_psi_gf *= gamma;
