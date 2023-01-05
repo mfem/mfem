@@ -11,7 +11,9 @@ using namespace mfem;
 double spherical_obstacle(const Vector &pt);
 void spherical_obstacle_gradient(const Vector &pt, Vector &grad);
 double exact_solution_obstacle(const Vector &pt);
+void exact_solution_gradient_obstacle(const Vector &pt, Vector &grad);
 double exact_solution_biactivity(const Vector &pt);
+void exact_solution_gradient_biactivity(const Vector &pt, Vector &grad);
 double load_biactivity(const Vector &pt);
 
 class LogarithmGridFunctionCoefficient : public Coefficient
@@ -22,7 +24,7 @@ protected:
    double min_val;
 
 public:
-   LogarithmGridFunctionCoefficient(GridFunction &u_, Coefficient &obst_, double min_val_=-1e6)
+   LogarithmGridFunctionCoefficient(GridFunction &u_, Coefficient &obst_, double min_val_=-36)
       : u(&u_), obstacle(&obst_), min_val(min_val_) { }
 
    virtual double Eval(ElementTransformation &T, const IntegrationPoint &ip);
@@ -87,6 +89,7 @@ int main(int argc, char *argv[])
       args.PrintOptions(cout);
    }
 
+   // Mesh mesh = Mesh::MakeCartesian2D(2, 2, Element::QUADRILATERAL, );
    Mesh mesh(mesh_file, 1, 1);
    int dim = mesh.Dimension();
 
@@ -101,13 +104,19 @@ int main(int argc, char *argv[])
    ParMesh pmesh(MPI_COMM_WORLD, mesh);
    mesh.Clear();
 
-   // Need help for Socratis to use AMR
+   // Need help from Socratis to use AMR
 
-   H1_FECollection H1fec(order+1, dim);
+   H1_FECollection H1fec(order, dim);
    ParFiniteElementSpace H1fes(&pmesh, &H1fec);
 
    L2_FECollection L2fec(order-1, dim);
    ParFiniteElementSpace L2fes(&pmesh, &L2fec);
+
+   // H1_FECollection H1fec(order, dim);
+   // ParFiniteElementSpace H1fes(&pmesh, &H1fec);
+
+   // H1_FECollection L2fec(order, dim);
+   // ParFiniteElementSpace L2fes(&pmesh, &L2fec);
 
    cout << "Number of finite element unknowns: "
         << H1fes.GetTrueVSize() 
@@ -126,13 +135,16 @@ int main(int argc, char *argv[])
    toffsets[2] = L2fes.GetTrueVSize();
    toffsets.PartialSum();
 
+   Array<int> empty;
    Array<int> ess_tdof_list;
+   Array<int> ess_tdof_list_L2;
    Array<int> ess_bdr(pmesh.bdr_attributes.Max());
    if (pmesh.bdr_attributes.Size())
    {
       // ess_bdr = 0;
       ess_bdr = 1;
       H1fes.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
+      if (H1fes.GetTrueVSize() == L2fes.GetTrueVSize()) { L2fes.GetEssentialTrueDofs(ess_bdr, ess_tdof_list_L2); }
    }
 
    auto sol_func = [](const Vector &x)
@@ -202,23 +214,33 @@ int main(int argc, char *argv[])
    // double alpha0 = 0.1;
 
    /////////// Example 2
-   FunctionCoefficient exact_coef(exact_solution_obstacle);
-   FunctionCoefficient IC_coef(IC_func);
-   ConstantCoefficient f(0.0);
-   FunctionCoefficient obstacle(spherical_obstacle);
-   u_gf.ProjectCoefficient(IC_coef);
-   u_old_gf = u_gf;
-   double alpha0 = 0.1;
+   // FunctionCoefficient exact_coef(exact_solution_obstacle);
+   // VectorFunctionCoefficient exact_grad_coef(dim,exact_solution_gradient_obstacle);
+   // FunctionCoefficient IC_coef(IC_func);
+   // ConstantCoefficient f(0.0);
+   // FunctionCoefficient obstacle(spherical_obstacle);
+   // u_gf.ProjectCoefficient(IC_coef);
+   // u_old_gf = u_gf;
    // double alpha0 = 1.0;
+   // // double alpha0 = 0.1;
 
    /////////// Example 3
-   // u_gf = 0.5;
-   // FunctionCoefficient exact_coef(exact_solution_biactivity);
-   // FunctionCoefficient f(load_biactivity);
-   // FunctionCoefficient bdry_coef(exact_solution_biactivity);
-   // ConstantCoefficient obstacle(0.0);
+   u_gf = 0.0;
+   FunctionCoefficient exact_coef(exact_solution_biactivity);
+   VectorFunctionCoefficient exact_grad_coef(dim,exact_solution_gradient_biactivity);
+   FunctionCoefficient f(load_biactivity);
+   FunctionCoefficient bdry_coef(exact_solution_biactivity);
+   ConstantCoefficient obstacle(-0.0);
+   // ConstantCoefficient obstacle(-1e-10);
+   ParGridFunction tmp(&H1fes);
+   FunctionCoefficient IC_coef(IC_func);
+   tmp.ProjectCoefficient(IC_coef);
+   tmp *= 0.1;
+   u_gf.ProjectCoefficient(bdry_coef);
    // u_gf.ProjectBdrCoefficient(bdry_coef, ess_bdr);
-   // double alpha0 = 1.0;
+   // u_gf += tmp;
+   // double alpha0 = 0.1;
+   double alpha0 = 1.0;
 
    /////////// Newton TEST
    // FunctionCoefficient f(rhs_func);
@@ -238,8 +260,31 @@ int main(int argc, char *argv[])
    socketstream sol_sock(vishost, visport);
    sol_sock.precision(8);
 
-   // socketstream psi_sock(vishost, visport);
-   // psi_sock.precision(8);
+   double total_error = u_gf.ComputeL2Error(exact_coef);
+   mfem::out << "total_error = " << total_error << endl;
+
+   GridFunction u_alt_gf(&L2fes);
+   GridFunction error_gf(&L2fes);
+
+   ExponentialGridFunctionCoefficient exp_psi(psi_gf,obstacle);
+   u_alt_gf.ProjectCoefficient(exp_psi);
+
+   sol_sock << "parallel " << num_procs << " " << myid << "\n";
+   sol_sock << "solution\n" << pmesh << u_alt_gf << "window_title 'Discrete solution'" << flush;
+   // sol_sock << "solution\n" << pmesh << u_gf << "window_title 'Discrete solution'" << flush;
+
+   // cin.get();
+
+   mfem::ParaViewDataCollection paraview_dc("Obstacle", &pmesh);
+   paraview_dc.SetPrefixPath("ParaView");
+   paraview_dc.SetLevelsOfDetail(order);
+   paraview_dc.SetCycle(0);
+   paraview_dc.SetDataFormat(VTKFormat::BINARY);
+   paraview_dc.SetHighOrderOutput(true);
+   paraview_dc.SetTime(0.0); // set the time
+   paraview_dc.RegisterField("u",&u_gf);
+   paraview_dc.RegisterField("tilde_u",&u_alt_gf);
+   paraview_dc.RegisterField("error",&error_gf);
 
    LpErrorEstimator estimator(2, exact_coef, u_gf);
    ThresholdRefiner refiner(estimator);
@@ -248,7 +293,7 @@ int main(int argc, char *argv[])
    // 12. Iterate
    int k;
    int total_iterations = 0;
-   double tol = 1e-8;
+   double tol = 1e-12;
    double increment_u = 0.1;
    double comp;
    double entropy;
@@ -321,24 +366,35 @@ int main(int argc, char *argv[])
          a10.AddDomainIntegrator(new MixedScalarMassIntegrator());
          a10.Assemble();
          HypreParMatrix A10;
-         Array<int> empty;
-         a10.FormRectangularLinearSystem(ess_tdof_list, empty, x.GetBlock(0), rhs.GetBlock(1), 
+         a10.FormRectangularLinearSystem(ess_tdof_list, ess_tdof_list_L2, x.GetBlock(0), rhs.GetBlock(1), 
                                          A10, tx.GetBlock(0), trhs.GetBlock(1));
+         // a10.FormRectangularLinearSystem(ess_tdof_list, empty, x.GetBlock(0), rhs.GetBlock(1), 
+         //                                 A10, tx.GetBlock(0), trhs.GetBlock(1));
 
          HypreParMatrix &A01 = *A10.Transpose();
 
          ParBilinearForm a11(&L2fes);
-         a11.AddDomainIntegrator(new MassIntegrator(neg_exp_psi));
+         // a11.SetDiagonalPolicy(mfem::Operator::DIAG_ZERO);
+         const IntegrationRule &ir = IntRules.Get(pmesh.GetElementGeometry(0), 2*order + 4);
+         MassIntegrator * integ = new MassIntegrator(neg_exp_psi);
+         integ->SetIntegrationRule(ir);
+         a11.AddDomainIntegrator(integ);
+         // a11.AddDomainIntegrator(new MassIntegrator(neg_exp_psi));
+         ConstantCoefficient eps_cf(-1e-6);
+         a11.AddDomainIntegrator(new DiffusionIntegrator(eps_cf));
          a11.Assemble();
          a11.Finalize();
-         HypreParMatrix &A11 = *a11.ParallelAssemble();
+         // HypreParMatrix &A11 = *a11.ParallelAssemble();
+         HypreParMatrix A11;
+         a11.FormSystemMatrix(ess_tdof_list_L2, A11);
+         // a11.FormLinearSystem(ess_tdof_list_L2, x.GetBlock(1), rhs.GetBlock(1), 
+         //                      A11, tx.GetBlock(1), trhs.GetBlock(1));
 
          BlockOperator A(toffsets);
          A.SetBlock(0,0,&A00);
          A.SetBlock(1,0,&A10);
          A.SetBlock(0,1,&A01);
          A.SetBlock(1,1,&A11);
-
 
          // DIRECT solver
          Array2D<HypreParMatrix *> BlockA(2,2);
@@ -369,7 +425,6 @@ int main(int argc, char *argv[])
          // // gmres.SetPreconditioner(prec);
          // gmres.Mult(trhs,tx);
 
-
          u_gf.SetFromTrueDofs(tx.GetBlock(0));
          delta_psi_gf.SetFromTrueDofs(tx.GetBlock(1));
 
@@ -377,15 +432,17 @@ int main(int argc, char *argv[])
          double Newton_update_size = u_tmp.ComputeL2Error(zero);
          u_tmp = u_gf;
 
-         sol_sock << "parallel " << num_procs << " " << myid << "\n";
-         sol_sock << "solution\n" << pmesh << u_gf << "window_title 'Discrete solution'" << flush;
-         mfem::out << endl;
-         // psi_sock << "solution\n" << mesh << delta_psi_gf << "window_title 'delta psi'" << flush;
-
+         // double gamma = 0.1;
+         // double gamma = 0.5;
          double gamma = 1.0;
-         // double gamma = 1.0;
          delta_psi_gf *= gamma;
          psi_gf += delta_psi_gf;
+
+         sol_sock << "parallel " << num_procs << " " << myid << "\n";
+         sol_sock << "solution\n" << pmesh << psi_gf << "window_title 'Discrete solution'" << flush;
+         // sol_sock << "solution\n" << pmesh << u_gf << "window_title 'Discrete solution'" << flush;
+         // psi_sock << "solution\n" << mesh << delta_psi_gf << "window_title 'delta psi'" << flush;
+         mfem::out << endl;
          
          mfem::out << "Newton_update_size = " << Newton_update_size << endl;
 
@@ -464,51 +521,46 @@ int main(int argc, char *argv[])
       // double total_error = estimator.GetTotalError();
       double total_error = u_gf.ComputeL2Error(exact_coef);
 
-      // mfem::out << "total_error = " << total_error << endl;
+      // if (total_error < tol || k == max_it-1)
+      // {
+      //    break;
+      // }
+
+      mfem::out << "total_error = " << total_error << endl;
       // mfem::out << "increment_u = " << increment_u << endl;
 
-      if (total_error > increment_u && adaptive)
-      {
-         refiner.Apply(pmesh);
-         H1fes.Update();
-         L2fes.Update();
+      // if (total_error > increment_u && adaptive)
+      // {
+      //    refiner.Apply(pmesh);
+      //    H1fes.Update();
+      //    L2fes.Update();
 
-         H1fes.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
+      //    H1fes.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
 
-         offsets[1] = H1fes.GetVSize();
-         offsets[2] = L2fes.GetVSize();
-         offsets.PartialSum();
-         toffsets[1] = H1fes.GetTrueVSize();
-         toffsets[2] = L2fes.GetTrueVSize();
-         toffsets.PartialSum();
+      //    offsets[1] = H1fes.GetVSize();
+      //    offsets[2] = L2fes.GetVSize();
+      //    offsets.PartialSum();
+      //    toffsets[1] = H1fes.GetTrueVSize();
+      //    toffsets[2] = L2fes.GetTrueVSize();
+      //    toffsets.PartialSum();
 
-         x.Update(offsets);
-         rhs.Update(offsets);
-         tx.Update(toffsets);
-         trhs.Update(toffsets);
-         x = 0.0; rhs = 0.0;
-         tx = 0.0; trhs = 0.0;
+      //    x.Update(offsets);
+      //    rhs.Update(offsets);
+      //    tx.Update(toffsets);
+      //    trhs.Update(toffsets);
+      //    x = 0.0; rhs = 0.0;
+      //    tx = 0.0; trhs = 0.0;
 
-         u_gf.MakeRef(&H1fes,x.GetBlock(0));
-         delta_psi_gf.MakeRef(&L2fes,x.GetBlock(1));
+      //    u_gf.MakeRef(&H1fes,x.GetBlock(0));
+      //    delta_psi_gf.MakeRef(&L2fes,x.GetBlock(1));
 
-         u_gf.ProjectCoefficient(IC_coef);
+      //    u_gf.ProjectCoefficient(IC_coef);
 
-         u_old_gf.Update();
-         psi_gf.Update();
-         psi_old_gf.Update();
-      }
+      //    u_old_gf.Update();
+      //    psi_gf.Update();
+      //    psi_old_gf.Update();
+      // }
 
-      // sol_sock << "solution\n" << mesh << u_gf << "window_title 'Discrete solution'" << flush;
-
-
-      // 14. Send the solution by socket to a GLVis server.
-      // u_old = u;
-      // ExponentialGridFunctionCoefficient exp_psi(psi, obstacle);
-      // u.ProjectCoefficient(exp_psi);
-      // sol_sock << "solution\n" << mesh << exp_psi << "window_title 'Discrete solution'" << flush;
-      // sol_sock << "solution\n" << mesh << u_gf << "window_title 'Discrete solution'" << flush;
-      
    }
 
    mfem::out << "\n Outer iterations: " << k+1
@@ -527,10 +579,24 @@ int main(int argc, char *argv[])
       error.ProjectCoefficient(exact_coef);
       error -= u_gf;
 
-      mfem::out << "\n Final L2-error (|| u - u_h||) = " << u_gf.ComputeL2Error(exact_coef) << endl;
-
       err_sock << "parallel " << num_procs << " " << myid << "\n";
       err_sock << "solution\n" << pmesh << error << "window_title 'Error'"  << flush;
+
+      ExponentialGridFunctionCoefficient exp_psi(psi_gf,obstacle);
+      u_alt_gf.ProjectCoefficient(exp_psi);
+      error_gf = 0.0;
+      error_gf.ProjectCoefficient(exact_coef);
+      error_gf -= u_alt_gf;
+      error_gf *= -1.0;
+
+      mfem::out << "\n Final L2-error (|| u - u_h||)         = " << u_gf.ComputeL2Error(exact_coef) << endl;
+      mfem::out << "\n Final H1-error (|| u - u_h||)         = " << u_gf.ComputeH1Error(&exact_coef,&exact_grad_coef) << endl;
+      mfem::out << "\n Final L2-error (|| u - \\tilde{u}_h||) = " << u_alt_gf.ComputeL2Error(exact_coef) << endl;
+
+      paraview_dc.SetCycle(1);
+      paraview_dc.SetTime((double)1);
+      paraview_dc.Save();
+
    }
    
    return 0;
@@ -617,17 +683,54 @@ double exact_solution_obstacle(const Vector &pt)
    }
 }
 
+void exact_solution_gradient_obstacle(const Vector &pt, Vector &grad)
+{
+   double x = pt(0), y = pt(1);
+   double r = sqrt(x*x + y*y);
+   double r0 = 0.5;
+   double a =  0.348982574111686;
+   double A = -0.340129705945858;
+
+   if (r > a)
+   {
+      grad(0) =  A * x / (r*r);
+      grad(1) =  A * y / (r*r);
+   }
+   else
+   {
+      grad(0) = - x / sqrt( r0*r0 - r*r );
+      grad(1) = - y / sqrt( r0*r0 - r*r );
+   }
+}
+
 double exact_solution_biactivity(const Vector &pt)
 {
    double x = pt(0);
 
    if (x > 0.0)
    {
+      // return exp(-1.0/x);
       return x*x;
    }
    else
    {
       return 0.0;
+   }
+}
+
+void exact_solution_gradient_biactivity(const Vector &pt, Vector &grad)
+{
+   double x = pt(0);
+
+   if (x > 0.0)
+   {
+      grad(0) =  2.0*x;
+      grad(1) =  0.0;
+   }
+   else
+   {
+      grad(0) = 0.0;
+      grad(1) = 0.0;
    }
 }
 
@@ -638,6 +741,7 @@ double load_biactivity(const Vector &pt)
    if (x > 0.0)
    {
       return -2.0;
+      // return exp(-1.0/x) * (2.0*x - 1.0) / pow(x,4);
    }
    else
    {
