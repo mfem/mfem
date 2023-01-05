@@ -1347,7 +1347,6 @@ public:
    ///Construct using matrix @a m for the constant.
    SymmetricMatrixConstantCoefficient(const DenseSymmetricMatrix &m)
       : SymmetricMatrixCoefficient(m.Height()), mat(m) { }
-   using MatrixCoefficient::Eval;
    using SymmetricMatrixCoefficient::Eval;
    /// Evaluate the matrix coefficient at @a ip.
    virtual void Eval(DenseSymmetricMatrix &M, ElementTransformation &T,
