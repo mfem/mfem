@@ -26,8 +26,10 @@ Mesh MakeCartesianMesh(int nx, int dim)
    }
 }
 
-TEST_CASE("RT Face Restriction", "[FaceRestriction]")
+TEST_CASE("Vector FE Face Restriction", "[FaceRestriction]")
 {
+   enum class SpaceType {RT, ND};
+   const auto space_type = GENERATE(SpaceType::RT, SpaceType::ND);
    const int dim = GENERATE(2, 3);
    const int nx = 3;
    const int order = 4;
@@ -36,13 +38,24 @@ TEST_CASE("RT Face Restriction", "[FaceRestriction]")
 
    Mesh mesh = MakeCartesianMesh(nx, dim);
 
-   RT_FECollection fec(order-1, dim);
-   FiniteElementSpace fes(&mesh, &fec);
+   int ndof_per_face;
+   std::unique_ptr<FiniteElementCollection> fec;
+   if (space_type == SpaceType::RT)
+   {
+      fec.reset(new RT_FECollection(order-1, dim));
+      ndof_per_face = int(pow(order, dim-1));
+   }
+   else
+   {
+      fec.reset(new ND_FECollection(order, dim));
+      ndof_per_face = (dim - 1)*order*int(pow(order + 1, dim - 2));
+   }
+
+   FiniteElementSpace fes(&mesh, fec.get());
 
    auto ordering = ElementDofOrdering::LEXICOGRAPHIC;
    auto ftype = FaceType::Boundary;
    const int nfaces = fes.GetNFbyType(FaceType::Boundary);
-   const int ndof_per_face = int(pow(order, dim-1));
    const FaceRestriction *face_restr =
       fes.GetFaceRestriction(ordering, ftype);
 
@@ -59,8 +72,39 @@ TEST_CASE("RT Face Restriction", "[FaceRestriction]")
    // Mapping to face E-vector and back to L-vector should give back the
    // original grid function.
    Vector face_vec(face_restr->Height());
-   REQUIRE(face_vec.Size() == fes.GetNFbyType(ftype)*ndof_per_face);
+   REQUIRE(face_vec.Size() == nfaces*ndof_per_face);
    face_restr->Mult(gf, face_vec);
+
+   if (space_type == SpaceType::ND && dim == 3)
+   {
+      // Adjust for multiplicity. In all other cases, each boundary DOF is
+      // unique (not shared between faces). In the case of 3D ND elements, some
+      // boundary DOFs are shared between two faces (i.e. those that lie on
+      // element edges).
+      //
+      // This adjustment will ensure that the original vector is recovered after
+      // multiplying by the transpose of the face restriction operator.
+      const int n = order*(order+1);
+      for (int f = 0; f < fes.GetNFbyType(ftype); ++f)
+      {
+         for (int d = 0; d < 2; ++d)
+         {
+            const int nx = (d == 0) ? order : order + 1;
+            const int ny = (d == 0) ? order + 1 : order;
+            for (int i = 0; i < n; ++i)
+            {
+               const int ix = i % nx;
+               const int iy = i / nx;
+               if ((d == 0 && (iy == 0 || iy == ny - 1)) ||
+                   (d == 1 && (ix == 0 || ix == nx - 1)))
+               {
+                  face_vec[f*ndof_per_face + d*n + i] *= 0.5;
+               }
+            }
+         }
+      }
+   }
+
    GridFunction gf2(&fes);
    face_restr->MultTranspose(face_vec, gf2);
 

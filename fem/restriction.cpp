@@ -674,10 +674,89 @@ void GetFaceDofs_H1_L2(const int dim, const int face_id,
    FillFaceMap(n_face_dofs, dim, offset, strides, n_dofs, face_map);
 }
 
-void GetFaceDofs_ND(const int dim, const int face_id, const int dof1d,
+void GetFaceDofs_ND(const int dim, const int face_id, const int pp1,
                     Array<int> &face_map)
 {
-   MFEM_ABORT("Not yet implemented.");
+   const int p = pp1 - 1;
+   std::vector<int> strides;
+
+   switch (dim)
+   {
+      case 1: MFEM_ABORT("Unsupported dimension."); break;
+      case 2:
+      {
+         int offset;
+         const int n_face_dofs = p;
+         strides = {(face_id == 0 || face_id == 2) ? 1 : pp1};
+         switch (face_id)
+         {
+            case 0: offset = 0; break; // y = 0
+            case 1: offset = p*pp1 + pp1 - 1; break; // x = 1
+            case 2: offset = p*(pp1 - 1); break; // y = 1
+            case 3: offset = p*pp1; break; // x = 0
+         }
+         std::vector<int> n_dofs(dim - 1, p);
+         FillFaceMap(n_face_dofs, dim, offset, strides, n_dofs, face_map);
+         break;
+      }
+      case 3:
+      {
+         // const int n_face_dof = (dim - 1)*p*pp1;
+         const int n_dof_per_dim = p*pp1*pp1;
+         std::vector<int> offsets;
+         std::vector<int> n_dofs;
+         switch (face_id)
+         {
+            case 0: // z = 0
+               offsets = {0, n_dof_per_dim};
+               strides = {1, p, 1, pp1};
+               n_dofs = {p, pp1, pp1, p};
+               break;
+            case 1: // y = 0
+               offsets = {0, 2*n_dof_per_dim};
+               strides = {1, p*pp1, 1, pp1*pp1};
+               n_dofs = {p, pp1, pp1, p};
+               break;
+            case 2: // x = 1
+               offsets = {n_dof_per_dim + pp1 - 1, 2*n_dof_per_dim + pp1 - 1};
+               strides = {pp1, p*pp1, pp1, pp1*pp1};
+               n_dofs = {p, pp1, pp1, p};
+               break;
+            case 3: // y = 1
+               offsets = {p*(pp1 - 1), 2*n_dof_per_dim + pp1*(pp1 - 1)};
+               strides = {1, p*pp1, 1, pp1*pp1};
+               n_dofs = {p, pp1, pp1, p};
+               break;
+            case 4: // x = 0
+               offsets = {n_dof_per_dim, 2*n_dof_per_dim};
+               strides = {pp1, p*pp1, pp1, pp1*pp1};
+               n_dofs = {p, pp1, pp1, p};
+               break;
+            case 5: // z = 1
+               offsets = {p*pp1*(pp1 - 1), n_dof_per_dim + p*pp1*(pp1 - 1)};
+               strides = {1, p, 1, pp1};
+               n_dofs = {p, pp1, pp1, p};
+               break;
+         }
+         for (int vd = 0; vd < 2; ++vd)
+         {
+            const int offset = offsets[vd];
+            for (int i = 0; i < p*pp1; ++i)
+            {
+               int idx = offset;
+               int j = i;
+               for (int d = 0; d < dim - 1; ++d)
+               {
+                  const int dof1d = n_dofs[vd*2 + d];
+                  idx += strides[vd*2 + d]*(j % dof1d);
+                  j /= dof1d;
+               }
+               face_map[vd*p*pp1 + i] = idx;
+            }
+         }
+         break;
+      }
+   }
 }
 
 void GetFaceDofs_RT(const int dim, const int face_id, const int pp1,
