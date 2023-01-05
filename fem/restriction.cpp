@@ -14,6 +14,7 @@
 #include "fespace.hpp"
 #include "../general/forall.hpp"
 #include <climits>
+#include <utility>
 
 #ifdef MFEM_USE_MPI
 
@@ -632,6 +633,24 @@ void FillFaceMap(const int n_face_dofs_per_component,
    }
 }
 
+/// Each face of a hexahedron is given by a level set x_i = l, where x_i is one
+/// of x, y, or z (corresponding to i = 0, i=1, i = 3), and l is either 0 or 1.
+/// Returns i and level.
+std::pair<int,int> GetFaceNormal3D(const int face_id)
+{
+   switch (face_id)
+   {
+      case 0: return std::make_pair(2, 0); // z = 0
+      case 1: return std::make_pair(1, 0); // y = 0
+      case 2: return std::make_pair(0, 1); // x = 1
+      case 3: return std::make_pair(1, 1); // y = 1
+      case 4: return std::make_pair(0, 0); // x = 0
+      case 5: return std::make_pair(2, 1); // z = 1
+      default: MFEM_ABORT("Invalid face ID.")
+   }
+   return std::make_pair(-1, -1); // invalid
+}
+
 /** Return the face degrees of freedom returned in Lexicographic order.
     Note: Only for quad and hex */
 void GetFaceDofs_H1_L2(const int dim, const int face_id,
@@ -655,34 +674,26 @@ void GetFaceDofs_H1_L2(const int dim, const int face_id,
          }
          break;
       case 3:
-         switch (face_id)
+      {
+         const auto f = GetFaceNormal3D(face_id);
+         const int face_normal = f.first, level = f.second;
+         if (face_normal == 0) // x-normal
          {
-            case 0: // z = 0
-               offsets = {0};
-               strides = {1, dof1d};
-               break;
-            case 1: // y = 0
-               offsets = {0};
-               strides = {1, dof1d*dof1d};
-               break;
-            case 2: // x = 1
-               offsets = {dof1d-1};
-               strides = {dof1d, dof1d*dof1d};
-               break;
-            case 3: // y = 1
-               offsets = {(dof1d-1)*dof1d};
-               strides = {1, dof1d*dof1d};
-               break;
-            case 4: // x = 0
-               offsets = {0};
-               strides = {dof1d, dof1d*dof1d};
-               break;
-            case 5: // z = 1
-               offsets = {(dof1d-1)*dof1d*dof1d};
-               strides = {1, dof1d};
-               break;
+            offsets = {level ? dof1d-1 : 0};
+            strides = {dof1d, dof1d*dof1d};
+         }
+         else if (face_normal == 1) // y-normal
+         {
+            offsets = {level ? (dof1d-1)*dof1d : 0};
+            strides = {1, dof1d*dof1d};
+         }
+         else if (face_normal == 2) // z-normal
+         {
+            offsets = {level ? (dof1d-1)*dof1d*dof1d : 0};
+            strides = {1, dof1d};
          }
          break;
+      }
    }
 
    // same number of DOFs in each dimension, repeat dof1d (dim - 1) times
@@ -717,32 +728,34 @@ void GetFaceDofs_ND(const int dim, const int face_id, const int pp1,
       {
          n_dofs = {p, pp1, pp1, p};
          const int n_dof_per_dim = p*pp1*pp1;
-         switch (face_id)
+         const auto f = GetFaceNormal3D(face_id);
+         const int face_normal = f.first, level = f.second;
+         if (face_normal == 0) // x-normal
          {
-            case 0: // z = 0
-               offsets = {0, n_dof_per_dim};
-               strides = {1, p, 1, pp1};
-               break;
-            case 1: // y = 0
-               offsets = {0, 2*n_dof_per_dim};
-               strides = {1, p*pp1, 1, pp1*pp1};
-               break;
-            case 2: // x = 1
-               offsets = {n_dof_per_dim + pp1 - 1, 2*n_dof_per_dim + pp1 - 1};
-               strides = {pp1, p*pp1, pp1, pp1*pp1};
-               break;
-            case 3: // y = 1
-               offsets = {p*(pp1 - 1), 2*n_dof_per_dim + pp1*(pp1 - 1)};
-               strides = {1, p*pp1, 1, pp1*pp1};
-               break;
-            case 4: // x = 0
-               offsets = {n_dof_per_dim, 2*n_dof_per_dim};
-               strides = {pp1, p*pp1, pp1, pp1*pp1};
-               break;
-            case 5: // z = 1
-               offsets = {p*pp1*(pp1 - 1), n_dof_per_dim + p*pp1*(pp1 - 1)};
-               strides = {1, p, 1, pp1};
-               break;
+            offsets =
+            {
+               n_dof_per_dim + (level ? pp1 - 1 : 0),
+               2*n_dof_per_dim + (level ? pp1 - 1 : 0)
+            };
+            strides = {pp1, p*pp1, pp1, pp1*pp1};
+         }
+         else if (face_normal == 1) // y-normal
+         {
+            offsets =
+            {
+               level ? p*(pp1 - 1) : 0,
+               2*n_dof_per_dim + (level ? pp1*(pp1 - 1) : 0)
+            };
+            strides = {1, p*pp1, 1, pp1*pp1};
+         }
+         else if (face_normal == 2) // z-normal
+         {
+            offsets =
+            {
+               level ? p*pp1*(pp1 - 1) : 0,
+               n_dof_per_dim + (level ? p*pp1*(pp1 - 1) : 0)
+            };
+            strides = {1, p, 1, pp1};
          }
          break;
       }
@@ -773,32 +786,22 @@ void GetFaceDofs_RT(const int dim, const int face_id, const int pp1,
       case 3:
       {
          const int n_dof_per_dim = p*p*pp1;
-         switch (face_id)
+         const auto f = GetFaceNormal3D(face_id);
+         const int face_normal = f.first, level = f.second;
+         if (face_normal == 0) // x-normal
          {
-            case 0: // z = 0
-               offsets = {2*n_dof_per_dim};
-               strides = {1, p};
-               break;
-            case 1: // y = 0
-               offsets = {n_dof_per_dim};
-               strides = {1, p*pp1};
-               break;
-            case 2: // x = 1
-               offsets = {pp1 - 1};
-               strides = {pp1, p*pp1};
-               break;
-            case 3: // y = 1
-               offsets = {n_dof_per_dim + p*(pp1 - 1)};
-               strides = {1, p*pp1};
-               break;
-            case 4: // x = 0
-               offsets = {0};
-               strides = {pp1, p*pp1};
-               break;
-            case 5: // z = 1
-               offsets = {2*n_dof_per_dim + p*p*(pp1 - 1)};
-               strides = {1, p};
-               break;
+            offsets = {level ? pp1 - 1 : 0};
+            strides = {pp1, p*pp1};
+         }
+         else if (face_normal == 1) // y-normal
+         {
+            offsets = {n_dof_per_dim + (level ? p*(pp1 - 1) : 0)};
+            strides = {1, p*pp1};
+         }
+         else if (face_normal == 2) // z-normal
+         {
+            offsets = {2*n_dof_per_dim + (level ? p*p*(pp1 - 1) : 0)};
+            strides = {1, p};
          }
          break;
       }
