@@ -47,6 +47,17 @@ public:
    QuadratureFunction(QuadratureSpaceBase *qspace_, int vdim_ = 1)
       : QuadratureFunction(*qspace_, vdim_) { }
 
+   /** @brief Create a QuadratureFunction based on the given QuadratureSpaceBase,
+       using the external (host) data, @a qf_data. */
+   /** The QuadratureFunction does not assume ownership of the
+       QuadratureSpaceBase or the external data.
+       @warning @a qspace_ may not be NULL.
+       @note @a qf_data must be a valid **host** pointer (see the constructor
+       Vector::Vector(double *, int)). */
+   QuadratureFunction(QuadratureSpaceBase *qspace_, double *qf_data, int vdim_ = 1)
+      : Vector(qf_data, vdim_*qspace_->GetSize()),
+        qspace(qspace_), own_qspace(false), vdim(vdim_) { }
+
    /** @brief Copy constructor. The QuadratureSpace ownership flag, #own_qspace,
        in the new object is set to false. */
    QuadratureFunction(const QuadratureFunction &orig)
