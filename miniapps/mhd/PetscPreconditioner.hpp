@@ -296,7 +296,7 @@ class PetscBlockSolver : public Solver
 {
 private:
    Mat **sub; 
-   Mat S, Sp;
+   Mat Sp;
 
    // Create internal KSP objects to handle the subproblems
    KSP kspblock[4];

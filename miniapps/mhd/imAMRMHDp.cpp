@@ -70,7 +70,6 @@ int main(int argc, char *argv[])
    int amr_levels=0;
    double ltol_amr=1e-5;
    bool derefine = false;
-   int precision = 8;
    int nc_limit = 1;         // maximum level of hanging nodes
    int ref_steps=4;
    int iestimator=1;
@@ -543,7 +542,7 @@ int main(int argc, char *argv[])
    }
 
    //set initial J
-   FunctionCoefficient *jptr;
+   FunctionCoefficient *jptr=NULL;
    if (icase==1)
        jptr=new FunctionCoefficient(InitialJ);
    else if (icase==2)

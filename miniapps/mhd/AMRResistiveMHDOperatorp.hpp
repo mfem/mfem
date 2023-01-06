@@ -72,10 +72,9 @@ AMRResistiveMHDOperator::AMRResistiveMHDOperator(ParFiniteElementSpace &f,
    : TimeDependentOperator(4*f.GetVSize(), 0.0), fespace(f), 
      M(NULL), Mrhs(NULL), K(NULL), KB(NULL), DSl(NULL), DRe(NULL), Nv(NULL), Nb(NULL), E0(NULL), MrhsMat(NULL),
      visc_coeff(visc), resi_coeff(resi),
-     viscosity(visc),  resistivity(resi), useAMG(false),
+     viscosity(visc),  resistivity(resi), E0rhs(NULL), useAMG(false),
      M_solver(f.GetComm()), M_prec(NULL), M_solver2(f.GetComm()), M_prec2(NULL), 
-     K_solver(f.GetComm()), K_prec(NULL),
-     E0rhs(NULL), K_amg(NULL), K_pcg(NULL)
+     K_solver(f.GetComm()), K_prec(NULL), K_amg(NULL), K_pcg(NULL)
 {
    //mass matrix
    M = new ParBilinearForm(&fespace);
