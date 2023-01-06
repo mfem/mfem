@@ -440,8 +440,8 @@ ResistiveMHDOperator::ResistiveMHDOperator(ParFiniteElementSpace &f,
      M(NULL), Mfull(NULL), Mlumped(NULL), K(NULL), KB(NULL), DSl(&fespace), DRe(&fespace),
      Nv(NULL), Nb(NULL), StabMass(NULL), StabNb(NULL), StabNv(NULL),  
      E0(NULL), StabE0(NULL), zLF(&fespace), MfullMat(NULL), E0Vec(NULL), E0rhs(NULL),
-     viscosity(visc),  resistivity(resi), useAMG(false), tRHS(false), use_petsc(use_petsc_), use_factory(use_factory_),
-     convergedSolver(true),
+     viscosity(visc),  resistivity(resi), 
+     useAMG(false), use_petsc(use_petsc_), use_factory(use_factory_), convergedSolver(true), tRHS(false), 
      visc_coeff(visc),  resi_coeff(resi),  visc_vari(resiVari),  resi_vari(resiVari),  
      reduced_oper(NULL), pnewton_solver(NULL), bchandler(NULL), J_factory(NULL),
      M_solver(f.GetComm()), M_prec(NULL), M_solver2(f.GetComm()), M_prec2(NULL), M_solver3(f.GetComm()), M_prec3(NULL),
@@ -614,16 +614,14 @@ ResistiveMHDOperator::ResistiveMHDOperator(ParFiniteElementSpace &f,
       pnewton_solver = new PetscNonlinearSolver(fespace.GetComm(),*reduced_oper);
       if (use_factory)
       {
-         SNES snes=SNES(*pnewton_solver);
-
          /*
+         SNES snes=SNES(*pnewton_solver);
          KSP ksp; 
 		 SNESGetKSP(snes,&ksp);
 		 KSPSetType(ksp,KSPFGMRES);
          SNESKSPSetUseEW(snes,PETSC_TRUE);
          SNESKSPSetParametersEW(snes,2,1e-4,0.1,0.9,1.5,1.5,0.1);
          */
-
          if (useFull>0)
             J_factory = new FullPreconditionerFactory(*reduced_oper, "JFNK Full preconditioner");
          else
@@ -778,8 +776,7 @@ void ResistiveMHDOperator::UpdateProblem(Array<int> &ess_bdr, bool PartialUpdate
          pnewton_solver = new PetscNonlinearSolver(fespace.GetComm(),*reduced_oper);
          if (use_factory)
          {
-            SNES snes=SNES(*pnewton_solver);
-
+            //SNES snes=SNES(*pnewton_solver);
             delete J_factory;
             if (useFull>0)
                J_factory = new FullPreconditionerFactory(*reduced_oper, "JFNK Full preconditioner");
@@ -804,12 +801,10 @@ void ResistiveMHDOperator::UpdateProblem(Array<int> &ess_bdr, bool PartialUpdate
       E0Vec=E0->ParallelAssemble();
 
       //update E0 
-      if (reduced_oper!=NULL)
-         reduced_oper->setE0(E0Vec, E0rhs);
+      if (reduced_oper!=NULL) reduced_oper->setE0(E0Vec, E0rhs);
 
       //add current to reduced_oper
-      if (reduced_oper!=NULL)
-           reduced_oper->setCurrent(&j);
+      if (reduced_oper!=NULL) reduced_oper->setCurrent(&j);
    }
 
 }
@@ -1365,12 +1360,13 @@ ReducedSystemOperator::ReducedSystemOperator(ParFiniteElementSpace &f,
    const double visc, const double resi,
    const Array<int> &ess_tdof_list_, const Array<int> &ess_bdr_)
    : Operator(3*f.TrueVSize()), fespace(f), 
-     M(M_), K(K_), KB(KB_), DRe(DRe_), DSl(DSl_), Mmat(Mmat_), Kmat(Kmat_), KBMat(KBMat_),
-     initialMdt(false), E0Vec(NULL), StabE0(NULL), E0rhs(NULL), Mlumped(Mlumped_), Mmatlp(MlumpedMat),
+     M(M_), Mlumped(Mlumped_), K(K_), KB(KB_), DRe(DRe_), DSl(DSl_), 
+     Mmat(Mmat_), Kmat(Kmat_), KBMat(KBMat_), Mmatlp(MlumpedMat),
+     initialMdt(false), E0Vec(NULL), StabE0(NULL), E0rhs(NULL), 
      M_solver(M_solver_), M_solver2(M_solver2_),M_solver3(M_solver3_),
      dt(0.0), dtOld(0.0), viscosity(visc), resistivity(resi), 
-     phi(NULL), psi(NULL), w(NULL), vOld(NULL),
-     ess_tdof_list(ess_tdof_list_),ess_bdr(ess_bdr_), gftmp(&fespace),
+     phi(NULL), psi(NULL), w(NULL),
+     ess_tdof_list(ess_tdof_list_), ess_bdr(ess_bdr_), gftmp(&fespace), vOld(NULL), 
      Nv(NULL), Nb(NULL), Pw(NULL), 
      StabMass(NULL), StabNb(NULL), StabNv(NULL),
      PB_VPsi(NULL), PB_VOmega(NULL), PB_BJ(NULL),
@@ -1406,14 +1402,14 @@ ReducedSystemOperator::ReducedSystemOperator(ParFiniteElementSpace &f,
    const double visc, const double resi,
    const Array<int> &ess_tdof_list_, const Array<int> &ess_bdr_)
    : Operator(3*f.TrueVSize()), fespace(f), 
-     M(M_), K(K_), KB(KB_), DRe(DRe_), DSl(DSl_), Mmat(Mmat_), Kmat(Kmat_), KBMat(KBMat_),
+     M(M_), Mlumped(Mlumped_), K(K_), KB(KB_), DRe(DRe_), DSl(DSl_), 
+     Mmat(Mmat_), Kmat(Kmat_), KBMat(KBMat_), Mmatlp(MlumpedMat),
      initialMdt(false),E0Vec(NULL), StabE0(NULL), E0rhs(NULL),
-     Mlumped(Mlumped_), Mmatlp(MlumpedMat),
      M_solver(M_solver_), M_solver2(M_solver2_), M_solver3(M_solver3_), 
      dt(0.0), dtOld(0.0), viscosity(visc), resistivity(resi),
-     phi(NULL), psi(NULL), w(NULL), vOld(NULL),
+     phi(NULL), psi(NULL), w(NULL), 
      ess_tdof_list(ess_tdof_list_), ess_bdr(ess_bdr_), gftmp(&fespace),
-     Nv(NULL), Nb(NULL), Pw(NULL),  
+     vOld(NULL), Nv(NULL), Nb(NULL), Pw(NULL),  
      StabMass(NULL), StabNb(NULL), StabNv(NULL),
      PB_VPsi(NULL), PB_VOmega(NULL), PB_BJ(NULL),
      Jacobian(NULL), z(height/3), zdiff(height/3), z2(height/3), z3(height/3), 
