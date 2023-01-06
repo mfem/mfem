@@ -82,8 +82,12 @@ if (MFEM_USE_STRUMPACK)
   # Just needed to find the MPI_Fortran libraries to link with
   set(XSDK_ENABLE_Fortran ON)
 endif()
-# SUNDIALS, STRUMPACK, and Ginkgo require C++14:
-if ((MFEM_USE_SUNDIALS OR MFEM_USE_STRUMPACK OR MFEM_USE_GINKGO) AND
+# SUNDIALS, STRUMPACK, Ginkgo, RAJA and Umpire require C++14:
+if ((MFEM_USE_SUNDIALS OR
+     MFEM_USE_STRUMPACK OR
+     MFEM_USE_GINKGO OR
+     MFEM_USE_RAJA OR
+     MFEM_USE_UMPIRE) AND
     ("${CMAKE_CXX_STANDARD}" LESS "14"))
   set(CMAKE_CXX_STANDARD 14)
 endif()
@@ -107,10 +111,7 @@ if (MFEM_USE_CUDA)
       set(CMAKE_CUDA_HOST_COMPILER ${CMAKE_CXX_COMPILER})
    endif()
    enable_language(CUDA)
-   set(CMAKE_CUDA_STANDARD 11)
-   if (MFEM_USE_GINKGO)
-     set(CMAKE_CUDA_STANDARD 14)
-   endif()
+   set(CMAKE_CUDA_STANDARD ${CMAKE_CXX_STANDARD})
    set(CMAKE_CUDA_STANDARD_REQUIRED ON)
    set(CMAKE_CUDA_EXTENSIONS OFF)
    set(CUDA_FLAGS "--expt-extended-lambda")
