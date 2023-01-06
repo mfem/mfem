@@ -23,7 +23,7 @@
 //              The problem is discretized and solved using the entropic
 //              finite element method (EFEM) introduced by Keith and
 //              Suroweic [1].
-//              
+//
 //              This example highlights the ability of MFEM to deliver high-
 //              order solutions of variation inequality problems and
 //              showcases how to set up and solve nonlinear mixed methods.
@@ -53,7 +53,8 @@ protected:
    double min_val;
 
 public:
-   LogarithmGridFunctionCoefficient(GridFunction &u_, Coefficient &obst_, double min_val_=-36)
+   LogarithmGridFunctionCoefficient(GridFunction &u_, Coefficient &obst_,
+                                    double min_val_=-36)
       : u(&u_), obstacle(&obst_), min_val(min_val_) { }
 
    virtual double Eval(ElementTransformation &T, const IntegrationPoint &ip);
@@ -68,7 +69,8 @@ protected:
    double max_val;
 
 public:
-   ExponentialGridFunctionCoefficient(GridFunction &u_, Coefficient &obst_, double min_val_=0.0, double max_val_=1e6)
+   ExponentialGridFunctionCoefficient(GridFunction &u_, Coefficient &obst_,
+                                      double min_val_=0.0, double max_val_=1e6)
       : u(&u_), obstacle(&obst_), min_val(min_val_), max_val(max_val_) { }
 
    virtual double Eval(ElementTransformation &T, const IntegrationPoint &ip);
@@ -133,9 +135,9 @@ int main(int argc, char *argv[])
    FiniteElementSpace L2fes(&mesh, &L2fec);
 
    cout << "Number of finite element unknowns: "
-      << H1fes.GetTrueVSize() 
-      << " "
-      << L2fes.GetTrueVSize() << endl;
+        << H1fes.GetTrueVSize()
+        << " "
+        << L2fes.GetTrueVSize() << endl;
 
    Array<int> offsets(3);
    offsets[0] = 0;
@@ -199,7 +201,7 @@ int main(int argc, char *argv[])
    psi_old_gf = psi_gf;
 
 
-   
+
    char vishost[] = "localhost";
    int  visport   = 19916;
    socketstream sol_sock(vishost, visport);
@@ -213,7 +215,8 @@ int main(int argc, char *argv[])
 
    if (visualization)
    {
-      sol_sock << "solution\n" << mesh << u_alt_gf << "window_title 'Discrete solution'" << flush;
+      sol_sock << "solution\n" << mesh << u_alt_gf <<
+               "window_title 'Discrete solution'" << flush;
    }
    else
    {
@@ -264,7 +267,8 @@ int main(int argc, char *argv[])
          a00.SetDiagonalPolicy(mfem::Operator::DIAG_ONE);
          a00.AddDomainIntegrator(new DiffusionIntegrator(alpha_cf));
          a00.Assemble();
-         a00.EliminateEssentialBC(ess_bdr,x.GetBlock(0),rhs.GetBlock(0),mfem::Operator::DIAG_ONE);
+         a00.EliminateEssentialBC(ess_bdr,x.GetBlock(0),rhs.GetBlock(0),
+                                  mfem::Operator::DIAG_ONE);
          a00.Finalize();
          SparseMatrix &A00 = a00.SpMat();
 
@@ -310,7 +314,8 @@ int main(int argc, char *argv[])
 
          if (visualization)
          {
-            sol_sock << "solution\n" << mesh << u_gf << "window_title 'Discrete solution'" << flush;
+            sol_sock << "solution\n" << mesh << u_gf << "window_title 'Discrete solution'"
+                     << flush;
             mfem::out << "Newton_update_size = " << Newton_update_size << endl;
          }
 
@@ -319,7 +324,7 @@ int main(int argc, char *argv[])
             break;
          }
       }
-      
+
       u_tmp = u_gf;
       u_tmp -= u_old_gf;
       increment_u = u_tmp.ComputeL2Error(zero);
@@ -339,11 +344,11 @@ int main(int argc, char *argv[])
       mfem::out << "L2-error  (|| u - uₕ||)       = " << L2_error << endl;
 
    }
-   
+
    mfem::out << "\n Outer iterations: " << k+1
-            << "\n Total iterations: " << total_iterations
-            << "\n dofs:             " << H1fes.GetTrueVSize() + L2fes.GetTrueVSize()
-            << endl;
+             << "\n Total iterations: " << total_iterations
+             << "\n dofs:             " << H1fes.GetTrueVSize() + L2fes.GetTrueVSize()
+             << endl;
 
    // 11. Exact solution.
    if (visualization)
@@ -371,16 +376,18 @@ int main(int argc, char *argv[])
       double H1_error = u_gf.ComputeH1Error(&exact_coef,&exact_grad_coef);
       double L2_error_alt = u_alt_gf.ComputeL2Error(exact_coef);
 
-      mfem::out << "\n Final L2-error (|| u - uₕ||)          = " << L2_error << endl;
+      mfem::out << "\n Final L2-error (|| u - uₕ||)          = " << L2_error <<
+                endl;
       mfem::out << " Final H1-error (|| u - uₕ||)          = " << H1_error << endl;
-      mfem::out << " Final L2-error (|| u - ϕ - exp(ψₕ)||) = " << L2_error_alt << endl;
+      mfem::out << " Final L2-error (|| u - ϕ - exp(ψₕ)||) = " << L2_error_alt <<
+                endl;
    }
 
    return 0;
 }
 
 double LogarithmGridFunctionCoefficient::Eval(ElementTransformation &T,
-                               const IntegrationPoint &ip)
+                                              const IntegrationPoint &ip)
 {
    MFEM_ASSERT(u != NULL, "grid function is not set");
 
@@ -389,7 +396,7 @@ double LogarithmGridFunctionCoefficient::Eval(ElementTransformation &T,
 }
 
 double ExponentialGridFunctionCoefficient::Eval(ElementTransformation &T,
-                               const IntegrationPoint &ip)
+                                                const IntegrationPoint &ip)
 {
    MFEM_ASSERT(u != NULL, "grid function is not set");
 

@@ -23,7 +23,7 @@
 //              The problem is discretized and solved using the entropic
 //              finite element method (EFEM) introduced by Keith and
 //              Suroweic [1].
-//              
+//
 //              This example highlights the ability of MFEM to deliver high-
 //              order solutions of variation inequality problems and
 //              showcases how to set up and solve nonlinear mixed methods.
@@ -53,7 +53,8 @@ protected:
    double min_val;
 
 public:
-   LogarithmGridFunctionCoefficient(GridFunction &u_, Coefficient &obst_, double min_val_=-36)
+   LogarithmGridFunctionCoefficient(GridFunction &u_, Coefficient &obst_,
+                                    double min_val_=-36)
       : u(&u_), obstacle(&obst_), min_val(min_val_) { }
 
    virtual double Eval(ElementTransformation &T, const IntegrationPoint &ip);
@@ -68,7 +69,8 @@ protected:
    double max_val;
 
 public:
-   ExponentialGridFunctionCoefficient(GridFunction &u_, Coefficient &obst_, double min_val_=0.0, double max_val_=1e6)
+   ExponentialGridFunctionCoefficient(GridFunction &u_, Coefficient &obst_,
+                                      double min_val_=0.0, double max_val_=1e6)
       : u(&u_), obstacle(&obst_), min_val(min_val_), max_val(max_val_) { }
 
    virtual double Eval(ElementTransformation &T, const IntegrationPoint &ip);
@@ -148,9 +150,9 @@ int main(int argc, char *argv[])
    if (myid == 0)
    {
       cout << "Number of finite element unknowns: "
-         << H1fes.GetTrueVSize() 
-         << " "
-         << L2fes.GetTrueVSize() << endl;
+           << H1fes.GetTrueVSize()
+           << " "
+           << L2fes.GetTrueVSize() << endl;
    }
 
    Array<int> offsets(3);
@@ -237,7 +239,8 @@ int main(int argc, char *argv[])
    if (visualization)
    {
       sol_sock << "parallel " << num_procs << " " << myid << "\n";
-      sol_sock << "solution\n" << pmesh << u_alt_gf << "window_title 'Discrete solution'" << flush;
+      sol_sock << "solution\n" << pmesh << u_alt_gf <<
+               "window_title 'Discrete solution'" << flush;
    }
    else
    {
@@ -292,7 +295,7 @@ int main(int argc, char *argv[])
          a00.AddDomainIntegrator(new DiffusionIntegrator(alpha_cf));
          a00.Assemble();
          HypreParMatrix A00;
-         a00.FormLinearSystem(ess_tdof_list, x.GetBlock(0), rhs.GetBlock(0), 
+         a00.FormLinearSystem(ess_tdof_list, x.GetBlock(0), rhs.GetBlock(0),
                               A00, tx.GetBlock(0), trhs.GetBlock(0));
 
 
@@ -300,7 +303,8 @@ int main(int argc, char *argv[])
          a10.AddDomainIntegrator(new MixedScalarMassIntegrator());
          a10.Assemble();
          HypreParMatrix A10;
-         a10.FormRectangularLinearSystem(ess_tdof_list, empty, x.GetBlock(0), rhs.GetBlock(1), 
+         a10.FormRectangularLinearSystem(ess_tdof_list, empty, x.GetBlock(0),
+                                         rhs.GetBlock(1),
                                          A10, tx.GetBlock(0), trhs.GetBlock(1));
 
          HypreParMatrix &A01 = *A10.Transpose();
@@ -350,7 +354,8 @@ int main(int argc, char *argv[])
          if (visualization)
          {
             sol_sock << "parallel " << num_procs << " " << myid << "\n";
-            sol_sock << "solution\n" << pmesh << u_gf << "window_title 'Discrete solution'" << flush;
+            sol_sock << "solution\n" << pmesh << u_gf << "window_title 'Discrete solution'"
+                     << flush;
          }
 
          if (myid == 0)
@@ -363,7 +368,7 @@ int main(int argc, char *argv[])
             break;
          }
       }
-      
+
       u_tmp = u_gf;
       u_tmp -= u_old_gf;
       increment_u = u_tmp.ComputeL2Error(zero);
@@ -389,13 +394,13 @@ int main(int argc, char *argv[])
       }
 
    }
-   
+
    if (myid == 0)
    {
       mfem::out << "\n Outer iterations: " << k+1
-               << "\n Total iterations: " << total_iterations
-               << "\n dofs:             " << H1fes.GetTrueVSize() + L2fes.GetTrueVSize()
-               << endl;
+                << "\n Total iterations: " << total_iterations
+                << "\n dofs:             " << H1fes.GetTrueVSize() + L2fes.GetTrueVSize()
+                << endl;
    }
 
    // 11. Exact solution.
@@ -427,17 +432,19 @@ int main(int argc, char *argv[])
 
       if (myid == 0)
       {
-         mfem::out << "\n Final L2-error (|| u - uₕ||)          = " << L2_error << endl;
+         mfem::out << "\n Final L2-error (|| u - uₕ||)          = " << L2_error <<
+                   endl;
          mfem::out << " Final H1-error (|| u - uₕ||)          = " << H1_error << endl;
-         mfem::out << " Final L2-error (|| u - ϕ - exp(ψₕ)||) = " << L2_error_alt << endl;
+         mfem::out << " Final L2-error (|| u - ϕ - exp(ψₕ)||) = " << L2_error_alt <<
+                   endl;
       }
    }
-   
+
    return 0;
 }
 
 double LogarithmGridFunctionCoefficient::Eval(ElementTransformation &T,
-                               const IntegrationPoint &ip)
+                                              const IntegrationPoint &ip)
 {
    MFEM_ASSERT(u != NULL, "grid function is not set");
 
@@ -446,7 +453,7 @@ double LogarithmGridFunctionCoefficient::Eval(ElementTransformation &T,
 }
 
 double ExponentialGridFunctionCoefficient::Eval(ElementTransformation &T,
-                               const IntegrationPoint &ip)
+                                                const IntegrationPoint &ip)
 {
    MFEM_ASSERT(u != NULL, "grid function is not set");
 
