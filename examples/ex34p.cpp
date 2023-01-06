@@ -1,4 +1,4 @@
-//                                MFEM Example 34
+//                         MFEM Example 34 - Parallel Version
 //
 //
 // Compile with: make ex34p
@@ -84,7 +84,6 @@ int main(int argc, char *argv[])
    const char *mesh_file = "../data/disk.mesh";
    int order = 1;
    bool visualization = true;
-   bool adaptive = false;
    int max_it = 10;
    double tol = 1e-5;
    int ref_levels = 3;
@@ -228,8 +227,8 @@ int main(int argc, char *argv[])
    socketstream sol_sock(vishost, visport);
    sol_sock.precision(8);
 
-   GridFunction u_alt_gf(&L2fes);
-   GridFunction error_gf(&L2fes);
+   ParGridFunction u_alt_gf(&L2fes);
+   ParGridFunction error_gf(&L2fes);
 
    ExponentialGridFunctionCoefficient exp_psi(psi_gf,obstacle);
    u_alt_gf.ProjectCoefficient(exp_psi);
@@ -241,16 +240,9 @@ int main(int argc, char *argv[])
    int k;
    int total_iterations = 0;
    double increment_u = 0.1;
-   double comp;
-   double entropy;
-
    for (k = 0; k < max_it; k++)
    {
-      // double alpha = alpha0 / sqrt(k+1);
       double alpha = alpha0 * (k+1);
-      // double alpha = alpha0 * sqrt(k+1);
-      // double alpha = alpha0;
-      // alpha *= 2;
 
       ParGridFunction u_tmp(&H1fes);
       u_tmp = u_old_gf;
@@ -320,34 +312,21 @@ int main(int argc, char *argv[])
          A.SetBlock(0,1,&A01);
          A.SetBlock(1,1,&A11);
 
-         // DIRECT solver
-         Array2D<HypreParMatrix *> BlockA(2,2);
-         BlockA(0,0) = &A00;
-         BlockA(0,1) = &A01;
-         BlockA(1,0) = &A10;
-         BlockA(1,1) = &A11;
-         HypreParMatrix * Ah = HypreParMatrixFromBlocks(BlockA);
-         
-         MUMPSSolver mumps;
-         mumps.SetPrintLevel(0);
-         mumps.SetMatrixSymType(MUMPSSolver::MatType::UNSYMMETRIC);
-         mumps.SetOperator(*Ah);
-         mumps.Mult(trhs,tx);
-         delete Ah;
+         BlockDiagonalPreconditioner prec(toffsets);
+         HypreBoomerAMG P00(A00);
+         P00.SetPrintLevel(0);
+         HypreSmoother P11(A11);
+         prec.SetDiagonalBlock(0,&P00);
+         prec.SetDiagonalBlock(1,new HypreSmoother(A11));
 
-         // ITERATIVE solver
-         // BlockDiagonalPreconditioner prec(toffsets);
-         // prec.SetDiagonalBlock(0,new HypreBoomerAMG(A00));
-         // prec.SetDiagonalBlock(1,new HypreSmoother(A11));
-
-         // GMRESSolver gmres(MPI_COMM_WORLD);
-         // gmres.SetPrintLevel(-1);
-         // gmres.SetRelTol(1e-12);
-         // gmres.SetMaxIter(20000);
-         // gmres.SetKDim(50);
-         // gmres.SetOperator(A);
-         // // gmres.SetPreconditioner(prec);
-         // gmres.Mult(trhs,tx);
+         GMRESSolver gmres(MPI_COMM_WORLD);
+         gmres.SetPrintLevel(-1);
+         gmres.SetRelTol(1e-12);
+         gmres.SetMaxIter(20000);
+         gmres.SetKDim(500);
+         gmres.SetOperator(A);
+         gmres.SetPreconditioner(prec);
+         gmres.Mult(trhs,tx);
 
          u_gf.SetFromTrueDofs(tx.GetBlock(0));
          delta_psi_gf.SetFromTrueDofs(tx.GetBlock(1));
@@ -428,9 +407,16 @@ int main(int argc, char *argv[])
       error_gf -= u_alt_gf;
       error_gf *= -1.0;
 
-      mfem::out << "\n Final L2-error (|| u - uₕ||)          = " << u_gf.ComputeL2Error(exact_coef) << endl;
-      mfem::out << " Final H1-error (|| u - uₕ||)          = " << u_gf.ComputeH1Error(&exact_coef,&exact_grad_coef) << endl;
-      mfem::out << " Final L2-error (|| u - ϕ - exp(ψₕ)||) = " << u_alt_gf.ComputeL2Error(exact_coef) << endl;
+      double L2_error = u_gf.ComputeL2Error(exact_coef);
+      double H1_error = u_gf.ComputeH1Error(&exact_coef,&exact_grad_coef);
+      double L2_error_alt = u_alt_gf.ComputeL2Error(exact_coef);
+
+      if (myid == 0)
+      {
+         mfem::out << "\n Final L2-error (|| u - uₕ||)          = " << L2_error << endl;
+         mfem::out << " Final H1-error (|| u - uₕ||)          = " << H1_error << endl;
+         mfem::out << " Final L2-error (|| u - ϕ - exp(ψₕ)||) = " << L2_error_alt << endl;
+      }
 
    }
    
