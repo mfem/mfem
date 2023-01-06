@@ -929,7 +929,16 @@ void FindPointsGSLIB::InterpolateH1(const GridFunction &field_in,
                         gsl_ref.GetData(),     sizeof(double) * dim,
                         points_cnt, node_vals.GetData(), fdata3D);
       }
+
+      // set to default values if point not found or on border and dist > 0
+      for (int i = 0; i < gsl_dist.Size(); i++) {
+          if (gsl_code[i] == 2 || (gsl_code[i] == 1 && gsl_dist(i) > 1e-10)) {
+              field_out(i+dataptrout) = default_interp_value;
+          }
+      }
    }
+
+
    if (field_in.FESpace()->GetOrdering() == Ordering::byVDIM)
    {
       Vector field_out_temp = field_out;
