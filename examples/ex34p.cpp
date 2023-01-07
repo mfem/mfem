@@ -200,8 +200,8 @@ int main(int argc, char *argv[])
    // 7. Define the solution vectors as a finite element grid functions
    //    corresponding to the fespaces.
    ParGridFunction u_gf, delta_psi_gf;
-   u_gf.MakeRef(&H1fes,x.GetBlock(0));
-   delta_psi_gf.MakeRef(&L2fes,x.GetBlock(1));
+   u_gf.MakeRef(&H1fes,x.GetBlock(0).GetData());
+   delta_psi_gf.MakeRef(&L2fes,x.GetBlock(1).GetData());
    delta_psi_gf = 0.0;
 
    ParGridFunction u_old_gf(&H1fes);
