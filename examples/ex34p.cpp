@@ -22,14 +22,14 @@
 //
 //              The problem is discretized and solved using the entropic
 //              finite element method (EFEM) introduced by Keith and
-//              Suroweic [1].
+//              Surowiec [1].
 //
 //              This example highlights the ability of MFEM to deliver high-
 //              order solutions to variation inequality problems and
 //              showcases how to set up and solve nonlinear mixed methods.
 //
 //
-// [1] Keith, B. and Suroweic, S. (2023) The entropic finite element method
+// [1] Keith, B. and Surowiec, S. (2023) The entropic finite element method
 //     (in preparation).
 
 
