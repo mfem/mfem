@@ -25,7 +25,7 @@
 //              Suroweic [1].
 //
 //              This example highlights the ability of MFEM to deliver high-
-//              order solutions of variation inequality problems and
+//              order solutions to variation inequality problems and
 //              showcases how to set up and solve nonlinear mixed methods.
 //
 //
