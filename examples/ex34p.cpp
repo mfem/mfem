@@ -29,7 +29,7 @@
 //              showcases how to set up and solve nonlinear mixed methods.
 //
 //
-// [1] Keith, B. and Surowiec, S. (2023) The entropic finite element method
+// [1] Keith, B. and Surowiec, T. (2023) The entropic finite element method
 //     (in preparation).
 
 
