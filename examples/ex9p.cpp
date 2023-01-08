@@ -252,6 +252,7 @@ int main(int argc, char *argv[])
    double t_final = 10.0;
    double dt = 0.01;
    bool visualization = true;
+   bool internal = false;
    bool visit = false;
    bool paraview = false;
    bool adios2 = false;
@@ -300,6 +301,9 @@ int main(int argc, char *argv[])
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
+   args.AddOption(&internal, "-idf", "--mfem-datafiles", "-no-idf",
+                  "--no-mfem-datafiles",
+                  "Save data files in the internal formal.");
    args.AddOption(&visit, "-visit", "--visit-datafiles", "-no-visit",
                   "--no-visit-datafiles",
                   "Save data files for VisIt (visit.llnl.gov) visualization.");
@@ -505,6 +509,18 @@ int main(int argc, char *argv[])
       pd->Save();
    }
 
+   MFEMDataCollection *idc = NULL;
+   if (internal)
+   {
+      idc = new MFEMDataCollection("Example9P-internal", *pmesh, false);
+      idc->SetPrefixPath("internal");
+      idc->RegisterField("solution", u);
+      idc->ResetMetadata();
+      idc->SetCycle(0);
+      idc->SetTime(0.0);
+      idc->Save();
+   }
+
    // Optionally output a BP (binary pack) file using ADIOS2. This can be
    // visualized with the ParaView VTX reader.
 #ifdef MFEM_USE_ADIOS2
@@ -606,6 +622,13 @@ int main(int argc, char *argv[])
             pd->Save();
          }
 
+         if (internal)
+         {
+            idc->SetCycle(ti);
+            idc->SetTime(t);
+            idc->Save();
+         }
+
 #ifdef MFEM_USE_ADIOS2
          // transient solutions can be visualized with ParaView
          if (adios2)
@@ -639,6 +662,7 @@ int main(int argc, char *argv[])
    delete fes;
    delete pmesh;
    delete ode_solver;
+   delete idc;
    delete pd;
 #ifdef MFEM_USE_ADIOS2
    if (adios2)

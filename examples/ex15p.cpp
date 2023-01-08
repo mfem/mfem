@@ -222,6 +222,10 @@ int main(int argc, char *argv[])
    visit_dc.RegisterField("solution", &x);
    int vis_cycle = 0;
 
+   MFEMDataCollection mfem_dc("Example15-internal", pmesh, true);
+   mfem_dc.RegisterField("solution", &x);
+   mfem_dc.ResetMetadata();
+
    // 10. As in Example 6p, we set up an estimator that will be used to obtain
    //     element error indicators. The integrator needs to provide the method
    //     ComputeElementFlux. We supply an L2 space for the discontinuous flux
@@ -344,6 +348,10 @@ int main(int argc, char *argv[])
          }
          if (visit)
          {
+            mfem_dc.SetCycle(vis_cycle);
+            mfem_dc.SetTime(time);
+            mfem_dc.Save();
+
             visit_dc.SetCycle(vis_cycle++);
             visit_dc.SetTime(time);
             visit_dc.Save();
