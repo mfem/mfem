@@ -122,6 +122,11 @@ add_mfem_miniapp(mtop_alco
      ${PARADIFF_COMMON_FILES}
      LIBRARIES mfem)
 
+add_mfem_miniapp(mtop_myb
+     MAIN mtop_mybracket.cpp
+     ${PARADIFF_COMMON_FILES}
+     LIBRARIES mfem)
+
 add_mfem_miniapp(mtop_bra2D
      MAIN mtop_bra2D.cpp
      ${PARADIFF_COMMON_FILES}
