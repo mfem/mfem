@@ -41,9 +41,9 @@ ParTransferMap::ParTransferMap(const ParGridFunction &src,
 
       category_ = TransferCategory::SubMeshToSubMesh;
 
-      root_fes_ = new ParFiniteElementSpace(
-         *src.ParFESpace(),
-         *const_cast<ParMesh *>(SubMeshUtils::GetRootParent(*src_sm)));
+      root_fes_.reset(new ParFiniteElementSpace(
+                         *src.ParFESpace(),
+                         *const_cast<ParMesh *>(SubMeshUtils::GetRootParent(*src_sm))));
       subfes1 = src.ParFESpace();
       subfes2 = dst.ParFESpace();
 
@@ -212,11 +212,6 @@ void ParTransferMap::CommunicateSharedVdofs(Vector &f) const
    }
 
    root_gc_->Bcast<double>(f.HostReadWrite());
-}
-
-ParTransferMap::~ParTransferMap()
-{
-   delete root_fes_;
 }
 
 #endif // MFEM_USE_MPI
