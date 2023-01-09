@@ -30,6 +30,9 @@ New and updated examples and miniapps
 - Added a new example code, Example 34/34p, to demonstrate the solution of
   the obstacle problem.
 
+- Added a new example code, Example 35/35p, to demonstrate topology optimization
+  with MFEM.
+
 Integrations, testing and documentation
 ---------------------------------------
 - Removed the support for the Mesquite toolkit. We recommend using MFEM's TMOP
