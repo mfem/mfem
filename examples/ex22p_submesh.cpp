@@ -210,25 +210,37 @@ int main(int argc, char *argv[])
 
    for (int i=0; i<num_procs; i++)
    {
-     if (myid == i)
-     {
-       cout << myid << ": num verts " << pmesh_port->GetNV() << endl;
-       cout << myid << ": num edges " << pmesh_port->GetNEdges() << endl;
-       cout << myid << ": num elems " << pmesh_port->GetNE() << endl;
-       cout << myid << ": num bdr edges " << pmesh_port->GetNBE() << endl;
-     }
-     MPI_Barrier(MPI_COMM_WORLD);
+      if (myid == i)
+      {
+         cout << myid << ": num verts " << pmesh_port->GetNV() << endl;
+         cout << myid << ": num edges " << pmesh_port->GetNEdges() << endl;
+         cout << myid << ": num elems " << pmesh_port->GetNE() << endl;
+         cout << myid << ": num bdr edges " << pmesh_port->GetNBE() << endl;
+      }
+      MPI_Barrier(MPI_COMM_WORLD);
    }
    // pmesh_port->PrintInfo(cout);
    pmesh_port->PrintSharedEntities("port");
-   
-   // pmesh_port->FinalizeTopo(true);
+
+   // pmesh_port->FinalizeTopology(true);
+   // pmesh_port->ExchangeFaceNbrData();
    // pmesh_port->GenerateBoundaryElements();
-   pmesh_port->SetAttributes();
+   // pmesh_port->SetAttributes();
    // pmesh_port->FinalizeParTopo();
 
-   exit(0);
-   
+   for (int i=0; i<num_procs; i++)
+   {
+      if (myid == i)
+      {
+         cout << myid << ": num verts " << pmesh_port->GetNV() << endl;
+         cout << myid << ": num edges " << pmesh_port->GetNEdges() << endl;
+         cout << myid << ": num elems " << pmesh_port->GetNE() << endl;
+         cout << myid << ": num bdr edges " << pmesh_port->GetNBE() << endl;
+      }
+      MPI_Barrier(MPI_COMM_WORLD);
+   }
+   // exit(0);
+
    // 7. Define a parallel finite element space on the parallel mesh. Here we
    //    use continuous Lagrange, Nedelec, or Raviart-Thomas finite elements of
    //    the specified order.
@@ -330,6 +342,25 @@ int main(int argc, char *argv[])
    ParComplexGridFunction u(fespace);
    u = 0.0;
    pmesh_port->Transfer(port_bc, u.real());
+
+   {
+      ParGridFunction full_bc(fespace);
+      ParTransferMap port_to_full(port_bc, full_bc);
+
+      full_bc = 0.0;
+      port_to_full.Transfer(port_bc, full_bc);
+
+      if (visualization)
+      {
+         char vishost[] = "localhost";
+         int  visport   = 19916;
+         socketstream full_sock(vishost, visport);
+         full_sock << "parallel " << num_procs << " " << myid << "\n";
+         full_sock.precision(8);
+         full_sock << "solution\n" << *pmesh << full_bc
+                   << "window_title ': Full BC'" << flush;
+      }
+   }
    // ParComplexGridFunction * u_exact = NULL;
    // if (exact_sol) { u_exact = new ParComplexGridFunction(fespace); }
    /*
@@ -763,6 +794,7 @@ void ScalarWaveGuide(int mode, ParGridFunction &x)
       ess_bdr.SetSize(pmesh.bdr_attributes.Max());
       ess_bdr = 1;
    }
+   cout << "bdr_attr max: " << pmesh.bdr_attributes.Max() << endl;
 
    ParBilinearForm a(&fespace);
    a.AddDomainIntegrator(new DiffusionIntegrator);
