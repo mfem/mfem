@@ -29,7 +29,7 @@
 //              showcases how to set up and solve nonlinear mixed methods.
 //
 //
-// [1] Keith, B. and Surowiec, S. (2023) The entropic finite element method
+// [1] Keith, B. and Surowiec, T. (2023) The entropic finite element method
 //     (in preparation).
 
 
@@ -78,9 +78,11 @@ public:
 
 int main(int argc, char *argv[])
 {
-   MPI_Session mpi;
-   int num_procs = mpi.WorldSize();
-   int myid = mpi.WorldRank();
+   // 0. Initialize MPI and HYPRE.
+   Mpi::Init();
+   int num_procs = Mpi::WorldSize();
+   int myid = Mpi::WorldRank();
+   Hypre::Init();
 
    // 1. Parse command-line options.
    const char *mesh_file = "../data/disk.mesh";
@@ -227,8 +229,7 @@ int main(int argc, char *argv[])
 
    char vishost[] = "localhost";
    int  visport   = 19916;
-   socketstream sol_sock(vishost, visport);
-   sol_sock.precision(8);
+   socketstream sol_sock;
 
    ParGridFunction u_alt_gf(&L2fes);
    ParGridFunction error_gf(&L2fes);
@@ -238,13 +239,11 @@ int main(int argc, char *argv[])
 
    if (visualization)
    {
+      sol_sock.open(vishost,visport);
+      sol_sock.precision(8);
       sol_sock << "parallel " << num_procs << " " << myid << "\n";
       sol_sock << "solution\n" << pmesh << u_alt_gf <<
                "window_title 'Discrete solution'" << flush;
-   }
-   else
-   {
-      sol_sock.close();
    }
 
    // 10. Iterate
@@ -312,7 +311,14 @@ int main(int argc, char *argv[])
          ParBilinearForm a11(&L2fes);
          a11.AddDomainIntegrator(new MassIntegrator(neg_exp_psi));
          ConstantCoefficient eps_cf(-1e-6);
-         a11.AddDomainIntegrator(new DiffusionIntegrator(eps_cf));
+         if (order == 1)
+         {
+            a11.AddDomainIntegrator(new MassIntegrator(eps_cf));
+         }
+         else
+         {
+            a11.AddDomainIntegrator(new DiffusionIntegrator(eps_cf));
+         }
          a11.Assemble();
          a11.Finalize();
          HypreParMatrix A11;
@@ -333,7 +339,7 @@ int main(int argc, char *argv[])
 
          GMRESSolver gmres(MPI_COMM_WORLD);
          gmres.SetPrintLevel(-1);
-         gmres.SetRelTol(1e-12);
+         gmres.SetRelTol(1e-8);
          gmres.SetMaxIter(20000);
          gmres.SetKDim(500);
          gmres.SetOperator(A);
