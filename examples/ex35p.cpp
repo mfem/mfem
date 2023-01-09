@@ -168,6 +168,7 @@ using namespace mfem;
 
 int main(int argc, char *argv[])
 {
+   // 0. Initialize MPI and HYPRE.
    Mpi::Init();
    int num_procs = Mpi::WorldSize();
    int myid = Mpi::WorldRank();
