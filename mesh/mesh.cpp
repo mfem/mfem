@@ -1138,10 +1138,12 @@ void Mesh::GetFaceInfos(int Face, int *Inf1, int *Inf2, int *NCFace) const
    *NCFace = faces_info[Face].NCFace;
 }
 
-void Mesh::GetFaceElements(int face, Array<int> & elems) const
+void Mesh::GetFaceAdjacentElements(int face, Array<int> & elems) const
 {
    bool nonconforming_face = ncmesh && (faces_info[face].NCFace != -1);
-   if (nonconforming_face)
+   MFEM_VERIFY(face < GetNumFaces(), "GetFaceAdjacentElements only implemented"
+               "for local faces.");
+   if (nonconforming_face) //nonconforming master
    {
       int nc_index = faces_info[face].NCFace;
       const NCFaceInfo &nc_info = nc_faces_info[nc_index];
@@ -1153,19 +1155,41 @@ void Mesh::GetFaceElements(int face, Array<int> & elems) const
          int j_end = nc_list.masters[nc_index].slaves_end;
          for (int j = j_begin; j<j_end ; j++)
          {
-            elems.Append(ncmesh->elements[nc_list.slaves[j].element].index);
+            int fnum = nc_list.slaves[j].index;
+            if (fnum >= GetNumFaces())
+            {
+               const FaceInfo &face_info = faces_info[fnum];
+               elems.Append(GetNE() -1 -face_info.Elem2No);
+            }
+            else
+            {
+               elems.Append(ncmesh->elements[nc_list.slaves[j].element].index);
+            }
          }
-         return;
       }
    }
-   // Conforming face or slave face. In case of nonconforming master face, early
-   // return above.
-   int el1, el2;
-   GetFaceElements(face, &el1, &el2);
-   if (el1 != -1) { elems.Append(el1); }
-   if (el2 != -1) { elems.Append(el2); }
+   //(i) conforming interior -
+   //(ii) conforming processor boundary
+   //(iii) true boundary -
+   //(iv) nonconforming interior slave -
+   //(v) nonconforming processor boundary with slave
+   else
+   {
+      const FaceInfo &face_info = faces_info[face];
+      elems.Append(face_info.Elem1No);
+      if (face_info.Elem2No >= 0)
+      {
+         elems.Append(face_info.Elem2No); //(i, iii, iv)
+      }
+      else
+      {
+         if (face_info.Elem2Inf >= 0)
+         {
+            elems.Append(GetNE()-1-face_info.Elem2No); //(ii, v)
+         }
+      }
+   }
 }
-
 
 Geometry::Type Mesh::GetFaceGeometryType(int Face) const
 {
