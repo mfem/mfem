@@ -583,6 +583,7 @@ void SLISolver::Mult(const Vector &b, Vector &x) const
    {
       nom0 = nom = sqrt(Dot(r, r));
    }
+   initial_norm = nom0;
 
    if (print_options.iterations | print_options.first_and_last)
    {
@@ -734,7 +735,7 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
    {
       d = r;
    }
-   nom0 = nom = Dot(d, r);
+   nom0 = nom = initial_norm = Dot(d, r);
    MFEM_ASSERT(IsFinite(nom), "nom = " << nom);
    if (print_options.iterations || print_options.first_and_last)
    {
@@ -1015,7 +1016,7 @@ void GMRESSolver::Mult(const Vector &b, Vector &x) const
          r = b;
       }
    }
-   double beta = Norm(r);  // beta = ||r||
+   double beta = initial_norm = Norm(r);  // beta = ||r||
    MFEM_ASSERT(IsFinite(beta), "beta = " << beta);
 
    final_norm = std::max(rel_tol*beta, abs_tol);
@@ -1175,7 +1176,7 @@ void FGMRESSolver::Mult(const Vector &b, Vector &x) const
       x = 0.;
       r = b;
    }
-   double beta = Norm(r);  // beta = ||r||
+   double beta = initial_norm = Norm(r);  // beta = ||r||
    // We need to preallocate this to report the correct result in the case of
    // no convergence.
    double resid;
@@ -1391,7 +1392,7 @@ void BiCGSTABSolver::Mult(const Vector &b, Vector &x) const
    }
    rtilde = r;
 
-   resid = Norm(r);
+   resid = initial_norm = Norm(r);
    MFEM_ASSERT(IsFinite(resid), "resid = " << resid);
    if (print_options.iterations || print_options.first_and_last)
    {
@@ -1638,7 +1639,7 @@ void MINRESSolver::Mult(const Vector &b, Vector &x) const
    {
       prec->Mult(v1, u1);
    }
-   eta = beta = sqrt(Dot(*z, v1));
+   eta = beta = initial_norm = sqrt(Dot(*z, v1));
    MFEM_ASSERT(IsFinite(eta), "eta = " << eta);
    gamma0 = gamma1 = 1.;
    sigma0 = sigma1 = 0.;
@@ -1833,7 +1834,7 @@ void NewtonSolver::Mult(const Vector &b, Vector &x) const
       r -= b;
    }
 
-   norm0 = norm = Norm(r);
+   norm0 = norm = initial_norm = Norm(r);
    if (print_options.first_and_last && !print_options.iterations)
    {
       mfem::out << "Newton iteration " << setw(2) << 0
@@ -2031,7 +2032,7 @@ void LBFGSSolver::Mult(const Vector &b, Vector &x) const
 
    c = r;           // initial descent direction
 
-   norm0 = norm = Norm(r);
+   norm0 = norm = initial_norm = Norm(r);
    if (print_options.first_and_last && !print_options.iterations)
    {
       mfem::out << "LBFGS iteration " << setw(2) << 0
@@ -2404,7 +2405,7 @@ void SLBQPOptimizer::Mult(const Vector& xt, Vector& x) const
    }
 
    // Solve QP with fixed Lagrange multiplier
-   r = solve(l,xt,x,nclip);
+   r = initial_norm = solve(l,xt,x,nclip);
    print_iteration(nclip, r, l);
 
 

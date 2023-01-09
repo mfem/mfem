@@ -163,7 +163,7 @@ protected:
 
    mutable int final_iter;
    mutable bool converged;
-   mutable double final_norm;
+   mutable double initial_norm, final_norm;
 
    ///@}
 
@@ -241,11 +241,13 @@ public:
    virtual void SetPrintLevel(PrintLevel);
    ///@}
 
-   /// @name Solver statistics
+   /// @name Solver statistics. These are valid after the call to Mult().
    ///@{
    int GetNumIterations() const { return final_iter; }
    bool GetConverged() const { return converged; }
+   double GetInitialNorm() const { return initial_norm; }
    double GetFinalNorm() const { return final_norm; }
+   double GetFinalRelNorm() const { return final_norm / initial_norm; }
    ///@}
 
    /// This should be called before SetOperator
