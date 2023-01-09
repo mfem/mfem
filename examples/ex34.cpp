@@ -279,7 +279,14 @@ int main(int argc, char *argv[])
          BilinearForm a11(&L2fes);
          a11.AddDomainIntegrator(new MassIntegrator(neg_exp_psi));
          ConstantCoefficient eps_cf(-1e-6);
-         a11.AddDomainIntegrator(new DiffusionIntegrator(eps_cf));
+         if (order == 1)
+         {
+            a11.AddDomainIntegrator(new MassIntegrator(eps_cf));
+         }
+         else
+         {
+            a11.AddDomainIntegrator(new DiffusionIntegrator(eps_cf));
+         }
          a11.Assemble();
          a11.Finalize();
          SparseMatrix &A11 = a11.SpMat();
