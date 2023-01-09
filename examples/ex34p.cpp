@@ -311,7 +311,14 @@ int main(int argc, char *argv[])
          ParBilinearForm a11(&L2fes);
          a11.AddDomainIntegrator(new MassIntegrator(neg_exp_psi));
          ConstantCoefficient eps_cf(-1e-6);
-         a11.AddDomainIntegrator(new DiffusionIntegrator(eps_cf));
+         if (order == 1)
+         {
+            a11.AddDomainIntegrator(new MassIntegrator(eps_cf));
+         }
+         else
+         {
+            a11.AddDomainIntegrator(new DiffusionIntegrator(eps_cf));
+         }
          a11.Assemble();
          a11.Finalize();
          HypreParMatrix A11;
@@ -332,7 +339,7 @@ int main(int argc, char *argv[])
 
          GMRESSolver gmres(MPI_COMM_WORLD);
          gmres.SetPrintLevel(-1);
-         gmres.SetRelTol(1e-12);
+         gmres.SetRelTol(1e-8);
          gmres.SetMaxIter(20000);
          gmres.SetKDim(500);
          gmres.SetOperator(A);
