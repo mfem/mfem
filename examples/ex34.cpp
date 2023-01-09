@@ -148,7 +148,7 @@ int main(int argc, char *argv[])
    BlockVector x(offsets), rhs(offsets);
    x = 0.0; rhs = 0.0;
 
-   // 5. Determine the list of true (i.e. conforming) essential boundary dofs.
+   // 5. Determine the list of true (i.e., conforming) essential boundary dofs.
    Array<int> empty;
    Array<int> ess_tdof_list;
    Array<int> ess_bdr(mesh.bdr_attributes.Max());

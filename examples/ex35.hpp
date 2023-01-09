@@ -9,9 +9,186 @@
 using namespace std;
 using namespace mfem;
 
-//  Class for solving Poisson's equation with MFEM:
+// Convenience functions
+double lnit(double x)
+{
+   double tol = 1e-12;
+   x = min(max(tol,x),1.0-tol);
+   return log(x/(1.0-x));
+}
+
+double expit(double x)
+{
+   if (x >= 0)
+   {
+      return 1.0/(1.0+exp(-x));
+   }
+   else
+   {
+      return exp(x)/(1.0+exp(x));
+   }
+}
+
+double dexpitdx(double x)
+{
+   double tmp = expit(-x);
+   return tmp - pow(tmp,2);
+}
+
+/**
+ * @brief Nonlinear projection of 0 < τ < 1 onto the subspace
+ *        ∫_Ω τ dx = θ vol(Ω) as follows.
+ *
+ *        1. Compute the root of the R → R function
+ *            f(c) = ∫_Ω expit(lnit(τ) + c) dx - θ vol(Ω)
+ *        2. Set τ ← expit(lnit(τ) + c).
+ *
+ */
+void projit(GridFunction &tau, double &c, LinearForm &vol_form,
+            double volume_fraction, double tol=1e-12, int max_its=10)
+{
+   GridFunction ftmp(tau.FESpace());
+   GridFunction dftmp(tau.FESpace());
+   for (int k=0; k<max_its; k++)
+   {
+      // Compute f(c) and dfdc(c)
+      for (int i=0; i<tau.Size(); i++)
+      {
+         ftmp[i]  = expit(lnit(tau[i]) + c) - volume_fraction;
+         dftmp[i] = dexpitdx(lnit(tau[i]) + c);
+      }
+      double f = vol_form(ftmp);
+      double df = vol_form(dftmp);
+
+#ifdef MFEM_USE_MPI
+      MPI_Allreduce(MPI_IN_PLACE,&f,1,MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD);
+      MPI_Allreduce(MPI_IN_PLACE,&df,1,MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD);
+#endif
+
+      double dc = -f/df;
+      c += dc;
+      if (abs(dc) < tol) { break; }
+   }
+   tau = ftmp;
+   tau += volume_fraction;
+}
+
+// TODO: Description
+class SIMPCoefficient : public Coefficient
+{
+protected:
+   GridFunction *rho_filter; // grid function
+   double min_val;
+   double max_val;
+   double exponent;
+
+public:
+   SIMPCoefficient(GridFunction *rho_filter_, double min_val_= 1e-3,
+                   double max_val_=1.0,
+                   double exponent_ = 3)
+      : rho_filter(rho_filter_), min_val(min_val_), max_val(max_val_),
+        exponent(exponent_) { }
+
+   virtual double Eval(ElementTransformation &T, const IntegrationPoint &ip)
+   {
+      double val = rho_filter->GetValue(T, ip);
+      double coeff = min_val + pow(val,exponent)*(max_val-min_val);
+      return coeff;
+   }
+};
+
+
+// A Coefficient for computing the components of the stress.
+class StrainEnergyDensityCoefficient : public Coefficient
+{
+protected:
+   Coefficient * lambda=nullptr;
+   Coefficient * mu=nullptr;
+   GridFunction *u = nullptr; // displacement
+   GridFunction *rho_filter = nullptr; // filter density
+   DenseMatrix grad; // auxiliary matrix, used in Eval
+   double exponent;
+   double rho_min;
+
+public:
+   StrainEnergyDensityCoefficient(Coefficient *lambda_, Coefficient *mu_,
+                                  GridFunction * u_, GridFunction * rho_filter_, double rho_min_=1e-6,
+                                  double exponent_ = 3.0)
+      : lambda(lambda_), mu(mu_),  u(u_), rho_filter(rho_filter_),
+        exponent(exponent_), rho_min(rho_min_)
+   {
+      MFEM_ASSERT(rho_min_ >= 0.0, "rho_min must be >= 0");
+      MFEM_ASSERT(rho_min_ < 1.0,  "rho_min must be > 1");
+      MFEM_ASSERT(u, "displacement field is not set");
+      MFEM_ASSERT(rho_filter, "density field is not set");
+   }
+
+   virtual double Eval(ElementTransformation &T, const IntegrationPoint &ip)
+   {
+      double L = lambda->Eval(T, ip);
+      double M = mu->Eval(T, ip);
+      u->GetVectorGradient(T, grad);
+      double div_u = grad.Trace();
+      double density = L*div_u*div_u;
+      int dim = T.GetSpaceDim();
+      for (int i=0; i<dim; i++)
+      {
+         for (int j=0; j<dim; j++)
+         {
+            density += M*grad(i,j)*(grad(i,j)+grad(j,i));
+         }
+      }
+      double val = rho_filter->GetValue(T,ip);
+
+      return -exponent * pow(val, exponent-1.0) * (1-rho_min) * density;
+   }
+};
+
+// TODO: Description
+class VolumeForceCoefficient : public VectorCoefficient
+{
+private:
+   double r;
+   Vector center;
+   Vector force;
+public:
+   VolumeForceCoefficient(double r_,Vector &  center_, Vector & force_) :
+      VectorCoefficient(center_.Size()), r(r_), center(center_), force(force_) { }
+
+   virtual void Eval(Vector &V, ElementTransformation &T,
+                     const IntegrationPoint &ip)
+   {
+      Vector xx; xx.SetSize(T.GetDimension());
+      T.Transform(ip,xx);
+      for (int i=0; i<xx.Size(); i++)
+      {
+         xx[i]=xx[i]-center[i];
+      }
+
+      double cr=xx.Norml2();
+      V.SetSize(T.GetDimension());
+      if (cr <= r)
+      {
+         V = force;
+      }
+      else
+      {
+         V = 0.0;
+      }
+   }
+
+   void Set(double r_,Vector & center_, Vector & force_)
+   {
+      r=r_;
+      center = center_;
+      force = force_;
+   }
+};
+
+//  Class for solving Poisson's equation:
 //
-//  - ∇ ⋅(κ ∇ u) = f  in Ω
+//       - ∇ ⋅(κ ∇ u) = f  in Ω
+//
 class DiffusionSolver
 {
 private:
@@ -88,10 +265,14 @@ public:
 };
 
 
-//  Class for solving linear elasticity with MFEM:
+//  Class for solving linear elasticity:
 //
-//  -∇ ⋅ (σ(u)) u = f  in Ω
-// σ(u) = λ ∇⋅u I + μ (∇ u + (∇u)^T)
+//        -∇ ⋅ σ(u) = f  in Ω  + BCs
+//
+//  where
+//
+//        σ(u) = λ ∇⋅u I + μ (∇ u + ∇uᵀ)
+//
 class LinearElasticitySolver
 {
 private:

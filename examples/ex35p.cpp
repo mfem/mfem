@@ -1,221 +1,132 @@
 //                            MFEM Example 35 - Parallel Version
 //
+//
 // Compile with: make ex35p
 //
-//
 // Sample runs:
-// mpirun -np 6 ex35p -r 4 -o 2 -alpha 1.0 -epsilon 0.01 -mi 50 -mf 0.5 -lambda 0.1 -mu 0.1 -tr 0.0001
-// mpirun -np 6 ex35p -r 5 -o 2 -alpha 10.0 -epsilon 0.01 -mi 50 -mf 0.5 -tr 0.00001
-// mpirun -np 8 ex35p -r 6 -o 2 -alpha 10.0 -epsilon 0.01 -mi 50 -mf 0.5 -tr 0.00001
+// mpirun -np 6 ex35p -lambda 0.1 -mu 0.1
+// mpirun -np 6 ex35p -r 5 -o 2 -alpha 5.0 -epsilon 0.01 -mi 50 -mf 0.5 -tol 1e-5
+// mpirun -np 8 ex35p -r 6 -o 2 -alpha 10.0 -epsilon 0.02 -mi 50 -mf 0.5 -tol 1e-5
 //
 //
+// Description: This example code demonstrates the use of MFEM to solve a
+//              density-filtered [3] topology optimization problem. The
+//              objective is to minimize the compliance
+//
+//                  minimize ∫_Ω f⋅u dx over u ∈ [H¹(Ω)]ᵈ and ρ ∈ L²(Ω)
+//
+//                  subject to
+//
+//                    -div(r(ρ̃)Cε(u)) = f       in Ω + BCs
+//                    -ϵ²Δρ̃ + ρ̃ = ρ             in Ω + Neumann BCs
+//                    0 ≤ ρ ≤ 1                 in Ω
+//                    ∫_Ω ρ dx = θ vol(Ω)
+//
+//              Here, r(ρ̃) = ρ₀ + ρ̃³ (1-ρ₀) is the solid isotropic material
+//              penalization (SIMP) law, C is the elasticity tensor for an
+//              isotropic linearly elastic material, ϵ > 0 is the design
+//              length scale, and 0 < θ < 1 is the volume fraction.
+//
+//              The problem is discretized and gradients are computing using
+//              finite elements [1]. The design is optimized using an entropic
+//              mirror descent algorithm introduced by Keith and Surowiec [2]
+//              that is tailored to the bound constraint 0 ≤ ρ ≤ 1.
+//
+//              This example highlights the ability of MFEM to deliver high-
+//              order solutions to inverse design problems and showcases how
+//              to set up and solve PDE-constrained optimization problems.
+//
+//
+// [1] Andreassen, E., Clausen, A., Schevenels, M., Lazarov, B. S., & Sigmund, O.
+//    (2011). Efficient topology optimization in MATLAB using 88 lines of
+//    code. Structural and Multidisciplinary Optimization, 43(1), 1-16.
+// [2] Keith, B. and Surowiec, S. (2023) The entropic finite element method
+//     (in preparation).
+// [3] Lazarov, B. S., & Sigmund, O. (2011). Filters in topology optimization
+//     based on Helmholtz‐type differential equations. International Journal
+//     for Numerical Methods in Engineering, 86(6), 765-781.
+
 #include "mfem.hpp"
-#include <memory>
 #include <iostream>
 #include <fstream>
-#include <random>
 #include "ex35.hpp"
-
-
-double lnit(double x)
-{
-   double tol = 1e-12;
-   x = min(max(tol,x),1.0-tol);
-   return log(x/(1.0-x));
-}
-
-double expit(double x)
-{
-   if (x >= 0)
-   {
-      return 1.0/(1.0+exp(-x));
-   }
-   else
-   {
-      return exp(x)/(1.0+exp(x));
-   }
-}
-
-double dexpitdx(double x)
-{
-   double tmp = expit(-x);
-   return tmp - pow(tmp,2);
-}
-
-/**
- * @brief Compute the root of the function
- *            f(c) = ∫_Ω expit(lnit(τ) + c) dx - θ vol(Ω)
- */
-void projit(GridFunction &tau, double &c, LinearForm &vol_form,
-            double volume_fraction, double tol=1e-12, int max_its=10)
-{
-   GridFunction ftmp(tau.FESpace());
-   GridFunction dftmp(tau.FESpace());
-   for (int k=0; k<max_its; k++)
-   {
-      // Compute f(c) and dfdc(c)
-      for (int i=0; i<tau.Size(); i++)
-      {
-         ftmp[i]  = expit(lnit(tau[i]) + c) - volume_fraction;
-         dftmp[i] = dexpitdx(lnit(tau[i]) + c);
-      }
-      double f = vol_form(ftmp);
-      double df = vol_form(dftmp);
-
-      MPI_Allreduce(MPI_IN_PLACE,&f,1,MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD);
-      MPI_Allreduce(MPI_IN_PLACE,&df,1,MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD);
-
-      double dc = -f/df;
-      c += dc;
-      if (abs(dc) < tol) { break; }
-   }
-   tau = ftmp;
-   tau += volume_fraction;
-}
-
-
-class SIMPCoefficient : public Coefficient
-{
-protected:
-   GridFunction *rho_filter; // grid function
-   double min_val;
-   double max_val;
-   double exponent;
-
-public:
-   SIMPCoefficient(GridFunction *rho_filter_, double min_val_= 1e-3,
-                   double max_val_=1.0,
-                   double exponent_ = 3)
-      : rho_filter(rho_filter_), min_val(min_val_), max_val(max_val_),
-        exponent(exponent_) { }
-
-   virtual double Eval(ElementTransformation &T, const IntegrationPoint &ip)
-   {
-      double val = rho_filter->GetValue(T, ip);
-      double coeff = min_val + pow(val,exponent)*(max_val-min_val);
-      return coeff;
-   }
-};
-
-
-// A Coefficient for computing the components of the stress.
-class StrainEnergyDensityCoefficient : public Coefficient
-{
-protected:
-   Coefficient * lambda=nullptr;
-   Coefficient * mu=nullptr;
-   GridFunction *u = nullptr; // displacement
-   GridFunction *rho_filter = nullptr; // filter density
-   DenseMatrix grad; // auxiliary matrix, used in Eval
-   double exponent;
-   double k_min;
-
-public:
-   StrainEnergyDensityCoefficient(Coefficient *lambda_, Coefficient *mu_,
-                                  GridFunction * u_, GridFunction * rho_filter_, double k_min_=1e-6,
-                                  double exponent_ = 3.0)
-      : lambda(lambda_), mu(mu_),  u(u_), rho_filter(rho_filter_),
-        exponent(exponent_), k_min(k_min_)
-   {
-      MFEM_ASSERT(k_min_ >= 0.0, "k_min must be >= 0");
-      MFEM_ASSERT(k_min_ < 1.0,  "k_min must be > 1");
-      MFEM_ASSERT(u, "displacement field is not set");
-      MFEM_ASSERT(rho_filter, "density field is not set");
-   }
-
-   virtual double Eval(ElementTransformation &T, const IntegrationPoint &ip)
-   {
-      double L = lambda->Eval(T, ip);
-      double M = mu->Eval(T, ip);
-      u->GetVectorGradient(T, grad);
-      double div_u = grad.Trace();
-      double density = L*div_u*div_u;
-      int dim = T.GetSpaceDim();
-      for (int i=0; i<dim; i++)
-      {
-         for (int j=0; j<dim; j++)
-         {
-            density += M*grad(i,j)*(grad(i,j)+grad(j,i));
-         }
-      }
-      double val = rho_filter->GetValue(T,ip);
-
-      return -exponent * pow(val, exponent-1.0) * (1-k_min) * density;
-   }
-};
-
-class VolumeForceCoefficient : public VectorCoefficient
-{
-private:
-   double r;
-   Vector center;
-   Vector force;
-public:
-   VolumeForceCoefficient(double r_,Vector &  center_, Vector & force_) :
-      VectorCoefficient(center_.Size()), r(r_), center(center_), force(force_) { }
-
-   virtual void Eval(Vector &V, ElementTransformation &T,
-                     const IntegrationPoint &ip)
-   {
-      Vector xx; xx.SetSize(T.GetDimension());
-      T.Transform(ip,xx);
-      for (int i=0; i<xx.Size(); i++)
-      {
-         xx[i]=xx[i]-center[i];
-      }
-
-      double cr=xx.Norml2();
-      V.SetSize(T.GetDimension());
-      if (cr <= r)
-      {
-         V = force;
-      }
-      else
-      {
-         V = 0.0;
-      }
-   }
-
-   void Set(double r_,Vector & center_, Vector & force_)
-   {
-      r=r_;
-      center = center_;
-      force = force_;
-   }
-};
-
 
 using namespace std;
 using namespace mfem;
-
-/** The Lagrangian for this problem is
- *    TODO
- * --------------------------------------------------------
+/**
+ * ---------------------------------------------------------------
+ *                      ALGORITHM PREAMBLE
+ * ---------------------------------------------------------------
  *
- * We update ρ with projected gradient descent via
+ *  The Lagrangian for this problem is
  *
- *  1. Initialize ζ, ρ
- *  while not converged
- *     2. Solve (ϵ² ∇ ρ̃, ∇ v ) + (ρ̃,v) = (ρ,v)
- *     3. (λ(ρ̃) ∇⋅u, ∇⋅v) + (2 μ(ρ̃) e(u)), e(v)) = (f,v),
- *        k(ρ̃):= kₘᵢₙ + ρ̃³ (1 - kₘᵢₙ)
- *        λ(ρ̃):= λ k(ρ̃)
- *        μ(ρ̃):= μ k(ρ̃)
+ *          L(u,ρ,ρ̃,w,w̃) = (f,u) - (r(ρ̃) C ε(u),ε(w)) + (f,w)
+ *                       - (ϵ² ∇ρ̃,∇w̃) - (ρ̃,w̃) + (ρ,w̃)
  *
- *     4. Solve (ϵ² ∇ w̃ , ∇ v ) + (w̃ ,v) = (-k'(ρ̃) ( λ(ρ̃) |∇⋅u|² + 2 μ(ρ̃) |e(u)|²),v)
- *     5. Compute gradient in L² w:= M⁻¹ w̃
- *     6. update until convergence
- *       ρ <--- P(ρ - α (w - ζ + β (∫_Ω ρ - V ⋅ vol(Ω)) ) )
- *              P is the projection operator enforcing 0 <= ρ <= 1
+ *  where
  *
- *  7. update ζ
- *     ζ <- ζ - β (∫_Ω K dx - V ⋅ vol(Ω))
+ *    r(ρ̃) = ρ₀ + ρ̃³ (1 - ρ₀)       (SIMP rule)
  *
- *  ρ ∈ L² (order p - 1)
- *  ρ̃ ∈ H¹ (order p - 1)
- *  u ∈ (H¹)ᵈ (order p)
- *  w̃ ∈ H¹ (order p - 1)
- *  w ∈ L² (order p - 1)
+ *    ε(u) = (∇u + ∇uᵀ)/2           (symmetric gradient)
+ *
+ *    C e = λtr(e)I + 2μe           (isotropic material)
+ *
+ * ---------------------------------------------------------------
+ *
+ *  Discretization choices:
+ *
+ *     ρ ∈ L² (order p - 1)
+ *     ρ̃ ∈ H¹ (order p - 1)
+ *     u ∈ V ⊂ (H¹)ᵈ (order p)
+ *     w̃ ∈ H¹ (order p - 1)
+ *     w ∈ L² (order p - 1)
+ *
+ * ---------------------------------------------------------------
+ *                          ALGORITHM
+ * ---------------------------------------------------------------
+ *
+ *  Update ρ with projected mirror descent via the following algorithm.
+ *
+ *  1. Initialize density field 0 < ρ(x) < 1.
+ *
+ *  While not converged:
+ *
+ *     2. Solve filter equation ∂_w̃ L = 0; i.e.,
+ *
+ *           (ϵ² ∇ ρ̃, ∇ v ) + (ρ̃,v) = (ρ,v)   ∀ v ∈ H¹.
+ *
+ *     3. Solve primal problem ∂_w L = 0; i.e.,
+ *
+ *      (λ(ρ̃) ∇⋅u, ∇⋅v) + (2 μ(ρ̃) ε(u), ε(v)) = (f,v)   ∀ v ∈ V,
+ *
+ *     where λ(ρ̃) := λ r(ρ̃) and  μ(ρ̃) := μ r(ρ̃).
+ *
+ *     NB. The dual problem ∂_u L = 0 is the same as the primal problem due to symmetry.
+ *
+ *     4. Solve for filtered gradient ∂_ρ̃ L = 0; i.e.,
+ *
+ *      (ϵ² ∇ w̃ , ∇ v ) + (w̃ ,v) = (-r'(ρ̃) ( λ(ρ̃) |∇⋅u|² + 2 μ(ρ̃) |ε(u)|²),v)   ∀ v ∈ H¹.
+ *
+ *     5. Construct gradient G ∈ L²; i.e.,
+ *
+ *                         (G,v) = (w̃,v)   ∀ v ∈ L².
+ *
+ *     6. Mirror descent update until convergence; i.e.,
+ *
+ *                      ρ ← projit(expit(linit(ρ) - αG)),
+ *
+ *     where
+ *
+ *          α > 0                            (step size parameter)
+ *
+ *          expit(x) = eˣ/(1+eˣ)             (sigmoid)
+ *
+ *          linit(y) = ln(y) - ln(1-y)       (inverse of sigmoid)
+ *
+ *     and projit is a (compatible) projection operator enforcing ∫_Ω ρ dx = θ vol(Ω).
+ *
+ *  end
+ *
  */
 
 int main(int argc, char *argv[])
@@ -226,7 +137,6 @@ int main(int argc, char *argv[])
    Hypre::Init();
 
    // 1. Parse command-line options.
-   // const char *mesh_file = "bar2d.msh";
    int ref_levels = 4;
    int order = 2;
    bool visualization = true;
@@ -234,8 +144,8 @@ int main(int argc, char *argv[])
    double epsilon = 0.01;
    double mass_fraction = 0.5;
    int max_it = 1e2;
-   double tol_rho = 1e-4;
-   double K_min = 1e-3;
+   double tol = 1e-4;
+   double rho_min = 1e-6;
    double lambda = 1.0;
    double mu = 1.0;
 
@@ -250,7 +160,7 @@ int main(int argc, char *argv[])
                   "epsilon phase field thickness");
    args.AddOption(&max_it, "-mi", "--max-it",
                   "Maximum number of gradient descent iterations.");
-   args.AddOption(&tol_rho, "-tr", "--tol_rho",
+   args.AddOption(&tol, "-tol", "--tol",
                   "Exit tolerance for ρ ");
    args.AddOption(&mass_fraction, "-mf", "--mass-fraction",
                   "Mass fraction for diffusion coefficient.");
@@ -258,7 +168,7 @@ int main(int argc, char *argv[])
                   "Lame constant λ");
    args.AddOption(&mu, "-mu", "--mu",
                   "Lame constant μ");
-   args.AddOption(&K_min, "-Kmin", "--K-min",
+   args.AddOption(&rho_min, "-rmin", "--rho-min",
                   "Minimum of density coefficient.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
@@ -284,6 +194,7 @@ int main(int argc, char *argv[])
 
    int dim = mesh.Dimension();
 
+   // 2. Set BCs.
    for (int i = 0; i<mesh.GetNBE(); i++)
    {
       Element * be = mesh.GetBdrElement(i);
@@ -310,6 +221,7 @@ int main(int argc, char *argv[])
    }
    mesh.SetAttributes();
 
+   // 3. Refine the mesh.
    for (int lev = 0; lev < ref_levels; lev++)
    {
       mesh.UniformRefinement();
@@ -318,8 +230,7 @@ int main(int argc, char *argv[])
    ParMesh pmesh(MPI_COMM_WORLD, mesh);
    mesh.Clear();
 
-   // 5. Define the vector finite element spaces representing the state variable u,
-   //    adjoint variable p, and the control variable f.
+   // 4. Define the necessary finite element spaces on the mesh.
    H1_FECollection state_fec(order, dim); // space for u
    H1_FECollection filter_fec(order-1, dim); // space for ρ̃
    L2_FECollection control_fec(order-1, dim,
@@ -338,7 +249,7 @@ int main(int argc, char *argv[])
       cout << "Number of control unknowns: " << control_size << endl;
    }
 
-   // 7. Set the initial guess for f and the boundary conditions for u.
+   // 5. Set the initial guess for ρ.
    ParGridFunction u(&state_fes);
    ParGridFunction rho(&control_fes);
    ParGridFunction rho_old(&control_fes);
@@ -347,7 +258,8 @@ int main(int argc, char *argv[])
    rho_filter = 0.0;
    rho = 0.5;
    rho_old = 0.5;
-   // 8. Set up the linear form b(.) for the state and adjoint equations.
+
+   // 6. Set-up the physics solver.
    int maxat = pmesh.bdr_attributes.Max();
    Array<int> ess_bdr(maxat);
    ess_bdr = 0;
@@ -366,6 +278,7 @@ int main(int argc, char *argv[])
    ElasticitySolver->SetRHSCoefficient(&vforce_cf);
    ElasticitySolver->SetEssentialBoundary(ess_bdr);
 
+   // 7. Set-up the filter solver.
    ConstantCoefficient eps2_cf(epsilon*epsilon);
    DiffusionSolver * FilterSolver = new DiffusionSolver();
    FilterSolver->SetMesh(&pmesh);
@@ -388,11 +301,11 @@ int main(int argc, char *argv[])
    Array<int> empty;
    mass.FormSystemMatrix(empty,M);
 
-   // 9. Define the gradient function
-   ParGridFunction w(&control_fes);
+   // 8. Define the Lagrange multiplier and gradient functions
+   ParGridFunction grad(&control_fes);
    ParGridFunction w_filter(&filter_fes);
 
-   // 10. Define some tools for later
+   // 9. Define some tools for later
    ConstantCoefficient zero(0.0);
    ParGridFunction onegf(&control_fes);
    onegf = 1.0;
@@ -401,18 +314,18 @@ int main(int argc, char *argv[])
    vol_form.Assemble();
    double domain_volume = vol_form(onegf);
 
-   // 11. Connect to GLVis. Prepare for VisIt output.
+   // 10. Connect to GLVis. Prepare for VisIt output.
    char vishost[] = "localhost";
    int  visport   = 19916;
-   socketstream sout_u,sout_K,sout_rho;
+   socketstream sout_u,sout_r,sout_rho;
    if (visualization)
    {
       sout_u.open(vishost, visport);
       sout_rho.open(vishost, visport);
-      sout_K.open(vishost, visport);
+      sout_r.open(vishost, visport);
       sout_u.precision(8);
       sout_rho.precision(8);
-      sout_K.precision(8);
+      sout_r.precision(8);
    }
 
    mfem::ParaViewDataCollection paraview_dc("Elastic_compliance", &pmesh);
@@ -421,107 +334,99 @@ int main(int argc, char *argv[])
    paraview_dc.SetCycle(0);
    paraview_dc.SetDataFormat(VTKFormat::BINARY);
    paraview_dc.SetHighOrderOutput(true);
-   paraview_dc.SetTime(0.0); // set the time
-   paraview_dc.RegisterField("soln",&u);
-   paraview_dc.RegisterField("dens",&rho);
+   paraview_dc.SetTime(0.0);
+   paraview_dc.RegisterField("displacement",&u);
+   paraview_dc.RegisterField("density",&rho);
+   paraview_dc.RegisterField("filtered_density",&rho_filter);
 
-   // 12. Iterate
+   // 11. Iterate
    int step = 0;
-   double zeta = 0.0;
+   double c0 = 0.0;
    for (int k = 1; k < max_it; k++)
    {
       if (k > 1) { alpha *= ((double) k) / ((double) k-1); }
-      // if (k > 1) { alpha *= sqrt((double) k) / sqrt((double) k-1); }
-
       step++;
-      // A. Form state equation
+
       if (myid == 0)
       {
          cout << "\nStep = " << k << endl;
       }
-      // Step 2 -  Filter Solve
+
+      // Step 1 - Filter solve
       // Solve (ϵ^2 ∇ ρ̃, ∇ v ) + (ρ̃,v) = (ρ,v)
       GridFunctionCoefficient rho_cf(&rho);
       FilterSolver->SetRHSCoefficient(&rho_cf);
       FilterSolver->Solve();
       rho_filter = *FilterSolver->GetFEMSolution();
-      // ------------------------------------------------------------------
-      // Step 3 - State Solve
-      SIMPCoefficient K_cf(&rho_filter,K_min, 1.0);
-      ProductCoefficient lambda_K_cf(lambda_cf,K_cf);
-      ProductCoefficient mu_K_cf(mu_cf,K_cf);
-      ElasticitySolver->SetLameCoefficients(&lambda_K_cf,&mu_K_cf);
-      ParGridFunction K_gf(&control_fes);
-      K_gf.ProjectCoefficient(K_cf);
-      sout_K << "parallel " << num_procs << " " << myid << "\n";
-      sout_K << "solution\n" << pmesh << K_gf
-             << "window_title 'Control K'" << flush;
 
+      // Step 2 - State solve
+      // Solve (λ(ρ̃) ∇⋅u, ∇⋅v) + (2 μ(ρ̃) ε(u), ε(v)) = (f,v)
+      SIMPCoefficient SIMP_cf(&rho_filter,rho_min, 1.0);
+      ProductCoefficient lambda_SIMP_cf(lambda_cf,SIMP_cf);
+      ProductCoefficient mu_SIMP_cf(mu_cf,SIMP_cf);
+      ElasticitySolver->SetLameCoefficients(&lambda_SIMP_cf,&mu_SIMP_cf);
       ElasticitySolver->Solve();
       u = *ElasticitySolver->GetFEMSolution();
-      // ------------------------------------------------------------------
-      // Step 4 - Adjoint Solve
-      StrainEnergyDensityCoefficient rhs_cf(&lambda_cf,&mu_cf,&u, &rho_filter, K_min);
+
+      // Step 3 - Adjoint filter solve
+      // Solve (ϵ² ∇ w̃, ∇ v) + (w̃ ,v) = (-r'(ρ̃) ( λ(ρ̃) |∇⋅u|² + 2 μ(ρ̃) |ε(u)|²),v)
+      StrainEnergyDensityCoefficient rhs_cf(&lambda_cf,&mu_cf,&u, &rho_filter,
+                                            rho_min);
       FilterSolver->SetRHSCoefficient(&rhs_cf);
       FilterSolver->Solve();
       w_filter = *FilterSolver->GetFEMSolution();
-      // Step 5 - get grad of w
+
+      // Step 4 - Compute gradient
+      // Solve G = M⁻¹w̃
       GridFunctionCoefficient w_cf(&w_filter);
       ParLinearForm w_rhs(&control_fes);
       w_rhs.AddDomainIntegrator(new DomainLFIntegrator(w_cf));
       w_rhs.Assemble();
-      M.Mult(w_rhs,w);
-      // w.ProjectCoefficient(w_cf); // This might need to change to L2-projection
-      // ------------------------------------------------------------------
+      M.Mult(w_rhs,grad);
 
-      if (myid == 0)
-      {
-         cout << "norm of u = " << u.Norml2() << endl;
-      }
-
-      // step 6-update  ρ
+      // Step 5 - Update ρ ← projit(expit(linit(ρ) - αG))
       for (int i = 0; i < rho.Size(); i++)
       {
-         rho[i] = expit(lnit(rho[i]) - alpha*w[i]);
+         rho[i] = expit(lnit(rho[i]) - alpha*grad[i]);
       }
-      projit(rho, zeta, vol_form, mass_fraction);
+      projit(rho, c0, vol_form, mass_fraction);
 
       GridFunctionCoefficient tmp(&rho_old);
-      double norm_rho = rho.ComputeL2Error(tmp)/alpha;
+      double norm_reduced_gradient = rho.ComputeL2Error(tmp)/alpha;
       rho_old = rho;
 
       double compliance = (*(ElasticitySolver->GetLinearForm()))(u);
       MPI_Allreduce(MPI_IN_PLACE,&compliance,1,MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD);
+      double material_volume = vol_form(rho);
       if (myid == 0)
       {
-         mfem::out << "norm of reduced gradient = " << norm_rho << endl;
+         mfem::out << "norm of reduced gradient = " << norm_reduced_gradient << endl;
          mfem::out << "compliance = " << compliance << endl;
-      }
-
-      double mass1 = vol_form(rho);
-      if (myid == 0)
-      {
-         mfem::out << "mass_fraction = " << mass1 / domain_volume << endl;
-         mfem::out << "zeta = " << zeta << endl;
+         mfem::out << "mass_fraction = " << material_volume / domain_volume << endl;
       }
 
       if (visualization)
       {
-
          sout_u << "parallel " << num_procs << " " << myid << "\n";
          sout_u << "solution\n" << pmesh << u
-                << "window_title 'State u'" << flush;
+                << "window_title 'Displacement u'" << flush;
 
          sout_rho << "parallel " << num_procs << " " << myid << "\n";
          sout_rho << "solution\n" << pmesh << rho
-                  << "window_title 'Control ρ '" << flush;
+                  << "window_title 'Control variable ρ'" << flush;
+
+         ParGridFunction r_gf(&control_fes);
+         r_gf.ProjectCoefficient(SIMP_cf);
+         sout_r << "parallel " << num_procs << " " << myid << "\n";
+         sout_r << "solution\n" << pmesh << r_gf
+                << "window_title 'Design density r(ρ̃)'" << flush;
 
          paraview_dc.SetCycle(k);
          paraview_dc.SetTime((double)k);
          paraview_dc.Save();
       }
 
-      if (norm_rho < tol_rho)
+      if (norm_reduced_gradient < tol)
       {
          break;
       }
