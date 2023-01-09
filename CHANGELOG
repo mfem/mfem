@@ -27,7 +27,8 @@ Linear and nonlinear solvers
 
 New and updated examples and miniapps
 -------------------------------------
-- TBD
+- Added a new example code, Example 34/34p, to demonstrate the solution of
+  the obstacle problem.
 
 Integrations, testing and documentation
 ---------------------------------------
