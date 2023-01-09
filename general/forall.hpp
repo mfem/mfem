@@ -116,20 +116,20 @@ void OmpWrap(const int N, HBODY &&h_body)
 /// RAJA Cuda and Hip backends
 #if defined(MFEM_USE_RAJA) && defined(RAJA_ENABLE_CUDA)
 using cuda_launch_policy =
-   RAJA::expt::LaunchPolicy<RAJA::expt::null_launch_t, RAJA::expt::cuda_launch_t<true>>;
+   RAJA::LaunchPolicy<RAJA::cuda_launch_t<true>>;
 using cuda_teams_x =
-   RAJA::expt::LoopPolicy<RAJA::loop_exec,RAJA::cuda_block_x_direct>;
+   RAJA::LoopPolicy<RAJA::cuda_block_x_direct>;
 using cuda_threads_z =
-   RAJA::expt::LoopPolicy<RAJA::loop_exec,RAJA::cuda_thread_z_direct>;
+   RAJA::LoopPolicy<RAJA::cuda_thread_z_direct>;
 #endif
 
 #if defined(MFEM_USE_RAJA) && defined(RAJA_ENABLE_HIP)
 using hip_launch_policy =
-   RAJA::expt::LaunchPolicy<RAJA::expt::null_launch_t, RAJA::expt::hip_launch_t<true>>;
+   RAJA::LaunchPolicy<RAJA::hip_launch_t<true>>;
 using hip_teams_x =
-   RAJA::expt::LoopPolicy<RAJA::loop_exec,RAJA::hip_block_x_direct>;
+   RAJA::LoopPolicy<RAJA::hip_block_x_direct>;
 using hip_threads_z =
-   RAJA::expt::LoopPolicy<RAJA::loop_exec,RAJA::hip_thread_z_direct>;
+   RAJA::LoopPolicy<RAJA::hip_thread_z_direct>;
 #endif
 
 #if defined(MFEM_USE_RAJA) && defined(RAJA_ENABLE_CUDA)
@@ -148,11 +148,11 @@ void RajaCuWrap2D(const int N, DBODY &&d_body,
    MFEM_VERIFY(BZ>0, "");
    const int G = (N+BZ-1)/BZ;
 
-   using namespace RAJA::expt;
+   using namespace RAJA;
    using RAJA::RangeSegment;
 
    launch<cuda_launch_policy>
-   (DEVICE, Grid(Teams(G), Threads(X, Y, BZ)),
+   (LaunchParams(Teams(G), Threads(X, Y, BZ)),
     [=] RAJA_DEVICE (LaunchContext ctx)
    {
 
@@ -181,11 +181,11 @@ void RajaCuWrap3D(const int N, DBODY &&d_body,
 {
    MFEM_VERIFY(N>0, "");
    const int GRID = G == 0 ? N : G;
-   using namespace RAJA::expt;
+   using namespace RAJA;
    using RAJA::RangeSegment;
 
    launch<cuda_launch_policy>
-   (DEVICE, Grid(Teams(GRID), Threads(X, Y, Z)),
+   (LaunchParams(Teams(GRID), Threads(X, Y, Z)),
     [=] RAJA_DEVICE (LaunchContext ctx)
    {
 
@@ -250,11 +250,11 @@ void RajaHipWrap2D(const int N, DBODY &&d_body,
    MFEM_VERIFY(BZ>0, "");
    const int G = (N+BZ-1)/BZ;
 
-   using namespace RAJA::expt;
+   using namespace RAJA;
    using RAJA::RangeSegment;
 
    launch<hip_launch_policy>
-   (DEVICE, Grid(Teams(G), Threads(X, Y, BZ)),
+   (LaunchParams(Teams(G), Threads(X, Y, BZ)),
     [=] RAJA_DEVICE (LaunchContext ctx)
    {
 
@@ -283,11 +283,11 @@ void RajaHipWrap3D(const int N, DBODY &&d_body,
 {
    MFEM_VERIFY(N>0, "");
    const int GRID = G == 0 ? N : G;
-   using namespace RAJA::expt;
+   using namespace RAJA;
    using RAJA::RangeSegment;
 
    launch<hip_launch_policy>
-   (DEVICE, Grid(Teams(GRID), Threads(X, Y, Z)),
+   (LaunchParams(Teams(GRID), Threads(X, Y, Z)),
     [=] RAJA_DEVICE (LaunchContext ctx)
    {
 
