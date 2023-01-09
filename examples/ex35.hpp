@@ -171,7 +171,7 @@ private:
    Array<int> neumann_bdr;
    GridFunction * u = nullptr;
    LinearForm * b = nullptr;
-   bool parallel = false;
+   bool parallel;
 #ifdef MFEM_USE_MPI
    ParMesh * pmesh = nullptr;
    ParFiniteElementSpace * pfes = nullptr;
@@ -185,6 +185,7 @@ public:
    void SetMesh(Mesh * mesh_)
    {
       mesh = mesh_;
+      parallel = false;
 #ifdef MFEM_USE_MPI
       pmesh = dynamic_cast<ParMesh *>(mesh);
       if (pmesh) { parallel = true; }
@@ -253,7 +254,7 @@ private:
    Array<int> neumann_bdr;
    GridFunction * u = nullptr;
    LinearForm * b = nullptr;
-   bool parallel = false;
+   bool parallel;
 #ifdef MFEM_USE_MPI
    ParMesh * pmesh = nullptr;
    ParFiniteElementSpace * pfes = nullptr;
@@ -267,6 +268,7 @@ public:
    void SetMesh(Mesh * mesh_)
    {
       mesh = mesh_;
+      parallel = false;
 #ifdef MFEM_USE_MPI
       pmesh = dynamic_cast<ParMesh *>(mesh);
       if (pmesh) { parallel = true; }
