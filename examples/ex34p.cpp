@@ -78,9 +78,11 @@ public:
 
 int main(int argc, char *argv[])
 {
-   MPI_Session mpi;
-   int num_procs = mpi.WorldSize();
-   int myid = mpi.WorldRank();
+   // 0. Initialize MPI and HYPRE.
+   Mpi::Init();
+   int num_procs = Mpi::WorldSize();
+   int myid = Mpi::WorldRank();
+   Hypre::Init();
 
    // 1. Parse command-line options.
    const char *mesh_file = "../data/disk.mesh";
@@ -227,8 +229,7 @@ int main(int argc, char *argv[])
 
    char vishost[] = "localhost";
    int  visport   = 19916;
-   socketstream sol_sock(vishost, visport);
-   sol_sock.precision(8);
+   socketstream sol_sock;
 
    ParGridFunction u_alt_gf(&L2fes);
    ParGridFunction error_gf(&L2fes);
@@ -238,13 +239,11 @@ int main(int argc, char *argv[])
 
    if (visualization)
    {
+      sol_sock.open(vishost,visport);
+      sol_sock.precision(8);
       sol_sock << "parallel " << num_procs << " " << myid << "\n";
       sol_sock << "solution\n" << pmesh << u_alt_gf <<
                "window_title 'Discrete solution'" << flush;
-   }
-   else
-   {
-      sol_sock.close();
    }
 
    // 10. Iterate
