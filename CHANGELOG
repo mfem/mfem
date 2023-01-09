@@ -18,7 +18,10 @@ Meshing improvements
 
 Discretization improvements
 ---------------------------
-- TBD
+- Face restriction operators for Nedelec and Raviart-Thomas finite element
+  spaces are now supported through the H1_ND_RT_FaceRestriction class.
+
+- VectorFEBoundaryFluxLFIntegrator is now supported on device/GPU.
 
 Linear and nonlinear solvers
 ----------------------------
