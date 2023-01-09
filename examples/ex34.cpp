@@ -29,7 +29,7 @@
 //              showcases how to set up and solve nonlinear mixed methods.
 //
 //
-// [1] Keith, B. and Surowiec, S. (2023) The entropic finite element method
+// [1] Keith, B. and Surowiec, T. (2023) The entropic finite element method
 //     (in preparation).
 
 
@@ -200,12 +200,9 @@ int main(int argc, char *argv[])
    psi_gf.ProjectCoefficient(ln_u);
    psi_old_gf = psi_gf;
 
-
-
    char vishost[] = "localhost";
    int  visport   = 19916;
-   socketstream sol_sock(vishost, visport);
-   sol_sock.precision(8);
+   socketstream sol_sock;
 
    GridFunction u_alt_gf(&L2fes);
    GridFunction error_gf(&L2fes);
@@ -215,12 +212,10 @@ int main(int argc, char *argv[])
 
    if (visualization)
    {
+      sol_sock.open(vishost,visport);
+      sol_sock.precision(8);
       sol_sock << "solution\n" << mesh << u_alt_gf <<
                "window_title 'Discrete solution'" << flush;
-   }
-   else
-   {
-      sol_sock.close();
    }
 
    // 10. Iterate
@@ -284,7 +279,14 @@ int main(int argc, char *argv[])
          BilinearForm a11(&L2fes);
          a11.AddDomainIntegrator(new MassIntegrator(neg_exp_psi));
          ConstantCoefficient eps_cf(-1e-6);
-         a11.AddDomainIntegrator(new DiffusionIntegrator(eps_cf));
+         if (order == 1)
+         {
+            a11.AddDomainIntegrator(new MassIntegrator(eps_cf));
+         }
+         else
+         {
+            a11.AddDomainIntegrator(new DiffusionIntegrator(eps_cf));
+         }
          a11.Assemble();
          a11.Finalize();
          SparseMatrix &A11 = a11.SpMat();
