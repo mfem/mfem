@@ -1438,6 +1438,7 @@ void Mesh::GetFaceAdjacentElements(int face, Array<int> & elems) const
                elems.Append(ncmesh->elements[nc_list.slaves[j].element].index);
             }
          }
+         return;
       }
    }
    //(i) conforming interior -
@@ -1445,7 +1446,6 @@ void Mesh::GetFaceAdjacentElements(int face, Array<int> & elems) const
    //(iii) true boundary -
    //(iv) nonconforming interior slave -
    //(v) nonconforming processor boundary with slave
-   else
    {
       const FaceInfo &face_info = faces_info[face];
       elems.Append(face_info.Elem1No);
