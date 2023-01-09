@@ -13,11 +13,11 @@
 //              density-filtered [3] topology optimization problem. The
 //              objective is to minimize the compliance
 //
-//                  minimize ∫_Ω f⋅u dx over u ∈ [H¹(Ω)]ᵈ and ρ ∈ L²(Ω)
+//                  minimize ∫_Ω f⋅u dx over u ∈ [H¹(Ω)]² and ρ ∈ L²(Ω)
 //
 //                  subject to
 //
-//                    -div(r(ρ̃)Cε(u)) = f       in Ω + BCs
+//                    -Div(r(ρ̃)Cε(u)) = f       in Ω + BCs
 //                    -ϵ²Δρ̃ + ρ̃ = ρ             in Ω + Neumann BCs
 //                    0 ≤ ρ ≤ 1                 in Ω
 //                    ∫_Ω ρ dx = θ vol(Ω)
