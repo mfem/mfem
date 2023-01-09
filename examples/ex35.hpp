@@ -35,44 +35,6 @@ double dexpitdx(double x)
    return tmp - pow(tmp,2);
 }
 
-/**
- * @brief Nonlinear projection of 0 < τ < 1 onto the subspace
- *        ∫_Ω τ dx = θ vol(Ω) as follows.
- *
- *        1. Compute the root of the R → R function
- *            f(c) = ∫_Ω expit(lnit(τ) + c) dx - θ vol(Ω)
- *        2. Set τ ← expit(lnit(τ) + c).
- *
- */
-void projit(GridFunction &tau, double &c, LinearForm &vol_form,
-            double volume_fraction, double tol=1e-12, int max_its=10)
-{
-   GridFunction ftmp(tau.FESpace());
-   GridFunction dftmp(tau.FESpace());
-   for (int k=0; k<max_its; k++)
-   {
-      // Compute f(c) and dfdc(c)
-      for (int i=0; i<tau.Size(); i++)
-      {
-         ftmp[i]  = expit(lnit(tau[i]) + c) - volume_fraction;
-         dftmp[i] = dexpitdx(lnit(tau[i]) + c);
-      }
-      double f = vol_form(ftmp);
-      double df = vol_form(dftmp);
-
-#ifdef MFEM_USE_MPI
-      MPI_Allreduce(MPI_IN_PLACE,&f,1,MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD);
-      MPI_Allreduce(MPI_IN_PLACE,&df,1,MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD);
-#endif
-
-      double dc = -f/df;
-      c += dc;
-      if (abs(dc) < tol) { break; }
-   }
-   tau = ftmp;
-   tau += volume_fraction;
-}
-
 // TODO: Description
 class SIMPCoefficient : public Coefficient
 {
@@ -609,7 +571,7 @@ void LinearElasticitySolver::Solve()
       fes->GetEssentialTrueDofs(ess_bdr,ess_tdof_list);
    }
 #else
-   x = new ParGridFunction(fes);
+   x = new GridFunction(fes);
    fes->GetEssentialTrueDofs(ess_bdr,ess_tdof_list);
 #endif
    *u=0.0;

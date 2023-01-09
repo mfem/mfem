@@ -34,7 +34,8 @@
 //
 //              This example highlights the ability of MFEM to deliver high-
 //              order solutions to inverse design problems and showcases how
-//              to set up and solve PDE-constrained optimization problems.
+//              to set up and solve PDE-constrained optimization problems
+//              using the so-called reduced space approach.
 //
 //
 // [1] Andreassen, E., Clausen, A., Schevenels, M., Lazarov, B. S., & Sigmund, O.
@@ -50,6 +51,42 @@
 #include <iostream>
 #include <fstream>
 #include "ex35.hpp"
+
+/**
+ * @brief Nonlinear projection of 0 < τ < 1 onto the subspace
+ *        ∫_Ω τ dx = θ vol(Ω) as follows.
+ *
+ *        1. Compute the root of the R → R function
+ *            f(c) = ∫_Ω expit(lnit(τ) + c) dx - θ vol(Ω)
+ *        2. Set τ ← expit(lnit(τ) + c).
+ *
+ */
+void projit(GridFunction &tau, double &c, LinearForm &vol_form,
+            double volume_fraction, double tol=1e-12, int max_its=10)
+{
+   GridFunction ftmp(tau.FESpace());
+   GridFunction dftmp(tau.FESpace());
+   for (int k=0; k<max_its; k++)
+   {
+      // Compute f(c) and dfdc(c)
+      for (int i=0; i<tau.Size(); i++)
+      {
+         ftmp[i]  = expit(lnit(tau[i]) + c) - volume_fraction;
+         dftmp[i] = dexpitdx(lnit(tau[i]) + c);
+      }
+      double f = vol_form(ftmp);
+      double df = vol_form(dftmp);
+
+      MPI_Allreduce(MPI_IN_PLACE,&f,1,MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD);
+      MPI_Allreduce(MPI_IN_PLACE,&df,1,MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD);
+
+      double dc = -f/df;
+      c += dc;
+      if (abs(dc) < tol) { break; }
+   }
+   tau = ftmp;
+   tau += volume_fraction;
+}
 
 using namespace std;
 using namespace mfem;
@@ -384,7 +421,7 @@ int main(int argc, char *argv[])
       w_rhs.Assemble();
       M.Mult(w_rhs,grad);
 
-      // Step 5 - Update ρ ← projit(expit(linit(ρ) - αG))
+      // Step 5 - Update design variable ρ ← projit(expit(linit(ρ) - αG))
       for (int i = 0; i < rho.Size(); i++)
       {
          rho[i] = expit(lnit(rho[i]) - alpha*grad[i]);
