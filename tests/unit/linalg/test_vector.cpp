@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -25,6 +25,96 @@ TEST_CASE("Vector init-list construction", "[Vector]")
       REQUIRE(a(i) == b(i));
    }
 }
+
+TEST_CASE("Vector Move Constructor", "[Vector]")
+{
+   constexpr int N = 6;
+   double ContigData[N] = {6.0, 5.0, 4.0, 3.0, 2.0, 1.0};
+   Vector a(ContigData, N);
+   Vector b(N);
+   for (int i = 0; i < N; i++)
+   {
+      b(i) = N - i;
+   }
+
+   double* a_data = a.GetData();
+   double* b_data = b.GetData();
+
+   Vector move_non_owning(std::move(a));
+   Vector move_owning(std::move(b));
+
+   REQUIRE(a.Size() == 0);
+   REQUIRE(a.GetData() == nullptr);
+   REQUIRE(b.Size() == 0);
+   REQUIRE(b.GetData() == nullptr);
+
+   // Should both be no-ops
+   a.Destroy();
+   b.Destroy();
+
+   REQUIRE(move_non_owning.OwnsData() == false);
+   REQUIRE(move_owning.OwnsData() == true);
+
+   REQUIRE(move_non_owning.Size() == N);
+   REQUIRE(move_owning.Size() == N);
+
+   // Make sure that the pointers were reused
+   REQUIRE(move_non_owning.GetData() == a_data);
+   REQUIRE(move_owning.GetData() == b_data);
+
+   for (int i = 0; i < N; i++)
+   {
+      REQUIRE(move_non_owning(i) == N - i);
+      REQUIRE(move_owning(i) == N - i);
+   }
+}
+
+TEST_CASE("Vector Move Assignment", "[Vector]")
+{
+   constexpr int N = 6;
+   double ContigData[N] = {6.0, 5.0, 4.0, 3.0, 2.0, 1.0};
+   Vector a(ContigData, N);
+   Vector b(N);
+   for (int i = 0; i < N; i++)
+   {
+      b(i) = N - i;
+   }
+
+   double* a_data = a.GetData();
+   double* b_data = b.GetData();
+
+   Vector move_non_owning;
+   move_non_owning = std::move(a);
+   Vector move_owning;
+   move_owning = std::move(b);
+
+   REQUIRE(a.Size() == 0);
+   REQUIRE(a.GetData() == nullptr);
+   REQUIRE(b.Size() == 0);
+   REQUIRE(b.GetData() == nullptr);
+
+   // Should both be no-ops
+   a.Destroy();
+   b.Destroy();
+
+   REQUIRE(move_non_owning.OwnsData() == false);
+   REQUIRE(move_owning.OwnsData() == true);
+
+   REQUIRE(move_non_owning.Size() == N);
+   REQUIRE(move_owning.Size() == N);
+
+   // Make sure that the pointers were reused
+   REQUIRE(move_non_owning.GetData() == a_data);
+   REQUIRE(move_owning.GetData() == b_data);
+
+   for (int i = 0; i < N; i++)
+   {
+      REQUIRE(move_non_owning(i) == N - i);
+      REQUIRE(move_owning(i) == N - i);
+   }
+}
+
+
 
 TEST_CASE("Vector Tests", "[Vector]")
 {

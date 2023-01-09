@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -94,7 +94,7 @@ public:
       {
          "Gauss-Legendre", "Gauss-Lobatto", "Positive (Bernstein)",
          "Open uniform", "Closed uniform", "Open half uniform",
-         "Seredipity", "Closed Gauss-Legendre",
+         "Serendipity", "Closed Gauss-Legendre",
          "Integrated Gauss-Lobatto indicator"
       };
       return name[Check(b_type)];
@@ -236,6 +236,8 @@ class FiniteElement
 {
 protected:
    int dim;      ///< Dimension of reference space
+   int vdim;     ///< Vector dimension of vector-valued basis functions
+   int cdim;     ///< Dimension of curl for vector-valued basis functions
    Geometry::Type geom_type; ///< Geometry::Type of the reference element
    int func_space, range_type, map_type,
        deriv_type, deriv_range_type, deriv_map_type;
@@ -245,7 +247,7 @@ protected:
    mutable int orders[Geometry::MaxDim]; ///< Anisotropic orders
    IntegrationRule Nodes;
 #ifndef MFEM_THREAD_SAFE
-   mutable DenseMatrix vshape; // Dof x Dim
+   mutable DenseMatrix vshape; // Dof x VDim
 #endif
    /// Container for all DofToQuad objects created by the FiniteElement.
    /** Multiple DofToQuad objects may be needed when different quadrature rules
@@ -254,7 +256,7 @@ protected:
 
 public:
    /// Enumeration for range_type and deriv_range_type
-   enum RangeType { SCALAR, VECTOR };
+   enum RangeType { UNKNOWN_RANGE_TYPE = -1, SCALAR, VECTOR };
 
    /** @brief Enumeration for MapType: defines how reference functions are
        mapped to physical space.
@@ -268,6 +270,8 @@ public:
    */
    enum MapType
    {
+      UNKNOWN_MAP_TYPE = -1, /**< Used to distinguish an unset MapType variable
+                                  from the known values below. */
       VALUE,     /**< For scalar fields; preserves point values
                           \f$ u(x) = \hat u(\hat x) \f$ */
       INTEGRAL,  /**< For scalar fields; preserves volume integrals
@@ -307,6 +311,12 @@ public:
 
    /// Returns the reference space dimension for the finite element
    int GetDim() const { return dim; }
+
+   /// Returns the vector dimension for vector-valued finite elements
+   int GetVDim() const { return vdim; }
+
+   /// Returns the dimension of the curl for vector-valued finite elements
+   int GetCurlDim() const { return cdim; }
 
    /// Returns the Geometry::Type of the reference element
    Geometry::Type GetGeomType() const { return geom_type; }
@@ -432,8 +442,8 @@ public:
        of the curl of one vector shape function. The size (#dof x CDim) of
        @a curl_shape must be set in advance, where CDim = 3 for #dim = 3 and
        CDim = 1 for #dim = 2. */
-   void CalcPhysCurlShape(ElementTransformation &Trans,
-                          DenseMatrix &curl_shape) const;
+   virtual void CalcPhysCurlShape(ElementTransformation &Trans,
+                                  DenseMatrix &curl_shape) const;
 
    /** @brief Get the dofs associated with the given @a face.
        @a *dofs is set to an internal array of the local dofc on the
@@ -657,7 +667,7 @@ public:
    /** @brief Set the FiniteElement::MapType of the element to either VALUE or
        INTEGRAL. Also sets the FiniteElement::DerivType to GRAD if the
        FiniteElement::MapType is VALUE. */
-   void SetMapType(int M)
+   virtual void SetMapType(int M)
    {
       MFEM_VERIFY(M == VALUE || M == INTEGRAL, "unknown MapType");
       map_type = M;
@@ -749,11 +759,12 @@ public:
                            DenseMatrix &div) const;
 
    /** @brief Get an Array<int> that maps lexicographically ordered indices to
-       the indices of the respective nodes/dofs/basis functions. Lexicographic
-       ordering of nodes is defined in terms of reference-space coordinates
-       (x,y,z). Lexicographically ordered nodes are listed first in order of
-       increasing x-coordinate, and then in order of increasing y-coordinate,
-       and finally in order of increasing z-coordinate.
+       the indices of the respective nodes/dofs/basis functions.
+
+       Lexicographic ordering of nodes is defined in terms of reference-space
+       coordinates (x,y,z). Lexicographically ordered nodes are listed first in
+       order of increasing x-coordinate, and then in order of increasing
+       y-coordinate, and finally in order of increasing z-coordinate.
 
        For example, the six nodes of a quadratic triangle are lexicographically
        ordered as follows:
@@ -789,7 +800,7 @@ private:
 protected:
    bool is_nodal;
 #ifndef MFEM_THREAD_SAFE
-   mutable DenseMatrix J, Jinv;
+   mutable DenseMatrix JtJ;
    mutable DenseMatrix curlshape, curlshape_J;
 #endif
    void SetDerivMembers();
@@ -944,52 +955,72 @@ protected:
 
 public:
    VectorFiniteElement (int D, Geometry::Type G, int Do, int O, int M,
-                        int F = FunctionSpace::Pk) :
-#ifdef MFEM_THREAD_SAFE
-      FiniteElement(D, G, Do, O, F)
-   { range_type = VECTOR; map_type = M; SetDerivMembers(); is_nodal = true; }
-#else
-      FiniteElement(D, G, Do, O, F), Jinv(D)
-   { range_type = VECTOR; map_type = M; SetDerivMembers(); is_nodal = true; }
-#endif
+                        int F = FunctionSpace::Pk);
 };
 
 
-/// Class for computing 1D special polynomials and their associated basis
+/// @brief Class for computing 1D special polynomials and their associated basis
 /// functions
 class Poly_1D
 {
 public:
+   /// One-dimensional basis evaluation type
    enum EvalType
    {
-      ChangeOfBasis = 0, // Use change of basis, O(p^2) Evals
-      Barycentric   = 1, // Use barycentric Lagrangian interpolation, O(p) Evals
-      Positive      = 2, // Fast evaluation of Bernstein polynomials
-      Integrated    = 3, // Integrated indicator functions (cf. Gerritsma)
-      NumEvalTypes  = 4  // Keep count of the number of eval types
+      ChangeOfBasis = 0, ///< Use change of basis, O(p^2) Evals
+      Barycentric   = 1, ///< Use barycentric Lagrangian interpolation, O(p) Evals
+      Positive      = 2, ///< Fast evaluation of Bernstein polynomials
+      Integrated    = 3, ///< Integrated indicator functions (cf. Gerritsma)
+      NumEvalTypes  = 4  ///< Keep count of the number of eval types
    };
 
+   /// @brief Class for evaluating 1D nodal, positive (Bernstein), or integrated
+   /// (Gerritsma) bases.
    class Basis
    {
    private:
-      int etype;
+      EvalType etype; ///< Determines how the basis functions should be evaluated.
       DenseMatrixInverse Ai;
       mutable Vector x, w;
-      // The following data members are used for "integrated basis type", which
-      // is defined in terms of nodal basis of one degree higher.
+      /// The following data members are used for "integrated basis type", which
+      /// is defined in terms of nodal basis of one degree higher.
+      ///@{
       mutable Vector u_aux, d_aux, d2_aux;
-      Basis *auxiliary_basis; // Non-NULL only for etype == Integrated
+      ///@}
+      /// @brief An auxiliary nodal basis used to evaluate the integrated basis.
+      /// This member variable is NULL whenever etype != Integrated.
+      Basis *auxiliary_basis;
+      /// Should the integrated basis functions be scaled? See ScaleIntegrated.
+      bool scale_integrated;
 
    public:
-      /// Create a nodal or positive (Bernstein) basis
+      /// Create a nodal or positive (Bernstein) basis of degree @a p
       Basis(const int p, const double *nodes, EvalType etype = Barycentric);
+      /// Evaluate the basis functions at point @a x in [0,1]
       void Eval(const double x, Vector &u) const;
+      /// @brief Evaluate the basis functions and their derivatives at point @a
+      /// x in [0,1]
       void Eval(const double x, Vector &u, Vector &d) const;
+      /// @brief Evaluate the basis functions and their first two derivatives at
+      /// point @a x in [0,1]
       void Eval(const double x, Vector &u, Vector &d, Vector &d2) const;
-      /// Evaluate the "integrated" basis, which is given by the negative
-      /// partial sum of the corresponding closed basis derivatives. The closed
-      /// basis derivatives are given by @a d, and the result is stored in @a i.
+      /// @brief Evaluate the "integrated" basis type using pre-computed closed
+      /// basis derivatives.
+      ///
+      /// This basis is given by the negative partial sum of the corresponding
+      /// closed basis derivatives. The closed basis derivatives are given by @a
+      /// d, and the result is stored in @a i.
       void EvalIntegrated(const Vector &d, Vector &i) const;
+      /// @brief Set whether the "integrated" basis should be scaled by the
+      /// subcell sizes. Has no effect for non-integrated bases.
+      ///
+      /// Generally, this should be true for mfem::FiniteElement::MapType VALUE
+      /// and false for all other map types. If this option is enabled, the
+      /// basis functions will be scaled by the widths of the subintervals, so
+      /// that the basis functions represent mean values. Otherwise, the basis
+      /// functions represent integrated values.
+      void ScaleIntegrated(bool scale_integrated_);
+      /// Returns true if the basis is "integrated", false otherwise.
       bool IsIntegratedType() const { return etype == Integrated; }
       ~Basis();
    };
@@ -1062,12 +1093,22 @@ public:
    // { CalcLegendre(p, x, u); }
    { CalcChebyshev(p, x, u); }
 
+   /** @brief Evaluate the values of a hierarchical 1D basis at point x
+       hierarchical = k-th basis function is degree k polynomial */
+   static void CalcBasis(const int p, const double x, Vector &u)
+   { CalcBasis(p, x, u.GetData()); }
+
    /// Evaluate the values and derivatives of a hierarchical 1D basis at point @a x
    static void CalcBasis(const int p, const double x, double *u, double *d)
    // { CalcMono(p, x, u, d); }
    // { CalcBernstein(p, x, u, d); }
    // { CalcLegendre(p, x, u, d); }
    { CalcChebyshev(p, x, u, d); }
+
+   /** @brief Evaluate the values and derivatives of a hierarchical 1D basis at
+       point @a x. */
+   static void CalcBasis(const int p, const double x, Vector &u, Vector &d)
+   { CalcBasis(p, x, u.GetData(), d.GetData()); }
 
    /// Evaluate the values, derivatives and second derivatives of a hierarchical 1D basis at point x
    static void CalcBasis(const int p, const double x, double *u, double *d,
@@ -1076,6 +1117,12 @@ public:
    // { CalcBernstein(p, x, u, d); }
    // { CalcLegendre(p, x, u, d); }
    { CalcChebyshev(p, x, u, d, dd); }
+
+   /** @brief Evaluate the values, derivatives and second derivatives of a
+       hierarchical 1D basis at point @a x. */
+   static void CalcBasis(const int p, const double x, Vector &u, Vector &d,
+                         Vector &dd)
+   { CalcBasis(p, x, u.GetData(), d.GetData(), dd.GetData()); }
 
    /// Evaluate a representation of a Delta function at point x
    static double CalcDelta(const int p, const double x)
@@ -1106,11 +1153,23 @@ public:
    static void CalcBernstein(const int p, const double x, double *u)
    { CalcBinomTerms(p, x, 1. - x, u); }
 
+   /** @brief Compute the values of the Bernstein basis functions of order
+       @a p at coordinate @a x and store the results in the already allocated
+       @a u array. */
+   static void CalcBernstein(const int p, const double x, Vector &u)
+   { CalcBernstein(p, x, u.GetData()); }
+
    /** @brief Compute the values and derivatives of the Bernstein basis functions
        of order @a p at coordinate @a x and store the results in the already allocated
        @a u and @a d arrays. */
    static void CalcBernstein(const int p, const double x, double *u, double *d)
    { CalcBinomTerms(p, x, 1. - x, u, d); }
+
+   /** @brief Compute the values and derivatives of the Bernstein basis
+       functions of order @a p at coordinate @a x and store the results in the
+       already allocated @a u and @a d arrays. */
+   static void CalcBernstein(const int p, const double x, Vector &u, Vector &d)
+   { CalcBernstein(p, x, u.GetData(), d.GetData()); }
 
    static void CalcLegendre(const int p, const double x, double *u);
    static void CalcLegendre(const int p, const double x, double *u, double *d);
@@ -1193,6 +1252,8 @@ public:
              ScalarFiniteElement::GetTensorDofToQuad(*this, ir, mode);
    }
 
+   virtual void SetMapType(const int map_type_);
+
    virtual void GetTransferMatrix(const FiniteElement &fe,
                                   ElementTransformation &Trans,
                                   DenseMatrix &I) const
@@ -1239,6 +1300,9 @@ public:
 
    ~VectorTensorFiniteElement();
 };
+
+void InvertLinearTrans(ElementTransformation &trans,
+                       const IntegrationPoint &pt, Vector &x);
 
 } // namespace mfem
 

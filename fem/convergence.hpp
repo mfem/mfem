@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -29,8 +29,8 @@ namespace mfem
 
     Here, k is called the asymptotic rate of convergence
 
-    For successive uniform h-refinements the rate can be estimated by
-    k = log(||u - u_h|| / ||u - u_{h/2}||)/log(2)
+    For successive h-refinements the rate can be estimated by
+    k = log(||u - u_h|| / ||u - u_{h/2}||)/(1/dim * log(N_{h/2}/N_{h})
 */
 class ConvergenceStudy
 {

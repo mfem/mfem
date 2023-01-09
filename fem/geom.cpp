@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -1337,9 +1337,9 @@ RefinedGeometry * GeometryRefiner::Refine(Geometry::Type Geom,
                   // (ii,jj,kk) are coordinates in the reference tetrahedron,
                   // transform to coordinates (i,j,k) in the auxiliary
                   // tetrahedron defined by (0,0,0), (0,0,1), (1,1,1), (0,1,1)
-                  int i = jj;
-                  int j = jj+kk;
-                  int k = ii+jj+kk;
+                  i = jj;
+                  j = jj+kk;
+                  k = ii+jj+kk;
                   l = i + (j + k * (n+1)) * (n+1);
                   // map from linear Cartesian hex index in the auxiliary tet
                   // to lexicographic in the reference tet

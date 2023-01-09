@@ -78,11 +78,11 @@ using namespace mfem;
 
 int main(int argc, char *argv[])
 {
-   // 1. Initialize MPI (required by PUMI).
-   int num_proc, myId;
-   MPI_Init(&argc, &argv);
-   MPI_Comm_size(MPI_COMM_WORLD, &num_proc);
-   MPI_Comm_rank(MPI_COMM_WORLD, &myId);
+   // 1. Initialize MPI (required by PUMI) and HYPRE.
+   Mpi::Init(argc, argv);
+   int num_proc = Mpi::WorldSize();
+   int myId = Mpi::WorldRank();
+   Hypre::Init();
 
    // 2. Parse command-line options.
    const char *mesh_file = "../../data/pumi/serial/pillbox.smb";
@@ -418,8 +418,6 @@ int main(int argc, char *argv[])
    gmi_sim_stop();
    Sim_unregisterAllKeys();
 #endif
-
-   MPI_Finalize();
 
    return 0;
 }

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -19,10 +19,12 @@ namespace mfem
 
 using namespace std;
 
-FiniteElement::FiniteElement(int D, Geometry::Type G, int Do, int O, int F)
+FiniteElement::FiniteElement(int D, Geometry::Type G,
+                             int Do, int O, int F)
    : Nodes(Do)
 {
    dim = D ; geom_type = G ; dof = Do ; order = O ; func_space = F;
+   vdim = 0 ; cdim = 0;
    range_type = SCALAR;
    map_type = VALUE;
    deriv_type = NONE;
@@ -616,7 +618,7 @@ void InvertLinearTrans(ElementTransformation &trans,
 
    double store[3];
    Vector v(store, x.Size());
-   pt.Get(v, x.Size());
+   pt.Get(store, x.Size());
    v -= x;
 
    trans.InverseJacobian().Mult(v, x);
@@ -750,7 +752,8 @@ void NodalFiniteElement::Project(
    }
    else
    {
-      DenseMatrix vshape(fe.GetDof(), Trans.GetSpaceDim());
+      DenseMatrix vshape(fe.GetDof(), std::max(Trans.GetSpaceDim(),
+                                               fe.GetVDim()));
 
       I.SetSize(vshape.Width()*dof, fe.GetDof());
       for (int k = 0; k < dof; k++)
@@ -830,6 +833,21 @@ void NodalFiniteElement::ProjectDiv(
    }
 }
 
+
+VectorFiniteElement::VectorFiniteElement(int D, Geometry::Type G,
+                                         int Do, int O, int M, int F)
+   : FiniteElement(D, G, Do, O, F)
+{
+   range_type = VECTOR;
+   map_type = M;
+   SetDerivMembers();
+   is_nodal = true;
+   vdim = dim;
+   if (map_type == H_CURL)
+   {
+      cdim = (dim == 3) ? 3 : 1;
+   }
+}
 
 void VectorFiniteElement::CalcShape (
    const IntegrationPoint &ip, Vector &shape ) const
@@ -936,8 +954,8 @@ void VectorFiniteElement::Project_RT(
    {
       Trans.SetIntPoint(&Nodes.IntPoint(k));
       // dof_k = nk^t adj(J) xk
-      Vector vk(vc.GetData()+k*sdim, sdim);
-      dofs(k) = Trans.AdjugateJacobian().InnerProduct(vk, nk + d2n[k]*dim);
+      dofs(k) = Trans.AdjugateJacobian().InnerProduct(
+                   &vc[k*sdim], nk + d2n[k]*dim);
       if (!square_J) { dofs(k) /= Trans.Weight(); }
    }
 }
@@ -1079,11 +1097,11 @@ void VectorFiniteElement::ProjectCurl_ND(
 #ifdef MFEM_THREAD_SAFE
    DenseMatrix curlshape(fe.GetDof(), dim);
    DenseMatrix curlshape_J(fe.GetDof(), dim);
-   DenseMatrix J(dim, dim);
+   DenseMatrix JtJ(dim, dim);
 #else
    curlshape.SetSize(fe.GetDof(), dim);
    curlshape_J.SetSize(fe.GetDof(), dim);
-   J.SetSize(dim, dim);
+   JtJ.SetSize(dim, dim);
 #endif
 
    Vector curl_k(fe.GetDof());
@@ -1095,12 +1113,12 @@ void VectorFiniteElement::ProjectCurl_ND(
 
       // calculate J^t * J / |J|
       Trans.SetIntPoint(&ip);
-      MultAtB(Trans.Jacobian(), Trans.Jacobian(), J);
-      J *= 1.0 / Trans.Weight();
+      MultAtB(Trans.Jacobian(), Trans.Jacobian(), JtJ);
+      JtJ *= 1.0 / Trans.Weight();
 
       // transform curl of shapes (rows) by J^t * J / |J|
       fe.CalcCurlShape(ip, curlshape);
-      Mult(curlshape, J, curlshape_J);
+      Mult(curlshape, JtJ, curlshape_J);
 
       curlshape_J.Mult(tk + d2t[k]*dim, curl_k);
       for (int j = 0; j < curl_k.Size(); j++)
@@ -1153,9 +1171,8 @@ void VectorFiniteElement::Project_ND(
    for (int k = 0; k < dof; k++)
    {
       Trans.SetIntPoint(&Nodes.IntPoint(k));
-      Vector vk(vc.GetData()+k*dim, dim);
       // dof_k = xk^t J tk
-      dofs(k) = Trans.Jacobian().InnerProduct(tk + d2t[k]*dim, vk);
+      dofs(k) = Trans.Jacobian().InnerProduct(tk + d2t[k]*dim, &vc[k*dim]);
    }
 }
 
@@ -1302,7 +1319,7 @@ void VectorFiniteElement::LocalL2Projection_RT(
       double w = ip.weight;
       this->CalcVShape(ip, fine_shape);
       Trans.Transform(ip, v);
-      tr_ip.Set(v, dim);
+      tr_ip.Set(v.GetData(), dim);
       cfe.CalcVShape(tr_ip, coarse_shape);
 
       AddMult_a_AAt(w, fine_shape, fine_mass);
@@ -1389,7 +1406,7 @@ void VectorFiniteElement::LocalL2Projection_ND(
       const IntegrationPoint &ip = ir.IntPoint(i);
       this->CalcVShape(ip, fine_shape);
       Trans.Transform(ip, v);
-      tr_ip.Set(v, dim);
+      tr_ip.Set(v.GetData(), dim);
       cfe.CalcVShape(tr_ip, coarse_shape);
 
       AddMult_a_AAt(ip.weight, fine_shape, fine_mass);
@@ -1538,7 +1555,7 @@ void VectorFiniteElement::LocalRestriction_ND(
 
 
 Poly_1D::Basis::Basis(const int p, const double *nodes, EvalType etype)
-   : etype(etype), auxiliary_basis(NULL)
+   : etype(etype), auxiliary_basis(NULL), scale_integrated(false)
 {
    switch (etype)
    {
@@ -1833,16 +1850,34 @@ void Poly_1D::Basis::Eval(const double y, Vector &u, Vector &d,
    }
 }
 
-void Poly_1D::Basis::EvalIntegrated(const Vector &d_aux, Vector &u) const
+void Poly_1D::Basis::EvalIntegrated(const Vector &d_aux_, Vector &u) const
 {
    MFEM_VERIFY(etype == Integrated,
                "EvalIntegrated is only valid for Integrated basis type");
-   int p = d_aux.Size() - 1;
-   u[0] = -d_aux[0];
+   int p = d_aux_.Size() - 1;
+   // See Gerritsma, M. (2010).  "Edge functions for spectral element methods",
+   // in Lecture Notes in Computational Science and Engineering, 199--207.
+   u[0] = -d_aux_[0];
    for (int j=1; j<p; ++j)
    {
-      u[j] = u[j-1] - d_aux[j];
+      u[j] = u[j-1] - d_aux_[j];
    }
+   // If scale_integrated is true, the degrees of freedom represent mean values,
+   // otherwise they represent subcell integrals. Generally, scale_integrated
+   // should be true for MapType::VALUE, and false for other map types.
+   if (scale_integrated)
+   {
+      Vector &aux_nodes = auxiliary_basis->x;
+      for (int j=0; j<aux_nodes.Size()-1; ++j)
+      {
+         u[j] *= aux_nodes[j+1] - aux_nodes[j];
+      }
+   }
+}
+
+void Poly_1D::Basis::ScaleIntegrated(bool scale_integrated_)
+{
+   scale_integrated = scale_integrated_;
 }
 
 Poly_1D::Basis::~Basis()
@@ -2379,6 +2414,18 @@ NodalTensorFiniteElement::NodalTensorFiniteElement(const int dims,
    lex_ordering = dof_map;
 }
 
+void NodalTensorFiniteElement::SetMapType(const int map_type)
+{
+   ScalarFiniteElement::SetMapType(map_type);
+   // If we are using the "integrated" basis, the basis functions should be
+   // scaled for MapType::VALUE, and not scaled for MapType::INTEGRAL. This
+   // ensures spectral equivalence of the mass matrix with its low-order-refined
+   // counterpart (cf. LORDiscretization)
+   if (basis1d.IsIntegratedType())
+   {
+      basis1d.ScaleIntegrated(map_type == VALUE);
+   }
+}
 
 VectorTensorFiniteElement::VectorTensorFiniteElement(const int dims,
                                                      const int d,

@@ -1,4 +1,4 @@
-//                         MFEM Example 18 - Parallel Version
+//                       MFEM Example 18 - Parallel Version
 //
 // Compile with: make ex18
 //
@@ -43,7 +43,7 @@
 #include <sstream>
 #include <iostream>
 
-// Classes FE_Evolution, RiemannSolver, DomainIntegrator and FaceIntegrator
+// Classes FE_Evolution, RiemannSolver, and FaceIntegrator
 // shared between the serial and parallel version of the example.
 #include "ex18.hpp"
 
@@ -60,8 +60,9 @@ double max_char_speed;
 
 int main(int argc, char *argv[])
 {
-   // 1. Initialize MPI.
-   MPI_Session mpi(argc, argv);
+   // 1. Initialize MPI and HYPRE.
+   Mpi::Init(argc, argv);
+   Hypre::Init();
 
    // 2. Parse command-line options.
    problem = 1;
@@ -110,10 +111,10 @@ int main(int argc, char *argv[])
    args.Parse();
    if (!args.Good())
    {
-      if (mpi.Root()) { args.PrintUsage(cout); }
+      if (Mpi::Root()) { args.PrintUsage(cout); }
       return 1;
    }
-   if (mpi.Root()) { args.PrintOptions(cout); }
+   if (Mpi::Root()) { args.PrintOptions(cout); }
 
    // 3. Read the mesh from the given mesh file. This example requires a 2D
    //    periodic mesh, such as ../data/periodic-square.mesh.
@@ -133,7 +134,7 @@ int main(int argc, char *argv[])
       case 4: ode_solver = new RK4Solver; break;
       case 6: ode_solver = new RK6Solver; break;
       default:
-         if (mpi.Root())
+         if (Mpi::Root())
          {
             cout << "Unknown ODE solver type: " << ode_solver_type << '\n';
          }
@@ -172,7 +173,10 @@ int main(int argc, char *argv[])
    MFEM_ASSERT(fes.GetOrdering() == Ordering::byNODES, "");
 
    HYPRE_BigInt glob_size = vfes.GlobalTrueVSize();
-   if (mpi.Root()) { cout << "Number of unknowns: " << glob_size << endl; }
+   if (Mpi::Root())
+   {
+      cout << "Number of unknowns: " << glob_size << endl;
+   }
 
    // 8. Define the initial conditions, save the corresponding mesh and grid
    //    functions to a file. This can be opened with GLVis with the -gc option.
@@ -194,7 +198,8 @@ int main(int argc, char *argv[])
    // Output the initial solution.
    {
       ostringstream mesh_name;
-      mesh_name << "vortex-mesh." << setfill('0') << setw(6) << mpi.WorldRank();
+      mesh_name << "vortex-mesh." << setfill('0')
+                << setw(6) << Mpi::WorldRank();
       ofstream mesh_ofs(mesh_name.str().c_str());
       mesh_ofs.precision(precision);
       mesh_ofs << pmesh;
@@ -204,7 +209,7 @@ int main(int argc, char *argv[])
          ParGridFunction uk(&fes, u_block.GetBlock(k));
          ostringstream sol_name;
          sol_name << "vortex-" << k << "-init."
-                  << setfill('0') << setw(6) << mpi.WorldRank();
+                  << setfill('0') << setw(6) << Mpi::WorldRank();
          ofstream sol_ofs(sol_name.str().c_str());
          sol_ofs.precision(precision);
          sol_ofs << uk;
@@ -214,7 +219,7 @@ int main(int argc, char *argv[])
    // 9. Set up the nonlinear form corresponding to the DG discretization of the
    //    flux divergence, and assemble the corresponding mass matrix.
    MixedBilinearForm Aflux(&dfes, &fes);
-   Aflux.AddDomainIntegrator(new DomainIntegrator(dim));
+   Aflux.AddDomainIntegrator(new TransposeIntegrator(new GradientIntegrator()));
    Aflux.Assemble();
 
    ParNonlinearForm A(&vfes);
@@ -237,22 +242,26 @@ int main(int argc, char *argv[])
       sout.open(vishost, visport);
       if (!sout)
       {
-         if (mpi.Root())
+         if (Mpi::Root())
          {
             cout << "Unable to connect to GLVis server at "
                  << vishost << ':' << visport << endl;
          }
          visualization = false;
-         if (mpi.Root()) { cout << "GLVis visualization disabled.\n"; }
+         if (Mpi::Root())
+         {
+            cout << "GLVis visualization disabled.\n";
+         }
       }
       else
       {
-         sout << "parallel " << mpi.WorldSize() << " " << mpi.WorldRank() << "\n";
+         sout << "parallel " << Mpi::WorldSize()
+              << " " << Mpi::WorldRank() << "\n";
          sout.precision(precision);
          sout << "solution\n" << pmesh << mom;
          sout << "pause\n";
          sout << flush;
-         if (mpi.Root())
+         if (Mpi::Root())
          {
             cout << "GLVis visualization paused."
                  << " Press space (in the GLVis window) to resume it.\n";
@@ -321,21 +330,25 @@ int main(int argc, char *argv[])
       done = (t >= t_final - 1e-8*dt);
       if (done || ti % vis_steps == 0)
       {
-         if (mpi.Root())
+         if (Mpi::Root())
          {
             cout << "time step: " << ti << ", time: " << t << endl;
          }
          if (visualization)
          {
             MPI_Barrier(pmesh.GetComm());
-            sout << "parallel " << mpi.WorldSize() << " " << mpi.WorldRank() << "\n";
+            sout << "parallel " << Mpi::WorldSize()
+                 << " " << Mpi::WorldRank() << "\n";
             sout << "solution\n" << pmesh << mom << flush;
          }
       }
    }
 
    tic_toc.Stop();
-   if (mpi.Root()) { cout << " done, " << tic_toc.RealTime() << "s." << endl; }
+   if (Mpi::Root())
+   {
+      cout << " done, " << tic_toc.RealTime() << "s." << endl;
+   }
 
    // 11. Save the final solution. This output can be viewed later using GLVis:
    //     "glvis -np 4 -m vortex-mesh -g vortex-1-final".
@@ -344,7 +357,7 @@ int main(int argc, char *argv[])
       ParGridFunction uk(&fes, u_block.GetBlock(k));
       ostringstream sol_name;
       sol_name << "vortex-" << k << "-final."
-               << setfill('0') << setw(6) << mpi.WorldRank();
+               << setfill('0') << setw(6) << Mpi::WorldRank();
       ofstream sol_ofs(sol_name.str().c_str());
       sol_ofs.precision(precision);
       sol_ofs << uk;
@@ -354,7 +367,10 @@ int main(int argc, char *argv[])
    if (t_final == 2.0)
    {
       const double error = sol.ComputeLpError(2, u0);
-      if (mpi.Root()) { cout << "Solution error: " << error << endl; }
+      if (Mpi::Root())
+      {
+         cout << "Solution error: " << error << endl;
+      }
    }
 
    // Free the used memory.

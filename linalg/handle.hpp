@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -68,6 +68,11 @@ public:
        It is expected that @a A points to a valid object. */
    template <typename OpType>
    explicit OperatorHandle(OpType *A, bool own_A = true) { pSet(A, own_A); }
+
+   /// Shallow copy. The ownership flag of the target is set to false.
+   OperatorHandle(const OperatorHandle &other) :
+      oper(other.oper), type_id(other.type_id), own_oper(false)
+   {  }
 
    ~OperatorHandle() { if (own_oper) { delete oper; } }
 

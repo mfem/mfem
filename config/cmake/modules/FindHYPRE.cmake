@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -14,10 +14,33 @@
 #   - HYPRE_LIBRARIES
 #   - HYPRE_INCLUDE_DIRS
 #   - HYPRE_VERSION
+#   - HYPRE_USING_HIP (internal)
+
+if (HYPRE_FOUND)
+  if (HYPRE_USING_HIP)
+    find_package(rocsparse REQUIRED)
+    find_package(rocrand REQUIRED)
+  endif()
+  return()
+endif()
 
 include(MfemCmakeUtilities)
 mfem_find_package(HYPRE HYPRE HYPRE_DIR "include" "HYPRE.h" "lib" "HYPRE"
-  "Paths to headers required by HYPRE." "Libraries required by HYPRE.")
+  "Paths to headers required by HYPRE." "Libraries required by HYPRE."
+  CHECK_BUILD HYPRE_USING_HIP FALSE
+  "
+#undef HYPRE_USING_HIP
+#include <HYPRE_config.h>
+
+#ifndef HYPRE_USING_HIP
+#error HYPRE is built without HIP.
+#endif
+
+int main()
+{
+   return 0;
+}
+")
 
 if (HYPRE_FOUND AND (NOT HYPRE_VERSION))
   try_run(HYPRE_VERSION_RUN_RESULT HYPRE_VERSION_COMPILE_RESULT
@@ -32,4 +55,13 @@ if (HYPRE_FOUND AND (NOT HYPRE_VERSION))
   else()
     message(FATAL_ERROR "Unable to determine HYPRE version.")
   endif()
+endif()
+
+if (HYPRE_FOUND AND HYPRE_USING_HIP)
+  find_package(rocsparse REQUIRED)
+  find_package(rocrand REQUIRED)
+  list(APPEND HYPRE_LIBRARIES ${rocsparse_LIBRARIES} ${rocrand_LIBRARIES})
+  set(HYPRE_LIBRARIES ${HYPRE_LIBRARIES} CACHE STRING
+      "HYPRE libraries + dependencies." FORCE)
+  message(STATUS "Updated HYPRE_LIBRARIES: ${HYPRE_LIBRARIES}")
 endif()

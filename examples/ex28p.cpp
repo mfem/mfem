@@ -81,17 +81,17 @@ Mesh * build_trapezoid_mesh(double offset)
 
 int main(int argc, char *argv[])
 {
-#ifdef HYPRE_USING_CUDA
+#ifdef HYPRE_USING_GPU
    cout << "\nAs of mfem-4.3 and hypre-2.22.0 (July 2021) this example\n"
-        << "is NOT supported with the CUDA version of hypre.\n\n";
-   return 255;
+        << "is NOT supported with the GPU version of hypre.\n\n";
+   return 242;
 #endif
 
-   // 1. Initialize MPI.
-   int num_procs, myid;
-   MPI_Init(&argc, &argv);
-   MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
-   MPI_Comm_rank(MPI_COMM_WORLD, &myid);
+   // 1. Initialize MPI and HYPRE.
+   Mpi::Init(argc, argv);
+   int num_procs = Mpi::WorldSize();
+   int myid = Mpi::WorldRank();
+   Hypre::Init();
 
    // 2. Parse command-line options.
    int order = 1;
@@ -123,7 +123,6 @@ int main(int argc, char *argv[])
       {
          args.PrintUsage(cout);
       }
-      MPI_Finalize();
       return 1;
    }
    if (myid == 0)
@@ -367,7 +366,6 @@ int main(int argc, char *argv[])
    delete pmesh;
 
    // HYPRE_Finalize();
-   MPI_Finalize();
 
    return 0;
 }

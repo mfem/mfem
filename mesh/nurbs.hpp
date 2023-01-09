@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -115,6 +115,8 @@ public:
    NURBSPatch(const KnotVector *kv0, const KnotVector *kv1,
               const KnotVector *kv2, int dim_);
    NURBSPatch(Array<const KnotVector *> &kv, int dim_);
+
+   NURBSPatch& operator=(const NURBSPatch&) = delete;
 
    ~NURBSPatch();
 
@@ -318,6 +320,9 @@ public:
    NURBSExtension(NURBSExtension *parent, const Array<int> &newOrders);
    /// Construct a NURBSExtension by merging a partitioned NURBS mesh
    NURBSExtension(Mesh *mesh_array[], int num_pieces);
+
+   /// Copy assignment not supported
+   NURBSExtension& operator=(const NURBSExtension&) = delete;
 
    // Generate connections between boundaries, such as periodic BCs
    void ConnectBoundaries(Array<int> &master, Array<int> &slave);

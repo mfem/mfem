@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -674,5 +674,54 @@ TEST_CASE("L2 Wedge Finite Element",
          REQUIRE( fe.GetDof()   == (p+1)*(p+1)*(p+2)/2 );
          REQUIRE( fe.GetOrder() == p                   );
       }
+   }
+}
+
+TEST_CASE("Nedelec Wedge Finite Element",
+          "[ND_WedgeElement]"
+          "[VectorFiniteElement]"
+          "[FiniteElement]")
+{
+   int p = 1;
+
+   ND_WedgeElement fe(p);
+
+   SECTION("Attributes")
+   {
+      REQUIRE( fe.GetDim()            == 3                     );
+      REQUIRE( fe.GetGeomType()       == Geometry::PRISM       );
+      REQUIRE( fe.GetDof()            == 3*p*(p+1)*(p+2)/2     );
+      REQUIRE( fe.GetOrder()          == p                     );
+      REQUIRE( fe.Space()             == (int) FunctionSpace::Qk     );
+      REQUIRE( fe.GetRangeType()      == (int) FiniteElement::VECTOR );
+      REQUIRE( fe.GetMapType()        == (int) FiniteElement::H_CURL );
+      REQUIRE( fe.GetDerivType()      == (int) FiniteElement::CURL   );
+      REQUIRE( fe.GetDerivRangeType() == (int) FiniteElement::VECTOR );
+      REQUIRE( fe.GetDerivMapType()   == (int) FiniteElement::H_DIV  );
+   }
+}
+
+TEST_CASE("Raviart-Thomas Wedge Finite Element",
+          "[RT_WedgeElement]"
+          "[VectorFiniteElement]"
+          "[FiniteElement]")
+{
+   int p = 1;
+
+   RT_WedgeElement fe(p-1);
+
+   SECTION("Attributes")
+   {
+      REQUIRE( fe.GetDim()            == 3                       );
+      REQUIRE( fe.GetGeomType()       == Geometry::PRISM         );
+      REQUIRE( fe.GetDof()            == (int)pow(p+1,2)*p/2 +
+               /*                     */ (int)pow(p,2)*(p+2)     );
+      REQUIRE( fe.GetOrder()          == p                       );
+      REQUIRE( fe.Space()             == (int) FunctionSpace::Qk       );
+      REQUIRE( fe.GetRangeType()      == (int) FiniteElement::VECTOR   );
+      REQUIRE( fe.GetMapType()        == (int) FiniteElement::H_DIV    );
+      REQUIRE( fe.GetDerivType()      == (int) FiniteElement::DIV      );
+      REQUIRE( fe.GetDerivRangeType() == (int) FiniteElement::SCALAR   );
+      REQUIRE( fe.GetDerivMapType()   == (int) FiniteElement::INTEGRAL );
    }
 }

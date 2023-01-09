@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -230,7 +230,7 @@ void ConvectionIntegrator::AssembleEA(const FiniteElementSpace &fes,
                                       const bool add)
 {
    AssemblePA(fes);
-   const int ne = fes.GetMesh()->GetNE();
+   ne = fes.GetMesh()->GetNE();
    const Array<double> &B = maps->B;
    const Array<double> &G = maps->G;
    if (dim == 1)

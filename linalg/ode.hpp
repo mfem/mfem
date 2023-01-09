@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -249,6 +249,7 @@ public:
    ~AdamsBashforthSolver()
    {
       if (RKsolver) { delete RKsolver; }
+      delete [] k;
    }
 };
 
@@ -263,7 +264,7 @@ public:
    AB1Solver() : AdamsBashforthSolver(1, a) { }
 };
 
-/** A 2-stage, 2st order AB method.  */
+/** A 2-stage, 2nd order AB method.  */
 class AB2Solver : public AdamsBashforthSolver
 {
 private:
@@ -273,7 +274,7 @@ public:
    AB2Solver() : AdamsBashforthSolver(2, a) { }
 };
 
-/** A 3-stage, 3st order AB method.  */
+/** A 3-stage, 3rd order AB method.  */
 class AB3Solver : public AdamsBashforthSolver
 {
 private:
@@ -283,7 +284,7 @@ public:
    AB3Solver() : AdamsBashforthSolver(3, a) { }
 };
 
-/** A 4-stage, 4st order AB method.  */
+/** A 4-stage, 4th order AB method.  */
 class AB4Solver : public AdamsBashforthSolver
 {
 private:
@@ -293,7 +294,7 @@ public:
    AB4Solver() : AdamsBashforthSolver(4, a) { }
 };
 
-/** A 5-stage, 5st order AB method.  */
+/** A 5-stage, 5th order AB method.  */
 class AB5Solver : public AdamsBashforthSolver
 {
 private:
@@ -330,6 +331,7 @@ public:
    ~AdamsMoultonSolver()
    {
       if (RKsolver) { delete RKsolver; }
+      delete [] k;
    };
 };
 
@@ -344,7 +346,7 @@ public:
 };
 
 
-/** A 1-stage, 2st order AM method. */
+/** A 1-stage, 2nd order AM method. */
 class AM1Solver : public AdamsMoultonSolver
 {
 private:
@@ -354,7 +356,7 @@ public:
    AM1Solver() : AdamsMoultonSolver(1, a) { }
 };
 
-/** A 2-stage, 3st order AM method. */
+/** A 2-stage, 3rd order AM method. */
 class AM2Solver : public AdamsMoultonSolver
 {
 private:
@@ -364,7 +366,7 @@ public:
    AM2Solver() : AdamsMoultonSolver(2, a) { }
 };
 
-/** A 3-stage, 4st order AM method. */
+/** A 3-stage, 4th order AM method. */
 class AM3Solver : public AdamsMoultonSolver
 {
 private:
@@ -374,7 +376,7 @@ public:
    AM3Solver() : AdamsMoultonSolver(3, a) { }
 };
 
-/** A 4-stage, 5st order AM method. */
+/** A 4-stage, 5th order AM method. */
 class AM4Solver : public AdamsMoultonSolver
 {
 private:

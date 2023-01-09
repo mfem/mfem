@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -20,7 +20,6 @@ namespace face_elem_trans
 TEST_CASE("3D FaceElementTransformations",
           "[FaceElementTransformations]")
 {
-   int log = 0;
    int n = 1;
    int order = 1;
 
@@ -32,9 +31,9 @@ TEST_CASE("3D FaceElementTransformations",
       int npts = 0;
       for (int f=0; f<mesh.GetNFaces(); f++)
       {
-         if (log > 0)
+         if (verbose_tests)
          {
-            std::cout << "Getting trans for face " << f << std::endl;
+            mfem::out << "Getting trans for face " << f << std::endl;
          }
          FaceElementTransformations *T =
             mesh.GetInteriorFaceTransformations(f);
@@ -43,9 +42,9 @@ TEST_CASE("3D FaceElementTransformations",
          {
             const IntegrationRule &ir = IntRules.Get(T->GetGeometryType(),
                                                      2*order + 2);
-            if (log > 0)
+            if (verbose_tests)
             {
-               std::cout << f << " " << T->Elem1No
+               mfem::out << f << " " << T->Elem1No
                          << " " << T->Elem2No << std::endl;
             }
 
@@ -83,9 +82,9 @@ TEST_CASE("3D FaceElementTransformations",
                }
             }
          }
-         if (log > 0)
+         if (verbose_tests)
          {
-            std::cout << "Checked " << npts << " points within face "
+            mfem::out << "Checked " << npts << " points within face "
                       << f << std::endl;
          }
       }

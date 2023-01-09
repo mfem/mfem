@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -16,13 +16,6 @@
 
 namespace mfem
 {
-
-/// Type describing possible layouts for Q-vectors.
-enum class QVectorLayout
-{
-   byNODES,  ///< NQPT x VDIM x NE (values) / NQPT x VDIM x DIM x NE (grads)
-   byVDIM    ///< VDIM x NQPT x NE (values) / VDIM x DIM x NQPT x NE (grads)
-};
 
 /** @brief A class that performs interpolation from an E-vector to quadrature
     point values and/or derivatives (Q-vectors). */

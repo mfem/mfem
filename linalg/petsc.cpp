@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -460,6 +460,11 @@ PetscInt PetscParVector::GlobalSize() const
    return N;
 }
 
+void PetscParVector::SetBlockSize(PetscInt bs)
+{
+   ierr = VecSetBlockSize(x,bs); PCHKERRQ(x,ierr);
+}
+
 PetscParVector::PetscParVector(MPI_Comm comm, const Vector &x_,
                                bool copy) : Vector()
 {
@@ -558,8 +563,6 @@ PetscParVector::PetscParVector(MPI_Comm comm, const Operator &op,
    else /* Vector intended to be used with Place/ResetMemory calls */
    {
       size = loc;
-      pdata.Reset();
-      data.Reset();
    }
 }
 
@@ -581,8 +584,6 @@ PetscParVector::PetscParVector(const PetscParMatrix &A,
       PetscInt n;
       ierr = VecGetLocalSize(x,&n); PCHKERRQ(x,ierr);
       size = n;
-      pdata.Reset();
-      data.Reset();
    }
    else
    {
@@ -944,6 +945,12 @@ PetscInt PetscParMatrix::NNZ() const
    MatInfo info;
    ierr = MatGetInfo(A,MAT_GLOBAL_SUM,&info); PCHKERRQ(A,ierr);
    return (PetscInt)info.nz_used;
+}
+
+void PetscParMatrix::SetBlockSize(PetscInt rbs, PetscInt cbs)
+{
+   if (cbs < 0) { cbs = rbs; }
+   ierr = MatSetBlockSizes(A,rbs,cbs); PCHKERRQ(A,ierr);
 }
 
 void PetscParMatrix::Init()
@@ -1328,7 +1335,12 @@ void PetscParMatrix::ConvertOperator(MPI_Comm comm, const Operator &op, Mat* A,
       PetscBool ismatis;
 #endif
 
+#if PETSC_VERSION_LT(3,18,0)
       ierr = PetscObjectTypeCompare((PetscObject)(pA->A),MATTRANSPOSEMAT,&istrans);
+#else
+      ierr = PetscObjectTypeCompare((PetscObject)(pA->A),MATTRANSPOSEVIRTUAL,
+                                    &istrans);
+#endif
       CCHKERRQ(pA->GetComm(),ierr);
       if (!istrans)
       {
@@ -2843,37 +2855,43 @@ void PetscBCHandler::ZeroBC(const Vector &x, Vector &y)
 // PetscLinearSolver methods
 
 PetscLinearSolver::PetscLinearSolver(MPI_Comm comm, const std::string &prefix,
-                                     bool wrapin)
-   : PetscSolver(), Solver(), wrap(wrapin)
+                                     bool wrapin, bool iter_mode)
+   : PetscSolver(), Solver(0,iter_mode), wrap(wrapin)
 {
    KSP ksp;
    ierr = KSPCreate(comm,&ksp); CCHKERRQ(comm,ierr);
    obj  = (PetscObject)ksp;
    ierr = PetscObjectGetClassId(obj,&cid); PCHKERRQ(obj,ierr);
    ierr = KSPSetOptionsPrefix(ksp, prefix.c_str()); PCHKERRQ(ksp, ierr);
+   ierr = KSPSetInitialGuessNonzero(ksp, (PetscBool)iterative_mode);
+   PCHKERRQ(ksp, ierr);
 }
 
 PetscLinearSolver::PetscLinearSolver(const PetscParMatrix &A,
-                                     const std::string &prefix)
-   : PetscSolver(), Solver(), wrap(false)
+                                     const std::string &prefix, bool iter_mode)
+   : PetscSolver(), Solver(0,iter_mode), wrap(false)
 {
    KSP ksp;
    ierr = KSPCreate(A.GetComm(),&ksp); CCHKERRQ(A.GetComm(),ierr);
    obj  = (PetscObject)ksp;
    ierr = PetscObjectGetClassId(obj,&cid); PCHKERRQ(obj,ierr);
    ierr = KSPSetOptionsPrefix(ksp, prefix.c_str()); PCHKERRQ(ksp, ierr);
+   ierr = KSPSetInitialGuessNonzero(ksp, (PetscBool)iterative_mode);
+   PCHKERRQ(ksp, ierr);
    SetOperator(A);
 }
 
 PetscLinearSolver::PetscLinearSolver(const HypreParMatrix &A, bool wrapin,
-                                     const std::string &prefix)
-   : PetscSolver(), Solver(), wrap(wrapin)
+                                     const std::string &prefix, bool iter_mode)
+   : PetscSolver(), Solver(0,iter_mode), wrap(wrapin)
 {
    KSP ksp;
    ierr = KSPCreate(A.GetComm(),&ksp); CCHKERRQ(A.GetComm(),ierr);
    obj  = (PetscObject)ksp;
    ierr = PetscObjectGetClassId(obj, &cid); PCHKERRQ(obj, ierr);
    ierr = KSPSetOptionsPrefix(ksp, prefix.c_str()); PCHKERRQ(ksp, ierr);
+   ierr = KSPSetInitialGuessNonzero(ksp, (PetscBool)iterative_mode);
+   PCHKERRQ(ksp, ierr);
    SetOperator(A);
 }
 
@@ -3082,12 +3100,12 @@ void PetscLinearSolver::MultKernel(const Vector &b, Vector &x, bool trans) const
       }
    }
    B->PlaceMemory(b.GetMemory());
-   X->PlaceMemory(x.GetMemory(),iterative_mode);
 
    Customize();
 
-   ierr = KSPSetInitialGuessNonzero(ksp, (PetscBool)iterative_mode);
-   PCHKERRQ(ksp, ierr);
+   PetscBool flg;
+   ierr = KSPGetInitialGuessNonzero(ksp, &flg);
+   X->PlaceMemory(x.GetMemory(),flg);
 
    // Solve the system.
    if (trans)
@@ -3122,8 +3140,9 @@ PetscLinearSolver::~PetscLinearSolver()
 
 // PetscPCGSolver methods
 
-PetscPCGSolver::PetscPCGSolver(MPI_Comm comm, const std::string &prefix)
-   : PetscLinearSolver(comm,prefix)
+PetscPCGSolver::PetscPCGSolver(MPI_Comm comm, const std::string &prefix,
+                               bool iter_mode)
+   : PetscLinearSolver(comm,prefix,iter_mode)
 {
    KSP ksp = (KSP)obj;
    ierr = KSPSetType(ksp,KSPCG); PCHKERRQ(ksp,ierr);
@@ -3131,8 +3150,9 @@ PetscPCGSolver::PetscPCGSolver(MPI_Comm comm, const std::string &prefix)
    ierr = KSPSetNormType(ksp,KSP_NORM_NATURAL); PCHKERRQ(ksp,ierr);
 }
 
-PetscPCGSolver::PetscPCGSolver(PetscParMatrix& A, const std::string &prefix)
-   : PetscLinearSolver(A,prefix)
+PetscPCGSolver::PetscPCGSolver(PetscParMatrix& A, const std::string &prefix,
+                               bool iter_mode)
+   : PetscLinearSolver(A,prefix,iter_mode)
 {
    KSP ksp = (KSP)obj;
    ierr = KSPSetType(ksp,KSPCG); PCHKERRQ(ksp,ierr);
@@ -3141,8 +3161,8 @@ PetscPCGSolver::PetscPCGSolver(PetscParMatrix& A, const std::string &prefix)
 }
 
 PetscPCGSolver::PetscPCGSolver(HypreParMatrix& A, bool wrap,
-                               const std::string &prefix)
-   : PetscLinearSolver(A,wrap,prefix)
+                               const std::string &prefix, bool iter_mode)
+   : PetscLinearSolver(A,wrap,prefix,iter_mode)
 {
    KSP ksp = (KSP)obj;
    ierr = KSPSetType(ksp,KSPCG); PCHKERRQ(ksp,ierr);
@@ -3403,6 +3423,7 @@ void PetscBDDCSolver::BDDCSolverConstructor(const PetscBDDCSolverParams &opts)
                                                              hvec_coords->Size(),false);
 
          // likely elasticity -> we attach rigid-body modes as near-null space information to the local matrices
+         // and to the global matrix
          if (vdim == sdim)
          {
             MatNullSpace nnsp;
@@ -3417,7 +3438,15 @@ void PetscBDDCSolver::BDDCSolverConstructor(const PetscBDDCSolverParams &opts)
             ierr = VecCreateMPIWithArray(comm,sdim,hvec_coords->Size(),
                                          hvec_coords->GlobalSize(),data_coords,&pvec_coords);
             CCHKERRQ(comm,ierr);
-            ierr = MatISGetLocalMat(pA,&lA); CCHKERRQ(PETSC_COMM_SELF,ierr);
+            ierr = MatGetNearNullSpace(pA,&nnsp); CCHKERRQ(comm,ierr);
+            if (!nnsp)
+            {
+               ierr = MatNullSpaceCreateRigidBody(pvec_coords,&nnsp);
+               CCHKERRQ(comm,ierr);
+               ierr = MatSetNearNullSpace(pA,nnsp); CCHKERRQ(comm,ierr);
+               ierr = MatNullSpaceDestroy(&nnsp); CCHKERRQ(comm,ierr);
+            }
+            ierr = MatISGetLocalMat(pA,&lA); CCHKERRQ(comm,ierr);
             ierr = MatCreateVecs(lA,&lvec_coords,NULL); CCHKERRQ(PETSC_COMM_SELF,ierr);
             ierr = VecSetBlockSize(lvec_coords,sdim); CCHKERRQ(PETSC_COMM_SELF,ierr);
             ierr = MatGetLocalToGlobalMapping(pA,&l2g,NULL); CCHKERRQ(comm,ierr);

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -108,36 +108,32 @@ void TestCalcShape(FiniteElement* fe, int res, double tol=1e-12)
 }
 
 
-TEST_CASE("CalcShape for several Lagrange FiniteElement instances",
+TEST_CASE("CalcShape Lagrange",
           "[Lagrange1DFiniteElement]"
           "[BiLinear2DFiniteElement]"
           "[BiQuad2DFiniteElement]"
           "[LagrangeHexFiniteElement]")
 {
-   int maxOrder = 5;
-   int resolution = 10;
+   const int maxOrder = 5;
+   const int resolution = 10;
+
 
    SECTION("Lagrange1DFiniteElement")
    {
-      for (int order =1; order <= maxOrder; ++order)
-      {
-         std::cout << "Testing Lagrange1DFiniteElement::CalcShape() "
-                   << "for order " << order << std::endl;
-         Lagrange1DFiniteElement fe(order);
-         TestCalcShape(&fe, resolution);
-      }
+      auto order = GENERATE_COPY(range(1, maxOrder + 1));
+      CAPTURE(order);
+      Lagrange1DFiniteElement fe(order);
+      TestCalcShape(&fe, resolution);
    }
 
    SECTION("BiLinear2DFiniteElement")
    {
-      std::cout << "Testing BiLinear2DFiniteElement::CalcShape()" << std::endl;
       BiLinear2DFiniteElement fe;
       TestCalcShape(&fe, resolution);
    }
 
    SECTION("BiQuad2DFiniteElement")
    {
-      std::cout << "Testing BiQuad2DFiniteElement::CalcShape()" << std::endl;
       BiQuad2DFiniteElement fe;
       TestCalcShape(&fe, resolution);
    }
@@ -145,9 +141,6 @@ TEST_CASE("CalcShape for several Lagrange FiniteElement instances",
 
    SECTION("LagrangeHexFiniteElement")
    {
-      std::cout << "Testing LagrangeHexFiniteElement::CalcShape() "
-                << "for order 2" << std::endl;
-
       // Comments for LagrangeHexFiniteElement state
       // that only degree 2 is functional for this class
       LagrangeHexFiniteElement fe(2);
@@ -155,7 +148,7 @@ TEST_CASE("CalcShape for several Lagrange FiniteElement instances",
    }
 }
 
-TEST_CASE("CalcShape for several H1 FiniteElement instances",
+TEST_CASE("CalcShape H1",
           "[H1_SegmentElement]"
           "[H1_TriangleElement]"
           "[H1_QuadrilateralElement]"
@@ -163,73 +156,46 @@ TEST_CASE("CalcShape for several H1 FiniteElement instances",
           "[H1_HexahedronElement]"
           "[H1_WedgeElement]")
 {
-   int maxOrder = 5;
-   int resolution = 10;
+   const int maxOrder = 5;
+   const int resolution = 10;
+   auto order = GENERATE_COPY(range(1, maxOrder + 1));
+
+   CAPTURE(order);
 
    SECTION("H1_SegmentElement")
    {
-      for (int order =1; order <= maxOrder; ++order)
-      {
-         std::cout << "Testing H1_SegmentElement::CalcShape() "
-                   << "for order " << order << std::endl;
-         H1_SegmentElement fe(order);
-         TestCalcShape(&fe, resolution, 2e-11*std::pow(10, order));
-      }
+      H1_SegmentElement fe(order);
+      TestCalcShape(&fe, resolution, 2e-11*std::pow(10, order));
    }
 
    SECTION("H1_TriangleElement")
    {
-      for (int order =1; order <= maxOrder; ++order)
-      {
-         std::cout << "Testing H1_TriangleElement::CalcShape() "
-                   << "for order " << order << std::endl;
-         H1_TriangleElement fe(order);
-         TestCalcShape(&fe, resolution, 2e-11*std::pow(10, order));
-      }
+      H1_TriangleElement fe(order);
+      TestCalcShape(&fe, resolution, 2e-11*std::pow(10, order));
    }
 
    SECTION("H1_QuadrilateralElement")
    {
-      for (int order =1; order <= maxOrder; ++order)
-      {
-         std::cout << "Testing H1_QuadrilateralElement::CalcShape() "
-                   << "for order " << order << std::endl;
-         H1_QuadrilateralElement fe(order);
-         TestCalcShape(&fe, resolution, 2e-11*std::pow(10, order));
-      }
+      H1_QuadrilateralElement fe(order);
+      TestCalcShape(&fe, resolution, 2e-11*std::pow(10, order));
    }
 
    SECTION("H1_TetrahedronElement")
    {
-      for (int order =1; order <= maxOrder; ++order)
-      {
-         std::cout << "Testing H1_TetrahedronElement::CalcShape() "
-                   << "for order " << order << std::endl;
-         H1_TetrahedronElement fe(order);
-         TestCalcShape(&fe, resolution, 2e-11*std::pow(10, order));
-      }
+      H1_TetrahedronElement fe(order);
+      TestCalcShape(&fe, resolution, 2e-11*std::pow(10, order));
    }
 
    SECTION("H1_HexahedronElement")
    {
-      for (int order =1; order <= maxOrder; ++order)
-      {
-         std::cout << "Testing H1_HexahedronElement::CalcShape() "
-                   << "for order " << order << std::endl;
-         H1_HexahedronElement fe(order);
-         TestCalcShape(&fe, resolution, 2e-11*std::pow(10, order));
-      }
+      H1_HexahedronElement fe(order);
+      TestCalcShape(&fe, resolution, 2e-11*std::pow(10, order));
    }
 
    SECTION("H1_WedgeElement")
    {
-      for (int order =1; order <= maxOrder; ++order)
-      {
-         std::cout << "Testing H1_WedgeElement::CalcShape() "
-                   << "for order " << order << std::endl;
-         H1_WedgeElement fe(order);
-         TestCalcShape(&fe, resolution, 2e-11*std::pow(10, order));
-      }
+      H1_WedgeElement fe(order);
+      TestCalcShape(&fe, resolution, 2e-11*std::pow(10, order));
    }
 
 }

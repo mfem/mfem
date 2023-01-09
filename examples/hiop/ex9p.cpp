@@ -239,11 +239,11 @@ public:
 
 int main(int argc, char *argv[])
 {
-   // 1. Initialize MPI.
-   int num_procs, myid;
-   MPI_Init(&argc, &argv);
-   MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
-   MPI_Comm_rank(MPI_COMM_WORLD, &myid);
+   // 1. Initialize MPI and HYPRE.
+   Mpi::Init(argc, argv);
+   int num_procs = Mpi::WorldSize();
+   int myid = Mpi::WorldRank();
+   Hypre::Init();
 
    // 2. Parse command-line options.
    problem = 0;
@@ -299,7 +299,6 @@ int main(int argc, char *argv[])
    if (!args.Good())
    {
       if (myid == 0) { args.PrintUsage(cout); }
-      MPI_Finalize();
       return 1;
    }
    if (myid == 0) { args.PrintOptions(cout); }
@@ -325,7 +324,6 @@ int main(int argc, char *argv[])
             cout << "Unknown ODE solver type: " << ode_solver_type << '\n';
          }
          delete mesh;
-         MPI_Finalize();
          return 3;
    }
 
@@ -570,7 +568,6 @@ int main(int argc, char *argv[])
    delete ode_solver;
    delete dc;
 
-   MPI_Finalize();
    return 0;
 }
 

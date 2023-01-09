@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -28,6 +28,7 @@ protected:
    int width;  ///< Dimension of the input / number of columns in the matrix.
 
    /// see FormSystemOperator()
+   /** @note Uses DiagonalPolicy::DIAG_ONE. */
    void FormConstrainedSystemOperator(
       const Array<int> &ess_tdof_list, ConstrainedOperator* &Aout);
 
@@ -242,7 +243,10 @@ public:
    void FormDiscreteOperator(Operator* &A);
 
    /// Prints operator with input size n and output size m in Matlab format.
-   void PrintMatlab(std::ostream & out, int n = 0, int m = 0) const;
+   void PrintMatlab(std::ostream & out, int n, int m = 0) const;
+
+   /// Prints operator in Matlab format.
+   virtual void PrintMatlab(std::ostream & out) const;
 
    /// Virtual destructor.
    virtual ~Operator() { }
@@ -262,7 +266,10 @@ public:
       PETSC_MATGENERIC, ///< ID for class PetscParMatrix, unspecified format.
       Complex_Operator, ///< ID for class ComplexOperator.
       MFEM_ComplexSparseMat, ///< ID for class ComplexSparseMatrix.
-      Complex_Hypre_ParCSR   ///< ID for class ComplexHypreParMatrix.
+      Complex_Hypre_ParCSR,   ///< ID for class ComplexHypreParMatrix.
+      Complex_DenseMat,  ///< ID for class ComplexDenseMatrix
+      MFEM_Block_Matrix,     ///< ID for class BlockMatrix.
+      MFEM_Block_Operator   ///< ID for the base class BlockOperator.
    };
 
    /// Return the type ID of the Operator class.
@@ -698,11 +705,15 @@ private:
 public:
    /// Create an operator which is a scalar multiple of A.
    explicit ScaledOperator(const Operator *A, double a)
-      : Operator(A->Width(), A->Height()), A_(*A), a_(a) { }
+      : Operator(A->Height(), A->Width()), A_(*A), a_(a) { }
 
    /// Operator application
    virtual void Mult(const Vector &x, Vector &y) const
    { A_.Mult(x, y); y *= a_; }
+
+   /// Application of the transpose.
+   virtual void MultTranspose(const Vector &x, Vector &y) const
+   { A_.MultTranspose(x, y); y *= a_; }
 };
 
 
@@ -871,7 +882,9 @@ public:
            z = A((0,x_b));  b_i -= z_i;  b_b = x_b;
 
        where the "_b" subscripts denote the essential (boundary) indices/dofs of
-       the vectors, and "_i" -- the rest of the entries. */
+       the vectors, and "_i" -- the rest of the entries.
+
+       @note This method is consistent with `DiagonalPolicy::DIAG_ONE`. */
    void EliminateRHS(const Vector &x, Vector &b) const;
 
    /** @brief Constrained operator action.

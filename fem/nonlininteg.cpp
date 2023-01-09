@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -746,7 +746,7 @@ void VectorConvectionNLFIntegrator::AssembleElementVector(
    Vector &elvect)
 {
    const int nd = el.GetDof();
-   const int dim = el.GetDim();
+   dim = el.GetDim();
 
    shape.SetSize(nd);
    dshape.SetSize(nd, dim);
@@ -783,7 +783,7 @@ void VectorConvectionNLFIntegrator::AssembleElementGrad(
    DenseMatrix &elmat)
 {
    const int nd = el.GetDof();
-   const int dim = el.GetDim();
+   dim = el.GetDim();
 
    shape.SetSize(nd);
    dshape.SetSize(nd, dim);
@@ -826,9 +826,9 @@ void VectorConvectionNLFIntegrator::AssembleElementGrad(
       dshape.Mult(vec2, vec3);
       MultVWt(shape, vec3, elmat_comp);
 
-      for (int i = 0; i < dim; i++)
+      for (int ii = 0; ii < dim; ii++)
       {
-         elmat.AddMatrix(elmat_comp, i * nd, i * nd);
+         elmat.AddMatrix(elmat_comp, ii * nd, ii * nd);
       }
 
       MultVVt(shape, elmat_comp);
@@ -837,11 +837,11 @@ void VectorConvectionNLFIntegrator::AssembleElementGrad(
       {
          w *= Q->Eval(trans, ip);
       }
-      for (int i = 0; i < dim; i++)
+      for (int ii = 0; ii < dim; ii++)
       {
-         for (int j = 0; j < dim; j++)
+         for (int jj = 0; jj < dim; jj++)
          {
-            elmat.AddMatrix(w * gradEF(i, j), elmat_comp, i * nd, j * nd);
+            elmat.AddMatrix(w * gradEF(ii, jj), elmat_comp, ii * nd, jj * nd);
          }
       }
    }
@@ -889,9 +889,9 @@ void ConvectiveVectorConvectionNLFIntegrator::AssembleElementGrad(
       dshape.Mult(vec2, vec3); // (u^n \cdot grad u^{n+1})
       MultVWt(shape, vec3, elmat_comp); // (u^n \cdot grad u^{n+1},v)
 
-      for (int i = 0; i < dim; i++)
+      for (int ii = 0; ii < dim; ii++)
       {
-         elmat.AddMatrix(elmat_comp, i * nd, i * nd);
+         elmat.AddMatrix(elmat_comp, ii * nd, ii * nd);
       }
    }
 }
@@ -944,10 +944,10 @@ void SkewSymmetricVectorConvectionNLFIntegrator::AssembleElementGrad(
       MultVWt(shape, vec3, elmat_comp); // (u^n \cdot grad u^{n+1},v)
       elmat_comp_T.Transpose(elmat_comp);
 
-      for (int i = 0; i < dim; i++)
+      for (int ii = 0; ii < dim; ii++)
       {
-         elmat.AddMatrix(.5, elmat_comp, i * nd, i * nd);
-         elmat.AddMatrix(-.5, elmat_comp_T, i * nd, i * nd);
+         elmat.AddMatrix(.5, elmat_comp, ii * nd, ii * nd);
+         elmat.AddMatrix(-.5, elmat_comp_T, ii * nd, ii * nd);
       }
    }
 }

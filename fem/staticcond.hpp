@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -199,14 +199,14 @@ public:
 
    /** Restrict a list of true FE space dofs to a list of reduced/trace true FE
        space dofs. */
-   void ConvertListToReducedTrueDofs(const Array<int> &ess_tdof_list,
-                                     Array<int> &ess_rtdof_list) const
+   void ConvertListToReducedTrueDofs(const Array<int> &ess_tdof_list_,
+                                     Array<int> &ess_rtdof_list_) const
    {
       Array<int> ess_tdof_marker, ess_rtdof_marker;
-      FiniteElementSpace::ListToMarker(ess_tdof_list, fes->GetTrueVSize(),
+      FiniteElementSpace::ListToMarker(ess_tdof_list_, fes->GetTrueVSize(),
                                        ess_tdof_marker);
       ConvertMarkerToReducedTrueDofs(ess_tdof_marker, ess_rtdof_marker);
-      FiniteElementSpace::MarkerToList(ess_rtdof_marker, ess_rtdof_list);
+      FiniteElementSpace::MarkerToList(ess_rtdof_marker, ess_rtdof_list_);
    }
 
    /** Given a solution of the reduced system 'sc_sol' and the RHS 'b' for the

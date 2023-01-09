@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -73,9 +73,8 @@ public:
       for (int i = 0; i < fes->GetNE(); i++)
       {
          fe = fes->GetFE(i);
-         double intorder = 2 * fe->GetOrder();
-         const IntegrationRule *ir = &(
-                                        IntRules.Get(fe->GetGeomType(), intorder));
+         int intorder = 2 * fe->GetOrder();
+         const IntegrationRule *ir = &IntRules.Get(fe->GetGeomType(), intorder);
 
          v.GetValues(i, *ir, velx, 1);
          v.GetValues(i, *ir, vely, 2);
@@ -211,7 +210,8 @@ void ComputeQCriterion(ParGridFunction &u, ParGridFunction &q)
 
 int main(int argc, char *argv[])
 {
-   MPI_Session mpi(argc, argv);
+   Mpi::Init(argc, argv);
+   Hypre::Init();
 
    OptionsParser args(argc, argv);
    args.AddOption(&ctx.element_subdivisions,
@@ -252,13 +252,13 @@ int main(int argc, char *argv[])
    args.Parse();
    if (!args.Good())
    {
-      if (mpi.Root())
+      if (Mpi::Root())
       {
          args.PrintUsage(mfem::out);
       }
       return 1;
    }
-   if (mpi.Root())
+   if (Mpi::Root())
    {
       args.PrintOptions(mfem::out);
    }
@@ -273,7 +273,7 @@ int main(int argc, char *argv[])
    *nodes *= M_PI;
 
    int nel = mesh.GetNE();
-   if (mpi.Root())
+   if (Mpi::Root())
    {
       mfem::out << "Number of elements: " << nel << std::endl;
    }
@@ -308,7 +308,7 @@ int main(int argc, char *argv[])
 
    QuantitiesOfInterest kin_energy(pmesh);
 
-   ParaViewDataCollection pvdc("shear_output", pmesh);
+   ParaViewDataCollection pvdc("tgv_output", pmesh);
    pvdc.SetDataFormat(VTKFormat::BINARY32);
    pvdc.SetHighOrderOutput(true);
    pvdc.SetLevelsOfDetail(ctx.order);
@@ -329,9 +329,9 @@ int main(int argc, char *argv[])
    std::string fname = "tgv_out_p_" + std::to_string(ctx.order) + ".txt";
    FILE *f = NULL;
 
-   if (mpi.Root())
+   if (Mpi::Root())
    {
-      int nel1d = std::round(pow(nel, 1.0 / 3.0));
+      int nel1d = static_cast<int>(std::round(pow(nel, 1.0 / 3.0)));
       int ngridpts = p_gf->ParFESpace()->GlobalVSize();
       printf("%11s %11s %11s %11s %11s\n", "Time", "dt", "u_inf", "p_inf", "ke");
       printf("%.5E %.5E %.5E %.5E %.5E\n", t, dt, u_inf, p_inf, ke);
@@ -366,12 +366,12 @@ int main(int argc, char *argv[])
          pvdc.Save();
       }
 
-      double u_inf_loc = u_gf->Normlinf();
-      double p_inf_loc = p_gf->Normlinf();
-      double u_inf = GlobalLpNorm(infinity(), u_inf_loc, MPI_COMM_WORLD);
-      double p_inf = GlobalLpNorm(infinity(), p_inf_loc, MPI_COMM_WORLD);
-      double ke = kin_energy.ComputeKineticEnergy(*u_gf);
-      if (mpi.Root())
+      u_inf_loc = u_gf->Normlinf();
+      p_inf_loc = p_gf->Normlinf();
+      u_inf = GlobalLpNorm(infinity(), u_inf_loc, MPI_COMM_WORLD);
+      p_inf = GlobalLpNorm(infinity(), p_inf_loc, MPI_COMM_WORLD);
+      ke = kin_energy.ComputeKineticEnergy(*u_gf);
+      if (Mpi::Root())
       {
          printf("%.5E %.5E %.5E %.5E %.5E\n", t, dt, u_inf, p_inf, ke);
          fprintf(f, "%20.16e     %20.16e\n", t, ke);
@@ -385,11 +385,11 @@ int main(int argc, char *argv[])
    // Test if the result for the test run is as expected.
    if (ctx.checkres)
    {
-      double tol = 1e-5;
+      double tol = 2e-5;
       double ke_expected = 1.25e-1;
       if (fabs(ke - ke_expected) > tol)
       {
-         if (mpi.Root())
+         if (Mpi::Root())
          {
             mfem::out << "Result has a larger error than expected."
                       << std::endl;

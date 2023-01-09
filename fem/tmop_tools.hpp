@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -42,7 +42,8 @@ public:
                                 const Vector &init_field);
 
    virtual void ComputeAtNewPosition(const Vector &new_nodes,
-                                     Vector &new_field);
+                                     Vector &new_field,
+                                     int new_nodes_ordering = Ordering::byNODES);
 
    /// Set the memory type used for large memory allocations. This memory type
    /// is used when constructing the AdvectorCGOper but currently only for the
@@ -57,7 +58,6 @@ private:
    Vector nodes0;
    GridFunction field0_gf;
    FindPointsGSLIB *finder;
-   int dim;
 public:
    InterpolatorFP() : finder(NULL) { }
 
@@ -65,7 +65,8 @@ public:
                                 const Vector &init_field);
 
    virtual void ComputeAtNewPosition(const Vector &new_nodes,
-                                     Vector &new_field);
+                                     Vector &new_field,
+                                     int new_nodes_ordering = Ordering::byNODES);
 
    ~InterpolatorFP()
    {
@@ -128,8 +129,17 @@ protected:
    int solver_type;
    bool parallel;
 
+   // Surface fitting variables.
+   bool adaptive_surf_fit = false;
+   mutable double surf_fit_err_avg_prvs = 10000.0;
+   mutable bool update_surf_fit_coeff = false;
+   double surf_fit_max_threshold = -1.0;
+
    // Minimum determinant over the whole mesh. Used for mesh untangling.
    double *min_det_ptr = nullptr;
+   // Flag to compute minimum determinant and maximum metric in ProcessNewState,
+   // which is required for TMOP_WorstCaseUntangleOptimizer_Metric.
+   mutable bool compute_metric_quantile_flag = true;
 
    // Quadrature points that are checked for negative Jacobians etc.
    const IntegrationRule &ir;
@@ -148,13 +158,28 @@ protected:
       return ir;
    }
 
-   void UpdateDiscreteTC(const TMOP_Integrator &ti, const Vector &x_new) const;
+   void UpdateDiscreteTC(const TMOP_Integrator &ti, const Vector &x_new,
+                         int x_ordering = Ordering::byNODES) const;
 
    double ComputeMinDet(const Vector &x_loc,
                         const FiniteElementSpace &fes) const;
 
    double MinDetJpr_2D(const FiniteElementSpace*, const Vector&) const;
    double MinDetJpr_3D(const FiniteElementSpace*, const Vector&) const;
+
+   /** @name Methods for adaptive surface fitting weight. */
+   ///@{
+   /// Get the average and maximum surface fitting error at the marked nodes.
+   /// If there is more than 1 TMOP integrator, we get the maximum of the
+   /// average and maximum error over all integrators.
+   virtual void GetSurfaceFittingError(double &err_avg, double &err_max) const;
+
+   /// Update surface fitting weight as surf_fit_weight *= factor.
+   void UpdateSurfaceFittingWeight(double factor) const;
+
+   /// Get the surface fitting weight for all the TMOP integrators.
+   void GetSurfaceFittingWeight(Array<double> &weights) const;
+   ///@}
 
 public:
 #ifdef MFEM_USE_MPI
@@ -177,12 +202,29 @@ public:
 
    void SetMinDetPtr(double *md_ptr) { min_det_ptr = md_ptr; }
 
-   // Set the memory type for temporary memory allocations.
+   /// Set the memory type for temporary memory allocations.
    void SetTempMemoryType(MemoryType mt) { temp_mt = mt; }
 
+   /// Compute scaling factor for the node movement direction using line-search.
+   /// We impose constraints on TMOP energy, gradient, minimum Jacobian of
+   /// the mesh, and (optionally) on the surface fitting error.
    virtual double ComputeScalingFactor(const Vector &x, const Vector &b) const;
 
+   /// Update (i) discrete functions at new nodal positions, and
+   /// (ii) surface fitting weight.
    virtual void ProcessNewState(const Vector &x) const;
+
+   /** @name Methods for adaptive surface fitting weight. (Experimental) */
+   /// Enable adaptive surface fitting weight.
+   /// The weight is modified after each TMOPNewtonSolver iteration.
+   void EnableAdaptiveSurfaceFitting() { adaptive_surf_fit = true; }
+
+   /// Set the termination criterion for mesh optimization based on
+   /// the maximum surface fitting error.
+   void SetTerminationWithMaxSurfaceFittingError(double max_error)
+   {
+      surf_fit_max_threshold = max_error;
+   }
 
    virtual void Mult(const Vector &b, Vector &x) const
    {
