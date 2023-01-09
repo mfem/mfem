@@ -5410,7 +5410,7 @@ void Mesh::LoadPatchTopo(std::istream &input, Array<int> &edge_to_knot)
 
       // Print knot to edge mapping
       mfem::out<<"Generated edge to knot mapping:"<<endl;
-      for (int j = 0; j < NumOfEdges; j++)
+      for (j = 0; j < NumOfEdges; j++)
       {
          int *v = edge_vertex->GetRow(j);
          k = edge_to_knot[j];
