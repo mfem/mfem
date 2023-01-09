@@ -118,14 +118,8 @@ RT GetRootParent(const T &m)
    while (true)
    {
       const T* next = dynamic_cast<const T*>(parent);
-      if (next == nullptr)
-      {
-         return static_cast<RT>(parent);
-      }
-      else
-      {
-         parent = next->GetParent();
-      }
+      if (next == nullptr) { return parent; }
+      else { parent = next->GetParent(); }
    }
 }
 
