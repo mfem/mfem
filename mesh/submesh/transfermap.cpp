@@ -37,9 +37,9 @@ TransferMap::TransferMap(const GridFunction &src,
 
       category_ = TransferCategory::SubMeshToSubMesh;
 
-      root_fes_ = new FiniteElementSpace(
-         *src.FESpace(),
-         const_cast<Mesh *>(SubMeshUtils::GetRootParent(*src_sm)));
+      root_fes_.reset(new FiniteElementSpace(
+                         *src.FESpace(),
+                         const_cast<Mesh *>(SubMeshUtils::GetRootParent(*src_sm))));
       subfes1 = src.FESpace();
       subfes2 = dst.FESpace();
 
@@ -137,9 +137,4 @@ void TransferMap::Transfer(const GridFunction &src,
    {
       MFEM_ABORT("unknown TransferCategory: " << category_);
    }
-}
-
-TransferMap::~TransferMap()
-{
-   delete root_fes_;
 }
