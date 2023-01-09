@@ -5300,7 +5300,7 @@ void Mesh::LoadPatchTopo(std::istream &input, Array<int> &edge_to_knot)
          GetElementEdges(p, edges, oedge);
 
          const int *v = elements[p]->GetVertices();
-         for (int j = 0; j < edges.Size(); j++)
+         for (j = 0; j < edges.Size(); j++)
          {
             int *vv = edge_vertex->GetRow(edges[j]);
             const int *e = elements[p]->GetEdgeVertices(j);
@@ -5413,10 +5413,10 @@ void Mesh::LoadPatchTopo(std::istream &input, Array<int> &edge_to_knot)
       for (int j = 0; j < NumOfEdges; j++)
       {
          int *v = edge_vertex->GetRow(j);
-         int k = edge_to_knot[j];
+         k = edge_to_knot[j];
 
-         int v0 = v[0];
-         int v1 = v[1];
+         v0 = v[0];
+         v1 = v[1];
          if (k < 0)
          {
             v[0] = v1;
