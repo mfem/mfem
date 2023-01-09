@@ -41,7 +41,7 @@
 // [1] Andreassen, E., Clausen, A., Schevenels, M., Lazarov, B. S., & Sigmund, O.
 //    (2011). Efficient topology optimization in MATLAB using 88 lines of
 //    code. Structural and Multidisciplinary Optimization, 43(1), 1-16.
-// [2] Keith, B. and Surowiec, S. (2023) The entropic finite element method
+// [2] Keith, B. and Surowiec, T. (2023) The entropic finite element method
 //     (in preparation).
 // [3] Lazarov, B. S., & Sigmund, O. (2011). Filters in topology optimization
 //     based on Helmholtz‐type differential equations. International Journal
@@ -109,11 +109,11 @@ using namespace mfem;
  *
  *  Discretization choices:
  *
+ *     u ∈ V ⊂ (H¹)ᵈ (order p)
  *     ρ ∈ L² (order p - 1)
  *     ρ̃ ∈ H¹ (order p - 1)
- *     u ∈ V ⊂ (H¹)ᵈ (order p)
+ *     w ∈ V  (order p)
  *     w̃ ∈ H¹ (order p - 1)
- *     w ∈ L² (order p - 1)
  *
  * ---------------------------------------------------------------
  *                          ALGORITHM
