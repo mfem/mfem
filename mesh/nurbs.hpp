@@ -231,14 +231,14 @@ protected:
    void CheckBdrPatches();
 
    /** Checks the direction of the knotvectors in the patch based on
-       the patch orientation for patch @a p returns the direction of 
+       the patch orientation for patch @a p returns the direction of
        the Knotvectors in @a kvdir.*/
    void CheckKVDirection(int p, Array <int> &kvdir);
    /**  Creates the extended array of KnotVectors */
    void CreateExtendedKV();
    /**  Updates the unique set of KnotVectors */
    void UpdateUniqueKV();
-   // 
+
    /** Checks if the extended array of KnotVectors agrees with
        the reduced set of KnotVectors. Returns false if it finds
        a difference. */
