@@ -1488,7 +1488,6 @@ public:
    /** Return all elements adjacent to the given Face */
    void GetFaceAdjacentElements(int Face, Array<int> & elems) const;
 
-   Geometry::Type GetFaceGeometryType(int Face) const;
    /// Deprecated in favor of Mesh::GetFaceGeometry
    MFEM_DEPRECATED Geometry::Type GetFaceGeometryType(int Face) const
    { return GetFaceGeometry(Face); }

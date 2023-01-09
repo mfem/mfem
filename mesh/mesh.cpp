@@ -1463,7 +1463,6 @@ void Mesh::GetFaceAdjacentElements(int face, Array<int> & elems) const
    }
 }
 
-Geometry::Type Mesh::GetFaceGeometryType(int Face) const
 Geometry::Type Mesh::GetFaceGeometry(int Face) const
 {
    switch (Dim)
