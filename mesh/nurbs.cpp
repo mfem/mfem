@@ -3438,9 +3438,8 @@ void NURBSExtension::KnotInsert(Array<Vector *> &kv)
 
          if (kvdir[i] == -1)
          {
-
-            // Find flip point
-            KnotVector *kv = knotVectorsExt[Dimension()*p+i];
+            // Find flip point, for knotvectors that do not have the domain [0:1]
+            KnotVector *kva = knotVectorsExt[Dimension()*p+i];
             double apb = (*kv)[0] + (*kv)[kv->Size()-1];
 
             // Flip vector
