@@ -1,26 +1,29 @@
 // Compile with: make nurbs_naca_cmesh
 //
-// Sample run:   ./nurbs_naca_cmesh -ntail 80 -nrad 80 -ntip 20 -nwake 40 -sw 2.0 \
-                 -srad 2.5 -stail 1.0 -stip 1.1 -aoa 3
+// Sample run:   ./nurbs_naca_cmesh -ntail 80 -nrad 80 -ntip 20 -nwake 40 -sw 2.0
+//                 -srad 2.5 -stip 1.1 -aoa 3
 //
-// Description:  This example code demonstrates the use of MFEM to create a C-mesh 
+// Description:  This example code demonstrates the use of MFEM to create a C-mesh
 //               around a NACA-foil section. The foil section is defined in the class
-//               NACA4, which can be easily replaced with any other description of a 
-//               foil section. 
+//               NACA4, which can be easily replaced with any other description of a
+//               foil section. In order to apply an angle of attack, we rotate the domain
+//               around the origin.
 //
 //               The mesh employs five patches of which two describe the domain behind the
-//               foil section (wake). The boundary describing the foil section is divided 
-//               over three patches. One patch describes the domain adjacent to the boundary 
-//               which describes the tip / leading edge of the hydrofoil and two patches 
+//               foil section (wake). The boundary describing the foil section is divided
+//               over three patches. One patch describes the domain adjacent to the boundary
+//               which describes the tip / leading edge of the foil section and two patches
 //               describe the domain which is adjacent to the two boundaries describing the
-//               remainder of the foil section.                 
-//               
-//               The example returns a visit datastructure for visulatisation. Note that
+//               remainder of the foil section. The aim is to create a mesh with the highest
+//               quality close to the boundary of the foil section and the wake.
+//
+//               The example returns a visit datastructure for visualisation. Note that
 //               one will need to increase the multiress control to inspect the shape of the
-//               NURBS.           
+//               NURBS.
 //
 //               Possible improvements:
-//               - Implement optimization with TMOP 
+//               - Implement optimization with TMOP
+//               - Streamline GetTipXY() for two options
 
 
 #include <iostream>
@@ -29,15 +32,15 @@
 using namespace std;
 using namespace mfem;
 
-// Object that discribes the thickness distribution of a symmetric NACA hydrofoil
+// Object that discribes a symmetric NACA foil section
 class NACA4
 {
 protected:
    // Constants describing the thickness profile
    double A, B, C, D, E;
-   // Thickness of the hydrofoil
+   // Thickness of the foil section
    double t;
-   // Chord of the hydrofoil
+   // Chord of the foil section: foil length
    double c;
    // Maximum number of iterations for Newton solver
    int iter_max;
@@ -50,12 +53,14 @@ public:
    // Returns the derivative of the curve at location coordinate @a xi
    double dydx(double xi);
    // Returns the curve length at coordinate @a xi
-   double l(double xi);
+   double len(double xi);
    // Returns the derivative of the curve length at coordinate @a xi
-   double dldx(double xi);
-   // Returns the coordinate x corresponding to the curve length @a l from 
-   // the tip of the hydrofoil
+   double dlendx(double xi);
+   // Returns the coordinate x corresponding to the curve length @a l from
+   // the tip of the foil section
    double xl(double l);
+   // Get the chord of the foil_section
+   const double GetChord() {return c;}
 };
 
 NACA4::NACA4(double t_, double c_)
@@ -69,25 +74,28 @@ NACA4::NACA4(double t_, double c_)
 
 double NACA4::y(double x)
 {
-   double y = 5*t*(A*sqrt(x/c) - B*x/c - C*pow(x/c,2) + D*pow(x/c,3) - E*pow(x/c,4));
+   double y = 5*t*(A*sqrt(x/c) - B*x/c - C*pow(x/c,2) + D*pow(x/c,3) - E*pow(x/c,
+                                                                             4));
    return y*c;
 }
 
 double NACA4::dydx(double x)
 {
-   double y = 5*t*(0.5 * A/sqrt(x/c) - B - 2*C*x/c + 3* D*pow(x/c,2) - 4* E*pow(x/c,3));
+   double y = 5*t*(0.5 * A/sqrt(x/c) - B - 2*C*x/c + 3* D*pow(x/c,
+                                                              2) - 4* E*pow(x/c,3));
    return y*c;
 }
 
-double NACA4::l(double x)
+double NACA4::len(double x)
 {
-   double l = 5 * t * (A*sqrt(x/c) - B*x - C*pow(x/c,2) + D*pow(x/c,3) - E * pow(x/c,4)) + x/c;
+   double l = 5 * t * (A*sqrt(x/c) - B*x - C*pow(x/c,2) + D*pow(x/c,
+                                                                3) - E * pow(x/c,4)) + x/c;
    return l*c;
 }
 
-double NACA4::dldx(double xi)
+double NACA4::dlendx(double xi)
 {
-   return 1 + dYdx(xi);
+   return 1 + dydx(xi);
 }
 
 double NACA4::xl(double l)
@@ -98,33 +106,36 @@ double NACA4::xl(double l)
    do
    {
       x = abs(x); // The function and its derivative do not exist for x < 0
-      // Newton step: x(i+1) = x(i) - f(x) / f'(x) 
-      h = (L(x) - l)/dLdx(x);      
+      // Newton step: x(i+1) = x(i) - f(x) / f'(x)
+      h = (len(x) - l)/dlendx(x);
       x = x - h;
-   } while (abs(h) >= epsilon && i++ < iter_max);
+   }
+   while (abs(h) >= epsilon && i++ < iter_max);
 
-   if (i >= iter_max){ mfem_error("Did not find root"); }
+   if (i >= iter_max) { mfem_error("Did not find root"); }
    return x;
 }
 
-// Function that finds the coordinates of the controlpoins of the tip of the hydrofoil @a xy
+// Function that finds the coordinates of the controlpoins of the tip of the foil section @a xy
 // based on the @a foil_section, knotvector @a kv and tip fraction @a tf
-void GetTipXY(NACA4 foil_section, KnotVector *kv, double tf, Array<Vector*> &xy)    
+// We have two cases, one with an odd number of controlpoints and one with an even number of
+// controlpoints. These may be streamlined in the future?
+void GetTipXY(NACA4 foil_section, KnotVector *kv, double tf, Array<Vector*> &xy)
 {
    int ncp = kv->GetNCP();
-   // Length of halve the curve
-   double l = foil_section.l(tf*c);
+   // Length of halve the curve: the boundary covers both sides of the tip
+   double l = foil_section.len(tf * foil_section.GetChord());
 
    // Find location of maxima of knotvector
    Array<int> i_args;
    Vector xi_args, u_args;
    kv->FindMaxima(i_args,xi_args, u_args);
-   
-   // We have two cases: one with an odd number of controlpoints and one 
+
+   // We have two cases: one with an odd number of controlpoints and one
    // with an even number of controlpoints.
    int n = ncp/2;
    if (ncp % 2)
-   {  
+   {
       // Find arc lengths to controlpoints on upperside then
       // find x-coordinates
       Vector xcp(n+1);
@@ -137,7 +148,7 @@ void GetTipXY(NACA4 foil_section, KnotVector *kv, double tf, Array<Vector*> &xy)
 
       // Find corresponding xy vector
       xy[0]->SetSize(2*n+1); xy[1]->SetSize(2*n+1);
-      xy[0]->Elem(n) = 0; xy[1]->Elem(n) = 0; // Hydrofoil tip
+      xy[0]->Elem(n) = 0; xy[1]->Elem(n) = 0; // Foil section tip
       for (int i = 0; i < n; i++)
       {
          // Lower halve
@@ -172,7 +183,7 @@ void GetTipXY(NACA4 foil_section, KnotVector *kv, double tf, Array<Vector*> &xy)
    }
 }
 
-// Function that returns a uniform knotvector based on the @a order and the 
+// Function that returns a uniform knotvector based on the @a order and the
 // number of controlpoints @a ncp.
 KnotVector *UniformKnotVector(int order, int ncp)
 {
@@ -195,6 +206,7 @@ KnotVector *UniformKnotVector(int order, int ncp)
 
 // Function that returns a knotvector which is stretched with stretch @s
 // with the form x^s based on the @a order and the number of controlpoints @a ncp.
+// Special case @a s = 0 will give a uniform knotvector.
 KnotVector *PowerStretchKnotVector(int order, int ncp, double s = 0.0)
 {
    KnotVector *kv = new KnotVector(order, ncp);
@@ -206,8 +218,8 @@ KnotVector *PowerStretchKnotVector(int order, int ncp, double s = 0.0)
    for (int i = order+1; i < ncp; i++)
    {
       (*kv)[i] = (i-order)/double(ncp-order);
-      if (stretch > 0) { (*kv)[i] = pow((*kv)[i], s); }
-      if (stretch < 0) { (*kv)[i] = 1.0 - pow(1.0-(*kv)[i], -s); }
+      if (s > 0) { (*kv)[i] = pow((*kv)[i], s); }
+      if (s < 0) { (*kv)[i] = 1.0 - pow(1.0-(*kv)[i], -s); }
    }
    for (int i = ncp ; i < ncp + order + 1; i++)
    {
@@ -229,7 +241,7 @@ KnotVector *TanhKnotVector(int order, int ncp, double c)
    for (int i = order+1; i < ncp; i++)
    {
       (*kv)[i] = (i-order)/double(ncp-order);
-      (*kv)[i] = 1 + tanh(c * ((*kv)[i]-1))/tanh(c);   
+      (*kv)[i] = 1 + tanh(c * ((*kv)[i]-1))/tanh(c);
    }
    for (int i = ncp ; i < ncp + order + 1; i++)
    {
@@ -238,11 +250,11 @@ KnotVector *TanhKnotVector(int order, int ncp, double c)
    return kv;
 }
 
-// Function that returns a knotvector with a tangent hyperbolic spacing from both sides 
+// Function that returns a knotvector with a tangent hyperbolic spacing from both sides
 // of the knotvector with a cut-off @c using the @a order and the number of controlpoints @a ncp.
-KnotVector *DoubleTanhKnotVector(int order, int ncp, double C)
+KnotVector *DoubleTanhKnotVector(int order, int ncp, double c)
 {
-   KnotVector *kv = new KnotVector(order, ncp);
+   KnotVector *kv = UniformKnotVector(order, ncp);
 
    for (int i = 0; i < order+1; i++)
    {
@@ -253,12 +265,12 @@ KnotVector *DoubleTanhKnotVector(int order, int ncp, double C)
       if ((*kv)[i] < 0.5)
       {
          (*kv)[i] = -1 + 2*( 1 - (i-order)/double(ncp-order));
-         (*kv)[i] = 0.5 * abs((tanh(C * ((*kv)[i]-1))/tanh(C))); 
+         (*kv)[i] = 0.5 * abs((tanh(c * ((*kv)[i]-1))/tanh(c)));
       }
       else
       {
          (*kv)[i] = 2*((i-order)/double(ncp-order) - 0.5);
-         (*kv)[i] = 0.5 +(1 + tanh(C * ((*kv)[i]-1))/tanh(C))/2; 
+         (*kv)[i] = 0.5 +(1 + tanh(c * ((*kv)[i]-1))/tanh(c))/2;
       }
    }
    for (int i = ncp ; i < ncp + order + 1; i++)
@@ -269,9 +281,9 @@ KnotVector *DoubleTanhKnotVector(int order, int ncp, double C)
 }
 
 // Function that evaulates a linear function which describes the boundary distance
-// based on the flair angle @a flair, smallest boundary bistance @a bd and 
+// based on the flair angle @a flair, smallest boundary bistance @a bd and
 // coordinate @a x.
-// This function is mainly used to be able to enforce inflow on the top and bottom 
+// This function is mainly used to be able to enforce inflow on the top and bottom
 // boundary.
 double FlairBoundDist(double flair, double bd, double x)
 {
@@ -307,7 +319,7 @@ int main(int argc, char *argv[])
    args.AddOption(&aoa, "-aoa", "--angle-of-attack",
                   "Angle of attack of the foil. ");
 
-   //Mesh options
+   // Mesh options
    double boundary_dist = 3.0;
    double wake_length  = 3.0;
    double tip_fraction = 0.05;
@@ -333,7 +345,7 @@ int main(int argc, char *argv[])
 
    double str_tip = 1;
    double str_wake = 1;
-   double str_radius = 1;
+   double str_bnd = 1;
    double str_tail = 1;
    args.AddOption(&str_tip, "-stip", "--str-tip",
                   "Stretch of the knotvector of the tip.");
@@ -342,7 +354,7 @@ int main(int argc, char *argv[])
    args.AddOption(&str_wake, "-sw", "--str-wake",
                   "Stretch of the knotvector of the wake.");
    args.AddOption(&str_bnd, "-srad", "--str-circ",
-                  "Stretch of the knotvector of the circle.");  
+                  "Stretch of the knotvector of the circle.");
    // Parse and print commandline options
    args.Parse();
    if (!args.Good())
@@ -370,8 +382,8 @@ int main(int argc, char *argv[])
    KnotVector *kv1 = PowerStretchKnotVector(order, ncp_tail, -str_tail);
    KnotVector *kv3 = PowerStretchKnotVector(order, ncp_tail, str_tail);
    KnotVector *kv2 = DoubleTanhKnotVector(order, ncp_tip, str_tip);
-   KnotVector *kvr = TanhKnotVector(order, ncp_bnd, str_radius);
-   
+   KnotVector *kvr = TanhKnotVector(order, ncp_bnd, str_bnd);
+
    KnotVector *kv_o1 = UniformKnotVector(1, 2);
    KnotVector *kv_o2 = UniformKnotVector(2, 3);
 
@@ -386,14 +398,19 @@ int main(int argc, char *argv[])
    // 3. Create required (variables for) curves: foil_section and flair
    //
    NACA4 foil_section(foil_thickness, foil_length);
+   // The flair angle is defined to be the same as the angle of the curve of the
+   // foil section to create an elegant mesh.
    double flair = atan(foil_section.dydx(tip_fraction*foil_length));
 
    //
-   // 4. Map coordinates in Patches, apply refinenement, we interpolate the hydrofoil
-   //    for each patch.
+   // 4. Map coordinates in Patches, apply refinenement, we interpolate the foil section in
+   //    patches 1, 2 and 3. Not the case of non-unity weights in patch 2 to create a circular
+   //    shape: its coordinates are converted to homogeneous coordinates. This is not needed
+   //    for other patches as homogeneous coordinates and carthesian coordinates are the same
+   //    for patches with unity weight.
    //
-   // Patch 0: lower wake part behind hydrofoil.
-   NURBSPatch patch0(2, 3);
+   // Patch 0: lower wake part behind foil section.
+   NURBSPatch patch0(kv_o1, kv_o1, 3);
    {
       for (int i = 0; i < 2; i++)
          for (int j = 0; j < 2; j++)
@@ -415,7 +432,6 @@ int main(int argc, char *argv[])
       patch0(1,1,1) = -FlairBoundDist(flair, boundary_dist, patch0(1,1,0));
 
       // Refine
-      patch0.ApplyProjection();
       patch0.DegreeElevate(0, order-1);
       patch0.KnotInsert(0, *kv0);
       patch0.DegreeElevate(1, order-1);
@@ -423,7 +439,7 @@ int main(int argc, char *argv[])
    }
 
    // Patch 1: Lower tail of foil
-   NURBSPatch patch1(2, 3);
+   NURBSPatch patch1(kv_o1, kv_o1, 3);;
    {
       for (int i = 0; i < 2; i++)
          for (int j = 0; j < 2; j++)
@@ -445,11 +461,9 @@ int main(int argc, char *argv[])
       patch1(1,1,1) = -boundary_dist*cos(flair);
 
       // Refine
-      patch1.SetProjected(false);
-      patch1.ApplyProjection();
       patch1.DegreeElevate(0, order-1);
       patch1.KnotInsert(0, *kv1);
-      
+
       int ncp = kv1->GetNCP();
       xyf[0]->SetSize(ncp); xyf[1]->SetSize(ncp);
 
@@ -464,15 +478,15 @@ int main(int argc, char *argv[])
       kv1->FindInterpolant(xyf);
       for (int i = 0; i < ncp; i++)
       {
-         patch1(i,0,0) = (*xyf[0])[i]*patch1(i,0,2);
-         patch1(i,0,1) = (*xyf[1])[i]*patch1(i,0,2);
+         patch1(i,0,0) = (*xyf[0])[i];
+         patch1(i,0,1) = (*xyf[1])[i];
       }
 
       patch1.DegreeElevate(1, order-1);
       patch1.KnotInsert(1, *kvr);
    }
 
-   // Patch 2: Tip of hydrofoil
+   // Patch 2: Tip of foil section
    NURBSPatch patch2(kv_o2, kv_o1, 3);
    {
       // Define weights
@@ -504,9 +518,13 @@ int main(int argc, char *argv[])
       patch2(0,1,0) = -boundary_dist*cos(90*deg2rad-flair) + tip_fraction*foil_length;
       patch2(0,1,1) = -boundary_dist*sin(90*deg2rad-flair);
 
+      // Deal with non-uniform weight: convert to homogeneous coordinates
+      patch2(1,0,0) *= patch2(1,0,2);
+      patch2(1,0,1) *= patch2(1,0,2);
+      patch2(1,1,0) *= patch2(1,1,2);
+      patch2(1,1,1) *= patch2(1,1,2);
+
       // Refine
-      patch2.SetProjected(false);
-      patch2.ApplyProjection();
       patch2.DegreeElevate(0, order-2);
       patch2.KnotInsert(0, *kv2);
 
@@ -514,11 +532,12 @@ int main(int argc, char *argv[])
       int ncp = kv2->GetNCP();
       xyf[0]->SetSize(ncp); xyf[1]->SetSize(ncp);
 
-      GetTipXY(foil_section, kv2, foil_length, tip_fraction, xyf);
+      GetTipXY(foil_section, kv2, tip_fraction, xyf);
 
       kv2->FindInterpolant(xyf);
       for (int i = 0; i < ncp; i++)
       {
+         // Also deal with non-uniform weights here
          patch2(i,0,0) = (*xyf[0])[i]*patch2(i,0,2);
          patch2(i,0,1) = (*xyf[1])[i]*patch2(i,0,2);
       }
@@ -528,8 +547,8 @@ int main(int argc, char *argv[])
       patch2.KnotInsert(1, *kvr);
    }
 
-   // Patch 3: Upper part of trailing part hydrofoil
-   NURBSPatch patch3(2, 3);
+   // Patch 3: Upper part of trailing part foil section
+   NURBSPatch patch3(kv_o1, kv_o1, 3);;
    {
       for (int i = 0; i < 2; i++)
          for (int j = 0; j < 2; j++)
@@ -551,16 +570,14 @@ int main(int argc, char *argv[])
       patch3(1,1,1) = FlairBoundDist(flair, boundary_dist, patch3(1,1,0));;
 
       // Refine
-      patch3.SetProjected(false);
-      patch3.ApplyProjection();
       patch3.DegreeElevate(0, order-1);
       patch3.KnotInsert(0, *kv3);
 
       int ncp = kv3->GetNCP();
       xyf[0]->SetSize(ncp); xyf[1]->SetSize(ncp);
-      
+
       // Project foil
-      kv3->FindMaxima(i_args,xi_args, u_args);        
+      kv3->FindMaxima(i_args,xi_args, u_args);
       for (int i = 0; i < ncp; i++)
       {
          (*xyf[0])[i] = foil_length*(tip_fraction + tail_fraction*u_args[i]);
@@ -570,8 +587,8 @@ int main(int argc, char *argv[])
       kv3->FindInterpolant(xyf);
       for (int i = 0; i < ncp; i++)
       {
-         patch3(i,0,0) = (*xyf[0])[i]*patch3(i,0,2);
-         patch3(i,0,1) = (*xyf[1])[i]*patch3(i,0,2);
+         patch3(i,0,0) = (*xyf[0])[i];
+         patch3(i,0,1) = (*xyf[1])[i];
       }
 
       patch3.DegreeElevate(1, order-1);
@@ -579,7 +596,7 @@ int main(int argc, char *argv[])
    }
 
    // Patch 4: Upper trailing wake part
-   NURBSPatch patch4(2, 3);
+   NURBSPatch patch4(kv_o1, kv_o1, 3);;
    {
       for (int i = 0; i < 2; i++)
          for (int j = 0; j < 2; j++)
@@ -601,7 +618,6 @@ int main(int argc, char *argv[])
       patch4(1,1,1) = FlairBoundDist(flair, boundary_dist, patch4(1,1,0));;
 
       // Refine
-      patch4.ApplyProjection();
       patch4.DegreeElevate(0, order-1);
       patch4.KnotInsert(0, *kv4);
       patch4.DegreeElevate(1, order-1);
@@ -627,7 +643,8 @@ int main(int argc, char *argv[])
 
    // File header
    output<<"MFEM NURBS mesh v1.0"<<endl;
-   output<< endl << "# " << mdim << "D Hydrofoil mesh" << endl << endl;
+   output<< endl << "# " << mdim << "D C-mesh around a symmetric NACA foil section"
+         << endl << endl;
    output<< "dimension"<<endl;
    output<< mdim <<endl;
    output<< endl;
@@ -636,11 +653,11 @@ int main(int argc, char *argv[])
    // Elements
    output << "elements"<<endl;
    output << "5"<<endl;
-   output << "1 3 0 1 5 4" << endl;   // Lower wake part
-   output << "1 3 1 2 6 5" << endl;   // Lower tail C
-   output << "1 3 2 3 7 6" << endl;   // Lower tip C
-   output << "1 3 3 1 8 7" << endl;   // Upper tip C
-   output << "1 3 1 0 9 8" << endl;   // Upper tail C
+   output << "1 3 0 1 5 4" << endl;   // Lower wake
+   output << "1 3 1 2 6 5" << endl;   // Lower tail
+   output << "1 3 2 3 7 6" << endl;   // Tip
+   output << "1 3 3 1 8 7" << endl;   // Upper tail
+   output << "1 3 1 0 9 8" << endl;   // Upper wake
    output << endl;
 
    // Boundaries
@@ -653,9 +670,9 @@ int main(int argc, char *argv[])
    output << "3 1 9 8" << endl;   // Top
    output << "4 1 4 0" << endl;   // Outflow
    output << "4 1 0 9" << endl;   // Outflow
-   output << "5 1 1 2" << endl;   // Hydrofoil
-   output << "5 1 2 3" << endl;   // Hydrofoil
-   output << "5 1 3 1" << endl;   // Hydrofoil
+   output << "5 1 1 2" << endl;   // Foil section
+   output << "5 1 2 3" << endl;   // Foil section
+   output << "5 1 3 1" << endl;   // Foil section
    output << endl;
 
    // Edges
@@ -670,7 +687,7 @@ int main(int argc, char *argv[])
    output << "1 5 6"<<endl;
    output << "2 6 7"<<endl;
    output << "3 7 8"<<endl;
-   output << "0 9 8"<<endl; 
+   output << "0 9 8"<<endl;
 
    output << "4 0 4"<<endl;
    output << "4 1 5"<<endl;
@@ -689,7 +706,7 @@ int main(int argc, char *argv[])
    output<<"patches"<<endl;
    output<<endl;
 
-   output << "# Patch 0 " << endl; 
+   output << "# Patch 0 " << endl;
    patch0.Print(output); output<<endl;
    output << "# Patch 1 " << endl;
    patch1.Print(output); output<<endl;
@@ -710,7 +727,7 @@ int main(int argc, char *argv[])
    cout << "   2   Inflow" << endl;
    cout << "   3   Top" << endl;
    cout << "   4   Outflow" << endl;
-   cout << "   5   Hydrofoil" << endl;
+   cout << "   5   Foil section" << endl;
    cout << "=========================================================="<< endl;
    cout << "  "<< mdim <<"D mesh generated: " <<mesh_file.c_str()<< endl ;
    cout << "=========================================================="<< endl;

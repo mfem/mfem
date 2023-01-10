@@ -72,7 +72,7 @@ if (MFEM_ENABLE_TESTING)
     
     add_test(NAME nurbs_naca_cmesh_fine
     COMMAND $<TARGET_FILE:nurbs_naca_cmesh> -ntail 80 
-    -nrad 80 -ntip 20 -nwake 40 -sw 2.0 -srad 2.5 -stail 1.0 -stip 1.1 -aoa 3)
+    -nbnd 80 -ntip 20 -nwake 40 -sw 2.0 -srad 2.5 -stail 1.0 -stip 1.1 -aoa 3)
 
 endif()
 
