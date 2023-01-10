@@ -91,6 +91,8 @@ public:
                             DenseMatrix &curl) const
    { ProjectCurl_ND(tk, dof2tk, fe, Trans, curl); }
 
+   virtual void GetFaceMap(const int face_id, Array<int> &face_map) const;
+
 protected:
    void ProjectIntegrated(VectorCoefficient &vc,
                           ElementTransformation &Trans,
@@ -154,6 +156,8 @@ public:
                             ElementTransformation &Trans,
                             DenseMatrix &grad) const
    { ProjectGrad_ND(tk, dof2tk, fe, Trans, grad); }
+
+   virtual void GetFaceMap(const int face_id, Array<int> &face_map) const;
 
 protected:
    void ProjectIntegrated(VectorCoefficient &vc,

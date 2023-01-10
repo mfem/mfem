@@ -579,6 +579,10 @@ public:
    /** See the documentation for DofToQuad for more details. */
    virtual const DofToQuad &GetDofToQuad(const IntegrationRule &ir,
                                          DofToQuad::Mode mode) const;
+
+   virtual void GetFaceMap(const int face_id,
+                           Array<int> &face_map) const;
+
    /// Deconstruct the FiniteElement
    virtual ~FiniteElement();
 
@@ -1267,6 +1271,8 @@ public:
          NodalFiniteElement::GetTransferMatrix(fe, Trans, I);
       }
    }
+
+   virtual void GetFaceMap(const int face_id, Array<int> &face_map) const;
 };
 
 class VectorTensorFiniteElement : public VectorFiniteElement,

@@ -82,6 +82,8 @@ public:
                             DenseMatrix &curl) const
    { ProjectGrad_RT(nk, dof2nk, fe, Trans, curl); }
 
+   virtual void GetFaceMap(const int face_id, Array<int> &face_map) const;
+
 protected:
    void ProjectIntegrated(VectorCoefficient &vc, ElementTransformation &Trans,
                           Vector &dofs) const;
@@ -144,6 +146,10 @@ public:
                             ElementTransformation &Trans,
                             DenseMatrix &curl) const
    { ProjectCurl_RT(nk, dof2nk, fe, Trans, curl); }
+
+   /// @brief Return the mapping from lexicographically ordered DOFs to face
+   /// DOFs corresponding to local face @a face_id.
+   virtual void GetFaceMap(const int face_id, Array<int> &face_map) const;
 
 protected:
    void ProjectIntegrated(VectorCoefficient &vc,

@@ -14,7 +14,6 @@
 #include "fespace.hpp"
 #include "../general/forall.hpp"
 #include <climits>
-#include <utility>
 
 #ifdef MFEM_USE_MPI
 
@@ -595,241 +594,6 @@ void L2ElementRestriction::FillJAndData(const Vector &ea_data,
    });
 }
 
-/// @brief Fills in the entries of the lexicographic face_map.
-///
-/// n_face_dofs_per_component is the number of DOFs for each vector component
-/// on the face (there is only one vector component in all cases except for 3D
-/// Nedelec elements, where the face DOFs have two components to span the
-/// tangent space).
-///
-/// The DOFs for the i-th vector component begin at offsets[i] (i.e. the number
-/// of vector components is given by offsets.size()).
-///
-/// The DOFs for each vector component are arranged in a Cartesian grid defined
-/// by strides and n_dofs_per_dim.
-void FillFaceMap(const int n_face_dofs_per_component,
-                 const std::vector<int> offsets,
-                 const std::vector<int> &strides,
-                 const std::vector<int> &n_dofs_per_dim,
-                 Array<int> &face_map)
-{
-   const int n_components = offsets.size();
-   const int face_dim = strides.size() / n_components;
-   for (int comp = 0; comp < n_components; ++comp)
-   {
-      const int offset = offsets[comp];
-      for (int i = 0; i < n_face_dofs_per_component; ++i)
-      {
-         int idx = offset;
-         int j = i;
-         for (int d = 0; d < face_dim; ++d)
-         {
-            const int dof1d = n_dofs_per_dim[comp*(face_dim) + d];
-            idx += strides[comp*(face_dim) + d]*(j % dof1d);
-            j /= dof1d;
-         }
-         face_map[comp*n_face_dofs_per_component + i] = idx;
-      }
-   }
-}
-
-/// Each face of a hexahedron is given by a level set x_i = l, where x_i is one
-/// of x, y, or z (corresponding to i = 0, i=1, i = 3), and l is either 0 or 1.
-/// Returns i and level.
-std::pair<int,int> GetFaceNormal3D(const int face_id)
-{
-   switch (face_id)
-   {
-      case 0: return std::make_pair(2, 0); // z = 0
-      case 1: return std::make_pair(1, 0); // y = 0
-      case 2: return std::make_pair(0, 1); // x = 1
-      case 3: return std::make_pair(1, 1); // y = 1
-      case 4: return std::make_pair(0, 0); // x = 0
-      case 5: return std::make_pair(2, 1); // z = 1
-      default: MFEM_ABORT("Invalid face ID.")
-   }
-   return std::make_pair(-1, -1); // invalid
-}
-
-/** Return the face degrees of freedom returned in Lexicographic order.
-    Note: Only for quad and hex */
-void GetFaceDofs_H1_L2(const int dim, const int face_id,
-                       const int dof1d, Array<int> &face_map)
-{
-   int n_face_dofs = pow(dof1d, dim - 1);
-   std::vector<int> offsets, strides;
-   switch (dim)
-   {
-      case 1:
-         offsets = {(face_id == 0) ? 0 : dof1d - 1};
-         break;
-      case 2:
-         strides = {(face_id == 0 || face_id == 2) ? 1 : dof1d};
-         switch (face_id)
-         {
-            case 0: offsets = {0}; break; // y = 0
-            case 1: offsets = {dof1d - 1}; break; // x = 1
-            case 2: offsets = {(dof1d-1)*dof1d}; break; // y = 1
-            case 3: offsets = {0}; break; // x = 0
-         }
-         break;
-      case 3:
-      {
-         const auto f = GetFaceNormal3D(face_id);
-         const int face_normal = f.first, level = f.second;
-         if (face_normal == 0) // x-normal
-         {
-            offsets = {level ? dof1d-1 : 0};
-            strides = {dof1d, dof1d*dof1d};
-         }
-         else if (face_normal == 1) // y-normal
-         {
-            offsets = {level ? (dof1d-1)*dof1d : 0};
-            strides = {1, dof1d*dof1d};
-         }
-         else if (face_normal == 2) // z-normal
-         {
-            offsets = {level ? (dof1d-1)*dof1d*dof1d : 0};
-            strides = {1, dof1d};
-         }
-         break;
-      }
-   }
-
-   // same number of DOFs in each dimension, repeat dof1d (dim - 1) times
-   std::vector<int> n_dofs(dim - 1, dof1d);
-   FillFaceMap(n_face_dofs, offsets, strides, n_dofs, face_map);
-}
-
-void GetFaceDofs_ND(const int dim, const int face_id, const int pp1,
-                    Array<int> &face_map)
-{
-   const int p = pp1 - 1;
-   const int n_face_dofs_per_component = p*int(pow(pp1, dim-2));
-   std::vector<int> strides, offsets, n_dofs;
-
-   switch (dim)
-   {
-      case 1: MFEM_ABORT("Unsupported dimension."); break;
-      case 2:
-      {
-         strides = {(face_id == 0 || face_id == 2) ? 1 : pp1};
-         n_dofs = {p};
-         switch (face_id)
-         {
-            case 0: offsets = {0}; break; // y = 0
-            case 1: offsets = {p*pp1 + pp1 - 1}; break; // x = 1
-            case 2: offsets = {p*(pp1 - 1)}; break; // y = 1
-            case 3: offsets = {p*pp1}; break; // x = 0
-         }
-         break;
-      }
-      case 3:
-      {
-         n_dofs = {p, pp1, pp1, p};
-         const int n_dof_per_dim = p*pp1*pp1;
-         const auto f = GetFaceNormal3D(face_id);
-         const int face_normal = f.first, level = f.second;
-         if (face_normal == 0) // x-normal
-         {
-            offsets =
-            {
-               n_dof_per_dim + (level ? pp1 - 1 : 0),
-               2*n_dof_per_dim + (level ? pp1 - 1 : 0)
-            };
-            strides = {pp1, p*pp1, pp1, pp1*pp1};
-         }
-         else if (face_normal == 1) // y-normal
-         {
-            offsets =
-            {
-               level ? p*(pp1 - 1) : 0,
-               2*n_dof_per_dim + (level ? pp1*(pp1 - 1) : 0)
-            };
-            strides = {1, p*pp1, 1, pp1*pp1};
-         }
-         else if (face_normal == 2) // z-normal
-         {
-            offsets =
-            {
-               level ? p*pp1*(pp1 - 1) : 0,
-               n_dof_per_dim + (level ? p*pp1*(pp1 - 1) : 0)
-            };
-            strides = {1, p, 1, pp1};
-         }
-         break;
-      }
-   }
-   FillFaceMap(n_face_dofs_per_component, offsets, strides, n_dofs, face_map);
-}
-
-void GetFaceDofs_RT(const int dim, const int face_id, const int pp1,
-                    Array<int> &face_map)
-{
-   const int p = pp1 - 1;
-   int n_face_dofs = static_cast<int>(pow(p, dim - 1));
-   std::vector<int> strides, offsets;
-
-   switch (dim)
-   {
-      case 1: MFEM_ABORT("Unsupported dimension."); break;
-      case 2:
-         strides = {(face_id == 0 || face_id == 2) ? 1 : pp1};
-         switch (face_id)
-         {
-            case 0: offsets = {p*pp1}; break; // y = 0
-            case 1: offsets = {pp1 - 1}; break; // x = 1
-            case 2: offsets = {p*pp1 + p*(pp1 - 1)}; break; // y = 1
-            case 3: offsets = {0}; break; // x = 0
-         }
-         break;
-      case 3:
-      {
-         const int n_dof_per_dim = p*p*pp1;
-         const auto f = GetFaceNormal3D(face_id);
-         const int face_normal = f.first, level = f.second;
-         if (face_normal == 0) // x-normal
-         {
-            offsets = {level ? pp1 - 1 : 0};
-            strides = {pp1, p*pp1};
-         }
-         else if (face_normal == 1) // y-normal
-         {
-            offsets = {n_dof_per_dim + (level ? p*(pp1 - 1) : 0)};
-            strides = {1, p*pp1};
-         }
-         else if (face_normal == 2) // z-normal
-         {
-            offsets = {2*n_dof_per_dim + (level ? p*p*(pp1 - 1) : 0)};
-            strides = {1, p};
-         }
-         break;
-      }
-   }
-   std::vector<int> n_dofs(dim - 1, p);
-   FillFaceMap(n_face_dofs, offsets, strides, n_dofs, face_map);
-}
-
-void GetFaceDofs(const FiniteElementSpace &fes,
-                 const Mesh::FaceInformation &face,
-                 Array<int> &face_map)
-{
-   const int face_id = face.element[0].local_face_id;
-   const int dim = fes.GetMesh()->Dimension();
-   const int dof1d = fes.GetFE(0)->GetOrder() + 1;
-
-   const FiniteElementCollection *fec = fes.FEColl();
-   if (dynamic_cast<const H1_FECollection*>(fec))
-   { GetFaceDofs_H1_L2(dim, face_id, dof1d, face_map); }
-   else if (dynamic_cast<const L2_FECollection*>(fec))
-   { GetFaceDofs_H1_L2(dim, face_id, dof1d, face_map); }
-   else if (dynamic_cast<const ND_FECollection*>(fec))
-   { GetFaceDofs_ND(dim, face_id, dof1d, face_map); }
-   else if (dynamic_cast<const RT_FECollection*>(fec))
-   { GetFaceDofs_RT(dim, face_id, dof1d, face_map); }
-   else { MFEM_ABORT("Unsupported finite element space type."); }
-}
-
 H1_ND_RT_FaceRestriction::H1_ND_RT_FaceRestriction(
    const FiniteElementSpace &fes,
    const ElementDofOrdering e_ordering,
@@ -1062,7 +826,7 @@ void H1_ND_RT_FaceRestriction::SetFaceDofsScatterIndices(
    MFEM_ASSERT(face.element[0].orientation==0,
                "FaceRestriction used on degenerated mesh.");
 
-   GetFaceDofs(fes, face, face_map);
+   fes.GetFE(0)->GetFaceMap(face.element[0].local_face_id, face_map);
 
    const Table& e2dTable = fes.GetElementToDofTable();
    const int* elem_map = e2dTable.GetJ();
@@ -1092,7 +856,7 @@ void H1_ND_RT_FaceRestriction::SetFaceDofsGatherIndices(
    MFEM_ASSERT(!(face.IsNonconformingCoarse()),
                "This method should not be used on nonconforming coarse faces.");
 
-   GetFaceDofs(fes, face, face_map);
+   fes.GetFE(0)->GetFaceMap(face.element[0].local_face_id, face_map);
 
    const Table& e2dTable = fes.GetElementToDofTable();
    const int* elem_map = e2dTable.GetJ();
@@ -1662,10 +1426,8 @@ void L2FaceRestriction::SetFaceDofsScatterIndices1(
    const Table& e2dTable = fes.GetElementToDofTable();
    const int* elem_map = e2dTable.GetJ();
    const int face_id1 = face.element[0].local_face_id;
-   const int dim = fes.GetMesh()->Dimension();
-   const int dof1d = fes.GetFE(0)->GetOrder()+1;
    const int elem_index = face.element[0].index;
-   GetFaceDofs_H1_L2(dim, face_id1, dof1d, face_map); // Only for quad and hex
+   fes.GetFE(0)->GetFaceMap(face_id1, face_map);
 
    for (int face_dof_elem1 = 0; face_dof_elem1 < face_dofs; ++face_dof_elem1)
    {
@@ -1691,7 +1453,7 @@ void L2FaceRestriction::PermuteAndSetFaceDofsScatterIndices2(
    const int orientation = face.element[1].orientation;
    const int dim = fes.GetMesh()->Dimension();
    const int dof1d = fes.GetFE(0)->GetOrder()+1;
-   GetFaceDofs_H1_L2(dim, face_id2, dof1d, face_map); // Only for quad and hex
+   fes.GetFE(0)->GetFaceMap(face_id2, face_map);
 
    for (int face_dof_elem1 = 0; face_dof_elem1 < face_dofs; ++face_dof_elem1)
    {
@@ -1719,7 +1481,7 @@ void L2FaceRestriction::PermuteAndSetSharedFaceDofsScatterIndices2(
    const int orientation = face.element[1].orientation;
    const int dim = fes.GetMesh()->Dimension();
    const int dof1d = fes.GetFE(0)->GetOrder()+1;
-   GetFaceDofs_H1_L2(dim, face_id2, dof1d, face_map); // Only for quad and hex
+   fes.GetFE(0)->GetFaceMap(face_id2, face_map);
    Array<int> face_nbr_dofs;
    const ParFiniteElementSpace &pfes =
       static_cast<const ParFiniteElementSpace&>(this->fes);
@@ -1761,10 +1523,8 @@ void L2FaceRestriction::SetFaceDofsGatherIndices1(
    const Table& e2dTable = fes.GetElementToDofTable();
    const int* elem_map = e2dTable.GetJ();
    const int face_id1 = face.element[0].local_face_id;
-   const int dim = fes.GetMesh()->Dimension();
-   const int dof1d = fes.GetFE(0)->GetOrder()+1;
    const int elem_index = face.element[0].index;
-   GetFaceDofs_H1_L2(dim, face_id1, dof1d, face_map); // Only for quad and hex
+   fes.GetFE(0)->GetFaceMap(face_id1, face_map);
 
    for (int face_dof_elem1 = 0; face_dof_elem1 < face_dofs; ++face_dof_elem1)
    {
@@ -1790,7 +1550,7 @@ void L2FaceRestriction::PermuteAndSetFaceDofsGatherIndices2(
    const int orientation = face.element[1].orientation;
    const int dim = fes.GetMesh()->Dimension();
    const int dof1d = fes.GetFE(0)->GetOrder()+1;
-   GetFaceDofs_H1_L2(dim, face_id2, dof1d, face_map); // Only for quad and hex
+   fes.GetFE(0)->GetFaceMap(face_id2, face_map);
 
    for (int face_dof_elem1 = 0; face_dof_elem1 < face_dofs; ++face_dof_elem1)
    {
