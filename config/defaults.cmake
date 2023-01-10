@@ -227,11 +227,6 @@ set(MKL_LIBRARY_DIR "" CACHE STRING "Custom library subdirectory")
 
 set(OCCA_DIR "${MFEM_DIR}/../occa" CACHE PATH "Path to OCCA")
 set(RAJA_DIR "${MFEM_DIR}/../raja" CACHE PATH "Path to RAJA")
-# If RAJA is built with external CAMP:
-# set(RAJA_REQUIRED_PACKAGES "camp"
-#     CACHE STRING "Packages that RAJA depends on.")
-# set(camp_DIR "${MFEM_DIR}/../camp/lib/cmake/camp"
-#     CACHE PATH "Path to CAMP CMake files.")
 set(CEED_DIR "${MFEM_DIR}/../libCEED" CACHE PATH "Path to libCEED")
 set(UMPIRE_DIR "${MFEM_DIR}/../umpire" CACHE PATH "Path to Umpire")
 set(CALIPER_DIR "${MFEM_DIR}/../caliper" CACHE PATH "Path to Caliper")
