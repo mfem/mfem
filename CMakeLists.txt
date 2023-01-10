@@ -10,7 +10,9 @@
 # CONTRIBUTING.md for details.
 
 # The variable CMAKE_CXX_STANDARD and related were introduced in CMake v3.1
-cmake_minimum_required(VERSION 3.1)
+# Version 3.8 fixes the handling of CMAKE_CXX_STANDARD for try_compile.
+# Version 3.8 or newer is required for direct CUDA support.
+cmake_minimum_required(VERSION 3.8)
 set(USER_CONFIG "${CMAKE_CURRENT_SOURCE_DIR}/config/user.cmake" CACHE PATH
   "Path to optional user configuration file.")
 
@@ -66,8 +68,7 @@ set(XSDK_ENABLE_C OFF)
 set(XSDK_ENABLE_Fortran OFF)
 
 # Check if we need to enable C or Fortran.
-if (CMAKE_VERSION VERSION_LESS 3.2 OR
-    MFEM_USE_CONDUIT OR
+if (MFEM_USE_CONDUIT OR
     MFEM_USE_SIDRE OR
     MFEM_USE_PETSC)
    # This seems to be needed by:
@@ -81,11 +82,13 @@ if (MFEM_USE_STRUMPACK)
   # Just needed to find the MPI_Fortran libraries to link with
   set(XSDK_ENABLE_Fortran ON)
 endif()
-# SUNDIALS >= 6.4.0 requires C++14:
-if (MFEM_USE_SUNDIALS AND ("${CMAKE_CXX_STANDARD}" LESS "14"))
-  set(CMAKE_CXX_STANDARD 14)
-endif()
-if (MFEM_USE_GINKGO AND ("${CMAKE_CXX_STANDARD}" LESS "14"))
+# SUNDIALS, STRUMPACK, Ginkgo, RAJA and Umpire require C++14:
+if ((MFEM_USE_SUNDIALS OR
+     MFEM_USE_STRUMPACK OR
+     MFEM_USE_GINKGO OR
+     MFEM_USE_RAJA OR
+     MFEM_USE_UMPIRE) AND
+    ("${CMAKE_CXX_STANDARD}" LESS "14"))
   set(CMAKE_CXX_STANDARD 14)
 endif()
 
@@ -103,17 +106,12 @@ if (MFEM_USE_CUDA)
    if (MFEM_USE_HIP)
       message(FATAL_ERROR " *** MFEM_USE_HIP cannot be combined with MFEM_USE_CUDA.")
    endif()
-   # MFEM_USE_CUDA requires CMake 3.8 or newer (for direct CUDA support)
-   cmake_minimum_required(VERSION 3.8 FATAL_ERROR)
    # Use ${CMAKE_CXX_COMPILER} as the cuda host compiler.
    if (NOT CMAKE_CUDA_HOST_COMPILER)
       set(CMAKE_CUDA_HOST_COMPILER ${CMAKE_CXX_COMPILER})
    endif()
    enable_language(CUDA)
-   set(CMAKE_CUDA_STANDARD 11)
-   if (MFEM_USE_GINKGO)
-     set(CMAKE_CUDA_STANDARD 14)
-   endif()
+   set(CMAKE_CUDA_STANDARD ${CMAKE_CXX_STANDARD})
    set(CMAKE_CUDA_STANDARD_REQUIRED ON)
    set(CMAKE_CUDA_EXTENSIONS OFF)
    set(CUDA_FLAGS "--expt-extended-lambda")
@@ -199,6 +197,26 @@ if (MFEM_USE_HIP)
   find_package(HIPSPARSE REQUIRED)
 endif()
 
+# OpenMP
+if (MFEM_USE_OPENMP OR MFEM_USE_LEGACY_OPENMP)
+  if (NOT MFEM_THREAD_SAFE AND MFEM_USE_LEGACY_OPENMP)
+    message(FATAL_ERROR " *** MFEM_USE_LEGACY_OPENMP requires MFEM_THREAD_SAFE=ON.")
+  endif()
+  find_package(OpenMP REQUIRED)
+  set(OPENMP_LIBRARIES ${OpenMP_CXX_LIBRARIES})
+  if(APPLE)
+    # On macOS, the compiler needs additional help to find the <omp.h> header.
+    # See issue #2642 for more information.
+    set(OPENMP_INCLUDE_DIRS ${OpenMP_CXX_INCLUDE_DIRS})
+  endif(APPLE)
+  if (OPENMP_FOUND)
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
+    if (MFEM_USE_CUDA)
+      set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -Xcompiler=${OpenMP_CXX_FLAGS}")
+    endif()
+  endif()
+endif()
+
 # MPI -> hypre; PETSc (optional)
 if (MFEM_USE_MPI)
   find_package(MPI REQUIRED)
@@ -262,20 +280,6 @@ endif()
 if (MFEM_USE_LAPACK)
   find_package(BLAS REQUIRED)
   find_package(LAPACK REQUIRED)
-endif()
-
-# OpenMP
-if (MFEM_USE_OPENMP OR MFEM_USE_LEGACY_OPENMP)
-  if (NOT MFEM_THREAD_SAFE AND MFEM_USE_LEGACY_OPENMP)
-    message(FATAL_ERROR " *** MFEM_USE_LEGACY_OPENMP requires MFEM_THREAD_SAFE=ON.")
-  endif()
-  find_package(OpenMP REQUIRED)
-  set(OPENMP_LIBRARIES ${OpenMP_CXX_LIBRARIES})
-  if(APPLE)
-    # On macOS, the compiler needs additional help to find the <omp.h> header.
-    # See issue #2642 for more information.
-    set(OPENMP_INCLUDE_DIRS ${OpenMP_CXX_INCLUDE_DIRS})
-  endif(APPLE)
 endif()
 
 # SuiteSparse (before SUNDIALS which may depend on KLU)
@@ -483,6 +487,10 @@ endif()
 #   an ALIAS target is missing?
 # Call Stack (most recent call first):
 #   CMakeLists.txt:474 (mfem_add_library)
+#
+# NOTE: We need to figure out which TPL library adds the dependency on
+#       "Threads::Threads" and call the next line only when that TPL library is
+#       enabled.  -V. Dobrev
 find_package(Threads REQUIRED)
 
 # List all possible libraries in order of dependencies.
@@ -490,8 +498,8 @@ find_package(Threads REQUIRED)
 #    With newer versions of SuiteSparse which include METIS header using 64-bit
 #    integers, the METIS header (with 32-bit indices, as used by mfem) needs to
 #    be before SuiteSparse.
-set(MFEM_TPLS OPENMP HYPRE LAPACK BLAS SuperLUDist METIS SuiteSparse SUNDIALS
-    PETSC SLEPC MUMPS STRUMPACK AXOM FMS CONDUIT Ginkgo GNUTLS GSLIB
+set(MFEM_TPLS OPENMP HYPRE LAPACK BLAS SuperLUDist STRUMPACK METIS SuiteSparse
+    SUNDIALS PETSC SLEPC MUMPS AXOM FMS CONDUIT Ginkgo GNUTLS GSLIB
     NETCDF MPFR PUMI HIOP POSIXCLOCKS MFEMBacktrace ZLIB OCCA CEED RAJA UMPIRE
     ADIOS2 CUBLAS CUSPARSE MKL_CPARDISO AMGX CALIPER CODIPACK BENCHMARK PARELAG
     MPI_CXX HIP HIPSPARSE MOONOLITH BLITZ ALGOIM ENZYME)
@@ -506,17 +514,11 @@ foreach(TPL IN LISTS MFEM_TPLS)
     list(APPEND TPL_INCLUDE_DIRS ${${TPL}_INCLUDE_DIRS})
   endif()
 endforeach(TPL)
+list(REVERSE TPL_LIBRARIES)
 list(REMOVE_DUPLICATES TPL_LIBRARIES)
+list(REVERSE TPL_LIBRARIES)
 list(REMOVE_DUPLICATES TPL_INCLUDE_DIRS)
 # message(STATUS "TPL_INCLUDE_DIRS = ${TPL_INCLUDE_DIRS}")
-
-if (OPENMP_FOUND)
-  message(STATUS "MFEM: using package OpenMP")
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
-  if (MFEM_USE_CUDA)
-    set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -Xcompiler=${OpenMP_CXX_FLAGS}")
-  endif()
-endif()
 
 message(STATUS "MFEM build type: CMAKE_BUILD_TYPE = ${CMAKE_BUILD_TYPE}")
 message(STATUS "MFEM version: v${MFEM_VERSION_STRING}")

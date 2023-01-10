@@ -255,7 +255,7 @@ protected:
 
 public:
    /// Enumeration for range_type and deriv_range_type
-   enum RangeType { SCALAR, VECTOR };
+   enum RangeType { UNKNOWN_RANGE_TYPE = -1, SCALAR, VECTOR };
 
    /** @brief Enumeration for MapType: defines how reference functions are
        mapped to physical space.
@@ -269,6 +269,8 @@ public:
    */
    enum MapType
    {
+      UNKNOWN_MAP_TYPE = -1, /**< Used to distinguish an unset MapType variable
+                                  from the known values below. */
       VALUE,     /**< For scalar fields; preserves point values
                           \f$ u(x) = \hat u(\hat x) \f$ */
       INTEGRAL,  /**< For scalar fields; preserves volume integrals
@@ -1074,12 +1076,22 @@ public:
    // { CalcLegendre(p, x, u); }
    { CalcChebyshev(p, x, u); }
 
+   /** @brief Evaluate the values of a hierarchical 1D basis at point x
+       hierarchical = k-th basis function is degree k polynomial */
+   static void CalcBasis(const int p, const double x, Vector &u)
+   { CalcBasis(p, x, u.GetData()); }
+
    /// Evaluate the values and derivatives of a hierarchical 1D basis at point @a x
    static void CalcBasis(const int p, const double x, double *u, double *d)
    // { CalcMono(p, x, u, d); }
    // { CalcBernstein(p, x, u, d); }
    // { CalcLegendre(p, x, u, d); }
    { CalcChebyshev(p, x, u, d); }
+
+   /** @brief Evaluate the values and derivatives of a hierarchical 1D basis at
+       point @a x. */
+   static void CalcBasis(const int p, const double x, Vector &u, Vector &d)
+   { CalcBasis(p, x, u.GetData(), d.GetData()); }
 
    /// Evaluate the values, derivatives and second derivatives of a hierarchical 1D basis at point x
    static void CalcBasis(const int p, const double x, double *u, double *d,
@@ -1088,6 +1100,12 @@ public:
    // { CalcBernstein(p, x, u, d); }
    // { CalcLegendre(p, x, u, d); }
    { CalcChebyshev(p, x, u, d, dd); }
+
+   /** @brief Evaluate the values, derivatives and second derivatives of a
+       hierarchical 1D basis at point @a x. */
+   static void CalcBasis(const int p, const double x, Vector &u, Vector &d,
+                         Vector &dd)
+   { CalcBasis(p, x, u.GetData(), d.GetData(), dd.GetData()); }
 
    /// Evaluate a representation of a Delta function at point x
    static double CalcDelta(const int p, const double x)
@@ -1118,11 +1136,23 @@ public:
    static void CalcBernstein(const int p, const double x, double *u)
    { CalcBinomTerms(p, x, 1. - x, u); }
 
+   /** @brief Compute the values of the Bernstein basis functions of order
+       @a p at coordinate @a x and store the results in the already allocated
+       @a u array. */
+   static void CalcBernstein(const int p, const double x, Vector &u)
+   { CalcBernstein(p, x, u.GetData()); }
+
    /** @brief Compute the values and derivatives of the Bernstein basis functions
        of order @a p at coordinate @a x and store the results in the already allocated
        @a u and @a d arrays. */
    static void CalcBernstein(const int p, const double x, double *u, double *d)
    { CalcBinomTerms(p, x, 1. - x, u, d); }
+
+   /** @brief Compute the values and derivatives of the Bernstein basis
+       functions of order @a p at coordinate @a x and store the results in the
+       already allocated @a u and @a d arrays. */
+   static void CalcBernstein(const int p, const double x, Vector &u, Vector &d)
+   { CalcBernstein(p, x, u.GetData(), d.GetData()); }
 
    static void CalcLegendre(const int p, const double x, double *u);
    static void CalcLegendre(const int p, const double x, double *u, double *d);

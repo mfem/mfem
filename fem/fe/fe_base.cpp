@@ -649,7 +649,7 @@ void InvertLinearTrans(ElementTransformation &trans,
 
    double store[3];
    Vector v(store, x.Size());
-   pt.Get(v, x.Size());
+   pt.Get(store, x.Size());
    v -= x;
 
    trans.InverseJacobian().Mult(v, x);
@@ -988,8 +988,8 @@ void VectorFiniteElement::Project_RT(
    {
       Trans.SetIntPoint(&Nodes.IntPoint(k));
       // dof_k = nk^t adj(J) xk
-      Vector vk(vc.GetData()+k*sdim, sdim);
-      dofs(k) = Trans.AdjugateJacobian().InnerProduct(vk, nk + d2n[k]*dim);
+      dofs(k) = Trans.AdjugateJacobian().InnerProduct(
+                   &vc[k*sdim], nk + d2n[k]*dim);
       if (!square_J) { dofs(k) /= Trans.Weight(); }
    }
 }
@@ -1205,9 +1205,8 @@ void VectorFiniteElement::Project_ND(
    for (int k = 0; k < dof; k++)
    {
       Trans.SetIntPoint(&Nodes.IntPoint(k));
-      Vector vk(vc.GetData()+k*dim, dim);
       // dof_k = xk^t J tk
-      dofs(k) = Trans.Jacobian().InnerProduct(tk + d2t[k]*dim, vk);
+      dofs(k) = Trans.Jacobian().InnerProduct(tk + d2t[k]*dim, &vc[k*dim]);
    }
 }
 
@@ -1354,7 +1353,7 @@ void VectorFiniteElement::LocalL2Projection_RT(
       double w = ip.weight;
       this->CalcVShape(ip, fine_shape);
       Trans.Transform(ip, v);
-      tr_ip.Set(v, dim);
+      tr_ip.Set(v.GetData(), dim);
       cfe.CalcVShape(tr_ip, coarse_shape);
 
       AddMult_a_AAt(w, fine_shape, fine_mass);
@@ -1441,7 +1440,7 @@ void VectorFiniteElement::LocalL2Projection_ND(
       const IntegrationPoint &ip = ir.IntPoint(i);
       this->CalcVShape(ip, fine_shape);
       Trans.Transform(ip, v);
-      tr_ip.Set(v, dim);
+      tr_ip.Set(v.GetData(), dim);
       cfe.CalcVShape(tr_ip, coarse_shape);
 
       AddMult_a_AAt(ip.weight, fine_shape, fine_mass);
