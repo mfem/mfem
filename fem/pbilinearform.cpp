@@ -514,10 +514,10 @@ void ParBilinearForm::Update(FiniteElementSpace *nfes)
 {
    BilinearForm::Update(nfes);
 
-   if (X.ParFESpace() !=NULL)
+   if (Xaux.ParFESpace() !=NULL)
    {
-       X.Update();
-       Y.Update();
+       Xaux.Update();
+       Yaux.Update();
    }
 
    if (nfes)

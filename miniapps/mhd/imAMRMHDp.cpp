@@ -17,7 +17,6 @@
 #include "PCSolver.hpp"
 #include "InitialConditions.hpp"
 #include "AMRupdate.hpp"
-#include "../navier/ortho_solver.hpp"
 #include <memory>
 #include <iostream>
 #include <fstream>
@@ -726,7 +725,7 @@ int main(int argc, char *argv[])
    HypreSmoother *M_prec;
    HypreBoomerAMG *K_amg;
    CGSolver *K_pcg;
-   mfem::navier::OrthoSolver *SpInvOrthoPC;
+   OrthoSolver *SpInvOrthoPC;
    Vector vtrue, rhs, vJxB;
    VectorDomainLFIntegrator *domainJxB;
    bool vfes_match=false;
@@ -851,8 +850,8 @@ int main(int argc, char *argv[])
       K_amg = new HypreBoomerAMG(*KMat);
       K_amg->SetPrintLevel(0);
       K_pcg = new CGSolver(MPI_COMM_WORLD);
-      SpInvOrthoPC = new mfem::navier::OrthoSolver(MPI_COMM_WORLD);
-      SpInvOrthoPC->SetOperator(*K_amg);
+      SpInvOrthoPC = new OrthoSolver(MPI_COMM_WORLD);
+      SpInvOrthoPC->SetSolver(*K_amg);
       K_pcg->SetOperator(*KMat);
       K_pcg->iterative_mode = false;
       K_pcg->SetRelTol(1e-7);
@@ -1329,8 +1328,8 @@ int main(int argc, char *argv[])
                 K_amg = new HypreBoomerAMG(*KMat);
                 K_amg->SetPrintLevel(0);
                 K_pcg = new CGSolver(MPI_COMM_WORLD);
-                SpInvOrthoPC = new mfem::navier::OrthoSolver(MPI_COMM_WORLD);
-                SpInvOrthoPC->SetOperator(*K_amg);
+                SpInvOrthoPC = new OrthoSolver(MPI_COMM_WORLD);
+                SpInvOrthoPC->SetSolver(*K_amg);
                 K_pcg->SetOperator(*KMat);
                 K_pcg->iterative_mode = false;
                 K_pcg->SetRelTol(1e-7);
