@@ -12,6 +12,10 @@
 add_mfem_miniapp(nurbs_ex1
   MAIN nurbs_ex1.cpp
   LIBRARIES mfem)
+  
+add_mfem_miniapp(nurbs_naca_cmesh
+  MAIN nurbs_naca_cmesh.cpp
+  LIBRARIES mfem)
 
 if (MFEM_ENABLE_TESTING)
   add_test(NAME nurbs_ex1_r0_o4_ser
@@ -61,6 +65,11 @@ if (MFEM_ENABLE_TESTING)
     COMMAND $<TARGET_FILE:nurbs_ex1> -no-vis
     -m ${PROJECT_SOURCE_DIR}/data/two-squares-nurbs-rot.mesh -o 1 -r 0 
     -rf ${PROJECT_SOURCE_DIR}/data/two-squares.ref)
+    
+    add_test(NAME nurbs_naca_cmesh_fine
+    COMMAND $<TARGET_FILE:nurbs_naca_cmesh> -ntail 80 
+    -nrad 80 -ntip 20 -nwake 40 -sw 2.0 -srad 2.5 -stail 1.0 -stip 1.1 -aoa 3)
+
 endif()
 
 if (MFEM_USE_MPI)
