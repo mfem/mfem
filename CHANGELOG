@@ -8,8 +8,6 @@
                                https://mfem.org
 
 
-
-
 Version 4.5.1 (development)
 ===========================
 
@@ -36,6 +34,9 @@ Integrations, testing and documentation
 - Removed the support for the Mesquite toolkit. We recommend using MFEM's TMOP
   functionality instead for mesh optimization. See the mesh-optimizer miniapp.
 
+- The following integrations have updated minimum version requirements:
+  * RAJA >= 2022.10.3
+
 Miscellaneous
 -------------
 - VisItDataCollection now correctly handles collection names containing
@@ -52,6 +53,9 @@ API changes
   have been deprecated and generate deprecation warnings if used. They will be
   removed in a future release.
 
+- The methods Mesh::GetFaceBaseGeometry and Mesh::GetFaceGeometryType have been
+  deprecated, and Mesh::GetFaceGeometry (which provides identical functionality)
+  should be used instead.
 
 Version 4.5, released on October 22, 2022
 =========================================
