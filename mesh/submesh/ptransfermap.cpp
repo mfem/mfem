@@ -33,17 +33,17 @@ ParTransferMap::ParTransferMap(const ParGridFunction &src,
 
       // There is no immediate relation and both src and dst come from a
       // SubMesh, check if they have an equivalent root parent.
-      if (SubMeshUtils::GetRootParent<ParSubMesh, ParMesh>(*src_sm) !=
-          SubMeshUtils::GetRootParent<ParSubMesh, ParMesh>(*dst_sm))
+      if (SubMeshUtils::GetRootParent(*src_sm) !=
+          SubMeshUtils::GetRootParent(*dst_sm))
       {
          MFEM_ABORT("Can't find a relation between the two GridFunctions");
       }
 
       category_ = TransferCategory::SubMeshToSubMesh;
 
-      root_fes_ = new ParFiniteElementSpace(*src.ParFESpace(),
-                                            *const_cast<ParMesh *>(SubMeshUtils::GetRootParent<ParSubMesh, ParMesh>
-                                                                   (*src_sm)));
+      root_fes_.reset(new ParFiniteElementSpace(
+                         *src.ParFESpace(),
+                         *const_cast<ParMesh *>(SubMeshUtils::GetRootParent(*src_sm))));
       subfes1 = src.ParFESpace();
       subfes2 = dst.ParFESpace();
 
@@ -212,11 +212,6 @@ void ParTransferMap::CommunicateSharedVdofs(Vector &f) const
    }
 
    root_gc_->Bcast<double>(f.HostReadWrite());
-}
-
-ParTransferMap::~ParTransferMap()
-{
-   delete root_fes_;
 }
 
 #endif // MFEM_USE_MPI
