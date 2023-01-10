@@ -778,7 +778,7 @@ public:
    /** Eliminate rows and columns from the matrix and store the eliminated
        elements in a new matrix Ae (returned), so that the modified matrix and
        Ae sum to the original matrix. */
-   HypreParMatrix* EliminateRowsCols(const Array<int> &rows_cols);
+   HypreParMatrix* EliminateRowsCols(const Array<int> &rows_cols, int diag=1);
 
    /** Eliminate columns from the matrix and store the eliminated elements in a
        new matrix Ae (returned) so that the modified matrix and Ae sum to the

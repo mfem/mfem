@@ -1,0 +1,95 @@
+11/1
+mesh descripition:
+https://github.com/mfem/mfem/issues/205
+
+10/29
+CalcDShape in fem/fe.cpp
+
+10/27
+>>>>>>
+ex19
+block offset is a collection of last index in the large vector for each block
+
+check out:
+IncompressibleNeoHookeanIntegrator
+
+>>>>>>
+ex10: solve a time-dependent nonlinear elasticity
+it builds the Jacobian matrix
+it uses Newtion
+
+check nonlinear form:
+HyperelasticNLFIntegrator
+
+basic structure:
+ode_solver->HyperelasticOperator->newton_solver(reduced_oper)->j_solver(Jacobian)
+
+===MODEL===
+see http://mfem.github.io/doxygen/html/classmfem_1_1NeoHookeanModel.html
+
+===SOLVER===
+there is a sundial example 10 (using kinsol)/
+it does not hurt to see....
+it is not using JFNK through.
+
+where the Jacobian is used?? 
+By default, it is used in newton solver (linalg/solver.cpp). That is why jsolver only needs preconditioner.
+
+
+>>>>>>
+ex1: solve -\Delta u=1
+apply boundary condition, which could be a mass for us:
+   if (mesh->bdr_attributes.Size())
+   {
+      Array<int> ess_bdr(mesh->bdr_attributes.Max());
+      ess_bdr = 1;
+      fespace->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
+   }
+
+check bilinear form:
+a->AddDomainIntegrator(new DiffusionIntegrator(one));
+
+10/24
+this is useful (basic classes):
+http://mfem.org/code-overview/#mesh
+
+bilinear form (very helpful!)
+http://mfem.org/bilininteg/
+
+some thing I need:
+CalcDivShape (probably not, unless we use some fancy space)
+CalcDShape
+CalcShape
+
+10/3
+There is already a wrapper to KINSOL. Will that be enough if we add our own preconditioner? Or it is better to implement our own. We probably cannot use the multigrid in the algorithm.
+
+ex2 is a basic linear elasticity example: H1 or NURBS elements; How to add boundary as an extra degree of freedoms; 
+ex5 is a saddle point problem: visit output (very easy)
+
+10/2
+ex19.cpp
+ex19 -m ../data/beam-quad.mesh
+glvis -m deform.mesh -g pressure.sol
+glvis -m deform.mesh -g deformation.sol
+
+H1_FECollection lin_coll(order-1, dim); 
+should dim=1??: No, here is just define a scalar value
+
+should read ex2 ex5 and ex10
+
+>>>>>>
+ex2.cpp
+Do not know static condensation
+this problem requires two boundary attibutes in the mesh (come with the grid generator)
+
+This part is not clear (boundary condition)
+   ess_bdr = 0;
+   ess_bdr[0] = 1;
+   fespace->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
+
+I think the boundary condition may not be the same as it claims
+
+9/30
+run ex1
+../../glvis-3.4/glvis -m refined.mesh -g sol.gf

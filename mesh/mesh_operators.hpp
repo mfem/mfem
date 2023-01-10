@@ -183,6 +183,9 @@ protected:
    double total_fraction;
    double local_err_goal;
    long long max_elements;
+   long   amr_levels, xRange_levels, yRange_levels;
+   bool   yRange, xRange;
+   double xmin, xmax, ymin, ymax;
 
    double threshold;
    long long num_marked_elements;
@@ -232,6 +235,14 @@ public:
        LONG_MAX. */
    void SetMaxElements(long long max_elem) { max_elements = max_elem; }
 
+   void SetXRange(double xmin_, double xmax_, int levels=0) 
+   { xRange=true; xmin=xmin_; xmax=xmax_; xRange_levels=levels;}
+
+   void SetYRange(double ymin_, double ymax_, int levels=0) 
+   { yRange=true; ymin=ymin_; ymax=ymax_; yRange_levels=levels; }
+
+   void SetMaximumRefinementLevel(long levels) { amr_levels = levels; }
+
    /// Use nonconforming refinement, if possible (triangles, quads, hexes).
    void PreferNonconformingRefinement() { non_conforming = 1; }
 
@@ -275,6 +286,8 @@ protected:
 
    double threshold;
    int nc_limit, op;
+   double total_norm_p;
+   double total_fraction;
 
    /** @brief Apply the operator to the mesh.
        @return DEREFINED + CONTINUE if some elements were de-refined; NONE
@@ -289,6 +302,8 @@ public:
       threshold = 0.0;
       nc_limit = 0;
       op = 1;
+      total_fraction = 0.;
+      total_norm_p = infinity();
    }
 
    // default destructor (virtual)
@@ -297,6 +312,14 @@ public:
    void SetThreshold(double thresh) { threshold = thresh; }
 
    void SetOp(int oper) { op = oper; }
+
+   // total_fraction is turned off by default
+   void SetTotalErrorFraction(double fraction) { total_fraction = fraction; }
+
+   void SetTotalErrorNormP(double norm_p = infinity())
+   { total_norm_p = norm_p; }
+
+   double GetNorm(const Vector &local_err, Mesh &mesh) const;
 
    /** @brief Set the maximum ratio of refinement levels of adjacent elements
        (0 = unlimited). */

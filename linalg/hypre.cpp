@@ -2284,7 +2284,7 @@ void HypreParMatrix::EliminateRowsCols(const Array<int> &rows_cols,
       A, rc_sorted.Size(), rc_sorted.GetData(), x, b);
 }
 
-HypreParMatrix* HypreParMatrix::EliminateRowsCols(const Array<int> &rows_cols)
+HypreParMatrix* HypreParMatrix::EliminateRowsCols(const Array<int> &rows_cols, int diag)
 {
    Array<HYPRE_Int> rc_sorted;
    get_sorted_rows_cols(rows_cols, rc_sorted);
@@ -2292,7 +2292,7 @@ HypreParMatrix* HypreParMatrix::EliminateRowsCols(const Array<int> &rows_cols)
    hypre_ParCSRMatrix* Ae;
    HostReadWrite();
    internal::hypre_ParCSRMatrixEliminateAAe(
-      A, &Ae, rc_sorted.Size(), rc_sorted.GetData());
+      A, &Ae, rc_sorted.Size(), rc_sorted.GetData(), 0, diag);
    HypreRead();
 
    return new HypreParMatrix(Ae, true);

@@ -1,0 +1,45 @@
+# matrix-free Jacobian action, full preconditioner constructed using PetscPreconditionerFactory
+# this is for refinement study (wave)
+-snes_monitor
+-snes_mf_operator
+-snes_max_it 20
+-snes_rtol 2e-8
+-snes_stol 0.
+-snes_converged_reason 
+-snes_linesearch_type l2
+-snes_view
+-snes_max_fail 100
+-snes_max_linear_solve_fail 5
+-snes_view
+#
+-snes_ksp_ew
+-snes_ksp_ew_version 3
+-snes_ksp_ew_rtol0 0.1
+-snes_ksp_ew_rtolmax 0.9
+-snes_ksp_ew_gamma 0.9
+-snes_ksp_ew_alpha 1.5
+-snes_ksp_ew_alpha2 1.5
+-snes_ksp_ew_threshold 0.1
+#
+#======matrix free parameters (this is important for some cases)======
+-mat_mffd_err 1e-2
+-ksp_type fgmres
+-ksp_converged_reason
+#-ksp_monitor_true_residual
+#======Stiffness matrix======
+-s1_ksp_rtol 1e-8
+-s1_ksp_type cg
+-s1_pc_type hypre
+#======Schur matrix======
+-s2_ksp_rtol 1e-7
+-s2_ksp_type gmres
+-s2_pc_type hypre
+-s2_ksp_converged_reason
+#======Mass matrix======
+-s3_ksp_rtol 1e-8
+-s3_ksp_type cg
+#======ARe matrix======
+-s4_ksp_rtol 1e-8
+-s4_ksp_type gmres
+-s4_pc_type hypre
+-s4_ksp_converged_reason

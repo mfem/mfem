@@ -60,6 +60,15 @@ ThresholdRefiner::ThresholdRefiner(ErrorEstimator &est)
    total_fraction = 0.5;
    local_err_goal = 0.0;
    max_elements = std::numeric_limits<long long>::max();
+   amr_levels=max_elements;
+   xRange_levels=max_elements; //if xRange_levels is trun on, it will ignore xRang if levels<xRange_levels
+   xRange=false;
+   yRange_levels=max_elements;
+   yRange=false;
+   xmax=std::numeric_limits<double>::max();
+   ymax=xmax;
+   xmin=std::numeric_limits<double>::lowest();
+   ymin=xmin;
 
    threshold = 0.0;
    num_marked_elements = 0LL;
@@ -95,6 +104,37 @@ int ThresholdRefiner::ApplyImpl(Mesh &mesh)
    const Vector &local_err = estimator.GetLocalErrors();
    MFEM_ASSERT(local_err.Size() == NE, "invalid size of local_err");
 
+   double vert[3];
+   double yMean, xMean;
+   long elementLevel;
+
+   /*
+   // the local err is set to be 0 if it is in the x range and the elementLevel reaches the 
+   // maximal levels that xRange allows (so refinement will skip that)
+   if (xRange && mesh.Nonconforming())
+   {
+      Vector &local_err_ = const_cast<Vector &>(local_err);
+      FiniteElementSpace * fes = mesh.GetNodes()->FESpace();
+      Array<int> dofs;
+      for (int el = 0; el < NE; el++)
+      {
+        fes->GetElementDofs(el, dofs);
+        int ndof=dofs.Size();
+        xMean=0.0;
+        elementLevel=mesh.ncmesh->GetElementDepth(el);
+        for (int j = 0; j < ndof; j++)
+        {
+           mesh.GetNode(dofs[j], vert);
+           xMean+=vert[0];
+        }
+        xMean=xMean/ndof;
+        
+        if ((xMean<=xmin || xMean>=xmax) && elementLevel==xRange_levels)
+           local_err_(el) =0.;
+      }
+   }
+   */
+
    const double total_err = GetNorm(local_err, mesh);
    if (total_err <= total_err_goal) { return STOP; }
 
@@ -109,11 +149,53 @@ int ThresholdRefiner::ApplyImpl(Mesh &mesh)
       threshold = std::max(total_err * total_fraction, local_err_goal);
    }
 
+
    for (int el = 0; el < NE; el++)
-   {
-      if (local_err(el) > threshold)
+   { 
+      if ((yRange || xRange) && mesh.Nonconforming())
       {
-         marked_elements.Append(Refinement(el));
+        FiniteElementSpace * fes = mesh.GetNodes()->FESpace();
+        Array<int> dofs;
+        fes->GetElementDofs(el, dofs);
+        int ndof=dofs.Size();
+        yMean=0.0;
+        xMean=0.0;
+        for (int j = 0; j < ndof; j++)
+        {
+           mesh.GetNode(dofs[j], vert);
+           yMean+=vert[1];
+           xMean+=vert[0];
+        }
+        yMean=yMean/ndof;
+        xMean=xMean/ndof;
+
+        elementLevel=mesh.ncmesh->GetElementDepth(el);
+        
+        if (local_err(el) > threshold && elementLevel < amr_levels &&
+            mesh.ncmesh->GetElementDepth(el) < amr_levels && 
+            ((yMean>ymin && yMean<ymax) || elementLevel<yRange_levels) &&
+            ((xMean>xmin && xMean<xmax) || elementLevel<xRange_levels)
+            )
+        {
+           marked_elements.Append(Refinement(el));
+        }
+
+      }
+      else if (mesh.Nonconforming())
+      {
+        //std::cout <<"el="<<el<<" level="<<mesh.ncmesh->GetElementDepth(el)<< '\n';
+        if (local_err(el) > threshold && 
+            mesh.ncmesh->GetElementDepth(el) < amr_levels)
+        {
+           marked_elements.Append(Refinement(el));
+        }
+      }
+      else
+      {
+        if (local_err(el) > threshold )
+        {
+           marked_elements.Append(Refinement(el));
+        }
       }
    }
 
@@ -145,13 +227,29 @@ void ThresholdRefiner::Reset()
    // marked_elements.SetSize(0); // not necessary
 }
 
+double ThresholdDerefiner::GetNorm(const Vector &local_err, Mesh &mesh) const
+{
+#ifdef MFEM_USE_MPI
+
+   ParMesh *pmesh = dynamic_cast<ParMesh*>(&mesh);
+   if (pmesh)
+   {
+      return ParNormlp(local_err, total_norm_p, pmesh->GetComm());
+   }
+#endif
+   return local_err.Normlp(total_norm_p);
+}
 
 int ThresholdDerefiner::ApplyImpl(Mesh &mesh)
 {
    if (mesh.Conforming()) { return NONE; }
 
    const Vector &local_err = estimator.GetLocalErrors();
-   bool derefs = mesh.DerefineByError(local_err, threshold, nc_limit, op);
+
+   const double total_err = GetNorm(local_err, mesh);
+   const double true_threshold = std::max(total_err * total_fraction, threshold);
+
+   bool derefs = mesh.DerefineByError(local_err, true_threshold, nc_limit, op);
 
    return derefs ? CONTINUE + DEREFINED : NONE;
 }
