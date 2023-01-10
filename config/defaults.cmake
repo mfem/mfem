@@ -30,7 +30,6 @@ option(MFEM_USE_OPENMP "Enable the OpenMP backend" OFF)
 option(MFEM_USE_LEGACY_OPENMP "Enable legacy OpenMP usage" OFF)
 option(MFEM_USE_MEMALLOC "Enable the internal MEMALLOC option." ON)
 option(MFEM_USE_SUNDIALS "Enable SUNDIALS usage" OFF)
-option(MFEM_USE_MESQUITE "Enable MESQUITE usage" OFF)
 option(MFEM_USE_SUITESPARSE "Enable SuiteSparse usage" OFF)
 option(MFEM_USE_SUPERLU "Enable SuperLU_DIST usage" OFF)
 option(MFEM_USE_SUPERLU5 "Use the old SuperLU_DIST 5.1 version" OFF)
@@ -124,9 +123,6 @@ set(SUNDIALS_DIR "${MFEM_DIR}/../sundials-5.0.0/instdir" CACHE PATH
 # set(SUNDIALS_REQUIRED_PACKAGES "SuiteSparse/KLU/AMD/BTF/COLAMD/config"
 #     CACHE STRING "Additional packages required by SUNDIALS.")
 
-set(MESQUITE_DIR "${MFEM_DIR}/../mesquite-2.99" CACHE PATH
-    "Path to the Mesquite library.")
-
 set(SuiteSparse_DIR "${MFEM_DIR}/../SuiteSparse" CACHE PATH
     "Path to the SuiteSparse library.")
 set(SuiteSparse_REQUIRED_PACKAGES "BLAS" "METIS"
@@ -188,6 +184,7 @@ set(GNUTLS_DIR "" CACHE PATH "Path to the GnuTLS library.")
 
 set(GSLIB_DIR "" CACHE PATH "Path to the GSLIB library.")
 
+set(HDF5_DIR "/usr" CACHE PATH "Path to the HDF5 library.")
 set(NETCDF_DIR "" CACHE PATH "Path to the NetCDF library.")
 set(NetCDF_REQUIRED_PACKAGES "HDF5/C/HL" CACHE STRING
     "Additional packages required by NetCDF.")
@@ -230,11 +227,6 @@ set(MKL_LIBRARY_DIR "" CACHE STRING "Custom library subdirectory")
 
 set(OCCA_DIR "${MFEM_DIR}/../occa" CACHE PATH "Path to OCCA")
 set(RAJA_DIR "${MFEM_DIR}/../raja" CACHE PATH "Path to RAJA")
-# If RAJA is built with external CAMP:
-# set(RAJA_REQUIRED_PACKAGES "camp"
-#     CACHE STRING "Packages that RAJA depends on.")
-# set(camp_DIR "${MFEM_DIR}/../camp/lib/cmake/camp"
-#     CACHE PATH "Path to CAMP CMake files.")
 set(CEED_DIR "${MFEM_DIR}/../libCEED" CACHE PATH "Path to libCEED")
 set(UMPIRE_DIR "${MFEM_DIR}/../umpire" CACHE PATH "Path to Umpire")
 set(CALIPER_DIR "${MFEM_DIR}/../caliper" CACHE PATH "Path to Caliper")
