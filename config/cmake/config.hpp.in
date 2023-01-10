@@ -190,4 +190,8 @@
 // Enable Enzyme for AD
 #cmakedefine MFEM_USE_ENZYME
 
+// Enable MAGMA linear algebra package
+#cmakedefine MFEM_USE_MAGMA
+
+
 #endif // MFEM_CONFIG_HEADER
