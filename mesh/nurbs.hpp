@@ -67,6 +67,15 @@ public:
    void CalcD2Shape(Vector &grad2, int i, double xi) const
    { CalcDnShape(grad2, 2, i, xi); }
 
+   /** Gives the locations of the maxima of the knotvector in reference space. The
+      function gives the knotspan @a ks, the coordinate in the knotspan @a xi
+      and the coordinate of the maximum in parameter space @a u */
+   void FindMaxima(Array<int> &ks, Vector &xi, Vector &u);
+   /** Global curve interpolation through the points @a x. @a x is an array with the
+      length of the spatial dimension containing vectors with spatial coordinates. The
+      controlpoints of the interpolated curve are given in @a x in the same form.*/
+   void FindInterpolant(Array<Vector*> &x);
+
    void Difference(const KnotVector &kv, Vector &diff) const;
    void UniformRefinement(Vector &newknots) const;
    /** Return a new KnotVector with elevated degree by repeating the endpoints
