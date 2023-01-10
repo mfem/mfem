@@ -856,7 +856,6 @@ H1_ND_RT_FaceRestriction::H1_ND_RT_FaceRestriction(
    CheckFESpace(e_ordering);
 
    // Get the mapping from native DOF ordering to lexicographic ordering.
-   // For certain types of elements
    const FiniteElement *fe = fes.GetFE(0);
    const TensorBasisElement* el =
       dynamic_cast<const TensorBasisElement*>(fe);
@@ -867,8 +866,9 @@ H1_ND_RT_FaceRestriction::H1_ND_RT_FaceRestriction(
    }
    else
    {
-      // dof_map_ is empty, in this case that means the element is already
-      // ordered lexicographically, so the permutation is the identity.
+      // For certain types of elements dof_map_ is empty, in this case that
+      // means the element is already ordered lexicographically, so the
+      // permutation is the identity.
       dof_map.SetSize(elem_dofs);
       for (int i = 0; i < elem_dofs; ++i) { dof_map[i] = i; }
    }
