@@ -602,7 +602,7 @@ void L2ElementRestriction::FillJAndData(const Vector &ea_data,
 /// Nedelec elements, where the face DOFs have two components to span the
 /// tangent space).
 ///
-/// The DOFs for the ith vector component begin at offsets[i] (i.e. the number
+/// The DOFs for the i-th vector component begin at offsets[i] (i.e. the number
 /// of vector components is given by offsets.size()).
 ///
 /// The DOFs for each vector component are arranged in a Cartesian grid defined
