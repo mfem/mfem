@@ -118,7 +118,7 @@ double NACA4::xl(double l)
 
 // Function that finds the coordinates of the controlpoins of the tip of the foil section @a xy
 // based on the @a foil_section, knotvector @a kv and tip fraction @a tf
-// We have two cases, one with an odd number of controlpoints and one with an even number of
+// We have two cases, with an odd number of controlpoints and with an even number of
 // controlpoints. These may be streamlined in the future?
 void GetTipXY(NACA4 foil_section, KnotVector *kv, double tf, Array<Vector*> &xy)
 {
@@ -136,8 +136,7 @@ void GetTipXY(NACA4 foil_section, KnotVector *kv, double tf, Array<Vector*> &xy)
    int n = ncp/2;
    if (ncp % 2)
    {
-      // Find arc lengths to controlpoints on upperside then
-      // find x-coordinates
+      // Find arc lengths to controlpoints on upperside then find x-coordinates.
       Vector xcp(n+1);
       for (int i = 0; i < n+1; i++)
       {
@@ -160,8 +159,7 @@ void GetTipXY(NACA4 foil_section, KnotVector *kv, double tf, Array<Vector*> &xy)
    }
    else
    {
-      // Find arc lengths to controlpoints on upperside then
-      // find x-coordinates
+      // Find arc lengths to controlpoints on upperside then find x-coordinates
       Vector xcp(n);
       for (int i = 0; i < n; i++)
       {
@@ -228,7 +226,7 @@ KnotVector *PowerStretchKnotVector(int order, int ncp, double s = 0.0)
    return kv;
 }
 
-// Function that returns a knotvector with a tangent hyperbolic spacing
+// Function that returns a knotvector with a hyperbolic tangent spacing
 // with a cut-off @c using the @a order and the number of controlpoints @a ncp.
 KnotVector *TanhKnotVector(int order, int ncp, double c)
 {
@@ -250,7 +248,7 @@ KnotVector *TanhKnotVector(int order, int ncp, double c)
    return kv;
 }
 
-// Function that returns a knotvector with a tangent hyperbolic spacing from both sides
+// Function that returns a knotvector with a hyperbolic tangent spacing from both sides
 // of the knotvector with a cut-off @c using the @a order and the number of controlpoints @a ncp.
 KnotVector *DoubleTanhKnotVector(int order, int ncp, double c)
 {
@@ -280,11 +278,11 @@ KnotVector *DoubleTanhKnotVector(int order, int ncp, double c)
    return kv;
 }
 
-// Function that evaulates a linear function which describes the boundary distance
+// Function that evaluates a linear function which describes the boundary distance
 // based on the flair angle @a flair, smallest boundary bistance @a bd and
 // coordinate @a x.
-// This function is mainly used to be able to enforce inflow on the top and bottom
-// boundary.
+// This function / the flair angle is mainly used to be able to enforce inflow on
+// the top and bottom boundary and to create an elegant mesh.
 double FlairBoundDist(double flair, double bd, double x)
 {
    double b = sin(flair);
@@ -323,12 +321,17 @@ int main(int argc, char *argv[])
    double boundary_dist = 3.0;
    double wake_length  = 3.0;
    double tip_fraction = 0.05;
+   double flair = -999;
    args.AddOption(&boundary_dist, "-b", "--boundary-distance",
                   "Radius of the c-mesh, distance between the foil and the boundary");
    args.AddOption(&wake_length, "-w", "--wake_length",
                   "Length of the mesh after the foil");
    args.AddOption(&tip_fraction, "-tf", "--tip-fraction",
                   "Fraction of the length of the foil that will be in tip patch");
+   args.AddOption(&flair, "-f", "--flair-angle",
+                  "Flair angle of the top and bottom boundary to enforce inflow. If left \
+                   at default, the flair angle is determined automatically to create an \
+                   elegant mesh.");
 
    int ncp_tip  = 3;
    int ncp_tail = 3;
@@ -400,11 +403,14 @@ int main(int argc, char *argv[])
    NACA4 foil_section(foil_thickness, foil_length);
    // The flair angle is defined to be the same as the angle of the curve of the
    // foil section to create an elegant mesh.
-   double flair = atan(foil_section.dydx(tip_fraction*foil_length));
+   if (flair == -999)
+   {
+      flair = atan(foil_section.dydx(tip_fraction*foil_length));
+   }
 
    //
-   // 4. Map coordinates in Patches, apply refinenement, we interpolate the foil section in
-   //    patches 1, 2 and 3. Not the case of non-unity weights in patch 2 to create a circular
+   // 4. We map coordinates in patches, apply refinenement and interpolate the foil section in
+   //    patches 1, 2 and 3. Note the case of non-unity weights in patch 2 to create a circular
    //    shape: its coordinates are converted to homogeneous coordinates. This is not needed
    //    for other patches as homogeneous coordinates and carthesian coordinates are the same
    //    for patches with unity weight.
@@ -537,7 +543,7 @@ int main(int argc, char *argv[])
       kv2->FindInterpolant(xyf);
       for (int i = 0; i < ncp; i++)
       {
-         // Also deal with non-uniform weights here
+         // Also deal with non-uniform weights here: convert to homogeneous coordinates
          patch2(i,0,0) = (*xyf[0])[i]*patch2(i,0,2);
          patch2(i,0,1) = (*xyf[1])[i]*patch2(i,0,2);
       }
@@ -648,9 +654,8 @@ int main(int argc, char *argv[])
    output<< "dimension"<<endl;
    output<< mdim <<endl;
    output<< endl;
-   // NURBS patches
 
-   // Elements
+   // NURBS patches defined as elements
    output << "elements"<<endl;
    output << "5"<<endl;
    output << "1 3 0 1 5 4" << endl;   // Lower wake
