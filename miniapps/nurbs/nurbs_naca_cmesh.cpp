@@ -724,7 +724,14 @@ int main(int argc, char *argv[])
 
    // Close
    output.close();
-   delete kv0, kv1, kv2, kv3, kv4, kvr;
+   delete kv0;
+   delete kv1;
+   delete kv2;
+   delete kv3;
+   delete kv4;
+   delete kvr;
+   delete kv_o1;
+   delete kv_o2;
    delete xyf[0], xyf[1];
 
    cout << endl << "Boundary identifiers:" << endl;
