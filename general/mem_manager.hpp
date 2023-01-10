@@ -644,8 +644,7 @@ private: // Static methods used by the Memory<T> class
    static void SetDeviceMemoryType_(void *h_ptr, unsigned flags,
                                     MemoryType d_mt);
 
-   /// Un-register and free memory identified by its host pointer. Returns the
-   /// memory type of the host pointer.
+   /// Un-register and free memory identified by its host pointer.
    static void Delete_(void *h_ptr, MemoryType mt, unsigned flags);
 
    /// Free device memory identified by its host pointer
@@ -1029,7 +1028,7 @@ inline void Memory<T>::Delete()
       MemoryManager::Delete_((void*)h_ptr, h_mt, flags);
    }
 
-   if (std_delete || mt_host)
+   if (mt_host)
    {
       if (flags & OWNS_HOST) { delete [] h_ptr; }
    }

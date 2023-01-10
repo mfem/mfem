@@ -946,7 +946,6 @@ void MemoryManager::Delete_(void *h_ptr, MemoryType h_mt, unsigned flags)
          mm.Erase(h_ptr, owns_device);
       }
    }
-   return;
 }
 
 void MemoryManager::DeleteDevice_(void *h_ptr, unsigned & flags)
