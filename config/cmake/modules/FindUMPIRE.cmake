@@ -14,6 +14,23 @@
 #   - UMPIRE_LIBRARIES
 #   - UMPIRE_INCLUDE_DIRS
 
-find_package(umpire REQUIRED CONFIG)
+if (NOT umpire_DIR AND UMPIRE_DIR)
+  set(umpire_DIR ${UMPIRE_DIR}/lib/cmake/umpire)
+endif()
+message(STATUS "Looking for UMPIRE ...")
+message(STATUS "   in UMPIRE_DIR = ${UMPIRE_DIR}")
+message(STATUS "      umpire_DIR = ${umpire_DIR}")
+find_package(umpire CONFIG)
 set(UMPIRE_FOUND ${umpire_FOUND})
 set(UMPIRE_LIBRARIES "umpire")
+if (UMPIRE_FOUND)
+  message(STATUS
+    "Found UMPIRE target: ${UMPIRE_LIBRARIES} (version: ${umpire_VERSION})")
+else()
+  set(msg STATUS)
+  if (UMPIRE_FIND_REQUIRED)
+    set(msg FATAL_ERROR)
+  endif()
+  message(${msg}
+    "UMPIRE not found. Please set UMPIRE_DIR to the install prefix.")
+endif()
