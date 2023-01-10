@@ -241,7 +241,8 @@ public:
    virtual void SetPrintLevel(PrintLevel);
    ///@}
 
-   /// @name Solver statistics. These are valid after the call to Mult().
+   /// @name Solver statistics.
+   /// These are valid after the call to Mult().
    ///@{
    int GetNumIterations() const { return final_iter; }
    bool GetConverged() const { return converged; }
