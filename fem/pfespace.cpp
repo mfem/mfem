@@ -1536,7 +1536,7 @@ const FiniteElement *ParFiniteElementSpace::GetFaceNbrFaceFE(int i) const
    // Works in tandem with GetFaceNbrFaceVDofs() defined above.
 
    MFEM_ASSERT(Nonconforming() && !NURBSext, "");
-   Geometry::Type face_geom = pmesh->GetFaceGeometryType(i);
+   Geometry::Type face_geom = pmesh->GetFaceGeometry(i);
    return fec->FiniteElementForGeometry(face_geom);
 }
 
@@ -2606,7 +2606,7 @@ int ParFiniteElementSpace
       if (dump < 10)
       {
          char fname[100];
-         sprintf(fname, "dofs%02d.txt", MyRank);
+         snprintf(fname, 100, "dofs%02d.txt", MyRank);
          std::ofstream f(fname);
          DebugDumpDOFs(f, deps, dof_group, dof_owner, finalized);
          dump++;

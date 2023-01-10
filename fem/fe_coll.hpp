@@ -51,6 +51,14 @@ public:
    virtual const FiniteElement *
    FiniteElementForGeometry(Geometry::Type GeomType) const = 0;
 
+   /** @brief Returns the first non-NULL FiniteElement for the given dimension
+
+       @note Repeatedly calls FiniteElementForGeometry in the order defined in
+       the Geometry::Type enumeration.
+   */
+   virtual const FiniteElement *
+   FiniteElementForDim(int dim) const;
+
    virtual int DofForGeometry(Geometry::Type GeomType) const = 0;
 
    /** @brief Returns an array, say p, that maps a local permuted index i to a
@@ -65,6 +73,17 @@ public:
    virtual const char * Name() const { return "Undefined"; }
 
    virtual int GetContType() const = 0;
+
+   /** @note The following methods provide the same information as the
+       corresponding methods of the FiniteElement base class.
+       @{
+   */
+   virtual int GetRangeType(int dim) const;
+   virtual int GetDerivRangeType(int dim) const;
+   virtual int GetMapType(int dim) const;
+   virtual int GetDerivType(int dim) const;
+   virtual int GetDerivMapType(int dim) const;
+   /** @} */
 
    int HasFaceDofs(Geometry::Type geom, int p) const;
 
