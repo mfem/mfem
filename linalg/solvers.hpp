@@ -244,11 +244,30 @@ public:
    /// @name Solver statistics.
    /// These are valid after the call to Mult().
    ///@{
+
+   /// Returns the number of iterations taken during the last call to Mult()
    int GetNumIterations() const { return final_iter; }
+   /// Returns true if the last call to Mult() converged successfully.
    bool GetConverged() const { return converged; }
+   /// @brief Returns the initial residual norm from the last call to Mult().
+   ///
+   /// This function returns the norm of the residual (or preconditioned
+   /// residual, depending on the solver), computed before the start of the
+   /// iteration.
    double GetInitialNorm() const { return initial_norm; }
+   /// @brief Returns the final residual norm after termination of the solver
+   /// during the last call to Mult().
+   ///
+   /// This function returns the norm of the residual (or preconditioned
+   /// residual, depending on the solver), corresponding to the returned
+   /// solution.
    double GetFinalNorm() const { return final_norm; }
+   /// @brief Returns the final residual norm after termination of the solver during
+   /// the last call to Mult(), divided by the initial residual norm.
+   ///
+   /// @sa GetFinalNorm(), GetInitialNorm()
    double GetFinalRelNorm() const { return final_norm / initial_norm; }
+
    ///@}
 
    /// This should be called before SetOperator
