@@ -3034,7 +3034,7 @@ GetSharedFaceTransformationsByLocalIndex(int FaceNo, bool fill2)
 
    int local_face = is_ghost ? nc_info->MasterFace : FaceNo;
    Element::Type  face_type = GetFaceElementType(local_face);
-   Geometry::Type face_geom = GetFaceGeometryType(local_face);
+   Geometry::Type face_geom = GetFaceGeometry(local_face);
 
    // setup the transformation for the first element
    FaceElemTr.Elem1No = face_info.Elem1No;
