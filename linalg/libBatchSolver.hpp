@@ -25,6 +25,7 @@
 #define MFEM_SUB_CUDA_or_HIP(stub) CUDA##stub
 #define MFEM_SUB_CU_or_HIP(stub) CU##stub
 
+#include <cuda.h>
 #include <cublas.h>
 #include <cusolverDn.h>
 #include <cuda_runtime.h>
@@ -45,6 +46,7 @@
 namespace mfem
 {
 
+#if defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP)
 class MFEM_SUB_Cuda_or_Hip(BLAS)
 {
 protected:
@@ -69,6 +71,7 @@ protected:
 public:
    static MFEM_SUB_cu_or_hip(blasHandle_t) Handle() { return Instance().handle; }
 };
+#endif
 
 /**
    Use GPU library calls to perform action of block diagonal matrices
@@ -84,9 +87,9 @@ public:
    LibBatchMult() = delete;
 
    LibBatchMult(DenseTensor &MatrixBatch_) :
+      MatrixBatch(MatrixBatch_),
       mat_size(MatrixBatch.SizeI()),
-      num_mats(MatrixBatch.SizeK()),
-      MatrixBatch(MatrixBatch_) {};
+      num_mats(MatrixBatch.SizeK()) {};
 
    //Action of block diagonal matrix
    void Mult(const Vector &b, Vector &x);

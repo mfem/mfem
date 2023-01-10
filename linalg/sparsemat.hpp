@@ -23,7 +23,11 @@
 #include "densemat.hpp"
 
 #if defined(MFEM_USE_HIP)
+#if (HIP_VERSION_MAJOR * 100 + HIP_VERSION_MINOR) < 502
 #include <hipsparse.h>
+#else
+#include <hipsparse/hipsparse.h>
+#endif
 #endif
 
 

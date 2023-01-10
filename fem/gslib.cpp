@@ -179,24 +179,27 @@ void FindPointsGSLIB::FindPoints(const Vector &point_pos,
    gsl_ref.SetSize(points_cnt * dim);
    gsl_dist.SetSize(points_cnt);
 
-   const double *xv_base[dim];
-   unsigned xv_stride[dim];
-   for (int d = 0; d < dim; d++)
+   auto xvFill = [&](const double *xv_base[], unsigned xv_stride[], int dim)
    {
-      if (point_pos_ordering == Ordering::byNODES)
+      for (int d = 0; d < dim; d++)
       {
-         xv_base[d] = point_pos.GetData() + d*points_cnt;
-         xv_stride[d] = sizeof(double);
+         if (point_pos_ordering == Ordering::byNODES)
+         {
+            xv_base[d] = point_pos.GetData() + d*points_cnt;
+            xv_stride[d] = sizeof(double);
+         }
+         else
+         {
+            xv_base[d] = point_pos.GetData() + d;
+            xv_stride[d] = dim*sizeof(double);
+         }
       }
-      else
-      {
-         xv_base[d] = point_pos.GetData() + d;
-         xv_stride[d] = dim*sizeof(double);
-      }
-   }
-
+   };
    if (dim == 2)
    {
+      const double *xv_base[2];
+      unsigned xv_stride[2];
+      xvFill(xv_base, xv_stride, dim);
       findpts_2(gsl_code.GetData(), sizeof(unsigned int),
                 gsl_proc.GetData(), sizeof(unsigned int),
                 gsl_elem.GetData(), sizeof(unsigned int),
@@ -204,8 +207,11 @@ void FindPointsGSLIB::FindPoints(const Vector &point_pos,
                 gsl_dist.GetData(), sizeof(double),
                 xv_base, xv_stride, points_cnt, fdata2D);
    }
-   else
+   else  // dim == 3
    {
+      const double *xv_base[3];
+      unsigned xv_stride[3];
+      xvFill(xv_base, xv_stride, dim);
       findpts_3(gsl_code.GetData(), sizeof(unsigned int),
                 gsl_proc.GetData(), sizeof(unsigned int),
                 gsl_elem.GetData(), sizeof(unsigned int),
@@ -1080,7 +1086,7 @@ void FindPointsGSLIB::InterpolateGeneral(const GridFunction &field_in,
 
             sarray_transfer(struct send_pt, sendpt, proc, 1, cr);
             sdpt = (struct send_pt *)sendpt->ptr;
-            for (int index = 0; index < sendpt->n; index++)
+            for (int index = 0; index < static_cast<int>(sendpt->n); index++)
             {
                int idx = field_in.FESpace()->GetOrdering() == Ordering::byNODES ?
                          sdpt->index + j*nptorig :
@@ -1194,24 +1200,27 @@ void OversetFindPointsGSLIB::FindPoints(const Vector &point_pos,
    gsl_ref.SetSize(points_cnt * dim);
    gsl_dist.SetSize(points_cnt);
 
-   const double *xv_base[dim];
-   unsigned xv_stride[dim];
-   for (int d = 0; d < dim; d++)
+   auto xvFill = [&](const double *xv_base[], unsigned xv_stride[], int dim)
    {
-      if (point_pos_ordering == Ordering::byNODES)
+      for (int d = 0; d < dim; d++)
       {
-         xv_base[d] = point_pos.GetData() + d*points_cnt;
-         xv_stride[d] = sizeof(double);
+         if (point_pos_ordering == Ordering::byNODES)
+         {
+            xv_base[d] = point_pos.GetData() + d*points_cnt;
+            xv_stride[d] = sizeof(double);
+         }
+         else
+         {
+            xv_base[d] = point_pos.GetData() + d;
+            xv_stride[d] = dim*sizeof(double);
+         }
       }
-      else
-      {
-         xv_base[d] = point_pos.GetData() + d;
-         xv_stride[d] = dim*sizeof(double);
-      }
-   }
-
+   };
    if (dim == 2)
    {
+      const double *xv_base[2];
+      unsigned xv_stride[2];
+      xvFill(xv_base, xv_stride, dim);
       findptsms_2(gsl_code.GetData(), sizeof(unsigned int),
                   gsl_proc.GetData(), sizeof(unsigned int),
                   gsl_elem.GetData(), sizeof(unsigned int),
@@ -1221,8 +1230,11 @@ void OversetFindPointsGSLIB::FindPoints(const Vector &point_pos,
                   point_id.GetData(), sizeof(unsigned int), &match,
                   points_cnt, fdata2D);
    }
-   else
+   else  // dim == 3
    {
+      const double *xv_base[3];
+      unsigned xv_stride[3];
+      xvFill(xv_base, xv_stride, dim);
       findptsms_3(gsl_code.GetData(), sizeof(unsigned int),
                   gsl_proc.GetData(), sizeof(unsigned int),
                   gsl_elem.GetData(), sizeof(unsigned int),
