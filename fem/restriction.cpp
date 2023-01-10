@@ -147,7 +147,8 @@ void ElementRestriction::MultUnsigned(const Vector& x, Vector& y) const
    });
 }
 
-void ElementRestriction::MultTranspose(const Vector& x, Vector& y) const
+template <bool ADD>
+void ElementRestriction::AddMultTranspose(const Vector& x, Vector& y) const
 {
    // Assumes all elements have the same number of dofs
    const int nd = dof;
@@ -156,7 +157,7 @@ void ElementRestriction::MultTranspose(const Vector& x, Vector& y) const
    auto d_offsets = offsets.Read();
    auto d_indices = indices.Read();
    auto d_x = Reshape(x.Read(), nd, vd, ne);
-   auto d_y = Reshape(y.Write(), t?vd:ndofs, t?ndofs:vd);
+   auto d_y = Reshape(ADD ? y.ReadWrite() : y.Write(), t?vd:ndofs, t?ndofs:vd);
    MFEM_FORALL(i, ndofs,
    {
       const int offset = d_offsets[i];
@@ -170,9 +171,22 @@ void ElementRestriction::MultTranspose(const Vector& x, Vector& y) const
             dof_value += ((d_indices[j] >= 0) ? d_x(idx_j % nd, c, idx_j / nd) :
                           -d_x(idx_j % nd, c, idx_j / nd));
          }
-         d_y(t?c:i,t?i:c) = dof_value;
+         if (ADD) { d_y(t?c:i,t?i:c) += dof_value; }
+         else { d_y(t?c:i,t?i:c) = dof_value; }
       }
    });
+}
+
+void ElementRestriction::MultTranspose(const Vector& x, Vector& y) const
+{
+   constexpr bool ADD = false;
+   AddMultTranspose<ADD>(x, y);
+}
+
+void ElementRestriction::AddMultTranspose(const Vector& x, Vector& y) const
+{
+   constexpr bool ADD = true;
+   AddMultTranspose<ADD>(x, y);
 }
 
 void ElementRestriction::MultTransposeUnsigned(const Vector& x, Vector& y) const
@@ -506,13 +520,14 @@ void L2ElementRestriction::Mult(const Vector &x, Vector &y) const
    });
 }
 
-void L2ElementRestriction::MultTranspose(const Vector &x, Vector &y) const
+template <bool ADD>
+void L2ElementRestriction::AddMultTranspose(const Vector &x, Vector &y) const
 {
    const int nd = ndof;
    const int vd = vdim;
    const bool t = byvdim;
    auto d_x = Reshape(x.Read(), nd, vd, ne);
-   auto d_y = Reshape(y.Write(), t?vd:ndofs, t?ndofs:vd);
+   auto d_y = Reshape(ADD ? y.ReadWrite() : y.Write(), t?vd:ndofs, t?ndofs:vd);
    MFEM_FORALL(i, ndofs,
    {
       const int idx = i;
@@ -520,9 +535,22 @@ void L2ElementRestriction::MultTranspose(const Vector &x, Vector &y) const
       const int e = idx / nd;
       for (int c = 0; c < vd; ++c)
       {
-         d_y(t?c:idx,t?idx:c) = d_x(dof, c, e);
+         if (ADD) { d_y(t?c:idx,t?idx:c) += d_x(dof, c, e); }
+         else { d_y(t?c:idx,t?idx:c) = d_x(dof, c, e); }
       }
    });
+}
+
+void L2ElementRestriction::MultTranspose(const Vector &x, Vector &y) const
+{
+   constexpr bool ADD = false;
+   AddMultTranspose<ADD>(x, y);
+}
+
+void L2ElementRestriction::AddMultTranspose(const Vector &x, Vector &y) const
+{
+   constexpr bool ADD = true;
+   AddMultTranspose<ADD>(x, y);
 }
 
 void L2ElementRestriction::FillI(SparseMatrix &mat) const
@@ -1077,7 +1105,7 @@ L2FaceRestriction::L2FaceRestriction(const FiniteElementSpace &fes,
      vdim(fes.GetVDim()),
      byvdim(fes.GetOrdering() == Ordering::byVDIM),
      face_dofs(nf > 0 ?
-               fes.GetTraceElement(0, fes.GetMesh()->GetFaceBaseGeometry(0))->GetDof()
+               fes.GetTraceElement(0, fes.GetMesh()->GetFaceGeometry(0))->GetDof()
                : 0),
      elem_dofs(fes.GetFE(0)->GetDof()),
      nfdofs(nf*face_dofs),
@@ -1392,7 +1420,7 @@ void L2FaceRestriction::CheckFESpace(const ElementDofOrdering e_ordering)
       for (int f = 0; f < fes.GetNF(); ++f)
       {
          const FiniteElement *fe =
-            fes.GetTraceElement(f, fes.GetMesh()->GetFaceBaseGeometry(f));
+            fes.GetTraceElement(f, fes.GetMesh()->GetFaceGeometry(f));
          const TensorBasisElement* el =
             dynamic_cast<const TensorBasisElement*>(fe);
          if (el) { continue; }
@@ -1752,7 +1780,7 @@ void InterpolationManager::LinearizeInterpolatorMapIntoVector()
 {
    // Assumes all trace elements are the same.
    const FiniteElement *trace_fe =
-      fes.GetTraceElement(0, fes.GetMesh()->GetFaceBaseGeometry(0));
+      fes.GetTraceElement(0, fes.GetMesh()->GetFaceGeometry(0));
    const int face_dofs = trace_fe->GetDof();
    const int nc_size = interp_map.size();
    MFEM_VERIFY(nc_cpt==nc_size, "Unexpected number of interpolators.");

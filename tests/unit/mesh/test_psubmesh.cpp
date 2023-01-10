@@ -228,6 +228,13 @@ void multidomain_test_3d(FECType fec_type)
    auto cylinder_surface_submesh = ParSubMesh::CreateFromBoundary(parent_mesh,
                                                                   cylinder_surface_attributes);
 
+   int num_local_be = cylinder_surface_submesh.GetNBE();
+   int num_global_be = 0;
+   MPI_Allreduce(&num_local_be, &num_global_be, 1, MPI_INT, MPI_SUM,
+                 MPI_COMM_WORLD);
+   REQUIRE(num_global_be == 16);
+   REQUIRE(cylinder_surface_submesh.bdr_attributes[0] == 900);
+
    FiniteElementCollection *fec = create_fec(fec_type, p, parent_mesh.Dimension());
 
    ParFiniteElementSpace parent_fes(&parent_mesh, fec);
