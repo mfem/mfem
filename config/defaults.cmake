@@ -64,6 +64,7 @@ option(MFEM_USE_CODIPACK "Enable automatic differentiation (AD) using CoDiPack" 
 option(MFEM_USE_BENCHMARK "Enable Google Benchmark" OFF)
 option(MFEM_USE_PARELAG "Enable ParELAG" OFF)
 option(MFEM_USE_ENZYME "Enable Enzyme" OFF)
+option(MFEM_USE_MAGMA "Enable MAGMA" OFF)
 
 # Optional overrides for autodetected MPIEXEC and MPIEXEC_NUMPROC_FLAG
 # set(MFEM_MPIEXEC "mpirun" CACHE STRING "Command for running MPI tests")
@@ -254,6 +255,8 @@ set(LAPACK_LIBRARIES "" CACHE STRING "The LAPACK library.")
 set(CODIPACK_INCLUDE_DIRS "${MFEM_DIR}/../CoDiPack/include" CACHE STRING
     "Path to CoDiPack headers.")
 set(CODIPACK_LIBRARIES "")
+
+set(MAGMA_DIR "${MFEM_DIR}/../magma" CACHE PATH "Path to MAGMA")
 
 # Some useful variables:
 set(CMAKE_SKIP_PREPROCESSED_SOURCE_RULES ON) # Skip *.i rules

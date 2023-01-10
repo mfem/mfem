@@ -43,6 +43,10 @@
 #include <hip/hip_runtime_api.h>
 #endif  // MFEM_USE_HIP
 
+#if defined(MFEM_USE_MAGMA)
+#include <magma_v2.h>
+#endif
+
 namespace mfem
 {
 
@@ -83,13 +87,23 @@ private:
    DenseTensor &MatrixBatch;
 
    int mat_size, num_mats;
+#if defined(MFEM_USE_MAGMA)
+   magma_int_t device = 0;
+   magma_queue_t queue ;
+#endif
 public:
    LibBatchMult() = delete;
 
    LibBatchMult(DenseTensor &MatrixBatch_) :
       MatrixBatch(MatrixBatch_),
       mat_size(MatrixBatch.SizeI()),
-      num_mats(MatrixBatch.SizeK()) {};
+      num_mats(MatrixBatch.SizeK())
+   {
+#if defined(MFEM_USE_MAGMA)
+      magma_setdevice(device);
+      magma_queue_create(device, &queue);
+#endif
+   };
 
    //Action of block diagonal matrix
    void Mult(const Vector &b, Vector &x);

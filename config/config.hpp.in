@@ -195,4 +195,8 @@
 // Enable the Enzyme LLVM plugin
 // #define MFEM_USE_ENZYME
 
+// Enable the MAGMA package
+// #define MFEM_USE_MAGMA
+
+
 #endif // MFEM_CONFIG_HEADER
