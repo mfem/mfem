@@ -450,7 +450,7 @@ int main(int argc, char *argv[])
       for (int ti = 0; !done; )
       {
          // We cannot match exactly the time history of the Run method
-         // since we are explictly telling PETSc to use a time step
+         // since we are explicitly telling PETSc to use a time step
          double dt_real = min(dt, t_final - t);
          ode_solver->Step(*U, t, dt_real);
          ti++;

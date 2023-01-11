@@ -30,8 +30,14 @@ void BatchedLOR_H1::Assemble2D()
    static constexpr int nnz_per_row = 9;
    static constexpr int sz_local_mat = nv*nv;
 
-   const double DQ = diffusion_coeff;
-   const double MQ = mass_coeff;
+   const bool const_mq = c1.Size() == 1;
+   const auto MQ = const_mq
+                   ? Reshape(c1.Read(), 1, 1, 1)
+                   : Reshape(c1.Read(), nd1d, nd1d, nel_ho);
+   const bool const_dq = c2.Size() == 1;
+   const auto DQ = const_dq
+                   ? Reshape(c2.Read(), 1, 1, 1)
+                   : Reshape(c2.Read(), nd1d, nd1d, nel_ho);
 
    sparse_ij.SetSize(nnz_per_row*ndof_per_el*nel_ho);
    auto V = Reshape(sparse_ij.Write(), nnz_per_row, nd1d, nd1d, nel_ho);
@@ -97,6 +103,8 @@ void BatchedLOR_H1::Assemble2D()
             {
                for (int iqy=0; iqy<2; ++iqy)
                {
+                  const double mq = const_mq ? MQ(0,0,0) : MQ(kx+iqx, ky+iqy, iel_ho);
+                  const double dq = const_dq ? DQ(0,0,0) : DQ(kx+iqx, ky+iqy, iel_ho);
                   for (int jy=0; jy<2; ++jy)
                   {
                      const double bjy = (jy == iqy) ? 1.0 : 0.0;
@@ -133,9 +141,9 @@ void BatchedLOR_H1::Assemble2D()
                               val += dix*djx*Q(0,iqy,iqx);
                               val += (dix*djy + diy*djx)*Q(1,iqy,iqx);
                               val += diy*djy*Q(2,iqy,iqx);
-                              val *= DQ;
+                              val *= dq;
 
-                              val += MQ*bix*biy*bjx*bjy*Q(3,iqy,iqx);
+                              val += mq*bix*biy*bjx*bjy*Q(3,iqy,iqx);
 
                               local_mat(ii_loc, jj_loc) += val;
                            }
@@ -201,10 +209,6 @@ template <int ORDER>
 void BatchedLOR_H1::Assemble3D()
 {
    const int nel_ho = fes_ho.GetNE();
-
-   const double DQ = diffusion_coeff;
-   const double MQ = mass_coeff;
-
    static constexpr int nv = 8;
    static constexpr int dim = 3;
    static constexpr int ddm2 = (dim*(dim+1))/2;
@@ -216,6 +220,15 @@ void BatchedLOR_H1::Assemble3D()
    static constexpr int sz_mass_A = 2*2*2*2;
    static constexpr int sz_mass_B = sz_mass_A*2;
    static constexpr int sz_local_mat = nv*nv;
+
+   const bool const_mq = c1.Size() == 1;
+   const auto MQ = const_mq
+                   ? Reshape(c1.Read(), 1, 1, 1, 1)
+                   : Reshape(c1.Read(), nd1d, nd1d, nd1d, nel_ho);
+   const bool const_dq = c2.Size() == 1;
+   const auto DQ = const_dq
+                   ? Reshape(c2.Read(), 1, 1, 1, 1)
+                   : Reshape(c2.Read(), nd1d, nd1d, nd1d, nel_ho);
 
    sparse_ij.SetSize(nel_ho*ndof_per_el*nnz_per_row);
    auto V = Reshape(sparse_ij.Write(), nnz_per_row, nd1d, nd1d, nd1d, nel_ho);
@@ -288,7 +301,6 @@ void BatchedLOR_H1::Assemble3D()
                      //MFEM_UNROLL(2)
                      for (int iqx=0; iqx<2; ++iqx)
                      {
-
                         const double x = iqx;
                         const double y = iqy;
                         const double z = iqz;
@@ -335,6 +347,9 @@ void BatchedLOR_H1::Assemble3D()
                            //MFEM_UNROLL(2)
                            for (int iqz=0; iqz<2; ++iqz)
                            {
+                              const double mq = const_mq ? MQ(0,0,0,0) : MQ(kx+iqx, ky+iqy, kz+iqz, iel_ho);
+                              const double dq = const_dq ? DQ(0,0,0,0) : DQ(kx+iqx, ky+iqy, kz+iqz, iel_ho);
+
                               const double biz = (iz == iqz) ? 1.0 : 0.0;
                               const double giz = (iz == 0) ? -1.0 : 1.0;
 
@@ -351,18 +366,18 @@ void BatchedLOR_H1::Assemble3D()
                               const double J23 = J32;
                               const double J33 = Q(5,iqz,iqy,iqx);
 
-                              grad_A(0,0,iqy,iz,jz,iqx) += J11*biz*bjz;
-                              grad_A(1,0,iqy,iz,jz,iqx) += J21*biz*bjz;
-                              grad_A(2,0,iqy,iz,jz,iqx) += J31*giz*bjz;
-                              grad_A(0,1,iqy,iz,jz,iqx) += J12*biz*bjz;
-                              grad_A(1,1,iqy,iz,jz,iqx) += J22*biz*bjz;
-                              grad_A(2,1,iqy,iz,jz,iqx) += J32*giz*bjz;
-                              grad_A(0,2,iqy,iz,jz,iqx) += J13*biz*gjz;
-                              grad_A(1,2,iqy,iz,jz,iqx) += J23*biz*gjz;
-                              grad_A(2,2,iqy,iz,jz,iqx) += J33*giz*gjz;
+                              grad_A(0,0,iqy,iz,jz,iqx) += dq*J11*biz*bjz;
+                              grad_A(1,0,iqy,iz,jz,iqx) += dq*J21*biz*bjz;
+                              grad_A(2,0,iqy,iz,jz,iqx) += dq*J31*giz*bjz;
+                              grad_A(0,1,iqy,iz,jz,iqx) += dq*J12*biz*bjz;
+                              grad_A(1,1,iqy,iz,jz,iqx) += dq*J22*biz*bjz;
+                              grad_A(2,1,iqy,iz,jz,iqx) += dq*J32*giz*bjz;
+                              grad_A(0,2,iqy,iz,jz,iqx) += dq*J13*biz*gjz;
+                              grad_A(1,2,iqy,iz,jz,iqx) += dq*J23*biz*gjz;
+                              grad_A(2,2,iqy,iz,jz,iqx) += dq*J33*giz*gjz;
 
                               double wdetJ = Q(6,iqz,iqy,iqx);
-                              mass_A(iqy,iz,jz,iqx) += wdetJ*biz*bjz;
+                              mass_A(iqy,iz,jz,iqx) += mq*wdetJ*biz*bjz;
                            }
                            //MFEM_UNROLL(2)
                            for (int jy=0; jy<2; ++jy)
@@ -426,9 +441,7 @@ void BatchedLOR_H1::Assemble3D()
                                     val += bix*bjx*grad_B(2,2,iy,jy,iz,jz,iqx);
                                     val += bix*bjx*grad_B(1,2,iy,jy,iz,jz,iqx);
 
-                                    val *= DQ;
-
-                                    val += MQ*bix*bjx*mass_B(iy,jy,iz,jz,iqx);
+                                    val += bix*bjx*mass_B(iy,jy,iz,jz,iqx);
 
                                     local_mat(ii_loc, jj_loc) += val;
                                  }
@@ -531,29 +544,8 @@ BatchedLOR_H1::BatchedLOR_H1(BilinearForm &a,
                              Array<int> &sparse_mapping_)
    : BatchedLORKernel(fes_ho_, X_vert_, sparse_ij_, sparse_mapping_)
 {
-   MassIntegrator *mass = GetIntegrator<MassIntegrator>(a);
-   DiffusionIntegrator *diffusion = GetIntegrator<DiffusionIntegrator>(a);
-
-   if (mass != nullptr)
-   {
-      auto *coeff = dynamic_cast<const ConstantCoefficient*>(mass->GetCoefficient());
-      mass_coeff = coeff ? coeff->constant : 1.0;
-   }
-   else
-   {
-      mass_coeff = 0.0;
-   }
-
-   if (diffusion != nullptr)
-   {
-      auto *coeff = dynamic_cast<const ConstantCoefficient*>
-                    (diffusion->GetCoefficient());
-      diffusion_coeff = coeff ? coeff->constant : 1.0;
-   }
-   else
-   {
-      diffusion_coeff = 0.0;
-   }
+   ProjectLORCoefficient<MassIntegrator>(a, c1);
+   ProjectLORCoefficient<DiffusionIntegrator>(a, c2);
 }
 
 } // namespace mfem

@@ -120,6 +120,22 @@ MFEM_HOST_DEVICE inline void LoadBGt(const int D1D, const int Q1D,
    MFEM_SYNC_THREAD;
 }
 
+/// Load 2D input scalar into given DeviceMatrix
+MFEM_HOST_DEVICE inline void LoadX(const int e, const int D1D,
+                                   const DeviceTensor<3, const double> &x,
+                                   DeviceMatrix &DD)
+{
+   MFEM_FOREACH_THREAD(dy,y,D1D)
+   {
+      MFEM_FOREACH_THREAD(dx,x,D1D)
+      {
+         DD(dx,dy) = x(dx,dy,e);
+      }
+   }
+   MFEM_SYNC_THREAD;
+}
+
+
 /// Load 2D input scalar into shared memory
 template<int MD1, int NBZ>
 MFEM_HOST_DEVICE inline void LoadX(const int e, const int D1D,
@@ -128,15 +144,7 @@ MFEM_HOST_DEVICE inline void LoadX(const int e, const int D1D,
 {
    const int tidz = MFEM_THREAD_ID(z);
    DeviceMatrix X(sX[tidz], D1D, D1D);
-
-   MFEM_FOREACH_THREAD(dy,y,D1D)
-   {
-      MFEM_FOREACH_THREAD(dx,x,D1D)
-      {
-         X(dx,dy) = x(dx,dy,e);
-      }
-   }
-   MFEM_SYNC_THREAD;
+   LoadX(e, D1D, x, X);
 }
 
 /// Load 2D input scalar into shared memory, with comp

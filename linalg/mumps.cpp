@@ -42,7 +42,9 @@ void MUMPSSolver::SetOperator(const Operator &op)
 
    auto parcsr_op = (hypre_ParCSRMatrix *) const_cast<HypreParMatrix &>(*APtr);
 
+   APtr->HostRead();
    hypre_CSRMatrix *csr_op = hypre_MergeDiagAndOffd(parcsr_op);
+   APtr->HypreRead();
 #if MFEM_HYPRE_VERSION >= 21600
    hypre_CSRMatrixBigJtoJ(csr_op);
 #endif
