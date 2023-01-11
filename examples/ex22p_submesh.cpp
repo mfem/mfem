@@ -564,35 +564,19 @@ int main(int argc, char *argv[])
       char vishost[] = "localhost";
       int  visport   = 19916;
       socketstream sol_sock_r(vishost, visport);
-      socketstream sol_sock_i(vishost, visport);
       sol_sock_r << "parallel " << num_procs << " " << myid << "\n";
-      sol_sock_i << "parallel " << num_procs << " " << myid << "\n";
       sol_sock_r.precision(8);
-      sol_sock_i.precision(8);
       sol_sock_r << "solution\n" << *pmesh << u.real()
                  << "window_title 'Solution: Real Part'" << flush;
+
+      MPI_Barrier(MPI_COMM_WORLD);
+
+      socketstream sol_sock_i(vishost, visport);
+      sol_sock_i << "parallel " << num_procs << " " << myid << "\n";
+      sol_sock_i.precision(8);
       sol_sock_i << "solution\n" << *pmesh << u.imag()
                  << "window_title 'Solution: Imaginary Part'" << flush;
    }
-   /*
-   if (visualization && exact_sol)
-   {
-      *u_exact -= u;
-
-      char vishost[] = "localhost";
-      int  visport   = 19916;
-      socketstream sol_sock_r(vishost, visport);
-      socketstream sol_sock_i(vishost, visport);
-      sol_sock_r << "parallel " << num_procs << " " << myid << "\n";
-      sol_sock_i << "parallel " << num_procs << " " << myid << "\n";
-      sol_sock_r.precision(8);
-      sol_sock_i.precision(8);
-      sol_sock_r << "solution\n" << *pmesh << u_exact->real()
-                 << "window_title 'Error: Real Part'" << flush;
-      sol_sock_i << "solution\n" << *pmesh << u_exact->imag()
-                 << "window_title 'Error: Imaginary Part'" << flush;
-   }
-   */
    if (visualization)
    {
       ParGridFunction u_t(fespace);
