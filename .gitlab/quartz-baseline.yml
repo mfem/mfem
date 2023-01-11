@@ -92,10 +92,8 @@ report_baseline:
         if [[ "$AUTOTEST_COMMIT" != "NO" ]]; then
           git pull && \
           git add ${rundir} && \
-          git commit -m "${msg}"
-          if [[ $? == 0 ]]; then
-            ${CI_PROJECT_DIR}/.gitlab/scripts/git_try_to_push
-          fi
+          git commit -m "${msg}" && \
+          ${CI_PROJECT_DIR}/.gitlab/scripts/git_try_to_push
         else
           for file in ${rundir}/*; do
             echo "------------------------------"
