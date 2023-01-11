@@ -767,6 +767,8 @@ ParaViewDataCollection::ParaViewDataCollection(const std::string&
      high_order_output(false),
      restart_mode(false)
 {
+   cycle = 0; // always include a valid cycle index in file names
+
 #ifdef MFEM_USE_ZLIB
    compression = -1; // default zlib compression level, equivalent to 6
 #else
