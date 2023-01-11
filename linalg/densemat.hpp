@@ -162,11 +162,15 @@ public:
    /// Multiply a vector with the transpose matrix.
    virtual void MultTranspose(const Vector &x, Vector &y) const;
 
-   /// y += A.x
-   void AddMult(const Vector &x, Vector &y) const;
+   using Operator::Mult;
+   using Operator::MultTranspose;
 
-   /// y += A^t x
-   void AddMultTranspose(const Vector &x, Vector &y) const;
+   /// y += a * A.x
+   virtual void AddMult(const Vector &x, Vector &y, const double a = 1.0) const;
+
+   /// y += a * A^t x
+   virtual void AddMultTranspose(const Vector &x, Vector &y,
+                                 const double a = 1.0) const;
 
    /// y += a * A.x
    void AddMult_a(double a, const Vector &x, Vector &y) const;
@@ -857,6 +861,8 @@ public:
 
    /// Multiply the inverse matrix by another matrix: X <- A^{-1} X.
    void Mult(DenseMatrix &X) const {factors->Solve(width, X.Width(), X.Data());}
+
+   using Operator::Mult;
 
    /// Compute and return the inverse matrix in Ainv.
    void GetInverseMatrix(DenseMatrix &Ainv) const;
