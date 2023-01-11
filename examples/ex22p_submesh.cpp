@@ -64,18 +64,7 @@ using namespace mfem;
 static double mu_ = 1.0;
 static double epsilon_ = 1.0;
 static double sigma_ = 2.0;
-//static double omega_ = 10.0;
-/*
-double u0_real_exact(const Vector &);
-double u0_imag_exact(const Vector &);
 
-void u1_real_exact(const Vector &, Vector &);
-void u1_imag_exact(const Vector &, Vector &);
-
-void u2_real_exact(const Vector &, Vector &);
-void u2_imag_exact(const Vector &, Vector &);
-*/
-//bool check_for_inline_mesh(const char * mesh_file);
 void SetPortBC(int prob, int mode, ParGridFunction &port_bc);
 
 int main(int argc, char *argv[])
@@ -98,7 +87,6 @@ int main(int argc, char *argv[])
    double omega = 10.0;
    double a_coef = 0.0;
    bool herm_conv = true;
-   // bool exact_sol = true;
    bool slu_solver  = false;
    bool visualization = 1;
    bool pa = false;
@@ -172,13 +160,7 @@ int main(int argc, char *argv[])
    {
       omega = 2.0 * M_PI * freq;
    }
-   /*
-   exact_sol = check_for_inline_mesh(mesh_file);
-   if (myid == 0 && exact_sol)
-   {
-      cout << "Identified a mesh with known exact solution" << endl;
-   }
-   */
+
    ComplexOperator::Convention conv =
       herm_conv ? ComplexOperator::HERMITIAN : ComplexOperator::BLOCK_SYMMETRIC;
 
@@ -366,16 +348,7 @@ int main(int argc, char *argv[])
                    << "window_title ': Full BC'" << flush;
       }
    }
-   // ParComplexGridFunction * u_exact = NULL;
-   // if (exact_sol) { u_exact = new ParComplexGridFunction(fespace); }
-   /*
-   FunctionCoefficient u0_r(u0_real_exact);
-   FunctionCoefficient u0_i(u0_imag_exact);
-   VectorFunctionCoefficient u1_r(dim, u1_real_exact);
-   VectorFunctionCoefficient u1_i(dim, u1_imag_exact);
-   VectorFunctionCoefficient u2_r(dim, u2_real_exact);
-   VectorFunctionCoefficient u2_i(dim, u2_imag_exact);
-   */
+
    ConstantCoefficient zeroCoef(0.0);
    ConstantCoefficient oneCoef(1.0);
 
@@ -384,63 +357,6 @@ int main(int argc, char *argv[])
    VectorConstantCoefficient zeroVecCoef(zeroVec);
    VectorConstantCoefficient oneVecCoef(oneVec);
 
-
-   /*
-   switch (prob)
-   {
-      case 0:
-         if (exact_sol)
-         {
-            u.ProjectBdrCoefficient(u0_r, u0_i, ess_bdr);
-            u_exact->ProjectCoefficient(u0_r, u0_i);
-         }
-         else
-         {
-            u.ProjectBdrCoefficient(oneCoef, zeroCoef, ess_bdr);
-         }
-         break;
-      case 1:
-         if (exact_sol)
-         {
-            u.ProjectBdrCoefficientTangent(u1_r, u1_i, ess_bdr);
-            u_exact->ProjectCoefficient(u1_r, u1_i);
-         }
-         else
-         {
-            u.ProjectBdrCoefficientTangent(oneVecCoef, zeroVecCoef, ess_bdr);
-         }
-         break;
-      case 2:
-         if (exact_sol)
-         {
-            u.ProjectBdrCoefficientNormal(u2_r, u2_i, ess_bdr);
-            u_exact->ProjectCoefficient(u2_r, u2_i);
-         }
-         else
-         {
-            u.ProjectBdrCoefficientNormal(oneVecCoef, zeroVecCoef, ess_bdr);
-         }
-         break;
-      default: break; // This should be unreachable
-   }
-   */
-   /*
-   if (visualization && exact_sol)
-   {
-      char vishost[] = "localhost";
-      int  visport   = 19916;
-      socketstream sol_sock_r(vishost, visport);
-      socketstream sol_sock_i(vishost, visport);
-      sol_sock_r << "parallel " << num_procs << " " << myid << "\n";
-      sol_sock_i << "parallel " << num_procs << " " << myid << "\n";
-      sol_sock_r.precision(8);
-      sol_sock_i.precision(8);
-      sol_sock_r << "solution\n" << *pmesh << u_exact->real()
-                 << "window_title 'Exact: Real Part'" << flush;
-      sol_sock_i << "solution\n" << *pmesh << u_exact->imag()
-                 << "window_title 'Exact: Imaginary Part'" << flush;
-   }
-   */
    // 11. Set up the parallel sesquilinear form a(.,.) on the finite element
    //     space corresponding to the damped harmonic oscillator operator of the
    //     appropriate type:
@@ -711,7 +627,6 @@ int main(int argc, char *argv[])
 
    // 17. Free the used memory.
    delete a;
-   // delete u_exact;
    delete fespace_port;
    delete fec_port;
    delete pmesh_port;
@@ -721,58 +636,6 @@ int main(int argc, char *argv[])
 
    return 0;
 }
-/*
-bool check_for_inline_mesh(const char * mesh_file)
-{
-   string file(mesh_file);
-   size_t p0 = file.find_last_of("/");
-   string s0 = file.substr((p0==string::npos)?0:(p0+1),7);
-   return s0 == "inline-";
-}
-
-complex<double> u0_exact(const Vector &x)
-{
-   int dim = x.Size();
-   complex<double> i(0.0, 1.0);
-   complex<double> alpha = (epsilon_ * omega_ - i * sigma_);
-   complex<double> kappa = std::sqrt(mu_ * omega_* alpha);
-   return std::exp(-i * kappa * x[dim - 1]);
-}
-
-double u0_real_exact(const Vector &x)
-{
-   return u0_exact(x).real();
-}
-
-double u0_imag_exact(const Vector &x)
-{
-   return u0_exact(x).imag();
-}
-
-void u1_real_exact(const Vector &x, Vector &v)
-{
-   int dim = x.Size();
-   v.SetSize(dim); v = 0.0; v[0] = u0_real_exact(x);
-}
-
-void u1_imag_exact(const Vector &x, Vector &v)
-{
-   int dim = x.Size();
-   v.SetSize(dim); v = 0.0; v[0] = u0_imag_exact(x);
-}
-
-void u2_real_exact(const Vector &x, Vector &v)
-{
-   int dim = x.Size();
-   v.SetSize(dim); v = 0.0; v[dim-1] = u0_real_exact(x);
-}
-
-void u2_imag_exact(const Vector &x, Vector &v)
-{
-   int dim = x.Size();
-   v.SetSize(dim); v = 0.0; v[dim-1] = u0_imag_exact(x);
-}
-*/
 
 void ScalarWaveGuide(int mode, ParGridFunction &x)
 {
@@ -891,65 +754,6 @@ void VectorWaveGuide(int mode, ParGridFunction &x)
    delete M;
 }
 
-class H1ZeroMeanProjector : public Operator
-{
-private:
-   const ParFiniteElementSpace &fes_;
-
-public:
-   H1ZeroMeanProjector(const ParFiniteElementSpace &fes)
-      : Operator(fes.GetTrueVSize()), fes_(fes) {}
-
-   void Mult(const Vector &x, Vector &y) const override
-   {
-      // x.Read();
-      // y.UseDevice(true); y = 0.0;
-
-      cout << "true size: " << fes_.GetTrueVSize() << endl;
-      cout << "x.Size():  " << x.Size() << endl;
-      cout << "y.Size():  " << y.Size() << endl;
-      cout << "x.Norml1(): " << x.Norml1() << endl;
-
-      double loc_sum = 0.0;
-      for (int i=0; i<x.Size(); i++)
-      {
-         loc_sum += x(i);
-      }
-
-      double sum = 0.0;
-      MPI_Allreduce(&loc_sum, &sum, 1, MPI_DOUBLE, MPI_SUM, fes_.GetComm());
-      cout << "sum: " << sum << endl;
-
-      double mean = sum / fes_.GlobalTrueVSize();
-      cout << "mean: " << mean << endl;
-      // cout << "x: "; x.Print(cout);
-      /*
-      {
-        double sum2 = 0.0;
-        for (int i=0; i<x.Size(); i++)
-      {
-        sum2 += x(i);
-      }
-           cout << "sum2: " << sum2 << endl;
-         }
-         */
-      // y.HostReadWrite();
-      y = x;
-      cout << "y.Norml1() 1: " << y.Norml1() << endl;
-      y -= mean;
-      cout << "y.Norml1() 2: " << y.Norml1() << endl;
-
-      double loc_sum_y = 0.0;
-      for (int i=0; i<y.Size(); i++)
-      {
-         loc_sum_y += y(i);
-      }
-      double sum_y = 0.0;
-      MPI_Allreduce(&loc_sum_y, &sum_y, 1, MPI_DOUBLE, MPI_SUM, fes_.GetComm());
-      cout << "sum y: " << sum_y << endl;
-   }
-};
-
 void PseudoScalarWaveGuide(int mode, ParGridFunction &x_l2)
 {
    int nev = std::max(mode + 2, 5);
@@ -989,8 +793,6 @@ void PseudoScalarWaveGuide(int mode, ParGridFunction &x_l2)
 
    HypreBoomerAMG amg(*A);
    amg.SetPrintLevel(0);
-
-   H1ZeroMeanProjector proj(fespace);
 
    HypreLOBPCG lobpcg(MPI_COMM_WORLD);
    lobpcg.SetNumModes(nev);
