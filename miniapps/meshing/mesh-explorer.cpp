@@ -1199,7 +1199,7 @@ int main (int argc, char *argv[])
               "--> " << flush;
          char dk;
          cin >> dk;
-         if (dk == 'p')
+         if (dk == 'p' || dk == 'P')
          {
             const char omesh_file[] = "mesh-explorer-paraview";
             ParaViewDataCollection dc(omesh_file, mesh);
@@ -1207,13 +1207,18 @@ int main (int argc, char *argv[])
             dc.Save();
             cout << "New ParaView mesh file: " << omesh_file << endl;
          }
-         else if (dk == 'v')
+         else if (dk == 'v' || dk == 'V')
          {
             const char omesh_file[] = "mesh-explorer-visit";
             VisItDataCollection dc(omesh_file, mesh);
             dc.SetPrecision(14);
             dc.Save();
             cout << "New VisIt mesh file: " << omesh_file << "_000000.mfem_root"
+                 << endl;
+         }
+         else
+         {
+            cout << "Unrecognized DataCollection type: \"" << dk << "\""
                  << endl;
          }
       }
