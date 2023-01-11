@@ -112,7 +112,7 @@ static void InitBasisImpl(const FiniteElementSpace &fes,
    const bool tensor = dynamic_cast<const mfem::TensorBasisElement *>
                        (&fe) != nullptr;
 
-   // Init or retreive key values
+   // Init or retrieve key values
    if (basis_itr == mfem::internal::ceed_basis_map.end())
    {
       if ( tensor )
