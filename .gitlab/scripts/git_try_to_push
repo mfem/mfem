@@ -17,8 +17,11 @@
 for i in {1..5}; do
    git push origin master
    if [[ $? == 0 ]]; then
-      exit 0 # success
+      exit 0 # Success
    fi
+   # Wait for 20 seconds in case someone else is pushing to the remote
+   # concurrently
+   sleep 20
    # Fetch any updates from the remote
    git remote update
    # Get the latest commit on the local branch
@@ -36,7 +39,6 @@ for i in {1..5}; do
          exit 1 # Something else went wrong trying to pull
       fi
    fi
-   sleep 20
 done
 
 exit 1 # Did not succeed in 5 attempts
