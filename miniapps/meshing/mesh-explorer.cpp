@@ -384,6 +384,7 @@ int main (int argc, char *argv[])
            "o) Reorder elements\n"
            "S) Save in MFEM format\n"
            "V) Save in VTK format (only linear and quadratic meshes)\n"
+           "D) Save as a DataCollection\n"
            "q) Quit\n"
 #ifdef MFEM_USE_ZLIB
            "Z) Save in MFEM format with compression\n"
@@ -1188,6 +1189,33 @@ int main (int argc, char *argv[])
          omesh.precision(14);
          mesh->PrintVTK(omesh);
          cout << "New VTK mesh file: " << omesh_file << endl;
+      }
+
+      if (mk == 'D')
+      {
+         cout << "What type of DataCollection?\n"
+              "p) ParaView Data Collection\n"
+              "v) VisIt Data Collection\n"
+              "--> " << flush;
+         char dk;
+         cin >> dk;
+         if (dk == 'p')
+         {
+            const char omesh_file[] = "mesh-explorer-paraview";
+            ParaViewDataCollection dc(omesh_file, mesh);
+            dc.SetPrecision(14);
+            dc.Save();
+            cout << "New ParaView mesh file: " << omesh_file << endl;
+         }
+         else if (dk == 'v')
+         {
+            const char omesh_file[] = "mesh-explorer-visit";
+            VisItDataCollection dc(omesh_file, mesh);
+            dc.SetPrecision(14);
+            dc.Save();
+            cout << "New VisIt mesh file: " << omesh_file << "_000000.mfem_root"
+                 << endl;
+         }
       }
 
 #ifdef MFEM_USE_ZLIB
