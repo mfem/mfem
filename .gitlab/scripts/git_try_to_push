@@ -18,7 +18,7 @@ for i in {1..5}; do
    git push origin master
    if [[ $? == 0 ]]; then
       exit 0 # success
-   else
+   fi
    # Fetch any updates from the remote
    git remote update
    # Get the latest commit on the local branch
