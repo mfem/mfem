@@ -78,11 +78,14 @@ public:
    virtual int Id() const { return 0; }
 };
 
-/// Abstract class used to define combination of metrics with constant coefficients.
+class TargetConstructor;
+
+/// Abstract class used to define explicit combination of metrics with constant
+/// coefficients.
 class TMOP_Combo_QualityMetric : public TMOP_QualityMetric
 {
 protected:
-   Array<TMOP_QualityMetric *> tmop_q_arr; //not owned
+   Array<TMOP_QualityMetric *> tmop_q_arr; //the metrics are not owned
    Array<double> wt_arr;
 
 public:
@@ -108,6 +111,19 @@ public:
 
    virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
                           const double weight, DenseMatrix &A) const;
+
+   /// Computes weights so that the averages of all metrics are equal, and the
+   /// weights sum to one. Works in parallel when called with a ParGridFunction.
+   void ComputeBalancedWeights(const GridFunction &nodes,
+                               const TargetConstructor &tc,
+                               Vector &weights) const;
+
+   /// Changes the weights of the metrics in the combination.
+   void SetWeights(const Vector &weights)
+   {
+      MFEM_VERIFY(tmop_q_arr.Size() == weights.Size(), "Incorrect #weights");
+      for (int i = 0; i < tmop_q_arr.Size(); i++) { wt_arr[i] = weights(i); }
+   }
 };
 
 /// Simultaneous Untangler + Worst Case Improvement Metric
@@ -453,20 +469,18 @@ class TMOP_Metric_066 : public TMOP_Combo_QualityMetric
 {
 protected:
    mutable InvariantsEvaluator2D<double> ie;
-   double gamma;
    TMOP_QualityMetric *sh_metric, *sz_metric;
 
 public:
-   TMOP_Metric_066(double gamma_) : gamma(gamma_),
-      sh_metric(new TMOP_Metric_004),
-      sz_metric(new TMOP_Metric_055)
+   TMOP_Metric_066(double gamma)
+      : sh_metric(new TMOP_Metric_004), sz_metric(new TMOP_Metric_055)
    {
       // (1-gamma) mu_4 + gamma mu_55
-      AddQualityMetric(sh_metric, 1.-gamma_);
-      AddQualityMetric(sz_metric, gamma_);
+      AddQualityMetric(sh_metric, 1.-gamma);
+      AddQualityMetric(sz_metric, gamma);
    }
    virtual int Id() const { return 66; }
-   double GetGamma() const { return gamma; }
+   double GetGamma() const { return wt_arr[1]; }
 
    virtual ~TMOP_Metric_066() { delete sh_metric; delete sz_metric; }
 };
@@ -494,27 +508,19 @@ class TMOP_Metric_080 : public TMOP_Combo_QualityMetric
 {
 protected:
    mutable InvariantsEvaluator2D<double> ie;
-   double gamma;
    TMOP_QualityMetric *sh_metric, *sz_metric;
 
 public:
-   TMOP_Metric_080(double gamma_) : gamma(gamma_),
-      sh_metric(new TMOP_Metric_002),
-      sz_metric(new TMOP_Metric_077)
+   TMOP_Metric_080(double gamma)
+      : sh_metric(new TMOP_Metric_002), sz_metric(new TMOP_Metric_077)
    {
       // (1-gamma) mu_2 + gamma mu_77
-      AddQualityMetric(sh_metric, 1.-gamma_);
-      AddQualityMetric(sz_metric, gamma_);
+      AddQualityMetric(sh_metric, 1.0 - gamma);
+      AddQualityMetric(sz_metric, gamma);
    }
 
    virtual int Id() const { return 80; }
-   double GetGamma() const { return gamma; }
-   void SetGamma(double gamma_new)
-   {
-      gamma = gamma_new;
-      wt_arr[0] = 1-gamma;
-      wt_arr[1] = gamma;
-   }
+   double GetGamma() const { return wt_arr[1]; }
 
    virtual ~TMOP_Metric_080() { delete sh_metric; delete sz_metric; }
 };
@@ -815,17 +821,15 @@ class TMOP_Metric_328 : public TMOP_Combo_QualityMetric
 {
 protected:
    mutable InvariantsEvaluator2D<double> ie;
-   double gamma;
    TMOP_QualityMetric *sh_metric, *sz_metric;
 
 public:
-   TMOP_Metric_328(double gamma_) : gamma(gamma_),
-      sh_metric(new TMOP_Metric_301),
-      sz_metric(new TMOP_Metric_316)
+   TMOP_Metric_328(double gamma)
+      : sh_metric(new TMOP_Metric_301), sz_metric(new TMOP_Metric_316)
    {
       // (1-gamma) mu_301 + gamma mu_316
-      AddQualityMetric(sh_metric, 1.-gamma_);
-      AddQualityMetric(sz_metric, gamma_);
+      AddQualityMetric(sh_metric, 1.-gamma);
+      AddQualityMetric(sz_metric, gamma);
    }
 
    virtual ~TMOP_Metric_328() { delete sh_metric; delete sz_metric; }
@@ -835,21 +839,19 @@ public:
 class TMOP_Metric_332 : public TMOP_Combo_QualityMetric
 {
 protected:
-   double gamma;
    TMOP_QualityMetric *sh_metric, *sz_metric;
 
 public:
-   TMOP_Metric_332(double gamma_) : gamma(gamma_),
-      sh_metric(new TMOP_Metric_302),
-      sz_metric(new TMOP_Metric_315)
+   TMOP_Metric_332(double gamma)
+      : sh_metric(new TMOP_Metric_302), sz_metric(new TMOP_Metric_315)
    {
       // (1-gamma) mu_302 + gamma mu_315
-      AddQualityMetric(sh_metric, 1.-gamma_);
-      AddQualityMetric(sz_metric, gamma_);
+      AddQualityMetric(sh_metric, 1.-gamma);
+      AddQualityMetric(sz_metric, gamma);
    }
 
    virtual int Id() const { return 332; }
-   double GetGamma() const { return gamma; }
+   double GetGamma() const { return wt_arr[1]; }
 
    virtual ~TMOP_Metric_332() { delete sh_metric; delete sz_metric; }
 };
@@ -859,17 +861,15 @@ class TMOP_Metric_333 : public TMOP_Combo_QualityMetric
 {
 protected:
    mutable InvariantsEvaluator2D<double> ie;
-   double gamma;
    TMOP_QualityMetric *sh_metric, *sz_metric;
 
 public:
-   TMOP_Metric_333(double gamma_) : gamma(gamma_),
-      sh_metric(new TMOP_Metric_302),
-      sz_metric(new TMOP_Metric_316)
+   TMOP_Metric_333(double gamma)
+      : sh_metric(new TMOP_Metric_302), sz_metric(new TMOP_Metric_316)
    {
       // (1-gamma) mu_302 + gamma mu_316
-      AddQualityMetric(sh_metric, 1.-gamma_);
-      AddQualityMetric(sz_metric, gamma_);
+      AddQualityMetric(sh_metric, 1.-gamma);
+      AddQualityMetric(sz_metric, gamma);
    }
 
    virtual ~TMOP_Metric_333() { delete sh_metric; delete sz_metric; }
@@ -880,21 +880,19 @@ class TMOP_Metric_334 : public TMOP_Combo_QualityMetric
 {
 protected:
    mutable InvariantsEvaluator2D<double> ie;
-   double gamma;
    TMOP_QualityMetric *sh_metric, *sz_metric;
 
 public:
-   TMOP_Metric_334(double gamma_) : gamma(gamma_),
-      sh_metric(new TMOP_Metric_303),
-      sz_metric(new TMOP_Metric_316)
+   TMOP_Metric_334(double gamma)
+      : sh_metric(new TMOP_Metric_303), sz_metric(new TMOP_Metric_316)
    {
       // (1-gamma) mu_303 + gamma mu_316
-      AddQualityMetric(sh_metric, 1.-gamma_);
-      AddQualityMetric(sz_metric, gamma_);
+      AddQualityMetric(sh_metric, 1.-gamma);
+      AddQualityMetric(sz_metric, gamma);
    }
 
    virtual int Id() const { return 334; }
-   double GetGamma() const { return gamma; }
+   double GetGamma() const { return wt_arr[1]; }
 
    virtual ~TMOP_Metric_334() { delete sh_metric; delete sz_metric; }
 };
@@ -904,21 +902,19 @@ class TMOP_Metric_347 : public TMOP_Combo_QualityMetric
 {
 protected:
    mutable InvariantsEvaluator2D<double> ie;
-   double gamma;
    TMOP_QualityMetric *sh_metric, *sz_metric;
 
 public:
-   TMOP_Metric_347(double gamma_) : gamma(gamma_),
-      sh_metric(new TMOP_Metric_304),
-      sz_metric(new TMOP_Metric_316)
+   TMOP_Metric_347(double gamma)
+      : sh_metric(new TMOP_Metric_304), sz_metric(new TMOP_Metric_316)
    {
       // (1-gamma) mu_304 + gamma mu_316
-      AddQualityMetric(sh_metric, 1.-gamma_);
-      AddQualityMetric(sz_metric, gamma_);
+      AddQualityMetric(sh_metric, 1.-gamma);
+      AddQualityMetric(sz_metric, gamma);
    }
 
    virtual int Id() const { return 347; }
-   double GetGamma() const { return gamma; }
+   double GetGamma() const { return wt_arr[1]; }
 
    virtual ~TMOP_Metric_347() { delete sh_metric; delete sz_metric; }
 };
@@ -1041,17 +1037,15 @@ class TMOP_AMetric_126 : public TMOP_Combo_QualityMetric
 {
 protected:
    mutable InvariantsEvaluator2D<double> ie;
-   double gamma;
    TMOP_QualityMetric *sh_metric, *sz_metric;
 
 public:
-   TMOP_AMetric_126(double gamma_) : gamma(gamma_),
-      sh_metric(new TMOP_AMetric_011),
-      sz_metric(new TMOP_AMetric_014a)
+   TMOP_AMetric_126(double gamma)
+      : sh_metric(new TMOP_AMetric_011), sz_metric(new TMOP_AMetric_014a)
    {
       // (1-gamma) nu_11 + gamma nu_14
-      AddQualityMetric(sh_metric, 1.-gamma_);
-      AddQualityMetric(sz_metric, gamma_);
+      AddQualityMetric(sh_metric, 1.-gamma);
+      AddQualityMetric(sz_metric, gamma);
    }
 
    virtual ~TMOP_AMetric_126() { delete sh_metric; delete sz_metric; }
