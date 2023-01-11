@@ -501,7 +501,7 @@ TEST_CASE("MatrixInverse", "[DenseMatrix]")
       L_exact.Mult(x,y1);
       chol.LSolve(4,1,y2.GetData());
       y1-=y2;
-      /** Verify lower triangular solve wit a RHS vector x
+      /** Verify lower triangular solve with a RHS vector x
           i.e, L^-1 x = L_exact^-1 x */
       REQUIRE(y1.Norml2() == MFEM_Approx(0.,tol));
 
@@ -510,7 +510,7 @@ TEST_CASE("MatrixInverse", "[DenseMatrix]")
       L_exact.MultTranspose(x,y1);
       chol.USolve(4,1,y2.GetData());
       y1-=y2;
-      /** Verify upper triangular solve wit a RHS vector x
+      /** Verify upper triangular solve with a RHS vector x
           i.e, L^-t x = L_exact^-t x */
       REQUIRE(y1.Norml2() == MFEM_Approx(0.,tol));
 

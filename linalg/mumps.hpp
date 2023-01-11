@@ -106,10 +106,10 @@ private:
    // local mpi id
    int myid;
 
-   // parameter controling the matrix type
+   // parameter controlling the matrix type
    MatType mat_type = MatType::UNSYMMETRIC;
 
-   // parameter controling the printing level
+   // parameter controlling the printing level
    int print_level = 0;
 
    // local row offsets
@@ -118,12 +118,12 @@ private:
    // MUMPS object
    DMUMPS_STRUC_C *id=nullptr;
 
-   // Method for setting MUMPS interal parameters
+   // Method for setting MUMPS internal parameters
    void SetParameters();
 
 #if MFEM_MUMPS_VERSION >= 530
 
-   // row offests array on all procs
+   // row offsets array on all procs
    Array<int> row_starts;
 
    // row map

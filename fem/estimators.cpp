@@ -159,7 +159,7 @@ void KellyErrorEstimator::ComputeEstimates()
    // the FaceInfo class [1]. Also, the FaceElementTransformations
    // documentation [2] may be helpful to grasp what is going on. Note
    // that the FaceElementTransformations also works in the non-
-   // conforming case to transfer the gauss points from the slave to
+   // conforming case to transfer the Gauss points from the slave to
    // the master element.
    // [1]
    // https://github.com/mfem/mfem/blob/02d0bfe9c18ce049c3c93a6a4208080fcfc96991/mesh/mesh.hpp#L94
@@ -417,7 +417,7 @@ void KellyErrorEstimator::ComputeEstimates()
          Vector val(flux_space->GetVDim());
          flux->GetVectorValue(FT->Elem2No, ip, val);
 
-         // Evaluate gauss point
+         // Evaluate Gauss point
          Vector normal(mesh->SpaceDimension());
          FT->Face->SetIntPoint(&fip);
          if (mesh->Dimension() == mesh->SpaceDimension())

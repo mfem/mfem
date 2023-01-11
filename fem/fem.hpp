@@ -45,6 +45,7 @@
 #include "multigrid.hpp"
 #include "ceed/solvers/algebraic.hpp"
 #include "lor/lor.hpp"
+#include "dgmassinv.hpp"
 
 #ifdef MFEM_USE_MPI
 #include "pfespace.hpp"

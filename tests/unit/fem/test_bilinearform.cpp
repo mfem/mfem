@@ -128,7 +128,7 @@ TEST_CASE("FormLinearSystem/SolutionScope",
    {
       GridFunction sol(&fes);
       SolvePDE(AssemblyLevel::LEGACYFULL, sol);
-      // Make sure the solution is still accessible after 'X' is destoyed
+      // Make sure the solution is still accessible after 'X' is destroyed
       sol.HostRead();
       REQUIRE(AsConst(sol)(bdr_dof) == 0.0);
    }
@@ -137,7 +137,7 @@ TEST_CASE("FormLinearSystem/SolutionScope",
    {
       GridFunction sol(&fes);
       SolvePDE(AssemblyLevel::PARTIAL, sol);
-      // Make sure the solution is still accessible after 'X' is destoyed
+      // Make sure the solution is still accessible after 'X' is destroyed
       sol.HostRead();
       REQUIRE(AsConst(sol)(bdr_dof) == 0.0);
    }

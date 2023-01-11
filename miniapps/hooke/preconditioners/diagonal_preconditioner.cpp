@@ -74,7 +74,7 @@ void ElasticityDiagonalPreconditioner::Mult(const Vector &x, Vector &y) const
    }
    else
    {
-      MFEM_ABORT("Unknwon ElasticityDiagonalPreconditioner::Type");
+      MFEM_ABORT("Unknown ElasticityDiagonalPreconditioner::Type");
    }
 }
 

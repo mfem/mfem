@@ -55,7 +55,7 @@ void GeneralAMS::FormResidual(const Vector& rhs, const Vector& x,
   This implementation follows that in hypre, see hypre_ParCSRSubspacePrec()
   in hypre/src/parcsr_ls/ams.c and also hypre_AMSSolve() in the same file.
 
-  hypre's default cyle (cycle 1) is "01210", ie, smooth, correct in space
+  hypre's default cycle (cycle 1) is "01210", ie, smooth, correct in space
   1, correct in space 2, correct in space 1, smooth. Their space 1 is G and
   space 2 is Pi by default.
 
