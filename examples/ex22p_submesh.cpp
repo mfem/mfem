@@ -51,8 +51,8 @@
 //               example.
 //
 // mpirun -np 1 ./ex22p_submesh -m ../data/fichera-mixed.mesh -rs 2 -rp 0 -pbc '4 7 13 23' -o 2
-//  mpirun -np 4 ./ex22p_submesh -m ../data/fichera-mixed.mesh -rs 3 -rp 0 -pbc '21 22 24' -o 2 -em 5 -sigma 2 -p 0 -f .25
-// mpirun -np 1 ./ex22p_submesh -m ../data/fichera-mixed.mesh -rs 2 -rp 0 -pbc '20' -o 2 -em 1 -sigma 2 -p 2 -f .5
+//  mpirun -np 4 ./ex22p_submesh -m ../data/fichera-mixed.mesh -rs 3 -rp 0 -pbc '21 22 24' -o 2 -em 5 -p 0 -f .25
+// mpirun -np 4 ./ex22p_submesh -m ../data/fichera-mixed.mesh -rs 2 -rp 0 -pbc '7' -o 2 -em 2 -p 2 -f .7
 //
 #include "mfem.hpp"
 #include <fstream>
