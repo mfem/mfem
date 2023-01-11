@@ -166,7 +166,7 @@ void Mesh::GetBoundingBox(Vector &min, Vector &max, int ref)
          if (use_boundary)
          {
             GetBdrElementFace(i, &fn, &fo);
-            RefG = GlobGeometryRefiner.Refine(GetFaceBaseGeometry(fn), ref);
+            RefG = GlobGeometryRefiner.Refine(GetFaceGeometry(fn), ref);
             Tr = GetFaceElementTransformations(fn, 5);
             eir.SetSize(RefG->RefPts.GetNPoints());
             Tr->Loc1.Transform(RefG->RefPts, eir);
@@ -300,7 +300,7 @@ void Mesh::PrintCharacteristics(Vector *Vh, Vector *Vk, std::ostream &os)
       num_faces_by_geom = 0;
       for (int i = 0; i < GetNFaces(); i++)
       {
-         num_faces_by_geom[GetFaceBaseGeometry(i)]++;
+         num_faces_by_geom[GetFaceGeometry(i)]++;
       }
 
       os << '\n'
@@ -540,7 +540,7 @@ void Mesh::GetFaceTransformation(int FaceNo, IsoparametricTransformation *FTr)
       {
          FaceInfo &face_info = faces_info[FaceNo];
 
-         Geometry::Type face_geom = GetFaceGeometryType(FaceNo);
+         Geometry::Type face_geom = GetFaceGeometry(FaceNo);
          Element::Type  face_type = GetFaceElementType(FaceNo);
 
          GetLocalFaceTransformation(face_type,
@@ -1001,7 +1001,7 @@ FaceElementTransformations *Mesh::GetFaceElementTransformations(int FaceNo,
    }
    else
    {
-      FaceElemTr.SetGeometryType(GetFaceGeometryType(FaceNo));
+      FaceElemTr.SetGeometryType(GetFaceGeometry(FaceNo));
    }
 
    // setup Loc1 & Loc2
@@ -1410,7 +1410,60 @@ void Mesh::GetFaceInfos(int Face, int *Inf1, int *Inf2, int *NCFace) const
    *NCFace = faces_info[Face].NCFace;
 }
 
-Geometry::Type Mesh::GetFaceGeometryType(int Face) const
+void Mesh::GetFaceAdjacentElements(int face, Array<int> & elems) const
+{
+   bool nonconforming_face = ncmesh && (faces_info[face].NCFace != -1);
+   MFEM_VERIFY(face < GetNumFaces(), "GetFaceAdjacentElements only implemented"
+               "for local faces.");
+   if (nonconforming_face) //nonconforming master
+   {
+      int nc_index = faces_info[face].NCFace;
+      const NCFaceInfo &nc_info = nc_faces_info[nc_index];
+      if (!nc_info.Slave)
+      {
+         const mfem::NCMesh::NCList &nc_list = ncmesh->GetNCList(Dim-1);
+         elems.Append(ncmesh->elements[nc_list.masters[nc_index].element].index);
+         int j_begin = nc_list.masters[nc_index].slaves_begin;
+         int j_end = nc_list.masters[nc_index].slaves_end;
+         for (int j = j_begin; j<j_end ; j++)
+         {
+            int fnum = nc_list.slaves[j].index;
+            if (fnum >= GetNumFaces())
+            {
+               const FaceInfo &face_info = faces_info[fnum];
+               elems.Append(GetNE() -1 -face_info.Elem2No);
+            }
+            else
+            {
+               elems.Append(ncmesh->elements[nc_list.slaves[j].element].index);
+            }
+         }
+         return;
+      }
+   }
+   //(i) conforming interior -
+   //(ii) conforming processor boundary
+   //(iii) true boundary -
+   //(iv) nonconforming interior slave -
+   //(v) nonconforming processor boundary with slave
+   {
+      const FaceInfo &face_info = faces_info[face];
+      elems.Append(face_info.Elem1No);
+      if (face_info.Elem2No >= 0)
+      {
+         elems.Append(face_info.Elem2No); //(i, iii, iv)
+      }
+      else
+      {
+         if (face_info.Elem2Inf >= 0)
+         {
+            elems.Append(GetNE()-1-face_info.Elem2No); //(ii, v)
+         }
+      }
+   }
+}
+
+Geometry::Type Mesh::GetFaceGeometry(int Face) const
 {
    switch (Dim)
    {
