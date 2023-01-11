@@ -229,7 +229,7 @@ void BlockMatrix::EliminateRowCol(int rc, DiagonalPolicy dpolicy)
                "BlockMatrix::EliminateRowCol: nRowBlocks != nColBlocks");
 
    MFEM_ASSERT(row_offsets[iiblock] == col_offsets[iiblock],
-               "BlockMatrix::EliminateRowCol: row_offests["
+               "BlockMatrix::EliminateRowCol: row_offsets["
                << iiblock << "] != col_offsets["<<iiblock<<"]");
 
    MFEM_ASSERT(Aij(iiblock, iiblock),
@@ -261,7 +261,7 @@ void BlockMatrix::EliminateRowCol(Array<int> & ess_bc_dofs, Vector & sol,
    {
       if (row_offsets[iiblock] != col_offsets[iiblock])
       {
-         mfem::out << "BlockMatrix::EliminateRowCol: row_offests["
+         mfem::out << "BlockMatrix::EliminateRowCol: row_offsets["
                    << iiblock << "] != col_offsets["<<iiblock<<"]\n";
          mfem_error();
       }
@@ -441,7 +441,7 @@ void BlockMatrix::Mult(const Vector & x, Vector & y) const
 {
    if (x.GetData() == y.GetData())
    {
-      mfem_error("Error: x and y can't point to the same datas \n");
+      mfem_error("Error: x and y can't point to the same data \n");
    }
 
    MFEM_ASSERT(width == x.Size(), "Input vector size (" << x.Size()
@@ -456,7 +456,7 @@ void BlockMatrix::AddMult(const Vector & x, Vector & y, const double val) const
 {
    if (x.GetData() == y.GetData())
    {
-      mfem_error("Error: x and y can't point to the same datas \n");
+      mfem_error("Error: x and y can't point to the same data \n");
    }
 
    Vector xblockview, yblockview;
@@ -484,7 +484,7 @@ void BlockMatrix::MultTranspose(const Vector & x, Vector & y) const
 {
    if (x.GetData() == y.GetData())
    {
-      mfem_error("Error: x and y can't point to the same datas \n");
+      mfem_error("Error: x and y can't point to the same data \n");
    }
 
    y = 0.;
@@ -496,7 +496,7 @@ void BlockMatrix::AddMultTranspose(const Vector & x, Vector & y,
 {
    if (x.GetData() == y.GetData())
    {
-      mfem_error("Error: x and y can't point to the same datas \n");
+      mfem_error("Error: x and y can't point to the same data \n");
    }
 
    Vector xblockview, yblockview;

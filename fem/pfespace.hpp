@@ -90,7 +90,7 @@ private:
    /// Flag indicating the existence of shared triangles with interior ND dofs
    bool nd_strias;
 
-   /// Resets nd_strias flag at constuction or after rebalancing
+   /// Resets nd_strias flag at construction or after rebalancing
    void CheckNDSTriaDofs();
 
    ParNURBSExtension *pNURBSext() const

@@ -25,17 +25,19 @@
 #include "ncmesh.hpp"
 #include "mesh.hpp"
 #include "mesh_operators.hpp"
+#include "submesh/submesh.hpp"
+#include "submesh/submesh_utils.hpp"
+#include "submesh/transfermap.hpp"
+#include "submesh/transfer_category.hpp"
 #include "nurbs.hpp"
 #include "wedge.hpp"
 #include "pyramid.hpp"
 
-#ifdef MFEM_USE_MESQUITE
-#include "mesquite.hpp"
-#endif
-
 #ifdef MFEM_USE_MPI
 #include "pncmesh.hpp"
 #include "pmesh.hpp"
+#include "submesh/psubmesh.hpp"
+#include "submesh/ptransfermap.hpp"
 #endif
 
 #ifdef MFEM_USE_PUMI

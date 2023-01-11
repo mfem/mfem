@@ -12,6 +12,7 @@
 #include "../general/forall.hpp"
 #include "bilininteg.hpp"
 #include "gridfunc.hpp"
+#include "qfunction.hpp"
 
 using namespace std;
 
@@ -209,44 +210,8 @@ void GradientIntegrator::AssemblePA(const FiniteElementSpace &trial_fes,
                "PA requires test and trial space to have same number of quadrature points!");
    pa_data.SetSize(nq * dimsToStore * ne, Device::GetMemoryType());
 
-   Vector coeff;
-
-   if (Q == nullptr)
-   {
-      coeff.SetSize(1);
-      coeff(0) = 1.0;
-   }
-   else if (ConstantCoefficient* cQ = dynamic_cast<ConstantCoefficient*>(Q))
-   {
-      coeff.SetSize(1);
-      coeff(0) = cQ->constant;
-   }
-   else if (QuadratureFunctionCoefficient* qfQ =
-               dynamic_cast<QuadratureFunctionCoefficient*>(Q))
-   {
-      const QuadratureFunction &qFun = qfQ->GetQuadFunction();
-      MFEM_VERIFY(qFun.Size() == ne*nq,
-                  "Incompatible QuadratureFunction dimension \n");
-
-      MFEM_VERIFY(ir == &qFun.GetSpace()->GetElementIntRule(0),
-                  "IntegrationRule used within integrator and in"
-                  " QuadratureFunction appear to be different");
-      qFun.Read();
-      coeff.MakeRef(const_cast<QuadratureFunction &>(qFun),0);
-   }
-   else
-   {
-      coeff.SetSize(nq * ne);
-      auto C = Reshape(coeff.HostWrite(), nq, ne);
-      for (int e = 0; e < ne; ++e)
-      {
-         ElementTransformation& T = *trial_fes.GetElementTransformation(e);
-         for (int q = 0; q < nq; ++q)
-         {
-            C(q,e) = Q->Eval(T, ir->IntPoint(q));
-         }
-      }
-   }
+   QuadratureSpace qs(*mesh, *ir);
+   CoefficientVector coeff(Q, qs, CoefficientStorage::COMPRESSED);
 
    PAGradientSetup(dim, trial_dofs1D, test_dofs1D, quad1D,
                    ne, ir->GetWeights(), geom->J, coeff, pa_data);
@@ -865,4 +830,3 @@ void GradientIntegrator::AddMultTransposePA(const Vector &x, Vector &y) const
 }
 
 } // namespace mfem
-

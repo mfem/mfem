@@ -11,6 +11,7 @@
 
 #include "quadinterpolator.hpp"
 #include "qinterp/dispatch.hpp"
+#include "qspace.hpp"
 #include "../general/forall.hpp"
 #include "../linalg/dtensor.hpp"
 #include "../linalg/kernels.hpp"

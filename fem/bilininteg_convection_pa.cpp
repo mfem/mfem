@@ -12,6 +12,7 @@
 #include "../general/forall.hpp"
 #include "bilininteg.hpp"
 #include "gridfunc.hpp"
+#include "qfunction.hpp"
 #include "ceed/integrators/convection/convection.hpp"
 #include "quadinterpolator.hpp"
 
@@ -1408,66 +1409,10 @@ void ConvectionIntegrator::AssemblePA(const FiniteElementSpace &fes)
    dofs1D = maps->ndof;
    quad1D = maps->nqpt;
    pa_data.SetSize(symmDims * nq * ne, mt);
-   Vector vel;
-   if (VectorConstantCoefficient *cQ =
-          dynamic_cast<VectorConstantCoefficient*>(Q))
-   {
-      vel = cQ->GetVec();
-   }
-   else if (VectorGridFunctionCoefficient *vgfQ =
-               dynamic_cast<VectorGridFunctionCoefficient*>(Q))
-   {
-      vel.SetSize(dim * nq * ne, mt);
 
-      const GridFunction *gf = vgfQ->GetGridFunction();
-      const FiniteElementSpace &gf_fes = *gf->FESpace();
-      const QuadratureInterpolator *qi(gf_fes.GetQuadratureInterpolator(*ir));
-      const bool use_tensor_products = UsesTensorBasis(gf_fes);
-      const ElementDofOrdering ordering = use_tensor_products ?
-                                          ElementDofOrdering::LEXICOGRAPHIC :
-                                          ElementDofOrdering::NATIVE;
-      const Operator *R = gf_fes.GetElementRestriction(ordering);
+   QuadratureSpace qs(*mesh, *ir);
+   CoefficientVector vel(*Q, qs, CoefficientStorage::COMPRESSED);
 
-      Vector xe(R->Height(), mt);
-      xe.UseDevice(true);
-
-      R->Mult(*gf, xe);
-      qi->SetOutputLayout(QVectorLayout::byVDIM);
-      qi->DisableTensorProducts(!use_tensor_products);
-      qi->Values(xe,vel);
-   }
-   else if (VectorQuadratureFunctionCoefficient* vqfQ =
-               dynamic_cast<VectorQuadratureFunctionCoefficient*>(Q))
-   {
-      const QuadratureFunction &qFun = vqfQ->GetQuadFunction();
-      MFEM_VERIFY(qFun.Size() == dim * nq * ne,
-                  "Incompatible QuadratureFunction dimension \n");
-
-      MFEM_VERIFY(ir == &qFun.GetSpace()->GetElementIntRule(0),
-                  "IntegrationRule used within integrator and in"
-                  " QuadratureFunction appear to be different");
-
-      qFun.Read();
-      vel.MakeRef(const_cast<QuadratureFunction &>(qFun),0);
-   }
-   else
-   {
-      vel.SetSize(dim * nq * ne);
-      auto C = Reshape(vel.HostWrite(), dim, nq, ne);
-      DenseMatrix MQ_ir;
-      for (int e = 0; e < ne; ++e)
-      {
-         ElementTransformation& T = *fes.GetElementTransformation(e);
-         Q->Eval(MQ_ir, T, *ir);
-         for (int q = 0; q < nq; ++q)
-         {
-            for (int i = 0; i < dim; ++i)
-            {
-               C(i,q,e) = MQ_ir(i,q);
-            }
-         }
-      }
-   }
    PAConvectionSetup(dim, nq, ne, ir->GetWeights(), geom->J,
                      vel, alpha, pa_data);
 }
