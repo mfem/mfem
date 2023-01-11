@@ -151,7 +151,6 @@ int main(int argc, char *argv[])
 
    // Exact volume and area
    double exact_volume = -10, exact_area = -10;
-   MFEM_CONTRACT_VAR(exact_area);
    if (ls_type == 1)
    {
       if (strncmp(mesh_file,"../../data/star-q3.mesh",100) == 0)
@@ -173,6 +172,7 @@ int main(int argc, char *argv[])
          exact_area   = 1.194452300992437;
       }
    }
+   (void)(&exact_area); // suppress a warning
 
    ElementTransformation *trans;
    const IntegrationRule* ir=nullptr;
@@ -200,7 +200,7 @@ int main(int argc, char *argv[])
       doftrans = fespace.GetElementVDofs(i,vdofs);
       x.GetSubVector(vdofs, lsfun);
 
-      //contruct Algoim integration object
+      //construct Algoim integration object
       AlgoimIntegrationRule air(aorder, *el, *trans, lsfun);
 
       //compute the volume contribution from the element
