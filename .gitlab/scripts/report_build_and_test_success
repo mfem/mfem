@@ -28,8 +28,10 @@ msg="GitLab CI log for build-and-test on ${MACHINE_NAME} ($(date +%Y-%m-%d))"
 if [[ "$AUTOTEST_COMMIT" != "NO" ]]; then
   git pull && \
   git add ${rundir} && \
-  git commit -m "${msg}" && \
-  git push origin master
+  git commit -m "${msg}"
+  if [[ $? == 0 ]]; then
+    ${CI_PROJECT_DIR}/.gitlab/scripts/git_try_to_push
+  fi
 else
   for file in ${rundir}/*; do
     echo "------------------------------"
