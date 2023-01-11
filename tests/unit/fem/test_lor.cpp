@@ -73,7 +73,7 @@ Mesh MakeCartesian(int dim, int nx)
 TEST_CASE("LOR GridFunction Coefficient", "[LOR][GridFunctionCoefficient]")
 {
    auto dim = GENERATE(2, 3);
-   Mesh mesh = detail::MakeCartesian(dim, 2);
+   Mesh mesh = ::detail::MakeCartesian(dim, 2);
    Mesh mesh_refined = Mesh::MakeRefined(mesh, 3, Quadrature1D::GaussLobatto);
 
    int order = 1;

@@ -145,14 +145,9 @@ void test_assembly_level(const char *meshname,
 
    k_ref.Assemble();
    k_ref.Finalize();
-   k_ref.SpMat().EnsureMultTranspose();
 
    k_test.SetAssemblyLevel(assembly);
    k_test.Assemble();
-   if ( assembly == AssemblyLevel::FULL )
-   {
-      k_test.SpMat().EnsureMultTranspose();
-   }
 
    GridFunction x(&fespace), y_ref(&fespace), y_test(&fespace);
 

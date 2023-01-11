@@ -21,8 +21,6 @@ namespace mfem
 // classes BatchedLORAssembly and BatchedLORKernel .
 class BatchedLOR_ND : BatchedLORKernel
 {
-protected:
-   double mass_coeff, curl_curl_coeff;
 public:
    template <int ORDER> void Assemble2D();
    template <int ORDER> void Assemble3D();
