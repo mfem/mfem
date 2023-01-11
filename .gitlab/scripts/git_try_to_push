@@ -36,6 +36,7 @@ for i in {1..5}; do
          exit 1 # Something else went wrong trying to pull
       fi
    fi
+   sleep 20
 done
 
 exit 1 # Did not succeed in 5 attempts
