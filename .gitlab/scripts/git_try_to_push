@@ -28,7 +28,7 @@ for i in {1..5}; do
    # Get the common ancestor
    BASE=$(git merge-base @ @{u})
    # Have the local and remote diverged?
-   if [[ $LOCAL != $REMOTE && $LOCAL != $BASE && $REMOTE != BASE ]]; then
+   if [[ $LOCAL != $REMOTE && $LOCAL != $BASE && $REMOTE != $BASE ]]; then
       git pull
       if [[ $? == 0 ]]; then
          continue
