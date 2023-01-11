@@ -48,8 +48,7 @@ void TMOP_Combo_QualityMetric::EvalP(const DenseMatrix &Jpt,
    for (int i = 0; i < tmop_q_arr.Size(); i++)
    {
       tmop_q_arr[i]->EvalP(Jpt, Pt);
-      Pt *= wt_arr[i];
-      P += Pt;
+      P.Add(wt_arr[i], Pt);
    }
 }
 
@@ -62,10 +61,89 @@ void TMOP_Combo_QualityMetric::AssembleH(const DenseMatrix &Jpt,
    for (int i = 0; i < tmop_q_arr.Size(); i++)
    {
       At = 0.0;
-      tmop_q_arr[i]->AssembleH(Jpt, DS, weight, At);
-      At *= wt_arr[i];
+      tmop_q_arr[i]->AssembleH(Jpt, DS, weight * wt_arr[i], At);
       A += At;
    }
+}
+
+void TMOP_Combo_QualityMetric::
+ComputeBalancedWeights(const GridFunction &nodes, const TargetConstructor &tc,
+                       Vector &weights) const
+{
+   const int m_cnt = tmop_q_arr.Size(),
+             NE    = nodes.FESpace()->GetNE(),
+             dim   = nodes.FESpace()->GetMesh()->Dimension();
+   weights.SetSize(m_cnt);
+
+   // Integrals of all metrics.
+   Array<int> pos_dofs;
+   Vector m_integrals(m_cnt); m_integrals = 0.0;
+   double volume = 0.0;
+   for (int e = 0; e < NE; e++)
+   {
+      const FiniteElement &fe_pos = *nodes.FESpace()->GetFE(e);
+      const IntegrationRule &ir = IntRules.Get(fe_pos.GetGeomType(),
+                                               2 * fe_pos.GetOrder());
+      const int nsp = ir.GetNPoints(), dof = fe_pos.GetDof();
+
+      DenseMatrix dshape(dof, dim);
+      DenseMatrix pos(dof, dim);
+      pos.SetSize(dof, dim);
+      Vector posV(pos.Data(), dof * dim);
+
+      nodes.FESpace()->GetElementVDofs(e, pos_dofs);
+      nodes.GetSubVector(pos_dofs, posV);
+
+      DenseTensor W(dim, dim, nsp);
+      DenseMatrix Winv(dim), T(dim), A(dim);
+      tc.ComputeElementTargets(e, fe_pos, ir, posV, W);
+
+      for (int q = 0; q < nsp; q++)
+      {
+         const DenseMatrix &Wj = W(q);
+         CalcInverse(Wj, Winv);
+
+         const IntegrationPoint &ip = ir.IntPoint(q);
+         fe_pos.CalcDShape(ip, dshape);
+         MultAtB(pos, dshape, A);
+         Mult(A, Winv, T);
+
+         const double w_detA = ip.weight * A.Det();
+         for (int m = 0; m < m_cnt; m++)
+         {
+            tmop_q_arr[m]->SetTargetJacobian(Wj);
+            m_integrals(m) += tmop_q_arr[m]->EvalW(T) * w_detA;
+         }
+         volume += w_detA;
+      }
+   }
+
+   // Parallel case.
+   auto par_nodes = dynamic_cast<const ParGridFunction *>(&nodes);
+   if (par_nodes)
+   {
+      MPI_Allreduce(MPI_IN_PLACE, m_integrals.GetData(), m_cnt,
+                    MPI_DOUBLE, MPI_SUM, par_nodes->ParFESpace()->GetComm());
+      MPI_Allreduce(MPI_IN_PLACE, &volume, 1, MPI_DOUBLE, MPI_SUM,
+                    par_nodes->ParFESpace()->GetComm());
+   }
+
+   // Average metric values.
+   m_integrals /= volume;
+
+   // For [ combo_A_B_C = a m_A + b m_B + c m_C ] we would have:
+   // a = BC / (AB + AC + BC), b = AC / (AB + AC + BC), c = AB / (AB + AC + BC),
+   // where A = avg_m_A, B = avg_m_B, C = avg_m_C.
+   double product_all = 1.0;
+   for (int m = 0; m < m_cnt; m++) { product_all *= m_integrals(m); }
+   Vector products_no_m(m_cnt);
+   for (int m = 0; m < m_cnt; m++)
+   { products_no_m(m) = product_all / m_integrals(m); }
+   const double pnm_sum = products_no_m.Sum();
+   for (int m = 0; m < m_cnt; m++) { weights(m) = products_no_m(m) / pnm_sum; }
+
+   MFEM_ASSERT(fabs(weights.Sum() - 1.0) < 1e-14,
+               "Error: sum should be 1 always: " << weights.Sum());
 }
 
 double TMOP_WorstCaseUntangleOptimizer_Metric::EvalW(const DenseMatrix &Jpt)
