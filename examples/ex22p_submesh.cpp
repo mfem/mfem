@@ -97,9 +97,10 @@ int main(int argc, char *argv[])
    double freq = -1.0;
    double omega = 10.0;
    double a_coef = 0.0;
-   bool visualization = 1;
    bool herm_conv = true;
    // bool exact_sol = true;
+   bool slu_solver  = false;
+   bool visualization = 1;
    bool pa = false;
    const char *device_config = "cpu";
 
@@ -135,6 +136,10 @@ int main(int argc, char *argv[])
                   "Attributes of port boundary condition");
    args.AddOption(&herm_conv, "-herm", "--hermitian", "-no-herm",
                   "--no-hermitian", "Use convention for Hermitian operators.");
+#ifdef MFEM_USE_SUPERLU
+   args.AddOption(&slu_solver, "-slu", "--superlu", "-no-slu",
+                  "--no-superlu", "Use the SuperLU Solver.");
+#endif
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -479,46 +484,11 @@ int main(int argc, char *argv[])
       default: break; // This should be unreachable
    }
 
-   // 11a. Set up the parallel bilinear form for the preconditioner
-   //      corresponding to the appropriate operator
-   //
-   //      0) A scalar H1 field
-   //         -Div(a Grad) - omega^2 b + omega c
-   //
-   //      1) A vector H(Curl) field
-   //         Curl(a Curl) + omega^2 b + omega c
-   //
-   //      2) A vector H(Div) field
-   //         -Grad(a Div) - omega^2 b + omega c
-   //
-   ParBilinearForm *pcOp = new ParBilinearForm(fespace);
-   if (pa) { pcOp->SetAssemblyLevel(AssemblyLevel::PARTIAL); }
-   switch (prob)
-   {
-      case 0:
-         pcOp->AddDomainIntegrator(new DiffusionIntegrator(stiffnessCoef));
-         pcOp->AddDomainIntegrator(new MassIntegrator(massCoef));
-         pcOp->AddDomainIntegrator(new MassIntegrator(lossCoef));
-         break;
-      case 1:
-         pcOp->AddDomainIntegrator(new CurlCurlIntegrator(stiffnessCoef));
-         pcOp->AddDomainIntegrator(new VectorFEMassIntegrator(negMassCoef));
-         pcOp->AddDomainIntegrator(new VectorFEMassIntegrator(lossCoef));
-         break;
-      case 2:
-         pcOp->AddDomainIntegrator(new DivDivIntegrator(stiffnessCoef));
-         pcOp->AddDomainIntegrator(new VectorFEMassIntegrator(massCoef));
-         pcOp->AddDomainIntegrator(new VectorFEMassIntegrator(lossCoef));
-         break;
-      default: break; // This should be unreachable
-   }
-
    // 12. Assemble the parallel bilinear form and the corresponding linear
    //     system, applying any necessary transformations such as: parallel
    //     assembly, eliminating boundary conditions, applying conforming
    //     constraints for non-conforming AMR, etc.
    a->Assemble();
-   pcOp->Assemble();
 
    OperatorHandle A;
    Vector B, U;
@@ -531,10 +501,46 @@ int main(int argc, char *argv[])
            << 2 * fespace->GlobalTrueVSize() << endl << endl;
    }
 
-   // 13. Define and apply a parallel FGMRES solver for AU=B with a block
-   //     diagonal preconditioner based on the appropriate multigrid
-   //     preconditioner from hypre.
+   if (!slu_solver)
    {
+      // 13a. Set up the parallel bilinear form for the preconditioner
+      //      corresponding to the appropriate operator
+      //
+      //      0) A scalar H1 field
+      //         -Div(a Grad) - omega^2 b + i omega c
+      //
+      //      1) A vector H(Curl) field
+      //         Curl(a Curl) + omega^2 b + i omega c
+      //
+      //      2) A vector H(Div) field
+      //         -Grad(a Div) - omega^2 b + i omega c
+      //
+      ParBilinearForm *pcOp = new ParBilinearForm(fespace);
+      if (pa) { pcOp->SetAssemblyLevel(AssemblyLevel::PARTIAL); }
+      switch (prob)
+      {
+         case 0:
+            pcOp->AddDomainIntegrator(new DiffusionIntegrator(stiffnessCoef));
+            pcOp->AddDomainIntegrator(new MassIntegrator(massCoef));
+            pcOp->AddDomainIntegrator(new MassIntegrator(lossCoef));
+            break;
+         case 1:
+            pcOp->AddDomainIntegrator(new CurlCurlIntegrator(stiffnessCoef));
+            pcOp->AddDomainIntegrator(new VectorFEMassIntegrator(negMassCoef));
+            pcOp->AddDomainIntegrator(new VectorFEMassIntegrator(lossCoef));
+            break;
+         case 2:
+            pcOp->AddDomainIntegrator(new DivDivIntegrator(stiffnessCoef));
+            pcOp->AddDomainIntegrator(new VectorFEMassIntegrator(massCoef));
+            pcOp->AddDomainIntegrator(new VectorFEMassIntegrator(lossCoef));
+            break;
+         default: break; // This should be unreachable
+      }
+      pcOp->Assemble();
+
+      // 13b. Define and apply a parallel FGMRES solver for AU=B with a block
+      //     diagonal preconditioner based on the appropriate multigrid
+      //     preconditioner from hypre.
       Array<int> blockTrueOffsets;
       blockTrueOffsets.SetSize(3);
       blockTrueOffsets[0] = 0;
@@ -555,6 +561,7 @@ int main(int argc, char *argv[])
       {
          OperatorHandle PCOp;
          pcOp->FormSystemMatrix(ess_tdof_list, PCOp);
+
          switch (prob)
          {
             case 0:
@@ -591,42 +598,30 @@ int main(int argc, char *argv[])
       fgmres.SetMaxIter(1000);
       fgmres.SetPrintLevel(1);
       fgmres.Mult(B, U);
+
+      delete pcOp;
    }
+#ifdef MFEM_USE_SUPERLU
+   else
+   {
+      // 13. Solve using a direct solver
+      // Transform to monolithic HypreParMatrix
+      HypreParMatrix *A_hyp = A.As<ComplexHypreParMatrix>()->GetSystemMatrix();
+      SuperLURowLocMatrix SA(*A_hyp);
+      SuperLUSolver superlu(MPI_COMM_WORLD);
+      superlu.SetPrintStatistics(true);
+      superlu.SetSymmetricPattern(false);
+      superlu.SetColumnPermutation(superlu::PARMETIS);
+      superlu.SetOperator(SA);
+      superlu.Mult(B, U);
+      delete A_hyp;
+   }
+#endif
+
    // 14. Recover the parallel grid function corresponding to U. This is the
    //     local finite element solution on each processor.
    a->RecoverFEMSolution(U, b, u);
-   /*
-   if (exact_sol)
-   {
-      double err_r = -1.0;
-      double err_i = -1.0;
 
-      switch (prob)
-      {
-         case 0:
-            err_r = u.real().ComputeL2Error(u0_r);
-            err_i = u.imag().ComputeL2Error(u0_i);
-            break;
-         case 1:
-            err_r = u.real().ComputeL2Error(u1_r);
-            err_i = u.imag().ComputeL2Error(u1_i);
-            break;
-         case 2:
-            err_r = u.real().ComputeL2Error(u2_r);
-            err_i = u.imag().ComputeL2Error(u2_i);
-            break;
-         default: break; // This should be unreachable
-      }
-
-      if ( myid == 0 )
-      {
-         cout << endl;
-         cout << "|| Re (u_h - u) ||_{L^2} = " << err_r << endl;
-         cout << "|| Im (u_h - u) ||_{L^2} = " << err_i << endl;
-         cout << endl;
-      }
-   }
-   */
    // 15. Save the refined mesh and the solution in parallel. This output can be
    //     viewed later using GLVis: "glvis -np <np> -m mesh -g sol".
    {
@@ -717,7 +712,6 @@ int main(int argc, char *argv[])
    // 17. Free the used memory.
    delete a;
    // delete u_exact;
-   delete pcOp;
    delete fespace_port;
    delete fec_port;
    delete pmesh_port;
