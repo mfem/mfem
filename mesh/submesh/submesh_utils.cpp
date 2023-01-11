@@ -173,10 +173,20 @@ void BuildVdofToVdofMap(const FiniteElementSpace& subfes,
                for (int j=0; j<v10.Size(); j++) { v10(j) = 1 - (j % 2); }
                doftrans->TransformPrimal(v10);
                std::cout << i << " Par Transformed vec: "; v10.Print(std::cout);
-               std::cout << i << " " << Fo[0]
-                         << " {{" << v10(size-2) << "," << v01(size-2)
-                         << "},{" << v10(size-1) << "," << v01(size-1) << "}}"
-                         << std::endl;
+               if (Fo.Size() > 0)
+               {
+                  std::cout << i << " " << Fo[0]
+                            << " {{" << v10(size-2) << "," << v01(size-2)
+                            << "},{" << v10(size-1) << "," << v01(size-1) << "}}"
+                            << std::endl;
+               }
+               else
+               {
+                  std::cout << i << " " << "N/A"
+                            << " {{" << v10(size-2) << "," << v01(size-2)
+                            << "},{" << v10(size-1) << "," << v01(size-1) << "}}"
+                            << std::endl;
+               }
             }
          }
       }
