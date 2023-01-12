@@ -109,7 +109,8 @@ public:
    // Factor and solve the linear system y = Op^{-T} x.
    // Note: Factorization modifies the operator matrix.
    void MultTranspose(const Vector &x, Vector &y) const;
-   void ArrayMultTranspose(const Array<const Vector *> &X, Array<Vector *> &Y) const;
+   void ArrayMultTranspose(const Array<const Vector *> &X,
+                           Array<Vector *> &Y) const;
 
    // Set various solver options. Refer to SuperLU_DIST documentation for
    // details.
