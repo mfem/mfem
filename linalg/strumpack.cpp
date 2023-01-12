@@ -346,10 +346,8 @@ Mult(const Vector &x, Vector &y) const
                "STRUMPACK: Invalid y.Size() = " << y.Size() <<
                ", expected size = " << Height() << "!");
 
-   x.HostRead();
-   y.HostReadWrite();
-   const double *xPtr = (const double *)x;
-   double *yPtr       = (double *)y;
+   const double *xPtr = x.HostRead();
+   double *yPtr       = y.HostReadWrite();
 
    FactorInternal();
    solver_->options().set_verbose(solve_verbose_);
@@ -389,8 +387,8 @@ ArrayMult(const Array<const Vector *> &X, Array<Vector *> &Y) const
       Vector s(rhs_, i * ldx, ldx);
       s = *X[i];
    }
-   const double *xPtr = (const double *)rhs_;
-   double *yPtr       = (double *)sol_;
+   const double *xPtr = rhs_.HostRead();
+   double *yPtr       = sol_.HostReadWrite();
 
    FactorInternal();
    solver_->options().set_verbose(solve_verbose_);
