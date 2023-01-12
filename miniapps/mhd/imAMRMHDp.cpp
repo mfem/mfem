@@ -1118,7 +1118,7 @@ int main(int argc, char *argv[])
 
              // Update dpsidt if it is not updated in refiner 
              // It is needed only when refine is false and derefine is true (very rare)
-             if (!(refiner.Refined()) && its==0){
+             if (!(refiner.Refined()) && compute_pressure && its==0){
                 // Get dpsi/dt function
                 ode_solver->GetStateVector(0, vk);
                 int sc = fespace.TrueVSize();
