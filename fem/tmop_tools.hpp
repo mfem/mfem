@@ -42,7 +42,8 @@ public:
                                 const Vector &init_field);
 
    virtual void ComputeAtNewPosition(const Vector &new_nodes,
-                                     Vector &new_field);
+                                     Vector &new_field,
+                                     int new_nodes_ordering = Ordering::byNODES);
 
    /// Set the memory type used for large memory allocations. This memory type
    /// is used when constructing the AdvectorCGOper but currently only for the
@@ -57,7 +58,6 @@ private:
    Vector nodes0;
    GridFunction field0_gf;
    FindPointsGSLIB *finder;
-   int dim;
 public:
    InterpolatorFP() : finder(NULL) { }
 
@@ -65,7 +65,8 @@ public:
                                 const Vector &init_field);
 
    virtual void ComputeAtNewPosition(const Vector &new_nodes,
-                                     Vector &new_field);
+                                     Vector &new_field,
+                                     int new_nodes_ordering = Ordering::byNODES);
 
    ~InterpolatorFP()
    {
@@ -157,7 +158,8 @@ protected:
       return ir;
    }
 
-   void UpdateDiscreteTC(const TMOP_Integrator &ti, const Vector &x_new) const;
+   void UpdateDiscreteTC(const TMOP_Integrator &ti, const Vector &x_new,
+                         int x_ordering = Ordering::byNODES) const;
 
    double ComputeMinDet(const Vector &x_loc,
                         const FiniteElementSpace &fes) const;
