@@ -942,7 +942,7 @@ int main(int argc, char *argv[])
    // Compute l2 norm of the perturbed psi
    ConstantCoefficient zero(0.0); 
    double l2norm  = 0.0;
-   if(icase==7 || icase==8 || icase==9) 
+   if( (icase==7 || icase==8 || icase==9) && compute_pressure )
    {
       l2norm = psi_sub->ComputeL2Error(zero);
       if (myid==0) cout << "t="<<t<<" ln(|psi_sub|_2) ="<<log(l2norm)<<endl;
