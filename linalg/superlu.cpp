@@ -718,13 +718,13 @@ void SuperLUSolver::MultTranspose(const Vector &x, Vector &y) const
    options->Trans = NOTRANS;
 }
 
-void SuperLUSolver::MultTranspose(const Array<const Vector *> &X,
-                                  Array<Vector *> &Y) const
+void SuperLUSolver::ArrayMultTranspose(const Array<const Vector *> &X,
+                                       Array<Vector *> &Y) const
 {
    // Set flag for transpose solve
    superlu_dist_options_t *options = (superlu_dist_options_t *)optionsPtr_;
    options->Trans = TRANS;
-   Mult(X, Y);
+   ArrayMult(X, Y);
 
    // Reset the flag
    options->Trans = NOTRANS;
