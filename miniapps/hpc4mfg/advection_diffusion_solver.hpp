@@ -2,6 +2,7 @@
 #define ADVECTION_DIFFUSION_SOLVER_HPP
 
 #include "hpc4solvers.hpp"
+#include "Stokes.hpp"
 
 namespace mfem{
 
@@ -83,6 +84,75 @@ class RHSDiffCoeff : public mfem::VectorCoefficient
     double sign_ = 1.0;
 };
 
+    class BodyLoadCoeff : public mfem::Coefficient
+    {
+    public:
+        BodyLoadCoeff(
+            mfem::ParMesh* mesh_,
+            double sign = 1.0 ) :
+            pmesh_(mesh_),
+            sign_(sign)
+        {
+            int dim_=pmesh_->Dimension();
+        };
+
+        virtual ~BodyLoadCoeff() {  };
+
+        double Eval(
+             mfem::ElementTransformation & T,
+             const IntegrationPoint & ip) override;
+
+    private:
+
+    mfem::ParMesh* pmesh_ = nullptr;
+
+    int dim_ = 0;
+
+    double sign_ = 1.0;
+    };
+
+class DiffusionCoeff:public mfem::Coefficient
+{
+public:
+    DiffusionCoeff()
+    {
+    }
+
+    virtual
+    ~DiffusionCoeff()
+    {
+
+    }
+
+    void SetDensity(mfem::Coefficient* coeff)
+    {
+        dcoeff=coeff;
+    }
+
+    virtual double Eval(mfem::ElementTransformation &T, const mfem::IntegrationPoint &ip)
+    {
+        if(dcoeff == nullptr)
+        {
+            mfem_error("dcoeff is nullptr!");
+        }
+
+        double dens=dcoeff->Eval(T,ip); 
+
+        if(dens<1e-8)
+        {
+            return 1.0;
+        }else
+        {
+            return 50.0; 
+        }
+    }
+
+private:
+
+    mfem::Coefficient* dcoeff = nullptr;
+
+    };
+
 public:
     Advection_Diffusion_Solver(mfem::ParMesh* mesh_, int order_=2)
     {
@@ -120,7 +190,7 @@ public:
     }
 
     /// Set the Linear Solver
-    void SetLinearSolver(double rtol=1e-8, double atol=1e-12, int miter=1)
+    void SetLinearSolver(double rtol=1e-8, double atol=1e-12, int miter=2000)
     {
         linear_rtol=rtol;
         linear_atol=atol;
@@ -159,6 +229,10 @@ public:
     /// Returns the solution
     mfem::ParGridFunction& GetSolution(){return solgf;}
 
+    void SetDensityCoeff(    
+        enum stokes::DensityCoeff::PatternType aGeometry,
+        enum stokes::DensityCoeff::ProjectionType aProjectionType);
+
     /// Add material to the solver. The pointer is owned by the solver.
     void AddMaterial(MatrixCoefficient* nmat)
     {
@@ -186,6 +260,8 @@ public:
 private:
     mfem::ParMesh* pmesh;
 
+    stokes::DensityCoeff * mDensCoeff = nullptr;
+
     std::vector<MatrixCoefficient*> materials;
 
     ParBilinearForm *a = nullptr;
@@ -210,8 +286,10 @@ private:
 
     int print_level = 1;
 
-    mfem::HypreBoomerAMG *prec = nullptr; //preconditioner
-    mfem::CGSolver *ls = nullptr;  //linear solver
+    //mfem::HypreBoomerAMG *prec = nullptr; //preconditioner
+    mfem::HypreILU *prec = nullptr;
+    //mfem::CGSolver *ls = nullptr;  //linear solver
+    mfem::GMRESSolver *ls = nullptr;
 
     // holds DBC in coefficient form
     std::map<int, mfem::Coefficient*> bcc;

@@ -83,6 +83,11 @@ if (MFEM_USE_MPI)
     ${NAVIER_COMMON_FILES}
     LIBRARIES mfem) 
 
+  add_mfem_miniapp(navier_3dbrink_full
+    MAIN navier_3dbrink_full.cpp
+    ${NAVIER_COMMON_FILES}
+    LIBRARIES mfem) 
+
   add_mfem_miniapp(navier_3dbrink_TMOP
     MAIN navier_3dbrink_TMOP.cpp
     ${NAVIER_COMMON_FILES}

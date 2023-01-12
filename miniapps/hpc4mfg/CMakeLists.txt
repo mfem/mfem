@@ -74,5 +74,10 @@ add_mfem_miniapp(Stokes2DMicro
     ${HPC4_COMMON_FILES}
     LIBRARIES mfem mfem-common)
 
+add_mfem_miniapp(Full3D
+    MAIN Full3D.cpp
+    ${HPC4_COMMON_FILES} ${NAVIER_COMMON_FILES}
+    LIBRARIES mfem mfem-common)
+
 
 endif ()

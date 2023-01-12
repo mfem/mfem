@@ -41,7 +41,7 @@ int main(int argc, char *argv[])
    {
       std::string tStringOut = "./B_OutputFile_Ellipse";
 
-      int tNumFiles = 200;
+      int tNumFiles = 2000;
 
       std::vector< std::string > tVec(tNumFiles, "");
 

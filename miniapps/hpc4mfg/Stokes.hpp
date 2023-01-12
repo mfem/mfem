@@ -6,14 +6,13 @@
 
 namespace mfem{
     namespace stokes{
-
-        class DensityCoeff:public mfem::Coefficient
+class DensityCoeff:public mfem::Coefficient
 {
  public:
 
     enum ProjectionType {zero_one, continuous}; 
 
-    enum PatternType {Ball, Gyroid, SchwarzP, SchwarzD,FCC, BCC, Octet, TRUSS,Ellipse};
+    enum PatternType {Ball, Gyroid, SchwarzP, SchwarzD,FCC, BCC, Octet, TRUSS,Ellipse,Gyroids};
 
 private:
 
@@ -122,6 +121,43 @@ public:
 
             if(rr>eta){return 0.0;}
             return 1.0;  
+        }else
+        if(pttype==Gyroids){	
+            double xv[3];
+            Vector transip(xv, 3);
+            T.Transform(ip,transip);
+
+            double unitCellSize = 0.5;
+            
+            if( (xv[0] < 0.1 || xv[0] > 2.9 ))
+            {
+                if(prtype==continuous){return -1.5;}
+                return 0.0;
+            }
+            else
+            {
+                double remainder_x = std::fmod( xv[0] , unitCellSize);
+                double remainder_y = std::fmod( xv[1] , unitCellSize);
+                double remainder_z = std::fmod( xv[2] , unitCellSize);
+               
+                remainder_x = remainder_x / unitCellSize;
+                remainder_y = remainder_y / unitCellSize;
+                remainder_z = remainder_z / unitCellSize;
+               
+                const double period = 2.0 * M_PI;
+
+                double x=remainder_x*period;
+                double y=remainder_y*period;
+                double z=remainder_z*period;
+   
+                double vv=std::sin(x)*std::cos(y) +
+                          std::sin(y)*std::cos(z) +
+                          std::sin(z)*std::cos(x);
+                if(prtype==continuous){return vv;}
+
+                if(fabs(vv)>-eta && fabs(vv)<eta){ return 1.0;}
+                else{return 0.0;}
+            }
         }else
         if(pttype==FCC){
 
@@ -513,6 +549,9 @@ public:
         rhs.SetSize(fes_u->GetTrueVSize()); rhs=0.0;
 
         solgf.SetSpace(fes_u); solgf =  0.0;
+        solgf_p.SetSpace(fes_p); solgf =  0.0;
+
+        solMinusAvgGF.SetSpace(fes_u); solMinusAvgGF =  0.0;
 
         SetLinearSolver();
     }
@@ -553,16 +592,21 @@ public:
     void FSolve();
 
     /// Adds Dirichlet BC
-    void AddDirichletBC(int id, double val)
+    void AddPressDirichletBC(int id, double val)
     {
-        bc[id]=mfem::ConstantCoefficient(val);
-        AddDirichletBC(id,bc[id]);
+        bc_p[id]=mfem::ConstantCoefficient(val);
+        AddPressDirichletBC(id,bc_p[id]);
     }
 
     /// Adds Dirichlet BC
-    void AddDirichletBC(int id, mfem::Coefficient& val)
+    void AddPressDirichletBC(int id, mfem::Coefficient& val)
     {
-        bcc[id]=&val;
+        bcc_p[id]=&val;
+    }
+
+    void AddVelDirichletBC(int id, mfem::VectorCoefficient& val)
+    {
+        bcc_u[id]=&val;
     }
 
     /// Adds Neumann BC
@@ -580,6 +624,9 @@ public:
 
     /// Returns the solution
     mfem::ParGridFunction& GetSolution(){return solgf;}
+
+        /// Returns the solution
+    mfem::ParGridFunction& GetSolutionMunisAVG(){return solMinusAvgGF;}
 
     /// Add material to the solver. The pointer is owned by the solver.
     void AddMaterial(MatrixCoefficient* nmat)
@@ -618,6 +665,8 @@ public:
     /// Returns the solution vector.
     mfem::Vector& GetSol(){return sol;}
 
+    mfem::ParGridFunction& GetVelSolGF(){return solgf;}
+
     void GetSol(ParGridFunction& sgf){
         sgf.SetSpace(fes_u); sgf.SetFromTrueDofs(sol);}
 
@@ -638,6 +687,8 @@ private:
     mfem::Vector sol;
     mfem::Vector rhs;
     mfem::ParGridFunction solgf;
+    mfem::ParGridFunction solgf_p;
+    mfem::ParGridFunction solMinusAvgGF;
 
     mfem::VectorCoefficient* vel_ = nullptr;
     mfem::VectorCoefficient* avgGradTemp_ = nullptr;
@@ -670,10 +721,11 @@ private:
     mfem::CGSolver *ls = nullptr;  //linear solver
 
     // holds DBC in coefficient form
-    std::map<int, mfem::Coefficient*> bcc;
+    std::map<int, mfem::Coefficient*> bcc_p;
+    std::map<int, mfem::VectorCoefficient*> bcc_u;
 
     // holds internal DBC
-    std::map<int, mfem::ConstantCoefficient> bc;
+    std::map<int, mfem::ConstantCoefficient> bc_p;
 
     // holds NBC in coefficient form
     std::map<int, mfem::Coefficient*> ncc;
@@ -682,6 +734,7 @@ private:
     std::map<int, mfem::ConstantCoefficient> nc;
 
     mfem::Array<int> ess_tdofv;
+    mfem::Array<int> ess_tdofp;
 
     ParaViewDataCollection * mPvdc = nullptr;
 };

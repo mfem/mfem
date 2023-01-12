@@ -37,6 +37,7 @@ void Navier3dBrinkWorkflow::SetDensityCoeff(
    mDensCoeff = new DensityCoeff;
 
    mDensCoeff->SetThreshold(meta);
+   mDensCoeff->SetAngle(mnz);
    mDensCoeff->SetPatternType(aGeometry);
 
    mDensCoeff->SetProjectionType(aProjectionType);
@@ -121,7 +122,7 @@ void Navier3dBrinkWorkflow::SetupOutput( )
 
    if( mVisualization )
    {
-      mPvdc = new ParaViewDataCollection("3dfoc1", mPMesh);
+      mPvdc = new ParaViewDataCollection("2dfoc1", mPMesh);
       mPvdc->SetDataFormat(VTKFormat::BINARY32);
       mPvdc->SetHighOrderOutput(true);
       mPvdc->SetLevelsOfDetail(mCtk.order);

@@ -3,27 +3,26 @@
 #include "NLGLSIntegrator.hpp"
 
 
+
 #ifdef MFEM_USE_PETSC
 #include "petsc.h"
 #endif
 
 namespace mfem {
 
-// double analytic_T(const Vector &x)
-// {
-//    double T = std::sin( x(0)*x(1) );
-//    //double T = x(0)*x(1)*x(0);
-//    return T;
-// }
+void Advection_Diffusion_Solver::SetDensityCoeff(    
+   enum stokes::DensityCoeff::PatternType aGeometry,
+   enum stokes::DensityCoeff::ProjectionType aProjectionType)
+{
+   mDensCoeff = new stokes::DensityCoeff;
 
-// double analytic_solution(const Vector &x)
-// {
-//    double s = x(1)*std::cos( x(0)*x(1) ) + x(0)*std::cos( x(0)*x(1) ) + x(1)*x(1)*std::sin( x(0)*x(1) ) + x(0)*x(0)*std::sin( x(0)*x(1) );
+   double meta = 0.65;
 
-//    // double s = -x(1)*x(1)*std::sin( x(0)*x(1) ) - x(0)*x(0)*std::sin( x(0)*x(1) );
-//    //double s = 2*x(0)*x(1)+x(0)*x(0)-2*x(1);
-//    return s;
-// }
+   mDensCoeff->SetThreshold(meta);
+   mDensCoeff->SetPatternType(aGeometry);
+
+   mDensCoeff->SetProjectionType(aProjectionType);
+}
 
 
 void Advection_Diffusion_Solver::FSolve()
@@ -38,9 +37,9 @@ void Advection_Diffusion_Solver::FSolve()
     ParGridFunction x(fes);
     x = 0.0;
 
-    FunctionCoefficient T0(analytic_T);
-    FunctionCoefficient s0(mfem::analytic_solution);
-    solgf.ProjectCoefficient(T0);
+    //FunctionCoefficient T0(analytic_T);
+    //FunctionCoefficient s0(mfem::analytic_solution);
+    //.ProjectCoefficient(T0);
     sol = solgf;
 
     ess_tdofv.DeleteAll();
@@ -54,17 +53,17 @@ void Advection_Diffusion_Solver::FSolve()
             mfem::Array<int> ess_tdof_list;
             fes->GetEssentialTrueDofs(ess_bdr,ess_tdof_list);
             ess_tdofv.Append(ess_tdof_list);
-            //solgf.ProjectBdrCoefficient(*(it->second),ess_bdr);
+            solgf.ProjectBdrCoefficient(*(it->second),ess_bdr);
         }
 
-        // copy BC values from the grid function to the solution vector
-        // {
-        //     solgf.GetTrueDofs(rhs);
-        //     for(int ii=0;ii<ess_tdofv.Size();ii++)
-        //     {
-        //         sol[ess_tdofv[ii]]=rhs[ess_tdofv[ii]];
-        //     }
-        // }
+        //copy BC values from the grid function to the solution vector
+        {
+            solgf.GetTrueDofs(rhs);
+            for(int ii=0;ii<ess_tdofv.Size();ii++)
+            {
+                sol[ess_tdofv[ii]]=rhs[ess_tdofv[ii]];
+            }
+        }
     }
 
     //the BC are setup in the solution vector sol
@@ -79,6 +78,11 @@ void Advection_Diffusion_Solver::FSolve()
 
     double sigma = -1.0;       //"One of the three DG penalty parameters, typically +1/-1."
     double kappa = -1.0;       //"One of the three DG penalty parameters, should be positive. Negative values are replaced with (order+1)^2."
+
+    mfem::Advection_Diffusion_Solver::DiffusionCoeff * DiffCoeff = new Advection_Diffusion_Solver::DiffusionCoeff();
+
+    DiffCoeff->SetDensity(mDensCoeff);
+
     ConstantCoefficient one(1.0);
     ConstantCoefficient zero(0.0);
 
@@ -93,15 +97,24 @@ void Advection_Diffusion_Solver::FSolve()
         b = new ParLinearForm(fes);
 
         //b->AddDomainIntegrator(new NLGLSIntegrator( materials[0], &velocityGF, &s0));
-        b->AddDomainIntegrator(new DomainLFIntegrator(s0));
+        //b->AddDomainIntegrator(new DomainLFIntegrator(s0));
         //b->AddBdrFaceIntegrator(
             //new DGDirichletLFIntegrator(zero, one, sigma, kappa));
 
         mfem::VectorCoefficient * diffVecCoeff = new Advection_Diffusion_Solver::RHSDiffCoeff( pmesh, avgGradTemp_, materials[0],  -1.0 );
         mfem::Coefficient * advCoeff = new Advection_Diffusion_Solver::RHSAdvCoeff( pmesh, vel_, avgGradTemp_,  -1.0 );
 
-        b->AddDomainIntegrator(new DomainLFGradIntegrator(*diffVecCoeff));
-        b->AddDomainIntegrator(new DomainLFIntegrator(*advCoeff));
+        //b->AddDomainIntegrator(new DomainLFGradIntegrator(*diffVecCoeff));
+        //b->AddDomainIntegrator(new DomainLFIntegrator(*advCoeff));
+
+        mfem::Coefficient * LoadCoeff = new Advection_Diffusion_Solver::BodyLoadCoeff( pmesh, -1.0 );
+        b->AddDomainIntegrator(new DomainLFIntegrator(*LoadCoeff));
+
+        // int MaxBdrAttr = pmesh->bdr_attributes.Max();
+
+        // ::mfem::Vector Load(MaxBdrAttr);    Load = 0.0;    Load(1) = -0.3; Load(2) = -0.3;
+        // ::mfem::Coefficient * Coeff = new ::mfem::PWConstCoefficient(Load);
+        // LFIntegrator = new BoundaryLFIntegrator(*Coeff, 3, 3);
 
         b->Assemble();
 
@@ -138,7 +151,7 @@ void Advection_Diffusion_Solver::FSolve()
         }        
 
         // add diffusion integrators
-        a->AddDomainIntegrator(new DiffusionIntegrator(one));
+        a->AddDomainIntegrator(new DiffusionIntegrator(*DiffCoeff));
         //a->AddInteriorFaceIntegrator(new DGDiffusionIntegrator(one, sigma, kappa));
         //a->AddBdrFaceIntegrator(new DGDiffusionIntegrator(one, sigma, kappa));                   // weak BC
 
@@ -148,7 +161,7 @@ void Advection_Diffusion_Solver::FSolve()
         //a->AddBdrFaceIntegrator( new NonconservativeDGTraceIntegrator(velocity, alpha));         // weak BC
 
         // add gls integrator
-        a->AddDomainIntegrator(new NLGLSIntegrator(materials[0], vel_, new NLGLSIntegrator::GLSCoefficient(pmesh, vel_,materials[0])));
+        //a->AddDomainIntegrator(new NLGLSIntegrator(materials[0], vel_, new NLGLSIntegrator::GLSCoefficient(pmesh, vel_,materials[0])));
         //a->AddDomainIntegrator(new AdvectionDiffusionGLSStabInt( &velocity, materials[0], 1.0));
 
         //a->SetEssentialTrueDofs(ess_tdofv);
@@ -166,16 +179,20 @@ void Advection_Diffusion_Solver::FSolve()
 
         //allocate the preconditioner and the linear solver
         if(prec==nullptr){
-            prec = new HypreBoomerAMG();
+            //prec = new HypreBoomerAMG();
+            prec = new HypreILU ();
+            prec->SetLevelOfFill(5);
             prec->SetPrintLevel(print_level);
         }
 
         if(ls==nullptr){
-            ls = new CGSolver(pmesh->GetComm());
+            //ls = new CGSolver(pmesh->GetComm());
+            ls = new GMRESSolver(pmesh->GetComm());
             ls->SetAbsTol(linear_atol);
             ls->SetRelTol(linear_rtol);
             ls->SetMaxIter(linear_iter);
             ls->SetPrintLevel(print_level);
+            ls->SetKDim(1000);
             ls->SetPreconditioner(*prec);
         }
 
@@ -193,9 +210,6 @@ void Advection_Diffusion_Solver::FSolve()
 #ifdef MFEM_USE_PETSC
         if(false)
         {
-
-
-
          const char *petscrc_file = "";
          MFEMInitializePetsc(NULL,NULL,petscrc_file,NULL);
 
@@ -213,7 +227,7 @@ void Advection_Diffusion_Solver::FSolve()
         // Build Preconditioner
         KSPGetPC( tPetscKSPProblem, &mpc );
 
-        PCSetType( mpc, PCILU  );
+        PCSetType( mpc, PCJACOBI );
         PCFactorSetDropTolerance( mpc, 1e-6, PETSC_DEFAULT, PETSC_DEFAULT );
         PCFactorSetLevels( mpc, 0 );
 
@@ -223,7 +237,7 @@ void Advection_Diffusion_Solver::FSolve()
         //KSPSetType(tPetscKSPProblem,KSPPREONLY);
         KSPGMRESSetOrthogonalization( tPetscKSPProblem, KSPGMRESModifiedGramSchmidtOrthogonalization );
         KSPGMRESSetHapTol( tPetscKSPProblem, 1e-10 );
-        KSPGMRESSetRestart( tPetscKSPProblem, 500 );
+        KSPGMRESSetRestart( tPetscKSPProblem, 2000 );
 
         KSPSetFromOptions( tPetscKSPProblem );
 
@@ -267,7 +281,7 @@ void Advection_Diffusion_Solver::FSolve()
                        NULL );
     }
            
-        if(true)
+        if(false)
         {
             MatNullSpace nullsp;
             MatNullSpaceCreate(PETSC_COMM_WORLD, PETSC_TRUE, 0, NULL, &nullsp);
@@ -358,6 +372,12 @@ void Advection_Diffusion_Solver::Postprocess()
     solError = solgf;
     solError -= solExact;
 
+
+    ParGridFunction d_gf(fes);
+    mDensCoeff->SetProjectionType(stokes::DensityCoeff::ProjectionType::continuous);
+    d_gf.ProjectCoefficient(*mDensCoeff);
+    mDensCoeff->SetProjectionType(stokes::DensityCoeff::ProjectionType::zero_one);
+
    if( true )
    {
       mPvdc = new ParaViewDataCollection("AdvDiff", pmesh);
@@ -369,6 +389,7 @@ void Advection_Diffusion_Solver::Postprocess()
       mPvdc->RegisterField("Temperature", &solgf);
       mPvdc->RegisterField("TAnalytic", &solExact);
       mPvdc->RegisterField("TError", &solError);
+       mPvdc->RegisterField("density", &d_gf);
       mPvdc->Save();
 
       std::cout<<"Error Norm: "<<solError.Norml2()<<std::endl;
@@ -407,6 +428,24 @@ void Advection_Diffusion_Solver::RHSDiffCoeff::Eval(
         MaterialCoeff_->Eval( matTensor, T,ip );
 
         matTensor.Mult(avgGradTemp, V );
+    }
+
+double Advection_Diffusion_Solver::BodyLoadCoeff::Eval(
+    mfem::ElementTransformation & T,
+    const IntegrationPoint & ip)
+    {
+        double x[3];
+        Vector transip(x, 3);
+        T.Transform(ip,transip);
+
+        double val = 0.0;
+
+        if( x[2] < 0.005)
+        {
+            val = 100.0;
+        }
+
+        return val;
     }
 
 }

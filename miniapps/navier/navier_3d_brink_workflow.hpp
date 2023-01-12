@@ -36,7 +36,9 @@ class DensityCoeff:public mfem::Coefficient
 
     enum ProjectionType {zero_one, continuous}; 
 
-    enum PatternType {Ball, Gyroid, SchwarzP, SchwarzD,FCC, BCC, Octet, TRUSS,Ellipse,Spheres};
+    enum PatternType {Ball, Gyroid,
+     SchwarzP, SchwarzD,FCC,
+      BCC, Octet, TRUSS,Ellipse, Triangle, Spheres,Gyroids};
 
 private:
 
@@ -45,6 +47,7 @@ private:
     double cy;
     double cz;
     double eta;//threshold
+    double alpha;
     ProjectionType prtype; 
     PatternType    pttype;
 
@@ -76,6 +79,11 @@ public:
     void SetThreshold(double eta_)
     {
        eta=eta_;
+    }
+
+    void SetAngle(double alpha_)
+    {
+       alpha=alpha_;
     }
     
     void SetProjectionType(ProjectionType prtype_)
@@ -122,22 +130,29 @@ public:
             T.Transform(ip,transip);
 
             double unitCellSize = 0.05;
+
+            if(T.GetDimension()==3)
+            { unitCellSize = 0.25;}
             
-            if(x[0] < 0.0 || x[1] < 0.0 || x[1] > 1.0)
+            if(T.GetDimension()==2 && (x[0] < 0.0 || x[1] < 0.0 || x[1] > 1.0))
+            {return 0.0;}
+            else if(T.GetDimension()==3 && (x[0] < -1.5 || x[0] > 1.5 ))
             {return 0.0;}
             else
             {
                double remainder_x = std::fmod( x[0] , unitCellSize);
                double remainder_y = std::fmod( x[1] , unitCellSize);
-
+               
                remainder_x = remainder_x / unitCellSize;
                remainder_y = remainder_y / unitCellSize;
-
+               
                double rr=(remainder_x-cx)*(remainder_x-cx);
                rr=rr+(remainder_y-cy)*(remainder_y-cy);
                if(T.GetDimension()==3)
                {
-                   //rr=rr+(x[2]-cz)*(x[2]-cz);
+                   double remainder_z = std::fmod( x[2] , unitCellSize);
+                   remainder_z = remainder_z / unitCellSize;
+                   rr=rr+(remainder_z-cz)*(remainder_z-cz);
                }
                rr=std::sqrt(rr);
                if(prtype==continuous){return rr;}
@@ -145,19 +160,40 @@ public:
                if(rr>eta){return 0.0;}
                return 1.0; 
             }
+        }else
+        if(pttype==Gyroids){	
+            double xv[3];
+            Vector transip(xv, 3);
+            T.Transform(ip,transip);
 
-
-            double rr=(x[0]-cx)*(x[0]-cx);
-            rr=rr+(x[1]-cy)*(x[1]-cy);
-            if(T.GetDimension()==3)
+            double unitCellSize = 1.0;
+            
+            if( (xv[0] < -1.3 || xv[0] > 1.3 ))
+            {return 0.0;}
+            else
             {
-                rr=rr+(x[2]-cz)*(x[2]-cz);
-            }
-            rr=std::sqrt(rr);
-            if(prtype==continuous){return rr;}
+                double remainder_x = std::fmod( xv[0] , unitCellSize);
+                double remainder_y = std::fmod( xv[1] , unitCellSize);
+                double remainder_z = std::fmod( xv[2] , unitCellSize);
+               
+                remainder_x = remainder_x / unitCellSize;
+                remainder_y = remainder_y / unitCellSize;
+                remainder_z = remainder_z / unitCellSize;
+               
+                const double period = 2.0 * M_PI;
 
-            if(rr>eta){return 0.0;}
-            return 1.0; 
+                double x=remainder_x*period;
+                double y=remainder_y*period;
+                double z=remainder_z*period;
+   
+                double vv=std::sin(x)*std::cos(y) +
+                          std::sin(y)*std::cos(z) +
+                          std::sin(z)*std::cos(x);
+                if(prtype==continuous){return vv;}
+
+                if(fabs(vv)>-eta && fabs(vv)<eta){ return 1.0;}
+                else{return 0.0;}
+            }
         }else
         if(pttype==Ellipse){	
             mfem::Vector transip(3);
@@ -187,6 +223,39 @@ public:
             if(prtype==continuous){return rr;}
 
             if(rr>eta){return 0.0;}
+            return 1.0;  
+        }else
+        if(pttype==Triangle){	
+            mfem::Vector transip(3);
+            mfem::Vector rotatedCoords(2);
+            T.Transform(ip,transip);
+            transip -= 0.5;
+
+            double Angele = alpha;
+
+            mfem::DenseMatrix tRot(2); tRot = 0.0;
+            tRot(0,0) = std::cos(Angele);
+            tRot(1,0) = -std::sin(Angele);
+            tRot(0,1) = std::sin(Angele);
+            tRot(1,1) = std::cos(Angele);
+
+            tRot.Mult(transip,rotatedCoords);
+
+            //rotatedCoords +=0.5;
+
+            double rr1=       ( std::sqrt(3.0)*rotatedCoords[0]-rotatedCoords[1]+eta);
+            double rr2=  -1.0*( std::sqrt(3.0)*rotatedCoords[0]+rotatedCoords[1]-eta);
+            double rr3=        rotatedCoords[1]+eta/2.0;
+
+            if(T.GetDimension()==3)
+            {
+                mfem_error("not implemented");
+            }
+            double rr= std::min( rr1, rr2);
+                   rr= std::min( rr , rr3);
+            if(prtype==continuous){return rr;}
+
+            if(rr <0.0){return 0.0;}
             return 1.0;  
         }else
         if(pttype==FCC){

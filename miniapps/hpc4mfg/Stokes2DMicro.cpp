@@ -13,6 +13,7 @@
 
 //#include "navier_solver.hpp"
 #include "Stokes.hpp"
+#include "advection_diffusion_solver.hpp"
 #include <fstream>
 #include <ctime>
 #include <cstdlib> 
@@ -153,7 +154,34 @@ int main(int argc, char *argv[])
    //solve
    solver->FSolve();
 
+   solver->Postprocess();
+
+   mfem::ParGridFunction & tVelSolution = solver->GetSolutionMunisAVG();
+
    // average of vel field, remove and apply to advection
+
+   mfem::VectorGridFunctionCoefficient VelCoeff( & tVelSolution);
+
+   mfem::Advection_Diffusion_Solver * solverAdvDiff = new mfem::Advection_Diffusion_Solver(pmesh,2);
+
+   solverAdvDiff->SetVelocity(&VelCoeff);
+
+   mfem::Vector ConstVector(pmesh->Dimension());   ConstVector = 1.0;   //ConstVector(0) = 1.0;
+   mfem::VectorConstantCoefficient avgTemp(ConstVector);
+
+   solverAdvDiff->SetGradTempMean( &avgTemp );
+
+   int dim = 2;
+
+     //add material
+   solverAdvDiff->AddMaterial(new mfem::IdentityMatrixCoefficient(dim));
+
+   solverAdvDiff->FSolve();
+
+   solverAdvDiff->Postprocess();
+
+   delete solverAdvDiff;
+   delete solver;
 
    return 0;
 }
