@@ -112,6 +112,12 @@ public:
    virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
                           const double weight, DenseMatrix &A) const;
 
+   /// Computes the averages of all metrics (integral of metric / volume).
+   /// Works in parallel when called with a ParGridFunction.
+   void ComputeAvgMetrics(const GridFunction &nodes,
+                          const TargetConstructor &tc,
+                          Vector &averages) const;
+
    /// Computes weights so that the averages of all metrics are equal, and the
    /// weights sum to one. Works in parallel when called with a ParGridFunction.
    void ComputeBalancedWeights(const GridFunction &nodes,
