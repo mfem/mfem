@@ -293,10 +293,13 @@ HypreParVector& HypreParVector::operator=(const HypreParVector &y)
 HypreParVector& HypreParVector::operator=(HypreParVector &&y)
 {
    Vector::operator=(std::move(y));
-   own_ParVector = y.own_ParVector;
-   x = y.x;
+   // Self-assignment-safe way to move for 'own_ParVector' and 'x':
+   const auto own_tmp = y.own_ParVector;
    y.own_ParVector = 0;
+   own_ParVector = own_tmp;
+   const auto x_tmp = y.x;
    y.x = nullptr;
+   x = x_tmp;
    return *this;
 }
 
