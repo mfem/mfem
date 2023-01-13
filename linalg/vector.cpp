@@ -150,7 +150,7 @@ Vector &Vector::operator=(Vector &&v)
 {
    data = std::move(v.data);
    size = v.size;
-   v.data.Reset();
+   // v.data.Reset(); // now done by the move assignment of 'v.data' -> 'data'
    v.size = 0;
    return *this;
 }

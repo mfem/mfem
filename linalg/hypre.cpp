@@ -292,13 +292,11 @@ HypreParVector& HypreParVector::operator=(const HypreParVector &y)
 
 HypreParVector& HypreParVector::operator=(HypreParVector &&y)
 {
-   // If the argument vector owns its data, then the calling vector will as well
-   WrapHypreParVector(static_cast<hypre_ParVector*>(y), y.own_ParVector);
-   // Either way the argument vector will no longer own its data
+   Vector::operator=(std::move(y));
+   own_ParVector = y.own_ParVector;
+   x = y.x;
    y.own_ParVector = 0;
    y.x = nullptr;
-   y.data.Delete();
-   y.size = 0;
    return *this;
 }
 
