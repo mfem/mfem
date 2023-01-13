@@ -1717,9 +1717,8 @@ CPDSolverDH::Solve()
                indata.close();
            }
            phi_->Distribute(PHI);
-    
-        */
-      while (H_iter < 20)
+    */
+      while (H_iter < 50)
       {
          nzD12_->Update();
          nzD12_->Assemble();
@@ -1741,8 +1740,8 @@ CPDSolverDH::Solve()
 
          GMRESSolver gmres(MPI_COMM_WORLD);
          gmres.SetKDim(50);
-         gmres.SetRelTol(4e-5);
-         gmres.SetAbsTol(4e-5);
+         gmres.SetRelTol(1e-5);
+         gmres.SetAbsTol(1e-5);
          gmres.SetMaxIter(500);
          gmres.SetPrintLevel(1);
          gmres.SetOperator(schur);

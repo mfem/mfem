@@ -1312,8 +1312,8 @@ void SPDDielectricTensor::Eval(DenseMatrix &epsilon, ElementTransformation &T,
    epsilon *= epsilon0_;
 }
 
-PlasmaProfile::PlasmaProfile(Type type, const Vector & params)
-   : type_(type), p_(params), x_(3)
+PlasmaProfile::PlasmaProfile(Type type, const Vector & params, G_EQDSK_Data *eqdsk)
+   : type_(type), p_(params), eqdsk_(eqdsk), x_(3)
 {
    MFEM_VERIFY(params.Size() == np_[type],
                "Incorrect number of parameters, " << params.Size()
@@ -1451,6 +1451,64 @@ double PlasmaProfile::Eval(ElementTransformation &T,
           return ne1 + ne2;
       }
       break;
+      case SPARC_RES:
+      {
+          double nu0 = p_[0];
+          
+          double A = 9.56300019e-02;
+          double B = 1.27703065;
+          double C = -1.47586242e-06;
+          double D = 1.92995180;
+          
+          double val = B*x_[1] - C;
+          double sincfunc = A*(sin(val)/val) + D;
+          
+          return nu0*exp(-pow(x_[0]-sincfunc, 2)/0.002);
+      }
+      break;
+       case SPARC_DEN:
+       {
+           /*
+           double pos = pow(x_[0]-1.85, 2)/pow(0.53,2) + pow(x_[1],2)*(1 + 0.6*(x_[0]-1.85))/pow(0.85,2);
+           
+           double pmin1 = 1e19;
+           double pmax1 = 3e20;
+           double lam1 = 1.1;
+           double n1 = 7.0;
+           double ne1 = (pmax1 - pmin1)* pow(cosh(pow((pos / lam1), n1)), -1.0) + pmin1;
+           
+           return ne1;
+            */
+           double x_tok_data[2];
+           Vector xTokVec(x_tok_data, 2);
+           xTokVec[0] = x_[0]; xTokVec[1] = x_[1];
+           
+           double psiRZ = 0.0;
+           psiRZ = eqdsk_->InterpPsiRZ(xTokVec);
+           
+           double psiRZ_center = -2.74980762;
+           double psiRZ_edge = -0.399621132;
+           
+           double val = fabs((psiRZ - psiRZ_center)/(psiRZ_center - psiRZ_edge));
+           
+           int bool_limits = 0;
+           
+           if (x_[1] >= -1.183 && x_[1] <= 1.19){bool_limits = 1;}
+           
+           double norm_sqrt_psi = 1.0;
+           if (val < 1 && bool_limits == 1){norm_sqrt_psi = sqrt(val);}
+        
+           double ne = 0.3e20;
+           double pmin1 = 0.3e20;
+           double pmax1 = 3e20;
+           double nuee = 3.0;
+           double nuei = 3.0;
+           //ne = (pmax1 - pmin1)*pow(1 - pow(norm_sqrt_psi, nuei), nuee) + pmin1;
+           if (val < 1 && bool_limits == 1){ne = (pmax1 - pmin1)*pow(1 - pow(sqrt(val), nuei), nuee) + pmin1;}
+           
+           return ne;
+       }
+           break;
       default:
          return 0.0;
    }
@@ -1606,8 +1664,8 @@ void BFieldProfile::Eval(Vector &V, ElementTransformation &T,
          Vector b_pol(b_pol_data, 2); b_pol = 0.0;
          double b_tor = 0.0;
 
-         eqdsk_->InterpNxGradPsiRZ(xTokVec, b_pol);
-         b_tor = eqdsk_->InterpBTor(xTokVec[0]);
+         eqdsk_->InterpBPolRZ(xTokVec, b_pol);
+         b_tor = eqdsk_->InterpBTorRZ(xTokVec);
 
          // Step 3: Rotate B field from a poloidal cross section into
          //         the full Tokamak
@@ -1628,6 +1686,33 @@ void BFieldProfile::Eval(Vector &V, ElementTransformation &T,
             V /= vmag;
          }
       }
+      break;
+       case B_SPARC:
+       {
+           //|B| = \sqrt(Fpol^2+d\Psi/dZ^2+d\Psi/dR^2)/R
+           //where Fpol== R*Bphi , BR = - 1/R d\Psi/dZ, BZ = 1/R d\Psi/dR
+           
+           double x_tok_data[2];
+           Vector xTokVec(x_tok_data, 2);
+           xTokVec[0] = x_[0]; xTokVec[1] = x_[1];
+
+           double b_pol_data[2];
+           Vector b_pol(b_pol_data, 2); b_pol = 0.0;
+           double b_tor = 0.0;
+
+           eqdsk_->InterpBPolRZ(xTokVec, b_pol);
+           b_tor = eqdsk_->InterpBTorRZ(xTokVec);
+           
+           V[0] = b_pol[0];
+           V[1] = b_pol[1];
+           V[2] = b_tor;
+
+           if (unit_)
+           {
+              double vmag = sqrt(V * V);
+              V /= vmag;
+           }
+       }
       break;
       case B_WHAM:
       {

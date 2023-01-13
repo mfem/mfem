@@ -648,18 +648,20 @@ public:
 class PlasmaProfile : public Coefficient
 {
 public:
-   enum Type {CONSTANT,GRADIENT,TANH,ELLIPTIC_COS,PARABOLIC,PEDESTAL,NUABSORB,NUE,NUI,CMODDEN};
+   enum Type {CONSTANT,GRADIENT,TANH,ELLIPTIC_COS,PARABOLIC,PEDESTAL,NUABSORB,NUE,NUI,CMODDEN,SPARC_RES,SPARC_DEN};
 
 private:
    Type type_;
    Vector p_;
+    
+   G_EQDSK_Data *eqdsk_;
 
-   const int np_[10] = {1, 7, 9, 7, 7, 7, 3, 3, 3, 1};
+   const int np_[12] = {1, 7, 9, 7, 7, 7, 3, 3, 3, 1, 1,1};
 
    mutable Vector x_;
 
 public:
-   PlasmaProfile(Type type, const Vector & params);
+   PlasmaProfile(Type type, const Vector & params, G_EQDSK_Data *eqdsk = NULL);
 
    double Eval(ElementTransformation &T,
                const IntegrationPoint &ip);
@@ -668,7 +670,7 @@ public:
 class BFieldProfile : public VectorCoefficient
 {
 public:
-   enum Type {CONSTANT, B_P, B_TOPDOWN, B_P_KOHNO, B_EQDSK, B_WHAM};
+   enum Type {CONSTANT, B_P, B_TOPDOWN, B_P_KOHNO, B_EQDSK, B_SPARC, B_WHAM};
 
 private:
    Type type_;
@@ -677,7 +679,7 @@ private:
 
    G_EQDSK_Data *eqdsk_;
 
-   const int np_[6] = {3, 7, 6, 8, 4, 2};
+   const int np_[7] = {3, 7, 6, 8, 4, 1, 2};
 
    mutable Vector x3_;
    mutable Vector x_;

@@ -73,19 +73,15 @@ G_EQDSK_Data::G_EQDSK_Data(istream &is)
    ZLIM_.resize(LIMITR_);
 
    for (int i=0; i<NBBBS_; i++) { is >> RBBBS_[i] >> ZBBBS_[i]; }
-   for (int i=0; i<LIMITR_; i++)
-   {
-      is >> RLIM_[i] >> ZLIM_[i];
-   }
-
-   BTOR_.resize(FPOL_.size());
-   for (int i=0; i<NW_; i++)
-   {
-      BTOR_[i] = FPOL_[i] / ( RLEFT_ + RDIM_ * i  / (NW_ - 1) );
-   }
+   for (int i=0; i<LIMITR_; i++) { is >> RLIM_[i] >> ZLIM_[i]; }
 
    dr_ = RDIM_ / (NW_ - 1);
    dz_ = ZDIM_ / (NH_ - 1);
+
+   double psi_bry = checkPsiBoundary();
+   if ((SIBRY_ - SIMAG_) < 1e-2 * (psi_bry - SIMAG_)) { SIBRY_ = psi_bry; }
+
+   dpsi_ = (SIBRY_ - SIMAG_) / (NW_ - 1);
 }
 
 void G_EQDSK_Data::PrintInfo(ostream & out) const
@@ -188,6 +184,38 @@ void G_EQDSK_Data::DumpGnuPlotData(const string &file) const
    ofs_inp.close();
 }
 
+double G_EQDSK_Data::checkPsiBoundary()
+{
+   double psi_mid = 0.0;
+   double psi_min = DBL_MAX;
+   double psi_max = DBL_MIN;
+
+   Vector rz(2);
+   double psi = 0.0;
+   for (int i=0; i<NBBBS_; i++)
+   {
+      rz[0] = RBBBS_[i];
+      rz[1] = ZBBBS_[i];
+      psi = this->InterpPsiRZ(rz);
+
+      psi_min = std::min(psi, psi_min);
+      psi_max = std::max(psi, psi_max);
+
+      if (NBBBS_ % 2 == 1)
+      {
+         if (i == (NBBBS_ - 1) / 2) { psi_mid = psi; }
+      }
+      else
+      {
+         if (i == NBBBS_ / 2 || i + 1 == NBBBS_ / 2) { psi_mid += 0.5 * psi; }
+      }
+   }
+   cout << psi_min << " <= psi <= " << psi_max << endl;
+   cout << "psi_mid = " << psi_mid << endl;
+
+   return psi_mid;
+}
+/*
 double G_EQDSK_Data::InterpFPol(double r)
 {
    if (!checkFlag(FPOL))
@@ -197,7 +225,6 @@ double G_EQDSK_Data::InterpFPol(double r)
    }
    return interpR(r, FPOL_, FPOL_t_);
 }
-
 double G_EQDSK_Data::InterpPres(double r)
 {
    if (!checkFlag(PRES))
@@ -207,7 +234,6 @@ double G_EQDSK_Data::InterpPres(double r)
    }
    return interpR(r, PRES_, PRES_t_);
 }
-
 double G_EQDSK_Data::InterpFFPrime(double r)
 {
    if (!checkFlag(FFPRIM))
@@ -217,7 +243,6 @@ double G_EQDSK_Data::InterpFFPrime(double r)
    }
    return interpR(r, FFPRIM_, FFPRIM_t_);
 }
-
 double G_EQDSK_Data::InterpPPrime(double r)
 {
    if (!checkFlag(PPRIME))
@@ -226,6 +251,74 @@ double G_EQDSK_Data::InterpPPrime(double r)
       setFlag(PPRIME);
    }
    return interpR(r, PPRIME_, PPRIME_t_);
+}
+double G_EQDSK_Data::InterpQPsi(double r)
+{
+   if (!checkFlag(QPSI))
+   {
+      initInterpR(QPSI_, QPSI_t_);
+      setFlag(QPSI);
+   }
+   return interpR(r, QPSI_, QPSI_t_);
+}
+double G_EQDSK_Data::InterpBTor(double r)
+{
+   if (!checkFlag(BTOR))
+   {
+      initInterpR(BTOR_, BTOR_t_);
+      setFlag(BTOR);
+   }
+   return interpR(r, BTOR_, BTOR_t_);
+}
+*/
+double G_EQDSK_Data::InterpFPolRZ(const Vector &rz)
+{
+   double psi = InterpPsiRZ(rz);
+
+   if (!checkFlag(FPOL))
+   {
+      initInterpPsi(FPOL_, FPOL_t_);
+      setFlag(FPOL);
+   }
+
+   return interpPsi(psi, FPOL_, FPOL_t_);
+}
+
+double G_EQDSK_Data::InterpPresRZ(const Vector &rz)
+{
+   double psi = InterpPsiRZ(rz);
+
+   if (!checkFlag(PRES))
+   {
+      initInterpPsi(PRES_, PRES_t_);
+      setFlag(PRES);
+   }
+
+   return interpPsi(psi, PRES_, PRES_t_);
+}
+
+double G_EQDSK_Data::InterpFFPrimeRZ(const Vector &rz)
+{
+   double psi = InterpPsiRZ(rz);
+
+   if (!checkFlag(FFPRIM))
+   {
+      initInterpPsi(FFPRIM_, FFPRIM_t_);
+      setFlag(FFPRIM);
+   }
+   return interpPsi(psi, FFPRIM_, FFPRIM_t_);
+}
+
+double G_EQDSK_Data::InterpPPrimeRZ(const Vector &rz)
+{
+   double psi = InterpPsiRZ(rz);
+
+   if (!checkFlag(PPRIME))
+   {
+      initInterpPsi(PPRIME_, PPRIME_t_);
+      setFlag(PPRIME);
+   }
+   return interpPsi(psi, PPRIME_, PPRIME_t_);
 }
 
 double G_EQDSK_Data::InterpPsiRZ(const Vector &rz)
@@ -238,34 +331,57 @@ double G_EQDSK_Data::InterpPsiRZ(const Vector &rz)
    return interpRZ(rz, PSIRZ_, PSIRZ_c_, PSIRZ_d_, PSIRZ_e_);
 }
 
-double G_EQDSK_Data::InterpQPsi(double r)
+double G_EQDSK_Data::InterpQRZ(const Vector &rz)
 {
+   double psi = InterpPsiRZ(rz);
+
    if (!checkFlag(QPSI))
    {
-      initInterpR(QPSI_, QPSI_t_);
+      initInterpPsi(QPSI_, QPSI_t_);
       setFlag(QPSI);
    }
-   return interpR(r, QPSI_, QPSI_t_);
+
+   return interpPsi(psi, QPSI_, QPSI_t_);
 }
 
-void G_EQDSK_Data::InterpNxGradPsiRZ(const Vector &rz, Vector &b)
+void G_EQDSK_Data::InterpNxGradPsiRZ(const Vector &rz, Vector &nxdp)
 {
    if (!checkFlag(PSIRZ))
    {
       initInterpRZ(PSIRZ_, PSIRZ_c_, PSIRZ_d_, PSIRZ_e_);
       setFlag(PSIRZ);
    }
-   interpNxGradRZ(rz, PSIRZ_, PSIRZ_c_, PSIRZ_d_, PSIRZ_e_, b);
+   interpNxGradRZ(rz, PSIRZ_, PSIRZ_c_, PSIRZ_d_, PSIRZ_e_, nxdp);
 }
 
-double G_EQDSK_Data::InterpBTor(double r)
+void G_EQDSK_Data::InterpBPolRZ(const Vector &rz, Vector &bpol)
 {
-   if (!checkFlag(BTOR))
+   InterpNxGradPsiRZ(rz, bpol);
+   if (rz[0] > 1e-6 * RDIM_) { bpol /= rz[0]; }
+}
+
+double G_EQDSK_Data::InterpBTorRZ(const Vector &rz)
+{
+   if (rz[0] > 1e-6 * RDIM_)
    {
-      initInterpR(BTOR_, BTOR_t_);
-      setFlag(BTOR);
+      return InterpFPolRZ(rz) / rz[0];
    }
-   return interpR(r, BTOR_, BTOR_t_);
+   else
+   {
+      return 0.0;
+   }
+}
+
+double G_EQDSK_Data::InterpJTorRZ(const Vector &rz)
+{
+   if (rz[0] > 1e-6 * RDIM_)
+   {
+      return InterpPPrimeRZ(rz) * rz[0] + InterpFFPrimeRZ(rz) / rz[0];
+   }
+   else
+   {
+      return 0.0;
+   }
 }
 
 void G_EQDSK_Data::initInterpR(const std::vector<double> &v,
@@ -674,6 +790,84 @@ void G_EQDSK_Data::interpNxGradRZ(const Vector &rz,
                         * (dwra * wrb2 + wra * dwrb2));
 }
 
+void G_EQDSK_Data::initInterpPsi(const std::vector<double> &v,
+                                 std::vector<double> &t)
+{
+   // Initialize the divided differences
+   ShiftedVector m(NW_-1, 2); m = 0.0;
+
+   m(-2) = -2.0 * v[2] + 5.0 * v[1] - 3.0 * v[0];
+   m(-1) = -1.0 * v[2] + 3.0 * v[1] - 2.0 * v[0];
+   for (int i=0; i<NW_-1; i++)
+   {
+      m(i) = v[i+1] - v[i];
+   }
+   m(NW_-1) = 2.0 * v[NW_-1] - 3.0 * v[NW_-2] + v[NW_-3];
+   m(NW_)   = 3.0 * v[NW_-1] - 5.0 * v[NW_-2] + 2.0 * v[NW_-3];
+
+   // Initialize the Slopes
+   t.resize(NW_);
+
+   for (int i=0; i<NW_; i++)
+   {
+      if (m(i+1) == m(i) && m(i-1) == m(i-2))
+      {
+         if (m(i) == m(i-1))
+         {
+            t[i] = m(i) * dpsi_;
+         }
+         else
+         {
+            t[i] = 0.5 * (m(i-1) + m(i)) * dpsi_;
+         }
+      }
+      else
+      {
+         t[i] = (fabs(m(i+1) - m(i)) * m(i-1) +
+                 fabs(m(i-1) - m(i-2)) * m(i)) * dpsi_ /
+                (fabs(m(i+1) - m(i)) + fabs(m(i-1) - m(i-2)));
+      }
+   }
+}
+
+double G_EQDSK_Data::interpPsi(double psi, const vector<double> &v,
+                               const vector<double> &t)
+{
+   double psic = std::max(SIMAG_, std::min(psi, SIBRY_));
+
+   double psis = (psic - SIMAG_) / (SIBRY_ - SIMAG_);
+
+   int i = std::max(0, std::min((int)floor(double(NW_-1) * psis), NW_-2));
+
+   // Compute ends of local patch
+   double psi0 = SIMAG_ + (SIBRY_ - SIMAG_) * i / (NW_ - 1);
+   double psi1 = psi0 + (SIBRY_ - SIMAG_) / (NW_ - 1);
+
+   // Prepare position dependent factors
+   double wra = (psi1 - psic) / dpsi_;
+   double wrb = (psic - psi0) / dpsi_;
+   double wrc = (1.0 + 2.0 * wra);
+   double wrd = (1.0 + 2.0 * wrb);
+   double wra2 = wra * wra;
+   double wrb2 = wrb * wrb;
+
+   // Extract variable values at ends of local patch
+   const double &p0 = v[i];
+   const double &p1 = v[i+1];
+
+   double var = p0 * wra2 * wrd + p1 * wrb2 * wrc;
+
+   // Extract dvar/dx at ends of local patch
+   const double &px0 = t[i];
+   const double &px1 = t[i+1];
+
+   double varx = px0 * wra2 * wrb - px1 * wrb2 * wra;
+
+   var += varx * dpsi_;
+
+   return var;
+}
+
 void G_EQDSK_Data::ExtendedDenseMatrix::init()
 {
    // Populate four corners
@@ -693,9 +887,9 @@ void G_EQDSK_Data::ExtendedDenseMatrix::init()
    // Populate highest rows
    for (int j=0; j<n_; j++)
    {
-      N_(1,j) = 3.0 * (2.0 * (*this)(n_-1,j) + (*this)(n_-3,j))
-                - 8.0 * (*this)(n_-2,j);
-      N_(0,j) = 3.0 * ((*this)(n_-1,j) - (*this)(n_-2,j)) + (*this)(n_-3,j);
+      N_(1,j) = 3.0 * (2.0 * (*this)(m_-1,j) + (*this)(m_-3,j))
+                - 8.0 * (*this)(m_-2,j);
+      N_(0,j) = 3.0 * ((*this)(m_-1,j) - (*this)(m_-2,j)) + (*this)(m_-3,j);
    }
 
    // Populate lowest columns
@@ -708,9 +902,9 @@ void G_EQDSK_Data::ExtendedDenseMatrix::init()
    // Populate highest columns
    for (int i=0; i<m_; i++)
    {
-      E_(i,0) = 3.0 * ((*this)(i,m_-1) - (*this)(i,m_-2)) + (*this)(i,m_-3);
-      E_(i,1) = 3.0 * (2.0 * (*this)(i,m_-1) + (*this)(i,m_-3))
-                - 8.0 * (*this)(i,m_-2);
+      E_(i,0) = 3.0 * ((*this)(i,n_-1) - (*this)(i,n_-2)) + (*this)(i,n_-3);
+      E_(i,1) = 3.0 * (2.0 * (*this)(i,n_-1) + (*this)(i,n_-3))
+                - 8.0 * (*this)(i,n_-2);
    }
 }
 

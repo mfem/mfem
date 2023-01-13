@@ -144,12 +144,16 @@ static Vector rod_params_
 (0); // Amplitude of x, y, z current source, position in 2D, and radius
 static Vector slab_params_
 (0); // Amplitude of x, y, z current source, position in 2D, and size in 2D
+static Vector curve_params_
+(0); // Text here
 static int slab_profile_;
 
 void rod_current_source_r(const Vector &x, Vector &j);
 void rod_current_source_i(const Vector &x, Vector &j);
 void slab_current_source_r(const Vector &x, Vector &j);
 void slab_current_source_i(const Vector &x, Vector &j);
+void curve_current_source_r(const Vector &x, Vector &j);
+void curve_current_source_i(const Vector &x, Vector &j);
 void j_src_r(const Vector &x, Vector &j)
 {
    if (rod_params_.Size() > 0)
@@ -159,6 +163,10 @@ void j_src_r(const Vector &x, Vector &j)
    else if (slab_params_.Size() > 0)
    {
       slab_current_source_r(x, j);
+   }
+   else if (curve_params_.Size() > 0)
+   {
+      curve_current_source_r(x, j);
    }
 }
 void j_src_i(const Vector &x, Vector &j)
@@ -170,6 +178,10 @@ void j_src_i(const Vector &x, Vector &j)
    else if (slab_params_.Size() > 0)
    {
       slab_current_source_i(x, j);
+   }
+   else if (curve_params_.Size() > 0)
+   {
+      curve_current_source_i(x, j);
    }
 }
 
@@ -675,7 +687,7 @@ int main(int argc, char *argv[])
    //               "Masses of the various species (in amu)");
    args.AddOption(&minority, "-min", "--minority",
                   "Minority Ion Species: charge, mass (amu), concentration."
-                  " Concentration being: n_min/n_e");
+                  " Concentration being: n_min/n_i");
    args.AddOption(&prec, "-pc", "--precond",
                   "Preconditioner: 1 - Diagonal Scaling, 2 - ParaSails, "
                   "3 - Euclid, 4 - AMS");
@@ -714,6 +726,8 @@ int main(int argc, char *argv[])
    args.AddOption(&slab_params_, "-slab", "--slab_params",
                   "3D Vector Amplitude (Real x,y,z, Imag x,y,z), "
                   "2D Position, 2D Size");
+    args.AddOption(&curve_params_, "-curve", "--curve_params",
+                   "2D Vector Amplitude (Real theta,phi, theta,phi)");
    args.AddOption(&slab_profile_, "-slab-prof", "--slab_profile",
                   "0 (Constant) or 1 (Sin Function)");
    args.AddOption(&abcs, "-abcs", "--absorbing-bc-surf",
@@ -941,33 +955,33 @@ int main(int argc, char *argv[])
          {
             case PlasmaProfile::CONSTANT:
                numbers[0] = dpp[0];
-               numbers[1] = (1.0-minority[2]*minority[0])*dpp[0];
-               numbers[2] = minority[2]*dpp[0];
+               numbers[1] = (1.0/(1.0+minority[0]*minority[2]))*dpp[0];
+               numbers[2] = ((minority[0]*minority[2])/(1.0+minority[0]*minority[2]))*dpp[0];
                break;
             case PlasmaProfile::GRADIENT:
                numbers[0] = dpp[0];
-               numbers[1] = (1.0-minority[2]*minority[0])*dpp[0];
-               numbers[2] = minority[2]*dpp[0];
+               numbers[1] = (1.0/(1.0+minority[0]*minority[2]))*dpp[0];
+               numbers[2] = ((minority[0]*minority[2])/(1.0+minority[0]*minority[2]))*dpp[0];
                break;
             case PlasmaProfile::TANH:
                numbers[0] = dpp[1];
-               numbers[1] = (1.0-minority[2]*minority[0])*dpp[1];
-               numbers[2] = minority[2]*dpp[1];
+               numbers[1] = (1.0/(1.0+minority[0]*minority[2]))*dpp[1];
+               numbers[2] = ((minority[0]*minority[2])/(1.0+minority[0]*minority[2]))*dpp[1];
                break;
             case PlasmaProfile::ELLIPTIC_COS:
                numbers[0] = dpp[1];
-               numbers[1] = (1.0-minority[2]*minority[0])*dpp[1];
-               numbers[2] = minority[2]*dpp[1];
+               numbers[1] = (1.0/(1.0+minority[0]*minority[2]))*dpp[1];
+               numbers[2] = ((minority[0]*minority[2])/(1.0+minority[0]*minority[2]))*dpp[1];
                break;
             case PlasmaProfile::PARABOLIC:
                numbers[0] = dpp[1];
-               numbers[1] = (1.0-minority[2]*minority[0])*dpp[1];
-               numbers[2] = minority[2]*dpp[1];
+               numbers[1] = (1.0/(1.0+minority[0]*minority[2]))*dpp[1];
+               numbers[2] = ((minority[0]*minority[2])/(1.0+minority[0]*minority[2]))*dpp[1];
                break;
             default:
                numbers[0] = 1.0e19;
-               numbers[1] = (1.0-minority[2]*minority[0])*1.0e19;
-               numbers[2] = minority[2]*1.0e19;
+               numbers[1] = (1.0/(1.0+minority[0]*minority[2]))*1.0e19;
+               numbers[2] = ((minority[0]*minority[2])/(1.0+minority[0]*minority[2]))*1.0e19;
                break;
          }
       }
@@ -991,39 +1005,39 @@ int main(int argc, char *argv[])
          {
             case PlasmaProfile::CONSTANT:
                numbers[0] = dpp[0];
-               numbers[1] = 0.5*(1.0-minority[2]*minority[0])*dpp[0];
-               numbers[2] = 0.5*(1.0-minority[2]*minority[0])*dpp[0];
-               numbers[3] = minority[2]*dpp[0];
+               numbers[1] = 0.5*(1.0/(1.0+minority[0]*minority[2]))*dpp[0];
+               numbers[2] = 0.5*(1.0/(1.0+minority[0]*minority[2]))*dpp[0];
+               numbers[3] = ((minority[0]*minority[2])/(1.0+minority[0]*minority[2]))*dpp[0];
                break;
             case PlasmaProfile::GRADIENT:
                numbers[0] = dpp[0];
-               numbers[1] = 0.5*(1.0-minority[2]*minority[0])*dpp[0];
-               numbers[2] = 0.5*(1.0-minority[2]*minority[0])*dpp[0];
-               numbers[3] = minority[2]*dpp[0];
+               numbers[1] = 0.5*(1.0/(1.0+minority[0]*minority[2]))*dpp[0];
+               numbers[2] = 0.5*(1.0/(1.0+minority[0]*minority[2]))*dpp[0];
+               numbers[3] = ((minority[0]*minority[2])/(1.0+minority[0]*minority[2]))*dpp[0];
                break;
             case PlasmaProfile::TANH:
                numbers[0] = dpp[1];
-               numbers[1] = 0.5*(1.0-minority[2]*minority[0])*dpp[1];
-               numbers[2] = 0.5*(1.0-minority[2]*minority[0])*dpp[1];
-               numbers[3] = minority[2]*dpp[1];
+               numbers[1] = 0.5*(1.0/(1.0+minority[0]*minority[2]))*dpp[1];
+               numbers[2] = 0.5*(1.0/(1.0+minority[0]*minority[2]))*dpp[1];
+               numbers[3] = ((minority[0]*minority[2])/(1.0+minority[0]*minority[2]))*dpp[1];
                break;
             case PlasmaProfile::ELLIPTIC_COS:
                numbers[0] = dpp[1];
-               numbers[1] = 0.5*(1.0-minority[2]*minority[0])*dpp[1];
-               numbers[2] = 0.5*(1.0-minority[2]*minority[0])*dpp[1];
-               numbers[3] = minority[2]*dpp[1];
+               numbers[1] = 0.5*(1.0/(1.0+minority[0]*minority[2]))*dpp[1];
+               numbers[2] = 0.5*(1.0/(1.0+minority[0]*minority[2]))*dpp[1];
+               numbers[3] = ((minority[0]*minority[2])/(1.0+minority[0]*minority[2]))*dpp[1];
                break;
             case PlasmaProfile::PARABOLIC:
                numbers[0] = dpp[1];
-               numbers[1] = 0.5*(1.0-minority[2]*minority[0])*dpp[1];
-               numbers[2] = 0.5*(1.0-minority[2]*minority[0])*dpp[1];
-               numbers[3] = minority[2]*dpp[1];
+               numbers[1] = 0.5*(1.0/(1.0+minority[0]*minority[2]))*dpp[1];
+               numbers[2] = 0.5*(1.0/(1.0+minority[0]*minority[2]))*dpp[1];
+               numbers[3] = ((minority[0]*minority[2])/(1.0+minority[0]*minority[2]))*dpp[1];
                break;
             default:
                numbers[0] = 1.0e19;
-               numbers[1] = 0.5*(1.0-minority[2]*minority[0])*1.0e19;
-               numbers[2] = 0.5*(1.0-minority[2]*minority[0])*1.0e19;
-               numbers[3] = minority[2]*1.0e19;
+               numbers[1] = 0.5*(1.0/(1.0+minority[0]*minority[2]))*1.0e19;
+               numbers[2] = 0.5*(1.0/(1.0+minority[0]*minority[2]))*1.0e19;
+               numbers[3] = ((minority[0]*minority[2])/(1.0+minority[0]*minority[2]))*1.0e19;
                break;
          }
       }
@@ -1231,11 +1245,6 @@ int main(int argc, char *argv[])
    ParGridFunction nue_gf(&H1FESpace);
    ParGridFunction nui_gf(&H1FESpace);
 
-   PlasmaProfile nueCoef(nept, nepp);
-   nue_gf.ProjectCoefficient(nueCoef);
-   PlasmaProfile nuiCoef(nipt, nipp);
-   nui_gf.ProjectCoefficient(nuiCoef);
-
    G_EQDSK_Data *eqdsk = NULL;
    {
       named_ifgzstream ieqdsk(eqdsk_file);
@@ -1252,6 +1261,7 @@ int main(int argc, char *argv[])
          }
       }
    }
+    
    /*
    if (eqdsk)
      {
@@ -1268,10 +1278,16 @@ int main(int argc, char *argv[])
         BFieldProfile BUnitCoef(bpt, bpp, true);
    }
    */
+    
    BFieldProfile BCoef(bpt, bpp, false, eqdsk);
    BFieldProfile BUnitCoef(bpt, bpp, true, eqdsk);
 
    BField.ProjectCoefficient(BCoef);
+    
+   PlasmaProfile nueCoef(nept, nepp, eqdsk);
+   nue_gf.ProjectCoefficient(nueCoef);
+   PlasmaProfile nuiCoef(nipt, nipp, eqdsk);
+   nui_gf.ProjectCoefficient(nuiCoef);
 
    int size_h1 = H1FESpace.GetVSize();
    int size_l2 = L2FESpace.GetVSize();
@@ -1297,8 +1313,8 @@ int main(int argc, char *argv[])
       cout << "Creating plasma profile." << endl;
    }
 
-   PlasmaProfile tempCoef(tpt, tpp);
-   PlasmaProfile rhoCoef(dpt, dpp);
+   PlasmaProfile tempCoef(tpt, tpp, eqdsk);
+   PlasmaProfile rhoCoef(dpt, dpp, eqdsk);
 
    for (int i=0; i<=numbers.Size(); i++)
    {
@@ -1806,9 +1822,9 @@ int main(int argc, char *argv[])
                    dbcs, nbcs, sbcs,
                    // e_bc_r, e_bc_i,
                    // EReCoef, EImCoef,
-                   (rod_params_.Size() > 0 ||slab_params_.Size() > 0) ?
+                   (rod_params_.Size() > 0 ||slab_params_.Size() > 0 ||curve_params_.Size() > 0) ?
                    j_src_r : NULL,
-                   (rod_params_.Size() > 0 ||slab_params_.Size() > 0) ?
+                   (rod_params_.Size() > 0 ||slab_params_.Size() > 0 ||curve_params_.Size() > 0) ?
                    j_src_i : NULL, vis_u, pa);
 
    // Initialize GLVis visualization
@@ -2425,6 +2441,80 @@ void slab_current_source_i(const Vector &x, Vector &j)
          if (slab_profile_ == 1)
          { j *= 0.5 * (1.0 + sin(M_PI*((2.0 * (x[1] - y0) + dy)/dy - 0.5))); }
       }
+   }
+}
+
+void curve_current_source_r(const Vector &x, Vector &j)
+{
+   MFEM_ASSERT(x.Size() == 2, "current source requires 2D space (theta, phi).");
+
+   j.SetSize(x.Size());
+   j = 0.0;
+    
+   bool cmplx = curve_params_.Size() == 4;
+
+   int o = 2 + (cmplx ? 2 : 0);
+    
+   double a = -0.50721437;
+   double b = -0.00295982;
+   double c = 2.41569303;
+    
+   double zmin = -0.196;
+   double zmax = 0.1936;
+    
+   double thickness = 0.05;
+   double rsol = 0.034;
+   double rmin = a*pow((x[1]+b),2.0) + c + rsol;
+   double rmax = a*pow((x[1]+b),2.0) + c + rsol + thickness;
+   double rmajor = 1.85;
+    
+   double theta = atan2(x[1], x[0]-rmajor);
+
+   if (x[0] >= rmin && x[0] <= rmax &&
+       x[1] >= zmin && x[1] <= zmax)
+   {
+      j(0) = -1.0*curve_params_(0)*sin(theta);
+      j(1) = curve_params_(0)*cos(theta);
+      j(2) = curve_params_(1);
+      //if (slab_profile_ == 1)
+      //{ j *= 0.5 * (1.0 + sin(M_PI*((2.0 * (x[1] - y0) + dy)/dy - 0.5))); }
+   }
+}
+
+void curve_current_source_i(const Vector &x, Vector &j)
+{
+   MFEM_ASSERT(x.Size() == 2, "current source requires 2D space (theta, phi).");
+
+   j.SetSize(x.Size());
+   j = 0.0;
+    
+   bool cmplx = curve_params_.Size() == 4;
+
+   int o = 2 + (cmplx ? 2 : 0);
+    
+   double a = -0.50721437;
+   double b = -0.00295982;
+   double c = 2.41569303;
+    
+   double zmin = -0.196;
+   double zmax = 0.1936;
+    
+   double thickness = 0.05;
+   double rsol = 0.034;
+   double rmin = a*pow((x[1]+b),2.0) + c + rsol;
+   double rmax = a*pow((x[1]+b),2.0) + c + rsol + thickness;
+   double rmajor = 1.85;
+    
+   double theta = atan2(x[1], x[0]-rmajor);
+
+   if (x[0] >= rmin && x[0] <= rmax &&
+       x[1] >= zmin && x[1] <= zmax)
+   {
+      j(0) = -1.0*curve_params_(2)*sin(theta);
+      j(1) = curve_params_(2)*cos(theta);
+      j(2) = curve_params_(3);
+      //if (slab_profile_ == 1)
+      //{ j *= 0.5 * (1.0 + sin(M_PI*((2.0 * (x[1] - y0) + dy)/dy - 0.5))); }
    }
 }
 
