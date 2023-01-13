@@ -159,11 +159,12 @@ protected:
    ///@}
 
    /// @name Solver statistics (protected attributes)
+   /// Every IterativeSolver is expected to define these in its Mult() call.
    ///@{
 
-   mutable int final_iter;
-   mutable bool converged;
-   mutable double initial_norm, final_norm;
+   mutable int final_iter = -1;
+   mutable bool converged = false;
+   mutable double initial_norm = -1.0, final_norm = -1.0;
 
    ///@}
 
@@ -262,11 +263,16 @@ public:
    /// residual, depending on the solver), corresponding to the returned
    /// solution.
    double GetFinalNorm() const { return final_norm; }
-   /// @brief Returns the final residual norm after termination of the solver during
-   /// the last call to Mult(), divided by the initial residual norm.
+   /// @brief Returns the final residual norm after termination of the solver
+   /// during the last call to Mult(), divided by the initial residual norm.
+   /// Returns -1 if one of these norms is left undefined by the solver.
    ///
    /// @sa GetFinalNorm(), GetInitialNorm()
-   double GetFinalRelNorm() const { return final_norm / initial_norm; }
+   double GetFinalRelNorm() const
+   {
+      if (final_norm < 0.0 || initial_norm < 0.0) { return -1.0; }
+      return final_norm / initial_norm;
+   }
 
    ///@}
 
