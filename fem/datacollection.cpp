@@ -110,7 +110,7 @@ DataCollection::DataCollection(const std::string& collection_name, Mesh *mesh_)
    precision = precision_default;
    pad_digits_cycle = pad_digits_rank = pad_digits_default;
    format = SERIAL_FORMAT; // use serial mesh format
-   compression = false;
+   compression = 0;
    error = NO_ERROR;
 }
 
@@ -1138,9 +1138,16 @@ void ParaViewDataCollection::SetCompression(bool compression_)
    // If we are enabling compression, and it was disabled previously, use the
    // default compression level. Otherwise, leave the compression level
    // unchanged.
-   if (compression_ && compression == 0)
+   // FIXME: the logic here does not exactly correspond to the doxygen
+   // documentation which states that previously set compression level restored
+   // if compression is disabled and then re-enabled.
+   if (compression_)
    {
-      SetCompressionLevel(-1);
+      if (compression == 0) { SetCompressionLevel(-1); }
+   }
+   else
+   {
+      SetCompressionLevel(0);
    }
 }
 
