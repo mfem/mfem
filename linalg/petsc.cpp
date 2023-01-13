@@ -2739,6 +2739,7 @@ PetscBCHandler::PetscBCHandler(Array<int>& ess_tdof_list,
    : bctype(type_), setup(false), eval_t(0.0),
      eval_t_cached(std::numeric_limits<double>::min())
 {
+   useFullversion = 0;
    SetTDofs(ess_tdof_list);
 }
 
@@ -4857,12 +4858,16 @@ static PetscErrorCode __mfem_snes_jacobian(SNES snes, Vec x, Mat A, Mat P,
       delete_pA = true;
    }
 
+   // skip it for now! -QT
+   // this does not supports nest mat
    // Eliminate essential dofs
-   if (snes_ctx->bchandler)
+   if (snes_ctx->bchandler && false)
    {
       mfem::PetscBCHandler *bchandler = snes_ctx->bchandler;
       mfem::PetscParVector dummy(PetscObjectComm((PetscObject)snes),0);
+      //pA->Print();
       pA->EliminateRowsCols(bchandler->GetTDofs(),dummy,dummy);
+      //pA->Print();
    }
 
    // Get nonzerostate
@@ -4921,6 +4926,7 @@ static PetscErrorCode __mfem_snes_function(SNES snes, Vec x, Vec f, void *ctx)
       bchandler->ApplyBC(xx,*txx);
       snes_ctx->op->Mult(*txx,ff);
       // and fix the residual (i.e. f_\partial\Omega = u - g)
+      // not skip this step for now -QT!!
       bchandler->FixResidualBC(xx,ff);
    }
    else

@@ -167,6 +167,15 @@ int main(int argc, char *argv[])
       fec = new H1_FECollection(order, dim);
       delete_fec = true;
    }
+   else if (order == 0)
+   {
+      if (myid == 0)
+      {
+         cout << "Using CR basis" << endl;
+      }
+      fec = new CrouzeixRaviartFECollection();
+      delete_fec = true;
+   }
    else if (pmesh.GetNodes())
    {
       fec = pmesh.GetNodes()->OwnFEC();

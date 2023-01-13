@@ -129,7 +129,7 @@ int main(int argc, char *argv[])
    //    elements.
    {
       int ref_levels =
-         (int)floor(log(50000./mesh.GetNE())/log(2.)/dim);
+         (int)floor(log(1000./mesh.GetNE())/log(2.)/dim);
       for (int l = 0; l < ref_levels; l++)
       {
          mesh.UniformRefinement();
@@ -212,6 +212,15 @@ int main(int argc, char *argv[])
    OperatorPtr A;
    Vector B, X;
    a.FormLinearSystem(ess_tdof_list, x, b, A, X, B);
+
+   if (false)
+   {
+     SparseMatrix Am;
+     a.FormLinearSystem(ess_tdof_list, x, b, Am, X, B);
+     ess_tdof_list.Print();
+     ofstream myfile ("Am.m");
+     Am.PrintMatlab(myfile);
+   }
 
    cout << "Size of linear system: " << A->Height() << endl;
 

@@ -492,7 +492,8 @@ void hypre_ParCSRMatrixEliminateAAe(hypre_ParCSRMatrix *A,
                                     hypre_ParCSRMatrix **Ae,
                                     HYPRE_Int num_rowscols_to_elim,
                                     HYPRE_Int *rowscols_to_elim,
-                                    int ignore_rows)
+                                    int ignore_rows,
+                                    int diag)
 {
    HYPRE_Int i, j, k;
 
@@ -587,7 +588,7 @@ void hypre_ParCSRMatrixEliminateAAe(hypre_ParCSRMatrix *A,
          hypre_CSRMatrixEliminateRowsCols(A_diag, Ae_diag,
                                           0, nullptr,
                                           num_rowscols_to_elim, rowscols_to_elim,
-                                          1, NULL);
+                                          diag, NULL);
       }
       else
       {
@@ -599,7 +600,7 @@ void hypre_ParCSRMatrixEliminateAAe(hypre_ParCSRMatrix *A,
          hypre_CSRMatrixEliminateRowsCols(A_diag, Ae_diag,
                                           num_rowscols_to_elim, rowscols_to_elim,
                                           num_rowscols_to_elim, rowscols_to_elim,
-                                          1, NULL);
+                                          diag, NULL);
       }
 
       hypre_CSRMatrixReorder(Ae_diag);

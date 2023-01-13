@@ -26,6 +26,14 @@
 // Sample runs:
 //    field-diff
 //    field-diff -m1 triple-pt-1.mesh -s1 triple-pt-1.gf -m2 triple-pt-2.mesh -s2 triple-pt-2.gf -p 200
+//    ./field-diff -m1 t50/full.mesh -s1 t50/psione.final -m2 t50-r4/full.mesh -s2 t50-r4/psione.final -p 200
+//    Max diff: 2.68677e-07 Avg diff: 3.09257e-08
+//    ./field-diff -m1 t50/full.mesh -s1 t50/psione.final -m2 amr1d2/amr.mesh -s2 amr1d2/psiamr.sol -p 200
+//   Max diff: 5.35238e-08 Avg diff: 8.13192e-09
+//    ./field-diff -m1 t50/full.mesh -s1 t50/psione.final -m2 amrl25/amr.mesh -s2 amrl25/psiamr.sol -p 200
+//    Max diff: 3.91635e-08 Avg diff: 9.38557e-09
+//    ./field-diff -m1 t50/full.mesh -s1 t50/psione.final -m2 amrl31/amr.mesh -s2 amrl31/psiamr.sol -p 200
+//    Max diff: 2.64541e-08 Avg diff: 3.3594e-09
 
 #include "mfem.hpp"
 #include <fstream>
@@ -41,6 +49,7 @@ int main (int argc, char *argv[])
    const char *sltn_file_1 = "triple-pt-1.gf";
    const char *sltn_file_2 = "triple-pt-2.gf";
    bool visualization    = true;
+   bool paraview    = false;
    int pts_cnt_1D = 100;
 
    // Parse command-line options.
@@ -58,6 +67,8 @@ int main (int argc, char *argv[])
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
+   args.AddOption(&paraview, "-paraview", "--paraview-datafiles", "-no-paraivew",
+                  "--no-paraview-datafiles", "Save data files for paraview visualization.");
    args.Parse();
    if (!args.Good())
    {
@@ -81,7 +92,8 @@ int main (int argc, char *argv[])
 
    // The visualization of the difference assumes byNODES ordering.
    if (mesh_1.GetNodes()->FESpace()->GetOrdering() == Ordering::byVDIM)
-   { mesh_1.SetCurvature(mesh_poly_deg, false, dim, Ordering::byNODES); }
+   { cout<<"change ordering of mesh_1!"<<endl; 
+     mesh_1.SetCurvature(mesh_poly_deg, false, dim, Ordering::byNODES); }
    if (mesh_2.GetNodes()->FESpace()->GetOrdering() == Ordering::byVDIM)
    { mesh_2.SetCurvature(mesh_poly_deg, false, dim, Ordering::byNODES); }
 
@@ -217,6 +229,8 @@ int main (int argc, char *argv[])
    interp_vals_2.SetSize(nodes_cnt);
    finder2.Interpolate(vxyz, func_2, interp_vals_2);
 
+   cout<<"nodes = "<<nodes_cnt<<endl;
+
    for (int n = 0; n < nodes_cnt; n++)
    {
       diff(n) = fabs(diff(n) - interp_vals_2(n));
@@ -237,6 +251,20 @@ int main (int argc, char *argv[])
       sout3 << flush;
    }
 
+   ParaViewDataCollection *pd = NULL;
+   if (paraview)
+   {
+      pd = new ParaViewDataCollection("gslib", &mesh_1);
+      pd->SetPrefixPath("ParaView");
+      pd->RegisterField("diff", &diff);
+      pd->SetLevelsOfDetail(3);
+      pd->SetDataFormat(VTKFormat::BINARY);
+      pd->SetHighOrderOutput(true);
+      pd->SetCycle(0);
+      pd->SetTime(0);
+      pd->Save();
+   }
+
    ConstantCoefficient coeff1(1.0);
    DomainLFIntegrator *lf_integ = new DomainLFIntegrator(coeff1);
    LinearForm lf(func_1.FESpace());
@@ -248,6 +276,8 @@ int main (int argc, char *argv[])
    // Free the internal gslib data.
    finder1.FreeData();
    finder2.FreeData();
+
+   delete pd;
 
    return 0;
 }

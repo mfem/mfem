@@ -120,7 +120,8 @@ void hypre_ParCSRMatrixEliminateAAe(hypre_ParCSRMatrix *A,
                                     hypre_ParCSRMatrix **Ae,
                                     HYPRE_Int num_rowscols_to_elim,
                                     HYPRE_Int *rowscols_to_elim,
-                                    int ignore_rows = 0);
+                                    int ignore_rows = 0,
+                                    int diag = 1);
 
 /** Eliminate rows from a hypre ParCSRMatrix, setting all entries in the listed
     rows of the matrix to zero. */
