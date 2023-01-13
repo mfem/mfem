@@ -1206,6 +1206,15 @@ int main (int argc, char *argv[])
          {
             const char omesh_file[] = "mesh-explorer-paraview";
             ParaViewDataCollection dc(omesh_file, mesh);
+            if (mesh->GetNodes())
+            {
+               int order = mesh->GetNodes()->FESpace()->GetMaxElementOrder();
+               if (order > 1)
+               {
+                  dc.SetHighOrderOutput(true);
+                  dc.SetLevelsOfDetail(order);
+               }
+            }
             dc.Save();
             cout << "New ParaView mesh file: " << omesh_file << endl;
          }
