@@ -1454,16 +1454,27 @@ double PlasmaProfile::Eval(ElementTransformation &T,
       case SPARC_RES:
       {
           double nu0 = p_[0];
-          
+        
           double A = 9.56300019e-02;
           double B = 1.27703065;
           double C = -1.47586242e-06;
           double D = 1.92995180;
           
-          double val = B*x_[1] - C;
-          double sincfunc = A*(sin(val)/val) + D;
+          double E = 0.05125891;
+          double F = 1.31119407;
+          double G = -0.00925291;
+          double H = 1.43560241;
           
-          return nu0*exp(-pow(x_[0]-sincfunc, 2)/0.002);
+          double val1 = B*x_[1] - C;
+          double sincfunc1 = A*(sin(val1)/val1) + D;
+          
+          double val2 = F*x_[1] - G;
+          double sincfunc2 = E*(sin(val2)/val2) + H;
+          
+          double res1 = nu0*exp(-pow(x_[0]-sincfunc1, 2)/0.002);
+          double res2 = nu0*exp(-pow(x_[0]-sincfunc2, 2)/0.002);
+          
+          return res1+res2;
       }
       break;
        case SPARC_DEN:
@@ -1498,7 +1509,7 @@ double PlasmaProfile::Eval(ElementTransformation &T,
            double norm_sqrt_psi = 1.0;
            if (val < 1 && bool_limits == 1){norm_sqrt_psi = sqrt(val);}
         
-           double ne = 0.3e20;
+           double ne = 1e14;
            double pmin1 = 0.3e20;
            double pmax1 = 3e20;
            double nuee = 3.0;
