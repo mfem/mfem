@@ -1268,7 +1268,7 @@ int main (int argc, char *argv[])
       pmesh->PrintAsOne(mesh_ofs);
    }
 
-   // Compute the final energy of the functional.
+   // Report the final energy of the functional.
    const double fin_energy = a.GetParGridFunctionEnergy(x) /
                              (hradaptivity ? pmesh->GetGlobalNE() : 1);
    double fin_metric_energy = fin_energy;
@@ -1296,7 +1296,23 @@ int main (int argc, char *argv[])
            << (init_energy - fin_energy) * 100.0 / init_energy << " %." << endl;
    }
 
-   // 18. Visualize the final mesh and metric values.
+   // Report imbalance in expicit metric combinations.
+   if (metric_combo)
+   {
+      Vector metric_averages;
+      metric_combo->ComputeAvgMetrics(x, *target_c, metric_averages);
+      if (myid == 0)
+      {
+         cout << "Combo metric final averages: ";
+         for (int m = 0; m < metric_averages.Size(); m++)
+         {
+            cout << metric_averages(m) << " ";
+         }
+         cout << endl;
+      }
+   }
+
+   // Visualize the final mesh and metric values.
    if (visualization)
    {
       char title[] = "Final metric values";
@@ -1310,6 +1326,7 @@ int main (int argc, char *argv[])
                              600, 600, 300, 300);
    }
 
+   // Visualize fitting surfaces and report fitting errors.
    if (surface_fit_const > 0.0)
    {
       if (visualization)
@@ -1329,7 +1346,7 @@ int main (int argc, char *argv[])
       }
    }
 
-   // 19. Visualize the mesh displacement.
+   // Visualize the mesh displacement.
    if (visualization)
    {
       x0 -= x;
@@ -1350,7 +1367,6 @@ int main (int argc, char *argv[])
       }
    }
 
-   // 20. Free the used memory.
    delete S;
    delete S_prec;
    delete target_c2;

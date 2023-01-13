@@ -70,14 +70,39 @@ void TMOP_Combo_QualityMetric::
 ComputeBalancedWeights(const GridFunction &nodes, const TargetConstructor &tc,
                        Vector &weights) const
 {
+   Vector averages;
+   ComputeAvgMetrics(nodes, tc, averages);
+   const int m_cnt = tmop_q_arr.Size();
+   weights.SetSize(m_cnt);
+
+   // For [ combo_A_B_C = a m_A + b m_B + c m_C ] we would have:
+   // a = BC / (AB + AC + BC), b = AC / (AB + AC + BC), c = AB / (AB + AC + BC),
+   // where A = avg_m_A, B = avg_m_B, C = avg_m_C.
+   double product_all = 1.0;
+   for (int m = 0; m < m_cnt; m++) { product_all *= averages(m); }
+   Vector products_no_m(m_cnt);
+   for (int m = 0; m < m_cnt; m++)
+   { products_no_m(m) = product_all / averages(m); }
+   const double pnm_sum = products_no_m.Sum();
+   for (int m = 0; m < m_cnt; m++) { weights(m) = products_no_m(m) / pnm_sum; }
+
+   MFEM_ASSERT(fabs(weights.Sum() - 1.0) < 1e-14,
+               "Error: sum should be 1 always: " << weights.Sum());
+}
+
+void TMOP_Combo_QualityMetric::ComputeAvgMetrics(const GridFunction &nodes,
+                                                 const TargetConstructor &tc,
+                                                 Vector &averages) const
+{
    const int m_cnt = tmop_q_arr.Size(),
              NE    = nodes.FESpace()->GetNE(),
              dim   = nodes.FESpace()->GetMesh()->Dimension();
-   weights.SetSize(m_cnt);
+
+   averages.SetSize(m_cnt);
 
    // Integrals of all metrics.
    Array<int> pos_dofs;
-   Vector m_integrals(m_cnt); m_integrals = 0.0;
+   averages = 0.0;
    double volume = 0.0;
    for (int e = 0; e < NE; e++)
    {
@@ -112,7 +137,7 @@ ComputeBalancedWeights(const GridFunction &nodes, const TargetConstructor &tc,
          for (int m = 0; m < m_cnt; m++)
          {
             tmop_q_arr[m]->SetTargetJacobian(Wj);
-            m_integrals(m) += tmop_q_arr[m]->EvalW(T) * w_detA;
+            averages(m) += tmop_q_arr[m]->EvalW(T) * w_detA;
          }
          volume += w_detA;
       }
@@ -122,28 +147,13 @@ ComputeBalancedWeights(const GridFunction &nodes, const TargetConstructor &tc,
    auto par_nodes = dynamic_cast<const ParGridFunction *>(&nodes);
    if (par_nodes)
    {
-      MPI_Allreduce(MPI_IN_PLACE, m_integrals.GetData(), m_cnt,
+      MPI_Allreduce(MPI_IN_PLACE, averages.GetData(), m_cnt,
                     MPI_DOUBLE, MPI_SUM, par_nodes->ParFESpace()->GetComm());
       MPI_Allreduce(MPI_IN_PLACE, &volume, 1, MPI_DOUBLE, MPI_SUM,
                     par_nodes->ParFESpace()->GetComm());
    }
 
-   // Average metric values.
-   m_integrals /= volume;
-
-   // For [ combo_A_B_C = a m_A + b m_B + c m_C ] we would have:
-   // a = BC / (AB + AC + BC), b = AC / (AB + AC + BC), c = AB / (AB + AC + BC),
-   // where A = avg_m_A, B = avg_m_B, C = avg_m_C.
-   double product_all = 1.0;
-   for (int m = 0; m < m_cnt; m++) { product_all *= m_integrals(m); }
-   Vector products_no_m(m_cnt);
-   for (int m = 0; m < m_cnt; m++)
-   { products_no_m(m) = product_all / m_integrals(m); }
-   const double pnm_sum = products_no_m.Sum();
-   for (int m = 0; m < m_cnt; m++) { weights(m) = products_no_m(m) / pnm_sum; }
-
-   MFEM_ASSERT(fabs(weights.Sum() - 1.0) < 1e-14,
-               "Error: sum should be 1 always: " << weights.Sum());
+   averages /= volume;
 }
 
 double TMOP_WorstCaseUntangleOptimizer_Metric::EvalW(const DenseMatrix &Jpt)
