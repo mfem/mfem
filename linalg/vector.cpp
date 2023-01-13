@@ -149,9 +149,10 @@ Vector &Vector::operator=(const Vector &v)
 Vector &Vector::operator=(Vector &&v)
 {
    data = std::move(v.data);
-   size = v.size;
-   // v.data.Reset(); // now done by the move assignment of 'v.data' -> 'data'
+   // Self-assignment-safe way to move v.size to size:
+   const auto size_tmp = v.size;
    v.size = 0;
+   size = size_tmp;
    return *this;
 }
 

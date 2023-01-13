@@ -211,6 +211,8 @@ public:
        validity flags of @a *this to those of @a other. Resets @a other. */
    Memory &operator=(Memory &&orig)
    {
+      // Guard self-assignment:
+      if (this == &orig) { return *this; }
       *this = orig;
       orig.Reset();
       return *this;
