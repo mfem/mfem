@@ -1036,7 +1036,7 @@ void ParaViewDataCollection::WritePVTUFooter(std::ostream &os,
 void ParaViewDataCollection::SaveDataVTU(std::ostream &os, int ref)
 {
    os << "<VTKFile type=\"UnstructuredGrid\"";
-   if (compression != 0)
+   if (GetCompressionLevel() != 0)
    {
       os << " compressor=\"vtkZLibDataCompressor\"";
    }
