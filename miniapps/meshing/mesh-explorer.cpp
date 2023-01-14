@@ -959,7 +959,9 @@ int main (int argc, char *argv[])
                      cin >> nxyz[2]; np *= nxyz[2];
                   }
                }
-               partitioning = Array<int>(mesh->CartesianPartitioning(nxyz), mesh->GetNE());
+               int *part = mesh->CartesianPartitioning(nxyz);
+               partitioning = Array<int>(part, mesh->GetNE());
+               delete [] part;
                recover_bdr_partitioning(mesh, partitioning, bdr_partitioning);
             }
             else if (pk == 's')
@@ -983,8 +985,9 @@ int main (int argc, char *argv[])
                }
                cout << "Enter number of processors: " << flush;
                cin >> np;
-               partitioning = Array<int>(mesh->GeneratePartitioning(np, part_method),
-                                         mesh->GetNE());
+               int *part = mesh->GeneratePartitioning(np, part_method);
+               partitioning = Array<int>(part, mesh->GetNE());
+               delete [] part;
                recover_bdr_partitioning(mesh, partitioning, bdr_partitioning);
             }
             if (partitioning)
@@ -1203,6 +1206,15 @@ int main (int argc, char *argv[])
          {
             const char omesh_file[] = "mesh-explorer-paraview";
             ParaViewDataCollection dc(omesh_file, mesh);
+            if (mesh->GetNodes())
+            {
+               int order = mesh->GetNodes()->FESpace()->GetMaxElementOrder();
+               if (order > 1)
+               {
+                  dc.SetHighOrderOutput(true);
+                  dc.SetLevelsOfDetail(order);
+               }
+            }
             dc.Save();
             cout << "New ParaView mesh file: " << omesh_file << endl;
          }
