@@ -769,10 +769,11 @@ ParaViewDataCollection::ParaViewDataCollection(const std::string&
 {
    cycle = 0; // always include a valid cycle index in file names
 
+   compression_level = -1;  // default zlib compression level, equivalent to 6
 #ifdef MFEM_USE_ZLIB
-   compression = -1; // default zlib compression level, equivalent to 6
+   compression = true; // if we have zlib, enable compression
 #else
-   compression = 0;
+   compression = false; // otherwise, disable compression
 #endif
 }
 
@@ -921,7 +922,7 @@ void ParaViewDataCollection::Save()
    {
       const std::string &field_name = qfield.first;
       std::ofstream os(vtu_prefix + GenerateVTUFileName(field_name, myid));
-      qfield.second->SaveVTU(os, pv_data_format, compression);
+      qfield.second->SaveVTU(os, pv_data_format, GetCompressionLevel());
    }
 
    // MPI rank 0 also creates a "PVTU" file that points to all of the separately
@@ -1041,7 +1042,7 @@ void ParaViewDataCollection::SaveDataVTU(std::ostream &os, int ref)
    }
    os << " version=\"0.1\" byte_order=\"" << VTKByteOrder() << "\">\n";
    os << "<UnstructuredGrid>\n";
-   mesh->PrintVTU(os,ref,pv_data_format,high_order_output,compression);
+   mesh->PrintVTU(os,ref,pv_data_format,high_order_output,GetCompressionLevel());
 
    // dump out the grid functions as point data
    os << "<PointData >\n";
@@ -1105,7 +1106,7 @@ void ParaViewDataCollection::SaveGFieldVTU(std::ostream &os, int ref_,
 
    if (IsBinaryFormat())
    {
-      WriteVTKEncodedCompressed(os,buf.data(),buf.size(),compression);
+      WriteVTKEncodedCompressed(os,buf.data(),buf.size(),GetCompressionLevel());
       os << '\n';
    }
    os << "</DataArray>" << std::endl;
@@ -1130,25 +1131,13 @@ void ParaViewDataCollection::SetCompressionLevel(int compression_level_)
 {
    MFEM_ASSERT(compression_level_ >= -1 && compression_level_ <= 9,
                "Compression level must be between -1 and 9 (inclusive).");
-   compression = compression_level_;
+   compression_level = compression_level_;
+   compression = compression_level_ != 0;
 }
 
 void ParaViewDataCollection::SetCompression(bool compression_)
 {
-   // If we are enabling compression, and it was disabled previously, use the
-   // default compression level. Otherwise, leave the compression level
-   // unchanged.
-   // FIXME: the logic here does not exactly correspond to the doxygen
-   // documentation which states that previously set compression level restored
-   // if compression is disabled and then re-enabled.
-   if (compression_)
-   {
-      if (compression == 0) { SetCompressionLevel(-1); }
-   }
-   else
-   {
-      SetCompressionLevel(0);
-   }
+   compression = compression_;
 }
 
 void ParaViewDataCollection::UseRestartMode(bool restart_mode_)
@@ -1178,6 +1167,11 @@ const char *ParaViewDataCollection::GetDataTypeString() const
    {
       return "Float32";
    }
+}
+
+int ParaViewDataCollection::GetCompressionLevel() const
+{
+   return compression ? compression_level : 0;
 }
 
 }  // end namespace MFEM
