@@ -135,8 +135,6 @@ if (MFEM_USE_CUDA)
       set(CMAKE_CUDA_HOST_LINK_LAUNCHER ${CMAKE_CXX_COMPILER})
    endif()
    message(${CUDA_FLAGS})
-   #set(CMAKE_CUDA_FLAGS "${CUDA_FLAGS}" CACHE STRING
-   #    "CUDA flags set for MFEM" FORCE)
 
    set(CUSPARSE_FOUND TRUE)
    set(CUSPARSE_LIBRARIES "cusparse")
