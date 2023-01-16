@@ -17,6 +17,10 @@ add_mfem_miniapp(nurbs_curveint
   MAIN nurbs_curveint.cpp
   LIBRARIES mfem)
 
+add_mfem_miniapp(nurbs_naca_cmesh
+  MAIN nurbs_naca_cmesh.cpp
+  LIBRARIES mfem)
+
 if (MFEM_ENABLE_TESTING)
   add_test(NAME nurbs_ex1_r0_o4_ser
     COMMAND $<TARGET_FILE:nurbs_ex1> -no-vis -r 0 -o 4)
