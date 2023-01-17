@@ -153,6 +153,52 @@ public:
   }
 };
 
+class VectorConstantCylCoefficient : public VectorCoefficient
+{
+private:
+  bool cyl;
+  Vector vec;
+  mutable Vector x;
+public:
+  /** The constant vector v is defined in either cartesian or cylindrical
+      coordinates.
+
+      If cyl == true
+         v = (v_r, v_phi, v_z)
+      Else
+         v = (v_x, v_y, v_z)
+  */
+  VectorConstantCylCoefficient(bool cyl_, const Vector &v)
+    : VectorCoefficient(3), cyl(cyl_), vec(v), x(3) {}
+   using VectorCoefficient::Eval;
+
+   ///  Evaluate the vector coefficient at @a ip.
+   virtual void Eval(Vector &V, ElementTransformation &T,
+                     const IntegrationPoint &ip)
+   {
+      if (cyl)
+      {
+	V.SetSize(3);
+
+	T.Transform(ip, x);
+
+	double r = sqrt(x[0] * x[0] + x[1] * x[1]);
+	double cosphi = x[0] / r;
+	double sinphi = x[1] / r;
+
+	V[0] = vec[0] * cosphi - vec[1] * sinphi;
+	V[1] = vec[0] * sinphi + vec[1] * cosphi;
+	V[2] = vec[2];
+      }
+      else
+      {
+	V = vec;
+      }
+   }
+
+   /// Return a reference to the constant vector in this class.
+   const Vector& GetVec() { return vec; }
+};
 
 // Admittance for Absorbing Boundary Condition
 Coefficient * SetupImpedanceCoefficient(const Mesh & mesh,
@@ -1584,8 +1630,8 @@ int main(int argc, char *argv[])
              << complex<double>(kReVec[1],kImVec[1]) << ","
              << complex<double>(kReVec[2],kImVec[2]) << ")" << endl;
 
-   VectorConstantCoefficient kReCoef(kReVec);
-   VectorConstantCoefficient kImCoef(kImVec);
+   VectorConstantCylCoefficient kReCoef(cyl, kReVec);
+   VectorConstantCylCoefficient kImCoef(cyl, kImVec);
 
    /*
    if (wave_type[0] == 'J' && slab_params_.Size() == 5)
