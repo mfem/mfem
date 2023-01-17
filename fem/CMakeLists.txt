@@ -11,7 +11,6 @@
 
 set(SRCS
   bilinearform.cpp
-  bilinearform_IBFI.cpp
   bilinearform_ext.cpp
   bilininteg.cpp
   bilininteg_br2.cpp
@@ -139,7 +138,6 @@ set(SRCS
 
 set(HDRS
   bilinearform.hpp
-  bilinearform_IBFI.cpp
   bilinearform_ext.hpp
   bilininteg.hpp
   bilininteg_mass_pa.hpp

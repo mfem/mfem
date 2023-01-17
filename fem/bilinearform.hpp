@@ -113,6 +113,10 @@ protected:
    Array<BilinearFormIntegrator*> boundary_face_integs;
    Array<Array<int>*> boundary_face_integs_marker; ///< Entries are not owned.
 
+    /// Set of interior boundary face Integrators to be applied.
+   Array<BilinearFormIntegrator*> interior_boundary_face_integs;
+   Array<Array<int>*> interior_boundary_face_integs_marker; ///< Entries are not owned.
+
    DenseMatrix elemmat;
    Array<int>  vdofs;
 
@@ -272,6 +276,11 @@ public:
    Array<Array<int>*> *GetBFBFI_Marker()
    { return &boundary_face_integs_marker; }
 
+   /// Access all the integrators added with AddInteriorBoundaryFaceIntegrator().
+   Array<BilinearFormIntegrator*>* GetIBFI() { return &interior_boundary_face_integs; }
+   /** @brief Access all boundary markers added with AddInteriorBoundaryFaceIntegrator().*/
+   Array<Array<int>*>* GetIBFI_Marker() { return &interior_boundary_face_integs_marker; }
+
    /// Returns a reference to: \f$ M_{ij} \f$
    const double &operator()(int i, int j) { return (*mat)(i,j); }
 
@@ -415,6 +424,11 @@ public:
        as a pointer to the given Array<int> object. */
    void AddBdrFaceIntegrator(BilinearFormIntegrator *bfi,
                              Array<int> &bdr_marker);
+
+   /// Adds new Interior Boundary Integrator restricted to certain faces specified by
+   /// the @a int_bdr_marker.
+   void AddInteriorBoundaryFaceIntegrator(BilinearFormIntegrator* bfi,
+       Array<int>& int_bdr_marker);
 
    /// Sets all sparse values of \f$ M \f$ and \f$ M_e \f$ to 'a'.
    void operator=(const double a)
