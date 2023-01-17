@@ -215,6 +215,7 @@ static Vector pw_bdr_eta_(0);  // Piecewise impedance values (by bdr attr)
 //static Vector pw_eta_inv_im_(0);  // Piecewise inverse imaginary impedance
 
 // Current Density Function
+static bool j_cyl_ = false;
 static Vector rod_params_
 (0); // Amplitude of x, y, z current source, position in 2D, and radius
 static Vector slab_params_
@@ -1181,6 +1182,8 @@ int main(int argc, char *argv[])
          hphi = 3;
       }
       hz = 1.0;
+
+      j_cyl_ = cyl;
    }
    double omega = 2.0 * M_PI * freq;
    if (kVec.Size() != 0)
@@ -2571,22 +2574,41 @@ void curve_current_source_r(const Vector &x, Vector &j)
    double zmin = -0.196;
    double zmax = 0.1936;
 
+   double r = (j_cyl_) ? sqrt(x[0] * x[0] + x[1] * x[1]) : x[0];
+   double z = (j_cyl_) ? x[2] : x[1];
+
    double thickness = 0.05;
    double rsol = 0.034;
-   double rmin = a*pow((x[1]+b),2.0) + c + rsol;
-   double rmax = a*pow((x[1]+b),2.0) + c + rsol + thickness;
+   double rmin = a*pow((z+b),2.0) + c + rsol;
+   double rmax = a*pow((z+b),2.0) + c + rsol + thickness;
    double rmajor = 1.85;
 
-   double theta = atan2(x[1], x[0]-rmajor);
+   double theta = atan2(z, r-rmajor);
 
-   if (x[0] >= rmin && x[0] <= rmax &&
-       x[1] >= zmin && x[1] <= zmax)
+   if (r >= rmin && r <= rmax &&
+       z >= zmin && z <= zmax)
    {
-      j(0) = -1.0*curve_params_(0)*sin(theta);
-      j(1) = curve_params_(0)*cos(theta);
-      j(2) = curve_params_(1);
-      //if (slab_profile_ == 1)
-      //{ j *= 0.5 * (1.0 + sin(M_PI*((2.0 * (x[1] - y0) + dy)/dy - 0.5))); }
+      if (!j_cyl_)
+      {
+         j(0) = -1.0*curve_params_(0)*sin(theta);
+         j(1) = curve_params_(0)*cos(theta);
+         j(2) = curve_params_(1);
+         //if (slab_profile_ == 1)
+         //{ j *= 0.5 * (1.0 + sin(M_PI*((2.0 * (x[1] - y0) + dy)/dy - 0.5))); }
+      }
+      else
+      {
+         double cosphi = x[0] / r;
+         double sinphi = x[1] / r;
+
+         double j_r   = -curve_params_(0)*sin(theta);
+         double j_phi = curve_params_(1);
+         double j_z   = curve_params_(0)*cos(theta);
+
+         j(0) = j_r * cosphi - j_phi * sinphi;
+         j(1) = j_r * sinphi - j_phi * cosphi;
+         j(2) = j_z;
+      }
    }
 }
 
@@ -2599,6 +2621,8 @@ void curve_current_source_i(const Vector &x, Vector &j)
 
    bool cmplx = curve_params_.Size() == 4;
 
+   if (!cmplx) { return; } // Return with Im(j) = 0
+
    int o = 2 + (cmplx ? 2 : 0);
 
    double a = -0.50721437;
@@ -2608,22 +2632,41 @@ void curve_current_source_i(const Vector &x, Vector &j)
    double zmin = -0.196;
    double zmax = 0.1936;
 
+   double r = (j_cyl_) ? sqrt(x[0] * x[0] + x[1] * x[1]) : x[0];
+   double z = (j_cyl_) ? x[2] : x[1];
+
    double thickness = 0.05;
    double rsol = 0.034;
-   double rmin = a*pow((x[1]+b),2.0) + c + rsol;
-   double rmax = a*pow((x[1]+b),2.0) + c + rsol + thickness;
+   double rmin = a*pow((z+b),2.0) + c + rsol;
+   double rmax = a*pow((z+b),2.0) + c + rsol + thickness;
    double rmajor = 1.85;
 
-   double theta = atan2(x[1], x[0]-rmajor);
+   double theta = atan2(z, r-rmajor);
 
-   if (x[0] >= rmin && x[0] <= rmax &&
-       x[1] >= zmin && x[1] <= zmax)
+   if (r >= rmin && r <= rmax &&
+       z >= zmin && z <= zmax)
    {
-      j(0) = -1.0*curve_params_(2)*sin(theta);
-      j(1) = curve_params_(2)*cos(theta);
-      j(2) = curve_params_(3);
-      //if (slab_profile_ == 1)
-      //{ j *= 0.5 * (1.0 + sin(M_PI*((2.0 * (x[1] - y0) + dy)/dy - 0.5))); }
+      if (!j_cyl_)
+      {
+         j(0) = -1.0*curve_params_(2)*sin(theta);
+         j(1) = curve_params_(2)*cos(theta);
+         j(2) = curve_params_(3);
+         //if (slab_profile_ == 1)
+         //{ j *= 0.5 * (1.0 + sin(M_PI*((2.0 * (x[1] - y0) + dy)/dy - 0.5))); }
+      }
+      else
+      {
+         double cosphi = x[0] / r;
+         double sinphi = x[1] / r;
+
+         double j_r   = -curve_params_(2)*sin(theta);
+         double j_phi = curve_params_(3);
+         double j_z   = curve_params_(2)*cos(theta);
+
+         j(0) = j_r * cosphi - j_phi * sinphi;
+         j(1) = j_r * sinphi - j_phi * cosphi;
+         j(2) = j_z;
+      }
    }
 }
 
