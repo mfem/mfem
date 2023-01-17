@@ -171,7 +171,7 @@ double AvgElementSize(ParMesh &pmesh);
     /// coefficient.
     mfem::VectorCoefficient* volforce;
 
-    Solver *prec;    
+    mfem::HypreBoomerAMG *prec;    
     mfem::GMRESSolver *ns;
 
     // displacement space and fe

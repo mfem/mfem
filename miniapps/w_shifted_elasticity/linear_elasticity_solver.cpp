@@ -57,12 +57,12 @@ namespace mfem {
        
        //       ls_func = new ParGridFunction(lsfes);
 
-       /* double dx = AvgElementSize(*pmesh);
+       double dx = AvgElementSize(*pmesh);
        filt_gf =  new ParGridFunction(lsfes);
-       PDEFilter filter(*pmesh, 2.0 * dx);
+       PDEFilter filter(*pmesh, 5.0 * dx);
        filter.Filter(*combo_dist_coef, *filt_gf);
        GridFunctionCoefficient ls_filt_coeff(filt_gf);
-       */
+       
        /*   PLapDistanceSolver dist_solver(10);
 	    dist_solver.print_level = 0;
 	    dist_solver.ComputeScalarDistance(*combo_dist_coef, *ls_func);
@@ -73,8 +73,8 @@ namespace mfem {
        //     dist_solver.ComputeVectorNormal(ls_filt_coeff, *distance, *normal); 
 	    
        NormalizationDistanceSolver dist_solver;
-       dist_solver.ComputeVectorDistance(*combo_dist_coef, *distance); 
-       dist_solver.ComputeVectorNormal(*combo_dist_coef, *distance, *normal);
+       dist_solver.ComputeVectorDistance(ls_filt_coeff, *distance); 
+       dist_solver.ComputeVectorNormal(ls_filt_coeff, *distance, *normal);
 
        dist_vec = new VectorGridFunctionCoefficient(distance);
        normal_vec = new VectorGridFunctionCoefficient(normal);
@@ -211,7 +211,7 @@ namespace mfem {
       // IP
       mVarf->AddInteriorFaceIntegrator(new WeightedShiftedStressBoundaryForceTransposeIntegrator(pmesh, alphaCut, *shearMod, *bulkMod, analyticalSurface, 1));
       // ghost penalty
-      mVarf->AddInteriorFaceIntegrator(new GhostStressPenaltyIntegrator(pmesh, *shearMod, *bulkMod, alphaCut, ghostPenaltyCoefficient, analyticalSurface, 1));
+      mVarf->AddInteriorFaceIntegrator(new GhostStressPenaltyIntegrator(pmesh, *shearMod, *bulkMod, ghostPenaltyCoefficient, analyticalSurface, 1));
       for (int i = 2; i <= numberStrainTerms; i++){
 	// best to use 1.0 / i!
 	double factorial = 1.0;	
@@ -243,8 +243,44 @@ namespace mfem {
       if(ns==nullptr)
 	{
 	  ns=new mfem::GMRESSolver(pmesh->GetComm());
-	  prec = new HypreBoomerAMG;
 	}
+
+      // PRECONDITIONER
+      ParGridFunction UnitVal(&alpha_fes);
+      UnitVal = 1.0;
+      
+      ParBilinearForm *displMass(new ParBilinearForm(vfes));
+      displMass->AddDomainIntegrator(new WeightedStressForceIntegrator(UnitVal, *shearMod, *bulkMod),ess_elem);
+      for(auto it=displacement_BC.begin();it!=displacement_BC.end();it++)
+	{
+	  // Normal Penalty
+	  displMass->AddBdrFaceIntegrator(new WeightedNormalDisplacementPenaltyIntegrator(UnitVal, penaltyParameter_bf, *bulkMod),*(it->first));
+	  // Tangential Penalty
+	  displMass->AddBdrFaceIntegrator(new WeightedTangentialDisplacementPenaltyIntegrator(UnitVal, penaltyParameter_bf, *shearMod),*(it->first));
+	}
+      if (useEmbedded){     
+	// ghost penalty
+	displMass->AddInteriorFaceIntegrator(new GhostStressPenaltyIntegrator(pmesh, *shearMod, *bulkMod, ghostPenaltyCoefficient, analyticalSurface, 1));
+	for (int i = 2; i <= numberStrainTerms; i++){
+	  // best to use 1.0 / i!
+	  double factorial = 1.0;	
+	  for (int s = 1; s <= i; s++){
+	    factorial = factorial*s;
+	  }
+	  displMass->AddInteriorFaceIntegrator(new GhostStressFullGradPenaltyIntegrator(pmesh, *shearMod, *bulkMod, ghostPenaltyCoefficient/factorial, analyticalSurface, i));
+	}
+      }
+      displMass->Assemble();
+      displMass->Finalize();
+
+      HypreParMatrix *displ_Mass = NULL;
+      displ_Mass = displMass->ParallelAssemble();
+
+      HypreParMatrix *DMe = NULL;
+      DMe = displ_Mass->EliminateRowsCols(ess_vdofs);
+      prec = new HypreBoomerAMG(*displ_Mass);
+      prec->SetSystemsOptions(dim);
+      prec->SetElasticityOptions(vfes);
       
       //set the parameters
       ns->SetPrintLevel(print_level);
@@ -307,9 +343,9 @@ namespace mfem {
       paraview_dc.SetHighOrderOutput(true);
       paraview_dc.SetTime(0.0); // set the time
       paraview_dc.RegisterField("displacement",fdisplacement);
-      paraview_dc.RegisterField("distance",distance);
-      paraview_dc.RegisterField("normal",normal);
-      paraview_dc.RegisterField("level_set_gf",level_set_gf);
+      //  paraview_dc.RegisterField("distance",distance);
+      //   paraview_dc.RegisterField("normal",normal);
+      //  paraview_dc.RegisterField("level_set_gf",level_set_gf);
       //  paraview_dc.RegisterField("ls_func",ls_func);
       //      paraview_dc.RegisterField("filt_gf",filt_gf);
       paraview_dc.Save();

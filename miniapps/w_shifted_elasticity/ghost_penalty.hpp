@@ -39,7 +39,6 @@ namespace mfem
   {
   private:
     const ParMesh *pmesh;
-    ParGridFunction *alpha;
     double penaltyParameter;
     Coefficient *mu;
     Coefficient *kappa;
@@ -47,7 +46,7 @@ namespace mfem
     int par_shared_face_count;
     int nTerms;
   public:
-    GhostStressPenaltyIntegrator(const ParMesh *pmesh, Coefficient &mu_, Coefficient &kappa_, ParGridFunction &alphaF, double penParameter, ShiftedFaceMarker *analyticalSurface, int nTerms) : pmesh(pmesh), mu(&mu_), kappa(&kappa_), alpha(&alphaF), penaltyParameter(penParameter), analyticalSurface(analyticalSurface), par_shared_face_count(0), nTerms(nTerms) { }
+    GhostStressPenaltyIntegrator(const ParMesh *pmesh, Coefficient &mu_, Coefficient &kappa_, double penParameter, ShiftedFaceMarker *analyticalSurface, int nTerms) : pmesh(pmesh), mu(&mu_), kappa(&kappa_), penaltyParameter(penParameter), analyticalSurface(analyticalSurface), par_shared_face_count(0), nTerms(nTerms) { }
     virtual void AssembleFaceMatrix(const FiniteElement &fe,
 				    const FiniteElement &fe2,
 				    FaceElementTransformations &Tr,
