@@ -1065,8 +1065,10 @@ int main(int argc, char *argv[])
       }
    }
 
-   BFieldProfile BCoef(bpt, bpp, false, eqdsk);
-   BFieldProfile BUnitCoef(bpt, bpp, true, eqdsk);
+   BFieldProfile::CoordSystem b_coord_sys =
+     cyl ? BFieldProfile::POLOIDAL : BFieldProfile::CARTESIAN_3D;
+   BFieldProfile BCoef(bpt, bpp, false, b_coord_sys, eqdsk);
+   BFieldProfile BUnitCoef(bpt, bpp, true, b_coord_sys, eqdsk);
 
    BField.ProjectCoefficient(BCoef);
 

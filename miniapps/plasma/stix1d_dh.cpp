@@ -910,8 +910,8 @@ int main(int argc, char *argv[])
    PlasmaProfile nuiCoef(nipt, nipp, PlasmaProfile::CARTESIAN_3D);
    nui_gf.ProjectCoefficient(nuiCoef);
 
-   BFieldProfile BCoef(bpt, bpp, false);
-   BFieldProfile BUnitCoef(bpt, bpp, true);
+   BFieldProfile BCoef(bpt, bpp, false, BFieldProfile::CARTESIAN_3D);
+   BFieldProfile BUnitCoef(bpt, bpp, true, BFieldProfile::CARTESIAN_3D);
 
    BField.ProjectCoefficient(BCoef);
 

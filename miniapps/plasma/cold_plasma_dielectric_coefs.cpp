@@ -1607,9 +1607,10 @@ double PlasmaProfile::Eval(ElementTransformation &T,
 }
 
 BFieldProfile::BFieldProfile(Type type, const Vector & params, bool unit,
-                             G_EQDSK_Data *eqdsk)
-   : VectorCoefficient(3), type_(type), p_(params), unit_(unit),
-     eqdsk_(eqdsk), x3_(3), x_(x3_.GetData(), 3)
+                             CoordSystem sys, G_EQDSK_Data *eqdsk)
+   : VectorCoefficient(3), type_(type), p_(params),
+     cyl_(sys == POLOIDAL), unit_(unit),
+     eqdsk_(eqdsk), /*x3_(3),*/ xyz_(3), rz_(2)
 {
    MFEM_VERIFY(params.Size() == np_[type],
                "Incorrect number of parameters, " << params.Size()
@@ -1618,47 +1619,84 @@ BFieldProfile::BFieldProfile(Type type, const Vector & params, bool unit,
    MFEM_VERIFY(type != B_EQDSK || eqdsk,
                "BFieldProfile: Profile type B_EQDSK was chosen "
                "but the G_EQDSK_Data object is NULL.");
+
+   xyz_ = 0.0;
+   rz_  = 0.0;
 }
 
 void BFieldProfile::Eval(Vector &V, ElementTransformation &T,
                          const IntegrationPoint &ip)
 {
    V.SetSize(3);
-   if (type_ != CONSTANT)
+   if (type_ != CONSTANT || cyl_)
    {
-      x3_ = 0.0;
-      T.Transform(ip, x_);
+      // x3_ = 0.0;
+     T.SetIntPoint(&ip);
+      T.Transform(ip, xyz_);
+
+      if (cyl_)
+      {
+	rz_[0] = sqrt(xyz_[0] * xyz_[0] + xyz_[1] * xyz_[1]);
+	rz_[1] = xyz_[2];
+      }
    }
    switch (type_)
    {
       case CONSTANT:
-         if (unit_)
-         {
-            double bmag = pow( pow(p_[0], 2) + pow(p_[1], 2) + pow(p_[2], 2), 0.5);
-            V[0] = p_[0] / bmag;
-            V[1] = p_[1] / bmag;
-            V[2] = p_[2] / bmag;
-         }
-         else
-         {
-            V[0] = p_[0];
-            V[1] = p_[1];
-            V[2] = p_[2];
-         }
+	 if (!cyl_)
+	 {
+	   if (unit_)
+           {
+	     double bmag = sqrt( pow(p_[0], 2) + pow(p_[1], 2) + pow(p_[2], 2));
+	     V[0] = p_[0] / bmag;
+	     V[1] = p_[1] / bmag;
+	     V[2] = p_[2] / bmag;
+	   }
+	   else
+           {
+	     V[0] = p_[0];
+	     V[1] = p_[1];
+	     V[2] = p_[2];
+	   }
+	 }
+	 else
+	 {
+
+	   double cosphi = xyz_[0] / rz_[0];
+	   double sinphi = xyz_[1] / rz_[0];
+	   
+	   if (unit_)
+           {
+	     double bmag = sqrt(pow(p_[0], 2) + pow(rz_[0] * p_[1], 2) +
+				pow(p_[2], 2));
+	     V[0] = (p_[0] * cosphi - rz_[0] * p_[1] * sinphi) / bmag;
+	     V[1] = (p_[0] * sinphi + rz_[0] * p_[1] * cosphi) / bmag;
+	     V[2] = p_[2] / bmag;
+	   }
+	   else
+	   {
+	     V[0] = p_[0] * cosphi - rz_[0] * p_[1] * sinphi;
+	     V[1] = p_[0] * sinphi + rz_[0] * p_[1] * cosphi;
+	     V[2] = p_[2];
+	   }
+	 }
          break;
       case B_P:
-      {
+	{
+	  MFEM_VERIFY(!cyl_, "BFieldProfile B_P does not yet support "
+		      "cylindrical symmetry.")
          double bp_abs = p_[0];
          double a = p_[1];
          double b = p_[2];
          Vector x0(&p_[3], 3);
          double bz = p_[6];
-
-         x_ -= x0;
-         double r = pow(x_[0] / a, 2) + pow(x_[1] / b, 2);
+	 if (!cyl_)
+	 {
+         xyz_ -= x0;
+         double r = pow(xyz_[0] / a, 2) + pow(xyz_[1] / b, 2);
          double bp = bp_abs * sin(3 * sqrt(r));
-         bz *= 1.0/(0.68 + x_[0]);
-         double theta = atan2(x_[1], x_[0]);
+         bz *= 1.0/(0.68 + xyz_[0]);
+         double theta = atan2(xyz_[1], xyz_[0]);
 
          if (unit_)
          {
@@ -1673,18 +1711,23 @@ void BFieldProfile::Eval(Vector &V, ElementTransformation &T,
             V[1] = bp * cos(theta);
             V[2] = bz;
          }
+	 }
       }
       break;
       case B_TOPDOWN:
       {
+	  MFEM_VERIFY(!cyl_, "BFieldProfile B_TOPDOWN does not yet support "
+		      "cylindrical symmetry.")
          double bp_val = p_[0];
          // double a = p_[1];
          // double b = p_[2];
          Vector x0(&p_[3], 3);
 
-         x_ -= x0;
+	 if (!cyl_)
+	 {
+         xyz_ -= x0;
          // double r = pow(x_[0] / a, 2) + pow(x_[1] / b, 2);
-         double theta = atan2(x_[1], x_[0]);
+         double theta = atan2(xyz_[1], xyz_[0]);
 
          if (unit_)
          {
@@ -1699,10 +1742,13 @@ void BFieldProfile::Eval(Vector &V, ElementTransformation &T,
             V[1] = bp_val * cos(theta);
             V[2] = 0;
          }
+	 }
       }
       break;
       case B_P_KOHNO:
       {
+	  MFEM_VERIFY(!cyl_, "BFieldProfile B_P_KOHNO does not yet support "
+		      "cylindrical symmetry.")
          double rmin = p_[0]; // Minor radius
          double rmaj = p_[1]; // Major radius
          double q0 = p_[2]; // Safety factor on magnetic axis
@@ -1710,25 +1756,28 @@ void BFieldProfile::Eval(Vector &V, ElementTransformation &T,
          Vector x0(&p_[4], 3); // Magnetic field axis
          double bz0 = p_[7]; // B toroidal
 
-         x_ -= x0;
-         double rho = pow(pow(x_[0], 2) + pow(x_[1], 2), 0.5);
+	 if (!cyl_)
+	 {
+         xyz_ -= x0;
+         double rho = pow(pow(xyz_[0], 2) + pow(xyz_[1], 2), 0.5);
          double bp_coef = ((bz0 / rmaj) * pow(rmin, 2.0)) / (pow(rmin,
                                                                  2.0)*q0 + (qa - q0)*pow(rho, 2.0));
 
          if (unit_)
          {
-            double bmag = pow( pow(bp_coef * x_[1], 2) + pow(-bp_coef * x_[0], 2) + pow(bz0,
+            double bmag = pow( pow(bp_coef * xyz_[1], 2) + pow(-bp_coef * xyz_[0], 2) + pow(bz0,
                                                                                         2), 0.5);
-            V[0] = bp_coef * x_[1] / bmag;
-            V[1] = -bp_coef * x_[0] / bmag;
+            V[0] = bp_coef * xyz_[1] / bmag;
+            V[1] = -bp_coef * xyz_[0] / bmag;
             V[2] = bz0 / bmag;
          }
          else
          {
-            V[0] = bp_coef * x_[1];
-            V[1] = -bp_coef * x_[0];
+            V[0] = bp_coef * xyz_[1];
+            V[1] = -bp_coef * xyz_[0];
             V[2] = bz0;
          }
+	 }
       }
       break;
       case B_EQDSK:
@@ -1741,10 +1790,12 @@ void BFieldProfile::Eval(Vector &V, ElementTransformation &T,
          double st = sin(theta);
          double ct = cos(theta);
 
+	 if (!cyl_)
+	 {
          // Step 1: Compute coordinates in 3D the Tokamak geometry
-         double x_tok = x_[0] - u0;
-         double y_tok = (x_[1] - v0) * st;
-         double z_tok = (x_[1] - v0) * ct + z0;
+         double x_tok = xyz_[0] - u0;
+         double y_tok = (xyz_[1] - v0) * st;
+         double z_tok = (xyz_[1] - v0) * ct + z0;
          double r_tok = sqrt(x_tok * x_tok + y_tok * y_tok);
 
          // Step 2: Interpolate B field in poloidal cross section
@@ -1771,7 +1822,40 @@ void BFieldProfile::Eval(Vector &V, ElementTransformation &T,
          V[0] = b_tok[0];
          V[1] = b_tok[2] * ct + b_tok[1] * st;
          V[2] = b_tok[2] * st - b_tok[1] * ct;
+	 }
+	 else
+	 {
+ 	   MFEM_VERIFY(fabs(theta) < 1e-4,
+		       "A slanted domain is incompatible with "
+		       "cylindrical symmetry.");
 
+           // Step 1: Compute coordinates in 3D the Tokamak geometry
+	   double x_tok = xyz_[0];
+	   double y_tok = xyz_[1];
+	   double z_tok = xyz_[2];
+	   double r_tok = rz_[0];
+
+         // Step 2: Interpolate B field in poloidal cross section
+         double x_tok_data[2];
+         Vector xTokVec(x_tok_data, 2);
+         xTokVec[0] = r_tok; xTokVec[1] = z_tok;
+
+         double b_pol_data[2];
+         Vector b_pol(b_pol_data, 2); b_pol = 0.0;
+         double b_tor = 0.0;
+
+         eqdsk_->InterpBPolRZ(xTokVec, b_pol);
+         b_tor = eqdsk_->InterpBTorRZ(xTokVec);
+
+	 // Step 3: Rotate B field out of xz plane
+	 double cosphi = x_tok / r_tok;
+	 double sinphi = y_tok / r_tok;
+	 
+	 V[0] = b_pol[0] * cosphi - b_tor * sinphi;
+	 V[1] = b_pol[0] * sinphi + b_tor * cosphi;
+	 V[2] = b_pol[1];	 
+	 }
+	 
          if (unit_)
          {
             double vmag = sqrt(V * V);
@@ -1783,22 +1867,41 @@ void BFieldProfile::Eval(Vector &V, ElementTransformation &T,
        {
            //|B| = \sqrt(Fpol^2+d\Psi/dZ^2+d\Psi/dR^2)/R
            //where Fpol== R*Bphi , BR = - 1/R d\Psi/dZ, BZ = 1/R d\Psi/dR
+
+	 double b_pol_data[2];
+	 Vector b_pol(b_pol_data, 2); b_pol = 0.0;
+	 double b_tor = 0.0;
+
+	   if (!cyl_)
+	   {
+	     double x_tok_data[2];
+	     Vector xTokVec(x_tok_data, 2);
+	     xTokVec[0] = xyz_[0]; xTokVec[1] = xyz_[1];
+
+	     eqdsk_->InterpBPolRZ(xTokVec, b_pol);
+	     b_tor = eqdsk_->InterpBTorRZ(xTokVec);
            
-           double x_tok_data[2];
-           Vector xTokVec(x_tok_data, 2);
-           xTokVec[0] = x_[0]; xTokVec[1] = x_[1];
+	     V[0] = b_pol[0];
+	     V[1] = b_pol[1];
+	     V[2] = b_tor;
+	   }
+	   else
+	   {
+	     double cosphi = xyz_[0] / rz_[0];
+	     double sinphi = xyz_[1] / rz_[0];
 
-           double b_pol_data[2];
-           Vector b_pol(b_pol_data, 2); b_pol = 0.0;
-           double b_tor = 0.0;
-
-           eqdsk_->InterpBPolRZ(xTokVec, b_pol);
-           b_tor = eqdsk_->InterpBTorRZ(xTokVec);
-           
-           V[0] = b_pol[0];
-           V[1] = b_pol[1];
-           V[2] = b_tor;
-
+	     eqdsk_->InterpBPolRZ(rz_, b_pol);
+	     b_tor = eqdsk_->InterpBTorRZ(rz_);
+	     // b_tor = 1.0;
+	     V[0] = b_pol[0] * cosphi - b_tor * sinphi;
+	     V[1] = b_pol[0] * sinphi + b_tor * cosphi;
+	     // V[0] = -sinphi;
+	     // V[1] = cosphi;
+	     // V[0] = rz_[0];
+	     // V[1] = rz_[0];
+	     V[2] = b_pol[1];
+	   }
+	   
            if (unit_)
            {
               double vmag = sqrt(V * V);
@@ -1810,12 +1913,36 @@ void BFieldProfile::Eval(Vector &V, ElementTransformation &T,
       {
          double a = p_[0];
          double b = p_[1];
-         V[0] = a + b * pow(x_[0], 4);
-         V[1] = -2.0 * b * x_[1] * pow(x_[0], 3);
-         V[2] = 0.0;
+	 if (!cyl_)
+	 {
+	   V[0] = a + b * pow(xyz_[0], 4);
+	   V[1] = -2.0 * b * xyz_[1] * pow(xyz_[0], 3);
+	   V[2] = 0.0;
+	 }
+	 else
+	 {
+	   double cosphi = xyz_[0] / rz_[0];
+	   double sinphi = xyz_[1] / rz_[0];
+
+	   double Vr = a + b * pow(rz_[0], 4);
+	   double Vz = -2.0 * b * rz_[1] * pow(rz_[0], 3);
+	   
+	   V[0] = Vr * cosphi;
+	   V[1] = Vr * sinphi;
+	   V[2] = Vz;
+	 }
+
+	 if (unit_)
+         {
+	   double vmag = sqrt(V * V);
+	   V /= vmag;
+	 }
+
       }
       break;
       default:
+	if (!cyl_)
+	{
          if (unit_)
          {
             V[0] = 0.0;
@@ -1828,6 +1955,21 @@ void BFieldProfile::Eval(Vector &V, ElementTransformation &T,
             V[1] = 0.0;
             V[2] = 5.4;
          }
+	}
+	else
+	{
+	  double cosphi = xyz_[0] / rz_[0];
+	  double sinphi = xyz_[1] / rz_[0];
+
+	  V[0] = -sinphi;
+	  V[1] =  cosphi;
+	  V[2] = 0.0;
+
+	  if (!unit_)
+          {
+	    V *= 5.4;
+          }
+	}
    }
 }
 

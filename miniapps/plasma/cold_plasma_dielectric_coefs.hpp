@@ -688,22 +688,27 @@ public:
 class BFieldProfile : public VectorCoefficient
 {
 public:
+   /** See PlasmaProfile for documentation. */
+   enum CoordSystem {CARTESIAN_3D, POLOIDAL};
    enum Type {CONSTANT, B_P, B_TOPDOWN, B_P_KOHNO, B_EQDSK, B_SPARC, B_WHAM};
 
 private:
    Type type_;
    Vector p_;
+   bool cyl_; // Assume cylindrical symmetyry
    bool unit_;
 
    G_EQDSK_Data *eqdsk_;
 
    const int np_[7] = {3, 7, 6, 8, 4, 1, 2};
 
-   mutable Vector x3_;
-   mutable Vector x_;
+   // mutable Vector x3_; // Not currently used
+   mutable Vector xyz_; // 3D coordinate in computational mesh
+   mutable Vector rz_;  // 2D coordinate in poloidal cross section
 
 public:
    BFieldProfile(Type type, const Vector & params, bool unit,
+		 CoordSystem coord_sys = CARTESIAN_3D,
                  G_EQDSK_Data *eqdsk = NULL);
 
    void Eval(Vector &V, ElementTransformation &T,
