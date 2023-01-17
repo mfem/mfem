@@ -128,48 +128,48 @@ using namespace mfem::plasma;
 class MeshTransformCoefficient : public VectorCoefficient
 {
 private:
-  double hphi_rad_;
+   double hphi_rad_;
 
-  mutable Vector uvw_;
-  
+   mutable Vector uvw_;
+
 public:
-  MeshTransformCoefficient(double hphi_deg)
-    : VectorCoefficient(3), hphi_rad_(hphi_deg * M_PI / 180.0),
-      uvw_(3)
-  {}
+   MeshTransformCoefficient(double hphi_deg)
+      : VectorCoefficient(3), hphi_rad_(hphi_deg * M_PI / 180.0),
+        uvw_(3)
+   {}
 
-  void Eval(Vector &xyz, ElementTransformation &T,
-	    const IntegrationPoint &ip)
-  {
-    T.Transform(ip, uvw_);
+   void Eval(Vector &xyz, ElementTransformation &T,
+             const IntegrationPoint &ip)
+   {
+      T.Transform(ip, uvw_);
 
-    const double r   = uvw_[0];
-    const double phi = hphi_rad_ * uvw_[2];
-    const double z   = uvw_[1];
+      const double r   = uvw_[0];
+      const double phi = hphi_rad_ * uvw_[2];
+      const double z   = uvw_[1];
 
-    xyz[0] = r * cos(phi);
-    xyz[1] = r * sin(phi);
-    xyz[2] = z;
-  }
+      xyz[0] = r * cos(phi);
+      xyz[1] = r * sin(phi);
+      xyz[2] = z;
+   }
 };
 
 class VectorConstantCylCoefficient : public VectorCoefficient
 {
 private:
-  bool cyl;
-  Vector vec;
-  mutable Vector x;
+   bool cyl;
+   Vector vec;
+   mutable Vector x;
 public:
-  /** The constant vector v is defined in either cartesian or cylindrical
-      coordinates.
+   /** The constant vector v is defined in either cartesian or cylindrical
+       coordinates.
 
-      If cyl == true
-         v = (v_r, v_phi, v_z)
-      Else
-         v = (v_x, v_y, v_z)
-  */
-  VectorConstantCylCoefficient(bool cyl_, const Vector &v)
-    : VectorCoefficient(3), cyl(cyl_), vec(v), x(3) {}
+       If cyl == true
+          v = (v_r, v_phi, v_z)
+       Else
+          v = (v_x, v_y, v_z)
+   */
+   VectorConstantCylCoefficient(bool cyl_, const Vector &v)
+      : VectorCoefficient(3), cyl(cyl_), vec(v), x(3) {}
    using VectorCoefficient::Eval;
 
    ///  Evaluate the vector coefficient at @a ip.
@@ -178,21 +178,21 @@ public:
    {
       if (cyl)
       {
-	V.SetSize(3);
+         V.SetSize(3);
 
-	T.Transform(ip, x);
+         T.Transform(ip, x);
 
-	double r = sqrt(x[0] * x[0] + x[1] * x[1]);
-	double cosphi = x[0] / r;
-	double sinphi = x[1] / r;
+         double r = sqrt(x[0] * x[0] + x[1] * x[1]);
+         double cosphi = x[0] / r;
+         double sinphi = x[1] / r;
 
-	V[0] = vec[0] * cosphi - vec[1] * sinphi;
-	V[1] = vec[0] * sinphi + vec[1] * cosphi;
-	V[2] = vec[2];
+         V[0] = vec[0] * cosphi - vec[1] * sinphi;
+         V[1] = vec[0] * sinphi + vec[1] * cosphi;
+         V[2] = vec[2];
       }
       else
       {
-	V = vec;
+         V = vec;
       }
    }
 
@@ -812,8 +812,8 @@ int main(int argc, char *argv[])
    args.AddOption(&slab_params_, "-slab", "--slab_params",
                   "3D Vector Amplitude (Real x,y,z, Imag x,y,z), "
                   "2D Position, 2D Size");
-    args.AddOption(&curve_params_, "-curve", "--curve_params",
-                   "2D Vector Amplitude (Real theta,phi, theta,phi)");
+   args.AddOption(&curve_params_, "-curve", "--curve_params",
+                  "2D Vector Amplitude (Real theta,phi, theta,phi)");
    args.AddOption(&slab_profile_, "-slab-prof", "--slab_profile",
                   "0 (Constant) or 1 (Sin Function)");
    args.AddOption(&abcs, "-abcs", "--absorbing-bc-surf",
@@ -1172,15 +1172,15 @@ int main(int argc, char *argv[])
    }
    if (cyl)
    {
-     if (mesh_order <= 0)
-     {
-       mesh_order = 3;
-     }
-     if (hphi < 0.0)
-     {
-       hphi = 3;
-     }
-     hz = 1.0;
+      if (mesh_order <= 0)
+      {
+         mesh_order = 3;
+      }
+      if (hphi < 0.0)
+      {
+         hphi = 3;
+      }
+      hz = 1.0;
    }
    double omega = 2.0 * M_PI * freq;
    if (kVec.Size() != 0)
@@ -1201,15 +1201,15 @@ int main(int argc, char *argv[])
       double lam0 = c0_ / freq;
       double Bmag = BVec.Norml2();
       std::complex<double> S = S_cold_plasma(omega, Bmag, nue, nui, numbers,
-                                              charges, masses, temps, nuprof);
+                                             charges, masses, temps, nuprof);
       std::complex<double> P = P_cold_plasma(omega, nue, numbers,
-                                              charges, masses, temps, nuprof);
+                                             charges, masses, temps, nuprof);
       std::complex<double> D = D_cold_plasma(omega, Bmag, nue, nui, numbers,
-                                              charges, masses, temps, nuprof);
+                                             charges, masses, temps, nuprof);
       std::complex<double> R = R_cold_plasma(omega, Bmag, nue, nui, numbers,
-                                              charges, masses, temps, nuprof);
+                                             charges, masses, temps, nuprof);
       std::complex<double> L = L_cold_plasma(omega, Bmag, nue, nui, numbers,
-                                              charges, masses, temps, nuprof);
+                                             charges, masses, temps, nuprof);
 
       cout << "\nConvenient Terms:\n";
       cout << "R = " << R << ",\tL = " << L << endl;
@@ -1289,10 +1289,10 @@ int main(int argc, char *argv[])
    delete mesh2d;
    if (cyl)
    {
-     mesh->SetCurvature(mesh_order);
+      mesh->SetCurvature(mesh_order);
 
-     MeshTransformCoefficient mtc(hphi);
-     mesh->Transform(mtc);
+      MeshTransformCoefficient mtc(hphi);
+      mesh->Transform(mtc);
    }
    {
       std::vector<int> v2v(mesh->GetNV());
@@ -1366,7 +1366,7 @@ int main(int argc, char *argv[])
          }
       }
    }
-    
+
    /*
    if (eqdsk)
      {
@@ -1383,16 +1383,16 @@ int main(int argc, char *argv[])
         BFieldProfile BUnitCoef(bpt, bpp, true);
    }
    */
-    
+
    BFieldProfile::CoordSystem b_coord_sys =
-     cyl ? BFieldProfile::POLOIDAL : BFieldProfile::CARTESIAN_3D;
+      cyl ? BFieldProfile::POLOIDAL : BFieldProfile::CARTESIAN_3D;
    BFieldProfile BCoef(bpt, bpp, false, b_coord_sys, eqdsk);
    BFieldProfile BUnitCoef(bpt, bpp, true, b_coord_sys, eqdsk);
 
    BField.ProjectCoefficient(BCoef);
 
    PlasmaProfile::CoordSystem coord_sys =
-     cyl ? PlasmaProfile::POLOIDAL : PlasmaProfile::CARTESIAN_3D;
+      cyl ? PlasmaProfile::POLOIDAL : PlasmaProfile::CARTESIAN_3D;
    PlasmaProfile nueCoef(nept, nepp, coord_sys, eqdsk);
    nue_gf.ProjectCoefficient(nueCoef);
    PlasmaProfile nuiCoef(nipt, nipp, coord_sys, eqdsk);
@@ -2559,24 +2559,24 @@ void curve_current_source_r(const Vector &x, Vector &j)
 
    j.SetSize(x.Size());
    j = 0.0;
-    
+
    bool cmplx = curve_params_.Size() == 4;
 
    int o = 2 + (cmplx ? 2 : 0);
-    
+
    double a = -0.50721437;
    double b = -0.00295982;
    double c = 2.41569303;
-    
+
    double zmin = -0.196;
    double zmax = 0.1936;
-    
+
    double thickness = 0.05;
    double rsol = 0.034;
    double rmin = a*pow((x[1]+b),2.0) + c + rsol;
    double rmax = a*pow((x[1]+b),2.0) + c + rsol + thickness;
    double rmajor = 1.85;
-    
+
    double theta = atan2(x[1], x[0]-rmajor);
 
    if (x[0] >= rmin && x[0] <= rmax &&
@@ -2596,24 +2596,24 @@ void curve_current_source_i(const Vector &x, Vector &j)
 
    j.SetSize(x.Size());
    j = 0.0;
-    
+
    bool cmplx = curve_params_.Size() == 4;
 
    int o = 2 + (cmplx ? 2 : 0);
-    
+
    double a = -0.50721437;
    double b = -0.00295982;
    double c = 2.41569303;
-    
+
    double zmin = -0.196;
    double zmax = 0.1936;
-    
+
    double thickness = 0.05;
    double rsol = 0.034;
    double rmin = a*pow((x[1]+b),2.0) + c + rsol;
    double rmax = a*pow((x[1]+b),2.0) + c + rsol + thickness;
    double rmajor = 1.85;
-    
+
    double theta = atan2(x[1], x[0]-rmajor);
 
    if (x[0] >= rmin && x[0] <= rmax &&
@@ -2702,7 +2702,8 @@ ColdPlasmaPlaneWaveH::ColdPlasmaPlaneWaveH(char type,
    S_ = S_cold_plasma(omega_, Bmag_, nue_, nui_, numbers_, charges_, masses_,
                       temps_,
                       nuprof_);
-   D_ = D_cold_plasma(omega_, Bmag_, nue_, nui_, numbers_, charges_, masses_, temps_,
+   D_ = D_cold_plasma(omega_, Bmag_, nue_, nui_, numbers_, charges_, masses_,
+                      temps_,
                       nuprof_);
    P_ = P_cold_plasma(omega_, nue_, numbers_, charges_, masses_, temps_, nuprof_);
 
@@ -2950,7 +2951,8 @@ ColdPlasmaPlaneWaveE::ColdPlasmaPlaneWaveE(char type,
    S_ = S_cold_plasma(omega_, Bmag_, nue_, nui_, numbers_, charges_, masses_,
                       temps_,
                       nuprof_);
-   D_ = D_cold_plasma(omega_, Bmag_, nue_, nui_, numbers_, charges_, masses_, temps_,
+   D_ = D_cold_plasma(omega_, Bmag_, nue_, nui_, numbers_, charges_, masses_,
+                      temps_,
                       nuprof_);
    P_ = P_cold_plasma(omega_, nue_, numbers_, charges_, masses_, temps_, nuprof_);
 

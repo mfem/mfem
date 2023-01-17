@@ -954,12 +954,12 @@ CPDSolverDH::CPDSolverDH(ParMesh & pmesh, int order, double omega,
    // Build grid functions
    h_  = new ParComplexGridFunction(HCurlFESpace_);
    *h_ = 0.0;
-    
+
    hr_  = new ParGridFunction(HCurlFESpace_);
    *hr_ = 0.0;
    hi_  = new ParGridFunction(HCurlFESpace_);
    *hi_ = 0.0;
-    
+
    //ht_real_  = new ParGridFunction(HCurlFESpace_);
    //*ht_real_ = 0.0;
    //ht_imag_  = new ParGridFunction(HCurlFESpace_);
@@ -987,16 +987,16 @@ CPDSolverDH::CPDSolverDH(ParMesh & pmesh, int order, double omega,
 
    if (sbcs_->Size() > 0)
    {
-       /*
+      /*
       PlasmaProfile::Type dpt = PlasmaProfile::GRADIENT;
       Vector dpp(6);
       dpp[0] = 2e20; dpp[1] = 0; dpp[2] = 0; dpp[3] = 0; dpp[4] = 0; dpp[5] = 100; dpp[6] = 0;
       PlasmaProfile rhoCoef(dpt, dpp);
       phi_->ProjectCoefficient(rhoCoef, rhoCoef);
-       */
+      */
       rectPot_ = new ParGridFunction(H1FESpace_);
       *rectPot_ = 0.0;
-       
+
       Bn_ = new ParGridFunction(H1FESpace_);
       *Bn_ = 0.0;
 
@@ -1632,47 +1632,47 @@ CPDSolverDH::Solve()
    }
 
    a1_->FormLinearSystem(dbc_nd_tdofs_, *h_, *rhs1_, A1, H, RHS1);
-    
-    ComplexHypreParMatrix * A1Z = A1.As<ComplexHypreParMatrix>();
-    HypreParMatrix * A1C = (sol_ != SolverType::ZMUMPS) ?
-                              A1Z->GetSystemMatrix() : NULL;
 
-    Solver * AInv = nullptr;
+   ComplexHypreParMatrix * A1Z = A1.As<ComplexHypreParMatrix>();
+   HypreParMatrix * A1C = (sol_ != SolverType::ZMUMPS) ?
+                          A1Z->GetSystemMatrix() : NULL;
 
-    #ifdef MFEM_USE_SUPERLU
-    SuperLURowLocMatrix * A_SuperLU = nullptr;
-       if (sol_ == SolverType::SUPERLU)
-       {
-          if ( myid_ == 0 && logging_ > 0 )
-          {
-             cout << "SuperLU Solver Requested" << endl;
-          }
-           A_SuperLU = new SuperLURowLocMatrix(*A1C);
-           AInv = new SuperLUSolver(MPI_COMM_WORLD);
-           AInv->SetOperator(*A_SuperLU);
-       }
-    #endif
-    #ifdef MFEM_USE_MUMPS
-       if (sol_ == SolverType::DMUMPS)
-       {
-          if ( myid_ == 0 && logging_ > 0 )
-          {
-             cout << "MUMPS (Real) Solver Requested" << endl;
-          }
-           AInv = new MUMPSSolver;
-           AInv->SetOperator(*A1C);
-       }
-       if (sol_ == SolverType::ZMUMPS)
-       {
-          if ( myid_ == 0 && logging_ > 0 )
-          {
-             cout << "MUMPS (Complex) Solver Requested" << endl;
-          }
-           AInv = new ComplexMUMPSSolver;
-           AInv->SetOperator(*A1);
-       }
-    #endif
-    if (!AInv) { MFEM_VERIFY(AInv, "Direct Solver pointer is null"); }
+   Solver * AInv = nullptr;
+
+#ifdef MFEM_USE_SUPERLU
+   SuperLURowLocMatrix * A_SuperLU = nullptr;
+   if (sol_ == SolverType::SUPERLU)
+   {
+      if ( myid_ == 0 && logging_ > 0 )
+      {
+         cout << "SuperLU Solver Requested" << endl;
+      }
+      A_SuperLU = new SuperLURowLocMatrix(*A1C);
+      AInv = new SuperLUSolver(MPI_COMM_WORLD);
+      AInv->SetOperator(*A_SuperLU);
+   }
+#endif
+#ifdef MFEM_USE_MUMPS
+   if (sol_ == SolverType::DMUMPS)
+   {
+      if ( myid_ == 0 && logging_ > 0 )
+      {
+         cout << "MUMPS (Real) Solver Requested" << endl;
+      }
+      AInv = new MUMPSSolver;
+      AInv->SetOperator(*A1C);
+   }
+   if (sol_ == SolverType::ZMUMPS)
+   {
+      if ( myid_ == 0 && logging_ > 0 )
+      {
+         cout << "MUMPS (Complex) Solver Requested" << endl;
+      }
+      AInv = new ComplexMUMPSSolver;
+      AInv->SetOperator(*A1);
+   }
+#endif
+   if (!AInv) { MFEM_VERIFY(AInv, "Direct Solver pointer is null"); }
 
    if (sbcs_->Size() > 0)
    {
@@ -1681,16 +1681,17 @@ CPDSolverDH::Solve()
       nxD01_->FormRectangularSystemMatrix(non_sbc_h1_tdofs_, dbc_nd_tdofs_, B);
       m0_->FormSystemMatrix(non_sbc_h1_tdofs_, D);
 
-      {/*
-         if (B.As<ComplexHypreParMatrix>()->hasRealPart())
-         { B.As<ComplexHypreParMatrix>()->real().Print("nxD01_Re.mat"); }
-         if (B.As<ComplexHypreParMatrix>()->hasImagPart())
-         { B.As<ComplexHypreParMatrix>()->imag().Print("nxD01_Im.mat"); }
-         if (D.As<ComplexHypreParMatrix>()->hasRealPart())
-         { D.As<ComplexHypreParMatrix>()->real().Print("m0_Re.mat"); }
-         if (D.As<ComplexHypreParMatrix>()->hasImagPart())
-         { D.As<ComplexHypreParMatrix>()->imag().Print("m0_Im.mat"); }
-        */
+      {
+         /*
+           if (B.As<ComplexHypreParMatrix>()->hasRealPart())
+           { B.As<ComplexHypreParMatrix>()->real().Print("nxD01_Re.mat"); }
+           if (B.As<ComplexHypreParMatrix>()->hasImagPart())
+           { B.As<ComplexHypreParMatrix>()->imag().Print("nxD01_Im.mat"); }
+           if (D.As<ComplexHypreParMatrix>()->hasRealPart())
+           { D.As<ComplexHypreParMatrix>()->real().Print("m0_Re.mat"); }
+           if (D.As<ComplexHypreParMatrix>()->hasImagPart())
+           { D.As<ComplexHypreParMatrix>()->imag().Print("m0_Im.mat"); }
+          */
       }
 
       rhs0_->real() = 0.0;
@@ -1703,21 +1704,21 @@ CPDSolverDH::Solve()
       double phi_diff = std::numeric_limits<double>::max();
       GridFunctionCoefficient prevPhiReCoef(&prev_phi_->real());
       GridFunctionCoefficient prevPhiImCoef(&prev_phi_->imag());
-       /*
+      /*
       if (myid_ == 0) { cout << "Reading in previous solution" << endl; }
-       for (int i=0;i<num_procs_;i++)
-           {
-               string filename = "PHI_np" + to_string(myid_)+ ".txt";
-               ifstream indata;
-               indata.open(filename);
-               for (int j=0; j<PHI.Size(); j++)
-               {
-                   indata >> PHI[j];
-               }
-               indata.close();
-           }
-           phi_->Distribute(PHI);
-    */
+      for (int i=0;i<num_procs_;i++)
+          {
+              string filename = "PHI_np" + to_string(myid_)+ ".txt";
+              ifstream indata;
+              indata.open(filename);
+              for (int j=0; j<PHI.Size(); j++)
+              {
+                  indata >> PHI[j];
+              }
+              indata.close();
+          }
+          phi_->Distribute(PHI);
+      */
       while (H_iter < 50)
       {
          nzD12_->Update();
@@ -1726,15 +1727,15 @@ CPDSolverDH::Solve()
          nzD12_->FormRectangularSystemMatrix(dbc_nd_tdofs_,
                                              non_sbc_h1_tdofs_, C);
          {
-             /*
+            /*
             if (C.As<ComplexHypreParMatrix>()->hasRealPart())
             { C.As<ComplexHypreParMatrix>()->real().Print("nzD12_Re.mat"); }
             if (C.As<ComplexHypreParMatrix>()->hasImagPart())
             { C.As<ComplexHypreParMatrix>()->imag().Print("nzD12_Im.mat"); }
-              */
+             */
          }
 
-          SchurComplimentOperator schur(*AInv, &(*B), &(*C), *D);
+         SchurComplimentOperator schur(*AInv, &(*B), &(*C), *D);
 
          const Vector & RHS = schur.GetRHSVector(RHS1, RHS0);
 
@@ -1761,23 +1762,23 @@ CPDSolverDH::Solve()
          prev_phi_->Vector::operator=((Vector&)(*phi_));
 
          H_iter++;
-          /*
-          if ( phi_diff < 1e-5) {
-              if (myid_ == 0) { cout << "Writing out solution" << endl; }
-          for ( int i=0;i<num_procs_;i++)
-           {
-               ofstream ofs;
-               string filename = "PHI_np" + to_string(myid_) + ".txt";
-               ofs.open(filename);
-               for (int j=0; j<PHI.Size(); j++)
-               {
-                   ofs << PHI[j] << '\n';
-               }
-               ofs.close();
-           }
+         /*
+         if ( phi_diff < 1e-5) {
+             if (myid_ == 0) { cout << "Writing out solution" << endl; }
+         for ( int i=0;i<num_procs_;i++)
+          {
+              ofstream ofs;
+              string filename = "PHI_np" + to_string(myid_) + ".txt";
+              ofs.open(filename);
+              for (int j=0; j<PHI.Size(); j++)
+              {
+                  ofs << PHI[j] << '\n';
+              }
+              ofs.close();
           }
-        */
-          if ( phi_diff < 1e-5) {break;}
+         }
+         */
+         if ( phi_diff < 1e-5) {break;}
       }
       if (myid_ == 0)
       {
@@ -1791,8 +1792,8 @@ CPDSolverDH::Solve()
 
       *phi_ = 0.0;
    }
-    delete AInv;
-    delete A1C;
+   delete AInv;
+   delete A1C;
 #ifdef MFEM_USE_SUPERLU
    if (sol_ == SolverType::SUPERLU) { delete A_SuperLU; }
 #endif
@@ -2034,7 +2035,7 @@ CPDSolverDH::RegisterVisItFields(VisItDataCollection & visit_dc)
 
    visit_dc.RegisterField("Re_H", &h_->real());
    visit_dc.RegisterField("Im_H", &h_->imag());
-    
+
    //visit_dc.RegisterField("Re_Ht", ht_real_);
    //visit_dc.RegisterField("Im_Ht", ht_imag_);
 
@@ -2054,7 +2055,7 @@ CPDSolverDH::RegisterVisItFields(VisItDataCollection & visit_dc)
    {
       visit_dc.RegisterField("Rec_Phi", rectPot_);
    }
-    
+
    if ( Bn_ )
    {
       visit_dc.RegisterField("Bn", Bn_);
@@ -2118,27 +2119,27 @@ CPDSolverDH::WriteVisItFields(int it)
    if ( visit_dc_ )
    {
       if (myid_ == 0) { cout << "Writing VisIt files ..." << flush; }
-       
-       //Array<int> bdr_marker;
-       //bdr_marker.SetSize(pmesh_->bdr_attributes.Max());
-       //bdr_marker = 1;
 
-       //VectorGridFunctionCoefficient h_r(&h_->real());
-       //if (myid_ == 0){ cout << "SIZE.... " << sbc_bdr_marker_.Size() << endl; }
-       //if (myid_ == 0){ sbc_bdr_marker_.Print(cout); }
-       
-       //MPI_Barrier(MPI_COMM_WORLD);
-       //HTangential HtReCoef(h_->real());
-       
-       //ht_real_->ProjectBdrCoefficient(HtReCoef, sbc_bdr_marker_);
-       //ht_real_->ProjectBdrCoefficientTangent(h_r, sbc_bdr_marker_);
-       
-       //VectorGridFunctionCoefficient h_i(&h_->imag());
-    
-       //HTangential HtImCoef(h_->imag());
-       //ht_imag_->ProjectBdrCoefficient(HtImCoef, sbc_bdr_marker_);
-       //ht_imag_->ProjectBdrCoefficientTangent(h_i,sbc_bdr_marker_);
-       
+      //Array<int> bdr_marker;
+      //bdr_marker.SetSize(pmesh_->bdr_attributes.Max());
+      //bdr_marker = 1;
+
+      //VectorGridFunctionCoefficient h_r(&h_->real());
+      //if (myid_ == 0){ cout << "SIZE.... " << sbc_bdr_marker_.Size() << endl; }
+      //if (myid_ == 0){ sbc_bdr_marker_.Print(cout); }
+
+      //MPI_Barrier(MPI_COMM_WORLD);
+      //HTangential HtReCoef(h_->real());
+
+      //ht_real_->ProjectBdrCoefficient(HtReCoef, sbc_bdr_marker_);
+      //ht_real_->ProjectBdrCoefficientTangent(h_r, sbc_bdr_marker_);
+
+      //VectorGridFunctionCoefficient h_i(&h_->imag());
+
+      //HTangential HtImCoef(h_->imag());
+      //ht_imag_->ProjectBdrCoefficient(HtImCoef, sbc_bdr_marker_);
+      //ht_imag_->ProjectBdrCoefficientTangent(h_i,sbc_bdr_marker_);
+
       /*
       if ( j_ )
       {
@@ -2182,7 +2183,7 @@ CPDSolverDH::WriteVisItFields(int it)
              */
          }
       }
-       
+
       if ( BCoef_)
       {
          b_hat_->ProjectCoefficient(*BCoef_);
@@ -2193,7 +2194,7 @@ CPDSolverDH::WriteVisItFields(int it)
          InnerProductCoefficient ebiCoef(e_i, *BCoef_);
 
          e_b_->ProjectCoefficient(ebrCoef, ebiCoef);
-          
+
          VectorGridFunctionCoefficient h_r(&h_->real());
          VectorGridFunctionCoefficient h_i(&h_->imag());
          InnerProductCoefficient hbrCoef(h_r, *BCoef_);

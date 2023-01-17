@@ -105,48 +105,48 @@ using namespace mfem::plasma;
 class MeshTransformCoefficient : public VectorCoefficient
 {
 private:
-  double hphi_rad_;
+   double hphi_rad_;
 
-  mutable Vector uvw_;
-  
+   mutable Vector uvw_;
+
 public:
-  MeshTransformCoefficient(double hphi_deg)
-    : VectorCoefficient(3), hphi_rad_(hphi_deg * M_PI / 180.0),
-      uvw_(3)
-  {}
+   MeshTransformCoefficient(double hphi_deg)
+      : VectorCoefficient(3), hphi_rad_(hphi_deg * M_PI / 180.0),
+        uvw_(3)
+   {}
 
-  void Eval(Vector &xyz, ElementTransformation &T,
-	    const IntegrationPoint &ip)
-  {
-    T.Transform(ip, uvw_);
+   void Eval(Vector &xyz, ElementTransformation &T,
+             const IntegrationPoint &ip)
+   {
+      T.Transform(ip, uvw_);
 
-    const double r   = uvw_[0];
-    const double phi = hphi_rad_ * uvw_[2];
-    const double z   = uvw_[1];
+      const double r   = uvw_[0];
+      const double phi = hphi_rad_ * uvw_[2];
+      const double z   = uvw_[1];
 
-    xyz[0] = r * cos(phi);
-    xyz[1] = r * sin(phi);
-    xyz[2] = z;
-  }
+      xyz[0] = r * cos(phi);
+      xyz[1] = r * sin(phi);
+      xyz[2] = z;
+   }
 };
 
 class VectorConstantCylCoefficient : public VectorCoefficient
 {
 private:
-  bool cyl;
-  Vector vec;
-  mutable Vector x;
+   bool cyl;
+   Vector vec;
+   mutable Vector x;
 public:
-  /** The constant vector v is defined in either cartesian or cylindrical
-      coordinates.
+   /** The constant vector v is defined in either cartesian or cylindrical
+       coordinates.
 
-      If cyl == true
-         v = (v_r, v_phi, v_z)
-      Else
-         v = (v_x, v_y, v_z)
-  */
-  VectorConstantCylCoefficient(bool cyl_, const Vector &v)
-    : VectorCoefficient(3), cyl(cyl_), vec(v), x(3) {}
+       If cyl == true
+          v = (v_r, v_phi, v_z)
+       Else
+          v = (v_x, v_y, v_z)
+   */
+   VectorConstantCylCoefficient(bool cyl_, const Vector &v)
+      : VectorCoefficient(3), cyl(cyl_), vec(v), x(3) {}
    using VectorCoefficient::Eval;
 
    ///  Evaluate the vector coefficient at @a ip.
@@ -155,21 +155,21 @@ public:
    {
       if (cyl)
       {
-	V.SetSize(3);
+         V.SetSize(3);
 
-	T.Transform(ip, x);
+         T.Transform(ip, x);
 
-	double r = sqrt(x[0] * x[0] + x[1] * x[1]);
-	double cosphi = x[0] / r;
-	double sinphi = x[1] / r;
+         double r = sqrt(x[0] * x[0] + x[1] * x[1]);
+         double cosphi = x[0] / r;
+         double sinphi = x[1] / r;
 
-	V[0] = vec[0] * cosphi - vec[1] * sinphi;
-	V[1] = vec[0] * sinphi + vec[1] * cosphi;
-	V[2] = vec[2];
+         V[0] = vec[0] * cosphi - vec[1] * sinphi;
+         V[1] = vec[0] * sinphi + vec[1] * cosphi;
+         V[2] = vec[2];
       }
       else
       {
-	V = vec;
+         V = vec;
       }
    }
 
@@ -916,15 +916,15 @@ int main(int argc, char *argv[])
    }
    if (cyl)
    {
-     if (mesh_order <= 0)
-     {
-       mesh_order = 3;
-     }
-     if (hphi < 0.0)
-     {
-       hphi = 3;
-     }
-     hz = 1.0;
+      if (mesh_order <= 0)
+      {
+         mesh_order = 3;
+      }
+      if (hphi < 0.0)
+      {
+         hphi = 3;
+      }
+      hz = 1.0;
    }
    double omega = 2.0 * M_PI * freq;
    if (kVec.Size() != 0)
@@ -1033,10 +1033,10 @@ int main(int argc, char *argv[])
    delete mesh2d;
    if (cyl)
    {
-     mesh->SetCurvature(mesh_order);
+      mesh->SetCurvature(mesh_order);
 
-     MeshTransformCoefficient mtc(hphi);
-     mesh->Transform(mtc);
+      MeshTransformCoefficient mtc(hphi);
+      mesh->Transform(mtc);
    }
    {
       std::vector<int> v2v(mesh->GetNV());
@@ -1113,7 +1113,7 @@ int main(int argc, char *argv[])
    }
 
    BFieldProfile::CoordSystem b_coord_sys =
-     cyl ? BFieldProfile::POLOIDAL : BFieldProfile::CARTESIAN_3D;
+      cyl ? BFieldProfile::POLOIDAL : BFieldProfile::CARTESIAN_3D;
    BFieldProfile BCoef(bpt, bpp, false, b_coord_sys, eqdsk);
    BFieldProfile BUnitCoef(bpt, bpp, true, b_coord_sys, eqdsk);
 
@@ -1144,7 +1144,7 @@ int main(int argc, char *argv[])
    }
 
    PlasmaProfile::CoordSystem coord_sys =
-     cyl ? PlasmaProfile::POLOIDAL : PlasmaProfile::CARTESIAN_3D;
+      cyl ? PlasmaProfile::POLOIDAL : PlasmaProfile::CARTESIAN_3D;
    PlasmaProfile tempCoef(tpt, tpp, coord_sys);
    PlasmaProfile rhoCoef(dpt, dpp, coord_sys);
 

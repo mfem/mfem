@@ -547,7 +547,7 @@ double RectifiedSheathPotential::Eval(ElementTransformation &T,
    complex<double> phi = EvalSheathPotential(T, ip);
    double phi_mag = sqrt(pow(phi.real(), 2) + pow(phi.imag(), 2));
    double volt_norm = (phi_mag)/temp_val ; // V zero-to-peak
-   if (isnan(volt_norm)){volt_norm = 0.0;}
+   if (isnan(volt_norm)) {volt_norm = 0.0;}
 
    //double phiRec = phi0avg(w_norm, volt_norm);
 
@@ -583,12 +583,12 @@ double BFieldAngle::Eval(ElementTransformation &T,
 }
 
 HTangential::HTangential(const ParGridFunction & H)
-: VectorCoefficient(3),
-H_(H)
+   : VectorCoefficient(3),
+     H_(H)
 {}
 
 void HTangential::Eval(Vector &Ht, ElementTransformation &T,
-                         const IntegrationPoint &ip)
+                       const IntegrationPoint &ip)
 {
    H_.GetVectorValue(T, ip, Ht);
    Vector nor(T.GetSpaceDim());
@@ -642,7 +642,7 @@ double SheathImpedance::Eval(ElementTransformation &T,
    // Setting up normalized V_RF:
    // Jim's newest parametrization (Myra et al 2017):
    double volt_norm = (phi_mag)/temp_val ; // Unitless: V zero-to-peak
-   
+
 
    // Jim's old parametrization (Kohno et al 2017):
    //double volt_norm = (2*phi_mag)/temp_val ; // Unitless: V peak-to-peak
@@ -653,11 +653,11 @@ double SheathImpedance::Eval(ElementTransformation &T,
 
    // Calculating Sheath Impedance:
    // Jim's newest parametrization (Myra et al 2017):
-    if (isnan(volt_norm)){volt_norm = 0.0;}
-    
+   if (isnan(volt_norm)) {volt_norm = 0.0;}
+
    complex<double> zsheath_norm = 1.0 / ytot(w_norm, wci_norm, bn, volt_norm,
-                                            masses_[0], masses_[1]);
-   
+                                             masses_[0], masses_[1]);
+
 
    // Jim's old parametrization (Kohno et al 2017):
    //complex<double> zsheath_norm = 1.0 / ftotcmplxANY(w_norm, volt_norm);
@@ -674,15 +674,15 @@ double SheathImpedance::Eval(ElementTransformation &T,
    cout << "Check 6:" << yi(0.2, 0.3, 0.4, 13,masses_[0], masses_[1]).real() - 0.006543897148693344 << yi(0.2, 0.3, 0.4, 13,masses_[0], masses_[1]).imag()+0.013727440802110503 << endl;
    cout << "Check 7:" << ytot(0.2, 0.3, 0.4, 13,masses_[0], masses_[1]).real()-0.05185050837032144 << ytot(0.2, 0.3, 0.4, 13,masses_[0], masses_[1]).imag()+0.0394656455302314 << endl;
     */
-    
-    if (isnan(zsheath_norm.real()))
-    {
-        zsheath_norm = complex<double>(0.0, zsheath_norm.imag());
-    }
-    if (isnan(zsheath_norm.imag()))
-    {
-        zsheath_norm = complex<double>(zsheath_norm.real(), 0.0);
-    }
+
+   if (isnan(zsheath_norm.real()))
+   {
+      zsheath_norm = complex<double>(0.0, zsheath_norm.imag());
+   }
+   if (isnan(zsheath_norm.imag()))
+   {
+      zsheath_norm = complex<double>(zsheath_norm.real(), 0.0);
+   }
 
    if (realPart_)
    {
@@ -1313,10 +1313,10 @@ void SPDDielectricTensor::Eval(DenseMatrix &epsilon, ElementTransformation &T,
 }
 
 PlasmaProfile::PlasmaProfile(Type type, const Vector & params,
-			     CoordSystem sys,
-			     G_EQDSK_Data *eqdsk)
-  : type_(type), p_(params), cyl_(sys == POLOIDAL), eqdsk_(eqdsk),
-    xyz_(3), rz_(2)
+                             CoordSystem sys,
+                             G_EQDSK_Data *eqdsk)
+   : type_(type), p_(params), cyl_(sys == POLOIDAL), eqdsk_(eqdsk),
+     xyz_(3), rz_(2)
 {
    MFEM_VERIFY(params.Size() == np_[type],
                "Incorrect number of parameters, " << params.Size()
@@ -1335,8 +1335,8 @@ double PlasmaProfile::Eval(ElementTransformation &T,
 
       if (cyl_)
       {
-	rz_[0] = sqrt(xyz_[0] * xyz_[0] + xyz_[1] * xyz_[1]);
-	rz_[1] = xyz_[2];
+         rz_[0] = sqrt(xyz_[0] * xyz_[0] + xyz_[1] * xyz_[1]);
+         rz_[1] = xyz_[2];
       }
    }
 
@@ -1350,20 +1350,20 @@ double PlasmaProfile::Eval(ElementTransformation &T,
          Vector x0(&p_[1], 3);
          Vector grad(&p_[4],3);
 
-	 if (!cyl_)
-	 {
-	   xyz_ -= x0;
+         if (!cyl_)
+         {
+            xyz_ -= x0;
 
-	   return p_[0] + (grad * xyz_);
-	 }
-	 else
-	 {
-	   // x0 and grad have three components (r, phi, z) but we
-	   // assume no phi dependence.
-	   rz_[0] -= x0[0];
-	   rz_[1] -= x0[2];
-	   return p_[0] + (grad[0] * rz_[0] + grad[2] * rz_[1]);
-	 }
+            return p_[0] + (grad * xyz_);
+         }
+         else
+         {
+            // x0 and grad have three components (r, phi, z) but we
+            // assume no phi dependence.
+            rz_[0] -= x0[0];
+            rz_[1] -= x0[2];
+            return p_[0] + (grad[0] * rz_[0] + grad[2] * rz_[1]);
+         }
       }
       break;
       case TANH:
@@ -1371,20 +1371,20 @@ double PlasmaProfile::Eval(ElementTransformation &T,
          Vector x0(&p_[3], 3);
          Vector grad(&p_[6], 3);
 
-	 double a = 0.0;
+         double a = 0.0;
 
-	 if (!cyl_)
-	 {
-	   xyz_ -= x0;
-	   a = 0.5 * log(3.0) * (grad * xyz_) / p_[2];
-	 }
-	 else
-	 {
-	   rz_[0] -= x0[0];
-	   rz_[1] -= x0[2];
-	   a = 0.5 * log(3.0) * (grad[0] * rz_[0] + grad[2] * rz_[1]) / p_[2];
-	 }
-	 
+         if (!cyl_)
+         {
+            xyz_ -= x0;
+            a = 0.5 * log(3.0) * (grad * xyz_) / p_[2];
+         }
+         else
+         {
+            rz_[0] -= x0[0];
+            rz_[1] -= x0[2];
+            a = 0.5 * log(3.0) * (grad[0] * rz_[0] + grad[2] * rz_[1]) / p_[2];
+         }
+
          if (fabs(a) < 10.0)
          {
             return p_[0] + (p_[1] - p_[0]) * tanh(a);
@@ -1403,19 +1403,19 @@ double PlasmaProfile::Eval(ElementTransformation &T,
          double b = p_[3];
          Vector x0(&p_[4], 3);
 
-	 double r = 0.0;
+         double r = 0.0;
 
-	 if (!cyl_)
-	 {
-	   xyz_ -= x0;
-	   r = pow(xyz_[0] / a, 2) + pow(xyz_[1] / b, 2);
-	 }
-	 else
-	 {
-	   rz_[0] -= x0[0];
-	   rz_[1] -= x0[2];
-	   r = pow(rz_[0] / a, 2) + pow(rz_[1] / b, 2);
-	 }
+         if (!cyl_)
+         {
+            xyz_ -= x0;
+            r = pow(xyz_[0] / a, 2) + pow(xyz_[1] / b, 2);
+         }
+         else
+         {
+            rz_[0] -= x0[0];
+            rz_[1] -= x0[2];
+            r = pow(rz_[0] / a, 2) + pow(rz_[1] / b, 2);
+         }
          return pmin + (pmax - pmin) * (0.5 - 0.5 * cos(M_PI * sqrt(r)));
       }
       break;
@@ -1427,19 +1427,19 @@ double PlasmaProfile::Eval(ElementTransformation &T,
          double b = p_[3];
          Vector x0(&p_[4], 3);
 
-	 double r = 0.0;
+         double r = 0.0;
 
-	 if (!cyl_)
-	 {
-	   xyz_ -= x0;
-	   r = pow(xyz_[0] / a, 2) + pow(xyz_[1] / b, 2);
-	 }
-	 else
-	 {
-	   rz_[0] -= x0[0];
-	   rz_[1] -= x0[2];
-	   r = pow(rz_[0] / a, 2) + pow(rz_[1] / b, 2);
-	 }
+         if (!cyl_)
+         {
+            xyz_ -= x0;
+            r = pow(xyz_[0] / a, 2) + pow(xyz_[1] / b, 2);
+         }
+         else
+         {
+            rz_[0] -= x0[0];
+            rz_[1] -= x0[2];
+            r = pow(rz_[0] / a, 2) + pow(rz_[1] / b, 2);
+         }
          return pmax - (pmax - pmin) * r;
       }
       break;
@@ -1451,20 +1451,20 @@ double PlasmaProfile::Eval(ElementTransformation &T,
          double nu = p_[3]; // Strength of decline
          Vector x0(&p_[4], 3);
 
-	 double rho = 0.0;
+         double rho = 0.0;
 
-	 if (!cyl_)
-	 {
-	   xyz_ -= x0;
-	   rho = pow(pow(xyz_[0], 2) + pow(xyz_[1], 2), 0.5);
-	 }
-	 else
-	 {
-	   rz_[0] -= x0[0];
-	   rz_[1] -= x0[2];
-	   rho = sqrt(rz_ * rz_);
-	 }
-	 
+         if (!cyl_)
+         {
+            xyz_ -= x0;
+            rho = pow(pow(xyz_[0], 2) + pow(xyz_[1], 2), 0.5);
+         }
+         else
+         {
+            rz_[0] -= x0[0];
+            rz_[1] -= x0[2];
+            rho = sqrt(rz_ * rz_);
+         }
+
          return (pmax - pmin) * pow(cosh(pow((rho / lambda_n), nu)), -1.0) + pmin;
       }
       break;
@@ -1474,27 +1474,27 @@ double PlasmaProfile::Eval(ElementTransformation &T,
          double decay = p_[1];
          double shift = p_[2];
 
-	 double d = cyl_ ? rz_[0] : xyz_[0];
-	 
+         double d = cyl_ ? rz_[0] : xyz_[0];
+
          return (nu0*exp(-(d-shift)/decay));
       }
       break;
       case NUE:
-       {
-          double nu0 = p_[0];
-          double decay = p_[1];
-          double shift = p_[2];
-          double rho = sqrt(cyl_ ? (rz_ * rz_) :
-			    (pow(xyz_[0], 2) + pow(xyz_[1], 2)));
-          //double test = 5e7*exp((rho - 0.97)/0.015);
-          //double test = pow( 1.0 + exp( - (rho - 1.015)/0.01 ),-1.0);
-          //double test = 0.0;
-          double test = exp(-pow(rho-0.936, 2)/1e-5);
+      {
+         double nu0 = p_[0];
+         double decay = p_[1];
+         double shift = p_[2];
+         double rho = sqrt(cyl_ ? (rz_ * rz_) :
+                           (pow(xyz_[0], 2) + pow(xyz_[1], 2)));
+         //double test = 5e7*exp((rho - 0.97)/0.015);
+         //double test = pow( 1.0 + exp( - (rho - 1.015)/0.01 ),-1.0);
+         //double test = 0.0;
+         double test = exp(-pow(rho-0.936, 2)/1e-5);
 
-	  double d = cyl_ ? rz_[0] : xyz_[0];
-	  
-          return nu0*exp(-(d-shift)/decay) + 5e7*test;
-       }
+         double d = cyl_ ? rz_[0] : xyz_[0];
+
+         return nu0*exp(-(d-shift)/decay) + 5e7*test;
+      }
       break;
       case NUI:
       {
@@ -1502,105 +1502,105 @@ double PlasmaProfile::Eval(ElementTransformation &T,
          double nu0 = p_[1];
          double width = p_[2];
          double rho = sqrt(cyl_ ? (rz_ * rz_):
-			   (pow(xyz_[0], 2) + pow(xyz_[1], 2)));
+                           (pow(xyz_[0], 2) + pow(xyz_[1], 2)));
          return nu0*exp(-pow(rho-rad_res_loc, 2)/width);
       }
       break;
       case CMODDEN:
       {
-	double rho = sqrt(cyl_ ? (rz_ * rz_) :
-			  (pow(xyz_[0], 2) + pow(xyz_[1], 2)));
+         double rho = sqrt(cyl_ ? (rz_ * rz_) :
+                           (pow(xyz_[0], 2) + pow(xyz_[1], 2)));
 
-          double pmin1 = 1e11;
-          double pmax1 = (2e20 - 1.5e19);
-          double lam1 = 0.885;
-          double n1 = 300.0;
-          double ne1 = (pmax1 - pmin1)* pow(cosh(pow((rho / lam1), n1)), -1.0) + pmin1;
+         double pmin1 = 1e11;
+         double pmax1 = (2e20 - 1.5e19);
+         double lam1 = 0.885;
+         double n1 = 300.0;
+         double ne1 = (pmax1 - pmin1)* pow(cosh(pow((rho / lam1), n1)), -1.0) + pmin1;
 
-          double pmin2 = 1e11;
-          double pmax2 = 1.5e19;
-          double lam2 = 0.8885;
-          double n2 = 48.0;
-          double ne2 = (pmax2 - pmin2)* pow(cosh(pow((rho / lam2), n2)), -1.0) + pmin2;
-          
-          return ne1 + ne2;
+         double pmin2 = 1e11;
+         double pmax2 = 1.5e19;
+         double lam2 = 0.8885;
+         double n2 = 48.0;
+         double ne2 = (pmax2 - pmin2)* pow(cosh(pow((rho / lam2), n2)), -1.0) + pmin2;
+
+         return ne1 + ne2;
       }
       break;
       case SPARC_RES:
       {
-          double nu0 = p_[0];
-        
-          double A = 9.56300019e-02;
-          double B = 1.27703065;
-          double C = -1.47586242e-06;
-          double D = 1.92995180;
-          
-          double E = 0.05125891;
-          double F = 1.31119407;
-          double G = -0.00925291;
-          double H = 1.43560241;
+         double nu0 = p_[0];
 
-	  double r = cyl_ ? rz_[0] : xyz_[0];
-	  double z = cyl_ ? rz_[1] : xyz_[1];
-	  
-          double val1 = B*z - C;
-          double sincfunc1 = A*(sin(val1)/val1) + D;
-          
-          double val2 = F*z - G;
-          double sincfunc2 = E*(sin(val2)/val2) + H;
-          
-          double res1 = nu0*exp(-pow(r-sincfunc1, 2)/0.002);
-          double res2 = nu0*exp(-pow(r-sincfunc2, 2)/0.002);
-          
-          return res1+res2;
+         double A = 9.56300019e-02;
+         double B = 1.27703065;
+         double C = -1.47586242e-06;
+         double D = 1.92995180;
+
+         double E = 0.05125891;
+         double F = 1.31119407;
+         double G = -0.00925291;
+         double H = 1.43560241;
+
+         double r = cyl_ ? rz_[0] : xyz_[0];
+         double z = cyl_ ? rz_[1] : xyz_[1];
+
+         double val1 = B*z - C;
+         double sincfunc1 = A*(sin(val1)/val1) + D;
+
+         double val2 = F*z - G;
+         double sincfunc2 = E*(sin(val2)/val2) + H;
+
+         double res1 = nu0*exp(-pow(r-sincfunc1, 2)/0.002);
+         double res2 = nu0*exp(-pow(r-sincfunc2, 2)/0.002);
+
+         return res1+res2;
       }
       break;
-       case SPARC_DEN:
-       {
-           /*
-           double pos = pow(x_[0]-1.85, 2)/pow(0.53,2) + pow(x_[1],2)*(1 + 0.6*(x_[0]-1.85))/pow(0.85,2);
-           
-           double pmin1 = 1e19;
-           double pmax1 = 3e20;
-           double lam1 = 1.1;
-           double n1 = 7.0;
-           double ne1 = (pmax1 - pmin1)* pow(cosh(pow((pos / lam1), n1)), -1.0) + pmin1;
-           
-           return ne1;
-            */
-	   double r = cyl_ ? rz_[0] : xyz_[0];
-	   double z = cyl_ ? rz_[1] : xyz_[1];
+      case SPARC_DEN:
+      {
+         /*
+         double pos = pow(x_[0]-1.85, 2)/pow(0.53,2) + pow(x_[1],2)*(1 + 0.6*(x_[0]-1.85))/pow(0.85,2);
 
-	   double x_tok_data[2];
-           Vector xTokVec(x_tok_data, 2);
-           xTokVec[0] = r; xTokVec[1] = z;
-           
-           double psiRZ = 0.0;
-           psiRZ = eqdsk_->InterpPsiRZ(xTokVec);
-           
-           double psiRZ_center = -2.74980762;
-           double psiRZ_edge = -0.399621132;
-           
-           double val = fabs((psiRZ - psiRZ_center)/(psiRZ_center - psiRZ_edge));
-           
-           int bool_limits = 0;
-           
-           if (z >= -1.183 && z <= 1.19){bool_limits = 1;}
-           
-           double norm_sqrt_psi = 1.0;
-           if (val < 1 && bool_limits == 1){norm_sqrt_psi = sqrt(val);}
-        
-           double ne = 1e14;
-           double pmin1 = 0.3e20;
-           double pmax1 = 3e20;
-           double nuee = 3.0;
-           double nuei = 3.0;
-           //ne = (pmax1 - pmin1)*pow(1 - pow(norm_sqrt_psi, nuei), nuee) + pmin1;
-           if (val < 1 && bool_limits == 1){ne = (pmax1 - pmin1)*pow(1 - pow(sqrt(val), nuei), nuee) + pmin1;}
-           
-           return ne;
-       }
-           break;
+         double pmin1 = 1e19;
+         double pmax1 = 3e20;
+         double lam1 = 1.1;
+         double n1 = 7.0;
+         double ne1 = (pmax1 - pmin1)* pow(cosh(pow((pos / lam1), n1)), -1.0) + pmin1;
+
+         return ne1;
+          */
+         double r = cyl_ ? rz_[0] : xyz_[0];
+         double z = cyl_ ? rz_[1] : xyz_[1];
+
+         double x_tok_data[2];
+         Vector xTokVec(x_tok_data, 2);
+         xTokVec[0] = r; xTokVec[1] = z;
+
+         double psiRZ = 0.0;
+         psiRZ = eqdsk_->InterpPsiRZ(xTokVec);
+
+         double psiRZ_center = -2.74980762;
+         double psiRZ_edge = -0.399621132;
+
+         double val = fabs((psiRZ - psiRZ_center)/(psiRZ_center - psiRZ_edge));
+
+         int bool_limits = 0;
+
+         if (z >= -1.183 && z <= 1.19) {bool_limits = 1;}
+
+         double norm_sqrt_psi = 1.0;
+         if (val < 1 && bool_limits == 1) {norm_sqrt_psi = sqrt(val);}
+
+         double ne = 1e14;
+         double pmin1 = 0.3e20;
+         double pmax1 = 3e20;
+         double nuee = 3.0;
+         double nuei = 3.0;
+         //ne = (pmax1 - pmin1)*pow(1 - pow(norm_sqrt_psi, nuei), nuee) + pmin1;
+         if (val < 1 && bool_limits == 1) {ne = (pmax1 - pmin1)*pow(1 - pow(sqrt(val), nuei), nuee) + pmin1;}
+
+         return ne;
+      }
+      break;
       default:
          return 0.0;
    }
@@ -1631,124 +1631,124 @@ void BFieldProfile::Eval(Vector &V, ElementTransformation &T,
    if (type_ != CONSTANT || cyl_)
    {
       // x3_ = 0.0;
-     T.SetIntPoint(&ip);
+      T.SetIntPoint(&ip);
       T.Transform(ip, xyz_);
 
       if (cyl_)
       {
-	rz_[0] = sqrt(xyz_[0] * xyz_[0] + xyz_[1] * xyz_[1]);
-	rz_[1] = xyz_[2];
+         rz_[0] = sqrt(xyz_[0] * xyz_[0] + xyz_[1] * xyz_[1]);
+         rz_[1] = xyz_[2];
       }
    }
    switch (type_)
    {
       case CONSTANT:
-	 if (!cyl_)
-	 {
-	   if (unit_)
-           {
-	     double bmag = sqrt( pow(p_[0], 2) + pow(p_[1], 2) + pow(p_[2], 2));
-	     V[0] = p_[0] / bmag;
-	     V[1] = p_[1] / bmag;
-	     V[2] = p_[2] / bmag;
-	   }
-	   else
-           {
-	     V[0] = p_[0];
-	     V[1] = p_[1];
-	     V[2] = p_[2];
-	   }
-	 }
-	 else
-	 {
+         if (!cyl_)
+         {
+            if (unit_)
+            {
+               double bmag = sqrt( pow(p_[0], 2) + pow(p_[1], 2) + pow(p_[2], 2));
+               V[0] = p_[0] / bmag;
+               V[1] = p_[1] / bmag;
+               V[2] = p_[2] / bmag;
+            }
+            else
+            {
+               V[0] = p_[0];
+               V[1] = p_[1];
+               V[2] = p_[2];
+            }
+         }
+         else
+         {
 
-	   double cosphi = xyz_[0] / rz_[0];
-	   double sinphi = xyz_[1] / rz_[0];
-	   
-	   if (unit_)
-           {
-	     double bmag = sqrt(pow(p_[0], 2) + pow(rz_[0] * p_[1], 2) +
-				pow(p_[2], 2));
-	     V[0] = (p_[0] * cosphi - rz_[0] * p_[1] * sinphi) / bmag;
-	     V[1] = (p_[0] * sinphi + rz_[0] * p_[1] * cosphi) / bmag;
-	     V[2] = p_[2] / bmag;
-	   }
-	   else
-	   {
-	     V[0] = p_[0] * cosphi - rz_[0] * p_[1] * sinphi;
-	     V[1] = p_[0] * sinphi + rz_[0] * p_[1] * cosphi;
-	     V[2] = p_[2];
-	   }
-	 }
+            double cosphi = xyz_[0] / rz_[0];
+            double sinphi = xyz_[1] / rz_[0];
+
+            if (unit_)
+            {
+               double bmag = sqrt(pow(p_[0], 2) + pow(rz_[0] * p_[1], 2) +
+                                  pow(p_[2], 2));
+               V[0] = (p_[0] * cosphi - rz_[0] * p_[1] * sinphi) / bmag;
+               V[1] = (p_[0] * sinphi + rz_[0] * p_[1] * cosphi) / bmag;
+               V[2] = p_[2] / bmag;
+            }
+            else
+            {
+               V[0] = p_[0] * cosphi - rz_[0] * p_[1] * sinphi;
+               V[1] = p_[0] * sinphi + rz_[0] * p_[1] * cosphi;
+               V[2] = p_[2];
+            }
+         }
          break;
       case B_P:
-	{
-	  MFEM_VERIFY(!cyl_, "BFieldProfile B_P does not yet support "
-		      "cylindrical symmetry.")
+      {
+         MFEM_VERIFY(!cyl_, "BFieldProfile B_P does not yet support "
+                     "cylindrical symmetry.")
          double bp_abs = p_[0];
          double a = p_[1];
          double b = p_[2];
          Vector x0(&p_[3], 3);
          double bz = p_[6];
-	 if (!cyl_)
-	 {
-         xyz_ -= x0;
-         double r = pow(xyz_[0] / a, 2) + pow(xyz_[1] / b, 2);
-         double bp = bp_abs * sin(3 * sqrt(r));
-         bz *= 1.0/(0.68 + xyz_[0]);
-         double theta = atan2(xyz_[1], xyz_[0]);
+         if (!cyl_)
+         {
+            xyz_ -= x0;
+            double r = pow(xyz_[0] / a, 2) + pow(xyz_[1] / b, 2);
+            double bp = bp_abs * sin(3 * sqrt(r));
+            bz *= 1.0/(0.68 + xyz_[0]);
+            double theta = atan2(xyz_[1], xyz_[0]);
 
-         if (unit_)
-         {
-            double bmag = pow( pow(bp, 2) + pow(bz, 2), 0.5);
-            V[0] = -bp * sin(theta) / bmag;
-            V[1] = bp * cos(theta) / bmag;
-            V[2] = bz / bmag;
+            if (unit_)
+            {
+               double bmag = pow( pow(bp, 2) + pow(bz, 2), 0.5);
+               V[0] = -bp * sin(theta) / bmag;
+               V[1] = bp * cos(theta) / bmag;
+               V[2] = bz / bmag;
+            }
+            else
+            {
+               V[0] = -bp * sin(theta);
+               V[1] = bp * cos(theta);
+               V[2] = bz;
+            }
          }
-         else
-         {
-            V[0] = -bp * sin(theta);
-            V[1] = bp * cos(theta);
-            V[2] = bz;
-         }
-	 }
       }
       break;
       case B_TOPDOWN:
       {
-	  MFEM_VERIFY(!cyl_, "BFieldProfile B_TOPDOWN does not yet support "
-		      "cylindrical symmetry.")
+         MFEM_VERIFY(!cyl_, "BFieldProfile B_TOPDOWN does not yet support "
+                     "cylindrical symmetry.")
          double bp_val = p_[0];
          // double a = p_[1];
          // double b = p_[2];
          Vector x0(&p_[3], 3);
 
-	 if (!cyl_)
-	 {
-         xyz_ -= x0;
-         // double r = pow(x_[0] / a, 2) + pow(x_[1] / b, 2);
-         double theta = atan2(xyz_[1], xyz_[0]);
+         if (!cyl_)
+         {
+            xyz_ -= x0;
+            // double r = pow(x_[0] / a, 2) + pow(x_[1] / b, 2);
+            double theta = atan2(xyz_[1], xyz_[0]);
 
-         if (unit_)
-         {
-            double bmag = pow( pow(bp_val, 2), 0.5);
-            V[0] = -bp_val * sin(theta) / bmag;
-            V[1] = bp_val * cos(theta) / bmag;
-            V[2] = 0 / bmag;
+            if (unit_)
+            {
+               double bmag = pow( pow(bp_val, 2), 0.5);
+               V[0] = -bp_val * sin(theta) / bmag;
+               V[1] = bp_val * cos(theta) / bmag;
+               V[2] = 0 / bmag;
+            }
+            else
+            {
+               V[0] = -bp_val * sin(theta);
+               V[1] = bp_val * cos(theta);
+               V[2] = 0;
+            }
          }
-         else
-         {
-            V[0] = -bp_val * sin(theta);
-            V[1] = bp_val * cos(theta);
-            V[2] = 0;
-         }
-	 }
       }
       break;
       case B_P_KOHNO:
       {
-	  MFEM_VERIFY(!cyl_, "BFieldProfile B_P_KOHNO does not yet support "
-		      "cylindrical symmetry.")
+         MFEM_VERIFY(!cyl_, "BFieldProfile B_P_KOHNO does not yet support "
+                     "cylindrical symmetry.")
          double rmin = p_[0]; // Minor radius
          double rmaj = p_[1]; // Major radius
          double q0 = p_[2]; // Safety factor on magnetic axis
@@ -1756,28 +1756,29 @@ void BFieldProfile::Eval(Vector &V, ElementTransformation &T,
          Vector x0(&p_[4], 3); // Magnetic field axis
          double bz0 = p_[7]; // B toroidal
 
-	 if (!cyl_)
-	 {
-         xyz_ -= x0;
-         double rho = pow(pow(xyz_[0], 2) + pow(xyz_[1], 2), 0.5);
-         double bp_coef = ((bz0 / rmaj) * pow(rmin, 2.0)) / (pow(rmin,
-                                                                 2.0)*q0 + (qa - q0)*pow(rho, 2.0));
+         if (!cyl_)
+         {
+            xyz_ -= x0;
+            double rho = pow(pow(xyz_[0], 2) + pow(xyz_[1], 2), 0.5);
+            double bp_coef = ((bz0 / rmaj) * pow(rmin, 2.0)) / (pow(rmin,
+                                                                    2.0)*q0 + (qa - q0)*pow(rho, 2.0));
 
-         if (unit_)
-         {
-            double bmag = pow( pow(bp_coef * xyz_[1], 2) + pow(-bp_coef * xyz_[0], 2) + pow(bz0,
-                                                                                        2), 0.5);
-            V[0] = bp_coef * xyz_[1] / bmag;
-            V[1] = -bp_coef * xyz_[0] / bmag;
-            V[2] = bz0 / bmag;
+            if (unit_)
+            {
+               double bmag = pow( pow(bp_coef * xyz_[1], 2) + pow(-bp_coef * xyz_[0],
+                                                                  2) + pow(bz0,
+                                                                           2), 0.5);
+               V[0] = bp_coef * xyz_[1] / bmag;
+               V[1] = -bp_coef * xyz_[0] / bmag;
+               V[2] = bz0 / bmag;
+            }
+            else
+            {
+               V[0] = bp_coef * xyz_[1];
+               V[1] = -bp_coef * xyz_[0];
+               V[2] = bz0;
+            }
          }
-         else
-         {
-            V[0] = bp_coef * xyz_[1];
-            V[1] = -bp_coef * xyz_[0];
-            V[2] = bz0;
-         }
-	 }
       }
       break;
       case B_EQDSK:
@@ -1790,72 +1791,72 @@ void BFieldProfile::Eval(Vector &V, ElementTransformation &T,
          double st = sin(theta);
          double ct = cos(theta);
 
-	 if (!cyl_)
-	 {
-         // Step 1: Compute coordinates in 3D the Tokamak geometry
-         double x_tok = xyz_[0] - u0;
-         double y_tok = (xyz_[1] - v0) * st;
-         double z_tok = (xyz_[1] - v0) * ct + z0;
-         double r_tok = sqrt(x_tok * x_tok + y_tok * y_tok);
+         if (!cyl_)
+         {
+            // Step 1: Compute coordinates in 3D the Tokamak geometry
+            double x_tok = xyz_[0] - u0;
+            double y_tok = (xyz_[1] - v0) * st;
+            double z_tok = (xyz_[1] - v0) * ct + z0;
+            double r_tok = sqrt(x_tok * x_tok + y_tok * y_tok);
 
-         // Step 2: Interpolate B field in poloidal cross section
-         double x_tok_data[2];
-         Vector xTokVec(x_tok_data, 2);
-         xTokVec[0] = r_tok; xTokVec[1] = z_tok;
+            // Step 2: Interpolate B field in poloidal cross section
+            double x_tok_data[2];
+            Vector xTokVec(x_tok_data, 2);
+            xTokVec[0] = r_tok; xTokVec[1] = z_tok;
 
-         double b_pol_data[2];
-         Vector b_pol(b_pol_data, 2); b_pol = 0.0;
-         double b_tor = 0.0;
+            double b_pol_data[2];
+            Vector b_pol(b_pol_data, 2); b_pol = 0.0;
+            double b_tor = 0.0;
 
-         eqdsk_->InterpBPolRZ(xTokVec, b_pol);
-         b_tor = eqdsk_->InterpBTorRZ(xTokVec);
+            eqdsk_->InterpBPolRZ(xTokVec, b_pol);
+            b_tor = eqdsk_->InterpBTorRZ(xTokVec);
 
-         // Step 3: Rotate B field from a poloidal cross section into
-         //         the full Tokamak
-         double b_tok_data[3];
-         Vector b_tok(b_tok_data, 3);
-         b_tok[0] = (b_pol[0] * x_tok - b_tor * y_tok) / r_tok;
-         b_tok[1] = (b_pol[0] * y_tok + b_tor * x_tok) / r_tok;
-         b_tok[2] = b_pol[1];
+            // Step 3: Rotate B field from a poloidal cross section into
+            //         the full Tokamak
+            double b_tok_data[3];
+            Vector b_tok(b_tok_data, 3);
+            b_tok[0] = (b_pol[0] * x_tok - b_tor * y_tok) / r_tok;
+            b_tok[1] = (b_pol[0] * y_tok + b_tor * x_tok) / r_tok;
+            b_tok[2] = b_pol[1];
 
-         // Step 4: Rotate B field into the slanted computational plane
-         V[0] = b_tok[0];
-         V[1] = b_tok[2] * ct + b_tok[1] * st;
-         V[2] = b_tok[2] * st - b_tok[1] * ct;
-	 }
-	 else
-	 {
- 	   MFEM_VERIFY(fabs(theta) < 1e-4,
-		       "A slanted domain is incompatible with "
-		       "cylindrical symmetry.");
+            // Step 4: Rotate B field into the slanted computational plane
+            V[0] = b_tok[0];
+            V[1] = b_tok[2] * ct + b_tok[1] * st;
+            V[2] = b_tok[2] * st - b_tok[1] * ct;
+         }
+         else
+         {
+            MFEM_VERIFY(fabs(theta) < 1e-4,
+                        "A slanted domain is incompatible with "
+                        "cylindrical symmetry.");
 
-           // Step 1: Compute coordinates in 3D the Tokamak geometry
-	   double x_tok = xyz_[0];
-	   double y_tok = xyz_[1];
-	   double z_tok = xyz_[2];
-	   double r_tok = rz_[0];
+            // Step 1: Compute coordinates in 3D the Tokamak geometry
+            double x_tok = xyz_[0];
+            double y_tok = xyz_[1];
+            double z_tok = xyz_[2];
+            double r_tok = rz_[0];
 
-         // Step 2: Interpolate B field in poloidal cross section
-         double x_tok_data[2];
-         Vector xTokVec(x_tok_data, 2);
-         xTokVec[0] = r_tok; xTokVec[1] = z_tok;
+            // Step 2: Interpolate B field in poloidal cross section
+            double x_tok_data[2];
+            Vector xTokVec(x_tok_data, 2);
+            xTokVec[0] = r_tok; xTokVec[1] = z_tok;
 
-         double b_pol_data[2];
-         Vector b_pol(b_pol_data, 2); b_pol = 0.0;
-         double b_tor = 0.0;
+            double b_pol_data[2];
+            Vector b_pol(b_pol_data, 2); b_pol = 0.0;
+            double b_tor = 0.0;
 
-         eqdsk_->InterpBPolRZ(xTokVec, b_pol);
-         b_tor = eqdsk_->InterpBTorRZ(xTokVec);
+            eqdsk_->InterpBPolRZ(xTokVec, b_pol);
+            b_tor = eqdsk_->InterpBTorRZ(xTokVec);
 
-	 // Step 3: Rotate B field out of xz plane
-	 double cosphi = x_tok / r_tok;
-	 double sinphi = y_tok / r_tok;
-	 
-	 V[0] = b_pol[0] * cosphi - b_tor * sinphi;
-	 V[1] = b_pol[0] * sinphi + b_tor * cosphi;
-	 V[2] = b_pol[1];	 
-	 }
-	 
+            // Step 3: Rotate B field out of xz plane
+            double cosphi = x_tok / r_tok;
+            double sinphi = y_tok / r_tok;
+
+            V[0] = b_pol[0] * cosphi - b_tor * sinphi;
+            V[1] = b_pol[0] * sinphi + b_tor * cosphi;
+            V[2] = b_pol[1];
+         }
+
          if (unit_)
          {
             double vmag = sqrt(V * V);
@@ -1863,113 +1864,113 @@ void BFieldProfile::Eval(Vector &V, ElementTransformation &T,
          }
       }
       break;
-       case B_SPARC:
-       {
-           //|B| = \sqrt(Fpol^2+d\Psi/dZ^2+d\Psi/dR^2)/R
-           //where Fpol== R*Bphi , BR = - 1/R d\Psi/dZ, BZ = 1/R d\Psi/dR
+      case B_SPARC:
+      {
+         //|B| = \sqrt(Fpol^2+d\Psi/dZ^2+d\Psi/dR^2)/R
+         //where Fpol== R*Bphi , BR = - 1/R d\Psi/dZ, BZ = 1/R d\Psi/dR
 
-	 double b_pol_data[2];
-	 Vector b_pol(b_pol_data, 2); b_pol = 0.0;
-	 double b_tor = 0.0;
+         double b_pol_data[2];
+         Vector b_pol(b_pol_data, 2); b_pol = 0.0;
+         double b_tor = 0.0;
 
-	   if (!cyl_)
-	   {
-	     double x_tok_data[2];
-	     Vector xTokVec(x_tok_data, 2);
-	     xTokVec[0] = xyz_[0]; xTokVec[1] = xyz_[1];
+         if (!cyl_)
+         {
+            double x_tok_data[2];
+            Vector xTokVec(x_tok_data, 2);
+            xTokVec[0] = xyz_[0]; xTokVec[1] = xyz_[1];
 
-	     eqdsk_->InterpBPolRZ(xTokVec, b_pol);
-	     b_tor = eqdsk_->InterpBTorRZ(xTokVec);
-           
-	     V[0] = b_pol[0];
-	     V[1] = b_pol[1];
-	     V[2] = b_tor;
-	   }
-	   else
-	   {
-	     double cosphi = xyz_[0] / rz_[0];
-	     double sinphi = xyz_[1] / rz_[0];
+            eqdsk_->InterpBPolRZ(xTokVec, b_pol);
+            b_tor = eqdsk_->InterpBTorRZ(xTokVec);
 
-	     eqdsk_->InterpBPolRZ(rz_, b_pol);
-	     b_tor = eqdsk_->InterpBTorRZ(rz_);
-	     // b_tor = 1.0;
-	     V[0] = b_pol[0] * cosphi - b_tor * sinphi;
-	     V[1] = b_pol[0] * sinphi + b_tor * cosphi;
-	     // V[0] = -sinphi;
-	     // V[1] = cosphi;
-	     // V[0] = rz_[0];
-	     // V[1] = rz_[0];
-	     V[2] = b_pol[1];
-	   }
-	   
-           if (unit_)
-           {
-              double vmag = sqrt(V * V);
-              V /= vmag;
-           }
-       }
+            V[0] = b_pol[0];
+            V[1] = b_pol[1];
+            V[2] = b_tor;
+         }
+         else
+         {
+            double cosphi = xyz_[0] / rz_[0];
+            double sinphi = xyz_[1] / rz_[0];
+
+            eqdsk_->InterpBPolRZ(rz_, b_pol);
+            b_tor = eqdsk_->InterpBTorRZ(rz_);
+            // b_tor = 1.0;
+            V[0] = b_pol[0] * cosphi - b_tor * sinphi;
+            V[1] = b_pol[0] * sinphi + b_tor * cosphi;
+            // V[0] = -sinphi;
+            // V[1] = cosphi;
+            // V[0] = rz_[0];
+            // V[1] = rz_[0];
+            V[2] = b_pol[1];
+         }
+
+         if (unit_)
+         {
+            double vmag = sqrt(V * V);
+            V /= vmag;
+         }
+      }
       break;
       case B_WHAM:
       {
          double a = p_[0];
          double b = p_[1];
-	 if (!cyl_)
-	 {
-	   V[0] = a + b * pow(xyz_[0], 4);
-	   V[1] = -2.0 * b * xyz_[1] * pow(xyz_[0], 3);
-	   V[2] = 0.0;
-	 }
-	 else
-	 {
-	   double cosphi = xyz_[0] / rz_[0];
-	   double sinphi = xyz_[1] / rz_[0];
-
-	   double Vr = a + b * pow(rz_[0], 4);
-	   double Vz = -2.0 * b * rz_[1] * pow(rz_[0], 3);
-	   
-	   V[0] = Vr * cosphi;
-	   V[1] = Vr * sinphi;
-	   V[2] = Vz;
-	 }
-
-	 if (unit_)
+         if (!cyl_)
          {
-	   double vmag = sqrt(V * V);
-	   V /= vmag;
-	 }
+            V[0] = a + b * pow(xyz_[0], 4);
+            V[1] = -2.0 * b * xyz_[1] * pow(xyz_[0], 3);
+            V[2] = 0.0;
+         }
+         else
+         {
+            double cosphi = xyz_[0] / rz_[0];
+            double sinphi = xyz_[1] / rz_[0];
+
+            double Vr = a + b * pow(rz_[0], 4);
+            double Vz = -2.0 * b * rz_[1] * pow(rz_[0], 3);
+
+            V[0] = Vr * cosphi;
+            V[1] = Vr * sinphi;
+            V[2] = Vz;
+         }
+
+         if (unit_)
+         {
+            double vmag = sqrt(V * V);
+            V /= vmag;
+         }
 
       }
       break;
       default:
-	if (!cyl_)
-	{
-         if (unit_)
+         if (!cyl_)
          {
-            V[0] = 0.0;
-            V[1] = 0.0;
-            V[2] = 1.0;
+            if (unit_)
+            {
+               V[0] = 0.0;
+               V[1] = 0.0;
+               V[2] = 1.0;
+            }
+            else
+            {
+               V[0] = 0.0;
+               V[1] = 0.0;
+               V[2] = 5.4;
+            }
          }
          else
          {
-            V[0] = 0.0;
-            V[1] = 0.0;
-            V[2] = 5.4;
+            double cosphi = xyz_[0] / rz_[0];
+            double sinphi = xyz_[1] / rz_[0];
+
+            V[0] = -sinphi;
+            V[1] =  cosphi;
+            V[2] = 0.0;
+
+            if (!unit_)
+            {
+               V *= 5.4;
+            }
          }
-	}
-	else
-	{
-	  double cosphi = xyz_[0] / rz_[0];
-	  double sinphi = xyz_[1] / rz_[0];
-
-	  V[0] = -sinphi;
-	  V[1] =  cosphi;
-	  V[2] = 0.0;
-
-	  if (!unit_)
-          {
-	    V *= 5.4;
-          }
-	}
    }
 }
 

@@ -284,17 +284,17 @@ public:
       AMS         =  4
    };
 
-    enum SolverType
-    {
-       INVALID_SOL = -1,
-       GMRES       =  1,
-       FGMRES      =  2,
-       MINRES      =  3,
-       SUPERLU     =  4,
-       STRUMPACK   =  5,
-       DMUMPS      =  6,
-       ZMUMPS      =  7
-    };
+   enum SolverType
+   {
+      INVALID_SOL = -1,
+      GMRES       =  1,
+      FGMRES      =  2,
+      MINRES      =  3,
+      SUPERLU     =  4,
+      STRUMPACK   =  5,
+      DMUMPS      =  6,
+      ZMUMPS      =  7
+   };
 
    CPDSolverDH(ParMesh & pmesh, int order, double omega,
                CPDSolverDH::SolverType s, SolverOptions & sOpts,
