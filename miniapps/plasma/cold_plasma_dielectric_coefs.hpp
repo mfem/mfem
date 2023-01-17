@@ -648,20 +648,38 @@ public:
 class PlasmaProfile : public Coefficient
 {
 public:
+   /**  Currently the computational mesh is assumed to be 3D. However,
+	the input mesh can be 1D or 2D. In these cases the input mesh
+	is extruded to create a 3D mesh. By default this extrusion is
+	performed in directions perpendicular to the input mesh.
+
+        In the 2D codes the extrusion can be performed such that
+	cylindrical symmetry can be imposed. In this special case the
+	input mesh is assumed to represent a poloidal cross section
+	with the x axis of the input mesh aligned with the radial
+	coordinate and the y axis of the input mesh aligned with the z
+	coordinate of the final mesh. Setting the CoordSystem to
+ 	POLOIDAL should be done in this special case.
+   */
+   enum CoordSystem {CARTESIAN_3D, POLOIDAL};
    enum Type {CONSTANT,GRADIENT,TANH,ELLIPTIC_COS,PARABOLIC,PEDESTAL,NUABSORB,NUE,NUI,CMODDEN,SPARC_RES,SPARC_DEN};
 
 private:
    Type type_;
    Vector p_;
+   bool cyl_; // Assume cylindrical symmetyry
     
    G_EQDSK_Data *eqdsk_;
 
    const int np_[12] = {1, 7, 9, 7, 7, 7, 3, 3, 3, 1, 1,1};
 
-   mutable Vector x_;
+   mutable Vector xyz_; // 3D coordinate in computational mesh
+   mutable Vector rz_;  // 2D coordinate in poloidal cross section
 
 public:
-   PlasmaProfile(Type type, const Vector & params, G_EQDSK_Data *eqdsk = NULL);
+   PlasmaProfile(Type type, const Vector & params,
+		 CoordSystem coord_sys = CARTESIAN_3D,
+		 G_EQDSK_Data *eqdsk = NULL);
 
    double Eval(ElementTransformation &T,
                const IntegrationPoint &ip);

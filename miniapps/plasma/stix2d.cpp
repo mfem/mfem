@@ -1094,8 +1094,10 @@ int main(int argc, char *argv[])
       cout << "Creating plasma profile." << endl;
    }
 
-   PlasmaProfile tempCoef(tpt, tpp);
-   PlasmaProfile rhoCoef(dpt, dpp);
+   PlasmaProfile::CoordSystem coord_sys =
+     cyl ? PlasmaProfile::POLOIDAL : PlasmaProfile::CARTESIAN_3D;
+   PlasmaProfile tempCoef(tpt, tpp, coord_sys);
+   PlasmaProfile rhoCoef(dpt, dpp, coord_sys);
 
    for (int i=0; i<=numbers.Size(); i++)
    {

@@ -905,9 +905,9 @@ int main(int argc, char *argv[])
    ParGridFunction nue_gf(&H1FESpace);
    ParGridFunction nui_gf(&H1FESpace);
 
-   PlasmaProfile nueCoef(nept, nepp);
+   PlasmaProfile nueCoef(nept, nepp, PlasmaProfile::CARTESIAN_3D);
    nue_gf.ProjectCoefficient(nueCoef);
-   PlasmaProfile nuiCoef(nipt, nipp);
+   PlasmaProfile nuiCoef(nipt, nipp, PlasmaProfile::CARTESIAN_3D);
    nui_gf.ProjectCoefficient(nuiCoef);
 
    BFieldProfile BCoef(bpt, bpp, false);
@@ -939,8 +939,8 @@ int main(int argc, char *argv[])
       cout << "Creating plasma profile." << endl;
    }
 
-   PlasmaProfile tempCoef(tpt, tpp);
-   PlasmaProfile rhoCoef(dpt, dpp);
+   PlasmaProfile tempCoef(tpt, tpp, PlasmaProfile::CARTESIAN_3D);
+   PlasmaProfile rhoCoef(dpt, dpp, PlasmaProfile::CARTESIAN_3D);
 
    for (int i=0; i<=numbers.Size(); i++)
    {

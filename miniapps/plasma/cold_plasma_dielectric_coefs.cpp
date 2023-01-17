@@ -1312,12 +1312,18 @@ void SPDDielectricTensor::Eval(DenseMatrix &epsilon, ElementTransformation &T,
    epsilon *= epsilon0_;
 }
 
-PlasmaProfile::PlasmaProfile(Type type, const Vector & params, G_EQDSK_Data *eqdsk)
-   : type_(type), p_(params), eqdsk_(eqdsk), x_(3)
+PlasmaProfile::PlasmaProfile(Type type, const Vector & params,
+			     CoordSystem sys,
+			     G_EQDSK_Data *eqdsk)
+  : type_(type), p_(params), cyl_(sys == POLOIDAL), eqdsk_(eqdsk),
+    xyz_(3), rz_(2)
 {
    MFEM_VERIFY(params.Size() == np_[type],
                "Incorrect number of parameters, " << params.Size()
                << ", for profile of type: " << type << ".");
+
+   xyz_ = 0.0;
+   rz_  = 0.0;
 }
 
 double PlasmaProfile::Eval(ElementTransformation &T,
@@ -1325,7 +1331,13 @@ double PlasmaProfile::Eval(ElementTransformation &T,
 {
    if (type_ != CONSTANT)
    {
-      T.Transform(ip, x_);
+      T.Transform(ip, xyz_);
+
+      if (cyl_)
+      {
+	rz_[0] = sqrt(xyz_[0] * xyz_[0] + xyz_[1] * xyz_[1]);
+	rz_[1] = xyz_[2];
+      }
    }
 
    switch (type_)
@@ -1338,9 +1350,20 @@ double PlasmaProfile::Eval(ElementTransformation &T,
          Vector x0(&p_[1], 3);
          Vector grad(&p_[4],3);
 
-         x_ -= x0;
+	 if (!cyl_)
+	 {
+	   xyz_ -= x0;
 
-         return p_[0] + (grad * x_);
+	   return p_[0] + (grad * xyz_);
+	 }
+	 else
+	 {
+	   // x0 and grad have three components (r, phi, z) but we
+	   // assume no phi dependence.
+	   rz_[0] -= x0[0];
+	   rz_[1] -= x0[2];
+	   return p_[0] + (grad[0] * rz_[0] + grad[2] * rz_[1]);
+	 }
       }
       break;
       case TANH:
@@ -1348,9 +1371,20 @@ double PlasmaProfile::Eval(ElementTransformation &T,
          Vector x0(&p_[3], 3);
          Vector grad(&p_[6], 3);
 
-         x_ -= x0;
-         double a = 0.5 * log(3.0) * (grad * x_) / p_[2];
+	 double a = 0.0;
 
+	 if (!cyl_)
+	 {
+	   xyz_ -= x0;
+	   a = 0.5 * log(3.0) * (grad * xyz_) / p_[2];
+	 }
+	 else
+	 {
+	   rz_[0] -= x0[0];
+	   rz_[1] -= x0[2];
+	   a = 0.5 * log(3.0) * (grad[0] * rz_[0] + grad[2] * rz_[1]) / p_[2];
+	 }
+	 
          if (fabs(a) < 10.0)
          {
             return p_[0] + (p_[1] - p_[0]) * tanh(a);
@@ -1369,8 +1403,19 @@ double PlasmaProfile::Eval(ElementTransformation &T,
          double b = p_[3];
          Vector x0(&p_[4], 3);
 
-         x_ -= x0;
-         double r = pow(x_[0] / a, 2) + pow(x_[1] / b, 2);
+	 double r = 0.0;
+
+	 if (!cyl_)
+	 {
+	   xyz_ -= x0;
+	   r = pow(xyz_[0] / a, 2) + pow(xyz_[1] / b, 2);
+	 }
+	 else
+	 {
+	   rz_[0] -= x0[0];
+	   rz_[1] -= x0[2];
+	   r = pow(rz_[0] / a, 2) + pow(rz_[1] / b, 2);
+	 }
          return pmin + (pmax - pmin) * (0.5 - 0.5 * cos(M_PI * sqrt(r)));
       }
       break;
@@ -1382,8 +1427,19 @@ double PlasmaProfile::Eval(ElementTransformation &T,
          double b = p_[3];
          Vector x0(&p_[4], 3);
 
-         x_ -= x0;
-         double r = pow(x_[0] / a, 2) + pow(x_[1] / b, 2);
+	 double r = 0.0;
+
+	 if (!cyl_)
+	 {
+	   xyz_ -= x0;
+	   r = pow(xyz_[0] / a, 2) + pow(xyz_[1] / b, 2);
+	 }
+	 else
+	 {
+	   rz_[0] -= x0[0];
+	   rz_[1] -= x0[2];
+	   r = pow(rz_[0] / a, 2) + pow(rz_[1] / b, 2);
+	 }
          return pmax - (pmax - pmin) * r;
       }
       break;
@@ -1395,8 +1451,20 @@ double PlasmaProfile::Eval(ElementTransformation &T,
          double nu = p_[3]; // Strength of decline
          Vector x0(&p_[4], 3);
 
-         x_ -= x0;
-         double rho = pow(pow(x_[0], 2) + pow(x_[1], 2), 0.5);
+	 double rho = 0.0;
+
+	 if (!cyl_)
+	 {
+	   xyz_ -= x0;
+	   rho = pow(pow(xyz_[0], 2) + pow(xyz_[1], 2), 0.5);
+	 }
+	 else
+	 {
+	   rz_[0] -= x0[0];
+	   rz_[1] -= x0[2];
+	   rho = sqrt(rz_ * rz_);
+	 }
+	 
          return (pmax - pmin) * pow(cosh(pow((rho / lambda_n), nu)), -1.0) + pmin;
       }
       break;
@@ -1406,7 +1474,9 @@ double PlasmaProfile::Eval(ElementTransformation &T,
          double decay = p_[1];
          double shift = p_[2];
 
-         return (nu0*exp(-(x_[0]-shift)/decay));
+	 double d = cyl_ ? rz_[0] : xyz_[0];
+	 
+         return (nu0*exp(-(d-shift)/decay));
       }
       break;
       case NUE:
@@ -1414,13 +1484,16 @@ double PlasmaProfile::Eval(ElementTransformation &T,
           double nu0 = p_[0];
           double decay = p_[1];
           double shift = p_[2];
-          double rho = pow(pow(x_[0], 2) + pow(x_[1], 2), 0.5);
+          double rho = sqrt(cyl_ ? (rz_ * rz_) :
+			    (pow(xyz_[0], 2) + pow(xyz_[1], 2)));
           //double test = 5e7*exp((rho - 0.97)/0.015);
           //double test = pow( 1.0 + exp( - (rho - 1.015)/0.01 ),-1.0);
           //double test = 0.0;
           double test = exp(-pow(rho-0.936, 2)/1e-5);
 
-          return nu0*exp(-(x_[0]-shift)/decay) + 5e7*test;
+	  double d = cyl_ ? rz_[0] : xyz_[0];
+	  
+          return nu0*exp(-(d-shift)/decay) + 5e7*test;
        }
       break;
       case NUI:
@@ -1428,13 +1501,15 @@ double PlasmaProfile::Eval(ElementTransformation &T,
          double rad_res_loc = p_[0];
          double nu0 = p_[1];
          double width = p_[2];
-         double rho = pow(pow(x_[0], 2) + pow(x_[1], 2), 0.5);
+         double rho = sqrt(cyl_ ? (rz_ * rz_):
+			   (pow(xyz_[0], 2) + pow(xyz_[1], 2)));
          return nu0*exp(-pow(rho-rad_res_loc, 2)/width);
       }
       break;
       case CMODDEN:
       {
-          double rho = pow(pow(x_[0], 2) + pow(x_[1], 2), 0.5);
+	double rho = sqrt(cyl_ ? (rz_ * rz_) :
+			  (pow(xyz_[0], 2) + pow(xyz_[1], 2)));
 
           double pmin1 = 1e11;
           double pmax1 = (2e20 - 1.5e19);
@@ -1464,15 +1539,18 @@ double PlasmaProfile::Eval(ElementTransformation &T,
           double F = 1.31119407;
           double G = -0.00925291;
           double H = 1.43560241;
-          
-          double val1 = B*x_[1] - C;
+
+	  double r = cyl_ ? rz_[0] : xyz_[0];
+	  double z = cyl_ ? rz_[1] : xyz_[1];
+	  
+          double val1 = B*z - C;
           double sincfunc1 = A*(sin(val1)/val1) + D;
           
-          double val2 = F*x_[1] - G;
+          double val2 = F*z - G;
           double sincfunc2 = E*(sin(val2)/val2) + H;
           
-          double res1 = nu0*exp(-pow(x_[0]-sincfunc1, 2)/0.002);
-          double res2 = nu0*exp(-pow(x_[0]-sincfunc2, 2)/0.002);
+          double res1 = nu0*exp(-pow(r-sincfunc1, 2)/0.002);
+          double res2 = nu0*exp(-pow(r-sincfunc2, 2)/0.002);
           
           return res1+res2;
       }
@@ -1490,9 +1568,12 @@ double PlasmaProfile::Eval(ElementTransformation &T,
            
            return ne1;
             */
-           double x_tok_data[2];
+	   double r = cyl_ ? rz_[0] : xyz_[0];
+	   double z = cyl_ ? rz_[1] : xyz_[1];
+
+	   double x_tok_data[2];
            Vector xTokVec(x_tok_data, 2);
-           xTokVec[0] = x_[0]; xTokVec[1] = x_[1];
+           xTokVec[0] = r; xTokVec[1] = z;
            
            double psiRZ = 0.0;
            psiRZ = eqdsk_->InterpPsiRZ(xTokVec);
@@ -1504,7 +1585,7 @@ double PlasmaProfile::Eval(ElementTransformation &T,
            
            int bool_limits = 0;
            
-           if (x_[1] >= -1.183 && x_[1] <= 1.19){bool_limits = 1;}
+           if (z >= -1.183 && z <= 1.19){bool_limits = 1;}
            
            double norm_sqrt_psi = 1.0;
            if (val < 1 && bool_limits == 1){norm_sqrt_psi = sqrt(val);}

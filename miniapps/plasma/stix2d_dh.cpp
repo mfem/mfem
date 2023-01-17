@@ -1342,10 +1342,12 @@ int main(int argc, char *argv[])
    BFieldProfile BUnitCoef(bpt, bpp, true, eqdsk);
 
    BField.ProjectCoefficient(BCoef);
-    
-   PlasmaProfile nueCoef(nept, nepp, eqdsk);
+
+   PlasmaProfile::CoordSystem coord_sys =
+     cyl ? PlasmaProfile::POLOIDAL : PlasmaProfile::CARTESIAN_3D;
+   PlasmaProfile nueCoef(nept, nepp, coord_sys, eqdsk);
    nue_gf.ProjectCoefficient(nueCoef);
-   PlasmaProfile nuiCoef(nipt, nipp, eqdsk);
+   PlasmaProfile nuiCoef(nipt, nipp, coord_sys, eqdsk);
    nui_gf.ProjectCoefficient(nuiCoef);
 
    int size_h1 = H1FESpace.GetVSize();
@@ -1372,8 +1374,8 @@ int main(int argc, char *argv[])
       cout << "Creating plasma profile." << endl;
    }
 
-   PlasmaProfile tempCoef(tpt, tpp, eqdsk);
-   PlasmaProfile rhoCoef(dpt, dpp, eqdsk);
+   PlasmaProfile tempCoef(tpt, tpp, coord_sys, eqdsk);
+   PlasmaProfile rhoCoef(dpt, dpp, coord_sys, eqdsk);
 
    for (int i=0; i<=numbers.Size(); i++)
    {
