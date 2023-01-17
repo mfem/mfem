@@ -102,6 +102,35 @@ using namespace mfem;
 using namespace mfem::common;
 using namespace mfem::plasma;
 
+class MeshTransformCoefficient : public VectorCoefficient
+{
+private:
+  double hphi_rad_;
+
+  mutable Vector uvw_;
+  
+public:
+  MeshTransformCoefficient(double hphi_deg)
+    : VectorCoefficient(3), hphi_rad_(hphi_deg * M_PI / 180.0),
+      uvw_(3)
+  {}
+
+  void Eval(Vector &xyz, ElementTransformation &T,
+	    const IntegrationPoint &ip)
+  {
+    T.Transform(ip, uvw_);
+
+    const double r   = uvw_[0];
+    const double phi = hphi_rad_ * uvw_[2];
+    const double z   = uvw_[1];
+
+    xyz[0] = r * cos(phi);
+    xyz[1] = r * sin(phi);
+    xyz[2] = z;
+  }
+};
+
+
 // Admittance for Absorbing Boundary Condition
 Coefficient * SetupAdmittanceCoefficient(const Mesh & mesh,
                                          const Array<int> & abcs);
@@ -434,6 +463,7 @@ int main(int argc, char *argv[])
 
    // Parse command-line options.
    const char *mesh_file = "ellipse_origin_h0pt0625_o3.mesh";
+   int mesh_order = -1;
    int ser_ref_levels = 0;
    int order = 1;
    int maxit = 100;
@@ -456,7 +486,8 @@ int main(int argc, char *argv[])
    Vector kReVec;
    Vector kImVec;
 
-   double hz = -1.0;
+   double hz = -1.0; // Extruded mesh thickness in meters
+   double hphi = -1.0; // Cylindrically extruded mesh thickness in degrees
 
    Vector numbers;
    Vector charges;
@@ -503,6 +534,7 @@ int main(int argc, char *argv[])
    solOpts.euLvl = 1;
 
    bool logo = false;
+   bool cyl = false;
    bool per_y = false;
    bool pa = false;
    const char *device_config = "cpu";
@@ -513,6 +545,12 @@ int main(int argc, char *argv[])
                   "--no-print-logo", "Print logo and exit.");
    args.AddOption(&mesh_file, "-m", "--mesh",
                   "Mesh file to use.");
+   args.AddOption(&mesh_order, "-mo", "--mesh-order",
+                  "Geometry order for cylindrically symmetric mesh.");
+   args.AddOption(&cyl, "-cyl", "--cylindrical-coords", "-cart",
+                  "--cartesian-coords",
+                  "Cartesian (x, y, z) coordinates or "
+                  "Cylindrical (z, rho, phi).");
    args.AddOption(&per_y, "-per-y", "--periodic-in-y", "-no-per-y",
                   "--not-periodic-in-y",
                   "The input mesh is periodic in the y-direction.");
@@ -526,6 +564,8 @@ int main(int argc, char *argv[])
                   "Frequency in Hertz (of course...)");
    args.AddOption(&hz, "-mh", "--mesh-height",
                   "Thickness of extruded mesh in meters.");
+   args.AddOption(&hphi, "-mhc", "--mesh-height-cyl",
+                  "Thickness of cylindrically extruded mesh in degrees.");
    args.AddOption((int*)&dpt, "-dp", "--density-profile",
                   "Density Profile Type (for ions): \n"
                   "0 - Constant, 1 - Constant Gradient, "
@@ -823,9 +863,21 @@ int main(int argc, char *argv[])
    {
       num_elements = 10;
    }
-   if (hz < 0.0)
+   if (hz < 0.0 && !cyl)
    {
       hz = 0.1;
+   }
+   if (cyl)
+   {
+     if (mesh_order <= 0)
+     {
+       mesh_order = 3;
+     }
+     if (hphi < 0.0)
+     {
+       hphi = 3;
+     }
+     hz = 1.0;
    }
    double omega = 2.0 * M_PI * freq;
    if (kVec.Size() != 0)
@@ -932,14 +984,21 @@ int main(int argc, char *argv[])
    }
    Mesh * mesh = Extrude2D(mesh2d, 3, hz);
    delete mesh2d;
+   if (cyl)
    {
-      Array<int> v2v(mesh->GetNV());
-      for (int i=0; i<v2v.Size(); i++) { v2v[i] = i; }
+     mesh->SetCurvature(mesh_order);
+
+     MeshTransformCoefficient mtc(hphi);
+     mesh->Transform(mtc);
+   }
+   {
+      std::vector<int> v2v(mesh->GetNV());
+      for (int i=0; i<v2v.size(); i++) { v2v[i] = i; }
       for (int i=0; i<mesh->GetNV() / 4; i++) { v2v[4 * i + 3] = 4 * i; }
 
-      Mesh * per_mesh = MakePeriodicMesh(mesh, v2v);
+      Mesh per_mesh = Mesh::MakePeriodic(*mesh, v2v);
       delete mesh;
-      mesh = per_mesh;
+      mesh = new Mesh(per_mesh);
    }
    tic_toc.Stop();
 
