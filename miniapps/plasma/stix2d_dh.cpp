@@ -2558,14 +2558,15 @@ void slab_current_source_i(const Vector &x, Vector &j)
 
 void curve_current_source_r(const Vector &x, Vector &j)
 {
-   MFEM_ASSERT(x.Size() == 2, "current source requires 2D space (theta, phi).");
-
+   // MFEM_ASSERT(x.Size() == 2, "current source requires 2D space (theta, phi).");
+   MFEM_ASSERT(x.Size() == 3, "current source requires 3D space.");
+   
    j.SetSize(x.Size());
    j = 0.0;
 
-   bool cmplx = curve_params_.Size() == 4;
+   // bool cmplx = curve_params_.Size() == 4;
 
-   int o = 2 + (cmplx ? 2 : 0);
+   // int o = 2 + (cmplx ? 2 : 0);
 
    double a = -0.50721437;
    double b = -0.00295982;
@@ -2614,8 +2615,9 @@ void curve_current_source_r(const Vector &x, Vector &j)
 
 void curve_current_source_i(const Vector &x, Vector &j)
 {
-   MFEM_ASSERT(x.Size() == 2, "current source requires 2D space (theta, phi).");
-
+  // MFEM_ASSERT(x.Size() == 2, "current source requires 2D space (theta, phi).");
+   MFEM_ASSERT(x.Size() == 3, "current source requires 3D space.");
+   
    j.SetSize(x.Size());
    j = 0.0;
 
@@ -2623,7 +2625,7 @@ void curve_current_source_i(const Vector &x, Vector &j)
 
    if (!cmplx) { return; } // Return with Im(j) = 0
 
-   int o = 2 + (cmplx ? 2 : 0);
+   // int o = 2 + (cmplx ? 2 : 0);
 
    double a = -0.50721437;
    double b = -0.00295982;
