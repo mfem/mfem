@@ -918,7 +918,7 @@ int main(int argc, char *argv[])
    {
       if (mesh_order <= 0)
       {
-         mesh_order = 3;
+         mesh_order = 1;
       }
       if (hphi < 0.0)
       {
