@@ -597,10 +597,6 @@ void TMOPHRSolver::Mult()
    if (!hradaptivity)
    {
       tmopns->Mult(b, x->GetTrueVector());
-      if (tmopns->GetConverged() == false)
-      {
-         if (myid == 0) { mfem::out << "Nonlinear solver: rtol not achieved.\n"; }
-      }
       x->SetFromTrueVector();
       return;
    }
