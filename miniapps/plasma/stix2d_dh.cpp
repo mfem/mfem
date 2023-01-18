@@ -1979,8 +1979,7 @@ int main(int argc, char *argv[])
 
       visit_dc.RegisterField("B_background", &BField);
 
-      visit_dc.SetCycle(0);
-      visit_dc.Save();
+      CPD.WriteVisItFields(0);
    }
    if (mpi.Root()) { cout << "Initialization done." << endl; }
 
