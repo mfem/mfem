@@ -2606,7 +2606,7 @@ void curve_current_source_r(const Vector &x, Vector &j)
          double j_z   = curve_params_(0)*cos(theta);
 
          j(0) = j_r * cosphi - j_phi * sinphi;
-         j(1) = j_r * sinphi - j_phi * cosphi;
+         j(1) = j_r * sinphi + j_phi * cosphi;
          j(2) = j_z;
       }
    }
@@ -2664,7 +2664,7 @@ void curve_current_source_i(const Vector &x, Vector &j)
          double j_z   = curve_params_(2)*cos(theta);
 
          j(0) = j_r * cosphi - j_phi * sinphi;
-         j(1) = j_r * sinphi - j_phi * cosphi;
+         j(1) = j_r * sinphi + j_phi * cosphi;
          j(2) = j_z;
       }
    }
