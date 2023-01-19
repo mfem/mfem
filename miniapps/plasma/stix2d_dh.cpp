@@ -223,6 +223,7 @@ static Vector slab_params_
 static Vector curve_params_
 (0); // Text here
 static int slab_profile_;
+static int vol_profile_ = 0;
 
 void rod_current_source_r(const Vector &x, Vector &j);
 void rod_current_source_i(const Vector &x, Vector &j);
@@ -815,6 +816,8 @@ int main(int argc, char *argv[])
                   "2D Position, 2D Size");
    args.AddOption(&curve_params_, "-curve", "--curve_params",
                   "2D Vector Amplitude (Real theta,phi, theta,phi)");
+   args.AddOption(&vol_profile_, "-vol-prof", "--vol_profile",
+                  "0 (Constant) or 1 (Sin Function)");
    args.AddOption(&slab_profile_, "-slab-prof", "--slab_profile",
                   "0 (Constant) or 1 (Sin Function)");
    args.AddOption(&abcs, "-abcs", "--absorbing-bc-surf",
@@ -2555,17 +2558,12 @@ void slab_current_source_i(const Vector &x, Vector &j)
    }
 }
 
-void curve_current_source_r(const Vector &x, Vector &j)
+void curve_current_source_v0_r(const Vector &x, Vector &j)
 {
-   // MFEM_ASSERT(x.Size() == 2, "current source requires 2D space (theta, phi).");
    MFEM_ASSERT(x.Size() == 3, "current source requires 3D space.");
-   
+
    j.SetSize(x.Size());
    j = 0.0;
-
-   // bool cmplx = curve_params_.Size() == 4;
-
-   // int o = 2 + (cmplx ? 2 : 0);
 
    double a = -0.50721437;
    double b = -0.00295982;
@@ -2612,11 +2610,11 @@ void curve_current_source_r(const Vector &x, Vector &j)
    }
 }
 
-void curve_current_source_i(const Vector &x, Vector &j)
+void curve_current_source_v0_i(const Vector &x, Vector &j)
 {
-  // MFEM_ASSERT(x.Size() == 2, "current source requires 2D space (theta, phi).");
+   // MFEM_ASSERT(x.Size() == 2, "current source requires 2D space (theta, phi).");
    MFEM_ASSERT(x.Size() == 3, "current source requires 3D space.");
-   
+
    j.SetSize(x.Size());
    j = 0.0;
 
@@ -2669,6 +2667,262 @@ void curve_current_source_i(const Vector &x, Vector &j)
          j(2) = j_z;
       }
    }
+}
+void curve_current_source_v1_r(const Vector &x, Vector &j)
+{
+   MFEM_ASSERT(x.Size() == 3, "current source requires 3D space.");
+
+   j.SetSize(x.Size());
+   j = 0.0;
+
+   double r = (j_cyl_) ? sqrt(x[0] * x[0] + x[1] * x[1]) : x[0];
+   double z = (j_cyl_) ? x[2] : x[1];
+
+   double theta = atan2(z, r);
+
+   double thetamax = 8.6;
+   double thetamin = 1.0;
+   double theta_ext = thetamax - thetamin;
+   double rmin = (2.415 + 0.035);
+
+   double xmin = rmin*cos(theta);
+   double xmax = xmin + 0.04;
+
+   double zmin1 = rmin * sin((M_PI * thetamin) / 180.);
+   double zmax1 = rmin * sin((M_PI * thetamax) / 180.);
+
+   if (curve_params_(0) == 1)
+   {
+      if (r >= xmin && r <= xmax &&
+          z >= zmin1 && z <= zmax1)
+      {
+         if (!j_cyl_)
+         {
+            j(0) = -1.0*curve_params_(1)*sin(theta);
+            j(1) = curve_params_(1)*cos(theta);
+            j(2) = curve_params_(2);
+         }
+         else
+         {
+            double cosphi = x[0] / r;
+            double sinphi = x[1] / r;
+
+            double j_r   = -curve_params_(1)*sin(theta);
+            double j_phi = curve_params_(2);
+            double j_z   = curve_params_(1)*cos(theta);
+
+            j(0) = j_r * cosphi - j_phi * sinphi;
+            j(1) = j_r * sinphi + j_phi * cosphi;
+            j(2) = j_z;
+         }
+         if (vol_profile_ == 1)
+         {
+            double arc_len = rmin*fabs(theta) - rmin*(theta_ext/2.0 + thetamin)*(M_PI/180.);
+            double dlant = rmin*((theta_ext*M_PI)/180.);
+            j *= 0.5 * (1.0 + sin(M_PI*((2.0 * arc_len + dlant)/dlant - 0.5)));
+         }
+      }
+   }
+   else
+   {
+      double zmin2 = rmin * sin((-1.0*M_PI * thetamax) / 180.);
+      double zmax2 = rmin * sin((-1.0*M_PI * thetamin) / 180.);
+
+      if (r >= xmin && r <= xmax &&
+          z >= zmin1 && z <= zmax1)
+      {
+         if (!j_cyl_)
+         {
+            j(0) = -1.0*curve_params_(1)*sin(theta);
+            j(1) = curve_params_(1)*cos(theta);
+            j(2) = curve_params_(2);
+         }
+         else
+         {
+            double cosphi = x[0] / r;
+            double sinphi = x[1] / r;
+
+            double j_r   = -curve_params_(1)*sin(theta);
+            double j_phi = curve_params_(2);
+            double j_z   = curve_params_(1)*cos(theta);
+
+            j(0) = j_r * cosphi - j_phi * sinphi;
+            j(1) = j_r * sinphi + j_phi * cosphi;
+            j(2) = j_z;
+         }
+         if (vol_profile_ == 1)
+         {
+            double arc_len = rmin*fabs(theta) - rmin*(theta_ext/2.0 + thetamin)*(M_PI/180.);
+            double dlant = rmin*((theta_ext*M_PI)/180.);
+            j *= 0.5 * (1.0 + sin(M_PI*((2.0 * arc_len + dlant)/dlant - 0.5)));
+         }
+      }
+      else if (r >= xmin && r <= xmax &&
+               z >= zmin2 && z <= zmax2)
+      {
+         if (!j_cyl_)
+         {
+            j(0) = curve_params_(1)*sin(theta);
+            j(1) = -1.0*curve_params_(1)*cos(theta);
+            j(2) = curve_params_(2);
+         }
+         else
+         {
+            double cosphi = x[0] / r;
+            double sinphi = x[1] / r;
+
+            double j_r   = -curve_params_(1)*sin(theta);
+            double j_phi = curve_params_(2);
+            double j_z   = curve_params_(1)*cos(theta);
+
+            j(0) = j_r * cosphi - j_phi * sinphi;
+            j(1) = j_r * sinphi + j_phi * cosphi;
+            j(2) = j_z;
+         }
+         if (vol_profile_ == 1)
+         {
+            double arc_len = rmin*fabs(theta) - rmin*(theta_ext/2.0 + thetamin)*(M_PI/180.);
+            double dlant = rmin*((theta_ext*M_PI)/180.);
+            j *= 0.5 * (1.0 + sin(M_PI*((2.0 * arc_len + dlant)/dlant - 0.5)));
+         }
+      }
+   }
+}
+
+void curve_current_source_v1_i(const Vector &x, Vector &j)
+{
+   MFEM_ASSERT(x.Size() == 3,"current source requires 3D space.");
+
+   j.SetSize(x.Size());
+   j = 0.0;
+
+   if (curve_params_.Size() < 4)
+   {
+     return;
+   }
+   
+   double r = (j_cyl_) ? sqrt(x[0] * x[0] + x[1] * x[1]) : x[0];
+   double z = (j_cyl_) ? x[2] : x[1];
+
+   double theta = atan2(z, r);
+
+   double thetamax = 8.6;
+   double thetamin = 1.0;
+   double theta_ext = thetamax - thetamin;
+   double rmin = (2.415 + 0.035);
+
+   double xmin = rmin*cos(theta);
+   double xmax = xmin + 0.04;
+
+   double zmin1 = rmin * sin((M_PI * thetamin) / 180.);
+   double zmax1 = rmin * sin((M_PI * thetamax) / 180.);
+
+   if (curve_params_(0) == 1)
+   {
+      if (r >= xmin && r <= xmax &&
+          z >= zmin1 && z <= zmax1)
+      {
+         if (!j_cyl_)
+         {
+            j(0) = -1.0*curve_params_(3)*sin(theta);
+            j(1) = curve_params_(3)*cos(theta);
+            j(2) = curve_params_(4);
+         }
+         else
+         {
+            double cosphi = x[0] / r;
+            double sinphi = x[1] / r;
+
+            double j_r   = -curve_params_(3)*sin(theta);
+            double j_phi = curve_params_(4);
+            double j_z   = curve_params_(3)*cos(theta);
+
+            j(0) = j_r * cosphi - j_phi * sinphi;
+            j(1) = j_r * sinphi + j_phi * cosphi;
+            j(2) = j_z;
+         }
+         if (vol_profile_ == 1)
+         {
+            double arc_len = rmin*fabs(theta) - rmin*(theta_ext/2.0 + thetamin)*(M_PI/180.);
+            double dlant = rmin*((theta_ext*M_PI)/180.);
+            j *= 0.5 * (1.0 + sin(M_PI*((2.0 * arc_len + dlant)/dlant - 0.5)));
+         }
+      }
+   }
+   else
+   {
+      double zmin2 = rmin * sin((-1.0*M_PI * thetamax) / 180.);
+      double zmax2 = rmin * sin((-1.0*M_PI * thetamin) / 180.);
+
+      if (r >= xmin && r <= xmax &&
+          z >= zmin1 && z <= zmax1)
+      {
+         if (!j_cyl_)
+         {
+            j(0) = -1.0*curve_params_(3)*sin(theta);
+            j(1) = curve_params_(3)*cos(theta);
+            j(2) = curve_params_(4);
+         }
+         else
+         {
+            double cosphi = x[0] / r;
+            double sinphi = x[1] / r;
+
+            double j_r   = -curve_params_(3)*sin(theta);
+            double j_phi = curve_params_(4);
+            double j_z   = curve_params_(3)*cos(theta);
+
+            j(0) = j_r * cosphi - j_phi * sinphi;
+            j(1) = j_r * sinphi + j_phi * cosphi;
+            j(2) = j_z;
+         }
+         if (vol_profile_ == 1)
+         {
+            double arc_len = rmin*fabs(theta) - rmin*(theta_ext/2.0 + thetamin)*(M_PI/180.);
+            double dlant = rmin*((theta_ext*M_PI)/180.);
+            j *= 0.5 * (1.0 + sin(M_PI*((2.0 * arc_len + dlant)/dlant - 0.5)));
+         }
+      }
+      else if (r >= xmin && r <= xmax &&
+               z >= zmin2 && z <= zmax2)
+      {
+         if (!j_cyl_)
+         {
+            j(0) = curve_params_(3)*sin(theta);
+            j(1) = -1.0*curve_params_(3)*cos(theta);
+            j(2) = curve_params_(4);
+         }
+         else
+         {
+            double cosphi = x[0] / r;
+            double sinphi = x[1] / r;
+
+            double j_r   = -curve_params_(3)*sin(theta);
+            double j_phi = curve_params_(4);
+            double j_z   = curve_params_(3)*cos(theta);
+
+            j(0) = j_r * cosphi - j_phi * sinphi;
+            j(1) = j_r * sinphi + j_phi * cosphi;
+            j(2) = j_z;
+         }
+         if (vol_profile_ == 1)
+         {
+            double arc_len = rmin*fabs(theta) - rmin*(theta_ext/2.0 + thetamin)*(M_PI/180.);
+            double dlant = rmin*((theta_ext*M_PI)/180.);
+            j *= 0.5 * (1.0 + sin(M_PI*((2.0 * arc_len + dlant)/dlant - 0.5)));
+         }
+      }
+   }
+}
+
+void curve_current_source_r(const Vector &x, Vector &j)
+{
+   curve_current_source_v1_r(x, j);
+}
+
+void curve_current_source_i(const Vector &x, Vector &j)
+{
+   curve_current_source_v1_i(x, j);
 }
 
 void e_bc_r(const Vector &x, Vector &E)

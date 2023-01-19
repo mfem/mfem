@@ -1591,8 +1591,10 @@ double PlasmaProfile::Eval(ElementTransformation &T,
          if (val < 1 && bool_limits == 1) {norm_sqrt_psi = sqrt(val);}
 
          double ne = 1e14;
-         double pmin1 = 0.3e20;
-         double pmax1 = 3e20;
+         // double pmin1 = 0.3e20;
+         // double pmax1 = 3e20;
+         double pmin1 = 8.4e19;
+         double pmax1 = 4.2e20;
          double nuee = 3.0;
          double nuei = 3.0;
          //ne = (pmax1 - pmin1)*pow(1 - pow(norm_sqrt_psi, nuei), nuee) + pmin1;
