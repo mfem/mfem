@@ -2092,11 +2092,7 @@ SparseMatrix* FiniteElementSpace::DerefinementMatrix(int old_ndofs,
             if (is_dg || !mark[m])
             {
                lR.GetRow(i, row);
-
-               for (int j = 0; j < old_vdofs.Size(); j++)
-               {
-                  R->Set(r, old_vdofs[j], row[j]);
-               }
+               R->SetRow(r, old_vdofs, row);
 
                mark[m] = 1;
                num_marked++;
