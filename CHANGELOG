@@ -16,6 +16,9 @@ Meshing improvements
 - Added support for pyramids in non-conforming meshes. Currently only isotropic
   refinement is supported in this case.
 
+- Updated logic in FindPointsGSLIB to ignore points found near (but outside) the
+  domain boundary.
+
 Discretization improvements
 ---------------------------
 - TBD
