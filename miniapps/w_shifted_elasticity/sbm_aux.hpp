@@ -58,13 +58,10 @@ void Circle_Normal(const Vector &x, Vector &tN){
   double distX = ((x(0)-center(0))/r)*(radius-r);
   double distY = ((x(1)-center(1))/r)*(radius-r);
   double normD = sqrt(distX * distX + distY * distY);
-  if (r < radius){
-    tN(0) = -distX / normD;
-    tN(1) = -distY / normD;
-  }
-  else if (r > radius){
-    tN(0) = distX / normD;
-    tN(1) = distY / normD;
+  double isIn = (pow(x(0)-center(0),2.0)+pow(x(1)-center(1),2.0)-radius*radius) / std::fabs(pow(x(0)-center(0),2.0)+pow(x(1)-center(1),2.0)-radius*radius);
+  if (isIn != 0.0){
+    tN(0) = isIn * distX / normD;
+    tN(1) = isIn * distY / normD;
   }
   else{
     tN(0) = (center(0) - x(0))/radius;

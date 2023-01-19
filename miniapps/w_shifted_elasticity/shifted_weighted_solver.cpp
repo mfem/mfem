@@ -42,6 +42,21 @@ namespace mfem
     Function(transip, V);
   }
 
+  void ShiftedMatrixFunctionCoefficient::Eval(DenseMatrix &V,
+					      ElementTransformation & T,
+					      const IntegrationPoint & ip,
+					      const Vector &D)
+  {
+    Vector transip;
+    T.Transform(ip, transip);
+    for (int i = 0; i < D.Size(); i++)
+      {
+	transip(i) += D(i);
+      }
+    
+    Function(transip, V);
+  }
+
   void WeightedShiftedStressBoundaryForceIntegrator::AssembleFaceMatrix(const FiniteElement &fe,
 									const FiniteElement &fe2,
 									FaceElementTransformations &Tr,
@@ -527,13 +542,14 @@ namespace mfem
 	
       Vector nor(dim), bcEval(dim);
       Vector shape_el1(dofs_cnt), shape_el2(dofs_cnt);
-
+      DenseMatrix stress(dim);
       shape_el1 = 0.0;
 
       shape_el2 = 0.0;
       nor = 0.0;
       bcEval = 0.0;
-	
+      stress = 0.0;
+      
       const IntegrationRule *ir = IntRule;
       if (ir == NULL)
 	{
@@ -548,7 +564,7 @@ namespace mfem
       for (int q = 0; q  < nqp_face; q++)
 	{
 	  shape_el1 = 0.0;
-	  
+	  stress = 0.0;
 	  shape_el2 = 0.0;
 	  nor = 0.0;
 	  bcEval = 0.0;
@@ -568,9 +584,14 @@ namespace mfem
 	  vD->Eval(D_el1, Trans_el1, eip_el1);
 	  vN->Eval(tN_el1, Trans_el1, eip_el1);
 
-	  uD->Eval(bcEval, Trans_el1, eip_el1, D_el1);
+	  uD->Eval(stress, Trans_el1, eip_el1, D_el1);
 	  ///
-	    
+	  for (int s = 0; s < dim; s++){
+	    for (int k = 0; k < dim; k++){
+	      bcEval(s) += stress(s,k) * tN_el1(k);
+	    }
+	  }
+	       
 	  el.CalcShape(eip_el1, shape_el1);
 	  
 	  el2.CalcShape(eip_el2, shape_el2);

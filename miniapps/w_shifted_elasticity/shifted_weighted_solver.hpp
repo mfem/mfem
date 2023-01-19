@@ -62,6 +62,32 @@ public:
              const Vector &D);
 };
 
+  class ShiftedMatrixFunctionCoefficient : public MatrixCoefficient
+{
+protected:
+   std::function<void(const Vector &, DenseMatrix &)> Function;
+   int dim;
+public:
+   ShiftedMatrixFunctionCoefficient(int dim,
+                                    std::function<void(const Vector &, DenseMatrix &)> F)
+     : dim(dim), MatrixCoefficient(dim), Function(std::move(F)) { }
+
+   using MatrixCoefficient::Eval;
+   virtual void Eval(DenseMatrix &V, ElementTransformation &T,
+                     const IntegrationPoint &ip)
+   {
+      Vector D(dim);
+      D = 0.;
+      return (this)->Eval(V, T, ip, D);
+   }
+
+   /// Evaluate the coefficient at @a ip + @a D.
+   void Eval(DenseMatrix &V,
+             ElementTransformation &T,
+             const IntegrationPoint &ip,
+             const Vector &D);
+};
+
   class WeightedShiftedStressBoundaryForceIntegrator : public BilinearFormIntegrator
   {
   private:
@@ -106,14 +132,14 @@ public:
   private:
     const ParMesh *pmesh;
     ParGridFunction *alpha;
-    ShiftedVectorFunctionCoefficient *uD;
+    ShiftedMatrixFunctionCoefficient *uD;
     VectorCoefficient *vD;
     VectorCoefficient *vN;
     ShiftedFaceMarker *analyticalSurface;
     int par_shared_face_count;
     bool include_cut;
   public:
-    WeightedShiftedStressNitscheBCForceIntegrator(const ParMesh *pmesh, ParGridFunction &alphaF, ShiftedVectorFunctionCoefficient &uD_, VectorCoefficient *dist_vec, VectorCoefficient *normal_vec, ShiftedFaceMarker *analyticalSurface, bool includeCut = 0) : pmesh(pmesh), alpha(&alphaF), uD(&uD_), vD(dist_vec), vN(normal_vec), analyticalSurface(analyticalSurface), par_shared_face_count(0), include_cut(includeCut) {}
+    WeightedShiftedStressNitscheBCForceIntegrator(const ParMesh *pmesh, ParGridFunction &alphaF, ShiftedMatrixFunctionCoefficient &uD_, VectorCoefficient *dist_vec, VectorCoefficient *normal_vec, ShiftedFaceMarker *analyticalSurface, bool includeCut = 0) : pmesh(pmesh), alpha(&alphaF), uD(&uD_), vD(dist_vec), vN(normal_vec), analyticalSurface(analyticalSurface), par_shared_face_count(0), include_cut(includeCut) {}
     virtual void AssembleRHSElementVect(const FiniteElement &el,
 					const FiniteElement &el2,
 					FaceElementTransformations &Tr,

@@ -110,7 +110,8 @@ double AvgElementSize(ParMesh &pmesh);
     }
 
     /// Adds shifted displacement BC in direction 0(x),1(y),2(z), or 4(all).
-    void AddShiftedNormalStressBC(mfem::ShiftedVectorFunctionCoefficient& val)
+    void AddShiftedNormalStressBC(mfem::ShiftedMatrixFunctionCoefficient& val)
+
     {
       shifted_traction_BC = &val;
     }
@@ -190,7 +191,7 @@ double AvgElementSize(ParMesh &pmesh);
     std::map<mfem::Array<int> * ,mfem::VectorCoefficient*> displacement_BC;
 
     // shifted displacement BC
-    mfem::ShiftedVectorFunctionCoefficient* shifted_traction_BC;
+    mfem::ShiftedMatrixFunctionCoefficient* shifted_traction_BC;
 
     //surface loads
     std::map<mfem::Array<int> *,mfem::VectorCoefficient*> surf_loads;
