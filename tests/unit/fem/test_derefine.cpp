@@ -181,7 +181,7 @@ void test_derefine_L2_element(int order, Element::Type el_type, int basis_type)
    // deep copy the fine solution
    Vector xf = x;
    GridFunction x_fine(x.FESpace());
-   x_fine.SetData(xf);
+   x_fine.SetData(xf.GetData());
 
    double mass_fine = integrate(&x_fine);
 
