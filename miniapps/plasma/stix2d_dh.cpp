@@ -2472,13 +2472,32 @@ void rod_current_source_r(const Vector &x, Vector &j)
    double y0 = rod_params_(o+1);
    double radius = rod_params_(o+2);
 
-   double r2 = (x(0) - x0) * (x(0) - x0) + (x(1) - y0) * (x(1) - y0);
+   double r = (j_cyl_) ? sqrt(x[0] * x[0] + x[1] * x[1]) : x[0];
+   double z = (j_cyl_) ? x[2] : x[1];
+
+   double r2 = (r - x0) * (r - x0) + (z - y0) * (z - y0);
 
    if (r2 <= radius * radius)
    {
-      j(0) = rod_params_(0);
-      j(1) = rod_params_(1);
-      j(2) = rod_params_(2);
+      if (!j_cyl_)
+      {
+         j(0) = rod_params_(0);
+         j(1) = rod_params_(1);
+         j(2) = rod_params_(2);
+      }
+      else
+      {
+         double cosphi = x[0] / r;
+         double sinphi = x[1] / r;
+
+         double j_r   = rod_params_(0);
+         double j_phi = rod_params_(1);
+         double j_z   = rod_params_(2);
+
+         j(0) = j_r * cosphi - j_phi * sinphi;
+         j(1) = j_r * sinphi + j_phi * cosphi;
+         j(2) = j_z;
+      }
    }
    // j *= height;
 }
@@ -2498,15 +2517,34 @@ void rod_current_source_i(const Vector &x, Vector &j)
    double y0 = rod_params_(o+1);
    double radius = rod_params_(o+2);
 
-   double r2 = (x(0) - x0) * (x(0) - x0) + (x(1) - y0) * (x(1) - y0);
+   double r = (j_cyl_) ? sqrt(x[0] * x[0] + x[1] * x[1]) : x[0];
+   double z = (j_cyl_) ? x[2] : x[1];
+
+   double r2 = (r - x0) * (r - x0) + (z - y0) * (z - y0);
 
    if (r2 <= radius * radius)
    {
       if (cmplx)
       {
-         j(0) = rod_params_(3);
-         j(1) = rod_params_(4);
-         j(2) = rod_params_(5);
+         if (!j_cyl_)
+         {
+            j(0) = rod_params_(3);
+            j(1) = rod_params_(4);
+            j(2) = rod_params_(5);
+         }
+         else
+         {
+            double cosphi = x[0] / r;
+            double sinphi = x[1] / r;
+
+            double j_r   = rod_params_(3);
+            double j_phi = rod_params_(4);
+            double j_z   = rod_params_(5);
+
+            j(0) = j_r * cosphi - j_phi * sinphi;
+            j(1) = j_r * sinphi + j_phi * cosphi;
+            j(2) = j_z;
+         }
       }
    }
    // j *= height;
@@ -2528,14 +2566,33 @@ void slab_current_source_r(const Vector &x, Vector &j)
    double dx = slab_params_(o+2);
    double dy = slab_params_(o+3);
 
-   if (x[0] >= x0-0.5*dx && x[0] <= x0+0.5*dx &&
-       x[1] >= y0-0.5*dy && x[1] <= y0+0.5*dy)
+   double r = (j_cyl_) ? sqrt(x[0] * x[0] + x[1] * x[1]) : x[0];
+   double z = (j_cyl_) ? x[2] : x[1];
+
+   if (r >= x0-0.5*dx && r <= x0+0.5*dx &&
+       z >= y0-0.5*dy && z <= y0+0.5*dy)
    {
-      j(0) = slab_params_(0);
-      j(1) = slab_params_(1);
-      j(2) = slab_params_(2);
+      if (!j_cyl_)
+      {
+         j(0) = slab_params_(0);
+         j(1) = slab_params_(1);
+         j(2) = slab_params_(2);
+      }
+      else
+      {
+         double cosphi = x[0] / r;
+         double sinphi = x[1] / r;
+
+         double j_r   = slab_params_(0);
+         double j_phi = slab_params_(1);
+         double j_z   = slab_params_(2);
+
+         j(0) = j_r * cosphi - j_phi * sinphi;
+         j(1) = j_r * sinphi + j_phi * cosphi;
+         j(2) = j_z;
+      }
       if (slab_profile_ == 1)
-      { j *= 0.5 * (1.0 + sin(M_PI*((2.0 * (x[1] - y0) + dy)/dy - 0.5))); }
+      { j *= 0.5 * (1.0 + sin(M_PI*((2.0 * (z - y0) + dy)/dy - 0.5))); }
    }
 }
 
@@ -2555,16 +2612,35 @@ void slab_current_source_i(const Vector &x, Vector &j)
    double dx = slab_params_(o+2);
    double dy = slab_params_(o+3);
 
-   if (x[0] >= x0-0.5*dx && x[0] <= x0+0.5*dx &&
-       x[1] >= y0-0.5*dy && x[1] <= y0+0.5*dy)
+   double r = (j_cyl_) ? sqrt(x[0] * x[0] + x[1] * x[1]) : x[0];
+   double z = (j_cyl_) ? x[2] : x[1];
+
+   if (r >= x0-0.5*dx && r <= x0+0.5*dx &&
+       z >= y0-0.5*dy && z <= y0+0.5*dy)
    {
       if (cmplx)
       {
-         j(0) = slab_params_(3);
-         j(1) = slab_params_(4);
-         j(2) = slab_params_(5);
+         if (!j_cyl_)
+         {
+            j(0) = slab_params_(3);
+            j(1) = slab_params_(4);
+            j(2) = slab_params_(5);
+         }
+         else
+         {
+            double cosphi = x[0] / r;
+            double sinphi = x[1] / r;
+
+            double j_r   = slab_params_(3);
+            double j_phi = slab_params_(4);
+            double j_z   = slab_params_(5);
+
+            j(0) = j_r * cosphi - j_phi * sinphi;
+            j(1) = j_r * sinphi + j_phi * cosphi;
+            j(2) = j_z;
+         }
          if (slab_profile_ == 1)
-         { j *= 0.5 * (1.0 + sin(M_PI*((2.0 * (x[1] - y0) + dy)/dy - 0.5))); }
+         { j *= 0.5 * (1.0 + sin(M_PI*((2.0 * (z - y0) + dy)/dy - 0.5))); }
       }
    }
 }
