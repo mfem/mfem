@@ -39,10 +39,83 @@ void LSZienkiewiczZhuEstimator::ComputeEstimates()
                                     subdomain_reconstruction,
                                     with_coeff,
                                     tichonov_coeff,
-                                    sol_based);
+                                    sol_based,
+                                    &perfaces,
+                                    &xoffsets,
+                                    &yoffsets);
 
    current_sequence = solution.FESpace()->GetMesh()->GetSequence();
 }
+
+void LSZienkiewiczZhuEstimator::EnablePeriodicityInADoublyPeriodicCartesianMesh()
+{
+    const int nfaces = solution.FESpace()->GetNF();
+    int per_face_count = 0;
+    double offset = 0.0;
+    Mesh *mesh = solution.FESpace()->GetMesh();
+    const int dim = mesh->Dimension();
+    MFEM_VERIFY(dim == 2, "EnablePeriodicityInADoublyPeriodicCartesianMesh only"
+                          "works for dim=2");
+    Vector xmin(dim), xmax(dim);
+    perfaces.SetSize(nfaces);
+    perfaces = -1;
+
+    mesh->GetBoundingBox(xmin, xmax);
+
+    for (int iface = 0; iface < nfaces; iface++)
+    {
+       int el1;
+       int el2;
+       mesh->GetFaceElements(iface, &el1, &el2);
+
+       // 1.B. Check if boundary face or non-conforming coarse face and continue if true.
+       if (el1 == -1 || el2 == -1)
+       {
+          continue;
+       }
+       else {
+           FaceElementTransformations *Tr = mesh->GetFaceElementTransformations(iface);
+           Vector center(dim);
+           int geom = mesh->GetFaceBaseGeometry(iface);
+           Tr->Transform(Geometries.GetCenter(geom), center);
+           double offset;
+           int periodic = 1;
+           if (center(0) == xmin(0)) {
+               offset = xmin(0)-xmax(0);
+               perfaces[iface] = per_face_count;
+               xoffsets.Append(offset);
+               yoffsets.Append(0.0);
+               per_face_count++;
+           }
+           else if (center(0) == xmax(0)) {
+               offset = xmax(0)-xmin(0);
+               perfaces[iface] = per_face_count;
+               xoffsets.Append(offset);
+               yoffsets.Append(0.0);
+               per_face_count++;
+           }
+           else if (center(1) == xmin(1)) {
+               offset = xmin(1)-xmax(1);
+               perfaces[iface] = per_face_count;
+               yoffsets.Append(offset);
+               xoffsets.Append(0.0);
+               per_face_count++;
+           }
+           else if (center(1) == xmax(1)) {
+               offset = xmax(1)-xmin(1);
+               perfaces[iface] = per_face_count;
+               yoffsets.Append(offset);
+               xoffsets.Append(0.0);
+               per_face_count++;
+           }
+           else {
+               periodic = 0;
+           }
+       }
+    }
+}
+
+
 
 #ifdef MFEM_USE_MPI
 

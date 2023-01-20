@@ -246,11 +246,14 @@ protected:
    double total_error;
    bool subdomain_reconstruction = true;
    double tichonov_coeff;
-   bool sol_based;
 
    BilinearFormIntegrator &integ;
    GridFunction &solution;
    bool with_coeff;
+
+   bool sol_based;
+   Array<int> perfaces;
+   Array<double> xoffsets, yoffsets;
 
    /// Check if the mesh of the solution was modified.
    bool MeshIsModified()
@@ -277,7 +280,8 @@ public:
         integ(integ),
         solution(sol),
         with_coeff(false),
-        sol_based(false)
+        sol_based(false),
+        perfaces(0), xoffsets(0), yoffsets(0)
    { }
 
    /** @brief Consider the coefficient in BilinearFormIntegrator to calculate
@@ -313,6 +317,8 @@ public:
    virtual void Reset() override { current_sequence = -1; }
 
    virtual void EnableSolutionBasedFit() { sol_based = true; }
+
+   virtual void EnablePeriodicityInADoublyPeriodicCartesianMesh();
 
    virtual ~LSZienkiewiczZhuEstimator() { }
 };

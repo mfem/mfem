@@ -4403,7 +4403,9 @@ void BoundingBox(const Array<int> &patch,  // input
                  Vector &xmax,             // output
                  double &angle,            // output
                  Vector &midpoint,         // output
-                 int iface)                // input (optional)
+                 int iface,                // input (optional)
+                 Vector offsets)           // input (for 2nd element sharing the
+                                           //        face in a periodic mesh)
 {
    Mesh *mesh = ufes->GetMesh();
    int dim = mesh->Dimension();
@@ -4414,7 +4416,7 @@ void BoundingBox(const Array<int> &patch,  // input
    xmin = infinity();
    angle = 0.0;
    midpoint = 0.0;
-   bool rotate = (dim == 2);
+   bool rotate = (dim == 2) && offsets.Norml2() == 0.0;
 
    // Rotate bounding box to match the face orientation
    if (rotate && iface >= 0)
@@ -4449,6 +4451,9 @@ void BoundingBox(const Array<int> &patch,  // input
          const IntegrationPoint ip = ir->IntPoint(k);
          Vector transip(dim);
          Tr.Transform(ip, transip);
+         if (i == 1) {
+             transip += offsets;
+         }
          if (rotate)
          {
             transip -= midpoint;
@@ -4469,11 +4474,15 @@ double LSZZErrorEstimator(BilinearFormIntegrator &blfi,  // input
                           bool subdomain_reconstruction, // input (optional)
                           bool with_coeff,               // input (optional)
                           double tichonov_coeff,         // input (optional)
-                          bool sol_based)
+                          bool sol_based,
+                          Array<int> *perfaces,
+                          Array<double> *xoffsets,
+                          Array<double> *yoffsets)
 {
    MFEM_VERIFY(tichonov_coeff >= 0.0, "tichonov_coeff cannot be negative");
    FiniteElementSpace *ufes = u.FESpace();
    ElementTransformation *Transf;
+   bool periodic = perfaces && perfaces->Size() > 0 ? true : false;
 
    Mesh *mesh = ufes->GetMesh();
    int dim = mesh->Dimension();
@@ -4542,8 +4551,23 @@ double LSZZErrorEstimator(BilinearFormIntegrator &blfi,  // input
 
       // 2.B. Estimate the smallest bounding box around the face patch
       //      (this is used in 2.C.ii. to define a global polynomial basis)
+      Vector per_offsets(dim);
+      per_offsets = 0.0;
+      if (periodic) {
+          if ((*perfaces)[iface] >=0 ) {
+              per_offsets(0) = (*xoffsets)[(*perfaces)[iface]];
+              per_offsets(1) = (*yoffsets)[(*perfaces)[iface]];
+          }
+//          std::cout << el1 << " " << el2 << " k10elem1eleem2\n";
+//          per_offsets.Print();
+//          per_offsets = 0.0;
+      }
       BoundingBox(patch, ufes, flux_order,
-                  xmin, xmax, angle, midpoint, iface);
+                  xmin, xmax, angle, midpoint, iface, per_offsets);
+      if ((*perfaces)[iface] >=0 ) {
+//          xmin.Print();
+//          xmax.Print();
+      }
 
       // 2.C. Compute the normal equations for the least-squares problem
       // 2.C.i. Evaluate the discrete flux at all integration points in all
@@ -4577,6 +4601,9 @@ double LSZZErrorEstimator(BilinearFormIntegrator &blfi,  // input
             double tmp[3];
             Vector transip(tmp, 3);
             Transf->Transform(ip, transip);
+            if (i == 1) {
+                transip += per_offsets;
+            }
 
             Vector p;
             TensorProductLegendre(dim, patch_order, transip, xmax, xmin, p, angle,
@@ -4622,34 +4649,6 @@ double LSZZErrorEstimator(BilinearFormIntegrator &blfi,  // input
       }
       lu.Solve(num_basis_functions, sdim, b);
 
-      // 2.F. Construct l2-minimizing global polynomial
-      auto global_poly_tmp = [=] (const Vector &x, Vector &f)
-      {
-         Vector p;
-         TensorProductLegendre(dim, patch_order, x, xmax, xmin, p, angle, &midpoint);
-         f = 0.0;
-         for (int i = 0; i < num_basis_functions; i++)
-         {
-            for (int j = 0; j < sdim; j++)
-            {
-               f(j) += b[i + j * num_basis_functions] * p(i);
-            }
-         }
-      };
-      VectorFunctionCoefficient global_poly(sdim, global_poly_tmp);
-
-      auto global_poly_tmp_scalar = [=] (const Vector &x)
-      {
-         Vector p;
-         TensorProductLegendre(dim, patch_order, x, xmax, xmin, p, angle, &midpoint);
-         double f = 0.0;
-         for (int i = 0; i < num_basis_functions; i++)
-         {
-            f += b[i] * p(i);
-         }
-         return f;
-      };
-      FunctionCoefficient global_poly_scalar(global_poly_tmp_scalar);
 
       // 3. Compute error contributions from the face.
       double element_error = 0.0;
@@ -4657,6 +4656,40 @@ double LSZZErrorEstimator(BilinearFormIntegrator &blfi,  // input
       for (int i = 0; i < patch.Size(); i++)
       {
          int ielem = patch[i];
+
+         // 2.F. Construct l2-minimizing global polynomial
+         auto global_poly_tmp = [=] (const Vector &x, Vector &f)
+         {
+            Vector p;
+            Vector xc = x;
+            if (i == 1) { xc += per_offsets; }
+            TensorProductLegendre(dim, patch_order, xc, xmax, xmin, p, angle, &midpoint);
+            f = 0.0;
+            for (int i = 0; i < num_basis_functions; i++)
+            {
+               for (int j = 0; j < sdim; j++)
+               {
+                  f(j) += b[i + j * num_basis_functions] * p(i);
+               }
+            }
+         };
+         VectorFunctionCoefficient global_poly(sdim, global_poly_tmp);
+
+         auto global_poly_tmp_scalar = [=] (const Vector &x)
+         {
+            Vector p;
+            Vector xc = x;
+            if (i == 1) { xc += per_offsets; }
+            TensorProductLegendre(dim, patch_order, xc, xmax, xmin, p, angle, &midpoint);
+            double f = 0.0;
+            for (int i = 0; i < num_basis_functions; i++)
+            {
+               f += b[i] * p(i);
+            }
+            return f;
+         };
+         FunctionCoefficient global_poly_scalar(global_poly_tmp_scalar);
+
          element_error = sol_based ?
                          u.ComputeElementL2Error(ielem, &global_poly_scalar) :
                          u.ComputeElementGradError(ielem, &global_poly);

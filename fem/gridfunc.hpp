@@ -1015,7 +1015,10 @@ double LSZZErrorEstimator(BilinearFormIntegrator &blfi,         // input
                           bool subdomain_reconstruction = true, // input (optional)
                           bool with_coeff = false,              // input (optional)
                           double tichonov_coeff = 0.0,          // input (optional)
-                          bool sol_based = false);
+                          bool sol_based = false,
+                          Array<int> *perfaces = NULL,
+                          Array<double> *xoffsets = NULL,
+                          Array<double> *yoffsets = NULL);
 
 /// Compute the Lp distance between two grid functions on the given element.
 double ComputeElementLpDistance(double p, int i,
