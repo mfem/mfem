@@ -376,14 +376,63 @@ int main (int argc, char *argv[])
    //    transformation of the reference element.
    pmesh->SetNodalFESpace(pfespace);
 
-   // 6. Set up an empty right-hand side vector b, which is equivalent to b=0.
-   Vector b(0);
-
    // 7. Get the mesh nodes (vertices and other degrees of freedom in the finite
    //    element space) as a finite element grid function in fespace. Note that
    //    changing x automatically changes the shapes of the mesh elements.
    ParGridFunction x(pfespace);
    pmesh->SetNodalGridFunction(&x);
+
+//   {
+//      socketstream sock1;
+//      common::VisualizeMesh(sock1, "localhost", 19916, *pmesh, "mesh");
+
+//      // Volume.
+//      double volume = 0.5;
+
+//      // Aspect Ratio.
+//      double a_r = 2.0;
+//      DenseMatrix M_ar(2); M_ar = 0.0;
+//      M_ar(0, 0) = 1.0 / sqrt(a_r);
+//      M_ar(1, 1) = sqrt(a_r);
+
+//      // Skew.
+//      double skew_angle = M_PI / 4.0;
+//      DenseMatrix M_skew(2);
+//      M_skew(0, 0) = 1.0; M_skew(0, 1) = cos(skew_angle);
+//      M_skew(1, 0) = 0.0; M_skew(1, 1) = sin(skew_angle);
+
+//      // Rotation.
+//      double rot_angle = M_PI / 2.0;
+//      DenseMatrix M_rot(2);
+//      M_rot(0, 0) = cos(rot_angle); M_rot(0, 1) = -sin(rot_angle);
+//      M_rot(1, 0) = sin(rot_angle); M_rot(1, 1) =  cos(rot_angle);
+
+//      // Form J.
+//      DenseMatrix TMP(2), J(2);
+//      Mult(M_rot, M_skew, TMP);
+//      Mult(TMP, M_ar, J);
+//      J *= sqrt(volume / sin(skew_angle));
+
+//      const int nodes_cnt = x.Size() / 2;
+//      for (int i = 0; i < nodes_cnt; i++)
+//      {
+//         Vector X(2);
+//         X(0) = x(i); X(1) = x(i + nodes_cnt);
+//         Vector Jx(2);
+//         J.Mult(X, Jx);
+//         x(i) = Jx(0);  x(i + nodes_cnt) = Jx(1);
+//      }
+
+//      socketstream sock2;
+//      common::VisualizeMesh(sock2, "localhost", 19916, *pmesh, "mesh", 400, 0);
+
+//      // Target is always identity -> Jpt = Jpr.
+//      TMOP_Metric_001 metric2;
+//      TMOP_Metric_077 metric77;
+//      cout << metric2.EvalW(J) << " " << metric77.EvalW(J) << endl;
+
+//      //return 0;
+//   }
 
    // 8. Define a vector representing the minimal local mesh size in the mesh
    //    nodes. We index the nodes using the scalar version of the degrees of
@@ -825,8 +874,9 @@ int main (int argc, char *argv[])
    auto metric_combo = dynamic_cast<TMOP_Combo_QualityMetric *>(metric);
    if (metric_combo && bal_expl_combo)
    {
-      Vector bal_weights;
-      metric_combo->ComputeBalancedWeights(x, *target_c, bal_weights);
+      Vector bal_weights(2);
+      metric_combo->ComputeBalancedWeights(x, *target_c,
+                                           TMOP_Combo_QualityMetric::Universal, bal_weights);
       metric_combo->SetWeights(bal_weights);
    }
 
