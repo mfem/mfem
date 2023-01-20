@@ -647,6 +647,7 @@ int main(int argc, char *argv[])
    solOpts.kDim = 50;
    solOpts.printLvl = 1;
    solOpts.relTol = 1e-4;
+   solOpts.absTol = 1e-6;
    solOpts.euLvl = 1;
 
    bool logo = false;
@@ -794,6 +795,9 @@ int main(int argc, char *argv[])
                   "Krylov space dimension for GMRES and FGMRES.");
    args.AddOption(&solOpts.relTol, "-sol-tol", "--solver-tolerance",
                   "Relative tolerance for GMRES or FGMRES.");
+   args.AddOption(&solOpts.absTol, "-sol-abs-tol",
+                  "--solver-absolute-tolerance",
+                  "Absolute tolerance for GMRES or FGMRES.");
    args.AddOption(&solOpts.printLvl, "-sol-prnt-lvl", "--solver-print-level",
                   "Logging level for solvers.");
    args.AddOption(&solOpts.euLvl, "-eu-lvl", "--euclid-level",

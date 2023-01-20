@@ -40,6 +40,7 @@ struct SolverOptions
    int kDim;
    int printLvl;
    double relTol;
+   double absTol;
 
    // Euclid Options
    int euLvl;
