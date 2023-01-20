@@ -68,11 +68,22 @@ void TMOP_Combo_QualityMetric::AssembleH(const DenseMatrix &Jpt,
 
 void TMOP_Combo_QualityMetric::
 ComputeBalancedWeights(const GridFunction &nodes, const TargetConstructor &tc,
-                       Vector &weights) const
+                       BalanceType bal_type, Vector &weights) const
 {
-   Vector averages;
-   ComputeAvgMetrics(nodes, tc, averages);
    const int m_cnt = tmop_q_arr.Size();
+   Vector averages;
+   if (bal_type == AvgOnInitialMesh)
+   {
+      ComputeAvgMetrics(nodes, tc, averages);
+   }
+   else
+   {
+      averages.SetSize(m_cnt);
+      for (int m = 0; m < m_cnt; m++)
+      {
+         averages(m) = tmop_q_arr[m]->Magnitude();
+      }
+   }
    weights.SetSize(m_cnt);
 
    // For [ combo_A_B_C = a m_A + b m_B + c m_C ] we would have:
