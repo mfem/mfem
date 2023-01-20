@@ -1888,6 +1888,11 @@ void CPDSolverDH::computeD(const ParComplexGridFunction & h,
                            const ParComplexGridFunction & j,
                            ParComplexGridFunction & d)
 {
+   if (myid_ == 0)
+   {
+      cout << "Computing D as i (Curl(H) - J) / omega." << endl;
+   }
+
    d.real().Set( 1.0 / omega_, j.imag());
    d.imag().Set(-1.0 / omega_, j.real());
 
@@ -1919,6 +1924,11 @@ void CPDSolverDH::computeD(const ParComplexGridFunction & h,
 void CPDSolverDH::computeE(const ParComplexGridFunction & d,
                            ParComplexGridFunction & e)
 {
+   if (myid_ == 0)
+   {
+      cout << "Computing E as epsilon^{-1} D." << endl;
+   }
+
    m21EpsInv_->Mult(d, *rhs1_);
    rhs1_->SyncAlias();
 
@@ -1936,23 +1946,88 @@ void CPDSolverDH::computeE(const ParComplexGridFunction & d,
    Vector E, RHS1;
 
    m1_->FormLinearSystem(sbc_nd_tdofs_, e, *rhs1_, M1, E, RHS1);
+   /*
+   bool minres = false;
+   if (minres)
+   {
+     HypreDiagScale diag_r(M1.As<ComplexHypreParMatrix>()->real());
+     Operator * diag_i = &diag_r;
 
-   HypreDiagScale diag_r(M1.As<ComplexHypreParMatrix>()->real());
-   Operator * diag_i = &diag_r;
+     BlockDiagonalPreconditioner diag(blockTrueOffsets_);
+     diag.SetDiagonalBlock(0, &diag_r);
+     diag.SetDiagonalBlock(1, diag_i);
+     diag.owns_blocks = 0;
 
-   BlockDiagonalPreconditioner diag(blockTrueOffsets_);
-   diag.SetDiagonalBlock(0, &diag_r);
-   diag.SetDiagonalBlock(1, diag_i);
-   diag.owns_blocks = 0;
+     MINRESSolver minres(HCurlFESpace_->GetComm());
+     // minres.SetPreconditioner(diag);
+     minres.SetOperator(*M1.Ptr());
+     minres.SetRelTol(solOpts_.relTol);
+     minres.SetMaxIter(solOpts_.maxIter);
+     minres.SetPrintLevel(solOpts_.printLvl+1);
 
-   MINRESSolver minres(HCurlFESpace_->GetComm());
-   minres.SetPreconditioner(diag);
-   minres.SetOperator(*M1.Ptr());
-   minres.SetRelTol(solOpts_.relTol);
-   minres.SetMaxIter(solOpts_.maxIter);
-   minres.SetPrintLevel(solOpts_.printLvl+1);
+     minres.Mult(RHS1, E);
+   }
+   else
+   {
+     GMRESSolver gmres(MPI_COMM_WORLD);
+     gmres.SetOperator(*M1.Ptr());
+     gmres.SetKDim(solOpts_.kDim);
+     gmres.SetRelTol(solOpts_.relTol);
+     gmres.SetAbsTol(solOpts_.absTol);
+     gmres.SetMaxIter(solOpts_.maxIter);
+     gmres.SetPrintLevel(1);
 
-   minres.Mult(RHS1, E);
+     gmres.Mult(RHS1, E);
+   }
+   */
+#ifdef MFEM_USE_MUMPS
+   {
+      bool dmumps = true;
+      if (dmumps)
+      {
+         if ( myid_ == 0 && logging_ > 0 )
+         {
+            cout << "MUMPS Solver for E" << endl;
+         }
+
+         ComplexHypreParMatrix * M1Z = M1.As<ComplexHypreParMatrix>();
+         HypreParMatrix * M1C = M1Z->GetSystemMatrix();
+         MUMPSSolver MInv;
+         MInv.SetOpertor(*M1C);
+         MInv.Mult(RHS1, E);
+         delete M1C;
+      }
+      else
+      {
+         if ( myid_ == 0 && logging_ > 0 )
+         {
+            cout << "ComplexMUMPS Solver for E" << endl;
+         }
+
+         ComplexMUMPSSolver MInv;
+         MInv.SetOperator(*M1);
+         MInv.Mult(RHS1, E);
+      }
+   }
+#else
+#ifdef MFEM_USE_SUPERLU
+   {
+      if ( myid_ == 0 && logging_ > 0 )
+      {
+         cout << "SuperLU Solver for E" << endl;
+      }
+
+      ComplexHypreParMatrix * M1Z = M1.As<ComplexHypreParMatrix>();
+      HypreParMatrix * M1C = M1Z->GetSystemMatrix();
+      SuperLURowLocMatrix M_SuperLU(*M1C);
+      SuperLUSolver MInv(MPI_COMM_WORLD);
+      MInv.SetOperator(M_SuperLU);
+      MInv.Mult(RHS1, E);
+
+      delete M1C;
+   }
+#endif
+#endif
 
    m1_->RecoverFEMSolution(E, *rhs1_, e);
 
