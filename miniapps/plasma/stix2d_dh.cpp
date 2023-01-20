@@ -1350,6 +1350,8 @@ int main(int argc, char *argv[])
     */
 
    H1_ParFESpace H1FESpace(&pmesh, order, pmesh.Dimension());
+   H1_ParFESpace H1VFESpace(&pmesh, order, pmesh.Dimension(),
+                            BasisType::GaussLobatto, 3);
    ND_ParFESpace HCurlFESpace(&pmesh, order, pmesh.Dimension());
    RT_ParFESpace HDivFESpace(&pmesh, order, pmesh.Dimension());
    L2_ParFESpace L2FESpace(&pmesh, order, pmesh.Dimension());
@@ -1642,6 +1644,8 @@ int main(int argc, char *argv[])
 
    VectorConstantCylCoefficient kReCoef(cyl, kReVec);
    VectorConstantCylCoefficient kImCoef(cyl, kImVec);
+   ParComplexGridFunction k_gf(&H1VFESpace);
+   k_gf.ProjectCoefficient(kReCoef, kImCoef);
 
    /*
    if (wave_type[0] == 'J' && slab_params_.Size() == 5)
@@ -1985,6 +1989,9 @@ int main(int argc, char *argv[])
       visit_dc.RegisterField("Collisional_Profile", &nue_gf);
 
       visit_dc.RegisterField("B_background", &BField);
+
+      visit_dc.RegisterField("Re_Phase_Shift", &k_gf.real());
+      visit_dc.RegisterField("Im_Phase_Shift", &k_gf.imag());
 
       CPD.WriteVisItFields(0);
    }
@@ -2802,9 +2809,9 @@ void curve_current_source_v1_i(const Vector &x, Vector &j)
 
    if (curve_params_.Size() < 4)
    {
-     return;
+      return;
    }
-   
+
    double r = (j_cyl_) ? sqrt(x[0] * x[0] + x[1] * x[1]) : x[0];
    double z = (j_cyl_) ? x[2] : x[1];
 
