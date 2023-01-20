@@ -186,8 +186,8 @@ public:
          double cosphi = x[0] / r;
          double sinphi = x[1] / r;
 
-         V[0] = vec[0] * cosphi - vec[1] * sinphi;
-         V[1] = vec[0] * sinphi + vec[1] * cosphi;
+         V[0] = vec[0] * cosphi - vec[1] * r * sinphi;
+         V[1] = vec[0] * sinphi + vec[1] * r * cosphi;
          V[2] = vec[2];
       }
       else
