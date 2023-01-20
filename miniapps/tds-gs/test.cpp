@@ -119,6 +119,11 @@ void test_solve() {
   double c5 = 1.0;
   double c6 = 1.0;
   double c7 = 1.0;
+  double c8 = 1.0;
+  double c9 = 1.0;
+  double c10 = 1.0;
+  double c11 = 1.0;
+  double ur_coeff = 1.0;
 
   vector<double> errors;
   double error;
@@ -126,7 +131,8 @@ void test_solve() {
   for (d_refine = 0; d_refine <= 2; ++d_refine) {
     error = gs(mesh_file, data_file, order, d_refine, alpha, beta, lambda, gamma, mu, r0, rho_gamma,
                max_krylov_iter, max_newton_iter, krylov_tol, newton_tol,
-               c1, c2, c3, c4, c5, c6, c7,
+               c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11,
+               ur_coeff,
                do_manufactured_solution);
     errors.push_back(error);
   }

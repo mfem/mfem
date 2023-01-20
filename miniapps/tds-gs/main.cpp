@@ -113,6 +113,12 @@ int main(int argc, char *argv[])
    double c5 = 1.0;
    double c6 = 1.0;
    double c7 = 1.0;
+   double c8 = 1.0;
+   double c9 = 1.0;
+   double c10 = 1.0;
+   double c11 = 1.0;
+
+   double ur_coeff = 1.0;
    
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh", "Mesh file to use.");
@@ -140,6 +146,12 @@ int main(int argc, char *argv[])
    args.AddOption(&c5, "-c5", "--c5", "coil 5");
    args.AddOption(&c6, "-c6", "--c6", "coil 6");
    args.AddOption(&c7, "-c7", "--c7", "coil 7");
+   args.AddOption(&c8, "-c8", "--c8", "coil 8");
+   args.AddOption(&c9, "-c9", "--c9", "coil 9");
+   args.AddOption(&c10, "-c10", "--c10", "coil 10");
+   args.AddOption(&c11, "-c11", "--c11", "coil 11");
+
+   args.AddOption(&ur_coeff, "-ur", "--ur_coeff", "under relaxation coefficient");
 
    
    args.ParseCheck();
@@ -150,7 +162,8 @@ int main(int argc, char *argv[])
    } else {
      gs(mesh_file, data_file, order, d_refine, alpha, beta, lambda, gamma, mu, r0, rho_gamma,
         max_krylov_iter, max_newton_iter, krylov_tol, newton_tol,
-        c1, c2, c3, c4, c5, c6, c7,
+        c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11,
+        ur_coeff,
         do_manufactured_solution);
    }
    

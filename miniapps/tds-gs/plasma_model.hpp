@@ -2,28 +2,51 @@
 #define PLASMA_MODEL
 
 #include "mfem.hpp"
+#include <fstream>
+#include <iostream>
 #include <set>
 using namespace mfem;
 using namespace std;
 
+class PlasmaModelBase
+{
+private:
+  double coeff_u2 = 0.0; // coefficient of u^2, for debugging
+  double mu0;
+public:
+  PlasmaModelBase() {}
+  virtual double S_p_prime(double & psi_N) const {return 1.0;};
+  virtual double S_ff_prime(double & psi_N) const {return 1.0;};
+  virtual double S_prime_p_prime(double & psi_N) const {return 1.0;};
+  virtual double S_prime_ff_prime(double & psi_N) const {return 1.0;};
+  virtual double get_mu() const {return mu0;}
+  virtual double get_coeff_u2() const {return coeff_u2;}
+  // ~PlasmaModel() {}
+};
 
 /*
   Contains functions associated with the plasma model. 
   They appear on the RHS of the equation.
 */
-class PlasmaModel
+class PlasmaModel : public PlasmaModelBase
 {
 private:
   double alpha;
   double beta;
   double lambda;
   double gamma;
-  double mu0;
   double r0;
+  double mu0;
   double coeff_u2 = 0.0; // coefficient of u^2, for debugging
+  const char *data_file;
+  bool use_model = true;
+
+  
 public:
   PlasmaModel(double & alpha_, double & beta_, double & lambda_, double & gamma_, double & mu0_, double & r0_) :
-    alpha(alpha_), beta(beta_), lambda(lambda_), gamma(gamma_), mu0(mu0_), r0(r0_) { }
+    alpha(alpha_), beta(beta_), lambda(lambda_), gamma(gamma_), mu0(mu0_), r0(r0_)
+  {
+  }
   double S_p_prime(double & psi_N) const;
   double S_ff_prime(double & psi_N) const;
   double S_prime_p_prime(double & psi_N) const;
@@ -32,6 +55,56 @@ public:
   double get_coeff_u2() const {return coeff_u2;}
   ~PlasmaModel() { }
 };
+
+
+class PlasmaModelFile : public PlasmaModelBase
+{
+private:
+  const char *data_file;
+  vector<double> ffprime_vector;
+  vector<double> pprime_vector;
+  double mu0;
+  int N;
+  double dx;
+public:
+  PlasmaModelFile(double & mu0_, const char *data_file_) :
+    mu0(mu0_), data_file(data_file_)
+  {
+
+    // cout << data_file_ << endl;
+    
+    ifstream inFile;
+    inFile.open(data_file_);
+
+    if (!inFile) {
+      cerr << "Unable to open file" << data_file << endl;
+      exit(1);   // call system to stop
+    }
+
+    string line;
+    istringstream *iss;
+
+    double fpol, pres, ffprime, pprime;
+    while (getline(inFile, line)) {
+      iss = new istringstream(line);
+      *iss >> fpol >> pres >> ffprime >> pprime;
+      // cout << fpol << " " << pres << " " << ffprime << " " << pprime << endl;
+      ffprime_vector.push_back(ffprime);
+      pprime_vector.push_back(pprime);
+    }
+
+    N = ffprime_vector.size();
+    dx = 1.0 / (N - 1.0);
+
+  }
+  double S_p_prime(double & psi_N) const;
+  double S_ff_prime(double & psi_N) const;
+  double S_prime_p_prime(double & psi_N) const;
+  double S_prime_ff_prime(double & psi_N) const;
+  double get_mu() const {return mu0;}
+  ~PlasmaModelFile() { }
+};
+
 
 /*
   Coefficient for the nonlinear term
@@ -45,14 +118,14 @@ class NonlinearGridCoefficient : public Coefficient
 {
 private:
   const GridFunction *psi;
-  PlasmaModel *model;
+  PlasmaModelBase *model;
   int option;
   double psi_max;
   double psi_bdp;
   set<int> plasma_inds;
   int attr_lim;
 public:
-  NonlinearGridCoefficient(PlasmaModel *pm, int option_, const GridFunction *psi_,
+  NonlinearGridCoefficient(PlasmaModelBase *pm, int option_, const GridFunction *psi_,
                            double & psi_max_, double & psi_bdp_, set<int> plasma_inds_,
                            int attr_lim_) :
     model(pm), option(option_), psi(psi_),

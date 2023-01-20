@@ -72,6 +72,57 @@ double PlasmaModel::S_prime_ff_prime(double & psi_N) const
     * pow(1.0 - pow(psi_N, alpha), gamma - 1.0)
     * pow(psi_N, alpha - 1.0);
 }
+
+
+
+double PlasmaModelFile::S_p_prime(double & psi_N) const
+{
+  // outside plasma, return 0
+  if ((psi_N > 1.0) || (psi_N < 0.0)) {
+    return 0.0;
+  }
+  int index = (int) psi_N / dx;
+  double alpha = (psi_N - index * dx) / dx;
+  
+  return alpha * pprime_vector[index+1] + (1 - alpha) * pprime_vector[index];
+}
+double PlasmaModelFile::S_prime_p_prime(double & psi_N) const
+{
+  // outside plasma, return 0
+  if ((psi_N > 1.0) || (psi_N < 0.0)) {
+    return 0.0;
+  }
+  int index = (int) psi_N / dx;
+  double alpha = (psi_N - index * dx) / dx;
+  
+  return (pprime_vector[index+1] - pprime_vector[index]) / dx;
+}
+double PlasmaModelFile::S_ff_prime(double & psi_N) const
+{
+  // outside plasma, return 0
+  if ((psi_N > 1.0) || (psi_N < 0.0)) {
+    return 0.0;
+  }
+  int index = (int) psi_N / dx;
+  double alpha = (psi_N - index * dx) / dx;
+  
+  return alpha * ffprime_vector[index+1] + (1 - alpha) * ffprime_vector[index];
+}
+double PlasmaModelFile::S_prime_ff_prime(double & psi_N) const
+{
+  // outside plasma, return 0
+  if ((psi_N > 1.0) || (psi_N < 0.0)) {
+    return 0.0;
+  }
+
+  int index = (int) psi_N / dx;
+  double alpha = (psi_N - index * dx) / dx;
+  
+  return (ffprime_vector[index+1] - ffprime_vector[index]) / dx;
+}
+
+
+
 double normalized_psi(double & psi, double & psi_max, double & psi_bdp)
 {
   if (false) {
@@ -275,8 +326,8 @@ void compute_plasma_points(const GridFunction & z, const Mesh & mesh,
    const double* x_max = mesh.GetVertex(ind_max);
    const double* x_x = mesh.GetVertex(ind_x);
    
+   cout << "total saddles found: " << count << endl;
    if (iprint) {
-     cout << "total saddles found: " << count << endl;
      printf("  min of %9.6f at (%9.6f, %9.6f), ind %d\n", min_val, x_min[0], x_min[1], ind_min);
      printf("  max of %9.6f at (%9.6f, %9.6f), ind %d\n", max_val, x_max[0], x_max[1], ind_max);
      printf("x_val of %9.6f at (%9.6f, %9.6f), ind %d\n", x_val, x_x[0], x_x[1], ind_x);

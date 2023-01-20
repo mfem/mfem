@@ -1,30 +1,42 @@
 #!/bin.sh
 
+# more coils
+# iter psi relations
+# 
 
 alpha=0.9
 beta=1.5
 gamma=0.9
-lambda=1806600
+lambda=-10000
 # lambda=100.0
 R0=2.4
-rho_gamma=12
-mu=1.0
+rho_gamma=16
+# mu=1e-6
+mu=12.5663706144e-7
 mesh_file="meshes/iter_gen.msh"
 data_file="separated_file.data"
-refinement_factor=0
+refinement_factor=2
 do_test=0
 do_manufactured_solution=0
 max_krylov_iter=1000
-max_newton_iter=20
+max_newton_iter=12
 krylov_tol=1e-12
 newton_tol=1e-12
-c1=0
-c2=-300
-c3=100
-c4=-300
-c5=-300
-c6=-300
-c7=-300
+# center solenoids
+c6=4.552585e+06
+c7=-3.180596e+06
+c8=-5.678096e+06
+c9=-3.825538e+06
+c10=-1.066498e+07
+c11=2.094771e+07
+# poloidal flux coils
+c1=1.143284e+03
+c2=-2.478694e+04
+c3=-3.022037e+04
+c4=-2.205664e+04
+c5=-2.848113e+03
+
+ur_coeff=1.0
 
 
 ./main.o \
@@ -51,6 +63,7 @@ c7=-300
     --c4 $c4 \
     --c5 $c5 \
     --c6 $c6 \
-    --c7 $c7
+    --c7 $c7 \
+    --ur_coeff $ur_coeff
 
 

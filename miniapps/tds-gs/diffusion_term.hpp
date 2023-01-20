@@ -14,9 +14,9 @@ double one_over_r_mu(const Vector & x, double & mu);
 class DiffusionIntegratorCoefficient : public Coefficient
 {
 private:
-  PlasmaModel *model;
+  PlasmaModelBase *model;
 public:
-  DiffusionIntegratorCoefficient(PlasmaModel *model_) : model(model_) { }
+  DiffusionIntegratorCoefficient(PlasmaModelBase *model_) : model(model_) { }
   virtual double Eval(ElementTransformation &T, const IntegrationPoint &ip);
   virtual ~DiffusionIntegratorCoefficient() { }
 };

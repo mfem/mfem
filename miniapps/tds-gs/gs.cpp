@@ -79,7 +79,7 @@ void PrintMatlab(SparseMatrix *Mat, SparseMatrix *M1, SparseMatrix *M2) {
 
 
 
-LinearForm * DefineRHS(PlasmaModel & model, double & rho_gamma,
+LinearForm * DefineRHS(PlasmaModelBase & model, double & rho_gamma,
                        Mesh & mesh, map<int, double> & coil_current_values,
                        ExactCoefficient & exact_coefficient,
                        ExactForcingCoefficient & exact_forcing_coeff, LinearForm & coil_term) {
@@ -157,7 +157,7 @@ LinearForm * DefineRHS(PlasmaModel & model, double & rho_gamma,
    
 }
 
-void DefineLHS(PlasmaModel & model, double rho_gamma, BilinearForm & diff_operator) {
+void DefineLHS(PlasmaModelBase & model, double rho_gamma, BilinearForm & diff_operator) {
    // Set up the bilinear form diff_operator corresponding to the diffusion integrator
    DiffusionIntegratorCoefficient diff_op_coeff(&model);
    if (true) {
@@ -204,7 +204,7 @@ void DefineLHS(PlasmaModel & model, double rho_gamma, BilinearForm & diff_operat
 
 
 void Solve(FiniteElementSpace & fespace, SysOperator & op, GridFunction & x, int & kdim, int & max_newton_iter, int & max_krylov_iter,
-           double & newton_tol, double & krylov_tol) {
+           double & newton_tol, double & krylov_tol, double & ur_coeff) {
   
    GridFunction dx(&fespace);
    GridFunction res(&fespace);
@@ -300,7 +300,8 @@ void Solve(FiniteElementSpace & fespace, SysOperator & op, GridFunction & x, int
      // add(solver_error, -1.0, out_vec, solver_error);
      // double max_solver_error = GetMaxError(solver_error);
      // printf("max_solver_error: %.3e\n", max_solver_error);
-       
+
+     add(dx, ur_coeff-1.0, dx, dx);
      x -= dx;
 
    }
@@ -318,20 +319,27 @@ double gs(const char * mesh_file, const char * data_file, int order, int d_refin
           double & r0, double & rho_gamma, int max_krylov_iter, int max_newton_iter,
           double & krylov_tol, double & newton_tol,
           double & c1, double & c2, double & c3, double & c4, double & c5, double & c6, double & c7,
+          double & c8, double & c9, double & c10, double & c11,
+          double & ur_coeff,
           bool do_manufactured_solution) {
 
   // todo, make the below options
   // different initial condition
 
    map<int, double> coil_current_values;
-   // 832 is the long current
-   coil_current_values[832] = c1;
-   coil_current_values[833] = c2;
-   coil_current_values[834] = c3;
-   coil_current_values[835] = c4;
-   coil_current_values[836] = c5;
-   coil_current_values[837] = c6;
-   coil_current_values[838] = c7;
+   // center solenoids
+   coil_current_values[832] = c1 / 1.5 / 1.8083;
+   coil_current_values[833] = c2 / 1.5 / 1.8083;
+   coil_current_values[834] = c3 / 1.5 / 3.6166;
+   coil_current_values[835] = c4 / 1.5 / 1.8083;
+   coil_current_values[836] = c5 / 1.5 / 1.8083;
+   // poloidal flux coils
+   coil_current_values[837] = c6 / 2.0 / 1.5;
+   coil_current_values[838] = c7 / 2.0 / 1.5;
+   coil_current_values[839] = c8 / 2.0 / 1.5;
+   coil_current_values[840] = c9 / 2.0 / 1.5;
+   coil_current_values[841] = c10 / 2.0 / 1.5;
+   coil_current_values[842] = c11 / 2.0 / 1.5;
 
    // exact solution
    double r0_ = 1.0;
@@ -360,7 +368,9 @@ double gs(const char * mesh_file, const char * data_file, int order, int d_refin
    mesh.Save("mesh.mesh");
 
    // save options in model
-   PlasmaModel model(alpha, beta, lambda, gamma, mu, r0);
+   // PlasmaModel model(alpha, beta, lambda, gamma, mu, r0);
+   const char *data_file_ = "fpol_pres_ffprim_pprime.data";
+   PlasmaModelFile model(mu, data_file_);
 
    // Define a finite element space on the mesh. Here we use H1 continuous
    // high-order Lagrange finite elements of the given order.
@@ -425,7 +435,7 @@ double gs(const char * mesh_file, const char * data_file, int order, int d_refin
    // x.Save("initial_guess.gf");
    
    SysOperator op(&diff_operator, &coil_term, &model, &fespace, &mesh, attr_lim, &u);
-   Solve(fespace, op, x, kdim, max_newton_iter, max_krylov_iter, newton_tol, krylov_tol);
+   Solve(fespace, op, x, kdim, max_newton_iter, max_krylov_iter, newton_tol, krylov_tol, ur_coeff);
    x.Save("final.gf");
    printf("Saved solution to final.gf\n");
    printf("Saved mesh to mesh.mesh\n");

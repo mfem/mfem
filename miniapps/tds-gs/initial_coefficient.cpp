@@ -116,7 +116,7 @@ InitialCoefficient read_data_file(const char *data_file) {
   inFile.open(data_file);
 
   if (!inFile) {
-    cerr << "Unable to open file datafile.txt";
+    cerr << "Unable to open file" << data_file << endl;
     exit(1);   // call system to stop
   }
 
@@ -146,18 +146,18 @@ InitialCoefficient read_data_file(const char *data_file) {
   // cout << rdim << endl;
 
   double r0, r1, z0, z1;
-  r0 = rleft;
-  r1 = rleft+rdim;
-  z0 = zmid-zdim/2.0;
-  z1 = zmid+zdim/2.0;
+  // r0 = rleft;
+  // r1 = rleft+rdim;
+  // z0 = zmid-zdim/2.0;
+  // z1 = zmid+zdim/2.0;
 
   // // DAS - this is overrided since mesh isn't based on ITER geometry yet
   // r0 = .67; r1 = 1.321;
   // z0 = -0.556; z1 = 0.5556;
 
   // geometry based on iter
-  r0 = 3.0; r1 = 9.0;
-  z0 = -5; z1 = 5;
+  r0 = 3.0; r1 = 10.0;
+  z0 = -6.0; z1 = 6.0;
   
   while (getline(inFile, line)) {
     if (line.find("psizr") != std::string::npos) {

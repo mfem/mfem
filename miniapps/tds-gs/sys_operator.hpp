@@ -2,6 +2,7 @@
 #define SYS_OPERATOR
 
 #include "mfem.hpp"
+#include "gs.hpp"
 #include "plasma_model.hpp"
 using namespace mfem;
 using namespace std;
@@ -21,7 +22,7 @@ class SysOperator : public Operator
 private:
   mutable BilinearForm *diff_operator;
   LinearForm *coil_term;
-  mutable PlasmaModel *model;
+  mutable PlasmaModelBase *model;
   FiniteElementSpace *fespace;
   Mesh *mesh;
   map<int, vector<int>> vertex_map;
@@ -31,7 +32,7 @@ private:
   GridFunction *u_boundary;
 public:
   SysOperator(BilinearForm *diff_operator_, LinearForm *coil_term_,
-              PlasmaModel *model_, FiniteElementSpace *fespace_,
+              PlasmaModelBase *model_, FiniteElementSpace *fespace_,
               Mesh *mesh_, int attr_lim_, 
               GridFunction *u_boundary_) : Operator(fespace_->GetTrueVSize()), diff_operator(diff_operator_),
                                            coil_term(coil_term_), model(model_), fespace(fespace_),
