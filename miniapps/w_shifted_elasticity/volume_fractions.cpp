@@ -29,10 +29,22 @@ bool IsInCircle(const Vector &x){
     return ((pow(x(0)-center(0),2.0)+pow(x(1)-center(1),2.0)) >= pow(radius,2.0)) ? true : false;
 }
   
+  bool IsInSphere(const Vector &x){
+    double radius = 0.3;
+    Vector center(3);
+    center(0) = 0.5;
+    center(1) = 0.5;
+    center(2) = 0.5;
+    return ( ( pow(x(0)-center(0),2.0) + pow(x(1)-center(1),2.0) + pow(x(2)-center(2),2.0) ) >= pow(radius,2.0) ) ? true : false;
+}
+  
   bool IsInElement(const Vector &x, const int &type_){
     if (type_ == 1){
       return IsInCircle(x);
     }
+    if (type_ == 2){
+      return IsInSphere(x);
+    } 
     else{
       return false;
     }

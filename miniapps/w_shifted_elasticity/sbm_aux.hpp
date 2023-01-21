@@ -18,20 +18,30 @@ using namespace mfem;
 /// the domain, and negative value if outside.
 double relativePosition(const Vector &x, const int type)
 {
-   if (type == 1) // circle of radius 0.2 - centered at 0.5, 0.5
-   {
-     Vector center(2);
-     center(0) = 0.5;
-     center(1) = 0.5;
-     double radiusOfPt = pow(pow(x(0)-center(0),2.0)+pow(x(1)-center(1),2.0),0.5);
-     const double radius = 0.2;
-     return radiusOfPt - radius; // positive is the domain
-   }
-   else
-     {
+  if (type == 1) // circle of radius 0.2 - centered at 0.5, 0.5
+    {
+      Vector center(2);
+      center(0) = 0.5;
+      center(1) = 0.5;
+      double radiusOfPt = pow(pow(x(0)-center(0),2.0)+pow(x(1)-center(1),2.0),0.5);
+      const double radius = 0.2;
+      return radiusOfPt - radius; // positive is the domain
+    }
+  if (type == 2) // sphere of radius 0.2 - centered at 0.5, 0.5
+    {
+      Vector center(3);
+      center(0) = 0.5;
+      center(1) = 0.5;
+      center(2) = 0.5;
+      double radiusOfPt = pow(pow(x(0)-center(0),2.0)+pow(x(1)-center(1),2.0)+pow(x(2)-center(2),2.0),0.5);
+      const double radius = 0.3;
+      return radiusOfPt - radius; // positive is the domain
+    }
+  else
+    {
       MFEM_ABORT(" Function type not implement yet.");
-   }
-   return 0.;
+    }
+  return 0.;
 }
 
 // Distance to circle of radius 0.2 - centered at 0.5, 0.5 
@@ -69,11 +79,57 @@ void Circle_Normal(const Vector &x, Vector &tN){
   }
 }
 
+// Distance to sphere of radius 0.2 - centered at 0.5, 0.5 
+void Sphere_Dist(const Vector &x, Vector &D){
+  double radius = 0.3;
+  Vector center(3);
+  center(0) = 0.5;
+  center(1) = 0.5;
+  center(2) = 0.5;
+  double r = pow(pow(x(0)-center(0),2.0)+pow(x(1)-center(1),2.0)+pow(x(2)-center(2),2.0),0.5);
+  double distX = ((x(0)-center(0))/r)*(radius-r);
+  double distY = ((x(1)-center(1))/r)*(radius-r);
+  double distZ = ((x(2)-center(2))/r)*(radius-r);  
+  D(0) = distX;
+  D(1) = distY;
+  D(2) = distZ;
+}
+
+// Unit normal of sphere of radius 0.2 - centered at 0.5, 0.5
+void Sphere_Normal(const Vector &x, Vector &tN){
+  double radius = 0.3;
+  Vector center(3);
+  center(0) = 0.5;
+  center(1) = 0.5;
+  center(2) = 0.5;
+  double r = pow(pow(x(0)-center(0),2.0)+pow(x(1)-center(1),2.0)+pow(x(2)-center(2),2.0),0.5);
+  double distX = ((x(0)-center(0))/r)*(radius-r);
+  double distY = ((x(1)-center(1))/r)*(radius-r);
+  double distZ = ((x(2)-center(2))/r)*(radius-r);  
+
+  double normD = sqrt(distX * distX + distY * distY + distZ * distZ);
+  
+  double isIn = (pow(x(0)-center(0),2.0)+pow(x(1)-center(1),2.0)+pow(x(2)-center(2),2.0)-radius*radius) / std::fabs(pow(x(0)-center(0),2.0)+pow(x(1)-center(1),2.0)+pow(x(2)-center(2),2.0)-radius*radius);
+  if (isIn != 0.0){
+    tN(0) = isIn * distX / normD;
+    tN(1) = isIn * distY / normD;
+    tN(2) = isIn * distZ / normD;
+  }
+  else{
+    tN(0) = (center(0) - x(0))/radius;
+    tN(1) = (center(1) - x(1))/radius;
+    tN(2) = (center(2) - x(2))/radius;
+  }
+}
+
 /// Analytic distance to the 0 level set.
 void dist_value(const Vector &x, Vector &D, const int type)
 {
    if (type == 1) {
      return Circle_Dist(x, D);
+   }
+   else if (type == 2) {
+     return Sphere_Dist(x, D);
    }
    else
    {
@@ -87,6 +143,9 @@ void normal_value(const Vector &x, Vector &tN, const int type)
 {
    if (type == 1) {
      return Circle_Normal(x, tN);
+   }
+   else if (type == 2) {
+     return Sphere_Normal(x, tN);
    }
    else
    {

@@ -24,6 +24,8 @@
 namespace mfem
 {
   bool IsInCircle(const Vector &x);
+
+  bool IsInSphere(const Vector &x);
   
   bool IsInElement(const Vector &x, const int &type_);
   

@@ -80,7 +80,6 @@ namespace mfem {
        normal_vec = new VectorGridFunctionCoefficient(normal);
      }
    }
-   
    shearMod = new ShearModulus(pmesh);
    bulkMod = new BulkModulus(pmesh);
  
@@ -105,7 +104,6 @@ namespace mfem {
     }
     default: MFEM_ABORT("Unknown zone type!");
     }
-   
   }
 
   LinearElasticitySolver::~LinearElasticitySolver()
@@ -164,7 +162,7 @@ namespace mfem {
       UpdateAlpha(*analyticalSurface,alphaCut, *vfes, geometricShape);
       alphaCut.ExchangeFaceNbrData();
     }
-
+    
     // Set the BC
     int dim=pmesh->Dimension();
     
@@ -174,36 +172,36 @@ namespace mfem {
     fform->AddDomainIntegrator(new WeightedVectorForceIntegrator(alphaCut, *volforce), ess_elem);
     for(auto it=surf_loads.begin();it!=surf_loads.end();it++)
     {
-      fform->AddBdrFaceIntegrator(new WeightedTractionBCIntegrator(alphaCut, *(it->second)),*(it->first));
+      fform->AddBdrFaceIntegrator(new WeightedTractionBCIntegrator(alphaCut, *(it->second), analyticalSurface),*(it->first));
     }
+   
     for(auto it=displacement_BC.begin();it!=displacement_BC.end();it++)
     {
       // Nitsche
-      fform->AddBdrFaceIntegrator(new WeightedStressNitscheBCForceIntegrator(alphaCut, *shearMod, *bulkMod, *(it->second)),*(it->first));
+      fform->AddBdrFaceIntegrator(new WeightedStressNitscheBCForceIntegrator(alphaCut, *shearMod, *bulkMod, *(it->second), analyticalSurface),*(it->first));
       // Normal Penalty
-      fform->AddBdrFaceIntegrator(new WeightedNormalDisplacementBCPenaltyIntegrator(alphaCut, penaltyParameter_bf, *bulkMod, *(it->second)), *(it->first));
+      fform->AddBdrFaceIntegrator(new WeightedNormalDisplacementBCPenaltyIntegrator(alphaCut, penaltyParameter_bf, *bulkMod, *(it->second), analyticalSurface), *(it->first));
       // Tangential Penalty
-      fform->AddBdrFaceIntegrator(new WeightedTangentialDisplacementBCPenaltyIntegrator(alphaCut, penaltyParameter_bf, *shearMod, *(it->second)), *(it->first));
+      fform->AddBdrFaceIntegrator(new WeightedTangentialDisplacementBCPenaltyIntegrator(alphaCut, penaltyParameter_bf, *shearMod, *(it->second), analyticalSurface), *(it->first));
     }
     if (useEmbedded){
       // Nitsche
       fform->AddInteriorFaceIntegrator(new WeightedShiftedStressNitscheBCForceIntegrator(pmesh, alphaCut, *shifted_traction_BC, dist_vec, normal_vec, analyticalSurface, 1));
     }
-    fform->Assemble();
+    fform->Assemble();    
     fform->ParallelAssemble();
-  
     ParBilinearForm *mVarf(new ParBilinearForm(vfes));
     mVarf->AddDomainIntegrator(new WeightedStressForceIntegrator(alphaCut, *shearMod, *bulkMod),ess_elem);
     for(auto it=displacement_BC.begin();it!=displacement_BC.end();it++)
     {
       // Nitsche
-      mVarf->AddBdrFaceIntegrator(new WeightedStressBoundaryForceIntegrator(alphaCut, *shearMod, *bulkMod),*(it->first));
+      mVarf->AddBdrFaceIntegrator(new WeightedStressBoundaryForceIntegrator(alphaCut, *shearMod, *bulkMod, analyticalSurface),*(it->first));
       // IP
-      mVarf->AddBdrFaceIntegrator(new WeightedStressBoundaryForceTransposeIntegrator(alphaCut, *shearMod, *bulkMod),*(it->first));
+      mVarf->AddBdrFaceIntegrator(new WeightedStressBoundaryForceTransposeIntegrator(alphaCut, *shearMod, *bulkMod, analyticalSurface),*(it->first));
       // Normal Penalty
-      mVarf->AddBdrFaceIntegrator(new WeightedNormalDisplacementPenaltyIntegrator(alphaCut, penaltyParameter_bf, *bulkMod),*(it->first));
+      mVarf->AddBdrFaceIntegrator(new WeightedNormalDisplacementPenaltyIntegrator(alphaCut, penaltyParameter_bf, *bulkMod, analyticalSurface),*(it->first));
       // Tangential Penalty
-      mVarf->AddBdrFaceIntegrator(new WeightedTangentialDisplacementPenaltyIntegrator(alphaCut, penaltyParameter_bf, *shearMod),*(it->first));
+      mVarf->AddBdrFaceIntegrator(new WeightedTangentialDisplacementPenaltyIntegrator(alphaCut, penaltyParameter_bf, *shearMod, analyticalSurface),*(it->first));
     }
     if (useEmbedded){     
       // Nitsche
@@ -254,9 +252,9 @@ namespace mfem {
       for(auto it=displacement_BC.begin();it!=displacement_BC.end();it++)
 	{
 	  // Normal Penalty
-	  displMass->AddBdrFaceIntegrator(new WeightedNormalDisplacementPenaltyIntegrator(UnitVal, penaltyParameter_bf, *bulkMod),*(it->first));
+	  displMass->AddBdrFaceIntegrator(new WeightedNormalDisplacementPenaltyIntegrator(UnitVal, penaltyParameter_bf, *bulkMod, analyticalSurface),*(it->first));
 	  // Tangential Penalty
-	  displMass->AddBdrFaceIntegrator(new WeightedTangentialDisplacementPenaltyIntegrator(UnitVal, penaltyParameter_bf, *shearMod),*(it->first));
+	  displMass->AddBdrFaceIntegrator(new WeightedTangentialDisplacementPenaltyIntegrator(UnitVal, penaltyParameter_bf, *shearMod, analyticalSurface),*(it->first));
 	}
       if (useEmbedded){     
 	// ghost penalty
@@ -345,7 +343,7 @@ namespace mfem {
       paraview_dc.RegisterField("displacement",fdisplacement);
       //  paraview_dc.RegisterField("distance",distance);
       //   paraview_dc.RegisterField("normal",normal);
-      //  paraview_dc.RegisterField("level_set_gf",level_set_gf);
+      paraview_dc.RegisterField("level_set_gf",level_set_gf);
       //  paraview_dc.RegisterField("ls_func",ls_func);
       //      paraview_dc.RegisterField("filt_gf",filt_gf);
       paraview_dc.Save();

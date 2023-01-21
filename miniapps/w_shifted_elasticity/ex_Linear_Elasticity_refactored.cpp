@@ -32,6 +32,7 @@ void traction_ex(const Vector & x, DenseMatrix & tN );
 
 void uFun_ex3D(const Vector & x, Vector & u);
 void fFun3D(const Vector & x, Vector & f );
+void traction_ex3D(const Vector & x, DenseMatrix & tN );
 
 double pi = 3.141592653589793e0;
 
@@ -119,6 +120,7 @@ int main(int argc, char *argv[])
 
    VectorFunctionCoefficient fcoeff3D(dim, fFun3D);
    VectorFunctionCoefficient ucoeff3D(dim, uFun_ex3D);
+   ShiftedMatrixFunctionCoefficient traction_shifted3D(dim, traction_ex3D);
    
    mfem::LinearElasticitySolver* ssolv=new mfem::LinearElasticitySolver(pmesh, displacementOrder, useEmbedded, geometricShape, nTerms, numberStrainTerms, ghostPenaltyCoefficient, mumps_solver, useAnalyticalShape, visualization);
    ssolv->AddMaterial(shearModCoefficient,bulkModCoefficient);
@@ -139,6 +141,7 @@ int main(int argc, char *argv[])
      ssolv->AddDisplacementBC(4,ucoeff3D);
      ssolv->AddDisplacementBC(5,ucoeff3D);
      ssolv->AddDisplacementBC(6,ucoeff3D);
+     ssolv->AddShiftedNormalStressBC(traction_shifted3D);
      ssolv->SetExactDisplacementSolution(ucoeff3D);
    }
    ssolv->SetNewtonSolver(1.0e-12,0.0,10000000,1);
@@ -202,3 +205,46 @@ void uFun_ex3D(const Vector & x, Vector & u)
   u(2) = 0.1*sin(pi*x(0)*x(1)*x(2)/2.0);
 }
 
+void traction_ex3D(const Vector & x, DenseMatrix & tN )
+{
+  double kappa = 500.0/3.0;
+  double mu = 76.9230769231;
+  double u_11 = 0.1 * pi * sin(pi*x(0)) * sin(pi*x(1)) * cos(pi*x(2));
+  double u_12 = -0.1 * pi * cos(pi*x(0)) * cos(pi*x(1)) * cos(pi*x(2));
+  double u_13 = 0.1 * pi * cos(pi*x(0)) * sin(pi*x(1)) * sin(pi*x(2));
+  double u_21 = (pi/70.0) * cos(pi*x(0)/7.0) * sin(pi*x(1)/3.0) * cos(pi*x(2)/5.0);
+  double u_22 = (pi/30.0) * sin(pi*x(0)/7.0) * cos(pi*x(1)/3.0) * cos(pi*x(2)/5.0);
+  double u_23 = -(pi/50.0) * sin(pi*x(0)/7.0) * sin(pi*x(1)/3.0) * sin(pi*x(2)/5.0);
+  double u_31 = (pi/20.0)*x(1)*x(2) * cos((pi/2.0)*x(0)*x(1)*x(2));
+  double u_32 = (pi/20.0)*x(0)*x(2) * cos((pi/2.0)*x(0)*x(1)*x(2));
+  double u_33 = (pi/20.0)*x(0)*x(1) * cos((pi/2.0)*x(0)*x(1)*x(2));
+  
+  double div_u = u_11 + u_22 + u_33;
+  double epsilon_11 = u_11;
+  double epsilon_12 = (u_12+u_21)*0.5;
+  double epsilon_13 = (u_13+u_31)*0.5;
+  double epsilon_22 = u_22;
+  double epsilon_23 = (u_23+u_32)*0.5;
+  double epsilon_33 = u_33;
+
+  double sigma_11 = 2 * mu * epsilon_11 + (kappa - (2.0/3.0))*div_u;
+  double sigma_12 = 2 * mu * epsilon_12;
+  double sigma_13 = 2 * mu * epsilon_13;
+  double sigma_22 = 2 * mu * epsilon_22 + (kappa - (2.0/3.0))*div_u;
+  double sigma_23 = 2 * mu * epsilon_23;
+  double sigma_33 = 2 * mu * epsilon_33 + (kappa - (2.0/3.0))*div_u;
+        
+  tN = 0.0; 
+  tN(0,0) = sigma_11;
+  tN(0,1) = sigma_12;
+  tN(0,2) = sigma_13;
+  
+  tN(1,0) = sigma_12;
+  tN(1,1) = sigma_22;
+  tN(1,2) = sigma_23;
+  
+  tN(2,0) = sigma_13;
+  tN(2,1) = sigma_23;
+  tN(2,2) = sigma_33;
+  
+}
