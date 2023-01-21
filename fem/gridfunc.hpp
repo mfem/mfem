@@ -999,7 +999,8 @@ void BoundingBox(const Array<int> &face_patch, // input
                  Vector &xmax,                 // output
                  double &angle,                // output
                  Vector &midpoint,             // output
-                 int iface=-1);                // input (optional)
+                 int iface=-1,                  // input (optional)
+                 Vector *offsets = NULL);
 
 /// A ``true'' ZZ error estimator that uses face-based patches for flux reconstruction.
 /**

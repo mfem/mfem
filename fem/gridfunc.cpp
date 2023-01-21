@@ -4404,7 +4404,7 @@ void BoundingBox(const Array<int> &patch,  // input
                  double &angle,            // output
                  Vector &midpoint,         // output
                  int iface,                // input (optional)
-                 Vector offsets)           // input (for 2nd element sharing the
+                 Vector *offsets)           // input (for 2nd element sharing the
                                            //        face in a periodic mesh)
 {
    Mesh *mesh = ufes->GetMesh();
@@ -4416,7 +4416,7 @@ void BoundingBox(const Array<int> &patch,  // input
    xmin = infinity();
    angle = 0.0;
    midpoint = 0.0;
-   bool rotate = (dim == 2) && offsets.Norml2() == 0.0;
+   bool rotate = (dim == 2) && offsets->Norml2() == 0.0;
 
    // Rotate bounding box to match the face orientation
    if (rotate && iface >= 0)
@@ -4452,7 +4452,7 @@ void BoundingBox(const Array<int> &patch,  // input
          Vector transip(dim);
          Tr.Transform(ip, transip);
          if (i == 1) {
-             transip += offsets;
+             transip += *offsets;
          }
          if (rotate)
          {
@@ -4563,7 +4563,7 @@ double LSZZErrorEstimator(BilinearFormIntegrator &blfi,  // input
 //          per_offsets = 0.0;
       }
       BoundingBox(patch, ufes, flux_order,
-                  xmin, xmax, angle, midpoint, iface, per_offsets);
+                  xmin, xmax, angle, midpoint, iface, &per_offsets);
       if ((*perfaces)[iface] >=0 ) {
 //          xmin.Print();
 //          xmax.Print();
