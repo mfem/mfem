@@ -27,7 +27,9 @@ Linear and nonlinear solvers
 
 New and updated examples and miniapps
 -------------------------------------
-- TBD
+- The mesh-explorer miniapp can now save mesh files in the VisIt or ParaView
+  formats using the corresponding DataCollection objects. See option 'D' in the
+  main menu.
 
 Integrations, testing and documentation
 ---------------------------------------
