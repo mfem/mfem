@@ -55,7 +55,9 @@ void CPardisoSolver::SetOperator(const Operator &op)
    auto parcsr_op = static_cast<hypre_ParCSRMatrix *>(
                        const_cast<HypreParMatrix &>(hypreParMat));
 
+   hypreParMat.HostRead();
    hypre_CSRMatrix *csr_op = hypre_MergeDiagAndOffd(parcsr_op);
+   hypreParMat.HypreRead();
 #if MFEM_HYPRE_VERSION >= 21600
    hypre_CSRMatrixBigJtoJ(csr_op);
 #endif

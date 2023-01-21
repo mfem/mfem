@@ -615,6 +615,7 @@ public:
          solFES.VectorAssemble(y_dof.layout, y_dof, solVecLayoutLoc, y);
       }
    }
+   using Operator::AddMult;
 };
 
 } // namespace mfem

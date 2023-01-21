@@ -599,7 +599,7 @@ public:
    void MergeDiagAndOffd(SparseMatrix &merged);
 
    /// Return the diagonal of the matrix (Operator interface).
-   virtual void AssembleDiagonal(Vector &diag) const { GetDiag(diag); }
+   void AssembleDiagonal(Vector &diag) const override { GetDiag(diag); }
 
    /** Split the matrix into M x N equally sized blocks of parallel matrices.
        The size of 'blocks' must already be set to M x N. */
@@ -649,7 +649,7 @@ public:
        partitioning array. */
    HYPRE_BigInt *GetColStarts() const { return hypre_ParCSRMatrixColStarts(A); }
 
-   virtual MemoryClass GetMemoryClass() const { return GetHypreMemoryClass(); }
+   MemoryClass GetMemoryClass() const override { return GetHypreMemoryClass(); }
 
    /// Ensure the action of the transpose is performed fast.
    /** When HYPRE is built for GPUs, this method will construct and store the
@@ -691,15 +691,24 @@ public:
        transpose. */
    void MultTranspose(double a, const Vector &x, double b, Vector &y) const;
 
-   virtual void Mult(const Vector &x, Vector &y) const
+   void Mult(const Vector &x, Vector &y) const override
    { Mult(1.0, x, 0.0, y); }
 
    /// Computes y = A^t * x
    /** If the matrix is modified, call ResetTranspose() and optionally
        EnsureMultTranspose() to make sure this method uses the correct updated
        transpose. */
-   virtual void MultTranspose(const Vector &x, Vector &y) const
+   void MultTranspose(const Vector &x, Vector &y) const override
    { MultTranspose(1.0, x, 0.0, y); }
+
+   void AddMult(const Vector &x, Vector &y, const double a = 1.0) const override
+   { Mult(a, x, 1.0, y); }
+   void AddMultTranspose(const Vector &x, Vector &y,
+                         const double a = 1.0) const override
+   { MultTranspose(a, x, 1.0, y); }
+
+   using Operator::Mult;
+   using Operator::MultTranspose;
 
    /** @brief Computes y = a * |A| * x + b * y, using entry-wise absolute values
        of the matrix A. */
@@ -1080,6 +1089,7 @@ public:
    /// Relax the linear system Ax=b
    virtual void Mult(const HypreParVector &b, HypreParVector &x) const;
    virtual void Mult(const Vector &b, Vector &x) const;
+   using Operator::Mult;
 
    /// Apply transpose of the smoother to relax the linear system Ax=b
    virtual void MultTranspose(const Vector &b, Vector &x) const;
@@ -1156,6 +1166,7 @@ public:
    virtual void Mult(const HypreParVector &b, HypreParVector &x) const;
    /// Solve the linear system Ax=b
    virtual void Mult(const Vector &b, Vector &x) const;
+   using Operator::Mult;
 
    ///@}
 

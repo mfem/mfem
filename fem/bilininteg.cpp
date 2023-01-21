@@ -2408,7 +2408,7 @@ void MixedCurlIntegrator::AssembleElementMatrix2(
    if (spaceH1)
    {
       dshape.SetSize(trial_dof,dim);
-      curlshape.SetSize(dim*trial_dof,1);
+      curlshape.SetSize(trial_dof,dim);
       dimc = dim;
    }
    else
@@ -2437,7 +2437,7 @@ void MixedCurlIntegrator::AssembleElementMatrix2(
       if (spaceH1)
       {
          trial_fe.CalcPhysDShape(Trans, dshape);
-         dshape.GradToCurl(curlshape);
+         dshape.GradToVectorCurl2D(curlshape);
       }
       else
       {

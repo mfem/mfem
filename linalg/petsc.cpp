@@ -1335,7 +1335,12 @@ void PetscParMatrix::ConvertOperator(MPI_Comm comm, const Operator &op, Mat* A,
       PetscBool ismatis;
 #endif
 
+#if PETSC_VERSION_LT(3,18,0)
       ierr = PetscObjectTypeCompare((PetscObject)(pA->A),MATTRANSPOSEMAT,&istrans);
+#else
+      ierr = PetscObjectTypeCompare((PetscObject)(pA->A),MATTRANSPOSEVIRTUAL,
+                                    &istrans);
+#endif
       CCHKERRQ(pA->GetComm(),ierr);
       if (!istrans)
       {
