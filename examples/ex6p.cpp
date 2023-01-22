@@ -69,8 +69,8 @@ int main(int argc, char *argv[])
    bool smooth_rt = true;
    bool restart = false;
    bool visualization = true;
-   
-	int which_refiner = 0;
+
+   int which_refiner = 0;
    double refinement_parameter = -1.0;
 
    OptionsParser args(argc, argv);
@@ -117,7 +117,7 @@ int main(int argc, char *argv[])
       args.PrintOptions(cout);
    }
 
-	// Use default if not provided on command line
+   // Use default if not provided on command line
    if ( refinement_parameter == -1 )
    {
       switch ( which_refiner )
@@ -280,7 +280,7 @@ int main(int argc, char *argv[])
    //     The strategy here is to refine elements with errors larger than a
    //     fraction of the maximum element error. Other strategies are possible.
    //     The refiner will call the given error estimator.
-   
+
    MeshOperator *refiner = nullptr;
    switch ( which_refiner )
    {
@@ -434,7 +434,7 @@ int main(int argc, char *argv[])
 
    delete smooth_flux_fes;
    delete smooth_flux_fec;
-	delete refiner;
+   delete refiner;
    delete pmesh;
 
    return 0;
