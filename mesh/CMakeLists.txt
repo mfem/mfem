@@ -16,7 +16,6 @@ set(SRCS
   mesh.cpp
   mesh_operators.cpp
   mesh_readers.cpp
-  mesh_refiners.cpp
   ncmesh.cpp
   nurbs.cpp
   point.cpp
@@ -40,7 +39,6 @@ set(HDRS
   mesh.hpp
   mesh_headers.hpp
   mesh_operators.hpp
-  mesh_refiners.hpp
   ncmesh.hpp
   nurbs.hpp
   point.hpp
