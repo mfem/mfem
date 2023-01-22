@@ -11,13 +11,35 @@
 
 // ===========================================================================
 //
-//        Mini-App: surrogate model for imperfect spde.
+//   Mini-App: Gaussian Random Fields of Matérn Covariance for Imperfect
+//   Materials
 //
-//  Details: refer to README
+//  Details: refer to README.md
 //
 //  Runs:
-//    mpirun -np 4 ./miniapps/spde/main
+//   -> Basic usage:
+//     mpirun -np 4 ./miniapps/spde/main
 //
+//   -> Generate 5 particles with random imperfections
+//     mpirun -np 4 main -o 1 -r 3 -rp 3 -nu 2 \
+//            -l1 0.015 -l2 0.015 -l3 0.015 -s 0.01 \
+//            -t 0.08 -n 5 -pl2 3 -top 0 -rs
+//
+//   -> Generate an Octet-Truss with random imperfections
+//     mpirun -np 4 main -o 1 -r 3 -rp 3 -nu 2 \
+//            -l1 0.02 -l2 0.02 -l3 0.02 -s 0.01 \
+//            -t 0.08 -top 1 -rs
+//
+//   -> Generate an Octet-Truss with random imperfections following a uniform
+//      distribution
+//     mpirun -np 4 main -o 1 -r 3 -rp 3 -nu 2 \
+//            -l1 0.02 -l2 0.02 -l3 0.02 -umin 0.01 -umax 0.05 \
+//            -t 0.08 -top 1 -urf -rs
+//
+//   -> A 2D random field with anisotropy
+//     mpirun -np 4 main -o 1 -r 3 -rp 3 -nu 4 \
+//            -l1 0.09 -l2 0.03 -l3 0.05 -s 0.01 \
+//            -t 0.08 -top 1 -no-rs -m ../../data/ref-square.mesh
 // ===========================================================================
 
 #include <math.h>
@@ -139,7 +161,7 @@ int main(int argc, char *argv[]) {
   int dim = mesh.Dimension();
   bool is_3d = (dim == 3);
 
-  // 4. Refine the mesh to increase the resolution.
+  // 3. Refine the mesh to increase the resolution.
   for (int i = 0; i < num_refs; i++) {
     mesh.UniformRefinement();
   }
@@ -149,7 +171,7 @@ int main(int argc, char *argv[]) {
     pmesh.UniformRefinement();
   }
 
-  // 5. Define a finite element space on the mesh.
+  // 4. Define a finite element space on the mesh.
   H1_FECollection fec(order, dim);
   ParFiniteElementSpace fespace(&pmesh, &fec);
   HYPRE_BigInt size = fespace.GlobalTrueVSize();
@@ -203,7 +225,7 @@ int main(int argc, char *argv[]) {
       return (tau - mdm->ComputeMetric(x));
     };
 
-    // II.1 Create a grid funtion for the topological support.
+    // II.3 Create a grid funtion for the topological support.
     FunctionCoefficient topo_coeff(topo);
     v.ProjectCoefficient(topo_coeff);
   }
