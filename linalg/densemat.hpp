@@ -1,13 +1,13 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
 #ifndef MFEM_DENSEMAT
 #define MFEM_DENSEMAT
@@ -26,8 +26,7 @@ class DenseMatrix : public Matrix
    friend class DenseMatrixInverse;
 
 private:
-   double *data;
-   int capacity; // zero or negative capacity means we do not own the data.
+   Memory<double> data;
 
    void Eigensystem(Vector &ev, DenseMatrix *evect = NULL);
 
@@ -59,27 +58,45 @@ public:
    DenseMatrix(double *d, int h, int w)
       : Matrix(h, w) { UseExternalData(d, h, w); }
 
+   /// Create a dense matrix using a braced initializer list
+   /// The inner lists correspond to rows of the matrix
+   template <int M, int N>
+   explicit DenseMatrix(const double (&values)[M][N]) : DenseMatrix(M, N)
+   {
+      // DenseMatrix is column-major so copies have to be element-wise
+      for (int i = 0; i < M; i++)
+      {
+         for (int j = 0; j < N; j++)
+         {
+            (*this)(i,j) = values[i][j];
+         }
+      }
+   }
+
    /// Change the data array and the size of the DenseMatrix.
    /** The DenseMatrix does not assume ownership of the data array, i.e. it will
        not delete the data array @a d. This method should not be used with
        DenseMatrix that owns its current data array. */
    void UseExternalData(double *d, int h, int w)
-   { data = d; height = h; width = w; capacity = -h*w; }
+   {
+      data.Wrap(d, h*w, false);
+      height = h; width = w;
+   }
 
    /// Change the data array and the size of the DenseMatrix.
    /** The DenseMatrix does not assume ownership of the data array, i.e. it will
        not delete the new array @a d. This method will delete the current data
        array, if owned. */
    void Reset(double *d, int h, int w)
-   { if (OwnsData()) { delete [] data; } UseExternalData(d, h, w); }
+   { if (OwnsData()) { data.Delete(); } UseExternalData(d, h, w); }
 
    /** Clear the data array and the dimensions of the DenseMatrix. This method
        should not be used with DenseMatrix that owns its current data array. */
-   void ClearExternalData() { data = NULL; height = width = 0; capacity = 0; }
+   void ClearExternalData() { data.Reset(); height = width = 0; }
 
    /// Delete the matrix data array (if owned) and reset the matrix state.
    void Clear()
-   { if (OwnsData()) { delete [] data; } ClearExternalData(); }
+   { if (OwnsData()) { data.Delete(); } ClearExternalData(); }
 
    /// For backward compatibility define Size to be synonym of Width()
    int Size() const { return Width(); }
@@ -91,11 +108,17 @@ public:
    void SetSize(int h, int w);
 
    /// Returns the matrix data array.
-   inline double *Data() const { return data; }
-   /// Returns the matrix data array.
-   inline double *GetData() const { return data; }
+   inline double *Data() const
+   { return const_cast<double*>((const double*)data);}
 
-   inline bool OwnsData() const { return (capacity > 0); }
+   /// Returns the matrix data array.
+   inline double *GetData() const { return Data(); }
+
+   Memory<double> &GetMemory() { return data; }
+   const Memory<double> &GetMemory() const { return data; }
+
+   /// Return the DenseMatrix data (host pointer) ownership flag.
+   inline bool OwnsData() const { return data.OwnsHostPtr(); }
 
    /// Returns reference to a_{ij}.
    inline double &operator()(int i, int j);
@@ -119,19 +142,35 @@ public:
    void Mult(const double *x, double *y) const;
 
    /// Matrix vector multiplication.
+   void Mult(const double *x, Vector &y) const;
+
+   /// Matrix vector multiplication.
+   void Mult(const Vector &x, double *y) const;
+
+   /// Matrix vector multiplication.
    virtual void Mult(const Vector &x, Vector &y) const;
 
    /// Multiply a vector with the transpose matrix.
    void MultTranspose(const double *x, double *y) const;
 
    /// Multiply a vector with the transpose matrix.
+   void MultTranspose(const double *x, Vector &y) const;
+
+   /// Multiply a vector with the transpose matrix.
+   void MultTranspose(const Vector &x, double *y) const;
+
+   /// Multiply a vector with the transpose matrix.
    virtual void MultTranspose(const Vector &x, Vector &y) const;
 
-   /// y += A.x
-   void AddMult(const Vector &x, Vector &y) const;
+   using Operator::Mult;
+   using Operator::MultTranspose;
 
-   /// y += A^t x
-   void AddMultTranspose(const Vector &x, Vector &y) const;
+   /// y += a * A.x
+   virtual void AddMult(const Vector &x, Vector &y, const double a = 1.0) const;
+
+   /// y += a * A^t x
+   virtual void AddMultTranspose(const Vector &x, Vector &y,
+                                 const double a = 1.0) const;
 
    /// y += a * A.x
    void AddMult_a(double a, const Vector &x, Vector &y) const;
@@ -157,7 +196,7 @@ public:
 
    /// Compute y^t A x
    double InnerProduct(const Vector &x, const Vector &y) const
-   { return InnerProduct((const double *)x, (const double *)y); }
+   { return InnerProduct(x.GetData(), y.GetData()); }
 
    /// Returns a pointer to the inverse matrix.
    virtual MatrixInverse *Inverse() const;
@@ -184,8 +223,12 @@ public:
       Set(alpha, A.GetData());
    }
 
-   /// Adds the matrix A multiplied by the number c to the matrix
+   /// Adds the matrix A multiplied by the number c to the matrix.
    void Add(const double c, const DenseMatrix &A);
+
+   /// Adds the matrix A multiplied by the number c to the matrix,
+   /// assuming A has the same dimensions and uses column-major layout.
+   void Add(const double c, const double *A);
 
    /// Sets the matrix elements equal to constant c
    DenseMatrix &operator=(double c);
@@ -208,6 +251,13 @@ public:
 
    /// Take the 2-norm of the columns of A and store in v
    void Norm2(double *v) const;
+
+   /// Take the 2-norm of the columns of A and store in v
+   void Norm2(Vector &v) const
+   {
+      MFEM_ASSERT(v.Size() == Width(), "incompatible Vector size!");
+      Norm2(v.GetData());
+   }
 
    /// Compute the norm ||A|| = max_{ij} |A_{ij}|
    double MaxMaxNorm() const;
@@ -262,8 +312,12 @@ public:
    void GetColumnReference(int c, Vector &col)
    { col.SetDataAndSize(data + c * height, height); }
 
+   void SetRow(int r, const double* row);
    void SetRow(int r, const Vector &row);
+
+   void SetCol(int c, const double* col);
    void SetCol(int c, const Vector &col);
+
 
    /// Set all entries of a row to the specified value.
    void SetRow(int row, double value);
@@ -294,8 +348,13 @@ public:
    /** Given a DShape matrix (from a scalar FE), stored in *this, returns the
        CurlShape matrix. If *this is a N by D matrix, then curl is a D*N by
        D*(D-1)/2 matrix. The size of curl must be set outside. The dimension D
-       can be either 2 or 3. */
+       can be either 2 or 3. In 2D this computes the scalar-valued curl of a
+       2D vector field */
    void GradToCurl(DenseMatrix &curl);
+   /** Given a DShape matrix (from a scalar FE), stored in *this, returns the
+       CurlShape matrix. This computes the vector-valued curl of a scalar field.
+       *this is N by 2 matrix and curl is N by 2 matrix as well. */
+   void GradToVectorCurl2D(DenseMatrix &curl);
    /** Given a DShape matrix (from a scalar FE), stored in *this,
        returns the DivShape vector. If *this is a N by dim matrix,
        then div is a dim*N vector. The size of div must be set
@@ -328,6 +387,55 @@ public:
    /// Perform (ro+i,co+j)+=a*A(i,j) for 0<=i<A.Height, 0<=j<A.Width
    void AddMatrix(double a, const DenseMatrix &A, int ro, int co);
 
+   /** Get the square submatrix which corresponds to the given indices @a idx.
+       Note: the @a A matrix will be resized to accommodate the data */
+   void GetSubMatrix(const Array<int> & idx, DenseMatrix & A) const;
+
+   /** Get the rectangular submatrix which corresponds to the given indices
+      @a idx_i and @a idx_j. Note: the @a A matrix will be resized to
+      accommodate the data */
+   void GetSubMatrix(const Array<int> & idx_i, const Array<int> & idx_j,
+                     DenseMatrix & A) const;
+
+   /** Get the square submatrix which corresponds to the range
+       [ @a ibeg, @a iend ). Note: the @a A matrix will be resized
+        to accommodate the data */
+   void GetSubMatrix(int ibeg, int iend, DenseMatrix & A);
+
+   /** Get the square submatrix which corresponds to the range
+      i ∈ [ @a ibeg, @a iend ) and j ∈ [ @a jbeg, @a jend )
+      Note: the @a A matrix will be resized to accommodate the data */
+   void GetSubMatrix(int ibeg, int iend, int jbeg, int jend, DenseMatrix & A);
+
+   /// Set (*this)(idx[i],idx[j]) = A(i,j)
+   void SetSubMatrix(const Array<int> & idx, const DenseMatrix & A);
+
+   /// Set (*this)(idx_i[i],idx_j[j]) = A(i,j)
+   void SetSubMatrix(const Array<int> & idx_i, const Array<int> & idx_j,
+                     const DenseMatrix & A);
+
+   /** Set a submatrix of (this) to the given matrix @a A
+       with row and column offset @a ibeg */
+   void SetSubMatrix(int ibeg, const DenseMatrix & A);
+
+   /** Set a submatrix of (this) to the given matrix @a A
+       with row and column offset @a ibeg and @a jbeg respectively */
+   void SetSubMatrix(int ibeg, int jbeg, const DenseMatrix & A);
+
+   /// (*this)(idx[i],idx[j]) += A(i,j)
+   void AddSubMatrix(const Array<int> & idx, const DenseMatrix & A);
+
+   /// (*this)(idx_i[i],idx_j[j]) += A(i,j)
+   void AddSubMatrix(const Array<int> & idx_i, const Array<int> & idx_j,
+                     const DenseMatrix & A);
+
+   /** Add the submatrix @a A to this with row and column offset @a ibeg */
+   void AddSubMatrix(int ibeg, const DenseMatrix & A);
+
+   /** Add the submatrix @a A to this with row and column offsets
+       @a ibeg and @a jbeg respectively */
+   void AddSubMatrix(int ibeg, int jbeg, const DenseMatrix & A);
+
    /// Add the matrix 'data' to the Vector 'v' at the given 'offset'
    void AddToVector(int offset, Vector &v) const;
    /// Get the matrix 'data' from the Vector 'v' at the given 'offset'
@@ -341,7 +449,7 @@ public:
 
    /** Count the number of entries in the matrix for which isfinite
        is false, i.e. the entry is a NaN or +/-Inf. */
-   int CheckFinite() const { return mfem::CheckFinite(data, height*width); }
+   int CheckFinite() const { return mfem::CheckFinite(HostRead(), height*width); }
 
    /// Prints matrix to stream out.
    virtual void Print(std::ostream &out = mfem::out, int width_ = 4) const;
@@ -352,7 +460,33 @@ public:
    /// Invert and print the numerical conditioning of the inversion.
    void TestInversion();
 
-   long MemoryUsage() const { return std::abs(capacity) * sizeof(double); }
+   std::size_t MemoryUsage() const { return data.Capacity() * sizeof(double); }
+
+   /// Shortcut for mfem::Read( GetMemory(), TotalSize(), on_dev).
+   const double *Read(bool on_dev = true) const
+   { return mfem::Read(data, Height()*Width(), on_dev); }
+
+   /// Shortcut for mfem::Read(GetMemory(), TotalSize(), false).
+   const double *HostRead() const
+   { return mfem::Read(data, Height()*Width(), false); }
+
+   /// Shortcut for mfem::Write(GetMemory(), TotalSize(), on_dev).
+   double *Write(bool on_dev = true)
+   { return mfem::Write(data, Height()*Width(), on_dev); }
+
+   /// Shortcut for mfem::Write(GetMemory(), TotalSize(), false).
+   double *HostWrite()
+   { return mfem::Write(data, Height()*Width(), false); }
+
+   /// Shortcut for mfem::ReadWrite(GetMemory(), TotalSize(), on_dev).
+   double *ReadWrite(bool on_dev = true)
+   { return mfem::ReadWrite(data, Height()*Width(), on_dev); }
+
+   /// Shortcut for mfem::ReadWrite(GetMemory(), TotalSize(), false).
+   double *HostReadWrite()
+   { return mfem::ReadWrite(data, Height()*Width(), false); }
+
+   void Swap(DenseMatrix &other);
 
    /// Destroys dense matrix.
    virtual ~DenseMatrix();
@@ -370,11 +504,31 @@ void Add(double alpha, const double *A,
 void Add(double alpha, const DenseMatrix &A,
          double beta,  const DenseMatrix &B, DenseMatrix &C);
 
+/// @brief Solves the dense linear system, `A * X = B` for `X`
+///
+/// @param [in,out] A the square matrix for the linear system
+/// @param [in,out] X the rhs vector, B, on input, the solution, X, on output.
+/// @param [in] TOL optional fuzzy comparison tolerance. Defaults to 1e-9.
+///
+/// @return status set to true if successful, otherwise, false.
+///
+/// @note This routine may replace the contents of the input Matrix, A, with the
+///       corresponding LU factorization of the matrix. Matrices of size 1x1 and
+///       2x2 are handled explicitly.
+///
+/// @pre A.IsSquare() == true
+/// @pre X != nullptr
+bool LinearSolve(DenseMatrix& A, double* X, double TOL = 1.e-9);
+
 /// Matrix matrix multiplication.  A = B * C.
 void Mult(const DenseMatrix &b, const DenseMatrix &c, DenseMatrix &a);
 
 /// Matrix matrix multiplication.  A += B * C.
 void AddMult(const DenseMatrix &b, const DenseMatrix &c, DenseMatrix &a);
+
+/// Matrix matrix multiplication.  A += alpha * B * C.
+void AddMult_a(double alpha, const DenseMatrix &b, const DenseMatrix &c,
+               DenseMatrix &a);
 
 /** Calculate the adjugate of a matrix (for NxN matrices, N=1,2,3) or the matrix
     adj(A^t.A).A^t for rectangular matrices (2x1, 3x1, or 3x2). This operation
@@ -450,13 +604,58 @@ void AddMult_a_VWt(const double a, const Vector &v, const Vector &w,
 /// VVt += a * v v^t
 void AddMult_a_VVt(const double a, const Vector &v, DenseMatrix &VVt);
 
+/** Computes matrix P^t * A * P. Note: The @a RAP matrix will be resized
+    to accommodate the data */
+void RAP(const DenseMatrix &A, const DenseMatrix &P, DenseMatrix & RAP);
+
+/** Computes the matrix Rt^t * A * P. Note: The @a RAP matrix will be resized
+    to accommodate the data */
+void RAP(const DenseMatrix &Rt, const DenseMatrix &A,
+         const DenseMatrix &P, DenseMatrix & RAP);
+
+/** Abstract class that can compute factorization of external data and perform various
+    operations with the factored data. */
+class Factors
+{
+public:
+
+   double *data;
+
+   Factors() { }
+
+   Factors(double *data_) : data(data_) { }
+
+   virtual bool Factor(int m, double TOL = 0.0)
+   {
+      mfem_error("Factors::Factors(...)");
+      return false;
+   }
+
+   virtual double Det(int m) const
+   {
+      mfem_error("Factors::Det(...)");
+      return 0.;
+   }
+
+   virtual void Solve(int m, int n, double *X) const
+   {
+      mfem_error("Factors::Solve(...)");
+   }
+
+   virtual void GetInverseMatrix(int m, double *X) const
+   {
+      mfem_error("Factors::GetInverseMatrix(...)");
+   }
+
+   virtual ~Factors() {}
+};
+
 
 /** Class that can compute LU factorization of external data and perform various
     operations with the factored data. */
-class LUFactors
+class LUFactors : public Factors
 {
 public:
-   double *data;
    int *ipiv;
 #ifdef MFEM_USE_LAPACK
    static const int ipiv_base = 1;
@@ -466,18 +665,27 @@ public:
 
    /** With this constructor, the (public) data and ipiv members should be set
        explicitly before calling class methods. */
-   LUFactors() { }
+   LUFactors(): Factors() { }
 
-   LUFactors(double *data_, int *ipiv_) : data(data_), ipiv(ipiv_) { }
+   LUFactors(double *data_, int *ipiv_) : Factors(data_), ipiv(ipiv_) { }
 
-   /** Factorize the current data of size (m x m) overwriting it with the LU
-       factors. The factorization is such that L.U = P.A, where A is the
-       original matrix and P is a permutation matrix represented by ipiv. */
-   void Factor(int m);
+   /**
+    * @brief Compute the LU factorization of the current matrix
+    *
+    * Factorize the current matrix of size (m x m) overwriting it with the
+    * LU factors. The factorization is such that L.U = P.A, where A is the
+    * original matrix and P is a permutation matrix represented by ipiv.
+    *
+    * @param [in] m size of the square matrix
+    * @param [in] TOL optional fuzzy comparison tolerance. Defaults to 0.0.
+    *
+    * @return status set to true if successful, otherwise, false.
+    */
+   virtual bool Factor(int m, double TOL = 0.0);
 
    /** Assuming L.U = P.A factored data of size (m x m), compute |A|
        from the diagonal values of U and the permutation information. */
-   double Det(int m) const;
+   virtual double Det(int m) const;
 
    /** Assuming L.U = P.A factored data of size (m x m), compute X <- A X,
        for a matrix X of size (m x n). */
@@ -493,10 +701,14 @@ public:
 
    /** Assuming L.U = P.A factored data of size (m x m), compute X <- A^{-1} X,
        for a matrix X of size (m x n). */
-   void Solve(int m, int n, double *X) const;
+   virtual void Solve(int m, int n, double *X) const;
+
+   /** Assuming L.U = P.A factored data of size (m x m), compute X <- X A^{-1},
+       for a matrix X of size (n x m). */
+   void RightSolve(int m, int n, double *X) const;
 
    /// Assuming L.U = P.A factored data of size (m x m), compute X <- A^{-1}.
-   void GetInverseMatrix(int m, double *X) const;
+   virtual void GetInverseMatrix(int m, double *X) const;
 
    /** Given an (n x m) matrix A21, compute X2 <- X2 - A21 X1, for matrices X1,
        and X2 of size (m x r) and (n x r), respectively. */
@@ -544,24 +756,88 @@ public:
 };
 
 
+/** Class that can compute Cholesky factorizations of external data of an
+    SPD matrix and perform various operations with the factored data. */
+class CholeskyFactors : public Factors
+{
+public:
+
+   /** With this constructor, the (public) data should be set
+       explicitly before calling class methods. */
+   CholeskyFactors() : Factors() { }
+
+   CholeskyFactors(double *data_) : Factors(data_) { }
+
+   /**
+    * @brief Compute the Cholesky factorization of the current matrix
+    *
+    * Factorize the current matrix of size (m x m) overwriting it with the
+    * Cholesky factors. The factorization is such that LL^t = A, where A is the
+    * original matrix
+    *
+    * @param [in] m size of the square matrix
+    * @param [in] TOL optional fuzzy comparison tolerance. Defaults to 0.0.
+    *
+    * @return status set to true if successful, otherwise, false.
+    */
+   virtual bool Factor(int m, double TOL = 0.0);
+
+   /** Assuming LL^t = A factored data of size (m x m), compute |A|
+       from the diagonal values of L */
+   virtual double Det(int m) const;
+
+   /** Assuming L.L^t = A factored data of size (m x m), compute X <- L X,
+       for a matrix X of size (m x n). */
+   void LMult(int m, int n, double *X) const;
+
+   /** Assuming L.L^t = A factored data of size (m x m), compute X <- L^t X,
+       for a matrix X of size (m x n). */
+   void UMult(int m, int n, double *X) const;
+
+   /** Assuming L L^t = A factored data of size (m x m), compute
+       X <- L^{-1} X, for a matrix X of size (m x n). */
+   void LSolve(int m, int n, double *X) const;
+
+   /** Assuming L L^t = A factored data of size (m x m), compute
+       X <- L^{-t} X, for a matrix X of size (m x n). */
+   void USolve(int m, int n, double *X) const;
+
+   /** Assuming L.L^t = A factored data of size (m x m), compute X <- A^{-1} X,
+       for a matrix X of size (m x n). */
+   virtual void Solve(int m, int n, double *X) const;
+
+   /** Assuming L.L^t = A factored data of size (m x m), compute X <- X A^{-1},
+       for a matrix X of size (n x m). */
+   void RightSolve(int m, int n, double *X) const;
+
+   /// Assuming L.L^t = A factored data of size (m x m), compute X <- A^{-1}.
+   virtual void GetInverseMatrix(int m, double *X) const;
+
+};
+
+
 /** Data type for inverse of square dense matrix.
-    Stores LU factors */
+    Stores matrix factors, i.e.,  Cholesky factors if the matrix is SPD,
+    LU otherwise. */
 class DenseMatrixInverse : public MatrixInverse
 {
 private:
    const DenseMatrix *a;
-   LUFactors lu;
+   Factors * factors = nullptr;
+   bool spd = false;
 
+   void Init(int m);
+   bool own_data = false;
 public:
    /// Default constructor.
-   DenseMatrixInverse() : a(NULL), lu(NULL, NULL) { }
+   DenseMatrixInverse(bool spd_=false) : a(NULL), spd(spd_) { Init(0); }
 
    /** Creates square dense matrix. Computes factorization of mat
-       and stores LU factors. */
-   DenseMatrixInverse(const DenseMatrix &mat);
+       and stores its factors. */
+   DenseMatrixInverse(const DenseMatrix &mat, bool spd_ = false);
 
    /// Same as above but does not factorize the matrix.
-   DenseMatrixInverse(const DenseMatrix *mat);
+   DenseMatrixInverse(const DenseMatrix *mat, bool spd_ = false);
 
    ///  Get the size of the inverse matrix
    int Size() const { return Width(); }
@@ -575,19 +851,24 @@ public:
    virtual void SetOperator(const Operator &op);
 
    /// Matrix vector multiplication with the inverse of dense matrix.
+   void Mult(const double *x, double *y) const;
+
+   /// Matrix vector multiplication with the inverse of dense matrix.
    virtual void Mult(const Vector &x, Vector &y) const;
 
    /// Multiply the inverse matrix by another matrix: X = A^{-1} B.
    void Mult(const DenseMatrix &B, DenseMatrix &X) const;
 
    /// Multiply the inverse matrix by another matrix: X <- A^{-1} X.
-   void Mult(DenseMatrix &X) const { lu.Solve(width, X.Width(), X.Data()); }
+   void Mult(DenseMatrix &X) const {factors->Solve(width, X.Width(), X.Data());}
+
+   using Operator::Mult;
 
    /// Compute and return the inverse matrix in Ainv.
    void GetInverseMatrix(DenseMatrix &Ainv) const;
 
    /// Compute the determinant of the original DenseMatrix using the LU factors.
-   double Det() const { return lu.Det(width); }
+   double Det() const { return factors->Det(width); }
 
    /// Print the numerical conditioning of the inversion: ||A^{-1} A - I||.
    void TestInversion();
@@ -596,6 +877,7 @@ public:
    virtual ~DenseMatrixInverse();
 };
 
+#ifdef MFEM_USE_LAPACK
 
 class DenseMatrixEigensystem
 {
@@ -604,13 +886,9 @@ class DenseMatrixEigensystem
    DenseMatrix EVect;
    Vector ev;
    int n;
-
-#ifdef MFEM_USE_LAPACK
    double *work;
    char jobz, uplo;
    int lwork, info;
-#endif
-
 public:
 
    DenseMatrixEigensystem(DenseMatrix &m);
@@ -627,10 +905,46 @@ public:
    ~DenseMatrixEigensystem();
 };
 
+class DenseMatrixGeneralizedEigensystem
+{
+   DenseMatrix &A;
+   DenseMatrix &B;
+   DenseMatrix A_copy;
+   DenseMatrix B_copy;
+   Vector evalues_r;
+   Vector evalues_i;
+   DenseMatrix Vr;
+   DenseMatrix Vl;
+   int n;
+
+   double *alphar;
+   double *alphai;
+   double *beta;
+   double *work;
+   char jobvl, jobvr;
+   int lwork, info;
+
+public:
+
+   DenseMatrixGeneralizedEigensystem(DenseMatrix &a, DenseMatrix &b,
+                                     bool left_eigen_vectors = false,
+                                     bool right_eigen_vectors = false);
+   void Eval();
+   Vector &EigenvaluesRealPart() { return evalues_r; }
+   Vector &EigenvaluesImagPart() { return evalues_i; }
+   double EigenvalueRealPart(int i) { return evalues_r(i); }
+   double EigenvalueImagPart(int i) { return evalues_i(i); }
+   DenseMatrix &LeftEigenvectors() { return Vl; }
+   DenseMatrix &RightEigenvectors() { return Vr; }
+   ~DenseMatrixGeneralizedEigensystem();
+};
+
 
 class DenseMatrixSVD
 {
+   DenseMatrix Mc;
    Vector sv;
+   DenseMatrix U,Vt;
    int m, n;
 
 #ifdef MFEM_USE_LAPACK
@@ -641,14 +955,22 @@ class DenseMatrixSVD
 
    void Init();
 public:
-
-   DenseMatrixSVD(DenseMatrix &M);
-   DenseMatrixSVD(int h, int w);
+   DenseMatrixSVD(DenseMatrix &M,
+                  bool left_singular_vectors=false,
+                  bool right_singlular_vectors=false);
+   DenseMatrixSVD(int h, int w,
+                  bool left_singular_vectors=false,
+                  bool right_singlular_vectors=false);
    void Eval(DenseMatrix &M);
    Vector &Singularvalues() { return sv; }
    double Singularvalue(int i) { return sv(i); }
+   DenseMatrix &LeftSingularvectors() { return U; }
+   DenseMatrix &RightSingularvectors() { return Vt; }
    ~DenseMatrixSVD();
 };
+
+#endif // if MFEM_USE_LAPACK
+
 
 class Table;
 
@@ -656,7 +978,7 @@ class Table;
 class DenseTensor
 {
 private:
-   DenseMatrix Mk;
+   mutable DenseMatrix Mk;
    Memory<double> tdata;
    int nk;
 
@@ -664,7 +986,6 @@ public:
    DenseTensor()
    {
       nk = 0;
-      tdata.Reset();
    }
 
    DenseTensor(int i, int j, int k)
@@ -672,6 +993,20 @@ public:
    {
       nk = k;
       tdata.New(i*j*k);
+   }
+
+   DenseTensor(double *d, int i, int j, int k)
+      : Mk(NULL, i, j)
+   {
+      nk = k;
+      tdata.Wrap(d, i*j*k, false);
+   }
+
+   DenseTensor(int i, int j, int k, MemoryType mt)
+      : Mk(NULL, i, j)
+   {
+      nk = k;
+      tdata.New(i*j*k, mt);
    }
 
    /// Copy constructor: deep copy
@@ -684,10 +1019,6 @@ public:
          tdata.New(size, other.tdata.GetMemoryType());
          tdata.CopyFrom(other.tdata, size);
       }
-      else
-      {
-         tdata.Reset();
-      }
    }
 
    int SizeI() const { return Mk.Height(); }
@@ -696,9 +1027,9 @@ public:
 
    int TotalSize() const { return SizeI()*SizeJ()*SizeK(); }
 
-   void SetSize(int i, int j, int k)
+   void SetSize(int i, int j, int k, MemoryType mt_ = MemoryType::PRESERVE)
    {
-      const MemoryType mt = tdata.GetMemoryType();
+      const MemoryType mt = mt_ == MemoryType::PRESERVE ? tdata.GetMemoryType() : mt_;
       tdata.Delete();
       Mk.UseExternalData(NULL, i, j);
       nk = k;
@@ -716,16 +1047,50 @@ public:
    /// Sets the tensor elements equal to constant c
    DenseTensor &operator=(double c);
 
-   DenseMatrix &operator()(int k) { Mk.data = GetData(k); return Mk; }
+   /// Copy assignment operator (performs a deep copy)
+   DenseTensor &operator=(const DenseTensor &other);
+
+   DenseMatrix &operator()(int k)
+   {
+      MFEM_ASSERT_INDEX_IN_RANGE(k, 0, SizeK());
+      Mk.data = Memory<double>(GetData(k), SizeI()*SizeJ(), false);
+      return Mk;
+   }
    const DenseMatrix &operator()(int k) const
-   { return const_cast<DenseTensor&>(*this)(k); }
+   {
+      MFEM_ASSERT_INDEX_IN_RANGE(k, 0, SizeK());
+      Mk.data = Memory<double>(const_cast<double*>(GetData(k)), SizeI()*SizeJ(),
+                               false);
+      return Mk;
+   }
 
    double &operator()(int i, int j, int k)
-   { return tdata[i+SizeI()*(j+SizeJ()*k)]; }
-   const double &operator()(int i, int j, int k) const
-   { return tdata[i+SizeI()*(j+SizeJ()*k)]; }
+   {
+      MFEM_ASSERT_INDEX_IN_RANGE(i, 0, SizeI());
+      MFEM_ASSERT_INDEX_IN_RANGE(j, 0, SizeJ());
+      MFEM_ASSERT_INDEX_IN_RANGE(k, 0, SizeK());
+      return tdata[i+SizeI()*(j+SizeJ()*k)];
+   }
 
-   double *GetData(int k) { return tdata+k*Mk.Height()*Mk.Width(); }
+   const double &operator()(int i, int j, int k) const
+   {
+      MFEM_ASSERT_INDEX_IN_RANGE(i, 0, SizeI());
+      MFEM_ASSERT_INDEX_IN_RANGE(j, 0, SizeJ());
+      MFEM_ASSERT_INDEX_IN_RANGE(k, 0, SizeK());
+      return tdata[i+SizeI()*(j+SizeJ()*k)];
+   }
+
+   double *GetData(int k)
+   {
+      MFEM_ASSERT_INDEX_IN_RANGE(k, 0, SizeK());
+      return tdata+k*Mk.Height()*Mk.Width();
+   }
+
+   const double *GetData(int k) const
+   {
+      MFEM_ASSERT_INDEX_IN_RANGE(k, 0, SizeK());
+      return tdata+k*Mk.Height()*Mk.Width();
+   }
 
    double *Data() { return tdata; }
 
@@ -741,10 +1106,63 @@ public:
    void Clear()
    { UseExternalData(NULL, 0, 0, 0); }
 
-   long MemoryUsage() const { return nk*Mk.MemoryUsage(); }
+   std::size_t MemoryUsage() const { return nk*Mk.MemoryUsage(); }
+
+   /// Shortcut for mfem::Read( GetMemory(), TotalSize(), on_dev).
+   const double *Read(bool on_dev = true) const
+   { return mfem::Read(tdata, Mk.Height()*Mk.Width()*nk, on_dev); }
+
+   /// Shortcut for mfem::Read(GetMemory(), TotalSize(), false).
+   const double *HostRead() const
+   { return mfem::Read(tdata, Mk.Height()*Mk.Width()*nk, false); }
+
+   /// Shortcut for mfem::Write(GetMemory(), TotalSize(), on_dev).
+   double *Write(bool on_dev = true)
+   { return mfem::Write(tdata, Mk.Height()*Mk.Width()*nk, on_dev); }
+
+   /// Shortcut for mfem::Write(GetMemory(), TotalSize(), false).
+   double *HostWrite()
+   { return mfem::Write(tdata, Mk.Height()*Mk.Width()*nk, false); }
+
+   /// Shortcut for mfem::ReadWrite(GetMemory(), TotalSize(), on_dev).
+   double *ReadWrite(bool on_dev = true)
+   { return mfem::ReadWrite(tdata, Mk.Height()*Mk.Width()*nk, on_dev); }
+
+   /// Shortcut for mfem::ReadWrite(GetMemory(), TotalSize(), false).
+   double *HostReadWrite()
+   { return mfem::ReadWrite(tdata, Mk.Height()*Mk.Width()*nk, false); }
+
+   void Swap(DenseTensor &t)
+   {
+      mfem::Swap(tdata, t.tdata);
+      mfem::Swap(nk, t.nk);
+      Mk.Swap(t.Mk);
+   }
 
    ~DenseTensor() { tdata.Delete(); }
 };
+
+/** @brief Compute the LU factorization of a batch of matrices
+
+    Factorize n matrices of size (m x m) stored in a dense tensor overwriting it
+    with the LU factors. The factorization is such that L.U = Piv.A, where A is
+    the original matrix and Piv is a permutation matrix represented by P.
+
+    @param [in, out] Mlu batch of square matrices - dimension m x m x n.
+    @param [out] P array storing pivot information - dimension m x n.
+    @param [in] TOL optional fuzzy comparison tolerance. Defaults to 0.0. */
+void BatchLUFactor(DenseTensor &Mlu, Array<int> &P, const double TOL = 0.0);
+
+/** @brief Solve batch linear systems
+
+    Assuming L.U = P.A for n factored matrices (m x m), compute x <- A x, for n
+    companion vectors.
+
+    @param [in] Mlu batch of LU factors for matrix M - dimension m x m x n.
+    @param [in] P array storing pivot information - dimension m x n.
+    @param [in, out] X vector storing right-hand side and then solution -
+    dimension m x n. */
+void BatchLUSolve(const DenseTensor &Mlu, const Array<int> &P, Vector &X);
 
 
 // Inline methods

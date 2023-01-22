@@ -1,25 +1,35 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
 #ifndef MFEM_SPARSEMAT_HPP
 #define MFEM_SPARSEMAT_HPP
 
 // Data types for sparse matrix
 
+#include "../general/backends.hpp"
 #include "../general/mem_alloc.hpp"
 #include "../general/mem_manager.hpp"
 #include "../general/device.hpp"
 #include "../general/table.hpp"
 #include "../general/globals.hpp"
 #include "densemat.hpp"
+
+#if defined(MFEM_USE_HIP)
+#if (HIP_VERSION_MAJOR * 100 + HIP_VERSION_MINOR) < 502
+#include <hipsparse.h>
+#else
+#include <hipsparse/hipsparse.h>
+#endif
+#endif
+
 
 namespace mfem
 {
@@ -80,9 +90,50 @@ protected:
    void Destroy();   // Delete all owned data
    void SetEmpty();  // Init all entries with empty values
 
+   bool useGPUSparse = true; // Use cuSPARSE or hipSPARSE if available
+
+   // Initialize cuSPARSE/hipSPARSE
+   void InitGPUSparse();
+
+#ifdef MFEM_USE_CUDA_OR_HIP
+   // common for hipSPARSE and cuSPARSE
+   static int SparseMatrixCount;
+   static size_t bufferSize;
+   static void *dBuffer;
+   mutable bool initBuffers = false;
+
+#if defined(MFEM_USE_CUDA)
+   cusparseStatus_t status;
+   static cusparseHandle_t handle;
+   cusparseMatDescr_t descr = 0;
+
+#if CUDA_VERSION >= 10010
+   mutable cusparseSpMatDescr_t matA_descr;
+   mutable cusparseDnVecDescr_t vecX_descr;
+   mutable cusparseDnVecDescr_t vecY_descr;
+#else // CUDA_VERSION >= 10010
+   mutable cusparseMatDescr_t matA_descr;
+#endif // CUDA_VERSION >= 10010
+
+#else // defined(MFEM_USE_CUDA)
+   hipsparseStatus_t status;
+   static hipsparseHandle_t handle;
+   hipsparseMatDescr_t descr = 0;
+
+   mutable hipsparseSpMatDescr_t matA_descr;
+   mutable hipsparseDnVecDescr_t vecX_descr;
+   mutable hipsparseDnVecDescr_t vecY_descr;
+#endif // defined(MFEM_USE_CUDA)
+#endif // MFEM_USE_CUDA_OR_HIP
+
 public:
    /// Create an empty SparseMatrix.
-   SparseMatrix() { SetEmpty(); }
+   SparseMatrix()
+   {
+      SetEmpty();
+
+      InitGPUSparse();
+   }
 
    /** @brief Create a sparse matrix with flexible sparsity structure using a
        row-wise linked list (LIL) format. */
@@ -112,12 +163,35 @@ public:
    /// Copy constructor (deep copy).
    /** If @a mat is finalized and @a copy_graph is false, the #I and #J arrays
        will use a shallow copy (copy the pointers only) without transferring
-       ownership. */
-   SparseMatrix(const SparseMatrix &mat, bool copy_graph = true);
+       ownership.
+       If @a mt is MemoryType::PRESERVE the memory type of the resulting
+       SparseMatrix's #I, #J, and #A arrays will be the same as @a mat,
+       otherwise the type will be @a mt for those arrays that are deep
+       copied. */
+   SparseMatrix(const SparseMatrix &mat, bool copy_graph = true,
+                MemoryType mt = MemoryType::PRESERVE);
 
    /// Create a SparseMatrix with diagonal @a v, i.e. A = Diag(v)
    SparseMatrix(const Vector & v);
 
+   /// @brief Sets the height and width of the matrix.
+   /** @warning This does not modify in any way the underlying CSR or LIL
+       representation of the matrix.
+
+       This function should generally be called when manually constructing the
+       CSR #I, #J, and #A arrays in conjunction with the
+       SparseMatrix::SparseMatrix() constructor. */
+   void OverrideSize(int height_, int width_);
+
+   /** @brief Runtime option to use cuSPARSE or hipSPARSE. Only valid when using
+       a CUDA or HIP backend.
+
+       @note This option is enabled by default, so typically one would use this
+       method to disable the use of cuSPARSE/hipSPARSE. */
+   void UseGPUSparse(bool useGPUSparse_ = true) { useGPUSparse = useGPUSparse_;}
+   /// Deprecated equivalent of UseGPUSparse().
+   MFEM_DEPRECATED
+   void UseCuSparse(bool useCuSparse_ = true) { UseGPUSparse(useCuSparse_); }
 
    /// Assignment operator: deep copy
    SparseMatrix& operator=(const SparseMatrix &rhs);
@@ -133,6 +207,13 @@ public:
 
    /// Clear the contents of the SparseMatrix.
    void Clear() { Destroy(); SetEmpty(); }
+
+   /** @brief Clear the cuSPARSE/hipSPARSE descriptors.
+       This must be called after releasing the device memory of A. */
+   void ClearGPUSparse();
+   /// Deprecated equivalent of ClearGPUSparse().
+   MFEM_DEPRECATED
+   void ClearCuSparse() { ClearGPUSparse(); }
 
    /// Check if the SparseMatrix is empty.
    bool Empty() const { return (A == NULL) && (Rows == NULL); }
@@ -151,6 +232,54 @@ public:
    inline double *GetData() { return A; }
    /// Return the element data, i.e. the array #A, const version.
    inline const double *GetData() const { return A; }
+
+   // Memory access methods for the #I array.
+   Memory<int> &GetMemoryI() { return I; }
+   const Memory<int> &GetMemoryI() const { return I; }
+   const int *ReadI(bool on_dev = true) const
+   { return mfem::Read(I, Height()+1, on_dev); }
+   int *WriteI(bool on_dev = true)
+   { return mfem::Write(I, Height()+1, on_dev); }
+   int *ReadWriteI(bool on_dev = true)
+   { return mfem::ReadWrite(I, Height()+1, on_dev); }
+   const int *HostReadI() const
+   { return mfem::Read(I, Height()+1, false); }
+   int *HostWriteI()
+   { return mfem::Write(I, Height()+1, false); }
+   int *HostReadWriteI()
+   { return mfem::ReadWrite(I, Height()+1, false); }
+
+   // Memory access methods for the #J array.
+   Memory<int> &GetMemoryJ() { return J; }
+   const Memory<int> &GetMemoryJ() const { return J; }
+   const int *ReadJ(bool on_dev = true) const
+   { return mfem::Read(J, J.Capacity(), on_dev); }
+   int *WriteJ(bool on_dev = true)
+   { return mfem::Write(J, J.Capacity(), on_dev); }
+   int *ReadWriteJ(bool on_dev = true)
+   { return mfem::ReadWrite(J, J.Capacity(), on_dev); }
+   const int *HostReadJ() const
+   { return mfem::Read(J, J.Capacity(), false); }
+   int *HostWriteJ()
+   { return mfem::Write(J, J.Capacity(), false); }
+   int *HostReadWriteJ()
+   { return mfem::ReadWrite(J, J.Capacity(), false); }
+
+   // Memory access methods for the #A array.
+   Memory<double> &GetMemoryData() { return A; }
+   const Memory<double> &GetMemoryData() const { return A; }
+   const double *ReadData(bool on_dev = true) const
+   { return mfem::Read(A, A.Capacity(), on_dev); }
+   double *WriteData(bool on_dev = true)
+   { return mfem::Write(A, A.Capacity(), on_dev); }
+   double *ReadWriteData(bool on_dev = true)
+   { return mfem::ReadWrite(A, A.Capacity(), on_dev); }
+   const double *HostReadData() const
+   { return mfem::Read(A, A.Capacity(), false); }
+   double *HostWriteData()
+   { return mfem::Write(A, A.Capacity(), false); }
+   double *HostReadWriteData()
+   { return mfem::ReadWrite(A, A.Capacity(), false); }
 
    /// Returns the number of elements in row @a i.
    int RowSize(const int i) const;
@@ -211,45 +340,70 @@ public:
    void ToDenseMatrix(DenseMatrix & B) const;
 
    virtual MemoryClass GetMemoryClass() const
-   { return Finalized() ? Device::GetMemoryClass() : MemoryClass::HOST; }
+   {
+      return Finalized() ?
+             Device::GetDeviceMemoryClass() : Device::GetHostMemoryClass();
+   }
 
    /// Matrix vector multiplication.
    virtual void Mult(const Vector &x, Vector &y) const;
 
    /// y += A * x (default)  or  y += a * A * x
-   void AddMult(const Vector &x, Vector &y, const double a = 1.0) const;
+   virtual void AddMult(const Vector &x, Vector &y,
+                        const double a = 1.0) const;
 
    /// Multiply a vector with the transposed matrix. y = At * x
-   void MultTranspose(const Vector &x, Vector &y) const;
+   /** If the matrix is modified, call ResetTranspose() and optionally
+       EnsureMultTranspose() to make sure this method uses the correct updated
+       transpose. */
+   virtual void MultTranspose(const Vector &x, Vector &y) const;
 
    /// y += At * x (default)  or  y += a * At * x
-   void AddMultTranspose(const Vector &x, Vector &y,
-                         const double a = 1.0) const;
+   /** If the matrix is modified, call ResetTranspose() and optionally
+       EnsureMultTranspose() to make sure this method uses the correct updated
+       transpose. */
+   virtual void AddMultTranspose(const Vector &x, Vector &y,
+                                 const double a = 1.0) const;
 
    /** @brief Build and store internally the transpose of this matrix which will
-       be used in the methods AddMultTranspose() and MultTranspose(). */
+       be used in the methods AddMultTranspose(), MultTranspose(), and
+       AbsMultTranspose(). */
    /** If this method has been called, the internal transpose matrix will be
        used to perform the action of the transpose matrix in AddMultTranspose(),
-       and MultTranspose().
+       MultTranspose(), and AbsMultTranspose().
 
        Warning: any changes in this matrix will invalidate the internal
-       transpose. To rebuild the transpose, call ResetTranspose() followed by a
-       call to this method. If the internal transpose is already built, this
-       method has no effect.
+       transpose. To rebuild the transpose, call ResetTranspose() followed by
+       (optionally) a call to this method. If the internal transpose is already
+       built, this method has no effect.
 
-       When any non-default backend is enabled, i.e. Device::IsEnabled() is
-       true, the methods AddMultTranspose(), and MultTranspose(), require the
-       internal transpose to be built. If that is not the case (i.e. the
-       internal transpose is not built), these methods will raise an error with
-       an appropriate message pointing to this method. When using the default
-       backend, calling this method is optional.
+       When any non-serial-CPU backend is enabled, i.e. the call
+       Device::Allows(~ Backend::CPU_MASK) returns true, the above methods
+       require the internal transpose to be built. If that is not the case (i.e.
+       the internal transpose is not built), these methods will automatically
+       call EnsureMultTranspose(). When using any backend from
+       Backend::CPU_MASK, calling this method is optional.
 
-       This method can only be used when the sparse matrix is finalized. */
+       This method can only be used when the sparse matrix is finalized.
+
+       @sa EnsureMultTranspose(), ResetTranspose(). */
    void BuildTranspose() const;
 
    /** Reset (destroy) the internal transpose matrix. See BuildTranspose() for
        more details. */
    void ResetTranspose() const;
+
+   /** @brief Ensures that the matrix is capable of performing MultTranspose(),
+       AddMultTranspose(), and AbsMultTranspose(). */
+   /** For non-serial-CPU backends (e.g. GPU, OpenMP), multiplying by the
+       transpose requires that the internal transpose matrix be already built.
+       When such a backend is enabled, this function will build the internal
+       transpose matrix, see BuildTranspose().
+
+       For the serial CPU backends, the internal transpose is not required, and
+       this function is a no-op. This allows for significant memory savings
+       when the internal transpose matrix is not required. */
+   void EnsureMultTranspose() const;
 
    void PartMult(const Array<int> &rows, const Vector &x, Vector &y) const;
    void PartAddMult(const Array<int> &rows, const Vector &x, Vector &y,
@@ -257,15 +411,24 @@ public:
 
    /// y = A * x, treating all entries as booleans (zero=false, nonzero=true).
    /** The actual values stored in the data array, #A, are not used - this means
-       and that all entries in the sparsity pattern are considered to be true by
+       that all entries in the sparsity pattern are considered to be true by
        this method. */
    void BooleanMult(const Array<int> &x, Array<int> &y) const;
 
    /// y = At * x, treating all entries as booleans (zero=false, nonzero=true).
    /** The actual values stored in the data array, #A, are not used - this means
-       and that all entries in the sparsity pattern are considered to be true by
+       that all entries in the sparsity pattern are considered to be true by
        this method. */
    void BooleanMultTranspose(const Array<int> &x, Array<int> &y) const;
+
+   /// y = |A| * x, using entry-wise absolute values of matrix A
+   void AbsMult(const Vector &x, Vector &y) const;
+
+   /// y = |At| * x, using entry-wise absolute values of the transpose of matrix A
+   /** If the matrix is modified, call ResetTranspose() and optionally
+       EnsureMultTranspose() to make sure this method uses the correct updated
+       transpose. */
+   void AbsMultTranspose(const Vector &x, Vector &y) const;
 
    /// Compute y^t A x
    double InnerProduct(const Vector &x, const Vector &y) const;
@@ -305,6 +468,10 @@ public:
    void EliminateCols(const Array<int> &cols, const Vector *x = NULL,
                       Vector *b = NULL);
 
+   /** @brief Similar to EliminateCols + save the eliminated entries into
+       @a Ae so that (*this) + Ae is equal to the original matrix. */
+   void EliminateCols(const Array<int> &col_marker, SparseMatrix &Ae);
+
    /// Eliminate row @a rc and column @a rc and modify the @a rhs using @a sol.
    /** Eliminates the column @a rc to the @a rhs, deletes the row @a rc and
        replaces the element (rc,rc) with 1.0; assumes that element (i,rc)
@@ -334,6 +501,14 @@ public:
    void EliminateRowCol(int rc, SparseMatrix &Ae,
                         DiagonalPolicy dpolicy = DIAG_ONE);
 
+   /** @brief Eliminate essential (Dirichlet) boundary conditions.
+
+      @param[in] ess_dofs indices of the degrees of freedom belonging to the
+                          essential boundary conditions.
+      @param[in] diag_policy policy for diagonal entries. */
+   void EliminateBC(const Array<int> &ess_dofs,
+                    DiagonalPolicy diag_policy);
+
    /// If a row contains only one diag entry of zero, set it to 1.
    void SetDiagIdentity();
    /// If a row contains only zeros, set its diagonal to 1.
@@ -346,10 +521,14 @@ public:
    /// Determine appropriate scaling for Jacobi iteration
    double GetJacobiScaling() const;
    /** One scaled Jacobi iteration for the system A x = b.
-       x1 = x0 + sc D^{-1} (b - A x0)  where D is the diag of A. */
-   void Jacobi(const Vector &b, const Vector &x0, Vector &x1, double sc) const;
+       x1 = x0 + sc D^{-1} (b - A x0)  where D is the diag of A.
+       Absolute values of D are used when use_abs_diag = true. */
+   void Jacobi(const Vector &b, const Vector &x0, Vector &x1,
+               double sc, bool use_abs_diag = false) const;
 
-   void DiagScale(const Vector &b, Vector &x, double sc = 1.0) const;
+   /// x = sc b / A_ii. When use_abs_diag = true, |A_ii| is used.
+   void DiagScale(const Vector &b, Vector &x,
+                  double sc = 1.0, bool use_abs_diag = false) const;
 
    /** x1 = x0 + sc D^{-1} (b - A x0) where \f$ D_{ii} = \sum_j |A_{ij}| \f$. */
    void Jacobi2(const Vector &b, const Vector &x0, Vector &x1,
@@ -369,8 +548,10 @@ public:
    /// A slightly more general version of the Finalize(int) method.
    void Finalize(int skip_zeros, bool fix_empty_rows);
 
+   /// Returns whether or not CSR format has been finalized.
    bool Finalized() const { return !A.Empty(); }
-   bool areColumnsSorted() const { return isSorted; }
+   /// Returns whether or not the columns are sorted.
+   bool ColumnsAreSorted() const { return isSorted; }
 
    /** @brief Remove entries smaller in absolute value than a given tolerance
        @a tol. If @a fix_empty_rows is true, a zero value is inserted in the
@@ -415,8 +596,8 @@ public:
    inline void _Set_(const int row, const int col, const double a)
    { SearchRow(row, col) = a; }
 
-   void Set(const int i, const int j, const double a);
-   void Add(const int i, const int j, const double a);
+   void Set(const int i, const int j, const double val);
+   void Add(const int i, const int j, const double val);
 
    void SetSubMatrix(const Array<int> &rows, const Array<int> &cols,
                      const DenseMatrix &subm, int skip_zeros = 1);
@@ -424,6 +605,12 @@ public:
    void SetSubMatrixTranspose(const Array<int> &rows, const Array<int> &cols,
                               const DenseMatrix &subm, int skip_zeros = 1);
 
+   /** Insert the DenseMatrix into this SparseMatrix at the specified rows and
+       columns. If \c skip_zeros==0 , all entries from the DenseMatrix are
+       added including zeros. If \c skip_zeros==2 , no zeros are added to the
+       SparseMatrix regardless of their position in the matrix. Otherwise, the
+       default \c skip_zeros behavior is to omit the zero from the SparseMatrix
+       unless it would break the symmetric structure of the SparseMatrix. */
    void AddSubMatrix(const Array<int> &rows, const Array<int> &cols,
                      const DenseMatrix &subm, int skip_zeros = 1);
 
@@ -466,7 +653,7 @@ public:
    void Print(std::ostream &out = mfem::out, int width_ = 4) const;
 
    /// Prints matrix in matlab format.
-   void PrintMatlab(std::ostream &out = mfem::out) const;
+   virtual void PrintMatlab(std::ostream &out = mfem::out) const;
 
    /// Prints matrix in Matrix Market sparse format.
    void PrintMM(std::ostream &out = mfem::out) const;
@@ -477,7 +664,7 @@ public:
    /// Prints a sparse matrix to stream out in CSR format.
    void PrintCSR2(std::ostream &out) const;
 
-   /// Print various sparse matrix staticstics.
+   /// Print various sparse matrix statistics.
    void PrintInfo(std::ostream &out) const;
 
    /// Returns max_{i,j} |(i,j)-(j,i)| for a finalized matrix
@@ -516,10 +703,16 @@ public:
    void Swap(SparseMatrix &other);
 
    /// Destroys sparse matrix.
-   virtual ~SparseMatrix() { Destroy(); }
+   virtual ~SparseMatrix();
 
    Type GetType() const { return MFEM_SPARSEMAT; }
 };
+
+inline std::ostream& operator<<(std::ostream& os, SparseMatrix const& mat)
+{
+   mat.Print(os);
+   return os;
+}
 
 /// Applies f() to each element of the matrix (after it is finalized).
 void SparseMatrixFunction(SparseMatrix &S, double (*f)(double));

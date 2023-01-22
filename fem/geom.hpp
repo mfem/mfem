@@ -1,13 +1,13 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
 #ifndef MFEM_GEOM
 #define MFEM_GEOM
@@ -27,6 +27,7 @@ namespace mfem
     Geometry::TETRAHEDRON - w/ vert. (0,0,0),(1,0,0),(0,1,0),(0,0,1)
     Geometry::CUBE - the unit cube
     Geometry::PRISM - w/ vert. (0,0,0),(1,0,0),(0,1,0),(0,0,1),(1,0,1),(0,1,1)
+    Geometry::PYRAMID - w/ vert. (0,0,0),(1,0,0),(1,1,0),(0,1,0),(0,0,1)
 */
 class Geometry
 {
@@ -34,7 +35,7 @@ public:
    enum Type
    {
       INVALID = -1,
-      POINT = 0, SEGMENT, TRIANGLE, SQUARE, TETRAHEDRON, CUBE, PRISM,
+      POINT = 0, SEGMENT, TRIANGLE, SQUARE, TETRAHEDRON, CUBE, PRISM, PYRAMID,
       NUM_GEOMETRIES
    };
 
@@ -101,6 +102,25 @@ public:
    void GetPerfPointMat(int GeomType, DenseMatrix &pm);
    void JacToPerfJac(int GeomType, const DenseMatrix &J,
                      DenseMatrix &PJ) const;
+
+   /// Returns true if the given @a geom is of tensor-product type (i.e. if geom
+   /// is a segment, quadrilateral, or hexahedron), returns false otherwise.
+   static bool IsTensorProduct(Type geom)
+   { return geom == SEGMENT || geom == SQUARE || geom == CUBE; }
+
+   /// Returns the Geometry::Type corresponding to a tensor-product of the
+   /// given dimension.
+   static Type TensorProductGeometry(int dim)
+   {
+      switch (dim)
+      {
+         case 0: return POINT;
+         case 1: return SEGMENT;
+         case 2: return SQUARE;
+         case 3: return CUBE;
+         default: MFEM_ABORT("Invalid dimension."); return INVALID;
+      }
+   }
 
    /// Return the number of boundary "faces" of a given Geometry::Type.
    int NumBdr(int GeomType) { return NumBdrArray[GeomType]; }
@@ -190,6 +210,10 @@ template <> struct Geometry::Constants<Geometry::TETRAHEDRON>
       static const int I[NumVert];
       static const int J[NumEdges][2]; // {end,edge_idx}
    };
+
+   static const int NumOrient = 24;
+   static const int Orient[NumOrient][NumVert];
+   static const int InvOrient[NumOrient];
 };
 
 template <> struct Geometry::Constants<Geometry::CUBE>
@@ -228,7 +252,26 @@ template <> struct Geometry::Constants<Geometry::PRISM>
    };
 };
 
-// Defined in fe.cpp to ensure construction after 'mfem::WedgeFE'.
+template <> struct Geometry::Constants<Geometry::PYRAMID>
+{
+   static const int Dimension = 3;
+   static const int NumVert = 5;
+   static const int NumEdges = 8;
+   static const int Edges[NumEdges][2];
+   static const int NumFaces = 5;
+   static const int FaceTypes[NumFaces];
+   static const int MaxFaceVert = 4;
+   static const int FaceVert[NumFaces][MaxFaceVert];
+   // Upper-triangular part of the local vertex-to-vertex graph.
+   struct VertToVert
+   {
+      static const int I[NumVert];
+      static const int J[NumEdges][2]; // {end,edge_idx}
+   };
+};
+
+// Defined in fe.cpp to ensure construction after 'mfem::TriangleFE' and
+// `mfem::TetrahedronFE`.
 extern Geometry Geometries;
 
 
@@ -268,6 +311,12 @@ public:
 
    /// @note This method always uses Quadrature1D::OpenUniform points.
    const IntegrationRule *RefineInterior(Geometry::Type Geom, int Times);
+
+   /// Get the Refinement level based on number of points
+   virtual int GetRefinementLevelFromPoints(Geometry::Type Geom, int Npts);
+
+   /// Get the Refinement level based on number of elements
+   virtual int GetRefinementLevelFromElems(Geometry::Type geom, int Npts);
 
    ~GeometryRefiner();
 };

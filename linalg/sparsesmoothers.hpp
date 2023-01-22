@@ -1,13 +1,13 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
 #ifndef MFEM_SPARSEMATSMOOTHERS
 #define MFEM_SPARSEMATSMOOTHERS
@@ -58,6 +58,8 @@ protected:
    int type; // 0, 1, 2 - scaled Jacobi, scaled l1-Jacobi, scaled lumped-Jacobi
    double scale;
    int iterations;
+   /// Uses abs values of the diagonal entries. Relevant only when type = 0.
+   bool use_abs_diag = false;
 
    mutable Vector z;
 
@@ -68,6 +70,9 @@ public:
 
    /// Create Jacobi smoother.
    DSmoother(const SparseMatrix &a, int t = 0, double s = 1., int it = 1);
+
+   /// Replace diag entries with their abs values. Relevant only when type = 0.
+   void SetPositiveDiagonal(bool pos_diag = true) { use_abs_diag = pos_diag; }
 
    /// Matrix vector multiplication with Jacobi smoother.
    virtual void Mult(const Vector &x, Vector &y) const;

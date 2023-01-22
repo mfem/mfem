@@ -1,13 +1,13 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
 // Implementation of data types Table.
 
@@ -34,10 +34,6 @@ Table::Table(const Table &table)
       J.New(nnz, table.J.GetMemoryType());
       I.CopyFrom(table.I, size+1);
       J.CopyFrom(table.J, nnz);
-   }
-   else
-   {
-      I.Reset(); J.Reset();
    }
 }
 
@@ -193,6 +189,9 @@ void Table::GetRow(int i, Array<int> &row) const
    MFEM_ASSERT(i >= 0 && i < size, "Row index " << i << " is out of range [0,"
                << size << ')');
 
+   HostReadJ();
+   HostReadI();
+
    row.SetSize(RowSize(i));
    row.Assign(GetRow(i));
 }
@@ -254,7 +253,7 @@ void Table::Finalize()
 
    if (sum != I[size])
    {
-      int *NewJ = new int[sum];
+      int *NewJ = Memory<int>(sum);
 
       for (i=0; i<size; i++)
       {
@@ -308,29 +307,29 @@ int Table::Width() const
    return width + 1;
 }
 
-void Table::Print(std::ostream & out, int width) const
+void Table::Print(std::ostream & os, int width) const
 {
    int i, j;
 
    for (i = 0; i < size; i++)
    {
-      out << "[row " << i << "]\n";
+      os << "[row " << i << "]\n";
       for (j = I[i]; j < I[i+1]; j++)
       {
-         out << setw(5) << J[j];
+         os << setw(5) << J[j];
          if ( !((j+1-I[i]) % width) )
          {
-            out << '\n';
+            os << '\n';
          }
       }
       if ((j-I[i]) % width)
       {
-         out << '\n';
+         os << '\n';
       }
    }
 }
 
-void Table::PrintMatlab(std::ostream & out) const
+void Table::PrintMatlab(std::ostream & os) const
 {
    int i, j;
 
@@ -338,24 +337,24 @@ void Table::PrintMatlab(std::ostream & out) const
    {
       for (j = I[i]; j < I[i+1]; j++)
       {
-         out << i << " " << J[j] << " 1. \n";
+         os << i << " " << J[j] << " 1. \n";
       }
    }
 
-   out << flush;
+   os << flush;
 }
 
-void Table::Save(std::ostream &out) const
+void Table::Save(std::ostream &os) const
 {
-   out << size << '\n';
+   os << size << '\n';
 
    for (int i = 0; i <= size; i++)
    {
-      out << I[i] << '\n';
+      os << I[i] << '\n';
    }
    for (int i = 0, nnz = I[size]; i < nnz; i++)
    {
-      out << J[i] << '\n';
+      os << J[i] << '\n';
    }
 }
 
@@ -399,7 +398,7 @@ void Table::Swap(Table & other)
    mfem::Swap(J, other.J);
 }
 
-long Table::MemoryUsage() const
+std::size_t Table::MemoryUsage() const
 {
    if (size < 0 || I == NULL) { return 0; }
    return (size+1 + I[size]) * sizeof(int);
@@ -411,12 +410,12 @@ Table::~Table ()
    J.Delete();
 }
 
-void Transpose (const Table &A, Table &At, int _ncols_A)
+void Transpose (const Table &A, Table &At, int ncols_A_)
 {
    const int *i_A     = A.GetI();
    const int *j_A     = A.GetJ();
    const int  nrows_A = A.Size();
-   const int  ncols_A = (_ncols_A < 0) ? A.Width() : _ncols_A;
+   const int  ncols_A = (ncols_A_ < 0) ? A.Width() : ncols_A_;
    const int  nnz_A   = i_A[nrows_A];
 
    At.SetDims (ncols_A, nnz_A);
@@ -458,9 +457,9 @@ Table * Transpose(const Table &A)
    return At;
 }
 
-void Transpose(const Array<int> &A, Table &At, int _ncols_A)
+void Transpose(const Array<int> &A, Table &At, int ncols_A_)
 {
-   At.MakeI((_ncols_A < 0) ? (A.Max() + 1) : _ncols_A);
+   At.MakeI((ncols_A_ < 0) ? (A.Max() + 1) : ncols_A_);
    for (int i = 0; i < A.Size(); i++)
    {
       At.AddAColumnInRow(A[i]);

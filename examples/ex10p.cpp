@@ -154,18 +154,18 @@ void InitialDeformation(const Vector &x, Vector &y);
 
 void InitialVelocity(const Vector &x, Vector &v);
 
-void visualize(ostream &out, ParMesh *mesh, ParGridFunction *deformed_nodes,
+void visualize(ostream &os, ParMesh *mesh,
+               ParGridFunction *deformed_nodes,
                ParGridFunction *field, const char *field_name = NULL,
                bool init_vis = false);
 
 
 int main(int argc, char *argv[])
 {
-   // 1. Initialize MPI.
-   int num_procs, myid;
-   MPI_Init(&argc, &argv);
-   MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
-   MPI_Comm_rank(MPI_COMM_WORLD, &myid);
+   // 1. Initialize MPI and HYPRE.
+   Mpi::Init(argc, argv);
+   int myid = Mpi::WorldRank();
+   Hypre::Init();
 
    // 2. Parse command-line options.
    const char *mesh_file = "../data/beam-quad.mesh";
@@ -178,6 +178,7 @@ int main(int argc, char *argv[])
    double visc = 1e-2;
    double mu = 0.25;
    double K = 5.0;
+   bool adaptive_lin_rtol = true;
    bool visualization = true;
    int vis_steps = 1;
 
@@ -193,7 +194,9 @@ int main(int argc, char *argv[])
    args.AddOption(&ode_solver_type, "-s", "--ode-solver",
                   "ODE solver: 1 - Backward Euler, 2 - SDIRK2, 3 - SDIRK3,\n\t"
                   "            11 - Forward Euler, 12 - RK2,\n\t"
-                  "            13 - RK3 SSP, 14 - RK4.");
+                  "            13 - RK3 SSP, 14 - RK4."
+                  "            22 - Implicit Midpoint Method,\n\t"
+                  "            23 - SDIRK23 (A-stable), 24 - SDIRK34");
    args.AddOption(&t_final, "-tf", "--t-final",
                   "Final time; start time is 0.");
    args.AddOption(&dt, "-dt", "--time-step",
@@ -204,6 +207,9 @@ int main(int argc, char *argv[])
                   "Shear modulus in the Neo-Hookean hyperelastic model.");
    args.AddOption(&K, "-K", "--bulk-modulus",
                   "Bulk modulus in the Neo-Hookean hyperelastic model.");
+   args.AddOption(&adaptive_lin_rtol, "-alrtol", "--adaptive-lin-rtol",
+                  "-no-alrtol", "--no-adaptive-lin-rtol",
+                  "Enable or disable adaptive linear solver rtol.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -216,7 +222,6 @@ int main(int argc, char *argv[])
       {
          args.PrintUsage(cout);
       }
-      MPI_Finalize();
       return 1;
    }
    if (myid == 0)
@@ -256,7 +261,6 @@ int main(int argc, char *argv[])
             cout << "Unknown ODE solver type: " << ode_solver_type << '\n';
          }
          delete mesh;
-         MPI_Finalize();
          return 3;
    }
 
@@ -287,7 +291,7 @@ int main(int argc, char *argv[])
    H1_FECollection fe_coll(order, dim);
    ParFiniteElementSpace fespace(pmesh, &fe_coll, dim);
 
-   HYPRE_Int glob_size = fespace.GlobalTrueVSize();
+   HYPRE_BigInt glob_size = fespace.GlobalTrueVSize();
    if (myid == 0)
    {
       cout << "Number of velocity/deformation unknowns: " << glob_size << endl;
@@ -346,6 +350,11 @@ int main(int argc, char *argv[])
          oper.GetElasticEnergyDensity(x_gf, w_gf);
          vis_w.precision(8);
          visualize(vis_w, pmesh, &x_gf, &w_gf, "Elastic energy density", true);
+      }
+      if (myid == 0)
+      {
+         cout << "GLVis visualization paused."
+              << " Press space (in the GLVis window) to resume it.\n";
       }
    }
 
@@ -427,15 +436,14 @@ int main(int argc, char *argv[])
    delete ode_solver;
    delete pmesh;
 
-   MPI_Finalize();
-
    return 0;
 }
 
-void visualize(ostream &out, ParMesh *mesh, ParGridFunction *deformed_nodes,
+void visualize(ostream &os, ParMesh *mesh,
+               ParGridFunction *deformed_nodes,
                ParGridFunction *field, const char *field_name, bool init_vis)
 {
-   if (!out)
+   if (!os)
    {
       return;
    }
@@ -445,25 +453,27 @@ void visualize(ostream &out, ParMesh *mesh, ParGridFunction *deformed_nodes,
 
    mesh->SwapNodes(nodes, owns_nodes);
 
-   out << "parallel " << mesh->GetNRanks() << " " << mesh->GetMyRank() << "\n";
-   out << "solution\n" << *mesh << *field;
+   os << "parallel " << mesh->GetNRanks()
+      << " " << mesh->GetMyRank() << "\n";
+   os << "solution\n" << *mesh << *field;
 
    mesh->SwapNodes(nodes, owns_nodes);
 
    if (init_vis)
    {
-      out << "window_size 800 800\n";
-      out << "window_title '" << field_name << "'\n";
+      os << "window_size 800 800\n";
+      os << "window_title '" << field_name << "'\n";
       if (mesh->SpaceDimension() == 2)
       {
-         out << "view 0 0\n"; // view from top
-         out << "keys jl\n";  // turn off perspective and light
+         os << "view 0 0\n"; // view from top
+         os << "keys jl\n";  // turn off perspective and light
       }
-      out << "keys cm\n";         // show colorbar and mesh
-      out << "autoscale value\n"; // update value-range; keep mesh-extents fixed
-      out << "pause\n";
+      os << "keys cm\n";         // show colorbar and mesh
+      // update value-range; keep mesh-extents fixed
+      os << "autoscale value\n";
+      os << "pause\n";
    }
-   out << flush;
+   os << flush;
 }
 
 
@@ -572,6 +582,7 @@ HyperelasticOperator::HyperelasticOperator(ParFiniteElementSpace &f,
    newton_solver.SetPrintLevel(1); // print Newton iterations
    newton_solver.SetRelTol(rel_tol);
    newton_solver.SetAbsTol(0.0);
+   newton_solver.SetAdaptiveLinRtol(2, 0.5, 0.9);
    newton_solver.SetMaxIter(10);
 }
 

@@ -3,6 +3,10 @@
 // Compile with: make ex20p
 //
 // Sample runs:  mpirun -np 4 ex20p
+//               mpirun -np 4 ex20p -p 1 -o 1 -n 120 -dt 0.1
+//               mpirun -np 4 ex20p -p 1 -o 2 -n 60 -dt 0.2
+//               mpirun -np 4 ex20p -p 1 -o 3 -n 40 -dt 0.3
+//               mpirun -np 4 ex20p -p 1 -o 4 -n 30 -dt 0.4
 //
 // Description: This example demonstrates the use of the variable order,
 //              symplectic ODE integration algorithm.  Symplectic integration
@@ -92,12 +96,12 @@ public:
 
 int main(int argc, char *argv[])
 {
-   // 1. Initialize MPI.
-   int num_procs, myid;
+   // 1. Initialize MPI and HYPRE.
+   Mpi::Init(argc, argv);
+   Hypre::Init();
+   int num_procs = Mpi::WorldSize();
+   int myid = Mpi::WorldRank();
    MPI_Comm comm = MPI_COMM_WORLD;
-   MPI_Init(&argc, &argv);
-   MPI_Comm_size(comm, &num_procs);
-   MPI_Comm_rank(comm, &myid);
 
    // 2. Parse command-line options.
    int order  = 1;
@@ -136,7 +140,6 @@ int main(int argc, char *argv[])
       {
          args.PrintUsage(cout);
       }
-      MPI_Finalize();
       return 1;
    }
    if (myid == 0)
@@ -168,7 +171,7 @@ int main(int argc, char *argv[])
    }
 
    // 6. Create a Mesh for visualization in phase space
-   int nverts = (visualization) ? (num_procs+1)*(nsteps+1) : 0;
+   int nverts = (visualization) ? 2*num_procs*(nsteps+1) : 0;
    int nelems = (visualization) ? (nsteps * num_procs) : 0;
    Mesh mesh(2, nverts, nelems, 0, 3);
 
@@ -190,9 +193,9 @@ int main(int argc, char *argv[])
 
          if (visualization)
          {
-            mesh.AddVertex(x0);
             for (int j = 0; j < num_procs; j++)
             {
+               mesh.AddVertex(x0);
                x1[0] = q(0);
                x1[1] = p(0);
                x1[2] = 0.0;
@@ -216,17 +219,17 @@ int main(int argc, char *argv[])
       if (visualization)
       {
          x0[2] = t;
-         mesh.AddVertex(x0);
          for (int j = 0; j < num_procs; j++)
          {
+            mesh.AddVertex(x0);
             x1[0] = q(0);
             x1[1] = p(0);
             x1[2] = t;
             mesh.AddVertex(x1);
-            v[0] = (num_procs + 1) * i;
-            v[1] = (num_procs + 1) * (i + 1);
-            v[2] = (num_procs + 1) * (i + 1) + j + 1;
-            v[3] = (num_procs + 1) * i + j + 1;
+            v[0] = 2 * num_procs * i + 2 * j;
+            v[1] = 2 * num_procs * (i + 1) + 2 * j;
+            v[2] = 2 * num_procs * (i + 1) + 2 * j + 1;
+            v[3] = 2 * num_procs * i + 2 * j + 1;
             mesh.AddQuad(v);
             part[num_procs * i + j] = j;
          }
@@ -313,8 +316,6 @@ int main(int argc, char *argv[])
            << "window_title 'Energy in Phase Space'\n"
            << "keys\n maac\n" << "axis_labels 'q' 'p' 't'\n"<< flush;
    }
-
-   MPI_Finalize();
 }
 
 double hamiltonian(double q, double p, double t)

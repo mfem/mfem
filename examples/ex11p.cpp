@@ -8,6 +8,8 @@
 //               mpirun -np 4 ex11p -m ../data/escher.mesh
 //               mpirun -np 4 ex11p -m ../data/fichera.mesh
 //               mpirun -np 4 ex11p -m ../data/fichera-mixed.mesh
+//               mpirun -np 4 ex11p -m ../data/periodic-annulus-sector.msh
+//               mpirun -np 4 ex11p -m ../data/periodic-torus-sector.msh -rs 1
 //               mpirun -np 4 ex11p -m ../data/toroid-wedge.mesh -o 2
 //               mpirun -np 4 ex11p -m ../data/square-disc-p2.vtk -o 2
 //               mpirun -np 4 ex11p -m ../data/square-disc-p3.mesh -o 3
@@ -55,11 +57,11 @@ using namespace mfem;
 
 int main(int argc, char *argv[])
 {
-   // 1. Initialize MPI.
-   int num_procs, myid;
-   MPI_Init(&argc, &argv);
-   MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
-   MPI_Comm_rank(MPI_COMM_WORLD, &myid);
+   // 1. Initialize MPI and HYPRE.
+   Mpi::Init(argc, argv);
+   int num_procs = Mpi::WorldSize();
+   int myid = Mpi::WorldRank();
+   Hypre::Init();
 
    // 2. Parse command-line options.
    const char *mesh_file = "../data/star.mesh";
@@ -70,6 +72,7 @@ int main(int argc, char *argv[])
    int seed = 75;
    bool slu_solver  = false;
    bool sp_solver = false;
+   bool cpardiso_solver = false;
    bool visualization = 1;
 
    OptionsParser args(argc, argv);
@@ -94,6 +97,10 @@ int main(int argc, char *argv[])
    args.AddOption(&sp_solver, "-sp", "--strumpack", "-no-sp",
                   "--no-strumpack", "Use the STRUMPACK Solver.");
 #endif
+#ifdef MFEM_USE_MKL_CPARDISO
+   args.AddOption(&cpardiso_solver, "-cpardiso", "--cpardiso", "-no-cpardiso",
+                  "--no-cpardiso", "Use the MKL CPardiso Solver.");
+#endif
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -116,7 +123,6 @@ int main(int argc, char *argv[])
          {
             args.PrintUsage(cout);
          }
-         MPI_Finalize();
          return 1;
       }
    }
@@ -167,7 +173,7 @@ int main(int argc, char *argv[])
       fec = new H1_FECollection(order = 1, dim);
    }
    ParFiniteElementSpace *fespace = new ParFiniteElementSpace(pmesh, fec);
-   HYPRE_Int size = fespace->GlobalTrueVSize();
+   HYPRE_BigInt size = fespace->GlobalTrueVSize();
    if (myid == 0)
    {
       cout << "Number of unknowns: " << size << endl;
@@ -234,7 +240,7 @@ int main(int argc, char *argv[])
    //    preconditioner for A to be used within the solver. Set the matrices
    //    which define the generalized eigenproblem A x = lambda M x.
    Solver * precond = NULL;
-   if (!slu_solver && !sp_solver)
+   if (!slu_solver && !sp_solver && !cpardiso_solver)
    {
       HypreBoomerAMG * amg = new HypreBoomerAMG(*A);
       amg->SetPrintLevel(0);
@@ -267,8 +273,17 @@ int main(int argc, char *argv[])
          precond = strumpack;
       }
 #endif
+#ifdef MFEM_USE_MKL_CPARDISO
+      if (cpardiso_solver)
+      {
+         auto cpardiso = new CPardisoSolver(A->GetComm());
+         cpardiso->SetMatrixType(CPardisoSolver::MatType::REAL_STRUCTURE_SYMMETRIC);
+         cpardiso->SetPrintLevel(1);
+         cpardiso->SetOperator(*A);
+         precond = cpardiso;
+      }
+#endif
    }
-
 
    HypreLOBPCG * lobpcg = new HypreLOBPCG(MPI_COMM_WORLD);
    lobpcg->SetNumModes(nev);
@@ -369,8 +384,6 @@ int main(int argc, char *argv[])
       delete fec;
    }
    delete pmesh;
-
-   MPI_Finalize();
 
    return 0;
 }
