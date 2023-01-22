@@ -69,6 +69,9 @@ int main(int argc, char *argv[])
    bool smooth_rt = true;
    bool restart = false;
    bool visualization = true;
+   
+	int which_refiner = 0;
+   double refinement_parameter = -1.0;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -92,6 +95,11 @@ int main(int argc, char *argv[])
                   "Represent the smooth flux in RT or vector H1 space.");
    args.AddOption(&restart, "-res", "--restart", "-no-res", "--no-restart",
                   "Restart computation from the last checkpoint.");
+   args.AddOption(&which_refiner, "-ref", "--refiner",
+                  "Switch refiner marking scheme, 0 - Threshold [default], 1 - Dörfler, 2 - Maximum Marking" );
+   args.AddOption(&refinement_parameter, "-rp", "--refinement-parameter",
+                  "Refinement parameter: fraction of the total error for ThresholdRefiner, the gamma parameter for Dörfler marking, or the fraction of the maximum error for Maximum marking.");
+
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -107,6 +115,23 @@ int main(int argc, char *argv[])
    if (myid == 0)
    {
       args.PrintOptions(cout);
+   }
+
+	// Use default if not provided on command line
+   if ( refinement_parameter == -1 )
+   {
+      switch ( which_refiner )
+      {
+         case 1:
+            refinement_parameter = 0.6;
+            break;
+         case 2:
+            refinement_parameter = 0.8;
+            break;
+         default:
+            refinement_parameter = 0.7;
+            break;
+      }
    }
 
    // 3. Enable hardware devices such as GPUs, and programming models such as
@@ -255,8 +280,26 @@ int main(int argc, char *argv[])
    //     The strategy here is to refine elements with errors larger than a
    //     fraction of the maximum element error. Other strategies are possible.
    //     The refiner will call the given error estimator.
-   ThresholdRefiner refiner(estimator);
-   refiner.SetTotalErrorFraction(0.7);
+   
+   MeshOperator *refiner = nullptr;
+   switch ( which_refiner )
+   {
+      case 1:
+         refiner = new DoerflerMarkingRefiner( estimator );
+         dynamic_cast<DoerflerMarkingRefiner *>( refiner )->SetGamma(
+            refinement_parameter );
+         break;
+      case 2:
+         refiner = new MaximumMarkingRefiner( estimator );
+         dynamic_cast<MaximumMarkingRefiner *>( refiner )->SetGamma(
+            refinement_parameter );
+         break;
+      default:
+         refiner = new ThresholdRefiner( estimator );
+         dynamic_cast<ThresholdRefiner*>( refiner )->SetTotalErrorFraction(
+            refinement_parameter );
+         break;
+   }
 
    // 16. The main AMR loop. In each iteration we solve the problem on the
    //     current mesh, visualize the solution, and refine the mesh.
@@ -337,8 +380,8 @@ int main(int argc, char *argv[])
       //     estimator to obtain element errors, then it selects elements to be
       //     refined and finally it modifies the mesh. The Stop() method can be
       //     used to determine if a stopping criterion was met.
-      refiner.Apply(*pmesh);
-      if (refiner.Stop())
+      refiner->Apply(*pmesh);
+      if (refiner->Stop())
       {
          if (myid == 0)
          {
@@ -391,6 +434,7 @@ int main(int argc, char *argv[])
 
    delete smooth_flux_fes;
    delete smooth_flux_fec;
+	delete refiner;
    delete pmesh;
 
    return 0;
