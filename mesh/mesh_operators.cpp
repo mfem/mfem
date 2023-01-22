@@ -407,7 +407,7 @@ int DoerflerMarkingRefiner::ApplyImpl(Mesh &mesh)
    const Vector &local_err = estimator.GetLocalErrors();
    MFEM_ASSERT(local_err.Size() == NE, "invalid size of local_err");
 
-   double threshold = compute_threshold( local_err, gamma );
+   threshold = compute_threshold( local_err, gamma );
 
    for (int el = 0; el < NE; el++)
    {
