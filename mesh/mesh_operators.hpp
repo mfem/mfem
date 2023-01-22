@@ -471,10 +471,10 @@ public:
 
    /** @brief Set the maximum ratio of refinement levels of adjacent elements
      (0 = unlimited). */
-   void SetNCLimit(int nc_limit)
+   void SetNCLimit(int nc_limit_)
    {
-      MFEM_ASSERT(nc_limit >= 0, "Invalid NC limit");
-      this->nc_limit = nc_limit;
+      MFEM_ASSERT(nc_limit_ >= 0, "Invalid NC limit");
+      nc_limit = nc_limit_;
    }
 
    /// Get the number of marked elements in the last Apply() call.
@@ -557,10 +557,10 @@ public:
 
    /** @brief Set the maximum ratio of refinement levels of adjacent elements
      (0 = unlimited). */
-   void SetNCLimit(int nc_limit)
+   void SetNCLimit(int nc_limit_)
    {
-      MFEM_ASSERT(nc_limit >= 0, "Invalid NC limit");
-      this->nc_limit = nc_limit;
+      MFEM_ASSERT(nc_limit_ >= 0, "Invalid NC limit");
+      nc_limit = nc_limit_;
    }
 
    /// Get the number of marked elements in the last Apply() call.
