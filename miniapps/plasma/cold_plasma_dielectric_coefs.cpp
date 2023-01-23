@@ -751,11 +751,14 @@ double StixCoefBase::getBMagnitude(ElementTransformation &T,
 void StixCoefBase::fillDensityVals(ElementTransformation &T,
                                    const IntegrationPoint &ip)
 {
+   double min_den = 1e14;
+  
    for (int i=0; i<density_vals_.Size(); i++)
    {
       density_gf_.MakeRef(const_cast<ParFiniteElementSpace*>(&L2FESpace_),
                           const_cast<Vector&>(density_.GetBlock(i)));
-      density_vals_[i] = density_gf_.GetValue(T.ElementNo, ip);
+      density_vals_[i] = std::max(density_gf_.GetValue(T.ElementNo, ip),
+				  min_den);
    }
 }
 
@@ -1334,8 +1337,9 @@ void SPDDielectricTensor::Eval(DenseMatrix &epsilon, ElementTransformation &T,
    epsilon *= epsilon0_;
 }
 
-PlasmaProfile::PlasmaProfile(Type type, const Vector & params)
-   : type_(type), p_(params), x_(3)
+PlasmaProfile::PlasmaProfile(Type type, const Vector & params,
+                             G_EQDSK_Data *eqdsk)
+   : type_(type), p_(params), eqdsk_(eqdsk), x_(3)
 {
    MFEM_VERIFY(params.Size() == np_[type],
                "Incorrect number of parameters, " << params.Size()
@@ -1466,6 +1470,86 @@ double PlasmaProfile::Eval(ElementTransformation &T,
          double n2 = 46.5;
          double ne2 = (pmax2 - pmin2)* pow(cosh(pow((rho / lam2), n2)), -1.0) + pmin2;
          return ne1 + ne2;
+      }
+      break;
+      case SPARC_RES:
+      {
+         double nu0 = p_[0];
+
+         double A = 9.56300019e-02;
+         double B = 1.27703065;
+         double C = -1.47586242e-06;
+         double D = 1.92995180;
+
+         double E = 0.05125891;
+         double F = 1.31119407;
+         double G = -0.00925291;
+         double H = 1.43560241;
+
+         double r = x_[1];
+         double z = x_[0];
+
+         double val1 = B*z - C;
+         double sincfunc1 = A*(sin(val1)/val1) + D;
+
+         double val2 = F*z - G;
+         double sincfunc2 = E*(sin(val2)/val2) + H;
+
+         double res1 = nu0*exp(-pow(r-sincfunc1, 2)/0.002);
+         double res2 = nu0*exp(-pow(r-sincfunc2, 2)/0.002);
+
+         return res1+res2;
+      }
+      break;
+      case SPARC_DEN:
+      {
+         /*
+         double pos = pow(x_[0]-1.85, 2)/pow(0.53,2) + pow(x_[1],2)*(1 + 0.6*(x_[0]-1.85))/pow(0.85,2);
+
+         double pmin1 = 1e19;
+         double pmax1 = 3e20;
+         double lam1 = 1.1;
+         double n1 = 7.0;
+         double ne1 = (pmax1 - pmin1)* pow(cosh(pow((pos / lam1), n1)), -1.0) + pmin1;
+
+         return ne1;
+          */
+         double r = x_[1];
+         double z = x_[0];
+
+         double x_tok_data[2];
+         Vector xTokVec(x_tok_data, 2);
+         xTokVec[0] = r; xTokVec[1] = z;
+
+         double psiRZ = 0.0;
+         psiRZ = eqdsk_->InterpPsiRZ(xTokVec);
+
+         double psiRZ_center = -2.74980762;
+         double psiRZ_edge = -0.399621132;
+
+         double val = fabs((psiRZ - psiRZ_center)/(psiRZ_center - psiRZ_edge));
+
+         int bool_limits = 0;
+
+         if (z >= -1.183 && z <= 1.19) {bool_limits = 1;}
+
+         double norm_sqrt_psi = 1.0;
+         if (val < 1 && bool_limits == 1) {norm_sqrt_psi = sqrt(val);}
+
+         double ne = 1e14;
+         // double pmin1 = 0.3e20;
+         // double pmax1 = 3e20;
+         double pmin1 = 8.4e19;
+         double pmax1 = 4.2e20;
+         double nuee = 3.0;
+         double nuei = 3.0;
+         //ne = (pmax1 - pmin1)*pow(1 - pow(norm_sqrt_psi, nuei), nuee) + pmin1;
+         if (val < 1 && bool_limits == 1)
+	 {
+	   ne = (pmax1 - pmin1)*pow(1 - pow(sqrt(val), nuei), nuee) + pmin1;
+	 }
+
+         return ne;
       }
       break;
       case CUSTOM1:
@@ -1683,6 +1767,33 @@ void BFieldProfile::Eval(Vector &V, ElementTransformation &T,
          V[0] = b_tok[0];
          V[1] = b_tok[2] * ct + b_tok[1] * st;
          V[2] = b_tok[2] * st - b_tok[1] * ct;
+
+         if (unit_)
+         {
+            double vmag = sqrt(V * V);
+            V /= vmag;
+         }
+      }
+      break;
+      case B_SPARC:
+      {
+         //|B| = \sqrt(Fpol^2+d\Psi/dZ^2+d\Psi/dR^2)/R
+         //where Fpol== R*Bphi , BR = - 1/R d\Psi/dZ, BZ = 1/R d\Psi/dR
+
+         double b_pol_data[2];
+         Vector b_pol(b_pol_data, 2); b_pol = 0.0;
+         double b_tor = 0.0;
+
+         double x_tok_data[2];
+         Vector xTokVec(x_tok_data, 2);
+         xTokVec[0] = x_[1]; xTokVec[1] = x_[0];
+
+         eqdsk_->InterpBPolRZ(xTokVec, b_pol);
+         b_tor = eqdsk_->InterpBTorRZ(xTokVec);
+
+         V[0] = b_pol[1];
+         V[1] = b_pol[0];
+         V[2] = b_tor;
 
          if (unit_)
          {
