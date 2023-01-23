@@ -305,77 +305,78 @@ int main(int argc, char *argv[])
                   "Path in which the generated mesh is saved.");
    args.AddOption(&msh_filename, "-m", "--mesh-file",
                   "File where the generated mesh is written to.");
-   return 0;
-}
-/*
-// Foil section options
-double foil_length = 1.0;
-double foil_thickness = 0.12;
-double aoa = 0.0;
-args.AddOption(&foil_length, "-l", "--foil-length",
-               "Length of the used foil in the mesh. ");
-args.AddOption(&foil_thickness, "-t", "--foil-thickness",
-               "Thickness of the used NACA foil in the mesh as a fraction of length.");
-args.AddOption(&aoa, "-aoa", "--angle-of-attack",
-               "Angle of attack of the foil. ");
 
-// Mesh options
-double boundary_dist = 3.0;
-double wake_length  = 3.0;
-double tip_fraction = 0.05;
-double flair = -999;
-args.AddOption(&boundary_dist, "-b", "--boundary-distance",
-               "Radius of the c-mesh, distance between the foil and the boundary");
-args.AddOption(&wake_length, "-w", "--wake_length",
-               "Length of the mesh after the foil");
-args.AddOption(&tip_fraction, "-tf", "--tip-fraction",
-               "Fraction of the length of the foil that will be in tip patch");
-args.AddOption(&flair, "-f", "--flair-angle",
-               "Flair angle of the top and bottom boundary to enforce inflow. If left \
+   // Foil section options
+   double foil_length = 1.0;
+   double foil_thickness = 0.12;
+   double aoa = 0.0;
+   args.AddOption(&foil_length, "-l", "--foil-length",
+                  "Length of the used foil in the mesh. ");
+   args.AddOption(&foil_thickness, "-t", "--foil-thickness",
+                  "Thickness of the used NACA foil in the mesh as a fraction of length.");
+   args.AddOption(&aoa, "-aoa", "--angle-of-attack",
+                  "Angle of attack of the foil. ");
+
+   // Mesh options
+   double boundary_dist = 3.0;
+   double wake_length  = 3.0;
+   double tip_fraction = 0.05;
+   double flair = -999;
+   args.AddOption(&boundary_dist, "-b", "--boundary-distance",
+                  "Radius of the c-mesh, distance between the foil and the boundary");
+   args.AddOption(&wake_length, "-w", "--wake_length",
+                  "Length of the mesh after the foil");
+   args.AddOption(&tip_fraction, "-tf", "--tip-fraction",
+                  "Fraction of the length of the foil that will be in tip patch");
+   args.AddOption(&flair, "-f", "--flair-angle",
+                  "Flair angle of the top and bottom boundary to enforce inflow. If left \
                 at default, the flair angle is determined automatically to create an \
                 elegant mesh.");
 
-int ncp_tip  = 3;
-int ncp_tail = 3;
-int ncp_wake = 3;
-int ncp_bnd = 3;
-args.AddOption(&ncp_tip, "-ntip", "--ncp-tip",
-               "Number of control points used over the tip of the foil.");
-args.AddOption(&ncp_tail, "-ntail", "--ncp-tail",
-               "Number of control points used over the tail of the foil.");
-args.AddOption(&ncp_wake, "-nwake", "--ncp-wake",
-               "Number of control points used over the wake behind the foil.");
-args.AddOption(&ncp_bnd, "-nbnd", "--ncp-circ",
-               "Number of control points used between the foil and the boundary.");
+   int ncp_tip  = 3;
+   int ncp_tail = 3;
+   int ncp_wake = 3;
+   int ncp_bnd = 3;
+   args.AddOption(&ncp_tip, "-ntip", "--ncp-tip",
+                  "Number of control points used over the tip of the foil.");
+   args.AddOption(&ncp_tail, "-ntail", "--ncp-tail",
+                  "Number of control points used over the tail of the foil.");
+   args.AddOption(&ncp_wake, "-nwake", "--ncp-wake",
+                  "Number of control points used over the wake behind the foil.");
+   args.AddOption(&ncp_bnd, "-nbnd", "--ncp-circ",
+                  "Number of control points used between the foil and the boundary.");
 
-double str_tip = 1;
-double str_wake = 1;
-double str_bnd = 1;
-double str_tail = 1;
-args.AddOption(&str_tip, "-stip", "--str-tip",
-               "Stretch of the knotvector of the tip.");
-args.AddOption(&str_tail, "-stail", "--str-tail",
-               "Stretch of the knotvector of the tail.");
-args.AddOption(&str_wake, "-sw", "--str-wake",
-               "Stretch of the knotvector of the wake.");
-args.AddOption(&str_bnd, "-srad", "--str-circ",
-               "Stretch of the knotvector of the circle.");
-// Parse and print commandline options
-args.Parse();
-if (!args.Good())
-{
-   args.PrintUsage(cout);
-   return 1;
+   double str_tip = 1;
+   double str_wake = 1;
+   double str_bnd = 1;
+   double str_tail = 1;
+   args.AddOption(&str_tip, "-stip", "--str-tip",
+                  "Stretch of the knotvector of the tip.");
+   args.AddOption(&str_tail, "-stail", "--str-tail",
+                  "Stretch of the knotvector of the tail.");
+   args.AddOption(&str_wake, "-sw", "--str-wake",
+                  "Stretch of the knotvector of the wake.");
+   args.AddOption(&str_bnd, "-srad", "--str-circ",
+                  "Stretch of the knotvector of the circle.");
+   // Parse and print commandline options
+   args.Parse();
+   if (!args.Good())
+   {
+      args.PrintUsage(cout);
+      return 1;
+   }
+   args.PrintOptions(cout);
+
+   // Convert fraction
+   double tail_fraction = 1.0 - tip_fraction;
+
+   // Convert angles to radians
+   double deg2rad = M_PI/180;
+   aoa = aoa*deg2rad;
+
+   return 0;
 }
-args.PrintOptions(cout);
-
-// Convert fraction
-double tail_fraction = 1.0 - tip_fraction;
-
-// Convert angles to radians
-double deg2rad = M_PI/180;
-aoa = aoa*deg2rad;
-
+/*
 //
 // 2. Create KnotVectors
 //
