@@ -1576,6 +1576,10 @@ public:
    void SetNodes(const Vector &node_coord);
 
    /// Return a pointer to the internal node GridFunction (may be NULL).
+   /** If the mesh is straight-sided (low-order), it may not have a GridFunction
+       for the nodes, in which case this function returns NULL. To ensure that
+       the nodal GridFunction exists, call EnsureNodes().
+       @sa SetCurvature(). */
    GridFunction *GetNodes() { return Nodes; }
    const GridFunction *GetNodes() const { return Nodes; }
    /// Return the mesh nodes ownership flag.
@@ -1603,15 +1607,22 @@ public:
    /** Return the FiniteElementSpace on which the current mesh nodes are
        defined or NULL if the mesh does not have nodes. */
    const FiniteElementSpace *GetNodalFESpace() const;
-   /** Make sure that the mesh has valid nodes, i.e. its geometry is described
-       by a vector finite element grid function (even if it is a low-order mesh
-       with straight edges). */
+   /** @brief Make sure that the mesh has valid nodes, i.e. its geometry is
+       described by a vector finite element grid function (even if it is a
+       low-order mesh with straight edges).
+
+       @sa GetNodes(). */
    void EnsureNodes();
 
-   /** Set the curvature of the mesh nodes using the given polynomial degree,
-       'order', and optionally: discontinuous or continuous FE space, 'discont',
-       new space dimension, 'space_dim' (if != -1), and 'ordering' (byVDim by
-       default). */
+   /// Set the curvature of the mesh nodes using the given polynomial degree.
+   /** Creates a nodal GridFunction if one doesn't already exist.
+
+       @param[in]  order       Polynomial degree of the nodal FE space.
+       @param[in]  discont     Whether to use a discontinuous or continuous
+                               finite element space (continuous is default).
+       @param[in]  space_dim   The space dimension (optional).
+       @param[in]  ordering    The Ordering of the finite element space
+                               (Ordering::byVDIM is the default). */
    virtual void SetCurvature(int order, bool discont = false, int space_dim = -1,
                              int ordering = 1);
 
