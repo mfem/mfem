@@ -25,7 +25,7 @@
 //               - Implement optimization with TMOP
 //               - Streamline GetTipXY() for two options
 
-
+/*
 #include <iostream>
 #include "mfem.hpp"
 
@@ -289,12 +289,13 @@ double FlairBoundDist(double flair, double bd, double x)
    double c = bd*cos(flair) + bd * sin(flair) * sin(flair);
    return b * x + c;
 }
-
+*/
 int main(int argc, char *argv[])
 {
    int mdim = 2;
    int order = 2;
-
+   return 0;
+/*
    //
    // 1. Parse command-line options.
    //
@@ -763,3 +764,4 @@ int main(int argc, char *argv[])
    delete mesh;
    return 0;
 }
+*/
