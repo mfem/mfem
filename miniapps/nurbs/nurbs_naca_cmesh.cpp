@@ -25,13 +25,12 @@
 //               - Implement optimization with TMOP
 //               - Streamline GetTipXY() for two options
 
-/*
 #include <iostream>
 #include "mfem.hpp"
 
 using namespace std;
 using namespace mfem;
-
+/*
 // Object that discribes a symmetric NACA foil section
 class NACA4
 {
@@ -294,8 +293,7 @@ int main(int argc, char *argv[])
 {
    int mdim = 2;
    int order = 2;
-   return 0;
-/*
+
    //
    // 1. Parse command-line options.
    //
@@ -375,6 +373,8 @@ int main(int argc, char *argv[])
    double deg2rad = M_PI/180;
    aoa = aoa*deg2rad;
 
+   return 0;
+   /*
    //
    // 2. Create KnotVectors
    //
