@@ -1993,7 +1993,7 @@ void CPDSolverDH::computeE(const ParComplexGridFunction & d,
          ComplexHypreParMatrix * M1Z = M1.As<ComplexHypreParMatrix>();
          HypreParMatrix * M1C = M1Z->GetSystemMatrix();
          MUMPSSolver MInv;
-         MInv.SetOpertor(*M1C);
+         MInv.SetOperator(*M1C);
          MInv.Mult(RHS1, E);
          delete M1C;
       }
