@@ -651,20 +651,37 @@ public:
 class PlasmaProfile : public Coefficient
 {
 public:
-   enum Type {CONSTANT, GRADIENT, TANH, ELLIPTIC_COS, PARABOLIC, PEDESTAL,
-              NUABSORB, NUE, NUI, CMODDEN, CUSTOM1, CUSTOM2, POWER, WHAM
+   enum Type {CONSTANT     =  0,
+              GRADIENT     =  1,
+              TANH         =  2,
+              ELLIPTIC_COS =  3,
+              PARABOLIC    =  4,
+              PEDESTAL     =  5,
+              NUABSORB     =  6,
+              NUE          =  7,
+              NUI          =  8,
+              CMODDEN      =  9,
+              SPARC_RES    = 10,
+              SPARC_DEN    = 11,
+              CUSTOM1      = 12,
+              CUSTOM2      = 13,
+              POWER        = 14,
+              WHAM         = 15
              };
 
 private:
    Type type_;
    Vector p_;
 
-   const int np_[14] = {1, 7, 9, 7, 7, 7, 3, 2, 2, 1, 2, 2, 4, 7};
+   G_EQDSK_Data *eqdsk_;
+
+   const int np_[16] = {1, 7, 9, 7, 7, 7, 3, 2, 2, 1, 1, 1, 2, 2, 4, 7};
 
    mutable Vector x_;
 
 public:
-   PlasmaProfile(Type type, const Vector & params);
+   PlasmaProfile(Type type, const Vector & params,
+                 G_EQDSK_Data *eqdsk = NULL);
 
    double Eval(ElementTransformation &T,
                const IntegrationPoint &ip);
@@ -673,7 +690,14 @@ public:
 class BFieldProfile : public VectorCoefficient
 {
 public:
-   enum Type {CONSTANT, B_P, B_TOPDOWN, B_P_KOHNO, B_EQDSK, B_WHAM};
+   enum Type {CONSTANT  = 0,
+              B_P       = 1,
+              B_TOPDOWN = 2,
+              B_P_KOHNO = 3,
+              B_EQDSK   = 4,
+              B_SPARC   = 5,
+              B_WHAM    = 6
+             };
 
 private:
    Type type_;
@@ -682,7 +706,7 @@ private:
 
    G_EQDSK_Data *eqdsk_;
 
-   const int np_[6] = {3, 7, 6, 8, 4, 2};
+   const int np_[7] = {3, 7, 6, 8, 4, 1, 2};
 
    mutable Vector x3_;
    mutable Vector x_;
@@ -893,6 +917,42 @@ public:
          if (x_[1] == 0.0) { return 0.0; }
          return v3_[2] / x_[1];
       }
+   }
+};
+
+class SwapXYCoefficient : public VectorCoefficient
+{
+private:
+   mutable Vector x;
+public:
+   SwapXYCoefficient() : VectorCoefficient(2), x(2) {}
+
+   void Eval(Vector &v, ElementTransformation &T,
+             const IntegrationPoint &ip)
+   {
+      v.SetSize(2);
+
+      T.Transform(ip, x);
+      v[0] = x[1];
+      v[1] = x[0];
+   }
+};
+
+class Rotate2DVectorCoefficient : public VectorCoefficient
+{
+private:
+   mutable Vector x;
+public:
+   Rotate2DVectorCoefficient() : VectorCoefficient(2), x(2) {}
+
+   void Eval(Vector &v, ElementTransformation &T,
+             const IntegrationPoint &ip)
+   {
+      v.SetSize(2);
+
+      T.Transform(ip, x);
+      v[0] = -x[1];
+      v[1] =  x[0];
    }
 };
 
