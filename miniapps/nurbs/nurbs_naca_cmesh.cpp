@@ -294,20 +294,20 @@ int main(int argc, char *argv[])
    int mdim = 2;
    int order = 2;
 
+
+   //
+   // 1. Parse command-line options.
+   //
+   OptionsParser args(argc, argv);
+   const char *msh_path = "";
+   const char *msh_filename = "naca-cmesh";
+   args.AddOption(&msh_path, "-p", "--mesh-path",
+                  "Path in which the generated mesh is saved.");
+   args.AddOption(&msh_filename, "-m", "--mesh-file",
+                  "File where the generated mesh is written to.");
    return 0;
 }
 /*
-//
-// 1. Parse command-line options.
-//
-OptionsParser args(argc, argv);
-const char *msh_path = "";
-const char *msh_filename = "naca-cmesh";
-args.AddOption(&msh_path, "-p", "--mesh-path",
-               "Path in which the generated mesh is saved.");
-args.AddOption(&msh_filename, "-m", "--mesh-file",
-               "File where the generated mesh is written to.");
-
 // Foil section options
 double foil_length = 1.0;
 double foil_thickness = 0.12;
