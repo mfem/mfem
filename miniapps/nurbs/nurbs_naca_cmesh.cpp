@@ -374,6 +374,7 @@ int main(int argc, char *argv[])
    aoa = aoa*deg2rad;
 
    return 0;
+}
    /*
    //
    // 2. Create KnotVectors
