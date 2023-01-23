@@ -293,476 +293,476 @@ int main(int argc, char *argv[])
 {
    int mdim = 2;
    int order = 2;
-   
+
    return 0;
 }
-   /*
-   //
-   // 1. Parse command-line options.
-   //
-   OptionsParser args(argc, argv);
-   const char *msh_path = "";
-   const char *msh_filename = "naca-cmesh";
-   args.AddOption(&msh_path, "-p", "--mesh-path",
-                  "Path in which the generated mesh is saved.");
-   args.AddOption(&msh_filename, "-m", "--mesh-file",
-                  "File where the generated mesh is written to.");
+/*
+//
+// 1. Parse command-line options.
+//
+OptionsParser args(argc, argv);
+const char *msh_path = "";
+const char *msh_filename = "naca-cmesh";
+args.AddOption(&msh_path, "-p", "--mesh-path",
+               "Path in which the generated mesh is saved.");
+args.AddOption(&msh_filename, "-m", "--mesh-file",
+               "File where the generated mesh is written to.");
 
-   // Foil section options
-   double foil_length = 1.0;
-   double foil_thickness = 0.12;
-   double aoa = 0.0;
-   args.AddOption(&foil_length, "-l", "--foil-length",
-                  "Length of the used foil in the mesh. ");
-   args.AddOption(&foil_thickness, "-t", "--foil-thickness",
-                  "Thickness of the used NACA foil in the mesh as a fraction of length.");
-   args.AddOption(&aoa, "-aoa", "--angle-of-attack",
-                  "Angle of attack of the foil. ");
+// Foil section options
+double foil_length = 1.0;
+double foil_thickness = 0.12;
+double aoa = 0.0;
+args.AddOption(&foil_length, "-l", "--foil-length",
+               "Length of the used foil in the mesh. ");
+args.AddOption(&foil_thickness, "-t", "--foil-thickness",
+               "Thickness of the used NACA foil in the mesh as a fraction of length.");
+args.AddOption(&aoa, "-aoa", "--angle-of-attack",
+               "Angle of attack of the foil. ");
 
-   // Mesh options
-   double boundary_dist = 3.0;
-   double wake_length  = 3.0;
-   double tip_fraction = 0.05;
-   double flair = -999;
-   args.AddOption(&boundary_dist, "-b", "--boundary-distance",
-                  "Radius of the c-mesh, distance between the foil and the boundary");
-   args.AddOption(&wake_length, "-w", "--wake_length",
-                  "Length of the mesh after the foil");
-   args.AddOption(&tip_fraction, "-tf", "--tip-fraction",
-                  "Fraction of the length of the foil that will be in tip patch");
-   args.AddOption(&flair, "-f", "--flair-angle",
-                  "Flair angle of the top and bottom boundary to enforce inflow. If left \
-                   at default, the flair angle is determined automatically to create an \
-                   elegant mesh.");
+// Mesh options
+double boundary_dist = 3.0;
+double wake_length  = 3.0;
+double tip_fraction = 0.05;
+double flair = -999;
+args.AddOption(&boundary_dist, "-b", "--boundary-distance",
+               "Radius of the c-mesh, distance between the foil and the boundary");
+args.AddOption(&wake_length, "-w", "--wake_length",
+               "Length of the mesh after the foil");
+args.AddOption(&tip_fraction, "-tf", "--tip-fraction",
+               "Fraction of the length of the foil that will be in tip patch");
+args.AddOption(&flair, "-f", "--flair-angle",
+               "Flair angle of the top and bottom boundary to enforce inflow. If left \
+                at default, the flair angle is determined automatically to create an \
+                elegant mesh.");
 
-   int ncp_tip  = 3;
-   int ncp_tail = 3;
-   int ncp_wake = 3;
-   int ncp_bnd = 3;
-   args.AddOption(&ncp_tip, "-ntip", "--ncp-tip",
-                  "Number of control points used over the tip of the foil.");
-   args.AddOption(&ncp_tail, "-ntail", "--ncp-tail",
-                  "Number of control points used over the tail of the foil.");
-   args.AddOption(&ncp_wake, "-nwake", "--ncp-wake",
-                  "Number of control points used over the wake behind the foil.");
-   args.AddOption(&ncp_bnd, "-nbnd", "--ncp-circ",
-                  "Number of control points used between the foil and the boundary.");
+int ncp_tip  = 3;
+int ncp_tail = 3;
+int ncp_wake = 3;
+int ncp_bnd = 3;
+args.AddOption(&ncp_tip, "-ntip", "--ncp-tip",
+               "Number of control points used over the tip of the foil.");
+args.AddOption(&ncp_tail, "-ntail", "--ncp-tail",
+               "Number of control points used over the tail of the foil.");
+args.AddOption(&ncp_wake, "-nwake", "--ncp-wake",
+               "Number of control points used over the wake behind the foil.");
+args.AddOption(&ncp_bnd, "-nbnd", "--ncp-circ",
+               "Number of control points used between the foil and the boundary.");
 
-   double str_tip = 1;
-   double str_wake = 1;
-   double str_bnd = 1;
-   double str_tail = 1;
-   args.AddOption(&str_tip, "-stip", "--str-tip",
-                  "Stretch of the knotvector of the tip.");
-   args.AddOption(&str_tail, "-stail", "--str-tail",
-                  "Stretch of the knotvector of the tail.");
-   args.AddOption(&str_wake, "-sw", "--str-wake",
-                  "Stretch of the knotvector of the wake.");
-   args.AddOption(&str_bnd, "-srad", "--str-circ",
-                  "Stretch of the knotvector of the circle.");
-   // Parse and print commandline options
-   args.Parse();
-   if (!args.Good())
-   {
-      args.PrintUsage(cout);
-      return 1;
-   }
-   args.PrintOptions(cout);
+double str_tip = 1;
+double str_wake = 1;
+double str_bnd = 1;
+double str_tail = 1;
+args.AddOption(&str_tip, "-stip", "--str-tip",
+               "Stretch of the knotvector of the tip.");
+args.AddOption(&str_tail, "-stail", "--str-tail",
+               "Stretch of the knotvector of the tail.");
+args.AddOption(&str_wake, "-sw", "--str-wake",
+               "Stretch of the knotvector of the wake.");
+args.AddOption(&str_bnd, "-srad", "--str-circ",
+               "Stretch of the knotvector of the circle.");
+// Parse and print commandline options
+args.Parse();
+if (!args.Good())
+{
+   args.PrintUsage(cout);
+   return 1;
+}
+args.PrintOptions(cout);
 
-   // Convert fraction
-   double tail_fraction = 1.0 - tip_fraction;
+// Convert fraction
+double tail_fraction = 1.0 - tip_fraction;
 
-   // Convert angles to radians
-   double deg2rad = M_PI/180;
-   aoa = aoa*deg2rad;
+// Convert angles to radians
+double deg2rad = M_PI/180;
+aoa = aoa*deg2rad;
 
-   //
-   // 2. Create KnotVectors
-   //
-   KnotVector *kv0 = TanhKnotVector(order, ncp_wake, str_wake);
-   kv0->Flip();
-   KnotVector *kv4 = new KnotVector(*kv0);
-   kv4->Flip();
+//
+// 2. Create KnotVectors
+//
+KnotVector *kv0 = TanhKnotVector(order, ncp_wake, str_wake);
+kv0->Flip();
+KnotVector *kv4 = new KnotVector(*kv0);
+kv4->Flip();
 
-   KnotVector *kv1 = PowerStretchKnotVector(order, ncp_tail, -str_tail);
-   KnotVector *kv3 = PowerStretchKnotVector(order, ncp_tail, str_tail);
-   KnotVector *kv2 = DoubleTanhKnotVector(order, ncp_tip, str_tip);
-   KnotVector *kvr = TanhKnotVector(order, ncp_bnd, str_bnd);
+KnotVector *kv1 = PowerStretchKnotVector(order, ncp_tail, -str_tail);
+KnotVector *kv3 = PowerStretchKnotVector(order, ncp_tail, str_tail);
+KnotVector *kv2 = DoubleTanhKnotVector(order, ncp_tip, str_tip);
+KnotVector *kvr = TanhKnotVector(order, ncp_bnd, str_bnd);
 
-   KnotVector *kv_o1 = UniformKnotVector(1, 2);
-   KnotVector *kv_o2 = UniformKnotVector(2, 3);
+KnotVector *kv_o1 = UniformKnotVector(1, 2);
+KnotVector *kv_o2 = UniformKnotVector(2, 3);
 
-   // Variables required for curve interpolation
-   Vector xi_args, u_args;
-   Array<int> i_args;
-   Array<Vector*> xyf(2);
-   xyf[0] = new Vector();
-   xyf[1] = new Vector();
+// Variables required for curve interpolation
+Vector xi_args, u_args;
+Array<int> i_args;
+Array<Vector*> xyf(2);
+xyf[0] = new Vector();
+xyf[1] = new Vector();
 
-   //
-   // 3. Create required (variables for) curves: foil_section and flair
-   //
-   NACA4 foil_section(foil_thickness, foil_length);
-   // The flair angle is defined to be the same as the angle of the curve of the
-   // foil section to create an elegant mesh.
-   if (flair == -999)
-   {
-      flair = atan(foil_section.dydx(tip_fraction*foil_length));
-   }
+//
+// 3. Create required (variables for) curves: foil_section and flair
+//
+NACA4 foil_section(foil_thickness, foil_length);
+// The flair angle is defined to be the same as the angle of the curve of the
+// foil section to create an elegant mesh.
+if (flair == -999)
+{
+   flair = atan(foil_section.dydx(tip_fraction*foil_length));
+}
 
-   //
-   // 4. We map coordinates in patches, apply refinenement and interpolate the foil section in
-   //    patches 1, 2 and 3. Note the case of non-unity weights in patch 2 to create a circular
-   //    shape: its coordinates are converted to homogeneous coordinates. This is not needed
-   //    for other patches as homogeneous coordinates and carthesian coordinates are the same
-   //    for patches with unity weight.
-   //
-   // Patch 0: lower wake part behind foil section.
-   NURBSPatch patch0(kv_o1, kv_o1, 3);
-   {
-      for (int i = 0; i < 2; i++)
-         for (int j = 0; j < 2; j++)
-         {
-            patch0(i,j,2) = 1.0;
-         }
-
-      // Define points
-      patch0(0,0,0) = foil_length + wake_length;
-      patch0(0,0,1) = 0.0;
-
-      patch0(1,0,0) = foil_length;
-      patch0(1,0,1) = 0.0;
-
-      patch0(0,1,0) = foil_length + wake_length;
-      patch0(0,1,1) = -FlairBoundDist(flair, boundary_dist, patch0(0,1,0));
-
-      patch0(1,1,0) = foil_length;
-      patch0(1,1,1) = -FlairBoundDist(flair, boundary_dist, patch0(1,1,0));
-
-      // Refine
-      patch0.DegreeElevate(0, order-1);
-      patch0.KnotInsert(0, *kv0);
-      patch0.DegreeElevate(1, order-1);
-      patch0.KnotInsert(1, *kvr);
-   }
-
-   // Patch 1: Lower tail of foil
-   NURBSPatch patch1(kv_o1, kv_o1, 3);;
-   {
-      for (int i = 0; i < 2; i++)
-         for (int j = 0; j < 2; j++)
-         {
-            patch1(i,j,2) = 1.0;
-         }
-
-      // Define points
-      patch1(0,0,0) = foil_length;
-      patch1(0,0,1) = 0.0;
-
-      patch1(1,0,0) = tip_fraction*foil_length;
-      patch1(1,0,1) = -foil_section.y(patch1(1,0,0));
-
-      patch1(0,1,0) = foil_length;
-      patch1(0,1,1) = -FlairBoundDist(flair, boundary_dist, patch1(0,1,0));;
-
-      patch1(1,1,0) = -boundary_dist*sin(flair) + tip_fraction*foil_length;
-      patch1(1,1,1) = -boundary_dist*cos(flair);
-
-      // Refine
-      patch1.DegreeElevate(0, order-1);
-      patch1.KnotInsert(0, *kv1);
-
-      int ncp = kv1->GetNCP();
-      xyf[0]->SetSize(ncp); xyf[1]->SetSize(ncp);
-
-      // Project foil
-      kv1->FindMaxima(i_args,xi_args, u_args);
-      for (int i = 0; i < ncp; i++)
+//
+// 4. We map coordinates in patches, apply refinenement and interpolate the foil section in
+//    patches 1, 2 and 3. Note the case of non-unity weights in patch 2 to create a circular
+//    shape: its coordinates are converted to homogeneous coordinates. This is not needed
+//    for other patches as homogeneous coordinates and carthesian coordinates are the same
+//    for patches with unity weight.
+//
+// Patch 0: lower wake part behind foil section.
+NURBSPatch patch0(kv_o1, kv_o1, 3);
+{
+   for (int i = 0; i < 2; i++)
+      for (int j = 0; j < 2; j++)
       {
-         (*xyf[0])[i] = foil_length*(1.0 - tail_fraction*u_args[i]);
-         (*xyf[1])[i] = -foil_section.y((*xyf[0])[i]);
+         patch0(i,j,2) = 1.0;
       }
 
-      kv1->FindInterpolant(xyf);
-      for (int i = 0; i < ncp; i++)
+   // Define points
+   patch0(0,0,0) = foil_length + wake_length;
+   patch0(0,0,1) = 0.0;
+
+   patch0(1,0,0) = foil_length;
+   patch0(1,0,1) = 0.0;
+
+   patch0(0,1,0) = foil_length + wake_length;
+   patch0(0,1,1) = -FlairBoundDist(flair, boundary_dist, patch0(0,1,0));
+
+   patch0(1,1,0) = foil_length;
+   patch0(1,1,1) = -FlairBoundDist(flair, boundary_dist, patch0(1,1,0));
+
+   // Refine
+   patch0.DegreeElevate(0, order-1);
+   patch0.KnotInsert(0, *kv0);
+   patch0.DegreeElevate(1, order-1);
+   patch0.KnotInsert(1, *kvr);
+}
+
+// Patch 1: Lower tail of foil
+NURBSPatch patch1(kv_o1, kv_o1, 3);;
+{
+   for (int i = 0; i < 2; i++)
+      for (int j = 0; j < 2; j++)
       {
-         patch1(i,0,0) = (*xyf[0])[i];
-         patch1(i,0,1) = (*xyf[1])[i];
+         patch1(i,j,2) = 1.0;
       }
 
-      patch1.DegreeElevate(1, order-1);
-      patch1.KnotInsert(1, *kvr);
-   }
+   // Define points
+   patch1(0,0,0) = foil_length;
+   patch1(0,0,1) = 0.0;
 
-   // Patch 2: Tip of foil section
-   NURBSPatch patch2(kv_o2, kv_o1, 3);
+   patch1(1,0,0) = tip_fraction*foil_length;
+   patch1(1,0,1) = -foil_section.y(patch1(1,0,0));
+
+   patch1(0,1,0) = foil_length;
+   patch1(0,1,1) = -FlairBoundDist(flair, boundary_dist, patch1(0,1,0));;
+
+   patch1(1,1,0) = -boundary_dist*sin(flair) + tip_fraction*foil_length;
+   patch1(1,1,1) = -boundary_dist*cos(flair);
+
+   // Refine
+   patch1.DegreeElevate(0, order-1);
+   patch1.KnotInsert(0, *kv1);
+
+   int ncp = kv1->GetNCP();
+   xyf[0]->SetSize(ncp); xyf[1]->SetSize(ncp);
+
+   // Project foil
+   kv1->FindMaxima(i_args,xi_args, u_args);
+   for (int i = 0; i < ncp; i++)
    {
-      // Define weights
-      for (int i = 0; i < 3; i++)
-         for (int j = 0; j < 2; j++)
-         {
-            patch2(i,j,2) = 1.0;
-         }
-
-      // Define points
-      patch2(2,0,0) = tip_fraction*foil_length;
-      patch2(2,0,1) = foil_section.y(patch2(2,0,0));
-
-      patch2(1,0,0) = 0.0;
-      patch2(1,0,1) = 0.0;
-      patch2(1,0,2) = cos((180*deg2rad-2*flair)/2);
-
-      patch2(0,0,0) = tip_fraction*foil_length;
-      patch2(0,0,1) = -foil_section.y(patch2(0,0,0));
-
-
-      patch2(2,1,0) = -boundary_dist*cos(90*deg2rad-flair) + tip_fraction*foil_length;
-      patch2(2,1,1) = boundary_dist*sin(90*deg2rad-flair);
-
-      patch2(1,1,0) = -boundary_dist/sin(flair);
-      patch2(1,1,1) = 0.0;
-      patch2(1,1,2) = cos((180*deg2rad-2*flair)/2);
-
-      patch2(0,1,0) = -boundary_dist*cos(90*deg2rad-flair) + tip_fraction*foil_length;
-      patch2(0,1,1) = -boundary_dist*sin(90*deg2rad-flair);
-
-      // Deal with non-uniform weight: convert to homogeneous coordinates
-      patch2(1,0,0) *= patch2(1,0,2);
-      patch2(1,0,1) *= patch2(1,0,2);
-      patch2(1,1,0) *= patch2(1,1,2);
-      patch2(1,1,1) *= patch2(1,1,2);
-
-      // Refine
-      patch2.DegreeElevate(0, order-2);
-      patch2.KnotInsert(0, *kv2);
-
-      // Project foil
-      int ncp = kv2->GetNCP();
-      xyf[0]->SetSize(ncp); xyf[1]->SetSize(ncp);
-
-      GetTipXY(foil_section, kv2, tip_fraction, xyf);
-
-      kv2->FindInterpolant(xyf);
-      for (int i = 0; i < ncp; i++)
-      {
-         // Also deal with non-uniform weights here: convert to homogeneous coordinates
-         patch2(i,0,0) = (*xyf[0])[i]*patch2(i,0,2);
-         patch2(i,0,1) = (*xyf[1])[i]*patch2(i,0,2);
-      }
-
-      // Project circle
-      patch2.DegreeElevate(1, order-1);
-      patch2.KnotInsert(1, *kvr);
+      (*xyf[0])[i] = foil_length*(1.0 - tail_fraction*u_args[i]);
+      (*xyf[1])[i] = -foil_section.y((*xyf[0])[i]);
    }
 
-   // Patch 3: Upper part of trailing part foil section
-   NURBSPatch patch3(kv_o1, kv_o1, 3);;
+   kv1->FindInterpolant(xyf);
+   for (int i = 0; i < ncp; i++)
    {
-      for (int i = 0; i < 2; i++)
-         for (int j = 0; j < 2; j++)
-         {
-            patch3(i,j,2) = 1.0;
-         }
-
-      // Define points
-      patch3(0,0,0) = tip_fraction*foil_length;
-      patch3(0,0,1) = foil_section.y(patch3(0,0,0));
-
-      patch3(1,0,0) = foil_length;
-      patch3(1,0,1) = 0.0;
-
-      patch3(0,1,0) = -boundary_dist*sin(flair) + tip_fraction*foil_length;
-      patch3(0,1,1) = boundary_dist*cos(flair);
-
-      patch3(1,1,0) = foil_length;
-      patch3(1,1,1) = FlairBoundDist(flair, boundary_dist, patch3(1,1,0));;
-
-      // Refine
-      patch3.DegreeElevate(0, order-1);
-      patch3.KnotInsert(0, *kv3);
-
-      int ncp = kv3->GetNCP();
-      xyf[0]->SetSize(ncp); xyf[1]->SetSize(ncp);
-
-      // Project foil
-      kv3->FindMaxima(i_args,xi_args, u_args);
-      for (int i = 0; i < ncp; i++)
-      {
-         (*xyf[0])[i] = foil_length*(tip_fraction + tail_fraction*u_args[i]);
-         (*xyf[1])[i] = foil_section.y((*xyf[0])[i]);
-      }
-
-      kv3->FindInterpolant(xyf);
-      for (int i = 0; i < ncp; i++)
-      {
-         patch3(i,0,0) = (*xyf[0])[i];
-         patch3(i,0,1) = (*xyf[1])[i];
-      }
-
-      patch3.DegreeElevate(1, order-1);
-      patch3.KnotInsert(1, *kvr);
+      patch1(i,0,0) = (*xyf[0])[i];
+      patch1(i,0,1) = (*xyf[1])[i];
    }
 
-   // Patch 4: Upper trailing wake part
-   NURBSPatch patch4(kv_o1, kv_o1, 3);;
+   patch1.DegreeElevate(1, order-1);
+   patch1.KnotInsert(1, *kvr);
+}
+
+// Patch 2: Tip of foil section
+NURBSPatch patch2(kv_o2, kv_o1, 3);
+{
+   // Define weights
+   for (int i = 0; i < 3; i++)
+      for (int j = 0; j < 2; j++)
+      {
+         patch2(i,j,2) = 1.0;
+      }
+
+   // Define points
+   patch2(2,0,0) = tip_fraction*foil_length;
+   patch2(2,0,1) = foil_section.y(patch2(2,0,0));
+
+   patch2(1,0,0) = 0.0;
+   patch2(1,0,1) = 0.0;
+   patch2(1,0,2) = cos((180*deg2rad-2*flair)/2);
+
+   patch2(0,0,0) = tip_fraction*foil_length;
+   patch2(0,0,1) = -foil_section.y(patch2(0,0,0));
+
+
+   patch2(2,1,0) = -boundary_dist*cos(90*deg2rad-flair) + tip_fraction*foil_length;
+   patch2(2,1,1) = boundary_dist*sin(90*deg2rad-flair);
+
+   patch2(1,1,0) = -boundary_dist/sin(flair);
+   patch2(1,1,1) = 0.0;
+   patch2(1,1,2) = cos((180*deg2rad-2*flair)/2);
+
+   patch2(0,1,0) = -boundary_dist*cos(90*deg2rad-flair) + tip_fraction*foil_length;
+   patch2(0,1,1) = -boundary_dist*sin(90*deg2rad-flair);
+
+   // Deal with non-uniform weight: convert to homogeneous coordinates
+   patch2(1,0,0) *= patch2(1,0,2);
+   patch2(1,0,1) *= patch2(1,0,2);
+   patch2(1,1,0) *= patch2(1,1,2);
+   patch2(1,1,1) *= patch2(1,1,2);
+
+   // Refine
+   patch2.DegreeElevate(0, order-2);
+   patch2.KnotInsert(0, *kv2);
+
+   // Project foil
+   int ncp = kv2->GetNCP();
+   xyf[0]->SetSize(ncp); xyf[1]->SetSize(ncp);
+
+   GetTipXY(foil_section, kv2, tip_fraction, xyf);
+
+   kv2->FindInterpolant(xyf);
+   for (int i = 0; i < ncp; i++)
    {
-      for (int i = 0; i < 2; i++)
-         for (int j = 0; j < 2; j++)
-         {
-            patch4(i,j,2) = 1.0;
-         }
-
-      // Define points
-      patch4(0,0,0) = foil_length;
-      patch4(0,0,1) = 0.0;
-
-      patch4(1,0,0) = foil_length+ wake_length;
-      patch4(1,0,1) = 0.0;
-
-      patch4(0,1,0) = foil_length;
-      patch4(0,1,1) = FlairBoundDist(flair, boundary_dist, patch4(0,1,0));;
-
-      patch4(1,1,0) = foil_length+ wake_length;
-      patch4(1,1,1) = FlairBoundDist(flair, boundary_dist, patch4(1,1,0));;
-
-      // Refine
-      patch4.DegreeElevate(0, order-1);
-      patch4.KnotInsert(0, *kv4);
-      patch4.DegreeElevate(1, order-1);
-      patch4.KnotInsert(1, *kvr);
+      // Also deal with non-uniform weights here: convert to homogeneous coordinates
+      patch2(i,0,0) = (*xyf[0])[i]*patch2(i,0,2);
+      patch2(i,0,1) = (*xyf[1])[i]*patch2(i,0,2);
    }
 
-   // Apply angle of attack
-   patch0.Rotate2D(-aoa);
-   patch1.Rotate2D(-aoa);
-   patch2.Rotate2D(-aoa);
-   patch3.Rotate2D(-aoa);
-   patch4.Rotate2D(-aoa);
+   // Project circle
+   patch2.DegreeElevate(1, order-1);
+   patch2.KnotInsert(1, *kvr);
+}
 
-   //
-   // 5. Print mesh to file
-   //
-   // Open mesh output file
-   string mesh_file;
-   mesh_file.append(msh_path);
-   mesh_file.append(msh_filename);
-   mesh_file.append(".mesh");
-   ofstream output(mesh_file.c_str());
+// Patch 3: Upper part of trailing part foil section
+NURBSPatch patch3(kv_o1, kv_o1, 3);;
+{
+   for (int i = 0; i < 2; i++)
+      for (int j = 0; j < 2; j++)
+      {
+         patch3(i,j,2) = 1.0;
+      }
 
-   // File header
-   output<<"MFEM NURBS mesh v1.0"<<endl;
-   output<< endl << "# " << mdim << "D C-mesh around a symmetric NACA foil section"
-         << endl << endl;
-   output<< "dimension"<<endl;
-   output<< mdim <<endl;
-   output<< endl;
+   // Define points
+   patch3(0,0,0) = tip_fraction*foil_length;
+   patch3(0,0,1) = foil_section.y(patch3(0,0,0));
 
-   // NURBS patches defined as elements
-   output << "elements"<<endl;
-   output << "5"<<endl;
-   output << "1 3 0 1 5 4" << endl;   // Lower wake
-   output << "1 3 1 2 6 5" << endl;   // Lower tail
-   output << "1 3 2 3 7 6" << endl;   // Tip
-   output << "1 3 3 1 8 7" << endl;   // Upper tail
-   output << "1 3 1 0 9 8" << endl;   // Upper wake
-   output << endl;
+   patch3(1,0,0) = foil_length;
+   patch3(1,0,1) = 0.0;
 
-   // Boundaries
-   output << "boundary" <<endl;
-   output << "10" <<endl;
-   output << "1 1 5 4" << endl;   // Bottom
-   output << "1 1 6 5" << endl;   // Bottom
-   output << "2 1 7 6" << endl;   // Inflow
-   output << "3 1 8 7" << endl;   // Top
-   output << "3 1 9 8" << endl;   // Top
-   output << "4 1 4 0" << endl;   // Outflow
-   output << "4 1 0 9" << endl;   // Outflow
-   output << "5 1 1 2" << endl;   // Foil section
-   output << "5 1 2 3" << endl;   // Foil section
-   output << "5 1 3 1" << endl;   // Foil section
-   output << endl;
+   patch3(0,1,0) = -boundary_dist*sin(flair) + tip_fraction*foil_length;
+   patch3(0,1,1) = boundary_dist*cos(flair);
 
-   // Edges
-   output <<"edges"<<endl;
-   output <<"15"<<endl;
-   output << "0 0 1"<<endl;
-   output << "1 1 2"<<endl;
-   output << "2 2 3"<<endl;
-   output << "3 3 1"<<endl;
+   patch3(1,1,0) = foil_length;
+   patch3(1,1,1) = FlairBoundDist(flair, boundary_dist, patch3(1,1,0));;
 
-   output << "0 4 5"<<endl;
-   output << "1 5 6"<<endl;
-   output << "2 6 7"<<endl;
-   output << "3 7 8"<<endl;
-   output << "0 9 8"<<endl;
+   // Refine
+   patch3.DegreeElevate(0, order-1);
+   patch3.KnotInsert(0, *kv3);
 
-   output << "4 0 4"<<endl;
-   output << "4 1 5"<<endl;
-   output << "4 2 6"<<endl;
-   output << "4 3 7"<<endl;
-   output << "4 1 8"<<endl;
-   output << "4 0 9"<<endl;
-   output << endl;
+   int ncp = kv3->GetNCP();
+   xyf[0]->SetSize(ncp); xyf[1]->SetSize(ncp);
 
-   // Vertices
-   output << "vertices" << endl;
-   output << 10 << endl;
-   output << endl;
+   // Project foil
+   kv3->FindMaxima(i_args,xi_args, u_args);
+   for (int i = 0; i < ncp; i++)
+   {
+      (*xyf[0])[i] = foil_length*(tip_fraction + tail_fraction*u_args[i]);
+      (*xyf[1])[i] = foil_section.y((*xyf[0])[i]);
+   }
 
-   // Patches
-   output<<"patches"<<endl;
-   output<<endl;
+   kv3->FindInterpolant(xyf);
+   for (int i = 0; i < ncp; i++)
+   {
+      patch3(i,0,0) = (*xyf[0])[i];
+      patch3(i,0,1) = (*xyf[1])[i];
+   }
 
-   output << "# Patch 0 " << endl;
-   patch0.Print(output); output<<endl;
-   output << "# Patch 1 " << endl;
-   patch1.Print(output); output<<endl;
-   output << "# Patch 2 " << endl;
-   patch2.Print(output); output<<endl;
-   output << "# Patch 3 " << endl;
-   patch3.Print(output); output<<endl;
-   output << "# Patch 4 " << endl;
-   patch4.Print(output); output<<endl;
+   patch3.DegreeElevate(1, order-1);
+   patch3.KnotInsert(1, *kvr);
+}
 
-   // Close
-   output.close();
-   delete kv0;
-   delete kv1;
-   delete kv2;
-   delete kv3;
-   delete kv4;
-   delete kvr;
-   delete kv_o1;
-   delete kv_o2;
-   delete xyf[0], xyf[1];
+// Patch 4: Upper trailing wake part
+NURBSPatch patch4(kv_o1, kv_o1, 3);;
+{
+   for (int i = 0; i < 2; i++)
+      for (int j = 0; j < 2; j++)
+      {
+         patch4(i,j,2) = 1.0;
+      }
 
-   cout << endl << "Boundary identifiers:" << endl;
-   cout << "   1   Bottom" << endl;
-   cout << "   2   Inflow" << endl;
-   cout << "   3   Top" << endl;
-   cout << "   4   Outflow" << endl;
-   cout << "   5   Foil section" << endl;
-   cout << "=========================================================="<< endl;
-   cout << "  "<< mdim <<"D mesh generated: " <<mesh_file.c_str()<< endl ;
-   cout << "=========================================================="<< endl;
+   // Define points
+   patch4(0,0,0) = foil_length;
+   patch4(0,0,1) = 0.0;
+
+   patch4(1,0,0) = foil_length+ wake_length;
+   patch4(1,0,1) = 0.0;
+
+   patch4(0,1,0) = foil_length;
+   patch4(0,1,1) = FlairBoundDist(flair, boundary_dist, patch4(0,1,0));;
+
+   patch4(1,1,0) = foil_length+ wake_length;
+   patch4(1,1,1) = FlairBoundDist(flair, boundary_dist, patch4(1,1,0));;
+
+   // Refine
+   patch4.DegreeElevate(0, order-1);
+   patch4.KnotInsert(0, *kv4);
+   patch4.DegreeElevate(1, order-1);
+   patch4.KnotInsert(1, *kvr);
+}
+
+// Apply angle of attack
+patch0.Rotate2D(-aoa);
+patch1.Rotate2D(-aoa);
+patch2.Rotate2D(-aoa);
+patch3.Rotate2D(-aoa);
+patch4.Rotate2D(-aoa);
+
+//
+// 5. Print mesh to file
+//
+// Open mesh output file
+string mesh_file;
+mesh_file.append(msh_path);
+mesh_file.append(msh_filename);
+mesh_file.append(".mesh");
+ofstream output(mesh_file.c_str());
+
+// File header
+output<<"MFEM NURBS mesh v1.0"<<endl;
+output<< endl << "# " << mdim << "D C-mesh around a symmetric NACA foil section"
+      << endl << endl;
+output<< "dimension"<<endl;
+output<< mdim <<endl;
+output<< endl;
+
+// NURBS patches defined as elements
+output << "elements"<<endl;
+output << "5"<<endl;
+output << "1 3 0 1 5 4" << endl;   // Lower wake
+output << "1 3 1 2 6 5" << endl;   // Lower tail
+output << "1 3 2 3 7 6" << endl;   // Tip
+output << "1 3 3 1 8 7" << endl;   // Upper tail
+output << "1 3 1 0 9 8" << endl;   // Upper wake
+output << endl;
+
+// Boundaries
+output << "boundary" <<endl;
+output << "10" <<endl;
+output << "1 1 5 4" << endl;   // Bottom
+output << "1 1 6 5" << endl;   // Bottom
+output << "2 1 7 6" << endl;   // Inflow
+output << "3 1 8 7" << endl;   // Top
+output << "3 1 9 8" << endl;   // Top
+output << "4 1 4 0" << endl;   // Outflow
+output << "4 1 0 9" << endl;   // Outflow
+output << "5 1 1 2" << endl;   // Foil section
+output << "5 1 2 3" << endl;   // Foil section
+output << "5 1 3 1" << endl;   // Foil section
+output << endl;
+
+// Edges
+output <<"edges"<<endl;
+output <<"15"<<endl;
+output << "0 0 1"<<endl;
+output << "1 1 2"<<endl;
+output << "2 2 3"<<endl;
+output << "3 3 1"<<endl;
+
+output << "0 4 5"<<endl;
+output << "1 5 6"<<endl;
+output << "2 6 7"<<endl;
+output << "3 7 8"<<endl;
+output << "0 9 8"<<endl;
+
+output << "4 0 4"<<endl;
+output << "4 1 5"<<endl;
+output << "4 2 6"<<endl;
+output << "4 3 7"<<endl;
+output << "4 1 8"<<endl;
+output << "4 0 9"<<endl;
+output << endl;
+
+// Vertices
+output << "vertices" << endl;
+output << 10 << endl;
+output << endl;
+
+// Patches
+output<<"patches"<<endl;
+output<<endl;
+
+output << "# Patch 0 " << endl;
+patch0.Print(output); output<<endl;
+output << "# Patch 1 " << endl;
+patch1.Print(output); output<<endl;
+output << "# Patch 2 " << endl;
+patch2.Print(output); output<<endl;
+output << "# Patch 3 " << endl;
+patch3.Print(output); output<<endl;
+output << "# Patch 4 " << endl;
+patch4.Print(output); output<<endl;
+
+// Close
+output.close();
+delete kv0;
+delete kv1;
+delete kv2;
+delete kv3;
+delete kv4;
+delete kvr;
+delete kv_o1;
+delete kv_o2;
+delete xyf[0], xyf[1];
+
+cout << endl << "Boundary identifiers:" << endl;
+cout << "   1   Bottom" << endl;
+cout << "   2   Inflow" << endl;
+cout << "   3   Top" << endl;
+cout << "   4   Outflow" << endl;
+cout << "   5   Foil section" << endl;
+cout << "=========================================================="<< endl;
+cout << "  "<< mdim <<"D mesh generated: " <<mesh_file.c_str()<< endl ;
+cout << "=========================================================="<< endl;
 
 
-   // Print mesh info to screen
-   cout << "=========================================================="<< endl;
-   cout << " Attempting to read mesh: " <<mesh_file.c_str()<< endl ;
-   cout << "=========================================================="<< endl;
-   Mesh *mesh = new Mesh(mesh_file.c_str(), 1, 1);
-   mesh->PrintInfo();
+// Print mesh info to screen
+cout << "=========================================================="<< endl;
+cout << " Attempting to read mesh: " <<mesh_file.c_str()<< endl ;
+cout << "=========================================================="<< endl;
+Mesh *mesh = new Mesh(mesh_file.c_str(), 1, 1);
+mesh->PrintInfo();
 
-   // Print mesh to file for visualisation
-   VisItDataCollection dc = VisItDataCollection("mesh", mesh);
-   dc.SetPrefixPath("solution");
-   dc.SetCycle(0);
-   dc.SetTime(0.0);
-   dc.Save();
+// Print mesh to file for visualisation
+VisItDataCollection dc = VisItDataCollection("mesh", mesh);
+dc.SetPrefixPath("solution");
+dc.SetCycle(0);
+dc.SetTime(0.0);
+dc.Save();
 
-   // Close
-   delete mesh;
-   return 0;
+// Close
+delete mesh;
+return 0;
 }
 */
