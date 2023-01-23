@@ -662,7 +662,19 @@ public:
    POLOIDAL should be done in this special case.
    */
    enum CoordSystem {CARTESIAN_3D, POLOIDAL};
-   enum Type {CONSTANT,GRADIENT,TANH,ELLIPTIC_COS,PARABOLIC,PEDESTAL,NUABSORB,NUE,NUI,CMODDEN,SPARC_RES,SPARC_DEN};
+   enum Type {CONSTANT     =  0,
+              GRADIENT     =  1,
+              TANH         =  2,
+              ELLIPTIC_COS =  3,
+              PARABOLIC    =  4,
+              PEDESTAL     =  5,
+              NUABSORB     =  6,
+              NUE          =  7,
+              NUI          =  8,
+              CMODDEN      =  9,
+              SPARC_RES    = 10,
+              SPARC_DEN    = 11
+             };
 
 private:
    Type type_;
@@ -690,7 +702,14 @@ class BFieldProfile : public VectorCoefficient
 public:
    /** See PlasmaProfile for documentation. */
    enum CoordSystem {CARTESIAN_3D, POLOIDAL};
-   enum Type {CONSTANT, B_P, B_TOPDOWN, B_P_KOHNO, B_EQDSK, B_SPARC, B_WHAM};
+   enum Type {CONSTANT  = 0,
+              B_P       = 1,
+              B_TOPDOWN = 2,
+              B_P_KOHNO = 3,
+              B_EQDSK   = 4,
+              B_SPARC   = 5,
+              B_WHAM    = 6
+             };
 
 private:
    Type type_;
