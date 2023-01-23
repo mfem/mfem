@@ -15,10 +15,7 @@
 # have diverged, then pull from the remote to merge changes, and try pushing
 # again. If some other failure happens
 for i in {1..5}; do
-   git push origin master
-   if [[ $? == 0 ]]; then
-      exit 0 # Success
-   fi
+   git push origin master && exit 0
    # Wait for 20 seconds in case someone else is pushing to the remote
    # concurrently
    sleep 20
