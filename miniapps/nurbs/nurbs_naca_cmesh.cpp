@@ -359,24 +359,25 @@ int main(int argc, char *argv[])
    args.AddOption(&str_bnd, "-srad", "--str-circ",
                   "Stretch of the knotvector of the circle.");
    // Parse and print commandline options
-   args.Parse();
-   if (!args.Good())
-   {
-      args.PrintUsage(cout);
-      return 1;
-   }
-   args.PrintOptions(cout);
-
-   // Convert fraction
-   double tail_fraction = 1.0 - tip_fraction;
-
-   // Convert angles to radians
-   double deg2rad = M_PI/180;
-   aoa = aoa*deg2rad;
-
    return 0;
 }
 /*
+args.Parse();
+if (!args.Good())
+{
+   args.PrintUsage(cout);
+   return 1;
+}
+args.PrintOptions(cout);
+
+// Convert fraction
+double tail_fraction = 1.0 - tip_fraction;
+
+// Convert angles to radians
+double deg2rad = M_PI/180;
+aoa = aoa*deg2rad;
+
+
 //
 // 2. Create KnotVectors
 //
