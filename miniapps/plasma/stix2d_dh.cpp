@@ -1986,7 +1986,8 @@ int main(int argc, char *argv[])
       visit_dc.RegisterField("Electron_Density", &density_gf);
 
       //nue_gf *= 1/omega;
-      visit_dc.RegisterField("Collisional_Profile", &nue_gf);
+      visit_dc.RegisterField("Electron_Collisional_Profile", &nue_gf);
+      visit_dc.RegisterField("Ion_Collisional_Profile", &nui_gf);
 
       visit_dc.RegisterField("B_background", &BField);
 
