@@ -441,11 +441,19 @@ public:
    /// Matvec transpose: @a y = @a a A^T @a x + @a b @a y.
    void MultTranspose(double a, const Vector &x, double b, Vector &y) const;
 
-   virtual void Mult(const Vector &x, Vector &y) const
+   void Mult(const Vector &x, Vector &y) const override
    { Mult(1.0, x, 0.0, y); }
 
-   virtual void MultTranspose(const Vector &x, Vector &y) const
+   void MultTranspose(const Vector &x, Vector &y) const override
    { MultTranspose(1.0, x, 0.0, y); }
+
+   void AddMult(const Vector &x, Vector &y,
+                const double a = 1.0) const override
+   { Mult(a, x, 1.0, y); }
+
+   void AddMultTranspose(const Vector &x, Vector &y,
+                         const double a = 1.0) const override
+   { MultTranspose(a, x, 1.0, y); }
 
    /// Get the associated MPI communicator
    MPI_Comm GetComm() const;
@@ -744,16 +752,16 @@ private:
 
 public:
    PetscLinearSolver(MPI_Comm comm, const std::string &prefix = std::string(),
-                     bool wrap = true);
+                     bool wrap = true, bool iter_mode = false);
    PetscLinearSolver(const PetscParMatrix &A,
-                     const std::string &prefix = std::string());
+                     const std::string &prefix = std::string(), bool iter_mode = false);
    /// Constructs a solver using a HypreParMatrix.
    /** If @a wrap is true, then the MatMult ops of HypreParMatrix are wrapped.
        No preconditioner can be automatically constructed from PETSc. If
        @a wrap is false, the HypreParMatrix is converted into a the AIJ
        PETSc format, which is suitable for most preconditioning methods. */
    PetscLinearSolver(const HypreParMatrix &A, bool wrap = true,
-                     const std::string &prefix = std::string());
+                     const std::string &prefix = std::string(), bool iter_mode = false);
    virtual ~PetscLinearSolver();
 
    /// Sets the operator to be used for mat-vec operations and
@@ -780,10 +788,12 @@ public:
 class PetscPCGSolver : public PetscLinearSolver
 {
 public:
-   PetscPCGSolver(MPI_Comm comm, const std::string &prefix = std::string());
-   PetscPCGSolver(PetscParMatrix &A, const std::string &prefix = std::string());
-   PetscPCGSolver(HypreParMatrix &A,bool wrap=true,
-                  const std::string &prefix = std::string());
+   PetscPCGSolver(MPI_Comm comm, const std::string &prefix = std::string(),
+                  bool iter_mode = false);
+   PetscPCGSolver(PetscParMatrix &A, const std::string &prefix = std::string(),
+                  bool iter_mode = false);
+   PetscPCGSolver(HypreParMatrix &A, bool wrap = true,
+                  const std::string &prefix = std::string(), bool iter_mode = false);
 };
 
 
