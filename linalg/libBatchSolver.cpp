@@ -27,34 +27,34 @@ void LibBatchMult::Mult(const Vector &b, Vector &x)
       const double* alpha = &alpha_t;
       const double* beta = &beta_t;
 #endif
-     
+
 #if defined(MFEM_USE_HIP) || (defined(MFEM_USE_CUDA) && CUDA_VERSION >= 11070) || defined(MFEM_USE_MAGMA)
 #if defined(MFEM_USE_MAGMA)
       magmablas_dgemv_batched_strided(MagmaNoTrans,
 #else
       MFEM_SUB_cu_or_hip(blasStatus_t)
       status = MFEM_SUB_cu_or_hip(blasDgemvStridedBatched)(MFEM_SUB_Cuda_or_Hip(
-                                                           BLAS::Handle)(),
+                                                              BLAS::Handle)(),
                                                            MFEM_SUB_CU_or_HIP(BLAS_OP_N),
 #endif
-                                                           mat_size,
-                                                           mat_size,
-                                                           alpha,
-                                                           MatrixBatch.Read(),
-                                                           mat_size,
-                                                           mat_size * mat_size,
-                                                           b.Read(),
-                                                           1,
-                                                           mat_size,
-                                                           beta,
-                                                           x.Write(),
-                                                           1,
-                                                           mat_size,
-                                                           num_mats
+                                      mat_size,
+                                      mat_size,
+                                      alpha,
+                                      MatrixBatch.Read(),
+                                      mat_size,
+                                      mat_size * mat_size,
+                                      b.Read(),
+                                      1,
+                                      mat_size,
+                                      beta,
+                                      x.Write(),
+                                      1,
+                                      mat_size,
+                                      num_mats
 #if defined(MFEM_USE_MAGMA)
-                                                           , queue
+                                      , queue
 #endif
-							   );
+                                     );
 #else
       MFEM_SUB_cu_or_hip(blasStatus_t)
       status = MFEM_SUB_cu_or_hip(blasDgemmStridedBatched)(MFEM_SUB_Cuda_or_Hip(
