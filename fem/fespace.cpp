@@ -1958,7 +1958,7 @@ FiniteElementSpace::DerefinementOperator::DerefinementOperator(
          DenseMatrix &lM = localM[g](mi[s]);
          DenseMatrix &lR = localR[g](lR_offset+s);
          MultAtB(lP, lM, lR); // lR = lP^T lM
-         AddMult(lR, lP, lPtMP); // lPtMP += lP^T lM lP
+         mfem::AddMult(lR, lP, lPtMP); // lPtMP += lP^T lM lP
       }
       DenseMatrixInverse lPtMP_inv(lPtMP);
       for (int s = 0; s < nm; s++)
@@ -2005,7 +2005,7 @@ void FiniteElementSpace::DerefinementOperator
          x.GetSubVector(f_vdofs, loc_x);
          loc_x_mat.UseExternalData(loc_x.GetData(), f_vdofs.Size()/fine_vdim,
                                    fine_vdim);
-         AddMult(lR, loc_x_mat, loc_y_mat);
+         mfem::AddMult(lR, loc_x_mat, loc_y_mat);
       }
       y.SetSubVector(c_vdofs, loc_y);
    }
@@ -3145,7 +3145,7 @@ const FiniteElement *FiniteElementSpace::GetFaceElement(int i) const
          break;
       case 3:
       default:
-         fe = fec->FiniteElementForGeometry(mesh->GetFaceBaseGeometry(i));
+         fe = fec->FiniteElementForGeometry(mesh->GetFaceGeometry(i));
    }
 
    if (NURBSext)

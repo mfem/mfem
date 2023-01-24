@@ -3034,7 +3034,7 @@ GetSharedFaceTransformationsByLocalIndex(int FaceNo, bool fill2)
 
    int local_face = is_ghost ? nc_info->MasterFace : FaceNo;
    Element::Type  face_type = GetFaceElementType(local_face);
-   Geometry::Type face_geom = GetFaceGeometryType(local_face);
+   Geometry::Type face_geom = GetFaceGeometry(local_face);
 
    // setup the transformation for the first element
    FaceElemTr.Elem1No = face_info.Elem1No;
@@ -6099,8 +6099,10 @@ void ParMesh::GetBoundingBox(Vector &gp_min, Vector &gp_max, int ref)
    gp_min.SetSize(sdim);
    gp_max.SetSize(sdim);
 
-   MPI_Allreduce(p_min.GetData(), gp_min, sdim, MPI_DOUBLE, MPI_MIN, MyComm);
-   MPI_Allreduce(p_max.GetData(), gp_max, sdim, MPI_DOUBLE, MPI_MAX, MyComm);
+   MPI_Allreduce(p_min.GetData(), gp_min.GetData(), sdim, MPI_DOUBLE,
+                 MPI_MIN, MyComm);
+   MPI_Allreduce(p_max.GetData(), gp_max.GetData(), sdim, MPI_DOUBLE,
+                 MPI_MAX, MyComm);
 }
 
 void ParMesh::GetCharacteristics(double &gh_min, double &gh_max,
