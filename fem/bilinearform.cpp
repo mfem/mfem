@@ -298,7 +298,7 @@ void BilinearForm::AddHDGBoundaryFaceIntegrator (BilinearFormIntegrator * bfi)
 
 /* HDG */
 void BilinearForm::AddHDGBoundaryFaceIntegrator (BilinearFormIntegrator * bfi,
-												 Array<int> &bdr_marker)
+                                                 Array<int> &bdr_marker)
 {
    hdgbdrbfi.Append (bfi);
    skeleton_boundary_face_integs_marker.Append(&bdr_marker);
@@ -669,13 +669,17 @@ void BilinearForm::Assemble(int skip_zeros)
       {
          ftr = mesh->GetInteriorFaceTransformations(i); // the transformation of the face
          fes->GetFaceVDofs(i, vdofs);   // the defrees of freedom related to the face
-         face_fe = fes->GetFaceElement(i);   // point face_fe to the FiniteElement over the edge
+         face_fe = fes->GetFaceElement(
+                      i);   // point face_fe to the FiniteElement over the edge
          if (ftr != NULL)
          {
-            for (int k = 0; k < hdgintbfi.Size(); k++) // Loop over the related interals, but there is only one hdgintbfi right now
+            for (int k = 0; k < hdgintbfi.Size();
+                 k++) // Loop over the related interals, but there is only one hdgintbfi right now
             {
-               hdgintbfi[k] -> AssembleFaceMatrix (*face_fe, *ftr, elemmat); // call AssembleFaceMatrix over the face
-               mat -> AddSubMatrix (vdofs, vdofs, elemmat, skip_zeros);  // assemble the local matrix to the global one, skipping the zeros
+               hdgintbfi[k] -> AssembleFaceMatrix (*face_fe, *ftr,
+                                                   elemmat); // call AssembleFaceMatrix over the face
+               mat -> AddSubMatrix (vdofs, vdofs, elemmat,
+                                    skip_zeros);  // assemble the local matrix to the global one, skipping the zeros
             }
          }
       }
@@ -689,23 +693,23 @@ void BilinearForm::Assemble(int skip_zeros)
       const FiniteElement *face_fe;
       // Which boundary attributes need to be processed?
       Array<int> bdr_attr_marker(mesh->bdr_attributes.Size() ?
-	     					     mesh->bdr_attributes.Max() : 0);
+                                 mesh->bdr_attributes.Max() : 0);
       bdr_attr_marker = 0;
       for (int k = 0; k < hdgbdrbfi.Size(); k++)
       {
-    	  if (skeleton_boundary_face_integs_marker[k] == NULL)
-		  {
-    		  bdr_attr_marker = 1;
-    		  break;
-		  }
-		  Array<int> &bdr_marker = *skeleton_boundary_face_integs_marker[k];
-		  MFEM_ASSERT(bdr_marker.Size() == bdr_attr_marker.Size(),
-					  "invalid boundary marker for boundary face integrator #"
-					  << k << ", counting from zero");
-		  for (int i = 0; i < bdr_attr_marker.Size(); i++)
-		  {
-			  bdr_attr_marker[i] |= bdr_marker[i];
-		  }
+         if (skeleton_boundary_face_integs_marker[k] == NULL)
+         {
+            bdr_attr_marker = 1;
+            break;
+         }
+         Array<int> &bdr_marker = *skeleton_boundary_face_integs_marker[k];
+         MFEM_ASSERT(bdr_marker.Size() == bdr_attr_marker.Size(),
+                     "invalid boundary marker for boundary face integrator #"
+                     << k << ", counting from zero");
+         for (int i = 0; i < bdr_attr_marker.Size(); i++)
+         {
+            bdr_attr_marker[i] |= bdr_marker[i];
+         }
       }
 
 
@@ -714,7 +718,7 @@ void BilinearForm::Assemble(int skip_zeros)
       // loop over all the edges
       for (int i = 0; i < nbdrfaces; i++)
       {
-    	 const int bdr_attr = mesh->GetBdrAttribute(i);
+         const int bdr_attr = mesh->GetBdrAttribute(i);
          if (bdr_attr_marker[bdr_attr-1] == 0) { continue; }
 
          int face = mesh->GetBdrFace(i);
@@ -723,15 +727,19 @@ void BilinearForm::Assemble(int skip_zeros)
          if (ftr != NULL)
          {
             fes->GetFaceVDofs(face, vdofs);   // the defrees of freedom related to the face
-            face_fe = fes->GetFaceElement(face);   // point face_fe to the FiniteElement over the edge
-            for (int k = 0; k < hdgbdrbfi.Size(); k++) // Loop over the related interals, but there is only one hdgbdrbfi right now
+            face_fe = fes->GetFaceElement(
+                         face);   // point face_fe to the FiniteElement over the edge
+            for (int k = 0; k < hdgbdrbfi.Size();
+                 k++) // Loop over the related interals, but there is only one hdgbdrbfi right now
             {
-                if (skeleton_boundary_face_integs_marker[k] &&
-                    (*skeleton_boundary_face_integs_marker[k])[bdr_attr-1] == 0)
-                { continue; }
+               if (skeleton_boundary_face_integs_marker[k] &&
+                   (*skeleton_boundary_face_integs_marker[k])[bdr_attr-1] == 0)
+               { continue; }
 
-                hdgbdrbfi[k] -> AssembleFaceMatrix (*face_fe, *ftr, elemmat); // call AssembleFaceMatrix over the face
-                mat -> AddSubMatrix (vdofs, vdofs, elemmat, skip_zeros);  // assemble the local matrix to the global one, skipping the zeros
+               hdgbdrbfi[k] -> AssembleFaceMatrix (*face_fe, *ftr,
+                                                   elemmat); // call AssembleFaceMatrix over the face
+               mat -> AddSubMatrix (vdofs, vdofs, elemmat,
+                                    skip_zeros);  // assemble the local matrix to the global one, skipping the zeros
             }
          }
       }

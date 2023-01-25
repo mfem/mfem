@@ -215,12 +215,12 @@ void BilinearFormIntegrator::AssembleFaceMatrixOneElement2and2FES(
 
 /* HDG */
 void BilinearFormIntegrator::AssembleFaceMatrix(const FiniteElement &face_fe,
-		 	 	 	 	FaceElementTransformations &Trans,
-						DenseMatrix &elmat)
+                                                FaceElementTransformations &Trans,
+                                                DenseMatrix &elmat)
 {
    MFEM_ABORT("AssembleFaceMatrix(const FiniteElement &face_fe,"
-                               " FaceElementTransformations &Trans,"
-                               " DenseMatrix &elmat) is not implemented for this"
+              " FaceElementTransformations &Trans,"
+              " DenseMatrix &elmat) is not implemented for this"
               " Integrator class.");
 }
 

@@ -2526,6 +2526,7 @@ void GridFunction::ProjectCoefficientSkeleton(Coefficient &coeff)
       (*this) *= (delta_c->Scale() / integral);
    }
 }
+
 void GridFunction::ProjectCoefficientSkeleton(VectorCoefficient &vcoeff)
 {
    Mesh *mesh = fes->GetMesh();

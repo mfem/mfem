@@ -442,7 +442,7 @@ public:
    void AddHDGBoundaryFaceIntegrator(BilinearFormIntegrator *bfi);
 
    void AddHDGBoundaryFaceIntegrator(BilinearFormIntegrator *bfi,
-		   	   	   	   	   	   	   	 Array<int> &bdr_marker);
+                                     Array<int> &bdr_marker);
 
    /// Sets all sparse values of \f$ M \f$ and \f$ M_e \f$ to 'a'.
    void operator=(const double a)
