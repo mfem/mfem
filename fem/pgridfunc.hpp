@@ -449,7 +449,6 @@ public:
 
    /* HDG */
    virtual double ComputeLpErrorFacets(const double p, Coefficient &exsol,
-                                       Array<int> &bdr_attr_marker,
                                        Coefficient *weight = NULL,
                                        const IntegrationRule *irs[] = NULL) const
    {
