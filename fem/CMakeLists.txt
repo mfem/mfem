@@ -56,6 +56,8 @@ set(SRCS
   fe_coll.cpp
   fespace.cpp
   geom.cpp
+  HDGBilinearForm.cpp
+  hdg_integrators.cpp
   gridfunc.cpp
   hybridization.cpp
   intrules.cpp
@@ -165,6 +167,8 @@ set(HDRS
   fespace.hpp
   geom.hpp
   gridfunc.hpp
+  HDGBilinearForm.hpp
+  hdg_integrators.hpp
   hybridization.hpp
   intrules.hpp
   ceed/interface/basis.hpp
