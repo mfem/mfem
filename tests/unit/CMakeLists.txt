@@ -56,6 +56,7 @@ set(UNIT_TESTS_SRCS
   fem/test_assembly_levels.cpp
   fem/test_bilinearform.cpp
   fem/test_blocknonlinearform.cpp
+  fem/test_build_dof_to_arrays.cpp
   fem/test_calcshape.cpp
   fem/test_calcvshape.cpp
   fem/test_calcdshape.cpp
@@ -65,6 +66,9 @@ set(UNIT_TESTS_SRCS
   fem/test_datacollection.cpp
   fem/test_derefine.cpp
   fem/test_dgmassinv.cpp
+  fem/test_doftrans.cpp
+  fem/test_domain_int.cpp
+  fem/test_eigs.cpp
   fem/test_estimator.cpp
   fem/test_face_elem_trans.cpp
   fem/test_face_permutation.cpp
@@ -77,6 +81,7 @@ set(UNIT_TESTS_SRCS
   fem/test_lexicographic_ordering.cpp
   fem/test_lin_interp.cpp
   fem/test_linear_fes.cpp
+  fem/test_linearform_ext.cpp
   fem/test_lor.cpp
   fem/test_lor_batched.cpp
   fem/test_operatorjacobismoother.cpp
@@ -84,10 +89,14 @@ set(UNIT_TESTS_SRCS
   fem/test_pa_grad.cpp
   fem/test_pa_idinterp.cpp
   fem/test_pa_kernels.cpp
+  fem/test_project_bdr.cpp
   fem/test_quadf_coef.cpp
+  fem/test_quadinterpolator.cpp
   fem/test_quadraturefunc.cpp
   fem/test_sparse_matrix.cpp
+  fem/test_sparse_matrix.cpp
   fem/test_sum_bilin.cpp
+  fem/test_surf_blf.cpp
   fem/test_tet_reorder.cpp
   fem/test_transfer.cpp
   fem/test_var_order.cpp
