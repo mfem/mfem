@@ -1451,13 +1451,11 @@ TrueTransferOperator::TrueTransferOperator(const FiniteElementSpace& lFESpace_,
    {
       tmpL.SetSize(lFESpace_.GetVSize());
       tmpH.SetSize(hFESpace_.GetVSize());
-      R->EnsureMultTranspose();
    }
    // P can be null and R not null
    else if (R)
    {
       tmpH.SetSize(hFESpace_.GetVSize());
-      R->EnsureMultTranspose();
    }
 }
 
