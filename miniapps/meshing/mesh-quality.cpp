@@ -167,8 +167,8 @@ int main(int argc, char *argv[])
                        MPI_DOUBLE, MPI_MAX, pmesh->GetComm());
          if (myid == 0)
          {
-             cout << "Min size:           " << min_size << endl;
-             cout << "Max size:           " << max_size << endl;
+            cout << "Min size:           " << min_size << endl;
+            cout << "Max size:           " << max_size << endl;
          }
 
       }
@@ -191,8 +191,8 @@ int main(int argc, char *argv[])
          max_aspr = max(1.0/min_aspr, max_aspr);
          if (myid == 0)
          {
-             cout << "Worst aspect-ratio: " << max_aspr << endl;
-             cout << "(in any direction)" << endl;
+            cout << "Worst aspect-ratio: " << max_aspr << endl;
+            cout << "(in any direction)" << endl;
          }
       }
       if (skewness)
@@ -213,8 +213,8 @@ int main(int argc, char *argv[])
                        MPI_DOUBLE, MPI_MAX, pmesh->GetComm());
          if (myid == 0)
          {
-             cout << "Min skew (in deg):  " << min_skew*180/M_PI << endl;
-             cout << "Max skew (in deg):  " << max_skew*180/M_PI << endl;
+            cout << "Min skew (in deg):  " << min_skew*180/M_PI << endl;
+            cout << "Max skew (in deg):  " << max_skew*180/M_PI << endl;
          }
       }
       if (visit)
@@ -246,8 +246,8 @@ int main(int argc, char *argv[])
                        MPI_DOUBLE, MPI_MAX, pmesh->GetComm());
          if (myid == 0)
          {
-             cout << "Min size:            " << min_size << endl;
-             cout << "Max size:            " << max_size << endl;
+            cout << "Min size:            " << min_size << endl;
+            cout << "Max size:            " << max_size << endl;
          }
       }
       if (aspect_ratio)
@@ -303,8 +303,8 @@ int main(int argc, char *argv[])
 
          if (myid == 0)
          {
-             cout << "Worst aspect-ratio:  " << max_aspr << endl;
-             cout << "(in any direction)" << endl;
+            cout << "Worst aspect-ratio:  " << max_aspr << endl;
+            cout << "(in any direction)" << endl;
          }
       }
       if (skewness)
@@ -353,14 +353,14 @@ int main(int argc, char *argv[])
                        MPI_DOUBLE, MPI_MAX, pmesh->GetComm());
          if (myid == 0)
          {
-             cout << "Min skew 1 (in deg): " << min_skew1*180/M_PI << endl;
-             cout << "Max skew 1 (in deg): " << max_skew1*180/M_PI << endl;
+            cout << "Min skew 1 (in deg): " << min_skew1*180/M_PI << endl;
+            cout << "Max skew 1 (in deg): " << max_skew1*180/M_PI << endl;
 
-             cout << "Min skew 2 (in deg): " << min_skew2*180/M_PI << endl;
-             cout << "Max skew 2 (in deg): " << max_skew2*180/M_PI << endl;
+            cout << "Min skew 2 (in deg): " << min_skew2*180/M_PI << endl;
+            cout << "Max skew 2 (in deg): " << max_skew2*180/M_PI << endl;
 
-             cout << "Min skew 3 (in deg): " << min_skew3*180/M_PI << endl;
-             cout << "Max skew 3 (in deg): " << max_skew3*180/M_PI << endl;
+            cout << "Min skew 3 (in deg): " << min_skew3*180/M_PI << endl;
+            cout << "Max skew 3 (in deg): " << max_skew3*180/M_PI << endl;
          }
 
       }
