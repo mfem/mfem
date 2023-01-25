@@ -91,9 +91,7 @@ void BatchedLORAssembly::FormLORVertexCoordinates(FiniteElementSpace &fes_ho,
    Vector nodal_evec(nodal_restriction->Height());
    nodal_restriction->Mult(*nodal_gf, nodal_evec);
 
-   IntegrationRules irs(0, Quadrature1D::GaussLobatto);
-   Geometry::Type geom = mesh_ho.GetElementGeometry(0);
-   const IntegrationRule &ir = irs.Get(geom, 2*nd1d - 3);
+   IntegrationRule ir = GetCollocatedIntRule(fes_ho);
 
    // Map from nodal E-vector to Q-vector at the LOR vertex points
    X_vert.SetSize(dim*ndof_per_el*nel_ho);
@@ -491,6 +489,14 @@ BatchedLORAssembly::BatchedLORAssembly(FiniteElementSpace &fes_ho_)
    : fes_ho(fes_ho_)
 {
    FormLORVertexCoordinates(fes_ho, X_vert);
+}
+
+IntegrationRule GetCollocatedIntRule(FiniteElementSpace &fes)
+{
+   IntegrationRules irs(0, Quadrature1D::GaussLobatto);
+   const Geometry::Type geom = fes.GetMesh()->GetElementGeometry(0);
+   const int nd1d = fes.GetMaxElementOrder() + 1;
+   return irs.Get(geom, 2*nd1d - 3);
 }
 
 } // namespace mfem

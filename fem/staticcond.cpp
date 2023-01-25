@@ -349,7 +349,7 @@ void StaticCondensation::ReduceRHS(const Vector &b, Vector &sc_b) const
 
       LUFactors lu(const_cast<double*>((const double*)A_data) + A_offsets[i],
                    const_cast<int*>((const int*)A_ipiv) + A_ipiv_offsets[i]);
-      lu.LSolve(npd, 1, b_p);
+      lu.LSolve(npd, 1, b_p.GetData());
 
       if (symm)
       {
@@ -527,8 +527,9 @@ void StaticCondensation::ComputeSolution(
 
       LUFactors lu(const_cast<double*>((const double*)A_data) + A_offsets[i],
                    const_cast<int*>((const int*)A_ipiv) + A_ipiv_offsets[i]);
-      lu.LSolve(npd, 1, b_p);
-      lu.BlockBackSolve(npd, ned, 1, lu.data + npd*npd, s_e, b_p);
+      lu.LSolve(npd, 1, b_p.GetData());
+      lu.BlockBackSolve(npd, ned, 1, lu.data + npd*npd, s_e.GetData(),
+                        b_p.GetData());
 
       for (int j = 0; j < npd; j++)
       {
