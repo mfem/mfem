@@ -135,8 +135,6 @@ int main(int argc, char *argv[])
    common::VisualizeMesh(sock2, "localhost", 19916, *mesh, "perturbed", 400, 0);
 
    // Target is always identity -> Jpt = Jpr.
-   TMOP_Metric_002 metric2;
-   TMOP_Metric_077 metric77;
    cout << "Magnitude of metric " << metric_id
         << " with perturbation " << perturb_factor << ":\n"
         << metric->EvalW(J) << endl;
