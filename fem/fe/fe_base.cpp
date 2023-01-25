@@ -239,7 +239,6 @@ void FiniteElement::CalcPhysLaplacian(ElementTransformation &Trans,
    }
 }
 
-
 // Assume a linear mapping
 void FiniteElement::CalcPhysLinLaplacian(ElementTransformation &Trans,
                                          Vector &Laplacian) const
@@ -283,7 +282,6 @@ void FiniteElement::CalcPhysLinLaplacian(ElementTransformation &Trans,
          Laplacian[nd] += hess(nd,ii)*scale[ii];
       }
    }
-
 }
 
 void  FiniteElement::CalcPhysHessian(ElementTransformation &Trans,
