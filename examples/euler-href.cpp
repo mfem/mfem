@@ -256,10 +256,10 @@ int main(int argc, char *argv[])
 
    // for (int i = 0; i<mesh.GetNE(); i++)
    // {
-      // int el_order = pref_den_fes.GetElementOrder(i);
-      // pref_den_fes.SetElementOrder(i,el_order+2);
-      // pref_mom_fes.SetElementOrder(i,el_order+2);
-      // pref_sol_fes.SetElementOrder(i,el_order+2);
+   // int el_order = pref_den_fes.GetElementOrder(i);
+   // pref_den_fes.SetElementOrder(i,el_order+2);
+   // pref_mom_fes.SetElementOrder(i,el_order+2);
+   // pref_sol_fes.SetElementOrder(i,el_order+2);
    // }
    // pref_den_fes.Update(false);
    // pref_mom_fes.Update(false);
@@ -400,12 +400,12 @@ int main(int argc, char *argv[])
       else
       {
          sout.precision(precision);
-         sout << "solution\n" << mesh << mom 
+         sout << "solution\n" << mesh << mom
               << "window_title 'Moment'" << flush;
 
          ref_sout.precision(precision);
          ref_sout << "solution\n" << ref_mesh << ref_mom
-              << "window_title 'Reference Moment'" << flush;
+                  << "window_title 'Reference Moment'" << flush;
 
          // pref_sout.precision(precision);
          // pref_sout << "solution\n" << mesh << pref_mom
@@ -448,7 +448,7 @@ int main(int argc, char *argv[])
 
          // if (ref_mode == ref_kind::geometric)
          // {
-            refT = Hrefine(den,mom, sol, ref_sol, refT, 5e-5, 5e-4);
+         refT = Hrefine(den,mom, sol, ref_sol, refT, 5e-5, 5e-4);
          // }
          // else
          // {
@@ -514,9 +514,12 @@ Table * Hrefine(GridFunction & den,
    Vector errors(ne);
    Mesh fine_mesh(*mesh);
 
-   FiniteElementSpace den_fes_copy(&fine_mesh,den_fes->FEColl(), den_fes->GetVDim());
-   FiniteElementSpace mom_fes_copy(&fine_mesh,mom_fes->FEColl(), mom_fes->GetVDim());
-   FiniteElementSpace sol_fes_copy(&fine_mesh,sol_fes->FEColl(), sol_fes->GetVDim());
+   FiniteElementSpace den_fes_copy(&fine_mesh,den_fes->FEColl(),
+                                   den_fes->GetVDim());
+   FiniteElementSpace mom_fes_copy(&fine_mesh,mom_fes->FEColl(),
+                                   mom_fes->GetVDim());
+   FiniteElementSpace sol_fes_copy(&fine_mesh,sol_fes->FEColl(),
+                                   sol_fes->GetVDim());
    GridFunction den_fine(&den_fes_copy);
    GridFunction mom_fine(&mom_fes_copy);
    GridFunction sol_fine(&sol_fes_copy);

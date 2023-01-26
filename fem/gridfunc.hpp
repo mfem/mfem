@@ -492,6 +492,9 @@ public:
    virtual double ComputeElementGradError(int ielem, VectorCoefficient *exgrad,
                                           const IntegrationRule *irs[] = NULL) const;
 
+   virtual double ComputeElementL2Error(int ielem, Coefficient *exsol,
+                                        const IntegrationRule *irs[] = NULL) const;
+
    /// Returns ||grad u_ex - grad u_h||_L2 for H1 or L2 elements
    virtual double ComputeGradError(VectorCoefficient *exgrad,
                                    const IntegrationRule *irs[] = NULL) const;
@@ -996,7 +999,8 @@ void BoundingBox(const Array<int> &face_patch, // input
                  Vector &xmax,                 // output
                  double &angle,                // output
                  Vector &midpoint,             // output
-                 int iface=-1);                // input (optional)
+                 int iface=-1,                  // input (optional)
+                 Vector *offsets = NULL);
 
 /// A ``true'' ZZ error estimator that uses face-based patches for flux reconstruction.
 /**
@@ -1011,7 +1015,11 @@ double LSZZErrorEstimator(BilinearFormIntegrator &blfi,         // input
                           Vector &error_estimates,              // output
                           bool subdomain_reconstruction = true, // input (optional)
                           bool with_coeff = false,              // input (optional)
-                          double tichonov_coeff = 0.0);         // input (optional)
+                          double tichonov_coeff = 0.0,          // input (optional)
+                          bool sol_based = false,
+                          Array<int> *perfaces = NULL,
+                          Array<double> *xoffsets = NULL,
+                          Array<double> *yoffsets = NULL);
 
 /// Compute the Lp distance between two grid functions on the given element.
 double ComputeElementLpDistance(double p, int i,
