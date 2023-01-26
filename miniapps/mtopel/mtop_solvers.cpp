@@ -619,6 +619,10 @@ ElasticitySolver::~ElasticitySolver()
     for(auto it=surf_loads.begin();it!=surf_loads.end();it++){
         delete it->second;
     }
+
+    for(auto it=load_coeff.begin();it!=load_coeff.end();it++){
+        delete it->second;
+    }
 }
 
 void ElasticitySolver::SetNewtonSolver(double rtol, double atol,int miter, int prt_level)
@@ -1099,8 +1103,232 @@ void ComplianceObjective::Grad(Vector& grad)
     nf->Mult(*dens,grad);
 }
 
+/*
+double StressObjNLIntegrator::GetElementEnergy(const FiniteElement &el,
+                                               ElementTransformation &Tr,
+                                               const Vector &elfun)
+{
+    if(disp==nullptr){return 0.0;}
+    double rez=0.0;
+
+    const int dim=el.GetDim();
+    {
+        const int spaceDim=Tr.GetDimension();
+        if(dim!=spaceDim)
+        {
+            mfem::mfem_error("ComplianceNLIntegrator::GetElementEnergy is not define on manifold meshes.");
+        }
+    }
+
+    DenseMatrix fgrads; fgrads.SetSize(dim);
+    DenseMatrix fstrains; fstrains.SetSize(dim);
+    DenseMatrix fstress; fstress.SetSize(dim);
+
+    const IntegrationRule *ir = nullptr;
+    int order= 2 * el.GetOrder() + Tr.OrderGrad(&el)+disp->FESpace()->GetOrder(Tr.ElementNo);
+    ir=&IntRules.Get(Tr.GetGeometryType(),order);
+
+    double w;
+    double energy=0.0;
+    for(int i=0; i<ir->GetNPoints(); i++)
+    {
+        const IntegrationPoint &ip = ir->IntPoint(i);
+        Tr.SetIntPoint(&ip);
+        w=Tr.Weight();
+        w = ip.weight * w;
+
+        disp->GetVectorGradient(Tr,fgrads);
+        double E=Ecoef->Eval(Tr,ip);
+        double vms;
+        if(dim==2)
+        {
+            elast::EvalLinStrain2D(fgrads,fstrains);
+            elast::EvalStressIsoMat2D(E,nu,fstrains,fstress);
+            vms=elast::vonMisesStress2D<double,DenseMatrix>(fstress);
+        }else{//dim==3
+            elast::EvalLinStrain3D(fgrads,fstrains);
+            elast::EvalStressIsoMat3D(E,nu,fstrains,fstress);
+            vms=elast::vonMisesStress3D<double,DenseMatrix>(fstress);
+        }
 
 
+    //    energy=energy+w*j();
+    }
+
+    return rez;
+}
+*/
+
+
+DiffusionSolver::DiffusionSolver(mfem::ParMesh* mesh_,int vorder)
+{
+   pmesh=mesh_;
+   int dim=pmesh->SpaceDimension();
+
+   vfec=new H1_FECollection(vorder,dim);
+   vfes=new mfem::ParFiniteElementSpace(pmesh,vfec,1);
+
+   fsol.SetSpace(vfes); fsol=0.0;
+   asol.SetSpace(vfes); asol=0.0;
+
+   sol.SetSize(vfes->GetTrueVSize()); sol=0.0;
+   rhs.SetSize(vfes->GetTrueVSize()); rhs=0.0;
+   adj.SetSize(vfes->GetTrueVSize()); adj=0.0;
+   tmpv.SetSize(vfes->GetTrueVSize()); tmpv=0.0;
+
+   SetNewtonSolver();
+   SetLinearSolver();
+
+   prec=nullptr;
+   ls=nullptr;
+
+   lvforce=nullptr;
+   volforce=nullptr;
+
+   A=nullptr;
+   Ae=nullptr;
+}
+
+DiffusionSolver::~DiffusionSolver()
+{
+    delete prec;
+    delete ls;
+    delete vfes;
+    delete vfec;
+    delete lvforce;
+
+    if(A!=nullptr){delete A;}
+    if(Ae!=nullptr){delete Ae;}
+
+    for(unsigned int i=0;i<materials.size();i++){
+        delete materials[i];
+    }
+}
+
+void DiffusionSolver::SetNewtonSolver(double rtol, double atol,int miter, int prt_level)
+{
+    rel_tol=rtol;
+    abs_tol=atol;
+    max_iter=miter;
+    print_level=prt_level;
+}
+
+void DiffusionSolver::SetLinearSolver(double rtol, double atol, int miter)
+{
+    linear_rtol=rtol;
+    linear_atol=atol;
+    linear_iter=miter;
+}
+
+void DiffusionSolver::AddDirichletBC(int id, double val)
+{
+    bc[id]=mfem::ConstantCoefficient(val);
+    AddDirichletBC(id,bc[id]);
+}
+
+void DiffusionSolver::DelDirichletBC()
+{
+    bcc.clear();
+    ess_tdofv.DeleteAll();
+}
+
+void DiffusionSolver::AddDirichletBC(int id,Coefficient& val)
+{
+    bcc[id]=&val;
+}
+
+void DiffusionSolver::SetVolInput(double val)
+{
+    delete lvforce;
+    lvforce=new mfem::ConstantCoefficient(val);
+    volforce=lvforce;
+}
+
+void DiffusionSolver::SetVolInput(Coefficient& vv)
+{
+    volforce=&vv;
+}
+
+void DiffusionSolver::FSolve()
+{
+    //Set the BC
+    ess_tdofv.DeleteAll();
+    {
+        for(auto it=bcc.begin();it!=bcc.end();it++){
+            mfem::Array<int> ess_bdr(pmesh->bdr_attributes.Max());
+            ess_bdr=0;
+            ess_bdr[it->first -1]=1;
+
+            mfem::Array<int> ess_tdof_list;
+            vfes->GetEssentialTrueDofs(ess_bdr,ess_tdof_list);
+            ess_tdofv.Append(ess_tdof_list);
+
+            fsol.ProjectBdrCoefficient(*(it->second),ess_bdr);
+        }
+    }
+
+    fsol.GetTrueDofs(sol);
+
+    mfem::ParBilinearForm* bf=new ParBilinearForm(vfes);
+    mfem::ParLinearForm*   lf=new ParLinearForm(vfes);
+    {
+
+        for(unsigned int i=0;i<materials.size();i++){
+            bf->AddDomainIntegrator(new DiffusionIntegrator(*(materials[i])));
+        }
+
+        if(volforce!=nullptr){
+            lf->AddDomainIntegrator(new DomainLFIntegrator(*volforce));
+        }
+
+    }
+
+    bf->Assemble();
+    bf->Finalize();
+    delete A; A=nullptr;
+    delete Ae; Ae=nullptr;
+    A=bf->ParallelAssemble();
+    rhs=0.0;
+    lf->Assemble();
+    lf->ParallelAssemble(rhs);
+
+
+    //set the boundary conditions
+    Ae=A->EliminateRowsCols(ess_tdofv);
+    //modify the RHS
+    Ae->Mult(sol,tmpv);
+    rhs.Add(-1.0,tmpv);
+
+    //copy BC to RHS
+    for(int ii=0;ii<ess_tdofv.Size();ii++)
+    {
+        rhs[ess_tdofv[ii]]=sol[ess_tdofv[ii]];
+    }
+
+    //solve the system
+    if(ls==nullptr){
+        ls=new mfem::CGSolver(pmesh->GetComm());
+        prec=new HypreBoomerAMG();
+    }
+
+    prec->SetOperator(*A);
+    prec->SetPrintLevel(print_level);
+
+    ls->SetPrintLevel(print_level);
+    ls->SetAbsTol(linear_atol);
+    ls->SetRelTol(linear_rtol);
+    ls->SetMaxIter(linear_iter);
+    ls->SetPreconditioner(*prec);
+    ls->SetOperator(*A);
+
+    ls->Mult(rhs,sol);
+
+
+    delete lf;
+    delete bf;
+
+
+}
 
 
 }

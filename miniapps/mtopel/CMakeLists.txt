@@ -70,6 +70,11 @@ add_mfem_miniapp(mtop_elast_test
      ${PARADIFF_COMMON_FILES}
      LIBRARIES mfem)     
 
+add_mfem_miniapp(mtop_diff_test
+     MAIN diff_solv_test.cpp
+     ${PARADIFF_COMMON_FILES}
+     LIBRARIES mfem)
+
 add_mfem_miniapp(mtop_compl_test
      MAIN compl_obj_test.cpp
      ${PARADIFF_COMMON_FILES}
@@ -131,6 +136,11 @@ add_mfem_miniapp(mtop_bra2D
      MAIN mtop_bra2D.cpp
      ${PARADIFF_COMMON_FILES}
      LIBRARIES mfem)
+
+add_mfem_miniapp(mtop_bridge2d
+	MAIN mtop_bridge2d.cpp
+	${PARADIFF_COMMON_FILES}
+	LIBRARIES mfem)
 
 add_mfem_miniapp(mtop_rf
      MAIN mtop_rf.cpp

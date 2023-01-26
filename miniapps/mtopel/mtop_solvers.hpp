@@ -45,6 +45,40 @@ void IsotropicStiffnessTensor2D(TFloat E, TFloat nu, TMat& CC)
     CC(2,2)=E/(2.0*(1.0+nu));
 }
 
+
+template<class TFloat,class TVec>
+void EvalStressIsoMat2D(TFloat EE, TFloat nnu, TVec& strain, TVec& ss)
+{
+    TFloat mu=EE/(2.0*(1.0+nnu));
+    TFloat ll=nnu*EE/((1.0+nnu)*(1.0-2.0*nnu));
+
+    for(int j=0;j<2;j++){
+    for(int i=0;i<2;i++){
+        ss(i,j)=2.0*mu*strain(i,j);
+    }}
+
+    ss(0,0)=ss(0,0)+ll*(strain(0,0)+strain(1,1));
+    ss(1,1)=ss(1,1)+ll*(strain(0,0)+strain(1,1));
+}
+
+template<class TFloat,class TMat>
+void EvalStressIsoMat3D(TFloat EE, TFloat nnu, TMat& strain, TMat& ss)
+{
+
+    TFloat mu=EE/(2.0*(1.0+nnu));
+    TFloat ll=nnu*EE/((1.0+nnu)*(1.0-2.0*nnu));
+
+    for(int j=0;j<3;j++){
+    for(int i=0;i<3;i++){
+        ss(i,j)=2.0*mu*strain(i,j);
+    }}
+
+    ss(0,0)=ss(0,0)+ll*(strain(0,0)+strain(1,1)+strain(2,2));
+    ss(1,1)=ss(1,1)+ll*(strain(0,0)+strain(1,1)+strain(2,2));
+    ss(2,2)=ss(2,2)+ll*(strain(0,0)+strain(1,1)+strain(2,2));
+}
+
+
 template<class TMat, class TVec>
 void Convert3DVoigtStrain(TMat& mat,TVec& vec)
 {
@@ -83,6 +117,64 @@ void EvalLinStrain2D(TMat& gradu, TMat& strain)
         }
     }
 }
+
+template<class TFloat,class TMat>
+TFloat vonMisesStress3D(TMat stress)
+{
+    TFloat vms=0.0;
+    vms=vms+(stress(0,0)-stress(1,1))*(stress(0,0)-stress(1,1));
+    vms=vms+(stress(1,1)-stress(2,2))*(stress(1,1)-stress(2,2));
+    vms=vms+(stress(2,2)-stress(0,0))*(stress(2,2)-stress(0,0));
+    vms=vms+(stress(0,1)*stress(0,1)+stress(1,0)*stress(1,0))*3.0;
+    vms=vms+(stress(0,2)*stress(0,2)+stress(2,0)*stress(2,0))*3.0;
+    vms=vms+(stress(1,2)*stress(1,2)+stress(2,1)*stress(2,1))*3.0;
+    return sqrt(vms/2.0);
+}
+
+template<class TFloat,class TMat>
+TFloat vonMisesStress2D(TMat stress)
+{
+    TFloat vms=0.0;
+    vms=vms+(stress(0,0)-stress(1,1))*(stress(0,0)-stress(1,1));
+    vms=vms+(stress(1,1)-stress(2,2))*(stress(1,1)-stress(2,2));
+    vms=vms+(stress(0,1)*stress(0,1)+stress(1,0)*stress(1,0))*3.0;
+    return sqrt(vms/2.0);
+}
+
+template<class TFloat,class TMat>
+TFloat vonMisesStress3DGrad(TMat stress, TMat grad)
+{
+    TFloat vms=vonMisesStress3D(stress);
+
+    grad(0,0)=(2.0*stress(0,0)-stress(1,1)-stress(2,2))/(2.0*vms);
+    grad(1,1)=(-stress(0,0)+2.0*stress(1,1)-stress(2,2))/(2.0*vms);
+    grad(2,2)=(-stress(0,0)-stress(1,1)+2.0*stress(2,2))/(2.0*vms);
+
+    grad(0,1)=3.0*stress(0,1)/(2.0*vms);
+    grad(0,2)=3.0*stress(0,2)/(2.0*vms);
+    grad(1,2)=3.0*stress(1,2)/(2.0*vms);
+
+    grad(1,0)=3.0*stress(1,0)/(2.0*vms);
+    grad(2,0)=3.0*stress(2,0)/(2.0*vms);
+    grad(2,1)=3.0*stress(2,1)/(2.0*vms);
+
+    return vms;
+}
+
+template<class TFloat,class TMat>
+TFloat vonMisesStress2DGrad(TMat stress, TMat grad)
+{
+    TFloat vms=vonMisesStress2D(stress);
+
+    grad(0,0)=(2.0*stress(0,0)-stress(1,1))/(2.0*vms);
+    grad(1,1)=(-stress(0,0)+2.0*stress(1,1))/(2.0*vms);
+
+    grad(0,1)=3.0*stress(0,1)/(2.0*vms);
+    grad(1,0)=3.0*stress(1,0)/(2.0*vms);
+
+    return vms;
+}
+
 
 }
 
@@ -826,10 +918,224 @@ private:
     double nu;
     Vector* dens;
 
+};
+
+/*
+
+class StressObjNLIntegrator:public NonlinearFormIntegrator
+{
+private:
+
+    GridFunction* disp; //displacements
+    GridFunction* adj; //adjoint
+
+    double nu;
+    YoungModulus* Ecoef;
+
+public:
+    StressObjNLIntegrator();
+
+    void SetDisp(GridFunction* disp_)
+    {
+        disp=disp_;
+    }
+
+    void SetAdjoint(GridFunction* adj_)
+    {
+        adj=adj_;
+    }
+
+    void SetE(YoungModulus* E_)
+    {
+        Ecoef=E_;
+    }
+
+    void SetPoissonRatio(double nu_)
+    {
+        nu=nu_;
+    }
+
+    virtual
+    double GetElementEnergy(const FiniteElement &el, ElementTransformation &Tr,
+                            const Vector &elfun);
+
+    virtual
+    void AssembleElementVector(const FiniteElement &el, ElementTransformation &Tr,
+                               const Vector &elfun, Vector &elvect);
+
+    virtual
+    void AssembleElementGrad(const FiniteElement &el, ElementTransformation &Tr,
+                             const Vector &elfun, DenseMatrix &elmat);
+};
 
 
+
+///Evaluates the RHS for adjoint
+class StressRHSAdjointLFIntegrator:public LinearFormIntegrator
+{
+private:
+    GridFunction* disp;
+    YoungModulus* Ecoef;
+    double nu;
+
+
+public:
+    StressRHSAdjointLFIntegrator()
+    {
+
+    }
+
+
+    virtual
+    void AssembleRHSElementVect (const FiniteElement &el,
+                                 ElementTransformation &Tr,
+                                 Vector &elvect);
 
 };
+
+*/
+
+class DiffusionSolver
+{
+private:
+
+    mfem::ParMesh* pmesh;
+
+    //solution true vector
+    mfem::Vector sol;
+    //adjoint true vector
+    mfem::Vector adj;
+    //RHS
+    mfem::Vector rhs;
+    //tmp vector
+    mfem::Vector tmpv;
+
+    // boundary conditions
+    std::map<int, mfem::ConstantCoefficient> bc;
+    // holds BC in coefficient form
+    std::map<int, mfem::Coefficient*> bcc;
+
+    // holds the  contrained DOFs
+    mfem::Array<int> ess_tdofv;
+
+
+    //forward solution
+    mfem::ParGridFunction fsol;
+    //adjoint solution
+    mfem::ParGridFunction asol;
+
+    //Newton solver parameters
+    double abs_tol;
+    double rel_tol;
+    int print_level;
+    int max_iter;
+
+    //Linear solver parameters
+    double linear_rtol;
+    double linear_atol;
+    int linear_iter;
+
+    mfem::HypreBoomerAMG *prec; //preconditioner
+    mfem::CGSolver *ls;  //linear solver
+
+
+    mfem::ParFiniteElementSpace* vfes;
+    mfem::FiniteElementCollection* vfec;
+
+    std::vector<mfem::MatrixCoefficient*> materials;
+
+    /// Volumetric force created by the solver.
+    mfem::ConstantCoefficient* lvforce;
+    /// Volumetric force coefficient can point to the
+    /// one created by the solver or to external vector
+    /// coefficient.
+    mfem::Coefficient* volforce;
+
+    HypreParMatrix* A;
+    HypreParMatrix* Ae;
+
+
+public:
+    DiffusionSolver(mfem::ParMesh* mesh_,int vorder=1);
+
+    ~DiffusionSolver();
+
+    /// Set the Newton Solver
+    void SetNewtonSolver(double rtol=1e-7, double atol=1e-12,int miter=1000, int prt_level=1);
+
+    /// Set the Linear Solver
+    void SetLinearSolver(double rtol=1e-8, double atol=1e-12, int miter=1000);
+
+    /// Solves the forward problem.
+    void FSolve();
+
+    /// Solves the adjoint with the provided rhs.
+    void ASolve(mfem::Vector& rhs);
+
+    /// Adds Dirichlet BC
+    void AddDirichletBC(int id, double val);
+
+    /// Adds Dirichlet BC
+    void AddDirichletBC(int id, mfem::Coefficient& val);
+
+    /// Clear all Dirichlet BC
+    void DelDirichletBC();
+
+    /// Set the values of the volumetric source
+    void SetVolInput(double ff);
+
+    /// Set vol source
+    void SetVolInput(mfem::Coefficient& ff);
+
+    /*
+    /// Add surface flux
+    void AddFlux(int id, double fl);
+
+    /// Add surface flux
+    void AddFlux(int id, mfem::Coefficient& fl);
+    */
+
+
+    /// Return the primal solution
+    mfem::ParGridFunction& GetFSolution()
+    {
+        fsol.SetFromTrueDofs(sol);
+        return fsol;
+    }
+
+    mfem::ParGridFunction& GetASolution()
+    {
+        asol.SetFromTrueDofs(adj);
+        return asol;
+    }
+
+    /// Add material to the solver. The solver owns the data.
+    void AddMaterial(MatrixCoefficient* nmat){
+        materials.push_back(nmat);
+    }
+
+    void DelMaterials(){
+        for(unsigned int i=0;i<materials.size();i++){
+            delete materials[i];
+        }
+        materials.clear();
+    }
+
+    /// Returns the solution vector.
+    mfem::Vector& GetSol(){return sol;}
+
+    /// Returns the adjoint solution vector.
+    mfem::Vector& GetAdj(){return adj;}
+
+    void GetSol(ParGridFunction& sgf){
+        sgf.SetSpace(vfes); sgf.SetFromTrueDofs(sol);}
+
+    void GetAdj(ParGridFunction& agf){
+        agf.SetSpace(vfes); agf.SetFromTrueDofs(adj);}
+
+};
+
+
 
 }
 

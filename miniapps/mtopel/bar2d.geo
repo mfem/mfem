@@ -25,6 +25,7 @@ Physical Curve(2) = {4}; //inlet
 Physical Curve(3) = {2}; //outlet
 Physical Surface(1) = {1};
 
+Recombine Surface {1};
 
 // Generate 2D mesh
 Mesh 2;
