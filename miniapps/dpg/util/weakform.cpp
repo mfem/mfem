@@ -105,9 +105,9 @@ void DPGWeakForm::Finalize(int skip_zeros)
 void DPGWeakForm::AddTrialIntegrator(
    BilinearFormIntegrator *bfi, int n, int m)
 {
-   MFEM_VERIFY(n<trial_fes.Size(),
+   MFEM_VERIFY(n>=0 && n<trial_fes.Size(),
                "DPGWeakFrom::AddTrialIntegrator: trial fespace index out of bounds");
-   MFEM_VERIFY(m<test_fecols.Size(),
+   MFEM_VERIFY(m>=0 && m<test_fecols.Size(),
                "DPGWeakFrom::AddTrialIntegrator: test fecol index out of bounds");
    trial_integs(n,m)->Append(bfi);
 }
@@ -116,7 +116,7 @@ void DPGWeakForm::AddTrialIntegrator(
 void DPGWeakForm::AddTestIntegrator
 (BilinearFormIntegrator *bfi, int n, int m)
 {
-   MFEM_VERIFY(n<test_fecols.Size() && m<test_fecols.Size(),
+   MFEM_VERIFY(n>=0 && n<test_fecols.Size() && m>=0 && m<test_fecols.Size(),
                "DPGWeakFrom::AdTestIntegrator: test fecol index out of bounds");
    test_integs(n,m)->Append(bfi);
 }
@@ -125,7 +125,7 @@ void DPGWeakForm::AddTestIntegrator
 void DPGWeakForm::AddDomainLFIntegrator(
    LinearFormIntegrator *lfi, int n)
 {
-   MFEM_VERIFY(n<test_fecols.Size(),
+   MFEM_VERIFY(n>=0 && n<test_fecols.Size(),
                "DPGWeakFrom::AddDomainLFIntegrator: test fecol index out of bounds");
    lfis[n]->Append(lfi);
 }

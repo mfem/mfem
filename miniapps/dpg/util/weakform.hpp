@@ -55,13 +55,13 @@ protected:
    Array<FiniteElementCollection *> test_fecols;
    Array<int> test_fecols_vdims;
 
-   /// Set of Trial Integrators to be applied for matrix B
+   /// Set of Trial Integrators to be applied for matrix B.
    Array2D<Array<BilinearFormIntegrator * > * > trial_integs;
 
    /// Set of Test Space (broken) Integrators to be applied for matrix G
    Array2D<Array<BilinearFormIntegrator * > * > test_integs;
 
-   /// Set of Liniear Froem Integrators to be applied.
+   /// Set of Linear Form Integrators to be applied.
    Array<Array<LinearFormIntegrator * > * > lfis;
 
    /// Block Prolongation
@@ -95,7 +95,7 @@ public:
 
    DPGWeakForm()
    {
-      height = 0.;
+      height = 0;
       width = 0;
    }
 
@@ -122,8 +122,6 @@ public:
       mesh = trial_fes[0]->GetMesh();
 
       IsTraceFes.SetSize(nblocks);
-      // Initialize with False
-      IsTraceFes = false;
       for (int i = 0; i < nblocks; i++)
       {
          IsTraceFes[i] =
@@ -138,7 +136,7 @@ public:
    int Size() const { return height; }
 
    /// Pre-allocate the internal BlockMatrix before assembly.
-   void AllocateMatrix() { if (mat == NULL) { AllocMat(); } }
+   void AllocateMatrix() { if (mat == nullptr) { AllocMat(); } }
 
    ///  Finalizes the matrix initialization.
    void Finalize(int skip_zeros = 1);
@@ -164,15 +162,39 @@ public:
    void AddTestIntegrator(BilinearFormIntegrator *bfi, int n, int m);
 
    /// Adds new Domain LF Integrator. Assumes ownership of @a bfi.
-   void AddDomainLFIntegrator(LinearFormIntegrator *bfi, int n);
+   void AddDomainLFIntegrator(LinearFormIntegrator *lfi, int n);
 
    /// Assembles the form i.e. sums over all integrators.
    void Assemble(int skip_zeros = 1);
 
+   /** @brief Form the linear system A X = B, corresponding to this DPG weak
+       form */
+   /** This method applies any necessary transformations to the linear system
+       such as: eliminating boundary conditions; applying conforming constraints
+       for non-conforming AMR; static condensation;
+
+       The GridFunction-size vector @a x must contain the essential b.c. The
+       DPGWeakForm must be assembled.
+
+       The vector @a X is initialized with a suitable initial guess: the essential
+       entries of @a X are set to the corresponding b.c. and all other entries
+       are set to zero (@a copy_interior == 0) or copied from @a x
+       (@a copy_interior != 0).
+
+       After solving the linear system, the finite element solution @a x can be
+       recovered by calling RecoverFEMSolution() (with the same vectors @a X,
+       and @a x).
+
+       NOTE: If there are no transformations, @a X simply reuses the data of
+             @a x. */
    virtual void FormLinearSystem(const Array<int> &ess_tdof_list, Vector &x,
                                  OperatorHandle &A, Vector &X,
                                  Vector &B, int copy_interior = 0);
 
+   /** @brief Form the linear system A X = B, corresponding to this DPG weak form
+       Version of the method FormLinearSystem() where the system matrix is
+       returned in the variable @a A, of type OpType, holding a *reference* to
+       the system matrix (created with the method OpType::MakeRef()). */
    template <typename OpType>
    void FormLinearSystem(const Array<int> &ess_tdof_list, Vector &x,
                          OpType &A, Vector &X, Vector &B,
@@ -185,9 +207,14 @@ public:
       A.MakeRef(*A_ptr);
    }
 
+   /// Form the linear system matrix @a A, see FormLinearSystem() for details.
    virtual void FormSystemMatrix(const Array<int> &ess_tdof_list,
                                  OperatorHandle &A);
 
+   /// Form the linear system matrix A, see FormLinearSystem() for details.
+   /** Version of the method FormSystemMatrix() where the system matrix is
+       returned in the variable @a A, of type OpType, holding a *reference* to
+       the system matrix (created with the method OpType::MakeRef()). */
    template <typename OpType>
    void FormSystemMatrix(const Array<int> &ess_tdof_list, OpType &A)
    {
@@ -198,11 +225,23 @@ public:
       A.MakeRef(*A_ptr);
    }
 
+   /// Eliminate the given @a vdofs, storing the eliminated part internally in \f$ M_e \f$.
+   /** This method works in conjunction with EliminateVDofsInRHS() and allows
+       elimination of boundary conditions in multiple right-hand sides. In this
+       method, @a vdofs is a list of DOFs. */
    void EliminateVDofs(const Array<int> &vdofs,
                        Operator::DiagonalPolicy dpolicy = Operator::DIAG_ONE);
 
+   /** @brief Use the stored eliminated part of the matrix (see
+       EliminateVDofs(const Array<int> &, DiagonalPolicy)) to modify the r.h.s.
+       @a b; @a vdofs is a list of DOFs. */
    void EliminateVDofsInRHS(const Array<int> &vdofs, const Vector &x, Vector &b);
 
+   /// Recover the solution of a linear system formed with FormLinearSystem().
+   /** Call this method after solving a linear system constructed using the
+       FormLinearSystem() method to recover the solution as a GridFunction-size
+       vector in @a x. Use the same arguments as in the FormLinearSystem() call.
+   */
    virtual void RecoverFEMSolution(const Vector &X,Vector &x);
 
    /// Sets diagonal policy used upon construction of the linear system.
@@ -216,8 +255,10 @@ public:
       diag_policy = policy;
    }
 
+   /// Update the DPGWeakForm after mesh modifications (AMR)
    virtual void Update();
 
+   /// Store internal element matrices used for computation of residual after solve
    void StoreMatrices(bool store_matrices_ = true)
    {
       store_matrices = store_matrices_;
@@ -235,6 +276,7 @@ public:
 
    void EnableStaticCondensation();
 
+   /// Compute DPG residual based error estimator
    Vector & ComputeResidual(const BlockVector & x);
 
    virtual ~DPGWeakForm();

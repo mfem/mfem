@@ -27,7 +27,12 @@ Linear and nonlinear solvers
 
 New and updated examples and miniapps
 -------------------------------------
-- TBD
+- Added new Discontinuous Petrov-Galerkin (DPG) miniapp which includes
+  serial and parallel examples for diffusion, convection-diffusion, acoustics
+  and Maxwell equations. The miniapp also includes new classes suchs as 
+  (Par)DPGWeakForm, (Par)ComplexDPGWeakForm, BlockStaticCondensation and 
+  ComplexBlockStaticCondensation. Three new integrators are added in support of 
+  DPG systems: TraceIntegrator, NormalTraceIntegrator and TangetTraceIntegrator
 
 Integrations, testing and documentation
 ---------------------------------------
@@ -128,13 +133,6 @@ Linear and nonlinear solvers
 
 New and updated examples and miniapps
 -------------------------------------
-
-- Added new Discontinuous Petrov-Galerkin (DPG) miniapp which includes
-  serial and parallel examples for diffusion, convection-diffusion, acoustics
-  and Maxwell equations. The miniapp also includes new classes suchs as 
-  (Par)DPGWeakForm, (Par)ComplexDPGWeakForm, BlockStaticCondensation and 
-  ComplexBlockStaticCondensation. Three new integrators are added in support of 
-  DPG systems: TraceIntegrator, NormalTraceIntegrator and TangetTraceIntegrator
 
 - Added a new elasticity miniapp, Hooke, that showcases a low-level approach of
   using MFEM to solve a nonlinear elasticity problem based on the fundamental
