@@ -33,6 +33,11 @@ public:
 
    float GetMaxWavespeed(const Vector &x);
 
+   void GetDensityBounds(GridFunction &solution, int dim, double gamma, int num_equation,
+                         Vector &avgs, Vector &d_min, Vector &d_max);
+   void ApplyLimiter(GridFunction &solution, int dim, double gamma, int num_equation,
+                     Vector &avgs, Vector &d_min, Vector &d_max);
+
    virtual void Mult(const Vector &x, Vector &y) const;
 
    virtual ~EulerSystem() {};
@@ -554,4 +559,232 @@ bool StateIsPhysical(const Vector &state, const int dim)
       return false;
    }
    return true;
+}
+
+void EulerSystem::GetDensityBounds(GridFunction &solution, int dim, double gamma, int num_equation,
+                                   Vector &avgs, Vector &d_min, Vector &d_max) {
+
+   Vector dofs = Vector();
+   // Gridfunction ordered by [rho_0, rho_1, ..., rhou[0], rhou[1], ...]
+   solution.GetTrueDofs(dofs);
+
+   int nelems = solution.FESpace()->GetMesh()->GetNE();
+
+   // Constant order elements only
+   int p = solution.FESpace()->GetElementOrder(0);
+   int elem_ndofs = (p+1)*(p+1);
+
+   Vector sol_l = Vector(num_equation);
+   Vector sol_r = Vector(num_equation);
+   Vector f_intl = Vector(dim);
+   Vector f_intr = Vector(dim);
+
+   // Tolerance and minimum value for density bounds
+   double tol = pow(10, -6.0);
+
+   // Get element neighbor map
+   Table etable = solution.FESpace()->GetMesh()->ElementToElementTable();
+   Vector posl = Vector(2);
+   Vector posr = Vector(2);
+   Vector norm = Vector(2);
+
+   for (int i = 0; i < nelems; i++) {
+      d_min(i) = std::numeric_limits<double>::max();
+      d_max(i) = 0.0;
+
+      // Compute min/max density within element
+      for (int j = 0; j < elem_ndofs; j++) {
+         d_min(i) = min(d_min(i), dofs(i*elem_ndofs + j));
+         d_max(i) = max(d_max(i), dofs(i*elem_ndofs + j));
+      }
+
+      // Get average solution within element
+      for (int j = 0; j < num_equation; j++) {
+         sol_l(j) = avgs(i + j*nelems);
+      }
+
+      // Get average density flux within element
+      for (int j = 0; j < dim; j++) {
+         f_intl(j) = sol_l(1 + j);
+      }
+
+      // Get element center and average max wavespeed
+      solution.FESpace()->GetMesh()->GetElementCenter(i, posl);
+      double lam_l = ComputeMaxCharSpeed(sol_l, dim, specific_heat_ratio, num_equation);
+
+      // Get and loop through face-adjacent elements
+      Array<int> adj_elems;
+      etable.GetRow(i, adj_elems);
+      for (int k : adj_elems) {
+         // Get neighbor element average solution and density flux
+         for (int j = 0; j < num_equation; j++) {
+            sol_r(j) = avgs(k + j*nelems);
+         }
+         for (int j = 0; j < dim; j++) {
+            f_intr(j) = sol_r(1 + j);
+         }
+
+         // Hack to compute face-normal direction for non-conforming mesh
+         solution.FESpace()->GetMesh()->GetElementCenter(k, posr);
+         double dx = posr(0) - posl(0);
+         double dy = posr(1) - posl(0);
+         if (abs(dx) > abs(dy)) {
+            norm(0) = (dx > 0) ? 1.0 : -1.0;
+            norm(1) = 0.0;
+         }
+         else {
+            norm(0) = 0.0;
+            norm(1) = (dy > 0) ? 1.0 : -1.0;
+         }
+
+         // Get max wavespeed for the Riemann problem between the two states (using Davis estimate)
+         double lam_r = ComputeMaxCharSpeed(sol_r, dim, specific_heat_ratio, num_equation);
+         double lam_max = max(lam_l, lam_r);
+
+         // Compute Riemann-averaged density over the Riemann fan
+         double dfdotn = 0.0;
+         for (int j = 0; j < dim; j++) {
+            dfdotn += (f_intr(j) - f_intl(j))*norm(j);
+         }
+         double d_bar = 0.5*(sol_l(0) + sol_r(0)) - 0.5*dfdotn/lam_max;
+
+         // Update density bounds
+         d_min(i) = min(d_min(i), d_bar);
+         d_max(i) = max(d_max(i), d_bar);
+      }
+
+   // Add tolerances and minimum bounds
+   d_min(i) -= tol;
+   d_max(i) += tol;
+   d_min(i) = max(d_min(i), tol);
+   }
+}
+
+
+void EulerSystem::ApplyLimiter(GridFunction &solution, int dim, double gamma, int num_equation,
+                               Vector &avgs, Vector &d_min, Vector &d_max) {
+   Vector dofs = Vector();
+   // Gridfunction ordered by [rho_0, rho_1, ..., rhou[0], rhou[1], ...]
+   solution.GetTrueDofs(dofs);
+
+   int nelems = solution.FESpace()->GetMesh()->GetNE();
+
+   // Constant order elements only
+   int p = solution.FESpace()->GetElementOrder(0);
+   int elem_ndofs = (p+1)*(p+1);
+
+   double ptol = pow(10, -6.0);
+   double rtol = pow(10, -12.0);
+
+   Vector sol = Vector(num_equation);
+   Vector sol_avg = Vector(num_equation);
+   for (int i = 0; i < nelems; i++) {
+      // Get min/max density and min pressure within element
+      double elem_d_min = std::numeric_limits<double>::max();
+      double elem_d_max = 0.0;
+      double elem_p_min = std::numeric_limits<double>::max();
+      int min_p_idx = 0;
+
+      for (int j = 0; j < elem_ndofs; j++) {
+         // Get solution at nodal point within element
+         for (int k = 0; k < num_equation; k++) {
+            sol(k) = dofs(i*elem_ndofs + j + k*elem_ndofs*nelems);
+         }
+         elem_d_min = min(elem_d_min, sol(0));
+         elem_d_max = max(elem_d_max, sol(0));
+
+         double p = ComputePressure(sol, num_equation, specific_heat_ratio);
+         if (p < elem_p_min) {
+            elem_p_min = min(elem_p_min, p);
+            min_p_idx = j;
+         }
+      }
+
+      // Get average solution within element
+      for (int j = 0; j < num_equation; j++) {
+         sol_avg(j) = avgs(i + j*nelems);
+      }
+
+      // Compute limiting factor for density
+      double theta1 = 1.0;
+      if (elem_d_min < d_min(i) || elem_d_max < d_max(i)) {
+         double d_avg = avgs(i);
+
+         double a1 = (d_min(i) - d_avg)/(elem_d_min - d_avg + rtol);
+         double a2 = (d_max(i) - d_avg)/(elem_d_max - d_avg + rtol);
+
+         theta1 = min(1.0, min(a1, a2));
+      }
+
+      // Compute limiting factor for pressure
+      double theta2 = 1.0;
+      if (elem_p_min < ptol) {
+         /*
+         Solve the equation:
+         (r + a*dr)*(E + a*dE) - 0.5*((ru + a*dru)^2 + (rv + a*drv)^2) = ptol*(r + a*dr)/(gamma - 1)
+
+         =>
+         c1 = dr*dE - 0.5*dru^2 - 0.5*drv^2
+         c2 = dr*E + dE*r - ru*dru - rv*drv - ptol*dr/(g-1)
+         c3 = r*E - 0.5*ru^2 - 0.5*rv^2 - ptol*r/(g-1)
+
+         Solve c1*a^2 + c2*a + c3 = 0
+         */
+
+         // Get nodal solution at minimum pressure point
+         for (int j = 0; j < num_equation; j++) {
+            sol(j) = dofs(i*elem_ndofs + min_p_idx + j*elem_ndofs*nelems);
+         }
+
+         double c1, c2, c3;
+         if (dim == 1) {
+            double r = sol(0);
+            double ru = sol(1);
+            double E = sol(2);
+            double dr = sol_avg(0) - sol(0);
+            double dru = sol_avg(1) - sol(1);
+            double dE = sol_avg(2) - sol(2);
+
+            c1 = dr*dE - 0.5*dru*dru;
+            c2 = dr*E + dE*r - dru*ru - ptol*dr/(gamma-1);
+            c3 = r*E -0.5*ru*ru - ptol*r/(gamma-1);
+         }
+         else if (dim == 2) {
+            double r = sol(0);
+            double ru = sol(1);
+            double rv = sol(2);
+            double E = sol(3);
+            double dr = sol_avg(0) - sol(0);
+            double dru = sol_avg(1) - sol(1);
+            double drv = sol_avg(2) - sol(2);
+            double dE = sol_avg(3) - sol(3);
+
+            c1 = dr*dE - 0.5*dru*dru - 0.5*drv*drv;
+            c2 = dr*E + dE*r - dru*ru - drv*rv - ptol*dr/(gamma-1);
+            c3 = r*E - 0.5*ru*ru - 0.5*rv*rv - ptol*r/(gamma-1);
+         }
+
+         double a1 = (-c2 + sqrt(c2*c2 - 4*c1*c3))/(2*c1);
+         double a2 = (-c2 - sqrt(c2*c2 - 4*c1*c3))/(2*c1);
+
+         theta2 = 1 - max(a1, a2);
+      }
+
+      // Taking limiting factor as the stronger of the two
+      double theta = min(theta1, theta2);
+
+      theta = min(1.0, max(0.0, theta));
+
+      // Apply limiting if necessary
+      if (theta != 1.0) {
+         for (int j = 0; j < elem_ndofs; j++) {
+            for (int k = 0; k < num_equation; k++) {
+               dofs(i*elem_ndofs + j + k*elem_ndofs*nelems) =
+                  sol_avg(k) + theta*(dofs(i*elem_ndofs + j + k*elem_ndofs*nelems) - sol_avg(k));
+            }
+         }
+      }
+   }
+
+   solution.SetFromTrueDofs(dofs);
 }
