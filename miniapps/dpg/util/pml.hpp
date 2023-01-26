@@ -108,7 +108,8 @@ public:
    }
 };
 
-// Helmholtz pml Functions
+/// PML stretching functions: See https://doi.org/10.1006/jcph.1994.1159
+// Helmholtz
 double detJ_r_function(const Vector & x, CartesianPML * pml);
 double detJ_i_function(const Vector & x, CartesianPML * pml);
 double abs_detJ_2_function(const Vector & x, CartesianPML * pml);
@@ -120,7 +121,7 @@ void Jt_J_detJinv_i_function(const Vector & x, CartesianPML * pml,
 void abs_Jt_J_detJinv_2_function(const Vector & x, CartesianPML * pml,
                                  DenseMatrix & M);
 
-// Maxwell Pml functions
+// Maxwell
 // |J| J^-1 J^-T
 void detJ_Jt_J_inv_r_function(const Vector &x, CartesianPML * pml,
                               DenseMatrix &M);

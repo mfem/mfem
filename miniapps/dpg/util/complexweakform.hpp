@@ -105,7 +105,7 @@ public:
 
    ComplexDPGWeakForm()
    {
-      height = 0.;
+      height = 0;
       width = 0;
    }
 
@@ -148,7 +148,7 @@ public:
    int Size() const { return height; }
 
    // Pre-allocate the internal real and imag BlockMatrix before assembly.
-   void AllocateMatrix() { if (mat_r == NULL) { AllocMat(); } }
+   void AllocateMatrix() { if (mat_r == nullptr) { AllocMat(); } }
 
    ///  Finalizes the matrix initialization.
    void Finalize(int skip_zeros = 1);
@@ -180,21 +180,21 @@ public:
       return *mat_e_i;
    }
 
-   /** Adds new Trial Integrator. Assumes ownership of @a bfi.
+   /** Adds new Trial Integrator. Assumes ownership of @a bfi_r and @a bfi_i.
        @a n and @a m correspond to the trial FESpace and test FEColl
        respectively */
    void AddTrialIntegrator(BilinearFormIntegrator *bfi_r,
                            BilinearFormIntegrator *bfi_i,
                            int n, int m);
 
-   /// Adds new Test Integrator. Assumes ownership of @a bfi.
+   /// Adds new Test Integrator. Assumes ownership of @a bfi_r and @a bfi_i.
    void AddTestIntegrator(BilinearFormIntegrator *bfi_r,
                           BilinearFormIntegrator *bfi_i,
                           int n, int m);
 
-   /// Adds new Domain LF Integrator. Assumes ownership of @a bfi.
-   void AddDomainLFIntegrator(LinearFormIntegrator *bfi_r,
-                              LinearFormIntegrator *bfi_i,
+   /// Adds new Domain LF Integrator. Assumes ownership of @a lfi_r and lfi_i.
+   void AddDomainLFIntegrator(LinearFormIntegrator *lfi_r,
+                              LinearFormIntegrator *lfi_i,
                               int n);
 
    /// Assembles the form i.e. sums over all integrators.

@@ -20,8 +20,8 @@
 namespace mfem
 {
 
-/** @brief Class representing the whole weak formulation. (Convenient for DPG or
-    Normal Equations) */
+/** @brief Class representing the parallel weak formulation.
+ * (Convenient for DPG Equations) */
 class ParDPGWeakForm : public DPGWeakForm
 {
 
@@ -32,9 +32,8 @@ protected:
    // ess_tdof list for each space
    Array<Array<int> *> ess_tdofs;
 
-   // split ess_tdof_list give in global tdof (for all spaces)
+   // split ess_tdof_list given in global tdof (for all spaces)
    // to individual lists for each space
-   // (this can be changed i.e., the lists to be given by the user)
    void FillEssTdofLists(const Array<int> & ess_tdof_list);
 
    // Block operator of HypreParMatrix
@@ -78,12 +77,11 @@ public:
    }
 
 
-   /// Assembles the form i.e. sums over all domain integrators.
+   /// Assemble the local matrix
    void Assemble(int skip_zeros = 1);
 
    /// Returns the matrix assembled on the true dofs, i.e. P^t A P.
    /** The returned matrix has to be deleted by the caller. */
-
    void ParallelAssemble(BlockMatrix *mat);
 
    void FormLinearSystem(const Array<int> &ess_tdof_list, Vector &x,

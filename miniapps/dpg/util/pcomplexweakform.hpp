@@ -20,8 +20,8 @@
 namespace mfem
 {
 
-/** @brief Class representing the parallel weak formulation. (Convenient for DPG or
-    Normal Equations) */
+/** @brief Class representing the parallel weak formulation.
+   (Convenient for DPG Equations) */
 class ParComplexDPGWeakForm : public ComplexDPGWeakForm
 {
 
@@ -82,7 +82,6 @@ public:
 
    /// Returns the matrix assembled on the true dofs, i.e. P^t A P.
    /** The returned matrix has to be deleted by the caller. */
-
    void ParallelAssemble(BlockMatrix *mat_r, BlockMatrix *mat_i);
 
    void FormLinearSystem(const Array<int> &ess_tdof_list, Vector &x,

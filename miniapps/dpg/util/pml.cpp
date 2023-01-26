@@ -234,7 +234,7 @@ void abs_Jt_J_detJinv_2_function(const Vector & x, CartesianPML * pml,
 }
 
 
-// Maxwell PML coeffiecients
+// Maxwell PML coefficients
 void detJ_Jt_J_inv_r_function(const Vector &x, CartesianPML * pml,
                               DenseMatrix &M)
 {
