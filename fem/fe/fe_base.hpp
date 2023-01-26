@@ -680,9 +680,6 @@ public:
    void ScalarLocalL2Restriction(ElementTransformation &Trans,
                                  DenseMatrix &R,
                                  const ScalarFiniteElement &coarse_fe) const;
-
-   virtual const DofToQuad &GetDofToQuad(const IntegrationRule &ir,
-                                         DofToQuad::Mode mode) const;
 };
 
 /// Class for standard nodal finite elements.
