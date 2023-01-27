@@ -8608,6 +8608,7 @@ void Mesh::UniformRefinement3D_base(Array<int> *f2qf_ptr, DSTable *v_to_v_p,
                new Pyramid(oedge+e[7], oedge+e[6], oedge+e[5],
                            oedge+e[4], oface+qf0, attr);
 
+#ifndef MFEM_USE_MEMALLOC
             new_elements[j++] =
                new Tetrahedron(oedge+e[0], oedge+e[4], oedge+e[5],
                                oface+qf0, attr);
@@ -8623,6 +8624,24 @@ void Mesh::UniformRefinement3D_base(Array<int> *f2qf_ptr, DSTable *v_to_v_p,
             new_elements[j++] =
                new Tetrahedron(oedge+e[3], oedge+e[7], oedge+e[4],
                                oface+qf0, attr);
+#else
+            Tetrahedron *tet;
+            new_elements[j++] = tet = TetMemory.Alloc();
+            tet->Init(oedge+e[0], oedge+e[4], oedge+e[5],
+                      oface+qf0, attr);
+
+            new_elements[j++] = tet = TetMemory.Alloc();
+            tet->Init(oedge+e[1], oedge+e[5], oedge+e[6],
+                      oface+qf0, attr);
+
+            new_elements[j++] = tet = TetMemory.Alloc();
+            tet->Init(oedge+e[2], oedge+e[6], oedge+e[7],
+                      oface+qf0, attr);
+
+            new_elements[j++] = tet = TetMemory.Alloc();
+            tet->Init(oedge+e[3], oedge+e[7], oedge+e[4],
+                      oface+qf0, attr);
+#endif
          }
          break;
 
