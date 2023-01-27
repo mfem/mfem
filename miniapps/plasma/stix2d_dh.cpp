@@ -278,6 +278,7 @@ public:
                         const Vector & mass,
                         const Vector & temp,
                         int nuprof,
+                        double res_lim,
                         bool realPart);
 
    void SetCurrentSlab(double Jy, double xJ, double delta, double Lx)
@@ -299,6 +300,7 @@ private:
    char type_;
    bool realPart_;
    int nuprof_;
+   double res_lim_;
    double omega_;
    double Bmag_;
    double Jy_;
@@ -338,6 +340,7 @@ public:
                         const Vector & mass,
                         const Vector & temp,
                         int nuprof,
+                        double res_lim,
                         bool realPart);
 
    void SetCurrentSlab(double Jy, double xJ, double delta, double Lx)
@@ -359,6 +362,7 @@ private:
    char type_;
    bool realPart_;
    int nuprof_;
+   double res_lim_;
    double omega_;
    double Bmag_;
    double Jy_;
@@ -620,6 +624,7 @@ int main(int argc, char *argv[])
    Vector nepp;
    Vector nipp;
    int nuprof = 0;
+   double res_lim = 0.01;
 
    Array<int> abcs; // Absorbing BC attributes
    Array<int> sbca; // Sheath BC attributes
@@ -752,6 +757,8 @@ int main(int argc, char *argv[])
    args.AddOption(&nuprof, "-nuprof", "--collisional-profile",
                   "Temperature Profile Type: \n"
                   "0 - Standard e-i Collision Freq, 1 - Custom Freq.");
+   args.AddOption(&res_lim, "-res-lim", "--resonance-limiter",
+                  "Resonance limit factor [0,1).");
    args.AddOption(&wave_type, "-w", "--wave-type",
                   "Wave type: 'R' - Right Circularly Polarized, "
                   "'L' - Left Circularly Polarized, "
@@ -1211,15 +1218,18 @@ int main(int argc, char *argv[])
       double lam0 = c0_ / freq;
       double Bmag = BVec.Norml2();
       std::complex<double> S = S_cold_plasma(omega, Bmag, nue, nui, numbers,
-                                             charges, masses, temps, nuprof);
+                                             charges, masses, temps, nuprof,
+                                             res_lim);
       std::complex<double> P = P_cold_plasma(omega, nue, numbers,
                                              charges, masses, temps, nuprof);
       std::complex<double> D = D_cold_plasma(omega, Bmag, nue, nui, numbers,
-                                             charges, masses, temps, nuprof);
+                                             charges, masses, temps, nuprof,
+                                             res_lim);
       std::complex<double> R = R_cold_plasma(omega, Bmag, nue, nui, numbers,
                                              charges, masses, temps, nuprof);
       std::complex<double> L = L_cold_plasma(omega, Bmag, nue, nui, numbers,
-                                             charges, masses, temps, nuprof);
+                                             charges, masses, temps, nuprof,
+                                             res_lim);
 
       cout << "\nConvenient Terms:\n";
       cout << "R = " << R << ",\tL = " << L << endl;
@@ -1458,11 +1468,11 @@ int main(int argc, char *argv[])
 
       StixPCoef RePCoef(BField, nue_gf, nui_gf, density, temperature,
                         L2FESpace, H1FESpace,
-                        omega, charges, masses, nuprof,
+                        omega, charges, masses, nuprof, res_lim,
                         true);
       StixPCoef ImPCoef(BField, nue_gf, nui_gf, density, temperature,
                         L2FESpace, H1FESpace,
-                        omega, charges, masses, nuprof,
+                        omega, charges, masses, nuprof, res_lim,
                         false);
 
       L2_ParFESpace err_fes(&pmesh, 0, pmesh.Dimension());
@@ -1496,15 +1506,15 @@ int main(int argc, char *argv[])
                                            temperature,
                                            L2FESpace, H1FESpace,
                                            omega, charges, masses, nuprof,
-                                           true);
+                                           res_lim, true);
    InverseDielectricTensor epsilonInv_imag(BField, nue_gf, nui_gf, density,
                                            temperature,
                                            L2FESpace, H1FESpace,
                                            omega, charges, masses, nuprof,
-                                           false);
+                                           res_lim, false);
    SPDDielectricTensor epsilon_abs(BField, nue_gf, nui_gf, density, temperature,
                                    L2FESpace, H1FESpace,
-                                   omega, charges, masses, nuprof);
+                                   omega, charges, masses, nuprof, res_lim);
    SheathImpedance z_r(BField, density, temperature,
                        L2FESpace, H1FESpace,
                        omega, charges, masses, true);
@@ -1516,23 +1526,31 @@ int main(int argc, char *argv[])
    MultiStrapAntennaH HImStrapCoef(msa_n, msa_p, msa_c, false);
 
    ColdPlasmaPlaneWaveH HReCoef(wave_type[0], omega, BVec,
-                                numbers, charges, masses, temps, nuprof, true);
+                                numbers, charges, masses, temps,
+                                nuprof, res_lim, true);
    ColdPlasmaPlaneWaveH HImCoef(wave_type[0], omega, BVec,
-                                numbers, charges, masses, temps, nuprof, false);
+                                numbers, charges, masses, temps,
+                                nuprof, res_lim, false);
 
    ColdPlasmaPlaneWaveE EReCoef(wave_type[0], omega, BVec,
-                                numbers, charges, masses, temps, nuprof, true);
+                                numbers, charges, masses, temps,
+                                nuprof, res_lim, true);
    ColdPlasmaPlaneWaveE EImCoef(wave_type[0], omega, BVec,
-                                numbers, charges, masses, temps, nuprof, false);
+                                numbers, charges, masses, temps,
+                                nuprof, res_lim, false);
 
    if (check_eps_inv)
    {
-      DielectricTensor epsilon_real(BField, nue_gf, nui_gf, density, temperature,
+      DielectricTensor epsilon_real(BField, nue_gf, nui_gf,
+                                    density, temperature,
                                     L2FESpace, H1FESpace,
-                                    omega, charges, masses, nuprof, true);
-      DielectricTensor epsilon_imag(BField, nue_gf, nui_gf, density, temperature,
+                                    omega, charges, masses, nuprof, res_lim,
+                                    true);
+      DielectricTensor epsilon_imag(BField, nue_gf, nui_gf,
+                                    density, temperature,
                                     L2FESpace, H1FESpace,
-                                    omega, charges, masses, nuprof, false);
+                                    omega, charges, masses, nuprof, res_lim,
+                                    false);
       DenseMatrix epsInvRe(3,3);
       DenseMatrix epsInvIm(3,3);
       DenseMatrix epsRe(3,3);
@@ -3034,11 +3052,13 @@ ColdPlasmaPlaneWaveH::ColdPlasmaPlaneWaveH(char type,
                                            const Vector & mass,
                                            const Vector & temp,
                                            int nuprof,
+                                           double res_lim,
                                            bool realPart)
    : VectorCoefficient(3),
      type_(type),
      realPart_(realPart),
      nuprof_(nuprof),
+     res_lim_(res_lim),
      omega_(omega),
      Bmag_(B.Norml2()),
      Jy_(0.0),
@@ -3087,11 +3107,12 @@ ColdPlasmaPlaneWaveH::ColdPlasmaPlaneWaveH(char type,
 
    S_ = S_cold_plasma(omega_, Bmag_, nue_, nui_, numbers_, charges_, masses_,
                       temps_,
-                      nuprof_);
+                      nuprof_, res_lim_);
    D_ = D_cold_plasma(omega_, Bmag_, nue_, nui_, numbers_, charges_, masses_,
                       temps_,
-                      nuprof_);
-   P_ = P_cold_plasma(omega_, nue_, numbers_, charges_, masses_, temps_, nuprof_);
+                      nuprof_, res_lim_);
+   P_ = P_cold_plasma(omega_, nue_, numbers_, charges_, masses_,
+                      temps_, nuprof_);
 
    switch (type_)
    {
@@ -3283,11 +3304,13 @@ ColdPlasmaPlaneWaveE::ColdPlasmaPlaneWaveE(char type,
                                            const Vector & mass,
                                            const Vector & temp,
                                            int nuprof,
+                                           double res_lim,
                                            bool realPart)
    : VectorCoefficient(3),
      type_(type),
      realPart_(realPart),
      nuprof_(nuprof),
+     res_lim_(res_lim),
      omega_(omega),
      Bmag_(B.Norml2()),
      Jy_(0.0),
@@ -3336,11 +3359,12 @@ ColdPlasmaPlaneWaveE::ColdPlasmaPlaneWaveE(char type,
 
    S_ = S_cold_plasma(omega_, Bmag_, nue_, nui_, numbers_, charges_, masses_,
                       temps_,
-                      nuprof_);
+                      nuprof_, res_lim_);
    D_ = D_cold_plasma(omega_, Bmag_, nue_, nui_, numbers_, charges_, masses_,
                       temps_,
+                      nuprof_, res_lim_);
+   P_ = P_cold_plasma(omega_, nue_, numbers_, charges_, masses_, temps_,
                       nuprof_);
-   P_ = P_cold_plasma(omega_, nue_, numbers_, charges_, masses_, temps_, nuprof_);
 
    switch (type_)
    {

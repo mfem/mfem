@@ -95,7 +95,8 @@ std::complex<double> L_cold_plasma(double omega, double Bmag,
                                    const Vector & charge,
                                    const Vector & mass,
                                    const Vector & temp,
-                                   int nuprof);
+                                   int nuprof,
+                                   double res_lim);
 
 std::complex<double> P_cold_plasma(double omega, double nue,
                                    const Vector & number,
@@ -110,7 +111,8 @@ std::complex<double> S_cold_plasma(double omega, double Bmag,
                                    const Vector & charge,
                                    const Vector & mass,
                                    const Vector & temp,
-                                   int nuprof);
+                                   int nuprof,
+                                   double res_lim);
 
 std::complex<double> D_cold_plasma(double omega, double Bmag,
                                    double nue, double nui,
@@ -118,7 +120,8 @@ std::complex<double> D_cold_plasma(double omega, double Bmag,
                                    const Vector & charge,
                                    const Vector & mass,
                                    const Vector & temp,
-                                   int nuprof);
+                                   int nuprof,
+                                   double res_lim);
 
 // """""""""""""""""""""""""""""""""""""""""""""""""""""""
 // Jim's old sheath parameterization from Kohno et al 2017:
@@ -327,6 +330,7 @@ public:
                 const Vector & charges,
                 const Vector & masses,
                 int nuprof,
+                double res_lim,
                 bool realPart);
 
    // Copy constructor
@@ -341,6 +345,7 @@ public:
 
    void SetNuProf(int nuprof) { nuprof_ = nuprof; }
    double GetNuProf() const { return nuprof_; }
+   double GetResonanceLimitorFactor() const { return res_lim_; }
 
    const ParGridFunction & GetBField() const { return B_; }
    const ParGridFunction & GetNue() const { return nue_; }
@@ -373,6 +378,7 @@ protected:
    double omega_;
    bool realPart_;
    int nuprof_;
+   double res_lim_;
 
    mutable Vector BVec_;
    ParGridFunction density_gf_;
@@ -400,6 +406,7 @@ public:
              const Vector & charges,
              const Vector & masses,
              int nuprof,
+             double res_lim,
              bool realPart);
 
    StixLCoef(StixCoefBase &s) : StixCoefBase(s) {}
@@ -423,6 +430,7 @@ public:
              const Vector & charges,
              const Vector & masses,
              int nuprof,
+             double res_lim,
              bool realPart);
 
    StixRCoef(StixCoefBase &s) : StixCoefBase(s) {}
@@ -446,6 +454,7 @@ public:
              const Vector & charges,
              const Vector & masses,
              int nuprof,
+             double res_lim,
              bool realPart);
 
    StixSCoef(StixCoefBase &s) : StixCoefBase(s) {}
@@ -469,6 +478,7 @@ public:
              const Vector & charges,
              const Vector & masses,
              int nuprof,
+             double res_lim,
              bool realPart);
 
    StixDCoef(StixCoefBase &s) : StixCoefBase(s) {}
@@ -492,6 +502,7 @@ public:
              const Vector & charges,
              const Vector & masses,
              int nuprof,
+             double res_lim,
              bool realPart);
 
    StixPCoef(StixCoefBase &s) : StixCoefBase(s) {}
@@ -515,6 +526,7 @@ public:
                   const Vector & charges,
                   const Vector & masses,
                   int nuprof,
+                  double res_lim,
                   bool realPart);
 
    StixTensorBase(StixCoefBase &s) : StixCoefBase(s) {}
@@ -541,6 +553,7 @@ public:
                     const Vector & charges,
                     const Vector & masses,
                     int nuprof,
+                    double res_lim,
                     bool realPart);
 
    DielectricTensor(StixCoefBase &s)
@@ -566,6 +579,7 @@ public:
                            const Vector & charges,
                            const Vector & masses,
                            int nuprof,
+                           double res_lim,
                            bool realPart);
 
    InverseDielectricTensor(StixCoefBase &s)
@@ -590,7 +604,8 @@ public:
                        double omega,
                        const Vector & charges,
                        const Vector & masses,
-                       int nuprof);
+                       int nuprof,
+                       double res_lim);
 
    virtual void Eval(DenseMatrix &K, ElementTransformation &T,
                      const IntegrationPoint &ip);

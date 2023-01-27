@@ -254,6 +254,7 @@ int main(int argc, char *argv[])
    Vector nepp;
    Vector nipp;
    int nuprof = 0;
+   double res_lim = 0.01;
 
    Array<int> abcs; // Absorbing BC attributes
    Array<int> sbca; // Sheath BC attributes
@@ -339,6 +340,8 @@ int main(int argc, char *argv[])
    args.AddOption(&nuprof, "-nuprof", "--collisional-profile",
                   "Temperature Profile Type: \n"
                   "0 - Standard e-i Collision Freq, 1 - Custom Freq.");
+   args.AddOption(&res_lim, "-res-lim", "--resonance-limiter",
+                  "Resonance limit factor [0,1).");
    args.AddOption(&wave_type, "-w", "--wave-type",
                   "Wave type: 'R' - Right Circularly Polarized, "
                   "'L' - Left Circularly Polarized, "
@@ -555,15 +558,18 @@ int main(int argc, char *argv[])
       double lam0 = c0_ / freq;
       double Bmag = BVec.Norml2();
       std::complex<double> S = S_cold_plasma(omega, Bmag, nue, nui, numbers,
-                                             charges, masses, temps, nuprof);
+                                             charges, masses, temps, nuprof,
+                                             res_lim);
       std::complex<double> P = P_cold_plasma(omega, nue, numbers,
                                              charges, masses, temps, nuprof);
       std::complex<double> D = D_cold_plasma(omega, Bmag, nue, nui, numbers,
-                                             charges, masses, temps, nuprof);
+                                             charges, masses, temps, nuprof,
+                                             res_lim);
       std::complex<double> R = R_cold_plasma(omega, Bmag, nue, nui, numbers,
                                              charges, masses, temps, nuprof);
       std::complex<double> L = L_cold_plasma(omega, Bmag, nue, nui, numbers,
-                                             charges, masses, temps, nuprof);
+                                             charges, masses, temps, nuprof,
+                                             res_lim);
 
       cout << "\nConvenient Terms:\n";
       cout << "R = " << R << ",\tL = " << L << endl;
@@ -827,13 +833,15 @@ int main(int argc, char *argv[])
    // Create tensor coefficients describing the dielectric permittivity
    DielectricTensor epsilon_real(BField, nue_gf, nui_gf, density, temperature,
                                  L2FESpace, H1FESpace,
-                                 omega, charges, masses, nuprof, true);
+                                 omega, charges, masses, nuprof, res_lim,
+                                 true);
    DielectricTensor epsilon_imag(BField, nue_gf, nui_gf, density, temperature,
                                  L2FESpace, H1FESpace,
-                                 omega, charges, masses, nuprof, false);
+                                 omega, charges, masses, nuprof, res_lim,
+                                 false);
    SPDDielectricTensor epsilon_abs(BField, nue_gf, nui_gf, density, temperature,
                                    L2FESpace, H1FESpace,
-                                   omega, charges, masses, nuprof);
+                                   omega, charges, masses, nuprof, res_lim);
    SheathImpedance z_r(BField, density, temperature,
                        L2FESpace, H1FESpace,
                        omega, charges, masses, true);
