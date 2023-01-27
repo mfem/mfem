@@ -2415,9 +2415,11 @@ void record_cmd_line(int argc, char *argv[])
           strcmp(argv[i], "-B"      ) == 0 ||
           strcmp(argv[i], "-k-vec"  ) == 0 ||
           strcmp(argv[i], "-q"      ) == 0 ||
+          strcmp(argv[i], "-min"    ) == 0 ||
           strcmp(argv[i], "-jsrc"   ) == 0 ||
           strcmp(argv[i], "-rod"    ) == 0 ||
           strcmp(argv[i], "-slab"   ) == 0 ||
+          strcmp(argv[i], "-curve"  ) == 0 ||
           strcmp(argv[i], "-sp"     ) == 0 ||
           strcmp(argv[i], "-abcs"   ) == 0 ||
           strcmp(argv[i], "-sbcs"   ) == 0 ||
