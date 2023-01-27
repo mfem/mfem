@@ -9,8 +9,8 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-#ifndef LINEAR_SOLVER_HPP
-#define LINEAR_SOLVER_HPP
+#ifndef HDIV_LINEAR_SOLVER_HPP
+#define HDIV_LINEAR_SOLVER_HPP
 
 #include "mfem.hpp"
 #include "change_basis.hpp"
@@ -60,11 +60,11 @@ private:
    // Components needed for the block operator
    OperatorHandle L, R, R_e; ///< Mass matrices.
    std::unique_ptr<HypreParMatrix> D, Dt, D_e; ///< Divergence matrices.
-   std::shared_ptr<DGMassInverse> L_inv_1; ///< Inverse of the DG mass matrix.
-   std::shared_ptr<DGMassInverse> L_inv_2;
+   std::shared_ptr<DGMassInverse> L_inv; ///< Inverse of the DG mass matrix.
+   std::shared_ptr<Operator> A_11; ///< (1,1)-block of the matrix
 
    /// Diagonals of the mass matrices
-   Vector L_diag, R_diag;
+   Vector L_diag, R_diag, L_diag_unweighted;
 
    // Components needed for the preconditioner
 
