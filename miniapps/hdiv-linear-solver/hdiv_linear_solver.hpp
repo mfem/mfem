@@ -27,10 +27,11 @@ namespace mfem
 class HdivSaddlePointSolver : public Solver
 {
 public:
+   /// Which type of saddle-point problem is being solved?
    enum Mode
    {
-      GRAD_DIV,
-      DARCY
+      GRAD_DIV, ///< Grad-div problem.
+      DARCY     ///< Darcy/mixed Poisson problem.
    };
 private:
    MINRESSolver minres;
@@ -99,36 +100,35 @@ public:
    ///     [ B^T  -R ]
    ///
    /// where L is the L2 mass matrix, R is the RT mass matrix, and B is the
-   /// divergence.
+   /// divergence form (VectorFEDivergenceIntegrator).
    ///
    /// Essential boundary conditions in the RT space are given by @a
    /// ess_rt_dofs_. (Rows and columns are eliminated from R and columns are
    /// eliminated from B).
    ///
-   /// The L block has coefficient @a L_coeff_ and the  R block has coefficient
+   /// The L block has coefficient @a L_coeff_ and the R block has coefficient
    /// @a R_coeff_.
    ///
-   /// If the @a mode_ is Mode::DARCY_ZERO, then the L block is replaced by zero
-   /// (in this case, @a L_coeff_ should be a zero constant coefficient for
-   /// consistency, see also @link HdivSaddlePointSolver(ParMesh&,
-   /// ParFiniteElementSpace&, ParFiniteElementSpace&, Coefficient&, const
-   /// Array<int>&) the other HdivSaddlePointSolver constructor @endlink).
+   /// The parameter @a mode_ determines whether the block system corresponds to
+   /// a grad-div problem or a Darcy problem. Specifically, if @a mode_ is
+   /// Mode::GRAD_DIV, then the B and B^T blocks are also scaled by @a L_coeff_,
+   /// and if @a mode_ is Mode::DARCY, then the B and B^T blocks are unweighted.
    ///
-   /// If @a mode_ is Mode::GRAD_DIV, then the matrices B and B^T are also
-   /// weighted by the coefficient L_coeff_. This corresponds to the grad-div
-   /// problem
+   /// Mode::GRAD_DIV corresponds to the grad-div problem
    ///
-   ///     alpha u - grad ( beta div ( u )),
+   ///     alpha u - grad ( beta div ( u )) = f,
    ///
    /// where alpha is @a R_coeff_ and beta is @a L_coeff_.
    ///
-   /// If @a mode_ is Mode::DARCY or Mode::DARCY_NONZERO, then B and B^T are
-   /// unweighted, which corresponds to the Darcy-type problem
+   /// Mode::DARCY corresponds to the Darcy-type problem
    ///
-   ///    alpha p - div ( beta grad ( p ))
+   ///     alpha p - div ( beta grad ( p )) = f,
    ///
-   /// where alpha is @a L_coeff and beta is @a R_coeff_. This requires
-   /// internally taking the reciprocal of these coefficients.
+   /// where alpha is @a L_coeff and beta is @a R_coeff_. In this case, the
+   /// coefficient alpha is allowed to be zero (see also @link
+   /// HdivSaddlePointSolver(ParMesh&, ParFiniteElementSpace&,
+   /// ParFiniteElementSpace&, Coefficient&, const Array<int>&) the zero-block
+   /// HdivSaddlePointSolver constructor@endlink).
    HdivSaddlePointSolver(ParMesh &mesh_,
                                ParFiniteElementSpace &fes_rt_,
                                ParFiniteElementSpace &fes_l2_,
@@ -138,7 +138,12 @@ public:
                                Mode mode_);
 
    /// @brief Creates a linear solver for the case when the L2 diagonal block is
-   /// zero (mode Mode::DARCY_ZERO).
+   /// zero (for Darcy problems).
+   ///
+   /// Equivalent to passing ConstantCoefficient(0.0) as @a L_coeff_ and
+   /// Mode::DARCY as @a mode_ to the @link HdivSaddlePointSolver(ParMesh&,
+   /// ParFiniteElementSpace&, ParFiniteElementSpace&, Coefficient &,
+   /// Coefficient&, const Array<int>&, Mode) the primary constructor@endlink.
    HdivSaddlePointSolver(ParMesh &mesh_,
                                ParFiniteElementSpace &fes_rt_,
                                ParFiniteElementSpace &fes_l2_,
