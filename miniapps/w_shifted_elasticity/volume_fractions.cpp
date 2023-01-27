@@ -18,6 +18,7 @@
 
 using namespace std;
 
+
 namespace mfem
 {
 
@@ -37,13 +38,36 @@ bool IsInCircle(const Vector &x){
     center(2) = 0.5;
     return ( ( pow(x(0)-center(0),2.0) + pow(x(1)-center(1),2.0) + pow(x(2)-center(2),2.0) ) >= pow(radius,2.0) ) ? true : false;
 }
-  
+
+  bool IsInPlane(const Vector &x){
+    Vector point(3);
+    point(0) = 0.5;
+    point(1) = 0.5;
+    point(2) = 0.5;
+    Vector normal(3);
+    normal(0) = 0.0;
+    normal(1) = 0.0;
+    normal(2) = 1.0;         
+    return ( normal(2) * (x(2)-point(2)) <= 0.0 ) ? true : false;
+}
+
+  bool IsInGyroid(const Vector &x){
+    double pi = 3.141592653589793e0;
+    double a = 0.5;
+    double surface = sin((2*pi/a)*x(0))*cos((2*pi/a)*x(1))+sin((2*pi/a)*x(1))*cos((2*pi/a)*x(2))+sin((2*pi/a)*x(2))*cos((2*pi/a)*x(0));
+    
+    return ( surface >= 0.0 ) ? true : false;
+  }
+
   bool IsInElement(const Vector &x, const int &type_){
     if (type_ == 1){
       return IsInCircle(x);
     }
-    if (type_ == 2){
+    else if (type_ == 2){
       return IsInSphere(x);
+    }
+    else if (type_ == 3){
+      return IsInGyroid(x);
     } 
     else{
       return false;

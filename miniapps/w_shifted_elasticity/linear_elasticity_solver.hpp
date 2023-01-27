@@ -201,7 +201,6 @@ double AvgElementSize(ParMesh &pmesh);
     double C_I;
 
     Dist_Level_Set_Coefficient *neumann_dist_coef;
-    Combo_Level_Set_Coefficient *combo_dist_coef;
     // in case we are using level set to get distance and normal vectors
     ParFiniteElementSpace *distance_vec_space;
     ParGridFunction *distance;
@@ -210,7 +209,6 @@ double AvgElementSize(ParMesh &pmesh);
     ParGridFunction *ls_func;
     ParGridFunction *level_set_gf;
     ParGridFunction *filt_gf;
-
     //
 
     ShiftedFaceMarker *analyticalSurface;
