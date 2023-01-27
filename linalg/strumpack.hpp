@@ -106,6 +106,13 @@ public:
    // SetOperator.
    void SetReorderingReuse(bool reuse);
 
+   // Enable or not GPU off-loading available if STRUMPACK was compiled with CUDA. Note
+   // that input/output from MFEM to STRUMPACK is all still through host memory.
+#if STRUMPACK_VERSION_MAJOR >= 3
+   void EnableGPU();
+   void DisableGPU();
+#endif
+
    /**
     * STRUMPACK is an (approximate) direct solver. It can be used as a direct
     * solver or as a preconditioner. To use STRUMPACK as only a preconditioner,

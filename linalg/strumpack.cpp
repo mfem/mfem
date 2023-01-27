@@ -198,6 +198,20 @@ void STRUMPACKSolverBase<STRUMPACKSolverType>
 }
 
 template <typename STRUMPACKSolverType>
+void STRUMPACKSolverBase<STRUMPACKSolverType>
+::EnableGPU()
+{
+   solver_->options().enable_gpu();
+}
+
+template <typename STRUMPACKSolverType>
+void STRUMPACKSolverBase<STRUMPACKSolverType>
+::DisableGPU()
+{
+   solver_->options().disable_gpu();
+}
+
+template <typename STRUMPACKSolverType>
 void STRUMPACKSolverBase<STRUMPACKSolverType>::
 SetKrylovSolver(strumpack::KrylovSolver method)
 {
