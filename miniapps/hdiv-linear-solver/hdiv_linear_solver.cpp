@@ -16,18 +16,21 @@
 namespace mfem
 {
 
-/// Modify diag_vec to hold its reciprocal, and return a new HypreParMatrix
-/// with those entrirs on the diagonal.
-HypreParMatrix *DiagonalInverse(
-   Vector &diag_vec, const ParFiniteElementSpace &fes)
+/// Replace x[i] with 1.0/x[i] for all i.
+void Reciprocal(Vector &x)
 {
-   diag_vec.HostReadWrite();
-   for (int i=0; i<diag_vec.Size(); ++i) { diag_vec[i] = 1.0/diag_vec[i]; }
-   SparseMatrix diag_inv(diag_vec);
+   const int n = x.Size();
+   double *d_x = x.ReadWrite();
+   MFEM_FORALL(i, n, d_x[i] = 1.0/d_x[i]; );
+}
 
+/// Return a new HypreParMatrix with given diagonal entries
+HypreParMatrix *MakeDiagonalMatrix(Vector &diag, const ParFiniteElementSpace &fes)
+{
+   SparseMatrix diag_spmat(diag);
    HYPRE_BigInt global_size = fes.GlobalTrueVSize();
    HYPRE_BigInt *row_starts = fes.GetTrueDofOffsets();
-   HypreParMatrix D(MPI_COMM_WORLD, global_size, row_starts, &diag_inv);
+   HypreParMatrix D(MPI_COMM_WORLD, global_size, row_starts, &diag_spmat);
    return new HypreParMatrix(D); // make a deep copy
 }
 
@@ -99,6 +102,17 @@ HdivSaddlePointSolver::HdivSaddlePointSolver(
 
    S_inv.SetPrintLevel(0);
 
+   if (mode == Mode::DARCY && !zero_l2_block)
+   {
+      ParBilinearForm mass_l2_unweighted(&fes_l2);
+      mass_l2_unweighted.AddDomainIntegrator(new MassIntegrator);
+      mass_l2_unweighted.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+      mass_l2_unweighted.Assemble();
+      const int n_l2 = fes_l2.GetTrueVSize();
+      L_diag_unweighted.SetSize(n_l2);
+      mass_l2_unweighted.AssembleDiagonal(L_diag_unweighted);
+   }
+
    Setup();
 }
 
@@ -110,30 +124,38 @@ HdivSaddlePointSolver::HdivSaddlePointSolver(
 
 void HdivSaddlePointSolver::Setup()
 {
-   if (!zero_l2_block)
-   {
-      L_coeff.Project(qf);
-      if (mode == Mode::DARCY)
-      {
-         L_coeff.Project(qf);
-         // Compute l2_qf_coeff, which is the reciprocal of L_inv.
-         // The data is stored in the QuadratureFunction qf.
-         double *qf_d = qf.ReadWrite();
-         MFEM_FORALL(i, qf.Size(), {
-            qf_d[i] = 1.0/qf_d[i];
-         });
-      }
-      // Form the DG mass inverse with the new coefficient
-      L_inv_1.reset(new DGMassInverse(fes_l2, l2_qf_coeff));
-   }
-
-   if (mode == Mode::GRAD_DIV) { L_inv_2 = L_inv_1; }
-   else { L_inv_2.reset(new DGMassInverse(fes_l2)); }
+   if (!zero_l2_block) { L_coeff.Project(qf); }
 
    // Reassemble the L2 mass diagonal with the new coefficient
    mass_l2.Assemble();
    mass_l2.AssembleDiagonal(L_diag);
    mass_l2.FormSystemMatrix(empty, L);
+
+   if (mode == Mode::GRAD_DIV)
+   {
+      L_inv.reset(new DGMassInverse(fes_l2, l2_qf_coeff));
+      A_11 = L_inv;
+      Reciprocal(L_diag);
+   }
+   else
+   {
+      L_inv.reset(new DGMassInverse(fes_l2));
+      if (zero_l2_block)
+      {
+         A_11.reset();
+      }
+      else
+      {
+         A_11.reset(new RAPOperator(*L_inv, *L, *L_inv));
+         const double *d_L_diag_unweighted = L_diag_unweighted.Read();
+         double *d_L_diag = L_diag.ReadWrite();
+         MFEM_FORALL(i, L_diag.Size(),
+         {
+            const double d = d_L_diag_unweighted[i];
+            d_L_diag[i] /= d*d;
+         });
+      }
+   }
 
    // Reassmble the RT mass operator with the new coefficient
    mass_rt.Update();
@@ -151,7 +173,8 @@ void HdivSaddlePointSolver::Setup()
 
    // Form the approximate Schur complement
    {
-      std::unique_ptr<HypreParMatrix> R_diag_inv(DiagonalInverse(R_diag, fes_rt));
+      Reciprocal(R_diag);
+      std::unique_ptr<HypreParMatrix> R_diag_inv(MakeDiagonalMatrix(R_diag, fes_rt));
       if (zero_l2_block)
       {
          S.reset(RAP(R_diag_inv.get(), Dt.get()));
@@ -159,7 +182,7 @@ void HdivSaddlePointSolver::Setup()
       else
       {
          std::unique_ptr<HypreParMatrix> D_Minv_Dt(RAP(R_diag_inv.get(), Dt.get()));
-         std::unique_ptr<HypreParMatrix> L_diag_inv(DiagonalInverse(L_diag, fes_l2));
+         std::unique_ptr<HypreParMatrix> L_diag_inv(MakeDiagonalMatrix(L_diag, fes_l2));
          S.reset(ParAdd(D_Minv_Dt.get(), L_diag_inv.get()));
       }
    }
@@ -170,11 +193,8 @@ void HdivSaddlePointSolver::Setup()
 
    // Set up the block operators
    A_block.reset(new BlockOperator(offsets));
-   // Skip L2 mass term if coefficient is zero
-   if (!zero_l2_block)
-   {
-      A_block->SetBlock(0, 0, L_inv_1.get());
-   }
+   // Omit the (1,1)-block when the L coefficient is identically zero.
+   if (A_11) { A_block->SetBlock(0, 0, A_11.get()); }
    A_block->SetBlock(0, 1, D.get());
    A_block->SetBlock(1, 0, Dt.get());
    A_block->SetBlock(1, 1, R.Ptr(), -1.0);
@@ -256,7 +276,7 @@ void HdivSaddlePointSolver::Mult(const Vector &b, Vector &x) const
    basis_l2.MultTranspose(bE, z);
    basis_rt.MultTranspose(bF, bF_prime);
    // Transform by the inverse of the L2 mass matrix
-   L_inv_2->Mult(z, bE_prime);
+   L_inv->Mult(z, bE_prime);
 
    // Update the monolithic transformed RHS
    bE_prime.SyncAliasMemory(b_prime);
@@ -275,7 +295,7 @@ void HdivSaddlePointSolver::Mult(const Vector &b, Vector &x) const
    Vector xE(x, offsets[0], offsets[1]-offsets[0]);
    Vector xF(x, offsets[1], offsets[2]-offsets[1]);
 
-   L_inv_2->Mult(xE_prime, z);
+   L_inv->Mult(xE_prime, z);
 
    basis_l2.Mult(z, xE);
    basis_rt.Mult(xF_prime, xF);
