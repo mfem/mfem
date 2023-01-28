@@ -504,8 +504,6 @@ private:
          }
          else
          {
-            M_ = 0.0;
-
             if (km_)
             {
                for (int i=0; i<3; i++)
