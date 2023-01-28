@@ -124,6 +124,51 @@ using namespace mfem;
 using namespace mfem::common;
 using namespace mfem::plasma;
 
+class VectorConstantCylCoefficient : public VectorCoefficient
+{
+private:
+   bool cyl;
+   Vector vec;
+   mutable Vector x;
+public:
+   /** The constant vector v is defined in either cartesian or cylindrical
+       coordinates.
+
+       If cyl == true
+          v = (v_r, v_phi, v_z)
+       Else
+          v = (v_x, v_y, v_z)
+   */
+   VectorConstantCylCoefficient(bool cyl_, const Vector &v)
+      : VectorCoefficient(3), cyl(cyl_), vec(v), x(3) {}
+   using VectorCoefficient::Eval;
+
+   ///  Evaluate the vector coefficient at @a ip.
+   virtual void Eval(Vector &V, ElementTransformation &T,
+                     const IntegrationPoint &ip)
+   {
+      if (cyl)
+      {
+         V.SetSize(3);
+
+         T.Transform(ip, x);
+
+         double r = x[1];
+
+         V[0] = vec[2];
+         V[1] = vec[0];
+         V[2] = vec[1] / r;
+      }
+      else
+      {
+         V = vec;
+      }
+   }
+
+   /// Return a reference to the constant vector in this class.
+   const Vector& GetVec() { return vec; }
+};
+
 // Admittance for Absorbing Boundary Condition
 Coefficient * SetupImpedanceCoefficient(const Mesh & mesh,
                                         const Array<int> & abcs);
@@ -143,12 +188,23 @@ static Vector rod_params_
 (0); // Amplitude of x, y, z current source, position in 2D, and radius
 static Vector slab_params_
 (0); // Amplitude of x, y, z current source, position in 2D, and size in 2D
+static Vector curve_params_
+(0); // Text here
 static int slab_profile_;
+static int vol_profile_ = 0;
+
+// Amplitude of z, r, phi current source, position in 2D (z, r), size in 2D,
+// angle of rectangular current source in degrees
+static Vector wham_params_(0);
 
 void rod_current_source_r(const Vector &x, Vector &j);
 void rod_current_source_i(const Vector &x, Vector &j);
 void slab_current_source_r(const Vector &x, Vector &j);
 void slab_current_source_i(const Vector &x, Vector &j);
+void curve_current_source_r(const Vector &x, Vector &j);
+void curve_current_source_i(const Vector &x, Vector &j);
+void wham_current_source_r(const Vector &x, Vector &j);
+void wham_current_source_i(const Vector &x, Vector &j);
 void j_src_r(const Vector &x, Vector &j)
 {
    if (rod_params_.Size() > 0)
@@ -158,6 +214,14 @@ void j_src_r(const Vector &x, Vector &j)
    else if (slab_params_.Size() > 0)
    {
       slab_current_source_r(x, j);
+   }
+   else if (curve_params_.Size() > 0)
+   {
+      curve_current_source_r(x, j);
+   }
+   else if (wham_params_.Size() > 0)
+   {
+      wham_current_source_r(x, j);
    }
 }
 void j_src_i(const Vector &x, Vector &j)
@@ -169,6 +233,14 @@ void j_src_i(const Vector &x, Vector &j)
    else if (slab_params_.Size() > 0)
    {
       slab_current_source_i(x, j);
+   }
+   else if (curve_params_.Size() > 0)
+   {
+      curve_current_source_i(x, j);
+   }
+   else if (wham_params_.Size() > 0)
+   {
+      wham_current_source_i(x, j);
    }
 }
 
@@ -560,6 +632,7 @@ void AdaptInitialMesh(MPI_Session &mpi,
                       BlockVector & density,
                       BlockVector & temperature,
                       ParGridFunction & BField,
+                      VectorFieldVisObject & BField_v,
                       ParGridFunction & density_gf,
                       ParGridFunction & temperature_gf,
                       ParGridFunction & nue_gf,
@@ -586,6 +659,7 @@ void Update(ParFiniteElementSpace & H1FESpace,
             BlockVector & density,
             BlockVector & temperature,
             ParGridFunction & BField,
+            VectorFieldVisObject & BField_v,
             ParGridFunction & density_gf,
             ParGridFunction & temperature_gf,
             ParGridFunction & nue_gf,
@@ -619,6 +693,8 @@ int main(int argc, char *argv[])
    Vector skew_mesh;
    Vector chev_mesh;
    Vector bowt_mesh;
+   bool flip_mesh = false;
+   bool rot_mesh = false;
 
    double hz = 1.0;
    const char *init_amr = "";
@@ -662,9 +738,9 @@ int main(int argc, char *argv[])
    BFieldProfile::Type bpt  = BFieldProfile::CONSTANT;
    Vector dpp;
    Vector tpp;
+   Vector bpp;
    Vector nepp;
    Vector nipp;
-   Vector bpp;
    int nuprof = 0;
    double res_lim = 0.01;
 
@@ -719,6 +795,12 @@ int main(int argc, char *argv[])
                   "Nx, Ny, Lx, Ly, Skew Angle.");
    args.AddOption(&bowt_mesh, "-bm", "--bowtie-mesh",
                   "Nx, Ny, Lx, Ly, Skew Angle.");
+   args.AddOption(&flip_mesh, "-swap-xy", "--flip-mesh", "-no-swap-xy",
+                  "--no-flip-mesh",
+                  "Swap x and x coordinates of mesh.");
+   args.AddOption(&rot_mesh, "-rot", "--rotate-mesh", "-no-rot",
+                  "--no-rotate-mesh",
+                  "Rotate mesh so that x becomes y and y becomes -x");
    args.AddOption(&cyl, "-cyl", "--cylindrical-coords", "-cart",
                   "--cartesian-coords",
                   "Cartesian (x, y, z) coordinates or "
@@ -876,6 +958,13 @@ int main(int argc, char *argv[])
                   "2D Position, 2D Size");
    args.AddOption(&slab_profile_, "-slab-prof", "--slab_profile",
                   "0 (Constant) or 1 (Sin Function)");
+   args.AddOption(&curve_params_, "-curve", "--curve_params",
+                  "2D Vector Amplitude (Real theta,phi, theta,phi)");
+   args.AddOption(&vol_profile_, "-vol-prof", "--vol_profile",
+                  "0 (Constant) or 1 (Sin Function)");
+   args.AddOption(&wham_params_, "-wham", "--wham_params",
+                  "3D Vector Amplitude (Real x,y,z, Imag x,y,z), "
+                  "2D Position (r, z), 2D Size, angle (degrees)");
    args.AddOption(&abcs, "-abcs", "--absorbing-bc-surf",
                   "Absorbing Boundary Condition Surfaces");
    args.AddOption(&sbca, "-sbcs", "--sheath-bc-surf",
@@ -953,6 +1042,7 @@ int main(int argc, char *argv[])
    {
       device.Print();
    }
+   /*
    if (numbers.Size() == 0)
    {
       numbers.SetSize(2);
@@ -988,6 +1078,7 @@ int main(int argc, char *argv[])
          }
       }
    }
+   */
    if (dpp.Size() == 0)
    {
       dpp.SetSize(1);
@@ -1388,6 +1479,25 @@ int main(int argc, char *argv[])
       mesh->bdr_attributes.Print(cout);
    }
 
+   if (flip_mesh)
+   {
+      if (mpi.Root())
+      {
+         cout << "Swapping x and y coordinates of mesh." << endl;
+      }
+      SwapXYCoefficient SwapXYCoef;
+      mesh->Transform(SwapXYCoef);
+   }
+   if (rot_mesh)
+   {
+      if (mpi.Root())
+      {
+         cout << "Rotating x and y coordinates of mesh." << endl;
+      }
+      Rotate2DVectorCoefficient RotXYCoef;
+      mesh->Transform(RotXYCoef);
+   }
+
    {
       Vector bb_min(2), bb_max(2);
       mesh->GetBoundingBox(bb_min, bb_max);
@@ -1452,24 +1562,21 @@ int main(int argc, char *argv[])
    VectorConstantCoefficient BCoef(BVec);
    VectorConstantCoefficient BUnitCoef(BUnitVec);
    */
+   VisItDataCollection visit_dc(MPI_COMM_WORLD, "STIX-R2D-DH-AMR-Parallel",
+                                &pmesh);
 
    H1_ParFESpace H1FESpace(&pmesh, order, pmesh.Dimension());
    ND_R2D_ParFESpace HCurlFESpace(&pmesh, order, pmesh.Dimension());
    RT_R2D_ParFESpace HDivFESpace(&pmesh, order, pmesh.Dimension());
    L2_ParFESpace L2FESpace(&pmesh, order, pmesh.Dimension());
-   L2_ParFESpace L2VFESpace(&pmesh, order, pmesh.Dimension(),
-                            pmesh.SpaceDimension());
+   L2_ParFESpace L2V2FESpace(&pmesh, order, pmesh.Dimension(),
+                             pmesh.SpaceDimension());
 
    ParGridFunction BField(&HDivFESpace);
    ParGridFunction temperature_gf;
    ParGridFunction density_gf;
    ParGridFunction nue_gf(&H1FESpace);
    ParGridFunction nui_gf(&H1FESpace);
-
-   PlasmaProfile nueCoef(nept, nepp);
-   nue_gf.ProjectCoefficient(nueCoef);
-   PlasmaProfile nuiCoef(nipt, nipp);
-   nui_gf.ProjectCoefficient(nuiCoef);
 
    G_EQDSK_Data *eqdsk = NULL;
    {
@@ -1488,9 +1595,18 @@ int main(int argc, char *argv[])
       }
    }
 
+   PlasmaProfile nueCoef(nept, nepp, eqdsk);
+   nue_gf.ProjectCoefficient(nueCoef);
+   PlasmaProfile nuiCoef(nipt, nipp, eqdsk);
+   nui_gf.ProjectCoefficient(nuiCoef);
+
    BFieldProfile BCoef(bpt, bpp, false, eqdsk);
    BFieldProfile BUnitCoef(bpt, bpp, true, eqdsk);
    BField.ProjectCoefficient(BCoef);
+
+   VectorFieldVisObject BField_v("Background_B_Field_",
+                                 &L2V2FESpace, &L2FESpace, cyl, true);
+
 
    int size_h1 = H1FESpace.GetVSize();
    int size_l2 = L2FESpace.GetVSize();
@@ -1516,8 +1632,8 @@ int main(int argc, char *argv[])
       cout << "Creating plasma profile." << endl;
    }
 
-   PlasmaProfile tempCoef(tpt, tpp);
-   PlasmaProfile rhoCoef(dpt, dpp);
+   PlasmaProfile tempCoef(tpt, tpp, eqdsk);
+   PlasmaProfile rhoCoef(dpt, dpp, eqdsk);
 
    for (int i=0; i<=numbers.Size(); i++)
    {
@@ -1623,12 +1739,13 @@ int main(int argc, char *argv[])
 
       AdaptInitialMesh(mpi, pmesh, err_fes,
                        H1FESpace, HCurlFESpace, HDivFESpace,
-                       L2FESpace, L2VFESpace,
+                       L2FESpace, L2V2FESpace,
                        BCoef, rhoCoef, tempCoef, nueCoef, nuiCoef,
                        size_h1, size_l2,
                        density_offsets, temperature_offsets,
                        density, temperature,
-                       BField, density_gf, temperature_gf, nue_gf, nui_gf,
+                       BField, BField_v,
+                       density_gf, temperature_gf, nue_gf, nui_gf,
                        *ReCoefPtr, *ImCoefPtr, order,
                        init_amr_tol, init_amr_max_its, init_amr_max_dofs,
                        visualization);
@@ -1802,8 +1919,8 @@ int main(int argc, char *argv[])
              << complex<double>(kReVec[1],kImVec[1]) << ","
              << complex<double>(kReVec[2],kImVec[2]) << ")" << endl;
 
-   VectorConstantCoefficient kReCoef(kReVec);
-   VectorConstantCoefficient kImCoef(kImVec);
+   VectorConstantCylCoefficient kReCoef(cyl, kReVec);
+   VectorConstantCylCoefficient kImCoef(cyl, kImVec);
 
    /*
    if (wave_type[0] == 'J' && slab_params_.Size() == 5)
@@ -2115,11 +2232,7 @@ int main(int argc, char *argv[])
    }
 
    // Initialize VisIt visualization
-   VisItDataCollection visit_dc(MPI_COMM_WORLD, "STIX-R2D-DH-AMR-Parallel",
-                                &pmesh);
-
    Array<ParComplexGridFunction*> auxFields;
-   VectorFieldVisObject b_v("B_background", &L2VFESpace, &L2FESpace, cyl, true);
 
    if ( visit )
    {
@@ -2136,8 +2249,8 @@ int main(int argc, char *argv[])
       visit_dc.RegisterField("Ion Collisional Profile", &nui_gf);
 
       // visit_dc.RegisterField("B_background", &BField);
-      b_v.RegisterVisItFields(visit_dc);
-      b_v.PrepareVisField(BField);
+      BField_v.RegisterVisItFields(visit_dc);
+      BField_v.PrepareVisField(BField);
 
       if (false)
       {
@@ -2155,8 +2268,8 @@ int main(int argc, char *argv[])
          visit_dc.RegisterField("Im_E_Exact", &auxFields[1]->imag());
       }
 
-      visit_dc.SetCycle(0);
-      visit_dc.Save();
+      // visit_dc.SetCycle(0);
+      // visit_dc.Save();
    }
    if (mpi.Root()) { cout << "Initialization done." << endl; }
 
@@ -2275,12 +2388,12 @@ int main(int argc, char *argv[])
       }
 
       // Update the magnetostatic solver to reflect the new state of the mesh.
-      Update(H1FESpace, HCurlFESpace, HDivFESpace, L2FESpace, L2VFESpace,
+      Update(H1FESpace, HCurlFESpace, HDivFESpace, L2FESpace, L2V2FESpace,
              BCoef, rhoCoef, tempCoef, nueCoef, nuiCoef,
              size_h1, size_l2,
              density_offsets, temperature_offsets,
              density, temperature,
-             BField, density_gf, temperature_gf, nue_gf, nui_gf);
+             BField, BField_v, density_gf, temperature_gf, nue_gf, nui_gf);
       CPD.Update();
 
       if (pmesh.Nonconforming() && mpi.WorldSize() > 1 && false)
@@ -2289,12 +2402,12 @@ int main(int argc, char *argv[])
          pmesh.Rebalance();
 
          // Update again after rebalancing
-         Update(H1FESpace, HCurlFESpace, HDivFESpace, L2FESpace, L2VFESpace,
+         Update(H1FESpace, HCurlFESpace, HDivFESpace, L2FESpace, L2V2FESpace,
                 BCoef, rhoCoef, tempCoef, nueCoef, nuiCoef,
                 size_h1, size_l2,
                 density_offsets, temperature_offsets,
                 density, temperature,
-                BField, density_gf, temperature_gf, nue_gf, nui_gf);
+                BField, BField_v, density_gf, temperature_gf, nue_gf, nui_gf);
          CPD.Update();
       }
    }
@@ -2339,6 +2452,7 @@ void AdaptInitialMesh(MPI_Session &mpi,
                       BlockVector & density,
                       BlockVector & temperature,
                       ParGridFunction & BField,
+                      VectorFieldVisObject & BField_v,
                       ParGridFunction & density_gf,
                       ParGridFunction & temperature_gf,
                       ParGridFunction & nue_gf,
@@ -2439,7 +2553,7 @@ void AdaptInitialMesh(MPI_Session &mpi,
              size_h1, size_l2,
              density_offsets, temperature_offsets,
              density, temperature,
-             BField, density_gf, temperature_gf, nue_gf, nui_gf);
+             BField, BField_v, density_gf, temperature_gf, nue_gf, nui_gf);
 
       err_fespace.Update();
       gf.Update();
@@ -2457,7 +2571,7 @@ void AdaptInitialMesh(MPI_Session &mpi,
                 size_h1, size_l2,
                 density_offsets, temperature_offsets,
                 density, temperature,
-                BField, density_gf, temperature_gf, nue_gf, nui_gf);
+                BField, BField_v, density_gf, temperature_gf, nue_gf, nui_gf);
 
          err_fespace.Update();
          gf.Update();
@@ -2486,6 +2600,7 @@ void Update(ParFiniteElementSpace & H1FESpace,
             BlockVector & density,
             BlockVector & temperature,
             ParGridFunction & BField,
+            VectorFieldVisObject & BField_v,
             ParGridFunction & density_gf,
             ParGridFunction & temperature_gf,
             ParGridFunction & nue_gf,
@@ -2499,6 +2614,9 @@ void Update(ParFiniteElementSpace & H1FESpace,
 
    BField.Update();
    BField.ProjectCoefficient(BCoef);
+
+   BField_v.Update();
+   BField_v.PrepareVisField(BCoef);
 
    nue_gf.Update();
    nue_gf.ProjectCoefficient(nueCoef);
@@ -2747,6 +2865,306 @@ void slab_current_source_i(const Vector &x, Vector &j)
          if (slab_profile_ == 1)
          { j *= 0.5 * (1.0 + sin(M_PI*((2.0 * (x[1] - y0) + dy)/dy - 0.5))); }
       }
+   }
+}
+
+void curve_current_source_v0_r(const Vector &x, Vector &j)
+{
+   MFEM_ASSERT(x.Size() == 2, "current source requires 2D space.");
+
+   j.SetSize(3);
+   j = 0.0;
+
+   double a = -0.50721437;
+   double b = -0.00295982;
+   double c = 2.41569303;
+
+   double zmin = -0.196;
+   double zmax = 0.1936;
+
+   double r = x[1];
+   double z = x[0];
+
+   double thickness = 0.05;
+   double rsol = 0.034;
+   double rmin = a*pow((z+b),2.0) + c + rsol;
+   double rmax = a*pow((z+b),2.0) + c + rsol + thickness;
+   double rmajor = 1.85;
+
+   double theta = atan2(z, r-rmajor);
+
+   if (r >= rmin && r <= rmax &&
+       z >= zmin && z <= zmax)
+   {
+      j(0) = curve_params_(0)*cos(theta);
+      j(1) = -1.0*curve_params_(0)*sin(theta);
+      j(2) = curve_params_(1);
+      //if (slab_profile_ == 1)
+      //{ j *= 0.5 * (1.0 + sin(M_PI*((2.0 * (x[1] - y0) + dy)/dy - 0.5))); }
+   }
+}
+
+void curve_current_source_v0_i(const Vector &x, Vector &j)
+{
+   MFEM_ASSERT(x.Size() == 2, "current source requires 2D space.");
+
+   j.SetSize(3);
+   j = 0.0;
+
+   bool cmplx = curve_params_.Size() == 4;
+
+   if (!cmplx) { return; } // Return with Im(j) = 0
+
+   // int o = 2 + (cmplx ? 2 : 0);
+
+   double a = -0.50721437;
+   double b = -0.00295982;
+   double c = 2.41569303;
+
+   double zmin = -0.196;
+   double zmax = 0.1936;
+
+   double r = x[1];
+   double z = x[0];
+
+   double thickness = 0.05;
+   double rsol = 0.034;
+   double rmin = a*pow((z+b),2.0) + c + rsol;
+   double rmax = a*pow((z+b),2.0) + c + rsol + thickness;
+   double rmajor = 1.85;
+
+   double theta = atan2(z, r-rmajor);
+
+   if (r >= rmin && r <= rmax &&
+       z >= zmin && z <= zmax)
+   {
+      j(0) = curve_params_(2)*cos(theta);
+      j(1) = -1.0*curve_params_(2)*sin(theta);
+      j(2) = curve_params_(3);
+      //if (slab_profile_ == 1)
+      //{ j *= 0.5 * (1.0 + sin(M_PI*((2.0 * (x[1] - y0) + dy)/dy - 0.5))); }
+   }
+}
+void curve_current_source_v1_r(const Vector &x, Vector &j)
+{
+   MFEM_ASSERT(x.Size() == 2, "current source requires 2D space.");
+
+   j.SetSize(3);
+   j = 0.0;
+
+   double r = x[1];
+   double z = x[0];
+
+   double theta = atan2(z, r);
+
+   double thetamax = 8.6;
+   double thetamin = 1.0;
+   double theta_ext = thetamax - thetamin;
+   double rmin = (2.415 + 0.035);
+
+   double xmin = rmin*cos(theta);
+   double xmax = xmin + 0.04;
+
+   double zmin1 = rmin * sin((M_PI * thetamin) / 180.);
+   double zmax1 = rmin * sin((M_PI * thetamax) / 180.);
+
+   if (curve_params_(0) == 1)
+   {
+      if (r >= xmin && r <= xmax &&
+          z >= zmin1 && z <= zmax1)
+      {
+         j(0) = curve_params_(1)*cos(theta);
+         j(1) = -1.0*curve_params_(1)*sin(theta);
+         j(2) = curve_params_(2);
+         if (vol_profile_ == 1)
+         {
+            double arc_len = rmin*fabs(theta) - rmin*(theta_ext/2.0 + thetamin)*(M_PI/180.);
+            double dlant = rmin*((theta_ext*M_PI)/180.);
+            j *= 0.5 * (1.0 + sin(M_PI*((2.0 * arc_len + dlant)/dlant - 0.5)));
+         }
+      }
+   }
+   else
+   {
+      double zmin2 = rmin * sin((-1.0*M_PI * thetamax) / 180.);
+      double zmax2 = rmin * sin((-1.0*M_PI * thetamin) / 180.);
+
+      if (r >= xmin && r <= xmax &&
+          z >= zmin1 && z <= zmax1)
+      {
+         j(0) = curve_params_(1)*cos(theta);
+         j(1) = -1.0*curve_params_(1)*sin(theta);
+         j(2) = curve_params_(2);
+         if (vol_profile_ == 1)
+         {
+            double arc_len = rmin*fabs(theta) - rmin*(theta_ext/2.0 + thetamin)*(M_PI/180.);
+            double dlant = rmin*((theta_ext*M_PI)/180.);
+            j *= 0.5 * (1.0 + sin(M_PI*((2.0 * arc_len + dlant)/dlant - 0.5)));
+         }
+      }
+      else if (r >= xmin && r <= xmax &&
+               z >= zmin2 && z <= zmax2)
+      {
+         j(0) = -1.0*curve_params_(1)*cos(theta);
+         j(1) = curve_params_(1)*sin(theta);
+         j(2) = curve_params_(2);
+         if (vol_profile_ == 1)
+         {
+            double arc_len = rmin*fabs(theta) - rmin*(theta_ext/2.0 + thetamin)*(M_PI/180.);
+            double dlant = rmin*((theta_ext*M_PI)/180.);
+            j *= 0.5 * (1.0 + sin(M_PI*((2.0 * arc_len + dlant)/dlant - 0.5)));
+         }
+      }
+   }
+}
+
+void curve_current_source_v1_i(const Vector &x, Vector &j)
+{
+   MFEM_ASSERT(x.Size() == 2,"current source requires 2D space.");
+
+   j.SetSize(3);
+   j = 0.0;
+
+   if (curve_params_.Size() < 4)
+   {
+      return;
+   }
+
+   double r = x[1];
+   double z = x[0];
+
+   double theta = atan2(z, r);
+
+   double thetamax = 8.6;
+   double thetamin = 1.0;
+   double theta_ext = thetamax - thetamin;
+   double rmin = (2.415 + 0.035);
+
+   double xmin = rmin*cos(theta);
+   double xmax = xmin + 0.04;
+
+   double zmin1 = rmin * sin((M_PI * thetamin) / 180.);
+   double zmax1 = rmin * sin((M_PI * thetamax) / 180.);
+
+   if (curve_params_(0) == 1)
+   {
+      if (r >= xmin && r <= xmax &&
+          z >= zmin1 && z <= zmax1)
+      {
+         j(0) = curve_params_(3)*cos(theta);
+         j(1) = -1.0*curve_params_(3)*sin(theta);
+         j(2) = curve_params_(4);
+         if (vol_profile_ == 1)
+         {
+            double arc_len = rmin*fabs(theta) - rmin*(theta_ext/2.0 + thetamin)*(M_PI/180.);
+            double dlant = rmin*((theta_ext*M_PI)/180.);
+            j *= 0.5 * (1.0 + sin(M_PI*((2.0 * arc_len + dlant)/dlant - 0.5)));
+         }
+      }
+   }
+   else
+   {
+      double zmin2 = rmin * sin((-1.0*M_PI * thetamax) / 180.);
+      double zmax2 = rmin * sin((-1.0*M_PI * thetamin) / 180.);
+
+      if (r >= xmin && r <= xmax &&
+          z >= zmin1 && z <= zmax1)
+      {
+         j(0) = curve_params_(3)*cos(theta);
+         j(1) = -1.0*curve_params_(3)*sin(theta);
+         j(2) = curve_params_(4);
+         if (vol_profile_ == 1)
+         {
+            double arc_len = rmin*fabs(theta) - rmin*(theta_ext/2.0 + thetamin)*(M_PI/180.);
+            double dlant = rmin*((theta_ext*M_PI)/180.);
+            j *= 0.5 * (1.0 + sin(M_PI*((2.0 * arc_len + dlant)/dlant - 0.5)));
+         }
+      }
+      else if (r >= xmin && r <= xmax &&
+               z >= zmin2 && z <= zmax2)
+      {
+         j(0) = -1.0*curve_params_(3)*cos(theta);
+         j(1) = curve_params_(3)*sin(theta);
+         j(2) = curve_params_(4);
+         if (vol_profile_ == 1)
+         {
+            double arc_len = rmin*fabs(theta) - rmin*(theta_ext/2.0 + thetamin)*(M_PI/180.);
+            double dlant = rmin*((theta_ext*M_PI)/180.);
+            j *= 0.5 * (1.0 + sin(M_PI*((2.0 * arc_len + dlant)/dlant - 0.5)));
+         }
+      }
+   }
+}
+
+void curve_current_source_r(const Vector &x, Vector &j)
+{
+   curve_current_source_v1_r(x, j);
+}
+
+void curve_current_source_i(const Vector &x, Vector &j)
+{
+   curve_current_source_v1_i(x, j);
+}
+
+void wham_current_source_r(const Vector &x, Vector &j)
+{
+   MFEM_ASSERT(x.Size() == 2, "current source requires 2D space.");
+
+   j.SetSize(3);
+   j = 0.0;
+
+   bool cmplx = wham_params_.Size() == 11;
+
+   int o = 3 + (cmplx ? 3 : 0);
+
+   double r0 = wham_params_(o+0);
+   double z0 = wham_params_(o+1);
+   double dv = wham_params_(o+2);
+   double du = wham_params_(o+3);
+   double th = wham_params_(o+4);
+
+   double c = cos(M_PI * th / 180.0);
+   double s = sin(M_PI * th / 180.0);
+
+   double u =  (x[0] - z0) * c + (x[1] - r0) * s;
+   double v = -(x[0] - z0) * s + (x[1] - r0) * c;
+
+   if (fabs(u) <= 0.5 * du && fabs(v) <= 0.5 * dv)
+   {
+      j(0) = wham_params_(0);
+      j(1) = wham_params_(1);
+      j(2) = wham_params_(2);
+   }
+}
+
+void wham_current_source_i(const Vector &x, Vector &j)
+{
+   MFEM_ASSERT(x.Size() == 2, "current source requires 2D space.");
+
+   j.SetSize(3);
+   j = 0.0;
+
+   bool cmplx = wham_params_.Size() == 11;
+
+   int o = 3 + (cmplx ? 3 : 0);
+
+   double r0 = wham_params_(o+0);
+   double z0 = wham_params_(o+1);
+   double dv = wham_params_(o+2);
+   double du = wham_params_(o+3);
+   double th = wham_params_(o+4);
+
+   double c = cos(M_PI * th / 180.0);
+   double s = sin(M_PI * th / 180.0);
+
+   double u =  (x[0] - z0) * c + (x[1] - r0) * s;
+   double v = -(x[0] - z0) * s + (x[1] - r0) * c;
+
+   if (fabs(u) <= 0.5 * du && fabs(v) <= 0.5 * dv && cmplx)
+   {
+      j(0) = wham_params_(3);
+      j(1) = wham_params_(4);
+      j(2) = wham_params_(5);
    }
 }
 

@@ -1508,7 +1508,8 @@ int main(int argc, char *argv[])
    ND_R2D_ParFESpace HCurlFESpace(&pmesh, order, pmesh.Dimension());
    RT_R2D_ParFESpace HDivFESpace(&pmesh, order, pmesh.Dimension());
    L2_ParFESpace L2FESpace(&pmesh, order, pmesh.Dimension());
-   L2_ParFESpace L2V2FESpace(&pmesh, order, pmesh.Dimension(), 2);
+   L2_ParFESpace L2V2FESpace(&pmesh, order, pmesh.Dimension(),
+                             pmesh.SpaceDimension());
 
    ParGridFunction BField(&HDivFESpace);
    ParGridFunction temperature_gf;
@@ -1676,8 +1677,8 @@ int main(int argc, char *argv[])
       L2_ParFESpace err_fes(&pmesh, 0, pmesh.Dimension());
 
       AdaptInitialMesh(mpi, pmesh, err_fes,
-                       H1FESpace, HCurlFESpace, HDivFESpace, L2FESpace,
-                       L2V2FESpace,
+                       H1FESpace, HCurlFESpace, HDivFESpace,
+                       L2FESpace, L2V2FESpace,
                        BCoef, rhoCoef, tempCoef, nueCoef, nuiCoef,
                        size_h1, size_l2,
                        density_offsets, temperature_offsets,
