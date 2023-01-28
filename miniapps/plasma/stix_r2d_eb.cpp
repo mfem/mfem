@@ -151,13 +151,11 @@ public:
 
          T.Transform(ip, x);
 
-         double r = sqrt(x[0] * x[0] + x[1] * x[1]);
-         double cosphi = x[0] / r;
-         double sinphi = x[1] / r;
+         double r = x[1];
 
-         V[0] = vec[0] * cosphi - vec[1] * sinphi / r;
-         V[1] = vec[0] * sinphi + vec[1] * cosphi / r;
-         V[2] = vec[2];
+         V[0] = vec[2];
+         V[1] = vec[0];
+         V[2] = vec[1] / r;
       }
       else
       {
