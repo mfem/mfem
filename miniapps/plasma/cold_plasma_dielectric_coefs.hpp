@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -691,7 +691,7 @@ private:
 
    G_EQDSK_Data *eqdsk_;
 
-   const int np_[16] = {1, 7, 9, 7, 7, 7, 3, 2, 2, 1, 1, 1, 2, 2, 4, 7};
+   const int np_[16] = {1, 7, 9, 7, 7, 7, 3, 2, 3, 1, 1, 1, 2, 2, 4, 7};
 
    mutable Vector x_;
 
