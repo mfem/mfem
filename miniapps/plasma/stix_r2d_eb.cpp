@@ -982,6 +982,7 @@ int main(int argc, char *argv[])
    {
       device.Print();
    }
+   /*
    if (numbers.Size() == 0)
    {
       numbers.SetSize(2);
@@ -1017,6 +1018,7 @@ int main(int argc, char *argv[])
          }
       }
    }
+   */
    if (dpp.Size() == 0)
    {
       dpp.SetSize(1);
@@ -1244,37 +1246,34 @@ int main(int argc, char *argv[])
    }
    if (temps.Size() == 0)
    {
-      temps.SetSize(2);
+      temps.SetSize(numbers.Size());
       if (tpp.Size() == 0)
       {
          tpp.SetSize(1);
          tpp[0] = 1.0e3;
-         temps[0] = tpp[0];
-         temps[1] = tpp[0];
+         for (int i=0; i<numbers.Size(); i++) {temps[i] = tpp[0];}
       }
       else
       {
          switch (tpt)
          {
             case PlasmaProfile::CONSTANT:
-               temps[0] = tpp[0];
-               temps[1] = tpp[0];
+               for (int i=0; i<numbers.Size(); i++) {temps[i] = tpp[0];}
                break;
             case PlasmaProfile::GRADIENT:
-               temps[0] = tpp[0];
-               temps[1] = tpp[0];
+               for (int i=0; i<numbers.Size(); i++) {temps[i] = tpp[0];}
                break;
             case PlasmaProfile::TANH:
-               temps[0] = tpp[1];
-               temps[1] = tpp[1];
+               for (int i=0; i<numbers.Size(); i++) {temps[i] = tpp[1];}
                break;
             case PlasmaProfile::ELLIPTIC_COS:
-               temps[0] = tpp[1];
-               temps[1] = tpp[1];
+               for (int i=0; i<numbers.Size(); i++) {temps[i] = tpp[1];}
+               break;
+            case PlasmaProfile::PARABOLIC:
+               for (int i=0; i<numbers.Size(); i++) {temps[i] = tpp[1];}
                break;
             default:
-               temps[0] = 1.0e3;
-               temps[1] = 1.0e3;
+               for (int i=0; i<numbers.Size(); i++) {temps[i] = 1e3;}
                break;
          }
       }
@@ -1584,6 +1583,7 @@ int main(int argc, char *argv[])
    {
       density_gf.MakeRef(&L2FESpace, density.GetBlock(i));
       density_gf.ProjectCoefficient(rhoCoef);
+      density_gf *= numbers[i]/numbers[0];
    }
 
    if (strcmp(init_amr,""))
@@ -1677,7 +1677,7 @@ int main(int argc, char *argv[])
 
       AdaptInitialMesh(mpi, pmesh, err_fes,
                        H1FESpace, HCurlFESpace, HDivFESpace, L2FESpace,
-		       L2V2FESpace,
+                       L2V2FESpace,
                        BCoef, rhoCoef, tempCoef, nueCoef, nuiCoef,
                        size_h1, size_l2,
                        density_offsets, temperature_offsets,
@@ -1850,6 +1850,8 @@ int main(int argc, char *argv[])
              << complex<double>(kReVec[1],kImVec[1]) << ","
              << complex<double>(kReVec[2],kImVec[2]) << ")" << endl;
 
+   // VectorConstantCoefficient kReCoef(kReVec);
+   // VectorConstantCoefficient kImCoef(kImVec);
    VectorConstantCylCoefficient kReCoef(cyl, kReVec);
    VectorConstantCylCoefficient kImCoef(cyl, kImVec);
 
@@ -2636,6 +2638,7 @@ void record_cmd_line(int argc, char *argv[])
           strcmp(argv[i], "-B"      ) == 0 ||
           strcmp(argv[i], "-k-vec"  ) == 0 ||
           strcmp(argv[i], "-q"      ) == 0 ||
+          strcmp(argv[i], "-min"    ) == 0 ||
           strcmp(argv[i], "-jsrc"   ) == 0 ||
           strcmp(argv[i], "-rod"    ) == 0 ||
           strcmp(argv[i], "-slab"   ) == 0 ||
