@@ -101,9 +101,9 @@
 
 // Finally the test norm is defined by the adjoint operator of (2) i.e.,
 
-//    ||(q,v)||²ᵥ   = ||A^*(q,v)||² + ||(q,v)||²
+// ||(q,v)||²ᵥ   = ||A^*(q,v)||² + ||(q,v)||²
 
-//where A is the operator defined by (2)
+// where A is the operator defined by (2)
 
 // For more information see https://doi.org/10.1016/j.camwa.2017.06.044
 
@@ -978,8 +978,8 @@ complex<double> acoustics_solution(const Vector & X)
          double xprim=X(0) + shift;
          double yprim=X(1) + shift;
 
-         double  x = xprim*sina - yprim*cosa;
-         double  y = xprim*cosa + yprim*sina;
+         double x = xprim*sina - yprim*cosa;
+         double y = xprim*cosa + yprim*sina;
          //wavelength
          double rl = 2.*M_PI/rk;
 
@@ -1054,10 +1054,10 @@ void acoustics_solution_grad(const Vector & X, vector<complex<double>> & dp)
          double xprim=X(0) + shift;
          double yprim=X(1) + shift;
 
-         double  x = xprim*sina - yprim*cosa;
-         double  y = xprim*cosa + yprim*sina;
-         double  dxdxprim = sina, dxdyprim = -cosa;
-         double  dydxprim = cosa, dydyprim =  sina;
+         double x = xprim*sina - yprim*cosa;
+         double y = xprim*cosa + yprim*sina;
+         double dxdxprim = sina, dxdyprim = -cosa;
+         double dydxprim = cosa, dydyprim =  sina;
          //wavelength
          double rl = 2.*M_PI/rk;
 
@@ -1128,10 +1128,10 @@ complex<double> acoustics_solution_laplacian(const Vector & X)
          double xprim=X(0) + shift;
          double yprim=X(1) + shift;
 
-         double  x = xprim*sina - yprim*cosa;
-         double  y = xprim*cosa + yprim*sina;
-         double  dxdxprim = sina, dxdyprim = -cosa;
-         double  dydxprim = cosa, dydyprim =  sina;
+         double x = xprim*sina - yprim*cosa;
+         double y = xprim*cosa + yprim*sina;
+         double dxdxprim = sina, dxdyprim = -cosa;
+         double dydxprim = cosa, dydyprim =  sina;
          //wavelength
          double rl = 2.*M_PI/rk;
 

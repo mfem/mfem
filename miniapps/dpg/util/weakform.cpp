@@ -626,7 +626,6 @@ void DPGWeakForm::RecoverFEMSolution(const Vector &X,
    }
 }
 
-
 void DPGWeakForm::ReleaseInitMemory()
 {
    if (initialized)
@@ -668,8 +667,6 @@ void DPGWeakForm::ReleaseInitMemory()
       lfis.DeleteAll();
    }
 }
-
-
 
 void DPGWeakForm::Update()
 {
@@ -717,14 +714,11 @@ void DPGWeakForm::Update()
    }
 }
 
-
 void DPGWeakForm::EnableStaticCondensation()
 {
    delete static_cond;
    static_cond = new BlockStaticCondensation(trial_fes);
 }
-
-
 
 Vector & DPGWeakForm::ComputeResidual(const BlockVector & x)
 {
@@ -813,7 +807,6 @@ Vector & DPGWeakForm::ComputeResidual(const BlockVector & x)
    } // end of loop through elements
    return residuals;
 }
-
 
 DPGWeakForm::~DPGWeakForm()
 {

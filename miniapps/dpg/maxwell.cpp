@@ -105,8 +105,8 @@ void hatH_exact_i(const Vector & X, Vector & hatH_i);
 double hatH_exact_scalar_r(const Vector & X);
 double hatH_exact_scalar_i(const Vector & X);
 
-void  rhs_func_r(const Vector &x, Vector & J_r);
-void  rhs_func_i(const Vector &x, Vector & J_i);
+void rhs_func_r(const Vector &x, Vector & J_r);
+void rhs_func_i(const Vector &x, Vector & J_i);
 
 int dim;
 int dimc;
@@ -717,7 +717,7 @@ double hatH_exact_scalar_i(const Vector & x)
 
 // J = -i ω ϵ E + ∇ × H
 // J_r + iJ_i = -i ω ϵ (E_r + i E_i) + ∇ × (H_r + i H_i)
-void  rhs_func_r(const Vector &x, Vector & J_r)
+void rhs_func_r(const Vector &x, Vector & J_r)
 {
    // J_r = ω ϵ E_i + ∇ × H_r
    Vector E_i, curlH_r;
@@ -730,7 +730,7 @@ void  rhs_func_r(const Vector &x, Vector & J_r)
    }
 }
 
-void  rhs_func_i(const Vector &x, Vector & J_i)
+void rhs_func_i(const Vector &x, Vector & J_i)
 {
    // J_i = - ω ϵ E_r + ∇ × H_i
    Vector E_r, curlH_i;
