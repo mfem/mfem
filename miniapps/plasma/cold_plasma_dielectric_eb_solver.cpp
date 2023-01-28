@@ -1779,7 +1779,7 @@ CPDSolverEB::~CPDSolverEB()
    delete StixP_;
    delete e_b_;
    delete b_hat_;
-   delete b_hat_v_;
+   // delete b_hat_v_;
    // delete u_;
    // delete uE_;
    // delete uB_;
