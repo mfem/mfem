@@ -617,7 +617,7 @@ void ComplexDPGWeakForm::Assemble(int skip_zeros)
          }
       }
       delete A;
-   } // end of loop throuth elements
+   } // end of loop through elements
 }
 
 void ComplexDPGWeakForm::FormLinearSystem(const Array<int>

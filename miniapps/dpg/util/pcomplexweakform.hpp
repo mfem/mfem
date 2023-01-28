@@ -32,7 +32,7 @@ protected:
    /// ess_tdof list for each space
    Array<Array<int> *> ess_tdofs;
 
-   /** split ess_tdof_list give in global tdof (for all spaces)
+   /** split ess_tdof_list given in global tdof (for all spaces)
     to individual lists for each space */
    void FillEssTdofLists(const Array<int> & ess_tdof_list);
 

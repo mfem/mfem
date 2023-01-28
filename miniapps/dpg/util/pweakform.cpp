@@ -117,7 +117,7 @@ void ParDPGWeakForm::FormLinearSystem(const Array<int>
       X.SetSize(R->Height());
       R->Mult(x,X);
 
-      // eliminate tdof is RHS
+      // eliminate tdof in RHS
       // B -= Ae*X
       Vector tmp(B.Size());
       p_mat_e->Mult(X,tmp);
