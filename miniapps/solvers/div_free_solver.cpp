@@ -642,11 +642,13 @@ BlockHybridizationSolver::BlockHybridizationSolver(const shared_ptr<ParBilinearF
     }
     hat_offsets.PartialSum();
 
+    Array<int> ess_dof_marker;
     for (int attr : ess_bdr_attr)
     {
         if (attr)
         {
             elimination_ = true;
+            trial_space.GetEssentialVDofs(ess_bdr_attr, ess_dof_marker);
             break;
         }
     }
@@ -655,8 +657,6 @@ BlockHybridizationSolver::BlockHybridizationSolver(const shared_ptr<ParBilinearF
     if (elimination_)
     {
         hat_dof_marker.SetSize(hat_offsets.Last());
-        Array<int> ess_dof_marker;
-        trial_space.GetEssentialVDofs(ess_bdr_attr, ess_dof_marker);
         for (int i = 0; i < pmesh.GetNE(); ++i)
         {
             trial_space.GetElementDofs(i, dofs);
