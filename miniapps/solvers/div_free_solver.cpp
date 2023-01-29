@@ -636,13 +636,11 @@ BlockHybridizationSolver::BlockHybridizationSolver(const shared_ptr<ParBilinearF
     hat_offsets[0] = 0;
 
     Array<int> dofs;
-    int num_hat_dofs = 0;
     for (int i = 0; i < pmesh.GetNE(); ++i)
     {
-        trial_space.GetElementDofs(i, dofs);
-        num_hat_dofs += dofs.Size();
-        hat_offsets[i + 1] = num_hat_dofs;
+        hat_offsets[i + 1] = trial_space.GetFE(i)->GetDof();
     }
+    hat_offsets.PartialSum();
 
     for (int attr : ess_bdr_attr)
     {
@@ -656,7 +654,7 @@ BlockHybridizationSolver::BlockHybridizationSolver(const shared_ptr<ParBilinearF
     Array<int> hat_dof_marker;
     if (elimination_)
     {
-        hat_dof_marker.SetSize(num_hat_dofs);
+        hat_dof_marker.SetSize(hat_offsets.Last());
         Array<int> ess_dof_marker;
         trial_space.GetEssentialVDofs(ess_bdr_attr, ess_dof_marker);
         for (int i = 0; i < pmesh.GetNE(); ++i)
@@ -680,7 +678,7 @@ BlockHybridizationSolver::BlockHybridizationSolver(const shared_ptr<ParBilinearF
     c_fes = new ParFiniteElementSpace(&pmesh, &fec);
     ParFiniteElementSpace &c_space(*c_fes);
 
-    Ct = new SparseMatrix(num_hat_dofs, c_space.GetNDofs());
+    Ct = new SparseMatrix(hat_offsets.Last(), c_space.GetNDofs());
     Array<int> c_dofs;
 
     const int skip_zeros = 1;
