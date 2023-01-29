@@ -681,7 +681,6 @@ BlockHybridizationSolver::BlockHybridizationSolver(const shared_ptr<ParBilinearF
     Ct = new SparseMatrix(hat_offsets.Last(), c_space.GetNDofs());
     Array<int> c_dofs;
 
-    const int skip_zeros = 1;
     const double eps = 1e-16;
     DenseMatrix elmat;
     FaceElementTransformations *FTr;
@@ -716,7 +715,7 @@ BlockHybridizationSolver::BlockHybridizationSolver(const shared_ptr<ParBilinearF
                                  *FTr,
                                  elmat);
         elmat.Threshold(eps * elmat.MaxMaxNorm());
-        Ct->AddSubMatrix(dofs, c_dofs, elmat, skip_zeros);
+        Ct->AddSubMatrix(dofs, c_dofs, elmat);
     }
 
     for (int i = 0; i < pmesh.GetNSharedFaces(); ++i)
@@ -741,9 +740,9 @@ BlockHybridizationSolver::BlockHybridizationSolver(const shared_ptr<ParBilinearF
                                  *FTr,
                                  elmat);
         elmat.Threshold(eps * elmat.MaxMaxNorm());
-        Ct->AddSubMatrix(dofs, c_dofs, elmat, skip_zeros);
+        Ct->AddSubMatrix(dofs, c_dofs, elmat);
     }
-    Ct->Finalize(skip_zeros);
+    Ct->Finalize();
 
     data_offsets.SetSize(pmesh.GetNE() + 1);
     data_offsets[0] = 0;
@@ -858,14 +857,12 @@ BlockHybridizationSolver::BlockHybridizationSolver(const shared_ptr<ParBilinearF
         H_local.SetSize(Ct_local.Width());
 
         MultAtB(Ct_local, Minv_Ct_local, H_local);
-        H.AddSubMatrix(c_dofs, c_dofs, H_local, skip_zeros);
+        H.AddSubMatrix(c_dofs, c_dofs, H_local);
 
         c_mark_start += c_dofs.Size();
         MFEM_VERIFY(c_mark_start >= 0, "overflow");
     }
-
-    const bool fix_empty_rows = true;
-    H.Finalize(skip_zeros, fix_empty_rows);
+    H.Finalize(1, true);  // skip_zeros = 1 (default), fix_empty_rows = true
 
     pH.SetType(Operator::Hypre_ParCSR);
     OperatorPtr pP(pH.Type()), dH(pH.Type());
