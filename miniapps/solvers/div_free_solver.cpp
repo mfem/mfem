@@ -653,27 +653,6 @@ BlockHybridizationSolver::BlockHybridizationSolver(const shared_ptr<ParBilinearF
         }
     }
 
-    Array<int> hat_dof_marker;
-    if (elimination_)
-    {
-        hat_dof_marker.SetSize(hat_offsets.Last());
-        for (int i = 0; i < pmesh.GetNE(); ++i)
-        {
-            trial_space.GetElementDofs(i, dofs);
-            for (int j = 0; j < dofs.Size(); ++j)
-            {
-                if (dofs[j] < 0)
-                {
-                    hat_dof_marker[hat_offsets[i]+j] = ess_dof_marker[-1-dofs[j]];
-                }
-                else
-                {
-                    hat_dof_marker[hat_offsets[i]+j] = ess_dof_marker[dofs[j]];
-                }
-            }
-        }
-    }
-
     DG_Interface_FECollection fec(trial_space.FEColl()->GetOrder(), pmesh.Dimension());
     c_fes = new ParFiniteElementSpace(&pmesh, &fec);
     ParFiniteElementSpace &c_space(*c_fes);
@@ -830,7 +809,7 @@ BlockHybridizationSolver::BlockHybridizationSolver(const shared_ptr<ParBilinearF
         {
             for (int j = 0; j < trial_size; ++j)
             {
-                if (hat_dof_marker[hat_offsets[i] + j])
+                if (ess_dof_marker[dofs[j]])
                 {
                     for (int k = 0; k < matrix_size; ++k)
                     {
