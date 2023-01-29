@@ -770,6 +770,29 @@ BlockHybridizationSolver::BlockHybridizationSolver(const shared_ptr<ParBilinearF
         M.CopyMN(B, trial_size, 0);
         M.CopyMNt(B, 0, trial_size);
 
+        if (elimination_)
+        {
+            FiniteElementSpace::AdjustVDofs(dofs);
+            for (int j = 0; j < trial_size; ++j)
+            {
+                if (ess_dof_marker[dofs[j]])
+                {
+                    for (int k = 0; k < matrix_size; ++k)
+                    {
+                        if (k == j)
+                        {
+                            M(k, k) = 1.0;
+                        }
+                        else
+                        {
+                            M(k, j) = 0.0;
+                            M(j, k) = 0.0;
+                        }
+                    }
+                }
+            }
+        }
+
         c_dofs.SetSize(0);
         dofs.SetSize(0);
 
@@ -802,28 +825,6 @@ BlockHybridizationSolver::BlockHybridizationSolver(const shared_ptr<ParBilinearF
             {
                 const int loc = c_dof_marker[cols[l]] - c_mark_start;
                 Ct_local(j, loc) = vals[l];
-            }
-        }
-
-        if (elimination_)
-        {
-            for (int j = 0; j < trial_size; ++j)
-            {
-                if (ess_dof_marker[dofs[j]])
-                {
-                    for (int k = 0; k < matrix_size; ++k)
-                    {
-                        if (k == j)
-                        {
-                            M(k, k) = 1.0;
-                        }
-                        else
-                        {
-                            M(k, j) = 0.0;
-                            M(j, k) = 0.0;
-                        }
-                    }
-                }
             }
         }
 
