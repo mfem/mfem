@@ -10,11 +10,15 @@
 
 Version 4.5.1 (development)
 ===========================
+- When using discontinuous (L2) spaces, use local (element-wise) L2 projection
+  as the coarsening operator for non-conforming AMR meshes.
 
 Meshing improvements
 --------------------
 - Added support for pyramids in non-conforming meshes. Currently only isotropic
   refinement is supported in this case.
+
+- Fixed a bug in TMOP metric 301.
 
 Discretization improvements
 ---------------------------
