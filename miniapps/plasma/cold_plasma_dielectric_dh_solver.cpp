@@ -2534,13 +2534,15 @@ CPDSolverDH::Solve()
    Solver * AInv = NULL;
 
 #ifdef MFEM_USE_SUPERLU
+   SuperLURowLocMatrix *A_SuperLU = NULL;
+
    if (sol_ == SolverType::SUPERLU)
    {
       if ( myid_ == 0 && logging_ > 0 )
       {
          cout << "SuperLU Solver Requested" << endl;
       }
-      SuperLURowLocMatrix A_SuperLU(*A1C);
+      A_SuperLU = new SuperLURowLocMatrix(*A1C);
       SuperLUSolver *superlu = new SuperLUSolver(MPI_COMM_WORLD);
       superlu->SetPrintStatistics(true);
       // SuperLU Options
@@ -2548,7 +2550,7 @@ CPDSolverDH::Solve()
       // AInv.SetReplaceTinyPivot(true);
       // AInv.SetEquilibriate(false);
       // AInv.SetIterativeRefine(superlu::SLU_DOUBLE);
-      superlu->SetOperator(A_SuperLU);
+      superlu->SetOperator(*A_SuperLU);
       AInv = superlu;
    }
 #endif
@@ -2682,6 +2684,9 @@ CPDSolverDH::Solve()
    }
 
    delete AInv;
+#ifdef MFEM_USE_SUPERLU
+   if (A_SuperLU) { delete A_SuperLU; }
+#endif
    delete A1C;
 
    maxwell_.RecoverFEMSolution(H, current_, h_);
