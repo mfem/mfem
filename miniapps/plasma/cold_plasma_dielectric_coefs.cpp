@@ -1556,17 +1556,51 @@ double PlasmaProfile::Eval(ElementTransformation &T,
          double norm_sqrt_psi = 1.0;
          if (val < 1 && bool_limits == 1) {norm_sqrt_psi = sqrt(val);}
 
-         double ne = 1e14;
-         // double pmin1 = 0.3e20;
-         // double pmax1 = 3e20;
-         double pmin1 = 8.4e19;
-         double pmax1 = 4.2e20;
+         // FLOOR DENSITY:
+         double ne = 1e12;
+
+         // CORE DENSITY:
+         double Coreden = 4.2e20;
+         double LCFSden = 8.4e19;
+
          double nuee = 3.0;
          double nuei = 3.0;
          //ne = (pmax1 - pmin1)*pow(1 - pow(norm_sqrt_psi, nuei), nuee) + pmin1;
          if (val < 1 && bool_limits == 1)
          {
-            ne = (pmax1 - pmin1)*pow(1 - pow(sqrt(val), nuei), nuee) + pmin1;
+            ne = (Coreden - LCFSden)*pow(1 - pow(sqrt(val), nuei), nuee)
+                 + LCFSden;
+         }
+
+         // DENSITY NEAR TOP/BOTTOM DIVERTOR:
+         if (val < 1.0 && bool_limits == 0) {ne = 1e12;}
+
+         // SOL DENSITY:
+         if ( val >= 1.0)
+         {
+            // Scale lengths:
+            double sl1 = 0.015;
+            double sl2 = 0.006;
+            double sl3 = 0.001;
+            double Olim = LCFSden*exp(-(2.425 - 2.415)/sl1);
+            double FRden = Olim*exp(-(2.445 - 2.425)/sl2);
+
+            double temp_norm = (sqrt(val) - 1.0) / fabs(1.078669548034668 - 1.0);
+            double tempr = temp_norm*(fabs(2.476101398468018-2.415)) + 2.415;
+
+            if (tempr >= 2.415 && tempr <= 2.425 )
+            {
+               ne = LCFSden*exp(-(tempr-2.415)/sl1);
+            }
+            else if (tempr > 2.425 && tempr <= 2.445 )
+            {
+               ne = Olim*exp(-(tempr-2.425)/sl2);
+            }
+            else
+            {
+               ne = FRden*exp(-(tempr-2.445)/sl3);
+               if (ne < 1e12) {ne = 1e12;}
+            }
          }
 
          return ne;
