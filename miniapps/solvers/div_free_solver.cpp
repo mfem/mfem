@@ -659,8 +659,8 @@ BlockHybridizationSolver::BlockHybridizationSolver(const shared_ptr<ParBilinearF
 
     Ct = new SparseMatrix(hat_offsets.Last(), c_space.GetNDofs());
 
-    const double eps = 1e-16;
     Array<int> dofs, c_dofs;
+    const double eps = 1e-12;
     DenseMatrix elmat;
     FaceElementTransformations *FTr;
     NormalTraceJumpIntegrator c_int;
