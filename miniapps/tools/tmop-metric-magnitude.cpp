@@ -20,6 +20,9 @@
 using namespace mfem;
 using namespace std;
 
+void Form2DJac(double perturb_factor, DenseMatrix &J);
+void Form3DJac(double perturb_factor, DenseMatrix &J);
+
 int main(int argc, char *argv[])
 {
    int metric_id = 2;
@@ -72,9 +75,6 @@ int main(int argc, char *argv[])
    }
 
    const int dim = (metric_id < 300) ? 2 : 3;
-   MFEM_VERIFY(dim == 2, "not impmlemented in 3d");
-   DenseMatrix T(dim);
-   Vector T_vec(T.GetData(), dim * dim);
 
    Mesh *mesh;
    if (dim == 2)
@@ -94,6 +94,34 @@ int main(int argc, char *argv[])
    socketstream sock1;
    common::VisualizeMesh(sock1, "localhost", 19916, *mesh, "ideal", 0, 0);
 
+   DenseMatrix J;
+   (dim == 2) ? Form2DJac(perturb_factor, J) : Form3DJac(perturb_factor, J);
+
+   const int nodes_cnt = x.Size() / dim;
+   for (int i = 0; i < nodes_cnt; i++)
+   {
+      Vector X(dim);
+      for (int d = 0; d < dim; d++) { X(d) = x(i + d * nodes_cnt); }
+      Vector Jx(dim);
+      J.Mult(X, Jx);
+      for (int d = 0; d < dim; d++) { x(i + d * nodes_cnt) = Jx(d); }
+   }
+
+   socketstream sock2;
+   common::VisualizeMesh(sock2, "localhost", 19916, *mesh, "perturbed", 400, 0);
+
+   // Target is always identity -> Jpt = Jpr.
+   cout << "Magnitude of metric " << metric_id
+        << " with perturbation " << perturb_factor << ":\n"
+        << metric->EvalW(J) << endl;
+
+   delete metric;
+   delete mesh;
+   return 0;
+}
+
+void Form2DJac(double perturb_factor, DenseMatrix &J)
+{
    // Volume.
    const double volume = 1.0 * perturb_factor;
 
@@ -116,30 +144,47 @@ int main(int argc, char *argv[])
    M_rot(1, 0) = sin(rot_angle); M_rot(1, 1) =  cos(rot_angle);
 
    // Form J.
-   DenseMatrix TMP(2), J(2);
+   J.SetSize(2);
+   DenseMatrix TMP(2);
    Mult(M_rot, M_skew, TMP);
    Mult(TMP, M_ar, J);
    J *= sqrt(volume / sin(skew_angle));
-
-   const int nodes_cnt = x.Size() / dim;
-   for (int i = 0; i < nodes_cnt; i++)
-   {
-      Vector X(2);
-      X(0) = x(i); X(1) = x(i + nodes_cnt);
-      Vector Jx(2);
-      J.Mult(X, Jx);
-      x(i) = Jx(0);  x(i + nodes_cnt) = Jx(1);
-   }
-
-   socketstream sock2;
-   common::VisualizeMesh(sock2, "localhost", 19916, *mesh, "perturbed", 400, 0);
-
-   // Target is always identity -> Jpt = Jpr.
-   cout << "Magnitude of metric " << metric_id
-        << " with perturbation " << perturb_factor << ":\n"
-        << metric->EvalW(J) << endl;
-
-   delete metric;
-   delete mesh;
-   return 0;
 }
+
+void Form3DJac(double perturb_factor, DenseMatrix &J)
+{
+   // Volume.
+   const double volume = 1.0 * perturb_factor;
+
+   // Aspect Ratio - only in one direction, the others are uniform.
+   const double ar_1 = 1.0 * perturb_factor,
+                ar_2 = 1.0 * perturb_factor;
+
+   // Skew - only in one direction, the others are pi/2.
+   const double skew_angle_12 = M_PI / 2.0 / perturb_factor,
+                skew_angle_13 = M_PI / 2.0 / perturb_factor,
+                skew_angle_23 = M_PI / 2.0 / perturb_factor;
+   const double sin3 = sin(skew_angle_12)*sin(skew_angle_13)*sin(skew_angle_23);
+
+   // Rotation - not done yet.
+
+   J.SetSize(3);
+   //
+   J(0, 0) = ar_1;
+   J(0, 1) = ar_2 * cos(skew_angle_12);
+   J(0, 2) = cos(skew_angle_13) / (ar_1 * ar_2) *
+             sqrt(sin3 / volume);
+   //
+   J(1, 0) = 0.0;
+   J(1, 1) = ar_2 * sin(skew_angle_12);
+   J(1, 2) = sin(skew_angle_13) * cos(skew_angle_23) / (ar_1 * ar_2) *
+             sqrt(sin3 / volume);
+   //
+   J(2, 0) = 0.0;
+   J(2, 1) = 0.0;
+   J(2, 2) = sin(skew_angle_13) * sin(skew_angle_23) / (ar_1 * ar_2) *
+             sqrt(sin3/ volume);
+   //
+   J *= sqrt(volume / sin3);
+}
+
