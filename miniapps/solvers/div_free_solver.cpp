@@ -635,7 +635,6 @@ BlockHybridizationSolver::BlockHybridizationSolver(const shared_ptr<ParBilinearF
 
     hat_offsets.SetSize(ne + 1);
     hat_offsets[0] = 0;
-
     for (int i = 0; i < ne; ++i)
     {
         hat_offsets[i + 1] = trial_space.GetFE(i)->GetDof();
@@ -658,14 +657,13 @@ BlockHybridizationSolver::BlockHybridizationSolver(const shared_ptr<ParBilinearF
     ParFiniteElementSpace &c_space(*c_fes);
 
     Ct = new SparseMatrix(hat_offsets.Last(), c_space.GetNDofs());
-
     Array<int> dofs, c_dofs;
     const double eps = 1e-12;
     DenseMatrix elmat;
     FaceElementTransformations *FTr;
     NormalTraceJumpIntegrator c_int;
-
     const int num_faces = pmesh.GetNumFaces();
+
     for (int i = 0; i < num_faces; ++i)
     {
         FTr = pmesh.GetInteriorFaceTransformations(i);
@@ -702,7 +700,6 @@ BlockHybridizationSolver::BlockHybridizationSolver(const shared_ptr<ParBilinearF
     for (int i = 0; i < num_shared_faces; ++i)
     {
         const int face_no = pmesh.GetSharedFace(i);
-
         FTr = pmesh.GetFaceElementTransformations(face_no);
 
         int o1 = hat_offsets[FTr->Elem1No];
