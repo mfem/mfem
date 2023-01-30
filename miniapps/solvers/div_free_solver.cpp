@@ -631,12 +631,13 @@ BlockHybridizationSolver::BlockHybridizationSolver(const shared_ptr<ParBilinearF
      solver_(a->ParFESpace()->GetComm())
 {
     ParMesh &pmesh(*trial_space.GetParMesh());
+    const int ne = pmesh.GetNE();
 
-    hat_offsets.SetSize(pmesh.GetNE() + 1);
+    hat_offsets.SetSize(ne + 1);
     hat_offsets[0] = 0;
 
     Array<int> dofs;
-    for (int i = 0; i < pmesh.GetNE(); ++i)
+    for (int i = 0; i < ne; ++i)
     {
         hat_offsets[i + 1] = trial_space.GetFE(i)->GetDof();
     }
@@ -665,7 +666,8 @@ BlockHybridizationSolver::BlockHybridizationSolver(const shared_ptr<ParBilinearF
     FaceElementTransformations *FTr;
     NormalTraceJumpIntegrator c_int;
 
-    for (int i = 0; i < pmesh.GetNumFaces(); ++i)
+    const int num_faces = pmesh.GetNumFaces();
+    for (int i = 0; i < num_faces; ++i)
     {
         FTr = pmesh.GetInteriorFaceTransformations(i);
         if (!FTr) 
@@ -697,7 +699,8 @@ BlockHybridizationSolver::BlockHybridizationSolver(const shared_ptr<ParBilinearF
         Ct->AddSubMatrix(dofs, c_dofs, elmat);
     }
 
-    for (int i = 0; i < pmesh.GetNSharedFaces(); ++i)
+    const int num_shared_faces = pmesh.GetNSharedFaces();
+    for (int i = 0; i < num_shared_faces; ++i)
     {
         const int face_no = pmesh.GetSharedFace(i);
 
@@ -723,13 +726,13 @@ BlockHybridizationSolver::BlockHybridizationSolver(const shared_ptr<ParBilinearF
     }
     Ct->Finalize();
 
-    data_offsets.SetSize(pmesh.GetNE() + 1);
+    data_offsets.SetSize(ne + 1);
     data_offsets[0] = 0;
 
-    ipiv_offsets.SetSize(pmesh.GetNE() + 1);
+    ipiv_offsets.SetSize(ne + 1);
     ipiv_offsets[0] = 0;
     
-    for (int i = 0; i < pmesh.GetNE(); ++i)
+    for (int i = 0; i < ne; ++i)
     {
         const int trial_size = trial_space.GetFE(i)->GetDof();
         const int test_size = test_space.GetFE(i)->GetDof();
@@ -748,7 +751,7 @@ BlockHybridizationSolver::BlockHybridizationSolver(const shared_ptr<ParBilinearF
     c_dof_marker = -1;
     int c_mark_start = 0;
 
-    for (int i = 0; i < pmesh.GetNE(); ++i)
+    for (int i = 0; i < ne; ++i)
     {
         trial_space.GetElementDofs(i, dofs);
         const int trial_size = dofs.Size();
