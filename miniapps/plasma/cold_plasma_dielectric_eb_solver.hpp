@@ -651,6 +651,8 @@ private:
    ParDiscreteLinearOperator * kReDot_;
    ParDiscreteLinearOperator * kImDot_;
 
+   bool assembled_;
+
 public:
    GausssLaw(const ParComplexGridFunction &f,
              ParFiniteElementSpace & L2FESpace,

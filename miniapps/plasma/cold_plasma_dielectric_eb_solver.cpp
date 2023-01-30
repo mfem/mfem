@@ -657,7 +657,8 @@ GausssLaw::GausssLaw(const ParComplexGridFunction &f,
      df_(&L2FESpace),
      div_(const_cast<ParFiniteElementSpace*>(f.ParFESpace()), &L2FESpace),
      kReDot_(NULL),
-     kImDot_(NULL)
+     kImDot_(NULL),
+     assembled_(false)
 {
    ParFiniteElementSpace & HDivFESpace =
       const_cast<ParFiniteElementSpace&>(*f_.ParFESpace());
@@ -683,6 +684,8 @@ void GausssLaw::Update()
 
    if (kReDot_) { kReDot_->Update(); }
    if (kImDot_) { kImDot_->Update(); }
+
+   assembled_ = false;
 }
 
 void GausssLaw::Assemble()
@@ -700,10 +703,14 @@ void GausssLaw::Assemble()
       kImDot_->Assemble();
       kImDot_->Finalize();
    }
+
+   assembled_ = true;
 }
 
 void GausssLaw::ComputeDiv()
 {
+   if (!assembled_) { this->Assemble(); }
+
    // df = Div(f)
    div_.Mult(f_.real(), df_.real());
    div_.Mult(f_.imag(), df_.imag());
