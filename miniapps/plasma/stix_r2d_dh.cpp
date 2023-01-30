@@ -699,7 +699,7 @@ int main(int argc, char *argv[])
    double hz = 1.0;
    const char *init_amr = "";
    double init_amr_tol = 1e-2;
-   int init_amr_max_its = 10 ;
+   int init_amr_max_its = 10;
    int init_amr_max_dofs = 100000;
    int ser_ref_levels = 0;
    int par_ref_levels = 0;
@@ -1217,33 +1217,33 @@ int main(int argc, char *argv[])
          {
             case PlasmaProfile::CONSTANT:
                numbers[0] = dpp[0];
-               numbers[1] = (1.0-minority[2]*minority[0])*dpp[0];
-               numbers[2] = minority[2]*dpp[0];
+               numbers[1] = (1.0/(1.0+minority[0]*minority[2]))*dpp[0];
+               numbers[2] = ((minority[0]*minority[2])/(1.0+minority[0]*minority[2]))*dpp[0];
                break;
             case PlasmaProfile::GRADIENT:
                numbers[0] = dpp[0];
-               numbers[1] = (1.0-minority[2]*minority[0])*dpp[0];
-               numbers[2] = minority[2]*dpp[0];
+               numbers[1] = (1.0/(1.0+minority[0]*minority[2]))*dpp[0];
+               numbers[2] = ((minority[0]*minority[2])/(1.0+minority[0]*minority[2]))*dpp[0];
                break;
             case PlasmaProfile::TANH:
                numbers[0] = dpp[1];
-               numbers[1] = (1.0-minority[2]*minority[0])*dpp[1];
-               numbers[2] = minority[2]*dpp[1];
+               numbers[1] = (1.0/(1.0+minority[0]*minority[2]))*dpp[1];
+               numbers[2] = ((minority[0]*minority[2])/(1.0+minority[0]*minority[2]))*dpp[1];
                break;
             case PlasmaProfile::ELLIPTIC_COS:
                numbers[0] = dpp[1];
-               numbers[1] = (1.0-minority[2]*minority[0])*dpp[1];
-               numbers[2] = minority[2]*dpp[1];
+               numbers[1] = (1.0/(1.0+minority[0]*minority[2]))*dpp[1];
+               numbers[2] = ((minority[0]*minority[2])/(1.0+minority[0]*minority[2]))*dpp[1];
                break;
             case PlasmaProfile::PARABOLIC:
                numbers[0] = dpp[1];
-               numbers[1] = (1.0-minority[2]*minority[0])*dpp[1];
-               numbers[2] = minority[2]*dpp[1];
+               numbers[1] = (1.0/(1.0+minority[0]*minority[2]))*dpp[1];
+               numbers[2] = ((minority[0]*minority[2])/(1.0+minority[0]*minority[2]))*dpp[1];
                break;
             default:
                numbers[0] = 1.0e19;
-               numbers[1] = (1.0-minority[2]*minority[0])*1.0e19;
-               numbers[2] = minority[2]*1.0e19;
+               numbers[1] = (1.0/(1.0+minority[0]*minority[2]))*1.0e19;
+               numbers[2] = ((minority[0]*minority[2])/(1.0+minority[0]*minority[2]))*1.0e19;
                break;
          }
       }
@@ -1267,52 +1267,51 @@ int main(int argc, char *argv[])
          {
             case PlasmaProfile::CONSTANT:
                numbers[0] = dpp[0];
-               numbers[1] = 0.5*(1.0-minority[2]*minority[0])*dpp[0];
-               numbers[2] = 0.5*(1.0-minority[2]*minority[0])*dpp[0];
-               numbers[3] = minority[2]*dpp[0];
+               numbers[1] = 0.5*(1.0/(1.0+minority[0]*minority[2]))*dpp[0];
+               numbers[2] = 0.5*(1.0/(1.0+minority[0]*minority[2]))*dpp[0];
+               numbers[3] = ((minority[0]*minority[2])/(1.0+minority[0]*minority[2]))*dpp[0];
                break;
             case PlasmaProfile::GRADIENT:
                numbers[0] = dpp[0];
-               numbers[1] = 0.5*(1.0-minority[2]*minority[0])*dpp[0];
-               numbers[2] = 0.5*(1.0-minority[2]*minority[0])*dpp[0];
-               numbers[3] = minority[2]*dpp[0];
+               numbers[1] = 0.5*(1.0/(1.0+minority[0]*minority[2]))*dpp[0];
+               numbers[2] = 0.5*(1.0/(1.0+minority[0]*minority[2]))*dpp[0];
+               numbers[3] = ((minority[0]*minority[2])/(1.0+minority[0]*minority[2]))*dpp[0];
                break;
             case PlasmaProfile::TANH:
                numbers[0] = dpp[1];
-               numbers[1] = 0.5*(1.0-minority[2]*minority[0])*dpp[1];
-               numbers[2] = 0.5*(1.0-minority[2]*minority[0])*dpp[1];
-               numbers[3] = minority[2]*dpp[1];
+               numbers[1] = 0.5*(1.0/(1.0+minority[0]*minority[2]))*dpp[1];
+               numbers[2] = 0.5*(1.0/(1.0+minority[0]*minority[2]))*dpp[1];
+               numbers[3] = ((minority[0]*minority[2])/(1.0+minority[0]*minority[2]))*dpp[1];
                break;
             case PlasmaProfile::ELLIPTIC_COS:
                numbers[0] = dpp[1];
-               numbers[1] = 0.5*(1.0-minority[2]*minority[0])*dpp[1];
-               numbers[2] = 0.5*(1.0-minority[2]*minority[0])*dpp[1];
-               numbers[3] = minority[2]*dpp[1];
+               numbers[1] = 0.5*(1.0/(1.0+minority[0]*minority[2]))*dpp[1];
+               numbers[2] = 0.5*(1.0/(1.0+minority[0]*minority[2]))*dpp[1];
+               numbers[3] = ((minority[0]*minority[2])/(1.0+minority[0]*minority[2]))*dpp[1];
                break;
             case PlasmaProfile::PARABOLIC:
                numbers[0] = dpp[1];
-               numbers[1] = 0.5*(1.0-minority[2]*minority[0])*dpp[1];
-               numbers[2] = 0.5*(1.0-minority[2]*minority[0])*dpp[1];
-               numbers[3] = minority[2]*dpp[1];
+               numbers[1] = 0.5*(1.0/(1.0+minority[0]*minority[2]))*dpp[1];
+               numbers[2] = 0.5*(1.0/(1.0+minority[0]*minority[2]))*dpp[1];
+               numbers[3] = ((minority[0]*minority[2])/(1.0+minority[0]*minority[2]))*dpp[1];
                break;
             default:
                numbers[0] = 1.0e19;
-               numbers[1] = 0.5*(1.0-minority[2]*minority[0])*1.0e19;
-               numbers[2] = 0.5*(1.0-minority[2]*minority[0])*1.0e19;
-               numbers[3] = minority[2]*1.0e19;
+               numbers[1] = 0.5*(1.0/(1.0+minority[0]*minority[2]))*1.0e19;
+               numbers[2] = 0.5*(1.0/(1.0+minority[0]*minority[2]))*1.0e19;
+               numbers[3] = ((minority[0]*minority[2])/(1.0+minority[0]*minority[2]))*1.0e19;
                break;
          }
       }
    }
    if (temps.Size() == 0)
    {
-      temps.SetSize(2);
+      temps.SetSize(numbers.Size());
       if (tpp.Size() == 0)
       {
          tpp.SetSize(1);
          tpp[0] = 1.0e3;
-         temps[0] = tpp[0];
-         temps[1] = tpp[0];
+         for (int i=0; i<numbers.Size(); i++) {temps[i] = tpp[0];}
       }
       else
       {
@@ -2270,6 +2269,8 @@ int main(int argc, char *argv[])
 
       // visit_dc.SetCycle(0);
       // visit_dc.Save();
+
+      CPD.WriteVisItFields(0);
    }
    if (mpi.Root()) { cout << "Initialization done." << endl; }
 

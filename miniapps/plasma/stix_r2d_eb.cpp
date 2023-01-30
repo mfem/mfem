@@ -2213,6 +2213,8 @@ int main(int argc, char *argv[])
          visit_dc.RegisterField("Re_E_Exact", &auxFields[1]->real());
          visit_dc.RegisterField("Im_E_Exact", &auxFields[1]->imag());
       }
+
+      CPD.WriteVisItFields(0);
    }
    if (mpi.Root()) { cout << "Initialization done." << endl; }
 
