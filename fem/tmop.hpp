@@ -299,6 +299,7 @@ public:
 };
 
 /// 2D barrier shape (S) metric (polyconvex).
+/// Grade - A.
 class TMOP_Metric_002 : public TMOP_QualityMetric
 {
 protected:
@@ -321,6 +322,7 @@ public:
 };
 
 /// 2D non-barrier shape (S) metric.
+/// Grade - F.
 class TMOP_Metric_004 : public TMOP_QualityMetric
 {
 protected:
@@ -406,7 +408,8 @@ public:
                           const double weight, DenseMatrix &A) const;
 };
 
-/// 2D barrier (not a shape) metric (polyconvex).
+/// 2D barrier shape metric (polyconvex).
+/// Grade - A.
 class TMOP_Metric_050 : public TMOP_QualityMetric
 {
 protected:
@@ -423,6 +426,7 @@ public:
 };
 
 /// 2D non-barrier size (V) metric (not polyconvex).
+/// Grade - F.
 class TMOP_Metric_055 : public TMOP_QualityMetric
 {
 protected:
@@ -440,6 +444,7 @@ public:
 };
 
 /// 2D barrier size (V) metric (polyconvex).
+/// Grade - C.
 class TMOP_Metric_056 : public TMOP_QualityMetric
 {
 protected:
@@ -477,6 +482,7 @@ public:
 };
 
 /// 2D non-barrier Shape+Size (VS) metric.
+/// Grade - F.
 class TMOP_Metric_066 : public TMOP_Combo_QualityMetric
 {
 protected:
@@ -498,6 +504,7 @@ public:
 };
 
 /// 2D barrier size (V) metric (polyconvex).
+/// Grade - C.
 class TMOP_Metric_077 : public TMOP_QualityMetric
 {
 protected:
@@ -518,6 +525,7 @@ public:
 };
 
 /// 2D barrier Shape+Size (VS) metric (polyconvex).
+/// Grade - A.
 class TMOP_Metric_080 : public TMOP_Combo_QualityMetric
 {
 protected:
