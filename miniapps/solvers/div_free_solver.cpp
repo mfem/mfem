@@ -701,6 +701,9 @@ BlockHybridizationSolver::BlockHybridizationSolver(const shared_ptr<ParBilinearF
     {
         const int face_no = pmesh.GetSharedFace(i);
         FTr = pmesh.GetFaceElementTransformations(face_no);
+        c_space.GetFaceDofs(face_no, c_dofs);
+        const FiniteElement *face_fe(c_space.GetFaceElement(face_no));
+        const FiniteElement *fe(trial_space.GetFE(FTr->Elem1No));
 
         int o1 = hat_offsets[FTr->Elem1No];
         int s1 = hat_offsets[FTr->Elem1No + 1] - o1;
@@ -710,13 +713,7 @@ BlockHybridizationSolver::BlockHybridizationSolver(const shared_ptr<ParBilinearF
         {
             dofs[j] = o1 + j;
         }
-        c_space.GetFaceDofs(face_no, c_dofs);
-        const FiniteElement * fe(trial_space.GetFE(FTr->Elem1No));
-        c_int.AssembleFaceMatrix(*c_space.GetFaceElement(face_no),
-                                 *fe,
-                                 *fe,
-                                 *FTr,
-                                 elmat);
+        c_int.AssembleFaceMatrix(*face_fe, *fe, *fe, *FTr, elmat);
         elmat.Threshold(eps * elmat.MaxMaxNorm());
         Ct->AddSubMatrix(dofs, c_dofs, elmat);
     }
