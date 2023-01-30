@@ -2788,16 +2788,19 @@ void curve_current_source_v1_r(const Vector &x, Vector &j)
 
    double theta = atan2(z, r);
 
-   double thetamax = 8.6;
-   double thetamin = 1.0;
-   double theta_ext = thetamax - thetamin;
+   double thetamax1 = 9.3;
+   double thetamin1 = 1.7;
+   double thetamax2 = -0.65;
+   double thetamin2 = -8.25;
+     
+   double theta_ext = thetamax1 - thetamin1;
    double rmin = (2.415 + 0.035);
 
    double xmin = rmin*cos(theta);
    double xmax = xmin + 0.04;
 
-   double zmin1 = rmin * sin((M_PI * thetamin) / 180.);
-   double zmax1 = rmin * sin((M_PI * thetamax) / 180.);
+   double zmin1 = rmin * sin((M_PI * thetamin1) / 180.);
+   double zmax1 = rmin * sin((M_PI * thetamax1) / 180.);
 
    if (curve_params_(0) == 1)
    {
@@ -2825,7 +2828,7 @@ void curve_current_source_v1_r(const Vector &x, Vector &j)
          }
          if (vol_profile_ == 1)
          {
-            double arc_len = rmin*fabs(theta) - rmin*(theta_ext/2.0 + thetamin)*(M_PI/180.);
+            double arc_len = rmin*fabs(theta) - rmin*(theta_ext/2.0 + thetamin1)*(M_PI/180.);
             double dlant = rmin*((theta_ext*M_PI)/180.);
             j *= 0.5 * (1.0 + sin(M_PI*((2.0 * arc_len + dlant)/dlant - 0.5)));
          }
@@ -2833,8 +2836,8 @@ void curve_current_source_v1_r(const Vector &x, Vector &j)
    }
    else
    {
-      double zmin2 = rmin * sin((-1.0*M_PI * thetamax) / 180.);
-      double zmax2 = rmin * sin((-1.0*M_PI * thetamin) / 180.);
+      double zmin2 = rmin * sin((M_PI * thetamin2) / 180.);
+      double zmax2 = rmin * sin((M_PI * thetamax2) / 180.);
 
       if (r >= xmin && r <= xmax &&
           z >= zmin1 && z <= zmax1)
@@ -2860,7 +2863,7 @@ void curve_current_source_v1_r(const Vector &x, Vector &j)
          }
          if (vol_profile_ == 1)
          {
-            double arc_len = rmin*fabs(theta) - rmin*(theta_ext/2.0 + thetamin)*(M_PI/180.);
+            double arc_len = rmin*fabs(theta) - rmin*(theta_ext/2.0 + thetamin1)*(M_PI/180.);
             double dlant = rmin*((theta_ext*M_PI)/180.);
             j *= 0.5 * (1.0 + sin(M_PI*((2.0 * arc_len + dlant)/dlant - 0.5)));
          }
@@ -2889,7 +2892,7 @@ void curve_current_source_v1_r(const Vector &x, Vector &j)
          }
          if (vol_profile_ == 1)
          {
-            double arc_len = rmin*fabs(theta) - rmin*(theta_ext/2.0 + thetamin)*(M_PI/180.);
+            double arc_len = rmin*fabs(theta) - rmin*(theta_ext/2.0 + fabs(thetamax2))*(M_PI/180.);
             double dlant = rmin*((theta_ext*M_PI)/180.);
             j *= 0.5 * (1.0 + sin(M_PI*((2.0 * arc_len + dlant)/dlant - 0.5)));
          }
@@ -2914,16 +2917,19 @@ void curve_current_source_v1_i(const Vector &x, Vector &j)
 
    double theta = atan2(z, r);
 
-   double thetamax = 8.6;
-   double thetamin = 1.0;
-   double theta_ext = thetamax - thetamin;
+   double thetamax1 = 9.3;
+   double thetamin1 = 1.7;
+   double thetamax2 = -0.65;
+   double thetamin2 = -8.25;
+     
+   double theta_ext = thetamax1 - thetamin1;
    double rmin = (2.415 + 0.035);
-
+    
    double xmin = rmin*cos(theta);
    double xmax = xmin + 0.04;
 
-   double zmin1 = rmin * sin((M_PI * thetamin) / 180.);
-   double zmax1 = rmin * sin((M_PI * thetamax) / 180.);
+   double zmin1 = rmin * sin((M_PI * thetamin1) / 180.);
+   double zmax1 = rmin * sin((M_PI * thetamax1) / 180.);
 
    if (curve_params_(0) == 1)
    {
@@ -2951,7 +2957,7 @@ void curve_current_source_v1_i(const Vector &x, Vector &j)
          }
          if (vol_profile_ == 1)
          {
-            double arc_len = rmin*fabs(theta) - rmin*(theta_ext/2.0 + thetamin)*(M_PI/180.);
+            double arc_len = rmin*fabs(theta) - rmin*(theta_ext/2.0 + thetamin1)*(M_PI/180.);
             double dlant = rmin*((theta_ext*M_PI)/180.);
             j *= 0.5 * (1.0 + sin(M_PI*((2.0 * arc_len + dlant)/dlant - 0.5)));
          }
@@ -2959,8 +2965,8 @@ void curve_current_source_v1_i(const Vector &x, Vector &j)
    }
    else
    {
-      double zmin2 = rmin * sin((-1.0*M_PI * thetamax) / 180.);
-      double zmax2 = rmin * sin((-1.0*M_PI * thetamin) / 180.);
+      double zmin2 = rmin * sin((M_PI * thetamin2) / 180.);
+      double zmax2 = rmin * sin((M_PI * thetamax2) / 180.);
 
       if (r >= xmin && r <= xmax &&
           z >= zmin1 && z <= zmax1)
@@ -2986,7 +2992,7 @@ void curve_current_source_v1_i(const Vector &x, Vector &j)
          }
          if (vol_profile_ == 1)
          {
-            double arc_len = rmin*fabs(theta) - rmin*(theta_ext/2.0 + thetamin)*(M_PI/180.);
+            double arc_len = rmin*fabs(theta) - rmin*(theta_ext/2.0 + thetamin1)*(M_PI/180.);
             double dlant = rmin*((theta_ext*M_PI)/180.);
             j *= 0.5 * (1.0 + sin(M_PI*((2.0 * arc_len + dlant)/dlant - 0.5)));
          }
@@ -3015,7 +3021,7 @@ void curve_current_source_v1_i(const Vector &x, Vector &j)
          }
          if (vol_profile_ == 1)
          {
-            double arc_len = rmin*fabs(theta) - rmin*(theta_ext/2.0 + thetamin)*(M_PI/180.);
+            double arc_len = rmin*fabs(theta) - rmin*(theta_ext/2.0 + fabs(thetamax2))*(M_PI/180.);
             double dlant = rmin*((theta_ext*M_PI)/180.);
             j *= 0.5 * (1.0 + sin(M_PI*((2.0 * arc_len + dlant)/dlant - 0.5)));
          }
