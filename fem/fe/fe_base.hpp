@@ -256,7 +256,7 @@ protected:
 
 public:
    /// Enumeration for range_type and deriv_range_type
-   enum RangeType { SCALAR, VECTOR };
+   enum RangeType { UNKNOWN_RANGE_TYPE = -1, SCALAR, VECTOR };
 
    /** @brief Enumeration for MapType: defines how reference functions are
        mapped to physical space.
@@ -270,6 +270,8 @@ public:
    */
    enum MapType
    {
+      UNKNOWN_MAP_TYPE = -1, /**< Used to distinguish an unset MapType variable
+                                  from the known values below. */
       VALUE,     /**< For scalar fields; preserves point values
                           \f$ u(x) = \hat u(\hat x) \f$ */
       INTEGRAL,  /**< For scalar fields; preserves volume integrals
@@ -693,9 +695,9 @@ public:
    /** If the "fine" elements cannot represent all basis functions of the
        "coarse" element, then boundary values from different sub-elements are
        generally different. */
-   void ScalarLocalRestriction(ElementTransformation &Trans,
-                               DenseMatrix &R,
-                               const ScalarFiniteElement &coarse_fe) const;
+   void ScalarLocalL2Restriction(ElementTransformation &Trans,
+                                 DenseMatrix &R,
+                                 const ScalarFiniteElement &coarse_fe) const;
 
    virtual const DofToQuad &GetDofToQuad(const IntegrationRule &ir,
                                          DofToQuad::Mode mode) const;

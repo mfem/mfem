@@ -92,6 +92,9 @@ public:
    template <typename CT, int N>
    explicit inline Array(const CT (&values)[N]);
 
+   /// Move constructor ("steals" data from 'src')
+   inline Array(Array<T> &&src) { Swap(src, *this); }
+
    /// Destructor
    inline ~Array() { TypeAssert(); data.Delete(); }
 

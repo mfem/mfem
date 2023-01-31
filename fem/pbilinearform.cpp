@@ -347,14 +347,12 @@ ParallelEliminateEssentialBC(const Array<int> &bdr_attr_is_ess,
 void ParBilinearForm::TrueAddMult(const Vector &x, Vector &y, const double a)
 const
 {
-   if (Xaux.ParFESpace() != pfes)
-   {
-      Xaux.SetSpace(pfes);
-      Yaux.SetSpace(pfes);
-      Ytmp.SetSize(pfes->GetTrueVSize());
-   }
+   const Operator *P = pfes->GetProlongationMatrix();
+   Xaux.SetSize(P->Height());
+   Yaux.SetSize(P->Height());
+   Ytmp.SetSize(P->Width());
 
-   Xaux.Distribute(&x);
+   P->Mult(x, Xaux);
    if (ext)
    {
       ext->Mult(Xaux, Yaux);
@@ -366,8 +364,8 @@ const
                   " implemented");
       mat->Mult(Xaux, Yaux);
    }
-   pfes->GetProlongationMatrix()->MultTranspose(Yaux, Ytmp);
-   y.Add(a,Ytmp);
+   P->MultTranspose(Yaux, Ytmp);
+   y.Add(a, Ytmp);
 }
 
 void ParBilinearForm::FormLinearSystem(
