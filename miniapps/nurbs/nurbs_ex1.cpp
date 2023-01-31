@@ -10,9 +10,9 @@
 //               nurbs_ex1 -m ../../data/disc-nurbs.mesh -o -1
 //               nurbs_ex1 -m ../../data/pipe-nurbs.mesh -o -1
 //               nurbs_ex1 -m ../../data/beam-hex-nurbs.mesh -pm 1 -ps 2
-//               nurbs_ex1 -m ../../two-squares-nurbs.mesh -o 1 -rf ../../data/two-squares.ref
-//               nurbs_ex1 -m ../../two-squares-nurbs-rot.mesh -o 1 -rf ../../data/two-squares.ref
-//               nurbs_ex1 -m ../../two-squares-nurbs-autoedge.mesh -o 1 -rf ../../data/two-squares.ref
+//               nurbs_ex1 -m ../../data/two-squares-nurbs.mesh -o 1 -rf ../../data/two-squares.ref
+//               nurbs_ex1 -m ../../data/two-squares-nurbs-rot.mesh -o 1 -rf ../../data/two-squares.ref
+//               nurbs_ex1 -m ../../data/two-squares-nurbs-autoedge.mesh -o 1 -rf ../../data/two-squares.ref
 //
 // Description:  This example code demonstrates the use of MFEM to define a
 //               simple finite element discretization of the Laplace problem
