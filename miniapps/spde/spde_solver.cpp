@@ -406,8 +406,6 @@ void SPDESolver::ComputeRationalCoefficients(double exponent) {
 
 SPDESolver::~SPDESolver() {   
   delete Op_; 
-  delete b;
-  delete integ;
 };
 
 }  // namespace spde

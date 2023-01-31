@@ -14,6 +14,9 @@
 
 // run on ruby on 8 nodes
 // srun -np 256 ./pthermal_compliance-filter -epsilon 0.01 -alpha 0.01 -beta 5.0 -r 5 -o 2 -bs 5 -theta 1.0 -mi 100 -mf 0.4 -paraview
+// srun -np 256 ./pthermal_compliance-filter -epsilon 0.01 -alpha 0.05 -beta 5.0 -r 5 -o 2 -bs 5 -theta 1.0 -mi 100 -mf 0.4 -paraview
+// srun -np 256 ./pthermal_compliance-filter -epsilon 0.01 -alpha 0.1 -beta 5.0 -r 5 -o 2 -bs 5 -theta 1.0 -mi 100 -mf 0.4 -paraview
+// srun -np 256 ./pthermal_compliance-filter -epsilon 0.01 -alpha 0.1 -beta 5.0 -r 5 -o 2 -bs 5 -theta 2.0 -mi 100 -mf 0.4 -paraview
 
 //         min J(K) = <g,u>
 //                            
@@ -113,7 +116,6 @@ public:
       return min_val + numer/denom * (max_val - min_val);
    }
 };
-
 class GradientSigmoidRHSCoefficient : public Coefficient
 {
 protected:
@@ -285,6 +287,10 @@ int main(int argc, char *argv[])
    double K_min = 1e-3;
    int batch_size_min = 2;
    double theta = 0.5;
+
+   double l1 = 0.1, l2 = 0.1, l3 = 1.0;
+
+
    bool use_simp = true;
    bool paraview = false;
    OptionsParser args(argc, argv);
@@ -300,6 +306,13 @@ int main(int argc, char *argv[])
                   "epsilon phase field thickness");
    args.AddOption(&max_it, "-mi", "--max-it",
                   "Maximum number of gradient descent iterations.");
+   args.AddOption(&l1, "-l1", "--l1",
+                  "Correlation length x");
+   args.AddOption(&l2, "-l2", "--l2",
+                  "Correlation length y");             
+   args.AddOption(&l3, "-l3", "--l3",
+                  "Correlation length z");                        
+
    args.AddOption(&tol_rho, "-tr", "--tol_rho",
                   "Exit tolerance for ρ ");     
    args.AddOption(&tol_lambda, "-tl", "--tol_lambda",
@@ -343,9 +356,10 @@ int main(int argc, char *argv[])
    }
    int batch_size = batch_size_min;
 
-   ostringstream file_name;
-   file_name << "conv_order" << order << "_GD" << ".csv";
-   ofstream conv(file_name.str().c_str());
+   ostringstream csv_file_name;
+   csv_file_name << "conv_order" << order << "_GD_alpha_" << alpha 
+                 << "_theta_" << theta << "_l1_" << l1 << "_l2_" << l2 << ".csv";
+   ofstream conv(csv_file_name.str().c_str());
    if (myid == 0)
    {
       conv << "Step,  Inner Step,    Sample Size,"
@@ -429,16 +443,20 @@ int main(int argc, char *argv[])
    // RandomUniformConstantCoefficient rand_bc(-2.0, 2.0);
    RandomNormalConstantCoefficient rand_bc(0.0, 0.5);
    rand_bc.resample();
-   bc.AddInhomogeneousDirichletBoundaryCondition(2,rand_bc.constant);
-   bc.AddInhomogeneousDirichletBoundaryCondition(1,rand_bc.constant);
-   bc.AddHomogeneousBoundaryCondition(3,spde::BoundaryType::kDirichlet);
+   // bc.AddInhomogeneousDirichletBoundaryCondition(2,rand_bc.constant);
+   // bc.AddInhomogeneousDirichletBoundaryCondition(1,rand_bc.constant);
+   // bc.AddHomogeneousBoundaryCondition(3,spde::BoundaryType::kDirichlet);
+
+   bc.AddInhomogeneousDirichletBoundaryCondition(3,rand_bc.constant);
+   bc.AddHomogeneousBoundaryCondition(1,spde::BoundaryType::kDirichlet);
+   bc.AddHomogeneousBoundaryCondition(2,spde::BoundaryType::kDirichlet);
+
    if (Mpi::Root()) 
    {
      bc.PrintInfo();
      bc.VerifyDefinedBoundaries(pmesh);
    }
    double nu = 1.0;
-   double l1 = 0.1, l2 = 0.1, l3 = 1.0;
    double e1 = 0.0, e2 = 0.0, e3 = 0.0;
    spde::SPDESolver random_load_solver(nu, bc, &state_fes, l1, l2);
 
@@ -447,23 +465,6 @@ int main(int argc, char *argv[])
    random_load_solver.GenerateRandomField(load_gf);
 
    GridFunctionCoefficient load_cf(&load_gf);
-
-   // for (int i = 0; i<5; i++)
-   // {
-   //    random_load_solver.GenerateRandomField(load_gf);
-
-   //    {
-   //       char vishost[] = "localhost";
-   //       int  visport   = 19916;
-   //       socketstream sol_sock(vishost, visport);
-   //       sol_sock << "parallel " << num_procs << " " << myid << "\n";
-   //       sol_sock.precision(8);
-   //       sol_sock << "solution\n" << pmesh << load_gf << flush;
-   //    }
-   // }
-
-   // return 0;
-
 
    // 7. Set the initial guess for f and the boundary conditions for u.
    ParGridFunction u(&state_fes);
@@ -510,15 +511,6 @@ int main(int argc, char *argv[])
    FilterSolver->SetEssentialBoundary(ess_bdr_filter);
    FilterSolver->SetupFEM();
 
-   // ParBilinearForm mass(&control_fes);
-   // mass.AddDomainIntegrator(new InverseIntegrator(new MassIntegrator(one)));
-   // mass.Assemble();
-
-   // HypreParMatrix M;
-   // Array<int> empty;
-   // mass.FormSystemMatrix(empty,M);
-
-
    // 9. Define the gradient function
    ParGridFunction w(&control_fes);
    ParGridFunction avg_w(&control_fes);
@@ -551,7 +543,10 @@ int main(int argc, char *argv[])
    
    if (paraview)
    {
-      paraview_dc = new ParaViewDataCollection("Thermal_compliance", &pmesh);
+      ostringstream paraview_file_name;
+      paraview_file_name << "Thermal_compliance_alpha_" << alpha 
+                         << "_theta_" << theta << "_l1_" << l1 << "_l2_" << l2;
+      paraview_dc = new ParaViewDataCollection(paraview_file_name.str(), &pmesh);
       paraview_dc->SetPrefixPath("ParaView");
       paraview_dc->SetLevelsOfDetail(order);
       paraview_dc->SetCycle(0);
