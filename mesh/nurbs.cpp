@@ -2783,6 +2783,8 @@ void NURBSExtension::GenerateBdrElementDofTable()
       Generate3DBdrElementDofTable();
    }
 
+   SetPatchToBdrElements();
+
    int *dof = bel_dof->GetJ();
    int ndof = bel_dof->Size_of_connections();
    for (int i = 0; i < ndof; i++)
@@ -3338,10 +3340,7 @@ const Array<int>& NURBSExtension::GetPatchElements(int patch)
 
 const Array<int>& NURBSExtension::GetPatchBdrElements(int patch)
 {
-   if (patch_to_bel.size() == 0)
-   {
-      SetPatchToBdrElements();
-   }
+   MFEM_ASSERT(patch_to_bel.size() > 0, "patch_to_el not set");
 
    return patch_to_bel[patch];
 }
