@@ -5263,7 +5263,7 @@ void Mesh::LoadPatchTopo(std::istream &input, Array<int> &edge_to_knot)
    {
       edge_vertex = new Table(NumOfEdges, 2);
       edge_to_knot.SetSize(NumOfEdges);
-      int notset = -9999999;
+      constexpr int notset = -9999999;
       edge_to_knot = notset;
       Array<int> edges;
       Array<int> oedge;
