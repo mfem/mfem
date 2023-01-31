@@ -641,6 +641,25 @@ BlockHybridizationSolver::BlockHybridizationSolver(const shared_ptr<ParBilinearF
     }
     hat_offsets.PartialSum();
 
+    data_offsets.SetSize(ne + 1);
+    data_offsets[0] = 0;
+
+    ipiv_offsets.SetSize(ne + 1);
+    ipiv_offsets[0] = 0;
+
+    for (int i = 0; i < ne; ++i)
+    {
+        const int trial_size = trial_space.GetFE(i)->GetDof();
+        const int test_size = test_space.GetFE(i)->GetDof();
+        const int matrix_size = trial_size + test_size;
+
+        data_offsets[i + 1] = data_offsets[i] + matrix_size*matrix_size;
+        ipiv_offsets[i + 1] = ipiv_offsets[i] + matrix_size;
+    }
+
+    data = new double[data_offsets[pmesh.GetNE()]]();
+    ipiv = new int[ipiv_offsets[pmesh.GetNE()]];
+
     Array<int> ess_dof_marker;
     for (int attr : ess_bdr_attr)
     {
@@ -718,25 +737,6 @@ BlockHybridizationSolver::BlockHybridizationSolver(const shared_ptr<ParBilinearF
         Ct->AddSubMatrix(dofs, c_dofs, elmat);
     }
     Ct->Finalize();
-
-    data_offsets.SetSize(ne + 1);
-    data_offsets[0] = 0;
-
-    ipiv_offsets.SetSize(ne + 1);
-    ipiv_offsets[0] = 0;
-    
-    for (int i = 0; i < ne; ++i)
-    {
-        const int trial_size = trial_space.GetFE(i)->GetDof();
-        const int test_size = test_space.GetFE(i)->GetDof();
-        const int matrix_size = trial_size + test_size;
-
-        data_offsets[i + 1] = data_offsets[i] + matrix_size*matrix_size;
-        ipiv_offsets[i + 1] = ipiv_offsets[i] + matrix_size;
-    }
-
-    data = new double[data_offsets[pmesh.GetNE()]]();
-    ipiv = new int[ipiv_offsets[pmesh.GetNE()]];
 
     SparseMatrix H(Ct->Width());
 
