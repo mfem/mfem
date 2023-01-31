@@ -31,7 +31,7 @@
 
 using namespace std;
 using namespace mfem;
-/*
+
 // Object that discribes a symmetric NACA foil section
 class NACA4
 {
@@ -289,7 +289,7 @@ double FlairBoundDist(double flair, double bd, double x)
    double c = bd*cos(flair) + bd * sin(flair) * sin(flair);
    return b * x + c;
 }
-*/
+
 int main(int argc, char *argv[])
 {
    int mdim = 2;
