@@ -374,7 +374,7 @@ int main(int argc, char *argv[])
 
    // Convert angles to radians
    //double deg2rad = M_PI/180;
-   double deg2rad = 180;
+   double deg2rad = M_PI;
    return 0;
 }
 /*
