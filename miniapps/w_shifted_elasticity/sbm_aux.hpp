@@ -40,9 +40,9 @@ double relativePosition(const Vector &x, const int type)
   else if (type == 4) // sphere of radius 0.2 - centered at 0.5, 0.5
     {
       Vector point(3);
-      point(0) = 0.5;
-      point(1) = 0.5;
-      point(2) = 0.5;
+      point(0) = 0.51;
+      point(1) = 0.51;
+      point(2) = 0.51;
       Vector normal(3);
       normal(0) = 0.0;
       normal(1) = 0.0;
@@ -239,9 +239,9 @@ void Sphere_Normal(const Vector &x, Vector &tN){
 // Distance to circle of radius 0.2 - centered at 0.5, 0.5 
 void Plane_Dist(const Vector &x, Vector &D){
   Vector point(3);
-  point(0) = 0.5;
-  point(1) = 0.5;
-  point(2) = 0.5;
+  point(0) = 0.51;
+  point(1) = 0.51;
+  point(2) = 0.51;
   
   D(0) = 0.0;
   D(1) = 0.0;
@@ -529,7 +529,25 @@ public:
     Vector x(3);
     T.Transform(ip, x);
     double dist = relativePosition(x, type);
-    //      return (dist >= 0.0) ? 1.0 : -1.0;
+    return (dist >= 0.0) ? -1.0 : 1.0;
+  }
+};
+
+/// Level set coefficient: +1 inside the true domain, -1 outside.
+class Dist_Coefficient : public Coefficient
+{
+private:
+  int type;
+
+public:
+  Dist_Coefficient(int type_)
+    : Coefficient(), type(type_) { }
+
+  virtual double Eval(ElementTransformation &T, const IntegrationPoint &ip)
+  {
+    Vector x(3);
+    T.Transform(ip, x);
+    double dist = relativePosition(x, type);
     return dist;
   }
 };

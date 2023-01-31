@@ -275,7 +275,7 @@ public:
 
     }
 
-    void Filter(mfem::Coefficient& func, mfem::ParGridFunction& ffield)
+  void Filter(mfem::Coefficient& func, mfem::ParGridFunction& ffield)
     {
         if(sint==nullptr)
         {

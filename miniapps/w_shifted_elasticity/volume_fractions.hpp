@@ -23,16 +23,8 @@
 
 
 namespace mfem
-{
-  bool IsInCircle(const Vector &x);
-
-  bool IsInSphere(const Vector &x);
-
-  bool IsInGyroid(const Vector &x);
-
-  bool IsInElement(const Vector &x, const int &type_);
-  
-  void UpdateAlpha(const ShiftedFaceMarker &analyticalShape, ParGridFunction &alpha, ParFiniteElementSpace &h1_fes, const int &type);
+{  
+  void UpdateAlpha(ParGridFunction &alpha, ParFiniteElementSpace &h1_fes, ParGridFunction &func, const int &type);
 
 } // namespace mfem
 

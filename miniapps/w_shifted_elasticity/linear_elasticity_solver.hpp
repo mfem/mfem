@@ -179,6 +179,9 @@ double AvgElementSize(ParMesh &pmesh);
     mfem::ParFiniteElementSpace* vfes;
     mfem::FiniteElementCollection* vfec;
 
+    mfem::ParFiniteElementSpace* alpha_fes;
+    mfem::L2_FECollection* alpha_fec;
+
     ShearModulus* shearMod;
     BulkModulus* bulkMod;
 
@@ -200,7 +203,8 @@ double AvgElementSize(ParMesh &pmesh);
 
     double C_I;
 
-    Dist_Level_Set_Coefficient *neumann_dist_coef;
+    //  Dist_Level_Set_Coefficient *neumann_dist_coef;
+    Coefficient *neumann_dist_coef;  
     // in case we are using level set to get distance and normal vectors
     ParFiniteElementSpace *distance_vec_space;
     ParGridFunction *distance;
@@ -208,7 +212,7 @@ double AvgElementSize(ParMesh &pmesh);
     ParGridFunction *normal;
     ParGridFunction *ls_func;
     ParGridFunction *level_set_gf;
-    ParGridFunction *filt_gf;
+    ParGridFunction *alphaCut;
     //
 
     ShiftedFaceMarker *analyticalSurface;

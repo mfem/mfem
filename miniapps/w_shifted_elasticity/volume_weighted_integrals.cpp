@@ -102,6 +102,7 @@ namespace mfem
 	Q->Eval(forceEval, Tr, ip);
 	el.CalcShape (ip, shape);
     	double volumeFraction = alpha->GetValue(Tr, ip);
+	
 	for (int i = 0; i < dof; i++)
 	  {
 	    for (int md = 0; md < dim; md++)

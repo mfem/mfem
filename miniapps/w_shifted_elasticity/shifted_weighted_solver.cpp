@@ -134,20 +134,6 @@ namespace mfem
       fe.ProjectGrad(fe,Trans_el1,nodalGrad_el1);
       fe2.ProjectGrad(fe2,Trans_el2,nodalGrad_el2);
 
-      /*  const IntegrationRule &nodes = fe.GetNodes();
-      for (int j = 0; j < nodes.GetNPoints(); j++)
-	{
-	  const IntegrationPoint &ip_nodes = nodes.IntPoint(j);
-	  Vector D_el1(dim);
-	  D_el1 = 0.0;
-	  //	  Vector x(3);
-	  //  Trans_el1.Transform(ip_nodes,x);
-	  vD->Eval(D_el1, Trans_el1, ip_nodes);
-	  for (int s = 0; s < dim; s++){
-	    std::cout << " D " << D_el1(s) << std::endl;
-	  }
-	}
-      */
       for (int q = 0; q < nqp_face; q++)
 	{
 	  shape_el1 = 0.0;
@@ -181,13 +167,13 @@ namespace mfem
 	  double sum_volFrac = volumeFraction_el1 + volumeFraction_el2;
 	  double gamma_1 =  volumeFraction_el1/sum_volFrac;
 	  double gamma_2 =  volumeFraction_el2/sum_volFrac;
-
 	  /////
 	  Vector D_el1(dim);
 	  Vector tN_el1(dim);
+	  D_el1 = 0.0;
+	  tN_el1 = 0.0;
 	  vD->Eval(D_el1, Trans_el1, eip_el1);
-	  vN->Eval(tN_el1, Trans_el1, eip_el1);
-
+	  vN->Eval(tN_el1, Trans_el1, eip_el1);	  
 	  /////
 	  double nTildaDotN = 0.0;
 	  double nor_norm = 0.0;
@@ -197,7 +183,7 @@ namespace mfem
 	  nor_norm = sqrt(nor_norm);
 	  for (int s = 0; s < dim; s++){
 	    nTildaDotN += (nor(s) / nor_norm) * tN_el1(s);
-	    // std::cout << " D " << D_el1(s) << std::endl;
+	    //    std::cout << " D " << D_el1(s) << std::endl;
 	  }
 	  
 	  fe.CalcShape(eip_el1, shape_el1);
@@ -245,10 +231,12 @@ namespace mfem
 	  ////
 	  shape_el1 += gradUResD_el1;
 	  //
-	
+	  
 	  /////
 	  Vector D_el2(dim);
 	  Vector tN_el2(dim);
+	  D_el2 = 0.0;
+	  tN_el2 = 0.0;	
 	  vD->Eval(D_el2, Trans_el2, eip_el2);
 	  vN->Eval(tN_el2, Trans_el2, eip_el2);
 	  /////

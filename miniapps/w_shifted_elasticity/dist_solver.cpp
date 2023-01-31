@@ -100,9 +100,9 @@ void DistanceSolver::ScalarDistToNormalVector(ParGridFunction &dist_s, ParGridFu
    const double eps = 1e-16;
    for (int i = 0; i < size; i++)
    {
-     double sign = -1.0;
+     double sign = 1.0;
      if (dist_s(i) <= 0){
-       sign = 1.0;
+       sign = -1.0;
      }
       for (int d = 0; d < dim; d++)
       {
