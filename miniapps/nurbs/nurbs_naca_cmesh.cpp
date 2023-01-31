@@ -369,13 +369,13 @@ int main(int argc, char *argv[])
    }
    args.PrintOptions(cout);
 
+
+
+// Convert fraction
+   double tail_fraction = 1.0 - tip_fraction;
    return 0;
 }
 /*
-
-// Convert fraction
-double tail_fraction = 1.0 - tip_fraction;
-
 // Convert angles to radians
 double deg2rad = M_PI/180;
 aoa = aoa*deg2rad;
