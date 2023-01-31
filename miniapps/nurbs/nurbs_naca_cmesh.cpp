@@ -373,7 +373,8 @@ int main(int argc, char *argv[])
    double tail_fraction = 1.0 - tip_fraction;
 
    // Convert angles to radians
-   double deg2rad = M_PI/180;
+   //double deg2rad = M_PI/180;
+   double deg2rad = 180;
    return 0;
 }
 /*
