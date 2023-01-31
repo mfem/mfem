@@ -118,3 +118,4 @@ clean-exec:
 	@rm -f toroid-*.mesh twist-*.mesh trimmer.mesh
 	@rm -f partitioning.txt shaper.mesh extruder.mesh
 	@rm -f optimized* perturbed* polar-nc.mesh
+	@rm -rf mesh-explorer-{visit,paraview}*
