@@ -647,15 +647,19 @@ BlockHybridizationSolver::BlockHybridizationSolver(const shared_ptr<ParBilinearF
     ipiv_offsets.SetSize(ne + 1);
     ipiv_offsets[0] = 0;
 
+    test_offsets.SetSize(ne + 1);
+    test_offsets[0] = 0;
+
     for (int i = 0; i < ne; ++i)
     {
         const int trial_size = trial_space.GetFE(i)->GetDof();
-        const int test_size = test_space.GetFE(i)->GetDof();
-        const int matrix_size = trial_size + test_size;
+        test_offsets[i + 1] = test_space.GetFE(i)->GetDof();
+        const int matrix_size = trial_size + test_offsets[i + 1];
 
         data_offsets[i + 1] = data_offsets[i] + matrix_size*matrix_size;
         ipiv_offsets[i + 1] = ipiv_offsets[i] + matrix_size;
     }
+    test_offsets.PartialSum();
 
     data = new double[data_offsets[pmesh.GetNE()]]();
     ipiv = new int[ipiv_offsets[pmesh.GetNE()]];
@@ -753,7 +757,7 @@ BlockHybridizationSolver::BlockHybridizationSolver(const shared_ptr<ParBilinearF
         a->ComputeElementMatrix(i, A);
         A.Threshold(eps * A.MaxMaxNorm());
 
-        const int test_size = test_space.GetFE(i)->GetDof();
+        const int test_size = test_offsets[i + 1] - test_offsets[i];
         DenseMatrix B(test_size, trial_size);
         b->ComputeElementMatrix(i, B);
         B.Neg();
@@ -916,7 +920,7 @@ void BlockHybridizationSolver::Mult(const Vector &x, Vector &y) const
         {
             dofs.Append(j);
         }
-        const int test_size = test_space.GetFE(i)->GetDof();
+        const int test_size = test_offsets[i + 1] - test_offsets[i];
         test_dofs.SetSize(test_size);
         test_space.GetElementDofs(i, test_dofs);
         for (int j = 0; j < test_dofs.Size(); ++j)
