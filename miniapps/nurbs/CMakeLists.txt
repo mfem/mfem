@@ -51,15 +51,20 @@ if (MFEM_ENABLE_TESTING)
   add_test(NAME nurbs_ex1_weak_patch_format_r1_ser
     COMMAND $<TARGET_FILE:nurbs_ex1> -no-vis
     -m ${PROJECT_SOURCE_DIR}/data/square-disc-nurbs-patch.mesh -o 2 --weak-bc -r 1)
-        
-   add_test(NAME nurbs_ex1_two_squares_knot_insert
+
+  add_test(NAME nurbs_ex1_two_squares_knot_insert
     COMMAND $<TARGET_FILE:nurbs_ex1> -no-vis
-    -m ${PROJECT_SOURCE_DIR}/data/two-squares-nurbs.mesh -o 1 -r 0 
+    -m ${PROJECT_SOURCE_DIR}/data/two-squares-nurbs.mesh -o 1
     -rf ${PROJECT_SOURCE_DIR}/data/two-squares.ref)
-    
-    add_test(NAME nurbs_ex1_two_squares_rot_knot_insert
+
+  add_test(NAME nurbs_ex1_two_squares_rot_knot_insert
     COMMAND $<TARGET_FILE:nurbs_ex1> -no-vis
-    -m ${PROJECT_SOURCE_DIR}/data/two-squares-nurbs-rot.mesh -o 1 -r 0 
+    -m ${PROJECT_SOURCE_DIR}/data/two-squares-nurbs-rot.mesh -o 1
+    -rf ${PROJECT_SOURCE_DIR}/data/two-squares.ref)
+
+  add_test(NAME nurbs_ex1_two_squares_autoedge_knot_insert
+    COMMAND $<TARGET_FILE:nurbs_ex1> -no-vis
+    -m ${PROJECT_SOURCE_DIR}/data/two-squares-nurbs-autoedge.mesh -o 1
     -rf ${PROJECT_SOURCE_DIR}/data/two-squares.ref)
 endif()
 
