@@ -8,16 +8,40 @@
                                https://mfem.org
 
 
-
-
 Version 4.5.1 (development)
 ===========================
+- When using discontinuous (L2) spaces, use local (element-wise) L2 projection
+  as the coarsening operator for non-conforming AMR meshes.
 
-API changes
------------
-- The implicit cast methods of class Vector to 'double *' and 'const double *'
-  have been deprecated and generate deprecation warnings if used. They will be
-  removed in a future release.
+Meshing improvements
+--------------------
+- Added support for pyramids in non-conforming meshes. Currently only isotropic
+  refinement is supported in this case.
+
+- Fixed a bug in TMOP metric 301.
+
+Discretization improvements
+---------------------------
+- TBD
+
+Linear and nonlinear solvers
+----------------------------
+- Added a fast normalization-based distance solver, see the Distance miniapp
+  in the miniapps/shifted/ directory.
+
+New and updated examples and miniapps
+-------------------------------------
+- The mesh-explorer miniapp can now save mesh files in the VisIt or ParaView
+  formats using the corresponding DataCollection objects. See option 'D' in the
+  main menu.
+
+Integrations, testing and documentation
+---------------------------------------
+- Removed the support for the Mesquite toolkit. We recommend using MFEM's TMOP
+  functionality instead for mesh optimization. See the mesh-optimizer miniapp.
+
+- The following integrations have updated minimum version requirements:
+  * RAJA >= 2022.10.3
 
 Miscellaneous
 -------------
@@ -29,12 +53,15 @@ Miscellaneous
   This parameter can still be explicitly overridden with
   VisItDataCollection::SetPadDigitsRank().
 
-- Added a fast normalization-based distance solver, see
-  miniapps/shifted/distance.cpp.
+API changes
+-----------
+- The implicit cast methods of class Vector to 'double *' and 'const double *'
+  have been deprecated and generate deprecation warnings if used. They will be
+  removed in a future release.
 
-- Removed the support for the Mesquite toolkit. We recommend using MFEM's TMOP
-  functionality instead for mesh optimization. See the mesh-optimizer miniapp.
-
+- The methods Mesh::GetFaceBaseGeometry and Mesh::GetFaceGeometryType have been
+  deprecated, and Mesh::GetFaceGeometry (which provides identical functionality)
+  should be used instead.
 
 Version 4.5, released on October 22, 2022
 =========================================
