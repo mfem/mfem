@@ -735,7 +735,8 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
    {
       d = r;
    }
-   nom0 = nom = initial_norm = Dot(d, r);
+   nom0 = nom = Dot(d, r);
+   if (nom0 >= 0.0) { initial_norm = sqrt(nom0); }
    MFEM_ASSERT(IsFinite(nom), "nom = " << nom);
    if (print_options.iterations || print_options.first_and_last)
    {
@@ -753,6 +754,7 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
       }
       converged = false;
       final_iter = 0;
+      initial_norm = nom;
       final_norm = nom;
       return;
    }
