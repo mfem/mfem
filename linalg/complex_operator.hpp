@@ -111,6 +111,9 @@ public:
    virtual void Mult(const Vector &x, Vector &y) const;
    virtual void MultTranspose(const Vector &x, Vector &y) const;
 
+   using Operator::Mult;
+   using Operator::MultTranspose;
+
    virtual Type GetType() const { return Complex_Operator; }
 
    Convention GetConvention() const { return convention_; }
