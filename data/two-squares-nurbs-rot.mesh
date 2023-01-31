@@ -1,7 +1,7 @@
 MFEM NURBS mesh v1.0
 
-# 2D Two squares mesh consisting of to patches 
-# the origin of the left square in the bottom
+# 2D two squares mesh consisting of two patches 
+# with the origin of the left square in the bottom
 # left corner and the origin of the right square 
 # in the top right corner.
 
