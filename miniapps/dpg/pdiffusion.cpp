@@ -7,7 +7,7 @@
 // mpirun -np 4 pdiffusion -m ../../data/inline-hex.mesh -o 2 -sref 0 -pref 1 -theta 0.0 -prob 0 -sc
 // mpirun -np 4 pdiffusion -m ../../data/beam-tet.mesh -o 3 -sref 0 -pref 2 -theta 0.0 -prob 0 -sc
 
-// lshape runs
+// L-shape runs
 // Note: uniform ref are expected to give sub-optimal rate for the l-shape problem (rate = 2/3)
 // mpirun -np 4 pdiffusion -o 2 -sref 1 -pref 5 -theta 0.0 -prob 1
 
@@ -26,7 +26,7 @@
 // It solves two kinds of problems
 // a) A manufactured solution problem where u_exact = sin(π * (x + y + z)).
 //    This example computes and prints out convergence rates for the L2 error.
-// b) The l-shape benchmark problem with AMR. The AMR process is driven by the
+// b) The L-shape benchmark problem with AMR. The AMR process is driven by the
 //    DPG built-in residual indicator.
 
 // The DPG UW deals with the First Order System
@@ -140,10 +140,6 @@ int main(int argc, char *argv[])
       }
       return 1;
    }
-   if (myid == 0)
-   {
-      args.PrintOptions(cout);
-   }
 
    if (iprob > 1) { iprob = 1; }
    prob = (prob_type)iprob;
@@ -151,6 +147,11 @@ int main(int argc, char *argv[])
    if (prob == prob_type::lshape)
    {
       mesh_file = "../../data/l-shape.mesh";
+   }
+
+   if (myid == 0)
+   {
+      args.PrintOptions(cout);
    }
 
    Mesh mesh(mesh_file, 1, 1);

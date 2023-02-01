@@ -148,10 +148,6 @@ int main(int argc, char *argv[])
       }
       return 1;
    }
-   if (myid == 0)
-   {
-      args.PrintOptions(cout);
-   }
 
    if (iprob > 3) { iprob = 3; }
    prob = (prob_type)iprob;
@@ -167,7 +163,6 @@ int main(int argc, char *argv[])
    MFEM_VERIFY(dim > 1, "Dimension = 1 is not supported in this example");
 
    bool exact_known = true;
-
    switch (prob)
    {
       case sinusoidal:
@@ -192,6 +187,11 @@ int main(int argc, char *argv[])
       default:
          // do nothing; beta is defined as a FunctionCoefficient
          break;
+   }
+
+   if (myid == 0)
+   {
+      args.PrintOptions(cout);
    }
 
    mesh.EnsureNCMesh(true);

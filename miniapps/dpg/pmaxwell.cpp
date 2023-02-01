@@ -11,7 +11,7 @@
 // mpirun -np 4 pmaxwell -o 3 -sref 1 -pref 2 -rnum 9.8 -sc -prob 4
 
 // AMR run
-// mpirun -np 4 ./pmaxwell -o 3 -sref 0 -pref 15 -prob 1 -theta 0.7 -sc
+// mpirun -np 4 pmaxwell -o 3 -sref 0 -pref 15 -prob 1 -theta 0.7 -sc
 
 // Description:
 // This example code demonstrates the use of MFEM to define and solve
@@ -42,7 +42,7 @@
 // E is vector valued and H is scalar.
 //    (∇ × E, F) = (E, ∇ × F) + < n × E , F>
 // or (∇ ⋅ AE , F) = (AE, ∇ F) + < AE ⋅ n, F>
-// where A = A = [0 1; -1 0];
+// where A = [0 1; -1 0];
 
 // E ∈ (L²(Ω))² , H ∈ L²(Ω)
 // Ê ∈ H^-1/2(Ω)(Γₕ), Ĥ ∈ H^1/2(Γₕ)
@@ -223,7 +223,7 @@ int main(int argc, char *argv[])
                   "Mesh file to use.");
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree)");
-   args.AddOption(&rnum, "-rnum", "--number_of_wavelengths",
+   args.AddOption(&rnum, "-rnum", "--number-of-wavelengths",
                   "Number of wavelengths");
    args.AddOption(&mu, "-mu", "--permeability",
                   "Permeability of free space (or 1/(spring constant)).");
@@ -233,14 +233,14 @@ int main(int argc, char *argv[])
                   " 0: plane wave, 1: Fichera 'oven', "
                   " 2: Generic PML problem with point source given as a load "
                   " 3: Scattering of a plane wave, "
-                  " 4: Point sourceg given on the boundary");
-   args.AddOption(&delta_order, "-do", "--delta_order",
+                  " 4: Point source given on the boundary");
+   args.AddOption(&delta_order, "-do", "--delta-order",
                   "Order enrichment for DPG test space.");
    args.AddOption(&theta, "-theta", "--theta",
                   "Theta parameter for AMR");
-   args.AddOption(&sr, "-sref", "--serial_ref",
+   args.AddOption(&sr, "-sref", "--serial-ref",
                   "Number of parallel refinements.");
-   args.AddOption(&pr, "-pref", "--parallel_ref",
+   args.AddOption(&pr, "-pref", "--parallel-ref",
                   "Number of parallel refinements.");
    args.AddOption(&static_cond, "-sc", "--static-condensation", "-no-sc",
                   "--no-static-condensation", "Enable static condensation.");
@@ -258,10 +258,6 @@ int main(int argc, char *argv[])
          args.PrintUsage(cout);
       }
       return 1;
-   }
-   if (myid == 0)
-   {
-      args.PrintOptions(cout);
    }
 
    if (iprob > 4) { iprob = 0; }
@@ -286,6 +282,11 @@ int main(int argc, char *argv[])
    {
       with_pml = true;
       mesh_file = "meshes/scatter.mesh";
+   }
+
+   if (myid == 0)
+   {
+      args.PrintOptions(cout);
    }
 
    Mesh mesh(mesh_file, 1, 1);

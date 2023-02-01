@@ -20,13 +20,14 @@ class CartesianPML
 private:
    Mesh *mesh;
 
-   /// Length of the PML Region in each direction
+   /** 2D array of size (dim,2) representing the length of the PML
+       region in each direction */
    Array2D<double> length;
 
-   /// Computational Domain Boundary
+   /// 2D array of size (dim,2) representing the Computational Domain Boundary
    Array2D<double> comp_dom_bdr;
 
-   /// Domain Boundary
+   /// 2D array of size (dim,2) representing the Domain Boundary
    Array2D<double> dom_bdr;
 
    /** Integer Array identifying elements in the pml
@@ -37,6 +38,9 @@ private:
    void SetBoundaries();
 
 public:
+   /** Constructor of the PML region using the mesh @a mesh_ and
+       the 2D array of size (dim,2) @a length_ which reprensents the
+       length of the PML in each direction. */
    CartesianPML(Mesh *mesh_,Array2D<double> length_);
 
    int dim;
@@ -45,13 +49,13 @@ public:
    double epsilon = 1.0;
    double mu = 1.0;
    /// Return Computational Domain Boundary
-   Array2D<double> GetCompDomainBdr() {return comp_dom_bdr;}
+   const Array2D<double> & GetCompDomainBdr() {return comp_dom_bdr;}
 
    /// Return Domain Boundary
-   Array2D<double> GetDomainBdr() {return dom_bdr;}
+   const Array2D<double> & GetDomainBdr() {return dom_bdr;}
 
    /// Return Marker list for elements
-   Array<int> * GetMarkedPMLElements() {return &elems;}
+   const Array<int> & GetMarkedPMLElements() {return elems;}
 
    /// Mark element in the PML region
    void SetAttributes(Mesh *mesh_, Array<int> * attrNonPML = nullptr,

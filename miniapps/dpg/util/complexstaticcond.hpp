@@ -17,6 +17,10 @@
 namespace mfem
 {
 
+
+/** @brief Class that performs static condensation of interior dofs for
+    multiple FE spaces for complex systems (see BlockStaticCondensation). It's used
+    by the class ComplexDPGWeakForm. */
 class ComplexBlockStaticCondensation
 {
    int height, width;
@@ -109,20 +113,20 @@ class ComplexBlockStaticCondensation
     the reduced/trace true FE spaces dofs. */
    void ConvertMarkerToReducedTrueDofs(Array<int> & tdof_marker,
                                        Array<int> & rtdof_marker);
+
+   void SetSpaces(Array<FiniteElementSpace*> & fes_);
+
+   void Init();
+
 public:
 
    ComplexBlockStaticCondensation(Array<FiniteElementSpace *> & fes_);
 
    ~ComplexBlockStaticCondensation();
 
-   void SetSpaces(Array<FiniteElementSpace*> & fes_);
-
-   void Init();
-
    /** Assemble the contribution to the Schur complement from the given
-       element matrix 'elmat'; save the other blocks internally: A_bb_inv, A_bi,
+       element matrix @a elmat. Save the other blocks internally: A_bb_inv, A_bi,
        and A_bi. */
-
    void AssembleReducedSystem(int el, ComplexDenseMatrix &elmat,
                               Vector & elvect_r, Vector & elvect_i);
 
@@ -135,8 +139,6 @@ public:
    /// Eliminate the given reduced true dofs from the Schur complement matrix S.
    void EliminateReducedTrueDofs(const Array<int> &ess_rtdof_list,
                                  Matrix::DiagonalPolicy dpolicy);
-
-   void EliminateReducedTrueDofs(Matrix::DiagonalPolicy dpolicy);
 
    bool HasEliminatedBC() const
    {
@@ -187,6 +189,8 @@ public:
    void ParallelAssemble(BlockMatrix *m_r, BlockMatrix*m_i);
 #endif
 
+   /** Form the global reduced system matrix using the given @a diag_policy.
+       This method can be called after Assemble() is called. */
    void FormSystemMatrix(Operator::DiagonalPolicy diag_policy);
 
    /** Restrict a solution vector on the full FE space dofs to a vector on the

@@ -908,13 +908,6 @@ void ComplexBlockStaticCondensation::EliminateReducedTrueDofs(const Array<int>
                          Operator::DiagonalPolicy::DIAG_ZERO);
 }
 
-void ComplexBlockStaticCondensation::EliminateReducedTrueDofs(
-   Matrix::DiagonalPolicy
-   dpolicy)
-{
-   EliminateReducedTrueDofs(ess_rtdof_list, dpolicy);
-}
-
 void ComplexBlockStaticCondensation::ReduceSolution(const Vector &sol,
                                                     Vector &sc_sol) const
 {
