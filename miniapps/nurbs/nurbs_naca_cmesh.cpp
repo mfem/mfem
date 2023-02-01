@@ -6,7 +6,7 @@
 // Description:  This example code demonstrates the use of MFEM to create a C-mesh
 //               around a NACA-foil section. The foil section is defined in the class
 //               NACA4, which can be easily replaced with any other description of a
-//               foil section. In order to apply an angle of attack, we rotate the domain
+//               foil section. To apply an angle of attack, we rotate the domain
 //               around the origin.
 //
 //               The mesh employs five patches of which two describe the domain behind the
@@ -17,8 +17,8 @@
 //               remainder of the foil section. The aim is to create a mesh with the highest
 //               quality close to the boundary of the foil section and the wake.
 //
-//               The example returns a visit datastructure for visualisation. Note that
-//               one will need to increase the multiress control to inspect the shape of the
+//               The example returns a visit data structure for visualisation. Note that
+//               one will need to increase the multiress-control to inspect the shape of the
 //               NURBS.
 //
 //               Possible improvements:
@@ -116,27 +116,28 @@ double NACA4::xl(double l)
    return x;
 }
 
-// Function that finds the coordinates of the controlpoins of the tip of the foil section @a xy
-// based on the @a foil_section, knotvector @a kv and tip fraction @a tf
-// We have two cases, with an odd number of controlpoints and with an even number of
-// controlpoints. These may be streamlined in the future?
+// Function that finds the coordinates of the control points of the tip of the foil section @a xy
+// based on the @a foil_section, knot vector @a kv and tip fraction @a tf
+// We have two cases, with an odd number of control points and with an even number of
+// control points. These may be streamlined in the future.
 void GetTipXY(NACA4 foil_section, KnotVector *kv, double tf, Array<Vector*> &xy)
 {
    int ncp = kv->GetNCP();
    // Length of halve the curve: the boundary covers both sides of the tip
    double l = foil_section.len(tf * foil_section.GetChord());
 
-   // Find location of maxima of knotvector
+   // Find location of maxima of knot vector
    Array<int> i_args;
    Vector xi_args, u_args;
    kv->FindMaxima(i_args,xi_args, u_args);
 
-   // We have two cases: one with an odd number of controlpoints and one
-   // with an even number of controlpoints.
+   // We have two cases: one with an odd number of control points and one
+   // with an even number of control points.
    int n = ncp/2;
    if (ncp % 2)
    {
-      // Find arc lengths to controlpoints on upperside then find x-coordinates.
+      // Find arc lengths to control points on upperside of foil section
+      // then find x-coordinates.
       Vector xcp(n+1);
       for (int i = 0; i < n+1; i++)
       {
@@ -159,7 +160,7 @@ void GetTipXY(NACA4 foil_section, KnotVector *kv, double tf, Array<Vector*> &xy)
    }
    else
    {
-      // Find arc lengths to controlpoints on upperside then find x-coordinates
+      // Find arc lengths to control points on upperside of foil section then find x-coordinates
       Vector xcp(n);
       for (int i = 0; i < n; i++)
       {
@@ -181,8 +182,8 @@ void GetTipXY(NACA4 foil_section, KnotVector *kv, double tf, Array<Vector*> &xy)
    }
 }
 
-// Function that returns a uniform knotvector based on the @a order and the
-// number of controlpoints @a ncp.
+// Function that returns a uniform knot vector based on the @a order and the
+// number of control points @a ncp.
 KnotVector *UniformKnotVector(int order, int ncp)
 {
    KnotVector *kv = new KnotVector(order, ncp);
@@ -202,9 +203,9 @@ KnotVector *UniformKnotVector(int order, int ncp)
    return kv;
 }
 
-// Function that returns a knotvector which is stretched with stretch @s
-// with the form x^s based on the @a order and the number of controlpoints @a ncp.
-// Special case @a s = 0 will give a uniform knotvector.
+// Function that returns a knot vector which is stretched with stretch @s
+// with the form x^s based on the @a order and the number of control points @a ncp.
+// Special case @a s = 0 will give a uniform knot vector.
 KnotVector *PowerStretchKnotVector(int order, int ncp, double s = 0.0)
 {
    KnotVector *kv = new KnotVector(order, ncp);
@@ -226,8 +227,8 @@ KnotVector *PowerStretchKnotVector(int order, int ncp, double s = 0.0)
    return kv;
 }
 
-// Function that returns a knotvector with a hyperbolic tangent spacing
-// with a cut-off @c using the @a order and the number of controlpoints @a ncp.
+// Function that returns a knot vector with a hyperbolic tangent spacing
+// with a cut-off @c using the @a order and the number of control points @a ncp.
 KnotVector *TanhKnotVector(int order, int ncp, double c)
 {
    KnotVector *kv = new KnotVector(order, ncp);
@@ -248,8 +249,8 @@ KnotVector *TanhKnotVector(int order, int ncp, double c)
    return kv;
 }
 
-// Function that returns a knotvector with a hyperbolic tangent spacing from both sides
-// of the knotvector with a cut-off @c using the @a order and the number of controlpoints @a ncp.
+// Function that returns a knot vector with a hyperbolic tangent spacing from both sides
+// of the knot vector with a cut-off @c using the @a order and the number of control points @a ncp.
 KnotVector *DoubleTanhKnotVector(int order, int ncp, double c)
 {
    KnotVector *kv = UniformKnotVector(order, ncp);
@@ -294,7 +295,6 @@ int main(int argc, char *argv[])
 {
    int mdim = 2;
    int order = 2;
-
 
    //
    // 1. Parse command-line options.
@@ -352,16 +352,15 @@ int main(int argc, char *argv[])
    double str_bnd = 1;
    double str_tail = 1;
    args.AddOption(&str_tip, "-stip", "--str-tip",
-                  "Stretch of the knotvector of the tip.");
+                  "Stretch of the knot vector of the tip.");
    args.AddOption(&str_tail, "-stail", "--str-tail",
-                  "Stretch of the knotvector of the tail.");
+                  "Stretch of the knot vector of the tail.");
    args.AddOption(&str_wake, "-sw", "--str-wake",
-                  "Stretch of the knotvector of the wake.");
+                  "Stretch of the knot vector of the wake.");
    args.AddOption(&str_bnd, "-srad", "--str-circ",
-                  "Stretch of the knotvector of the circle.");
+                  "Stretch of the knot vector of the circle.");
+
    // Parse and print commandline options
-
-
    args.Parse();
    if (!args.Good())
    {
@@ -375,15 +374,10 @@ int main(int argc, char *argv[])
 
    // Convert angles to radians
    double deg2rad = M_PI/180;
-   //double deg2rad = M_PI;
-   //double deg2rad = 3.1415/180.0;
-
-
    aoa = aoa*deg2rad;
 
-
    //
-   // 2. Create KnotVectors
+   // 2. Create knot vectors
    //
    KnotVector *kv0 = TanhKnotVector(order, ncp_wake, str_wake);
    kv0->Flip();
@@ -409,7 +403,8 @@ int main(int argc, char *argv[])
    // 3. Create required (variables for) curves: foil_section and flair
    //
    NACA4 foil_section(foil_thickness, foil_length);
-   // The flair angle is defined to be the same as the angle of the curve of the
+
+   // The default flair angle is defined to be the same as the angle of the curve of the
    // foil section to create an elegant mesh.
    if (flair == -999)
    {
@@ -417,12 +412,13 @@ int main(int argc, char *argv[])
    }
 
    //
-   // 4. We map coordinates in patches, apply refinenement and interpolate the foil section in
+   // 4. We map coordinates in patches, apply refinement and interpolate the foil section in
    //    patches 1, 2 and 3. Note the case of non-unity weights in patch 2 to create a circular
    //    shape: its coordinates are converted to homogeneous coordinates. This is not needed
-   //    for other patches as homogeneous coordinates and carthesian coordinates are the same
+   //    for other patches as homogeneous coordinates and cartesian coordinates are the same
    //    for patches with unity weight.
    //
+
    // Patch 0: lower wake part behind foil section.
    NURBSPatch patch0(kv_o1, kv_o1, 3);
    {
@@ -648,6 +644,7 @@ int main(int argc, char *argv[])
    //
    // 5. Print mesh to file
    //
+
    // Open mesh output file
    string mesh_file;
    mesh_file.append(msh_path);
@@ -751,7 +748,6 @@ int main(int argc, char *argv[])
    cout << "=========================================================="<< endl;
    cout << "  "<< mdim <<"D mesh generated: " <<mesh_file.c_str()<< endl ;
    cout << "=========================================================="<< endl;
-
 
    // Print mesh info to screen
    cout << "=========================================================="<< endl;
