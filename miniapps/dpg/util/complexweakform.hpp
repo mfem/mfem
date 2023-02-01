@@ -18,7 +18,8 @@
 namespace mfem
 {
 
-/** @brief Class representing the complex DPG weak formulation. */
+/** @brief Class representing the DPG weak formulation for complex valued systems
+    (see the class DPGWeakForm). */
 class ComplexDPGWeakForm
 {
 

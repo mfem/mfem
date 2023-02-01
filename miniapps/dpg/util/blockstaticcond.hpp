@@ -17,6 +17,14 @@
 namespace mfem
 {
 
+/** @brief Class that performs static condensation of interior dofs for
+    multiple FE spaces. This class is used in class DPGWeakFrom.
+    It is suitable for systems resulting from the descritization of multiple
+    FE spaces. It eliminates the dofs associated with the interior of the elements
+    and returns the reduced system which contains only the interfacial dofs.
+    The ordering of the dofs in the matrix is implied by the ordering given by the
+    FE spaces, but there is no assumption on the ordering of the FE spaces.
+    This class handles both serial and parallel FE spaces. */
 class BlockStaticCondensation
 {
    int height, width;
@@ -26,7 +34,7 @@ class BlockStaticCondensation
    bool parallel = false;
    // original set of Finite Element Spaces
    Array<FiniteElementSpace *> fes;
-   // indicates if the original space is already a trace space
+   // indicates if the original space is a trace space
    Array<bool> IsTraceSpace;
 
    // New set of "reduced" Finite Element Spaces
@@ -99,20 +107,20 @@ class BlockStaticCondensation
     the reduced/trace true FE spaces dofs. */
    void ConvertMarkerToReducedTrueDofs(Array<int> & tdof_marker,
                                        Array<int> & rtdof_marker);
+
+   void SetSpaces(Array<FiniteElementSpace*> & fes_);
+
+   void Init();
+
 public:
 
    BlockStaticCondensation(Array<FiniteElementSpace *> & fes_);
 
    ~BlockStaticCondensation();
 
-   void SetSpaces(Array<FiniteElementSpace*> & fes_);
-
-   void Init();
-
    /** Assemble the contribution to the Schur complement from the given
        element matrix 'elmat'; save the other blocks internally: A_bb_inv, A_bi,
        and A_bi. */
-
    void AssembleReducedSystem(int el, DenseMatrix &elmat,
                               Vector & elvect);
 
@@ -125,8 +133,6 @@ public:
    /// Eliminate the given reduced true dofs from the Schur complement matrix S.
    void EliminateReducedTrueDofs(const Array<int> &ess_rtdof_list,
                                  Matrix::DiagonalPolicy dpolicy);
-
-   void EliminateReducedTrueDofs(Matrix::DiagonalPolicy dpolicy);
 
    bool HasEliminatedBC() const
    {
@@ -154,6 +160,8 @@ public:
    void ParallelAssemble(BlockMatrix *m);
 #endif
 
+   /** Form the global reduced system matrix using the given @a diag_policy.
+       This method can be called after Assemble() is called. */
    void FormSystemMatrix(Operator::DiagonalPolicy diag_policy);
 
    /** Restrict a solution vector on the full FE space dofs to a vector on the

@@ -29,7 +29,7 @@
 // E is vector valued and H is scalar.
 //    (∇ × E, F) = (E, ∇ × F) + < n × E , F>
 // or (∇ ⋅ AE , F) = (AE, ∇ F) + < AE ⋅ n, F>
-// where A = A = [0 1; -1 0];
+// where A = [0 1; -1 0];
 
 // E ∈ (L²(Ω))² , H ∈ L²(Ω)
 // Ê ∈ H^-1/2(Ω)(Γₕ), Ĥ ∈ H^1/2(Γₕ)
@@ -132,15 +132,15 @@ int main(int argc, char *argv[])
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
-   args.AddOption(&rnum, "-rnum", "--number_of_wavelengths",
+   args.AddOption(&rnum, "-rnum", "--number-of-wavelengths",
                   "Number of wavelengths");
    args.AddOption(&mu, "-mu", "--permeability",
                   "Permeability of free space (or 1/(spring constant)).");
    args.AddOption(&epsilon, "-eps", "--permittivity",
                   "Permittivity of free space (or mass constant).");
-   args.AddOption(&delta_order, "-do", "--delta_order",
+   args.AddOption(&delta_order, "-do", "--delta-order",
                   "Order enrichment for DPG test space.");
-   args.AddOption(&ref, "-ref", "--serial_ref",
+   args.AddOption(&ref, "-ref", "--serial-ref",
                   "Number of serial refinements.");
    args.AddOption(&static_cond, "-sc", "--static-condensation", "-no-sc",
                   "--no-static-condensation", "Enable static condensation.");

@@ -4,19 +4,19 @@
 //
 // sample runs
 
-// mpirun -np 4 ./pacoustics -o 3 -m ../../data/star.mesh -sref 1 -pref 2 -rnum 1.9 -sc -prob 0
-// mpirun -np 4 ./pacoustics -o 3 -m ../../data/inline-quad.mesh -sref 1 -pref 2  -rnum 5.2 -sc -prob 1
-// mpirun -np 4 ./pacoustics -o 4 -m ../../data/inline-tri.mesh -sref 1 -pref 2  -rnum 7.1 -sc -prob 1
-// mpirun -np 4 ./pacoustics -o 2 -m ../../data/inline-hex.mesh -sref 0 -pref 1 -rnum 1.9 -sc -prob 0
-// mpirun -np 4 ./pacoustics -o 3 -m ../../data/inline-quad.mesh -sref 2 -pref 1 -rnum 7.1 -sc -prob 2
-// mpirun -np 4 ./pacoustics -o 2 -m ../../data/inline-hex.mesh -sref 0 -pref 1  -rnum 4.1 -sc -prob 2
-// mpirun -np 4 ./pacoustics -o 3 -m meshes/scatter.mesh -sref 1 -pref 1  -rnum 7.1 -sc -prob 3
-// mpirun -np 4 ./pacoustics -o 4 -m meshes/scatter.mesh -sref 1 -pref 1  -rnum 10.1 -sc -prob 4
-// mpirun -np 4 ./pacoustics -o 4 -m meshes/scatter.mesh -sref 1 -pref 1  -rnum 12.1 -sc -prob 5
+// mpirun -np 4 pacoustics -o 3 -m ../../data/star.mesh -sref 1 -pref 2 -rnum 1.9 -sc -prob 0
+// mpirun -np 4 pacoustics -o 3 -m ../../data/inline-quad.mesh -sref 1 -pref 2  -rnum 5.2 -sc -prob 1
+// mpirun -np 4 pacoustics -o 4 -m ../../data/inline-tri.mesh -sref 1 -pref 2  -rnum 7.1 -sc -prob 1
+// mpirun -np 4 pacoustics -o 2 -m ../../data/inline-hex.mesh -sref 0 -pref 1 -rnum 1.9 -sc -prob 0
+// mpirun -np 4 pacoustics -o 3 -m ../../data/inline-quad.mesh -sref 2 -pref 1 -rnum 7.1 -sc -prob 2
+// mpirun -np 4 pacoustics -o 2 -m ../../data/inline-hex.mesh -sref 0 -pref 1  -rnum 4.1 -sc -prob 2
+// mpirun -np 4 pacoustics -o 3 -m meshes/scatter.mesh -sref 1 -pref 1  -rnum 7.1 -sc -prob 3
+// mpirun -np 4 pacoustics -o 4 -m meshes/scatter.mesh -sref 1 -pref 1  -rnum 10.1 -sc -prob 4
+// mpirun -np 4 pacoustics -o 4 -m meshes/scatter.mesh -sref 1 -pref 1  -rnum 12.1 -sc -prob 5
 
 // AMR runs
-// mpirun -np 4 ./pacoustics -o 3 -m meshes/scatter.mesh -sref 0 -pref 10 -theta 0.75 -rnum 10.1 -sc -prob 3
-// mpirun -np 4 ./pacoustics -o 3 -m meshes/scatter.mesh -sref 0 -pref 12 -theta 0.75 -rnum 20.1 -sc -prob 3
+// mpirun -np 4 pacoustics -o 3 -m meshes/scatter.mesh -sref 0 -pref 10 -theta 0.75 -rnum 10.1 -sc -prob 3
+// mpirun -np 4 pacoustics -o 3 -m meshes/scatter.mesh -sref 0 -pref 12 -theta 0.75 -rnum 20.1 -sc -prob 3
 
 // Description:
 // This example code demonstrates the use of MFEM to define and solve
@@ -221,10 +221,6 @@ int main(int argc, char *argv[])
       }
       return 1;
    }
-   if (myid == 0)
-   {
-      args.PrintOptions(cout);
-   }
 
    if (iprob > 5) { iprob = 0; }
    prob = (prob_type)iprob;
@@ -238,6 +234,11 @@ int main(int argc, char *argv[])
    else
    {
       exact_known = true;
+   }
+
+   if (myid == 0)
+   {
+      args.PrintOptions(cout);
    }
 
    Mesh mesh(mesh_file, 1, 1);

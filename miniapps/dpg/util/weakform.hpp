@@ -18,7 +18,18 @@
 namespace mfem
 {
 
-/// @brief Class representing the DPG weak formulation.
+/** @brief Class representing the DPG weak formulation.
+    Given the variational formulation
+                  a(u,v) = b(v), (or A u = b, where <Au,v> = a(u,v))
+    this class forms the DPG linear system
+                        A^T G^-1 A u  = A^T G^-1 b
+    This system results from the minimum residual formulation
+                        u = argmin_w ||G^-1(b - Aw)||.
+    Here G is a symmetic positive definite matrix resulting from the discretization of
+    the Riesz operator on the test space. Since the test space is broken
+    (discontinuous),  G is defined and inverted element-wise and the assembly
+    of the global system is performed in the same manner as the standard FEM method.
+    Note that DPGWeakForm can handle multiple Finite Element spaces.*/
 class DPGWeakForm
 {
 

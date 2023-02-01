@@ -121,7 +121,6 @@ int main(int argc, char *argv[])
       args.PrintUsage(cout);
       return 1;
    }
-   args.PrintOptions(cout);
 
    if (iprob > 1) { iprob = 1; }
    prob = (prob_type)iprob;
@@ -141,6 +140,8 @@ int main(int argc, char *argv[])
       beta = 0.0;
       beta[0] = 1.;
    }
+
+   args.PrintOptions(cout);
 
    // Define spaces
    enum TrialSpace

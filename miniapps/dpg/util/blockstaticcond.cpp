@@ -657,7 +657,6 @@ void BlockStaticCondensation::Finalize(int skip_zeros)
 void BlockStaticCondensation::FormSystemMatrix(Operator::DiagonalPolicy
                                                diag_policy)
 {
-
    if (!parallel)
    {
       if (!S_e)
@@ -782,7 +781,6 @@ void BlockStaticCondensation::EliminateReducedTrueDofs(const Array<int>
                                                        &ess_rtdof_list_,
                                                        Matrix::DiagonalPolicy dpolicy)
 {
-
    MFEM_VERIFY(!parallel, "EliminateReducedTrueDofs::Wrong Code path");
 
    if (S_e == NULL)
@@ -804,12 +802,6 @@ void BlockStaticCondensation::EliminateReducedTrueDofs(const Array<int>
       }
    }
    S->EliminateRowCols(ess_rtdof_list_,S_e,dpolicy);
-}
-
-void BlockStaticCondensation::EliminateReducedTrueDofs(Matrix::DiagonalPolicy
-                                                       dpolicy)
-{
-   EliminateReducedTrueDofs(ess_rtdof_list, dpolicy);
 }
 
 void BlockStaticCondensation::ReduceSolution(const Vector &sol,
