@@ -195,23 +195,7 @@ public:
              */
             ~SDF_Generator(){};
 
-            /**
-             * performs a raycast for a mesh and returns Matrices with
-             * element IDs and indices
-             */
-            // void
-            // raycast(  mtk::Mesh          * aMesh,
-            //          Matrix< IndexMat > & aElementsAtSurface );
-
-            // /**
-            //  * performs a raycast for an mesh and returns Matrices with
-            //  * element IDs and indices
-            //  */
-            // void
-            // raycast(  mtk::Mesh        * aMesh,
-            //         Matrix< IndexMat > & aElementsAtSurface,
-            //         Matrix< IndexMat > & aElementsInVolume );
-
+           
              /**
               * calculates the SDF for a given mesh
               */

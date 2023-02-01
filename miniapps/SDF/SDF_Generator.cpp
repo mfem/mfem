@@ -972,17 +972,13 @@ namespace mfem
             // if parallel, synchronize min and max values for SDF
             if( mMesh.get_mfem_par_mesh()->GetNRanks() > 1 )
             {
-                mfem_error("add parallel communication here");
-                // // container for min and max values
-                // Matrix< DDRMat > tValues;
+                double tMinGlobCoord;
+                double tMaxGlobCoord;
+                MPI_Allreduce( &tMinSDF, &tMinGlobCoord, 1, MPI_DOUBLE, MPI_MIN, MPI_COMM_WORLD );
+                MPI_Allreduce( &tMaxSDF, &tMaxGlobCoord, 1, MPI_DOUBLE, MPI_MAX, MPI_COMM_WORLD );
 
-                // // communicate minimal value
-                // comm_gather_and_broadcast( tMinSDF, tValues );
-                // tMinSDF = tValues.min();
-
-                // // communicate maximal value
-                // comm_gather_and_broadcast( tMaxSDF, tValues );
-                // tMaxSDF = tValues.max();
+                tMinSDF = tMinGlobCoord;
+                tMaxSDF = tMaxGlobCoord;
             }
 
             // loop over all nodes and write fake values
@@ -1165,40 +1161,6 @@ namespace mfem
                     mVerboseFlag ( aVerboseFlag )
         { }
 
-        // void SDF_Generator::raycast(mfem::ParGridFunction & aSDFGridFunc
-        //         mtk::Mesh          * aMesh,
-        //         Matrix< IndexMat > & aElementsAtSurface )
-        // {
-        //     // create mesh wrapper
-        //     Mesh tMesh( aMesh );
-
-        //     // // create data container
-        //     // Data tData( mObject );
-
-        //     // // create core
-        //     // Core tCore( tMesh, tData );
-
-        //     // // perform raycast
-        //     // tCore.calculate_raycast( aElementsAtSurface );
-        // }
-
-        // void SDF_Generator::raycast(mfem::ParGridFunction & aSDFGridFunc
-        //         mtk::Mesh          * aMesh,
-        //         Matrix< IndexMat > & aElementsAtSurface,
-        //         Matrix< IndexMat > & aElementsInVolume )
-        // {
-        //     // create mesh wrapper
-        //     Mesh tMesh( aMesh );
-
-        //     // // create data container
-        //     // Data tData( mObject );
-
-        //     // // create core
-        //     // Core tCore( tMesh, tData );
-
-        //     // // perform raycast
-        //     // tCore.calculate_raycast( aElementsAtSurface, aElementsInVolume );
-        // }
 
         void SDF_Generator::calculate_sdf( mfem::ParGridFunction & aSDFGridFunc ) 
         {
