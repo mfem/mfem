@@ -25,7 +25,7 @@ static void HdivDLFAssemble2D(
    MFEM_VERIFY(T_D1D || d <= HDIV_MAX_D1D, "Problem size too large.");
    MFEM_VERIFY(T_Q1D || q <= HDIV_MAX_Q1D, "Problem size too large.");
 
-   constexpr int vdim = 2;
+   static constexpr int vdim = 2;
    const auto F = coeff.Read();
    const auto M = Reshape(markers, ne);
    const auto BO = Reshape(bo, q, d-1);
@@ -124,7 +124,7 @@ static void HdivDLFAssemble3D(
    MFEM_VERIFY(T_D1D || d <= HDIV_MAX_D1D, "Problem size too large.");
    MFEM_VERIFY(T_Q1D || q <= HDIV_MAX_Q1D, "Problem size too large.");
 
-   constexpr int vdim = 3;
+   static constexpr int vdim = 3;
    const auto F = coeff.Read();
    const auto M = Reshape(markers, ne);
    const auto BO = Reshape(bo, q, d-1);
