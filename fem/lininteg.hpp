@@ -362,6 +362,12 @@ public:
                                          ElementTransformation &Trans,
                                          Vector &elvect);
 
+   virtual bool SupportsDevice() { return true; }
+
+   virtual void AssembleDevice(const FiniteElementSpace &fes,
+                               const Array<int> &markers,
+                               Vector &b);
+
    using LinearFormIntegrator::AssembleRHSElementVect;
 };
 
