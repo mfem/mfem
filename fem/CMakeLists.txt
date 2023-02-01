@@ -76,6 +76,7 @@ set(SRCS
   lininteg_boundary.cpp
   lininteg_domain.cpp
   lininteg_domain_grad.cpp
+  lininteg_vectorfe_domain.cpp
   lor/lor.cpp
   lor/lor_ads.cpp
   lor/lor_ams.cpp
