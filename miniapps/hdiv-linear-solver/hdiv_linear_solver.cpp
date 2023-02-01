@@ -27,7 +27,27 @@ void Reciprocal(Vector &x)
 /// Return a new HypreParMatrix with given diagonal entries
 HypreParMatrix *MakeDiagonalMatrix(Vector &diag, const ParFiniteElementSpace &fes)
 {
-   SparseMatrix diag_spmat(diag);
+   const int n = diag.Size();
+
+   SparseMatrix diag_spmat;
+   diag_spmat.OverrideSize(n, n);
+   diag_spmat.GetMemoryI().New(n+1, Device::GetDeviceMemoryType());
+   diag_spmat.GetMemoryJ().New(n, Device::GetDeviceMemoryType());
+   diag_spmat.GetMemoryData().New(n, Device::GetDeviceMemoryType());
+
+   {
+      int *I = diag_spmat.WriteI();
+      int *J = diag_spmat.WriteJ();
+      double *A = diag_spmat.WriteData();
+      const double *d_diag = diag.Read();
+      MFEM_FORALL(i, n+1, I[i] = i;);
+      MFEM_FORALL(i, n,
+      {
+         J[i] = i;
+         A[i] = d_diag[i];
+      });
+   }
+
    HYPRE_BigInt global_size = fes.GlobalTrueVSize();
    HYPRE_BigInt *row_starts = fes.GetTrueDofOffsets();
    HypreParMatrix D(MPI_COMM_WORLD, global_size, row_starts, &diag_spmat);
