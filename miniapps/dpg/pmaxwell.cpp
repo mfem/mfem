@@ -10,7 +10,8 @@
 // mpirun -np 4 pmaxwell -o 3 -sref 1 -pref 2 -rnum 11.8 -sc -prob 3
 // mpirun -np 4 pmaxwell -o 3 -sref 1 -pref 2 -rnum 9.8 -sc -prob 4
 
-// AMR run
+// AMR run. Note that this is a computationally intensive sample run.
+// We recommend trying it on a large machine with more mpi ranks
 // mpirun -np 4 pmaxwell -o 3 -sref 0 -pref 15 -prob 1 -theta 0.7 -sc
 
 // Description:

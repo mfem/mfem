@@ -190,19 +190,19 @@ int main(int argc, char *argv[])
                   "Mesh file to use.");
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree)");
-   args.AddOption(&rnum, "-rnum", "--number_of_wavelengths",
+   args.AddOption(&rnum, "-rnum", "--number-of-wavelengths",
                   "Number of wavelengths");
    args.AddOption(&iprob, "-prob", "--problem", "Problem case"
                   " 0: plane wave, 1: Gaussian beam, 2: Generic PML,"
                   " 3: Scattering of a Gaussian beam"
                   " 4: Scattering of a plane wave, 5: Point source");
-   args.AddOption(&delta_order, "-do", "--delta_order",
+   args.AddOption(&delta_order, "-do", "--delta-order",
                   "Order enrichment for DPG test space.");
    args.AddOption(&theta, "-theta", "--theta",
                   "Theta parameter for AMR");
-   args.AddOption(&sr, "-sref", "--serial_ref",
+   args.AddOption(&sr, "-sref", "--serial-ref",
                   "Number of parallel refinements.");
-   args.AddOption(&pr, "-pref", "--parallel_ref",
+   args.AddOption(&pr, "-pref", "--parallel-ref",
                   "Number of parallel refinements.");
    args.AddOption(&static_cond, "-sc", "--static-condensation", "-no-sc",
                   "--no-static-condensation", "Enable static condensation.");
