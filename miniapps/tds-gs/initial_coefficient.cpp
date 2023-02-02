@@ -145,16 +145,17 @@ InitialCoefficient read_data_file(const char *data_file) {
   *iss >> rdim >> zdim >> rcentr >> rleft >> zmid;
   // cout << rdim << endl;
 
+  while (getline(inFile, line)) {
+    if (line.find("sibry") != std::string::npos) {
+      getline(inFile, line);
+      break;
+    }
+  }
+  iss = new istringstream(line);
+  double maxis, zmaxis, simag, psix, bcentr;
+  *iss >> maxis >> zmaxis >> simag >> psix >> bcentr;
+  
   double r0, r1, z0, z1;
-  // r0 = rleft;
-  // r1 = rleft+rdim;
-  // z0 = zmid-zdim/2.0;
-  // z1 = zmid+zdim/2.0;
-
-  // // DAS - this is overrided since mesh isn't based on ITER geometry yet
-  // r0 = .67; r1 = 1.321;
-  // z0 = -0.556; z1 = 0.5556;
-
   // geometry based on iter
   r0 = 3.0; r1 = 10.0;
   z0 = -6.0; z1 = 6.0;
@@ -176,9 +177,121 @@ InitialCoefficient read_data_file(const char *data_file) {
       *iss >> psizr[i][j];
     }
   }
+  while (getline(inFile, line)) {
+    if (line.find("nbbbs") != std::string::npos) {
+      getline(inFile, line);
+      break;
+    }
+  }
+  iss = new istringstream(line);
+  int nbbbs, limitr;
+  *iss >> nbbbs >> limitr;
+  while (getline(inFile, line)) {
+    if (line.find("rbbbs") != std::string::npos) {
+      getline(inFile, line);
+      break;
+    }
+  }
+  double *rbbbs;
+  double *zbbbs;
+  rbbbs = new double[nbbbs];
+  zbbbs = new double[nbbbs];
+  iss = new istringstream(line);
+  for (i = 0; i < nbbbs; ++i) {
+    *iss >> rbbbs[i] >> zbbbs[i];
+  }
 
   // nz=nh, nr=nw
-  InitialCoefficient init_coeff(psizr, r0, r1, z0, z1, nh, nw);
+  InitialCoefficient init_coeff(psizr, rbbbs, zbbbs, r0, r1, z0, z1, nh, nw, nbbbs, psix);
 
   return init_coeff;
+}
+
+
+// graph search
+// find point that such that f is local min
+// prioritize greedy direction
+void InitialCoefficient::compute_QP(int N_control_, Mesh * mesh, FiniteElementSpace * fes) {
+  // psi(r_k, z_k) = sum_{l=1}^{N_p} alpha_l^{(k)} y_{J_l^{(k)}}
+
+  // alpha_l^{(k)}: lth interpolation coefficient for point (r_k, z_k)
+  //                corresponding to mesh index J_l^{(k)}
+
+  N_control = N_control_;
+ 
+  // assemble control points into matrix
+  DenseMatrix point_mat(2, N_control);
+  int stride = nbbbs / N_control;
+  for (int i = 0; i < N_control; ++i) {
+    point_mat(0, i) = rbbbs[i * stride];
+    point_mat(1, i) = zbbbs[i * stride];
+  }
+
+  // get element ids of elements containing points
+  Array<int> elem_ids;
+  Array<IntegrationPoint> ips;
+  mesh->FindPoints(point_mat, elem_ids, ips);
+
+  // get alpha and J for each control point
+  vector<Vector> alpha;
+  vector<Array<int>> J;
+  for (int i = 0; i < N_control; ++i) {
+    // get finite element
+    const FiniteElement * fe = fes->GetFE(elem_ids[i]);
+    int dof = fe->GetDof();
+    
+    //
+    Vector shape;
+    fe->CalcShape(ips[i], shape);
+    // shape is alpha_l^{(k)}
+
+    Array<int> vdofs;
+    fes->GetElementVDofs(elem_ids[i], vdofs);
+    // vdofs is J_l^{(k)}
+
+    alpha.push_back(shape);
+    J.push_back(vdofs);
+
+    // vdofs.Print();
+    // shape.Print();
+  }
+
+  // assemble
+  Vector cv_(fes->GetNDofs());
+  cv_ = 0.0;
+  for (int i = 0; i < N_control; ++i) {
+    const FiniteElement * fe = fes->GetFE(elem_ids[i]);
+    int dof = fe->GetDof();
+    for (int j = 0; j < dof; ++j) {
+      cv_(J[i][j]) += alpha[i][j];
+    }
+  }
+  cv = cv_;
+}
+
+
+SparseMatrix* InitialCoefficient::compute_K() {
+
+  int ndof = cv.Size();
+  SparseMatrix * K;
+  K = new SparseMatrix(ndof, ndof);
+  
+  for (int i = 0; i < ndof; ++i) {
+    for (int j = 0; j < ndof; ++j) {
+      if ((cv(i) != 0) && (cv(j) != 0)) {
+        K->Set(i, j, cv(i) * cv(j));
+      }
+    }
+  }
+  K->Finalize();
+
+  return K;
+  
+}
+
+Vector InitialCoefficient::compute_g() {
+  Vector g(cv.Size());
+  
+  add(0, cv, psix * N_control, cv, g);
+  return g;
 }

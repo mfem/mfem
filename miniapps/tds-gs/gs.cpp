@@ -122,7 +122,6 @@ LinearForm * DefineRHS(PlasmaModelBase & model, double & rho_gamma,
   }
 
   // manufactured solution forcing
-
   if (true) {
     coil_term.AddDomainIntegrator(new DomainLFIntegrator(exact_forcing_coeff));
   }
@@ -426,6 +425,18 @@ double gs(const char * mesh_file, const char * data_file, int order, int d_refin
      u.Save("exact.gf");
    } else {
      InitialCoefficient init_coeff = read_data_file(data_file);
+
+     int N_control = 10;
+     init_coeff.compute_QP(N_control, &mesh, &fespace);
+     SparseMatrix * K = init_coeff.compute_K();
+     Vector g = init_coeff.compute_g();
+     // K->PrintMatlab();
+     // g.Print();
+
+     if (true) {
+       return 0.0;
+     }
+     
      u.ProjectCoefficient(init_coeff);
      u.Save("initial.gf");
    }

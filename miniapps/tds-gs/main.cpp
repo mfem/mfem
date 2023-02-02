@@ -83,8 +83,9 @@ int main(int argc, char *argv[])
   */
   
    // Parse command line options.
-   const char *mesh_file = "meshes/test_off_center.msh";
+   // const char *mesh_file = "meshes/test_off_center.msh";
    // const char *mesh_file = "meshes/square.msh";
+   const char *mesh_file = "meshes/iter_gen.msh";
    const char *data_file = "separated_file.data";
    int order = 1;
    int d_refine = 0;
@@ -99,7 +100,7 @@ int main(int argc, char *argv[])
    double r0 = 1.0;
    // boundary of far-field
    double rho_gamma = 2.5;
-   int do_manufactured_solution = 1;
+   int do_manufactured_solution = 0;
 
    int max_krylov_iter = 1000;
    int max_newton_iter = 5;
@@ -119,7 +120,7 @@ int main(int argc, char *argv[])
    double c11 = 1.0;
 
    double ur_coeff = 1.0;
-   
+
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh", "Mesh file to use.");
    args.AddOption(&order, "-o", "--order", "Finite element polynomial degree");
@@ -139,21 +140,20 @@ int main(int argc, char *argv[])
    args.AddOption(&max_newton_iter, "-mn", "--max_newton_iter", "maximum newton iterations");
    args.AddOption(&krylov_tol, "-kt", "--krylov_tol", "krylov tolerance");
    args.AddOption(&newton_tol, "-nt", "--newton_tol", "newton tolerance");
-   args.AddOption(&c1, "-c1", "--c1", "coil 1");
-   args.AddOption(&c2, "-c2", "--c2", "coil 2");
-   args.AddOption(&c3, "-c3", "--c3", "coil 3");
-   args.AddOption(&c4, "-c4", "--c4", "coil 4");
-   args.AddOption(&c5, "-c5", "--c5", "coil 5");
-   args.AddOption(&c6, "-c6", "--c6", "coil 6");
-   args.AddOption(&c7, "-c7", "--c7", "coil 7");
-   args.AddOption(&c8, "-c8", "--c8", "coil 8");
-   args.AddOption(&c9, "-c9", "--c9", "coil 9");
-   args.AddOption(&c10, "-c10", "--c10", "coil 10");
-   args.AddOption(&c11, "-c11", "--c11", "coil 11");
+   args.AddOption(&c1, "-c1", "--c1", "coil 1 (PF)");
+   args.AddOption(&c2, "-c2", "--c2", "coil 2 (PF)");
+   args.AddOption(&c3, "-c3", "--c3", "coil 3 (PF)");
+   args.AddOption(&c4, "-c4", "--c4", "coil 4 (PF)");
+   args.AddOption(&c5, "-c5", "--c5", "coil 5 (PF)");
+   args.AddOption(&c6, "-c6", "--c6", "coil 6 (CS)");
+   args.AddOption(&c7, "-c7", "--c7", "coil 7 (CS)");
+   args.AddOption(&c8, "-c8", "--c8", "coil 8 (CS)");
+   args.AddOption(&c9, "-c9", "--c9", "coil 9 (CS)");
+   args.AddOption(&c10, "-c10", "--c10", "coil 10 (CS)");
+   args.AddOption(&c11, "-c11", "--c11", "coil 11 (CS)");
 
    args.AddOption(&ur_coeff, "-ur", "--ur_coeff", "under relaxation coefficient");
 
-   
    args.ParseCheck();
 
    if (do_test == 1) {

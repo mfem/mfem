@@ -60,3 +60,18 @@ DoubleIntegralCoefficient
 
 
 
+
+
+
+B_y [NxN]
+SparseMatrix *Mat = dynamic_cast<SparseMatrix *>(&op.GetGradient(x));
+
+K [NxN]
+
+H [MxM]
+
+Fu [NxM]
+
+
+
+void SetSubMatrix(const Array<int> &rows, const Array<int> &cols, const DenseMatrix &subm, int skip_zeros = 1);
