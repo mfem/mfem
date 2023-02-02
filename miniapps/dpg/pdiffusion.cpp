@@ -8,7 +8,7 @@
 // mpirun -np 4 pdiffusion -m ../../data/beam-tet.mesh -o 3 -sref 0 -pref 2 -theta 0.0 -prob 0 -sc
 
 // L-shape runs
-// Note: uniform ref are expected to give sub-optimal rate for the l-shape problem (rate = 2/3)
+// Note: uniform ref are expected to give sub-optimal rate for the L-shape problem (rate = 2/3)
 // mpirun -np 4 pdiffusion -o 2 -sref 1 -pref 5 -theta 0.0 -prob 1
 
 // L-shape AMR runs
@@ -115,14 +115,14 @@ int main(int argc, char *argv[])
                   "Finite element order (polynomial degree).");
    args.AddOption(&delta_order, "-do", "--delta_order",
                   "Order enrichment for DPG test space.");
-   args.AddOption(&sref, "-sref", "--num_serial_refinements",
+   args.AddOption(&sref, "-sref", "--num-serial-refinements",
                   "Number of initial serial uniform refinements");
-   args.AddOption(&pref, "-pref", "--num_parallel_refinements",
+   args.AddOption(&pref, "-pref", "--num-parallel-refinements",
                   "Number of AMR refinements");
-   args.AddOption(&theta, "-theta", "--theta_factor",
+   args.AddOption(&theta, "-theta", "--theta-factor",
                   "Refinement factor (0 indicates uniform refinements) ");
    args.AddOption(&iprob, "-prob", "--problem", "Problem case"
-                  " 0: manufactured, 1: l-shape");
+                  " 0: manufactured, 1: L-shape");
    args.AddOption(&static_cond, "-sc", "--static-condensation", "-no-sc",
                   "--no-static-condensation", "Enable static condensation.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",

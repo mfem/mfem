@@ -103,7 +103,7 @@ protected:
    Vector residuals;
 
 public:
-
+   /// Default constructor. User must call SetSpaces to setup the FE spaces
    DPGWeakForm()
    {
       height = 0;

@@ -119,11 +119,11 @@ int main(int argc, char *argv[])
                   "Mesh file to use.");
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree).");
-   args.AddOption(&delta_order, "-do", "--delta_order",
+   args.AddOption(&delta_order, "-do", "--delta-order",
                   "Order enrichment for DPG test space.");
    args.AddOption(&epsilon, "-eps", "--epsilon",
                   "Epsilon coefficient");
-   args.AddOption(&ref, "-ref", "--num_refinements",
+   args.AddOption(&ref, "-ref", "--num-refinements",
                   "Number of uniform refinements");
    args.AddOption(&theta, "-theta", "--theta",
                   "Theta parameter for AMR");
