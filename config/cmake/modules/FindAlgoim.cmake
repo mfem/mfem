@@ -16,7 +16,7 @@
 
 include(MfemCmakeUtilities)
 mfem_find_package(Algoim ALGOIM ALGOIM_DIR
-       	"include" "algoim_quad.hpp"
+        "include;src" "algoim_quad.hpp"
        	"" ""
-	"Paths to headers required by Algoim."
-	"Libraries required by Algoim.")
+        "Paths to headers required by Algoim."
+        "Libraries required by Algoim.")
