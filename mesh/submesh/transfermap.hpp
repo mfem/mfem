@@ -14,6 +14,7 @@
 
 #include "../../fem/gridfunc.hpp"
 #include "transfer_category.hpp"
+#include <memory>
 
 namespace mfem
 {
@@ -50,8 +51,6 @@ public:
     */
    void Transfer(const GridFunction &src, GridFunction &dst) const;
 
-   ~TransferMap();
-
 private:
    TransferCategory category_;
 
@@ -67,7 +66,7 @@ private:
    /// Pointer to the supplemental FiniteElementSpace on the common root parent
    /// Mesh. This is only used if this TransferMap represents a SubMesh to
    /// SubMesh transfer.
-   const FiniteElementSpace *root_fes_ = nullptr;
+   std::unique_ptr<const FiniteElementSpace> root_fes_;
 
    /// Temporary vector
    mutable Vector z_;
