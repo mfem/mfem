@@ -66,6 +66,21 @@ if (MFEM_ENABLE_TESTING)
     COMMAND $<TARGET_FILE:nurbs_ex1> -no-vis
     -m ${PROJECT_SOURCE_DIR}/data/two-squares-nurbs-autoedge.mesh -o 1
     -rf ${PROJECT_SOURCE_DIR}/data/two-squares.ref)
+
+  add_test(NAME nurbs_ex1_two_cubes_knot_insert
+    COMMAND $<TARGET_FILE:nurbs_ex1> -no-vis
+    -m ${PROJECT_SOURCE_DIR}/data/two-cubes-nurbs.mesh -o 1
+    -rf ${PROJECT_SOURCE_DIR}/data/two-cubes.ref)
+
+  add_test(NAME nurbs_ex1_two_cubes_rot_knot_insert
+    COMMAND $<TARGET_FILE:nurbs_ex1> -no-vis
+    -m ${PROJECT_SOURCE_DIR}/data/two-cubes-nurbs-rot.mesh -o 1
+    -rf ${PROJECT_SOURCE_DIR}/data/two-cubes.ref)
+
+  add_test(NAME nurbs_ex1_two_cubes_autoedge_knot_insert
+    COMMAND $<TARGET_FILE:nurbs_ex1> -no-vis
+    -m ${PROJECT_SOURCE_DIR}/data/two-cubes-nurbs-autoedge.mesh -o 1
+    -rf ${PROJECT_SOURCE_DIR}/data/two-cubes.ref)
 endif()
 
 if (MFEM_USE_MPI)
