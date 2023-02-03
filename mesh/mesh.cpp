@@ -5393,7 +5393,7 @@ void Mesh::LoadPatchTopo(std::istream &input, Array<int> &edge_to_knot)
       }
 
       // Renumber knotvectors, such that:
-      // -- numbering is consequitive
+      // -- numbering is consecutive
       // -- starts at zero
       Array<int> cnt(NumOfEdges);
       cnt = 0;
