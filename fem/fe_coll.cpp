@@ -3458,6 +3458,20 @@ NURBSFECollection::FiniteElementForGeometry(Geometry::Type GeomType) const
    return SegmentFE; // Make some compilers happy
 }
 
+const FiniteElement *
+NURBSFECollection::FiniteElementForDim(int dim) const
+{
+   switch (dim)
+   {
+      case 1:     return SegmentFE;
+      case 2:     return QuadrilateralFE;
+      case 3:     return ParallelepipedFE;
+      default:
+         mfem_error ("NURBSFECollection: unsupported dimension.");
+   }
+   return SegmentFE; // Make some compilers happy
+}
+
 int NURBSFECollection::DofForGeometry(Geometry::Type GeomType) const
 {
    mfem_error("NURBSFECollection::DofForGeometry");

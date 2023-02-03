@@ -663,6 +663,15 @@ public:
    virtual const FiniteElement *
    FiniteElementForGeometry(Geometry::Type GeomType) const;
 
+   /** @brief Returns the appropriate tensor product FiniteElement for the
+       given dimension
+
+       @note The implementation in the FiniteElementCollection base class fails
+       in this case because NURBS FiniteElements are not defined on simplices.
+   */
+   virtual const FiniteElement *
+   FiniteElementForDim(int dim) const;
+
    virtual int DofForGeometry(Geometry::Type GeomType) const;
 
    virtual const int *DofOrderForOrientation(Geometry::Type GeomType,
