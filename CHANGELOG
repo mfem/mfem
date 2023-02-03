@@ -11,10 +11,15 @@
 Version 4.5.2, released on January XX, 2023
 ===========================================
 
+- When using discontinuous (L2) spaces, use local (element-wise) L2 projection
+  as the coarsening operator for non-conforming AMR meshes.
+
 Meshing improvements
 --------------------
 - Added support for pyramids in non-conforming meshes. Currently only isotropic
   refinement is supported in this case.
+
+- Fixed a bug in TMOP metric 301.
 
 Discretization improvements
 ---------------------------
@@ -27,7 +32,9 @@ Linear and nonlinear solvers
 
 New and updated examples and miniapps
 -------------------------------------
-- TBD
+- The mesh-explorer miniapp can now save mesh files in the VisIt or ParaView
+  formats using the corresponding DataCollection objects. See option 'D' in the
+  main menu.
 
 Integrations, testing and documentation
 ---------------------------------------
