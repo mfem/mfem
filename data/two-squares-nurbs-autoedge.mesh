@@ -1,7 +1,7 @@
 MFEM NURBS mesh v1.0
 
 # 2D two squares mesh consisting of two patches 
-# with the origin in the bottom right corner.
+# with the origin in the bottom left corner.
 # The edges are not defined to test the usage of 
 # automated edge generation.
 
