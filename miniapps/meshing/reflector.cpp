@@ -53,7 +53,6 @@ private:
    VectorCoefficient * a;
    const Vector origin, normal;
    Mesh *meshOrig;
-   Mesh *rmesh;
 
    // Map from reflected to original mesh elements
    std::vector<int> *r2o;
@@ -63,10 +62,9 @@ private:
 public:
    ReflectedCoefficient(VectorCoefficient &A, Vector const& origin_,
                         Vector const& normal_, std::vector<int> *r2o_,
-                        Mesh *mesh, Mesh *refmesh,
-                        std::vector<std::vector<int>> *refPerm) :
+                        Mesh *mesh, std::vector<std::vector<int>> *refPerm) :
       VectorCoefficient(3), a(&A), origin(origin_), normal(normal_),
-      meshOrig(mesh), rmesh(refmesh), r2o(r2o_), perm(refPerm)
+      meshOrig(mesh), r2o(r2o_), perm(refPerm)
    { }
 
    virtual void Eval(Vector &V, ElementTransformation &T,
@@ -809,7 +807,7 @@ Mesh* ReflectHighOrderMesh(Mesh & mesh, Vector origin, Vector normal)
 
    HexMeshBuilder builder(nv_reflected, 2*ne);
 
-   r2o.assign(2*ne, -1);
+   r2o.assign(2*ne, -2-ne);  // Initialize to invalid value.
 
    std::vector<int> v2r;
    v2r.assign(mesh.GetNV(), -1);
@@ -937,6 +935,8 @@ Mesh* ReflectHighOrderMesh(Mesh & mesh, Vector origin, Vector normal)
 
          mapBE[std::pair<int, int>(rv1, rv2)] = i;
 
+         mfem::Swap(rv[0], rv[2]);  // Fix the orientation
+
          const Geometry::Type orig_geom = mesh.GetBdrElementBaseGeometry(i);
          Element *rbe = reflected->NewElement(orig_geom);
          rbe->SetVertices(v);
@@ -998,7 +998,7 @@ Mesh* ReflectHighOrderMesh(Mesh & mesh, Vector origin, Vector normal)
 
       VectorGridFunctionCoefficient nodesCoef(Nodes);
 
-      ReflectedCoefficient rc(nodesCoef, origin, normal, &r2o, &mesh, reflected,
+      ReflectedCoefficient rc(nodesCoef, origin, normal, &r2o, &mesh,
                               &builder.refPerm);
 
       newReflectedNodes.ProjectCoefficient(rc);
