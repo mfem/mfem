@@ -82,8 +82,12 @@ if (MFEM_USE_STRUMPACK)
   # Just needed to find the MPI_Fortran libraries to link with
   set(XSDK_ENABLE_Fortran ON)
 endif()
-# SUNDIALS, STRUMPACK, and Ginkgo require C++14:
-if ((MFEM_USE_SUNDIALS OR MFEM_USE_STRUMPACK OR MFEM_USE_GINKGO) AND
+# SUNDIALS, STRUMPACK, Ginkgo, RAJA and Umpire require C++14:
+if ((MFEM_USE_SUNDIALS OR
+     MFEM_USE_STRUMPACK OR
+     MFEM_USE_GINKGO OR
+     MFEM_USE_RAJA OR
+     MFEM_USE_UMPIRE) AND
     ("${CMAKE_CXX_STANDARD}" LESS "14"))
   set(CMAKE_CXX_STANDARD 14)
 endif()
@@ -107,10 +111,7 @@ if (MFEM_USE_CUDA)
       set(CMAKE_CUDA_HOST_COMPILER ${CMAKE_CXX_COMPILER})
    endif()
    enable_language(CUDA)
-   set(CMAKE_CUDA_STANDARD 11)
-   if (MFEM_USE_GINKGO)
-     set(CMAKE_CUDA_STANDARD 14)
-   endif()
+   set(CMAKE_CUDA_STANDARD ${CMAKE_CXX_STANDARD})
    set(CMAKE_CUDA_STANDARD_REQUIRED ON)
    set(CMAKE_CUDA_EXTENSIONS OFF)
    set(CUDA_FLAGS "--expt-extended-lambda")
@@ -697,6 +698,8 @@ add_subdirectory(doc)
 message(STATUS "CMAKE_INSTALL_PREFIX = ${CMAKE_INSTALL_PREFIX}")
 set(INSTALL_INCLUDE_DIR include
   CACHE PATH "Relative path for installing header files.")
+set(INSTALL_BIN_DIR bin
+  CACHE PATH "Relative path for installing the binaries.")
 set(INSTALL_LIB_DIR lib
   CACHE PATH "Relative path for installing the library.")
 # other options: "share/mfem/cmake", "lib/mfem/cmake"
@@ -715,7 +718,9 @@ set(CMAKE_INSTALL_DEFAULT_COMPONENT_NAME Development)
 # Install the library
 install(TARGETS ${PROJECT_NAME}
   EXPORT ${PROJECT_NAME_UC}Targets
-  DESTINATION ${INSTALL_LIB_DIR})
+  RUNTIME DESTINATION ${INSTALL_BIN_DIR}
+  LIBRARY DESTINATION ${INSTALL_LIB_DIR}
+  ARCHIVE DESTINATION ${INSTALL_LIB_DIR})
 
 # Install the master headers
 foreach(Header mfem.hpp mfem-performance.hpp)

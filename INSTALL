@@ -793,10 +793,10 @@ The specific libraries and their options are:
   Versions: libCEED >= 0.10.
 
 - RAJA (optional), used when MFEM_USE_RAJA = YES.
-  Beginning with MFEM v4.3, only RAJA v0.14.0+ is supported.
+  Beginning with MFEM v4.5.1, only RAJA v2022.10.3+ is supported.
   URL: https://github.com/LLNL/RAJA
   Options: RAJA_DIR, RAJA_OPT, RAJA_LIB.
-  Versions: RAJA >= 0.14.0.
+  Versions: RAJA >= 2022.10.3.
 
 - Moonolith (optional), use when MFEM_USE_MOONOLITH = YES.
   URL: https://bitbucket.org/zulianp/par_moonolith
