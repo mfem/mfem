@@ -15,7 +15,6 @@
 #include <cmath>
 #include <algorithm>
 
-
 using namespace std;
 
 namespace mfem
@@ -855,28 +854,24 @@ void DiffusionIntegrator::AssembleElementMatrix
    const NURBSFiniteElement *NURBSFE =
       dynamic_cast<const NURBSFiniteElement *>(&el);
 
-   IntegrationRule *irn = nullptr;
    if (NURBSFE && patchRule)
    {
       const int patch = NURBSFE->GetPatch();
       int ijk[3];
       NURBSFE->GetIJK(ijk);
       Array<const KnotVector*>& kv = NURBSFE->KnotVectors();
-      irn = &patchRule->GetElementRule(NURBSFE->GetElement(), patch, ijk, kv);
+      ir = &patchRule->GetElementRule(NURBSFE->GetElement(), patch, ijk, kv);
    }
 
-   const int numIP = irn ? irn->GetNPoints() : ir->GetNPoints();
-
    elmat = 0.0;
-   for (int i = 0; i < numIP; i++)
+   for (int i = 0; i < ir->GetNPoints(); i++)
    {
-      const IntegrationPoint &ip = irn ? irn->IntPoint(i) : ir->IntPoint(i);
+      const IntegrationPoint &ip = ir->IntPoint(i);
       el.CalcDShape(ip, dshape);
 
       Trans.SetIntPoint(&ip);
       w = Trans.Weight();
       w = ip.weight / (square ? w : w*w*w);
-
       // AdjugateJacobian = / adj(J),         if J is square
       //                    \ adj(J^t.J).J^t, otherwise
       Mult(dshape, Trans.AdjugateJacobian(), dshapedxt);

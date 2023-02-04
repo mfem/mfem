@@ -1315,8 +1315,6 @@ private:
 
    bool NNLS_qrres_on_;
    QRresidualMode qr_residual_mode_;
-   bool normalize_const_;
-   bool QR_reduce_const_;
 };
 #endif // MFEM_USE_LAPACK
 
