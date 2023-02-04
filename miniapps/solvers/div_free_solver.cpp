@@ -675,7 +675,8 @@ BlockHybridizationSolver::BlockHybridizationSolver(const shared_ptr<ParBilinearF
         }
     }
 
-    DG_Interface_FECollection fec(trial_space.FEColl()->GetOrder(), pmesh.Dimension());
+    const int order = trial_space.FEColl()->GetOrder()-1;
+    DG_Interface_FECollection fec(order, pmesh.Dimension());
     c_fes = new ParFiniteElementSpace(&pmesh, &fec);
     ParFiniteElementSpace &c_space(*c_fes);
 
