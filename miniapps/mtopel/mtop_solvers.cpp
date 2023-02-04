@@ -1330,6 +1330,206 @@ void DiffusionSolver::FSolve()
 
 }
 
+double ComplianceDiffIntegrator::GetElementEnergy(const FiniteElement &el, ElementTransformation &Tr, const Vector &elfun)
+{
+    if(temp==nullptr){return 0.0;}
+
+    //integrate the dot product disp*volforce
+    int dim=Tr.GetDimension();
+
+    Vector grads; grads.SetSize(dim);
+    Vector flux; flux.SetSize(dim);
+    DenseMatrix CC; CC.SetSize(dim);
+
+    const IntegrationRule *ir = nullptr;
+    int order= 2 * el.GetOrder() + Tr.OrderGrad(&el)+temp->FESpace()->GetOrder(Tr.ElementNo);
+    ir=&IntRules.Get(Tr.GetGeometryType(),order);
+
+    double w;
+
+    double energy=0.0;
+    for(int i=0; i<ir->GetNPoints(); i++)
+    {
+        const IntegrationPoint &ip = ir->IntPoint(i);
+        Tr.SetIntPoint(&ip);
+        w=Tr.Weight();
+        w = ip.weight * w;
+
+        temp->GetGradient(Tr,grads);
+        diff_tensor->Eval(CC,Tr,ip);
+
+        CC.Mult(grads,flux);
+
+         energy=energy+w*(grads*flux);
+    }
+
+    return energy;
+}
+
+void ComplianceDiffIntegrator::AssembleElementVector(const FiniteElement &el, ElementTransformation &Tr,
+                                                     const Vector &elfun, Vector &elvect)
+{
+    const int dof=el.GetDof();
+    const int dim=Tr.GetDimension();
+
+    elvect.SetSize(dof); elvect=0.0;
+    if(temp==nullptr){return;}
+
+    Vector shapef(dof);
+
+    const IntegrationRule *ir = nullptr;
+    int order= 2 * el.GetOrder() + Tr.OrderGrad(&el)+2*(temp->FESpace()->GetOrder(Tr.ElementNo));
+    ir=&IntRules.Get(Tr.GetGeometryType(),order);
+
+    Vector grads; grads.SetSize(dim);
+    Vector flux; flux.SetSize(dim);
+    DenseMatrix CC; CC.SetSize(dim);
+
+    double w;
+    for(int i=0; i<ir->GetNPoints(); i++)
+    {
+        const IntegrationPoint &ip = ir->IntPoint(i);
+        Tr.SetIntPoint(&ip);
+        w=Tr.Weight();
+        w = ip.weight * w;
+
+        temp->GetGradient(Tr,grads);
+        diff_tensor->Eval(CC,Tr,ip);
+
+        CC.Mult(grads,flux);
+
+        double cpl=grads*flux; //compute the compliance
+
+        cpl=cpl*diff_tensor->Grad(Tr,ip); //mult by the gradient
+        cpl=-cpl*w;
+        el.CalcShape(ip,shapef);
+        elvect.Add(cpl,shapef);
+
+
+    }
+}
+
+
+void ComplianceDiffIntegrator::AssembleElementGrad(const FiniteElement &el, ElementTransformation &Tr,
+                                                   const Vector &elfun, DenseMatrix &elmat)
+{
+    {
+        mfem::mfem_error("ComplianceDiffIntegrator::AssembleElementGrad is not defined!");
+    }
+}
+
+double DiffusionComplianceObj::Eval(){
+   if(mat==nullptr)
+   {
+       MFEM_ABORT("Material in ComplianceDiffIntegrator should be set before calling the Eval method!");
+   }
+
+   if(esolv==nullptr){
+       MFEM_ABORT("esolv in ComplianceDiffIntegrator should be set before calling the Eval method!");
+   }
+
+   if(dfes==nullptr){
+       MFEM_ABORT("dfes in ComplianceDiffIntegrator should be set before calling the Eval method!");
+   }
+
+   if(nf==nullptr){
+       nf=new ParNonlinearForm(dfes);
+       intgr=new ComplianceDiffIntegrator();
+       nf->AddDomainIntegrator(intgr);
+   }
+
+   intgr->SetDiffTensor(mat);
+   intgr->SetTemperature(esolv->GetFSolution());
+
+   double rt=nf->GetEnergy(*dens);
+   return rt;
+}
+
+double DiffusionComplianceObj::Eval(mfem::ParGridFunction& sol)
+{
+    if(mat==nullptr)
+    {
+        MFEM_ABORT("Material in ComplianceDiffIntegrator should be set before calling the Eval method!");
+    }
+
+    if(esolv==nullptr){
+        MFEM_ABORT("esolv in ComplianceDiffIntegrator should be set before calling the Eval method!");
+    }
+
+    if(dfes==nullptr){
+        MFEM_ABORT("dfes in ComplianceDiffIntegrator should be set before calling the Eval method!");
+    }
+
+    if(nf==nullptr){
+        nf=new ParNonlinearForm(dfes);
+        intgr=new ComplianceDiffIntegrator();
+        nf->AddDomainIntegrator(intgr);
+    }
+
+    intgr->SetDiffTensor(mat);
+    intgr->SetTemperature(sol);
+
+    double rt=nf->GetEnergy(*dens);
+    return rt;
+
+}
+
+void DiffusionComplianceObj::Grad(Vector& grad){
+    if(mat==nullptr)
+    {
+        MFEM_ABORT("Material in ComplianceDiffIntegrator should be set before calling the Eval method!");
+    }
+
+    if(esolv==nullptr){
+        MFEM_ABORT("esolv in ComplianceDiffIntegrator should be set before calling the Eval method!");
+    }
+
+    if(dfes==nullptr){
+        MFEM_ABORT("dfes in ComplianceDiffIntegrator should be set before calling the Eval method!");
+    }
+
+    if(nf==nullptr){
+        nf=new ParNonlinearForm(dfes);
+        intgr=new ComplianceDiffIntegrator();
+        nf->AddDomainIntegrator(intgr);
+    }
+
+    intgr->SetDiffTensor(mat);
+    intgr->SetTemperature(esolv->GetFSolution());
+
+    nf->Mult(*dens,grad);
+
+}
+
+void DiffusionComplianceObj::Grad(mfem::ParGridFunction& sol, Vector& grad)
+{
+    if(mat==nullptr)
+    {
+        MFEM_ABORT("Material in ComplianceDiffIntegrator should be set before calling the Eval method!");
+    }
+
+    if(esolv==nullptr){
+        MFEM_ABORT("esolv in ComplianceDiffIntegrator should be set before calling the Eval method!");
+    }
+
+    if(dfes==nullptr){
+        MFEM_ABORT("dfes in ComplianceDiffIntegrator should be set before calling the Eval method!");
+    }
+
+    if(nf==nullptr){
+        nf=new ParNonlinearForm(dfes);
+        intgr=new ComplianceDiffIntegrator();
+        nf->AddDomainIntegrator(intgr);
+    }
+
+    intgr->SetDiffTensor(mat);
+    intgr->SetTemperature(sol);
+
+    nf->Mult(*dens,grad);
+
+}
+
+
 
 }
 

@@ -920,6 +920,7 @@ private:
 
 };
 
+
 /*
 
 class StressObjNLIntegrator:public NonlinearFormIntegrator
@@ -1135,6 +1136,228 @@ public:
 
 };
 
+class DiffusionMaterial: public MatrixCoefficient
+{
+public:
+    DiffusionMaterial(int dim): MatrixCoefficient(dim)
+    {
+        dens=nullptr;
+        Dmax=1.0;
+        Dmin=1e-6;
+        loc_eta=new ConstantCoefficient(0.5);
+        eta=loc_eta;
+        beta=8.0;
+        pp=1.0;
+    }
+
+    ~DiffusionMaterial()
+    {
+        delete loc_eta;
+    }
+
+    void SetDens(ParGridFunction* dens_)
+    {
+        dens=dens_;
+    }
+
+    void SetDens(Coefficient* coef_)
+    {
+        coef=coef_;
+    }
+
+    void SetProjParam(Coefficient& eta_, double beta_)
+    {
+        eta=&eta_;
+        beta=beta_;
+    }
+
+    void SetProjParam(double eta_, double beta_)
+    {
+        delete loc_eta;
+        loc_eta=new ConstantCoefficient(eta_);
+        eta=loc_eta;
+        beta=beta_;
+    }
+
+    void SetEMaxMin(double Emin_,double Emax_)
+    {
+        Dmax=Emax_;
+        Dmin=Emin_;
+    }
+
+    void SetPenal(double pp_)
+    {
+        pp=pp_;
+    }
+
+    virtual
+    void Eval(DenseMatrix& m,
+              ElementTransformation &T, const IntegrationPoint &ip)
+    {
+        //evaluate density
+        double dd=1.0;
+        if(dens!=nullptr){dd=dens->GetValue(T,ip);}
+        else if(coef!=nullptr){dd=coef->Eval(T,ip);}
+
+        if(dd>1.0){dd=1.0;}
+        if(dd<0.0){dd=0.0;}
+        //eval eta
+        double deta=eta->Eval(T,ip);
+        //do the projection
+        double pd=PointwiseTrans::HProject(dd,deta,beta);
+
+        double cd=Dmin+(Dmax-Dmin)*std::pow(pd,pp);
+
+        m=0.0;
+        for(int i=0;i<GetWidth();i++)
+        {
+            m(i,i)=cd;
+        }
+    }
+
+    ///returnas the pointwise gradient with respect to the density
+    virtual
+    double Grad(ElementTransformation &T, const IntegrationPoint &ip)
+    {
+        //evaluate density
+        double dd=1.0;
+        if(dens!=nullptr){dd=dens->GetValue(T,ip);}
+        else if(coef!=nullptr){dd=coef->Eval(T,ip);}
+
+        if(dd>1.0){dd=1.0;}
+        if(dd<0.0){dd=0.0;}
+        //eval eta
+        double deta=eta->Eval(T,ip);
+        //do the projection
+        double pd=PointwiseTrans::HProject(dd,deta,beta);
+        //evaluate hte gradient of the projection
+        double pg=PointwiseTrans::HGrad(dd,deta,beta);
+        //evaluate the gradient with respect to the density field
+        return (Dmax-Dmin)*pg*pp*std::pow(pd,pp-1.0);
+    }
+
+private:
+    ParGridFunction* dens;
+    Coefficient* coef;
+    double Dmax;
+    double Dmin;
+    Coefficient* eta;
+    Coefficient* loc_eta;
+    double beta;
+    double pp;
+
+};
+
+
+class ComplianceDiffIntegrator:public NonlinearFormIntegrator
+{
+public:
+    ComplianceDiffIntegrator()
+    {
+        //The class does not own any the following objects
+        temp=nullptr;
+        volsrc=nullptr;
+        diff_tensor=nullptr;
+    }
+
+    void SetTemperature(ParGridFunction& temp_)
+    {
+        temp=&temp_;
+    }
+
+    void SetTemperature(ParGridFunction* temp_)
+    {
+        temp=temp_;
+    }
+
+    void SetDiffTensor(DiffusionMaterial* t)
+    {
+        diff_tensor=t;
+    }
+
+    void SetVolSrc(Coefficient* src_)
+    {
+        volsrc=src_;
+    }
+
+    virtual
+    double GetElementEnergy(const FiniteElement &el, ElementTransformation &Tr,
+                            const Vector &elfun);
+
+    virtual
+    void AssembleElementVector(const FiniteElement &el, ElementTransformation &Tr,
+                               const Vector &elfun, Vector &elvect);
+
+    virtual
+    void AssembleElementGrad(const FiniteElement &el, ElementTransformation &Tr,
+                             const Vector &elfun, DenseMatrix &elmat);
+
+private:
+
+    ParGridFunction* temp;
+    mfem::Coefficient* volsrc;
+    DiffusionMaterial* diff_tensor;
+
+
+};
+
+class DiffusionComplianceObj
+{
+public:
+
+    DiffusionComplianceObj()
+    {
+        esolv=nullptr;
+        dfes=nullptr;
+        nf=nullptr;
+        dens=nullptr;
+    }
+
+    ~DiffusionComplianceObj()
+    {
+
+    }
+
+    void SetDiffSolver(DiffusionSolver* esolv_){
+        esolv=esolv_;
+    }
+
+    void SetDesignFES(ParFiniteElementSpace* fes)
+    {
+        dfes=fes;
+    }
+
+    void SetDiffMaterial(DiffusionMaterial* mat_)
+    {
+        mat=mat_;
+    }
+
+    void SetDens(Vector& dens_)
+    {
+        dens=&dens_;
+    }
+
+    double Eval();
+
+    double Eval(mfem::ParGridFunction& sol);
+
+    void Grad(Vector& grad);
+
+    void Grad(mfem::ParGridFunction& sol, Vector& grad);
+
+
+
+private:
+    DiffusionSolver* esolv;
+    ParFiniteElementSpace* dfes;//design space
+    ParNonlinearForm* nf;
+    ComplianceDiffIntegrator* intgr;
+    DiffusionMaterial* mat;
+    Vector* dens;
+
+    Vector tmpv;
+
+};
 
 
 }
