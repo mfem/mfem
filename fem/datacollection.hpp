@@ -495,6 +495,7 @@ class ParaViewDataCollection : public DataCollection
 {
 private:
    int levels_of_detail;
+   int compression_level;
    std::fstream pvd_stream;
    VTKFormat pv_data_format;
    bool high_order_output;
@@ -507,6 +508,9 @@ protected:
    void SaveGFieldVTU(std::ostream& out, int ref_, const FieldMapIterator& it);
    const char *GetDataFormatString() const;
    const char *GetDataTypeString() const;
+   /// @brief If compression is enabled, return the compression level, otherwise
+   /// return 0.
+   int GetCompressionLevel() const;
 
    std::string GenerateCollectionPath();
    std::string GenerateVTUFileName(const std::string &prefix, int rank);
@@ -525,7 +529,7 @@ public:
                           mfem::Mesh *mesh_ = NULL);
 
    /// Set refinement levels - every element is uniformly split based on
-   /// levels_of_detail_
+   /// levels_of_detail_. The initial value is 1.
    void SetLevelsOfDetail(int levels_of_detail_);
 
    /// Save the collection - the directory name is constructed based on the
@@ -536,18 +540,27 @@ public:
    /// VTKFormat::ASCII, VTKFormat::BINARY, and VTKFormat::BINARY32.
    /// The ASCII and BINARY options output double precision data, whereas the
    /// BINARY32 option outputs single precision data.
+   ///
+   /// The initial format is VTKFormat::BINARY.
    void SetDataFormat(VTKFormat fmt);
 
-   /// Set the zlib compression level. 0 indicates no compression, -1 indicates
-   /// the default compression level. Otherwise, specify a number between 1 and
-   /// 9, 1 being the fastest, and 9 being the best compression. Compression
-   /// only takes effect if the output format is BINARY or BINARY32. MFEM must
-   /// be compiled with MFEM_USE_ZLIB = YES.
+   /// @brief Set the zlib compression level.
+   ///
+   /// 0 indicates no compression, -1 indicates the default compression level.
+   /// Otherwise, specify a number between 1 and 9, 1 being the fastest, and 9
+   /// being the best compression. Compression only takes effect if the output
+   /// format is BINARY or BINARY32. MFEM must be compiled with MFEM_USE_ZLIB =
+   /// YES.
+   ///
+   /// The initial compression level is 0 if MFEM is compiled with MFEM_USE_ZLIB
+   /// turned off, and -1 otherwise.
+   ///
+   /// Any nonzero compression level will enable compression.
    void SetCompressionLevel(int compression_level_);
 
    /// Enable or disable zlib compression. If the input is true, use the default
    /// zlib compression level (unless the compression level has previously been
-   /// set by calling SetCompressionLevel).
+   /// set by calling SetCompressionLevel()).
    void SetCompression(bool compression_) override;
 
    /// Returns true if the output format is BINARY or BINARY32, false if ASCII.
@@ -560,6 +573,8 @@ public:
    /// Enable or disable restart mode. If restart is enabled, new writes will
    /// preserve timestep metadata for any solutions prior to the currently
    /// defined time.
+   ///
+   /// Initially, restart mode is disabled.
    void UseRestartMode(bool restart_mode_);
 
    /// Load the collection - not implemented in the ParaView writer

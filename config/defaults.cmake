@@ -232,7 +232,7 @@ set(UMPIRE_DIR "${MFEM_DIR}/../umpire" CACHE PATH "Path to Umpire")
 set(CALIPER_DIR "${MFEM_DIR}/../caliper" CACHE PATH "Path to Caliper")
 set(BLITZ_DIR "${MFEM_DIR}/../blitz" CACHE PATH "Path to Blitz")
 set(ALGOIM_DIR "${MFEM_DIR}/../algoim" CACHE PATH "Path to Algoim")
-set(ALGOIM_REQUIRED_PACKAGES "BLITZ" CACHE STRING
+set(Algoim_REQUIRED_PACKAGES "Blitz" CACHE STRING
     "Packages that ALGOIM depends on.")
 
 set(BENCHMARK_DIR "${MFEM_DIR}/../google-benchmark" CACHE PATH
