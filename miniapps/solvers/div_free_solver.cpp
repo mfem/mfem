@@ -878,7 +878,8 @@ void BlockHybridizationSolver::Mult(const Vector &x, Vector &y) const
     R.MultTranspose(block_x.GetBlock(0), x0);
 
     ParMesh &pmesh(*trial_space.GetParMesh());
-    const int num_hat_dofs = hat_offsets[pmesh.GetNE()];
+    const int ne = pmesh.GetNE();
+    const int num_hat_dofs = hat_offsets[ne];
 
     Array<int> block_offsets(3);
     block_offsets[0] = 0;
@@ -893,7 +894,7 @@ void BlockHybridizationSolver::Mult(const Vector &x, Vector &y) const
     dof_marker = false;
 
     Array<int> dofs, test_dofs;
-    for (int i = 0; i < pmesh.GetNE(); ++i)
+    for (int i = 0; i < ne; ++i)
     {
         trial_space.GetElementDofs(i, dofs);
         const int trial_size = dofs.Size();
@@ -954,7 +955,7 @@ void BlockHybridizationSolver::Mult(const Vector &x, Vector &y) const
     Ct_lambda = 0.0;  // This is necessary.
     Ct->Mult(lambda, Ct_lambda.GetBlock(0));
 
-    for (int i = 0; i < pmesh.GetNE(); ++i)
+    for (int i = 0; i < ne; ++i)
     {
         dofs.SetSize(0);
         for (int j = hat_offsets[i]; j < hat_offsets[i + 1]; ++j)
@@ -979,7 +980,7 @@ void BlockHybridizationSolver::Mult(const Vector &x, Vector &y) const
 
     dofs.SetSize(0);
     Vector sub_vec;
-    for (int i = 0; i < pmesh.GetNE(); ++i)
+    for (int i = 0; i < ne; ++i)
     {
         trial_space.GetElementDofs(i, dofs);
         sub_vec.MakeRef(rhs.GetBlock(0), hat_offsets[i], dofs.Size());
