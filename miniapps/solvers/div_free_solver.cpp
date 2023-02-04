@@ -661,8 +661,8 @@ BlockHybridizationSolver::BlockHybridizationSolver(const shared_ptr<ParBilinearF
     }
     test_offsets.PartialSum();
 
-    data = new double[data_offsets[pmesh.GetNE()]]();
-    ipiv = new int[ipiv_offsets[pmesh.GetNE()]];
+    data = new double[data_offsets.Last()]();
+    ipiv = new int[ipiv_offsets.Last()];
 
     Array<int> ess_dof_marker;
     for (int attr : ess_bdr_attr)
@@ -879,7 +879,7 @@ void BlockHybridizationSolver::Mult(const Vector &x, Vector &y) const
 
     ParMesh &pmesh(*trial_space.GetParMesh());
     const int ne = pmesh.GetNE();
-    const int num_hat_dofs = hat_offsets[ne];
+    const int num_hat_dofs = hat_offsets.Last();
 
     Array<int> block_offsets(3);
     block_offsets[0] = 0;
