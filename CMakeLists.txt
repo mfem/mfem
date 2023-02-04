@@ -698,6 +698,8 @@ add_subdirectory(doc)
 message(STATUS "CMAKE_INSTALL_PREFIX = ${CMAKE_INSTALL_PREFIX}")
 set(INSTALL_INCLUDE_DIR include
   CACHE PATH "Relative path for installing header files.")
+set(INSTALL_BIN_DIR bin
+  CACHE PATH "Relative path for installing the binaries.")
 set(INSTALL_LIB_DIR lib
   CACHE PATH "Relative path for installing the library.")
 # other options: "share/mfem/cmake", "lib/mfem/cmake"
@@ -716,7 +718,9 @@ set(CMAKE_INSTALL_DEFAULT_COMPONENT_NAME Development)
 # Install the library
 install(TARGETS ${PROJECT_NAME}
   EXPORT ${PROJECT_NAME_UC}Targets
-  DESTINATION ${INSTALL_LIB_DIR})
+  RUNTIME DESTINATION ${INSTALL_BIN_DIR}
+  LIBRARY DESTINATION ${INSTALL_LIB_DIR}
+  ARCHIVE DESTINATION ${INSTALL_LIB_DIR})
 
 # Install the master headers
 foreach(Header mfem.hpp mfem-performance.hpp)
