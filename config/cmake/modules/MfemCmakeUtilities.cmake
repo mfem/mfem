@@ -103,25 +103,6 @@ macro(add_mfem_examples EXE_SRCS)
       ${MFEM_EXEC_PREREQUISITES_TARGET_NAME} ${EXE_PREREQUISITE})
 
     target_link_libraries(${EXE_NAME} mfem)
-    if (MFEM_USE_MPI)
-      # Not needed: (mfem already links with MPI_CXX_LIBRARIES)
-      # target_link_libraries(${EXE_NAME} ${MPI_CXX_LIBRARIES})
-
-      # Language-specific include directories:
-      if (MPI_CXX_INCLUDE_PATH)
-        target_include_directories(${EXE_NAME} PRIVATE "${MPI_CXX_INCLUDE_PATH}")
-      endif()
-      if (MPI_CXX_COMPILE_FLAGS)
-        separate_arguments(MPI_CXX_COMPILE_ARGS UNIX_COMMAND
-          "${MPI_CXX_COMPILE_FLAGS}")
-        target_compile_options(${EXE_NAME} PRIVATE ${MPI_CXX_COMPILE_ARGS})
-      endif()
-
-      if (MPI_CXX_LINK_FLAGS)
-        set_target_properties(${EXE_NAME} PROPERTIES
-          LINK_FLAGS "${MPI_CXX_LINK_FLAGS}")
-      endif()
-    endif()
   endforeach(SRC_FILE)
 endmacro()
 
@@ -171,26 +152,6 @@ macro(add_mfem_miniapp MFEM_EXE_NAME)
   endif()
   if (EXTRA_DEFINES_LIST)
     target_compile_definitions(${MFEM_EXE_NAME} PRIVATE ${EXTRA_DEFINES_LIST})
-  endif()
-
-  # Handle the MPI separately
-  if (MFEM_USE_MPI)
-    # Add MPI_CXX_LIBRARIES, in case this target does not link with mfem.
-    target_link_libraries(${MFEM_EXE_NAME} PRIVATE ${MPI_CXX_LIBRARIES})
-
-    if (MPI_CXX_INCLUDE_PATH)
-      target_include_directories(${MFEM_EXE_NAME} PRIVATE ${MPI_CXX_INCLUDE_PATH})
-    endif()
-    if (MPI_CXX_COMPILE_FLAGS)
-      separate_arguments(MPI_CXX_COMPILE_ARGS UNIX_COMMAND
-        "${MPI_CXX_COMPILE_FLAGS}")
-      target_compile_options(${MFEM_EXE_NAME} PRIVATE ${MPI_CXX_COMPILE_ARGS})
-    endif()
-
-    if (MPI_CXX_LINK_FLAGS)
-      set_target_properties(${MFEM_EXE_NAME} PROPERTIES
-        LINK_FLAGS "${MPI_CXX_LINK_FLAGS}")
-    endif()
   endif()
 endmacro()
 
