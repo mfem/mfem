@@ -23,6 +23,8 @@ const int attr_ff_bdr = 831;
 const int attr_lim = 1000;
 const int attr_ext = 2000;
 
+const int num_currents = 11;
+
 
 double gs(const char * mesh_file, const char * data_file, int order, int d_refine,
           double & alpha, double & beta, double & lambda, double & gamma, double & mu,

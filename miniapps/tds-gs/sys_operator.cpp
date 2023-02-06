@@ -30,6 +30,18 @@ double GetMaxError(GridFunction &res) {
   return max_val;
 }
 
+double GetMaxError(Vector &res) {
+  int size = res.Size();
+
+  double max_val = - numeric_limits<double>::infinity();
+  for (int i = 0; i < size; ++i) {
+    if (abs(res[i]) > max_val) {
+      max_val = abs(res[i]);
+    }
+  }
+  return max_val;
+}
+
 void Print(const Vector &y) {
   for (int i = 0; i < y.Size(); ++i) {
     printf("%d %.14e\n", i+1, y[i]);
@@ -69,6 +81,13 @@ void SysOperator::Mult(const Vector &psi, Vector &y) const {
   diff_operator->Mult(psi, y);
   add(y, -1.0, *coil_term, y);
   add(y, -1.0, plasma_term, y);
+
+  // cout << F->ActualWidth() << endl;
+  // cout << uv_currents->Size() << endl;
+
+  if (false) {
+    F->AddMult(*uv_currents, y, -1.0);
+  }
 
   // deal with boundary conditions
   Vector u_b_exact, u_tmp, u_b;

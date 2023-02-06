@@ -26,6 +26,8 @@ private:
   double dz;
   int nz;
   int nr;
+  vector<Vector> *alpha;
+  vector<Array<int>> *J;
   set<int> plasma_inds;
   bool mask_plasma = false;
   bool use_manufactured = false;
@@ -47,7 +49,13 @@ public:
 
   SparseMatrix* compute_K();
   Vector compute_g();
-  
+  vector<Vector>* get_alpha() {
+    return alpha;
+  };
+  vector<Array<int>>* get_J() {
+    return J;
+  };
+
   virtual double Eval(ElementTransformation &T, const IntegrationPoint &ip);
   virtual ~InitialCoefficient() { }
 };

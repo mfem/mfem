@@ -231,10 +231,9 @@ void InitialCoefficient::compute_QP(int N_control_, Mesh * mesh, FiniteElementSp
   Array<int> elem_ids;
   Array<IntegrationPoint> ips;
   mesh->FindPoints(point_mat, elem_ids, ips);
-
   // get alpha and J for each control point
-  vector<Vector> alpha;
-  vector<Array<int>> J;
+  alpha = new vector<Vector>;
+  J = new vector<Array<int>>;
   for (int i = 0; i < N_control; ++i) {
     // get finite element
     const FiniteElement * fe = fes->GetFE(elem_ids[i]);
@@ -249,8 +248,8 @@ void InitialCoefficient::compute_QP(int N_control_, Mesh * mesh, FiniteElementSp
     fes->GetElementVDofs(elem_ids[i], vdofs);
     // vdofs is J_l^{(k)}
 
-    alpha.push_back(shape);
-    J.push_back(vdofs);
+    alpha->push_back(shape);
+    J->push_back(vdofs);
 
     // vdofs.Print();
     // shape.Print();
@@ -263,35 +262,47 @@ void InitialCoefficient::compute_QP(int N_control_, Mesh * mesh, FiniteElementSp
     const FiniteElement * fe = fes->GetFE(elem_ids[i]);
     int dof = fe->GetDof();
     for (int j = 0; j < dof; ++j) {
-      cv_(J[i][j]) += alpha[i][j];
+      cv_((*J)[i][j]) += (*alpha)[i][j];
     }
   }
   cv = cv_;
+
+  cout << "size: " << alpha->size() << endl;
 }
 
 
 SparseMatrix* InitialCoefficient::compute_K() {
 
+  double weight = 1;
   int ndof = cv.Size();
   SparseMatrix * K;
   K = new SparseMatrix(ndof, ndof);
-  
-  for (int i = 0; i < ndof; ++i) {
-    for (int j = 0; j < ndof; ++j) {
-      if ((cv(i) != 0) && (cv(j) != 0)) {
-        K->Set(i, j, cv(i) * cv(j));
+  int dof = (*alpha)[0].Size();
+  for (int k = 0; k < N_control; ++k) {
+    for (int m = 0; m < dof; ++m) {
+      int i = (*J)[k][m];
+      for (int n = 0; n < dof; ++n) {
+        int j = (*J)[k][n];
+        K->Add(i, j, weight * (*alpha)[k][m] * (*alpha)[k][n]);
       }
     }
   }
   K->Finalize();
 
   return K;
-  
 }
 
 Vector InitialCoefficient::compute_g() {
   Vector g(cv.Size());
+  g = 0.0;
   
-  add(0, cv, psix * N_control, cv, g);
+  double weight = 1;
+  int ndof = (*alpha)[0].Size();
+  for (int k = 0; k < N_control; ++k) {
+    for (int m = 0; m < ndof; ++m) {
+      g[(*J)[k][m]] += weight * 2.0 * (*alpha)[k][m] * psix;
+    }
+  }
+
   return g;
 }

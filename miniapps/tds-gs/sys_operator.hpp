@@ -9,7 +9,7 @@ using namespace std;
 
 double GetMaxError(LinearForm &res);
 double GetMaxError(GridFunction &res);
-
+double GetMaxError(Vector &res);
 /*
   Mult:
   diff_operator * psi - plasma_term(psi) * psi - coil_term
@@ -30,14 +30,22 @@ private:
   int attr_lim;
   Array<int> boundary_dofs;
   GridFunction *u_boundary;
+  SparseMatrix *F;
+  SparseMatrix *H;
+  SparseMatrix *K;
+  Vector *g;
+  Vector *uv_currents;
 public:
   SysOperator(BilinearForm *diff_operator_, LinearForm *coil_term_,
               PlasmaModelBase *model_, FiniteElementSpace *fespace_,
               Mesh *mesh_, int attr_lim_, 
-              GridFunction *u_boundary_) : Operator(fespace_->GetTrueVSize()), diff_operator(diff_operator_),
-                                           coil_term(coil_term_), model(model_), fespace(fespace_),
-                                           mesh(mesh_), Mat(NULL), attr_lim(attr_lim_),
-                                           u_boundary(u_boundary_)
+              GridFunction *u_boundary_, SparseMatrix *F_, Vector *uv_currents_,
+              SparseMatrix *H_, SparseMatrix *K_, Vector * g_) :
+    Operator(fespace_->GetTrueVSize()), diff_operator(diff_operator_),
+    coil_term(coil_term_), model(model_), fespace(fespace_),
+    mesh(mesh_), Mat(NULL), attr_lim(attr_lim_),
+    u_boundary(u_boundary_),
+    F(F_), uv_currents(uv_currents_), H(H_), K(K_), g(g_)
   {
     vertex_map = compute_vertex_map(*mesh, attr_lim);
 
@@ -55,6 +63,22 @@ public:
   virtual void Mult(const Vector &psi, Vector &y) const;
   virtual Operator &GetGradient(const Vector &psi) const;
   virtual ~SysOperator() { };
+
+  SparseMatrix * GetF() {
+    return F;
+  }
+  SparseMatrix * GetK() {
+    return K;
+  }
+  SparseMatrix * GetH() {
+    return H;
+  }
+  Vector * get_g() {
+    return g;
+  }
+  Vector * get_uv() {
+    return uv_currents;
+  }
 };
 
 
