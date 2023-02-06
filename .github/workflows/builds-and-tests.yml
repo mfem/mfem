@@ -141,7 +141,7 @@ jobs:
 
     - name: get MPI (Windows)
       if: matrix.mpi == 'par' && matrix.os == 'windows-latest'
-      uses: mpi4py/setup-mpi@v1.1.2
+      uses: mpi4py/setup-mpi@v1.1.4
 
     # Get Hypre through cache, or build it.
     # Install will only run on cache miss.
