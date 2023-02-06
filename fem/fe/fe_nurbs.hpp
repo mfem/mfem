@@ -57,6 +57,8 @@ public:
    /// Update the NURBSFiniteElement according to the currently set knot vectors
    virtual void         SetOrder   ()         const { }
 
+   /// Returns the indices (i,j) in 2D or (i,j,k) in 3D of this element in the
+   /// tensor product ordering of the patch.
    void GetIJK(int *IJK) const
    {
       for (int i=0; i<dim; ++i) { IJK[i] = ijk[i]; }

@@ -63,6 +63,9 @@ public:
    virtual void AssemblePA(const FiniteElementSpace &trial_fes,
                            const FiniteElementSpace &test_fes);
 
+   /// Method defining partial assembly on NURBS patches.
+   /** The result of the partial assembly is stored internally so that it can be
+       used later in the method AddMultNURBSPA(). */
    virtual void AssembleNURBSPA(const FiniteElementSpace &fes);
 
    virtual void AssemblePAInteriorFaces(const FiniteElementSpace &fes);
@@ -84,6 +87,7 @@ public:
        called. */
    virtual void AddMultPA(const Vector &x, Vector &y) const;
 
+   /// Method for partially assembled action on NURBS patches.
    virtual void AddMultNURBSPA(const Vector&x, Vector&y) const;
 
    /// Method for partially assembled transposed action.
@@ -2107,13 +2111,18 @@ private:
    bool symmetric = true; ///< False if using a nonsymmetric matrix coefficient
 
    // Data for NURBS patch PA
+
+   // Type for a variable-row-length 2D array, used for data related to 1D
+   // quadrature rules in each dimension.
+   typedef std::vector<std::vector<int>> IntArrayVar2D;
+
    int numPatches = 0;
    std::vector<std::vector<std::vector<std::vector<Vector>>>> reducedWeights;
-   std::vector<std::vector<std::vector<std::vector<std::vector<int>>>>> reducedIDs;
+   std::vector<std::vector<std::vector<IntArrayVar2D>>> reducedIDs;
    std::vector<Array<int>> pQ1D, pD1D;
    std::vector<std::vector<Array2D<double>>> pB, pG;
-   std::vector<std::vector<std::vector<int>>> pminD, pmaxD, pminQ, pmaxQ, pminDD,
-       pmaxDD;
+   std::vector<IntArrayVar2D> pminD, pmaxD, pminQ, pmaxQ, pminDD, pmaxDD;
+
    std::vector<Array<const IntegrationRule*>> pir1d;
 
    void SetupPatchPA(const int patch, Mesh *mesh, bool unitWeights=false);
@@ -2160,12 +2169,17 @@ public:
    virtual void AssemblePatchMatrix(const int patch, Mesh *mesh,
                                     SparseMatrix*& smat);
 
+   /** Called by AssemblePatchMatrix for sparse matrix assembly on a NURBS patch
+    with full 1D quadrature rules. */
    void AssemblePatchMatrix_fullQuadrature(const int patch, Mesh *mesh,
                                            SparseMatrix*& smat);
 
+   /** Called by AssemblePatchMatrix for sparse matrix assembly on a NURBS patch
+    with reduced 1D quadrature rules. */
    void AssemblePatchMatrix_reducedQuadrature(const int patch, Mesh *mesh,
                                               SparseMatrix*& smat);
 
+   /// TODO: remove this before merging PR?
    void AssemblePatchMatrix_simpleButInefficient(const int patch,
                                                  Mesh *mesh,
                                                  DenseMatrix &pmat);

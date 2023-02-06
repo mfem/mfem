@@ -364,6 +364,7 @@ public:
    int GetNTotalDof() const { return NumOfDofs; }
    int GetNDof()      const { return NumOfActiveDofs; }
 
+   /// Returns knotvectors in each dimension for patch @a p.
    void GetPatchKnotVectors(int p, Array<const KnotVector *> &kv) const;
 
    // Knotvector read-only access function
@@ -406,11 +407,19 @@ public:
    void KnotInsert(Array<KnotVector *> &kv);
    void KnotInsert(Array<Vector *> &kv);
 
+   /// Returns the index of the patch containing element @a elem.
    int GetElementPatch(int elem) const { return el_to_patch[elem]; }
+
+   /** Returns the Cartesian indices (i,j) in 2D or (i,j,k) in 3D of element
+       @a elem, in the knot-span tensor product ordering for its patch. */
    void GetElementIJK(int elem, Array<int> & ijk);
 
+   /** Returns an array of tensor product degrees of freedom for patch index
+       @a patch. Only the 3D case is supported currently. */
    const Array3D<int>& GetPatchDofs(const int patch);
 
+   /** Returns the number of 1D degrees of freedom in dimension @a dim for
+       patch index @a patch. */
    int NumPatchDofs1D(const int patch, const int dim);
 
 private:
