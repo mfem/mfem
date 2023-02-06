@@ -1894,7 +1894,7 @@ void NURBSPatchRule::GetIntegrationPointFrom1D(const int patch, int i, int j,
    }
 }
 
-void NURBSPatchRule::SetPointToElement(Mesh const& mesh)
+void NURBSPatchRule::Finalize(Mesh const& mesh)
 {
    if ((int) pointToElem.size() == npatches) { return; }  // Already set
 

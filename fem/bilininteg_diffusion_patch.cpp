@@ -289,13 +289,13 @@ void DiffusionIntegrator::SetupPatchPA(const int patch, Mesh *mesh,
    const std::vector<Array2D<double>>& B = pB[patch];
    const std::vector<Array2D<double>>& G = pG[patch];
 
-   const std::vector<std::vector<int>>& minD = pminD[patch];
-   const std::vector<std::vector<int>>& maxD = pmaxD[patch];
-   const std::vector<std::vector<int>>& minQ = pminQ[patch];
-   const std::vector<std::vector<int>>& maxQ = pmaxQ[patch];
+   const IntArrayVar2D& minD = pminD[patch];
+   const IntArrayVar2D& maxD = pmaxD[patch];
+   const IntArrayVar2D& minQ = pminQ[patch];
+   const IntArrayVar2D& maxQ = pmaxQ[patch];
 
-   const std::vector<std::vector<int>>& minDD = pminDD[patch];
-   const std::vector<std::vector<int>>& maxDD = pmaxDD[patch];
+   const IntArrayVar2D& minDD = pminDD[patch];
+   const IntArrayVar2D& maxDD = pmaxDD[patch];
 
    const Array<const IntegrationRule*>& ir1d = pir1d[patch];
 
@@ -855,13 +855,13 @@ void DiffusionIntegrator::AssemblePatchMatrix_fullQuadrature(
    const std::vector<Array2D<double>>& B = pB[patch];
    const std::vector<Array2D<double>>& G = pG[patch];
 
-   const std::vector<std::vector<int>>& minD = pminD[patch];
-   const std::vector<std::vector<int>>& maxD = pmaxD[patch];
-   const std::vector<std::vector<int>>& minQ = pminQ[patch];
-   const std::vector<std::vector<int>>& maxQ = pmaxQ[patch];
+   const IntArrayVar2D& minD = pminD[patch];
+   const IntArrayVar2D& maxD = pmaxD[patch];
+   const IntArrayVar2D& minQ = pminQ[patch];
+   const IntArrayVar2D& maxQ = pmaxQ[patch];
 
-   const std::vector<std::vector<int>>& minDD = pminDD[patch];
-   const std::vector<std::vector<int>>& maxDD = pmaxDD[patch];
+   const IntArrayVar2D& minDD = pminDD[patch];
+   const IntArrayVar2D& maxDD = pmaxDD[patch];
 
    int ndof = D1D[0];
    for (int d=1; d<dim; ++d)
@@ -1110,13 +1110,13 @@ void DiffusionIntegrator::SetupPatchBasisData(Mesh *mesh, unsigned int patch)
    std::vector<Array2D<double>> G(dim);
    Array<const IntegrationRule*> ir1d(dim);
 
-   std::vector<std::vector<int>> minD(dim);
-   std::vector<std::vector<int>> maxD(dim);
-   std::vector<std::vector<int>> minQ(dim);
-   std::vector<std::vector<int>> maxQ(dim);
+   IntArrayVar2D minD(dim);
+   IntArrayVar2D maxD(dim);
+   IntArrayVar2D minQ(dim);
+   IntArrayVar2D maxQ(dim);
 
-   std::vector<std::vector<int>> minDD(dim);
-   std::vector<std::vector<int>> maxDD(dim);
+   IntArrayVar2D minDD(dim);
+   IntArrayVar2D maxDD(dim);
 
    for (int d=0; d<dim; ++d)
    {
@@ -1257,13 +1257,13 @@ void DiffusionIntegrator::AssemblePatchMatrix_reducedQuadrature(
    const std::vector<Array2D<double>>& B = pB[patch];
    const std::vector<Array2D<double>>& G = pG[patch];
 
-   const std::vector<std::vector<int>>& minD = pminD[patch];
-   const std::vector<std::vector<int>>& maxD = pmaxD[patch];
-   const std::vector<std::vector<int>>& minQ = pminQ[patch];
-   const std::vector<std::vector<int>>& maxQ = pmaxQ[patch];
+   const IntArrayVar2D& minD = pminD[patch];
+   const IntArrayVar2D& maxD = pmaxD[patch];
+   const IntArrayVar2D& minQ = pminQ[patch];
+   const IntArrayVar2D& maxQ = pmaxQ[patch];
 
-   const std::vector<std::vector<int>>& minDD = pminDD[patch];
-   const std::vector<std::vector<int>>& maxDD = pmaxDD[patch];
+   const IntArrayVar2D& minDD = pminDD[patch];
+   const IntArrayVar2D& maxDD = pmaxDD[patch];
 
    int ndof = D1D[0];
    for (int d=1; d<dim; ++d)
