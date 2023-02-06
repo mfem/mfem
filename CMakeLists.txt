@@ -116,7 +116,7 @@ if (MFEM_USE_CUDA)
    set(CMAKE_CUDA_EXTENSIONS OFF)
    set(CUDA_FLAGS "--expt-extended-lambda")
    if (CMAKE_VERSION VERSION_LESS 3.18.0)
-      set(CUDA_FLAGS "-arch=${CUDA_ARCH}" "${CUDA_FLAGS}")
+      set(CUDA_FLAGS "-arch=${CUDA_ARCH} ${CUDA_FLAGS}")
    elseif (NOT CMAKE_CUDA_ARCHITECTURES)
       string(REGEX REPLACE "^sm_" "" ARCH_NUMBER "${CUDA_ARCH}")
       if ("${CUDA_ARCH}" STREQUAL "sm_${ARCH_NUMBER}")
@@ -131,11 +131,10 @@ if (MFEM_USE_CUDA)
    if (CMAKE_VERSION VERSION_LESS 3.12.0)
       # CMake versions 3.8 and 3.9 require this to work; 3.10 and 3.11 are not
       # tested and may not actually need this (but should be ok to keep).
-      set(CUDA_FLAGS "-ccbin=${CMAKE_CXX_COMPILER}" "${CUDA_FLAGS}")
+      set(CUDA_FLAGS "-ccbin=${CMAKE_CXX_COMPILER} ${CUDA_FLAGS}")
       set(CMAKE_CUDA_HOST_LINK_LAUNCHER ${CMAKE_CXX_COMPILER})
    endif()
-   message(${CUDA_FLAGS})
-
+   set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS}" "${CUDA_FLAGS}")
    set(CUSPARSE_FOUND TRUE)
    set(CUSPARSE_LIBRARIES "cusparse")
    set(CUBLAS_FOUND TRUE)
@@ -212,8 +211,7 @@ if (MFEM_USE_OPENMP OR MFEM_USE_LEGACY_OPENMP)
   if (OPENMP_FOUND)
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
     if (MFEM_USE_CUDA)
-      set(CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -Xcompiler=${OpenMP_CXX_FLAGS}")
-      #set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -Xcompiler=${OpenMP_CXX_FLAGS}")
+      set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -Xcompiler=${OpenMP_CXX_FLAGS}")
     endif()
   endif()
 endif()
@@ -579,10 +577,6 @@ target_include_directories(mfem
     ${TPL_INCLUDE_DIRS})
 set_target_properties(mfem PROPERTIES VERSION "${mfem_VERSION}")
 set_target_properties(mfem PROPERTIES SOVERSION "${mfem_VERSION}")
-
-if (MFEM_USE_CUDA)
-    target_compile_options(mfem PUBLIC ${CUDA_FLAGS}) 
-endif()
 
 # If building out-of-source, define MFEM_CONFIG_FILE to point to the config file
 # inside the build directory.
