@@ -18,6 +18,8 @@ Meshing improvements
 - Added support for pyramids in non-conforming meshes. Currently only isotropic
   refinement is supported in this case.
 
+- Added support for pyramids in Gmsh meshes.
+
 - Fixed a bug in TMOP metric 301.
 
 Discretization improvements
