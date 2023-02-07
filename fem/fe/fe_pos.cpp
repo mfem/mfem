@@ -13,6 +13,7 @@
 
 #include "fe_pos.hpp"
 #include "../bilininteg.hpp"
+#include "../lininteg.hpp"
 #include "../coefficient.hpp"
 
 namespace mfem
