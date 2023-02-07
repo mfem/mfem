@@ -17,33 +17,85 @@
 namespace mfem
 {
 
-ChangeOfBasis_L2::ChangeOfBasis_L2(FiniteElementSpace &fes1,
-                                   FiniteElementSpace &fes2)
-   : Operator(fes1.GetTrueVSize()),
-     ne(fes1.GetNE())
+/// @brief Compute the inverse of the matrix A and store the result in Ainv.
+///
+/// The input A is an array of size n*n, interpreted as a matrix with column
+/// major ordering.
+void ComputeInverse(const Array<double> &A, Array<double> &Ainv)
 {
-   auto *fec1 = dynamic_cast<const L2_FECollection*>(fes1.FEColl());
-   auto *fec2 = dynamic_cast<const L2_FECollection*>(fes2.FEColl());
-   MFEM_VERIFY(fec1 && fec2, "Must be L2 finite element space");
-   int btype1 = fec1->GetBasisType();
-   int btype2 = fec2->GetBasisType();
+   Array<double> A2 = A;
+   const int n2 = A.Size();
+   const int n = sqrt(n2);
+   Array<int> ipiv(n);
+   LUFactors lu(A2.GetData(), ipiv.GetData());
+   lu.Factor(n);
+   Ainv.SetSize(n2);
+   lu.GetInverseMatrix(n, Ainv.GetData());
+}
+
+ChangeOfBasis_L2::ChangeOfBasis_L2(FiniteElementSpace &fes)
+   : Operator(fes.GetTrueVSize()),
+     ne(fes.GetNE())
+{
+   auto *fec1 = dynamic_cast<const L2_FECollection*>(fes.FEColl());
+   MFEM_VERIFY(fec1, "Must be L2 finite element space");
+
+   const int btype = fec1->GetBasisType();
 
    // If the basis types are the same, don't need to perform change of basis.
-   no_op = (btype1 == btype2);
+   no_op = (btype == BasisType::IntegratedGLL);
    if (no_op) { return; }
 
-   BasisType::CheckNodal(btype1);
+   // Convert from the given basis to the "integrated GLL basis".
+   // The degrees of freedom are integrals over subcells.
+   const FiniteElement *fe = fes.GetFE(0);
+   auto *tbe = dynamic_cast<const TensorBasisElement*>(fe);
+   MFEM_VERIFY(tbe != nullptr, "Must be a tensor element.");
+   const Poly_1D::Basis &basis = tbe->GetBasis1D();
 
-   const IntegrationRule &ir = fes1.GetFE(0)->GetNodes();
-   const auto mode = DofToQuad::TENSOR;
+   const int p = fes.GetMaxElementOrder();
+   const int pp1 = p + 1;
+   const IntegrationRule &ir = IntRules.Get(Geometry::SEGMENT, p);
+   const double *gll_pts = poly1d.GetPoints(pp1, BasisType::GaussLobatto);
 
-   // NOTE: this assumes that fes1 uses a *nodal basis*
-   // This creates a *copy* of dof2quad.
-   dof2quad = fes2.GetFE(0)->GetDofToQuad(ir, mode);
+   Vector u(pp1);
+   Array<double> B_inv(pp1*pp1);
+   B_inv = 0.0;
 
-   // Make copies of the 1D matrices.
-   B_1d = dof2quad.B;
-   Bt_1d = dof2quad.Bt;
+   // Loop over subcells
+   for (int i = 0; i < pp1; ++i)
+   {
+      const double h = gll_pts[i+1] - gll_pts[i];
+      // Loop over subcell quadrature points
+      for (int iq = 0; iq < ir.Size(); ++iq)
+      {
+         const IntegrationPoint &ip = ir[iq];
+         const double x = gll_pts[i] + h*ip.x;
+         const double w = h*ip.weight;
+         basis.Eval(x, u);
+         for (int j = 0; j < pp1; ++j)
+         {
+            B_inv[i + j*pp1] += w*u[j];
+         }
+      }
+   }
+
+   ComputeInverse(B_inv, B_1d);
+   // Transpose
+   Bt_1d.SetSize(pp1*pp1);
+   for (int i = 0; i < pp1; ++i)
+   {
+      for (int j = 0; j < pp1; ++j)
+      {
+         Bt_1d[i + j*pp1] = B_1d[j + i*pp1];
+      }
+   }
+
+   // Set up the DofToQuad object, used in TensorValues
+   dof2quad.FE = fe;
+   dof2quad.mode = DofToQuad::TENSOR;
+   dof2quad.ndof = pp1;
+   dof2quad.nqpt = pp1;
 }
 
 void ChangeOfBasis_L2::Mult(const Vector &x, Vector &y) const
@@ -83,6 +135,9 @@ ChangeOfBasis_RT::ChangeOfBasis_RT(FiniteElementSpace &fes1,
 
    const int cb_type2 = rt_fec2->GetClosedBasisType();
    const int ob_type2 = rt_fec2->GetOpenBasisType();
+
+   MFEM_VERIFY(cb_type2 == BasisType::GaussLobatto, "Wrong basis type.");
+   MFEM_VERIFY(ob_type2 == BasisType::IntegratedGLL, "Wrong basis type.");
 
    no_op = (cb_type1 == cb_type2 && ob_type1 == ob_type2);
    if (no_op) { return; }
@@ -126,20 +181,8 @@ ChangeOfBasis_RT::ChangeOfBasis_RT(FiniteElementSpace &fes1,
       }
    }
 
-   auto compute_inverse = [](const Array<double> &A, Array<double> &Ainv)
-   {
-      Array<double> A2 = A;
-      const int n2 = A.Size();
-      const int n = sqrt(n2);
-      Array<int> ipiv(n);
-      LUFactors lu(A2.GetData(), ipiv.GetData());
-      lu.Factor(n);
-      Ainv.SetSize(n2);
-      lu.GetInverseMatrix(n, Ainv.GetData());
-   };
-
-   compute_inverse(Bo_1d, Boi_1d);
-   compute_inverse(Bc_1d, Bci_1d);
+   ComputeInverse(Bo_1d, Boi_1d);
+   ComputeInverse(Bc_1d, Bci_1d);
 }
 
 const double *ChangeOfBasis_RT::GetOpenMap(Mode mode) const

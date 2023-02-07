@@ -27,7 +27,7 @@ private:
    Array<double> Bt_1d; ///< 1D basis transformation matrix traspose.
    bool no_op; ///< If the basis types are the same, the operation is a no-op.
 public:
-   ChangeOfBasis_L2(FiniteElementSpace &fes1, FiniteElementSpace &fes2);
+   ChangeOfBasis_L2(FiniteElementSpace &fes);
    void Mult(const Vector &x, Vector &y) const override;
    void MultTranspose(const Vector &x, Vector &y) const override;
 };
