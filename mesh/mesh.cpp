@@ -5344,7 +5344,8 @@ void Mesh::SetNodalGridFunction(GridFunction *nodes, bool make_owner)
 
 const FiniteElementSpace *Mesh::GetNodalFESpace() const
 {
-   return ((Nodes) ? Nodes->FESpace() : NULL);
+   const_cast< Mesh* >(this)->EnsureNodes();
+   return Nodes->FESpace();
 }
 
 void Mesh::SetCurvature(int order, bool discont, int space_dim, int ordering)

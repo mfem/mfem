@@ -1623,7 +1623,9 @@ public:
        from the current nodes/vertices. */
    void SetNodalGridFunction(GridFunction *nodes, bool make_owner = false);
    /** Return the FiniteElementSpace on which the current mesh nodes are
-       defined or NULL if the mesh does not have nodes. */
+       defined.
+       NOTE: despite being const this method will create the nodal finite
+             element space if necessary. */
    const FiniteElementSpace *GetNodalFESpace() const;
    /** @brief Make sure that the mesh has valid nodes, i.e. its geometry is
        described by a vector finite element grid function (even if it is a
