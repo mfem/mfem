@@ -5398,7 +5398,7 @@ void Mesh::LoadPatchTopo(std::istream &input, Array<int> &edge_to_knot)
       }
       while (corrections > 0 && j < 3*GetNE());
 
-      // Check validity of corrections applied
+      // Check the validity of corrections applied
       if (corrections > 0 )
       {
          mfem::err<<"Edge_to_knot mapping potentially incorrect"<<endl;
@@ -5447,7 +5447,7 @@ void Mesh::LoadPatchTopo(std::istream &input, Array<int> &edge_to_knot)
       }
 
       // Terminate here uppon failure after printing to have an idea of edge_to_knot.
-      if (corrections > 0 ) {mfem_error("Mesh::LoadPatchTopo")}
+      if (corrections > 0 ) {mfem_error("Mesh::LoadPatchTopo");}
    }
 }
 
