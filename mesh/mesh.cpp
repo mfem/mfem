@@ -5396,7 +5396,7 @@ void Mesh::LoadPatchTopo(std::istream &input, Array<int> &edge_to_knot)
 
          j++;
       }
-      while(corrections > 0 && j < 3*GetNE());
+      while (corrections > 0 && j < 3*GetNE());
 
       // Check validity of corrections applied
       if (corrections > 0 )
