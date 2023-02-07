@@ -33,6 +33,39 @@ void ComputeInverse(const Array<double> &A, Array<double> &Ainv)
    lu.GetInverseMatrix(n, Ainv.GetData());
 }
 
+void SubcellIntegrals(int n, const Poly_1D::Basis &basis, Array<double> &B)
+{
+   const IntegrationRule &ir = IntRules.Get(Geometry::SEGMENT, n);
+   const double *gll_pts = poly1d.GetPoints(n, BasisType::GaussLobatto);
+   Vector u(n);
+   B.SetSize(n*n);
+   B = 0.0;
+
+   for (int i = 0; i < n; ++i)
+   {
+      const double h = gll_pts[i+1] - gll_pts[i];
+      // Loop over subcell quadrature points
+      for (int iq = 0; iq < ir.Size(); ++iq)
+      {
+         const IntegrationPoint &ip = ir[iq];
+         const double x = gll_pts[i] + h*ip.x;
+         const double w = h*ip.weight;
+         basis.Eval(x, u);
+         for (int j = 0; j < n; ++j)
+         {
+            B[i + j*n] += w*u[j];
+         }
+      }
+   }
+}
+
+void Transpose(const Array<double> &B, Array<double> &Bt)
+{
+   const int n = sqrt(B.Size());
+   Bt.SetSize(n*n);
+   for (int i=0; i<n; ++i) for (int j=0; j<n; ++j) Bt[i+j*n] = B[j+i*n];
+}
+
 ChangeOfBasis_L2::ChangeOfBasis_L2(FiniteElementSpace &fes)
    : Operator(fes.GetTrueVSize()),
      ne(fes.GetNE())
@@ -55,41 +88,12 @@ ChangeOfBasis_L2::ChangeOfBasis_L2(FiniteElementSpace &fes)
 
    const int p = fes.GetMaxElementOrder();
    const int pp1 = p + 1;
-   const IntegrationRule &ir = IntRules.Get(Geometry::SEGMENT, p);
-   const double *gll_pts = poly1d.GetPoints(pp1, BasisType::GaussLobatto);
 
-   Vector u(pp1);
-   Array<double> B_inv(pp1*pp1);
-   B_inv = 0.0;
-
-   // Loop over subcells
-   for (int i = 0; i < pp1; ++i)
-   {
-      const double h = gll_pts[i+1] - gll_pts[i];
-      // Loop over subcell quadrature points
-      for (int iq = 0; iq < ir.Size(); ++iq)
-      {
-         const IntegrationPoint &ip = ir[iq];
-         const double x = gll_pts[i] + h*ip.x;
-         const double w = h*ip.weight;
-         basis.Eval(x, u);
-         for (int j = 0; j < pp1; ++j)
-         {
-            B_inv[i + j*pp1] += w*u[j];
-         }
-      }
-   }
+   Array<double> B_inv;
+   SubcellIntegrals(pp1, basis, B_inv);
 
    ComputeInverse(B_inv, B_1d);
-   // Transpose
-   Bt_1d.SetSize(pp1*pp1);
-   for (int i = 0; i < pp1; ++i)
-   {
-      for (int j = 0; j < pp1; ++j)
-      {
-         Bt_1d[i + j*pp1] = B_1d[j + i*pp1];
-      }
-   }
+   Transpose(B_1d, Bt_1d);
 
    // Set up the DofToQuad object, used in TensorValues
    dof2quad.FE = fe;
@@ -114,75 +118,49 @@ void ChangeOfBasis_L2::MultTranspose(const Vector &x, Vector &y) const
    TensorValues<QVectorLayout::byVDIM>(ne, 1, dof2quad, x, y);
 }
 
-ChangeOfBasis_RT::ChangeOfBasis_RT(FiniteElementSpace &fes1,
-                                   FiniteElementSpace &fes2)
-   : Operator(fes1.GetTrueVSize()),
-     fes(fes1),
-     dim(fes1.GetMesh()->Dimension()),
-     ne(fes1.GetNE()),
-     p(fes1.GetMaxElementOrder())
+ChangeOfBasis_RT::ChangeOfBasis_RT(FiniteElementSpace &fes)
+   : Operator(fes.GetTrueVSize()),
+     fes(fes),
+     dim(fes.GetMesh()->Dimension()),
+     ne(fes.GetNE()),
+     p(fes.GetMaxElementOrder())
 {
-   auto op = fes1.GetElementRestriction(ElementDofOrdering::LEXICOGRAPHIC);
+   auto op = fes.GetElementRestriction(ElementDofOrdering::LEXICOGRAPHIC);
    elem_restr = dynamic_cast<const ElementRestriction*>(op);
    MFEM_VERIFY(elem_restr != NULL, "Missing element restriciton.");
 
-   const auto *rt_fec1 = dynamic_cast<const RT_FECollection*>(fes1.FEColl());
-   const auto *rt_fec2 = dynamic_cast<const RT_FECollection*>(fes2.FEColl());
-   MFEM_VERIFY(rt_fec1 && rt_fec2, "Must be RT finite element space.");
+   const auto *rt_fec = dynamic_cast<const RT_FECollection*>(fes.FEColl());
+   MFEM_VERIFY(rt_fec, "Must be RT finite element space.");
 
-   const int cb_type1 = rt_fec1->GetClosedBasisType();
-   const int ob_type1 = rt_fec1->GetOpenBasisType();
+   const int cb_type = rt_fec->GetClosedBasisType();
+   const int ob_type = rt_fec->GetOpenBasisType();
 
-   const int cb_type2 = rt_fec2->GetClosedBasisType();
-   const int ob_type2 = rt_fec2->GetOpenBasisType();
-
-   MFEM_VERIFY(cb_type2 == BasisType::GaussLobatto, "Wrong basis type.");
-   MFEM_VERIFY(ob_type2 == BasisType::IntegratedGLL, "Wrong basis type.");
-
-   no_op = (cb_type1 == cb_type2 && ob_type1 == ob_type2);
+   no_op = (cb_type == BasisType::GaussLobatto && ob_type == BasisType::IntegratedGLL);
    if (no_op) { return; }
 
    const int pp1 = p + 1;
 
-   const double *cpts1 = poly1d.GetPoints(p, cb_type1);
-   const double *opts1 = poly1d.GetPoints(p - 1, ob_type1);
+   Poly_1D::Basis &cbasis = poly1d.GetBasis(p, cb_type);
+   Poly_1D::Basis &obasis = poly1d.GetBasis(p-1, ob_type);
 
-   const auto &cb2 = poly1d.GetBasis(p, BasisType::GaussLobatto);
-   auto &ob2 = poly1d.GetBasis(p - 1, BasisType::IntegratedGLL);
-   ob2.ScaleIntegrated(false);
+   const double *cpts2 = poly1d.GetPoints(p, BasisType::GaussLobatto);
 
-   Vector b;
-
-   // Evaluate cb2 at cb1
-   Bc_1d.SetSize(pp1*pp1);
-   Bct_1d.SetSize(pp1*pp1);
-   b.SetSize(pp1);
+   Bci_1d.SetSize(pp1*pp1);
+   Vector b(pp1);
    for (int i = 0; i < pp1; ++i)
    {
-      cb2.Eval(cpts1[i], b);
+      cbasis.Eval(cpts2[i], b);
       for (int j = 0; j < pp1; ++j)
       {
-         Bc_1d[i + j*pp1] = b[j];
-         Bct_1d[j + i*pp1] = b[j];
+         Bci_1d[i + j*pp1] = b[j];
       }
    }
+   SubcellIntegrals(p, obasis, Boi_1d);
 
-   // Evaluate ob2 at ob1
-   Bo_1d.SetSize(p*p);
-   Bot_1d.SetSize(p*p);
-   b.SetSize(p);
-   for (int i = 0; i < p; ++i)
-   {
-      ob2.Eval(opts1[i], b);
-      for (int j = 0; j < p; ++j)
-      {
-         Bo_1d[i + j*p] = b[j];
-         Bot_1d[j + i*p] = b[j];
-      }
-   }
-
-   ComputeInverse(Bo_1d, Boi_1d);
-   ComputeInverse(Bc_1d, Bci_1d);
+   ComputeInverse(Boi_1d, Bo_1d);
+   Transpose(Bo_1d, Bot_1d);
+   ComputeInverse(Bci_1d, Bc_1d);
+   Transpose(Bc_1d, Bct_1d);
 }
 
 const double *ChangeOfBasis_RT::GetOpenMap(Mode mode) const
