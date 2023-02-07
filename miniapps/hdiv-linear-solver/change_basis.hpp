@@ -17,7 +17,10 @@
 namespace mfem
 {
 
-/// Change of basis operator between L2 spaces
+/// @brief Change of basis operator between L2 spaces.
+///
+/// This represents the change-of-basis operator from the given L2 space to a
+/// space using the IntegratedGLL basis.
 class ChangeOfBasis_L2 : public Operator
 {
 private:
@@ -32,7 +35,11 @@ public:
    void MultTranspose(const Vector &x, Vector &y) const override;
 };
 
-/// Change of basis operator between RT spaces
+/// Change of basis operator between RT spaces.
+///
+/// This represents the change-of-basis operator from the given RT space to a
+/// space using Gauss-Lobatto as the "open" basis and IntegratedGLL as the
+/// "closed" basis.
 class ChangeOfBasis_RT : public Operator
 {
 public:
@@ -65,7 +72,7 @@ private:
    const double *GetOpenMap(Mode mode) const;
    const double *GetClosedMap(Mode mode) const;
 public:
-   ChangeOfBasis_RT(FiniteElementSpace &fes1, FiniteElementSpace &fes2);
+   ChangeOfBasis_RT(FiniteElementSpace &fes);
    void Mult(const Vector &x, Vector &y) const override;
    void MultTranspose(const Vector &x, Vector &y) const override;
    void MultInverse(const Vector &x, Vector &y) const;

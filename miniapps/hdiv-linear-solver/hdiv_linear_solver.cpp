@@ -73,7 +73,7 @@ HdivSaddlePointSolver::HdivSaddlePointSolver(
      fes_rt(&mesh, &fec_rt),
      ess_rt_dofs(ess_rt_dofs_),
      basis_l2(fes_l2_),
-     basis_rt(fes_rt_, fes_rt),
+     basis_rt(fes_rt_),
      mass_l2(&fes_l2),
      mass_rt(&fes_rt),
      L_coeff(L_coeff_),
