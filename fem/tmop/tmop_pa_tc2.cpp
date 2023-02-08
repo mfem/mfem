@@ -36,7 +36,7 @@ MFEM_REGISTER_TMOP_KERNELS(bool, TC_IDEAL_SHAPE_UNIT_SIZE_2D_KERNEL,
    const auto W = Reshape(w_.Read(), DIM,DIM);
    auto J = Reshape(j_.Write(), DIM,DIM, Q1D,Q1D, NE);
 
-   MFEM_FORALL_2D(e, NE, Q1D, Q1D, NBZ,
+   mfem::forall_2D_batch(NE, Q1D, Q1D, NBZ, [=] MFEM_HOST_DEVICE (int e)
    {
       const int Q1D = T_Q1D ? T_Q1D : q1d;
       MFEM_FOREACH_THREAD(qy,y,Q1D)
@@ -73,7 +73,7 @@ MFEM_REGISTER_TMOP_KERNELS(bool, TC_IDEAL_SHAPE_GIVEN_SIZE_2D_KERNEL,
    const auto X = Reshape(x_.Read(), D1D, D1D, DIM, NE);
    auto J = Reshape(j_.Write(), DIM,DIM, Q1D,Q1D, NE);
 
-   MFEM_FORALL_2D(e, NE, Q1D, Q1D, NBZ,
+   mfem::forall_2D_batch(NE, Q1D, Q1D, NBZ, [=] MFEM_HOST_DEVICE (int e)
    {
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;

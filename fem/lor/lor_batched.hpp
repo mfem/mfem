@@ -89,7 +89,7 @@ protected:
 public:
    /// @name GPU kernel functions
    /// These functions should be considered protected, but they contain
-   /// MFEM_FORALL kernels, and so they must be public (this is a compiler
+   /// mfem::forall kernels, and so they must be public (this is a compiler
    /// limitation).
    ///@{
 

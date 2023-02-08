@@ -24,7 +24,7 @@ namespace internal
 
 void MakeReciprocal(int n, double *x)
 {
-   MFEM_FORALL(i, n, x[i] = 1.0/x[i]; );
+   mfem::forall(n, [=] MFEM_HOST_DEVICE (int i) { x[i] = 1.0/x[i]; });
 }
 
 template <int DIM, int D1D, int Q1D>

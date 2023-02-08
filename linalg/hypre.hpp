@@ -43,7 +43,7 @@
 #error "MFEM_USE_HIP=YES is required when HYPRE is built with HIP!"
 #endif
 
-// MFEM_HYPRE_FORALL is a macro similar to MFEM_FORALL, but it executes on the
+// MFEM_HYPRE_FORALL is a macro similar to mfem::forall, but it executes on the
 // device that hypre was configured with (no matter what device was selected
 // in MFEM's runtime configuration).
 #if defined(HYPRE_USING_CUDA)

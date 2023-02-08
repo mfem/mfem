@@ -35,7 +35,7 @@ MFEM_REGISTER_TMOP_KERNELS(void, AssembleDiagonalPA_Kernel_C0_2D,
 
    auto D = Reshape(diagonal.ReadWrite(), D1D, D1D, DIM, NE);
 
-   MFEM_FORALL_2D(e, NE, Q1D, Q1D, 1,
+   mfem::forall_2D(NE, Q1D, Q1D, [=] MFEM_HOST_DEVICE (int e)
    {
       constexpr int DIM = 2;
       const int D1D = T_D1D ? T_D1D : d1d;

@@ -3621,7 +3621,10 @@ static void ExtractSubVector(const Array<int> &indices,
    auto y = vout.Write();
    const auto x = vin.Read();
    const auto I = indices.Read();
-   MFEM_FORALL(i, indices.Size(), y[i] = x[I[i]];); // indices can be repeated
+   mfem::forall(indices.Size(), [=] MFEM_HOST_DEVICE (int i)
+   {
+      y[i] = x[I[i]];
+   }); // indices can be repeated
 }
 
 void DeviceConformingProlongationOperator::BcastBeginCopy(
@@ -3643,7 +3646,10 @@ static void SetSubVector(const Array<int> &indices,
    auto y = vout.ReadWrite();
    const auto x = vin.Read();
    const auto I = indices.Read();
-   MFEM_FORALL(i, indices.Size(), y[I[i]] = x[i];);
+   mfem::forall(indices.Size(), [=] MFEM_HOST_DEVICE (int i)
+   {
+      y[I[i]] = x[i];
+   });
 }
 
 void DeviceConformingProlongationOperator::BcastLocalCopy(
@@ -3747,7 +3753,7 @@ static void AddSubVector(const Array<int> &unique_dst_indices,
    const auto DST_I = unique_dst_indices.Read();
    const auto SRC_O = unique_to_src_offsets.Read();
    const auto SRC_I = unique_to_src_indices.Read();
-   MFEM_FORALL(i, unique_dst_indices.Size(),
+   mfem::forall(unique_dst_indices.Size(), [=] MFEM_HOST_DEVICE (int i)
    {
       const int dst_idx = DST_I[i];
       double sum = y[dst_idx];
