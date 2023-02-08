@@ -278,6 +278,7 @@ miniapps/tools/convert-dc
 miniapps/tools/lor-transfer
 miniapps/tools/get-values
 miniapps/tools/check-tmop-metric
+miniapps/tools/tmop-metric-magnitude
 
 miniapps/toys/automata
 miniapps/toys/life
