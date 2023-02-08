@@ -5344,7 +5344,7 @@ void Mesh::SetNodalGridFunction(GridFunction *nodes, bool make_owner)
 
 const FiniteElementSpace *Mesh::GetNodalFESpace() const
 {
-   const_cast< Mesh* >(this)->EnsureNodes();
+   if (Nodes == nullptr) { const_cast<Mesh*>(this)->EnsureNodes(); }
    return Nodes->FESpace();
 }
 
