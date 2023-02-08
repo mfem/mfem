@@ -159,11 +159,12 @@ protected:
    ///@}
 
    /// @name Solver statistics (protected attributes)
+   /// Every IterativeSolver is expected to define these in its Mult() call.
    ///@{
 
-   mutable int final_iter;
-   mutable bool converged;
-   mutable double final_norm;
+   mutable int final_iter = -1;
+   mutable bool converged = false;
+   mutable double initial_norm = -1.0, final_norm = -1.0;
 
    ///@}
 
@@ -241,11 +242,38 @@ public:
    virtual void SetPrintLevel(PrintLevel);
    ///@}
 
-   /// @name Solver statistics
+   /// @name Solver statistics.
+   /// These are valid after the call to Mult().
    ///@{
+
+   /// Returns the number of iterations taken during the last call to Mult()
    int GetNumIterations() const { return final_iter; }
+   /// Returns true if the last call to Mult() converged successfully.
    bool GetConverged() const { return converged; }
+   /// @brief Returns the initial residual norm from the last call to Mult().
+   ///
+   /// This function returns the norm of the residual (or preconditioned
+   /// residual, depending on the solver), computed before the start of the
+   /// iteration.
+   double GetInitialNorm() const { return initial_norm; }
+   /// @brief Returns the final residual norm after termination of the solver
+   /// during the last call to Mult().
+   ///
+   /// This function returns the norm of the residual (or preconditioned
+   /// residual, depending on the solver), corresponding to the returned
+   /// solution.
    double GetFinalNorm() const { return final_norm; }
+   /// @brief Returns the final residual norm after termination of the solver
+   /// during the last call to Mult(), divided by the initial residual norm.
+   /// Returns -1 if one of these norms is left undefined by the solver.
+   ///
+   /// @sa GetFinalNorm(), GetInitialNorm()
+   double GetFinalRelNorm() const
+   {
+      if (final_norm < 0.0 || initial_norm < 0.0) { return -1.0; }
+      return final_norm / initial_norm;
+   }
+
    ///@}
 
    /// This should be called before SetOperator
@@ -1196,6 +1224,7 @@ public:
    virtual void MultTranspose(const Vector &x, Vector &y) const { Mult(x, y, true); }
    virtual void SetOperator(const Operator &op) { }
    HypreSmoother& GetSmoother() { return *aux_smoother_.As<HypreSmoother>(); }
+   using Operator::Mult;
 };
 #endif // MFEM_USE_MPI
 

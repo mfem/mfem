@@ -456,14 +456,13 @@ void ScalarFiniteElement::ScalarLocalInterpolation(
    }
 }
 
-void ScalarFiniteElement::ScalarLocalRestriction(
+void ScalarFiniteElement::ScalarLocalL2Restriction(
    ElementTransformation &Trans, DenseMatrix &R,
    const ScalarFiniteElement &coarse_fe) const
 {
    // General "restriction", defined by L2 projection
    double v[Geometry::MaxDim];
-   Vector vv (v, dim);
-   IntegrationPoint f_ip;
+   Vector vv(v, dim);
 
    const int cs = coarse_fe.GetDof(), fs = this->GetDof();
    R.SetSize(cs, fs);
@@ -472,16 +471,27 @@ void ScalarFiniteElement::ScalarLocalRestriction(
    const int ir_order = GetOrder() + coarse_fe.GetOrder();
    const IntegrationRule &ir = IntRules.Get(coarse_fe.GetGeomType(), ir_order);
 
+   // integrate coarse_mass in the coarse space
    for (int i = 0; i < ir.GetNPoints(); i++)
    {
-      const IntegrationPoint &ip = ir.IntPoint(i);
-      this->CalcShape(ip, fine_shape);
-      Trans.Transform(ip, vv);
-      f_ip.Set(v, dim);
-      coarse_fe.CalcShape(f_ip, coarse_shape);
+      const IntegrationPoint &c_ip = ir.IntPoint(i);
+      coarse_fe.CalcShape(c_ip, coarse_shape);
+      AddMult_a_VVt(c_ip.weight, coarse_shape, coarse_mass);
+   }
 
-      AddMult_a_VVt(ip.weight, coarse_shape, coarse_mass);
-      AddMult_a_VWt(ip.weight, coarse_shape, fine_shape, coarse_fine_mass);
+   // integrate coarse_fine_mass in the fine space
+   Trans.SetIntPoint(&Geometries.GetCenter(geom_type));
+   for (int i = 0; i < ir.GetNPoints(); i++)
+   {
+      const IntegrationPoint &f_ip = ir.IntPoint(i);
+      this->CalcShape(f_ip, fine_shape);
+      Trans.Transform(f_ip, vv);
+
+      IntegrationPoint c_ip;
+      c_ip.Set(v, dim);
+      coarse_fe.CalcShape(c_ip, coarse_shape);
+      AddMult_a_VWt(f_ip.weight*Trans.Weight(), coarse_shape, fine_shape,
+                    coarse_fine_mass);
    }
 
    DenseMatrixInverse coarse_mass_inv(coarse_mass);
