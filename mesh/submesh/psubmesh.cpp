@@ -167,6 +167,7 @@ ParSubMesh::ParSubMesh(const ParMesh &parent, SubMesh::From from,
 
    // Add boundaries
    {
+      int num_of_faces_or_edges = (Dim == 2) ? NumOfEdges : NumOfFaces;
       Array<int> &be2face = (Dim == 2) ? be_to_edge : be_to_face;
 
       if (Dim == 3)
@@ -178,7 +179,7 @@ ParSubMesh::ParSubMesh(const ParMesh &parent, SubMesh::From from,
       }
 
       NumOfBdrElements = 0;
-      for (int i = 0; i < NumOfFaces; i++)
+      for (int i = 0; i < num_of_faces_or_edges; i++)
       {
          if (GetFaceInformation(i).IsBoundary())
          {
@@ -193,7 +194,7 @@ ParSubMesh::ParSubMesh(const ParMesh &parent, SubMesh::From from,
       {
          parent_face_to_be = parent.GetFaceToBdrElMap();
       }
-      for (int i = 0, j = 0; i < NumOfFaces; i++)
+      for (int i = 0, j = 0; i < num_of_faces_or_edges; i++)
       {
          if (GetFaceInformation(i).IsBoundary())
          {
@@ -210,6 +211,10 @@ ParSubMesh::ParSubMesh(const ParMesh &parent, SubMesh::From from,
                {
                   boundary[j]->SetAttribute(SubMesh::GENERATED_ATTRIBUTE);
                }
+            }
+            else
+            {
+               boundary[j]->SetAttribute(SubMesh::GENERATED_ATTRIBUTE);
             }
             be2face[j++] = i;
          }
