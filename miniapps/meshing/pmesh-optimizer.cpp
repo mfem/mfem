@@ -822,10 +822,8 @@ int main (int argc, char *argv[])
    auto metric_combo = dynamic_cast<TMOP_Combo_QualityMetric *>(metric);
    if (metric_combo && bal_expl_combo)
    {
-      Vector bal_weights(2);
-      metric_combo->ComputeBalancedWeights
-            (x, *target_c, TMOP_Combo_QualityMetric::Universal, bal_weights);
-      bal_weights.Print();
+      Vector bal_weights;
+      metric_combo->ComputeBalancedWeights(x, *target_c, bal_weights);
       metric_combo->SetWeights(bal_weights);
    }
 
@@ -1293,22 +1291,6 @@ int main (int argc, char *argv[])
            << " + extra terms: " << fin_energy - fin_metric_energy << endl;
       cout << "The strain energy decreased by: "
            << (init_energy - fin_energy) * 100.0 / init_energy << " %." << endl;
-   }
-
-   // Report imbalance in expicit metric combinations.
-   if (metric_combo)
-   {
-      Vector metric_averages;
-      metric_combo->ComputeAvgMetrics(x, *target_c, metric_averages);
-      if (myid == 0)
-      {
-         cout << "Combo metric final averages: ";
-         for (int m = 0; m < metric_averages.Size(); m++)
-         {
-            cout << metric_averages(m) << " ";
-         }
-         cout << endl;
-      }
    }
 
    // Visualize the final mesh and metric values.
