@@ -104,7 +104,7 @@ int main(int argc, char *argv[])
 
    DenseMatrix J;
    (dim == 2) ? Form2DJac(perturb_v, perturb_ar, perturb_s, J)
-              : Form3DJac(perturb_v, perturb_ar, perturb_s, J);
+   /* */      : Form3DJac(perturb_v, perturb_ar, perturb_s, J);
 
    const int nodes_cnt = x.Size() / dim;
    for (int i = 0; i < nodes_cnt; i++)
