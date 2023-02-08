@@ -5394,7 +5394,7 @@ void Mesh::LoadPatchTopo(std::istream &input, Array<int> &edge_to_knot)
             }
          }
 
-         j++;
+         passes++;
       }
       while (corrections > 0 && passes < 3*GetNE());
 
@@ -5402,8 +5402,8 @@ void Mesh::LoadPatchTopo(std::istream &input, Array<int> &edge_to_knot)
       if (corrections > 0 )
       {
          mfem::err<<"Edge_to_knot mapping potentially incorrect"<<endl;
-         mfem::err<<"  passes      = " << passes      << endl;
-         mfem::err<<"  corrections = " << corrections << endl;
+         mfem::err<<"  passes      = "<<passes<<endl;
+         mfem::err<<"  corrections = "<<corrections<<endl;
       }
 
       /* Renumber knotvectors, such that:
