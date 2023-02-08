@@ -61,7 +61,7 @@ public:
 };
 
 
-// A Coefficient for computing the components of the stress.
+// Strain energy density coefficient
 class StrainEnergyDensityCoefficient : public Coefficient
 {
 protected:
@@ -107,7 +107,7 @@ public:
    }
 };
 
-// TODO: Description
+// Volumetric force for linear elasticity
 class VolumeForceCoefficient : public VectorCoefficient
 {
 private:
@@ -157,7 +157,9 @@ class DiffusionSolver
 private:
    Mesh * mesh = nullptr;
    int order = 1;
+   // diffusion coefficient
    Coefficient * diffcf = nullptr;
+   // mass coefficient
    Coefficient * masscf = nullptr;
    Coefficient * rhscf = nullptr;
    Coefficient * essbdr_cf = nullptr;
