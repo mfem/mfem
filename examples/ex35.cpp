@@ -105,6 +105,11 @@ using namespace mfem;
  *
  *    C e = λtr(e)I + 2μe           (isotropic material)
  *
+ *  NOTE: The Lame parameters can be computed from Young's modulus E
+ *        and Poisson's ratio ν as follows:
+ *
+ *             λ = E ν/((1+ν)(1-2ν)),      μ = E/(2(1+ν))
+ *
  * ---------------------------------------------------------------
  *
  *  Discretization choices:
@@ -398,6 +403,10 @@ int main(int argc, char *argv[])
       M.Mult(w_rhs,grad);
 
       // Step 5 - Update design variable ρ ← projit(expit(linit(ρ) - αG))
+      // Note: The update here is performed on the coefficients of the linear
+      //       representation of the design variable in the Berstein basis. It would
+      //       be more mathematically sound to update the design variable so that
+      //       the values at the integration points follow this update rule.
       for (int i = 0; i < rho.Size(); i++)
       {
          rho[i] = expit(lnit(rho[i]) - alpha*grad[i]);
