@@ -102,7 +102,7 @@ public:
 
    /// @brief Solve the system M b = u. <b>Not part of the public interface.</b>
    /// @note This member function must be public because it contains an
-   /// MFEM_FORALL kernel (nvcc limitation)
+   /// mfem::forall kernel (nvcc limitation)
    template<int DIM, int D1D = 0, int Q1D = 0>
    void DGMassCGIteration(const Vector &b_, Vector &u_) const;
 };

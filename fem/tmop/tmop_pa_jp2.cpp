@@ -39,7 +39,7 @@ MFEM_REGISTER_TMOP_KERNELS(double, MinDetJpr_Kernel_2D,
 
    auto E = Reshape(DetJ.Write(), Q1D, Q1D, NE);
 
-   MFEM_FORALL_2D(e, NE, Q1D, Q1D, NBZ,
+   mfem::forall_2D_batch(NE, Q1D, Q1D, NBZ, [=] MFEM_HOST_DEVICE (int e)
    {
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
