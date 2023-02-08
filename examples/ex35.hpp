@@ -9,7 +9,7 @@
 using namespace std;
 using namespace mfem;
 
-// Convenience functions
+// Inverse sigmoid function
 double lnit(double x)
 {
    double tol = 1e-12;
@@ -17,6 +17,7 @@ double lnit(double x)
    return log(x/(1.0-x));
 }
 
+// Sigmoid function
 double expit(double x)
 {
    if (x >= 0)
@@ -29,14 +30,15 @@ double expit(double x)
    }
 }
 
+// Derivative of sigmoid function
 double dexpitdx(double x)
 {
    double tmp = expit(-x);
    return tmp - pow(tmp,2);
 }
 
-// TODO: Description
-class SIMPCoefficient : public Coefficient
+//  Solid isotropic material penalization (SIMP) coefficient
+class SIMPInterpolationCoefficient : public Coefficient
 {
 protected:
    GridFunction *rho_filter; // grid function
@@ -45,9 +47,8 @@ protected:
    double exponent;
 
 public:
-   SIMPCoefficient(GridFunction *rho_filter_, double min_val_= 1e-3,
-                   double max_val_=1.0,
-                   double exponent_ = 3)
+   SIMPInterpolationCoefficient(GridFunction *rho_filter_, double min_val_= 1e-6,
+                                double max_val_ = 1.0, double exponent_ = 3)
       : rho_filter(rho_filter_), min_val(min_val_), max_val(max_val_),
         exponent(exponent_) { }
 

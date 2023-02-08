@@ -374,7 +374,7 @@ int main(int argc, char *argv[])
 
       // Step 2 - State solve
       // Solve (λ(ρ̃) ∇⋅u, ∇⋅v) + (2 μ(ρ̃) ε(u), ε(v)) = (f,v)
-      SIMPCoefficient SIMP_cf(&rho_filter,rho_min, 1.0);
+      SIMPInterpolationCoefficient SIMP_cf(&rho_filter,rho_min, 1.0);
       ProductCoefficient lambda_SIMP_cf(lambda_cf,SIMP_cf);
       ProductCoefficient mu_SIMP_cf(mu_cf,SIMP_cf);
       ElasticitySolver->SetLameCoefficients(&lambda_SIMP_cf,&mu_SIMP_cf);
@@ -437,6 +437,9 @@ int main(int argc, char *argv[])
          break;
       }
    }
+
+   delete ElasticitySolver;
+   delete FilterSolver;
 
    return 0;
 }
