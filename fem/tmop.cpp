@@ -144,6 +144,7 @@ void TMOP_Combo_QualityMetric::ComputeAvgMetrics(const GridFunction &nodes,
    }
 
    // Parallel case.
+#ifdef MFEM_USE_MPI
    auto par_nodes = dynamic_cast<const ParGridFunction *>(&nodes);
    if (par_nodes)
    {
@@ -152,6 +153,7 @@ void TMOP_Combo_QualityMetric::ComputeAvgMetrics(const GridFunction &nodes,
       MPI_Allreduce(MPI_IN_PLACE, &volume, 1, MPI_DOUBLE, MPI_SUM,
                     par_nodes->ParFESpace()->GetComm());
    }
+#endif
 
    averages /= volume;
 }
