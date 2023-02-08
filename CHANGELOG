@@ -51,6 +51,8 @@ Version 4.5.2, released on March 23, 2023
 
 - Added HIP support to the SUNDIALS interface.
 
+- Added HIP support to the SUNDIALS interface.
+
 Miscellaneous
 -------------
 - VisItDataCollection now correctly handles collection names containing
