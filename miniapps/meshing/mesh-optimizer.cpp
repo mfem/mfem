@@ -1246,19 +1246,6 @@ int main(int argc, char *argv[])
    cout << "The strain energy decreased by: "
         << (init_energy - fin_energy) * 100.0 / init_energy << " %." << endl;
 
-   // Report imbalance in expicit metric combinations.
-   if (metric_combo)
-   {
-      Vector metric_averages;
-      metric_combo->ComputeAvgMetrics(x, *target_c, metric_averages);
-      cout << "Combo metric final averages: ";
-      for (int m = 0; m < metric_averages.Size(); m++)
-      {
-         cout << metric_averages(m) << " ";
-      }
-      cout << endl;
-   }
-
    // Visualize the final mesh and metric values.
    if (visualization)
    {
