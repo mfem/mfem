@@ -2782,7 +2782,7 @@ int NURBSExtension::NumPatchDofs1D(const int patch, const int dim)
 
 const Array3D<int>& NURBSExtension::GetPatchDofs(const int patch)
 {
-   if ((int) patchDofs.size() <= patch)
+   if (patchDofs.size() <= patch)
    {
       GeneratePatchDofTable();
    }

@@ -230,7 +230,6 @@ protected:
 
    void GetPatchKnotVectors   (int p, Array<KnotVector *> &kv);
    void GetBdrPatchKnotVectors(int p, Array<KnotVector *> &kv);
-   void GetBdrPatchKnotVectors(int p, Array<const KnotVector *> &kv) const;
 
    void SetOrderFromOrders();
    void SetOrdersFromKnotVectors();
@@ -367,6 +366,8 @@ public:
    /// Returns knotvectors in each dimension for patch @a p.
    void GetPatchKnotVectors(int p, Array<const KnotVector *> &kv) const;
 
+   void GetBdrPatchKnotVectors(int p, Array<const KnotVector *> &kv) const;
+
    // Knotvector read-only access function
    const KnotVector *GetKnotVector(int i) const { return knotVectors[i]; }
 
@@ -423,11 +424,21 @@ public:
    int NumPatchDofs1D(const int patch, const int dim);
 
 private:
+
+   /// Tensor product degrees of freedom for each patch, 3D case.
    std::vector<Array3D<int>> patchDofs;
+
+   /// Number of degrees of freedom in patch p, dimension d is ndof1D(p,d).
    Array2D<int> ndof1D;
+
+   /** In patch p, dimension d, patch_ijk[p][d] is the set of knot span indices
+    representing elements. */
    std::vector<std::vector<std::set<int>>> patch_ijk;
 
+   /// Sets up data returned by GetPatchDofs().
    void GeneratePatchDofTable();
+
+   /// Implements GeneratePatchDofTable for the 3D case.
    void Generate3DPatchDofTable();
 };
 
